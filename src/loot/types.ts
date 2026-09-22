@@ -57,11 +57,27 @@ export interface FloorItem {
 
 export type Equipment = Record<Slot, Item | null>;
 
+/** 1 ラン分の履歴（死亡 or R 再開のたびに記録）。docs は無いので profile.ts の HISTORY_LIMIT を参照 */
+export interface RunHistoryEntry {
+  /** epoch ms */
+  date: number;
+  seedText: string;
+  depth: number;
+  kills: number;
+  score: number;
+  bestCombo: number;
+  durationSec: number;
+  /** "defeated"（死亡）/ "abandoned"（R や Restart で中断） */
+  cause?: string;
+}
+
 export interface ProfileMeta {
   runs: number;
   bestDepth: number;
   totalKills: number;
   bestScore: number;
+  /** 追加フィールド。version は変えず、欠けていても loadProfile 側で補う */
+  history?: RunHistoryEntry[];
 }
 
 export interface Profile {
@@ -80,7 +96,7 @@ export function createEmptyProfile(): Profile {
     version: 1,
     equipment: createEmptyEquipment(),
     stash: [],
-    meta: { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0 },
+    meta: { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0, history: [] },
   };
 }
 

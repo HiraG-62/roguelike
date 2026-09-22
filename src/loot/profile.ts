@@ -6,6 +6,7 @@ import {
   type Item,
   type Profile,
   type ProfileMeta,
+  type RunHistoryEntry,
   type Slot,
   SLOTS,
   createEmptyEquipment,
@@ -17,6 +18,8 @@ export const PROFILE_KEY = "roguelike.profile.v1";
 
 const CURRENT_VERSION = 1;
 const AFFIX_KINDS: readonly AffixKind[] = ["prefix", "suffix"];
+/** ラン履歴の保持件数（最新が先頭） */
+export const HISTORY_LIMIT = 20;
 
 /** 記録された run の結果。recordRun の入力 */
 export interface RunResult {
@@ -93,13 +96,41 @@ function sanitizeStash(v: unknown): Item[] {
   return out;
 }
 
+/** RunHistoryEntry として最低限成立しているかを検証する。壊れていたら null */
+function sanitizeHistoryEntry(v: unknown): RunHistoryEntry | null {
+  if (!isRecord(v)) return null;
+  const { date, seedText, depth, kills, score, bestCombo, durationSec, cause } = v;
+  if (typeof date !== "number") return null;
+  if (typeof seedText !== "string") return null;
+  if (typeof depth !== "number") return null;
+  if (typeof kills !== "number") return null;
+  if (typeof score !== "number") return null;
+  if (typeof bestCombo !== "number") return null;
+  if (typeof durationSec !== "number") return null;
+  if (cause !== undefined && typeof cause !== "string") return null;
+  const entry: RunHistoryEntry = { date, seedText, depth, kills, score, bestCombo, durationSec };
+  if (typeof cause === "string") entry.cause = cause;
+  return entry;
+}
+
+function sanitizeHistory(v: unknown): RunHistoryEntry[] {
+  if (!Array.isArray(v)) return [];
+  const out: RunHistoryEntry[] = [];
+  for (const raw of v) {
+    const entry = sanitizeHistoryEntry(raw);
+    if (entry) out.push(entry);
+  }
+  return out.slice(0, HISTORY_LIMIT);
+}
+
 function sanitizeMeta(v: unknown): ProfileMeta {
-  if (!isRecord(v)) return { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0 };
+  if (!isRecord(v)) return { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0, history: [] };
   const runs = typeof v.runs === "number" ? v.runs : 0;
   const bestDepth = typeof v.bestDepth === "number" ? v.bestDepth : 0;
   const totalKills = typeof v.totalKills === "number" ? v.totalKills : 0;
   const bestScore = typeof v.bestScore === "number" ? v.bestScore : 0;
-  return { runs, bestDepth, totalKills, bestScore };
+  const history = sanitizeHistory(v.history);
+  return { runs, bestDepth, totalKills, bestScore, history };
 }
 
 /**
@@ -201,4 +232,11 @@ export function recordRun(profile: Profile, result: RunResult): void {
   meta.bestDepth = Math.max(meta.bestDepth, result.depth);
   meta.totalKills += result.kills;
   meta.bestScore = Math.max(meta.bestScore, result.score);
+}
+
+/** ラン履歴の先頭に 1 件追加し、最新 HISTORY_LIMIT 件だけ残す */
+export function pushRunHistory(profile: Profile, entry: RunHistoryEntry): void {
+  const history = profile.meta.history ?? [];
+  history.unshift(entry);
+  profile.meta.history = history.slice(0, HISTORY_LIMIT);
 }

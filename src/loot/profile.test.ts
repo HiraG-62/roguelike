@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { STASH_CAPACITY } from "../data/tuning";
 import {
+  HISTORY_LIMIT,
   PROFILE_KEY,
   addToStash,
   equipItem,
   loadProfile,
+  pushRunHistory,
   recordRun,
   salvageItem,
   saveProfile,
   unequipItem,
 } from "./profile";
 import { createEmptyProfile } from "./types";
-import type { Item } from "./types";
+import type { Item, RunHistoryEntry } from "./types";
 
 /** テスト用の Storage モック（Map ベース） */
 class MemoryStorage implements Storage {
@@ -116,7 +118,7 @@ describe("loadProfile / saveProfile", () => {
     const loaded = loadProfile(storage);
     expect(loaded.equipment.weapon).toBeNull();
     expect(loaded.stash).toEqual([makeItem({ id: "good" })]);
-    expect(loaded.meta).toEqual({ runs: 1, bestDepth: 2, totalKills: 3, bestScore: 4 });
+    expect(loaded.meta).toEqual({ runs: 1, bestDepth: 2, totalKills: 3, bestScore: 4, history: [] });
   });
 
   it("setItem が例外を投げても握りつぶす", () => {
@@ -198,9 +200,85 @@ describe("recordRun", () => {
     const profile = createEmptyProfile();
     recordRun(profile, { depth: 3, kills: 5, score: 100 });
     recordRun(profile, { depth: 1, kills: 2, score: 200 });
-    expect(profile.meta).toEqual({ runs: 2, bestDepth: 3, totalKills: 7, bestScore: 200 });
+    expect(profile.meta).toEqual({ runs: 2, bestDepth: 3, totalKills: 7, bestScore: 200, history: [] });
   });
 });
+
+describe("pushRunHistory", () => {
+  function historyEntry(overrides: Partial<RunHistoryEntry> = {}): RunHistoryEntry {
+    return {
+      date: 1,
+      seedText: "abc",
+      depth: 1,
+      kills: 0,
+      score: 0,
+      bestCombo: 0,
+      durationSec: 0,
+      ...overrides,
+    };
+  }
+
+  it("先頭に追加され、新しいものが先頭に来る", () => {
+    const profile = createEmptyProfile();
+    pushRunHistory(profile, historyEntry({ date: 1 }));
+    pushRunHistory(profile, historyEntry({ date: 2 }));
+    expect(profile.meta.history?.map((h) => h.date)).toEqual([2, 1]);
+  });
+
+  it("最新 HISTORY_LIMIT 件だけ残す", () => {
+    const profile = createEmptyProfile();
+    for (let i = 0; i < HISTORY_LIMIT + 5; i++) {
+      pushRunHistory(profile, historyEntry({ date: i }));
+    }
+    expect(profile.meta.history).toHaveLength(HISTORY_LIMIT);
+    expect(profile.meta.history?.[0]?.date).toBe(HISTORY_LIMIT + 4);
+  });
+});
+
+describe("history の保存・読み込み", () => {
+  it("round trip する", () => {
+    const storage = new MemoryStorage();
+    const profile = createEmptyProfile();
+    pushRunHistory(profile, historyEntryForRoundTrip());
+    saveProfile(profile, storage);
+    const loaded = loadProfile(storage);
+    expect(loaded.meta.history).toEqual(profile.meta.history);
+  });
+
+  it("history が壊れている/欠けていても loadProfile は落ちない", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      PROFILE_KEY,
+      JSON.stringify({
+        version: 1,
+        equipment: {},
+        stash: [],
+        meta: { runs: 1, bestDepth: 1, totalKills: 0, bestScore: 0, history: [{ broken: true }, "nope"] },
+      }),
+    );
+    const loaded = loadProfile(storage);
+    expect(loaded.meta.history).toEqual([]);
+
+    storage.setItem(
+      PROFILE_KEY,
+      JSON.stringify({ version: 1, equipment: {}, stash: [], meta: { runs: 1, bestDepth: 1, totalKills: 0, bestScore: 0 } }),
+    );
+    expect(loadProfile(storage).meta.history).toEqual([]);
+  });
+});
+
+function historyEntryForRoundTrip(): RunHistoryEntry {
+  return {
+    date: 12345,
+    seedText: "seed",
+    depth: 4,
+    kills: 20,
+    score: 999,
+    bestCombo: 12,
+    durationSec: 88.5,
+    cause: "defeated",
+  };
+}
 
 describe("localStorage getter が例外を投げる環境", () => {
   it("loadProfile / saveProfile が落ちない", () => {
