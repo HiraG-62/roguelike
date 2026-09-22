@@ -1,4 +1,4 @@
-import { APPLY_STAGES, applyRoll, rollStage } from "./affixes";
+import { APPLY_STAGES, applyRoll, keystoneDef, resolveKeystones, rollStage } from "./affixes";
 import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats } from "./types";
 
 /** 倍率系の下限（マイナス補正の積み重ねで 0 以下にならないように） */
@@ -47,6 +47,23 @@ const PROBABILITY_KEYS: readonly StatKey[] = [
   "explodeOnKillChance",
 ];
 
+/** ソフトキャップ: この倍率（= +100%）を超えた分を圧縮する */
+export const SOFT_CAP_THRESHOLD = 2;
+/**
+ * 圧縮の曲率。超過分 x を knee * (sqrt(1 + 2x / knee) - 1) に写す（x = 0 で傾き 1、以降 sqrt で鈍化）。
+ * 0.4 なら +300%（x = 2）で 2.93 倍に収まる
+ */
+const SOFT_CAP_KNEE = 0.4;
+
+/** ソフトキャップ対象（「1 種類を盛る」を鈍らせたい主要倍率） */
+const SOFT_CAPPED_KEYS: readonly StatKey[] = [
+  "meleeDamageMul",
+  "rangedDamageMul",
+  "attackSpeedMul",
+  "fireRateMul",
+  "moveSpeedMul",
+];
+
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
 
 /** 装備順（SLOTS 順）に implicit → affixes を並べる */
@@ -70,6 +87,26 @@ function createBaseStats(): PlayerStats {
   };
 }
 
+/** +100% を超える部分を sqrt 系の曲線で圧縮する。単調増加・連続・閾値で傾き 1 */
+export function softCap(mul: number): number {
+  if (mul <= SOFT_CAP_THRESHOLD) return mul;
+  const excess = mul - SOFT_CAP_THRESHOLD;
+  return SOFT_CAP_THRESHOLD + SOFT_CAP_KNEE * (Math.sqrt(1 + (2 * excess) / SOFT_CAP_KNEE) - 1);
+}
+
+function applySoftCaps(stats: PlayerStats): void {
+  for (const key of SOFT_CAPPED_KEYS) stats[key] = softCap(stats[key]);
+}
+
+/**
+ * 排他グループを後勝ちで解決し、残ったキーストーンの数値効果を掛ける。
+ * ソフトキャップ後に掛けるので、キーストーンの倍率は圧縮されない
+ */
+function applyKeystones(stats: PlayerStats): void {
+  stats.keystones = resolveKeystones(stats.keystones);
+  for (const key of stats.keystones) keystoneDef(key)?.modify?.(stats);
+}
+
 /** 整数化・クランプ */
 function finalize(stats: PlayerStats): PlayerStats {
   for (const key of MULTIPLIER_KEYS) stats[key] = Math.max(MIN_MULTIPLIER, stats[key]);
@@ -85,8 +122,11 @@ function finalize(stats: PlayerStats): PlayerStats {
 
 /**
  * 装備から PlayerStats を畳み込む。
- * DEFAULT_STATS のコピーに、装備順で implicit → affixes を適用する。
- * 適用段階（flat → scale）ごとに回すので、max HP % は flat の max HP を合算した後に掛かる。
+ * 1. DEFAULT_STATS のコピーに、装備順で implicit → affixes を適用する
+ *    （flat → scale の段階ごとに回すので、max HP % は flat の max HP を合算した後に掛かる）
+ * 2. 主要倍率にソフトキャップ
+ * 3. キーストーン（排他グループは後勝ち）の数値効果
+ * 4. 整数化・クランプ
  */
 export function computeStats(equipment: Equipment): PlayerStats {
   const stats = createBaseStats();
@@ -96,6 +136,8 @@ export function computeStats(equipment: Equipment): PlayerStats {
       if (rollStage(roll) === stage) applyRoll(stats, roll);
     }
   }
+  applySoftCaps(stats);
+  applyKeystones(stats);
   return finalize(stats);
 }
 

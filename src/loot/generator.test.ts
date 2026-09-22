@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { affixDef, implicitDef } from "./affixes";
+import { KEYSTONE_KEY_PREFIX, affixDef, implicitDef, keystoneDef } from "./affixes";
 import { baseDef } from "./bases";
+import { decodeTriggerRoll, isTriggerKey } from "./triggers";
 import {
   UNIQUES,
   generateItem,
@@ -28,6 +29,10 @@ function generateMany(count: number, seed: number, o: Partial<GenerateOptions> =
   }
   return items;
 }
+
+const isKeystone = (r: AffixRoll): boolean => r.key.startsWith(KEYSTONE_KEY_PREFIX);
+/** アフィックス枠を占めるもの（キーストーンは別枠） */
+const slotAffixes = (item: Item): AffixRoll[] => item.affixes.filter((r) => !isKeystone(r));
 
 function expectRollInRange(roll: AffixRoll, itemLevel: number, rarity: Rarity): void {
   const def = affixDef(roll.key);
@@ -69,26 +74,29 @@ describe("generateItem", () => {
     const seen = new Set<Rarity>();
     for (const item of items) {
       seen.add(item.rarity);
-      const prefixes = item.affixes.filter((a) => a.kind === "prefix").length;
-      const suffixes = item.affixes.filter((a) => a.kind === "suffix").length;
+      const affixes = slotAffixes(item);
+      const prefixes = affixes.filter((a) => a.kind === "prefix").length;
+      const suffixes = affixes.filter((a) => a.kind === "suffix").length;
+      expect(item.affixes.filter(isKeystone).length).toBeLessThanOrEqual(1);
       switch (item.rarity) {
         case "normal":
           expect(item.affixes).toHaveLength(0);
           break;
         case "magic":
-          expect(item.affixes.length).toBeGreaterThanOrEqual(1);
-          expect(item.affixes.length).toBeLessThanOrEqual(2);
+          expect(affixes.length).toBeGreaterThanOrEqual(1);
+          expect(affixes.length).toBeLessThanOrEqual(2);
           expect(prefixes).toBeLessThanOrEqual(1);
           expect(suffixes).toBeLessThanOrEqual(1);
           break;
         case "rare":
-          expect(item.affixes.length).toBeGreaterThanOrEqual(3);
-          expect(item.affixes.length).toBeLessThanOrEqual(6);
+          expect(affixes.length).toBeGreaterThanOrEqual(3);
+          expect(affixes.length).toBeLessThanOrEqual(6);
           expect(prefixes).toBeLessThanOrEqual(3);
           expect(suffixes).toBeLessThanOrEqual(3);
           break;
         case "unique":
-          expect(item.affixes.length).toBeGreaterThan(0);
+          expect(affixes.length).toBeGreaterThan(0);
+          expect(item.affixes.filter(isKeystone)).toHaveLength(1);
           break;
       }
     }
@@ -104,8 +112,44 @@ describe("generateItem", () => {
 
   it("tier の minLevel ≤ itemLevel、値が tier の範囲内", () => {
     for (const item of generateMany(MANY, 17, { rarityBoost: 2 })) {
-      for (const roll of item.affixes) expectRollInRange(roll, item.itemLevel, item.rarity);
+      for (const roll of item.affixes) {
+        if (isKeystone(roll)) {
+          expect(keystoneDef(roll.key), roll.key).toBeDefined();
+          expect(roll.kind).toBe("suffix");
+          continue;
+        }
+        if (isTriggerKey(roll.key)) {
+          expect(decodeTriggerRoll(roll), roll.key).toBeDefined();
+          continue;
+        }
+        expectRollInRange(roll, item.itemLevel, item.rarity);
+      }
     }
+  });
+
+  it("トリガー文法アフィックスは rare にだけ付き、ある程度の頻度で出る", () => {
+    const items = generateMany(MANY, 37, { rarityBoost: 3 });
+    for (const item of items) {
+      if (item.rarity === "rare") continue;
+      expect(item.affixes.some((r) => isTriggerKey(r.key))).toBe(false);
+    }
+    const rares = items.filter((i) => i.rarity === "rare");
+    const withTrigger = rares.filter((i) => i.affixes.some((r) => isTriggerKey(r.key)));
+    // 1 枠 25%・3〜6 枠なので、トリガー付き rare は過半数になるはず
+    expect(withTrigger.length / rares.length).toBeGreaterThan(0.5);
+  });
+
+  it("キーストーンは rare の約 15% に付き、normal / magic には付かない", () => {
+    const items = generateMany(MANY * 3, 41, { rarityBoost: 3 });
+    for (const item of items) {
+      if (item.rarity === "normal" || item.rarity === "magic") {
+        expect(item.affixes.some(isKeystone)).toBe(false);
+      }
+    }
+    const rares = items.filter((i) => i.rarity === "rare");
+    const ratio = rares.filter((i) => i.affixes.some(isKeystone)).length / rares.length;
+    expect(ratio).toBeGreaterThan(0.08);
+    expect(ratio).toBeLessThan(0.22);
   });
 
   it("implicit はベースの定義どおりにロールされる", () => {

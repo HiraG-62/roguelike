@@ -1,7 +1,16 @@
 import { createRng, type Rng } from "../core/rng";
-import { affixDef, affixesFor, implicitDef, type AffixDef, type RollRange } from "./affixes";
+import {
+  KEYSTONES,
+  affixDef,
+  affixesFor,
+  implicitDef,
+  keystoneToRoll,
+  type AffixDef,
+  type RollRange,
+} from "./affixes";
 import { baseDef, basesForSlot, type BaseItemDef } from "./bases";
 import { nameItem } from "./names";
+import { generateTrigger, triggerToRoll } from "./triggers";
 import { SLOTS, type AffixKind, type AffixRoll, type Item, type Rarity, type Slot } from "./types";
 
 /**
@@ -61,6 +70,16 @@ const AFFIX_KINDS: readonly AffixKind[] = ["prefix", "suffix"];
 
 /** 1 つ上の tier に行くごとに重みがこの倍率になる（高 tier ほど珍しい） */
 const TIER_WEIGHT_DECAY = 0.55;
+
+/** rare の各アフィックス枠がトリガー文法から生成される確率 */
+export const TRIGGER_AFFIX_CHANCE = 0.25;
+/** キーストーンが付く確率（アフィックス枠とは別枠） */
+export const KEYSTONE_CHANCE: Readonly<Record<Rarity, number>> = {
+  normal: 0,
+  magic: 0,
+  rare: 0.15,
+  unique: 1,
+};
 
 /** implicit の AffixRoll に入れる固定値（kind/tier は implicit では意味を持たない） */
 const IMPLICIT_KIND: AffixKind = "prefix";
@@ -267,9 +286,24 @@ function countKind(rolls: readonly AffixRoll[], kind: AffixKind): number {
   return rolls.filter((r) => r.kind === kind).length;
 }
 
+/** rare の枠をトリガー文法で埋める。key が既出なら undefined（通常アフィックスにフォールバック） */
+function maybeRollTrigger(
+  rng: Rng,
+  rarity: Rarity,
+  kind: AffixKind,
+  itemLevel: number,
+  used: ReadonlySet<string>,
+): AffixRoll | undefined {
+  if (rarity !== "rare" || !rng.chance(TRIGGER_AFFIX_CHANCE)) return undefined;
+  const roll = triggerToRoll(generateTrigger(rng, itemLevel), kind);
+  return used.has(roll.key) ? undefined : roll;
+}
+
 /**
  * rarity に応じた数のアフィックスを抽選する。
  * key の重複なし、prefix / suffix はそれぞれ KIND_LIMIT まで。結果は prefix → suffix の順。
+ * rare の各枠は TRIGGER_AFFIX_CHANCE でトリガー文法から生成する（枠数には含む）。
+ * キーストーンはここでは付けない（rollKeystone を参照）。
  */
 export function rollAffixes(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number): AffixRoll[] {
   const count = rollAffixCount(rng, rarity);
@@ -282,11 +316,25 @@ export function rollAffixes(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: num
   for (let i = 0; i < count; i++) {
     const kinds = AFFIX_KINDS.filter((k) => countKind(rolls, k) < limit && candidatesOf(k).length > 0);
     if (kinds.length === 0) break;
-    const def = rng.pick(candidatesOf(rng.pick(kinds)));
-    rolls.push(rollAffix(rng, def, itemLevel));
-    used.add(def.key);
+    const kind = rng.pick(kinds);
+    const roll =
+      maybeRollTrigger(rng, rarity, kind, itemLevel, used) ??
+      rollAffix(rng, rng.pick(candidatesOf(kind)), itemLevel);
+    rolls.push(roll);
+    used.add(roll.key);
   }
   return [...rolls.filter((r) => r.kind === "prefix"), ...rolls.filter((r) => r.kind === "suffix")];
+}
+
+/** rarity に応じた確率でキーストーンを 1 つ（アフィックス枠とは別） */
+export function rollKeystone(rng: Rng, rarity: Rarity): AffixRoll | undefined {
+  if (!rng.chance(KEYSTONE_CHANCE[rarity])) return undefined;
+  return keystoneToRoll(rng.pick(KEYSTONES));
+}
+
+function withKeystone(rng: Rng, rarity: Rarity, affixes: AffixRoll[]): AffixRoll[] {
+  const keystone = rollKeystone(rng, rarity);
+  return keystone === undefined ? affixes : [...affixes, keystone];
 }
 
 export function rollUniqueAffixes(rng: Rng, unique: UniqueDef): AffixRoll[] {
@@ -323,12 +371,14 @@ function rollUniqueItem(rng: Rng, slot: Slot, itemLevel: number): Rolled | undef
   const unique = rng.pick(candidates);
   const base = baseDef(unique.baseKey);
   if (base === undefined) throw new Error(`unique ${unique.key}: unknown base ${unique.baseKey}`);
-  return { base, rarity: "unique", affixes: rollUniqueAffixes(rng, unique), uniqueName: unique.name };
+  const affixes = withKeystone(rng, "unique", rollUniqueAffixes(rng, unique));
+  return { base, rarity: "unique", affixes, uniqueName: unique.name };
 }
 
 function rollRegularItem(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number): Rolled {
   const base = rollBase(rng, slot, itemLevel);
-  return { base, rarity, affixes: rollAffixes(rng, slot, rarity, itemLevel) };
+  const affixes = withKeystone(rng, rarity, rollAffixes(rng, slot, rarity, itemLevel));
+  return { base, rarity, affixes };
 }
 
 export function generateItem(rng: Rng, opts: GenerateOptions): Item {

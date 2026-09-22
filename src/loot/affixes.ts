@@ -1,3 +1,4 @@
+import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
 import type { AffixKind, AffixRoll, PlayerStats, Slot } from "./types";
 
 /**
@@ -23,7 +24,9 @@ export type AffixTag =
   | "burst"
   | "combo"
   | "elemental"
-  | "utility";
+  | "utility"
+  /** 代償付き（label に代償も出す）。純粋な上位互換を作らないための枠 */
+  | "tradeoff";
 
 /** ロール幅。value2 を持つアフィックスは min2/max2 も持つ */
 export interface RollRange {
@@ -228,13 +231,14 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "projectiles",
-    label: "+{v} projectiles",
+    label: "+{v} projectiles, -{v2}% ranged damage",
     suffixName: "of Splitting",
-    tags: ["ranged"],
+    tags: ["ranged", "tradeoff"],
     slots: ["gun", "amulet"],
-    tiers: [t(30, 2, 2), t(10, 1, 1)],
-    apply: (s, v) => {
+    tiers: [t2(30, 2, 2, 30, 40), t2(10, 1, 1, 15, 25)],
+    apply: (s, v, v2) => {
       s.projectileCount += v;
+      s.rangedDamageMul -= pct(v2);
     },
   }),
   suffix({
@@ -584,7 +588,262 @@ export const AFFIXES: readonly AffixDef[] = [
       s.fireRateMul += pct(v);
     },
   }),
+
+  // ---- トレードオフ（value2 = 代償側の値）。同系統の純粋アフィックスより伸び幅が大きい ----
+  prefix({
+    key: "crushing",
+    label: "+{v}% melee damage, -{v2}% attack speed",
+    prefixName: "Crushing",
+    tags: ["damage", "melee", "tradeoff"],
+    slots: ["weapon"],
+    tiers: [t2(22, 55, 70, 12, 15), t2(12, 35, 50, 10, 12), t2(4, 20, 30, 8, 10)],
+    apply: (s, v, v2) => {
+      s.meleeDamageMul += pct(v);
+      s.attackSpeedMul -= pct(v2);
+    },
+  }),
+  suffix({
+    key: "frenzied",
+    label: "+{v}% attack speed, -{v2}% melee damage",
+    suffixName: "of Frenzy",
+    tags: ["speed", "melee", "tradeoff"],
+    slots: ["weapon", "ring"],
+    tiers: [t2(20, 20, 26, 10, 12), t2(10, 14, 19, 8, 10), t2(2, 8, 13, 6, 8)],
+    apply: (s, v, v2) => {
+      s.attackSpeedMul += pct(v);
+      s.meleeDamageMul -= pct(v2);
+    },
+  }),
+  prefix({
+    key: "overcharged",
+    label: "+{v}% ranged damage, -{v2}% fire rate",
+    prefixName: "Overcharged",
+    tags: ["damage", "ranged", "tradeoff"],
+    slots: ["gun"],
+    tiers: [t2(22, 55, 70, 12, 15), t2(12, 35, 50, 10, 12), t2(4, 20, 30, 8, 10)],
+    apply: (s, v, v2) => {
+      s.rangedDamageMul += pct(v);
+      s.fireRateMul -= pct(v2);
+    },
+  }),
+  prefix({
+    key: "reckless",
+    label: "+{v}% movement speed, -{v2} max HP",
+    prefixName: "Reckless",
+    tags: ["mobility", "speed", "tradeoff"],
+    slots: ["boots", "amulet"],
+    tiers: [t2(20, 18, 24, 15, 20), t2(10, 12, 17, 10, 15), t2(1, 7, 11, 5, 10)],
+    apply: (s, v, v2) => {
+      s.moveSpeedMul += pct(v);
+      s.maxHp -= v2;
+    },
+  }),
+  prefix({
+    key: "bloodbound",
+    label: "+{v}% critical strike multiplier, -{v2} max HP",
+    prefixName: "Bloodbound",
+    tags: ["critical", "damage", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    tiers: [t2(22, 45, 60, 15, 20), t2(12, 30, 44, 10, 15), t2(3, 18, 29, 6, 10)],
+    apply: (s, v, v2) => {
+      s.critMul += pct(v);
+      s.maxHp -= v2;
+    },
+  }),
+  prefix({
+    key: "ironclad",
+    label: "-{v}% damage taken, -{v2}% movement speed",
+    prefixName: "Ironclad",
+    tags: ["defense", "tradeoff"],
+    slots: ["armor"],
+    tiers: [t2(20, 10, 14, 8, 10), t2(10, 7, 9, 6, 8), t2(3, 4, 6, 4, 6)],
+    apply: (s, v, v2) => {
+      s.damageTakenMul -= pct(v);
+      s.moveSpeedMul -= pct(v2);
+    },
+  }),
+  suffix({
+    key: "razor",
+    label: "+{v}% critical strike chance, +{v2}% damage taken",
+    suffixName: "of the Razor",
+    tags: ["critical", "tradeoff"],
+    slots: ["weapon", "ring"],
+    tiers: [t2(20, 8, 12, 8, 10), t2(10, 5, 7, 6, 8), t2(2, 3, 4, 4, 6)],
+    apply: (s, v, v2) => {
+      s.critChance += pct(v);
+      s.damageTakenMul += pct(v2);
+    },
+  }),
+  suffix({
+    key: "pike",
+    label: "+{v}% melee reach, -{v2}% attack speed",
+    suffixName: "of the Pike",
+    tags: ["melee", "utility", "tradeoff"],
+    slots: ["weapon"],
+    tiers: [t2(16, 25, 35, 8, 10), t2(6, 15, 24, 5, 7), t2(1, 10, 14, 4, 5)],
+    apply: (s, v, v2) => {
+      s.meleeReachMul += pct(v);
+      s.attackSpeedMul -= pct(v2);
+    },
+  }),
+  suffix({
+    key: "flickering",
+    label: "-{v}% dash cooldown, -{v2}% dash distance",
+    suffixName: "of Flickering",
+    tags: ["mobility", "tradeoff"],
+    slots: ["boots"],
+    tiers: [t2(18, 30, 40, 15, 20), t2(8, 20, 29, 10, 15), t2(1, 12, 19, 8, 10)],
+    apply: (s, v, v2) => {
+      s.dashCooldownMul -= pct(v);
+      s.dashDistanceMul -= pct(v2);
+    },
+  }),
 ];
+
+// ---------------------------------------------------------------------------
+// キーストーン: 遊び方を変える大型改造。
+// AffixRoll としては { kind: "suffix", key: "ks_xxx" } で保存し、apply で stats.keystones に積む。
+// 数値効果（modify）は computeStats がソフトキャップ後にまとめて掛ける（キャップで潰さないため）。
+// 同じ exclusiveGroup のキーストーンは同時に成立しない（computeStats では後勝ち）。
+// ---------------------------------------------------------------------------
+
+export const KEYSTONE_KEY_PREFIX = "ks_";
+
+export interface KeystoneDef {
+  key: string;
+  name: string;
+  description: string;
+  exclusiveGroup: string;
+  modify?: (stats: PlayerStats) => void;
+}
+
+export const KEYSTONES: readonly KeystoneDef[] = [
+  {
+    key: "ks_glassCannon",
+    name: "Glass Cannon",
+    description: "Deal double melee and ranged damage. Your maximum HP is 1.",
+    exclusiveGroup: "vitality",
+    modify: (s) => {
+      s.meleeDamageMul *= 2;
+      s.rangedDamageMul *= 2;
+      s.maxHp = 1;
+    },
+  },
+  {
+    key: "ks_berserker",
+    name: "Berserker",
+    // 与ダメ増加・回復制限はゲーム側（src/system/keystones.ts）が keystones を見て処理する
+    description: "Deal up to double damage the more HP you have lost. No HP regeneration and healing is halved.",
+    exclusiveGroup: "vitality",
+  },
+  {
+    key: "ks_juggernaut",
+    name: "Juggernaut",
+    description: "Take half damage. -35% movement speed and -50% dash distance.",
+    exclusiveGroup: "vitality",
+    modify: (s) => {
+      s.damageTakenMul *= 0.5;
+      s.moveSpeedMul *= 0.65;
+      s.dashDistanceMul *= 0.5;
+    },
+  },
+  {
+    key: "ks_blinkDash",
+    name: "Blink",
+    description: "Your dash teleports and explodes on landing, but grants no invulnerability.",
+    exclusiveGroup: "dash",
+  },
+  {
+    key: "ks_windWalker",
+    name: "Wind Walker",
+    description: "+2 dash charges. +50% dash cooldown.",
+    exclusiveGroup: "dash",
+    modify: (s) => {
+      s.dashCharges += 2;
+      s.dashCooldownMul *= 1.5;
+    },
+  },
+  {
+    key: "ks_pacifist",
+    name: "Pacifist",
+    description: "You cannot melee. Ranged damage is tripled.",
+    exclusiveGroup: "stance",
+    modify: (s) => {
+      s.rangedDamageMul *= 3;
+    },
+  },
+  {
+    key: "ks_bladeOath",
+    name: "Blade Oath",
+    description: "You cannot shoot. Double melee damage and +20% attack speed.",
+    exclusiveGroup: "stance",
+    modify: (s) => {
+      s.meleeDamageMul *= 2;
+      s.attackSpeedMul *= 1 + pct(20);
+    },
+  },
+  {
+    key: "ks_vampire",
+    name: "Vampire",
+    description: "+2 life on hit and +5 life on kill. You cannot regenerate HP or pick up hearts.",
+    exclusiveGroup: "sustain",
+    modify: (s) => {
+      s.lifeOnHit += 2;
+      s.lifeOnKill += 5;
+    },
+  },
+  {
+    key: "ks_overclock",
+    name: "Overclock",
+    description: "+40% attack speed and fire rate. Every swing and shot costs 1 HP.",
+    exclusiveGroup: "tempo",
+    modify: (s) => {
+      s.attackSpeedMul *= 1 + pct(40);
+      s.fireRateMul *= 1 + pct(40);
+    },
+  },
+  {
+    key: "ks_gambler",
+    name: "Gambler",
+    description: "Each hit deals a random 0% to 250% of its damage.",
+    exclusiveGroup: "fate",
+  },
+];
+
+const KEYSTONE_BY_KEY: ReadonlyMap<string, KeystoneDef> = new Map(KEYSTONES.map((k) => [k.key, k]));
+
+export function keystoneDef(key: string): KeystoneDef | undefined {
+  return KEYSTONE_BY_KEY.get(key);
+}
+
+export function keystoneToRoll(def: KeystoneDef): AffixRoll {
+  return { key: def.key, kind: "suffix", tier: 1, value: 0 };
+}
+
+/**
+ * 排他グループを解決する。同じグループは後に出たものが勝ち、同じ key の重複と未知の key は落とす。
+ * 結果は勝ち残ったものの出現順。
+ */
+export function resolveKeystones(keys: readonly string[]): string[] {
+  const winnerByGroup = new Map<string, { key: string; index: number }>();
+  keys.forEach((key, index) => {
+    const def = keystoneDef(key);
+    if (def === undefined) return;
+    winnerByGroup.set(def.exclusiveGroup, { key, index });
+  });
+  return [...winnerByGroup.values()].sort((a, b) => a.index - b.index).map((w) => w.key);
+}
+
+/** UI 警告用: 同じ排他グループに異なるキーストーンが 2 つ以上あるグループの一覧 */
+export function keystoneConflicts(keys: readonly string[]): KeystoneDef[][] {
+  const byGroup = new Map<string, KeystoneDef[]>();
+  for (const key of new Set(keys)) {
+    const def = keystoneDef(key);
+    if (def === undefined) continue;
+    byGroup.set(def.exclusiveGroup, [...(byGroup.get(def.exclusiveGroup) ?? []), def]);
+  }
+  return [...byGroup.values()].filter((defs) => defs.length > 1);
+}
 
 // ---------------------------------------------------------------------------
 // implicit（ベース固有）。key は "implicit." 始まりでアフィックスと衝突させない
@@ -866,48 +1125,99 @@ export function affixesFor(slot: Slot, kind: AffixKind, itemLevel: number): Affi
   );
 }
 
-interface ResolvedRoll {
-  label: string;
-  decimals: number;
-  decimals2: number;
+export type AffixSource = "affix" | "implicit" | "keystone" | "trigger";
+
+/**
+ * ロール済みアフィックスの振る舞い。固定テーブル（affix / implicit / keystone）に無い
+ * 動的 key（トリガー文法 "tr_..."）も復元できる。
+ */
+export interface ResolvedAffix {
+  key: string;
+  source: AffixSource;
   stage: ApplyStage;
-  apply: ApplyFn;
+  apply: (stats: PlayerStats, roll: AffixRoll) => void;
+  format: (roll: AffixRoll) => string;
 }
 
-/** affix / implicit のどちらでも同じ扱いにする */
-function resolveRoll(key: string): ResolvedRoll | undefined {
-  const def = affixDef(key) ?? implicitDef(key);
-  if (def === undefined) return undefined;
+function fillTemplate(label: string, roll: AffixRoll, decimals: number, decimals2: number): string {
+  const v = roll.value.toFixed(decimals);
+  const v2 = (roll.value2 ?? 0).toFixed(decimals2);
+  return label.replaceAll("{v2}", v2).replaceAll("{v}", v);
+}
+
+function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): ResolvedAffix {
+  const decimals = def.decimals ?? 0;
+  const decimals2 = def.decimals2 ?? 0;
   return {
-    label: def.label,
-    decimals: def.decimals ?? 0,
-    decimals2: def.decimals2 ?? 0,
+    key: def.key,
+    source,
     stage: def.stage ?? "flat",
-    apply: def.apply,
+    apply: (stats, roll) => def.apply(stats, roll.value, roll.value2 ?? 0),
+    format: (roll) => fillTemplate(def.label, roll, decimals, decimals2),
   };
+}
+
+function resolveKeystone(def: KeystoneDef): ResolvedAffix {
+  return {
+    key: def.key,
+    source: "keystone",
+    stage: "flat",
+    apply: (stats) => {
+      stats.keystones.push(def.key);
+    },
+    format: () => `${def.name}: ${def.description}`,
+  };
+}
+
+function resolveTrigger(roll: AffixRoll): ResolvedAffix | undefined {
+  const effect = decodeTriggerRoll(roll);
+  if (effect === undefined) return undefined;
+  return {
+    key: roll.key,
+    source: "trigger",
+    stage: "flat",
+    apply: (stats, r) => {
+      const decoded = decodeTriggerRoll(r);
+      if (decoded !== undefined) stats.triggers.push(decoded);
+    },
+    format: (r) => {
+      const decoded = decodeTriggerRoll(r);
+      return decoded === undefined ? `Unknown modifier (${r.key})` : formatTrigger(decoded);
+    },
+  };
+}
+
+/** AffixRoll から振る舞いを復元する。未知の key は undefined */
+export function affixDefForRoll(roll: AffixRoll): ResolvedAffix | undefined {
+  const affix = affixDef(roll.key);
+  if (affix !== undefined) return resolveTable(affix, "affix");
+  const implicit = implicitDef(roll.key);
+  if (implicit !== undefined) return resolveTable(implicit, "implicit");
+  const keystone = keystoneDef(roll.key);
+  if (keystone !== undefined) return resolveKeystone(keystone);
+  if (isTriggerKey(roll.key)) return resolveTrigger(roll);
+  return undefined;
 }
 
 /** 適用段階。未知の key は undefined */
 export function rollStage(roll: AffixRoll): ApplyStage | undefined {
-  return resolveRoll(roll.key)?.stage;
+  return affixDefForRoll(roll)?.stage;
 }
 
 /**
- * ロール済みアフィックス（implicit 含む）を stats に適用する。
+ * ロール済みアフィックス（implicit / keystone / trigger 含む）を stats に適用する。
  * 未知の key（古いセーブ等）は無視して false を返す。
  */
 export function applyRoll(stats: PlayerStats, roll: AffixRoll): boolean {
-  const resolved = resolveRoll(roll.key);
+  const resolved = affixDefForRoll(roll);
   if (resolved === undefined) return false;
-  resolved.apply(stats, roll.value, roll.value2 ?? 0);
+  resolved.apply(stats, roll);
   return true;
 }
 
-/** 表示文字列（tier は含めない。UI 側で付ける）。implicit にも使える */
+/** 表示文字列（tier は含めない。UI 側で付ける）。implicit / keystone / trigger にも使える */
 export function formatAffix(roll: AffixRoll): string {
-  const resolved = resolveRoll(roll.key);
+  const resolved = affixDefForRoll(roll);
   if (resolved === undefined) return `Unknown modifier (${roll.key})`;
-  const v = roll.value.toFixed(resolved.decimals);
-  const v2 = (roll.value2 ?? 0).toFixed(resolved.decimals2);
-  return resolved.label.replaceAll("{v2}", v2).replaceAll("{v}", v);
+  return resolved.format(roll);
 }

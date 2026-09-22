@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { AFFIXES, IMPLICITS, affixDef, affixesFor, formatAffix, implicitDef } from "./affixes";
+import {
+  AFFIXES,
+  IMPLICITS,
+  KEYSTONES,
+  KEYSTONE_KEY_PREFIX,
+  affixDef,
+  affixDefForRoll,
+  applyRoll,
+  affixesFor,
+  formatAffix,
+  implicitDef,
+  keystoneConflicts,
+  keystoneToRoll,
+  resolveKeystones,
+} from "./affixes";
 import { BASES, baseDef, basesForSlot } from "./bases";
-import { SLOTS } from "./types";
+import { DEFAULT_STATS, SLOTS } from "./types";
 
 const MIN_AFFIX_COUNT = 35;
+const MIN_TRADEOFF_COUNT = 8;
+const MIN_KEYSTONE_COUNT = 6;
 const KIND_LIMIT = 3;
 const FIRST_LEVEL = 1;
 
@@ -67,6 +83,88 @@ describe("アフィックス定義", () => {
     expect(formatAffix({ key: "implicit.shortsword", kind: "prefix", tier: 1, value: 10 })).toBe(
       "+10% melee damage",
     );
+  });
+});
+
+describe("トレードオフ付きアフィックス", () => {
+  const tradeoffs = AFFIXES.filter((a) => a.tags.includes("tradeoff"));
+
+  it(`${MIN_TRADEOFF_COUNT} 種以上あり、label に利得と代償の両方の値を出す`, () => {
+    expect(tradeoffs.length).toBeGreaterThanOrEqual(MIN_TRADEOFF_COUNT);
+    for (const def of tradeoffs) {
+      expect(def.label, def.key).toContain("{v}");
+      expect(def.label, def.key).toContain("{v2}");
+    }
+  });
+
+  it("利得と代償が表示され、stats にも両方反映される", () => {
+    const roll = { key: "crushing", kind: "prefix" as const, tier: 1, value: 60, value2: 12 };
+    expect(formatAffix(roll)).toBe("+60% melee damage, -12% attack speed");
+    const stats = { ...DEFAULT_STATS, keystones: [], triggers: [] };
+    applyRoll(stats, roll);
+    expect(stats.meleeDamageMul).toBeCloseTo(1.6);
+    expect(stats.attackSpeedMul).toBeCloseTo(0.88);
+  });
+});
+
+describe("キーストーン", () => {
+  it(`${MIN_KEYSTONE_COUNT} 種以上あり、key が ks_ 始まりで一意、排他グループを持つ`, () => {
+    expect(KEYSTONES.length).toBeGreaterThanOrEqual(MIN_KEYSTONE_COUNT);
+    expect(new Set(KEYSTONES.map((k) => k.key)).size).toBe(KEYSTONES.length);
+    for (const ks of KEYSTONES) {
+      expect(ks.key.startsWith(KEYSTONE_KEY_PREFIX)).toBe(true);
+      expect(ks.exclusiveGroup.length).toBeGreaterThan(0);
+    }
+    // 排他が意味を持つよう、2 つ以上入っているグループがある
+    expect(keystoneConflicts(KEYSTONES.map((k) => k.key)).length).toBeGreaterThan(0);
+  });
+
+  it("AffixRoll は suffix として保存され、formatAffix が名前と説明を出す", () => {
+    const roll = keystoneToRoll(KEYSTONES[0] ?? { key: "", name: "", description: "", exclusiveGroup: "" });
+    expect(roll.kind).toBe("suffix");
+    expect(affixDefForRoll(roll)?.source).toBe("keystone");
+    expect(formatAffix(roll)).toContain("Glass Cannon");
+  });
+
+  it("resolveKeystones は同グループ後勝ち・重複と未知 key を除去（勝者の出現順）", () => {
+    expect(resolveKeystones(["ks_glassCannon", "ks_blinkDash", "ks_juggernaut", "ks_blinkDash", "ks_nope"])).toEqual([
+      "ks_juggernaut",
+      "ks_blinkDash",
+    ]);
+  });
+
+  it("ゲーム側（src/system/keystones.ts）が参照する key が全て定義されている", () => {
+    const referenced = [
+      "ks_berserker",
+      "ks_blinkDash",
+      "ks_pacifist",
+      "ks_bladeOath",
+      "ks_juggernaut",
+      "ks_gambler",
+      "ks_vampire",
+      "ks_overclock",
+    ];
+    const defined = new Set(KEYSTONES.map((k) => k.key));
+    for (const key of referenced) expect(defined.has(key), key).toBe(true);
+  });
+
+  it("keystoneConflicts は衝突グループだけを返す", () => {
+    const conflicts = keystoneConflicts(["ks_glassCannon", "ks_juggernaut", "ks_gambler"]);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.map((k) => k.key)).toEqual(["ks_glassCannon", "ks_juggernaut"]);
+  });
+});
+
+describe("affixDefForRoll（動的アフィックス）", () => {
+  it("固定テーブルに無いトリガー key を復元・整形できる", () => {
+    const roll = { key: "tr_onJustDodge_always_shockwave", kind: "prefix" as const, tier: 1, value: 25, value2: 400 };
+    expect(affixDefForRoll(roll)?.source).toBe("trigger");
+    expect(formatAffix(roll)).toBe("On JUST dodge: 40% chance to release a shockwave (25 dmg)");
+  });
+
+  it("不正な key は undefined", () => {
+    expect(affixDefForRoll({ key: "tr_bogus_always_heal", kind: "prefix", tier: 1, value: 1 })).toBeUndefined();
+    expect(affixDefForRoll({ key: "nothing", kind: "prefix", tier: 1, value: 1 })).toBeUndefined();
   });
 });
 
