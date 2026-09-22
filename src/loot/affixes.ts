@@ -702,111 +702,125 @@ export const AFFIXES: readonly AffixDef[] = [
 
 // ---------------------------------------------------------------------------
 // キーストーン: 遊び方を変える大型改造。
-// AffixRoll としては { kind: "suffix", key: "ks_xxx" } で保存し、apply で stats.keystones に積む。
-// 数値効果（modify）は computeStats がソフトキャップ後にまとめて掛ける（キャップで潰さないため）。
-// 同じ exclusiveGroup のキーストーンは同時に成立しない（computeStats では後勝ち）。
+// AffixRoll としては { kind: "suffix", tier: 1, value: 0, key: "ks_xxx" } で保存する。
+// apply で stats.keystones に key を積み、数値効果も掛ける（"scale" 段階。flat の合算後）。
+// メカニクスの変更は戦闘側（src/system/keystones.ts）が stats.keystones.includes(key) で実装する。
+// 同じ exclusiveGroup は同時に成立しない。computeStats は装備順で後勝ちの 1 つだけを apply する。
 // ---------------------------------------------------------------------------
 
 export const KEYSTONE_KEY_PREFIX = "ks_";
+const KEYSTONE_TIER = 1;
+const KEYSTONE_VALUE = 0;
+
+export type KeystoneGroup = "body" | "tempo" | "style";
 
 export interface KeystoneDef {
   key: string;
   name: string;
   description: string;
-  exclusiveGroup: string;
-  modify?: (stats: PlayerStats) => void;
+  exclusiveGroup: KeystoneGroup;
+  /** 数値効果（メカニクスは戦闘側）。stats.keystones への push は共通処理が行う */
+  apply: (stats: PlayerStats) => void;
 }
+
+const noNumericEffect = (): void => {};
 
 export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_glassCannon",
     name: "Glass Cannon",
-    description: "Deal double melee and ranged damage. Your maximum HP is 1.",
-    exclusiveGroup: "vitality",
-    modify: (s) => {
-      s.meleeDamageMul *= 2;
-      s.rangedDamageMul *= 2;
-      s.maxHp = 1;
+    description: "Double melee and ranged damage. Maximum HP is quartered.",
+    exclusiveGroup: "body",
+    apply: (s) => {
+      s.meleeDamageMul += 1;
+      s.rangedDamageMul += 1;
+      s.maxHp *= 0.25;
+    },
+  },
+  {
+    key: "ks_juggernaut",
+    name: "Juggernaut",
+    description: "Take half damage and ignore knockback. -35% movement speed.",
+    exclusiveGroup: "body",
+    apply: (s) => {
+      s.moveSpeedMul -= 0.35;
+      s.damageTakenMul -= 0.5;
+    },
+  },
+  {
+    key: "ks_vampire",
+    name: "Vampire",
+    description: "+3 life on hit. No HP regeneration, hearts cannot be picked up, -30% maximum HP.",
+    exclusiveGroup: "body",
+    apply: (s) => {
+      s.lifeOnHit += 3;
+      s.maxHp *= 0.7;
     },
   },
   {
     key: "ks_berserker",
     name: "Berserker",
-    // 与ダメ増加・回復制限はゲーム側（src/system/keystones.ts）が keystones を見て処理する
-    description: "Deal up to double damage the more HP you have lost. No HP regeneration and healing is halved.",
-    exclusiveGroup: "vitality",
+    description: "Up to +100% damage as you lose HP. No HP regeneration and healing is halved.",
+    exclusiveGroup: "tempo",
+    apply: noNumericEffect,
   },
   {
-    key: "ks_juggernaut",
-    name: "Juggernaut",
-    description: "Take half damage. -35% movement speed and -50% dash distance.",
-    exclusiveGroup: "vitality",
-    modify: (s) => {
-      s.damageTakenMul *= 0.5;
-      s.moveSpeedMul *= 0.65;
-      s.dashDistanceMul *= 0.5;
+    key: "ks_gambler",
+    name: "Gambler",
+    description: "Every hit deals a random 0.2x to 3x damage. +10% critical strike chance.",
+    exclusiveGroup: "tempo",
+    apply: (s) => {
+      s.critChance += 0.1;
     },
   },
   {
-    key: "ks_blinkDash",
-    name: "Blink",
-    description: "Your dash teleports and explodes on landing, but grants no invulnerability.",
-    exclusiveGroup: "dash",
+    key: "ks_overclock",
+    name: "Overclock",
+    description: "+60% attack speed and fire rate. Every attack costs 1 HP.",
+    exclusiveGroup: "tempo",
+    apply: (s) => {
+      s.attackSpeedMul += 0.6;
+      s.fireRateMul += 0.6;
+    },
   },
   {
-    key: "ks_windWalker",
-    name: "Wind Walker",
-    description: "+2 dash charges. +50% dash cooldown.",
-    exclusiveGroup: "dash",
-    modify: (s) => {
-      s.dashCharges += 2;
-      s.dashCooldownMul *= 1.5;
+    key: "ks_blink",
+    name: "Blink",
+    description: "Your dash teleports and explodes on landing, but grants no invulnerability. -30% dash cooldown.",
+    exclusiveGroup: "style",
+    apply: (s) => {
+      s.dashCooldownMul -= 0.3;
     },
   },
   {
     key: "ks_pacifist",
     name: "Pacifist",
-    description: "You cannot melee. Ranged damage is tripled.",
-    exclusiveGroup: "stance",
-    modify: (s) => {
-      s.rangedDamageMul *= 3;
+    description: "You cannot melee. Triple ranged damage and +1 projectile.",
+    exclusiveGroup: "style",
+    apply: (s) => {
+      s.rangedDamageMul += 2;
+      s.projectileCount += 1;
     },
   },
   {
     key: "ks_bladeOath",
     name: "Blade Oath",
     description: "You cannot shoot. Double melee damage and +20% attack speed.",
-    exclusiveGroup: "stance",
-    modify: (s) => {
-      s.meleeDamageMul *= 2;
-      s.attackSpeedMul *= 1 + pct(20);
+    exclusiveGroup: "style",
+    apply: (s) => {
+      s.meleeDamageMul += 1;
+      s.attackSpeedMul += 0.2;
     },
   },
   {
-    key: "ks_vampire",
-    name: "Vampire",
-    description: "+2 life on hit and +5 life on kill. You cannot regenerate HP or pick up hearts.",
-    exclusiveGroup: "sustain",
-    modify: (s) => {
-      s.lifeOnHit += 2;
-      s.lifeOnKill += 5;
+    key: "ks_windWalker",
+    name: "Wind Walker",
+    description: "+2 dash charges. +50% dash cooldown.",
+    exclusiveGroup: "style",
+    apply: (s) => {
+      s.dashCharges += 2;
+      s.dashCooldownMul += 0.5;
     },
-  },
-  {
-    key: "ks_overclock",
-    name: "Overclock",
-    description: "+40% attack speed and fire rate. Every swing and shot costs 1 HP.",
-    exclusiveGroup: "tempo",
-    modify: (s) => {
-      s.attackSpeedMul *= 1 + pct(40);
-      s.fireRateMul *= 1 + pct(40);
-    },
-  },
-  {
-    key: "ks_gambler",
-    name: "Gambler",
-    description: "Each hit deals a random 0% to 250% of its damage.",
-    exclusiveGroup: "fate",
   },
 ];
 
@@ -816,16 +830,20 @@ export function keystoneDef(key: string): KeystoneDef | undefined {
   return KEYSTONE_BY_KEY.get(key);
 }
 
+export function isKeystoneKey(key: string): boolean {
+  return key.startsWith(KEYSTONE_KEY_PREFIX);
+}
+
 export function keystoneToRoll(def: KeystoneDef): AffixRoll {
-  return { key: def.key, kind: "suffix", tier: 1, value: 0 };
+  return { key: def.key, kind: "suffix", tier: KEYSTONE_TIER, value: KEYSTONE_VALUE };
 }
 
 /**
  * 排他グループを解決する。同じグループは後に出たものが勝ち、同じ key の重複と未知の key は落とす。
- * 結果は勝ち残ったものの出現順。
+ * 結果は勝者の（最後の）出現順。
  */
 export function resolveKeystones(keys: readonly string[]): string[] {
-  const winnerByGroup = new Map<string, { key: string; index: number }>();
+  const winnerByGroup = new Map<KeystoneGroup, { key: string; index: number }>();
   keys.forEach((key, index) => {
     const def = keystoneDef(key);
     if (def === undefined) return;
@@ -836,7 +854,7 @@ export function resolveKeystones(keys: readonly string[]): string[] {
 
 /** UI 警告用: 同じ排他グループに異なるキーストーンが 2 つ以上あるグループの一覧 */
 export function keystoneConflicts(keys: readonly string[]): KeystoneDef[][] {
-  const byGroup = new Map<string, KeystoneDef[]>();
+  const byGroup = new Map<KeystoneGroup, KeystoneDef[]>();
   for (const key of new Set(keys)) {
     const def = keystoneDef(key);
     if (def === undefined) continue;
@@ -1157,32 +1175,35 @@ function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): Resolve
   };
 }
 
+const KEYSTONE_LABEL = "[Keystone]";
+
 function resolveKeystone(def: KeystoneDef): ResolvedAffix {
   return {
     key: def.key,
     source: "keystone",
-    stage: "flat",
+    stage: "scale",
     apply: (stats) => {
       stats.keystones.push(def.key);
+      def.apply(stats);
     },
-    format: () => `${def.name}: ${def.description}`,
+    format: () => `${KEYSTONE_LABEL} ${def.name}: ${def.description}`,
   };
 }
 
 function resolveTrigger(roll: AffixRoll): ResolvedAffix | undefined {
   const effect = decodeTriggerRoll(roll);
-  if (effect === undefined) return undefined;
+  if (effect === null) return undefined;
   return {
     key: roll.key,
     source: "trigger",
     stage: "flat",
     apply: (stats, r) => {
       const decoded = decodeTriggerRoll(r);
-      if (decoded !== undefined) stats.triggers.push(decoded);
+      if (decoded !== null) stats.triggers.push(decoded);
     },
     format: (r) => {
       const decoded = decodeTriggerRoll(r);
-      return decoded === undefined ? `Unknown modifier (${r.key})` : formatTrigger(decoded);
+      return decoded === null ? `Unknown modifier (${r.key})` : formatTrigger(decoded);
     },
   };
 }

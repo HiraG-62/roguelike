@@ -11,6 +11,7 @@ import {
   formatAffix,
   implicitDef,
   keystoneConflicts,
+  keystoneDef,
   keystoneToRoll,
   resolveKeystones,
 } from "./affixes";
@@ -119,33 +120,49 @@ describe("キーストーン", () => {
     expect(keystoneConflicts(KEYSTONES.map((k) => k.key)).length).toBeGreaterThan(0);
   });
 
-  it("AffixRoll は suffix として保存され、formatAffix が名前と説明を出す", () => {
-    const roll = keystoneToRoll(KEYSTONES[0] ?? { key: "", name: "", description: "", exclusiveGroup: "" });
-    expect(roll.kind).toBe("suffix");
+  it("AffixRoll は suffix / tier 1 / value 0 で保存され、formatAffix は [Keystone] 形式", () => {
+    const def = keystoneDef("ks_glassCannon");
+    expect(def).toBeDefined();
+    if (def === undefined) return;
+    const roll = keystoneToRoll(def);
+    expect(roll).toEqual({ key: "ks_glassCannon", kind: "suffix", tier: 1, value: 0 });
     expect(affixDefForRoll(roll)?.source).toBe("keystone");
-    expect(formatAffix(roll)).toContain("Glass Cannon");
+    expect(formatAffix(roll)).toBe(`[Keystone] Glass Cannon: ${def.description}`);
+  });
+
+  it("apply で keystones に積み、数値効果も掛ける", () => {
+    const stats = { ...DEFAULT_STATS, keystones: [], triggers: [] };
+    applyRoll(stats, { key: "ks_pacifist", kind: "suffix", tier: 1, value: 0 });
+    expect(stats.keystones).toEqual(["ks_pacifist"]);
+    expect(stats.rangedDamageMul).toBeCloseTo(3);
+    expect(stats.projectileCount).toBe(2);
   });
 
   it("resolveKeystones は同グループ後勝ち・重複と未知 key を除去（勝者の出現順）", () => {
-    expect(resolveKeystones(["ks_glassCannon", "ks_blinkDash", "ks_juggernaut", "ks_blinkDash", "ks_nope"])).toEqual([
+    expect(resolveKeystones(["ks_glassCannon", "ks_blink", "ks_juggernaut", "ks_blink", "ks_nope"])).toEqual([
       "ks_juggernaut",
-      "ks_blinkDash",
+      "ks_blink",
     ]);
   });
 
-  it("ゲーム側（src/system/keystones.ts）が参照する key が全て定義されている", () => {
-    const referenced = [
-      "ks_berserker",
-      "ks_blinkDash",
-      "ks_pacifist",
-      "ks_bladeOath",
-      "ks_juggernaut",
-      "ks_gambler",
-      "ks_vampire",
-      "ks_overclock",
-    ];
-    const defined = new Set(KEYSTONES.map((k) => k.key));
-    for (const key of referenced) expect(defined.has(key), key).toBe(true);
+  it("戦闘側と合意した 8 key が指定の排他グループで定義されている", () => {
+    const agreed: Record<string, string> = {
+      ks_glassCannon: "body",
+      ks_juggernaut: "body",
+      ks_vampire: "body",
+      ks_berserker: "tempo",
+      ks_gambler: "tempo",
+      ks_overclock: "tempo",
+      ks_blink: "style",
+      ks_pacifist: "style",
+    };
+    for (const [key, group] of Object.entries(agreed)) {
+      expect(keystoneDef(key)?.exclusiveGroup, key).toBe(group);
+    }
+  });
+
+  it("戦闘側（src/system/keystones.ts の KS）が参照する key が全て定義されている", () => {
+    for (const key of Object.values(KS)) expect(keystoneDef(key), key).toBeDefined();
   });
 
   it("keystoneConflicts は衝突グループだけを返す", () => {
@@ -157,13 +174,13 @@ describe("キーストーン", () => {
 
 describe("affixDefForRoll（動的アフィックス）", () => {
   it("固定テーブルに無いトリガー key を復元・整形できる", () => {
-    const roll = { key: "tr_onJustDodge_always_shockwave", kind: "prefix" as const, tier: 1, value: 25, value2: 400 };
+    const roll = { key: "tr:onJustDodge:always:shockwave", kind: "prefix" as const, tier: 1, value: 25, value2: 400 };
     expect(affixDefForRoll(roll)?.source).toBe("trigger");
     expect(formatAffix(roll)).toBe("On JUST dodge: 40% chance to release a shockwave (25 dmg)");
   });
 
   it("不正な key は undefined", () => {
-    expect(affixDefForRoll({ key: "tr_bogus_always_heal", kind: "prefix", tier: 1, value: 1 })).toBeUndefined();
+    expect(affixDefForRoll({ key: "tr:bogus:always:heal", kind: "prefix", tier: 1, value: 1 })).toBeUndefined();
     expect(affixDefForRoll({ key: "nothing", kind: "prefix", tier: 1, value: 1 })).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import type { Rng } from "../core/rng";
 import type {
   AffixKind,
   AffixRoll,
+  Slot,
   TriggerCondition,
   TriggerEffectKind,
   TriggeredEffect,
@@ -10,29 +11,33 @@ import type {
 
 /**
  * トリガー文法: trigger × condition × effect で条件付き効果を生成する。
- * docs/LOOT_DESIGN.md「設計哲学」4 を参照。
+ * docs/LOOT_DESIGN.md「設計哲学」4 / docs/ideas/build-diversity.md 3 章を参照。
  *
- * AffixRoll へのエンコード:
- *   key    = "tr_<trigger>_<condition>_<effect>" + 任意パラメータ（"_n<every>" / "_c<count>" / "_d<duration×10>"）
+ * AffixRoll へのエンコード（可逆）:
+ *   key    = "tr:<trigger>:<condition>:<effect>[:<every>][:x<count>]"
  *   value  = magnitude
- *   value2 = chance × 1000（パーミル整数）
+ *   value2 = duration(0.1 秒単位) × 1000 + chance(1/1000 単位)
+ *            例: duration 3.5s・chance 0.4 → 35 × 1000 + 400 = 35400
  */
 
-export const TRIGGER_KEY_PREFIX = "tr";
-const KEY_SEPARATOR = "_";
-const PARAM_EVERY = "n";
-const PARAM_COUNT = "c";
-const PARAM_DURATION = "d";
-/** duration は 0.1 秒単位で key に埋め込む */
-const DURATION_KEY_SCALE = 10;
-/** chance は 1/1000 単位で value2 に入れる */
+export const TRIGGER_KEY_PREFIX = "tr:";
+const KEY_SEPARATOR = ":";
+const COUNT_MARK = "x";
+/** chance は 1/1000 単位 */
 export const CHANCE_SCALE = 1000;
+/** duration は 0.1 秒単位 */
+const DURATION_SCALE = 10;
+/** 発動確率の全体範囲 */
+export const MIN_TRIGGER_CHANCE = 0.15;
+export const MAX_TRIGGER_CHANCE = 0.6;
 /** 動的アフィックスの tier（UI 表示用。文法生成物は tier を持たない） */
 const TRIGGER_TIER = 1;
 /** magnitude のロール幅（基準値に対する倍率） */
 const MAGNITUDE_VARIANCE_MIN = 0.85;
 const MAGNITUDE_VARIANCE_MAX = 1.15;
 const VARIANCE_STEPS = 100;
+const DURATION_DECIMALS = 1;
+const PERCENT_SCALE = 100;
 
 // ---------------------------------------------------------------------------
 // 語彙
@@ -46,7 +51,7 @@ interface NumRange {
 interface TriggerSpec {
   /** 表示（everyNthMeleeHit は every を差し込む） */
   text: (every: number | undefined) => string;
-  /** 発動確率の範囲（0..1）。高頻度のトリガーほど低い */
+  /** 発動確率（MIN_TRIGGER_CHANCE..MAX_TRIGGER_CHANCE の内側）。高頻度のトリガーほど低い */
   chance: NumRange;
   /** everyNthMeleeHit の N */
   every?: NumRange;
@@ -74,27 +79,27 @@ function ordinal(n: number): string {
 }
 
 export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
-  onMeleeHit: { text: () => "On melee hit", chance: { min: 0.1, max: 0.2 } },
-  onShoot: { text: () => "On shoot", chance: { min: 0.05, max: 0.12 } },
-  onKill: { text: () => "On kill", chance: { min: 0.25, max: 0.5 } },
-  onJustDodge: { text: () => "On JUST dodge", chance: { min: 0.5, max: 1 } },
-  onDash: { text: () => "On dash", chance: { min: 0.2, max: 0.4 } },
-  onHurt: { text: () => "When hit", chance: { min: 0.3, max: 0.6 } },
-  onRoomClear: { text: () => "On room clear", chance: { min: 1, max: 1 } },
+  onMeleeHit: { text: () => "On melee hit", chance: { min: 0.15, max: 0.25 } },
+  onShoot: { text: () => "On shoot", chance: { min: 0.15, max: 0.2 } },
+  onKill: { text: () => "On kill", chance: { min: 0.3, max: 0.5 } },
+  onJustDodge: { text: () => "On JUST dodge", chance: { min: 0.4, max: 0.6 } },
+  onDash: { text: () => "On dash", chance: { min: 0.25, max: 0.4 } },
+  onHurt: { text: () => "When hit", chance: { min: 0.3, max: 0.5 } },
+  onRoomClear: { text: () => "On room clear", chance: { min: 0.4, max: 0.6 } },
   everyNthMeleeHit: {
     text: (every) => `Every ${ordinal(every ?? 0)} melee hit`,
-    chance: { min: 1, max: 1 },
+    chance: { min: 0.4, max: 0.6 },
     every: { min: 4, max: 8 },
   },
 };
 
 export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   always: "",
-  aboveHalfHp: " while above 50% HP",
-  belowHalfHp: " while below 50% HP",
-  comboAbove10: " while at 10+ combo",
-  roomLocked: " while in a locked room",
-  fullEnergy: " while energy is full",
+  aboveHalfHp: " (above 50% HP)",
+  belowHalfHp: " (below 50% HP)",
+  comboAbove10: " (10+ combo)",
+  roomLocked: " (in a locked room)",
+  fullEnergy: " (full energy)",
 };
 
 export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
@@ -141,7 +146,12 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     text: (m, _c, d) => `gain +${m}% move speed for ${d ?? "0"}s`,
   },
   energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `gain ${m} energy` },
-  invuln: { base: 0.4, perLevel: 0, decimals: 1, text: (m) => `become invulnerable for ${m}s` },
+  invuln: {
+    base: 0.4,
+    perLevel: 0,
+    decimals: 1,
+    text: (m) => `become invulnerable for ${m}s`,
+  },
 };
 
 const TRIGGER_KINDS = Object.keys(TRIGGER_SPECS) as TriggerKind[];
@@ -157,6 +167,16 @@ function isCondition(s: string): s is TriggerCondition {
 function isEffectKind(s: string): s is TriggerEffectKind {
   return Object.hasOwn(EFFECT_SPECS, s);
 }
+
+/** スロットごとに出るトリガー（その部位らしい起点に寄せる）。ring / amulet は全部 */
+export const SLOT_TRIGGERS: Readonly<Record<Slot, readonly TriggerKind[]>> = {
+  weapon: ["onMeleeHit", "everyNthMeleeHit", "onKill", "onJustDodge"],
+  gun: ["onShoot", "onKill", "onJustDodge"],
+  armor: ["onHurt", "onKill", "onRoomClear"],
+  boots: ["onDash", "onJustDodge", "onRoomClear"],
+  ring: TRIGGER_KINDS,
+  amulet: TRIGGER_KINDS,
+};
 
 // ---------------------------------------------------------------------------
 // 組み合わせ表
@@ -178,6 +198,8 @@ const INVULN_TRIGGERS: ReadonlySet<TriggerKind> = new Set(["onHurt", "onJustDodg
 export function isCompatible(trigger: TriggerKind, condition: TriggerCondition, effect: TriggerEffectKind): boolean {
   // 射撃で弾を出す → その弾でまた発動、の無限ループ気味
   if (trigger === "onShoot" && effect === "spawnBullets") return false;
+  // 撃破で爆発 → 爆発で撃破 → …の連鎖暴走
+  if (trigger === "onKill" && effect === "explode") return false;
   // クリア時には敵がいない / 部屋はロック解除される
   if (trigger === "onRoomClear" && OFFENSIVE_EFFECTS.has(effect)) return false;
   if (trigger === "onRoomClear" && condition === "roomLocked") return false;
@@ -205,6 +227,12 @@ export const TRIGGER_GRAMMAR: readonly TriggerShape[] = TRIGGER_KINDS.flatMap((t
   ),
 );
 
+/** スロットで出うる組み合わせ */
+export function grammarForSlot(slot: Slot): TriggerShape[] {
+  const allowed = SLOT_TRIGGERS[slot];
+  return TRIGGER_GRAMMAR.filter((shape) => allowed.includes(shape.trigger));
+}
+
 // ---------------------------------------------------------------------------
 // 生成
 // ---------------------------------------------------------------------------
@@ -229,23 +257,41 @@ function rollMagnitude(rng: Rng, spec: EffectSpec, itemLevel: number): number {
   return Math.max(minimum, roundTo(capped, spec.decimals));
 }
 
-/** 文法から条件付き効果を 1 つ生成する。magnitude は itemLevel でスケール */
-export function generateTrigger(rng: Rng, itemLevel: number): TriggeredEffect {
-  const shape = rng.pick(TRIGGER_GRAMMAR);
+function rollChance(rng: Rng, range: NumRange): number {
+  const min = Math.max(MIN_TRIGGER_CHANCE, range.min);
+  const max = Math.min(MAX_TRIGGER_CHANCE, range.max);
+  return rng.int(Math.round(min * CHANCE_SCALE), Math.round(max * CHANCE_SCALE)) / CHANCE_SCALE;
+}
+
+/** 組み合わせを 1 つ具体化する。magnitude は itemLevel でスケール */
+export function rollTriggerEffect(rng: Rng, shape: TriggerShape, itemLevel: number): TriggeredEffect {
   const triggerSpec = TRIGGER_SPECS[shape.trigger];
   const effectSpec = EFFECT_SPECS[shape.effect];
-
   const result: TriggeredEffect = {
     trigger: shape.trigger,
     condition: shape.condition,
     effect: shape.effect,
     magnitude: rollMagnitude(rng, effectSpec, itemLevel),
-    chance: rng.int(triggerSpec.chance.min * CHANCE_SCALE, triggerSpec.chance.max * CHANCE_SCALE) / CHANCE_SCALE,
+    chance: rollChance(rng, triggerSpec.chance),
   };
   if (triggerSpec.every !== undefined) result.every = rng.int(triggerSpec.every.min, triggerSpec.every.max);
   if (effectSpec.count !== undefined) result.count = rng.int(effectSpec.count.min, effectSpec.count.max);
-  if (effectSpec.duration !== undefined) result.duration = rollFloat(rng, effectSpec.duration, 1);
+  if (effectSpec.duration !== undefined) result.duration = rollFloat(rng, effectSpec.duration, DURATION_DECIMALS);
   return result;
+}
+
+/** 文法から条件付き効果を 1 つ生成する（スロット制限なし） */
+export function generateTrigger(rng: Rng, itemLevel: number): TriggeredEffect {
+  return rollTriggerEffect(rng, rng.pick(TRIGGER_GRAMMAR), itemLevel);
+}
+
+/**
+ * スロットに合ったトリガーを生成し、AffixRoll にエンコードして返す。
+ * kind はアフィックス枠（prefix / suffix）のどちらに入れるか。
+ */
+export function generateTriggerRoll(rng: Rng, itemLevel: number, slot: Slot, kind: AffixKind = "prefix"): AffixRoll {
+  const effect = rollTriggerEffect(rng, rng.pick(grammarForSlot(slot)), itemLevel);
+  return triggerToRoll(effect, kind);
 }
 
 // ---------------------------------------------------------------------------
@@ -253,66 +299,74 @@ export function generateTrigger(rng: Rng, itemLevel: number): TriggeredEffect {
 // ---------------------------------------------------------------------------
 
 export function isTriggerKey(key: string): boolean {
-  return key.startsWith(TRIGGER_KEY_PREFIX + KEY_SEPARATOR);
+  return key.startsWith(TRIGGER_KEY_PREFIX);
 }
 
 export function triggerKey(effect: TriggeredEffect): string {
-  const parts = [TRIGGER_KEY_PREFIX, effect.trigger, effect.condition, effect.effect];
-  if (effect.every !== undefined) parts.push(`${PARAM_EVERY}${effect.every}`);
-  if (effect.count !== undefined) parts.push(`${PARAM_COUNT}${effect.count}`);
-  if (effect.duration !== undefined) {
-    parts.push(`${PARAM_DURATION}${Math.round(effect.duration * DURATION_KEY_SCALE)}`);
-  }
-  return parts.join(KEY_SEPARATOR);
+  const parts: string[] = [effect.trigger, effect.condition, effect.effect];
+  if (effect.every !== undefined) parts.push(String(effect.every));
+  if (effect.count !== undefined) parts.push(`${COUNT_MARK}${effect.count}`);
+  return TRIGGER_KEY_PREFIX + parts.join(KEY_SEPARATOR);
 }
 
-/** kind はアフィックス枠（prefix / suffix）のどちらに入ったか */
+function encodeValue2(effect: TriggeredEffect): number {
+  const durationUnits = Math.round((effect.duration ?? 0) * DURATION_SCALE);
+  return durationUnits * CHANCE_SCALE + Math.round(effect.chance * CHANCE_SCALE);
+}
+
 export function triggerToRoll(effect: TriggeredEffect, kind: AffixKind): AffixRoll {
   return {
     key: triggerKey(effect),
     kind,
     tier: TRIGGER_TIER,
     value: effect.magnitude,
-    value2: Math.round(effect.chance * CHANCE_SCALE),
+    value2: encodeValue2(effect),
   };
 }
 
-/** "n5" → 5。形式が違えば undefined */
-function parseParam(part: string, prefix: string): number | undefined {
-  if (!part.startsWith(prefix)) return undefined;
-  const n = Number(part.slice(prefix.length));
-  return Number.isFinite(n) ? n : undefined;
+/** 数字だけの部品 → every、"x<数字>" → count。それ以外は null で不正扱い */
+function parseParams(params: readonly string[]): { every?: number; count?: number } | null {
+  const out: { every?: number; count?: number } = {};
+  for (const part of params) {
+    if (/^\d+$/.test(part)) {
+      out.every = Number(part);
+      continue;
+    }
+    if (part.startsWith(COUNT_MARK) && /^\d+$/.test(part.slice(COUNT_MARK.length))) {
+      out.count = Number(part.slice(COUNT_MARK.length));
+      continue;
+    }
+    return null;
+  }
+  return out;
 }
 
-/** AffixRoll から TriggeredEffect を復元する。不正な key は undefined */
-export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | undefined {
-  const [head, trigger, condition, effect, ...params] = roll.key.split(KEY_SEPARATOR);
-  if (head !== TRIGGER_KEY_PREFIX) return undefined;
-  if (trigger === undefined || !isTriggerKind(trigger)) return undefined;
-  if (condition === undefined || !isCondition(condition)) return undefined;
-  if (effect === undefined || !isEffectKind(effect)) return undefined;
+/** AffixRoll から TriggeredEffect を復元する。不正な key は null */
+export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | null {
+  if (!isTriggerKey(roll.key)) return null;
+  const [trigger, condition, effect, ...rest] = roll.key.slice(TRIGGER_KEY_PREFIX.length).split(KEY_SEPARATOR);
+  if (trigger === undefined || !isTriggerKind(trigger)) return null;
+  if (condition === undefined || !isCondition(condition)) return null;
+  if (effect === undefined || !isEffectKind(effect)) return null;
+  const params = parseParams(rest);
+  if (params === null) return null;
 
+  const value2 = roll.value2 ?? 0;
+  const durationUnits = Math.floor(value2 / CHANCE_SCALE);
   const result: TriggeredEffect = {
     trigger,
     condition,
     effect,
     magnitude: roll.value,
-    chance: (roll.value2 ?? CHANCE_SCALE) / CHANCE_SCALE,
+    chance: (value2 % CHANCE_SCALE) / CHANCE_SCALE,
   };
-  for (const part of params) {
-    const every = parseParam(part, PARAM_EVERY);
-    const count = parseParam(part, PARAM_COUNT);
-    const duration = parseParam(part, PARAM_DURATION);
-    if (every !== undefined) result.every = every;
-    if (count !== undefined) result.count = count;
-    if (duration !== undefined) result.duration = duration / DURATION_KEY_SCALE;
-  }
+  if (params.every !== undefined) result.every = params.every;
+  if (params.count !== undefined) result.count = params.count;
+  if (durationUnits > 0) result.duration = durationUnits / DURATION_SCALE;
   return result;
 }
 
-const PERCENT_SCALE = 100;
-
-/** 例: "On JUST dodge: 40% chance to release a shockwave (25 dmg)" */
+/** 例: "On kill (below 50% HP): 40% chance to gain +25% damage for 3s" */
 export function formatTrigger(effect: TriggeredEffect): string {
   const effectSpec = EFFECT_SPECS[effect.effect];
   const head = `${TRIGGER_SPECS[effect.trigger].text(effect.every)}${CONDITION_TEXT[effect.condition]}`;

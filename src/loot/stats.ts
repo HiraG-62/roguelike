@@ -1,4 +1,4 @@
-import { APPLY_STAGES, applyRoll, keystoneDef, resolveKeystones, rollStage } from "./affixes";
+import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats } from "./types";
 
 /** 倍率系の下限（マイナス補正の積み重ねで 0 以下にならないように） */
@@ -99,16 +99,22 @@ function applySoftCaps(stats: PlayerStats): void {
 }
 
 /**
- * 排他グループを後勝ちで解決し、残ったキーストーンの数値効果を掛ける。
- * ソフトキャップ後に掛けるので、キーストーンの倍率は圧縮されない
+ * キーストーンの排他を解決する。同じ exclusiveGroup は装備順で後勝ち、同じ key の重複は 1 つにする。
+ * 負けたキーストーンは apply しない（数値効果も keystones への push も起きない）
  */
-function applyKeystones(stats: PlayerStats): void {
-  stats.keystones = resolveKeystones(stats.keystones);
-  for (const key of stats.keystones) keystoneDef(key)?.modify?.(stats);
+function filterKeystoneRolls(rolls: readonly AffixRoll[]): AffixRoll[] {
+  const keystoneKeys = rolls.filter((r) => isKeystoneKey(r.key)).map((r) => r.key);
+  const winners = new Set(resolveKeystones(keystoneKeys));
+  const lastIndexByKey = new Map<string, number>();
+  rolls.forEach((r, i) => {
+    if (isKeystoneKey(r.key)) lastIndexByKey.set(r.key, i);
+  });
+  return rolls.filter((r, i) => !isKeystoneKey(r.key) || (winners.has(r.key) && lastIndexByKey.get(r.key) === i));
 }
 
-/** 整数化・クランプ */
+/** ソフトキャップ → 整数化・クランプ */
 function finalize(stats: PlayerStats): PlayerStats {
+  applySoftCaps(stats);
   for (const key of MULTIPLIER_KEYS) stats[key] = Math.max(MIN_MULTIPLIER, stats[key]);
   for (const key of PROBABILITY_KEYS) stats[key] = clamp(stats[key], 0, 1);
   stats.damageTakenMul = Math.max(MIN_DAMAGE_TAKEN_MUL, stats.damageTakenMul);
@@ -122,22 +128,19 @@ function finalize(stats: PlayerStats): PlayerStats {
 
 /**
  * 装備から PlayerStats を畳み込む。
- * 1. DEFAULT_STATS のコピーに、装備順で implicit → affixes を適用する
- *    （flat → scale の段階ごとに回すので、max HP % は flat の max HP を合算した後に掛かる）
- * 2. 主要倍率にソフトキャップ
- * 3. キーストーン（排他グループは後勝ち）の数値効果
- * 4. 整数化・クランプ
+ * 1. キーストーンの排他を解決（同グループは装備順で後勝ち）
+ * 2. DEFAULT_STATS のコピーに、装備順で implicit → affixes（keystone / trigger 含む）を適用する
+ *    （flat → scale の段階ごとに回すので、max HP % やキーストーンの HP 倍率は flat の合算後に掛かる）
+ * 3. finalize: 主要倍率にソフトキャップ、整数化・クランプ
  */
 export function computeStats(equipment: Equipment): PlayerStats {
   const stats = createBaseStats();
-  const rolls = collectRolls(equipment);
+  const rolls = filterKeystoneRolls(collectRolls(equipment));
   for (const stage of APPLY_STAGES) {
     for (const roll of rolls) {
       if (rollStage(roll) === stage) applyRoll(stats, roll);
     }
   }
-  applySoftCaps(stats);
-  applyKeystones(stats);
   return finalize(stats);
 }
 

@@ -4,13 +4,14 @@ import {
   affixDef,
   affixesFor,
   implicitDef,
+  keystoneDef,
   keystoneToRoll,
   type AffixDef,
   type RollRange,
 } from "./affixes";
 import { baseDef, basesForSlot, type BaseItemDef } from "./bases";
 import { nameItem } from "./names";
-import { generateTrigger, triggerToRoll } from "./triggers";
+import { generateTriggerRoll } from "./triggers";
 import { SLOTS, type AffixKind, type AffixRoll, type Item, type Rarity, type Slot } from "./types";
 
 /**
@@ -73,13 +74,8 @@ const TIER_WEIGHT_DECAY = 0.55;
 
 /** rare の各アフィックス枠がトリガー文法から生成される確率 */
 export const TRIGGER_AFFIX_CHANCE = 0.25;
-/** キーストーンが付く確率（アフィックス枠とは別枠） */
-export const KEYSTONE_CHANCE: Readonly<Record<Rarity, number>> = {
-  normal: 0,
-  magic: 0,
-  rare: 0.15,
-  unique: 1,
-};
+/** rare にランダムなキーストーンが付く確率（アフィックス枠とは別枠）。unique は UniqueDef.keystone で固定 */
+export const RARE_KEYSTONE_CHANCE = 0.15;
 
 /** implicit の AffixRoll に入れる固定値（kind/tier は implicit では意味を持たない） */
 const IMPLICIT_KIND: AffixKind = "prefix";
@@ -101,6 +97,8 @@ export interface UniqueDef {
   baseKey: string;
   minLevel: number;
   affixes: readonly UniqueAffixSpec[];
+  /** 固定キーストーン（KEYSTONES の key） */
+  keystone?: string;
 }
 
 export const UNIQUES: readonly UniqueDef[] = [
@@ -109,6 +107,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "Widowmaker",
     baseKey: "greatsword",
     minLevel: 14,
+    keystone: "ks_berserker",
     affixes: [
       { key: "meleeDamagePct", tier: 2 },
       { key: "critMultiplier", tier: 2 },
@@ -121,6 +120,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "Hailstorm Engine",
     baseKey: "smg",
     minLevel: 10,
+    keystone: "ks_overclock",
     affixes: [
       { key: "projectiles", tier: 2 },
       { key: "fireRate", tier: 2 },
@@ -133,6 +133,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "Heart of the Mountain",
     baseKey: "plate",
     minLevel: 18,
+    keystone: "ks_juggernaut",
     affixes: [
       { key: "maxLife", tier: 2 },
       { key: "maxLifePct", tier: 2 },
@@ -145,6 +146,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "Stormstriders",
     baseKey: "greaves",
     minLevel: 14,
+    keystone: "ks_blink",
     affixes: [
       { key: "moveSpeed", tier: 2 },
       { key: "dashCharge", tier: 1 },
@@ -157,6 +159,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "Eye of the Tempest",
     baseKey: "lapisAmulet",
     minLevel: 12,
+    keystone: "ks_gambler",
     affixes: [
       { key: "burstDamage", tier: 1 },
       { key: "burstRadius", tier: 1 },
@@ -286,16 +289,21 @@ function countKind(rolls: readonly AffixRoll[], kind: AffixKind): number {
   return rolls.filter((r) => r.kind === kind).length;
 }
 
+interface SlotContext {
+  slot: Slot;
+  rarity: Rarity;
+  itemLevel: number;
+}
+
 /** rare の枠をトリガー文法で埋める。key が既出なら undefined（通常アフィックスにフォールバック） */
 function maybeRollTrigger(
   rng: Rng,
-  rarity: Rarity,
+  ctx: SlotContext,
   kind: AffixKind,
-  itemLevel: number,
   used: ReadonlySet<string>,
 ): AffixRoll | undefined {
-  if (rarity !== "rare" || !rng.chance(TRIGGER_AFFIX_CHANCE)) return undefined;
-  const roll = triggerToRoll(generateTrigger(rng, itemLevel), kind);
+  if (ctx.rarity !== "rare" || !rng.chance(TRIGGER_AFFIX_CHANCE)) return undefined;
+  const roll = generateTriggerRoll(rng, ctx.itemLevel, ctx.slot, kind);
   return used.has(roll.key) ? undefined : roll;
 }
 
@@ -318,7 +326,7 @@ export function rollAffixes(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: num
     if (kinds.length === 0) break;
     const kind = rng.pick(kinds);
     const roll =
-      maybeRollTrigger(rng, rarity, kind, itemLevel, used) ??
+      maybeRollTrigger(rng, { slot, rarity, itemLevel }, kind, used) ??
       rollAffix(rng, rng.pick(candidatesOf(kind)), itemLevel);
     rolls.push(roll);
     used.add(roll.key);
@@ -326,15 +334,21 @@ export function rollAffixes(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: num
   return [...rolls.filter((r) => r.kind === "prefix"), ...rolls.filter((r) => r.kind === "suffix")];
 }
 
-/** rarity に応じた確率でキーストーンを 1 つ（アフィックス枠とは別） */
+/** rare のみ RARE_KEYSTONE_CHANCE でランダムなキーストーンを 1 つ（アフィックス枠とは別） */
 export function rollKeystone(rng: Rng, rarity: Rarity): AffixRoll | undefined {
-  if (!rng.chance(KEYSTONE_CHANCE[rarity])) return undefined;
+  if (rarity !== "rare" || !rng.chance(RARE_KEYSTONE_CHANCE)) return undefined;
   return keystoneToRoll(rng.pick(KEYSTONES));
 }
 
-function withKeystone(rng: Rng, rarity: Rarity, affixes: AffixRoll[]): AffixRoll[] {
-  const keystone = rollKeystone(rng, rarity);
+function withKeystone(affixes: AffixRoll[], keystone: AffixRoll | undefined): AffixRoll[] {
   return keystone === undefined ? affixes : [...affixes, keystone];
+}
+
+function uniqueKeystone(unique: UniqueDef): AffixRoll | undefined {
+  if (unique.keystone === undefined) return undefined;
+  const def = keystoneDef(unique.keystone);
+  if (def === undefined) throw new Error(`unique ${unique.key}: unknown keystone ${unique.keystone}`);
+  return keystoneToRoll(def);
 }
 
 export function rollUniqueAffixes(rng: Rng, unique: UniqueDef): AffixRoll[] {
@@ -371,13 +385,13 @@ function rollUniqueItem(rng: Rng, slot: Slot, itemLevel: number): Rolled | undef
   const unique = rng.pick(candidates);
   const base = baseDef(unique.baseKey);
   if (base === undefined) throw new Error(`unique ${unique.key}: unknown base ${unique.baseKey}`);
-  const affixes = withKeystone(rng, "unique", rollUniqueAffixes(rng, unique));
+  const affixes = withKeystone(rollUniqueAffixes(rng, unique), uniqueKeystone(unique));
   return { base, rarity: "unique", affixes, uniqueName: unique.name };
 }
 
 function rollRegularItem(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number): Rolled {
   const base = rollBase(rng, slot, itemLevel);
-  const affixes = withKeystone(rng, rarity, rollAffixes(rng, slot, rarity, itemLevel));
+  const affixes = withKeystone(rollAffixes(rng, slot, rarity, itemLevel), rollKeystone(rng, rarity));
   return { base, rarity, affixes };
 }
 

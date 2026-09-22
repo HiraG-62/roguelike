@@ -155,21 +155,38 @@ describe("キーストーンとトリガーの集計", () => {
     const stats = computeStats(equipment);
     expect(stats.keystones).toEqual(["ks_juggernaut", "ks_gambler"]);
     expect(stats.damageTakenMul).toBeCloseTo(0.5);
+    expect(stats.moveSpeedMul).toBeCloseTo(0.65);
+    expect(stats.critChance).toBeCloseTo(0.15);
+    // 負けた glassCannon の数値効果は掛からない
     expect(stats.maxHp).toBe(DEFAULT_STATS.maxHp);
+    expect(stats.meleeDamageMul).toBe(1);
   });
 
-  it("キーストーンの倍率はソフトキャップ後に掛かる", () => {
+  it("glassCannon は与ダメ 2 倍・最大 HP 1/4（flat 合算後に掛かる）", () => {
     const equipment = createEmptyEquipment();
     equipment.weapon = makeItem("weapon", { affixes: [ks("ks_glassCannon")] });
+    equipment.ring = makeItem("ring", {
+      affixes: [{ key: "maxLife", kind: "prefix", tier: 5, value: 20 }],
+    });
     const stats = computeStats(equipment);
     expect(stats.meleeDamageMul).toBeCloseTo(2);
-    expect(stats.maxHp).toBe(1);
+    expect(stats.rangedDamageMul).toBeCloseTo(2);
+    expect(stats.maxHp).toBe(30);
+  });
+
+  it("同じキーストーンを 2 つ装備しても 1 回しか効かない", () => {
+    const equipment = createEmptyEquipment();
+    equipment.ring = makeItem("ring", { affixes: [ks("ks_overclock")] });
+    equipment.amulet = makeItem("amulet", { affixes: [ks("ks_overclock")] });
+    const stats = computeStats(equipment);
+    expect(stats.keystones).toEqual(["ks_overclock"]);
+    expect(stats.fireRateMul).toBeCloseTo(1.6);
   });
 
   it("トリガーアフィックスは stats.triggers に積まれる", () => {
     const equipment = createEmptyEquipment();
     equipment.ring = makeItem("ring", {
-      affixes: [{ key: "tr_onDash_always_heal", kind: "suffix", tier: 1, value: 6, value2: 250 }],
+      affixes: [{ key: "tr:onDash:always:heal", kind: "suffix", tier: 1, value: 6, value2: 250 }],
     });
     const stats = computeStats(equipment);
     expect(stats.triggers).toEqual([

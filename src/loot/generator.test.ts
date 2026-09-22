@@ -119,12 +119,28 @@ describe("generateItem", () => {
           continue;
         }
         if (isTriggerKey(roll.key)) {
-          expect(decodeTriggerRoll(roll), roll.key).toBeDefined();
+          expect(decodeTriggerRoll(roll), roll.key).not.toBeNull();
           continue;
         }
         expectRollInRange(roll, item.itemLevel, item.rarity);
       }
     }
+  });
+
+  it("トレードオフ付きアフィックスが生成され、代償側 value2 も tier の範囲内", () => {
+    let seen = 0;
+    for (const item of generateMany(MANY, 43, { rarityBoost: 3 })) {
+      for (const roll of item.affixes) {
+        const def = affixDef(roll.key);
+        if (def === undefined || !def.tags.includes("tradeoff")) continue;
+        seen++;
+        const tier = def.tiers[roll.tier - 1];
+        expect(tier?.min2).toBeDefined();
+        expect(roll.value2 ?? Number.NaN).toBeGreaterThanOrEqual(tier?.min2 ?? Infinity);
+        expect(roll.value2 ?? Number.NaN).toBeLessThanOrEqual(tier?.max2 ?? -Infinity);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 
   it("トリガー文法アフィックスは rare にだけ付き、ある程度の頻度で出る", () => {
@@ -236,6 +252,7 @@ describe("unique 定義", () => {
       expect(base, u.key).toBeDefined();
       expect(u.minLevel).toBeGreaterThanOrEqual(base?.minLevel ?? Infinity);
       expect(uniquesFor(base?.slot ?? "weapon", u.minLevel)).toContain(u);
+      expect(u.keystone === undefined || keystoneDef(u.keystone) !== undefined, u.key).toBe(true);
       for (const spec of u.affixes) {
         const def = affixDef(spec.key);
         expect(def?.tiers[spec.tier - 1], `${u.key}/${spec.key}`).toBeDefined();
