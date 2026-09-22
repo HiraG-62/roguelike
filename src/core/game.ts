@@ -12,8 +12,9 @@ import { createPlayer } from "../system/player";
 import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { VIEW_H, VIEW_W } from "./view";
+import { DEFAULT_STATS, type Profile, createEmptyProfile } from "../loot/types";
 
-export function createGame(seed: number, seedText = String(seed)): GameState {
+export function createGame(seed: number, seedText = String(seed), profile: Profile = createEmptyProfile()): GameState {
   const state: GameState = {
     seed,
     seedText,
@@ -41,6 +42,10 @@ export function createGame(seed: number, seedText = String(seed)): GameState {
     nextId: 1,
     log: [],
     deathTimer: 0,
+    profile,
+    stats: { ...DEFAULT_STATS },
+    floorItems: [],
+    paused: false,
   };
   buildFloor(state);
   pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");
@@ -49,6 +54,7 @@ export function createGame(seed: number, seedText = String(seed)): GameState {
 
 /** 固定ステップ 1 回ぶんの更新。dt は実時間 */
 export function step(state: GameState, input: FrameInput, dt: number): void {
+  if (state.paused) return;
   if (state.status === "dead") {
     state.deathTimer += dt;
     updateEffects(state, dt * 0.5);

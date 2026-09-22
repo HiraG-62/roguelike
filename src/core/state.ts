@@ -1,6 +1,7 @@
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
+import type { FloorItem, PlayerStats, Profile } from "../loot/types";
 
 export type GameStatus = "playing" | "dead";
 
@@ -169,6 +170,14 @@ export interface GameState {
   log: LogMessage[];
   /** 死亡してからの実時間 */
   deathTimer: number;
+  /** 永続プロフィール（装備・stash）。ラン中に拾ったものは即ここに入る */
+  profile: Profile;
+  /** 装備から畳み込んだ派生ステータス。ゲームロジックは必ずこれを通す */
+  stats: PlayerStats;
+  /** 床に落ちているアイテム */
+  floorItems: FloorItem[];
+  /** 装備画面などで一時停止中 */
+  paused: boolean;
 }
 
 export function allocId(state: GameState): number {

@@ -11,7 +11,8 @@ export type ActionName =
   | "shoot"
   | "special"
   | "confirm"
-  | "restart";
+  | "restart"
+  | "inventory";
 
 /** KeyboardEvent.code で束縛する（配列に依存しない） */
 const BINDINGS: Record<ActionName, readonly string[]> = {
@@ -26,6 +27,7 @@ const BINDINGS: Record<ActionName, readonly string[]> = {
   special: ["KeyF"],
   confirm: ["Enter"],
   restart: ["KeyR"],
+  inventory: ["Tab", "KeyI"],
 };
 
 const MOUSE_LEFT = 0;
@@ -52,6 +54,12 @@ export interface FrameInput {
   specialPressed: boolean;
   confirmPressed: boolean;
   restartPressed: boolean;
+  inventoryPressed: boolean;
+  /** 今フレームのホイール移動量（正 = 下）。UI のスクロール用 */
+  wheel: number;
+  /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
+  clickPressed: boolean;
+  shiftHeld: boolean;
 }
 
 export const EMPTY_INPUT: Readonly<FrameInput> = {
@@ -63,12 +71,17 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   specialPressed: false,
   confirmPressed: false,
   restartPressed: false,
+  inventoryPressed: false,
+  wheel: 0,
+  clickPressed: false,
+  shiftHeld: false,
 };
 
 export class PlayerInput {
   private readonly down = new Set<string>();
   private readonly pressed = new Set<string>();
   private mouseScreen: Vec | null = null;
+  private wheelDelta = 0;
 
   attachKeyboard(target: Window): void {
     target.addEventListener("keydown", (ev) => {
@@ -107,6 +120,14 @@ export class PlayerInput {
       if (code) this.down.delete(code);
     });
     canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    canvas.addEventListener(
+      "wheel",
+      (ev) => {
+        this.wheelDelta += Math.sign(ev.deltaY);
+        ev.preventDefault();
+      },
+      { passive: false },
+    );
     canvas.addEventListener("mouseleave", () => {
       // 画面外に出たら押しっぱなし判定を解除する
       for (const code of Object.values(MOUSE_CODE)) this.down.delete(code);
@@ -145,8 +166,13 @@ export class PlayerInput {
       specialPressed: this.wasPressed("special"),
       confirmPressed: this.wasPressed("confirm"),
       restartPressed: this.wasPressed("restart"),
+      inventoryPressed: this.wasPressed("inventory"),
+      wheel: this.wheelDelta,
+      clickPressed: this.pressed.has("Mouse0"),
+      shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),
     };
     this.pressed.clear();
+    this.wheelDelta = 0;
     return input;
   }
 }
