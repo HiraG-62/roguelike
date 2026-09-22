@@ -72,6 +72,10 @@ export function createGame(
     boss: null,
     floorTime: 0,
     reaper: null,
+    floorKind: "rooms",
+    cursed: false,
+    explored: new Uint8Array(0),
+    exploredLog: [],
   };
   buildFloor(state);
   pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");

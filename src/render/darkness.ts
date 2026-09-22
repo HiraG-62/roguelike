@@ -1,0 +1,89 @@
+import type { GameState } from "../core/state";
+import { FLOOR_KIND, STATUS } from "../data/tuning";
+
+/**
+ * 暗闇フロアのマスク。プレイヤー周り（半径 darkLightRadius）だけ明るく、それ以外は黒で覆う。
+ * 敵の弾と燃焼（燃えている敵・プレイヤーの炎）はマスクの上から発光として描き直す
+ */
+
+const FULL_CIRCLE = Math.PI * 2;
+const GLOW_PAD = 4;
+const GLOW_ALPHA = 0.55;
+const CORE_ALPHA = 1;
+const BURN_GLOW_RADIUS = 9;
+const BURN_FLICKER_SPEED = 18;
+const BURN_FLICKER_AMOUNT = 0.25;
+const PLAYER_BURN_ALPHA = 0.35;
+const COLOR_ENEMY_BULLET = "#ff6060";
+
+export class DarknessLayer {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly ctx: CanvasRenderingContext2D;
+
+  constructor(width: number, height: number) {
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = width;
+    this.canvas.height = height;
+    const ctx = this.canvas.getContext("2d");
+    if (!ctx) throw new Error("2D context unavailable");
+    this.ctx = ctx;
+  }
+
+  /** ox, oy はワールド → 画面の平行移動量 */
+  draw(target: CanvasRenderingContext2D, state: GameState, ox: number, oy: number): void {
+    this.drawMask(state, ox, oy);
+    target.globalAlpha = 1;
+    target.drawImage(this.canvas, 0, 0);
+    this.drawGlows(target, state, ox, oy);
+  }
+
+  private drawMask(state: GameState, ox: number, oy: number): void {
+    const { ctx, canvas } = this;
+    const px = state.player.body.pos.x + ox;
+    const py = state.player.body.pos.y + oy;
+    const r = FLOOR_KIND.darkLightRadius;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = `rgba(0,0,0,${FLOOR_KIND.darkAlpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "destination-out";
+    const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(1 - FLOOR_KIND.darkFeather, "rgba(0,0,0,1)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, FULL_CIRCLE);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  private drawGlows(target: CanvasRenderingContext2D, state: GameState, ox: number, oy: number): void {
+    target.save();
+    target.translate(ox, oy);
+    target.globalCompositeOperation = "lighter";
+    for (const pr of state.projectiles) {
+      if (pr.owner !== "enemy") continue;
+      this.glow(target, pr.pos.x, pr.pos.y, pr.radius + GLOW_PAD, COLOR_ENEMY_BULLET, GLOW_ALPHA);
+      this.glow(target, pr.pos.x, pr.pos.y, pr.radius, COLOR_ENEMY_BULLET, CORE_ALPHA);
+    }
+    const flicker = 1 - BURN_FLICKER_AMOUNT + Math.sin(state.time * BURN_FLICKER_SPEED) * BURN_FLICKER_AMOUNT;
+    for (const e of state.enemies) {
+      if (e.hp <= 0 || e.effects.burn.time <= 0) continue;
+      this.glow(target, e.body.pos.x, e.body.pos.y, BURN_GLOW_RADIUS, STATUS.burnColor, GLOW_ALPHA * flicker);
+    }
+    for (const h of state.hazards) {
+      if (h.kind !== "playerBurn") continue;
+      this.glow(target, h.pos.x, h.pos.y, h.radius, STATUS.burnColor, PLAYER_BURN_ALPHA * flicker);
+    }
+    target.restore();
+  }
+
+  private glow(target: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, alpha: number): void {
+    target.globalAlpha = alpha;
+    target.fillStyle = color;
+    target.beginPath();
+    target.arc(x, y, r, 0, FULL_CIRCLE);
+    target.fill();
+  }
+}

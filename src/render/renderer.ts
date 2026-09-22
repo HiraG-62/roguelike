@@ -1,7 +1,7 @@
 import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { Enemy, GameState, Hazard, Player } from "../core/state";
+import type { Enemy, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
 import { enemyDef } from "../data/enemies";
-import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, STATUS } from "../data/tuning";
+import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
 import { bossEnemy } from "../system/boss";
 import { ELITE_COLOR, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
@@ -13,6 +13,9 @@ import { comboMultiplier } from "../system/combat";
 import { isAttacking, isDashing, meleeBox, meleeStep } from "../system/player";
 import { floorVariant, pulse, wallStyle } from "./renderMath";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, spriteFrame } from "./sprites";
+import { FLOOR_KIND_LABEL, isDark } from "../system/roomTypes";
+import { DarknessLayer } from "./darkness";
+import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 
 const FONT_SMALL = "bold 8px monospace";
 const FONT_MED = "bold 12px monospace";
@@ -111,7 +114,12 @@ const REAPER_SCALE = 2;
 const REAPER_ALPHA_MIN = 0.55;
 const REAPER_ALPHA_MAX = 0.9;
 const REAPER_PULSE_SPEED = 4;
-const REAPER_HUD_Y = 58;
+/** 右上 HUD の文字はミニマップの下に並べる（Minimap.bottom からの相対） */
+const HUD_RIGHT_GAP = 10;
+const HUD_RIGHT_LINE = 10;
+const HUD_RIGHT_X_PAD = 8;
+const HUD_REAPER_LINE = 3;
+const HUD_CURSED_LINE = 4;
 const REAPER_TINT = 0.7;
 const BOSS_BANNER_FADE = 0.5;
 const BOSS_BANNER_NAME_GAP = 16;
@@ -227,6 +235,29 @@ const FLASH_WHITE_ALPHA = 0.6;
 const FLASH_RED_ALPHA = 0.55;
 const COLOR_FLASH_RED = "#ff2020";
 
+/** 部屋の種類 */
+const FOUNTAIN_STONE = "#50607a";
+const FOUNTAIN_WATER = "#60c0ff";
+const FOUNTAIN_DRY = "#3a4450";
+const FOUNTAIN_INSET = 2;
+const FOUNTAIN_WATER_INSET = 4;
+const FOUNTAIN_SPEED = 3;
+const FOUNTAIN_MIN = 0.55;
+const FOUNTAIN_MAX = 1;
+const FOUNTAIN_GLOW_R = 14;
+const FOUNTAIN_GLOW_ALPHA = 0.18;
+const AMBUSH_SHADE_ALPHA = 0.16;
+const DOOR_MARK_SIZE = 4;
+const DOOR_MARK_SPEED = 3;
+const DOOR_MARK_MIN = 0.45;
+const DOOR_MARK_MAX = 0.95;
+/** 扉の手前に出す床マークの色。normal / ambush は出さない */
+const DOOR_MARK_COLOR: Readonly<Partial<Record<RoomKind, string>>> = {
+  treasure: ROOM_KIND.treasureCoinColor,
+  challenge: ROOM_KIND.challengeColor,
+  shrine: ROOM_KIND.shrineColor,
+};
+
 /** HUD */
 const HUD_X = 8;
 const HUD_HP_Y = 8;
@@ -328,6 +359,10 @@ export class Renderer {
   private hudKeyCache = "";
   private hudKeystoneText = "";
   private hudConflictText = "";
+  private readonly minimap = new Minimap();
+  private readonly darkness = new DarknessLayer(VIEW_W, VIEW_H);
+  /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
+  private lookup: RoomLookup | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     canvas.width = VIEW_W;
@@ -363,6 +398,7 @@ export class Renderer {
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
+    if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
     const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
@@ -384,6 +420,7 @@ export class Renderer {
     this.drawTexts(state);
     ctx.restore();
 
+    if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
     this.drawOverlays(state);
     this.drawHud(state);
     if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
@@ -487,6 +524,7 @@ export class Renderer {
           continue;
         }
         this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
+        this.drawRoomFloor(state, toIndex(map, x, y), tile, px, py);
         if (tile === Tile.StairsDown) {
           this.blit(stairs, 0, px, py);
           this.stairsBuf.push(px, py);
@@ -502,6 +540,65 @@ export class Renderer {
       }
     }
     this.drawStairsGlow(state);
+  }
+
+  /** 部屋の種類ごとの床表現: 伏兵の暗い床、泉、扉の手前のマーク */
+  private drawRoomFloor(state: GameState, index: number, tile: Tile, px: number, py: number): void {
+    const lookup = this.lookup;
+    if (!lookup) return;
+    const room = state.rooms[lookup.roomOf[index] ?? -1];
+    if (room?.kind === "ambush" && !room.cleared && !room.locked) {
+      this.ctx.globalAlpha = AMBUSH_SHADE_ALPHA;
+      this.ctx.fillStyle = COLOR_BLACK;
+      this.ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+      this.ctx.globalAlpha = 1;
+    }
+    if (tile === Tile.Fountain) this.drawFountain(state, room, px, py);
+    const doorRoom = lookup.doorOf.get(index);
+    if (doorRoom !== undefined) this.drawDoorMark(state, state.rooms[doorRoom], px, py);
+  }
+
+  private drawFountain(state: GameState, room: RoomState | undefined, px: number, py: number): void {
+    const { ctx } = this;
+    const used = room?.used ?? false;
+    const inner = TILE_SIZE - FOUNTAIN_INSET * 2;
+    ctx.fillStyle = FOUNTAIN_STONE;
+    ctx.fillRect(px + FOUNTAIN_INSET, py + FOUNTAIN_INSET, inner, inner);
+    const water = TILE_SIZE - FOUNTAIN_WATER_INSET * 2;
+    const glow = pulse(state.time, FOUNTAIN_SPEED, FOUNTAIN_MIN, FOUNTAIN_MAX);
+    ctx.globalAlpha = used ? 1 : glow;
+    ctx.fillStyle = used ? FOUNTAIN_DRY : FOUNTAIN_WATER;
+    ctx.fillRect(px + FOUNTAIN_WATER_INSET, py + FOUNTAIN_WATER_INSET, water, water);
+    if (!used) {
+      ctx.globalAlpha = FOUNTAIN_GLOW_ALPHA * glow;
+      ctx.beginPath();
+      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, FOUNTAIN_GLOW_R, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** 特別な部屋の入口に小さな菱形。用が済んだら消す */
+  private drawDoorMark(state: GameState, room: RoomState | undefined, px: number, py: number): void {
+    if (!room || room.locked) return;
+    const color = DOOR_MARK_COLOR[room.kind];
+    if (!color) return;
+    const done = room.kind === "shrine" ? room.used : room.cleared;
+    if (done) return;
+    const { ctx } = this;
+    const cx = px + TILE_SIZE / 2;
+    const cy = py + TILE_SIZE / 2;
+    const h = DOOR_MARK_SIZE / 2;
+    ctx.globalAlpha = pulse(state.time, DOOR_MARK_SPEED, DOOR_MARK_MIN, DOOR_MARK_MAX);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - h);
+    ctx.lineTo(cx + h, cy);
+    ctx.lineTo(cx, cy + h);
+    ctx.lineTo(cx - h, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   private drawStairsGlow(state: GameState): void {
@@ -1264,12 +1361,20 @@ export class Renderer {
     this.drawDashPips(state);
     this.drawKeystoneHud(state);
 
+    if (this.lookup) this.minimap.draw(ctx, state, this.lookup, VIEW_W);
+    const rightY = this.hudRightY(state);
+    const rightX = VIEW_W - HUD_RIGHT_X_PAD;
     ctx.textAlign = "right";
+    ctx.font = FONT_SMALL;
     ctx.fillStyle = COLOR_TEXT;
-    ctx.fillText(`DEPTH ${state.depth}`, VIEW_W - 8, 14);
-    ctx.fillText(`SCORE ${state.score}`, VIEW_W - 8, 24);
+    ctx.fillText(`DEPTH ${state.depth} · ${FLOOR_KIND_LABEL[state.floorKind]}`, rightX, rightY);
+    ctx.fillText(`SCORE ${state.score}`, rightX, rightY + HUD_RIGHT_LINE);
     ctx.fillStyle = COLOR_DIM;
-    ctx.fillText(`seed ${state.seedText}`, VIEW_W - 8, 34);
+    ctx.fillText(`seed ${state.seedText}`, rightX, rightY + HUD_RIGHT_LINE * 2);
+    if (state.cursed) {
+      ctx.fillStyle = ROOM_KIND.cursedColor;
+      ctx.fillText("CURSED: next room elites x2", rightX, rightY + HUD_RIGHT_LINE * HUD_CURSED_LINE);
+    }
 
     if (state.combo.count > 1) {
       const pop = 1 + state.combo.popTimer * 3;
@@ -1333,19 +1438,25 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /** 右上 HUD の 1 行目（ミニマップの下） */
+  private hudRightY(state: GameState): number {
+    return Minimap.bottom(state) + HUD_RIGHT_GAP;
+  }
+
   /** Reaper 出現までの残り秒（警告時間以降）と、出現中の警告 */
   private drawReaperHud(state: GameState): void {
     const { ctx } = this;
+    const reaperY = this.hudRightY(state) + HUD_RIGHT_LINE * HUD_REAPER_LINE;
     ctx.textAlign = "right";
     ctx.font = FONT_SMALL;
     if (state.reaper) {
       ctx.fillStyle = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2 ? REAPER.color : COLOR_WARN;
-      ctx.fillText("REAPER! find the stairs", VIEW_W - 8, REAPER_HUD_Y);
+      ctx.fillText("REAPER! find the stairs", VIEW_W - HUD_RIGHT_X_PAD, reaperY);
       return;
     }
     if (!reaperWarning(state)) return;
     ctx.fillStyle = REAPER.color;
-    ctx.fillText(`reaper in ${Math.ceil(reaperTimeLeft(state))}s`, VIEW_W - 8, REAPER_HUD_Y);
+    ctx.fillText(`reaper in ${Math.ceil(reaperTimeLeft(state))}s`, VIEW_W - HUD_RIGHT_X_PAD, reaperY);
   }
 
   /** ダッシュのチャージ数 */

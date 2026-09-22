@@ -1,13 +1,14 @@
 import { type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { BOSS, ROOM } from "../data/tuning";
-import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateRoomsAndCorridors } from "../map/generator";
+import { BOSS, ROOM, ROOM_KIND } from "../data/tuning";
+import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap } from "../map/generator";
 import {
   type GameMap,
   type Rect,
   TILE_SIZE,
   Tile,
   getTile,
+  inBounds,
   isWalkable,
   rectCenterPx,
   rectContainsPx,
@@ -23,19 +24,38 @@ import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { finalizeLinks, rollElite } from "./elites";
+import { resetExplored, revealAround } from "./explore";
+import {
+  FLOOR_KIND_LABEL,
+  announceAmbush,
+  applyCurse,
+  assignRoomKinds,
+  chooseFloorKind,
+  dropRareItem,
+  hasMoreWaves,
+  mapShapeOf,
+  openTreasure,
+  setupShrine,
+  startWave,
+  startsEmpty,
+  updateShrines,
+} from "./roomTypes";
 
 const START_ROOM = 0;
+/** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の戦闘部屋にする */
+const FIRST_FIGHT_ROOM = 1;
 const PICKUP_RADIUS = 6;
+const LOCK_SHAKE = 3;
+const AMBUSH_SHAKE = 6;
+const MIN_WAVE_ENEMIES = 1;
+const TEXT_LIFT = 10;
+const DEPTH_COLOR = "#ffd75f";
 
 /** 新しいフロアを生成してプレイヤーを配置する */
 export function buildFloor(state: GameState): void {
-  state.map = generateRoomsAndCorridors(state.rng, generatorOptions(state.depth));
-  state.rooms = state.map.rooms.map((rect) => ({
-    rect,
-    cleared: false,
-    locked: false,
-    doorTiles: findDoorTiles(state.map, rect),
-  }));
+  state.floorKind = chooseFloorKind(state.depth, state.rng);
+  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth));
+  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
   state.lockedTiles = new Set();
   state.hazards = [];
   state.boss = null;
@@ -49,6 +69,7 @@ export function buildFloor(state: GameState): void {
   state.shapes = [];
   // 前の階に残したアイテムは失われる
   state.floorItems = [];
+  resetExplored(state);
 
   const start = state.rooms[START_ROOM];
   if (start) {
@@ -58,14 +79,32 @@ export function buildFloor(state: GameState): void {
   snapCamera(state);
 
   const bossRoom = bossRoomIndex(state);
+  const last = state.rooms.length - 1;
+  assignRoomKinds(state, new Set([START_ROOM, FIRST_FIGHT_ROOM, last]));
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
     if (i === bossRoom) {
       setupBossRoom(state, i);
       return;
     }
+    if (room.kind === "shrine") setupShrine(state, room);
+    if (startsEmpty(room.kind)) return;
     populateRoom(state, room, i);
   });
+  revealAround(state);
+}
+
+function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined): RoomState {
+  return {
+    rect,
+    cleared: false,
+    locked: false,
+    doorTiles: tileList ? findBlobDoorTiles(map, tileList) : findDoorTiles(map, rect),
+    kind: "normal",
+    wave: 0,
+    used: false,
+    tiles: tileList ? new Set(tileList) : undefined,
+  };
 }
 
 function generatorOptions(depth: number): GeneratorOptions {
@@ -96,7 +135,36 @@ function findDoorTiles(map: GameMap, r: Rect): number[] {
   return tiles;
 }
 
-function enemyCount(state: GameState): number {
+const NEIGHBORS_8 = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+] as const;
+
+/** 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ） */
+function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
+  const inRoom = new Set(tiles);
+  const doors = new Set<number>();
+  for (const i of tiles) {
+    const x = i % map.width;
+    const y = Math.floor(i / map.width);
+    for (const [dx, dy] of NEIGHBORS_8) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (!isWalkable(map, nx, ny)) continue;
+      const ni = toIndex(map, nx, ny);
+      if (!inRoom.has(ni)) doors.add(ni);
+    }
+  }
+  return [...doors].sort((a, b) => a - b);
+}
+
+export function enemyCount(state: GameState): number {
   return Math.min(ROOM.maxEnemies, ROOM.baseEnemies + state.depth * ROOM.enemiesPerDepth);
 }
 
@@ -111,7 +179,7 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
   const def = pickEnemy(state);
   const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;
   for (let k = 0; k < n; k++) {
-    const pos = randomFreePoint(state, room.rect, def.radius);
+    const pos = randomFreePoint(state, room, def.radius);
     if (!pos) continue;
     const e = createEnemy(state, def, pos, index, spawning);
     if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
@@ -135,10 +203,12 @@ const FREE_POINT_ATTEMPTS = 30;
 /** プレイヤーの近くに湧かせない距離 */
 const SPAWN_CLEARANCE = 40;
 
-function randomFreePoint(state: GameState, r: Rect, radius: number): { x: number; y: number } | null {
+function randomFreePoint(state: GameState, room: RoomState, radius: number): { x: number; y: number } | null {
+  const r = room.rect;
   for (let i = 0; i < FREE_POINT_ATTEMPTS; i++) {
     const x = (r.x + 1 + state.rng.next() * (r.w - 2)) * TILE_SIZE;
     const y = (r.y + 1 + state.rng.next() * (r.h - 2)) * TILE_SIZE;
+    if (!pxInRoomTiles(state, room, x, y)) continue;
     if (overlapsWall(state, x, y, radius)) continue;
     const p = state.player.body.pos;
     if (circlesOverlap(x, y, radius, p.x, p.y, SPAWN_CLEARANCE)) continue;
@@ -148,23 +218,61 @@ function randomFreePoint(state: GameState, r: Rect, radius: number): { x: number
   return null;
 }
 
+/** 塊の部屋なら所属タイル上か。矩形の部屋は常に true */
+function pxInRoomTiles(state: GameState, room: RoomState, px: number, py: number): boolean {
+  if (!room.tiles) return true;
+  const tx = Math.floor(px / TILE_SIZE);
+  const ty = Math.floor(py / TILE_SIZE);
+  return inBounds(state.map, tx, ty) && room.tiles.has(toIndex(state.map, tx, ty));
+}
+
+/** 中心と上下左右 margin 先の点 */
+const ENTER_PROBES = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+/** 部屋の内側に margin 以上入り込んでいるか（扉を跨いでいる間はロックしない） */
+export function insideRoom(state: GameState, room: RoomState, px: number, py: number, margin: number): boolean {
+  if (!room.tiles) return rectContainsPx(room.rect, px, py, margin);
+  return ENTER_PROBES.every(([dx, dy]) => pxInRoomTiles(state, room, px + dx * margin, py + dy * margin));
+}
+
 /** 部屋のロック/解除、階段、ピックアップ */
 export function updateRooms(state: GameState, dt: number): void {
   const p = state.player.body.pos;
+  revealAround(state);
   state.rooms.forEach((room, i) => {
     if (room.cleared) return;
     if (!room.locked) {
-      if (rectContainsPx(room.rect, p.x, p.y, ROOM.enterMargin)) lockRoom(state, room, i);
+      if (insideRoom(state, room, p.x, p.y, ROOM.enterMargin)) enterRoom(state, room, i);
       return;
     }
     const alive = state.enemies.some((e) => e.roomIndex === i && e.hp > 0);
-    if (!alive) clearRoom(state, room);
+    if (alive) return;
+    if (hasMoreWaves(room)) {
+      startWave(state, room, () => spawnWave(state, room, i));
+      return;
+    }
+    clearRoom(state, room);
   });
 
+  updateShrines(state);
   updateBossIntro(state, dt);
   updatePickups(state, dt);
   updateFloorItems(state, dt);
   checkStairs(state);
+}
+
+function enterRoom(state: GameState, room: RoomState, index: number): void {
+  if (room.kind === "treasure") {
+    openTreasure(state, room);
+    return;
+  }
+  lockRoom(state, room, index);
 }
 
 function lockRoom(state: GameState, room: RoomState, index: number): void {
@@ -177,13 +285,29 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
     announceBoss(state);
     return;
   }
-  // 増援を telegraph 付きで湧かせる
-  const extra = Math.round(enemyCount(state) * ROOM.reinforcementRatio);
+  if (room.kind === "challenge") {
+    startWave(state, room, () => spawnWave(state, room, index));
+    applyCurse(state, index);
+    return;
+  }
+  // 増援を telegraph 付きで湧かせる。伏兵部屋は最初は無人で、通常の 2 倍が一気に湧く
+  const ambush = room.kind === "ambush";
+  const ratio = ambush ? ROOM_KIND.ambushEnemyMul : ROOM.reinforcementRatio;
+  const extra = Math.round(enemyCount(state) * ratio);
   for (let i = 0; i < extra; i++) spawnGroup(state, room, index, true);
   finalizeLinks(state, index);
-  shake(state, 3);
-  addFloatingText(state, p2(state), "LOCKED", "#ff8080", 1.2, 0.8);
+  applyCurse(state, index);
+  shake(state, ambush ? AMBUSH_SHAKE : LOCK_SHAKE);
+  if (ambush) announceAmbush(state);
+  else addFloatingText(state, p2(state), "LOCKED", "#ff8080", 1.2, 0.8);
   pushSfx(state, "roomLock");
+}
+
+/** challenge の 1 波ぶん（telegraph 付き） */
+function spawnWave(state: GameState, room: RoomState, index: number): void {
+  const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * ROOM_KIND.challengeWaveMul));
+  for (let i = 0; i < count; i++) spawnGroup(state, room, index, true);
+  finalizeLinks(state, index);
 }
 
 function clearRoom(state: GameState, room: RoomState): void {
@@ -194,21 +318,24 @@ function clearRoom(state: GameState, room: RoomState): void {
   addFloatingText(state, p2(state), "ROOM CLEAR", "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
-  dropRoomReward(state, rectCenterPx(room.rect));
+  const center = rectCenterPx(room.rect);
+  dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
-  if (state.rng.chance(ROOM.heartDropChance)) {
-    state.pickups.push({
-      id: allocId(state),
-      kind: "heart",
-      pos: rectCenterPx(room.rect),
-      radius: PICKUP_RADIUS,
-      bobTime: 0,
-    });
+  // 試練: rare 確定 + ハート確定
+  if (room.kind === "challenge") {
+    dropRareItem(state, center);
+    dropHeart(state, center);
+    return;
   }
+  if (state.rng.chance(ROOM.heartDropChance)) dropHeart(state, center);
+}
+
+function dropHeart(state: GameState, pos: { x: number; y: number }): void {
+  state.pickups.push({ id: allocId(state), kind: "heart", pos: { ...pos }, radius: PICKUP_RADIUS, bobTime: 0 });
 }
 
 function p2(state: GameState): { x: number; y: number } {
-  return { x: state.player.body.pos.x, y: state.player.body.pos.y - 10 };
+  return { x: state.player.body.pos.x, y: state.player.body.pos.y - TEXT_LIFT };
 }
 
 function updatePickups(state: GameState, dt: number): void {
@@ -238,8 +365,9 @@ export function descend(state: GameState): void {
   state.score += ROOM.clearBonus * state.depth;
   buildFloor(state);
   state.flash = 1;
-  addFloatingText(state, p2(state), `DEPTH ${state.depth}`, "#ffd75f", 2, 1.2);
+  const label = FLOOR_KIND_LABEL[state.floorKind];
+  addFloatingText(state, p2(state), `DEPTH ${state.depth} · ${label}`, DEPTH_COLOR, 2, 1.2);
   pushSfx(state, "descend");
   dropDepthReward(state);
-  pushLog(state, `You descend to depth ${state.depth}.`, "#ffd75f");
+  pushLog(state, `You descend to depth ${state.depth} (${label.toLowerCase()}).`, DEPTH_COLOR);
 }

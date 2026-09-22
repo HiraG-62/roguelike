@@ -3,6 +3,8 @@ export const Tile = {
   Wall: 0,
   Floor: 1,
   StairsDown: 2,
+  /** 泉（shrine 部屋の中央）。歩ける */
+  Fountain: 3,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -27,6 +29,11 @@ export interface GameMap {
   height: number;
   tiles: Uint8Array;
   rooms: Rect[];
+  /**
+   * 部屋ごとの所属タイル（インデックス）。矩形でない部屋（洞窟の塊）だけが持つ。
+   * 持つ場合 rooms[i] は塊に内接する矩形（中心・湧き位置の目安）
+   */
+  roomTiles?: number[][];
 }
 
 export function createMap(width: number, height: number): GameMap {

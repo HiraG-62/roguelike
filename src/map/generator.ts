@@ -8,6 +8,7 @@ import {
   rectsIntersect,
   setTile,
 } from "./grid";
+import { DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
 
 export interface GeneratorOptions {
   width: number;
@@ -111,4 +112,34 @@ function carveHorizontal(map: GameMap, x1: number, x2: number, y: number, width:
 
 function carveVertical(map: GameMap, y1: number, y2: number, x: number, width: number): void {
   carveRect(map, { x, y: Math.min(y1, y2), w: width, h: Math.abs(y2 - y1) + width });
+}
+
+// -----------------------------------------------------------------------------
+// 生成戦略
+// -----------------------------------------------------------------------------
+
+/** マップの形。フロア種別（rooms / cave / dark）から floor.ts が選ぶ。dark は rooms の形 */
+export type MapShape = "rooms" | "cave";
+
+/** 失敗（部屋が足りない等）なら null を返してよい。null なら同じ rng で再試行する */
+type MapGenerator = (rng: Rng, options: GeneratorOptions) => GameMap | null;
+
+const MAP_GENERATORS: Readonly<Record<MapShape, MapGenerator>> = {
+  rooms: generateRoomsAndCorridors,
+  cave: (rng, options) => generateCave(rng, { ...DEFAULT_CAVE_OPTIONS, width: options.width, height: options.height }),
+};
+
+const GENERATE_ATTEMPTS = 8;
+
+/**
+ * 形に応じた生成器でマップを作る。規定回数失敗したら rooms 型にフォールバックする。
+ * rooms 型は generateRoomsAndCorridors と乱数消費が完全に同じ
+ */
+export function generateMap(shape: MapShape, rng: Rng, options: GeneratorOptions): GameMap {
+  const generate = MAP_GENERATORS[shape];
+  for (let i = 0; i < GENERATE_ATTEMPTS; i++) {
+    const map = generate(rng, options);
+    if (map) return map;
+  }
+  return generateRoomsAndCorridors(rng, options);
 }
