@@ -1,5 +1,5 @@
 import { createGame, step } from "./core/game";
-import { KeyboardInput } from "./core/input";
+import { PlayerInput } from "./core/input";
 import { startLoop } from "./core/loop";
 import { hashSeed } from "./core/rng";
 import type { GameState } from "./core/state";
@@ -26,13 +26,16 @@ function startGame(seedText: string): GameState {
 }
 
 let state = startGame(initialSeedText());
-const input = new KeyboardInput();
-input.attach(window);
+const input = new PlayerInput();
+input.attachKeyboard(window);
+input.attachMouse(canvas);
+let lastAim: { x: number; y: number } | null = null;
 const renderer = new Renderer(canvas);
 
 startLoop(
   (dt) => {
     const frame = input.snapshot();
+    lastAim = frame.aimScreen;
     if (state.status === "dead" && state.deathTimer > 0.6) {
       if (frame.confirmPressed) state = startGame(state.seedText);
       else if (frame.restartPressed) state = startGame(randomSeedText());
@@ -41,5 +44,5 @@ startLoop(
     }
     step(state, frame, dt);
   },
-  () => renderer.render(state),
+  () => renderer.render(state, lastAim),
 );

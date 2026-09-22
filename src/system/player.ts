@@ -1,6 +1,7 @@
 import type { FrameInput } from "../core/input";
 import { type GameState, type Player, allocId } from "../core/state";
 import { type Vec, add, isZero, normalize, scale, sub, length } from "../core/vec";
+import { screenToWorld } from "../core/view";
 import { FEEL, PLAYER } from "../data/tuning";
 import { cancelAttack, damageEnemy } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst } from "./effects";
@@ -38,17 +39,33 @@ export function isAttacking(p: Player): boolean {
   return p.attack.phase !== "none";
 }
 
+/** カーソルがこの距離より近いと向きを更新しない（震え防止） */
+const AIM_DEADZONE = 2;
+
 export function updatePlayer(state: GameState, input: FrameInput, dt: number): void {
   const p = state.player;
   tickTimers(p, dt);
+  const aiming = applyAim(state, input);
 
   if (input.dashPressed) tryDash(state, input);
   if (input.attackPressed) tryAttack(state);
   if (input.specialPressed) trySpecial(state);
 
   updateAttack(state, dt);
-  updateMovement(state, input, dt);
+  updateMovement(state, input, dt, aiming);
   if (input.shootHeld) tryShoot(state);
+}
+
+/** マウス照準があれば向きをカーソル方向にする。照準していれば true */
+function applyAim(state: GameState, input: FrameInput): boolean {
+  if (!input.aimScreen) return false;
+  const p = state.player;
+  const world = screenToWorld(state.camera, input.aimScreen);
+  const delta = sub(world, p.body.pos);
+  if (length(delta) < AIM_DEADZONE) return true;
+  // 攻撃中は振り始めの向きを維持する（振り向き斬りにならないように）
+  if (!isAttacking(p) || p.attack.phase === "recover") p.facing = normalize(delta);
+  return true;
 }
 
 function tickTimers(p: Player, dt: number): void {
@@ -78,7 +95,7 @@ function tryDash(state: GameState, input: FrameInput): void {
   spawnBurst(state, p.body.pos, "#ffffff", 6, 40, 0.2, 1.5);
 }
 
-function updateMovement(state: GameState, input: FrameInput, dt: number): void {
+function updateMovement(state: GameState, input: FrameInput, dt: number, aiming: boolean): void {
   const p = state.player;
   let vel: Vec;
   if (isDashing(p)) {
@@ -98,7 +115,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number): void {
   } else {
     const mul = isAttacking(p) ? PLAYER.attackMoveMul : 1;
     vel = scale(input.move, PLAYER.speed * mul);
-    if (!isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
+    if (!aiming && !isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
   }
 
   vel = add(vel, p.knock);

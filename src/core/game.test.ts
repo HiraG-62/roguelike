@@ -149,3 +149,24 @@ describe("floor / rooms", () => {
     expect(state.tick).toBeGreaterThan(0);
   });
 });
+
+describe("mouse aim", () => {
+  it("カーソル方向を向き、移動方向には引きずられない", async () => {
+    const { VIEW_H, VIEW_W } = await import("./view");
+    const state = createGame(5);
+    // カメラはプレイヤー中心なので、画面左上を指せば左上を向く
+    const input = withInput({
+      move: { x: 1, y: 0 },
+      aimScreen: { x: VIEW_W / 2 - 50, y: VIEW_H / 2 - 50 },
+    });
+    step(state, input, FIXED_DT);
+    expect(state.player.facing.x).toBeLessThan(0);
+    expect(state.player.facing.y).toBeLessThan(0);
+  });
+
+  it("照準なしならキーボードの移動方向を向く", () => {
+    const state = createGame(5);
+    step(state, withInput({ move: { x: 0, y: 1 } }), FIXED_DT);
+    expect(state.player.facing).toEqual({ x: 0, y: 1 });
+  });
+});

@@ -1,4 +1,4 @@
-import { VIEW_H, VIEW_W } from "../core/game";
+import { VIEW_H, VIEW_W } from "../core/view";
 import type { Enemy, GameState } from "../core/state";
 import { enemyDef } from "../data/enemies";
 import { PLAYER } from "../data/tuning";
@@ -48,7 +48,7 @@ export class Renderer {
     this.canvas.style.height = `${VIEW_H * scale}px`;
   }
 
-  render(state: GameState): void {
+  render(state: GameState, aimScreen: { x: number; y: number } | null = null): void {
     const { ctx } = this;
     ctx.fillStyle = "#08080c";
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -70,7 +70,23 @@ export class Renderer {
 
     this.drawOverlays(state);
     this.drawHud(state);
+    if (aimScreen && state.status === "playing") this.drawCrosshair(aimScreen.x, aimScreen.y);
     if (state.status === "dead") this.drawDeath(state);
+  }
+
+  private drawCrosshair(x: number, y: number): void {
+    const { ctx } = this;
+    const cx = Math.round(x);
+    const cy = Math.round(y);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(cx, cy, 1, 1);
+    ctx.globalAlpha = 1;
   }
 
   private drawTiles(state: GameState, viewX: number, viewY: number): void {
@@ -208,6 +224,7 @@ export class Renderer {
     const { ctx } = this;
     const p = state.player;
     if (state.status === "dead") return;
+    this.drawAimGuide(state);
     const sprite = getSprite(this.atlas, "player");
     const moving = p.body.vel.x !== 0 || p.body.vel.y !== 0;
     const frame = moving ? Math.floor(p.walkTime / WALK_FRAME_TIME) : 0;
@@ -230,6 +247,23 @@ export class Renderer {
         this.drawSlash(box.x + box.w / 2, box.y + box.h / 2, step.size / 2, p.attack.dir, p.attack.combo);
       }
     }
+  }
+
+  /** 向いている方向を示す小さな三角。マウス照準の手応え用 */
+  private drawAimGuide(state: GameState): void {
+    const { ctx } = this;
+    const p = state.player;
+    const d = p.facing;
+    const base = { x: p.body.pos.x + d.x * 11, y: p.body.pos.y + d.y * 11 };
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(base.x + d.x * 3, base.y + d.y * 3);
+    ctx.lineTo(base.x - d.y * 2, base.y + d.x * 2);
+    ctx.lineTo(base.x + d.y * 2, base.y - d.x * 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   /** 斬撃の弧。矩形判定の中心に、向きに合わせた円弧を描く */

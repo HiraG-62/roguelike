@@ -11,10 +11,7 @@ import { updateRooms } from "../system/floor";
 import { createPlayer } from "../system/player";
 import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
-
-/** 内部解像度。ドット絵をそのまま整数倍で拡大する */
-export const VIEW_W = 480;
-export const VIEW_H = 270;
+import { VIEW_H, VIEW_W } from "./view";
 
 export function createGame(seed: number, seedText = String(seed)): GameState {
   const state: GameState = {
