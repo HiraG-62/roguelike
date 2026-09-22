@@ -49,7 +49,6 @@ const ENEMY_BULLET_COLOR = "#e070ff";
 const ENEMY_BULLET_LIFE = 3;
 const SPAWN_TIME = 0.7;
 const CHARGER_STAGGER = 0.9;
-const WISP_DEATH_COLOR = ENEMY_AI.wisp.color;
 
 export function createAi(): EnemyAi {
   return { target: { x: 0, y: 0 }, timer: 0, counter: 0, stage: 1, move: 0 };
@@ -144,8 +143,9 @@ function handleDeaths(state: GameState): void {
       explodeHostile(state, e.body.pos, b.radius, b.damage + depthDamageBonus(state.depth), b.color);
     }
     if (def.behavior === "wisp") {
+      // 即時爆発だと近接で倒しても避けられないので、bomb と同じ仕組みでテレグラフしてから爆発させる
       const w = ENEMY_AI.wisp;
-      explodeHostile(state, e.body.pos, w.deathExplodeRadius, w.deathExplodeDamage, WISP_DEATH_COLOR);
+      spawnBomb(state, e.body.pos, w.deathExplodeDamage, e.id, w.deathExplodeFuse, w.deathExplodeRadius);
     }
     if (def.boss) onBossDeath(state, e);
   }

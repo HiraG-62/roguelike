@@ -30,7 +30,9 @@ export const ELITE_PREFIX: Readonly<Record<EliteKind, string>> = {
 const DEG_TO_RAD = Math.PI / 180;
 const BLOCK_TEXT = "BLOCK";
 const BREAK_TEXT = "BREAK";
+const GUARD_BREAK_TEXT = "GUARD BREAK";
 const BLOCK_PARTICLES = 6;
+const GUARD_BREAK_PARTICLES = 10;
 const REFLECT_PARTICLES = 5;
 const LINK_MIN_MEMBERS = 2;
 
@@ -164,9 +166,20 @@ function showBlock(state: GameState, e: Enemy, dir: Vec): void {
   pushSfx(state, "wallHit");
 }
 
+/** GUARD BREAK: カウンター/JUST カウンターは盾を無視してダメージが通り、代わりに大きく怯む */
+function showGuardBreak(state: GameState, e: Enemy): void {
+  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8);
+  spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, GUARD_BREAK_PARTICLES, 130, 0.35, 2);
+  pushSfx(state, "hitHeavy");
+  if (e.hp <= 0 || e.phase === "spawning") return;
+  e.phase = "stagger";
+  e.phaseTimer = ENEMY_AI.knight.guardBreakStagger;
+}
+
 /**
  * damageEnemy の直前に割り込む。返り値が 0 以下ならダメージ無効。
- * 近接の正面攻撃は knight の盾で防ぐ（弾は deflectProjectile が処理する）
+ * 近接の正面攻撃は knight の盾で防ぐ（弾は deflectProjectile が処理する）。
+ * guardBreak（カウンターヒット / JUST カウンター）なら盾を無視して通す代わりに GUARD BREAK 表示 + スタガー
  */
 export function interceptEnemyDamage(
   state: GameState,
@@ -174,9 +187,14 @@ export function interceptEnemyDamage(
   amount: number,
   knockDir: Vec,
   kind: "melee" | "ranged" | "proc",
+  guardBreak = false,
 ): number {
   if (kind !== "melee") return amount;
   if (!canBlock(e) || !isFrontal(e, knockDir)) return amount;
+  if (guardBreak) {
+    showGuardBreak(state, e);
+    return amount;
+  }
   showBlock(state, e, knockDir);
   return 0;
 }

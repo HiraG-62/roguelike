@@ -44,7 +44,8 @@ export function updateReaper(state: GameState, dt: number): void {
   }
   if (state.tick % TRAIL_INTERVAL === 0) spawnBurst(state, r.pos, REAPER.color, 1, 20, 0.6, 2);
   if (circlesOverlap(r.pos.x, r.pos.y, r.radius, p.pos.x, p.pos.y, p.radius)) {
-    damagePlayer(state, REAPER.damage, r.pos);
+    // Reaper は無敵で常に接触するため、JUST 回避（スロー + ゲージ）を成立させない。無敵中は単に無視
+    damagePlayer(state, REAPER.damage, r.pos, undefined, { noJust: true });
   }
 }
 

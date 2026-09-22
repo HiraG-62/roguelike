@@ -404,6 +404,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
     buildsEnergy: true,
     kind: "melee",
     crit: out.crit,
+    guardBreak: counter,
   });
   if (counter) showCounter(state, pos);
   p.meleeHitCount += 1;
@@ -486,6 +487,7 @@ function justCounterStrike(state: GameState, target: Enemy): void {
     buildsEnergy: true,
     kind: "melee",
     crit: out.crit,
+    guardBreak: true,
   });
   p.meleeHitCount += 1;
   spawnLine(state, from, p.body.pos, j.color, j.lineLife);

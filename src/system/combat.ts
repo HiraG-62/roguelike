@@ -38,6 +38,8 @@ export interface HitOptions {
   crit?: boolean;
   /** burn tick など: 数字・ヒットストップ・揺れ・コンボ加算なし */
   silent?: boolean;
+  /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
+  guardBreak?: boolean;
 }
 
 export interface OutgoingHit {
@@ -98,7 +100,7 @@ export function damageEnemy(
   opts: HitOptions = {},
 ): boolean {
   if (enemy.hp <= 0) return false;
-  const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, opts.kind ?? "proc");
+  const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, opts.kind ?? "proc", opts.guardBreak);
   if (intercepted <= 0) return false;
   amount = intercepted;
   const def = enemyDef(enemy.defKey);
@@ -242,6 +244,11 @@ function applyLifeOnHit(state: GameState): void {
 
 export type PlayerHitResult = "hit" | "dodged" | "ignored";
 
+export interface DamagePlayerOptions {
+  /** true なら無敵中でも JUST 回避（スロー・ゲージ）を発生させない。単に "ignored" 扱い（Reaper の常時接触が稼ぎ場にならないように） */
+  noJust?: boolean;
+}
+
 /** armor の被ダメ軽減率（PoE 風の逓減式）。0..ARMOR_MAX_REDUCTION */
 export function armorReduction(armor: number): number {
   if (armor <= 0) return 0;
@@ -256,11 +263,17 @@ export function mitigate(state: GameState, amount: number): number {
 }
 
 /** プレイヤーへのダメージ。無敵中はジャスト回避判定だけ行う。attacker は thorns の反射先 */
-export function damagePlayer(state: GameState, amount: number, fromPos: Vec, attacker?: Enemy): PlayerHitResult {
+export function damagePlayer(
+  state: GameState,
+  amount: number,
+  fromPos: Vec,
+  attacker?: Enemy,
+  opts: DamagePlayerOptions = {},
+): PlayerHitResult {
   const p = state.player;
   if (state.status !== "playing") return "ignored";
   if (p.invulnTimer > 0 || p.buffs.invuln > 0) {
-    if (p.dashTimer > 0 && !p.dodgedThisDash) {
+    if (!opts.noJust && p.dashTimer > 0 && !p.dodgedThisDash) {
       justDodge(state, attacker);
       return "dodged";
     }

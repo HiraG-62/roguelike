@@ -169,6 +169,8 @@ export const ENEMY_AI = {
     blockPushback: 40,
     /** 突進の速度倍率（def.speed に掛ける） */
     lungeSpeedMul: 6,
+    /** GUARD BREAK（カウンター/JUST カウンターで盾を無視）した後のスタガー時間（秒） */
+    guardBreakStagger: 0.6,
   },
   bomber: {
     /** この距離より近いと離れる */
@@ -208,6 +210,8 @@ export const ENEMY_AI = {
     burnDuration: 2,
     deathExplodeRadius: 26,
     deathExplodeDamage: 10,
+    /** 死亡から爆発までの猶予（秒）。テレグラフを見て離れられるように即時にしない */
+    deathExplodeFuse: 0.35,
     color: "#60c0ff",
   },
 } as const;

@@ -188,6 +188,22 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
   }
 }
 
+/** 部屋にいる生存中の敵の実体数（群れも 1 体ずつ数える） */
+function roomEnemyCount(state: GameState, index: number): number {
+  return state.enemies.filter((e) => e.roomIndex === index && e.hp > 0).length;
+}
+
+/**
+ * spawnGroup を最大 rolls 回試すが、部屋の敵実体数が ROOM.maxEnemies に達したら
+ * それ以上は湧かせない（bat の群れは 1 抽選で複数体出るため、通常の抽選回数だけでは上限を守れない）
+ */
+function spawnCapped(state: GameState, room: RoomState, index: number, spawning: boolean, rolls: number): void {
+  for (let i = 0; i < rolls; i++) {
+    if (roomEnemyCount(state, index) >= ROOM.maxEnemies) break;
+    spawnGroup(state, room, index, spawning);
+  }
+}
+
 function pickEnemy(state: GameState): EnemyDef {
   const pool = enemiesForDepth(state.depth);
   const total = pool.reduce((s, d) => s + d.weight, 0);
@@ -329,7 +345,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   const ambush = room.kind === "ambush";
   const ratio = ambush ? ROOM_KIND.ambushEnemyMul : ROOM.reinforcementRatio;
   const extra = Math.round(enemyCount(state) * ratio);
-  for (let i = 0; i < extra; i++) spawnGroup(state, room, index, true);
+  spawnCapped(state, room, index, true, extra);
   finalizeLinks(state, index);
   applyCurse(state, index);
   shake(state, ambush ? AMBUSH_SHAKE : LOCK_SHAKE);

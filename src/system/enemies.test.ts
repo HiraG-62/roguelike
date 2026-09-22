@@ -59,6 +59,22 @@ describe("knight", () => {
     expect(k.hp).toBe(hp - 10);
   });
 
+  it("guardBreak（カウンター相当）なら正面の盾を無視してダメージが通り、GUARD BREAK 表示 + スタガー", () => {
+    const state = arena();
+    const k = placeEnemy(state, "knight", 14);
+    k.facing = { x: -1, y: 0 };
+    const hp = k.hp;
+    // 通常の正面攻撃は防がれる
+    expect(interceptEnemyDamage(state, k, 10, { x: 1, y: 0 }, "melee")).toBe(0);
+    // guardBreak なら通る
+    expect(interceptEnemyDamage(state, k, 10, { x: 1, y: 0 }, "melee", true)).toBe(10);
+    expect(state.texts.some((t) => t.text === "GUARD BREAK")).toBe(true);
+
+    damageEnemy(state, k, 10, { x: 1, y: 0 }, 0, { kind: "melee", guardBreak: true });
+    expect(k.hp).toBe(hp - 10);
+    expect(k.phase).toBe("stagger");
+  });
+
   it("正面から来た弾は消えてダメージを受けない", () => {
     const state = arena();
     const k = placeEnemy(state, "knight", 30);
@@ -112,6 +128,29 @@ describe("bomber", () => {
     updateEnemies(state, FIXED_DT);
     expect(state.player.hp).toBeLessThan(hp);
     expect(ENEMY_AI.bomber.radius).toBeGreaterThan(20);
+  });
+});
+
+describe("wisp", () => {
+  it("死亡直後は無ダメで、deathExplodeFuse 後にテレグラフの爆発で範囲内にダメージ", () => {
+    const state = arena();
+    const w = placeEnemy(state, "wisp", 20);
+    const wispPos = { ...w.body.pos };
+    state.player.body.pos = { ...wispPos };
+    const hpBeforeDeath = state.player.hp;
+    damageEnemy(state, w, 9999, { x: 1, y: 0 }, 0);
+    updateEnemies(state, FIXED_DT);
+
+    // 死亡直後: まだテレグラフ中でダメージなし
+    expect(state.player.hp).toBe(hpBeforeDeath);
+    expect(state.hazards.some((h) => h.kind === "bomb")).toBe(true);
+
+    const fuseSteps = Math.floor(ENEMY_AI.wisp.deathExplodeFuse / FIXED_DT) - 2;
+    for (let i = 0; i < fuseSteps; i++) updateHazards(state, FIXED_DT);
+    expect(state.player.hp).toBe(hpBeforeDeath);
+
+    for (let i = 0; i < 5; i++) updateHazards(state, FIXED_DT);
+    expect(state.player.hp).toBeLessThan(hpBeforeDeath);
   });
 });
 

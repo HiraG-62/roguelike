@@ -3,6 +3,7 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { createRng } from "../core/rng";
 import type { GameState, RoomKind } from "../core/state";
+import { ENEMIES } from "../data/enemies";
 import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
@@ -274,6 +275,26 @@ describe("部屋の種類", () => {
     expect(elites).toBeLessThan(n * 0.4);
   });
 
+  it("呪いでエリート化した敵は満タンに戻らず、被弾していた HP 割合を維持する", () => {
+    const state = createGame(1);
+    state.depth = 20;
+    state.enemies = [];
+    const n = 300;
+    const ratio = 0.4;
+    for (let i = 0; i < n; i++) {
+      const e = placeEnemy(state, "slime", 1000 + i, 0);
+      e.hp = Math.round(e.maxHp * ratio);
+    }
+    state.cursed = true;
+    applyCurse(state, 0);
+    const elites = state.enemies.filter((e) => e.elite);
+    expect(elites.length).toBeGreaterThan(0);
+    for (const e of elites) {
+      expect(e.hp).toBeLessThan(e.maxHp);
+      expect(e.hp / e.maxHp).toBeCloseTo(ratio, 1);
+    }
+  });
+
   it("ambush: 最初は無人で、入った瞬間に通常の 2 倍の敵が telegraph 付きで湧く", () => {
     const { state, index } = floorWith("ambush", 4);
     expect(aliveIn(state, index)).toBe(0);
@@ -283,6 +304,16 @@ describe("部屋の種類", () => {
     expect(spawned.length).toBeGreaterThanOrEqual(enemyCount(state) * ROOM_KIND.ambushEnemyMul - 2);
     expect(spawned.every((e) => e.phase === "spawning")).toBe(true);
     expect(state.texts.some((t) => t.text === "AMBUSH!")).toBe(true);
+  });
+
+  it("ambush: depth 10 のように 2 倍湧きが maxEnemies を超えても、群れ込みの実体数が maxEnemies + 群れの最大サイズ以下に収まる", () => {
+    const maxSwarm = Math.max(1, ...ENEMIES.filter((e) => e.swarm).map((e) => e.swarm!.max));
+    const { state, index } = floorWith("ambush", 10);
+    // 2 倍湧き（enemyCount(depth10) * ambushEnemyMul）は maxEnemies を優に超える想定
+    expect(enemyCount(state) * ROOM_KIND.ambushEnemyMul).toBeGreaterThan(ROOM.maxEnemies);
+    enterRoom(state, index);
+    const spawned = state.enemies.filter((e) => e.roomIndex === index);
+    expect(spawned.length).toBeLessThanOrEqual(ROOM.maxEnemies + maxSwarm);
   });
 });
 

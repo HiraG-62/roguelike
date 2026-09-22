@@ -233,13 +233,19 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
   pushSfx(state, "heal");
 }
 
-/** 呪い中なら、この部屋の通常敵にエリート抽選を追加で行い、呪いを解く */
+/**
+ * 呪い中なら、この部屋の通常敵にエリート抽選を追加で行い、呪いを解く。
+ * 既に被弾している敵がエリート化しても、makeElite の満タン HP には戻さず HP 割合を維持する
+ */
 export function applyCurse(state: GameState, roomIndex: number): void {
   if (!state.cursed) return;
   state.cursed = false;
   for (const e of state.enemies) {
     if (e.roomIndex !== roomIndex || e.hp <= 0 || enemyDef(e.defKey).boss) continue;
+    const wasElite = e.elite !== undefined;
+    const hpRatio = e.maxHp > 0 ? e.hp / e.maxHp : 1;
     for (let k = 1; k < ROOM_KIND.cursedEliteRolls && !e.elite; k++) rollElite(state, e);
+    if (!wasElite && e.elite) e.hp = Math.max(1, Math.min(e.maxHp, Math.round(e.maxHp * hpRatio)));
   }
   finalizeLinks(state, roomIndex);
   addFloatingText(state, textPos(state), CURSE_TEXT, ROOM_KIND.cursedColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
