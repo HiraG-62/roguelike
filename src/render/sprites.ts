@@ -54,3 +54,14 @@ export function getSprite(atlas: SpriteAtlas, key: string): Sprite {
   if (!s) throw new Error(`unknown sprite: ${key}`);
   return s;
 }
+
+/**
+ * 経過時間からフレーム番号を求める（frames 数で循環）。
+ * frameTime が 0 以下なら先頭フレームに固定する。
+ */
+export function spriteFrame(sprite: Pick<Sprite, "frames">, time: number, frameTime: number): number {
+  const count = sprite.frames.length;
+  if (count <= 1 || frameTime <= 0) return 0;
+  const idx = Math.floor(time / frameTime) % count;
+  return idx < 0 ? idx + count : idx;
+}
