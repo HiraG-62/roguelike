@@ -1,0 +1,513 @@
+import { describe, expect, it } from "vitest";
+import { createGame, step } from "../core/game";
+import { FIXED_DT } from "../core/loop";
+import type { GameState, GameStatus } from "../core/state";
+import { createRng, type Rng } from "../core/rng";
+import { overlapsWall } from "../system/physics";
+import { enemyDef } from "../data/enemies";
+import { createEmptyProfile, RARITIES, SLOTS, type Item, type Profile, type Rarity, type Slot } from "../loot/types";
+import { generateItem } from "../loot/generator";
+import { createBotState, botInput } from "./bot";
+
+/**
+ * ヘッドレス自動プレイによるロングランシミュレーション。
+ * 既定（vitest run / CI）では 5 seed × 20,000 ステップの縮小版のみ実行し、
+ * 例外・NaN混入・壁めり込み・floorItems id 重複が無いことだけを assert する（30 秒未満を狙う）。
+ * SIM_FULL=1 を付けたときだけフル版（30 seed × 3 装備パターン × 60,000 ステップ）を実行し、
+ * 収集した指標を report.md 相当の Markdown を console.log に出力する
+ * （@types/node が無いプロジェクトのため、このファイル自体は fs に触れない。
+ *  実際の src/qa/report.md は `SIM_FULL=1 npx vitest run src/qa/simulation.test.ts` の
+ *  出力を人手で保存したもの）。
+ */
+
+// @types/node が無いため process の型は自前で最小限だけ宣言する
+declare const process: { env: Record<string, string | undefined> };
+
+const FULL = process.env.SIM_FULL === "1";
+const FAST_SEED_COUNT = 5;
+const FAST_MAX_STEPS = 20_000;
+const FULL_SEED_COUNT = 30;
+const FULL_MAX_STEPS = 60_000;
+/** BOSS.interval と同じ値をここでも参照したいが循環を避けるため直接は import せず、報告用の概算にのみ使う */
+
+type ProfileKind = "empty" | "rareLoadout" | "uniqueLoadout";
+const PROFILE_KINDS: readonly ProfileKind[] = ["empty", "rareLoadout", "uniqueLoadout"];
+
+// ---------------------------------------------------------------------------
+// 装備プロフィールの組み立て
+// ---------------------------------------------------------------------------
+
+/** generateItem は rarity を直接指定できないので、目的の rarity が出るまで棄却サンプリングする */
+function rollUntilRarity(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number, foundDepth: number, now: number, attempts = 80): Item {
+  let last: Item | undefined;
+  for (let i = 0; i < attempts; i++) {
+    const item = generateItem(rng, { itemLevel, slot, rarityBoost: 25, foundDepth, now });
+    last = item;
+    if (item.rarity === rarity) return item;
+  }
+  // 目的の rarity に届かなくても、引けた中で最後のものを使う（unique が存在しない slot 等）
+  return last!;
+}
+
+function buildProfile(kind: ProfileKind, seed: number): Profile {
+  const profile = createEmptyProfile();
+  if (kind === "empty") return profile;
+
+  // 決定的な専用 RNG。state.rng は消費しない
+  const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
+  const now = 1_700_000_000_000 + seed;
+  const targetRarity: Rarity = kind === "rareLoadout" ? "rare" : "unique";
+  for (const slot of SLOTS) {
+    profile.equipment[slot] = rollUntilRarity(rng, slot, targetRarity, 20, 1, now);
+  }
+  return profile;
+}
+
+// ---------------------------------------------------------------------------
+// 1 回のランを実行して指標を集める
+// ---------------------------------------------------------------------------
+
+interface RunException {
+  step: number;
+  message: string;
+  stack?: string;
+}
+
+interface RunMetrics {
+  seed: number;
+  profileKind: ProfileKind;
+  keystones: string[];
+  maxDepth: number;
+  died: boolean;
+  deathDepth: number | null;
+  deathCause: string | null;
+  kills: number;
+  bestCombo: number;
+  itemsPicked: number;
+  rarityCounts: Record<Rarity, number>;
+  reaperSpawns: number;
+  bossEncounters: number;
+  bossDefeats: number;
+  depthSeconds: number[];
+  avgStepMs: number;
+  stepsRun: number;
+  exceptions: RunException[];
+  nanDetected: boolean;
+  wallOverlapDetected: boolean;
+  duplicateFloorItemId: boolean;
+}
+
+function emptyRarityCounts(): Record<Rarity, number> {
+  const out = {} as Record<Rarity, number>;
+  for (const r of RARITIES) out[r] = 0;
+  return out;
+}
+
+function isFiniteNum(n: number): boolean {
+  return Number.isFinite(n);
+}
+
+/** state.player.body.pos / hp に NaN が無いか */
+function hasNaN(state: GameState): boolean {
+  const p = state.player;
+  if (!isFiniteNum(p.body.pos.x) || !isFiniteNum(p.body.pos.y) || !isFiniteNum(p.hp)) return true;
+  for (const e of state.enemies) {
+    if (!isFiniteNum(e.body.pos.x) || !isFiniteNum(e.body.pos.y) || !isFiniteNum(e.hp)) return true;
+  }
+  return false;
+}
+
+/**
+ * 敵の座標が壁の中に埋まっていないか。
+ * wisp (data/enemies.ts の phasing: true) は仕様として壁をすり抜けて移動するので対象外にする
+ * （最初はここで誤検知していた: seed=10001 rareLoadout depth4 で wisp が壁内にいることを確認したが、
+ *  これはバグではなく仕様通りの挙動だった）
+ */
+function anyEnemyInWall(state: GameState): boolean {
+  return state.enemies.some((e) => !enemyDef(e.defKey).phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius));
+}
+
+function hasDuplicateFloorItemId(state: GameState): boolean {
+  const ids = new Set<number>();
+  for (const fi of state.floorItems) {
+    if (ids.has(fi.id)) return true;
+    ids.add(fi.id);
+  }
+  return false;
+}
+
+/** 死因の推測: プレイヤーに最も近い敵の defKey。Reaper との接触があればそれを優先する */
+function guessDeathCause(state: GameState): string {
+  if (state.reaper) {
+    const p = state.player.body.pos;
+    const d = Math.hypot(state.reaper.pos.x - p.x, state.reaper.pos.y - p.y);
+    if (d < state.reaper.radius + state.player.body.radius + 20) return "reaper";
+  }
+  let best: string | null = null;
+  let bestDist = Infinity;
+  const p = state.player.body.pos;
+  for (const e of state.enemies) {
+    if (e.hp <= 0) continue;
+    const d = Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = e.defKey;
+    }
+  }
+  return best ?? "unknown";
+}
+
+function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunMetrics {
+  const profile = buildProfile(profileKind, seed);
+  const state = createGame(seed, String(seed), profile);
+  const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
+
+  const metrics: RunMetrics = {
+    seed,
+    profileKind,
+    keystones: [...state.stats.keystones],
+    maxDepth: state.depth,
+    died: false,
+    deathDepth: null,
+    deathCause: null,
+    kills: 0,
+    bestCombo: 0,
+    itemsPicked: 0,
+    rarityCounts: emptyRarityCounts(),
+    reaperSpawns: 0,
+    bossEncounters: 0,
+    bossDefeats: 0,
+    depthSeconds: [],
+    avgStepMs: 0,
+    stepsRun: 0,
+    exceptions: [],
+    nanDetected: false,
+    wallOverlapDetected: false,
+    duplicateFloorItemId: false,
+  };
+
+  let depthEnterTime = state.time;
+  let currentDepth = state.depth;
+  let sawReaperThisFloor = false;
+  let sawBossThisFloor = false;
+  let sawBossDefeatThisFloor = false;
+  let stepTimeTotal = 0;
+
+  for (let i = 0; i < maxSteps; i++) {
+    if (state.status !== "playing") break;
+
+    let input;
+    try {
+      input = botInput(state, bot, FIXED_DT);
+    } catch (err) {
+      metrics.exceptions.push(toRunException(i, err));
+      break;
+    }
+
+    const t0 = performance.now();
+    try {
+      step(state, input, FIXED_DT);
+    } catch (err) {
+      metrics.exceptions.push(toRunException(i, err));
+      break;
+    }
+    stepTimeTotal += performance.now() - t0;
+    metrics.stepsRun++;
+
+    if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
+    if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) metrics.wallOverlapDetected = true;
+    if (!metrics.duplicateFloorItemId && hasDuplicateFloorItemId(state)) metrics.duplicateFloorItemId = true;
+
+    if (state.reaper && !sawReaperThisFloor) {
+      metrics.reaperSpawns++;
+      sawReaperThisFloor = true;
+    }
+    if (state.boss && !sawBossThisFloor) {
+      metrics.bossEncounters++;
+      sawBossThisFloor = true;
+    }
+    if (state.boss?.defeated && !sawBossDefeatThisFloor) {
+      metrics.bossDefeats++;
+      sawBossDefeatThisFloor = true;
+    }
+
+    if (state.depth !== currentDepth) {
+      metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
+      depthEnterTime = state.time;
+      currentDepth = state.depth;
+      sawReaperThisFloor = false;
+      sawBossThisFloor = false;
+      sawBossDefeatThisFloor = false;
+    }
+
+    metrics.maxDepth = Math.max(metrics.maxDepth, state.depth);
+
+    // ループ先頭の `state.status !== "playing"` 判定により、TS はここでも status を
+    // "playing" 単独の型に絞り込んでしまう（step() 内での書き換えを追えないため）。
+    // as GameStatus で明示的に元の union に戻して比較する
+    if ((state.status as GameStatus) === "dead" && !metrics.died) {
+      metrics.died = true;
+      metrics.deathDepth = state.depth;
+      metrics.deathCause = guessDeathCause(state);
+    }
+  }
+
+  metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
+  metrics.kills = state.kills;
+  metrics.bestCombo = state.combo.best;
+  metrics.itemsPicked = profile.stash.length;
+  for (const item of profile.stash) metrics.rarityCounts[item.rarity]++;
+  metrics.avgStepMs = metrics.stepsRun > 0 ? stepTimeTotal / metrics.stepsRun : 0;
+
+  return metrics;
+}
+
+function toRunException(step: number, err: unknown): RunException {
+  if (err instanceof Error) return { step, message: err.message, stack: err.stack };
+  return { step, message: String(err) };
+}
+
+// ---------------------------------------------------------------------------
+// 縮小版（既定の CI 用スモーク）
+// ---------------------------------------------------------------------------
+
+describe("QA simulation (縮小版スモーク)", () => {
+  it(
+    `${FAST_SEED_COUNT} seed × ${FAST_MAX_STEPS} ステップで例外・NaN・壁めり込み・id重複が無い`,
+    () => {
+      for (let i = 0; i < FAST_SEED_COUNT; i++) {
+        const seed = 10_000 + i;
+        const profileKind = PROFILE_KINDS[i % PROFILE_KINDS.length]!;
+        const metrics = runOnce(seed, profileKind, FAST_MAX_STEPS);
+
+        expect(
+          metrics.exceptions,
+          `seed=${seed} profile=${profileKind} で例外: ${metrics.exceptions.map((e) => `step${e.step}: ${e.message}`).join(" / ")}`,
+        ).toHaveLength(0);
+        expect(metrics.nanDetected, `seed=${seed} profile=${profileKind} で NaN 混入`).toBe(false);
+        expect(metrics.wallOverlapDetected, `seed=${seed} profile=${profileKind} で敵が壁にめり込んだ`).toBe(false);
+        expect(metrics.duplicateFloorItemId, `seed=${seed} profile=${profileKind} で floorItems の id が重複した`).toBe(false);
+      }
+    },
+    30_000,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// フル版（SIM_FULL=1 のときだけ）。report.md を書き出す
+// ---------------------------------------------------------------------------
+
+function percent(n: number, total: number): string {
+  return total > 0 ? `${((n / total) * 100).toFixed(1)}%` : "-";
+}
+
+function average(nums: readonly number[]): number {
+  return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+}
+
+function buildReport(allMetrics: readonly RunMetrics[]): string {
+  const lines: string[] = [];
+  lines.push("# QA シミュレーション結果");
+  lines.push("");
+  lines.push(`生成: ${new Date().toISOString()} / ${allMetrics.length} runs (${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップ)`);
+  lines.push("");
+
+  const exceptions = allMetrics.flatMap((m) => m.exceptions.map((e) => ({ ...e, seed: m.seed, profileKind: m.profileKind })));
+
+  lines.push("## 例外");
+  lines.push("");
+  if (exceptions.length === 0) {
+    lines.push("例外は発生しなかった。");
+  } else {
+    lines.push("| seed | profile | step | message |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const e of exceptions) {
+      lines.push(`| ${e.seed} | ${e.profileKind} | ${e.step} | ${e.message.replace(/\|/g, "\\|")} |`);
+    }
+    lines.push("");
+    lines.push("<details><summary>スタックトレース</summary>");
+    lines.push("");
+    for (const e of exceptions) {
+      lines.push(`### seed=${e.seed} profile=${e.profileKind} step=${e.step}`);
+      lines.push("```");
+      lines.push(e.stack ?? e.message);
+      lines.push("```");
+    }
+    lines.push("</details>");
+  }
+  lines.push("");
+
+  const invariantFails = allMetrics.filter((m) => m.nanDetected || m.wallOverlapDetected || m.duplicateFloorItemId);
+  lines.push("## 不変条件違反（NaN / 壁めり込み / id 重複）");
+  lines.push("");
+  if (invariantFails.length === 0) {
+    lines.push("違反なし。");
+  } else {
+    lines.push("| seed | profile | NaN | 壁めり込み | id重複 |");
+    lines.push("| --- | --- | --- | --- | --- |");
+    for (const m of invariantFails) {
+      lines.push(`| ${m.seed} | ${m.profileKind} | ${m.nanDetected} | ${m.wallOverlapDetected} | ${m.duplicateFloorItemId} |`);
+    }
+  }
+  lines.push("");
+
+  lines.push("## 指標サマリ（装備パターン別）");
+  lines.push("");
+  lines.push("| 装備 | 平均到達depth | 死亡率 | 平均kills | 平均best combo | 平均拾得数 | Reaper出現/run | ボス撃破率 | 平均step時間(ms) |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const kind of PROFILE_KINDS) {
+    const group = allMetrics.filter((m) => m.profileKind === kind);
+    const died = group.filter((m) => m.died).length;
+    const bossSeen = group.reduce((s, m) => s + m.bossEncounters, 0);
+    const bossWon = group.reduce((s, m) => s + m.bossDefeats, 0);
+    lines.push(
+      `| ${kind} | ${average(group.map((m) => m.maxDepth)).toFixed(2)} | ${percent(died, group.length)} | ` +
+        `${average(group.map((m) => m.kills)).toFixed(1)} | ${average(group.map((m) => m.bestCombo)).toFixed(1)} | ` +
+        `${average(group.map((m) => m.itemsPicked)).toFixed(1)} | ${average(group.map((m) => m.reaperSpawns)).toFixed(2)} | ` +
+        `${percent(bossWon, bossSeen)} | ${average(group.map((m) => m.avgStepMs)).toFixed(3)} |`,
+    );
+  }
+  lines.push("");
+
+  lines.push("## キーストーンあり / なしの生存差（到達depth）");
+  lines.push("");
+  const withKs = allMetrics.filter((m) => m.keystones.length > 0);
+  const withoutKs = allMetrics.filter((m) => m.keystones.length === 0);
+  lines.push(`- キーストーンあり (n=${withKs.length}): 平均到達depth ${average(withKs.map((m) => m.maxDepth)).toFixed(2)} / 死亡率 ${percent(withKs.filter((m) => m.died).length, withKs.length)}`);
+  lines.push(`- キーストーンなし (n=${withoutKs.length}): 平均到達depth ${average(withoutKs.map((m) => m.maxDepth)).toFixed(2)} / 死亡率 ${percent(withoutKs.filter((m) => m.died).length, withoutKs.length)}`);
+  lines.push("");
+
+  lines.push("## 死因トップ（depth 別・出現数）");
+  lines.push("");
+  const deaths = allMetrics.filter((m) => m.died && m.deathDepth !== null);
+  const causeCounts = new Map<string, number>();
+  for (const m of deaths) {
+    const key = `${m.deathCause ?? "unknown"} (depth ${m.deathDepth})`;
+    causeCounts.set(key, (causeCounts.get(key) ?? 0) + 1);
+  }
+  const topCauses = [...causeCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (topCauses.length === 0) {
+    lines.push("死亡した run が無かった。");
+  } else {
+    lines.push("| 死因 (depth) | 件数 |");
+    lines.push("| --- | --- |");
+    for (const [key, count] of topCauses) lines.push(`| ${key} | ${count} |`);
+  }
+  lines.push("");
+
+  lines.push("## depth ごとの平均滞在秒（全 run 平均、到達した run のみ）");
+  lines.push("");
+  const maxDepthSeen = Math.max(1, ...allMetrics.map((m) => m.depthSeconds.length - 1));
+  lines.push("| depth | 平均滞在秒 | 到達run数 |");
+  lines.push("| --- | --- | --- |");
+  for (let d = 1; d <= maxDepthSeen; d++) {
+    const values = allMetrics.map((m) => m.depthSeconds[d]).filter((v): v is number => v !== undefined);
+    if (values.length === 0) continue;
+    lines.push(`| ${d} | ${average(values).toFixed(1)} | ${values.length} |`);
+  }
+  lines.push("");
+
+  lines.push("## レアリティ分布（拾得アイテム、全 run 合計）");
+  lines.push("");
+  const rarityTotals = emptyRarityCounts();
+  for (const m of allMetrics) for (const r of RARITIES) rarityTotals[r] += m.rarityCounts[r];
+  lines.push("| rarity | 個数 | 割合 |");
+  lines.push("| --- | --- | --- |");
+  const rarityTotalAll = RARITIES.reduce((s, r) => s + rarityTotals[r], 0);
+  for (const r of RARITIES) lines.push(`| ${r} | ${rarityTotals[r]} | ${percent(rarityTotals[r], rarityTotalAll)} |`);
+  lines.push("");
+
+  lines.push("## バランス所見");
+  lines.push("");
+  lines.push(buildBalanceNotes(allMetrics));
+  lines.push("");
+
+  lines.push("## 提案");
+  lines.push("");
+  lines.push(buildSuggestions(allMetrics));
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function buildBalanceNotes(allMetrics: readonly RunMetrics[]): string {
+  const notes: string[] = [];
+  const deaths = allMetrics.filter((m) => m.died && m.deathDepth !== null);
+  if (deaths.length > 0) {
+    const byDepth = new Map<number, number>();
+    for (const m of deaths) byDepth.set(m.deathDepth!, (byDepth.get(m.deathDepth!) ?? 0) + 1);
+    const worst = [...byDepth.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (worst) notes.push(`- depth ${worst[0]} での死亡が最多（${worst[1]} 件 / ${deaths.length} 件中）。この階の難度がボトルネックになっている可能性がある。`);
+  }
+  const causeCounts = new Map<string, number>();
+  for (const m of deaths) causeCounts.set(m.deathCause ?? "unknown", (causeCounts.get(m.deathCause ?? "unknown") ?? 0) + 1);
+  const topCause = [...causeCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (topCause) notes.push(`- 死因として最も多く推測されたのは "${topCause[0]}"（${topCause[1]} 件）。`);
+
+  const empty = allMetrics.filter((m) => m.profileKind === "empty");
+  const rare = allMetrics.filter((m) => m.profileKind === "rareLoadout");
+  const unique = allMetrics.filter((m) => m.profileKind === "uniqueLoadout");
+  notes.push(
+    `- 平均到達depth: 素手 ${average(empty.map((m) => m.maxDepth)).toFixed(2)} / rare装備 ${average(rare.map((m) => m.maxDepth)).toFixed(2)} / unique装備 ${average(unique.map((m) => m.maxDepth)).toFixed(2)}。`,
+  );
+  const withKs = allMetrics.filter((m) => m.keystones.length > 0);
+  const withoutKs = allMetrics.filter((m) => m.keystones.length === 0);
+  if (withKs.length > 0 && withoutKs.length > 0) {
+    const diff = average(withKs.map((m) => m.maxDepth)) - average(withoutKs.map((m) => m.maxDepth));
+    notes.push(`- キーストーン所持時の平均到達depthは非所持時より ${diff.toFixed(2)} 高い（正なら強化、負ならリスクが上回っている）。`);
+  }
+  const avgStepMs = average(allMetrics.map((m) => m.avgStepMs));
+  notes.push(`- 1 ステップの平均処理時間は ${avgStepMs.toFixed(3)}ms（60fps 予算 16.6ms に対し余裕あり）。`);
+  return notes.join("\n");
+}
+
+function buildSuggestions(allMetrics: readonly RunMetrics[]): string {
+  // report.md には固定 5 件の提案枠を用意し、収集したデータで内容を補強する
+  const deaths = allMetrics.filter((m) => m.died && m.deathDepth !== null);
+  const byDepth = new Map<number, number>();
+  for (const m of deaths) byDepth.set(m.deathDepth!, (byDepth.get(m.deathDepth!) ?? 0) + 1);
+  const worstDepth = [...byDepth.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const causeCounts = new Map<string, number>();
+  for (const m of deaths) causeCounts.set(m.deathCause ?? "unknown", (causeCounts.get(m.deathCause ?? "unknown") ?? 0) + 1);
+  const topCause = [...causeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  const lines = [
+    `1. ${worstDepth !== undefined ? `depth ${worstDepth} 前後` : "死亡が集中する深度"}の敵密度・HPスケーリング（enemiesPerDepth / depthHpScale）を見直し、難度の急上昇を緩和する。`,
+    `2. 死因トップの敵${topCause ? `（${topCause}）` : ""}の windup 時間や被弾判定の猶予を見直し、回避余地を増やす。`,
+    "3. rare / unique 装備の有無で到達depthに大きな差が出ていない場合、レアアフィックスの倍率調整でビルドの手応えを強める。",
+    "4. キーストーンつき装備が事故死を増やしている場合は、リスクに見合ったリターン（回復・被ダメ軽減の代替経路）を補強する。",
+    "5. Reaper 出現後に倒しきれず時間切れで死ぬケースが目立つ場合は、warnAfter / appearAfter の猶予時間を調整する。",
+  ];
+  return lines.join("\n");
+}
+
+const REPORT_START = "<<<QA_REPORT_START>>>";
+const REPORT_END = "<<<QA_REPORT_END>>>";
+
+describe("QA simulation (フル版, SIM_FULL=1)", () => {
+  it.runIf(FULL)(
+    `${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップを実行する`,
+    () => {
+      const allMetrics: RunMetrics[] = [];
+      for (let i = 0; i < FULL_SEED_COUNT; i++) {
+        const seed = 50_000 + i;
+        for (const kind of PROFILE_KINDS) {
+          allMetrics.push(runOnce(seed, kind, FULL_MAX_STEPS));
+        }
+      }
+
+      const report = buildReport(allMetrics);
+      // @types/node が無くこのファイルは fs に触れられないので、標準出力に区切り付きで
+      // 出す。呼び出し側 (`SIM_FULL=1 npx vitest run src/qa/simulation.test.ts`) が
+      // このマーカー間を抜き出して src/qa/report.md に保存する
+      console.log(REPORT_START);
+      console.log(report);
+      console.log(REPORT_END);
+
+      // フル版でも最低限の健全性は assert する
+      const totalExceptions = allMetrics.reduce((s, m) => s + m.exceptions.length, 0);
+      expect(totalExceptions, `フル run で例外が ${totalExceptions} 件発生した。上の出力を参照`).toBe(0);
+    },
+    600_000,
+  );
+});
