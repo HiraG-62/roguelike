@@ -1,5 +1,5 @@
 import { type Rng, createRng } from "../core/rng";
-import { SKILL, SKILL_DEFS, canAttach } from "./data";
+import { SKILL, SKILL_DEFS, SKILL_WEIGHTS, canAttach } from "./data";
 import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "./types";
 
 /**
@@ -49,10 +49,19 @@ function rollVariants(rng: Rng, skillKey: SkillKey): VariantRoll[] {
   return out;
 }
 
+/** SKILL_WEIGHTS に従ってスキルの種類を選ぶ */
+function rollSkillKey(rng: Rng): SkillKey {
+  const idx = weightedIndex(
+    rng,
+    SKILL_KEYS.map((k) => SKILL_WEIGHTS[k]),
+  );
+  return SKILL_KEYS[idx] ?? SKILL_KEYS[0];
+}
+
 /** seed から石を作る（同じ seed なら id / foundAt 以外は同じ） */
 export function stoneFromSeed(seed: number, opts: StoneOptions): SkillStone {
   const rng = createRng(seed);
-  const skillKey = opts.skillKey ?? rng.pick(SKILL_KEYS);
+  const skillKey = opts.skillKey ?? rollSkillKey(rng);
   const links = weightedIndex(rng, SKILL.linkWeights);
   const variants = rollVariants(rng, skillKey);
   return {

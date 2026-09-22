@@ -21,12 +21,38 @@ export const SKILL_TAGS = [
 ] as const;
 export type SkillTag = (typeof SKILL_TAGS)[number];
 
-/** 最小実装の 6。追加はここへ */
-export const SKILL_KEYS = ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact"] as const;
+/** 最小実装の 6 + 追加の 8。追加はここへ */
+export const SKILL_KEYS = [
+  "whirl",
+  "lunge",
+  "frag",
+  "railshot",
+  "parry",
+  "bloodPact",
+  "quake",
+  "thunder",
+  "gravityWell",
+  "mines",
+  "haste",
+  "chainHook",
+  "spiral",
+  "frostField",
+] as const;
 export type SkillKey = (typeof SKILL_KEYS)[number];
 
-/** 最小実装の 4 */
-export const MODIFIER_KEYS = ["multiCharge", "bloodPrice", "comboFuel", "echo"] as const;
+/** 最小実装の 4 + 追加の 6 */
+export const MODIFIER_KEYS = [
+  "multiCharge",
+  "bloodPrice",
+  "comboFuel",
+  "echo",
+  "pierce",
+  "recoil",
+  "chainReset",
+  "curse",
+  "delay",
+  "expand",
+] as const;
 export type ModifierKey = (typeof MODIFIER_KEYS)[number];
 
 /** rollOutgoing に渡す種別。none は与ダメを持たない（buff） */
@@ -38,6 +64,7 @@ export const VARIANT_AXES = [
   "speedVsDamage",
   "countVsDamage",
   "durationVsPotency",
+  "cooldownVsPotency",
 ] as const;
 export type VariantAxis = (typeof VARIANT_AXES)[number];
 
@@ -74,6 +101,18 @@ export interface CastParams {
   hpCostFraction: number;
   comboFuel: { perStack: number; cap: number; emptyMul: number } | null;
   echo: { delay: number; damageMul: number } | null;
+  /** 貫通数（弾・鎖が追加で抜ける敵の数） */
+  pierce: number;
+  /** 反動: 発動時に照準の逆へ跳ぶ速度（0 なら無し） */
+  recoil: number;
+  /** 連鎖: このスキルで敵を倒すとチャージ +1 */
+  killRefund: boolean;
+  /** 呪い: ヒットした敵に刻印。刻印中の敵へのスキル被ダメ倍率 */
+  curse: { duration: number; bonus: number } | null;
+  /** 遅延: この秒数後に発動地点で発動する */
+  delay: { time: number; damageMul: number } | null;
+  /** 発動したスロット（連鎖の返却先）。resolveCast の時点では -1 */
+  slot: number;
 }
 
 export interface ModifierDef {
@@ -84,6 +123,10 @@ export interface ModifierDef {
   color: string;
   /** このタグを 1 つでも持つスキルには付けられない */
   excludesTags: readonly SkillTag[];
+  /** 指定があれば、このタグを 1 つ以上持つスキルにだけ付けられる */
+  requiresTags?: readonly SkillTag[];
+  /** 個別に付けられないスキル（効果が既に内蔵されているもの） */
+  excludesSkills?: readonly SkillKey[];
   apply(p: Readonly<CastParams>): CastParams;
 }
 
@@ -125,7 +168,7 @@ export interface SkillSlotState {
   chargesLeft: number;
 }
 
-export type ActiveSkillKey = "whirl" | "lunge" | "railshot" | "parry";
+export type ActiveSkillKey = "whirl" | "lunge" | "railshot" | "parry" | "quake" | "chainHook" | "spiral";
 
 /** 発動中のスキル（同時に 1 つ） */
 export interface ActiveCast {
@@ -139,8 +182,12 @@ export interface ActiveCast {
   dir: Vec;
   origin: Vec;
   hitIds: Set<number>;
-  /** 旋風斬りの経過ヒット数 */
+  /** 旋風斬りの経過ヒット数 / 回転弾幕の発射数 / 鎖鎌の引き寄せ数 */
   hitsDone: number;
+  /** 地裂き: 溜め開始時の HP（被弾で中断） */
+  startHp: number;
+  /** 鎖鎌: 鎖の先端の距離 */
+  reach: number;
 }
 
 export interface Grenade {
@@ -157,6 +204,9 @@ export interface Grenade {
 /** 反響の予約。timer が尽きたら同じ地点・向きで再発動 */
 export interface EchoCast {
   timer: number;
+  /** echo: 反響の再発動 / delay: 遅延の本発動（予兆の円を出す） */
+  kind: "echo" | "delay";
+  total: number;
   skillKey: SkillKey;
   origin: Vec;
   dir: Vec;
@@ -164,9 +214,9 @@ export interface EchoCast {
   params: CastParams;
 }
 
-/** 反響の残像（旋風斬り・突進斬り）。プレイヤーは動かない */
+/** 反響の残像（旋風斬り・突進斬り・回転弾幕）。プレイヤーは動かない */
 export interface Ghost {
-  skillKey: "whirl" | "lunge";
+  skillKey: "whirl" | "lunge" | "spiral";
   timer: number;
   total: number;
   pos: Vec;
@@ -174,6 +224,51 @@ export interface Ghost {
   params: CastParams;
   hitIds: Set<number>;
   hitsDone: number;
+}
+
+/** 雷撃の落雷予約。timer が尽きたら落ちる */
+export interface ThunderStrike {
+  pos: Vec;
+  timer: number;
+  total: number;
+  params: CastParams;
+}
+
+/** 引力球 */
+export interface GravityWell {
+  pos: Vec;
+  timer: number;
+  total: number;
+  tick: number;
+  params: CastParams;
+}
+
+/** 地雷。arm が 0 になると踏まれて爆発する */
+export interface Mine {
+  id: number;
+  pos: Vec;
+  arm: number;
+  life: number;
+  params: CastParams;
+}
+
+/** 氷結地帯 */
+export interface FrostField {
+  pos: Vec;
+  timer: number;
+  total: number;
+  tick: number;
+  params: CastParams;
+}
+
+/** 回転弾幕の弾（projectiles.ts を通さず、ここで当たり判定する） */
+export interface SkillBullet {
+  pos: Vec;
+  vel: Vec;
+  life: number;
+  params: CastParams;
+  hitIds: Set<number>;
+  pierceLeft: number;
 }
 
 export interface RuneTablet {
@@ -205,10 +300,21 @@ export interface SkillRunState {
   grenades: Grenade[];
   echoes: EchoCast[];
   ghosts: Ghost[];
+  strikes: ThunderStrike[];
+  wells: GravityWell[];
+  mines: Mine[];
+  fields: FrostField[];
+  bullets: SkillBullet[];
   runes: RuneTablet[];
   floorStones: FloorStone[];
   frenzy: TimedMul;
   lifesteal: TimedMul;
+  /** 加速: 移動倍率と残り秒。効果中はダッシュの CD が 0 */
+  haste: TimedMul;
+  /** 加速の反動: この間ダッシュ不可 */
+  exhaustTimer: number;
+  /** 呪い: 敵 id → 残り秒と倍率 */
+  curses: Map<number, { time: number; bonus: number }>;
   parryTimer: number;
   parryFailTimer: number;
   /** 突進斬りの壁激突による行動不能 */
