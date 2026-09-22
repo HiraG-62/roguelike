@@ -58,6 +58,8 @@ export interface BotState {
   wanderTimer: number;
   stuckTimer: number;
   lastCheckPos: Vec;
+  /** 祝福 3 択で今回選ぶことにしたカードの index。選び終わる（boonChoice が null に戻る）まで保持する */
+  pendingBoonIndex: number | null;
 }
 
 export function createBotState(seed: number): BotState {
@@ -73,7 +75,28 @@ export function createBotState(seed: number): BotState {
     wanderTimer: 0,
     stuckTimer: 0,
     lastCheckPos: { x: 0, y: 0 },
+    pendingBoonIndex: null,
   };
+}
+
+/**
+ * 祝福（boon）3 択への入力。src/system/boons.ts の selectedIndex は
+ * skill1Pressed→0 枚目 / skill2Pressed→1 枚目 / attackPressed→2 枚目 を選ぶ。
+ * inputDelay（0.35 秒）が明けるまでは選択が無視されるだけなので押しっぱなしでよい。
+ * 選択肢ごとに bot 専用 RNG で 1 回だけ index を引き、同じ選択を解決まで保持する
+ * （テスト対象システムなので、3 択のどれかに偏らせず QA として幅広く踏ませたい）
+ */
+function boonChoiceInput(state: GameState, bot: BotState): FrameInput {
+  const input = freshInput();
+  const count = state.boonChoice?.options.length ?? 0;
+  if (count <= 0) return input;
+  if (bot.pendingBoonIndex === null || bot.pendingBoonIndex >= count) {
+    bot.pendingBoonIndex = bot.rng.int(0, count - 1);
+  }
+  if (bot.pendingBoonIndex === 0) input.skill1Pressed = true;
+  else if (bot.pendingBoonIndex === 1) input.skill2Pressed = true;
+  else input.attackPressed = true;
+  return input;
 }
 
 /** screenToWorld (src/core/view.ts) の逆変換 */
@@ -401,6 +424,10 @@ function explorationInput(state: GameState, bot: BotState, dt: number): FrameInp
  */
 export function botInput(state: GameState, bot: BotState, dt: number): FrameInput {
   if (state.status !== "playing") return freshInput();
+
+  // 祝福 3 択の間は他の処理が止まる（core/game.ts の step 参照）ので最優先で処理する
+  if (state.boonChoice) return boonChoiceInput(state, bot);
+  bot.pendingBoonIndex = null;
 
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;
