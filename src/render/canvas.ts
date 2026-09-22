@@ -1,4 +1,4 @@
-import type { GameState } from "../core/state";
+import { type GameState, getPlayer } from "../core/state";
 import { type GameMap, Tile, getTile, toIndex } from "../map/grid";
 
 /** 論理グリッドは固定。Canvas の拡大縮小でウィンドウに合わせる */
@@ -17,7 +17,13 @@ const FONT = `${CELL_H - 2}px "Consolas", "Courier New", monospace`;
 
 const COLOR_BG = "#000000";
 const COLOR_STATUS = "#c0c0c0";
+const COLOR_HP_OK = "#8fd18f";
+const COLOR_HP_LOW = "#e07070";
 const COLOR_LOG_OLD = "#707070";
+const COLOR_OVERLAY = "rgba(0, 0, 0, 0.7)";
+const COLOR_DEATH = "#e07070";
+/** HP がこの割合を下回ると赤表示 */
+const HP_LOW_RATIO = 0.3;
 
 /** 可視 / 記憶 で色を分ける。記憶は暗く落とす */
 const TILE_STYLE: Record<Tile, { glyph: string; lit: string; remembered: string }> = {
@@ -54,18 +60,30 @@ export class CanvasRenderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.font = FONT;
     ctx.textBaseline = "top";
+    ctx.textAlign = "left";
 
     this.drawStatus(state);
     this.drawMap(state.map, state.visible, state.explored);
-    for (const e of state.entities) {
+    // プレイヤーを最後に描いて重なりを防ぐ
+    const sorted = [...state.entities].sort((a, b) => Number(a.kind === "player") - Number(b.kind === "player"));
+    for (const e of sorted) {
       if (!state.visible[toIndex(state.map, e.pos.x, e.pos.y)]) continue;
       this.drawGlyph(e.glyph, e.color, e.pos.x, e.pos.y + MAP_ROW_OFFSET);
     }
     this.drawLog(state);
+    if (state.status === "dead") this.drawDeathOverlay(state);
   }
 
   private drawStatus(state: GameState): void {
-    this.drawText(`Depth: ${state.depth}   Turn: ${state.turn}   Seed: ${state.seed}`, COLOR_STATUS, 0, 0);
+    const { hp, maxHp } = getPlayer(state).stats;
+    const hpText = `HP: ${hp}/${maxHp}`;
+    this.drawText(hpText, hp <= maxHp * HP_LOW_RATIO ? COLOR_HP_LOW : COLOR_HP_OK, 0, 0);
+    this.drawText(
+      `Depth: ${state.depth}   Turn: ${state.turn}   Seed: ${state.seed}`,
+      COLOR_STATUS,
+      hpText.length + 3,
+      0,
+    );
   }
 
   private drawMap(map: GameMap, visible: Uint8Array, explored: Uint8Array): void {
@@ -87,6 +105,20 @@ export class CanvasRenderer {
       const color = msg.turn === state.turn ? msg.color : COLOR_LOG_OLD;
       this.drawText(msg.text, color, 0, LOG_ROW_OFFSET + i);
     });
+  }
+
+  private drawDeathOverlay(state: GameState): void {
+    const { ctx } = this;
+    ctx.fillStyle = COLOR_OVERLAY;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.textAlign = "center";
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    ctx.fillStyle = COLOR_DEATH;
+    ctx.fillText(`You died on depth ${state.depth} after ${state.turn} turns.`, cx, cy - CELL_H);
+    ctx.fillStyle = COLOR_STATUS;
+    ctx.fillText("Press Enter to try again.", cx, cy + CELL_H);
+    ctx.textAlign = "left";
   }
 
   private drawGlyph(glyph: string, color: string, col: number, row: number): void {

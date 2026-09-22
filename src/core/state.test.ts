@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createGame, descend, getPlayer, movePlayer } from "./state";
+import { createGame, descend, getPlayer, tryMove } from "./state";
 import { Tile, getTile, setTile } from "../map/grid";
 
 describe("createGame", () => {
@@ -17,13 +17,13 @@ describe("createGame", () => {
   });
 });
 
-describe("movePlayer", () => {
+describe("tryMove", () => {
   it("壁には進めない", () => {
     const state = createGame(5);
     const player = getPlayer(state);
     setTile(state.map, player.pos.x + 1, player.pos.y, Tile.Wall);
     const before = { ...player.pos };
-    expect(movePlayer(state, { dx: 1, dy: 0 })).toBe(false);
+    expect(tryMove(state, player, { dx: 1, dy: 0 })).toBe(false);
     expect(player.pos).toEqual(before);
   });
 
@@ -31,8 +31,9 @@ describe("movePlayer", () => {
     const state = createGame(5);
     const player = getPlayer(state);
     setTile(state.map, player.pos.x + 1, player.pos.y, Tile.Floor);
+    state.entities = [player];
     const before = { ...player.pos };
-    expect(movePlayer(state, { dx: 1, dy: 0 })).toBe(true);
+    expect(tryMove(state, player, { dx: 1, dy: 0 })).toBe(true);
     expect(player.pos).toEqual({ x: before.x + 1, y: before.y });
   });
 });
