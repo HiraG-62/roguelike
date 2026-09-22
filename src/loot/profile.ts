@@ -1,3 +1,4 @@
+import { STASH_CAPACITY } from "../data/tuning";
 import {
   type AffixKind,
   type AffixRoll,
@@ -153,9 +154,11 @@ export function saveProfile(profile: Profile, storage?: Storage): void {
   }
 }
 
-/** stash にアイテムを追加する */
-export function addToStash(profile: Profile, item: Item): void {
+/** stash にアイテムを追加する。STASH_CAPACITY を超える場合は追加せず false を返す */
+export function addToStash(profile: Profile, item: Item): boolean {
+  if (profile.stash.length >= STASH_CAPACITY) return false;
   profile.stash.push(item);
+  return true;
 }
 
 /**

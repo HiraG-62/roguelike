@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { STASH_CAPACITY } from "../data/tuning";
 import {
   PROFILE_KEY,
   addToStash,
@@ -57,6 +58,18 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     ...overrides,
   };
 }
+
+describe("addToStash", () => {
+  it("STASH_CAPACITY に達すると追加できず false を返す", () => {
+    const profile = createEmptyProfile();
+    for (let i = 0; i < STASH_CAPACITY; i++) {
+      expect(addToStash(profile, makeItem({ id: `item-${i}` }))).toBe(true);
+    }
+    expect(profile.stash).toHaveLength(STASH_CAPACITY);
+    expect(addToStash(profile, makeItem({ id: "overflow" }))).toBe(false);
+    expect(profile.stash).toHaveLength(STASH_CAPACITY);
+  });
+});
 
 describe("loadProfile / saveProfile", () => {
   it("何も無ければ空プロフィールを返す", () => {

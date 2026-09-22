@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
+import { STATUS } from "../data/tuning";
 import { generateItem } from "./generator";
 import { computeStats, softCap, statsSummary } from "./stats";
 import { DEFAULT_STATS, SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
@@ -84,6 +85,18 @@ describe("computeStats", () => {
     expect(Number.isInteger(stats.projectileCount)).toBe(true);
     expect(stats.projectileCount).toBe(3);
     expect(Number.isInteger(stats.dashCharges)).toBe(true);
+  });
+
+  it("chillSlow の上限は STATUS.maxSlow に統一されている（statusEffects.ts の chillFactor と同じ値）", () => {
+    const equipment = createEmptyEquipment();
+    const chillAffix = { key: "chill", kind: "prefix" as const, tier: 1, value: 20, value2: 30 };
+    // weapon / gun / ring に chill を積んで 90% 分（旧上限 0.9 を超えて検出できる値）にする
+    equipment.weapon = makeItem("weapon", { affixes: [chillAffix] });
+    equipment.gun = makeItem("gun", { affixes: [chillAffix] });
+    equipment.ring = makeItem("ring", { affixes: [chillAffix] });
+    const stats = computeStats(equipment);
+    expect(stats.chillSlow).toBeCloseTo(STATUS.maxSlow);
+    expect(stats.chillSlow).toBeLessThanOrEqual(STATUS.maxSlow);
   });
 
   it("未知の key は無視する", () => {

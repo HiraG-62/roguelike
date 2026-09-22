@@ -48,9 +48,22 @@ export const PLAYER = {
   critHitstopBonus: 1,
   critTextScale: 1.6,
   critColor: "#ffe040",
-  /** ks_overclock: 1 振り / 1 射撃ごとの HP コスト */
+  /** ks_overclock: 1 振り / 3 発ごとの HP コスト */
   overclockHpCost: 1,
+  /** ks_overclock: 射撃はこの発数ごとに overclockHpCost を消費する（近接は 1 振りごと） */
+  overclockShootInterval: 3,
+  /** lifeOnHit の連続回復を抑える窓（秒） */
+  lifeOnHitWindow: 0.1,
+  /** その窓の間に回復できる上限（lifeOnHit の何倍か） */
+  lifeOnHitCapMul: 3,
 } as const;
+
+/** armor の被ダメ軽減（PoE 風の逓減式）。reduction = armor / (armor + ARMOR_K)、上限 ARMOR_MAX_REDUCTION */
+export const ARMOR_K = 50;
+export const ARMOR_MAX_REDUCTION = 0.75;
+
+/** 永続 stash（装備画面の倉庫）の上限アイテム数 */
+export const STASH_CAPACITY = 400;
 
 /** 状態異常 */
 export const STATUS = {
@@ -60,8 +73,10 @@ export const STATUS = {
   burnColor: "#ff8030",
   chillColor: "#80c8ff",
   chillDuration: 2,
-  /** 付与する slow の上限（止まりきらないように） */
+  /** 付与する slow の上限（止まりきらないように）。computeStats の chillSlow クランプもこれを使う */
   maxSlow: 0.8,
+  /** burn / chill / shock の on-hit 判定は同じ敵に対してこの秒数に 1 回まで */
+  onHitIcd: 0.2,
   shockRadius: 60,
   shockMaxTargets: 3,
   shockColor: "#c0e0ff",

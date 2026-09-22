@@ -15,6 +15,8 @@ const FULL_CIRCLE = Math.PI * 2;
 const ITEM_RADIUS = 2;
 const LABEL_TEXT_SCALE = 1;
 const LABEL_TEXT_LIFE = 1.4;
+/** combat.ts の COLOR_HURT と同じ値（循環 import を避けるためここで複製） */
+const STASH_FULL_COLOR = "#ff5050";
 
 /** 床アイテムを 1 個生成する。rarityBoost は深さ由来の分に上乗せ */
 export function dropItem(state: GameState, pos: Vec, extraBoost = 0): Item {
@@ -61,7 +63,7 @@ export function dropDepthReward(state: GameState): void {
   dropItem(state, overlapsWall(state, pos.x, pos.y, ITEM_RADIUS) ? p : pos, LOOT_DROP.depthArrivalRarityBoost);
 }
 
-/** 触れたら stash へ */
+/** 触れたら stash へ。stash が満杯なら拾えず床に残る */
 export function updateFloorItems(state: GameState, dt: number): void {
   const body = state.player.body;
   const picked = new Set<number>();
@@ -69,18 +71,23 @@ export function updateFloorItems(state: GameState, dt: number): void {
     fi.bobTime += dt;
     if (fi.bobTime < LOOT_DROP.pickupDelay) continue;
     if (!circlesOverlap(fi.pos.x, fi.pos.y, LOOT_DROP.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
-    pickUp(state, fi.item, fi.pos);
-    picked.add(fi.id);
+    if (pickUp(state, fi.item, fi.pos)) picked.add(fi.id);
   }
   if (picked.size === 0) return;
   state.floorItems = state.floorItems.filter((fi) => !picked.has(fi.id));
 }
 
-function pickUp(state: GameState, item: Item, pos: Vec): void {
-  addToStash(state.profile, item);
+/** stash への追加を試みる。満杯だったら false（アイテムは床に残す） */
+function pickUp(state: GameState, item: Item, pos: Vec): boolean {
+  if (!addToStash(state.profile, item)) {
+    addFloatingText(state, pos, "STASH FULL", STASH_FULL_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
+    pushLog(state, "Stash is full. Salvage or equip something first.", STASH_FULL_COLOR);
+    return false;
+  }
   saveProfile(state.profile);
   const color = RARITY_COLOR[item.rarity];
   addFloatingText(state, pos, item.name, color, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `Picked up ${item.name}.`, color);
   pushSfx(state, RARE_RARITIES.has(item.rarity) ? "lootRare" : "pickup");
+  return true;
 }

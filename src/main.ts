@@ -7,6 +7,7 @@ import type { GameState } from "./core/state";
 import { loadProfile } from "./loot/profile";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { Renderer } from "./render/renderer";
+import { recordRunOnce } from "./system/combat";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
 
 const canvas = document.getElementById("game");
@@ -69,6 +70,8 @@ startLoop(
       if (frame.confirmPressed) state = startGame(state.seedText);
       else if (frame.restartPressed) state = startGame(randomSeedText());
     } else if (frame.restartPressed) {
+      // 死んでいない状態で R を押した中断も、ラン結果として一度だけメタに記録する
+      recordRunOnce(state);
       state = startGame(randomSeedText());
     }
     step(state, frame, dt);

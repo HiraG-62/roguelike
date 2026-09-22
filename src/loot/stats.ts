@@ -1,3 +1,4 @@
+import { STATUS } from "../data/tuning";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats } from "./types";
 
@@ -5,8 +6,6 @@ import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats 
 const MIN_MULTIPLIER = 0.1;
 /** 被ダメ倍率の下限（無敵化を防ぐ） */
 const MIN_DAMAGE_TAKEN_MUL = 0.3;
-/** 冷気スローの上限 */
-const MAX_CHILL_SLOW = 0.9;
 const MIN_MAX_HP = 1;
 const MIN_PROJECTILES = 1;
 const MIN_DASH_CHARGES = 1;
@@ -117,7 +116,8 @@ function finalize(stats: PlayerStats): PlayerStats {
   for (const key of MULTIPLIER_KEYS) stats[key] = Math.max(MIN_MULTIPLIER, stats[key]);
   for (const key of PROBABILITY_KEYS) stats[key] = clamp(stats[key], 0, 1);
   stats.damageTakenMul = Math.max(MIN_DAMAGE_TAKEN_MUL, stats.damageTakenMul);
-  stats.chillSlow = clamp(stats.chillSlow, 0, MAX_CHILL_SLOW);
+  // chill の上限は STATUS.maxSlow（statusEffects.ts の chillFactor）と 1 箇所に統一する
+  stats.chillSlow = clamp(stats.chillSlow, 0, STATUS.maxSlow);
   stats.maxHp = Math.max(MIN_MAX_HP, Math.round(stats.maxHp));
   stats.projectileCount = Math.max(MIN_PROJECTILES, Math.round(stats.projectileCount));
   stats.dashCharges = Math.max(MIN_DASH_CHARGES, Math.round(stats.dashCharges));

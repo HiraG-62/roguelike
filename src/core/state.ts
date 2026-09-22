@@ -48,13 +48,17 @@ export interface Player {
   walkTime: number;
   /** 残りダッシュ回数。dashCooldown が 0 になるたびに 1 回復する */
   dashChargesLeft: number;
-  /** トリガー定義の index → 内部クールダウン残り秒 */
-  triggerCooldowns: Map<number, number>;
+  /** トリガー内容ベースのキー（triggerCooldownKey）→ 内部クールダウン残り秒。装備変更で index がずれても混線しない */
+  triggerCooldowns: Map<string, number>;
   buffs: PlayerBuffs;
   /** JUST 回避後のダメージ倍率が有効な残り秒 */
   justTimer: number;
   /** 近接ヒットの通算数（everyNthMeleeHit 用） */
   meleeHitCount: number;
+  /** ks_overclock: 射撃の HP コストは overclockShootInterval 発に 1 回。その通算カウント */
+  overclockShotCount: number;
+  /** lifeOnHit の 0.1 秒あたり回復上限を管理する窓 */
+  lifeOnHitWindow: { timer: number; healed: number };
 }
 
 export interface TimedMul {
@@ -106,6 +110,8 @@ export interface ChillEffect {
 export interface EnemyEffects {
   burn: BurnEffect;
   chill: ChillEffect;
+  /** burn / chill / shock の on-hit 判定の内部クールダウン残り秒 */
+  onHitCooldown: number;
 }
 
 /** ダメージの出どころ。melee / ranged だけが on-hit 効果とトリガーを起こす */

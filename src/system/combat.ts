@@ -1,7 +1,7 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { FEEL, PLAYER } from "../data/tuning";
+import { ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, PLAYER } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional } from "./effects";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones";
@@ -117,7 +117,7 @@ export function damageEnemy(
   if (kind === "melee") pushSfx(state, opts.stagger ? "hitHeavy" : "hit");
   if (kind === "ranged") pushSfx(state, "bulletHit");
   if (kind !== "proc") {
-    if (state.stats.lifeOnHit > 0) healPlayer(state, state.stats.lifeOnHit, { silent: true });
+    applyLifeOnHit(state);
     applyOnHitStatus(state, enemy);
   }
 
@@ -161,12 +161,39 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
 }
 
+/**
+ * lifeOnHit の回復。ヒット 1 回あたりは stats.lifeOnHit のままだが、
+ * 高速多段ヒット（弾の同時ヒットなど）で回復し放題にならないよう
+ * PLAYER.lifeOnHitWindow 秒間の合計を lifeOnHit × lifeOnHitCapMul に制限する
+ */
+function applyLifeOnHit(state: GameState): void {
+  const amount = state.stats.lifeOnHit;
+  if (amount <= 0) return;
+  const w = state.player.lifeOnHitWindow;
+  if (w.timer <= 0) {
+    w.timer = PLAYER.lifeOnHitWindow;
+    w.healed = 0;
+  }
+  const cap = amount * PLAYER.lifeOnHitCapMul;
+  const actual = Math.min(amount, Math.max(0, cap - w.healed));
+  if (actual <= 0) return;
+  w.healed += actual;
+  healPlayer(state, actual, { silent: true });
+}
+
 export type PlayerHitResult = "hit" | "dodged" | "ignored";
 
-/** 被ダメ計算: armor を引いてから damageTakenMul。最低 1 */
+/** armor の被ダメ軽減率（PoE 風の逓減式）。0..ARMOR_MAX_REDUCTION */
+export function armorReduction(armor: number): number {
+  if (armor <= 0) return 0;
+  return Math.min(ARMOR_MAX_REDUCTION, armor / (armor + ARMOR_K));
+}
+
+/** 被ダメ計算: armor で軽減してから damageTakenMul。最低 1 */
 export function mitigate(state: GameState, amount: number): number {
   const s = state.stats;
-  return Math.max(MIN_PLAYER_DAMAGE, Math.round((amount - s.armor) * s.damageTakenMul));
+  const reduced = amount * (1 - armorReduction(s.armor));
+  return Math.max(MIN_PLAYER_DAMAGE, Math.round(reduced * s.damageTakenMul));
 }
 
 /** プレイヤーへのダメージ。無敵中はジャスト回避判定だけ行う。attacker は thorns の反射先 */

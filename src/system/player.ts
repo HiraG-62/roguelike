@@ -7,7 +7,7 @@ import { FEEL, KEYSTONE, PLAYER } from "../data/tuning";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst } from "./effects";
-import { KS, hasKeystone, payOverclock, regenAllowed } from "./keystones";
+import { KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt } from "./statusEffects";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
@@ -49,6 +49,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     buffs: { damage: { time: 0, mul: 1 }, speed: { time: 0, mul: 1 }, invuln: 0 },
     justTimer: 0,
     meleeHitCount: 0,
+    overclockShotCount: 0,
+    lifeOnHitWindow: { timer: 0, healed: 0 },
   };
 }
 
@@ -152,6 +154,7 @@ function tickTimers(state: GameState, dt: number): void {
   p.buffs.damage.time = Math.max(0, p.buffs.damage.time - dt);
   p.buffs.speed.time = Math.max(0, p.buffs.speed.time - dt);
   p.buffs.invuln = Math.max(0, p.buffs.invuln - dt);
+  p.lifeOnHitWindow.timer = Math.max(0, p.lifeOnHitWindow.timer - dt);
   tickTriggerCooldowns(state, dt);
   tickRegen(state, dt);
   if (p.dashTimer > 0) {
@@ -396,7 +399,7 @@ function tryShoot(state: GameState): void {
   spawnBurst(state, muzzle, BULLET_COLOR, 3, 60, 0.12, 1.5);
   shake(state, 1);
   pushSfx(state, "shoot");
-  payOverclock(state, PLAYER.overclockHpCost);
+  payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });
 }
 

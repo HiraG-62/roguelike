@@ -22,16 +22,26 @@ const TEXT_COLOR_BUFF = "#ffd75f";
 const TEXT_COLOR_INVULN = "#ffffff";
 const FULL_CIRCLE = Math.PI * 2;
 
+/**
+ * トリガーの ICD を装備変更で混線させないためのキー。
+ * index だけだと装備入れ替えで同じ index が全く別のトリガーになったとき、
+ * 古い ICD を誤って引き継いでしまうため、トリガー内容（trigger/condition/effect/every）も混ぜる。
+ */
+function triggerCooldownKey(t: TriggeredEffect, index: number): string {
+  return `${t.trigger}:${t.condition}:${t.effect}:${t.every ?? ""}:${index}`;
+}
+
 export function fireTrigger(state: GameState, kind: TriggerKind, ctx: TriggerContext): void {
   if (state.status !== "playing") return;
   const p = state.player;
   state.stats.triggers.forEach((t, index) => {
     if (t.trigger !== kind) return;
-    if ((p.triggerCooldowns.get(index) ?? 0) > 0) return;
+    const key = triggerCooldownKey(t, index);
+    if ((p.triggerCooldowns.get(key) ?? 0) > 0) return;
     if (kind === "everyNthMeleeHit" && !isNthHit(p.meleeHitCount, t.every)) return;
     if (!conditionMet(state, t.condition)) return;
     if (!state.rng.chance(t.chance)) return;
-    p.triggerCooldowns.set(index, TRIGGER.icd);
+    p.triggerCooldowns.set(key, TRIGGER.icd);
     runEffect(state, t, ctx);
   });
 }
@@ -62,10 +72,10 @@ export function conditionMet(state: GameState, condition: TriggerCondition): boo
 /** ICD を進める（毎ステップ） */
 export function tickTriggerCooldowns(state: GameState, dt: number): void {
   const cds = state.player.triggerCooldowns;
-  for (const [index, left] of cds) {
+  for (const [key, left] of cds) {
     const next = left - dt;
-    if (next <= 0) cds.delete(index);
-    else cds.set(index, next);
+    if (next <= 0) cds.delete(key);
+    else cds.set(key, next);
   }
 }
 

@@ -1,4 +1,5 @@
 import type { Rng } from "../core/rng";
+import { PLAYER } from "../data/tuning";
 import type {
   AffixKind,
   AffixRoll,
@@ -38,6 +39,10 @@ const MAGNITUDE_VARIANCE_MAX = 1.15;
 const VARIANCE_STEPS = 100;
 const DURATION_DECIMALS = 1;
 const PERCENT_SCALE = 100;
+/** ダメージ系トリガー効果の magnitude 上限（base の何倍まで itemLevel で伸ばせるか） */
+const DAMAGE_EFFECT_CAP_MUL = 4;
+/** heal トリガー効果の magnitude 上限（PLAYER.maxHp に対する割合） */
+const HEAL_EFFECT_CAP_RATIO = 0.3;
 
 // ---------------------------------------------------------------------------
 // 語彙
@@ -103,19 +108,33 @@ export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
 };
 
 export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
-  shockwave: { base: 12, perLevel: 0.08, decimals: 0, text: (m) => `release a shockwave (${m} dmg)` },
+  shockwave: {
+    base: 12,
+    perLevel: 0.08,
+    decimals: 0,
+    cap: 12 * DAMAGE_EFFECT_CAP_MUL,
+    text: (m) => `release a shockwave (${m} dmg)`,
+  },
   spawnBullets: {
     base: 5,
     perLevel: 0.08,
     decimals: 0,
+    cap: 5 * DAMAGE_EFFECT_CAP_MUL,
     count: { min: 3, max: 6 },
     text: (m, c) => `fire ${c ?? 0} bullets (${m} dmg each)`,
   },
-  chainLightning: { base: 10, perLevel: 0.08, decimals: 0, text: (m) => `call chain lightning (${m} dmg)` },
+  chainLightning: {
+    base: 10,
+    perLevel: 0.08,
+    decimals: 0,
+    cap: 10 * DAMAGE_EFFECT_CAP_MUL,
+    text: (m) => `call chain lightning (${m} dmg)`,
+  },
   burnNearby: {
     base: 4,
     perLevel: 0.08,
     decimals: 0,
+    cap: 4 * DAMAGE_EFFECT_CAP_MUL,
     duration: { min: 2, max: 4 },
     text: (m, _c, d) => `ignite nearby enemies (${m} dps for ${d ?? "0"}s)`,
   },
@@ -127,8 +146,20 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     duration: { min: 1.5, max: 2.5 },
     text: (m, _c, d) => `chill nearby enemies by ${m}% for ${d ?? "0"}s`,
   },
-  explode: { base: 16, perLevel: 0.08, decimals: 0, text: (m) => `explode (${m} dmg)` },
-  heal: { base: 4, perLevel: 0.05, decimals: 0, text: (m) => `heal ${m} HP` },
+  explode: {
+    base: 16,
+    perLevel: 0.08,
+    decimals: 0,
+    cap: 16 * DAMAGE_EFFECT_CAP_MUL,
+    text: (m) => `explode (${m} dmg)`,
+  },
+  heal: {
+    base: 4,
+    perLevel: 0.05,
+    decimals: 0,
+    cap: PLAYER.maxHp * HEAL_EFFECT_CAP_RATIO,
+    text: (m) => `heal ${m} HP`,
+  },
   damageBuff: {
     base: 15,
     perLevel: 0.03,

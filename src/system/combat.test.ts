@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import { PLAYER } from "../data/tuning";
+import { PLAYER, STATUS } from "../data/tuning";
 import type { TriggeredEffect } from "../loot/types";
-import { damagePlayer } from "./combat";
+import { armorReduction, damageEnemy, damagePlayer } from "./combat";
 import { updateEnemies } from "./enemies";
-import { KS } from "./keystones";
+import { KS, payOverclock, payOverclockShoot } from "./keystones";
 import { applyStats, dashTime } from "./player";
 import { updateProjectiles } from "./projectiles";
-import { applyBurn, applyChill, updateStatusEffects } from "./statusEffects";
+import { applyBurn, applyChill, applyOnHitStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { fireTrigger } from "./triggers";
 
@@ -101,6 +101,27 @@ describe("状態異常", () => {
     expect(normal.phaseTimer).toBeCloseTo(0.9, 5);
     expect(chilled.phaseTimer).toBeCloseTo(0.95, 5);
   });
+
+  it("on-hit 判定（burn/chill/shock）は同じ敵に対して 0.2 秒に 1 回まで（9 発同時ヒットで 1 回だけ判定）", () => {
+    const state = arena(5, { burnChance: 1, burnDps: 10 });
+    const e = placeEnemy(state, "boar", 60);
+    let chanceCalls = 0;
+    const original = state.rng.chance.bind(state.rng);
+    state.rng.chance = (p: number) => {
+      chanceCalls += 1;
+      return original(p);
+    };
+
+    for (let i = 0; i < 9; i++) applyOnHitStatus(state, e);
+    // ICD 中は 2 回目以降 rng すら引かない → burn の判定は 1 回だけ
+    expect(chanceCalls).toBe(1);
+    expect(e.effects.onHitCooldown).toBeCloseTo(STATUS.onHitIcd, 5);
+
+    // ICD が明けたら再び判定できる
+    updateStatusEffects(state, STATUS.onHitIcd);
+    applyOnHitStatus(state, e);
+    expect(chanceCalls).toBe(2);
+  });
 });
 
 describe("トリガー", () => {
@@ -128,6 +149,26 @@ describe("トリガー", () => {
     const state = arena(5, { triggers: [{ ...energyOnHit, condition: "belowHalfHp" }] });
     fireTrigger(state, "onMeleeHit", { pos: { ...state.player.body.pos } });
     expect(state.player.energy).toBe(0);
+  });
+
+  it("ICD は内容ベースのキーで管理され、装備変更で index がずれても他のトリガーに残らない", () => {
+    const state = arena(5, { triggers: [energyOnHit] });
+    const ctx = { pos: { ...state.player.body.pos } };
+    fireTrigger(state, "onMeleeHit", ctx);
+    expect(state.player.energy).toBe(10);
+
+    // 装備変更で index 0 が全く別のトリガーに入れ替わる（旧実装なら index 0 の ICD を誤って引き継ぐ）
+    const healOnMeleeHit: TriggeredEffect = {
+      trigger: "onMeleeHit",
+      condition: "always",
+      effect: "heal",
+      magnitude: 5,
+      chance: 1,
+    };
+    state.stats = { ...state.stats, triggers: [healOnMeleeHit] };
+    state.player.hp = 50;
+    fireTrigger(state, "onMeleeHit", ctx);
+    expect(state.player.hp).toBe(55);
   });
 });
 
@@ -157,16 +198,58 @@ describe("キーストーン", () => {
   });
 });
 
+describe("ks_overclock", () => {
+  it("射撃は 3 発ごとに 1 HP、近接は 1 振りごとに 1 HP を消費する", () => {
+    const state = arena(5, { keystones: [KS.overclock] });
+    state.player.hp = 100;
+
+    payOverclockShoot(state);
+    payOverclockShoot(state);
+    expect(state.player.hp).toBe(100);
+    payOverclockShoot(state);
+    expect(state.player.hp).toBe(99);
+    payOverclockShoot(state);
+    payOverclockShoot(state);
+    expect(state.player.hp).toBe(99);
+    payOverclockShoot(state);
+    expect(state.player.hp).toBe(98);
+
+    payOverclock(state, PLAYER.overclockHpCost);
+    expect(state.player.hp).toBe(97);
+  });
+});
+
+describe("ks_vampire + ks_pacifist", () => {
+  it("近接不可でも vampire の life on hit は射撃ヒットで発動する", () => {
+    const state = arena(5, { keystones: [KS.vampire, KS.pacifist], lifeOnHit: 3 });
+    state.player.hp = 50;
+    placeEnemy(state, "boar", 20);
+    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    for (let i = 0; i < 10; i++) step(state, withInput({}), FIXED_DT);
+    expect(state.player.hp).toBeGreaterThan(50);
+  });
+});
+
 describe("生存 stats", () => {
   it("armor と damageTakenMul で被ダメが減る（最低 1）", () => {
     const state = arena(5, { armor: 5, damageTakenMul: 0.5 });
     const p = state.player.body.pos;
     damagePlayer(state, 25, { x: p.x - 10, y: p.y });
-    expect(state.player.maxHp - state.player.hp).toBe(10);
+    // armor 5: reduction = 5/(5+50) ≈ 9.09% → 25 * 0.9091 * 0.5 ≈ 11.36 → round 11
+    expect(state.player.maxHp - state.player.hp).toBe(11);
     state.player.invulnTimer = 0;
     const hp = state.player.hp;
     damagePlayer(state, 1, { x: p.x - 10, y: p.y });
     expect(hp - state.player.hp).toBe(1);
+  });
+
+  it("armorReduction は逓減式で、armor 20 で約 29%、armor 150 で上限 75%", () => {
+    expect(armorReduction(0)).toBe(0);
+    expect(armorReduction(20)).toBeCloseTo(20 / 70, 3);
+    expect(armorReduction(20)).toBeCloseTo(0.2857, 3);
+    expect(armorReduction(150)).toBeCloseTo(0.75, 5);
+    // さらに積んでも上限を超えない
+    expect(armorReduction(10000)).toBe(0.75);
   });
 
   it("ダッシュはチャージ制で、回数ぶん連続で出せる", () => {
@@ -265,6 +348,17 @@ describe("life on hit", () => {
     placeEnemy(state, "boar", 20);
     for (let i = 0; i < 10; i++) step(state, withInput({ shootHeld: i === 0 }), FIXED_DT);
     expect(state.player.hp).toBe(53);
+  });
+
+  it("0.1 秒間に回復できる合計は lifeOnHit x3 が上限（多段ヒットの回復し放題を防ぐ）", () => {
+    const state = arena(5, { lifeOnHit: 3 });
+    state.player.hp = 50;
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = 100000;
+    for (let i = 0; i < 9; i++) {
+      damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    }
+    expect(state.player.hp).toBe(50 + 3 * PLAYER.lifeOnHitCapMul);
   });
 });
 

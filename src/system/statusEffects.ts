@@ -17,6 +17,7 @@ export function createEnemyEffects(): EnemyEffects {
   return {
     burn: { time: 0, dps: 0, acc: 0 },
     chill: { time: 0, slow: 0 },
+    onHitCooldown: 0,
   };
 }
 
@@ -27,8 +28,13 @@ export function chillFactor(enemy: Enemy): number {
   return 1 - Math.min(STATUS.maxSlow, c.slow);
 }
 
-/** 近接 / 射撃ヒット時に stats の確率で状態異常を付ける */
+/**
+ * 近接 / 射撃ヒット時に stats の確率で状態異常を付ける。
+ * 同じ敵に対して STATUS.onHitIcd 秒に 1 回までしか判定しない
+ * （多段ヒット・弾の同時ヒットで burn/chill/shock が乱発されないように）
+ */
 export function applyOnHitStatus(state: GameState, enemy: Enemy): void {
+  if (enemy.effects.onHitCooldown > 0) return;
   const s = state.stats;
   if (enemy.hp > 0 && s.burnChance > 0 && s.burnDps > 0 && state.rng.chance(s.burnChance)) {
     applyBurn(state, enemy, s.burnDps, STATUS.burnDuration);
@@ -39,6 +45,7 @@ export function applyOnHitStatus(state: GameState, enemy: Enemy): void {
   if (s.shockChance > 0 && s.shockDamage > 0 && state.rng.chance(s.shockChance)) {
     chainLightning(state, enemy.body.pos, s.shockDamage, enemy.id);
   }
+  enemy.effects.onHitCooldown = STATUS.onHitIcd;
 }
 
 /** burn: 強い方の dps を採用し、持続は延長する */
@@ -132,7 +139,12 @@ export function updateStatusEffects(state: GameState, dt: number): void {
     if (e.hp <= 0) continue;
     tickChill(e, dt);
     tickBurn(state, e, dt);
+    tickOnHitCooldown(e, dt);
   }
+}
+
+function tickOnHitCooldown(e: Enemy, dt: number): void {
+  e.effects.onHitCooldown = Math.max(0, e.effects.onHitCooldown - dt);
 }
 
 function tickChill(e: Enemy, dt: number): void {

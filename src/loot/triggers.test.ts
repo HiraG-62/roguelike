@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import {
+  EFFECT_SPECS,
   MAX_TRIGGER_CHANCE,
   MIN_TRIGGER_CHANCE,
   SLOT_TRIGGERS,
@@ -10,6 +11,7 @@ import {
   generateTrigger,
   generateTriggerRoll,
   isCompatible,
+  rollTriggerEffect,
   triggerToRoll,
 } from "./triggers";
 import { SLOTS } from "./types";
@@ -32,6 +34,18 @@ describe("トリガー文法", () => {
 
   it("十分な数の組み合わせがある", () => {
     expect(TRIGGER_GRAMMAR.length).toBeGreaterThan(300);
+  });
+
+  it("itemLevel が高くても magnitude は effect ごとの cap を超えない", () => {
+    const rng = createRng(7);
+    const veryHighLevel = 200;
+    for (let i = 0; i < 20; i++) {
+      for (const shape of TRIGGER_GRAMMAR) {
+        const effect = rollTriggerEffect(rng, shape, veryHighLevel);
+        const spec = EFFECT_SPECS[effect.effect];
+        if (spec.cap !== undefined) expect(effect.magnitude).toBeLessThanOrEqual(spec.cap);
+      }
+    }
   });
 
   it("同 seed で同じ効果、生成物は有効な組み合わせで chance は 0.15〜0.6", () => {

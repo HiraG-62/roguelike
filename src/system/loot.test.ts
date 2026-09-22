@@ -3,9 +3,27 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { rectCenterPx } from "../map/grid";
 import { createGame } from "../core/game";
-import { LOOT_DROP } from "../data/tuning";
+import { LOOT_DROP, STASH_CAPACITY } from "../data/tuning";
+import { addToStash } from "../loot/profile";
+import type { Item } from "../loot/types";
 import { dropItem, updateFloorItems } from "./loot";
 import { arena, withInput } from "./testHelpers";
+
+function makeStashFiller(id: number): Item {
+  return {
+    id: `filler-${id}`,
+    seed: id,
+    baseKey: "shortsword",
+    slot: "weapon",
+    rarity: "normal",
+    itemLevel: 1,
+    name: "Shortsword",
+    implicit: null,
+    affixes: [],
+    foundDepth: 1,
+    foundAt: 0,
+  };
+}
 
 describe("装備ドロップと拾得", () => {
   it("落としたアイテムは floorItems に入り、触れると stash に入る", () => {
@@ -26,6 +44,22 @@ describe("装備ドロップと拾得", () => {
     expect(state.profile.stash.map((it) => it.id)).toContain(item.id);
     expect(state.sfx.some((s) => s === "pickup" || s === "lootRare")).toBe(true);
     expect(state.texts.some((t) => t.text === item.name)).toBe(true);
+  });
+
+  it("stash が満杯だと拾えず STASH FULL を表示し、床に残る", () => {
+    const state = arena();
+    for (let i = 0; i < STASH_CAPACITY; i++) addToStash(state.profile, makeStashFiller(i));
+
+    const p = state.player.body.pos;
+    dropItem(state, { x: p.x + 40, y: p.y });
+    const fi = state.floorItems[0]!;
+    state.player.body.pos = { ...fi.pos };
+    updateFloorItems(state, LOOT_DROP.pickupDelay);
+
+    expect(state.floorItems).toHaveLength(1);
+    expect(state.profile.stash).toHaveLength(STASH_CAPACITY);
+    expect(state.texts.some((t) => t.text === "STASH FULL")).toBe(true);
+    expect(state.log.some((l) => l.text.includes("Stash is full"))).toBe(true);
   });
 
   it("部屋クリアで必ず 1 個落ちる", () => {

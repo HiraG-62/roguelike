@@ -1,5 +1,5 @@
 import type { GameState } from "../core/state";
-import { KEYSTONE } from "../data/tuning";
+import { KEYSTONE, PLAYER } from "../data/tuning";
 
 /**
  * キーストーン判定ヘルパー。key は src/loot/affixes.ts の KEYSTONES と揃える。
@@ -55,4 +55,14 @@ export function payOverclock(state: GameState, cost: number): void {
   if (!hasKeystone(state, KS.overclock)) return;
   const p = state.player;
   p.hp = Math.max(1, p.hp - cost);
+}
+
+/** ks_overclock: 射撃は overclockShootInterval 発ごとに 1 回だけ HP を払う（近接は毎振り payOverclock） */
+export function payOverclockShoot(state: GameState): void {
+  if (!hasKeystone(state, KS.overclock)) return;
+  const p = state.player;
+  p.overclockShotCount += 1;
+  if (p.overclockShotCount < PLAYER.overclockShootInterval) return;
+  p.overclockShotCount = 0;
+  p.hp = Math.max(1, p.hp - PLAYER.overclockHpCost);
 }
