@@ -136,6 +136,8 @@ export function spawnMonster(state: GameState, def: MonsterDef, pos: Point): Ent
     speed: def.speed,
     energy: 0,
     xpValue: def.xpValue,
+    level: 1,
+    xp: 0,
     ai: def.ai,
   };
   state.entities.push(monster);

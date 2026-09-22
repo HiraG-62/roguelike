@@ -2,6 +2,7 @@ import { type Direction, type GameState, emit, entityAt, getPlayer, tryMove } fr
 import { type Entity, isAlive } from "../entity/entity";
 import { applyAttack } from "../system/combat";
 import { decideMonsterAction } from "../system/ai";
+import { gainXp } from "../system/progression";
 
 /** 1 行動に必要なエネルギー。speed 100 なら毎ティック 1 行動 */
 export const ACTION_COST = 100;
@@ -61,6 +62,7 @@ export function attack(state: GameState, attacker: Entity, defender: Entity): vo
     return;
   }
   state.entities = state.entities.filter((e) => e.id !== defender.id);
+  if (attacker.kind === "player") gainXp(state, attacker, defender.xpValue);
 }
 
 /** プレイヤーの移動 or 隣接攻撃。ターンを消費したら true */

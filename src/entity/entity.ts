@@ -27,6 +27,9 @@ export interface Entity {
   energy: number;
   /** 倒したときに得られる経験値 */
   xpValue: number;
+  level: number;
+  /** 現在レベル内で貯めた XP */
+  xp: number;
   /** モンスターの行動方針。プレイヤーは undefined */
   ai?: AiKind;
 }
@@ -47,6 +50,8 @@ export function createPlayer(id: number, pos: Point): Entity {
     speed: NORMAL_SPEED,
     energy: 0,
     xpValue: 0,
+    level: 1,
+    xp: 0,
   };
 }
 

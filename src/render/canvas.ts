@@ -1,5 +1,6 @@
 import { type GameState, getPlayer } from "../core/state";
 import { type GameMap, Tile, getTile, toIndex } from "../map/grid";
+import { xpToNextLevel } from "../system/progression";
 
 /** 論理グリッドは固定。Canvas の拡大縮小でウィンドウに合わせる */
 export const GRID_COLS = 80;
@@ -75,11 +76,12 @@ export class CanvasRenderer {
   }
 
   private drawStatus(state: GameState): void {
-    const { hp, maxHp } = getPlayer(state).stats;
+    const player = getPlayer(state);
+    const { hp, maxHp } = player.stats;
     const hpText = `HP: ${hp}/${maxHp}`;
     this.drawText(hpText, hp <= maxHp * HP_LOW_RATIO ? COLOR_HP_LOW : COLOR_HP_OK, 0, 0);
     this.drawText(
-      `Depth: ${state.depth}   Turn: ${state.turn}   Seed: ${state.seed}`,
+      `Lv: ${player.level}  XP: ${player.xp}/${xpToNextLevel(player.level)}   Depth: ${state.depth}   Turn: ${state.turn}   Seed: ${state.seed}`,
       COLOR_STATUS,
       hpText.length + 3,
       0,
