@@ -68,6 +68,11 @@ export class Renderer {
     this.canvas.style.height = `${VIEW_H * scale}px`;
   }
 
+  /** オーバーレイ UI（装備画面など）が同じ描画先に描くための公開 */
+  get context(): CanvasRenderingContext2D {
+    return this.ctx;
+  }
+
   render(state: GameState, aimScreen: { x: number; y: number } | null = null): void {
     const { ctx } = this;
     ctx.fillStyle = "#08080c";

@@ -3,6 +3,7 @@ import type { FrameInput } from "../core/input";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { equipItem, saveProfile, salvageItem, unequipItem } from "../loot/profile";
 import { computeStats } from "../loot/stats";
+import { applyStats } from "../system/player";
 import { SLOTS, type Item, type Slot } from "../loot/types";
 
 /** 装備画面のパネル配置。render 側もこの定数を使って揃える */
@@ -146,10 +147,7 @@ function findHoveredStashRow(layout: InventoryLayout, p: { x: number; y: number 
 
 /** 装備変更後の反映: stats 再計算・HP 割合維持・保存 */
 function applyEquipmentChange(state: GameState): void {
-  const ratio = state.player.maxHp > 0 ? state.player.hp / state.player.maxHp : 1;
-  state.stats = computeStats(state.profile.equipment);
-  state.player.maxHp = state.stats.maxHp;
-  state.player.hp = Math.max(1, Math.round(state.player.maxHp * ratio));
+  applyStats(state, computeStats(state.profile.equipment));
   saveProfile(state.profile);
 }
 
