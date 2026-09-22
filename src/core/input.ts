@@ -20,9 +20,10 @@ const BINDINGS: Record<ActionName, readonly string[]> = {
   left: ["KeyA", "ArrowLeft"],
   right: ["KeyD", "ArrowRight"],
   dash: ["Space", "ShiftLeft", "ShiftRight"],
-  attack: ["KeyJ", "KeyZ"],
-  shoot: ["KeyK", "KeyX"],
-  special: ["KeyL", "KeyC"],
+  // 右手はマウスなので、キーボード側は全部左手で届く位置に置く
+  attack: ["KeyE"],
+  shoot: ["KeyQ"],
+  special: ["KeyF"],
   confirm: ["Enter"],
   restart: ["KeyR"],
 };

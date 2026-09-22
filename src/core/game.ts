@@ -43,7 +43,7 @@ export function createGame(seed: number, seedText = String(seed)): GameState {
     deathTimer: 0,
   };
   buildFloor(state);
-  pushLog(state, "WASD move / Space dash / J slash / K shoot / L burst", "#ffd75f");
+  pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");
   return state;
 }
 

@@ -350,7 +350,7 @@ export class Renderer {
     const ready = p.energy >= p.maxEnergy;
     const energyColor = ready && state.tick % 20 < 10 ? COLOR_ENERGY_READY : COLOR_ENERGY;
     this.drawBar(8, 17, 100, 4, p.energy / p.maxEnergy, energyColor, COLOR_ENERGY_BG);
-    if (ready) ctx.fillText("L: BURST", 112, 22);
+    if (ready) ctx.fillText("F: BURST", 112, 22);
 
     ctx.textAlign = "right";
     ctx.fillStyle = COLOR_TEXT;
