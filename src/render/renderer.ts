@@ -258,6 +258,12 @@ const DOOR_MARK_COLOR: Readonly<Partial<Record<RoomKind, string>>> = {
   shrine: ROOM_KIND.shrineColor,
 };
 
+/** リゲイン表示 */
+const COLOR_REGAIN = "#ffa040";
+const REGAIN_ALPHA = 0.5;
+/** 残りがこの秒数未満なら点滅 */
+const REGAIN_BLINK_TIME = 1;
+
 /** HUD */
 const HUD_X = 8;
 const HUD_HP_Y = 8;
@@ -1344,6 +1350,7 @@ export class Renderer {
 
     this.blit(this.sprite(SPR.heartSmall), 0, HUD_X, HUD_HP_Y - 1);
     this.drawBar(HUD_BAR_X, HUD_HP_Y, HUD_BAR_W, HUD_HP_H, p.hp / p.maxHp, COLOR_HP, COLOR_HP_BG);
+    this.drawRegain(state);
     ctx.font = FONT_SMALL;
     ctx.fillStyle = COLOR_TEXT;
     ctx.fillText(`${Math.ceil(p.hp)}/${p.maxHp}`, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H);
@@ -1509,6 +1516,23 @@ export class Renderer {
       .filter((d) => !state.stats.keystones.includes(d.key))
       .map((d) => d.name);
     this.hudConflictText = inactive.length > 0 ? `! CONFLICT: ${inactive.join(", ")} inactive` : "";
+  }
+
+  /** リゲイン（取り戻せる HP）を現在 HP の右に薄いオレンジで。消える直前は点滅 */
+  private drawRegain(state: GameState): void {
+    const p = state.player;
+    if (p.regainTimer <= 0 || p.regainPool <= 0 || p.maxHp <= 0) return;
+    const blinking = p.regainTimer < REGAIN_BLINK_TIME;
+    if (blinking && state.tick % HUD_BLINK_TICKS >= HUD_BLINK_TICKS / 2) return;
+    const clamp = (v: number): number => Math.max(0, Math.min(1, v));
+    const start = Math.round(HUD_BAR_W * clamp(p.hp / p.maxHp));
+    const end = Math.round(HUD_BAR_W * clamp((p.hp + p.regainPool) / p.maxHp));
+    if (end <= start) return;
+    const { ctx } = this;
+    ctx.globalAlpha = REGAIN_ALPHA;
+    ctx.fillStyle = COLOR_REGAIN;
+    ctx.fillRect(HUD_BAR_X + start, HUD_HP_Y, end - start, HUD_HP_H);
+    ctx.globalAlpha = 1;
   }
 
   private drawBar(x: number, y: number, w: number, h: number, ratio: number, color: string, bg: string): void {
