@@ -15,7 +15,7 @@ import {
   wellRadius,
 } from "../skills/placed";
 import type { ActiveCast, Ghost, Grenade } from "../skills/types";
-import { beamEnd, grenadeRadius, hookRange, quakeRadius, remoteAnchor, slotModifierView } from "../system/skills";
+import { beamEnd, chargeRatio, grenadeRadius, hookRange, quakeRadius, remoteAnchor, slotModifierView } from "../system/skills";
 
 /**
  * スキルの描画。renderer.ts を触らずに済むよう、main.ts が renderer.render の後に呼ぶ。
@@ -97,6 +97,10 @@ const DELAY_RADIUS = 14;
 const HOOK_HEAD = 2;
 const HASTE_RING_PAD = 3;
 const HASTE_SPIN = 12;
+
+const COLOR_CHARGE = MODIFIERS.charge.color;
+const CHARGE_BAR_H = 2;
+const CHARGE_BAR_BG = "rgba(0,0,0,0.6)";
 
 export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): void {
   const cam = state.camera;
@@ -529,6 +533,17 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
 
   if (stone && slot) drawCharges(ctx, x, y, slot.chargesLeft);
   drawModifierDots(ctx, state, index, x, y);
+  drawChargeGauge(ctx, state, index, x, y);
+}
+
+/** 溜め中のスロット上端に細いバー。溜め時間の割合(0..1)ぶん左から満ちる */
+function drawChargeGauge(ctx: CanvasRenderingContext2D, state: GameState, index: number, x: number, y: number): void {
+  const ratio = chargeRatio(state, index);
+  if (ratio === null) return;
+  ctx.fillStyle = CHARGE_BAR_BG;
+  ctx.fillRect(x, y - CHARGE_BAR_H - 1, HUD_SIZE, CHARGE_BAR_H);
+  ctx.fillStyle = COLOR_CHARGE;
+  ctx.fillRect(x, y - CHARGE_BAR_H - 1, Math.round(HUD_SIZE * ratio), CHARGE_BAR_H);
 }
 
 /** チャージは枠の下のドット（2 以上のときだけ） */

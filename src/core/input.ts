@@ -83,6 +83,9 @@ export interface FrameInput {
   /** スキルスロット 1 / 2 */
   skill1Pressed: boolean;
   skill2Pressed: boolean;
+  /** スキルスロット 1 / 2 の押しっぱなし（Charge 刻印符の溜め入力）。パッドは未対応でキーボード/マウスのみ */
+  skill1Held: boolean;
+  skill2Held: boolean;
   /** 今フレームのホイール移動量（正 = 下）。UI のスクロール用 */
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
@@ -102,6 +105,8 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   inventoryPressed: false,
   skill1Pressed: false,
   skill2Pressed: false,
+  skill1Held: false,
+  skill2Held: false,
   wheel: 0,
   clickPressed: false,
   shiftHeld: false,
@@ -233,6 +238,9 @@ export class PlayerInput {
       inventoryPressed: this.wasPressed("inventory") || pad.inventoryPressed,
       skill1Pressed: this.wasPressed("skill1") || pad.skill1Pressed,
       skill2Pressed: this.wasPressed("skill2") || pad.skill2Pressed,
+      // パッドの「押しっぱなし」は GamepadFrame に無いのでキーボード/マウスのみで判定する
+      skill1Held: this.isDown("skill1"),
+      skill2Held: this.isDown("skill2"),
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has("Mouse0"),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),

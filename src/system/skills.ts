@@ -5,7 +5,7 @@ import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { FEEL, PLAYER } from "../data/tuning";
 import { rectCenterPx } from "../map/grid";
-import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, castCooldown, resolveCast, stoneLabel } from "../skills/data";
+import { MODIFIERS, SKILL, SKILL_DEFS, activeModifiers, canAttach, castCooldown, resolveCast, stoneLabel } from "../skills/data";
 import { rollRuneModifier } from "../skills/generator";
 import { skillHit, tickCurses } from "../skills/hit";
 import { addStone, saveSkillProfile, stoneInSlot } from "../skills/persistence";
@@ -98,7 +98,14 @@ export interface ResolvedSlot {
 export function createSkillRunState(profile: SkillProfile): SkillRunState {
   return {
     profile,
-    slots: Array.from({ length: SLOT_COUNT }, () => ({ modifiers: [], cooldownLeft: 0, cooldownTotal: 0, chargesLeft: 1 })),
+    slots: Array.from({ length: SLOT_COUNT }, () => ({
+      modifiers: [],
+      cooldownLeft: 0,
+      cooldownTotal: 0,
+      chargesLeft: 1,
+      charging: false,
+      chargeTime: 0,
+    })),
     active: null,
     pendingSlot: -1,
     pendingTimer: 0,
@@ -159,7 +166,8 @@ export function skillMoveMul(state: GameState): number {
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0) return 0;
   const haste = rs.haste.time > 0 ? rs.haste.mul : 1;
   const frost = playerInFrost(state) ? SKILL.frostField.selfMoveMul : 1;
-  return activeMoveMul(rs.active) * haste * frost;
+  const charging = rs.slots.some((s) => s.charging) ? SKILL.modifier.charge.moveMul : 1;
+  return activeMoveMul(rs.active) * haste * frost * charging;
 }
 
 function activeMoveMul(a: ActiveCast | null): number {
@@ -231,9 +239,12 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
 
   const pressed = [input.skill1Pressed, input.skill2Pressed];
   pressed.forEach((on, i) => {
-    if (on) requestCast(state, i, input);
+    if (!on) return;
+    if (hasChargeModifier(state, i)) startCharge(state, i);
+    else requestCast(state, i, input);
   });
   tryPending(state, input);
+  updateCharging(state, input, dt);
 
   updateActive(state, dt);
   updateGrenades(state, dt);
@@ -323,6 +334,70 @@ function tryPending(state: GameState, input: FrameInput): void {
   castSlot(state, index, input);
 }
 
+// ---------------------------------------------------------------------------
+// Charge（溜め）刻印符
+// ---------------------------------------------------------------------------
+
+/** このスロットに Charge が実際に効いているか（リンク数・相性表を通した上で） */
+function hasChargeModifier(state: GameState, index: number): boolean {
+  const rs = state.skills;
+  const stone = stoneInSlot(rs.profile, index);
+  const slot = rs.slots[index];
+  if (!stone || !slot) return false;
+  return activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, slot.modifiers).includes("charge");
+}
+
+/** 押した瞬間: 発動はせず溜めを始める（他のスキルが発動中・行動不能なら無視） */
+function startCharge(state: GameState, index: number): void {
+  const rs = state.skills;
+  const slot = rs.slots[index];
+  if (!resolveSlot(state, index)) {
+    notReady(state, "no skill");
+    return;
+  }
+  if (!slot || slot.chargesLeft <= 0) {
+    notReady(state, "cooling");
+    return;
+  }
+  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
+  slot.charging = true;
+  slot.chargeTime = 0;
+}
+
+/** 経過秒(0..maxTime) から威力・範囲の倍率を出す。0.15 秒未満は通常発動（倍率 1） */
+function chargeBonus(time: number): { damageMul: number; areaMul: number } {
+  const c = SKILL.modifier.charge;
+  const t = time < c.minTime ? 0 : Math.min(time, c.maxTime);
+  const ratio = t / c.maxTime;
+  return { damageMul: 1 + (c.maxDamageMul - 1) * ratio, areaMul: 1 + (c.maxAreaMul - 1) * ratio };
+}
+
+/** 溜め中のスロットを毎フレーム進め、離された瞬間に倍率付きで発動する */
+function updateCharging(state: GameState, input: FrameInput, dt: number): void {
+  const rs = state.skills;
+  const held = [input.skill1Held, input.skill2Held];
+  const maxTime = SKILL.modifier.charge.maxTime;
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const slot = rs.slots[i];
+    if (!slot || !slot.charging) continue;
+    slot.chargeTime = Math.min(maxTime, slot.chargeTime + dt);
+    if (held[i]) continue;
+    const time = slot.chargeTime;
+    slot.charging = false;
+    slot.chargeTime = 0;
+    // 溜めている間に行動不能・別スキル発動中になったら不発（チャージは未消費のまま）
+    if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) continue;
+    castSlot(state, i, input, chargeBonus(time));
+  }
+}
+
+/** HUD 用: 溜めゲージの割合(0..1)。溜めていなければ null */
+export function chargeRatio(state: GameState, index: number): number | null {
+  const slot = state.skills.slots[index];
+  if (!slot || !slot.charging) return null;
+  return Math.min(1, slot.chargeTime / SKILL.modifier.charge.maxTime);
+}
+
 function aimTarget(state: GameState, input: FrameInput): Vec {
   const p = state.player;
   if (input.aimScreen) return screenToWorld(state.camera, input.aimScreen);
@@ -343,8 +418,13 @@ function payCosts(state: GameState, params: CastParams): CastParams {
   return { ...params, damageMul: params.damageMul * mul };
 }
 
-/** 発動。成功したら true */
-export function castSlot(state: GameState, index: number, input: FrameInput): boolean {
+/** 発動。成功したら true。chargeMul は Charge 刻印符が離した瞬間に渡す威力・範囲の追加倍率 */
+export function castSlot(
+  state: GameState,
+  index: number,
+  input: FrameInput,
+  chargeMul?: { damageMul: number; areaMul: number },
+): boolean {
   const rs = state.skills;
   const slot = rs.slots[index];
   const r = resolveSlot(state, index);
@@ -355,7 +435,13 @@ export function castSlot(state: GameState, index: number, input: FrameInput): bo
   }
   if (state.player.attack.phase !== "none") cancelAttack(state);
 
-  const params: CastParams = { ...payCosts(state, r.params), slot: index };
+  const costed = payCosts(state, r.params);
+  const params: CastParams = {
+    ...costed,
+    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1),
+    areaMul: costed.areaMul * (chargeMul?.areaMul ?? 1),
+    slot: index,
+  };
   const p = state.player;
   const dir = { ...p.facing };
   const origin = { ...p.body.pos };

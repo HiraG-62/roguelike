@@ -66,3 +66,68 @@ describe("PlayerInput とゲームパッドのマージ", () => {
     expect(input.gamepadEscapePressed()).toBe(true);
   });
 });
+
+/** addEventListener を捕まえて手動で発火できる、DOM 無し環境用の最小スタブ */
+class FakeEventTarget {
+  private readonly listeners = new Map<string, ((ev: never) => void)[]>();
+  addEventListener(type: string, cb: (ev: never) => void): void {
+    const list = this.listeners.get(type) ?? [];
+    list.push(cb);
+    this.listeners.set(type, list);
+  }
+  removeEventListener(): void {
+    // 未使用（attachKeyboard は外さないので空実装で十分）
+  }
+  dispatch(type: string, ev: Record<string, unknown>): void {
+    for (const cb of this.listeners.get(type) ?? []) cb(ev as never);
+  }
+}
+
+function keyEvent(code: string, repeat = false): Record<string, unknown> {
+  return { code, repeat, preventDefault: () => undefined };
+}
+
+describe("長押し (skill1Held / skill2Held)", () => {
+  it("押している間 Held が true、離すと false（パッド未対応でキーボードのみ判定）", () => {
+    const input = new PlayerInput();
+    const target = new FakeEventTarget();
+    input.attachKeyboard(target as unknown as Window);
+
+    target.dispatch("keydown", keyEvent("Digit1"));
+    const pressedFrame = input.snapshot();
+    expect(pressedFrame.skill1Held).toBe(true);
+    expect(pressedFrame.skill1Pressed).toBe(true);
+
+    // Pressed は消費されるが、押しっぱなしの間は Held が立ち続ける
+    const heldFrame = input.snapshot();
+    expect(heldFrame.skill1Held).toBe(true);
+    expect(heldFrame.skill1Pressed).toBe(false);
+
+    target.dispatch("keyup", { code: "Digit1" });
+    const releasedFrame = input.snapshot();
+    expect(releasedFrame.skill1Held).toBe(false);
+  });
+
+  it("スロット 1 / 2 は独立に判定される", () => {
+    const input = new PlayerInput();
+    const target = new FakeEventTarget();
+    input.attachKeyboard(target as unknown as Window);
+
+    target.dispatch("keydown", keyEvent("Digit2"));
+    const frame = input.snapshot();
+    expect(frame.skill1Held).toBe(false);
+    expect(frame.skill2Held).toBe(true);
+  });
+
+  it("repeat の keydown では二重に反応しない（Held は変わらず true のまま）", () => {
+    const input = new PlayerInput();
+    const target = new FakeEventTarget();
+    input.attachKeyboard(target as unknown as Window);
+
+    target.dispatch("keydown", keyEvent("KeyC"));
+    target.dispatch("keydown", keyEvent("KeyC", true));
+    const frame = input.snapshot();
+    expect(frame.skill1Held).toBe(true);
+    expect(frame.skill1Pressed).toBe(true);
+  });
+});

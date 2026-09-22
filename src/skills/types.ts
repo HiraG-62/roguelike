@@ -52,6 +52,7 @@ export const MODIFIER_KEYS = [
   "curse",
   "delay",
   "expand",
+  "charge",
 ] as const;
 export type ModifierKey = (typeof MODIFIER_KEYS)[number];
 
@@ -166,6 +167,10 @@ export interface SkillSlotState {
   /** HUD のマスク用: 直近にセットした CD の長さ */
   cooldownTotal: number;
   chargesLeft: number;
+  /** Charge 刻印符: 現在溜め中か */
+  charging: boolean;
+  /** Charge 刻印符: 溜め始めてからの経過秒（溜めていなければ 0） */
+  chargeTime: number;
 }
 
 export type ActiveSkillKey = "whirl" | "lunge" | "railshot" | "parry" | "quake" | "chainHook" | "spiral";

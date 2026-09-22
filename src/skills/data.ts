@@ -96,6 +96,8 @@ export const SKILL = {
     curse: { duration: 4, bonus: 0.35, damageMul: 0.85 },
     delay: { time: 0.8, damageMul: 1.8 },
     expand: { areaMul: 1.5, cooldownMul: 1.4 },
+    /** 溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる */
+    charge: { maxTime: 1.2, minTime: 0.15, maxDamageMul: 2.2, maxAreaMul: 1.5, moveMul: 0.6 },
   },
   drop: {
     stoneOnKill: 0.03,
@@ -407,6 +409,16 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     excludesTags: [],
     requiresTags: ["area"],
     apply: (p) => ({ ...p, areaMul: p.areaMul * M.expand.areaMul, cooldownMul: p.cooldownMul * M.expand.cooldownMul }),
+  },
+  charge: {
+    key: "charge",
+    name: "Charge",
+    verb: `Hold to charge (${M.charge.maxTime}s): damage x1-${M.charge.maxDamageMul}, area x1-${M.charge.maxAreaMul}`,
+    color: "#ffd060",
+    // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、回転弾幕はチャネル系で「溜めて離す」と噛み合わない
+    excludesTags: ["defense", "buff", "channel"],
+    // 実際の倍率は system/skills.ts が発動時の経過秒から計算して CastParams に掛けるので、ここでは素通し
+    apply: (p) => p,
   },
 };
 

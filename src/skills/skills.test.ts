@@ -136,7 +136,7 @@ describe("resolveCast", () => {
     for (const key of SKILL_KEYS) expect(SKILL_DEFS[key].key).toBe(key);
     expect(SKILL_KEYS).toHaveLength(14);
     expect(Object.keys(MODIFIERS)).toEqual([...MODIFIER_KEYS]);
-    expect(MODIFIER_KEYS).toHaveLength(10);
+    expect(MODIFIER_KEYS).toHaveLength(11);
     for (const key of MODIFIER_KEYS) expect(MODIFIERS[key].key).toBe(key);
   });
 
@@ -176,6 +176,12 @@ describe("resolveCast", () => {
     const expand = resolveCast(SKILL_DEFS.frostField, stone("frostField", 1), ["expand"]);
     expect(expand.areaMul).toBeCloseTo(m.expand.areaMul);
   });
+
+  it("溜め: resolveCast 自体は素通し（実際の倍率は発動時に system/skills.ts が掛ける）", () => {
+    const p = resolveCast(SKILL_DEFS.frag, stone("frag", 1), ["charge"]);
+    expect(p.damageMul).toBe(1);
+    expect(p.areaMul).toBe(1);
+  });
 });
 
 describe("相性表", () => {
@@ -191,6 +197,7 @@ describe("相性表", () => {
     curse: ["bloodPact", "haste"],
     delay: ["lunge", "parry", "bloodPact", "haste", "spiral"],
     expand: ["lunge", "railshot", "parry", "bloodPact", "haste", "chainHook", "spiral"],
+    charge: ["parry", "bloodPact", "haste", "spiral"],
   };
 
   it("全スキル x 全刻印符が表どおり", () => {

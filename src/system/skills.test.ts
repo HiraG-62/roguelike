@@ -14,6 +14,7 @@ import { updatePlayer } from "./player";
 import {
   attachRune,
   beamEnd,
+  chargeRatio,
   createSkillRunState,
   dropRune,
   frenzyMul,
@@ -84,6 +85,17 @@ function run(state: GameState, seconds: number, input: FrameInput = withInput({}
 
 function press(state: GameState, slot: 0 | 1, extra: Partial<FrameInput> = {}): void {
   updatePlayer(state, withInput({ skill1Pressed: slot === 0, skill2Pressed: slot === 1, ...extra }), FIXED_DT);
+}
+
+/** 指定秒だけ押しっぱなしにしてから離す（Charge 刻印符のテスト用） */
+function holdAndRelease(state: GameState, slot: 0 | 1, seconds: number, extra: Partial<FrameInput> = {}): void {
+  const steps = Math.max(1, Math.round(seconds / FIXED_DT));
+  for (let i = 0; i < steps; i++) {
+    const held = slot === 0 ? { skill1Held: true, skill1Pressed: i === 0 } : { skill2Held: true, skill2Pressed: i === 0 };
+    updatePlayer(state, withInput({ ...held, ...extra }), FIXED_DT);
+  }
+  const released = slot === 0 ? { skill1Held: false } : { skill2Held: false };
+  updatePlayer(state, withInput({ ...released, ...extra }), FIXED_DT);
 }
 
 describe("入力", () => {
@@ -762,6 +774,70 @@ describe("追加の刻印符", () => {
     expect(state.skills.mines).toHaveLength(0);
     expect(state.skills.fields).toHaveLength(0);
     expect(state.skills.curses.size).toBe(0);
+  });
+});
+
+describe("溜め（Charge 刻印符）", () => {
+  it("held の検出: 押している間 charging が true、離すと消費される", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true, ...aimAt(state, 60) }), FIXED_DT);
+    expect(state.skills.slots[0]?.charging).toBe(true);
+    expect(state.skills.grenades).toHaveLength(0);
+    updatePlayer(state, withInput({ skill1Held: false, ...aimAt(state, 60) }), FIXED_DT);
+    expect(state.skills.slots[0]?.charging).toBe(false);
+    expect(state.skills.grenades).toHaveLength(1);
+  });
+
+  it("溜め中は移動速度が 60%", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
+    expect(skillMoveMul(state)).toBeCloseTo(SKILL.modifier.charge.moveMul);
+  });
+
+  it("0.15 秒未満で離すと通常発動（倍率 x1）", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    holdAndRelease(state, 0, SKILL.modifier.charge.minTime / 2, aimAt(state, 60));
+    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(1);
+    expect(state.skills.grenades[0]?.params.areaMul).toBeCloseTo(1);
+  });
+
+  it("溜めた秒数に応じて威力・範囲が倍率付きで発動する", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const half = SKILL.modifier.charge.maxTime / 2;
+    holdAndRelease(state, 0, half, aimAt(state, 60));
+    const c = SKILL.modifier.charge;
+    const ratio = half / c.maxTime;
+    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(1 + (c.maxDamageMul - 1) * ratio, 1);
+    expect(state.skills.grenades[0]?.params.areaMul).toBeCloseTo(1 + (c.maxAreaMul - 1) * ratio, 1);
+  });
+
+  it("上限（1.2 秒）で頭打ち。それ以上溜めても倍率は変わらない", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    holdAndRelease(state, 0, SKILL.modifier.charge.maxTime + 1, aimAt(state, 60));
+    const c = SKILL.modifier.charge;
+    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(c.maxDamageMul);
+    expect(state.skills.grenades[0]?.params.areaMul).toBeCloseTo(c.maxAreaMul);
+  });
+
+  it("チャージ中は chargeRatio が 0..1 を返し、離すと null に戻る", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
+    const r = chargeRatio(state, 0);
+    expect(r).not.toBeNull();
+    expect(r ?? -1).toBeGreaterThan(0);
+    expect(r ?? 2).toBeLessThanOrEqual(1);
+    updatePlayer(state, withInput({ skill1Held: false }), FIXED_DT);
+    expect(chargeRatio(state, 0)).toBeNull();
+  });
+
+  it("Charge は付けられない: パリィ / 血の契約 / 加速 / 回転弾幕", () => {
+    for (const key of ["parry", "bloodPact", "haste", "spiral"] as const) {
+      const state = skillArena([{ key, links: 1, modifiers: ["charge"] }]);
+      updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
+      // 効かないので溜めは始まらず、通常どおり即時発動している
+      expect(state.skills.slots[0]?.charging).toBe(false);
+    }
   });
 });
 
