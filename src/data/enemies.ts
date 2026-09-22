@@ -120,7 +120,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     engageRange: 40,
     attackInterval: 1.1,
     score: 35,
-    minDepth: 2,
+    minDepth: 3,
     weight: 3,
     color: "#a0a8c0",
     dropChance: 0.2,

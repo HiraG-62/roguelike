@@ -9,7 +9,7 @@ import { bossEnemy, bossKeyForDepth, isBossDepth } from "./boss";
 import { damageEnemy } from "./combat";
 import { updateEnemies } from "./enemies";
 import { buildFloor, updateRooms } from "./floor";
-import { updateReaper } from "./reaper";
+import { reaperAppearAfter, updateReaper } from "./reaper";
 import type { GameState } from "../core/state";
 
 function bossFloor(depth: number, seed = 21): GameState {
@@ -111,9 +111,9 @@ describe("ボス階", () => {
 });
 
 describe("Reaper", () => {
-  it("90 秒で出現し、フロアを移ると消える", () => {
+  it("猶予秒数（部屋数ボーナス込み）で出現し、フロアを移ると消える", () => {
     const state = createGame(4);
-    state.floorTime = REAPER.appearAfter - 0.1;
+    state.floorTime = reaperAppearAfter(state) - 0.1;
     updateReaper(state, FIXED_DT);
     expect(state.reaper).toBeNull();
     for (let i = 0; i < 10; i++) updateReaper(state, FIXED_DT);
@@ -125,7 +125,7 @@ describe("Reaper", () => {
 
   it("触れると大ダメージ", () => {
     const state = createGame(4);
-    state.floorTime = REAPER.appearAfter;
+    state.floorTime = reaperAppearAfter(state);
     updateReaper(state, FIXED_DT);
     const r = state.reaper;
     if (!r) throw new Error("no reaper");

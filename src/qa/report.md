@@ -110,6 +110,16 @@ depth が進むほど 1 フロアあたりの滞在時間が伸びており（�
 4. **ドアタイルの `lockedTiles` 判定を敵にも配慮する**: 2-2 で見つけた「敵がドアタイル上でロックされると壁の中判定になる」問題。プレイヤー向けの `enterMargin`/`insideRoom` のような猶予を敵の位置にも適用するか、影響が無視できるなら「許容する既知の挙動」としてコメントを残すことを検討する。
 5. **QA bot 自体の限界を踏まえた継続計測**: 今回の bot は windup/strike 検知からの回避に 30% の意図的な失敗率を入れているため、死亡率が高め（93〜100%）に出る。今後バランス調整をしたら同じ bot・同じ seed set で再計測し、死亡率や到達depthの変化を差分で見るのが良い（絶対値よりトレンドが有用）。
 
+## 10. 対応済み
+
+上記の提案 2・4 と depth 2 のボトルネック（8章）を受けて以下を修正した。
+
+1. **Reaper の猶予を部屋数に連動**: `REAPER.appearAfter`（基礎 90 秒）に `REAPER.appearPerRoom`（12 秒）× フロアの部屋数（treasure/shrine を除く）を加算するよう `reaper.ts` の `reaperAppearAfter()` を追加。フロアが広いほど猶予が伸びる。
+2. **Reaper の速度と警告タイミングを調整**: 出現後の追跡速度を旧仕様（28）の 85%（23.8）に低下。HUD 警告は `REAPER.warnMargin`（30 秒）により出現の 30 秒前から表示するよう変更（旧: 固定 60 秒経過後）。
+3. **depth 2 の難度緩和**: エリート出現の `ELITE.minDepth` を 2 → 3、`knight` の `minDepth` を 2 → 3 に変更。`ROOM` の敵数式を `base 2 + depth * 1` から `base 2 + floor(depth * 0.8)`（`ROOM.enemiesPerDepth = 0.8`）に変更し、depth 2 の湧き数を 4 → 3 に緩和。
+4. **ドアタイル上の敵がロックで壁に埋まる問題を修正**: `lockRoom`（`src/system/floor.ts`）で `lockedTiles` に追加する直前に、ドアタイルに AABB が掛かっている敵を部屋中心方向へ 1 タイルずつ最大 3 回押し込む処理を追加。押し込めない場合はその敵を除去する。プレイヤー自身がドアタイルに掛かっている場合もロックを次フレームへ延期する保険を追加。
+5. **テスト追加**: `src/system/reaper.test.ts`（猶予の部屋数連動・警告タイミング・速度）、`src/system/floor.test.ts`（depth 別湧き数・knight/エリート不出現・扉タイル押し込み）、`src/system/boss.test.ts` / `src/system/elites.test.ts` を新しい定数に合わせて更新。
+
 ## 付録: 再現コマンド
 
 ```

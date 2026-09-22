@@ -9,10 +9,10 @@ import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
 
 describe("eliteChance", () => {
-  it("depth 1 は 0、depth 2 以降は基準値から微増して上限で止まる", () => {
-    expect(eliteChance(1)).toBe(0);
-    expect(eliteChance(2)).toBeCloseTo(ELITE.baseChance);
-    expect(eliteChance(5)).toBeGreaterThan(eliteChance(2));
+  it("depth < minDepth は 0、minDepth 以降は基準値から微増して上限で止まる", () => {
+    expect(eliteChance(ELITE.minDepth - 1)).toBe(0);
+    expect(eliteChance(ELITE.minDepth)).toBeCloseTo(ELITE.baseChance);
+    expect(eliteChance(ELITE.minDepth + 3)).toBeGreaterThan(eliteChance(ELITE.minDepth));
     expect(eliteChance(1000)).toBe(ELITE.maxChance);
   });
 });

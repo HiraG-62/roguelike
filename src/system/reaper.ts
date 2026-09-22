@@ -1,4 +1,4 @@
-import { type GameState, pushLog, pushSfx } from "../core/state";
+import { type GameState, type RoomKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, fromAngle, length, normalize, sub } from "../core/vec";
 import { REAPER } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
@@ -7,7 +7,8 @@ import { addFloatingText, shake, spawnBurst } from "./effects";
 import { circlesOverlap } from "./physics";
 
 /**
- * 追跡者: 同じフロアに REAPER.appearAfter 秒いると湧く、無敵で壁をすり抜ける死神。
+ * 追跡者: 同じフロアに一定秒いると湧く、無敵で壁をすり抜ける死神。
+ * 猶予秒数は REAPER.appearAfter に部屋数（treasure/shrine を除く）* REAPER.appearPerRoom を足したもの。
  * 階段を降りる（buildFloor で消える）まで追ってくる
  */
 
@@ -16,21 +17,30 @@ const WARN_TEXT = "THE REAPER COMES";
 const SPAWN_PARTICLES = 30;
 const TRAIL_INTERVAL = 5;
 
-/** Reaper 出現までの残り秒（出現済みなら 0） */
-export function reaperTimeLeft(state: GameState): number {
-  return Math.max(0, REAPER.appearAfter - state.floorTime);
+/** 出現猶予の計算から除外する部屋種別（探索コストが低い部屋） */
+const GRACE_EXCLUDED_KINDS = new Set<RoomKind>(["treasure", "shrine"]);
+
+/** このフロアで Reaper が出現するまでの猶予秒（部屋数ボーナス込み） */
+export function reaperAppearAfter(state: GameState): number {
+  const rooms = state.rooms.filter((r) => !GRACE_EXCLUDED_KINDS.has(r.kind)).length;
+  return REAPER.appearAfter + rooms * REAPER.appearPerRoom;
 }
 
-/** HUD に残り時間を出すべきか */
+/** Reaper 出現までの残り秒（出現済みなら 0） */
+export function reaperTimeLeft(state: GameState): number {
+  return Math.max(0, reaperAppearAfter(state) - state.floorTime);
+}
+
+/** HUD に残り時間を出すべきか（出現の REAPER.warnMargin 秒前から） */
 export function reaperWarning(state: GameState): boolean {
-  return state.reaper === null && state.floorTime >= REAPER.warnAfter;
+  return state.reaper === null && reaperTimeLeft(state) <= REAPER.warnMargin;
 }
 
 export function updateReaper(state: GameState, dt: number): void {
   if (state.status !== "playing") return;
   state.floorTime += dt;
   if (!state.reaper) {
-    if (state.floorTime >= REAPER.appearAfter) spawnReaper(state);
+    if (state.floorTime >= reaperAppearAfter(state)) spawnReaper(state);
     return;
   }
   const r = state.reaper;

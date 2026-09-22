@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIXED_DT } from "../core/loop";
 import { REAPER } from "../data/tuning";
-import { updateReaper } from "./reaper";
+import { reaperAppearAfter, reaperTimeLeft, reaperWarning, updateReaper } from "./reaper";
 import { arena } from "./testHelpers";
 
 describe("Reaper", () => {
@@ -32,5 +32,43 @@ describe("Reaper", () => {
     updateReaper(state, FIXED_DT);
 
     expect(state.player.hp).toBeLessThan(hpBefore);
+  });
+});
+
+describe("Reaper 出現猶予", () => {
+  it("部屋数が多いフロアほど出現猶予が長い（treasure/shrine は数えない）", () => {
+    const state = arena();
+    const base = REAPER.appearAfter + state.rooms.length * REAPER.appearPerRoom;
+    expect(reaperAppearAfter(state)).toBe(base);
+
+    // treasure/shrine を混ぜても、それらは猶予の計算に含まれない
+    state.rooms = [
+      ...state.rooms,
+      { ...state.rooms[0]!, kind: "treasure" },
+      { ...state.rooms[0]!, kind: "shrine" },
+    ];
+    expect(reaperAppearAfter(state)).toBe(base);
+  });
+
+  it("警告は出現の warnMargin 秒前から出る", () => {
+    const state = arena();
+    const appearAt = reaperAppearAfter(state);
+    state.floorTime = appearAt - REAPER.warnMargin - 1;
+    expect(reaperWarning(state)).toBe(false);
+    state.floorTime = appearAt - REAPER.warnMargin;
+    expect(reaperWarning(state)).toBe(true);
+    expect(reaperTimeLeft(state)).toBeCloseTo(REAPER.warnMargin);
+  });
+
+  it("出現済みなら警告は出さない", () => {
+    const state = arena();
+    state.floorTime = reaperAppearAfter(state);
+    updateReaper(state, FIXED_DT);
+    expect(state.reaper).not.toBeNull();
+    expect(reaperWarning(state)).toBe(false);
+  });
+
+  it("追跡速度は旧仕様（28）の 85% になっている", () => {
+    expect(REAPER.speed).toBeCloseTo(28 * 0.85);
   });
 });
