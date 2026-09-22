@@ -702,6 +702,188 @@ export const AFFIXES: readonly AffixDef[] = [
       s.dashDistanceMul -= pct(v2);
     },
   }),
+
+  // ---- シナジー網（docs/ideas/build-diversity.md 4 章）: 単体は凡庸、組み合わせで化ける ----
+  prefix({
+    key: "emberMomentum",
+    label: "+{v}% attack speed, +{v2} burn damage per second",
+    prefixName: "Kindled",
+    tags: ["speed", "elemental", "melee"],
+    slots: MELEE_SLOTS,
+    tiers: [t2(24, 10, 13, 9, 13), t2(14, 7, 9, 6, 8), t2(6, 4, 6, 4, 5), t2(1, 2, 3, 2, 3)],
+    apply: (s, v, v2) => {
+      s.attackSpeedMul += pct(v);
+      s.burnDps += v2;
+    },
+  }),
+  prefix({
+    key: "shatterEdge",
+    label: "+{v}% chance to chill, +{v2}% damage vs staggered enemies",
+    prefixName: "Shattering",
+    tags: ["elemental", "melee", "damage"],
+    slots: ATTACK_SLOTS,
+    tiers: [t2(22, 14, 20, 30, 42), t2(12, 9, 13, 20, 29), t2(4, 5, 8, 12, 19)],
+    apply: (s, v, v2) => {
+      s.chillChance += pct(v);
+      s.damageVsStaggeredMul += pct(v2);
+    },
+  }),
+  suffix({
+    key: "chainedBarrage",
+    label: "{v}% chance to shock, +{v2} projectiles",
+    suffixName: "of the Chain",
+    tags: ["elemental", "ranged"],
+    slots: RANGED_SLOTS,
+    tiers: [t2(26, 14, 20, 1, 1), t2(12, 8, 13, 1, 1)],
+    apply: (s, v, v2) => {
+      s.shockChance += pct(v);
+      s.projectileCount += v2;
+    },
+  }),
+  suffix({
+    key: "deepPiercing",
+    label: "+{v} pierce, -{v2}% projectile speed",
+    suffixName: "of Deep Piercing",
+    tags: ["ranged", "damage", "tradeoff"],
+    slots: ["gun"],
+    tiers: [t2(20, 2, 2, 20, 28), t2(8, 1, 1, 12, 19)],
+    apply: (s, v, v2) => {
+      s.pierce += v;
+      s.projectileSpeedMul -= pct(v2);
+    },
+  }),
+  prefix({
+    key: "wallSlammer",
+    label: "+{v}% knockback, -{v2}% movement speed",
+    prefixName: "Slamming",
+    tags: ["melee", "damage", "tradeoff"],
+    slots: ["weapon", "armor"],
+    tiers: [t2(20, 45, 60, 12, 16), t2(8, 28, 44, 8, 11), t2(1, 15, 27, 5, 7)],
+    apply: (s, v, v2) => {
+      s.knockbackMul += pct(v);
+      s.moveSpeedMul -= pct(v2);
+    },
+  }),
+  suffix({
+    key: "vampiricRush",
+    label: "+{v} life on hit, +{v2}% attack speed",
+    suffixName: "of the Rush",
+    tags: ["life", "speed"],
+    slots: ATTACK_SLOTS,
+    tiers: [t2(24, 4, 5, 9, 12), t2(12, 2, 3, 6, 8), t2(1, 1, 1, 3, 5)],
+    apply: (s, v, v2) => {
+      s.lifeOnHit += v;
+      s.attackSpeedMul += pct(v2);
+    },
+  }),
+  prefix({
+    key: "stormcaller",
+    label: "+{v} shock chain damage, -{v2}% ranged damage",
+    prefixName: "Stormcaller's",
+    tags: ["elemental", "ranged", "tradeoff"],
+    slots: RANGED_SLOTS,
+    tiers: [t2(22, 18, 26, 14, 18), t2(10, 11, 17, 9, 13), t2(2, 5, 10, 5, 8)],
+    apply: (s, v, v2) => {
+      s.shockDamage += v;
+      s.rangedDamageMul -= pct(v2);
+    },
+  }),
+  prefix({
+    key: "frostbite",
+    label: "+{v}% chill slow, -{v2}% movement speed",
+    prefixName: "Frostbitten",
+    tags: ["elemental", "mobility", "tradeoff"],
+    slots: ATTACK_SLOTS,
+    tiers: [t2(20, 25, 34, 14, 18), t2(8, 16, 24, 9, 13), t2(1, 8, 15, 5, 8)],
+    apply: (s, v, v2) => {
+      s.chillSlow += pct(v);
+      s.moveSpeedMul -= pct(v2);
+    },
+  }),
+  suffix({
+    key: "arcaneBattery",
+    label: "+{v}% energy gain, -{v2}% burst damage",
+    suffixName: "of the Battery",
+    tags: ["burst", "tradeoff"],
+    slots: ["weapon", "armor", "ring", "amulet"],
+    tiers: [t2(20, 30, 42, 14, 18), t2(8, 18, 29, 9, 13), t2(1, 10, 17, 5, 8)],
+    apply: (s, v, v2) => {
+      s.energyGainMul += pct(v);
+      s.burstDamageMul -= pct(v2);
+    },
+  }),
+  prefix({
+    key: "gildedFang",
+    label: "+{v}% critical strike multiplier, +{v2} life on kill",
+    prefixName: "Gilded",
+    tags: ["critical", "life"],
+    slots: JEWELRY_SLOTS,
+    tiers: [t2(22, 30, 42, 8, 11), t2(10, 18, 29, 5, 7), t2(1, 8, 17, 2, 4)],
+    apply: (s, v, v2) => {
+      s.critMul += pct(v);
+      s.lifeOnKill += v2;
+    },
+  }),
+
+  // ---- トリガー文法へ落とすアフィックス: PlayerStats に無い条件付き効果を固定の tr: TriggeredEffect として encode ----
+  prefix({
+    key: "dashStrike",
+    label: "On dash: gain +{v}% damage for {v2}s",
+    prefixName: "Blitzing",
+    tags: ["mobility", "damage"],
+    slots: ["boots", "ring", "amulet"],
+    tiers: [t2(22, 20, 28, 0.6, 0.8), t2(10, 13, 19, 0.5, 0.6), t2(2, 7, 12, 0.4, 0.5)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.triggers.push({ trigger: "onDash", condition: "always", effect: "damageBuff", magnitude: v, duration: v2, chance: 1 });
+    },
+  }),
+  prefix({
+    key: "finisherMend",
+    label: "On kill during a 10+ combo: heal {v} HP",
+    prefixName: "Vital",
+    tags: ["combo", "life"],
+    slots: MELEE_SLOTS,
+    tiers: [t(24, 14, 20), t(12, 9, 13), t(1, 4, 8)],
+    apply: (s, v) => {
+      s.triggers.push({ trigger: "onKill", condition: "comboAbove10", effect: "heal", magnitude: v, chance: 1 });
+    },
+  }),
+  suffix({
+    key: "wardedSanctuary",
+    label: "When hurt in a locked room: gain +{v}% movement speed for {v2}s",
+    suffixName: "of Sanctuary",
+    tags: ["defense", "utility"],
+    slots: ["armor", "boots"],
+    tiers: [t2(20, 22, 30, 1.5, 2), t2(8, 14, 21, 1, 1.4), t2(1, 8, 13, 0.6, 0.9)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.triggers.push({ trigger: "onHurt", condition: "roomLocked", effect: "speedBuff", magnitude: v, duration: v2, chance: 1 });
+    },
+  }),
+  suffix({
+    key: "roomMender",
+    label: "On room clear: heal {v} HP",
+    suffixName: "of Recovery",
+    tags: ["life", "utility"],
+    slots: ["armor", "amulet"],
+    tiers: [t(20, 20, 28), t(8, 12, 19), t(1, 6, 11)],
+    apply: (s, v) => {
+      s.triggers.push({ trigger: "onRoomClear", condition: "always", effect: "heal", magnitude: v, chance: 1 });
+    },
+  }),
+  prefix({
+    key: "energyReserve",
+    label: "When hurt at full energy: become invulnerable for {v}s",
+    prefixName: "Reserved",
+    tags: ["burst", "defense"],
+    slots: ["armor", "ring", "amulet"],
+    tiers: [t(24, 0.5, 0.6), t(10, 0.4, 0.5), t(1, 0.3, 0.4)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.triggers.push({ trigger: "onHurt", condition: "fullEnergy", effect: "invuln", magnitude: v, chance: 1 });
+    },
+  }),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1136,6 +1318,25 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.attackSpeedMul -= pct(25);
     },
   },
+  {
+    key: "implicit.twinblades",
+    label: "+{v}% attack speed, -20% melee reach",
+    range: { min: 30, max: 40 },
+    apply: (s, v) => {
+      s.attackSpeedMul += pct(v);
+      s.meleeReachMul -= pct(20);
+    },
+  },
+  {
+    key: "implicit.warpick",
+    label: "+{v}% damage vs staggered enemies, +25% knockback, -15% attack speed",
+    range: { min: 40, max: 55 },
+    apply: (s, v) => {
+      s.damageVsStaggeredMul += pct(v);
+      s.knockbackMul += pct(25);
+      s.attackSpeedMul -= pct(15);
+    },
+  },
   // gun
   {
     key: "implicit.pistol",
@@ -1176,6 +1377,26 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.projectileSpeedMul -= pct(25);
     },
   },
+  {
+    key: "implicit.revolver",
+    label: "+{v}% critical strike chance, +20% ranged damage, -25% fire rate",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.critChance += pct(v);
+      s.rangedDamageMul += pct(20);
+      s.fireRateMul -= pct(25);
+    },
+  },
+  {
+    key: "implicit.railgun",
+    label: "-{v}% fire rate, +2 pierce, +25% projectile speed",
+    range: { min: 35, max: 45 },
+    apply: (s, v) => {
+      s.fireRateMul -= pct(v);
+      s.pierce += 2;
+      s.projectileSpeedMul += pct(25);
+    },
+  },
   // armor
   {
     key: "implicit.cloth",
@@ -1213,6 +1434,15 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.moveSpeedMul -= pct(8);
     },
   },
+  {
+    key: "implicit.berserkerHide",
+    label: "+{v}% melee damage, +10% damage taken",
+    range: { min: 12, max: 18 },
+    apply: (s, v) => {
+      s.meleeDamageMul += pct(v);
+      s.damageTakenMul += pct(10);
+    },
+  },
   // boots
   {
     key: "implicit.sandals",
@@ -1246,6 +1476,15 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       s.dashCharges += 1;
       s.moveSpeedMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.lungingBoots",
+    label: "+{v}% dash distance, -10% movement speed",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      s.dashDistanceMul += pct(v);
+      s.moveSpeedMul -= pct(10);
     },
   },
   // ring
@@ -1289,6 +1528,15 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.lifeOnKill += v;
     },
   },
+  {
+    key: "implicit.voidBand",
+    label: "+{v}% critical strike multiplier, -10 max HP",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      s.critMul += pct(v);
+      s.maxHp -= 10;
+    },
+  },
   // amulet
   {
     key: "implicit.jadeAmulet",
@@ -1329,6 +1577,15 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 3, max: 5 },
     apply: (s, v) => {
       s.moveSpeedMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.duskAmulet",
+    label: "+{v}% burst damage, -8% energy gain",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      s.burstDamageMul += pct(v);
+      s.energyGainMul -= pct(8);
     },
   },
 ];

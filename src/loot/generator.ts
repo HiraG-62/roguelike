@@ -108,6 +108,8 @@ export interface UniqueDef {
   affixes: readonly UniqueAffixSpec[];
   /** 固定キーストーン（KEYSTONES の key） */
   keystone?: string;
+  /** フレーバー 1 行（UI 表示は将来対応） */
+  flavor?: string;
 }
 
 export const UNIQUES: readonly UniqueDef[] = [
@@ -117,6 +119,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "greatsword",
     minLevel: 14,
     keystone: "ks_berserker",
+    flavor: "The lower your HP, the wider it swings.",
     affixes: [
       { key: "meleeDamagePct", tier: 2 },
       { key: "critMultiplier", tier: 2 },
@@ -130,6 +133,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "smg",
     minLevel: 10,
     keystone: "ks_overclock",
+    flavor: "Every trigger pull costs a piece of you.",
     affixes: [
       { key: "projectiles", tier: 2 },
       { key: "fireRate", tier: 2 },
@@ -144,6 +148,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "plate",
     minLevel: 18,
     keystone: "ks_juggernaut",
+    flavor: "Nothing moving this slowly should hit this hard.",
     affixes: [
       { key: "maxLife", tier: 2 },
       { key: "maxLifePct", tier: 2 },
@@ -158,6 +163,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "greaves",
     minLevel: 14,
     keystone: "ks_blink",
+    flavor: "You arrive before the thunder does.",
     affixes: [
       { key: "moveSpeed", tier: 2 },
       { key: "dashCharge", tier: 1 },
@@ -171,12 +177,145 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "lapisAmulet",
     minLevel: 12,
     keystone: "ks_gambler",
+    flavor: "Every burst is a coin flip the room can't survive.",
     affixes: [
       { key: "burstDamage", tier: 1 },
       { key: "burstRadius", tier: 1 },
       { key: "energyGain", tier: 2 },
       { key: "comboWindow", tier: 2 },
       { key: "explodeOnKill", tier: 2 },
+    ],
+  },
+
+  // ---- 追加 10 種: 各スロット 2 つ以上、出始め ilvl は 4〜20 でばらす ----
+  {
+    key: "cinderfang",
+    name: "Cinderfang",
+    baseKey: "dagger",
+    minLevel: 4,
+    keystone: "ks_glassCannon",
+    flavor: "Two cuts, then the fire finishes the job.",
+    affixes: [
+      { key: "attackSpeed", tier: 2 },
+      { key: "burn", tier: 2 },
+      { key: "cv_meleeToBurn", tier: 2 },
+    ],
+  },
+  {
+    key: "bloodletterKiss",
+    name: "Bloodletter's Kiss",
+    baseKey: "shortsword",
+    minLevel: 8,
+    keystone: "ks_vampire",
+    flavor: "It never lets you bleed out alone.",
+    affixes: [
+      { key: "lifeOnHit", tier: 1 },
+      { key: "attackSpeed", tier: 2 },
+      { key: "critMultiplier", tier: 3 },
+    ],
+  },
+  {
+    key: "whisperOfTheVoid",
+    name: "Whisper of the Void",
+    baseKey: "rifle",
+    minLevel: 9,
+    keystone: "ks_pacifist",
+    flavor: "It only speaks once, from very far away.",
+    affixes: [
+      { key: "rangedDamagePct", tier: 2 },
+      { key: "pierce", tier: 1 },
+      { key: "critChance", tier: 2 },
+    ],
+  },
+  {
+    key: "lastRites",
+    name: "Last Rites",
+    baseKey: "shotgun",
+    minLevel: 15,
+    keystone: "ks_overclock",
+    flavor: "Every shell is administered at point-blank range.",
+    affixes: [
+      { key: "projectiles", tier: 1 },
+      { key: "explodeOnKill", tier: 1 },
+      { key: "fireRate", tier: 3 },
+    ],
+  },
+  {
+    key: "aegisOfTheUnbroken",
+    name: "Aegis of the Unbroken",
+    baseKey: "plate",
+    minLevel: 20,
+    keystone: "ks_juggernaut",
+    flavor: "It has never once considered stepping aside.",
+    affixes: [
+      { key: "armorFlat", tier: 1 },
+      { key: "maxLifePct", tier: 2 },
+      { key: "damageTaken", tier: 2 },
+    ],
+  },
+  {
+    key: "wardensSilence",
+    name: "Warden's Silence",
+    baseKey: "chain",
+    minLevel: 11,
+    keystone: "ks_bladeOath",
+    flavor: "It answers every question with the flat of a blade.",
+    affixes: [
+      { key: "maxLife", tier: 2 },
+      { key: "meleeDamageFlat", tier: 2 },
+      { key: "thorns", tier: 3 },
+    ],
+  },
+  {
+    key: "tempestLoader",
+    name: "Tempest Loader",
+    baseKey: "greaves",
+    minLevel: 13,
+    keystone: "ks_windWalker",
+    flavor: "Spend every charge before the ground catches up.",
+    affixes: [
+      { key: "dashDistance", tier: 1 },
+      { key: "moveSpeed", tier: 2 },
+      { key: "cv_speedToAttack", tier: 2 },
+    ],
+  },
+  {
+    key: "berserkersSignet",
+    name: "Berserker's Signet",
+    baseKey: "bloodRing",
+    minLevel: 10,
+    keystone: "ks_berserker",
+    flavor: "It counts your wounds so you don't have to.",
+    affixes: [
+      { key: "lifeOnKill", tier: 1 },
+      { key: "critMultiplier", tier: 2 },
+      { key: "maxLife", tier: 3 },
+    ],
+  },
+  {
+    key: "fortunesGambit",
+    name: "Fortune's Gambit",
+    baseKey: "goldRing",
+    minLevel: 7,
+    keystone: "ks_gambler",
+    flavor: "The house always loses, eventually.",
+    affixes: [
+      { key: "critChance", tier: 2 },
+      { key: "burstDamage", tier: 2 },
+      { key: "energyGain", tier: 3 },
+    ],
+  },
+  {
+    key: "phaseAnchor",
+    name: "Phase Anchor",
+    baseKey: "onyxAmulet",
+    minLevel: 14,
+    keystone: "ks_blink",
+    flavor: "It remembers where you were about to be.",
+    affixes: [
+      { key: "burstRadius", tier: 1 },
+      { key: "dashCooldown", tier: 2 },
+      { key: "moveSpeed", tier: 3 },
     ],
   },
 ];

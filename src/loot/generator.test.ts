@@ -244,9 +244,8 @@ describe("rollAffixes", () => {
 });
 
 describe("unique 定義", () => {
-  it("3〜5 個あり、ベース・アフィックス・tier が実在する", () => {
-    expect(UNIQUES.length).toBeGreaterThanOrEqual(3);
-    expect(UNIQUES.length).toBeLessThanOrEqual(5);
+  it("15 個あり、ベース・アフィックス・tier が実在する", () => {
+    expect(UNIQUES.length).toBeGreaterThanOrEqual(15);
     for (const u of UNIQUES) {
       const base = baseDef(u.baseKey);
       expect(base, u.key).toBeDefined();
@@ -256,6 +255,22 @@ describe("unique 定義", () => {
       for (const spec of u.affixes) {
         const def = affixDef(spec.key);
         expect(def?.tiers[spec.tier - 1], `${u.key}/${spec.key}`).toBeDefined();
+      }
+    }
+  });
+
+  it("各スロットに 2 つ以上ある", () => {
+    for (const slot of SLOTS) {
+      const count = UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length;
+      expect(count, slot).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("uniquesFor はそのスロット・itemLevel で解禁済みの unique だけを返す", () => {
+    for (const slot of SLOTS) {
+      for (const u of uniquesFor(slot, 30)) {
+        expect(baseDef(u.baseKey)?.slot).toBe(slot);
+        expect(u.minLevel).toBeLessThanOrEqual(30);
       }
     }
   });

@@ -7,12 +7,14 @@ import type { AffixRoll, Rarity } from "./types";
 export const RARE_FIRST_WORDS: readonly string[] = [
   "Storm", "Dusk", "Grim", "Blood", "Ash", "Iron", "Rune", "Hollow", "Ember", "Frost",
   "Night", "Bone", "Gloom", "Thunder", "Viper", "Raven", "Doom", "Shadow", "Sun", "Void",
+  "Crimson", "Wraith", "Onyx", "Feral", "Molten", "Silent", "Cursed", "Astral", "Savage", "Winter",
 ];
 
 /** rare 名の 2 語目 */
 export const RARE_SECOND_WORDS: readonly string[] = [
   "Fang", "Whisper", "Bane", "Song", "Edge", "Heart", "Grasp", "Call", "Veil", "Spiral",
   "Brand", "Coil", "Mark", "Howl", "Thirst", "Ward", "Stride", "Crown", "Shard", "Wake",
+  "Fury", "Requiem", "Talon", "Omen", "Ruin", "Chime", "Maw", "Verdict", "Pact", "Drift",
 ];
 
 function affixName(roll: AffixRoll | undefined): string | undefined {

@@ -19,8 +19,8 @@ import { BASES, baseDef, basesForSlot } from "./bases";
 import { KS } from "../system/keystones";
 import { DEFAULT_STATS, SLOTS } from "./types";
 
-const MIN_AFFIX_COUNT = 35;
-const MIN_TRADEOFF_COUNT = 8;
+const MIN_AFFIX_COUNT = 60;
+const MIN_TRADEOFF_COUNT = 13;
 const MIN_KEYSTONE_COUNT = 6;
 const KIND_LIMIT = 3;
 const FIRST_LEVEL = 1;
@@ -187,11 +187,11 @@ describe("affixDefForRoll（動的アフィックス）", () => {
 });
 
 describe("ベースアイテム定義", () => {
-  it("各スロットに 4〜5 種あり、ilvl 1 で最低 1 種出る", () => {
+  it("各スロットに 5〜7 種あり、ilvl 1 で最低 1 種出る", () => {
     for (const slot of SLOTS) {
       const count = BASES.filter((b) => b.slot === slot).length;
-      expect(count, slot).toBeGreaterThanOrEqual(4);
-      expect(count, slot).toBeLessThanOrEqual(5);
+      expect(count, slot).toBeGreaterThanOrEqual(5);
+      expect(count, slot).toBeLessThanOrEqual(7);
       expect(basesForSlot(slot, FIRST_LEVEL).length, slot).toBeGreaterThan(0);
     }
   });
