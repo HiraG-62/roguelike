@@ -1,12 +1,12 @@
 import type { FrameInput } from "../core/input";
-import { type GameState, type Player, allocId, pushSfx } from "../core/state";
-import { type Vec, add, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
+import { type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx } from "../core/state";
+import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
-import { FEEL, KEYSTONE, PLAYER } from "../data/tuning";
+import { ACTION, FEEL, KEYSTONE, PLAYER } from "../data/tuning";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
-import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing } from "./combat";
-import { addFloatingText, hitstop, shake, spawnBurst } from "./effects";
+import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing, tickRegain } from "./combat";
+import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
 import { KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt } from "./statusEffects";
@@ -27,8 +27,6 @@ const KNOCK_MIN = 2;
 const BULLET_COLOR = "#a0e0ff";
 const DEG_TO_RAD = Math.PI / 180;
 const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
-/** 敵弾を斬り落としたときのゲージ */
-const DEFLECT_ENERGY = 4;
 const BURST_INVULN = 0.25;
 const PACIFIST_COLOR = "#a0a0a0";
 /** ks_bladeOath の「撃てない」表示の間隔（秒）。押しっぱなしで連打表示しない */
@@ -63,6 +61,13 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     meleeHitCount: 0,
     overclockShotCount: 0,
     lifeOnHitWindow: { timer: 0, healed: 0 },
+    regainPool: 0,
+    regainTimer: 0,
+    regainStep: 0,
+    justCounterTimer: 0,
+    justCounterTargetId: null,
+    dashAttackQueued: false,
+    dashStrike: false,
   };
 }
 
@@ -101,9 +106,9 @@ export interface MeleeStep {
   stagger: boolean;
 }
 
-/** tuning の近接段に stats（攻撃速度・リーチ・ノックバック）を掛けたもの */
-export function meleeStep(stats: Readonly<PlayerStats>, combo: number): MeleeStep | undefined {
-  const base = PLAYER.melee[combo];
+/** tuning の近接段に stats（攻撃速度・リーチ・ノックバック）を掛けたもの。dashStrike ならダッシュ攻撃 */
+export function meleeStep(stats: Readonly<PlayerStats>, combo: number, dashStrike = false): MeleeStep | undefined {
+  const base = dashStrike ? ACTION.dashAttack : PLAYER.melee[combo];
   if (!base) return undefined;
   const speed = stats.attackSpeedMul;
   return {
@@ -138,6 +143,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
   if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
   if (input.attackPressed && !skillLocksAttack(state)) tryAttack(state);
+  releaseDashAttack(state);
   // バーストは常にスキルをキャンセルできる
   if (input.specialPressed && trySpecial(state)) cancelSkills(state);
   updateSkills(state, input, dt);
@@ -179,6 +185,9 @@ function tickTimers(state: GameState, dt: number): void {
   p.buffs.speed.time = Math.max(0, p.buffs.speed.time - dt);
   p.buffs.invuln = Math.max(0, p.buffs.invuln - dt);
   p.lifeOnHitWindow.timer = Math.max(0, p.lifeOnHitWindow.timer - dt);
+  p.justCounterTimer = Math.max(0, p.justCounterTimer - dt);
+  if (p.justCounterTimer === 0) p.justCounterTargetId = null;
+  tickRegain(state, dt);
   tickTriggerCooldowns(state, dt);
   tickRegen(state, dt);
   if (p.dashTimer > 0) {
@@ -286,7 +295,14 @@ function tryAttack(state: GameState): void {
     addFloatingText(state, state.player.body.pos, "pacifist", PACIFIST_COLOR, 0.9, 0.4);
     return;
   }
-  const a = state.player.attack;
+  if (tryJustCounter(state)) return;
+  const p = state.player;
+  // ダッシュ中の攻撃はダッシュ終了と同時のダッシュ攻撃として予約する
+  if (isDashing(p)) {
+    p.dashAttackQueued = true;
+    return;
+  }
+  const a = p.attack;
   if (a.phase === "none") {
     // 突進斬り直後は 2 段目から
     startSwing(state, consumeLungeCombo(state) ? LUNGE_FOLLOW_COMBO : a.combo);
@@ -296,10 +312,11 @@ function tryAttack(state: GameState): void {
   if (a.phase === "recover" || a.phase === "active") a.buffered = true;
 }
 
-function startSwing(state: GameState, combo: number): void {
+function startSwing(state: GameState, combo: number, dashStrike = false): void {
   const p = state.player;
-  const step = meleeStep(actionStats(state), combo);
+  const step = meleeStep(actionStats(state), combo, dashStrike);
   if (!step) return;
+  p.dashStrike = dashStrike;
   p.attack.combo = combo;
   p.attack.phase = "windup";
   p.attack.timer = step.windup;
@@ -315,7 +332,7 @@ function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = meleeStep(actionStats(state), a.combo);
+  const step = meleeStep(actionStats(state), a.combo, p.dashStrike);
   if (!step) {
     cancelAttack(state);
     return;
@@ -342,6 +359,7 @@ function updateAttack(state: GameState, dt: number): void {
         a.phase = "none";
         a.combo = 0;
         a.buffered = false;
+        p.dashStrike = false;
         // 最終段の後は少し間を置く
         if (last) p.shootCooldown = Math.max(p.shootCooldown, PLAYER.comboLockout);
       }
@@ -361,27 +379,131 @@ function resolveMeleeHits(state: GameState, box: Box, step: MeleeStep): void {
     if (p.attack.hitIds.has(e.id) || e.hp <= 0) continue;
     if (!boxCircleOverlap(box, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     p.attack.hitIds.add(e.id);
-    const out = rollOutgoing(state, e, step.damage, "melee");
-    const pos = { ...e.body.pos };
-    damageEnemy(state, e, out.amount, p.attack.dir, step.knockback, {
-      stagger: step.stagger,
-      hitstopSteps: step.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight,
-      buildsEnergy: true,
-      kind: "melee",
-      crit: out.crit,
-    });
-    p.meleeHitCount += 1;
-    fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
-    fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
+    meleeHitEnemy(state, e, step);
   }
-  // 敵弾を斬り落とせる
+  // 敵弾を斬るとプレイヤー弾として撃ち返す（弾返しパリィ）
   for (const pr of state.projectiles) {
     if (pr.owner !== "enemy" || pr.life <= 0) continue;
     if (!boxCircleOverlap(box, pr.pos.x, pr.pos.y, pr.radius)) continue;
-    pr.life = 0;
-    spawnBurst(state, pr.pos, pr.color, 5, 80, 0.25, 1.5);
-    gainEnergy(state, DEFLECT_ENERGY);
+    reflectProjectile(state, pr);
   }
+}
+
+/** 近接 1 ヒット。敵の windup 中ならカウンターヒット */
+function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
+  const p = state.player;
+  const counter = isCounterable(e);
+  const out = rollOutgoing(state, e, step.damage, "melee");
+  const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
+  const baseHitstop = step.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight;
+  const pos = { ...e.body.pos };
+  if (step.stagger) e.wallSplat = true;
+  damageEnemy(state, e, amount, p.attack.dir, step.knockback, {
+    stagger: step.stagger || counter,
+    hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
+    buildsEnergy: true,
+    kind: "melee",
+    crit: out.crit,
+  });
+  if (counter) showCounter(state, pos);
+  p.meleeHitCount += 1;
+  fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
+  fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
+}
+
+/** カウンターヒットになる敵の状態（予備動作中） */
+export function isCounterable(e: Enemy): boolean {
+  return e.phase === "windup";
+}
+
+function showCounter(state: GameState, pos: Vec): void {
+  const c = ACTION.counter;
+  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
+  spawnBurst(state, pos, c.color, c.particles, 150, 0.35, 2);
+  pushSfx(state, "counter");
+}
+
+/** 敵弾をプレイヤー弾に変えて攻撃方向へ撃ち返す（スキルのパリィとは別） */
+function reflectProjectile(state: GameState, pr: Projectile): void {
+  const r = ACTION.reflect;
+  const speed = length(pr.vel) * r.speedMul;
+  pr.owner = "player";
+  pr.vel = scale(state.player.attack.dir, speed);
+  pr.damage = pr.damage * r.damageMul;
+  pr.kind = "ranged";
+  pr.color = r.color;
+  pr.hitIds.clear();
+  pr.pierceLeft = r.pierce;
+  pr.sourceId = undefined;
+  pr.life = Math.max(pr.life, r.minLife);
+  gainEnergy(state, r.energy);
+  addFloatingText(state, pr.pos, r.text, r.color, r.textScale, r.textLife);
+  spawnBurst(state, pr.pos, r.color, r.particles, 100, 0.25, 1.5);
+  pushSfx(state, "reflect");
+}
+
+/** JUST 回避直後の攻撃: 回避した敵の手前へ瞬間移動して重い一撃。出したら true */
+function tryJustCounter(state: GameState): boolean {
+  const p = state.player;
+  if (p.justCounterTimer <= 0 || p.justCounterTargetId === null) return false;
+  const targetId = p.justCounterTargetId;
+  p.justCounterTimer = 0;
+  p.justCounterTargetId = null;
+  const target = state.enemies.find((e) => e.id === targetId && e.hp > 0);
+  if (!target) return false;
+  if (dist(p.body.pos, target.body.pos) > ACTION.justCounter.maxRange) return false;
+  justCounterStrike(state, target);
+  return true;
+}
+
+function justCounterStrike(state: GameState, target: Enemy): void {
+  const p = state.player;
+  const j = ACTION.justCounter;
+  const from = { ...p.body.pos };
+  const toEnemy = sub(target.body.pos, p.body.pos);
+  const dir = normalize(toEnemy, p.facing);
+  // 壁は無視しない（moveBody が壁の手前で止める）。敵の縁の少し手前で止まる
+  const travel = Math.max(0, length(toEnemy) - target.body.radius - p.body.radius - j.gap);
+  cancelAttack(state);
+  p.dashTimer = 0;
+  p.knock = { x: 0, y: 0 };
+  moveBody(state, p.body, dir.x * travel, dir.y * travel);
+  p.facing = { ...dir };
+
+  // 見た目は 3 段目の振り。対象にはここで当てるので hitIds に入れて二重ヒットを防ぐ
+  const lastCombo = PLAYER.melee.length - 1;
+  startSwing(state, lastCombo);
+  p.attack.dir = { ...dir };
+  p.attack.hitIds.add(target.id);
+  const step = meleeStep(actionStats(state), lastCombo);
+  if (!step) return;
+  const out = rollOutgoing(state, target, step.damage, "melee");
+  const hitPos = { ...target.body.pos };
+  target.wallSplat = true;
+  damageEnemy(state, target, Math.round(out.amount * j.damageMul), dir, step.knockback, {
+    stagger: true,
+    hitstopSteps: FEEL.hitstopHeavy + j.hitstopBonus,
+    buildsEnergy: true,
+    kind: "melee",
+    crit: out.crit,
+  });
+  p.meleeHitCount += 1;
+  spawnLine(state, from, p.body.pos, j.color, j.lineLife);
+  spawnBurst(state, p.body.pos, j.color, j.particles, 160, 0.4, 2);
+  addFloatingText(state, p.body.pos, j.text, j.color, j.textScale, j.textLife);
+  pushSfx(state, "counter");
+  fireTrigger(state, "onMeleeHit", { pos: hitPos, targetId: target.id });
+  fireTrigger(state, "everyNthMeleeHit", { pos: hitPos, targetId: target.id });
+}
+
+/** ダッシュ中に予約した攻撃を、ダッシュが終わった瞬間に出す */
+function releaseDashAttack(state: GameState): void {
+  const p = state.player;
+  if (!p.dashAttackQueued || isDashing(p)) return;
+  p.dashAttackQueued = false;
+  if (hasKeystone(state, KS.pacifist) || skillLocksAttack(state)) return;
+  cancelAttack(state);
+  startSwing(state, 0, true);
 }
 
 /** n 発を扇状に並べた角度オフセット（ラジアン）。1 発なら [0] */

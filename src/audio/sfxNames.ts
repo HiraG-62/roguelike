@@ -40,6 +40,10 @@ export const SFX_NAMES = [
   "parry",
   "railshot",
   "runeAttach",
+  // アクション手触り（docs/ideas/action-feel.md）
+  "counter",
+  "reflect",
+  "lastKill",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

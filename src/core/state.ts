@@ -60,6 +60,20 @@ export interface Player {
   overclockShotCount: number;
   /** lifeOnHit の 0.1 秒あたり回復上限を管理する窓 */
   lifeOnHitWindow: { timer: number; healed: number };
+  /** リゲイン: 近接ヒットで取り戻せる残り HP（HP バーの「取り戻せる分」） */
+  regainPool: number;
+  /** リゲイン: 取り戻せる残り秒。0 で regainPool も消える */
+  regainTimer: number;
+  /** リゲイン: 近接 1 ヒットで戻る量 */
+  regainStep: number;
+  /** JUST 回避カウンターを受け付ける残り秒 */
+  justCounterTimer: number;
+  /** JUST 回避カウンターの飛び先（回避した攻撃の敵 id）。無ければ null */
+  justCounterTargetId: number | null;
+  /** ダッシュ中に攻撃が押された（ダッシュ終了でダッシュ攻撃を出す） */
+  dashAttackQueued: boolean;
+  /** 今の振りがダッシュ攻撃か（attack.combo の段ではなく ACTION.dashAttack を使う） */
+  dashStrike: boolean;
 }
 
 export interface TimedMul {
@@ -101,6 +115,8 @@ export interface Enemy {
   lastHp?: number;
   /** 追加敵・ボスの行動用の作業領域 */
   ai?: EnemyAi;
+  /** 強い吹き飛び中（近接 3 段目など）。壁に激突すると追加ダメージ（壁叩きつけ） */
+  wallSplat?: boolean;
 }
 
 export type EliteKind = "explosive" | "reflective" | "shielded" | "hasted" | "linked";
@@ -239,12 +255,25 @@ export interface Pickup {
   bobTime: number;
 }
 
+/** 部屋の種類（src/system/roomTypes.ts）。ボス部屋は normal のまま boss.ts が管理する */
+export type RoomKind = "normal" | "treasure" | "challenge" | "shrine" | "ambush";
+
+/** フロア種別。rooms / dark は部屋+通路、cave はセルオートマトンの洞窟 */
+export type FloorKind = "rooms" | "cave" | "dark";
+
 export interface RoomState {
   rect: Rect;
   cleared: boolean;
   locked: boolean;
   /** 部屋の出入口となる床タイルのインデックス。ロック中は壁扱い */
   doorTiles: number[];
+  kind: RoomKind;
+  /** challenge: 今の波（1 始まり。0 = 未開始） */
+  wave: number;
+  /** shrine: 泉を使ったか */
+  used: boolean;
+  /** 矩形でない部屋（洞窟の塊）の所属タイル。無ければ rect が部屋 */
+  tiles?: ReadonlySet<number>;
 }
 
 export interface Camera {
@@ -321,6 +350,13 @@ export interface GameState {
   /** 今のフロアに入ってからの経過秒 */
   floorTime: number;
   reaper: Reaper | null;
+  floorKind: FloorKind;
+  /** shrine の泉を使った代償。次にロックする部屋のエリート率が上がる */
+  cursed: boolean;
+  /** 探索済みタイル（ミニマップ用）。1 = 探索済み */
+  explored: Uint8Array;
+  /** このフロアで探索済みになったタイルの順番。描画側はここの差分だけ塗る */
+  exploredLog: number[];
 }
 
 export function allocId(state: GameState): number {

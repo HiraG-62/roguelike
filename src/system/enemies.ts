@@ -1,8 +1,8 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ENEMY_AI, FEEL } from "../data/tuning";
-import { type PlayerHitResult, damagePlayer } from "./combat";
+import { ACTION, ENEMY_AI, FEEL } from "../data/tuning";
+import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { eliteSpeedMul, eliteWindupMul, onEliteDeath, updateElites } from "./elites";
 import { explodeHostile, laserEnd, spawnBomb, spawnLaser, spawnPlayerBurn, spawnShockwave } from "./hazards";
@@ -154,10 +154,28 @@ function handleDeaths(state: GameState): void {
 function applyKnock(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   if (def.boss || length(e.knock) < 2) {
     e.knock = { x: 0, y: 0 };
+    e.wallSplat = false;
     return;
   }
-  moveEnemy(state, e, def, e.knock.x * dt, e.knock.y * dt);
+  const hit = moveEnemy(state, e, def, e.knock.x * dt, e.knock.y * dt);
+  if (e.wallSplat && (hit.hitX || hit.hitY)) {
+    wallSplat(state, e);
+    return;
+  }
   e.knock = scale(e.knock, Math.exp(-KNOCK_DECAY * dt));
+}
+
+/** 壁叩きつけ: 強く吹き飛んだ敵が壁に激突すると追加ダメージ + スタガー */
+function wallSplat(state: GameState, e: Enemy): void {
+  const w = ACTION.wallSplat;
+  const back = scale(e.knock, -1);
+  e.wallSplat = false;
+  e.knock = { x: 0, y: 0 };
+  spawnBurst(state, e.body.pos, w.color, w.particles, 120, 0.4, 2);
+  shake(state, FEEL.shakeHeavy);
+  pushSfx(state, "wallHit");
+  const out = rollOutgoing(state, e, w.damage, "proc");
+  damageEnemy(state, e, out.amount, back, 0, { stagger: true, hitstopSteps: w.hitstop });
 }
 
 /** 壁すり抜け（wisp）はマップ外にだけ出ないようにして直接動かす */

@@ -1,9 +1,9 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, PLAYER } from "../data/tuning";
+import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, PLAYER, ROOM_KIND } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
-import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional } from "./effects";
+import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, explodeOnKill } from "./statusEffects";
@@ -120,6 +120,7 @@ export function damageEnemy(
   if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
   if (kind === "melee") pushSfx(state, opts.stagger ? "hitHeavy" : "hit");
   if (kind === "ranged") pushSfx(state, "bulletHit");
+  if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state);
     applyOnHitStatus(state, enemy);
@@ -163,6 +164,60 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
+  if (isLastKillInLockedRoom(state, enemy)) lastKillFx(state, enemy);
+}
+
+/** ロック中の部屋で、この敵が最後の 1 体か（challenge は最終波のみ） */
+export function isLastKillInLockedRoom(state: GameState, enemy: Enemy): boolean {
+  const room = state.rooms[enemy.roomIndex];
+  if (!room?.locked) return false;
+  if (room.kind === "challenge" && room.wave < ROOM_KIND.challengeWaves) return false;
+  return !state.enemies.some((e) => e !== enemy && e.hp > 0 && e.roomIndex === enemy.roomIndex);
+}
+
+/** ラストキル・スロー: スロー + 強いフラッシュ + 大きな CLEAR */
+function lastKillFx(state: GameState, enemy: Enemy): void {
+  const c = ACTION.lastKill;
+  state.slowmo = Math.max(state.slowmo, c.slowmo);
+  state.flash = Math.max(state.flash, c.flash);
+  const pos = { x: enemy.body.pos.x, y: enemy.body.pos.y - c.textOffsetY };
+  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
+  spawnRing(state, enemy.body.pos, c.ringRadius, c.color, c.ringLife);
+  spawnBurst(state, enemy.body.pos, c.color, c.particles, 220, 0.6, 2.5);
+  shake(state, FEEL.shakeSpecial);
+  pushSfx(state, "lastKill");
+}
+
+/** リゲイン: 被弾の猶予中なら近接ヒットで取り戻せる分を回復する */
+function applyRegain(state: GameState): void {
+  const p = state.player;
+  if (p.regainTimer <= 0 || p.regainPool <= 0) return;
+  const amount = Math.min(p.regainStep, p.regainPool);
+  p.regainPool -= amount;
+  healPlayer(state, amount, { silent: true });
+  // 満タンになったら取り戻す分は残さない
+  p.regainPool = Math.min(p.regainPool, p.maxHp - p.hp);
+  spawnBurst(state, p.body.pos, ACTION.regain.color, ACTION.regain.particles, 60, 0.35, 1.5);
+}
+
+/** 被弾で取り戻せる分を積む。猶予中の追加被弾はプールに足し、猶予を延ばす */
+function addRegain(state: GameState, taken: number): void {
+  const p = state.player;
+  const r = ACTION.regain;
+  const wasActive = p.regainTimer > 0 && p.regainPool > 0;
+  p.regainPool = (wasActive ? p.regainPool : 0) + taken * r.poolRatio;
+  p.regainStep = (wasActive ? p.regainStep : 0) + taken * r.perHitRatio;
+  p.regainTimer = r.window;
+}
+
+/** リゲインの猶予を進める。切れたら取り戻せる分は消える */
+export function tickRegain(state: GameState, dt: number): void {
+  const p = state.player;
+  if (p.regainTimer <= 0) return;
+  p.regainTimer = Math.max(0, p.regainTimer - dt);
+  if (p.regainTimer > 0) return;
+  p.regainPool = 0;
+  p.regainStep = 0;
 }
 
 /**
@@ -206,7 +261,7 @@ export function damagePlayer(state: GameState, amount: number, fromPos: Vec, att
   if (state.status !== "playing") return "ignored";
   if (p.invulnTimer > 0 || p.buffs.invuln > 0) {
     if (p.dashTimer > 0 && !p.dodgedThisDash) {
-      justDodge(state);
+      justDodge(state, attacker);
       return "dodged";
     }
     return "ignored";
@@ -214,6 +269,7 @@ export function damagePlayer(state: GameState, amount: number, fromPos: Vec, att
 
   const taken = mitigate(state, amount);
   p.hp = Math.max(0, p.hp - taken);
+  addRegain(state, taken);
   p.invulnTimer = PLAYER.hurtInvuln;
   p.hitFlash = PLAYER_HIT_FLASH;
   const away = normalize(sub(p.body.pos, fromPos));
@@ -271,10 +327,13 @@ export function recordRunOnce(state: GameState): void {
   saveProfile(profile);
 }
 
-function justDodge(state: GameState): void {
+function justDodge(state: GameState, attacker: Enemy | undefined): void {
   const p = state.player;
   p.dodgedThisDash = true;
   p.justTimer = state.stats.justDodgeWindow;
+  // 直後に攻撃を押すと回避した敵へ瞬間移動斬り（player.ts の tryJustCounter）
+  p.justCounterTimer = ACTION.justCounter.window;
+  p.justCounterTargetId = attacker && attacker.hp > 0 ? attacker.id : null;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
   registerComboHit(state);
@@ -286,7 +345,10 @@ function justDodge(state: GameState): void {
 }
 
 export function cancelAttack(state: GameState): void {
-  const a = state.player.attack;
+  const p = state.player;
+  p.dashAttackQueued = false;
+  p.dashStrike = false;
+  const a = p.attack;
   a.phase = "none";
   a.timer = 0;
   a.buffered = false;

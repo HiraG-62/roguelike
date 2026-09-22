@@ -205,6 +205,9 @@ const TUNING = {
   parry: { freq: 1800, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 1500, noiseDuration: 0.08 },
   railshot: { freqFrom: 1400, freqTo: 120, duration: 0.25, noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2 },
   runeAttach: { tones: [440, 660, 990] as const, noteDuration: 0.06, gap: 0.02 },
+  counter: { freq: 95, duration: 0.18, noiseFreqFrom: 3200, noiseFreqTo: 400, noiseDuration: 0.16, ringFreq: 2400, ringDuration: 0.1 },
+  reflect: { freqFrom: 900, freqTo: 2600, duration: 0.09, noiseFreqFrom: 6000, noiseFreqTo: 2500, noiseDuration: 0.06 },
+  lastKill: { lowFreq: 60, lowDuration: 0.6, noiseFreqFrom: 2400, noiseFreqTo: 120, noiseDuration: 0.5, ringFreq: 1600, ringDuration: 0.4 },
 } as const;
 
 // ---- 各効果音の定義 -------------------------------------------------------
@@ -644,6 +647,70 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       gap: TUNING.runeAttach.gap,
       peak: 0.5,
     }),
+
+  counter: (ctx, dest, opts) => {
+    const thump = tone(ctx, dest, opts, {
+      type: "sine",
+      freq: TUNING.counter.freq,
+      duration: TUNING.counter.duration,
+      peak: 0.8,
+    });
+    const crack = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.counter.noiseFreqFrom,
+      freqTo: TUNING.counter.noiseFreqTo,
+      duration: TUNING.counter.noiseDuration,
+      peak: 0.8,
+    });
+    const ring = tone(ctx, dest, opts, {
+      type: "square",
+      freq: TUNING.counter.ringFreq,
+      duration: TUNING.counter.ringDuration,
+      peak: 0.25,
+    });
+    return Math.max(thump, crack, ring);
+  },
+
+  reflect: (ctx, dest, opts) => {
+    const ping = toneSweep(ctx, dest, opts, {
+      type: "triangle",
+      freqFrom: TUNING.reflect.freqFrom,
+      freqTo: TUNING.reflect.freqTo,
+      duration: TUNING.reflect.duration,
+      peak: 0.5,
+    });
+    const tick = noiseBurst(ctx, dest, opts, {
+      filterType: "highpass",
+      freqFrom: TUNING.reflect.noiseFreqFrom,
+      freqTo: TUNING.reflect.noiseFreqTo,
+      duration: TUNING.reflect.noiseDuration,
+      peak: 0.5,
+    });
+    return Math.max(ping, tick);
+  },
+
+  lastKill: (ctx, dest, opts) => {
+    const boom = tone(ctx, dest, opts, {
+      type: "sine",
+      freq: TUNING.lastKill.lowFreq,
+      duration: TUNING.lastKill.lowDuration,
+      peak: 0.9,
+    });
+    const wash = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.lastKill.noiseFreqFrom,
+      freqTo: TUNING.lastKill.noiseFreqTo,
+      duration: TUNING.lastKill.noiseDuration,
+      peak: 0.7,
+    });
+    const ring = tone(ctx, dest, opts, {
+      type: "triangle",
+      freq: TUNING.lastKill.ringFreq,
+      duration: TUNING.lastKill.ringDuration,
+      peak: 0.3,
+    });
+    return Math.max(boom, wash, ring);
+  },
 };
 
 // SFX_NAMES 全件に定義があることを型レベルで保証（Record が満たされていないとコンパイルエラーになる）

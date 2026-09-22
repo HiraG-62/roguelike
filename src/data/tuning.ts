@@ -289,3 +289,150 @@ export const REAPER = {
   spawnDist: 180,
   color: "#8040c0",
 } as const;
+
+/** 部屋の種類（src/system/roomTypes.ts） */
+export const ROOM_KIND = {
+  treasureChance: 0.35,
+  treasureItemsMin: 2,
+  treasureItemsMax: 3,
+  /** 宝物庫の床アイテムの rarityBoost（部屋クリア報酬より高め） */
+  treasureRarityBoost: 1.2,
+  /** 宝物庫のアイテムを中心から並べる距離（px） */
+  treasureItemSpread: 14,
+  treasureCoinParticles: 28,
+  treasureCoinColor: "#ffd040",
+  challengeMinDepth: 2,
+  challengeChance: 0.35,
+  challengeWaves: 3,
+  /** 波ごとの湧き数（通常部屋の敵数に対する倍率） */
+  challengeWaveMul: 0.75,
+  challengeRareBoost: 6,
+  challengeRareAttempts: 40,
+  challengeColor: "#ff9040",
+  shrineMinDepth: 2,
+  shrineChance: 0.3,
+  /** 泉に触れたと判定する半径（px） */
+  fountainRadius: 8,
+  shrineColor: "#60c0ff",
+  /** 呪い中に次の部屋でエリート抽選を行う回数（2 = エリート率およそ 2 倍） */
+  cursedEliteRolls: 2,
+  cursedColor: "#c060ff",
+  ambushMinDepth: 3,
+  ambushChance: 0.25,
+  ambushMax: 2,
+  /** 伏兵部屋で入った瞬間に湧く数（通常部屋の敵数に対する倍率） */
+  ambushEnemyMul: 2,
+} as const;
+
+/** フロア種別（src/system/roomTypes.ts の chooseFloorKind） */
+export const FLOOR_KIND = {
+  /** depth % caveInterval === caveRemainder かつ caveMinDepth 以上なら洞窟 */
+  caveInterval: 3,
+  caveRemainder: 1,
+  caveMinDepth: 4,
+  darkMinDepth: 4,
+  darkChance: 0.25,
+  /** 暗闇でプレイヤー周りだけ明るい半径（px） */
+  darkLightRadius: 90,
+  /** 光の縁のぼかし幅（半径に対する割合） */
+  darkFeather: 0.35,
+  darkAlpha: 0.94,
+} as const;
+
+/** ミニマップ */
+export const MINIMAP = {
+  /** プレイヤー周囲この半径（タイル）を探索済みにする */
+  revealRadius: 6,
+} as const;
+
+/** アクション手触り（docs/ideas/action-feel.md「まず入れるべき 5 つ」+ 壁叩きつけ・ダッシュ攻撃） */
+export const ACTION = {
+  /** カウンターヒット: 敵の windup 中に近接を当てる */
+  counter: {
+    damageMul: 1.5,
+    /** 通常の hitstop に足すステップ */
+    hitstopBonus: 2,
+    text: "COUNTER!",
+    color: "#ff9040",
+    textScale: 1.6,
+    textLife: 0.7,
+    particles: 12,
+  },
+  /** ラストキル・スロー: ロック中の部屋で最後の敵を倒した瞬間 */
+  lastKill: {
+    /** スローモーション（実時間秒） */
+    slowmo: 0.5,
+    flash: 0.85,
+    text: "CLEAR",
+    color: "#ffffff",
+    textScale: 2.6,
+    textLife: 1.2,
+    /** テキストを倒した敵の少し上に出す（px） */
+    textOffsetY: 14,
+    ringRadius: 60,
+    ringLife: 0.45,
+    particles: 30,
+  },
+  /** リゲイン: 被弾後しばらく近接ヒットで HP を取り戻す */
+  regain: {
+    /** 取り戻せる猶予（秒） */
+    window: 3,
+    /** 近接 1 ヒットで戻る量（被ダメに対する割合） */
+    perHitRatio: 0.15,
+    /** 取り戻せる合計（被ダメに対する割合） */
+    poolRatio: 0.6,
+    color: "#b0ffb0",
+    particles: 4,
+  },
+  /** JUST 回避カウンター: JUST 回避直後に攻撃で回避した敵へ瞬間移動斬り */
+  justCounter: {
+    /** JUST 回避後に攻撃を受け付ける秒数 */
+    window: 0.4,
+    /** 近接 3 段目のダメージに掛ける倍率 */
+    damageMul: 1.5,
+    /** この距離より遠い敵へは飛ばない（px） */
+    maxRange: 160,
+    /** 敵の縁からこの距離だけ手前で止まる（px） */
+    gap: 2,
+    hitstopBonus: 3,
+    text: "JUST COUNTER",
+    color: "#60e0ff",
+    textScale: 1.7,
+    textLife: 0.8,
+    lineLife: 0.2,
+    particles: 16,
+  },
+  /** 弾返しパリィ: 近接の active で敵弾を斬るとプレイヤー弾として反射 */
+  reflect: {
+    speedMul: 1.3,
+    damageMul: 2,
+    energy: 8,
+    /** 反射弾の貫通数 */
+    pierce: 2,
+    /** 反射弾の残り寿命の下限（秒） */
+    minLife: 1,
+    text: "PARRY",
+    color: "#ffe080",
+    textScale: 1.2,
+    textLife: 0.5,
+    particles: 8,
+  },
+  /** 壁叩きつけ: 近接 3 段目などで吹き飛んだ敵が壁に激突 */
+  wallSplat: {
+    damage: 10,
+    color: "#c0c0c0",
+    particles: 12,
+    hitstop: 3,
+  },
+  /** ダッシュ攻撃: ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃（1 段目と 2 段目の間の性能） */
+  dashAttack: {
+    windup: 0.03,
+    active: 0.1,
+    recover: 0.18,
+    damage: 13,
+    reach: 26,
+    size: 30,
+    knockback: 220,
+    stagger: false,
+  },
+} as const;
