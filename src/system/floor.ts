@@ -1,4 +1,4 @@
-import { type GameState, type RoomState, allocId, pushLog } from "../core/state";
+import { type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
 import { ROOM } from "../data/tuning";
 import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "../map/generator";
@@ -17,6 +17,9 @@ import { snapCamera } from "./camera";
 import { COLOR_HEAL, healPlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
+import { heartsAllowed } from "./keystones";
+import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
+import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsWall } from "./physics";
 
 const START_ROOM = 0;
@@ -37,6 +40,9 @@ export function buildFloor(state: GameState): void {
   state.pickups = [];
   state.particles = [];
   state.texts = [];
+  state.shapes = [];
+  // 前の階に残したアイテムは失われる
+  state.floorItems = [];
 
   const start = state.rooms[START_ROOM];
   if (start) {
@@ -123,6 +129,7 @@ export function updateRooms(state: GameState, dt: number): void {
   });
 
   updatePickups(state, dt);
+  updateFloorItems(state, dt);
   checkStairs(state);
 }
 
@@ -144,6 +151,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   }
   shake(state, 3);
   addFloatingText(state, p2(state), "LOCKED", "#ff8080", 1.2, 0.8);
+  pushSfx(state, "roomLock");
 }
 
 function clearRoom(state: GameState, room: RoomState): void {
@@ -153,6 +161,9 @@ function clearRoom(state: GameState, room: RoomState): void {
   state.score += ROOM.clearBonus;
   addFloatingText(state, p2(state), "ROOM CLEAR", "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
+  pushSfx(state, "roomClear");
+  dropRoomReward(state, rectCenterPx(room.rect));
+  fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   if (state.rng.chance(ROOM.heartDropChance)) {
     state.pickups.push({
       id: allocId(state),
@@ -172,6 +183,8 @@ function updatePickups(state: GameState, dt: number): void {
   const p = state.player.body;
   for (const pk of state.pickups) {
     pk.bobTime += dt;
+    // ks_vampire: ハートは触れても消えない
+    if (!heartsAllowed(state)) continue;
     if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, p.pos.x, p.pos.y, p.radius)) continue;
     healPlayer(state, ROOM.heartHeal);
     spawnBurst(state, pk.pos, COLOR_HEAL, 12, 100, 0.4, 2);
@@ -194,5 +207,7 @@ export function descend(state: GameState): void {
   buildFloor(state);
   state.flash = 1;
   addFloatingText(state, p2(state), `DEPTH ${state.depth}`, "#ffd75f", 2, 1.2);
+  pushSfx(state, "descend");
+  dropDepthReward(state);
   pushLog(state, `You descend to depth ${state.depth}.`, "#ffd75f");
 }

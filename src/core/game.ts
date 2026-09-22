@@ -12,9 +12,17 @@ import { createPlayer } from "../system/player";
 import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { VIEW_H, VIEW_W } from "./view";
-import { DEFAULT_STATS, type Profile, createEmptyProfile } from "../loot/types";
+import { type Profile, createEmptyProfile } from "../loot/types";
+import { computeStats } from "../loot/stats";
+import { updateStatusEffects } from "../system/statusEffects";
 
+/**
+ * 新しいランを始める。profile.equipment から stats を畳み込んでプレイヤーに反映し、
+ * profile.meta.runs を 1 増やす（死亡時の recordRun では runs を二重に数えない）
+ */
 export function createGame(seed: number, seedText = String(seed), profile: Profile = createEmptyProfile()): GameState {
+  const stats = computeStats(profile.equipment);
+  profile.meta.runs += 1;
   const state: GameState = {
     seed,
     seedText,
@@ -26,7 +34,7 @@ export function createGame(seed: number, seedText = String(seed), profile: Profi
     map: createMap(1, 1),
     rooms: [],
     lockedTiles: new Set(),
-    player: createPlayer({ x: 0, y: 0 }),
+    player: createPlayer({ x: 0, y: 0 }, stats),
     enemies: [],
     projectiles: [],
     particles: [],
@@ -43,9 +51,12 @@ export function createGame(seed: number, seedText = String(seed), profile: Profi
     log: [],
     deathTimer: 0,
     profile,
-    stats: { ...DEFAULT_STATS },
+    stats,
     floorItems: [],
     paused: false,
+    sfx: [],
+    shapes: [],
+    runRecorded: false,
   };
   buildFloor(state);
   pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");
@@ -76,6 +87,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   state.time += gdt;
 
   updatePlayer(state, input, gdt);
+  updateStatusEffects(state, gdt);
   updateEnemies(state, gdt);
   updateProjectiles(state, gdt);
   updateRooms(state, gdt);

@@ -5,6 +5,7 @@ import { FIXED_DT } from "./loop";
 import { PLAYER } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { createEnemy } from "../system/enemies";
+import { createEmptyProfile, type Item } from "../loot/types";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -21,6 +22,8 @@ function fingerprint(state: ReturnType<typeof createGame>): string {
     state.enemies.length,
     state.enemies.map((e) => `${e.id}:${e.hp}:${e.body.pos.x.toFixed(2)}`).join(","),
     state.score,
+    // Date.now 由来の id / foundAt は比較しない
+    state.floorItems.map((fi) => `${fi.item.seed}:${fi.item.rarity}:${fi.pos.x.toFixed(2)}`).join(","),
   ].join("|");
 }
 
@@ -29,6 +32,30 @@ describe("createGame", () => {
     const a = createGame(7);
     const b = createGame(7);
     expect(fingerprint(a)).toBe(fingerprint(b));
+  });
+
+  it("装備の stats が maxHp に反映され、runs が 1 増える", () => {
+    const profile = createEmptyProfile();
+    const armor: Item = {
+      id: "test-armor",
+      seed: 1,
+      baseKey: "leather",
+      slot: "armor",
+      rarity: "magic",
+      itemLevel: 1,
+      name: "Test Armor",
+      implicit: null,
+      affixes: [{ key: "maxLife", kind: "prefix", tier: 1, value: 40 }],
+      foundDepth: 1,
+      foundAt: 0,
+    };
+    profile.equipment.armor = armor;
+    const state = createGame(7, "7", profile);
+    expect(state.stats.maxHp).toBe(PLAYER.maxHp + 40);
+    expect(state.player.maxHp).toBe(PLAYER.maxHp + 40);
+    expect(state.player.hp).toBe(state.player.maxHp);
+    expect(profile.meta.runs).toBe(1);
+    expect(state.sfx).toEqual([]);
   });
 
   it("プレイヤーは開始部屋の中にいて、開始部屋には敵がいない", () => {

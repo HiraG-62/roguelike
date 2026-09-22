@@ -23,6 +23,8 @@ export interface EnemyDef {
   /** 出現の重み */
   weight: number;
   color: string;
+  /** 撃破時の装備ドロップ基本確率 */
+  dropChance: number;
 }
 
 export const ENEMIES: readonly EnemyDef[] = [
@@ -44,6 +46,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     minDepth: 1,
     weight: 10,
     color: "#40c040",
+    dropChance: 0.08,
   },
   {
     key: "eye",
@@ -63,6 +66,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     minDepth: 1,
     weight: 6,
     color: "#b050d0",
+    dropChance: 0.08,
   },
   {
     key: "boar",
@@ -82,6 +86,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     minDepth: 2,
     weight: 3,
     color: "#e08030",
+    dropChance: 0.25,
   },
 ];
 

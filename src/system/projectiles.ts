@@ -1,11 +1,12 @@
-import type { GameState } from "../core/state";
+import { type GameState, type Projectile, pushSfx } from "../core/state";
 import { normalize } from "../core/vec";
 import { FEEL } from "../data/tuning";
-import { damageEnemy, damagePlayer } from "./combat";
+import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { spawnBurst } from "./effects";
 import { circlesOverlap, overlapsWall } from "./physics";
 
 const BULLET_KNOCKBACK = 60;
+const BULLET_HITSTOP = 1;
 
 export function updateProjectiles(state: GameState, dt: number): void {
   for (const pr of state.projectiles) {
@@ -17,6 +18,7 @@ export function updateProjectiles(state: GameState, dt: number): void {
     if (overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
       pr.life = 0;
       spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
+      if (pr.owner === "player") pushSfx(state, "bulletHit");
       continue;
     }
 
@@ -29,20 +31,32 @@ export function updateProjectiles(state: GameState, dt: number): void {
   state.projectiles = state.projectiles.filter((p) => p.life > 0);
 }
 
-function hitEnemies(state: GameState, pr: GameState["projectiles"][number]): void {
+/** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
+function hitEnemies(state: GameState, pr: Projectile): void {
   for (const e of state.enemies) {
-    if (e.hp <= 0) continue;
+    if (e.hp <= 0 || pr.hitIds.has(e.id)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
-    damageEnemy(state, e, pr.damage, normalize(pr.vel), BULLET_KNOCKBACK, { hitstopSteps: 1 });
+    pr.hitIds.add(e.id);
+    const out = rollOutgoing(state, e, pr.damage, pr.kind);
+    damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
+      hitstopSteps: BULLET_HITSTOP,
+      kind: pr.kind,
+      crit: out.crit,
+    });
+    if (pr.pierceLeft > 0) {
+      pr.pierceLeft -= 1;
+      continue;
+    }
     pr.life = 0;
     return;
   }
 }
 
-function hitPlayer(state: GameState, pr: GameState["projectiles"][number]): void {
+function hitPlayer(state: GameState, pr: Projectile): void {
   const p = state.player.body;
   if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, p.pos.x, p.pos.y, p.radius)) return;
-  const result = damagePlayer(state, pr.damage, pr.pos);
+  const attacker = pr.sourceId === undefined ? undefined : state.enemies.find((e) => e.id === pr.sourceId);
+  const result = damagePlayer(state, pr.damage, pr.pos, attacker);
   // 被弾したか回避したら弾は消える。被弾後無敵中はすり抜ける
   if (result === "ignored") return;
   pr.life = 0;

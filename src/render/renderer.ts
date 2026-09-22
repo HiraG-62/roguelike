@@ -1,10 +1,11 @@
 import { VIEW_H, VIEW_W } from "../core/view";
 import type { Enemy, GameState } from "../core/state";
 import { enemyDef } from "../data/enemies";
-import { PLAYER } from "../data/tuning";
+import { STATUS } from "../data/tuning";
+import { RARITY_COLOR } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
-import { isAttacking, isDashing, meleeBox } from "../system/player";
+import { isAttacking, isDashing, meleeBox, meleeStep } from "../system/player";
 import { type Sprite, type SpriteAtlas, buildAtlas, getSprite } from "./sprites";
 
 const FONT_SMALL = "bold 8px monospace";
@@ -20,6 +21,25 @@ const COLOR_TEXT = "#e0e0e0";
 const COLOR_TELEGRAPH = "#ff4040";
 const COLOR_SLASH = "#ffffff";
 const COLOR_LOCK = "#ff8080";
+
+/** 床アイテムの光柱 */
+const LOOT_PILLAR_HEIGHT = 24;
+const LOOT_PILLAR_WIDTH = 3;
+const LOOT_PILLAR_ALPHA = 0.5;
+const LOOT_WOBBLE_SPEED = 5;
+const LOOT_WOBBLE_AMOUNT = 0.15;
+const LOOT_DIAMOND = 3;
+const LOOT_LABEL_OFFSET = 4;
+/** 状態異常の色味 */
+const CHILL_TINT_ALPHA = 0.4;
+const BURN_TINT_ALPHA = 0.3;
+const BURN_FLICKER_SPEED = 20;
+/** windup の震え（決定性のためゲーム rng は使わない） */
+const WINDUP_JITTER_SPEED = 60;
+const DASH_PIP_SIZE = 4;
+const DASH_PIP_GAP = 2;
+const COLOR_DASH_PIP = "#80c0ff";
+const COLOR_DASH_PIP_EMPTY = "#203040";
 
 /** 歩行アニメの切替間隔（秒） */
 const WALK_FRAME_TIME = 0.12;
@@ -61,9 +81,11 @@ export class Renderer {
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
     this.drawPickups(state);
+    this.drawFloorItems(state);
     this.drawEnemies(state);
     this.drawProjectiles(state);
     this.drawPlayer(state);
+    this.drawShapes(state);
     this.drawParticles(state);
     this.drawTexts(state);
     ctx.restore();
@@ -150,6 +172,69 @@ export class Renderer {
     }
   }
 
+  /** レアリティ色の縦の光柱 + 小さな菱形 + 名前（magic 以上） */
+  private drawFloorItems(state: GameState): void {
+    const { ctx } = this;
+    ctx.textAlign = "center";
+    ctx.font = FONT_SMALL;
+    for (const fi of state.floorItems) {
+      const color = RARITY_COLOR[fi.item.rarity];
+      const x = Math.round(fi.pos.x);
+      const y = Math.round(fi.pos.y);
+      const wobble = 1 + Math.sin(fi.bobTime * LOOT_WOBBLE_SPEED) * LOOT_WOBBLE_AMOUNT;
+      const h = LOOT_PILLAR_HEIGHT * wobble;
+      const grad = ctx.createLinearGradient(x, y - h, x, y);
+      grad.addColorStop(0, "rgba(0,0,0,0)");
+      grad.addColorStop(1, color);
+      ctx.globalAlpha = LOOT_PILLAR_ALPHA * wobble;
+      ctx.fillStyle = grad;
+      ctx.fillRect(x - Math.floor(LOOT_PILLAR_WIDTH / 2), y - h, LOOT_PILLAR_WIDTH, h);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y - LOOT_DIAMOND);
+      ctx.lineTo(x + LOOT_DIAMOND, y);
+      ctx.lineTo(x, y + LOOT_DIAMOND);
+      ctx.lineTo(x - LOOT_DIAMOND, y);
+      ctx.closePath();
+      ctx.fill();
+      if (fi.item.rarity === "normal") continue;
+      const ly = y - h - LOOT_LABEL_OFFSET;
+      ctx.fillStyle = "#000000";
+      ctx.fillText(fi.item.name, x + 1, ly + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(fi.item.name, x, ly);
+    }
+  }
+
+  /** 衝撃波リングと連鎖雷 */
+  private drawShapes(state: GameState): void {
+    const { ctx } = this;
+    for (const s of state.shapes) {
+      const t = Math.max(0, s.life / s.maxLife);
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = s.color;
+      if (s.kind === "ring") {
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.pos.x, s.pos.y, s.radius * (1 - t * 0.6), 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(s.pos.x, s.pos.y);
+        // 中間点を少しずらしてギザギザに
+        const mx = (s.pos.x + s.to.x) / 2 + Math.sin(s.life * 90) * 4;
+        const my = (s.pos.y + s.to.y) / 2 + Math.cos(s.life * 90) * 4;
+        ctx.lineTo(mx, my);
+        ctx.lineTo(s.to.x, s.to.y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
   private drawEnemies(state: GameState): void {
     for (const e of state.enemies) this.drawEnemy(state, e);
   }
@@ -175,8 +260,8 @@ export class Renderer {
     }
     if (e.phase === "windup") {
       // 予備動作: 小刻みに震える + 赤いマーク
-      x += (state.rng.next() - 0.5) * 2;
-      y += (state.rng.next() - 0.5) * 2;
+      x += Math.sin(state.time * WINDUP_JITTER_SPEED + e.id);
+      y += Math.cos(state.time * WINDUP_JITTER_SPEED * 1.3 + e.id);
       ctx.fillStyle = COLOR_TELEGRAPH;
       ctx.font = FONT_SMALL;
       ctx.textAlign = "center";
@@ -195,6 +280,7 @@ export class Renderer {
     const flip = e.facing.x < 0;
     const white = e.hitFlash > 0;
     this.blit(sprite, frame, x, y, flip, white);
+    this.drawStatusTint(state, e, sprite.w / 2);
 
     if (e.phase === "stagger") {
       ctx.fillStyle = COLOR_ENERGY;
@@ -203,6 +289,26 @@ export class Renderer {
       ctx.fillText("*", e.body.pos.x, e.body.pos.y - sprite.h / 2 - 2);
     }
     if (e.hp < e.maxHp) this.drawBar(e.body.pos.x - 8, e.body.pos.y + sprite.h / 2 - 2, 16, 2, e.hp / e.maxHp, COLOR_HP, COLOR_HP_BG);
+  }
+
+  /** chill は青、burn はオレンジの明滅を重ねる */
+  private drawStatusTint(state: GameState, e: Enemy, r: number): void {
+    const { ctx } = this;
+    if (e.effects.chill.time > 0) {
+      ctx.globalAlpha = CHILL_TINT_ALPHA;
+      ctx.fillStyle = STATUS.chillColor;
+      ctx.beginPath();
+      ctx.arc(e.body.pos.x, e.body.pos.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (e.effects.burn.time > 0) {
+      ctx.globalAlpha = BURN_TINT_ALPHA * (0.6 + 0.4 * Math.sin(state.time * BURN_FLICKER_SPEED + e.id));
+      ctx.fillStyle = STATUS.burnColor;
+      ctx.beginPath();
+      ctx.arc(e.body.pos.x, e.body.pos.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawProjectiles(state: GameState): void {
@@ -241,7 +347,7 @@ export class Renderer {
     }
 
     if (isAttacking(p) && p.attack.phase === "active") {
-      const step = PLAYER.melee[p.attack.combo];
+      const step = meleeStep(state.stats, p.attack.combo);
       if (step) {
         const box = meleeBox(p, step.reach, step.size);
         this.drawSlash(box.x + box.w / 2, box.y + box.h / 2, step.size / 2, p.attack.dir, p.attack.combo);
@@ -345,12 +451,13 @@ export class Renderer {
     this.drawBar(8, 8, 100, 6, p.hp / p.maxHp, COLOR_HP, COLOR_HP_BG);
     ctx.font = FONT_SMALL;
     ctx.fillStyle = COLOR_TEXT;
-    ctx.fillText(`${p.hp}/${p.maxHp}`, 112, 14);
+    ctx.fillText(`${Math.ceil(p.hp)}/${p.maxHp}`, 112, 14);
 
     const ready = p.energy >= p.maxEnergy;
     const energyColor = ready && state.tick % 20 < 10 ? COLOR_ENERGY_READY : COLOR_ENERGY;
     this.drawBar(8, 17, 100, 4, p.energy / p.maxEnergy, energyColor, COLOR_ENERGY_BG);
     if (ready) ctx.fillText("F: BURST", 112, 22);
+    this.drawDashPips(state);
 
     ctx.textAlign = "right";
     ctx.fillStyle = COLOR_TEXT;
@@ -385,6 +492,16 @@ export class Renderer {
       ctx.font = FONT_SMALL;
       ctx.fillStyle = last.color;
       ctx.fillText(last.text, 8, VIEW_H - 8);
+    }
+  }
+
+  /** ダッシュのチャージ数 */
+  private drawDashPips(state: GameState): void {
+    const { ctx } = this;
+    const max = state.stats.dashCharges;
+    for (let i = 0; i < max; i++) {
+      ctx.fillStyle = i < state.player.dashChargesLeft ? COLOR_DASH_PIP : COLOR_DASH_PIP_EMPTY;
+      ctx.fillRect(8 + i * (DASH_PIP_SIZE + DASH_PIP_GAP), 24, DASH_PIP_SIZE, 2);
     }
   }
 

@@ -1,20 +1,34 @@
 import type { FrameInput } from "../core/input";
-import { type GameState, type Player, allocId } from "../core/state";
-import { type Vec, add, isZero, normalize, scale, sub, length } from "../core/vec";
+import { type GameState, type Player, allocId, pushSfx } from "../core/state";
+import { type Vec, add, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
-import { FEEL, PLAYER } from "../data/tuning";
-import { cancelAttack, damageEnemy } from "./combat";
+import type { SfxName } from "../audio/sfxNames";
+import { FEEL, KEYSTONE, PLAYER } from "../data/tuning";
+import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
+import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst } from "./effects";
+import { KS, hasKeystone, payOverclock, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
+import { explodeAt } from "./statusEffects";
+import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 
 const KNOCK_DECAY = 14;
+const KNOCK_MIN = 2;
 const BULLET_COLOR = "#a0e0ff";
+const DEG_TO_RAD = Math.PI / 180;
+const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
+/** 敵弾を斬り落としたときのゲージ */
+const DEFLECT_ENERGY = 4;
+const BURST_INVULN = 0.25;
+const PACIFIST_COLOR = "#a0a0a0";
+/** ks_bladeOath の「撃てない」表示の間隔（秒）。押しっぱなしで連打表示しない */
+const BLADE_OATH_TEXT_INTERVAL = 0.6;
 
-export function createPlayer(pos: Vec): Player {
+export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_STATS): Player {
   return {
     body: { pos: { ...pos }, vel: { x: 0, y: 0 }, radius: PLAYER.radius },
-    hp: PLAYER.maxHp,
-    maxHp: PLAYER.maxHp,
+    hp: stats.maxHp,
+    maxHp: stats.maxHp,
     facing: { x: 1, y: 0 },
     dashTimer: 0,
     dashCooldown: 0,
@@ -28,7 +42,26 @@ export function createPlayer(pos: Vec): Player {
     energy: 0,
     maxEnergy: PLAYER.maxEnergy,
     walkTime: 0,
+    dashChargesLeft: stats.dashCharges,
+    triggerCooldowns: new Map(),
+    buffs: { damage: { time: 0, mul: 1 }, speed: { time: 0, mul: 1 }, invuln: 0 },
+    justTimer: 0,
+    meleeHitCount: 0,
+    regenAcc: 0,
   };
+}
+
+/**
+ * 装備変更などで stats が変わったときにプレイヤーへ反映する。
+ * maxHp が変わったら現在 HP の割合を維持する
+ */
+export function applyStats(state: GameState, stats: PlayerStats): void {
+  const p = state.player;
+  const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
+  state.stats = stats;
+  p.maxHp = stats.maxHp;
+  p.hp = Math.max(Math.min(1, p.maxHp), Math.min(p.maxHp, Math.round(p.maxHp * ratio)));
+  p.dashChargesLeft = Math.min(p.dashChargesLeft, stats.dashCharges);
 }
 
 export function isDashing(p: Player): boolean {
@@ -39,12 +72,48 @@ export function isAttacking(p: Player): boolean {
   return p.attack.phase !== "none";
 }
 
+export interface MeleeStep {
+  windup: number;
+  active: number;
+  recover: number;
+  damage: number;
+  reach: number;
+  size: number;
+  knockback: number;
+  stagger: boolean;
+}
+
+/** tuning の近接段に stats（攻撃速度・リーチ・ノックバック）を掛けたもの */
+export function meleeStep(stats: Readonly<PlayerStats>, combo: number): MeleeStep | undefined {
+  const base = PLAYER.melee[combo];
+  if (!base) return undefined;
+  const speed = stats.attackSpeedMul;
+  return {
+    windup: base.windup / speed,
+    active: base.active / speed,
+    recover: base.recover / speed,
+    damage: base.damage,
+    reach: base.reach * stats.meleeReachMul,
+    size: base.size * stats.meleeReachMul,
+    knockback: base.knockback * stats.knockbackMul,
+    stagger: base.stagger,
+  };
+}
+
+export function dashTime(stats: Readonly<PlayerStats>): number {
+  return PLAYER.dash.time * stats.dashDistanceMul;
+}
+
+export function dashCooldownTime(stats: Readonly<PlayerStats>): number {
+  return PLAYER.dash.cooldown * stats.dashCooldownMul;
+}
+
 /** カーソルがこの距離より近いと向きを更新しない（震え防止） */
 const AIM_DEADZONE = 2;
 
 export function updatePlayer(state: GameState, input: FrameInput, dt: number): void {
   const p = state.player;
-  tickTimers(p, dt);
+  tickTimers(state, dt);
   const aiming = applyAim(state, input);
 
   if (input.dashPressed) tryDash(state, input);
@@ -54,6 +123,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   updateAttack(state, dt);
   updateMovement(state, input, dt, aiming);
   if (input.shootHeld) tryShoot(state);
+  if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
 }
 
 /** マウス照準があれば向きをカーソル方向にする。照準していれば true */
@@ -68,11 +138,18 @@ function applyAim(state: GameState, input: FrameInput): boolean {
   return true;
 }
 
-function tickTimers(p: Player, dt: number): void {
-  p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+function tickTimers(state: GameState, dt: number): void {
+  const p = state.player;
+  tickDashCharges(state, dt);
   p.invulnTimer = Math.max(0, p.invulnTimer - dt);
   p.hitFlash = Math.max(0, p.hitFlash - dt);
   p.shootCooldown = Math.max(0, p.shootCooldown - dt);
+  p.justTimer = Math.max(0, p.justTimer - dt);
+  p.buffs.damage.time = Math.max(0, p.buffs.damage.time - dt);
+  p.buffs.speed.time = Math.max(0, p.buffs.speed.time - dt);
+  p.buffs.invuln = Math.max(0, p.buffs.invuln - dt);
+  tickTriggerCooldowns(state, dt);
+  tickRegen(state, dt);
   if (p.dashTimer > 0) {
     p.dashTimer = Math.max(0, p.dashTimer - dt);
     // ダッシュが終わった直後、猶予ぶんの無敵を残す
@@ -80,19 +157,58 @@ function tickTimers(p: Player, dt: number): void {
   }
 }
 
+/** チャージ制: 減っている間だけ cooldown が進み、0 になるたび 1 回復 */
+function tickDashCharges(state: GameState, dt: number): void {
+  const p = state.player;
+  const max = state.stats.dashCharges;
+  if (p.dashChargesLeft >= max) {
+    p.dashCooldown = 0;
+    return;
+  }
+  p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+  if (p.dashCooldown > 0) return;
+  p.dashChargesLeft += 1;
+  if (p.dashChargesLeft < max) p.dashCooldown = dashCooldownTime(state.stats);
+}
+
+function tickRegen(state: GameState, dt: number): void {
+  const regen = state.stats.hpRegen;
+  if (regen <= 0 || !regenAllowed(state)) return;
+  healPlayer(state, regen * dt, { silent: true });
+}
+
 function tryDash(state: GameState, input: FrameInput): void {
   const p = state.player;
-  if (p.dashCooldown > 0 || isDashing(p)) return;
-  p.dashDir = isZero(input.move) ? { ...p.facing } : { ...input.move };
+  if (p.dashChargesLeft <= 0 || isDashing(p)) return;
+  p.dashChargesLeft -= 1;
+  if (p.dashCooldown <= 0) p.dashCooldown = dashCooldownTime(state.stats);
+  p.dashDir = isZero(input.move) ? { ...p.facing } : normalize(input.move);
   p.facing = { ...p.dashDir };
-  p.dashTimer = PLAYER.dash.time;
-  p.dashCooldown = PLAYER.dash.cooldown;
-  p.invulnTimer = Math.max(p.invulnTimer, PLAYER.dash.time);
-  p.dodgedThisDash = false;
   p.knock = { x: 0, y: 0 };
   // ダッシュで攻撃をキャンセルできる（手触り重視）
   cancelAttack(state);
   spawnBurst(state, p.body.pos, "#ffffff", 6, 40, 0.2, 1.5);
+  pushSfx(state, "dash");
+
+  if (hasKeystone(state, KS.blink)) {
+    blink(state);
+  } else {
+    const time = dashTime(state.stats);
+    p.dashTimer = time;
+    p.invulnTimer = Math.max(p.invulnTimer, time);
+    p.dodgedThisDash = false;
+  }
+  fireTrigger(state, "onDash", { pos: { ...p.body.pos } });
+}
+
+/** ks_blink: ダッシュ距離ぶん一瞬で移動（壁の手前で止まる）、着地点で爆発。無敵なし */
+function blink(state: GameState): void {
+  const p = state.player;
+  const distance = PLAYER.dash.speed * dashTime(state.stats);
+  const from = { ...p.body.pos };
+  moveBody(state, p.body, p.dashDir.x * distance, p.dashDir.y * distance);
+  spawnBurst(state, from, KEYSTONE.blinkColor, 10, 60, 0.3, 2);
+  explodeAt(state, p.body.pos, KEYSTONE.blinkRadius, KEYSTONE.blinkDamage);
 }
 
 function updateMovement(state: GameState, input: FrameInput, dt: number, aiming: boolean): void {
@@ -113,15 +229,16 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       });
     }
   } else {
-    const mul = isAttacking(p) ? PLAYER.attackMoveMul : 1;
-    vel = scale(input.move, PLAYER.speed * mul);
+    const attackMul = isAttacking(p) ? PLAYER.attackMoveMul : 1;
+    const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
+    vel = scale(input.move, PLAYER.speed * state.stats.moveSpeedMul * attackMul * buffMul);
     if (!aiming && !isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
   }
 
   vel = add(vel, p.knock);
   const decay = Math.exp(-KNOCK_DECAY * dt);
   p.knock = scale(p.knock, decay);
-  if (length(p.knock) < 2) p.knock = { x: 0, y: 0 };
+  if (length(p.knock) < KNOCK_MIN) p.knock = { x: 0, y: 0 };
 
   const hit = moveBody(state, p.body, vel.x * dt, vel.y * dt);
   if (isDashing(p) && (hit.hitX || hit.hitY)) {
@@ -134,23 +251,22 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
 }
 
 function tryAttack(state: GameState): void {
+  if (hasKeystone(state, KS.pacifist)) {
+    addFloatingText(state, state.player.body.pos, "pacifist", PACIFIST_COLOR, 0.9, 0.4);
+    return;
+  }
   const a = state.player.attack;
   if (a.phase === "none") {
     startSwing(state, a.combo);
     return;
   }
-  // recover の後半なら先行入力として次段を予約
-  const step = PLAYER.melee[a.combo];
-  if (a.phase === "recover" && step && a.timer <= step.recover * (1 - PLAYER.bufferWindow)) {
-    a.buffered = true;
-  } else if (a.phase === "recover" || a.phase === "active") {
-    a.buffered = true;
-  }
+  // recover / active 中なら先行入力として次段を予約
+  if (a.phase === "recover" || a.phase === "active") a.buffered = true;
 }
 
 function startSwing(state: GameState, combo: number): void {
   const p = state.player;
-  const step = PLAYER.melee[combo];
+  const step = meleeStep(state.stats, combo);
   if (!step) return;
   p.attack.combo = combo;
   p.attack.phase = "windup";
@@ -158,13 +274,16 @@ function startSwing(state: GameState, combo: number): void {
   p.attack.buffered = false;
   p.attack.hitIds.clear();
   p.attack.dir = { ...p.facing };
+  const sfx = SLASH_SFX[combo];
+  if (sfx) pushSfx(state, sfx);
+  payOverclock(state, PLAYER.overclockHpCost);
 }
 
 function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = PLAYER.melee[a.combo];
+  const step = meleeStep(state.stats, a.combo);
   if (!step) {
     cancelAttack(state);
     return;
@@ -204,47 +323,77 @@ export function meleeBox(p: Player, reach: number, size: number): Box {
   return { x: c.x - size / 2, y: c.y - size / 2, w: size, h: size };
 }
 
-function resolveMeleeHits(state: GameState, box: Box, step: (typeof PLAYER.melee)[number]): void {
+function resolveMeleeHits(state: GameState, box: Box, step: MeleeStep): void {
   const p = state.player;
   for (const e of state.enemies) {
     if (p.attack.hitIds.has(e.id) || e.hp <= 0) continue;
     if (!boxCircleOverlap(box, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     p.attack.hitIds.add(e.id);
-    damageEnemy(state, e, step.damage, p.attack.dir, step.knockback, {
+    const out = rollOutgoing(state, e, step.damage, "melee");
+    const pos = { ...e.body.pos };
+    damageEnemy(state, e, out.amount, p.attack.dir, step.knockback, {
       stagger: step.stagger,
       hitstopSteps: step.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight,
       buildsEnergy: true,
+      kind: "melee",
+      crit: out.crit,
     });
+    p.meleeHitCount += 1;
+    fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
+    fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   }
   // 敵弾を斬り落とせる
   for (const pr of state.projectiles) {
-    if (pr.owner !== "enemy") continue;
+    if (pr.owner !== "enemy" || pr.life <= 0) continue;
     if (!boxCircleOverlap(box, pr.pos.x, pr.pos.y, pr.radius)) continue;
     pr.life = 0;
     spawnBurst(state, pr.pos, pr.color, 5, 80, 0.25, 1.5);
-    state.player.energy = Math.min(state.player.maxEnergy, state.player.energy + 4);
+    gainEnergy(state, DEFLECT_ENERGY);
   }
+}
+
+/** n 発を扇状に並べた角度オフセット（ラジアン）。1 発なら [0] */
+export function spreadOffsets(count: number): number[] {
+  const step = PLAYER.projectileSpreadDeg * DEG_TO_RAD;
+  const center = (count - 1) / 2;
+  return Array.from({ length: count }, (_, i) => (i - center) * step);
 }
 
 function tryShoot(state: GameState): void {
   const p = state.player;
   if (p.shootCooldown > 0 || isDashing(p) || isAttacking(p)) return;
-  p.shootCooldown = PLAYER.shoot.cooldown;
+  if (hasKeystone(state, KS.bladeOath)) {
+    addFloatingText(state, p.body.pos, "blade oath", PACIFIST_COLOR, 0.9, 0.4);
+    p.shootCooldown = BLADE_OATH_TEXT_INTERVAL;
+    return;
+  }
+  const s = state.stats;
+  p.shootCooldown = PLAYER.shoot.cooldown / s.fireRateMul;
   const dir = { ...p.facing };
   const muzzle = add(p.body.pos, scale(dir, p.body.radius + 2));
-  state.projectiles.push({
-    id: allocId(state),
-    owner: "player",
-    pos: muzzle,
-    vel: scale(dir, PLAYER.shoot.speed),
-    radius: PLAYER.shoot.radius,
-    damage: PLAYER.shoot.damage,
-    life: PLAYER.shoot.life,
-    color: BULLET_COLOR,
-  });
+  const baseAngle = angle(dir);
+  const speed = PLAYER.shoot.speed * s.projectileSpeedMul;
+  for (const offset of spreadOffsets(s.projectileCount)) {
+    state.projectiles.push({
+      id: allocId(state),
+      owner: "player",
+      pos: { ...muzzle },
+      vel: scale(fromAngle(baseAngle + offset), speed),
+      radius: PLAYER.shoot.radius,
+      damage: PLAYER.shoot.damage,
+      life: PLAYER.shoot.life,
+      color: BULLET_COLOR,
+      kind: "ranged",
+      hitIds: new Set(),
+      pierceLeft: s.pierce,
+    });
+  }
   p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil));
   spawnBurst(state, muzzle, BULLET_COLOR, 3, 60, 0.12, 1.5);
   shake(state, 1);
+  pushSfx(state, "shoot");
+  payOverclock(state, PLAYER.overclockHpCost);
+  fireTrigger(state, "onShoot", { pos: muzzle });
 }
 
 function trySpecial(state: GameState): void {
@@ -255,11 +404,15 @@ function trySpecial(state: GameState): void {
   }
   p.energy = 0;
   cancelAttack(state);
-  const { radius, damage, knockback } = PLAYER.special;
+  const s = state.stats;
+  const radius = PLAYER.special.radius * s.burstRadiusMul;
+  const damage = PLAYER.special.damage * s.burstDamageMul;
+  const knockback = PLAYER.special.knockback * s.knockbackMul;
   for (const e of state.enemies) {
     if (!circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     const dir = normalize(sub(e.body.pos, p.body.pos));
-    damageEnemy(state, e, damage, dir, knockback, { stagger: true, hitstopSteps: FEEL.hitstopHeavy });
+    const out = rollOutgoing(state, e, damage, "proc");
+    damageEnemy(state, e, out.amount, dir, knockback, { stagger: true, hitstopSteps: FEEL.hitstopHeavy });
   }
   for (const pr of state.projectiles) {
     if (pr.owner === "enemy" && circlesOverlap(p.body.pos.x, p.body.pos.y, radius, pr.pos.x, pr.pos.y, pr.radius)) {
@@ -272,5 +425,6 @@ function trySpecial(state: GameState): void {
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeSpecial);
   state.flash = Math.max(state.flash, 0.5);
-  p.invulnTimer = Math.max(p.invulnTimer, 0.25);
+  p.invulnTimer = Math.max(p.invulnTimer, BURST_INVULN);
+  pushSfx(state, "burst");
 }

@@ -42,6 +42,78 @@ export const PLAYER = {
   maxEnergy: 100,
   /** 近接ヒット 1 回あたりの必殺ゲージ */
   energyPerHit: 12,
+  /** 複数弾の扇の間隔（度） */
+  projectileSpreadDeg: 8,
+  /** クリティカル時に足すヒットストップ（ステップ） */
+  critHitstopBonus: 1,
+  critTextScale: 1.6,
+  critColor: "#ffe040",
+  /** ks_overclock: 1 振り / 1 射撃ごとの HP コスト */
+  overclockHpCost: 1,
+} as const;
+
+/** 状態異常 */
+export const STATUS = {
+  burnDuration: 3,
+  /** burn の炎粒子を出す間隔（ステップ） */
+  burnParticleInterval: 6,
+  burnColor: "#ff8030",
+  chillColor: "#80c8ff",
+  chillDuration: 2,
+  /** 付与する slow の上限（止まりきらないように） */
+  maxSlow: 0.8,
+  shockRadius: 60,
+  shockMaxTargets: 3,
+  shockColor: "#c0e0ff",
+  explodeRadius: 40,
+  explodeColor: "#ffb040",
+  explodeKnockback: 200,
+  fxLife: 0.25,
+} as const;
+
+/** トリガー効果 */
+export const TRIGGER = {
+  /** 同じトリガー定義の内部クールダウン（秒） */
+  icd: 0.4,
+  shockwaveRadius: 50,
+  shockwaveKnockback: 260,
+  shockwaveColor: "#ffffff",
+  nearbyRadius: 60,
+  bulletSpeed: 240,
+  bulletLife: 0.7,
+  bulletColor: "#ffe080",
+  comboThreshold: 10,
+  /** バフの magnitude は % で入っている */
+  percent: 100,
+  /** duration が無い効果の既定持続秒 */
+  defaultDuration: 3,
+} as const;
+
+/** キーストーンの数値 */
+export const KEYSTONE = {
+  blinkRadius: 40,
+  blinkDamage: 20,
+  blinkColor: "#c080ff",
+  gamblerMin: 0.2,
+  gamblerMax: 3,
+  berserkerHealMul: 0.5,
+} as const;
+
+/** 装備ドロップ */
+export const LOOT_DROP = {
+  depthChanceBonus: 0.005,
+  /** itemLevel = depth + rng(0..spread) */
+  itemLevelSpread: 2,
+  rarityBoostPerDepth: 0.02,
+  roomClearRarityBoost: 0.3,
+  depthArrivalRarityBoost: 0.15,
+  /** 撃破位置から弾ける距離（px） */
+  scatter: 10,
+  pickupRadius: 8,
+  /** 落ちてから拾えるようになるまで（秒） */
+  pickupDelay: 0.3,
+  /** 階層到達時にプレイヤーから離して置く距離 */
+  arrivalOffset: 18,
 } as const;
 
 export const FEEL = {

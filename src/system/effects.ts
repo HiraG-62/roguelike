@@ -80,7 +80,20 @@ export function hitstop(state: GameState, steps: number): void {
   state.hitstop = Math.max(state.hitstop, steps);
 }
 
+/** 広がるリング（衝撃波・爆発） */
+export function spawnRing(state: GameState, pos: Vec, radius: number, color: string, life: number): void {
+  state.shapes.push({ kind: "ring", pos: { ...pos }, to: { ...pos }, radius, life, maxLife: life, color });
+}
+
+/** 2 点を結ぶ稲妻線 */
+export function spawnLine(state: GameState, from: Vec, to: Vec, color: string, life: number): void {
+  state.shapes.push({ kind: "line", pos: { ...from }, to: { ...to }, radius: 0, life, maxLife: life, color });
+}
+
 export function updateEffects(state: GameState, dt: number): void {
+  for (const s of state.shapes) s.life -= dt;
+  state.shapes = state.shapes.filter((s) => s.life > 0);
+
   for (const p of state.particles) {
     p.life -= dt;
     p.pos.x += p.vel.x * dt;

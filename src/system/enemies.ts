@@ -1,10 +1,11 @@
-import { type Enemy, type GameState, allocId } from "../core/state";
+import { type Enemy, type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
 import { FEEL } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { circlesOverlap, moveBody } from "./physics";
+import { chillFactor, createEnemyEffects } from "./statusEffects";
 
 const KNOCK_DECAY = 12;
 /** 通路からでも気付く距離 */
@@ -18,6 +19,7 @@ const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
 const ENEMY_BULLET_COLOR = "#e070ff";
+const ENEMY_BULLET_LIFE = 3;
 
 export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex: number, spawning: boolean): Enemy {
   const hp = Math.round(def.hp * depthHpScale(state.depth));
@@ -36,6 +38,7 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     hitFlash: 0,
     knock: { x: 0, y: 0 },
     animTime: state.rng.next() * 2,
+    effects: createEnemyEffects(),
   };
 }
 
@@ -44,9 +47,11 @@ export function updateEnemies(state: GameState, dt: number): void {
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
     const def = enemyDef(e.defKey);
+    // chill 中は移動も攻撃の進行も遅くなる
+    const edt = dt * chillFactor(e);
     e.hitFlash = Math.max(0, e.hitFlash - dt);
-    e.animTime += dt;
-    e.attackCooldown = Math.max(0, e.attackCooldown - dt);
+    e.animTime += edt;
+    e.attackCooldown = Math.max(0, e.attackCooldown - edt);
 
     applyKnock(state, e, dt);
 
@@ -55,25 +60,25 @@ export function updateEnemies(state: GameState, dt: number): void {
 
     switch (e.phase) {
       case "spawning":
-        e.phaseTimer -= dt;
+        e.phaseTimer -= edt;
         if (e.phaseTimer <= 0) e.phase = "chase";
         break;
       case "idle":
         if (d < NOTICE_RANGE || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
         break;
       case "chase":
-        chase(state, e, def, toPlayer, d, dt);
+        chase(state, e, def, toPlayer, d, edt);
         break;
       case "windup":
-        e.phaseTimer -= dt;
+        e.phaseTimer -= edt;
         if (e.phaseTimer <= 0) beginStrike(state, e, def, toPlayer);
         break;
       case "strike":
-        strike(state, e, def, dt);
+        strike(state, e, def, edt);
         break;
       case "recover":
       case "stagger":
-        e.phaseTimer -= dt;
+        e.phaseTimer -= edt;
         if (e.phaseTimer <= 0) {
           e.phase = "chase";
           e.attackCooldown = def.attackInterval;
@@ -116,6 +121,7 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
     e.phase = "windup";
     e.phaseTimer = def.windup;
     e.strikeDir = dir;
+    pushSfx(state, "enemyWindup");
   }
 }
 
@@ -146,6 +152,7 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
         e.phaseTimer = 0.9;
         shake(state, FEEL.shakeHeavy);
         spawnBurst(state, e.body.pos, "#c0c0c0", 12, 120, 0.4, 2);
+        pushSfx(state, "wallHit");
         return;
       }
       endStrike(e, def);
@@ -154,7 +161,7 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
     if (def.contactDamage > 0) {
       const p = state.player.body;
       if (circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) {
-        const result = damagePlayer(state, def.contactDamage + depthDamageBonus(state.depth), e.body.pos);
+        const result = damagePlayer(state, def.contactDamage + depthDamageBonus(state.depth), e.body.pos, e);
         if (result !== "ignored") {
           endStrike(e, def);
           return;
@@ -179,9 +186,14 @@ function fireAtPlayer(state: GameState, e: Enemy): void {
     vel: scale(dir, ENEMY_BULLET_SPEED),
     radius: 3,
     damage: ENEMY_BULLET_DAMAGE + depthDamageBonus(state.depth),
-    life: 3,
+    life: ENEMY_BULLET_LIFE,
     color: ENEMY_BULLET_COLOR,
+    kind: "proc",
+    hitIds: new Set(),
+    pierceLeft: 0,
+    sourceId: e.id,
   });
+  pushSfx(state, "enemyShoot");
 }
 
 /** 敵同士が重ならないよう軽く押し合う */

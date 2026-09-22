@@ -2,6 +2,7 @@ import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
 import type { FloorItem, PlayerStats, Profile } from "../loot/types";
+import type { SfxName } from "../audio/sfxNames";
 
 export type GameStatus = "playing" | "dead";
 
@@ -45,6 +46,29 @@ export interface Player {
   maxEnergy: number;
   /** 歩行アニメ用 */
   walkTime: number;
+  /** 残りダッシュ回数。dashCooldown が 0 になるたびに 1 回復する */
+  dashChargesLeft: number;
+  /** トリガー定義の index → 内部クールダウン残り秒 */
+  triggerCooldowns: Map<number, number>;
+  buffs: PlayerBuffs;
+  /** JUST 回避後のダメージ倍率が有効な残り秒 */
+  justTimer: number;
+  /** 近接ヒットの通算数（everyNthMeleeHit 用） */
+  meleeHitCount: number;
+  /** hpRegen の端数 */
+  regenAcc: number;
+}
+
+export interface TimedMul {
+  time: number;
+  mul: number;
+}
+
+export interface PlayerBuffs {
+  damage: TimedMul;
+  speed: TimedMul;
+  /** 残り無敵秒 */
+  invuln: number;
 }
 
 export type EnemyPhase = "idle" | "chase" | "windup" | "strike" | "recover" | "stagger" | "spawning";
@@ -65,7 +89,29 @@ export interface Enemy {
   /** ノックバック速度。減衰する */
   knock: Vec;
   animTime: number;
+  effects: EnemyEffects;
 }
+
+export interface BurnEffect {
+  time: number;
+  dps: number;
+  /** 1 未満の端数ダメージ */
+  acc: number;
+}
+
+export interface ChillEffect {
+  time: number;
+  /** 0..1。移動と phaseTimer の進行がこの割合だけ遅くなる */
+  slow: number;
+}
+
+export interface EnemyEffects {
+  burn: BurnEffect;
+  chill: ChillEffect;
+}
+
+/** ダメージの出どころ。melee / ranged だけが on-hit 効果とトリガーを起こす */
+export type DamageKind = "melee" | "ranged" | "proc";
 
 export interface Projectile {
   id: number;
@@ -75,6 +121,24 @@ export interface Projectile {
   radius: number;
   damage: number;
   life: number;
+  color: string;
+  kind: DamageKind;
+  /** 既に当てた敵（貫通用） */
+  hitIds: Set<number>;
+  pierceLeft: number;
+  /** 撃った敵の id（thorns 用）。プレイヤー弾は undefined */
+  sourceId?: number;
+}
+
+/** リング（衝撃波）と線（連鎖雷）の演出 */
+export interface ShapeFx {
+  kind: "ring" | "line";
+  pos: Vec;
+  /** line の終点 */
+  to: Vec;
+  radius: number;
+  life: number;
+  maxLife: number;
   color: string;
 }
 
@@ -178,10 +242,21 @@ export interface GameState {
   floorItems: FloorItem[];
   /** 装備画面などで一時停止中 */
   paused: boolean;
+  /** 今フレームに鳴らす効果音。main.ts が毎フレーム drain する */
+  sfx: SfxName[];
+  shapes: ShapeFx[];
+  /** 死亡時の recordRun を 1 回だけにする */
+  runRecorded: boolean;
 }
 
 export function allocId(state: GameState): number {
   return state.nextId++;
+}
+
+/** 同じフレームに同じ音を重ねない */
+export function pushSfx(state: GameState, name: SfxName): void {
+  if (state.sfx.includes(name)) return;
+  state.sfx.push(name);
 }
 
 export function pushLog(state: GameState, text: string, color = "#c0c0c0"): void {
