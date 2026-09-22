@@ -69,6 +69,7 @@ export function announceBoss(state: GameState): void {
   state.flash = Math.max(state.flash, PHASE_FLASH);
   pushSfx(state, "roomLock");
   pushSfx(state, "enemyWindup");
+  pushSfx(state, "bossAppear");
   pushLog(state, `${b.name} appears!`, BOSS_TEXT_COLOR);
 }
 
@@ -123,6 +124,7 @@ function phaseShift(state: GameState, e: Enemy, text: string, color: string): vo
   addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, text, color, 1.6, 1.2);
   spawnBurst(state, e.body.pos, color, 30, 180, 0.6, 2.5);
   pushSfx(state, "enemyWindup");
+  pushSfx(state, "bossPhaseChange");
 }
 
 // -----------------------------------------------------------------------------
@@ -380,6 +382,7 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 20 }, `${b.name} DEFEATED`, DEFEAT_TEXT_COLOR, 1.8, 2);
   pushLog(state, `${b.name} has fallen. The stairs appear.`, DEFEAT_TEXT_COLOR);
   pushSfx(state, "lootRare");
+  pushSfx(state, "bossDefeat");
   for (let i = 0; i < BOSS.rareDrops; i++) dropRareItem(state, e.body.pos, i);
 }
 

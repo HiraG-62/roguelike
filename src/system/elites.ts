@@ -171,6 +171,7 @@ function showGuardBreak(state: GameState, e: Enemy): void {
   addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8);
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, GUARD_BREAK_PARTICLES, 130, 0.35, 2);
   pushSfx(state, "hitHeavy");
+  pushSfx(state, "guardBreak");
   if (e.hp <= 0 || e.phase === "spawning") return;
   e.phase = "stagger";
   e.phaseTimer = ENEMY_AI.knight.guardBreakStagger;
@@ -233,6 +234,7 @@ export function onEliteDeath(state: GameState, e: Enemy): void {
   // 通常ドロップ 1 回ぶんは killEnemy で済んでいるので残り (dropMul - 1) 倍ぶんを追加で抽選する
   const extra = Math.min(1, enemyDropChance(state, e) * (ELITE.dropMul - 1));
   if (state.rng.chance(extra)) dropItem(state, e.body.pos);
+  pushSfx(state, "eliteKill");
   if (e.elite === "explosive") {
     spawnBomb(state, e.body.pos, ELITE.explodeDamage, e.id, ELITE.explodeFuse, ELITE.explodeRadius);
   }

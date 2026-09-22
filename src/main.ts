@@ -320,24 +320,31 @@ startLoop(
           break;
         }
         if (hotkeys.n) {
+          sfx.play("uiClick");
           startSeedInput(seedInput);
           break;
         }
         if (hotkeys.h) {
+          sfx.play("uiClick");
           openHistory();
           break;
         }
         if (hotkeys.d) {
+          sfx.play("uiClick");
           beginRun(dailySeedText(new Date()));
           break;
         }
         if (hotkeys.o) {
+          sfx.play("uiClick");
           returnScreen = "title";
           settingsCursor = 0;
           enterMenu("settings", frame.move.x, frame.move.y);
           break;
         }
-        if (frame.confirmPressed || frame.clickPressed) beginRun(committedSeedText);
+        if (frame.confirmPressed || frame.clickPressed) {
+          sfx.play("uiClick");
+          beginRun(committedSeedText);
+        }
         break;
       }
 
@@ -351,10 +358,12 @@ startLoop(
         if (navY !== 0) {
           historyCursor = moveHistoryCursor(historyCursor, navY, history.length);
           historyMessage = "";
+          sfx.play("menuMove");
         }
         const entry = history[historyCursor];
         if (!entry) break;
         if (hotkeys.s) {
+          sfx.play("uiClick");
           beginRun(entry.seedText);
           break;
         }
@@ -362,6 +371,7 @@ startLoop(
           const data = findReplayForEntry(replays, entry);
           if (data) startReplay(data);
           else historyMessage = NO_REPLAY_MESSAGE;
+          sfx.play("uiClick");
         }
         break;
       }
@@ -394,7 +404,10 @@ startLoop(
           applySettings();
         }
         const navY = edgeDir(menuNav.prevY, frame.move.y);
-        if (navY !== 0) settingsCursor = cycleIndex(settingsCursor, navY, SETTINGS_ITEMS.length);
+        if (navY !== 0) {
+          settingsCursor = cycleIndex(settingsCursor, navY, SETTINGS_ITEMS.length);
+          sfx.play("menuMove");
+        }
         const navX = edgeDir(menuNav.prevX, frame.move.x);
         if (navX !== 0) {
           const item = SETTINGS_ITEMS[settingsCursor];
@@ -408,6 +421,7 @@ startLoop(
             adjustScreenShake(settings, navX);
             saveSettings(settings);
           }
+          sfx.play("uiClick");
         }
         menuNav.prevX = frame.move.x;
         menuNav.prevY = frame.move.y;
@@ -426,10 +440,14 @@ startLoop(
           break;
         }
         const navY = edgeDir(menuNav.prevY, frame.move.y);
-        if (navY !== 0) pauseCursor = cycleIndex(pauseCursor, navY, PAUSE_MENU_ITEMS.length);
+        if (navY !== 0) {
+          pauseCursor = cycleIndex(pauseCursor, navY, PAUSE_MENU_ITEMS.length);
+          sfx.play("menuMove");
+        }
         menuNav.prevX = frame.move.x;
         menuNav.prevY = frame.move.y;
         if (frame.confirmPressed) {
+          sfx.play("uiClick");
           const item = PAUSE_MENU_ITEMS[pauseCursor];
           if (item === "resume") {
             screen = "playing";

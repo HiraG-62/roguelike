@@ -1,5 +1,6 @@
-import type { GameState } from "../core/state";
+import { type GameState, pushSfx } from "../core/state";
 import type { FrameInput } from "../core/input";
+import type { SfxName } from "../audio/sfxNames";
 import { VIEW_H, VIEW_W } from "../core/view";
 import {
   CRAFT_OPS,
@@ -65,6 +66,15 @@ export const SKILL_SLOT_GAP = 4;
 
 /** メッセージ（"Equipped: xxx" 等）の表示秒数 */
 const MESSAGE_DURATION = 1.5;
+
+/** クラフト操作ごとの効果音 */
+const CRAFT_SFX: Record<CraftOp, SfxName> = {
+  reforge: "craftReforge",
+  augment: "craftAugment",
+  annul: "craftAnnul",
+  corrupt: "craftCorrupt",
+  fuse: "craftFuse",
+};
 
 export interface Rect {
   x: number;
@@ -339,13 +349,17 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   if (row) {
     const stoneId = row.stone.id;
     if (input.shiftHeld) {
-      if (salvageStone(profile, stoneId)) showMessage(ui, "Salvaged skill stone");
+      if (salvageStone(profile, stoneId)) {
+        showMessage(ui, "Salvaged skill stone");
+        pushSfx(state, "dismantle");
+      }
     } else {
       const empty = profile.loadout.indexOf(null);
       const target = empty >= 0 ? empty : ui.skillSlot;
       equipStone(profile, stoneId, target);
       ui.skillSlot = target;
       showMessage(ui, `Skill ${target + 1} set`);
+      pushSfx(state, "equipOn");
     }
     saveSkillProfile(profile);
     return;
@@ -356,6 +370,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   unequipSlot(profile, slot.index);
   saveSkillProfile(profile);
   showMessage(ui, `Skill ${slot.index + 1} cleared`);
+  pushSfx(state, "equipOff");
 }
 
 export function updateInventoryUi(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
@@ -402,6 +417,7 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     equipItem(state.profile, hoveredRow.item.id);
     applyEquipmentChange(state);
     showMessage(ui, `Equipped: ${name}`);
+    pushSfx(state, "equipOn");
     return;
   }
 
@@ -410,6 +426,7 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     unequipItem(state.profile, hoveredSlot.slot);
     applyEquipmentChange(state);
     showMessage(ui, `Unequipped: ${name}`);
+    pushSfx(state, "equipOff");
   }
 }
 
@@ -425,6 +442,7 @@ function salvageForCurrency(state: GameState, ui: InventoryUi, item: Item): void
   saveCraft(ui.craft.save);
   if (ui.craft.selectedId === item.id) ui.craft.selectedId = null;
   showMessage(ui, `Salvaged: ${item.name} (+1 ${currency})`);
+  pushSfx(state, "dismantle");
 }
 
 /** クラフトタブのレイアウト（状態に依存しない） */
@@ -465,6 +483,7 @@ function runCraft(state: GameState, ui: InventoryUi, op: CraftOp, item: Item, pa
   ui.craft.selectedId = result.item.id;
   saveProfile(state.profile);
   saveCraft(ui.craft.save);
+  pushSfx(state, CRAFT_SFX[op]);
 }
 
 /** Fuse ボタン: 実行可能なら 2 つ目の選択待ちに入る（もう一度押すと取り消し） */

@@ -16,6 +16,8 @@ const FULL_CIRCLE = Math.PI * 2;
 const WARN_TEXT = "THE REAPER COMES";
 const SPAWN_PARTICLES = 30;
 const TRAIL_INTERVAL = 5;
+/** 警告中のパルス音の間隔（tick）。60fps 想定でおよそ 1.5 秒ごと */
+const WARN_PULSE_INTERVAL_TICKS = 90;
 
 /** 出現猶予の計算から除外する部屋種別（探索コストが低い部屋） */
 const GRACE_EXCLUDED_KINDS = new Set<RoomKind>(["treasure", "shrine"]);
@@ -40,6 +42,7 @@ export function updateReaper(state: GameState, dt: number): void {
   if (state.status !== "playing") return;
   state.floorTime += dt;
   if (!state.reaper) {
+    if (reaperWarning(state) && state.tick % WARN_PULSE_INTERVAL_TICKS === 0) pushSfx(state, "reaperWarnPulse");
     if (state.floorTime >= reaperAppearAfter(state)) spawnReaper(state);
     return;
   }
@@ -67,6 +70,7 @@ function spawnReaper(state: GameState): void {
   pushLog(state, "You lingered too long. The Reaper comes.", REAPER.color);
   shake(state, 4);
   pushSfx(state, "enemyWindup");
+  pushSfx(state, "reaperAppear");
 }
 
 /** プレイヤーから一定距離の点（マップ内に収める） */

@@ -245,6 +245,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void 
     e.ai.target = laserEnd(state, e.body.pos, dir, ENEMY_AI.laser.length);
   }
   pushSfx(state, "enemyWindup");
+  if (def.behavior === "laser") pushSfx(state, "laserCharge");
 }
 
 function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
@@ -280,6 +281,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
       spawnLaser(state, e.body.pos, target, def.strikeTime, l.damage + dmgBonus, e.id);
       shake(state, FEEL.shakeLight);
       pushSfx(state, "enemyShoot");
+      pushSfx(state, "laserFire");
       return;
     }
     case "golem": {

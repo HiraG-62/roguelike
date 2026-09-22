@@ -208,6 +208,72 @@ const TUNING = {
   counter: { freq: 95, duration: 0.18, noiseFreqFrom: 3200, noiseFreqTo: 400, noiseDuration: 0.16, ringFreq: 2400, ringDuration: 0.1 },
   reflect: { freqFrom: 900, freqTo: 2600, duration: 0.09, noiseFreqFrom: 6000, noiseFreqTo: 2500, noiseDuration: 0.06 },
   lastKill: { lowFreq: 60, lowDuration: 0.6, noiseFreqFrom: 2400, noiseFreqTo: 120, noiseDuration: 0.5, ringFreq: 1600, ringDuration: 0.4 },
+  bossAppear: { lowFreq: 50, lowDuration: 0.7, riseFreqFrom: 100, riseFreqTo: 800, riseDuration: 0.6 },
+  bossDefeat: {
+    tones: [523.25, 659.25, 783.99, 1046.5, 1318.5] as const,
+    noteDuration: 0.15,
+    gap: 0.05,
+    noiseFreqFrom: 1800,
+    noiseFreqTo: 80,
+    noiseDuration: 0.7,
+    lowFreq: 50,
+    lowDuration: 0.8,
+  },
+  bossPhaseChange: {
+    tones: [660, 831, 990] as const,
+    noteDuration: 0.12,
+    gap: 0.01,
+    noiseFreqFrom: 3000,
+    noiseFreqTo: 1200,
+    noiseDuration: 0.15,
+  },
+  boonOffer: { tones: [440, 554.37, 659.25] as const, noteDuration: 0.18, gap: 0.02 },
+  boonSelect: { tones: [784, 987.77, 1174.66] as const, noteDuration: 0.05, gap: 0.015 },
+  boonSelectCursed: { freqFrom: 400, freqTo: 90, duration: 0.35, noiseFreqFrom: 1200, noiseFreqTo: 200, noiseDuration: 0.3 },
+  guardBreak: {
+    noiseFreqFrom: 8000,
+    noiseFreqTo: 2000,
+    noiseDuration: 0.18,
+    tones: [3200, 4200, 5200] as const,
+    noteDuration: 0.03,
+    gap: 0.01,
+  },
+  reaperWarnPulse: { freq: 70, duration: 0.25, detuneFreq: 74, noiseFreqFrom: 500, noiseFreqTo: 150, noiseDuration: 0.2 },
+  reaperAppear: { noiseFreqFrom: 700, noiseFreqTo: 60, noiseDuration: 0.8, lowFreqFrom: 140, lowFreqTo: 40, lowDuration: 0.9 },
+  treasureOpen: { tones: [1046.5, 1318.5, 1568, 1864.66, 2093] as const, noteDuration: 0.05, gap: 0.015 },
+  waveStart: { pulseFreq: 130, pulseDuration: 0.12, riseFreqFrom: 300, riseFreqTo: 900, riseDuration: 0.2 },
+  fountainHeal: {
+    tones: [523.25, 659.25, 783.99, 987.77] as const,
+    noteDuration: 0.09,
+    gap: 0.03,
+    noiseFreqFrom: 2000,
+    noiseFreqTo: 800,
+    noiseDuration: 0.15,
+  },
+  ambush: { noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2, lowFreq: 90, lowDuration: 0.25 },
+  eliteKill: {
+    tones: [440, 660, 880, 1108.73] as const,
+    noteDuration: 0.06,
+    gap: 0.02,
+    noiseFreqFrom: 3500,
+    noiseFreqTo: 150,
+    noiseDuration: 0.3,
+    lowFreq: 70,
+    lowDuration: 0.35,
+  },
+  bombFuse: { noiseFreqFrom: 5000, noiseFreqTo: 2500, noiseDuration: 0.08 },
+  laserCharge: { freqFrom: 200, freqTo: 1400, duration: 0.35 },
+  laserFire: { freqFrom: 1800, freqTo: 200, duration: 0.18, noiseFreqFrom: 6000, noiseFreqTo: 1000, noiseDuration: 0.12 },
+  shockwave: { lowFreq: 65, lowDuration: 0.4, noiseFreqFrom: 1200, noiseFreqTo: 100, noiseDuration: 0.35 },
+  craftReforge: { noiseFreqFrom: 2500, noiseFreqTo: 700, noiseDuration: 0.12, freqFrom: 500, freqTo: 850, duration: 0.1 },
+  craftAugment: { tones: [660, 880, 1100] as const, noteDuration: 0.05, gap: 0.015 },
+  craftAnnul: { freqFrom: 700, freqTo: 250, duration: 0.18 },
+  craftCorrupt: { freqFrom: 220, freqTo: 90, duration: 0.3, noiseFreqFrom: 1500, noiseFreqTo: 300, noiseDuration: 0.25 },
+  craftFuse: { toneA: 440, toneB: 660, toneDuration: 0.15, mergeFreq: 550, mergeDuration: 0.14, mergeDelay: 0.08 },
+  equipOn: { freq: 700, duration: 0.05, noiseFreqFrom: 1200, noiseFreqTo: 400, noiseDuration: 0.04 },
+  equipOff: { freqFrom: 700, freqTo: 350, duration: 0.05 },
+  dismantle: { noiseFreqFrom: 2500, noiseFreqTo: 200, noiseDuration: 0.15, lowFreq: 100, lowDuration: 0.12 },
+  menuMove: { freq: 900, duration: 0.015 },
 } as const;
 
 // ---- 各効果音の定義 -------------------------------------------------------
@@ -711,6 +777,386 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
     });
     return Math.max(boom, wash, ring);
   },
+
+  bossAppear: (ctx, dest, opts) => {
+    const boom = tone(ctx, dest, opts, { type: "sine", freq: TUNING.bossAppear.lowFreq, duration: TUNING.bossAppear.lowDuration, peak: 0.9 });
+    const rise = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.bossAppear.riseFreqFrom,
+      freqTo: TUNING.bossAppear.riseFreqTo,
+      duration: TUNING.bossAppear.riseDuration,
+      peak: 0.55,
+    });
+    return Math.max(boom, rise);
+  },
+
+  bossDefeat: (ctx, dest, opts) => {
+    const arp = arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.bossDefeat.tones,
+      noteDuration: TUNING.bossDefeat.noteDuration,
+      gap: TUNING.bossDefeat.gap,
+      peak: 0.7,
+    });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.bossDefeat.noiseFreqFrom,
+      freqTo: TUNING.bossDefeat.noiseFreqTo,
+      duration: TUNING.bossDefeat.noiseDuration,
+      peak: 0.9,
+    });
+    const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.bossDefeat.lowFreq, duration: TUNING.bossDefeat.lowDuration, peak: 0.85 });
+    return Math.max(arp, noise, low);
+  },
+
+  bossPhaseChange: (ctx, dest, opts) => {
+    const chord = arpeggio(ctx, dest, opts, {
+      type: "sawtooth",
+      freqs: TUNING.bossPhaseChange.tones,
+      noteDuration: TUNING.bossPhaseChange.noteDuration,
+      gap: TUNING.bossPhaseChange.gap,
+      peak: 0.5,
+    });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.bossPhaseChange.noiseFreqFrom,
+      freqTo: TUNING.bossPhaseChange.noiseFreqTo,
+      duration: TUNING.bossPhaseChange.noiseDuration,
+      peak: 0.5,
+    });
+    return Math.max(chord, noise);
+  },
+
+  boonOffer: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "sine",
+      freqs: TUNING.boonOffer.tones,
+      noteDuration: TUNING.boonOffer.noteDuration,
+      gap: TUNING.boonOffer.gap,
+      peak: 0.4,
+    }),
+
+  boonSelect: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.boonSelect.tones,
+      noteDuration: TUNING.boonSelect.noteDuration,
+      gap: TUNING.boonSelect.gap,
+      peak: 0.6,
+    }),
+
+  boonSelectCursed: (ctx, dest, opts) => {
+    const sweep = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.boonSelectCursed.freqFrom,
+      freqTo: TUNING.boonSelectCursed.freqTo,
+      duration: TUNING.boonSelectCursed.duration,
+      peak: 0.55,
+    });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.boonSelectCursed.noiseFreqFrom,
+      freqTo: TUNING.boonSelectCursed.noiseFreqTo,
+      duration: TUNING.boonSelectCursed.noiseDuration,
+      peak: 0.4,
+    });
+    return Math.max(sweep, noise);
+  },
+
+  guardBreak: (ctx, dest, opts) => {
+    const crack = noiseBurst(ctx, dest, opts, {
+      filterType: "highpass",
+      freqFrom: TUNING.guardBreak.noiseFreqFrom,
+      freqTo: TUNING.guardBreak.noiseFreqTo,
+      duration: TUNING.guardBreak.noiseDuration,
+      peak: 0.85,
+    });
+    const shards = arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.guardBreak.tones,
+      noteDuration: TUNING.guardBreak.noteDuration,
+      gap: TUNING.guardBreak.gap,
+      peak: 0.3,
+    });
+    return Math.max(crack, shards);
+  },
+
+  reaperWarnPulse: (ctx, dest, opts) => {
+    const now = ctx.currentTime;
+    const low = tone(ctx, dest, opts, {
+      type: "sine",
+      freq: TUNING.reaperWarnPulse.freq,
+      duration: TUNING.reaperWarnPulse.duration,
+      peak: 0.5,
+    });
+    const detuned = tone(ctx, dest, opts, {
+      type: "sawtooth",
+      freq: TUNING.reaperWarnPulse.detuneFreq,
+      duration: TUNING.reaperWarnPulse.duration,
+      peak: 0.25,
+      startAt: now,
+    });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.reaperWarnPulse.noiseFreqFrom,
+      freqTo: TUNING.reaperWarnPulse.noiseFreqTo,
+      duration: TUNING.reaperWarnPulse.noiseDuration,
+      peak: 0.3,
+    });
+    return Math.max(low, detuned, noise);
+  },
+
+  reaperAppear: (ctx, dest, opts) => {
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.reaperAppear.noiseFreqFrom,
+      freqTo: TUNING.reaperAppear.noiseFreqTo,
+      duration: TUNING.reaperAppear.noiseDuration,
+      peak: 0.8,
+    });
+    const growl = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.reaperAppear.lowFreqFrom,
+      freqTo: TUNING.reaperAppear.lowFreqTo,
+      duration: TUNING.reaperAppear.lowDuration,
+      peak: 0.7,
+    });
+    return Math.max(noise, growl);
+  },
+
+  treasureOpen: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.treasureOpen.tones,
+      noteDuration: TUNING.treasureOpen.noteDuration,
+      gap: TUNING.treasureOpen.gap,
+      peak: 0.55,
+    }),
+
+  waveStart: (ctx, dest, opts) => {
+    const pulse = tone(ctx, dest, opts, { type: "square", freq: TUNING.waveStart.pulseFreq, duration: TUNING.waveStart.pulseDuration, peak: 0.7 });
+    const rise = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.waveStart.riseFreqFrom,
+      freqTo: TUNING.waveStart.riseFreqTo,
+      duration: TUNING.waveStart.riseDuration,
+      peak: 0.5,
+    });
+    return Math.max(pulse, rise);
+  },
+
+  fountainHeal: (ctx, dest, opts) => {
+    const arp = arpeggio(ctx, dest, opts, {
+      type: "sine",
+      freqs: TUNING.fountainHeal.tones,
+      noteDuration: TUNING.fountainHeal.noteDuration,
+      gap: TUNING.fountainHeal.gap,
+      peak: 0.5,
+    });
+    const splash = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.fountainHeal.noiseFreqFrom,
+      freqTo: TUNING.fountainHeal.noiseFreqTo,
+      duration: TUNING.fountainHeal.noiseDuration,
+      peak: 0.3,
+    });
+    return Math.max(arp, splash);
+  },
+
+  ambush: (ctx, dest, opts) => {
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.ambush.noiseFreqFrom,
+      freqTo: TUNING.ambush.noiseFreqTo,
+      duration: TUNING.ambush.noiseDuration,
+      peak: 0.7,
+    });
+    const stab = tone(ctx, dest, opts, { type: "square", freq: TUNING.ambush.lowFreq, duration: TUNING.ambush.lowDuration, peak: 0.75 });
+    return Math.max(noise, stab);
+  },
+
+  eliteKill: (ctx, dest, opts) => {
+    const arp = arpeggio(ctx, dest, opts, {
+      type: "square",
+      freqs: TUNING.eliteKill.tones,
+      noteDuration: TUNING.eliteKill.noteDuration,
+      gap: TUNING.eliteKill.gap,
+      peak: 0.6,
+    });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.eliteKill.noiseFreqFrom,
+      freqTo: TUNING.eliteKill.noiseFreqTo,
+      duration: TUNING.eliteKill.noiseDuration,
+      peak: 0.7,
+    });
+    const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.eliteKill.lowFreq, duration: TUNING.eliteKill.lowDuration, peak: 0.6 });
+    return Math.max(arp, noise, low);
+  },
+
+  bombFuse: (ctx, dest, opts) =>
+    noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.bombFuse.noiseFreqFrom,
+      freqTo: TUNING.bombFuse.noiseFreqTo,
+      duration: TUNING.bombFuse.noiseDuration,
+      q: 3,
+      peak: 0.35,
+    }),
+
+  laserCharge: (ctx, dest, opts) =>
+    toneSweep(ctx, dest, opts, {
+      type: "sine",
+      freqFrom: TUNING.laserCharge.freqFrom,
+      freqTo: TUNING.laserCharge.freqTo,
+      duration: TUNING.laserCharge.duration,
+      peak: 0.45,
+    }),
+
+  laserFire: (ctx, dest, opts) => {
+    const sweep = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.laserFire.freqFrom,
+      freqTo: TUNING.laserFire.freqTo,
+      duration: TUNING.laserFire.duration,
+      peak: 0.6,
+    });
+    const crack = noiseBurst(ctx, dest, opts, {
+      filterType: "highpass",
+      freqFrom: TUNING.laserFire.noiseFreqFrom,
+      freqTo: TUNING.laserFire.noiseFreqTo,
+      duration: TUNING.laserFire.noiseDuration,
+      peak: 0.5,
+    });
+    return Math.max(sweep, crack);
+  },
+
+  shockwave: (ctx, dest, opts) => {
+    const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.shockwave.lowFreq, duration: TUNING.shockwave.lowDuration, peak: 0.7 });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.shockwave.noiseFreqFrom,
+      freqTo: TUNING.shockwave.noiseFreqTo,
+      duration: TUNING.shockwave.noiseDuration,
+      peak: 0.6,
+    });
+    return Math.max(low, noise);
+  },
+
+  craftReforge: (ctx, dest, opts) => {
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.craftReforge.noiseFreqFrom,
+      freqTo: TUNING.craftReforge.noiseFreqTo,
+      duration: TUNING.craftReforge.noiseDuration,
+      peak: 0.5,
+    });
+    const sweep = toneSweep(ctx, dest, opts, {
+      type: "triangle",
+      freqFrom: TUNING.craftReforge.freqFrom,
+      freqTo: TUNING.craftReforge.freqTo,
+      duration: TUNING.craftReforge.duration,
+      peak: 0.5,
+    });
+    return Math.max(noise, sweep);
+  },
+
+  craftAugment: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "sine",
+      freqs: TUNING.craftAugment.tones,
+      noteDuration: TUNING.craftAugment.noteDuration,
+      gap: TUNING.craftAugment.gap,
+      peak: 0.55,
+    }),
+
+  craftAnnul: (ctx, dest, opts) =>
+    toneSweep(ctx, dest, opts, {
+      type: "triangle",
+      freqFrom: TUNING.craftAnnul.freqFrom,
+      freqTo: TUNING.craftAnnul.freqTo,
+      duration: TUNING.craftAnnul.duration,
+      peak: 0.45,
+    }),
+
+  craftCorrupt: (ctx, dest, opts) => {
+    const sweep = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.craftCorrupt.freqFrom,
+      freqTo: TUNING.craftCorrupt.freqTo,
+      duration: TUNING.craftCorrupt.duration,
+      peak: 0.55,
+    });
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.craftCorrupt.noiseFreqFrom,
+      freqTo: TUNING.craftCorrupt.noiseFreqTo,
+      duration: TUNING.craftCorrupt.noiseDuration,
+      peak: 0.4,
+    });
+    return Math.max(sweep, noise);
+  },
+
+  craftFuse: (ctx, dest, opts) => {
+    const now = ctx.currentTime;
+    const a = tone(ctx, dest, opts, {
+      type: "triangle",
+      freq: TUNING.craftFuse.toneA,
+      duration: TUNING.craftFuse.toneDuration,
+      peak: 0.45,
+      startAt: now,
+    });
+    const b = tone(ctx, dest, opts, {
+      type: "triangle",
+      freq: TUNING.craftFuse.toneB,
+      duration: TUNING.craftFuse.toneDuration,
+      peak: 0.45,
+      startAt: now,
+    });
+    const merge = tone(ctx, dest, opts, {
+      type: "sine",
+      freq: TUNING.craftFuse.mergeFreq,
+      duration: TUNING.craftFuse.mergeDuration,
+      peak: 0.6,
+      startAt: now + TUNING.craftFuse.mergeDelay,
+    });
+    return Math.max(a, b, TUNING.craftFuse.mergeDelay + merge);
+  },
+
+  equipOn: (ctx, dest, opts) => {
+    const click = tone(ctx, dest, opts, { type: "square", freq: TUNING.equipOn.freq, duration: TUNING.equipOn.duration, peak: 0.5 });
+    const thud = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.equipOn.noiseFreqFrom,
+      freqTo: TUNING.equipOn.noiseFreqTo,
+      duration: TUNING.equipOn.noiseDuration,
+      peak: 0.35,
+    });
+    return Math.max(click, thud);
+  },
+
+  equipOff: (ctx, dest, opts) =>
+    toneSweep(ctx, dest, opts, {
+      type: "square",
+      freqFrom: TUNING.equipOff.freqFrom,
+      freqTo: TUNING.equipOff.freqTo,
+      duration: TUNING.equipOff.duration,
+      peak: 0.4,
+    }),
+
+  dismantle: (ctx, dest, opts) => {
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.dismantle.noiseFreqFrom,
+      freqTo: TUNING.dismantle.noiseFreqTo,
+      duration: TUNING.dismantle.noiseDuration,
+      peak: 0.6,
+    });
+    const thud = tone(ctx, dest, opts, { type: "sine", freq: TUNING.dismantle.lowFreq, duration: TUNING.dismantle.lowDuration, peak: 0.5 });
+    return Math.max(noise, thud);
+  },
+
+  menuMove: (ctx, dest, opts) => tone(ctx, dest, opts, { type: "square", freq: TUNING.menuMove.freq, duration: TUNING.menuMove.duration, peak: 0.25 }),
 };
 
 // SFX_NAMES 全件に定義があることを型レベルで保証（Record が満たされていないとコンパイルエラーになる）

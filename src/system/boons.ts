@@ -531,6 +531,7 @@ export function offerBoons(state: GameState): void {
   if (options.length === 0) return;
   state.boonChoice = { options, hover: -1, timer: 0 };
   pushSfx(state, "lootRare");
+  pushSfx(state, "boonOffer");
 }
 
 // -----------------------------------------------------------------------------
@@ -607,6 +608,7 @@ export function grantBoon(state: GameState, key: BoonKey): void {
   addFloatingText(state, state.player.body.pos, def.name, color, 1.4, 1.2);
   pushLog(state, `Boon: ${def.name} - ${def.desc}`, color);
   pushSfx(state, "lootRare");
+  pushSfx(state, def.cursed ? "boonSelectCursed" : "boonSelect");
 }
 
 // -----------------------------------------------------------------------------

@@ -44,6 +44,42 @@ export const SFX_NAMES = [
   "counter",
   "reflect",
   "lastKill",
+  // ボス演出
+  "bossAppear",
+  "bossDefeat",
+  "bossPhaseChange",
+  // 祝福（boons）
+  "boonOffer",
+  "boonSelect",
+  "boonSelectCursed",
+  // エリート・ガード
+  "guardBreak",
+  "eliteKill",
+  // Reaper（追跡者）
+  "reaperWarnPulse",
+  "reaperAppear",
+  // 部屋の種類
+  "treasureOpen",
+  "waveStart",
+  "fountainHeal",
+  "ambush",
+  // 敵の攻撃演出
+  "bombFuse",
+  "laserCharge",
+  "laserFire",
+  "shockwave",
+  // クラフト
+  "craftReforge",
+  "craftAugment",
+  "craftAnnul",
+  "craftCorrupt",
+  "craftFuse",
+  // 装備・分解
+  "equipOn",
+  "equipOff",
+  "dismantle",
+  // タイトル/メニュー
+  "menuMove",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

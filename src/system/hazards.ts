@@ -55,6 +55,7 @@ export function spawnBomb(
   fuse: number = ENEMY_AI.bomber.fuse,
   radius: number = ENEMY_AI.bomber.radius,
 ): Hazard {
+  pushSfx(state, "bombFuse");
   return addHazard(state, { kind: "bomb", pos, radius, time: fuse, damage, sourceId });
 }
 
@@ -64,6 +65,7 @@ export function spawnLaser(state: GameState, from: Vec, to: Vec, time: number, d
 
 /** 広がる衝撃波。縁だけに判定があるのでダッシュで抜けられる */
 export function spawnShockwave(state: GameState, pos: Vec, radius: number, damage: number, sourceId?: number): Hazard {
+  pushSfx(state, "shockwave");
   return addHazard(state, { kind: "shockwave", pos, radius, time: ENEMY_AI.golem.ringTime, damage, sourceId });
 }
 

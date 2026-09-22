@@ -136,6 +136,7 @@ export function openTreasure(state: GameState, room: RoomState): void {
   addFloatingText(state, textPos(state), TREASURE_TEXT, ROOM_KIND.treasureCoinColor, TREASURE_TEXT_SCALE, TREASURE_TEXT_LIFE);
   pushLog(state, "A treasure vault!", ROOM_KIND.treasureCoinColor);
   pushSfx(state, "lootRare");
+  pushSfx(state, "treasureOpen");
 }
 
 // -----------------------------------------------------------------------------
@@ -159,6 +160,7 @@ export function startWave(state: GameState, room: RoomState, spawn: () => void):
   shake(state, WAVE_SHAKE);
   addFloatingText(state, textPos(state), waveText(room.wave), ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
   pushSfx(state, "roomLock");
+  pushSfx(state, "waveStart");
 }
 
 export function hasMoreWaves(room: RoomState): boolean {
@@ -231,6 +233,7 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
   addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE);
   pushLog(state, "The fountain heals you... the next room grows restless.", ROOM_KIND.cursedColor);
   pushSfx(state, "heal");
+  pushSfx(state, "fountainHeal");
 }
 
 /**
@@ -259,4 +262,5 @@ const AMBUSH_TEXT = "AMBUSH!";
 
 export function announceAmbush(state: GameState): void {
   addFloatingText(state, textPos(state), AMBUSH_TEXT, ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
+  pushSfx(state, "ambush");
 }
