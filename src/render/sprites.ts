@@ -65,3 +65,34 @@ export function spriteFrame(sprite: Pick<Sprite, "frames">, time: number, frameT
   const idx = Math.floor(time / frameTime) % count;
   return idx < 0 ? idx + count : idx;
 }
+
+/** 元の色味を残したまま color を strength (0..1) の割合で乗せたフレームを作る */
+function tintFrames(sprite: Sprite, color: string, strength: number): HTMLCanvasElement[] {
+  return sprite.frames.map((src) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = src.width;
+    canvas.height = src.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("2D context unavailable");
+    ctx.drawImage(src, 0, 0);
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.globalAlpha = strength;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, src.width, src.height);
+    return canvas;
+  });
+}
+
+/** 色付きフレームを遅延生成してキャッシュする（毎フレームの合成を避ける） */
+export class TintCache {
+  private readonly cache = new Map<string, HTMLCanvasElement[]>();
+
+  get(sprite: Sprite, spriteKey: string, color: string, strength = 1): HTMLCanvasElement[] {
+    const key = `${spriteKey}|${color}|${strength}`;
+    const hit = this.cache.get(key);
+    if (hit) return hit;
+    const frames = tintFrames(sprite, color, strength);
+    this.cache.set(key, frames);
+    return frames;
+  }
+}

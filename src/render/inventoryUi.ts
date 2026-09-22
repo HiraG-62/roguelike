@@ -1,9 +1,10 @@
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { formatAffix } from "../loot/affixes";
+import { formatAffix, isKeystoneKey, keystoneConflicts } from "../loot/affixes";
 import { statsSummary } from "../loot/stats";
-import { RARITY_COLOR, SLOTS, type Item } from "../loot/types";
+import { RARITY_COLOR, SLOTS, type Item, type Slot } from "../loot/types";
 import {
+  CONTENT_Y,
   type InventoryLayout,
   type InventoryUi,
   type Rect,
@@ -12,6 +13,7 @@ import {
   RIGHT_X,
   layoutInventory,
 } from "../ui/inventory";
+import { fitTooltip } from "./renderMath";
 
 const FONT_SMALL = "bold 8px monospace";
 const FONT_TITLE = "bold 10px monospace";
@@ -24,8 +26,66 @@ const COLOR_OVERLAY = "rgba(0,0,0,0.55)";
 const COLOR_HOVER_BG = "rgba(255,255,255,0.10)";
 const COLOR_EMPTY = "#606060";
 
+const FONT_TINY = "bold 6px monospace";
+const FONT_ICON = "bold 10px monospace";
+const COLOR_WARN = "#ff6060";
+
 const LINE_H = 8;
+const TINY_LINE_H = 6;
 const TEXT_PAD_X = 2;
+/** ツールチップは内容に合わせて上へ伸ばす。これを超えたら小さい文字にする */
+const TOOLTIP_MAX_LINES = 12;
+const TOOLTIP_PAD_Y = 3;
+const ICON_OFFSET_X = 10;
+
+/** 空きスロットに出すアイコン文字 */
+const SLOT_ICON: Record<Slot, string> = {
+  weapon: "†",
+  gun: "⌐",
+  armor: "▣",
+  boots: "▙",
+  ring: "○",
+  amulet: "◊",
+};
+
+interface TooltipLine {
+  text: string;
+  color: string;
+}
+
+function keystoneKeysOf(item: Item): string[] {
+  const keys = item.affixes.filter((r) => isKeystoneKey(r.key)).map((r) => r.key);
+  if (item.implicit && isKeystoneKey(item.implicit.key)) keys.push(item.implicit.key);
+  return keys;
+}
+
+/**
+ * item を装備した場合（装備中ならそのまま）の排他衝突のうち、item のキーストーンが絡むもの。
+ * 同じスロットの現装備は置き換わる前提で除外する。
+ */
+function conflictLinesFor(state: GameState, item: Item): string[] {
+  const own = keystoneKeysOf(item);
+  if (own.length === 0) return [];
+  const keys = [...own];
+  for (const slot of SLOTS) {
+    const eq = state.profile.equipment[slot];
+    if (!eq || slot === item.slot) continue;
+    keys.push(...keystoneKeysOf(eq));
+  }
+  return keystoneConflicts(keys)
+    .filter((group) => group.some((d) => own.includes(d.key)))
+    .map((group) => `! Conflict: ${group.map((d) => d.name).join(" vs ")}`);
+}
+
+/** 装備中の排他衝突（stats 表示の先頭に出す） */
+function equippedConflictLines(state: GameState): string[] {
+  const keys: string[] = [];
+  for (const slot of SLOTS) {
+    const eq = state.profile.equipment[slot];
+    if (eq) keys.push(...keystoneKeysOf(eq));
+  }
+  return keystoneConflicts(keys).map((group) => `! Conflict: ${group.map((d) => d.name).join(" vs ")}`);
+}
 
 function findItemById(state: GameState, id: string | null): Item | null {
   if (!id) return null;
@@ -119,8 +179,12 @@ function drawSlotRow(ctx: CanvasRenderingContext2D, s: SlotLayout, ui: Inventory
     ctx.fillStyle = RARITY_COLOR[s.item.rarity];
     ctx.fillText(truncateText(ctx, s.item.name, nameMaxWidth), rect.x + rect.w - TEXT_PAD_X, rect.y + rect.h / 2 + 3);
   } else {
+    const right = rect.x + rect.w - TEXT_PAD_X;
     ctx.fillStyle = COLOR_EMPTY;
-    ctx.fillText("- empty -", rect.x + rect.w - TEXT_PAD_X, rect.y + rect.h / 2 + 3);
+    ctx.fillText("empty", right - ICON_OFFSET_X, rect.y + rect.h / 2 + 3);
+    ctx.font = FONT_ICON;
+    ctx.textAlign = "center";
+    ctx.fillText(SLOT_ICON[s.slot], right - ICON_OFFSET_X / 2 + 1, rect.y + rect.h / 2 + 4);
   }
 }
 
@@ -155,46 +219,48 @@ function drawStashRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, ui: In
   ctx.fillText(truncateText(ctx, item.name, nameMaxWidth), rect.x + TEXT_PAD_X, rect.y + rect.h / 2 + 3);
 }
 
+function tooltipLines(state: GameState, item: Item): TooltipLine[] {
+  const lines: TooltipLine[] = [
+    { text: item.name, color: RARITY_COLOR[item.rarity] },
+    { text: `${item.baseKey}  L${item.itemLevel}`, color: COLOR_DIM },
+  ];
+  if (item.implicit) lines.push({ text: `Implicit: ${formatAffix(item.implicit)}`, color: COLOR_TEXT });
+  for (const roll of item.affixes) lines.push({ text: `T${roll.tier} ${formatAffix(roll)}`, color: COLOR_TEXT });
+  for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });
+  return lines;
+}
+
+/** 下端を tooltipRect に揃えたまま、行数に応じて上へ伸ばす */
 function drawTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
   const { tooltipRect } = layout;
-  strokeRectPx(ctx, tooltipRect, COLOR_BORDER);
-
   const item = findItemById(state, ui.hoverItemId);
-  ctx.font = FONT_SMALL;
   ctx.textAlign = "left";
   if (!item) {
+    strokeRectPx(ctx, tooltipRect, COLOR_BORDER);
+    ctx.font = FONT_SMALL;
     ctx.fillStyle = COLOR_DIM;
     ctx.fillText("Hover an item", tooltipRect.x + TEXT_PAD_X, tooltipRect.y + LINE_H);
     return;
   }
 
-  let y = tooltipRect.y + LINE_H;
-  const maxWidth = tooltipRect.w - TEXT_PAD_X * 2;
-  const maxY = tooltipRect.y + tooltipRect.h - 2;
+  const lines = tooltipLines(state, item);
+  const bottom = tooltipRect.y + tooltipRect.h;
+  const fit = fitTooltip(lines.length, LINE_H, TINY_LINE_H, TOOLTIP_MAX_LINES, bottom - CONTENT_Y, TOOLTIP_PAD_Y);
+  const h = Math.max(tooltipRect.h, fit.height);
+  const box = { x: tooltipRect.x, y: bottom - h, w: tooltipRect.w, h };
+  ctx.fillStyle = COLOR_PANEL_BG;
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+  strokeRectPx(ctx, box, COLOR_BORDER);
 
-  ctx.fillStyle = RARITY_COLOR[item.rarity];
-  ctx.fillText(truncateText(ctx, item.name, maxWidth), tooltipRect.x + TEXT_PAD_X, y);
-  y += LINE_H;
-
-  if (y <= maxY) {
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText(truncateText(ctx, item.baseKey, maxWidth), tooltipRect.x + TEXT_PAD_X, y);
-    y += LINE_H;
-  }
-
-  if (item.implicit && y <= maxY) {
-    ctx.fillStyle = COLOR_TEXT;
-    const text = `Implicit: ${formatAffix(item.implicit)}`;
-    ctx.fillText(truncateText(ctx, text, maxWidth), tooltipRect.x + TEXT_PAD_X, y);
-    y += LINE_H;
-  }
-
-  for (const roll of item.affixes) {
-    if (y > maxY) break;
-    ctx.fillStyle = COLOR_TEXT;
-    const text = `T${roll.tier} ${formatAffix(roll)}`;
-    ctx.fillText(truncateText(ctx, text, maxWidth), tooltipRect.x + TEXT_PAD_X, y);
-    y += LINE_H;
+  ctx.font = fit.small ? FONT_TINY : FONT_SMALL;
+  const maxWidth = box.w - TEXT_PAD_X * 2;
+  let y = box.y + fit.lineH;
+  for (let i = 0; i < fit.shown; i++) {
+    const line = lines[i];
+    if (!line) break;
+    ctx.fillStyle = line.color;
+    ctx.fillText(truncateText(ctx, line.text, maxWidth), box.x + TEXT_PAD_X, y);
+    y += fit.lineH;
   }
 }
 
@@ -208,8 +274,16 @@ function drawStatsSummary(ctx: CanvasRenderingContext2D, state: GameState, layou
   const maxWidth = statsRect.w - TEXT_PAD_X * 2;
   const maxY = statsRect.y + statsRect.h - 2;
 
+  const conflicts = equippedConflictLines(state);
   const lines = statsSummary(state.stats);
   let y = statsRect.y + LINE_H;
+  for (const line of conflicts) {
+    if (y > maxY) break;
+    ctx.fillStyle = COLOR_WARN;
+    ctx.fillText(truncateText(ctx, line, maxWidth), statsRect.x + TEXT_PAD_X, y);
+    y += LINE_H;
+  }
+  ctx.fillStyle = COLOR_TEXT;
   if (lines.length === 0) {
     ctx.fillStyle = COLOR_DIM;
     ctx.fillText("stats", statsRect.x + TEXT_PAD_X, y);
