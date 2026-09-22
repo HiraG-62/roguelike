@@ -6,6 +6,9 @@ export const Tile = {
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
+/** 1 タイルのピクセルサイズ。スプライトも同じ */
+export const TILE_SIZE = 16;
+
 export interface Point {
   x: number;
   y: number;
@@ -59,6 +62,21 @@ export function isWalkable(map: GameMap, x: number, y: number): boolean {
 
 export function rectCenter(r: Rect): Point {
   return { x: Math.floor(r.x + r.w / 2), y: Math.floor(r.y + r.h / 2) };
+}
+
+/** タイル矩形の中心をピクセル座標で返す */
+export function rectCenterPx(r: Rect): Point {
+  return { x: (r.x + r.w / 2) * TILE_SIZE, y: (r.y + r.h / 2) * TILE_SIZE };
+}
+
+/** ピクセル座標が矩形（タイル単位）の内側か。margin はタイル数で内側に縮める */
+export function rectContainsPx(r: Rect, px: number, py: number, marginPx = 0): boolean {
+  return (
+    px >= r.x * TILE_SIZE + marginPx &&
+    px < (r.x + r.w) * TILE_SIZE - marginPx &&
+    py >= r.y * TILE_SIZE + marginPx &&
+    py < (r.y + r.h) * TILE_SIZE - marginPx
+  );
 }
 
 /** 1 マスの隙間を挟んでも重ならないよう、余白付きで判定する */

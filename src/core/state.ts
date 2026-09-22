@@ -1,172 +1,180 @@
-import { createRng, type Rng } from "./rng";
-import { type GameEvent, type LogMessage, describeEvent } from "./events";
-import { type GameMap, type Point, type Rect, Tile, getTile, isWalkable, rectCenter } from "../map/grid";
-import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "../map/generator";
-import { computeFov } from "../map/fov";
-import { type Entity, createPlayer } from "../entity/entity";
-import { type MonsterDef, monstersForDepth } from "../data/monsters";
+import type { Rng } from "./rng";
+import type { Vec } from "./vec";
+import type { GameMap, Rect } from "../map/grid";
 
 export type GameStatus = "playing" | "dead";
 
-/** ゲームステートは純データ。描画・入力に依存しない */
+export interface Body {
+  pos: Vec;
+  vel: Vec;
+  radius: number;
+}
+
+export type AttackPhase = "none" | "windup" | "active" | "recover";
+
+export interface AttackState {
+  /** 現在のコンボ段 (0 始まり)。none のときは次に出す段 */
+  combo: number;
+  phase: AttackPhase;
+  timer: number;
+  /** recover 中に押された次段の先行入力 */
+  buffered: boolean;
+  /** この振りで既に当てた敵 */
+  hitIds: Set<number>;
+  dir: Vec;
+}
+
+export interface Player {
+  body: Body;
+  hp: number;
+  maxHp: number;
+  facing: Vec;
+  dashTimer: number;
+  dashCooldown: number;
+  dashDir: Vec;
+  invulnTimer: number;
+  hitFlash: number;
+  /** 被弾ノックバック速度。減衰する */
+  knock: Vec;
+  /** このダッシュで既にジャスト回避を発生させたか */
+  dodgedThisDash: boolean;
+  attack: AttackState;
+  shootCooldown: number;
+  energy: number;
+  maxEnergy: number;
+  /** 歩行アニメ用 */
+  walkTime: number;
+}
+
+export type EnemyPhase = "idle" | "chase" | "windup" | "strike" | "recover" | "stagger" | "spawning";
+
+export interface Enemy {
+  id: number;
+  defKey: string;
+  roomIndex: number;
+  body: Body;
+  hp: number;
+  maxHp: number;
+  facing: Vec;
+  phase: EnemyPhase;
+  phaseTimer: number;
+  strikeDir: Vec;
+  attackCooldown: number;
+  hitFlash: number;
+  /** ノックバック速度。減衰する */
+  knock: Vec;
+  animTime: number;
+}
+
+export interface Projectile {
+  id: number;
+  owner: "player" | "enemy";
+  pos: Vec;
+  vel: Vec;
+  radius: number;
+  damage: number;
+  life: number;
+  color: string;
+}
+
+export interface Particle {
+  pos: Vec;
+  vel: Vec;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
+  /** 空気抵抗。1 で減衰なし */
+  drag: number;
+}
+
+export interface FloatingText {
+  pos: Vec;
+  vel: Vec;
+  text: string;
+  color: string;
+  life: number;
+  maxLife: number;
+  scale: number;
+}
+
+export type PickupKind = "heart";
+
+export interface Pickup {
+  id: number;
+  kind: PickupKind;
+  pos: Vec;
+  radius: number;
+  bobTime: number;
+}
+
+export interface RoomState {
+  rect: Rect;
+  cleared: boolean;
+  locked: boolean;
+  /** 部屋の出入口となる床タイルのインデックス。ロック中は壁扱い */
+  doorTiles: number[];
+}
+
+export interface Camera {
+  pos: Vec;
+  shake: number;
+  offset: Vec;
+}
+
+export interface Combo {
+  count: number;
+  timer: number;
+  best: number;
+  /** HUD の拡大演出用 */
+  popTimer: number;
+}
+
+export interface LogMessage {
+  text: string;
+  color: string;
+  time: number;
+}
+
 export interface GameState {
   seed: number;
-  /** 人が読めるシード文字列。表示・共有用 */
   seedText: string;
+  rng: Rng;
   status: GameStatus;
   depth: number;
-  turn: number;
+  /** 固定ステップの通し番号 */
+  tick: number;
+  /** ゲーム内経過時間（スローモーション込み） */
+  time: number;
   map: GameMap;
-  /** 今見えているセル (1 = 可視) */
-  visible: Uint8Array;
-  /** 一度でも見たセル (1 = 探索済み)。フロアごとにリセット */
-  explored: Uint8Array;
-  entities: Entity[];
-  playerId: number;
-  nextEntityId: number;
-  /** 発行された全イベント。リプレイ・実績の材料 */
-  events: GameEvent[];
-  /** イベントから派生した表示用ログ */
+  rooms: RoomState[];
+  lockedTiles: Set<number>;
+  player: Player;
+  enemies: Enemy[];
+  projectiles: Projectile[];
+  particles: Particle[];
+  texts: FloatingText[];
+  pickups: Pickup[];
+  camera: Camera;
+  /** 残りヒットストップ（ステップ数） */
+  hitstop: number;
+  /** 残りスローモーション（実時間秒） */
+  slowmo: number;
+  /** 画面全体の白フラッシュ (0..1) */
+  flash: number;
+  combo: Combo;
+  kills: number;
+  score: number;
+  nextId: number;
   log: LogMessage[];
-  /** 状態と一緒に持ち回る。フロア生成のたびに消費されるので再現性が保たれる */
-  rng: Rng;
+  /** 死亡してからの実時間 */
+  deathTimer: number;
 }
 
-const PLAYER_ID = 0;
-const FALLBACK_START: Point = { x: 1, y: 1 };
-export const FOV_RADIUS = 8;
-
-/** フロアあたりのモンスター数 = BASE + depth * PER_DEPTH（上限 MAX） */
-const SPAWN_BASE = 3;
-const SPAWN_PER_DEPTH = 1;
-const SPAWN_MAX = 14;
-const SPAWN_ATTEMPTS = 50;
-
-export function createGame(seed: number, seedText = String(seed)): GameState {
-  const rng = createRng(seed);
-  const map = generateRoomsAndCorridors(rng, DEFAULT_GENERATOR_OPTIONS);
-  const state: GameState = {
-    seed,
-    seedText,
-    status: "playing",
-    depth: 1,
-    turn: 0,
-    map,
-    visible: new Uint8Array(map.tiles.length),
-    explored: new Uint8Array(map.tiles.length),
-    entities: [createPlayer(PLAYER_ID, startPosition(map))],
-    playerId: PLAYER_ID,
-    nextEntityId: PLAYER_ID + 1,
-    events: [],
-    log: [],
-    rng,
-  };
-  spawnMonsters(state);
-  updateFov(state);
-  emit(state, { type: "welcome" });
-  return state;
+export function allocId(state: GameState): number {
+  return state.nextId++;
 }
 
-function startPosition(map: GameMap): Point {
-  const first = map.rooms[0];
-  return first ? rectCenter(first) : { ...FALLBACK_START };
-}
-
-export function getPlayer(state: GameState): Entity {
-  const p = state.entities.find((e) => e.id === state.playerId);
-  if (!p) throw new Error("player not found");
-  return p;
-}
-
-export function entityAt(state: GameState, x: number, y: number): Entity | undefined {
-  return state.entities.find((e) => e.pos.x === x && e.pos.y === y);
-}
-
-/** イベントを発行し、ログに反映する */
-export function emit(state: GameState, ev: GameEvent): void {
-  state.events.push(ev);
-  const msg = describeEvent(ev);
-  if (msg) state.log.push({ ...msg, turn: state.turn });
-}
-
-/** プレイヤー位置から視界を再計算し、探索済みに積む */
-export function updateFov(state: GameState): void {
-  const player = getPlayer(state);
-  state.visible = computeFov(state.map, player.pos, FOV_RADIUS);
-  for (let i = 0; i < state.visible.length; i++) {
-    if (state.visible[i]) state.explored[i] = 1;
-  }
-}
-
-export type Direction = { dx: -1 | 0 | 1; dy: -1 | 0 | 1 };
-
-/** 任意の Entity を 1 マス動かす。壁・他 Entity で塞がっていれば false */
-export function tryMove(state: GameState, e: Entity, dir: Direction): boolean {
-  if (dir.dx === 0 && dir.dy === 0) return false;
-  const nx = e.pos.x + dir.dx;
-  const ny = e.pos.y + dir.dy;
-  if (!isWalkable(state.map, nx, ny)) return false;
-  if (entityAt(state, nx, ny)) return false;
-  e.pos = { x: nx, y: ny };
-  if (e.id === state.playerId) updateFov(state);
-  return true;
-}
-
-/** 階段の上にいれば次の階へ。そうでなければ false */
-export function descend(state: GameState): boolean {
-  const player = getPlayer(state);
-  if (getTile(state.map, player.pos.x, player.pos.y) !== Tile.StairsDown) return false;
-  state.depth += 1;
-  state.map = generateRoomsAndCorridors(state.rng, DEFAULT_GENERATOR_OPTIONS);
-  state.explored = new Uint8Array(state.map.tiles.length);
-  state.entities = [player];
-  player.pos = startPosition(state.map);
-  spawnMonsters(state);
-  updateFov(state);
-  emit(state, { type: "descend", depth: state.depth });
-  return true;
-}
-
-export function spawnMonster(state: GameState, def: MonsterDef, pos: Point): Entity {
-  const monster: Entity = {
-    id: state.nextEntityId++,
-    kind: "monster",
-    name: def.name,
-    glyph: def.glyph,
-    color: def.color,
-    pos,
-    stats: { ...def.stats },
-    speed: def.speed,
-    energy: 0,
-    xpValue: def.xpValue,
-    level: 1,
-    xp: 0,
-    ai: def.ai,
-  };
-  state.entities.push(monster);
-  return monster;
-}
-
-/** 開始部屋以外の部屋にモンスターをばらまく */
-function spawnMonsters(state: GameState): void {
-  const candidates = monstersForDepth(state.depth);
-  const rooms = state.map.rooms.slice(1);
-  if (candidates.length === 0 || rooms.length === 0) return;
-
-  const count = Math.min(SPAWN_MAX, SPAWN_BASE + state.depth * SPAWN_PER_DEPTH);
-  let spawned = 0;
-  for (let i = 0; i < SPAWN_ATTEMPTS && spawned < count; i++) {
-    const room = state.rng.pick(rooms);
-    const pos = randomPointInRoom(state, room);
-    if (!isWalkable(state.map, pos.x, pos.y) || entityAt(state, pos.x, pos.y)) continue;
-    spawnMonster(state, state.rng.pick(candidates), pos);
-    spawned++;
-  }
-}
-
-function randomPointInRoom(state: GameState, room: Rect): Point {
-  return {
-    x: state.rng.int(room.x, room.x + room.w - 1),
-    y: state.rng.int(room.y, room.y + room.h - 1),
-  };
+export function pushLog(state: GameState, text: string, color = "#c0c0c0"): void {
+  state.log.push({ text, color, time: state.time });
 }

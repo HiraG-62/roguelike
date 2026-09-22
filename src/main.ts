@@ -1,16 +1,15 @@
-import { type GameState, createGame, descend } from "./core/state";
-import { playerMoveOrAttack, runMonsterTurns } from "./core/turn";
+import { createGame, step } from "./core/game";
+import { KeyboardInput } from "./core/input";
+import { startLoop } from "./core/loop";
 import { hashSeed } from "./core/rng";
-import { CanvasRenderer, type UiState } from "./render/canvas";
-import { handleSeedEntryKey, keyToCommand } from "./ui/input";
+import type { GameState } from "./core/state";
+import { Renderer } from "./render/renderer";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
 
 const SEED_PARAM = "seed";
-const KEY_RESTART_AFTER_DEATH = "Enter";
 
-/** URL の ?seed=xxx があればそれを使う。無ければ時刻ベースの文字列を作る */
 function initialSeedText(): string {
   return new URLSearchParams(location.search).get(SEED_PARAM) ?? randomSeedText();
 }
@@ -27,60 +26,20 @@ function startGame(seedText: string): GameState {
 }
 
 let state = startGame(initialSeedText());
-const ui: UiState = { seedEntry: null };
-const renderer = new CanvasRenderer(canvas);
-renderer.render(state, ui);
+const input = new KeyboardInput();
+input.attach(window);
+const renderer = new Renderer(canvas);
 
-function onSeedEntryKey(key: string): void {
-  if (ui.seedEntry === null) return;
-  const result = handleSeedEntryKey(ui.seedEntry, key);
-  switch (result.type) {
-    case "typing":
-      ui.seedEntry = result.buffer;
-      return;
-    case "submit":
-      ui.seedEntry = null;
-      state = startGame(result.buffer || randomSeedText());
-      return;
-    case "cancel":
-      ui.seedEntry = null;
-      return;
-  }
-}
-
-function onPlayKey(key: string): void {
-  if (state.status === "dead") {
-    if (key === KEY_RESTART_AFTER_DEATH) state = startGame(randomSeedText());
-    return;
-  }
-  const cmd = keyToCommand(key);
-  if (!cmd) return;
-
-  let tookTurn = false;
-  switch (cmd.type) {
-    case "move":
-      tookTurn = playerMoveOrAttack(state, cmd.dir);
-      break;
-    case "descend":
-      tookTurn = descend(state);
-      break;
-    case "newGameWithSeed":
-      ui.seedEntry = "";
-      break;
-    case "restart":
+startLoop(
+  (dt) => {
+    const frame = input.snapshot();
+    if (state.status === "dead" && state.deathTimer > 0.6) {
+      if (frame.confirmPressed) state = startGame(state.seedText);
+      else if (frame.restartPressed) state = startGame(randomSeedText());
+    } else if (frame.restartPressed) {
       state = startGame(randomSeedText());
-      break;
-  }
-  if (tookTurn) runMonsterTurns(state);
-}
-
-window.addEventListener("keydown", (ev) => {
-  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-  if (ui.seedEntry !== null) {
-    onSeedEntryKey(ev.key);
-  } else {
-    onPlayKey(ev.key);
-  }
-  ev.preventDefault();
-  renderer.render(state, ui);
-});
+    }
+    step(state, frame, dt);
+  },
+  () => renderer.render(state),
+);
