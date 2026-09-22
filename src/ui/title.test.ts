@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Item } from "../loot/types";
+import type { Item, RunHistoryEntry } from "../loot/types";
 import {
   type RawKeyEvent,
   appendSeedChar,
@@ -10,7 +10,12 @@ import {
   createSeedInputState,
   cycleIndex,
   edgeDir,
+  REPLAY_SPEEDS,
+  dailyBestIndices,
+  isDailyEntry,
+  moveHistoryCursor,
   processMenuKeys,
+  shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
 } from "./title";
@@ -90,7 +95,37 @@ describe("processMenuKeys", () => {
       [key("KeyN"), key("KeyH"), key("KeyO"), key("KeyM"), key("KeyT"), key("Escape")],
       s,
     );
-    expect(hotkeys).toEqual({ escape: true, n: true, h: true, o: true, m: true, t: true });
+    expect(hotkeys).toEqual({
+      escape: true,
+      n: true,
+      h: true,
+      o: true,
+      m: true,
+      t: true,
+      d: false,
+      p: false,
+      s: false,
+      arrowX: 0,
+      arrowY: 0,
+    });
+  });
+
+  it("D/P/S と矢印キーを拾う", () => {
+    const s = createSeedInputState("seed");
+    const hotkeys = processMenuKeys([key("KeyD"), key("KeyP"), key("KeyS"), key("ArrowUp"), key("ArrowRight")], s);
+    expect(hotkeys.d).toBe(true);
+    expect(hotkeys.p).toBe(true);
+    expect(hotkeys.s).toBe(true);
+    expect(hotkeys.arrowY).toBe(-1);
+    expect(hotkeys.arrowX).toBe(1);
+  });
+
+  it("シード入力中の D/P/S は文字として扱う", () => {
+    const s = createSeedInputState("");
+    startSeedInput(s);
+    const hotkeys = processMenuKeys([key("KeyD", "d"), key("KeyP", "p"), key("KeyS", "s")], s);
+    expect(s.text).toBe("dps");
+    expect(hotkeys.d || hotkeys.p || hotkeys.s).toBe(false);
   });
 
   it("入力中は英数字を seedInput に積み、N/H/O/M/T はホットキーにならない", () => {
@@ -181,5 +216,45 @@ describe("summarizeRunItems", () => {
     const summary = summarizeRunItems(items, 100);
     expect(summary.total).toBe(3);
     expect(summary.byRarity).toEqual({ normal: 1, magic: 0, rare: 1, unique: 1 });
+  });
+});
+
+function historyEntry(seedText: string, score: number, depth = 1): RunHistoryEntry {
+  return { date: 0, seedText, depth, kills: 0, score, bestCombo: 0, durationSec: 0 };
+}
+
+describe("daily history", () => {
+  it("日付形式のシードだけをデイリーとみなす", () => {
+    expect(isDailyEntry(historyEntry("2026-09-23", 0))).toBe(true);
+    expect(isDailyEntry(historyEntry("abc123", 0))).toBe(false);
+    expect(isDailyEntry(historyEntry("2026-9-23", 0))).toBe(false);
+  });
+
+  it("デイリーの日付ごとに最高スコアの行を選ぶ", () => {
+    const history = [
+      historyEntry("2026-09-23", 100),
+      historyEntry("abc", 999),
+      historyEntry("2026-09-23", 300),
+      historyEntry("2026-09-22", 50),
+      historyEntry("2026-09-23", 300, 1),
+    ];
+    expect([...dailyBestIndices(history)].sort()).toEqual([2, 3]);
+  });
+});
+
+describe("history cursor / replay speed", () => {
+  it("カーソルは端で止まり、空なら 0", () => {
+    expect(moveHistoryCursor(0, -1, 5)).toBe(0);
+    expect(moveHistoryCursor(4, 1, 5)).toBe(4);
+    expect(moveHistoryCursor(2, 1, 5)).toBe(3);
+    expect(moveHistoryCursor(3, 1, 0)).toBe(0);
+  });
+
+  it("再生速度は 1x / 2x / 4x の間で端で止まる", () => {
+    expect(REPLAY_SPEEDS).toEqual([1, 2, 4]);
+    expect(shiftReplaySpeed(1, 1)).toBe(2);
+    expect(shiftReplaySpeed(2, 1)).toBe(4);
+    expect(shiftReplaySpeed(4, 1)).toBe(4);
+    expect(shiftReplaySpeed(1, -1)).toBe(1);
   });
 });

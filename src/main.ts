@@ -1,8 +1,20 @@
 import { SfxPlayer } from "./audio/sfx";
 import { createGame, step } from "./core/game";
 import { GamepadInput } from "./core/gamepad";
-import { PlayerInput } from "./core/input";
+import { PlayerInput, type FrameInput } from "./core/input";
 import { startLoop } from "./core/loop";
+import {
+  ReplayRecorder,
+  createReplaySession,
+  dailySeedText,
+  guardStorageWrites,
+  isDailySeedText,
+  isReplayFinished,
+  replayProgress,
+  stepReplay,
+  type ReplayData,
+  type ReplaySession,
+} from "./core/replay";
 import { hashSeed } from "./core/rng";
 import type { GameState } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
@@ -15,10 +27,11 @@ import {
   drawDeathSummary,
   drawHistoryScreen,
   drawPauseMenu,
+  drawReplayHud,
   drawSettingsScreen,
   drawTitle,
 } from "./render/titleUi";
-import { loadSkillProfile } from "./skills/persistence";
+import { loadSkillProfile, saveSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
 import {
   MenuKeyCapture,
@@ -31,10 +44,14 @@ import {
   createSeedInputState,
   cycleIndex,
   edgeDir,
+  moveHistoryCursor,
   processMenuKeys,
+  shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
+  type ReplaySpeed,
 } from "./ui/title";
+import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
 import {
   adjustScreenShake,
   adjustVolume,
@@ -53,7 +70,11 @@ const SEED_PARAM = "seed";
 /** 死亡演出が出そろうまでリスタート入力を受け付けない */
 const DEATH_INPUT_DELAY = 0.6;
 
-type Screen = "title" | "playing" | "paused" | "history" | "settings";
+type Screen = "title" | "playing" | "paused" | "history" | "settings" | "replay";
+
+const REPLAY_START_SPEED: ReplaySpeed = 1;
+const NO_REPLAY_MESSAGE = "no replay saved for this run";
+const BROKEN_REPLAY_MESSAGE = "replay data is broken";
 
 function initialSeedText(): string {
   return new URLSearchParams(location.search).get(SEED_PARAM) ?? randomSeedText();
@@ -135,11 +156,31 @@ let prevBossDefeated = false;
 /** recordRunOnce 経由の meta 更新と、ラン履歴の追加を二重にしないためのマーカー */
 let historyRecordedState: GameState | null = null;
 
+/** 現在のランの入力記録。step に渡す入力は必ずここを通す（照準の量子化を実プレイにも効かせる） */
+let recorder: ReplayRecorder | null = null;
+/** 装備画面を開いていたら、次の step の前に付け替えの有無を記録器に確認させる */
+let loadoutDirty = false;
+let replays: ReplayData[] = loadReplays();
+
+let historyCursor = 0;
+let historyMessage = "";
+
+interface ReplayPlayback {
+  session: ReplaySession;
+  speed: ReplaySpeed;
+  /** 再生中だけ有効な、プロフィール保存の抑止を解除する */
+  releaseGuard: () => void;
+  clock: number;
+}
+let replay: ReplayPlayback | null = null;
+
 function beginRun(seedText: string): void {
+  runStartedAt = Date.now();
+  recorder = new ReplayRecorder({ seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText) }, profile, skillProfile);
+  loadoutDirty = false;
   state = startGame(seedText);
   committedSeedText = seedText;
   seedInput.text = seedText;
-  runStartedAt = Date.now();
   bossesDefeated = 0;
   prevBossDefeated = false;
   historyRecordedState = null;
@@ -151,8 +192,59 @@ function endRun(current: GameState): void {
   recordRunOnce(current);
   if (historyRecordedState === current) return;
   historyRecordedState = current;
-  pushRunHistory(current.profile, buildHistoryEntry(current, Date.now()));
+  // 履歴エントリの date とリプレイの endedAt を同じ値にして紐付ける
+  const now = Date.now();
+  pushRunHistory(current.profile, buildHistoryEntry(current, now));
   saveProfile(current.profile);
+  if (recorder) {
+    replays = pushReplay(recorder.finish({ depth: current.depth, kills: current.kills, score: current.score }, now));
+    recorder = null;
+  }
+}
+
+/** 記録器を通して step する。記録中でなければそのまま */
+function stepRecorded(s: GameState, frame: FrameInput, dt: number): void {
+  if (!recorder) {
+    step(s, frame, dt);
+    return;
+  }
+  if (loadoutDirty) {
+    recorder.noteLoadout(s);
+    loadoutDirty = false;
+  }
+  step(s, recorder.record(frame), dt);
+}
+
+function openHistory(): void {
+  screen = "history";
+  historyCursor = 0;
+  historyMessage = "";
+}
+
+/**
+ * 再生を始める。step 内の拾得処理は一時プロフィールを保存しようとするので、
+ * 再生中はプロフィールのキーへの書き込みを止める
+ */
+function startReplay(data: ReplayData): void {
+  let session: ReplaySession;
+  try {
+    session = createReplaySession(data);
+  } catch (err) {
+    console.warn("replay failed", err);
+    historyMessage = BROKEN_REPLAY_MESSAGE;
+    return;
+  }
+  replay = { session, speed: REPLAY_START_SPEED, releaseGuard: guardStorageWrites(), clock: 0 };
+  screen = "replay";
+}
+
+/** 再生を終えて履歴画面へ戻る。念のため本物のプロフィールを保存し直す */
+function endReplay(): void {
+  if (replay) replay.releaseGuard();
+  replay = null;
+  saveProfile(profile);
+  saveSkillProfile(skillProfile);
+  screen = "history";
 }
 
 function enterMenu(next: "paused" | "settings", frameMoveX: number, frameMoveY: number): void {
@@ -161,9 +253,9 @@ function enterMenu(next: "paused" | "settings", frameMoveX: number, frameMoveY: 
   menuNav.prevY = frameMoveY;
 }
 
-function drainSfx(): void {
-  if (!state) return;
-  const names = state.sfx.splice(0);
+function drainSfx(s: GameState | null = state): void {
+  if (!s) return;
+  const names = s.sfx.splice(0);
   for (const name of names) sfx.play(name);
 }
 
@@ -190,6 +282,14 @@ function drawGamepadConnectedHint(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = GAMEPAD_HINT_COLOR;
   ctx.textAlign = "center";
   ctx.fillText(GAMEPAD_HINT_TEXT, VIEW_W / 2, VIEW_H - GAMEPAD_HINT_Y_FROM_BOTTOM);
+}
+
+/** 画面揺れの強度は renderer / system を触らず、描画直前だけカメラオフセットを倍率適用して戻す */
+function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
+  const savedOffset = s.camera.offset;
+  s.camera.offset = { x: savedOffset.x * settings.screenShake, y: savedOffset.y * settings.screenShake };
+  renderer.render(s, aim);
+  s.camera.offset = savedOffset;
 }
 
 startLoop(
@@ -224,7 +324,11 @@ startLoop(
           break;
         }
         if (hotkeys.h) {
-          screen = "history";
+          openHistory();
+          break;
+        }
+        if (hotkeys.d) {
+          beginRun(dailySeedText(new Date()));
           break;
         }
         if (hotkeys.o) {
@@ -238,7 +342,45 @@ startLoop(
       }
 
       case "history": {
-        if (hotkeys.escape) screen = "title";
+        if (hotkeys.escape) {
+          screen = "title";
+          break;
+        }
+        const history = profile.meta.history ?? [];
+        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : Math.sign(frame.wheel);
+        if (navY !== 0) {
+          historyCursor = moveHistoryCursor(historyCursor, navY, history.length);
+          historyMessage = "";
+        }
+        const entry = history[historyCursor];
+        if (!entry) break;
+        if (hotkeys.s) {
+          beginRun(entry.seedText);
+          break;
+        }
+        if (hotkeys.p) {
+          const data = findReplayForEntry(replays, entry);
+          if (data) startReplay(data);
+          else historyMessage = NO_REPLAY_MESSAGE;
+        }
+        break;
+      }
+
+      case "replay": {
+        // 再生中は装備画面・ポーズを開かない。Esc で終了、←→ で速度
+        const cur = replay;
+        if (!cur) {
+          screen = "history";
+          break;
+        }
+        if (hotkeys.escape || (isReplayFinished(cur.session) && frame.confirmPressed)) {
+          endReplay();
+          break;
+        }
+        if (hotkeys.arrowX !== 0) cur.speed = shiftReplaySpeed(cur.speed, hotkeys.arrowX);
+        cur.clock += dt;
+        for (let i = 0; i < cur.speed; i++) stepReplay(cur.session, dt);
+        drainSfx(cur.session.state);
         break;
       }
 
@@ -318,6 +460,7 @@ startLoop(
 
         // 装備画面は step の pause 判定より前に処理する（paused を UI が切り替える）
         updateInventoryUi(cur, inventoryUi, frame, dt);
+        if (inventoryUi.open) loadoutDirty = true;
         if (inventoryUi.open) {
           if (hotkeys.escape) {
             inventoryUi.open = false;
@@ -350,7 +493,7 @@ startLoop(
         }
 
         if (state) {
-          step(state, frame, dt);
+          stepRecorded(state, frame, dt);
           trackBoss(state);
           drainSfx();
         }
@@ -367,13 +510,39 @@ startLoop(
       return;
     }
     if (screen === "history") {
-      drawHistoryScreen(ctx, profile.meta.history ?? []);
+      drawHistoryScreen(ctx, {
+        history: profile.meta.history ?? [],
+        cursor: historyCursor,
+        hasReplay: (i) => {
+          const entry = profile.meta.history?.[i];
+          return entry !== undefined && findReplayForEntry(replays, entry) !== null;
+        },
+        message: historyMessage,
+      });
       drawGamepadConnectedHint(ctx);
       return;
     }
     if (screen === "settings" && returnScreen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
       drawSettingsScreen(ctx, settings, settingsCursor, true);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+
+    if (screen === "replay" && replay) {
+      const session = replay.session;
+      renderGame(session.state, session.lastInput.aimScreen);
+      drawSkillHud(ctx, session.state);
+      drawReplayHud(
+        ctx,
+        {
+          speed: replay.speed,
+          progress: replayProgress(session),
+          finished: isReplayFinished(session),
+          seedText: session.data.seedText,
+        },
+        replay.clock,
+      );
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -385,11 +554,7 @@ startLoop(
       return;
     }
 
-    // 画面揺れの強度は renderer / system を触らず、描画直前だけカメラオフセットを倍率適用して戻す
-    const savedOffset = cur.camera.offset;
-    cur.camera.offset = { x: savedOffset.x * settings.screenShake, y: savedOffset.y * settings.screenShake };
-    renderer.render(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
-    cur.camera.offset = savedOffset;
+    renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
 
     drawSkillHud(ctx, cur);
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);

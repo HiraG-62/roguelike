@@ -5,6 +5,7 @@
  */
 import type { Item, Profile, Rarity, RunHistoryEntry } from "../loot/types";
 import { RARITIES } from "../loot/types";
+import { isDailySeedText } from "../core/replay";
 
 // ---------------------------------------------------------------------------
 // シード入力
@@ -92,10 +93,19 @@ export interface MenuHotkeys {
   o: boolean;
   m: boolean;
   t: boolean;
+  /** デイリーシードで開始 */
+  d: boolean;
+  /** 履歴画面: リプレイ再生 */
+  p: boolean;
+  /** 履歴画面: そのシードで新規開始 */
+  s: boolean;
+  /** 矢印キー（-1 / 0 / 1）。WASD は移動と衝突するので履歴・リプレイ操作は矢印キーだけで行う */
+  arrowX: number;
+  arrowY: number;
 }
 
 function emptyHotkeys(): MenuHotkeys {
-  return { escape: false, n: false, h: false, o: false, m: false, t: false };
+  return { escape: false, n: false, h: false, o: false, m: false, t: false, d: false, p: false, s: false, arrowX: 0, arrowY: 0 };
 }
 
 /**
@@ -135,6 +145,27 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
         break;
       case "KeyT":
         hotkeys.t = true;
+        break;
+      case "KeyD":
+        hotkeys.d = true;
+        break;
+      case "KeyP":
+        hotkeys.p = true;
+        break;
+      case "KeyS":
+        hotkeys.s = true;
+        break;
+      case "ArrowUp":
+        hotkeys.arrowY = -1;
+        break;
+      case "ArrowDown":
+        hotkeys.arrowY = 1;
+        break;
+      case "ArrowLeft":
+        hotkeys.arrowX = -1;
+        break;
+      case "ArrowRight":
+        hotkeys.arrowX = 1;
         break;
       default:
         break;
@@ -238,4 +269,47 @@ export function summarizeRunItems(items: readonly Item[], runStartedAt: number):
     total += 1;
   }
   return { total, byRarity };
+}
+
+// ---------------------------------------------------------------------------
+// 履歴画面: デイリーの印とベスト、カーソル
+// ---------------------------------------------------------------------------
+
+/** seedText が日付（YYYY-MM-DD）ならデイリーのラン */
+export function isDailyEntry(entry: Pick<RunHistoryEntry, "seedText">): boolean {
+  return isDailySeedText(entry.seedText);
+}
+
+/** デイリーの日付ごとに score 最大（同点なら depth、さらに同点なら新しい方）の履歴インデックス */
+export function dailyBestIndices(history: readonly RunHistoryEntry[]): Set<number> {
+  const bestBySeed = new Map<string, number>();
+  history.forEach((entry, i) => {
+    if (!isDailyEntry(entry)) return;
+    const prevIndex = bestBySeed.get(entry.seedText);
+    const prev = prevIndex === undefined ? undefined : history[prevIndex];
+    if (!prev || entry.score > prev.score || (entry.score === prev.score && entry.depth > prev.depth)) {
+      bestBySeed.set(entry.seedText, i);
+    }
+  });
+  return new Set(bestBySeed.values());
+}
+
+/** 履歴カーソルを上下に動かす（端で止める）。一覧が空なら 0 */
+export function moveHistoryCursor(cursor: number, delta: number, length: number): number {
+  if (length === 0) return 0;
+  return Math.max(0, Math.min(length - 1, cursor + delta));
+}
+
+// ---------------------------------------------------------------------------
+// リプレイ再生速度
+// ---------------------------------------------------------------------------
+
+export const REPLAY_SPEEDS = [1, 2, 4] as const;
+export type ReplaySpeed = (typeof REPLAY_SPEEDS)[number];
+
+/** ←→ で速度を 1 段変える（端で止める） */
+export function shiftReplaySpeed(speed: ReplaySpeed, delta: number): ReplaySpeed {
+  const index = REPLAY_SPEEDS.indexOf(speed);
+  const next = Math.max(0, Math.min(REPLAY_SPEEDS.length - 1, index + Math.sign(delta)));
+  return REPLAY_SPEEDS[next] ?? speed;
 }
