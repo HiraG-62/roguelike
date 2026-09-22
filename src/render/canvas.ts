@@ -1,5 +1,5 @@
 import type { GameState } from "../core/state";
-import { type GameMap, Tile, getTile } from "../map/grid";
+import { type GameMap, Tile, getTile, toIndex } from "../map/grid";
 
 /** 論理グリッドは固定。Canvas の拡大縮小でウィンドウに合わせる */
 export const GRID_COLS = 80;
@@ -12,20 +12,13 @@ const CELL_H = 20;
 const FONT = `${CELL_H - 2}px "Consolas", "Courier New", monospace`;
 
 const COLOR_BG = "#000000";
-const COLOR_WALL = "#7a7a7a";
-const COLOR_FLOOR = "#3a3a3a";
-const COLOR_STAIRS = "#ffd75f";
 const COLOR_STATUS = "#c0c0c0";
 
-const GLYPH: Record<Tile, string> = {
-  [Tile.Wall]: "#",
-  [Tile.Floor]: ".",
-  [Tile.StairsDown]: ">",
-};
-const TILE_COLOR: Record<Tile, string> = {
-  [Tile.Wall]: COLOR_WALL,
-  [Tile.Floor]: COLOR_FLOOR,
-  [Tile.StairsDown]: COLOR_STAIRS,
+/** 可視 / 記憶 で色を分ける。記憶は暗く落とす */
+const TILE_STYLE: Record<Tile, { glyph: string; lit: string; remembered: string }> = {
+  [Tile.Wall]: { glyph: "#", lit: "#9a8f7a", remembered: "#3d3a33" },
+  [Tile.Floor]: { glyph: ".", lit: "#6a6a6a", remembered: "#262626" },
+  [Tile.StairsDown]: { glyph: ">", lit: "#ffd75f", remembered: "#6b5a28" },
 };
 
 export class CanvasRenderer {
@@ -58,8 +51,9 @@ export class CanvasRenderer {
     ctx.textBaseline = "top";
 
     this.drawStatus(state);
-    this.drawMap(state.map);
+    this.drawMap(state.map, state.visible, state.explored);
     for (const e of state.entities) {
+      if (!state.visible[toIndex(state.map, e.pos.x, e.pos.y)]) continue;
       this.drawGlyph(e.glyph, e.color, e.pos.x, e.pos.y + STATUS_ROWS);
     }
   }
@@ -69,11 +63,14 @@ export class CanvasRenderer {
     this.ctx.fillText(`Depth: ${state.depth}   Seed: ${state.seed}`, 2, 1);
   }
 
-  private drawMap(map: GameMap): void {
+  private drawMap(map: GameMap, visible: Uint8Array, explored: Uint8Array): void {
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
-        const tile = getTile(map, x, y);
-        this.drawGlyph(GLYPH[tile], TILE_COLOR[tile], x, y + STATUS_ROWS);
+        const idx = toIndex(map, x, y);
+        if (!explored[idx]) continue;
+        const style = TILE_STYLE[getTile(map, x, y)];
+        const color = visible[idx] ? style.lit : style.remembered;
+        this.drawGlyph(style.glyph, color, x, y + STATUS_ROWS);
       }
     }
   }
