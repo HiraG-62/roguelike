@@ -200,6 +200,11 @@ const TUNING = {
   freeze: { freqFrom: 2600, freqTo: 1100, duration: 0.28 },
   explode: { noiseFreqFrom: 1600, noiseFreqTo: 80, noiseDuration: 0.6, lowFreq: 55, lowDuration: 0.7 },
   heal: { tones: [660, 880, 1100] as const, noteDuration: 0.08, gap: 0.02 },
+  skillCast: { noiseFreqFrom: 2400, noiseFreqTo: 600, noiseDuration: 0.12, freqFrom: 300, freqTo: 700, duration: 0.1 },
+  skillReady: { tones: [880, 1320] as const, noteDuration: 0.04, gap: 0.01 },
+  parry: { freq: 1800, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 1500, noiseDuration: 0.08 },
+  railshot: { freqFrom: 1400, freqTo: 120, duration: 0.25, noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2 },
+  runeAttach: { tones: [440, 660, 990] as const, noteDuration: 0.06, gap: 0.02 },
 } as const;
 
 // ---- 各効果音の定義 -------------------------------------------------------
@@ -567,6 +572,77 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       noteDuration: TUNING.heal.noteDuration,
       gap: TUNING.heal.gap,
       peak: 0.55,
+    }),
+
+  skillCast: (ctx, dest, opts) => {
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.skillCast.noiseFreqFrom,
+      freqTo: TUNING.skillCast.noiseFreqTo,
+      duration: TUNING.skillCast.noiseDuration,
+      peak: 0.5,
+    });
+    const sweep = toneSweep(ctx, dest, opts, {
+      type: "triangle",
+      freqFrom: TUNING.skillCast.freqFrom,
+      freqTo: TUNING.skillCast.freqTo,
+      duration: TUNING.skillCast.duration,
+      peak: 0.45,
+    });
+    return Math.max(noise, sweep);
+  },
+
+  skillReady: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "sine",
+      freqs: TUNING.skillReady.tones,
+      noteDuration: TUNING.skillReady.noteDuration,
+      gap: TUNING.skillReady.gap,
+      peak: 0.35,
+    }),
+
+  parry: (ctx, dest, opts) => {
+    const ring = tone(ctx, dest, opts, {
+      type: "square",
+      freq: TUNING.parry.freq,
+      duration: TUNING.parry.duration,
+      peak: 0.5,
+    });
+    const clang = noiseBurst(ctx, dest, opts, {
+      filterType: "highpass",
+      freqFrom: TUNING.parry.noiseFreqFrom,
+      freqTo: TUNING.parry.noiseFreqTo,
+      duration: TUNING.parry.noiseDuration,
+      peak: 0.7,
+    });
+    return Math.max(ring, clang);
+  },
+
+  railshot: (ctx, dest, opts) => {
+    const zap = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.railshot.freqFrom,
+      freqTo: TUNING.railshot.freqTo,
+      duration: TUNING.railshot.duration,
+      peak: 0.6,
+    });
+    const hiss = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.railshot.noiseFreqFrom,
+      freqTo: TUNING.railshot.noiseFreqTo,
+      duration: TUNING.railshot.noiseDuration,
+      peak: 0.6,
+    });
+    return Math.max(zap, hiss);
+  },
+
+  runeAttach: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.runeAttach.tones,
+      noteDuration: TUNING.runeAttach.noteDuration,
+      gap: TUNING.runeAttach.gap,
+      peak: 0.5,
     }),
 };
 

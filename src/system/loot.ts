@@ -4,6 +4,9 @@ import { enemyDef } from "../data/enemies";
 import { LOOT_DROP } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import { addToStash, saveProfile } from "../loot/profile";
+import { SKILL } from "../skills/data";
+import { generateSkillStone } from "../skills/generator";
+import type { SkillStone } from "../skills/types";
 import { RARITY_COLOR, type Item, type Rarity } from "../loot/types";
 import { addFloatingText } from "./effects";
 import { circlesOverlap, overlapsWall } from "./physics";
@@ -47,8 +50,17 @@ export function enemyDropChance(state: GameState, enemy: Enemy): number {
 
 /** 撃破時の確率ドロップ */
 export function rollEnemyDrop(state: GameState, enemy: Enemy): void {
-  if (!state.rng.chance(enemyDropChance(state, enemy))) return;
-  dropItem(state, enemy.body.pos);
+  if (state.rng.chance(enemyDropChance(state, enemy))) dropItem(state, enemy.body.pos);
+  if (state.rng.chance(SKILL.drop.stoneOnKill)) dropSkillStone(state, enemy.body.pos);
+}
+
+/** スキル石を床に 1 個落とす（拾うとスキル stash へ）。docs/ideas/skills.md「7-7」 */
+export function dropSkillStone(state: GameState, pos: Vec): SkillStone {
+  // now は決定性に影響しない（id と foundAt の表示用）
+  const stone = generateSkillStone(state.rng, { foundDepth: state.depth, now: Date.now() });
+  state.skills.floorStones.push({ id: allocId(state), stone, pos: scatterPos(state, pos), bobTime: 0, warned: false });
+  pushSfx(state, "lootRare");
+  return stone;
 }
 
 /** 部屋クリア報酬: 必ず 1 個 */

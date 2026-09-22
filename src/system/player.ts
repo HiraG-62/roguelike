@@ -10,6 +10,16 @@ import { addFloatingText, hitstop, shake, spawnBurst } from "./effects";
 import { KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt } from "./statusEffects";
+import {
+  cancelSkills,
+  consumeLungeCombo,
+  frenzyMul,
+  skillLocksAttack,
+  skillLocksDash,
+  skillMoveMul,
+  trackDamageDealt,
+  updateSkills,
+} from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 
 const KNOCK_DECAY = 14;
@@ -25,6 +35,8 @@ const PACIFIST_COLOR = "#a0a0a0";
 const BLADE_OATH_TEXT_INTERVAL = 0.6;
 /** 装備変更で HP 割合を維持するときの生存中の下限 */
 const MIN_ALIVE_HP = 1;
+/** 突進斬りから繋がる近接の段（0 始まり） */
+const LUNGE_FOLLOW_COMBO = 1;
 
 export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_STATS): Player {
   return {
@@ -119,17 +131,29 @@ const AIM_DEADZONE = 2;
 
 export function updatePlayer(state: GameState, input: FrameInput, dt: number): void {
   const p = state.player;
+  // 血の契約の吸収は前フレームの敵・弾による与ダメも拾う
+  trackDamageDealt(state);
   tickTimers(state, dt);
   const aiming = applyAim(state, input);
 
-  if (input.dashPressed) tryDash(state, input);
-  if (input.attackPressed) tryAttack(state);
-  if (input.specialPressed) trySpecial(state);
+  if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
+  if (input.attackPressed && !skillLocksAttack(state)) tryAttack(state);
+  // バーストは常にスキルをキャンセルできる
+  if (input.specialPressed && trySpecial(state)) cancelSkills(state);
+  updateSkills(state, input, dt);
 
   updateAttack(state, dt);
   updateMovement(state, input, dt, aiming);
-  if (input.shootHeld) tryShoot(state);
+  if (input.shootHeld && !skillLocksAttack(state)) tryShoot(state);
   if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
+  trackDamageDealt(state);
+}
+
+/** 近接・射撃の速度に血の契約（frenzy）を乗せた stats。装備の stats は書き換えない */
+function actionStats(state: GameState): PlayerStats {
+  const mul = frenzyMul(state);
+  if (mul === 1) return state.stats;
+  return { ...state.stats, attackSpeedMul: state.stats.attackSpeedMul * mul, fireRateMul: state.stats.fireRateMul * mul };
 }
 
 /** マウス照準があれば向きをカーソル方向にする。照準していれば true */
@@ -236,7 +260,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       });
     }
   } else {
-    const attackMul = isAttacking(p) ? PLAYER.attackMoveMul : 1;
+    const attackMul = (isAttacking(p) ? PLAYER.attackMoveMul : 1) * skillMoveMul(state);
     const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
     vel = scale(input.move, PLAYER.speed * state.stats.moveSpeedMul * attackMul * buffMul);
     if (!aiming && !isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
@@ -264,7 +288,8 @@ function tryAttack(state: GameState): void {
   }
   const a = state.player.attack;
   if (a.phase === "none") {
-    startSwing(state, a.combo);
+    // 突進斬り直後は 2 段目から
+    startSwing(state, consumeLungeCombo(state) ? LUNGE_FOLLOW_COMBO : a.combo);
     return;
   }
   // recover / active 中なら先行入力として次段を予約
@@ -273,7 +298,7 @@ function tryAttack(state: GameState): void {
 
 function startSwing(state: GameState, combo: number): void {
   const p = state.player;
-  const step = meleeStep(state.stats, combo);
+  const step = meleeStep(actionStats(state), combo);
   if (!step) return;
   p.attack.combo = combo;
   p.attack.phase = "windup";
@@ -290,7 +315,7 @@ function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = meleeStep(state.stats, a.combo);
+  const step = meleeStep(actionStats(state), a.combo);
   if (!step) {
     cancelAttack(state);
     return;
@@ -375,7 +400,7 @@ function tryShoot(state: GameState): void {
     return;
   }
   const s = state.stats;
-  p.shootCooldown = PLAYER.shoot.cooldown / s.fireRateMul;
+  p.shootCooldown = PLAYER.shoot.cooldown / (s.fireRateMul * frenzyMul(state));
   const dir = { ...p.facing };
   const muzzle = add(p.body.pos, scale(dir, p.body.radius + 2));
   const baseAngle = angle(dir);
@@ -403,11 +428,12 @@ function tryShoot(state: GameState): void {
   fireTrigger(state, "onShoot", { pos: muzzle });
 }
 
-function trySpecial(state: GameState): void {
+/** バースト。発動したら true */
+function trySpecial(state: GameState): boolean {
   const p = state.player;
   if (p.energy < PLAYER.special.cost) {
     addFloatingText(state, p.body.pos, "not ready", "#808080", 0.9, 0.4);
-    return;
+    return false;
   }
   p.energy = 0;
   cancelAttack(state);
@@ -434,4 +460,5 @@ function trySpecial(state: GameState): void {
   state.flash = Math.max(state.flash, 0.5);
   p.invulnTimer = Math.max(p.invulnTimer, BURST_INVULN);
   pushSfx(state, "burst");
+  return true;
 }

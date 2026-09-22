@@ -12,7 +12,9 @@ export type ActionName =
   | "special"
   | "confirm"
   | "restart"
-  | "inventory";
+  | "inventory"
+  | "skill1"
+  | "skill2";
 
 /** KeyboardEvent.code で束縛する（配列に依存しない） */
 const BINDINGS: Record<ActionName, readonly string[]> = {
@@ -28,19 +30,41 @@ const BINDINGS: Record<ActionName, readonly string[]> = {
   confirm: ["Enter"],
   restart: ["KeyR"],
   inventory: ["Tab", "KeyI"],
+  // スキルは左手の数字キーと C / V。マウスのサイドボタンは MOUSE_BINDINGS
+  skill1: ["Digit1", "KeyC"],
+  skill2: ["Digit2", "KeyV"],
 };
 
 const MOUSE_LEFT = 0;
 const MOUSE_RIGHT = 2;
+/** サイドボタン（戻る / 進む）。ブラウザの履歴移動を止める必要がある */
+const MOUSE_BACK = 3;
+const MOUSE_FORWARD = 4;
+const HISTORY_BUTTONS: ReadonlySet<number> = new Set([MOUSE_BACK, MOUSE_FORWARD]);
 /** マウスボタンを擬似キーコードとして扱う */
 const MOUSE_CODE: Record<number, string> = {
   [MOUSE_LEFT]: "Mouse0",
   [MOUSE_RIGHT]: "Mouse2",
+  [MOUSE_BACK]: "Mouse3",
+  [MOUSE_FORWARD]: "Mouse4",
 };
 const MOUSE_BINDINGS: Partial<Record<ActionName, string>> = {
   attack: "Mouse0",
   shoot: "Mouse2",
+  skill1: "Mouse3",
+  skill2: "Mouse4",
 };
+
+/** アクションに束縛されたキーコード（マウスは "MouseN" の擬似コード） */
+export function codesForAction(action: ActionName): string[] {
+  const mouse = MOUSE_BINDINGS[action];
+  return mouse ? [...BINDINGS[action], mouse] : [...BINDINGS[action]];
+}
+
+/** マウスボタン番号 → 擬似キーコード */
+export function mouseButtonCode(button: number): string | undefined {
+  return MOUSE_CODE[button];
+}
 
 /** 1 フレームぶんの入力スナップショット。ゲームロジックはこれだけを見る */
 export interface FrameInput {
@@ -55,6 +79,9 @@ export interface FrameInput {
   confirmPressed: boolean;
   restartPressed: boolean;
   inventoryPressed: boolean;
+  /** スキルスロット 1 / 2 */
+  skill1Pressed: boolean;
+  skill2Pressed: boolean;
   /** 今フレームのホイール移動量（正 = 下）。UI のスクロール用 */
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
@@ -72,6 +99,8 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   confirmPressed: false,
   restartPressed: false,
   inventoryPressed: false,
+  skill1Pressed: false,
+  skill2Pressed: false,
   wheel: 0,
   clickPressed: false,
   shiftHeld: false,
@@ -116,6 +145,8 @@ export class PlayerInput {
       ev.preventDefault();
     });
     window.addEventListener("mouseup", (ev) => {
+      // 戻る / 進むは mouseup で発火するので、ここでも止める
+      if (HISTORY_BUTTONS.has(ev.button)) ev.preventDefault();
       const code = MOUSE_CODE[ev.button];
       if (code) this.down.delete(code);
     });
@@ -139,8 +170,7 @@ export class PlayerInput {
   }
 
   private codesFor(action: ActionName): string[] {
-    const mouse = MOUSE_BINDINGS[action];
-    return mouse ? [...BINDINGS[action], mouse] : [...BINDINGS[action]];
+    return codesForAction(action);
   }
 
   private isDown(action: ActionName): boolean {
@@ -167,6 +197,8 @@ export class PlayerInput {
       confirmPressed: this.wasPressed("confirm"),
       restartPressed: this.wasPressed("restart"),
       inventoryPressed: this.wasPressed("inventory"),
+      skill1Pressed: this.wasPressed("skill1"),
+      skill2Pressed: this.wasPressed("skill2"),
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has("Mouse0"),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),

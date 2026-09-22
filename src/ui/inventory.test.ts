@@ -9,7 +9,7 @@ vi.mock("../loot/stats", () => ({
 }));
 
 import { computeStats } from "../loot/stats";
-import { createInventoryUi, layoutInventory, updateInventoryUi } from "./inventory";
+import { createInventoryUi, layoutInventory, layoutSkills, tabRects, updateInventoryUi } from "./inventory";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -38,17 +38,59 @@ beforeEach(() => {
 });
 
 describe("updateInventoryUi: トグル", () => {
-  it("inventoryPressed で開閉し、state.paused が連動する", () => {
+  it("Tab は 閉 → 装備 → スキル → 閉 のサイクルで、state.paused が連動する", () => {
     const state = createGame(1);
     const ui = createInventoryUi();
 
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
     expect(ui.open).toBe(true);
+    expect(ui.tab).toBe("equipment");
+    expect(state.paused).toBe(true);
+
+    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+    expect(ui.open).toBe(true);
+    expect(ui.tab).toBe("skills");
     expect(state.paused).toBe(true);
 
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
     expect(ui.open).toBe(false);
     expect(state.paused).toBe(false);
+
+    // 次に開くと装備タブから
+    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+    expect(ui.tab).toBe("equipment");
+  });
+
+  it("画面上のタブをクリックで切り替えられる", () => {
+    const state = createGame(1);
+    const ui = createInventoryUi();
+    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+    const skillsTab = tabRects().find((t) => t.tab === "skills");
+    if (!skillsTab) throw new Error("skills tab missing");
+    const aim = { x: skillsTab.rect.x + 1, y: skillsTab.rect.y + 1 };
+    updateInventoryUi(state, ui, withInput({ clickPressed: true, aimScreen: aim }), 0);
+    expect(ui.tab).toBe("skills");
+  });
+});
+
+describe("updateInventoryUi: スキルタブ", () => {
+  it("スロットクリックで外し、石クリックで空きスロットへ装着する", () => {
+    const state = createGame(1);
+    const ui = createInventoryUi();
+    ui.open = true;
+    ui.tab = "skills";
+    const profile = state.skills.profile;
+    const firstId = profile.loadout[0];
+
+    const slotRect = layoutSkills(state, ui).slots[0]?.rect;
+    if (!slotRect) throw new Error("slot missing");
+    updateInventoryUi(state, ui, withInput({ clickPressed: true, aimScreen: { x: slotRect.x + 1, y: slotRect.y + 1 } }), 0);
+    expect(profile.loadout[0]).toBeNull();
+
+    const row = layoutSkills(state, ui).rows.find((r) => r.stone.id === firstId);
+    if (!row) throw new Error("row missing");
+    updateInventoryUi(state, ui, withInput({ clickPressed: true, aimScreen: { x: row.rect.x + 1, y: row.rect.y + 1 } }), 0);
+    expect(profile.loadout[0]).toBe(firstId);
   });
 });
 

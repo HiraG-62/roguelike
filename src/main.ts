@@ -7,6 +7,8 @@ import type { GameState } from "./core/state";
 import { loadProfile } from "./loot/profile";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { Renderer } from "./render/renderer";
+import { drawSkillHud } from "./render/skillHud";
+import { loadSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
 
@@ -27,12 +29,14 @@ function randomSeedText(): string {
 
 // プロフィール（装備・stash）はラン間で共有。拾った瞬間に保存される
 const profile = loadProfile();
+// スキル石も別キーで永続。刻印符（修飾子）はラン内なので createGame が毎回空で作る
+const skillProfile = loadSkillProfile();
 
 function startGame(seedText: string): GameState {
   const url = new URL(location.href);
   url.searchParams.set(SEED_PARAM, seedText);
   history.replaceState(null, "", url);
-  return createGame(hashSeed(seedText), seedText, profile);
+  return createGame(hashSeed(seedText), seedText, profile, skillProfile);
 }
 
 let state = startGame(initialSeedText());
@@ -79,6 +83,7 @@ startLoop(
   },
   () => {
     renderer.render(state, inventoryUi.open ? null : lastAim);
+    drawSkillHud(renderer.context, state);
     if (inventoryUi.open) drawInventoryUi(renderer.context, state, inventoryUi);
   },
 );

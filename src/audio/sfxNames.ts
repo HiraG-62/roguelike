@@ -34,6 +34,12 @@ export const SFX_NAMES = [
   "freeze",
   "explode",
   "heal",
+  // スキル（docs/ideas/skills.md）
+  "skillCast",
+  "skillReady",
+  "parry",
+  "railshot",
+  "runeAttach",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];
