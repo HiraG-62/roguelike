@@ -139,6 +139,61 @@ export interface PlayerStats {
   shockDamage: number;
   explodeOnKillChance: number;
   explodeDamage: number;
+
+  /**
+   * キーストーン: 遊び方そのものを変える大型改造の key 一覧（例 "glassCannon", "berserker", "blinkDash"）。
+   * 同じ key は 1 つまで。相互排他グループは affixes.ts 側で定義する。
+   */
+  keystones: string[];
+  /** trigger × condition × effect 文法で生成された条件付き効果 */
+  triggers: TriggeredEffect[];
+}
+
+export type TriggerKind =
+  | "onMeleeHit"
+  | "onShoot"
+  | "onKill"
+  | "onJustDodge"
+  | "onDash"
+  | "onHurt"
+  | "onRoomClear"
+  | "everyNthMeleeHit";
+
+export type TriggerCondition =
+  | "always"
+  | "aboveHalfHp"
+  | "belowHalfHp"
+  | "comboAbove10"
+  | "roomLocked"
+  | "fullEnergy";
+
+export type TriggerEffectKind =
+  | "shockwave"
+  | "spawnBullets"
+  | "chainLightning"
+  | "burnNearby"
+  | "freezeNearby"
+  | "explode"
+  | "heal"
+  | "damageBuff"
+  | "speedBuff"
+  | "energy"
+  | "invuln";
+
+export interface TriggeredEffect {
+  trigger: TriggerKind;
+  /** everyNthMeleeHit の N */
+  every?: number;
+  condition: TriggerCondition;
+  effect: TriggerEffectKind;
+  /** 効果量（ダメージ・回復量・倍率加算など効果ごとに解釈） */
+  magnitude: number;
+  /** バフ系の持続秒 */
+  duration?: number;
+  /** spawnBullets の弾数など */
+  count?: number;
+  /** 発動確率 0..1 */
+  chance: number;
 }
 
 export const DEFAULT_STATS: Readonly<PlayerStats> = {
@@ -190,4 +245,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   shockDamage: 0,
   explodeOnKillChance: 0,
   explodeDamage: 0,
+
+  keystones: [],
+  triggers: [],
 };
