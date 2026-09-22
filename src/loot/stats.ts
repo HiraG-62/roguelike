@@ -125,7 +125,10 @@ function finalize(stats: PlayerStats): PlayerStats {
   return stats;
 }
 
-/** flat → scale の段階ごとに適用する（max HP % は flat の合算後に掛かる） */
+/**
+ * flat → scale → convert の段階ごとに適用する（max HP % は flat の合算後に掛かる）。
+ * convert は変換アフィックス（"A を B に変換"）。盛り終えた値を移すので scale の後、ソフトキャップの前
+ */
 function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
   for (const stage of APPLY_STAGES) {
     for (const roll of rolls) {
@@ -137,7 +140,7 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
 /**
  * 装備から PlayerStats を畳み込む。
  * 1. キーストーンの排他を解決（同グループは装備順で後勝ち）
- * 2. DEFAULT_STATS のコピーに、装備順で implicit → affixes（trigger 含む）を段階適用
+ * 2. DEFAULT_STATS のコピーに、装備順で implicit → affixes（trigger 含む）を段階適用（flat → scale → convert）
  * 3. 主要倍率にソフトキャップ
  * 4. キーストーンを apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
  * 5. 整数化・クランプ

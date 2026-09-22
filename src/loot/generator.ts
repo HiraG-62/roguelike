@@ -3,7 +3,9 @@ import {
   KEYSTONES,
   affixDef,
   affixesFor,
+  conversionsFor,
   implicitDef,
+  isConversionKey,
   keystoneDef,
   keystoneToRoll,
   type AffixDef,
@@ -69,6 +71,11 @@ const KIND_LIMIT: Readonly<Record<Rarity, number>> = {
 };
 const AFFIX_KINDS: readonly AffixKind[] = ["prefix", "suffix"];
 
+/** prefix / suffix それぞれの上限（クラフトの枠判定用）。unique は固定セットなので rare と同じ枠で扱う */
+export function affixKindLimit(rarity: Rarity): number {
+  return rarity === "unique" ? KIND_LIMIT.rare : KIND_LIMIT[rarity];
+}
+
 /** 1 つ上の tier に行くごとに重みがこの倍率になる（高 tier ほど珍しい） */
 const TIER_WEIGHT_DECAY = 0.55;
 
@@ -76,6 +83,8 @@ const TIER_WEIGHT_DECAY = 0.55;
 export const TRIGGER_AFFIX_CHANCE = 0.25;
 /** rare にランダムなキーストーンが付く確率（アフィックス枠とは別枠）。unique は UniqueDef.keystone で固定 */
 export const RARE_KEYSTONE_CHANCE = 0.15;
+/** rare の各アフィックス枠が変換アフィックスになる確率（1 アイテムに 1 つまで。トリガーの抽選に外れた枠のみ） */
+export const CONVERSION_AFFIX_CHANCE = 0.1;
 
 /** implicit の AffixRoll に入れる固定値（kind/tier は implicit では意味を持たない） */
 const IMPLICIT_KIND: AffixKind = "prefix";
@@ -126,6 +135,7 @@ export const UNIQUES: readonly UniqueDef[] = [
       { key: "fireRate", tier: 2 },
       { key: "chill", tier: 1 },
       { key: "pierce", tier: 2 },
+      { key: "cv_splitToPierce", tier: 2 },
     ],
   },
   {
@@ -139,6 +149,7 @@ export const UNIQUES: readonly UniqueDef[] = [
       { key: "maxLifePct", tier: 2 },
       { key: "thorns", tier: 2 },
       { key: "damageTaken", tier: 2 },
+      { key: "cv_lifeToArmor", tier: 2 },
     ],
   },
   {
@@ -274,7 +285,7 @@ export function rollTierIndex(rng: Rng, def: AffixDef, itemLevel: number): numbe
   return available[weightedIndex(rng, weights)] ?? lowestIndex;
 }
 
-function rollAffixAtTier(rng: Rng, def: AffixDef, tierIndex: number): AffixRoll {
+export function rollAffixAtTier(rng: Rng, def: AffixDef, tierIndex: number): AffixRoll {
   const tier = def.tiers[tierIndex];
   if (tier === undefined) throw new Error(`rollAffixAtTier: ${def.key} has no tier index ${tierIndex}`);
   const values = rollRangeValues(rng, tier, def.decimals ?? 0, def.decimals2 ?? 0);
@@ -307,10 +318,24 @@ function maybeRollTrigger(
   return used.has(roll.key) ? undefined : roll;
 }
 
+/** rare の枠を変換アフィックスで埋める。既に変換を持つ / 候補が無ければ undefined */
+function maybeRollConversion(
+  rng: Rng,
+  ctx: SlotContext,
+  kind: AffixKind,
+  used: ReadonlySet<string>,
+): AffixRoll | undefined {
+  if (ctx.rarity !== "rare" || !rng.chance(CONVERSION_AFFIX_CHANCE)) return undefined;
+  if ([...used].some(isConversionKey)) return undefined;
+  const candidates = conversionsFor(ctx.slot, ctx.itemLevel, kind).filter((d) => !used.has(d.key));
+  if (candidates.length === 0) return undefined;
+  return rollAffix(rng, rng.pick(candidates), ctx.itemLevel);
+}
+
 /**
  * rarity に応じた数のアフィックスを抽選する。
  * key の重複なし、prefix / suffix はそれぞれ KIND_LIMIT まで。結果は prefix → suffix の順。
- * rare の各枠は TRIGGER_AFFIX_CHANCE でトリガー文法から生成する（枠数には含む）。
+ * rare の各枠は TRIGGER_AFFIX_CHANCE でトリガー文法から、外れたら CONVERSION_AFFIX_CHANCE で変換アフィックスから生成する（枠数には含む）。
  * キーストーンはここでは付けない（rollKeystone を参照）。
  */
 export function rollAffixes(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number): AffixRoll[] {
@@ -325,8 +350,10 @@ export function rollAffixes(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: num
     const kinds = AFFIX_KINDS.filter((k) => countKind(rolls, k) < limit && candidatesOf(k).length > 0);
     if (kinds.length === 0) break;
     const kind = rng.pick(kinds);
+    const ctx: SlotContext = { slot, rarity, itemLevel };
     const roll =
-      maybeRollTrigger(rng, { slot, rarity, itemLevel }, kind, used) ??
+      maybeRollTrigger(rng, ctx, kind, used) ??
+      maybeRollConversion(rng, ctx, kind, used) ??
       rollAffix(rng, rng.pick(candidatesOf(kind)), itemLevel);
     rolls.push(roll);
     used.add(roll.key);

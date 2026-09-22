@@ -1,6 +1,18 @@
 import type { GameState } from "../core/state";
 import type { FrameInput } from "../core/input";
 import { VIEW_H, VIEW_W } from "../core/view";
+import {
+  CRAFT_OPS,
+  CURRENCIES,
+  addSalvageCurrency,
+  applyCraftResult,
+  craft,
+  craftBlockMessage,
+  craftBlockReason,
+  type CraftOp,
+  type Currency,
+} from "../loot/crafting";
+import { loadCraft, saveCraft, type CraftSave } from "../loot/craftingStore";
 import { equipItem, saveProfile, salvageItem, unequipItem } from "../loot/profile";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
@@ -35,8 +47,17 @@ export const STASH_ROW_H = 12;
 export const TAB_Y = PANEL_Y + 1;
 export const TAB_H = HEADER_H - 1;
 export const TAB_GAP = 4;
-export const TAB_WIDTHS: Record<InventoryTab, number> = { equipment: 58, skills: 38 };
-export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills"];
+export const TAB_WIDTHS: Record<InventoryTab, number> = { equipment: 58, skills: 38, craft: 34 };
+export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "craft"];
+
+/** クラフトタブ: 左上に通貨、右に stash、下段右に操作ボタン + 状態行 + 結果行 */
+export const CURRENCY_ROW_H = 10;
+export const CURRENCY_BLOCK_H = CURRENCY_ROW_H * CURRENCIES.length + 4;
+export const CRAFT_BUTTON_H = 16;
+export const CRAFT_BUTTON_GAP = 3;
+const CRAFT_BUTTON_TOP_PAD = 2;
+const CRAFT_STATUS_OFFSET = 26;
+const CRAFT_RESULT_OFFSET = 36;
 
 /** スキルタブ: 左にスロット、右に石の一覧 */
 export const SKILL_SLOT_H = 30;
@@ -78,7 +99,36 @@ export interface InventoryLayout {
   maxScroll: number;
 }
 
-export type InventoryTab = "equipment" | "skills";
+export type InventoryTab = "equipment" | "skills" | "craft";
+
+export interface CraftUi {
+  /** 通貨とクラフト回数（roguelike.craft.v1 に保存） */
+  save: CraftSave;
+  /** 操作対象（stash の item id） */
+  selectedId: string | null;
+  /** Fuse ボタンを押して 2 つ目の選択を待っている */
+  fusePending: boolean;
+  hoverOp: CraftOp | null;
+  /** 直前の結果メッセージ（次の操作まで残す） */
+  result: string;
+}
+
+export interface CurrencyRowLayout {
+  currency: Currency;
+  rect: Rect;
+}
+
+export interface CraftButtonLayout {
+  op: CraftOp;
+  rect: Rect;
+}
+
+export interface CraftLayout {
+  currencies: CurrencyRowLayout[];
+  buttons: CraftButtonLayout[];
+  statusY: number;
+  resultY: number;
+}
 
 export interface TabLayout {
   tab: InventoryTab;
@@ -118,6 +168,7 @@ export interface InventoryUi {
   hoverSlot: Slot | null;
   message: string;
   messageTimer: number;
+  craft: CraftUi;
 }
 
 export function createInventoryUi(): InventoryUi {
@@ -133,6 +184,7 @@ export function createInventoryUi(): InventoryUi {
     hoverSlot: null,
     message: "",
     messageTimer: 0,
+    craft: { save: loadCraft(), selectedId: null, fusePending: false, hoverOp: null, result: "" },
   };
 }
 
@@ -217,15 +269,15 @@ export function tabRects(): TabLayout[] {
   });
 }
 
-/** Tab キー: 閉 → 装備 → スキル → 閉 */
+/** Tab キー: 閉 → 装備 → スキル → クラフト → 閉 */
 function cycleTab(state: GameState, ui: InventoryUi): void {
   if (!ui.open) {
     ui.open = true;
     ui.tab = "equipment";
-  } else if (ui.tab === "equipment") {
-    ui.tab = "skills";
   } else {
-    ui.open = false;
+    const next = TAB_ORDER[TAB_ORDER.indexOf(ui.tab) + 1];
+    if (next === undefined) ui.open = false;
+    else ui.tab = next;
   }
   state.paused = ui.open;
   if (ui.open) return;
@@ -233,6 +285,8 @@ function cycleTab(state: GameState, ui: InventoryUi): void {
   ui.hoverSlot = null;
   ui.hoverStoneId = null;
   ui.hoverSkillSlot = null;
+  ui.craft.hoverOp = null;
+  ui.craft.fusePending = false;
 }
 
 /** 装着中の石を先頭（スロット順）、残りは新しい順 */
@@ -324,6 +378,10 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     updateSkillsTab(state, ui, input);
     return;
   }
+  if (ui.tab === "craft") {
+    updateCraftTab(state, ui, input);
+    return;
+  }
 
   const layout = layoutInventory(state, ui);
   ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
@@ -337,11 +395,7 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
 
   if (hoveredRow) {
     if (input.shiftHeld) {
-      const name = hoveredRow.item.name;
-      if (salvageItem(state.profile, hoveredRow.item.id)) {
-        saveProfile(state.profile);
-        showMessage(ui, `Salvaged: ${name}`);
-      }
+      salvageForCurrency(state, ui, hoveredRow.item);
       return;
     }
     const name = hoveredRow.item.name;
@@ -357,4 +411,115 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     applyEquipmentChange(state);
     showMessage(ui, `Unequipped: ${name}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 分解（通貨の獲得）とクラフトタブ
+// ---------------------------------------------------------------------------
+
+/** stash のアイテムを分解し、rarity に応じた通貨を得る */
+function salvageForCurrency(state: GameState, ui: InventoryUi, item: Item): void {
+  if (!salvageItem(state.profile, item.id)) return;
+  const currency = addSalvageCurrency(ui.craft.save.wallet, item);
+  saveProfile(state.profile);
+  saveCraft(ui.craft.save);
+  if (ui.craft.selectedId === item.id) ui.craft.selectedId = null;
+  showMessage(ui, `Salvaged: ${item.name} (+1 ${currency})`);
+}
+
+/** クラフトタブのレイアウト（状態に依存しない） */
+export function layoutCraft(): CraftLayout {
+  const currencies: CurrencyRowLayout[] = CURRENCIES.map((currency, i) => ({
+    currency,
+    rect: { x: PANEL_X, y: CONTENT_Y + i * CURRENCY_ROW_H, w: LEFT_W, h: CURRENCY_ROW_H },
+  }));
+  const top = CONTENT_Y + CONTENT_H;
+  const buttonW = Math.floor((RIGHT_W - CRAFT_BUTTON_GAP * (CRAFT_OPS.length - 1)) / CRAFT_OPS.length);
+  const buttons: CraftButtonLayout[] = CRAFT_OPS.map((op, i) => ({
+    op,
+    rect: { x: RIGHT_X + i * (buttonW + CRAFT_BUTTON_GAP), y: top + CRAFT_BUTTON_TOP_PAD, w: buttonW, h: CRAFT_BUTTON_H },
+  }));
+  return { currencies, buttons, statusY: top + CRAFT_STATUS_OFFSET, resultY: top + CRAFT_RESULT_OFFSET };
+}
+
+/** 選択中のアイテム（stash に無くなっていたら null） */
+export function selectedCraftItem(state: GameState, ui: InventoryUi): Item | null {
+  const id = ui.craft.selectedId;
+  if (id === null) return null;
+  return state.profile.stash.find((it) => it.id === id) ?? null;
+}
+
+function runCraft(state: GameState, ui: InventoryUi, op: CraftOp, item: Item, partner?: Item): void {
+  const result = craft(ui.craft.save, {
+    op,
+    item,
+    partner,
+    bestDepth: state.profile.meta.bestDepth,
+    // 決定性に影響しない（Fuse の foundAt = 一覧の先頭に出すため）
+    now: Date.now(),
+  });
+  ui.craft.fusePending = false;
+  ui.craft.result = result.message;
+  if (!result.ok) return;
+  applyCraftResult(state.profile, result);
+  ui.craft.selectedId = result.item.id;
+  saveProfile(state.profile);
+  saveCraft(ui.craft.save);
+}
+
+/** Fuse ボタン: 実行可能なら 2 つ目の選択待ちに入る（もう一度押すと取り消し） */
+function toggleFuse(ui: InventoryUi, item: Item): void {
+  if (ui.craft.fusePending) {
+    ui.craft.fusePending = false;
+    ui.craft.result = "Fuse cancelled";
+    return;
+  }
+  const blocked = craftBlockReason(ui.craft.save.wallet, "fuse", item);
+  if (blocked !== null) {
+    ui.craft.result = craftBlockMessage(blocked, "fuse");
+    return;
+  }
+  ui.craft.fusePending = true;
+  ui.craft.result = `Pick a second ${item.slot} item to fuse with ${item.name}`;
+}
+
+function clickCraftButton(state: GameState, ui: InventoryUi, op: CraftOp): void {
+  const item = selectedCraftItem(state, ui);
+  if (item === null) {
+    ui.craft.result = "Select an item from the stash first";
+    return;
+  }
+  if (op === "fuse") {
+    toggleFuse(ui, item);
+    return;
+  }
+  runCraft(state, ui, op, item);
+}
+
+function clickCraftRow(state: GameState, ui: InventoryUi, item: Item): void {
+  const selected = selectedCraftItem(state, ui);
+  if (ui.craft.fusePending && selected !== null && selected.id !== item.id) {
+    runCraft(state, ui, "fuse", selected, item);
+    return;
+  }
+  ui.craft.fusePending = false;
+  ui.craft.selectedId = item.id;
+}
+
+/** クラフトタブ: stash クリックで選択、ボタンで操作。Fuse は 2 つ目のクリックで実行 */
+function updateCraftTab(state: GameState, ui: InventoryUi, input: FrameInput): void {
+  const layout = layoutInventory(state, ui);
+  ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
+  const aim = input.aimScreen;
+  const row = aim ? findHoveredStashRow(layout, aim) : null;
+  const button = aim ? (layoutCraft().buttons.find((b) => pointInRect(aim, b.rect)) ?? null) : null;
+  ui.hoverItemId = row ? row.item.id : null;
+  ui.hoverSlot = null;
+  ui.craft.hoverOp = button ? button.op : null;
+  if (!input.clickPressed) return;
+  if (row) {
+    clickCraftRow(state, ui, row.item);
+    return;
+  }
+  if (button) clickCraftButton(state, ui, button.op);
 }

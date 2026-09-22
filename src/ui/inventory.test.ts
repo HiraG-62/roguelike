@@ -9,7 +9,7 @@ vi.mock("../loot/stats", () => ({
 }));
 
 import { computeStats } from "../loot/stats";
-import { createInventoryUi, layoutInventory, layoutSkills, tabRects, updateInventoryUi } from "./inventory";
+import { createInventoryUi, layoutCraft, layoutInventory, layoutSkills, tabRects, updateInventoryUi } from "./inventory";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe("updateInventoryUi: トグル", () => {
-  it("Tab は 閉 → 装備 → スキル → 閉 のサイクルで、state.paused が連動する", () => {
+  it("Tab は 閉 → 装備 → スキル → クラフト → 閉 のサイクルで、state.paused が連動する", () => {
     const state = createGame(1);
     const ui = createInventoryUi();
 
@@ -51,6 +51,10 @@ describe("updateInventoryUi: トグル", () => {
     expect(ui.open).toBe(true);
     expect(ui.tab).toBe("skills");
     expect(state.paused).toBe(true);
+
+    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+    expect(ui.open).toBe(true);
+    expect(ui.tab).toBe("craft");
 
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
     expect(ui.open).toBe(false);
@@ -155,7 +159,91 @@ describe("updateInventoryUi: shift クリックで分解", () => {
 
     expect(state.profile.stash).toEqual([]);
     expect(state.profile.equipment.weapon).toBeNull();
-    expect(ui.message).toBe("Salvaged: Junk Sword");
+    expect(ui.message).toBe("Salvaged: Junk Sword (+1 dust)");
+    expect(ui.craft.save.wallet.dust).toBe(1);
+  });
+
+  it("rarity に応じた通貨が増える（magic → shard, rare → essence, unique → relic）", () => {
+    const state = createGame(1);
+    const ui = createInventoryUi();
+    ui.open = true;
+    const rarities = ["magic", "rare", "unique"] as const;
+    rarities.forEach((rarity, i) => addToStash(state.profile, makeItem({ id: `s-${i}`, rarity, foundAt: i })));
+    for (let i = 0; i < rarities.length; i++) {
+      const row = layoutInventory(state, ui).stashRows[0]!;
+      const point = { x: row.rect.x + 1, y: row.rect.y + 1 };
+      updateInventoryUi(state, ui, withInput({ aimScreen: point, clickPressed: true, shiftHeld: true }), 0);
+    }
+    expect(ui.craft.save.wallet).toEqual({ dust: 0, shard: 1, essence: 1, relic: 1 });
+  });
+});
+
+describe("updateInventoryUi: クラフトタブ", () => {
+  function clickRow(state: ReturnType<typeof createGame>, ui: ReturnType<typeof createInventoryUi>, id: string): void {
+    const row = layoutInventory(state, ui).stashRows.find((r) => r.item.id === id);
+    if (!row) throw new Error(`row ${id} missing`);
+    updateInventoryUi(state, ui, withInput({ aimScreen: { x: row.rect.x + 1, y: row.rect.y + 1 }, clickPressed: true }), 0);
+  }
+
+  function clickButton(state: ReturnType<typeof createGame>, ui: ReturnType<typeof createInventoryUi>, op: string): void {
+    const button = layoutCraft().buttons.find((b) => b.op === op);
+    if (!button) throw new Error(`button ${op} missing`);
+    const aim = { x: button.rect.x + 1, y: button.rect.y + 1 };
+    updateInventoryUi(state, ui, withInput({ aimScreen: aim, clickPressed: true }), 0);
+  }
+
+  const MAGIC_AFFIXES = [
+    { key: "meleeDamagePct", kind: "prefix" as const, tier: 3, value: 30 },
+    { key: "attackSpeed", kind: "suffix" as const, tier: 3, value: 8 },
+  ];
+
+  it("stash クリックで選択し、Annul で 1 つ消えて dust を 5 消費する", () => {
+    const state = createGame(1);
+    const ui = createInventoryUi();
+    ui.open = true;
+    ui.tab = "craft";
+    ui.craft.save.wallet.dust = 6;
+    addToStash(state.profile, makeItem({ id: "m-1", rarity: "magic", affixes: MAGIC_AFFIXES }));
+
+    clickRow(state, ui, "m-1");
+    expect(ui.craft.selectedId).toBe("m-1");
+    clickButton(state, ui, "annul");
+
+    expect(state.profile.stash[0]?.affixes).toHaveLength(1);
+    expect(ui.craft.save.wallet.dust).toBe(1);
+    expect(ui.craft.result).toMatch(/^Annulled: /);
+  });
+
+  it("通貨が足りない操作は拒否され、アイテムは変わらない", () => {
+    const state = createGame(1);
+    const ui = createInventoryUi();
+    ui.open = true;
+    ui.tab = "craft";
+    addToStash(state.profile, makeItem({ id: "m-1", rarity: "magic", affixes: MAGIC_AFFIXES }));
+    clickRow(state, ui, "m-1");
+    clickButton(state, ui, "annul");
+    expect(state.profile.stash[0]?.affixes).toHaveLength(2);
+    expect(ui.craft.result).toBe("Need 5 dust");
+  });
+
+  it("Fuse は 2 つ目のクリックで実行され、2 つが 1 つになる", () => {
+    const state = createGame(1);
+    const ui = createInventoryUi();
+    ui.open = true;
+    ui.tab = "craft";
+    ui.craft.save.wallet.essence = 1;
+    addToStash(state.profile, makeItem({ id: "a", rarity: "magic", affixes: MAGIC_AFFIXES, foundAt: 1 }));
+    addToStash(state.profile, makeItem({ id: "b", rarity: "magic", affixes: MAGIC_AFFIXES, foundAt: 0 }));
+
+    clickRow(state, ui, "a");
+    clickButton(state, ui, "fuse");
+    expect(ui.craft.fusePending).toBe(true);
+    clickRow(state, ui, "b");
+
+    expect(ui.craft.fusePending).toBe(false);
+    expect(state.profile.stash).toHaveLength(1);
+    expect(ui.craft.selectedId).toBe(state.profile.stash[0]?.id);
+    expect(ui.craft.save.wallet.essence).toBe(0);
   });
 });
 

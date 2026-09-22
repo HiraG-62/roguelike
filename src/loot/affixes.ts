@@ -25,6 +25,8 @@ export type AffixTag =
   | "combo"
   | "elemental"
   | "utility"
+  /** 変換（A を B に変換する。"convert" 段階で適用） */
+  | "conversion"
   /** 代償付き（label に代償も出す）。純粋な上位互換を作らないための枠 */
   | "tradeoff";
 
@@ -42,10 +44,12 @@ export interface AffixTier extends RollRange {
 }
 
 /**
- * 適用段階。flat → scale の順に畳み込む（例: max HP % は flat の max HP を全部足した後に掛ける）
+ * 適用段階。flat → scale → convert の順に畳み込む（例: max HP % は flat の max HP を全部足した後に掛ける）。
+ * convert は変換アフィックス用で、scale の後・ソフトキャップとキーストーンの前に掛かる
+ * （「盛った結果」を別の軸へ移す。キーストーンの数値効果は変換されない）
  */
-export type ApplyStage = "flat" | "scale";
-export const APPLY_STAGES: readonly ApplyStage[] = ["flat", "scale"];
+export type ApplyStage = "flat" | "scale" | "convert";
+export const APPLY_STAGES: readonly ApplyStage[] = ["flat", "scale", "convert"];
 
 export type ApplyFn = (stats: PlayerStats, value: number, value2: number) => void;
 
@@ -701,6 +705,220 @@ export const AFFIXES: readonly AffixDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// 変換アフィックス: 「A を B に変換する」でビルドの向きを変える（BiS を潰す主力）。
+// 通常の抽選プール（affixesFor）には入らず、rare の枠で CONVERSION_AFFIX_CHANCE（generator.ts）、
+// unique の固定セット、クラフトの Corrupt からのみ付く。stage は "convert"（scale の後）。
+// value は変換割合（%）など。value が負（Corrupt でも負にはしない）の変換は何もしない。
+// ---------------------------------------------------------------------------
+
+export const CONVERSION_KEY_PREFIX = "cv_";
+
+/** 変換割合（%）の共通 tier。高 tier ほど多く移す */
+const CONVERSION_TIERS: readonly AffixTier[] = [t(24, 56, 70), t(12, 43, 55), t(1, 30, 42)];
+/** 近接ダメージ倍率 1.0 を移したときの burn DPS */
+const BURN_DPS_PER_MELEE_MUL = 10;
+/** 変換割合 1.0 あたりの burn 付与確率 */
+const BURN_CHANCE_PER_FRACTION = 0.5;
+/** 失った max HP 1 あたりの armor（armor 10 ≒ 被ダメ -17%） */
+const ARMOR_PER_HP = 1 / 3;
+/** 移した life on hit 1 あたりの energy gain 倍率 */
+const ENERGY_PER_LIFE_ON_HIT = 0.15;
+/** 移した life on kill 1 あたりの energy gain 倍率 */
+const ENERGY_PER_LIFE_ON_KILL = 0.03;
+/** 移したコンボ上限 1.0 あたりの JUST 回避ダメージ倍率 */
+const JUST_PER_COMBO_CAP = 1.5;
+/** 移した crit chance 1.0 あたりの burn chance */
+const BURN_CHANCE_PER_CRIT = 2;
+/** 移した crit chance 1.0 あたりの burn DPS */
+const BURN_DPS_PER_CRIT = 50;
+/** 分割→貫通: ダメージ倍率の下限（弾が多すぎても 0 にしない） */
+const MIN_SPLIT_DAMAGE_FACTOR = 0.2;
+const BASE_MULTIPLIER = 1;
+const BASE_PROJECTILES = 1;
+const REMAINING_DASH_CHARGES = 1;
+
+/** 変換割合（0..1）。負の値は 0 */
+const fraction = (v: number): number => Math.max(0, pct(v));
+
+export const CONVERSION_AFFIXES: readonly AffixDef[] = [
+  prefix({
+    key: "cv_meleeToBurn",
+    label: "Converts {v}% of melee damage into burn",
+    prefixName: "Smoldering",
+    tags: ["conversion", "melee", "elemental"],
+    slots: MELEE_SLOTS,
+    tiers: CONVERSION_TIERS,
+    stage: "convert",
+    apply: (s, v) => {
+      const f = fraction(v);
+      const moved = s.meleeDamageMul * f;
+      s.meleeDamageMul -= moved;
+      s.burnChance += f * BURN_CHANCE_PER_FRACTION;
+      s.burnDps += moved * BURN_DPS_PER_MELEE_MUL;
+    },
+  }),
+  suffix({
+    key: "cv_splitToPierce",
+    label: "Converts spread into penetration: -{v}% ranged damage per extra projectile, +{v2} pierce",
+    suffixName: "of the Needle",
+    tags: ["conversion", "ranged"],
+    slots: RANGED_SLOTS,
+    tiers: [t2(24, 10, 14, 3, 3), t2(12, 15, 20, 2, 2), t2(1, 21, 25, 1, 1)],
+    stage: "convert",
+    apply: (s, v, v2) => {
+      const extra = Math.max(0, s.projectileCount - BASE_PROJECTILES);
+      const factor = Math.max(MIN_SPLIT_DAMAGE_FACTOR, 1 - fraction(v) * extra);
+      s.rangedDamageMul *= factor;
+      s.pierce += v2;
+    },
+  }),
+  prefix({
+    key: "cv_critToMultiplier",
+    label: "Converts all critical strike chance into critical multiplier (+{v}% per 1%)",
+    prefixName: "Executioner's",
+    tags: ["conversion", "critical"],
+    slots: OFFENSE_SLOTS,
+    tiers: [t(24, 5, 6), t(12, 4, 4), t(1, 3, 3)],
+    stage: "convert",
+    apply: (s, v) => {
+      s.critMul += s.critChance * Math.max(0, v);
+      s.critChance = 0;
+    },
+  }),
+  suffix({
+    key: "cv_speedToAttack",
+    label: "Converts {v}% of bonus movement speed into attack speed",
+    suffixName: "of the Whirlwind",
+    tags: ["conversion", "speed", "melee"],
+    slots: ["boots", "ring", "amulet"],
+    tiers: CONVERSION_TIERS,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.moveSpeedMul - BASE_MULTIPLIER) * fraction(v);
+      s.moveSpeedMul -= moved;
+      s.attackSpeedMul += moved;
+    },
+  }),
+  prefix({
+    key: "cv_lifeToArmor",
+    label: "Converts {v}% of maximum HP into armor",
+    prefixName: "Petrified",
+    tags: ["conversion", "life", "defense"],
+    slots: ["armor", "amulet"],
+    tiers: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = s.maxHp * fraction(v);
+      s.maxHp -= moved;
+      s.armor += moved * ARMOR_PER_HP;
+    },
+  }),
+  suffix({
+    key: "cv_chargesToDistance",
+    label: "Consumes all dash charges but one: +{v}% dash distance per charge",
+    suffixName: "of the Long Stride",
+    tags: ["conversion", "mobility"],
+    slots: ["boots"],
+    tiers: [t(24, 86, 100), t(12, 66, 85), t(1, 50, 65)],
+    stage: "convert",
+    apply: (s, v) => {
+      s.dashDistanceMul += fraction(v) * s.dashCharges;
+      s.dashCharges = REMAINING_DASH_CHARGES;
+    },
+  }),
+  suffix({
+    key: "cv_leechToEnergy",
+    label: "Converts {v}% of life on hit and life on kill into energy gain",
+    suffixName: "of the Dynamo",
+    tags: ["conversion", "life", "burst"],
+    slots: ["weapon", "gun", "ring", "amulet"],
+    tiers: CONVERSION_TIERS,
+    stage: "convert",
+    apply: (s, v) => {
+      const f = fraction(v);
+      const onHit = s.lifeOnHit * f;
+      const onKill = s.lifeOnKill * f;
+      s.lifeOnHit -= onHit;
+      s.lifeOnKill -= onKill;
+      s.energyGainMul += onHit * ENERGY_PER_LIFE_ON_HIT + onKill * ENERGY_PER_LIFE_ON_KILL;
+    },
+  }),
+  prefix({
+    key: "cv_comboToJust",
+    label: "Converts {v}% of combo damage into JUST dodge damage",
+    prefixName: "Patient",
+    tags: ["conversion", "combo"],
+    slots: ["boots", "ring", "amulet"],
+    tiers: CONVERSION_TIERS,
+    stage: "convert",
+    apply: (s, v) => {
+      const f = fraction(v);
+      const movedCap = s.comboDamageCap * f;
+      s.comboDamagePerStack -= s.comboDamagePerStack * f;
+      s.comboDamageCap -= movedCap;
+      s.justDodgeDamageMul += movedCap * JUST_PER_COMBO_CAP;
+    },
+  }),
+  suffix({
+    key: "cv_meleeToRanged",
+    label: "Converts {v}% of bonus melee damage into ranged damage",
+    suffixName: "of the Crossing",
+    tags: ["conversion", "melee", "ranged"],
+    slots: JEWELRY_SLOTS,
+    tiers: CONVERSION_TIERS,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.meleeDamageMul - BASE_MULTIPLIER) * fraction(v);
+      s.meleeDamageMul -= moved;
+      s.rangedDamageMul += moved;
+    },
+  }),
+  suffix({
+    key: "cv_critToBurn",
+    label: "Converts {v}% of critical strike chance into twice as much burn chance",
+    suffixName: "of Kindling",
+    tags: ["conversion", "critical", "elemental"],
+    slots: ATTACK_SLOTS,
+    tiers: CONVERSION_TIERS,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = s.critChance * fraction(v);
+      s.critChance -= moved;
+      s.burnChance += moved * BURN_CHANCE_PER_CRIT;
+      s.burnDps += moved * BURN_DPS_PER_CRIT;
+    },
+  }),
+];
+
+export function isConversionKey(key: string): boolean {
+  return key.startsWith(CONVERSION_KEY_PREFIX);
+}
+
+/** slot / kind に付けられ、itemLevel で最低 1 tier が解禁されている変換アフィックス（kind 省略時は両方） */
+export function conversionsFor(slot: Slot, itemLevel: number, kind?: AffixKind): AffixDef[] {
+  return CONVERSION_AFFIXES.filter(
+    (d) => (kind === undefined || d.kind === kind) && d.slots.includes(slot) && lowestTierLevel(d) <= itemLevel,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// マーカー: 数値効果を持たない AffixRoll（types.ts を変えずにアイテムの状態を持たせる）。
+// "cr_corrupted" は Corrupt 済み（以降クラフト不可）を表す。枠数には数えない。
+// ---------------------------------------------------------------------------
+
+export const CORRUPTED_KEY = "cr_corrupted";
+const MARKER_TIER = 1;
+const MARKER_VALUE = 0;
+
+export function isMarkerKey(key: string): boolean {
+  return key === CORRUPTED_KEY;
+}
+
+export function corruptedMarkerRoll(): AffixRoll {
+  return { key: CORRUPTED_KEY, kind: "suffix", tier: MARKER_TIER, value: MARKER_VALUE };
+}
+
+// ---------------------------------------------------------------------------
 // キーストーン: 遊び方を変える大型改造。
 // AffixRoll としては { kind: "suffix", tier: 1, value: 0, key: "ks_xxx" } で保存する。
 // apply で stats.keystones に key を積み、数値効果も掛ける（"scale" 段階。flat の合算後）。
@@ -1119,7 +1337,10 @@ export const IMPLICITS: readonly ImplicitDef[] = [
 // 参照 API
 // ---------------------------------------------------------------------------
 
-const AFFIX_BY_KEY: ReadonlyMap<string, AffixDef> = new Map(AFFIXES.map((d) => [d.key, d]));
+/** 通常アフィックス + 変換アフィックス（変換は affixesFor の抽選プールには入らない） */
+const AFFIX_BY_KEY: ReadonlyMap<string, AffixDef> = new Map(
+  [...AFFIXES, ...CONVERSION_AFFIXES].map((d) => [d.key, d]),
+);
 const IMPLICIT_BY_KEY: ReadonlyMap<string, ImplicitDef> = new Map(IMPLICITS.map((d) => [d.key, d]));
 
 export function affixDef(key: string): AffixDef | undefined {
@@ -1143,7 +1364,7 @@ export function affixesFor(slot: Slot, kind: AffixKind, itemLevel: number): Affi
   );
 }
 
-export type AffixSource = "affix" | "implicit" | "keystone" | "trigger";
+export type AffixSource = "affix" | "conversion" | "implicit" | "keystone" | "trigger" | "marker";
 
 /**
  * ロール済みアフィックスの振る舞い。固定テーブル（affix / implicit / keystone）に無い
@@ -1157,10 +1378,15 @@ export interface ResolvedAffix {
   format: (roll: AffixRoll) => string;
 }
 
+/** 符号付きテンプレ（"+{v}%" / "-{v}%"）に負の値が入ったとき（Corrupt のネガティブ化）の符号を整える */
+function fixSigns(text: string): string {
+  return text.replaceAll("+-", "-").replaceAll("--", "+");
+}
+
 function fillTemplate(label: string, roll: AffixRoll, decimals: number, decimals2: number): string {
   const v = roll.value.toFixed(decimals);
   const v2 = (roll.value2 ?? 0).toFixed(decimals2);
-  return label.replaceAll("{v2}", v2).replaceAll("{v}", v);
+  return fixSigns(label.replaceAll("{v2}", v2).replaceAll("{v}", v));
 }
 
 function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): ResolvedAffix {
@@ -1176,6 +1402,15 @@ function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): Resolve
 }
 
 const KEYSTONE_LABEL = "[Keystone]";
+const CORRUPTED_LABEL = "Corrupted: cannot be crafted";
+
+const MARKER_RESOLVED: ResolvedAffix = {
+  key: CORRUPTED_KEY,
+  source: "marker",
+  stage: "flat",
+  apply: () => {},
+  format: () => CORRUPTED_LABEL,
+};
 
 function resolveKeystone(def: KeystoneDef): ResolvedAffix {
   return {
@@ -1211,12 +1446,13 @@ function resolveTrigger(roll: AffixRoll): ResolvedAffix | undefined {
 /** AffixRoll から振る舞いを復元する。未知の key は undefined */
 export function affixDefForRoll(roll: AffixRoll): ResolvedAffix | undefined {
   const affix = affixDef(roll.key);
-  if (affix !== undefined) return resolveTable(affix, "affix");
+  if (affix !== undefined) return resolveTable(affix, isConversionKey(affix.key) ? "conversion" : "affix");
   const implicit = implicitDef(roll.key);
   if (implicit !== undefined) return resolveTable(implicit, "implicit");
   const keystone = keystoneDef(roll.key);
   if (keystone !== undefined) return resolveKeystone(keystone);
   if (isTriggerKey(roll.key)) return resolveTrigger(roll);
+  if (isMarkerKey(roll.key)) return MARKER_RESOLVED;
   return undefined;
 }
 

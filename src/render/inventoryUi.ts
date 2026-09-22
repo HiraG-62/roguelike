@@ -1,14 +1,20 @@
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { formatAffix, isKeystoneKey, keystoneConflicts } from "../loot/affixes";
+import { formatAffix, isConversionKey, isKeystoneKey, isMarkerKey, keystoneConflicts } from "../loot/affixes";
+import { CRAFT_COSTS, craftBlockReason, type CraftOp, type Currency } from "../loot/crafting";
 import { statsSummary } from "../loot/stats";
-import { RARITY_COLOR, SLOTS, type Item, type Slot } from "../loot/types";
+import { RARITY_COLOR, SLOTS, type AffixRoll, type Item, type Slot } from "../loot/types";
 import { MODIFIERS, SKILL, SKILL_DEFS, castCooldown, formatVariant, resolveCast, stoneLabel } from "../skills/data";
 import { findStone } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
 import { formatCooldown, slotModifierView } from "../system/skills";
 import {
   CONTENT_Y,
+  CURRENCY_BLOCK_H,
+  type CraftButtonLayout,
+  type CurrencyRowLayout,
+  layoutCraft,
+  selectedCraftItem,
   type InventoryLayout,
   type SkillSlotLayout,
   type StoneRowLayout,
@@ -56,7 +62,7 @@ const SLOT_ICON: Record<Slot, string> = {
   amulet: "◊",
 };
 
-const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "EQUIPMENT", skills: "SKILLS" };
+const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "EQUIPMENT", skills: "SKILLS", craft: "CRAFT" };
 const COLOR_SKILL = SKILL.drop.stoneColor;
 const COLOR_SELECTED = "#ffd75f";
 const SKILL_ICON_SIZE = 20;
@@ -65,8 +71,45 @@ const SKILL_LINE1_Y = 10;
 const SKILL_LINE2_Y = 19;
 const SKILL_LINE3_Y = 27;
 const PERCENT = 100;
-const HINT_EQUIPMENT = "Click: equip/unequip  Shift+Click: salvage  Tab: skills";
-const HINT_SKILLS = "Click stone: equip  Click slot: clear/select  Shift+Click: salvage  Tab: close";
+const HINT_EQUIPMENT = "Click: equip/unequip  Shift+Click: salvage (currency)  Tab: skills";
+const HINT_SKILLS = "Click stone: equip  Click slot: clear/select  Shift+Click: salvage  Tab: craft";
+const HINT_CRAFT = "Click item: select  Click button: craft  Fuse: then click a 2nd item  Tab: close";
+const COLOR_CONVERSION = "#7fe0ff";
+const COLOR_DISABLED_BG = "rgba(255,255,255,0.03)";
+const COLOR_BUTTON_BG = "rgba(255,255,255,0.08)";
+const CRAFT_LABEL_BASELINE = 8;
+const CRAFT_COST_BASELINE = 14;
+const CURRENCY_BASELINE_INSET = 2;
+
+const CURRENCY_COLOR: Readonly<Record<Currency, string>> = {
+  dust: "#c8c8c8",
+  shard: "#6a8cff",
+  essence: "#ffd75f",
+  relic: "#ff9040",
+};
+const CURRENCY_SOURCE: Readonly<Record<Currency, string>> = {
+  dust: "salvage normal",
+  shard: "salvage magic",
+  essence: "salvage rare",
+  relic: "salvage unique",
+};
+
+const CRAFT_LABEL: Readonly<Record<CraftOp, string>> = {
+  reforge: "Reforge",
+  augment: "Augment",
+  annul: "Annul",
+  corrupt: "Corrupt",
+  fuse: "Fuse",
+};
+/** 動詞で語る（何が起きて何を失うか） */
+const CRAFT_VERB: Readonly<Record<CraftOp, string>> = {
+  reforge: "Rerolls every modifier. Tiers are capped by item level.",
+  augment: "Adds one modifier to an open slot (may be a trigger).",
+  annul: "Removes one modifier at random.",
+  corrupt: "Keystone, conversion, tiers up with one inverted, or nothing. Final.",
+  fuse: "Merges two same-slot items into one with one fewer modifier.",
+};
+const FUSE_PENDING_TEXT = "Fuse: click a second item of the same slot";
 
 interface TooltipLine {
   text: string;
@@ -142,6 +185,10 @@ export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState,
   drawPanelFrame(ctx, layout, ui);
   if (ui.tab === "skills") {
     drawSkillsTab(ctx, state, layout, ui);
+    return;
+  }
+  if (ui.tab === "craft") {
+    drawCraftTab(ctx, state, layout, ui);
     return;
   }
   drawSlots(ctx, layout, ui);
@@ -260,27 +307,44 @@ function tooltipLines(state: GameState, item: Item): TooltipLine[] {
     { text: `${item.baseKey}  L${item.itemLevel}`, color: COLOR_DIM },
   ];
   if (item.implicit) lines.push({ text: `Implicit: ${formatAffix(item.implicit)}`, color: COLOR_TEXT });
-  for (const roll of item.affixes) lines.push({ text: `T${roll.tier} ${formatAffix(roll)}`, color: COLOR_TEXT });
+  for (const roll of item.affixes) lines.push(affixLine(roll));
   for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });
   return lines;
 }
 
+/** マーカー（Corrupted）は警告色・tier なし、変換は専用色 */
+function affixLine(roll: AffixRoll): TooltipLine {
+  if (isMarkerKey(roll.key)) return { text: formatAffix(roll), color: COLOR_WARN };
+  const color = isConversionKey(roll.key) ? COLOR_CONVERSION : COLOR_TEXT;
+  return { text: `T${roll.tier} ${formatAffix(roll)}`, color };
+}
+
 /** 下端を tooltipRect に揃えたまま、行数に応じて上へ伸ばす */
 function drawTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
-  const { tooltipRect } = layout;
-  const item = findItemById(state, ui.hoverItemId);
+  drawItemTooltip(ctx, state, layout.tooltipRect, findItemById(state, ui.hoverItemId), CONTENT_Y, "Hover an item");
+}
+
+/** item のツールチップ。上端は topLimit まで伸ばせる */
+function drawItemTooltip(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  tooltipRect: Rect,
+  item: Item | null,
+  topLimit: number,
+  emptyText: string,
+): void {
   ctx.textAlign = "left";
   if (!item) {
     strokeRectPx(ctx, tooltipRect, COLOR_BORDER);
     ctx.font = FONT_SMALL;
     ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("Hover an item", tooltipRect.x + TEXT_PAD_X, tooltipRect.y + LINE_H);
+    ctx.fillText(emptyText, tooltipRect.x + TEXT_PAD_X, tooltipRect.y + LINE_H);
     return;
   }
 
   const lines = tooltipLines(state, item);
   const bottom = tooltipRect.y + tooltipRect.h;
-  const fit = fitTooltip(lines.length, LINE_H, TINY_LINE_H, TOOLTIP_MAX_LINES, bottom - CONTENT_Y, TOOLTIP_PAD_Y);
+  const fit = fitTooltip(lines.length, LINE_H, TINY_LINE_H, TOOLTIP_MAX_LINES, bottom - topLimit, TOOLTIP_PAD_Y);
   const h = Math.max(tooltipRect.h, fit.height);
   const box = { x: tooltipRect.x, y: bottom - h, w: tooltipRect.w, h };
   ctx.fillStyle = COLOR_PANEL_BG;
@@ -490,4 +554,91 @@ function drawSkillNotes(ctx: CanvasRenderingContext2D, layout: InventoryLayout):
     ctx.fillText(truncateText(ctx, line, maxWidth), statsRect.x + TEXT_PAD_X, y);
     y += LINE_H;
   }
+}
+
+// ---------------------------------------------------------------------------
+// クラフトタブ
+// ---------------------------------------------------------------------------
+
+function drawCraftTab(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
+  const craftLayout = layoutCraft();
+  const selected = selectedCraftItem(state, ui);
+  drawCurrencies(ctx, ui, craftLayout.currencies);
+  drawStash(ctx, layout, ui);
+  if (selected) drawSelectedMarker(ctx, layout, selected);
+  const shown = findItemById(state, ui.hoverItemId) ?? selected;
+  drawItemTooltip(ctx, state, layout.tooltipRect, shown, CONTENT_Y + CURRENCY_BLOCK_H, "Select an item");
+  for (const button of craftLayout.buttons) drawCraftButton(ctx, ui, button, selected);
+  drawCraftStatus(ctx, layout, ui, craftLayout.statusY, craftLayout.resultY);
+  drawHint(ctx, layout, HINT_CRAFT);
+}
+
+function drawCurrencies(ctx: CanvasRenderingContext2D, ui: InventoryUi, rows: readonly CurrencyRowLayout[]): void {
+  ctx.font = FONT_SMALL;
+  for (const { currency, rect } of rows) {
+    const baseline = rect.y + rect.h - CURRENCY_BASELINE_INSET;
+    ctx.textAlign = "left";
+    ctx.fillStyle = CURRENCY_COLOR[currency];
+    ctx.fillText(`${currency.toUpperCase()} ${ui.craft.save.wallet[currency]}`, rect.x + TEXT_PAD_X, baseline);
+    ctx.textAlign = "right";
+    ctx.fillStyle = COLOR_DIM;
+    ctx.fillText(CURRENCY_SOURCE[currency], rect.x + rect.w - TEXT_PAD_X, baseline);
+  }
+}
+
+function drawSelectedMarker(ctx: CanvasRenderingContext2D, layout: InventoryLayout, selected: Item): void {
+  const row = layout.stashRows.find((r) => r.item.id === selected.id);
+  if (row) strokeRectPx(ctx, row.rect, COLOR_SELECTED);
+}
+
+/** 通貨が足りない / 対象が無い / corrupted の操作は灰色 */
+function drawCraftButton(
+  ctx: CanvasRenderingContext2D,
+  ui: InventoryUi,
+  button: CraftButtonLayout,
+  selected: Item | null,
+): void {
+  const { op, rect } = button;
+  const enabled = craftBlockReason(ui.craft.save.wallet, op, selected) === null;
+  const active = op === "fuse" && ui.craft.fusePending;
+  ctx.fillStyle = enabled ? COLOR_BUTTON_BG : COLOR_DISABLED_BG;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  if (enabled && ui.craft.hoverOp === op) {
+    ctx.fillStyle = COLOR_HOVER_BG;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  }
+  strokeRectPx(ctx, rect, active ? COLOR_SELECTED : COLOR_BORDER);
+
+  const cost = CRAFT_COSTS[op];
+  const centerX = rect.x + rect.w / 2;
+  ctx.textAlign = "center";
+  ctx.font = FONT_SMALL;
+  ctx.fillStyle = enabled ? COLOR_TEXT : COLOR_EMPTY;
+  ctx.fillText(CRAFT_LABEL[op], centerX, rect.y + CRAFT_LABEL_BASELINE);
+  ctx.font = FONT_TINY;
+  const canPay = ui.craft.save.wallet[cost.currency] >= cost.amount;
+  ctx.fillStyle = canPay ? CURRENCY_COLOR[cost.currency] : COLOR_EMPTY;
+  ctx.fillText(`${cost.amount} ${cost.currency}`, centerX, rect.y + CRAFT_COST_BASELINE);
+}
+
+/** 状態行（ホバー中の操作の説明 / Fuse の選択待ち）と直前の結果 */
+function drawCraftStatus(
+  ctx: CanvasRenderingContext2D,
+  layout: InventoryLayout,
+  ui: InventoryUi,
+  statusY: number,
+  resultY: number,
+): void {
+  const { statsRect } = layout;
+  const maxWidth = statsRect.w - TEXT_PAD_X * 2;
+  const hover = ui.craft.hoverOp;
+  const status = hover !== null ? CRAFT_VERB[hover] : ui.craft.fusePending ? FUSE_PENDING_TEXT : "";
+  ctx.textAlign = "left";
+  ctx.font = FONT_TINY;
+  ctx.fillStyle = COLOR_DIM;
+  ctx.fillText(truncateText(ctx, status, maxWidth), statsRect.x + TEXT_PAD_X, statusY);
+  if (!ui.craft.result) return;
+  ctx.font = FONT_SMALL;
+  ctx.fillStyle = COLOR_SELECTED;
+  ctx.fillText(truncateText(ctx, ui.craft.result, maxWidth), statsRect.x + TEXT_PAD_X, resultY);
 }
