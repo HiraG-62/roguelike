@@ -188,3 +188,22 @@ describe("recordRun", () => {
     expect(profile.meta).toEqual({ runs: 2, bestDepth: 3, totalKills: 7, bestScore: 200 });
   });
 });
+
+describe("localStorage getter が例外を投げる環境", () => {
+  it("loadProfile / saveProfile が落ちない", () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new Error("SecurityError");
+      },
+    });
+    try {
+      expect(loadProfile()).toEqual(createEmptyProfile());
+      expect(() => saveProfile(createEmptyProfile())).not.toThrow();
+    } finally {
+      if (original) Object.defineProperty(globalThis, "localStorage", original);
+      else Reflect.deleteProperty(globalThis, "localStorage");
+    }
+  });
+});

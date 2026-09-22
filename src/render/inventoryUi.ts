@@ -1,12 +1,15 @@
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { RARITY_COLOR, SLOTS, type AffixRoll, type Item, type PlayerStats } from "../loot/types";
+import { formatAffix } from "../loot/affixes";
+import { statsSummary } from "../loot/stats";
+import { RARITY_COLOR, SLOTS, type Item } from "../loot/types";
 import {
   type InventoryLayout,
   type InventoryUi,
   type Rect,
   type SlotLayout,
   type StashRowLayout,
+  RIGHT_X,
   layoutInventory,
 } from "../ui/inventory";
 
@@ -23,18 +26,6 @@ const COLOR_EMPTY = "#606060";
 
 const LINE_H = 8;
 const TEXT_PAD_X = 2;
-
-/** アフィックスの表示文字列。src/loot/affixes.ts の formatAffix が実装されるまでの暫定 */
-// TODO(integration): src/loot/affixes.ts の formatAffix(roll) に差し替える
-function formatAffixFallback(roll: AffixRoll): string {
-  return `${roll.key} ${roll.value}`;
-}
-
-/** ステータスの要約行。src/loot/stats.ts の statsSummary が実装されるまでの暫定（空配列） */
-// TODO(integration): src/loot/stats.ts の statsSummary(stats): string[] に差し替える
-function statsSummaryFallback(_stats: PlayerStats): string[] {
-  return [];
-}
 
 function findItemById(state: GameState, id: string | null): Item | null {
   if (!id) return null;
@@ -138,7 +129,7 @@ function drawStash(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: I
     ctx.font = FONT_SMALL;
     ctx.textAlign = "left";
     ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("stash is empty", layout.slots[0]?.rect.x ?? 0, layout.tooltipRect.y - 4);
+    ctx.fillText("stash is empty", RIGHT_X + TEXT_PAD_X, layout.tooltipRect.y - 4);
     return;
   }
   for (const row of layout.stashRows) drawStashRow(ctx, row, ui);
@@ -193,7 +184,7 @@ function drawTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: In
 
   if (item.implicit && y <= maxY) {
     ctx.fillStyle = COLOR_TEXT;
-    const text = `Implicit: ${formatAffixFallback(item.implicit)}`;
+    const text = `Implicit: ${formatAffix(item.implicit)}`;
     ctx.fillText(truncateText(ctx, text, maxWidth), tooltipRect.x + TEXT_PAD_X, y);
     y += LINE_H;
   }
@@ -201,7 +192,7 @@ function drawTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: In
   for (const roll of item.affixes) {
     if (y > maxY) break;
     ctx.fillStyle = COLOR_TEXT;
-    const text = `T${roll.tier} ${formatAffixFallback(roll)}`;
+    const text = `T${roll.tier} ${formatAffix(roll)}`;
     ctx.fillText(truncateText(ctx, text, maxWidth), tooltipRect.x + TEXT_PAD_X, y);
     y += LINE_H;
   }
@@ -217,7 +208,7 @@ function drawStatsSummary(ctx: CanvasRenderingContext2D, state: GameState, layou
   const maxWidth = statsRect.w - TEXT_PAD_X * 2;
   const maxY = statsRect.y + statsRect.h - 2;
 
-  const lines = statsSummaryFallback(state.stats);
+  const lines = statsSummary(state.stats);
   let y = statsRect.y + LINE_H;
   if (lines.length === 0) {
     ctx.fillStyle = COLOR_DIM;

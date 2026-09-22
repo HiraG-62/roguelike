@@ -6,7 +6,7 @@ import type { TriggeredEffect } from "../loot/types";
 import { damagePlayer } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS } from "./keystones";
-import { dashTime } from "./player";
+import { applyStats, dashTime } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { applyBurn, applyChill, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -255,5 +255,33 @@ describe("ks_bladeOath", () => {
     step(state, withInput({ shootHeld: true }), FIXED_DT);
     expect(state.projectiles.filter((pr) => pr.owner === "player")).toHaveLength(0);
     expect(state.texts.some((t) => t.text === "blade oath")).toBe(true);
+  });
+});
+
+describe("life on hit", () => {
+  it("射撃のヒットでも回復する（gun スロットに付くアフィックスが無効にならない）", () => {
+    const state = arena(5, { lifeOnHit: 3 });
+    state.player.hp = 50;
+    placeEnemy(state, "boar", 20);
+    for (let i = 0; i < 10; i++) step(state, withInput({ shootHeld: i === 0 }), FIXED_DT);
+    expect(state.player.hp).toBe(53);
+  });
+});
+
+describe("applyStats", () => {
+  it("HP 割合を丸めずに維持する", () => {
+    const state = arena();
+    state.player.hp = 33;
+    applyStats(state, { ...state.stats, maxHp: 50 });
+    expect(state.player.hp).toBeCloseTo(16.5);
+  });
+
+  it("死亡中は HP を戻さない", () => {
+    const state = arena();
+    state.player.hp = 0;
+    state.status = "dead";
+    applyStats(state, { ...state.stats, maxHp: 150 });
+    expect(state.player.hp).toBe(0);
+    expect(state.player.maxHp).toBe(150);
   });
 });

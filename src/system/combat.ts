@@ -116,8 +116,10 @@ export function damageEnemy(
   if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
   if (kind === "melee") pushSfx(state, opts.stagger ? "hitHeavy" : "hit");
   if (kind === "ranged") pushSfx(state, "bulletHit");
-  if (kind === "melee" && state.stats.lifeOnHit > 0) healPlayer(state, state.stats.lifeOnHit, { silent: true });
-  if (kind !== "proc") applyOnHitStatus(state, enemy);
+  if (kind !== "proc") {
+    if (state.stats.lifeOnHit > 0) healPlayer(state, state.stats.lifeOnHit, { silent: true });
+    applyOnHitStatus(state, enemy);
+  }
 
   if (enemy.hp > 0) return false;
   killEnemy(state, enemy);

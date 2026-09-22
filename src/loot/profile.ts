@@ -101,9 +101,16 @@ function sanitizeMeta(v: unknown): ProfileMeta {
   return { runs, bestDepth, totalKills, bestScore };
 }
 
-/** localStorage が存在しない環境（テスト等）でも安全に取得するためのヘルパー */
+/**
+ * localStorage が存在しない環境（テスト等）でも安全に取得するためのヘルパー。
+ * Cookie ブロックや sandbox iframe では localStorage の getter 自体が SecurityError を投げるので握りつぶす
+ */
 function defaultStorage(): Storage | null {
-  return typeof localStorage === "undefined" ? null : localStorage;
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
 }
 
 /** 保存されたプロフィールを読み込む。無い/壊れている/version 不一致なら空プロフィール */

@@ -23,6 +23,8 @@ const BURST_INVULN = 0.25;
 const PACIFIST_COLOR = "#a0a0a0";
 /** ks_bladeOath の「撃てない」表示の間隔（秒）。押しっぱなしで連打表示しない */
 const BLADE_OATH_TEXT_INTERVAL = 0.6;
+/** 装備変更で HP 割合を維持するときの生存中の下限 */
+const MIN_ALIVE_HP = 1;
 
 export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_STATS): Player {
   return {
@@ -47,7 +49,6 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     buffs: { damage: { time: 0, mul: 1 }, speed: { time: 0, mul: 1 }, invuln: 0 },
     justTimer: 0,
     meleeHitCount: 0,
-    regenAcc: 0,
   };
 }
 
@@ -60,8 +61,11 @@ export function applyStats(state: GameState, stats: PlayerStats): void {
   const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
   state.stats = stats;
   p.maxHp = stats.maxHp;
-  p.hp = Math.max(Math.min(1, p.maxHp), Math.min(p.maxHp, Math.round(p.maxHp * ratio)));
   p.dashChargesLeft = Math.min(p.dashChargesLeft, stats.dashCharges);
+  // 死亡中に装備画面を触っても蘇生しない
+  if (state.status === "dead") return;
+  // 丸めない（付け外しの往復で HP が増える抜け道を作らない）。生存中は最低 1
+  p.hp = Math.min(p.maxHp, Math.max(MIN_ALIVE_HP, p.maxHp * ratio));
 }
 
 export function isDashing(p: Player): boolean {

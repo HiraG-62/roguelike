@@ -55,8 +55,6 @@ export interface Player {
   justTimer: number;
   /** 近接ヒットの通算数（everyNthMeleeHit 用） */
   meleeHitCount: number;
-  /** hpRegen の端数 */
-  regenAcc: number;
 }
 
 export interface TimedMul {

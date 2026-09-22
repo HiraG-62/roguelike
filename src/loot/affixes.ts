@@ -346,7 +346,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "thorns",
-    label: "Reflects {v} damage to melee attackers",
+    label: "Reflects {v} damage to attackers",
     prefixName: "Thorned",
     tags: ["defense", "damage"],
     slots: ["armor", "boots"],
