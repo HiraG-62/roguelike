@@ -4,6 +4,7 @@ import type { GameMap, Rect } from "../map/grid";
 import type { FloorItem, PlayerStats, Profile } from "../loot/types";
 import type { SfxName } from "../audio/sfxNames";
 import type { SkillRunState } from "../skills/types";
+import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
 
 export type GameStatus = "playing" | "dead";
 
@@ -357,6 +358,11 @@ export interface GameState {
   explored: Uint8Array;
   /** このフロアで探索済みになったタイルの順番。描画側はここの差分だけ塗る */
   exploredLog: number[];
+  /** ラン内限定の祝福（src/system/boons.ts） */
+  boons: BoonKey[];
+  /** 祝福 3 択の提示中。非 null の間は step が選択入力だけを処理する */
+  boonChoice: BoonChoice | null;
+  boonRun: BoonRunState;
 }
 
 export function allocId(state: GameState): number {

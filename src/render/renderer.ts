@@ -16,6 +16,7 @@ import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, sprite
 import { FLOOR_KIND_LABEL, isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
+import { drawBoonChoice, drawBoonHud } from "./boonUi";
 
 const FONT_SMALL = "bold 8px monospace";
 const FONT_MED = "bold 12px monospace";
@@ -429,6 +430,8 @@ export class Renderer {
     if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
     this.drawOverlays(state);
     this.drawHud(state);
+    drawBoonHud(ctx, state, aimScreen);
+    drawBoonChoice(ctx, state);
     if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
     if (state.status === "dead") this.drawDeath(state);
   }

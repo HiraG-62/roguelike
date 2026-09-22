@@ -9,6 +9,7 @@ import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, explodeOnKill } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { interceptEnemyDamage } from "./elites";
+import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, tryRevive } from "./boons";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -57,6 +58,7 @@ export function registerComboHit(state: GameState): void {
   state.combo.timer = FEEL.comboWindow + state.stats.comboWindowBonus;
   state.combo.popTimer = COMBO_POP_TIME;
   state.combo.best = Math.max(state.combo.best, state.combo.count);
+  onBoonComboHit(state);
 }
 
 /** コンボによる与ダメ倍率 */
@@ -128,6 +130,7 @@ export function damageEnemy(
     applyOnHitStatus(state, enemy);
   }
 
+  if (opts.crit) onBoonCrit(state, enemy, amount);
   if (enemy.hp > 0) return false;
   killEnemy(state, enemy);
   return true;
@@ -166,6 +169,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
+  onBoonKill(state, enemy);
   if (isLastKillInLockedRoom(state, enemy)) lastKillFx(state, enemy);
 }
 
@@ -273,7 +277,7 @@ export function damagePlayer(
   const p = state.player;
   if (state.status !== "playing") return "ignored";
   if (p.invulnTimer > 0 || p.buffs.invuln > 0) {
-    if (!opts.noJust && p.dashTimer > 0 && !p.dodgedThisDash) {
+    if (!opts.noJust && (p.dashTimer > 0 || boonJustEligible(state)) && !p.dodgedThisDash) {
       justDodge(state, attacker);
       return "dodged";
     }
@@ -288,8 +292,8 @@ export function damagePlayer(
   const away = normalize(sub(p.body.pos, fromPos));
   if (!hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
   cancelAttack(state);
-  state.combo.count = 0;
-  state.combo.timer = 0;
+  state.combo.count = comboAfterHurt(state);
+  if (state.combo.count === 0) state.combo.timer = 0;
 
   addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3);
   spawnBurst(state, p.body.pos, COLOR_HURT, 12, 150, 0.4, 2);
@@ -297,7 +301,7 @@ export function damagePlayer(
   shake(state, FEEL.shakeHurt);
   state.flash = Math.max(state.flash, 0.35);
 
-  if (p.hp <= 0) {
+  if (p.hp <= 0 && !tryRevive(state)) {
     killPlayer(state);
     return "hit";
   }
@@ -354,6 +358,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");
+  onBoonJust(state);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
 }
 

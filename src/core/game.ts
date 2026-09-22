@@ -20,6 +20,7 @@ import { updateReaper } from "../system/reaper";
 import { createSkillRunState } from "../system/skills";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import type { SkillProfile } from "../skills/types";
+import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
 
 /**
  * 新しいランを始める。profile.equipment から stats を畳み込んでプレイヤーに反映し、
@@ -76,6 +77,9 @@ export function createGame(
     cursed: false,
     explored: new Uint8Array(0),
     exploredLog: [],
+    boons: [],
+    boonChoice: null,
+    boonRun: createBoonRunState(),
   };
   buildFloor(state);
   pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");
@@ -93,6 +97,11 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
     return;
   }
 
+  if (state.boonChoice) {
+    updateBoonChoice(state, input, dt);
+    return;
+  }
+
   if (state.hitstop > 0) {
     state.hitstop -= 1;
     updateCamera(state, dt, VIEW_W, VIEW_H);
@@ -106,6 +115,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   state.time += gdt;
 
   updatePlayer(state, input, gdt);
+  updateBoons(state, gdt);
   updateStatusEffects(state, gdt);
   updateEnemies(state, gdt);
   updateProjectiles(state, gdt);

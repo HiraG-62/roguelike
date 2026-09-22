@@ -149,7 +149,8 @@ export const ROOM = {
   /** 部屋に入ったと判定する余白（px）。扉を跨いでいる間はロックしない */
   enterMargin: 10,
   baseEnemies: 2,
-  enemiesPerDepth: 1,
+  /** 敵数 = baseEnemies + floor(depth * enemiesPerDepth) */
+  enemiesPerDepth: 0.8,
   maxEnemies: 12,
   /** ロック時に追加で湧く敵の割合 */
   reinforcementRatio: 0.5,
@@ -218,7 +219,7 @@ export const ENEMY_AI = {
 
 /** エリート修飾子 */
 export const ELITE = {
-  minDepth: 2,
+  minDepth: 3,
   baseChance: 0.1,
   chancePerDepth: 0.01,
   maxChance: 0.35,
@@ -283,10 +284,14 @@ export const BOSS = {
 
 /** 追跡者（Reaper） */
 export const REAPER = {
+  /** 出現までの猶予（秒）の基礎値。実際の猶予は appearAfter + 部屋数 * appearPerRoom */
   appearAfter: 90,
-  /** この秒数を過ぎたら HUD に残り時間を出す */
-  warnAfter: 60,
-  speed: 28,
+  /** 部屋 1 つにつき出現猶予に足す秒数（treasure/shrine は数えない） */
+  appearPerRoom: 12,
+  /** 出現のこの秒前から HUD に残り時間を出す */
+  warnMargin: 30,
+  /** 出現後の追跡速度（旧 28 の 85%） */
+  speed: 23.8,
   radius: 9,
   damage: 25,
   /** 出現位置はプレイヤーからこの距離 */
@@ -439,4 +444,76 @@ export const ACTION = {
     knockback: 220,
     stagger: false,
   },
+} as const;
+
+/** ラン内限定の祝福 3 択（src/system/boons.ts）。docs/ideas/run-structure.md「祝福 3 択」 */
+export const BOON = {
+  /** 3 択の枚数 */
+  choiceCount: 3,
+  /** 呪い付き祝福が 1 枚混ざる確率 */
+  cursedChance: 0.4,
+  /** 提示直後、連打の誤選択を防ぐ入力無視時間（実時間秒） */
+  inputDelay: 0.35,
+  /** 装備タグ 1 つ一致ごとの重み加算（1 + tagBonus × 一致数） */
+  tagBonus: 1.5,
+  rarityWeight: { common: 60, rare: 30, epic: 10 },
+  rarityColor: { common: "#c0c0c0", rare: "#6a8cff", epic: "#c070ff" },
+  cursedColor: "#ff5050",
+  /** 衝撃波（3 段目 / コンボ 20）: 近接段ダメージに対する倍率 */
+  waveDamageRatio: 0.6,
+  waveSpeed: 240,
+  waveLife: 0.4,
+  waveRadius: 5,
+  wavePierce: 99,
+  waveColor: "#ffe0a0",
+  comboWaveThreshold: 20,
+  /** 敵弾を斬ったときの必殺ゲージ倍率 */
+  parryEnergyMul: 3,
+  /** 部屋ロック中 / 非ロック中の移動速度倍率 */
+  lockdownFastMul: 1.3,
+  lockdownSlowMul: 0.9,
+  /** HP 1 の代わりに JUST 窓（ダッシュ無敵・JUST 後の猶予）を何倍にするか */
+  glassJustMul: 2,
+  glassJustMaxHp: 1,
+  heartBurnTime: 10,
+  heartBurnMul: 2,
+  reviveHpRatio: 0.3,
+  reviveInvuln: 2,
+  bossHpMul: 0.75,
+  mobHpMul: 1.25,
+  /** ダッシュ終点の爆発: 近接 1 段目ダメージに対する倍率 */
+  dashBlastRatio: 0.8,
+  dashBlastRadius: 28,
+  clearInvulnTime: 5,
+  clearHealMaxHpMul: 0.7,
+  /** 背面撃ち: 追加弾のダメージ倍率 */
+  rearShotDamageMul: 1,
+  /** 静止射撃: この速度未満なら「止まっている」 */
+  standStillSpeed: 8,
+  standPierceBonus: 3,
+  standSpeedMul: 1.5,
+  triggerHappyFireMul: 2,
+  guardTime: 0.35,
+  guardColor: "#a0e0ff",
+  comboClockEvery: 10,
+  /** コンボ受付時間に掛ける倍率（comboWindowBonus で引く） */
+  comboClockWindowMul: 0.5,
+  overchargeRadius: 24,
+  overchargeRatio: 0.5,
+  overchargeIcd: 0.25,
+  /** バースト 1 キルあたりの必殺ゲージ返還 */
+  burstRefundPerKill: 25,
+  burnSpreadRadius: 40,
+  shatterShards: 6,
+  shatterDamage: 6,
+  shatterSpeed: 200,
+  shatterLife: 0.4,
+  shatterColor: "#a0e0ff",
+  /** ダッシュ開始時の連鎖雷ダメージ（近接 1 段目に対する倍率） */
+  dashShockRatio: 0.7,
+  critChainRatio: 0.5,
+  critChainIcd: 0.2,
+  feastHeal: 3,
+  frostLockSlow: 0.8,
+  frostLockTime: 3,
 } as const;

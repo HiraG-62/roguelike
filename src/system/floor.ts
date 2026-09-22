@@ -1,4 +1,5 @@
-import { type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
+import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
 import { BOSS, ROOM, ROOM_KIND } from "../data/tuning";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap } from "../map/generator";
@@ -21,9 +22,20 @@ import { createEnemy } from "./enemies";
 import { heartsAllowed } from "./keystones";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { fireTrigger } from "./triggers";
-import { circlesOverlap, overlapsWall } from "./physics";
+import { type Box, boxCircleOverlap, circlesOverlap, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { finalizeLinks, rollElite } from "./elites";
+import {
+  applyBoonFloorRules,
+  boonHeartsAllowed,
+  extraEliteRoll,
+  offerBoons,
+  onBoonEnemySpawned,
+  onBoonHeartPickup,
+  onBoonRoomClear,
+  onBoonRoomLock,
+  onBossSpawned,
+} from "./boons";
 import { resetExplored, revealAround } from "./explore";
 import {
   FLOOR_KIND_LABEL,
@@ -80,11 +92,14 @@ export function buildFloor(state: GameState): void {
 
   const bossRoom = bossRoomIndex(state);
   const last = state.rooms.length - 1;
-  assignRoomKinds(state, new Set([START_ROOM, FIRST_FIGHT_ROOM, last]));
+  const reserved = new Set([START_ROOM, FIRST_FIGHT_ROOM, last]);
+  assignRoomKinds(state, reserved);
+  applyBoonFloorRules(state, reserved);
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
     if (i === bossRoom) {
       setupBossRoom(state, i);
+      onBossSpawned(state);
       return;
     }
     if (room.kind === "shrine") setupShrine(state, room);
@@ -165,7 +180,7 @@ function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
 }
 
 export function enemyCount(state: GameState): number {
-  return Math.min(ROOM.maxEnemies, ROOM.baseEnemies + state.depth * ROOM.enemiesPerDepth);
+  return Math.min(ROOM.maxEnemies, ROOM.baseEnemies + Math.floor(state.depth * ROOM.enemiesPerDepth));
 }
 
 function populateRoom(state: GameState, room: RoomState, index: number): void {
@@ -183,7 +198,9 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
     if (!pos) continue;
     const e = createEnemy(state, def, pos, index, spawning);
     if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
+    onBoonEnemySpawned(state, e);
     rollElite(state, e);
+    if (extraEliteRoll(state, e)) rollElite(state, e);
     state.enemies.push(e);
   }
 }
@@ -323,15 +340,65 @@ function enterRoom(state: GameState, room: RoomState, index: number): void {
     openTreasure(state, room);
     return;
   }
+  // 保険: プレイヤーがドアタイルに掛かっている間はロックを次フレームへ延期
+  // （enterMargin/insideRoom で通常は防げているはずだが、念のため二重に確認）
+  const p = state.player.body;
+  if (circleOnDoorTiles(state, room, p.pos.x, p.pos.y, p.radius)) return;
   lockRoom(state, room, index);
 }
 
+const DOOR_PUSH_MAX_TRIES = 3;
+
+/** タイル index の px 矩形が、中心 (x, y) 半径 r の円と重なるか */
+function boxOverlapsCircle(state: GameState, tileIndex: number, x: number, y: number, r: number): boolean {
+  const tx = tileIndex % state.map.width;
+  const ty = Math.floor(tileIndex / state.map.width);
+  const box: Box = { x: tx * TILE_SIZE, y: ty * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE };
+  return boxCircleOverlap(box, x, y, r);
+}
+
+/** 中心 (x, y) 半径 r の AABB が room のいずれかのドアタイルに掛かっているか */
+function circleOnDoorTiles(state: GameState, room: RoomState, x: number, y: number, r: number): boolean {
+  return room.doorTiles.some((t) => boxOverlapsCircle(state, t, x, y, r));
+}
+
+/**
+ * ドアタイルをロックで壁扱いにする直前に、ドアタイル上に AABB が掛かっている敵を
+ * 部屋の中心方向へ 1 タイルぶんずつ最大 DOOR_PUSH_MAX_TRIES 回押し込む。
+ * 押し込めなければ（壁に阻まれる等）その敵を消す
+ */
+function pushEnemiesOffDoorTiles(state: GameState, room: RoomState, index: number): void {
+  if (room.doorTiles.length === 0) return;
+  const center = rectCenterPx(room.rect);
+  for (const e of state.enemies) {
+    if (e.roomIndex !== index || e.hp <= 0) continue;
+    if (!circleOnDoorTiles(state, room, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
+    if (!pushEnemyTowardCenter(state, room, e, center)) e.hp = 0;
+  }
+}
+
+/** 1 タイルぶんずつ中心方向へ動かす。壁に阻まれたら諦め、ドアタイルから外れたら成功 */
+function pushEnemyTowardCenter(state: GameState, room: RoomState, e: Enemy, center: { x: number; y: number }): boolean {
+  const dir = normalize(sub(center, e.body.pos));
+  for (let i = 0; i < DOOR_PUSH_MAX_TRIES; i++) {
+    const nx = e.body.pos.x + dir.x * TILE_SIZE;
+    const ny = e.body.pos.y + dir.y * TILE_SIZE;
+    if (overlapsWall(state, nx, ny, e.body.radius)) break;
+    e.body.pos.x = nx;
+    e.body.pos.y = ny;
+    if (!circleOnDoorTiles(state, room, nx, ny, e.body.radius)) return true;
+  }
+  return !circleOnDoorTiles(state, room, e.body.pos.x, e.body.pos.y, e.body.radius);
+}
+
 function lockRoom(state: GameState, room: RoomState, index: number): void {
+  pushEnemiesOffDoorTiles(state, room, index);
   room.locked = true;
   for (const t of room.doorTiles) state.lockedTiles.add(t);
   for (const e of state.enemies) {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
   }
+  onBoonRoomLock(state, index);
   if (state.boss && state.boss.roomIndex === index) {
     announceBoss(state);
     return;
@@ -372,6 +439,7 @@ function clearRoom(state: GameState, room: RoomState): void {
   const center = rewardAnchor(state, room);
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
+  onBoonRoomClear(state);
   // 試練: rare 確定 + ハート確定
   if (room.kind === "challenge") {
     dropRareItem(state, center);
@@ -406,6 +474,7 @@ function onStairs(state: GameState, px: number, py: number): boolean {
 }
 
 function dropHeart(state: GameState, pos: { x: number; y: number }): void {
+  if (!boonHeartsAllowed(state)) return;
   state.pickups.push({ id: allocId(state), kind: "heart", pos: { ...pos }, radius: PICKUP_RADIUS, bobTime: 0 });
 }
 
@@ -421,6 +490,7 @@ function updatePickups(state: GameState, dt: number): void {
     if (!heartsAllowed(state)) continue;
     if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, p.pos.x, p.pos.y, p.radius)) continue;
     healPlayer(state, ROOM.heartHeal);
+    onBoonHeartPickup(state);
     spawnBurst(state, pk.pos, COLOR_HEAL, 12, 100, 0.4, 2);
     pk.radius = 0;
   }
@@ -433,6 +503,8 @@ function checkStairs(state: GameState): void {
   const ty = Math.floor(p.y / TILE_SIZE);
   if (getTile(state.map, tx, ty) !== Tile.StairsDown) return;
   descend(state);
+  // 祝福 3 択は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）
+  offerBoons(state);
 }
 
 export function descend(state: GameState): void {
