@@ -2,6 +2,12 @@ import { type GameState, getPlayer } from "../core/state";
 import { type GameMap, Tile, getTile, toIndex } from "../map/grid";
 import { xpToNextLevel } from "../system/progression";
 
+/** ゲームステートに含めない、画面側だけの状態 */
+export interface UiState {
+  /** シード入力中の文字列。null なら通常プレイ */
+  seedEntry: string | null;
+}
+
 /** 論理グリッドは固定。Canvas の拡大縮小でウィンドウに合わせる */
 export const GRID_COLS = 80;
 export const GRID_ROWS = 24;
@@ -23,6 +29,8 @@ const COLOR_HP_LOW = "#e07070";
 const COLOR_LOG_OLD = "#707070";
 const COLOR_OVERLAY = "rgba(0, 0, 0, 0.7)";
 const COLOR_DEATH = "#e07070";
+const COLOR_PROMPT = "#ffd75f";
+const HELP_TEXT = "[hjkl/arrows] move  [>] descend  [N] new game with seed  [R] random restart";
 /** HP がこの割合を下回ると赤表示 */
 const HP_LOW_RATIO = 0.3;
 
@@ -55,7 +63,7 @@ export class CanvasRenderer {
     this.canvas.style.height = `${Math.floor(this.canvas.height * scale)}px`;
   }
 
-  render(state: GameState): void {
+  render(state: GameState, ui: UiState): void {
     const { ctx } = this;
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -73,6 +81,7 @@ export class CanvasRenderer {
     }
     this.drawLog(state);
     if (state.status === "dead") this.drawDeathOverlay(state);
+    if (ui.seedEntry !== null) this.drawSeedPrompt(ui.seedEntry);
   }
 
   private drawStatus(state: GameState): void {
@@ -81,7 +90,7 @@ export class CanvasRenderer {
     const hpText = `HP: ${hp}/${maxHp}`;
     this.drawText(hpText, hp <= maxHp * HP_LOW_RATIO ? COLOR_HP_LOW : COLOR_HP_OK, 0, 0);
     this.drawText(
-      `Lv: ${player.level}  XP: ${player.xp}/${xpToNextLevel(player.level)}   Depth: ${state.depth}   Turn: ${state.turn}   Seed: ${state.seed}`,
+      `Lv: ${player.level}  XP: ${player.xp}/${xpToNextLevel(player.level)}   Depth: ${state.depth}   Turn: ${state.turn}   Seed: ${state.seedText}`,
       COLOR_STATUS,
       hpText.length + 3,
       0,
@@ -101,12 +110,30 @@ export class CanvasRenderer {
   }
 
   private drawLog(state: GameState): void {
-    const recent = state.log.slice(-LOG_ROWS);
+    // 最終行はヘルプに使う
+    const recent = state.log.slice(-(LOG_ROWS - 1));
     recent.forEach((msg, i) => {
       // 現在ターンのメッセージだけ本来の色、古いものは灰色に落とす
       const color = msg.turn === state.turn ? msg.color : COLOR_LOG_OLD;
       this.drawText(msg.text, color, 0, LOG_ROW_OFFSET + i);
     });
+    this.drawText(HELP_TEXT, COLOR_LOG_OLD, 0, LOG_ROW_OFFSET + LOG_ROWS - 1);
+  }
+
+  private drawSeedPrompt(buffer: string): void {
+    const { ctx } = this;
+    ctx.fillStyle = COLOR_OVERLAY;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.textAlign = "center";
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    ctx.fillStyle = COLOR_PROMPT;
+    ctx.fillText("Enter seed (blank = random):", cx, cy - CELL_H * 2);
+    ctx.fillStyle = COLOR_STATUS;
+    ctx.fillText(`> ${buffer}_`, cx, cy);
+    ctx.fillStyle = COLOR_LOG_OLD;
+    ctx.fillText("[Enter] start  [Esc] cancel", cx, cy + CELL_H * 2);
+    ctx.textAlign = "left";
   }
 
   private drawDeathOverlay(state: GameState): void {

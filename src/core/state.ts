@@ -11,6 +11,8 @@ export type GameStatus = "playing" | "dead";
 /** ゲームステートは純データ。描画・入力に依存しない */
 export interface GameState {
   seed: number;
+  /** 人が読めるシード文字列。表示・共有用 */
+  seedText: string;
   status: GameStatus;
   depth: number;
   turn: number;
@@ -40,11 +42,12 @@ const SPAWN_PER_DEPTH = 1;
 const SPAWN_MAX = 14;
 const SPAWN_ATTEMPTS = 50;
 
-export function createGame(seed: number): GameState {
+export function createGame(seed: number, seedText = String(seed)): GameState {
   const rng = createRng(seed);
   const map = generateRoomsAndCorridors(rng, DEFAULT_GENERATOR_OPTIONS);
   const state: GameState = {
     seed,
+    seedText,
     status: "playing",
     depth: 1,
     turn: 0,
