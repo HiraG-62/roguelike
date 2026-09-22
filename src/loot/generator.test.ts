@@ -228,6 +228,30 @@ describe("rollRarity", () => {
     };
     expect(countRare(3)).toBeGreaterThan(countRare(0));
   });
+
+  it("itemLevel 8 / boost 0.3 で unique 出現率が 1%〜5%（通常ドロップ相当）", () => {
+    const rng = createRng(2024);
+    const N = 10_000;
+    let uniqueCount = 0;
+    for (let i = 0; i < N; i++) {
+      if (rollRarity(rng, 8, 0.3) === "unique") uniqueCount++;
+    }
+    const ratio = uniqueCount / N;
+    expect(ratio).toBeGreaterThanOrEqual(0.01);
+    expect(ratio).toBeLessThanOrEqual(0.05);
+  });
+
+  it("itemLevel 8 / boost 1.5 で unique 出現率が 10%〜25%（ボス撃破ドロップ相当）", () => {
+    const rng = createRng(4048);
+    const N = 10_000;
+    let uniqueCount = 0;
+    for (let i = 0; i < N; i++) {
+      if (rollRarity(rng, 8, 1.5) === "unique") uniqueCount++;
+    }
+    const ratio = uniqueCount / N;
+    expect(ratio).toBeGreaterThanOrEqual(0.1);
+    expect(ratio).toBeLessThanOrEqual(0.25);
+  });
 });
 
 describe("rollAffixes", () => {

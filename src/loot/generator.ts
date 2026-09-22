@@ -42,7 +42,10 @@ export const BASE_RARITY_WEIGHTS: Readonly<Record<Rarity, number>> = {
   normal: 55,
   magic: 32,
   rare: 12,
-  unique: 1,
+  // QA で通常ドロップに unique が出づらすぎた（90 ラン 1226 個中 0 個）ため引き上げ。
+  // rare/magic と違い boost を二乗で効かせる（下記 UNIQUE_BOOST_EXPONENT）ので、
+  // この基本値は「boost 0 でもたまに見える」程度に留める
+  unique: 1.8,
 };
 /** rarityBoost 1 あたりの magic 重み増加率（rare/unique は 1 倍） */
 const MAGIC_BOOST_SCALE = 0.5;
@@ -50,6 +53,12 @@ const MAGIC_BOOST_SCALE = 0.5;
 const RARE_WEIGHT_PER_LEVEL = 0.05;
 /** itemLevel 1 あたりの unique 重み増加率 */
 const UNIQUE_WEIGHT_PER_LEVEL = 0.08;
+/**
+ * unique 重みに掛かる (1 + rarityBoost) の指数。rare/magic は boost に対して線形だが、
+ * unique だけ二乗にすることで「通常ドロップでは稀・ボス撃破等の高 boost では大きく伸びる」を両立する
+ * （線形のままだと、通常ドロップの上限を満たす基本値では高 boost 時の目標値に届かない）
+ */
+const UNIQUE_BOOST_EXPONENT = 2;
 
 // ---- アフィックス数 ----
 interface CountRange {
@@ -378,7 +387,10 @@ export function rarityWeights(itemLevel: number, rarityBoost = 0): Record<Rarity
     normal: BASE_RARITY_WEIGHTS.normal,
     magic: BASE_RARITY_WEIGHTS.magic * (1 + boost * MAGIC_BOOST_SCALE),
     rare: BASE_RARITY_WEIGHTS.rare * (1 + boost + itemLevel * RARE_WEIGHT_PER_LEVEL),
-    unique: BASE_RARITY_WEIGHTS.unique * (1 + boost + itemLevel * UNIQUE_WEIGHT_PER_LEVEL),
+    unique:
+      BASE_RARITY_WEIGHTS.unique *
+      (1 + itemLevel * UNIQUE_WEIGHT_PER_LEVEL) *
+      (1 + boost) ** UNIQUE_BOOST_EXPONENT,
   };
 }
 
