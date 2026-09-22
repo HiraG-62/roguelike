@@ -3,10 +3,10 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { createRng } from "../core/rng";
 import type { GameState, RoomKind } from "../core/state";
-import { FLOOR_KIND, MINIMAP, ROOM_KIND } from "../data/tuning";
+import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
-import { buildFloor, descend, enemyCount } from "./floor";
+import { buildFloor, descend, enemyCount, insideRoom } from "./floor";
 import { applyCurse, chooseFloorKind, fountainPx, isCaveDepth, isDark } from "./roomTypes";
 import { placeEnemy, withInput } from "./testHelpers";
 
@@ -114,6 +114,65 @@ describe("フロア種別", () => {
         if (seen.has(ni) || state.lockedTiles.has(ni)) continue;
         seen.add(ni);
         queue.push(ni);
+      }
+    }
+  });
+});
+
+describe("洞窟フロアの湧きとロック", () => {
+  function caveState(seed: number): GameState {
+    const state = createGame(seed);
+    state.depth = 3;
+    descend(state);
+    return state;
+  }
+
+  it("敵は塊の所属タイル全体に湧き、AABB が扉タイルに掛からない（ロックで壁に埋まらない）", () => {
+    for (let seed = 0; seed < 5; seed++) {
+      const state = caveState(seed);
+      if (state.floorKind !== "cave" || !state.map.roomTiles) continue;
+      for (const e of state.enemies) {
+        const room = state.rooms[e.roomIndex];
+        if (!room?.tiles) continue;
+        const r = e.body.radius;
+        for (const [dx, dy] of [
+          [-r, -r],
+          [r, -r],
+          [-r, r],
+          [r, r],
+        ] as const) {
+          const tx = Math.floor((e.body.pos.x + dx) / TILE_SIZE);
+          const ty = Math.floor((e.body.pos.y + dy) / TILE_SIZE);
+          expect(room.tiles.has(toIndex(state.map, tx, ty)), `seed=${seed} enemy=${e.id}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("入室判定を満たした位置では、プレイヤーの AABB がロックした扉に重ならない", () => {
+    const state = caveState(3);
+    const index = state.rooms.findIndex((r, i) => i > 0 && r.kind === "normal");
+    const room = state.rooms[index];
+    if (!room?.tiles) throw new Error("cave room missing");
+    const half = state.player.body.radius;
+    for (const t of room.tiles) {
+      const tx = t % state.map.width;
+      const ty = Math.floor(t / state.map.width);
+      for (let oy = 0; oy < TILE_SIZE; oy += 2) {
+        for (let ox = 0; ox < TILE_SIZE; ox += 2) {
+          const px = tx * TILE_SIZE + ox;
+          const py = ty * TILE_SIZE + oy;
+          if (!insideRoom(state, room, px, py, ROOM.enterMargin)) continue;
+          for (const [dx, dy] of [
+            [-half, -half],
+            [half - 0.001, -half],
+            [-half, half - 0.001],
+            [half - 0.001, half - 0.001],
+          ] as const) {
+            const i = toIndex(state.map, Math.floor((px + dx) / TILE_SIZE), Math.floor((py + dy) / TILE_SIZE));
+            expect(room.doorTiles.includes(i), `tile=${t} (${ox},${oy})`).toBe(false);
+          }
+        }
       }
     }
   });

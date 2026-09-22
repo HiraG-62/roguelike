@@ -179,7 +179,7 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
   const def = pickEnemy(state);
   const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;
   for (let k = 0; k < n; k++) {
-    const pos = randomFreePoint(state, room, def.radius);
+    const pos = randomFreePoint(state, room, index, def.radius);
     if (!pos) continue;
     const e = createEnemy(state, def, pos, index, spawning);
     if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
@@ -203,12 +203,10 @@ const FREE_POINT_ATTEMPTS = 30;
 /** プレイヤーの近くに湧かせない距離 */
 const SPAWN_CLEARANCE = 40;
 
-function randomFreePoint(state: GameState, room: RoomState, radius: number): { x: number; y: number } | null {
-  const r = room.rect;
+function randomFreePoint(state: GameState, room: RoomState, index: number, radius: number): { x: number; y: number } | null {
   for (let i = 0; i < FREE_POINT_ATTEMPTS; i++) {
-    const x = (r.x + 1 + state.rng.next() * (r.w - 2)) * TILE_SIZE;
-    const y = (r.y + 1 + state.rng.next() * (r.h - 2)) * TILE_SIZE;
-    if (!pxInRoomTiles(state, room, x, y)) continue;
+    const { x, y } = randomPointIn(state, room, index);
+    if (!circleInRoomTiles(state, room, x, y, radius)) continue;
     if (overlapsWall(state, x, y, radius)) continue;
     const p = state.player.body.pos;
     if (circlesOverlap(x, y, radius, p.x, p.y, SPAWN_CLEARANCE)) continue;
@@ -216,6 +214,36 @@ function randomFreePoint(state: GameState, room: RoomState, radius: number): { x
     return { x, y };
   }
   return null;
+}
+
+/**
+ * 候補点。矩形の部屋は外周 1 マス内側、塊の部屋（洞窟）は所属タイル全体から選ぶ
+ * （rect は塊に内接する小さな正方形なので、そこだけだと湧き場所が足りない）
+ */
+function randomPointIn(state: GameState, room: RoomState, index: number): { x: number; y: number } {
+  const tiles = room.tiles ? state.map.roomTiles?.[index] : undefined;
+  if (tiles && tiles.length > 0) {
+    const t = tiles[state.rng.int(0, tiles.length - 1)] ?? 0;
+    const tx = t % state.map.width;
+    const ty = Math.floor(t / state.map.width);
+    return { x: (tx + state.rng.next()) * TILE_SIZE, y: (ty + state.rng.next()) * TILE_SIZE };
+  }
+  const r = room.rect;
+  return {
+    x: (r.x + 1 + state.rng.next() * (r.w - 2)) * TILE_SIZE,
+    y: (r.y + 1 + state.rng.next() * (r.h - 2)) * TILE_SIZE,
+  };
+}
+
+/** 半径 r の AABB が塊の所属タイルに収まるか（扉タイルに掛かっているとロックで壁に埋まる）。r < TILE_SIZE 前提 */
+function circleInRoomTiles(state: GameState, room: RoomState, x: number, y: number, r: number): boolean {
+  if (!room.tiles) return true;
+  return (
+    pxInRoomTiles(state, room, x - r, y - r) &&
+    pxInRoomTiles(state, room, x + r, y - r) &&
+    pxInRoomTiles(state, room, x - r, y + r) &&
+    pxInRoomTiles(state, room, x + r, y + r)
+  );
 }
 
 /** 塊の部屋なら所属タイル上か。矩形の部屋は常に true */
@@ -226,13 +254,20 @@ function pxInRoomTiles(state: GameState, room: RoomState, px: number, py: number
   return inBounds(state.map, tx, ty) && room.tiles.has(toIndex(state.map, tx, ty));
 }
 
-/** 中心と上下左右 margin 先の点 */
+/**
+ * 中心と 8 方向 margin 先の点。margin(10) > 半径(5) なので、9 点が全て塊の中なら
+ * プレイヤーの AABB は扉タイルに掛からない（斜めを省くと凹んだ角でロックした扉に埋まる）
+ */
 const ENTER_PROBES = [
   [0, 0],
   [1, 0],
   [-1, 0],
   [0, 1],
   [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
 ] as const;
 
 /** 部屋の内側に margin 以上入り込んでいるか（扉を跨いでいる間はロックしない） */
@@ -318,7 +353,7 @@ function clearRoom(state: GameState, room: RoomState): void {
   addFloatingText(state, p2(state), "ROOM CLEAR", "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
-  const center = rectCenterPx(room.rect);
+  const center = rewardAnchor(state, room);
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   // 試練: rare 確定 + ハート確定
@@ -328,6 +363,30 @@ function clearRoom(state: GameState, room: RoomState): void {
     return;
   }
   if (state.rng.chance(ROOM.heartDropChance)) dropHeart(state, center);
+}
+
+/** 報酬を置く点から階段までずらす量（タイル）。階段の上に置くと拾う前に降りてしまう */
+const STAIRS_AVOID_OFFSETS = [
+  [0, 1.5],
+  [0, -1.5],
+  [1.5, 0],
+  [-1.5, 0],
+] as const;
+const REWARD_CLEARANCE = 4;
+
+/** 部屋の報酬を置く点。中心が階段（最後の部屋・ボス部屋）なら隣の床へずらす */
+function rewardAnchor(state: GameState, room: RoomState): { x: number; y: number } {
+  const c = rectCenterPx(room.rect);
+  if (!onStairs(state, c.x, c.y)) return c;
+  for (const [dx, dy] of STAIRS_AVOID_OFFSETS) {
+    const q = { x: c.x + dx * TILE_SIZE, y: c.y + dy * TILE_SIZE };
+    if (!overlapsWall(state, q.x, q.y, REWARD_CLEARANCE) && !onStairs(state, q.x, q.y)) return q;
+  }
+  return c;
+}
+
+function onStairs(state: GameState, px: number, py: number): boolean {
+  return getTile(state.map, Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE)) === Tile.StairsDown;
 }
 
 function dropHeart(state: GameState, pos: { x: number; y: number }): void {

@@ -1,5 +1,6 @@
 import type { GameState } from "../core/state";
-import { FLOOR_KIND, STATUS } from "../data/tuning";
+import type { Vec } from "../core/vec";
+import { ENEMY_AI, FLOOR_KIND, REAPER, STATUS } from "../data/tuning";
 
 /**
  * 暗闇フロアのマスク。プレイヤー周り（半径 darkLightRadius）だけ明るく、それ以外は黒で覆う。
@@ -15,6 +16,12 @@ const BURN_FLICKER_SPEED = 18;
 const BURN_FLICKER_AMOUNT = 0.25;
 const PLAYER_BURN_ALPHA = 0.35;
 const COLOR_ENEMY_BULLET = "#ff6060";
+/** 光の外から撃たれるレーザーと、壁抜けで迫る Reaper は暗闇でも見えるようにする（見えない即死級を作らない） */
+const LASER_WINDUP_ALPHA = 0.35;
+const LASER_WINDUP_WIDTH = 1;
+const LASER_FIRE_ALPHA = 0.8;
+const REAPER_GLOW_PAD = 6;
+const LASER_EYE_KEY = "laserEye";
 
 export class DarknessLayer {
   private readonly canvas: HTMLCanvasElement;
@@ -73,10 +80,30 @@ export class DarknessLayer {
       this.glow(target, e.body.pos.x, e.body.pos.y, BURN_GLOW_RADIUS, STATUS.burnColor, GLOW_ALPHA * flicker);
     }
     for (const h of state.hazards) {
+      if (h.kind === "laser") this.beam(target, h.pos, h.to, h.radius * 2, LASER_FIRE_ALPHA);
       if (h.kind !== "playerBurn") continue;
       this.glow(target, h.pos.x, h.pos.y, h.radius, STATUS.burnColor, PLAYER_BURN_ALPHA * flicker);
     }
+    for (const e of state.enemies) {
+      if (e.hp <= 0 || e.phase !== "windup" || e.defKey !== LASER_EYE_KEY || !e.ai) continue;
+      this.beam(target, e.body.pos, e.ai.target, LASER_WINDUP_WIDTH, LASER_WINDUP_ALPHA);
+    }
+    const r = state.reaper;
+    if (r) {
+      this.glow(target, r.pos.x, r.pos.y, r.radius + REAPER_GLOW_PAD, REAPER.color, GLOW_ALPHA * flicker);
+      this.glow(target, r.pos.x, r.pos.y, r.radius, REAPER.color, GLOW_ALPHA);
+    }
     target.restore();
+  }
+
+  private beam(target: CanvasRenderingContext2D, from: Vec, to: Vec, width: number, alpha: number): void {
+    target.globalAlpha = alpha;
+    target.strokeStyle = ENEMY_AI.laser.color;
+    target.lineWidth = width;
+    target.beginPath();
+    target.moveTo(from.x, from.y);
+    target.lineTo(to.x, to.y);
+    target.stroke();
   }
 
   private glow(target: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, alpha: number): void {
