@@ -1,9 +1,11 @@
 import { SfxPlayer } from "./audio/sfx";
 import { createGame, step } from "./core/game";
+import { GamepadInput } from "./core/gamepad";
 import { PlayerInput } from "./core/input";
 import { startLoop } from "./core/loop";
 import { hashSeed } from "./core/rng";
 import type { GameState } from "./core/state";
+import { VIEW_H, VIEW_W } from "./core/view";
 import { loadProfile, pushRunHistory, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
 import { drawInventoryUi } from "./render/inventoryUi";
@@ -81,8 +83,15 @@ function startGame(seedText: string): GameState {
 const input = new PlayerInput();
 input.attachKeyboard(window);
 input.attachMouse(canvas);
+const gamepad = new GamepadInput();
+gamepad.attach(window);
+input.attachGamepad(gamepad);
 const menuKeys = new MenuKeyCapture();
 menuKeys.attach(window);
+
+/** "Gamepad connected" 表示の残り秒数 */
+const GAMEPAD_CONNECTED_MESSAGE_DURATION = 2;
+let gamepadConnectedTimer = 0;
 
 const renderer = new Renderer(canvas);
 const inventoryUi = createInventoryUi();
@@ -169,11 +178,30 @@ function foundItems(p: Profile): Item[] {
   return [...p.stash, ...equipped];
 }
 
+const GAMEPAD_HINT_TEXT = "Gamepad connected";
+const GAMEPAD_HINT_FONT = "bold 8px monospace";
+const GAMEPAD_HINT_COLOR = "#e0e0e0";
+const GAMEPAD_HINT_Y_FROM_BOTTOM = 6;
+
+/** state や render に触れず、画面下に一時的な接続通知だけ重ねて描く */
+function drawGamepadConnectedHint(ctx: CanvasRenderingContext2D): void {
+  if (gamepadConnectedTimer <= 0) return;
+  ctx.font = GAMEPAD_HINT_FONT;
+  ctx.fillStyle = GAMEPAD_HINT_COLOR;
+  ctx.textAlign = "center";
+  ctx.fillText(GAMEPAD_HINT_TEXT, VIEW_W / 2, VIEW_H - GAMEPAD_HINT_Y_FROM_BOTTOM);
+}
+
 startLoop(
   (dt) => {
-    const frame = input.snapshot();
+    const frame = input.snapshot(state?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
+    // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する
+    if (input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
+
+    if (gamepad.consumeJustConnected()) gamepadConnectedTimer = GAMEPAD_CONNECTED_MESSAGE_DURATION;
+    if (gamepadConnectedTimer > 0) gamepadConnectedTimer = Math.max(0, gamepadConnectedTimer - dt);
 
     // 自然死（system/combat.ts が state.status を "dead" にして recordRunOnce を呼ぶ）も
     // ここで拾ってラン履歴に積む。endRun は何度呼んでも安全
@@ -335,21 +363,25 @@ startLoop(
 
     if (screen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
+      drawGamepadConnectedHint(ctx);
       return;
     }
     if (screen === "history") {
       drawHistoryScreen(ctx, profile.meta.history ?? []);
+      drawGamepadConnectedHint(ctx);
       return;
     }
     if (screen === "settings" && returnScreen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
       drawSettingsScreen(ctx, settings, settingsCursor, true);
+      drawGamepadConnectedHint(ctx);
       return;
     }
 
     const cur = state;
     if (!cur) {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
+      drawGamepadConnectedHint(ctx);
       return;
     }
 
@@ -370,5 +402,6 @@ startLoop(
         bossesDefeated,
       });
     }
+    drawGamepadConnectedHint(ctx);
   },
 );

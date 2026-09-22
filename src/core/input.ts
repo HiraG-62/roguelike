@@ -1,5 +1,6 @@
-import { type Vec, normalize, isZero } from "./vec";
+import { type Vec, ZERO, normalize, isZero, length } from "./vec";
 import { VIEW_H, VIEW_W } from "./view";
+import { AIM_STICK_DISTANCE, EMPTY_GAMEPAD_FRAME, type GamepadFrame, type GamepadInput } from "./gamepad";
 
 export type ActionName =
   | "up"
@@ -111,6 +112,19 @@ export class PlayerInput {
   private readonly pressed = new Set<string>();
   private mouseScreen: Vec | null = null;
   private wheelDelta = 0;
+  private gamepad: GamepadInput | null = null;
+  /** 直近の snapshot() で読んだパッド入力。メニューの戻る/ポーズ判定に main.ts から参照される */
+  private lastGamepadFrame: GamepadFrame = EMPTY_GAMEPAD_FRAME;
+
+  /** ゲームパッドを紐付ける。以後 snapshot() が毎フレーム読み取ってマージする */
+  attachGamepad(gamepad: GamepadInput): void {
+    this.gamepad = gamepad;
+  }
+
+  /** 直近フレームでパッドの「戻る/ポーズ」（B or Start）が今押されたか。main.ts がメニュー hotkeys にマージする */
+  gamepadEscapePressed(): boolean {
+    return this.lastGamepadFrame.escapePressed;
+  }
 
   attachKeyboard(target: Window): void {
     target.addEventListener("keydown", (ev) => {
@@ -181,24 +195,44 @@ export class PlayerInput {
     return this.codesFor(action).some((c) => this.pressed.has(c));
   }
 
-  /** 今フレームの入力を切り出す。押下フラグは呼び出しごとに消費される */
-  snapshot(): FrameInput {
+  /**
+   * 今フレームの入力を切り出す。押下フラグは呼び出しごとに消費される。
+   * cameraOffset は右スティック照準を画面座標に変換するときの画面中心のずれ（画面揺れ分）。
+   */
+  snapshot(cameraOffset: Vec = ZERO): FrameInput {
+    const pad = this.gamepad?.read() ?? EMPTY_GAMEPAD_FRAME;
+    this.lastGamepadFrame = pad;
+
     const raw = {
       x: (this.isDown("right") ? 1 : 0) - (this.isDown("left") ? 1 : 0),
       y: (this.isDown("down") ? 1 : 0) - (this.isDown("up") ? 1 : 0),
     };
+    const kbMove = isZero(raw) ? { x: 0, y: 0 } : normalize(raw);
+    // move はキーボード/パッドのうち、大きい方（アナログの踏み込みを活かす）
+    const move = length(pad.move) > length(kbMove) ? pad.move : kbMove;
+
+    // 右スティックが中立ならマウス/キーボード照準を優先。入力があれば画面中心からの方向で上書きする
+    const aimScreen = pad.aimDir
+      ? {
+          x: VIEW_W / 2 + cameraOffset.x + pad.aimDir.x * AIM_STICK_DISTANCE,
+          y: VIEW_H / 2 + cameraOffset.y + pad.aimDir.y * AIM_STICK_DISTANCE,
+        }
+      : this.mouseScreen
+        ? { ...this.mouseScreen }
+        : null;
+
     const input: FrameInput = {
-      move: isZero(raw) ? { x: 0, y: 0 } : normalize(raw),
-      aimScreen: this.mouseScreen ? { ...this.mouseScreen } : null,
-      dashPressed: this.wasPressed("dash"),
-      attackPressed: this.wasPressed("attack"),
-      shootHeld: this.isDown("shoot"),
-      specialPressed: this.wasPressed("special"),
-      confirmPressed: this.wasPressed("confirm"),
+      move,
+      aimScreen,
+      dashPressed: this.wasPressed("dash") || pad.dashPressed,
+      attackPressed: this.wasPressed("attack") || pad.attackPressed,
+      shootHeld: this.isDown("shoot") || pad.shootHeld,
+      specialPressed: this.wasPressed("special") || pad.specialPressed,
+      confirmPressed: this.wasPressed("confirm") || pad.confirmPressed,
       restartPressed: this.wasPressed("restart"),
-      inventoryPressed: this.wasPressed("inventory"),
-      skill1Pressed: this.wasPressed("skill1"),
-      skill2Pressed: this.wasPressed("skill2"),
+      inventoryPressed: this.wasPressed("inventory") || pad.inventoryPressed,
+      skill1Pressed: this.wasPressed("skill1") || pad.skill1Pressed,
+      skill2Pressed: this.wasPressed("skill2") || pad.skill2Pressed,
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has("Mouse0"),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),
