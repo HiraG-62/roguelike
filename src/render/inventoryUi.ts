@@ -51,6 +51,12 @@ const TEXT_PAD_X = 2;
 const TOOLTIP_MAX_LINES = 12;
 const TOOLTIP_PAD_Y = 3;
 const ICON_OFFSET_X = 10;
+/** 装備スロット・stash 行の左端に出すレアリティ色の帯の幅 */
+const RARITY_STRIP_W = 2;
+/** 装備スロットの背景にうっすら敷くレアリティ色の不透明度 */
+const RARITY_BG_ALPHA = 0.1;
+/** 二重枠の内側の不透明度 */
+const RARITY_INNER_ALPHA = 0.45;
 
 /** 空きスロットに出すアイコン文字 */
 const SLOT_ICON: Record<Slot, string> = {
@@ -246,13 +252,13 @@ function drawSlotRow(ctx: CanvasRenderingContext2D, s: SlotLayout, ui: Inventory
     ctx.fillStyle = COLOR_HOVER_BG;
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
-  strokeRectPx(ctx, rect, COLOR_BORDER);
+  drawSlotFrame(ctx, rect, s.item);
 
   ctx.font = FONT_SMALL;
   ctx.textAlign = "left";
   ctx.fillStyle = COLOR_DIM;
   const label = s.slot.toUpperCase();
-  ctx.fillText(label, rect.x + TEXT_PAD_X, rect.y + rect.h / 2 + 3);
+  ctx.fillText(label, rect.x + TEXT_PAD_X + (s.item ? RARITY_STRIP_W : 0), rect.y + rect.h / 2 + 3);
 
   const labelWidth = ctx.measureText(label).width;
   const nameMaxWidth = rect.w - labelWidth - TEXT_PAD_X * 3;
@@ -268,6 +274,24 @@ function drawSlotRow(ctx: CanvasRenderingContext2D, s: SlotLayout, ui: Inventory
     ctx.textAlign = "center";
     ctx.fillText(SLOT_ICON[s.slot], right - ICON_OFFSET_X / 2 + 1, rect.y + rect.h / 2 + 4);
   }
+}
+
+/** 装備中はレアリティ色の二重枠 + 左端の帯 + 薄い背景。空きは灰色の枠だけ */
+function drawSlotFrame(ctx: CanvasRenderingContext2D, rect: Rect, item: Item | null | undefined): void {
+  if (!item) {
+    strokeRectPx(ctx, rect, COLOR_BORDER);
+    return;
+  }
+  const color = RARITY_COLOR[item.rarity];
+  ctx.globalAlpha = RARITY_BG_ALPHA;
+  ctx.fillStyle = color;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.globalAlpha = RARITY_INNER_ALPHA;
+  strokeRectPx(ctx, { x: rect.x + 1, y: rect.y + 1, w: rect.w - 2, h: rect.h - 2 }, color);
+  ctx.globalAlpha = 1;
+  strokeRectPx(ctx, rect, color);
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(rect.x) + 1, Math.round(rect.y) + 1, RARITY_STRIP_W, rect.h - 2);
 }
 
 function drawStash(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: InventoryUi): void {
@@ -297,8 +321,10 @@ function drawStashRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, ui: In
 
   ctx.textAlign = "left";
   ctx.fillStyle = RARITY_COLOR[item.rarity];
-  const nameMaxWidth = rect.w - metaWidth - TEXT_PAD_X * 3;
-  ctx.fillText(truncateText(ctx, item.name, nameMaxWidth), rect.x + TEXT_PAD_X, rect.y + rect.h / 2 + 3);
+  ctx.fillRect(Math.round(rect.x), Math.round(rect.y) + 1, RARITY_STRIP_W, rect.h - 2);
+  const nameX = rect.x + TEXT_PAD_X + RARITY_STRIP_W;
+  const nameMaxWidth = rect.w - metaWidth - TEXT_PAD_X * 3 - RARITY_STRIP_W;
+  ctx.fillText(truncateText(ctx, item.name, nameMaxWidth), nameX, rect.y + rect.h / 2 + 3);
 }
 
 function tooltipLines(state: GameState, item: Item): TooltipLine[] {

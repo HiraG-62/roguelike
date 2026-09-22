@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PALETTE, SPRITES } from "../data/sprites";
+import { ENEMIES } from "../data/enemies";
 import { type Sprite, spriteFrame } from "./sprites";
 
 const TRANSPARENT = ".";
@@ -23,6 +24,11 @@ const ADDED_KEYS = [
   "stairsGlow",
   "spawnRing",
   "crosshair",
+  "bomb",
+  "laserBeam",
+  "shieldIcon",
+  "eliteAura",
+  "fountain",
 ] as const;
 
 const MIN_FRAMES: Partial<Record<string, number>> = {
@@ -33,6 +39,7 @@ const MIN_FRAMES: Partial<Record<string, number>> = {
   floor: 4,
   coin: 6,
   spawnRing: 3,
+  fountain: 2,
 };
 
 describe("SPRITES", () => {
@@ -81,6 +88,15 @@ describe("SPRITES", () => {
 
   it.each(Object.entries(MIN_FRAMES))("%s は %i フレーム以上", (key, min) => {
     expect(SPRITES[key]?.length ?? 0).toBeGreaterThanOrEqual(min ?? 1);
+  });
+
+  it("fountain は 16x16", () => {
+    expect(SPRITES.fountain?.[0]?.length).toBe(TILE);
+    expect(SPRITES.fountain?.[0]?.[0]?.length).toBe(TILE);
+  });
+
+  it("全ての敵定義のスプライトが存在する", () => {
+    for (const def of ENEMIES) expect(SPRITES[def.sprite], def.sprite).toBeDefined();
   });
 
   it("タイル系は透明ピクセルを持たない", () => {

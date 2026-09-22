@@ -16,6 +16,8 @@ const FONT_SMALL = "bold 8px monospace";
 const COLOR_BG = "#08080c";
 const COLOR_TITLE = "#ffd75f";
 const COLOR_TITLE_SHADOW = "#3a1a08";
+const TITLE_Y = 80;
+const TITLE_SHADOW_OFFSET = 2;
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
 const COLOR_ACCENT = "#6a8cff";
@@ -76,8 +78,6 @@ const WINDOW_W = 2;
 const WINDOW_H = 3;
 /** 窓を灯す確率（ハッシュ値 0..1 に対する閾値） */
 const WINDOW_CHANCE = 0.35;
-const WINDOW_FLICKER_SPEED = 2.3;
-const WINDOW_FLICKER_MIN = 0.55;
 /** 粒子（ゆっくり昇る残り火） */
 const EMBER_COLOR = "255,190,120";
 const EMBER_ALPHA_MAX = 0.35;
@@ -187,14 +187,6 @@ function drawParticles(ctx: CanvasRenderingContext2D, time: number): void {
   }
 }
 
-/** 近景の窓の明滅（背景キャッシュの上に重ねる） */
-function drawWindowFlicker(ctx: CanvasRenderingContext2D, time: number): void {
-  ctx.globalAlpha = (1 - WINDOW_FLICKER_MIN) * (0.5 + 0.5 * Math.sin(time * WINDOW_FLICKER_SPEED));
-  ctx.fillStyle = COLOR_BG;
-  ctx.fillRect(0, VIEW_H - NEAR_BASE_H - TOWER_EXTRA_NEAR, VIEW_W, TOWER_EXTRA_NEAR);
-  ctx.globalAlpha = 1;
-}
-
 export function drawTitle(
   ctx: CanvasRenderingContext2D,
   time: number,
@@ -208,9 +200,9 @@ export function drawTitle(
   ctx.textAlign = "center";
   ctx.font = FONT_HUGE;
   ctx.fillStyle = COLOR_TITLE_SHADOW;
-  ctx.fillText(gameName, VIEW_W / 2 + 2, 82);
+  ctx.fillText(gameName, VIEW_W / 2 + TITLE_SHADOW_OFFSET, TITLE_Y + TITLE_SHADOW_OFFSET);
   ctx.fillStyle = COLOR_TITLE;
-  ctx.fillText(gameName, VIEW_W / 2, 80);
+  ctx.fillText(gameName, VIEW_W / 2, TITLE_Y);
 
   const blinkOn = Math.sin((time / BLINK_PERIOD_SECONDS) * Math.PI * 2) > 0;
   ctx.font = FONT_MED;

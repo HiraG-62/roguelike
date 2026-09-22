@@ -1,5 +1,6 @@
 import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { Enemy, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
+import type { BossState, Enemy, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
+import type { GameMap } from "../map/grid";
 import { enemyDef } from "../data/enemies";
 import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
 import { bossEnemy } from "../system/boss";
@@ -11,7 +12,21 @@ import { RARITY_COLOR, SLOTS, type Rarity } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
 import { isAttacking, isDashing, meleeBox, meleeStep } from "../system/player";
-import { floorVariant, pulse, wallStyle } from "./renderMath";
+import {
+  LOOT_PILLAR_HEIGHTS,
+  bombBlinkFrameTime,
+  bombStyle,
+  bossIntroPhase,
+  bossPhaseThreshold,
+  clamp01,
+  damageTextStyle,
+  easeOutCubic,
+  floorVariant,
+  floorWipeCover,
+  lerp,
+  pulse,
+  wallStyle,
+} from "./renderMath";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, spriteFrame } from "./sprites";
 import { FLOOR_KIND_LABEL, isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
@@ -65,6 +80,7 @@ const SPR = {
   shieldIcon: "shieldIcon",
   eliteAura: "eliteAura",
   wisp: "wisp",
+  fountain: "fountain",
 } as const;
 const SLASH_KEYS = ["slash1", "slash2", "slash3"] as const;
 /** 浮遊する敵（影を離して描き、上下に揺らす） */
@@ -82,13 +98,10 @@ const SHIELD_FRAME_TIME = 0.2;
 const LINK_ALPHA_MIN = 0.25;
 const LINK_ALPHA_MAX = 0.7;
 const LINK_SPEED = 5;
-const LASER_THIN_ALPHA = 0.5;
 const LASER_THICK_W = 3;
 const LASER_FRAME_TIME = 0.05;
 const BOMB_FRAME_TIME_SLOW = 0.3;
 const BOMB_FRAME_TIME_FAST = 0.08;
-/** 残り時間がこの割合を切ったら点滅を速める */
-const BOMB_FAST_RATIO = 0.35;
 const BOMB_CIRCLE_ALPHA = 0.25;
 const BOMB_FILL_ALPHA = 0.18;
 const SHOCKWAVE_ALPHA = 0.85;
@@ -122,7 +135,6 @@ const HUD_RIGHT_X_PAD = 8;
 const HUD_REAPER_LINE = 3;
 const HUD_CURSED_LINE = 4;
 const REAPER_TINT = 0.7;
-const BOSS_BANNER_FADE = 0.5;
 const BOSS_BANNER_NAME_GAP = 16;
 const ELITE_BAR_W = 20;
 const SHIELD_BAR_H = 2;
@@ -132,6 +144,97 @@ const SHOCKWAVE_SPENT_ALPHA = 0.4;
 const LANDING_RX = 0.5;
 const LANDING_RY = 0.3;
 const LANDING_RING_FADE = 0.6;
+
+/** 第 2 弾: ボス演出 */
+const BOSS_BAR_SEGMENTS = 10;
+const BOSS_BAR_FRAME = 1;
+const COLOR_BOSS_TRAIL = "#ffb0a0";
+const COLOR_BOSS_BAR_HI = "#ff6a5a";
+const COLOR_BOSS_TICK = "rgba(0,0,0,0.55)";
+const COLOR_BOSS_PHASE_TICK = "#ffd75f";
+/** HP バーの遅れて減る部分の速度（割合/秒） */
+const BOSS_TRAIL_SPEED = 0.35;
+const BOSS_PHASE_FLASH_TIME = 0.35;
+const BOSS_LETTERBOX_H = 16;
+const BOSS_BAND_H = 34;
+const BOSS_BAND_ALPHA = 0.75;
+const BOSS_LABEL_GAP = 12;
+const BOSS_NAME_SHADOW = 2;
+const BOSS_DEATH_TIME = 1.4;
+const BOSS_DEATH_GROW = 1.8;
+const BOSS_DEATH_RINGS = 3;
+const BOSS_DEATH_RING_R = 70;
+const BOSS_DEATH_RING_DELAY = 0.15;
+const BOSS_LABEL = "- BOSS -";
+/** 階層移動ワイプ: map が変わった瞬間の flash がこれ以上ならワイプにする */
+const WIPE_TRIGGER_FLASH = 0.7;
+const WIPE_EDGE_ALPHA = 0.6;
+/** 新敵 */
+const BAT_SHADOW_SCALE = 0.5;
+const BAT_SHADOW_DROP = 7;
+const WISP_FLICKER_SPEED_X = 11;
+const WISP_FLICKER_SPEED_Y = 7;
+const WISP_FLICKER_X = 0.08;
+const WISP_FLICKER_Y = 0.12;
+const WISP_GLOW_R = 12;
+const WISP_GLOW_ALPHA = 0.35;
+const WISP_GLOW_FLICKER = 0.3;
+const KNIGHT_BLOCK_KNOCK_MIN = 15;
+const KNIGHT_BLOCK_GLOW_R = 10;
+const KNIGHT_BLOCK_SCALE = 1.3;
+const LASER_TELEGRAPH_MIN_ALPHA = 0.35;
+const LASER_DOT_R = 3;
+const LASER_DOT_GLOW_R = 8;
+const LASER_DOT_SPEED = 25;
+const LASER_END_GLOW_R = 12;
+const LASER_END_CORE_R = 4;
+const LASER_OUTER_W = 4;
+const LASER_OUTER_ALPHA = 0.25;
+const SHOCKWAVE_FILL_ALPHA = 0.08;
+const SHOCKWAVE_OUTER_PAD = 4;
+const SHOCKWAVE_OUTER_ALPHA = 0.25;
+const SHOCKWAVE_CORE_ALPHA = 0.9;
+const WISP_DEATH_ALPHA = 0.9;
+const WISP_DEATH_FILL_ALPHA = 0.15;
+const ELITE_BOMB_RING_W = 2;
+const ELITE_BOMB_SPEED = 18;
+const BOMB_SPARK_R = 5;
+const BOMB_SPARK_ALPHA = 0.7;
+const BOMB_SPARK_Y = 4;
+/** エリート */
+const LINK_DOT_COUNT = 3;
+const LINK_DOT_SPEED = 0.8;
+const LINK_DOT_SIZE = 2;
+const SHIELD_BAR_ICON_GAP = 1;
+const SHIELD_BAR_ICON_SCALE = 0.75;
+const ELITE_AURA_PULSE_SPEED = 3;
+const ELITE_AURA_PULSE_MIN = 0.75;
+/** Reaper */
+const REAPER_WARN_TEXT = "SOMETHING IS COMING";
+const REAPER_WARN_Y = 44;
+const REAPER_EDGE_MIN = 0.15;
+const REAPER_EDGE_MAX = 0.85;
+const REAPER_EDGE_SPEED_MIN = 2;
+const REAPER_EDGE_SPEED_MAX = 9;
+const REAPER_TRAIL_LEN = 10;
+const REAPER_TRAIL_STEP = 0.05;
+const REAPER_TRAIL_ALPHA = 0.35;
+const REAPER_TRAIL_SHRINK = 0.5;
+/** ダメージ数字 */
+const TEXT_BASE_SIZE = 8;
+const CRIT_SHAKE_SPEED = 45;
+const CRIT_SHAKE_AMP = 1.5;
+const CRIT_POP_TIME = 0.15;
+const CRIT_POP_SCALE = 0.5;
+/** HUD 右上の視認性 */
+const HUD_PANEL_ALPHA = 0.55;
+const HUD_PANEL_PAD = 3;
+const HUD_PANEL_ASCENT = 7;
+const COLOR_HUD_SEED = "#a0a0b0";
+const COLOR_HUD_SCORE = "#ffd75f";
+/** 泉のアニメ */
+const FOUNTAIN_FRAME_TIME = 0.45;
+const FOUNTAIN_DRY_TINT = 0.7;
 
 /** タイル */
 const STAIRS_GLOW_SPEED = 3;
@@ -149,8 +252,8 @@ const FLOAT_SHADOW_DROP = 4;
 const FLOAT_BOB_SPEED = 4;
 const FLOAT_BOB_AMOUNT = 1.5;
 
-/** 床アイテムの光柱 */
-const LOOT_PILLAR_HEIGHT = 24;
+/** 床アイテムの光柱（高さはレアリティ別: renderMath の LOOT_PILLAR_HEIGHTS。これは元画像の高さ） */
+const LOOT_PILLAR_HEIGHT = 32;
 const LOOT_PILLAR_WIDTH = 3;
 const LOOT_PILLAR_ALPHA = 0.5;
 const LOOT_WOBBLE_SPEED = 5;
@@ -237,11 +340,8 @@ const FLASH_RED_ALPHA = 0.55;
 const COLOR_FLASH_RED = "#ff2020";
 
 /** 部屋の種類 */
-const FOUNTAIN_STONE = "#50607a";
 const FOUNTAIN_WATER = "#60c0ff";
 const FOUNTAIN_DRY = "#3a4450";
-const FOUNTAIN_INSET = 2;
-const FOUNTAIN_WATER_INSET = 4;
 const FOUNTAIN_SPEED = 3;
 const FOUNTAIN_MIN = 0.55;
 const FOUNTAIN_MAX = 1;
@@ -347,6 +447,18 @@ function buildPillar(color: string): HTMLCanvasElement {
   return canvas;
 }
 
+/** 中心が明るく外へ抜ける放射状の光。色と半径ごとに一度だけ作る */
+function buildGlow(color: string, r: number): HTMLCanvasElement {
+  const size = Math.ceil(r * 2);
+  const { canvas, ctx } = makeCanvas(size, size);
+  const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+  grad.addColorStop(0, color);
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  return canvas;
+}
+
 function pick<T>(arr: readonly T[], i: number): T | undefined {
   return arr[i % arr.length];
 }
@@ -359,6 +471,22 @@ export class Renderer {
   private readonly lowHpVignette: HTMLCanvasElement;
   private readonly edgeBlue: HTMLCanvasElement;
   private readonly edgeRed: HTMLCanvasElement;
+  private readonly edgePurple: HTMLCanvasElement;
+  private readonly glows = new Map<string, HTMLCanvasElement>();
+  private readonly fonts = new Map<number, string>();
+  /** 描画側だけの演出トラッカー（state は読むだけ。state の差し替えでリセット） */
+  private lastState: GameState | null = null;
+  private lastMap: GameMap | null = null;
+  private lastTime = 0;
+  private wipeActive = false;
+  private bossRef: BossState | null = null;
+  private bossStage = 1;
+  private bossPhaseFlashAt = Number.NEGATIVE_INFINITY;
+  private bossTrail = 1;
+  private bossDefeatAt: number | null = null;
+  private bossSnap: { img: HTMLCanvasElement; x: number; bottom: number; flip: boolean } | null = null;
+  private readonly reaperTrail: { x: number; y: number }[] = [];
+  private reaperTrailAt = 0;
   private readonly pillars = new Map<string, HTMLCanvasElement>();
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
@@ -383,6 +511,7 @@ export class Renderer {
     this.lowHpVignette = buildVignette("200,0,0", 0.3);
     this.edgeBlue = buildEdgeGlow("80,160,255");
     this.edgeRed = buildEdgeGlow("255,40,40");
+    this.edgePurple = buildEdgeGlow("128,64,192");
     this.fitToWindow();
     window.addEventListener("resize", () => this.fitToWindow());
   }
@@ -406,6 +535,7 @@ export class Renderer {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
     if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
+    this.track(state);
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
     const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
@@ -418,6 +548,7 @@ export class Renderer {
     this.drawGroundHazards(state);
     this.drawLinks(state);
     this.drawEnemies(state);
+    this.drawBossDeath(state);
     this.drawProjectiles(state);
     this.drawLasers(state);
     this.drawPlayer(state);
@@ -429,7 +560,9 @@ export class Renderer {
 
     if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
     this.drawOverlays(state);
+    this.drawBossLetterbox(state);
     this.drawHud(state);
+    this.drawFloorWipe(state);
     drawBoonHud(ctx, state, aimScreen);
     drawBoonChoice(ctx, state);
     if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
@@ -437,8 +570,114 @@ export class Renderer {
   }
 
   // ---------------------------------------------------------------------------
+  // 描画側の演出トラッカー（state の変化を見て描画用の時刻を覚えるだけ）
+  // ---------------------------------------------------------------------------
+
+  private track(state: GameState): void {
+    if (state !== this.lastState) {
+      this.lastState = state;
+      this.lastMap = state.map;
+      this.lastTime = state.time;
+      this.wipeActive = false;
+      this.bossRef = null;
+      this.reaperTrail.length = 0;
+    }
+    const dt = Math.max(0, state.time - this.lastTime);
+    this.lastTime = state.time;
+    if (state.map !== this.lastMap) {
+      this.lastMap = state.map;
+      this.wipeActive = state.flash >= WIPE_TRIGGER_FLASH;
+      this.reaperTrail.length = 0;
+    }
+    if (this.wipeActive && state.flash <= 0) this.wipeActive = false;
+    this.trackBoss(state, dt);
+    this.trackReaper(state);
+  }
+
+  private trackBoss(state: GameState, dt: number): void {
+    const b = state.boss;
+    if (b !== this.bossRef) {
+      this.bossRef = b;
+      this.bossStage = 1;
+      this.bossPhaseFlashAt = Number.NEGATIVE_INFINITY;
+      this.bossTrail = 1;
+      this.bossDefeatAt = null;
+      this.bossSnap = null;
+    }
+    if (!b) return;
+    const e = bossEnemy(state);
+    if (e) {
+      const stage = e.ai?.stage ?? 1;
+      if (stage !== this.bossStage) {
+        this.bossStage = stage;
+        this.bossPhaseFlashAt = state.time;
+      }
+      const ratio = e.maxHp > 0 ? clamp01(e.hp / e.maxHp) : 0;
+      this.bossTrail = ratio >= this.bossTrail ? ratio : Math.max(ratio, this.bossTrail - BOSS_TRAIL_SPEED * dt);
+      const sprite = this.sprite(enemyDef(e.defKey).sprite);
+      const img = pick(sprite.white, this.enemyFrame(e, sprite));
+      if (img) {
+        const bottom = e.body.pos.y + sprite.h / 2 - this.jumpLift(e);
+        this.bossSnap = { img, x: e.body.pos.x, bottom, flip: e.facing.x < 0 };
+      }
+    }
+    if (b.defeated && this.bossDefeatAt === null) this.bossDefeatAt = state.time;
+  }
+
+  /** Reaper の残像用に一定間隔で位置を記録する */
+  private trackReaper(state: GameState): void {
+    const r = state.reaper;
+    if (!r) {
+      this.reaperTrail.length = 0;
+      return;
+    }
+    if (state.time - this.reaperTrailAt < REAPER_TRAIL_STEP && this.reaperTrail.length > 0) return;
+    this.reaperTrailAt = state.time;
+    this.reaperTrail.unshift({ x: r.pos.x, y: r.pos.y });
+    if (this.reaperTrail.length > REAPER_TRAIL_LEN) this.reaperTrail.length = REAPER_TRAIL_LEN;
+  }
+
+  // ---------------------------------------------------------------------------
   // 描画プリミティブ
   // ---------------------------------------------------------------------------
+
+  private glowImg(color: string, r: number): HTMLCanvasElement {
+    const key = `${color}|${r}`;
+    const hit = this.glows.get(key);
+    if (hit) return hit;
+    const made = buildGlow(color, r);
+    this.glows.set(key, made);
+    return made;
+  }
+
+  /** 加算合成の丸い光（事前生成した画像を置くだけ） */
+  private drawGlow(x: number, y: number, color: string, r: number, alpha: number): void {
+    if (alpha <= 0) return;
+    const { ctx } = this;
+    const img = this.glowImg(color, r);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, Math.round(x - r), Math.round(y - r));
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+  }
+
+  private font(px: number): string {
+    const hit = this.fonts.get(px);
+    if (hit) return hit;
+    const made = `bold ${px}px monospace`;
+    this.fonts.set(px, made);
+    return made;
+  }
+
+  /** 1px の影付き文字 */
+  private shadowText(text: string, x: number, y: number, color: string): void {
+    const { ctx } = this;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillText(text, x + 1, y + 1);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  }
 
   private sprite(key: string): Sprite {
     return getSprite(this.atlas, key);
@@ -567,24 +806,19 @@ export class Renderer {
     if (doorRoom !== undefined) this.drawDoorMark(state, state.rooms[doorRoom], px, py);
   }
 
+  /** 水面の反射が揺れる 2 フレームの泉。使用済みは灰色に沈める */
   private drawFountain(state: GameState, room: RoomState | undefined, px: number, py: number): void {
-    const { ctx } = this;
     const used = room?.used ?? false;
-    const inner = TILE_SIZE - FOUNTAIN_INSET * 2;
-    ctx.fillStyle = FOUNTAIN_STONE;
-    ctx.fillRect(px + FOUNTAIN_INSET, py + FOUNTAIN_INSET, inner, inner);
-    const water = TILE_SIZE - FOUNTAIN_WATER_INSET * 2;
-    const glow = pulse(state.time, FOUNTAIN_SPEED, FOUNTAIN_MIN, FOUNTAIN_MAX);
-    ctx.globalAlpha = used ? 1 : glow;
-    ctx.fillStyle = used ? FOUNTAIN_DRY : FOUNTAIN_WATER;
-    ctx.fillRect(px + FOUNTAIN_WATER_INSET, py + FOUNTAIN_WATER_INSET, water, water);
-    if (!used) {
-      ctx.globalAlpha = FOUNTAIN_GLOW_ALPHA * glow;
-      ctx.beginPath();
-      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, FOUNTAIN_GLOW_R, 0, Math.PI * 2);
-      ctx.fill();
+    const sprite = this.sprite(SPR.fountain);
+    if (used) {
+      const dry = this.tinted(SPR.fountain, FOUNTAIN_DRY, FOUNTAIN_DRY_TINT)[0];
+      if (dry) this.ctx.drawImage(dry, px, py);
+      return;
     }
-    ctx.globalAlpha = 1;
+    this.blit(sprite, spriteFrame(sprite, state.time, FOUNTAIN_FRAME_TIME), px, py);
+    const glow = pulse(state.time, FOUNTAIN_SPEED, FOUNTAIN_MIN, FOUNTAIN_MAX);
+    const half = TILE_SIZE / 2;
+    this.drawGlow(px + half, py + half, FOUNTAIN_WATER, FOUNTAIN_GLOW_R, FOUNTAIN_GLOW_ALPHA * glow * 2);
   }
 
   /** 特別な部屋の入口に小さな菱形。用が済んだら消す */
@@ -657,7 +891,7 @@ export class Renderer {
       const x = Math.round(fi.pos.x);
       const y = Math.round(fi.pos.y);
       const wobble = 1 + Math.sin(fi.bobTime * LOOT_WOBBLE_SPEED) * LOOT_WOBBLE_AMOUNT;
-      const h = Math.round(LOOT_PILLAR_HEIGHT * wobble);
+      const h = Math.round(LOOT_PILLAR_HEIGHTS[rarity] * wobble);
       const bob = Math.round(Math.sin(fi.bobTime * LOOT_BOB_SPEED) * LOOT_BOB_AMOUNT);
 
       this.drawShadow(x, y + diamond.h / 2, SHADOW_SMALL);
@@ -697,7 +931,7 @@ export class Renderer {
       if (fi.item.rarity === "normal") continue;
       const x = Math.round(fi.pos.x);
       const wobble = 1 + Math.sin(fi.bobTime * LOOT_WOBBLE_SPEED) * LOOT_WOBBLE_AMOUNT;
-      const ly = Math.round(fi.pos.y - LOOT_PILLAR_HEIGHT * wobble - LOOT_LABEL_OFFSET);
+      const ly = Math.round(fi.pos.y - LOOT_PILLAR_HEIGHTS[fi.item.rarity] * wobble - LOOT_LABEL_OFFSET);
       ctx.fillStyle = COLOR_BLACK;
       ctx.fillText(fi.item.name, x + 1, ly + 1);
       ctx.fillStyle = RARITY_COLOR[fi.item.rarity];
@@ -748,17 +982,39 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /**
+   * 浮遊文字。ダメージ数字は縁取り付き（重い一撃は茶、クリティカルは朱の縁）。
+   * クリティカルは出た瞬間に大きく弾み、左右に揺れる
+   */
   private drawTexts(state: GameState): void {
     const { ctx } = this;
     ctx.textAlign = "center";
-    for (const t of state.texts) {
+    for (let i = 0; i < state.texts.length; i++) {
+      const t = state.texts[i];
+      if (!t) continue;
       const fade = Math.min(1, (t.life / t.maxLife) * 2);
+      const style = damageTextStyle(t.text, t.color, t.scale);
+      const age = t.maxLife - t.life;
+      let scale = t.scale;
+      let x = Math.round(t.pos.x);
+      const y = Math.round(t.pos.y);
+      if (style.crit) {
+        scale *= 1 + CRIT_POP_SCALE * (1 - clamp01(age / CRIT_POP_TIME));
+        x += Math.round(Math.sin(state.time * CRIT_SHAKE_SPEED + i) * CRIT_SHAKE_AMP * fade);
+      }
       ctx.globalAlpha = fade;
-      ctx.font = `bold ${Math.round(8 * t.scale)}px monospace`;
-      ctx.fillStyle = COLOR_BLACK;
-      ctx.fillText(t.text, Math.round(t.pos.x) + 1, Math.round(t.pos.y) + 1);
-      ctx.fillStyle = t.color;
-      ctx.fillText(t.text, Math.round(t.pos.x), Math.round(t.pos.y));
+      ctx.font = this.font(Math.round(TEXT_BASE_SIZE * scale));
+      if (style.numeric) {
+        ctx.fillStyle = style.outline;
+        ctx.fillText(t.text, x - 1, y);
+        ctx.fillText(t.text, x + 1, y);
+        ctx.fillText(t.text, x, y - 1);
+        ctx.fillText(t.text, x, y + 1);
+        ctx.fillStyle = t.color;
+        ctx.fillText(t.text, x, y);
+        continue;
+      }
+      this.shadowText(t.text, x, y, t.color);
     }
     ctx.globalAlpha = 1;
   }
@@ -786,8 +1042,12 @@ export class Renderer {
 
     const floating = FLOATING_SPRITES.has(key);
     const feetY = cy + sprite.h / 2;
-    const shadowScale = Math.max(1, sprite.w / TILE_SIZE);
-    this.drawShadow(cx, feetY + (floating ? FLOAT_SHADOW_DROP : -1), shadowScale);
+    const isBat = def.behavior === "bat";
+    const isWisp = def.behavior === "wisp";
+    // 群れで来る bat は影を小さく（重なって床が黒く潰れないように）
+    const shadowScale = isBat ? BAT_SHADOW_SCALE : Math.max(1, sprite.w / TILE_SIZE);
+    const shadowDrop = isBat ? BAT_SHADOW_DROP : floating ? FLOAT_SHADOW_DROP : -1;
+    this.drawShadow(cx, feetY + shadowDrop, shadowScale);
     if (e.elite) this.drawEliteAura(state, e, cx, feetY);
 
     const frame = this.enemyFrame(e, sprite);
@@ -800,8 +1060,15 @@ export class Renderer {
     }
     const flip = e.facing.x < 0;
     const hit = e.hitFlash > 0;
-    const sx = hit ? SQUASH_X : 1;
-    const sy = hit ? SQUASH_Y : 1;
+    let sx = hit ? SQUASH_X : 1;
+    let sy = hit ? SQUASH_Y : 1;
+    if (isWisp) {
+      // 炎の揺らぎ: 横と縦を別周期で伸縮 + 背後の発光
+      sx *= 1 + Math.sin(e.animTime * WISP_FLICKER_SPEED_X + e.id) * WISP_FLICKER_X;
+      sy *= 1 + Math.sin(e.animTime * WISP_FLICKER_SPEED_Y + e.id * 2) * WISP_FLICKER_Y;
+      const flicker = 1 - WISP_GLOW_FLICKER + Math.sin(e.animTime * WISP_FLICKER_SPEED_X) * WISP_GLOW_FLICKER;
+      this.drawGlow(x, bottom - sprite.h / 2, ENEMY_AI.wisp.color, WISP_GLOW_R, WISP_GLOW_ALPHA * flicker);
+    }
     const rot =
       e.phase === "stagger"
         ? (flip ? STAGGER_TILT : -STAGGER_TILT) * (0.7 + 0.3 * Math.sin(state.time * STAGGER_WOBBLE_SPEED))
@@ -824,6 +1091,7 @@ export class Renderer {
       this.drawAnchored(pick(this.tinted(key, STATUS.burnColor), frame), x, bottom, sx, sy, rot, flip);
     }
     ctx.globalAlpha = 1;
+    if (isWisp) this.drawSparkles(x, bottom - 2, e.animTime, ENEMY_AI.wisp.color);
     if (def.behavior === "knight") this.drawKnightShield(state, e, cx, cy);
 
     const top = cy - sprite.h / 2 - 2;
@@ -833,7 +1101,7 @@ export class Renderer {
       ctx.textAlign = "center";
       ctx.fillText("!", cx, top);
       if (def.behavior === "charger") this.drawChargeLine(e);
-      if (def.behavior === "laser") this.drawLaserTelegraph(e, def.windup);
+      if (def.behavior === "laser") this.drawLaserTelegraph(state, e, def.windup);
       if (def.behavior === "golem") this.drawRingTelegraph(cx, cy, ENEMY_AI.golem.ringRadius);
     }
     if (e.phase === "stagger") {
@@ -881,7 +1149,7 @@ export class Renderer {
     const aura = this.sprite(SPR.eliteAura);
     const frames = this.tinted(SPR.eliteAura, ELITE_COLOR[e.elite]);
     const frame = spriteFrame(aura, state.time + e.id, ELITE_AURA_FRAME_TIME);
-    this.ctx.globalAlpha = ELITE.auraAlpha;
+    this.ctx.globalAlpha = ELITE.auraAlpha * pulse(state.time + e.id, ELITE_AURA_PULSE_SPEED, ELITE_AURA_PULSE_MIN, 1);
     this.drawAnchored(pick(frames, frame), cx, feetY + ELITE_AURA_DROP);
     this.ctx.globalAlpha = 1;
   }
@@ -894,8 +1162,17 @@ export class Renderer {
     this.drawBar(cx - w / 2, y, w, ELITE_BAR_H, Math.min(e.hp, base) / base, COLOR_HP, COLOR_HP_BG);
     if (shield <= 0 || !e.shieldMax) return;
     const { ctx } = this;
+    const left = Math.round(cx - w / 2);
+    const sy = y - SHIELD_BAR_H;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(left, sy, w, SHIELD_BAR_H);
     ctx.fillStyle = COLOR_SHIELD_BAR;
-    ctx.fillRect(Math.round(cx - w / 2), y - SHIELD_BAR_H, Math.round(w * (shield / e.shieldMax)), SHIELD_BAR_H);
+    ctx.fillRect(left, sy, Math.round(w * (shield / e.shieldMax)), SHIELD_BAR_H);
+    // バーの左にシールドの印
+    const icon = this.sprite(SPR.shieldIcon).frames[0];
+    if (!icon) return;
+    const iw = icon.width * SHIELD_BAR_ICON_SCALE;
+    this.drawRotated(icon, left - SHIELD_BAR_ICON_GAP - iw / 2, sy + SHIELD_BAR_H / 2, 0, SHIELD_BAR_ICON_SCALE);
   }
 
   private drawEliteName(e: Enemy, cx: number, y: number): void {
@@ -910,35 +1187,53 @@ export class Renderer {
     ctx.fillText(name, Math.round(cx), Math.round(y));
   }
 
-  /** 盾を正面に構える。怯み中は下ろす */
+  /**
+   * 盾を正面に構える。怯み中は下ろす。
+   * 防いだ直後（被弾フラッシュ無しで押し返されている間）は盾が白く光る
+   */
   private drawKnightShield(state: GameState, e: Enemy, cx: number, cy: number): void {
     if (e.phase === "stagger") return;
     const icon = this.sprite(SPR.shieldIcon);
-    const img = pick(icon.frames, spriteFrame(icon, state.time, SHIELD_FRAME_TIME));
-    if (!img) return;
     const sx = cx + e.facing.x * SHIELD_ICON_OFFSET;
     const sy = cy + e.facing.y * SHIELD_ICON_OFFSET;
+    const blocking = e.hitFlash <= 0 && Math.hypot(e.knock.x, e.knock.y) > KNIGHT_BLOCK_KNOCK_MIN;
+    if (blocking) {
+      this.drawGlow(sx, sy, ENEMY_AI.knight.blockColor, KNIGHT_BLOCK_GLOW_R, 1);
+      this.drawRotated(icon.white[0], sx, sy, 0, KNIGHT_BLOCK_SCALE);
+      return;
+    }
+    const img = pick(icon.frames, spriteFrame(icon, state.time, SHIELD_FRAME_TIME));
+    if (!img) return;
     this.ctx.globalAlpha = SHIELD_ICON_ALPHA;
     this.ctx.drawImage(img, Math.round(sx - img.width / 2), Math.round(sy - img.height / 2));
     this.ctx.globalAlpha = 1;
   }
 
-  /** レーザーのチャージ: 前半は細い予告線、後半は太い赤線 */
-  private drawLaserTelegraph(e: Enemy, windup: number): void {
+  /** レーザーのチャージ: 細い線が徐々に太く濃くなり、終点に光点。後半は脈打つ */
+  private drawLaserTelegraph(state: GameState, e: Enemy, windup: number): void {
     const target = e.ai?.target;
     if (!target) return;
     const { ctx } = this;
-    const t = windup > 0 ? 1 - e.phaseTimer / windup : 1;
+    const t = windup > 0 ? clamp01(1 - e.phaseTimer / windup) : 1;
     const thick = t >= ENEMY_AI.laser.thinRatio;
-    ctx.strokeStyle = ENEMY_AI.laser.color;
-    ctx.globalAlpha = thick ? 1 : LASER_THIN_ALPHA;
-    ctx.lineWidth = thick ? LASER_THICK_W : 1;
+    const color = ENEMY_AI.laser.color;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = lerp(LASER_TELEGRAPH_MIN_ALPHA, 1, t);
+    ctx.lineWidth = Math.max(1, Math.round(lerp(1, LASER_THICK_W, t)));
     ctx.beginPath();
     ctx.moveTo(e.body.pos.x, e.body.pos.y);
     ctx.lineTo(target.x, target.y);
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
+    const blink = thick ? pulse(state.time, LASER_DOT_SPEED, 0.5, 1) : t;
+    this.drawGlow(target.x, target.y, color, LASER_DOT_GLOW_R, blink);
+    this.drawGlow(e.body.pos.x, e.body.pos.y, color, LASER_DOT_GLOW_R, t);
+    ctx.fillStyle = COLOR_WHITE;
+    ctx.globalAlpha = blink;
+    const r = Math.max(1, Math.round(LASER_DOT_R * t));
+    ctx.fillRect(Math.round(target.x - r / 2), Math.round(target.y - r / 2), r, r);
+    ctx.globalAlpha = 1;
   }
 
   private drawRingTelegraph(cx: number, cy: number, radius: number): void {
@@ -951,25 +1246,34 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** 同じ部屋の Linked を線で結ぶ */
+  /** 同じ部屋の Linked を脈動する線で結び、線上を光点が行き来する */
   private drawLinks(state: GameState): void {
     const linked = state.enemies.filter((e) => e.elite === "linked" && e.hp > 0 && e.phase !== "spawning");
     if (linked.length < 2) return;
     const { ctx } = this;
+    const alpha = pulse(state.time, LINK_SPEED, LINK_ALPHA_MIN, LINK_ALPHA_MAX);
     ctx.strokeStyle = ELITE.linkColor;
-    ctx.globalAlpha = pulse(state.time, LINK_SPEED, LINK_ALPHA_MIN, LINK_ALPHA_MAX);
-    ctx.beginPath();
+    ctx.fillStyle = ELITE.linkColor;
     for (let i = 0; i < linked.length; i++) {
       const a = linked[i];
       if (!a) continue;
       for (let j = i + 1; j < linked.length; j++) {
         const b = linked[j];
         if (!b || b.roomIndex !== a.roomIndex) continue;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
         ctx.moveTo(a.body.pos.x, a.body.pos.y);
         ctx.lineTo(b.body.pos.x, b.body.pos.y);
+        ctx.stroke();
+        ctx.globalAlpha = Math.min(1, alpha + LINK_ALPHA_MIN);
+        for (let k = 0; k < LINK_DOT_COUNT; k++) {
+          const t = (state.time * LINK_DOT_SPEED + k / LINK_DOT_COUNT) % 1;
+          const x = lerp(a.body.pos.x, b.body.pos.x, t);
+          const y = lerp(a.body.pos.y, b.body.pos.y, t);
+          ctx.fillRect(Math.round(x - LINK_DOT_SIZE / 2), Math.round(y - LINK_DOT_SIZE / 2), LINK_DOT_SIZE, LINK_DOT_SIZE);
+        }
       }
     }
-    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
@@ -998,38 +1302,95 @@ export class Renderer {
     }
   }
 
-  /** 赤い予告円（残り時間で内側が満ちる）+ 点滅する爆弾 */
+  /**
+   * 爆弾ハザード。出どころで見た目を変える:
+   * bomber = 赤い予告円 + 導火線が短くなるほど速く点滅する爆弾、
+   * wisp の死亡爆発 = 白い縮む円、Explosive エリートの死亡爆発 = 橙の脈動円 + 縮む白輪
+   */
   private drawBomb(state: GameState, h: Hazard): void {
+    const style = bombStyle(h);
+    if (style === "wispDeath") {
+      this.drawShrinkingBlast(h, COLOR_WHITE, WISP_DEATH_ALPHA);
+      return;
+    }
     const { ctx } = this;
-    const t = h.maxTime > 0 ? 1 - h.time / h.maxTime : 1;
-    ctx.fillStyle = ENEMY_AI.bomber.color;
+    const t = h.maxTime > 0 ? clamp01(1 - h.time / h.maxTime) : 1;
+    const color = style === "eliteDeath" ? ELITE.explodeColor : ENEMY_AI.bomber.color;
+    ctx.fillStyle = color;
     ctx.globalAlpha = BOMB_FILL_ALPHA;
     ctx.beginPath();
     ctx.arc(h.pos.x, h.pos.y, h.radius * t, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = ENEMY_AI.bomber.color;
+    ctx.strokeStyle = color;
     ctx.globalAlpha = BOMB_CIRCLE_ALPHA + t * (1 - BOMB_CIRCLE_ALPHA);
+    if (style === "eliteDeath") {
+      ctx.globalAlpha *= pulse(state.time, ELITE_BOMB_SPEED, 0.5, 1);
+      ctx.lineWidth = ELITE_BOMB_RING_W;
+    }
+    ctx.beginPath();
+    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 1;
+    if (style === "eliteDeath") {
+      this.drawShrinkingBlast(h, COLOR_WHITE, 1);
+      return;
+    }
+    const bomb = this.sprite(SPR.bomb);
+    const left = h.maxTime > 0 ? h.time / h.maxTime : 0;
+    const frameTime = bombBlinkFrameTime(left, BOMB_FRAME_TIME_SLOW, BOMB_FRAME_TIME_FAST);
+    const frame = spriteFrame(bomb, state.time, frameTime);
+    this.blit(bomb, frame, h.pos.x - bomb.w / 2, h.pos.y - bomb.h / 2);
+    // 導火線の火花（赤く光るフレームで強く）
+    this.drawGlow(h.pos.x, h.pos.y - BOMB_SPARK_Y, COLOR_ENERGY, BOMB_SPARK_R, BOMB_SPARK_ALPHA * (frame === 1 ? 1 : 0.5));
+  }
+
+  /** 爆発の予告: 爆心へ縮んでいく輪（0 になった瞬間に爆発）と、薄く満ちる爆発範囲 */
+  private drawShrinkingBlast(h: Hazard, color: string, alpha: number): void {
+    const { ctx } = this;
+    const left = h.maxTime > 0 ? clamp01(h.time / h.maxTime) : 0;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = WISP_DEATH_FILL_ALPHA;
+    ctx.beginPath();
+    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(h.pos.x, h.pos.y, Math.max(1, h.radius * left), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = alpha * (1 - left);
     ctx.beginPath();
     ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    const bomb = this.sprite(SPR.bomb);
-    const fast = h.time < h.maxTime * BOMB_FAST_RATIO;
-    const frame = spriteFrame(bomb, state.time, fast ? BOMB_FRAME_TIME_FAST : BOMB_FRAME_TIME_SLOW);
-    this.blit(bomb, frame, h.pos.x - bomb.w / 2, h.pos.y - bomb.h / 2);
   }
 
-  /** 広がる衝撃波の縁（判定のある幅で描く） */
+  /** 広がる衝撃波。判定のある縁は太く明るく、内側はごく薄く */
   private drawShockwave(h: Hazard): void {
     const { ctx } = this;
-    const r = shockwaveRadius(h);
-    ctx.strokeStyle = ENEMY_AI.golem.color;
-    ctx.globalAlpha = SHOCKWAVE_ALPHA * (h.spent ? SHOCKWAVE_SPENT_ALPHA : 1);
-    ctx.lineWidth = ENEMY_AI.golem.ringThickness;
+    const r = Math.max(1, shockwaveRadius(h));
+    const color = ENEMY_AI.golem.color;
+    const thick = ENEMY_AI.golem.ringThickness;
+    const spent = h.spent ? SHOCKWAVE_SPENT_ALPHA : 1;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = SHOCKWAVE_FILL_ALPHA * spent;
     ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, Math.max(1, r), 0, Math.PI * 2);
+    ctx.arc(h.pos.x, h.pos.y, Math.max(1, r - thick / 2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = SHOCKWAVE_OUTER_ALPHA * spent;
+    ctx.lineWidth = thick + SHOCKWAVE_OUTER_PAD;
+    ctx.beginPath();
+    ctx.arc(h.pos.x, h.pos.y, r, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.globalAlpha = SHOCKWAVE_ALPHA * spent;
+    ctx.lineWidth = thick;
+    ctx.stroke();
+    ctx.strokeStyle = COLOR_WHITE;
+    ctx.globalAlpha = SHOCKWAVE_CORE_ALPHA * spent;
     ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
@@ -1084,22 +1445,52 @@ export class Renderer {
         ctx.drawImage(img, 0, 0, w, beam.h, d, -beam.h / 2, w, beam.h);
       }
       ctx.restore();
+      this.drawLaserGlow(h);
     }
   }
 
-  /** 追跡者: 大きな紫の wisp。半透明で脈打つ */
+  /** 照射中のレーザー: 外側の薄い光と、両端の発光 */
+  private drawLaserGlow(h: Hazard): void {
+    const { ctx } = this;
+    const color = ENEMY_AI.laser.color;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = LASER_OUTER_ALPHA;
+    ctx.lineWidth = h.radius * 2 + LASER_OUTER_W;
+    ctx.beginPath();
+    ctx.moveTo(h.pos.x, h.pos.y);
+    ctx.lineTo(h.to.x, h.to.y);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    this.drawGlow(h.pos.x, h.pos.y, color, LASER_END_GLOW_R, 1);
+    this.drawGlow(h.to.x, h.to.y, color, LASER_END_GLOW_R, 1);
+    this.drawGlow(h.to.x, h.to.y, COLOR_WHITE, LASER_END_CORE_R, 1);
+  }
+
+  /** 追跡者: 大きな紫の wisp。半透明で脈打ち、長い残像を引く */
   private drawReaper(state: GameState): void {
     const r = state.reaper;
     if (!r) return;
     const wisp = this.sprite(SPR.wisp);
     const frames = this.tinted(SPR.wisp, REAPER.color, REAPER_TINT);
     const img = pick(frames, spriteFrame(wisp, r.animTime, ENEMY_FRAME_TIME));
-    this.ctx.globalAlpha = pulse(state.time, REAPER_PULSE_SPEED, REAPER_ALPHA_MIN, REAPER_ALPHA_MAX);
+    const { ctx } = this;
+    const n = this.reaperTrail.length;
+    for (let i = n - 1; i >= 1; i--) {
+      const p = this.reaperTrail[i];
+      if (!p) continue;
+      const k = 1 - i / n;
+      ctx.globalAlpha = REAPER_TRAIL_ALPHA * k;
+      this.drawRotated(img, p.x, p.y, 0, REAPER_SCALE * (1 - REAPER_TRAIL_SHRINK * (1 - k)));
+    }
+    this.drawGlow(r.pos.x, r.pos.y, REAPER.color, r.radius * REAPER_SCALE, REAPER_ALPHA_MIN);
+    ctx.globalAlpha = pulse(state.time, REAPER_PULSE_SPEED, REAPER_ALPHA_MIN, REAPER_ALPHA_MAX);
     const bob = Math.sin(r.animTime * FLOAT_BOB_SPEED) * FLOAT_BOB_AMOUNT;
     this.drawRotated(img, r.pos.x, r.pos.y + bob, 0, REAPER_SCALE);
-    this.ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1;
   }
-
 
   /** 突進方向の予告線 */
   private drawChargeLine(e: Enemy): void {
@@ -1319,8 +1710,15 @@ export class Renderer {
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, VIEW_W - 1, VIEW_H - 1);
     }
-    if (state.flash > 0) {
-      // 被弾中の flash は赤、それ以外（JUST・階層移動など）は白
+    if (playing && reaperWarning(state)) {
+      // 出現が近いほど速く濃く脈打つ
+      const near = 1 - clamp01(reaperTimeLeft(state) / REAPER.warnMargin);
+      const speed = lerp(REAPER_EDGE_SPEED_MIN, REAPER_EDGE_SPEED_MAX, near);
+      ctx.globalAlpha = pulse(state.time, speed, REAPER_EDGE_MIN, lerp(REAPER_EDGE_MIN, REAPER_EDGE_MAX, near));
+      ctx.drawImage(this.edgePurple, 0, 0);
+    }
+    if (state.flash > 0 && !this.wipeActive) {
+      // 被弾中の flash は赤、それ以外（JUST・ボス撃破など）は白。階層移動は黒帯ワイプ（drawFloorWipe）
       const hurt = p.hitFlash > 0;
       ctx.fillStyle = hurt ? COLOR_FLASH_RED : COLOR_WHITE;
       ctx.globalAlpha = state.flash * (hurt ? FLASH_RED_ALPHA : FLASH_WHITE_ALPHA);
@@ -1376,14 +1774,26 @@ export class Renderer {
     const rightX = VIEW_W - HUD_RIGHT_X_PAD;
     ctx.textAlign = "right";
     ctx.font = FONT_SMALL;
-    ctx.fillStyle = COLOR_TEXT;
-    ctx.fillText(`DEPTH ${state.depth} · ${FLOOR_KIND_LABEL[state.floorKind]}`, rightX, rightY);
-    ctx.fillText(`SCORE ${state.score}`, rightX, rightY + HUD_RIGHT_LINE);
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText(`seed ${state.seedText}`, rightX, rightY + HUD_RIGHT_LINE * 2);
+    const depthText = `DEPTH ${state.depth} · ${FLOOR_KIND_LABEL[state.floorKind]}`;
+    const scoreText = `SCORE ${state.score}`;
+    const seedText = `seed ${state.seedText}`;
+    const panelW =
+      Math.ceil(Math.max(ctx.measureText(depthText).width, ctx.measureText(scoreText).width, ctx.measureText(seedText).width)) +
+      HUD_PANEL_PAD * 2;
+    ctx.globalAlpha = HUD_PANEL_ALPHA;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(
+      rightX - panelW + HUD_PANEL_PAD,
+      rightY - HUD_PANEL_ASCENT - HUD_PANEL_PAD,
+      panelW,
+      HUD_RIGHT_LINE * 2 + HUD_PANEL_ASCENT + HUD_PANEL_PAD * 2,
+    );
+    ctx.globalAlpha = 1;
+    this.shadowText(depthText, rightX, rightY, COLOR_TEXT);
+    this.shadowText(scoreText, rightX, rightY + HUD_RIGHT_LINE, COLOR_HUD_SCORE);
+    this.shadowText(seedText, rightX, rightY + HUD_RIGHT_LINE * 2, COLOR_HUD_SEED);
     if (state.cursed) {
-      ctx.fillStyle = ROOM_KIND.cursedColor;
-      ctx.fillText("CURSED: next room elites x2", rightX, rightY + HUD_RIGHT_LINE * HUD_CURSED_LINE);
+      this.shadowText("CURSED: next room elites x2", rightX, rightY + HUD_RIGHT_LINE * HUD_CURSED_LINE, ROOM_KIND.cursedColor);
     }
 
     if (state.combo.count > 1) {
@@ -1417,34 +1827,147 @@ export class Renderer {
     }
   }
 
-  /** ボス戦中は画面上部に名前付きの HP バー。ロック直後は大きな "BOSS" 表示 */
+  /** ボス戦中は画面上部にセグメント付きの HP バー。ロック直後は黒帯 + 名前のスライドイン */
   private drawBossHud(state: GameState): void {
     const b = state.boss;
     if (!b || b.defeated) return;
     const boss = bossEnemy(state);
     const room = state.rooms[b.roomIndex];
     if (!boss || !room?.locked) return;
+    this.drawBossBar(state, b, boss);
+    this.drawBossBanner(b);
+  }
+
+  /** 遅れて減る白っぽい帯・目盛り・フェーズ境界の印。フェーズ移行の瞬間は白く光る */
+  private drawBossBar(state: GameState, b: BossState, boss: Enemy): void {
     const { ctx } = this;
     const x = Math.round((VIEW_W - BOSS_BAR_W) / 2);
+    const y = BOSS_BAR_Y;
+    const ratio = boss.maxHp > 0 ? clamp01(boss.hp / boss.maxHp) : 0;
     ctx.fillStyle = COLOR_BLACK;
-    ctx.fillRect(x - 1, BOSS_BAR_Y - 1, BOSS_BAR_W + 2, BOSS_BAR_H + 2);
-    this.drawBar(x, BOSS_BAR_Y, BOSS_BAR_W, BOSS_BAR_H, boss.hp / boss.maxHp, COLOR_BOSS_BAR, COLOR_BOSS_BAR_BG);
+    ctx.fillRect(x - BOSS_BAR_FRAME, y - BOSS_BAR_FRAME, BOSS_BAR_W + BOSS_BAR_FRAME * 2, BOSS_BAR_H + BOSS_BAR_FRAME * 2);
+    ctx.fillStyle = COLOR_BOSS_BAR_BG;
+    ctx.fillRect(x, y, BOSS_BAR_W, BOSS_BAR_H);
+    ctx.fillStyle = COLOR_BOSS_TRAIL;
+    ctx.fillRect(x, y, Math.round(BOSS_BAR_W * Math.max(ratio, this.bossTrail)), BOSS_BAR_H);
+    const filled = Math.round(BOSS_BAR_W * ratio);
+    ctx.fillStyle = COLOR_BOSS_BAR;
+    ctx.fillRect(x, y, filled, BOSS_BAR_H);
+    ctx.fillStyle = COLOR_BOSS_BAR_HI;
+    ctx.fillRect(x, y, filled, 1);
+    ctx.fillStyle = COLOR_BOSS_TICK;
+    for (let i = 1; i < BOSS_BAR_SEGMENTS; i++) {
+      ctx.fillRect(x + Math.round((BOSS_BAR_W * i) / BOSS_BAR_SEGMENTS), y, 1, BOSS_BAR_H);
+    }
+    const threshold = bossPhaseThreshold(enemyDef(boss.defKey).behavior);
+    if (threshold !== null && this.bossStage === 1) {
+      ctx.fillStyle = COLOR_BOSS_PHASE_TICK;
+      ctx.fillRect(x + Math.round(BOSS_BAR_W * threshold), y - BOSS_BAR_FRAME, 1, BOSS_BAR_H + BOSS_BAR_FRAME * 2);
+    }
+    const since = state.time - this.bossPhaseFlashAt;
+    if (since >= 0 && since < BOSS_PHASE_FLASH_TIME) {
+      ctx.globalAlpha = 1 - since / BOSS_PHASE_FLASH_TIME;
+      ctx.fillStyle = COLOR_WHITE;
+      ctx.fillRect(x - BOSS_BAR_FRAME, y - BOSS_BAR_FRAME, BOSS_BAR_W + BOSS_BAR_FRAME * 2, BOSS_BAR_H + BOSS_BAR_FRAME * 2);
+      ctx.globalAlpha = 1;
+    }
     ctx.textAlign = "center";
     ctx.font = FONT_SMALL;
-    ctx.fillStyle = COLOR_BOSS_NAME;
-    ctx.fillText(b.name, VIEW_W / 2, BOSS_BAR_Y - 3);
+    this.shadowText(b.name, VIEW_W / 2, y - 3, COLOR_BOSS_NAME);
+  }
 
+  /** 登場時の上下の黒帯（HUD より奥に描く） */
+  private drawBossLetterbox(state: GameState): void {
+    const b = state.boss;
+    if (!b || b.defeated || b.introTimer <= 0) return;
+    const ph = bossIntroPhase(b.introTimer, BOSS.introTime);
+    const h = Math.round(BOSS_LETTERBOX_H * ph.bars);
+    if (h <= 0) return;
+    const { ctx } = this;
+    ctx.globalAlpha = ph.alpha;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(0, 0, VIEW_W, h);
+    ctx.fillRect(0, VIEW_H - h, VIEW_W, h);
+    ctx.globalAlpha = 1;
+  }
+
+  /** 中央の黒帯に "- BOSS -" と名前が左右から滑り込む */
+  private drawBossBanner(b: BossState): void {
     if (b.introTimer <= 0) return;
-    const fade = Math.min(1, b.introTimer / BOSS_BANNER_FADE);
-    ctx.globalAlpha = fade;
+    const ph = bossIntroPhase(b.introTimer, BOSS.introTime);
+    if (ph.alpha <= 0) return;
+    const { ctx } = this;
+    const bandH = Math.round(BOSS_BAND_H * ph.bars);
+    const top = Math.round(BOSS_BANNER_Y - bandH / 2);
+    ctx.globalAlpha = ph.alpha * BOSS_BAND_ALPHA;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(0, top, VIEW_W, bandH);
+    ctx.globalAlpha = ph.alpha;
+    ctx.fillStyle = COLOR_BOSS_BANNER;
+    ctx.fillRect(0, top, VIEW_W, 1);
+    ctx.fillRect(0, top + bandH - 1, VIEW_W, 1);
+
+    const center = VIEW_W / 2;
+    const nameX = Math.round(lerp(-center, center, ph.slide));
+    const labelX = Math.round(lerp(VIEW_W + center, center, ph.slide));
+    ctx.textAlign = "center";
+    ctx.font = FONT_SMALL;
+    this.shadowText(BOSS_LABEL, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER);
     ctx.font = FONT_BIG;
     ctx.fillStyle = COLOR_BLACK;
-    ctx.fillText("BOSS", VIEW_W / 2 + 2, BOSS_BANNER_Y + 2);
-    ctx.fillStyle = COLOR_BOSS_BANNER;
-    ctx.fillText("BOSS", VIEW_W / 2, BOSS_BANNER_Y);
-    ctx.font = FONT_MED;
+    ctx.fillText(b.name, nameX + BOSS_NAME_SHADOW, BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2 + BOSS_NAME_SHADOW);
     ctx.fillStyle = COLOR_BOSS_NAME;
-    ctx.fillText(b.name, VIEW_W / 2, BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP);
+    ctx.fillText(b.name, nameX, BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  /** 撃破: 白いシルエットが膨らみながら消え、白い輪が時間差で広がる */
+  private drawBossDeath(state: GameState): void {
+    const at = this.bossDefeatAt;
+    const snap = this.bossSnap;
+    if (at === null || !snap) return;
+    const t = (state.time - at) / BOSS_DEATH_TIME;
+    if (t < 0 || t >= 1) return;
+    const { ctx } = this;
+    const grow = 1 + (BOSS_DEATH_GROW - 1) * easeOutCubic(t);
+    ctx.globalAlpha = 1 - t;
+    const cy = snap.bottom - snap.img.height / 2;
+    ctx.save();
+    ctx.translate(Math.round(snap.x), Math.round(cy));
+    ctx.scale(snap.flip ? -grow : grow, grow);
+    ctx.drawImage(snap.img, -snap.img.width / 2, -snap.img.height / 2);
+    ctx.restore();
+    ctx.strokeStyle = COLOR_WHITE;
+    for (let i = 0; i < BOSS_DEATH_RINGS; i++) {
+      const rt = (state.time - at - i * BOSS_DEATH_RING_DELAY) / BOSS_DEATH_TIME;
+      if (rt <= 0 || rt >= 1) continue;
+      ctx.globalAlpha = 1 - rt;
+      ctx.lineWidth = BOSS_DEATH_RINGS - i;
+      ctx.beginPath();
+      ctx.arc(snap.x, cy, BOSS_DEATH_RING_R * easeOutCubic(rt), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 1;
+    this.drawGlow(snap.x, cy, COLOR_WHITE, BOSS_DEATH_RING_R / 2, 1 - t);
+  }
+
+  /** 階層移動: 上下の黒帯が閉じて開く（時間は state.flash の減衰）。帯の縁に細い光 */
+  private drawFloorWipe(state: GameState): void {
+    if (!this.wipeActive) return;
+    // 祝福 3 択の間は step が止まり flash が減衰しないので、閉じたまま待つ
+    const cover = state.boonChoice ? 1 : floorWipeCover(state.flash);
+    const h = Math.round((VIEW_H / 2) * cover);
+    if (h <= 0) return;
+    const { ctx } = this;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(0, 0, VIEW_W, h);
+    ctx.fillRect(0, VIEW_H - h, VIEW_W, h);
+    if (cover >= 1) return;
+    ctx.globalAlpha = WIPE_EDGE_ALPHA;
+    ctx.fillStyle = COLOR_WHITE;
+    ctx.fillRect(0, h, VIEW_W, 1);
+    ctx.fillRect(0, VIEW_H - h - 1, VIEW_W, 1);
     ctx.globalAlpha = 1;
   }
 
@@ -1465,8 +1988,13 @@ export class Renderer {
       return;
     }
     if (!reaperWarning(state)) return;
-    ctx.fillStyle = REAPER.color;
-    ctx.fillText(`reaper in ${Math.ceil(reaperTimeLeft(state))}s`, VIEW_W - HUD_RIGHT_X_PAD, reaperY);
+    this.shadowText(`reaper in ${Math.ceil(reaperTimeLeft(state))}s`, VIEW_W - HUD_RIGHT_X_PAD, reaperY, REAPER.color);
+    if (state.status !== "playing") return;
+    ctx.textAlign = "center";
+    ctx.font = FONT_MED;
+    ctx.globalAlpha = pulse(state.time, REAPER_PULSE_SPEED, REAPER_ALPHA_MIN, 1);
+    this.shadowText(REAPER_WARN_TEXT, VIEW_W / 2, REAPER_WARN_Y, REAPER.color);
+    ctx.globalAlpha = 1;
   }
 
   /** ダッシュのチャージ数 */

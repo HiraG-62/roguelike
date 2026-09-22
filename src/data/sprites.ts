@@ -60,6 +60,7 @@ export type SpriteFrames = readonly (readonly string[])[];
  *           crosshair / stairsGlow / spawnRing
  * 敵追加: knight / bomber / laserEye (16x16) / golem (24x24) / bat / wisp (12x12)
  * ボス (32x32): kingSlime（通常/潰れ/伸び/ジャンプ準備） / boneLord（待機2/杖を掲げる2）
+ * 部屋: fountain (16x16 水面2)
  * 付随: bomb (8x8 点滅2) / laserBeam (16x8 横タイル) / shieldIcon (8x8) / eliteAura (24x24 単色 1、描画側で着色・半透明)
  */
 export const SPRITES: Record<string, SpriteFrames> = {
@@ -1779,6 +1780,45 @@ export const SPRITES: Record<string, SpriteFrames> = {
       "...11111........11111...",
       ".......1111111111.......",
       "........................",
+    ],
+  ],
+  /** shrine の泉（16x16、水面の反射 2 フレーム） */
+  fountain: [
+    [
+      "................",
+      "..kkkkkkkkkkkk..",
+      ".kSssssssssssSk.",
+      "kSsSSSSSSSSSSsSk",
+      "kSSBBBBBBBBBBSSk",
+      "kSBbbcc1bbbbbBSk",
+      "kSBbbbbbbbacbBSk",
+      "kSBbcabbbbbbbBSk",
+      "kSBbbbbbcc1bbBSk",
+      "kSBbbbbbbbbabBSk",
+      "kSBbb1ccbbbbbBSk",
+      "kSSBBBBBBBBBBSSk",
+      "kSsSSSSSSSSSSsSk",
+      ".kSssssssssssSk.",
+      "..kkkkkkkkkkkk..",
+      "................",
+    ],
+    [
+      "................",
+      "..kkkkkkkkkkkk..",
+      ".kSssssssssssSk.",
+      "kSsSSSSSSSSSSsSk",
+      "kSSBBBBBBBBBBSSk",
+      "kSBbbbbbcc1bbBSk",
+      "kSBb1ccbbbbbbBSk",
+      "kSBbbbbbbbcabBSk",
+      "kSBbbacbbbbbbBSk",
+      "kSBbbbbb1ccbbBSk",
+      "kSBbbbbbbbbcbBSk",
+      "kSSBBBBBBBBBBSSk",
+      "kSsSSSSSSSSSSsSk",
+      ".kSssssssssssSk.",
+      "..kkkkkkkkkkkk..",
+      "................",
     ],
   ],
 };

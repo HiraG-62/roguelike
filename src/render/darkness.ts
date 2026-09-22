@@ -23,9 +23,30 @@ const LASER_FIRE_ALPHA = 0.8;
 const REAPER_GLOW_PAD = 6;
 const LASER_EYE_KEY = "laserEye";
 
+function buildHole(r: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  const size = Math.ceil(r * 2);
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D context unavailable");
+  const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+  grad.addColorStop(0, "rgba(0,0,0,1)");
+  grad.addColorStop(1 - FLOOR_KIND.darkFeather, "rgba(0,0,0,1)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(r, r, r, 0, FULL_CIRCLE);
+  ctx.fill();
+  return canvas;
+}
+
 export class DarknessLayer {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+
+  /** 光の穴（放射グラデーション）。半径は定数なので一度だけ作る */
+  private readonly hole: HTMLCanvasElement;
 
   constructor(width: number, height: number) {
     this.canvas = document.createElement("canvas");
@@ -34,6 +55,7 @@ export class DarknessLayer {
     const ctx = this.canvas.getContext("2d");
     if (!ctx) throw new Error("2D context unavailable");
     this.ctx = ctx;
+    this.hole = buildHole(FLOOR_KIND.darkLightRadius);
   }
 
   /** ox, oy はワールド → 画面の平行移動量 */
@@ -54,14 +76,7 @@ export class DarknessLayer {
     ctx.fillStyle = `rgba(0,0,0,${FLOOR_KIND.darkAlpha})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.globalCompositeOperation = "destination-out";
-    const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
-    grad.addColorStop(0, "rgba(0,0,0,1)");
-    grad.addColorStop(1 - FLOOR_KIND.darkFeather, "rgba(0,0,0,1)");
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, FULL_CIRCLE);
-    ctx.fill();
+    ctx.drawImage(this.hole, Math.round(px - r), Math.round(py - r));
     ctx.globalCompositeOperation = "source-over";
   }
 

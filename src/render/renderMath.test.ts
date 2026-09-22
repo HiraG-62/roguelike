@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { createMap, setTile, Tile } from "../map/grid";
-import { fitTooltip, floorVariant, pulse, tileHash, wallStyle } from "./renderMath";
+import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
+import { RARITIES } from "../loot/types";
+import {
+  LOOT_PILLAR_HEIGHTS,
+  bombBlinkFrameTime,
+  bombStyle,
+  bossIntroPhase,
+  bossPhaseThreshold,
+  damageTextStyle,
+  fitTooltip,
+  floorVariant,
+  floorWipeCover,
+  pulse,
+  tileHash,
+  wallStyle,
+} from "./renderMath";
 
 describe("floorVariant", () => {
   it("決定的で範囲内", () => {
@@ -61,5 +76,62 @@ describe("fitTooltip", () => {
     const fit = fitTooltip(20, 8, 6, 12, 64, 4);
     expect(fit.shown).toBe(10);
     expect(fit.height).toBeLessThanOrEqual(64);
+  });
+});
+
+describe("演出用の純関数", () => {
+  it("bombStyle: 半径と導火線で出どころを見分ける", () => {
+    const w = ENEMY_AI.wisp;
+    expect(bombStyle({ radius: w.deathExplodeRadius, maxTime: w.deathExplodeFuse })).toBe("wispDeath");
+    expect(bombStyle({ radius: ELITE.explodeRadius, maxTime: ELITE.explodeFuse })).toBe("eliteDeath");
+    expect(bombStyle({ radius: ENEMY_AI.bomber.radius, maxTime: ENEMY_AI.bomber.fuse })).toBe("bomber");
+  });
+
+  it("bombBlinkFrameTime: 残りが減るほど間隔が短くなる", () => {
+    const slow = 0.3;
+    const fast = 0.08;
+    expect(bombBlinkFrameTime(1, slow, fast)).toBeCloseTo(slow);
+    expect(bombBlinkFrameTime(0, slow, fast)).toBeCloseTo(fast);
+    expect(bombBlinkFrameTime(0.3, slow, fast)).toBeLessThan(bombBlinkFrameTime(0.7, slow, fast));
+  });
+
+  it("floorWipeCover: 閉じきってから開き、最後は全開", () => {
+    expect(floorWipeCover(1)).toBeGreaterThan(0);
+    expect(floorWipeCover(1)).toBeLessThan(1);
+    expect(floorWipeCover(0.7)).toBe(1);
+    expect(floorWipeCover(0)).toBeCloseTo(0);
+    for (let f = 0.6; f > 0; f -= 0.05) expect(floorWipeCover(f - 0.05)).toBeLessThanOrEqual(floorWipeCover(f) + 1e-9);
+  });
+
+  it("bossIntroPhase: 帯が出て名前が中央へ滑り込み、最後に消える", () => {
+    const total = 2;
+    const start = bossIntroPhase(total, total);
+    expect(start.bars).toBe(0);
+    expect(start.slide).toBe(0);
+    const mid = bossIntroPhase(total / 2, total);
+    expect(mid.bars).toBe(1);
+    expect(mid.slide).toBe(1);
+    expect(mid.alpha).toBe(1);
+    expect(bossIntroPhase(0.1, total).alpha).toBeLessThan(1);
+    expect(bossIntroPhase(0, total).alpha).toBe(0);
+  });
+
+  it("LOOT_PILLAR_HEIGHTS: レアほど高い", () => {
+    const hs = RARITIES.map((r) => LOOT_PILLAR_HEIGHTS[r]);
+    for (let i = 1; i < hs.length; i++) expect(hs[i] ?? 0).toBeGreaterThan(hs[i - 1] ?? 0);
+  });
+
+  it("damageTextStyle: 数字だけ縁取り対象、crit 色は crit", () => {
+    expect(damageTextStyle("12", PLAYER.critColor, 1.6).crit).toBe(true);
+    expect(damageTextStyle("12", "#ffffff", 1).crit).toBe(false);
+    expect(damageTextStyle("12", "#ffffff", 1).numeric).toBe(true);
+    expect(damageTextStyle("BLOCK", PLAYER.critColor, 1).numeric).toBe(false);
+    expect(damageTextStyle("12", "#ffffff", 1.4).outline).not.toBe(damageTextStyle("12", "#ffffff", 1).outline);
+  });
+
+  it("bossPhaseThreshold: ボスごとの境界、他は null", () => {
+    expect(bossPhaseThreshold("kingSlime")).toBe(BOSS.kingSlime.phase2Ratio);
+    expect(bossPhaseThreshold("boneLord")).toBe(BOSS.boneLord.teleportRatio);
+    expect(bossPhaseThreshold("chaser")).toBeNull();
   });
 });
