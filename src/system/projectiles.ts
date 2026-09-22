@@ -3,6 +3,7 @@ import { normalize } from "../core/vec";
 import { FEEL } from "../data/tuning";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { spawnBurst } from "./effects";
+import { deflectProjectile } from "./elites";
 import { circlesOverlap, overlapsWall } from "./physics";
 
 const BULLET_KNOCKBACK = 60;
@@ -37,6 +38,8 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     if (e.hp <= 0 || pr.hitIds.has(e.id)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     pr.hitIds.add(e.id);
+    // knight の盾 / Reflective の反射
+    if (deflectProjectile(state, pr, e)) return;
     const out = rollOutgoing(state, e, pr.damage, pr.kind);
     damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: BULLET_HITSTOP,

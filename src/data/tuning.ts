@@ -158,3 +158,134 @@ export const ROOM = {
   heartHeal: 25,
   clearBonus: 50,
 } as const;
+
+/** 追加敵の行動パラメータ */
+export const ENEMY_AI = {
+  knight: {
+    /** 盾で防ぐ正面の角度（度） */
+    blockArcDeg: 120,
+    blockColor: "#c0d0ff",
+    /** 防いだとき攻撃側へ返す小さな跳ね返り（敵自身の後退量） */
+    blockPushback: 40,
+    /** 突進の速度倍率（def.speed に掛ける） */
+    lungeSpeedMul: 6,
+  },
+  bomber: {
+    /** この距離より近いと離れる */
+    keepAway: 60,
+    fuse: 2,
+    radius: 36,
+    damage: 18,
+    /** 爆弾を置く先（プレイヤーへの方向にこの距離だけ投げる） */
+    throwDist: 40,
+    color: "#ff4040",
+  },
+  laser: {
+    width: 8,
+    length: 260,
+    damage: 16,
+    /** チャージのうち細い予告線を出す割合（残りは太い赤線） */
+    thinRatio: 0.6,
+    color: "#ff3030",
+  },
+  golem: {
+    ringRadius: 70,
+    /** 衝撃波の広がる時間（秒） */
+    ringTime: 0.55,
+    /** リングの縁の判定幅（px） */
+    ringThickness: 8,
+    damage: 20,
+    color: "#d0c8a0",
+  },
+  bat: {
+    zigzagFreq: 9,
+    zigzagAmount: 0.9,
+    /** 噛んだ後に離れる速度倍率 */
+    retreatMul: 1.2,
+  },
+  wisp: {
+    /** 触れたプレイヤーに炎をまとわせる演出時間（秒）。ダメージは contactDamage */
+    burnDuration: 2,
+    deathExplodeRadius: 26,
+    deathExplodeDamage: 10,
+    color: "#60c0ff",
+  },
+} as const;
+
+/** エリート修飾子 */
+export const ELITE = {
+  minDepth: 2,
+  baseChance: 0.1,
+  chancePerDepth: 0.01,
+  maxChance: 0.35,
+  scoreMul: 3,
+  dropMul: 3,
+  hpMul: 1.4,
+  speedMul: 1.5,
+  /** Hasted のテレグラフ短縮倍率 */
+  windupMul: 0.6,
+  /** Shielded のシールド量（最大 HP に対する割合） */
+  shieldRatio: 0.6,
+  shieldBreakStagger: 0.6,
+  explodeRadius: 40,
+  explodeDamage: 18,
+  /** Explosive の死亡から爆発までの猶予（秒） */
+  explodeFuse: 1,
+  explodeColor: "#ff8030",
+  reflectColor: "#e0e0ff",
+  reflectDamage: 8,
+  linkColor: "#ff80ff",
+  /** 足元オーラの不透明度 */
+  auraAlpha: 0.45,
+} as const;
+
+/** ボス */
+export const BOSS = {
+  /** この階ごとにボス部屋が出る */
+  interval: 3,
+  roomMinW: 18,
+  roomMinH: 14,
+  introTime: 2,
+  defeatSlowmo: 1.5,
+  rareDrops: 2,
+  rareDropBoost: 6,
+  rareDropAttempts: 40,
+  kingSlime: {
+    jumpTime: 0.9,
+    shockRadius: 60,
+    shockDamage: 22,
+    phase2Ratio: 0.5,
+    splitCount: 4,
+    phase2SpeedMul: 1.6,
+    /** 着地までの空中時間の最小（フェーズ 2） */
+    phase2JumpTime: 0.65,
+  },
+  boneLord: {
+    bulletSpeed: 110,
+    bulletDamage: 10,
+    bulletDirs: 8,
+    /** 弾幕 1 回の斉射数と間隔 */
+    volleys: 5,
+    volleyInterval: 0.22,
+    /** 斉射ごとの回転量（rad） */
+    volleySpin: 0.2,
+    wallDuration: 4,
+    wallLength: 5,
+    teleportRatio: 0.3,
+    teleportInterval: 1.8,
+    color: "#c0ffb0",
+  },
+} as const;
+
+/** 追跡者（Reaper） */
+export const REAPER = {
+  appearAfter: 90,
+  /** この秒数を過ぎたら HUD に残り時間を出す */
+  warnAfter: 60,
+  speed: 28,
+  radius: 9,
+  damage: 25,
+  /** 出現位置はプレイヤーからこの距離 */
+  spawnDist: 180,
+  color: "#8040c0",
+} as const;

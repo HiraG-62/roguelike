@@ -1,7 +1,7 @@
 import { type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ROOM } from "../data/tuning";
-import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "../map/generator";
+import { BOSS, ROOM } from "../data/tuning";
+import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateRoomsAndCorridors } from "../map/generator";
 import {
   type GameMap,
   type Rect,
@@ -21,13 +21,15 @@ import { heartsAllowed } from "./keystones";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsWall } from "./physics";
+import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
+import { finalizeLinks, rollElite } from "./elites";
 
 const START_ROOM = 0;
 const PICKUP_RADIUS = 6;
 
 /** 新しいフロアを生成してプレイヤーを配置する */
 export function buildFloor(state: GameState): void {
-  state.map = generateRoomsAndCorridors(state.rng, DEFAULT_GENERATOR_OPTIONS);
+  state.map = generateRoomsAndCorridors(state.rng, generatorOptions(state.depth));
   state.rooms = state.map.rooms.map((rect) => ({
     rect,
     cleared: false,
@@ -35,6 +37,10 @@ export function buildFloor(state: GameState): void {
     doorTiles: findDoorTiles(state.map, rect),
   }));
   state.lockedTiles = new Set();
+  state.hazards = [];
+  state.boss = null;
+  state.floorTime = 0;
+  state.reaper = null;
   state.enemies = [];
   state.projectiles = [];
   state.pickups = [];
@@ -51,10 +57,27 @@ export function buildFloor(state: GameState): void {
   }
   snapCamera(state);
 
+  const bossRoom = bossRoomIndex(state);
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
+    if (i === bossRoom) {
+      setupBossRoom(state, i);
+      return;
+    }
     populateRoom(state, room, i);
   });
+}
+
+function generatorOptions(depth: number): GeneratorOptions {
+  if (!isBossDepth(depth)) return DEFAULT_GENERATOR_OPTIONS;
+  return { ...DEFAULT_GENERATOR_OPTIONS, lastRoomMin: { w: BOSS.roomMinW, h: BOSS.roomMinH } };
+}
+
+/** ボス階なら最後の部屋（階段の部屋）。それ以外は -1 */
+function bossRoomIndex(state: GameState): number {
+  const last = state.rooms.length - 1;
+  if (!isBossDepth(state.depth) || last <= START_ROOM) return -1;
+  return last;
 }
 
 /** 部屋の外周 1 マス外側にある床 = 出入口 */
@@ -79,11 +102,21 @@ function enemyCount(state: GameState): number {
 
 function populateRoom(state: GameState, room: RoomState, index: number): void {
   const count = enemyCount(state);
-  for (let i = 0; i < count; i++) {
-    const def = pickEnemy(state);
+  for (let i = 0; i < count; i++) spawnGroup(state, room, index, false);
+  finalizeLinks(state, index);
+}
+
+/** 1 回の抽選ぶんを湧かせる。群れる敵（bat）は複数体 */
+function spawnGroup(state: GameState, room: RoomState, index: number, spawning: boolean): void {
+  const def = pickEnemy(state);
+  const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;
+  for (let k = 0; k < n; k++) {
     const pos = randomFreePoint(state, room.rect, def.radius);
     if (!pos) continue;
-    state.enemies.push(createEnemy(state, def, pos, index, false));
+    const e = createEnemy(state, def, pos, index, spawning);
+    if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
+    rollElite(state, e);
+    state.enemies.push(e);
   }
 }
 
@@ -128,6 +161,7 @@ export function updateRooms(state: GameState, dt: number): void {
     if (!alive) clearRoom(state, room);
   });
 
+  updateBossIntro(state, dt);
   updatePickups(state, dt);
   updateFloorItems(state, dt);
   checkStairs(state);
@@ -139,16 +173,14 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   for (const e of state.enemies) {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
   }
+  if (state.boss && state.boss.roomIndex === index) {
+    announceBoss(state);
+    return;
+  }
   // 増援を telegraph 付きで湧かせる
   const extra = Math.round(enemyCount(state) * ROOM.reinforcementRatio);
-  for (let i = 0; i < extra; i++) {
-    const def = pickEnemy(state);
-    const pos = randomFreePoint(state, room.rect, def.radius);
-    if (!pos) continue;
-    const e = createEnemy(state, def, pos, index, true);
-    e.phaseTimer = ROOM.spawnTelegraph;
-    state.enemies.push(e);
-  }
+  for (let i = 0; i < extra; i++) spawnGroup(state, room, index, true);
+  finalizeLinks(state, index);
   shake(state, 3);
   addFloatingText(state, p2(state), "LOCKED", "#ff8080", 1.2, 0.8);
   pushSfx(state, "roomLock");

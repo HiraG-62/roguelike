@@ -3,6 +3,7 @@ import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
 import type { FloorItem, PlayerStats, Profile } from "../loot/types";
 import type { SfxName } from "../audio/sfxNames";
+import type { SkillRunState } from "../skills/types";
 
 export type GameStatus = "playing" | "dead";
 
@@ -92,6 +93,67 @@ export interface Enemy {
   knock: Vec;
   animTime: number;
   effects: EnemyEffects;
+  /** エリート修飾子（src/system/elites.ts） */
+  elite?: EliteKind;
+  /** Shielded: hp の上乗せぶんのシールド量。hp > maxHp - shieldMax の間はシールドが残っている */
+  shieldMax?: number;
+  /** Linked の HP 共有用: 前ステップの hp */
+  lastHp?: number;
+  /** 追加敵・ボスの行動用の作業領域 */
+  ai?: EnemyAi;
+}
+
+export type EliteKind = "explosive" | "reflective" | "shielded" | "hasted" | "linked";
+
+export interface EnemyAi {
+  /** 狙う地点（レーザーの向き先、ジャンプの着地点など） */
+  target: Vec;
+  /** 汎用タイマー */
+  timer: number;
+  /** 汎用カウンタ（弾幕の斉射数など） */
+  counter: number;
+  /** ボスのフェーズ（1 始まり） */
+  stage: number;
+  /** 行動の種類（ボスの技の選択など） */
+  move: number;
+}
+
+export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall" | "playerBurn";
+
+/** 地面に残る攻撃（爆弾・レーザー・衝撃波）と、その予告 */
+export interface Hazard {
+  id: number;
+  kind: HazardKind;
+  pos: Vec;
+  /** laser の終点 */
+  to: Vec;
+  radius: number;
+  /** 残り時間 */
+  time: number;
+  maxTime: number;
+  damage: number;
+  /** 既にダメージを与えたか（1 回だけ当たるもの用） */
+  spent: boolean;
+  /** boneWall のタイルインデックス */
+  tile: number;
+  /** 出した敵の id */
+  sourceId?: number;
+}
+
+export interface BossState {
+  enemyId: number;
+  name: string;
+  roomIndex: number;
+  /** "BOSS" 表示の残り時間 */
+  introTimer: number;
+  defeated: boolean;
+}
+
+/** 同じフロアに長居すると湧く無敵の追跡者 */
+export interface Reaper {
+  pos: Vec;
+  radius: number;
+  animTime: number;
 }
 
 export interface BurnEffect {
@@ -251,6 +313,14 @@ export interface GameState {
   shapes: ShapeFx[];
   /** 死亡時の recordRun を 1 回だけにする */
   runRecorded: boolean;
+  /** スキル（永続の石 + ラン内の CD・刻印符・発動中状態）。docs/ideas/skills.md */
+  skills: SkillRunState;
+  hazards: Hazard[];
+  /** このフロアのボス。ボス階以外は null */
+  boss: BossState | null;
+  /** 今のフロアに入ってからの経過秒 */
+  floorTime: number;
+  reaper: Reaper | null;
 }
 
 export function allocId(state: GameState): number {

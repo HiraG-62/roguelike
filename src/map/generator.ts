@@ -17,7 +17,12 @@ export interface GeneratorOptions {
   roomMaxSize: number;
   /** 通路の幅（タイル）。アクションなので 2 が動きやすい */
   corridorWidth: number;
+  /** 指定すると最後の部屋（階段の部屋）をこの大きさ以上にする（ボス部屋用） */
+  lastRoomMin?: { w: number; h: number };
 }
+
+/** lastRoomMin の部屋を最小サイズからどれだけ大きくしてよいか */
+const LAST_ROOM_EXTRA = 2;
 
 export const DEFAULT_GENERATOR_OPTIONS: GeneratorOptions = {
   width: 96,
@@ -39,8 +44,11 @@ const ROOM_MARGIN = 3;
 export function generateRoomsAndCorridors(rng: Rng, options: GeneratorOptions): GameMap {
   const map = createMap(options.width, options.height);
   const cw = options.corridorWidth;
+  // 大部屋は先に場所だけ確保し、最後に繋ぐ（階段 = 最後の部屋になる）
+  const reserved = options.lastRoomMin ? reserveRoom(rng, options, options.lastRoomMin) : null;
+  const normalRooms = reserved ? options.maxRooms - 1 : options.maxRooms;
 
-  for (let i = 0; i < PLACEMENT_ATTEMPTS && map.rooms.length < options.maxRooms; i++) {
+  for (let i = 0; i < PLACEMENT_ATTEMPTS && map.rooms.length < normalRooms; i++) {
     const w = rng.int(options.roomMinSize, options.roomMaxSize);
     const h = rng.int(options.roomMinSize, Math.min(options.roomMaxSize, options.height - 6));
     const room: Rect = {
@@ -50,23 +58,10 @@ export function generateRoomsAndCorridors(rng: Rng, options: GeneratorOptions): 
       h,
     };
     if (map.rooms.some((other) => rectsIntersect(room, other, ROOM_MARGIN))) continue;
-
-    carveRect(map, room);
-    const prev = map.rooms[map.rooms.length - 1];
-    if (prev) {
-      const a = rectCenter(prev);
-      const b = rectCenter(room);
-      // 横→縦 か 縦→横 かをランダムに選ぶと通路の見た目が単調にならない
-      if (rng.chance(0.5)) {
-        carveHorizontal(map, a.x, b.x, a.y, cw);
-        carveVertical(map, a.y, b.y, b.x, cw);
-      } else {
-        carveVertical(map, a.y, b.y, a.x, cw);
-        carveHorizontal(map, a.x, b.x, b.y, cw);
-      }
-    }
-    map.rooms.push(room);
+    if (reserved && rectsIntersect(room, reserved, ROOM_MARGIN)) continue;
+    addRoom(rng, map, room, cw);
   }
+  if (reserved) addRoom(rng, map, reserved, cw);
 
   // 階段は最後の部屋の中心（最初の部屋がスタートなので最も遠くなりやすい）
   const last = map.rooms[map.rooms.length - 1];
@@ -75,6 +70,31 @@ export function generateRoomsAndCorridors(rng: Rng, options: GeneratorOptions): 
     setTile(map, c.x, c.y, Tile.StairsDown);
   }
   return map;
+}
+
+/** 部屋を掘って直前の部屋と L 字通路で繋ぐ */
+function addRoom(rng: Rng, map: GameMap, room: Rect, cw: number): void {
+  carveRect(map, room);
+  const prev = map.rooms[map.rooms.length - 1];
+  if (prev) {
+    const a = rectCenter(prev);
+    const b = rectCenter(room);
+    // 横→縦 か 縦→横 かをランダムに選ぶと通路の見た目が単調にならない
+    if (rng.chance(0.5)) {
+      carveHorizontal(map, a.x, b.x, a.y, cw);
+      carveVertical(map, a.y, b.y, b.x, cw);
+    } else {
+      carveVertical(map, a.y, b.y, a.x, cw);
+      carveHorizontal(map, a.x, b.x, b.y, cw);
+    }
+  }
+  map.rooms.push(room);
+}
+
+function reserveRoom(rng: Rng, options: GeneratorOptions, min: { w: number; h: number }): Rect {
+  const w = Math.min(options.width - 6, rng.int(min.w, min.w + LAST_ROOM_EXTRA));
+  const h = Math.min(options.height - 6, rng.int(min.h, min.h + LAST_ROOM_EXTRA));
+  return { x: rng.int(2, options.width - w - 3), y: rng.int(2, options.height - h - 3), w, h };
 }
 
 function carveRect(map: GameMap, r: Rect): void {

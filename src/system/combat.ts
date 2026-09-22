@@ -8,6 +8,7 @@ import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones"
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, explodeOnKill } from "./statusEffects";
 import { fireTrigger } from "./triggers";
+import { interceptEnemyDamage } from "./elites";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -97,6 +98,9 @@ export function damageEnemy(
   opts: HitOptions = {},
 ): boolean {
   if (enemy.hp <= 0) return false;
+  const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, opts.kind ?? "proc");
+  if (intercepted <= 0) return false;
+  amount = intercepted;
   const def = enemyDef(enemy.defKey);
   const kind = opts.kind ?? "proc";
   enemy.hp -= amount;

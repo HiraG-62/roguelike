@@ -15,12 +15,22 @@ import { VIEW_H, VIEW_W } from "./view";
 import { type Profile, createEmptyProfile } from "../loot/types";
 import { computeStats } from "../loot/stats";
 import { updateStatusEffects } from "../system/statusEffects";
+import { updateHazards } from "../system/hazards";
+import { updateReaper } from "../system/reaper";
+import { createSkillRunState } from "../system/skills";
+import { createDefaultSkillProfile } from "../skills/persistence";
+import type { SkillProfile } from "../skills/types";
 
 /**
  * 新しいランを始める。profile.equipment から stats を畳み込んでプレイヤーに反映し、
  * profile.meta.runs を 1 増やす（死亡時の recordRun では runs を二重に数えない）
  */
-export function createGame(seed: number, seedText = String(seed), profile: Profile = createEmptyProfile()): GameState {
+export function createGame(
+  seed: number,
+  seedText = String(seed),
+  profile: Profile = createEmptyProfile(),
+  skillProfile: SkillProfile = createDefaultSkillProfile(),
+): GameState {
   const stats = computeStats(profile.equipment);
   profile.meta.runs += 1;
   const state: GameState = {
@@ -57,6 +67,11 @@ export function createGame(seed: number, seedText = String(seed), profile: Profi
     sfx: [],
     shapes: [],
     runRecorded: false,
+    skills: createSkillRunState(skillProfile),
+    hazards: [],
+    boss: null,
+    floorTime: 0,
+    reaper: null,
   };
   buildFloor(state);
   pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");
@@ -90,7 +105,9 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   updateStatusEffects(state, gdt);
   updateEnemies(state, gdt);
   updateProjectiles(state, gdt);
+  updateHazards(state, gdt);
   updateRooms(state, gdt);
+  updateReaper(state, gdt);
   updateCombo(state, gdt);
   updateEffects(state, gdt);
   updateCamera(state, dt, VIEW_W, VIEW_H);
