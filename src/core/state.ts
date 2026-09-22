@@ -1,4 +1,5 @@
 import { createRng, type Rng } from "./rng";
+import { type GameEvent, type LogMessage, describeEvent } from "./events";
 import { type GameMap, Tile, getTile, isWalkable, rectCenter } from "../map/grid";
 import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "../map/generator";
 import { computeFov } from "../map/fov";
@@ -8,6 +9,7 @@ import { type Entity, createPlayer } from "../entity/entity";
 export interface GameState {
   seed: number;
   depth: number;
+  turn: number;
   map: GameMap;
   /** 今見えているセル (1 = 可視) */
   visible: Uint8Array;
@@ -16,6 +18,10 @@ export interface GameState {
   entities: Entity[];
   playerId: number;
   nextEntityId: number;
+  /** 発行された全イベント。リプレイ・実績の材料 */
+  events: GameEvent[];
+  /** イベントから派生した表示用ログ */
+  log: LogMessage[];
   /** 状態と一緒に持ち回る。フロア生成のたびに消費されるので再現性が保たれる */
   rng: Rng;
 }
@@ -30,15 +36,19 @@ export function createGame(seed: number): GameState {
   const state: GameState = {
     seed,
     depth: 1,
+    turn: 0,
     map,
     visible: new Uint8Array(map.tiles.length),
     explored: new Uint8Array(map.tiles.length),
     entities: [createPlayer(PLAYER_ID, startPosition(map))],
     playerId: PLAYER_ID,
     nextEntityId: PLAYER_ID + 1,
+    events: [],
+    log: [],
     rng,
   };
   updateFov(state);
+  emit(state, { type: "welcome" });
   return state;
 }
 
@@ -51,6 +61,13 @@ export function getPlayer(state: GameState): Entity {
   const p = state.entities.find((e) => e.id === state.playerId);
   if (!p) throw new Error("player not found");
   return p;
+}
+
+/** イベントを発行し、ログに反映する */
+export function emit(state: GameState, ev: GameEvent): void {
+  state.events.push(ev);
+  const msg = describeEvent(ev);
+  if (msg) state.log.push({ ...msg, turn: state.turn });
 }
 
 /** プレイヤー位置から視界を再計算し、探索済みに積む */
@@ -71,6 +88,7 @@ export function movePlayer(state: GameState, dir: Direction): boolean {
   const ny = player.pos.y + dir.dy;
   if (!isWalkable(state.map, nx, ny)) return false;
   player.pos = { x: nx, y: ny };
+  state.turn += 1;
   updateFov(state);
   return true;
 }
@@ -80,9 +98,11 @@ export function descend(state: GameState): boolean {
   const player = getPlayer(state);
   if (getTile(state.map, player.pos.x, player.pos.y) !== Tile.StairsDown) return false;
   state.depth += 1;
+  state.turn += 1;
   state.map = generateRoomsAndCorridors(state.rng, DEFAULT_GENERATOR_OPTIONS);
   state.explored = new Uint8Array(state.map.tiles.length);
   player.pos = startPosition(state.map);
   updateFov(state);
+  emit(state, { type: "descend", depth: state.depth });
   return true;
 }
