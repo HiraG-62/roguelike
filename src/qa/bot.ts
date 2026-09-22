@@ -6,6 +6,7 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { isSolidTile, overlapsWall } from "../system/physics";
+import { BOONS, type BoonKey } from "../system/boons";
 
 /**
  * ヘッドレス自動プレイ用のヒューリスティック bot。
@@ -42,6 +43,8 @@ const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawnin
 const WAYPOINT_REACH = TILE_SIZE * 0.6;
 /** 目標地点がこの距離以上ずれたら経路を引き直す */
 const GOAL_CHANGE_THRESHOLD = TILE_SIZE;
+/** 祝福 3 択が出てから選ぶまで待つ秒数（提示直後 0.35 秒は inputDelay でどのみち無視されるが、指示通り 0.5 秒待つ） */
+const BOON_CHOICE_WAIT = 0.5;
 
 /** bot が手番をまたいで保持する内部状態 */
 export interface BotState {
@@ -58,8 +61,6 @@ export interface BotState {
   wanderTimer: number;
   stuckTimer: number;
   lastCheckPos: Vec;
-  /** 祝福 3 択で今回選ぶことにしたカードの index。選び終わる（boonChoice が null に戻る）まで保持する */
-  pendingBoonIndex: number | null;
 }
 
 export function createBotState(seed: number): BotState {
@@ -75,26 +76,31 @@ export function createBotState(seed: number): BotState {
     wanderTimer: 0,
     stuckTimer: 0,
     lastCheckPos: { x: 0, y: 0 },
-    pendingBoonIndex: null,
   };
+}
+
+/** 呪い付き (cursed) でない最初の候補の index。無ければ 1 枚目 (index 0) */
+function pickBoonIndex(options: readonly BoonKey[]): number {
+  const index = options.findIndex((key) => !BOONS[key].cursed);
+  return index >= 0 ? index : 0;
 }
 
 /**
  * 祝福（boon）3 択への入力。src/system/boons.ts の selectedIndex は
  * skill1Pressed→0 枚目 / skill2Pressed→1 枚目 / attackPressed→2 枚目 を選ぶ。
- * inputDelay（0.35 秒）が明けるまでは選択が無視されるだけなので押しっぱなしでよい。
- * 選択肢ごとに bot 専用 RNG で 1 回だけ index を引き、同じ選択を解決まで保持する
- * （テスト対象システムなので、3 択のどれかに偏らせず QA として幅広く踏ませたい）
+ * 提示直後 0.35 秒は inputDelay でどのみち入力が無視されるが、指示通り
+ * `state.boonChoice.timer`（提示からの経過秒。ゲーム本体が管理）が
+ * BOON_CHOICE_WAIT（0.5 秒）に達するまでは何も押さずに待つ。
+ * 待った後は呪い付き (cursed) でない候補を優先して選ぶ（無ければ 1 枚目）
  */
-function boonChoiceInput(state: GameState, bot: BotState): FrameInput {
+function boonChoiceInput(state: GameState): FrameInput {
   const input = freshInput();
-  const count = state.boonChoice?.options.length ?? 0;
-  if (count <= 0) return input;
-  if (bot.pendingBoonIndex === null || bot.pendingBoonIndex >= count) {
-    bot.pendingBoonIndex = bot.rng.int(0, count - 1);
-  }
-  if (bot.pendingBoonIndex === 0) input.skill1Pressed = true;
-  else if (bot.pendingBoonIndex === 1) input.skill2Pressed = true;
+  const choice = state.boonChoice;
+  if (!choice || choice.options.length === 0) return input;
+  if (choice.timer < BOON_CHOICE_WAIT) return input;
+  const index = pickBoonIndex(choice.options);
+  if (index === 0) input.skill1Pressed = true;
+  else if (index === 1) input.skill2Pressed = true;
   else input.attackPressed = true;
   return input;
 }
@@ -426,8 +432,7 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   if (state.status !== "playing") return freshInput();
 
   // 祝福 3 択の間は他の処理が止まる（core/game.ts の step 参照）ので最優先で処理する
-  if (state.boonChoice) return boonChoiceInput(state, bot);
-  bot.pendingBoonIndex = null;
+  if (state.boonChoice) return boonChoiceInput(state);
 
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;
