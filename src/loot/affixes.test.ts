@@ -16,6 +16,7 @@ import {
   resolveKeystones,
 } from "./affixes";
 import { BASES, baseDef, basesForSlot } from "./bases";
+import { KS } from "../system/keystones";
 import { DEFAULT_STATS, SLOTS } from "./types";
 
 const MIN_AFFIX_COUNT = 35;

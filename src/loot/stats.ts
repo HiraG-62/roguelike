@@ -112,9 +112,8 @@ function filterKeystoneRolls(rolls: readonly AffixRoll[]): AffixRoll[] {
   return rolls.filter((r, i) => !isKeystoneKey(r.key) || (winners.has(r.key) && lastIndexByKey.get(r.key) === i));
 }
 
-/** ソフトキャップ → 整数化・クランプ */
+/** 整数化・クランプ */
 function finalize(stats: PlayerStats): PlayerStats {
-  applySoftCaps(stats);
   for (const key of MULTIPLIER_KEYS) stats[key] = Math.max(MIN_MULTIPLIER, stats[key]);
   for (const key of PROBABILITY_KEYS) stats[key] = clamp(stats[key], 0, 1);
   stats.damageTakenMul = Math.max(MIN_DAMAGE_TAKEN_MUL, stats.damageTakenMul);
@@ -126,21 +125,29 @@ function finalize(stats: PlayerStats): PlayerStats {
   return stats;
 }
 
-/**
- * 装備から PlayerStats を畳み込む。
- * 1. キーストーンの排他を解決（同グループは装備順で後勝ち）
- * 2. DEFAULT_STATS のコピーに、装備順で implicit → affixes（keystone / trigger 含む）を適用する
- *    （flat → scale の段階ごとに回すので、max HP % やキーストーンの HP 倍率は flat の合算後に掛かる）
- * 3. finalize: 主要倍率にソフトキャップ、整数化・クランプ
- */
-export function computeStats(equipment: Equipment): PlayerStats {
-  const stats = createBaseStats();
-  const rolls = filterKeystoneRolls(collectRolls(equipment));
+/** flat → scale の段階ごとに適用する（max HP % は flat の合算後に掛かる） */
+function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
   for (const stage of APPLY_STAGES) {
     for (const roll of rolls) {
       if (rollStage(roll) === stage) applyRoll(stats, roll);
     }
   }
+}
+
+/**
+ * 装備から PlayerStats を畳み込む。
+ * 1. キーストーンの排他を解決（同グループは装備順で後勝ち）
+ * 2. DEFAULT_STATS のコピーに、装備順で implicit → affixes（trigger 含む）を段階適用
+ * 3. 主要倍率にソフトキャップ
+ * 4. キーストーンを apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
+ * 5. 整数化・クランプ
+ */
+export function computeStats(equipment: Equipment): PlayerStats {
+  const stats = createBaseStats();
+  const rolls = filterKeystoneRolls(collectRolls(equipment));
+  applyStaged(stats, rolls.filter((r) => !isKeystoneKey(r.key)));
+  applySoftCaps(stats);
+  applyStaged(stats, rolls.filter((r) => isKeystoneKey(r.key)));
   return finalize(stats);
 }
 

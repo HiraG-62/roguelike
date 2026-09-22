@@ -174,6 +174,24 @@ describe("キーストーンとトリガーの集計", () => {
     expect(stats.maxHp).toBe(30);
   });
 
+  it("キーストーンの倍率はソフトキャップの対象外（pacifist の射撃倍率 3.0 が残る）", () => {
+    const equipment = createEmptyEquipment();
+    equipment.gun = makeItem("gun", { affixes: [ks("ks_pacifist")] });
+    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(3);
+  });
+
+  it("通常アフィックスだけがソフトキャップされ、キーストーンはその後に足される", () => {
+    const equipment = createEmptyEquipment();
+    equipment.gun = makeItem("gun", {
+      affixes: [
+        { key: "rangedDamagePct", kind: "prefix", tier: 1, value: 200 },
+        ks("ks_pacifist"),
+      ],
+    });
+    // 1 + 2.0 = 3.0 → softCap → +2.0（キーストーン）
+    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(softCap(3) + 2);
+  });
+
   it("同じキーストーンを 2 つ装備しても 1 回しか効かない", () => {
     const equipment = createEmptyEquipment();
     equipment.ring = makeItem("ring", { affixes: [ks("ks_overclock")] });
