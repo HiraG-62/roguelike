@@ -37,6 +37,10 @@ const MULTIPLIER_KEYS: readonly StatKey[] = [
   "burstDamageMul",
   "burstRadiusMul",
   "justDodgeDamageMul",
+  // マナの性質（スキルのコスト −% と威力の代償）を重ねても 0 以下にしない
+  "manaGainMul",
+  "manaCostMul",
+  "skillDamageMul",
 ];
 
 const PROBABILITY_KEYS: readonly StatKey[] = [
@@ -141,6 +145,9 @@ function finalize(stats: PlayerStats): PlayerStats {
   stats.projectileCount = Math.max(MIN_PROJECTILES, Math.round(stats.projectileCount));
   stats.dashCharges = Math.max(MIN_DASH_CHARGES, Math.round(stats.dashCharges));
   stats.pierce = Math.max(0, Math.round(stats.pierce));
+  // 最大マナ −の性質（涸れ井戸など）で負にしない。自然回復も同様
+  stats.maxMana = Math.max(0, stats.maxMana);
+  stats.manaRegen = Math.max(0, stats.manaRegen);
   // 支配の減衰（× 0.75）で端数が出る。UI は整数で見せるので集計の時点で揃える（逓減は deriveAttributes）
   for (const key of ATTR_KEYS) stats.attributes[key] = Math.max(0, Math.round(stats.attributes[key]));
   return stats;
@@ -250,6 +257,8 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   maxMana: { label: "最大マナ", style: "flat" },
   manaRegen: { label: "マナ自然回復", style: "flat" },
   manaGainMul: { label: "マナ回収", style: "mul" },
+  manaCostMul: { label: "スキルのコスト", style: "mul" },
+  manaOnKill: { label: "撃破時マナ回収", style: "flat" },
   skillDamageMul: { label: "スキル威力", style: "mul" },
   poiseDamageMul: { label: "怯み値", style: "mul" },
   statusPotencyMul: { label: "状態異常の効果量", style: "mul" },

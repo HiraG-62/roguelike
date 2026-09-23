@@ -10,6 +10,7 @@ import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { KS } from "./keystones";
 import { dropItem } from "./loot";
 import { scaled } from "./attributes";
+import { gainMana } from "./mana";
 import { applyStats, dashTime } from "./player";
 import {
   applyBurn,
@@ -68,6 +69,12 @@ export const BOON_KEYS = [
   "bloodMist",
   "crumble",
   "frostPierce",
+  "springWell",
+  "bloodMana",
+  "reaperCup",
+  "keenBreath",
+  "circulation",
+  "hollowVessel",
 ] as const;
 
 export type BoonKey = (typeof BOON_KEYS)[number];
@@ -91,7 +98,8 @@ export type BoonTag =
   | "attr"
   | "poison"
   | "bleed"
-  | "stagger";
+  | "stagger"
+  | "mana";
 
 export interface BoonDef {
   key: BoonKey;
@@ -457,6 +465,60 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     cursed: false,
     requires: "chill",
   },
+  springWell: {
+    key: "springWell",
+    name: "湧水",
+    desc: "部屋を制圧するとマナが満タンになる。",
+    icon: "U",
+    rarity: "rare",
+    tags: ["mana", "room"],
+    cursed: false,
+  },
+  bloodMana: {
+    key: "bloodMana",
+    name: "血の対価",
+    desc: "HPが50%以下の間、スキルのマナコストが-40%になる。",
+    icon: "$",
+    rarity: "common",
+    tags: ["mana", "hp"],
+    cursed: false,
+  },
+  reaperCup: {
+    key: "reaperCup",
+    name: "屠りの盃",
+    desc: "撃破するたびマナが10回復する代わりに、マナの自然回復が半分になる。",
+    icon: "=",
+    rarity: "common",
+    tags: ["mana"],
+    cursed: false,
+  },
+  keenBreath: {
+    key: "keenBreath",
+    name: "見切りの息",
+    desc: "ジャスト回避でマナが25回復する。",
+    icon: "'",
+    rarity: "common",
+    tags: ["mana", "just"],
+    cursed: false,
+  },
+  circulation: {
+    key: "circulation",
+    name: "循環",
+    desc: "スキルが命中するたびマナが2回復する。1回の発動で8まで。",
+    icon: "o",
+    rarity: "rare",
+    tags: ["mana"],
+    cursed: false,
+  },
+  hollowVessel: {
+    key: "hollowVessel",
+    name: "虚ろの器",
+    desc: "スキルのマナコストが-35%になる代わりに、最大マナが-40%、通常攻撃で戻るマナが半分になる。",
+    icon: "0",
+    rarity: "rare",
+    tags: ["mana"],
+    cursed: true,
+  },
 };
 
 export function boonDef(key: BoonKey): BoonDef {
@@ -491,6 +553,8 @@ export interface BoonRunState {
   critChainCd: number;
   /** crumble: 前ステップまでに脆弱を付けた「怯み中の敵」の id。怯み 1 回につき 1 度だけ付ける */
   crumbled: number[];
+  /** circulation: 直近の発動 1 回で既に戻したマナ。発動ごとに 0 へ戻す（多段ヒットの過剰還元を防ぐ） */
+  circulationGained: number;
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -504,6 +568,7 @@ export function createBoonRunState(): BoonRunState {
     overchargeCd: 0,
     critChainCd: 0,
     crumbled: [],
+    circulationGained: 0,
   };
 }
 
@@ -578,7 +643,21 @@ export function equipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   if (triggers.has("onRoomClear") || conditions.has("roomLocked")) tags.add("room");
   addAttributeTags(stats, tags);
   addStatusProcTags(stats, tags);
+  addManaTags(stats, tags);
   return tags;
+}
+
+/** マナの性質（最大・回復・回収・軽減のどれか）が基礎より良ければ mana */
+function addManaTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
+  const d = DEFAULT_STATS;
+  if (
+    stats.maxMana > d.maxMana ||
+    stats.manaRegen > d.manaRegen ||
+    stats.manaGainMul > d.manaGainMul ||
+    stats.manaCostMul < d.manaCostMul
+  ) {
+    tags.add("mana");
+  }
 }
 
 /** ステータスの性質（基礎値より高いステータス）があれば attr、筋力・怯み値の性質なら stagger */
@@ -759,6 +838,11 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   if (boons.includes("glassJust")) out.maxHp = BOON.glassJustMaxHp;
   if (boons.includes("triggerHappy")) out.fireRateMul *= BOON.triggerHappyFireMul;
   if (boons.includes("comboClock")) out.comboWindowBonus -= FEEL.comboWindow * BOON.comboClockWindowMul;
+  if (boons.includes("reaperCup")) out.manaRegen *= BOON.reaperCupRegenMul;
+  if (boons.includes("hollowVessel")) {
+    out.manaCostMul *= BOON.hollowVesselCostMul;
+    out.maxMana = Math.round(out.maxMana * BOON.hollowVesselMaxManaMul);
+  }
   if (boons.includes("heartBurn") && run.heartBurnTimer > 0) {
     out.burnChance = Math.min(1, out.burnChance * BOON.heartBurnMul);
     out.burnDps *= BOON.heartBurnMul;
@@ -955,9 +1039,42 @@ export function boonNormalAttackBonus(state: GameState): number {
   return BOON.spiritBladeSpi * state.stats.attributesEff.spi;
 }
 
-/** spiritBlade: 通常攻撃の命中で戻るマナに掛ける倍率（keystones の attackManaMul と掛け合わせる） */
+/** spiritBlade / hollowVessel: 通常攻撃の命中で戻るマナに掛ける倍率（keystones の attackManaMul と掛け合わせる） */
 export function boonAttackManaMul(state: GameState): number {
-  return hasBoon(state, "spiritBlade") ? BOON.spiritBladeManaMul : 1;
+  const spirit = hasBoon(state, "spiritBlade") ? BOON.spiritBladeManaMul : 1;
+  const hollow = hasBoon(state, "hollowVessel") ? BOON.hollowVesselAttackManaMul : 1;
+  return spirit * hollow;
+}
+
+/**
+ * bloodMana: HP が閾値以下の間だけのコスト倍率。HP で変わるので stats（manaCostMul）には畳めず、
+ * skills.ts の effectiveManaCost が払う瞬間に読む（下限 MANA.costMulMin は向こうで掛かる）
+ */
+export function boonManaCostMul(state: GameState): number {
+  if (!hasBoon(state, "bloodMana")) return 1;
+  const p = state.player;
+  return p.hp <= p.maxHp * BOON.bloodManaHpRatio ? BOON.bloodManaCostMul : 1;
+}
+
+// -----------------------------------------------------------------------------
+// フック: skills.ts / skills/hit.ts
+// -----------------------------------------------------------------------------
+
+/** スキル発動（castSlot）: circulation の還元量を発動単位で数え直す */
+export function onBoonSkillCast(state: GameState): void {
+  state.boonRun.circulationGained = 0;
+}
+
+/** スキル命中（skillHit）: circulation。1 回の発動で circulationCap まで */
+export function onBoonSkillHit(state: GameState): void {
+  if (!hasBoon(state, "circulation")) return;
+  const run = state.boonRun;
+  const room = BOON.circulationCap - run.circulationGained;
+  if (room <= 0) return;
+  // 上限に数えるのは基礎量（manaGainMul の前）。回収量の性質はそのまま掛け算で効かせる
+  const base = Math.min(BOON.circulationPerHit, room);
+  run.circulationGained += base;
+  gainMana(state, base);
 }
 
 export function boonMoveMul(state: GameState): number {
@@ -1021,6 +1138,7 @@ export function onBoonKill(state: GameState, enemy: Enemy): void {
   if (hasStatus(enemy.status, "chill") && hasBoon(state, "chillShatter")) shatter(state, enemy.body.pos);
   if (hasBoon(state, "plague")) spreadPlague(state, enemy);
   if (hasBoon(state, "bloodMist")) bloodMist(state, enemy);
+  if (hasBoon(state, "reaperCup")) gainMana(state, BOON.reaperCupKillMana);
 }
 
 /** plague: 毒のスタックと強さをそのまま周囲の敵へ引き継ぐ */
@@ -1104,9 +1222,10 @@ export function tryRevive(state: GameState): boolean {
   return true;
 }
 
-/** JUST 回避時: justWipe / glassJust */
+/** JUST 回避時: justWipe / glassJust / keenBreath */
 export function onBoonJust(state: GameState): void {
   const p = state.player;
+  if (hasBoon(state, "keenBreath")) gainMana(state, BOON.keenBreathJustMana);
   if (hasBoon(state, "glassJust")) {
     p.justTimer *= BOON.glassJustMul;
     p.justCounterTimer *= BOON.glassJustMul;
@@ -1181,9 +1300,14 @@ export function onBoonRoomLock(state: GameState, index: number): void {
   }
 }
 
-/** 部屋クリア: clearShield / clearHeal */
+/** 部屋クリア: clearShield / clearHeal / springWell */
 export function onBoonRoomClear(state: GameState): void {
   const p = state.player;
+  // 回収ではなく補充なので manaGainMul を通さず上限へ直接揃える
+  if (hasBoon(state, "springWell")) {
+    p.mana = state.stats.maxMana;
+    addFloatingText(state, p.body.pos, "湧水", BOON.springWellColor, TEXT_SCALE, TEXT_LIFE);
+  }
   if (hasBoon(state, "clearShield")) {
     p.buffs.invuln = Math.max(p.buffs.invuln, BOON.clearInvulnTime);
     addFloatingText(state, p.body.pos, "結界", BOON.guardColor, TEXT_SCALE, TEXT_LIFE);

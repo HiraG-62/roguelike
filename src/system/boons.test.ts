@@ -1,26 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
-import type { GameState } from "../core/state";
-import { BOON, BOSS, PLAYER } from "../data/tuning";
+import type { Enemy, GameState } from "../core/state";
+import { BOON, BOSS, MANA, PLAYER } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import { DEFAULT_STATS } from "../loot/types";
-import { TILE_SIZE, Tile } from "../map/grid";
+import { TILE_SIZE, Tile, rectCenterPx } from "../map/grid";
+import { SKILL_DEFS, resolveCast } from "../skills/data";
+import { stoneFromSeed } from "../skills/generator";
+import { skillHit } from "../skills/hit";
+import type { CastParams, SkillKey } from "../skills/types";
 import {
   BOONS,
   BOON_KEYS,
   type BoonKey,
+  boonAttackManaMul,
   boonCardRect,
   boonWeight,
   equipmentTags,
   grantBoon,
   hasBoon,
   offerBoons,
+  onBoonSkillCast,
   rollBoonOptions,
 } from "./boons";
-import { damagePlayer } from "./combat";
+import { damageEnemy, damagePlayer } from "./combat";
 import { buildFloor } from "./floor";
 import { applyStats } from "./player";
-import { arena, withInput } from "./testHelpers";
+import { castSlot, effectiveManaCost } from "./skills";
+import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const FIXED_DT = 1 / 60;
 /** 入力無視時間を確実に超えるステップ数 */
@@ -307,5 +314,160 @@ describe("無効化手段の祝福化（docs/COMBAT_DESIGN.md C-1）", () => {
     const state = arena();
     expect(hasBoon(state, "reflect")).toBe(false);
     expect(hasBoon(state, "justSlash")).toBe(false);
+  });
+});
+
+describe("マナ系の祝福（ルールでマナの回し方を変える）", () => {
+  const BIG_HP = 100000;
+  const KILL_DAMAGE = BIG_HP * 2;
+  const SAMPLE_COST = 20;
+
+  /** 攻撃しない動かない敵（HP を大きくして skillHit で倒さない） */
+  function dummy(state: GameState, dx = 20, key = "golem"): Enemy {
+    const e = placeEnemy(state, key, dx);
+    e.hp = BIG_HP;
+    e.maxHp = BIG_HP;
+    e.phase = "idle";
+    return e;
+  }
+
+  function paramsFor(key: SkillKey): CastParams {
+    const stone = { ...stoneFromSeed(1, { foundDepth: 1, now: 0, skillKey: key }), variants: [], links: 0 };
+    return resolveCast(SKILL_DEFS[key], stone, []);
+  }
+
+  const hitSpec = { base: 1, kind: "ranged" as const, dir: { x: 1, y: 0 }, knockback: 0, stagger: false };
+
+  it("湧水: 部屋を制圧するとマナが満タンになる", () => {
+    const clearWith = (boon: BoonKey | null): { mana: number; max: number } => {
+      const state = createGame(11);
+      if (boon) grantBoon(state, boon);
+      const room = state.rooms[1]!;
+      state.player.body.pos = rectCenterPx(room.rect);
+      step(state, withInput({}), FIXED_DT);
+      expect(room.locked, "入ると封鎖される").toBe(true);
+      for (const e of state.enemies) if (e.roomIndex === 1) e.hp = 0;
+      state.player.mana = 0;
+      step(state, withInput({}), FIXED_DT);
+      expect(room.cleared, "敵が全滅すれば制圧").toBe(true);
+      return { mana: state.player.mana, max: state.stats.maxMana };
+    };
+    const withBoon = clearWith("springWell");
+    expect(withBoon.mana, "制圧で満タン").toBe(withBoon.max);
+    expect(clearWith(null).mana, "祝福が無ければ満タンにならない").toBeLessThan(withBoon.max);
+  });
+
+  it("血の対価: HP 50% 以下の間だけスキルのコストが -40%", () => {
+    const state = arena();
+    grantBoon(state, "bloodMana");
+    const p = state.player;
+    expect(effectiveManaCost(state, SAMPLE_COST).cost, "HP 満タンでは下がらない").toBeCloseTo(SAMPLE_COST);
+    p.hp = Math.floor(p.maxHp * BOON.bloodManaHpRatio);
+    expect(effectiveManaCost(state, SAMPLE_COST).cost, "HP 50% 以下で下がる").toBeCloseTo(SAMPLE_COST * BOON.bloodManaCostMul);
+  });
+
+  it("血の対価: 装備の軽減と掛け合わせても下限 MANA.costMulMin を割らない", () => {
+    const state = arena();
+    grantBoon(state, "bloodMana");
+    applyStats(state, { ...DEFAULT_STATS, manaCostMul: 0.5 });
+    state.player.hp = 1;
+    expect(effectiveManaCost(state, SAMPLE_COST).cost).toBeCloseTo(SAMPLE_COST * MANA.costMulMin);
+  });
+
+  it("屠りの盃: 撃破でマナ +10、代わりに自然回復が半分", () => {
+    const killGain = (boon: BoonKey | null): number => {
+      const state = arena();
+      if (boon) grantBoon(state, boon);
+      const e = dummy(state, 20, "slime");
+      state.player.mana = 0;
+      expect(damageEnemy(state, e, KILL_DAMAGE, { x: 1, y: 0 }, 0), "倒せる").toBe(true);
+      return state.player.mana;
+    };
+    expect(killGain("reaperCup") - killGain(null), "撃破で追加のマナ").toBeCloseTo(BOON.reaperCupKillMana);
+
+    const state = arena();
+    grantBoon(state, "reaperCup");
+    expect(state.stats.manaRegen, "自然回復が半分").toBeCloseTo(DEFAULT_STATS.manaRegen * BOON.reaperCupRegenMul);
+  });
+
+  it("見切りの息: ジャスト回避でマナ +25（通常の回収に加算）", () => {
+    const justGain = (boon: BoonKey | null): number => {
+      const state = arena();
+      if (boon) grantBoon(state, boon);
+      const e = dummy(state, 60);
+      const p = state.player;
+      p.mana = 0;
+      p.dashTimer = PLAYER.dash.time;
+      p.invulnTimer = PLAYER.dash.time;
+      p.dodgedThisDash = false;
+      expect(damagePlayer(state, 10, e.body.pos, e), "ジャスト回避になる").toBe("dodged");
+      return p.mana;
+    };
+    expect(justGain("keenBreath") - justGain(null)).toBeCloseTo(BOON.keenBreathJustMana);
+  });
+
+  it("循環: スキル命中ごとにマナ +2、1 回の発動で +8 まで。次の発動でまた戻る", () => {
+    const state = arena();
+    grantBoon(state, "circulation");
+    const e = dummy(state);
+    const params = paramsFor("railshot");
+    state.player.mana = 0;
+    onBoonSkillCast(state);
+    skillHit(state, e, params, hitSpec);
+    expect(state.player.mana, "1 ヒットで +2").toBeCloseTo(BOON.circulationPerHit);
+    for (let i = 0; i < 10; i++) skillHit(state, e, params, hitSpec);
+    expect(state.player.mana, "多段ヒットでも 1 発動の上限で止まる").toBeCloseTo(BOON.circulationCap);
+    onBoonSkillCast(state);
+    skillHit(state, e, params, hitSpec);
+    expect(state.player.mana, "次の発動では上限が戻る").toBeCloseTo(BOON.circulationCap + BOON.circulationPerHit);
+  });
+
+  it("循環: 祝福が無ければスキル命中でマナは増えない", () => {
+    const state = arena();
+    const e = dummy(state);
+    state.player.mana = 0;
+    onBoonSkillCast(state);
+    skillHit(state, e, paramsFor("railshot"), hitSpec);
+    expect(state.player.mana).toBe(0);
+  });
+
+  it("循環: castSlot での発動が還元量を数え直す", () => {
+    const state = arena();
+    grantBoon(state, "circulation");
+    state.boonRun.circulationGained = BOON.circulationCap;
+    state.player.mana = state.stats.maxMana;
+    const cast = castSlot(state, 0, withInput({}));
+    expect(cast, "初期スロットのスキルが撃てる").toBe(true);
+    expect(state.boonRun.circulationGained, "発動でリセット").toBeLessThan(BOON.circulationCap);
+  });
+
+  it("虚ろの器: コスト -35%・最大マナ -40%・通常攻撃のマナ回収が半分", () => {
+    const state = arena();
+    state.player.mana = DEFAULT_STATS.maxMana;
+    grantBoon(state, "hollowVessel");
+    expect(BOONS.hollowVessel.cursed, "呪い付き").toBe(true);
+    expect(state.stats.maxMana).toBe(Math.round(DEFAULT_STATS.maxMana * BOON.hollowVesselMaxManaMul));
+    expect(state.player.mana, "今のマナも新しい上限に収まる").toBeLessThanOrEqual(state.stats.maxMana);
+    expect(effectiveManaCost(state, SAMPLE_COST).cost).toBeCloseTo(SAMPLE_COST * BOON.hollowVesselCostMul);
+    expect(boonAttackManaMul(state)).toBeCloseTo(BOON.hollowVesselAttackManaMul);
+  });
+
+  it("虚ろの器と霊刃の通常攻撃マナ倍率は掛け合わせる", () => {
+    const state = arena();
+    grantBoon(state, "hollowVessel");
+    grantBoon(state, "spiritBlade");
+    expect(boonAttackManaMul(state)).toBeCloseTo(BOON.hollowVesselAttackManaMul * BOON.spiritBladeManaMul);
+  });
+
+  it("マナの性質を持つ装備は mana タグになり、マナ系の祝福が出やすい", () => {
+    expect(equipmentTags(DEFAULT_STATS).has("mana"), "基礎値では付かない").toBe(false);
+    const tags = equipmentTags({ ...DEFAULT_STATS, manaRegen: DEFAULT_STATS.manaRegen + 1 });
+    expect(tags.has("mana")).toBe(true);
+    expect(boonWeight(BOONS.reaperCup, tags, [])).toBeGreaterThan(boonWeight(BOONS.reaperCup, new Set(), []));
+  });
+
+  it("追加した 6 つはすべて mana タグを持つ", () => {
+    const keys: BoonKey[] = ["springWell", "bloodMana", "reaperCup", "keenBreath", "circulation", "hollowVessel"];
+    for (const k of keys) expect(BOONS[k].tags, k).toContain("mana");
   });
 });

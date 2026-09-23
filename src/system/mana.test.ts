@@ -2,9 +2,31 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import type { GameState } from "../core/state";
 import { MANA } from "../data/tuning";
-import { canAfford, gainMana, refillMana, spendMana, tickMana } from "./mana";
+import { SKILL_DEFS } from "../skills/data";
+import { descend } from "./floor";
+import { canAfford, descendMana, gainMana, refillMana, spendMana, tickMana } from "./mana";
 
 const FLOAT_DIGITS = 9;
+/** 序盤（装備・祝福なし）に満タンから撃てる発数の目安（2026-09-24 プレイ所見） */
+const OPENING_CASTS_MIN = 3;
+const OPENING_CASTS_MAX = 4;
+
+/** マナ型スキルの既定コストの平均。個別スキルの調整で目安が崩れていないかを見る */
+function averageManaCost(): number {
+  const costs = Object.values(SKILL_DEFS)
+    .filter((def) => def.resource === "mana")
+    .map((def) => def.manaCost);
+  if (costs.length === 0) throw new Error("マナ型スキルが無い");
+  return costs.reduce((sum, c) => sum + c, 0) / costs.length;
+}
+
+/** 満タンから、回収なしで cost を何発払えるか */
+function castsFromFull(state: GameState, cost: number): number {
+  state.player.mana = state.stats.maxMana;
+  let casts = 0;
+  while (spendMana(state, cost)) casts++;
+  return casts;
+}
 
 function freshState(): GameState {
   const state = createGame(1);
@@ -81,5 +103,56 @@ describe("マナ", () => {
     state.player.mana = 3;
     refillMana(state);
     expect(state.player.mana).toBe(state.stats.maxMana);
+  });
+
+  it("序盤は満タンから既定コスト（マナ型の平均）で 3〜4 発しか撃てない", () => {
+    const state = freshState();
+    const casts = castsFromFull(state, averageManaCost());
+    expect(casts, "撃てる発数が多すぎる / 少なすぎる").toBeGreaterThanOrEqual(OPENING_CASTS_MIN);
+    expect(casts, "撃てる発数が多すぎる / 少なすぎる").toBeLessThanOrEqual(OPENING_CASTS_MAX);
+  });
+
+  it("序盤の自然回復だけでは平均コスト 1 発ぶんに封鎖中で 10 秒以上かかる", () => {
+    const state = freshState();
+    const secondsPerCast = averageManaCost() / state.stats.manaRegen;
+    const MIN_WAIT_SECONDS = 10;
+    expect(secondsPerCast, "自然回復が早すぎて通常攻撃を混ぜる動機が無い").toBeGreaterThanOrEqual(MIN_WAIT_SECONDS);
+  });
+
+  it("descendMana は最大の descendRefill まで回復する", () => {
+    const state = freshState();
+    state.player.mana = 5;
+    descendMana(state);
+    expect(state.player.mana).toBeCloseTo(state.stats.maxMana * MANA.descendRefill, FLOAT_DIGITS);
+  });
+
+  it("descendMana は既に descendRefill 以上なら減らさない", () => {
+    const state = freshState();
+    const high = state.stats.maxMana * MANA.descendRefill + 10;
+    state.player.mana = high;
+    descendMana(state);
+    expect(state.player.mana, "階層到達でマナが減った").toBe(high);
+  });
+
+  it("階層を降りても満タンにはならず descendRefill まで", () => {
+    const state = freshState();
+    state.player.mana = 0;
+    descend(state);
+    expect(state.player.mana).toBeCloseTo(state.stats.maxMana * MANA.descendRefill, FLOAT_DIGITS);
+    expect(state.player.mana, "満タン回復が残っている").toBeLessThan(state.stats.maxMana);
+  });
+
+  it("idle（非封鎖）と封鎖中で自然回復の速さが idleRegenMul 倍違う", () => {
+    const idle = freshState();
+    idle.player.mana = 0;
+    tickMana(idle, 1);
+    const locked = freshState();
+    const room = locked.rooms[0];
+    if (!room) throw new Error("部屋が無い");
+    room.locked = true;
+    locked.player.mana = 0;
+    tickMana(locked, 1);
+    expect(locked.player.mana, "封鎖中も回復はする").toBeGreaterThan(0);
+    expect(idle.player.mana / locked.player.mana, "idle / 封鎖 の比").toBeCloseTo(MANA.idleRegenMul, FLOAT_DIGITS);
   });
 });

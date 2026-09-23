@@ -3,7 +3,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, add, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
-import { FEEL, PLAYER } from "../data/tuning";
+import { FEEL, MANA, PLAYER } from "../data/tuning";
 import { rectCenterPx } from "../map/grid";
 import {
   MODIFIERS,
@@ -42,6 +42,7 @@ import type {
   SkillStone,
 } from "../skills/types";
 import { buffPotencyMul } from "./attributes";
+import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damagePlayer, gainEnergy, healPlayer, registerComboHit } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
@@ -177,8 +178,9 @@ export function capManaCost(cost: number, maxMana: number): { cost: number; clam
 
 /** 実際に払うコスト。誓約「過負荷」は不足分を HP で払えて上限を超えても撃てるので切り詰めない */
 export function effectiveManaCost(state: GameState, cost: number): { cost: number; clamped: boolean } {
-  if (hasKeystone(state, KS.overdraw)) return { cost, clamped: false };
-  return capManaCost(cost, state.stats.maxMana);
+  const scaled = cost * Math.max(MANA.costMulMin, state.stats.manaCostMul * boonManaCostMul(state));
+  if (hasKeystone(state, KS.overdraw)) return { cost: scaled, clamped: false };
+  return capManaCost(scaled, state.stats.maxMana);
 }
 
 // ---------------------------------------------------------------------------
@@ -521,6 +523,7 @@ export function castSlot(
   if (state.player.attack.phase !== "none") cancelAttack(state);
 
   const manaPaid = payResource(state, slot, r);
+  onBoonSkillCast(state);
   const costed = payCosts(state, r.params);
   const params: CastParams = {
     ...costed,

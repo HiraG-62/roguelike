@@ -93,10 +93,12 @@
 | 芽 | budOffer / buds | 節目で出る 2 択の成長。選ばなかった方は消える | `loot/provenance.ts` |
 | 銘 | inscription | 余白を使い切った遺物に来歴から刻まれる名前 | `loot/names.ts` engraveName |
 | 誓約 | keystone（`ks_`）。表示は「誓約」に統一 | 遊び方を変える大型改造。排他グループあり | `system/keystones.ts` |
-| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow`（後 2 つはマナ関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
+| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow` / 渇きの誓約 `ks_thirst`（後 3 つはマナ関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
 | トリガー | trigger（`tr:`） | 「〜時: 〜」の条件付き効果（trigger × condition × effect） | `loot/triggers.ts` |
 | 変換 | conversion（`cv_`） | ある軸の盛りを別の軸へ移す | `loot/affixes.ts` |
 | 名のある遺物 | namedKey（旧 unique） | 性質が固定の遺物（値は小さく揺らぐ） | `loot/named.ts` |
+| マナの性質 | maxManaFlat / manaRegenFlat / manaGainPct / manaCostPct / manaOnKillFlat / manaDrought | 最大マナ / マナ自然回復 / マナ回収 / スキルのコスト（代償: スキル威力）/ 撃破でマナ / 撃破でマナ・最大マナ −。tag `mana`、色は蒼 | `loot/affixes.ts` |
+| 涸れ井戸の指輪 | driedWell | マナをテーマにした名のある遺物 | `loot/named.ts` |
 | 残響 | EchoWallet | 分解で得る色ごとの素材。紅響 / 蒼響 / 翠響 / 金響 / 冥響 | `loot/crafting.ts` ECHO_LABEL |
 | 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し | shatter / dye / calm / stir / pare / transfer | 残響タブの 6 操作 | `loot/crafting.ts` ECHO_OP_LABEL |
 | 残響（タブ名） | echo | 装備画面のタブ名（旧「鍛冶」から変更） | `render/inventoryUi.ts` TAB_LABEL |
@@ -110,6 +112,7 @@
 | 溜め | charge | 長押しで威力を上げる刻印符 | 同上 |
 | 祝福 | boon | 階層到達時の 3 択。ルール変更が中心 | `system/boons.ts` |
 | 呪い付き | cursed | 強い効果 + 代償の祝福 | 同上 |
+| マナ系の祝福 | springWell / bloodMana / reaperCup / keenBreath / circulation / hollowVessel | 湧水 / 血の対価 / 屠りの盃 / 見切りの息 / 循環 / 虚ろの器。マナの回復・軽減のルールを変える（tag `mana`）。「血の代償」は祝福 clearHeal と刻印符で既に使っているので bloodMana は「血の対価」 | `system/boons.ts` |
 | 祝福のレア度 | common / rare / epic | 通常 / 希少 / 極稀 | `render/boonUi.ts` |
 | 返却 | refundCharge | 刻印符「連鎖」でキルした時にチャージを 1 戻す時のフローティングテキスト | `skills/hit.ts` |
 

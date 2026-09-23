@@ -12,12 +12,14 @@ import {
   VOW_MIN_TRAITS,
   generateItem,
   rollTraitCount,
+  rollUniqueAffixes,
   rollTraitOfColor,
   uniquesFor,
   type GenerateOptions,
 } from "./generator";
 import { isTriggerKey } from "./triggers";
-import { SLOTS, TRAIT_COLORS, createEmptyProvenance, type Item } from "./types";
+import { computeStats } from "./stats";
+import { DEFAULT_STATS, SLOTS, TRAIT_COLORS, createEmptyEquipment, createEmptyProvenance, type Item } from "./types";
 
 const NOW = 1_700_000_000_000;
 const MANY = 1000;
@@ -37,6 +39,23 @@ function generateMany(count: number, seed: number, o: Partial<GenerateOptions> =
     items.push(generateItem(rng, opts({ itemLevel: depth, foundDepth: depth, ...o })));
   }
   return items;
+}
+
+/** 涸れ井戸の指輪の器（性質は呼び出し側で差し込む） */
+function driedWellItem(): Item {
+  return {
+    id: "driedWell",
+    seed: 0,
+    baseKey: "sapphireRing",
+    slot: "ring",
+    rarity: "unique",
+    itemLevel: 10,
+    name: "涸れ井戸の指輪",
+    implicit: null,
+    affixes: [],
+    foundDepth: 10,
+    foundAt: NOW,
+  };
 }
 
 function withoutId(item: Item): Omit<Item, "id"> {
@@ -266,8 +285,8 @@ describe("rollTraitCount / rollTraitOfColor", () => {
 });
 
 describe("名のある遺物の定義", () => {
-  it("15 個あり、ベース・性質・誓約が実在する", () => {
-    expect(UNIQUES).toHaveLength(15);
+  it("16 個あり、ベース・性質・誓約が実在する", () => {
+    expect(UNIQUES).toHaveLength(16);
     for (const u of UNIQUES) {
       expect(baseDef(u.baseKey), u.key).toBeDefined();
       for (const spec of u.affixes) expect(affixDef(spec.key), `${u.key}/${spec.key}`).toBeDefined();
@@ -279,6 +298,20 @@ describe("名のある遺物の定義", () => {
     for (const slot of SLOTS) {
       expect(UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length, slot).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it("涸れ井戸の指輪が生成でき、最大マナが減り撃破のマナとコスト軽減が付く", () => {
+    const def = UNIQUES.find((u) => u.key === "driedWell");
+    expect(def, "driedWell が定義されている").toBeDefined();
+    if (def === undefined) return;
+    const affixes = rollUniqueAffixes(createRng(7), def, def.minLevel);
+    expect(affixes.map((r) => r.key)).toEqual(["manaDrought", "manaCostPct"]);
+    const stats = computeStats({ ...createEmptyEquipment(), ring: { ...driedWellItem(), affixes } });
+    // 値は揺らぐので方向だけを見る（期待値は深度 10 で 最大マナ −31 / 撃破でマナ +10 / コスト −15%）
+    expect(affixes[0]?.nominal2 ?? 0, "最大マナの期待値は −30 前後").toBeGreaterThanOrEqual(28);
+    expect(stats.maxMana, "最大マナが基礎より減る").toBeLessThan(DEFAULT_STATS.maxMana);
+    expect(stats.manaOnKill, "撃破でマナが増える").toBeGreaterThan(0);
+    expect(stats.manaCostMul, "スキルのコストが下がる").toBeLessThan(1);
   });
 
   it("uniquesFor はそのスロット・深度で解禁済みのものだけを返す", () => {

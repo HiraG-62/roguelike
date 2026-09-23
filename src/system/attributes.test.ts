@@ -106,11 +106,12 @@ describe("deriveAttributes（派生）", () => {
     expect(glass.maxHp).toBe(1);
   });
 
-  it("精神: 最大マナ +6 / 自然回復 +0.45 / 会心率 +0.4%", () => {
+  it("精神: 最大マナ・自然回復・会心率が 1 点ごとに ATTR の係数ぶん伸びる", () => {
     const out = deriveAttributes(statsWith("mnd", RAW_PLUS_10));
-    expect(out.maxMana).toBe(DEFAULT_STATS.maxMana + 60);
-    // mndManaRegen は QA 2026-09-23 の 2 巡目調整で 0.3 → 0.45（src/data/tuning.ts ATTR 参照）
-    expect(out.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen + 4.5, FLOAT_DIGITS);
+    const d = RAW_PLUS_10 - ATTR.base;
+    // 係数は 2026-09-24 のマナ経済の締め直しで変わる前提なので ATTR から読む（src/data/tuning.ts ATTR 参照）
+    expect(out.maxMana).toBeCloseTo(DEFAULT_STATS.maxMana + ATTR.mndMaxMana * d, FLOAT_DIGITS);
+    expect(out.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen + ATTR.mndManaRegen * d, FLOAT_DIGITS);
     expect(out.critChance).toBeCloseTo(DEFAULT_STATS.critChance + 0.04, FLOAT_DIGITS);
   });
 

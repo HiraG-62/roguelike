@@ -35,7 +35,11 @@ export type AffixTag =
   /** 変換（A を B に変換する。"convert" 段階で適用） */
   | "conversion"
   /** 代償付き（label に代償も出す）。純粋な上位互換を作らないための枠 */
-  | "tradeoff";
+  | "tradeoff"
+  /** マナ（最大・自然回復・回収・コスト）を動かす */
+  | "mana"
+  /** スキル（スキル石）に効く */
+  | "skill";
 
 /** ロール幅。value2 を持つアフィックスは min2/max2 も持つ */
 export interface RollRange {
@@ -988,6 +992,75 @@ export const AFFIXES: readonly AffixDef[] = [
       s.meleeReachMul -= pct(v);
     },
   }),
+
+  // ---- マナ（docs/COMBAT_DESIGN.md B 節）。序盤は乏しいマナを装備で伸ばしていく ----
+  trait({
+    key: "maxManaFlat",
+    label: "最大マナ +{v}",
+    tags: ["mana", "skill"],
+    slots: ["amulet", "ring", "armor"],
+    curve: [t(26, 27, 33), t(12, 15, 20), t(1, 6, 10)],
+    apply: (s, v) => {
+      s.maxMana += v;
+    },
+  }),
+  trait({
+    key: "manaRegenFlat",
+    label: "マナ自然回復 +{v}/秒",
+    tags: ["mana", "skill"],
+    // 兜の部位は無いので鎧で代える
+    slots: ["amulet", "ring", "armor"],
+    decimals: 1,
+    curve: [t(26, 1.3, 1.7), t(12, 0.7, 1), t(1, 0.2, 0.4)],
+    apply: (s, v) => {
+      s.manaRegen += v;
+    },
+  }),
+  trait({
+    key: "manaGainPct",
+    label: "マナ回収 +{v}%",
+    tags: ["mana", "skill"],
+    // 籠手の部位は無いので、通常攻撃を担う銃で代える
+    slots: ["weapon", "gun", "ring"],
+    curve: [t(26, 50, 60), t(12, 25, 35), t(1, 10, 15)],
+    apply: (s, v) => {
+      s.manaGainMul += pct(v);
+    },
+  }),
+  trait({
+    key: "manaCostPct",
+    label: "スキルのコスト -{v}%、スキル威力 -{v2}%",
+    tags: ["mana", "skill", "tradeoff"],
+    slots: ["weapon", "amulet", "ring"],
+    // 代償（v2）は利得の半分の幅で振る（コスト軽減だけの上位互換にしない）
+    curve: [t2(26, 27, 32, 13, 16), t2(12, 15, 19, 7, 9), t2(1, 7, 9, 3, 4)],
+    apply: (s, v, v2) => {
+      s.manaCostMul -= pct(v);
+      s.skillDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "manaOnKillFlat",
+    label: "撃破でマナ +{v}",
+    tags: ["mana", "skill"],
+    slots: ["weapon", "boots", "ring"],
+    curve: [t(26, 7, 8), t(12, 4, 5), t(1, 2, 3)],
+    apply: (s, v) => {
+      s.manaOnKill += v;
+    },
+  }),
+  trait({
+    key: "manaDrought",
+    label: "撃破でマナ +{v}、最大マナ -{v2}",
+    tags: ["mana", "skill", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    // manaOnKillFlat より伸び幅が大きい代わりに器が縮む。名のある遺物「涸れ井戸の指輪」の核
+    curve: [t2(22, 12, 14, 34, 40), t2(8, 9, 11, 28, 32)],
+    apply: (s, v, v2) => {
+      s.manaOnKill += v;
+      s.maxMana -= v2;
+    },
+  }),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1245,6 +1318,8 @@ const OVERDRAW_SKILL_PENALTY = 0.1;
 /** ks_silentVow（静寂の誓い）のマナ自然回復の倍率とスキル威力の上昇 */
 const SILENT_VOW_REGEN_MUL = 3;
 const SILENT_VOW_SKILL_BONUS = 0.3;
+/** ks_thirst（渇きの誓約）の自然回復。攻撃の回収 ×3 は src/system/keystones.ts の attackManaMul */
+const THIRST_MANA_REGEN = 0;
 
 export interface KeystoneDef {
   key: string;
@@ -1372,6 +1447,16 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     apply: (s) => {
       s.manaRegen *= SILENT_VOW_REGEN_MUL;
       s.skillDamageMul += SILENT_VOW_SKILL_BONUS;
+    },
+  },
+  {
+    key: "ks_thirst",
+    name: "渇きの誓約",
+    description: "マナが自然回復しなくなる。通常攻撃を当てて戻るマナが3倍になる。",
+    exclusiveGroup: "mana",
+    // 誓約は全性質の後（computeStats の最後）に畳むので、+自然回復の性質の順序に依らず 0 になる
+    apply: (s) => {
+      s.manaRegen = THIRST_MANA_REGEN;
     },
   },
 ];

@@ -4,6 +4,7 @@ import type { Vec } from "../core/vec";
 import { FEEL } from "../data/tuning";
 import type { Scaling } from "../loot/types";
 import { scaled } from "../system/attributes";
+import { onBoonSkillHit } from "../system/boons";
 import { damageEnemy, rollOutgoing } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
 import { applyStatus } from "../system/statusEffects";
@@ -72,6 +73,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
     fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
     fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   }
+  onBoonSkillHit(state);
   if (!killed) applySkillStatuses(state, e, spec.applies === undefined ? def.applies : spec.applies, params);
   if (params.curse && !killed) applyCurse(state, e, params.curse);
   if (killed && params.killRefund) refundCharge(state, params.slot, pos);

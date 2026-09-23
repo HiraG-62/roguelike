@@ -1,5 +1,6 @@
 import type { GameState } from "../core/state";
 import { MANA } from "../data/tuning";
+import { manaRegenAllowed } from "./keystones";
 
 /**
  * マナ（スキルの資源）。docs/COMBAT_DESIGN.md B-1。
@@ -31,6 +32,8 @@ export function spendMana(state: GameState, cost: number): boolean {
 /** 自然回復。封鎖されていない部屋・通路では待ち時間を作らないよう速める */
 export function tickMana(state: GameState, dt: number): void {
   if (state.status === "dead") return;
+  // 渇きの誓約は自然回復そのものを止める（精神の派生ぶんも含めて）
+  if (!manaRegenAllowed(state)) return;
   const p = state.player;
   const max = state.stats.maxMana;
   if (p.mana >= max) return;
@@ -39,8 +42,18 @@ export function tickMana(state: GameState, dt: number): void {
   p.mana = Math.min(max, p.mana + rate * dt);
 }
 
-/** ラン開始・階層到達で満タンにする（MANA.startFull が false なら何もしない） */
+/** ラン開始で満タンにする（MANA.startFull が false なら何もしない） */
 export function refillMana(state: GameState): void {
   if (!MANA.startFull) return;
   state.player.mana = state.stats.maxMana;
+}
+
+/**
+ * 階層到達の補給。最大の MANA.descendRefill まで戻すだけで、既に上回っていれば減らさない
+ * （階段を満タン補給所にすると道中のやりくりが意味を失うため）
+ */
+export function descendMana(state: GameState): void {
+  const floor = state.stats.maxMana * MANA.descendRefill;
+  if (state.player.mana >= floor) return;
+  state.player.mana = floor;
 }

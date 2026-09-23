@@ -18,7 +18,7 @@ import {
 import { affixColor } from "./colors";
 import { BASES, baseDef, basesForSlot } from "./bases";
 import { KS } from "../system/keystones";
-import { DEFAULT_STATS, SLOTS, TRAIT_COLORS } from "./types";
+import { DEFAULT_STATS, SLOTS, TRAIT_COLORS, type PlayerStats } from "./types";
 
 const MIN_AFFIX_COUNT = 60;
 const MIN_TRADEOFF_COUNT = 13;
@@ -229,5 +229,58 @@ describe("ベースアイテム定義", () => {
   it("baseDef で引ける", () => {
     expect(baseDef("greatsword")?.slot).toBe("weapon");
     expect(baseDef("nope")).toBeUndefined();
+  });
+});
+
+describe("マナの性質", () => {
+  const fresh = (): PlayerStats => ({ ...DEFAULT_STATS, keystones: [], triggers: [], statusProcs: [] });
+
+  it("各性質が対応する stat を動かす", () => {
+    const s = fresh();
+    applyRoll(s, { key: "maxManaFlat", value: 10 });
+    applyRoll(s, { key: "manaRegenFlat", value: 0.5 });
+    applyRoll(s, { key: "manaGainPct", value: 20 });
+    applyRoll(s, { key: "manaOnKillFlat", value: 3 });
+    expect(s.maxMana, "最大マナ").toBe(DEFAULT_STATS.maxMana + 10);
+    expect(s.manaRegen, "マナ自然回復").toBeCloseTo(DEFAULT_STATS.manaRegen + 0.5);
+    expect(s.manaGainMul, "マナ回収").toBeCloseTo(1.2);
+    expect(s.manaOnKill, "撃破でマナ").toBe(3);
+  });
+
+  it("スキルのコスト −% は代償としてスキル威力も下げる", () => {
+    const s = fresh();
+    applyRoll(s, { key: "manaCostPct", value: 20, value2: 10 });
+    expect(s.manaCostMul).toBeCloseTo(0.8);
+    expect(s.skillDamageMul).toBeCloseTo(0.9);
+    expect(formatAffix({ key: "manaCostPct", value: 20, value2: 10 })).toBe("スキルのコスト -20%、スキル威力 -10%");
+  });
+
+  it("マナ自然回復は小数 1 桁で表示する", () => {
+    expect(formatAffix({ key: "manaRegenFlat", value: 0.3 })).toBe("マナ自然回復 +0.3/秒");
+  });
+
+  it("mana タグの性質は蒼、代償付きでも蒼", () => {
+    for (const key of ["maxManaFlat", "manaRegenFlat", "manaGainPct", "manaCostPct", "manaOnKillFlat", "manaDrought"]) {
+      const def = affixDef(key);
+      expect(def, key).toBeDefined();
+      if (def === undefined) continue;
+      expect(def.tags, key).toContain("mana");
+      expect(def.tags, key).toContain("skill");
+      expect(affixColor(def), key).toBe("azure");
+    }
+  });
+
+  it("深度 1 の最大マナは +6〜10、深度 26 は +30 前後", () => {
+    const def = affixDef("maxManaFlat");
+    const shallow = def?.curve.find((p) => p.depth === 1);
+    const deep = def?.curve.find((p) => p.depth === 26);
+    expect(shallow?.min).toBe(6);
+    expect(shallow?.max).toBe(10);
+    expect(((deep?.min ?? 0) + (deep?.max ?? 0)) / 2).toBe(30);
+  });
+
+  it("渇きの誓約は静寂の誓いと排他（mana グループ）", () => {
+    expect(keystoneDef(KS.thirst)?.exclusiveGroup).toBe("mana");
+    expect(resolveKeystones([KS.silentVow, KS.thirst])).toEqual([KS.thirst]);
   });
 });

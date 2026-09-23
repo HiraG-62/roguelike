@@ -38,7 +38,7 @@ import {
   onBossSpawned,
 } from "./boons";
 import { resetExplored, revealAround } from "./explore";
-import { refillMana } from "./mana";
+import { descendMana } from "./mana";
 import { grantAttributePoints } from "../ui/attributeAlloc";
 import {
   FLOOR_KIND_LABEL,
@@ -560,7 +560,7 @@ export function descend(state: GameState): void {
   recordProvenance(state, { kind: "floorClear" });
   state.score += ROOM.clearBonus * state.depth;
   buildFloor(state);
-  refillMana(state);
+  descendMana(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
   addFloatingText(state, p2(state), `地下 ${state.depth} 階・${label}`, DEPTH_COLOR, 2, 1.2);

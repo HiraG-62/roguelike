@@ -5,7 +5,7 @@ import type { AffixRoll, TraitColor, TriggeredEffect } from "./types";
 /**
  * 性質の色（響き）。docs/LOOT_DESIGN.md「色と共鳴」。
  * - 紅 crimson: 近接・与ダメージ・炎
- * - 蒼 azure: 射撃・機動・冷気
+ * - 蒼 azure: 射撃・機動・冷気・マナ
  * - 翠 jade: 生存・回復
  * - 金 gold: 必殺・コンボ・会心・雷
  * - 冥 umbra: 誓約（旧キーストーン）・呪い（重い代償）・反転した性質
@@ -13,6 +13,8 @@ import type { AffixRoll, TraitColor, TriggeredEffect } from "./types";
 
 /** tags → 色。上から順に最初に当たった規則を使う（定義に color があればそちらが優先） */
 const TAG_COLOR_RULES: readonly { tags: readonly AffixTag[]; color: TraitColor }[] = [
+  // マナは蒼（スキルの資源）。代償（tradeoff）や他タグより先に決める
+  { tags: ["mana"], color: "azure" },
   { tags: ["critical", "combo", "burst"], color: "gold" },
   { tags: ["life", "defense"], color: "jade" },
   { tags: ["melee"], color: "crimson" },

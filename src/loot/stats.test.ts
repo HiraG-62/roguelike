@@ -263,3 +263,30 @@ describe("statsSummary", () => {
     ]);
   });
 });
+
+describe("computeStats: マナの性質と渇きの誓約", () => {
+  it("渇きの誓約はマナ自然回復の性質があっても自然回復を 0 にする（装備順に依らない）", () => {
+    const equipment = createEmptyEquipment();
+    equipment.ring = makeItem("ring", { affixes: [{ key: "ks_thirst", value: 0, color: "umbra" }] });
+    equipment.amulet = makeItem("amulet", { affixes: [{ key: "manaRegenFlat", value: 1.5 }] });
+    const stats = computeStats(equipment);
+    expect(stats.keystones).toContain("ks_thirst");
+    expect(stats.manaRegen).toBe(0);
+  });
+
+  it("撃破でマナの性質は manaOnKill に積み、表示にも出る", () => {
+    const equipment = createEmptyEquipment();
+    equipment.boots = makeItem("boots", { affixes: [{ key: "manaOnKillFlat", value: 4 }] });
+    const stats = computeStats(equipment);
+    expect(stats.manaOnKill).toBe(4);
+    expect(statsSummary(stats)).toContain("撃破時マナ回収 4");
+  });
+
+  it("最大マナ −の性質を重ねても最大マナは 0 未満にならない", () => {
+    const equipment = createEmptyEquipment();
+    const drought = { key: "manaDrought", value: 10, value2: 100 };
+    equipment.ring = makeItem("ring", { affixes: [drought] });
+    equipment.amulet = makeItem("amulet", { affixes: [drought] });
+    expect(computeStats(equipment).maxMana).toBe(0);
+  });
+});

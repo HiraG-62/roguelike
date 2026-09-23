@@ -327,6 +327,10 @@ export interface PlayerStats {
   /** 毎秒 */
   manaRegen: number;
   manaGainMul: number;
+  /** スキルのマナコストに掛ける倍率（装備の性質・祝福で下げる。下限は MANA.costMulMin） */
+  manaCostMul: number;
+  /** 撃破時のマナ回収に足す固定値（MANA.onKill に加算。manaGainMul も掛かる） */
+  manaOnKill: number;
   skillDamageMul: number;
   poiseDamageMul: number;
   statusPotencyMul: number;
@@ -461,6 +465,8 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   maxMana: MANA.baseMax,
   manaRegen: MANA.baseRegen,
   manaGainMul: 1,
+  manaCostMul: 1,
+  manaOnKill: 0,
   skillDamageMul: 1,
   poiseDamageMul: 1,
   statusPotencyMul: 1,

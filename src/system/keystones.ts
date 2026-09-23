@@ -17,6 +17,7 @@ export const KS = {
   overclock: "ks_overclock",
   overdraw: "ks_overdraw",
   silentVow: "ks_silentVow",
+  thirst: "ks_thirst",
 } as const;
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
@@ -39,6 +40,7 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_windWalker: "風走り",
   ks_overdraw: "過負荷",
   ks_silentVow: "静寂の誓い",
+  ks_thirst: "渇きの誓約",
 };
 
 /** 誓約の判定に要る state の部分（テストで GameState 全体を作らずに済むよう絞る） */
@@ -104,12 +106,26 @@ export function payOverclockShoot(state: GameState): void {
 // マナの誓約（排他グループ mana）。数値効果（スキル威力・自然回復）は affixes.ts の apply で適用済み
 // ---------------------------------------------------------------------------
 
+/** ks_thirst: 自然回復を捨てた代わりの、通常攻撃の命中で戻るマナの倍率 */
+const THIRST_ATTACK_MANA_MUL = 3;
+
 /**
- * ks_silentVow: 通常攻撃（近接・ダッシュ攻撃・射撃）の命中で戻るマナに掛ける倍率。
+ * 通常攻撃（近接・ダッシュ攻撃・射撃）の命中で戻るマナに掛ける倍率。
+ * ks_silentVow は 0、ks_thirst は THIRST_ATTACK_MANA_MUL。
  * ジャスト回避と撃破の回収は通常攻撃ではないので対象外
  */
 export function attackManaMul(state: KeystoneHolder): number {
-  return hasKeystone(state, KS.silentVow) ? 0 : 1;
+  if (hasKeystone(state, KS.silentVow)) return 0;
+  if (hasKeystone(state, KS.thirst)) return THIRST_ATTACK_MANA_MUL;
+  return 1;
+}
+
+/**
+ * マナの自然回復が有効か（ks_thirst は無効）。
+ * 装備分は computeStats で 0 にしてあるが、精神の派生（attributes.ts）が後から足すので tickMana でも止める
+ */
+export function manaRegenAllowed(state: KeystoneHolder): boolean {
+  return !hasKeystone(state, KS.thirst);
 }
 
 /** ks_overdraw: マナの不足分を払うのに要る HP（不足が無ければ 0） */

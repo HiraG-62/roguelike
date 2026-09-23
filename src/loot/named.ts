@@ -228,6 +228,18 @@ export const UNIQUES: readonly UniqueDef[] = [
       { key: "moveSpeed" },
     ],
   },
+  {
+    // 器は小さいが、倒すたびに汲み上げる。マナ経済（docs/COMBAT_DESIGN.md B 節）の尖った解
+    key: "driedWell",
+    name: "涸れ井戸の指輪",
+    baseKey: "sapphireRing",
+    minLevel: 10,
+    flavor: "底は乾いている。満たすのは、いつも他人の最期だ。",
+    affixes: [
+      { key: "manaDrought" },
+      { key: "manaCostPct" },
+    ],
+  },
 ];
 
 /** slot に対応し depth で解禁済みの名のある遺物 */

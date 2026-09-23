@@ -217,7 +217,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   pushSfx(state, "kill");
 
   if (state.stats.lifeOnKill > 0) healPlayer(state, state.stats.lifeOnKill);
-  gainMana(state, MANA.onKill);
+  gainMana(state, MANA.onKill + state.stats.manaOnKill);
   rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });

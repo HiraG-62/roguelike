@@ -6,6 +6,7 @@ import {
   KS,
   attackManaMul,
   canAffordSkill,
+  manaRegenAllowed,
   overdrawHpCost,
   paySkillCost,
   type ManaPayer,
@@ -20,7 +21,7 @@ function payer(keystones: string[] = []): ManaPayer {
 
 describe("誓約の判定ヘルパー（マナ）", () => {
   it("過負荷 / 静寂の誓いの key と表示名が affixes.ts の定義と揃っている", () => {
-    for (const key of [KS.overdraw, KS.silentVow]) {
+    for (const key of [KS.overdraw, KS.silentVow, KS.thirst]) {
       expect(keystoneDef(key)?.name, key).toBe(KEYSTONE_NAME[key]);
     }
   });
@@ -75,6 +76,12 @@ describe("誓約の判定ヘルパー（マナ）", () => {
   it("静寂の誓い: 通常攻撃のマナ回収倍率が 0、誓約なしは 1", () => {
     expect(attackManaMul(payer())).toBe(1);
     expect(attackManaMul(payer([KS.silentVow]))).toBe(0);
+  });
+
+  it("渇きの誓約: 通常攻撃のマナ回収倍率が 3 になり、自然回復が止まる", () => {
+    expect(attackManaMul(payer([KS.thirst]))).toBe(3);
+    expect(manaRegenAllowed(payer([KS.thirst]))).toBe(false);
+    expect(manaRegenAllowed(payer())).toBe(true);
   });
 
   it("コスト 0（CD 型）は常に払える", () => {
