@@ -512,6 +512,8 @@ export function castSlot(
     areaMul: costed.areaMul * (chargeMul?.areaMul ?? 1),
     slot: index,
     manaPaid,
+    // 払い戻しの上限は払った額。反響・遅延の写しとも共有する（新しい参照を発動ごとに作る）
+    refundPool: { left: manaPaid },
   };
   const p = state.player;
   const dir = { ...p.facing };
@@ -543,9 +545,10 @@ function payResource(state: GameState, slot: SkillSlotState, r: ResolvedSlot): n
   state.skills.gcd = SKILL.gcd;
   slot.intervalLeft = r.interval;
   if (r.def.resource === "mana") {
-    // 過負荷（ks_overdraw）はマナ不足を HP で払う
+    // 過負荷（ks_overdraw）はマナ不足を HP で払う。払い戻しの基準は実際に減ったマナだけ（HP 分をマナで返さない）
+    const before = state.player.mana;
     paySkillCost(state, r.cost);
-    return r.cost;
+    return Math.max(0, before - state.player.mana);
   }
   slot.chargesLeft -= 1;
   if (slot.cooldownLeft <= 0) setCooldown(slot, r.cooldown);
@@ -655,7 +658,7 @@ function cancelActive(state: GameState, dashCancel: boolean): void {
   rs.active = null;
   if (a.skillKey === "parry") rs.parryTimer = 0;
   if (!dashCancel || a.skillKey !== "railshot") return;
-  refundMana(state, a.params.manaPaid * SKILL.railshot.cancelRefund, state.player.body.pos);
+  refundMana(state, a.params.manaPaid * SKILL.railshot.cancelRefund, state.player.body.pos, a.params.refundPool);
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { KEYSTONE } from "../data/tuning";
+import { KEYSTONE, MANA } from "../data/tuning";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { createDefaultSkillProfile } from "../skills/persistence";
@@ -894,6 +894,40 @@ describe("追加の刻印符", () => {
     press(miss, 0);
     run(miss, SKILL.whirl.duration);
     expect(miss.player.mana, "撃破が無ければ返らない").toBeCloseTo(m0 - manaCost(miss, 0));
+  });
+
+  it("連鎖（マナ型）: 1 回の発動で何体倒しても、戻るのは払ったマナまで", () => {
+    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
+    // 撃破 1 体ぶんの返却はコストの 50%。4 体倒しても合計は払った額（100%）で止まる
+    for (const [dx, dy] of [[14, 0], [-14, 0], [0, 14], [0, -14]] as const) {
+      const e = placeEnemy(state, "golem", dx, dy);
+      e.hp = 1;
+      e.phase = "idle";
+    }
+    state.player.mana = state.stats.maxMana * 0.5;
+    const before = state.player.mana;
+    const cost = manaCost(state, 0);
+    const killsBefore = state.kills;
+    press(state, 0);
+    run(state, SKILL.whirl.duration);
+    const kills = state.kills - killsBefore;
+    expect(kills, "複数体を倒している").toBeGreaterThanOrEqual(3);
+    // 撃破そのもの（MANA.onKill）の回収を除いた返却分
+    const refund = state.player.mana - (before - cost) - kills * MANA.onKill;
+    expect(refund, "払った額を超えて戻らない").toBeLessThanOrEqual(cost + 1e-6);
+    expect(refund, "払った額までは戻る").toBeCloseTo(cost);
+  });
+
+  it("連鎖（マナ型）: 過負荷で HP から払った分はマナとして返さない", () => {
+    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }], 5, ["ks_overdraw"]);
+    const e = placeEnemy(state, "golem", 16);
+    e.hp = 1;
+    e.phase = "idle";
+    state.player.mana = 0;
+    press(state, 0);
+    run(state, SKILL.whirl.duration);
+    expect(e.hp).toBeLessThanOrEqual(0);
+    expect(state.player.mana, "戻るのは撃破の回収だけ").toBeCloseTo(MANA.onKill);
   });
 
   it("連鎖（マナ型）の返却は最大マナを超えない", () => {

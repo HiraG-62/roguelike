@@ -75,7 +75,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   if (!killed) applySkillStatuses(state, e, spec.applies === undefined ? def.applies : spec.applies, params);
   if (params.curse && !killed) applyCurse(state, e, params.curse);
   if (killed && params.killRefund) refundCharge(state, params.slot, pos);
-  if (killed && params.killManaRefund > 0) refundMana(state, params.manaPaid * params.killManaRefund, pos);
+  if (killed && params.killManaRefund > 0) refundMana(state, params.manaPaid * params.killManaRefund, pos, params.refundPool);
   return killed;
 }
 
@@ -94,12 +94,15 @@ function applySkillStatuses(
 
 /**
  * 連鎖（マナ型）: 払ったコストの一部を返す。回収ではなく払い戻しなので manaGainMul は掛けない
- * （スキル自身の命中でマナが増える無限ループを作らないため、返すのは払った分の割合だけ）
+ * （スキル自身の命中でマナが増える無限ループを作らないため、返すのは払った分の割合だけ）。
+ * pool は発動 1 回ぶんの残り。複数撃破・反響の撃破を合わせても払った額を超えて戻さない
  */
-export function refundMana(state: GameState, amount: number, pos: Vec): void {
-  if (amount <= 0) return;
+export function refundMana(state: GameState, amount: number, pos: Vec, pool: { left: number }): void {
+  const refund = Math.min(amount, pool.left);
+  if (refund <= 0) return;
+  pool.left -= refund;
   const p = state.player;
-  p.mana = Math.min(state.stats.maxMana, p.mana + amount);
+  p.mana = Math.min(state.stats.maxMana, p.mana + refund);
   addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
 }
 

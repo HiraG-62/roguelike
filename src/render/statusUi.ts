@@ -91,6 +91,8 @@ function iconLabel(icon: StatusIcon): string {
 
 /** 敵の頭上に状態異常の列を中央揃えで描く。top はスプライトの上端 */
 export function drawEnemyStatus(ctx: CanvasRenderingContext2D, e: Enemy, cx: number, top: number): void {
+  // 大半の敵は何も付いていない。毎フレームの配列生成を避ける
+  if (e.status.effects.length === 0) return;
   const icons = statusIcons(e.status);
   if (icons.length === 0) return;
   const m = TEXT.SMALL;
@@ -126,6 +128,7 @@ export function drawBossPoiseGauge(ctx: CanvasRenderingContext2D, e: Enemy, x: n
 
 /** プレイヤーの状態異常の列（左上 x, y から右へ）。枠に 1 文字、右下にスタック数、下線が残り時間 */
 export function drawPlayerStatusRow(ctx: CanvasRenderingContext2D, bag: Readonly<StatusBag>, x: number, y: number): void {
+  if (bag.effects.length === 0) return;
   const m = TEXT.SMALL;
   statusIcons(bag).forEach((icon, i) => {
     const cx = x + i * (PLAYER_CELL + PLAYER_CELL_GAP);

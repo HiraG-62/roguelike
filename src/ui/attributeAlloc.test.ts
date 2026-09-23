@@ -4,10 +4,10 @@ import { EMPTY_INPUT, type FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import { decodeInputs, encodeInputs } from "../core/replay";
 import type { GameState } from "../core/state";
-import { ATTR, ATTR_GAIN } from "../data/tuning";
+import { ATTR, ATTR_GAIN, BOON } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import { createEmptyProfile, uniformAttributes, type AffixRoll, type Item, type Slot } from "../loot/types";
-import { grantBoon } from "../system/boons";
+import { grantBoon, offerBoons } from "../system/boons";
 import { descend, floorAttributePoints } from "../system/floor";
 import { ALLOC_ORDER, allocCardRect, allocPanelVisible, allocateAttribute, updateAttributeAlloc } from "./attributeAlloc";
 
@@ -90,6 +90,22 @@ describe("振り分けパネルの入力", () => {
     step(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.runAttributes.unspent).toBe(1);
     expect(state.player.attack.phase, "攻撃が出る").not.toBe("none");
+  });
+
+  it("祝福 3 択を選んだ直後も受付待ちからやり直す（選択キーの連打で振らない）", () => {
+    const state = arrived();
+    waitReady(state);
+    offerBoons(state);
+    expect(state.boonChoice).not.toBeNull();
+    const boonWait = Math.ceil(BOON.inputDelay / FIXED_DT) + 1;
+    for (let i = 0; i < boonWait; i++) step(state, withInput({}), FIXED_DT);
+    step(state, withInput({ skill1Pressed: true }), FIXED_DT);
+    expect(state.boonChoice, "祝福を選んだ").toBeNull();
+    step(state, withInput({ skill1Pressed: true }), FIXED_DT);
+    expect(state.runAttributes.unspent, "直後の同じキーでは振らない").toBe(1);
+    waitReady(state);
+    step(state, withInput({ skill1Pressed: true }), FIXED_DT);
+    expect(state.runAttributes.unspent, "受付待ちの後は振れる").toBe(0);
   });
 
   it("パッドの A（攻撃と決定を兼ねる）では振らない", () => {

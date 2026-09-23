@@ -637,6 +637,7 @@ export function baseCastParams(def: SkillDef): CastParams {
     killManaRefund: 0,
     skillKey: def.key,
     manaPaid: 0,
+    refundPool: { left: 0 },
   };
 }
 

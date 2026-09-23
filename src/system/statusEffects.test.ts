@@ -24,6 +24,7 @@ import {
 } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { step } from "../core/game";
+import { descend } from "./floor";
 
 const BIG_HP = 100000;
 const PLAYER: StatusTarget = { kind: "player" };
@@ -391,6 +392,19 @@ describe("継続ダメージ", () => {
     applyStatus(state, on(e), apply("poison", 5, 1, STATUS.poison.hpRatioPerSec), "player");
     updateStatusEffects(state, 1);
     expect(BIG_HP - e.hp).toBe(BIG_HP * STATUS.poison.hpRatioPerSec * 2);
+  });
+});
+
+describe("出血と階の移動", () => {
+  it("出血中に階を降りても、新しい階への瞬間移動は移動距離に数えない", () => {
+    const state = arena();
+    state.player.hp = state.player.maxHp;
+    applyStatus(state, PLAYER, apply("bleed", 10, 3, 1), "enemy");
+    const hp = state.player.hp;
+    descend(state);
+    updateStatusEffects(state, FIXED_DT);
+    expect(hasStatus(state.player.status, "bleed"), "出血は残る").toBe(true);
+    expect(state.player.hp, "動いていないので削れない").toBe(hp);
   });
 });
 

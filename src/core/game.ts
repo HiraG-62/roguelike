@@ -106,6 +106,8 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   }
 
   if (state.boonChoice) {
+    // 祝福を選んだ直後の連打で振り分けパネルを誤爆させない（パネルの受付待ちを数え直す）
+    state.runAttributes.timer = 0;
     updateBoonChoice(state, input, dt);
     return;
   }

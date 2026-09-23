@@ -1108,7 +1108,7 @@ export class Renderer {
     const staggered = isStaggered(e);
     const rot =
       staggered
-        ?(flip ? STAGGER_TILT : -STAGGER_TILT) * (0.7 + 0.3 * Math.sin(state.time * STAGGER_WOBBLE_SPEED))
+        ? (flip ? STAGGER_TILT : -STAGGER_TILT) * (0.7 + 0.3 * Math.sin(state.time * STAGGER_WOBBLE_SPEED))
         : 0;
 
     const base = hit ? sprite.white : sprite.frames;

@@ -137,6 +137,11 @@ export interface CastParams {
   skillKey: SkillKey;
   /** この発動で実際に払ったマナ（連鎖の返却・撃ち抜きのキャンセル返却の基準）。resolveCast の時点では 0 */
   manaPaid: number;
+  /**
+   * この発動で払い戻せるマナの残り（上限 = manaPaid）。反響・遅延・設置物の写しと同じ参照を共有し、
+   * 複数撃破や反響の撃破で払った以上に戻らないようにする。castSlot が発動ごとに新しく作る
+   */
+  refundPool: { left: number };
 }
 
 export interface ModifierDef {

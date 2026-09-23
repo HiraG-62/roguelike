@@ -90,6 +90,9 @@ export function buildFloor(state: GameState): void {
   if (start) {
     start.cleared = true;
     state.player.body.pos = rectCenterPx(start.rect);
+    // 出血は前ステップからの移動距離で削る。階をまたぐ瞬間移動を移動として数えない
+    const status = state.player.status;
+    if (status.bleedFrom) status.bleedFrom = { ...state.player.body.pos };
   }
   snapCamera(state);
 
