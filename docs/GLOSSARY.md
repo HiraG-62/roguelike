@@ -42,22 +42,32 @@
 
 敵名: スライム / 浮遊眼 / 猪 / 盾騎士 / 爆弾ゴブリン / 光線眼 / ゴーレム / 蝙蝠 / 鬼火 / スライム王 / 骸骨卿（`data/enemies.ts`）。
 
-## 装備
+## 装備（響き・揺らぎ・来歴。詳細は `docs/LOOT_DESIGN.md`）
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 装備 / 倉庫 | equipment / stash | 装着中と所持品 | `ui/inventory.ts` |
-| 武器 / 銃 / 鎧 / 靴 / 指輪 / 首飾り | Slot | 6 スロット | `ui/inventory.ts` SLOT_LABEL |
-| 通常 / 魔法 / 希少 / 固有 | normal / magic / rare / unique | レアリティ | `render/titleUi.ts` |
-| アフィックス | affix | 装備の性質 1 つ | 装備画面 |
-| キーストーン | keystone（`ks_`） | 遊び方を変える大型改造。排他グループあり | `system/keystones.ts` |
-| キーストーン名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り | `system/keystones.ts` KEYSTONE_NAME |
+| 武器 / 銃 / 鎧 / 靴 / 指輪 / 首飾り | Slot | 6 スロット | `ui/inventoryLayout.ts` SLOT_LABEL |
+| 遺物 | Item | 装備アイテム全般の呼称 | `loot/types.ts`、`loot/names.ts` |
+| 静 / 揺 / 荒 / 反転あり | normal / magic / rare / unique（`Rarity`。キーは旧レアリティのまま） | 揺らぎの見た目の分類。格付けではない | `loot/types.ts` RARITY_LABEL |
+| 性質 | AffixRoll（旧 affix） | 遺物に宿る 1 つの性質。表の性質 / トリガー文法 / 変換 / 誓約 | `loot/describe.ts`、装備画面 |
+| 響き | TraitColor | 性質・共鳴が持つ 5 色。紅 crimson / 蒼 azure / 翠 jade / 金 gold / 冥 umbra | `loot/types.ts` TRAIT_COLOR_LABEL |
+| 共鳴 | Resonance | 装備全体の色の配合で発現する効果。同時に 1 つ | `loot/resonance.ts` |
+| 支配 / 二重 / 散光 | dominant / dual / scatter | 共鳴の種類。1 色が過半 / 上位 2 色が拮抗 / 全色が分散 | `loot/resonance.ts` resolveResonance |
+| 揺らぎ | flux | 期待値（nominal）からの相対的なずれ | `loot/flux.ts` |
+| 反転 | inverted | 揺らぎが強く裏返った性質。色は冥、共鳴への重み 2 倍 | `loot/flux.ts` |
+| 来歴 | Provenance | 装備中に起きた出来事の記録 | `loot/provenance.ts` |
+| 余白 | margin | まだ芽吹ける数 | `loot/types.ts` |
+| 芽 | budOffer / buds | 節目で出る 2 択の成長。選ばなかった方は消える | `loot/provenance.ts` |
+| 銘 | inscription | 余白を使い切った遺物に来歴から刻まれる名前 | `loot/names.ts` engraveName |
+| 誓約 | keystone（`ks_`）。表示は「誓約」に統一 | 遊び方を変える大型改造。排他グループあり | `system/keystones.ts` |
+| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り | `system/keystones.ts` KEYSTONE_NAME |
 | トリガー | trigger（`tr:`） | 「〜時: 〜」の条件付き効果（trigger × condition × effect） | `loot/triggers.ts` |
 | 変換 | conversion（`cv_`） | ある軸の盛りを別の軸へ移す | `loot/affixes.ts` |
-| 鍛冶 | craft | クラフト画面のタブ名 | `render/inventoryUi.ts` |
-| 再鍛造 / 付与 / 消去 / 侵蝕 / 融合 | reforge / augment / annul / corrupt / fuse | クラフト操作 | `render/inventoryUi.ts` |
-| 欠片 / 精髄 | shard / essence | 通貨 | 両方で一致 |
-| 塵 / 遺物 | dust / relic | 通貨 | `ui/inventory.ts`、`loot/crafting.ts` |
+| 名のある遺物 | namedKey（旧 unique） | 性質が固定の遺物（値は小さく揺らぐ） | `loot/named.ts` |
+| 残響 | EchoWallet | 分解で得る色ごとの素材。紅響 / 蒼響 / 翠響 / 金響 / 冥響 | `loot/crafting.ts` ECHO_LABEL |
+| 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し | shatter / dye / calm / stir / pare / transfer | 残響タブの 6 操作 | `loot/crafting.ts` ECHO_OP_LABEL |
+| 残響（タブ名） | echo | 装備画面のタブ名（旧「鍛冶」から変更） | `render/inventoryUi.ts` TAB_LABEL |
 
 ## スキル・ラン内
 
@@ -79,12 +89,13 @@
 | --- | --- | --- |
 | ゴール装備 / BiS | 「これを作れば最強」の装備。作らないのが方針 | `docs/LOOT_DESIGN.md` |
 | ソフトキャップ | +100% 超を sqrt 圧縮する逓減 | `loot/stats.ts` |
-| 共鳴 | 装備全体の色の配合で発現する効果（未実装） | `docs/ideas/loot-identity.md` |
-| 響き・揺らぎ・来歴 | 装備再設計の推奨案（未実装）。色 / 性 / 誓約 / 芽 / 銘 などの用語は同文書の 3-1 | 同上 |
+
+装備の「響き・揺らぎ・来歴」（共鳴・揺らぎ・来歴・芽・銘・残響）は実装済み。用語は上の「装備」節を参照（旧: `docs/ideas/loot-identity.md`）。
 
 ## 表記の揺れ（要統一。localizer への作業候補）
 
 | 揺れ | 箇所 | 推奨 |
 | --- | --- | --- |
-| `JUST回避` と `ジャスト回避` | 祝福 desc（`system/boons.ts`、統一済み）・アフィックス label / トリガー文 / スキル verb（`loot/affixes.ts`, `loot/stats.ts`, `loot/triggers.ts`、loot 再設計中のため今回は未着手） | 「ジャスト回避」に統一 |
+| `JUST回避` と `ジャスト回避` | 祝福 desc（`system/boons.ts`、統一済み）・性質 label / トリガー文（`loot/affixes.ts` label、`loot/stats.ts` label、`loot/triggers.ts` text は `JUST回避`）／来歴 / 共鳴の説明文（`loot/describe.ts`、`loot/provenance.ts`、`loot/resonance.ts` は `ジャスト回避`） | 「ジャスト回避」に統一 |
 | レアリティ `通常` と フロア種別 `通常` と 祝福 `通常` | titleUi / renderer / boonUi | 文脈で区別できるので現状維持 |
+| 揺らぎ分類のラベル | 装備画面・残響タブは `静 / 揺 / 荒 / 反転あり`（`loot/types.ts` RARITY_LABEL）だが、死亡画面の内訳だけ旧表記 `通常 / 魔法 / 希少 / 固有`（`render/titleUi.ts` RARITY_LABEL_JA） | 死亡画面を新表記に合わせる（src の変更が要る） |

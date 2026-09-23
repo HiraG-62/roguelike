@@ -56,9 +56,10 @@ src/
 - `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
 
 ### その他
-- loot: `types.ts`（Item / PlayerStats / Profile）、`affixes.ts`（アフィックス・キーストーン・implicit）、`bases.ts`、`generator.ts`（生成 + `UNIQUES`）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`crafting.ts`、`profile.ts` / `craftingStore.ts`（永続化）
+- loot（装備。響き・揺らぎ・来歴。`docs/LOOT_DESIGN.md`）: `types.ts`（Item / PlayerStats / Profile / TraitColor）、`affixes.ts`（性質・変換・誓約・implicit）、`bases.ts`、`colors.ts`（性質の色・共鳴の重み）、`flux.ts`（期待値曲線・揺らぎ・反転）、`resonance.ts`（共鳴の判定と効果）、`provenance.ts`（来歴・節目・芽）、`named.ts`（`UNIQUES` = 名のある遺物）、`names.ts`（命名・銘）、`generator.ts`（生成。`UNIQUES` は `named.ts` を re-export）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`describe.ts`（UI 向けの表示情報）、`crafting.ts`（残響・クラフト 6 操作）、`migrate.ts`（旧セーブの変換）、`profile.ts` / `craftingStore.ts`（永続化）
 - skills: `types.ts`（`SKILL_KEYS` / `MODIFIER_KEYS`）、`data.ts`（`SKILL_DEFS` / `MODIFIERS` / `SKILL` 定数 / `resolveCast`）、`generator.ts`、`placed.ts`（設置物）、`hit.ts`、`persistence.ts`
-- render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`
+- ui（装備・クラフトの画面ロジック）: `inventory.ts`（タブと入力）、`inventoryLayout.ts`（レイアウト計算・`SLOT_LABEL`）、`echoTab.ts`（残響タブの状態機械）、`bud.ts`（芽モーダルの当たり判定）
+- render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`budUi.ts`（芽のバナー・モーダル描画）、`echoTabUi.ts`（残響タブ描画）、`lootUiParts.ts`（装備 UI 共通部品: 色の配合バー・性質の行）、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`
 - audio: `sfxNames.ts`（`SFX_NAMES`）、`sfx.ts`（`SFX_DEFINITIONS`）、`synth.ts`
 
 ## 不変条件（破ったらレビューで差し戻す）
@@ -88,10 +89,10 @@ src/
 4. 必要なら `render/renderer.ts` に専用の予告表現、`audio` に効果音
 5. テスト: `system/enemies.test.ts` に「windup → strike で当たる」「予告中は無害」など
 
-### アフィックス / ユニーク / ベース
-- アフィックス: `src/loot/affixes.ts` の `AFFIXES` に `PrefixDef` / `SuffixDef`（`tiers`、`slots`、`tags`、`apply`）。値は表示単位（+25% なら 25）。新しい stat が要るなら `loot/types.ts` の `PlayerStats` と `DEFAULT_STATS` に追加し、system 側で読む。強いものほどトレードオフを付ける
-- 変換: `CONVERSION_AFFIXES`（key は `cv_`）。キーストーン: `KEYSTONES`（key は `ks_`、`group` で排他）+ `system/keystones.ts` の `KS` / `KEYSTONE_NAME`
-- ユニーク: `src/loot/generator.ts` の `UNIQUES`（`baseKey` / 固定アフィックス / 任意でキーストーン）。未知 key は生成時に throw するのでテストで気付ける
+### 性質（旧アフィックス）/ 変換 / 誓約 / 名のある遺物 / ベース
+- 性質: `src/loot/affixes.ts` の `AFFIXES` に `AffixDef`（`curve` = 深度ごとの期待値の点列、`slots`、`tags`、`color`〔省略時は `colors.ts` の `colorFromTags` が tags から決める〕、`apply`）。prefix / suffix / tier の区別は無い。値は表示単位（+25% なら 25）。新しい stat が要るなら `loot/types.ts` の `PlayerStats` と `DEFAULT_STATS` に追加し、system 側で読む。強いものほどトレードオフを付ける
+- 変換: `CONVERSION_AFFIXES`（key は `cv_`）。誓約（旧キーストーン、表示名は「誓約」）: `KEYSTONES`（key は `ks_`、`group` で排他）+ `system/keystones.ts` の `KS` / `KEYSTONE_NAME`
+- 名のある遺物（旧ユニーク）: `src/loot/named.ts` の `UNIQUES`（`baseKey` / 固定の性質 / 任意で誓約。`generator.ts` が re-export）。未知 key は生成時に throw するのでテストで気付ける
 - ベース: `src/loot/bases.ts` の `BASES` + `affixes.ts` の `IMPLICITS`
 - テスト: `loot/affixes.test.ts` / `generator.test.ts` / `stats.test.ts`
 

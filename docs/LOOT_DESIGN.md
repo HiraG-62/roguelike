@@ -155,18 +155,23 @@ docs/ideas/loot-identity.md の推奨案「響き・揺らぎ・来歴」に置�
 - 格付けの抽選は無い。深さが期待値・揺らぎ幅・性質の数を決める
 - 床のアイテムは光柱 + 名前ラベル。触れると即 stash へ（ログとフローティングテキストは最も多い色）
 
-## 旧セーブの移行（`src/loot/migrate.ts`）
+## 旧セーブの移行
 
-`loadProfile` がアイテム単位で旧形式（`provenance` を持たない）を検出し、`migrateItem` で変換する。プロフィールのキー `roguelike.profile.v1` と version 1 は据え置き。
+アイテムとクラフト通貨はそれぞれ別キーで、別の場所で移行する。どちらも冪等（新形式ならフィールドを補うだけ）。
+
+**アイテム**（`src/loot/migrate.ts`）: `loadProfile`（`src/loot/profile.ts`）がアイテム単位で旧形式（`provenance` を持たない）を検出し、`migrateItem` で変換する。プロフィールのキー `roguelike.profile.v1` と version 1 は据え置き。
 
 - tier → 揺らぎ: T1 +0.4 / T2 +0.2 / T3 0 / T4 -0.1 / T5 -0.2 / T6 -0.3。期待値は |value| / (1 + flux) で逆算（値は変えない）
 - 負の値（旧 Corrupt）→ 反転（冥）。腐敗の印は捨てる
 - 旧 rarity → 余白: normal 4 / magic 3 / rare 2 / unique 1
 - 旧 rare の 2 語名は銘として残す。旧 unique は固有名から名のある遺物の key を引く
-- 旧通貨（塵 / 欠片 / 精髄 / 秘宝）は 1 / 2 / 4 / 8 点として合計し、5 色の残響へ均等に配る
+
+**クラフト通貨**（`src/loot/crafting.ts` の `convertLegacyWallet` / `src/loot/craftingStore.ts`）: `roguelike.craft.v1` の version 1（旧通貨 dust / shard / essence / relic）を読み込み時に残響へ換算する。1 / 2 / 4 / 8 点として合計し、5 色へ均等に配る（余りは色の並び順に 1 ずつ）。旧クラフト API（`craft` / `CRAFT_OPS` / `Wallet`）は撤去済みで、この換算だけが移行のために残る。version を 2 に上げて保存し直すと旧 wallet は消える
 
 ## UI（担当: src/ui・src/render）
 
 - 表示情報は `describeItem(item)`（名前・副題・一言・色の配合バー・性質の行〔色・反転・芽・揺らぎ段階〕・余白・来歴の年表・銘）と `describeResonance(stats.resonance)` を使う
-- 芽の提示は `state.pendingBud`、選択は `chooseBud(state, index)`
-- クラフトは `craftEcho` / `applyEchoResult` / `ECHO_OPS` / `ECHO_LABEL`。旧 API（`craft` / `CRAFT_OPS` / `Wallet`）は移行までの互換レイヤーで、移行後に削除する
+- 装備タブ（`ui/inventory.ts` / `render/inventoryUi.ts`）: スロット 6 の一覧・倉庫、ツールチップは `describeItem` をそのまま行にする（名前 → 銘 → 副題 → 一言 → 固有 → 性質 → 余白 → 誓約の競合 → 来歴）。倉庫行・スロットは色の配合バー（`lootUiParts.ts` の帯）を左端に出す。右下の共鳴パネルは `describeResonance(state.stats.resonance)` と配合比の帯を表示し、誓約の競合があれば先頭に警告を出す
+- 芽（`render/budUi.ts` / `ui/bud.ts`）: 戦闘中は右下に一定秒数だけ 2 択カードを出し、以後は点滅アイコンだけに切り替える。装備画面では 2 択のモーダル（`layoutBudModal` で当たり判定を共有）。提示は `state.pendingBud`、選択は `chooseBud(state, index)`
+- 残響タブ（`ui/echoTab.ts` / `render/echoTabUi.ts`）: 状態機械（対象を倉庫から選ぶ → 操作を選ぶ → 性質〔・色 / 移し先〕を選ぶ → 実行ボタン）。装備中の遺物は対象にできない。実行を押すまで何も消費しない。クラフト本体は `craftEcho` / `applyEchoResult` / `ECHO_OPS` / `ECHO_LABEL` / `ECHO_OP_LABEL`
+- 3 タブの共通部品は `render/lootUiParts.ts`（色の配合バー・性質の行・枠の色定数）に集約
