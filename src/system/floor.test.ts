@@ -3,7 +3,7 @@ import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { enemiesForDepth, enemyDef } from "../data/enemies";
 import type { GameState, RoomState } from "../core/state";
-import { rectCenterPx, TILE_SIZE } from "../map/grid";
+import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance } from "./elites";
 import { createEnemy } from "./enemies";
 import { enemyCount, updateRooms } from "./floor";
@@ -76,6 +76,47 @@ describe("扉タイル上の敵とロック", () => {
     if (e.hp > 0) {
       expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius)).toBe(false);
     }
+  });
+
+  it("AABB は扉タイルに掛かるが円の厳密判定では外れる斜め隅の敵も、押し込まれて壁（ロック済み扉）に重ならない", () => {
+    // isSolidTile/overlapsWall は AABB（円の外接正方形）でタイルを走査するため、
+    // 敵が扉タイルの斜め隅に近いと「円としては届かないが AABB は掛かる」位置ができる。
+    // 押し込み判定（circleOnDoorTiles）が厳密な円判定のままだとここを見逃し、
+    // ロック後に isSolidTile 側だけが「壁に埋まっている」と判定してしまう
+    // （QA report.md 付録の既知バグ）。全面床の最小マップで再現する
+    const state = createGame(1);
+    const map = createMap(20, 20);
+    map.tiles.fill(Tile.Floor);
+    state.map = map;
+
+    const room: RoomState = {
+      rect: { x: 5, y: 5, w: 4, h: 4 },
+      cleared: false,
+      locked: false,
+      doorTiles: [toIndex(map, 9, 5)],
+      kind: "normal",
+      wave: 0,
+      used: false,
+    };
+    state.rooms = [room];
+    state.lockedTiles = new Set();
+    state.enemies = [];
+
+    // 扉タイル (9,5) は px [144,160)×[80,96)。その左上隅 (144,80) から dx=dy=5 だけ
+    // 斜めに離れた (139,75) に半径 6 の敵を置く。中心から隅までの距離は √50≈7.07 > 半径 6
+    // なので円としては扉タイルに届かないが、AABB のタイル走査は (9,5) を含めてしまう
+    const pos = { x: 139, y: 75 };
+    const e = createEnemy(state, enemyDef("slime"), pos, 0, false);
+    state.enemies.push(e);
+    expect(e.body.radius).toBe(6);
+    expect(overlapsWall(state, pos.x, pos.y, e.body.radius)).toBe(false);
+
+    state.player.body.pos = rectCenterPx(room.rect);
+    updateRooms(state, FIXED_DT);
+
+    expect(room.locked).toBe(true);
+    expect(e.hp).toBeGreaterThan(0);
+    expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius)).toBe(false);
   });
 
   it("プレイヤー自身が扉タイルに掛かっている間はロックされない（二重の保険）", () => {

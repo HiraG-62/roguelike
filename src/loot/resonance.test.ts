@@ -127,7 +127,7 @@ describe("computeStats と共鳴", () => {
     expect(stats.lifeOnHit).toBeCloseTo(1);
   });
 
-  it("散光: 主要倍率が少しずつ伸びる", () => {
+  it("散光: 主要倍率が少しずつ伸びる（支配/二重よりかなり高かったため半分に調整済み）", () => {
     const eq = createEmptyEquipment();
     eq.weapon = makeItem("weapon", [melee()]);
     eq.gun = makeItem("gun", [ranged()]);
@@ -135,8 +135,35 @@ describe("computeStats と共鳴", () => {
     eq.ring = makeItem("ring", [crit()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("scatter");
-    expect(stats.moveSpeedMul).toBeCloseTo(1.05);
+    expect(stats.moveSpeedMul).toBeCloseTo(1.025);
     expect(equipmentResonance(eq).kind).toBe("scatter");
+  });
+
+  it("散光: 反転した性質の値を 0 にする（代償を打ち消すが正の効果には転じない）", () => {
+    const rolls = [
+      melee(),
+      ranged(),
+      life(),
+      crit(),
+      { key: "meleeDamagePct", value: -15, nominal: 20, flux: -1.75, inverted: true, color: "umbra" as const },
+    ];
+    const res = resolveResonance(colorWeights(rolls));
+    expect(res.kind).toBe("scatter");
+    const adjusted = adjustForResonance(rolls, res);
+    const invertedOut = adjusted.find((r) => r.inverted === true);
+    expect(invertedOut?.value).toBeCloseTo(0);
+  });
+
+  it("虚極（冥の支配）: 反転を正にする効果に加え、深度に関係なく効くエネルギー獲得ボーナスも持つ", () => {
+    const eq = createEmptyEquipment();
+    eq.ring = makeItem("ring", [
+      { key: "maxLife", value: -30, nominal: 40, flux: -1.75, inverted: true, color: "umbra" },
+      { key: "ks_gambler", value: 0, color: "umbra" },
+      { key: "ks_blink", value: 0, color: "umbra" },
+    ]);
+    const stats = computeStats(eq);
+    expect(stats.resonance.colors).toEqual(["umbra"]);
+    expect(stats.energyGainMul).toBeCloseTo(1.15);
   });
 
   it("adjustForResonance は元の roll を変えない", () => {

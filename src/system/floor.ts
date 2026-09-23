@@ -23,7 +23,7 @@ import { heartsAllowed } from "./keystones";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
-import { type Box, boxCircleOverlap, circlesOverlap, overlapsWall } from "./physics";
+import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { finalizeLinks, rollElite } from "./elites";
 import {
@@ -350,32 +350,39 @@ function enterRoom(state: GameState, room: RoomState, index: number): void {
 
 const DOOR_PUSH_MAX_TRIES = 3;
 
-/** タイル index の px 矩形が、中心 (x, y) 半径 r の円と重なるか */
-function boxOverlapsCircle(state: GameState, tileIndex: number, x: number, y: number, r: number): boolean {
-  const tx = tileIndex % state.map.width;
-  const ty = Math.floor(tileIndex / state.map.width);
-  const box: Box = { x: tx * TILE_SIZE, y: ty * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE };
-  return boxCircleOverlap(box, x, y, r);
-}
-
-/** 中心 (x, y) 半径 r の AABB が room のいずれかのドアタイルに掛かっているか */
+/**
+ * 中心 (x, y) 半径 r の AABB が room のいずれかのドアタイルに掛かっているか。
+ * isSolidTile / overlapsWall と同じ AABB 走査（overlapsTiles）で判定する。
+ * 以前は円と矩形の厳密な重なり（boxCircleOverlap）で判定していたが、それだと
+ * isSolidTile 側（AABB 判定）より厳しく、斜め隅では「AABB は壁タイルに重なっているのに
+ * ここでは重なっていない」と判定がズレ、ロック時に押し出されない敵が壁に埋まっていた
+ * （QA report.md 付録「ドアタイル上でロックされた敵が壁の中判定になる」）
+ */
 function circleOnDoorTiles(state: GameState, room: RoomState, x: number, y: number, r: number): boolean {
-  return room.doorTiles.some((t) => boxOverlapsCircle(state, t, x, y, r));
+  return overlapsTiles(state, x, y, r, room.doorTiles);
 }
 
 /**
  * ドアタイルをロックで壁扱いにする直前に、ドアタイル上に AABB が掛かっている敵を
  * 部屋の中心方向へ 1 タイルぶんずつ最大 DOOR_PUSH_MAX_TRIES 回押し込む。
- * 押し込めなければ（壁に阻まれる等）その敵を消す
+ * 押し込めなければ（壁に阻まれる等）その敵をその場で配列から取り除く
+ * （以前は hp = 0 にするだけだったため、次フレームの死亡処理まで「壁に埋まった死体」が
+ * 1 フレーム残っていた。死亡演出やドロップも通常の撃破経路を通らないので、
+ * 静かに取り除く方が実態に合う）
  */
 function pushEnemiesOffDoorTiles(state: GameState, room: RoomState, index: number): void {
   if (room.doorTiles.length === 0) return;
   const center = rectCenterPx(room.rect);
+  let removed = false;
   for (const e of state.enemies) {
     if (e.roomIndex !== index || e.hp <= 0) continue;
     if (!circleOnDoorTiles(state, room, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
-    if (!pushEnemyTowardCenter(state, room, e, center)) e.hp = 0;
+    if (!pushEnemyTowardCenter(state, room, e, center)) {
+      e.hp = 0;
+      removed = true;
+    }
   }
+  if (removed) state.enemies = state.enemies.filter((e) => e.hp > 0);
 }
 
 /** 1 タイルぶんずつ中心方向へ動かす。壁に阻まれたら諦め、ドアタイルから外れたら成功 */

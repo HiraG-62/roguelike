@@ -114,12 +114,19 @@ function absolute(roll: AffixRoll): AffixRoll {
   return out;
 }
 
+/** 散光: 反転した性質の値をこの倍率にする（0 = 代償を完全に打ち消す。虚極と違い正の効果には転じない） */
+export const SCATTER_INVERSION_CANCEL = 0;
+
 /**
  * 共鳴に応じて性質の値を調整したコピーを返す（元の roll は変えない）。
  * - 支配: 支配色以外の色を持つ性質を OFF_COLOR_DAMPING 倍（色を持たない implicit は対象外）
  * - 冥の支配（虚極）: 反転した性質の負の値を正として扱う
+ * - 散光: 反転した性質の値を 0 にする（負の値としての代償を打ち消すだけで、虚極のように正へは転じない）
  */
 export function adjustForResonance(rolls: readonly AffixRoll[], resonance: Resonance): AffixRoll[] {
+  if (resonance.kind === "scatter") {
+    return rolls.map((roll) => (roll.inverted === true ? scaled(roll, SCATTER_INVERSION_CANCEL) : roll));
+  }
   if (resonance.kind !== "dominant") return [...rolls];
   const dominant = resonance.colors[0];
   return rolls.map((roll) => {
@@ -193,8 +200,13 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
   },
   umbra: {
     name: "虚極",
-    lines: ["反転した性質の負の値を、正の値として扱う", "代わりに受ける傷が少し深くなる"],
+    // QA（report.md）: 反転（inversion）は発見深度 13 以降にしか出ないため、そこに届く前の
+    // 大半のランでは「反転を正として扱う」効果が一切働かず、damageTakenMul の代償だけが残って
+    // 純粋な弱化になっていた。深度に関係なく効く energyGainMul を足して、
+    // 反転に出会う前でも選ぶ理由を持たせる（虚 = 何もない代わりに力を吸い出す、の方向）
+    lines: ["反転した性質の負の値を、正の値として扱う", "受けた傷から力を吸い、エネルギーが少し貯まりやすくなる", "代わりに受ける傷が少し深くなる"],
     apply: (s) => {
+      s.energyGainMul += 0.15;
       s.damageTakenMul += 0.1;
     },
   },
@@ -249,11 +261,17 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+gold": {
     name: "霜雷",
-    lines: ["攻撃が敵を凍らせやすくなる", "攻撃が感電を起こしやすくなる"],
-    apply: (s) => {
-      s.chillChance += 0.1;
-      s.shockChance += 0.1;
-    },
+    // 元は chillChance/shockChance を足すだけの数値効果だったが、QA での指摘（二重の固有効果に
+    // 「遊び方が変わる」ものを最低 1 つ）を受けて、JUST 回避を避けるだけの防御行動から
+    // 攻めにも使える行動に変える。数値ボーナスは半分にして帳尻を合わせる
+    lines: ["ジャスト回避の瞬間、周囲へ凍雷の弾をばら撒く", "攻撃が敵を凍らせ・感電させやすくなる"],
+    apply: both(
+      trigger({ trigger: "onJustDodge", condition: "always", effect: "spawnBullets", magnitude: 8, count: 6, chance: 0.5 }),
+      (s) => {
+        s.chillChance += 0.05;
+        s.shockChance += 0.05;
+      },
+    ),
   },
   "azure+umbra": {
     name: "影弾",
@@ -291,16 +309,28 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
 };
 
+/**
+ * QA（report.md）: 散光の到達depthが支配/二重よりかなり高かった（7.55 対 5.35 / 5.18）ため、
+ * 全ステータス底上げの倍率を半分にした（0.05→0.025、energyGainMul は 0.1→0.05）。
+ * 代わりに散光にしか無い質的な利点として、反転した性質の代償を打ち消す
+ * （SCATTER_INVERSION_CANCEL、adjustForResonance）を追加する。
+ * 「単色の極みと混色の器用さが競合する」設計哲学に対し、散光の器用さは
+ * 「呪いを恐れず尖った性質を拾いに行ける」方向に寄せる
+ */
 export const SCATTER_EFFECT: ResonanceEffect = {
   name: "虹",
-  lines: ["近接・射撃・攻撃速度・連射・移動が少しずつ伸びる", "エネルギーが溜まりやすくなる"],
+  lines: [
+    "近接・射撃・攻撃速度・連射・移動が少しずつ伸びる",
+    "エネルギーが少し溜まりやすくなる",
+    "反転した性質の代償を打ち消す（正の効果には転じない）",
+  ],
   apply: (s) => {
-    s.meleeDamageMul += 0.05;
-    s.rangedDamageMul += 0.05;
-    s.attackSpeedMul += 0.05;
-    s.fireRateMul += 0.05;
-    s.moveSpeedMul += 0.05;
-    s.energyGainMul += 0.1;
+    s.meleeDamageMul += 0.025;
+    s.rangedDamageMul += 0.025;
+    s.attackSpeedMul += 0.025;
+    s.fireRateMul += 0.025;
+    s.moveSpeedMul += 0.025;
+    s.energyGainMul += 0.05;
   },
 };
 
