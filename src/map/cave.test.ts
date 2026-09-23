@@ -88,16 +88,19 @@ describe("generateCave", () => {
       map.roomTiles.forEach((tiles, id) => {
         for (const t of tiles) owner[t] = id;
       });
+      // タイル × 近傍ごとに expect を呼ぶと 40 seed で数秒かかりタイムアウトするため、違反を数えて 1 回だけ検査する
+      let touching = 0;
       map.roomTiles.forEach((tiles, id) => {
         for (const t of tiles) {
           const x = t % map.width;
           const y = Math.floor(t / map.width);
           for (const [dx, dy] of [...CARDINALS, ...DIAGONALS]) {
             const o = owner[toIndex(map, x + dx, y + dy)] ?? -1;
-            expect(o === -1 || o === id, `seed=${seed}`).toBe(true);
+            if (o !== -1 && o !== id) touching++;
           }
         }
       });
+      expect(touching, `seed=${seed}`).toBe(0);
     }
   });
 
