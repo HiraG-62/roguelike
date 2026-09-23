@@ -2,14 +2,18 @@ import { skillKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
-import { describeItem, describeResonance, itemColorBar } from "../loot/describe";
+import { type SynergyDescription, describeItem, describeResonance, describeSynergy, itemColorBar } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item, type Slot } from "../loot/types";
 import { statsSummary } from "../loot/stats";
 import { BURDEN_LABEL, MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, modifierVerb, resolveCast, stoneLabel } from "../skills/data";
-import { findStone } from "../skills/persistence";
-import type { CastParams, SkillDef, SkillStone } from "../skills/types";
+import { COMBOS } from "../skills/combos";
+import { findStone, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
+import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
-import { effectiveManaCost, formatCooldown, manaRuleCost, slotModifierView } from "../system/skills";
+import { affinity, skillKeywords } from "../system/keywords";
+import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, manaRuleCost, slotModifierView } from "../system/skills";
+import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
+import { synergyBuild } from "../ui/synergyPanel";
 import {
   CONTENT_BOTTOM,
   CONTENT_Y,
@@ -20,6 +24,7 @@ import {
   RIGHT_X,
   SLOT_LABEL,
   type SkillSlotLayout,
+  type SkillsLayout,
   type SlotLayout,
   type StoneRowLayout,
   layoutInventory,
@@ -29,6 +34,8 @@ import {
 import { drawBudModal } from "./budUi";
 import { drawAttributePanel } from "./attributeUi";
 import { drawEchoTab } from "./echoTabUi";
+import { drawSynergyTab } from "./synergyUi";
+import { drawRuneColumn, runeTooltipLines } from "./skillRuneUi";
 import {
   COLOR_BORDER,
   COLOR_DIM,
@@ -61,7 +68,7 @@ import { fitTooltip } from "./renderMath";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixelText";
 
 /**
- * 装備画面（装備 / スキル / 残響の 3 タブ）の描画。state と ui を読むだけ。
+ * 装備画面（装備 / スキル / 残響 / 網の 4 タブ）の描画。state と ui を読むだけ。
  * 装備タブ: 左にスロット 6、右に倉庫、左下にツールチップ（describeItem）、右下に共鳴パネル（describeResonance）。
  * 単一指標（DPS・スコア）は出さない
  */
@@ -93,7 +100,7 @@ const SLOT_ICON: Record<Slot, string> = {
   amulet: "◊",
 };
 
-const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響" };
+const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響", web: "網" };
 const COLOR_SKILL = SKILL.drop.stoneColor;
 const SKILL_ICON_SIZE = 20;
 const SKILL_ICON_BASELINE = 14;
@@ -107,7 +114,7 @@ const HINT_ALLOC = "+ / 1〜4・E: ステータスを振る";
 const HINT_SEP = "  ";
 /** コストが最大マナを超えて切り詰められたときの注記 */
 const COST_CLAMPED_NOTE = "（上限で切り詰め）";
-const HINT_SKILLS = "石をクリック: 装着  スロットをクリック: 解除/選択  Shift+クリック: 分解  Tab: 残響へ";
+const HINT_SKILLS = "スロット選択: クリック/1〜4/←→  刻印符: クリック/↑↓+決定で付け外し  Shift+クリック: 解除・分解・捨てる  Tab: 残響へ";
 
 function keystoneKeysOf(item: Item): string[] {
   const keys = item.affixes.filter((r) => isKeystoneKey(r.key)).map((r) => r.key);
@@ -168,6 +175,9 @@ export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState,
       return;
     case "echo":
       drawEchoTab(ctx, state, ui.echo, layout.hintRect);
+      return;
+    case "web":
+      drawSynergyTab(ctx, state, ui.web, layout.hintRect);
       return;
     case "equipment":
       drawEquipmentTab(ctx, state, layout, ui);
@@ -293,7 +303,66 @@ export function itemTipLines(state: GameState, item: Item): TipLine[] {
   lines.push({ text: d.marginText, color: COLOR_GROWN });
   for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });
   for (const text of d.provenanceLines) lines.push({ text: `・${text}`, color: COLOR_DIM });
+  // 同じ部位は入れ替わる前提で外したビルドと比べる（装備中なら「これが抜けたら何が欠けるか」）
+  lines.push(...synergyTipLines(describeSynergy(item, synergyBuild(state, { slot: item.slot }))));
   return lines;
+}
+
+// ---------------------------------------------------------------------------
+// 「ここに噛む」（docs/ideas/synergy-web.md 4-b / 4-d）。語と相手の名前だけで、優劣は出さない
+// ---------------------------------------------------------------------------
+
+/** 噛み合う語があるときの色 / 無いときは COLOR_DIM */
+const COLOR_SYNERGY = "#a8e0ff";
+const WORD_SEP = "・";
+
+function glyphs(words: readonly Keyword[]): string {
+  return words.map((k) => KEYWORD_DEFS[k].glyph).join("");
+}
+
+function labels(words: readonly Keyword[]): string {
+  return words.map((k) => KEYWORD_DEFS[k].label).join(WORD_SEP);
+}
+
+/** 1 行目: 出す / 食う語の字形。2 行目: 噛む相手と、埋める穴 / 食う余り */
+export function synergyTipLines(d: SynergyDescription): TipLine[] {
+  if (d.produces.length + d.consumes.length === 0) return [];
+  const meshes = d.fills.length + d.feeds.length + d.partners.length > 0;
+  const head: string[] = [];
+  if (d.produces.length > 0) head.push(`出す ${glyphs(d.produces)}`);
+  if (d.consumes.length > 0) head.push(`食う ${glyphs(d.consumes)}`);
+  const lines: TipLine[] = [{ text: `語: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
+  const detail: string[] = [];
+  if (d.partners.length > 0) detail.push(`噛む: ${d.partners.join(WORD_SEP)}`);
+  if (d.fills.length > 0) detail.push(`穴を埋める: ${labels(d.fills)}`);
+  if (d.feeds.length > 0) detail.push(`余りを食う: ${labels(d.feeds)}`);
+  if (detail.length > 0) lines.push({ text: detail.join("  "), color: COLOR_SYNERGY });
+  return lines;
+}
+
+/** スキル石: ビルドの穴を埋める / 余りを食うなら 1 行、連携の相手が装着済みなら 1 行ずつ */
+function stoneSynergyLines(state: GameState, stone: SkillStone, slot: number, modifiers: readonly ModifierKey[]): TipLine[] {
+  const def = SKILL_DEFS[stone.skillKey];
+  const build = synergyBuild(state, slot >= 0 ? { skillSlot: slot } : {});
+  const aff = affinity(skillKeywords(def, modifiers), build.profile);
+  const words = [...aff.fills, ...aff.feeds];
+  const lines: TipLine[] = [];
+  if (words.length > 0) lines.push({ text: `${GROWN_MARK} 今のビルドと噛む（${labels(words)}）`, color: COLOR_SYNERGY });
+  for (const key of def.combos ?? []) {
+    const combo = COMBOS[key];
+    if (!partnerEquipped(state, combo.after, slot)) continue;
+    lines.push({ text: `連携「${combo.name}」: ${SKILL_DEFS[combo.after].name} → これ`, color: COLOR_SYNERGY });
+  }
+  return lines;
+}
+
+/** 連携の「先」のスキル石が、この石以外のスロットに装着されているか */
+function partnerEquipped(state: GameState, after: SkillKey, ownSlot: number): boolean {
+  for (let i = 0; i < SKILL.slots; i++) {
+    if (i === ownSlot) continue;
+    if (stoneInSlot(state.skills.profile, i)?.skillKey === after) return true;
+  }
+  return false;
 }
 
 /** 倉庫の行に乗せたら左列、スロットに乗せたら右列に出す（乗せている物を隠さない） */
@@ -385,7 +454,8 @@ function drawSkillsTab(ctx: CanvasRenderingContext2D, state: GameState, layout: 
     drawText(ctx, "スキル石がありません", RIGHT_X + TEXT_PAD_X, CONTENT_Y + bodyLineH(), TEXT.SMALL, COLOR_DIM);
   }
   for (const row of skills.rows) drawStoneRow(ctx, row, ui);
-  drawSkillTooltip(ctx, state, layout, ui);
+  drawRuneColumn(ctx, state, skills.runeList, ui);
+  drawSkillTooltip(ctx, state, layout, ui, skills.runeList);
   drawSkillNotes(ctx, layout);
   drawHint(ctx, layout.hintRect, HINT_SKILLS);
 }
@@ -448,7 +518,8 @@ function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams
 function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
   const slot = state.skills.profile.loadout.indexOf(stone.id);
-  const modifiers = slot >= 0 ? (state.skills.slots[slot]?.modifiers ?? []) : [];
+  // 装備画面での付け外しは次のステップまで slot.modifiers に入らないので、石から直接読む
+  const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot) : stoneModifierKeys(stone);
   const params = resolveCast(def, stone, modifiers);
   const linkPenalty = Math.round(stone.links * SKILL.linkBurdenPenalty * PERCENT);
   const burdenName = BURDEN_LABEL[params.resource];
@@ -460,6 +531,7 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });
   for (const v of stone.variants) lines.push({ text: formatVariant(v, def, params.resource), color: COLOR_TEXT });
+  lines.push(...stoneSynergyLines(state, stone, slot, modifiers));
   if (slot < 0) return lines;
   for (const m of slotModifierView(state, slot)) {
     const d = MODIFIERS[m.key];
@@ -468,8 +540,19 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   return lines;
 }
 
-function drawSkillTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
+function drawSkillTooltip(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  layout: InventoryLayout,
+  ui: InventoryUi,
+  runeList: SkillsLayout["runeList"],
+): void {
   const { tooltipRect } = layout;
+  const rune = runeTooltipLines(state, ui, runeList);
+  if (rune) {
+    drawTooltipBox(ctx, tooltipRect, rune, CONTENT_Y);
+    return;
+  }
   const stone = findStone(state.skills.profile, ui.hoverStoneId);
   if (!stone) {
     strokeRectPx(ctx, tooltipRect, COLOR_BORDER);
@@ -488,8 +571,8 @@ function drawSkillNotes(ctx: CanvasRenderingContext2D, layout: InventoryLayout):
   const maxWidth = RIGHT_W - TEXT_PAD_X * 2;
   const maxY = Math.min(rect.y + rect.h - 2, CONTENT_BOTTOM);
   const lines = [
-    "刻印符はこのランのみ有効。触れると装着中の",
-    "スキルにリンクする（最も古いものが外れる）。",
+    "刻印符は拾うと所持品に入る。選んだスロットの石に",
+    "付け外しでき、石と一緒に持ち越す。",
     "リンク数が多いほど負担（コスト / CD）が重くなる。",
     "キー: 1〜4 / C V X Z / マウス戻る・進む",
     "パッド: LB を押しながら A X Y B",

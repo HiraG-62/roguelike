@@ -102,7 +102,7 @@ export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   aboveHalfHp: "（HP 50% 以上）",
   belowHalfHp: "（HP 50% 未満）",
   comboAbove10: "（10 コンボ以上）",
-  roomLocked: "（部屋封鎖中）",
+  roomLocked: "（部屋で交戦中）",
   fullEnergy: "（エネルギー満タン）",
   manaFull: "（マナ満タン）",
   manaLow: "（マナ残りわずか）",

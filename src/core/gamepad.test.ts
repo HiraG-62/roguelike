@@ -267,3 +267,39 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(input.read().inventoryPressed).toBe(true);
   });
 });
+
+describe("GamepadInput 拾う（右スティック押し込み）", () => {
+  const BTN_X = 2;
+  const BTN_RSTICK = 11;
+
+  function readWith(pressed: readonly number[]): ReturnType<GamepadInput["read"]> {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons(pressed), axes: [0, 0, 0, 0] });
+    return input.read();
+  }
+
+  it("右スティック押し込みで interactPressed が立ち、射撃は出ない", () => {
+    const frame = readWith([BTN_RSTICK]);
+    expect(frame.interactPressed, "拾う").toBe(true);
+    expect(frame.shootHeld, "射撃は出ない").toBe(false);
+  });
+
+  it("X は射撃だけで、拾うは立たない", () => {
+    const frame = readWith([BTN_X]);
+    expect(frame.shootHeld, "射撃").toBe(true);
+    expect(frame.interactPressed, "拾わない").toBe(false);
+  });
+
+  it("押しっぱなしでは 2 フレーム目に立たない（押した瞬間だけ）", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons([BTN_RSTICK]), axes: [0, 0, 0, 0] });
+    expect(input.read().interactPressed).toBe(true);
+    expect(input.read().interactPressed).toBe(false);
+  });
+});

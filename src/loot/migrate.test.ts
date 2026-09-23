@@ -4,7 +4,7 @@ import { CORRUPTED_KEY } from "./affixes";
 import { traitColorOf } from "./colors";
 import { describeItem, describeResonance } from "./describe";
 import { generateItem } from "./generator";
-import { LEGACY_RARITY_MARGIN, LEGACY_TIER_FLUX, migrateItem } from "./migrate";
+import { LEGACY_LIFE_ON_HIT_PCT_PER_FLAT, LEGACY_RARITY_MARGIN, LEGACY_TIER_FLUX, convertLegacyLifeOnHit, migrateItem } from "./migrate";
 import { PROFILE_KEY, loadProfile, saveProfile } from "./profile";
 import { computeStats } from "./stats";
 import { createEmptyProfile, createEmptyProvenance, type Item } from "./types";
@@ -192,5 +192,34 @@ describe("describeItem / describeResonance", () => {
   it("describeResonance は装備の stats.resonance を語る", () => {
     const eq = createEmptyProfile().equipment;
     expect(describeResonance(computeStats(eq).resonance)[0]).toBe("共鳴なし");
+  });
+});
+
+describe("lifeOnHit の換算（固定値 → 与ダメの %）", () => {
+  it("旧形式の lifeOnHit は LEGACY_LIFE_ON_HIT_PCT_PER_FLAT 倍の % になる", () => {
+    const old: Item = {
+      ...legacyRare(),
+      affixes: [
+        { key: "lifeOnHit", kind: "suffix", tier: 3, value: 2 },
+        { key: "meleeDamagePct", kind: "prefix", tier: 3, value: 20 },
+      ],
+    };
+    const migrated = migrateItem(old);
+    const leech = migrated.affixes.find((r) => r.key === "lifeOnHit");
+    expect(leech?.value, "2 → 3%").toBeCloseTo(2 * LEGACY_LIFE_ON_HIT_PCT_PER_FLAT);
+    expect(leech?.nominal, "期待値も換算後の値から逆算する").toBeCloseTo(2 * LEGACY_LIFE_ON_HIT_PCT_PER_FLAT);
+    expect(migrated.affixes.find((r) => r.key === "meleeDamagePct")?.value, "他の性質は変えない").toBe(20);
+  });
+
+  it("換算は 1 回だけ（新形式に掛け直しても値は変わらない）", () => {
+    const old: Item = { ...legacyRare(), affixes: [{ key: "lifeOnHit", kind: "suffix", tier: 3, value: 2 }] };
+    const once = migrateItem(old);
+    const twice = migrateItem(once);
+    expect(twice.affixes.find((r) => r.key === "lifeOnHit")?.value).toBe(once.affixes.find((r) => r.key === "lifeOnHit")?.value);
+  });
+
+  it("convertLegacyLifeOnHit は lifeOnHit 以外を素通しする", () => {
+    const roll = { key: "lifeOnKill", value: 4 };
+    expect(convertLegacyLifeOnHit(roll)).toBe(roll);
   });
 });

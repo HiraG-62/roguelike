@@ -207,7 +207,16 @@ export interface SkillDef {
   rules?: readonly Rule[];
   /** 共通語彙（docs/ideas/synergy-web.md 1 章）。命中で付ける状態異常とマナ消費は system/keywords.ts が足す */
   keywords: KeywordProfile;
+  /**
+   * 同時発動の排他グループ（docs/COMBAT_DESIGN.md B-9）。body = 体を使う本動作（近接・移動・照準）。
+   * body 同士は同時に発動できない（発動中の本動作 SkillRunState.active は 1 つだけなので）。
+   * 省略したスキル（設置・射撃・強化）は本動作の最中でも並行して撃てる
+   */
+  exclusiveGroup?: SkillExclusiveGroup;
 }
+
+/** 同時発動の排他グループ。今は本動作（body）の 1 種だけ */
+export type SkillExclusiveGroup = "body";
 
 /** 1 回の発動の最終パラメータ。変異・リンク・修飾子を畳み込んだ結果 */
 export interface CastParams {
@@ -359,6 +368,19 @@ export interface SkillStone {
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
+  /**
+   * この石に付けた刻印符（古い順）。石と一緒に動くのでスロットを入れ替えても付いたまま。
+   * 旧セーブ・リプレイの石には無いので省略可（無ければ空）
+   */
+  runes?: RuneItem[];
+}
+
+/** 所持品としての刻印符（1 枚）。拾うと SkillProfile.runes に入り、装備画面で石に付け外しする */
+export interface RuneItem {
+  id: string;
+  modifier: ModifierKey;
+  /** epoch ms（表示と並び順だけ。決定性に影響しない） */
+  foundAt: number;
 }
 
 export interface SkillProfile {
@@ -366,13 +388,20 @@ export interface SkillProfile {
   /** スキルスロット i に装着した石の id */
   loadout: (string | null)[];
   stones: SkillStone[];
+  /** 石に付けていない所持刻印符。旧セーブ・リプレイには無いので省略可（skills/persistence.ts の ownedRunes で読む） */
+  runes?: RuneItem[];
 }
 
 // ---- ラン内 ----
 
 export interface SkillSlotState {
-  /** ラン内修飾子。石ではなくスロットに属する（古い順） */
+  /**
+   * 実際に読む刻印符の並び（古い順）= スロットの石に付けた所持刻印符 + runModifiers。
+   * system/skills.ts の syncSlotModifiers が作り直す（直接書き換えない）
+   */
   modifiers: ModifierKey[];
+  /** ラン内だけの刻印符（起点「詠み手」の開始時など）。石ではなくスロットに属する（古い順） */
+  runModifiers: ModifierKey[];
   cooldownLeft: number;
   /** HUD のマスク用: 直近にセットした CD の長さ */
   cooldownTotal: number;
@@ -683,8 +712,6 @@ export interface SkillRunState {
   enemyHp: Map<number, number>;
   /** 部屋クリア・階層到達の検出用。depth が null なら未同期 */
   tracking: { depth: number | null; cleared: boolean[] };
-  /** 共通最低間隔の残り秒（docs/COMBAT_DESIGN.md B-2） */
-  gcd: number;
   /** HUD: マナ不足の点滅の残り秒 */
   manaFlash: number;
   // ---- 大拡張 ----

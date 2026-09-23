@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { STATUS } from "../data/tuning";
+import { scaleFlat } from "./flux";
 import { generateItem } from "./generator";
 import { computeStats, softCap, statsSummary } from "./stats";
 import { DEFAULT_STATS, SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
@@ -50,7 +51,7 @@ describe("computeStats", () => {
     // 紅 3 / 金 1 → 紅の支配（灼極）: 近接 +10%、金の性質（会心率）は 75% に弱まる。implicit は色を持たず弱まらない
     expect(stats.resonance.kind).toBe("dominant");
     expect(stats.resonance.colors).toEqual(["crimson"]);
-    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.4 + 0.25 + 0.1);
+    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.4 + 0.25 + scaleFlat(0.1, 4));
     expect(stats.attackSpeedMul).toBeCloseTo(0.75);
     expect(stats.meleeReachMul).toBeCloseTo(1.2);
     expect(stats.meleeDamageFlat).toBe(5);
@@ -288,5 +289,40 @@ describe("computeStats: マナの性質と渇きの誓約", () => {
     equipment.ring = makeItem("ring", { affixes: [drought] });
     equipment.amulet = makeItem("amulet", { affixes: [drought] });
     expect(computeStats(equipment).maxMana).toBe(0);
+  });
+});
+
+describe("computeStats: 武器種と射撃の型（ベースから決まる）", () => {
+  it("空装備は剣と単発", () => {
+    const stats = computeStats(createEmptyEquipment());
+    expect(stats.moveset, "武器なしは剣").toBe("sword");
+    expect(stats.shot, "銃なしは単発").toBe("single");
+  });
+
+  it("武器ベースが武器種を、銃ベースが射撃の型を決める", () => {
+    const equipment = createEmptyEquipment();
+    equipment.weapon = makeItem("weapon", { baseKey: "spear" });
+    equipment.gun = makeItem("gun", { baseKey: "shotgun" });
+    const stats = computeStats(equipment);
+    expect(stats.moveset, "槍 → 槍").toBe("spear");
+    expect(stats.shot, "散弾銃 → 散弾").toBe("spread");
+  });
+
+  it("新しい器のベース（手甲・跳ね銃）も型を持つ", () => {
+    const equipment = createEmptyEquipment();
+    equipment.weapon = makeItem("weapon", { baseKey: "gauntlets" });
+    equipment.gun = makeItem("gun", { baseKey: "ricochetGun" });
+    const stats = computeStats(equipment);
+    expect(stats.moveset).toBe("fists");
+    expect(stats.shot).toBe("ricochet");
+  });
+
+  it("型を持たない未知のベースは既定に落ちる", () => {
+    const equipment = createEmptyEquipment();
+    equipment.weapon = makeItem("weapon", { baseKey: "test" });
+    equipment.gun = makeItem("gun", { baseKey: "test" });
+    const stats = computeStats(equipment);
+    expect(stats.moveset).toBe("sword");
+    expect(stats.shot).toBe("single");
   });
 });

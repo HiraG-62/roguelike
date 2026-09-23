@@ -1,7 +1,7 @@
 import { type Rng, createRng } from "../core/rng";
 import { MODIFIERS, SKILL, SKILL_DEFS, SKILL_MIN_DEPTH, SKILL_WEIGHTS, canAttach } from "./data";
 import { modifierWeight } from "./modifiers";
-import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "./types";
+import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type RuneItem, type SkillKey, type SkillStone, type VariantRoll } from "./types";
 
 /**
  * スキル石の生成。レベル・tier は持たず、ロールされるのは変異軸とリンク数だけ。
@@ -95,3 +95,32 @@ export function rollRuneModifier(rng: Rng, equipped: readonly SkillKey[]): Modif
   return pool[idx] ?? MODIFIER_KEYS[0];
 }
 
+
+/** 撃破時の刻印符ドロップの出どころ。エリート・ボス・図書館・巣窟は出やすい */
+export type RuneDropSource = keyof typeof SKILL.drop.runeOnKill;
+
+/** 撃破時に刻印符が落ちる確率。通常の敵だけ深度で少し増える */
+export function runeDropChance(depth: number, source: RuneDropSource): number {
+  const d = SKILL.drop;
+  if (source !== "normal") return d.runeOnKill[source];
+  return d.runeOnKill.normal + Math.min(d.runeOnKillDepthCap, Math.max(0, depth) * d.runeOnKillPerDepth);
+}
+
+/**
+ * 撃破時の刻印符ドロップの抽選。落ちるなら種類、落ちなければ null。
+ * 乱数は必ず 1 回引き（落ちたときだけ種類でもう 1 回）、呼び出し側の乱数列を出どころで揺らさない
+ */
+export function rollRuneDrop(
+  rng: Rng,
+  depth: number,
+  source: RuneDropSource = "normal",
+  equipped: readonly SkillKey[] = [],
+): ModifierKey | null {
+  if (!rng.chance(runeDropChance(depth, source))) return null;
+  return rollRuneModifier(rng, equipped);
+}
+
+/** 所持品の刻印符を作る。idSeed は床の刻印符の id など（now と合わせて一意にする。決定性に影響しない） */
+export function makeRuneItem(modifier: ModifierKey, idSeed: number, now: number): RuneItem {
+  return { id: `r${idSeed.toString(ID_RADIX)}-${now.toString(ID_RADIX)}`, modifier, foundAt: now };
+}

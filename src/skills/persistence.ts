@@ -1,8 +1,11 @@
-import { SKILL, SKILL_DEFS } from "./data";
+import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, modifierLinkCost, modifiersClash } from "./data";
 import { stoneFromSeed } from "./generator";
 import {
+  MODIFIER_KEYS,
   SKILL_KEYS,
   VARIANT_AXES,
+  type ModifierKey,
+  type RuneItem,
   type SkillKey,
   type SkillProfile,
   type SkillStone,
@@ -11,8 +14,10 @@ import {
 } from "./types";
 
 /**
- * スキル石の永続化。装備プロフィール（roguelike.profile.v1）とは別キーにする
+ * スキル石と所持刻印符の永続化。装備プロフィール（roguelike.profile.v1）とは別キーにする
  * （Profile.version を上げると既存装備が空になるため）。
+ * 刻印符は SkillProfile.runes（所持）と SkillStone.runes（石に付けたもの）に持つ。
+ * どちらも省略可の追加フィールドなのでキー形式は変えない（v2 は切らない）
  */
 export const SKILL_PROFILE_KEY = "roguelike.skills.v1";
 
@@ -43,9 +48,26 @@ function sanitizeVariant(v: unknown): VariantRoll | null {
   return { axis: v.axis, value: Math.max(MIN_VARIANT, Math.min(MAX_VARIANT, v.value)) };
 }
 
+function isModifierKey(v: unknown): v is ModifierKey {
+  return typeof v === "string" && (MODIFIER_KEYS as readonly string[]).includes(v);
+}
+
+function sanitizeRune(v: unknown): RuneItem | null {
+  if (!isRecord(v)) return null;
+  const { id, modifier, foundAt } = v;
+  if (typeof id !== "string" || id.length === 0) return null;
+  if (!isModifierKey(modifier)) return null;
+  return { id, modifier, foundAt: typeof foundAt === "number" && Number.isFinite(foundAt) ? foundAt : 0 };
+}
+
+function sanitizeRunes(v: unknown): RuneItem[] {
+  if (!Array.isArray(v)) return [];
+  return v.map(sanitizeRune).filter((r): r is RuneItem => r !== null);
+}
+
 function sanitizeStone(v: unknown): SkillStone | null {
   if (!isRecord(v)) return null;
-  const { id, seed, skillKey, variants, links, foundDepth, foundAt } = v;
+  const { id, seed, skillKey, variants, links, foundDepth, foundAt, runes } = v;
   if (typeof id !== "string" || id.length === 0) return null;
   if (typeof seed !== "number") return null;
   if (!isSkillKey(skillKey)) return null;
@@ -61,7 +83,45 @@ function sanitizeStone(v: unknown): SkillStone | null {
     links: Math.max(0, Math.min(SKILL.maxLinks, links)),
     foundDepth,
     foundAt,
+    ...runesField(sanitizeRunes(runes)),
   };
+}
+
+/** 付いた符が無い石は runes を持たない（旧セーブ・生成直後の石と同じ形に揃え、比較とリプレイの差分を出さない） */
+function runesField(runes: RuneItem[]): { runes?: RuneItem[] } {
+  return runes.length > 0 ? { runes } : {};
+}
+
+function setStoneRunes(stone: SkillStone, runes: RuneItem[]): void {
+  if (runes.length > 0) stone.runes = runes;
+  else delete stone.runes;
+}
+
+/**
+ * 石に付いた刻印符のうち、今の規則で付けられないもの（相性・リンク数・重複・型替え符・排他）を外して返す。
+ * 石には付けられる分だけを古い順に残す。旧セーブの移行と、壊れたデータの救済を兼ねる
+ */
+function settleStoneRunes(stone: SkillStone): RuneItem[] {
+  const kept: RuneItem[] = [];
+  const loose: RuneItem[] = [];
+  for (const rune of stoneRunes(stone)) {
+    if (runeAttachBlock({ ...stone, runes: kept }, rune.modifier) === null) kept.push(rune);
+    else loose.push(rune);
+  }
+  setStoneRunes(stone, kept);
+  return loose;
+}
+
+/** id の重複を捨てる（同じ刻印符が石と所持品の両方に居るような壊れ方の救済）。先に出た方を残す */
+function dedupeRunes(stones: readonly SkillStone[], owned: readonly RuneItem[]): RuneItem[] {
+  const seen = new Set<string>();
+  const firstSeen = (r: RuneItem): boolean => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  };
+  for (const stone of stones) setStoneRunes(stone, stoneRunes(stone).filter(firstSeen));
+  return owned.filter(firstSeen);
 }
 
 /**
@@ -88,7 +148,7 @@ export function createDefaultSkillProfile(): SkillProfile {
     variants: [],
     links: STARTER_LINKS,
   }));
-  return { version: CURRENT_VERSION, loadout: sanitizeLoadout(stones.map((s) => s.id), stones), stones };
+  return { version: CURRENT_VERSION, loadout: sanitizeLoadout(stones.map((s) => s.id), stones), stones, runes: [] };
 }
 
 function defaultStorage(): Storage | null {
@@ -120,7 +180,10 @@ export function loadSkillProfile(storage?: Storage): SkillProfile {
     return createDefaultSkillProfile();
   }
   const stones = parsed.stones.map(sanitizeStone).filter((s): s is SkillStone => s !== null);
-  return { version: CURRENT_VERSION, loadout: sanitizeLoadout(parsed.loadout, stones), stones };
+  // 旧セーブは runes が無い（刻印符はラン内だった）ので空の所持品から始まる。付けられない付属符は所持品へ戻す
+  const displaced = stones.flatMap(settleStoneRunes);
+  const runes = dedupeRunes(stones, [...sanitizeRunes(parsed.runes), ...displaced]);
+  return { version: CURRENT_VERSION, loadout: sanitizeLoadout(parsed.loadout, stones), stones, runes };
 }
 
 export function saveSkillProfile(profile: SkillProfile, storage?: Storage): void {
@@ -159,11 +222,12 @@ export function unequipSlot(profile: SkillProfile, slot: number): void {
   profile.loadout[slot] = null;
 }
 
-/** 分解（削除）。装着中なら外す */
+/** 分解（削除）。装着中なら外す。付いていた刻印符は所持品へ戻す（上限を超えても失わない） */
 export function salvageStone(profile: SkillProfile, stoneId: string): boolean {
   const idx = profile.stones.findIndex((s) => s.id === stoneId);
   if (idx < 0) return false;
-  profile.stones.splice(idx, 1);
+  const [removed] = profile.stones.splice(idx, 1);
+  if (removed) ownedRunes(profile).push(...stoneRunes(removed));
   profile.loadout = profile.loadout.map((id) => (id === stoneId ? null : id));
   return true;
 }
@@ -171,4 +235,87 @@ export function salvageStone(profile: SkillProfile, stoneId: string): boolean {
 /** スロット i の石（無ければ null） */
 export function stoneInSlot(profile: SkillProfile, slot: number): SkillStone | null {
   return findStone(profile, profile.loadout[slot]);
+}
+
+// ---------------------------------------------------------------------------
+// 刻印符（所持品と石への付け外し）
+// ---------------------------------------------------------------------------
+
+/** 所持刻印符（石に付けていないもの）。旧セーブ・リプレイのプロフィールには無いのでここで作る */
+export function ownedRunes(profile: SkillProfile): RuneItem[] {
+  if (!profile.runes) profile.runes = [];
+  return profile.runes;
+}
+
+/** 石に付けた刻印符（古い順）。無ければ空 */
+export function stoneRunes(stone: Readonly<SkillStone>): readonly RuneItem[] {
+  return stone.runes ?? [];
+}
+
+/** 石に付けた刻印符の種類（古い順）。スロットの実効の並びの前半になる */
+export function stoneModifierKeys(stone: Readonly<SkillStone>): ModifierKey[] {
+  return stoneRunes(stone).map((r) => r.modifier);
+}
+
+/** 所持品へ加える。上限なら加えず false */
+export function addRune(profile: SkillProfile, rune: RuneItem): boolean {
+  const owned = ownedRunes(profile);
+  if (owned.length >= SKILL.runeCapacity) return false;
+  owned.push(rune);
+  return true;
+}
+
+/**
+ * 付けられない理由。notFit = 相性表で不可 / duplicate = 同じ符が付いている / noLinks = リンクの空きが無い /
+ * reshape = 型替え符は 1 枚まで / clash = 排他の符が付いている
+ */
+export type RuneAttachBlock = "notFit" | "duplicate" | "noLinks" | "reshape" | "clash";
+
+/** この石にこの刻印符を付けられるか。付けられるなら null（canAttach とリンク数の制約は activeModifiers と同じ） */
+export function runeAttachBlock(stone: Readonly<SkillStone>, modifier: ModifierKey): RuneAttachBlock | null {
+  const def = SKILL_DEFS[stone.skillKey];
+  if (!canAttach(def, modifier)) return "notFit";
+  const current = stoneModifierKeys(stone);
+  if (current.includes(modifier)) return "duplicate";
+  const used = current.reduce((sum, k) => sum + modifierLinkCost(k), 0);
+  if (used + modifierLinkCost(modifier) > stone.links) return "noLinks";
+  if (MODIFIERS[modifier].reshape && current.some((k) => MODIFIERS[k].reshape)) return "reshape";
+  if (current.some((k) => modifiersClash(k, modifier))) return "clash";
+  return null;
+}
+
+/** 付け外しの結果。missing = 刻印符か石が見つからない */
+export type RuneAttachResult = "ok" | "missing" | RuneAttachBlock;
+
+/** 所持刻印符を石に付ける（所持品から石へ移す）。付けた符は石の中で最も新しい */
+export function attachRuneToStone(profile: SkillProfile, runeId: string, stoneId: string): RuneAttachResult {
+  const owned = ownedRunes(profile);
+  const idx = owned.findIndex((r) => r.id === runeId);
+  const stone = findStone(profile, stoneId);
+  const rune = owned[idx];
+  if (!rune || !stone) return "missing";
+  const block = runeAttachBlock(stone, rune.modifier);
+  if (block) return block;
+  owned.splice(idx, 1);
+  setStoneRunes(stone, [...stoneRunes(stone), rune]);
+  return "ok";
+}
+
+/** 石から外して所持品へ戻す。外すのは上限を超えても受け付ける（刻印符を失わせない） */
+export function detachRuneFromStone(profile: SkillProfile, stoneId: string, runeId: string): boolean {
+  const stone = findStone(profile, stoneId);
+  const rune = stone ? stoneRunes(stone).find((r) => r.id === runeId) : undefined;
+  if (!stone || !rune) return false;
+  setStoneRunes(stone, stoneRunes(stone).filter((r) => r.id !== runeId));
+  ownedRunes(profile).push(rune);
+  return true;
+}
+
+/** 所持刻印符を捨てる（石に付いているものは捨てられない） */
+export function discardRune(profile: SkillProfile, runeId: string): boolean {
+  const owned = ownedRunes(profile);
+  const idx = owned.findIndex((r) => r.id === runeId);
+  if (idx < 0) return false;
+  owned.splice(idx, 1);
+  return true;
 }

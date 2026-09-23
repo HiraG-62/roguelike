@@ -1,3 +1,4 @@
+import { KEYWORD_DEFS, type Keyword, type KeywordProfile } from "../core/keywords";
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
@@ -13,6 +14,7 @@ import {
   buildTags,
   canTakeCurse,
 } from "../system/boons";
+import { type KeywordAffinity, affinity, buildProfile } from "../system/keywords";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
 
 /**
@@ -49,6 +51,13 @@ const KEY_Y_FROM_BOTTOM = 18;
 const CURSE_KEY = "3 / X";
 /** 呪いの札の文字のベースライン（札の上端から） */
 const CURSE_TEXT_Y = 10;
+/** 語の行（カード下部、タグ行の上）。噛み合わない語は暗くする */
+const WORD_ROW_GAP = 2;
+const COLOR_WORD_IDLE = "#5a5a66";
+const WORD_HEAD_PRODUCES = "出";
+const WORD_HEAD_CONSUMES = "食";
+const WORD_GROUP_GAP = 5;
+const WORD_HEAD_GAP = 2;
 /** 系譜の段数をたどる上限（定義の循環で止まらないように） */
 const LINEAGE_MAX_DEPTH = 8;
 
@@ -107,8 +116,11 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   // 装備・スキル石のタグと、取得済み祝福が出すタグのどちらかに一致すれば強調（なぜ出やすいかが分かる）
   const t = buildTags(state);
   const tags = new Set<BoonTag>([...t.owned, ...t.gives]);
+  // 今のビルドの飢えを埋める / 余りを食う語を明るくする（並びは抽選順のまま。優劣は付けない）
+  const build = buildProfile(state);
   c.options.forEach((key, i) => {
-    drawCard(ctx, boonDef(key), i, c.options.length, i === c.hover, tags);
+    const def = boonDef(key);
+    drawCard(ctx, def, i, c.options.length, i === c.hover, tags, affinity(def.keywords, build));
   });
   drawCurseOffer(ctx, state);
 }
@@ -140,6 +152,7 @@ function drawCard(
   count: number,
   hover: boolean,
   tags: ReadonlySet<BoonTag>,
+  aff: KeywordAffinity,
 ): void {
   const r = boonCardRect(index, count);
   const y = hover ? r.y - BOON_CARD.hoverLift : r.y;
@@ -160,15 +173,53 @@ function drawCard(
   drawText(ctx, truncateText(sub.text, maxWidth, TEXT.SMALL), cx, y + RARITY_Y, TEXT.SMALL, sub.color ?? color, "center");
 
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
-  wrapText(def.desc, maxWidth, TEXT.SMALL).forEach((line, i) =>
-    drawText(ctx, line, cx, y + DESC_Y + i * lineH, TEXT.SMALL, COLOR_TEXT, "center"),
-  );
+  const tagY = y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM;
+  const wordY = tagY - lineH - WORD_ROW_GAP;
+  const descLines = wrapText(def.desc, maxWidth, TEXT.SMALL);
+  descLines.forEach((line, i) => drawText(ctx, line, cx, y + DESC_Y + i * lineH, TEXT.SMALL, COLOR_TEXT, "center"));
+  // 説明を優先する。説明の最終行が語の行に重なるなら語の行は出さない
+  const descEnd = y + DESC_Y + (descLines.length - 1) * lineH;
+  const hasWords = def.keywords.produces.length + def.keywords.consumes.length > 0;
+  if (hasWords && descEnd + lineH <= wordY) drawWordRow(ctx, def.keywords, aff, cx, wordY, maxWidth);
 
   // 一致するタグは強調（なぜ出やすいかが分かる）
   const tagText = def.tags.map((t) => (tags.has(t) ? `[${t}]` : t)).join(" ");
   const tagColor = def.tags.some((t) => tags.has(t)) ? COLOR_TAG_MATCH : COLOR_SUB;
-  drawText(ctx, truncateText(tagText, maxWidth, TEXT.SMALL), cx, y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM, TEXT.SMALL, tagColor, "center");
+  drawText(ctx, truncateText(tagText, maxWidth, TEXT.SMALL), cx, tagY, TEXT.SMALL, tagColor, "center");
   drawText(ctx, KEY_HINTS[index] ?? "", cx, y + r.h - TAGS_BOTTOM, TEXT.SMALL, COLOR_SUB, "center");
+}
+
+interface WordGroup {
+  head: string;
+  words: readonly Keyword[];
+  lit: ReadonlySet<Keyword>;
+}
+
+/** 「出 炎雷  食 撃」を中央揃えで 1 行に。噛み合う語だけ語の色、他は暗い灰色 */
+function drawWordRow(ctx: CanvasRenderingContext2D, kws: KeywordProfile, aff: KeywordAffinity, cx: number, y: number, maxWidth: number): void {
+  const m = TEXT.SMALL;
+  const groups: WordGroup[] = [
+    { head: WORD_HEAD_PRODUCES, words: kws.produces, lit: new Set(aff.fills) },
+    { head: WORD_HEAD_CONSUMES, words: kws.consumes, lit: new Set(aff.feeds) },
+  ].filter((g) => g.words.length > 0);
+  const groupWidth = (g: WordGroup): number =>
+    textWidth(g.head, m) + WORD_HEAD_GAP + g.words.reduce((sum, k) => sum + textWidth(KEYWORD_DEFS[k].glyph, m), 0);
+  const total = groups.reduce((sum, g) => sum + groupWidth(g), 0) + WORD_GROUP_GAP * (groups.length - 1);
+  const right = cx + maxWidth / 2;
+  let x = Math.round(cx - Math.min(total, maxWidth) / 2);
+  for (const g of groups) {
+    drawText(ctx, g.head, x, y, m, COLOR_SUB);
+    x += textWidth(g.head, m) + WORD_HEAD_GAP;
+    for (const k of g.words) {
+      const glyph = KEYWORD_DEFS[k].glyph;
+      const w = textWidth(glyph, m);
+      // 幅を超える分は描かない（語が多い祝福でもカードからはみ出さない）
+      if (x + w > right) return;
+      drawText(ctx, glyph, x, y, m, g.lit.has(k) ? KEYWORD_DEFS[k].color : COLOR_WORD_IDLE);
+      x += w;
+    }
+    x += WORD_GROUP_GAP;
+  }
 }
 
 /** 右下のアイコン列の index 番目（右から並べ、HUD_PER_ROW 個で上の段へ折り返す） */
@@ -179,6 +230,13 @@ function hudIconPos(index: number): Vec {
     x: VIEW_W - HUD_RIGHT - HUD_ICON - col * (HUD_ICON + HUD_GAP),
     y: VIEW_H - HUD_BOTTOM - HUD_ICON - row * (HUD_ICON + HUD_GAP),
   };
+}
+
+/** アイコン列の最上段の上端（祝福が無ければ HUD の下端）。連鎖の表示をこの上に積む */
+export function boonHudTop(count: number): number {
+  if (count <= 0) return VIEW_H - HUD_BOTTOM;
+  const rows = Math.ceil(count / HUD_PER_ROW);
+  return VIEW_H - HUD_BOTTOM - HUD_ICON - (rows - 1) * (HUD_ICON + HUD_GAP);
 }
 
 /** 取得済み祝福のアイコン列。aimScreen がアイコン上なら名前と説明を出す */

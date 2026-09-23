@@ -104,7 +104,7 @@ describe("アフィックス定義", () => {
       "12%の確率で炎上（9ダメージ/秒）",
     );
     expect(formatAffix({ key: "hpRegen", kind: "suffix", tier: 3, value: 1.5 })).toBe(
-      "HP自然回復 +1.5/秒",
+      "HP自然回復 +1.5/秒（敵が近くにいない間）",
     );
     expect(formatAffix({ key: "implicit.shortsword", kind: "prefix", tier: 1, value: 10 })).toBe(
       "近接ダメージ +10%",

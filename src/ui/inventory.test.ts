@@ -84,13 +84,14 @@ beforeEach(() => {
 });
 
 describe("updateInventoryUi: タブ", () => {
-  it("Tab は 閉 → 装備 → スキル → 残響 → 閉 のサイクルで、state.paused が連動する", () => {
+  it("Tab は 閉 → 装備 → スキル → 残響 → 網 → 閉 のサイクルで、state.paused が連動する", () => {
     const state = createGame(1);
     const ui = createInventoryUi();
     const expected = [
       { open: true, tab: "equipment" },
       { open: true, tab: "skills" },
       { open: true, tab: "echo" },
+      { open: true, tab: "web" },
     ] as const;
     for (const step of expected) {
       updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
@@ -99,7 +100,7 @@ describe("updateInventoryUi: タブ", () => {
       expect(state.paused, "開いている間は止まる").toBe(true);
     }
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
-    expect(ui.open, "4 回目で閉じる").toBe(false);
+    expect(ui.open, "5 回目で閉じる").toBe(false);
     expect(state.paused, "閉じたら再開").toBe(false);
 
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
@@ -109,7 +110,7 @@ describe("updateInventoryUi: タブ", () => {
   it("画面上のタブをクリックで切り替えられる", () => {
     const state = createGame(1);
     const ui = openUi(state);
-    for (const tab of ["skills", "echo", "equipment"] as const) {
+    for (const tab of ["skills", "echo", "web", "equipment"] as const) {
       const rect = tabRects().find((t) => t.tab === tab)?.rect;
       if (!rect) throw new Error(`${tab} tab missing`);
       clickAt(state, ui, rect);
@@ -119,7 +120,7 @@ describe("updateInventoryUi: タブ", () => {
 });
 
 describe("updateInventoryUi: スキルタブ", () => {
-  it("スロットクリックで外し、石クリックで空きスロットへ装着する", () => {
+  it("スロットクリックは選択だけ、Shift+クリックで外し、石クリックで空きスロットへ装着する", () => {
     const state = createGame(1);
     const ui = openUi(state);
     ui.tab = "skills";
@@ -128,13 +129,88 @@ describe("updateInventoryUi: スキルタブ", () => {
 
     const slotRect = layoutSkills(state, ui).slots[0]?.rect;
     if (!slotRect) throw new Error("slot missing");
+    ui.skillSlot = 2;
     clickAt(state, ui, slotRect);
+    expect(ui.skillSlot, "選択される").toBe(0);
+    expect(profile.loadout[0], "クリックだけでは外れない").toBe(firstId);
+    clickAt(state, ui, slotRect, { shiftHeld: true });
     expect(profile.loadout[0], "外れる").toBeNull();
 
     const row = layoutSkills(state, ui).rows.find((r) => r.stone.id === firstId);
     if (!row) throw new Error("row missing");
     clickAt(state, ui, row.rect);
     expect(profile.loadout[0], "戻る").toBe(firstId);
+  });
+});
+
+describe("updateInventoryUi: スキルタブの刻印符", () => {
+  function runeSetup(): { state: State; ui: InventoryUi } {
+    const state = createGame(1);
+    const ui = openUi(state);
+    ui.tab = "skills";
+    const profile = state.skills.profile;
+    profile.runes = [
+      { id: "ra", modifier: "echo", foundAt: 2 },
+      { id: "rb", modifier: "comboFuel", foundAt: 1 },
+    ];
+    for (const stone of profile.stones) stone.links = 2;
+    return { state, ui };
+  }
+
+  function runeRowRect(state: State, ui: InventoryUi, id: string): Rect {
+    const row = layoutSkills(state, ui).runeList.rows.find((r) => r.rune.id === id);
+    if (!row) throw new Error(`rune ${id} missing`);
+    return row.rect;
+  }
+
+  it("所持刻印符をクリックすると選択中スロットの石に付き、もう一度クリックで外れる", () => {
+    const { state, ui } = runeSetup();
+    const profile = state.skills.profile;
+    const stone = profile.stones.find((st) => st.id === profile.loadout[0]);
+    if (!stone) throw new Error("stone");
+    clickAt(state, ui, runeRowRect(state, ui, "ra"));
+    expect(stone.runes?.map((r) => r.id), "石に付く").toEqual(["ra"]);
+    expect(profile.runes?.map((r) => r.id), "所持品から消える").toEqual(["rb"]);
+    clickAt(state, ui, runeRowRect(state, ui, "ra"));
+    expect(stone.runes, "外れる").toBeUndefined();
+    expect(profile.runes?.map((r) => r.id).sort(), "所持品へ戻る").toEqual(["ra", "rb"]);
+  });
+
+  it("キー・パッド: 1〜4 でスロット、↓ でカーソル、決定で付ける", () => {
+    const { state, ui } = runeSetup();
+    const profile = state.skills.profile;
+    updateInventoryUi(state, ui, withInput({ skill2Pressed: true }), 0);
+    expect(ui.skillSlot, "スロット 2 を選ぶ").toBe(1);
+    updateInventoryUi(state, ui, withInput({ move: { x: 0, y: 1 } }), 0);
+    updateInventoryUi(state, ui, withInput({ move: { x: 0, y: 1 } }), 0);
+    expect(ui.runes.cursor, "押しっぱなしは 1 マスだけ").toBe(1);
+    updateInventoryUi(state, ui, withInput({ confirmPressed: true }), 0);
+    const stone = profile.stones.find((st) => st.id === profile.loadout[1]);
+    expect(stone?.runes?.map((r) => r.id), "カーソルの符（新しい順で 2 番目）が付く").toEqual(["rb"]);
+  });
+
+  it("左右の移動でも選択中スロットが変わる（端で止まる）", () => {
+    const { state, ui } = runeSetup();
+    updateInventoryUi(state, ui, withInput({ move: { x: 1, y: 0 } }), 0);
+    expect(ui.skillSlot).toBe(1);
+    updateInventoryUi(state, ui, withInput({ move: { x: 0, y: 0 } }), 0);
+    updateInventoryUi(state, ui, withInput({ move: { x: -1, y: 0 } }), 0);
+    updateInventoryUi(state, ui, withInput({ move: { x: 0, y: 0 } }), 0);
+    updateInventoryUi(state, ui, withInput({ move: { x: -1, y: 0 } }), 0);
+    expect(ui.skillSlot).toBe(0);
+  });
+
+  it("付けられない符は付かず、所持品に残る（空きスロット）", () => {
+    const { state, ui } = runeSetup();
+    ui.skillSlot = 3;
+    clickAt(state, ui, runeRowRect(state, ui, "ra"));
+    expect(state.skills.profile.runes, "所持品のまま").toHaveLength(2);
+  });
+
+  it("Shift+クリックで所持刻印符を捨てる", () => {
+    const { state, ui } = runeSetup();
+    clickAt(state, ui, runeRowRect(state, ui, "rb"), { shiftHeld: true });
+    expect(state.skills.profile.runes?.map((r) => r.id)).toEqual(["ra"]);
   });
 });
 

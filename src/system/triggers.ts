@@ -6,8 +6,9 @@ import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggerCondition, TriggeredEffect, TriggerKind } from "../loot/types";
 import { ruleConditionsMet } from "./rules";
 import { scaled } from "./attributes";
-import { damageEnemy, gainEnergy, healPlayer, rollOutgoing } from "./combat";
+import { damageEnemy, gainEnergy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
+import { isEngaged } from "./engagement";
 import { gainMana } from "./mana";
 import { addPoise } from "./poise";
 import { applyBurn, applyChill, applyStatus, chainLightning, enemiesInRadius, explodeAt, hasStatus, removeStatus } from "./statusEffects";
@@ -90,7 +91,7 @@ export function conditionMet(state: GameState, condition: TriggerCondition, ctx?
     case "comboAbove10":
       return state.combo.count >= TRIGGER.comboThreshold;
     case "roomLocked":
-      return state.rooms.some((r) => r.locked);
+      return isEngaged(state);
     case "fullEnergy":
       return p.energy >= p.maxEnergy;
     case "manaFull":
@@ -163,7 +164,7 @@ export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext
       explodeAt(state, ctx.pos, STATUS.explodeRadius, t.magnitude);
       return;
     case "heal":
-      healPlayer(state, t.magnitude);
+      healSustained(state, t.magnitude);
       return;
     case "damageBuff":
       applyTimedMul(p.buffs.damage, 1 + t.magnitude / TRIGGER.percent, durationOf(t));

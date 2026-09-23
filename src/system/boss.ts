@@ -1,4 +1,4 @@
-import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, enemyDef, isBossClass } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
@@ -13,10 +13,29 @@ import { circlesOverlap, overlapsWall } from "./physics";
 import { inflictOnPlayer, isSilenced } from "./statusEffects";
 import { spawnTwinSister, twinPartner, updateTwin } from "./bossTwins";
 import { frostGiantArmored, updateFrostGiant } from "./bossFrostGiant";
+import { oilKingTelegraph, setupOilKingRoom, updateOilKing } from "./bossOilKing";
+import { broodMotherTelegraph, updateBroodMother } from "./bossBroodMother";
+import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
+import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, updateMirrorKnight } from "./bossMirrorKnight";
+import type { EnemyTelegraph } from "./enemies";
 
 /** 階層ボス。depth が BOSS.interval の倍数の階は、階段のある最後の部屋がボス部屋になる */
 
-const BOSS_ROTATION = ["kingSlime", "boneLord", "twinBrother", "frostGiant"] as const;
+/**
+ * ボスの回転（深度 3 の倍数ごとに 1 体。8 体で 24 階まで重複なし）。
+ * Wave 3 の 4 体はバイオームと結び付く（油壺の王 = 油の坑道・熔鉱炉 / 群れの母 = 沼・草原 /
+ * 図書館の司書 = 骨の墓所の書庫 / 鏡の騎士 = 鏡の部屋）。取り巻きの敵を biomes.ts のファミリー表に足してある
+ */
+const BOSS_ROTATION = [
+  "kingSlime",
+  "boneLord",
+  "twinBrother",
+  "frostGiant",
+  "oilKing",
+  "broodMother",
+  "librarian",
+  "mirrorKnight",
+] as const;
 const FULL_CIRCLE = Math.PI * 2;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const BOSS_TEXT_COLOR = "#ff4040";
@@ -61,6 +80,7 @@ export function setupBossRoom(state: GameState, roomIndex: number): void {
   state.enemies.push(boss);
   state.boss = { enemyId: boss.id, name: def.bossTitle ?? def.name, roomIndex, introTimer: 0, defeated: false };
   if (def.behavior === "twinBlade") spawnTwinSister(state, boss);
+  if (def.behavior === "oilKing") setupOilKingRoom(state, roomIndex);
 }
 
 /** ボス部屋のロック時の演出 */
@@ -104,6 +124,32 @@ export function bossArmorBlocks(state: GameState, e: Enemy): boolean {
   return e.defKey === "frostGiant" && frostGiantArmored(state, e);
 }
 
+/** ボスが受けるダメージの倍率（鏡の騎士は写し身が残っている間は守られる） */
+export function bossTakenMul(state: GameState, e: Enemy): number {
+  return e.defKey === "mirrorKnight" ? mirrorKnightTakenMul(state, e) : 1;
+}
+
+/** プレイヤーの弾を跳ね返すか（鏡の騎士の正面。elites.ts の deflectProjectile が読む） */
+export function bossReflects(state: GameState, e: Enemy, pr: Projectile): boolean {
+  return e.defKey === "mirrorKnight" && mirrorKnightReflects(state, e, pr);
+}
+
+/** Wave 3 のボスの予告の形（enemies.ts の enemyTelegraph が読む） */
+export function bossTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  switch (def.behavior) {
+    case "oilKing":
+      return oilKingTelegraph(e);
+    case "broodMother":
+      return broodMotherTelegraph(e);
+    case "librarian":
+      return librarianTelegraph(e);
+    case "mirrorKnight":
+      return mirrorKnightTelegraph(e);
+    default:
+      return null;
+  }
+}
+
 /** enemies.ts から毎ステップ呼ばれる */
 export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   switch (e.phase) {
@@ -130,6 +176,18 @@ export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: n
       return;
     case "frostGiant":
       updateFrostGiant(state, e, def, dt);
+      return;
+    case "oilKing":
+      updateOilKing(state, e, def, dt);
+      return;
+    case "broodMother":
+      updateBroodMother(state, e, def, dt);
+      return;
+    case "librarian":
+      updateLibrarian(state, e, def, dt);
+      return;
+    case "mirrorKnight":
+      updateMirrorKnight(state, e, def, dt);
       return;
     default:
       return;
@@ -439,6 +497,7 @@ function dropRareItem(state: GameState, pos: Vec, index: number): void {
     rarityBoost: BOSS.rareDropBoost,
     foundDepth: depth,
     now: Date.now(),
+    excludeNamed: state.lockedRelics,
   });
   for (let i = 0; i < BOSS.rareDropAttempts && !RARE_OR_BETTER.has(item.rarity); i++) {
     item = generateItem(state.rng, {
@@ -446,6 +505,7 @@ function dropRareItem(state: GameState, pos: Vec, index: number): void {
       rarityBoost: BOSS.rareDropBoost,
       foundDepth: depth,
       now: Date.now(),
+      excludeNamed: state.lockedRelics,
     });
   }
   const side = index % 2 === 0 ? -1 : 1;

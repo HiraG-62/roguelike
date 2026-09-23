@@ -3,7 +3,7 @@ import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
 import type { Attributes, FloorItem, LootRuntime, PendingBud, PlayerStats, Profile } from "../loot/types";
 import type { StatusBag } from "./status";
-import type { TerrainLayer } from "./terrain";
+import type { TerrainKind, TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
 import type { SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
@@ -11,6 +11,9 @@ import type { ChainRecord, EventKind, GameEvent, RecentEvent, RuleRunState } fro
 import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
 import type { RunEventState } from "../system/runEvents";
 import type { OriginKey, RunModKey } from "../system/runSetup";
+import type { ButtonKey, ShotRuntime } from "../data/weapons";
+import type { CodexRun } from "../meta/codex";
+import type { QuestRun } from "../meta/quests";
 
 export type GameStatus = "playing" | "dead";
 
@@ -32,6 +35,26 @@ export interface AttackState {
   /** この振りで既に当てた敵 */
   hitIds: Set<number>;
   dir: Vec;
+  /**
+   * 武器種の段（0 始まり。src/data/weapons.ts の steps の添字）。combo は祝福・スキルが読む「1 段目 / 途中 / 最終段(2)」に丸めた値。
+   * 5 段の双剣でも最終段だけが combo 2 になる
+   */
+  step: number;
+  /** 今の振りの溜めの段（0 = 溜めなし） */
+  chargeLevel: number;
+  /** 攻撃キーを押して溜めている最中か（大剣）と、その秒数 */
+  charging: boolean;
+  chargeTime: number;
+  /** 今の振りがコンボ派生なら MovesetDef.branches の添字、でなければ -1 */
+  branch: number;
+  /** 振っている最中に成立した派生（今の振りの後に出す）。無ければ -1 */
+  pendingBranch: number;
+  /** 派生の照合に使う直近の入力列（左 = primary / 右 = secondary） */
+  inputs: ButtonKey[];
+  /** 入力列を保つ残り秒。0 で振っていなければ列を捨てる */
+  inputTimer: number;
+  /** 多段ヒットの今の区切り（0 始まり） */
+  hitTick: number;
 }
 
 export interface Player {
@@ -65,7 +88,7 @@ export interface Player {
   meleeHitCount: number;
   /** ks_overclock: 射撃の HP コストは overclockShootInterval 発に 1 回。その通算カウント */
   overclockShotCount: number;
-  /** lifeOnHit の 0.1 秒あたり回復上限を管理する窓 */
+  /** 戦闘中の回復（命中・撃破・祝福）の共通上限の窓（1 秒。HEAL.sustainWindow） */
   lifeOnHitWindow: { timer: number; healed: number };
   /** リゲイン: 近接ヒットで取り戻せる残り HP（HP バーの「取り戻せる分」） */
   regainPool: number;
@@ -87,6 +110,11 @@ export interface Player {
   status: StatusBag;
   /** 装備の性質の作業領域（余韻斬り・形見。src/system/traitHooks.ts） */
   loot: LootRuntime;
+  /** チャージ射撃（射撃の型 charge）: 射撃キーを押して溜めている最中か、その秒数 */
+  shotCharging: boolean;
+  shotChargeTime: number;
+  /** 前フレームに射撃キー（右）を押していたか。右の押した瞬間を取るため */
+  secondaryWasHeld: boolean;
 }
 
 export interface TimedMul {
@@ -156,6 +184,21 @@ export interface Enemy {
   revived?: boolean;
   /** 新しいエリート修飾子の作業領域（src/system/elites.ts） */
   eliteWork?: EliteWork;
+  /** 2 つ目のエリート修飾子（深層の相乗の組だけ。src/system/elites.ts の ELITE_PAIRS） */
+  eliteExtra?: EliteKind;
+  /** 鼓舞（帯電・急かし・旗の加護）。src/system/enemyTerrain.ts */
+  rally?: EnemyRally;
+  /** 潜行中（土潜り・天井吊り・影踏み）。描かれず、攻撃も当たらない */
+  hidden?: boolean;
+}
+
+/** 支援役の敵が周りの敵に掛ける一時的な強化（docs/ideas/enemies.md 0 章「鼓舞」） */
+export type RallyKind = "charged" | "hastened" | "warded";
+
+export interface EnemyRally {
+  kind: RallyKind;
+  /** 残り秒 */
+  time: number;
 }
 
 export type EliteKind =
@@ -173,7 +216,13 @@ export type EliteKind =
   | "parasitic"
   | "anchored"
   | "devouring"
-  | "packed";
+  | "packed"
+  // ---- Wave 3（docs/ideas/enemies.md 4 章 M5 / M6 / M7 / M10 / M18）----
+  | "searing"
+  | "hexing"
+  | "commanding"
+  | "evasive"
+  | "chaining";
 
 /** エリート修飾子ごとの状態（刻限の時計・報復の遅延・残響の残り回数など） */
 export interface EliteWork {
@@ -212,6 +261,10 @@ export interface EnemyAi {
   move: number;
   /** 地点の列（残像打ちの位置の履歴・霜の巨人のつららの落下点など） */
   points?: Vec[];
+  /** 徘徊の目的地（src/system/spawner.ts が書く。idle の間だけここへ歩く） */
+  roam?: Vec;
+  /** 徘徊で進めていない秒（詰まったら目的地を選び直す） */
+  roamStuck?: number;
 }
 
 export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall";
@@ -238,6 +291,23 @@ export interface Hazard {
   sourceKey?: string;
   /** landing: 出した敵の位置に付いて動く（自爆の範囲。src/system/hazards.ts の syncLanding） */
   followSource?: boolean;
+  /** boneWall の残り耐久（docs/ideas/enemies.md H6。爆発・壁叩きつけ・弾で削れる） */
+  hp?: number;
+  /** bomb の爆発が敵にも当たる（爆裂のエリートの死後の爆発。H10） */
+  hitsEnemies?: boolean;
+}
+
+/** 敵が作る地形の予約（予告の影を出してから置く。src/system/enemyTerrain.ts） */
+export interface TerrainSeed {
+  pos: Vec;
+  kind: TerrainKind;
+  radius: number;
+  /** 置くまでの残り秒 */
+  time: number;
+  /** 置いた地形の持続（秒） */
+  duration: number;
+  /** 予約した階。階が変わったら捨てる */
+  depth: number;
 }
 
 export interface BossState {
@@ -254,7 +324,22 @@ export interface Reaper {
   pos: Vec;
   radius: number;
   animTime: number;
+  /** バリアント（src/system/reaper.ts。省略は既定の死神） */
+  variant?: ReaperVariant;
+  /** バリアントの汎用タイマー（鎖の間隔・取り立ての待ち・影の湧き直し） */
+  timer?: number;
+  /** 鎖の死神の狙い（予告線の終点）。投げていなければ undefined */
+  aim?: Vec;
+  /** 鎖の予告の残り秒（0 より大きい間は予告線を出す） */
+  charging?: number;
+  /** 双子の死神のもう 1 体 */
+  twin?: Vec;
+  /** 取り立て屋が取り立てを終えて去った（この階ではもう追わない） */
+  departed?: boolean;
 }
+
+/** 死神のバリアント（docs/ideas/enemies.md 6 章） */
+export type ReaperVariant = "default" | "chain" | "collector" | "twin" | "shadow" | "silent";
 
 /** ダメージの出どころ。melee / ranged だけが on-hit 効果とトリガーを起こす */
 export type DamageKind = "melee" | "ranged" | "proc";
@@ -278,6 +363,8 @@ export interface Projectile {
   poise?: number;
   /** 同じ射撃で出た弾の共有カウンタ（マナ回収の上限 MANA.shotVolleyCap 用）。projectiles.ts が付ける */
   volley?: { manaHits: number };
+  /** 射撃の型の作業領域（跳弾の残り・設置弾。src/data/weapons.ts）。無ければ単発と同じ */
+  shot?: ShotRuntime;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */
@@ -344,7 +431,9 @@ export type RoomKind =
   | "reaperNest"
   | "nest"
   | "mirror"
-  | "watchtower";
+  | "watchtower"
+  // ---- 開放型フロア（src/system/spawner.ts）: 入ると封鎖して波で大量に湧く巣窟 ----
+  | "horde";
 
 /**
  * フロア種別。rooms / dark は部屋+通路、cave はセルオートマトンの洞窟。
@@ -367,6 +456,8 @@ export interface RoomState {
   tiles?: ReadonlySet<number>;
   /** 特別な部屋の作業領域（台座・炉の色・護衛対象など。src/system/specialRooms.ts） */
   special?: RoomSpecial;
+  /** 封鎖しない部屋で交戦が始まった（入った・敵が気付いた）。全滅でその部屋を制圧する（src/system/floor.ts） */
+  engaged?: boolean;
 }
 
 export interface Camera {
@@ -442,6 +533,8 @@ export interface GameState {
   terrain: TerrainLayer;
   /** 敵の死骸（src/system/enemies.ts） */
   corpses: Corpse[];
+  /** 敵が作る地形の予約（油・毒沼・氷床…。省略時は無し。src/system/enemyTerrain.ts） */
+  terrainSeeds?: TerrainSeed[];
   /** このフロアのボス。ボス階以外は null */
   boss: BossState | null;
   /** 今のフロアに入ってからの経過秒 */
@@ -476,6 +569,8 @@ export interface GameState {
   modifiers: RunModKey[];
   /** ラン開始時に選んだ起点 */
   origin: OriginKey;
+  /** このランで抽選に出ない名のある遺物（RunSetup.lockedRelics の写し） */
+  lockedRelics: readonly string[];
   /** この階の階段と、降りた先のフロア種別（分岐路） */
   stairs: StairsChoice[];
   // ---- 統一ルール文法（src/core/events.ts / src/system/rules.ts。docs/ideas/synergy-web.md 3 章）----
@@ -490,6 +585,11 @@ export interface GameState {
   /** 直近に成立した連鎖（新しい順ではなく起きた順。上限 SYNERGY.chainLog） */
   chains: ChainRecord[];
   ruleRun: RuleRunState;
+  // ---- メタ進行の記録（src/meta/runRecord.ts が積むだけ。ゲーム進行には効かない。ラン終了時に main.ts が保存）----
+  /** 図鑑: このランで見た・倒した敵、反応、連鎖、場所 */
+  codexRun: CodexRun;
+  /** 依頼: 受けた依頼とラン中の数え上げ */
+  questRun: QuestRun;
 }
 
 export function allocId(state: GameState): number {

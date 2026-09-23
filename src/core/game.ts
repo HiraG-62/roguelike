@@ -12,6 +12,7 @@ import { applyStats, createPlayer } from "../system/player";
 import { refillMana, tickMana } from "../system/mana";
 import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
+import { updateDropInteract } from "../system/loot";
 import { VIEW_H, VIEW_W } from "./view";
 import { type Profile, createEmptyProfile, uniformAttributes } from "../loot/types";
 import { computeStats } from "../loot/stats";
@@ -29,6 +30,8 @@ import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { type RunSetup, defaultRunSetup, originKeystones, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
 import { createRuleRunState } from "./events";
+import { createCodexRun } from "../meta/codex";
+import { createQuestRun } from "../meta/quests";
 
 /**
  * 新しいランを始める。profile.equipment から stats を畳み込んでプレイヤーに反映し、
@@ -97,6 +100,7 @@ export function createGame(
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
     origin: setup.origin,
+    lockedRelics: [...(setup.lockedRelics ?? [])],
     stairs: [],
     events: [],
     pendingEvents: [],
@@ -104,6 +108,8 @@ export function createGame(
     ruleIcd: new Map(),
     chains: [],
     ruleRun: createRuleRunState(),
+    codexRun: createCodexRun(),
+    questRun: createQuestRun(),
   };
   // 祝福の畳み込み元（boonRun.baseStats）を覚えつつ、ステータスの派生（deriveAttributes）を通す
   applyStats(state, stats);
@@ -130,6 +136,9 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
     updateBoonChoice(state, input, dt);
     return;
   }
+
+  // ヒットストップ中に押しても取りこぼさないよう、止まる前に拾う
+  updateDropInteract(state, input);
 
   if (state.hitstop > 0) {
     state.hitstop -= 1;

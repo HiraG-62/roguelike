@@ -8,11 +8,12 @@ import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
 import { buildFloor, descend, enemyCount, insideRoom } from "./floor";
-import { applyCurse, chooseFloorKind, fountainPx, isCaveDepth, isDark } from "./roomTypes";
-import { BIOMES, floorKindCandidates } from "./biomes";
+import { ROOM_LOCKS, applyCurse, chooseFloorKind, fountainPx, hordeMax, isDark, roomLocks } from "./roomTypes";
+import { MAP_SHAPE, floorKindCandidates } from "./biomes";
 import { placeEnemy, withInput } from "./testHelpers";
 
 const SEARCH_SEEDS = 300;
+const NON_BOSS_DEPTH = 7;
 const IDLE = withInput({});
 
 /** 指定 depth で kind の部屋が出るフロアを seed 総当たりで探す */
@@ -52,20 +53,29 @@ function aliveIn(state: GameState, index: number): number {
 }
 
 describe("フロア種別", () => {
-  it("ボス階は必ず rooms、depth 4, 7, 10 は洞窟の形、それ以外に洞窟そのものは出ない。候補が 1 つの階は rng を消費しない", () => {
+  it("ボス階は必ず rooms、それ以外は解禁済みの候補から。1 階は洞窟だけで rng を消費しない", () => {
     for (let depth = 1; depth <= 30; depth++) {
       for (let seed = 0; seed < 5; seed++) {
         const kind = chooseFloorKind(depth, createRng(depth * 100 + seed));
         expect(floorKindCandidates(depth), `depth=${depth}`).toContain(kind);
         if (isBossDepth(depth)) expect(kind, `depth=${depth}`).toBe("rooms");
-        else if (isCaveDepth(depth)) expect(BIOMES[kind].shape, `depth=${depth}`).toBe("cave");
-        else expect(kind, `depth=${depth}`).not.toBe("cave");
       }
     }
-    expect(isCaveDepth(4) && isCaveDepth(7) && isCaveDepth(10)).toBe(true);
     const a = createRng(1);
-    expect(chooseFloorKind(1, a)).toBe("rooms");
+    expect(chooseFloorKind(1, a)).toBe("cave");
     expect(a.next(), "depth 1 は乱数を引かない").toBe(createRng(1).next());
+  });
+
+  it("洞窟の形が基本で、部屋 + 通路はボス階と一部のバイオーム（回廊・骨の墓所・油の坑道）だけ", () => {
+    expect(isBossDepth(NON_BOSS_DEPTH)).toBe(false);
+    const roomShaped = Object.entries(MAP_SHAPE).filter(([, shape]) => shape === "rooms").map(([k]) => k);
+    expect(roomShaped.sort()).toEqual(["mine", "ossuary", "rooms"]);
+    const samples = 400;
+    let caves = 0;
+    for (let seed = 0; seed < samples; seed++) {
+      if (MAP_SHAPE[chooseFloorKind(NON_BOSS_DEPTH, createRng(seed))] === "cave") caves++;
+    }
+    expect(caves / samples, "非ボス階の大半は洞窟の形").toBeGreaterThan(0.6);
   });
 
   it("フロア種別は深度で解禁された候補から重みどおりに出る（dark は depth 4 から）", () => {
@@ -96,16 +106,21 @@ describe("フロア種別", () => {
     throw new Error("no dark floor found");
   });
 
-  it("洞窟フロア: 塊の部屋に入るとロックされ、扉の内側から外へ出られない", () => {
+  it("洞窟フロア: 通常の塊は入っても封鎖されず、封鎖する種類（巣窟）の塊は扉の内側から外へ出られない", () => {
     const state = createGame(3);
     state.depth = 3;
-    descend(state);
+    descend(state, "cave");
     expect(state.depth).toBe(4);
     expect(state.floorKind).toBe("cave");
-    const index = state.rooms.findIndex((r, i) => i > 0 && r.kind === "normal");
+    const normal = state.rooms.findIndex((r, i) => i > 0 && r.kind === "normal" && !r.cleared);
+    enterRoom(state, normal);
+    expect(state.rooms[normal]?.locked, "通常の塊は封鎖しない").toBe(false);
+    expect(state.lockedTiles.size, "扉は閉じない").toBe(0);
+    const index = state.rooms.findIndex((r, i) => i > 0 && i !== normal && !r.cleared);
     const room = state.rooms[index];
     expect(room?.tiles).toBeDefined();
     if (!room?.tiles) return;
+    room.kind = "horde";
     enterRoom(state, index);
     expect(room.locked).toBe(true);
     // 部屋内の任意のタイルから、ロックされていない床だけを辿っても部屋の外に出られない
@@ -138,7 +153,7 @@ describe("洞窟フロアの湧きとロック", () => {
   function caveState(seed: number): GameState {
     const state = createGame(seed);
     state.depth = 3;
-    descend(state);
+    descend(state, "cave");
     return state;
   }
 
@@ -208,6 +223,7 @@ describe("部屋の種類", () => {
           expect(kinds.filter((x) => x === k).length).toBeLessThanOrEqual(1);
         }
         expect(kinds.filter((x) => x === "ambush").length).toBeLessThanOrEqual(ROOM_KIND.ambushMax);
+        expect(kinds.filter((x) => x === "horde").length, "巣窟は深度で決まる数まで").toBeLessThanOrEqual(hordeMax(depth));
         if (depth < ROOM_KIND.challengeMinDepth) expect(kinds).not.toContain("challenge");
         if (depth < ROOM_KIND.ambushMinDepth) expect(kinds).not.toContain("ambush");
       }
@@ -376,5 +392,25 @@ describe("決定性", () => {
       return out;
     };
     expect(run()).toEqual(run());
+  });
+});
+
+describe("封鎖する種類（ROOM_KIND.locks）", () => {
+  it("試練・闘技場・巣・巣窟・伏兵・護衛・鏡は封鎖し、通常の部屋・宝物庫・泉・台座の部屋・共鳴炉・逃走は封鎖しない", () => {
+    const locking: RoomKind[] = ["challenge", "arena", "nest", "horde", "ambush", "escort", "mirror"];
+    for (const kind of Object.keys(ROOM_LOCKS) as RoomKind[]) {
+      expect(ROOM_LOCKS[kind], kind).toBe(locking.includes(kind));
+    }
+  });
+
+  it("ボス部屋は種類（normal）に関係なく封鎖する", () => {
+    const state = createGame(5);
+    state.depth = 2;
+    descend(state);
+    const boss = state.boss;
+    if (!boss) throw new Error("ボス階でない");
+    expect(state.rooms[boss.roomIndex]?.kind).toBe("normal");
+    expect(roomLocks(state, boss.roomIndex)).toBe(true);
+    expect(roomLocks(state, 0)).toBe(false);
   });
 });

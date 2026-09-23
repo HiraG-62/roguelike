@@ -40,6 +40,16 @@ Wave 2（`docs/ideas/*-expansion.md`）で入ったシステム: `system/enemyTr
 - ICD の 3 層: Rule ごと（`state.ruleIcd`、id の昇順で進める）・語ごとの 1 秒あたり回数（`SYNERGY.keywordBudget`、`state.ruleRun.keywordUse`）・敵ごと（状態異常を入れる効果は `StatusBag.procIcd`）
 - 乱数は Rule の照合順に `state.rng` から引く。確率 1 以上の Rule は引かない
 
+## フロアと部屋（開放型。2026-09-24）
+
+- 形: `system/biomes.ts` の `MAP_SHAPE` がフロア種別ごとに `cave`（`map/cave.ts` のセルオートマトン。既定）か `rooms`（`map/generator.ts` の部屋 + 通路。回廊・骨の墓所・油の坑道とボス階）を決める。洞窟の数値は tuning の `CAVE`（`base` + バイオームごとの上書き `biome`。`floor.ts` の `generatorOptions` が `GeneratorOptions.cave` に渡す）。洞窟では「開けた領域の塊」が 1 部屋（`RoomState.tiles`）で、`rect` は塊に内接する正方形（中心・台座の置き場の目安）
+- 封鎖: 入ると封鎖するのは `ROOM_KIND.locks` が true の種類（試練・闘技場・巣・巣窟・伏兵・護衛・鏡）とボス部屋だけ（`roomTypes.ts` の `roomLocks`）。それ以外は入っても扉を閉じない
+- 交戦と制圧: 封鎖しない部屋は、入る・部屋の敵が気付く（idle から抜ける）のどちらかで `RoomState.engaged` になり、部屋の敵をまとめて起こし、封鎖と同じフック（`onBoonRoomLock` / イベント `onRoomLock` / `runEvents.onRoomLocked` / 呪い）を通す。部屋の敵（`roomIndex` がその部屋）が全滅したら 1 回だけ制圧（`clearRoom`: 報酬・`onRoomClear` トリガー・祝福の `onBoonRoomClear`・来歴）。報酬はプレイヤーが部屋の外なら足元に置く
+- 徘徊と増援（`system/spawner.ts`、tuning の `ROAM`）: 生成時に置いた敵の一部を徘徊（`roomIndex = ROAMING_ROOM`（-1）、`EnemyAi.roam` が目的地）にする。idle の間だけ `updateRoamers` が塊の中心への距離場（マップから作る派生データ。WeakMap に覚える）を下って歩かせ、気付いたら `enemies.ts` の chase に任せる。`floorTime` が `reinforceDelay` を過ぎると `reinforceInterval` ごとに画面外へ徘徊を 1 抽選ぶん湧かせる（上限 `roamCap`、ボス階は無し）。徘徊はどの部屋にも属さないので制圧を妨げない
+- 視線と回り込み（`map/pathing.ts`、純関数 + マップごとの距離場キャッシュ）: 敵は壁越しには気付かない（`enemies.ts` の idle で `lineOfSight`）。追跡中に壁で遮られたら距離場の次の点へ向かう（`chaseHeading`）。徘徊の歩行（`nextWaypoint`）と QA bot の交戦相手の選択も同じ視線判定を使う
+- 呼び出し順: すべて `floor.ts` の `updateRooms` の中（部屋ごとの封鎖 / 交戦 / 制圧 → `updateRoamers` → 増援 → 泉 → 特別な部屋 → …）。乱数は `state.rng` だけで、この順に引く
+- マナの自然回復（`mana.ts` の `tickMana`）は「封鎖中」ではなく「封鎖中か、`MANA.combatRadius` 内に生きた敵がいる」間を戦闘中とみなして遅くする
+
 ## ディレクトリの責務
 
 | ディレクトリ | 責務 | 依存してよい先 |
@@ -69,7 +79,7 @@ Item ─ base / rarity / implicit / affixes: AffixRoll[]（key + value、トリ�
                                           └─ foldBoonStats（祝福の数値ぶん）── applyStats(state) ──> Player
 
 SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout（4 スロットごとの石 id）
-  └─ createSkillRunState ──> SkillRunState（ラン内: マナ型のコスト / CD 型の CD、GCD、刻印符、設置物、発動中）
+  └─ createSkillRunState ──> SkillRunState（ラン内: マナ型のコスト / CD 型の CD、スロットごとの最低間隔、ラン内の刻印符、設置物、発動中）
 
 GameState
   ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / JUST / リゲインのタイマー、buffs、loot: LootRuntime〔性質の作業領域〕）
@@ -92,6 +102,7 @@ GameState
 ## 決定性とリプレイ
 
 - `step` は固定 dt（1/60 秒）で呼ばれ、ロジックが見る外部入力は `FrameInput` だけ
+- 床の遺物・スキル石の拾得は `FrameInput.interactPressed` + `aimScreen`。注目（`system/loot.ts` の `focusedDrop`）は state に持たず、step（拾得）と render（環・ポップアップ）が同じ純関数で求める。`interactPressed` は `BUTTON_BITS` の末尾
 - 乱数は `state.rng`（mulberry32）のみ。生成系（loot / skills / map）は rng を引数に取る純関数
 - `Date.now()` は生成物の `id` / `foundAt` に使うだけで、挙動には影響しない
 - 描画は `state.rng` を消費しない（見た目のばらつきは `render/renderMath.ts` の座標ハッシュ）
@@ -110,6 +121,9 @@ GameState
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
 | `roguelike.settings.v1` | ミュート・音量・画面揺れ・キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定。追加フィールドなので v1 のまま） | `ui/settings.ts` |
 | `roguelike.replays.v1` | リプレイ最新 10 件 | `ui/replayStore.ts` |
+| `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、階の種類・部屋の種類）。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
+| `roguelike.quests.v1` | 依頼（達成した依頼と時刻、受けたまま未達成の依頼 `active`）。起点の解放・図鑑の頁・名のある遺物の抽選・称号はここから読む | `meta/questStore.ts` |
+| `roguelike.achievements.v1` | 実績（解除した実績と時刻）と名乗っている称号 | `meta/achievements.ts` |
 
 共通ルール: 例外（容量超過・プライベートモード）を握りつぶし、壊れたデータはデフォルトへ落とす。形式を非互換に変えるときはキーの版を上げる。
 

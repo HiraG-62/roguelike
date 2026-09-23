@@ -1,4 +1,5 @@
 import type { Rng } from "../core/rng";
+import { CAVE } from "../data/tuning";
 import { type GameMap, type Rect, Tile, createMap } from "./grid";
 
 /**
@@ -26,20 +27,17 @@ export interface CaveOptions {
   roomGrow: number;
   maxRooms: number;
   minRooms: number;
+  /** 幅 1 の通路を 1 マスずつ太らせる回数（0 なら細い道がそのまま残る） */
+  widen: number;
 }
+
+/** 洞窟の数値のうちバイオームで上書きできるもの（幅・高さはマップの大きさなので除く） */
+export type CaveShapeOptions = Omit<CaveOptions, "width" | "height">;
 
 export const DEFAULT_CAVE_OPTIONS: CaveOptions = {
   width: 96,
   height: 56,
-  fillChance: 0.45,
-  smoothSteps: 5,
-  wallBirth: 5,
-  wallSurvive: 4,
-  openDist: 3,
-  minRoomTiles: 12,
-  roomGrow: 3,
-  maxRooms: 9,
-  minRooms: 3,
+  ...CAVE.base,
 };
 
 const WALL = 1;
@@ -78,6 +76,8 @@ export function generateCave(rng: Rng, options: CaveOptions = DEFAULT_CAVE_OPTIO
   const grid = randomFill(rng, options);
   for (let i = 0; i < options.smoothSteps; i++) grid.cells = smooth(grid, options);
   keepLargestRegion(grid);
+  // 床に隣接する壁だけを削るので、連結は保たれる
+  for (let i = 0; i < options.widen; i++) grid.cells = widenPassages(grid);
 
   const dist = wallDistance(grid);
   const regions = openRegions(grid, dist, options);
@@ -154,6 +154,26 @@ function floodFill(g: Grid, start: number, offsets: Offsets, pass: (i: number) =
     }
   }
   return out;
+}
+
+/**
+ * 両側を壁に挟まれた床（幅 1 の通路）の片側の壁を削る。縦に挟まれていれば下、横なら右を削る
+ * （どちらを削るかを乱数にしないのは、乱数消費を変えずに既存の洞窟の形を保つため）
+ */
+function widenPassages(g: Grid): Uint8Array {
+  const next = g.cells.slice();
+  const wallAt = (x: number, y: number): boolean => g.cells[y * g.w + x] === WALL;
+  const carve = (x: number, y: number): void => {
+    if (!isBorder(g, x, y)) next[y * g.w + x] = FLOOR;
+  };
+  for (let y = 1; y < g.h - 1; y++) {
+    for (let x = 1; x < g.w - 1; x++) {
+      if (wallAt(x, y)) continue;
+      if (wallAt(x, y - 1) && wallAt(x, y + 1)) carve(x, y + 1);
+      if (wallAt(x - 1, y) && wallAt(x + 1, y)) carve(x + 1, y);
+    }
+  }
+  return next;
 }
 
 /** 4 近傍で最大の床連結成分だけ残し、他は壁で埋める */

@@ -56,3 +56,15 @@ describe("怯みゲージ", () => {
     expect(poiseGaugeVisible(e)).toBe(false);
   });
 });
+
+describe("状態異常の世代表示（synergy-web 2-b）", () => {
+  it("直接当てたものは inherited でなく、延焼・引き継ぎ（source env）は inherited", () => {
+    const state = arena();
+    const direct = placeEnemy(state, "golem", 40);
+    const spread = placeEnemy(state, "golem", -40);
+    applyStatus(state, { kind: "enemy", enemy: direct }, { kind: "burn", stacks: 1, duration: 3, potency: 2 }, "player");
+    applyStatus(state, { kind: "enemy", enemy: spread }, { kind: "burn", stacks: 1, duration: 3, potency: 2 }, "env");
+    expect(statusIcons(direct.status)[0]?.inherited, "直接").toBe(false);
+    expect(statusIcons(spread.status)[0]?.inherited, "移ってきた").toBe(true);
+  });
+});

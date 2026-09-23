@@ -90,6 +90,17 @@ import {
 import { type RunSetup, defaultRunSetup } from "./system/runSetup";
 import { saveCraft } from "./loot/craftingStore";
 import { TRAIT_COLORS } from "./loot/types";
+import { recordCodex } from "./meta/codex";
+import { loadCodex, saveCodex } from "./meta/codexStore";
+import { carriedQuest, codexPages, isQuestKey, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
+import { loadQuests, saveQuests } from "./meta/questStore";
+import { currentTitleLabel, evaluateAchievements, loadAchievements, saveAchievements, selectTitle } from "./meta/achievements";
+import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
+import { type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
+import { drawListScreen } from "./render/codexUi";
+import { drawQuestChoice } from "./render/questUi";
+import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
+import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
 
 const canvasEl = document.getElementById("game");
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
@@ -112,7 +123,22 @@ function deathConfirmPressed(frame: FrameInput, deathTimer: number): boolean {
   return frame.confirmPressed;
 }
 
-type Screen = "title" | "origin" | "playing" | "paused" | "history" | "settings" | "keybinds" | "replay";
+type Screen =
+  | "title"
+  | "origin"
+  | "questChoice"
+  | "codex"
+  | "questBoard"
+  | "achievements"
+  | "playing"
+  | "paused"
+  | "history"
+  | "settings"
+  | "keybinds"
+  | "replay";
+
+/** タイトルのメニューから開く一覧画面 */
+type ListScreenKind = "codex" | "questBoard" | "achievements";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
 const NO_REPLAY_MESSAGE = "このランのリプレイは保存されていません";
@@ -140,10 +166,19 @@ const profile: Profile = loadProfile();
 // スキル石も別キーで永続。刻印符（修飾子）はラン内なので createGame が毎回空で作る
 const skillProfile = loadSkillProfile();
 const settings: Settings = loadSettings();
+// メタ進行（図鑑・依頼・実績）。ラン終了時に endRun が 1 回だけ畳んで保存する（step の中では触れない）
+const codexSave = loadCodex();
+const questSave = loadQuests();
+const achievementSave = loadAchievements();
 
 function startGame(seedText: string): GameState {
   syncSeedUrl(seedText);
   return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup);
+}
+
+/** ラン開始時に依頼の除外遺物を確定させる（記録器と createGame が同じ集合を見る） */
+function withLockedRelics(setup: RunSetup): RunSetup {
+  return { ...setup, lockedRelics: lockedRelicKeys(questSave) };
 }
 
 const input = new PlayerInput();
@@ -235,13 +270,13 @@ let replay: ReplayPlayback | null = null;
 
 /** 直近に選んだ起点と縛り。リスタート・同じシードでの再挑戦にも使う */
 let runSetup: RunSetup = defaultRunSetup();
-let originUi: OriginScreen = createOriginScreen(runSetup);
+let originUi: OriginScreen = createOriginScreen(runSetup, lockedOrigins(questSave));
 /** 起点画面を抜けたら始めるシード */
 let pendingSeedText = "";
 
 function openOrigin(seedText: string, frameMoveX: number, frameMoveY: number): void {
   pendingSeedText = seedText;
-  originUi = createOriginScreen(runSetup);
+  originUi = createOriginScreen(runSetup, lockedOrigins(questSave));
   screen = "origin";
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
@@ -276,7 +311,7 @@ function updateOriginScreen(frame: FrameInput, escape: boolean, arrowX: number, 
   sfx.play("uiClick");
   if (result !== "start") return;
   runSetup = originSetup(originUi);
-  beginRun(pendingSeedText);
+  openQuestChoice(frame.move.x, frame.move.y);
 }
 
 /** 鍛冶場・交換所で得た残響を、装備画面が持つ保存データへ移して保存する（step の中では保存しない） */
@@ -292,6 +327,7 @@ function drainEchoes(s: GameState): void {
 }
 
 function beginRun(seedText: string): void {
+  runSetup = withLockedRelics(runSetup);
   runStartedAt = Date.now();
   recorder = new ReplayRecorder(
     { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup },
@@ -300,6 +336,9 @@ function beginRun(seedText: string): void {
   );
   loadoutDirty = false;
   state = startGame(seedText);
+  // 受けた依頼（やり直し・同じシードでの再挑戦は起点画面を通らないので、保存の active を引き継ぐ）
+  state.questRun.key = isQuestKey(questSave.active) ? questSave.active : null;
+  deathMetaLines = [];
   committedSeedText = seedText;
   seedInput.text = seedText;
   bossesDefeated = 0;
@@ -317,10 +356,127 @@ function endRun(current: GameState): void {
   const now = Date.now();
   pushRunHistory(current.profile, buildHistoryEntry(current, now));
   saveProfile(current.profile);
+  deathMetaLines = recordMeta(current, now);
   if (recorder) {
     replays = pushReplay(recorder.finish({ depth: current.depth, kills: current.kills, score: current.score }, now));
     recorder = null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// メタ進行（依頼の 3 択・図鑑・依頼の一覧・実績。src/meta/）
+// ---------------------------------------------------------------------------
+
+/** 死亡画面に出す、ラン終了時の依頼・図鑑・実績の結果 */
+let deathMetaLines: string[] = [];
+let questChoiceUi: QuestChoiceScreen = createQuestChoice([]);
+let listUi: ListScreen = createListScreen();
+/** 一覧画面のタブ（開いたときと決定のたびに作り直す） */
+let listTabs: ListTab[] = [];
+
+/** ラン 1 回ぶんを図鑑・依頼・実績へ畳んで保存する。戻り値は死亡画面の行 */
+function recordMeta(s: GameState, now: number): string[] {
+  const discovered = recordCodex(s, codexSave);
+  saveCodex(codexSave);
+  const outcome = recordQuest(s, questSave, now);
+  saveQuests(questSave);
+  const unlocked = evaluateAchievements({ codex: codexSave, quests: questSave, meta: s.profile.meta }, achievementSave, now);
+  saveAchievements(achievementSave);
+  return metaSummaryLines(outcome, discovered, unlocked);
+}
+
+function openQuestChoice(frameMoveX: number, frameMoveY: number): void {
+  questChoiceUi = createQuestChoice(pickQuestOffers(questSave, hashSeed(pendingSeedText)), carriedQuest(questSave));
+  screen = "questChoice";
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateQuestChoice(frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    openOrigin(pendingSeedText, frame.move.x, frame.move.y);
+    return;
+  }
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  const hovered = aim ? questChoiceItemAt(questChoiceUi, aim.x, aim.y) : null;
+  if (aimMoved && hovered !== null && hovered !== questChoiceUi.cursor) {
+    questChoiceUi.cursor = hovered;
+    sfx.play("menuMove");
+  }
+  menuAimPrev = aim;
+  const navX = arrowX !== 0 ? arrowX : edgeDir(menuNav.prevX, frame.move.x);
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  if (moveQuestChoice(questChoiceUi, navX, navY)) sfx.play("menuMove");
+  const clicked = frame.clickPressed && hovered !== null;
+  if (clicked && hovered !== null) questChoiceUi.cursor = hovered;
+  if (!frame.confirmPressed && !clicked) return;
+  sfx.play("uiClick");
+  questSave.active = chosenQuest(questChoiceUi);
+  saveQuests(questSave);
+  beginRun(pendingSeedText);
+}
+
+function listTabsFor(kind: ListScreenKind): ListTab[] {
+  if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave));
+  if (kind === "questBoard") return questBoardTabs(questSave);
+  return achievementTabs(achievementSave, questSave);
+}
+
+const TITLE_MENU_SCREEN: Readonly<Record<TitleMenuItem, ListScreenKind>> = {
+  codex: "codex",
+  quests: "questBoard",
+  achievements: "achievements",
+};
+
+const LIST_SCREEN_TITLE: Readonly<Record<ListScreenKind, string>> = {
+  codex: "図鑑",
+  questBoard: "依頼",
+  achievements: "実績",
+};
+
+const LIST_SCREEN_HINT: Readonly<Record<ListScreenKind, string>> = {
+  codex: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える）",
+  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（依頼はラン開始時に 3 択から 1 つ受ける）",
+  achievements: "←→ タブ　↑↓ / ホイール 選ぶ　Enter / クリック 称号を名乗る　Esc 戻る",
+};
+
+function openListScreen(item: TitleMenuItem, frameMoveX: number, frameMoveY: number): void {
+  const next = TITLE_MENU_SCREEN[item];
+  screen = next;
+  listUi = createListScreen();
+  listTabs = listTabsFor(next);
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    screen = "title";
+    return;
+  }
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  menuAimPrev = aim;
+  const navX = arrowX !== 0 ? arrowX : edgeDir(menuNav.prevX, frame.move.x);
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  const input = { navX, navY, wheel: frame.wheel, aim, aimMoved, click: frame.clickPressed, confirm: frame.confirmPressed };
+  const action = stepListScreen(listUi, listTabs, input, listRowGap(textLineHeight(TEXT.SMALL)));
+  if (action === "moved" || action === "tab") sfx.play("menuMove");
+  if (action !== "activate" || kind !== "achievements" || listUi.tab !== ACHIEVEMENT_TITLE_TAB) return;
+  const entry = listCursorEntry(listUi, listTabs);
+  if (!entry || !selectTitle(achievementSave, questSave, titleIdOfEntry(entry.key))) return;
+  saveAchievements(achievementSave);
+  listTabs = listTabsFor(kind);
+  sfx.play("uiClick");
 }
 
 /** 記録器を通して step する。記録中でなければそのまま */
@@ -462,6 +618,12 @@ function drawKeybindsOverlay(ctx: CanvasRenderingContext2D): void {
   );
 }
 
+/** タイトルに出す称号と、マウスが乗っているメニュー項目 */
+function titleMetaView(): { title: string | null; hovered: TitleMenuItem | null } {
+  const aim = lastAim;
+  return { title: currentTitleLabel(achievementSave, questSave), hovered: aim ? titleMenuItemAt(aim.x, aim.y) : null };
+}
+
 function drainSfx(s: GameState | null = state): void {
   if (!s) return;
   const names = s.sfx.splice(0);
@@ -560,6 +722,13 @@ startLoop(
           enterMenu("settings", frame.move.x, frame.move.y);
           break;
         }
+        const clickedMenu = frame.clickPressed && frame.aimScreen ? titleMenuItemAt(frame.aimScreen.x, frame.aimScreen.y) : null;
+        const menuItem = titleMenuHotkey(hotkeys) ?? clickedMenu;
+        if (menuItem) {
+          sfx.play("uiClick");
+          openListScreen(menuItem, frame.move.x, frame.move.y);
+          break;
+        }
         if (frame.confirmPressed || frame.clickPressed) {
           sfx.play("uiClick");
           openOrigin(committedSeedText, frame.move.x, frame.move.y);
@@ -569,6 +738,18 @@ startLoop(
 
       case "origin": {
         updateOriginScreen(frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
+        break;
+      }
+
+      case "questChoice": {
+        updateQuestChoice(frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
+        break;
+      }
+
+      case "codex":
+      case "questBoard":
+      case "achievements": {
+        updateListScreenFrame(screen, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
         break;
       }
 
@@ -905,7 +1086,23 @@ startLoop(
     updateCursorVisibility(state);
 
     if (screen === "title") {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
+      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "questChoice") {
+      drawQuestChoice(ctx, questChoiceUi, questSave, titleTime);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "codex" || screen === "questBoard" || screen === "achievements") {
+      drawListScreen(ctx, {
+        title: LIST_SCREEN_TITLE[screen],
+        tabs: listTabs,
+        ui: listUi,
+        rowGap: listRowGap(textLineHeight(TEXT.SMALL)),
+        hint: LIST_SCREEN_HINT[screen],
+      });
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -929,7 +1126,7 @@ startLoop(
       return;
     }
     if ((screen === "settings" || screen === "keybinds") && returnScreen === "title") {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
+      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
       if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
       else drawKeybindsOverlay(ctx);
       drawGamepadConnectedHint(ctx);
@@ -956,7 +1153,7 @@ startLoop(
 
     const cur = state;
     if (!cur) {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
+      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -966,7 +1163,7 @@ startLoop(
     drawSkillHud(ctx, cur);
     if (!inventoryUi.open) drawBudUi(ctx, cur);
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
-    if (screen === "paused") drawPauseMenu(ctx, pauseCursor);
+    if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
     if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
     if (screen === "keybinds") drawKeybindsOverlay(ctx);
     if (cur.status === "dead" && cur.deathTimer > DEATH_INPUT_DELAY) {
@@ -974,6 +1171,7 @@ startLoop(
         itemSummary: summarizeRunItems(foundItems(cur.profile), runStartedAt),
         bestCombo: cur.combo.best,
         bossesDefeated,
+        metaLines: deathMetaLines,
       });
     }
     drawGamepadConnectedHint(ctx);

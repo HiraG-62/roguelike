@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import { PLAYER, STATUS } from "../data/tuning";
+import { HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import type { TriggeredEffect } from "../loot/types";
-import { armorReduction, damageEnemy, damagePlayer } from "./combat";
+import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, tickHpRegen } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
 import { applyStats, dashTime, meleeStep } from "./player";
@@ -164,13 +164,14 @@ describe("トリガー", () => {
       trigger: "onMeleeHit",
       condition: "always",
       effect: "heal",
-      magnitude: 5,
+      // 戦闘中の回復の上限（最大 HP の HEAL.sustainCapRatio / 秒）に掛からない量
+      magnitude: 3,
       chance: 1,
     };
     state.stats = { ...state.stats, triggers: [healOnMeleeHit] };
     state.player.hp = 50;
     fireTrigger(state, "onMeleeHit", ctx);
-    expect(state.player.hp).toBe(55);
+    expect(state.player.hp).toBe(53);
   });
 });
 
@@ -343,24 +344,113 @@ describe("ks_bladeOath", () => {
   });
 });
 
-describe("life on hit", () => {
-  it("射撃のヒットでも回復する（gun スロットに付くアフィックスが無効にならない）", () => {
+describe("回復の設計（与ダメの % 回復・共通上限・条件付き撃破回復・非戦闘時の自然回復）", () => {
+  /** 共通上限の窓（1 秒）ぶんの上限量 */
+  const capOf = (state: ReturnType<typeof arena>): number => state.player.maxHp * HEAL.sustainCapRatio;
+
+  it("射撃のヒットでも回復する（gun スロットに付く性質が無効にならない）", () => {
     const state = arena(5, { lifeOnHit: 3 });
     state.player.hp = 50;
     placeEnemy(state, "boar", 20);
     for (let i = 0; i < 10; i++) step(state, withInput({ shootHeld: i === 0 }), FIXED_DT);
-    expect(state.player.hp).toBe(53);
+    expect(state.player.hp, "射撃の命中で回復する").toBeGreaterThan(50);
   });
 
-  it("0.1 秒間に回復できる合計は lifeOnHit x3 が上限（多段ヒットの回復し放題を防ぐ）", () => {
+  it("lifeOnHit は与ダメージの % を回復する", () => {
     const state = arena(5, { lifeOnHit: 3 });
     state.player.hp = 50;
     const e = placeEnemy(state, "boar", 14);
     e.hp = 100000;
-    for (let i = 0; i < 9; i++) {
-      damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "ranged" });
-    }
-    expect(state.player.hp).toBe(50 + 3 * PLAYER.lifeOnHitCapMul);
+    damageEnemy(state, e, 100, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    expect(state.player.hp, "与ダメ 100 の 3% = 3 回復").toBeCloseTo(53);
+  });
+
+  it("戦闘中の回復は 1 秒あたり最大 HP の HEAL.sustainCapRatio が上限（多段ヒットで回復し放題にしない）", () => {
+    const state = arena(5, { lifeOnHit: 10 });
+    state.player.hp = 50;
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = 100000;
+    for (let i = 0; i < 9; i++) damageEnemy(state, e, 100, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    expect(state.player.hp, "9 ヒットしても上限までしか戻らない").toBeCloseTo(50 + capOf(state));
+  });
+
+  it("上限の窓が明けると再び回復できる", () => {
+    const state = arena(5, { lifeOnHit: 10 });
+    state.player.hp = 50;
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = 100000;
+    damageEnemy(state, e, 100, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    const afterFirst = state.player.hp;
+    state.player.lifeOnHitWindow.timer = 0;
+    damageEnemy(state, e, 100, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    expect(state.player.hp, "窓が明けた後の命中で上限ぶん戻る").toBeCloseTo(afterFirst + capOf(state));
+  });
+
+  it("healSustained は命中時回復と上限を共有する（祝福の撃破回復も同じ窓）", () => {
+    const state = arena(5, { lifeOnHit: 10 });
+    state.player.hp = 50;
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = 100000;
+    damageEnemy(state, e, 100, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    const healed = healSustained(state, 10);
+    expect(healed, "命中時回復で上限を使い切った後は戻らない").toBe(0);
+  });
+
+  it("撃破時HP回復はコンボ HEAL.killHealMinCombo 未満では発動しない", () => {
+    const state = arena(5, { lifeOnKill: 3 });
+    state.player.hp = 50;
+    const e = placeEnemy(state, "slime", 14);
+    state.combo.count = 0;
+    damageEnemy(state, e, e.hp, { x: 1, y: 0 }, 0);
+    expect(e.hp, "倒している").toBeLessThanOrEqual(0);
+    expect(state.player.hp, "コンボが足りないので回復しない").toBe(50);
+  });
+
+  it("撃破時HP回復はコンボ HEAL.killHealMinCombo 以上で発動する", () => {
+    const state = arena(5, { lifeOnKill: 3 });
+    state.player.hp = 50;
+    const e = placeEnemy(state, "slime", 14);
+    state.combo.count = HEAL.killHealMinCombo;
+    damageEnemy(state, e, e.hp, { x: 1, y: 0 }, 0);
+    expect(state.player.hp, "コンボが足りているので回復する").toBeCloseTo(53);
+  });
+
+  it("HP自然回復は近くに生きた敵がいる間は止まる", () => {
+    const state = arena(5, { hpRegen: 2 });
+    state.player.hp = 50;
+    placeEnemy(state, "boar", MANA.combatRadius - 10);
+    expect(hpRegenAllowed(state), "敵が近い").toBe(false);
+    tickHpRegen(state, 1);
+    expect(state.player.hp, "敵が近いので回復しない").toBe(50);
+  });
+
+  it("HP自然回復は近くに敵がいなければ働く（遠くの敵・倒れた敵は数えない）", () => {
+    const state = arena(5, { hpRegen: 2 });
+    state.player.hp = 50;
+    placeEnemy(state, "boar", MANA.combatRadius + 40);
+    const dead = placeEnemy(state, "boar", 10);
+    dead.hp = 0;
+    expect(hpRegenAllowed(state), "近くに生きた敵がいない").toBe(true);
+    tickHpRegen(state, 1);
+    expect(state.player.hp, "毎秒 2 回復する").toBeCloseTo(52);
+  });
+
+  it("封鎖中の部屋があればHP自然回復しない（マナの自然回復と同じ戦闘判定）", () => {
+    const state = arena(5, { hpRegen: 2 });
+    state.player.hp = 50;
+    const room = state.rooms[0];
+    if (room === undefined) throw new Error("部屋が無い");
+    room.locked = true;
+    expect(inCombat(state), "封鎖中は戦闘中").toBe(true);
+    tickHpRegen(state, 1);
+    expect(state.player.hp, "封鎖中は回復しない").toBe(50);
+  });
+
+  it("狂戦士・吸血の誓約では敵がいなくてもHP自然回復しない", () => {
+    const state = arena(5, { hpRegen: 2, keystones: [KS.berserker] });
+    state.player.hp = 50;
+    tickHpRegen(state, 1);
+    expect(state.player.hp, "誓約で自然回復が止まる").toBe(50);
   });
 });
 

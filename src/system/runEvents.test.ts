@@ -20,7 +20,7 @@ import {
 } from "./runEvents";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
-import { placeEnemy, withInput } from "./testHelpers";
+import { engageStartRoom, placeEnemy, withInput } from "./testHelpers";
 
 const IDLE = withInput({});
 const DEPTH = 5;
@@ -35,6 +35,8 @@ function setup(seed = 7, depth = DEPTH): { state: GameState; room: RoomState; in
   const index = state.rooms.findIndex((r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0);
   const room = state.rooms[index];
   if (!room) throw new Error("room missing");
+  // 開放型フロアでは通常の部屋は封鎖しないので、封鎖する種類（伏兵）にしておく
+  room.kind = "ambush";
   state.player.invulnTimer = 1e9;
   return { state, room, index };
 }
@@ -349,6 +351,16 @@ describe("縛りの効果", () => {
     expect(quick).toBeGreaterThanOrEqual(Math.floor(base * (1 - RUN_MOD.quickHandsCut)) - 1);
   });
 
+  it("部屋の砂時計: 封鎖しない部屋でも交戦中なら時計が動き、交戦していなければ止まる", () => {
+    const state = createGame(7, "7", undefined, undefined, { origin: "wanderer", modifiers: ["hourglass"] });
+    quiet(state);
+    state.enemies = [];
+    for (const r of state.rooms) r.locked = false;
+    expect(hourglassLeft(state), "交戦前").toBeNull();
+    engageStartRoom(state);
+    expect(hourglassLeft(state), "開放型の交戦中").not.toBeNull();
+  });
+
   it("部屋の砂時計: 封鎖が長引くと増援が来る", () => {
     const state = createGame(7, "7", undefined, undefined, { origin: "wanderer", modifiers: ["hourglass"] });
     state.depth = DEPTH;
@@ -357,6 +369,7 @@ describe("縛りの効果", () => {
     const index = state.rooms.findIndex((r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0);
     const room = state.rooms[index];
     if (!room) throw new Error("room missing");
+    room.kind = "ambush";
     state.player.invulnTimer = 1e9;
     lock(state, room);
     thin(state, index, 2);

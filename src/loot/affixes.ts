@@ -1,5 +1,5 @@
 import type { StatusKind, StatusProc } from "../core/status";
-import { KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
+import { HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
 import {
   ATTR_KEYS,
@@ -432,7 +432,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "hpRegen",
-    label: "HP自然回復 +{v}/秒",
+    // 近くに敵がいる間は止まる（system/combat.ts の hpRegenAllowed）
+    label: "HP自然回復 +{v}/秒（敵が近くにいない間）",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
     curve: [t(28, 2.9, 4), t(20, 1.9, 2.8), t(12, 1.1, 1.8), t(6, 0.6, 1), t(1, 0.2, 0.5)],
@@ -443,17 +444,21 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "lifeOnHit",
-    label: "命中時HP回復 +{v}",
+    // 値は与ダメージに対する %（memo 2026-09-24 で固定値から変更。旧セーブは migrate.ts が換算）。
+    // 戦闘中の回復の共通上限（tuning の HEAL.sustainCapRatio）を受ける
+    label: "与ダメの {v}% を回復",
     tags: ["life"],
     slots: ATTACK_SLOTS,
-    curve: [t(26, 4, 5), t(16, 3, 3), t(8, 2, 2), t(1, 1, 1)],
+    curve: [t(26, 6, 8), t(16, 4.5, 6), t(8, 3, 4), t(1, 2, 3)],
+    decimals: 1,
     apply: (s, v) => {
       s.lifeOnHit += v;
     },
   }),
   trait({
     key: "lifeOnKill",
-    label: "撃破時HP回復 +{v}",
+    // コンボ HEAL.killHealMinCombo 以上の撃破だけ回復する（system/combat.ts の applyLifeOnKill）
+    label: `撃破時HP回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
     tags: ["life"],
     slots: ["weapon", "gun", "armor", "ring", "amulet"],
     curve: [t(25, 11, 15), t(15, 7, 10), t(7, 4, 6), t(1, 1, 3)],
@@ -870,7 +875,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "vampiricRush",
-    label: "命中時HP回復 +{v}、攻撃速度 +{v2}%",
+    label: "与ダメの {v}% を回復、攻撃速度 +{v2}%",
     tags: ["life", "speed"],
     slots: ATTACK_SLOTS,
     curve: [t2(24, 4, 5, 9, 12), t2(12, 2, 3, 6, 8), t2(1, 1, 1, 3, 5)],
@@ -915,7 +920,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "gildedFang",
-    label: "会心倍率 +{v}%、撃破時HP回復 +{v2}",
+    label: `会心倍率 +{v}%、撃破時HP回復 +{v2}（${HEAL.killHealMinCombo}コンボ以上）`,
     tags: ["critical", "life"],
     slots: JEWELRY_SLOTS,
     curve: [t2(22, 30, 42, 8, 11), t2(10, 18, 29, 5, 7), t2(1, 8, 17, 2, 4)],
@@ -949,7 +954,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "wardedSanctuary",
-    label: "封鎖された部屋で被弾時: {v2}秒間移動速度 +{v}%",
+    label: "交戦中の部屋で被弾時: {v2}秒間移動速度 +{v}%",
     tags: ["defense", "utility"],
     slots: ["armor", "boots"],
     curve: [t2(20, 22, 30, 1.5, 2), t2(8, 14, 21, 1, 1.4), t2(1, 8, 13, 0.6, 0.9)],
@@ -1628,7 +1633,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 部屋・死神 ----
   trait({
     key: "lockdownFury",
-    label: "封鎖の熱: 封鎖中の部屋で与ダメージ +{v}%、それ以外では -{v2}%",
+    label: "封鎖の熱: 交戦中の部屋で与ダメージ +{v}%、それ以外では -{v2}%",
     tags: ["damage", "tradeoff"],
     slots: ["weapon", "armor", "ring"],
     curve: [t2(24, 16, 20, 12, 15), t2(12, 12, 15, 10, 12), t2(1, 8, 10, 8, 10)],
@@ -1932,7 +1937,7 @@ const BURN_DPS_PER_MELEE_MUL = 10;
 const BURN_CHANCE_PER_FRACTION = 0.5;
 /** 失った max HP 1 あたりの armor（armor 10 ≒ 被ダメ -17%） */
 const ARMOR_PER_HP = 1 / 3;
-/** 移した life on hit 1 あたりの energy gain 倍率 */
+/** 移した life on hit（与ダメの % 1 ポイント）あたりの energy gain 倍率 */
 const ENERGY_PER_LIFE_ON_HIT = 0.15;
 /** 移した life on kill 1 あたりの energy gain 倍率 */
 const ENERGY_PER_LIFE_ON_KILL = 0.03;
@@ -2373,10 +2378,10 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_vampire",
     name: "吸血",
-    description: "命中時HP回復 +3。HP自然回復とハート回収が無効になり、最大HP -30%。",
+    description: `与ダメの ${KEYSTONE.vampireLeechPct}% を回復。HP自然回復とハート回収が無効になり、最大HP -30%。`,
     exclusiveGroup: "body",
     apply: (s) => {
-      s.lifeOnHit += 3;
+      s.lifeOnHit += KEYSTONE.vampireLeechPct;
       s.maxHp *= 0.7;
     },
   },
@@ -2556,7 +2561,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_backwater",
     name: "背水の誓い",
-    description: "封鎖中の部屋では回復が効かない代わりに与ダメージ +15%。部屋を制圧すると失ったHPの50%を取り戻す。",
+    description: "交戦中の部屋では回復が効かない代わりに与ダメージ +15%。部屋を制圧すると失ったHPの50%を取り戻す。",
     exclusiveGroup: "room",
     apply: (s) => {
       s.triggers.push({ trigger: "onRoomClear", condition: "always", effect: "healMissing", magnitude: KEYSTONE.backwaterClearHealPct, chance: 1 });
@@ -2922,8 +2927,9 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.bloodRing",
-    label: "撃破時HP回復 +{v}",
-    range: { min: 1, max: 3 },
+    label: `撃破時HP回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
+    // 1〜3 → 1〜2（memo 2026-09-24: 回復系を 30〜50% 下げる。implicit は FLUX の係数を受けないので手で下げる）
+    range: { min: 1, max: 2 },
     apply: (s, v) => {
       s.lifeOnKill += v;
     },
@@ -2948,8 +2954,9 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.amberAmulet",
-    label: "HP自然回復 +{v}/秒",
-    range: { min: 0.2, max: 0.5 },
+    label: "HP自然回復 +{v}/秒（敵が近くにいない間）",
+    // 0.2〜0.5 → 0.1〜0.3（同上）
+    range: { min: 0.1, max: 0.3 },
     decimals: 1,
     apply: (s, v) => {
       s.hpRegen += v;
@@ -3011,8 +3018,9 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.scythe",
-    label: "撃破時HP回復 +{v}、リーチ +15%、攻撃速度 -15%",
-    range: { min: 2, max: 4 },
+    label: `撃破時HP回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）、リーチ +15%、攻撃速度 -15%`,
+    // 2〜4 → 1〜3（同上）
+    range: { min: 1, max: 3 },
     apply: (s, v) => {
       s.lifeOnKill += v;
       s.meleeReachMul += pct(15);

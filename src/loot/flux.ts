@@ -39,6 +39,51 @@ export const WAVER_FLUX_LIMIT = 0.45;
 
 const NO_FLUX = 0;
 
+/**
+ * 装備の強さの一律係数（memo 2026-09-24: 序盤から装備が強すぎて 5 層くらいまでヌルゲー化する）。
+ * affixes.ts の期待値曲線（点列）は触らず、生成時の期待値にここで係数を掛ける（generator.ts の rollTableTrait /
+ * rollTriggerTrait）。共鳴・三和音の効果値（resonance.ts）は深度に依らないので globalScale だけを掛ける。
+ * - globalScale: 全深度に掛ける
+ * - depthScale: 深度ごとの追加の係数（点列を線形補間、範囲外は端の値）。浅い層ほど小さくし、深度 1〜5 の伸びを緩やかにする
+ */
+export const FLUX = {
+  globalScale: 0.8,
+  depthScale: [
+    { depth: 1, scale: 0.75 },
+    { depth: 5, scale: 0.85 },
+    { depth: 10, scale: 1 },
+  ],
+} as const;
+
+interface ScalePoint {
+  depth: number;
+  scale: number;
+}
+
+/** 深度ごとの追加係数（FLUX.depthScale の線形補間） */
+export function depthScaleAt(depth: number, points: readonly ScalePoint[] = FLUX.depthScale): number {
+  const first = points[0];
+  if (first === undefined) return 1;
+  if (depth <= first.depth) return first.scale;
+  for (let i = 1; i < points.length; i++) {
+    const lo = points[i - 1];
+    const hi = points[i];
+    if (lo === undefined || hi === undefined || depth > hi.depth) continue;
+    return lerp(lo.scale, hi.scale, (depth - lo.depth) / (hi.depth - lo.depth));
+  }
+  return points[points.length - 1]?.scale ?? 1;
+}
+
+/** 生成時の期待値に掛ける係数（globalScale × depthScale） */
+export function powerScaleAt(depth: number): number {
+  return FLUX.globalScale * depthScaleAt(depth);
+}
+
+/** 深度に依らない効果（共鳴・三和音）の値に globalScale を掛け、decimals 桁に丸める */
+export function scaleFlat(value: number, decimals = 0): number {
+  return roundTo(value * FLUX.globalScale, decimals);
+}
+
 export interface Nominal {
   nominal: number;
   nominal2?: number;
@@ -85,6 +130,19 @@ export function nominalAt(def: AffixDef, depth: number): Nominal {
   }
   const last = curve[curve.length - 1];
   return last === undefined ? { nominal: 0 } : pointNominal(last);
+}
+
+/**
+ * 生成に使う期待値: 曲線の期待値（nominalAt）× powerScaleAt。
+ * 変換の性質は「何割を移すか」で強さではないので係数を掛けない
+ */
+export function scaledNominalAt(def: AffixDef, depth: number, scaled = true): Nominal {
+  const raw = nominalAt(def, depth);
+  if (!scaled) return raw;
+  const k = powerScaleAt(depth);
+  const out: Nominal = { nominal: raw.nominal * k };
+  if (raw.nominal2 !== undefined) out.nominal2 = raw.nominal2 * k;
+  return out;
 }
 
 export function sigmaAt(depth: number, boost = 0): number {

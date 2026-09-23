@@ -1,17 +1,17 @@
-import { type GameState, type RoomKind, pushLog, pushSfx } from "../core/state";
-import { type Vec, fromAngle, length, normalize, sub } from "../core/vec";
+import { type GameState, type RoomKind, pushSfx } from "../core/state";
+import { type Vec, fromAngle } from "../core/vec";
 import { ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
-import { damagePlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
-import { circlesOverlap } from "./physics";
-import { boonReaperDelay, boonReaperHalted, boonReaperJust, onBoonReaperDodged } from "./boonRules";
+import { boonReaperDelay } from "./boonRules";
+import { initReaperVariant, reaperBodyVisible, tickReaper } from "./reaperVariants";
 import { hasMod } from "./runSetup";
 import { isPropRoom } from "./specialRooms";
 
 /**
  * 追跡者: 同じフロアに一定秒いると湧く、無敵で壁をすり抜ける死神。
- * 猶予秒数は REAPER.appearAfter に部屋数（treasure/shrine を除く）* REAPER.appearPerRoom を足したもの。
+ * 猶予秒数は REAPER.appearAfter に部屋数（treasure/shrine/台座の部屋を除く）* REAPER.appearPerRoom を足したもの。
+ * 洞窟では塊が部屋なので塊の数で数える（開放型でも探索すべき塊の数に比例させる）。
  * 階段を降りる（buildFloor で消える）まで追ってくる
  */
 
@@ -65,28 +65,20 @@ export function updateReaper(state: GameState, dt: number): void {
   }
   const r = state.reaper;
   r.animTime += dt;
-  const p = state.player.body;
-  const to = sub(p.pos, r.pos);
-  if (length(to) > 0 && !boonReaperHalted(state)) {
-    const dir = normalize(to);
-    r.pos.x += dir.x * reaperSpeed(state) * dt;
-    r.pos.y += dir.y * reaperSpeed(state) * dt;
-  }
-  if (state.tick % TRAIL_INTERVAL === 0) spawnBurst(state, r.pos, REAPER.color, 1, 20, 0.6, 2);
-  if (circlesOverlap(r.pos.x, r.pos.y, r.radius, p.pos.x, p.pos.y, p.radius)) {
-    // Reaper は無敵で常に接触するため、JUST 回避（スロー + ゲージ）を成立させない。無敵中は単に無視
-    const result = damagePlayer(state, REAPER.damage, r.pos, undefined, { noJust: !boonReaperJust(state) });
-    if (result === "dodged") onBoonReaperDodged(state);
-  }
+  // 動きと接触はバリアントごと（src/system/reaperVariants.ts。既定の死神は直進して触れると痛い）
+  tickReaper(state, r, reaperSpeed(state), dt);
+  if (reaperBodyVisible(r) && state.tick % TRAIL_INTERVAL === 0) spawnBurst(state, r.pos, REAPER.color, 1, 20, 0.6, 2);
 }
 
 /** 死神を呼ぶ（時間切れ・死神の巣の箱・死神の友） */
 export function spawnReaper(state: GameState): void {
   const pos = spawnPoint(state);
-  state.reaper = { pos, radius: REAPER.radius, animTime: 0 };
+  const reaper = { pos, radius: REAPER.radius, animTime: 0 };
+  state.reaper = reaper;
+  // バリアント（鎖・取り立て屋・双子・影・静か）を決め、種類をログで告げる
+  initReaperVariant(state, reaper);
   spawnBurst(state, pos, REAPER.color, SPAWN_PARTICLES, 120, 0.8, 2.5);
   addFloatingText(state, { x: state.player.body.pos.x, y: state.player.body.pos.y - 20 }, WARN_TEXT, REAPER.color, 1.5, 2);
-  pushLog(state, "長居しすぎた。死神が来る。", REAPER.color);
   shake(state, 4);
   pushSfx(state, "enemyWindup");
   pushSfx(state, "reaperAppear");

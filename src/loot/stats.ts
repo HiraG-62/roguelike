@@ -1,5 +1,7 @@
-import { MANA, STATUS } from "../data/tuning";
+import { HEAL, MANA, STATUS } from "../data/tuning";
+import { DEFAULT_MOVESET, DEFAULT_SHOT } from "../data/weapons";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
+import { baseDef } from "./bases";
 import { adjustForResonance, applyResonanceEffect, computeResonance, resonanceRules, type ResonanceRules } from "./resonance";
 import { gearContext, gearContextCleared, scaleByProvenance } from "./traitContext";
 import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
@@ -209,7 +211,16 @@ export function computeStats(equipment: Equipment): PlayerStats {
   // 装備全体の文脈は性質の適用の間だけ使う入力。畳み込み後は既定へ戻す（比較・表示に装備の数を紛れ込ませない）
   Object.assign(stats.traits, gearContextCleared());
   stats.resonance = resonance;
+  applyWeaponForms(stats, equipment);
   return finalize(stats);
+}
+
+/** 武器・銃のベースが決める武器種と射撃の型（src/data/weapons.ts）。空きスロットや型を持たないベースは既定 */
+function applyWeaponForms(stats: PlayerStats, equipment: Equipment): void {
+  const weapon = equipment.weapon;
+  const gun = equipment.gun;
+  stats.moveset = (weapon ? baseDef(weapon.baseKey)?.moveset : undefined) ?? DEFAULT_MOVESET;
+  stats.shot = (gun ? baseDef(gun.baseKey)?.shot : undefined) ?? DEFAULT_SHOT;
 }
 
 // ---------------------------------------------------------------------------
@@ -231,9 +242,10 @@ interface StatFormat {
 
 const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   maxHp: { label: "最大HP", style: "flat" },
-  hpRegen: { label: "HP自然回復", style: "flat" },
-  lifeOnHit: { label: "命中時HP回復", style: "flat" },
-  lifeOnKill: { label: "撃破時HP回復", style: "flat" },
+  hpRegen: { label: "HP自然回復（敵が近くにいない間）", style: "flat" },
+  // lifeOnHit は与ダメに対する %（値 3 = 3%）なので flat のまま単位をラベルで示す
+  lifeOnHit: { label: "与ダメからのHP回復(%)", style: "flat" },
+  lifeOnKill: { label: `撃破時HP回復（${HEAL.killHealMinCombo}コンボ以上）`, style: "flat" },
   armor: { label: "アーマー", style: "flat" },
   damageTakenMul: { label: "被ダメージ", style: "mul" },
   thorns: { label: "反射ダメージ", style: "flat" },

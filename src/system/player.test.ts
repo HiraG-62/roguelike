@@ -3,12 +3,24 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import type { StatusEffect } from "../core/status";
-import { MANA, PLAYER, STATUS, TRIGGER } from "../data/tuning";
+import { MANA, PLAYER, STATUS, TRIGGER, WEAPON } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
-import { burstDamage, dashCooldownTime, isPlayerStaggered, shotDamage } from "./player";
+import { MOVESETS, MOVESET_KEYS, meleeButton } from "../data/weapons";
+import type { FrameInput } from "../core/input";
+import {
+  type MeleeStep,
+  burstDamage,
+  dashCooldownTime,
+  hookCombo,
+  isPlayerStaggered,
+  meleeChargeLevel,
+  meleeContact,
+  meleeStep,
+  shotDamage,
+} from "./player";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
 /**
@@ -246,5 +258,319 @@ describe("トリガー効果の無敵の上限", () => {
     });
     fireTrigger(state, "onDash", { pos: { ...state.player.body.pos } });
     expect(state.player.buffs.invuln, "上限で切られる").toBeCloseTo(TRIGGER.invulnMax);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 武器種（src/data/weapons.ts）
+// ---------------------------------------------------------------------------
+
+/** 1 コンボを振り切るまでの上限ステップ */
+const COMBO_MAX_STEPS = 600;
+/** 近接を当て続けても倒れない・怯まない敵 */
+const TOUGH_HP = 99999;
+const TOUGH_POISE = 99999;
+/** 全武器種の全段に入る正面の距離 */
+const FRONT_DIST = 12;
+
+function tough(e: Enemy): Enemy {
+  passive(e);
+  e.hp = TOUGH_HP;
+  e.maxHp = TOUGH_HP;
+  e.poise.max = TOUGH_POISE;
+  return e;
+}
+
+/** 形の内側（正面）の点までの距離。形ごとの reach / size の意味に合わせる */
+function insideDistance(s: MeleeStep): number {
+  switch (s.shape.kind) {
+    case "box":
+    case "circle":
+      return s.reach;
+    case "arc":
+      return s.reach * 0.7;
+    case "thrust":
+      return s.reach * 0.8;
+  }
+}
+
+/** 近接の連撃ボタンを押す入力。右が近接の武器種（杖）は押した瞬間を作るため 1 フレームおきに押す */
+function meleePress(state: GameState, i: number): Partial<FrameInput> {
+  if (meleeButton(MOVESETS[state.stats.moveset]) === "secondary") return { shootHeld: i % 2 === 0 };
+  return { attackPressed: true };
+}
+
+/** 連撃ボタンを押し続けてコンボを最終段まで振り切る。敵は毎フレーム自分の正面 FRONT_DIST へ戻す（踏み込みで前に出るため） */
+function runCombo(state: GameState, e: Enemy): number {
+  const last = MOVESETS[state.stats.moveset].steps.length - 1;
+  let maxStep = 0;
+  for (let i = 0; i < COMBO_MAX_STEPS; i++) {
+    const p = state.player.body.pos;
+    e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
+    e.knock = { x: 0, y: 0 };
+    step(state, withInput(meleePress(state, i)), FIXED_DT);
+    maxStep = Math.max(maxStep, state.player.attack.step);
+    if (maxStep === last && state.player.attack.phase === "none") break;
+  }
+  return maxStep;
+}
+
+describe("武器種: 各段が当たる", () => {
+  for (const key of MOVESET_KEYS) {
+    it(`${MOVESETS[key].name}（${key}）: 押し続けると最終段まで振り、全段が正面の敵に当たる（多段ヒットは回数ぶん）`, () => {
+      const state = arena(5, { moveset: key });
+      const e = tough(placeEnemy(state, "boar", FRONT_DIST));
+      const maxStep = runCombo(state, e);
+      const steps = MOVESETS[key].steps;
+      const hits = steps.reduce((sum, s) => sum + (s.hits ?? 1), 0);
+      expect(maxStep, "最終段まで進んだ").toBe(steps.length - 1);
+      expect(state.player.attack.branch, "派生は出ていない").toBe(-1);
+      expect(state.player.meleeHitCount, "段ごとのヒット数の合計だけ当たった").toBe(hits);
+      expect(e.hp, "威力が入った").toBeLessThan(TOUGH_HP);
+    });
+
+    it(`${MOVESETS[key].name}（${key}）: 各段の形は正面に届き、真後ろの遠くには届かない`, () => {
+      const state = arena(5, { moveset: key });
+      const p = state.player;
+      p.attack.dir = { x: 1, y: 0 };
+      const steps = MOVESETS[key].steps.map((_, i) => meleeStep(state.stats, i));
+      for (const [i, s] of steps.entries()) {
+        if (!s) throw new Error(`${key} の ${i + 1} 段目が無い`);
+        const front = { x: p.body.pos.x + insideDistance(s), y: p.body.pos.y };
+        const behind = { x: p.body.pos.x - 60, y: p.body.pos.y };
+        expect(meleeContact(p, s, front, 4), `${i + 1} 段目が正面に届く`).not.toBe("none");
+        expect(meleeContact(p, s, behind, 4), `${i + 1} 段目は背後の遠くに届かない`).toBe("none");
+      }
+    });
+  }
+});
+
+describe("武器種: 形とリーチ", () => {
+  it("扇は角度の内側だけに当たる（大剣 150°）", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    const p = state.player;
+    p.attack.dir = { x: 1, y: 0 };
+    const s = meleeStep(state.stats, 0);
+    if (!s) throw new Error("段が無い");
+    const r = s.reach * 0.8;
+    const at = (deg: number) => ({ x: p.body.pos.x + Math.cos((deg * Math.PI) / 180) * r, y: p.body.pos.y + Math.sin((deg * Math.PI) / 180) * r });
+    expect(meleeContact(p, s, at(60), 1), "60° は扇の内側").toBe("hit");
+    expect(meleeContact(p, s, at(120), 1), "120° は扇の外側").toBe("none");
+  });
+
+  it("突きは細長い: 槍は剣より遠くに届き、横には届かない", () => {
+    const spear = arena(5, { moveset: "spear" });
+    const sword = arena(5, { moveset: "sword" });
+    for (const st of [spear, sword]) st.player.attack.dir = { x: 1, y: 0 };
+    const far = (st: GameState) => ({ x: st.player.body.pos.x + 40, y: st.player.body.pos.y });
+    const side = (st: GameState) => ({ x: st.player.body.pos.x + 10, y: st.player.body.pos.y + 14 });
+    const sp = meleeStep(spear.stats, 0);
+    const sw = meleeStep(sword.stats, 0);
+    if (!sp || !sw) throw new Error("段が無い");
+    expect(meleeContact(spear.player, sp, far(spear), 2), "槍は 40 先に届く").not.toBe("none");
+    expect(meleeContact(sword.player, sw, far(sword), 2), "剣は 40 先に届かない").toBe("none");
+    expect(meleeContact(spear.player, sp, side(spear), 2), "槍は横に届かない").toBe("none");
+    expect(meleeContact(sword.player, sw, side(sword), 2), "剣は横にも届く").toBe("hit");
+  });
+
+  it("槍の穂先で当てると怯み値が 2 倍", () => {
+    const poiseAt = (dist: number): number => {
+      const state = arena(5, { moveset: "spear" });
+      const e = tough(placeEnemy(state, "boar", dist));
+      for (let i = 0; i < 20; i++) step(state, withInput({ attackPressed: i === 0 }), FIXED_DT);
+      expect(state.player.meleeHitCount, `${dist} で当たった`).toBe(1);
+      return e.poise.damage;
+    };
+    const root = poiseAt(FRONT_DIST);
+    const tip = poiseAt(MOVESETS.spear.steps[0]!.reach - 2);
+    expect(tip, "穂先は根元の 2 倍").toBeCloseTo(root * (MOVESETS.spear.tip?.poiseMul ?? 0), 0);
+  });
+
+  it("鞭は根元だとマナが戻らない（先端だけ回収）", () => {
+    const manaAt = (dist: number): number => {
+      const state = arena(5, { moveset: "whip", manaRegen: 0 });
+      state.player.mana = 0;
+      tough(placeEnemy(state, "boar", dist));
+      for (let i = 0; i < 30; i++) step(state, withInput({ attackPressed: i === 0 }), FIXED_DT);
+      return state.player.mana;
+    };
+    expect(manaAt(FRONT_DIST), "根元ではマナ 0").toBe(0);
+    expect(manaAt(MOVESETS.whip.steps[0]!.reach - 2), "先端でマナが戻る").toBeGreaterThan(0);
+  });
+
+  it("大鎌は敵を手前へ引き寄せ、拳のダッシュ攻撃は背後へ投げる", () => {
+    const scythe = arena(5, { moveset: "scythe" });
+    const e1 = tough(placeEnemy(scythe, "boar", 20));
+    for (let i = 0; i < 30 && scythe.player.meleeHitCount === 0; i++) step(scythe, withInput({ attackPressed: i === 0 }), FIXED_DT);
+    expect(e1.knock.x, "大鎌: 自分の方（-x）へ飛ぶ").toBeLessThan(0);
+
+    const fists = arena(5, { moveset: "fists" });
+    const e2 = tough(placeEnemy(fists, "boar", FRONT_DIST));
+    fists.player.dashAttackQueued = true;
+    for (let i = 0; i < 30 && fists.player.meleeHitCount === 0; i++) step(fists, withInput({}), FIXED_DT);
+    expect(fists.player.dashStrike || fists.player.meleeHitCount > 0, "ダッシュ攻撃が出た").toBe(true);
+    expect(e2.knock.x, "拳の投げ: 背後（-x）へ飛ぶ").toBeLessThan(0);
+  });
+
+  it("双剣の 5 段は最終段だけが祝福の最終段（combo 2）になる", () => {
+    const twin = MOVESETS.twinBlades;
+    expect(hookCombo(twin, 0)).toBe(0);
+    expect(hookCombo(twin, 2), "途中の段は 1").toBe(1);
+    expect(hookCombo(twin, 3), "途中の段は 1").toBe(1);
+    expect(hookCombo(twin, 4), "最終段は 2").toBe(2);
+    expect(hookCombo(MOVESETS.sword, 2), "剣の 3 段目は従来どおり 2").toBe(2);
+  });
+});
+
+describe("武器種: 大剣の溜め", () => {
+  /** 攻撃キーを frames だけ押し続けてから離す */
+  function holdAndRelease(state: GameState, frames: number): void {
+    step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    for (let i = 1; i < frames; i++) step(state, withInput({ attackHeld: true }), FIXED_DT);
+    step(state, withInput({}), FIXED_DT);
+  }
+
+  it("押している間は振らず、溜めの段が時間で上がる", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    for (let i = 0; i < 30; i++) step(state, withInput({ attackHeld: true }), FIXED_DT);
+    expect(state.player.attack.phase, "溜め中は振らない").toBe("none");
+    expect(state.player.attack.charging, "溜めている").toBe(true);
+    expect(meleeChargeLevel(state), "0.5 秒で 1 段").toBe(1);
+    expect(state.sfx, "段が上がった音").toContain("chargeLevel");
+  });
+
+  it("段に届いて離すと溜め攻撃（最終段扱い）、届かず離すと通常の 1 段目", () => {
+    const charged = arena(5, { moveset: "greatsword" });
+    holdAndRelease(charged, 55);
+    expect(charged.player.attack.chargeLevel, "0.9 秒で 2 段").toBe(2);
+    expect(charged.player.attack.combo, "溜め攻撃は最終段として祝福に渡る").toBe(2);
+
+    const tap = arena(5, { moveset: "greatsword" });
+    step(tap, withInput({ attackPressed: true }), FIXED_DT);
+    expect(tap.player.attack.chargeLevel, "tap は溜めなし").toBe(0);
+    expect(tap.player.attack.phase, "tap はすぐ振る").toBe("windup");
+    expect(tap.player.attack.step).toBe(0);
+  });
+
+  it("溜めるほど威力・怯み値・リーチが伸びる", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    const tap = meleeStep(state.stats, 0);
+    const lv1 = meleeStep(state.stats, 0, false, 1);
+    const lv3 = meleeStep(state.stats, 0, false, 3);
+    if (!tap || !lv1 || !lv3) throw new Error("段が無い");
+    expect(lv3.damage).toBeGreaterThan(lv1.damage);
+    expect(lv1.damage).toBeGreaterThan(tap.damage);
+    expect(lv3.poise).toBeGreaterThan(lv1.poise);
+    expect(lv3.reach).toBeGreaterThan(lv1.reach);
+  });
+
+  it("溜め攻撃は正面の敵に当たり、tap より多く削る", () => {
+    const lossWith = (frames: number): number => {
+      const state = arena(5, { moveset: "greatsword" });
+      const e = tough(placeEnemy(state, "boar", 20));
+      if (frames > 0) holdAndRelease(state, frames);
+      else step(state, withInput({ attackPressed: true }), FIXED_DT);
+      for (let i = 0; i < 40; i++) step(state, withInput({}), FIXED_DT);
+      return TOUGH_HP - e.hp;
+    };
+    expect(lossWith(80), "3 段の溜め").toBeGreaterThan(lossWith(0));
+  });
+
+  it("ダッシュで溜めが消える", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    step(state, withInput({ attackHeld: true, dashPressed: true }), FIXED_DT);
+    expect(state.player.attack.charging, "ダッシュで溜めを捨てた").toBe(false);
+  });
+});
+
+describe("武器種: コンボ派生（左右の組み合わせ）", () => {
+  /** frames 列の各フレームの入力で進める */
+  function play(state: GameState, frames: readonly Partial<FrameInput>[]): void {
+    for (const f of frames) step(state, withInput(f), FIXED_DT);
+  }
+  const idle = (n: number): Partial<FrameInput>[] => Array.from({ length: n }, () => ({}));
+  const branchKey = (state: GameState): string | undefined =>
+    MOVESETS[state.stats.moveset].branches[state.player.attack.branch]?.key;
+
+  /** 派生が出るまで（最大 n フレーム）空の入力で進める */
+  function untilBranch(state: GameState, n = 60): void {
+    for (let i = 0; i < n && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
+  }
+
+  it("剣: 左・左・右で十字断ち（フィニッシュとして祝福に最終段を渡す）", () => {
+    const state = arena(5);
+    play(state, [{ attackPressed: true }, ...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
+    untilBranch(state);
+    expect(branchKey(state)).toBe("crossCut");
+    expect(state.player.attack.combo, "フィニッシュは combo 2").toBe(2);
+  });
+
+  it("剣: 右（射撃）のすぐ後の左で踏み込み斬りになり、前へ踏み込む", () => {
+    const state = arena(5);
+    const x0 = state.player.body.pos.x;
+    play(state, [{ shootHeld: true }, {}, { attackPressed: true }]);
+    expect(branchKey(state)).toBe("steppingCut");
+    play(state, idle(20));
+    expect(state.player.body.pos.x - x0, "踏み込んだ").toBeGreaterThan(10);
+  });
+
+  it("剣: 撃ってから入力の窓が切れた後の左は普通の 1 段目", () => {
+    const state = arena(5);
+    const windowSteps = Math.ceil(WEAPON.chainWindow / FIXED_DT) + 2;
+    play(state, [{ shootHeld: true }, ...idle(windowSteps), { attackPressed: true }]);
+    expect(state.player.attack.branch, "派生にならない").toBe(-1);
+    expect(state.player.attack.step).toBe(0);
+  });
+
+  it("大剣: 右クリックは射撃ではなく薙ぎ払い", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    play(state, [{ shootHeld: true }, { shootHeld: true }]);
+    expect(branchKey(state)).toBe("sweep");
+    expect(state.projectiles.filter((pr) => pr.owner === "player").length, "撃たない").toBe(0);
+  });
+
+  it("杖: 左で撃ち、右で杖打ち。撃ってから右で魔力撃", () => {
+    const state = arena(5, { moveset: "wand" });
+    play(state, [{ attackPressed: true, attackHeld: true }]);
+    expect(state.projectiles.filter((pr) => pr.owner === "player").length, "左で撃った").toBe(1);
+    expect(state.player.attack.phase, "左では振らない").toBe("none");
+    play(state, [{ shootHeld: true }]);
+    untilBranch(state);
+    expect(branchKey(state)).toBe("arcaneStrike");
+
+    const melee = arena(5, { moveset: "wand" });
+    play(melee, [{ shootHeld: true }]);
+    expect(melee.player.attack.phase, "右だけなら杖打ちの 1 段目").toBe("windup");
+    expect(melee.player.attack.branch).toBe(-1);
+  });
+
+  it("続く派生（踏み込み斬り）の後は指定の段から連撃が続く", () => {
+    const state = arena(5);
+    play(state, [{ shootHeld: true }, {}, { attackPressed: true }, ...idle(5), { attackPressed: true }]);
+    for (let i = 0; i < 60 && state.player.attack.branch >= 0; i++) step(state, withInput({}), FIXED_DT);
+    expect(state.player.attack.step, "2 段目へ続いた").toBe(MOVESETS.sword.branches.find((b) => b.key === "steppingCut")?.next);
+  });
+});
+
+describe("武器種: 手触り（ヒットストップ・揺れ・残像）", () => {
+  it("鉈の命中で画面が揺れ、振りの残像の線が出る", () => {
+    const state = arena(5, { moveset: "cleaver" });
+    tough(placeEnemy(state, "boar", FRONT_DIST));
+    for (let i = 0; i < 20 && state.player.meleeHitCount === 0; i++) step(state, withInput({ attackPressed: i === 0 }), FIXED_DT);
+    expect(state.player.meleeHitCount).toBe(1);
+    expect(state.camera.shake, "揺れた").toBeGreaterThan(0);
+    expect(state.shapes.some((s) => s.kind === "line"), "残像の線").toBe(true);
+  });
+
+  it("1 振りで多段ヒットする段は同じ敵に hits 回当たる", () => {
+    const state = arena(5, { moveset: "fists" });
+    const e = tough(placeEnemy(state, "boar", FRONT_DIST));
+    const multi = meleeStep(state.stats, 3);
+    if (!multi) throw new Error("段が無い");
+    expect(multi.hits, "拳の 4 段目は 3 回").toBe(3);
+    runCombo(state, e);
+    expect(state.player.meleeHitCount).toBe(MOVESETS.fists.steps.reduce((sum, s) => sum + (s.hits ?? 1), 0));
   });
 });

@@ -3,7 +3,7 @@ import type { GameState } from "../core/state";
 import { TRIGGER } from "../data/tuning";
 import type { TriggeredEffect } from "../loot/types";
 import { applyStatus, findStatus, hasStatus } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
 import { conditionMet, fireTrigger, inflictApply } from "./triggers";
 
 /** トリガー文法の発火（2026-09 追加の条件と効果）の検査 */
@@ -17,6 +17,13 @@ function withTrigger(effect: Omit<TriggeredEffect, "chance">): GameState {
 }
 
 describe("条件", () => {
+  it("roomLocked（交戦中）: 封鎖しない部屋の交戦でも真、交戦していなければ偽", () => {
+    const state = withTrigger({ trigger: "onHurt", condition: "roomLocked", effect: "speedBuff", magnitude: 10, duration: 1 });
+    expect(conditionMet(state, "roomLocked", { pos: state.player.body.pos }), "交戦前").toBe(false);
+    engageStartRoom(state);
+    expect(conditionMet(state, "roomLocked", { pos: state.player.body.pos }), "交戦中").toBe(true);
+  });
+
   it("対象を見る条件: 予備動作中・堅守中・状態異常 2 種以上・エリート", () => {
     const state = arena();
     const e = placeEnemy(state, "slime", FAR);

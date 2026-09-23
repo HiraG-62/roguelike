@@ -1,3 +1,4 @@
+import type { MovesetKey, ShotKey } from "../data/weapons";
 import type { Slot } from "./types";
 
 /**
@@ -14,32 +15,43 @@ export interface BaseItemDef {
   implicitKey?: string;
   /** 余白の上乗せ（襤褸）。器の容量（generator.ts の VESSEL_CAPACITY）は超えない */
   marginBonus?: number;
+  /** 武器ベースの武器種（src/data/weapons.ts）。武器なしは剣 */
+  moveset?: MovesetKey;
+  /** 銃ベースの射撃の型。銃なしは単発 */
+  shot?: ShotKey;
 }
 
 export const BASES: readonly BaseItemDef[] = [
   // weapon: ダメージ / 速度 / リーチのトレードオフ
-  { key: "dagger", name: "短剣", slot: "weapon", minLevel: 1, implicitKey: "implicit.dagger" },
-  { key: "shortsword", name: "小剣", slot: "weapon", minLevel: 1, implicitKey: "implicit.shortsword" },
-  { key: "longsword", name: "長剣", slot: "weapon", minLevel: 5, implicitKey: "implicit.longsword" },
-  { key: "spear", name: "槍", slot: "weapon", minLevel: 7, implicitKey: "implicit.spear" },
-  { key: "greatsword", name: "大剣", slot: "weapon", minLevel: 10, implicitKey: "implicit.greatsword" },
-  { key: "twinblades", name: "双剣", slot: "weapon", minLevel: 6, implicitKey: "implicit.twinblades" },
-  { key: "warpick", name: "戦鎚", slot: "weapon", minLevel: 13, implicitKey: "implicit.warpick" },
-  { key: "machete", name: "鉈", slot: "weapon", minLevel: 3, implicitKey: "implicit.machete" },
-  { key: "rapier", name: "刺突剣", slot: "weapon", minLevel: 5, implicitKey: "implicit.rapier" },
-  { key: "staff", name: "棍", slot: "weapon", minLevel: 4, implicitKey: "implicit.staff" },
-  { key: "scythe", name: "大鎌", slot: "weapon", minLevel: 11, implicitKey: "implicit.scythe" },
+  { key: "dagger", name: "短剣", slot: "weapon", minLevel: 1, implicitKey: "implicit.dagger", moveset: "sword" },
+  { key: "shortsword", name: "小剣", slot: "weapon", minLevel: 1, implicitKey: "implicit.shortsword", moveset: "sword" },
+  { key: "longsword", name: "長剣", slot: "weapon", minLevel: 5, implicitKey: "implicit.longsword", moveset: "sword" },
+  { key: "spear", name: "槍", slot: "weapon", minLevel: 7, implicitKey: "implicit.spear", moveset: "spear" },
+  { key: "greatsword", name: "大剣", slot: "weapon", minLevel: 10, implicitKey: "implicit.greatsword", moveset: "greatsword" },
+  { key: "twinblades", name: "双剣", slot: "weapon", minLevel: 6, implicitKey: "implicit.twinblades", moveset: "twinBlades" },
+  { key: "warpick", name: "戦鎚", slot: "weapon", minLevel: 13, implicitKey: "implicit.warpick", moveset: "cleaver" },
+  { key: "machete", name: "鉈", slot: "weapon", minLevel: 3, implicitKey: "implicit.machete", moveset: "cleaver" },
+  { key: "rapier", name: "刺突剣", slot: "weapon", minLevel: 5, implicitKey: "implicit.rapier", moveset: "spear" },
+  { key: "staff", name: "棍", slot: "weapon", minLevel: 4, implicitKey: "implicit.staff", moveset: "staff" },
+  { key: "scythe", name: "大鎌", slot: "weapon", minLevel: 11, implicitKey: "implicit.scythe", moveset: "scythe" },
+  // 武器種の器（implicit なし。型そのものが個性）
+  { key: "gauntlets", name: "手甲", slot: "weapon", minLevel: 3, moveset: "fists" },
+  { key: "whip", name: "鞭", slot: "weapon", minLevel: 6, moveset: "whip" },
+  { key: "wand", name: "杖", slot: "weapon", minLevel: 5, moveset: "wand" },
 
   // gun: 連射 / 弾数 / 貫通
-  { key: "pistol", name: "拳銃", slot: "gun", minLevel: 1, implicitKey: "implicit.pistol" },
-  { key: "smg", name: "短機関銃", slot: "gun", minLevel: 4, implicitKey: "implicit.smg" },
-  { key: "rifle", name: "小銃", slot: "gun", minLevel: 8, implicitKey: "implicit.rifle" },
-  { key: "shotgun", name: "散弾銃", slot: "gun", minLevel: 12, implicitKey: "implicit.shotgun" },
-  { key: "revolver", name: "回転式拳銃", slot: "gun", minLevel: 7, implicitKey: "implicit.revolver" },
-  { key: "railgun", name: "電磁砲", slot: "gun", minLevel: 16, implicitKey: "implicit.railgun" },
-  { key: "throwingKnives", name: "投げ短剣", slot: "gun", minLevel: 2, implicitKey: "implicit.throwingKnives" },
-  { key: "blowgun", name: "吹き矢", slot: "gun", minLevel: 6, implicitKey: "implicit.blowgun" },
-  { key: "matchlock", name: "火縄銃", slot: "gun", minLevel: 9, implicitKey: "implicit.matchlock" },
+  { key: "pistol", name: "拳銃", slot: "gun", minLevel: 1, implicitKey: "implicit.pistol", shot: "single" },
+  { key: "smg", name: "短機関銃", slot: "gun", minLevel: 4, implicitKey: "implicit.smg", shot: "rapid" },
+  { key: "rifle", name: "小銃", slot: "gun", minLevel: 8, implicitKey: "implicit.rifle", shot: "pierce" },
+  { key: "shotgun", name: "散弾銃", slot: "gun", minLevel: 12, implicitKey: "implicit.shotgun", shot: "spread" },
+  { key: "revolver", name: "回転式拳銃", slot: "gun", minLevel: 7, implicitKey: "implicit.revolver", shot: "single" },
+  { key: "railgun", name: "電磁砲", slot: "gun", minLevel: 16, implicitKey: "implicit.railgun", shot: "pierce" },
+  { key: "throwingKnives", name: "投げ短剣", slot: "gun", minLevel: 2, implicitKey: "implicit.throwingKnives", shot: "rapid" },
+  { key: "blowgun", name: "吹き矢", slot: "gun", minLevel: 6, implicitKey: "implicit.blowgun", shot: "homing" },
+  { key: "matchlock", name: "火縄銃", slot: "gun", minLevel: 9, implicitKey: "implicit.matchlock", shot: "charge" },
+  // 射撃の型の器（implicit なし）
+  { key: "ricochetGun", name: "跳ね銃", slot: "gun", minLevel: 5, shot: "ricochet" },
+  { key: "mineLauncher", name: "置き撃ち筒", slot: "gun", minLevel: 10, shot: "mine" },
 
   // armor: HP / armor
   { key: "cloth", name: "布の服", slot: "armor", minLevel: 1, implicitKey: "implicit.cloth" },

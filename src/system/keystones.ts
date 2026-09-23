@@ -1,6 +1,7 @@
 import type { GameState, Player } from "../core/state";
 import type { PlayerStats } from "../loot/types";
 import { KEYSTONE, PLAYER } from "../data/tuning";
+import { isEngaged } from "./engagement";
 
 /**
  * キーストーン判定ヘルパー。key は src/loot/affixes.ts の KEYSTONES と揃える。
@@ -107,9 +108,9 @@ export function regenAllowed(state: GameState): boolean {
   return !hasKeystone(state, KS.berserker) && !hasKeystone(state, KS.vampire);
 }
 
-/** 回復量の倍率。狂戦士は半減、背水の誓いは封鎖中の部屋で 0（制圧時の回復は部屋が開いた後に入る） */
+/** 回復量の倍率。狂戦士は半減、背水の誓いは交戦中の部屋で 0（制圧時の回復は部屋が開いた後に入る） */
 export function healMul(state: GameState): number {
-  if (hasKeystone(state, KS.backwater) && state.rooms.some((r) => r.locked)) return 0;
+  if (hasKeystone(state, KS.backwater) && isEngaged(state)) return 0;
   return hasKeystone(state, KS.berserker) ? KEYSTONE.berserkerHealMul : 1;
 }
 

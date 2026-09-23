@@ -18,6 +18,7 @@ export const ACTION_NAMES = [
   "skill2",
   "skill3",
   "skill4",
+  "interact",
 ] as const;
 export type ActionName = (typeof ACTION_NAMES)[number];
 
@@ -44,6 +45,7 @@ export const REBINDABLE_ACTIONS = [
   "skill2",
   "skill3",
   "skill4",
+  "interact",
   "restart",
 ] as const satisfies readonly ActionName[];
 export type RebindableAction = (typeof REBINDABLE_ACTIONS)[number];
@@ -75,6 +77,8 @@ export const DEFAULT_KEYBINDS: Readonly<Keybinds> = {
   skill2: ["Digit2", "KeyV", "Mouse4"],
   skill3: ["Digit3", "KeyX"],
   skill4: ["Digit4", "KeyZ"],
+  // 床の遺物・スキル石を拾う。WASD の右隣で、移動しながら左手で押せる
+  interact: ["KeyG"],
 };
 
 /**
@@ -300,6 +304,8 @@ export interface FrameInput {
   aimScreen: Vec | null;
   dashPressed: boolean;
   attackPressed: boolean;
+  /** 攻撃キーの押しっぱなし（大剣の溜め攻撃。src/data/weapons.ts） */
+  attackHeld: boolean;
   shootHeld: boolean;
   specialPressed: boolean;
   confirmPressed: boolean;
@@ -321,6 +327,8 @@ export interface FrameInput {
   skill4Pressed: boolean;
   skill3Held: boolean;
   skill4Held: boolean;
+  /** カーソル（パッドは照準スティックの先）で注目した床の遺物・スキル石を拾う。system/loot.ts */
+  interactPressed: boolean;
   /** 今フレームのホイール移動量（正 = 下）。UI のスクロール用 */
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
@@ -333,6 +341,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   aimScreen: null,
   dashPressed: false,
   attackPressed: false,
+  attackHeld: false,
   shootHeld: false,
   specialPressed: false,
   confirmPressed: false,
@@ -347,6 +356,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   skill4Pressed: false,
   skill3Held: false,
   skill4Held: false,
+  interactPressed: false,
   wheel: 0,
   clickPressed: false,
   shiftHeld: false,
@@ -495,6 +505,7 @@ export class PlayerInput {
       aimScreen,
       dashPressed: this.wasPressed("dash") || pad.dashPressed,
       attackPressed: this.wasPressed("attack") || pad.attackPressed,
+      attackHeld: this.isDown("attack") || pad.attackHeld,
       shootHeld: this.isDown("shoot") || pad.shootHeld,
       specialPressed: this.wasPressed("special") || pad.specialPressed,
       confirmPressed: this.wasPressed("confirm") || pad.confirmPressed,
@@ -509,6 +520,7 @@ export class PlayerInput {
       skill4Pressed: this.wasPressed("skill4") || pad.skill4Pressed,
       skill3Held: this.isDown("skill3") || pad.skill3Held,
       skill4Held: this.isDown("skill4") || pad.skill4Held,
+      interactPressed: this.wasPressed("interact") || pad.interactPressed,
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has(UI_CLICK_CODE),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),

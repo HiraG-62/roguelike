@@ -293,10 +293,10 @@ describe("記録 → 再生", () => {
     expect(() => createReplaySession({ ...data, frameCount: 11 })).toThrow();
   });
 
-  it("起点と縛りを記録し、再生でも同じ条件でランが始まる（REPLAY_VERSION 5）", () => {
+  it("起点と縛りを記録し、再生でも同じ条件でランが始まる（REPLAY_VERSION 5 以降）", () => {
     const setup: RunSetup = { origin: "cursedOne", modifiers: ["thickHide", "quickHands", "eternalNight"] };
     const { data, state } = recordRun("origin-replay", createEmptyProfile(), randomInputs(11, 1500), undefined, setup);
-    expect(data.version).toBe(5);
+    expect(data.version).toBe(REPLAY_VERSION);
     expect(data.origin).toBe("cursedOne");
     expect(data.modifiers).toEqual(["thickHide", "quickHands", "eternalNight"]);
     const replayed = playBack(data);

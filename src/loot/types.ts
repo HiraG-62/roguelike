@@ -1,6 +1,7 @@
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
 import { ATTR, MANA } from "../data/tuning";
+import type { MovesetKey, ShotKey } from "../data/weapons";
 
 /**
  * 装備システム（響き・揺らぎ・来歴）の共有型。docs/LOOT_DESIGN.md を参照。
@@ -274,8 +275,11 @@ export function uniformAttributes(value: number): Attributes {
  */
 export interface PlayerStats {
   maxHp: number;
+  /** 毎秒の回復。近くに敵がいる間は止まる（system/combat.ts の hpRegenAllowed） */
   hpRegen: number;
+  /** 与ダメージに対する回復の %（3 = 3%）。戦闘中の回復の共通上限（HEAL.sustainCapRatio）を受ける */
   lifeOnHit: number;
+  /** 撃破時の回復量。コンボ HEAL.killHealMinCombo 以上でだけ発動し、共通上限を受ける */
   lifeOnKill: number;
   armor: number;
   damageTakenMul: number;
@@ -357,6 +361,9 @@ export interface PlayerStats {
   statusProcs: StatusProc[];
   /** 性質のルール変更（docs/ideas/loot-expansion.md）。戦闘側は system/traitHooks.ts が読む */
   traits: TraitStats;
+  /** 武器種（武器スロットのベースが決める。src/data/weapons.ts） / 射撃の型（銃スロットのベース） */
+  moveset: MovesetKey;
+  shot: ShotKey;
 }
 
 /**
@@ -690,4 +697,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   bulletCut: 0,
   statusProcs: [],
   traits: DEFAULT_TRAIT_STATS,
+  moveset: "sword",
+  shot: "single",
 };

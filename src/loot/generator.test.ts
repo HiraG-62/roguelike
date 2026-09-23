@@ -3,7 +3,7 @@ import { createRng } from "../core/rng";
 import { affixDef, implicitDef, isConversionKey, isKeystoneKey, keystoneDef } from "./affixes";
 import { baseDef } from "./bases";
 import { COLOR_ADJECTIVE, traitColorOf } from "./colors";
-import { INVERSION_MIN_DEPTH, fluxClassOf } from "./flux";
+import { INVERSION_MIN_DEPTH, fluxClassOf, powerScaleAt } from "./flux";
 import {
   MAX_FOUND_TRAITS,
   MAX_MARGIN,
@@ -311,8 +311,9 @@ describe("名のある遺物の定義", () => {
     const affixes = rollUniqueAffixes(createRng(7), def, def.minLevel);
     expect(affixes.map((r) => r.key)).toEqual(["manaDrought", "manaCostPct"]);
     const stats = computeStats({ ...createEmptyEquipment(), ring: { ...driedWellItem(), affixes } });
-    // 値は揺らぐので方向だけを見る（期待値は深度 10 で 最大マナ −31 / 撃破でマナ +10 / コスト −15%）
-    expect(affixes[0]?.nominal2 ?? 0, "最大マナの期待値は −30 前後").toBeGreaterThanOrEqual(28);
+    // 値は揺らぐので方向だけを見る（曲線の期待値は深度 10 で 最大マナ −31 / 撃破でマナ +10 / コスト −15%。
+    // 生成時に装備の強さの係数 powerScaleAt を掛ける）
+    expect(affixes[0]?.nominal2 ?? 0, "最大マナの期待値は −30 × 係数 前後").toBeGreaterThanOrEqual(28 * powerScaleAt(def.minLevel));
     expect(stats.maxMana, "最大マナが基礎より減る").toBeLessThan(DEFAULT_STATS.maxMana);
     expect(stats.manaOnKill, "撃破でマナが増える").toBeGreaterThan(0);
     expect(stats.manaCostMul, "スキルのコストが下がる").toBeLessThan(1);

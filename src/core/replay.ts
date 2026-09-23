@@ -26,13 +26,14 @@ import { SKILL_PROFILE_KEY, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
 import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
-import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeRunSetup } from "../system/runSetup";
+import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeLockedRelics, sanitizeRunSetup } from "../system/runSetup";
 
 /**
  * 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った。
  * 5: 起点とラン修飾子（縛り）を記録する（ラン開始の条件が変わり、分岐路・バイオームで生成も変わった）
+ * 6: 武器種とコンボ派生・attackHeld・GCD 廃止・開放型マップ・回復の再設計（同じ入力列でも進行が変わる）
  */
-export const REPLAY_VERSION = 5;
+export const REPLAY_VERSION = 6;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -80,6 +81,8 @@ export interface ReplayData {
   origin?: OriginKey;
   /** ラン修飾子（REPLAY_VERSION 5 から。無ければ縛りなし） */
   modifiers?: RunModKey[];
+  /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
+  lockedRelics?: string[];
   snapshot: ReplayLoadout;
   events: ReplayEvent[];
   /** エンコード済みの入力列 */
@@ -127,7 +130,9 @@ type ButtonKey =
   | "skill3Pressed"
   | "skill4Pressed"
   | "skill3Held"
-  | "skill4Held";
+  | "skill4Held"
+  | "attackHeld"
+  | "interactPressed";
 
 /** ビット順。末尾に追加するのは可、並べ替えは不可（過去のリプレイが壊れる） */
 const BUTTON_BITS: readonly ButtonKey[] = [
@@ -152,6 +157,10 @@ const BUTTON_BITS: readonly ButtonKey[] = [
   "skill4Pressed",
   "skill3Held",
   "skill4Held",
+  // 攻撃キーの押しっぱなし（大剣の溜め）。末尾に足したので旧リプレイは 0 として読める
+  "attackHeld",
+  // 床の遺物・スキル石を拾う。末尾に足したので旧リプレイは 0（押していない）として読める
+  "interactPressed",
 ];
 
 /** 照準を 1px 単位に量子化する。-0 は 0 に寄せる */
@@ -479,6 +488,7 @@ export class ReplayRecorder {
       daily: this.options.daily,
       origin: (this.options.setup ?? defaultRunSetup()).origin,
       modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
+      ...lockedRelicsField(this.options.setup?.lockedRelics),
       snapshot: structuredClone(this.snapshot),
       events: structuredClone(this.events),
       inputs: this.encoder.toString(),
@@ -525,7 +535,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
     throw new Error(`replay: frame count mismatch (${inputs.length} vs ${data.frameCount})`);
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
-  const setup = sanitizeRunSetup(data.origin, data.modifiers);
+  const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
   const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
@@ -725,6 +735,11 @@ function sanitizeEvent(v: unknown): ReplayEvent | null {
  * 保存データを検証して ReplayData にする。壊れていれば null。
  * version が現行と違っても構造が正しければ一覧に残すため null にはしない（再生可否は isPlayable で見る）
  */
+/** 除外遺物があるときだけ書く（旧データ・依頼を持たないランの形を変えない） */
+function lockedRelicsField(keys: readonly string[] | undefined): Pick<ReplayData, "lockedRelics"> {
+  return keys !== undefined && keys.length > 0 ? { lockedRelics: [...keys] } : {};
+}
+
 export function sanitizeReplay(v: unknown): ReplayData | null {
   if (!isRecord(v) || !isFiniteNumber(v.version)) return null;
   const { seedText, startedAt, endedAt, daily, inputs, frameCount, result } = v;
@@ -750,6 +765,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     daily: daily === true,
     origin: setup.origin,
     modifiers: setup.modifiers,
+    ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     snapshot,
     events,
     inputs,

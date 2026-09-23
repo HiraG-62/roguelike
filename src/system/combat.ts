@@ -1,11 +1,12 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
-import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
+import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, HEAL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
-import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones";
+import { roomInCombat } from "./engagement";
+import { KS, berserkerMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
 import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playerStatusTakenMul } from "./statusEffects";
@@ -40,6 +41,8 @@ const HEAVY_PARTICLES = 10;
 const LIGHT_PARTICLES = 5;
 const SHATTER_TEXT = "砕き";
 const SHATTER_PARTICLES = 12;
+/** lifeOnHit は「与ダメの %」 */
+const PERCENT = 100;
 
 export interface HitOptions {
   /** 最終の怯み値（poiseDamageMul 込み）。0 / 未指定は怯み値なし */
@@ -163,7 +166,7 @@ export function damageEnemy(
   if (kind === "ranged") pushSfx(state, "bulletHit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
-    applyLifeOnHit(state);
+    applyLifeOnHit(state, amount);
     applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
     onTraitHit(state, enemy, kind);
   }
@@ -227,7 +230,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   shake(state, FEEL.shakeHeavy);
   pushSfx(state, "kill");
 
-  if (state.stats.lifeOnKill > 0) healPlayer(state, state.stats.lifeOnKill);
+  applyLifeOnKill(state);
   gainMana(state, MANA.onKill + state.stats.manaOnKill);
   if (counted) rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
@@ -236,13 +239,16 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   onBoonKill(state, enemy);
   onTraitKill(state, enemy);
   if (counted) recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
-  if (isLastKillInLockedRoom(state, enemy)) lastKillFx(state, enemy);
+  if (isLastKillInEngagedRoom(state, enemy)) lastKillFx(state, enemy);
 }
 
-/** ロック中の部屋で、この敵が最後の 1 体か（challenge は最終波のみ） */
-export function isLastKillInLockedRoom(state: GameState, enemy: Enemy): boolean {
+/**
+ * 交戦中（封鎖中・開放型の交戦中）の部屋で、この敵が最後の 1 体か（challenge は最終波のみ）。
+ * 倒した瞬間は hp <= 0 なので「生きた敵が残る」ではなく部屋の交戦状態（roomInCombat）で見る
+ */
+export function isLastKillInEngagedRoom(state: GameState, enemy: Enemy): boolean {
   const room = state.rooms[enemy.roomIndex];
-  if (!room?.locked) return false;
+  if (!room || !roomInCombat(room)) return false;
   if (room.kind === "challenge" && room.wave < ROOM_KIND.challengeWaves) return false;
   return !state.enemies.some((e) => e !== enemy && e.hp > 0 && e.roomIndex === enemy.roomIndex);
 }
@@ -293,23 +299,69 @@ export function tickRegain(state: GameState, dt: number): void {
 }
 
 /**
- * lifeOnHit の回復。ヒット 1 回あたりは stats.lifeOnHit のままだが、
- * 高速多段ヒット（弾の同時ヒットなど）で回復し放題にならないよう
- * PLAYER.lifeOnHitWindow 秒間の合計を lifeOnHit × lifeOnHitCapMul に制限する
+ * 命中時の回復: 与ダメージ（dealt）の stats.lifeOnHit %。
+ * 多段ヒットで回復し放題にならないよう、戦闘中の回復の共通上限（healSustained）を通す
  */
-function applyLifeOnHit(state: GameState): void {
-  const amount = state.stats.lifeOnHit;
-  if (amount <= 0) return;
-  const w = state.player.lifeOnHitWindow;
+function applyLifeOnHit(state: GameState, dealt: number): void {
+  const pct = state.stats.lifeOnHit;
+  if (pct <= 0 || dealt <= 0) return;
+  healSustained(state, (dealt * pct) / PERCENT, { silent: true });
+}
+
+/** 撃破時の回復: コンボが HEAL.killHealMinCombo 以上のときだけ（雑に 1 体倒すだけでは戻らない） */
+function applyLifeOnKill(state: GameState): void {
+  const amount = state.stats.lifeOnKill;
+  if (amount <= 0 || state.combo.count < HEAL.killHealMinCombo) return;
+  healSustained(state, amount);
+}
+
+/**
+ * 戦闘中の回復（命中時・撃破時・祝福の撃破回復など）。HEAL.sustainWindow 秒ごとに
+ * 最大 HP の HEAL.sustainCapRatio までしか戻らない。窓の残り時間は player.ts の tickTimers が進める
+ * （state の lifeOnHitWindow を共通の窓として使う）。実際に回復した量を返す
+ */
+export function healSustained(state: GameState, amount: number, opts: HealOptions = {}): number {
+  if (amount <= 0 || state.status !== "playing") return 0;
+  const p = state.player;
+  const w = p.lifeOnHitWindow;
   if (w.timer <= 0) {
-    w.timer = PLAYER.lifeOnHitWindow;
+    w.timer = HEAL.sustainWindow;
     w.healed = 0;
   }
-  const cap = amount * PLAYER.lifeOnHitCapMul;
+  const cap = p.maxHp * HEAL.sustainCapRatio;
   const actual = Math.min(amount, Math.max(0, cap - w.healed));
-  if (actual <= 0) return;
+  if (actual <= 0) return 0;
   w.healed += actual;
-  healPlayer(state, actual, { silent: true });
+  return healPlayer(state, actual, opts);
+}
+
+/** 生きた敵（と死神）が radius 内にいるか。HP 自然回復を止める判定 */
+export function enemyNearPlayer(state: GameState, radius: number): boolean {
+  const pos = state.player.body.pos;
+  const r2 = radius * radius;
+  const near = (x: number, y: number): boolean => (x - pos.x) ** 2 + (y - pos.y) ** 2 <= r2;
+  if (state.reaper && near(state.reaper.pos.x, state.reaper.pos.y)) return true;
+  return state.enemies.some((e) => e.hp > 0 && near(e.body.pos.x, e.body.pos.y));
+}
+
+/**
+ * 戦闘中か: 封鎖中の部屋がある、または MANA.combatRadius 内に生きた敵（死神を含む）がいる。
+ * マナの自然回復（mana.ts の tickMana）と同じ判定。開放型マップでは封鎖がほぼ無いので距離で見る
+ */
+export function inCombat(state: GameState): boolean {
+  return state.rooms.some((r) => r.locked) || enemyNearPlayer(state, MANA.combatRadius);
+}
+
+/** HP 自然回復が働くか: 誓約で禁じられておらず、戦闘中でない */
+export function hpRegenAllowed(state: GameState): boolean {
+  return regenAllowed(state) && !inCombat(state);
+}
+
+/** HP 自然回復を 1 ステップ進める（player.ts の tickTimers から呼ぶ） */
+export function tickHpRegen(state: GameState, dt: number): void {
+  const regen = state.stats.hpRegen;
+  if (regen <= 0 || !hpRegenAllowed(state)) return;
+  healPlayer(state, regen * dt, { silent: true });
 }
 
 export type PlayerHitResult = "hit" | "dodged" | "ignored";

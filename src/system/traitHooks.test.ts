@@ -128,7 +128,8 @@ describe("怯み値の性質", () => {
 
 describe("怯ませた瞬間・撃破・カウンター", () => {
   it("汲み上げ・怯み吸い: 敵を怯ませるとマナと HP、onStagger のトリガーと来歴", () => {
-    const state = withTraits({ manaOnStagger: 7, healOnStagger: 5 });
+    // 怯み吸いの回復は戦闘中の回復の上限（最大 HP の HEAL.sustainCapRatio / 秒）に掛からない量
+    const state = withTraits({ manaOnStagger: 7, healOnStagger: 3 });
     state.player.mana = 0;
     state.player.hp = 50;
     state.stats.triggers.push({ trigger: "onStagger", condition: "always", effect: "energy", magnitude: 9, chance: 1 });
@@ -137,7 +138,7 @@ describe("怯ませた瞬間・撃破・カウンター", () => {
     const energy = state.player.energy;
     damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", poise: e.poise.max * 10 });
     expect(state.player.mana).toBeCloseTo(7 * state.stats.manaGainMul);
-    expect(state.player.hp).toBeCloseTo(55);
+    expect(state.player.hp).toBeCloseTo(53);
     expect(state.player.energy).toBeGreaterThan(energy);
   });
 

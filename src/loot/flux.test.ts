@@ -3,14 +3,19 @@ import { createRng } from "../core/rng";
 import { affixDef } from "./affixes";
 import {
   CALM_FLUX_LIMIT,
+  FLUX,
   INVERSION_MIN_DEPTH,
   MIN_FLUX,
   SIGMA_MAX,
   WAVER_FLUX_LIMIT,
   fluxClassOf,
   inversionChance,
+  depthScaleAt,
   nominalAt,
+  powerScaleAt,
   rollFlux,
+  scaleFlat,
+  scaledNominalAt,
   sigmaAt,
   triangular,
   valueFromFlux,
@@ -81,5 +86,49 @@ describe("揺らぎ", () => {
     expect(fluxClassOf([{ key: "a", value: 1, flux: CALM_FLUX_LIMIT }])).toBe("magic");
     expect(fluxClassOf([{ key: "a", value: 1, flux: -WAVER_FLUX_LIMIT }])).toBe("rare");
     expect(fluxClassOf([{ key: "a", value: -1, flux: -1.5, inverted: true }])).toBe("unique");
+  });
+});
+
+describe("装備の強さの係数（FLUX.globalScale × depthScale）", () => {
+  const def = affixDef("meleeDamagePct");
+  if (def === undefined) throw new Error("meleeDamagePct missing");
+
+  it("全体を 20〜30% 下げる（globalScale）", () => {
+    expect(FLUX.globalScale).toBeGreaterThanOrEqual(0.7);
+    expect(FLUX.globalScale).toBeLessThanOrEqual(0.8);
+  });
+
+  it("深度 1〜5 は深い層より強く絞られ、深くなるほど係数が戻る（単調）", () => {
+    let prev = 0;
+    for (let d = 1; d <= 20; d++) {
+      const k = powerScaleAt(d);
+      expect(k, `深度 ${d} は前の深度以上`).toBeGreaterThanOrEqual(prev);
+      prev = k;
+    }
+    expect(powerScaleAt(1), "深度 1 は深度 10 より小さい").toBeLessThan(powerScaleAt(10));
+    expect(powerScaleAt(30), "深い層は globalScale").toBeCloseTo(FLUX.globalScale);
+  });
+
+  it("depthScaleAt は点列を線形補間し、範囲外は端の値", () => {
+    const points = [
+      { depth: 1, scale: 0.5 },
+      { depth: 5, scale: 1 },
+    ];
+    expect(depthScaleAt(0, points)).toBe(0.5);
+    expect(depthScaleAt(3, points)).toBeCloseTo(0.75);
+    expect(depthScaleAt(9, points)).toBe(1);
+    expect(depthScaleAt(3, []), "空の点列は 1").toBe(1);
+  });
+
+  it("scaledNominalAt は曲線の期待値に係数を掛ける（曲線そのものは変えない）", () => {
+    for (const d of [1, 4, 13, 26]) {
+      expect(scaledNominalAt(def, d).nominal, `深度 ${d}`).toBeCloseTo(nominalAt(def, d).nominal * powerScaleAt(d));
+    }
+    expect(scaledNominalAt(def, 4, false).nominal, "scaled=false は素の期待値").toBeCloseTo(nominalAt(def, 4).nominal);
+  });
+
+  it("scaleFlat は globalScale を掛けて丸める（共鳴・三和音用）", () => {
+    expect(scaleFlat(10)).toBe(Math.round(10 * FLUX.globalScale));
+    expect(scaleFlat(0.05, 4)).toBeCloseTo(0.05 * FLUX.globalScale);
   });
 });

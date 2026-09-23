@@ -34,13 +34,11 @@ function stairsTile(state: GameState): number {
 }
 
 describe("ボス階", () => {
-  it("depth 3, 6, 9, 12 がボス階で、スライム王 → 骸骨卿 → 双子の騎士 → 霜の巨人 の順に回る", () => {
+  it("depth 3 の倍数がボス階で、8 体（スライム王 → 骸骨卿 → 双子の騎士 → 霜の巨人 → 油壺の王 → 群れの母 → 図書館の司書 → 鏡の騎士）が回る", () => {
     expect([1, 2, 3, 4, 5, 6, 9].map(isBossDepth)).toEqual([false, false, true, false, false, true, true]);
-    expect(bossKeyForDepth(3)).toBe("kingSlime");
-    expect(bossKeyForDepth(6)).toBe("boneLord");
-    expect(bossKeyForDepth(9)).toBe("twinBrother");
-    expect(bossKeyForDepth(12)).toBe("frostGiant");
-    expect(bossKeyForDepth(15)).toBe("kingSlime");
+    const order = ["kingSlime", "boneLord", "twinBrother", "frostGiant", "oilKing", "broodMother", "librarian", "mirrorKnight"];
+    order.forEach((key, i) => expect(bossKeyForDepth((i + 1) * 3), `深度 ${(i + 1) * 3}`).toBe(key));
+    expect(bossKeyForDepth(27), "8 体で 1 周して戻る").toBe("kingSlime");
   });
 
   it("generator の lastRoomMin で最後の部屋が大きくなる", () => {

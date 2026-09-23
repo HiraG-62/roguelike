@@ -56,7 +56,7 @@ import {
 import { damageEnemy, registerComboHit } from "./combat";
 import { reaperAppearAfter } from "./reaper";
 import { applyBurn, applyStatus, findStatus, hasStatus, removeStatus, statusStacks } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
 
 const BIG_HP = 100000;
 const LAST = PLAYER.melee.length - 1;
@@ -1031,6 +1031,16 @@ describe("結び祝福", () => {
     expect(boonWindupMul(state, e)).toBe(1);
     room.locked = true;
     expect(boonWindupMul(state, e)).toBeCloseTo(BOON.winterNestMul);
+  });
+
+  it("冬籠り: 封鎖しない部屋でも交戦中ならその部屋の敵が伸びる。徘徊の敵は伸びない", () => {
+    const state = arena();
+    give(state, "frostLock", "clearShield", "winterNest");
+    const e = engageStartRoom(state);
+    expect(boonWindupMul(state, e), "交戦中の部屋の敵").toBeCloseTo(BOON.winterNestMul);
+    const roamer = dummy(state);
+    roamer.roomIndex = -1;
+    expect(boonWindupMul(state, roamer), "徘徊").toBe(1);
   });
 
   it("明鏡: ジャスト回避の直後に撃ったスキル 1 回は払ったマナが戻る", () => {

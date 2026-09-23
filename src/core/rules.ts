@@ -26,6 +26,7 @@ export type RuleCondition =
   /** HP が SYNERGY.lowHpRatio 以下 */
   | { kind: "lowHp" }
   | { kind: "comboAbove"; count: number }
+  /** 今いる部屋が交戦中（封鎖中を含む。system/engagement.ts の isEngaged）。key は旧名のまま */
   | { kind: "roomLocked" }
   | { kind: "depthAtLeast"; depth: number }
   /** イベントの付随 key（反応の種類・地形の種類など）が一致 */

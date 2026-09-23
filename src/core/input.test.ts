@@ -5,6 +5,7 @@ import {
   KEYBIND_SLOTS,
   PlayerInput,
   REBINDABLE_ACTIONS,
+  actionKeyLabel,
   assignBinding,
   clearBinding,
   codesForAction,
@@ -215,6 +216,14 @@ describe("既定のキー設定", () => {
     expect(DEFAULT_KEYBINDS.skill2).toContain("Mouse4");
   });
 
+  it("拾う（interact）は既定で G、キー設定画面で変更できる", () => {
+    expect(DEFAULT_KEYBINDS.interact).toEqual(["KeyG"]);
+    expect((REBINDABLE_ACTIONS as readonly string[]).includes("interact"), "変更可能").toBe(true);
+    const next = assignBinding(defaultKeybinds(), "interact", 0, "KeyH");
+    expect(next?.interact, "H に変えられる").toEqual(["KeyH"]);
+    expect(actionKeyLabel("interact"), "キー案内は G").toBe("G");
+  });
+
   it("既定の変更可能なコードはすべて割り当て可能", () => {
     for (const action of REBINDABLE_ACTIONS) {
       for (const code of DEFAULT_KEYBINDS[action]) expect(isAssignableCode(code), code).toBe(true);
@@ -244,7 +253,7 @@ describe("sanitizeKeybinds", () => {
       right: [3],
       dash: ["Escape"],
       shoot: ["Enter"],
-      special: ["KeyG"],
+      special: ["KeyH"],
     });
     expect(binds.up).toEqual(DEFAULT_KEYBINDS.up);
     expect(binds.down).toEqual(DEFAULT_KEYBINDS.down);
@@ -252,7 +261,7 @@ describe("sanitizeKeybinds", () => {
     expect(binds.right).toEqual(DEFAULT_KEYBINDS.right);
     expect(binds.dash).toEqual(DEFAULT_KEYBINDS.dash);
     expect(binds.shoot, "confirm の Enter は奪えない").toEqual(DEFAULT_KEYBINDS.shoot);
-    expect(binds.special, "正しい値は残る").toEqual(["KeyG"]);
+    expect(binds.special, "正しい値は残る").toEqual(["KeyH"]);
   });
 
   it("confirm は保存データで変えられないが restart は変えられる", () => {
@@ -288,8 +297,8 @@ describe("assignBinding", () => {
   });
 
   it("空き列を指すと末尾に詰めて入る", () => {
-    const next = assignBinding(defaultKeybinds(), "special", 2, "KeyG");
-    expect(next?.special).toEqual(["KeyF", "KeyG"]);
+    const next = assignBinding(defaultKeybinds(), "special", 2, "KeyH");
+    expect(next?.special).toEqual(["KeyF", "KeyH"]);
   });
 
   it("他のアクションが持つコードを割り当てると、そちらから外れる", () => {
@@ -376,6 +385,18 @@ describe("formatBindingCode", () => {
 });
 
 describe("PlayerInput の束縛差し替え", () => {
+  it("G を押すと interactPressed が立ち、パッドの interactPressed とも OR になる", () => {
+    const input = new PlayerInput();
+    const target = new FakeEventTarget();
+    input.attachKeyboard(target as unknown as Window);
+    target.dispatch("keydown", keyEvent("KeyG"));
+    expect(input.snapshot().interactPressed, "G で拾う").toBe(true);
+    expect(input.snapshot().interactPressed, "押した瞬間だけ").toBe(false);
+    const padInput = new PlayerInput();
+    padInput.attachGamepad(new StubGamepad(gamepadFrame({ interactPressed: true })) as never);
+    expect(padInput.snapshot().interactPressed, "パッド").toBe(true);
+  });
+
   it("setKeybinds の後は新しいキーでアクションが立ち、外したキーでは立たない", () => {
     const input = new PlayerInput();
     const target = new FakeEventTarget();
@@ -393,11 +414,11 @@ describe("PlayerInput の束縛差し替え", () => {
 
   it("setKeybinds で HUD のスキル表記も追従する", () => {
     const input = new PlayerInput();
-    const next = assignBinding(defaultKeybinds(), "skill1", 0, "KeyG");
+    const next = assignBinding(defaultKeybinds(), "skill1", 0, "KeyH");
     if (!next) throw new Error("割り当てできない");
     input.setKeybinds(next);
-    expect(skillKeyLabel(0)).toBe("G / C");
-    expect(codesForAction("skill1")).toEqual(["KeyG", "KeyC", "Mouse3"]);
+    expect(skillKeyLabel(0)).toBe("H / C");
+    expect(codesForAction("skill1")).toEqual(["KeyH", "KeyC", "Mouse3"]);
     input.setKeybinds(defaultKeybinds());
     expect(skillKeyLabel(0)).toBe("1 / C");
   });

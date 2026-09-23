@@ -135,19 +135,19 @@ describe("player actions", () => {
 });
 
 describe("floor / rooms", () => {
-  it("部屋に入るとロックされ、敵を全滅させると解除される", async () => {
+  it("通常の部屋は入っても封鎖されず、部屋の敵を全滅させると制圧になる（開放型フロア）", async () => {
     const { rectCenterPx } = await import("../map/grid");
     const state = createGame(11);
     const room = state.rooms[1]!;
     state.player.body.pos = rectCenterPx(room.rect);
-    step(state, withInput({}), FIXED_DT);
-    expect(room.locked).toBe(true);
-    expect(state.lockedTiles.size).toBeGreaterThan(0);
-    for (const e of state.enemies) if (e.roomIndex === 1) e.hp = 0;
+    state.player.invulnTimer = 999;
     step(state, withInput({}), FIXED_DT);
     expect(room.locked).toBe(false);
-    expect(room.cleared).toBe(true);
+    expect(room.engaged).toBe(true);
     expect(state.lockedTiles.size).toBe(0);
+    for (const e of state.enemies) if (e.roomIndex === 1) e.hp = 0;
+    step(state, withInput({}), FIXED_DT);
+    expect(room.cleared).toBe(true);
   });
 
   it("階段に乗ると次の階へ進む", async () => {

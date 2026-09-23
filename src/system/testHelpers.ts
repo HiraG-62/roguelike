@@ -30,3 +30,18 @@ export function placeEnemy(state: GameState, key: string, dx: number, dy = 0): E
   state.enemies.push(e);
   return e;
 }
+
+/**
+ * 立っている開始部屋を「封鎖しない部屋で交戦中」にする（開放型フロアの交戦。system/engagement.ts）。
+ * 部屋の敵が 1 体必要なので、プレイヤーから離した位置に部屋 0 所属の敵を置いて返す
+ */
+export function engageStartRoom(state: GameState, enemyDx = 200): Enemy {
+  const room = state.rooms[0];
+  if (!room) throw new Error("開始部屋が無い");
+  room.locked = false;
+  room.cleared = false;
+  room.engaged = true;
+  const e = placeEnemy(state, "slime", enemyDx);
+  e.roomIndex = 0;
+  return e;
+}

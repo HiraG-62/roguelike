@@ -21,7 +21,8 @@ import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 
 const NEAR = 20;
 const MID = 40;
-const HEAL = 8;
+/** 戦闘中の回復の上限（最大 HP 100 × HEAL.sustainCapRatio = 4 / 秒）に掛からない量 */
+const HEAL = 4;
 const LOW_HP = 10;
 const ONE_SECOND = 1;
 

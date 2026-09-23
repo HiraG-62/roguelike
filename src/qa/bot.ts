@@ -7,10 +7,14 @@ import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
+import { lineOfSight } from "../map/pathing";
 import { isSolidTile, overlapsWall } from "../system/physics";
+import { currentMoveset } from "../system/player";
+import { meleeButton, shotButton } from "../data/weapons";
 import { BOONS, type BoonKey } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
-import { resolveSlot, type ResolvedSlot } from "../system/skills";
+import { resolveSlot, slotBodyBlocked, type ResolvedSlot } from "../system/skills";
+import { isInPickupReach } from "../system/loot";
 import { allocateAttribute } from "../ui/attributeAlloc";
 import { SKILL } from "../skills/data";
 import type { SkillKey } from "../skills/types";
@@ -52,6 +56,14 @@ const PREEMPTIVE_DODGE_CHANCE = 0.5;
  * 必ず離脱を試みる（ヒット＆アウェイ）
  */
 const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parry", "lunge"]);
+/**
+ * 溜めのある武器種・射撃の型（src/data/weapons.ts）: 押しっぱなしのままだと撃たない / 振らないので、
+ * この秒数だけ溜めたら離す（大剣は 2 段目、チャージ射撃は 2 段目に届く長さ）
+ */
+const MELEE_CHARGE_HOLD = 0.85;
+const SHOT_CHARGE_HOLD = 0.75;
+/** 右クリックの近接を押し直す周期（ステップ） */
+const MELEE_REPRESS_PERIOD = 2;
 /** この割合以下の HP でハートが見えていれば拾いに行く */
 const LOW_HP_RATIO = 0.3;
 /** 詰まり判定のチェック間隔（秒） */
@@ -62,6 +74,13 @@ const STUCK_DIST_THRESHOLD = 6;
 const WANDER_DURATION = 0.6;
 /** まだロックされていない部屋の idle な敵は狙わない（壁越しの直進で詰まるのを防ぐ） */
 const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawning"]);
+/**
+ * 交戦する敵の距離の上限（px）。開放型フロアでは気付いた敵が遠くから追ってくるので、壁の向こうで
+ * 引っかかっている遠い追跡者へ直進して詰まらないよう、近い敵だけを相手にする（遠い敵は来るまで探索を続ける）
+ */
+const ENGAGE_RANGE = 240;
+/** 部屋の目標地点にこの距離まで来ても制圧できていなければ、その部屋の残りの敵を探しに行く（px） */
+const ROOM_ARRIVE_DIST = TILE_SIZE * 2;
 /** 経路のウェイポイントに到達したとみなす距離（px） */
 const WAYPOINT_REACH = TILE_SIZE * 0.6;
 /** 目標地点がこの距離以上ずれたら経路を引き直す */
@@ -93,6 +112,8 @@ export interface BotState {
   stairsPos: Vec | null;
   /** 追いかけている未クリア部屋の index。クリアされたら選び直す */
   targetRoomIndex: number | null;
+  /** 目標地点に着いた部屋（開放型: 以後はその部屋の残りの敵を探しに行く） */
+  arrivedRoomIndex: number | null;
   /** BFS で求めた経路（タイル中心の px 座標列） */
   path: Vec[] | null;
   pathIndex: number;
@@ -108,6 +129,8 @@ export interface BotState {
    * QA 側で runOnce 終了時に経過時間と合わせて発動頻度を出す想定
    */
   skillCastAttempts: number;
+  /** 拾おうとしたドロップ品の id。倉庫が満杯で拾えなかったものを毎フレーム押し続けないため */
+  triedDropIds: Set<number>;
 }
 
 export function createBotState(seed: number): BotState {
@@ -116,6 +139,7 @@ export function createBotState(seed: number): BotState {
     depth: 0,
     stairsPos: null,
     targetRoomIndex: null,
+    arrivedRoomIndex: null,
     path: null,
     pathIndex: 0,
     pathGoal: null,
@@ -125,6 +149,7 @@ export function createBotState(seed: number): BotState {
     lastCheckPos: { x: 0, y: 0 },
     allocCursor: 0,
     skillCastAttempts: 0,
+    triedDropIds: new Set(),
   };
 }
 
@@ -245,6 +270,8 @@ function nearestEngagedEnemy(state: GameState): Enemy | null {
   for (const e of state.enemies) {
     if (e.hp <= 0 || NON_ENGAGEABLE_PHASES.has(e.phase)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
+    // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
+    if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos)) continue;
     if (d < bestDist) {
       bestDist = d;
       best = e;
@@ -303,7 +330,7 @@ function skillEngageRange(resolved: ResolvedSlot): number {
  */
 function canCastSlotNow(state: GameState, index: number, distanceToTarget: number): boolean {
   const rs = state.skills;
-  if (rs.active || rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.gcd > 0) return false;
+  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || slotBodyBlocked(state, index)) return false;
   const slot = rs.slots[index];
   if (!slot || slot.intervalLeft > 0) return false;
   const resolved = resolveSlot(state, index);
@@ -549,14 +576,46 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   }
 
   // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃でマナを貯める
-  if (d > SHOOT_RANGE) {
-    input.shootHeld = true;
-  } else if (d < MELEE_RANGE) {
-    input.attackPressed = true;
+  if (d > SHOOT_RANGE || d >= MELEE_RANGE) {
+    holdShot(state, input);
   } else {
-    input.shootHeld = true;
+    pressAttack(state, input);
   }
   return input;
+}
+
+/**
+ * 射撃の役割を持つボタンを押しっぱなしにする（剣は右、杖は左）。
+ * どちらも近接の武器種（大剣）は撃てないので、近づきながら振る
+ */
+function holdShot(state: GameState, input: FrameInput): void {
+  const button = shotButton(currentMoveset(state.stats));
+  if (button === undefined) {
+    pressAttack(state, input);
+    return;
+  }
+  const held = shootHeldFor(state);
+  if (button === "secondary") input.shootHeld = held;
+  else input.attackHeld = held;
+}
+
+/** 近接の入力。溜めのある武器種は MELEE_CHARGE_HOLD 秒まで押しっぱなしにして離す */
+function pressAttack(state: GameState, input: FrameInput): void {
+  // 右が近接の武器種（杖）は、押しっぱなしでは「押した瞬間」が 1 回しか出ないので 1 フレームおきに押し直す
+  if (meleeButton(currentMoveset(state.stats)) === "secondary") {
+    input.shootHeld = state.tick % MELEE_REPRESS_PERIOD === 0;
+    return;
+  }
+  input.attackPressed = true;
+  const a = state.player.attack;
+  input.attackHeld = !(a.charging && a.chargeTime >= MELEE_CHARGE_HOLD);
+}
+
+/** 射撃の押しっぱなし。チャージの型は SHOT_CHARGE_HOLD 秒溜めたら 1 フレーム離して撃つ */
+function shootHeldFor(state: GameState): boolean {
+  if (state.stats.shot !== "charge") return true;
+  const p = state.player;
+  return !(p.shotCharging && p.shotChargeTime >= SHOT_CHARGE_HOLD);
 }
 
 /** 未クリアの部屋 → 階段の順で、BFS 経路のウェイポイントを辿って進む */
@@ -566,6 +625,8 @@ function explorationInput(state: GameState, bot: BotState, dt: number): FrameInp
   let goal: Vec;
   if (roomIndex !== null) {
     goal = roomTargetPoint(state, state.rooms[roomIndex]!);
+    if (dist(goal, pos) < ROOM_ARRIVE_DIST) bot.arrivedRoomIndex = roomIndex;
+    if (bot.arrivedRoomIndex === roomIndex) goal = nearestRoomEnemy(state, roomIndex) ?? goal;
   } else {
     if (!bot.stairsPos) bot.stairsPos = findStairsPos(state);
     goal = bot.stairsPos ?? pos;
@@ -574,6 +635,21 @@ function explorationInput(state: GameState, bot: BotState, dt: number): FrameInp
   ensurePath(state, bot, goal);
   const waypoint = currentWaypoint(bot, pos) ?? goal;
   return moveOnlyInput(steerToward(state, bot, waypoint, dt));
+}
+
+/** 開放型: 部屋の外へ出ていった（追ってきて引っかかった）その部屋の敵のうち最寄りの位置 */
+function nearestRoomEnemy(state: GameState, roomIndex: number): Vec | null {
+  let best: Vec | null = null;
+  let bestDist = Infinity;
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.roomIndex !== roomIndex) continue;
+    const d = dist(e.body.pos, state.player.body.pos);
+    if (d < bestDist) {
+      bestDist = d;
+      best = e.body.pos;
+    }
+  }
+  return best;
 }
 
 /**
@@ -598,6 +674,7 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     bot.depth = state.depth;
     bot.stairsPos = null;
     bot.targetRoomIndex = null;
+    bot.arrivedRoomIndex = null;
     bot.path = null;
     bot.pathIndex = 0;
     bot.pathGoal = null;
@@ -615,5 +692,33 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   const enemy = nearestEngagedEnemy(state);
   if (enemy) return combatInput(state, bot, enemy, dt);
 
-  return explorationInput(state, bot, dt);
+  return withDropPickup(state, bot, explorationInput(state, bot, dt));
+}
+
+/** 手の届くドロップ品で最も近いもの（まだ拾おうとしていないもの） */
+function reachableDrop(state: GameState, bot: BotState): { id: number; pos: Vec } | null {
+  const drops = [...state.floorItems, ...state.skills.floorStones];
+  let best: { id: number; pos: Vec } | null = null;
+  let bestDist = Infinity;
+  for (const d of drops) {
+    if (bot.triedDropIds.has(d.id) || !isInPickupReach(state, d.pos)) continue;
+    const dd = dist(d.pos, state.player.body.pos);
+    if (dd >= bestDist) continue;
+    best = d;
+    bestDist = dd;
+  }
+  return best;
+}
+
+/**
+ * 探索中、手の届く遺物・スキル石にカーソルを合わせてインタラクトする（触れて拾う仕様だった頃と同じく、
+ * 寄り道はせず通り道で拾う）。1 つにつき 1 回だけ押す
+ */
+function withDropPickup(state: GameState, bot: BotState, input: FrameInput): FrameInput {
+  const target = reachableDrop(state, bot);
+  if (target === null) return input;
+  bot.triedDropIds.add(target.id);
+  input.aimScreen = worldToScreen(state, target.pos);
+  input.interactPressed = true;
+  return input;
 }

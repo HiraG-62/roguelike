@@ -104,6 +104,11 @@ const PLAYER_GOOD_EDGE = "#60e0a0";
 const PLAYER_CELL_ALPHA = 0.8;
 const PLAYER_TIMER_H = 1;
 const COLOR_STACKS = "#ffffff";
+/**
+ * 延焼・引き継ぎ（別の敵から移った）状態異常の不透明度（docs/ideas/synergy-web.md 2-b）。
+ * StatusEffect は世代を持たないので、プレイヤー由来の延焼が付ける source "env" を「移ってきたもの」とみなす
+ */
+const INHERITED_ALPHA = 0.5;
 
 export interface StatusIcon {
   kind: StatusKind;
@@ -114,6 +119,8 @@ export interface StatusIcon {
   ratio: number;
   /** 良い状態（HUD の枠色を変える） */
   good: boolean;
+  /** 延焼・引き継ぎなど、直接当てたのではなく移ってきたもの（薄く描く） */
+  inherited: boolean;
 }
 
 /** 彩痕は付いている色（共鳴の色）で出す。他は種類ごとの色 */
@@ -130,7 +137,15 @@ export function statusIcons(bag: Readonly<StatusBag>): StatusIcon[] {
     const effect = findStatus(bag, kind);
     if (!effect) continue;
     const ratio = effect.maxTime > 0 ? Math.max(0, Math.min(1, effect.time / effect.maxTime)) : 0;
-    icons.push({ kind, glyph: STATUS_GLYPH[kind], color: iconColor(effect), stacks: effect.stacks, ratio, good: GOOD_STATUS_KINDS.has(kind) });
+    icons.push({
+      kind,
+      glyph: STATUS_GLYPH[kind],
+      color: iconColor(effect),
+      stacks: effect.stacks,
+      ratio,
+      good: GOOD_STATUS_KINDS.has(kind),
+      inherited: effect.source === "env",
+    });
   }
   return icons;
 }
@@ -156,9 +171,11 @@ export function drawEnemyStatus(ctx: CanvasRenderingContext2D, e: Enemy, cx: num
   let x = Math.round(cx - total / 2);
   const y = Math.round(top - ENEMY_ICON_RISE);
   icons.forEach((icon, i) => {
+    ctx.globalAlpha = icon.inherited ? INHERITED_ALPHA : 1;
     drawText(ctx, iconLabel(icon), x, y, m, icon.color);
     x += (widths[i] ?? 0) + ENEMY_ICON_GAP;
   });
+  ctx.globalAlpha = 1;
 }
 
 /** 怯みゲージ（細い黄色、蓄積 / 耐性）。見せる条件を満たさなければ何もしない */

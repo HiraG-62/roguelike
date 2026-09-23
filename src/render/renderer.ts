@@ -3,10 +3,11 @@ import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
-import { enemyTelegraph } from "../system/enemies";
-import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
+import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
+import { reaperBodyVisible } from "../system/reaperVariants";
+import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
-import { ELITE_COLOR, eliteDisplayName, shieldLeft } from "../system/elites";
+import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
 import { isKeystoneKey, keystoneConflicts, keystoneDef } from "../loot/affixes";
@@ -14,7 +15,15 @@ import { describeResonance } from "../loot/describe";
 import { RARITY_COLOR, SLOTS, type Rarity } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
-import { isAttacking, isDashing, meleeBox, meleeStep } from "../system/player";
+import {
+  type MeleeStep,
+  currentMeleeStep,
+  isAttacking,
+  isDashing,
+  meleeAnchor,
+  meleeChargeLevel,
+  shotChargeLevel,
+} from "../system/player";
 import {
   LOOT_PILLAR_HEIGHTS,
   bombBlinkFrameTime,
@@ -37,6 +46,8 @@ import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
+import { drawChainHud } from "./chainUi";
+import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGauge } from "./statusUi";
@@ -133,6 +144,11 @@ const BOMB_CIRCLE_ALPHA = 0.25;
 const BOMB_FILL_ALPHA = 0.18;
 const SHOCKWAVE_ALPHA = 0.85;
 const GOLEM_TELEGRAPH_ALPHA = 0.3;
+/** Wave 3 の予告: 扇（風・睨み）の塗りの濃さ（予備動作中 / 攻撃中）と、十字の線・鎖縛のの鎖の濃さ */
+const CONE_WINDUP_ALPHA = 0.18;
+const CONE_ACTIVE_ALPHA = 0.28;
+const CROSS_LINE_ALPHA = 0.5;
+const ELITE_CHAIN_ALPHA = 0.55;
 const LANDING_ALPHA = 0.45;
 const LANDING_MIN_SCALE = 0.35;
 const LANDING_MAX_SCALE = 1.6;
@@ -330,6 +346,12 @@ const SPAWN_RING_MIN_ALPHA = 0.4;
 const SLASH_MIN_ALPHA = 0.3;
 const SLASH_AFTERIMAGE_T = 0.6;
 const SLASH_AFTERIMAGE_ROT = -0.35;
+/** 武器種の当たり判定の縁取りの濃さ（active の残りで薄れる） */
+const MELEE_SHAPE_ALPHA = 0.35;
+/** 溜めの環の明滅 */
+const CHARGE_RING_SPEED = 10;
+const CHARGE_RING_MIN = 0.45;
+const CHARGE_RING_MAX = 0.9;
 const SLASH_AFTERIMAGE_ALPHA = 0.6;
 
 /** 弾 */
@@ -610,6 +632,7 @@ export class Renderer {
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
     this.drawLinks(state);
+    this.drawEliteChains(state);
     drawRunWorld(ctx, state);
     this.drawEnemies(state);
     this.drawBossDeath(state);
@@ -629,6 +652,8 @@ export class Renderer {
     this.drawHud(state);
     this.drawFloorWipe(state);
     drawBoonHud(ctx, state, aimScreen);
+    drawChainHud(ctx, state);
+    drawDropFocus(ctx, state, aimScreen, ox, oy);
     drawBoonChoice(ctx, state);
     if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
     if (state.status === "dead") this.drawDeath(state);
@@ -1075,6 +1100,8 @@ export class Renderer {
   }
 
   private drawEnemy(state: GameState, e: Enemy): void {
+    // 潜行中の敵（土潜り・天井吊り・影踏み）は描かない。居場所は土煙と影の予告だけで見せる
+    if (e.hidden) return;
     const { ctx } = this;
     const def = enemyDef(e.defKey);
     const key = def.sprite;
@@ -1150,7 +1177,9 @@ export class Renderer {
       if (tele?.kind === "line") this.drawChargeLine(e);
       if (tele?.kind === "laser") this.drawLaserTelegraph(state, e, def.windup);
       if (tele?.kind === "ring") this.drawRingTelegraph(cx, cy, tele.radius);
+      this.drawWave3Telegraph(e, tele, CONE_WINDUP_ALPHA);
     }
+    this.drawWave3Telegraph(e, enemyActiveArea(e, def), CONE_ACTIVE_ALPHA);
     if (staggered) {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
@@ -1276,6 +1305,51 @@ export class Renderer {
     ctx.globalAlpha = blink;
     const r = Math.max(1, Math.round(LASER_DOT_R * t));
     ctx.fillRect(Math.round(target.x - r / 2), Math.round(target.y - r / 2), r, r);
+    ctx.globalAlpha = 1;
+  }
+
+  /** Wave 3 の予告の形: 十字（ai.points の各点へ）と扇（strikeDir を中心に） */
+  private drawWave3Telegraph(e: Enemy, tele: EnemyTelegraph, coneAlpha: number): void {
+    const { ctx } = this;
+    if (tele?.kind === "cross") {
+      ctx.strokeStyle = COLOR_TELEGRAPH;
+      ctx.globalAlpha = CROSS_LINE_ALPHA;
+      for (const p of e.ai?.points ?? []) {
+        ctx.beginPath();
+        ctx.moveTo(e.body.pos.x, e.body.pos.y);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+    if (tele?.kind !== "cone") return;
+    const base = Math.atan2(e.strikeDir.y, e.strikeDir.x);
+    const half = (tele.halfDeg * Math.PI) / 180;
+    ctx.fillStyle = COLOR_TELEGRAPH;
+    ctx.globalAlpha = coneAlpha;
+    ctx.beginPath();
+    ctx.moveTo(e.body.pos.x, e.body.pos.y);
+    ctx.arc(e.body.pos.x, e.body.pos.y, tele.range, base - half, base + half);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /** 鎖縛の: 鎖でつながった敵を細い線で結ぶ（触れると冷える） */
+  private drawEliteChains(state: GameState): void {
+    const { ctx } = this;
+    ctx.strokeStyle = ELITE_COLOR.chaining;
+    ctx.globalAlpha = ELITE_CHAIN_ALPHA;
+    for (const e of state.enemies) {
+      if (e.hp <= 0) continue;
+      for (const o of chainPartners(state, e)) {
+        ctx.beginPath();
+        ctx.moveTo(e.body.pos.x, e.body.pos.y);
+        ctx.lineTo(o.body.pos.x, o.body.pos.y);
+        ctx.stroke();
+      }
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -1515,7 +1589,8 @@ export class Renderer {
   /** 追跡者: 大きな紫の wisp。半透明で脈打ち、長い残像を引く */
   private drawReaper(state: GameState): void {
     const r = state.reaper;
-    if (!r) return;
+    if (!r || !reaperBodyVisible(r)) return;
+    this.drawReaperChain(r);
     const wisp = this.sprite(SPR.wisp);
     const frames = this.tinted(SPR.wisp, REAPER.color, REAPER_TINT);
     const img = pick(frames, spriteFrame(wisp, r.animTime, ENEMY_FRAME_TIME));
@@ -1532,6 +1607,23 @@ export class Renderer {
     ctx.globalAlpha = pulse(state.time, REAPER_PULSE_SPEED, REAPER_ALPHA_MIN, REAPER_ALPHA_MAX);
     const bob = Math.sin(r.animTime * FLOAT_BOB_SPEED) * FLOAT_BOB_AMOUNT;
     this.drawRotated(img, r.pos.x, r.pos.y + bob, 0, REAPER_SCALE);
+    // 双子の死神のもう 1 体
+    if (r.twin) this.drawRotated(img, r.twin.x, r.twin.y - bob, 0, REAPER_SCALE);
+    ctx.globalAlpha = 1;
+  }
+
+  /** 鎖の死神: 鎖を投げる前の予告線（溜めの間だけ） */
+  private drawReaperChain(r: NonNullable<GameState["reaper"]>): void {
+    if (!r.aim || (r.charging ?? 0) <= 0) return;
+    const { ctx } = this;
+    ctx.strokeStyle = REAPER.variants.chain.color;
+    ctx.globalAlpha = CROSS_LINE_ALPHA;
+    ctx.lineWidth = REAPER.variants.chain.width;
+    ctx.beginPath();
+    ctx.moveTo(r.pos.x, r.pos.y);
+    ctx.lineTo(r.aim.x, r.aim.y);
+    ctx.stroke();
+    ctx.lineWidth = 1;
     ctx.globalAlpha = 1;
   }
 
@@ -1630,6 +1722,7 @@ export class Renderer {
     }
 
     if (isAttacking(p) && p.attack.phase === "active") this.drawSlash(state, p);
+    this.drawChargeRing(state, p);
   }
 
   private drawDashGhosts(p: Player, sprite: Sprite, frame: number, cx: number, bottom: number, flip: boolean): void {
@@ -1691,17 +1784,18 @@ export class Renderer {
   /** 斬撃スプライトを攻撃方向へ回転し、active の残り時間でフェードする */
   private drawSlash(state: GameState, p: Player): void {
     const combo = p.attack.combo;
-    const step = meleeStep(state.stats, combo);
+    const step = currentMeleeStep(state);
     if (!step) return;
-    const box = meleeBox(p, step.reach, step.size);
+    const anchor = meleeAnchor(p, step);
     const key = SLASH_KEYS[Math.min(combo, SLASH_KEYS.length - 1)] ?? SLASH_KEYS[0];
     const sprite = this.sprite(key);
-    const cx = box.x + box.w / 2;
-    const cy = box.y + box.h / 2;
+    const cx = anchor.pos.x;
+    const cy = anchor.pos.y;
     const angle = Math.atan2(p.attack.dir.y, p.attack.dir.x);
-    const scale = step.size / sprite.w;
+    const scale = anchor.size / sprite.w;
     const t = step.active > 0 ? Math.min(1, Math.max(0, p.attack.timer / step.active)) : 0;
     const { ctx } = this;
+    this.drawMeleeShape(p, step, t);
 
     const finisher = combo >= SLASH_KEYS.length - 1;
     if (finisher && t > SLASH_AFTERIMAGE_T) {
@@ -1710,6 +1804,55 @@ export class Renderer {
     }
     ctx.globalAlpha = SLASH_MIN_ALPHA + (1 - SLASH_MIN_ALPHA) * t;
     this.drawRotated(sprite.frames[0], cx, cy, angle, scale);
+    ctx.globalAlpha = 1;
+  }
+
+  /** 武器種の当たり判定の形を薄く縁取る（扇・突き・円。箱は斬撃スプライトだけで足りる） */
+  private drawMeleeShape(p: Player, step: MeleeStep, t: number): void {
+    if (step.shape.kind === "box") return;
+    const { ctx } = this;
+    const o = p.body.pos;
+    const dir = Math.atan2(p.attack.dir.y, p.attack.dir.x);
+    ctx.strokeStyle = COLOR_WHITE;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = MELEE_SHAPE_ALPHA * t;
+    ctx.beginPath();
+    if (step.shape.kind === "arc") {
+      const half = (step.shape.deg * Math.PI) / 360;
+      ctx.moveTo(o.x, o.y);
+      ctx.arc(o.x, o.y, step.reach, dir - half, dir + half);
+      ctx.closePath();
+    } else if (step.shape.kind === "thrust") {
+      const nx = -p.attack.dir.y * (step.size / 2);
+      const ny = p.attack.dir.x * (step.size / 2);
+      const ex = o.x + p.attack.dir.x * step.reach;
+      const ey = o.y + p.attack.dir.y * step.reach;
+      ctx.moveTo(o.x + nx, o.y + ny);
+      ctx.lineTo(ex + nx, ey + ny);
+      ctx.lineTo(ex - nx, ey - ny);
+      ctx.lineTo(o.x - nx, o.y - ny);
+      ctx.closePath();
+    } else {
+      const cx = o.x + p.attack.dir.x * step.reach;
+      const cy = o.y + p.attack.dir.y * step.reach;
+      ctx.arc(cx, cy, step.size / 2, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /** 溜め攻撃・チャージ射撃の環。段が上がるほど大きく色が変わり、離す時を目で計れる */
+  private drawChargeRing(state: GameState, p: Player): void {
+    const charging = p.attack.charging || p.shotCharging;
+    if (!charging) return;
+    const level = Math.max(meleeChargeLevel(state), shotChargeLevel(state));
+    const { ctx } = this;
+    ctx.strokeStyle = WEAPON.chargeRingColors[level] ?? COLOR_WHITE;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = pulse(state.time, CHARGE_RING_SPEED, CHARGE_RING_MIN, CHARGE_RING_MAX);
+    ctx.beginPath();
+    ctx.arc(p.body.pos.x, p.body.pos.y, WEAPON.chargeRingRadius + level * WEAPON.chargeRingStep, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 

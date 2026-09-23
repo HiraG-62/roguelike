@@ -34,6 +34,10 @@ import {
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
+  TITLE_MENU_ITEMS,
+  titleMenuHotkey,
+  titleMenuItemAt,
+  titleMenuRects,
 } from "./title";
 
 function key(code: string, k = code): RawKeyEvent {
@@ -122,9 +126,30 @@ describe("processMenuKeys", () => {
       p: false,
       s: false,
       clear: false,
+      c: false,
+      q: false,
+      a: false,
       arrowX: 0,
       arrowY: 0,
     });
+  });
+
+  it("C/Q/A を図鑑・依頼・実績のホットキーとして拾う", () => {
+    const hotkeys = processMenuKeys([key("KeyC"), key("KeyQ"), key("KeyA")], createSeedInputState("seed"));
+    expect(hotkeys.c && hotkeys.q && hotkeys.a, "3 つとも拾う").toBe(true);
+    expect(titleMenuHotkey({ c: false, q: true, a: false }), "Q は依頼").toBe("quests");
+    expect(titleMenuHotkey({ c: false, q: false, a: false }), "押していなければ null").toBeNull();
+  });
+
+  it("タイトルのメニューのボタンはクリックで項目を返し、外は null", () => {
+    const rects = titleMenuRects();
+    expect(rects.length, "項目の数だけボタンがある").toBe(TITLE_MENU_ITEMS.length);
+    TITLE_MENU_ITEMS.forEach((item, i) => {
+      const r = rects[i];
+      if (!r) throw new Error("ボタンが無い");
+      expect(titleMenuItemAt(r.x + r.w / 2, r.y + r.h / 2), `${item} のボタン`).toBe(item);
+    });
+    expect(titleMenuItemAt(1, 1), "左上の隅はボタンではない").toBeNull();
   });
 
   it("D/P/S と矢印キーを拾う", () => {

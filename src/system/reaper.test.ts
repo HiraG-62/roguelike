@@ -38,6 +38,8 @@ describe("Reaper", () => {
 describe("Reaper 出現猶予", () => {
   it("部屋数が多いフロアほど出現猶予が長い（treasure/shrine は数えない）", () => {
     const state = arena();
+    // 生成で宝物庫・台座の部屋が混ざることがあるので、全部通常の部屋にしてから数える
+    for (const r of state.rooms) r.kind = "normal";
     const base = REAPER.appearAfter + state.rooms.length * REAPER.appearPerRoom;
     expect(reaperAppearAfter(state)).toBe(base);
 

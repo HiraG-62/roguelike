@@ -1,3 +1,4 @@
+import type { Keyword, KeywordProfile } from "../core/keywords";
 import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMIES } from "../data/enemies";
 import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
@@ -6,14 +7,18 @@ import { CALM_FLUX_LIMIT, WAVER_FLUX_LIMIT, fluxMagnitude } from "./flux";
 import { milestoneDef } from "./provenance";
 import { baseName, dominantColor } from "./names";
 import { ATTR_LABEL, colorWeights } from "./resonance";
+import { computeStats } from "./stats";
+import { profileGaps, statsKeywords } from "../system/keywords";
 import {
   ATTR_KEYS,
   RARITY_LABEL,
+  SLOTS,
   TRAIT_COLORS,
   TRAIT_COLOR_HEX,
   TRAIT_COLOR_LABEL,
   type AffixRoll,
   type AttrKey,
+  type Equipment,
   type Item,
   type Provenance,
   type TraitColor,
@@ -277,3 +282,75 @@ export function describeItem(item: Item): ItemDescription {
 }
 
 export { describeResonance } from "./resonance";
+
+// -----------------------------------------------------------------------------
+// 「ここに噛む」（docs/ideas/synergy-web.md 4-b）。スコアにせず、語と相手の名前だけを返す
+// -----------------------------------------------------------------------------
+
+/** ビルドを構成する 1 要素。item = 装備中の遺物、resonance = 装備の組み合わせでだけ現れる語（共鳴など） */
+export type SynergyElementKind = "item" | "resonance" | "skill" | "boon";
+
+export interface SynergyElement {
+  kind: SynergyElementKind;
+  name: string;
+  keywords: KeywordProfile;
+}
+
+/** 今のビルド。profile は elements の語を合わせたもの */
+export interface SynergyBuild {
+  profile: KeywordProfile;
+  elements: readonly SynergyElement[];
+}
+
+export interface SynergyDescription {
+  /** このアイテムが出す語（KEYWORDS 順） */
+  produces: Keyword[];
+  /** このアイテムが食う語 */
+  consumes: Keyword[];
+  /** 出す語のうち、今のビルドが飢えているもの（穴を埋める） */
+  fills: Keyword[];
+  /** 食う語のうち、今のビルドが余らせているもの（流れを太くする） */
+  feeds: Keyword[];
+  /** 噛み合う装着中のスキル石・祝福の名前（要素の並び順、最大 SYNERGY_PARTNER_MAX） */
+  partners: string[];
+}
+
+/** ツールチップに出す相手の名前の上限（1〜2 行に収める） */
+export const SYNERGY_PARTNER_MAX = 3;
+const PARTNER_KINDS: ReadonlySet<SynergyElementKind> = new Set(["skill", "boon"]);
+
+function emptyEquipment(): Equipment {
+  return Object.fromEntries(SLOTS.map((s) => [s, null])) as Equipment;
+}
+
+/** アイテム単体の語（そのスロットに 1 つだけ装備したときの stats から推論する） */
+export function itemKeywords(item: Item): KeywordProfile {
+  const equipment = emptyEquipment();
+  equipment[item.slot] = item;
+  return statsKeywords(computeStats(equipment));
+}
+
+function overlaps(a: readonly Keyword[], b: readonly Keyword[]): boolean {
+  return a.some((k) => b.includes(k));
+}
+
+/**
+ * item が build とどう噛むか。build は item を外した（同じスロットを空けた）ビルドを渡す想定。
+ * 相手 = item の出す語を食う、または item の食う語を出すスキル石・祝福
+ */
+export function describeSynergy(item: Item, build: Readonly<SynergyBuild>): SynergyDescription {
+  const own = itemKeywords(item);
+  const gaps = profileGaps(build.profile);
+  const partners = build.elements
+    .filter((e) => PARTNER_KINDS.has(e.kind))
+    .filter((e) => overlaps(own.produces, e.keywords.consumes) || overlaps(own.consumes, e.keywords.produces))
+    .slice(0, SYNERGY_PARTNER_MAX)
+    .map((e) => e.name);
+  return {
+    produces: own.produces,
+    consumes: own.consumes,
+    fills: own.produces.filter((k) => gaps.hunger.includes(k)),
+    feeds: own.consumes.filter((k) => gaps.surplus.includes(k)),
+    partners,
+  };
+}

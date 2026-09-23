@@ -57,7 +57,7 @@ src/
 - `floor.ts` フロア構築・部屋ロック・階段・`descend` / `roomTypes.ts` フロア種別と部屋種類 / `explore.ts` ミニマップ用探索
 - `statusEffects.ts` 状態異常 34 種の付与・更新・相互作用（`applyStatus` / `hasStatus` / `updateStatusEffects`）。2 つの状態異常（か地形）が出会ったときの反応は `statusReactions.ts` / `triggers.ts` 装備トリガーの発火（起点・条件・効果の文法） / `traitHooks.ts` 性質由来の倍率・フック（`traitOutgoingMul` など）/ `keystones.ts` 誓約判定と日本語名
 - `terrain.ts` 床の地形の層（水たまり・油・溶岩・毒沼・氷床・草むら・炎）の効果・延焼。型と一覧は `core/terrain.ts`、配置は `map/generator.ts` の `planTerrain`、描画は `render/terrainUi.ts`
-- `boons.ts` 祝福 3 択（抽選・選択・呪いを受けて 4 択・既存フック）/ 定義データは `boonDefs.ts`（`BOON_KEYS` / `BOONS`。系譜・結びを含む）、拡張ルールの実装は `boonRules.ts`（`onBoonXxxRules`。`boons.ts` の各フックから呼ぶ）/ `skills.ts` スキル発動・マナ / CD・GCD・刻印符 / `loot.ts` ドロップ
+- `boons.ts` 祝福 3 択（抽選・選択・呪いを受けて 4 択・既存フック）/ 定義データは `boonDefs.ts`（`BOON_KEYS` / `BOONS`。系譜・結びを含む）、拡張ルールの実装は `boonRules.ts`（`onBoonXxxRules`。`boons.ts` の各フックから呼ぶ）/ `skills.ts` スキル発動・マナ / CD・スロットごとの最低間隔・body 排他・刻印符の付け外し / `loot.ts` ドロップ
 - `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
 
 ### その他
@@ -103,7 +103,7 @@ src/
 
 ### スキル / 刻印符
 - スキル石: `skills/types.ts` の `SKILL_KEYS` → `skills/data.ts` の `SKILL_DEFS`（大拡張分は `skills/defs.ts` に書いて `SKILL_DEFS` に混ぜる）
-  - `resource: "mana" | "cooldown"` を選ぶ。マナ型は `manaCost` を消費（`cooldown` は 0、チャージは常に 1）、CD 型は `manaCost` 0 で既存の `cooldown` / `charges` を使う。どちらも `minInterval`（スロットごとの連打下限）と `SKILL.gcd`（全スロット共通の最低間隔、変更しない）がかかる
+  - `resource: "mana" | "cooldown"` を選ぶ。マナ型は `manaCost` を消費（`cooldown` は 0、チャージは常に 1）、CD 型は `manaCost` 0 で既存の `cooldown` / `charges` を使う。どちらも `minInterval`（スロットごとの連打下限）がかかる。全スロット共通の GCD は無く、同じステップに押した複数スロットは 1→4 の順にすべて発動する。本動作（`active`）を持つ近接・移動系は `exclusiveGroup: "body"` で互いに排他、それ以外（設置・強化・射撃の一部）は本動作中でも並行して撃てる
   - 威力は `Scaling`（`{ base, str?, dex?, vit?, mnd?, spi? }`）で書く。`base` はステータス基礎値（各 5）のとき現行の威力と一致するよう逆算する（`docs/COMBAT_DESIGN.md` A-6）。呼び出し側で `system/attributes.ts` の `scaled(stats, scaling)` を通す
   - `poise`（1 ヒットの基礎怯み値。最終値は × `poiseDamageMul`）を必ず入れる。状態異常を付けるなら `applies?: readonly StatusApply[]`（下記「状態異常」）
   - `SKILL` 定数（共通パラメータ）→ `system/skills.ts` の `castSlot` に発動処理（設置物なら `skills/placed.ts`）。発動処理の実体は近接型 `skills/actions.ts` / 弾型 `skills/shots.ts` / 設置・召喚型 `skills/summons.ts`、当たり判定の幾何は `skills/geom.ts`。数値は `skills/tuning.ts` に置き `SKILL.<key>` 経由で読む → `render/skillHud.ts` / `render/manaHud.ts` / `renderer.ts` の表現

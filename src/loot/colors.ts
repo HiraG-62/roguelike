@@ -182,6 +182,12 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   rosary: "azure",
   fangNecklace: "crimson",
   bell: "umbra",
+  // 武器種・射撃の型の器（src/data/weapons.ts）
+  gauntlets: "crimson",
+  whip: "gold",
+  wand: "azure",
+  ricochetGun: "gold",
+  mineLauncher: "crimson",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

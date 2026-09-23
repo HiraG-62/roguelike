@@ -3,7 +3,9 @@ import { type Vec, add, dist, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
 import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
-import { explodeHostile, spawnLanding, spawnShockwave } from "./hazards";
+import { spawnLanding, spawnShockwave } from "./hazards";
+import { blastBoth } from "./enemyTerrain";
+import { placeTerrain } from "./terrain";
 import { applyStagger, initEnemyPoise } from "./poise";
 import { applyStatus, hasStatus, isSilenced } from "./statusEffects";
 import { consumeCorpse, fanDirections, findFreeSpot, fireEnemyBullet, followersOf, nearestCorpse, reviveCorpse } from "./enemyTraits";
@@ -34,12 +36,17 @@ export function telegraphKamikaze(state: GameState, e: Enemy, def: EnemyDef): vo
   spawnLanding(state, e.body.pos, ex.radius, e.phaseTimer, e.id, true);
 }
 
-/** 自分ごと爆ぜる。撃破ではないので報酬・死骸は出ない（vanished） */
+/**
+ * 自分ごと爆ぜる。撃破ではないので報酬・死骸は出ない（vanished）。
+ * 爆発は敵にも当たる（docs/ideas/enemies.md E29: 蹴り返して群れに送ると武器になる）。火種鼠は跡に炎を残す
+ */
 export function detonate(state: GameState, e: Enemy, def: EnemyDef): void {
   const ex = def.explode;
   if (!ex) return;
   const source = { defKey: def.key, roomIndex: e.roomIndex };
-  explodeHostile(state, e.body.pos, ex.radius, ex.damage + depthDamageBonus(state.depth), ex.color, source);
+  blastBoth(state, e.body.pos, ex.radius, ex.damage + depthDamageBonus(state.depth), ex.color, source, e.id);
+  // 予告の円（予備動作の影）がそのまま地形の予告になる
+  if (ex.terrain) placeTerrain(state, e.body.pos.x, e.body.pos.y, ex.terrain, ex.radius * 0.6);
   e.vanished = true;
   e.hp = 0;
 }
@@ -79,10 +86,8 @@ export function telegraphEcho(state: GameState, e: Enemy): void {
 export function strikeEcho(state: GameState, e: Enemy, def: EnemyDef): void {
   const t = ENEMY_AI.echoStriker;
   const target = e.ai?.target ?? state.player.body.pos;
-  explodeHostile(state, target, t.radius, t.damage + depthDamageBonus(state.depth), t.color, {
-    defKey: def.key,
-    roomIndex: e.roomIndex,
-  });
+  // 炸裂は敵にも当たる（E32: 過去の位置へ敵を集めれば武器になる）
+  blastBoth(state, target, t.radius, t.damage + depthDamageBonus(state.depth), t.color, { defKey: def.key, roomIndex: e.roomIndex }, e.id);
 }
 
 // -----------------------------------------------------------------------------
@@ -209,7 +214,7 @@ export function finishEating(state: GameState, e: Enemy, def: EnemyDef): void {
  * 体を radius まで大きくする。壁に掛かるなら、伸ばした分（斜めの角を考えて GROW_PUSH_MUL 倍まで）だけ壁から離れる位置へ押し出す。
  * 押し出せなければ大きくしない（false）。壁際で育って壁にめり込まないように
  */
-function growBody(state: GameState, e: Enemy, radius: number): boolean {
+export function growBody(state: GameState, e: Enemy, radius: number): boolean {
   const grown = Math.max(0, radius - e.body.radius);
   const spot = findFreeSpot(state, e.body.pos, radius, grown * GROW_PUSH_MUL, GROW_PUSH_STEP);
   if (!spot) return false;

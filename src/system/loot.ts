@@ -1,19 +1,23 @@
+import type { FrameInput } from "../core/input";
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
-import { type Vec, fromAngle } from "../core/vec";
+import { type Vec, dist, fromAngle } from "../core/vec";
+import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
-import { LOOT_DROP } from "../data/tuning";
+import { LOOT_DROP, PICKUP } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import { dominantColor } from "../loot/names";
 import { addToStash, saveProfile } from "../loot/profile";
 import { chooseBudOnItem, findPendingBud } from "../loot/provenance";
 import { computeStats } from "../loot/stats";
-import { SKILL } from "../skills/data";
+import { SKILL, stoneLabel } from "../skills/data";
 import { generateSkillStone } from "../skills/generator";
+import { addStone, saveSkillProfile } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
 import { RARITY_COLOR, TRAIT_COLOR_HEX, type AffixRoll, type Item, type Rarity } from "../loot/types";
 import { addFloatingText } from "./effects";
-import { circlesOverlap, overlapsWall } from "./physics";
+import { overlapsWall } from "./physics";
 import { applyStats } from "./player";
+import { rollEnemyRuneDrop } from "./skills";
 
 /**
  * 装備のドロップと拾得、芽の選択。docs/LOOT_DESIGN.md「ドロップ」「来歴と芽」。
@@ -40,6 +44,7 @@ export function dropItem(state: GameState, pos: Vec, extraBoost = 0): Item {
     foundDepth: depth,
     // 決定性に影響しない（foundAt と id の表示用にだけ使われる）
     now: Date.now(),
+    excludeNamed: state.lockedRelics,
   });
   state.floorItems.push({ id: allocId(state), item, pos: scatterPos(state, pos), bobTime: 0 });
   pushSfx(state, RARE_RARITIES.has(item.rarity) ? "lootRare" : "lootDrop");
@@ -54,14 +59,33 @@ function scatterPos(state: GameState, pos: Vec): Vec {
   return overlapsWall(state, p.x, p.y, ITEM_RADIUS) ? { ...pos } : p;
 }
 
+/** 深度別の表を引く（添字 0 = 深度 1。表より深ければ最後の値、空なら 1） */
+export function byDepth(table: readonly number[], depth: number): number {
+  const index = Math.min(table.length - 1, Math.max(0, Math.floor(depth) - 1));
+  return table[index] ?? 1;
+}
+
+/** 強敵（エリート・ボス級・確定ドロップの巣窟の主）。通常敵の絞りを掛けない */
+function isStrongDropSource(enemy: Enemy): boolean {
+  const def = enemyDef(enemy.defKey);
+  return enemy.elite !== undefined || def.dropChance >= 1 || def.boss === true || def.lairMaster === true;
+}
+
+/**
+ * 撃破時のドロップ確率。通常敵は深度別の倍率（LOOT_DROP.mobDropMulByDepth）で絞り、
+ * 強敵はそのまま（「たくさん倒しても出ない、強敵を倒すと出る」）。エリートの追加抽選（elites.ts）もこれを使う
+ */
 export function enemyDropChance(state: GameState, enemy: Enemy): number {
-  return enemyDef(enemy.defKey).dropChance + state.depth * LOOT_DROP.depthChanceBonus;
+  const base = enemyDef(enemy.defKey).dropChance + state.depth * LOOT_DROP.depthChanceBonus;
+  if (isStrongDropSource(enemy)) return base;
+  return base * byDepth(LOOT_DROP.mobDropMulByDepth, state.depth);
 }
 
 /** 撃破時の確率ドロップ */
 export function rollEnemyDrop(state: GameState, enemy: Enemy): void {
   if (state.rng.chance(enemyDropChance(state, enemy))) dropItem(state, enemy.body.pos);
   if (state.rng.chance(SKILL.drop.stoneOnKill)) dropSkillStone(state, enemy.body.pos);
+  rollEnemyRuneDrop(state, enemy);
 }
 
 /** スキル石を床に 1 個落とす（拾うとスキル stash へ）。docs/ideas/skills.md「7-7」 */
@@ -73,8 +97,19 @@ export function dropSkillStone(state: GameState, pos: Vec): SkillStone {
   return stone;
 }
 
-/** 部屋クリア報酬: 必ず 1 個 */
+/** 部屋制圧の報酬が出る確率（深度別） */
+export function roomClearDropChance(depth: number): number {
+  return byDepth(LOOT_DROP.roomClearChanceByDepth, depth);
+}
+
+/** 部屋制圧の報酬: 深度別の確率で 1 個（序盤から出すぎないよう、常に 1 個だった旧仕様を絞る） */
 export function dropRoomReward(state: GameState, pos: Vec): void {
+  if (!state.rng.chance(roomClearDropChance(state.depth))) return;
+  dropItem(state, pos, LOOT_DROP.roomClearRarityBoost);
+}
+
+/** 特別な報酬（共鳴炉・増援の撃退など）: 部屋制圧と同じ揺らぎで必ず 1 個 */
+export function dropBonusReward(state: GameState, pos: Vec): void {
   dropItem(state, pos, LOOT_DROP.roomClearRarityBoost);
 }
 
@@ -85,18 +120,97 @@ export function dropDepthReward(state: GameState): void {
   dropItem(state, overlapsWall(state, pos.x, pos.y, ITEM_RADIUS) ? p : pos, LOOT_DROP.depthArrivalRarityBoost);
 }
 
-/** 触れたら stash へ。stash が満杯なら拾えず床に残る */
+/**
+ * 床の遺物の揺れの時間だけ進める。拾得は触れてではなく注目 + インタラクト（updateDropInteract）。
+ * スキル石の揺れは system/skills.ts が進める
+ */
 export function updateFloorItems(state: GameState, dt: number): void {
-  const body = state.player.body;
-  const picked = new Set<number>();
-  for (const fi of state.floorItems) {
-    fi.bobTime += dt;
-    if (fi.bobTime < LOOT_DROP.pickupDelay) continue;
-    if (!circlesOverlap(fi.pos.x, fi.pos.y, LOOT_DROP.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
-    if (pickUp(state, fi.item, fi.pos)) picked.add(fi.id);
+  for (const fi of state.floorItems) fi.bobTime += dt;
+}
+
+// ---------------------------------------------------------------------------
+// 注目とインタラクト（memo 2026-09-24）。注目は state に持たず、描画と拾得が同じ純関数で求める
+// ---------------------------------------------------------------------------
+
+/** インタラクトで拾うドロップ品の種類。ハート・刻印符などの消耗品系は触れて拾うのでここに無い */
+export type DropKind = "item" | "stone";
+
+export type FocusedDrop =
+  | { kind: "item"; id: number; pos: Vec; inReach: boolean; item: Item }
+  | { kind: "stone"; id: number; pos: Vec; inReach: boolean; stone: SkillStone };
+
+type DropCandidate = { kind: "item"; id: number; pos: Vec; item: Item } | { kind: "stone"; id: number; pos: Vec; stone: SkillStone };
+
+function dropCandidates(state: GameState): DropCandidate[] {
+  const items: DropCandidate[] = state.floorItems.map((fi) => ({ kind: "item", id: fi.id, pos: fi.pos, item: fi.item }));
+  const stones: DropCandidate[] = state.skills.floorStones.map((fs) => ({ kind: "stone", id: fs.id, pos: fs.pos, stone: fs.stone }));
+  return [...items, ...stones];
+}
+
+/** 照準の世界座標。照準が無い（マウス未使用・パッドの右スティック中立）なら null */
+export function aimWorldOf(state: GameState, aimScreen: Vec | null): Vec | null {
+  return aimScreen === null ? null : screenToWorld(state.camera, aimScreen);
+}
+
+/** プレイヤーから拾える距離か */
+export function isInPickupReach(state: GameState, pos: Vec): boolean {
+  return dist(state.player.body.pos, pos) <= PICKUP.reach;
+}
+
+function nearestTo(candidates: readonly DropCandidate[], origin: Vec, radius: number): DropCandidate | null {
+  let best: DropCandidate | null = null;
+  let bestDist = radius;
+  for (const c of candidates) {
+    const d = dist(c.pos, origin);
+    // 同距離なら先の候補（遺物が先、各配列は落ちた順）。順序が決まっているので決定的
+    if (d > bestDist || (best !== null && d === bestDist)) continue;
+    best = c;
+    bestDist = d;
   }
-  if (picked.size === 0) return;
-  state.floorItems = state.floorItems.filter((fi) => !picked.has(fi.id));
+  return best;
+}
+
+/**
+ * 注目中のドロップ品。照準から PICKUP.focusRadius 以内で最も近いもの（遠くても注目はする。拾えるかは inReach）。
+ * 照準が無いとき（パッドで右スティック中立）はプレイヤーの手の届く範囲で最も近いものを注目する
+ */
+export function focusedDrop(state: GameState, aimWorld: Vec | null): FocusedDrop | null {
+  const candidates = dropCandidates(state);
+  const hit =
+    aimWorld === null
+      ? nearestTo(candidates, state.player.body.pos, PICKUP.reach)
+      : nearestTo(candidates, aimWorld, PICKUP.focusRadius);
+  if (hit === null) return null;
+  return { ...hit, inReach: isInPickupReach(state, hit.pos) };
+}
+
+/** step から呼ぶ: インタラクトが押されていれば注目中のドロップ品を拾う */
+export function updateDropInteract(state: GameState, input: FrameInput): void {
+  if (!input.interactPressed) return;
+  const focus = focusedDrop(state, aimWorldOf(state, input.aimScreen));
+  if (focus === null || !focus.inReach) return;
+  if (focus.kind === "item") {
+    if (pickUp(state, focus.item, focus.pos)) state.floorItems = state.floorItems.filter((fi) => fi.id !== focus.id);
+    return;
+  }
+  if (pickUpStone(state, focus.stone, focus.pos)) {
+    state.skills.floorStones = state.skills.floorStones.filter((fs) => fs.id !== focus.id);
+  }
+}
+
+/** スキル倉庫への追加を試みる。満杯なら false（石は床に残す） */
+function pickUpStone(state: GameState, stone: SkillStone, pos: Vec): boolean {
+  const profile = state.skills.profile;
+  if (!addStone(profile, stone)) {
+    addFloatingText(state, pos, "スキル倉庫が満杯", STASH_FULL_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
+    return false;
+  }
+  saveSkillProfile(profile);
+  const label = stoneLabel(stone);
+  addFloatingText(state, pos, label, SKILL.drop.stoneColor, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
+  pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
+  pushSfx(state, "lootRare");
+  return true;
 }
 
 /** stash への追加を試みる。満杯だったら false（アイテムは床に残す） */

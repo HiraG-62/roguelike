@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { PROFILE_KEY } from "../loot/profile";
 import {
+  BODY_SKILL_KEYS,
   MODIFIERS,
   SKILL,
   SKILL_DEFS,
@@ -16,7 +17,7 @@ import {
   modifierVerb,
   resolveCast,
 } from "./data";
-import { generateSkillStone, rollRuneModifier, stoneFromSeed } from "./generator";
+import { generateSkillStone, makeRuneItem, rollRuneDrop, rollRuneModifier, runeDropChance, stoneFromSeed } from "./generator";
 import {
   SKILL_PROFILE_KEY,
   addStone,
@@ -532,6 +533,63 @@ describe("相性表", () => {
     const p = resolveCast(SKILL_DEFS.railshot, stone("railshot", 2), ["pierce", "expand"]);
     expect(p.pierce).toBe(0);
     expect(p.areaMul).toBe(1);
+  });
+});
+
+describe("同時発動の排他グループ", () => {
+  it("SKILL.gcd（全スロット共通の最低間隔）は無い", () => {
+    expect("gcd" in SKILL, "共通最低間隔の定数は廃止").toBe(false);
+  });
+
+  it("body は BODY_SKILL_KEYS のスキルだけに付き、ほかは省略（並行して撃てる）", () => {
+    for (const key of SKILL_KEYS) {
+      const expected = BODY_SKILL_KEYS.includes(key) ? "body" : undefined;
+      expect(SKILL_DEFS[key].exclusiveGroup, key).toBe(expected);
+    }
+  });
+
+  it("近接・移動の本動作は body、設置・強化は body でない", () => {
+    for (const key of ["whirl", "lunge", "quake", "chainHook", "shadowStep", "meteorDive"] as const) {
+      expect(SKILL_DEFS[key].exclusiveGroup, `${key} は本動作`).toBe("body");
+    }
+    for (const key of ["frag", "mines", "thunder", "haste", "bloodPact", "turret"] as const) {
+      expect(SKILL_DEFS[key].exclusiveGroup, `${key} は並行可`).toBeUndefined();
+    }
+  });
+});
+
+describe("刻印符のドロップ（rollRuneDrop）", () => {
+  it("エリート・ボス・図書館・巣窟は通常の敵より出やすく、通常の敵は深度で少し増える（上限あり）", () => {
+    const normal = runeDropChance(1, "normal");
+    for (const source of ["elite", "boss", "library", "nest"] as const) {
+      expect(runeDropChance(1, source), source).toBeGreaterThan(normal);
+    }
+    expect(runeDropChance(10, "normal"), "深いほど増える").toBeGreaterThan(normal);
+    expect(runeDropChance(1000, "normal"), "上限").toBeCloseTo(SKILL.drop.runeOnKill.normal + SKILL.drop.runeOnKillDepthCap);
+  });
+
+  it("確率 1 なら装着中スキルに付けられる種類が出て、0 なら null。外れでも乱数は 1 回だけ引く", () => {
+    const hit = rollRuneDrop({ ...createRng(3), chance: () => true }, 1, "boss", ["frag"]);
+    expect(hit).not.toBeNull();
+    if (hit) expect(canAttach(SKILL_DEFS.frag, hit)).toBe(true);
+    let calls = 0;
+    const rng = createRng(3);
+    const counted = { ...rng, chance: (p: number) => (calls++, rng.chance(0 * p)) };
+    expect(rollRuneDrop(counted, 1, "normal")).toBeNull();
+    expect(calls).toBe(1);
+  });
+
+  it("同じ seed なら同じ結果（決定性）", () => {
+    const a = Array.from({ length: 50 }, (_, i) => rollRuneDrop(createRng(i), 5, "elite"));
+    const b = Array.from({ length: 50 }, (_, i) => rollRuneDrop(createRng(i), 5, "elite"));
+    expect(a).toEqual(b);
+  });
+
+  it("所持品の刻印符は種類・id・foundAt を持つ", () => {
+    const r = makeRuneItem("echo", 42, 1000);
+    expect(r.modifier).toBe("echo");
+    expect(r.foundAt).toBe(1000);
+    expect(r.id).not.toBe(makeRuneItem("echo", 43, 1000).id);
   });
 });
 

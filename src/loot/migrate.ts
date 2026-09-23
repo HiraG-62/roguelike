@@ -14,7 +14,10 @@ import { createEmptyProvenance, type AffixRoll, type Item, type Provenance, type
  * - 旧 rarity → 余白: normal 4 / magic 3 / rare 2 / unique 1
  * - 旧 rare の 2 語名は銘として残す。旧 unique は固有名から名のある遺物の key を引く
  * - 腐敗の印（cr_corrupted）は捨てる。来歴は空
+ * - lifeOnHit（旧: 命中ごとの固定回復）→ 与ダメの %。LEGACY_LIFE_ON_HIT_PCT_PER_FLAT 倍に換算する
  * 新形式のアイテム（provenance を持つ）には欠けたフィールドを補うだけで、値は変えない（冪等）。
+ * 新形式で lifeOnHit が固定値だった頃のアイテムは印が無く見分けられないため、値をそのまま % として読む
+ * （旧曲線 1〜5 と新曲線 2〜8% の幅がほぼ重なるように新曲線を選んである）。
  */
 
 /** 旧 tier（1 = T1）→ 揺らぎ。範囲外は 0 */
@@ -37,6 +40,26 @@ export const LEGACY_RARITY_MARGIN: Readonly<Record<Rarity, number>> = {
 
 const NO_FLUX = 0;
 
+/** 旧 lifeOnHit（固定値 1）を与ダメの何 % に換算するか。旧曲線の期待値 1〜4.5 を新曲線 2〜7% へ寄せる */
+export const LEGACY_LIFE_ON_HIT_PCT_PER_FLAT = 1.5;
+/** 換算後の小数桁（affixes.ts の lifeOnHit の decimals と同じ） */
+const LIFE_ON_HIT_DECIMALS = 1;
+const LIFE_ON_HIT_KEY = "lifeOnHit";
+
+function roundTo(v: number, decimals: number): number {
+  const scale = 10 ** decimals;
+  return Math.round(v * scale) / scale;
+}
+
+/**
+ * 旧形式の lifeOnHit（固定値）を与ダメの % へ換算する。他の key はそのまま返す。
+ * 旧形式（migrateItem の isNewFormat が偽）のアイテムにだけ使うので二重に換算されない
+ */
+export function convertLegacyLifeOnHit(roll: AffixRoll): AffixRoll {
+  if (roll.key !== LIFE_ON_HIT_KEY) return roll;
+  return { ...roll, value: roundTo(roll.value * LEGACY_LIFE_ON_HIT_PCT_PER_FLAT, LIFE_ON_HIT_DECIMALS) };
+}
+
 function isNewFormat(item: Item): boolean {
   return item.provenance !== undefined;
 }
@@ -47,8 +70,9 @@ function tierFlux(tier: number | undefined): number {
 }
 
 /** 旧 AffixRoll 1 つを新形式へ。腐敗の印は null */
-export function migrateRoll(roll: AffixRoll): AffixRoll | null {
-  if (isMarkerKey(roll.key)) return null;
+export function migrateRoll(legacy: AffixRoll): AffixRoll | null {
+  if (isMarkerKey(legacy.key)) return null;
+  const roll = convertLegacyLifeOnHit(legacy);
   if (isKeystoneKey(roll.key)) {
     const def = keystoneDef(roll.key);
     return def === undefined ? { key: roll.key, value: roll.value } : keystoneToRoll(def);

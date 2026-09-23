@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { updateDropInteract } from "./loot";
 import { createGame, step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { codesForAction, mouseButtonCode, skillKeyLabel } from "../core/input";
@@ -8,10 +9,10 @@ import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { KEYSTONE, MANA } from "../data/tuning";
-import { SKILL } from "../skills/data";
+import { BODY_SKILL_KEYS, SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { createDefaultSkillProfile } from "../skills/persistence";
-import type { ModifierKey, SkillKey, SkillStone, VariantRoll } from "../skills/types";
+import { SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "../skills/types";
 import { updatePlayer } from "./player";
 import {
   attachRune,
@@ -22,6 +23,7 @@ import {
   dropRune,
   frenzyMul,
   resolveSlot,
+  rollEnemyRuneDrop,
   skillLocksAttack,
   skillLocksDash,
   skillMoveMul,
@@ -58,7 +60,7 @@ function skillArena(slots: Loadout[], seed = 5, keystones: string[] = []): GameS
   state.skills = createSkillRunState({ version: 1, loadout: stones.map((s) => s.id), stones });
   slots.forEach((l, i) => {
     const slot = state.skills.slots[i];
-    if (slot) slot.modifiers = [...(l.modifiers ?? [])];
+    if (slot) slot.runModifiers = [...(l.modifiers ?? [])];
   });
   // 初回同期（部屋クリア・階層の検出を基準化）とチャージ補充
   updateSkills(state, withInput({}), 0);
@@ -102,9 +104,9 @@ function press(state: GameState, slot: SlotIndex, extra: Partial<FrameInput> = {
   );
 }
 
-/** 共通最低間隔とスロットの最低間隔が明けるまで待つ（連続発動のテスト用） */
+/** スロットの最低間隔が明けるまで待つ（連続発動のテスト用） */
 function waitInterval(state: GameState, slot: number): void {
-  run(state, Math.max(SKILL.gcd, resolveSlot(state, slot)?.interval ?? 0) + FIXED_DT);
+  run(state, (resolveSlot(state, slot)?.interval ?? 0) + FIXED_DT);
 }
 
 function manaCost(state: GameState, slot: number): number {
@@ -171,7 +173,6 @@ describe("マナと最低間隔", () => {
     expect(p.mana, "マナは減らない").toBe(mana);
     expect(p.hp, "血の代償の HP も払わない").toBe(hp);
     expect(state.combo.count, "コンボ燃料も消費しない").toBe(5);
-    expect(state.skills.gcd, "共通最低間隔も立たない").toBe(0);
     expect(state.skills.slots[0]?.intervalLeft, "最低間隔も立たない").toBe(0);
     expect(state.skills.manaFlash, "マナバーの点滅").toBeGreaterThan(0);
     expect(state.sfx, "不発の効果音").toContain("manaEmpty");
@@ -218,18 +219,64 @@ describe("マナと最低間隔", () => {
     expect(state.skills.slots[0]?.chargesLeft).toBe(0);
   });
 
-  it("共通最低間隔 0.15 秒の間は別スロットも発動せず、明けたら先行入力で出る", () => {
+  it("共通最低間隔は無い: 1 つ撃った直後の次のステップに別スロットが撃てる", () => {
     const state = skillArena([{ key: "frag" }, { key: "mines" }]);
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.gcd).toBeCloseTo(SKILL.gcd);
+    expect(state.skills.grenades, "1 つ目").toHaveLength(1);
     press(state, 1);
-    const steps = Math.floor(SKILL.gcd / FIXED_DT) - 2;
-    for (let i = 0; i < steps; i++) {
-      expect(state.skills.mines, `GCD 中の ${i} フレーム目に発動した`).toHaveLength(0);
-      updatePlayer(state, withInput({}), FIXED_DT);
-    }
-    run(state, SKILL.gcd);
-    expect(state.skills.mines, "GCD 明けに先行入力で発動").toHaveLength(1);
+    expect(state.skills.mines, "直後の別スロットがすぐ出る").toHaveLength(1);
+    expect(state.skills.pendingSlot, "先行入力に回らない").toBe(-1);
+    expect(state.skills.slots[1]?.intervalLeft, "最低間隔は撃ったスロットだけ").toBeCloseTo(SKILL.mines.minInterval);
+  });
+
+  it("同じステップに押した複数スロットはすべて 1→4 の順で発動する", () => {
+    const state = skillArena([{ key: "frag" }, { key: "mines" }, { key: "haste" }, { key: "bloodPact" }]);
+    press(state, 0, { ...aimAt(state, 60), skill2Pressed: true, skill3Pressed: true, skill4Pressed: true });
+    expect(state.skills.grenades, "スロット 1").toHaveLength(1);
+    expect(state.skills.mines, "スロット 2").toHaveLength(1);
+    expect(state.skills.haste.time, "スロット 3").toBeGreaterThan(0);
+    expect(state.skills.frenzy.time, "スロット 4").toBeGreaterThan(0);
+    expect(state.skills.recentSlots, "発動の履歴は 4 → 3 の順（新しい順）で、押した順が 1→4").toEqual([3, 2]);
+  });
+
+  it("本動作（body）同士は排他: 旋風斬りの最中に突進斬りは出ず、何も払わない", () => {
+    const state = skillArena([{ key: "whirl" }, { key: "lunge" }]);
+    press(state, 0);
+    expect(state.skills.active?.skillKey, "旋風斬りが発動中").toBe("whirl");
+    press(state, 1, aimAt(state, 60));
+    expect(state.skills.active?.skillKey, "本動作は中断されない").toBe("whirl");
+    expect(state.skills.slots[1]?.chargesLeft, "突進斬りのチャージは減らない").toBe(1);
+  });
+
+  it("同じステップに本動作を 2 つ押すと、先のスロットだけが出る", () => {
+    const state = skillArena([{ key: "lunge" }, { key: "whirl" }]);
+    const mana = state.player.mana;
+    press(state, 0, { ...aimAt(state, 60), skill2Pressed: true });
+    expect(state.skills.active?.skillKey).toBe("lunge");
+    expect(state.player.mana, "旋風斬りのマナは払わない").toBe(mana);
+  });
+
+  it("本動作の最中でも設置・強化（body 以外）は並行して撃て、本動作は続く", () => {
+    const state = skillArena([{ key: "whirl" }, { key: "frag" }, { key: "haste" }]);
+    press(state, 0);
+    press(state, 1, aimAt(state, 60));
+    press(state, 2);
+    expect(state.skills.active?.skillKey, "旋風斬りは続いている").toBe("whirl");
+    expect(state.skills.grenades, "グレネードが出る").toHaveLength(1);
+    expect(state.skills.haste.time, "加速が掛かる").toBeGreaterThan(0);
+  });
+
+  it("本動作の排他で弾かれた入力は先行入力に残り、本動作が終わったら出る", () => {
+    const state = skillArena([{ key: "whirl" }, { key: "lunge" }]);
+    press(state, 0);
+    state.skills.pendingSlot = 1;
+    state.skills.pendingTimer = SKILL.inputBuffer;
+    const active = state.skills.active;
+    if (!active) throw new Error("active");
+    active.phase = "recover";
+    active.timer = FIXED_DT / 2;
+    run(state, FIXED_DT * 2, withInput(aimAt(state, 60)));
+    expect(state.skills.slots[1]?.chargesLeft, "本動作の後に突進斬りが出た").toBe(0);
   });
 
   it("スキル固有の最低間隔: 同じスロットは間隔が明けるまで撃てない", () => {
@@ -237,7 +284,7 @@ describe("マナと最低間隔", () => {
     const full = state.player.mana;
     press(state, 0, aimAt(state, 60));
     expect(state.skills.slots[0]?.intervalLeft).toBeCloseTo(SKILL.frag.minInterval);
-    run(state, SKILL.gcd + FIXED_DT * 2);
+    run(state, FIXED_DT * 2);
     press(state, 0, aimAt(state, 60));
     run(state, SKILL.inputBuffer + FIXED_DT);
     expect(state.player.mana, "間隔の中では 1 回ぶんしか払っていない（先行入力も切れる）").toBeCloseTo(full - SKILL.frag.cost);
@@ -247,13 +294,14 @@ describe("マナと最低間隔", () => {
   });
 
   it("先行入力中にマナが足りればそのまま発動する", () => {
-    const state = skillArena([{ key: "frag" }, { key: "mines" }]);
-    press(state, 0, aimAt(state, 60));
+    const state = skillArena([{ key: "mines" }]);
+    const dash = FIXED_DT * 3;
+    state.player.dashTimer = dash;
     state.player.mana = 0;
-    press(state, 1);
-    expect(state.skills.pendingSlot, "GCD 中なので先行入力").toBe(1);
+    press(state, 0);
+    expect(state.skills.pendingSlot, "ダッシュ中なので先行入力").toBe(0);
     state.player.mana = SKILL.mines.cost;
-    run(state, SKILL.gcd);
+    run(state, dash + FIXED_DT);
     expect(state.skills.mines).toHaveLength(1);
     expect(state.player.mana).toBeCloseTo(0);
   });
@@ -430,9 +478,11 @@ describe("血の契約", () => {
     const e = tough(state, 60);
     trackDamageDealt(state);
     const hp = p.hp;
-    e.hp -= 100;
+    // 吸収は戦闘中の回復の上限（最大 HP の HEAL.sustainCapRatio / 秒）を受けるので、上限未満に収まる与ダメで見る
+    const dealt = 40;
+    e.hp -= dealt;
     trackDamageDealt(state);
-    expect(p.hp).toBeCloseTo(hp + 100 * SKILL.bloodPact.lifesteal);
+    expect(p.hp).toBeCloseTo(hp + dealt * SKILL.bloodPact.lifesteal);
   });
 
   it("HP コストで 1 未満にならない（血の代償付き）", () => {
@@ -529,18 +579,69 @@ describe("刻印符", () => {
     expect(mods(0)).toEqual(["echo"]);
   });
 
-  it("付けられる枠が無ければ床に残る。触れると装着されて消える", () => {
+  it("床の刻印符は触れると所持品に入り、スキルには勝手に付かない", () => {
     const state = skillArena([{ key: "parry", links: 0 }, { key: "whirl", links: 1 }]);
     const p = state.player.body.pos;
     dropRune(state, p, "echo");
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
-    expect(state.skills.runes).toHaveLength(0);
-    expect(state.skills.slots[1]?.modifiers).toEqual(["echo"]);
+    expect(state.skills.runes, "床から消える").toHaveLength(0);
+    expect(state.skills.profile.runes?.map((r) => r.modifier), "所持品に入る").toEqual(["echo"]);
+    expect(state.skills.slots[1]?.modifiers, "スロットには付かない").toEqual([]);
+  });
 
-    const none = skillArena([{ key: "parry", links: 2 }]);
-    dropRune(none, none.player.body.pos, "echo");
-    run(none, SKILL.drop.pickupDelay + FIXED_DT);
-    expect(none.skills.runes).toHaveLength(1);
+  it("所持が満杯なら拾えず床に残る", () => {
+    const state = skillArena([{ key: "whirl", links: 1 }]);
+    state.skills.profile.runes = Array.from({ length: SKILL.runeCapacity }, (_, i) => ({ id: `full${i}`, modifier: "echo" as const, foundAt: 0 }));
+    dropRune(state, state.player.body.pos, "pierce");
+    run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    expect(state.skills.runes, "床に残る").toHaveLength(1);
+    expect(state.skills.profile.runes).toHaveLength(SKILL.runeCapacity);
+  });
+
+  it("石に付けた刻印符は次のステップからスロットに効き、ラン内の符より先に並ぶ", () => {
+    const state = skillArena([{ key: "frag", links: 2, modifiers: ["bloodPrice"] }]);
+    const stone = state.skills.profile.stones[0];
+    if (!stone) throw new Error("stone");
+    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
+    expect(state.skills.slots[0]?.modifiers, "付けた直後はまだ効かない（リプレイの装備変更と同じ時点に揃える）").toEqual(["bloodPrice"]);
+    run(state, FIXED_DT);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
+  });
+
+  it("ラン内の自動装着は石に付けた符を押し出さない", () => {
+    const state = skillArena([{ key: "frag", links: 1 }]);
+    const stone = state.skills.profile.stones[0];
+    if (!stone) throw new Error("stone");
+    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
+    run(state, FIXED_DT);
+    expect(attachRune(state, "bloodPrice"), "枠が埋まっているので付かない").toBe(-1);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["echo"]);
+  });
+});
+
+describe("同時発動と排他グループ", () => {
+  it("発動中の本動作（active）を立てるスキルは必ず排他グループ body（active は 1 つだけ）", () => {
+    for (const key of SKILL_KEYS) {
+      const state = skillArena([{ key, links: 0 }]);
+      tough(state, 30);
+      state.player.mana = state.stats.maxMana;
+      press(state, 0, aimAt(state, 30));
+      if (state.skills.active === null) continue;
+      expect(BODY_SKILL_KEYS.includes(key), `${key} は active を使うので body に入れる`).toBe(true);
+    }
+  });
+});
+
+describe("撃破時の刻印符ドロップ", () => {
+  it("ボス・エリートの撃破は出どころ付きで抽選し、落ちれば床に置く", () => {
+    const state = skillArena([{ key: "frag", links: 1 }]);
+    const seen: number[] = [];
+    state.rng = { ...state.rng, chance: (p: number) => (seen.push(p), true) };
+    const e = tough(state, 30);
+    e.elite = "hasted";
+    rollEnemyRuneDrop(state, e);
+    expect(state.skills.runes, "床に落ちる").toHaveLength(1);
+    expect(seen[0], "エリートの確率").toBeCloseTo(SKILL.drop.runeOnKill.elite);
   });
 });
 
@@ -563,6 +664,9 @@ describe("ドロップ", () => {
     if (!fs) throw new Error("no stone");
     fs.pos = { ...state.player.body.pos };
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    expect(state.skills.floorStones, "触れただけでは拾わない（注目 + 拾うキー）").toHaveLength(1);
+    // 照準なし（パッドの右スティック中立）なら手の届く最寄りを拾う
+    updateDropInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.profile.stones.length).toBe(before + 1);
     expect(state.skills.floorStones).toHaveLength(0);
   });

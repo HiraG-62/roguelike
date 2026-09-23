@@ -13,6 +13,9 @@ import {
   isActionRow,
   isDailyEntry,
   keybindsLayout,
+  TITLE_MENU_ITEMS,
+  titleMenuRects,
+  type TitleMenuItem,
   pauseMenuLayout,
   settingsLayout,
   type KeybindsLayout,
@@ -82,6 +85,7 @@ const ACTION_LABEL: Record<RebindableAction, string> = {
   skill2: "スキル 2",
   skill3: "スキル 3",
   skill4: "スキル 4",
+  interact: "拾う",
   restart: "やり直す（新シード）",
 };
 
@@ -245,12 +249,46 @@ function drawParticles(ctx: CanvasRenderingContext2D, time: number): void {
   }
 }
 
+/** タイトルに重ねるメタ進行の表示 */
+export interface TitleMetaView {
+  /** 名乗っている称号（無ければ null） */
+  title: string | null;
+  /** マウスが乗っているメニュー項目 */
+  hovered: TitleMenuItem | null;
+}
+
+const TITLE_LABEL_Y = 96;
+const COLOR_MENU_BG = "rgba(12,12,18,0.85)";
+const COLOR_MENU_HOVER = "rgba(106,140,255,0.35)";
+
+const TITLE_MENU_LABEL: Readonly<Record<TitleMenuItem, string>> = {
+  codex: "C 図鑑",
+  quests: "Q 依頼",
+  achievements: "A 実績",
+};
+
+/** 図鑑・依頼・実績のボタン（当たり判定は ui/title.ts の titleMenuRects と同じ矩形） */
+function drawTitleMenu(ctx: CanvasRenderingContext2D, hovered: TitleMenuItem | null): void {
+  const rects = titleMenuRects();
+  TITLE_MENU_ITEMS.forEach((item, i) => {
+    const r = rects[i];
+    if (!r) return;
+    const hot = item === hovered;
+    ctx.fillStyle = hot ? COLOR_MENU_HOVER : COLOR_MENU_BG;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = hot ? COLOR_TITLE : COLOR_BORDER;
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+    drawText(ctx, TITLE_MENU_LABEL[item], r.x + r.w / 2, r.y + r.h / 2, TEXT.SMALL, hot ? COLOR_CURSOR : COLOR_TEXT, "center", "middle");
+  });
+}
+
 export function drawTitle(
   ctx: CanvasRenderingContext2D,
   time: number,
   gameName: string,
   seedInput: SeedInputState,
   stats: TitleStats,
+  meta: TitleMetaView = { title: null, hovered: null },
 ): void {
   ctx.drawImage(backdrop(), 0, 0);
   drawParticles(ctx, time);
@@ -266,11 +304,14 @@ export function drawTitle(
     ? `シード: ${seedInput.text}_`
     : `シード: ${seedInput.text}  (N: 編集 / URL を共有できます)`;
   drawText(ctx, seedLabel, VIEW_W / 2, 132, TEXT.SMALL, seedColor, "center");
+  if (meta.title !== null) drawText(ctx, `称号「${meta.title}」`, VIEW_W / 2, TITLE_LABEL_Y, TEXT.SMALL, COLOR_TITLE, "center");
+  drawTitleMenu(ctx, meta.hovered);
 
   // 右下: 操作一覧
   const controls = [
     "Enter / クリック: 開始   D: デイリーシード",
     "N: シード編集   H: 履歴   O: 設定",
+    "C: 図鑑   Q: 依頼   A: 実績",
     "WASD / 矢印キー: 移動、Space: ダッシュ",
     "E / 左クリック: 近接、Q / 右クリック: 射撃、F: バースト",
   ];
@@ -395,7 +436,8 @@ export function drawReplayHud(ctx: CanvasRenderingContext2D, info: ReplayHudInfo
   drawText(ctx, `シード:${info.seedText}   ← →: 速度   Esc: 終了`, VIEW_W / 2, barY + REPLAY_BAR_H + 9, TEXT.SMALL, COLOR_DIM, "center");
 }
 
-export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number): void {
+/** questLine: 受けている依頼の進み（無ければ空文字。パネルの下に出す） */
+export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number, questLine = ""): void {
   ctx.fillStyle = COLOR_OVERLAY;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
@@ -417,7 +459,11 @@ export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number): vo
     drawText(ctx, active ? `> ${label} <` : label, VIEW_W / 2, textY, TEXT.SMALL, active ? COLOR_CURSOR : COLOR_DIM, "center");
   });
   drawVersion(ctx, VIEW_W / 2, panel.y + panel.h + PAUSE_VERSION_GAP, "center");
+  if (questLine !== "") drawText(ctx, questLine, VIEW_W / 2, panel.y + panel.h + PAUSE_QUEST_GAP, TEXT.SMALL, COLOR_TITLE, "center");
 }
+
+/** ポーズパネル下端から依頼の進みのベースラインまで */
+const PAUSE_QUEST_GAP = 28;
 
 function drawVersion(ctx: CanvasRenderingContext2D, x: number, y: number, align: "center" | "right"): void {
   drawText(ctx, APP_VERSION, x, y, TEXT.SMALL, COLOR_VERSION, align);
@@ -598,7 +644,13 @@ export interface DeathSummaryInfo {
   itemSummary: RunItemSummary;
   bestCombo: number;
   bossesDefeated: number;
+  /** 依頼・図鑑・実績の結果（src/meta/。無ければ出さない） */
+  metaLines?: readonly string[];
 }
+
+const DEATH_META_TOP = 102;
+const DEATH_META_LINE = 11;
+const COLOR_META = "#80ff80";
 
 /** renderer.drawDeath の上に重ね描きする追加情報 */
 export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSummaryInfo): void {
@@ -607,4 +659,8 @@ export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSumma
   drawText(ctx, `拾った遺物: ${info.itemSummary.total}（${rarityText}）`, VIEW_W / 2, VIEW_H / 2 + 60, m, COLOR_TEXT, "center");
   drawText(ctx, `撃破したボス: ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72, m, COLOR_TEXT, "center");
   drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード   T: タイトル`, VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
+  const line = Math.max(DEATH_META_LINE, textLineHeight(m));
+  (info.metaLines ?? []).forEach((text, i) => {
+    drawText(ctx, truncateText(text, VIEW_W - SCREEN_MARGIN * 2, m), VIEW_W / 2, VIEW_H / 2 + DEATH_META_TOP + i * line, m, COLOR_META, "center");
+  });
 }

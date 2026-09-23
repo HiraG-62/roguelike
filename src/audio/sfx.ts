@@ -279,7 +279,11 @@ const TUNING = {
   equipOn: { freq: 700, duration: 0.05, noiseFreqFrom: 1200, noiseFreqTo: 400, noiseDuration: 0.04 },
   equipOff: { freqFrom: 700, freqTo: 350, duration: 0.05 },
   dismantle: { noiseFreqFrom: 2500, noiseFreqTo: 200, noiseDuration: 0.15, lowFreq: 100, lowDuration: 0.12 },
+  oilSplash: { noiseFreqFrom: 900, noiseFreqTo: 200, noiseDuration: 0.18, lowFreq: 90, lowDuration: 0.12 },
+  windGust: { noiseFreqFrom: 600, noiseFreqTo: 1800, noiseDuration: 0.5 },
+  chainThrow: { freqFrom: 1200, freqTo: 500, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 2500, noiseDuration: 0.1 },
   menuMove: { freq: 900, duration: 0.015 },
+  chargeLevel: { tones: [660, 990] as const, noteDuration: 0.035, gap: 0.01 },
 } as const;
 
 // ---- 各効果音の定義 -------------------------------------------------------
@@ -1225,7 +1229,60 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
     return Math.max(noise, thud);
   },
 
+  // 油・毒液が床に撒かれる: 低いどさっと、湿った雑音
+  oilSplash: (ctx, dest, opts) => {
+    const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.oilSplash.lowFreq, duration: TUNING.oilSplash.lowDuration, peak: 0.5 });
+    const wet = noiseBurst(ctx, dest, opts, {
+      filterType: "lowpass",
+      freqFrom: TUNING.oilSplash.noiseFreqFrom,
+      freqTo: TUNING.oilSplash.noiseFreqTo,
+      duration: TUNING.oilSplash.noiseDuration,
+      peak: 0.45,
+    });
+    return Math.max(low, wet);
+  },
+
+  // 風吹きの一吹き: 上がっていく帯域の雑音
+  windGust: (ctx, dest, opts) =>
+    noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.windGust.noiseFreqFrom,
+      freqTo: TUNING.windGust.noiseFreqTo,
+      duration: TUNING.windGust.noiseDuration,
+      q: 1.5,
+      peak: 0.4,
+    }),
+
+  // 鎖・舌を投げる: 金属の擦れと下がる音
+  chainThrow: (ctx, dest, opts) => {
+    const sweep = toneSweep(ctx, dest, opts, {
+      type: "sawtooth",
+      freqFrom: TUNING.chainThrow.freqFrom,
+      freqTo: TUNING.chainThrow.freqTo,
+      duration: TUNING.chainThrow.duration,
+      peak: 0.3,
+    });
+    const rattle = noiseBurst(ctx, dest, opts, {
+      filterType: "highpass",
+      freqFrom: TUNING.chainThrow.noiseFreqFrom,
+      freqTo: TUNING.chainThrow.noiseFreqTo,
+      duration: TUNING.chainThrow.noiseDuration,
+      peak: 0.3,
+    });
+    return Math.max(sweep, rattle);
+  },
+
   menuMove: (ctx, dest, opts) => tone(ctx, dest, opts, { type: "square", freq: TUNING.menuMove.freq, duration: TUNING.menuMove.duration, peak: 0.25 }),
+
+  // 溜めの段: 短い 2 音の上昇（離すタイミングを耳で計れるように）
+  chargeLevel: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "square",
+      freqs: TUNING.chargeLevel.tones,
+      noteDuration: TUNING.chargeLevel.noteDuration,
+      gap: TUNING.chargeLevel.gap,
+      peak: 0.3,
+    }),
 };
 
 // SFX_NAMES 全件に定義があることを型レベルで保証（Record が満たされていないとコンパイルエラーになる）

@@ -13,6 +13,7 @@ import {
   traitWeight,
   type ColorWeights,
 } from "./resonance";
+import { scaleFlat } from "./flux";
 import { computeStats, equipmentResonance } from "./stats";
 import { TRAIT_COLORS, createEmptyEquipment, type AffixRoll, type Item, type Slot } from "./types";
 
@@ -100,7 +101,8 @@ describe("computeStats と共鳴", () => {
     expect(stats.resonance.kind).toBe("dominant");
     expect(stats.resonance.colors).toEqual(["crimson"]);
     expect(stats.critChance).toBeCloseTo(0.05 + 0.1 * OFF_COLOR_DAMPING);
-    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.2 + 0.1);
+    // 共鳴の効果値には装備の強さの係数（FLUX.globalScale）が掛かる
+    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.2 + scaleFlat(0.1, 4));
     expect(stats.triggers.some((t) => t.trigger === "everyNthMeleeHit" && t.effect === "burnNearby")).toBe(true);
   });
 
@@ -125,7 +127,7 @@ describe("computeStats と共鳴", () => {
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("dual");
     expect(stats.resonance.colors).toEqual(["crimson", "jade"]);
-    expect(stats.lifeOnHit).toBeCloseTo(1);
+    expect(stats.lifeOnHit, "与ダメの 1% × 係数").toBeCloseTo(scaleFlat(1, 4));
   });
 
   it("散光: 主要倍率が少しずつ伸びる（支配/二重よりかなり高かったため半分に調整済み）", () => {
@@ -164,7 +166,7 @@ describe("computeStats と共鳴", () => {
     ]);
     const stats = computeStats(eq);
     expect(stats.resonance.colors).toEqual(["umbra"]);
-    expect(stats.energyGainMul).toBeCloseTo(1.15);
+    expect(stats.energyGainMul).toBeCloseTo(1 + scaleFlat(0.15, 4));
   });
 
   it("adjustForResonance は元の roll を変えない", () => {

@@ -1,13 +1,15 @@
 import { type Corpse, type Enemy, type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
-import { ENEMY_AI } from "../data/tuning";
+import { BOSS, ENEMY_AI } from "../data/tuning";
 import { addFloatingText, spawnBurst, spawnLine } from "./effects";
 import { createEnemy, moveEnemy } from "./enemies";
 import { spawnBomb } from "./hazards";
 import { gainMana } from "./mana";
 import { overlapsWall } from "./physics";
 import { applyStatus, hasStatus } from "./statusEffects";
+import { dropDeathTerrain, onRallyDeath } from "./enemyTerrain";
+import { addPoise } from "./poise";
 
 /**
  * 敵の性質（EnemyDef の任意フィールド）の処理: 死に際の置き土産・死骸・取り巻き・逃げ回り・マナの奪い合い。
@@ -121,6 +123,17 @@ export function onEnemyDeath(state: GameState, e: Enemy, def: EnemyDef): void {
   scatterFollowers(state, e, def);
   scheduleTwinRevive(state, e, def);
   leaveCorpse(state, e, def);
+  dropDeathTerrain(state, e, def);
+  onRallyDeath(state, e, def);
+  crackEgg(state, e, def);
+}
+
+/** 群れの母の卵を割られると、母に怯み値が入る（範囲攻撃で卵を割りながら母を崩す） */
+function crackEgg(state: GameState, e: Enemy, def: EnemyDef): void {
+  if (def.behavior !== "egg") return;
+  const mother = state.enemies.find((o) => o.id === e.leaderId && o.hp > 0);
+  if (!mother) return;
+  addPoise(state, mother, BOSS.broodMother.eggBreakPoise);
 }
 
 function burstOnDeath(state: GameState, e: Enemy, def: EnemyDef): void {

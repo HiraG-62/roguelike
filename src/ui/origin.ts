@@ -10,6 +10,7 @@ import {
   defaultRunSetup,
   runTier,
 } from "../system/runSetup";
+import { QUESTS } from "../meta/quests";
 
 /**
  * 起点画面（タイトル → 起点 → ラン開始）の状態と入力。DOM 非依存。
@@ -30,18 +31,30 @@ export interface OriginScreen {
   modCursor: number;
   origin: OriginKey;
   modifiers: RunModKey[];
+  /** 依頼で未解放の起点（「？」で出し、選べない。src/meta/quests.ts の lockedOrigins） */
+  locked: ReadonlySet<OriginKey>;
 }
 
 /** 前回の選択を引き継いで開く。カーソルは「出発」に置く（Enter 連打ですぐ始められる） */
-export function createOriginScreen(prev: RunSetup = defaultRunSetup()): OriginScreen {
+export function createOriginScreen(prev: RunSetup = defaultRunSetup(), locked: ReadonlySet<OriginKey> = new Set()): OriginScreen {
   return {
     column: "origin",
     originCursor: ORIGIN_ROWS.length - 1,
     modCursor: 0,
-    origin: prev.origin,
+    // 前回の起点が未解放扱い（保存データが消えた等）なら放浪者へ戻す
+    origin: locked.has(prev.origin) ? defaultRunSetup().origin : prev.origin,
     modifiers: [...prev.modifiers],
+    locked,
   };
 }
+
+/** 未解放の起点の説明（どの依頼で解放されるか） */
+function lockedDescription(row: OriginKey): string {
+  const by = ORIGINS[row].unlockedBy;
+  return by === undefined ? "" : `依頼「${QUESTS[by].name}」を達成すると選べる。`;
+}
+
+export const LOCKED_ORIGIN_NAME = "？？？";
 
 export function originSetup(ui: Readonly<OriginScreen>): RunSetup {
   // 縛りの並びは RUN_MOD_KEYS の順にそろえる（リプレイや記録で同じ組を同じ表記にする）
@@ -81,6 +94,7 @@ export function activateOriginCursor(ui: OriginScreen): OriginResult {
   const row = ORIGIN_ROWS[ui.originCursor];
   if (!row) return "none";
   if (row === "start") return "start";
+  if (ui.locked.has(row)) return "none";
   ui.origin = row;
   return "changed";
 }
@@ -100,6 +114,7 @@ export function cursorDescription(ui: Readonly<OriginScreen>): { name: string; d
   const row = ORIGIN_ROWS[ui.originCursor];
   if (!row) return { name: "", desc: "" };
   if (row === "start") return { name: START_LABEL, desc: `起点「${ORIGINS[ui.origin].name}」・位階 ${originTier(ui)} で潜る。` };
+  if (ui.locked.has(row)) return { name: LOCKED_ORIGIN_NAME, desc: lockedDescription(row) };
   return { name: ORIGINS[row].name, desc: ORIGINS[row].desc };
 }
 

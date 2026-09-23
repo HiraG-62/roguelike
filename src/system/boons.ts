@@ -35,8 +35,9 @@ import {
   tightropePenalty,
   updateBoonRules,
 } from "./boonRules";
-import { cancelAttack, healPlayer } from "./combat";
+import { cancelAttack, healPlayer, healSustained } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
+import { isEngaged } from "./engagement";
 import { STATUS_BOON_TAGS, affinity, buildProfile, statsBoonTags } from "./keywords";
 import { dropItem } from "./loot";
 import { gainMana } from "./mana";
@@ -721,7 +722,7 @@ export function boonMoveMul(state: GameState): number {
   if (state.boonRun.guardTimer > 0) return 0;
   const burden = hasBoon(state, "burden") ? BOON.burdenMoveMul : 1;
   if (!hasBoon(state, "lockdown")) return burden;
-  return burden * (state.rooms.some((r) => r.locked) ? BOON.lockdownFastMul : BOON.lockdownSlowMul);
+  return burden * (isEngaged(state) ? BOON.lockdownFastMul : BOON.lockdownSlowMul);
 }
 
 /** 近接ヒット: 拡張の祝福（counter = カウンターヒット）と overcharge（ゲージ満タン中 / 臨界の窓で爆発） */
@@ -772,7 +773,8 @@ export function onBoonKill(state: GameState, enemy: Enemy): void {
     addFloatingText(state, enemy.body.pos, "次階に宝物庫", BOON.rarityColor.rare, TEXT_SCALE, 1);
   }
   if (enemy.elite && hasBoon(state, "eliteMagnet")) dropItem(state, enemy.body.pos);
-  if (hasBoon(state, "bloodFeast")) healPlayer(state, BOON.feastHeal, { silent: true });
+  // 撃破回復は戦闘中の回復の共通上限（HEAL.sustainCapRatio）の下に置く
+  if (hasBoon(state, "bloodFeast")) healSustained(state, BOON.feastHeal, { silent: true });
   // 燃焼の強さ（dps）は status の potency。広げた先にも同じ強さで付ける
   const burn = findStatus(enemy.status, "burn");
   if (burn && hasBoon(state, "burnSpread")) {
@@ -804,7 +806,7 @@ function spreadPlague(state: GameState, enemy: Enemy): void {
 function bloodMist(state: GameState, enemy: Enemy): void {
   if (!hasStatus(enemy.status, "bleed")) return;
   removeStatus(state, { kind: "player" }, "bleed");
-  healPlayer(state, BOON.bloodMistHeal, { silent: true });
+  healSustained(state, BOON.bloodMistHeal, { silent: true });
   spawnBurst(state, state.player.body.pos, BOON.bloodMistColor, 8, 60, 0.3, 1.5);
 }
 
@@ -974,7 +976,7 @@ export function onBoonRoomClear(state: GameState, room?: RoomState): void {
     p.buffs.invuln = Math.max(p.buffs.invuln, BOON.clearInvulnTime);
     addFloatingText(state, p.body.pos, "結界", BOON.guardColor, TEXT_SCALE, TEXT_LIFE);
   }
-  if (hasBoon(state, "clearHeal")) healPlayer(state, p.maxHp);
+  if (hasBoon(state, "clearHeal")) healPlayer(state, p.maxHp * BOON.clearHealRatio);
 }
 
 export function boonHeartsAllowed(state: GameState): boolean {

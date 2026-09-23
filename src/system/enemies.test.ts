@@ -253,8 +253,10 @@ describe("量産した敵: 全体", () => {
         tickEnemies(state);
       }
     }).not.toThrow();
-    // 氷の鎧（氷柱）が残っていても、柱から先に倒れるので数回で部屋が空になる
+    // 氷の鎧（氷柱）が残っていても、柱から先に倒れるので数回で部屋が空になる。
+    // 潜行中の敵（土潜り・天井吊り）は攻撃が当たらないので、浮上させてから倒す
     for (let round = 0; round < 3; round++) {
+      for (const e of state.enemies) e.hidden = false;
       for (const e of [...state.enemies]) damageEnemy(state, e, 999_999, { x: 1, y: 0 }, 0);
       updateEnemies(state, FIXED_DT);
     }

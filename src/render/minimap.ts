@@ -63,6 +63,7 @@ const ROOM_RGB: Readonly<Record<RoomKind, Rgb>> = {
   escape: [150, 150, 170],
   nest: [150, 150, 170],
   mirror: [150, 150, 170],
+  horde: [150, 150, 170],
 };
 
 /** 部屋の中央に打つ 3x3 の記号（行ごとの 3 ビット。1 = 塗る）。無い種類は打たない */
@@ -81,6 +82,7 @@ const ROOM_MARK: Readonly<Partial<Record<RoomKind, readonly [number, number, num
   escape: [0b100, 0b110, 0b111],
   nest: [0b111, 0b101, 0b101],
   mirror: [0b101, 0b101, 0b111],
+  horde: [0b111, 0b000, 0b111],
 };
 const MARK_SIZE = 3;
 const MARK_BITS_TOP = 0b100;

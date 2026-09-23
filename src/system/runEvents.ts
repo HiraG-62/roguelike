@@ -7,10 +7,11 @@ import { type EchoWallet, createEchoWallet } from "../loot/crafting";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { healPlayer } from "./combat";
 import { addFloatingText, shake } from "./effects";
+import { engagedRoomIndex } from "./engagement";
 import { eliteKindsFor, makeElite, rollElite } from "./elites";
 import { type Impact, pushImpact, updateImpacts } from "./impacts";
 import { type LingerState, createLingerState, resetLinger, updateLinger } from "./linger";
-import { dropItem, dropRoomReward } from "./loot";
+import { dropBonusReward, dropItem } from "./loot";
 import { refillMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { dropRareItem } from "./roomTypes";
@@ -97,7 +98,7 @@ export interface RunEventState {
   killsSeen: number;
   /** 時間で起きるイベントの抽選までの秒 */
   timedCheck: number;
-  /** 部屋の砂時計: 今の封鎖が続いている秒と、予告を出したか */
+  /** 部屋の砂時計: 今の交戦が続いている秒と、予告を出したか */
   lockTime: number;
   hourglassWarned: boolean;
   /** 鍛冶場・交換所で得た残響。main.ts が残響の保存へ移す（step の中で localStorage に触れない） */
@@ -189,7 +190,7 @@ export function onRoomCleared(state: GameState, room: RoomState, index: number):
   ev.lockTime = 0;
   const current = ev.room;
   if (current && current.roomIndex === index) finishRoomEvent(state, current, room, true);
-  if (ev.floor?.key === "frenzyMoon" && ev.floor.phase === "active") dropRoomReward(state, rectCenterPx(room.rect));
+  if (ev.floor?.key === "frenzyMoon" && ev.floor.phase === "active") dropBonusReward(state, rectCenterPx(room.rect));
   if (!eventsAllowed(state) || ev.room || ev.cooldown > 0) return;
   const key = rollFirst(state, RUN_EVENT.clearChance);
   if (key) scheduleRunEvent(state, key, index);
@@ -284,11 +285,7 @@ function checkTimedEvents(state: GameState, dt: number): void {
   ev.timedCheck = RUN_EVENT.checkInterval;
   if (ev.room || ev.cooldown > 0) return;
   const key = rollFirst(state, RUN_EVENT.timedChance);
-  if (key) scheduleRunEvent(state, key, currentRoomIndex(state));
-}
-
-function currentRoomIndex(state: GameState): number {
-  return state.rooms.findIndex((r) => r.locked);
+  if (key) scheduleRunEvent(state, key, engagedRoomIndex(state));
 }
 
 /** 撃破数の差分: 血の月の回復 */
@@ -308,10 +305,10 @@ function applyQuickHands(state: GameState, dt: number): void {
   }
 }
 
-/** 縛り「部屋の砂時計」: 封鎖が長引くと予告して増援。以後も同じ間隔で繰り返す */
+/** 縛り「部屋の砂時計」: 交戦が長引くと予告して増援。以後も同じ間隔で繰り返す */
 function tickHourglass(state: GameState, dt: number): void {
   if (!hasMod(state, "hourglass")) return;
-  const index = currentRoomIndex(state);
+  const index = engagedRoomIndex(state);
   if (index < 0 || state.boss?.roomIndex === index) return;
   const ev = state.runEvents;
   ev.lockTime += dt;
@@ -326,9 +323,9 @@ function tickHourglass(state: GameState, dt: number): void {
   pushSfx(state, "ambush");
 }
 
-/** 部屋の砂時計の残り秒（封鎖中でなければ null） */
+/** 部屋の砂時計の残り秒（交戦中でなければ null） */
 export function hourglassLeft(state: GameState): number | null {
-  if (!hasMod(state, "hourglass") || currentRoomIndex(state) < 0) return null;
+  if (!hasMod(state, "hourglass") || engagedRoomIndex(state) < 0) return null;
   return Math.max(0, RUN_MOD.hourglassTime - state.runEvents.lockTime);
 }
 
@@ -435,7 +432,7 @@ function finishRoomEvent(state: GameState, current: ActiveRunEvent, room: RoomSt
   const center = rectCenterPx(room.rect);
   if (current.phase === "active" && cleared) {
     if (current.key === "reinforce" && current.timer <= RUN_EVENT.reinforceBonusTime) {
-      dropRoomReward(state, center);
+      dropBonusReward(state, center);
       roomHooks.dropHeart(state, { x: center.x + TILE_SIZE, y: center.y });
       pushLog(state, "増援を蹴散らした。褒美だ。", RUN_EVENT.activeColor);
     }

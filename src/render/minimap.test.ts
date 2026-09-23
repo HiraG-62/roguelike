@@ -43,7 +43,8 @@ describe("ミニマップ", () => {
     const lookup = buildRoomLookup(state);
     const room = state.rooms[1];
     if (!room) throw new Error("room missing");
-    const inRoom = room.rect.y * state.map.width + room.rect.x;
+    // 洞窟の部屋は矩形の隅が所属タイルとは限らないので、所属タイルがあればそこから取る
+    const inRoom = room.tiles ? [...room.tiles][0]! : room.rect.y * state.map.width + room.rect.x;
     const corridor = lookup.roomOf.findIndex((r, i) => r === -1 && state.map.tiles[i] !== 0);
     state.exploredLog = [inRoom, corridor];
     const normal = new Uint8ClampedArray(state.map.tiles.length * RGBA);

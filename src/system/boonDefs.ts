@@ -254,7 +254,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   lockdown: {
     key: "lockdown",
     name: "封鎖疾走",
-    desc: "封鎖中は移動速度+30%になる代わりに、それ以外では-10%になる。",
+    desc: "交戦中は移動速度+30%になる代わりに、それ以外では-10%になる。",
     icon: "L",
     rarity: "common",
     tags: ["room", "dash"],
@@ -356,7 +356,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   clearHeal: {
     key: "clearHeal",
     name: "血の代償",
-    desc: "部屋を制圧するとHPが全回復する代わりに、最大HPが-30%になる。",
+    desc: "部屋を制圧するとHPが最大の60%回復する代わりに、最大HPが-30%になる。",
     icon: "T",
     rarity: "rare",
     tags: ["room", "hp"],
@@ -504,7 +504,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   bloodFeast: {
     key: "bloodFeast",
     name: "血の饗宴",
-    desc: "ハートが出なくなる代わりに、撃破するたびHP3回復する。",
+    desc: "ハートが出なくなる代わりに、撃破するたびHP2回復する（戦闘中の回復の上限あり）。",
     icon: "+",
     rarity: "rare",
     tags: ["hp"],
@@ -524,7 +524,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   frostLock: {
     key: "frostLock",
     name: "氷結封鎖",
-    desc: "部屋をロックすると、中の敵全員を3秒間凍えさせる。",
+    desc: "部屋で交戦が始まると、中の敵全員を3秒間凍えさせる。",
     icon: "#",
     rarity: "common",
     tags: ["chill", "room"],
@@ -578,7 +578,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   bloodMist: {
     key: "bloodMist",
     name: "血煙",
-    desc: "出血の敵を倒すと、自分の出血が消えてHP3回復する。",
+    desc: "出血の敵を倒すと、自分の出血が消えてHP2回復する。",
     icon: "D",
     rarity: "common",
     tags: ["bleed", "hp"],
@@ -1398,7 +1398,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   carryOver: {
     key: "carryOver",
     name: "持ち越し",
-    desc: "部屋を制圧した時のコンボを、次の封鎖まで時間切れなしで保つ。",
+    desc: "部屋を制圧した時のコンボを、次の交戦まで時間切れなしで保つ。",
     icon: "越",
     rarity: "common",
     tags: ["combo", "room"],
@@ -1503,7 +1503,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   winterNest: {
     key: "winterNest",
     name: "冬籠り",
-    desc: "封鎖中の部屋の敵は予備動作が20%長くなる。",
+    desc: "交戦中の部屋の敵は予備動作が20%長くなる。",
     icon: "籠",
     rarity: "epic",
     tags: ["chill", "room"],

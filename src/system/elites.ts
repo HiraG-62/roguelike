@@ -1,17 +1,20 @@
 import { type EliteKind, type EliteWork, type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import type { StatusKind } from "../core/status";
-import { type Vec, add, fromAngle, length, normalize, scale } from "../core/vec";
+import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
 import { ELITE, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
 import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
-import { spawnBomb, spawnShockwave } from "./hazards";
+import { segmentCircleHit, spawnBomb, spawnShockwave } from "./hazards";
 import { dropItem, enemyDropChance } from "./loot";
 import { applyOnHitStatus, applyStatus, findStatus } from "./statusEffects";
 import { createEnemy } from "./enemies";
 import { consumeCorpse, nearestCorpse, spawnSpot } from "./enemyTraits";
-import { bossArmorBlocks } from "./boss";
+import { bossArmorBlocks, bossReflects, bossTakenMul } from "./boss";
+import { rallyTakenMul, seedTerrain } from "./enemyTerrain";
+import { placeTerrain } from "./terrain";
+import { manaRegenAllowed } from "./keystones";
 
 /** エリート修飾子と、盾・反射など「被弾の前に割り込む」処理 */
 
@@ -31,6 +34,11 @@ export const ELITE_KINDS: readonly EliteKind[] = [
   "anchored",
   "devouring",
   "packed",
+  "searing",
+  "hexing",
+  "commanding",
+  "evasive",
+  "chaining",
 ];
 
 export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
@@ -49,6 +57,11 @@ export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
   anchored: "#8090a0",
   devouring: "#c04060",
   packed: "#f0a040",
+  searing: "#ff6020",
+  hexing: "#a060ff",
+  commanding: "#ffd040",
+  evasive: "#80ffe0",
+  chaining: "#a0e0ff",
 };
 
 export const ELITE_PREFIX: Readonly<Record<EliteKind, string>> = {
@@ -67,7 +80,36 @@ export const ELITE_PREFIX: Readonly<Record<EliteKind, string>> = {
   anchored: "不動の",
   devouring: "貪食の",
   packed: "群長の",
+  searing: "灼熱の",
+  hexing: "封魔の",
+  commanding: "号令の",
+  evasive: "見切りの",
+  chaining: "鎖縛の",
 };
+
+/**
+ * 深層で 2 つ重なる修飾子の組（docs/ideas/enemies.md 4-A の相乗）。1 つ目が主（動きを持つ側）、2 つ目が添え。
+ * 炎の柱（灼熱の + 不動の）: 動かず、足元に炎の輪を置き続ける地形になる（S9）
+ * 封魔の障壁（封魔の + 障壁の）: 障壁がある間、輪の中のマナが減っていく
+ * 逃げ足（見切りの + 迅速の）: 大技への反応が倍の頻度・遠くへ跳ぶ（S6 の簡略）
+ */
+export const ELITE_PAIRS: readonly (readonly [EliteKind, EliteKind])[] = [
+  ["searing", "anchored"],
+  ["hexing", "shielded"],
+  ["evasive", "hasted"],
+];
+
+/** 主の修飾子か、深層で重なった 2 つ目か */
+export function hasElite(e: Enemy, kind: EliteKind): boolean {
+  return e.elite === kind || e.eliteExtra === kind;
+}
+
+/** 見切りの跳びで出す速さ（px あたり。enemies.ts のノックバックの減衰 12/秒に合わせる） */
+const EVADE_KNOCK_PER_PX = 12;
+/** 灼熱のが自分の炎で焼けないよう、燃焼の免疫を毎ステップ掛け直す秒 */
+const SEARING_SELF_IMMUNE = 0.5;
+/** 鎖縛のの鎖に触れたときの冷気 */
+const CHAIN_CHILL_STACKS = 1;
 
 const DEG_TO_RAD = Math.PI / 180;
 const BLOCK_TEXT = "ブロック";
@@ -97,7 +139,23 @@ export function rollElite(state: GameState, e: Enemy): void {
   const def = enemyDef(e.defKey);
   if (def.boss || def.weight <= 0) return;
   if (!state.rng.chance(eliteChance(state.depth))) return;
-  makeElite(e, state.rng.pick(eliteKindsFor(def)));
+  const allowed = eliteKindsFor(def);
+  if (state.depth >= ELITE.pairMinDepth && state.rng.chance(ELITE.pairChance)) {
+    const pairs = ELITE_PAIRS.filter(([a, b]) => allowed.includes(a) && allowed.includes(b));
+    if (pairs.length > 0) {
+      const [main, extra] = state.rng.pick(pairs);
+      makeElitePair(e, main, extra);
+      return;
+    }
+  }
+  makeElite(e, state.rng.pick(allowed));
+}
+
+/** 2 つ重ねる（主を付けてから、添えの下ごしらえだけを足す。HP の倍率は 1 回だけ） */
+export function makeElitePair(e: Enemy, main: EliteKind, extra: EliteKind): void {
+  makeElite(e, main);
+  e.eliteExtra = extra;
+  prepareElite(e, extra);
 }
 
 /** 群長のが複製すると報酬が増えすぎる敵（部屋主・金色スライムはドロップ確定） */
@@ -122,15 +180,22 @@ export function makeElite(e: Enemy, kind: EliteKind): void {
   e.elite = kind;
   e.eliteWork = createWork();
   e.poise.max *= elitePoiseMul(kind);
-  // 堅牢の: 怯みにくい代わりに、怯むと長く脆い（updateElites）
-  if (kind === "bulwark") e.poise.max *= ELITE.bulwarkPoiseMul;
-  if (kind === "timed") e.eliteWork.timer = ELITE.timedClock;
+  // 被弾していた敵がエリートになっても満タンに戻さない（連結の相方・呪いの追加抽選。HP の割合を保つ）
+  const ratio = e.maxHp > 0 ? Math.min(1, e.hp / e.maxHp) : 1;
   const hp = Math.round(e.maxHp * ELITE.hpMul);
   e.maxHp = hp;
-  e.hp = hp;
+  e.hp = Math.max(1, Math.round(hp * ratio));
+  prepareElite(e, kind);
+}
+
+/** 修飾子ごとの下ごしらえ（主でも添えでも同じ） */
+function prepareElite(e: Enemy, kind: EliteKind): void {
+  // 堅牢の: 怯みにくい代わりに、怯むと長く脆い（updateElites）
+  if (kind === "bulwark") e.poise.max *= ELITE.bulwarkPoiseMul;
+  if (kind === "timed" && e.eliteWork) e.eliteWork.timer = ELITE.timedClock;
   if (kind === "shielded") {
     // シールドは hp に上乗せして持つ（被ダメ処理を変えずに 2 段階にできる）
-    const shield = Math.round(hp * ELITE.shieldRatio);
+    const shield = Math.round((e.maxHp - (e.shieldMax ?? 0)) * ELITE.shieldRatio);
     e.shieldMax = shield;
     e.maxHp += shield;
     e.hp += shield;
@@ -162,18 +227,20 @@ function timedOut(e: Enemy): boolean {
 }
 
 export function eliteSpeedMul(e: Enemy): number {
-  if (e.elite === "hasted" || timedOut(e)) return ELITE.speedMul;
-  if (e.elite === "anchored") return ELITE.anchoredSpeedMul;
+  // 炎の柱（灼熱の + 不動の）はその場に根を張る
+  if (hasElite(e, "searing") && hasElite(e, "anchored")) return 0;
+  if (hasElite(e, "hasted") || timedOut(e)) return ELITE.speedMul;
+  if (hasElite(e, "anchored")) return ELITE.anchoredSpeedMul;
   return 1;
 }
 
 export function eliteWindupMul(e: Enemy): number {
-  return e.elite === "hasted" || timedOut(e) ? ELITE.windupMul : 1;
+  return hasElite(e, "hasted") || timedOut(e) ? ELITE.windupMul : 1;
 }
 
 /** 不動の: ノックバック・引き寄せ・壁叩きつけが効かない */
 export function eliteKnockImmune(e: Enemy): boolean {
-  return e.elite === "anchored";
+  return hasElite(e, "anchored");
 }
 
 /**
@@ -203,7 +270,8 @@ export function eliteDisplayName(e: Enemy): string {
   if (!e.elite) return name;
   // 刻限の は残り秒を名前に添える（時計が頭上に見える）
   const timer = e.elite === "timed" && !timedOut(e) ? ` ${Math.ceil(e.eliteWork?.timer ?? 0)}` : "";
-  return `${ELITE_PREFIX[e.elite]}${name}${timer}`;
+  const extra = e.eliteExtra ? ELITE_PREFIX[e.eliteExtra] : "";
+  return `${ELITE_PREFIX[e.elite]}${extra}${name}${timer}`;
 }
 
 /** 毎ステップ、敵の行動より前に呼ぶ: シールド破壊と Linked の HP 共有、追加の修飾子の時間経過 */
@@ -245,9 +313,122 @@ function tickEliteWork(state: GameState, e: Enemy, dt: number): void {
     case "devouring":
       devourNearby(state, e);
       return;
+    case "searing":
+      tickSearing(state, e, w, dt);
+      return;
+    case "hexing":
+      tickHexing(state, e, dt);
+      return;
+    case "evasive":
+      tickEvasive(state, e, w, dt);
+      return;
+    case "chaining":
+      tickChaining(state, e, w, dt);
+      return;
     default:
       return;
   }
+}
+
+// -----------------------------------------------------------------------------
+// Wave 3 の修飾子（灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の）
+// -----------------------------------------------------------------------------
+
+/** 灼熱の: 通った跡が燃える（自分の炎では焼けない）。不動のと重なると足元に炎の輪を置き続ける */
+function tickSearing(state: GameState, e: Enemy, w: EliteWork, dt: number): void {
+  e.status.immune.burn = Math.max(e.status.immune.burn ?? 0, SEARING_SELF_IMMUNE);
+  w.timer -= dt;
+  if (w.timer > 0) return;
+  if (hasElite(e, "anchored")) {
+    w.timer = ELITE.pyreInterval;
+    seedTerrain(state, e.body.pos, "fire", ELITE.pyreRadius);
+    return;
+  }
+  w.timer = ELITE.searingInterval;
+  // 足元ではなく少し後ろに置く（跡が燃える。正面から殴る人は焼けない）
+  const back = { x: e.body.pos.x - e.facing.x * e.body.radius * 2, y: e.body.pos.y - e.facing.y * e.body.radius * 2 };
+  placeTerrain(state, back.x, back.y, "fire", ELITE.searingRadius, ELITE.searingDuration);
+}
+
+/** 封魔の: 輪の中ではマナの自然回復が止まる（回復した分を打ち消す）。障壁のと重なると障壁がある間は減っていく */
+function tickHexing(state: GameState, e: Enemy, dt: number): void {
+  const p = state.player;
+  if (dist(p.body.pos, e.body.pos) > ELITE.hexRadius) return;
+  const regen = manaRegenAllowed(state) && p.mana < state.stats.maxMana ? state.stats.manaRegen * dt : 0;
+  const drain = hasElite(e, "shielded") && shieldLeft(e) > 0 ? ELITE.hexDrain * dt : 0;
+  p.mana = Math.max(0, p.mana - regen - drain);
+}
+
+/** 見切りの: 溜め攻撃・スキルの発動に反応して横へ跳ぶ（間隔つき）。迅速のと重なると頻度も距離も増える */
+function tickEvasive(state: GameState, e: Enemy, w: EliteWork, dt: number): void {
+  w.timer = Math.max(0, w.timer - dt);
+  if (w.timer > 0 || e.phase === "windup" || e.phase === "strike") return;
+  const cast = state.events.some((ev) => ev.kind === "onSkillCast" && ev.actor === "player");
+  if (!cast && !state.player.attack.charging) return;
+  const fast = hasElite(e, "hasted");
+  w.timer = ELITE.evadeCooldown * (fast ? ELITE.evadeHasteCooldownMul : 1);
+  const to = normalize(sub(state.player.body.pos, e.body.pos));
+  const side = e.id % 2 === 0 ? 1 : -1;
+  const perp = { x: -to.y * side, y: to.x * side };
+  const distPx = ELITE.evadeDist * (fast ? ELITE.evadeHasteDistMul : 1);
+  e.knock = scale(perp, distPx * EVADE_KNOCK_PER_PX);
+  spawnBurst(state, e.body.pos, ELITE_COLOR.evasive, 6, 60, 0.25, 1.5);
+}
+
+/**
+ * 鎖縛の: 近くの敵と光の鎖で結ばれる（chainPartners）。鎖に触れると冷気。
+ * 鎖は感電を伝える（感電の付いた鎖の端から、つながった全員へ。連結のと同じ作り）
+ */
+function tickChaining(state: GameState, e: Enemy, w: EliteWork, dt: number): void {
+  const partners = chainPartners(state, e);
+  w.timer = Math.max(0, w.timer - dt);
+  const p = state.player.body;
+  for (const o of partners) {
+    if (w.timer <= 0 && segmentCircleHit(e.body.pos, o.body.pos, ELITE.chainWidth, p.pos, p.radius)) {
+      w.timer = ELITE.chainTouchIcd;
+      const chill = { kind: "chill" as const, stacks: CHAIN_CHILL_STACKS, duration: ELITE.chainChillTime, potency: 0 };
+      applyStatus(state, { kind: "player" }, chill, "enemy");
+    }
+  }
+  const members = [e, ...partners];
+  const shocked = members.map((m) => findStatus(m.status, "shock")).find((s) => s !== undefined);
+  if (!shocked) return;
+  for (const m of members) {
+    if (findStatus(m.status, "shock")) continue;
+    const apply = { kind: "shock" as const, stacks: shocked.stacks, duration: shocked.time, potency: shocked.potency };
+    applyStatus(state, { kind: "enemy", enemy: m }, apply, "env");
+  }
+}
+
+/** 鎖縛のの鎖でつながった敵（近い順、同じ部屋のボス以外。描画もこれを読む） */
+export function chainPartners(state: GameState, e: Enemy): Enemy[] {
+  if (!hasElite(e, "chaining")) return [];
+  return state.enemies
+    .filter((o) => o !== e && o.hp > 0 && o.phase !== "spawning" && !o.hidden && o.roomIndex === e.roomIndex && !enemyDef(o.defKey).boss)
+    .map((o) => ({ o, d: dist(o.body.pos, e.body.pos) }))
+    .filter((x) => x.d <= ELITE.chainRadius)
+    .sort((a, b) => a.d - b.d || a.o.id - b.o.id)
+    .slice(0, ELITE.chainCount)
+    .map((x) => x.o);
+}
+
+/**
+ * 号令の: 自分が予備動作に入った瞬間、周りで攻撃を待っている敵も一斉に予備動作へ入れる。
+ * begin は enemies.ts の予備動作の入口（循環 import を避けて引数で受ける）
+ */
+export function commandNearby(state: GameState, e: Enemy, begin: (o: Enemy, def: EnemyDef) => void): void {
+  if (!hasElite(e, "commanding")) return;
+  let count = 0;
+  for (const o of state.enemies) {
+    if (o === e || o.hp <= 0 || o.phase !== "chase" || o.hidden) continue;
+    if (o.attackCooldown > ELITE.commandCooldownMax || dist(o.body.pos, e.body.pos) > ELITE.commandRadius) continue;
+    const def = enemyDef(o.defKey);
+    if (def.boss || def.speed <= 0) continue;
+    o.attackCooldown = 0;
+    begin(o, def);
+    count += 1;
+  }
+  if (count > 0) spawnRing(state, e.body.pos, ELITE.commandRadius, ELITE_COLOR.commanding, 0.35);
 }
 
 /** 堅牢の: 怯んだ瞬間、怯みを延ばして脆弱を付ける（溜め切った見返り） */
@@ -428,10 +609,15 @@ export function interceptEnemyDamage(
   guardBreak = false,
   poise = 0,
 ): number {
+  // 潜行中（土潜り・天井吊り・影踏み）には当たらない
+  if (e.hidden) return 0;
   if (bossArmorBlocks(state, e)) {
     addFloatingText(state, e.body.pos, NULLIFY_TEXT, "#8fd0ff", 1, 0.5);
     return 0;
   }
+  // 旗の加護・鏡の騎士の写し身の守り（掛からないときは値を丸めない）
+  const guardMul = rallyTakenMul(e) * bossTakenMul(state, e);
+  if (guardMul !== 1) amount = Math.max(1, Math.round(amount * guardMul));
   if (kind !== "melee") return amount;
   if (!canBlock(e) || !isFrontal(e, knockDir)) return amount;
   if (guardBreak) {
@@ -457,7 +643,7 @@ export function deflectProjectile(state: GameState, pr: Projectile, e: Enemy): b
     pr.life = 0;
     return true;
   }
-  if (e.elite !== "reflective") return false;
+  if (e.elite !== "reflective" && !bossReflects(state, e, pr)) return false;
   // 弾は返されても、弾が運ぶ状態異常（燃焼・感電など）の付与だけは敵に残る（docs/ideas/enemies.md H1）
   if (pr.kind === "ranged") applyOnHitStatus(state, e, { kind: "ranged" });
   pr.owner = "enemy";
@@ -484,7 +670,9 @@ export function onEliteDeath(state: GameState, e: Enemy): void {
   if (state.rng.chance(extra)) dropItem(state, e.body.pos);
   pushSfx(state, "eliteKill");
   if (e.elite === "explosive") {
-    spawnBomb(state, e.body.pos, ELITE.explodeDamage, e.id, ELITE.explodeFuse, ELITE.explodeRadius);
+    // 死後の爆発は敵にも当たる（docs/ideas/enemies.md H10: 倒す前に群れへ送れば武器になる）
+    const bomb = spawnBomb(state, e.body.pos, ELITE.explodeDamage, e.id, ELITE.explodeFuse, ELITE.explodeRadius);
+    bomb.hitsEnemies = true;
   }
   if (e.elite === "contagious") spreadContagion(state, e);
   if (e.elite === "parasitic") releaseParasites(state, e);

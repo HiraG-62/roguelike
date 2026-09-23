@@ -1,4 +1,5 @@
 import type { GameState } from "../core/state";
+import type { QuestKey } from "../meta/quests";
 import { ORIGIN, RUN_MOD } from "../data/tuning";
 import { KEYSTONES, keystoneDef } from "../loot/affixes";
 import { computeStats } from "../loot/stats";
@@ -30,6 +31,8 @@ export interface OriginDef {
   desc: string;
   /** このランだけ付く誓約 */
   keystones: readonly string[];
+  /** この依頼を達成すると選べる（src/meta/quests.ts）。無ければ最初から選べる */
+  unlockedBy?: QuestKey;
 }
 
 export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
@@ -43,6 +46,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
     name: "呪われた者",
     desc: "呪い付きの祝福を 2 つ抱えて出発する。代わりにステータスの振り分け点を 4 得る。",
     keystones: [],
+    unlockedBy: "cursedDepth",
   },
   unarmed: {
     name: "素手",
@@ -53,16 +57,19 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
     name: "詠み手",
     desc: "刻印符を 2 つ差して出発する。最大 HP が 2 割減る。",
     keystones: [],
+    unlockedBy: "alchemist",
   },
   gambler: {
     name: "賭博師",
     desc: "誓約「賭博師」を背負う。賭博の部屋が毎階に出る。",
     keystones: ["ks_gambler"],
+    unlockedBy: "highStakes",
   },
   reaperFriend: {
     name: "死神の友",
     desc: "死神が最初から追ってくる（足は半分）。階段を降りるたびに振り分け点を 1 余分に得る。",
     keystones: [],
+    unlockedBy: "reaperDance",
   },
 };
 
@@ -130,6 +137,11 @@ export function hasMod(state: Pick<GameState, "modifiers">, key: RunModKey): boo
 export interface RunSetup {
   origin: OriginKey;
   modifiers: RunModKey[];
+  /**
+   * このランで抽選に出ない名のある遺物（依頼の報酬で未達成のもの。src/meta/quests.ts の lockedRelicKeys）。
+   * ラン開始時に確定させ、ラン中に依頼を達成しても変えない（決定性）。省略は []
+   */
+  lockedRelics?: readonly string[];
 }
 
 export function defaultRunSetup(): RunSetup {
@@ -140,6 +152,12 @@ export function defaultRunSetup(): RunSetup {
 export function sanitizeRunSetup(origin: unknown, modifiers: unknown): RunSetup {
   const mods = Array.isArray(modifiers) ? modifiers.filter(isRunModKey) : [];
   return { origin: isOriginKey(origin) ? origin : "wanderer", modifiers: [...new Set(mods)] };
+}
+
+/** 保存データの除外遺物を読む。文字列以外は落とし、重複は 1 つにする */
+export function sanitizeLockedRelics(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter((k): k is string => typeof k === "string"))];
 }
 
 /** 起点が最初から付ける誓約（createGame の初期値） */

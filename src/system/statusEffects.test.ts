@@ -4,6 +4,7 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { type StatusApply, type StatusBag, createStatusBag } from "../core/status";
 import { MANA, STATUS } from "../data/tuning";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { updateEnemies } from "./enemies";
 import { spawnBomb, updateHazards } from "./hazards";
@@ -462,6 +463,10 @@ describe("マナの回収（B-1）", () => {
   it("射撃弾の命中 1 体ごとに onShot、1 回の射撃で shotVolleyCap 回まで", () => {
     const state = arena();
     state.player.mana = 0;
+    // 1 階は洞窟で開始の部屋が狭いことがある。的の周りを床にしておく（壁の中の弾は当たる前に消える）
+    const tx = Math.floor(state.player.body.pos.x / TILE_SIZE);
+    const ty = Math.floor(state.player.body.pos.y / TILE_SIZE);
+    for (let y = ty - 6; y <= ty + 8; y++) for (let x = tx + 2; x <= tx + 6; x++) setTile(state.map, x, y, Tile.Floor);
     const targets = [-60, -30, 30, 60, 90].map((dy) => sturdy(state, "golem", 60, dy));
     for (const t of targets) {
       state.projectiles.push({

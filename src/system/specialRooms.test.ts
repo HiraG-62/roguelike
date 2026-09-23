@@ -157,7 +157,7 @@ describe("台座の部屋", () => {
     expect(state.sfx).toContain("pedestalUse");
   });
 
-  it("図書館: 刻印符 3 冊から 1 つを差し、残りは消える", () => {
+  it("図書館: 刻印符 3 冊から 1 つを所持品へ取り（スキルには付かない）、残りは消える", () => {
     const { state, room } = roomOf("library");
     const props = room.special?.props ?? [];
     expect(props.length).toBeGreaterThan(0);
@@ -165,9 +165,8 @@ describe("台座の部屋", () => {
     const pick = props[0];
     if (!pick) throw new Error("prop missing");
     standAt(state, pick.pos);
-    const attached = state.skills.slots.some((s) => s.modifiers.includes(pick.key as never));
-    if (attached) expect(props.every((p) => p.used)).toBe(true);
-    else expect(pick.used, "差せる枠が無ければ台座は残る").toBe(false);
+    expect(state.skills.profile.runes?.map((r) => r.modifier), "所持品に入る").toContain(pick.key);
+    expect(props.every((p) => p.used), "残りの台座も消える").toBe(true);
   });
 
   it("賭博: 最大 HP の 1 割を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {
@@ -281,8 +280,9 @@ describe("戦う特別な部屋", () => {
       if (!color) throw new Error("color missing");
       const other = TRAIT_COLORS.find((c) => c !== color) ?? color;
       state.stats.resonance = { ...state.stats.resonance, kind: "dominant", colors: [match ? color : other] };
-      enter(state, room);
+      // 共鳴炉は封鎖しないので、入った瞬間に（敵がいなければ）制圧になる。入る前から数える
       const before = state.floorItems.length;
+      enter(state, room);
       clearOut(state, room, index);
       return state.floorItems.length - before;
     };

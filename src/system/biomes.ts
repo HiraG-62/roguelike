@@ -24,7 +24,6 @@ interface TerrainWeight {
 export interface BiomeDef {
   /** 表示名（HUD・階段の行き先・ログ） */
   label: string;
-  shape: MapShape;
   /** 部屋に置く地形の塊（空なら置かない） */
   terrain: readonly TerrainWeight[];
   /** 出やすい敵（ENEMIES の key）。重みが FLOOR_KIND.familyMul 倍になる */
@@ -34,65 +33,59 @@ export interface BiomeDef {
 }
 
 export const BIOMES: Readonly<Record<FloorKind, BiomeDef>> = {
-  rooms: { label: "回廊", shape: "rooms", terrain: [], family: [], tint: null },
-  cave: { label: "洞窟", shape: "cave", terrain: [], family: [], tint: null },
-  dark: { label: "暗闇", shape: "rooms", terrain: [], family: [], tint: null },
+  rooms: { label: "回廊", terrain: [], family: [], tint: null },
+  cave: { label: "洞窟", terrain: [], family: [], tint: null },
+  dark: { label: "暗闇", terrain: [], family: ["lurker", "shadowBat", "hollow", "shadowStalker"], tint: null },
   forge: {
     label: "熔鉱炉",
-    shape: "rooms",
     terrain: [
       { kind: "lava", weight: 3 },
       { kind: "oil", weight: 1 },
     ],
-    family: ["fireSlime", "lavaGolem", "fuseRat", "bomber", "multiBomber", "wisp", "ashBat"],
+    family: ["fireSlime", "lavaGolem", "fuseRat", "bomber", "multiBomber", "wisp", "ashBat", "magmaToad", "flameEater", "emberRat", "forgeMaster"],
     tint: "#ff5020",
   },
   ossuary: {
     label: "骨の墓所",
-    shape: "rooms",
     terrain: [{ kind: "bog", weight: 1 }],
-    family: ["skeleton", "boneBoar", "scavenger", "graveBell", "boneConductor", "curseEye", "shadowBat"],
+    family: ["skeleton", "boneBoar", "scavenger", "graveBell", "boneConductor", "curseEye", "shadowBat", "dropper", "homunculus", "scribeImp", "bannerBearer"],
     tint: "#c8bea0",
   },
   swamp: {
     label: "沼",
-    shape: "cave",
     terrain: [
       { kind: "bog", weight: 3 },
       { kind: "water", weight: 2 },
       { kind: "grass", weight: 1 },
     ],
-    family: ["poisonSlime", "carrionFly", "sproutSlime", "slime", "manaLeech", "curseEye"],
+    family: ["poisonSlime", "carrionFly", "sproutSlime", "slime", "manaLeech", "curseEye", "toad", "mudman", "swampWisp", "mossGolem", "giantToad"],
     tint: "#50a040",
   },
   glacier: {
     label: "氷窟",
-    shape: "cave",
     terrain: [
       { kind: "ice", weight: 3 },
       { kind: "water", weight: 1 },
     ],
-    family: ["iceSlime", "frostEye", "frostGolem", "frostWisp", "frostCrusher", "crystalGolem", "crystalMite"],
+    family: ["iceSlime", "frostEye", "frostGolem", "frostWisp", "frostCrusher", "crystalGolem", "crystalMite", "frostToad", "iceBoar", "windSprite", "basilisk"],
     tint: "#80c8ff",
   },
   mine: {
     label: "油の坑道",
-    shape: "rooms",
     terrain: [
       { kind: "oil", weight: 3 },
       { kind: "water", weight: 1 },
     ],
-    family: ["bomber", "multiBomber", "fuseRat", "golem", "crystalMite", "spikeRat", "hornBeetle"],
+    family: ["bomber", "multiBomber", "fuseRat", "golem", "crystalMite", "spikeRat", "hornBeetle", "oiler", "mineLayer", "sootBomber", "burrower", "crossGolem", "turretMaster", "oilSlime"],
     tint: "#8a6a40",
   },
   meadow: {
     label: "草原",
-    shape: "cave",
     terrain: [
       { kind: "grass", weight: 4 },
       { kind: "water", weight: 1 },
     ],
-    family: ["wolf", "packLeader", "boar", "spikeRat", "hornBeetle", "sproutSlime", "bat"],
+    family: ["wolf", "packLeader", "boar", "spikeRat", "hornBeetle", "sproutSlime", "bat", "windSprite", "bellImp", "burrower", "toad"],
     tint: "#90d060",
   },
 };
@@ -101,27 +94,37 @@ export function floorKindLabel(kind: FloorKind): string {
   return BIOMES[kind].label;
 }
 
+/**
+ * マップの形。洞窟（まばらな塊と細い道）が基本で、部屋 + 通路は回廊・骨の墓所・油の坑道だけ
+ * （memo/20260924-1.md「優先的」1）。ボス階は boss.ts が矩形の最後の部屋を前提にするので回廊になる
+ */
+export const MAP_SHAPE: Readonly<Record<FloorKind, MapShape>> = {
+  rooms: "rooms",
+  cave: "cave",
+  dark: "cave",
+  forge: "cave",
+  ossuary: "rooms",
+  swamp: "cave",
+  glacier: "cave",
+  mine: "rooms",
+  meadow: "cave",
+};
+
 export function biomeShape(kind: FloorKind): MapShape {
-  return BIOMES[kind].shape;
+  return MAP_SHAPE[kind];
 }
 
 // -----------------------------------------------------------------------------
 // 抽選（深度の規則）
 // -----------------------------------------------------------------------------
 
-export function isCaveDepth(depth: number): boolean {
-  return depth >= FLOOR_KIND.caveMinDepth && depth % FLOOR_KIND.caveInterval === FLOOR_KIND.caveRemainder;
-}
-
 /**
  * この深度で出せるフロア種別。ボス階は boss.ts が「最後の部屋」を前提にしているので rooms だけ。
- * 洞窟の周期の階は洞窟の形のものだけ（洞窟・沼・氷窟・草原）
+ * それ以外は解禁済みの全種別（洞窟の重みが大きい。FLOOR_KIND.weight）
  */
 export function floorKindCandidates(depth: number): FloorKind[] {
   if (isBossDepth(depth)) return ["rooms"];
-  const open = FLOOR_KINDS.filter((k) => depth >= FLOOR_KIND.biomeMinDepth[k]);
-  if (isCaveDepth(depth)) return open.filter((k) => BIOMES[k].shape === "cave");
-  return open.filter((k) => k !== "cave");
+  return FLOOR_KINDS.filter((k) => depth >= FLOOR_KIND.biomeMinDepth[k]);
 }
 
 /** 候補が 1 つなら乱数を消費しない（浅い階・ボス階の乱数消費を増やさない） */

@@ -103,6 +103,10 @@ export interface MenuHotkeys {
   s: boolean;
   /** Delete / Backspace（キー設定画面で列を空にする） */
   clear: boolean;
+  /** タイトル: 図鑑 / 依頼 / 実績（src/meta/） */
+  c: boolean;
+  q: boolean;
+  a: boolean;
   /** 矢印キー（-1 / 0 / 1）。WASD は移動と衝突するので履歴・リプレイ操作は矢印キーだけで行う */
   arrowX: number;
   arrowY: number;
@@ -120,6 +124,9 @@ function emptyHotkeys(): MenuHotkeys {
     p: false,
     s: false,
     clear: false,
+    c: false,
+    q: false,
+    a: false,
     arrowX: 0,
     arrowY: 0,
   };
@@ -171,6 +178,15 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
         break;
       case "KeyS":
         hotkeys.s = true;
+        break;
+      case "KeyC":
+        hotkeys.c = true;
+        break;
+      case "KeyQ":
+        hotkeys.q = true;
+        break;
+      case "KeyA":
+        hotkeys.a = true;
         break;
       case "Delete":
       case "Backspace":
@@ -309,14 +325,15 @@ export function isActionRow(row: KeybindsRow): row is RebindableAction {
   return row !== "reset" && row !== "close";
 }
 
-const KEYBINDS_PANEL: Rect = { x: 40, y: 6, w: 400, h: 258 };
+// 「拾う」を足して 17 行になったので、最小の行間（13）で全行が 1 画面に収まるよう上下の余白を詰めた
+const KEYBINDS_PANEL: Rect = { x: 40, y: 2, w: 400, h: 266 };
 /** パネル上端から見出し・列見出し・最初の行の中心までの距離 */
-const KEYBINDS_TITLE_TOP = 12;
-const KEYBINDS_HEADER_TOP = 28;
-const KEYBINDS_FIRST_ROW_TOP = 40;
+const KEYBINDS_TITLE_TOP = 11;
+const KEYBINDS_HEADER_TOP = 25;
+const KEYBINDS_FIRST_ROW_TOP = 36;
 /** パネル下端から操作説明の中心・一覧の下端までの距離 */
 const KEYBINDS_FOOTER_BOTTOM = 8;
-const KEYBINDS_LIST_BOTTOM = 16;
+const KEYBINDS_LIST_BOTTOM = 15;
 /** アクション名の列の幅（この右から 主 / 副 / 予備 の列が並ぶ） */
 const KEYBINDS_NAME_W = 120;
 const KEYBINDS_SLOT_W = 88;
@@ -405,6 +422,39 @@ export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0)
   if (row === undefined || !isActionRow(row)) return { row: hit.index, slot: null };
   const slot = layout.slots.findIndex((s) => x >= s.x && x < s.x + s.w);
   return { row: hit.index, slot: slot === -1 ? null : slot };
+}
+
+// ---------------------------------------------------------------------------
+// タイトルのメニュー（図鑑・依頼・実績）。ボタンの外をクリックしたら従来どおり開始する
+// ---------------------------------------------------------------------------
+
+export const TITLE_MENU_ITEMS = ["codex", "quests", "achievements"] as const;
+export type TitleMenuItem = (typeof TITLE_MENU_ITEMS)[number];
+
+const TITLE_MENU_Y = 146;
+const TITLE_MENU_W = 72;
+const TITLE_MENU_H = 16;
+const TITLE_MENU_GAP = 8;
+
+/** TITLE_MENU_ITEMS と同じ順のボタンの矩形（画面中央に横並び） */
+export function titleMenuRects(): Rect[] {
+  const n = TITLE_MENU_ITEMS.length;
+  const total = n * TITLE_MENU_W + (n - 1) * TITLE_MENU_GAP;
+  const x0 = (VIEW_W - total) / 2;
+  return TITLE_MENU_ITEMS.map((_, i) => ({ x: x0 + i * (TITLE_MENU_W + TITLE_MENU_GAP), y: TITLE_MENU_Y, w: TITLE_MENU_W, h: TITLE_MENU_H }));
+}
+
+export function titleMenuItemAt(x: number, y: number): TitleMenuItem | null {
+  const index = titleMenuRects().findIndex((r) => pointInRect(x, y, r));
+  return TITLE_MENU_ITEMS[index] ?? null;
+}
+
+/** ホットキー（C / Q / A）で開くメニュー項目 */
+export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a">): TitleMenuItem | null {
+  if (hotkeys.c) return "codex";
+  if (hotkeys.q) return "quests";
+  if (hotkeys.a) return "achievements";
+  return null;
 }
 
 // ---------------------------------------------------------------------------

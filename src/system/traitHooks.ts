@@ -7,8 +7,9 @@ import { recordProvenance } from "../loot/provenance";
 import type { TraitColor, TraitStats } from "../loot/types";
 import { SKILL } from "../skills/data";
 import { BOONS, type BoonTag } from "./boonDefs";
-import { gainEnergy, healPlayer, isLastKillInLockedRoom } from "./combat";
+import { gainEnergy, healSustained, isLastKillInEngagedRoom } from "./combat";
 import { addFloatingText, spawnRing } from "./effects";
+import { isEngaged } from "./engagement";
 import { KS, hasKeystone } from "./keystones";
 import { gainMana } from "./mana";
 import { addPoise, isStaggered, poiseRatio } from "./poise";
@@ -80,7 +81,7 @@ function fieldBonus(state: GameState, kind: DamageKind): number {
   let bonus = 0;
   if (t.damagePerSelfStatus !== 0) bonus += afflictionKinds(state.player.status) * t.damagePerSelfStatus;
   if (t.lockedDamageMul !== 0 || t.unlockedPenalty !== 0) {
-    bonus += state.rooms.some((r) => r.locked) ? t.lockedDamageMul : -t.unlockedPenalty;
+    bonus += isEngaged(state) ? t.lockedDamageMul : -t.unlockedPenalty;
   }
   if (kind === "ranged" && (t.darkRangedMul !== 0 || t.lightRangedPenalty !== 0)) {
     bonus += state.floorKind === "dark" ? t.darkRangedMul : -t.lightRangedPenalty;
@@ -141,7 +142,7 @@ function keystoneOutgoingMul(state: GameState, enemy: Enemy | null, kind: Damage
   if (enemy !== null && kind === "melee" && hasKeystone(state, KS.readOath) && enemy.phase !== "windup") {
     mul *= KEYSTONE.readOffWindupDamageMul;
   }
-  if (hasKeystone(state, KS.backwater) && state.rooms.some((r) => r.locked)) mul *= KEYSTONE.backwaterDamageMul;
+  if (hasKeystone(state, KS.backwater) && isEngaged(state)) mul *= KEYSTONE.backwaterDamageMul;
   if (hasKeystone(state, KS.reaperOath)) {
     mul *= state.reaper === null ? KEYSTONE.reaperOathDamageMul : KEYSTONE.reaperOathHuntedMul;
   }
@@ -220,7 +221,7 @@ function staggerQuake(state: GameState, enemy: Enemy, amount: number): void {
 export function onTraitStagger(state: GameState, enemy: Enemy): void {
   const t = state.stats.traits;
   if (t.manaOnStagger > 0) gainMana(state, t.manaOnStagger);
-  if (t.healOnStagger > 0) healPlayer(state, t.healOnStagger);
+  if (t.healOnStagger > 0) healSustained(state, t.healOnStagger);
   staggerQuake(state, enemy, t.staggerQuake);
   if (t.placedExtend > 0) extendPlacedNear(state, enemy.body.pos, t.placedExtend);
   fireTrigger(state, "onStagger", { pos: { ...enemy.body.pos }, targetId: enemy.id });
@@ -239,7 +240,7 @@ function spreadAfflictions(state: GameState, enemy: Enemy): void {
   }
 }
 
-/** 殲滅（封鎖中の部屋の最後の 1 体）の性質 */
+/** 殲滅（交戦中の部屋の最後の 1 体）の性質 */
 function onLastKill(state: GameState): void {
   const t = state.stats.traits;
   if (t.lastKillManaRatio > 0) gainMana(state, state.stats.maxMana * t.lastKillManaRatio);
@@ -257,7 +258,7 @@ export function onTraitKill(state: GameState, enemy: Enemy): void {
   if (t.silencedKillMana > 0 && hasStatus(enemy.status, "silence")) gainMana(state, t.silencedKillMana);
   if (hasKeystone(state, KS.contagion)) spreadAfflictions(state, enemy);
   if (enemy.elite !== undefined) recordProvenance(state, { kind: "eliteKill" });
-  if (isLastKillInLockedRoom(state, enemy)) onLastKill(state);
+  if (isLastKillInEngagedRoom(state, enemy)) onLastKill(state);
 }
 
 /** カウンターが成立した瞬間（player.ts の近接命中から） */

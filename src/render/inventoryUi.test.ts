@@ -116,10 +116,51 @@ describe("装備画面の描画", () => {
     ui.echo.op = "transfer";
     ui.echo.pick = { kind: "inscription" };
     drawInventoryUi(ctx, state, ui);
+    state.boons = ["burnSpread"];
+    ui.tab = "web";
+    for (const cursor of [0, 14, 39]) {
+      ui.web.cursor = cursor;
+      drawInventoryUi(ctx, state, ui);
+    }
+    ui.tab = "skills";
+    ui.hoverStoneId = state.skills.profile.loadout.find((id) => id !== null) ?? null;
+    drawInventoryUi(ctx, state, ui);
 
     state.paused = false;
     drawBudUi(ctx, state);
 
+    expect(calls.get("fillRect") ?? 0, "何かを描いている").toBeGreaterThan(0);
+    expect(calls.get("fillText") ?? 0, "fillText は直接使わない").toBe(0);
+  });
+});
+
+describe("遺物の「ここに噛む」行", () => {
+  it("語が無ければ行を出さず、相手や穴があれば 2 行", async () => {
+    const { synergyTipLines } = await import("./inventoryUi");
+    const none = { produces: [], consumes: [], fills: [], feeds: [], partners: [] };
+    expect(synergyTipLines(none), "語なし").toHaveLength(0);
+    const alone = { produces: ["burn" as const], consumes: [], fills: [], feeds: [], partners: [] };
+    expect(synergyTipLines(alone), "語はあるが噛む相手なし").toHaveLength(1);
+    const meshed = { produces: ["burn" as const], consumes: [], fills: ["burn" as const], feeds: [], partners: ["野火"] };
+    expect(synergyTipLines(meshed), "噛む相手と穴").toHaveLength(2);
+  });
+});
+
+describe("祝福カードの語の行と連鎖の表示の描画", () => {
+  it("例外なく描き、fillText を直接使わない", async () => {
+    const { drawBoonChoice } = await import("./boonUi");
+    const { drawChainHud } = await import("./chainUi");
+    const state = createGame(1);
+    state.boons = ["burnSpread"];
+    state.boonChoice = { options: ["burnSpread", "burnSpread", "burnSpread"], hover: 1, curseHover: false, timer: 1, curseTaken: false, curse: null };
+    state.chains = [
+      { keyword: "burn", depth: 0, time: state.time },
+      { keyword: "explode", depth: 1, time: state.time },
+      { keyword: "burn", depth: 2, time: state.time },
+    ];
+    const { ctx, calls } = fakeContext();
+    drawBoonChoice(ctx, state);
+    drawChainHud(ctx, state);
     expect(calls.get("fillRect") ?? 0, "何かを描いている").toBeGreaterThan(0);
     expect(calls.get("fillText") ?? 0, "fillText は直接使わない").toBe(0);
   });

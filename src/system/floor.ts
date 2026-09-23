@@ -2,7 +2,8 @@ import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pu
 import { pushPlayerEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ATTR_GAIN, BOSS, ROOM, ROOM_KIND } from "../data/tuning";
+import { ATTR_GAIN, BOSS, CAVE, ROOM, ROOM_KIND } from "../data/tuning";
+import type { CaveShapeOptions } from "../map/cave";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap } from "../map/generator";
 import {
   type GameMap,
@@ -51,11 +52,14 @@ import {
   hasMoreWaves,
   mapShapeOf,
   openTreasure,
+  roomLocks,
   setupShrine,
   startWave,
   startsEmpty,
   updateShrines,
+  waveMul,
 } from "./roomTypes";
+import { ROAMING_ROOM, assignRoamers, makeRoamer, reinforceDue, roamCap, roamSpawnPoint, roamerCount, updateRoamers } from "./spawner";
 import { biomeEnemyWeight, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
@@ -85,7 +89,7 @@ const DEPTH_COLOR = "#ffd75f";
 /** 新しいフロアを生成してプレイヤーを配置する。kind は分岐路で選んだ行き先（省略時は深度の規則で抽選） */
 export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
-  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth));
+  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind));
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
   state.lockedTiles = new Set();
   state.hazards = [];
@@ -136,7 +140,20 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeBiomeTerrain(state, ends);
   placeOssuaryCorpses(state, ends);
   planForkStairs(state);
+  assignRoamers(state, new Set([START_ROOM, bossRoom]));
+  clearEmptyOpenRooms(state);
   onFloorStart(state);
+}
+
+/**
+ * 敵を置けなかった封鎖しない通常の部屋（小さすぎる塊など）は最初から制圧済みにする。
+ * 残すと入っただけで制圧（報酬）になってしまう
+ */
+function clearEmptyOpenRooms(state: GameState): void {
+  state.rooms.forEach((room, i) => {
+    if (room.cleared || roomLocks(state, i) || room.kind !== "normal") return;
+    if (!state.enemies.some((e) => e.roomIndex === i)) room.cleared = true;
+  });
 }
 
 function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined): RoomState {
@@ -152,9 +169,14 @@ function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] |
   };
 }
 
-function generatorOptions(depth: number): GeneratorOptions {
-  if (!isBossDepth(depth)) return DEFAULT_GENERATOR_OPTIONS;
-  return { ...DEFAULT_GENERATOR_OPTIONS, lastRoomMin: { w: BOSS.roomMinW, h: BOSS.roomMinH } };
+/** バイオームごとの洞窟の形（tuning の CAVE.biome。無い種別は既定のまま） */
+const CAVE_BY_KIND: Readonly<Partial<Record<FloorKind, Partial<CaveShapeOptions>>>> = CAVE.biome;
+
+function generatorOptions(depth: number, kind: FloorKind): GeneratorOptions {
+  const cave = CAVE_BY_KIND[kind];
+  const base = cave ? { ...DEFAULT_GENERATOR_OPTIONS, cave } : DEFAULT_GENERATOR_OPTIONS;
+  if (!isBossDepth(depth)) return base;
+  return { ...base, lastRoomMin: { w: BOSS.roomMinW, h: BOSS.roomMinH } };
 }
 
 /** ボス階なら最後の部屋（階段の部屋）。それ以外は -1 */
@@ -341,25 +363,20 @@ export function insideRoom(state: GameState, room: RoomState, px: number, py: nu
   return ENTER_PROBES.every(([dx, dy]) => pxInRoomTiles(state, room, px + dx * margin, py + dy * margin));
 }
 
-/** 部屋のロック/解除、階段、ピックアップ */
+/** 部屋のロック/解除・開放型の交戦と制圧、徘徊と増援、階段、ピックアップ */
 export function updateRooms(state: GameState, dt: number): void {
-  const p = state.player.body.pos;
   revealAround(state);
   state.rooms.forEach((room, i) => {
     if (room.cleared) return;
-    if (!room.locked) {
-      if (insideRoom(state, room, p.x, p.y, ROOM.enterMargin)) enterRoom(state, room, i);
+    if (room.locked) {
+      updateLockedRoom(state, room, i);
       return;
     }
-    const alive = state.enemies.some((e) => e.roomIndex === i && e.hp > 0);
-    if (alive) return;
-    if (hasMoreWaves(room)) {
-      startWave(state, room, () => spawnWave(state, room, i));
-      return;
-    }
-    clearRoom(state, room, i);
+    updateOpenRoom(state, room, i);
   });
 
+  updateRoamers(state, dt);
+  if (reinforceDue(state, dt)) spawnRoamReinforcement(state);
   updateShrines(state);
   updateSpecialRooms(state, dt);
   ensureForkStairs(state);
@@ -369,12 +386,64 @@ export function updateRooms(state: GameState, dt: number): void {
   checkStairs(state);
 }
 
+function updateLockedRoom(state: GameState, room: RoomState, index: number): void {
+  if (roomAlive(state, index)) return;
+  if (hasMoreWaves(room)) {
+    startWave(state, room, () => spawnWave(state, room, index));
+    return;
+  }
+  clearRoom(state, room, index);
+}
+
+/**
+ * 封鎖していない部屋: 入る（または部屋の敵が気付く）と交戦が始まり、部屋の敵の全滅で制圧（1 部屋 1 回）。
+ * 封鎖する種類は入った時点で enterRoom が封鎖する
+ */
+function updateOpenRoom(state: GameState, room: RoomState, index: number): void {
+  const p = state.player.body.pos;
+  if (!room.engaged) {
+    if (insideRoom(state, room, p.x, p.y, ROOM.enterMargin)) enterRoom(state, room, index);
+    else if (!roomLocks(state, index) && roomNoticed(state, index)) engageRoom(state, room, index);
+  }
+  if (room.cleared || room.locked || !room.engaged) return;
+  if (!roomAlive(state, index)) clearRoom(state, room, index);
+}
+
+function roomAlive(state: GameState, index: number): boolean {
+  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0);
+}
+
+/** 部屋の敵のどれかがプレイヤーに気付いた（idle から抜けた） */
+function roomNoticed(state: GameState, index: number): boolean {
+  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && e.phase !== "idle");
+}
+
+/**
+ * 封鎖しない部屋の交戦開始。部屋の敵をまとめて起こし、封鎖と同じフック（祝福・ルール・ランイベント・呪い）を通す
+ * （「封鎖時」を条件にする祝福やイベントを、開放型でも部屋ごとに 1 回起こすため）
+ */
+function engageRoom(state: GameState, room: RoomState, index: number): void {
+  room.engaged = true;
+  if (!roomAlive(state, index)) return;
+  for (const e of state.enemies) {
+    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
+  }
+  onBoonRoomLock(state, index);
+  pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
+  onRoomLocked(state, index);
+  applyCurse(state, index);
+}
+
 function enterRoom(state: GameState, room: RoomState, index: number): void {
   if (room.kind === "treasure") {
     openTreasure(state, room);
     return;
   }
   if (enterSpecialRoom(state, room)) return;
+  if (!roomLocks(state, index)) {
+    engageRoom(state, room, index);
+    return;
+  }
   // 保険: プレイヤーがドアタイルに掛かっている間はロックを次フレームへ延期
   // （enterMargin/insideRoom で通常は防げているはずだが、念のため二重に確認）
   const p = state.player.body;
@@ -479,9 +548,10 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
     announceBoss(state);
     return;
   }
-  if (room.kind === "challenge" || room.kind === "arena") {
+  if (room.kind === "challenge" || room.kind === "arena" || room.kind === "horde") {
     startWave(state, room, () => spawnWave(state, room, index));
     applyCurse(state, index);
+    if (room.kind === "horde") announceHorde(state);
     return;
   }
   // 増援を telegraph 付きで湧かせる。伏兵部屋は最初は無人で、通常の 2 倍が一気に湧く。
@@ -498,12 +568,23 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   pushSfx(state, "roomLock");
 }
 
-/** challenge / arena の 1 波ぶん（telegraph 付き） */
+/** challenge / arena / horde の 1 波ぶん（telegraph 付き） */
 function spawnWave(state: GameState, room: RoomState, index: number): void {
-  const mul = room.kind === "arena" ? ROOM_KIND.arenaWaveMul : ROOM_KIND.challengeWaveMul;
-  const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * mul));
+  const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * waveMul(room.kind)));
   for (let i = 0; i < count; i++) spawnGroup(state, room, index, true);
   finalizeLinks(state, index);
+}
+
+const HORDE_SHAKE = 6;
+const HORDE_TEXT_SCALE = 1.5;
+const HORDE_TEXT_LIFE = 1.2;
+
+/** 巣窟の封鎖: 大きく揺らして名前を出す */
+function announceHorde(state: GameState): void {
+  shake(state, HORDE_SHAKE);
+  addFloatingText(state, p2(state), "巣窟！", ROOM_KIND.hordeColor, HORDE_TEXT_SCALE, HORDE_TEXT_LIFE);
+  pushLog(state, "巣窟に踏み込んだ。群れが湧き出す。", ROOM_KIND.hordeColor);
+  pushSfx(state, "ambush");
 }
 
 function clearRoom(state: GameState, room: RoomState, index: number): void {
@@ -514,7 +595,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   addFloatingText(state, p2(state), "制圧", "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
-  const center = rewardAnchor(state, room);
+  const center = clearAnchor(state, room);
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   pushPlayerEvent(state, "onRoomClear", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
@@ -540,9 +621,18 @@ const STAIRS_AVOID_OFFSETS = [
 ] as const;
 const REWARD_CLEARANCE = 4;
 
-/** 部屋の報酬を置く点。中心が階段（最後の部屋・ボス部屋）なら隣の床へずらす */
-function rewardAnchor(state: GameState, room: RoomState): { x: number; y: number } {
-  const c = rectCenterPx(room.rect);
+/**
+ * 制圧の報酬を置く点。プレイヤーが部屋の中なら部屋の中心、外（追ってきた敵を通路で倒した）ならプレイヤーの足元
+ * （開放型では部屋から離れた所で制圧が起こるので、中心に置くと取りに戻らされる）
+ */
+function clearAnchor(state: GameState, room: RoomState): { x: number; y: number } {
+  const p = state.player.body.pos;
+  if (insideRoom(state, room, p.x, p.y, 0)) return rewardAnchor(state, rectCenterPx(room.rect));
+  return rewardAnchor(state, { ...p });
+}
+
+/** 報酬を置く点。階段の上なら隣の床へずらす */
+function rewardAnchor(state: GameState, c: { x: number; y: number }): { x: number; y: number } {
   if (!onStairs(state, c.x, c.y)) return c;
   for (const [dx, dy] of STAIRS_AVOID_OFFSETS) {
     const q = { x: c.x + dx * TILE_SIZE, y: c.y + dy * TILE_SIZE };
@@ -619,6 +709,28 @@ export function floorAttributePoints(state: GameState): number {
 // -----------------------------------------------------------------------------
 // 特別な部屋・ランイベントが使う湧かせ処理（specialRooms.ts の roomHooks へ差し込む）
 // -----------------------------------------------------------------------------
+
+/**
+ * 時間経過の増援: 画面外の床に 1 抽選ぶん（群れは複数体）を徘徊として湧かせる。徘徊の上限（roamCap）を超えない。
+ * 画面外なので予告（spawning）は付けない
+ */
+function spawnRoamReinforcement(state: GameState): void {
+  const cap = roamCap(state.depth);
+  if (roamerCount(state) >= cap) return;
+  const def = pickEnemy(state);
+  const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;
+  for (let k = 0; k < n && roamerCount(state) < cap; k++) {
+    const pos = roamSpawnPoint(state, def.radius);
+    if (!pos) return;
+    const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
+    onBoonEnemySpawned(state, e);
+    onRunEnemySpawned(state, e);
+    rollElite(state, e);
+    if (extraEliteRoll(state, e)) rollElite(state, e);
+    state.enemies.push(e);
+    makeRoamer(state, e);
+  }
+}
 
 /** 部屋に追加で湧かせる（部屋の敵数の上限は守る） */
 function spawnReinforcements(state: GameState, index: number, rolls: number, spawning: boolean): void {

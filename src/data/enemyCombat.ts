@@ -1,6 +1,7 @@
 import { type KeywordProfile, kw } from "../core/keywords";
 import type { EnemyRule } from "../core/rules";
 import type { StatusApply, StatusKind } from "../core/status";
+import { WAVE3_COMBAT } from "./enemyCombatWave3";
 
 /**
  * 敵ごとの戦闘パラメータ（docs/COMBAT_DESIGN.md D-3 / E-4）。
@@ -414,6 +415,7 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     immune: BOSS_IMMUNE,
   },
   ...WAVE2_COMBAT,
+  ...WAVE3_COMBAT,
 };
 
 /** 表に無い敵は怯まず、何も付与しない（新しい敵を足したときに落ちないように） */

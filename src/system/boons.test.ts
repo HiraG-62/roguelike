@@ -18,6 +18,7 @@ import {
   boonCardRect,
   boonCurseRect,
   boonGivenTags,
+  boonMoveMul,
   boonWeight,
   buildTags,
   canTakeCurse,
@@ -37,7 +38,7 @@ import { damageEnemy, damagePlayer } from "./combat";
 import { buildFloor } from "./floor";
 import { applyStats } from "./player";
 import { castSlot, effectiveManaCost } from "./skills";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
 
 const FIXED_DT = 1 / 60;
 /** 入力無視時間を確実に超えるステップ数 */
@@ -205,6 +206,15 @@ describe("抽選", () => {
 });
 
 describe("ルール変更の実効", () => {
+  it("封鎖疾走: 封鎖しない部屋でも交戦中なら速く、交戦していなければ遅い", () => {
+    const state = arena();
+    grantBoon(state, "lockdown");
+    for (const r of state.rooms) r.locked = false;
+    expect(boonMoveMul(state), "交戦していない").toBeCloseTo(BOON.lockdownSlowMul);
+    engageStartRoom(state);
+    expect(boonMoveMul(state), "開放型の交戦中").toBeCloseTo(BOON.lockdownFastMul);
+  });
+
   it("finisherOnly: 斬撃が 3 段目から始まる", () => {
     const state = arena();
     grantBoon(state, "finisherOnly");
@@ -364,7 +374,7 @@ describe("マナ系の祝福（ルールでマナの回し方を変える）", (
       const room = state.rooms[1]!;
       state.player.body.pos = rectCenterPx(room.rect);
       step(state, withInput({}), FIXED_DT);
-      expect(room.locked, "入ると封鎖される").toBe(true);
+      expect(room.engaged, "入ると交戦が始まる（開放型フロアは封鎖しない）").toBe(true);
       for (const e of state.enemies) if (e.roomIndex === 1) e.hp = 0;
       state.player.mana = 0;
       step(state, withInput({}), FIXED_DT);

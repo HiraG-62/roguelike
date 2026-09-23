@@ -38,6 +38,7 @@ import {
   quakeRadius,
   remoteAnchor,
   resolveSlot,
+  slotBodyBlocked,
   slotComboReady,
   slotModifierView,
 } from "../system/skills";
@@ -54,6 +55,11 @@ const COLOR_FRAME = "#505050";
 const COLOR_FRAME_READY = "#c0c0c0";
 const COLOR_BG = "rgba(12,12,18,0.85)";
 const COLOR_MASK = "rgba(0,0,0,0.65)";
+/** 本動作の排他で今は撃てないスロット（本動作が終われば撃てる）。マナ・CD 不足より薄く暗くする */
+const COLOR_BODY_MASK = "rgba(0,0,0,0.4)";
+/** スロットごとの最低間隔の残りを示す枠下端の細いバー */
+const COLOR_INTERVAL_BAR = "#a0c8ff";
+const INTERVAL_BAR_H = 1;
 const COLOR_EMPTY = "#606060";
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
@@ -732,7 +738,10 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   drawText(ctx, icon, x + HUD_SIZE / 2, y + HUD_SIZE / 2, TEXT.BODY, stone ? COLOR_STONE : COLOR_EMPTY, "center", "middle");
 
   if (slot && r) drawReadyMask(ctx, slot, r, ready, x, y);
-  ctx.strokeStyle = frameColor(state, index, ready && !!stone);
+  const bodyBlocked = slotBodyBlocked(state, index);
+  if (bodyBlocked) drawBodyMask(ctx, x, y);
+  if (slot && r) drawIntervalBar(ctx, slot.intervalLeft, r.interval, x, y);
+  ctx.strokeStyle = frameColor(state, index, ready && !!stone && !bodyBlocked);
   ctx.strokeRect(x + 0.5, y + 0.5, HUD_SIZE - 1, HUD_SIZE - 1);
 
   drawText(ctx, String(index + 1), x + HUD_SIZE / 2, y + HUD_SIZE + KEY_OFFSET_Y, TEXT.SMALL, COLOR_DIM, "center");
@@ -785,6 +794,23 @@ function drawReadyMask(
   if (slot.cooldownTotal <= 0) return;
   const ratio = Math.min(1, slot.cooldownLeft / slot.cooldownTotal);
   ctx.fillRect(x, y, HUD_SIZE, Math.round(HUD_SIZE * ratio));
+}
+
+/** 本動作の最中、同じ排他グループ（body）のスロットは薄く暗くする。暗くならないスロットは並行して撃てる */
+function drawBodyMask(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.fillStyle = COLOR_BODY_MASK;
+  ctx.fillRect(x, y, HUD_SIZE, HUD_SIZE);
+}
+
+/**
+ * このスロットだけの最低間隔の残り（枠の下端、右から減る）。全スロット共通の待ち（GCD）は無いので、
+ * 他のスロットのバーは動かず、そのまま撃てることが分かる
+ */
+function drawIntervalBar(ctx: CanvasRenderingContext2D, left: number, total: number, x: number, y: number): void {
+  if (left <= 0 || total <= 0) return;
+  const ratio = Math.min(1, left / total);
+  ctx.fillStyle = COLOR_INTERVAL_BAR;
+  ctx.fillRect(x, y + HUD_SIZE - INTERVAL_BAR_H, Math.round(HUD_SIZE * ratio), INTERVAL_BAR_H);
 }
 
 /** 発動中は警告色、最低間隔中は縁が点滅、撃てるなら明るい縁 */

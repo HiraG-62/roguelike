@@ -18,12 +18,12 @@ import { isBossDepth } from "./boss";
 import { COLOR_HEAL, healPlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { eliteKindsFor, makeElite } from "./elites";
-import { dropItem, dropRoomReward } from "./loot";
+import { dropBonusReward, dropItem } from "./loot";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { spawnReaper } from "./reaper";
 import { altarKeystoneCandidates, equippedSkillKeys, refreshRunStats } from "./runSetup";
 import { applyStatus } from "./statusEffects";
-import { attachRune, dropRune } from "./skills";
+import { dropRune, grantRune } from "./skills";
 import { placeTerrain } from "./terrain";
 import { dropRareItem } from "./roomTypes";
 
@@ -101,6 +101,7 @@ export const ROOM_KIND_LABEL: Readonly<Record<RoomKind, string>> = {
   nest: "巣",
   mirror: "鏡",
   watchtower: "見張り台",
+  horde: "巣窟",
 };
 
 export const PROP_LABEL: Readonly<Record<PropKind, string>> = {
@@ -129,6 +130,7 @@ export const ROOM_KIND_COLOR: Readonly<Partial<Record<RoomKind, string>>> = {
   nest: ROOM_KIND.nestColor,
   mirror: ROOM_KIND.mirrorColor,
   watchtower: ROOM_KIND.watchtowerColor,
+  horde: ROOM_KIND.hordeColor,
 };
 
 /** 台座だけの部屋（戦闘なし。生成時に制圧済み） */
@@ -397,16 +399,16 @@ function takeKeystone(state: GameState, room: RoomState, prop: RoomProp): void {
 
 function takeRune(state: GameState, room: RoomState, prop: RoomProp): void {
   const key = prop.key as ModifierKey;
-  const slot = attachRune(state, key);
-  if (slot < 0) {
-    sayAt(state, "空き枠なし", ROOM_KIND.libraryColor);
+  // 選んだ符は所持品へ入れる（石への付け外しは装備画面で自分で選ぶ）
+  if (!grantRune(state, key)) {
+    sayAt(state, "刻印符が満杯", ROOM_KIND.libraryColor);
     return;
   }
   consumeAll(room, "rune");
   const name = MODIFIERS[key].name;
   spawnBurst(state, prop.pos, ROOM_KIND.libraryColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `刻印符: ${name}`, ROOM_KIND.libraryColor);
-  pushLog(state, `図書館で刻印符「${name}」をスロット ${slot + 1} に差した。`, ROOM_KIND.libraryColor);
+  pushLog(state, `図書館で刻印符「${name}」を手に入れた。装備画面で付けられる。`, ROOM_KIND.libraryColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -581,6 +583,7 @@ function openReaperChest(state: GameState, prop: RoomProp): void {
     foundDepth: state.depth,
     // 決定性に影響しない（foundAt と id の表示用にだけ使われる）
     now: Date.now(),
+    excludeNamed: state.lockedRelics,
   });
   state.floorItems.push({ id: allocId(state), item, pos: { x: prop.pos.x, y: prop.pos.y + TILE_SIZE }, bobTime: 0 });
   pushSfx(state, "treasureOpen");
@@ -687,6 +690,7 @@ export function clearSpecialRoom(state: GameState, room: RoomState, center: Vec)
       clearEscort(state, room, center);
       return;
     case "nest":
+    case "horde":
       dropRareItem(state, center);
       return;
     case "mirror":
@@ -707,7 +711,8 @@ export function resonanceMatches(state: GameState, room: RoomState): boolean {
 
 function clearResonance(state: GameState, room: RoomState, center: Vec): void {
   if (!resonanceMatches(state, room)) return;
-  for (let i = 0; i < ROOM_KIND.resonanceBonusDrops; i++) dropRoomReward(state, center);
+  // 共鳴炉の上乗せは確定（部屋制圧の報酬は確率になったが、こちらは条件を満たした報酬なので絞らない）
+  for (let i = 0; i < ROOM_KIND.resonanceBonusDrops; i++) dropBonusReward(state, center);
   sayAt(state, "共鳴炉が起動した", TRAIT_COLOR_TEXT);
   pushSfx(state, "treasureOpen");
 }

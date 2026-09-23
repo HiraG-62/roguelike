@@ -87,8 +87,14 @@ export const SFX_NAMES = [
   "equipOn",
   "equipOff",
   "dismantle",
+  // Wave 3 の敵（油の撒き・風・鎖。docs/ideas/enemies.md）
+  "oilSplash",
+  "windGust",
+  "chainThrow",
   // タイトル/メニュー
   "menuMove",
+  /** 溜め攻撃・チャージ射撃の段が上がった（src/data/weapons.ts） */
+  "chargeLevel",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

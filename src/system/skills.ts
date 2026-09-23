@@ -25,11 +25,10 @@ import {
   castInterval,
   modifierLinkCost,
   resolveCast,
-  stoneLabel,
 } from "../skills/data";
-import { rollRuneModifier } from "../skills/generator";
+import { type RuneDropSource, makeRuneItem, rollRuneDrop, rollRuneModifier } from "../skills/generator";
 import { refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
-import { addStone, saveSkillProfile, stoneInSlot } from "../skills/persistence";
+import { addRune, saveSkillProfile, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
 import {
   placeMine,
   placeStrikes,
@@ -70,7 +69,7 @@ import {
 } from "../skills/types";
 import { buffPotencyMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
-import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healPlayer, registerComboHit, rollOutgoing } from "./combat";
+import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
@@ -79,10 +78,14 @@ import { addPoise } from "./poise";
 import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { pushPlayerEvent } from "../core/events";
+import { noteSkillCombo } from "../meta/runRecord";
 
 /**
  * アクティブスキルの発動・更新・ドロップ・刻印符。docs/ideas/skills.md「7-4」〜「7-7」。
  * updatePlayer から毎フレーム呼ばれる。乱数は state.rng のみ（決定性）。
+ * 全スロット共通の最低間隔（GCD）は無い。各スロットは自分の最低間隔と CD だけで撃て、
+ * 同じステップに押した複数スロットは 1→4 の順に発動する。本動作（exclusiveGroup "body"）同士だけが排他
+ * （docs/COMBAT_DESIGN.md B-9）。刻印符は所持品から石に付ける（B-10）
  */
 
 const COLOR_NOT_READY = "#808080";
@@ -153,10 +156,11 @@ export interface ResolvedSlot {
 }
 
 export function createSkillRunState(profile: SkillProfile): SkillRunState {
-  return {
+  const rs: SkillRunState = {
     profile,
     slots: Array.from({ length: SLOT_COUNT }, () => ({
       modifiers: [],
+      runModifiers: [],
       cooldownLeft: 0,
       cooldownTotal: 0,
       chargesLeft: 1,
@@ -191,7 +195,6 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     notReadyTimer: 0,
     enemyHp: new Map(),
     tracking: { depth: null, cleared: [] },
-    gcd: 0,
     manaFlash: 0,
     clock: 0,
     shots: [],
@@ -213,6 +216,30 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     hurtLog: [],
     lastHp: null,
   };
+  syncSlotModifiers(rs);
+  return rs;
+}
+
+/**
+ * スロットの実効の刻印符 = スロットの石に付けた所持刻印符（古い順）+ ラン内の刻印符（古い順）。
+ * 石の符を先に置くので、リンクが足りないときは自分で選んだ符が優先して効く
+ */
+export function effectiveSlotModifiers(rs: Readonly<SkillRunState>, slot: number): ModifierKey[] {
+  const stone = stoneInSlot(rs.profile, slot);
+  const own = stone ? stoneModifierKeys(stone) : [];
+  return [...own, ...(rs.slots[slot]?.runModifiers ?? [])];
+}
+
+/**
+ * slot.modifiers を石とラン内の刻印符から作り直す。updateSkills の先頭で毎ステップ呼ぶ。
+ * 装備画面での付け外しはここで次のステップから効く（リプレイの装備変更イベントと同じ時点に揃えるため、UI からは呼ばない）
+ */
+export function syncSlotModifiers(rs: SkillRunState): void {
+  rs.slots.forEach((slot, i) => {
+    const next = effectiveSlotModifiers(rs, i);
+    const same = next.length === slot.modifiers.length && next.every((k, j) => slot.modifiers[j] === k);
+    if (!same) slot.modifiers = next;
+  });
 }
 
 export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null {
@@ -408,7 +435,7 @@ export function trackDamageDealt(state: GameState): void {
   rs.enemyHp.clear();
   for (const e of state.enemies) rs.enemyHp.set(e.id, Math.max(0, e.hp));
   if (dealt <= 0 || rs.lifesteal.time <= 0) return;
-  healPlayer(state, dealt * rs.lifesteal.mul, { silent: true });
+  healSustained(state, dealt * rs.lifesteal.mul, { silent: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +444,7 @@ export function trackDamageDealt(state: GameState): void {
 
 export function updateSkills(state: GameState, input: FrameInput, dt: number): void {
   const rs = state.skills;
+  syncSlotModifiers(rs);
   rs.clock += dt;
   syncTracking(state);
   const hurt = trackHurt(state);
@@ -428,6 +456,7 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   // ダッシュは発動中のスキルをキャンセルする（CD は消費済み）
   if (rs.active && state.player.dashTimer > 0) cancelActive(state, true);
 
+  // 同じステップに押した複数スロットは 1→4 の順で受け付ける（決定性のため順序を固定）
   const pressed = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
   pressed.forEach((on, i) => {
     if (!on) return;
@@ -527,7 +556,6 @@ function tickTimers(state: GameState, dt: number): void {
   rs.notReadyTimer = Math.max(0, rs.notReadyTimer - dt);
   rs.pendingTimer = Math.max(0, rs.pendingTimer - dt);
   if (rs.pendingTimer === 0) rs.pendingSlot = -1;
-  rs.gcd = Math.max(0, rs.gcd - dt);
   rs.manaFlash = Math.max(0, rs.manaFlash - dt);
   rs.backstabTimer = Math.max(0, rs.backstabTimer - dt);
   for (const slot of rs.slots) {
@@ -579,10 +607,30 @@ function misfire(state: GameState): void {
   rs.pendingSlot = -1;
 }
 
-/** 共通最低間隔か、このスロットの最低間隔の中か */
+/** このスロットの最低間隔の中か（全スロット共通の最低間隔は無い） */
 function intervalBlocked(state: GameState, index: number): boolean {
-  const slot = state.skills.slots[index];
-  return state.skills.gcd > 0 || (slot?.intervalLeft ?? 0) > 0;
+  return (state.skills.slots[index]?.intervalLeft ?? 0) > 0;
+}
+
+/**
+ * 本動作の排他: 発動中の本動作（active）がある間、排他グループ body のスキルは撃てない。
+ * body 以外（設置・射撃・強化）は本動作を中断せずに並行して撃てる
+ */
+function bodyBlocked(state: GameState, index: number): boolean {
+  if (!state.skills.active) return false;
+  const stone = stoneInSlot(state.skills.profile, index);
+  return stone !== null && SKILL_DEFS[stone.skillKey].exclusiveGroup === "body";
+}
+
+/** HUD 用: いま押せば本動作の排他で弾かれるか */
+export function slotBodyBlocked(state: GameState, index: number): boolean {
+  return bodyBlocked(state, index);
+}
+
+/** 行動不能（パリィ失敗・壁激突）か本動作の排他で、このスロットの入力を受け付けないか */
+function castLocked(state: GameState, index: number): boolean {
+  const rs = state.skills;
+  return rs.parryFailTimer > 0 || rs.stunTimer > 0 || bodyBlocked(state, index);
 }
 
 /** 払えるか。払えなければ理由を出して false（何も消費しない） */
@@ -636,12 +684,11 @@ function attackCommitted(state: GameState): boolean {
 }
 
 function requestCast(state: GameState, index: number, input: FrameInput): void {
-  const rs = state.skills;
   if (!resolveSlot(state, index)) {
     notReady(state, "スキル未装備");
     return;
   }
-  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
+  if (castLocked(state, index)) return;
   if (state.player.dashTimer > 0 || attackCommitted(state) || intervalBlocked(state, index)) {
     bufferCast(state, index);
     return;
@@ -656,10 +703,10 @@ function bufferCast(state: GameState, index: number): void {
   rs.pendingTimer = SKILL.inputBuffer;
 }
 
-/** 先行入力: ダッシュ終了・近接の recover・最低間隔の明けた瞬間に発動 */
+/** 先行入力: ダッシュ終了・近接の recover・最低間隔の明けた瞬間に発動（本動作の排他が解けるまでは保持） */
 function tryPending(state: GameState, input: FrameInput): void {
   const rs = state.skills;
-  if (rs.pendingSlot < 0 || rs.active) return;
+  if (rs.pendingSlot < 0 || castLocked(state, rs.pendingSlot)) return;
   if (state.player.dashTimer > 0 || attackCommitted(state) || intervalBlocked(state, rs.pendingSlot)) return;
   const index = rs.pendingSlot;
   rs.pendingSlot = -1;
@@ -696,15 +743,14 @@ function chargeMaxTime(kind: "charge" | "staged" | null): number {
  * マナ型はこの時点でコストを確認するだけで、払うのは離した瞬間（docs/COMBAT_DESIGN.md B-5）
  */
 function startCharge(state: GameState, index: number): void {
-  const rs = state.skills;
-  const slot = rs.slots[index];
+  const slot = state.skills.slots[index];
   const r = resolveSlot(state, index);
   if (!r) {
     notReady(state, "スキル未装備");
     return;
   }
   if (!slot || !playerCanCast(state) || !checkAffordable(state, index, r)) return;
-  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
+  if (castLocked(state, index)) return;
   slot.charging = true;
   slot.chargeTime = 0;
 }
@@ -760,8 +806,8 @@ function updateCharging(state: GameState, input: FrameInput, dt: number, hurt: n
     const time = slot.chargeTime;
     slot.charging = false;
     slot.chargeTime = 0;
-    // 溜めている間に行動不能・別スキル発動中になったら不発（チャージ・マナは未消費のまま）
-    if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) continue;
+    // 溜めている間に行動不能・本動作の排他にかかったら不発（チャージ・マナは未消費のまま）
+    if (castLocked(state, i)) continue;
     // 最低間隔の中で離したら先行入力に回す（溜めの倍率は乗らない。minTime 未満の短押しで起きるのがほとんど）
     if (intervalBlocked(state, i)) {
       bufferCast(state, i);
@@ -807,7 +853,7 @@ function payCosts(state: GameState, params: CastParams): CastParams {
 
 /**
  * 発動。成功したら true。chargeMul は Charge 刻印符が離した瞬間に渡す威力・範囲の追加倍率。
- * 最低間隔の中なら何もしない（呼び出し側が先行入力に回す）。払えなければ何も消費せず不発
+ * 最低間隔の中・本動作の排他にかかるなら何もしない（呼び出し側が先行入力に回す）。払えなければ何も消費せず不発
  */
 export function castSlot(state: GameState, index: number, input: FrameInput, chargeMul?: ChargeBonus): boolean {
   const rs = state.skills;
@@ -816,7 +862,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   if (!slot || !r) return false;
   // 怯み・沈黙中はスキル不可（docs/COMBAT_DESIGN.md D-5 / E-2）
   if (!playerCanCast(state)) return false;
-  if (intervalBlocked(state, index)) return false;
+  if (intervalBlocked(state, index) || bodyBlocked(state, index)) return false;
   const p = state.player;
   const dir = { ...p.facing };
   const origin = { ...p.body.pos };
@@ -897,6 +943,7 @@ function castNow(state: GameState, index: number, key: SkillKey, params: CastPar
 function announceCombo(state: GameState, combo: ComboDef): void {
   addFloatingText(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, LABEL_SCALE, PARRY_TEXT_LIFE);
   pushSfx(state, "synergy");
+  noteSkillCombo(state);
 }
 
 /** 連携の「直前の発動」と巡りの履歴を残す。パリィは成功した瞬間に残す（構えただけでは連携しない） */
@@ -946,11 +993,10 @@ export function attuneMatch(state: GameState, def: Readonly<SkillDef>): boolean 
 }
 
 /**
- * 資源を払い、共通最低間隔とスロットの最低間隔を立てる。払ったマナを返す（CD 型は 0）。
+ * 資源を払い、このスロットの最低間隔を立てる（他のスロットには何も立てない）。払ったマナを返す（CD 型は 0）。
  * 呼ぶ前に checkAffordable で払えることを確かめておく
  */
 function payResource(state: GameState, index: number, slot: SkillSlotState, r: ResolvedSlot): number {
-  state.skills.gcd = SKILL.gcd;
   slot.intervalLeft = r.interval;
   if (r.resource === "mana") {
     const paid = payMana(state, index, r);
@@ -1796,8 +1842,9 @@ export function dropRune(state: GameState, pos: Vec, modifier?: ModifierKey): vo
 }
 
 /**
- * 刻印符を装着中スキルのリンク枠へ自動で差す。
- * 優先: 同じ修飾子を持たず空きのあるスロット → 同じ修飾子を持たないスロットの最古を押し出す → 同じ修飾子を最新扱いに。
+ * ラン内の刻印符を装着中スキルのリンク枠へ自動で差す（起点「詠み手」の開始時など、選んだ結果として付くもの）。
+ * 拾った刻印符はここを通らず所持品へ入る（装備画面で自分で付け外しする）。
+ * 優先: 同じ修飾子を持たず空きのあるスロット → ラン内の最古を押し出す（石に付けた所持刻印符は押し出さない）→ 同じ修飾子を最新扱いに。
  * 差したスロット番号を返す（付けられる枠が無ければ -1）
  */
 export function attachRune(state: GameState, modifier: ModifierKey): number {
@@ -1811,45 +1858,57 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   }
   if (candidates.length === 0) return -1;
 
-  const usable = (i: number): ModifierKey[] => {
-    const stone = stoneInSlot(rs.profile, i);
-    const slot = rs.slots[i];
-    if (!stone || !slot) return [];
-    return slot.modifiers.filter((k) => canAttach(SKILL_DEFS[stone.skillKey], k));
-  };
   const linksOf = (i: number): number => stoneInSlot(rs.profile, i)?.links ?? 0;
-  const usedLinks = (keys: readonly ModifierKey[]): number => keys.reduce((sum, k) => sum + modifierLinkCost(k), 0);
+  const usedLinks = (i: number): number => {
+    const stone = stoneInSlot(rs.profile, i);
+    if (!stone) return 0;
+    return effectiveSlotModifiers(rs, i)
+      .filter((k) => canAttach(SKILL_DEFS[stone.skillKey], k))
+      .reduce((sum, k) => sum + modifierLinkCost(k), 0);
+  };
   const cost = modifierLinkCost(modifier);
-  const without = candidates.filter((i) => !(rs.slots[i]?.modifiers.includes(modifier) ?? false) && linksOf(i) >= cost);
+  const without = candidates.filter((i) => !effectiveSlotModifiers(rs, i).includes(modifier) && linksOf(i) >= cost);
 
-  const free = without.find((i) => usedLinks(usable(i)) + cost <= linksOf(i));
+  const commit = (i: number): number => {
+    syncSlotModifiers(rs);
+    return i;
+  };
+  const free = without.find((i) => usedLinks(i) + cost <= linksOf(i));
   if (free !== undefined) {
-    rs.slots[free]?.modifiers.push(modifier);
-    return free;
+    rs.slots[free]?.runModifiers.push(modifier);
+    return commit(free);
   }
-  const target = without[0];
-  if (target !== undefined) {
+  for (const target of without) {
     const slot = rs.slots[target];
-    if (!slot) return -1;
-    // 収まるまで古い順に押し出す（型替え符はリンクを 2 本使う）
-    while (usedLinks(usable(target)) + cost > linksOf(target)) {
-      const oldest = usable(target)[0];
-      if (!oldest) break;
-      slot.modifiers.splice(slot.modifiers.indexOf(oldest), 1);
-    }
-    slot.modifiers.push(modifier);
-    return target;
+    if (!slot) continue;
+    // 収まるまでラン内の古い順に押し出す（型替え符はリンクを 2 本使う）
+    while (usedLinks(target) + cost > linksOf(target) && slot.runModifiers.length > 0) slot.runModifiers.shift();
+    if (usedLinks(target) + cost > linksOf(target)) continue;
+    slot.runModifiers.push(modifier);
+    return commit(target);
   }
-  // 全候補が既に持っている: 最新扱いにする（重複装着はしない）
-  const first = candidates[0] ?? -1;
-  const slot = rs.slots[first];
-  if (slot) {
-    slot.modifiers.splice(slot.modifiers.indexOf(modifier), 1);
-    slot.modifiers.push(modifier);
-  }
-  return first;
+  // 全候補が既に持っている: ラン内の分なら最新扱いにする（重複装着はしない）
+  const first = candidates.find((i) => rs.slots[i]?.runModifiers.includes(modifier));
+  const slot = first === undefined ? undefined : rs.slots[first];
+  if (first === undefined || !slot) return -1;
+  slot.runModifiers.splice(slot.runModifiers.indexOf(modifier), 1);
+  slot.runModifiers.push(modifier);
+  return commit(first);
 }
 
+/**
+ * 刻印符を所持品へ入れて保存する（スキルには付けない）。満杯なら false。
+ * idSeed は所持品の id を一意にするための数（床の刻印符の id など。省略時は allocId）
+ */
+export function grantRune(state: GameState, modifier: ModifierKey, idSeed?: number): boolean {
+  const profile = state.skills.profile;
+  // now は決定性に影響しない（所持刻印符の id と foundAt の表示用）
+  if (!addRune(profile, makeRuneItem(modifier, idSeed ?? allocId(state), Date.now()))) return false;
+  saveSkillProfile(profile);
+  return true;
+}
+
+/** 床の刻印符を拾って所持品へ入れる。所持が満杯なら床に残す */
 function updateRunes(state: GameState, dt: number): void {
   const rs = state.skills;
   const body = state.player.body;
@@ -1859,41 +1918,22 @@ function updateRunes(state: GameState, dt: number): void {
     if (rune.bobTime < SKILL.drop.pickupDelay) continue;
     if (!circlesOverlap(rune.pos.x, rune.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
     const def = MODIFIERS[rune.modifier];
-    const slot = attachRune(state, rune.modifier);
-    if (slot < 0) {
-      if (!rune.warned) addFloatingText(state, rune.pos, "空き枠なし", COLOR_NOT_READY, LABEL_SCALE, LABEL_LIFE);
+    if (!grantRune(state, rune.modifier, rune.id)) {
+      if (!rune.warned) addFloatingText(state, rune.pos, "刻印符が満杯", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
       rune.warned = true;
       continue;
     }
     picked.add(rune.id);
-    addFloatingText(state, rune.pos, `${def.name} → ${slot + 1}`, def.color, LABEL_SCALE, LABEL_LIFE);
-    pushLog(state, `符文「${def.name}」をスキル${slot + 1}に連結した。`, def.color);
+    addFloatingText(state, rune.pos, def.name, def.color, LABEL_SCALE, LABEL_LIFE);
+    pushLog(state, `刻印符「${def.name}」を拾った。装備画面のスキルタブで付けられる。`, def.color);
     pushSfx(state, "runeAttach");
   }
   if (picked.size > 0) rs.runes = rs.runes.filter((r) => !picked.has(r.id));
 }
 
 function updateFloorStones(state: GameState, dt: number): void {
-  const rs = state.skills;
-  const body = state.player.body;
-  const picked = new Set<number>();
-  for (const fs of rs.floorStones) {
-    fs.bobTime += dt;
-    if (fs.bobTime < SKILL.drop.pickupDelay) continue;
-    if (!circlesOverlap(fs.pos.x, fs.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
-    if (!addStone(rs.profile, fs.stone)) {
-      if (!fs.warned) addFloatingText(state, fs.pos, "スキル倉庫が満杯", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
-      fs.warned = true;
-      continue;
-    }
-    saveSkillProfile(rs.profile);
-    picked.add(fs.id);
-    const label = stoneLabel(fs.stone);
-    addFloatingText(state, fs.pos, label, SKILL.drop.stoneColor, LABEL_SCALE, LABEL_LIFE);
-    pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
-    pushSfx(state, "lootRare");
-  }
-  if (picked.size > 0) rs.floorStones = rs.floorStones.filter((fs) => !picked.has(fs.id));
+  // 拾得は注目 + インタラクト（system/loot.ts の updateDropInteract）。ここは揺れの時間だけ進める
+  for (const fs of state.skills.floorStones) fs.bobTime += dt;
 }
 
 /** 血の契約中の赤いオーラ */
@@ -1902,14 +1942,37 @@ function spawnAura(state: GameState): void {
   spawnBurst(state, state.player.body.pos, COLOR_BLOOD, 1, AURA_SPEED, 0.35, 1.5);
 }
 
-/** 描画用: 刻印符の装着状況（有効 / 無効）。UI・HUD が使う */
-export function slotModifierView(state: GameState, slot: number): { key: ModifierKey; active: boolean }[] {
-  const s = state.skills.slots[slot];
-  const stone = stoneInSlot(state.skills.profile, slot);
+/**
+ * 描画用: 刻印符の装着状況（有効 / 無効、ラン内か）。UI・HUD が使う。
+ * 装備画面での付け外しは次のステップまで slot.modifiers に入らないので、石から直接作る
+ */
+export function slotModifierView(state: GameState, slot: number): { key: ModifierKey; active: boolean; run: boolean }[] {
+  const rs = state.skills;
+  const s = rs.slots[slot];
+  const stone = stoneInSlot(rs.profile, slot);
   if (!s) return [];
-  if (!stone) return s.modifiers.map((key) => ({ key, active: false }));
-  const active = new Set(activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, s.modifiers));
-  return s.modifiers.map((key) => ({ key, active: active.has(key) }));
+  const own = stone ? stoneModifierKeys(stone).length : 0;
+  const keys = effectiveSlotModifiers(rs, slot);
+  const active = stone ? new Set(activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, keys)) : new Set<ModifierKey>();
+  return keys.map((key, i) => ({ key, active: active.has(key), run: i >= own }));
+}
+
+/**
+ * 撃破時の刻印符ドロップ（system/loot.ts の rollEnemyDrop から 1 行で呼ぶ）。
+ * ボス・エリート・図書館・巣窟の敵は出やすい。落ちた刻印符は拾うと所持品へ入る
+ */
+export function rollEnemyRuneDrop(state: GameState, enemy: Enemy): void {
+  const key = rollRuneDrop(state.rng, state.depth, runeDropSource(state, enemy), equippedSkillKeys(state));
+  if (key) dropRune(state, enemy.body.pos, key);
+}
+
+function runeDropSource(state: GameState, enemy: Enemy): RuneDropSource {
+  if (state.boss?.enemyId === enemy.id) return "boss";
+  if (enemy.elite) return "elite";
+  const kind = state.rooms[enemy.roomIndex]?.kind;
+  if (kind === "library") return "library";
+  if (kind === "nest") return "nest";
+  return "normal";
 }
 
 // ---------------------------------------------------------------------------

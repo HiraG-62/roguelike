@@ -18,8 +18,9 @@ import { ACTION, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource } from "../skills/types";
 import { boonNormalAttackBonus, hasBoon, offerBoons } from "./boons";
-import { damageEnemy, gainEnergy, healPlayer, rollOutgoing } from "./combat";
+import { damageEnemy, gainEnergy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { engagedRoomIndex } from "./engagement";
 import { scaled } from "./attributes";
 import { gainMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
@@ -720,7 +721,7 @@ function feastCup(state: GameState): void {
   const hpFull = p.hp >= p.maxHp;
   const full = manaFull(state);
   if (hpFull) gainMana(state, BOON.reaperCupKillMana);
-  if (full) healPlayer(state, BOON.feastHeal, { silent: true });
+  if (full) healSustained(state, BOON.feastHeal, { silent: true });
 }
 
 /** 近接 3 段目の振りで倒したか（ダッシュ攻撃は除く） */
@@ -1220,8 +1221,13 @@ export function boonBlocksShoot(state: GameState): boolean {
 export function boonWindupMul(state: GameState, e: Enemy): number {
   let mul = 1;
   if (hasBoon(state, "frostFeet") && statusStacks(e.status, "chill") >= BOON.frostFeetStacks) mul *= BOON.frostFeetMul;
-  if (hasBoon(state, "winterNest") && state.rooms[e.roomIndex]?.locked) mul *= BOON.winterNestMul;
+  if (hasBoon(state, "winterNest") && inEngagedRoom(state, e)) mul *= BOON.winterNestMul;
   return mul;
+}
+
+/** 冬籠り: 今いる交戦中の部屋に属する敵か（徘徊の敵 roomIndex = -1 は含めない） */
+function inEngagedRoom(state: GameState, e: Enemy): boolean {
+  return e.roomIndex >= 0 && e.roomIndex === engagedRoomIndex(state);
 }
 
 /** statusEffects.ts chainLightning: 冷気の敵に届いたとき延びる連鎖の回数（氷伝い） */

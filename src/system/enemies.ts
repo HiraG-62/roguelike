@@ -5,15 +5,66 @@ import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enem
 import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
-import { eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites } from "./elites";
-import { laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
+import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites } from "./elites";
+import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
 import { applyStagger, initEnemyPoise } from "./poise";
 import { boonWindupMul } from "./boonRules";
 import { createStatusBag } from "../core/status";
-import { isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
+import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
 import { TILE_SIZE } from "../map/grid";
+import { chaseHeading, lineOfSight } from "../map/pathing";
+import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
+import { placeTerrain } from "./terrain";
+import {
+  BASILISK_BITE,
+  BASILISK_GAZE,
+  HOOK_LOB,
+  HOOK_SLAM,
+  SCRIBE_BLASTS,
+  SCRIBE_DASH,
+  SCRIBE_RING,
+  absorberReady,
+  bannerAlive,
+  beforeActWave3,
+  blowWind,
+  forgeEnraged,
+  hollowFrozen,
+  hookFollowUp,
+  mineTriggered,
+  nearestFire,
+  nextBasiliskMove,
+  onRecoverEndWave3,
+  strikeAbsorber,
+  strikeBanner,
+  strikeBell,
+  strikeBurrow,
+  strikeCross,
+  strikeDrop,
+  strikeForge,
+  strikeHomunculus,
+  strikeLob,
+  strikeMine,
+  strikeScribe,
+  strikeStalk,
+  strikeToad,
+  strikeTurret,
+  strikeTurretMaster,
+  strikeWarden,
+  telegraphBanner,
+  telegraphBurrow,
+  telegraphCross,
+  telegraphDrop,
+  telegraphHomunculus,
+  telegraphHook,
+  telegraphLob,
+  telegraphMine,
+  telegraphScribe,
+  telegraphStalk,
+  telegraphToad,
+  tickGaze,
+} from "./enemyWave3";
 import { twinTelegraphIsLine } from "./bossTwins";
 import { GIANT_MOVE_SLAM } from "./bossFrostGiant";
 import {
@@ -82,6 +133,33 @@ const STRIKE_SPEED_MUL: Record<EnemyBehavior, number> = {
   twinBlade: 0,
   twinBow: 0,
   frostGiant: 0,
+  lobber: 0,
+  oiler: 4.6,
+  bellImp: 0,
+  bannerBearer: 4.6,
+  burrower: 0,
+  dropper: 4.6,
+  absorber: 0,
+  homunculus: 0,
+  scribeImp: 0,
+  crossGolem: 0,
+  windSprite: 0,
+  mineLayer: 0,
+  mine: 0,
+  chainWarden: 0,
+  hollow: 5,
+  flameEater: 4.6,
+  egg: 0,
+  turret: 0,
+  giantToad: 0,
+  forgeMaster: 0,
+  turretMaster: 0,
+  basilisk: 0,
+  shadowStalker: 0,
+  oilKing: 0,
+  broodMother: 0,
+  librarian: 0,
+  mirrorKnight: 0,
 };
 /** 予備動作中も動けるか（laser はチャージ中に止まる） */
 const WINDUP_MOVE_MUL: Record<EnemyBehavior, number> = {
@@ -112,15 +190,51 @@ const WINDUP_MOVE_MUL: Record<EnemyBehavior, number> = {
   twinBlade: 0,
   twinBow: 0,
   frostGiant: 0,
+  lobber: 0,
+  oiler: 0,
+  bellImp: 0,
+  bannerBearer: 0,
+  burrower: 0,
+  dropper: 0,
+  absorber: 0,
+  homunculus: 0,
+  scribeImp: 0,
+  crossGolem: 0,
+  windSprite: 0,
+  mineLayer: 0,
+  mine: 0,
+  chainWarden: 0,
+  hollow: 0,
+  flameEater: 0,
+  egg: 0,
+  turret: 0,
+  giantToad: 0,
+  forgeMaster: 0,
+  turretMaster: 0,
+  basilisk: 0,
+  shadowStalker: 0,
+  oilKing: 0,
+  broodMother: 0,
+  librarian: 0,
+  mirrorKnight: 0,
 };
 /** 距離を保って動く（射撃・詠唱する）behavior と、その保つ距離 */
 const KEEP_AWAY: Partial<Record<EnemyBehavior, number>> = {
   echoStriker: ENEMY_AI.echoStriker.keepAway,
   silencer: ENEMY_AI.silencer.keepAway,
   conductor: ENEMY_AI.conductor.keepAway,
+  lobber: ENEMY_AI.lobber.keepAway,
+  bellImp: ENEMY_AI.bellImp.keepAway,
+  homunculus: ENEMY_AI.homunculus.keepAway,
+  scribeImp: ENEMY_AI.scribeImp.keepAway,
+  windSprite: ENEMY_AI.windSprite.keepAway,
+  mineLayer: ENEMY_AI.mineLayer.keepAway,
+  forgeMaster: ENEMY_AI.forgeMaster.keepAway,
 };
 /** その場から動かない behavior */
-const STATIONARY: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["graveBell", "inert"]);
+const STATIONARY: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["graveBell", "inert", "absorber", "mine", "egg", "turret"]);
+/** 旗持ちが旗を立てた後に殴りに来る距離 */
+const BANNER_MELEE_RANGE = 44;
 const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
@@ -136,6 +250,14 @@ const SILENCED_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>([
   "silencer",
   "graveBell",
   "conductor",
+  "lobber",
+  "bellImp",
+  "homunculus",
+  "scribeImp",
+  "windSprite",
+  "turret",
+  "turretMaster",
+  "basilisk",
 ]);
 
 /** 連続攻撃の定義（ENEMY_TEMPO.followUps の 1 行） */
@@ -197,12 +319,17 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     poise: createPoiseState(),
   };
   initEnemyPoise(enemy, state.depth);
+  // 土潜り・天井吊りは潜んだ状態で湧く（描かれず当たらない。影の予告の後に姿を見せる）
+  if (def.behavior === "burrower" || def.behavior === "dropper") enemy.hidden = true;
   return enemy;
 }
 
 export function updateEnemies(state: GameState, dt: number): void {
   updateElites(state, dt);
   updateCorpses(state, dt);
+  updateRallies(state, dt);
+  updateTerrainSeeds(state, dt);
+  chipBoneWallsByShots(state, dt);
   const player = state.player;
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
@@ -237,7 +364,8 @@ export function updateEnemies(state: GameState, dt: number): void {
         if (e.phaseTimer <= 0) e.phase = "chase";
         break;
       case "idle":
-        if (d < NOTICE_RANGE || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
+        // 開放型フロア: 壁越しには気付かない（気付いた敵が壁に張り付いたまま動けなくなるため）
+        if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
         break;
       case "chase":
         chase(state, e, def, toPlayer, d, edt);
@@ -265,6 +393,9 @@ function beforeAct(state: GameState, e: Enemy, def: EnemyDef, dt: number): void 
   if (def.pack) spawnPackOnce(state, e, def);
   if (def.behavior === "echoStriker") recordTrail(state, e, dt);
   if (def.behavior === "twinShade") tickTwinRevive(state, e, dt);
+  if (def.sporeOnHit) tickSpores(state, e, def, dt);
+  beforeActWave3(state, e, def, dt);
+  if (forgeEnraged(e)) e.attackCooldown = Math.min(e.attackCooldown, def.attackInterval * ENEMY_AI.forgeMaster.enrageMul);
 }
 
 /** 死亡した敵の後処理（配列から消す直前に 1 回） */
@@ -324,6 +455,8 @@ function wallSplat(state: GameState, e: Enemy): void {
   const out = rollOutgoing(state, e, w.damage, "proc");
   const poise = w.poise * state.stats.poiseDamageMul;
   damageEnemy(state, e, out.amount, back, 0, { poise, ignoreSuperArmor: true, hitstopSteps: w.hitstop });
+  // 叩きつけた先が骨の壁なら壁ごと崩す（docs/ideas/enemies.md H6）
+  damageBoneWalls(state, e.body.pos, e.body.radius + TILE_SIZE / 2, BOSS.boneLord.wallHp);
 }
 
 /** 壁すり抜け（wisp）はマップ外にだけ出ないようにして直接動かす */
@@ -353,7 +486,14 @@ function toChase(e: Enemy, def: EnemyDef): void {
 }
 
 function enemySpeed(state: GameState, e: Enemy, def: EnemyDef): number {
-  return def.speed * eliteSpeedMul(e) * frenzyMul(state, def);
+  return def.speed * eliteSpeedMul(e) * frenzyMul(state, def) * terrainSpeedMul(state, e, def) * wave3SpeedMul(state, e, def);
+}
+
+/** Wave 3 の足の倍率: 虚ろは照準を向けられると止まる、潜った土潜りは速い */
+function wave3SpeedMul(state: GameState, e: Enemy, def: EnemyDef): number {
+  if (def.behavior === "hollow" && hollowFrozen(state, e)) return 0;
+  if (def.behavior === "burrower" && e.hidden) return ENEMY_AI.burrower.burrowSpeedMul;
+  return 1;
 }
 
 function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: number, dt: number): void {
@@ -363,21 +503,40 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
   if (def.blocks) e.facing = dir;
   if (def.behavior === "scavenger" && tryStartEating(state, e)) return;
 
-  const move = chaseMove(state, e, def, dir, d);
+  const move = chaseMove(state, e, def, chaseHeading(state.map, e.body.pos, state.player.body.pos, dir), d);
   const speed = enemySpeed(state, e, def);
   moveEnemy(state, e, def, move.x * speed * dt, move.y * speed * dt);
 
-  if (d >= def.engageRange || e.attackCooldown > 0) return;
-  if (!canBeginAttack(state, e, def)) return;
+  if (!wantsEngage(state, e, def, d) || e.attackCooldown > 0) return;
+  if (!canBeginAttack(state, e, def, d)) return;
   beginWindup(state, e, def, dir);
 }
 
-/** behavior ごとの攻撃開始の条件（沈黙・霜砕きの冷え待ち・骨拾いの食事優先） */
-function canBeginAttack(state: GameState, e: Enemy, def: EnemyDef): boolean {
+/** 攻撃に入る距離か。地雷はプレイヤーだけでなく敵が踏んでも爆ぜる */
+function wantsEngage(state: GameState, e: Enemy, def: EnemyDef, d: number): boolean {
+  if (def.behavior === "mine") return mineTriggered(state, e);
+  return d < def.engageRange;
+}
+
+/** behavior ごとの攻撃開始の条件（沈黙・霜砕きの冷え待ち・骨拾いの食事優先・Wave 3 の条件） */
+function canBeginAttack(state: GameState, e: Enemy, def: EnemyDef, d: number): boolean {
   if (isSilenced(e) && SILENCED_BEHAVIORS.has(def.behavior)) return false;
-  if (def.behavior === "frostCrusher") return frostCrusherReady(state);
-  if (def.behavior === "scavenger") return scavengerHeading(state, e) === undefined;
-  return true;
+  switch (def.behavior) {
+    case "frostCrusher":
+      return frostCrusherReady(state);
+    case "scavenger":
+      return scavengerHeading(state, e) === undefined;
+    case "absorber":
+      return absorberReady(e);
+    case "mineLayer":
+      return false;
+    case "hollow":
+      return !hollowFrozen(state, e);
+    case "bannerBearer":
+      return !bannerAlive(state, e) || d < BANNER_MELEE_RANGE;
+    default:
+      return true;
+  }
 }
 
 function chaseMove(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: number): Vec {
@@ -406,6 +565,13 @@ function chaseMove(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: numbe
     }
     case "scavenger":
       return scavengerHeading(state, e) ?? dir;
+    case "flameEater": {
+      const fire = nearestFire(state, e);
+      return fire ? normalize(sub(fire, e.body.pos), dir) : dir;
+    }
+    case "oiler":
+      // 油壺運びはふらふら走り回って床に油を広げる
+      return normalize(add(dir, scale(perp, Math.sin(e.animTime * 2 + e.id) * 1.2)));
     default:
       // 狼は遠いうちは横へ回り込み、近づいたら素直に飛びかかる
       if (def.flank && d > ENEMY_AI.flank.minDist) return normalize(add(dir, scale(perp, side * def.flank)));
@@ -426,8 +592,11 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void 
   // 三叉光線眼は 1 本目（中央）から
   if (e.ai && def.laserBeams) e.ai.move = 0;
   if (def.behavior === "mimic") nextMimicMove(e);
+  if (def.behavior === "basilisk") nextBasiliskMove(e);
   startWindup(state, e, def, dir, def.windup);
   coordinateNearby(state, e, def);
+  // 号令の: 周りの敵の予備動作を自分に揃える（予告 1 つで全員の攻撃が読める）
+  commandNearby(state, e, (o, od) => beginRalliedWindup(state, o, od, normalize(sub(state.player.body.pos, o.body.pos), o.strikeDir)));
 }
 
 /** 群れの長・楽団長が取り巻きを一斉に動かすときの入口（連携ずらしはしない。揃うのが号令の意味なので） */
@@ -501,6 +670,48 @@ function telegraphWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): v
       telegraphSilence(state, e);
       return;
     default:
+      telegraphWave3(state, e, def, dir);
+      return;
+  }
+}
+
+/** Wave 3 の予告（影・線・扇）。予告の形は enemyTelegraph が描画側へ伝える */
+function telegraphWave3(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void {
+  switch (def.behavior) {
+    case "lobber":
+      telegraphLob(state, e, def);
+      return;
+    case "burrower":
+      telegraphBurrow(state, e);
+      return;
+    case "dropper":
+      telegraphDrop(state, e);
+      return;
+    case "shadowStalker":
+      telegraphStalk(state, e);
+      return;
+    case "homunculus":
+      telegraphHomunculus(state, e);
+      return;
+    case "scribeImp":
+      telegraphScribe(state, e);
+      return;
+    case "crossGolem":
+      telegraphCross(state, e);
+      return;
+    case "mine":
+      telegraphMine(state, e);
+      return;
+    case "bannerBearer":
+      telegraphBanner(state, e);
+      return;
+    case "chainWarden":
+      telegraphHook(state, e, dir, ENEMY_AI.chainWarden.length);
+      return;
+    case "giantToad":
+      telegraphToad(state, e, dir);
+      return;
+    default:
       return;
   }
 }
@@ -523,7 +734,18 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */
 function aimFixedAtWindup(e: Enemy, def: EnemyDef): boolean {
-  return def.behavior === "laser" || (def.behavior === "mimic" && isMimicTongue(e));
+  switch (def.behavior) {
+    case "laser":
+    case "chainWarden":
+    case "giantToad":
+    case "windSprite":
+    case "basilisk":
+      return true;
+    case "mimic":
+      return isMimicTongue(e);
+    default:
+      return false;
+  }
 }
 
 function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): void {
@@ -551,6 +773,9 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
       pushSfx(state, "laserFire");
       return;
     }
+    case "turret":
+      strikeTurret(state, e);
+      return;
     case "golem": {
       const g = ENEMY_AI.golem;
       spawnShockwave(state, e.body.pos, g.ringRadius, g.damage + dmgBonus, e.id);
@@ -561,8 +786,74 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
     }
     default:
       if (beginStrikeWave2(state, e, def)) return;
+      if (beginStrikeWave3(state, e, def)) return;
       spawnBurst(state, e.body.pos, def.color, 6, 60, 0.2, 1.5);
   }
+}
+
+/** Wave 3 の behavior の攻撃の出だし。処理したら true（隙へ直接移るものは中で phase を変える） */
+function beginStrikeWave3(state: GameState, e: Enemy, def: EnemyDef): boolean {
+  switch (def.behavior) {
+    case "lobber":
+      strikeLob(state, e, def);
+      return true;
+    case "bellImp":
+      strikeBell(state, e);
+      return true;
+    case "bannerBearer":
+      return strikeBanner(state, e) && toRecover(e, def);
+    case "burrower":
+      strikeBurrow(state, e);
+      return true;
+    case "dropper":
+      return strikeDrop(state, e, def);
+    case "shadowStalker":
+      strikeStalk(state, e);
+      return true;
+    case "absorber":
+      strikeAbsorber(state, e);
+      return true;
+    case "homunculus":
+      strikeHomunculus(state, e);
+      return true;
+    case "scribeImp":
+      return strikeScribe(state, e);
+    case "crossGolem":
+      strikeCross(state, e, def);
+      return true;
+    case "mine":
+      strikeMine(state, e);
+      return true;
+    case "chainWarden":
+      strikeWarden(state, e);
+      return true;
+    case "giantToad":
+      strikeToad(state, e);
+      return true;
+    case "forgeMaster":
+      strikeForge(state, e);
+      return true;
+    case "turretMaster":
+      strikeTurretMaster(state, e);
+      return true;
+    case "windSprite":
+      pushSfx(state, "windGust");
+      return true;
+    case "basilisk":
+      // 睨みは strikeTime の間ずっと続く。噛みつきは短い突進
+      if (e.ai?.move === BASILISK_GAZE) return true;
+      e.phaseTimer = ENEMY_AI.basilisk.biteTime;
+      return false;
+    default:
+      return false;
+  }
+}
+
+/** 攻撃の出だしで隙へ移す（旗を立てた） */
+function toRecover(e: Enemy, def: EnemyDef): boolean {
+  e.phase = "recover";
+  e.phaseTimer = def.recover;
+  return true;
 }
 
 /** 追加した behavior の攻撃の出だし。処理したら true */
@@ -637,18 +928,29 @@ function throwBombs(state: GameState, e: Enemy, def: EnemyDef, dmgBonus: number)
     const target = add(e.body.pos, scale(dir, b.throwDist));
     const pos = overlapsWall(state, target.x, target.y, 2) ? { ...e.body.pos } : target;
     spawnBomb(state, pos, damage, e.id);
+    // 煤ゴブリン: 爆発の跡に地形（爆弾の円がそのまま予告になる）
+    if (def.bombTerrain) seedTerrain(state, pos, def.bombTerrain.kind, def.bombTerrain.radius, { delay: b.fuse, quiet: true });
   }
   spawnBurst(state, e.body.pos, b.color, 4, 40, 0.15, 1.5);
 }
 
 function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   e.phaseTimer -= dt;
+  if (def.behavior === "windSprite") blowWind(state, e, dt);
+  if (def.behavior === "basilisk") tickGaze(state, e, dt);
+  // 氷猪: 突進の跡が氷床になる（突進の予告線がそのまま予告）
+  if (def.chargeTrail === "ice") placeTerrain(state, e.body.pos.x, e.body.pos.y, "ice", ENEMY_AI.iceTrail.radius);
   const speed = enemySpeed(state, e, def) * strikeSpeedMul(e, def);
   if (speed > 0) {
     const hit = moveEnemy(state, e, def, e.strikeDir.x * speed * dt, e.strikeDir.y * speed * dt);
     if (hit.hitX || hit.hitY) {
       if (def.behavior === "charger") {
         leaveChargeTrail(state, e, def, true);
+        // 氷猪は壁に激突しても怯まずに滑って止まる（隙は通常の隙だけ）
+        if (def.chargeTrail === "ice") {
+          endStrike(state, e, def, true);
+          return;
+        }
         if (tryFollowUp(state, e, def, true)) {
           shake(state, FEEL.shakeLight);
           pushSfx(state, "wallHit");
@@ -677,9 +979,11 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   if (e.phaseTimer <= 0) endStrike(state, e, def);
 }
 
-/** strike 中の移動倍率。喰らう宝箱は舌のときはその場 */
+/** strike 中の移動倍率。喰らう宝箱は舌のときはその場、写本の小悪魔は突進を写したときだけ、蜥蜴は噛みつきだけ動く */
 function strikeSpeedMul(e: Enemy, def: EnemyDef): number {
   if (def.behavior === "mimic" && isMimicTongue(e)) return 0;
+  if (def.behavior === "scribeImp" && e.ai?.move === SCRIBE_DASH) return ENEMY_AI.mimic.biteSpeedMul;
+  if (def.behavior === "basilisk" && e.ai?.move === BASILISK_BITE) return ENEMY_AI.mimic.biteSpeedMul;
   return STRIKE_SPEED_MUL[def.behavior];
 }
 
@@ -688,7 +992,10 @@ function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResul
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return null;
   const result = damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e);
-  if (result === "hit") inflictOnPlayer(state, e, "contact");
+  if (result === "hit") {
+    inflictOnPlayer(state, e, "contact");
+    onRallyContact(state, e);
+  }
   return result === "ignored" ? null : result;
 }
 
@@ -708,12 +1015,19 @@ function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: n
   }
   if (e.phaseTimer > 0) return;
   if (def.behavior === "scavenger") finishEating(state, e, def);
+  onRecoverEndWave3(e, def);
   toChase(e, def);
 }
 
 /** 攻撃の終わり。連続攻撃・残響・次の光線が残っていれば次の予備動作へ、無ければ隙（recover） */
 function endStrike(state: GameState, e: Enemy, def: EnemyDef, byWall = false): void {
   if (def.behavior === "charger" && !byWall) leaveChargeTrail(state, e, def, false);
+  // 鎖の番人・大蝦蟇: 引き寄せが当たったら続けて叩きつけ（2 段の読み）
+  const hook = hookFollowUp(e, def);
+  if (hook !== null) {
+    startWindup(state, e, def, normalize(sub(state.player.body.pos, e.body.pos), e.strikeDir), hook);
+    return;
+  }
   if (tryFollowUp(state, e, def, byWall)) return;
   if (tryNextBeam(state, e, def)) return;
   if (e.hp > 0 && takeEliteEcho(e)) {
@@ -828,7 +1142,15 @@ function pushApart(state: GameState, e: Enemy, push: Vec): void {
 // -----------------------------------------------------------------------------
 
 /** 予備動作中に描く予告の種類 */
-export type EnemyTelegraph = { kind: "line" } | { kind: "laser" } | { kind: "ring"; radius: number } | null;
+export type EnemyTelegraph =
+  | { kind: "line" }
+  | { kind: "laser" }
+  | { kind: "ring"; radius: number }
+  /** 十字の線（ai.points の各点へ。十字ゴーレム） */
+  | { kind: "cross" }
+  /** 扇（strikeDir を中心に range・半角 halfDeg。風吹き・石化の蜥蜴） */
+  | { kind: "cone"; range: number; halfDeg: number }
+  | null;
 
 /** その敵の予備動作の予告。影（landing）で見せるものは hazards 側が描くので null */
 export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
@@ -851,6 +1173,47 @@ export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
     case "frostGiant":
       return e.ai?.move === GIANT_MOVE_SLAM ? { kind: "ring", radius: BOSS.frostGiant.slamRadius } : null;
     default:
+      return enemyTelegraphWave3(e, def) ?? bossTelegraph(e, def);
+  }
+}
+
+/** Wave 3 の予告の形。影（landing）で見せるものは null */
+function enemyTelegraphWave3(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  const move = e.ai?.move;
+  switch (def.behavior) {
+    case "crossGolem":
+      return { kind: "cross" };
+    case "windSprite":
+      return { kind: "cone", range: ENEMY_AI.windSprite.range, halfDeg: ENEMY_AI.windSprite.arcDeg / 2 };
+    case "basilisk":
+      return move === BASILISK_GAZE ? { kind: "cone", range: ENEMY_AI.basilisk.range, halfDeg: ENEMY_AI.basilisk.arcDeg / 2 } : { kind: "line" };
+    case "chainWarden":
+      return move === HOOK_SLAM ? { kind: "ring", radius: ENEMY_AI.chainWarden.slamRadius } : { kind: "laser" };
+    case "giantToad":
+      if (move === HOOK_SLAM) return { kind: "ring", radius: ENEMY_AI.giantToad.biteRadius };
+      return move === HOOK_LOB ? null : { kind: "laser" };
+    case "bellImp":
+      return { kind: "ring", radius: ENEMY_AI.bellImp.radius };
+    case "bannerBearer":
+    case "hollow":
+    case "absorber":
+    case "turret":
+    case "forgeMaster":
+    case "turretMaster":
+      return { kind: "line" };
+    case "scribeImp":
+      return move === SCRIBE_RING || move === SCRIBE_BLASTS ? null : { kind: "line" };
+    default:
       return null;
   }
+}
+
+/** 攻撃中も見せ続ける範囲（風の扇・睨みの扇）。無ければ null */
+export function enemyActiveArea(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  if (e.phase !== "strike") return null;
+  if (def.behavior === "windSprite") return { kind: "cone", range: ENEMY_AI.windSprite.range, halfDeg: ENEMY_AI.windSprite.arcDeg / 2 };
+  if (def.behavior === "basilisk" && e.ai?.move === BASILISK_GAZE) {
+    return { kind: "cone", range: ENEMY_AI.basilisk.range, halfDeg: ENEMY_AI.basilisk.arcDeg / 2 };
+  }
+  return null;
 }

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { KEYSTONE, PLAYER } from "../data/tuning";
 import { keystoneDef } from "../loot/affixes";
+import { arena, engageStartRoom } from "./testHelpers";
 import {
   KEYSTONE_NAME,
   KS,
   attackManaMul,
   canAffordSkill,
+  healMul,
   manaRegenAllowed,
   overdrawHpCost,
   paySkillCost,
@@ -93,6 +95,14 @@ describe("誓約の判定ヘルパー（マナ）", () => {
 });
 
 describe("誓約の判定ヘルパー（2026-09 追加）", () => {
+  it("背水の誓い: 封鎖しない部屋でも交戦中は回復が効かない。交戦していなければ効く", () => {
+    const state = arena(5, { keystones: [KS.backwater] });
+    for (const r of state.rooms) r.locked = false;
+    expect(healMul(state), "交戦前").toBe(1);
+    engageStartRoom(state);
+    expect(healMul(state), "開放型の交戦中").toBe(0);
+  });
+
   it("KS の全 key が affixes.ts の定義と表示名で揃っている", () => {
     for (const key of Object.values(KS)) {
       expect(keystoneDef(key)?.name, key).toBe(KEYSTONE_NAME[key]);

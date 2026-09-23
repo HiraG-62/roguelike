@@ -1,6 +1,6 @@
 import { VIEW_H, VIEW_W } from "../core/view";
 import { ORIGINS, RUN_MODS, RUN_MOD_KEYS } from "../system/runSetup";
-import { ORIGIN_LAYOUT, ORIGIN_ROWS, type OriginScreen, START_LABEL, cursorDescription, originRowTop, originTier } from "../ui/origin";
+import { LOCKED_ORIGIN_NAME, ORIGIN_LAYOUT, ORIGIN_ROWS, type OriginScreen, START_LABEL, cursorDescription, originRowTop, originTier } from "../ui/origin";
 import { TEXT, drawText, textLineHeight, wrapText } from "./pixelText";
 import { pulse } from "./renderMath";
 
@@ -57,6 +57,10 @@ function drawOriginColumn(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScre
     const x = ORIGIN_LAYOUT.leftX + ROW_TEXT_INSET;
     if (row === "start") {
       drawText(ctx, START_LABEL, x, y, TEXT.SMALL, COLOR_START);
+      return;
+    }
+    if (ui.locked.has(row)) {
+      drawText(ctx, `　 ${LOCKED_ORIGIN_NAME}`, x, y, TEXT.SMALL, COLOR_DIM);
       return;
     }
     const picked = ui.origin === row;

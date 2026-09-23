@@ -1,8 +1,8 @@
 import { type GameState, type Hazard, type HazardKind, allocId, pushSfx } from "../core/state";
-import { type Vec, dist } from "../core/vec";
+import { type Vec, dist, sub } from "../core/vec";
 import { BOSS, ENEMY_AI, STATUS } from "../data/tuning";
 import { TILE_SIZE, toIndex } from "../map/grid";
-import { damagePlayer } from "./combat";
+import { damageEnemy, damagePlayer } from "./combat";
 import { shake, spawnBurst, spawnRing } from "./effects";
 import { overlapsWall } from "./physics";
 import type { EnemyAttackKind } from "../data/enemyCombat";
@@ -10,13 +10,15 @@ import { type InflictSource, enemyDamageMul, inflictOnPlayer } from "./statusEff
 
 /**
  * 敵が地面に残す攻撃: 爆弾 / レーザー / 衝撃波リング / ボスの着地予告 / 骨の壁。
- * 判定はすべてプレイヤーに対してだけ行う（敵同士は巻き込まない）
+ * 判定は原則プレイヤーに対してだけ行う（敵同士は巻き込まない）。例外は blastEnemies と hitsEnemies の爆弾（H10）
  */
 
 const EXPLODE_PARTICLES = 20;
 const EXPLODE_SPEED = 170;
 const EXPLODE_SHAKE = 4;
 const LASER_PARTICLE_INTERVAL = 3;
+/** 敵にも当たる爆発で敵を押す強さ */
+const FRIENDLY_BLAST_KNOCK = 160;
 /** 付与元の部屋は不明（ボス部屋の深度条件の例外は接触攻撃だけ） */
 const UNKNOWN_ROOM = -1;
 
@@ -107,7 +109,60 @@ export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard 
     if (Math.abs(b.pos.x - pos.x) < half + b.radius && Math.abs(b.pos.y - pos.y) < half + b.radius) return null;
   }
   state.lockedTiles.add(tile);
-  return addHazard(state, { kind: "boneWall", pos, radius: half, time: BOSS.boneLord.wallDuration, damage: 0, tile });
+  const wall = addHazard(state, { kind: "boneWall", pos, radius: half, time: BOSS.boneLord.wallDuration, damage: 0, tile });
+  wall.hp = BOSS.boneLord.wallHp;
+  return wall;
+}
+
+/**
+ * 骨の壁を削る（docs/ideas/enemies.md H6）。半径内の骨の壁の耐久を amount 減らし、0 以下なら次の更新で崩す。
+ * 爆発（敵にも当たる爆発・グレネード）・壁叩きつけ・弾が呼ぶ。崩した数を返す
+ */
+export function damageBoneWalls(state: GameState, pos: Vec, radius: number, amount: number): number {
+  let broken = 0;
+  for (const h of state.hazards) {
+    if (h.kind !== "boneWall" || h.time <= 0) continue;
+    if (dist(h.pos, pos) > radius + h.radius) continue;
+    h.hp = (h.hp ?? BOSS.boneLord.wallHp) - amount;
+    spawnBurst(state, h.pos, BOSS.boneLord.color, 4, 50, 0.25, 1.5);
+    if (h.hp > 0) continue;
+    // 崩すのは updateHazards の時間切れと同じ経路（lockedTiles の解除を 1 か所にまとめる）
+    h.time = 0;
+    broken += 1;
+  }
+  if (broken > 0) pushSfx(state, "wallHit");
+  return broken;
+}
+
+/** 敵にも当たる爆発（H10・「敵の地形は敵にも効く」）。excludeId の敵は巻き込まない。潜行中の敵には当たらない */
+export function blastEnemies(state: GameState, pos: Vec, radius: number, damage: number, excludeId?: number): void {
+  const amount = Math.max(1, Math.round(damage * ENEMY_AI.friendlyBlastMul));
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.id === excludeId || e.phase === "spawning" || e.hidden) continue;
+    if (dist(e.body.pos, pos) >= radius + e.body.radius) continue;
+    damageEnemy(state, e, amount, sub(e.body.pos, pos), FRIENDLY_BLAST_KNOCK, { hitstopSteps: 0 });
+  }
+  damageBoneWalls(state, pos, radius, amount);
+}
+
+/**
+ * プレイヤーの弾とグレネードが骨の壁を削る（H6）。projectiles.ts が壁で弾を消す前に、次の位置が骨の壁に入る弾を拾う。
+ * enemies.ts の updateEnemies（updateProjectiles より前）から呼ぶ
+ */
+export function chipBoneWallsByShots(state: GameState, dt: number): void {
+  if (!state.hazards.some((h) => h.kind === "boneWall")) return;
+  for (const pr of state.projectiles) {
+    if (pr.owner !== "player" || pr.life <= 0) continue;
+    const next = { x: pr.pos.x + pr.vel.x * dt, y: pr.pos.y + pr.vel.y * dt };
+    const tile = toIndex(state.map, Math.floor(next.x / TILE_SIZE), Math.floor(next.y / TILE_SIZE));
+    const wall = state.hazards.find((h) => h.kind === "boneWall" && h.tile === tile && h.time > 0);
+    if (!wall) continue;
+    damageBoneWalls(state, wall.pos, 0, pr.damage);
+  }
+  for (const g of state.skills.grenades) {
+    if (g.flight > 0 || g.fuse > dt) continue;
+    damageBoneWalls(state, g.to, BOSS.boneLord.wallBlastRadius, BOSS.boneLord.wallHp);
+  }
 }
 
 /** 地面の攻撃の付与元（倒された後でも種類で引く） */
@@ -183,7 +238,7 @@ export function updateHazards(state: GameState, dt: number): void {
     h.time -= dt;
     switch (h.kind) {
       case "bomb":
-        if (h.time <= 0) explodeHostile(state, h.pos, h.radius, hazardDamage(state, h), ENEMY_AI.bomber.color, hazardSource(h));
+        if (h.time <= 0) explodeBomb(state, h);
         break;
       case "laser":
         tickLaser(state, h);
@@ -200,6 +255,12 @@ export function updateHazards(state: GameState, dt: number): void {
     }
   }
   state.hazards = state.hazards.filter((h) => h.time > 0);
+}
+
+/** 爆弾の爆発。爆裂のエリートの死後の爆発（hitsEnemies）は敵と骨の壁も巻き込む（H10） */
+function explodeBomb(state: GameState, h: Hazard): void {
+  explodeHostile(state, h.pos, h.radius, hazardDamage(state, h), ENEMY_AI.bomber.color, hazardSource(h));
+  if (h.hitsEnemies) blastEnemies(state, h.pos, h.radius, h.damage, h.sourceId);
 }
 
 function tickLaser(state: GameState, h: Hazard): void {

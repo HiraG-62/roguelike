@@ -5,6 +5,7 @@ import { MANA } from "../data/tuning";
 import { SKILL_DEFS } from "../skills/data";
 import { descend } from "./floor";
 import { canAfford, descendMana, gainAttackMana, gainMana, refillMana, spendMana, tickMana } from "./mana";
+import { placeEnemy } from "./testHelpers";
 
 const FLOAT_DIGITS = 9;
 /** 序盤（装備・祝福なし）に満タンから撃てる発数の目安（2026-09-24 プレイ所見） */
@@ -89,6 +90,24 @@ describe("マナ", () => {
     state.player.mana = 0;
     tickMana(state, 1);
     expect(state.player.mana).toBeCloseTo(MANA.baseRegen, FLOAT_DIGITS);
+  });
+
+  it("tickMana: 封鎖していなくても MANA.combatRadius 内に生きた敵がいれば等倍（開放型フロアの戦闘中）", () => {
+    const state = freshState();
+    state.enemies = [];
+    const e = placeEnemy(state, "slime", MANA.combatRadius - 1);
+    state.player.mana = 0;
+    tickMana(state, 1);
+    expect(state.player.mana, "近くに敵").toBeCloseTo(MANA.baseRegen, FLOAT_DIGITS);
+    e.body.pos.x = state.player.body.pos.x + MANA.combatRadius + 1;
+    state.player.mana = 0;
+    tickMana(state, 1);
+    expect(state.player.mana, "敵が離れれば速い").toBeCloseTo(MANA.baseRegen * MANA.idleRegenMul, FLOAT_DIGITS);
+    e.body.pos.x = state.player.body.pos.x;
+    e.hp = 0;
+    state.player.mana = 0;
+    tickMana(state, 1);
+    expect(state.player.mana, "倒れた敵は数えない").toBeCloseTo(MANA.baseRegen * MANA.idleRegenMul, FLOAT_DIGITS);
   });
 
   it("tickMana は上限を超えない", () => {

@@ -1,5 +1,7 @@
 import type { StatusKind } from "../core/status";
-import type { FloorKind } from "../core/state";
+import type { FloorKind, RallyKind } from "../core/state";
+import type { TerrainKind } from "../core/terrain";
+import { WAVE3_ENEMIES } from "./enemiesWave3";
 
 export type EnemyBehavior =
   | "chaser"
@@ -45,7 +47,55 @@ export type EnemyBehavior =
   /** ボス: 双子の騎士・妹（弓） */
   | "twinBow"
   /** ボス: 霜の巨人 */
-  | "frostGiant";
+  | "frostGiant"
+  // ---- 以下 Wave 3（src/system/enemyWave3.ts。地形を作る敵を優先） ----
+  /** 山なりに吐いて着弾点に地形を残す（毒吐き蛙・霜蛙・熔岩蛙） */
+  | "lobber"
+  /** 走り回って油を撒く（油壺運び） */
+  | "oiler"
+  /** 鐘を鳴らして周りの敵を急かす（呼び鈴小鬼） */
+  | "bellImp"
+  /** 旗を立てて周りの敵を守る（旗持ち） */
+  | "bannerBearer"
+  /** 地中を進み、足元で飛び出す（土潜り） */
+  | "burrower"
+  /** 天井に潜み、頭上の影から落ちてくる（天井吊り） */
+  | "dropper"
+  /** プレイヤーの弾を吸い込み、吐き返す（吸い込み蟲） */
+  | "absorber"
+  /** プレイヤーの状態異常を吸い取り、炸裂に乗せて返す（ホムンクルス） */
+  | "homunculus"
+  /** プレイヤーが最後に撃ったスキルを写して撃ち返す（写本の小悪魔） */
+  | "scribeImp"
+  /** 十字の 4 本の線を走らせる（十字ゴーレム） */
+  | "crossGolem"
+  /** 扇形の風でプレイヤー・敵・弾を押し流す（風吹き） */
+  | "windSprite"
+  /** 逃げながら地雷を撒く（地雷撒き） */
+  | "mineLayer"
+  /** 踏まれると爆ぜる設置物（地雷撒きの地雷） */
+  | "mine"
+  /** 鎖で引き寄せてから叩きつける（鎖の番人） */
+  | "chainWarden"
+  /** 照準を向けられている間は固まる（虚ろ） */
+  | "hollow"
+  /** 燃えているものを食べて育つ（火喰い） */
+  | "flameEater"
+  /** 時間で孵る卵（群れの母） */
+  | "egg"
+  /** 動かずに撃つ砲台（砲台長） */
+  | "turret"
+  /** 部屋主: 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み */
+  | "giantToad"
+  | "forgeMaster"
+  | "turretMaster"
+  | "basilisk"
+  | "shadowStalker"
+  /** ボス: 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士 */
+  | "oilKing"
+  | "broodMother"
+  | "librarian"
+  | "mirrorKnight";
 
 /** 再配色種: 元の絵のパレット文字を差し替えて別の絵にする（render/sprites.ts） */
 export interface SpriteRecolor {
@@ -88,6 +138,23 @@ export interface EnemyExplode {
   radius: number;
   damage: number;
   color: string;
+  /** 爆ぜた跡に残す地形（火種鼠の炎） */
+  terrain?: TerrainKind;
+}
+
+/** 山なりに吐く玉（lobber）: 着弾の炸裂と、跡に残す地形 */
+export interface EnemyLob {
+  terrain: TerrainKind;
+  terrainRadius: number;
+  blastRadius: number;
+  damage: number;
+  color: string;
+}
+
+/** 地形を置く指定（倒れた跡・爆弾の跡） */
+export interface EnemyTerrainDrop {
+  kind: TerrainKind;
+  radius: number;
 }
 
 export interface EnemyDef {
@@ -142,8 +209,8 @@ export interface EnemyDef {
   blocks?: boolean;
   /** 盾が割れると脆弱になって逃げる（黒鉄騎士） */
   rout?: boolean;
-  /** 突進の終わりに残すもの（骨の壁 / 落石） */
-  chargeTrail?: "boneWall" | "rockfall";
+  /** 突進の終わりに残すもの（骨の壁 / 落石）。ice は突進の跡そのものが氷床になる（氷猪） */
+  chargeTrail?: "boneWall" | "rockfall" | "ice";
   /** 攻撃せずに逃げ回り、lifetime 秒で消える（金色スライム） */
   timid?: { lifetime: number };
   /** プレイヤーがこの状態異常のとき足が速くなる（腐肉蝿） */
@@ -168,6 +235,21 @@ export interface EnemyDef {
   bossTitle?: string;
   /** バイオームごとの出現の重みの倍率（省略時は src/system/biomes.ts のファミリー表で決まる） */
   biomeWeight?: Partial<Record<FloorKind, number>>;
+  // ---- Wave 3 の性質（src/system/enemyTerrain.ts / enemyWave3.ts）----
+  /** 倒れた跡に地形を残す（予告の影の後に置く。泥人形の水たまり・油壺運びの油） */
+  deathTerrain?: EnemyTerrainDrop;
+  /** 山なりに吐く玉（lobber） */
+  lob?: EnemyLob;
+  /** 投げた爆弾の跡に地形を残す（煤ゴブリンの油） */
+  bombTerrain?: EnemyTerrainDrop;
+  /** 倒れたとき周りの敵に掛ける鼓舞（雷鬼火の帯電） */
+  deathRally?: { kind: RallyKind; radius: number; time: number };
+  /** 周りの敵に掛け続ける鼓舞（旗の加護） */
+  aura?: { kind: RallyKind; radius: number };
+  /** この地形の上では足が速い（沼鬼火） */
+  terrainSpeed?: { on: readonly TerrainKind[]; mul: number };
+  /** 被弾すると足元に小さな地形を出す（苔ゴーレムの胞子） */
+  sporeOnHit?: TerrainKind;
 }
 
 /**
@@ -181,12 +263,14 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     radius: 6, hp: 22, speed: 55, behavior: "chaser", contactDamage: 9,
     windup: 0.35, strikeTime: 0.22, recover: 0.4, engageRange: 44, attackInterval: 0.18,
     score: 14, minDepth: 2, weight: 3, color: "#b060e0", dropChance: 0.09,
+    deathTerrain: { kind: "bog", radius: 16 },
   },
   {
     key: "iceSlime", name: "氷スライム", sprite: "iceSlime", recolor: { base: "slime", swap: { g: "3", G: "4", h: "2" } },
     radius: 6, hp: 24, speed: 50, behavior: "chaser", contactDamage: 9,
     windup: 0.35, strikeTime: 0.22, recover: 0.4, engageRange: 44, attackInterval: 0.18,
     score: 15, minDepth: 3, weight: 3, color: "#8fd0ff", dropChance: 0.09,
+    deathTerrain: { kind: "ice", radius: 16 },
   },
   {
     key: "fireSlime", name: "炎スライム", sprite: "fireSlime", recolor: { base: "slime", swap: { g: "o", G: "O", h: "y" } },
@@ -358,6 +442,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     radius: 5, hp: 18, speed: 40, behavior: "wisp", contactDamage: 8,
     windup: 0.3, strikeTime: 0.3, recover: 0.54, engageRange: 30, attackInterval: 1.08,
     score: 22, minDepth: 5, weight: 2, color: "#fff4a0", dropChance: 0.1, phasing: true,
+    deathRally: { kind: "charged", radius: 60, time: 5 },
   },
   {
     key: "skeleton", name: "骸骨兵", sprite: "skeleton",
@@ -718,6 +803,7 @@ export const ENEMIES: readonly EnemyDef[] = [
     boss: true,
   },
   ...WAVE2_ENEMIES,
+  ...WAVE3_ENEMIES,
 ];
 
 const ENEMY_BY_KEY: ReadonlyMap<string, EnemyDef> = new Map(ENEMIES.map((e) => [e.key, e]));

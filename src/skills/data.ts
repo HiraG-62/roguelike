@@ -35,8 +35,6 @@ const PERCENT_UNIT = 100;
  */
 export const SKILL = {
   slots: 4,
-  /** 共通最低間隔: どのスキルを撃った後も全スロット共通でこの秒は撃てない */
-  gcd: 0.15,
   /** マナ不足の不発で HUD のマナバーを点滅させる秒 */
   manaFlashTime: 0.3,
   /** リンク 1 本ごとに足す負担の割合（マナ型はコスト、CD 型は CD） */
@@ -52,6 +50,8 @@ export const SKILL = {
   inputBuffer: 0.25,
   notReadyTextInterval: 0.6,
   stashCapacity: 60,
+  /** 所持刻印符（石に付けていないもの）の上限 */
+  runeCapacity: 60,
   // ---- マナ型は cost / minInterval、CD 型は cooldown / minInterval。poise は 1 ヒットの基礎怯み値 ----
   whirl: {
     cost: 15.3, // 18 → 15.3（-15%）
@@ -265,6 +265,14 @@ export const SKILL = {
     depthOffsetY: 14,
     pickupRadius: 8,
     pickupDelay: 0.3,
+    /**
+     * 撃破時の刻印符ドロップ率（rollRuneDrop）。刻印符は所持品として残るので部屋クリアの 0.3 より薄く、
+     * エリート・ボス・図書館・巣窟の敵は厚くする（docs/COMBAT_DESIGN.md B-10）
+     */
+    runeOnKill: { normal: 0.01, elite: 0.12, boss: 0.6, library: 0.05, nest: 0.04 },
+    /** 深度 1 ごとの撃破時ドロップ率の加算（通常の敵だけ。上限 runeOnKillDepthCap） */
+    runeOnKillPerDepth: 0.001,
+    runeOnKillDepthCap: 0.02,
   },
 } as const;
 
@@ -587,7 +595,36 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
   },
 };
 
-export const SKILL_DEFS: Record<SkillKey, SkillDef> = { ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS };
+/**
+ * 排他グループ body（体を使う本動作）のスキル。SkillRunState.active を使うもの（近接・移動・照準の本動作）と、
+ * プレイヤー自身を瞬間移動させる影渡り。active は 1 つだけなので、active を使うスキルは必ずここに入れる
+ * （system/skills.test.ts が全スキルを撃って active の有無と突き合わせる）。docs/COMBAT_DESIGN.md B-9
+ */
+export const BODY_SKILL_KEYS: readonly SkillKey[] = [
+  "whirl",
+  "lunge",
+  "railshot",
+  "parry",
+  "quake",
+  "chainHook",
+  "spiral",
+  "dregsBlade",
+  "comboChain",
+  "guillotine",
+  "stomp",
+  "threadReel",
+  "meteorDive",
+  "swallowFlip",
+  "shadowStep",
+];
+
+function withExclusiveGroups(defs: Record<SkillKey, SkillDef>): Record<SkillKey, SkillDef> {
+  const out = { ...defs };
+  for (const key of BODY_SKILL_KEYS) out[key] = { ...out[key], exclusiveGroup: "body" };
+  return out;
+}
+
+export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({ ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS });
 
 const M = SKILL.modifier;
 
@@ -761,7 +798,7 @@ export function modifierLinkCost(key: ModifierKey): number {
 }
 
 /** a と b が同じスロットで同時に効かないか（どちらかが相手を excludesModifiers に持つ） */
-function modifiersClash(a: ModifierKey, b: ModifierKey): boolean {
+export function modifiersClash(a: ModifierKey, b: ModifierKey): boolean {
   return (MODIFIERS[a].excludesModifiers?.includes(b) ?? false) || (MODIFIERS[b].excludesModifiers?.includes(a) ?? false);
 }
 

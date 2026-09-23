@@ -15,9 +15,13 @@
 | ブロック | block | 盾騎士の正面で攻撃が弾かれた。ブロック時も怯み値の 50% は溜まる | `system/elites.ts` BLOCK_TEXT |
 | パリィ | parry | スキル。CD 型、近接の衝撃波 | `skills/data.ts` |
 | 弾返し（祝福） | reflect（祝福 key） | 近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージ ×3。祝福を取らないと出ない | `system/boons.ts` |
-| 殲滅 | lastKill | 封鎖中の部屋の最後の 1 体を倒した瞬間のスロー演出 | tuning ACTION.lastKill |
+| 殲滅 | lastKill | 交戦中の部屋の最後の 1 体を倒した瞬間のスロー演出 | tuning ACTION.lastKill |
 | 壁叩きつけ | wallSplat | 吹き飛んだ敵が壁に激突して追加ダメージ + 怯み値（強靭を無視） | `system/enemies.ts`、tuning ACTION.wallSplat |
 | リゲイン | regain | 被弾後しばらく、近接ヒットで HP を取り戻せる | `system/combat.ts` |
+| 与ダメの n% を回復 | lifeOnHit | 命中時の回復。与えたダメージの n%（旧表記「命中時HP回復 +n」は固定値だった）。ステータス一覧では「与ダメからのHP回復(%)」 | `loot/affixes.ts`、`loot/stats.ts` |
+| 撃破時HP回復（n コンボ以上） | lifeOnKill | コンボが `HEAL.killHealMinCombo` 以上の撃破でだけ回復する | `system/combat.ts` |
+| HP自然回復（敵が近くにいない間） | hpRegen | 戦闘中（封鎖中・近くに敵）は止まる毎秒の回復 | `system/combat.ts` |
+| 戦闘中の回復の上限 | `HEAL.sustainCapRatio` | 命中時・撃破時・祝福の撃破回復を合わせて 1 秒に最大 HP の 4% まで。説明文では「戦闘中の回復の上限あり」 | `system/combat.ts` healSustained |
 | ダッシュ攻撃 | dashAttack | ダッシュ中に押した攻撃が終了時に出る突き | tuning ACTION |
 | コンボ | combo | 連続ヒット数。時間切れか被弾で途切れる | HUD |
 | バースト | special | 必殺ゲージ満タンで出す周囲攻撃 | HUD |
@@ -33,7 +37,9 @@
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |
 | 左クリック / 右クリック / サイド1 / サイド2 | Mouse0 / Mouse2 / Mouse3 / Mouse4 | マウスボタンの表示名。サイド1 = 戻る、サイド2 = 進む | `core/input.ts` formatBindingCode |
-| 近接攻撃 / 射撃 / 装備画面 | attack / shoot / inventory | キー設定画面でのアクション名（ほかは 上 / 下 / 左 / 右 / ダッシュ / バースト / スキル 1〜4） | `render/titleUi.ts` ACTION_LABEL |
+| 近接攻撃 / 射撃 / 装備画面 | attack / shoot / inventory | キー設定画面でのアクション名（ほかは 上 / 下 / 左 / 右 / ダッシュ / バースト / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |
+| 拾う | interact / interactPressed | 注目中の遺物・スキル石を倉庫へ入れる操作（既定 G、パッドは右スティック押し込み）。手の届く距離（`PICKUP.reach`）にあるものだけ。ハート・刻印符などは従来どおり触れて拾う。キー案内は「G: 拾う」、遠いときは「近づいて拾う」 | `system/loot.ts` updateDropInteract、`core/input.ts` |
+| 注目 | focusedDrop | カーソル（パッドは照準スティックの先、中立なら手の届く最寄り）の近くにある床の遺物・スキル石。環とキー案内が付き、性能のポップアップが出る。state には持たず毎フレーム求める | `system/loot.ts` focusedDrop、`render/dropTooltip.ts` |
 
 ## ステータス・マナ・状態異常（`docs/COMBAT_DESIGN.md`）
 
@@ -47,7 +53,7 @@
 | 霊力 | spi | スキルの第 2 係数・状態異常の効果量が伸びる | 同上 |
 | 実効値 | effectiveAttr / attributesEff | ステータスに逓減を掛けた計算用の値 | `system/attributes.ts` |
 | マナ | mana | スキルの資源。通常攻撃の命中・ジャスト回避・撃破で溜まり、スキルで減る | `system/mana.ts` |
-| 共通最低間隔 | GCD（`SKILL.gcd`） | どのスキルを撃った後も一定秒は次のスキルを撃てない | `system/skills.ts` |
+| ~~共通最低間隔~~ | ~~GCD（`SKILL.gcd`）~~ | 2026-09-24 に廃止。スキルの待ちはスロットごとの最低間隔と CD だけ（`docs/COMBAT_DESIGN.md` B-9） | - |
 | 状態異常 | StatusEffect / StatusBag | プレイヤーと敵に共通の状態異常の入れ物。34 種（昇華・良い状態を含む） | `core/status.ts`、`system/statusEffects.ts` |
 | 燃焼 | burn | 継続ダメージ | `core/status.ts`、`render/statusUi.ts` |
 | 冷気 | chill | 移動と行動が遅くなる。重ねると凍結へ | 同上 |
@@ -81,11 +87,15 @@
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| 封鎖（封鎖中） | locked / lockRoom | 部屋に入ると扉が閉じる状態。「部屋ロック」とも書かれているが表示は「封鎖」に寄せる | `system/floor.ts`、`render/renderer.ts` |
-| 制圧 | cleared | 封鎖した部屋の敵を全滅させて解放した | `system/floor.ts`、祝福の説明文 |
+| 封鎖（封鎖中） | locked / lockRoom | 部屋に入ると扉が閉じる状態。「部屋ロック」とも書かれているが表示は「封鎖」に寄せる。開放型フロア（2026-09-24）では試練・闘技場・巣・巣窟・伏兵・護衛・鏡とボス部屋だけ（`ROOM_KIND.locks`） | `system/floor.ts`、`render/renderer.ts` |
+| 交戦 | engaged | 封鎖しない部屋に入る、または部屋の敵が気付いた状態。封鎖と同じフック（祝福・ランイベント・呪い）が 1 回起きる | `system/floor.ts` |
+| 交戦中 | isEngaged / roomLocked | 今いる部屋が封鎖中、または交戦が始まっていて敵が残っている状態。旧「封鎖中」を条件にしていた祝福・誓約・性質・トリガー条件・殲滅・縛りはこれを見る。回復・マナの「戦闘中」（近くに敵）とは別 | `system/engagement.ts` |
+| 制圧 | cleared | 部屋の敵を全滅させた（封鎖した部屋は波も全て）。1 部屋 1 回 | `system/floor.ts`、祝福の説明文 |
+| 巣窟 | horde | モンスターハウス。広い塊に深度 2 から 0〜2 個。入ると封鎖され 3 波で大量に湧き、制圧で rare 以上が確定で落ちる | `system/roomTypes.ts`、`system/specialRooms.ts` |
+| 徘徊 | roam / ROAMING_ROOM | どの部屋にも属さず塊の間を歩き回る敵。気付くと追ってくる。時間経過で画面外に少しずつ増える（増援） | `system/spawner.ts` |
 | 宝物庫 | treasure | 敵なし・アイテム 2〜3 | `system/roomTypes.ts` |
 | 試練（第 n 波） | challenge | 3 波の部屋 | `waveText` |
-| 泉 | shrine | 全回復。代わりに次の部屋が呪われる | `system/roomTypes.ts` |
+| 泉 | shrine | 全回復。代わりに次の部屋が呪われる。深度 3 と 6 にだけ出る（1 ランに最大 2 回） | `system/roomTypes.ts` |
 | 伏兵 | ambush | 入ると 2 倍湧き | 同上 |
 | 通常 / 洞窟 / 暗闇 | rooms / cave / dark | フロア種別 | `render/renderer.ts` FLOOR_KIND_LABEL_JA |
 | バイオーム: 熔鉱炉 / 骨の墓所 / 沼 / 氷窟 / 油の坑道 / 草原 | forge / ossuary / swamp / glacier / mine / meadow | 形・地形・出やすい敵・色調を束ねたフロア種別。回廊（rooms）はログと階段の行き先では「回廊」、HUD では「通常」 | `system/biomes.ts` BIOMES |
@@ -100,13 +110,16 @@
 | 縛り / 位階 | runMod / tier | 起点画面で積むラン修飾子と、その点の合計。厚い皮 / 早い手 / 精鋭 / 乾いた泉 / 急かす死神 / 常夜 / 絶えぬ増援 / 荒れた大地 / 長居の二重苦 / 部屋の砂時計 / 薄氷 | `system/runSetup.ts` RUN_MODS |
 | 出発 | start | 起点画面でランを始める行 | `ui/origin.ts` START_LABEL |
 | 地下 n 階 | depth | 階層 | HUD |
-| 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper | `system/reaper.ts` |
-| ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人） | `data/enemies.ts` |
-| エリート | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の | `system/elites.ts` ELITE_PREFIX |
-| 部屋主 | lairMaster | 通常の抽選に低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長） | `data/enemies.ts` |
+| 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper。バリアントは 鎖の死神 / 取り立て屋 / 双子の死神 / 影の死神（付き物は 死神の影）/ 静かな死神 | `system/reaper.ts`、`system/reaperVariants.ts` |
+| ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士） | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
+| エリート | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
+| 部屋主 | lairMaster | 巣の主。通常の抽選にも低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長 / 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み） | `data/enemies.ts` |
 | 再配色種 | recolor | 元の敵の絵の色を差し替え、挙動を 1 つ足した派生 | `data/enemies.ts` recolor |
 | 死骸 | corpse | 倒れた敵の跡。骨拾い・墓守の鐘・貪食の が使う | `system/enemyTraits.ts` |
 | 取り巻き | pack / follower | 群れの長・楽団長が連れて湧き、号令で一斉に動く敵 | 同上 |
+| 鼓舞 | rally | 支援役の敵が周りの敵に掛ける一時的な強化。帯電（接触で感電、倒れると連鎖雷）/ 急かし（攻撃間隔が速く進む）/ 旗の加護（被ダメージ減） | `system/enemyTerrain.ts` |
+| 潜行 | hidden | 土潜り・天井吊り・影踏みが潜っている状態。描かれず攻撃も当たらない。影の予告の後に姿を見せる | `system/enemyWave3.ts` |
+| 敵の地形 | terrainSeeds | 敵が作る地形（油・毒沼・水たまり・氷床・炎）。予告の影の後に置かれ、プレイヤーと敵の両方に効く | `system/enemyTerrain.ts` |
 
 敵名: スライム / 浮遊眼 / 猪 / 盾騎士 / 爆弾ゴブリン / 光線眼 / ゴーレム / 蝙蝠 / 鬼火 / スライム王 / 骸骨卿（`data/enemies.ts`）。
 
@@ -116,6 +129,14 @@
 - 新しい動き: 導火鼠 / 結晶ダニ / 残像打ち / 群れの長 / マナ喰い / 骨拾い / 墓守の鐘 / 沈黙の修道士 / 霜砕き / 双子の影
 - 部屋主: 喰らう宝箱 / 鎧の中身（割れると 鎧の中身・亡霊）/ 骨の楽団長
 - ボスと付き物: 双子の騎士（双子の騎士・兄 / 双子の騎士・妹）/ 霜の巨人（氷柱）
+
+Wave 3 の敵名（`data/enemiesWave3.ts`）:
+- 地形を作る敵: 泥人形 / 毒吐き蛙 / 油壺運び / 火喰い / 風吹き / 地雷撒き（地雷）
+- 支援・仕掛け: 呼び鈴小鬼 / 旗持ち（旗）/ 土潜り / 天井吊り / 吸い込み蟲 / ホムンクルス / 写本の小悪魔 / 十字ゴーレム / 鎖の番人 / 虚ろ / 闇潜み
+- 再配色種: 氷猪 / 煤ゴブリン / 苔ゴーレム / 沼鬼火 / 霜蛙 / 熔岩蛙 / 油スライム / 雷眼 / 火種鼠
+- 部屋主: 大蝦蟇 / 炎の鍛冶（金床）/ 砲台長（砲台）/ 石化の蜥蜴 / 影踏み
+- ボスと付き物: 油壺の王 / 群れの母（卵）/ 図書館の司書 / 鏡の騎士（写し身）
+- 死神の付き物: 死神の影
 
 ## 装備（響き・揺らぎ・来歴。詳細は `docs/LOOT_DESIGN.md`）
 
@@ -151,13 +172,40 @@
 | 残響 | EchoWallet | 分解で得る色ごとの素材。紅響 / 蒼響 / 翠響 / 金響 / 冥響 | `loot/crafting.ts` ECHO_LABEL |
 | 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し / 転調 | shatter / dye / calm / stir / pare / transfer / modulate | 残響タブの 7 操作。転調は性質の色だけを反対色へ変える | `loot/crafting.ts` ECHO_OP_LABEL |
 | 残響（タブ名） | echo | 装備画面のタブ名（旧「鍛冶」から変更） | `render/inventoryUi.ts` TAB_LABEL |
+| 網（タブ名） | web | 装備画面の 4 つ目のタブ。40 語を 5 列に並べ、今のビルドの要素が各語を出す / 食う数と、余り（暖色）/ 飢え（寒色の点滅）を見せる | `render/synergyUi.ts`、`ui/synergyPanel.ts` |
+| ここに噛む | `describeSynergy` | 遺物のツールチップ末尾の「語: 出す … 食う …」と「噛む: 〜 / 穴を埋める: 〜 / 余りを食う: 〜」の行 | `loot/describe.ts`、`render/inventoryUi.ts` |
+| 出 / 食（祝福カード） | - | 祝福カードの語の行。今のビルドの飢えを埋める語・余りを食う語だけ語の色で明るく、他は暗い | `render/boonUi.ts` |
+| 今のビルドと噛む | - | スキル石のツールチップ。石の語がビルドの飢えを埋める / 余りを食うときに出す。連携の先の石が装着済みなら「連携「渦雷」: 引力球 → これ」 | `render/inventoryUi.ts` |
+| 連鎖の表示 | `state.chains` | HUD 右下（祝福アイコンの上）に「炎→爆 ×2」のように語の字形で 3 秒出す。深さ 2 以上は大きい文字 | `render/chainUi.ts` |
+
+## 武器種・射撃の型（`docs/COMBAT_DESIGN.md` A-7）
+
+| 表記 | 内部名 | 意味 | 出典 |
+| --- | --- | --- | --- |
+| 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・マナ回収の傾向 | `data/weapons.ts` MOVESETS |
+| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand | 武器種の表示名。ベース名（短剣・刺突剣・戦鎚など）とは別 | `data/weapons.ts` MOVESETS[].name |
+| 射撃の型 | shot（`ShotKey`） | 銃スロットのベースが決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
+| 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 | single / rapid / spread / pierce / homing / ricochet / charge / mine | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
+| 溜め攻撃 | attack.charging / chargeLevel | 攻撃キーの長押しで段を溜めて離す近接（大剣）。刻印符の「溜め」（スキル用）とは別 | `system/player.ts` |
+| 穂先 / 先端 | tip（`TipDef`） | 突きの先の部分。槍は怯み値 ×2、鞭は先端だけ満額 | `data/weapons.ts` |
+| 扇 / 突き / 円 / 箱 | arc / thrust / circle / box（`HitShape`） | 近接の当たり判定の形 | `data/weapons.ts` |
+| コンボ派生 | branches（`BranchDef`） | 左右の押し方の列で差し替わる技。「フィニッシュ」は連撃がそこで終わる派生 | `data/weapons.ts` |
+| 派生の技名 | BRANCH_NAMES | 十字断ち / 踏み込み斬り / 薙ぎ払い / 兜割り / 乱れ斬り / 交差斬り / 影踏み / 石突き回し / 飛び込み突き / 刈り取り / 鎌引き / 昇り拳 / 百裂拳 / 踏み込み拳 / 巻き打ち / 鞭鳴らし / 叩き落とし / 肩当て / 旋風 / 払い上げ / 魔力撃 / 杖払い | `data/weapons.ts` |
+| 近接 / 射撃 / 溜め（ボタンの役割） | ActionKind: melee / shot / charge | 武器種ごとの左クリック・右クリックの役割 | `data/weapons.ts` |
+| 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |
+| 引き寄せ / 投げ | pull / throw | 大鎌の手前へのノックバック / 拳のダッシュ攻撃の背後へのノックバック | `system/player.ts` knockDirection |
+| 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・射撃の型の器になるベース（implicit なし） | `loot/bases.ts` |
 
 ## スキル・ラン内
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | スキル石 | SkillStone | 永続のアクティブスキル。変異軸とリンク数だけがロールされる | `skills/` |
-| 刻印符 | rune / modifier | ラン内限りの修飾子。スキルのリンクに刺さる | `skills/data.ts` MODIFIERS |
+| 刻印符 | rune / modifier | スキルのリンクに刺す修飾子。拾うと所持品に入り、装備画面で石に付け外しする（石と一緒に持ち越す） | `skills/data.ts` MODIFIERS、`skills/persistence.ts` |
+| 所持（刻印符） | `SkillProfile.runes` / RuneItem | 石に付けていない刻印符。スキルタブの刻印符の列に「所持 n/60」と出す。上限を超えると拾えず床に残る（浮き文字「刻印符が満杯」） | `skills/persistence.ts`、`render/skillRuneUi.ts` |
+| 付ける / 外す / 捨てる（刻印符） | attachRuneToStone / detachRuneFromStone / discardRune | 選択中スロットの石に所持刻印符を付ける・石から所持品へ戻す・所持品から捨てる。石に付いた符は列で「付」と出す。付けられない理由の表示は「このスキルには付けられない」「リンクの空きが無い」「同じ刻印符が付いている」「型替え符は 1 枚まで」「付いている刻印符と排他」「スロットにスキル石が無い」 | `ui/skillRunes.ts` |
+| ラン内の刻印符 | `SkillSlotState.runModifiers` | 起点「詠み手」の開始時に自動で付く、このランだけの刻印符。石に付けた符より後ろに並び、押し出されるのはこちらだけ | `system/skills.ts` attachRune |
+| 本動作 | `SkillDef.exclusiveGroup: "body"` | 体を使うスキル（近接・移動・照準）。本動作どうしは同時に発動できず、それ以外（設置・射撃・強化）は並行して撃てる。HUD では本動作の最中に同じ組のスロットが暗くなる | `skills/data.ts` BODY_SKILL_KEYS |
 | 溜め | charge | 長押しで威力を上げる刻印符 | 同上 |
 | 祝福 | boon | 階層到達時の 3 択。ルール変更が中心 | `system/boons.ts` |
 | 呪い付き | cursed | 強い効果 + 代償の祝福 | 同上 |
@@ -187,6 +235,23 @@
 大拡張のスキル名（`skills/defs.ts`）: 伝染 / 綻び / 燃え種爆ぜ / 五彩の礫 / 満月の砲 / 枯渇の刃 / 影渡り / 爆薬樽 / 剣の墓標 / 砕氷槌 / 血抜き / 毒の収穫 / 放電 / 追い討ち / 処断 / 刺し穿ち / 剥奪 / 背水の一閃 / 連環撃 / 恨み返し / 断頭振り / 跳弾 / 風切り / 散弾符 / 震脚 / 手繰り糸 / 墜星 / 燕返し / 骨片の輪 / 巻き戻し / 傷返し / 湧き石 / 砲台。
 
 大拡張の刻印符名（`skills/modifiers.ts`）: 後払い / 返金 / 血の肩代わり / 溢れ / 渇き撃ち / 刃の給油 / 定刻（マナ型を CD 型に。「刻限」はエリート修飾子と祝福で使っているので避けた）/ 燃料化 / 過熱 / 重撃 / 軽打 / 突き放し / 手繰り / 延命 / 伝播 / 追撃 / 散り際 / 延長 / 着地衝撃 / 背水 / 同調 / 巡り / 背面 / 至近 / 遠当て。型替え符名: 投げ刃 / 投げ込み / 段階溜め。
+
+## メタ進行（図鑑・依頼・実績。`src/meta/`）
+
+| 表記 | 内部名 | 意味 | 出典 |
+| --- | --- | --- | --- |
+| 図鑑 | codex | 見た・起きたものの記録。タブは 敵 / 遺物 / 祝福 / 反応 / 連鎖 / 場所。未発見は「？？？」と片側だけのヒント（反応なら「燃焼 + ？」） | `meta/codex.ts` |
+| 見た / 撃破 | `seen` / `killed` | 図鑑の敵の記録。見た = 予兆・命中・被弾で関わった、撃破 = 倒した回数 | `meta/codex.ts` |
+| 常時の反応 | `CONSTANT_REACTIONS` | イベントを出さない反応（溶解・裂傷・崩落・萎縮・凍毒・恐慌・氷鎧・魔断）。2 つの状態異常が同時に付いたら起きたとみなす | `meta/codex.ts` |
+| 階の種類 / 部屋 | - | 図鑑「場所」タブの 2 区分（バイオームと部屋の種類） | `meta/codex.ts` |
+| 図鑑の頁 | page | 依頼の報酬。持っているタブは未発見の手がかりが 1 段詳しくなる（反応は両側、敵は頭文字、遺物・祝福は説明文、場所は名前） | `meta/quests.ts` の `codexPages` |
+| 依頼 | quest | ラン開始時に 3 択から 1 つ受けるお題。達成で永続の報酬（強さではなく選択肢と表現）。未達成なら次のやり直しへ引き継ぐ。「契約」は使わない | `meta/quests.ts`、`ui/quests.ts` |
+| 受けずに出発 | - | 依頼の 3 択で何も受けない選択 | `render/questUi.ts` |
+| 目標 / 報酬 | goal / reward | 依頼の札の表記。報酬は 起点の解放 / 名のある遺物が抽選に加わる / 図鑑の頁 / 称号 | `meta/quests.ts` |
+| 依頼名 | burnout … burstMaster | 燃え尽き / 蒸気の手 / 揺るがす者 / 誓約なき者 / 反応の目録 / 連携の稽古 / 巣窟崩し / 王殺し / 刃のみ / 無傷の階 / 見切りの舞 / 返し手 / 五重苦 / 呪いを抱く / 大博打 / 死神と踊る / 連鎖の糸 / 三段の連鎖 / 凍てつく刃 / 毒の庭 / 血の道 / 急所読み / 詠唱の道 / 深みへ / 試練を越えて / 部屋主狩り / 雷の狩り / 解き放つ者 | `meta/quests.ts` |
+| 実績 | achievement | 図鑑・依頼・履歴から判定する記録。解除した実績の名前は称号として名乗れる | `meta/achievements.ts` |
+| 称号 | title | 効果を持たない表示名。実績の名前と依頼の報酬から得る。タイトル画面に「称号「○○」」として 1 つ出る。「称号なし」で外せる | `meta/achievements.ts` |
+| ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
 
 ## 設計上の用語（未実装を含む）
 

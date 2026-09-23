@@ -12,7 +12,21 @@ import type { SkillStone } from "../skills/types";
 import { updateAllocButtons } from "./attributeAlloc";
 import { type BudUi, closeBudModal, createBudUi, tryOpenBudModal, updateBudModal } from "./bud";
 import { type EchoUi, createEchoUi, shatterStashItem, tickEchoUi, updateEchoTab } from "./echoTab";
+import { type SynergyPanelUi, createSynergyPanelUi, updateSynergyPanel } from "./synergyPanel";
 import {
+  RUNE_BLOCK_TEXT,
+  type RuneListLayout,
+  type RuneToggleResult,
+  type RuneUi,
+  createRuneUi,
+  hoveredRuneRow,
+  layoutRuneList,
+  moveRuneCursor,
+  readNav,
+  toggleRune,
+} from "./skillRunes";
+import {
+  COLUMN_GAP,
   CONTENT_BOTTOM,
   CONTENT_H,
   CONTENT_Y,
@@ -66,13 +80,16 @@ export const SLOT_GAP = 4;
 export const TAB_Y = PANEL_Y + 1;
 export const TAB_H = 9;
 export const TAB_GAP = 4;
-export type InventoryTab = "equipment" | "skills" | "echo";
-export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 58, skills: 38, echo: 34 };
-export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "echo"];
+export type InventoryTab = "equipment" | "skills" | "echo" | "web";
+export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 58, skills: 38, echo: 34, web: 22 };
+export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "echo", "web"];
 
-/** スキルタブ: 左にスロット、右に石の一覧 */
+/** スキルタブ: 左にスロット、右に石の一覧と刻印符の一覧を左右に並べる */
 export const SKILL_SLOT_H = 30;
 export const SKILL_SLOT_GAP = 4;
+export const STONE_COL_W = Math.floor((RIGHT_W - COLUMN_GAP) / 2);
+export const RUNE_COL_X = RIGHT_X + STONE_COL_W + COLUMN_GAP;
+export const RUNE_COL_W = RIGHT_W - STONE_COL_W - COLUMN_GAP;
 
 /** メッセージ（「装備した: xxx」等）の表示秒数 */
 const MESSAGE_DURATION = 1.5;
@@ -123,13 +140,17 @@ export interface SkillsLayout {
   rows: StoneRowLayout[];
   stoneOrder: SkillStone[];
   maxScroll: number;
+  /** 刻印符の列（選択中スロットの石に付いた符 → 所持品） */
+  runeList: RuneListLayout;
 }
 
 export interface InventoryUi {
   open: boolean;
   tab: InventoryTab;
-  /** スキルタブで石をクリックしたとき、空きが無ければこのスロットへ入れる */
+  /** スキルタブの選択中スロット。石をクリックしたとき空きが無ければここへ入れ、刻印符はここの石に付け外しする */
   skillSlot: number;
+  /** スキルタブの刻印符の列 */
+  runes: RuneUi;
   hoverStoneId: string | null;
   hoverSkillSlot: number | null;
   skillScroll: number;
@@ -142,6 +163,8 @@ export interface InventoryUi {
   bud: BudUi;
   /** 残響タブ */
   echo: EchoUi;
+  /** 網タブ（語の一覧） */
+  web: SynergyPanelUi;
   /** 装備タブのステータス振り分け「+」でマウスが乗っている行（-1 = なし） */
   hoverAlloc: number;
 }
@@ -151,6 +174,7 @@ export function createInventoryUi(): InventoryUi {
     open: false,
     tab: "equipment",
     skillSlot: 0,
+    runes: createRuneUi(),
     hoverStoneId: null,
     hoverSkillSlot: null,
     skillScroll: 0,
@@ -161,6 +185,7 @@ export function createInventoryUi(): InventoryUi {
     messageTimer: 0,
     bud: createBudUi(),
     echo: createEchoUi(),
+    web: createSynergyPanelUi(),
     hoverAlloc: -1,
   };
 }
@@ -232,6 +257,7 @@ function clearHover(ui: InventoryUi): void {
   ui.hoverSlot = null;
   ui.hoverStoneId = null;
   ui.hoverSkillSlot = null;
+  ui.runes.focusId = null;
   ui.echo.hoverOp = null;
   ui.echo.hoverId = null;
   ui.hoverAlloc = -1;
@@ -243,7 +269,7 @@ function switchTab(ui: InventoryUi, tab: InventoryTab): void {
   clearHover(ui);
 }
 
-/** Tab キー: 閉 → 装備 → スキル → 残響 → 閉 */
+/** Tab キー: 閉 → 装備 → スキル → 残響 → 網 → 閉 */
 function cycleTab(state: GameState, ui: InventoryUi): void {
   if (!ui.open) {
     ui.open = true;
@@ -288,49 +314,116 @@ export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
     rows.push({
       stone,
       equippedSlot: profile.loadout.indexOf(stone.id),
-      rect: { x: RIGHT_X, y: CONTENT_Y + row * STASH_ROW_H, w: RIGHT_W, h: STASH_ROW_H },
+      rect: { x: RIGHT_X, y: CONTENT_Y + row * STASH_ROW_H, w: STONE_COL_W, h: STASH_ROW_H },
     });
   }
-  return { slots, rows, stoneOrder: order, maxScroll };
+  const runeArea: Rect = { x: RUNE_COL_X, y: CONTENT_Y, w: RUNE_COL_W, h: CONTENT_H };
+  const runeList = layoutRuneList(profile, stoneInSlot(profile, ui.skillSlot), ui.runes, runeArea);
+  return { slots, rows, stoneOrder: order, maxScroll, runeList };
 }
 
-/** 石の一覧クリック: 空きスロット（無ければ選択中スロット）へ装着。スロットクリック: 外して選択 */
+/**
+ * スキルタブの入力。石の一覧クリック: 空きスロット（無ければ選択中スロット）へ装着、Shift+クリックで分解。
+ * スロットクリック: 選択（Shift+クリックで解除）。刻印符は updateRuneColumn
+ */
 function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): void {
+  selectSlotByKeys(ui, input);
   const layout = layoutSkills(state, ui);
-  ui.skillScroll = clamp(ui.skillScroll + input.wheel, 0, layout.maxScroll);
   const aim = input.aimScreen;
+  const inRunes = aim !== null && aim.x >= RUNE_COL_X;
+  if (inRunes) ui.runes.scroll = clamp(ui.runes.scroll + input.wheel, 0, layout.runeList.maxScroll);
+  else ui.skillScroll = clamp(ui.skillScroll + input.wheel, 0, layout.maxScroll);
   const slot = aim ? (layout.slots.find((s) => pointInRect(aim, s.rect)) ?? null) : null;
   const row = aim ? (layout.rows.find((r) => pointInRect(aim, r.rect)) ?? null) : null;
   ui.hoverSkillSlot = slot ? slot.index : null;
   ui.hoverStoneId = row ? row.stone.id : (slot?.stone?.id ?? null);
+  if (updateRuneColumn(state, ui, input, layout.runeList)) return;
   if (!input.clickPressed) return;
 
   const profile = state.skills.profile;
   if (row) {
-    const stoneId = row.stone.id;
-    if (input.shiftHeld) {
-      if (salvageStone(profile, stoneId)) {
-        showMessage(ui, "スキル石を分解した");
-        pushSfx(state, "dismantle");
-      }
-    } else {
-      const empty = profile.loadout.indexOf(null);
-      const target = empty >= 0 ? empty : ui.skillSlot;
-      equipStone(profile, stoneId, target);
-      ui.skillSlot = target;
-      showMessage(ui, `スキル ${target + 1} を設定した`);
-      pushSfx(state, "equipOn");
-    }
-    saveSkillProfile(profile);
+    clickStoneRow(state, ui, row.stone.id, input.shiftHeld);
     return;
   }
   if (!slot) return;
   ui.skillSlot = slot.index;
-  if (!slot.stone) return;
+  if (!slot.stone || !input.shiftHeld) return;
   unequipSlot(profile, slot.index);
   saveSkillProfile(profile);
   showMessage(ui, `スキル ${slot.index + 1} を解除した`);
   pushSfx(state, "equipOff");
+}
+
+/** スキルキー（1〜4 / パッドの LB+ボタン）と左右の移動で選択中スロットを変える */
+function selectSlotByKeys(ui: InventoryUi, input: FrameInput): void {
+  const keys = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
+  const pressed = keys.findIndex((on) => on);
+  if (pressed >= 0) ui.skillSlot = pressed;
+  const nav = readNav(ui.runes, input);
+  if (nav.dx !== 0) ui.skillSlot = clamp(ui.skillSlot + nav.dx, 0, SKILL.slots - 1);
+  ui.runes.cursor += nav.dy;
+}
+
+/** 石の一覧のクリック: 装着（空きスロット優先）/ Shift で分解（付いていた刻印符は所持品へ戻る） */
+function clickStoneRow(state: GameState, ui: InventoryUi, stoneId: string, shift: boolean): void {
+  const profile = state.skills.profile;
+  if (shift) {
+    if (salvageStone(profile, stoneId)) {
+      showMessage(ui, "スキル石を分解した");
+      pushSfx(state, "dismantle");
+    }
+  } else {
+    const empty = profile.loadout.indexOf(null);
+    const target = empty >= 0 ? empty : ui.skillSlot;
+    equipStone(profile, stoneId, target);
+    ui.skillSlot = target;
+    showMessage(ui, `スキル ${target + 1} を設定した`);
+    pushSfx(state, "equipOn");
+  }
+  saveSkillProfile(profile);
+}
+
+/**
+ * 刻印符の列: マウスの乗った行かカーソルの行を、決定（クリック / Enter / パッド A）で付け外しする。
+ * Shift+クリックは所持品の符を捨てる。操作を消費したら true
+ */
+function updateRuneColumn(state: GameState, ui: InventoryUi, input: FrameInput, list: RuneListLayout): boolean {
+  const r = ui.runes;
+  const hovered = hoveredRuneRow(list, input.aimScreen);
+  if (hovered) r.cursor = hovered.index;
+  // selectSlotByKeys が足した分をここで範囲に収め、見える位置へスクロールする
+  moveRuneCursor(r, list, 0);
+  const entry = list.entries[r.cursor];
+  r.focusId = hovered ? hovered.rune.id : input.aimScreen ? null : (entry?.rune.id ?? null);
+  const clicked = input.clickPressed && hovered !== null;
+  if (!clicked && !input.confirmPressed) return false;
+  const target = clicked ? hovered : entry;
+  if (!target) return clicked;
+  const profile = state.skills.profile;
+  const result = toggleRune(profile, stoneInSlot(profile, ui.skillSlot), target, clicked && input.shiftHeld);
+  reportRuneToggle(state, ui, result);
+  if (result.kind !== "blocked") saveSkillProfile(profile);
+  return true;
+}
+
+function reportRuneToggle(state: GameState, ui: InventoryUi, result: RuneToggleResult): void {
+  switch (result.kind) {
+    case "attached":
+      showMessage(ui, `刻印符「${result.name}」をスキル ${ui.skillSlot + 1} に付けた`);
+      pushSfx(state, "runeAttach");
+      return;
+    case "detached":
+      showMessage(ui, `刻印符「${result.name}」を外した`);
+      pushSfx(state, "equipOff");
+      return;
+    case "discarded":
+      showMessage(ui, `刻印符「${result.name}」を捨てた`);
+      pushSfx(state, "dismantle");
+      return;
+    case "blocked":
+      showMessage(ui, RUNE_BLOCK_TEXT[result.reason]);
+      return;
+  }
 }
 
 function tickMessage(ui: InventoryUi, dt: number): void {
@@ -357,6 +450,9 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
       return;
     case "echo":
       updateEchoTab(state, ui.echo, input);
+      return;
+    case "web":
+      updateSynergyPanel(ui.web, input, dt);
       return;
     case "equipment":
       updateEquipmentTab(state, ui, input);

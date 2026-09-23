@@ -20,9 +20,10 @@ import {
   fluxClassOf,
   fluxedValues,
   inversionChance,
-  nominalAt,
+  powerScaleAt,
   rollFlux,
   rollInvertedFlux,
+  scaledNominalAt,
   sigmaAt,
   valueFromFlux,
   type Nominal,
@@ -54,6 +55,8 @@ export interface GenerateOptions {
   foundDepth: number;
   /** epoch ms */
   now: number;
+  /** 抽選に出さない名のある遺物の key（依頼の報酬で未達成のもの）。省略・空なら従来どおり */
+  excludeNamed?: readonly string[];
 }
 
 const MIN_ITEM_LEVEL = 1;
@@ -167,7 +170,8 @@ function canInvert(def: AffixDef, opts: TraitRollOptions): boolean {
 
 /** 表（affixes.ts）の性質を 1 つロールする */
 export function rollTableTrait(rng: Rng, def: AffixDef, opts: TraitRollOptions): AffixRoll {
-  const nominal = nominalAt(def, opts.depth);
+  // 期待値に装備の強さの係数（flux.ts の FLUX）を掛ける。変換は割合なので掛けない
+  const nominal = scaledNominalAt(def, opts.depth, !isConversionKey(def.key));
   const inverted = canInvert(def, opts) && rng.chance(inversionChance(opts.foundDepth));
   const rawFlux = inverted ? rollInvertedFlux(rng) : rollFlux(rng, sigmaFor(opts));
   const flux = isConversionKey(def.key) ? Math.min(MAX_CONVERSION_FLUX, rawFlux) : rawFlux;
@@ -195,7 +199,7 @@ type TriggerShape = Parameters<typeof rollTriggerEffect>[1];
 export function rollTriggerTrait(rng: Rng, shape: TriggerShape, opts: TraitRollOptions, statusColor?: TraitColor): AffixRoll {
   const effect = rollTriggerEffect(rng, shape, opts.depth, statusColor);
   const flux = rollFlux(rng, sigmaFor(opts));
-  const nominal = effect.magnitude;
+  const nominal = effect.magnitude * powerScaleAt(opts.depth);
   const decimals = effectDecimals(nominal);
   const magnitude = fluxedValues({ nominal }, flux, decimals, 0).value;
   return {
@@ -463,8 +467,10 @@ interface Rolled {
   namedKey?: string;
 }
 
-function rollNamedItem(rng: Rng, slot: Slot, depth: number): Rolled | undefined {
-  const candidates = uniquesFor(slot, depth);
+function rollNamedItem(rng: Rng, slot: Slot, depth: number, exclude: readonly string[] = []): Rolled | undefined {
+  const all = uniquesFor(slot, depth);
+  // 除外が無ければ同じ配列のまま（従来と同じ乱数の引き方）
+  const candidates = exclude.length === 0 ? all : all.filter((u) => !exclude.includes(u.key));
   if (candidates.length === 0) return undefined;
   const unique = rng.pick(candidates);
   const base = baseDef(unique.baseKey);
@@ -494,7 +500,7 @@ export function generateItem(rng: Rng, opts: GenerateOptions): Item {
 
   const slot = opts.slot ?? rollSlot(r);
   const traitOpts: TraitRollOptions = { depth, foundDepth: opts.foundDepth, boost };
-  const named = r.chance(namedChance(depth, boost)) ? rollNamedItem(r, slot, depth) : undefined;
+  const named = r.chance(namedChance(depth, boost)) ? rollNamedItem(r, slot, depth, opts.excludeNamed) : undefined;
   const rolled = named ?? rollRegularItem(r, slot, traitOpts);
   const implicit = rollImplicit(r, rolled.base);
   const affixes = vowsLast(rolled.affixes);

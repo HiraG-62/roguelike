@@ -13,6 +13,7 @@ import { spawnRing } from "./effects";
 import { spawnBomb } from "./hazards";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus } from "./statusEffects";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
+import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
 
 /**
  * 統一ルールの照合（docs/ideas/synergy-web.md 3-3）。step の combo の後・effects の前に 1 回呼ぶ。
@@ -41,6 +42,7 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
   const batch = state.pendingEvents.length > 0 ? [...state.pendingEvents, ...state.events] : state.events;
   state.events = [];
   state.pendingEvents = [];
+  noteRunEvents(state, batch);
   if (batch.length === 0 || state.status !== "playing") return;
   const list = rules ?? collectRules(state);
   for (const ev of batch) {
@@ -253,5 +255,6 @@ export function tickRuleClocks(state: GameState, dt: number): void {
 
 function recordChain(state: GameState, keyword: string, depth: number): void {
   state.chains.push({ keyword, depth, time: state.time });
+  noteChainRecord(state, keyword, depth);
   if (state.chains.length > SYNERGY.chainLog) state.chains.shift();
 }

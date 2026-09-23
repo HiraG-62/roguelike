@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
+import { CAVE } from "../data/tuning";
+import { type CaveOptions, DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
 import { DEFAULT_GENERATOR_OPTIONS, generateMap } from "./generator";
 import { type GameMap, Tile, getTile, isWalkable, rectCenter, toIndex } from "./grid";
 
@@ -116,5 +117,71 @@ describe("generateCave", () => {
         expect(map.roomTiles?.[i]).toContain(toIndex(map, c.x, c.y));
       });
     }
+  });
+});
+
+/** 幅 1 の通路（上下か左右を壁に挟まれた床）の数 */
+function narrowTiles(map: GameMap): number {
+  let n = 0;
+  for (let y = 1; y < map.height - 1; y++) {
+    for (let x = 1; x < map.width - 1; x++) {
+      if (!isWalkable(map, x, y)) continue;
+      const vertical = !isWalkable(map, x, y - 1) && !isWalkable(map, x, y + 1);
+      const horizontal = !isWalkable(map, x - 1, y) && !isWalkable(map, x + 1, y);
+      if (vertical || horizontal) n++;
+    }
+  }
+  return n;
+}
+
+const BIOME_SEEDS = 20;
+
+describe("バイオームごとの洞窟の形（CAVE.biome）", () => {
+  for (const [kind, override] of Object.entries(CAVE.biome)) {
+    it(`${kind}: ほぼ常に塊の部屋を持ち、全ての床が連結し、塊の数は minRooms〜maxRooms`, () => {
+      const options = { ...DEFAULT_CAVE_OPTIONS, ...override };
+      let caves = 0;
+      for (let seed = 0; seed < BIOME_SEEDS; seed++) {
+        const map = generateMap("cave", createRng(seed), { ...DEFAULT_GENERATOR_OPTIONS, cave: override });
+        if (!map.roomTiles) continue;
+        caves++;
+        expect(map.roomTiles.length).toBeGreaterThanOrEqual(options.minRooms);
+        expect(map.roomTiles.length).toBeLessThanOrEqual(options.maxRooms);
+        const c = rectCenter(map.rooms[0]!);
+        const seen = reachableFrom(map, toIndex(map, c.x, c.y));
+        let unreachable = 0;
+        for (let i = 0; i < map.tiles.length; i++) if (map.tiles[i] !== Tile.Wall && !seen[i]) unreachable++;
+        expect(unreachable, `${kind} seed=${seed}`).toBe(0);
+      }
+      expect(caves, "rooms 型へのフォールバックはほぼ無い").toBeGreaterThanOrEqual(BIOME_SEEDS - 1);
+    });
+  }
+
+  it("widen を上げると幅 1 の通路が減る", () => {
+    let before = 0;
+    let after = 0;
+    for (let seed = 0; seed < BIOME_SEEDS; seed++) {
+      const narrow: CaveOptions = { ...DEFAULT_CAVE_OPTIONS, widen: 0 };
+      const wide: CaveOptions = { ...DEFAULT_CAVE_OPTIONS, widen: 1 };
+      const a = generateCave(createRng(seed), narrow);
+      const b = generateCave(createRng(seed), wide);
+      if (!a || !b) continue;
+      before += narrowTiles(a);
+      after += narrowTiles(b);
+    }
+    expect(before, "既定の洞窟には細い道がある").toBeGreaterThan(0);
+    expect(after).toBeLessThan(before);
+  });
+
+  it("バイオームで形が変わる（草原は既定より開けている）", () => {
+    let base = 0;
+    let meadow = 0;
+    for (let seed = 0; seed < BIOME_SEEDS; seed++) {
+      const a = generateCave(createRng(seed), DEFAULT_CAVE_OPTIONS);
+      const b = generateCave(createRng(seed), { ...DEFAULT_CAVE_OPTIONS, ...CAVE.biome.meadow });
+      base += a ? Array.from(a.tiles).filter((t) => t !== Tile.Wall).length : 0;
+      meadow += b ? Array.from(b.tiles).filter((t) => t !== Tile.Wall).length : 0;
+    }
+    expect(meadow, "草原の床は既定より多い").toBeGreaterThan(base);
   });
 });

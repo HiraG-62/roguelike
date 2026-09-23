@@ -16,7 +16,9 @@ const BTN_LT = 6;
 const BTN_RT = 7;
 const BTN_BACK = 8;
 const BTN_START = 9;
-// 10 = 左スティック押し込み（LSTICK）/ 11 = 右スティック押し込み（RSTICK）。現状どのアクションにも束縛していない
+// 10 = 左スティック押し込み（LSTICK）。現状どのアクションにも束縛していない
+/** 右スティック押し込み（R3）。拾う */
+const BTN_RSTICK = 11;
 const BTN_DPAD_UP = 12;
 const BTN_DPAD_DOWN = 13;
 const BTN_DPAD_LEFT = 14;
@@ -43,6 +45,7 @@ export interface GamepadFrame {
   aimDir: Vec | null;
   dashPressed: boolean;
   attackPressed: boolean;
+  attackHeld: boolean;
   shootHeld: boolean;
   specialPressed: boolean;
   confirmPressed: boolean;
@@ -61,6 +64,8 @@ export interface GamepadFrame {
   skill2Held: boolean;
   skill3Held: boolean;
   skill4Held: boolean;
+  /** 床の遺物・スキル石を拾う（右スティック押し込みの押した瞬間。照準スティックの先を注目して押し込む） */
+  interactPressed: boolean;
 }
 
 export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
@@ -68,6 +73,7 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   aimDir: null,
   dashPressed: false,
   attackPressed: false,
+  attackHeld: false,
   shootHeld: false,
   specialPressed: false,
   confirmPressed: false,
@@ -81,6 +87,7 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   skill2Held: false,
   skill3Held: false,
   skill4Held: false,
+  interactPressed: false,
 };
 
 /** スキル層（LB 押下中）でスキル 1〜4 に割り当てる面ボタン */
@@ -179,6 +186,7 @@ export class GamepadInput {
       aimDir,
       dashPressed: faceJust(BTN_B) || justPressed(BTN_RB),
       attackPressed: justPressed(BTN_RT) || faceJust(BTN_A),
+      attackHeld: (isDown[BTN_RT] ?? false) || faceDown(BTN_A),
       shootHeld: (isDown[BTN_LT] ?? false) || faceDown(BTN_X),
       specialPressed: faceJust(BTN_Y),
       confirmPressed: faceJust(BTN_A),
@@ -192,6 +200,9 @@ export class GamepadInput {
       skill2Held: s2?.held ?? false,
       skill3Held: s3?.held ?? false,
       skill4Held: s4?.held ?? false,
+      // 面ボタンは全部埋まっている。射撃（X）と共用すると拾うたびに弾が出るので、空いている R3 に置く。
+      // LB のスキル層とは関係しないので、シフト中も効く
+      interactPressed: justPressed(BTN_RSTICK),
     };
 
     this.startJustPressed = justPressed(BTN_START);

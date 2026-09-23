@@ -49,7 +49,7 @@ function skillArena(slots: Loadout[]): GameState {
   state.skills = createSkillRunState({ version: 1, loadout: stones.map((s) => s.id), stones });
   slots.forEach((l, i) => {
     const slot = state.skills.slots[i];
-    if (slot) slot.modifiers = [...(l.modifiers ?? [])];
+    if (slot) slot.runModifiers = [...(l.modifiers ?? [])];
   });
   updateSkills(state, withInput({}), 0);
   state.player.mana = state.stats.maxMana;
@@ -83,9 +83,9 @@ function cast(state: GameState, at?: Vec, slot = 0): void {
   updatePlayer(state, withInput({ ...keys, ...aim }), FIXED_DT);
 }
 
-/** 共通最低間隔とスロットの最低間隔が明けるまで待つ */
+/** スロットの最低間隔が明けるまで待つ */
 function waitReady(state: GameState, slot = 0): void {
-  run(state, Math.max(SKILL.gcd, resolveSlot(state, slot)?.interval ?? 0) + FIXED_DT);
+  run(state, (resolveSlot(state, slot)?.interval ?? 0) + FIXED_DT);
 }
 
 function has(e: Enemy, kind: StatusKind): boolean {

@@ -12,7 +12,7 @@ import {
 } from "./grid";
 import { terrainCode } from "../core/terrain";
 import { TERRAIN } from "../data/tuning";
-import { DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
+import { type CaveShapeOptions, DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
 
 export interface GeneratorOptions {
   width: number;
@@ -24,6 +24,8 @@ export interface GeneratorOptions {
   corridorWidth: number;
   /** 指定すると最後の部屋（階段の部屋）をこの大きさ以上にする（ボス部屋用） */
   lastRoomMin?: { w: number; h: number };
+  /** 洞窟の形の上書き（バイオームごと。tuning の CAVE.biome） */
+  cave?: Partial<CaveShapeOptions>;
 }
 
 /** lastRoomMin の部屋を最小サイズからどれだけ大きくしてよいか */
@@ -122,7 +124,7 @@ function carveVertical(map: GameMap, y1: number, y2: number, x: number, width: n
 // 生成戦略
 // -----------------------------------------------------------------------------
 
-/** マップの形。フロア種別（rooms / cave / dark）から floor.ts が選ぶ。dark は rooms の形 */
+/** マップの形。フロア種別から floor.ts が選ぶ（system/biomes.ts の MAP_SHAPE） */
 export type MapShape = "rooms" | "cave";
 
 /** 失敗（部屋が足りない等）なら null を返してよい。null なら同じ rng で再試行する */
@@ -130,7 +132,7 @@ type MapGenerator = (rng: Rng, options: GeneratorOptions) => GameMap | null;
 
 const MAP_GENERATORS: Readonly<Record<MapShape, MapGenerator>> = {
   rooms: generateRoomsAndCorridors,
-  cave: (rng, options) => generateCave(rng, { ...DEFAULT_CAVE_OPTIONS, width: options.width, height: options.height }),
+  cave: (rng, options) => generateCave(rng, { ...DEFAULT_CAVE_OPTIONS, ...options.cave, width: options.width, height: options.height }),
 };
 
 const GENERATE_ATTEMPTS = 8;

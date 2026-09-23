@@ -17,7 +17,7 @@ import { blackoutActive } from "./runEvents";
 import { hasMod } from "./runSetup";
 import { startsEmptySpecial } from "./specialRooms";
 
-export { chooseFloorKind, isCaveDepth } from "./biomes";
+export { chooseFloorKind } from "./biomes";
 
 /** 部屋の種類とフロア種別。docs/ideas/run-structure.md「1. フロアの種類」「2. 部屋の種類」 */
 
@@ -82,7 +82,18 @@ export const ROOM_KEYWORDS: Readonly<Record<RoomKind, KeywordProfile>> = {
   nest: kw(["elite", "clear"]),
   mirror: kw(["elite"]),
   watchtower: kw(["elite"]),
+  horde: kw(["clear", "kill"], [], ["clear", "kill", "area"]),
 };
+
+/** 入ると封鎖する種類（tuning の ROOM_KIND.locks。Record なので種類の追加漏れは型エラー） */
+export const ROOM_LOCKS: Readonly<Record<RoomKind, boolean>> = ROOM_KIND.locks;
+
+/** この部屋は入ると封鎖するか。ボス部屋は種類（normal）に関係なく封鎖する */
+export function roomLocks(state: GameState, index: number): boolean {
+  if (state.boss && state.boss.roomIndex === index) return true;
+  const room = state.rooms[index];
+  return room !== undefined && ROOM_LOCKS[room.kind];
+}
 
 /** 1 フロアに 0〜1 個の種類。この順に抽選する */
 const UNIQUE_KINDS: readonly UniqueKindRule[] = [
@@ -92,7 +103,7 @@ const UNIQUE_KINDS: readonly UniqueKindRule[] = [
 ];
 
 /** 敵が最初から置かれない種類（入ったときに湧く / 戦闘がない） */
-const EMPTY_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["treasure", "challenge", "shrine", "ambush"]);
+const EMPTY_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["treasure", "challenge", "shrine", "ambush", "horde"]);
 
 export function startsEmpty(kind: RoomKind): boolean {
   return EMPTY_KINDS.has(kind) || startsEmptySpecial(kind);
@@ -108,11 +119,14 @@ export function assignRoomKinds(state: GameState, reserved: ReadonlySet<number>)
     if (state.depth < rule.minDepth || candidates.length === 0) continue;
     // 縛り「乾いた泉」: 泉は湧かない（抽選もしない）
     if (rule.kind === "shrine" && hasMod(state, "dryFountain")) continue;
+    // 泉（全回復）は決まった深度にだけ出る = 1 ランに最大 shrineDepths.length 回
+    if (rule.kind === "shrine" && !ROOM_KIND.shrineDepths.includes(state.depth)) continue;
     if (!state.rng.chance(rule.chance)) continue;
     const [index] = candidates.splice(state.rng.int(0, candidates.length - 1), 1);
     const room = index === undefined ? undefined : state.rooms[index];
     if (room) room.kind = rule.kind;
   }
+  assignHordes(state, candidates);
   if (state.depth < ROOM_KIND.ambushMinDepth) return;
   let ambushes = 0;
   for (const index of candidates) {
@@ -122,6 +136,33 @@ export function assignRoomKinds(state: GameState, reserved: ReadonlySet<number>)
     if (!room) continue;
     room.kind = "ambush";
     ambushes++;
+  }
+}
+
+/** 深度で決まる巣窟の最大数（0〜2） */
+export function hordeMax(depth: number): number {
+  if (depth < ROOM_KIND.hordeMinDepth) return 0;
+  return depth < ROOM_KIND.hordeSecondDepth ? 1 : 2;
+}
+
+function roomTileCount(room: RoomState): number {
+  return room.tiles ? room.tiles.size : room.rect.w * room.rect.h;
+}
+
+/** 広い塊を巣窟にする（候補から取り除く）。1 つずつ確率で抽選する */
+function assignHordes(state: GameState, candidates: number[]): void {
+  const max = hordeMax(state.depth);
+  for (let n = 0; n < max; n++) {
+    const wide = candidates.filter((i) => {
+      const room = state.rooms[i];
+      return room !== undefined && roomTileCount(room) >= ROOM_KIND.hordeMinTiles;
+    });
+    if (wide.length === 0 || !state.rng.chance(ROOM_KIND.hordeChance)) continue;
+    const index = wide[state.rng.int(0, wide.length - 1)] ?? -1;
+    const room = state.rooms[index];
+    if (!room) continue;
+    room.kind = "horde";
+    candidates.splice(candidates.indexOf(index), 1);
   }
 }
 
@@ -170,11 +211,19 @@ const WAVE_SHAKE = 3;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const RARE_ITEM_LEVEL_BONUS = 1;
 
-/** 波のある部屋の波の数（試練・闘技場） */
+/** 波のある部屋の波の数（試練・闘技場・巣窟） */
 export function waveCount(kind: RoomKind): number {
   if (kind === "challenge") return ROOM_KIND.challengeWaves;
   if (kind === "arena") return ROOM_KIND.arenaWaves;
+  if (kind === "horde") return ROOM_KIND.hordeWaves;
   return 0;
+}
+
+/** 波ごとの湧き数の倍率（通常の敵数に対する） */
+export function waveMul(kind: RoomKind): number {
+  if (kind === "arena") return ROOM_KIND.arenaWaveMul;
+  if (kind === "horde") return ROOM_KIND.hordeWaveMul;
+  return ROOM_KIND.challengeWaveMul;
 }
 
 export function waveText(wave: number, total: number = ROOM_KIND.challengeWaves): string {
@@ -203,6 +252,7 @@ export function dropRareItem(state: GameState, pos: Vec): void {
     foundDepth: state.depth,
     // 決定性に影響しない（foundAt と id の表示用にだけ使われる）
     now: Date.now(),
+    excludeNamed: state.lockedRelics,
   });
   let item = generateItem(state.rng, opts());
   for (let i = 0; i < ROOM_KIND.challengeRareAttempts && !RARE_OR_BETTER.has(item.rarity); i++) {
