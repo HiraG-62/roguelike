@@ -172,54 +172,54 @@ interface StatFormat {
 }
 
 const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
-  maxHp: { label: "Max HP", style: "flat" },
-  hpRegen: { label: "HP Regen/s", style: "flat" },
-  lifeOnHit: { label: "Life on Hit", style: "flat" },
-  lifeOnKill: { label: "Life on Kill", style: "flat" },
-  armor: { label: "Armor", style: "flat" },
-  damageTakenMul: { label: "Damage Taken", style: "mul" },
-  thorns: { label: "Thorns", style: "flat" },
+  maxHp: { label: "最大HP", style: "flat" },
+  hpRegen: { label: "HP自然回復", style: "flat" },
+  lifeOnHit: { label: "命中時HP回復", style: "flat" },
+  lifeOnKill: { label: "撃破時HP回復", style: "flat" },
+  armor: { label: "アーマー", style: "flat" },
+  damageTakenMul: { label: "被ダメージ", style: "mul" },
+  thorns: { label: "反射ダメージ", style: "flat" },
 
-  moveSpeedMul: { label: "Move Speed", style: "mul" },
-  dashCooldownMul: { label: "Dash Cooldown", style: "mul" },
-  dashCharges: { label: "Dash Charges", style: "flat" },
-  dashDistanceMul: { label: "Dash Distance", style: "mul" },
+  moveSpeedMul: { label: "移動速度", style: "mul" },
+  dashCooldownMul: { label: "ダッシュ再使用時間", style: "mul" },
+  dashCharges: { label: "ダッシュ回数", style: "flat" },
+  dashDistanceMul: { label: "ダッシュ距離", style: "mul" },
 
-  meleeDamageMul: { label: "Melee Damage", style: "mul" },
-  meleeDamageFlat: { label: "Melee Damage (flat)", style: "flat" },
-  attackSpeedMul: { label: "Attack Speed", style: "mul" },
-  meleeReachMul: { label: "Melee Reach", style: "mul" },
-  knockbackMul: { label: "Knockback", style: "mul" },
-  damageVsStaggeredMul: { label: "Damage vs Staggered", style: "mul" },
+  meleeDamageMul: { label: "近接ダメージ", style: "mul" },
+  meleeDamageFlat: { label: "近接ダメージ（固定値）", style: "flat" },
+  attackSpeedMul: { label: "攻撃速度", style: "mul" },
+  meleeReachMul: { label: "リーチ", style: "mul" },
+  knockbackMul: { label: "ノックバック", style: "mul" },
+  damageVsStaggeredMul: { label: "怯み中の敵へのダメージ", style: "mul" },
 
-  rangedDamageMul: { label: "Ranged Damage", style: "mul" },
-  rangedDamageFlat: { label: "Ranged Damage (flat)", style: "flat" },
-  fireRateMul: { label: "Fire Rate", style: "mul" },
-  projectileCount: { label: "Projectiles", style: "flat" },
-  pierce: { label: "Pierce", style: "flat" },
-  projectileSpeedMul: { label: "Projectile Speed", style: "mul" },
+  rangedDamageMul: { label: "射撃ダメージ", style: "mul" },
+  rangedDamageFlat: { label: "射撃ダメージ（固定値）", style: "flat" },
+  fireRateMul: { label: "連射速度", style: "mul" },
+  projectileCount: { label: "弾数", style: "flat" },
+  pierce: { label: "貫通", style: "flat" },
+  projectileSpeedMul: { label: "弾速", style: "mul" },
 
-  critChance: { label: "Crit Chance", style: "percent" },
-  critMul: { label: "Crit Multiplier", style: "percent" },
+  critChance: { label: "会心率", style: "percent" },
+  critMul: { label: "会心倍率", style: "percent" },
 
-  energyGainMul: { label: "Energy Gain", style: "mul" },
-  burstDamageMul: { label: "Burst Damage", style: "mul" },
-  burstRadiusMul: { label: "Burst Radius", style: "mul" },
+  energyGainMul: { label: "エネルギー獲得", style: "mul" },
+  burstDamageMul: { label: "必殺ダメージ", style: "mul" },
+  burstRadiusMul: { label: "必殺範囲", style: "mul" },
 
-  comboWindowBonus: { label: "Combo Window", style: "seconds" },
-  comboDamagePerStack: { label: "Damage per Combo Stack", style: "percent" },
-  comboDamageCap: { label: "Combo Damage Cap", style: "percent" },
-  justDodgeDamageMul: { label: "JUST Dodge Damage", style: "mul" },
-  justDodgeWindow: { label: "JUST Dodge Window", style: "seconds" },
+  comboWindowBonus: { label: "コンボ猶予", style: "seconds" },
+  comboDamagePerStack: { label: "コンボ1段階ごとのダメージ", style: "percent" },
+  comboDamageCap: { label: "コンボダメージ上限", style: "percent" },
+  justDodgeDamageMul: { label: "JUST回避ダメージ", style: "mul" },
+  justDodgeWindow: { label: "JUST回避猶予", style: "seconds" },
 
-  burnChance: { label: "Burn Chance", style: "percent" },
-  burnDps: { label: "Burn DPS", style: "flat" },
-  chillChance: { label: "Chill Chance", style: "percent" },
-  chillSlow: { label: "Chill Slow", style: "percent" },
-  shockChance: { label: "Shock Chance", style: "percent" },
-  shockDamage: { label: "Shock Damage", style: "flat" },
-  explodeOnKillChance: { label: "Explode on Kill Chance", style: "percent" },
-  explodeDamage: { label: "Explode Damage", style: "flat" },
+  burnChance: { label: "炎上確率", style: "percent" },
+  burnDps: { label: "炎上ダメージ/秒", style: "flat" },
+  chillChance: { label: "凍結確率", style: "percent" },
+  chillSlow: { label: "凍結減速", style: "percent" },
+  shockChance: { label: "感電確率", style: "percent" },
+  shockDamage: { label: "感電ダメージ", style: "flat" },
+  explodeOnKillChance: { label: "撃破時爆発確率", style: "percent" },
+  explodeDamage: { label: "爆発ダメージ", style: "flat" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */
@@ -240,7 +240,7 @@ function formatStat(format: StatFormat, value: number): string {
     case "percent":
       return `${format.label} ${num(value * PERCENT_SCALE)}%`;
     case "seconds":
-      return `${format.label} ${signed(value)}s`;
+      return `${format.label} ${signed(value)}秒`;
   }
 }
 

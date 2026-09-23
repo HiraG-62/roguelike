@@ -76,23 +76,16 @@ interface EffectSpec {
   text: (magnitude: string, count: number | undefined, duration: string | undefined) => string;
 }
 
-function ordinal(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
-  const suffixes: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
-  return `${n}${suffixes[n % 10] ?? "th"}`;
-}
-
 export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
-  onMeleeHit: { text: () => "On melee hit", chance: { min: 0.15, max: 0.25 } },
-  onShoot: { text: () => "On shoot", chance: { min: 0.15, max: 0.2 } },
-  onKill: { text: () => "On kill", chance: { min: 0.3, max: 0.5 } },
-  onJustDodge: { text: () => "On JUST dodge", chance: { min: 0.4, max: 0.6 } },
-  onDash: { text: () => "On dash", chance: { min: 0.25, max: 0.4 } },
-  onHurt: { text: () => "When hit", chance: { min: 0.3, max: 0.5 } },
-  onRoomClear: { text: () => "On room clear", chance: { min: 0.4, max: 0.6 } },
+  onMeleeHit: { text: () => "近接命中時", chance: { min: 0.15, max: 0.25 } },
+  onShoot: { text: () => "射撃時", chance: { min: 0.15, max: 0.2 } },
+  onKill: { text: () => "撃破時", chance: { min: 0.3, max: 0.5 } },
+  onJustDodge: { text: () => "JUST回避時", chance: { min: 0.4, max: 0.6 } },
+  onDash: { text: () => "ダッシュ時", chance: { min: 0.25, max: 0.4 } },
+  onHurt: { text: () => "被弾時", chance: { min: 0.3, max: 0.5 } },
+  onRoomClear: { text: () => "部屋クリア時", chance: { min: 0.4, max: 0.6 } },
   everyNthMeleeHit: {
-    text: (every) => `Every ${ordinal(every ?? 0)} melee hit`,
+    text: (every) => `${every ?? 0}回に1回の近接攻撃時`,
     chance: { min: 0.4, max: 0.6 },
     every: { min: 4, max: 8 },
   },
@@ -100,11 +93,11 @@ export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
 
 export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   always: "",
-  aboveHalfHp: " (above 50% HP)",
-  belowHalfHp: " (below 50% HP)",
-  comboAbove10: " (10+ combo)",
-  roomLocked: " (in a locked room)",
-  fullEnergy: " (full energy)",
+  aboveHalfHp: "（HP 50% 以上）",
+  belowHalfHp: "（HP 50% 未満）",
+  comboAbove10: "（10 コンボ以上）",
+  roomLocked: "（部屋封鎖中）",
+  fullEnergy: "（エネルギー満タン）",
 };
 
 export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
@@ -113,7 +106,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     perLevel: 0.08,
     decimals: 0,
     cap: 12 * DAMAGE_EFFECT_CAP_MUL,
-    text: (m) => `release a shockwave (${m} dmg)`,
+    text: (m) => `衝撃波を放つ（${m} ダメージ）`,
   },
   spawnBullets: {
     base: 5,
@@ -121,14 +114,14 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 5 * DAMAGE_EFFECT_CAP_MUL,
     count: { min: 3, max: 6 },
-    text: (m, c) => `fire ${c ?? 0} bullets (${m} dmg each)`,
+    text: (m, c) => `弾丸を${c ?? 0}発放つ（各${m} ダメージ）`,
   },
   chainLightning: {
     base: 10,
     perLevel: 0.08,
     decimals: 0,
     cap: 10 * DAMAGE_EFFECT_CAP_MUL,
-    text: (m) => `call chain lightning (${m} dmg)`,
+    text: (m) => `連鎖雷を呼ぶ（${m} ダメージ）`,
   },
   burnNearby: {
     base: 4,
@@ -136,7 +129,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 4 * DAMAGE_EFFECT_CAP_MUL,
     duration: { min: 2, max: 4 },
-    text: (m, _c, d) => `ignite nearby enemies (${m} dps for ${d ?? "0"}s)`,
+    text: (m, _c, d) => `周囲の敵を炎上させる（${m} ダメージ/秒、${d ?? "0"} 秒間）`,
   },
   freezeNearby: {
     base: 30,
@@ -144,21 +137,21 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 80,
     duration: { min: 1.5, max: 2.5 },
-    text: (m, _c, d) => `chill nearby enemies by ${m}% for ${d ?? "0"}s`,
+    text: (m, _c, d) => `周囲の敵を${m}%凍結させる（${d ?? "0"} 秒間）`,
   },
   explode: {
     base: 16,
     perLevel: 0.08,
     decimals: 0,
     cap: 16 * DAMAGE_EFFECT_CAP_MUL,
-    text: (m) => `explode (${m} dmg)`,
+    text: (m) => `爆発する（${m} ダメージ）`,
   },
   heal: {
     base: 4,
     perLevel: 0.05,
     decimals: 0,
     cap: PLAYER.maxHp * HEAL_EFFECT_CAP_RATIO,
-    text: (m) => `heal ${m} HP`,
+    text: (m) => `HPを${m}回復する`,
   },
   damageBuff: {
     base: 15,
@@ -166,7 +159,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 60,
     duration: { min: 3, max: 5 },
-    text: (m, _c, d) => `gain +${m}% damage for ${d ?? "0"}s`,
+    text: (m, _c, d) => `${d ?? "0"} 秒間ダメージ +${m}%を得る`,
   },
   speedBuff: {
     base: 15,
@@ -174,14 +167,14 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 40,
     duration: { min: 2, max: 4 },
-    text: (m, _c, d) => `gain +${m}% move speed for ${d ?? "0"}s`,
+    text: (m, _c, d) => `${d ?? "0"} 秒間移動速度 +${m}%を得る`,
   },
-  energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `gain ${m} energy` },
+  energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `エネルギーを${m}獲得する` },
   invuln: {
     base: 0.4,
     perLevel: 0,
     decimals: 1,
-    text: (m) => `become invulnerable for ${m}s`,
+    text: (m) => `${m} 秒間無敵になる`,
   },
 };
 
@@ -397,7 +390,7 @@ export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | null {
   return result;
 }
 
-/** 例: "On kill (below 50% HP): 40% chance to gain +25% damage for 3s" */
+/** 例: "撃破時（HP 50% 未満）: 40% で3.5 秒間ダメージ +25%を得る" */
 export function formatTrigger(effect: TriggeredEffect): string {
   const effectSpec = EFFECT_SPECS[effect.effect];
   const head = `${TRIGGER_SPECS[effect.trigger].text(effect.every)}${CONDITION_TEXT[effect.condition]}`;
@@ -408,5 +401,5 @@ export function formatTrigger(effect: TriggeredEffect): string {
   );
   if (effect.chance >= 1) return `${head}: ${body}`;
   const chancePct = roundTo(effect.chance * PERCENT_SCALE, 1);
-  return `${head}: ${chancePct}% chance to ${body}`;
+  return `${head}: ${chancePct}% で${body}`;
 }

@@ -72,13 +72,13 @@ interface AffixDefCommon {
 
 export interface PrefixDef extends AffixDefCommon {
   kind: "prefix";
-  /** magic 命名用（"Vicious Longsword"） */
+  /** magic 命名用（「凶暴な長剣」の「凶暴な」） */
   prefixName: string;
 }
 
 export interface SuffixDef extends AffixDefCommon {
   kind: "suffix";
-  /** magic 命名用（"Longsword of the Storm"） */
+  /** magic 命名用（「長剣・嵐」の「嵐」） */
   suffixName: string;
 }
 
@@ -134,8 +134,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 近接 ----
   prefix({
     key: "meleeDamagePct",
-    label: "+{v}% melee damage",
-    prefixName: "Vicious",
+    label: "近接ダメージ +{v}%",
+    prefixName: "獰猛な",
     tags: ["damage", "melee"],
     slots: MELEE_SLOTS,
     tiers: [t(26, 50, 60), t(19, 40, 49), t(13, 30, 39), t(8, 21, 29), t(4, 13, 20), t(1, 6, 12)],
@@ -145,8 +145,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "meleeDamageFlat",
-    label: "+{v} melee damage",
-    prefixName: "Heavy",
+    label: "近接ダメージ +{v}",
+    prefixName: "重い",
     tags: ["damage", "melee"],
     slots: ["weapon", "ring"],
     tiers: [t(26, 14, 18), t(19, 10, 13), t(13, 7, 9), t(8, 5, 6), t(4, 3, 4), t(1, 1, 2)],
@@ -156,8 +156,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "attackSpeed",
-    label: "+{v}% attack speed",
-    suffixName: "of Haste",
+    label: "攻撃速度 +{v}%",
+    suffixName: "迅速",
     tags: ["speed", "melee"],
     slots: MELEE_SLOTS,
     tiers: [t(24, 14, 16), t(15, 10, 13), t(8, 7, 9), t(3, 4, 6), t(1, 2, 3)],
@@ -167,8 +167,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "meleeReach",
-    label: "+{v}% melee reach",
-    suffixName: "of Reach",
+    label: "リーチ +{v}%",
+    suffixName: "間合い",
     tags: ["melee", "utility"],
     slots: ["weapon", "amulet"],
     tiers: [t(18, 13, 18), t(8, 8, 12), t(1, 4, 7)],
@@ -178,8 +178,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "knockback",
-    label: "+{v}% knockback",
-    suffixName: "of Force",
+    label: "ノックバック +{v}%",
+    suffixName: "剛力",
     tags: ["melee", "utility"],
     slots: ["weapon", "armor"],
     tiers: [t(16, 25, 40), t(8, 15, 24), t(1, 8, 14)],
@@ -189,8 +189,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "damageVsStaggered",
-    label: "+{v}% damage vs staggered enemies",
-    prefixName: "Brutal",
+    label: "怯み中の敵へのダメージ +{v}%",
+    prefixName: "苛烈な",
     tags: ["damage", "melee"],
     slots: ["weapon", "ring"],
     tiers: [t(26, 40, 55), t(16, 25, 39), t(8, 15, 24), t(1, 8, 14)],
@@ -202,8 +202,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 射撃 ----
   prefix({
     key: "rangedDamagePct",
-    label: "+{v}% ranged damage",
-    prefixName: "Deadeye's",
+    label: "射撃ダメージ +{v}%",
+    prefixName: "百発百中の",
     tags: ["damage", "ranged"],
     slots: RANGED_SLOTS,
     tiers: [t(26, 50, 60), t(19, 40, 49), t(13, 30, 39), t(8, 21, 29), t(4, 13, 20), t(1, 6, 12)],
@@ -213,8 +213,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "rangedDamageFlat",
-    label: "+{v} ranged damage",
-    prefixName: "Barbed",
+    label: "射撃ダメージ +{v}",
+    prefixName: "棘のある",
     tags: ["damage", "ranged"],
     slots: ["gun", "ring"],
     tiers: [t(28, 7, 9), t(20, 5, 7), t(12, 3, 5), t(6, 2, 3), t(1, 1, 2)],
@@ -224,8 +224,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "fireRate",
-    label: "+{v}% fire rate",
-    suffixName: "of Rapidity",
+    label: "連射速度 +{v}%",
+    suffixName: "速射",
     tags: ["speed", "ranged"],
     slots: RANGED_SLOTS,
     tiers: [t(24, 14, 16), t(15, 10, 13), t(8, 7, 9), t(3, 4, 6), t(1, 2, 3)],
@@ -235,8 +235,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "projectiles",
-    label: "+{v} projectiles, -{v2}% ranged damage",
-    suffixName: "of Splitting",
+    label: "弾数 +{v}、射撃ダメージ -{v2}%",
+    suffixName: "散弾",
     tags: ["ranged", "tradeoff"],
     slots: ["gun", "amulet"],
     tiers: [t2(30, 2, 2, 30, 40), t2(10, 1, 1, 15, 25)],
@@ -247,8 +247,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "pierce",
-    label: "+{v} pierce",
-    suffixName: "of Piercing",
+    label: "貫通 +{v}",
+    suffixName: "貫き",
     tags: ["ranged"],
     slots: ["gun"],
     tiers: [t(18, 2, 2), t(3, 1, 1)],
@@ -258,8 +258,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "projectileSpeed",
-    label: "+{v}% projectile speed",
-    suffixName: "of Velocity",
+    label: "弾速 +{v}%",
+    suffixName: "疾風",
     tags: ["ranged", "speed"],
     slots: ["gun", "ring"],
     tiers: [t(18, 19, 28), t(8, 11, 18), t(1, 6, 10)],
@@ -271,8 +271,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 生存 ----
   prefix({
     key: "maxLife",
-    label: "+{v} max HP",
-    prefixName: "Stalwart",
+    label: "最大HP +{v}",
+    prefixName: "屈強な",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
     tiers: [t(32, 61, 80), t(24, 46, 60), t(16, 31, 45), t(10, 21, 30), t(5, 11, 20), t(1, 5, 10)],
@@ -282,8 +282,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "maxLifePct",
-    label: "+{v}% max HP",
-    prefixName: "Vigorous",
+    label: "最大HP +{v}%",
+    prefixName: "壮健な",
     tags: ["life"],
     slots: ["armor", "amulet"],
     tiers: [t(30, 14, 18), t(20, 10, 13), t(12, 6, 9), t(5, 3, 5)],
@@ -294,8 +294,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "hpRegen",
-    label: "+{v} HP regenerated per second",
-    suffixName: "of Regrowth",
+    label: "HP自然回復 +{v}/秒",
+    suffixName: "再生",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
     tiers: [t(28, 2.9, 4), t(20, 1.9, 2.8), t(12, 1.1, 1.8), t(6, 0.6, 1), t(1, 0.2, 0.5)],
@@ -306,8 +306,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "lifeOnHit",
-    label: "+{v} life on hit",
-    suffixName: "of the Leech",
+    label: "命中時HP回復 +{v}",
+    suffixName: "吸血",
     tags: ["life"],
     slots: ATTACK_SLOTS,
     tiers: [t(26, 4, 5), t(16, 3, 3), t(8, 2, 2), t(1, 1, 1)],
@@ -317,8 +317,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "lifeOnKill",
-    label: "+{v} life on kill",
-    suffixName: "of Feasting",
+    label: "撃破時HP回復 +{v}",
+    suffixName: "饗宴",
     tags: ["life"],
     slots: ["weapon", "gun", "armor", "ring", "amulet"],
     tiers: [t(25, 11, 15), t(15, 7, 10), t(7, 4, 6), t(1, 1, 3)],
@@ -328,8 +328,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "armorFlat",
-    label: "+{v} armor",
-    prefixName: "Reinforced",
+    label: "アーマー +{v}",
+    prefixName: "補強された",
     tags: ["defense"],
     slots: ["armor", "boots", "ring"],
     tiers: [t(28, 12, 16), t(20, 8, 11), t(12, 5, 7), t(6, 3, 4), t(1, 1, 2)],
@@ -339,8 +339,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "damageTaken",
-    label: "-{v}% damage taken",
-    prefixName: "Warded",
+    label: "被ダメージ -{v}%",
+    prefixName: "加護の",
     tags: ["defense"],
     slots: ["armor", "amulet"],
     tiers: [t(24, 6, 8), t(14, 4, 5), t(6, 2, 3)],
@@ -350,8 +350,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "thorns",
-    label: "Reflects {v} damage to attackers",
-    prefixName: "Thorned",
+    label: "攻撃者に{v}ダメージを反射",
+    prefixName: "棘鎧の",
     tags: ["defense", "damage"],
     slots: ["armor", "boots"],
     tiers: [t(26, 17, 25), t(16, 10, 16), t(8, 5, 9), t(1, 2, 4)],
@@ -363,8 +363,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 機動 ----
   prefix({
     key: "moveSpeed",
-    label: "+{v}% movement speed",
-    prefixName: "Swift",
+    label: "移動速度 +{v}%",
+    prefixName: "俊足の",
     tags: ["mobility", "speed"],
     slots: ["boots", "amulet"],
     tiers: [t(30, 21, 25), t(22, 15, 20), t(13, 10, 14), t(6, 6, 9), t(1, 3, 5)],
@@ -374,8 +374,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "dashCooldown",
-    label: "-{v}% dash cooldown",
-    suffixName: "of the Wind",
+    label: "ダッシュ再使用時間 -{v}%",
+    suffixName: "風",
     tags: ["mobility"],
     slots: ["boots", "amulet"],
     tiers: [t(26, 19, 25), t(16, 13, 18), t(8, 8, 12), t(1, 4, 7)],
@@ -385,8 +385,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "dashCharge",
-    label: "+{v} dash charge",
-    suffixName: "of Blinking",
+    label: "ダッシュ回数 +{v}",
+    suffixName: "瞬き",
     tags: ["mobility"],
     slots: ["boots"],
     tiers: [t(15, 1, 1)],
@@ -396,8 +396,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "dashDistance",
-    label: "+{v}% dash distance",
-    suffixName: "of Leaping",
+    label: "ダッシュ距離 +{v}%",
+    suffixName: "跳躍",
     tags: ["mobility"],
     slots: ["boots"],
     tiers: [t(18, 16, 24), t(8, 10, 15), t(1, 5, 9)],
@@ -409,8 +409,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- クリティカル ----
   suffix({
     key: "critChance",
-    label: "+{v}% critical strike chance",
-    suffixName: "of Precision",
+    label: "会心率 +{v}%",
+    suffixName: "精密",
     tags: ["critical"],
     slots: OFFENSE_SLOTS,
     tiers: [t(30, 7, 10), t(20, 5, 7), t(12, 3, 5), t(6, 2, 3), t(1, 1, 2)],
@@ -420,8 +420,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "critMultiplier",
-    label: "+{v}% critical strike multiplier",
-    suffixName: "of Ruin",
+    label: "会心倍率 +{v}%",
+    suffixName: "破滅",
     tags: ["critical", "damage"],
     slots: OFFENSE_SLOTS,
     tiers: [t(30, 39, 50), t(22, 28, 38), t(13, 19, 27), t(6, 11, 18), t(1, 5, 10)],
@@ -433,8 +433,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 必殺 ----
   suffix({
     key: "energyGain",
-    label: "+{v}% energy gain",
-    suffixName: "of Focus",
+    label: "エネルギー獲得 +{v}%",
+    suffixName: "集中",
     tags: ["burst"],
     slots: ["weapon", "armor", "ring", "amulet"],
     tiers: [t(25, 25, 35), t(15, 16, 24), t(7, 10, 15), t(1, 5, 9)],
@@ -444,8 +444,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "burstDamage",
-    label: "+{v}% burst damage",
-    prefixName: "Cataclysmic",
+    label: "必殺ダメージ +{v}%",
+    prefixName: "破滅の",
     tags: ["burst", "damage"],
     slots: ["weapon", "amulet"],
     tiers: [t(25, 40, 60), t(15, 25, 39), t(7, 15, 24), t(1, 8, 14)],
@@ -455,8 +455,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "burstRadius",
-    label: "+{v}% burst radius",
-    suffixName: "of Expansion",
+    label: "必殺範囲 +{v}%",
+    suffixName: "拡散",
     tags: ["burst"],
     slots: ["armor", "amulet"],
     tiers: [t(18, 17, 25), t(8, 10, 16), t(1, 5, 9)],
@@ -468,8 +468,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- コンボ ----
   suffix({
     key: "comboWindow",
-    label: "+{v}s combo window",
-    suffixName: "of Momentum",
+    label: "コンボ猶予 +{v}秒",
+    suffixName: "勢い",
     tags: ["combo"],
     slots: ["weapon", "boots", "ring", "amulet"],
     tiers: [t(18, 0.9, 1.3), t(8, 0.5, 0.8), t(1, 0.2, 0.4)],
@@ -480,8 +480,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "comboDamage",
-    label: "+{v}% damage per combo stack (up to {v2}%)",
-    prefixName: "Relentless",
+    label: "コンボ1段階ごとにダメージ +{v}%（上限 {v2}%）",
+    prefixName: "執拗な",
     tags: ["combo", "damage"],
     slots: MELEE_SLOTS,
     tiers: [t2(20, 2.3, 3, 26, 40), t2(10, 1.6, 2.2, 16, 25), t2(3, 1, 1.5, 10, 15)],
@@ -493,8 +493,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "justDodgeDamage",
-    label: "+{v}% damage for {v2}s after a JUST dodge",
-    prefixName: "Opportunist's",
+    label: "JUST回避後 {v2}秒間ダメージ +{v}%",
+    prefixName: "好機の",
     tags: ["combo", "damage"],
     slots: ["boots", "ring", "amulet"],
     tiers: [t2(20, 36, 55, 2, 3), t2(10, 21, 35, 1.5, 2), t2(1, 10, 20, 1, 1.5)],
@@ -508,8 +508,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 元素 / on-hit ----
   prefix({
     key: "burn",
-    label: "{v}% chance to burn for {v2} damage per second",
-    prefixName: "Smoldering",
+    label: "{v}%の確率で炎上（{v2}ダメージ/秒）",
+    prefixName: "燻る",
     tags: ["elemental", "damage"],
     slots: ATTACK_SLOTS,
     tiers: [t2(26, 18, 25, 15, 22), t2(16, 12, 17, 9, 14), t2(8, 7, 11, 5, 8), t2(1, 3, 6, 2, 4)],
@@ -520,8 +520,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "chill",
-    label: "{v}% chance to chill, slowing by {v2}%",
-    prefixName: "Frozen",
+    label: "{v}%の確率で凍結、{v2}%減速",
+    prefixName: "凍てつく",
     tags: ["elemental", "utility"],
     slots: ATTACK_SLOTS,
     tiers: [t2(18, 12, 18, 23, 30), t2(9, 7, 11, 16, 22), t2(1, 3, 6, 10, 15)],
@@ -532,8 +532,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "shock",
-    label: "{v}% chance to shock, chaining {v2} damage",
-    prefixName: "Crackling",
+    label: "{v}%の確率で感電、{v2}ダメージが連鎖",
+    prefixName: "帯電した",
     tags: ["elemental", "damage"],
     slots: ATTACK_SLOTS,
     tiers: [t2(18, 12, 18, 13, 20), t2(9, 7, 11, 7, 12), t2(1, 3, 6, 3, 6)],
@@ -544,8 +544,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "explodeOnKill",
-    label: "{v}% chance for slain enemies to explode for {v2} damage",
-    suffixName: "of Detonation",
+    label: "撃破時{v}%の確率で爆発（{v2}ダメージ）",
+    suffixName: "起爆",
     tags: ["elemental", "damage"],
     slots: ["weapon", "gun", "amulet"],
     tiers: [t2(23, 16, 24, 21, 32), t2(13, 10, 15, 13, 20), t2(5, 5, 9, 8, 12)],
@@ -558,8 +558,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- ハイブリッド ----
   prefix({
     key: "hybridDamage",
-    label: "+{v}% melee and ranged damage",
-    prefixName: "Savage",
+    label: "近接・射撃ダメージ +{v}%",
+    prefixName: "野蛮な",
     tags: ["damage", "melee", "ranged"],
     slots: JEWELRY_SLOTS,
     tiers: [t(26, 19, 25), t(16, 13, 18), t(8, 8, 12), t(1, 4, 7)],
@@ -570,8 +570,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "hybridDefense",
-    label: "+{v} max HP and +{v2} armor",
-    prefixName: "Bulwark",
+    label: "最大HP +{v}、アーマー +{v2}",
+    prefixName: "城壁の",
     tags: ["life", "defense"],
     slots: ["armor", "boots"],
     tiers: [t2(18, 16, 24, 4, 6), t2(9, 9, 15, 2, 3), t2(1, 4, 8, 1, 1)],
@@ -582,8 +582,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "hybridSpeed",
-    label: "+{v}% attack speed and fire rate",
-    suffixName: "of Fury",
+    label: "攻撃速度・連射速度 +{v}%",
+    suffixName: "激昂",
     tags: ["speed", "melee", "ranged"],
     slots: JEWELRY_SLOTS,
     tiers: [t(18, 8, 11), t(9, 5, 7), t(1, 2, 4)],
@@ -596,8 +596,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- トレードオフ（value2 = 代償側の値）。同系統の純粋アフィックスより伸び幅が大きい ----
   prefix({
     key: "crushing",
-    label: "+{v}% melee damage, -{v2}% attack speed",
-    prefixName: "Crushing",
+    label: "近接ダメージ +{v}%、攻撃速度 -{v2}%",
+    prefixName: "圧砕の",
     tags: ["damage", "melee", "tradeoff"],
     slots: ["weapon"],
     tiers: [t2(22, 55, 70, 12, 15), t2(12, 35, 50, 10, 12), t2(4, 20, 30, 8, 10)],
@@ -608,8 +608,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "frenzied",
-    label: "+{v}% attack speed, -{v2}% melee damage",
-    suffixName: "of Frenzy",
+    label: "攻撃速度 +{v}%、近接ダメージ -{v2}%",
+    suffixName: "狂乱",
     tags: ["speed", "melee", "tradeoff"],
     slots: ["weapon", "ring"],
     tiers: [t2(20, 20, 26, 10, 12), t2(10, 14, 19, 8, 10), t2(2, 8, 13, 6, 8)],
@@ -620,8 +620,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "overcharged",
-    label: "+{v}% ranged damage, -{v2}% fire rate",
-    prefixName: "Overcharged",
+    label: "射撃ダメージ +{v}%、連射速度 -{v2}%",
+    prefixName: "過負荷の",
     tags: ["damage", "ranged", "tradeoff"],
     slots: ["gun"],
     tiers: [t2(22, 55, 70, 12, 15), t2(12, 35, 50, 10, 12), t2(4, 20, 30, 8, 10)],
@@ -632,8 +632,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "reckless",
-    label: "+{v}% movement speed, -{v2} max HP",
-    prefixName: "Reckless",
+    label: "移動速度 +{v}%、最大HP -{v2}",
+    prefixName: "無謀な",
     tags: ["mobility", "speed", "tradeoff"],
     slots: ["boots", "amulet"],
     tiers: [t2(20, 18, 24, 15, 20), t2(10, 12, 17, 10, 15), t2(1, 7, 11, 5, 10)],
@@ -644,8 +644,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "bloodbound",
-    label: "+{v}% critical strike multiplier, -{v2} max HP",
-    prefixName: "Bloodbound",
+    label: "会心倍率 +{v}%、最大HP -{v2}",
+    prefixName: "血約の",
     tags: ["critical", "damage", "tradeoff"],
     slots: JEWELRY_SLOTS,
     tiers: [t2(22, 45, 60, 15, 20), t2(12, 30, 44, 10, 15), t2(3, 18, 29, 6, 10)],
@@ -656,8 +656,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "ironclad",
-    label: "-{v}% damage taken, -{v2}% movement speed",
-    prefixName: "Ironclad",
+    label: "被ダメージ -{v}%、移動速度 -{v2}%",
+    prefixName: "鉄壁の",
     tags: ["defense", "tradeoff"],
     slots: ["armor"],
     tiers: [t2(20, 10, 14, 8, 10), t2(10, 7, 9, 6, 8), t2(3, 4, 6, 4, 6)],
@@ -668,8 +668,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "razor",
-    label: "+{v}% critical strike chance, +{v2}% damage taken",
-    suffixName: "of the Razor",
+    label: "会心率 +{v}%、被ダメージ +{v2}%",
+    suffixName: "剃刀",
     tags: ["critical", "tradeoff"],
     slots: ["weapon", "ring"],
     tiers: [t2(20, 8, 12, 8, 10), t2(10, 5, 7, 6, 8), t2(2, 3, 4, 4, 6)],
@@ -680,8 +680,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "pike",
-    label: "+{v}% melee reach, -{v2}% attack speed",
-    suffixName: "of the Pike",
+    label: "リーチ +{v}%、攻撃速度 -{v2}%",
+    suffixName: "長槍",
     tags: ["melee", "utility", "tradeoff"],
     slots: ["weapon"],
     tiers: [t2(16, 25, 35, 8, 10), t2(6, 15, 24, 5, 7), t2(1, 10, 14, 4, 5)],
@@ -692,8 +692,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "flickering",
-    label: "-{v}% dash cooldown, -{v2}% dash distance",
-    suffixName: "of Flickering",
+    label: "ダッシュ再使用時間 -{v}%、ダッシュ距離 -{v2}%",
+    suffixName: "明滅",
     tags: ["mobility", "tradeoff"],
     slots: ["boots"],
     tiers: [t2(18, 30, 40, 15, 20), t2(8, 20, 29, 10, 15), t2(1, 12, 19, 8, 10)],
@@ -706,8 +706,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- シナジー網（docs/ideas/build-diversity.md 4 章）: 単体は凡庸、組み合わせで化ける ----
   prefix({
     key: "emberMomentum",
-    label: "+{v}% attack speed, +{v2} burn damage per second",
-    prefixName: "Kindled",
+    label: "攻撃速度 +{v}%、炎上ダメージ +{v2}/秒",
+    prefixName: "着火した",
     tags: ["speed", "elemental", "melee"],
     slots: MELEE_SLOTS,
     tiers: [t2(24, 10, 13, 9, 13), t2(14, 7, 9, 6, 8), t2(6, 4, 6, 4, 5), t2(1, 2, 3, 2, 3)],
@@ -718,8 +718,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "shatterEdge",
-    label: "+{v}% chance to chill, +{v2}% damage vs staggered enemies",
-    prefixName: "Shattering",
+    label: "凍結確率 +{v}%、怯み中の敵へのダメージ +{v2}%",
+    prefixName: "粉砕の",
     tags: ["elemental", "melee", "damage"],
     slots: ATTACK_SLOTS,
     tiers: [t2(22, 14, 20, 30, 42), t2(12, 9, 13, 20, 29), t2(4, 5, 8, 12, 19)],
@@ -730,8 +730,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "chainedBarrage",
-    label: "{v}% chance to shock, +{v2} projectiles",
-    suffixName: "of the Chain",
+    label: "{v}%の確率で感電、弾数 +{v2}",
+    suffixName: "連鎖",
     tags: ["elemental", "ranged"],
     slots: RANGED_SLOTS,
     tiers: [t2(26, 14, 20, 1, 1), t2(12, 8, 13, 1, 1)],
@@ -742,8 +742,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "deepPiercing",
-    label: "+{v} pierce, -{v2}% projectile speed",
-    suffixName: "of Deep Piercing",
+    label: "貫通 +{v}、弾速 -{v2}%",
+    suffixName: "深穿",
     tags: ["ranged", "damage", "tradeoff"],
     slots: ["gun"],
     tiers: [t2(20, 2, 2, 20, 28), t2(8, 1, 1, 12, 19)],
@@ -754,8 +754,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "wallSlammer",
-    label: "+{v}% knockback, -{v2}% movement speed",
-    prefixName: "Slamming",
+    label: "ノックバック +{v}%、移動速度 -{v2}%",
+    prefixName: "強打の",
     tags: ["melee", "damage", "tradeoff"],
     slots: ["weapon", "armor"],
     tiers: [t2(20, 45, 60, 12, 16), t2(8, 28, 44, 8, 11), t2(1, 15, 27, 5, 7)],
@@ -766,8 +766,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "vampiricRush",
-    label: "+{v} life on hit, +{v2}% attack speed",
-    suffixName: "of the Rush",
+    label: "命中時HP回復 +{v}、攻撃速度 +{v2}%",
+    suffixName: "疾走",
     tags: ["life", "speed"],
     slots: ATTACK_SLOTS,
     tiers: [t2(24, 4, 5, 9, 12), t2(12, 2, 3, 6, 8), t2(1, 1, 1, 3, 5)],
@@ -778,8 +778,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "stormcaller",
-    label: "+{v} shock chain damage, -{v2}% ranged damage",
-    prefixName: "Stormcaller's",
+    label: "感電連鎖ダメージ +{v}、射撃ダメージ -{v2}%",
+    prefixName: "嵐呼びの",
     tags: ["elemental", "ranged", "tradeoff"],
     slots: RANGED_SLOTS,
     tiers: [t2(22, 18, 26, 14, 18), t2(10, 11, 17, 9, 13), t2(2, 5, 10, 5, 8)],
@@ -790,8 +790,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "frostbite",
-    label: "+{v}% chill slow, -{v2}% movement speed",
-    prefixName: "Frostbitten",
+    label: "凍結減速 +{v}%、移動速度 -{v2}%",
+    prefixName: "凍傷の",
     tags: ["elemental", "mobility", "tradeoff"],
     slots: ATTACK_SLOTS,
     tiers: [t2(20, 25, 34, 14, 18), t2(8, 16, 24, 9, 13), t2(1, 8, 15, 5, 8)],
@@ -802,8 +802,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "arcaneBattery",
-    label: "+{v}% energy gain, -{v2}% burst damage",
-    suffixName: "of the Battery",
+    label: "エネルギー獲得 +{v}%、必殺ダメージ -{v2}%",
+    suffixName: "蓄電",
     tags: ["burst", "tradeoff"],
     slots: ["weapon", "armor", "ring", "amulet"],
     tiers: [t2(20, 30, 42, 14, 18), t2(8, 18, 29, 9, 13), t2(1, 10, 17, 5, 8)],
@@ -814,8 +814,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "gildedFang",
-    label: "+{v}% critical strike multiplier, +{v2} life on kill",
-    prefixName: "Gilded",
+    label: "会心倍率 +{v}%、撃破時HP回復 +{v2}",
+    prefixName: "金箔の",
     tags: ["critical", "life"],
     slots: JEWELRY_SLOTS,
     tiers: [t2(22, 30, 42, 8, 11), t2(10, 18, 29, 5, 7), t2(1, 8, 17, 2, 4)],
@@ -828,8 +828,8 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- トリガー文法へ落とすアフィックス: PlayerStats に無い条件付き効果を固定の tr: TriggeredEffect として encode ----
   prefix({
     key: "dashStrike",
-    label: "On dash: gain +{v}% damage for {v2}s",
-    prefixName: "Blitzing",
+    label: "ダッシュ時: {v2}秒間ダメージ +{v}%",
+    prefixName: "電撃の",
     tags: ["mobility", "damage"],
     slots: ["boots", "ring", "amulet"],
     tiers: [t2(22, 20, 28, 0.6, 0.8), t2(10, 13, 19, 0.5, 0.6), t2(2, 7, 12, 0.4, 0.5)],
@@ -840,8 +840,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "finisherMend",
-    label: "On kill during a 10+ combo: heal {v} HP",
-    prefixName: "Vital",
+    label: "10コンボ以上での撃破時: HP {v} 回復",
+    prefixName: "活力の",
     tags: ["combo", "life"],
     slots: MELEE_SLOTS,
     tiers: [t(24, 14, 20), t(12, 9, 13), t(1, 4, 8)],
@@ -851,8 +851,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "wardedSanctuary",
-    label: "When hurt in a locked room: gain +{v}% movement speed for {v2}s",
-    suffixName: "of Sanctuary",
+    label: "封鎖された部屋で被弾時: {v2}秒間移動速度 +{v}%",
+    suffixName: "聖域",
     tags: ["defense", "utility"],
     slots: ["armor", "boots"],
     tiers: [t2(20, 22, 30, 1.5, 2), t2(8, 14, 21, 1, 1.4), t2(1, 8, 13, 0.6, 0.9)],
@@ -863,8 +863,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "roomMender",
-    label: "On room clear: heal {v} HP",
-    suffixName: "of Recovery",
+    label: "部屋クリア時: HP {v} 回復",
+    suffixName: "回復",
     tags: ["life", "utility"],
     slots: ["armor", "amulet"],
     tiers: [t(20, 20, 28), t(8, 12, 19), t(1, 6, 11)],
@@ -874,8 +874,8 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "energyReserve",
-    label: "When hurt at full energy: become invulnerable for {v}s",
-    prefixName: "Reserved",
+    label: "エネルギー満タン時に被弾: {v}秒間無敵",
+    prefixName: "予備の",
     tags: ["burst", "defense"],
     slots: ["armor", "ring", "amulet"],
     tiers: [t(24, 0.5, 0.6), t(10, 0.4, 0.5), t(1, 0.3, 0.4)],
@@ -925,8 +925,8 @@ const fraction = (v: number): number => Math.max(0, pct(v));
 export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   prefix({
     key: "cv_meleeToBurn",
-    label: "Converts {v}% of melee damage into burn",
-    prefixName: "Smoldering",
+    label: "近接ダメージの{v}%を炎上に変換",
+    prefixName: "燻る",
     tags: ["conversion", "melee", "elemental"],
     slots: MELEE_SLOTS,
     tiers: CONVERSION_TIERS,
@@ -941,8 +941,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "cv_splitToPierce",
-    label: "Converts spread into penetration: -{v}% ranged damage per extra projectile, +{v2} pierce",
-    suffixName: "of the Needle",
+    label: "拡散を貫通に変換: 追加弾1本ごとに射撃ダメージ -{v}%、貫通 +{v2}",
+    suffixName: "針",
     tags: ["conversion", "ranged"],
     slots: RANGED_SLOTS,
     tiers: [t2(24, 10, 14, 3, 3), t2(12, 15, 20, 2, 2), t2(1, 21, 25, 1, 1)],
@@ -956,8 +956,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "cv_critToMultiplier",
-    label: "Converts all critical strike chance into critical multiplier (+{v}% per 1%)",
-    prefixName: "Executioner's",
+    label: "会心率をすべて会心倍率に変換（会心率1%につき +{v}%）",
+    prefixName: "処刑人の",
     tags: ["conversion", "critical"],
     slots: OFFENSE_SLOTS,
     tiers: [t(24, 5, 6), t(12, 4, 4), t(1, 3, 3)],
@@ -969,8 +969,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "cv_speedToAttack",
-    label: "Converts {v}% of bonus movement speed into attack speed",
-    suffixName: "of the Whirlwind",
+    label: "移動速度の上昇分の{v}%を攻撃速度に変換",
+    suffixName: "旋風",
     tags: ["conversion", "speed", "melee"],
     slots: ["boots", "ring", "amulet"],
     tiers: CONVERSION_TIERS,
@@ -983,8 +983,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "cv_lifeToArmor",
-    label: "Converts {v}% of maximum HP into armor",
-    prefixName: "Petrified",
+    label: "最大HPの{v}%をアーマーに変換",
+    prefixName: "石化した",
     tags: ["conversion", "life", "defense"],
     slots: ["armor", "amulet"],
     tiers: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
@@ -997,8 +997,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "cv_chargesToDistance",
-    label: "Consumes all dash charges but one: +{v}% dash distance per charge",
-    suffixName: "of the Long Stride",
+    label: "ダッシュ回数を1残して消費: 消費1回につきダッシュ距離 +{v}%",
+    suffixName: "大股",
     tags: ["conversion", "mobility"],
     slots: ["boots"],
     tiers: [t(24, 86, 100), t(12, 66, 85), t(1, 50, 65)],
@@ -1010,8 +1010,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "cv_leechToEnergy",
-    label: "Converts {v}% of life on hit and life on kill into energy gain",
-    suffixName: "of the Dynamo",
+    label: "命中時・撃破時HP回復の{v}%をエネルギー獲得に変換",
+    suffixName: "発電機",
     tags: ["conversion", "life", "burst"],
     slots: ["weapon", "gun", "ring", "amulet"],
     tiers: CONVERSION_TIERS,
@@ -1027,8 +1027,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   prefix({
     key: "cv_comboToJust",
-    label: "Converts {v}% of combo damage into JUST dodge damage",
-    prefixName: "Patient",
+    label: "コンボダメージの{v}%をJUST回避ダメージに変換",
+    prefixName: "忍耐の",
     tags: ["conversion", "combo"],
     slots: ["boots", "ring", "amulet"],
     tiers: CONVERSION_TIERS,
@@ -1043,8 +1043,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "cv_meleeToRanged",
-    label: "Converts {v}% of bonus melee damage into ranged damage",
-    suffixName: "of the Crossing",
+    label: "近接ダメージの上昇分の{v}%を射撃ダメージに変換",
+    suffixName: "転向",
     tags: ["conversion", "melee", "ranged"],
     slots: JEWELRY_SLOTS,
     tiers: CONVERSION_TIERS,
@@ -1057,8 +1057,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   suffix({
     key: "cv_critToBurn",
-    label: "Converts {v}% of critical strike chance into twice as much burn chance",
-    suffixName: "of Kindling",
+    label: "会心率の{v}%を2倍の炎上確率に変換",
+    suffixName: "着火",
     tags: ["conversion", "critical", "elemental"],
     slots: ATTACK_SLOTS,
     tiers: CONVERSION_TIERS,
@@ -1128,8 +1128,8 @@ const noNumericEffect = (): void => {};
 export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_glassCannon",
-    name: "Glass Cannon",
-    description: "Double melee and ranged damage. Maximum HP is quartered.",
+    name: "硝子の砲",
+    description: "近接・射撃ダメージが2倍になる。最大HPが1/4になる。",
     exclusiveGroup: "body",
     apply: (s) => {
       s.meleeDamageMul += 1;
@@ -1139,8 +1139,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_juggernaut",
-    name: "Juggernaut",
-    description: "Take half damage and ignore knockback. -35% movement speed.",
+    name: "不動",
+    description: "被ダメージが半減し、ノックバックを無視する。移動速度 -35%。",
     exclusiveGroup: "body",
     apply: (s) => {
       s.moveSpeedMul -= 0.35;
@@ -1149,8 +1149,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_vampire",
-    name: "Vampire",
-    description: "+3 life on hit. No HP regeneration, hearts cannot be picked up, -30% maximum HP.",
+    name: "吸血",
+    description: "命中時HP回復 +3。HP自然回復とハート回収が無効になり、最大HP -30%。",
     exclusiveGroup: "body",
     apply: (s) => {
       s.lifeOnHit += 3;
@@ -1159,15 +1159,15 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_berserker",
-    name: "Berserker",
-    description: "Up to +100% damage as you lose HP. No HP regeneration and healing is halved.",
+    name: "狂戦士",
+    description: "HPが減るほど最大+100%のダメージ。HP自然回復が無効になり、回復量が半減する。",
     exclusiveGroup: "tempo",
     apply: noNumericEffect,
   },
   {
     key: "ks_gambler",
-    name: "Gambler",
-    description: "Every hit deals a random 0.2x to 3x damage. +10% critical strike chance.",
+    name: "賭博師",
+    description: "全ての攻撃が0.2〜3倍のランダムなダメージになる。会心率 +10%。",
     exclusiveGroup: "tempo",
     apply: (s) => {
       s.critChance += 0.1;
@@ -1175,8 +1175,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_overclock",
-    name: "Overclock",
-    description: "+60% attack speed and fire rate. Every attack costs 1 HP.",
+    name: "過駆動",
+    description: "攻撃速度・連射速度 +60%。攻撃のたびにHPを1消費する。",
     exclusiveGroup: "tempo",
     apply: (s) => {
       s.attackSpeedMul += 0.6;
@@ -1185,8 +1185,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_blink",
-    name: "Blink",
-    description: "Your dash teleports and explodes on landing, but grants no invulnerability. -30% dash cooldown.",
+    name: "瞬歩",
+    description: "ダッシュが瞬間移動になり着地時に爆発するが、無敵時間を失う。ダッシュ再使用時間 -30%。",
     exclusiveGroup: "style",
     apply: (s) => {
       s.dashCooldownMul -= 0.3;
@@ -1194,8 +1194,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_pacifist",
-    name: "Pacifist",
-    description: "You cannot melee. Triple ranged damage and +1 projectile.",
+    name: "不殺",
+    description: "近接攻撃ができなくなる。射撃ダメージが3倍になり、弾数 +1。",
     exclusiveGroup: "style",
     apply: (s) => {
       s.rangedDamageMul += 2;
@@ -1204,8 +1204,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_bladeOath",
-    name: "Blade Oath",
-    description: "You cannot shoot. Double melee damage and +20% attack speed.",
+    name: "剣の誓い",
+    description: "射撃ができなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
     exclusiveGroup: "style",
     apply: (s) => {
       s.meleeDamageMul += 1;
@@ -1214,8 +1214,8 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   },
   {
     key: "ks_windWalker",
-    name: "Wind Walker",
-    description: "+2 dash charges. +50% dash cooldown.",
+    name: "風走り",
+    description: "ダッシュ回数 +2。ダッシュ再使用時間 +50%。",
     exclusiveGroup: "style",
     apply: (s) => {
       s.dashCharges += 2;
@@ -1271,7 +1271,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // weapon
   {
     key: "implicit.dagger",
-    label: "+{v}% attack speed, +3% critical strike chance, -20% melee damage, -15% melee reach",
+    label: "攻撃速度 +{v}%、会心率 +3%、近接ダメージ -20%、リーチ -15%",
     range: { min: 20, max: 30 },
     apply: (s, v) => {
       s.attackSpeedMul += pct(v);
@@ -1282,7 +1282,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.shortsword",
-    label: "+{v}% melee damage",
+    label: "近接ダメージ +{v}%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
@@ -1290,7 +1290,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.longsword",
-    label: "+{v}% melee damage, +10% melee reach, -5% attack speed",
+    label: "近接ダメージ +{v}%、リーチ +10%、攻撃速度 -5%",
     range: { min: 15, max: 22 },
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
@@ -1300,7 +1300,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.spear",
-    label: "+{v}% melee reach, +15% knockback, -10% melee damage",
+    label: "リーチ +{v}%、ノックバック +15%、近接ダメージ -10%",
     range: { min: 30, max: 40 },
     apply: (s, v) => {
       s.meleeReachMul += pct(v);
@@ -1310,7 +1310,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.greatsword",
-    label: "+{v}% melee damage, +20% melee reach, -25% attack speed",
+    label: "近接ダメージ +{v}%、リーチ +20%、攻撃速度 -25%",
     range: { min: 35, max: 45 },
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
@@ -1320,7 +1320,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.twinblades",
-    label: "+{v}% attack speed, -20% melee reach",
+    label: "攻撃速度 +{v}%、リーチ -20%",
     range: { min: 30, max: 40 },
     apply: (s, v) => {
       s.attackSpeedMul += pct(v);
@@ -1329,7 +1329,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.warpick",
-    label: "+{v}% damage vs staggered enemies, +25% knockback, -15% attack speed",
+    label: "怯み中の敵へのダメージ +{v}%、ノックバック +25%、攻撃速度 -15%",
     range: { min: 40, max: 55 },
     apply: (s, v) => {
       s.damageVsStaggeredMul += pct(v);
@@ -1340,7 +1340,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // gun
   {
     key: "implicit.pistol",
-    label: "+{v}% ranged damage",
+    label: "射撃ダメージ +{v}%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.rangedDamageMul += pct(v);
@@ -1348,7 +1348,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.smg",
-    label: "+{v}% fire rate, -30% ranged damage",
+    label: "連射速度 +{v}%、射撃ダメージ -30%",
     range: { min: 40, max: 60 },
     apply: (s, v) => {
       s.fireRateMul += pct(v);
@@ -1357,7 +1357,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.rifle",
-    label: "+{v}% ranged damage, +1 pierce, +25% projectile speed, -20% fire rate",
+    label: "射撃ダメージ +{v}%、貫通 +1、弾速 +25%、連射速度 -20%",
     range: { min: 30, max: 40 },
     apply: (s, v) => {
       s.rangedDamageMul += pct(v);
@@ -1368,7 +1368,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.shotgun",
-    label: "+{v} projectiles, -40% ranged damage, -30% fire rate, -25% projectile speed",
+    label: "弾数 +{v}、射撃ダメージ -40%、連射速度 -30%、弾速 -25%",
     range: { min: 2, max: 3 },
     apply: (s, v) => {
       s.projectileCount += v;
@@ -1379,7 +1379,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.revolver",
-    label: "+{v}% critical strike chance, +20% ranged damage, -25% fire rate",
+    label: "会心率 +{v}%、射撃ダメージ +20%、連射速度 -25%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.critChance += pct(v);
@@ -1389,7 +1389,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.railgun",
-    label: "-{v}% fire rate, +2 pierce, +25% projectile speed",
+    label: "連射速度 -{v}%、貫通 +2、弾速 +25%",
     range: { min: 35, max: 45 },
     apply: (s, v) => {
       s.fireRateMul -= pct(v);
@@ -1400,7 +1400,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // armor
   {
     key: "implicit.cloth",
-    label: "+{v} max HP, +5% movement speed",
+    label: "最大HP +{v}、移動速度 +5%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.maxHp += v;
@@ -1409,7 +1409,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.leather",
-    label: "+{v} max HP",
+    label: "最大HP +{v}",
     range: { min: 12, max: 20 },
     apply: (s, v) => {
       s.maxHp += v;
@@ -1417,7 +1417,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.chain",
-    label: "+{v} max HP, +{v2} armor",
+    label: "最大HP +{v}、アーマー +{v2}",
     range: { min: 20, max: 30, min2: 3, max2: 5 },
     apply: (s, v, v2) => {
       s.maxHp += v;
@@ -1426,7 +1426,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.plate",
-    label: "+{v} armor, +20 max HP, -8% movement speed",
+    label: "アーマー +{v}、最大HP +20、移動速度 -8%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.armor += v;
@@ -1436,7 +1436,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.berserkerHide",
-    label: "+{v}% melee damage, +10% damage taken",
+    label: "近接ダメージ +{v}%、被ダメージ +10%",
     range: { min: 12, max: 18 },
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
@@ -1446,7 +1446,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // boots
   {
     key: "implicit.sandals",
-    label: "+{v}% movement speed",
+    label: "移動速度 +{v}%",
     range: { min: 4, max: 7 },
     apply: (s, v) => {
       s.moveSpeedMul += pct(v);
@@ -1454,7 +1454,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.boots",
-    label: "+{v}% dash distance",
+    label: "ダッシュ距離 +{v}%",
     range: { min: 10, max: 15 },
     apply: (s, v) => {
       s.dashDistanceMul += pct(v);
@@ -1462,7 +1462,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.greaves",
-    label: "-{v}% dash cooldown, +3 armor",
+    label: "ダッシュ再使用時間 -{v}%、アーマー +3",
     range: { min: 10, max: 15 },
     apply: (s, v) => {
       s.dashCooldownMul -= pct(v);
@@ -1471,7 +1471,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.wingedBoots",
-    label: "+1 dash charge, +{v}% movement speed",
+    label: "ダッシュ回数 +1、移動速度 +{v}%",
     range: { min: 3, max: 5 },
     apply: (s, v) => {
       s.dashCharges += 1;
@@ -1480,7 +1480,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.lungingBoots",
-    label: "+{v}% dash distance, -10% movement speed",
+    label: "ダッシュ距離 +{v}%、移動速度 -10%",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.dashDistanceMul += pct(v);
@@ -1490,7 +1490,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // ring
   {
     key: "implicit.ironRing",
-    label: "+{v} max HP",
+    label: "最大HP +{v}",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.maxHp += v;
@@ -1498,7 +1498,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.rubyRing",
-    label: "+{v}% melee damage",
+    label: "近接ダメージ +{v}%",
     range: { min: 4, max: 8 },
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
@@ -1506,7 +1506,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.sapphireRing",
-    label: "+{v}% ranged damage",
+    label: "射撃ダメージ +{v}%",
     range: { min: 4, max: 8 },
     apply: (s, v) => {
       s.rangedDamageMul += pct(v);
@@ -1514,7 +1514,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.goldRing",
-    label: "+{v}% critical strike chance",
+    label: "会心率 +{v}%",
     range: { min: 1, max: 3 },
     apply: (s, v) => {
       s.critChance += pct(v);
@@ -1522,7 +1522,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.bloodRing",
-    label: "+{v} life on kill",
+    label: "撃破時HP回復 +{v}",
     range: { min: 1, max: 3 },
     apply: (s, v) => {
       s.lifeOnKill += v;
@@ -1530,7 +1530,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.voidBand",
-    label: "+{v}% critical strike multiplier, -10 max HP",
+    label: "会心倍率 +{v}%、最大HP -10",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.critMul += pct(v);
@@ -1540,7 +1540,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // amulet
   {
     key: "implicit.jadeAmulet",
-    label: "+{v}% energy gain",
+    label: "エネルギー獲得 +{v}%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.energyGainMul += pct(v);
@@ -1548,7 +1548,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.amberAmulet",
-    label: "+{v} HP regenerated per second",
+    label: "HP自然回復 +{v}/秒",
     range: { min: 0.2, max: 0.5 },
     decimals: 1,
     apply: (s, v) => {
@@ -1557,7 +1557,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.onyxAmulet",
-    label: "+{v}% critical strike multiplier",
+    label: "会心倍率 +{v}%",
     range: { min: 8, max: 15 },
     apply: (s, v) => {
       s.critMul += pct(v);
@@ -1565,7 +1565,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.lapisAmulet",
-    label: "+{v}% burst radius",
+    label: "必殺範囲 +{v}%",
     range: { min: 10, max: 15 },
     apply: (s, v) => {
       s.burstRadiusMul += pct(v);
@@ -1573,7 +1573,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.coralAmulet",
-    label: "+{v}% movement speed",
+    label: "移動速度 +{v}%",
     range: { min: 3, max: 5 },
     apply: (s, v) => {
       s.moveSpeedMul += pct(v);
@@ -1581,7 +1581,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.duskAmulet",
-    label: "+{v}% burst damage, -8% energy gain",
+    label: "必殺ダメージ +{v}%、エネルギー獲得 -8%",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.burstDamageMul += pct(v);
@@ -1658,8 +1658,8 @@ function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): Resolve
   };
 }
 
-const KEYSTONE_LABEL = "[Keystone]";
-const CORRUPTED_LABEL = "Corrupted: cannot be crafted";
+const KEYSTONE_LABEL = "【キーストーン】";
+const CORRUPTED_LABEL = "腐敗: クラフト不可";
 
 const MARKER_RESOLVED: ResolvedAffix = {
   key: CORRUPTED_KEY,
@@ -1678,7 +1678,7 @@ function resolveKeystone(def: KeystoneDef): ResolvedAffix {
       stats.keystones.push(def.key);
       def.apply(stats);
     },
-    format: () => `${KEYSTONE_LABEL} ${def.name}: ${def.description}`,
+    format: () => `${KEYSTONE_LABEL}${def.name}: ${def.description}`,
   };
 }
 
@@ -1695,7 +1695,7 @@ function resolveTrigger(roll: AffixRoll): ResolvedAffix | undefined {
     },
     format: (r) => {
       const decoded = decodeTriggerRoll(r);
-      return decoded === null ? `Unknown modifier (${r.key})` : formatTrigger(decoded);
+      return decoded === null ? `不明な特性（${r.key}）` : formatTrigger(decoded);
     },
   };
 }
@@ -1732,6 +1732,6 @@ export function applyRoll(stats: PlayerStats, roll: AffixRoll): boolean {
 /** 表示文字列（tier は含めない。UI 側で付ける）。implicit / keystone / trigger にも使える */
 export function formatAffix(roll: AffixRoll): string {
   const resolved = affixDefForRoll(roll);
-  if (resolved === undefined) return `Unknown modifier (${roll.key})`;
+  if (resolved === undefined) return `不明な特性（${roll.key}）`;
   return resolved.format(roll);
 }

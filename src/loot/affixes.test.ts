@@ -74,16 +74,16 @@ describe("アフィックス定義", () => {
 
   it("formatAffix が 1 値 / 2 値 / 小数 / implicit を整形する", () => {
     expect(formatAffix({ key: "meleeDamagePct", kind: "prefix", tier: 1, value: 25 })).toBe(
-      "+25% melee damage",
+      "近接ダメージ +25%",
     );
     expect(formatAffix({ key: "burn", kind: "prefix", tier: 2, value: 12, value2: 9 })).toBe(
-      "12% chance to burn for 9 damage per second",
+      "12%の確率で炎上（9ダメージ/秒）",
     );
     expect(formatAffix({ key: "hpRegen", kind: "suffix", tier: 3, value: 1.5 })).toBe(
-      "+1.5 HP regenerated per second",
+      "HP自然回復 +1.5/秒",
     );
     expect(formatAffix({ key: "implicit.shortsword", kind: "prefix", tier: 1, value: 10 })).toBe(
-      "+10% melee damage",
+      "近接ダメージ +10%",
     );
   });
 });
@@ -101,7 +101,7 @@ describe("トレードオフ付きアフィックス", () => {
 
   it("利得と代償が表示され、stats にも両方反映される", () => {
     const roll = { key: "crushing", kind: "prefix" as const, tier: 1, value: 60, value2: 12 };
-    expect(formatAffix(roll)).toBe("+60% melee damage, -12% attack speed");
+    expect(formatAffix(roll)).toBe("近接ダメージ +60%、攻撃速度 -12%");
     const stats = { ...DEFAULT_STATS, keystones: [], triggers: [] };
     applyRoll(stats, roll);
     expect(stats.meleeDamageMul).toBeCloseTo(1.6);
@@ -128,7 +128,7 @@ describe("キーストーン", () => {
     const roll = keystoneToRoll(def);
     expect(roll).toEqual({ key: "ks_glassCannon", kind: "suffix", tier: 1, value: 0 });
     expect(affixDefForRoll(roll)?.source).toBe("keystone");
-    expect(formatAffix(roll)).toBe(`[Keystone] Glass Cannon: ${def.description}`);
+    expect(formatAffix(roll)).toBe(`【キーストーン】${def.name}: ${def.description}`);
   });
 
   it("apply で keystones に積み、数値効果も掛ける", () => {
@@ -177,7 +177,7 @@ describe("affixDefForRoll（動的アフィックス）", () => {
   it("固定テーブルに無いトリガー key を復元・整形できる", () => {
     const roll = { key: "tr:onJustDodge:always:shockwave", kind: "prefix" as const, tier: 1, value: 25, value2: 400 };
     expect(affixDefForRoll(roll)?.source).toBe("trigger");
-    expect(formatAffix(roll)).toBe("On JUST dodge: 40% chance to release a shockwave (25 dmg)");
+    expect(formatAffix(roll)).toBe("JUST回避時: 40% で衝撃波を放つ（25 ダメージ）");
   });
 
   it("不正な key は undefined", () => {

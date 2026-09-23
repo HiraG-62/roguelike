@@ -106,9 +106,9 @@ describe("変換アフィックス", () => {
       const tier = def.tiers[0];
       if (!tier) throw new Error(def.key);
       const text = formatAffix(roll(def.key, def.kind, 1, tier.min, tier.min2));
-      expect(text).toMatch(/^(Converts|Consumes)/);
+      expect(text).toMatch(/(変換|消費)/);
     }
-    expect(formatAffix(roll("cv_meleeToBurn", "prefix", 2, 40))).toBe("Converts 40% of melee damage into burn");
+    expect(formatAffix(roll("cv_meleeToBurn", "prefix", 2, 40))).toBe("近接ダメージの40%を炎上に変換");
   });
 
   it("melee → burn: 近接倍率の一部を burn に移す（scale の後に掛かる）", () => {
@@ -376,7 +376,7 @@ describe("Corrupt", () => {
   });
 
   it("負の値は符号を整えて表示する", () => {
-    expect(formatAffix(roll("meleeDamagePct", "prefix", 1, -40))).toBe("-40% melee damage");
+    expect(formatAffix(roll("meleeDamagePct", "prefix", 1, -40))).toBe("近接ダメージ -40%");
   });
 
   it("keystone: キーストーンが 1 つだけになる", () => {

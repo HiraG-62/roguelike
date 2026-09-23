@@ -155,7 +155,7 @@ describe("resolveCast", () => {
     const p = resolveCast(SKILL_DEFS.haste, stone("haste", 0, { variants: [{ axis: "cooldownVsPotency", value: 1 }] }), []);
     expect(p.cooldownMul).toBeCloseTo(0.7);
     expect(p.potencyMul).toBeCloseTo(0.75);
-    expect(formatVariant({ axis: "cooldownVsPotency", value: 1 })).toBe("Cooldown -30% / Potency -25%");
+    expect(formatVariant({ axis: "cooldownVsPotency", value: 1 })).toBe("CD -30% / 効果量 -25%");
   });
 
   it("新刻印符の効果（貫通・反動・連鎖・呪い・遅延・拡大）", () => {

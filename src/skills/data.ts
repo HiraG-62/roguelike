@@ -147,9 +147,9 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
 export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   whirl: {
     key: "whirl",
-    name: "Whirlwind",
+    name: "旋風斬り",
     icon: "W",
-    verb: "Spin and slash everything around you",
+    verb: "回転して周囲の敵を斬り払う",
     tags: ["melee", "area"],
     damageKind: "melee",
     cooldown: SKILL.whirl.cooldown,
@@ -158,9 +158,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   lunge: {
     key: "lunge",
-    name: "Lunge",
+    name: "突進斬り",
     icon: "L",
-    verb: "Dash-slash toward the cursor (no i-frames)",
+    verb: "カーソル方向へ突進して斬る（無敵時間なし）",
     tags: ["melee", "movement"],
     damageKind: "melee",
     cooldown: SKILL.lunge.cooldown,
@@ -169,9 +169,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   frag: {
     key: "frag",
-    name: "Frag Grenade",
+    name: "グレネード",
     icon: "G",
-    verb: "Lob a grenade that blows up after a fuse",
+    verb: "導火線付きの手榴弾を投げ、少し遅れて爆発させる",
     tags: ["area", "projectile", "placed"],
     damageKind: "ranged",
     cooldown: SKILL.frag.cooldown,
@@ -180,9 +180,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   railshot: {
     key: "railshot",
-    name: "Railshot",
+    name: "撃ち抜き",
     icon: "R",
-    verb: "Aim, then fire a piercing beam to the wall",
+    verb: "照準してから、壁まで貫通するビームを撃つ",
     tags: ["projectile"],
     damageKind: "ranged",
     cooldown: SKILL.railshot.cooldown,
@@ -191,9 +191,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   parry: {
     key: "parry",
-    name: "Parry",
+    name: "パリィ",
     icon: "P",
-    verb: "Brace: a blocked hit counts as JUST and refunds CD",
+    verb: "構える。防いだ一撃はJUST扱いになり、CDが戻る",
     tags: ["defense", "melee"],
     damageKind: "melee",
     cooldown: SKILL.parry.cooldown,
@@ -202,9 +202,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   bloodPact: {
     key: "bloodPact",
-    name: "Blood Pact",
+    name: "血の契約",
     icon: "B",
-    verb: "Pay HP for attack speed and lifesteal",
+    verb: "HPを払って攻撃速度と吸血を得る",
     tags: ["buff"],
     damageKind: "none",
     cooldown: SKILL.bloodPact.cooldown,
@@ -213,9 +213,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   quake: {
     key: "quake",
-    name: "Earthsplitter",
+    name: "地裂き",
     icon: "Q",
-    verb: "Wind up, then crack the ground in a cone (getting hit cancels)",
+    verb: "溜めてから前方扇状に衝撃波を放つ（溜め中の被弾で中断）",
     tags: ["melee", "area"],
     damageKind: "melee",
     cooldown: SKILL.quake.cooldown,
@@ -224,9 +224,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   thunder: {
     key: "thunder",
-    name: "Thunderstrike",
+    name: "雷撃",
     icon: "T",
-    verb: "Call lightning on the cursor after a delay",
+    verb: "カーソル地点に遅れて雷を落とす",
     tags: ["lightning", "area", "placed"],
     damageKind: "ranged",
     cooldown: SKILL.thunder.cooldown,
@@ -235,9 +235,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   gravityWell: {
     key: "gravityWell",
-    name: "Gravity Well",
+    name: "引力球",
     icon: "O",
-    verb: "Drop a well that drags enemies (and bullets) inward",
+    verb: "設置した場所へ範囲内の敵（と敵弾）を引き寄せる",
     tags: ["area", "placed"],
     damageKind: "ranged",
     cooldown: SKILL.gravityWell.cooldown,
@@ -246,9 +246,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   mines: {
     key: "mines",
-    name: "Landmine",
+    name: "地雷",
     icon: "M",
-    verb: "Plant a mine at your feet that blows when stepped on",
+    verb: "足元に地雷を設置する。起動後、敵が踏むと爆発する",
     tags: ["placed", "area"],
     damageKind: "ranged",
     cooldown: SKILL.mines.cooldown,
@@ -257,9 +257,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   haste: {
     key: "haste",
-    name: "Haste",
+    name: "加速",
     icon: "H",
-    verb: "Dash without cooldown and move faster; exhausted after",
+    verb: "ダッシュがCD無しになり移動速度が上がる。切れた後はダッシュ不可",
     tags: ["buff", "movement"],
     damageKind: "none",
     cooldown: SKILL.haste.cooldown,
@@ -268,9 +268,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   chainHook: {
     key: "chainHook",
-    name: "Chain Sickle",
+    name: "鎖鎌",
     icon: "K",
-    verb: "Throw a chain that drags the first enemy to you",
+    verb: "鎖を伸ばし、最初に当たった敵を手元へ引き寄せる",
     tags: ["melee", "projectile"],
     damageKind: "melee",
     cooldown: SKILL.chainHook.cooldown,
@@ -279,9 +279,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   spiral: {
     key: "spiral",
-    name: "Bullet Spiral",
+    name: "回転弾幕",
     icon: "S",
-    verb: "Spin out a spiral of bullets (slowed, no attacks)",
+    verb: "自分を中心に螺旋状の弾を放つ（発射中は移動が遅くなり、近接・射撃不可）",
     tags: ["projectile", "channel"],
     damageKind: "ranged",
     cooldown: SKILL.spiral.cooldown,
@@ -290,9 +290,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
   frostField: {
     key: "frostField",
-    name: "Frost Field",
+    name: "氷結地帯",
     icon: "F",
-    verb: "Freeze the ground: chills and bites enemies (slows you too)",
+    verb: "地面を凍らせ、中の敵を凍結させながら継続ダメージを与える（自分も遅くなる）",
     tags: ["cold", "area", "placed"],
     damageKind: "ranged",
     cooldown: SKILL.frostField.cooldown,
@@ -306,8 +306,8 @@ const M = SKILL.modifier;
 export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   multiCharge: {
     key: "multiCharge",
-    name: "Multi",
-    verb: `+${M.multiCharge.extraCharges} charges, damage x${M.multiCharge.damageMul}, CD x${M.multiCharge.cooldownMul}`,
+    name: "多重",
+    verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、CD x${M.multiCharge.cooldownMul}`,
     color: "#ffffff",
     excludesTags: [],
     apply: (p) => ({
@@ -319,8 +319,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   bloodPrice: {
     key: "bloodPrice",
-    name: "Blood Price",
-    verb: `Damage x${M.bloodPrice.damageMul}, costs ${M.bloodPrice.hpFraction * 100}% max HP`,
+    name: "血の代償",
+    verb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * 100}%を消費`,
     color: "#ff4040",
     excludesTags: [],
     apply: (p) => ({
@@ -332,8 +332,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   comboFuel: {
     key: "comboFuel",
-    name: "Combo Fuel",
-    verb: `Consume combo: +${M.comboFuel.perStack * 100}%/hit (0 combo: x${M.comboFuel.emptyMul})`,
+    name: "コンボ燃料",
+    verb: `コンボを消費: 1ヒットにつき+${M.comboFuel.perStack * 100}%（コンボ0ならx${M.comboFuel.emptyMul}）`,
     color: "#ffd75f",
     excludesTags: [],
     apply: (p) => ({
@@ -343,8 +343,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   echo: {
     key: "echo",
-    name: "Echo",
-    verb: `Recast after ${M.echo.delay}s at ${M.echo.damageMul * 100}%, CD x${M.echo.cooldownMul}`,
+    name: "反響",
+    verb: `${M.echo.delay}秒後に${M.echo.damageMul * 100}%の威力で再発動、CD x${M.echo.cooldownMul}`,
     color: "#c080ff",
     excludesTags: ["defense", "buff"],
     apply: (p) => ({
@@ -355,8 +355,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   pierce: {
     key: "pierce",
-    name: "Pierce",
-    verb: `Bullets / chains pass through +${M.pierce.count}, area x${M.pierce.areaMul}`,
+    name: "貫通",
+    verb: `弾・鎖が+${M.pierce.count}体貫通、範囲 x${M.pierce.areaMul}`,
     color: "#80ffc0",
     excludesTags: ["placed"],
     requiresTags: ["projectile"],
@@ -366,8 +366,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   recoil: {
     key: "recoil",
-    name: "Recoil",
-    verb: `Hop back on cast (${M.recoil.invuln}s i-frames), damage x${M.recoil.damageMul}`,
+    name: "反動",
+    verb: `発動時に後方へ跳ぶ（${M.recoil.invuln}秒無敵）、ダメージ x${M.recoil.damageMul}`,
     color: "#a0c0ff",
     // buff は威力を持たないので代償が空振りになる
     excludesTags: ["movement", "defense", "buff"],
@@ -375,16 +375,16 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   chainReset: {
     key: "chainReset",
-    name: "Chain",
-    verb: `Kills with this skill refund a charge, CD x${M.chainReset.cooldownMul}`,
+    name: "連鎖",
+    verb: `このスキルでの撃破でチャージが1回復、CD x${M.chainReset.cooldownMul}`,
     color: "#ffff80",
     excludesTags: ["buff", "defense"],
     apply: (p) => ({ ...p, killRefund: true, cooldownMul: p.cooldownMul * M.chainReset.cooldownMul }),
   },
   curse: {
     key: "curse",
-    name: "Curse",
-    verb: `Hits curse ${M.curse.duration}s: +${M.curse.bonus * PERCENT_UNIT}% skill damage taken, damage x${M.curse.damageMul}`,
+    name: "呪い",
+    verb: `命中した敵を${M.curse.duration}秒間呪う: スキル被ダメージ +${M.curse.bonus * PERCENT_UNIT}%、ダメージ x${M.curse.damageMul}`,
     color: "#b040ff",
     excludesTags: ["buff"],
     apply: (p) => ({
@@ -395,16 +395,16 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   delay: {
     key: "delay",
-    name: "Delay",
-    verb: `Goes off ${M.delay.time}s later where cast, damage x${M.delay.damageMul}`,
+    name: "遅延",
+    verb: `発動地点で${M.delay.time}秒後に発動、ダメージ x${M.delay.damageMul}`,
     color: "#ff80c0",
     excludesTags: ["defense", "buff", "movement", "channel"],
     apply: (p) => ({ ...p, delay: { time: M.delay.time, damageMul: M.delay.damageMul } }),
   },
   expand: {
     key: "expand",
-    name: "Expand",
-    verb: `Area x${M.expand.areaMul}, CD x${M.expand.cooldownMul}`,
+    name: "拡大",
+    verb: `範囲 x${M.expand.areaMul}、CD x${M.expand.cooldownMul}`,
     color: "#60a0ff",
     excludesTags: [],
     requiresTags: ["area"],
@@ -412,8 +412,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   },
   charge: {
     key: "charge",
-    name: "Charge",
-    verb: `Hold to charge (${M.charge.maxTime}s): damage x1-${M.charge.maxDamageMul}, area x1-${M.charge.maxAreaMul}`,
+    name: "溜め",
+    verb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}`,
     color: "#ffd060",
     // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、回転弾幕はチャネル系で「溜めて離す」と噛み合わない
     excludesTags: ["defense", "buff", "channel"],
@@ -496,12 +496,12 @@ export function castCooldown(def: SkillDef, params: Readonly<CastParams>): numbe
 }
 
 const AXIS_LABEL: Record<VariantAxis, readonly [string, string]> = {
-  areaVsDamage: ["Area", "Damage"],
-  cooldownVsDamage: ["Cooldown", "Damage"],
-  speedVsDamage: ["Speed", "Damage"],
-  countVsDamage: ["Count", "Damage"],
-  durationVsPotency: ["Duration", "Potency"],
-  cooldownVsPotency: ["Cooldown", "Potency"],
+  areaVsDamage: ["範囲", "ダメージ"],
+  cooldownVsDamage: ["CD", "ダメージ"],
+  speedVsDamage: ["速度", "ダメージ"],
+  countVsDamage: ["回数", "ダメージ"],
+  durationVsPotency: ["持続", "効果量"],
+  cooldownVsPotency: ["CD", "効果量"],
 };
 
 const PERCENT = PERCENT_UNIT;
@@ -520,7 +520,7 @@ export function formatVariant(roll: VariantRoll): string {
   // CD は短くなる向きが「伸びる」側
   const shrinks = roll.axis === "cooldownVsDamage" || roll.axis === "cooldownVsPotency" || roll.axis === "speedVsDamage";
   const gainSign = shrinks ? -1 : 1;
-  const label = roll.axis === "speedVsDamage" ? "Cast time" : gainLabel;
+  const label = roll.axis === "speedVsDamage" ? "発動時間" : gainLabel;
   return `${label} ${signed(Math.round(gainSign * c.gain * v * PERCENT))}% / ${cost}`;
 }
 

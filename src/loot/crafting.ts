@@ -90,10 +90,10 @@ export type CorruptOutcome = "keystone" | "conversion" | "exalt" | "nothing";
 export const CORRUPT_OUTCOMES: readonly CorruptOutcome[] = ["keystone", "conversion", "exalt", "nothing"];
 
 const CORRUPT_OUTCOME_TEXT: Readonly<Record<CorruptOutcome, string>> = {
-  keystone: "keystone rewritten",
-  conversion: "conversion gained",
-  exalt: "tiers raised, one modifier inverted",
-  nothing: "nothing happened",
+  keystone: "キーストーンを書き換え",
+  conversion: "変換アフィックスを獲得",
+  exalt: "tierが上昇、アフィックスを1つ反転",
+  nothing: "何も起きなかった",
 };
 
 const UINT32_MAX = 0xffffffff;
@@ -393,22 +393,30 @@ export type CraftResult =
   | { ok: false; op: CraftOp; reason: CraftRejectReason; message: string };
 
 const OP_VERB: Readonly<Record<CraftOp, string>> = {
-  reforge: "Reforged",
-  augment: "Augmented",
-  annul: "Annulled",
-  corrupt: "Corrupted",
-  fuse: "Fused",
+  reforge: "再鍛造",
+  augment: "付与",
+  annul: "無効化",
+  corrupt: "腐敗",
+  fuse: "融合",
 };
 
 const INVALID_MESSAGE: Readonly<Record<CraftOp, string>> = {
-  reforge: "Nothing to reforge (normal items have no modifiers)",
-  augment: "No open modifier slot",
-  annul: "Nothing to annul",
-  corrupt: "Cannot corrupt",
-  fuse: "Fuse needs two different items of the same slot with modifiers",
+  reforge: "再鍛造対象がありません（ノーマル装備にはアフィックスがありません）",
+  augment: "空いているアフィックス枠がありません",
+  annul: "無効化できるアフィックスがありません",
+  corrupt: "腐敗させられません",
+  fuse: "融合には同じ部位でアフィックスを持つ異なる2つの装備が必要です",
 };
 
-const CORRUPTED_MESSAGE = "Corrupted items cannot be crafted";
+const CORRUPTED_MESSAGE = "腐敗した装備はクラフトできません";
+
+/** 通貨の表示名 */
+const CURRENCY_LABEL: Readonly<Record<Currency, string>> = {
+  dust: "塵",
+  shard: "欠片",
+  essence: "精髄",
+  relic: "遺物",
+};
 
 /** 拒否理由の表示文 */
 export function craftBlockMessage(reason: CraftRejectReason, op: CraftOp): string {
@@ -417,7 +425,7 @@ export function craftBlockMessage(reason: CraftRejectReason, op: CraftOp): strin
     case "corrupted":
       return CORRUPTED_MESSAGE;
     case "insufficient":
-      return `Need ${cost.amount} ${cost.currency}`;
+      return `${CURRENCY_LABEL[cost.currency]}が${cost.amount}必要です`;
     case "invalid":
       return INVALID_MESSAGE[op];
   }
@@ -441,7 +449,7 @@ function runOp(req: CraftRequest, rng: Rng): OpResult | null {
 function successMessage(req: CraftRequest, result: OpResult): string {
   const from = req.partner === undefined ? req.item.name : `${req.item.name} + ${req.partner.name}`;
   const head = `${OP_VERB[req.op]}: ${from} → ${result.item.name}`;
-  return result.note === undefined ? head : `${head} (${result.note})`;
+  return result.note === undefined ? head : `${head}（${result.note}）`;
 }
 
 /**

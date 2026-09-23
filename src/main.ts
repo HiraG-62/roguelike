@@ -63,8 +63,10 @@ import {
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
 import { uiFont } from "./render/font";
 
-const canvas = document.getElementById("game");
-if (!(canvas instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
+const canvasEl = document.getElementById("game");
+if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
+/** 明示的に型を確定した参照。関数宣言の中から参照すると const の絞り込みが引き継がれないため */
+const canvas: HTMLCanvasElement = canvasEl;
 
 const GAME_NAME = "DEPTHBREAKER";
 const SEED_PARAM = "seed";
@@ -304,6 +306,18 @@ function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
   s.camera.offset = savedOffset;
 }
 
+/**
+ * canvas は index.html で cursor: none にしている（プレイ中はクロスヘアを描くため）。
+ * クロスヘアを描かない画面（装備画面・タイトル系・祝福選択）では OS のマウスカーソルを見せる
+ */
+let cursorVisible = false;
+function updateCursorVisibility(cur: GameState | null): void {
+  const wantVisible = inventoryUi.open || screen !== "playing" || cur?.boonChoice != null;
+  if (wantVisible === cursorVisible) return;
+  cursorVisible = wantVisible;
+  canvas.style.cursor = wantVisible ? "default" : "none";
+}
+
 startLoop(
   (dt) => {
     const frame = input.snapshot(state?.camera.offset);
@@ -537,6 +551,7 @@ startLoop(
     // タイトル等は render を通らないので、ここで論理座標の transform を掛ける
     renderer.beginFrame();
     const ctx = renderer.context;
+    updateCursorVisibility(state);
 
     if (screen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));

@@ -199,7 +199,7 @@ describe("generateItem", () => {
       expect(item.name.length).toBeGreaterThan(0);
       if (item.rarity === "normal") expect(item.name).toBe(base?.name);
       if (item.rarity === "magic") expect(item.name).toContain(base?.name ?? "");
-      if (item.rarity === "rare") expect(item.name.split(" ")).toHaveLength(2);
+      if (item.rarity === "rare") expect(item.name.split("の")).toHaveLength(2);
       if (item.rarity === "unique") expect(UNIQUES.map((u) => u.name)).toContain(item.name);
     }
   });

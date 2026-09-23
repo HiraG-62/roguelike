@@ -124,11 +124,11 @@ export interface UniqueDef {
 export const UNIQUES: readonly UniqueDef[] = [
   {
     key: "widowmaker",
-    name: "Widowmaker",
+    name: "喪服の剣",
     baseKey: "greatsword",
     minLevel: 14,
     keystone: "ks_berserker",
-    flavor: "The lower your HP, the wider it swings.",
+    flavor: "HPが減るほど、その一振りは大きくなる。",
     affixes: [
       { key: "meleeDamagePct", tier: 2 },
       { key: "critMultiplier", tier: 2 },
@@ -138,11 +138,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "hailstormEngine",
-    name: "Hailstorm Engine",
+    name: "雹嵐機関",
     baseKey: "smg",
     minLevel: 10,
     keystone: "ks_overclock",
-    flavor: "Every trigger pull costs a piece of you.",
+    flavor: "引き金を引くたび、己の一部が飛び散る。",
     affixes: [
       { key: "projectiles", tier: 2 },
       { key: "fireRate", tier: 2 },
@@ -153,11 +153,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "heartOfTheMountain",
-    name: "Heart of the Mountain",
+    name: "山の心臓",
     baseKey: "plate",
     minLevel: 18,
     keystone: "ks_juggernaut",
-    flavor: "Nothing moving this slowly should hit this hard.",
+    flavor: "これほど鈍重なものが、これほど重い一撃を放つはずがない。",
     affixes: [
       { key: "maxLife", tier: 2 },
       { key: "maxLifePct", tier: 2 },
@@ -168,11 +168,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "stormstriders",
-    name: "Stormstriders",
+    name: "嵐脚",
     baseKey: "greaves",
     minLevel: 14,
     keystone: "ks_blink",
-    flavor: "You arrive before the thunder does.",
+    flavor: "雷鳴より先に、お前はそこに立っている。",
     affixes: [
       { key: "moveSpeed", tier: 2 },
       { key: "dashCharge", tier: 1 },
@@ -182,11 +182,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "eyeOfTheTempest",
-    name: "Eye of the Tempest",
+    name: "颶風の瞳",
     baseKey: "lapisAmulet",
     minLevel: 12,
     keystone: "ks_gambler",
-    flavor: "Every burst is a coin flip the room can't survive.",
+    flavor: "全ての必殺は賭け。部屋はその賭けに耐えられない。",
     affixes: [
       { key: "burstDamage", tier: 1 },
       { key: "burstRadius", tier: 1 },
@@ -199,11 +199,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   // ---- 追加 10 種: 各スロット 2 つ以上、出始め ilvl は 4〜20 でばらす ----
   {
     key: "cinderfang",
-    name: "Cinderfang",
+    name: "燠牙",
     baseKey: "dagger",
     minLevel: 4,
     keystone: "ks_glassCannon",
-    flavor: "Two cuts, then the fire finishes the job.",
+    flavor: "二閃、そして炎が仕事を終わらせる。",
     affixes: [
       { key: "attackSpeed", tier: 2 },
       { key: "burn", tier: 2 },
@@ -212,11 +212,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "bloodletterKiss",
-    name: "Bloodletter's Kiss",
+    name: "瀉血の口づけ",
     baseKey: "shortsword",
     minLevel: 8,
     keystone: "ks_vampire",
-    flavor: "It never lets you bleed out alone.",
+    flavor: "お前を独りで失血死させはしない。",
     affixes: [
       { key: "lifeOnHit", tier: 1 },
       { key: "attackSpeed", tier: 2 },
@@ -225,11 +225,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "whisperOfTheVoid",
-    name: "Whisper of the Void",
+    name: "虚無の囁き",
     baseKey: "rifle",
     minLevel: 9,
     keystone: "ks_pacifist",
-    flavor: "It only speaks once, from very far away.",
+    flavor: "それは一度だけ、遥か遠くから語る。",
     affixes: [
       { key: "rangedDamagePct", tier: 2 },
       { key: "pierce", tier: 1 },
@@ -238,11 +238,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "lastRites",
-    name: "Last Rites",
+    name: "終油の秘跡",
     baseKey: "shotgun",
     minLevel: 15,
     keystone: "ks_overclock",
-    flavor: "Every shell is administered at point-blank range.",
+    flavor: "弾は一発ごとに、至近距離で施される。",
     affixes: [
       { key: "projectiles", tier: 1 },
       { key: "explodeOnKill", tier: 1 },
@@ -251,11 +251,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "aegisOfTheUnbroken",
-    name: "Aegis of the Unbroken",
+    name: "不屈のイージス",
     baseKey: "plate",
     minLevel: 20,
     keystone: "ks_juggernaut",
-    flavor: "It has never once considered stepping aside.",
+    flavor: "一度たりとも退くことを考えたことがない。",
     affixes: [
       { key: "armorFlat", tier: 1 },
       { key: "maxLifePct", tier: 2 },
@@ -264,11 +264,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "wardensSilence",
-    name: "Warden's Silence",
+    name: "看守の沈黙",
     baseKey: "chain",
     minLevel: 11,
     keystone: "ks_bladeOath",
-    flavor: "It answers every question with the flat of a blade.",
+    flavor: "どんな問いにも、刃の腹で答える。",
     affixes: [
       { key: "maxLife", tier: 2 },
       { key: "meleeDamageFlat", tier: 2 },
@@ -277,11 +277,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "tempestLoader",
-    name: "Tempest Loader",
+    name: "疾風の装填",
     baseKey: "greaves",
     minLevel: 13,
     keystone: "ks_windWalker",
-    flavor: "Spend every charge before the ground catches up.",
+    flavor: "地面が追いつく前に、全てのチャージを使い切れ。",
     affixes: [
       { key: "dashDistance", tier: 1 },
       { key: "moveSpeed", tier: 2 },
@@ -290,11 +290,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "berserkersSignet",
-    name: "Berserker's Signet",
+    name: "狂戦士の印章",
     baseKey: "bloodRing",
     minLevel: 10,
     keystone: "ks_berserker",
-    flavor: "It counts your wounds so you don't have to.",
+    flavor: "お前の代わりに、傷の数を数えてくれる。",
     affixes: [
       { key: "lifeOnKill", tier: 1 },
       { key: "critMultiplier", tier: 2 },
@@ -303,11 +303,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "fortunesGambit",
-    name: "Fortune's Gambit",
+    name: "運命の賭け",
     baseKey: "goldRing",
     minLevel: 7,
     keystone: "ks_gambler",
-    flavor: "The house always loses, eventually.",
+    flavor: "胴元は、いつか必ず負ける。",
     affixes: [
       { key: "critChance", tier: 2 },
       { key: "burstDamage", tier: 2 },
@@ -316,11 +316,11 @@ export const UNIQUES: readonly UniqueDef[] = [
   },
   {
     key: "phaseAnchor",
-    name: "Phase Anchor",
+    name: "位相の錨",
     baseKey: "onyxAmulet",
     minLevel: 14,
     keystone: "ks_blink",
-    flavor: "It remembers where you were about to be.",
+    flavor: "お前がいるはずだった場所を、それは覚えている。",
     affixes: [
       { key: "burstRadius", tier: 1 },
       { key: "dashCooldown", tier: 2 },

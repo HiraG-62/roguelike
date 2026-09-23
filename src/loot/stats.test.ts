@@ -251,10 +251,10 @@ describe("statsSummary", () => {
       comboWindowBonus: 0.5,
     });
     expect(summary).toEqual([
-      "Max HP 140",
-      "Melee Damage +25%",
-      "Crit Chance 12%",
-      "Combo Window +0.5s",
+      "最大HP 140",
+      "近接ダメージ +25%",
+      "会心率 12%",
+      "コンボ猶予 +0.5秒",
     ]);
   });
 });

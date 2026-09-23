@@ -112,7 +112,7 @@ describe("トリガー文法", () => {
     }
   });
 
-  it("formatTrigger が英文を作る", () => {
+  it("formatTrigger が日本語文を作る", () => {
     expect(
       formatTrigger({
         trigger: "everyNthMeleeHit",
@@ -122,7 +122,7 @@ describe("トリガー文法", () => {
         magnitude: 30,
         chance: 0.5,
       }),
-    ).toBe("Every 5th melee hit (10+ combo): 50% chance to release a shockwave (30 dmg)");
+    ).toBe("5回に1回の近接攻撃時（10 コンボ以上）: 50% で衝撃波を放つ（30 ダメージ）");
     expect(
       formatTrigger({
         trigger: "onKill",
@@ -132,6 +132,6 @@ describe("トリガー文法", () => {
         duration: 3.5,
         chance: 0.4,
       }),
-    ).toBe("On kill (below 50% HP): 40% chance to gain +25% damage for 3.5s");
+    ).toBe("撃破時（HP 50% 未満）: 40% で3.5 秒間ダメージ +25%を得る");
   });
 });
