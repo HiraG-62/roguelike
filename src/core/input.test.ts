@@ -255,10 +255,16 @@ describe("sanitizeKeybinds", () => {
     expect(binds.special, "正しい値は残る").toEqual(["KeyG"]);
   });
 
-  it("confirm / restart は保存データで変えられない", () => {
+  it("confirm は保存データで変えられないが restart は変えられる", () => {
     const binds = sanitizeKeybinds({ confirm: ["KeyJ"], restart: ["KeyK"] });
     expect(binds.confirm).toEqual(DEFAULT_KEYBINDS.confirm);
-    expect(binds.restart).toEqual(DEFAULT_KEYBINDS.restart);
+    expect(binds.restart).toEqual(["KeyK"]);
+  });
+
+  it("R は他のアクションに割り当てられる（restart から外れる）", () => {
+    const next = assignBinding(defaultKeybinds(), "attack", 0, "KeyR");
+    expect(next?.attack[0]).toBe("KeyR");
+    expect(next?.restart, "restart には attack の元のキーが渡る").toEqual(["KeyE"]);
   });
 
   it("アクション間の重複は関わったアクションを既定へ戻し、結果に重複が残らない", () => {
@@ -324,7 +330,7 @@ describe("assignBinding", () => {
   });
 
   it("予約キーと固定アクションのキーは割り当てられない", () => {
-    for (const code of ["Escape", "Enter", "Backspace", "Delete", "KeyR"]) {
+    for (const code of ["Escape", "Enter", "Backspace", "Delete"]) {
       expect(assignBinding(defaultKeybinds(), "attack", 0, code), code).toBeNull();
     }
   });

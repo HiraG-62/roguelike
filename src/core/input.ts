@@ -27,8 +27,8 @@ export type BindingCode = string;
 export type Keybinds = Record<ActionName, readonly BindingCode[]>;
 
 /**
- * 設定画面から変更できるアクション（表示順）。confirm（Enter）と restart は
- * メニュー操作・リスタートの逃げ道なので固定にする
+ * 設定画面から変更できるアクション（表示順）。confirm（Enter）だけは
+ * メニュー操作の逃げ道なので固定にする（リスタートも変更できる）
  */
 export const REBINDABLE_ACTIONS = [
   "up",
@@ -44,6 +44,7 @@ export const REBINDABLE_ACTIONS = [
   "skill2",
   "skill3",
   "skill4",
+  "restart",
 ] as const satisfies readonly ActionName[];
 export type RebindableAction = (typeof REBINDABLE_ACTIONS)[number];
 
@@ -279,6 +280,11 @@ export function skillKeyLabelFor(slot: number, binds: Keybinds): string {
   const keyboard = codes.filter((code) => !isMouseCode(code));
   const shown = keyboard.length > 0 ? keyboard : codes;
   return shown.map(formatBindingCode).join(" / ");
+}
+
+/** アクションの現在のキー表記（例: "R"、"E / 左クリック"）。死亡画面などのキー案内用 */
+export function actionKeyLabel(action: ActionName, binds: Keybinds = activeKeybinds): string {
+  return binds[action].map(formatBindingCode).join(" / ");
 }
 
 /** マウスボタン番号 → 擬似キーコード */

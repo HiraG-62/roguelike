@@ -19,7 +19,7 @@ import {
   type KeybindsRow,
 } from "../ui/title";
 import type { Settings } from "../ui/settings";
-import { formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
+import { actionKeyLabel, formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
 import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
 import { APP_VERSION } from "../version";
 
@@ -82,6 +82,7 @@ const ACTION_LABEL: Record<RebindableAction, string> = {
   skill2: "スキル 2",
   skill3: "スキル 3",
   skill4: "スキル 4",
+  restart: "やり直す（新シード）",
 };
 
 const KEYBINDS_EXTRA_LABEL: Record<Exclude<KeybindsRow, RebindableAction>, string> = {
@@ -605,5 +606,5 @@ export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSumma
   const rarityText = RARITIES.map((r) => `${RARITY_LABEL[r]} ${info.itemSummary.byRarity[r]}`).join(" / ");
   drawText(ctx, `拾った遺物: ${info.itemSummary.total}（${rarityText}）`, VIEW_W / 2, VIEW_H / 2 + 60, m, COLOR_TEXT, "center");
   drawText(ctx, `撃破したボス: ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72, m, COLOR_TEXT, "center");
-  drawText(ctx, "Enter: 同じシードで再挑戦   R: 新しいシード   T: タイトル", VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
+  drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード   T: タイトル`, VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
 }

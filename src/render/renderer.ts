@@ -1,3 +1,4 @@
+import { actionKeyLabel } from "../core/input";
 import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
@@ -2115,6 +2116,6 @@ export class Renderer {
     drawText(ctx, "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, COLOR_HP, "center");
     drawText(ctx, summary, cx, cy, TEXT.BODY, COLOR_TEXT, "center");
     drawText(ctx, `スコア ${state.score}`, cx, cy + statLine, TEXT.BODY, COLOR_TEXT, "center");
-    drawText(ctx, "Enter: 同じシードで再挑戦   R: 新しいシード", cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
+    drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード`, cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
   }
 }
