@@ -8,7 +8,7 @@
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | ジャスト（ジャスト！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間。スロー + ゲージ増 | `system/combat.ts` |
-| ジャスト回避 | onJustDodge | 上の行為。説明文での名前 | ※現状 `JUST回避` 表記が祝福・アフィックス・トリガーに残る（下の「揺れ」） |
+| ジャスト回避 | onJustDodge | 上の行為。説明文での名前 | `system/boons.ts`。※アフィックス・トリガーには `JUST回避` 表記が残る（下の「揺れ」） |
 | ジャストカウンター | justCounter | ジャスト直後の攻撃で背後へ瞬間移動して斬る | `data/tuning.ts` ACTION |
 | カウンター（カウンター！） | counter | 敵の予備動作中に近接を当てる。1.5 倍 + 必ずスタガー | `data/tuning.ts` ACTION |
 | ガードブレイク | guard break | 盾騎士の正面ブロックをカウンターで割る | `system/elites.ts` GUARD_BREAK_TEXT |
@@ -57,6 +57,7 @@
 | 鍛冶 | craft | クラフト画面のタブ名 | `render/inventoryUi.ts` |
 | 再鍛造 / 付与 / 消去 / 侵蝕 / 融合 | reforge / augment / annul / corrupt / fuse | クラフト操作 | `render/inventoryUi.ts` |
 | 欠片 / 精髄 | shard / essence | 通貨 | 両方で一致 |
+| 塵 / 遺物 | dust / relic | 通貨 | `ui/inventory.ts`、`loot/crafting.ts` |
 
 ## スキル・ラン内
 
@@ -68,6 +69,7 @@
 | 祝福 | boon | 階層到達時の 3 択。ルール変更が中心 | `system/boons.ts` |
 | 呪い付き | cursed | 強い効果 + 代償の祝福 | 同上 |
 | 祝福のレア度 | common / rare / epic | 通常 / 希少 / 極稀 | `render/boonUi.ts` |
+| 返却 | refundCharge | 刻印符「連鎖」でキルした時にチャージを 1 戻す時のフローティングテキスト | `skills/hit.ts` |
 
 スキル名: 旋風斬り / 突進斬り / グレネード / 撃ち抜き / パリィ / 血の契約 / 地裂き / 雷撃 / 引力球 / 地雷 / 加速 / 鎖鎌 / 回転弾幕 / 氷結地帯。刻印符名: 多重 / 血の代償 / コンボ燃料 / 反響 / 貫通 / 反動 / 連鎖 / 呪い / 遅延 / 拡大 / 溜め（`skills/data.ts`）。
 
@@ -84,8 +86,5 @@
 
 | 揺れ | 箇所 | 推奨 |
 | --- | --- | --- |
-| `JUST回避` と `ジャスト！` | 祝福 desc・アフィックス label・トリガー文（`JUST回避時`）・スキル verb | 「ジャスト回避」に統一 |
-| 通貨 dust: `塵` と `粉塵` | `ui/inventory.ts` CURRENCY_LABEL と `loot/crafting.ts` | どちらかに統一（短い「塵」を推奨） |
-| 通貨 relic: `遺物` と `秘宝` | 同上 | 「秘宝」を推奨（loot-identity 案で「遺物」を装備全般に使う予定のため） |
-| `部屋ロック` と `封鎖` | 祝福 desc と HUD / トリガー文 | 表示は「封鎖」 |
+| `JUST回避` と `ジャスト回避` | 祝福 desc（`system/boons.ts`、統一済み）・アフィックス label / トリガー文 / スキル verb（`loot/affixes.ts`, `loot/stats.ts`, `loot/triggers.ts`、loot 再設計中のため今回は未着手） | 「ジャスト回避」に統一 |
 | レアリティ `通常` と フロア種別 `通常` と 祝福 `通常` | titleUi / renderer / boonUi | 文脈で区別できるので現状維持 |

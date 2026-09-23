@@ -161,7 +161,7 @@ export interface BossState {
   enemyId: number;
   name: string;
   roomIndex: number;
-  /** "BOSS" 表示の残り時間 */
+  /** 「ボス」表示の残り時間 */
   introTimer: number;
   defeated: boolean;
 }

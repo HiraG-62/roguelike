@@ -41,7 +41,7 @@ const COLOR_GRENADE = "#c0c0c0";
 
 const HUD_SIZE = 18;
 const HUD_GAP = 6;
-/** 画面下端からの距離（"ROOM LOCKED" 表示の上） */
+/** 画面下端からの距離（「封鎖中」表示の上） */
 const HUD_BOTTOM = 26;
 const DOT_SIZE = 2;
 const DOT_GAP = 1;

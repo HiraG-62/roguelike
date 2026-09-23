@@ -114,7 +114,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   lockdown: {
     key: "lockdown",
     name: "封鎖疾走",
-    desc: "部屋ロック中は移動速度+30%になる代わりに、それ以外では-10%になる。",
+    desc: "封鎖中は移動速度+30%になる代わりに、それ以外では-10%になる。",
     icon: "L",
     rarity: "common",
     tags: ["room", "dash"],
@@ -123,7 +123,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   glassJust: {
     key: "glassJust",
     name: "硝子の見切り",
-    desc: "最大HPが1になる代わりに、JUST回避の受付時間が2倍になる。",
+    desc: "最大HPが1になる代わりに、ジャスト回避の受付時間が2倍になる。",
     icon: "G",
     rarity: "epic",
     tags: ["just", "dash"],
@@ -187,7 +187,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   justWipe: {
     key: "justWipe",
     name: "回避一掃",
-    desc: "JUST回避で敵弾を全て消し去る。",
+    desc: "ジャスト回避で敵弾を全て消し去る。",
     icon: "J",
     rarity: "rare",
     tags: ["just"],

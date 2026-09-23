@@ -77,7 +77,7 @@ export function refundCharge(state: GameState, slotIndex: number, pos: Vec): voi
   if (slot.chargesLeft >= max) return;
   slot.chargesLeft += 1;
   if (slot.chargesLeft >= max) slot.cooldownLeft = 0;
-  addFloatingText(state, pos, "RESET", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
+  addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
 }
 
 /** 呪いの時間経過。切れたもの・いなくなった敵は消す */

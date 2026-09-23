@@ -328,7 +328,7 @@ const REPLAY_BAR_H = 3;
 const REPLAY_HUD_Y = 12;
 const REPLAY_BLINK_PERIOD_SECONDS = 1.0;
 
-/** 再生中の画面上部に "REPLAY" と速度・進捗を重ねる */
+/** 再生中の画面上部に「リプレイ」と速度・進捗を重ねる */
 export function drawReplayHud(ctx: CanvasRenderingContext2D, info: ReplayHudInfo, time: number): void {
   const blinkOn = Math.sin((time / REPLAY_BLINK_PERIOD_SECONDS) * Math.PI * 2) > 0;
   const label = info.finished ? "リプレイ終了" : `${blinkOn ? "● " : "  "}リプレイ ${info.speed}x`;
@@ -399,7 +399,7 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
   drawText(ctx, "設定", VIEW_W / 2, panelY + 16, TEXT.BODY, COLOR_TITLE, "center");
 
   const valueOf: Record<(typeof SETTINGS_ITEMS)[number], string> = {
-    mute: settings.muted ? "ON" : "OFF",
+    mute: settings.muted ? "オン" : "オフ",
     volume: barText(settings.volume),
     screenShake: barText(settings.screenShake),
   };
