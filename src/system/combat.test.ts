@@ -177,7 +177,7 @@ describe("キーストーン", () => {
     const state = arena(5, { keystones: [KS.pacifist] });
     step(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.player.attack.phase).toBe("none");
-    expect(state.texts.some((t) => t.text === "pacifist")).toBe(true);
+    expect(state.texts.some((t) => t.text === "不殺")).toBe(true);
   });
 
   it("ks_blink ではダッシュが一瞬で移動し、無敵が付かない", () => {
@@ -337,7 +337,7 @@ describe("ks_bladeOath", () => {
     const state = arena(5, { keystones: [KS.bladeOath] });
     step(state, withInput({ shootHeld: true }), FIXED_DT);
     expect(state.projectiles.filter((pr) => pr.owner === "player")).toHaveLength(0);
-    expect(state.texts.some((t) => t.text === "blade oath")).toBe(true);
+    expect(state.texts.some((t) => t.text === "剣の誓い")).toBe(true);
   });
 });
 

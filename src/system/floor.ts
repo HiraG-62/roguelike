@@ -417,7 +417,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   applyCurse(state, index);
   shake(state, ambush ? AMBUSH_SHAKE : LOCK_SHAKE);
   if (ambush) announceAmbush(state);
-  else addFloatingText(state, p2(state), "LOCKED", "#ff8080", 1.2, 0.8);
+  else addFloatingText(state, p2(state), "封鎖", "#ff8080", 1.2, 0.8);
   pushSfx(state, "roomLock");
 }
 
@@ -433,7 +433,7 @@ function clearRoom(state: GameState, room: RoomState): void {
   room.cleared = true;
   for (const t of room.doorTiles) state.lockedTiles.delete(t);
   state.score += ROOM.clearBonus;
-  addFloatingText(state, p2(state), "ROOM CLEAR", "#ffd75f", 1.5, 1);
+  addFloatingText(state, p2(state), "制圧", "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
   const center = rewardAnchor(state, room);
@@ -513,8 +513,8 @@ export function descend(state: GameState): void {
   buildFloor(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
-  addFloatingText(state, p2(state), `DEPTH ${state.depth} · ${label}`, DEPTH_COLOR, 2, 1.2);
+  addFloatingText(state, p2(state), `地下 ${state.depth} 階・${label}`, DEPTH_COLOR, 2, 1.2);
   pushSfx(state, "descend");
   dropDepthReward(state);
-  pushLog(state, `You descend to depth ${state.depth} (${label.toLowerCase()}).`, DEPTH_COLOR);
+  pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
 }

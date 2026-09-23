@@ -58,8 +58,8 @@ describe("装備ドロップと拾得", () => {
 
     expect(state.floorItems).toHaveLength(1);
     expect(state.profile.stash).toHaveLength(STASH_CAPACITY);
-    expect(state.texts.some((t) => t.text === "STASH FULL")).toBe(true);
-    expect(state.log.some((l) => l.text.includes("Stash is full"))).toBe(true);
+    expect(state.texts.some((t) => t.text === "倉庫が満杯")).toBe(true);
+    expect(state.log.some((l) => l.text.includes("倉庫が満杯"))).toBe(true);
   });
 
   it("部屋クリアで必ず 1 個落ちる", () => {

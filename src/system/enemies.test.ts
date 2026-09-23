@@ -43,7 +43,7 @@ describe("knight", () => {
     k.facing = { x: -1, y: 0 };
     // プレイヤー(左) → knight(右) へ振る攻撃 = 正面
     expect(interceptEnemyDamage(state, k, 10, { x: 1, y: 0 }, "melee")).toBe(0);
-    expect(state.texts.some((t) => t.text === "BLOCK")).toBe(true);
+    expect(state.texts.some((t) => t.text === "ブロック")).toBe(true);
     // 背後から
     expect(interceptEnemyDamage(state, k, 10, { x: -1, y: 0 }, "melee")).toBe(10);
   });
@@ -68,7 +68,7 @@ describe("knight", () => {
     expect(interceptEnemyDamage(state, k, 10, { x: 1, y: 0 }, "melee")).toBe(0);
     // guardBreak なら通る
     expect(interceptEnemyDamage(state, k, 10, { x: 1, y: 0 }, "melee", true)).toBe(10);
-    expect(state.texts.some((t) => t.text === "GUARD BREAK")).toBe(true);
+    expect(state.texts.some((t) => t.text === "ガードブレイク")).toBe(true);
 
     damageEnemy(state, k, 10, { x: 1, y: 0 }, 0, { kind: "melee", guardBreak: true });
     expect(k.hp).toBe(hp - 10);

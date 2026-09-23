@@ -86,8 +86,8 @@ export interface BoonDef {
 export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   finisherOnly: {
     key: "finisherOnly",
-    name: "Finisher Only",
-    desc: "Every slash is the 3rd (heavy) hit. No 1st/2nd hits.",
+    name: "終撃のみ",
+    desc: "近接は常に3段目のみ。1・2段目は出ない。",
     icon: "3",
     rarity: "rare",
     tags: ["melee"],
@@ -95,8 +95,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   dashGun: {
     key: "dashGun",
-    name: "Run & Gun",
-    desc: "You can shoot while dashing.",
+    name: "疾走射撃",
+    desc: "ダッシュ中でも射撃できる。",
     icon: "»",
     rarity: "common",
     tags: ["ranged", "dash"],
@@ -104,8 +104,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   parryCharge: {
     key: "parryCharge",
-    name: "Parry Charge",
-    desc: "Slashing enemy bullets gives 3x burst gauge.",
+    name: "弾斬り充填",
+    desc: "敵弾を斬ると必殺ゲージが3倍増える。",
     icon: "P",
     rarity: "common",
     tags: ["melee", "energy"],
@@ -113,8 +113,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   lockdown: {
     key: "lockdown",
-    name: "Lockdown Rush",
-    desc: "+30% move speed while a room is locked. -10% otherwise.",
+    name: "封鎖疾走",
+    desc: "部屋ロック中は移動速度+30%になる代わりに、それ以外では-10%になる。",
     icon: "L",
     rarity: "common",
     tags: ["room", "dash"],
@@ -122,8 +122,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   glassJust: {
     key: "glassJust",
-    name: "Glass Dancer",
-    desc: "Max HP becomes 1. JUST dodge window x2.",
+    name: "硝子の見切り",
+    desc: "最大HPが1になる代わりに、JUST回避の受付時間が2倍になる。",
     icon: "G",
     rarity: "epic",
     tags: ["just", "dash"],
@@ -131,8 +131,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   comboWave: {
     key: "comboWave",
-    name: "Combo Wave",
-    desc: "At 20+ combo, every slash fires a piercing wave.",
+    name: "連撃波",
+    desc: "コンボ20以上で、斬るたびに貫通する衝撃波が出る。",
     icon: "W",
     rarity: "rare",
     tags: ["melee", "combo"],
@@ -140,8 +140,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   heartBurn: {
     key: "heartBurn",
-    name: "Heart Fire",
-    desc: "Picking up a heart doubles your burn for 10s.",
+    name: "業火の心",
+    desc: "ハートを拾うと10秒間、燃焼効果が2倍になる。",
     icon: "H",
     rarity: "common",
     tags: ["burn", "hp"],
@@ -150,8 +150,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   eliteVault: {
     key: "eliteVault",
-    name: "Vault Key",
-    desc: "Killing an elite guarantees a treasure vault next floor.",
+    name: "宝物の鍵",
+    desc: "エリートを倒すと、次の階に宝物庫が確定で出現する。",
     icon: "K",
     rarity: "rare",
     tags: ["loot"],
@@ -159,8 +159,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   secondWind: {
     key: "secondWind",
-    name: "Second Wind",
-    desc: "Once per run, revive at 30% HP instead of dying.",
+    name: "再起",
+    desc: "ラン中1回だけ、力尽きる代わりにHP30%で復活する。",
     icon: "R",
     rarity: "epic",
     tags: ["hp"],
@@ -168,8 +168,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   giantSlayer: {
     key: "giantSlayer",
-    name: "Giant Slayer",
-    desc: "Bosses have -25% HP. Normal enemies +25% HP.",
+    name: "巨人殺し",
+    desc: "ボスのHPが-25%になる代わりに、通常の敵のHPが+25%になる。",
     icon: "B",
     rarity: "common",
     tags: ["boss"],
@@ -177,8 +177,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   dashBlast: {
     key: "dashBlast",
-    name: "Blast Step",
-    desc: "The end of each dash explodes.",
+    name: "爆走",
+    desc: "ダッシュの終わりに爆発が起こる。",
     icon: "X",
     rarity: "rare",
     tags: ["dash", "explode"],
@@ -186,8 +186,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   justWipe: {
     key: "justWipe",
-    name: "Clean Slate",
-    desc: "A JUST dodge erases all enemy bullets.",
+    name: "回避一掃",
+    desc: "JUST回避で敵弾を全て消し去る。",
     icon: "J",
     rarity: "rare",
     tags: ["just"],
@@ -195,8 +195,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   clearShield: {
     key: "clearShield",
-    name: "Victory Veil",
-    desc: "Clearing a room grants 5s of invulnerability.",
+    name: "勝利の帳",
+    desc: "部屋を制圧すると5秒間無敵になる。",
     icon: "V",
     rarity: "common",
     tags: ["room"],
@@ -204,8 +204,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   clearHeal: {
     key: "clearHeal",
-    name: "Blood Tithe",
-    desc: "Clearing a room fully heals you. Max HP -30%.",
+    name: "血の代償",
+    desc: "部屋を制圧するとHPが全回復する代わりに、最大HPが-30%になる。",
     icon: "T",
     rarity: "rare",
     tags: ["room", "hp"],
@@ -213,8 +213,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   finisherWave: {
     key: "finisherWave",
-    name: "Rending Wave",
-    desc: "The 3rd slash fires a piercing wave.",
+    name: "断裂波",
+    desc: "3段目の斬撃で貫通する衝撃波が出る。",
     icon: "~",
     rarity: "common",
     tags: ["melee"],
@@ -222,8 +222,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   rearGuard: {
     key: "rearGuard",
-    name: "Rear Guard",
-    desc: "Each shot also fires a bullet backwards.",
+    name: "背面射撃",
+    desc: "射撃するたびに後方へも弾を1発撃つ。",
     icon: "<",
     rarity: "common",
     tags: ["ranged"],
@@ -231,8 +231,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   standingSniper: {
     key: "standingSniper",
-    name: "Still Aim",
-    desc: "Shots fired while standing still: +3 pierce, +50% speed.",
+    name: "静止狙撃",
+    desc: "静止して撃った弾は貫通+3、速度+50%になる。",
     icon: "S",
     rarity: "common",
     tags: ["ranged"],
@@ -240,8 +240,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   triggerHappy: {
     key: "triggerHappy",
-    name: "Trigger Happy",
-    desc: "Fire rate x2, but you cannot slash.",
+    name: "連射狂い",
+    desc: "連射速度が2倍になる代わりに、近接攻撃ができなくなる。",
     icon: "!",
     rarity: "rare",
     tags: ["ranged"],
@@ -249,8 +249,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   dashGuard: {
     key: "dashGuard",
-    name: "Iron Stance",
-    desc: "Dash becomes a guard in place. Hits while guarding are JUST.",
+    name: "鉄壁の構え",
+    desc: "ダッシュがその場の防御になり、防御中の被弾はJUST扱いになる。",
     icon: "I",
     rarity: "rare",
     tags: ["just", "dash"],
@@ -258,8 +258,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   comboKeeper: {
     key: "comboKeeper",
-    name: "Steady Hands",
-    desc: "Getting hit halves your combo instead of resetting it.",
+    name: "堅実な手",
+    desc: "被弾してもコンボが0にならず半分残る。",
     icon: "C",
     rarity: "common",
     tags: ["combo"],
@@ -267,8 +267,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   comboClock: {
     key: "comboClock",
-    name: "Tick Tock",
-    desc: "Combo window halved. Every 10 combo fills the burst gauge.",
+    name: "刻限コンボ",
+    desc: "コンボ受付時間が半分になる代わりに、10コンボごとに必殺ゲージが満タンになる。",
     icon: "@",
     rarity: "rare",
     tags: ["combo", "energy"],
@@ -276,8 +276,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   overcharge: {
     key: "overcharge",
-    name: "Overcharge",
-    desc: "While the burst gauge is full, slashes explode.",
+    name: "過充填",
+    desc: "必殺ゲージが満タンの間、斬撃が爆発する。",
     icon: "O",
     rarity: "rare",
     tags: ["energy", "melee", "explode"],
@@ -285,8 +285,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   burstRefund: {
     key: "burstRefund",
-    name: "Echo Burst",
-    desc: "Each kill by burst refunds 25% of the gauge.",
+    name: "残響爆発",
+    desc: "バーストでの撃破ごとにゲージが25%還元される。",
     icon: "E",
     rarity: "common",
     tags: ["energy"],
@@ -294,8 +294,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   burnSpread: {
     key: "burnSpread",
-    name: "Wildfire",
-    desc: "Burning enemies spread their burn when they die.",
+    name: "野火",
+    desc: "燃えている敵は死亡時に周囲へ燃焼を広げる。",
     icon: "F",
     rarity: "common",
     tags: ["burn"],
@@ -304,8 +304,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   chillShatter: {
     key: "chillShatter",
-    name: "Shatter",
-    desc: "Chilled enemies burst into ice shards when they die.",
+    name: "氷砕",
+    desc: "凍えた敵は死亡時に氷の破片となって弾け飛ぶ。",
     icon: "*",
     rarity: "common",
     tags: ["chill"],
@@ -314,8 +314,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   dashShock: {
     key: "dashShock",
-    name: "Static Step",
-    desc: "Starting a dash releases chain lightning.",
+    name: "帯電疾走",
+    desc: "ダッシュ開始時に連鎖する雷を放つ。",
     icon: "Z",
     rarity: "rare",
     tags: ["dash", "shock"],
@@ -323,8 +323,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   critChain: {
     key: "critChain",
-    name: "Crit Arc",
-    desc: "Critical hits release chain lightning.",
+    name: "会心雷撃",
+    desc: "クリティカルヒットで連鎖する雷を放つ。",
     icon: "A",
     rarity: "rare",
     tags: ["crit", "shock"],
@@ -332,8 +332,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   bloodFeast: {
     key: "bloodFeast",
-    name: "Blood Feast",
-    desc: "Hearts no longer drop. Every kill heals 3 HP.",
+    name: "血の饗宴",
+    desc: "ハートが出なくなる代わりに、撃破するたびHP3回復する。",
     icon: "+",
     rarity: "rare",
     tags: ["hp"],
@@ -341,8 +341,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   eliteMagnet: {
     key: "eliteMagnet",
-    name: "Elite Lure",
-    desc: "Elites appear far more often. Elites always drop an item.",
+    name: "エリート誘引",
+    desc: "エリートの出現率が大きく上がる代わりに、エリートは必ずアイテムを落とす。",
     icon: "M",
     rarity: "rare",
     tags: ["loot"],
@@ -350,8 +350,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   frostLock: {
     key: "frostLock",
-    name: "Cold Welcome",
-    desc: "Locking a room chills all its enemies for 3s.",
+    name: "氷結封鎖",
+    desc: "部屋をロックすると、中の敵全員を3秒間凍えさせる。",
     icon: "#",
     rarity: "common",
     tags: ["chill", "room"],
@@ -613,7 +613,7 @@ export function grantBoon(state: GameState, key: BoonKey): void {
   const def = boonDef(key);
   const color = def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
   addFloatingText(state, state.player.body.pos, def.name, color, 1.4, 1.2);
-  pushLog(state, `Boon: ${def.name} - ${def.desc}`, color);
+  pushLog(state, `祝福: ${def.name} - ${def.desc}`, color);
   pushSfx(state, "lootRare");
   pushSfx(state, def.cursed ? "boonSelectCursed" : "boonSelect");
 }
@@ -797,7 +797,7 @@ export function onBoonComboHit(state: GameState): void {
   if (state.combo.count <= 0 || state.combo.count % BOON.comboClockEvery !== 0) return;
   const p = state.player;
   p.energy = p.maxEnergy;
-  addFloatingText(state, p.body.pos, "TICK!", BOON.rarityColor.rare, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, p.body.pos, "チャージ！", BOON.rarityColor.rare, TEXT_SCALE, TEXT_LIFE);
 }
 
 /** critChain: クリティカルで連鎖雷 */
@@ -811,7 +811,7 @@ export function onBoonCrit(state: GameState, enemy: Enemy, amount: number): void
 export function onBoonKill(state: GameState, enemy: Enemy): void {
   if (enemy.elite && hasBoon(state, "eliteVault") && !state.boonRun.vaultNext) {
     state.boonRun.vaultNext = true;
-    addFloatingText(state, enemy.body.pos, "VAULT NEXT FLOOR", BOON.rarityColor.rare, TEXT_SCALE, 1);
+    addFloatingText(state, enemy.body.pos, "次階に宝物庫", BOON.rarityColor.rare, TEXT_SCALE, 1);
   }
   if (enemy.elite && hasBoon(state, "eliteMagnet")) dropItem(state, enemy.body.pos);
   if (hasBoon(state, "bloodFeast")) healPlayer(state, BOON.feastHeal, { silent: true });
@@ -865,9 +865,9 @@ export function tryRevive(state: GameState): boolean {
   p.hp = Math.max(1, Math.round(p.maxHp * BOON.reviveHpRatio));
   p.invulnTimer = Math.max(p.invulnTimer, BOON.reviveInvuln);
   state.flash = 1;
-  addFloatingText(state, p.body.pos, "SECOND WIND", BOON.rarityColor.epic, 1.6, 1.2);
+  addFloatingText(state, p.body.pos, "再起", BOON.rarityColor.epic, 1.6, 1.2);
   spawnBurst(state, p.body.pos, BOON.rarityColor.epic, 30, 180, 0.6, 2.5);
-  pushLog(state, "Second Wind! You refuse to die.", BOON.rarityColor.epic);
+  pushLog(state, "再起！まだ終わらない。", BOON.rarityColor.epic);
   pushSfx(state, "heal");
   return true;
 }
@@ -954,7 +954,7 @@ export function onBoonRoomClear(state: GameState): void {
   const p = state.player;
   if (hasBoon(state, "clearShield")) {
     p.buffs.invuln = Math.max(p.buffs.invuln, BOON.clearInvulnTime);
-    addFloatingText(state, p.body.pos, "VEIL", BOON.guardColor, TEXT_SCALE, TEXT_LIFE);
+    addFloatingText(state, p.body.pos, "結界", BOON.guardColor, TEXT_SCALE, TEXT_LIFE);
   }
   if (hasBoon(state, "clearHeal")) healPlayer(state, p.maxHp);
 }
@@ -969,5 +969,5 @@ export function onBoonHeartPickup(state: GameState): void {
   const wasActive = state.boonRun.heartBurnTimer > 0;
   state.boonRun.heartBurnTimer = BOON.heartBurnTime;
   if (!wasActive) applyBoonsToStats(state);
-  addFloatingText(state, state.player.body.pos, "HEART FIRE", STATUS.burnColor, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, state.player.body.pos, "業火", STATUS.burnColor, TEXT_SCALE, TEXT_LIFE);
 }

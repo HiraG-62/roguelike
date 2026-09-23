@@ -113,18 +113,18 @@ function runEffect(state: GameState, t: TriggeredEffect, ctx: TriggerContext): v
       return;
     case "damageBuff":
       applyTimedMul(p.buffs.damage, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "POWER", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingText(state, p.body.pos, "パワー", TEXT_COLOR_BUFF, 1, 0.6);
       return;
     case "speedBuff":
       applyTimedMul(p.buffs.speed, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "HASTE", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingText(state, p.body.pos, "加速", TEXT_COLOR_BUFF, 1, 0.6);
       return;
     case "energy":
       gainEnergy(state, t.magnitude);
       return;
     case "invuln":
       p.buffs.invuln = Math.max(p.buffs.invuln, t.duration ?? t.magnitude);
-      addFloatingText(state, p.body.pos, "INVULN", TEXT_COLOR_INVULN, 1, 0.6);
+      addFloatingText(state, p.body.pos, "無敵", TEXT_COLOR_INVULN, 1, 0.6);
       return;
   }
 }

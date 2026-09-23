@@ -211,7 +211,7 @@ describe("部屋の種類", () => {
     const added = state.floorItems.length - before;
     expect(added).toBeGreaterThanOrEqual(ROOM_KIND.treasureItemsMin);
     expect(added).toBeLessThanOrEqual(ROOM_KIND.treasureItemsMax);
-    expect(state.texts.some((t) => t.text === "TREASURE")).toBe(true);
+    expect(state.texts.some((t) => t.text === "宝物庫")).toBe(true);
   });
 
   it("challenge: 3 波の増援。全滅で rare 確定 + ハート", () => {
@@ -227,7 +227,7 @@ describe("部屋の種類", () => {
       killRoom(state, index);
       expect(room.wave).toBe(wave);
       expect(room.locked).toBe(true);
-      expect(state.texts.some((t) => t.text === `WAVE ${wave}/${ROOM_KIND.challengeWaves}`)).toBe(true);
+      expect(state.texts.some((t) => t.text === `第${wave}波/${ROOM_KIND.challengeWaves}`)).toBe(true);
       expect(aliveIn(state, index)).toBeGreaterThan(0);
     }
     const hearts = state.pickups.length;
@@ -303,7 +303,7 @@ describe("部屋の種類", () => {
     const spawned = state.enemies.filter((e) => e.roomIndex === index);
     expect(spawned.length).toBeGreaterThanOrEqual(enemyCount(state) * ROOM_KIND.ambushEnemyMul - 2);
     expect(spawned.every((e) => e.phase === "spawning")).toBe(true);
-    expect(state.texts.some((t) => t.text === "AMBUSH!")).toBe(true);
+    expect(state.texts.some((t) => t.text === "伏兵！")).toBe(true);
   });
 
   it("ambush: depth 10 のように 2 倍湧きが maxEnemies を超えても、群れ込みの実体数が maxEnemies + 群れの最大サイズ以下に収まる", () => {

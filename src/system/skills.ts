@@ -73,7 +73,7 @@ const QUAKE_PARTICLES = 3;
 const QUAKE_PARTICLE_SPEED = 90;
 const HOOK_STEP = 2;
 const HOOK_LINE_LIFE = 0.12;
-const HASTE_TEXT = "HASTE";
+const HASTE_TEXT = "加速";
 const SPARK_COUNT = 4;
 const SPARK_SPEED = 50;
 const SPARK_LIFE = 0.2;
@@ -312,7 +312,7 @@ function attackCommitted(state: GameState): boolean {
 function requestCast(state: GameState, index: number, input: FrameInput): void {
   const rs = state.skills;
   if (!resolveSlot(state, index)) {
-    notReady(state, "no skill");
+    notReady(state, "スキル未装備");
     return;
   }
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
@@ -352,11 +352,11 @@ function startCharge(state: GameState, index: number): void {
   const rs = state.skills;
   const slot = rs.slots[index];
   if (!resolveSlot(state, index)) {
-    notReady(state, "no skill");
+    notReady(state, "スキル未装備");
     return;
   }
   if (!slot || slot.chargesLeft <= 0) {
-    notReady(state, "cooling");
+    notReady(state, "冷却中");
     return;
   }
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
@@ -430,7 +430,7 @@ export function castSlot(
   const r = resolveSlot(state, index);
   if (!slot || !r) return false;
   if (slot.chargesLeft <= 0) {
-    notReady(state, "cooling");
+    notReady(state, "冷却中");
     return false;
   }
   if (state.player.attack.phase !== "none") cancelAttack(state);
@@ -530,7 +530,7 @@ const CAST: Record<SkillKey, CastFn> = {
     const time = b.duration * params.durationMul;
     state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * params.potencyMul };
     state.skills.lifesteal = { time, mul: b.lifesteal * params.potencyMul };
-    addFloatingText(state, p.body.pos, "BLOOD PACT", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
+    addFloatingText(state, p.body.pos, "血の契約", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
   quake: (state, slot, params, dir) => startActive(state, slot, "quake", params, dir, SKILL.quake.windup * params.timeMul),
@@ -631,7 +631,7 @@ function updateQuake(state: GameState, a: ActiveCast, dt: number): void {
   a.dir = { ...p.facing };
   if (p.hp < a.startHp) {
     state.skills.active = null;
-    addFloatingText(state, p.body.pos, "BROKEN", COLOR_BROKEN, TEXT_SCALE, PARRY_TEXT_LIFE);
+    addFloatingText(state, p.body.pos, "中断", COLOR_BROKEN, TEXT_SCALE, PARRY_TEXT_LIFE);
     return;
   }
   a.timer -= dt;
@@ -961,7 +961,7 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "PARRY!", COLOR_JUST, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
+  addFloatingText(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "parry");
@@ -1277,13 +1277,13 @@ function updateRunes(state: GameState, dt: number): void {
     const def = MODIFIERS[rune.modifier];
     const slot = attachRune(state, rune.modifier);
     if (slot < 0) {
-      if (!rune.warned) addFloatingText(state, rune.pos, "no free link", COLOR_NOT_READY, LABEL_SCALE, LABEL_LIFE);
+      if (!rune.warned) addFloatingText(state, rune.pos, "空き枠なし", COLOR_NOT_READY, LABEL_SCALE, LABEL_LIFE);
       rune.warned = true;
       continue;
     }
     picked.add(rune.id);
-    addFloatingText(state, rune.pos, `${def.name} -> ${slot + 1}`, def.color, LABEL_SCALE, LABEL_LIFE);
-    pushLog(state, `Rune ${def.name} linked to skill ${slot + 1}.`, def.color);
+    addFloatingText(state, rune.pos, `${def.name} → ${slot + 1}`, def.color, LABEL_SCALE, LABEL_LIFE);
+    pushLog(state, `符文「${def.name}」をスキル${slot + 1}に連結した。`, def.color);
     pushSfx(state, "runeAttach");
   }
   if (picked.size > 0) rs.runes = rs.runes.filter((r) => !picked.has(r.id));
@@ -1298,7 +1298,7 @@ function updateFloorStones(state: GameState, dt: number): void {
     if (fs.bobTime < SKILL.drop.pickupDelay) continue;
     if (!circlesOverlap(fs.pos.x, fs.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
     if (!addStone(rs.profile, fs.stone)) {
-      if (!fs.warned) addFloatingText(state, fs.pos, "SKILL STASH FULL", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
+      if (!fs.warned) addFloatingText(state, fs.pos, "スキル倉庫が満杯", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
       fs.warned = true;
       continue;
     }
@@ -1306,7 +1306,7 @@ function updateFloorStones(state: GameState, dt: number): void {
     picked.add(fs.id);
     const label = stoneLabel(fs.stone);
     addFloatingText(state, fs.pos, label, SKILL.drop.stoneColor, LABEL_SCALE, LABEL_LIFE);
-    pushLog(state, `Skill stone: ${label}`, SKILL.drop.stoneColor);
+    pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
     pushSfx(state, "lootRare");
   }
   if (picked.size > 0) rs.floorStones = rs.floorStones.filter((fs) => !picked.has(fs.id));

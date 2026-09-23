@@ -240,7 +240,7 @@ describe("パリィ", () => {
     expect(state.projectiles[0]?.life).toBe(0);
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
     expect(state.skills.slots[0]?.cooldownLeft).toBe(0);
-    expect(state.texts.some((t) => t.text === "PARRY!")).toBe(true);
+    expect(state.texts.some((t) => t.text === "パリィ！")).toBe(true);
   });
 
   it("空振りすると行動不能（ダッシュも不可）", () => {

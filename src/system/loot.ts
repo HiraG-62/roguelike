@@ -92,14 +92,14 @@ export function updateFloorItems(state: GameState, dt: number): void {
 /** stash への追加を試みる。満杯だったら false（アイテムは床に残す） */
 function pickUp(state: GameState, item: Item, pos: Vec): boolean {
   if (!addToStash(state.profile, item)) {
-    addFloatingText(state, pos, "STASH FULL", STASH_FULL_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
-    pushLog(state, "Stash is full. Salvage or equip something first.", STASH_FULL_COLOR);
+    addFloatingText(state, pos, "倉庫が満杯", STASH_FULL_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
+    pushLog(state, "倉庫が満杯だ。先に何かを分解するか装備すること。", STASH_FULL_COLOR);
     return false;
   }
   saveProfile(state.profile);
   const color = RARITY_COLOR[item.rarity];
   addFloatingText(state, pos, item.name, color, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
-  pushLog(state, `Picked up ${item.name}.`, color);
+  pushLog(state, `${item.name}を拾った。`, color);
   pushSfx(state, RARE_RARITIES.has(item.rarity) ? "lootRare" : "pickup");
   return true;
 }

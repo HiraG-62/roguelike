@@ -20,17 +20,17 @@ export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
 };
 
 export const ELITE_PREFIX: Readonly<Record<EliteKind, string>> = {
-  explosive: "Explosive",
-  reflective: "Reflective",
-  shielded: "Shielded",
-  hasted: "Hasted",
-  linked: "Linked",
+  explosive: "爆裂の",
+  reflective: "反射の",
+  shielded: "障壁の",
+  hasted: "迅速の",
+  linked: "連結の",
 };
 
 const DEG_TO_RAD = Math.PI / 180;
-const BLOCK_TEXT = "BLOCK";
-const BREAK_TEXT = "BREAK";
-const GUARD_BREAK_TEXT = "GUARD BREAK";
+const BLOCK_TEXT = "ブロック";
+const BREAK_TEXT = "破壊";
+const GUARD_BREAK_TEXT = "ガードブレイク";
 const BLOCK_PARTICLES = 6;
 const GUARD_BREAK_PARTICLES = 10;
 const REFLECT_PARTICLES = 5;
@@ -95,7 +95,7 @@ export function shieldLeft(e: Enemy): number {
 
 export function eliteDisplayName(e: Enemy): string {
   const name = enemyDef(e.defKey).name;
-  return e.elite ? `${ELITE_PREFIX[e.elite]} ${name}` : name;
+  return e.elite ? `${ELITE_PREFIX[e.elite]}${name}` : name;
 }
 
 /** 毎ステップ、敵の行動より前に呼ぶ: シールド破壊と Linked の HP 共有 */

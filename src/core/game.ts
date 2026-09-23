@@ -82,7 +82,7 @@ export function createGame(
     boonRun: createBoonRunState(),
   };
   buildFloor(state);
-  pushLog(state, "WASD move / Space dash / LMB or E slash / RMB or Q shoot / F burst", "#ffd75f");
+  pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");
   return state;
 }
 

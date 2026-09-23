@@ -18,6 +18,24 @@ export const KS = {
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
 
+/**
+ * キーストーンの表示名（日本語）。key は src/loot/affixes.ts の KEYSTONES.key と揃える。
+ * affixes.ts 側を import できないので、ここに小さな表として直接持つ
+ * （ks_glassCannon / ks_windWalker は数値だけのキーストーンで KS には無いが、表示名はここで引く）
+ */
+export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
+  ks_glassCannon: "硝子の砲",
+  ks_berserker: "狂戦士",
+  ks_blink: "瞬歩",
+  ks_pacifist: "不殺",
+  ks_juggernaut: "不動",
+  ks_gambler: "賭博師",
+  ks_vampire: "吸血",
+  ks_overclock: "過駆動",
+  ks_bladeOath: "剣の誓い",
+  ks_windWalker: "風走り",
+};
+
 export function hasKeystone(state: GameState, key: KeystoneKey): boolean {
   return state.stats.keystones.includes(key);
 }

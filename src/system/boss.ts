@@ -70,7 +70,7 @@ export function announceBoss(state: GameState): void {
   pushSfx(state, "roomLock");
   pushSfx(state, "enemyWindup");
   pushSfx(state, "bossAppear");
-  pushLog(state, `${b.name} appears!`, BOSS_TEXT_COLOR);
+  pushLog(state, `${b.name}が現れた！`, BOSS_TEXT_COLOR);
 }
 
 export function bossEnemy(state: GameState): Enemy | undefined {
@@ -204,7 +204,7 @@ function landKingSlime(state: GameState, e: Enemy, def: EnemyDef): void {
 }
 
 function splitKingSlime(state: GameState, e: Enemy): void {
-  phaseShift(state, e, "SPLIT!", SPLIT_TEXT_COLOR);
+  phaseShift(state, e, "分裂！", SPLIT_TEXT_COLOR);
   const ks = BOSS.kingSlime;
   const slime = enemyDef("slime");
   for (let i = 0; i < ks.splitCount; i++) {
@@ -225,7 +225,7 @@ function updateBoneLord(state: GameState, e: Enemy, def: EnemyDef, dt: number): 
   if (!ai) return;
   const bl = BOSS.boneLord;
   if (ai.stage === STAGE_ONE && e.hp <= e.maxHp * bl.teleportRatio) {
-    phaseShift(state, e, "ENRAGED", RAGE_TEXT_COLOR);
+    phaseShift(state, e, "激怒", RAGE_TEXT_COLOR);
     ai.timer = bl.teleportInterval;
   }
   const dir = toPlayerDir(state, e);
@@ -379,8 +379,8 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   state.flash = 1;
   state.slowmo = Math.max(state.slowmo, BOSS.defeatSlowmo);
   shake(state, FEEL.shakeSpecial);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 20 }, `${b.name} DEFEATED`, DEFEAT_TEXT_COLOR, 1.8, 2);
-  pushLog(state, `${b.name} has fallen. The stairs appear.`, DEFEAT_TEXT_COLOR);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 20 }, `${b.name} 撃破`, DEFEAT_TEXT_COLOR, 1.8, 2);
+  pushLog(state, `${b.name}を倒した。階段が現れた。`, DEFEAT_TEXT_COLOR);
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   for (let i = 0; i < BOSS.rareDrops; i++) dropRareItem(state, e.body.pos, i);

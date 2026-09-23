@@ -21,9 +21,9 @@ import { circlesOverlap, overlapsWall } from "./physics";
 // -----------------------------------------------------------------------------
 
 export const FLOOR_KIND_LABEL: Readonly<Record<FloorKind, string>> = {
-  rooms: "HALLS",
-  cave: "CAVE",
-  dark: "DARK",
+  rooms: "回廊",
+  cave: "洞窟",
+  dark: "暗闇",
 };
 
 const MAP_SHAPE: Readonly<Record<FloorKind, MapShape>> = {
@@ -108,7 +108,7 @@ export function assignRoomKinds(state: GameState, reserved: ReadonlySet<number>)
 // 宝物庫
 // -----------------------------------------------------------------------------
 
-const TREASURE_TEXT = "TREASURE";
+const TREASURE_TEXT = "宝物庫";
 const TREASURE_TEXT_SCALE = 1.6;
 const TREASURE_TEXT_LIFE = 1.4;
 const COIN_SPEED = 140;
@@ -134,7 +134,7 @@ export function openTreasure(state: GameState, room: RoomState): void {
   }
   spawnBurst(state, c, ROOM_KIND.treasureCoinColor, ROOM_KIND.treasureCoinParticles, COIN_SPEED, COIN_LIFE, COIN_SIZE);
   addFloatingText(state, textPos(state), TREASURE_TEXT, ROOM_KIND.treasureCoinColor, TREASURE_TEXT_SCALE, TREASURE_TEXT_LIFE);
-  pushLog(state, "A treasure vault!", ROOM_KIND.treasureCoinColor);
+  pushLog(state, "宝物庫だ！", ROOM_KIND.treasureCoinColor);
   pushSfx(state, "lootRare");
   pushSfx(state, "treasureOpen");
 }
@@ -150,7 +150,7 @@ const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const RARE_ITEM_LEVEL_BONUS = 1;
 
 export function waveText(wave: number): string {
-  return `WAVE ${wave}/${ROOM_KIND.challengeWaves}`;
+  return `第${wave}波/${ROOM_KIND.challengeWaves}`;
 }
 
 /** 次の波へ。spawn は floor.ts の湧かせ処理（循環 import を避けるため受け取る） */
@@ -188,8 +188,8 @@ export function dropRareItem(state: GameState, pos: Vec): void {
 // 泉（shrine）と呪い
 // -----------------------------------------------------------------------------
 
-const BLESS_TEXT = "RESTORED";
-const CURSE_TEXT = "CURSED";
+const BLESS_TEXT = "回復";
+const CURSE_TEXT = "呪い";
 const SHRINE_PARTICLES = 24;
 const SHRINE_PARTICLE_SPEED = 90;
 const SHRINE_PARTICLE_LIFE = 0.7;
@@ -231,7 +231,7 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
   addFloatingText(state, textPos(state), BLESS_TEXT, ROOM_KIND.shrineColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
   const below = { x: p.body.pos.x, y: p.body.pos.y + CURSE_TEXT_DELAY_LIFT };
   addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE);
-  pushLog(state, "The fountain heals you... the next room grows restless.", ROOM_KIND.cursedColor);
+  pushLog(state, "泉があなたを癒した…次の部屋は荒れ模様だ。", ROOM_KIND.cursedColor);
   pushSfx(state, "heal");
   pushSfx(state, "fountainHeal");
 }
@@ -258,7 +258,7 @@ export function applyCurse(state: GameState, roomIndex: number): void {
 // 伏兵
 // -----------------------------------------------------------------------------
 
-const AMBUSH_TEXT = "AMBUSH!";
+const AMBUSH_TEXT = "伏兵！";
 
 export function announceAmbush(state: GameState): void {
   addFloatingText(state, textPos(state), AMBUSH_TEXT, ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);

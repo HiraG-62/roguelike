@@ -7,7 +7,7 @@ import { ACTION, FEEL, KEYSTONE, PLAYER } from "../data/tuning";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
-import { KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
+import { KEYSTONE_NAME, KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt } from "./statusEffects";
 import {
@@ -316,7 +316,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
 
 function tryAttack(state: GameState): void {
   if (hasKeystone(state, KS.pacifist)) {
-    addFloatingText(state, state.player.body.pos, "pacifist", PACIFIST_COLOR, 0.9, 0.4);
+    addFloatingText(state, state.player.body.pos, KEYSTONE_NAME[KS.pacifist] ?? KS.pacifist, PACIFIST_COLOR, 0.9, 0.4);
     return;
   }
   if (boonBlocksMelee(state)) return;
@@ -548,7 +548,7 @@ function tryShoot(state: GameState): void {
   if (p.shootCooldown > 0 || isAttacking(p)) return;
   if (isDashing(p) && !canShootWhileDashing(state)) return;
   if (hasKeystone(state, KS.bladeOath)) {
-    addFloatingText(state, p.body.pos, "blade oath", PACIFIST_COLOR, 0.9, 0.4);
+    addFloatingText(state, p.body.pos, KEYSTONE_NAME[KS.bladeOath] ?? KS.bladeOath, PACIFIST_COLOR, 0.9, 0.4);
     p.shootCooldown = BLADE_OATH_TEXT_INTERVAL;
     return;
   }
@@ -587,7 +587,7 @@ function tryShoot(state: GameState): void {
 function trySpecial(state: GameState): boolean {
   const p = state.player;
   if (p.energy < PLAYER.special.cost) {
-    addFloatingText(state, p.body.pos, "not ready", "#808080", 0.9, 0.4);
+    addFloatingText(state, p.body.pos, "未充填", "#808080", 0.9, 0.4);
     return false;
   }
   p.energy = 0;
@@ -610,7 +610,7 @@ function trySpecial(state: GameState): boolean {
   }
   spawnBurst(state, p.body.pos, "#ffd75f", 40, 260, 0.5, 3);
   spawnBurst(state, p.body.pos, "#ffffff", 20, 120, 0.3, 2);
-  addFloatingText(state, p.body.pos, "BURST!", "#ffd75f", 1.8, 0.8);
+  addFloatingText(state, p.body.pos, "バースト！", "#ffd75f", 1.8, 0.8);
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeSpecial);
   state.flash = Math.max(state.flash, 0.5);

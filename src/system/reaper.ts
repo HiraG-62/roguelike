@@ -13,7 +13,7 @@ import { circlesOverlap } from "./physics";
  */
 
 const FULL_CIRCLE = Math.PI * 2;
-const WARN_TEXT = "THE REAPER COMES";
+const WARN_TEXT = "死神が来る";
 const SPAWN_PARTICLES = 30;
 const TRAIL_INTERVAL = 5;
 /** 警告中のパルス音の間隔（tick）。60fps 想定でおよそ 1.5 秒ごと */
@@ -67,7 +67,7 @@ function spawnReaper(state: GameState): void {
   state.reaper = { pos, radius: REAPER.radius, animTime: 0 };
   spawnBurst(state, pos, REAPER.color, SPAWN_PARTICLES, 120, 0.8, 2.5);
   addFloatingText(state, { x: state.player.body.pos.x, y: state.player.body.pos.y - 20 }, WARN_TEXT, REAPER.color, 1.5, 2);
-  pushLog(state, "You lingered too long. The Reaper comes.", REAPER.color);
+  pushLog(state, "長居しすぎた。死神が来る。", REAPER.color);
   shake(state, 4);
   pushSfx(state, "enemyWindup");
   pushSfx(state, "reaperAppear");

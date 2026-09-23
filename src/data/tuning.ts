@@ -361,7 +361,7 @@ export const ACTION = {
     damageMul: 1.5,
     /** 通常の hitstop に足すステップ */
     hitstopBonus: 2,
-    text: "COUNTER!",
+    text: "カウンター！",
     color: "#ff9040",
     textScale: 1.6,
     textLife: 0.7,
@@ -372,7 +372,7 @@ export const ACTION = {
     /** スローモーション（実時間秒） */
     slowmo: 0.5,
     flash: 0.85,
-    text: "CLEAR",
+    text: "殲滅",
     color: "#ffffff",
     textScale: 2.6,
     textLife: 1.2,
@@ -404,7 +404,7 @@ export const ACTION = {
     /** 敵の縁からこの距離だけ手前で止まる（px） */
     gap: 2,
     hitstopBonus: 3,
-    text: "JUST COUNTER",
+    text: "ジャストカウンター",
     color: "#60e0ff",
     textScale: 1.7,
     textLife: 0.8,
@@ -420,7 +420,7 @@ export const ACTION = {
     pierce: 2,
     /** 反射弾の残り寿命の下限（秒） */
     minLife: 1,
-    text: "PARRY",
+    text: "パリィ",
     color: "#ffe080",
     textScale: 1.2,
     textLife: 0.5,

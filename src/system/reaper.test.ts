@@ -20,7 +20,7 @@ describe("Reaper", () => {
     expect(state.player.energy).toBe(energyBefore);
     expect(state.slowmo).toBe(0);
     expect(state.player.dodgedThisDash).toBe(false);
-    expect(state.texts.some((t) => t.text === "JUST!")).toBe(false);
+    expect(state.texts.some((t) => t.text === "ジャスト！")).toBe(false);
   });
 
   it("無敵でなければ通常通りダメージを受ける", () => {

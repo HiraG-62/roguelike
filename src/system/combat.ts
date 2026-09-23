@@ -326,7 +326,7 @@ function killPlayer(state: GameState): void {
   spawnBurst(state, p.body.pos, "#ffffff", 40, 220, 0.9, 3);
   state.slowmo = DEATH_SLOWMO;
   pushSfx(state, "death");
-  pushLog(state, `You died on depth ${state.depth}.`, COLOR_HURT);
+  pushLog(state, `あなたは倒れた（地下${state.depth}階）。`, COLOR_HURT);
   recordRunOnce(state);
 }
 
@@ -354,7 +354,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "JUST!", COLOR_JUST, 1.5, 0.7);
+  addFloatingText(state, p.body.pos, "ジャスト！", COLOR_JUST, 1.5, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");

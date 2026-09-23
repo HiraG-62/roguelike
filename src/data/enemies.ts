@@ -47,7 +47,7 @@ export interface EnemyDef {
 export const ENEMIES: readonly EnemyDef[] = [
   {
     key: "slime",
-    name: "slime",
+    name: "スライム",
     sprite: "slime",
     radius: 6,
     hp: 20,
@@ -67,7 +67,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "eye",
-    name: "floating eye",
+    name: "浮遊眼",
     sprite: "eye",
     radius: 6,
     hp: 14,
@@ -87,7 +87,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "boar",
-    name: "boar",
+    name: "猪",
     sprite: "boar",
     radius: 7,
     hp: 60,
@@ -107,7 +107,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "knight",
-    name: "shield knight",
+    name: "盾騎士",
     sprite: "knight",
     radius: 7,
     hp: 55,
@@ -127,7 +127,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "bomber",
-    name: "bomber goblin",
+    name: "爆弾ゴブリン",
     sprite: "bomber",
     radius: 6,
     hp: 26,
@@ -147,7 +147,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "laserEye",
-    name: "laser eye",
+    name: "光線眼",
     sprite: "laserEye",
     radius: 6,
     hp: 24,
@@ -167,7 +167,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "golem",
-    name: "golem",
+    name: "ゴーレム",
     sprite: "golem",
     radius: 10,
     hp: 140,
@@ -187,7 +187,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "bat",
-    name: "bat",
+    name: "蝙蝠",
     sprite: "bat",
     radius: 4,
     hp: 7,
@@ -208,7 +208,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "wisp",
-    name: "wisp",
+    name: "鬼火",
     sprite: "wisp",
     radius: 5,
     hp: 18,
@@ -229,7 +229,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "kingSlime",
-    name: "King Slime",
+    name: "スライム王",
     sprite: "kingSlime",
     radius: 14,
     hp: 700,
@@ -250,7 +250,7 @@ export const ENEMIES: readonly EnemyDef[] = [
   },
   {
     key: "boneLord",
-    name: "Bone Lord",
+    name: "骸骨卿",
     sprite: "boneLord",
     radius: 12,
     hp: 900,
