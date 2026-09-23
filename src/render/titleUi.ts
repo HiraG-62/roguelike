@@ -8,6 +8,7 @@ import type { RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import { PAUSE_MENU_ITEMS, SETTINGS_ITEMS, dailyBestIndices, isDailyEntry } from "../ui/title";
 import type { Settings } from "../ui/settings";
 import { TEXT, drawText, drawTextShadow, textLineHeight } from "./pixelText";
+import { APP_VERSION } from "../version";
 
 const COLOR_BG = "#08080c";
 const COLOR_TITLE = "#ffd75f";
@@ -16,6 +17,13 @@ const TITLE_Y = 80;
 const TITLE_SHADOW_OFFSET = 2;
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
+const COLOR_VERSION = "#808080";
+/** 画面端からの余白（右下の操作一覧） */
+const SCREEN_MARGIN = 8;
+/** 画面端からバージョン表示までの余白 */
+const VERSION_MARGIN = 6;
+/** ポーズパネル下端からバージョン表示のベースラインまで */
+const PAUSE_VERSION_GAP = 14;
 const COLOR_ACCENT = "#6a8cff";
 const COLOR_CURSOR = "#ffffff";
 const COLOR_OVERLAY = "rgba(0,0,0,0.65)";
@@ -219,7 +227,9 @@ export function drawTitle(
     "E / 左クリック: 近接、Q / 右クリック: 射撃、F: バースト",
   ];
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
-  let cy = VIEW_H - 8 - (controls.length - 1) * lineH;
+  // 右下の隅にバージョン表示、その上に操作一覧
+  drawVersion(ctx, VIEW_W - VERSION_MARGIN, VIEW_H - VERSION_MARGIN, "right");
+  let cy = VIEW_H - SCREEN_MARGIN - controls.length * lineH;
   for (const line of controls) {
     drawText(ctx, line, VIEW_W - 8, cy, TEXT.SMALL, COLOR_DIM, "right");
     cy += lineH;
@@ -356,6 +366,11 @@ export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number): vo
     const label = PAUSE_LABEL[item];
     drawText(ctx, active ? `> ${label} <` : label, VIEW_W / 2, itemY + i * itemGap, TEXT.SMALL, active ? COLOR_CURSOR : COLOR_DIM, "center");
   });
+  drawVersion(ctx, VIEW_W / 2, panelY + panelH + PAUSE_VERSION_GAP, "center");
+}
+
+function drawVersion(ctx: CanvasRenderingContext2D, x: number, y: number, align: "center" | "right"): void {
+  drawText(ctx, APP_VERSION, x, y, TEXT.SMALL, COLOR_VERSION, align);
 }
 
 function barText(value: number): string {
