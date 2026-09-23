@@ -1,0 +1,169 @@
+# CLAUDE.md（roguelike プロジェクト）
+
+ブラウザで動くリアルタイム・トップダウンアクションローグライク（Hades / Nuclear Throne 系）。TypeScript + Vite + Vitest、Canvas 2D、**ランタイム依存なし**。手動操作（オート攻撃なし）、テレグラフを読んで避けて殴る。永続する装備ドロップ（ゴール装備を作らない設計）、永続のスキル石、ラン内の刻印符・祝福を持つ。趣味開発で「機能を足し続けて遊べる」ことが最優先。
+
+- 現在の要素一覧・操作・次の候補: `IDEAS.md` の「現状」節（ここに重複して書かない）
+- 応答・コメント・コミットは日本語（ユーザーのグローバル設定に従う）
+
+## コマンド
+
+| コマンド | 内容 |
+| --- | --- |
+| `npm run dev` | 開発サーバ（Vite） |
+| `npm run check` | tsc → vitest → vite build を順に実行。1 つでも失敗で非 0。**作業完了の判定はこれ** |
+| `npm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
+| `npm run qa:full` | `SIM_FULL=1` でフル QA（30 seed × 3 装備 × 60,000 step、数分）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
+| `npm run build` | tsc --noEmit + vite build |
+| `node scripts/bump.mjs <patch / minor / major>` | バージョンを上げてコミットとタグを作る（下の「バージョニング」） |
+
+単体で回すとき: `npx vitest run src/system/boons.test.ts`、`npx tsc --noEmit`。
+
+## アーキテクチャの地図
+
+詳細は `docs/ARCHITECTURE.md`。
+
+```
+src/
+  main.ts   ブラウザ側の配線（入力取得・ループ・画面遷移・永続化・効果音 drain・リプレイ記録）
+  core/     決定的シミュレーションの核
+  system/   ゲームロジック（state を読み書き）
+  loot/     装備（生成・集計・クラフト・永続化）。純関数中心
+  skills/   スキル石・刻印符のデータと型、設置物、スキル被弾処理
+  map/      グリッド・部屋+通路生成・洞窟生成（純関数）
+  render/   Canvas 描画（state を読むだけ）
+  ui/       画面ロジック（DOM 非依存。タイトル・装備画面・設定・リプレイ保存）
+  audio/    Web Audio 合成の効果音
+  data/     tuning（手触り定数）/ enemies（敵定義）/ sprites（ピクセルマップ）
+  qa/       ヘッドレス bot とシミュレーション、report.md
+```
+
+### core
+- `createGame(seed, seedText, profile, skillProfile)` → `GameState`。`step(state, input: FrameInput, dt)` が 1 固定ステップ
+- 固定 60Hz（`core/loop.ts` の `FIXED_DT`）。ロジックは `FrameInput` と `dt` だけを見る
+- 乱数は `state.rng`（mulberry32、`core/rng.ts`）だけ。`Math.random` は `audio/synth.ts` の音の揺らぎ以外で禁止
+- `Date.now()` はアイテム / スキル石の `id` と `foundAt` を作る `now` 引数にだけ使う（ゲーム進行に影響させない）。`main.ts` の計時は別
+- `core/replay.ts`: seed + FrameInput 列 + 装備スナップショット + 装備変更イベントで再現。`core/input.ts` / `gamepad.ts` が入力、`view.ts` が 480x270
+
+### system（`step` の呼び出し順: player → boons → statusEffects → enemies → projectiles → hazards → floor(updateRooms) → reaper → combo → effects → camera）
+- `player.ts` 移動・ダッシュ・3 段コンボ・射撃・バースト・JUST・ダッシュ攻撃。`applyStats` で stats を反映
+- `combat.ts` 与ダメ / 被ダメの唯一の入口（`damageEnemy` / `damagePlayer` / `healPlayer`）、コンボ倍率、armor 逓減、リゲイン
+- `enemies.ts` 敵 AI（phase: idle → chase → windup → strike → recover、stagger）。behavior ごとの分岐
+- `elites.ts` エリート修飾子 5 種 / `boss.ts` 階層ボス / `reaper.ts` 長居すると出る追跡者
+- `projectiles.ts` 弾 / `hazards.ts` 地面に残る攻撃（爆弾・レーザー・衝撃波・着地・骨壁・プレイヤーの炎）と予告
+- `floor.ts` フロア構築・部屋ロック・階段・`descend` / `roomTypes.ts` フロア種別と部屋種類 / `explore.ts` ミニマップ用探索
+- `statusEffects.ts` burn / chill / shock / 撃破時爆発 / `triggers.ts` 装備トリガーの発火 / `keystones.ts` キーストーン判定と日本語名
+- `boons.ts` 祝福 3 択（定義・抽選・各フック）/ `skills.ts` スキル発動・CD・刻印符 / `loot.ts` ドロップ
+- `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
+
+### その他
+- loot: `types.ts`（Item / PlayerStats / Profile）、`affixes.ts`（アフィックス・キーストーン・implicit）、`bases.ts`、`generator.ts`（生成 + `UNIQUES`）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`crafting.ts`、`profile.ts` / `craftingStore.ts`（永続化）
+- skills: `types.ts`（`SKILL_KEYS` / `MODIFIER_KEYS`）、`data.ts`（`SKILL_DEFS` / `MODIFIERS` / `SKILL` 定数 / `resolveCast`）、`generator.ts`、`placed.ts`（設置物）、`hit.ts`、`persistence.ts`
+- render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`
+- audio: `sfxNames.ts`（`SFX_NAMES`）、`sfx.ts`（`SFX_DEFINITIONS`）、`synth.ts`
+
+## 不変条件（破ったらレビューで差し戻す）
+
+1. **ロジックと描画の分離**: system は state を読み書きし、render は state を読むだけ。描画から state を書き換えない
+2. **描画で `state.rng` を消費しない**。見た目のばらつきは `renderMath.ts` の `tileHash` など座標ハッシュを使う
+3. **決定性**: 同じ seed + 同じ FrameInput 列 → 同じ結果。`Math.random` や実時間に依存しない。リプレイテスト（`core/replay.test.ts`）を壊さない
+4. **手触り・バランスの数値は `src/data/tuning.ts`**（スキルは `skills/data.ts` の `SKILL`、祝福は tuning の `BOON`）。ロジック中に数値を直書きしない
+5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`（DotGothic16 のドット風描画、サイズは `TEXT.SMALL/BODY/TITLE/BIG`）で描く。`ctx.fillText` / `measureText` / `ctx.font` の直接使用は禁止（`uiFont` はフォント未ロード時のフォールバック専用）。**等幅前提の文字数計算は禁止**、行高は `Math.max(定数, textLineHeight())`
+6. **座標は 480x270 の論理座標**（`core/view.ts` の `VIEW_W` / `VIEW_H`）。DPR 拡大は Renderer の transform が担う
+7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts が `audio/sfx.ts` で行う
+8. **永続化**: localStorage は loot/profile・craftingStore・skills/persistence・ui/settings・ui/replayStore 経由のみ。壊れたデータは黙ってデフォルトへ落とす。キーの形式を変えるなら `v2` を切る
+9. **型**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので配列 / Record の添字結果は undefined を扱う
+10. **コード作法**: マジックナンバーは定数化、早期リターンでネストを浅く、関数は単一責任。コメントは日本語で「なぜ」を書く
+11. **テスト**: Vitest。`it` / `describe` の名前とアサーションメッセージは日本語。新しい仕組みには必ずテストを付ける
+12. **UI の方針**: 単一指標（DPS・アイテムスコア）を出さない。ツールチップは「何ができるか」を語る（`docs/DESIGN_PRINCIPLES.md`）
+13. **用語**: 表示文字列は `docs/GLOSSARY.md` の表記に揃える。内部 key（英語）は変えない
+
+## 要素の足し方（レシピ）
+
+各レシピの最後は `npm run check`。サブエージェントに任せるときは `/add-enemy` などの skill を使う。
+
+### 敵
+1. `src/data/enemies.ts`: `EnemyBehavior` に追加（既存 behavior の流用なら不要）、`ENEMIES` に `EnemyDef`（`name` は日本語、`minDepth` / `weight` / `windup` はテレグラフが読める長さ）
+2. `src/system/enemies.ts`: `STRIKE_SPEED_MUL` / `WINDUP_MOVE_MUL`（`Record<EnemyBehavior, number>` なので追加漏れは型エラー）と behavior の分岐。AI の数値は tuning の `ENEMY_AI`
+3. `src/data/sprites.ts`: `SPRITES[def.sprite]` を追加（下記スプライト）。`render/sprites.test.ts` が全敵のスプライト存在を検査する
+4. 必要なら `render/renderer.ts` に専用の予告表現、`audio` に効果音
+5. テスト: `system/enemies.test.ts` に「windup → strike で当たる」「予告中は無害」など
+
+### アフィックス / ユニーク / ベース
+- アフィックス: `src/loot/affixes.ts` の `AFFIXES` に `PrefixDef` / `SuffixDef`（`tiers`、`slots`、`tags`、`apply`）。値は表示単位（+25% なら 25）。新しい stat が要るなら `loot/types.ts` の `PlayerStats` と `DEFAULT_STATS` に追加し、system 側で読む。強いものほどトレードオフを付ける
+- 変換: `CONVERSION_AFFIXES`（key は `cv_`）。キーストーン: `KEYSTONES`（key は `ks_`、`group` で排他）+ `system/keystones.ts` の `KS` / `KEYSTONE_NAME`
+- ユニーク: `src/loot/generator.ts` の `UNIQUES`（`baseKey` / 固定アフィックス / 任意でキーストーン）。未知 key は生成時に throw するのでテストで気付ける
+- ベース: `src/loot/bases.ts` の `BASES` + `affixes.ts` の `IMPLICITS`
+- テスト: `loot/affixes.test.ts` / `generator.test.ts` / `stats.test.ts`
+
+### スキル / 刻印符
+- スキル石: `skills/types.ts` の `SKILL_KEYS` → `skills/data.ts` の `SKILL_DEFS`（tags / damageKind / 基礎 CD）と `SKILL` 定数 → `system/skills.ts` の `castSlot` に発動処理（設置物なら `skills/placed.ts`）→ `render/skillHud.ts` / `renderer.ts` の表現
+- 刻印符: `MODIFIER_KEYS` → `MODIFIERS`（`canAttach` の条件）→ `resolveCast` に効果
+- **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
+
+### 祝福
+1. `src/system/boons.ts`: `BOON_KEYS` と `BOONS`（name / desc は日本語、`tags`、`cursed`、必要なら `requires`）
+2. 効果: 数値なら `foldBoonStats`、ルール変更なら既存フック（`onBoonMeleeHit` / `onBoonKill` / `onBoonDash` …）か、呼び出し側 system で `hasBoon` 分岐。数値は tuning の `BOON`
+3. 原則: **数値盛りではなくルール変更**。装備タグと掛け算になる形にする
+4. テスト: `system/boons.test.ts`
+
+### 部屋種類
+- `core/state.ts` の `RoomKind` → `system/roomTypes.ts`（`assignRoomKinds` / 開始時処理）→ tuning の `ROOM_KIND` → 描画（`renderer.ts`、`minimap.ts`）→ `system/roomTypes.test.ts`
+- フロア種別は `FloorKind` と `chooseFloorKind`、tuning の `FLOOR_KIND`
+
+### 効果音
+- `audio/sfxNames.ts` の `SFX_NAMES` に名前 → `audio/sfx.ts` の `SFX_DEFINITIONS` に合成定義（`Record<SfxName, …>` なので漏れは型エラー）→ ロジックから `pushSfx`
+
+### スプライト
+- `src/data/sprites.ts` の `SPRITES` にフレーム配列（1 フレーム = 文字列の行配列）。`'.'` は透明、他は `PALETTE` の 1 文字。キャラは **右向き** で描く（左は描画側で反転）
+- 通常 16x16、ボス 32x32、ゴーレム 24x24、小物 8x8 / 12x12。歩行は 4 フレーム。全フレーム同寸
+- 新色は `PALETTE` に 1 文字キーで追加。テスト（`render/sprites.test.ts`）が寸法・パレット・空フレームを検査
+
+## 並列開発の作法
+
+詳細とプロンプト雛形は `docs/AI_WORKFLOW.md`。
+
+- 機能を **ファイル所有** で分割し、Agent ごとに「所有ファイル / 編集禁止 / 先に読むもの / 完了条件 / 報告形式」を渡す（`/parallel`）
+- 共有ファイル（`core/state.ts` / `core/game.ts` / `data/tuning.ts` / `render/renderer.ts` / `main.ts`）は **最小の Edit のみ**。全文 Write で書き換えない（他 Agent の変更を消す）
+- Agent は **コミットしない**。統合側が `git add <所有ファイル>` で論理単位ごとにコミットする（`git add -A` 禁止）
+- 一時ファイルはリポジトリに置かない（scratchpad を使う）
+- 完了報告の形式:
+  - 変更ファイル（新規 / 変更）
+  - 追加した型フィールド・定数・公開関数
+  - 統合手順（共有ファイルに入れるべき Edit があれば差分の形で）
+  - テスト結果（`npm run check` の成否と件数。失敗が他 Agent 起因ならその旨）
+- サブエージェント定義は `.claude/agents/`（implementer / reviewer / qa-runner / brainstormer / pixel-artist / localizer / balance-tuner）
+- skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/release-notes` `/bump`
+
+## バージョニング
+
+- 形式はメジャー.マイナー.パッチ。版の定義元は `package.json` / `src/version.ts`（`APP_VERSION` 表示用、`APP_VERSION_SEMVER`、`RELEASE_PHASE`）/ `CHANGELOG.md`。手で書き換えず `scripts/bump.mjs` を使う（`/bump`）
+- **メジャー**: 大規模アップデートのみ。**ユーザーの指示がない限り動かさない**（スクリプトも `--force-major` が無ければ拒否）
+- **マイナー**: 機能追加・それなりに大きな変更
+- **パッチ**: 小規模な追加・変更・バグ修正・整備作業
+- **α 期間**: ある程度形になるまでは α 版。表示は「0.0.xxα」で、minor 相当の変更でもパッチ番号を上げる。package.json は semver（`0.0.1`）、git タグは `v0.0.1`、α は表示だけ。α を抜けるのもユーザーの指示があるときだけ（`--end-alpha`）
+- 変更内容はコミットのたびに統合役が `CHANGELOG.md` の `[Unreleased]` へ日本語で追記する（並列の Agent は触らない）。bump がそれを新しい版の節へ移す
+- 版を上げるタイミングは統合役が決める（まとまった変更を統合し、`npm run check` が通った後）
+
+## コミット
+
+- 形式 `<type>: <日本語の概要>`（feat / fix / refactor / docs / style / test / chore）。1 コミット = 1 論理変更
+- ユーザーの指示があるまでコミットしない
+
+## ドキュメント索引
+
+| ファイル | 内容 |
+| --- | --- |
+| `IDEAS.md` | 企画メモと「現状」（引き継ぎの起点） |
+| `CHANGELOG.md` | 版ごとの変更履歴（Keep a Changelog 風） |
+| `docs/ARCHITECTURE.md` | データフロー・型の関係・決定性とリプレイ・永続化キー |
+| `docs/AI_WORKFLOW.md` | 設計 → 並列実装 → レビュー → QA → 統合の手順と Agent プロンプト雛形 |
+| `docs/DESIGN_PRINCIPLES.md` | ゲームデザインの原則 |
+| `docs/GLOSSARY.md` | 用語と日本語表記の統一 |
+| `docs/LOOT_DESIGN.md` | 装備システムの設計 |
+| `docs/ideas/README.md` | ブレスト一覧と実装済み / 未実装チェックリスト |
+| `docs/ideas/*.md` | 手触り / ビルド多様性 / ラン構造 / スキル / 装備の独自性 のブレスト |
+| `src/qa/report.md` | 最新のフル QA 結果 |
+
+## 導入しないもの
+
+- Prettier / ESLint は入れない（依存を増やさない方針）。書式は `.editorconfig`（LF・UTF-8・2 スペース）と既存コードに合わせる。整形の揺れが問題になったら Prettier を devDependency だけで入れる案を検討する

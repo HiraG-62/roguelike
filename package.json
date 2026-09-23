@@ -1,14 +1,16 @@
 {
   "name": "roguelike",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check": "node scripts/check.mjs",
+    "qa:full": "node scripts/qa-full.mjs"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
