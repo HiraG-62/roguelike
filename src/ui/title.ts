@@ -6,6 +6,7 @@
 import type { Item, Profile, Rarity, RunHistoryEntry } from "../loot/types";
 import { RARITIES } from "../loot/types";
 import { isDailySeedText, isPlayable, type ReplayData } from "../core/replay";
+import { VIEW_H, VIEW_W } from "../core/view";
 
 // ---------------------------------------------------------------------------
 // シード入力
@@ -181,7 +182,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 export const PAUSE_MENU_ITEMS = ["resume", "settings", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
-export const SETTINGS_ITEMS = ["mute", "volume", "screenShake"] as const;
+export const SETTINGS_ITEMS = ["mute", "volume", "screenShake", "close"] as const;
 export type SettingsItem = (typeof SETTINGS_ITEMS)[number];
 
 /** move 系の値が 0 → 非0 に変わった瞬間だけ、その符号を返す（連射防止のエッジ検出） */
@@ -192,6 +193,87 @@ export function edgeDir(prev: number, curr: number): number {
 
 export function cycleIndex(index: number, delta: number, length: number): number {
   return (((index + delta) % length) + length) % length;
+}
+
+// ---------------------------------------------------------------------------
+// ポーズ / 設定メニューのレイアウト
+// 描画（render/titleUi.ts）とマウスの当たり判定（main.ts）が同じ矩形を見るように、
+// パネル・項目の位置計算をここへ集約する。行の高さ（itemGap / rowGap）は
+// textLineHeight 由来なので、呼び出し側が同じ値を渡すことで両者が一致する。
+// ---------------------------------------------------------------------------
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function pointInRect(x: number, y: number, r: Rect): boolean {
+  return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
+/** count 個の行矩形。テキストの基準線が firstY + i*gap に来る前提で、その周囲 gap ぶんを当たり判定にする */
+function rowRects(count: number, panelX: number, firstY: number, panelW: number, gap: number): Rect[] {
+  return Array.from({ length: count }, (_, i) => ({
+    x: panelX,
+    y: firstY + i * gap - gap / 2,
+    w: panelW,
+    h: gap,
+  }));
+}
+
+export const PAUSE_PANEL_W = 160;
+export const PAUSE_PANEL_H = 96;
+/** パネル上端から最初の項目のテキスト基準線までの距離 */
+const PAUSE_ITEM_TOP = 36;
+
+export interface PauseMenuLayout {
+  panel: Rect;
+  /** PAUSE_MENU_ITEMS と同じ順の当たり判定矩形（パネル幅いっぱい） */
+  items: readonly Rect[];
+}
+
+export function pauseMenuLayout(itemGap: number): PauseMenuLayout {
+  const panelX = (VIEW_W - PAUSE_PANEL_W) / 2;
+  const panelY = (VIEW_H - PAUSE_PANEL_H) / 2;
+  const panel: Rect = { x: panelX, y: panelY, w: PAUSE_PANEL_W, h: PAUSE_PANEL_H };
+  const items = rowRects(PAUSE_MENU_ITEMS.length, panelX, panelY + PAUSE_ITEM_TOP, PAUSE_PANEL_W, itemGap);
+  return { panel, items };
+}
+
+/** 座標に対応する項目 index。どの項目にも乗っていなければ null */
+export function pauseMenuItemAt(x: number, y: number, itemGap: number): number | null {
+  const found = pauseMenuLayout(itemGap).items.findIndex((r) => pointInRect(x, y, r));
+  return found === -1 ? null : found;
+}
+
+export const SETTINGS_PANEL_W = 220;
+export const SETTINGS_PANEL_H = 124;
+const SETTINGS_ROW_TOP = 40;
+
+export interface SettingsLayout {
+  panel: Rect;
+  /** SETTINGS_ITEMS と同じ順の当たり判定矩形（パネル幅いっぱい） */
+  rows: readonly Rect[];
+}
+
+export function settingsLayout(rowGap: number): SettingsLayout {
+  const panelX = (VIEW_W - SETTINGS_PANEL_W) / 2;
+  const panelY = (VIEW_H - SETTINGS_PANEL_H) / 2;
+  const panel: Rect = { x: panelX, y: panelY, w: SETTINGS_PANEL_W, h: SETTINGS_PANEL_H };
+  const rows = rowRects(SETTINGS_ITEMS.length, panelX, panelY + SETTINGS_ROW_TOP, SETTINGS_PANEL_W, rowGap);
+  return { panel, rows };
+}
+
+export function settingsItemAt(x: number, y: number, rowGap: number): number | null {
+  const found = settingsLayout(rowGap).rows.findIndex((r) => pointInRect(x, y, r));
+  return found === -1 ? null : found;
+}
+
+/** 行内クリック位置が左右どちらか（スライダー系項目の増減方向に使う）。パネルは常に画面中央なので VIEW_W/2 で判定できる */
+export function settingsRowSide(x: number): -1 | 1 {
+  return x < VIEW_W / 2 ? -1 : 1;
 }
 
 // ---------------------------------------------------------------------------

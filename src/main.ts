@@ -46,12 +46,17 @@ import {
   cycleIndex,
   edgeDir,
   moveHistoryCursor,
+  pauseMenuItemAt,
   processMenuKeys,
   replayAvailability,
+  settingsItemAt,
+  settingsRowSide,
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
+  type PauseMenuItem,
   type ReplaySpeed,
+  type SettingsItem,
 } from "./ui/title";
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
 import {
@@ -63,7 +68,7 @@ import {
   type Settings,
 } from "./ui/settings";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
-import { TEXT, drawText } from "./render/pixelText";
+import { TEXT, drawText, textLineHeight } from "./render/pixelText";
 
 const canvasEl = document.getElementById("game");
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
@@ -167,6 +172,8 @@ let pauseCursor = 0;
 let settingsCursor = 0;
 /** 設定/ポーズメニューのカーソル移動をエッジ検出するための直前フレームの move 値 */
 const menuNav = { prevX: 0, prevY: 0 };
+/** ポーズ/設定メニューでマウスが動いたかを判定するための直前フレームの aimScreen（動いた時だけホバーでカーソルを奪う） */
+let menuAimPrev: { x: number; y: number } | null = null;
 
 /** このランの開始時刻（epoch ms）。死亡サマリーで「このランで拾った」判定に使う */
 let runStartedAt = Date.now();
@@ -446,28 +453,64 @@ startLoop(
           toggleMute(settings);
           applySettings();
         }
-        const navY = edgeDir(menuNav.prevY, frame.move.y);
+
+        // mute/volume/screenShake の調整をまとめる。close はここでは何もしない（クリック/Esc 専用）
+        const applySettingsAdjust = (item: SettingsItem, dir: number): void => {
+          if (item === "mute") {
+            toggleMute(settings);
+            applySettings();
+          } else if (item === "volume") {
+            adjustVolume(settings, dir);
+            applySettings();
+          } else if (item === "screenShake") {
+            adjustScreenShake(settings, dir);
+            saveSettings(settings);
+          }
+        };
+
+        const rowGap = Math.max(18, textLineHeight(TEXT.SMALL));
+        const aim = frame.aimScreen;
+        // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
+        const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+        if (aimMoved) {
+          const hovered = settingsItemAt(aim.x, aim.y, rowGap);
+          if (hovered !== null && hovered !== settingsCursor) {
+            settingsCursor = hovered;
+            sfx.play("menuMove");
+          }
+        }
+
+        const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
+        const navY = keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
         if (navY !== 0) {
           settingsCursor = cycleIndex(settingsCursor, navY, SETTINGS_ITEMS.length);
           sfx.play("menuMove");
         }
         const navX = edgeDir(menuNav.prevX, frame.move.x);
         if (navX !== 0) {
-          const item = SETTINGS_ITEMS[settingsCursor];
-          if (item === "mute") {
-            toggleMute(settings);
-            applySettings();
-          } else if (item === "volume") {
-            adjustVolume(settings, navX);
-            applySettings();
-          } else {
-            adjustScreenShake(settings, navX);
-            saveSettings(settings);
+          const current = SETTINGS_ITEMS[settingsCursor];
+          if (current) {
+            applySettingsAdjust(current, navX);
+            sfx.play("uiClick");
           }
-          sfx.play("uiClick");
         }
         menuNav.prevX = frame.move.x;
         menuNav.prevY = frame.move.y;
+        menuAimPrev = aim;
+
+        if (frame.clickPressed && aim) {
+          const clicked = settingsItemAt(aim.x, aim.y, rowGap);
+          const item = clicked !== null ? SETTINGS_ITEMS[clicked] : undefined;
+          if (clicked !== null && item) {
+            settingsCursor = clicked;
+            if (item === "close") {
+              screen = returnScreen;
+            } else {
+              applySettingsAdjust(item, item === "mute" ? 1 : settingsRowSide(aim.x));
+            }
+            sfx.play("uiClick");
+          }
+        }
         break;
       }
 
@@ -482,16 +525,8 @@ startLoop(
           cur.paused = false;
           break;
         }
-        const navY = edgeDir(menuNav.prevY, frame.move.y);
-        if (navY !== 0) {
-          pauseCursor = cycleIndex(pauseCursor, navY, PAUSE_MENU_ITEMS.length);
-          sfx.play("menuMove");
-        }
-        menuNav.prevX = frame.move.x;
-        menuNav.prevY = frame.move.y;
-        if (frame.confirmPressed) {
-          sfx.play("uiClick");
-          const item = PAUSE_MENU_ITEMS[pauseCursor];
+
+        const applyPauseItem = (item: PauseMenuItem): void => {
           if (item === "resume") {
             screen = "playing";
             cur.paused = false;
@@ -507,6 +542,44 @@ startLoop(
             cur.paused = false;
             state = null;
             screen = "title";
+          }
+        };
+
+        const itemGap = Math.max(16, textLineHeight(TEXT.SMALL));
+        const aim = frame.aimScreen;
+        // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
+        const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+        if (aimMoved) {
+          const hovered = pauseMenuItemAt(aim.x, aim.y, itemGap);
+          if (hovered !== null && hovered !== pauseCursor) {
+            pauseCursor = hovered;
+            sfx.play("menuMove");
+          }
+        }
+
+        const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
+        const navY = keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
+        if (navY !== 0) {
+          pauseCursor = cycleIndex(pauseCursor, navY, PAUSE_MENU_ITEMS.length);
+          sfx.play("menuMove");
+        }
+        menuNav.prevX = frame.move.x;
+        menuNav.prevY = frame.move.y;
+        menuAimPrev = aim;
+
+        if (frame.confirmPressed) {
+          const current = PAUSE_MENU_ITEMS[pauseCursor];
+          if (current) {
+            sfx.play("uiClick");
+            applyPauseItem(current);
+          }
+        } else if (frame.clickPressed && aim) {
+          const clicked = pauseMenuItemAt(aim.x, aim.y, itemGap);
+          const item = clicked !== null ? PAUSE_MENU_ITEMS[clicked] : undefined;
+          if (clicked !== null && item) {
+            pauseCursor = clicked;
+            sfx.play("uiClick");
+            applyPauseItem(item);
           }
         }
         break;

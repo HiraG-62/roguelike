@@ -4,8 +4,8 @@
  */
 import { VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
-import type { ReplayAvailability, RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
-import { PAUSE_MENU_ITEMS, SETTINGS_ITEMS, dailyBestIndices, isDailyEntry } from "../ui/title";
+import type { ReplayAvailability, RunItemSummary, SeedInputState, SettingsItem, TitleStats } from "../ui/title";
+import { PAUSE_MENU_ITEMS, SETTINGS_ITEMS, dailyBestIndices, isDailyEntry, pauseMenuLayout, settingsLayout } from "../ui/title";
 import type { Settings } from "../ui/settings";
 import { TEXT, drawText, drawTextShadow, textLineHeight } from "./pixelText";
 import { APP_VERSION } from "../version";
@@ -50,6 +50,7 @@ const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
   mute: "ミュート",
   volume: "音量",
   screenShake: "画面揺れ",
+  close: "閉じる",
 };
 
 /** RunHistoryEntry.cause（英語のキーのまま持つ）の表示専用ラベル */
@@ -351,25 +352,24 @@ export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number): vo
   ctx.fillStyle = COLOR_OVERLAY;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-  const panelW = 160;
-  const panelH = 96;
-  const panelX = (VIEW_W - panelW) / 2;
-  const panelY = (VIEW_H - panelH) / 2;
-  ctx.fillStyle = COLOR_PANEL_BG;
-  ctx.fillRect(panelX, panelY, panelW, panelH);
-  ctx.strokeStyle = COLOR_BORDER;
-  ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
-
-  drawText(ctx, "ポーズ中", VIEW_W / 2, panelY + 16, TEXT.BODY, COLOR_TITLE, "center");
-
-  const itemY = panelY + 36;
   const itemGap = Math.max(16, textLineHeight(TEXT.SMALL));
+  const { panel, items } = pauseMenuLayout(itemGap);
+  ctx.fillStyle = COLOR_PANEL_BG;
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = COLOR_BORDER;
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+
+  drawText(ctx, "ポーズ中", VIEW_W / 2, panel.y + 16, TEXT.BODY, COLOR_TITLE, "center");
+
   PAUSE_MENU_ITEMS.forEach((item, i) => {
     const active = i === cursor;
     const label = PAUSE_LABEL[item];
-    drawText(ctx, active ? `> ${label} <` : label, VIEW_W / 2, itemY + i * itemGap, TEXT.SMALL, active ? COLOR_CURSOR : COLOR_DIM, "center");
+    const row = items[i];
+    if (!row) return;
+    const textY = row.y + row.h / 2;
+    drawText(ctx, active ? `> ${label} <` : label, VIEW_W / 2, textY, TEXT.SMALL, active ? COLOR_CURSOR : COLOR_DIM, "center");
   });
-  drawVersion(ctx, VIEW_W / 2, panelY + panelH + PAUSE_VERSION_GAP, "center");
+  drawVersion(ctx, VIEW_W / 2, panel.y + panel.h + PAUSE_VERSION_GAP, "center");
 }
 
 function drawVersion(ctx: CanvasRenderingContext2D, x: number, y: number, align: "center" | "right"): void {
@@ -390,33 +390,38 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
     fillBg(ctx);
   }
 
-  const panelW = 220;
-  const panelH = 108;
-  const panelX = (VIEW_W - panelW) / 2;
-  const panelY = (VIEW_H - panelH) / 2;
+  const m = TEXT.SMALL;
+  const rowGap = Math.max(18, textLineHeight(m));
+  const { panel, rows } = settingsLayout(rowGap);
   ctx.fillStyle = COLOR_PANEL_BG;
-  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
   ctx.strokeStyle = COLOR_BORDER;
-  ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
 
-  drawText(ctx, "設定", VIEW_W / 2, panelY + 16, TEXT.BODY, COLOR_TITLE, "center");
+  drawText(ctx, "設定", VIEW_W / 2, panel.y + 16, TEXT.BODY, COLOR_TITLE, "center");
 
-  const valueOf: Record<(typeof SETTINGS_ITEMS)[number], string> = {
+  const valueOf: Record<Exclude<SettingsItem, "close">, string> = {
     mute: settings.muted ? "オン" : "オフ",
     volume: barText(settings.volume),
     screenShake: barText(settings.screenShake),
   };
-  const rowY = panelY + 40;
-  const m = TEXT.SMALL;
-  const rowGap = Math.max(18, textLineHeight(m));
   SETTINGS_ITEMS.forEach((item, i) => {
-    const color = i === cursor ? COLOR_CURSOR : COLOR_DIM;
-    const label = i === cursor ? `> ${SETTINGS_LABEL[item]}` : SETTINGS_LABEL[item];
-    drawText(ctx, label, panelX + 12, rowY + i * rowGap, m, color);
-    drawText(ctx, valueOf[item], panelX + panelW - 12, rowY + i * rowGap, m, color, "right");
+    const active = i === cursor;
+    const color = active ? COLOR_CURSOR : COLOR_DIM;
+    const row = rows[i];
+    if (!row) return;
+    const textY = row.y + row.h / 2;
+    if (item === "close") {
+      const label = active ? `> ${SETTINGS_LABEL[item]} <` : SETTINGS_LABEL[item];
+      drawText(ctx, label, VIEW_W / 2, textY, m, color, "center");
+      return;
+    }
+    const label = active ? `> ${SETTINGS_LABEL[item]}` : SETTINGS_LABEL[item];
+    drawText(ctx, label, panel.x + 12, textY, m, color);
+    drawText(ctx, valueOf[item], panel.x + panel.w - 12, textY, m, color, "right");
   });
 
-  drawText(ctx, "← →: 調整   M: ミュート   Esc: 戻る", VIEW_W / 2, panelY + panelH - 8, m, COLOR_DIM, "center");
+  drawText(ctx, "← →: 調整   M: ミュート   Esc/クリック: 戻る", VIEW_W / 2, panel.y + panel.h - 8, m, COLOR_DIM, "center");
 }
 
 export interface DeathSummaryInfo {

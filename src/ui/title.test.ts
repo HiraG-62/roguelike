@@ -15,8 +15,15 @@ import {
   dailyBestIndices,
   isDailyEntry,
   moveHistoryCursor,
+  PAUSE_MENU_ITEMS,
+  SETTINGS_ITEMS,
+  pauseMenuItemAt,
+  pauseMenuLayout,
   processMenuKeys,
   replayAvailability,
+  settingsItemAt,
+  settingsLayout,
+  settingsRowSide,
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
@@ -276,5 +283,71 @@ describe("リプレイの再生可否", () => {
 
   it("旧バージョンの記録なら old（再生不可）", () => {
     expect(replayAvailability(fakeReplay(REPLAY_VERSION - 1))).toBe("old");
+  });
+});
+
+describe("ポーズメニューのレイアウトと当たり判定", () => {
+  const ITEM_GAP = 18;
+
+  it("各項目の矩形内の座標で index が返る", () => {
+    const layout = pauseMenuLayout(ITEM_GAP);
+    layout.items.forEach((rect, i) => {
+      const cx = rect.x + rect.w / 2;
+      const cy = rect.y + rect.h / 2;
+      expect(pauseMenuItemAt(cx, cy, ITEM_GAP)).toBe(i);
+    });
+  });
+
+  it("パネル外の座標では null になる", () => {
+    const layout = pauseMenuLayout(ITEM_GAP);
+    expect(pauseMenuItemAt(layout.panel.x - 10, layout.panel.y, ITEM_GAP)).toBeNull();
+    expect(pauseMenuItemAt(0, 0, ITEM_GAP)).toBeNull();
+  });
+
+  it("描画と同じ行間なので隣接行にはみ出さない（境界のずれが半行未満）", () => {
+    const layout = pauseMenuLayout(ITEM_GAP);
+    for (let i = 0; i < layout.items.length - 1; i++) {
+      const a = layout.items[i];
+      const b = layout.items[i + 1];
+      expect(a).toBeDefined();
+      expect(b).toBeDefined();
+      if (!a || !b) continue;
+      // 隣り合う行の境界がぴったり接していて重なりも隙間も無い
+      expect(a.y + a.h).toBeCloseTo(b.y, 5);
+    }
+  });
+
+  it("項目数は PAUSE_MENU_ITEMS と一致する", () => {
+    expect(pauseMenuLayout(ITEM_GAP).items.length).toBe(PAUSE_MENU_ITEMS.length);
+  });
+});
+
+describe("設定画面のレイアウトと当たり判定", () => {
+  const ROW_GAP = 18;
+
+  it("各行の矩形内の座標で index が返る", () => {
+    const layout = settingsLayout(ROW_GAP);
+    layout.rows.forEach((rect, i) => {
+      const cx = rect.x + rect.w / 2;
+      const cy = rect.y + rect.h / 2;
+      expect(settingsItemAt(cx, cy, ROW_GAP)).toBe(i);
+    });
+  });
+
+  it("パネル外の座標では null になる", () => {
+    const layout = settingsLayout(ROW_GAP);
+    expect(settingsItemAt(layout.panel.x - 10, layout.panel.y, ROW_GAP)).toBeNull();
+    expect(settingsItemAt(0, 0, ROW_GAP)).toBeNull();
+  });
+
+  it("行数は SETTINGS_ITEMS（close 含む）と一致する", () => {
+    expect(settingsLayout(ROW_GAP).rows.length).toBe(SETTINGS_ITEMS.length);
+  });
+
+  it("左半分は -1、右半分は 1 を返す", () => {
+    const layout = settingsLayout(ROW_GAP);
+    const centerX = layout.panel.x + layout.panel.w / 2;
+    expect(settingsRowSide(centerX - 1)).toBe(-1);
+    expect(settingsRowSide(centerX + 1)).toBe(1);
   });
 });
