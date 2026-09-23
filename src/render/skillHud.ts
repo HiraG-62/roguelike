@@ -16,16 +16,12 @@ import {
 } from "../skills/placed";
 import type { ActiveCast, Ghost, Grenade } from "../skills/types";
 import { beamEnd, chargeRatio, grenadeRadius, hookRange, quakeRadius, remoteAnchor, slotModifierView } from "../system/skills";
-import { uiFont } from "./font";
+import { TEXT, drawText, drawTextShadow } from "./pixelText";
 
 /**
  * スキルの描画。renderer.ts を触らずに済むよう、main.ts が renderer.render の後に呼ぶ。
  * ワールド側（床の石・刻印符・グレネード・照準線・旋風の円弧）と画面側の HUD を描く。
  */
-
-const FONT_ICON = uiFont(10);
-const FONT_KEY = uiFont(6);
-const FONT_LABEL = uiFont(8);
 
 const COLOR_STONE = SKILL.drop.stoneColor;
 const COLOR_RUNE = SKILL.drop.runeColor;
@@ -49,7 +45,6 @@ const HUD_GAP = 6;
 const HUD_BOTTOM = 26;
 const DOT_SIZE = 2;
 const DOT_GAP = 1;
-const ICON_BASELINE = 13;
 const KEY_OFFSET_Y = 7;
 const FULL_CIRCLE = Math.PI * 2;
 
@@ -145,12 +140,7 @@ function drawPillar(ctx: CanvasRenderingContext2D, x: number, y: number, color: 
 }
 
 function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string): void {
-  ctx.font = FONT_LABEL;
-  ctx.textAlign = "center";
-  ctx.fillStyle = COLOR_BLACK;
-  ctx.fillText(text, x + 1, y + 1);
-  ctx.fillStyle = color;
-  ctx.fillText(text, x, y);
+  drawTextShadow(ctx, text, x, y, TEXT.SMALL, color, COLOR_BLACK, "center");
 }
 
 /** 装備と同じ見せ方: 紫の光柱 + 菱形 + 名前 */
@@ -513,10 +503,9 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   ctx.fillRect(x, y, HUD_SIZE, HUD_SIZE);
 
   const ready = !!slot && slot.chargesLeft > 0;
-  ctx.font = FONT_ICON;
-  ctx.textAlign = "center";
-  ctx.fillStyle = stone ? COLOR_STONE : COLOR_EMPTY;
-  ctx.fillText(stone ? SKILL_DEFS[stone.skillKey].icon : "-", x + HUD_SIZE / 2, y + ICON_BASELINE);
+  // 倍率で行高が変わっても枠の中央に来るよう middle 基準で置く
+  const icon = stone ? SKILL_DEFS[stone.skillKey].icon : "-";
+  drawText(ctx, icon, x + HUD_SIZE / 2, y + HUD_SIZE / 2, TEXT.BODY, stone ? COLOR_STONE : COLOR_EMPTY, "center", "middle");
 
   // CD 中は上から暗いマスクが減っていく
   if (stone && slot && !ready && slot.cooldownTotal > 0) {
@@ -528,9 +517,7 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   if (rs.active?.slot === index) ctx.strokeStyle = COLOR_WARN;
   ctx.strokeRect(x + 0.5, y + 0.5, HUD_SIZE - 1, HUD_SIZE - 1);
 
-  ctx.font = FONT_KEY;
-  ctx.fillStyle = COLOR_DIM;
-  ctx.fillText(String(index + 1), x + HUD_SIZE / 2, y + HUD_SIZE + KEY_OFFSET_Y);
+  drawText(ctx, String(index + 1), x + HUD_SIZE / 2, y + HUD_SIZE + KEY_OFFSET_Y, TEXT.SMALL, COLOR_DIM, "center");
 
   if (stone && slot) drawCharges(ctx, x, y, slot.chargesLeft);
   drawModifierDots(ctx, state, index, x, y);

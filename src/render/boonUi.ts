@@ -3,18 +3,12 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { BOON } from "../data/tuning";
 import { BOON_CARD, type BoonDef, type BoonTag, boonCardRect, boonDef, equipmentTags } from "../system/boons";
-import { uiFont, wrapByWidth } from "./font";
+import { TEXT, drawText, textLineHeight, textWidth, wrapText } from "./pixelText";
 
 /**
  * 祝福の描画。選択オーバーレイ（3 枚のカード）と、右下の取得済みアイコン列（ホバーで名前）。
  * 当たり判定は boons.ts の boonCardRect と共有する。
  */
-
-const FONT_TITLE = uiFont(12);
-const FONT_NAME = uiFont(8);
-const FONT_BODY = uiFont(8, "normal");
-const FONT_ICON_BIG = uiFont(20);
-const FONT_ICON = uiFont(8);
 
 const COLOR_DIM_BG = "rgba(0,0,0,0.7)";
 const COLOR_CARD = "rgba(16,16,28,0.95)";
@@ -63,19 +57,13 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   if (!c) return;
   ctx.fillStyle = COLOR_DIM_BG;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.textAlign = "center";
-  ctx.font = FONT_TITLE;
-  ctx.fillStyle = COLOR_TITLE;
-  ctx.fillText(`地下 ${state.depth} 階 - 祝福を選べ`, VIEW_W / 2, TITLE_Y);
-  ctx.font = FONT_BODY;
-  ctx.fillStyle = COLOR_SUB;
-  ctx.fillText("このランのみ有効", VIEW_W / 2, HINT_Y);
+  drawText(ctx, `地下 ${state.depth} 階 - 祝福を選べ`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
+  drawText(ctx, "このランのみ有効", VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
 
   const tags = equipmentTags(state.stats);
   c.options.forEach((key, i) => {
     drawCard(ctx, boonDef(key), i, c.options.length, i === c.hover, tags);
   });
-  ctx.textAlign = "left";
 }
 
 function drawCard(
@@ -98,26 +86,22 @@ function drawCard(
   ctx.strokeRect(r.x + 0.5, y + 0.5, r.w - 1, r.h - 1);
   ctx.lineWidth = 1;
 
-  ctx.textAlign = "center";
-  ctx.font = FONT_ICON_BIG;
-  ctx.fillStyle = color;
-  ctx.fillText(def.icon, cx, y + ICON_Y);
-  ctx.font = FONT_NAME;
-  ctx.fillText(def.name, cx, y + NAME_Y);
-  ctx.font = FONT_BODY;
+  drawText(ctx, def.icon, cx, y + ICON_Y, TEXT.BIG, color, "center");
+  drawText(ctx, def.name, cx, y + NAME_Y, TEXT.SMALL, color, "center");
   const rarityLabel = BOON_RARITY_LABEL[def.rarity];
-  ctx.fillText(def.cursed ? `${rarityLabel} ・ 呪い付き` : rarityLabel, cx, y + RARITY_Y);
+  drawText(ctx, def.cursed ? `${rarityLabel} ・ 呪い付き` : rarityLabel, cx, y + RARITY_Y, TEXT.SMALL, color, "center");
 
-  ctx.fillStyle = COLOR_TEXT;
   const maxWidth = r.w - CARD_PAD * 2;
-  wrapByWidth(def.desc, maxWidth, (t) => ctx.measureText(t).width).forEach((line, i) => ctx.fillText(line, cx, y + DESC_Y + i * LINE_H));
+  const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
+  wrapText(def.desc, maxWidth, TEXT.SMALL).forEach((line, i) =>
+    drawText(ctx, line, cx, y + DESC_Y + i * lineH, TEXT.SMALL, COLOR_TEXT, "center"),
+  );
 
   // 装備タグと一致するタグは強調（なぜ出やすいかが分かる）
   const tagText = def.tags.map((t) => (tags.has(t) ? `[${t}]` : t)).join(" ");
-  ctx.fillStyle = def.tags.some((t) => tags.has(t)) ? COLOR_TAG_MATCH : COLOR_SUB;
-  ctx.fillText(tagText, cx, y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM);
-  ctx.fillStyle = COLOR_SUB;
-  ctx.fillText(KEY_HINTS[index] ?? "", cx, y + r.h - TAGS_BOTTOM);
+  const tagColor = def.tags.some((t) => tags.has(t)) ? COLOR_TAG_MATCH : COLOR_SUB;
+  drawText(ctx, tagText, cx, y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM, TEXT.SMALL, tagColor, "center");
+  drawText(ctx, KEY_HINTS[index] ?? "", cx, y + r.h - TAGS_BOTTOM, TEXT.SMALL, COLOR_SUB, "center");
 }
 
 /** 右下のアイコン列の index 番目（右から並べる） */
@@ -132,8 +116,6 @@ function hudIconPos(index: number): Vec {
 export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aimScreen: Vec | null): void {
   if (state.boons.length === 0) return;
   let hovered: BoonDef | null = null;
-  ctx.textAlign = "center";
-  ctx.font = FONT_ICON;
   state.boons.forEach((key, i) => {
     const def = boonDef(key);
     const pos = hudIconPos(i);
@@ -143,34 +125,29 @@ export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aim
     ctx.fillRect(pos.x, pos.y, HUD_ICON, HUD_ICON);
     ctx.strokeStyle = color;
     ctx.strokeRect(pos.x + 0.5, pos.y + 0.5, HUD_ICON - 1, HUD_ICON - 1);
-    ctx.fillStyle = color;
-    ctx.fillText(def.icon, pos.x + HUD_ICON / 2, pos.y + HUD_ICON_BASELINE);
+    drawText(ctx, def.icon, pos.x + HUD_ICON / 2, pos.y + HUD_ICON_BASELINE, TEXT.SMALL, color, "center");
     if (!aimScreen) return;
     const inside =
       aimScreen.x >= pos.x && aimScreen.x < pos.x + HUD_ICON && aimScreen.y >= pos.y && aimScreen.y < pos.y + HUD_ICON;
     if (inside) hovered = def;
   });
   if (hovered) drawTooltip(ctx, hovered);
-  ctx.textAlign = "left";
 }
 
 function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef): void {
-  ctx.font = FONT_NAME;
-  const nameW = ctx.measureText(def.name).width;
-  ctx.font = FONT_BODY;
-  const descW = ctx.measureText(def.desc).width;
-  const width = Math.ceil(Math.max(nameW, descW)) + TIP_PAD * 2;
+  const m = TEXT.SMALL;
+  const nameW = textWidth(def.name, m);
+  const descW = textWidth(def.desc, m);
+  const width = Math.min(VIEW_W, Math.ceil(Math.max(nameW, descW)) + TIP_PAD * 2);
+  const lineH = Math.max(LINE_H, textLineHeight(m));
+  // 2 行ぶん + 下余白。行高がフォント倍率で伸びたら枠も伸ばす
+  const tipH = Math.max(TIP_H, Math.ceil(lineH * 2 + TIP_PAD + 1));
   const x = Math.max(0, VIEW_W - HUD_RIGHT - width);
-  const y = VIEW_H - HUD_BOTTOM - HUD_ICON - TIP_GAP - TIP_H;
+  const y = VIEW_H - HUD_BOTTOM - HUD_ICON - TIP_GAP - tipH;
   ctx.fillStyle = COLOR_ICON_BG;
-  ctx.fillRect(x, y, width, TIP_H);
+  ctx.fillRect(x, y, width, tipH);
   ctx.strokeStyle = boonColor(def);
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, TIP_H - 1);
-  ctx.textAlign = "left";
-  ctx.font = FONT_NAME;
-  ctx.fillStyle = boonColor(def);
-  ctx.fillText(def.name, x + TIP_PAD, y + LINE_H);
-  ctx.font = FONT_BODY;
-  ctx.fillStyle = COLOR_TEXT;
-  ctx.fillText(def.desc, x + TIP_PAD, y + LINE_H * 2);
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, tipH - 1);
+  drawText(ctx, def.name, x + TIP_PAD, y + lineH, m, boonColor(def));
+  drawText(ctx, def.desc, x + TIP_PAD, y + lineH * 2, m, COLOR_TEXT);
 }

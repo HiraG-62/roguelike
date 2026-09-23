@@ -61,7 +61,7 @@ import {
   type Settings,
 } from "./ui/settings";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
-import { uiFont } from "./render/font";
+import { TEXT, drawText } from "./render/pixelText";
 
 const canvasEl = document.getElementById("game");
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
@@ -285,17 +285,13 @@ function foundItems(p: Profile): Item[] {
 }
 
 const GAMEPAD_HINT_TEXT = "ゲームパッドを接続しました";
-const GAMEPAD_HINT_FONT = uiFont(8);
 const GAMEPAD_HINT_COLOR = "#e0e0e0";
 const GAMEPAD_HINT_Y_FROM_BOTTOM = 6;
 
 /** state や render に触れず、画面下に一時的な接続通知だけ重ねて描く */
 function drawGamepadConnectedHint(ctx: CanvasRenderingContext2D): void {
   if (gamepadConnectedTimer <= 0) return;
-  ctx.font = GAMEPAD_HINT_FONT;
-  ctx.fillStyle = GAMEPAD_HINT_COLOR;
-  ctx.textAlign = "center";
-  ctx.fillText(GAMEPAD_HINT_TEXT, VIEW_W / 2, VIEW_H - GAMEPAD_HINT_Y_FROM_BOTTOM);
+  drawText(ctx, GAMEPAD_HINT_TEXT, VIEW_W / 2, VIEW_H - GAMEPAD_HINT_Y_FROM_BOTTOM, TEXT.SMALL, GAMEPAD_HINT_COLOR, "center");
 }
 
 /** 画面揺れの強度は renderer / system を触らず、描画直前だけカメラオフセットを倍率適用して戻す */

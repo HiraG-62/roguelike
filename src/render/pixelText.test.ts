@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PixelText, isFullWidthChar, type PixelTextEnv } from "./pixelText";
+import { PixelText, baselineOffset, isFullWidthChar, textSizesFor, type PixelTextEnv } from "./pixelText";
 
 /** 1 文字の実測幅。全角は 16 付近、半角は 8 付近の小数を返して丸めを検証する */
 function fakeWidth(ch: string): number {
@@ -168,5 +168,50 @@ describe("PixelText フォント未ロード", () => {
     expect(pt.isReady()).toBe(true);
     pt.draw(ctx, "あい", 0, 0, { m: 1, color: "#fff" });
     expect(draws).toHaveLength(2);
+  });
+});
+
+describe("UI 文字サイズ定数", () => {
+  it("表示倍率 S が大きいほど各サイズの倍率は減らず、SMALL <= BODY <= TITLE <= BIG", () => {
+    const pt = new PixelText(makeEnv().env);
+    const scales = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
+    let prev = textSizesFor(pt, scales[0] ?? 1);
+    for (const s of scales) {
+      const cur = textSizesFor(pt, s);
+      expect(cur.SMALL).toBeGreaterThanOrEqual(prev.SMALL);
+      expect(cur.BODY).toBeGreaterThanOrEqual(prev.BODY);
+      expect(cur.TITLE).toBeGreaterThanOrEqual(prev.TITLE);
+      expect(cur.BIG).toBeGreaterThanOrEqual(prev.BIG);
+      expect(cur.SMALL).toBeLessThanOrEqual(cur.BODY);
+      expect(cur.BODY).toBeLessThanOrEqual(cur.TITLE);
+      expect(cur.TITLE).toBeLessThanOrEqual(cur.BIG);
+      prev = cur;
+    }
+  });
+
+  it("各サイズの行高は指定の論理 px 以上", () => {
+    const pt = new PixelText(makeEnv().env);
+    for (const s of [2, 3, 4]) {
+      const sizes = textSizesFor(pt, s);
+      expect(pt.lineHeight(sizes.SMALL, s)).toBeGreaterThanOrEqual(8);
+      expect(pt.lineHeight(sizes.BIG, s)).toBeGreaterThanOrEqual(20);
+    }
+  });
+});
+
+describe("baseline 補正", () => {
+  it("alphabetic は行上端から 14 ドット上、middle は半行、top は 0", () => {
+    expect(baselineOffset("alphabetic", 2, 4)).toBe(7);
+    expect(baselineOffset("middle", 2, 4)).toBe(4);
+    expect(baselineOffset("bottom", 2, 4)).toBe(8);
+    expect(baselineOffset("top", 2, 4)).toBe(0);
+    expect(baselineOffset(undefined, 2, 4)).toBe(0);
+  });
+
+  it("draw の alphabetic は y をベースラインとして上端を補正する", () => {
+    const pt = new PixelText(makeEnv().env);
+    const { ctx, draws } = fakeCtx(1);
+    pt.draw(ctx, "a", 0, 20, { m: 1, color: "#fff", baseline: "alphabetic" });
+    expect(draws[0]?.y).toBe(6);
   });
 });

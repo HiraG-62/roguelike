@@ -223,7 +223,7 @@ describe("updateInventoryUi: クラフトタブ", () => {
     clickRow(state, ui, "m-1");
     clickButton(state, ui, "annul");
     expect(state.profile.stash[0]?.affixes).toHaveLength(2);
-    expect(ui.craft.result).toBe("粉塵が5必要です");
+    expect(ui.craft.result).toBe("塵が5必要です");
   });
 
   it("Fuse は 2 つ目のクリックで実行され、2 つが 1 つになる", () => {

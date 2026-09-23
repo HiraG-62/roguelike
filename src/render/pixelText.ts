@@ -20,7 +20,8 @@ const FONT_SPEC = `${PIXEL_FONT_DESIGN_PX}px "${PIXEL_FONT_FAMILY}"`;
 const GLYPH_COLOR = "#fff";
 
 export type PixelTextAlign = "left" | "center" | "right";
-export type PixelTextBaseline = "top" | "middle" | "bottom";
+/** alphabetic は y をベースライン（行上端から 14 ドット）として扱う。fillText の既定 baseline と同じ見た目位置になる */
+export type PixelTextBaseline = "top" | "middle" | "bottom" | "alphabetic";
 
 export interface PixelTextDrawOptions {
   /** ドットの倍率（デバイスピクセル単位の整数）。1 ドットが m×m デバイスピクセルになる */
@@ -103,6 +104,10 @@ export class PixelText {
     if (scale > 0) this.scale = scale;
   }
 
+  getScale(): number {
+    return this.scale;
+  }
+
   /** 論理 px で logicalPx 以上の高さになる最小のドット倍率 m（>= 1） */
   sizeFor(logicalPx: number, scale = this.scale): number {
     const exact = (logicalPx * scale) / PIXEL_FONT_DESIGN_PX;
@@ -150,8 +155,7 @@ export class PixelText {
     if (opts.align === "center") left -= totalW / 2;
     else if (opts.align === "right") left -= totalW;
     let top = y;
-    if (opts.baseline === "middle") top -= lineH / 2;
-    else if (opts.baseline === "bottom") top -= lineH;
+    top -= baselineOffset(opts.baseline, m, scale);
 
     // デバイスピクセルの整数位置へスナップ（translate 成分 e/f も含めて丸める）
     const snapX = (Math.round(left * scale + t.e) - t.e) / scale;
@@ -280,6 +284,21 @@ export class PixelText {
   }
 }
 
+/** baseline 指定時、y から行上端までの距離（論理 px） */
+export function baselineOffset(baseline: PixelTextBaseline | undefined, m: number, scale: number): number {
+  const dot = m / scale;
+  switch (baseline) {
+    case "middle":
+      return (PIXEL_FONT_DESIGN_PX * dot) / 2;
+    case "bottom":
+      return PIXEL_FONT_DESIGN_PX * dot;
+    case "alphabetic":
+      return GLYPH_BASELINE_PX * dot;
+    default:
+      return 0;
+  }
+}
+
 function binarizeAlpha(g: CanvasRenderingContext2D, w: number, h: number): void {
   if (typeof g.getImageData !== "function") return;
   const img = g.getImageData(0, 0, w, h);
@@ -300,4 +319,89 @@ let shared: PixelText | null = null;
 export function pixelText(): PixelText {
   if (!shared) shared = new PixelText(browserEnv());
   return shared;
+}
+
+/** UI 文字サイズの論理 px（統一感のため 4 段階に限定する） */
+export const TEXT_LOGICAL_PX = { SMALL: 8, BODY: 9, TITLE: 14, BIG: 20 } as const;
+export type TextSizeKey = keyof typeof TEXT_LOGICAL_PX;
+export type TextSizes = Record<TextSizeKey, number>;
+
+/** 表示倍率 scale での各サイズのドット倍率 */
+export function textSizesFor(pt: PixelText, scale: number): TextSizes {
+  return {
+    SMALL: pt.sizeFor(TEXT_LOGICAL_PX.SMALL, scale),
+    BODY: pt.sizeFor(TEXT_LOGICAL_PX.BODY, scale),
+    TITLE: pt.sizeFor(TEXT_LOGICAL_PX.TITLE, scale),
+    BIG: pt.sizeFor(TEXT_LOGICAL_PX.BIG, scale),
+  };
+}
+
+/**
+ * 現フレームの文字倍率。倍率は表示倍率に依存するため Renderer.beginFrame で updateTextSizes() により更新する。
+ * 使う側は TEXT.SMALL のように読む（定数と同じ感覚で使えるよう大文字キー）
+ */
+export const TEXT: TextSizes = { SMALL: 1, BODY: 1, TITLE: 1, BIG: 1 };
+
+export function updateTextSizes(pt: PixelText = pixelText()): void {
+  Object.assign(TEXT, textSizesFor(pt, pt.getScale()));
+}
+
+/** fillText 相当。既定は left / alphabetic（既存の fillText 呼び出しと同じ位置になる） */
+export function drawText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  m: number,
+  color: string,
+  align: PixelTextAlign = "left",
+  baseline: PixelTextBaseline = "alphabetic",
+): void {
+  pixelText().draw(ctx, text, x, y, { m, color, align, baseline });
+}
+
+/** 影付き（右下へ offset 論理 px ずらした影 → 本体） */
+export function drawTextShadow(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  m: number,
+  color: string,
+  shadowColor: string,
+  align: PixelTextAlign = "left",
+  offset = 1,
+): void {
+  drawText(ctx, text, x + offset, y + offset, m, shadowColor, align);
+  drawText(ctx, text, x, y, m, color, align);
+}
+
+/** 論理幅 */
+export function textWidth(text: string, m: number): number {
+  return pixelText().width(text, m);
+}
+
+/** 論理幅で折り返す */
+export function wrapText(text: string, maxWidth: number, m: number): string[] {
+  return pixelText().wrap(text, maxWidth, m);
+}
+
+/** 行高（論理 px） */
+export function textLineHeight(m: number): number {
+  return pixelText().lineHeight(m);
+}
+
+/** 幅に収まらなければ末尾を "…" で切り詰める */
+export function truncateText(text: string, maxWidth: number, m: number): string {
+  if (maxWidth <= 0) return "";
+  if (textWidth(text, m) <= maxWidth) return text;
+  const chars = [...text];
+  let lo = 0;
+  let hi = chars.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (textWidth(chars.slice(0, mid).join("") + "…", m) <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo === 0 ? "…" : chars.slice(0, lo).join("") + "…";
 }

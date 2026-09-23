@@ -28,16 +28,24 @@ import {
   pulse,
   wallStyle,
 } from "./renderMath";
-import { uiFont } from "./font";
+import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, spriteFrame } from "./sprites";
 import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
 
-const FONT_SMALL = uiFont(8);
-const FONT_MED = uiFont(12);
-const FONT_BIG = uiFont(20);
+/** コンボ表示（論理 px・y 座標） */
+const COMBO_TEXT_PX = 14;
+const COMBO_TEXT_Y = 22;
+const COMBO_MULT_GAP = 10;
+/** 死亡画面のレイアウト */
+const DEATH_TITLE_RISE = 24;
+const DEATH_STAT_LINE = 16;
+const DEATH_HINT_GAP = 24;
+const COLOR_DEATH_HINT = "#a0a0a0";
+/** 浮遊文字のドット倍率の上限（クリティカルの弾みで巨大化しすぎないように） */
+const FLOAT_TEXT_MAX_M = 3;
 
 /** HUD の階層表示用（system/roomTypes.ts の FLOOR_KIND_LABEL は英語のまま別用途で使われるため、表示専用にここで持つ） */
 const FLOOR_KIND_LABEL_JA: Readonly<Record<FloorKind, string>> = {
@@ -534,6 +542,7 @@ export class Renderer {
     this.canvas.style.width = `${VIEW_W * view.cssScale}px`;
     this.canvas.style.height = `${VIEW_H * view.cssScale}px`;
     this.pixelRatio = view.pixelRatio;
+    pixelText().setScale(view.pixelRatio);
     if (this.canvas.width === view.canvasW && this.canvas.height === view.canvasH) return;
     // サイズ変更で context の状態（transform・smoothing）はリセットされる
     this.canvas.width = view.canvasW;
@@ -551,6 +560,9 @@ export class Renderer {
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
+    // 文字倍率は表示倍率に依存するため毎フレーム再計算する（リサイズ直後のフレームから正しい大きさにする）
+    pixelText().setScale(this.pixelRatio);
+    updateTextSizes();
   }
 
   /** オーバーレイ UI（装備画面など）が同じ描画先に描くための公開 */
@@ -692,17 +704,9 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  private font(px: number): string {
-    return uiFont(px);
-  }
-
   /** 1px の影付き文字 */
-  private shadowText(text: string, x: number, y: number, color: string): void {
-    const { ctx } = this;
-    ctx.fillStyle = COLOR_BLACK;
-    ctx.fillText(text, x + 1, y + 1);
-    ctx.fillStyle = color;
-    ctx.fillText(text, x, y);
+  private shadowText(text: string, x: number, y: number, color: string, m: number, align: "left" | "center" | "right" = "center"): void {
+    drawTextShadow(this.ctx, text, x, y, m, color, COLOR_BLACK, align);
   }
 
   private sprite(key: string): Sprite {
@@ -950,18 +954,12 @@ export class Renderer {
 
   /** ラベルはまとめて描き、font / align の切替を 1 回にする */
   private drawFloorItemLabels(state: GameState): void {
-    const { ctx } = this;
-    ctx.textAlign = "center";
-    ctx.font = FONT_SMALL;
     for (const fi of state.floorItems) {
       if (fi.item.rarity === "normal") continue;
       const x = Math.round(fi.pos.x);
       const wobble = 1 + Math.sin(fi.bobTime * LOOT_WOBBLE_SPEED) * LOOT_WOBBLE_AMOUNT;
       const ly = Math.round(fi.pos.y - LOOT_PILLAR_HEIGHTS[fi.item.rarity] * wobble - LOOT_LABEL_OFFSET);
-      ctx.fillStyle = COLOR_BLACK;
-      ctx.fillText(fi.item.name, x + 1, ly + 1);
-      ctx.fillStyle = RARITY_COLOR[fi.item.rarity];
-      ctx.fillText(fi.item.name, x, ly);
+      this.shadowText(fi.item.name, x, ly, RARITY_COLOR[fi.item.rarity], TEXT.SMALL);
     }
   }
 
@@ -1014,7 +1012,8 @@ export class Renderer {
    */
   private drawTexts(state: GameState): void {
     const { ctx } = this;
-    ctx.textAlign = "center";
+    const pt = pixelText();
+    const maxM = Math.max(FLOAT_TEXT_MAX_M, TEXT.SMALL);
     for (let i = 0; i < state.texts.length; i++) {
       const t = state.texts[i];
       if (!t) continue;
@@ -1029,18 +1028,17 @@ export class Renderer {
         x += Math.round(Math.sin(state.time * CRIT_SHAKE_SPEED + i) * CRIT_SHAKE_AMP * fade);
       }
       ctx.globalAlpha = fade;
-      ctx.font = this.font(Math.round(TEXT_BASE_SIZE * scale));
+      // 連続的な scale をドット整数倍率へ量子化（ドットの粒を崩さない）
+      const m = Math.min(maxM, pt.sizeFor(TEXT_BASE_SIZE * scale));
       if (style.numeric) {
-        ctx.fillStyle = style.outline;
-        ctx.fillText(t.text, x - 1, y);
-        ctx.fillText(t.text, x + 1, y);
-        ctx.fillText(t.text, x, y - 1);
-        ctx.fillText(t.text, x, y + 1);
-        ctx.fillStyle = t.color;
-        ctx.fillText(t.text, x, y);
+        drawText(ctx, t.text, x - 1, y, m, style.outline, "center");
+        drawText(ctx, t.text, x + 1, y, m, style.outline, "center");
+        drawText(ctx, t.text, x, y - 1, m, style.outline, "center");
+        drawText(ctx, t.text, x, y + 1, m, style.outline, "center");
+        drawText(ctx, t.text, x, y, m, t.color, "center");
         continue;
       }
-      this.shadowText(t.text, x, y, t.color);
+      this.shadowText(t.text, x, y, t.color, m);
     }
     ctx.globalAlpha = 1;
   }
@@ -1122,19 +1120,13 @@ export class Renderer {
 
     const top = cy - sprite.h / 2 - 2;
     if (e.phase === "windup") {
-      ctx.fillStyle = COLOR_TELEGRAPH;
-      ctx.font = FONT_SMALL;
-      ctx.textAlign = "center";
-      ctx.fillText("!", cx, top);
+      drawText(ctx, "!", cx, top, TEXT.SMALL, COLOR_TELEGRAPH, "center");
       if (def.behavior === "charger") this.drawChargeLine(e);
       if (def.behavior === "laser") this.drawLaserTelegraph(state, e, def.windup);
       if (def.behavior === "golem") this.drawRingTelegraph(cx, cy, ENEMY_AI.golem.ringRadius);
     }
     if (e.phase === "stagger") {
-      ctx.fillStyle = COLOR_ENERGY;
-      ctx.font = FONT_SMALL;
-      ctx.textAlign = "center";
-      ctx.fillText("*", cx, top);
+      drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
     if (def.boss) return;
     if (e.elite) {
@@ -1203,14 +1195,8 @@ export class Renderer {
 
   private drawEliteName(e: Enemy, cx: number, y: number): void {
     if (!e.elite) return;
-    const { ctx } = this;
     const name = eliteDisplayName(e);
-    ctx.font = FONT_SMALL;
-    ctx.textAlign = "center";
-    ctx.fillStyle = COLOR_BLACK;
-    ctx.fillText(name, Math.round(cx) + 1, Math.round(y) + 1);
-    ctx.fillStyle = ELITE_COLOR[e.elite];
-    ctx.fillText(name, Math.round(cx), Math.round(y));
+    this.shadowText(name, Math.round(cx), Math.round(y), ELITE_COLOR[e.elite], TEXT.SMALL);
   }
 
   /**
@@ -1773,14 +1759,11 @@ export class Renderer {
   private drawHud(state: GameState): void {
     const { ctx } = this;
     const p = state.player;
-    ctx.textAlign = "left";
 
     this.blit(this.sprite(SPR.heartSmall), 0, HUD_X, HUD_HP_Y - 1);
     this.drawBar(HUD_BAR_X, HUD_HP_Y, HUD_BAR_W, HUD_HP_H, p.hp / p.maxHp, COLOR_HP, COLOR_HP_BG);
     this.drawRegain(state);
-    ctx.font = FONT_SMALL;
-    ctx.fillStyle = COLOR_TEXT;
-    ctx.fillText(`${Math.ceil(p.hp)}/${p.maxHp}`, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H);
+    drawText(ctx, `${Math.ceil(p.hp)}/${p.maxHp}`, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
 
     const ready = p.energy >= p.maxEnergy;
     const blinkOn = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2;
@@ -1789,8 +1772,7 @@ export class Renderer {
     if (ready) {
       ctx.strokeStyle = blinkOn ? COLOR_ENERGY : COLOR_ENERGY_READY;
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
-      ctx.fillStyle = energyColor;
-      ctx.fillText("F: バースト", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1);
+      drawText(ctx, "F: バースト", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     }
     this.drawDashPips(state);
     this.drawKeystoneHud(state);
@@ -1798,58 +1780,51 @@ export class Renderer {
     if (this.lookup) this.minimap.draw(ctx, state, this.lookup, VIEW_W);
     const rightY = this.hudRightY(state);
     const rightX = VIEW_W - HUD_RIGHT_X_PAD;
-    ctx.textAlign = "right";
-    ctx.font = FONT_SMALL;
+    const m = TEXT.SMALL;
+    const line = this.hudRightLine();
+    const ascent = Math.max(HUD_PANEL_ASCENT, baselineOffset("alphabetic", m, this.pixelRatio));
     const depthText = `地下 ${state.depth} 階 · ${FLOOR_KIND_LABEL_JA[state.floorKind]}`;
     const scoreText = `スコア ${state.score}`;
     const seedText = `シード ${state.seedText}`;
     const panelW =
-      Math.ceil(Math.max(ctx.measureText(depthText).width, ctx.measureText(scoreText).width, ctx.measureText(seedText).width)) +
+      Math.ceil(Math.max(textWidth(depthText, m), textWidth(scoreText, m), textWidth(seedText, m))) +
       HUD_PANEL_PAD * 2;
     ctx.globalAlpha = HUD_PANEL_ALPHA;
     ctx.fillStyle = COLOR_BLACK;
     ctx.fillRect(
       rightX - panelW + HUD_PANEL_PAD,
-      rightY - HUD_PANEL_ASCENT - HUD_PANEL_PAD,
+      rightY - ascent - HUD_PANEL_PAD,
       panelW,
-      HUD_RIGHT_LINE * 2 + HUD_PANEL_ASCENT + HUD_PANEL_PAD * 2,
+      line * 2 + ascent + HUD_PANEL_PAD * 2,
     );
     ctx.globalAlpha = 1;
-    this.shadowText(depthText, rightX, rightY, COLOR_TEXT);
-    this.shadowText(scoreText, rightX, rightY + HUD_RIGHT_LINE, COLOR_HUD_SCORE);
-    this.shadowText(seedText, rightX, rightY + HUD_RIGHT_LINE * 2, COLOR_HUD_SEED);
+    this.shadowText(depthText, rightX, rightY, COLOR_TEXT, m, "right");
+    this.shadowText(scoreText, rightX, rightY + line, COLOR_HUD_SCORE, m, "right");
+    this.shadowText(seedText, rightX, rightY + line * 2, COLOR_HUD_SEED, m, "right");
     if (state.cursed) {
-      this.shadowText("呪い: 次の部屋のエリート x2", rightX, rightY + HUD_RIGHT_LINE * HUD_CURSED_LINE, ROOM_KIND.cursedColor);
+      this.shadowText("呪い: 次の部屋のエリート x2", rightX, rightY + line * HUD_CURSED_LINE, ROOM_KIND.cursedColor, m, "right");
     }
 
     if (state.combo.count > 1) {
       const pop = 1 + state.combo.popTimer * 3;
-      ctx.textAlign = "center";
-      ctx.font = uiFont(Math.round(14 * pop));
       const fading = state.combo.timer < 0.6;
-      ctx.fillStyle = fading && state.tick % 8 < 4 ? COLOR_DIM : COLOR_ENERGY;
-      ctx.fillText(`${state.combo.count} ヒット`, VIEW_W / 2, 22);
-      ctx.font = FONT_SMALL;
-      ctx.fillStyle = COLOR_TEXT;
-      ctx.fillText(`x${comboMultiplier(state.combo.count).toFixed(1)}`, VIEW_W / 2, 32);
+      const comboColor = fading && state.tick % 8 < 4 ? COLOR_DIM : COLOR_ENERGY;
+      const comboM = Math.min(TEXT.BIG, pixelText().sizeFor(COMBO_TEXT_PX * pop));
+      drawText(ctx, `${state.combo.count} ヒット`, VIEW_W / 2, COMBO_TEXT_Y, comboM, comboColor, "center");
+      const multY = COMBO_TEXT_Y + Math.max(COMBO_MULT_GAP, this.textLine(TEXT.SMALL));
+      drawText(ctx, `x${comboMultiplier(state.combo.count).toFixed(1)}`, VIEW_W / 2, multY, TEXT.SMALL, COLOR_TEXT, "center");
     }
 
     this.drawBossHud(state);
     this.drawReaperHud(state);
 
     if (state.rooms.some((r) => r.locked)) {
-      ctx.textAlign = "center";
-      ctx.font = FONT_SMALL;
-      ctx.fillStyle = COLOR_LOCK;
-      ctx.fillText("― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8);
+      drawText(ctx, "― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8, TEXT.SMALL, COLOR_LOCK, "center");
     }
 
     const last = state.log[state.log.length - 1];
     if (last && state.time - last.time < 4) {
-      ctx.textAlign = "left";
-      ctx.font = FONT_SMALL;
-      ctx.fillStyle = last.color;
-      ctx.fillText(last.text, 8, VIEW_H - 8);
+      drawText(ctx, last.text, 8, VIEW_H - 8, TEXT.SMALL, last.color);
     }
   }
 
@@ -1897,9 +1872,7 @@ export class Renderer {
       ctx.fillRect(x - BOSS_BAR_FRAME, y - BOSS_BAR_FRAME, BOSS_BAR_W + BOSS_BAR_FRAME * 2, BOSS_BAR_H + BOSS_BAR_FRAME * 2);
       ctx.globalAlpha = 1;
     }
-    ctx.textAlign = "center";
-    ctx.font = FONT_SMALL;
-    this.shadowText(b.name, VIEW_W / 2, y - 3, COLOR_BOSS_NAME);
+    this.shadowText(b.name, VIEW_W / 2, y - 3, COLOR_BOSS_NAME, TEXT.SMALL);
   }
 
   /** 登場時の上下の黒帯（HUD より奥に描く） */
@@ -1936,14 +1909,9 @@ export class Renderer {
     const center = VIEW_W / 2;
     const nameX = Math.round(lerp(-center, center, ph.slide));
     const labelX = Math.round(lerp(VIEW_W + center, center, ph.slide));
-    ctx.textAlign = "center";
-    ctx.font = FONT_SMALL;
-    this.shadowText(BOSS_LABEL, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER);
-    ctx.font = FONT_BIG;
-    ctx.fillStyle = COLOR_BLACK;
-    ctx.fillText(b.name, nameX + BOSS_NAME_SHADOW, BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2 + BOSS_NAME_SHADOW);
-    ctx.fillStyle = COLOR_BOSS_NAME;
-    ctx.fillText(b.name, nameX, BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2);
+    this.shadowText(BOSS_LABEL, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER, TEXT.SMALL);
+    const nameY = BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2;
+    drawTextShadow(ctx, b.name, nameX, nameY, TEXT.BIG, COLOR_BOSS_NAME, COLOR_BLACK, "center", BOSS_NAME_SHADOW);
     ctx.globalAlpha = 1;
   }
 
@@ -2002,24 +1970,30 @@ export class Renderer {
     return Minimap.bottom(state) + HUD_RIGHT_GAP;
   }
 
+  /** 右上 HUD の行送り（ドット文字の行高より詰めない） */
+  private hudRightLine(): number {
+    return Math.max(HUD_RIGHT_LINE, this.textLine(TEXT.SMALL));
+  }
+
+  private textLine(m: number): number {
+    return pixelText().lineHeight(m, this.pixelRatio);
+  }
+
   /** Reaper 出現までの残り秒（警告時間以降）と、出現中の警告 */
   private drawReaperHud(state: GameState): void {
     const { ctx } = this;
-    const reaperY = this.hudRightY(state) + HUD_RIGHT_LINE * HUD_REAPER_LINE;
-    ctx.textAlign = "right";
-    ctx.font = FONT_SMALL;
+    const reaperY = this.hudRightY(state) + this.hudRightLine() * HUD_REAPER_LINE;
+    const rightX = VIEW_W - HUD_RIGHT_X_PAD;
     if (state.reaper) {
-      ctx.fillStyle = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2 ? REAPER.color : COLOR_WARN;
-      ctx.fillText("死神出現！ 階段へ急げ", VIEW_W - HUD_RIGHT_X_PAD, reaperY);
+      const color = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2 ? REAPER.color : COLOR_WARN;
+      drawText(ctx, "死神出現！ 階段へ急げ", rightX, reaperY, TEXT.SMALL, color, "right");
       return;
     }
     if (!reaperWarning(state)) return;
-    this.shadowText(`死神まで ${Math.ceil(reaperTimeLeft(state))} 秒`, VIEW_W - HUD_RIGHT_X_PAD, reaperY, REAPER.color);
+    this.shadowText(`死神まで ${Math.ceil(reaperTimeLeft(state))} 秒`, rightX, reaperY, REAPER.color, TEXT.SMALL, "right");
     if (state.status !== "playing") return;
-    ctx.textAlign = "center";
-    ctx.font = FONT_MED;
     ctx.globalAlpha = pulse(state.time, REAPER_PULSE_SPEED, REAPER_ALPHA_MIN, 1);
-    this.shadowText(REAPER_WARN_TEXT, VIEW_W / 2, REAPER_WARN_Y, REAPER.color);
+    this.shadowText(REAPER_WARN_TEXT, VIEW_W / 2, REAPER_WARN_Y, REAPER.color, TEXT.TITLE);
     ctx.globalAlpha = 1;
   }
 
@@ -2040,15 +2014,13 @@ export class Renderer {
   private drawKeystoneHud(state: GameState): void {
     this.refreshKeystoneHud(state);
     const { ctx } = this;
-    ctx.textAlign = "left";
-    ctx.font = FONT_SMALL;
     if (this.hudKeystoneText) {
-      ctx.fillStyle = COLOR_KEYSTONE;
-      ctx.fillText(this.hudKeystoneText, HUD_X, HUD_KEYSTONE_Y);
+      drawText(ctx, this.hudKeystoneText, HUD_X, HUD_KEYSTONE_Y, TEXT.SMALL, COLOR_KEYSTONE);
     }
     if (this.hudConflictText) {
-      ctx.fillStyle = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2 ? COLOR_WARN : COLOR_DIM;
-      ctx.fillText(this.hudConflictText, HUD_X, HUD_WARN_Y);
+      const color = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2 ? COLOR_WARN : COLOR_DIM;
+      const y = HUD_KEYSTONE_Y + Math.max(HUD_WARN_Y - HUD_KEYSTONE_Y, this.textLine(TEXT.SMALL));
+      drawText(ctx, this.hudConflictText, HUD_X, y, TEXT.SMALL, color);
     }
   }
 
@@ -2108,16 +2080,13 @@ export class Renderer {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     ctx.globalAlpha = 1;
     if (state.deathTimer < 0.6) return;
-    ctx.textAlign = "center";
-    ctx.font = FONT_BIG;
-    ctx.fillStyle = COLOR_HP;
-    ctx.fillText("力尽きた", VIEW_W / 2, VIEW_H / 2 - 24);
-    ctx.font = FONT_MED;
-    ctx.fillStyle = COLOR_TEXT;
-    ctx.fillText(`地下 ${state.depth} 階 · 撃破 ${state.kills} · 最大コンボ ${state.combo.best}`, VIEW_W / 2, VIEW_H / 2);
-    ctx.fillText(`スコア ${state.score}`, VIEW_W / 2, VIEW_H / 2 + 16);
-    ctx.font = FONT_SMALL;
-    ctx.fillStyle = "#a0a0a0";
-    ctx.fillText("Enter: 同じシードで再挑戦   R: 新しいシード", VIEW_W / 2, VIEW_H / 2 + 40);
+    const cx = VIEW_W / 2;
+    const cy = VIEW_H / 2;
+    const statLine = Math.max(DEATH_STAT_LINE, this.textLine(TEXT.BODY));
+    const summary = `地下 ${state.depth} 階 · 撃破 ${state.kills} · 最大コンボ ${state.combo.best}`;
+    drawText(ctx, "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, COLOR_HP, "center");
+    drawText(ctx, summary, cx, cy, TEXT.BODY, COLOR_TEXT, "center");
+    drawText(ctx, `スコア ${state.score}`, cx, cy + statLine, TEXT.BODY, COLOR_TEXT, "center");
+    drawText(ctx, "Enter: 同じシードで再挑戦   R: 新しいシード", cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
   }
 }

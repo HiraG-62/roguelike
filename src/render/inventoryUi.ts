@@ -30,10 +30,7 @@ import {
   layoutInventory,
 } from "../ui/inventory";
 import { fitTooltip } from "./renderMath";
-import { uiFont } from "./font";
-
-const FONT_SMALL = uiFont(8);
-const FONT_TITLE = uiFont(10);
+import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixelText";
 
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
@@ -43,10 +40,9 @@ const COLOR_OVERLAY = "rgba(0,0,0,0.55)";
 const COLOR_HOVER_BG = "rgba(255,255,255,0.10)";
 const COLOR_EMPTY = "#606060";
 
-const FONT_TINY = uiFont(6);
-const FONT_ICON = uiFont(10);
 const COLOR_WARN = "#ff6060";
 
+/** 行高の下限（ドット文字の行高がこれより大きければそちらを使う） */
 const LINE_H = 8;
 const TINY_LINE_H = 6;
 const TEXT_PAD_X = 2;
@@ -168,22 +164,6 @@ function findItemById(state: GameState, id: string | null): Item | null {
   return state.profile.stash.find((it) => it.id === id) ?? null;
 }
 
-/** ctx.measureText で幅を測り、収まらなければ末尾を "…" で切り詰める */
-function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (maxWidth <= 0) return "";
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  const ellipsis = "…";
-  let lo = 0;
-  let hi = text.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    const candidate = text.slice(0, mid) + ellipsis;
-    if (ctx.measureText(candidate).width <= maxWidth) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo === 0 ? ellipsis : text.slice(0, lo) + ellipsis;
-}
-
 export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
   if (!ui.open) return;
   const layout = layoutInventory(state, ui);
@@ -218,24 +198,19 @@ function drawPanelFrame(ctx: CanvasRenderingContext2D, layout: InventoryLayout, 
   drawTabs(ctx, ui);
 
   if (ui.messageTimer > 0 && ui.message) {
-    ctx.font = FONT_SMALL;
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#ffd75f";
-    ctx.fillText(truncateText(ctx, ui.message, panel.w / 2), panel.x + panel.w - TEXT_PAD_X, panel.y + 8);
+    const m = TEXT.SMALL;
+    drawText(ctx, truncateText(ui.message, panel.w / 2, m), panel.x + panel.w - TEXT_PAD_X, panel.y + 8, m, COLOR_SELECTED, "right");
   }
 }
 
 function drawTabs(ctx: CanvasRenderingContext2D, ui: InventoryUi): void {
-  ctx.font = FONT_TITLE;
-  ctx.textAlign = "center";
   for (const { tab, rect } of tabRects()) {
     const selected = ui.tab === tab;
     if (selected) {
       ctx.fillStyle = COLOR_HOVER_BG;
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     }
-    ctx.fillStyle = selected ? COLOR_TEXT : COLOR_DIM;
-    ctx.fillText(TAB_LABEL[tab], rect.x + rect.w / 2, rect.y + rect.h - 1);
+    drawText(ctx, TAB_LABEL[tab], rect.x + rect.w / 2, rect.y + rect.h - 1, TEXT.BODY, selected ? COLOR_TEXT : COLOR_DIM, "center");
   }
 }
 
@@ -257,25 +232,19 @@ function drawSlotRow(ctx: CanvasRenderingContext2D, s: SlotLayout, ui: Inventory
   }
   drawSlotFrame(ctx, rect, s.item);
 
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = "left";
-  ctx.fillStyle = COLOR_DIM;
+  const m = TEXT.SMALL;
+  const baseline = rect.y + rect.h / 2 + 3;
   const label = SLOT_LABEL[s.slot];
-  ctx.fillText(label, rect.x + TEXT_PAD_X + (s.item ? RARITY_STRIP_W : 0), rect.y + rect.h / 2 + 3);
+  drawText(ctx, label, rect.x + TEXT_PAD_X + (s.item ? RARITY_STRIP_W : 0), baseline, m, COLOR_DIM);
 
-  const labelWidth = ctx.measureText(label).width;
+  const labelWidth = textWidth(label, m);
   const nameMaxWidth = rect.w - labelWidth - TEXT_PAD_X * 3;
-  ctx.textAlign = "right";
   if (s.item) {
-    ctx.fillStyle = RARITY_COLOR[s.item.rarity];
-    ctx.fillText(truncateText(ctx, s.item.name, nameMaxWidth), rect.x + rect.w - TEXT_PAD_X, rect.y + rect.h / 2 + 3);
+    drawText(ctx, truncateText(s.item.name, nameMaxWidth, m), rect.x + rect.w - TEXT_PAD_X, baseline, m, RARITY_COLOR[s.item.rarity], "right");
   } else {
     const right = rect.x + rect.w - TEXT_PAD_X;
-    ctx.fillStyle = COLOR_EMPTY;
-    ctx.fillText("― 空 ―", right - ICON_OFFSET_X, rect.y + rect.h / 2 + 3);
-    ctx.font = FONT_ICON;
-    ctx.textAlign = "center";
-    ctx.fillText(SLOT_ICON[s.slot], right - ICON_OFFSET_X / 2 + 1, rect.y + rect.h / 2 + 4);
+    drawText(ctx, "― 空 ―", right - ICON_OFFSET_X, baseline, m, COLOR_EMPTY, "right");
+    drawText(ctx, SLOT_ICON[s.slot], right - ICON_OFFSET_X / 2 + 1, rect.y + rect.h / 2 + 4, TEXT.BODY, COLOR_EMPTY, "center");
   }
 }
 
@@ -299,10 +268,7 @@ function drawSlotFrame(ctx: CanvasRenderingContext2D, rect: Rect, item: Item | n
 
 function drawStash(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: InventoryUi): void {
   if (layout.stashOrder.length === 0) {
-    ctx.font = FONT_SMALL;
-    ctx.textAlign = "left";
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("倉庫は空です", RIGHT_X + TEXT_PAD_X, layout.tooltipRect.y - 4);
+    drawText(ctx, "倉庫は空です", RIGHT_X + TEXT_PAD_X, layout.tooltipRect.y - 4, TEXT.SMALL, COLOR_DIM);
     return;
   }
   for (const row of layout.stashRows) drawStashRow(ctx, row, ui);
@@ -315,19 +281,18 @@ function drawStashRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, ui: In
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
 
-  ctx.font = FONT_SMALL;
+  const m = TEXT.SMALL;
+  const baseline = rect.y + rect.h / 2 + 3;
   const meta = `${SLOT_LABEL[item.slot]} L${item.itemLevel}`;
-  ctx.textAlign = "right";
-  ctx.fillStyle = COLOR_DIM;
-  ctx.fillText(meta, rect.x + rect.w - TEXT_PAD_X, rect.y + rect.h / 2 + 3);
-  const metaWidth = ctx.measureText(meta).width;
+  drawText(ctx, meta, rect.x + rect.w - TEXT_PAD_X, baseline, m, COLOR_DIM, "right");
+  const metaWidth = textWidth(meta, m);
 
-  ctx.textAlign = "left";
-  ctx.fillStyle = RARITY_COLOR[item.rarity];
+  const rarityColor = RARITY_COLOR[item.rarity];
+  ctx.fillStyle = rarityColor;
   ctx.fillRect(Math.round(rect.x), Math.round(rect.y) + 1, RARITY_STRIP_W, rect.h - 2);
   const nameX = rect.x + TEXT_PAD_X + RARITY_STRIP_W;
   const nameMaxWidth = rect.w - metaWidth - TEXT_PAD_X * 3 - RARITY_STRIP_W;
-  ctx.fillText(truncateText(ctx, item.name, nameMaxWidth), nameX, rect.y + rect.h / 2 + 3);
+  drawText(ctx, truncateText(item.name, nameMaxWidth, m), nameX, baseline, m, rarityColor);
 }
 
 function tooltipLines(state: GameState, item: Item): TooltipLine[] {
@@ -348,6 +313,11 @@ function affixLine(roll: AffixRoll): TooltipLine {
   return { text: `T${roll.tier} ${formatAffix(roll)}`, color };
 }
 
+/** 本文の行高（論理 px）。ドット文字の行高と定数の大きい方 */
+function bodyLineH(): number {
+  return Math.max(LINE_H, textLineHeight(TEXT.SMALL));
+}
+
 /** 下端を tooltipRect に揃えたまま、行数に応じて上へ伸ばす */
 function drawTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
   drawItemTooltip(ctx, state, layout.tooltipRect, findItemById(state, ui.hoverItemId), CONTENT_Y, "アイテムにカーソルを合わせる");
@@ -362,32 +332,33 @@ function drawItemTooltip(
   topLimit: number,
   emptyText: string,
 ): void {
-  ctx.textAlign = "left";
   if (!item) {
     strokeRectPx(ctx, tooltipRect, COLOR_BORDER);
-    ctx.font = FONT_SMALL;
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText(emptyText, tooltipRect.x + TEXT_PAD_X, tooltipRect.y + LINE_H);
+    drawText(ctx, emptyText, tooltipRect.x + TEXT_PAD_X, tooltipRect.y + bodyLineH(), TEXT.SMALL, COLOR_DIM);
     return;
   }
+  drawTooltipBox(ctx, tooltipRect, tooltipLines(state, item), topLimit);
+}
 
-  const lines = tooltipLines(state, item);
+/** 行を下端揃えのボックスに描く。行数が多ければ fitTooltip の縮小行高に切り替え、入る分だけ出す */
+function drawTooltipBox(ctx: CanvasRenderingContext2D, tooltipRect: Rect, lines: readonly TooltipLine[], topLimit: number): void {
+  const m = TEXT.SMALL;
+  const lineH = bodyLineH();
+  const smallLineH = Math.max(TINY_LINE_H, textLineHeight(m));
   const bottom = tooltipRect.y + tooltipRect.h;
-  const fit = fitTooltip(lines.length, LINE_H, TINY_LINE_H, TOOLTIP_MAX_LINES, bottom - topLimit, TOOLTIP_PAD_Y);
+  const fit = fitTooltip(lines.length, lineH, smallLineH, TOOLTIP_MAX_LINES, bottom - topLimit, TOOLTIP_PAD_Y);
   const h = Math.max(tooltipRect.h, fit.height);
   const box = { x: tooltipRect.x, y: bottom - h, w: tooltipRect.w, h };
   ctx.fillStyle = COLOR_PANEL_BG;
   ctx.fillRect(box.x, box.y, box.w, box.h);
   strokeRectPx(ctx, box, COLOR_BORDER);
 
-  ctx.font = fit.small ? FONT_TINY : FONT_SMALL;
   const maxWidth = box.w - TEXT_PAD_X * 2;
   let y = box.y + fit.lineH;
   for (let i = 0; i < fit.shown; i++) {
     const line = lines[i];
     if (!line) break;
-    ctx.fillStyle = line.color;
-    ctx.fillText(truncateText(ctx, line.text, maxWidth), box.x + TEXT_PAD_X, y);
+    drawText(ctx, truncateText(line.text, maxWidth, m), box.x + TEXT_PAD_X, y, m, line.color);
     y += fit.lineH;
   }
 }
@@ -396,43 +367,42 @@ function drawStatsSummary(ctx: CanvasRenderingContext2D, state: GameState, layou
   const { statsRect } = layout;
   strokeRectPx(ctx, statsRect, COLOR_BORDER);
 
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = "left";
-  ctx.fillStyle = COLOR_TEXT;
+  const m = TEXT.SMALL;
+  const lineH = bodyLineH();
+  const x = statsRect.x + TEXT_PAD_X;
   const maxWidth = statsRect.w - TEXT_PAD_X * 2;
   const maxY = statsRect.y + statsRect.h - 2;
 
   const conflicts = equippedConflictLines(state);
   const lines = statsSummary(state.stats);
-  let y = statsRect.y + LINE_H;
+  let y = statsRect.y + lineH;
   for (const line of conflicts) {
     if (y > maxY) break;
-    ctx.fillStyle = COLOR_WARN;
-    ctx.fillText(truncateText(ctx, line, maxWidth), statsRect.x + TEXT_PAD_X, y);
-    y += LINE_H;
+    drawText(ctx, truncateText(line, maxWidth, m), x, y, m, COLOR_WARN);
+    y += lineH;
   }
-  ctx.fillStyle = COLOR_TEXT;
   if (lines.length === 0) {
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("ステータス", statsRect.x + TEXT_PAD_X, y);
+    drawText(ctx, "ステータス", x, y, m, COLOR_DIM);
     return;
   }
   for (const line of lines) {
     if (y > maxY) break;
-    ctx.fillText(truncateText(ctx, line, maxWidth), statsRect.x + TEXT_PAD_X, y);
-    y += LINE_H;
+    drawText(ctx, truncateText(line, maxWidth, m), x, y, m, COLOR_TEXT);
+    y += lineH;
   }
 }
 
 function drawHint(ctx: CanvasRenderingContext2D, layout: InventoryLayout, text = HINT_EQUIPMENT): void {
   const { hintRect } = layout;
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = "center";
-  ctx.fillStyle = COLOR_DIM;
-  ctx.fillText(
-    truncateText(ctx, text, hintRect.w - TEXT_PAD_X * 2),
+  const m = TEXT.SMALL;
+  drawText(
+    ctx,
+    truncateText(text, hintRect.w - TEXT_PAD_X * 2, m),
     hintRect.x + hintRect.w / 2,
     hintRect.y + hintRect.h / 2 + 3,
+    m,
+    COLOR_DIM,
+    "center",
   );
 }
 
@@ -444,10 +414,7 @@ function drawSkillsTab(ctx: CanvasRenderingContext2D, state: GameState, layout: 
   const skills = layoutSkills(state, ui);
   for (const slot of skills.slots) drawSkillSlot(ctx, state, slot, ui);
   if (skills.stoneOrder.length === 0) {
-    ctx.font = FONT_SMALL;
-    ctx.textAlign = "left";
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("スキル石がありません", RIGHT_X + TEXT_PAD_X, CONTENT_Y + LINE_H);
+    drawText(ctx, "スキル石がありません", RIGHT_X + TEXT_PAD_X, CONTENT_Y + bodyLineH(), TEXT.SMALL, COLOR_DIM);
   }
   for (const row of skills.rows) drawStoneRow(ctx, row, ui);
   drawSkillTooltip(ctx, state, layout, ui);
@@ -466,29 +433,22 @@ function drawSkillSlot(ctx: CanvasRenderingContext2D, state: GameState, s: Skill
   const iconX = rect.x + TEXT_PAD_X + 1;
   const iconY = rect.y + (rect.h - SKILL_ICON_SIZE) / 2;
   strokeRectPx(ctx, { x: iconX, y: iconY, w: SKILL_ICON_SIZE, h: SKILL_ICON_SIZE }, COLOR_BORDER);
-  ctx.font = FONT_ICON;
-  ctx.textAlign = "center";
-  ctx.fillStyle = s.stone ? COLOR_SKILL : COLOR_EMPTY;
+  const color = s.stone ? COLOR_SKILL : COLOR_EMPTY;
   const icon = s.stone ? SKILL_DEFS[s.stone.skillKey].icon : String(s.index + 1);
-  ctx.fillText(icon, iconX + SKILL_ICON_SIZE / 2, iconY + SKILL_ICON_BASELINE);
+  drawText(ctx, icon, iconX + SKILL_ICON_SIZE / 2, iconY + SKILL_ICON_BASELINE, TEXT.BODY, color, "center");
 
+  const m = TEXT.SMALL;
   const textX = iconX + SKILL_ICON_SIZE + TEXT_PAD_X * 2;
   const maxWidth = rect.x + rect.w - textX - TEXT_PAD_X;
-  ctx.textAlign = "left";
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = s.stone ? COLOR_SKILL : COLOR_EMPTY;
   const label = s.stone ? stoneLabel(s.stone) : `スロット ${s.index + 1}: 空`;
-  ctx.fillText(truncateText(ctx, label, maxWidth), textX, rect.y + SKILL_LINE1_Y);
+  drawText(ctx, truncateText(label, maxWidth, m), textX, rect.y + SKILL_LINE1_Y, m, color);
 
-  ctx.font = FONT_TINY;
-  ctx.fillStyle = COLOR_DIM;
-  ctx.fillText(`キー ${s.index + 1}`, textX, rect.y + SKILL_LINE2_Y);
+  drawText(ctx, `キー ${s.index + 1}`, textX, rect.y + SKILL_LINE2_Y, m, COLOR_DIM);
   let x = textX;
-  for (const m of slotModifierView(state, s.index)) {
-    const name = MODIFIERS[m.key].name;
-    ctx.fillStyle = m.active ? MODIFIERS[m.key].color : COLOR_EMPTY;
-    ctx.fillText(name, x, rect.y + SKILL_LINE3_Y);
-    x += ctx.measureText(name).width + TEXT_PAD_X * 2;
+  for (const mod of slotModifierView(state, s.index)) {
+    const name = MODIFIERS[mod.key].name;
+    drawText(ctx, name, x, rect.y + SKILL_LINE3_Y, m, mod.active ? MODIFIERS[mod.key].color : COLOR_EMPTY);
+    x += textWidth(name, m) + TEXT_PAD_X * 2;
   }
 }
 
@@ -498,17 +458,14 @@ function drawStoneRow(ctx: CanvasRenderingContext2D, row: StoneRowLayout, ui: In
     ctx.fillStyle = COLOR_HOVER_BG;
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
-  ctx.font = FONT_SMALL;
+  const m = TEXT.SMALL;
+  const baseline = rect.y + rect.h / 2 + 3;
   const equipped = row.equippedSlot >= 0;
   const meta = equipped ? `[${row.equippedSlot + 1}]` : `D${stone.foundDepth}`;
-  ctx.textAlign = "right";
-  ctx.fillStyle = equipped ? COLOR_SELECTED : COLOR_DIM;
-  ctx.fillText(meta, rect.x + rect.w - TEXT_PAD_X, rect.y + rect.h / 2 + 3);
-  const metaWidth = ctx.measureText(meta).width;
-  ctx.textAlign = "left";
-  ctx.fillStyle = COLOR_SKILL;
+  drawText(ctx, meta, rect.x + rect.w - TEXT_PAD_X, baseline, m, equipped ? COLOR_SELECTED : COLOR_DIM, "right");
+  const metaWidth = textWidth(meta, m);
   const maxWidth = rect.w - metaWidth - TEXT_PAD_X * 3;
-  ctx.fillText(truncateText(ctx, stoneLabel(stone), maxWidth), rect.x + TEXT_PAD_X, rect.y + rect.h / 2 + 3);
+  drawText(ctx, truncateText(stoneLabel(stone), maxWidth, m), rect.x + TEXT_PAD_X, baseline, m, COLOR_SKILL);
 }
 
 /** 石のツールチップ: 動詞・タグ・CD・リンク・変異軸・装着中の刻印符 */
@@ -537,51 +494,33 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TooltipLine[] {
 function drawSkillTooltip(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
   const { tooltipRect } = layout;
   const stone = findStone(state.skills.profile, ui.hoverStoneId);
-  ctx.textAlign = "left";
   if (!stone) {
     strokeRectPx(ctx, tooltipRect, COLOR_BORDER);
-    ctx.font = FONT_SMALL;
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("スキル石にカーソルを合わせる", tooltipRect.x + TEXT_PAD_X, tooltipRect.y + LINE_H);
+    drawText(ctx, "スキル石にカーソルを合わせる", tooltipRect.x + TEXT_PAD_X, tooltipRect.y + bodyLineH(), TEXT.SMALL, COLOR_DIM);
     return;
   }
-  const lines = stoneTooltipLines(state, stone);
-  const bottom = tooltipRect.y + tooltipRect.h;
-  const fit = fitTooltip(lines.length, LINE_H, TINY_LINE_H, TOOLTIP_MAX_LINES, bottom - CONTENT_Y, TOOLTIP_PAD_Y);
-  const h = Math.max(tooltipRect.h, fit.height);
-  const box = { x: tooltipRect.x, y: bottom - h, w: tooltipRect.w, h };
-  ctx.fillStyle = COLOR_PANEL_BG;
-  ctx.fillRect(box.x, box.y, box.w, box.h);
-  strokeRectPx(ctx, box, COLOR_BORDER);
-  ctx.font = fit.small ? FONT_TINY : FONT_SMALL;
-  let y = box.y + fit.lineH;
-  for (let i = 0; i < fit.shown; i++) {
-    const line = lines[i];
-    if (!line) break;
-    ctx.fillStyle = line.color;
-    ctx.fillText(truncateText(ctx, line.text, box.w - TEXT_PAD_X * 2), box.x + TEXT_PAD_X, y);
-    y += fit.lineH;
-  }
+  drawTooltipBox(ctx, tooltipRect, stoneTooltipLines(state, stone), CONTENT_Y);
 }
 
 /** 右下: 刻印符とリンクの説明 */
 function drawSkillNotes(ctx: CanvasRenderingContext2D, layout: InventoryLayout): void {
   const { statsRect } = layout;
   strokeRectPx(ctx, statsRect, COLOR_BORDER);
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = "left";
-  ctx.fillStyle = COLOR_DIM;
+  const m = TEXT.SMALL;
+  const lineH = bodyLineH();
   const maxWidth = statsRect.w - TEXT_PAD_X * 2;
+  const maxY = statsRect.y + statsRect.h - 2;
   const lines = [
     "刻印符はこのランのみ有効。触れると装着中の",
     "スキルにリンクする（最も古いものが外れる）。",
     "リンク数が多いほど基本クールダウンが伸びる。",
     "キー: 1/C/マウス戻る, 2/V/マウス進む",
   ];
-  let y = statsRect.y + LINE_H;
+  let y = statsRect.y + lineH;
   for (const line of lines) {
-    ctx.fillText(truncateText(ctx, line, maxWidth), statsRect.x + TEXT_PAD_X, y);
-    y += LINE_H;
+    if (y > maxY) break;
+    drawText(ctx, truncateText(line, maxWidth, m), statsRect.x + TEXT_PAD_X, y, m, COLOR_DIM);
+    y += lineH;
   }
 }
 
@@ -603,15 +542,11 @@ function drawCraftTab(ctx: CanvasRenderingContext2D, state: GameState, layout: I
 }
 
 function drawCurrencies(ctx: CanvasRenderingContext2D, ui: InventoryUi, rows: readonly CurrencyRowLayout[]): void {
-  ctx.font = FONT_SMALL;
+  const m = TEXT.SMALL;
   for (const { currency, rect } of rows) {
     const baseline = rect.y + rect.h - CURRENCY_BASELINE_INSET;
-    ctx.textAlign = "left";
-    ctx.fillStyle = CURRENCY_COLOR[currency];
-    ctx.fillText(`${CURRENCY_LABEL[currency]} ${ui.craft.save.wallet[currency]}`, rect.x + TEXT_PAD_X, baseline);
-    ctx.textAlign = "right";
-    ctx.fillStyle = COLOR_DIM;
-    ctx.fillText(CURRENCY_SOURCE[currency], rect.x + rect.w - TEXT_PAD_X, baseline);
+    drawText(ctx, `${CURRENCY_LABEL[currency]} ${ui.craft.save.wallet[currency]}`, rect.x + TEXT_PAD_X, baseline, m, CURRENCY_COLOR[currency]);
+    drawText(ctx, CURRENCY_SOURCE[currency], rect.x + rect.w - TEXT_PAD_X, baseline, m, COLOR_DIM, "right");
   }
 }
 
@@ -640,14 +575,11 @@ function drawCraftButton(
 
   const cost = CRAFT_COSTS[op];
   const centerX = rect.x + rect.w / 2;
-  ctx.textAlign = "center";
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = enabled ? COLOR_TEXT : COLOR_EMPTY;
-  ctx.fillText(CRAFT_LABEL[op], centerX, rect.y + CRAFT_LABEL_BASELINE);
-  ctx.font = FONT_TINY;
+  const m = TEXT.SMALL;
+  drawText(ctx, CRAFT_LABEL[op], centerX, rect.y + CRAFT_LABEL_BASELINE, m, enabled ? COLOR_TEXT : COLOR_EMPTY, "center");
   const canPay = ui.craft.save.wallet[cost.currency] >= cost.amount;
-  ctx.fillStyle = canPay ? CURRENCY_COLOR[cost.currency] : COLOR_EMPTY;
-  ctx.fillText(`${cost.amount} ${CURRENCY_LABEL[cost.currency]}`, centerX, rect.y + CRAFT_COST_BASELINE);
+  const costColor = canPay ? CURRENCY_COLOR[cost.currency] : COLOR_EMPTY;
+  drawText(ctx, `${cost.amount} ${CURRENCY_LABEL[cost.currency]}`, centerX, rect.y + CRAFT_COST_BASELINE, m, costColor, "center");
 }
 
 /** 状態行（ホバー中の操作の説明 / Fuse の選択待ち）と直前の結果 */
@@ -662,12 +594,8 @@ function drawCraftStatus(
   const maxWidth = statsRect.w - TEXT_PAD_X * 2;
   const hover = ui.craft.hoverOp;
   const status = hover !== null ? CRAFT_VERB[hover] : ui.craft.fusePending ? FUSE_PENDING_TEXT : "";
-  ctx.textAlign = "left";
-  ctx.font = FONT_TINY;
-  ctx.fillStyle = COLOR_DIM;
-  ctx.fillText(truncateText(ctx, status, maxWidth), statsRect.x + TEXT_PAD_X, statusY);
+  const m = TEXT.SMALL;
+  drawText(ctx, truncateText(status, maxWidth, m), statsRect.x + TEXT_PAD_X, statusY, m, COLOR_DIM);
   if (!ui.craft.result) return;
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = COLOR_SELECTED;
-  ctx.fillText(truncateText(ctx, ui.craft.result, maxWidth), statsRect.x + TEXT_PAD_X, resultY);
+  drawText(ctx, truncateText(ui.craft.result, maxWidth, m), statsRect.x + TEXT_PAD_X, resultY, m, COLOR_SELECTED);
 }
