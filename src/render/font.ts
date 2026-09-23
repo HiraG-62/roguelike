@@ -67,3 +67,6 @@ export function wrapByWidth(text: string, maxWidth: number, measure: (s: string)
   if (line.trim()) lines.push(line.trimEnd());
   return lines;
 }
+
+/** ドット風テキスト（PixelText）用のフォント。index.html の @font-face で public/fonts から読み込む */
+export const PIXEL_FONT_FAMILY = "DotGothic16";
