@@ -47,6 +47,7 @@ import {
   edgeDir,
   moveHistoryCursor,
   processMenuKeys,
+  replayAvailability,
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
@@ -90,6 +91,9 @@ type Screen = "title" | "playing" | "paused" | "history" | "settings" | "replay"
 const REPLAY_START_SPEED: ReplaySpeed = 1;
 const NO_REPLAY_MESSAGE = "このランのリプレイは保存されていません";
 const BROKEN_REPLAY_MESSAGE = "リプレイデータが壊れています";
+const OLD_REPLAY_MESSAGE = "このリプレイは旧バージョンのため再生できません";
+/** 旧バージョン通知の表示秒数 */
+const OLD_REPLAY_MESSAGE_DURATION = 2;
 
 function initialSeedText(): string {
   return new URLSearchParams(location.search).get(SEED_PARAM) ?? randomSeedText();
@@ -179,6 +183,8 @@ let replays: ReplayData[] = loadReplays();
 
 let historyCursor = 0;
 let historyMessage = "";
+/** > 0 の間だけ historyMessage を自動で消す残り秒数（0 なら手動クリアのみ） */
+let historyMessageTimer = 0;
 
 interface ReplayPlayback {
   session: ReplaySession;
@@ -234,6 +240,7 @@ function openHistory(): void {
   screen = "history";
   historyCursor = 0;
   historyMessage = "";
+  historyMessageTimer = 0;
 }
 
 /**
@@ -374,6 +381,10 @@ startLoop(
       }
 
       case "history": {
+        if (historyMessageTimer > 0) {
+          historyMessageTimer = Math.max(0, historyMessageTimer - dt);
+          if (historyMessageTimer === 0) historyMessage = "";
+        }
         if (hotkeys.escape) {
           screen = "title";
           break;
@@ -383,6 +394,7 @@ startLoop(
         if (navY !== 0) {
           historyCursor = moveHistoryCursor(historyCursor, navY, history.length);
           historyMessage = "";
+          historyMessageTimer = 0;
           sfx.play("menuMove");
         }
         const entry = history[historyCursor];
@@ -394,8 +406,14 @@ startLoop(
         }
         if (hotkeys.p) {
           const data = findReplayForEntry(replays, entry);
-          if (data) startReplay(data);
-          else historyMessage = NO_REPLAY_MESSAGE;
+          if (!data) {
+            historyMessage = NO_REPLAY_MESSAGE;
+          } else if (replayAvailability(data) === "old") {
+            historyMessage = OLD_REPLAY_MESSAGE;
+            historyMessageTimer = OLD_REPLAY_MESSAGE_DURATION;
+          } else {
+            startReplay(data);
+          }
           sfx.play("uiClick");
         }
         break;
@@ -559,9 +577,10 @@ startLoop(
       drawHistoryScreen(ctx, {
         history: profile.meta.history ?? [],
         cursor: historyCursor,
-        hasReplay: (i) => {
+        replayStatus: (i) => {
           const entry = profile.meta.history?.[i];
-          return entry !== undefined && findReplayForEntry(replays, entry) !== null;
+          if (entry === undefined) return "none";
+          return replayAvailability(findReplayForEntry(replays, entry));
         },
         message: historyMessage,
       });

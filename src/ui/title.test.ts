@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item, RunHistoryEntry } from "../loot/types";
+import { REPLAY_VERSION, type ReplayData } from "../core/replay";
 import {
   type RawKeyEvent,
   appendSeedChar,
@@ -15,6 +16,7 @@ import {
   isDailyEntry,
   moveHistoryCursor,
   processMenuKeys,
+  replayAvailability,
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
@@ -256,5 +258,23 @@ describe("history cursor / replay speed", () => {
     expect(shiftReplaySpeed(2, 1)).toBe(4);
     expect(shiftReplaySpeed(4, 1)).toBe(4);
     expect(shiftReplaySpeed(1, -1)).toBe(1);
+  });
+});
+
+describe("リプレイの再生可否", () => {
+  function fakeReplay(version: number): ReplayData {
+    return { version } as unknown as ReplayData;
+  }
+
+  it("リプレイが保存されていなければ none", () => {
+    expect(replayAvailability(null)).toBe("none");
+  });
+
+  it("現行バージョンの記録なら playable", () => {
+    expect(replayAvailability(fakeReplay(REPLAY_VERSION))).toBe("playable");
+  });
+
+  it("旧バージョンの記録なら old（再生不可）", () => {
+    expect(replayAvailability(fakeReplay(REPLAY_VERSION - 1))).toBe("old");
   });
 });

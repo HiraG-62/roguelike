@@ -4,7 +4,7 @@
  */
 import { VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
-import type { RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
+import type { ReplayAvailability, RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import { PAUSE_MENU_ITEMS, SETTINGS_ITEMS, dailyBestIndices, isDailyEntry } from "../ui/title";
 import type { Settings } from "../ui/settings";
 import { TEXT, drawText, drawTextShadow, textLineHeight } from "./pixelText";
@@ -259,9 +259,9 @@ const MINUTE_PAD = 2;
 export interface HistoryScreenView {
   history: readonly RunHistoryEntry[];
   cursor: number;
-  /** i 番目の履歴にリプレイが残っているか */
-  hasReplay: (index: number) => boolean;
-  /** 直前の操作の結果（「リプレイが無い」等）。空なら出さない */
+  /** i 番目の履歴に対応するリプレイの再生可否 */
+  replayStatus: (index: number) => ReplayAvailability;
+  /** 直前の操作の結果（「リプレイが無い」「旧バージョンで再生不可」等）。空なら出さない */
   message: string;
 }
 
@@ -289,13 +289,16 @@ export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistorySc
       }
       const daily = isDailyEntry(entry);
       const best = dailyBest.has(i);
-      // 行頭の印: R = リプレイあり、D = デイリー（* = その日のベスト）
-      const marks = `${view.hasReplay(i) ? "R" : " "}${daily ? (best ? "*" : "D") : " "}`;
+      const status = view.replayStatus(i);
+      // 行頭の印: R = リプレイあり、旧 = 保存はあるが再生不可（旧バージョン）、D = デイリー（* = その日のベスト）
+      const replayMark = status === "playable" ? "R" : status === "old" ? "旧" : " ";
+      const marks = `${replayMark}${daily ? (best ? "*" : "D") : " "}`;
       const cause = entry.cause ? (CAUSE_LABEL[entry.cause] ?? entry.cause) : "";
       const line = `${marks} ${historyDateLabel(entry.date)}  シード:${entry.seedText}  階:${entry.depth}  撃破:${entry.kills}  スコア:${entry.score}  コンボ:${entry.bestCombo}  ${Math.round(entry.durationSec)}秒  ${cause}`;
       let color = i === cursor ? COLOR_CURSOR : COLOR_TEXT;
       if (best) color = COLOR_DAILY_BEST;
       else if (daily) color = COLOR_DAILY;
+      if (status === "old") color = COLOR_DIM;
       drawText(ctx, line, HISTORY_LEFT_X, y, m, color);
       y += lineH;
     });
@@ -306,7 +309,7 @@ export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistorySc
   }
   drawText(
     ctx,
-    "↑↓: 選択   P: 再生   S: このシードで開始   Esc: 戻る   （R: リプレイ, D: デイリー, *: デイリー最高）",
+    "↑↓: 選択   P: 再生   S: このシードで開始   Esc: 戻る   （R: リプレイ, 旧: 再生不可, D: デイリー, *: デイリー最高）",
     VIEW_W / 2,
     VIEW_H - 8,
     m,

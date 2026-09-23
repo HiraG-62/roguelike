@@ -5,7 +5,7 @@
  */
 import type { Item, Profile, Rarity, RunHistoryEntry } from "../loot/types";
 import { RARITIES } from "../loot/types";
-import { isDailySeedText } from "../core/replay";
+import { isDailySeedText, isPlayable, type ReplayData } from "../core/replay";
 
 // ---------------------------------------------------------------------------
 // シード入力
@@ -298,6 +298,14 @@ export function dailyBestIndices(history: readonly RunHistoryEntry[]): Set<numbe
 export function moveHistoryCursor(cursor: number, delta: number, length: number): number {
   if (length === 0) return 0;
   return Math.max(0, Math.min(length - 1, cursor + delta));
+}
+
+/** 履歴行に対応するリプレイの再生可否。"none" = 保存されていない、"old" = 保存はあるが再生不可（旧バージョン） */
+export type ReplayAvailability = "none" | "playable" | "old";
+
+export function replayAvailability(replay: ReplayData | null): ReplayAvailability {
+  if (!replay) return "none";
+  return isPlayable(replay) ? "playable" : "old";
 }
 
 // ---------------------------------------------------------------------------
