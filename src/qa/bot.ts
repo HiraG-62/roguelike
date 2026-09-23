@@ -434,6 +434,11 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   // 祝福 3 択の間は他の処理が止まる（core/game.ts の step 参照）ので最優先で処理する
   if (state.boonChoice) return boonChoiceInput(state);
 
+  // 装備の芽（state.pendingBud）は boonChoice と違い core/game.ts の step を止めない
+  // （system/loot.ts の chooseBud を呼ぶ副作用が要るだけで、FrameInput とは無関係）ため、
+  // ここでは何もしない。芽の選択・出現回数の計測は呼び出し側（qa/simulation.test.ts の
+  // runOnce）が state.pendingBud を見て chooseBud(state, 0) を直接呼んでいる
+
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;
     bot.stairsPos = null;

@@ -5,8 +5,24 @@ import type { GameState, GameStatus } from "../core/state";
 import { createRng, type Rng } from "../core/rng";
 import { TILE_SIZE, Tile, getTile, inBounds } from "../map/grid";
 import { enemyDef } from "../data/enemies";
-import { createEmptyProfile, RARITIES, SLOTS, type Item, type Profile, type Rarity, type Slot } from "../loot/types";
-import { generateItem } from "../loot/generator";
+import {
+  createEmptyProfile,
+  createEmptyProvenance,
+  RARITIES,
+  SLOTS,
+  TRAIT_COLORS,
+  type AffixRoll,
+  type Item,
+  type Profile,
+  type Rarity,
+  type ResonanceKind,
+  type Slot,
+  type TraitColor,
+} from "../loot/types";
+import { generateItem, makeItemId, MAX_FOUND_TRAITS, rollBase, rollImplicit, rollMargin, rollTraitOfColor, type TraitRollOptions } from "../loot/generator";
+import { fluxClassOf } from "../loot/flux";
+import { nameItem } from "../loot/names";
+import { chooseBud } from "../system/loot";
 import { createBotState, botInput } from "./bot";
 
 /**
@@ -30,14 +46,31 @@ const FULL_SEED_COUNT = 30;
 const FULL_MAX_STEPS = 60_000;
 /** BOSS.interval と同じ値をここでも参照したいが循環を避けるため直接は import せず、報告用の概算にのみ使う */
 
-type ProfileKind = "empty" | "rareLoadout" | "uniqueLoadout";
-const PROFILE_KINDS: readonly ProfileKind[] = ["empty", "rareLoadout", "uniqueLoadout"];
+/**
+ * rareLoadout / uniqueLoadout: 揺らぎ分類（旧レアリティ）を狙って棄却サンプリングする装備。
+ * dominant/dual/scatterLoadout: 色の配合（共鳴）を狙って組み立てる装備。
+ */
+type ProfileKind = "empty" | "rareLoadout" | "uniqueLoadout" | "dominantLoadout" | "dualLoadout" | "scatterLoadout";
+const PROFILE_KINDS: readonly ProfileKind[] = [
+  "empty",
+  "rareLoadout",
+  "uniqueLoadout",
+  "dominantLoadout",
+  "dualLoadout",
+  "scatterLoadout",
+];
+const UINT32_MAX = 0xffffffff;
 
 // ---------------------------------------------------------------------------
 // 装備プロフィールの組み立て
 // ---------------------------------------------------------------------------
 
-/** generateItem は rarity を直接指定できないので、目的の rarity が出るまで棄却サンプリングする */
+/**
+ * generateItem に rarity（揺らぎ分類）を直接指定するオプションは無い（再設計で格付けの抽選自体を
+ * 廃止したため）。目的の分類が出るまで rarityBoost=25（揺らぎの増幅）で棄却サンプリングする。
+ * rarity は今も Item.rarity に残っているが、意味は「格付け」ではなく「どれだけ揺らいでいるか」
+ * （静/揺/荒/反転あり）。generateItem 自体のシグネチャは再設計の前後で変わっていない
+ */
 function rollUntilRarity(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number, foundDepth: number, now: number, attempts = 80): Item {
   let last: Item | undefined;
   for (let i = 0; i < attempts; i++) {
@@ -49,6 +82,64 @@ function rollUntilRarity(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number
   return last!;
 }
 
+/**
+ * 色を指定して性質を組み立てた装備アイテムを 1 個作る（generateItem は色を選べないため自前で組む）。
+ * colors を巡回させながら loot/generator.ts の rollTraitOfColor で性質を埋める。
+ * MAX_FOUND_TRAITS 枠すべて埋めることで、単色なら支配、2 色なら二重、5 色なら散光が
+ * 安定して発現するようにする（resonance.ts の DOMINANT_RATIO / DUAL_MIN_RATIO / SCATTER_MAX_RATIO 参照）
+ */
+function buildColoredItem(rng: Rng, slot: Slot, colors: readonly TraitColor[], depth: number, foundDepth: number, now: number): Item {
+  const base = rollBase(rng, slot, depth);
+  const opts: TraitRollOptions = { depth, foundDepth };
+  const used = new Set<string>();
+  const affixes: AffixRoll[] = [];
+  for (let i = 0; i < MAX_FOUND_TRAITS; i++) {
+    const color = colors[i % colors.length]!;
+    const roll = rollTraitOfColor(rng, slot, color, used, opts);
+    if (roll === undefined) continue;
+    affixes.push(roll);
+    used.add(roll.key);
+  }
+  const margin = rollMargin(rng, affixes.length);
+  const implicit = rollImplicit(rng, base);
+  const item: Item = {
+    id: makeItemId(rng.int(0, UINT32_MAX), now),
+    seed: rng.int(0, UINT32_MAX),
+    baseKey: base.key,
+    slot,
+    rarity: fluxClassOf(affixes),
+    itemLevel: depth,
+    name: "",
+    implicit,
+    affixes,
+    foundDepth,
+    foundAt: now,
+    provenance: createEmptyProvenance(),
+    margin,
+    marginMax: margin,
+    milestones: [],
+    buds: [],
+    budOffer: null,
+  };
+  item.name = nameItem(item);
+  return item;
+}
+
+/** loadout の種類ごとに、全スロット共通で使う色配合を決める（seed でバリエーションを付ける） */
+function colorsForLoadout(kind: ProfileKind, seed: number): readonly TraitColor[] {
+  const base = seed % TRAIT_COLORS.length;
+  switch (kind) {
+    case "dominantLoadout":
+      return [TRAIT_COLORS[base]!];
+    case "dualLoadout":
+      return [TRAIT_COLORS[base]!, TRAIT_COLORS[(base + 2) % TRAIT_COLORS.length]!];
+    case "scatterLoadout":
+      return [...TRAIT_COLORS];
+    default:
+      return [];
+  }
+}
+
 function buildProfile(kind: ProfileKind, seed: number): Profile {
   const profile = createEmptyProfile();
   if (kind === "empty") return profile;
@@ -56,9 +147,18 @@ function buildProfile(kind: ProfileKind, seed: number): Profile {
   // 決定的な専用 RNG。state.rng は消費しない
   const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
   const now = 1_700_000_000_000 + seed;
-  const targetRarity: Rarity = kind === "rareLoadout" ? "rare" : "unique";
+
+  if (kind === "rareLoadout" || kind === "uniqueLoadout") {
+    const targetRarity: Rarity = kind === "rareLoadout" ? "rare" : "unique";
+    for (const slot of SLOTS) {
+      profile.equipment[slot] = rollUntilRarity(rng, slot, targetRarity, 20, 1, now);
+    }
+    return profile;
+  }
+
+  const colors = colorsForLoadout(kind, seed);
   for (const slot of SLOTS) {
-    profile.equipment[slot] = rollUntilRarity(rng, slot, targetRarity, 20, 1, now);
+    profile.equipment[slot] = buildColoredItem(rng, slot, colors, 20, 1, now);
   }
   return profile;
 }
@@ -95,6 +195,14 @@ interface RunMetrics {
   nanDetected: boolean;
   wallOverlapDetected: boolean;
   duplicateFloorItemId: boolean;
+  /** ラン終了時点の装備全体の共鳴（狙った loadout 通りに発現したかの確認も兼ねる） */
+  resonanceKind: ResonanceKind;
+  resonanceColors: TraitColor[];
+  /** ラン中に拾って stash に入った性質のうち、反転していたものの数 / 全体数 */
+  invertedTraitCount: number;
+  totalTraitCount: number;
+  /** ラン中に提示され、bot が選んだ芽（pendingBud）の回数 */
+  budsChosen: number;
 }
 
 function emptyRarityCounts(): Record<Rarity, number> {
@@ -206,6 +314,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     nanDetected: false,
     wallOverlapDetected: false,
     duplicateFloorItemId: false,
+    resonanceKind: state.stats.resonance.kind,
+    resonanceColors: [...state.stats.resonance.colors],
+    invertedTraitCount: 0,
+    totalTraitCount: 0,
+    budsChosen: 0,
   };
 
   let depthEnterTime = state.time;
@@ -217,6 +330,14 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
 
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
+
+    // 芽（state.pendingBud）は boonChoice と違い step を止めない仕様なので、出た瞬間に
+    // 1 枚目を選んで進める（人間のプレイに寄せる。無視しても進行は止まらないが、選ばないと
+    // 余白・節目の実際の消化ペースが計測できない）
+    if (state.pendingBud) {
+      chooseBud(state, 0);
+      metrics.budsChosen++;
+    }
 
     let input;
     try {
@@ -278,8 +399,17 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   metrics.kills = state.kills;
   metrics.bestCombo = state.combo.best;
   metrics.itemsPicked = profile.stash.length;
-  for (const item of profile.stash) metrics.rarityCounts[item.rarity]++;
+  for (const item of profile.stash) {
+    metrics.rarityCounts[item.rarity]++;
+    for (const affix of item.affixes) {
+      metrics.totalTraitCount++;
+      if (affix.inverted) metrics.invertedTraitCount++;
+    }
+  }
   metrics.avgStepMs = metrics.stepsRun > 0 ? stepTimeTotal / metrics.stepsRun : 0;
+  // ラン終了時点（装備は固定なので初期値と基本一致するが、念のため最新化する）
+  metrics.resonanceKind = state.stats.resonance.kind;
+  metrics.resonanceColors = [...state.stats.resonance.colors];
 
   return metrics;
 }
@@ -313,6 +443,52 @@ describe("QA simulation (縮小版スモーク)", () => {
     },
     30_000,
   );
+});
+
+// ---------------------------------------------------------------------------
+// 決定性スモーク（src/core/game.test.ts と同じ fingerprint 方式）
+// ---------------------------------------------------------------------------
+
+/** リプレイ検証用のざっくりしたハッシュ（src/core/game.test.ts の fingerprint と同型） */
+function fingerprintState(state: GameState): string {
+  const p = state.player.body.pos;
+  return [
+    state.tick,
+    p.x.toFixed(3),
+    p.y.toFixed(3),
+    state.player.hp,
+    state.depth,
+    state.enemies.length,
+    state.enemies.map((e) => `${e.id}:${e.hp}:${e.body.pos.x.toFixed(2)}`).join(","),
+    state.score,
+    // Date.now 由来の id / foundAt は比較しない
+    state.floorItems.map((fi) => `${fi.item.seed}:${fi.item.rarity}:${fi.pos.x.toFixed(2)}`).join(","),
+  ].join("|");
+}
+
+/** bot 駆動で 1 ラン回して最終状態の fingerprint を返す（runOnce と同じ手順の軽量版） */
+function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: number): string {
+  const profile = buildProfile(profileKind, seed);
+  const state = createGame(seed, String(seed), profile);
+  const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
+  for (let i = 0; i < maxSteps; i++) {
+    if (state.status !== "playing") break;
+    if (state.pendingBud) chooseBud(state, 0);
+    const input = botInput(state, bot, FIXED_DT);
+    step(state, input, FIXED_DT);
+  }
+  return fingerprintState(state);
+}
+
+describe("QA simulation (決定性)", () => {
+  it("同じ seed・装備なら bot 駆動でも 2 回とも同じ結果になる", () => {
+    for (const profileKind of PROFILE_KINDS) {
+      const seed = 30_000;
+      const a = runOnceFingerprint(seed, profileKind, 4_000);
+      const b = runOnceFingerprint(seed, profileKind, 4_000);
+      expect(a, `profile=${profileKind} で 2 回の実行結果が一致しない`).toBe(b);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -388,6 +564,51 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
         `${average(group.map((m) => m.itemsPicked)).toFixed(1)} | ${average(group.map((m) => m.reaperSpawns)).toFixed(2)} | ` +
         `${percent(bossWon, bossSeen)} | ${average(group.map((m) => m.avgStepMs)).toFixed(3)} |`,
     );
+  }
+  lines.push("");
+
+  lines.push("## 共鳴別の到達depth（dominant/dualLoadout は狙った色、装備が固定なので発現共鳴はほぼ固定）");
+  lines.push("");
+  lines.push("| 共鳴 | n | 平均到達depth | 死亡率 |");
+  lines.push("| --- | --- | --- | --- |");
+  const resonanceKinds: readonly ResonanceKind[] = ["dominant", "dual", "scatter", "none"];
+  for (const kind of resonanceKinds) {
+    const group = allMetrics.filter((m) => m.resonanceKind === kind);
+    if (group.length === 0) continue;
+    lines.push(
+      `| ${kind} | ${group.length} | ${average(group.map((m) => m.maxDepth)).toFixed(2)} | ${percent(group.filter((m) => m.died).length, group.length)} |`,
+    );
+  }
+  lines.push("");
+
+  lines.push("## 反転性質の出現率（ラン中に stash に拾った性質のみ。装備パターン別）");
+  lines.push("");
+  lines.push("| 装備 | 反転数 | 性質総数 | 反転率 |");
+  lines.push("| --- | --- | --- | --- |");
+  for (const kind of PROFILE_KINDS) {
+    const group = allMetrics.filter((m) => m.profileKind === kind);
+    const inverted = group.reduce((s, m) => s + m.invertedTraitCount, 0);
+    const total = group.reduce((s, m) => s + m.totalTraitCount, 0);
+    lines.push(`| ${kind} | ${inverted} | ${total} | ${percent(inverted, total)} |`);
+  }
+  const totalInverted = allMetrics.reduce((s, m) => s + m.invertedTraitCount, 0);
+  const totalTraits = allMetrics.reduce((s, m) => s + m.totalTraitCount, 0);
+  lines.push("");
+  lines.push(
+    `全体: ${totalInverted} / ${totalTraits}（${percent(totalInverted, totalTraits)}）。反転は発見深度 ${13}（\`INVERSION_MIN_DEPTH\`, src/loot/flux.ts）以降でしか起きないため、bot の到達 depth が浅いランでは観測されにくい。`,
+  );
+  lines.push("");
+
+  lines.push("## 芽（pendingBud）の出現・選択回数");
+  lines.push("");
+  const totalBuds = allMetrics.reduce((s, m) => s + m.budsChosen, 0);
+  lines.push(`合計 ${totalBuds} 回（${allMetrics.length} run 中、平均 ${average(allMetrics.map((m) => m.budsChosen)).toFixed(2)} 回/run）。bot は出た瞬間に 1 枚目を選ぶ。`);
+  lines.push("");
+  lines.push("| 装備 | 平均出現回数/run |");
+  lines.push("| --- | --- |");
+  for (const kind of PROFILE_KINDS) {
+    const group = allMetrics.filter((m) => m.profileKind === kind);
+    lines.push(`| ${kind} | ${average(group.map((m) => m.budsChosen)).toFixed(2)} |`);
   }
   lines.push("");
 
@@ -480,6 +701,13 @@ function buildBalanceNotes(allMetrics: readonly RunMetrics[]): string {
   }
   const avgStepMs = average(allMetrics.map((m) => m.avgStepMs));
   notes.push(`- 1 ステップの平均処理時間は ${avgStepMs.toFixed(3)}ms（60fps 予算 16.6ms に対し余裕あり）。`);
+
+  const dominant = allMetrics.filter((m) => m.profileKind === "dominantLoadout");
+  const dual = allMetrics.filter((m) => m.profileKind === "dualLoadout");
+  const scatter = allMetrics.filter((m) => m.profileKind === "scatterLoadout");
+  notes.push(
+    `- 平均到達depth（色配合）: 単色寄せ ${average(dominant.map((m) => m.maxDepth)).toFixed(2)} / 2色 ${average(dual.map((m) => m.maxDepth)).toFixed(2)} / 5色散光 ${average(scatter.map((m) => m.maxDepth)).toFixed(2)}。`,
+  );
   return notes.join("\n");
 }
 
