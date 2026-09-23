@@ -933,11 +933,10 @@ describe("QA simulation (フル版, SIM_FULL=1)", () => {
     `${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップを実行する`,
     () => {
       const allMetrics: RunMetrics[] = [];
-      outer: for (let i = 0; i < FULL_SEED_COUNT; i++) {
+      for (let i = 0; i < FULL_SEED_COUNT; i++) {
         const seed = 50_000 + i;
         for (const kind of PROFILE_KINDS) {
           allMetrics.push(runOnce(seed, kind, FULL_MAX_STEPS));
-          if (seed === 50_018 && kind === "uniqueLoadout") break outer;
         }
       }
 
