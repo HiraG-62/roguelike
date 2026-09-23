@@ -1,7 +1,7 @@
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
-import { describeItem, describeResonance } from "../loot/describe";
+import { describeItem, describeResonance, itemColorBar } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item, type Slot } from "../loot/types";
 import { statsSummary } from "../loot/stats";
 import { MODIFIERS, SKILL, SKILL_DEFS, castCooldown, formatVariant, resolveCast, stoneLabel } from "../skills/data";
@@ -225,7 +225,7 @@ function drawSlotRow(ctx: CanvasRenderingContext2D, s: SlotLayout, ui: Inventory
   drawText(ctx, truncateText(`${mark}${item.name}`, nameMaxWidth, m), nameRight, baseline, m, itemColor(item), "right");
   const barX = rect.x + HUE_STRIP_W + SLOT_BAR_INSET + 1;
   const bar = { x: barX, y: rect.y + rect.h - SLOT_BAR_INSET - SLOT_BAR_H, w: rect.w / 2, h: SLOT_BAR_H };
-  drawColorBar(ctx, describeItem(item).colorBar, bar);
+  drawColorBar(ctx, itemColorBar(item.affixes), bar);
 }
 
 /** 装備中は主な色の枠 + 左端の帯 + 薄い背景。空きは灰色の枠だけ */

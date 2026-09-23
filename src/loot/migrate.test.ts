@@ -92,6 +92,51 @@ describe("migrateItem", () => {
     expect(migrateItem(old).namedKey).toBe("widowmaker");
   });
 
+  it("旧 unique の英語名（日本語化前）はベースと固定性質の key から名のある遺物を引く", () => {
+    const old: Item = {
+      ...legacyRare(),
+      rarity: "unique",
+      name: "Widowmaker",
+      baseKey: "greatsword",
+      affixes: [
+        { key: "meleeDamagePct", kind: "prefix", tier: 1, value: 50 },
+        { key: "critMultiplier", kind: "prefix", tier: 1, value: 40 },
+        { key: "lifeOnKill", kind: "suffix", tier: 1, value: 12 },
+        { key: "knockback", kind: "suffix", tier: 1, value: 30 },
+        { key: "ks_berserker", kind: "suffix", tier: 1, value: 0 },
+      ],
+    };
+    const migrated = migrateItem(old);
+    expect(migrated.namedKey).toBe("widowmaker");
+    expect(migrated.name).toBe("喪服の剣");
+  });
+
+  it("名のある遺物を引けない旧 unique は固有名を銘として残す", () => {
+    const old: Item = { ...legacyRare(), rarity: "unique", name: "失われた遺物", baseKey: "longsword" };
+    const migrated = migrateItem(old);
+    expect(migrated.namedKey).toBeUndefined();
+    expect(migrated.inscription).toBe("失われた遺物");
+    expect(migrated.name).toBe("失われた遺物");
+  });
+
+  it("同じ旧セーブを 2 回読むと同じ結果（色・値・トリガー・誓約が保たれる）", () => {
+    const storage = new MemoryStorage();
+    const legacyProfile = {
+      version: 1,
+      equipment: { weapon: legacyRare(), gun: null, armor: null, boots: null, ring: null, amulet: null },
+      stash: [],
+      meta: { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0, history: [] },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(legacyProfile));
+    const first = loadProfile(storage);
+    expect(loadProfile(storage)).toEqual(first);
+    const weapon = first.equipment.weapon;
+    const trigger = weapon?.affixes.find((r) => r.key === "tr:onKill:always:heal");
+    expect(trigger?.value).toBe(5);
+    expect(trigger?.value2).toBe(400);
+    expect(computeStats(first.equipment).keystones).toContain("ks_blink");
+  });
+
   it("冪等: 新形式にもう一度掛けても変わらない。生成したアイテムも変わらない", () => {
     const once = migrateItem(legacyRare());
     expect(migrateItem(once)).toEqual(once);

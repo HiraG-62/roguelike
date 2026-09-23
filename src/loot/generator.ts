@@ -372,7 +372,10 @@ export function rollTraitOfColor(
     }
     case "trigger": {
       const roll = rollTriggerTrait(rng, rng.pick(shapes), opts);
-      return used.has(roll.key) ? undefined : roll;
+      if (!used.has(roll.key)) return roll;
+      // 既出の key と衝突したら同じ色の表の性質に回す（芽の節目が候補なしで失われないように）
+      if (tables.length > 0) return rollTableTrait(rng, rng.pick(tables), opts);
+      break;
     }
     case "vow":
       return keystoneToRoll(rng.pick(vows));

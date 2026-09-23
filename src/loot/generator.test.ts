@@ -246,6 +246,23 @@ describe("rollTraitCount / rollTraitOfColor", () => {
       }
     }
   });
+
+  it("トリガーの候補が既出の key と衝突したら、同じ色の表の性質に回す（候補なしにしない）", () => {
+    const traitOpts = { depth: 15, foundDepth: 15, allowInversion: false, origin: "bud" as const };
+    let checked = 0;
+    for (let seed = 0; seed < MANY && checked < 5; seed++) {
+      const first = rollTraitOfColor(createRng(seed), "weapon", "crimson", new Set(), traitOpts);
+      if (first === undefined || !isTriggerKey(first.key)) continue;
+      // 同じ乱数列で、さっき引いたトリガーを既出にする → 衝突する
+      const again = rollTraitOfColor(createRng(seed), "weapon", "crimson", new Set([first.key]), traitOpts);
+      expect(again, `seed ${seed}`).toBeDefined();
+      if (again === undefined) continue;
+      expect(isTriggerKey(again.key), "表の性質に回っている").toBe(false);
+      expect(traitColorOf(again)).toBe("crimson");
+      checked++;
+    }
+    expect(checked, "トリガーを引く seed が見つかった").toBeGreaterThan(0);
+  });
 });
 
 describe("名のある遺物の定義", () => {

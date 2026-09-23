@@ -1,4 +1,4 @@
-import { describeItem, type ColorBarSegment, type FluxLevel, type TraitLine } from "../loot/describe";
+import { itemColorBar, type ColorBarSegment, type FluxLevel, type TraitLine } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, TRAIT_COLORS, TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
 import { itemColor } from "../system/loot";
 import { SLOT_LABEL, type Rect, type StashRowLayout } from "../ui/inventoryLayout";
@@ -153,7 +153,7 @@ export function drawItemRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, 
   drawText(ctx, slot, slotRight, baseline, m, COLOR_DIM, "right");
   const barRight = slotRight - textWidth(slot, m) - META_GAP;
   const bar = { x: barRight - ROW_BAR_W, y: rect.y + Math.round((rect.h - ROW_BAR_H) / 2), w: ROW_BAR_W, h: ROW_BAR_H };
-  drawColorBar(ctx, describeItem(item).colorBar, bar);
+  drawColorBar(ctx, itemColorBar(item.affixes), bar);
 
   const color = itemColor(item);
   fillRectPx(ctx, { x: Math.round(rect.x), y: Math.round(rect.y) + 1, w: HUE_STRIP_W, h: rect.h - 2 }, color);

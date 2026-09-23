@@ -79,9 +79,16 @@ export function migrateRoll(roll: AffixRoll): AffixRoll | null {
   return out;
 }
 
+/**
+ * 旧 unique の名のある遺物の key。固有名で引き、引けなければ（日本語化前の英語名など）
+ * ベースと固定性質の key の組で引く
+ */
 function namedKeyFor(item: Item): string | undefined {
   if (item.rarity !== "unique") return undefined;
-  return UNIQUES.find((u) => u.name === item.name && u.baseKey === item.baseKey)?.key;
+  const byName = UNIQUES.find((u) => u.name === item.name && u.baseKey === item.baseKey);
+  if (byName !== undefined) return byName.key;
+  const keys = new Set(item.affixes.map((r) => r.key));
+  return UNIQUES.find((u) => u.baseKey === item.baseKey && u.affixes.every((spec) => keys.has(spec.key)))?.key;
 }
 
 /**
@@ -124,7 +131,9 @@ export function migrateItem(item: Item): Item {
   };
   const namedKey = namedKeyFor(item);
   if (namedKey !== undefined) out.namedKey = namedKey;
-  if (item.rarity === "rare" && item.name.length > 0) out.inscription = item.name;
+  // 旧 rare の 2 語名と、名のある遺物を引けなかった旧 unique の固有名は銘として残す（名前を失わせない）
+  const keepName = item.rarity === "rare" || (item.rarity === "unique" && namedKey === undefined);
+  if (keepName && item.name.length > 0) out.inscription = item.name;
   out.name = nameItem(out);
   return out;
 }
