@@ -9,7 +9,7 @@ import { MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, 
 import { findStone } from "../skills/persistence";
 import type { CastParams, SkillDef, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
-import { formatCooldown, slotModifierView } from "../system/skills";
+import { effectiveManaCost, formatCooldown, slotModifierView } from "../system/skills";
 import {
   CONTENT_BOTTOM,
   CONTENT_Y,
@@ -102,6 +102,11 @@ const SKILL_LINE2_Y = 19;
 const SKILL_LINE3_Y = 27;
 const PERCENT = 100;
 const HINT_EQUIPMENT = "クリック: 装備/解除  Shift+クリック: 砕く（残響を得る）  Tab: スキルへ";
+/** 未振り点があるときだけ出す（ステータス行の「+」とキー 1〜4・E） */
+const HINT_ALLOC = "+ / 1〜4・E: ステータスを振る";
+const HINT_SEP = "  ";
+/** コストが最大マナを超えて切り詰められたときの注記 */
+const COST_CLAMPED_NOTE = "（上限で切り詰め）";
 const HINT_SKILLS = "石をクリック: 装着  スロットをクリック: 解除/選択  Shift+クリック: 分解  Tab: 残響へ";
 
 function keystoneKeysOf(item: Item): string[] {
@@ -176,9 +181,10 @@ function drawEquipmentTab(ctx: CanvasRenderingContext2D, state: GameState, layou
   drawStash(ctx, layout, ui);
   drawResonancePanel(ctx, state, layout.resonanceRect);
   // スロットの下の空きにステータス（生値と実効値）。ツールチップはこの後に描くので上に重なる
-  drawAttributePanel(ctx, state);
+  drawAttributePanel(ctx, state, ui.hoverAlloc);
   drawEquipmentTooltip(ctx, state, layout, ui);
-  drawHint(ctx, layout.hintRect, HINT_EQUIPMENT);
+  const hint = state.runAttributes.unspent > 0 ? `${HINT_ALLOC}${HINT_SEP}${HINT_EQUIPMENT}` : HINT_EQUIPMENT;
+  drawHint(ctx, layout.hintRect, hint);
   drawBudModal(ctx, state, ui.bud);
 }
 
@@ -424,12 +430,17 @@ function drawStoneRow(ctx: CanvasRenderingContext2D, row: StoneRowLayout, ui: In
   drawText(ctx, truncateText(stoneLabel(stone), maxWidth, m), rect.x + TEXT_PAD_X, baseline, m, COLOR_SKILL);
 }
 
-/** マナ型は「コスト n / 間隔 s」、CD 型は「CD s」（docs/COMBAT_DESIGN.md B-6: 負担の表示を資源で出し分ける） */
-function burdenText(def: SkillDef, params: Readonly<CastParams>): string {
+/**
+ * マナ型は「コスト n / 間隔 s」、CD 型は「CD s」（docs/COMBAT_DESIGN.md B-6: 負担の表示を資源で出し分ける）。
+ * コストは最大マナで切り詰めた実際の値を出し、切り詰めたときはそう書く
+ */
+function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams>): string {
   const interval = formatCooldown(castInterval(def, params));
   const burden = castBurden(def, params);
-  if (def.resource === "mana") return `コスト ${Math.round(burden.cost)}  間隔 ${interval}`;
-  return `CD ${formatCooldown(burden.cooldown)}`;
+  if (def.resource !== "mana") return `CD ${formatCooldown(burden.cooldown)}`;
+  const capped = effectiveManaCost(state, burden.cost);
+  const note = capped.clamped ? COST_CLAMPED_NOTE : "";
+  return `コスト ${Math.round(capped.cost)}${note}  間隔 ${interval}`;
 }
 
 /** 石のツールチップ: 動詞・タグ・負担（コスト / CD）・リンク・変異軸・装着中の刻印符 */
@@ -443,7 +454,7 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },
     { text: def.verb, color: COLOR_TEXT },
-    { text: `${def.tags.join(" / ")}  ${burdenText(def, params)}`, color: COLOR_DIM },
+    { text: `${def.tags.join(" / ")}  ${burdenText(state, def, params)}`, color: COLOR_DIM },
     { text: `リンク ${stone.links}（基本${burdenName} +${linkPenalty}%）`, color: COLOR_TEXT },
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });

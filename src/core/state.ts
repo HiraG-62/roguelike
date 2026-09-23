@@ -373,11 +373,8 @@ export interface GameState {
   /** ラン内のステータス振り分け（docs/COMBAT_DESIGN.md A-3）。ランで消える */
   runAttributes: {
     alloc: Attributes;
+    /** 未振りの点。装備画面（src/ui/attributeAlloc.ts）で振る */
     unspent: number;
-    /** 振り分けパネルでマウスが乗っている枠（-1 = なし）。入力から決まるので決定的 */
-    hover: number;
-    /** パネルが受付可能になってからの経過（実時間秒）。src/ui/attributeAlloc.ts */
-    timer: number;
   };
 }
 

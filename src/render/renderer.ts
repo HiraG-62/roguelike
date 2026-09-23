@@ -38,7 +38,7 @@ import { drawBoonChoice, drawBoonHud } from "./boonUi";
 import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGauge } from "./statusUi";
-import { drawAttributeAlloc } from "./attributeUi";
+import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
 
 /** コンボ表示（論理 px・y 座標） */
@@ -402,6 +402,8 @@ const HUD_MANA_H = 2;
 const HUD_ENERGY_Y = 17;
 const HUD_ENERGY_H = 4;
 const HUD_TEXT_X = HUD_BAR_X + HUD_BAR_W + 4;
+/** HP の数値と未振り点の表示の間 */
+const HUD_UNSPENT_GAP = 6;
 const HUD_PIP_Y = 24;
 const HUD_KEYSTONE_Y = 36;
 const HUD_WARN_Y = 45;
@@ -618,7 +620,6 @@ export class Renderer {
     this.drawFloorWipe(state);
     drawBoonHud(ctx, state, aimScreen);
     drawBoonChoice(ctx, state);
-    drawAttributeAlloc(ctx, state);
     if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
     if (state.status === "dead") this.drawDeath(state);
   }
@@ -1783,7 +1784,10 @@ export class Renderer {
     // 状態異常の列は HP バーの真上（8×8 の枠が画面上端から HP バーまでに収まる）
     drawPlayerStatusRow(ctx, p.status, HUD_BAR_X, 0);
     drawManaBar(ctx, state, HUD_BAR_X, HUD_MANA_Y, HUD_BAR_W, HUD_MANA_H);
-    drawText(ctx, `${Math.ceil(p.hp)}/${p.maxHp}`, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
+    const hpText = `${Math.ceil(p.hp)}/${p.maxHp}`;
+    drawText(ctx, hpText, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
+    // 未振りの点はマナバーの横（HP の数値の右）に。振るのは装備画面（Tab）
+    drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
 
     const ready = p.energy >= p.maxEnergy;
     const blinkOn = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2;

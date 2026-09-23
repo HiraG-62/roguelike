@@ -44,7 +44,7 @@ import type {
 import { buffPotencyMul } from "./attributes";
 import { COLOR_JUST, cancelAttack, damagePlayer, gainEnergy, healPlayer, registerComboHit } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
-import { canAffordSkill, payOverclock, paySkillCost } from "./keystones";
+import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { enemiesInRadius, playerCanCast } from "./statusEffects";
@@ -162,7 +162,23 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const def = SKILL_DEFS[stone.skillKey];
   const params = resolveCast(def, stone, slotState.modifiers);
   const burden = castBurden(def, params);
-  return { stone, def, params, cooldown: burden.cooldown, cost: burden.cost, interval: castInterval(def, params) };
+  const cost = effectiveManaCost(state, burden.cost).cost;
+  return { stone, def, params, cooldown: burden.cooldown, cost, interval: castInterval(def, params) };
+}
+
+/**
+ * マナ型のコストを最大マナで切り詰める。刻印符やリンクの負担でコストが最大マナを超えると
+ * 満タンでも永久に撃てなくなるため。clamped は UI の注記用
+ */
+export function capManaCost(cost: number, maxMana: number): { cost: number; clamped: boolean } {
+  if (cost <= maxMana) return { cost, clamped: false };
+  return { cost: Math.max(0, maxMana), clamped: true };
+}
+
+/** 実際に払うコスト。誓約「過負荷」は不足分を HP で払えて上限を超えても撃てるので切り詰めない */
+export function effectiveManaCost(state: GameState, cost: number): { cost: number; clamped: boolean } {
+  if (hasKeystone(state, KS.overdraw)) return { cost, clamped: false };
+  return capManaCost(cost, state.stats.maxMana);
 }
 
 // ---------------------------------------------------------------------------

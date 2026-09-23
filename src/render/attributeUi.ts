@@ -1,17 +1,16 @@
 import type { GameState } from "../core/state";
-import { VIEW_W } from "../core/view";
-import { ATTR_GAIN } from "../data/tuning";
 import { ATTR_LABEL, COLOR_ATTR } from "../loot/resonance";
-import { ATTR_KEYS, SLOTS, TRAIT_COLORS, TRAIT_COLOR_HEX, type AttrKey, type TraitColor } from "../loot/types";
-import { ALLOC_CARD, ALLOC_ORDER, allocCardRect, allocPanelVisible } from "../ui/attributeAlloc";
-import { SLOT_GAP, SLOT_H } from "../ui/inventory";
-import { CONTENT_H, CONTENT_Y, LEFT_W, PANEL_X, type Rect } from "../ui/inventoryLayout";
-import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixelText";
+import { TRAIT_COLORS, TRAIT_COLOR_HEX, type AttrKey, type TraitColor } from "../loot/types";
+import { ALLOC_BUTTON, ALLOC_ORDER, allocButtonRect } from "../ui/attributeAlloc";
+import { type Rect, attributePanelRect } from "../ui/inventory";
+import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
 
 /**
- * ステータスの描画。探索中の振り分けパネル（5 枠）と、装備画面の「生値と実効値」の一覧。
- * 当たり判定は ui/attributeAlloc.ts の allocCardRect と共有する
+ * ステータスの描画。装備画面の「生値と実効値」の一覧と振り分けの「+」、HUD の未振り点の表示。
+ * 当たり判定は ui/attributeAlloc.ts の allocButtonRect と共有する
  */
+
+export { attributePanelRect };
 
 /** 何が伸びるかの一言（docs/COMBAT_DESIGN.md A-1 の要約。単一の強さの指標は出さない） */
 export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
@@ -22,22 +21,18 @@ export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
   spi: "スキル・状態異常",
 };
 
-/** 枠のキー表示（スキル 1〜4 + 攻撃）。クリックでも選べる */
-const KEY_HINTS: readonly string[] = ["1", "2", "3", "4", "E"];
-
-const COLOR_BG = "rgba(8,8,16,0.8)";
-const COLOR_CARD = "rgba(16,16,28,0.95)";
-const COLOR_CARD_HOVER = "rgba(32,32,52,0.98)";
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_SUB = "#a0a0a0";
-const COLOR_TITLE = "#ffd75f";
-const COLOR_WAIT = "#606060";
+const COLOR_READY = "#ffd75f";
+const COLOR_DISABLED = "#505058";
+const COLOR_BUTTON_BG = "rgba(255,215,95,0.12)";
+const COLOR_BUTTON_HOVER = "rgba(255,215,95,0.3)";
 
-const PANEL_PAD = 4;
-const TITLE_GAP = 3;
-const LINE_H = 9;
-const CARD_TOP_PAD = 2;
 const HALF = 2;
+/** 行の下端からベースラインまで */
+const ROW_BASELINE_UP = 1;
+const BUTTON_GLYPH = "+";
+const BUTTON_BASELINE_UP = 1;
 
 /** ステータスの色（共鳴の色の対応を逆引き） */
 function attrColor(key: AttrKey): string {
@@ -45,62 +40,9 @@ function attrColor(key: AttrKey): string {
   return color === undefined ? COLOR_TEXT : TRAIT_COLOR_HEX[color];
 }
 
-function lineH(): number {
-  return Math.max(LINE_H, textLineHeight(TEXT.SMALL));
-}
-
-// ---------------------------------------------------------------------------
-// 振り分けパネル（探索中）
-// ---------------------------------------------------------------------------
-
-export function drawAttributeAlloc(ctx: CanvasRenderingContext2D, state: GameState): void {
-  if (!allocPanelVisible(state)) return;
-  const run = state.runAttributes;
-  const first = allocCardRect(0);
-  const last = allocCardRect(ALLOC_ORDER.length - 1);
-  const lh = lineH();
-  const titleY = first.y - TITLE_GAP - ALLOC_CARD.hoverLift;
-  const top = titleY - lh;
-  ctx.fillStyle = COLOR_BG;
-  ctx.fillRect(first.x - PANEL_PAD, top - PANEL_PAD, last.x + last.w - first.x + PANEL_PAD * HALF, first.y + first.h - top + PANEL_PAD * HALF);
-
-  const ready = run.timer >= ATTR_GAIN.allocInputDelay;
-  const title = `ステータスを振る（残り ${run.unspent}）`;
-  drawText(ctx, title, VIEW_W / 2, titleY, TEXT.SMALL, ready ? COLOR_TITLE : COLOR_WAIT, "center");
-  ALLOC_ORDER.forEach((key, i) => drawAllocCard(ctx, state, key, i, i === run.hover));
-}
-
-function drawAllocCard(ctx: CanvasRenderingContext2D, state: GameState, key: AttrKey, index: number, hover: boolean): void {
-  const r = allocCardRect(index);
-  const y = hover ? r.y - ALLOC_CARD.hoverLift : r.y;
-  const color = attrColor(key);
-  const cx = r.x + r.w / HALF;
-  const lh = lineH();
-  ctx.fillStyle = hover ? COLOR_CARD_HOVER : COLOR_CARD;
-  ctx.fillRect(r.x, y, r.w, r.h);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = hover ? HALF : 1;
-  ctx.strokeRect(r.x + 0.5, y + 0.5, r.w - 1, r.h - 1);
-  ctx.lineWidth = 1;
-
-  const raw = state.stats.attributes[key];
-  const maxW = r.w - PANEL_PAD * HALF;
-  const m = TEXT.SMALL;
-  drawText(ctx, `${KEY_HINTS[index] ?? ""} ${ATTR_LABEL[key]}`, cx, y + CARD_TOP_PAD + lh, m, color, "center");
-  drawText(ctx, `${raw} → ${raw + 1}`, cx, y + CARD_TOP_PAD + lh * 2, m, COLOR_TEXT, "center");
-  drawText(ctx, truncateText(ATTR_HINT[key], maxW, m), cx, y + CARD_TOP_PAD + lh * 3, m, COLOR_SUB, "center");
-}
-
 // ---------------------------------------------------------------------------
 // 装備画面の一覧（スロットの下）
 // ---------------------------------------------------------------------------
-
-/** 装備タブの左列、スロットの下からツールチップの上までの空き */
-export function attributePanelRect(): Rect {
-  const y = CONTENT_Y + SLOTS.length * (SLOT_H + SLOT_GAP);
-  const bottom = CONTENT_Y + CONTENT_H - SLOT_GAP;
-  return { x: PANEL_X, y, w: LEFT_W, h: Math.max(0, bottom - y) };
-}
 
 /** 「筋力 26（実効 23）」。逓減が掛かっていなければ生値だけ */
 export function attributeValueText(key: AttrKey, raw: number, eff: number): string {
@@ -117,20 +59,57 @@ function formatEff(eff: number): string {
   return String(Number(eff.toFixed(EFF_DIGITS)));
 }
 
-export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect = attributePanelRect()): void {
+/** 行の並びは ALLOC_BUTTON.rowH 間隔（「+」の当たり判定と揃える）。hover は ui.hoverAlloc */
+export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameState, hover = -1, rect: Rect = attributePanelRect()): void {
   const m = TEXT.SMALL;
-  const lh = lineH();
-  const x = rect.x + PANEL_PAD;
-  const right = rect.x + rect.w - PANEL_PAD;
+  const x = rect.x + ALLOC_BUTTON.pad;
   const bottom = rect.y + rect.h;
-  let y = rect.y + lh;
-  for (const key of ATTR_KEYS) {
-    if (y > bottom) break;
+  const canAlloc = state.runAttributes.unspent > 0;
+  ALLOC_ORDER.forEach((key, i) => {
+    const button = allocButtonRect(rect, i);
+    if (button.y + button.h > bottom) return;
+    const baseline = rect.y + (i + 1) * ALLOC_BUTTON.rowH - ROW_BASELINE_UP;
+    const right = button.x - ALLOC_BUTTON.pad;
     const text = attributeValueText(key, state.stats.attributes[key], state.stats.attributesEff[key]);
     const valueW = Math.min(textWidth(text, m), right - x);
-    drawText(ctx, truncateText(text, right - x, m), x, y, m, attrColor(key));
-    const hintW = right - x - valueW - PANEL_PAD;
-    if (hintW > 0) drawText(ctx, truncateText(ATTR_HINT[key], hintW, m), right, y, m, COLOR_SUB, "right");
-    y += lh;
+    drawText(ctx, truncateText(text, right - x, m), x, baseline, m, attrColor(key));
+    const hintW = right - x - valueW - ALLOC_BUTTON.pad;
+    if (hintW > 0) drawText(ctx, truncateText(ATTR_HINT[key], hintW, m), right, baseline, m, COLOR_SUB, "right");
+    drawAllocButton(ctx, button, canAlloc, canAlloc && hover === i);
+  });
+}
+
+/** 未振り点が 0 なら灰色（押しても何も起きない） */
+function drawAllocButton(ctx: CanvasRenderingContext2D, r: Rect, enabled: boolean, hover: boolean): void {
+  const color = enabled ? COLOR_READY : COLOR_DISABLED;
+  if (enabled) {
+    ctx.fillStyle = hover ? COLOR_BUTTON_HOVER : COLOR_BUTTON_BG;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
   }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+  drawText(ctx, BUTTON_GLYPH, r.x + r.w / HALF, r.y + r.h - BUTTON_BASELINE_UP, TEXT.SMALL, color, "center");
+}
+
+// ---------------------------------------------------------------------------
+// HUD（マナバーの横）
+// ---------------------------------------------------------------------------
+
+/** 点滅の周期（tick）。装備画面を開くと paused で tick が止まるので点灯のまま止まることがある */
+const HUD_BLINK_TICKS = 40;
+const COLOR_HUD_DIM = "#a08a40";
+
+/** HUD の一言。未振り点が無ければ null */
+export function unspentHudText(unspent: number): string | null {
+  if (unspent <= 0) return null;
+  return `未振り点 ${unspent}（Tab）`;
+}
+
+/** 未振り点があるときだけ小さく点滅させる。描画のみ（tick を読むだけ） */
+export function drawUnspentHud(ctx: CanvasRenderingContext2D, state: GameState, x: number, baseline: number): void {
+  const text = unspentHudText(state.runAttributes.unspent);
+  if (text === null) return;
+  const on = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / HALF;
+  drawText(ctx, text, x, baseline, TEXT.SMALL, on ? COLOR_READY : COLOR_HUD_DIM);
 }

@@ -9,6 +9,7 @@ import { SLOTS, type Item, type Slot } from "../loot/types";
 import { SKILL } from "../skills/data";
 import { equipStone, saveSkillProfile, salvageStone, stoneInSlot, unequipSlot } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
+import { updateAllocButtons } from "./attributeAlloc";
 import { type BudUi, closeBudModal, createBudUi, tryOpenBudModal, updateBudModal } from "./bud";
 import { type EchoUi, createEchoUi, shatterStashItem, tickEchoUi, updateEchoTab } from "./echoTab";
 import {
@@ -141,6 +142,8 @@ export interface InventoryUi {
   bud: BudUi;
   /** 残響タブ */
   echo: EchoUi;
+  /** 装備タブのステータス振り分け「+」でマウスが乗っている行（-1 = なし） */
+  hoverAlloc: number;
 }
 
 export function createInventoryUi(): InventoryUi {
@@ -158,6 +161,7 @@ export function createInventoryUi(): InventoryUi {
     messageTimer: 0,
     bud: createBudUi(),
     echo: createEchoUi(),
+    hoverAlloc: -1,
   };
 }
 
@@ -189,6 +193,13 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
     visibleRowCount: list.visibleRowCount,
     maxScroll: list.maxScroll,
   };
+}
+
+/** 装備タブの左列、スロットの下からツールチップの上までの空き（ステータス一覧と振り分けの「+」） */
+export function attributePanelRect(): Rect {
+  const y = CONTENT_Y + SLOTS.length * (SLOT_H + SLOT_GAP);
+  const bottom = CONTENT_Y + CONTENT_H - SLOT_GAP;
+  return { x: PANEL_X, y, w: LEFT_W, h: Math.max(0, bottom - y) };
 }
 
 function findHoveredSlot(layout: InventoryLayout, p: { x: number; y: number }): SlotLayout | null {
@@ -223,6 +234,7 @@ function clearHover(ui: InventoryUi): void {
   ui.hoverSkillSlot = null;
   ui.echo.hoverOp = null;
   ui.echo.hoverId = null;
+  ui.hoverAlloc = -1;
 }
 
 function switchTab(ui: InventoryUi, tab: InventoryTab): void {
@@ -370,8 +382,12 @@ function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput
   if (updateBudFlow(state, ui, input)) {
     ui.hoverItemId = null;
     ui.hoverSlot = null;
+    ui.hoverAlloc = -1;
     return;
   }
+  const alloc = updateAllocButtons(state, input, attributePanelRect());
+  ui.hoverAlloc = alloc.hover;
+  if (alloc.used) return;
   const layout = layoutInventory(state, ui);
   ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
 

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { VIEW_H, VIEW_W } from "../core/view";
 import { ATTR_KEYS, SLOTS } from "../loot/types";
-import { ALLOC_ORDER, allocCardRect, allocIndexAt } from "../ui/attributeAlloc";
+import { ALLOC_ORDER, allocButtonAt, allocButtonRect } from "../ui/attributeAlloc";
 import { CONTENT_H, CONTENT_Y } from "../ui/inventoryLayout";
 import { SLOT_GAP, SLOT_H } from "../ui/inventory";
-import { ATTR_HINT, attributePanelRect, attributeValueText } from "./attributeUi";
+import { ATTR_HINT, attributePanelRect, attributeValueText, unspentHudText } from "./attributeUi";
 import { manaRatio } from "./manaHud";
 
 describe("装備画面のステータス一覧", () => {
@@ -27,18 +26,23 @@ describe("装備画面のステータス一覧", () => {
   });
 });
 
-describe("振り分けパネルの枠", () => {
-  it("5 枠が画面内に重ならずに並び、中心で当たる", () => {
+describe("振り分けの「+」ボタン", () => {
+  it("5 行ぶんがステータス一覧の枠内に重ならずに並び、中心で当たる", () => {
+    const panel = attributePanelRect();
     for (let i = 0; i < ALLOC_ORDER.length; i++) {
-      const r = allocCardRect(i);
-      expect(r.x, `${i} 枠目が左にはみ出す`).toBeGreaterThanOrEqual(0);
-      expect(r.x + r.w, `${i} 枠目が右にはみ出す`).toBeLessThanOrEqual(VIEW_W);
-      expect(r.y + r.h, `${i} 枠目が下にはみ出す`).toBeLessThanOrEqual(VIEW_H);
-      expect(allocIndexAt({ x: r.x + r.w / 2, y: r.y + r.h / 2 }), `${i} 枠目の中心`).toBe(i);
-      const next = allocCardRect(i + 1);
-      if (i + 1 < ALLOC_ORDER.length) expect(next.x, "隣と重ならない").toBeGreaterThanOrEqual(r.x + r.w);
+      const r = allocButtonRect(panel, i);
+      expect(r.x, `${i} 行目が左にはみ出す`).toBeGreaterThanOrEqual(panel.x);
+      expect(r.x + r.w, `${i} 行目が右にはみ出す`).toBeLessThanOrEqual(panel.x + panel.w);
+      expect(r.y + r.h, `${i} 行目が下にはみ出す`).toBeLessThanOrEqual(panel.y + panel.h);
+      expect(allocButtonAt(panel, { x: r.x + r.w / 2, y: r.y + r.h / 2 }), `${i} 行目の中心`).toBe(i);
+      if (i + 1 < ALLOC_ORDER.length) expect(allocButtonRect(panel, i + 1).y, "隣と重ならない").toBeGreaterThanOrEqual(r.y + r.h);
     }
-    expect(allocIndexAt({ x: 0, y: 0 }), "枠の外").toBe(-1);
+    expect(allocButtonAt(panel, { x: panel.x, y: panel.y }), "ボタンの外").toBe(-1);
+  });
+
+  it("HUD の未振り点は点があるときだけ", () => {
+    expect(unspentHudText(0)).toBeNull();
+    expect(unspentHudText(2)).not.toBeNull();
   });
 });
 

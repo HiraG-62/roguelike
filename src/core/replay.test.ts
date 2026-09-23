@@ -24,6 +24,8 @@ import { createEmptyProfile, type Item, type Profile } from "../loot/types";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
+import { descend } from "../system/floor";
+import { allocateAttribute } from "../ui/attributeAlloc";
 import type { GameState } from "./state";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
@@ -294,6 +296,82 @@ describe("記録 → 再生", () => {
     const old: ReplayData = { ...data, version: REPLAY_VERSION - 1 };
     expect(isPlayable(old)).toBe(false);
     expect(() => createReplaySession(old)).toThrow();
+  });
+});
+
+describe("装備画面でのステータス振り分けの記録 → 再生", () => {
+  const SEED = "alloc-replay";
+  /** 開始直後に 2 回降りて点を 2 得る（記録側と再生側で同じ操作をする） */
+  const DESCENTS = 2;
+
+  function prepare(state: GameState): void {
+    for (let i = 0; i < DESCENTS; i++) descend(state);
+  }
+
+  /** frame 300 で体力と精神、frame 700 で装備の付け替えと同時に最後の 1 点を振る */
+  function record(): { data: ReplayData; state: GameState } {
+    const profile = createEmptyProfile();
+    const skillProfile = createDefaultSkillProfile();
+    const recorder = new ReplayRecorder({ seedText: SEED, startedAt: 1, daily: false }, profile, skillProfile);
+    const state = createGame(hashSeed(SEED), SEED, profile, skillProfile);
+    prepare(state);
+    state.runAttributes.unspent += 1;
+    randomInputs(11, 1200).forEach((input, i) => {
+      if (i === 300) {
+        allocateAttribute(state, "vit");
+        allocateAttribute(state, "mnd");
+        recorder.noteLoadout(state);
+      }
+      if (i === 700) {
+        state.profile.equipment.armor = armor(40);
+        applyStats(state, computeStats(state.profile.equipment));
+        allocateAttribute(state, "str");
+        recorder.noteLoadout(state);
+      }
+      step(state, recorder.record(input), FIXED_DT);
+    });
+    return { data: recorder.finish({ depth: state.depth, kills: state.kills, score: state.score }, 2), state };
+  }
+
+  function replay(data: ReplayData): GameState {
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    if (!loaded) throw new Error("sanitize failed");
+    const session = createReplaySession(loaded);
+    prepare(session.state);
+    session.state.runAttributes.unspent += 1;
+    while (!isReplayFinished(session)) stepReplay(session, FIXED_DT);
+    return session.state;
+  }
+
+  it("振り分けがイベントとして記録され、再生で同じ状態になる", () => {
+    const { data, state } = record();
+    expect(data.events, "振り分け 2 回ぶんのイベント").toHaveLength(2);
+    expect(data.events[0]?.alloc, "1 回目は振り分けだけ").toEqual({ str: 0, dex: 0, vit: 1, mnd: 1, spi: 0 });
+    expect(data.events[1]?.alloc?.str, "2 回目は装備と同時").toBe(1);
+    const played = replay(data);
+    expect(played.runAttributes).toEqual(state.runAttributes);
+    expect(played.stats).toEqual(state.stats);
+    expect(played.player.mana).toBe(state.player.mana);
+    expect(played.rng.next(), "浮き文字の乱数消費も一致").toBe(state.rng.next());
+    expect(fingerprint(played)).toBe(fingerprint(state));
+  });
+
+  it("振り分けが無ければイベントは積まれない", () => {
+    const profile = createEmptyProfile();
+    const skillProfile = createDefaultSkillProfile();
+    const recorder = new ReplayRecorder({ seedText: SEED, startedAt: 1, daily: false }, profile, skillProfile);
+    const state = createGame(hashSeed(SEED), SEED, profile, skillProfile);
+    recorder.noteLoadout(state);
+    expect(recorder.finish({ depth: 1, kills: 0, score: 0 }, 2).events).toHaveLength(0);
+  });
+
+  it("壊れた振り分けのイベントは sanitize で捨てる", () => {
+    const { data } = record();
+    const broken = JSON.parse(JSON.stringify(data)) as { events: { alloc: unknown }[] };
+    const first = broken.events[0];
+    if (!first) throw new Error("イベントが無い");
+    first.alloc = { str: -1, dex: 0, vit: 0, mnd: 0, spi: 0 };
+    expect(sanitizeReplay(broken)).toBeNull();
   });
 });
 

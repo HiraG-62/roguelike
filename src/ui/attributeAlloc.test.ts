@@ -2,24 +2,17 @@ import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import { EMPTY_INPUT, type FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
-import { decodeInputs, encodeInputs } from "../core/replay";
 import type { GameState } from "../core/state";
-import { ATTR, ATTR_GAIN, BOON } from "../data/tuning";
+import { ATTR, ATTR_GAIN } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import { createEmptyProfile, uniformAttributes, type AffixRoll, type Item, type Slot } from "../loot/types";
-import { grantBoon, offerBoons } from "../system/boons";
+import { grantBoon } from "../system/boons";
 import { descend, floorAttributePoints } from "../system/floor";
-import { ALLOC_ORDER, allocCardRect, allocPanelVisible, allocateAttribute, updateAttributeAlloc } from "./attributeAlloc";
+import { ALLOC_ORDER, allocButtonRect, allocKeyIndex, allocateAttribute } from "./attributeAlloc";
+import { attributePanelRect, createInventoryUi, updateInventoryUi, type InventoryUi } from "./inventory";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
-}
-
-/** 受付待ち（allocInputDelay）を越えるまで空入力で進める */
-const WAIT_FRAMES = Math.ceil(ATTR_GAIN.allocInputDelay / FIXED_DT) + 1;
-
-function waitReady(state: GameState): void {
-  for (let i = 0; i < WAIT_FRAMES; i++) step(state, withInput({}), FIXED_DT);
 }
 
 /** 階段で降りた直後の状態（祝福の提示は無し）。点が 1 ある */
@@ -27,6 +20,18 @@ function arrived(seed = 3): GameState {
   const state = createGame(seed);
   descend(state);
   return state;
+}
+
+/** 装備画面（装備タブ）を開いた状態 */
+function openInventory(state: GameState): InventoryUi {
+  const ui = createInventoryUi();
+  updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+  return ui;
+}
+
+function buttonCenter(index: number): { x: number; y: number } {
+  const r = allocButtonRect(attributePanelRect(), index);
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }
 
 describe("振り分け点の付与", () => {
@@ -54,19 +59,55 @@ describe("振り分け点の付与", () => {
   });
 });
 
-describe("振り分けパネルの入力", () => {
-  it("スキル 1〜4 と攻撃が 5 枠に対応し、stats が変わる", () => {
+describe("装備画面での振り分け", () => {
+  it("「+」のクリックで 1 点振り、stats が変わる", () => {
+    ALLOC_ORDER.forEach((attr, i) => {
+      const state = arrived();
+      const ui = openInventory(state);
+      expect(state.paused, "装備画面はゲームを止める").toBe(true);
+      updateInventoryUi(state, ui, withInput({ aimScreen: buttonCenter(i), clickPressed: true, attackPressed: true }), 0);
+      expect(state.runAttributes.alloc[attr], `${i} 行目 → ${attr}`).toBe(1);
+      expect(state.runAttributes.unspent, `${attr} で点を使う`).toBe(0);
+      expect(state.stats.attributes[attr], `${attr} の生値が増える`).toBe(ATTR.base + 1);
+    });
+  });
+
+  it("キーはスキル 1〜4 と攻撃が 5 行に対応する", () => {
     const keys = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed", "attackPressed"] as const;
     keys.forEach((key, i) => {
+      expect(allocKeyIndex(withInput({ [key]: true })), key).toBe(i);
       const state = arrived();
-      waitReady(state);
-      step(state, withInput({ [key]: true }), FIXED_DT);
+      const ui = openInventory(state);
+      updateInventoryUi(state, ui, withInput({ [key]: true }), 0);
       const attr = ALLOC_ORDER[i];
-      if (!attr) throw new Error("枠が足りない");
+      if (!attr) throw new Error("行が足りない");
       expect(state.runAttributes.alloc[attr], `${key} → ${attr}`).toBe(1);
-      expect(state.runAttributes.unspent, `${key} で点を使う`).toBe(0);
-      expect(state.stats.attributes[attr], `${key} で生値が増える`).toBe(ATTR.base + 1);
     });
+  });
+
+  it("「+」の外のクリック（攻撃にも束縛）やパッドの A では振らない", () => {
+    const state = arrived();
+    const ui = openInventory(state);
+    updateInventoryUi(state, ui, withInput({ aimScreen: { x: 1, y: 1 }, clickPressed: true, attackPressed: true }), 0);
+    updateInventoryUi(state, ui, withInput({ attackPressed: true, padConfirmPressed: true }), 0);
+    expect(state.runAttributes.unspent).toBe(1);
+  });
+
+  it("装備タブ以外では振らない", () => {
+    const state = arrived();
+    const ui = openInventory(state);
+    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+    expect(ui.tab).toBe("skills");
+    updateInventoryUi(state, ui, withInput({ skill1Pressed: true }), 0);
+    expect(state.runAttributes.unspent).toBe(1);
+  });
+
+  it("点が無ければ押しても振れない", () => {
+    const state = createGame(1);
+    const ui = openInventory(state);
+    updateInventoryUi(state, ui, withInput({ aimScreen: buttonCenter(0), clickPressed: true }), 0);
+    expect(state.runAttributes.alloc).toEqual(uniformAttributes(0));
+    expect(allocateAttribute(state, "str")).toBe(false);
   });
 
   it("振り分けは派生に入る（体力で最大 HP が増える）", () => {
@@ -76,68 +117,15 @@ describe("振り分けパネルの入力", () => {
     expect(state.stats.maxHp).toBe(before + ATTR.vitMaxHp);
     expect(state.player.maxHp, "プレイヤーにも反映").toBe(before + ATTR.vitMaxHp);
   });
+});
 
-  it("選択に使ったキーは消費され、攻撃が出ない", () => {
-    const state = arrived();
-    waitReady(state);
-    step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.runAttributes.alloc.spi).toBe(1);
-    expect(state.player.attack.phase, "攻撃キーは振り分けに使われた").toBe("none");
-  });
-
-  it("出た直後（受付待ち）は振らず、キーはそのまま行動に渡る", () => {
+describe("探索中は振り分けがキーを奪わない", () => {
+  it("未振りの点があってもスキル・攻撃キーは行動に渡り、振られない", () => {
     const state = arrived();
     step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.runAttributes.unspent).toBe(1);
     expect(state.player.attack.phase, "攻撃が出る").not.toBe("none");
-  });
-
-  it("祝福 3 択を選んだ直後も受付待ちからやり直す（選択キーの連打で振らない）", () => {
-    const state = arrived();
-    waitReady(state);
-    offerBoons(state);
-    expect(state.boonChoice).not.toBeNull();
-    const boonWait = Math.ceil(BOON.inputDelay / FIXED_DT) + 1;
-    for (let i = 0; i < boonWait; i++) step(state, withInput({}), FIXED_DT);
     step(state, withInput({ skill1Pressed: true }), FIXED_DT);
-    expect(state.boonChoice, "祝福を選んだ").toBeNull();
-    step(state, withInput({ skill1Pressed: true }), FIXED_DT);
-    expect(state.runAttributes.unspent, "直後の同じキーでは振らない").toBe(1);
-    waitReady(state);
-    step(state, withInput({ skill1Pressed: true }), FIXED_DT);
-    expect(state.runAttributes.unspent, "受付待ちの後は振れる").toBe(0);
-  });
-
-  it("パッドの A（攻撃と決定を兼ねる）では振らない", () => {
-    const state = arrived();
-    waitReady(state);
-    step(state, withInput({ attackPressed: true, padConfirmPressed: true }), FIXED_DT);
-    expect(state.runAttributes.unspent).toBe(1);
-  });
-
-  it("クリックは枠の上だけ。枠の外なら通常の攻撃", () => {
-    const state = arrived();
-    waitReady(state);
-    const r = allocCardRect(2);
-    const onCard = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
-    step(state, withInput({ aimScreen: { x: 4, y: 4 }, clickPressed: true, attackPressed: true }), FIXED_DT);
-    expect(state.runAttributes.unspent, "枠の外は振らない").toBe(1);
-    const second = arrived();
-    waitReady(second);
-    step(second, withInput({ aimScreen: onCard, clickPressed: true, attackPressed: true }), FIXED_DT);
-    expect(second.runAttributes.alloc.vit, "3 枠目 = 体力").toBe(1);
-  });
-
-  it("封鎖中（戦闘中）はパネルを隠し、キーを奪わない", () => {
-    const state = arrived();
-    waitReady(state);
-    const room = state.rooms[1];
-    if (!room) throw new Error("部屋が無い");
-    room.locked = true;
-    expect(allocPanelVisible(state)).toBe(false);
-    const input = withInput({ skill1Pressed: true });
-    expect(updateAttributeAlloc(state, input, FIXED_DT), "入力をそのまま返す").toBe(input);
-    expect(state.runAttributes.unspent).toBe(1);
+    expect(state.runAttributes.unspent, "step では振らない").toBe(1);
   });
 
   it("未振りの点が残っていてもゲームは進む", () => {
@@ -145,13 +133,6 @@ describe("振り分けパネルの入力", () => {
     const tick = state.tick;
     step(state, withInput({ move: { x: 1, y: 0 } }), FIXED_DT);
     expect(state.tick, "step が止まらない").toBe(tick + 1);
-  });
-
-  it("点が無ければパネルは出ず、振れない", () => {
-    const state = createGame(1);
-    expect(allocPanelVisible(state)).toBe(false);
-    expect(allocateAttribute(state, "str")).toBe(false);
-    expect(state.runAttributes.alloc).toEqual(uniformAttributes(0));
   });
 });
 
@@ -198,38 +179,6 @@ describe("振り分けはラン内に限られる", () => {
     expect(vitDelta, "体力が上がっている").toBeGreaterThan(0);
     expect(state.stats.maxHp).toBe(equip.maxHp + ATTR.vitMaxHp * vitDelta);
     expect(state.player.hp, "満タンで始まる").toBe(state.stats.maxHp);
-  });
-});
-
-describe("決定性（振り分け入力を含むリプレイ）", () => {
-  /** 振り分けの入力を含む入力列。リプレイの符号化を往復させてから使う */
-  function allocInputs(): FrameInput[] {
-    const frames: FrameInput[] = [];
-    for (let i = 0; i < WAIT_FRAMES; i++) frames.push(withInput({}));
-    frames.push(withInput({ skill2Pressed: true }));
-    frames.push(withInput({ move: { x: 0, y: 1 } }));
-    frames.push(withInput({ attackPressed: true }));
-    for (let i = 0; i < 120; i++) frames.push(withInput({ move: { x: -1, y: 0 }, attackPressed: i % 20 === 0 }));
-    return decodeInputs(encodeInputs(frames));
-  }
-
-  function run(inputs: readonly FrameInput[]): GameState {
-    const state = createGame(77, "77", createEmptyProfile());
-    descend(state);
-    descend(state);
-    for (const input of inputs) step(state, input, FIXED_DT);
-    return state;
-  }
-
-  it("同じ seed と入力列なら同じ振り分け・同じ stats・同じ位置になる", () => {
-    const inputs = allocInputs();
-    const a = run(inputs);
-    const b = run(inputs);
-    expect(a.runAttributes.alloc, "2 点とも振れている").toEqual({ ...uniformAttributes(0), dex: 1, spi: 1 });
-    expect(b.runAttributes).toEqual(a.runAttributes);
-    expect(b.stats).toEqual(a.stats);
-    expect(b.player.body.pos).toEqual(a.player.body.pos);
-    expect(b.tick).toBe(a.tick);
   });
 });
 

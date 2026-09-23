@@ -3,8 +3,8 @@
  *
  * ゲームは固定 60Hz の決定的シミュレーションなので、seed と「step に渡した FrameInput 列」と
  * 開始時点の装備スナップショットがあれば同じランを再現できる。
- * ラン中に装備画面で装備/スキルを付け替えると結果が変わるため、その変更も「何フレーム目の前に
- * 適用されたか」をイベントとして記録する。
+ * ラン中に装備画面で装備/スキルを付け替えたりステータスを振ったりすると結果が変わるため、
+ * その変更も「何フレーム目の前に適用されたか」をイベントとして記録する。
  *
  * エンコード形式（inputs 文字列）:
  *   ラン = `code` または `count*code`、ラン同士は `;` 区切り（連続する同一 code をまとめる）
@@ -20,13 +20,15 @@ import { hashSeed } from "./rng";
 import type { GameState } from "./state";
 import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
-import { SLOTS, createEmptyProfile, type Equipment, type Item, type Profile } from "../loot/types";
+import { ATTR_KEYS, SLOTS, createEmptyProfile, type Attributes, type Equipment, type Item, type Profile, uniformAttributes } from "../loot/types";
 import { PROFILE_KEY } from "../loot/profile";
 import { SKILL_PROFILE_KEY, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
+import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
 
-export const REPLAY_VERSION = 3;
+/** 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った */
+export const REPLAY_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -43,12 +45,17 @@ export interface ReplayLoadout {
   stoneCount: number;
 }
 
-/** 装備画面での付け替え。frame 番目の step の直前に適用する */
+/** 装備画面での付け替え・ステータス振り分け。frame 番目の step の直前に適用する */
 export interface ReplayEvent {
   frame: number;
   loadout: ReplayLoadout;
-  /** 装備が変わった場合のみ: 付け替え直後のプレイヤー値（applyStats の丸め差を消すため直接上書きする） */
-  player: { hp: number; dashChargesLeft: number } | null;
+  /**
+   * 装備か振り分けが変わった場合のみ: 操作直後のプレイヤー値（applyStats の丸め差や、
+   * 操作の順序で変わるマナの切り詰めを消すため直接上書きする）。mana は REPLAY_VERSION 4 から
+   */
+  player: { hp: number; dashChargesLeft: number; mana?: number } | null;
+  /** 振り分けが変わった場合のみ: 操作直後の runAttributes.alloc（差分を allocateAttribute で振り直す） */
+  alloc: Attributes | null;
 }
 
 export interface ReplayResult {
@@ -330,6 +337,10 @@ function loadoutSignature(l: ReplayLoadout): string {
   return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount]);
 }
 
+function allocSignature(alloc: Attributes): string {
+  return JSON.stringify(ATTR_KEYS.map((k) => alloc[k]));
+}
+
 const PLACEHOLDER_ID_PREFIX = "replay-placeholder-";
 const PLACEHOLDER_SKILL_KEY = SKILL_KEYS[0];
 
@@ -403,6 +414,8 @@ export class ReplayRecorder {
   private readonly snapshot: ReplayLoadout;
   private lastSignature: string;
   private lastEquipmentSignature: string;
+  /** ラン開始時は振り分け 0（createGame が作る） */
+  private lastAllocSignature = allocSignature(uniformAttributes(0));
 
   constructor(
     private readonly options: RecorderOptions,
@@ -416,18 +429,23 @@ export class ReplayRecorder {
 
   /**
    * 装備画面を触った後に呼ぶ。前回から変わっていれば次の step の直前に適用するイベントとして積む。
-   * state.profile / state.skills.profile を見る
+   * state.profile / state.skills.profile / state.runAttributes.alloc を見る
    */
   noteLoadout(state: GameState): void {
     const loadout = captureLoadout(state.profile, state.skills.profile);
     const signature = loadoutSignature(loadout);
-    if (signature === this.lastSignature) return;
+    const allocSig = allocSignature(state.runAttributes.alloc);
+    const allocChanged = allocSig !== this.lastAllocSignature;
+    if (signature === this.lastSignature && !allocChanged) return;
     this.lastSignature = signature;
+    this.lastAllocSignature = allocSig;
     const eqSig = equipmentSignature(loadout.equipment);
     const equipmentChanged = eqSig !== this.lastEquipmentSignature;
     this.lastEquipmentSignature = eqSig;
-    const player = equipmentChanged ? { hp: state.player.hp, dashChargesLeft: state.player.dashChargesLeft } : null;
-    this.events.push({ frame: this.encoder.frameCount, loadout, player });
+    const p = state.player;
+    const player = equipmentChanged || allocChanged ? { hp: p.hp, dashChargesLeft: p.dashChargesLeft, mana: p.mana } : null;
+    const alloc = allocChanged ? { ...state.runAttributes.alloc } : null;
+    this.events.push({ frame: this.encoder.frameCount, loadout, player, alloc });
   }
 
   /** step に渡す直前に呼ぶ。量子化済みの入力を返すので、それをそのまま step に渡すこと */
@@ -513,11 +531,33 @@ function applyDueEvents(session: ReplaySession): void {
     const ev = events[session.eventCursor];
     if (!ev || ev.frame > session.cursor) return;
     session.eventCursor += 1;
-    applyLoadout(session.profile, session.skillProfile, ev.loadout);
-    if (!ev.player) continue;
-    applyStats(session.state, computeStats(session.profile.equipment));
-    session.state.player.hp = ev.player.hp;
-    session.state.player.dashChargesLeft = ev.player.dashChargesLeft;
+    applyEvent(session, ev);
+  }
+}
+
+/** 装備の付け替え → 振り分けの順に反映し、最後に記録時のプレイヤー値で上書きする */
+function applyEvent(session: ReplaySession, ev: ReplayEvent): void {
+  const state = session.state;
+  const equipmentChanged = equipmentSignature(session.profile.equipment) !== equipmentSignature(ev.loadout.equipment);
+  applyLoadout(session.profile, session.skillProfile, ev.loadout);
+  if (equipmentChanged) applyStats(state, computeStats(session.profile.equipment));
+  if (ev.alloc) replayAllocation(state, ev.alloc);
+  if (!ev.player) return;
+  state.player.hp = ev.player.hp;
+  state.player.dashChargesLeft = ev.player.dashChargesLeft;
+  if (ev.player.mana !== undefined) state.player.mana = ev.player.mana;
+}
+
+/**
+ * 記録時の振り分けに追いつくまで allocateAttribute を呼ぶ。実プレイと同じ関数を通すので
+ * 浮き文字が消費する state.rng の回数も一致する（振った順序は記録しないが、回数は同じ）
+ */
+function replayAllocation(state: GameState, target: Attributes): void {
+  for (const key of ALLOC_ORDER) {
+    const missing = target[key] - state.runAttributes.alloc[key];
+    for (let i = 0; i < missing; i++) {
+      if (!allocateAttribute(state, key)) return;
+    }
   }
 }
 
@@ -636,16 +676,36 @@ function sanitizeLoadout(v: unknown): ReplayLoadout | null {
   };
 }
 
+/** 壊れていれば undefined（イベントごと捨てる） */
+function sanitizePlayer(v: unknown): ReplayEvent["player"] | undefined {
+  if (v === null || v === undefined) return null;
+  if (!isRecord(v) || !isFiniteNumber(v.hp) || !isFiniteNumber(v.dashChargesLeft)) return undefined;
+  if (v.mana === undefined) return { hp: v.hp, dashChargesLeft: v.dashChargesLeft };
+  if (!isFiniteNumber(v.mana)) return undefined;
+  return { hp: v.hp, dashChargesLeft: v.dashChargesLeft, mana: v.mana };
+}
+
+/** 振り分けは各ステータス 0 以上の整数。旧版（alloc 欠損）は null、壊れていれば undefined */
+function sanitizeAlloc(v: unknown): Attributes | null | undefined {
+  if (v === null || v === undefined) return null;
+  if (!isRecord(v)) return undefined;
+  const out = uniformAttributes(0);
+  for (const key of ATTR_KEYS) {
+    const n = v[key];
+    if (!isFiniteNumber(n) || n < 0 || !Number.isInteger(n)) return undefined;
+    out[key] = n;
+  }
+  return out;
+}
+
 function sanitizeEvent(v: unknown): ReplayEvent | null {
   if (!isRecord(v) || !isFiniteNumber(v.frame)) return null;
   const loadout = sanitizeLoadout(v.loadout);
   if (!loadout) return null;
-  let player: ReplayEvent["player"] = null;
-  if (v.player !== null && v.player !== undefined) {
-    if (!isRecord(v.player) || !isFiniteNumber(v.player.hp) || !isFiniteNumber(v.player.dashChargesLeft)) return null;
-    player = { hp: v.player.hp, dashChargesLeft: v.player.dashChargesLeft };
-  }
-  return { frame: v.frame, loadout, player };
+  const player = sanitizePlayer(v.player);
+  const alloc = sanitizeAlloc(v.alloc);
+  if (player === undefined || alloc === undefined) return null;
+  return { frame: v.frame, loadout, player, alloc };
 }
 
 /**
