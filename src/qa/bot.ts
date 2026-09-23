@@ -4,6 +4,7 @@ import { createRng, type Rng } from "../core/rng";
 import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
+import { enemyDef } from "../data/enemies";
 import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { isSolidTile, overlapsWall } from "../system/physics";
@@ -35,6 +36,22 @@ const MELEE_RANGE = 30;
 const DANGER_RANGE = 55;
 /** 「人間らしさ」: 危険を検知しても回避に失敗する確率 */
 const DODGE_FAIL_CHANCE = 0.3;
+/**
+ * 敵の攻撃間隔（`EnemyDef.attackInterval`）がこの秒数以下なら「手数が多く近接圏内が危険な敵」と
+ * みなす。windup/strike に入っていなくても、この手の敵が DANGER_RANGE 圏内にいるなら
+ * PREEMPTIVE_DODGE_CHANCE の確率で距離を取る評価を行う（近接スキルの射程が DANGER_RANGE の
+ * 内側にあり、windup/strike のときしか回避しないと詠唱のたびに撃たれ続けてしまうため。
+ * QA 2026-09-23: 1 対 1 被弾 6.54→15.26 回/60秒の急増を受けた対応）
+ */
+const FAST_ATTACKER_INTERVAL = 1.0;
+/** windup/strike でない先読み回避を、どの頻度で「そもそも評価するか」（人間の警戒レベルのばらつき相当） */
+const PREEMPTIVE_DODGE_CHANCE = 0.5;
+/**
+ * 自分中心・短射程の近接スキル（`skillEngageRange` で radius ベースの射程を使うもの）。
+ * これらを撃つと必ず DANGER_RANGE 圏内で被弾判定を受けるため、詠唱直後は評価を待たず
+ * 必ず離脱を試みる（ヒット＆アウェイ）
+ */
+const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parry", "lunge"]);
 /** この割合以下の HP でハートが見えていれば拾いに行く */
 const LOW_HP_RATIO = 0.3;
 /** 詰まり判定のチェック間隔（秒） */
@@ -502,7 +519,12 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   const d = dist(enemy.body.pos, pos);
   input.aimScreen = worldToScreen(state, enemy.body.pos);
 
-  if (isThreatening(enemy) && d < DANGER_RANGE && bot.rng.chance(1 - DODGE_FAIL_CHANCE)) {
+  // windup/strike は必ず評価する。それ以外のフェーズでも、手数の多い（攻撃間隔が短い）敵が
+  // 近くにいるなら PREEMPTIVE_DODGE_CHANCE の確率で「そもそも危険を評価する」（毎フレーム
+  // 評価すると近接スキルの射程内では常に離脱してしまい、スキルが全く当たらなくなるため）
+  const isFastAttacker = enemyDef(enemy.defKey).attackInterval <= FAST_ATTACKER_INTERVAL;
+  const evaluateDanger = isThreatening(enemy) || (isFastAttacker && bot.rng.chance(PREEMPTIVE_DODGE_CHANCE));
+  if (evaluateDanger && d < DANGER_RANGE && bot.rng.chance(1 - DODGE_FAIL_CHANCE)) {
     // 危険を検知して離脱: 敵の逆方向へダッシュ
     const away = normalize(sub(pos, enemy.body.pos));
     input.move = away;
@@ -517,6 +539,12 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   if (skillIndex >= 0) {
     pressSkillSlot(input, skillIndex);
     bot.skillCastAttempts++;
+    const resolved = resolveSlot(state, skillIndex);
+    if (resolved && MELEE_SKILL_KEYS.has(resolved.def.key)) {
+      // ヒット&アウェイ: 自分中心の近接スキルは撃った時点で敵の DANGER_RANGE 圏内にいる。
+      // 評価の確率判定を待たず、必ず逆方向へ動いて距離を取る（ダッシュは温存し歩行のみ）
+      input.move = normalize(sub(pos, enemy.body.pos));
+    }
     return input;
   }
 
