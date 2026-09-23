@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.0.3α] - 2026-09-23
+
 戦闘の再設計（`docs/COMBAT_DESIGN.md`）。詳細は同文書と `docs/GLOSSARY.md` を参照。
 
 ### 追加

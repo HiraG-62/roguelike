@@ -6,7 +6,7 @@
 export type ReleasePhase = "alpha" | "stable";
 
 /** 表示用（タイトル画面など） */
-export const APP_VERSION = "0.0.2α";
+export const APP_VERSION = "0.0.3α";
 /** package.json の version と一致する semver */
-export const APP_VERSION_SEMVER = "0.0.2";
+export const APP_VERSION_SEMVER = "0.0.3";
 export const RELEASE_PHASE: ReleasePhase = "alpha";
