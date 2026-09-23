@@ -4,9 +4,14 @@ import { createRng, type Rng } from "../core/rng";
 import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
+import { ATTR_GAIN } from "../data/tuning";
+import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { BOONS, type BoonKey } from "../system/boons";
+import { canAffordSkill } from "../system/keystones";
+import { resolveSlot } from "../system/skills";
+import { ALLOC_ORDER, allocPanelVisible } from "../ui/attributeAlloc";
 
 /**
  * ヘッドレス自動プレイ用のヒューリスティック bot。
@@ -45,6 +50,19 @@ const WAYPOINT_REACH = TILE_SIZE * 0.6;
 const GOAL_CHANGE_THRESHOLD = TILE_SIZE;
 /** 祝福 3 択が出てから選ぶまで待つ秒数（提示直後 0.35 秒は inputDelay でどのみち無視されるが、指示通り 0.5 秒待つ） */
 const BOON_CHOICE_WAIT = 0.5;
+/**
+ * スキルの有効射程（docs/COMBAT_DESIGN.md B-4 の各スキル maxRange 目安 110〜140 に、
+ * 近接スキル（旋風斬り・突進斬り等）の接近余地を足した目安値）。この距離以内なら
+ * スキルの発動を試み、外なら通常攻撃・射撃で近づきながらマナを貯める
+ */
+const SKILL_ENGAGE_RANGE = 150;
+const SKILL_SLOT_COUNT = 4;
+const SKILL_PRESSED_KEYS = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed"] as const;
+/**
+ * ラン内ステータス振り分け（src/ui/attributeAlloc.ts）の決定的な優先順位。
+ * 「体力 → 筋力 → 技巧 → 精神 → 霊力」の順で 1 点ずつ振り、末尾まで行ったら先頭に戻る（循環）
+ */
+const ALLOC_PRIORITY: readonly AttrKey[] = ["vit", "str", "dex", "mnd", "spi"];
 
 /** bot が手番をまたいで保持する内部状態 */
 export interface BotState {
@@ -61,6 +79,8 @@ export interface BotState {
   wanderTimer: number;
   stuckTimer: number;
   lastCheckPos: Vec;
+  /** ラン内ステータス振り分けで、ALLOC_PRIORITY の何番目を次に選ぶか（循環） */
+  allocCursor: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -76,6 +96,7 @@ export function createBotState(seed: number): BotState {
     wanderTimer: 0,
     stuckTimer: 0,
     lastCheckPos: { x: 0, y: 0 },
+    allocCursor: 0,
   };
 }
 
@@ -206,6 +227,55 @@ function nearestEngagedEnemy(state: GameState): Enemy | null {
 
 function isThreatening(e: Enemy): boolean {
   return e.phase === "windup" || e.phase === "strike";
+}
+
+// ---------------------------------------------------------------------------
+// スキル（docs/COMBAT_DESIGN.md B 章）: マナを見て 4 スロットを撃つ
+// ---------------------------------------------------------------------------
+
+/**
+ * このスロットを今フレーム押せるか。GCD・最低間隔・（マナ型なら）canAffordSkill 相当の
+ * 判定・（CD 型なら）チャージ残数を見る。発動中の別スキルやパリィ失敗硬直中も不可
+ */
+function canCastSlotNow(state: GameState, index: number): boolean {
+  const rs = state.skills;
+  if (rs.active || rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.gcd > 0) return false;
+  const slot = rs.slots[index];
+  if (!slot || slot.intervalLeft > 0) return false;
+  const resolved = resolveSlot(state, index);
+  if (!resolved) return false;
+  if (resolved.def.resource === "mana") return canAffordSkill(state, resolved.cost);
+  return slot.chargesLeft > 0;
+}
+
+/** 装着中のスロットをスロット順に見て、最初に撃てるものの index（無ければ -1）。決定的な優先順位 */
+function chooseSkillSlot(state: GameState): number {
+  for (let i = 0; i < SKILL_SLOT_COUNT; i++) {
+    if (canCastSlotNow(state, i)) return i;
+  }
+  return -1;
+}
+
+function pressSkillSlot(input: FrameInput, index: number): void {
+  const key = SKILL_PRESSED_KEYS[index];
+  if (key) input[key] = true;
+}
+
+/**
+ * 振り分けパネル（src/ui/attributeAlloc.ts）が出ている間、ALLOC_PRIORITY の順で 1 点ずつ振る。
+ * パネルは戦闘中（部屋が封鎖中）は出ない（allocPanelVisible）ので、通常は探索中の入力に
+ * スキル/攻撃キーの押下を足すだけで済む。inputDelay の間は何も押さない（誤爆防止、boonChoiceInput と同様）
+ */
+function allocAttributeInput(state: GameState, bot: BotState, input: FrameInput): FrameInput {
+  if (!allocPanelVisible(state)) return input;
+  if (state.runAttributes.timer < ATTR_GAIN.allocInputDelay) return input;
+  const attr = ALLOC_PRIORITY[bot.allocCursor % ALLOC_PRIORITY.length]!;
+  bot.allocCursor++;
+  const index = ALLOC_ORDER.indexOf(attr);
+  if (index < 0) return input;
+  if (index < SKILL_SLOT_COUNT) pressSkillSlot(input, index);
+  else input.attackPressed = true;
+  return input;
 }
 
 /** target 方向への正規化ベクトル。真上に乗っていれば無入力 */
@@ -397,6 +467,15 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   }
 
   input.move = steerToward(state, bot, enemy.body.pos, dt);
+
+  // マナ主体（docs/COMBAT_DESIGN.md B 章）: 射程内でスキルが撃てるならスキルを優先する
+  const skillIndex = d <= SKILL_ENGAGE_RANGE ? chooseSkillSlot(state) : -1;
+  if (skillIndex >= 0) {
+    pressSkillSlot(input, skillIndex);
+    return input;
+  }
+
+  // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃でマナを貯める
   if (d > SHOOT_RANGE) {
     input.shootHeld = true;
   } else if (d < MELEE_RANGE) {
@@ -454,11 +533,11 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   const p = state.player;
   if (p.hp / p.maxHp <= LOW_HP_RATIO) {
     const heart = pickHeartTarget(state);
-    if (heart) return moveOnlyInput(steerToward(state, bot, heart, dt));
+    if (heart) return allocAttributeInput(state, bot, moveOnlyInput(steerToward(state, bot, heart, dt)));
   }
 
   const enemy = nearestEngagedEnemy(state);
-  if (enemy) return combatInput(state, bot, enemy, dt);
+  if (enemy) return allocAttributeInput(state, bot, combatInput(state, bot, enemy, dt));
 
-  return explorationInput(state, bot, dt);
+  return allocAttributeInput(state, bot, explorationInput(state, bot, dt));
 }

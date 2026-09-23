@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import type { GameState, GameStatus } from "../core/state";
+import type { EnemyPhase, GameState, GameStatus } from "../core/state";
+import { STATUS_KINDS, type StatusKind } from "../core/status";
 import { createRng, type Rng } from "../core/rng";
 import { enemyDef } from "../data/enemies";
 import {
@@ -22,6 +23,10 @@ import { generateItem, makeItemId, MAX_FOUND_TRAITS, rollBase, rollImplicit, rol
 import { fluxClassOf } from "../loot/flux";
 import { nameItem } from "../loot/names";
 import { chooseBud } from "../system/loot";
+import * as combat from "../system/combat";
+import * as statusEffectsModule from "../system/statusEffects";
+import { stoneFromSeed } from "../skills/generator";
+import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
 import { overlapsWall } from "../system/physics";
 
@@ -164,6 +169,122 @@ function buildProfile(kind: ProfileKind, seed: number): Profile {
 }
 
 // ---------------------------------------------------------------------------
+// QA 標準ビルドのスキル装備（docs/COMBAT_DESIGN.md B-7「QA bot の標準ビルド」）
+// ---------------------------------------------------------------------------
+
+/**
+ * マナ型・近接（旋風斬り）/ マナ型・遠隔+状態異常付与（撃ち抜き）/ CD 型・近接（突進斬り）/
+ * マナ型・遠隔範囲（グレネード）の 4 種で、資源タイプ（マナ / CD）と間合い（近接 / 遠隔）を
+ * 両方カバーする。variants は空・links は 1 に固定し、刻印符・変異の乱数要素を増やさない
+ * （bot の決定性・再現性を保つため。src/skills/persistence.ts の STARTER_STONES と同じ作り方）
+ */
+const QA_SKILL_LOADOUT: readonly { seed: number; skillKey: SkillStone["skillKey"] }[] = [
+  { seed: 9001, skillKey: "whirl" },
+  { seed: 9002, skillKey: "railshot" },
+  { seed: 9003, skillKey: "lunge" },
+  { seed: 9004, skillKey: "frag" },
+];
+
+function buildQaSkillProfile(): SkillProfile {
+  const stones: SkillStone[] = QA_SKILL_LOADOUT.map(({ seed, skillKey }) => ({
+    ...stoneFromSeed(seed, { foundDepth: 0, now: 0, skillKey }),
+    variants: [],
+    links: 1,
+  }));
+  return { version: 1, loadout: stones.map((s) => s.id), stones };
+}
+
+// ---------------------------------------------------------------------------
+// スキル由来ダメージ・1 対 1 被弾・怯み・状態異常付与・マナ不足不発の計測（L6）
+// combat.ts / statusEffects.ts は他レーンの持ち物なので書き換えず、エクスポート済み関数を
+// vi.spyOn で素通し計測する（呼び出し元の挙動・戻り値は一切変えない）
+// ---------------------------------------------------------------------------
+
+interface SkillMetrics {
+  /** damageEnemy で実際に enemy.hp が減った量の合計（防御・ブロックで 0 になった分は含まない） */
+  totalDamageDealt: number;
+  /** 上記のうち HitOptions.skill が true だったもの（docs/COMBAT_DESIGN.md B-7 の「スキル由来」） */
+  skillDamageDealt: number;
+  /** state.skills.manaFlash の立ち上がり回数（マナ不足の不発、src/system/skills.ts の misfire） */
+  manaMisfires: number;
+  /** applyStatus の kind === "stagger" が成功した回数（プレイヤー・敵の両方） */
+  staggerCount: number;
+  /** 上記の実際に付与された持続秒の合計（平均は staggerDurationTotal / staggerCount） */
+  staggerDurationTotal: number;
+  /** applyStatus が成功した回数（種類別、プレイヤー・敵の両方、E-2 の 13 種） */
+  statusApplyCounts: Partial<Record<StatusKind, number>>;
+  /** 交戦中の敵がちょうど 1 体だった秒数の合計（1 対 1 の分母） */
+  oneVOneSeconds: number;
+  /** そのうち damagePlayer が "hit"（無敵・ジャスト回避以外の実被弾）を返した回数 */
+  oneVOneHits: number;
+}
+
+function emptySkillMetrics(): SkillMetrics {
+  return {
+    totalDamageDealt: 0,
+    skillDamageDealt: 0,
+    manaMisfires: 0,
+    staggerCount: 0,
+    staggerDurationTotal: 0,
+    statusApplyCounts: {},
+    oneVOneSeconds: 0,
+    oneVOneHits: 0,
+  };
+}
+
+/** bot.ts の NON_ENGAGEABLE_PHASES と同じ意図（idle / spawning は交戦相手に数えない） */
+const NON_ENGAGEABLE: ReadonlySet<EnemyPhase> = new Set(["idle", "spawning"]);
+
+function countEngagedEnemies(state: GameState): number {
+  let n = 0;
+  for (const e of state.enemies) if (e.hp > 0 && !NON_ENGAGEABLE.has(e.phase)) n++;
+  return n;
+}
+
+/** 計測中のラン 1 本ぶんの集計先。runOnce がループの間だけ差し替える（null なら計測しない） */
+let activeSkillMetrics: SkillMetrics | null = null;
+/** 直近の step() 呼び出し時点で交戦中だった敵の数。damagePlayer のスパイが読む */
+let engagedEnemyCountThisStep = 0;
+
+const originalDamageEnemy = combat.damageEnemy;
+vi.spyOn(combat, "damageEnemy").mockImplementation((...args: Parameters<typeof originalDamageEnemy>) => {
+  const [, enemy, , , , opts] = args;
+  const before = Math.max(0, enemy.hp);
+  const killed = originalDamageEnemy(...args);
+  const dealt = before - Math.max(0, enemy.hp);
+  if (dealt > 0 && activeSkillMetrics) {
+    activeSkillMetrics.totalDamageDealt += dealt;
+    if (opts?.skill) activeSkillMetrics.skillDamageDealt += dealt;
+  }
+  return killed;
+});
+
+const originalDamagePlayer = combat.damagePlayer;
+vi.spyOn(combat, "damagePlayer").mockImplementation((...args: Parameters<typeof originalDamagePlayer>) => {
+  const result = originalDamagePlayer(...args);
+  if (result === "hit" && activeSkillMetrics && engagedEnemyCountThisStep === 1) {
+    activeSkillMetrics.oneVOneHits += 1;
+  }
+  return result;
+});
+
+const originalApplyStatus = statusEffectsModule.applyStatus;
+vi.spyOn(statusEffectsModule, "applyStatus").mockImplementation((...args: Parameters<typeof originalApplyStatus>) => {
+  const [state, target, apply] = args;
+  const ok = originalApplyStatus(...args);
+  if (ok && activeSkillMetrics) {
+    activeSkillMetrics.statusApplyCounts[apply.kind] = (activeSkillMetrics.statusApplyCounts[apply.kind] ?? 0) + 1;
+    if (apply.kind === "stagger") {
+      const bag = target.kind === "enemy" ? target.enemy.status : state.player.status;
+      const effect = bag.effects.find((e) => e.kind === "stagger");
+      activeSkillMetrics.staggerCount += 1;
+      activeSkillMetrics.staggerDurationTotal += effect?.maxTime ?? apply.duration;
+    }
+  }
+  return ok;
+});
+
+// ---------------------------------------------------------------------------
 // 1 回のランを実行して指標を集める
 // ---------------------------------------------------------------------------
 
@@ -203,6 +324,8 @@ interface RunMetrics {
   totalTraitCount: number;
   /** ラン中に提示され、bot が選んだ芽（pendingBud）の回数 */
   budsChosen: number;
+  /** スキル由来与ダメ比率・1 対 1 被弾・怯み・状態異常付与・マナ不足不発（L6） */
+  skill: SkillMetrics;
 }
 
 function emptyRarityCounts(): Record<Rarity, number> {
@@ -268,7 +391,7 @@ function guessDeathCause(state: GameState): string {
 
 function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunMetrics {
   const profile = buildProfile(profileKind, seed);
-  const state = createGame(seed, String(seed), profile);
+  const state = createGame(seed, String(seed), profile, buildQaSkillProfile());
   const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
 
   const metrics: RunMetrics = {
@@ -298,6 +421,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     invertedTraitCount: 0,
     totalTraitCount: 0,
     budsChosen: 0,
+    skill: emptySkillMetrics(),
   };
 
   let depthEnterTime = state.time;
@@ -306,6 +430,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   let sawBossThisFloor = false;
   let sawBossDefeatThisFloor = false;
   let stepTimeTotal = 0;
+  let prevManaFlash = state.skills.manaFlash;
+
+  // このランの間だけ、上のスパイが metrics.skill に書き込むようにする（他ランと混ざらないよう
+  // 抜けたら必ず null に戻す。runOnce は例外を catch して抜けるだけで投げ直さないので try/finally は不要）
+  activeSkillMetrics = metrics.skill;
 
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
@@ -326,6 +455,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       break;
     }
 
+    // damagePlayer のスパイが読む「この step 時点の交戦相手数」。1 対 1 判定は step() 前の
+    // スナップショットで揃える（step 中に敵が倒れて 0 体になっても、その 1 撃は 1 対 1 中の被弾として数える）
+    engagedEnemyCountThisStep = countEngagedEnemies(state);
+    const oneVOne = engagedEnemyCountThisStep === 1;
+
     const t0 = performance.now();
     try {
       step(state, input, FIXED_DT);
@@ -335,6 +469,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     }
     stepTimeTotal += performance.now() - t0;
     metrics.stepsRun++;
+
+    if (oneVOne) metrics.skill.oneVOneSeconds += FIXED_DT;
+    // マナ不足の不発（src/system/skills.ts の misfire）: manaFlash が 0 から立ち上がった瞬間を数える
+    if (state.skills.manaFlash > 0 && prevManaFlash <= 0) metrics.skill.manaMisfires++;
+    prevManaFlash = state.skills.manaFlash;
 
     if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
     if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) metrics.wallOverlapDetected = true;
@@ -390,6 +529,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   metrics.resonanceKind = state.stats.resonance.kind;
   metrics.resonanceColors = [...state.stats.resonance.colors];
 
+  activeSkillMetrics = null;
   return metrics;
 }
 
@@ -448,7 +588,7 @@ function fingerprintState(state: GameState): string {
 /** bot 駆動で 1 ラン回して最終状態の fingerprint を返す（runOnce と同じ手順の軽量版） */
 function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: number): string {
   const profile = buildProfile(profileKind, seed);
-  const state = createGame(seed, String(seed), profile);
+  const state = createGame(seed, String(seed), profile, buildQaSkillProfile());
   const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
@@ -639,6 +779,8 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   for (const r of RARITIES) lines.push(`| ${r} | ${rarityTotals[r]} | ${percent(rarityTotals[r], rarityTotalAll)} |`);
   lines.push("");
 
+  lines.push(...buildSkillMetricsSection(allMetrics));
+
   lines.push("## バランス所見");
   lines.push("");
   lines.push(buildBalanceNotes(allMetrics));
@@ -650,6 +792,81 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   lines.push("");
 
   return lines.join("\n");
+}
+
+/** docs/COMBAT_DESIGN.md E-2 の表記 */
+const STATUS_LABEL: Record<StatusKind, string> = {
+  burn: "燃焼",
+  chill: "冷気",
+  freeze: "凍結",
+  shock: "感電",
+  paralyze: "麻痺",
+  poison: "毒",
+  bleed: "出血",
+  vulnerable: "脆弱",
+  weaken: "弱体",
+  fear: "恐怖",
+  silence: "沈黙",
+  stagger: "怯み",
+  guarded: "堅守",
+};
+
+/**
+ * L6 の計測項目（docs/COMBAT_DESIGN.md B-7 / C-2 / F-2 L6 行）。
+ * 全 run 合計（装備パターンをまたいで集計。QA_SKILL_LOADOUT はパターンによらず固定のため）
+ */
+function buildSkillMetricsSection(allMetrics: readonly RunMetrics[]): string[] {
+  const lines: string[] = [];
+  lines.push("## スキル/怯み/状態異常/1 対 1 被弾（L6、QA 標準ビルド: 旋風斬り・撃ち抜き・突進斬り・グレネード）");
+  lines.push("");
+
+  const totalDamage = allMetrics.reduce((s, m) => s + m.skill.totalDamageDealt, 0);
+  const skillDamage = allMetrics.reduce((s, m) => s + m.skill.skillDamageDealt, 0);
+  const skillDamageRatio = totalDamage > 0 ? skillDamage / totalDamage : 0;
+  lines.push(
+    `- **スキル由来の与ダメ比率**: ${percent(skillDamage, totalDamage)}（目標 55〜65%、B-7）。総与ダメ ${totalDamage.toLocaleString()} のうちスキル ${skillDamage.toLocaleString()}。` +
+      (skillDamageRatio < 0.55 ? "目標未満: スキルの威力かマナ回収を強める必要がある。" : skillDamageRatio > 0.65 ? "目標超過: 通常攻撃・射撃が空気になっている。" : "目標範囲内。"),
+  );
+
+  const oneVOneSeconds = allMetrics.reduce((s, m) => s + m.skill.oneVOneSeconds, 0);
+  const oneVOneHits = allMetrics.reduce((s, m) => s + m.skill.oneVOneHits, 0);
+  const oneVOnePer60s = oneVOneSeconds > 0 ? (oneVOneHits / oneVOneSeconds) * 60 : 0;
+  lines.push(
+    `- **1 対 1 の被弾数（60 秒あたり）**: ${oneVOnePer60s.toFixed(2)} 回（目標 1〜3 回、C-2）。1 対 1 の合計時間 ${(oneVOneSeconds / 60).toFixed(1)} 分中 ${oneVOneHits} 回被弾。`,
+  );
+
+  const manaMisfiresTotal = allMetrics.reduce((s, m) => s + m.skill.manaMisfires, 0);
+  lines.push(`- **マナ不足の不発回数**: 合計 ${manaMisfiresTotal} 回（平均 ${average(allMetrics.map((m) => m.skill.manaMisfires)).toFixed(2)} 回/run）。`);
+
+  const staggerCount = allMetrics.reduce((s, m) => s + m.skill.staggerCount, 0);
+  const staggerDurationTotal = allMetrics.reduce((s, m) => s + m.skill.staggerDurationTotal, 0);
+  lines.push(
+    `- **怯み発生回数と平均持続**: 合計 ${staggerCount} 回（平均 ${average(allMetrics.map((m) => m.skill.staggerCount)).toFixed(2)} 回/run）、平均持続 ${staggerCount > 0 ? (staggerDurationTotal / staggerCount).toFixed(2) : "-"} 秒。`,
+  );
+  lines.push("");
+
+  lines.push("### 深度別到達率（1〜3 が C-2 の目標対象。maxDepth ≥ n の run 割合）");
+  lines.push("");
+  lines.push("| depth | 到達率 | 到達run数 |");
+  lines.push("| --- | --- | --- |");
+  const maxDepthForRate = Math.min(10, Math.max(1, ...allMetrics.map((m) => m.maxDepth)));
+  for (let d = 1; d <= maxDepthForRate; d++) {
+    const reached = allMetrics.filter((m) => m.maxDepth >= d).length;
+    lines.push(`| ${d} | ${percent(reached, allMetrics.length)} | ${reached} |`);
+  }
+  lines.push("");
+
+  lines.push("### 状態異常の付与回数（種類別、プレイヤー・敵の両方、applyStatus 成功ベース）");
+  lines.push("");
+  lines.push("| 種類 | 回数 |");
+  lines.push("| --- | --- |");
+  for (const kind of STATUS_KINDS) {
+    const count = allMetrics.reduce((s, m) => s + (m.skill.statusApplyCounts[kind] ?? 0), 0);
+    lines.push(`| ${STATUS_LABEL[kind]} (${kind}) | ${count} |`);
+  }
+  lines.push("");
+
+  return lines;
 }
 
 function buildBalanceNotes(allMetrics: readonly RunMetrics[]): string {
