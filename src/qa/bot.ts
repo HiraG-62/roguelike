@@ -4,14 +4,13 @@ import { createRng, type Rng } from "../core/rng";
 import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
-import { ATTR_GAIN } from "../data/tuning";
 import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { BOONS, type BoonKey } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot } from "../system/skills";
-import { ALLOC_ORDER, allocPanelVisible } from "../ui/attributeAlloc";
+import { allocateAttribute } from "../ui/attributeAlloc";
 
 /**
  * ヘッドレス自動プレイ用のヒューリスティック bot。
@@ -59,7 +58,7 @@ const SKILL_ENGAGE_RANGE = 150;
 const SKILL_SLOT_COUNT = 4;
 const SKILL_PRESSED_KEYS = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed"] as const;
 /**
- * ラン内ステータス振り分け（src/ui/attributeAlloc.ts）の決定的な優先順位。
+ * ラン内ステータス振り分け（`allocateAttribute`、src/ui/attributeAlloc.ts）の決定的な優先順位。
  * 「体力 → 筋力 → 技巧 → 精神 → 霊力」の順で 1 点ずつ振り、末尾まで行ったら先頭に戻る（循環）
  */
 const ALLOC_PRIORITY: readonly AttrKey[] = ["vit", "str", "dex", "mnd", "spi"];
@@ -262,20 +261,16 @@ function pressSkillSlot(input: FrameInput, index: number): void {
 }
 
 /**
- * 振り分けパネル（src/ui/attributeAlloc.ts）が出ている間、ALLOC_PRIORITY の順で 1 点ずつ振る。
- * パネルは戦闘中（部屋が封鎖中）は出ない（allocPanelVisible）ので、通常は探索中の入力に
- * スキル/攻撃キーの押下を足すだけで済む。inputDelay の間は何も押さない（誤爆防止、boonChoiceInput と同様）
+ * ラン内ステータス振り分け（src/ui/attributeAlloc.ts）。振り分け UI は装備画面（Tab）へ移り、
+ * 探索中の攻撃・スキルキーを奪わなくなったため、bot は画面操作を模す（キーを押す）のではなく
+ * `allocateAttribute` を直接呼んで、未消化の点を ALLOC_PRIORITY の順で即座に消化する
  */
-function allocAttributeInput(state: GameState, bot: BotState, input: FrameInput): FrameInput {
-  if (!allocPanelVisible(state)) return input;
-  if (state.runAttributes.timer < ATTR_GAIN.allocInputDelay) return input;
-  const attr = ALLOC_PRIORITY[bot.allocCursor % ALLOC_PRIORITY.length]!;
-  bot.allocCursor++;
-  const index = ALLOC_ORDER.indexOf(attr);
-  if (index < 0) return input;
-  if (index < SKILL_SLOT_COUNT) pressSkillSlot(input, index);
-  else input.attackPressed = true;
-  return input;
+function drainAttributePoints(state: GameState, bot: BotState): void {
+  while (state.runAttributes.unspent > 0) {
+    const attr = ALLOC_PRIORITY[bot.allocCursor % ALLOC_PRIORITY.length]!;
+    bot.allocCursor++;
+    allocateAttribute(state, attr);
+  }
 }
 
 /** target 方向への正規化ベクトル。真上に乗っていれば無入力 */
@@ -518,6 +513,9 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   // ここでは何もしない。芽の選択・出現回数の計測は呼び出し側（qa/simulation.test.ts の
   // runOnce）が state.pendingBud を見て chooseBud(state, 0) を直接呼んでいる
 
+  // ラン内ステータス振り分けも同様に FrameInput 非依存の直接呼び出し（drainAttributePoints 参照）
+  drainAttributePoints(state, bot);
+
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;
     bot.stairsPos = null;
@@ -533,11 +531,11 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   const p = state.player;
   if (p.hp / p.maxHp <= LOW_HP_RATIO) {
     const heart = pickHeartTarget(state);
-    if (heart) return allocAttributeInput(state, bot, moveOnlyInput(steerToward(state, bot, heart, dt)));
+    if (heart) return moveOnlyInput(steerToward(state, bot, heart, dt));
   }
 
   const enemy = nearestEngagedEnemy(state);
-  if (enemy) return allocAttributeInput(state, bot, combatInput(state, bot, enemy, dt));
+  if (enemy) return combatInput(state, bot, enemy, dt);
 
-  return allocAttributeInput(state, bot, explorationInput(state, bot, dt));
+  return explorationInput(state, bot, dt);
 }
