@@ -33,7 +33,7 @@ src/
   render/   Canvas 描画（state を読むだけ）
   ui/       画面ロジック（DOM 非依存。タイトル・装備画面・設定・リプレイ保存）
   audio/    Web Audio 合成の効果音
-  data/     tuning（手触り定数）/ enemies（敵定義）/ sprites（ピクセルマップ）
+  data/     tuning（手触り定数）/ enemies（敵定義）/ enemyCombat（怯み・状態異常の戦闘パラメータ）/ sprites（ピクセルマップ）
   qa/       ヘッドレス bot とシミュレーション、report.md
 ```
 
@@ -43,23 +43,27 @@ src/
 - 乱数は `state.rng`（mulberry32、`core/rng.ts`）だけ。`Math.random` は `audio/synth.ts` の音の揺らぎ以外で禁止
 - `Date.now()` はアイテム / スキル石の `id` と `foundAt` を作る `now` 引数にだけ使う（ゲーム進行に影響させない）。`main.ts` の計時は別
 - `core/replay.ts`: seed + FrameInput 列 + 装備スナップショット + 装備変更イベントで再現。`core/input.ts` / `gamepad.ts` が入力、`view.ts` が 480x270
+- `core/status.ts`: 状態異常の型（`StatusKind` / `StatusEffect` / `StatusBag` / `StatusApply` / `StatusProc`）と一覧。ロジックは持たない（`system/statusEffects.ts` が読む）
 
 ### system（`step` の呼び出し順: player → boons → statusEffects → enemies → projectiles → hazards → floor(updateRooms) → reaper → combo → effects → camera）
-- `player.ts` 移動・ダッシュ・3 段コンボ・射撃・バースト・JUST・ダッシュ攻撃。`applyStats` で stats を反映
-- `combat.ts` 与ダメ / 被ダメの唯一の入口（`damageEnemy` / `damagePlayer` / `healPlayer`）、コンボ倍率、armor 逓減、リゲイン
-- `enemies.ts` 敵 AI（phase: idle → chase → windup → strike → recover、stagger）。behavior ごとの分岐
+- `player.ts` 移動・ダッシュ・3 段コンボ・射撃・バースト・JUST・ダッシュ攻撃。`applyStats` で stats を反映（ステータスの派生・祝福の畳み込みもここ）
+- `combat.ts` 与ダメ / 被ダメの唯一の入口（`damageEnemy` / `damagePlayer` / `healPlayer`）、コンボ倍率、armor 逓減、リゲイン、怯み値の加算呼び出し
+- `attributes.ts` ステータスの実効値（`effectiveAttr`）・威力計算（`scaled`）・ラン内振り分けの畳み込み（`addRunAttributes` / `deriveAttributes`）
+- `mana.ts` マナの増減（`refillMana` / `tickMana` / `canAfford` / `spendMana`）。`core/game.ts` の `step` から直接呼ぶ
+- `poise.ts` 怯みの蓄積・減衰・堅守・ダウン（`addPoise` / `applyStagger` / `isStaggered` / `decayPoise` / `onStaggerEnd`）。独立した `step` ステップは持たず `combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれる
+- `enemies.ts` 敵 AI（phase: idle → chase → windup → strike → recover / spawning。怯みは `EnemyPhase` ではなく状態異常 `stagger` で表す）。behavior ごとの分岐
 - `elites.ts` エリート修飾子 5 種 / `boss.ts` 階層ボス / `reaper.ts` 長居すると出る追跡者
 - `projectiles.ts` 弾 / `hazards.ts` 地面に残る攻撃（爆弾・レーザー・衝撃波・着地・骨壁・プレイヤーの炎）と予告
 - `floor.ts` フロア構築・部屋ロック・階段・`descend` / `roomTypes.ts` フロア種別と部屋種類 / `explore.ts` ミニマップ用探索
-- `statusEffects.ts` burn / chill / shock / 撃破時爆発 / `triggers.ts` 装備トリガーの発火 / `keystones.ts` キーストーン判定と日本語名
-- `boons.ts` 祝福 3 択（定義・抽選・各フック）/ `skills.ts` スキル発動・CD・刻印符 / `loot.ts` ドロップ
+- `statusEffects.ts` 状態異常 13 種の付与・更新・相互作用（`applyStatus` / `hasStatus` / `updateStatusEffects`）/ `triggers.ts` 装備トリガーの発火 / `keystones.ts` キーストーン判定と日本語名
+- `boons.ts` 祝福 3 択（定義・抽選・各フック）/ `skills.ts` スキル発動・マナ / CD・GCD・刻印符 / `loot.ts` ドロップ
 - `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
 
 ### その他
-- loot（装備。響き・揺らぎ・来歴。`docs/LOOT_DESIGN.md`）: `types.ts`（Item / PlayerStats / Profile / TraitColor）、`affixes.ts`（性質・変換・誓約・implicit）、`bases.ts`、`colors.ts`（性質の色・共鳴の重み）、`flux.ts`（期待値曲線・揺らぎ・反転）、`resonance.ts`（共鳴の判定と効果）、`provenance.ts`（来歴・節目・芽）、`named.ts`（`UNIQUES` = 名のある遺物）、`names.ts`（命名・銘）、`generator.ts`（生成。`UNIQUES` は `named.ts` を re-export）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`describe.ts`（UI 向けの表示情報）、`crafting.ts`（残響・クラフト 6 操作）、`migrate.ts`（旧セーブの変換）、`profile.ts` / `craftingStore.ts`（永続化）
-- skills: `types.ts`（`SKILL_KEYS` / `MODIFIER_KEYS`）、`data.ts`（`SKILL_DEFS` / `MODIFIERS` / `SKILL` 定数 / `resolveCast`）、`generator.ts`、`placed.ts`（設置物）、`hit.ts`、`persistence.ts`
-- ui（装備・クラフトの画面ロジック）: `inventory.ts`（タブと入力）、`inventoryLayout.ts`（レイアウト計算・`SLOT_LABEL`）、`echoTab.ts`（残響タブの状態機械）、`bud.ts`（芽モーダルの当たり判定）
-- render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`budUi.ts`（芽のバナー・モーダル描画）、`echoTabUi.ts`（残響タブ描画）、`lootUiParts.ts`（装備 UI 共通部品: 色の配合バー・性質の行）、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`
+- loot（装備。響き・揺らぎ・来歴。`docs/LOOT_DESIGN.md`）: `types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TraitColor）、`affixes.ts`（性質・変換・誓約・implicit）、`bases.ts`、`colors.ts`（性質の色・共鳴の重み）、`flux.ts`（期待値曲線・揺らぎ・反転）、`resonance.ts`（共鳴の判定と効果、`ATTR_LABEL`）、`provenance.ts`（来歴・節目・芽）、`named.ts`（`UNIQUES` = 名のある遺物）、`names.ts`（命名・銘）、`generator.ts`（生成。`UNIQUES` は `named.ts` を re-export）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`describe.ts`（UI 向けの表示情報）、`crafting.ts`（残響・クラフト 6 操作）、`migrate.ts`（旧セーブの変換）、`profile.ts` / `craftingStore.ts`（永続化）
+- skills: `types.ts`（`SKILL_KEYS` / `MODIFIER_KEYS`、`SkillDef` の `resource` / `manaCost` / `minInterval` / `poise` / `applies`）、`data.ts`（`SKILL_DEFS` / `MODIFIERS` / `SKILL` 定数 / `resolveCast`）、`generator.ts`、`placed.ts`（設置物）、`hit.ts`、`persistence.ts`
+- ui（装備・クラフトの画面ロジック）: `inventory.ts`（タブと入力）、`inventoryLayout.ts`（レイアウト計算・`SLOT_LABEL`）、`echoTab.ts`（残響タブの状態機械）、`bud.ts`（芽モーダルの当たり判定）、`attributeAlloc.ts`（ラン内のステータス振り分け UI の状態）
+- render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`budUi.ts`（芽のバナー・モーダル描画）、`echoTabUi.ts`（残響タブ描画）、`lootUiParts.ts`（装備 UI 共通部品: 色の配合バー・性質の行）、`attributeUi.ts`（ステータス画面）、`manaHud.ts`（マナバー）、`statusUi.ts`（状態異常の表示・怯みゲージ）、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`
 - audio: `sfxNames.ts`（`SFX_NAMES`）、`sfx.ts`（`SFX_DEFINITIONS`）、`synth.ts`
 
 ## 不変条件（破ったらレビューで差し戻す）
@@ -97,9 +101,21 @@ src/
 - テスト: `loot/affixes.test.ts` / `generator.test.ts` / `stats.test.ts`
 
 ### スキル / 刻印符
-- スキル石: `skills/types.ts` の `SKILL_KEYS` → `skills/data.ts` の `SKILL_DEFS`（tags / damageKind / 基礎 CD）と `SKILL` 定数 → `system/skills.ts` の `castSlot` に発動処理（設置物なら `skills/placed.ts`）→ `render/skillHud.ts` / `renderer.ts` の表現
-- 刻印符: `MODIFIER_KEYS` → `MODIFIERS`（`canAttach` の条件）→ `resolveCast` に効果
+- スキル石: `skills/types.ts` の `SKILL_KEYS` → `skills/data.ts` の `SKILL_DEFS`
+  - `resource: "mana" | "cooldown"` を選ぶ。マナ型は `manaCost` を消費（`cooldown` は 0、チャージは常に 1）、CD 型は `manaCost` 0 で既存の `cooldown` / `charges` を使う。どちらも `minInterval`（スロットごとの連打下限）と `SKILL.gcd`（全スロット共通の最低間隔、変更しない）がかかる
+  - 威力は `Scaling`（`{ base, str?, dex?, vit?, mnd?, spi? }`）で書く。`base` はステータス基礎値（各 5）のとき現行の威力と一致するよう逆算する（`docs/COMBAT_DESIGN.md` A-6）。呼び出し側で `system/attributes.ts` の `scaled(stats, scaling)` を通す
+  - `poise`（1 ヒットの基礎怯み値。最終値は × `poiseDamageMul`）を必ず入れる。状態異常を付けるなら `applies?: readonly StatusApply[]`（下記「状態異常」）
+  - `SKILL` 定数（共通パラメータ）→ `system/skills.ts` の `castSlot` に発動処理（設置物なら `skills/placed.ts`）→ `render/skillHud.ts` / `render/manaHud.ts` / `renderer.ts` の表現
+- 刻印符: `MODIFIER_KEYS` → `MODIFIERS`（`canAttach` の条件）→ `resolveCast` に効果。`CastParams.burdenMul`（旧 `cooldownMul`）はマナ型ならコスト、CD 型なら CD に掛かる
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
+
+### 状態異常
+- 種類を増やすなら `src/core/status.ts` の `STATUS_KINDS` に追加し、`src/system/statusEffects.ts` に効果・持続・スタック規則・相互作用を実装、`src/render/statusUi.ts` の `STATUS_GLYPH` / `STATUS_COLOR` に表示を足す
+- 既存 13 種に新しい付与経路を足すだけなら型を増やさず、以下のどちらかで `StatusApply`（kind / stacks / duration / potency）を渡す
+  - スキルの命中: `SkillDef.applies`（上の「スキル」参照）。命中した敵に `applyStatus` で入る
+  - 敵の攻撃: `src/data/enemyCombat.ts` の `EnemyCombatDef.inflicts`（`EnemyInflict[]`。`on` でどの攻撃種類か、`minDepth` で深度条件を絞れる）
+- 装備の性質から確率で付与するなら `PlayerStats.statusProcs: StatusProc[]`（`chance` / `on: "melee" | "ranged" | "skill" | "any"` / `requiresCrit?`）を `loot/affixes.ts` の `apply` で足す。判定は on-hit の内部 CD（`StatusBag.procIcd`、`STATUS.onHitIcd`）で敵ごとに絞られる
+- テスト: `system/statusEffects.test.ts`（相互作用・拘束上限・免疫）。敵の付与は `system/enemies.test.ts` に追加
 
 ### 祝福
 1. `src/system/boons.ts`: `BOON_KEYS` と `BOONS`（name / desc は日本語、`tags`、`cursed`、必要なら `requires`）

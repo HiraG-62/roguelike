@@ -7,22 +7,54 @@
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| ジャスト（ジャスト！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間。スロー + ゲージ増 | `system/combat.ts` |
+| ジャスト（ジャスト！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間。スロー + ゲージ増 + マナ回収 | `system/combat.ts` |
 | ジャスト回避 | onJustDodge | 上の行為。説明文での名前 | `system/boons.ts`、`loot/affixes.ts`、`loot/stats.ts`、`loot/triggers.ts` |
-| ジャストカウンター | justCounter | ジャスト直後の攻撃で背後へ瞬間移動して斬る | `data/tuning.ts` ACTION |
-| カウンター（カウンター！） | counter | 敵の予備動作中に近接を当てる。1.5 倍 + 必ずスタガー | `data/tuning.ts` ACTION |
+| 見切り斬り（祝福） | justSlash（祝福 key）/ `ACTION.justCounter`（旧称「ジャストカウンター」、内部名は変えていない） | ジャスト回避直後の攻撃で敵の目の前へ瞬間移動して斬る。祝福を取らないと出ない | `system/boons.ts`、`data/tuning.ts` ACTION.justCounter |
+| カウンター（カウンター！） | counter | 敵の予備動作中に近接を当てる。ダメージ ×1.5 + 怯み値 ×2（`ACTION.counter.poiseMul`。確定の怯みではなく、敵の強靭〔攻撃中 ×0.5〕と相殺して等倍になる値） | `data/tuning.ts` ACTION.counter |
 | ガードブレイク | guard break | 盾騎士の正面ブロックをカウンターで割る | `system/elites.ts` GUARD_BREAK_TEXT |
-| ブロック | block | 盾騎士の正面で攻撃が弾かれた | `system/elites.ts` BLOCK_TEXT |
-| パリィ | reflect / parry | 近接で敵弾を撃ち返す（弾返し）。スキル「パリィ」も同名 | tuning ACTION.reflect、`skills/data.ts` |
+| ブロック | block | 盾騎士の正面で攻撃が弾かれた。ブロック時も怯み値の 50% は溜まる | `system/elites.ts` BLOCK_TEXT |
+| パリィ | parry | スキル。CD 型、近接の衝撃波 | `skills/data.ts` |
+| 弾返し（祝福） | reflect（祝福 key） | 近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージ ×3。祝福を取らないと出ない | `system/boons.ts` |
 | 殲滅 | lastKill | 封鎖中の部屋の最後の 1 体を倒した瞬間のスロー演出 | tuning ACTION.lastKill |
-| 壁叩きつけ | wallSplat | 吹き飛んだ敵が壁に激突して追加ダメージ + スタガー | `system/enemies.ts`、tuning ACTION.wallSplat |
+| 壁叩きつけ | wallSplat | 吹き飛んだ敵が壁に激突して追加ダメージ + 怯み値（強靭を無視） | `system/enemies.ts`、tuning ACTION.wallSplat |
 | リゲイン | regain | 被弾後しばらく、近接ヒットで HP を取り戻せる | `system/combat.ts` |
 | ダッシュ攻撃 | dashAttack | ダッシュ中に押した攻撃が終了時に出る突き | tuning ACTION |
 | コンボ | combo | 連続ヒット数。時間切れか被弾で途切れる | HUD |
 | バースト | special | 必殺ゲージ満タンで出す周囲攻撃 | HUD |
 | 必殺ゲージ | energy | バーストのゲージ | 祝福の説明文 |
-| スタガー | stagger | 敵がのけぞって行動不能 | 設計文書 |
+| 怯み | stagger（状態異常 kind） | 攻撃の怯み値が敵の怯み耐性を超えると付く行動停止の状態異常。旧表記「スタガー」を置き換えた | `core/status.ts`、`system/poise.ts` |
+| 堅守 | guarded（状態異常 kind） | 怯みが解けた直後に付く状態異常。受ける怯み値が半減（ボスは 1/4） | `core/status.ts`、`system/poise.ts` |
+| ダウン | ボスの `stagger` | ボスの怯み。通常より長く（2.0 秒）、被ダメが増える（`POISE.bossDownDamageMul`） | `data/enemyCombat.ts`、`system/poise.ts` |
+| 怯み値 | poise（攻撃側） | 攻撃 1 回が敵に与える怯みの量 | `data/tuning.ts` Scaling / `skills/data.ts` |
+| 怯み耐性 | `EnemyCombatDef.poise` | 敵ごとの怯み値の上限。蓄積がこれを超えると怯む。未指定なら怯まない | `data/enemyCombat.ts` |
+| 強靭 | `EnemyCombatDef.superArmorMul` | 敵の攻撃中（予備動作・攻撃）に受ける怯み値の倍率。低いほど怯みにくい | `data/enemyCombat.ts` |
 | テレグラフ / 予備動作 | windup | 敵の攻撃前の予告。コード上の phase は windup | 設計文書 |
+
+## ステータス・マナ・状態異常（`docs/COMBAT_DESIGN.md`）
+
+| 表記 | 内部名 | 意味 | 出典 |
+| --- | --- | --- | --- |
+| ステータス | Attributes / AttrKey | プレイヤーの 5 つの素質値。基礎値は各 5 | `loot/types.ts`、`system/attributes.ts` |
+| 筋力 | str | 近接系の威力・怯み値・ノックバックが伸びる | `loot/resonance.ts` ATTR_LABEL |
+| 技巧 | dex | 射撃系の威力・移動速度・連射・ダッシュ CD が伸びる | 同上 |
+| 体力 | vit | 最大 HP が伸び、被る状態異常の持続が縮む | 同上 |
+| 精神 | mnd | 最大マナ・マナ自然回復・会心率が伸びる | 同上 |
+| 霊力 | spi | スキルの第 2 係数・状態異常の効果量が伸びる | 同上 |
+| 実効値 | effectiveAttr / attributesEff | ステータスに逓減を掛けた計算用の値 | `system/attributes.ts` |
+| マナ | mana | スキルの資源。通常攻撃の命中・ジャスト回避・撃破で溜まり、スキルで減る | `system/mana.ts` |
+| 共通最低間隔 | GCD（`SKILL.gcd`） | どのスキルを撃った後も一定秒は次のスキルを撃てない | `system/skills.ts` |
+| 状態異常 | StatusEffect / StatusBag | プレイヤーと敵に共通の状態異常の入れ物。13 種 | `core/status.ts`、`system/statusEffects.ts` |
+| 燃焼 | burn | 継続ダメージ | `core/status.ts`、`render/statusUi.ts` |
+| 冷気 | chill | 移動と行動が遅くなる。重ねると凍結へ | 同上 |
+| 凍結 | freeze | 行動停止。次の被弾で「砕き」（ダメージ増 + 怯み値） | 同上 |
+| 感電 | shock | 周期ごとに周囲の別の敵へ連鎖ダメージ。重ねると麻痺へ | 同上 |
+| 麻痺 | paralyze | 短い行動停止 | 同上 |
+| 毒 | poison | 最大 HP 割合の継続ダメージ | 同上 |
+| 出血 | bleed | 移動距離に応じたダメージ | 同上 |
+| 脆弱 | vulnerable | 受けるダメージ増 | 同上 |
+| 弱体 | weaken | 与えるダメージ減 | 同上 |
+| 恐怖 | fear | 敵がプレイヤーから逃げ、攻撃しない。拘束上限の対象外（実装メモ、`docs/COMBAT_DESIGN.md` C-3） | 同上 |
+| 沈黙 | silence | 敵は射撃などを出せない、プレイヤーはスキル不可 | 同上 |
 
 ## 部屋・フロア
 
@@ -61,7 +93,7 @@
 | 芽 | budOffer / buds | 節目で出る 2 択の成長。選ばなかった方は消える | `loot/provenance.ts` |
 | 銘 | inscription | 余白を使い切った遺物に来歴から刻まれる名前 | `loot/names.ts` engraveName |
 | 誓約 | keystone（`ks_`）。表示は「誓約」に統一 | 遊び方を変える大型改造。排他グループあり | `system/keystones.ts` |
-| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り | `system/keystones.ts` KEYSTONE_NAME |
+| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow`（後 2 つはマナ関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
 | トリガー | trigger（`tr:`） | 「〜時: 〜」の条件付き効果（trigger × condition × effect） | `loot/triggers.ts` |
 | 変換 | conversion（`cv_`） | ある軸の盛りを別の軸へ移す | `loot/affixes.ts` |
 | 名のある遺物 | namedKey（旧 unique） | 性質が固定の遺物（値は小さく揺らぐ） | `loot/named.ts` |

@@ -29,6 +29,8 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 
 画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備 / スキル / クラフト画面は `src/ui/inventory.ts`。どちらも DOM 非依存でテストされる。
 
+戦闘再設計（`docs/COMBAT_DESIGN.md`）で入った主要システム: `system/attributes.ts`（ステータスの実効値・威力計算 `scaled`。`applyStats` から `deriveAttributes` として呼ぶ）、`system/mana.ts`（マナの増減。`core/game.ts` の `step` から `refillMana` / `tickMana` を直接呼ぶ）、`system/poise.ts`（怯みの蓄積・減衰・堅守。`combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれ、独立した `step` ステップは持たない）、`system/statusEffects.ts`（13 種の状態異常。`step` のパイプラインに `updateStatusEffects` として入っている）。
+
 ## ディレクトリの責務
 
 | ディレクトリ | 責務 | 依存してよい先 |
@@ -53,16 +55,18 @@ Profile（永続: roguelike.profile.v1）
   └─ meta（runs・bestDepth・totalKills・bestScore・history?: RunHistoryEntry[]）
 
 Item ─ base / rarity / implicit / affixes: AffixRoll[]（key + value、トリガーやキーストーンも AffixRoll で表す）
-  └─ computeStats(equipment) ──> PlayerStats（倍率・flat・keystones・triggers …）
-                                     └─ foldBoonStats（祝福の数値ぶん）── applyStats(state) ──> Player
+  └─ computeStats(equipment) ──> PlayerStats（倍率・flat・attributes・keystones・triggers・statusProcs …）
+                                     └─ addRunAttributes（ラン内振り分け）── deriveAttributes（実効値・派生を畳み込む）
+                                          └─ foldBoonStats（祝福の数値ぶん）── applyStats(state) ──> Player
 
-SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout（スロットごとの石 id）
-  └─ createSkillRunState ──> SkillRunState（ラン内: CD、刻印符、設置物、発動中）
+SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout（4 スロットごとの石 id）
+  └─ createSkillRunState ──> SkillRunState（ラン内: マナ型のコスト / CD 型の CD、GCD、刻印符、設置物、発動中）
 
 GameState
-  ├─ player: Player（body、hp、攻撃 / ダッシュ / JUST / リゲインのタイマー、buffs）
-  ├─ stats: PlayerStats（ロジックは必ずこれを通す）
-  ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、effects、elite、ai）
+  ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / JUST / リゲインのタイマー、buffs）
+  ├─ stats: PlayerStats（attributes / attributesEff を含む。ロジックは必ずこれを通す）
+  ├─ runAttributes: { alloc: Attributes; unspent: number }（ラン内のステータス振り分け）
+  ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、status: StatusBag、poise: PoiseState、elite、ai）
   ├─ rooms: RoomState[]（kind、locked、cleared、wave …）、floorKind、map、lockedTiles
   ├─ projectiles / hazards / pickups / floorItems
   ├─ skills: SkillRunState
@@ -71,7 +75,7 @@ GameState
   └─ rng、tick、time、sfx、log、texts、particles、shapes、camera（演出系）
 ```
 
-型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState）、`loot/types.ts`（Item / PlayerStats / Profile / TriggeredEffect）、`skills/types.ts`（SkillStone / SkillRunState）、`system/boons.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）。
+型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind）、`skills/types.ts`（SkillStone / SkillRunState）、`system/boons.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）。
 
 ## 決定性とリプレイ
 

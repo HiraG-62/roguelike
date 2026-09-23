@@ -93,15 +93,18 @@ effectiveAttr(a) =
 
 ### A-4. 集計の順序（パイプライン）
 
+実装（`applyStats`、`src/system/player.ts`）は次の順序: **振り分け → 派生 → 祝福**。
+
 ```
 computeStats(equipment)              // 既存。性質 → PlayerStats。attributes は生の加算値（逓減前）を入れる
   └ 共鳴の効果に attributes の加算を追加（resonance.ts）
-→ foldBoonStats(stats, boons, run)    // 既存。祝福
 → addRunAttributes(stats, runAlloc)   // 新規。ラン内の振り分けを attributes に足す
 → deriveAttributes(stats)             // 新規。実効値を計算し、A-1 の差分を既存フィールドへ畳み込む
+→ foldBoonStats(stats, boons, run)    // 既存。祝福
 → state.stats
 ```
-- `deriveAttributes` は `applyStats`（`src/system/player.ts`）の中で、`foldBoonStats` の後に呼ぶ。`computeStats` 単体のテストは影響を受けない
+- 祝福を最後に畳み込む理由: 祝福「硝子の見切り」（`glassJust`）は `stats.maxHp` を強制的に 1 に上書きする（`BOON.glassJustMaxHp`）。ステータス由来の派生（体力の最大 HP 加算）を祝福より先に確定させないと、この上書きが体力の加算で崩れて最大 HP が 1 でなくなる
+- `deriveAttributes` は `applyStats` の中で、`addRunAttributes` の直後・`foldBoonStats` の直前に呼ぶ。`computeStats` 単体のテストは影響を受けない
 - 派生の差分は既存フィールドの **後** に掛ける（ソフトキャップの後）。ステータスは装備のソフトキャップと別の逓減（A-2）を持つので二重に潰さない
 - `stats.attributes`（生値）と `stats.attributesEff`（実効値）の両方を持つ。UI は両方を出す（「筋力 26（実効 23）」）
 
@@ -275,6 +278,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 
 - 近接・射撃の `base` を約 20% 下げる（近接 1 段 6 → 4.8、3 段 12 → 9.6、射撃 3.5 → 2.8）。係数は据え置き
 - 目標: QA bot の標準ビルドで **与ダメの 55〜65% がスキル由来**（L6 の計測項目）
+- **未実施（QA 後に判断）**: `src/data/tuning.ts` の `Scaling` は現時点で近接 1 段 `base: 6`、2 段 `base: 6`、3 段 `base: 12`、射撃 `base: 3.5` のまま（ダッシュ攻撃 `base: 9` も同様）。−20% は L6 の QA でスキル由来ダメージ比率が目標（55〜65%）に届かなかった場合の調整用に残してある
 
 ### B-8. HUD
 
@@ -321,6 +325,11 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 連続攻撃（段階 3） | スライム（深度 4+）2 連跳び / 盾騎士 2 段斬り（2 撃目の予備動作 0.3）/ 猪（深度 6+）壁で反転してもう 1 回 / ゴーレム 2 重リング / 蝙蝠 群れの噛みを 0.15 秒ずつずらす | ダッシュ CD 0.45 を跨がせる |
 
 目標値（L6 の QA で計測）: 標準 bot が深度 3 のスライム 1 体と 60 秒戦ったときの被弾 1〜3 回。深度 1〜3 の到達率は現行比 −10〜−20% に収める。
+
+### C-3. 実装メモ（設計との既知の差分）
+
+- **恐怖は拘束上限の対象外**（`STATUS.ccBudget` に数えない）。設計時は「行動停止系（怯み・凍結・麻痺・恐怖）」とまとめていたが、`src/system/statusEffects.ts` は恐怖を外している。理由: 恐怖の解除後免疫が 6 秒あり、拘束上限のウィンドウ（3 秒）と噛み合わせると事実上ずっと恐怖に入れず、さらに鬼火の「2 倍の時間」が上限 2 秒で頭打ちになって意味を失うため
+- **骸骨卿のテレポート中の強靭 0 は未実装**。`src/data/enemyCombat.ts` の `boneLord` に `strikeSuperArmorMul` が無く、通常の `superArmorMul: 0.5` のまま。スライム王（`kingSlime`）は `strikeSuperArmorMul: 0` が入っている
 
 ---
 
