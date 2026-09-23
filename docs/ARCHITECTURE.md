@@ -96,7 +96,7 @@ GameState
 | `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件） | `loot/profile.ts` |
 | `roguelike.skills.v1` | スキル石とスロット | `skills/persistence.ts` |
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
-| `roguelike.settings.v1` | ミュート・音量・画面揺れ | `ui/settings.ts` |
+| `roguelike.settings.v1` | ミュート・音量・画面揺れ・キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定。追加フィールドなので v1 のまま） | `ui/settings.ts` |
 | `roguelike.replays.v1` | リプレイ最新 10 件 | `ui/replayStore.ts` |
 
 共通ルール: 例外（容量超過・プライベートモード）を握りつぶし、壊れたデータはデフォルトへ落とす。形式を非互換に変えるときはキーの版を上げる。

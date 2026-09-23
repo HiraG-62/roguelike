@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_KEYBINDS, assignBinding, defaultKeybinds } from "../core/input";
 import {
   SETTINGS_KEY,
   adjustScreenShake,
   adjustVolume,
   defaultSettings,
   loadSettings,
+  resetKeybinds,
   saveSettings,
   toggleMute,
 } from "./settings";
@@ -46,7 +48,7 @@ describe("settings persistence", () => {
 
   it("保存した内容がそのまま読み戻る（round trip）", () => {
     const storage = new MemoryStorage();
-    const settings = { muted: true, volume: 0.3, screenShake: 0.7 };
+    const settings = { muted: true, volume: 0.3, screenShake: 0.7, keybinds: defaultKeybinds() };
     saveSettings(settings, storage);
     expect(loadSettings(storage)).toEqual(settings);
   });
@@ -63,7 +65,7 @@ describe("settings persistence", () => {
   it("範囲外の値は 0..1 にクランプされる", () => {
     const storage = new MemoryStorage();
     storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 5, screenShake: -2 }));
-    expect(loadSettings(storage)).toEqual({ muted: false, volume: 1, screenShake: 0 });
+    expect(loadSettings(storage)).toEqual({ muted: false, volume: 1, screenShake: 0, keybinds: defaultKeybinds() });
   });
 });
 
@@ -90,5 +92,46 @@ describe("settings mutation", () => {
     s.screenShake = 1;
     adjustScreenShake(s, 5);
     expect(s.screenShake).toBe(1);
+  });
+});
+
+describe("キー設定の永続化", () => {
+  it("変更したキー設定が保存→読込で往復する", () => {
+    const storage = new MemoryStorage();
+    const settings = defaultSettings();
+    const changed = assignBinding(settings.keybinds, "attack", 0, "KeyJ");
+    expect(changed, "割り当てできる").not.toBeNull();
+    if (!changed) return;
+    settings.keybinds = changed;
+    saveSettings(settings, storage);
+    const loaded = loadSettings(storage);
+    expect(loaded.keybinds.attack, "攻撃の主が J のまま読み戻る").toEqual(["KeyJ", "Mouse0"]);
+    expect(loaded.keybinds).toEqual(changed);
+  });
+
+  it("keybinds の無い旧データは既定のキー設定で読める（v1 のまま後方互換）", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: true, volume: 0.2, screenShake: 1 }));
+    const loaded = loadSettings(storage);
+    expect(loaded.muted).toBe(true);
+    expect(loaded.keybinds).toEqual(defaultKeybinds());
+  });
+
+  it("壊れた keybinds は既定へ落ち、他の設定は残る", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.4, screenShake: 1, keybinds: "broken" }));
+    const loaded = loadSettings(storage);
+    expect(loaded.volume).toBeCloseTo(0.4);
+    expect(loaded.keybinds).toEqual(defaultKeybinds());
+  });
+
+  it("resetKeybinds はキー設定だけを既定へ戻す", () => {
+    const settings = defaultSettings();
+    settings.volume = 0.9;
+    const changed = assignBinding(settings.keybinds, "dash", 0, "KeyG");
+    if (changed) settings.keybinds = changed;
+    resetKeybinds(settings);
+    expect(settings.keybinds.dash).toEqual(DEFAULT_KEYBINDS.dash);
+    expect(settings.volume).toBeCloseTo(0.9);
   });
 });

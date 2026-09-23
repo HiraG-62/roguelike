@@ -6,6 +6,7 @@
 import type { Item, Profile, Rarity, RunHistoryEntry } from "../loot/types";
 import { RARITIES } from "../loot/types";
 import { isDailySeedText, isPlayable, type ReplayData } from "../core/replay";
+import { KEYBIND_SLOTS, REBINDABLE_ACTIONS, type RebindableAction } from "../core/input";
 import { VIEW_H, VIEW_W } from "../core/view";
 
 // ---------------------------------------------------------------------------
@@ -100,13 +101,28 @@ export interface MenuHotkeys {
   p: boolean;
   /** 履歴画面: そのシードで新規開始 */
   s: boolean;
+  /** Delete / Backspace（キー設定画面で列を空にする） */
+  clear: boolean;
   /** 矢印キー（-1 / 0 / 1）。WASD は移動と衝突するので履歴・リプレイ操作は矢印キーだけで行う */
   arrowX: number;
   arrowY: number;
 }
 
 function emptyHotkeys(): MenuHotkeys {
-  return { escape: false, n: false, h: false, o: false, m: false, t: false, d: false, p: false, s: false, arrowX: 0, arrowY: 0 };
+  return {
+    escape: false,
+    n: false,
+    h: false,
+    o: false,
+    m: false,
+    t: false,
+    d: false,
+    p: false,
+    s: false,
+    clear: false,
+    arrowX: 0,
+    arrowY: 0,
+  };
 }
 
 /**
@@ -156,6 +172,10 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
       case "KeyS":
         hotkeys.s = true;
         break;
+      case "Delete":
+      case "Backspace":
+        hotkeys.clear = true;
+        break;
       case "ArrowUp":
         hotkeys.arrowY = -1;
         break;
@@ -182,7 +202,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 export const PAUSE_MENU_ITEMS = ["resume", "settings", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
-export const SETTINGS_ITEMS = ["mute", "volume", "screenShake", "close"] as const;
+export const SETTINGS_ITEMS = ["mute", "volume", "screenShake", "keybinds", "close"] as const;
 export type SettingsItem = (typeof SETTINGS_ITEMS)[number];
 
 /** move 系の値が 0 → 非0 に変わった瞬間だけ、その符号を返す（連射防止のエッジ検出） */
@@ -249,7 +269,7 @@ export function pauseMenuItemAt(x: number, y: number, itemGap: number): number |
 }
 
 export const SETTINGS_PANEL_W = 220;
-export const SETTINGS_PANEL_H = 124;
+export const SETTINGS_PANEL_H = 142;
 const SETTINGS_ROW_TOP = 40;
 
 export interface SettingsLayout {
@@ -274,6 +294,117 @@ export function settingsItemAt(x: number, y: number, rowGap: number): number | n
 /** 行内クリック位置が左右どちらか（スライダー系項目の増減方向に使う）。パネルは常に画面中央なので VIEW_W/2 で判定できる */
 export function settingsRowSide(x: number): -1 | 1 {
   return x < VIEW_W / 2 ? -1 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// キー設定画面のレイアウト
+// 行 = 変更可能なアクション + 「既定に戻す」「閉じる」。行が多いので、収まらない行間ではスクロールする。
+// 描画（render/titleUi.ts）と当たり判定（main.ts）が同じ rowGap / scroll を渡して同じ矩形を読む
+// ---------------------------------------------------------------------------
+
+export const KEYBINDS_ROWS = [...REBINDABLE_ACTIONS, "reset", "close"] as const;
+export type KeybindsRow = RebindableAction | "reset" | "close";
+
+export function isActionRow(row: KeybindsRow): row is RebindableAction {
+  return row !== "reset" && row !== "close";
+}
+
+const KEYBINDS_PANEL: Rect = { x: 40, y: 6, w: 400, h: 258 };
+/** パネル上端から見出し・列見出し・最初の行の中心までの距離 */
+const KEYBINDS_TITLE_TOP = 12;
+const KEYBINDS_HEADER_TOP = 28;
+const KEYBINDS_FIRST_ROW_TOP = 40;
+/** パネル下端から操作説明の中心・一覧の下端までの距離 */
+const KEYBINDS_FOOTER_BOTTOM = 8;
+const KEYBINDS_LIST_BOTTOM = 16;
+/** アクション名の列の幅（この右から 主 / 副 / 予備 の列が並ぶ） */
+const KEYBINDS_NAME_W = 120;
+const KEYBINDS_SLOT_W = 88;
+const KEYBINDS_SLOT_GAP = 2;
+
+export interface KeybindsRowRect {
+  /** KEYBINDS_ROWS の index */
+  index: number;
+  rect: Rect;
+}
+
+export interface KeybindsLayout {
+  panel: Rect;
+  titleY: number;
+  /** 列見出し（主 / 副 / 予備）の中心 y */
+  headerY: number;
+  footerY: number;
+  /** 表示中の行（スクロール位置から visibleCount 行） */
+  rows: readonly KeybindsRowRect[];
+  /** 各列の x 範囲（y / h は使わない） */
+  slots: readonly Rect[];
+  /** 一度に見える行数 */
+  visibleCount: number;
+  nameX: number;
+}
+
+export function keybindsVisibleCount(rowGap: number): number {
+  const listTop = KEYBINDS_PANEL.y + KEYBINDS_FIRST_ROW_TOP - rowGap / 2;
+  const listBottom = KEYBINDS_PANEL.y + KEYBINDS_PANEL.h - KEYBINDS_LIST_BOTTOM;
+  return Math.max(1, Math.min(KEYBINDS_ROWS.length, Math.floor((listBottom - listTop) / rowGap)));
+}
+
+/** スクロール量の上限（全行が収まるなら 0） */
+function maxKeybindsScroll(rowGap: number): number {
+  return KEYBINDS_ROWS.length - keybindsVisibleCount(rowGap);
+}
+
+/** カーソル行が見えるようにスクロール量を合わせる（見えていれば据え置き） */
+export function keybindsScrollFor(cursor: number, scroll: number, rowGap: number): number {
+  const visible = keybindsVisibleCount(rowGap);
+  let next = scroll;
+  if (cursor < next) next = cursor;
+  if (cursor >= next + visible) next = cursor - visible + 1;
+  return Math.max(0, Math.min(maxKeybindsScroll(rowGap), next));
+}
+
+export function keybindsLayout(rowGap: number, scroll = 0): KeybindsLayout {
+  const panel = KEYBINDS_PANEL;
+  const visibleCount = keybindsVisibleCount(rowGap);
+  const start = Math.max(0, Math.min(maxKeybindsScroll(rowGap), scroll));
+  const firstY = panel.y + KEYBINDS_FIRST_ROW_TOP;
+  const rects = rowRects(visibleCount, panel.x, firstY, panel.w, rowGap);
+  const rows = rects.map((rect, i) => ({ index: start + i, rect }));
+  const slotsX = panel.x + KEYBINDS_NAME_W;
+  const slots = Array.from({ length: KEYBIND_SLOTS }, (_, i) => ({
+    x: slotsX + i * (KEYBINDS_SLOT_W + KEYBINDS_SLOT_GAP),
+    y: panel.y,
+    w: KEYBINDS_SLOT_W,
+    h: panel.h,
+  }));
+  return {
+    panel,
+    titleY: panel.y + KEYBINDS_TITLE_TOP,
+    headerY: panel.y + KEYBINDS_HEADER_TOP,
+    footerY: panel.y + panel.h - KEYBINDS_FOOTER_BOTTOM,
+    rows,
+    slots,
+    visibleCount,
+    nameX: panel.x + 12,
+  };
+}
+
+export interface KeybindsHit {
+  /** KEYBINDS_ROWS の index */
+  row: number;
+  /** 主 / 副 / 予備 の列（アクション行の列の上だけ。それ以外は null） */
+  slot: number | null;
+}
+
+/** 座標に対応する行と列。どの行にも乗っていなければ null */
+export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0): KeybindsHit | null {
+  const layout = keybindsLayout(rowGap, scroll);
+  const hit = layout.rows.find((r) => pointInRect(x, y, r.rect));
+  if (!hit) return null;
+  const row = KEYBINDS_ROWS[hit.index];
+  if (row === undefined || !isActionRow(row)) return { row: hit.index, slot: null };
+  const slot = layout.slots.findIndex((s) => x >= s.x && x < s.x + s.w);
+  return { row: hit.index, slot: slot === -1 ? null : slot };
 }
 
 // ---------------------------------------------------------------------------

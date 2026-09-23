@@ -1,7 +1,7 @@
 import { SfxPlayer } from "./audio/sfx";
 import { createGame, step } from "./core/game";
 import { GamepadInput } from "./core/gamepad";
-import { PlayerInput, type FrameInput } from "./core/input";
+import { KEYBIND_SLOTS, PlayerInput, assignBinding, clearBinding, isAssignableCode, type FrameInput } from "./core/input";
 import { startLoop } from "./core/loop";
 import {
   ReplayRecorder,
@@ -27,14 +27,17 @@ import { drawSkillHud } from "./render/skillHud";
 import {
   drawDeathSummary,
   drawHistoryScreen,
+  drawKeybindsScreen,
   drawPauseMenu,
   drawReplayHud,
   drawSettingsScreen,
   drawTitle,
+  keybindsRowGap,
 } from "./render/titleUi";
 import { loadSkillProfile, saveSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
 import {
+  KEYBINDS_ROWS,
   MenuKeyCapture,
   PAUSE_MENU_ITEMS,
   SETTINGS_ITEMS,
@@ -45,6 +48,9 @@ import {
   createSeedInputState,
   cycleIndex,
   edgeDir,
+  isActionRow,
+  keybindsItemAt,
+  keybindsScrollFor,
   moveHistoryCursor,
   pauseMenuItemAt,
   processMenuKeys,
@@ -63,6 +69,7 @@ import {
   adjustScreenShake,
   adjustVolume,
   loadSettings,
+  resetKeybinds,
   saveSettings,
   toggleMute,
   type Settings,
@@ -91,7 +98,7 @@ function deathConfirmPressed(frame: FrameInput, deathTimer: number): boolean {
   return frame.confirmPressed;
 }
 
-type Screen = "title" | "playing" | "paused" | "history" | "settings" | "replay";
+type Screen = "title" | "playing" | "paused" | "history" | "settings" | "keybinds" | "replay";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
 const NO_REPLAY_MESSAGE = "このランのリプレイは保存されていません";
@@ -126,6 +133,7 @@ function startGame(seedText: string): GameState {
 }
 
 const input = new PlayerInput();
+input.setKeybinds(settings.keybinds);
 input.attachKeyboard(window);
 input.attachMouse(canvas);
 const gamepad = new GamepadInput();
@@ -170,6 +178,11 @@ let committedSeedText = seedInput.text;
 let titleTime = 0;
 let pauseCursor = 0;
 let settingsCursor = 0;
+/** キー設定画面の選択行（KEYBINDS_ROWS の index）・列（主 / 副 / 予備）・スクロール・取得モード */
+let keybindsCursor = 0;
+let keybindsSlot = 0;
+let keybindsScroll = 0;
+let keybindsCapturing = false;
 /** 設定/ポーズメニューのカーソル移動をエッジ検出するための直前フレームの move 値 */
 const menuNav = { prevX: 0, prevY: 0 };
 /** ポーズ/設定メニューでマウスが動いたかを判定するための直前フレームの aimScreen（動いた時だけホバーでカーソルを奪う） */
@@ -280,6 +293,93 @@ function enterMenu(next: "paused" | "settings", frameMoveX: number, frameMoveY: 
   screen = next;
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
+}
+
+/** キー設定を入力と HUD 表記へ反映して保存する */
+function applyKeybinds(): void {
+  input.setKeybinds(settings.keybinds);
+  saveSettings(settings);
+}
+
+function openKeybinds(frameMoveX: number, frameMoveY: number): void {
+  keybindsCursor = 0;
+  keybindsSlot = 0;
+  keybindsScroll = 0;
+  setKeybindsCapturing(false);
+  screen = "keybinds";
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+}
+
+function setKeybindsCapturing(on: boolean): void {
+  keybindsCapturing = on;
+  input.setCapturing(on);
+}
+
+/** 取得モード: 直前フレームに押されたコードを順に見て、最初の割り当て可能なものを選択中の列に入れる */
+function updateKeybindCapture(escape: boolean): void {
+  for (let code = input.takeAnyPressedCode(); code !== null; code = input.takeAnyPressedCode()) {
+    if (code === "Escape") break;
+    if (!isAssignableCode(code)) continue;
+    const row = KEYBINDS_ROWS[keybindsCursor];
+    const next = row !== undefined && isActionRow(row) ? assignBinding(settings.keybinds, row, keybindsSlot, code) : null;
+    setKeybindsCapturing(false);
+    if (!next) {
+      sfx.play("uiClose");
+      return;
+    }
+    settings.keybinds = next;
+    applyKeybinds();
+    sfx.play("uiClick");
+    return;
+  }
+  // Escape（キーボード）/ パッド B は取り消し
+  if (!escape) return;
+  setKeybindsCapturing(false);
+  sfx.play("uiClose");
+}
+
+/** キー設定の行を決定する。アクション行は取得モードへ、既定に戻す / 閉じる はその場で実行 */
+function activateKeybindsRow(frameMoveX: number, frameMoveY: number): void {
+  const row = KEYBINDS_ROWS[keybindsCursor];
+  if (row === undefined) return;
+  sfx.play("uiClick");
+  if (isActionRow(row)) {
+    setKeybindsCapturing(true);
+  } else if (row === "reset") {
+    resetKeybinds(settings);
+    applyKeybinds();
+  } else {
+    enterMenu("settings", frameMoveX, frameMoveY);
+  }
+}
+
+/** Delete / Backspace: 選択中の列を空にする（最後の 1 つは消せない） */
+function clearSelectedKeybind(): void {
+  const row = KEYBINDS_ROWS[keybindsCursor];
+  if (row === undefined || !isActionRow(row)) return;
+  const next = clearBinding(settings.keybinds, row, keybindsSlot);
+  if (!next) {
+    sfx.play("uiClose");
+    return;
+  }
+  settings.keybinds = next;
+  applyKeybinds();
+  sfx.play("uiClick");
+}
+
+function drawKeybindsOverlay(ctx: CanvasRenderingContext2D): void {
+  drawKeybindsScreen(
+    ctx,
+    {
+      binds: settings.keybinds,
+      cursor: keybindsCursor,
+      slot: keybindsSlot,
+      scroll: keybindsScroll,
+      capturing: keybindsCapturing,
+    },
+    true,
+  );
 }
 
 function drainSfx(s: GameState | null = state): void {
@@ -498,6 +598,21 @@ startLoop(
         menuNav.prevY = frame.move.y;
         menuAimPrev = aim;
 
+        // 決定（Enter / パッド A）はキー設定を開く・閉じるだけ。値の調整は ← → とクリック
+        if (frame.confirmPressed) {
+          const current = SETTINGS_ITEMS[settingsCursor];
+          if (current === "keybinds") {
+            sfx.play("uiClick");
+            openKeybinds(frame.move.x, frame.move.y);
+            break;
+          }
+          if (current === "close") {
+            sfx.play("uiClick");
+            screen = returnScreen;
+            break;
+          }
+        }
+
         if (frame.clickPressed && aim) {
           const clicked = settingsItemAt(aim.x, aim.y, rowGap);
           const item = clicked !== null ? SETTINGS_ITEMS[clicked] : undefined;
@@ -505,10 +620,72 @@ startLoop(
             settingsCursor = clicked;
             if (item === "close") {
               screen = returnScreen;
+            } else if (item === "keybinds") {
+              openKeybinds(frame.move.x, frame.move.y);
             } else {
               applySettingsAdjust(item, item === "mute" ? 1 : settingsRowSide(aim.x));
             }
             sfx.play("uiClick");
+          }
+        }
+        break;
+      }
+
+      case "keybinds": {
+        if (keybindsCapturing) {
+          updateKeybindCapture(hotkeys.escape);
+          menuNav.prevX = frame.move.x;
+          menuNav.prevY = frame.move.y;
+          break;
+        }
+        if (hotkeys.escape) {
+          enterMenu("settings", frame.move.x, frame.move.y);
+          break;
+        }
+
+        const rowGap = keybindsRowGap();
+        const aim = frame.aimScreen;
+        // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
+        const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+        if (aimMoved) {
+          const hovered = keybindsItemAt(aim.x, aim.y, rowGap, keybindsScroll);
+          if (hovered && (hovered.row !== keybindsCursor || (hovered.slot !== null && hovered.slot !== keybindsSlot))) {
+            keybindsCursor = hovered.row;
+            if (hovered.slot !== null) keybindsSlot = hovered.slot;
+            sfx.play("menuMove");
+          }
+        }
+
+        // 移動キーを割り当て直しても迷子にならないよう、矢印キーは束縛と無関係に常に効かせる
+        const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
+        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
+        if (navY !== 0) {
+          keybindsCursor = cycleIndex(keybindsCursor, navY, KEYBINDS_ROWS.length);
+          sfx.play("menuMove");
+        }
+        const keyNavX = edgeDir(menuNav.prevX, frame.move.x);
+        const navX = hotkeys.arrowX !== 0 ? hotkeys.arrowX : keyNavX;
+        if (navX !== 0) {
+          keybindsSlot = cycleIndex(keybindsSlot, navX, KEYBIND_SLOTS);
+          sfx.play("menuMove");
+        }
+        keybindsScroll = keybindsScrollFor(keybindsCursor, keybindsScroll, rowGap);
+        menuNav.prevX = frame.move.x;
+        menuNav.prevY = frame.move.y;
+        menuAimPrev = aim;
+
+        if (hotkeys.clear) {
+          clearSelectedKeybind();
+          break;
+        }
+        if (frame.confirmPressed) {
+          activateKeybindsRow(frame.move.x, frame.move.y);
+        } else if (frame.clickPressed && aim) {
+          const clicked = keybindsItemAt(aim.x, aim.y, rowGap, keybindsScroll);
+          if (clicked) {
+            keybindsCursor = clicked.row;
+            if (clicked.slot !== null) keybindsSlot = clicked.slot;
+            activateKeybindsRow(frame.move.x, frame.move.y);
           }
         }
         break;
@@ -660,9 +837,10 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
-    if (screen === "settings" && returnScreen === "title") {
+    if ((screen === "settings" || screen === "keybinds") && returnScreen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
-      drawSettingsScreen(ctx, settings, settingsCursor, true);
+      if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
+      else drawKeybindsOverlay(ctx);
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -699,6 +877,7 @@ startLoop(
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
     if (screen === "paused") drawPauseMenu(ctx, pauseCursor);
     if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
+    if (screen === "keybinds") drawKeybindsOverlay(ctx);
     if (cur.status === "dead" && cur.deathTimer > DEATH_INPUT_DELAY) {
       drawDeathSummary(ctx, {
         itemSummary: summarizeRunItems(foundItems(cur.profile), runStartedAt),

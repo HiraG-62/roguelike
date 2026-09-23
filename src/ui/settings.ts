@@ -1,5 +1,7 @@
+import { defaultKeybinds, sanitizeKeybinds, type Keybinds } from "../core/input";
+
 /**
- * 設定（mute / volume / screen shake）。localStorage に永続化する。
+ * 設定（mute / volume / screen shake / キー設定）。localStorage に永続化する。
  * profile.ts の loadProfile / saveProfile と同じパターン: 壊れたデータは黙ってデフォルトへ落とす。
  */
 
@@ -9,6 +11,8 @@ export interface Settings {
   volume: number;
   /** 0..1。1 で通常の揺れ、0 で無効 */
   screenShake: number;
+  /** キー設定。旧データ（フィールド無し）は既定になる。キー名は v1 のまま（追加フィールドで後方互換） */
+  keybinds: Keybinds;
 }
 
 export const SETTINGS_KEY = "roguelike.settings.v1";
@@ -24,7 +28,7 @@ function clamp01(value: number): number {
 }
 
 export function defaultSettings(): Settings {
-  return { muted: false, volume: DEFAULT_VOLUME, screenShake: DEFAULT_SCREEN_SHAKE };
+  return { muted: false, volume: DEFAULT_VOLUME, screenShake: DEFAULT_SCREEN_SHAKE, keybinds: defaultKeybinds() };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -63,7 +67,8 @@ export function loadSettings(storage?: Storage): Settings {
   const muted = typeof parsed.muted === "boolean" ? parsed.muted : false;
   const volume = typeof parsed.volume === "number" ? clamp01(parsed.volume) : DEFAULT_VOLUME;
   const screenShake = typeof parsed.screenShake === "number" ? clamp01(parsed.screenShake) : DEFAULT_SCREEN_SHAKE;
-  return { muted, volume, screenShake };
+  const keybinds = sanitizeKeybinds(parsed.keybinds);
+  return { muted, volume, screenShake, keybinds };
 }
 
 export function saveSettings(settings: Settings, storage?: Storage): void {
@@ -87,4 +92,9 @@ export function adjustVolume(settings: Settings, dir: number): void {
 
 export function adjustScreenShake(settings: Settings, dir: number): void {
   settings.screenShake = clamp01(settings.screenShake + Math.sign(dir) * SCREEN_SHAKE_STEP);
+}
+
+/** キー設定だけを既定に戻す（音量などは残す） */
+export function resetKeybinds(settings: Settings): void {
+  settings.keybinds = defaultKeybinds();
 }
