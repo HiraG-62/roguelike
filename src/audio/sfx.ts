@@ -205,6 +205,7 @@ const TUNING = {
   parry: { freq: 1800, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 1500, noiseDuration: 0.08 },
   railshot: { freqFrom: 1400, freqTo: 120, duration: 0.25, noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2 },
   runeAttach: { tones: [440, 660, 990] as const, noteDuration: 0.06, gap: 0.02 },
+  manaEmpty: { freqFrom: 260, freqTo: 140, duration: 0.09 },
   counter: { freq: 95, duration: 0.18, noiseFreqFrom: 3200, noiseFreqTo: 400, noiseDuration: 0.16, ringFreq: 2400, ringDuration: 0.1 },
   reflect: { freqFrom: 900, freqTo: 2600, duration: 0.09, noiseFreqFrom: 6000, noiseFreqTo: 2500, noiseDuration: 0.06 },
   lastKill: { lowFreq: 60, lowDuration: 0.6, noiseFreqFrom: 2400, noiseFreqTo: 120, noiseDuration: 0.5, ringFreq: 1600, ringDuration: 0.4 },
@@ -712,6 +713,16 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       noteDuration: TUNING.runeAttach.noteDuration,
       gap: TUNING.runeAttach.gap,
       peak: 0.5,
+    }),
+
+  // マナ不足: 撃てなかったことが分かる短く鈍い下降音（発動音と聞き分けられるよう矩形波で低く）
+  manaEmpty: (ctx, dest, opts) =>
+    toneSweep(ctx, dest, opts, {
+      type: "square",
+      freqFrom: TUNING.manaEmpty.freqFrom,
+      freqTo: TUNING.manaEmpty.freqTo,
+      duration: TUNING.manaEmpty.duration,
+      peak: 0.25,
     }),
 
   counter: (ctx, dest, opts) => {

@@ -5,6 +5,8 @@ import { TILE_SIZE, toIndex } from "../map/grid";
 import { damagePlayer } from "./combat";
 import { shake, spawnBurst, spawnRing } from "./effects";
 import { overlapsWall } from "./physics";
+import type { EnemyAttackKind } from "../data/enemyCombat";
+import { type InflictSource, enemyDamageMul, inflictOnPlayer } from "./statusEffects";
 
 /**
  * 敵が地面に残す攻撃: 爆弾 / レーザー / 衝撃波リング / ボスの着地予告 / 骨の壁。
@@ -15,8 +17,8 @@ const EXPLODE_PARTICLES = 20;
 const EXPLODE_SPEED = 170;
 const EXPLODE_SHAKE = 4;
 const LASER_PARTICLE_INTERVAL = 3;
-const BURN_PARTICLE_INTERVAL = 4;
-const BURN_PARTICLE_SPEED = 30;
+/** 付与元の部屋は不明（ボス部屋の深度条件の例外は接触攻撃だけ） */
+const UNKNOWN_ROOM = -1;
 
 interface HazardSpec {
   kind: HazardKind;
@@ -42,6 +44,7 @@ function addHazard(state: GameState, spec: HazardSpec): Hazard {
     spent: false,
     tile: spec.tile ?? -1,
     sourceId: spec.sourceId,
+    sourceKey: spec.sourceId === undefined ? undefined : state.enemies.find((e) => e.id === spec.sourceId)?.defKey,
   };
   state.hazards.push(h);
   return h;
@@ -89,24 +92,40 @@ export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard 
   return addHazard(state, { kind: "boneWall", pos, radius: half, time: BOSS.boneLord.wallDuration, damage: 0, tile });
 }
 
-/** プレイヤーが炎をまとう演出（wisp） */
-export function spawnPlayerBurn(state: GameState): void {
-  const existing = state.hazards.find((h) => h.kind === "playerBurn");
-  if (existing) {
-    existing.time = existing.maxTime;
-    return;
-  }
-  addHazard(state, { kind: "playerBurn", pos: state.player.body.pos, radius: 0, time: ENEMY_AI.wisp.burnDuration, damage: 0 });
+/** 地面の攻撃の付与元（倒された後でも種類で引く） */
+function hazardSource(h: Hazard): InflictSource | undefined {
+  return h.sourceKey === undefined ? undefined : { defKey: h.sourceKey, roomIndex: UNKNOWN_ROOM };
 }
 
-/** プレイヤーだけを巻き込む爆発 */
-export function explodeHostile(state: GameState, pos: Vec, radius: number, damage: number, color: string): void {
+/** 出した敵が弱体なら威力が下がる（倒されていれば等倍） */
+function hazardDamage(state: GameState, h: Hazard): number {
+  const source = h.sourceId === undefined ? undefined : state.enemies.find((e) => e.id === h.sourceId && e.hp > 0);
+  return h.damage * enemyDamageMul(source);
+}
+
+/** プレイヤーへの被弾。当たれば付与元の状態異常も付ける */
+function hitPlayerBy(state: GameState, h: Hazard, on: EnemyAttackKind): ReturnType<typeof damagePlayer> {
+  const result = damagePlayer(state, hazardDamage(state, h), h.pos);
+  if (result === "hit") inflictOnPlayer(state, hazardSource(h), on);
+  return result;
+}
+
+/** プレイヤーだけを巻き込む爆発。source があれば爆風の状態異常（爆弾ゴブリンの脆弱）を付ける */
+export function explodeHostile(
+  state: GameState,
+  pos: Vec,
+  radius: number,
+  damage: number,
+  color: string,
+  source?: InflictSource,
+): void {
   spawnRing(state, pos, radius, color, STATUS.fxLife);
   spawnBurst(state, pos, color, EXPLODE_PARTICLES, EXPLODE_SPEED, 0.4, 2.5);
   shake(state, EXPLODE_SHAKE);
   pushSfx(state, "explode");
   const p = state.player.body;
-  if (dist(p.pos, pos) < radius + p.radius) damagePlayer(state, damage, pos);
+  if (dist(p.pos, pos) >= radius + p.radius) return;
+  if (damagePlayer(state, damage, pos) === "hit") inflictOnPlayer(state, source, "bomb");
 }
 
 /** 線分 a-b（太さ halfWidth*2）と円の当たり判定 */
@@ -146,7 +165,7 @@ export function updateHazards(state: GameState, dt: number): void {
     h.time -= dt;
     switch (h.kind) {
       case "bomb":
-        if (h.time <= 0) explodeHostile(state, h.pos, h.radius, h.damage, ENEMY_AI.bomber.color);
+        if (h.time <= 0) explodeHostile(state, h.pos, h.radius, hazardDamage(state, h), ENEMY_AI.bomber.color, hazardSource(h));
         break;
       case "laser":
         tickLaser(state, h);
@@ -156,12 +175,6 @@ export function updateHazards(state: GameState, dt: number): void {
         break;
       case "boneWall":
         if (h.time <= 0) removeBoneWall(state, h);
-        break;
-      case "playerBurn":
-        h.pos = { ...state.player.body.pos };
-        if (state.tick % BURN_PARTICLE_INTERVAL === 0) {
-          spawnBurst(state, h.pos, STATUS.burnColor, 1, BURN_PARTICLE_SPEED, 0.35, 1.5);
-        }
         break;
       case "landing":
         break;
@@ -175,7 +188,7 @@ function tickLaser(state: GameState, h: Hazard): void {
   const p = state.player.body;
   if (!segmentCircleHit(h.pos, h.to, h.radius, p.pos, p.radius)) return;
   // 被弾後無敵があるので照射中に何度も当たることはない
-  damagePlayer(state, h.damage, h.pos);
+  hitPlayerBy(state, h, "laser");
 }
 
 function tickShockwave(state: GameState, h: Hazard): void {
@@ -185,7 +198,7 @@ function tickShockwave(state: GameState, h: Hazard): void {
   const d = dist(p.pos, h.pos);
   const half = ENEMY_AI.golem.ringThickness / 2;
   if (Math.abs(d - r) > half + p.radius) return;
-  const result = damagePlayer(state, h.damage, h.pos);
+  const result = hitPlayerBy(state, h, "shockwave");
   if (result !== "ignored") h.spent = true;
 }
 

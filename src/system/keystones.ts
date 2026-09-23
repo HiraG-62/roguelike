@@ -1,4 +1,5 @@
-import type { GameState } from "../core/state";
+import type { GameState, Player } from "../core/state";
+import type { PlayerStats } from "../loot/types";
 import { KEYSTONE, PLAYER } from "../data/tuning";
 
 /**
@@ -14,6 +15,8 @@ export const KS = {
   gambler: "ks_gambler",
   vampire: "ks_vampire",
   overclock: "ks_overclock",
+  overdraw: "ks_overdraw",
+  silentVow: "ks_silentVow",
 } as const;
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
@@ -34,9 +37,21 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_overclock: "過駆動",
   ks_bladeOath: "剣の誓い",
   ks_windWalker: "風走り",
+  ks_overdraw: "過負荷",
+  ks_silentVow: "静寂の誓い",
 };
 
-export function hasKeystone(state: GameState, key: KeystoneKey): boolean {
+/** 誓約の判定に要る state の部分（テストで GameState 全体を作らずに済むよう絞る） */
+export interface KeystoneHolder {
+  stats: Pick<PlayerStats, "keystones">;
+}
+
+/** スキルのコストの支払いに要る state の部分 */
+export interface ManaPayer extends KeystoneHolder {
+  player: Pick<Player, "mana" | "hp">;
+}
+
+export function hasKeystone(state: KeystoneHolder, key: KeystoneKey): boolean {
   return state.stats.keystones.includes(key);
 }
 
@@ -83,4 +98,46 @@ export function payOverclockShoot(state: GameState): void {
   if (p.overclockShotCount < PLAYER.overclockShootInterval) return;
   p.overclockShotCount = 0;
   p.hp = Math.max(1, p.hp - PLAYER.overclockHpCost);
+}
+
+// ---------------------------------------------------------------------------
+// マナの誓約（排他グループ mana）。数値効果（スキル威力・自然回復）は affixes.ts の apply で適用済み
+// ---------------------------------------------------------------------------
+
+/**
+ * ks_silentVow: 通常攻撃（近接・ダッシュ攻撃・射撃）の命中で戻るマナに掛ける倍率。
+ * ジャスト回避と撃破の回収は通常攻撃ではないので対象外
+ */
+export function attackManaMul(state: KeystoneHolder): number {
+  return hasKeystone(state, KS.silentVow) ? 0 : 1;
+}
+
+/** ks_overdraw: マナの不足分を払うのに要る HP（不足が無ければ 0） */
+export function overdrawHpCost(state: ManaPayer, cost: number): number {
+  const shortfall = Math.max(0, cost - state.player.mana);
+  return shortfall * KEYSTONE.overdrawHpPerMana;
+}
+
+/**
+ * スキルのコストを払えるか。マナで足りれば true。
+ * ks_overdraw なら不足分を HP で払えるか（払った後に KEYSTONE.overdrawMinHp 以上残るか）も見る
+ */
+export function canAffordSkill(state: ManaPayer, cost: number): boolean {
+  if (cost <= 0 || state.player.mana >= cost) return true;
+  if (!hasKeystone(state, KS.overdraw)) return false;
+  return state.player.hp - overdrawHpCost(state, cost) >= KEYSTONE.overdrawMinHp;
+}
+
+/**
+ * スキルのコストを払う。足りなければ何も減らさず false（不発）。
+ * ks_overdraw ならマナを 0 まで使い、不足分を HP で払う（自傷で死なないよう canAffordSkill で下限を見る）
+ */
+export function paySkillCost(state: ManaPayer, cost: number): boolean {
+  if (cost <= 0) return true;
+  if (!canAffordSkill(state, cost)) return false;
+  const p = state.player;
+  const hpCost = overdrawHpCost(state, cost);
+  p.mana = Math.max(0, p.mana - cost);
+  p.hp -= hpCost;
+  return true;
 }

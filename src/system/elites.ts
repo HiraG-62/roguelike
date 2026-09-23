@@ -1,8 +1,9 @@
 import { type EliteKind, type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, length, normalize, scale } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { ELITE, ENEMY_AI } from "../data/tuning";
+import { ELITE, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
+import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
 import { addFloatingText, spawnBurst } from "./effects";
 import { spawnBomb } from "./hazards";
 import { dropItem, enemyDropChance } from "./loot";
@@ -50,6 +51,7 @@ export function rollElite(state: GameState, e: Enemy): void {
 
 export function makeElite(e: Enemy, kind: EliteKind): void {
   e.elite = kind;
+  e.poise.max *= elitePoiseMul(kind);
   const hp = Math.round(e.maxHp * ELITE.hpMul);
   e.maxHp = hp;
   e.hp = hp;
@@ -75,7 +77,10 @@ export function finalizeLinks(state: GameState, roomIndex: number): void {
   }
   // 相方がいないなら意味がないので Hasted に差し替える
   const solo = linked[0];
-  if (solo) solo.elite = "hasted";
+  if (!solo) return;
+  // 迅速は耐性据え置きなので、連結で掛けた倍率を戻す
+  solo.poise.max /= elitePoiseMul("linked");
+  solo.elite = "hasted";
 }
 
 export function eliteSpeedMul(e: Enemy): number {
@@ -115,8 +120,7 @@ function breakShield(state: GameState, e: Enemy): void {
   spawnBurst(state, e.body.pos, ELITE_COLOR.shielded, 14, 120, 0.4, 2);
   pushSfx(state, "hitHeavy");
   if (e.hp <= 0 || e.phase === "spawning") return;
-  e.phase = "stagger";
-  e.phaseTimer = ELITE.shieldBreakStagger;
+  applyStagger(state, e, ELITE.shieldBreakStagger);
 }
 
 /**
@@ -155,7 +159,7 @@ export function isFrontal(e: Enemy, dir: Vec): boolean {
 }
 
 function canBlock(e: Enemy): boolean {
-  return e.defKey === "knight" && e.phase !== "stagger" && e.phase !== "spawning";
+  return e.defKey === "knight" && !isStaggered(e) && e.phase !== "spawning";
 }
 
 function showBlock(state: GameState, e: Enemy, dir: Vec): void {
@@ -166,21 +170,19 @@ function showBlock(state: GameState, e: Enemy, dir: Vec): void {
   pushSfx(state, "wallHit");
 }
 
-/** GUARD BREAK: カウンター/JUST カウンターは盾を無視してダメージが通り、代わりに大きく怯む */
+/** GUARD BREAK の表示（盾を抜いた / 盾の上から怯みが溢れた） */
 function showGuardBreak(state: GameState, e: Enemy): void {
   addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8);
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, GUARD_BREAK_PARTICLES, 130, 0.35, 2);
   pushSfx(state, "hitHeavy");
   pushSfx(state, "guardBreak");
-  if (e.hp <= 0 || e.phase === "spawning") return;
-  e.phase = "stagger";
-  e.phaseTimer = ENEMY_AI.knight.guardBreakStagger;
 }
 
 /**
  * damageEnemy の直前に割り込む。返り値が 0 以下ならダメージ無効。
  * 近接の正面攻撃は knight の盾で防ぐ（弾は deflectProjectile が処理する）。
- * guardBreak（カウンターヒット / JUST カウンター）なら盾を無視して通す代わりに GUARD BREAK 表示 + スタガー
+ * 防いでも怯み値の POISE.blockMul 倍は溜まり、溢れたら GUARD BREAK 表示 + 怯み。
+ * guardBreak（カウンターヒット / 見切り斬り）なら盾を無視してダメージが通る（怯むかは怯み値しだい）
  */
 export function interceptEnemyDamage(
   state: GameState,
@@ -189,12 +191,17 @@ export function interceptEnemyDamage(
   knockDir: Vec,
   kind: "melee" | "ranged" | "proc",
   guardBreak = false,
+  poise = 0,
 ): number {
   if (kind !== "melee") return amount;
   if (!canBlock(e) || !isFrontal(e, knockDir)) return amount;
   if (guardBreak) {
     showGuardBreak(state, e);
     return amount;
+  }
+  if (addPoise(state, e, poise * POISE.blockMul)) {
+    showGuardBreak(state, e);
+    return 0;
   }
   showBlock(state, e, knockDir);
   return 0;

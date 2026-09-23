@@ -40,6 +40,8 @@ export const SFX_NAMES = [
   "parry",
   "railshot",
   "runeAttach",
+  /** マナ不足の不発（docs/COMBAT_DESIGN.md B-2） */
+  "manaEmpty",
   // アクション手触り（docs/ideas/action-feel.md）
   "counter",
   "reflect",

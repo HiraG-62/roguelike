@@ -35,6 +35,11 @@ import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
+import { isStaggered } from "../system/poise";
+import { hasStatus } from "../system/statusEffects";
+import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGauge } from "./statusUi";
+import { drawAttributeAlloc } from "./attributeUi";
+import { drawManaBar } from "./manaHud";
 
 /** コンボ表示（論理 px・y 座標） */
 const COMBO_TEXT_PX = 14;
@@ -391,6 +396,9 @@ const HUD_HP_Y = 8;
 const HUD_BAR_X = HUD_X + 10;
 const HUD_BAR_W = 100;
 const HUD_HP_H = 6;
+/** マナバー: HP バーの直下（docs/COMBAT_DESIGN.md B-8） */
+const HUD_MANA_Y = HUD_HP_Y + HUD_HP_H + 1;
+const HUD_MANA_H = 2;
 const HUD_ENERGY_Y = 17;
 const HUD_ENERGY_H = 4;
 const HUD_TEXT_X = HUD_BAR_X + HUD_BAR_W + 4;
@@ -610,6 +618,7 @@ export class Renderer {
     this.drawFloorWipe(state);
     drawBoonHud(ctx, state, aimScreen);
     drawBoonChoice(ctx, state);
+    drawAttributeAlloc(ctx, state);
     if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
     if (state.status === "dead") this.drawDeath(state);
   }
@@ -1096,9 +1105,10 @@ export class Renderer {
       const flicker = 1 - WISP_GLOW_FLICKER + Math.sin(e.animTime * WISP_FLICKER_SPEED_X) * WISP_GLOW_FLICKER;
       this.drawGlow(x, bottom - sprite.h / 2, ENEMY_AI.wisp.color, WISP_GLOW_R, WISP_GLOW_ALPHA * flicker);
     }
+    const staggered = isStaggered(e);
     const rot =
-      e.phase === "stagger"
-        ? (flip ? STAGGER_TILT : -STAGGER_TILT) * (0.7 + 0.3 * Math.sin(state.time * STAGGER_WOBBLE_SPEED))
+      staggered
+        ?(flip ? STAGGER_TILT : -STAGGER_TILT) * (0.7 + 0.3 * Math.sin(state.time * STAGGER_WOBBLE_SPEED))
         : 0;
 
     const base = hit ? sprite.white : sprite.frames;
@@ -1109,11 +1119,11 @@ export class Renderer {
       ctx.globalAlpha = WINDUP_RED_ALPHA;
       this.drawAnchored(pick(this.tinted(key, COLOR_TELEGRAPH), frame), x, bottom, sx, sy, rot, flip);
     }
-    if (e.effects.chill.time > 0) {
+    if (hasStatus(e.status, "chill") || hasStatus(e.status, "freeze")) {
       ctx.globalAlpha = CHILL_TINT_ALPHA;
       this.drawAnchored(pick(this.tinted(key, STATUS.chillColor), frame), x, bottom, sx, sy, rot, flip);
     }
-    if (e.effects.burn.time > 0) {
+    if (hasStatus(e.status, "burn")) {
       ctx.globalAlpha = BURN_TINT_ALPHA * (0.6 + 0.4 * Math.sin(state.time * BURN_FLICKER_SPEED + e.id));
       this.drawAnchored(pick(this.tinted(key, STATUS.burnColor), frame), x, bottom, sx, sy, rot, flip);
     }
@@ -1128,16 +1138,20 @@ export class Renderer {
       if (def.behavior === "laser") this.drawLaserTelegraph(state, e, def.windup);
       if (def.behavior === "golem") this.drawRingTelegraph(cx, cy, ENEMY_AI.golem.ringRadius);
     }
-    if (e.phase === "stagger") {
+    if (staggered) {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
+    drawEnemyStatus(ctx, e, cx, e.elite ? top - ELITE_NAME_OFFSET : top);
     if (def.boss) return;
+    const barY = cy + sprite.h / 2 - 2;
     if (e.elite) {
-      this.drawEliteBars(e, cx, cy + sprite.h / 2 - 2);
+      this.drawEliteBars(e, cx, barY);
+      drawPoiseGauge(ctx, e, cx, barY + ELITE_BAR_H, ELITE_BAR_W);
       this.drawEliteName(e, cx, top - ELITE_NAME_OFFSET);
       return;
     }
-    if (e.hp < e.maxHp) this.drawBar(cx - 8, cy + sprite.h / 2 - 2, 16, 2, e.hp / e.maxHp, COLOR_HP, COLOR_HP_BG);
+    if (e.hp < e.maxHp) this.drawBar(cx - 8, barY, 16, 2, e.hp / e.maxHp, COLOR_HP, COLOR_HP_BG);
+    drawPoiseGauge(ctx, e, cx, barY + 2, 16);
   }
 
   /** ボスは行動に合わせてフレームを選ぶ。他は時間で回す */
@@ -1207,7 +1221,7 @@ export class Renderer {
    * 防いだ直後（被弾フラッシュ無しで押し返されている間）は盾が白く光る
    */
   private drawKnightShield(state: GameState, e: Enemy, cx: number, cy: number): void {
-    if (e.phase === "stagger") return;
+    if (isStaggered(e)) return;
     const icon = this.sprite(SPR.shieldIcon);
     const sx = cx + e.facing.x * SHIELD_ICON_OFFSET;
     const sy = cy + e.facing.y * SHIELD_ICON_OFFSET;
@@ -1766,6 +1780,9 @@ export class Renderer {
     this.blit(this.sprite(SPR.heartSmall), 0, HUD_X, HUD_HP_Y - 1);
     this.drawBar(HUD_BAR_X, HUD_HP_Y, HUD_BAR_W, HUD_HP_H, p.hp / p.maxHp, COLOR_HP, COLOR_HP_BG);
     this.drawRegain(state);
+    // 状態異常の列は HP バーの真上（8×8 の枠が画面上端から HP バーまでに収まる）
+    drawPlayerStatusRow(ctx, p.status, HUD_BAR_X, 0);
+    drawManaBar(ctx, state, HUD_BAR_X, HUD_MANA_Y, HUD_BAR_W, HUD_MANA_H);
     drawText(ctx, `${Math.ceil(p.hp)}/${p.maxHp}`, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
 
     const ready = p.energy >= p.maxEnergy;
@@ -1879,6 +1896,7 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     this.shadowText(b.name, VIEW_W / 2, y - 3, COLOR_BOSS_NAME, TEXT.SMALL);
+    drawBossPoiseGauge(ctx, boss, x, y + BOSS_BAR_H + BOSS_BAR_FRAME, BOSS_BAR_W);
   }
 
   /** 登場時の上下の黒帯（HUD より奥に描く） */

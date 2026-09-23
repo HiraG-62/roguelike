@@ -86,13 +86,13 @@ export interface SkillDef {
   charges: number;
   /** この石にロールされうる変異軸（得失が意味を持つものだけ） */
   axes: readonly VariantAxis[];
-  // ---- 戦闘再設計（docs/COMBAT_DESIGN.md B-4）。値は段階 1 の L2 が入れる。段階 0 は中立 ----
+  // ---- 戦闘再設計（docs/COMBAT_DESIGN.md B-4）。マナ型は cooldown 0・charges 1 ----
   resource: SkillResource;
   /** マナ型のコスト（CD 型は 0） */
   manaCost: number;
   /** このスロットだけの連打下限（秒） */
   minInterval: number;
-  /** 1 ヒットの基礎怯み値 */
+  /** 1 ヒットの基礎怯み値（最終値は × poiseDamageMul） */
   poise: number;
   /** 命中した敵に付ける状態異常 */
   applies?: readonly StatusApply[];
@@ -108,7 +108,8 @@ export interface CastParams {
   timeMul: number;
   /** buff の持続倍率 */
   durationMul: number;
-  cooldownMul: number;
+  /** 負担（docs/COMBAT_DESIGN.md B-5）。マナ型ならコスト、CD 型なら CD に掛かる倍率（旧 cooldownMul） */
+  burdenMul: number;
   charges: number;
   /** 回数 / 弾数の加算 */
   countBonus: number;
@@ -128,10 +129,14 @@ export interface CastParams {
   delay: { time: number; damageMul: number } | null;
   /** 発動したスロット（連鎖の返却先）。resolveCast の時点では -1 */
   slot: number;
-  /** マナ型の最低間隔倍率（多重）。段階 1 の L2 が読む */
+  /** マナ型の最低間隔倍率（多重） */
   intervalMul: number;
-  /** 連鎖（マナ型）: 撃破でコストのこの割合を返す。0 なら無し。段階 1 の L2 が読む */
+  /** 連鎖（マナ型）: 撃破でコストのこの割合を返す。0 なら無し */
   killManaRefund: number;
+  /** どのスキルの発動か（怯み値・付与の状態異常を引くため。反響・遅延でも同じ値が残る） */
+  skillKey: SkillKey;
+  /** この発動で実際に払ったマナ（連鎖の返却・撃ち抜きのキャンセル返却の基準）。resolveCast の時点では 0 */
+  manaPaid: number;
 }
 
 export interface ModifierDef {
@@ -146,7 +151,10 @@ export interface ModifierDef {
   requiresTags?: readonly SkillTag[];
   /** 個別に付けられないスキル（効果が既に内蔵されているもの） */
   excludesSkills?: readonly SkillKey[];
-  apply(p: Readonly<CastParams>): CastParams;
+  /** マナ型スキルでの効果の説明。無ければ verb と同じ（docs/COMBAT_DESIGN.md B-5 で読み替えるものだけ持つ） */
+  manaVerb?: string;
+  /** def はマナ型 / CD 型で効果を読み替えるために渡す */
+  apply(p: Readonly<CastParams>, def: Readonly<SkillDef>): CastParams;
 }
 
 // ---- 永続（スキル石） ----
@@ -162,7 +170,7 @@ export interface SkillStone {
   seed: number;
   skillKey: SkillKey;
   variants: VariantRoll[];
-  /** 刻印符を差せる数。多いほど素の CD が長い */
+  /** 刻印符を差せる数。多いほど負担（マナ型はコスト、CD 型は CD）が重い */
   links: number;
   foundDepth: number;
   /** epoch ms */

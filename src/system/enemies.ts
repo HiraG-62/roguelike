@@ -1,13 +1,14 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, ENEMY_AI, FEEL } from "../data/tuning";
+import { ACTION, ENEMY_AI, FEEL, POISE } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { eliteSpeedMul, eliteWindupMul, onEliteDeath, updateElites } from "./elites";
-import { explodeHostile, laserEnd, spawnBomb, spawnLaser, spawnPlayerBurn, spawnShockwave } from "./hazards";
+import { explodeHostile, laserEnd, spawnBomb, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
-import { chillFactor, createEnemyEffects, createPoiseState } from "./statusEffects";
+import { chillFactor, createPoiseState, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
+import { applyStagger, initEnemyPoise } from "./poise";
 import { createStatusBag } from "../core/status";
 import { onBossDeath, updateBossEnemy } from "./boss";
 import { TILE_SIZE } from "../map/grid";
@@ -49,7 +50,8 @@ const ENEMY_BULLET_DAMAGE = 8;
 const ENEMY_BULLET_COLOR = "#e070ff";
 const ENEMY_BULLET_LIFE = 3;
 const SPAWN_TIME = 0.7;
-const CHARGER_STAGGER = 0.9;
+/** 沈黙中は予備動作に入れない（射撃・レーザー・爆弾） */
+const SILENCED_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["shooter", "laser", "bomber"]);
 
 export function createAi(): EnemyAi {
   return { target: { x: 0, y: 0 }, timer: 0, counter: 0, stage: 1, move: 0 };
@@ -57,7 +59,7 @@ export function createAi(): EnemyAi {
 
 export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex: number, spawning: boolean): Enemy {
   const hp = Math.round(def.hp * depthHpScale(state.depth));
-  return {
+  const enemy: Enemy = {
     id: allocId(state),
     defKey: def.key,
     roomIndex,
@@ -72,12 +74,13 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     hitFlash: 0,
     knock: { x: 0, y: 0 },
     animTime: state.rng.next() * 2,
-    effects: createEnemyEffects(),
     lastHp: hp,
     ai: createAi(),
     status: createStatusBag(),
     poise: createPoiseState(),
   };
+  initEnemyPoise(enemy, state.depth);
+  return enemy;
 }
 
 export function updateEnemies(state: GameState, dt: number): void {
@@ -89,10 +92,15 @@ export function updateEnemies(state: GameState, dt: number): void {
     // chill 中は移動も攻撃の進行も遅くなる
     const edt = dt * chillFactor(e);
     e.hitFlash = Math.max(0, e.hitFlash - dt);
+    applyKnock(state, e, def, dt);
+    // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
+    if (isHalted(e)) continue;
     e.animTime += edt;
     e.attackCooldown = Math.max(0, e.attackCooldown - edt);
-
-    applyKnock(state, e, def, dt);
+    if (isFeared(e) && e.phase !== "spawning") {
+      flee(state, e, def, edt);
+      continue;
+    }
 
     if (def.boss) {
       updateBossEnemy(state, e, def, edt);
@@ -121,10 +129,6 @@ export function updateEnemies(state: GameState, dt: number): void {
         break;
       case "recover":
         recover(state, e, def, toPlayer, edt);
-        break;
-      case "stagger":
-        e.phaseTimer -= edt;
-        if (e.phaseTimer <= 0) toChase(e, def);
         break;
     }
     if (def.behavior === "wisp") touchWisp(state, e, def);
@@ -168,7 +172,15 @@ function applyKnock(state: GameState, e: Enemy, def: EnemyDef, dt: number): void
   e.knock = scale(e.knock, Math.exp(-KNOCK_DECAY * dt));
 }
 
-/** 壁叩きつけ: 強く吹き飛んだ敵が壁に激突すると追加ダメージ + スタガー */
+/** 恐怖: プレイヤーから逃げ、攻撃しない（予備動作は付与時に取り消し済み） */
+function flee(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
+  const away = normalize(sub(e.body.pos, state.player.body.pos));
+  if (away.x !== 0) e.facing = scale(away, -1);
+  const speed = enemySpeed(e, def);
+  moveEnemy(state, e, def, away.x * speed * dt, away.y * speed * dt);
+}
+
+/** 壁叩きつけ: 強く吹き飛んだ敵が壁に激突すると追加ダメージ + 強靭を無視した怯み値 */
 function wallSplat(state: GameState, e: Enemy): void {
   const w = ACTION.wallSplat;
   const back = scale(e.knock, -1);
@@ -178,7 +190,8 @@ function wallSplat(state: GameState, e: Enemy): void {
   shake(state, FEEL.shakeHeavy);
   pushSfx(state, "wallHit");
   const out = rollOutgoing(state, e, w.damage, "proc");
-  damageEnemy(state, e, out.amount, back, 0, { stagger: true, hitstopSteps: w.hitstop });
+  const poise = w.poise * state.stats.poiseDamageMul;
+  damageEnemy(state, e, out.amount, back, 0, { poise, ignoreSuperArmor: true, hitstopSteps: w.hitstop });
 }
 
 /** 壁すり抜け（wisp）はマップ外にだけ出ないようにして直接動かす */
@@ -210,7 +223,9 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
   const speed = enemySpeed(e, def);
   moveEnemy(state, e, def, move.x * speed * dt, move.y * speed * dt);
 
-  if (d < def.engageRange && e.attackCooldown <= 0) beginWindup(state, e, def, dir);
+  if (d >= def.engageRange || e.attackCooldown > 0) return;
+  if (isSilenced(e) && SILENCED_BEHAVIORS.has(def.behavior)) return;
+  beginWindup(state, e, def, dir);
 }
 
 function chaseMove(e: Enemy, def: EnemyDef, dir: Vec, d: number): Vec {
@@ -315,9 +330,8 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
     const hit = moveEnemy(state, e, def, e.strikeDir.x * speed * dt, e.strikeDir.y * speed * dt);
     if (hit.hitX || hit.hitY) {
       if (def.behavior === "charger") {
-        // 壁に激突して隙を晒す
-        e.phase = "stagger";
-        e.phaseTimer = CHARGER_STAGGER;
+        // 壁に激突して隙を晒す（自傷の怯み: 拘束上限を数えず、解除後に堅守も付かない）
+        applyStagger(state, e, POISE.chargerWallStagger, { selfInflicted: true });
         shake(state, FEEL.shakeHeavy);
         spawnBurst(state, e.body.pos, "#c0c0c0", 12, 120, 0.4, 2);
         pushSfx(state, "wallHit");
@@ -327,7 +341,6 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
       return;
     }
     if (def.contactDamage > 0 && touchPlayer(state, e, def.contactDamage) !== null) {
-      if (def.behavior === "wisp") spawnPlayerBurn(state);
       endStrike(e, def);
       return;
     }
@@ -335,19 +348,19 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   if (e.phaseTimer <= 0) endStrike(e, def);
 }
 
-/** 接触していればダメージ。接触していなければ null */
+/** 接触していればダメージ（当たれば ENEMY_COMBAT の接触の状態異常も付く）。接触していなければ null */
 function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResult | null {
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return null;
   const result = damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e);
+  if (result === "hit") inflictOnPlayer(state, e, "contact");
   return result === "ignored" ? null : result;
 }
 
-/** wisp は strike 以外でも触れると燃やす */
+/** wisp は strike 以外でも触れると燃やす（燃焼は ENEMY_COMBAT の接触の付与） */
 function touchWisp(state: GameState, e: Enemy, def: EnemyDef): void {
   if (e.phase === "spawning" || e.phase === "idle" || e.phase === "strike") return;
-  if (touchPlayer(state, e, def.contactDamage) === null) return;
-  spawnPlayerBurn(state);
+  touchPlayer(state, e, def.contactDamage);
 }
 
 function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {

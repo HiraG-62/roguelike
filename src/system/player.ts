@@ -3,14 +3,15 @@ import { type Enemy, type GameState, type Player, type Projectile, allocId, push
 import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
-import { ACTION, FEEL, KEYSTONE, PLAYER } from "../data/tuning";
+import { ACTION, BOON, FEEL, KEYSTONE, MANA, PLAYER } from "../data/tuning";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
-import { KEYSTONE_NAME, KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
+import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
-import { explodeAt } from "./statusEffects";
-import { addRunAttributes, deriveAttributes } from "./attributes";
+import { explodeAt, hasStatus } from "./statusEffects";
+import { addRunAttributes, deriveAttributes, scaled } from "./attributes";
+import { gainMana } from "./mana";
 import { createStatusBag } from "../core/status";
 import {
   cancelSkills,
@@ -29,13 +30,13 @@ import {
   boonSwingCombo,
   canShootWhileDashing,
   foldBoonStats,
+  hasBoon,
   onBoonBurstKills,
   onBoonDash,
   onBoonDashEnd,
   onBoonMeleeHit,
   onBoonShoot,
   onBoonSwing,
-  parryEnergyMul,
   tryDashGuard,
 } from "./boons";
 
@@ -44,7 +45,6 @@ const KNOCK_MIN = 2;
 const BULLET_COLOR = "#a0e0ff";
 const DEG_TO_RAD = Math.PI / 180;
 const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
-const BURST_INVULN = 0.25;
 const PACIFIST_COLOR = "#a0a0a0";
 /** ks_bladeOath の「撃てない」表示の間隔（秒）。押しっぱなしで連打表示しない */
 const BLADE_OATH_TEXT_INTERVAL = 0.6;
@@ -93,15 +93,16 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
 /**
  * 装備変更などで stats が変わったときにプレイヤーへ反映する。
  * maxHp が変わったら現在 HP の割合を維持する。
- * 集計順は 装備 → 祝福 → ラン内振り分け → ステータスの派生（docs/COMBAT_DESIGN.md A-4）
+ * 集計順は 装備 → ラン内振り分け → ステータスの派生 → 祝福（docs/COMBAT_DESIGN.md A-4 から祝福を最後へ移した）
  */
 export function applyStats(state: GameState, equipStats: PlayerStats): void {
   const p = state.player;
   const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
   // 祝福（ラン内）は装備の stats に畳み込む。装備画面から呼ばれても祝福が消えない
   state.boonRun.baseStats = equipStats;
-  const withBoons = foldBoonStats(equipStats, state.boons, state.boonRun);
-  const stats = deriveAttributes(addRunAttributes(withBoons, state.runAttributes.alloc));
+  // 派生 → 祝福の順: 祝福の固定値（硝子の見切りの最大 HP 1 など）を体力の加算で崩さない
+  const derived = deriveAttributes(addRunAttributes(equipStats, state.runAttributes.alloc));
+  const stats = foldBoonStats(derived, state.boons, state.boonRun);
   state.stats = stats;
   p.maxHp = stats.maxHp;
   // 精神が下がって上限が縮んだときだけ切り詰める（増えたぶんは自然回復で埋める）
@@ -125,14 +126,18 @@ export interface MeleeStep {
   windup: number;
   active: number;
   recover: number;
+  /** ステータスの係数を評価した威力（装備の flat / mul は rollOutgoing が掛ける） */
   damage: number;
+  /** 最終の怯み値（poiseDamageMul 込み。カウンターの倍率は含まない） */
+  poise: number;
   reach: number;
   size: number;
   knockback: number;
-  stagger: boolean;
+  /** 重いヒットストップと壁叩きつけを起こす段 */
+  heavy: boolean;
 }
 
-/** tuning の近接段に stats（攻撃速度・リーチ・ノックバック）を掛けたもの。dashStrike ならダッシュ攻撃 */
+/** tuning の近接段に stats（ステータス・攻撃速度・リーチ・ノックバック）を掛けたもの。dashStrike ならダッシュ攻撃 */
 export function meleeStep(stats: Readonly<PlayerStats>, combo: number, dashStrike = false): MeleeStep | undefined {
   const base = dashStrike ? ACTION.dashAttack : PLAYER.melee[combo];
   if (!base) return undefined;
@@ -141,12 +146,28 @@ export function meleeStep(stats: Readonly<PlayerStats>, combo: number, dashStrik
     windup: base.windup / speed,
     active: base.active / speed,
     recover: base.recover / speed,
-    damage: base.damage,
+    damage: scaled(stats, base.scaling),
+    poise: base.poise * stats.poiseDamageMul,
     reach: base.reach * stats.meleeReachMul,
     size: base.size * stats.meleeReachMul,
     knockback: base.knockback * stats.knockbackMul,
-    stagger: base.stagger,
+    heavy: base.heavy,
   };
+}
+
+/** 射撃 1 発の威力（ステータスの係数を評価した値） */
+export function shotDamage(stats: Readonly<PlayerStats>): number {
+  return scaled(stats, PLAYER.shoot.scaling);
+}
+
+/** バーストの威力（ステータスの係数 × burstDamageMul） */
+export function burstDamage(stats: Readonly<PlayerStats>): number {
+  return scaled(stats, PLAYER.special.scaling) * stats.burstDamageMul;
+}
+
+/** 怯み（被弾硬直）中か。移動が遅くなり、攻撃・射撃・ダッシュ・バースト・スキルが出せない（docs/COMBAT_DESIGN.md D-5） */
+export function isPlayerStaggered(p: Player): boolean {
+  return hasStatus(p.status, "stagger");
 }
 
 export function dashTime(stats: Readonly<PlayerStats>): number {
@@ -166,19 +187,40 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   trackDamageDealt(state);
   tickTimers(state, dt);
   const aiming = applyAim(state, input);
+  const staggered = isPlayerStaggered(p);
 
-  if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
-  if (input.attackPressed && !skillLocksAttack(state)) tryAttack(state);
+  if (!staggered) readActions(state, input);
   releaseDashAttack(state);
-  // バーストは常にスキルをキャンセルできる
-  if (input.specialPressed && trySpecial(state)) cancelSkills(state);
-  updateSkills(state, input, dt);
+  updateSkills(state, staggered ? withoutSkillInput(input) : input, dt);
 
   updateAttack(state, dt);
   updateMovement(state, input, dt, aiming);
-  if (input.shootHeld && !skillLocksAttack(state)) tryShoot(state);
+  if (input.shootHeld && !staggered && !skillLocksAttack(state)) tryShoot(state);
   if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
   trackDamageDealt(state);
+}
+
+/** ダッシュ・近接・バーストの入力を読む（怯み中は呼ばない） */
+function readActions(state: GameState, input: FrameInput): void {
+  if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
+  if (input.attackPressed && !skillLocksAttack(state)) tryAttack(state);
+  // バーストは常にスキルをキャンセルできる
+  if (input.specialPressed && trySpecial(state)) cancelSkills(state);
+}
+
+/** 怯み中はスキルの発動入力だけを消す。CD やチャージの経過は updateSkills に進めさせる */
+function withoutSkillInput(input: FrameInput): FrameInput {
+  return {
+    ...input,
+    skill1Pressed: false,
+    skill2Pressed: false,
+    skill3Pressed: false,
+    skill4Pressed: false,
+    skill1Held: false,
+    skill2Held: false,
+    skill3Held: false,
+    skill4Held: false,
+  };
 }
 
 /** 近接・射撃の速度に血の契約（frenzy）を乗せた stats。装備の stats は書き換えない */
@@ -265,7 +307,8 @@ function tryDash(state: GameState, input: FrameInput): void {
   } else {
     const time = dashTime(state.stats);
     p.dashTimer = time;
-    p.invulnTimer = Math.max(p.invulnTimer, time);
+    // 無敵はダッシュの前半だけ。後半は被弾するので、ダッシュを押すタイミングが問われる
+    p.invulnTimer = Math.max(p.invulnTimer, Math.min(time, PLAYER.dash.invulnTime));
     p.dodgedThisDash = false;
   }
   onBoonDash(state);
@@ -300,7 +343,8 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       });
     }
   } else {
-    const attackMul = (isAttacking(p) ? PLAYER.attackMoveMul : 1) * skillMoveMul(state) * boonMoveMul(state);
+    const staggerMul = isPlayerStaggered(p) ? PLAYER.staggerMoveMul : 1;
+    const attackMul = (isAttacking(p) ? PLAYER.attackMoveMul : 1) * skillMoveMul(state) * boonMoveMul(state) * staggerMul;
     const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
     vel = scale(input.move, PLAYER.speed * state.stats.moveSpeedMul * attackMul * buffMul);
     if (!aiming && !isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
@@ -416,11 +460,21 @@ function resolveMeleeHits(state: GameState, box: Box, step: MeleeStep): void {
     p.attack.hitIds.add(e.id);
     meleeHitEnemy(state, e, step);
   }
-  // 敵弾を斬るとプレイヤー弾として撃ち返す（弾返しパリィ）
+  resolveMeleeBullets(state, box);
+}
+
+/**
+ * 近接の active と敵弾。デフォルトでは素通りする（docs/COMBAT_DESIGN.md C-1 の 5 / 6）。
+ * 祝福「弾返し」なら撃ち返し、性質「弾斬り」なら消す。両方あれば撃ち返しを優先する
+ */
+function resolveMeleeBullets(state: GameState, box: Box): void {
+  const reflect = hasBoon(state, "reflect");
+  if (!reflect && state.stats.bulletCut <= 0) return;
   for (const pr of state.projectiles) {
     if (pr.owner !== "enemy" || pr.life <= 0) continue;
     if (!boxCircleOverlap(box, pr.pos.x, pr.pos.y, pr.radius)) continue;
-    reflectProjectile(state, pr);
+    if (reflect) reflectProjectile(state, pr);
+    else cutProjectile(state, pr);
   }
 }
 
@@ -430,11 +484,11 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
   const counter = isCounterable(e);
   const out = rollOutgoing(state, e, step.damage, "melee");
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
-  const baseHitstop = step.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight;
+  const baseHitstop = step.heavy ? FEEL.hitstopHeavy : FEEL.hitstopLight;
   const pos = { ...e.body.pos };
-  if (step.stagger) e.wallSplat = true;
+  if (step.heavy) e.wallSplat = true;
   damageEnemy(state, e, amount, p.attack.dir, step.knockback, {
-    stagger: step.stagger || counter,
+    poise: counterPoise(step, counter),
     hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
     buildsEnergy: true,
     kind: "melee",
@@ -442,10 +496,28 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
     guardBreak: counter,
   });
   if (counter) showCounter(state, pos);
+  gainMeleeMana(state, p.attack.combo, p.dashStrike, counter);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   onBoonMeleeHit(state, e);
+}
+
+/**
+ * 近接命中のマナ回収（docs/COMBAT_DESIGN.md B-1）。段ごとの量、ダッシュ攻撃は別枠、カウンターなら倍。
+ * 1 振りで回収する敵は meleeTargetCap 体まで（群れを薙いで一気に満タンにしない）
+ */
+function gainMeleeMana(state: GameState, combo: number, dashStrike: boolean, counter: boolean): void {
+  if (state.player.attack.hitIds.size > MANA.meleeTargetCap) return;
+  const base = dashStrike ? MANA.onDashAttack : (MANA.onMelee[combo] ?? 0);
+  // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
+  const mul = counter ? MANA.onCounterMul : 1;
+  gainMana(state, base * mul * attackManaMul(state));
+}
+
+/** 近接 1 ヒットの怯み値。カウンターは確定の怯みではなく怯み値を倍にする（敵の強靭 ×0.5 と相殺して等倍になる） */
+export function counterPoise(step: Readonly<MeleeStep>, counter: boolean): number {
+  return counter ? step.poise * ACTION.counter.poiseMul : step.poise;
 }
 
 /** カウンターヒットになる敵の状態（予備動作中） */
@@ -473,15 +545,23 @@ function reflectProjectile(state: GameState, pr: Projectile): void {
   pr.pierceLeft = r.pierce;
   pr.sourceId = undefined;
   pr.life = Math.max(pr.life, r.minLife);
-  gainEnergy(state, r.energy * parryEnergyMul(state));
+  gainEnergy(state, r.energy * BOON.parryEnergyMul);
   addFloatingText(state, pr.pos, r.text, r.color, r.textScale, r.textLife);
   spawnBurst(state, pr.pos, r.color, r.particles, 100, 0.25, 1.5);
   pushSfx(state, "reflect");
 }
 
-/** JUST 回避直後の攻撃: 回避した敵の手前へ瞬間移動して重い一撃。出したら true */
+/** 性質「弾斬り」: 敵弾を斬って消す（撃ち返しはしない） */
+function cutProjectile(state: GameState, pr: Projectile): void {
+  const c = ACTION.bulletCut;
+  pr.life = 0;
+  spawnBurst(state, pr.pos, c.color, c.particles, 80, 0.2, 1.5);
+}
+
+/** 祝福「見切り斬り」: JUST 回避直後の攻撃で回避した敵の手前へ瞬間移動して重い一撃。出したら true */
 function tryJustCounter(state: GameState): boolean {
   const p = state.player;
+  if (!hasBoon(state, "justSlash")) return false;
   if (p.justCounterTimer <= 0 || p.justCounterTargetId === null) return false;
   const targetId = p.justCounterTargetId;
   p.justCounterTimer = 0;
@@ -518,13 +598,14 @@ function justCounterStrike(state: GameState, target: Enemy): void {
   const hitPos = { ...target.body.pos };
   target.wallSplat = true;
   damageEnemy(state, target, Math.round(out.amount * j.damageMul), dir, step.knockback, {
-    stagger: true,
+    poise: j.poise * state.stats.poiseDamageMul,
     hitstopSteps: FEEL.hitstopHeavy + j.hitstopBonus,
     buildsEnergy: true,
     kind: "melee",
     crit: out.crit,
     guardBreak: true,
   });
+  gainMeleeMana(state, lastCombo, false, false);
   p.meleeHitCount += 1;
   spawnLine(state, from, p.body.pos, j.color, j.lineLife);
   spawnBurst(state, p.body.pos, j.color, j.particles, 160, 0.4, 2);
@@ -539,7 +620,7 @@ function releaseDashAttack(state: GameState): void {
   const p = state.player;
   if (!p.dashAttackQueued || isDashing(p)) return;
   p.dashAttackQueued = false;
-  if (hasKeystone(state, KS.pacifist) || skillLocksAttack(state)) return;
+  if (hasKeystone(state, KS.pacifist) || skillLocksAttack(state) || isPlayerStaggered(p)) return;
   cancelAttack(state);
   startSwing(state, 0, true);
 }
@@ -566,6 +647,8 @@ function tryShoot(state: GameState): void {
   const muzzle = add(p.body.pos, scale(dir, p.body.radius + 2));
   const baseAngle = angle(dir);
   const speed = PLAYER.shoot.speed * s.projectileSpeedMul;
+  const damage = shotDamage(s);
+  const poise = PLAYER.shoot.poise * s.poiseDamageMul;
   const firstShot = state.projectiles.length;
   for (const offset of spreadOffsets(s.projectileCount)) {
     state.projectiles.push({
@@ -574,12 +657,13 @@ function tryShoot(state: GameState): void {
       pos: { ...muzzle },
       vel: scale(fromAngle(baseAngle + offset), speed),
       radius: PLAYER.shoot.radius,
-      damage: PLAYER.shoot.damage,
+      damage,
       life: PLAYER.shoot.life,
       color: BULLET_COLOR,
       kind: "ranged",
       hitIds: new Set(),
       pierceLeft: s.pierce,
+      poise,
     });
   }
   onBoonShoot(state, state.projectiles.slice(firstShot));
@@ -602,14 +686,15 @@ function trySpecial(state: GameState): boolean {
   cancelAttack(state);
   const s = state.stats;
   const radius = PLAYER.special.radius * s.burstRadiusMul;
-  const damage = PLAYER.special.damage * s.burstDamageMul;
+  const damage = burstDamage(s);
+  const poise = PLAYER.special.poise * s.poiseDamageMul;
   const knockback = PLAYER.special.knockback * s.knockbackMul;
   let kills = 0;
   for (const e of state.enemies) {
     if (!circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     const dir = normalize(sub(e.body.pos, p.body.pos));
     const out = rollOutgoing(state, e, damage, "proc");
-    if (damageEnemy(state, e, out.amount, dir, knockback, { stagger: true, hitstopSteps: FEEL.hitstopHeavy })) kills += 1;
+    if (damageEnemy(state, e, out.amount, dir, knockback, { poise, hitstopSteps: FEEL.hitstopHeavy })) kills += 1;
   }
   for (const pr of state.projectiles) {
     if (pr.owner === "enemy" && circlesOverlap(p.body.pos.x, p.body.pos.y, radius, pr.pos.x, pr.pos.y, pr.radius)) {
@@ -622,7 +707,7 @@ function trySpecial(state: GameState): boolean {
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeSpecial);
   state.flash = Math.max(state.flash, 0.5);
-  p.invulnTimer = Math.max(p.invulnTimer, BURST_INVULN);
+  p.invulnTimer = Math.max(p.invulnTimer, PLAYER.special.invuln);
   pushSfx(state, "burst");
   onBoonBurstKills(state, kills);
   return true;

@@ -4,7 +4,7 @@ import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEff
 import { shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
 import { SKILL } from "./data";
-import { skillHit } from "./hit";
+import { skillHit, skillPower } from "./hit";
 import type { CastParams } from "./types";
 
 /**
@@ -152,12 +152,13 @@ function strike(state: GameState, pos: Vec, params: CastParams): void {
   spawnBurst(state, pos, COLOR_THUNDER, THUNDER_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_PLACED);
   pushSfx(state, "shock");
+  const power = skillPower(state, t.damage, params);
   let first: number | null = null;
   for (const e of enemiesInRadius(state, pos, radius)) {
     first ??= e.id;
-    skillHit(state, e, params, { base: t.damage * params.damageMul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: 0, stagger: true });
+    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: 0, stagger: true });
   }
-  if (first !== null) chainLightning(state, pos, t.damage * t.shockMul * params.damageMul, first);
+  if (first !== null) chainLightning(state, pos, power * t.shockMul, first);
 }
 
 function updateWells(state: GameState, dt: number): void {
@@ -171,8 +172,10 @@ function updateWells(state: GameState, dt: number): void {
     if (state.tick % WELL_PARTICLE_EVERY === 0) wellParticle(state, w.pos, radius);
     if (w.tick <= 0) {
       w.tick = g.tickEvery;
+      const power = skillPower(state, g.tickDamage, w.params);
+      // tick は怯ませず、引いている間の沈黙だけを付け直す（怯み値は破裂で入れる）
       for (const e of enemiesInRadius(state, w.pos, radius)) {
-        skillHit(state, e, w.params, { base: g.tickDamage * w.params.damageMul, kind: "ranged", dir: sub(w.pos, e.body.pos), knockback: 0, stagger: false });
+        skillHit(state, e, w.params, { base: power, kind: "ranged", dir: sub(w.pos, e.body.pos), knockback: 0, stagger: false, poise: 0 });
       }
     }
     if (w.timer <= 0) collapseWell(state, w.pos, radius, w.params);
@@ -212,8 +215,9 @@ function collapseWell(state: GameState, pos: Vec, radius: number, params: CastPa
   spawnBurst(state, pos, COLOR_WELL, THUNDER_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
+  const power = skillPower(state, g.burstDamage, params);
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: g.burstDamage * params.damageMul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: g.burstKnockback, stagger: true });
+    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: g.burstKnockback, stagger: true, applies: null });
   }
 }
 
@@ -245,8 +249,9 @@ function explodeMine(state: GameState, pos: Vec, params: CastParams): void {
   spawnBurst(state, pos, COLOR_MINE, MINE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
+  const power = skillPower(state, m.damage, params);
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: m.damage * params.damageMul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback, stagger: true });
+    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback, stagger: true });
   }
 }
 
@@ -261,9 +266,11 @@ function updateFields(state: GameState, dt: number): void {
     if (field.tick > 0) continue;
     field.tick = f.tickEvery;
     const slow = Math.min(f.maxSlow, f.slow * field.params.potencyMul);
+    const power = skillPower(state, f.tickDamage, field.params);
     for (const e of enemiesInRadius(state, field.pos, radius)) {
+      // 冷気 1 / tick は applyChill 経由（L3 が中身を applyStatus へ移す。SkillDef.applies と二重に付けない）
       applyChill(state, e, slow, f.chillTime);
-      skillHit(state, e, field.params, { base: f.tickDamage * field.params.damageMul, kind: "ranged", dir: sub(e.body.pos, field.pos), knockback: 0, stagger: false });
+      skillHit(state, e, field.params, { base: power, kind: "ranged", dir: sub(e.body.pos, field.pos), knockback: 0, stagger: false });
     }
   }
   rs.fields = rs.fields.filter((field) => field.timer > 0);
@@ -284,7 +291,7 @@ function updateBullets(state: GameState, dt: number): void {
       if (e.hp <= 0 || e.phase === "spawning" || b.hitIds.has(e.id)) continue;
       if (dist(b.pos, e.body.pos) > e.body.radius + s.radius) continue;
       b.hitIds.add(e.id);
-      skillHit(state, e, b.params, { base: s.damage * b.params.damageMul, kind: "ranged", dir: b.vel, knockback: s.knockback, stagger: false });
+      skillHit(state, e, b.params, { base: skillPower(state, s.damage, b.params), kind: "ranged", dir: b.vel, knockback: s.knockback, stagger: false });
       if (b.pierceLeft > 0) b.pierceLeft -= 1;
       else b.life = 0;
     }

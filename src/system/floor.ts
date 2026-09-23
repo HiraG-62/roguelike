@@ -1,7 +1,7 @@
 import { type Enemy, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { BOSS, ROOM, ROOM_KIND } from "../data/tuning";
+import { ATTR_GAIN, BOSS, ROOM, ROOM_KIND } from "../data/tuning";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap } from "../map/generator";
 import {
   type GameMap,
@@ -38,6 +38,8 @@ import {
   onBossSpawned,
 } from "./boons";
 import { resetExplored, revealAround } from "./explore";
+import { refillMana } from "./mana";
+import { grantAttributePoints } from "../ui/attributeAlloc";
 import {
   FLOOR_KIND_LABEL,
   announceAmbush,
@@ -549,14 +551,26 @@ function checkStairs(state: GameState): void {
 }
 
 export function descend(state: GameState): void {
+  // buildFloor が state.boss を消すので、ボス撃破の判定は先に行う
+  grantAttributePoints(state, floorAttributePoints(state));
   state.depth += 1;
   recordProvenance(state, { kind: "floorClear" });
   state.score += ROOM.clearBonus * state.depth;
   buildFloor(state);
+  refillMana(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
   addFloatingText(state, p2(state), `地下 ${state.depth} 階・${label}`, DEPTH_COLOR, 2, 1.2);
   pushSfx(state, "descend");
   dropDepthReward(state);
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
+}
+
+/**
+ * 階段で得るステータスの振り分け点（docs/COMBAT_DESIGN.md A-3）。階層到達 +1、この階のボスを倒していれば +2。
+ * ボス撃破の瞬間（boss.ts）ではなく降りるときにまとめて渡す（ボス部屋は撃破しないと階段に届かない）
+ */
+export function floorAttributePoints(state: GameState): number {
+  const boss = state.boss?.defeated === true ? ATTR_GAIN.perBoss : 0;
+  return ATTR_GAIN.perFloor + boss;
 }

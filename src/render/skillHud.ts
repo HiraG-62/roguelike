@@ -15,7 +15,17 @@ import {
   wellRadius,
 } from "../skills/placed";
 import type { ActiveCast, Ghost, Grenade } from "../skills/types";
-import { beamEnd, chargeRatio, grenadeRadius, hookRange, quakeRadius, remoteAnchor, slotModifierView } from "../system/skills";
+import {
+  type ResolvedSlot,
+  beamEnd,
+  chargeRatio,
+  grenadeRadius,
+  hookRange,
+  quakeRadius,
+  remoteAnchor,
+  resolveSlot,
+  slotModifierView,
+} from "../system/skills";
 import { TEXT, drawText, drawTextShadow } from "./pixelText";
 
 /**
@@ -39,8 +49,13 @@ const COLOR_WHIRL = "#ffffff";
 const COLOR_PARRY = "#60e0ff";
 const COLOR_GRENADE = "#c0c0c0";
 
-const HUD_SIZE = 18;
-const HUD_GAP = 6;
+/** スキル枠 4 つ（docs/COMBAT_DESIGN.md B-8）。間隔は右の刻印符ドット（幅 3）が収まる幅 */
+const HUD_SIZE = 16;
+const HUD_GAP = 4;
+/** 最低間隔中に枠の縁を点滅させる速さ */
+const INTERVAL_BLINK = 40;
+const COLOR_COST = "#4aa0ff";
+const COST_PAD = 1;
 /** 画面下端からの距離（「封鎖中」表示の上） */
 const HUD_BOTTOM = 26;
 const DOT_SIZE = 2;
@@ -499,29 +514,69 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   const rs = state.skills;
   const slot = rs.slots[index];
   const stone = stoneInSlot(rs.profile, index);
+  const r = resolveSlot(state, index);
   ctx.fillStyle = COLOR_BG;
   ctx.fillRect(x, y, HUD_SIZE, HUD_SIZE);
 
-  const ready = !!slot && slot.chargesLeft > 0;
+  const ready = !!slot && !!r && slotReady(state, slot.chargesLeft, r);
   // 倍率で行高が変わっても枠の中央に来るよう middle 基準で置く
   const icon = stone ? SKILL_DEFS[stone.skillKey].icon : "-";
   drawText(ctx, icon, x + HUD_SIZE / 2, y + HUD_SIZE / 2, TEXT.BODY, stone ? COLOR_STONE : COLOR_EMPTY, "center", "middle");
 
-  // CD 中は上から暗いマスクが減っていく
-  if (stone && slot && !ready && slot.cooldownTotal > 0) {
-    const ratio = Math.min(1, slot.cooldownLeft / slot.cooldownTotal);
-    ctx.fillStyle = COLOR_MASK;
-    ctx.fillRect(x, y, HUD_SIZE, Math.round(HUD_SIZE * ratio));
-  }
-  ctx.strokeStyle = stone && ready ? COLOR_FRAME_READY : COLOR_FRAME;
-  if (rs.active?.slot === index) ctx.strokeStyle = COLOR_WARN;
+  if (slot && r) drawReadyMask(ctx, slot, r, ready, x, y);
+  ctx.strokeStyle = frameColor(state, index, ready && !!stone);
   ctx.strokeRect(x + 0.5, y + 0.5, HUD_SIZE - 1, HUD_SIZE - 1);
 
   drawText(ctx, String(index + 1), x + HUD_SIZE / 2, y + HUD_SIZE + KEY_OFFSET_Y, TEXT.SMALL, COLOR_DIM, "center");
 
-  if (stone && slot) drawCharges(ctx, x, y, slot.chargesLeft);
+  if (r?.def.resource === "mana") drawCost(ctx, r.cost, x, y);
+  if (stone && slot && r?.def.resource === "cooldown") drawCharges(ctx, x, y, slot.chargesLeft);
   drawModifierDots(ctx, state, index, x, y);
   drawChargeGauge(ctx, state, index, x, y);
+}
+
+/** マナ型はマナが足りるか、CD 型はチャージが残っているか */
+function slotReady(state: GameState, chargesLeft: number, r: ResolvedSlot): boolean {
+  if (r.def.resource === "mana") return state.player.mana >= r.cost;
+  return chargesLeft > 0;
+}
+
+/** マナ型の不足は枠全体を暗く、CD 型は上から暗いマスクが減っていく */
+function drawReadyMask(
+  ctx: CanvasRenderingContext2D,
+  slot: { cooldownLeft: number; cooldownTotal: number },
+  r: ResolvedSlot,
+  ready: boolean,
+  x: number,
+  y: number,
+): void {
+  if (ready) return;
+  ctx.fillStyle = COLOR_MASK;
+  if (r.def.resource === "mana") {
+    ctx.fillRect(x, y, HUD_SIZE, HUD_SIZE);
+    return;
+  }
+  if (slot.cooldownTotal <= 0) return;
+  const ratio = Math.min(1, slot.cooldownLeft / slot.cooldownTotal);
+  ctx.fillRect(x, y, HUD_SIZE, Math.round(HUD_SIZE * ratio));
+}
+
+/** 発動中は警告色、最低間隔中は縁が点滅、撃てるなら明るい縁 */
+function frameColor(state: GameState, index: number, ready: boolean): string {
+  const rs = state.skills;
+  if (rs.active?.slot === index) return COLOR_WARN;
+  const interval = rs.slots[index]?.intervalLeft ?? 0;
+  if (interval > 0 && Math.sin(state.time * INTERVAL_BLINK) > 0) return COLOR_FRAME;
+  return ready ? COLOR_FRAME_READY : COLOR_FRAME;
+}
+
+/** マナ型の右上にコスト（整数）。アイコンと重なるので影付き（drawTextShadow は baseline を選べないので 2 回描く） */
+function drawCost(ctx: CanvasRenderingContext2D, cost: number, x: number, y: number): void {
+  const text = String(Math.round(cost));
+  const right = x + HUD_SIZE - COST_PAD;
+  const top = y + COST_PAD;
+  drawText(ctx, text, right + COST_PAD, top + COST_PAD, TEXT.SMALL, COLOR_BLACK, "right", "top");
+  drawText(ctx, text, right, top, TEXT.SMALL, COLOR_COST, "right", "top");
 }
 
 /** 溜め中のスロット上端に細いバー。溜め時間の割合(0..1)ぶん左から満ちる */

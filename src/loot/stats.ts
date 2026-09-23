@@ -1,7 +1,7 @@
 import { STATUS } from "../data/tuning";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { adjustForResonance, applyResonanceEffect, computeResonance } from "./resonance";
-import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
+import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
 
 /** 倍率系の下限（マイナス補正の積み重ねで 0 以下にならないように） */
 const MIN_MULTIPLIER = 0.1;
@@ -141,6 +141,8 @@ function finalize(stats: PlayerStats): PlayerStats {
   stats.projectileCount = Math.max(MIN_PROJECTILES, Math.round(stats.projectileCount));
   stats.dashCharges = Math.max(MIN_DASH_CHARGES, Math.round(stats.dashCharges));
   stats.pierce = Math.max(0, Math.round(stats.pierce));
+  // 支配の減衰（× 0.75）で端数が出る。UI は整数で見せるので集計の時点で揃える（逓減は deriveAttributes）
+  for (const key of ATTR_KEYS) stats.attributes[key] = Math.max(0, Math.round(stats.attributes[key]));
   return stats;
 }
 

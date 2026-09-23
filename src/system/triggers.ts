@@ -123,7 +123,8 @@ function runEffect(state: GameState, t: TriggeredEffect, ctx: TriggerContext): v
       gainEnergy(state, t.magnitude);
       return;
     case "invuln":
-      p.buffs.invuln = Math.max(p.buffs.invuln, t.duration ?? t.magnitude);
+      // 上限で切る: 被弾時・ゲージ満タンの無敵を重ねて常時無敵にしない
+      p.buffs.invuln = Math.max(p.buffs.invuln, Math.min(TRIGGER.invulnMax, t.duration ?? t.magnitude));
       addFloatingText(state, p.body.pos, "無敵", TEXT_COLOR_INVULN, 1, 0.6);
       return;
   }

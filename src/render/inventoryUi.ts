@@ -1,12 +1,13 @@
+import { skillKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
 import { describeItem, describeResonance, itemColorBar } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item, type Slot } from "../loot/types";
 import { statsSummary } from "../loot/stats";
-import { MODIFIERS, SKILL, SKILL_DEFS, castCooldown, formatVariant, resolveCast, stoneLabel } from "../skills/data";
+import { MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, modifierVerb, resolveCast, stoneLabel } from "../skills/data";
 import { findStone } from "../skills/persistence";
-import type { SkillStone } from "../skills/types";
+import type { CastParams, SkillDef, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
 import { formatCooldown, slotModifierView } from "../system/skills";
 import {
@@ -26,6 +27,7 @@ import {
   tabRects,
 } from "../ui/inventory";
 import { drawBudModal } from "./budUi";
+import { drawAttributePanel } from "./attributeUi";
 import { drawEchoTab } from "./echoTabUi";
 import {
   COLOR_BORDER,
@@ -173,6 +175,8 @@ function drawEquipmentTab(ctx: CanvasRenderingContext2D, state: GameState, layou
   drawStashHeader(ctx, state, layout);
   drawStash(ctx, layout, ui);
   drawResonancePanel(ctx, state, layout.resonanceRect);
+  // スロットの下の空きにステータス（生値と実効値）。ツールチップはこの後に描くので上に重なる
+  drawAttributePanel(ctx, state);
   drawEquipmentTooltip(ctx, state, layout, ui);
   drawHint(ctx, layout.hintRect, HINT_EQUIPMENT);
   drawBudModal(ctx, state, ui.bud);
@@ -398,7 +402,7 @@ function drawSkillSlot(ctx: CanvasRenderingContext2D, state: GameState, s: Skill
   const label = s.stone ? stoneLabel(s.stone) : `スロット ${s.index + 1}: 空`;
   drawText(ctx, truncateText(label, maxWidth, m), textX, rect.y + SKILL_LINE1_Y, m, color);
 
-  drawText(ctx, `キー ${s.index + 1}`, textX, rect.y + SKILL_LINE2_Y, m, COLOR_DIM);
+  drawText(ctx, `キー ${skillKeyLabel(s.index)}`, textX, rect.y + SKILL_LINE2_Y, m, COLOR_DIM);
   let x = textX;
   for (const mod of slotModifierView(state, s.index)) {
     const name = MODIFIERS[mod.key].name;
@@ -420,25 +424,34 @@ function drawStoneRow(ctx: CanvasRenderingContext2D, row: StoneRowLayout, ui: In
   drawText(ctx, truncateText(stoneLabel(stone), maxWidth, m), rect.x + TEXT_PAD_X, baseline, m, COLOR_SKILL);
 }
 
-/** 石のツールチップ: 動詞・タグ・CD・リンク・変異軸・装着中の刻印符 */
+/** マナ型は「コスト n / 間隔 s」、CD 型は「CD s」（docs/COMBAT_DESIGN.md B-6: 負担の表示を資源で出し分ける） */
+function burdenText(def: SkillDef, params: Readonly<CastParams>): string {
+  const interval = formatCooldown(castInterval(def, params));
+  const burden = castBurden(def, params);
+  if (def.resource === "mana") return `コスト ${Math.round(burden.cost)}  間隔 ${interval}`;
+  return `CD ${formatCooldown(burden.cooldown)}`;
+}
+
+/** 石のツールチップ: 動詞・タグ・負担（コスト / CD）・リンク・変異軸・装着中の刻印符 */
 function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
   const slot = state.skills.profile.loadout.indexOf(stone.id);
   const modifiers = slot >= 0 ? (state.skills.slots[slot]?.modifiers ?? []) : [];
-  const cd = castCooldown(def, resolveCast(def, stone, modifiers));
-  const linkPenalty = Math.round(stone.links * SKILL.linkCooldownPenalty * PERCENT);
+  const params = resolveCast(def, stone, modifiers);
+  const linkPenalty = Math.round(stone.links * SKILL.linkBurdenPenalty * PERCENT);
+  const burdenName = def.resource === "mana" ? "コスト" : "CD";
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },
     { text: def.verb, color: COLOR_TEXT },
-    { text: `${def.tags.join(" / ")}  CD ${formatCooldown(cd)}`, color: COLOR_DIM },
-    { text: `リンク ${stone.links}（基本 CD +${linkPenalty}%）`, color: COLOR_TEXT },
+    { text: `${def.tags.join(" / ")}  ${burdenText(def, params)}`, color: COLOR_DIM },
+    { text: `リンク ${stone.links}（基本${burdenName} +${linkPenalty}%）`, color: COLOR_TEXT },
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });
-  for (const v of stone.variants) lines.push({ text: formatVariant(v), color: COLOR_TEXT });
+  for (const v of stone.variants) lines.push({ text: formatVariant(v, def), color: COLOR_TEXT });
   if (slot < 0) return lines;
   for (const m of slotModifierView(state, slot)) {
     const d = MODIFIERS[m.key];
-    lines.push({ text: `${m.active ? "+" : "x"} ${d.name}: ${d.verb}`, color: m.active ? d.color : COLOR_EMPTY });
+    lines.push({ text: `${m.active ? "+" : "x"} ${d.name}: ${modifierVerb(m.key, def)}`, color: m.active ? d.color : COLOR_EMPTY });
   }
   return lines;
 }
@@ -465,8 +478,9 @@ function drawSkillNotes(ctx: CanvasRenderingContext2D, layout: InventoryLayout):
   const lines = [
     "刻印符はこのランのみ有効。触れると装着中の",
     "スキルにリンクする（最も古いものが外れる）。",
-    "リンク数が多いほど基本クールダウンが伸びる。",
-    "キー: 1/C/マウス戻る, 2/V/マウス進む",
+    "リンク数が多いほど負担（コスト / CD）が重くなる。",
+    "キー: 1〜4 / C V X Z / マウス戻る・進む",
+    "パッド: LB を押しながら A X Y B",
   ];
   let y = rect.y + lineH;
   for (const line of lines) {

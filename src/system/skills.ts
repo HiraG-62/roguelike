@@ -5,9 +5,19 @@ import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { FEEL, PLAYER } from "../data/tuning";
 import { rectCenterPx } from "../map/grid";
-import { MODIFIERS, SKILL, SKILL_DEFS, activeModifiers, canAttach, castCooldown, resolveCast, stoneLabel } from "../skills/data";
+import {
+  MODIFIERS,
+  SKILL,
+  SKILL_DEFS,
+  activeModifiers,
+  canAttach,
+  castBurden,
+  castInterval,
+  resolveCast,
+  stoneLabel,
+} from "../skills/data";
 import { rollRuneModifier } from "../skills/generator";
-import { skillHit, tickCurses } from "../skills/hit";
+import { refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
 import { addStone, saveSkillProfile, stoneInSlot } from "../skills/persistence";
 import {
   placeMine,
@@ -28,14 +38,16 @@ import type {
   SkillKey,
   SkillProfile,
   SkillRunState,
+  SkillSlotState,
   SkillStone,
 } from "../skills/types";
+import { buffPotencyMul } from "./attributes";
 import { COLOR_JUST, cancelAttack, damagePlayer, gainEnergy, healPlayer, registerComboHit } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
-import { payOverclock } from "./keystones";
+import { canAffordSkill, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
-import { enemiesInRadius } from "./statusEffects";
+import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 
 /**
@@ -92,7 +104,12 @@ export interface ResolvedSlot {
   stone: SkillStone;
   def: SkillDef;
   params: CastParams;
+  /** CD 型の CD 秒（マナ型は 0） */
   cooldown: number;
+  /** マナ型のコスト（CD 型は 0） */
+  cost: number;
+  /** このスロットの最低間隔（秒） */
+  interval: number;
 }
 
 export function createSkillRunState(profile: SkillProfile): SkillRunState {
@@ -144,7 +161,8 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   if (!stone || !slotState) return null;
   const def = SKILL_DEFS[stone.skillKey];
   const params = resolveCast(def, stone, slotState.modifiers);
-  return { stone, def, params, cooldown: castCooldown(def, params) };
+  const burden = castBurden(def, params);
+  return { stone, def, params, cooldown: burden.cooldown, cost: burden.cost, interval: castInterval(def, params) };
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +258,7 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   // ダッシュは発動中のスキルをキャンセルする（CD は消費済み）
   if (rs.active && state.player.dashTimer > 0) cancelActive(state, true);
 
-  const pressed = [input.skill1Pressed, input.skill2Pressed];
+  const pressed = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
   pressed.forEach((on, i) => {
     if (!on) return;
     if (hasChargeModifier(state, i)) startCharge(state, i);
@@ -275,14 +293,20 @@ function tickTimers(state: GameState, dt: number): void {
   rs.notReadyTimer = Math.max(0, rs.notReadyTimer - dt);
   rs.pendingTimer = Math.max(0, rs.pendingTimer - dt);
   if (rs.pendingTimer === 0) rs.pendingSlot = -1;
+  rs.gcd = Math.max(0, rs.gcd - dt);
+  rs.manaFlash = Math.max(0, rs.manaFlash - dt);
 }
 
-/** チャージ制: 減っている間だけ CD が進み、0 になるたび 1 回復（ダッシュと同じ） */
+/**
+ * 最低間隔を進める。CD 型はチャージ制: 減っている間だけ CD が進み、0 になるたび 1 回復（ダッシュと同じ）。
+ * マナ型はチャージを使わないので常に満タン扱い
+ */
 function tickSlot(state: GameState, index: number, dt: number): void {
   const slot = state.skills.slots[index];
+  if (slot) slot.intervalLeft = Math.max(0, slot.intervalLeft - dt);
   const r = resolveSlot(state, index);
   if (!slot || !r) return;
-  const max = r.params.charges;
+  const max = r.def.resource === "mana" ? 1 : r.params.charges;
   if (slot.chargesLeft >= max) {
     slot.chargesLeft = max;
     slot.cooldownLeft = 0;
@@ -307,6 +331,33 @@ function notReady(state: GameState, text: string): void {
   addFloatingText(state, state.player.body.pos, text, COLOR_NOT_READY, TEXT_SCALE, TEXT_LIFE);
 }
 
+/** マナ不足の不発（docs/COMBAT_DESIGN.md B-2 の 4）。何も消費しない。先行入力は破棄 */
+function misfire(state: GameState): void {
+  const rs = state.skills;
+  notReady(state, "マナ不足");
+  pushSfx(state, "manaEmpty");
+  rs.manaFlash = SKILL.manaFlashTime;
+  rs.pendingSlot = -1;
+}
+
+/** 共通最低間隔か、このスロットの最低間隔の中か */
+function intervalBlocked(state: GameState, index: number): boolean {
+  const slot = state.skills.slots[index];
+  return state.skills.gcd > 0 || (slot?.intervalLeft ?? 0) > 0;
+}
+
+/** 払えるか。払えなければ理由を出して false（何も消費しない） */
+function checkAffordable(state: GameState, index: number, r: ResolvedSlot): boolean {
+  if (r.def.resource === "mana") {
+    if (canAffordSkill(state, r.cost)) return true;
+    misfire(state);
+    return false;
+  }
+  if ((state.skills.slots[index]?.chargesLeft ?? 0) > 0) return true;
+  notReady(state, "冷却中");
+  return false;
+}
+
 function attackCommitted(state: GameState): boolean {
   const phase = state.player.attack.phase;
   return phase === "windup" || phase === "active";
@@ -319,19 +370,25 @@ function requestCast(state: GameState, index: number, input: FrameInput): void {
     return;
   }
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
-  if (state.player.dashTimer > 0 || attackCommitted(state)) {
-    rs.pendingSlot = index;
-    rs.pendingTimer = SKILL.inputBuffer;
+  if (state.player.dashTimer > 0 || attackCommitted(state) || intervalBlocked(state, index)) {
+    bufferCast(state, index);
     return;
   }
   castSlot(state, index, input);
 }
 
-/** 先行入力: ダッシュ終了・近接の recover に入った瞬間に発動 */
+/** 先行入力として保持する（SKILL.inputBuffer 秒） */
+function bufferCast(state: GameState, index: number): void {
+  const rs = state.skills;
+  rs.pendingSlot = index;
+  rs.pendingTimer = SKILL.inputBuffer;
+}
+
+/** 先行入力: ダッシュ終了・近接の recover・最低間隔の明けた瞬間に発動 */
 function tryPending(state: GameState, input: FrameInput): void {
   const rs = state.skills;
   if (rs.pendingSlot < 0 || rs.active) return;
-  if (state.player.dashTimer > 0 || attackCommitted(state)) return;
+  if (state.player.dashTimer > 0 || attackCommitted(state) || intervalBlocked(state, rs.pendingSlot)) return;
   const index = rs.pendingSlot;
   rs.pendingSlot = -1;
   castSlot(state, index, input);
@@ -350,18 +407,19 @@ function hasChargeModifier(state: GameState, index: number): boolean {
   return activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, slot.modifiers).includes("charge");
 }
 
-/** 押した瞬間: 発動はせず溜めを始める（他のスキルが発動中・行動不能なら無視） */
+/**
+ * 押した瞬間: 発動はせず溜めを始める（他のスキルが発動中・行動不能なら無視）。
+ * マナ型はこの時点でコストを確認するだけで、払うのは離した瞬間（docs/COMBAT_DESIGN.md B-5）
+ */
 function startCharge(state: GameState, index: number): void {
   const rs = state.skills;
   const slot = rs.slots[index];
-  if (!resolveSlot(state, index)) {
+  const r = resolveSlot(state, index);
+  if (!r) {
     notReady(state, "スキル未装備");
     return;
   }
-  if (!slot || slot.chargesLeft <= 0) {
-    notReady(state, "冷却中");
-    return;
-  }
+  if (!slot || !playerCanCast(state) || !checkAffordable(state, index, r)) return;
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) return;
   slot.charging = true;
   slot.chargeTime = 0;
@@ -378,7 +436,7 @@ function chargeBonus(time: number): { damageMul: number; areaMul: number } {
 /** 溜め中のスロットを毎フレーム進め、離された瞬間に倍率付きで発動する */
 function updateCharging(state: GameState, input: FrameInput, dt: number): void {
   const rs = state.skills;
-  const held = [input.skill1Held, input.skill2Held];
+  const held = [input.skill1Held, input.skill2Held, input.skill3Held, input.skill4Held];
   const maxTime = SKILL.modifier.charge.maxTime;
   for (let i = 0; i < SLOT_COUNT; i++) {
     const slot = rs.slots[i];
@@ -388,8 +446,13 @@ function updateCharging(state: GameState, input: FrameInput, dt: number): void {
     const time = slot.chargeTime;
     slot.charging = false;
     slot.chargeTime = 0;
-    // 溜めている間に行動不能・別スキル発動中になったら不発（チャージは未消費のまま）
+    // 溜めている間に行動不能・別スキル発動中になったら不発（チャージ・マナは未消費のまま）
     if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.active) continue;
+    // 最低間隔の中で離したら先行入力に回す（溜めの倍率は乗らない。minTime 未満の短押しで起きるのがほとんど）
+    if (intervalBlocked(state, i)) {
+      bufferCast(state, i);
+      continue;
+    }
     castSlot(state, i, input, chargeBonus(time));
   }
 }
@@ -421,7 +484,10 @@ function payCosts(state: GameState, params: CastParams): CastParams {
   return { ...params, damageMul: params.damageMul * mul };
 }
 
-/** 発動。成功したら true。chargeMul は Charge 刻印符が離した瞬間に渡す威力・範囲の追加倍率 */
+/**
+ * 発動。成功したら true。chargeMul は Charge 刻印符が離した瞬間に渡す威力・範囲の追加倍率。
+ * 最低間隔の中なら何もしない（呼び出し側が先行入力に回す）。払えなければ何も消費せず不発
+ */
 export function castSlot(
   state: GameState,
   index: number,
@@ -432,18 +498,20 @@ export function castSlot(
   const slot = rs.slots[index];
   const r = resolveSlot(state, index);
   if (!slot || !r) return false;
-  if (slot.chargesLeft <= 0) {
-    notReady(state, "冷却中");
-    return false;
-  }
+  // 怯み・沈黙中はスキル不可（docs/COMBAT_DESIGN.md D-5 / E-2）
+  if (!playerCanCast(state)) return false;
+  if (intervalBlocked(state, index)) return false;
+  if (!checkAffordable(state, index, r)) return false;
   if (state.player.attack.phase !== "none") cancelAttack(state);
 
+  const manaPaid = payResource(state, slot, r);
   const costed = payCosts(state, r.params);
   const params: CastParams = {
     ...costed,
     damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1),
     areaMul: costed.areaMul * (chargeMul?.areaMul ?? 1),
     slot: index,
+    manaPaid,
   };
   const p = state.player;
   const dir = { ...p.facing };
@@ -461,12 +529,27 @@ export function castSlot(
     scheduleEcho(state, { ...remote, params });
   }
 
-  slot.chargesLeft -= 1;
-  if (slot.cooldownLeft <= 0) setCooldown(slot, r.cooldown);
   applyRecoil(state, dir, params);
   if (r.def.damageKind === "ranged") fireTrigger(state, "onShoot", { pos: origin });
   pushSfx(state, "skillCast");
   return true;
+}
+
+/**
+ * 資源を払い、共通最低間隔とスロットの最低間隔を立てる。払ったマナを返す（CD 型は 0）。
+ * 呼ぶ前に checkAffordable で払えることを確かめておく
+ */
+function payResource(state: GameState, slot: SkillSlotState, r: ResolvedSlot): number {
+  state.skills.gcd = SKILL.gcd;
+  slot.intervalLeft = r.interval;
+  if (r.def.resource === "mana") {
+    // 過負荷（ks_overdraw）はマナ不足を HP で払う
+    paySkillCost(state, r.cost);
+    return r.cost;
+  }
+  slot.chargesLeft -= 1;
+  if (slot.cooldownLeft <= 0) setCooldown(slot, r.cooldown);
+  return 0;
 }
 
 /** 反響の予約（params.echo があるときだけ）。反響の反響は起きない */
@@ -531,8 +614,9 @@ const CAST: Record<SkillKey, CastFn> = {
     const b = SKILL.bloodPact;
     p.hp = Math.max(1, p.hp - p.maxHp * b.hpFraction);
     const time = b.duration * params.durationMul;
-    state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * params.potencyMul };
-    state.skills.lifesteal = { time, mul: b.lifesteal * params.potencyMul };
+    const potency = params.potencyMul * buffPotencyMul(state.stats);
+    state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * potency };
+    state.skills.lifesteal = { time, mul: b.lifesteal * potency };
     addFloatingText(state, p.body.pos, "血の契約", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
@@ -543,7 +627,8 @@ const CAST: Record<SkillKey, CastFn> = {
   haste: (state, _slot, params) => {
     const h = SKILL.haste;
     const p = state.player;
-    state.skills.haste = { time: h.duration * params.durationMul, mul: 1 + h.moveBonus * params.potencyMul };
+    const potency = params.potencyMul * buffPotencyMul(state.stats);
+    state.skills.haste = { time: h.duration * params.durationMul, mul: 1 + h.moveBonus * potency };
     state.skills.exhaustTimer = 0;
     addFloatingText(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, LABEL_SCALE, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_HASTE, 12, 90, 0.35, 1.5);
@@ -562,7 +647,7 @@ function updateHaste(state: GameState): void {
   if (state.tick % AURA_EVERY_TICKS === 0) spawnBurst(state, p.body.pos, COLOR_HASTE, 1, AURA_SPEED, SPARK_LIFE, SPARK_SIZE);
 }
 
-/** 発動中スキルの中断。dashCancel なら撃ち抜き照準中の CD を半分返す */
+/** 発動中スキルの中断。dashCancel なら撃ち抜き照準中に払ったマナを半分返す */
 function cancelActive(state: GameState, dashCancel: boolean): void {
   const rs = state.skills;
   const a = rs.active;
@@ -570,8 +655,7 @@ function cancelActive(state: GameState, dashCancel: boolean): void {
   rs.active = null;
   if (a.skillKey === "parry") rs.parryTimer = 0;
   if (!dashCancel || a.skillKey !== "railshot") return;
-  const slot = rs.slots[a.slot];
-  if (slot) slot.cooldownLeft = Math.max(0, slot.cooldownLeft - slot.cooldownTotal * SKILL.railshot.cancelRefund);
+  refundMana(state, a.params.manaPaid * SKILL.railshot.cancelRefund, state.player.body.pos);
 }
 
 // ---------------------------------------------------------------------------
@@ -662,7 +746,7 @@ function quakeRelease(state: GameState, center: Vec, dir: Vec, params: CastParam
     const to = sub(e.body.pos, center);
     const touching = length(to) <= bodyR + e.body.radius;
     if (!touching && Math.abs(angleDiff(angle(to), base)) > q.halfAngle) continue;
-    meleeSkillHit(state, e, params, q.damage * params.damageMul, to, q.knockback, true);
+    meleeSkillHit(state, e, params, skillPower(state, q.damage, params), to, q.knockback, true);
   }
 }
 
@@ -722,7 +806,7 @@ function hookEnemy(state: GameState, anchor: Vec, dir: Vec, e: Enemy, params: Ca
     const dest = add(anchor, scale(dir, gap));
     moveBody(state, e.body, dest.x - e.body.pos.x, dest.y - e.body.pos.y);
   }
-  meleeSkillHit(state, e, params, h.damage * params.damageMul, scale(dir, -1), h.knockback, true);
+  meleeSkillHit(state, e, params, skillPower(state, h.damage, params), scale(dir, -1), h.knockback, true);
 }
 
 function updateHook(state: GameState, a: ActiveCast, dt: number): void {
@@ -799,9 +883,10 @@ function whirlRadius(state: GameState, params: CastParams): number {
 
 function whirlHit(state: GameState, center: Vec, params: CastParams): void {
   const radius = whirlRadius(state, params);
+  const power = skillPower(state, SKILL.whirl.damage, params);
   spawnRing(state, center, radius, COLOR_WHIRL, RING_LIFE);
   for (const e of enemiesInRadius(state, center, radius)) {
-    meleeSkillHit(state, e, params, SKILL.whirl.damage * params.damageMul, sub(e.body.pos, center), SKILL.whirl.knockback, false);
+    meleeSkillHit(state, e, params, power, sub(e.body.pos, center), SKILL.whirl.knockback, false);
   }
 }
 
@@ -836,7 +921,7 @@ function lungeHits(state: GameState, center: Vec, a: { hitIds: Set<number>; para
   for (const e of enemiesInRadius(state, center, radius)) {
     if (a.hitIds.has(e.id)) continue;
     a.hitIds.add(e.id);
-    meleeSkillHit(state, e, a.params, SKILL.lunge.damage * a.params.damageMul, a.dir, SKILL.lunge.knockback, true);
+    meleeSkillHit(state, e, a.params, skillPower(state, SKILL.lunge.damage, a.params), a.dir, SKILL.lunge.knockback, true);
   }
 }
 
@@ -909,7 +994,7 @@ function fireBeam(state: GameState, origin: Vec, dir: Vec, params: CastParams): 
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase === "spawning") continue;
     if (distToSegment(e.body.pos, origin, end) > e.body.radius + r.halfWidth) continue;
-    rangedSkillHit(state, e, params, r.damage * params.damageMul, dir, r.knockback, false);
+    rangedSkillHit(state, e, params, skillPower(state, r.damage, params), dir, r.knockback, false);
   }
   for (const pr of state.projectiles) {
     if (pr.owner !== "enemy" || pr.life <= 0) continue;
@@ -972,15 +1057,14 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
   const radius = SKILL.parry.radius * a.params.areaMul;
   spawnRing(state, p.body.pos, radius, COLOR_JUST, RING_LIFE * 2);
   for (const e of enemiesInRadius(state, p.body.pos, radius)) {
-    meleeSkillHit(state, e, a.params, SKILL.parry.damage * a.params.damageMul, sub(e.body.pos, p.body.pos), SKILL.parry.knockback, true);
+    meleeSkillHit(state, e, a.params, skillPower(state, SKILL.parry.damage, a.params), sub(e.body.pos, p.body.pos), SKILL.parry.knockback, true);
   }
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
 
+  // 成功のご褒美は CD の一部だけ（全回復だと構え直しで固め続けられる。docs/COMBAT_DESIGN.md C-1 の 7）
   const slot = rs.slots[a.slot];
-  const r = resolveSlot(state, a.slot);
-  if (!slot || !r) return;
-  slot.chargesLeft = r.params.charges;
-  slot.cooldownLeft = 0;
+  if (!slot) return;
+  slot.cooldownLeft = Math.max(0, slot.cooldownLeft - slot.cooldownTotal * SKILL.parry.successRefund);
 }
 
 // ---------------------------------------------------------------------------
@@ -1052,7 +1136,7 @@ function explodeGrenade(state: GameState, pos: Vec, params: CastParams): void {
   shake(state, SHAKE_SKILL);
   pushSfx(state, "explode");
   for (const e of enemiesInRadius(state, pos, radius)) {
-    rangedSkillHit(state, e, params, f.damage * params.damageMul, sub(e.body.pos, pos), f.knockback, true);
+    rangedSkillHit(state, e, params, skillPower(state, f.damage, params), sub(e.body.pos, pos), f.knockback, true);
   }
   // 自爆: 無敵中（ダッシュ）なら無効
   const p = state.player;

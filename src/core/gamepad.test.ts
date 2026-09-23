@@ -196,22 +196,55 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(input.read().specialPressed).toBe(true);
   });
 
-  it("LB(4) は skill1Pressed、右スティック押し込み(11) or D-pad 上(12) は skill2Pressed", () => {
+  it("LB(4) を押している間は A / X / Y / B がスキル 1〜4 になり、攻撃・射撃・必殺・ダッシュには使わない", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
     connect(target);
 
     stubPads({ index: 0, buttons: makeButtons([4]), axes: [0, 0, 0, 0] });
-    expect(input.read().skill1Pressed).toBe(true);
+    const lbOnly = input.read();
+    expect(lbOnly.skill1Pressed, "LB 単独ではスキルを出さない").toBe(false);
+
+    stubPads({ index: 0, buttons: makeButtons([4, 0, 2, 3, 1]), axes: [0, 0, 0, 0] });
+    const f = input.read();
+    expect([f.skill1Pressed, f.skill2Pressed, f.skill3Pressed, f.skill4Pressed], "A X Y B = スキル 1〜4").toEqual([true, true, true, true]);
+    expect([f.skill1Held, f.skill2Held, f.skill3Held, f.skill4Held], "押しっぱなしも読む").toEqual([true, true, true, true]);
+    expect(f.attackPressed, "A は攻撃にならない").toBe(false);
+    expect(f.confirmPressed, "A は決定にならない").toBe(false);
+    expect(f.shootHeld, "X は射撃にならない").toBe(false);
+    expect(f.specialPressed, "Y は必殺にならない").toBe(false);
+    expect(f.dashPressed, "B はダッシュにならない").toBe(false);
+    expect(f.escapePressed, "B は戻るにならない").toBe(false);
+
+    const held = input.read();
+    expect(held.skill1Pressed, "押しっぱなしの 2 フレーム目は Pressed が立たない").toBe(false);
+    expect(held.skill1Held).toBe(true);
+  });
+
+  it("LB 中も RT(攻撃) / LT(射撃) / RB(ダッシュ) は効く", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+
+    stubPads({ index: 0, buttons: makeButtons([4, 7, 6, 5]), axes: [0, 0, 0, 0] });
+    const f = input.read();
+    expect(f.attackPressed).toBe(true);
+    expect(f.shootHeld).toBe(true);
+    expect(f.dashPressed).toBe(true);
+  });
+
+  it("右スティック押し込み(11) / D-pad 上(12) はスキルに使わない", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
 
     stubPads({ index: 0, buttons: makeButtons([11]), axes: [0, 0, 0, 0] });
-    expect(input.read().skill2Pressed).toBe(true);
-
-    stubPads({ index: 0, buttons: makeButtons([]), axes: [0, 0, 0, 0] });
-    input.read();
+    expect(input.read().skill2Pressed).toBe(false);
     stubPads({ index: 0, buttons: makeButtons([12]), axes: [0, 0, 0, 0] });
-    expect(input.read().skill2Pressed).toBe(true);
+    expect(input.read().skill2Pressed).toBe(false);
   });
 
   it("Start(9) or B(1) は escapePressed、Select/Back(8) は inventoryPressed", () => {

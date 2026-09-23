@@ -82,7 +82,8 @@ function deriveDex(out: PlayerStats, d: number): void {
 }
 
 function deriveVit(out: PlayerStats, d: number): void {
-  out.maxHp = Math.max(MIN_MAX_HP, out.maxHp + ATTR.vitMaxHp * d);
+  // 逓減の傾き 0.5 / 0.25 で端数が出る。HUD の HP 表示を整数に保つ
+  out.maxHp = Math.max(MIN_MAX_HP, Math.round(out.maxHp + ATTR.vitMaxHp * d));
   const taken = ATTR.vitStatusTakenBase / (ATTR.vitStatusTakenBase + ATTR.vitStatusTaken * d);
   out.statusTakenMul *= Math.max(ATTR.vitStatusTakenMin, taken);
 }

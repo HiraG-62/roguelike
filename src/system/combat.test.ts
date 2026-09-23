@@ -6,7 +6,7 @@ import type { TriggeredEffect } from "../loot/types";
 import { armorReduction, damageEnemy, damagePlayer } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
-import { applyStats, dashTime } from "./player";
+import { applyStats, dashTime, meleeStep } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { applyBurn, applyChill, applyOnHitStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -30,7 +30,7 @@ describe("stats → 近接", () => {
   it("meleeDamageMul でダメージが増える", () => {
     const base = meleeDamageWith(1);
     const doubled = meleeDamageWith(2);
-    expect(base).toBe(PLAYER.melee[0]!.damage);
+    expect(base).toBe(meleeStep(arena().stats, 0)?.damage);
     expect(doubled).toBe(base * 2);
   });
 
@@ -115,7 +115,7 @@ describe("状態異常", () => {
     for (let i = 0; i < 9; i++) applyOnHitStatus(state, e);
     // ICD 中は 2 回目以降 rng すら引かない → burn の判定は 1 回だけ
     expect(chanceCalls).toBe(1);
-    expect(e.effects.onHitCooldown).toBeCloseTo(STATUS.onHitIcd, 5);
+    expect(e.status.procIcd).toBeCloseTo(STATUS.onHitIcd, 5);
 
     // ICD が明けたら再び判定できる
     updateStatusEffects(state, STATUS.onHitIcd);

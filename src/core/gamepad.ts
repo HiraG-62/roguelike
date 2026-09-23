@@ -16,8 +16,7 @@ const BTN_LT = 6;
 const BTN_RT = 7;
 const BTN_BACK = 8;
 const BTN_START = 9;
-// 10 = 左スティック押し込み（LSTICK）。現状どのアクションにも束縛していない
-const BTN_RSTICK = 11;
+// 10 = 左スティック押し込み（LSTICK）/ 11 = 右スティック押し込み（RSTICK）。現状どのアクションにも束縛していない
 const BTN_DPAD_UP = 12;
 const BTN_DPAD_DOWN = 13;
 const BTN_DPAD_LEFT = 14;
@@ -50,8 +49,18 @@ export interface GamepadFrame {
   /** メニューの「戻る/ポーズ」に相当（B or Start）。今フレーム押されたときだけ true */
   escapePressed: boolean;
   inventoryPressed: boolean;
+  /**
+   * スキル 1〜4（docs/COMBAT_DESIGN.md B-3）。LB を押している間だけ A / X / Y / B がスキル層に切り替わる。
+   * Held は溜め（Charge 刻印符）の長押し用
+   */
   skill1Pressed: boolean;
   skill2Pressed: boolean;
+  skill3Pressed: boolean;
+  skill4Pressed: boolean;
+  skill1Held: boolean;
+  skill2Held: boolean;
+  skill3Held: boolean;
+  skill4Held: boolean;
 }
 
 export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
@@ -66,7 +75,16 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   inventoryPressed: false,
   skill1Pressed: false,
   skill2Pressed: false,
+  skill3Pressed: false,
+  skill4Pressed: false,
+  skill1Held: false,
+  skill2Held: false,
+  skill3Held: false,
+  skill4Held: false,
 };
+
+/** スキル層（LB 押下中）でスキル 1〜4 に割り当てる面ボタン */
+const SKILL_LAYER_BUTTONS = [BTN_A, BTN_X, BTN_Y, BTN_B] as const;
 
 /** 円形デッドゾーン。しきい値未満は 0 ベクトル、長さ 1 超は正規化してクランプする */
 function applyDeadzone(x: number, y: number): Vec {
@@ -145,18 +163,35 @@ export class GamepadInput {
     const rightStick = applyDeadzone(pad.axes[AXIS_RIGHT_X] ?? 0, pad.axes[AXIS_RIGHT_Y] ?? 0);
     const aimDir = isZero(rightStick) ? null : normalize(rightStick);
 
+    // LB はスキル層のシフト: 押している間は A / X / Y / B をスキル 1〜4 として読み、
+    // 攻撃・射撃・必殺・ダッシュ・決定・戻るには使わない（RT / LT / RB はシフト中も効く）
+    const shift = isDown[BTN_LB] ?? false;
+    const face = (i: number): { pressed: boolean; held: boolean } => ({
+      pressed: shift && justPressed(i),
+      held: shift && (isDown[i] ?? false),
+    });
+    const [s1, s2, s3, s4] = SKILL_LAYER_BUTTONS.map(face);
+    const faceDown = (i: number): boolean => !shift && (isDown[i] ?? false);
+    const faceJust = (i: number): boolean => !shift && justPressed(i);
+
     const frame: GamepadFrame = {
       move,
       aimDir,
-      dashPressed: justPressed(BTN_B) || justPressed(BTN_RB),
-      attackPressed: justPressed(BTN_RT) || justPressed(BTN_A),
-      shootHeld: (isDown[BTN_LT] ?? false) || (isDown[BTN_X] ?? false),
-      specialPressed: justPressed(BTN_Y),
-      confirmPressed: justPressed(BTN_A),
-      escapePressed: justPressed(BTN_B) || justPressed(BTN_START),
+      dashPressed: faceJust(BTN_B) || justPressed(BTN_RB),
+      attackPressed: justPressed(BTN_RT) || faceJust(BTN_A),
+      shootHeld: (isDown[BTN_LT] ?? false) || faceDown(BTN_X),
+      specialPressed: faceJust(BTN_Y),
+      confirmPressed: faceJust(BTN_A),
+      escapePressed: faceJust(BTN_B) || justPressed(BTN_START),
       inventoryPressed: justPressed(BTN_BACK),
-      skill1Pressed: justPressed(BTN_LB),
-      skill2Pressed: justPressed(BTN_RSTICK) || justPressed(BTN_DPAD_UP),
+      skill1Pressed: s1?.pressed ?? false,
+      skill2Pressed: s2?.pressed ?? false,
+      skill3Pressed: s3?.pressed ?? false,
+      skill4Pressed: s4?.pressed ?? false,
+      skill1Held: s1?.held ?? false,
+      skill2Held: s2?.held ?? false,
+      skill3Held: s3?.held ?? false,
+      skill4Held: s4?.held ?? false,
     };
 
     this.startJustPressed = justPressed(BTN_START);

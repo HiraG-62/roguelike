@@ -15,6 +15,7 @@ import {
   triggerToRoll,
 } from "./triggers";
 import { SLOTS } from "./types";
+import { TRIGGER } from "../data/tuning";
 
 const MANY = 1000;
 const LOW_LEVEL = 1;
@@ -133,5 +134,25 @@ describe("トリガー文法", () => {
         chance: 0.4,
       }),
     ).toBe("撃破時（HP 50% 未満）: 40% で3.5 秒間ダメージ +25%を得る");
+  });
+
+  it("invuln は生成時に TRIGGER.invulnMax を超えない", () => {
+    const rng = createRng(31);
+    const shapes = TRIGGER_GRAMMAR.filter((shape) => shape.effect === "invuln");
+    expect(shapes.length).toBeGreaterThan(0);
+    for (let i = 0; i < MANY; i++) {
+      const shape = shapes[i % shapes.length];
+      if (shape === undefined) continue;
+      const effect = rollTriggerEffect(rng, shape, 1 + (i % HIGH_LEVEL));
+      expect(effect.magnitude).toBeLessThanOrEqual(TRIGGER.invulnMax);
+    }
+  });
+
+  it("上限を超えた invuln（揺らぎの上振れ・旧セーブ）は復元時に上限へ切り詰める", () => {
+    const decoded = decodeTriggerRoll({ key: "tr:onHurt:always:invuln", value: 0.9, value2: 400 });
+    expect(decoded?.magnitude).toBe(TRIGGER.invulnMax);
+    expect(formatTrigger(decoded ?? { trigger: "onHurt", condition: "always", effect: "invuln", magnitude: 0, chance: 0 })).toBe(
+      `被弾時: 40% で${TRIGGER.invulnMax} 秒間無敵になる`,
+    );
   });
 });

@@ -8,8 +8,9 @@ import { cancelAttack, healPlayer } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { KS } from "./keystones";
 import { dropItem } from "./loot";
+import { scaled } from "./attributes";
 import { applyStats, dashTime } from "./player";
-import { applyBurn, applyChill, chainLightning, enemiesInRadius, explodeAt } from "./statusEffects";
+import { applyBurn, applyChill, chainLightning, enemiesInRadius, explodeAt, findStatus, hasStatus } from "./statusEffects";
 
 /**
  * ラン内限定の祝福 3 択。docs/ideas/run-structure.md「祝福 3 択（Boon）」。
@@ -20,7 +21,8 @@ import { applyBurn, applyChill, chainLightning, enemiesInRadius, explodeAt } fro
 export const BOON_KEYS = [
   "finisherOnly",
   "dashGun",
-  "parryCharge",
+  "reflect",
+  "justSlash",
   "lockdown",
   "glassJust",
   "comboWave",
@@ -102,13 +104,22 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged", "dash"],
     cursed: false,
   },
-  parryCharge: {
-    key: "parryCharge",
-    name: "弾斬り充填",
-    desc: "敵弾を斬ると必殺ゲージが3倍増える。",
+  reflect: {
+    key: "reflect",
+    name: "弾返し",
+    desc: "近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージが3倍増える。",
     icon: "P",
     rarity: "common",
     tags: ["melee", "energy"],
+    cursed: false,
+  },
+  justSlash: {
+    key: "justSlash",
+    name: "見切り斬り",
+    desc: "ジャスト回避の直後に攻撃すると、回避した敵の目の前へ瞬間移動して斬る。",
+    icon: "/",
+    rarity: "rare",
+    tags: ["just", "melee"],
     cursed: false,
   },
   lockdown: {
@@ -754,10 +765,10 @@ export function onBoonDashEnd(state: GameState): void {
   explodeAt(state, state.player.body.pos, BOON.dashBlastRadius, slashBase(state) * BOON.dashBlastRatio);
 }
 
-/** 近接 1 段目の装備込みダメージ（祝福の威力は装備 stat に比例させる） */
+/** 近接 1 段目の装備・ステータス込みダメージ（祝福の威力は装備 stat に比例させる） */
 function slashBase(state: GameState): number {
   const s = state.stats;
-  const base = PLAYER.melee[0]?.damage ?? 0;
+  const base = scaled(s, PLAYER.melee[0].scaling);
   return Math.round((base + s.meleeDamageFlat) * s.meleeDamageMul);
 }
 
@@ -765,10 +776,6 @@ export function boonMoveMul(state: GameState): number {
   if (state.boonRun.guardTimer > 0) return 0;
   if (!hasBoon(state, "lockdown")) return 1;
   return state.rooms.some((r) => r.locked) ? BOON.lockdownFastMul : BOON.lockdownSlowMul;
-}
-
-export function parryEnergyMul(state: GameState): number {
-  return hasBoon(state, "parryCharge") ? BOON.parryEnergyMul : 1;
 }
 
 /** overcharge: ゲージ満タン中の近接ヒットで爆発 */
@@ -815,14 +822,15 @@ export function onBoonKill(state: GameState, enemy: Enemy): void {
   }
   if (enemy.elite && hasBoon(state, "eliteMagnet")) dropItem(state, enemy.body.pos);
   if (hasBoon(state, "bloodFeast")) healPlayer(state, BOON.feastHeal, { silent: true });
-  const burn = enemy.effects.burn;
-  if (burn.time > 0 && hasBoon(state, "burnSpread")) {
+  // 燃焼の強さ（dps）は status の potency。広げた先にも同じ強さで付ける
+  const burn = findStatus(enemy.status, "burn");
+  if (burn && hasBoon(state, "burnSpread")) {
     for (const e of enemiesInRadius(state, enemy.body.pos, BOON.burnSpreadRadius)) {
-      if (e.id !== enemy.id) applyBurn(state, e, burn.dps, STATUS.burnDuration);
+      if (e.id !== enemy.id) applyBurn(state, e, burn.potency, STATUS.burnDuration);
     }
     spawnRing(state, enemy.body.pos, BOON.burnSpreadRadius, STATUS.burnColor, STATUS.fxLife);
   }
-  if (enemy.effects.chill.time > 0 && hasBoon(state, "chillShatter")) shatter(state, enemy.body.pos);
+  if (hasStatus(enemy.status, "chill") && hasBoon(state, "chillShatter")) shatter(state, enemy.body.pos);
 }
 
 function shatter(state: GameState, pos: Vec): void {

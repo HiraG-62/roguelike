@@ -15,7 +15,9 @@ export type ActionName =
   | "restart"
   | "inventory"
   | "skill1"
-  | "skill2";
+  | "skill2"
+  | "skill3"
+  | "skill4";
 
 /** KeyboardEvent.code で束縛する（配列に依存しない） */
 const BINDINGS: Record<ActionName, readonly string[]> = {
@@ -31,10 +33,17 @@ const BINDINGS: Record<ActionName, readonly string[]> = {
   confirm: ["Enter"],
   restart: ["KeyR"],
   inventory: ["Tab", "KeyI"],
-  // スキルは左手の数字キーと C / V。マウスのサイドボタンは MOUSE_BINDINGS
+  // スキルは左手の数字キーと C / V / X / Z（docs/COMBAT_DESIGN.md B-3）。マウスのサイドボタンは MOUSE_BINDINGS
   skill1: ["Digit1", "KeyC"],
   skill2: ["Digit2", "KeyV"],
+  skill3: ["Digit3", "KeyX"],
+  skill4: ["Digit4", "KeyZ"],
 };
+
+/** スキルスロット i のアクション名（スロット順） */
+export const SKILL_ACTIONS: readonly ActionName[] = ["skill1", "skill2", "skill3", "skill4"];
+/** キー表示で KeyboardEvent.code から落とす接頭辞 */
+const KEY_CODE_PREFIX = /^(Digit|Key)/;
 
 const MOUSE_LEFT = 0;
 const MOUSE_RIGHT = 2;
@@ -60,6 +69,16 @@ const MOUSE_BINDINGS: Partial<Record<ActionName, string>> = {
 export function codesForAction(action: ActionName): string[] {
   const mouse = MOUSE_BINDINGS[action];
   return mouse ? [...BINDINGS[action], mouse] : [...BINDINGS[action]];
+}
+
+/**
+ * スキルスロット i のキーボード表記（例: "1 / C"）。UI のキー案内用。
+ * マウスのサイドボタンは付いていない環境が多いので載せない
+ */
+export function skillKeyLabel(slot: number): string {
+  const action = SKILL_ACTIONS[slot];
+  if (!action) return "";
+  return BINDINGS[action].map((code) => code.replace(KEY_CODE_PREFIX, "")).join(" / ");
 }
 
 /** マウスボタン番号 → 擬似キーコード */
@@ -88,10 +107,10 @@ export interface FrameInput {
   /** スキルスロット 1 / 2 */
   skill1Pressed: boolean;
   skill2Pressed: boolean;
-  /** スキルスロット 1 / 2 の押しっぱなし（Charge 刻印符の溜め入力）。パッドは未対応でキーボード/マウスのみ */
+  /** スキルスロット 1 / 2 の押しっぱなし（Charge 刻印符の溜め入力）。パッドは LB を押しながらの A / X */
   skill1Held: boolean;
   skill2Held: boolean;
-  /** スキルスロット 3 / 4（docs/COMBAT_DESIGN.md B-3）。キー割り当ては段階 1 の L2 が入れる。それまでは常に false */
+  /** スキルスロット 3 / 4（docs/COMBAT_DESIGN.md B-3）。パッドは LB を押しながらの Y / B */
   skill3Pressed: boolean;
   skill4Pressed: boolean;
   skill3Held: boolean;
@@ -254,14 +273,12 @@ export class PlayerInput {
       inventoryPressed: this.wasPressed("inventory") || pad.inventoryPressed,
       skill1Pressed: this.wasPressed("skill1") || pad.skill1Pressed,
       skill2Pressed: this.wasPressed("skill2") || pad.skill2Pressed,
-      // パッドの「押しっぱなし」は GamepadFrame に無いのでキーボード/マウスのみで判定する
-      skill1Held: this.isDown("skill1"),
-      skill2Held: this.isDown("skill2"),
-      // スロット 3 / 4 のキーは段階 1 の L2 で割り当てる
-      skill3Pressed: false,
-      skill4Pressed: false,
-      skill3Held: false,
-      skill4Held: false,
+      skill1Held: this.isDown("skill1") || pad.skill1Held,
+      skill2Held: this.isDown("skill2") || pad.skill2Held,
+      skill3Pressed: this.wasPressed("skill3") || pad.skill3Pressed,
+      skill4Pressed: this.wasPressed("skill4") || pad.skill4Pressed,
+      skill3Held: this.isDown("skill3") || pad.skill3Held,
+      skill4Held: this.isDown("skill4") || pad.skill4Held,
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has("Mouse0"),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),

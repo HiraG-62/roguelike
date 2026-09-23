@@ -143,6 +143,8 @@ describe("抽選", () => {
   it("装備タグで重みが変わる: burn 装備なら燃焼祝福が出る / 出やすい", () => {
     const plain = arena(11);
     const burn = arena(11, { burnChance: 0.3, burnDps: 5 });
+    // createGame の applyStats が素の装備を baseStats に覚えるので、抽選が読む装備 stats も差し替える
+    burn.boonRun.baseStats = burn.stats;
     expect(equipmentTags(plain.stats).has("burn")).toBe(false);
     expect(equipmentTags(burn.stats).has("burn")).toBe(true);
 
@@ -290,5 +292,20 @@ describe("ルール変更の実効", () => {
     expect(state.stats.fireRateMul).toBe(DEFAULT_STATS.fireRateMul * BOON.triggerHappyFireMul);
     step(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.player.attack.phase).toBe("none");
+  });
+});
+
+describe("無効化手段の祝福化（docs/COMBAT_DESIGN.md C-1）", () => {
+  it("弾返し・見切り斬りは呪いなしの祝福で、旧 parryCharge は無い", () => {
+    expect(BOONS.reflect.cursed).toBe(false);
+    expect(BOONS.justSlash.cursed).toBe(false);
+    expect(BOONS.justSlash.rarity).toBe("rare");
+    expect((BOON_KEYS as readonly string[]).includes("parryCharge"), "弾斬り充填は弾返しに置き換わった").toBe(false);
+  });
+
+  it("どちらも初期状態では持っていない", () => {
+    const state = arena();
+    expect(hasBoon(state, "reflect")).toBe(false);
+    expect(hasBoon(state, "justSlash")).toBe(false);
   });
 });

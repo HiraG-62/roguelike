@@ -8,6 +8,7 @@ import { updateEnemies } from "./enemies";
 import { updateHazards } from "./hazards";
 import { updateProjectiles } from "./projectiles";
 import { interceptEnemyDamage } from "./elites";
+import { isStaggered } from "./poise";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const STEPS = 500;
@@ -59,7 +60,7 @@ describe("knight", () => {
     expect(k.hp).toBe(hp - 10);
   });
 
-  it("guardBreak（カウンター相当）なら正面の盾を無視してダメージが通り、GUARD BREAK 表示 + スタガー", () => {
+  it("guardBreak（カウンター相当）なら正面の盾を無視してダメージが通り、GUARD BREAK 表示（確定の怯みにはならない）", () => {
     const state = arena();
     const k = placeEnemy(state, "knight", 14);
     k.facing = { x: -1, y: 0 };
@@ -72,7 +73,7 @@ describe("knight", () => {
 
     damageEnemy(state, k, 10, { x: 1, y: 0 }, 0, { kind: "melee", guardBreak: true });
     expect(k.hp).toBe(hp - 10);
-    expect(k.phase).toBe("stagger");
+    expect(isStaggered(k), "怯み値なしのカウンターでは怯まない").toBe(false);
   });
 
   it("正面から来た弾は消えてダメージを受けない", () => {

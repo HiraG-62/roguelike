@@ -64,6 +64,10 @@ function sanitizeStone(v: unknown): SkillStone | null {
   };
 }
 
+/**
+ * loadout を SKILL.slots 要素にそろえる。旧 2 スロットのセーブは残りを null で埋める
+ * （docs/COMBAT_DESIGN.md B-3。キー形式は変えないので v2 は切らない）
+ */
 function sanitizeLoadout(v: unknown, stones: readonly SkillStone[]): (string | null)[] {
   const out: (string | null)[] = Array.from({ length: SKILL.slots }, () => null);
   if (!Array.isArray(v)) return out;
@@ -77,14 +81,14 @@ function sanitizeLoadout(v: unknown, stones: readonly SkillStone[]): (string | n
   return out;
 }
 
-/** 初回用: 旋風斬りとグレネードを装着済み */
+/** 初回用: 旋風斬りとグレネードをスロット 1 / 2 に装着済み、残りは空 */
 export function createDefaultSkillProfile(): SkillProfile {
   const stones = STARTER_STONES.map(({ seed, skillKey }) => ({
     ...stoneFromSeed(seed, { foundDepth: 0, now: 0, skillKey }),
     variants: [],
     links: STARTER_LINKS,
   }));
-  return { version: CURRENT_VERSION, loadout: stones.map((s) => s.id), stones };
+  return { version: CURRENT_VERSION, loadout: sanitizeLoadout(stones.map((s) => s.id), stones), stones };
 }
 
 function defaultStorage(): Storage | null {

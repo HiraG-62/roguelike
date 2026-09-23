@@ -8,7 +8,9 @@ import { updateEffects } from "../system/effects";
 import { updateEnemies } from "../system/enemies";
 import { buildFloor } from "../system/floor";
 import { updateRooms } from "../system/floor";
-import { createPlayer } from "../system/player";
+import { applyStats, createPlayer } from "../system/player";
+import { refillMana, tickMana } from "../system/mana";
+import { updateAttributeAlloc } from "../ui/attributeAlloc";
 import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { VIEW_H, VIEW_W } from "./view";
@@ -82,8 +84,11 @@ export function createGame(
     boonChoice: null,
     boonRun: createBoonRunState(),
     pendingBud: findPendingBud(profile),
-    runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
+    runAttributes: { alloc: uniformAttributes(0), unspent: 0, hover: -1, timer: 0 },
   };
+  // 祝福の畳み込み元（boonRun.baseStats）を覚えつつ、ステータスの派生（deriveAttributes）を通す
+  applyStats(state, stats);
+  refillMana(state);
   buildFloor(state);
   pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");
   return state;
@@ -117,7 +122,9 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   state.tick += 1;
   state.time += gdt;
 
-  updatePlayer(state, input, gdt);
+  // 振り分けパネルの受付中は選択キーを消費する（プレイヤーの行動に渡さない）
+  tickMana(state, gdt);
+  updatePlayer(state, updateAttributeAlloc(state, input, dt), gdt);
   updateBoons(state, gdt);
   updateStatusEffects(state, gdt);
   updateEnemies(state, gdt);

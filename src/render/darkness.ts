@@ -1,6 +1,7 @@
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ENEMY_AI, FLOOR_KIND, REAPER, STATUS } from "../data/tuning";
+import { hasStatus } from "../system/statusEffects";
 
 /**
  * 暗闇フロアのマスク。プレイヤー周り（半径 darkLightRadius）だけ明るく、それ以外は黒で覆う。
@@ -91,13 +92,16 @@ export class DarknessLayer {
     }
     const flicker = 1 - BURN_FLICKER_AMOUNT + Math.sin(state.time * BURN_FLICKER_SPEED) * BURN_FLICKER_AMOUNT;
     for (const e of state.enemies) {
-      if (e.hp <= 0 || e.effects.burn.time <= 0) continue;
+      if (e.hp <= 0 || !hasStatus(e.status, "burn")) continue;
       this.glow(target, e.body.pos.x, e.body.pos.y, BURN_GLOW_RADIUS, STATUS.burnColor, GLOW_ALPHA * flicker);
     }
     for (const h of state.hazards) {
       if (h.kind === "laser") this.beam(target, h.pos, h.to, h.radius * 2, LASER_FIRE_ALPHA);
-      if (h.kind !== "playerBurn") continue;
-      this.glow(target, h.pos.x, h.pos.y, h.radius, STATUS.burnColor, PLAYER_BURN_ALPHA * flicker);
+    }
+    // プレイヤーの炎は状態異常「燃焼」で持つ（旧 playerBurn ハザードの置き換え）
+    const p = state.player;
+    if (hasStatus(p.status, "burn")) {
+      this.glow(target, p.body.pos.x, p.body.pos.y, BURN_GLOW_RADIUS, STATUS.burnColor, PLAYER_BURN_ALPHA * flicker);
     }
     for (const e of state.enemies) {
       if (e.hp <= 0 || e.phase !== "windup" || e.defKey !== LASER_EYE_KEY || !e.ai) continue;

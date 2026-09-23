@@ -1,5 +1,5 @@
 import type { Rng } from "../core/rng";
-import { PLAYER } from "../data/tuning";
+import { PLAYER, TRIGGER } from "../data/tuning";
 import type {
   AffixRoll,
   Slot,
@@ -168,9 +168,11 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
   },
   energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `エネルギーを${m}獲得する` },
   invuln: {
-    base: 0.4,
+    // 上限は TRIGGER.invulnMax（docs/COMBAT_DESIGN.md C-1 の 13）。揺らぎの上振れは decode 側でも切る
+    base: 0.35,
     perLevel: 0,
     decimals: 1,
+    cap: TRIGGER.invulnMax,
     text: (m) => `${m} 秒間無敵になる`,
   },
 };
@@ -357,6 +359,15 @@ function parseParams(params: readonly string[]): { every?: number; count?: numbe
   return out;
 }
 
+/**
+ * magnitude を効果の上限で切る。生成後の揺らぎ（generator.ts の rollTriggerTrait）や旧セーブで
+ * 上限を超えた値も、適用と表示の時点で上限に揃える（無敵を常時化させない）
+ */
+function capMagnitude(effect: TriggerEffectKind, magnitude: number): number {
+  const cap = EFFECT_SPECS[effect].cap;
+  return cap === undefined ? magnitude : Math.min(cap, magnitude);
+}
+
 /** AffixRoll から TriggeredEffect を復元する。不正な key は null */
 export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | null {
   if (!isTriggerKey(roll.key)) return null;
@@ -373,7 +384,7 @@ export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | null {
     trigger,
     condition,
     effect,
-    magnitude: roll.value,
+    magnitude: capMagnitude(effect, roll.value),
     chance: (value2 % CHANCE_SCALE) / CHANCE_SCALE,
   };
   if (params.every !== undefined) result.every = params.every;

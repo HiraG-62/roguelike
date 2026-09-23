@@ -48,6 +48,8 @@ export interface StatusBag {
   /** 拘束上限: 直近 ccWindow 秒に入った行動停止の合計秒 */
   ccSpent: number;
   ccWindowLeft: number;
+  /** 出血の移動距離を測る基準点（前ステップの位置）。出血中だけ持つ */
+  bleedFrom?: { x: number; y: number };
 }
 
 export interface StatusApply {

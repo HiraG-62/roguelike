@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import type { FrameInput } from "../core/input";
-import { codesForAction, mouseButtonCode } from "../core/input";
+import { codesForAction, mouseButtonCode, skillKeyLabel } from "../core/input";
 import { FIXED_DT } from "../core/loop";
-import type { GameState } from "../core/state";
+import type { Enemy, GameState } from "../core/state";
+import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
+import { KEYSTONE } from "../data/tuning";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { createDefaultSkillProfile } from "../skills/persistence";
@@ -25,7 +27,7 @@ import {
   trackDamageDealt,
   updateSkills,
 } from "./skills";
-import { curseMul, skillHit } from "../skills/hit";
+import { curseMul, skillHit, skillPower } from "../skills/hit";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const BIG_HP = 1000;
@@ -83,8 +85,29 @@ function run(state: GameState, seconds: number, input: FrameInput = withInput({}
   for (let i = 0; i < steps; i++) updatePlayer(state, input, FIXED_DT);
 }
 
-function press(state: GameState, slot: 0 | 1, extra: Partial<FrameInput> = {}): void {
-  updatePlayer(state, withInput({ skill1Pressed: slot === 0, skill2Pressed: slot === 1, ...extra }), FIXED_DT);
+type SlotIndex = 0 | 1 | 2 | 3;
+
+function press(state: GameState, slot: SlotIndex, extra: Partial<FrameInput> = {}): void {
+  updatePlayer(
+    state,
+    withInput({
+      skill1Pressed: slot === 0,
+      skill2Pressed: slot === 1,
+      skill3Pressed: slot === 2,
+      skill4Pressed: slot === 3,
+      ...extra,
+    }),
+    FIXED_DT,
+  );
+}
+
+/** 共通最低間隔とスロットの最低間隔が明けるまで待つ（連続発動のテスト用） */
+function waitInterval(state: GameState, slot: number): void {
+  run(state, Math.max(SKILL.gcd, resolveSlot(state, slot)?.interval ?? 0) + FIXED_DT);
+}
+
+function manaCost(state: GameState, slot: number): number {
+  return resolveSlot(state, slot)?.cost ?? 0;
 }
 
 /** 指定秒だけ押しっぱなしにしてから離す（Charge 刻印符のテスト用） */
@@ -105,6 +128,143 @@ describe("入力", () => {
     expect(mouseButtonCode(3)).toBe("Mouse3");
     expect(mouseButtonCode(4)).toBe("Mouse4");
   });
+
+  it("Digit3 / KeyX がスロット 3、Digit4 / KeyZ がスロット 4。キー表記は「1 / C」の形", () => {
+    expect(codesForAction("skill3")).toEqual(["Digit3", "KeyX"]);
+    expect(codesForAction("skill4")).toEqual(["Digit4", "KeyZ"]);
+    expect([0, 1, 2, 3].map(skillKeyLabel)).toEqual(["1 / C", "2 / V", "3 / X", "4 / Z"]);
+  });
+
+  it("スロット 3 / 4 の入力でそのスロットのスキルが出る", () => {
+    const state = skillArena([{ key: "whirl" }, { key: "whirl" }, { key: "mines" }, { key: "frag" }]);
+    expect(state.skills.slots, "スロットは 4 つ").toHaveLength(SKILL.slots);
+    press(state, 2);
+    expect(state.skills.mines, "スロット 3 = 地雷").toHaveLength(1);
+    waitInterval(state, 3);
+    press(state, 3, aimAt(state, 60));
+    expect(state.skills.grenades, "スロット 4 = グレネード").toHaveLength(1);
+  });
+});
+
+describe("マナと最低間隔", () => {
+  it("マナ型は発動でコストを払い、チャージと CD は使わない", () => {
+    const state = skillArena([{ key: "frag" }]);
+    const before = state.player.mana;
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.player.mana, "コスト分だけ減る").toBeCloseTo(before - SKILL.frag.cost);
+    expect(state.skills.slots[0]?.chargesLeft, "チャージは減らない").toBe(1);
+    expect(state.skills.slots[0]?.cooldownLeft, "CD は立たない").toBe(0);
+  });
+
+  it("マナ不足は不発: 何も消費しない（マナ・HP・コンボ・最低間隔）。点滅と効果音が出て、先行入力も残らない", () => {
+    const state = skillArena([{ key: "frag", links: 2, modifiers: ["bloodPrice", "comboFuel"] }]);
+    const p = state.player;
+    p.mana = manaCost(state, 0) - 1;
+    state.combo.count = 5;
+    const mana = p.mana;
+    const hp = p.hp;
+    state.sfx.length = 0;
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.grenades, "発動しない").toHaveLength(0);
+    expect(p.mana, "マナは減らない").toBe(mana);
+    expect(p.hp, "血の代償の HP も払わない").toBe(hp);
+    expect(state.combo.count, "コンボ燃料も消費しない").toBe(5);
+    expect(state.skills.gcd, "共通最低間隔も立たない").toBe(0);
+    expect(state.skills.slots[0]?.intervalLeft, "最低間隔も立たない").toBe(0);
+    expect(state.skills.manaFlash, "マナバーの点滅").toBeGreaterThan(0);
+    expect(state.sfx, "不発の効果音").toContain("manaEmpty");
+    expect(state.skills.pendingSlot, "先行入力は破棄").toBe(-1);
+    expect(state.texts.some((t) => t.text === "マナ不足")).toBe(true);
+    run(state, SKILL.manaFlashTime + FIXED_DT);
+    expect(state.skills.manaFlash, "点滅は時間で消える").toBe(0);
+  });
+
+  it("過負荷（ks_overdraw）ならマナ 0 でも不足分を HP で払って発動する。無ければ不発", () => {
+    const state = skillArena([{ key: "frag" }], 5, ["ks_overdraw"]);
+    const p = state.player;
+    p.mana = 0;
+    const hp = p.hp;
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.grenades, "発動する").toHaveLength(1);
+    expect(p.mana).toBe(0);
+    expect(p.hp, "不足分 × 0.5 の HP を払う").toBeCloseTo(hp - SKILL.frag.cost * KEYSTONE.overdrawHpPerMana);
+
+    const plain = skillArena([{ key: "frag" }]);
+    plain.player.mana = 0;
+    press(plain, 0, aimAt(plain, 60));
+    expect(plain.skills.grenades, "誓約なしは不発").toHaveLength(0);
+    expect(plain.player.hp).toBe(plain.player.maxHp);
+  });
+
+  it("沈黙・怯み中のプレイヤーはスキルを撃てない（何も消費しない）", () => {
+    for (const kind of ["silence", "stagger"] as const) {
+      const state = skillArena([{ key: "frag" }]);
+      const mana = state.player.mana;
+      state.player.status.effects.push({ kind, stacks: 1, time: 1, maxTime: 1, potency: 0, source: "enemy", acc: 0, tick: 0 });
+      press(state, 0, aimAt(state, 60));
+      expect(state.skills.grenades, `${kind} 中に発動した`).toHaveLength(0);
+      expect(state.player.mana, `${kind} 中にマナが減った`).toBe(mana);
+    }
+  });
+
+  it("CD 型はマナを使わない（マナ 0 でも撃てる）", () => {
+    const state = skillArena([{ key: "haste" }]);
+    state.player.mana = 0;
+    press(state, 0);
+    expect(state.skills.haste.time).toBeGreaterThan(0);
+    expect(state.player.mana).toBe(0);
+    expect(state.skills.slots[0]?.chargesLeft).toBe(0);
+  });
+
+  it("共通最低間隔 0.15 秒の間は別スロットも発動せず、明けたら先行入力で出る", () => {
+    const state = skillArena([{ key: "frag" }, { key: "mines" }]);
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.gcd).toBeCloseTo(SKILL.gcd);
+    press(state, 1);
+    const steps = Math.floor(SKILL.gcd / FIXED_DT) - 2;
+    for (let i = 0; i < steps; i++) {
+      expect(state.skills.mines, `GCD 中の ${i} フレーム目に発動した`).toHaveLength(0);
+      updatePlayer(state, withInput({}), FIXED_DT);
+    }
+    run(state, SKILL.gcd);
+    expect(state.skills.mines, "GCD 明けに先行入力で発動").toHaveLength(1);
+  });
+
+  it("スキル固有の最低間隔: 同じスロットは間隔が明けるまで撃てない", () => {
+    const state = skillArena([{ key: "frag" }]);
+    const full = state.player.mana;
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.slots[0]?.intervalLeft).toBeCloseTo(SKILL.frag.minInterval);
+    run(state, SKILL.gcd + FIXED_DT * 2);
+    press(state, 0, aimAt(state, 60));
+    run(state, SKILL.inputBuffer + FIXED_DT);
+    expect(state.player.mana, "間隔の中では 1 回ぶんしか払っていない（先行入力も切れる）").toBeCloseTo(full - SKILL.frag.cost);
+    run(state, SKILL.frag.minInterval);
+    press(state, 0, aimAt(state, 60));
+    expect(state.player.mana, "間隔が明ければ撃てる").toBeCloseTo(full - SKILL.frag.cost * 2);
+  });
+
+  it("先行入力中にマナが足りればそのまま発動する", () => {
+    const state = skillArena([{ key: "frag" }, { key: "mines" }]);
+    press(state, 0, aimAt(state, 60));
+    state.player.mana = 0;
+    press(state, 1);
+    expect(state.skills.pendingSlot, "GCD 中なので先行入力").toBe(1);
+    state.player.mana = SKILL.mines.cost;
+    run(state, SKILL.gcd);
+    expect(state.skills.mines).toHaveLength(1);
+    expect(state.player.mana).toBeCloseTo(0);
+  });
+
+  it("威力はステータスの係数で伸び、基礎値では旧来の固定値", () => {
+    const state = skillArena([{ key: "frag" }]);
+    const params = resolveSlot(state, 0)?.params;
+    if (!params) throw new Error("params");
+    expect(skillPower(state, SKILL.frag.damage, params)).toBeCloseTo(26);
+    state.stats = { ...state.stats, attributesEff: { ...state.stats.attributesEff, dex: 15 } };
+    expect(skillPower(state, SKILL.frag.damage, params), "技巧 +10 で 1.4 × 10 伸びる").toBeCloseTo(40);
+  });
 });
 
 describe("旋風斬り", () => {
@@ -120,13 +280,14 @@ describe("旋風斬り", () => {
     expect(state.skills.active).toBeNull();
   });
 
-  it("ダッシュでキャンセルでき、CD は消費済み", () => {
+  it("ダッシュでキャンセルでき、マナは消費済み", () => {
     const state = skillArena([{ key: "whirl" }]);
+    const before = state.player.mana;
     press(state, 0);
     expect(state.skills.active?.skillKey).toBe("whirl");
     updatePlayer(state, withInput({ dashPressed: true }), FIXED_DT);
     expect(state.skills.active).toBeNull();
-    expect(state.skills.slots[0]?.chargesLeft).toBe(0);
+    expect(state.player.mana).toBeCloseTo(before - SKILL.whirl.cost);
   });
 
   it("ks_pacifist でもスキルの近接は使える（キーストーンはアクションスロットだけ）", () => {
@@ -147,7 +308,7 @@ describe("突進斬り", () => {
     run(state, SKILL.lunge.time + FIXED_DT);
     expect(state.player.body.pos.x).toBeGreaterThan(startX + 10);
     expect(e.hp).toBeLessThan(BIG_HP);
-    expect(e.phase).toBe("stagger");
+    expect(e.poise.damage, "経路上の敵に怯み値が溜まる").toBeGreaterThan(0);
     updatePlayer(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.player.attack.combo).toBe(1);
   });
@@ -202,20 +363,19 @@ describe("撃ち抜き", () => {
     expect(behind.hp).toBe(BIG_HP);
   });
 
-  it("照準中のダッシュキャンセルで CD を半分返す", () => {
+  it("照準中のダッシュキャンセルで払ったマナを半分返す", () => {
     const state = skillArena([{ key: "railshot" }]);
+    const before = state.player.mana;
     press(state, 0);
-    const slot = state.skills.slots[0];
-    if (!slot) throw new Error("slot");
-    const before = slot.cooldownLeft;
+    expect(state.player.mana).toBeCloseTo(before - SKILL.railshot.cost);
     updatePlayer(state, withInput({ dashPressed: true }), FIXED_DT);
     expect(state.skills.active).toBeNull();
-    expect(slot.cooldownLeft).toBeLessThan(before * SKILL.railshot.cancelRefund + FIXED_DT);
+    expect(state.player.mana).toBeCloseTo(before - SKILL.railshot.cost * (1 - SKILL.railshot.cancelRefund));
   });
 });
 
 describe("パリィ", () => {
-  it("構え中の敵弾を無効化して JUST 扱い、CD が 0 に戻る", () => {
+  it("構え中の敵弾を無効化して JUST 扱い、CD が半分戻る", () => {
     const state = skillArena([{ key: "parry" }]);
     const p = state.player;
     press(state, 0);
@@ -238,8 +398,9 @@ describe("パリィ", () => {
     expect(p.energy).toBeGreaterThan(0);
     expect(state.combo.count).toBeGreaterThan(0);
     expect(state.projectiles[0]?.life).toBe(0);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(1);
-    expect(state.skills.slots[0]?.cooldownLeft).toBe(0);
+    const cd = resolveSlot(state, 0)?.cooldown ?? 0;
+    expect(cd).toBeCloseTo(SKILL.parry.cooldown);
+    expect(state.skills.slots[0]?.cooldownLeft, "成功で CD の 50% を戻す").toBeCloseTo(cd * (1 - SKILL.parry.successRefund) - FIXED_DT, 5);
     expect(state.texts.some((t) => t.text === "パリィ！")).toBe(true);
   });
 
@@ -279,36 +440,42 @@ describe("血の契約", () => {
   });
 });
 
-describe("チャージと CD", () => {
-  it("CD 中は発動できず、CD 経過で回復する", () => {
-    const state = skillArena([{ key: "frag" }]);
+describe("チャージと CD（CD 型）", () => {
+  it("CD 中は発動できず（冷却中）、CD 経過で回復する", () => {
+    const state = skillArena([{ key: "haste" }]);
     press(state, 0);
-    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.skills.slots[0]?.chargesLeft).toBe(0);
+    waitInterval(state, 0);
+    state.skills.haste.time = 0;
     press(state, 0);
-    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.skills.haste.time, "冷却中は発動しない").toBe(0);
     const cd = resolveSlot(state, 0)?.cooldown ?? 0;
-    expect(cd).toBeCloseTo(SKILL.frag.cooldown);
+    expect(cd).toBeCloseTo(SKILL.haste.cooldown);
     run(state, cd);
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
   });
 
   it("多重付きで 3 回連続発動でき、4 回目は失敗。CD 経過で 1 回ずつ回復", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["multiCharge"] }]);
+    const state = skillArena([{ key: "haste", links: 1, modifiers: ["multiCharge"] }]);
     // 途中で付いた多重は 1 回ぶん即時、残りは CD で溜まる
     run(state, (resolveSlot(state, 0)?.cooldown ?? 0) * 2 + FIXED_DT);
     expect(state.skills.slots[0]?.chargesLeft).toBe(3);
-    for (let i = 0; i < 4; i++) press(state, 0);
+    for (let i = 0; i < 4; i++) {
+      press(state, 0);
+      waitInterval(state, 0);
+    }
     expect(state.skills.slots[0]?.chargesLeft).toBe(0);
     const cd = resolveSlot(state, 0)?.cooldown ?? 0;
-    run(state, cd + FIXED_DT);
+    run(state, cd);
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
   });
 
-  it("リンクが多い石ほど CD が長い", () => {
+  it("リンクが多い石ほど負担が重い（マナ型はコスト）", () => {
     const state = skillArena([{ key: "whirl", links: 0 }, { key: "whirl", links: 3 }]);
-    const a = resolveSlot(state, 0)?.cooldown ?? 0;
-    const b = resolveSlot(state, 1)?.cooldown ?? 0;
-    expect(b).toBeCloseTo(a * (1 + SKILL.linkCooldownPenalty * 3));
+    const a = manaCost(state, 0);
+    const b = manaCost(state, 1);
+    expect(a).toBeCloseTo(SKILL.whirl.cost);
+    expect(b).toBeCloseTo(a * (1 + SKILL.linkBurdenPenalty * 3));
   });
 });
 
@@ -428,6 +595,11 @@ function aimAt(state: GameState, dx: number, dy = 0): Partial<FrameInput> {
   return { aimScreen: toScreen(state, { x: p.x + dx, y: p.y + dy }) };
 }
 
+/** 統一状態異常（docs/COMBAT_DESIGN.md E）の冷気 */
+function chillOf(e: Enemy): StatusEffect | undefined {
+  return e.status.effects.find((s) => s.kind === "chill");
+}
+
 function distTo(a: Vec, b: Vec): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
@@ -442,20 +614,21 @@ describe("地裂き", () => {
     expect(front.hp).toBe(BIG_HP);
     run(state, SKILL.quake.windup);
     expect(front.hp).toBeLessThan(BIG_HP);
-    expect(front.phase).toBe("stagger");
+    expect(front.poise.damage, "前の敵に怯み値が溜まる").toBeGreaterThan(0);
     expect(back.hp).toBe(BIG_HP);
     run(state, SKILL.quake.recover + FIXED_DT);
     expect(state.skills.active).toBeNull();
   });
 
-  it("溜め中に被弾すると中断し、CD は消費済み", () => {
+  it("溜め中に被弾すると中断し、マナは消費済み", () => {
     const state = skillArena([{ key: "quake" }]);
     const e = tough(state, 30);
+    const before = state.player.mana;
     press(state, 0);
     state.player.hp -= 5;
     run(state, SKILL.quake.windup * 2);
     expect(e.hp).toBe(BIG_HP);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(0);
+    expect(state.player.mana).toBeCloseTo(before - SKILL.quake.cost);
   });
 
   it("範囲の変異で届く距離が伸びる", () => {
@@ -534,15 +707,14 @@ describe("地雷", () => {
     const state = skillArena([{ key: "mines" }]);
     for (let i = 0; i < 4; i++) {
       press(state, 0);
-      run(state, SKILL.mines.cooldown + FIXED_DT);
+      waitInterval(state, 0);
     }
     expect(state.skills.mines).toHaveLength(SKILL.mines.maxAlive);
 
     const more = skillArena([{ key: "mines", variants: [{ axis: "countVsDamage", value: 1 }] }]);
-    const cd = resolveSlot(more, 0)?.cooldown ?? 0;
     for (let i = 0; i < 6; i++) {
       press(more, 0);
-      run(more, cd + FIXED_DT);
+      waitInterval(more, 0);
     }
     expect(more.skills.mines).toHaveLength(SKILL.mines.maxAlive + 2);
   });
@@ -578,7 +750,7 @@ describe("鎖鎌", () => {
     press(state, 0);
     run(state, SKILL.chainHook.extendTime + FIXED_DT);
     expect(e.hp).toBeLessThan(BIG_HP);
-    expect(e.phase).toBe("stagger");
+    expect(e.poise.damage, "引き寄せた敵に怯み値が溜まる").toBeGreaterThan(0);
     expect(distTo(e.body.pos, state.player.body.pos)).toBeLessThan(30);
 
     const far = skillArena([{ key: "chainHook", variants: [{ axis: "areaVsDamage", value: -1 }] }]);
@@ -647,7 +819,7 @@ describe("氷結地帯", () => {
     const e = tough(state, 50);
     press(state, 0, aimAt(state, 50));
     run(state, SKILL.frostField.tickEvery);
-    expect(e.effects.chill.time).toBeGreaterThan(0);
+    expect(chillOf(e)?.time ?? 0, "冷気が付く").toBeGreaterThan(0);
     expect(e.hp).toBeLessThan(BIG_HP);
     expect(skillMoveMul(state)).toBe(1);
 
@@ -662,7 +834,7 @@ describe("氷結地帯", () => {
     press(state, 0, aimAt(state, 50));
     expect(state.skills.fields[0]?.total).toBeGreaterThan(SKILL.frostField.duration);
     run(state, FIXED_DT);
-    expect(e.effects.chill.slow).toBeLessThan(SKILL.frostField.slow);
+    expect(chillOf(e)?.potency ?? Infinity, "遅さの下限（potency）が弱い").toBeLessThan(SKILL.frostField.slow);
   });
 });
 
@@ -680,21 +852,60 @@ describe("追加の刻印符", () => {
     expect(state.player.body.pos.x).toBeLessThan(x);
   });
 
-  it("連鎖: スキルで倒すとチャージが戻る", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
-    const e = placeEnemy(state, "golem", 16);
+  it("連鎖（CD 型）: スキルで倒すとチャージが戻る", () => {
+    const state = skillArena([{ key: "lunge", links: 1, modifiers: ["chainReset"] }]);
+    const e = placeEnemy(state, "golem", 20);
     e.hp = 1;
     e.phase = "idle";
     press(state, 0);
+    run(state, SKILL.lunge.time + FIXED_DT);
     expect(e.hp).toBeLessThanOrEqual(0);
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
 
-    const plain = skillArena([{ key: "whirl" }]);
-    const f = placeEnemy(plain, "golem", 16);
+    const plain = skillArena([{ key: "lunge" }]);
+    const f = placeEnemy(plain, "golem", 20);
     f.hp = 1;
     f.phase = "idle";
     press(plain, 0);
+    run(plain, SKILL.lunge.time + FIXED_DT);
     expect(plain.skills.slots[0]?.chargesLeft).toBe(0);
+  });
+
+  it("連鎖（マナ型）: スキルで倒すと払ったコストの 50% が戻る。倒さなければ戻らない", () => {
+    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
+    const cost = manaCost(state, 0);
+    expect(cost, "連鎖の負担 ×1.2").toBeCloseTo(SKILL.whirl.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.chainReset.manaBurdenMul);
+    const gained = (s: GameState): number => {
+      const e = placeEnemy(s, "golem", 16);
+      e.hp = 1;
+      e.phase = "idle";
+      const before = s.player.mana;
+      const paid = manaCost(s, 0);
+      press(s, 0);
+      expect(e.hp).toBeLessThanOrEqual(0);
+      return s.player.mana - (before - paid);
+    };
+    // 撃破そのもので増える分（MANA.onKill）は連鎖と無関係なので、連鎖なしの同条件と差を取る
+    const control = gained(skillArena([{ key: "whirl", links: 1 }]));
+    expect(gained(state) - control, "コストの 50% が戻る").toBeCloseTo(cost * SKILL.modifier.chainReset.manaRefund);
+
+    const miss = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
+    const m0 = miss.player.mana;
+    press(miss, 0);
+    run(miss, SKILL.whirl.duration);
+    expect(miss.player.mana, "撃破が無ければ返らない").toBeCloseTo(m0 - manaCost(miss, 0));
+  });
+
+  it("連鎖（マナ型）の返却は最大マナを超えない", () => {
+    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
+    for (const dx of [14, -14, 0]) {
+      const e = placeEnemy(state, "golem", dx, dx === 0 ? 14 : 0);
+      e.hp = 1;
+      e.phase = "idle";
+    }
+    state.player.mana = state.stats.maxMana;
+    press(state, 0);
+    expect(state.player.mana).toBeLessThanOrEqual(state.stats.maxMana);
   });
 
   it("呪い: 当てた敵に刻印、刻印中はスキル被ダメが増える", () => {
@@ -748,13 +959,11 @@ describe("追加の刻印符", () => {
     expect(state.skills.mines).toHaveLength(2);
   });
 
-  it("拡大: 範囲 x1.5 で CD が長い", () => {
+  it("拡大: 範囲 x1.5 でコストが重い", () => {
     const state = skillArena([{ key: "frostField", links: 1, modifiers: ["expand"] }]);
     press(state, 0, aimAt(state, 50));
     expect(state.skills.fields[0]?.params.areaMul).toBeCloseTo(SKILL.modifier.expand.areaMul);
-    expect(resolveSlot(state, 0)?.cooldown).toBeCloseTo(
-      SKILL.frostField.cooldown * (1 + SKILL.linkCooldownPenalty) * SKILL.modifier.expand.cooldownMul,
-    );
+    expect(manaCost(state, 0)).toBeCloseTo(SKILL.frostField.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.expand.burdenMul);
   });
 
   it("反響は新スキルにも効く（回転弾幕は発動地点に残像）", () => {
@@ -767,7 +976,9 @@ describe("追加の刻印符", () => {
   it("階層を移ると設置物と呪いは消える", () => {
     const state = skillArena([{ key: "mines" }, { key: "frostField" }]);
     press(state, 0);
+    waitInterval(state, 1);
     press(state, 1, aimAt(state, 30));
+    expect(state.skills.fields, "前提: 氷結地帯が出ている").toHaveLength(1);
     state.skills.curses.set(1, { time: 3, bonus: 0.3 });
     state.depth += 1;
     updateSkills(state, withInput({}), FIXED_DT);
@@ -829,6 +1040,38 @@ describe("溜め（Charge 刻印符）", () => {
     expect(r ?? 2).toBeLessThanOrEqual(1);
     updatePlayer(state, withInput({ skill1Held: false }), FIXED_DT);
     expect(chargeRatio(state, 0)).toBeNull();
+  });
+
+  it("マナ型の溜め: 押した時点ではマナを払わず、離した瞬間に払う", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const before = state.player.mana;
+    const cost = manaCost(state, 0);
+    updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true, ...aimAt(state, 60) }), FIXED_DT);
+    run(state, SKILL.modifier.charge.minTime, withInput({ skill1Held: true, ...aimAt(state, 60) }));
+    expect(state.skills.slots[0]?.charging).toBe(true);
+    expect(state.player.mana, "溜め中は払わない").toBe(before);
+    updatePlayer(state, withInput({ skill1Held: false, ...aimAt(state, 60) }), FIXED_DT);
+    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.player.mana, "離した瞬間に払う").toBeCloseTo(before - cost);
+  });
+
+  it("マナ型の溜め: 押した時点で足りなければ溜めずに不発", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    state.player.mana = manaCost(state, 0) - 1;
+    updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
+    expect(state.skills.slots[0]?.charging).toBe(false);
+    expect(state.skills.manaFlash).toBeGreaterThan(0);
+  });
+
+  it("マナ型の溜め: 離した時点で足りなければ不発（何も消費しない）", () => {
+    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true, ...aimAt(state, 60) }), FIXED_DT);
+    run(state, SKILL.modifier.charge.minTime, withInput({ skill1Held: true, ...aimAt(state, 60) }));
+    state.player.mana = 1;
+    updatePlayer(state, withInput({ skill1Held: false, ...aimAt(state, 60) }), FIXED_DT);
+    expect(state.skills.grenades).toHaveLength(0);
+    expect(state.player.mana).toBe(1);
+    expect(state.skills.manaFlash).toBeGreaterThan(0);
   });
 
   it("Charge は付けられない: パリィ / 血の契約 / 加速 / 回転弾幕", () => {

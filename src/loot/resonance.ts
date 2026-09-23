@@ -1,7 +1,11 @@
 import { isTriggerKey } from "./triggers";
 import { traitColorOf } from "./colors";
+import { ATTR_GAIN } from "../data/tuning";
 import {
+  ATTR_KEYS,
   TRAIT_COLORS,
+  type AttrKey,
+  type Attributes,
   TRAIT_COLOR_LABEL,
   createEmptyResonance,
   type AffixRoll,
@@ -357,9 +361,63 @@ export function resonanceEffect(resonance: Resonance): ResonanceEffect | undefin
   }
 }
 
-/** 共鳴の数値効果・トリガーを stats に畳み込む */
+/** 共鳴の数値効果・トリガー・ステータス加算を stats に畳み込む */
 export function applyResonanceEffect(stats: PlayerStats, resonance: Resonance): void {
   resonanceEffect(resonance)?.apply(stats);
+  const bonus = resonanceAttributes(resonance);
+  for (const k of ATTR_KEYS) stats.attributes[k] += bonus[k];
+}
+
+// ---------------------------------------------------------------------------
+// ステータス加算（docs/COMBAT_DESIGN.md A-3）
+// ---------------------------------------------------------------------------
+
+/** 色とステータスの対応。docs/LOOT_DESIGN.md の 5 色の意味（紅 = 近接 … 冥 = 呪い）に揃える */
+export const COLOR_ATTR: Readonly<Record<TraitColor, AttrKey>> = {
+  crimson: "str",
+  azure: "dex",
+  jade: "vit",
+  gold: "mnd",
+  umbra: "spi",
+};
+
+/** ステータスの表示名（docs/GLOSSARY.md）。共鳴の説明と装備画面・振り分けパネルで共有する */
+export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
+  str: "筋力",
+  dex: "技巧",
+  vit: "体力",
+  mnd: "精神",
+  spi: "霊力",
+};
+
+function zeroAttributes(): Attributes {
+  return { str: 0, dex: 0, vit: 0, mnd: 0, spi: 0 };
+}
+
+/** 共鳴が足すステータス（逓減前の生の値）。支配: その色 / 二重: 2 色それぞれ / 散光: 全部 */
+export function resonanceAttributes(resonance: Resonance): Attributes {
+  const out = zeroAttributes();
+  switch (resonance.kind) {
+    case "dominant":
+      for (const c of resonance.colors) out[COLOR_ATTR[c]] += ATTR_GAIN.resonanceDominant;
+      return out;
+    case "dual":
+      for (const c of resonance.colors) out[COLOR_ATTR[c]] += ATTR_GAIN.resonanceDual;
+      return out;
+    case "scatter":
+      for (const k of ATTR_KEYS) out[k] += ATTR_GAIN.resonanceScatter;
+      return out;
+    case "none":
+      return out;
+  }
+}
+
+/** 「筋力 +3」「全ステータス +1」の 1 行。加算が無ければ undefined */
+function resonanceAttributeLine(resonance: Resonance): string | undefined {
+  if (resonance.kind === "scatter") return `全ステータス +${ATTR_GAIN.resonanceScatter}`;
+  const bonus = resonanceAttributes(resonance);
+  const parts = ATTR_KEYS.filter((k) => bonus[k] > 0).map((k) => `${ATTR_LABEL[k]} +${bonus[k]}`);
+  return parts.length === 0 ? undefined : parts.join(" / ");
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +452,8 @@ export function describeResonance(resonance: Resonance): string[] {
   const effect = resonanceEffect(resonance);
   if (effect === undefined) return [...NONE_LINES];
   const lines = [headline(resonance, effect), ...effect.lines];
+  const attrLine = resonanceAttributeLine(resonance);
+  if (attrLine !== undefined) lines.push(attrLine);
   if (resonance.kind === "dominant") {
     lines.push(`支配していない色の性質は ${Math.round(OFF_COLOR_DAMPING * PERCENT_SCALE)}% に弱まる`);
   }

@@ -32,7 +32,7 @@ describe("PlayerInput とゲームパッドのマージ", () => {
     expect(frame.move.y).toBeCloseTo(0);
   });
 
-  it("押下フラグはキーボード/パッドの OR になる（skill1Pressed = パッド LB）", () => {
+  it("押下フラグはキーボード/パッドの OR になる（skill1Pressed = パッド LB + A）", () => {
     const input = new PlayerInput();
     input.attachGamepad(new StubGamepad(gamepadFrame({ skill1Pressed: true })) as never);
 
@@ -104,8 +104,8 @@ function keyEvent(code: string, repeat = false): Record<string, unknown> {
   return { code, repeat, preventDefault: () => undefined };
 }
 
-describe("長押し (skill1Held / skill2Held)", () => {
-  it("押している間 Held が true、離すと false（パッド未対応でキーボードのみ判定）", () => {
+describe("長押し (skill1Held〜skill4Held)", () => {
+  it("押している間 Held が true、離すと false", () => {
     const input = new PlayerInput();
     const target = new FakeEventTarget();
     input.attachKeyboard(target as unknown as Window);
@@ -146,5 +146,31 @@ describe("長押し (skill1Held / skill2Held)", () => {
     const frame = input.snapshot();
     expect(frame.skill1Held).toBe(true);
     expect(frame.skill1Pressed).toBe(true);
+  });
+});
+
+describe("スロット 3 / 4", () => {
+  it("Digit3 / KeyX がスロット 3、Digit4 / KeyZ がスロット 4 の Pressed と Held", () => {
+    const input = new PlayerInput();
+    const target = new FakeEventTarget();
+    input.attachKeyboard(target as unknown as Window);
+
+    target.dispatch("keydown", keyEvent("KeyX"));
+    target.dispatch("keydown", keyEvent("Digit4"));
+    const frame = input.snapshot();
+    expect(frame.skill3Pressed).toBe(true);
+    expect(frame.skill3Held).toBe(true);
+    expect(frame.skill4Pressed).toBe(true);
+    expect(frame.skill4Held).toBe(true);
+    expect(frame.skill1Pressed || frame.skill2Pressed, "1 / 2 は立たない").toBe(false);
+  });
+
+  it("パッドのスキル層（LB + 面ボタン）の Pressed / Held をマージする", () => {
+    const input = new PlayerInput();
+    input.attachGamepad(new StubGamepad(gamepadFrame({ skill4Pressed: true, skill4Held: true, skill2Held: true })) as never);
+    const frame = input.snapshot();
+    expect(frame.skill4Pressed).toBe(true);
+    expect(frame.skill4Held).toBe(true);
+    expect(frame.skill2Held, "パッドの長押しで溜められる").toBe(true);
   });
 });

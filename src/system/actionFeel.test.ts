@@ -3,10 +3,13 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { dist } from "../core/vec";
-import { ACTION, PLAYER } from "../data/tuning";
+import { ACTION, BOON, PLAYER } from "../data/tuning";
+import { grantBoon } from "./boons";
 import { damageEnemy, damagePlayer } from "./combat";
 import { updateEnemies } from "./enemies";
 import { overlapsWall } from "./physics";
+import { counterPoise, meleeStep } from "./player";
+import { hasStatus } from "./statusEffects";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
@@ -28,6 +31,13 @@ function run(state: GameState, steps: number, attack = false): void {
 
 function swingOnce(state: GameState): void {
   run(state, SWING_STEPS, true);
+}
+
+/** 近接 n 段目（ダッシュ攻撃）の、今の stats での威力 */
+function slashDamage(state: GameState, combo: number, dashStrike = false): number {
+  const step = meleeStep(state.stats, combo, dashStrike);
+  if (!step) throw new Error(`近接の段が無い: ${combo}`);
+  return step.damage;
 }
 
 function hasText(state: GameState, text: string): boolean {
@@ -64,14 +74,14 @@ function enemyBullet(state: GameState, dx: number, speed: number, damage: number
 }
 
 describe("カウンターヒット", () => {
-  it("windup 中の敵に近接を当てると 1.5 倍 + スタガー + COUNTER!", () => {
+  it("windup 中の敵に近接を当てると 1.5 倍 + カウンター！", () => {
     const state = arena();
     const e = passive(placeEnemy(state, "boar", 14));
     e.phase = "windup";
     e.phaseTimer = LONG_WINDUP;
     const before = e.hp;
     const heard = runCollectSfx(state, SWING_STEPS, true);
-    expect(before - e.hp).toBe(Math.round(PLAYER.melee[0]!.damage * ACTION.counter.damageMul));
+    expect(before - e.hp, "カウンターの威力").toBe(Math.round(slashDamage(state, 0) * ACTION.counter.damageMul));
     expect(hasText(state, ACTION.counter.text)).toBe(true);
     expect(heard.has("counter")).toBe(true);
   });
@@ -82,19 +92,27 @@ describe("カウンターヒット", () => {
     e.phase = "chase";
     const before = e.hp;
     swingOnce(state);
-    expect(before - e.hp).toBe(PLAYER.melee[0]!.damage);
+    expect(before - e.hp, "通常の 1 段目の威力").toBe(slashDamage(state, 0));
     expect(hasText(state, ACTION.counter.text)).toBe(false);
   });
 
-  it("windup の敵はヒット直後にスタガーする", () => {
+  it("カウンターは確定の怯みではなく怯み値が 2 倍になる", () => {
     const state = arena();
+    const first = meleeStep(state.stats, 0);
+    if (!first) throw new Error("1 段目が無い");
+    expect(counterPoise(first, true), "カウンターの怯み値").toBe(first.poise * ACTION.counter.poiseMul);
+    expect(counterPoise(first, false), "通常の怯み値").toBe(first.poise);
+
+    // 猪（耐性が高い）に 1 段目のカウンターを 1 回当てても怯まない
     const e = passive(placeEnemy(state, "boar", 14));
     e.phase = "windup";
     e.phaseTimer = LONG_WINDUP;
     for (let i = 0; i < SWING_STEPS && e.hp === e.maxHp; i++) {
       step(state, withInput({ attackPressed: i === 0 }), FIXED_DT);
     }
-    expect(e.phase).toBe("stagger");
+    expect(e.hp, "カウンターが当たっている").toBeLessThan(e.maxHp);
+    expect(e.phase, "確定の怯み（旧 phase）にならない").not.toBe("stagger");
+    expect(hasStatus(e.status, "stagger"), "怯みの状態異常も付かない").toBe(false);
   });
 });
 
@@ -217,7 +235,7 @@ describe("リゲイン", () => {
   });
 });
 
-describe("JUST 回避カウンター", () => {
+describe("見切り斬り（祝福 justSlash）", () => {
   const ENEMY_DIST = 60;
 
   function justDodge(state: GameState, e: Enemy): void {
@@ -231,6 +249,7 @@ describe("JUST 回避カウンター", () => {
 
   it("JUST 回避直後の攻撃で敵の手前へ瞬間移動して重い一撃", () => {
     const state = arena();
+    grantBoon(state, "justSlash");
     const e = passive(placeEnemy(state, "boar", ENEMY_DIST));
     e.hp = 1000;
     justDodge(state, e);
@@ -239,14 +258,25 @@ describe("JUST 回避カウンター", () => {
     const d = dist(state.player.body.pos, e.body.pos);
     expect(d).toBeLessThan(ENEMY_DIST / 2);
     expect(d).toBeGreaterThanOrEqual(e.body.radius + state.player.body.radius);
-    const expected = Math.round(PLAYER.melee[2]!.damage * ACTION.justCounter.damageMul);
-    expect(1000 - e.hp).toBe(expected);
-    expect(e.phase).toBe("stagger");
+    const expected = Math.round(slashDamage(state, PLAYER.melee.length - 1) * ACTION.justCounter.damageMul);
+    expect(1000 - e.hp, "3 段目 × 見切り斬りの倍率").toBe(expected);
     expect(hasText(state, ACTION.justCounter.text)).toBe(true);
+  });
+
+  it("祝福が無ければ JUST 直後の攻撃は普通の 1 段目（瞬間移動しない）", () => {
+    const state = arena();
+    const e = passive(placeEnemy(state, "boar", ENEMY_DIST));
+    justDodge(state, e);
+    const before = { ...state.player.body.pos };
+    step(state, withInput({ attackPressed: true }), FIXED_DT);
+    expect(hasText(state, ACTION.justCounter.text), "見切り斬りの表示が出ない").toBe(false);
+    expect(state.player.attack.combo, "1 段目から始まる").toBe(0);
+    expect(dist(state.player.body.pos, before), "瞬間移動しない").toBeLessThan(ENEMY_DIST / 2);
   });
 
   it("0.4 秒を過ぎると出ない（普通の 1 段目になる）", () => {
     const state = arena();
+    grantBoon(state, "justSlash");
     const e = passive(placeEnemy(state, "boar", ENEMY_DIST));
     justDodge(state, e);
     // JUST のスロー込みでもゲーム時間で 0.4 秒を超えるまで待つ
@@ -262,6 +292,7 @@ describe("JUST 回避カウンター", () => {
 
   it("遠すぎる敵へは飛ばない", () => {
     const state = arena();
+    grantBoon(state, "justSlash");
     const e = passive(placeEnemy(state, "boar", ACTION.justCounter.maxRange + 20));
     justDodge(state, e);
     const before = { ...state.player.body.pos };
@@ -271,9 +302,10 @@ describe("JUST 回避カウンター", () => {
   });
 });
 
-describe("弾返しパリィ", () => {
+describe("弾返し（祝福 reflect）", () => {
   it("近接の active で敵弾を斬るとプレイヤー弾として反射する", () => {
     const state = arena();
+    grantBoon(state, "reflect");
     const pr = enemyBullet(state, 22, 135, 8);
     const energy = state.player.energy;
     const hp = state.player.hp;
@@ -285,7 +317,7 @@ describe("弾返しパリィ", () => {
     expect(pr.damage).toBe(8 * ACTION.reflect.damageMul);
     expect(Math.hypot(pr.vel.x, pr.vel.y)).toBeCloseTo(135 * ACTION.reflect.speedMul);
     expect(pr.vel.x).toBeGreaterThan(0);
-    expect(state.player.energy - energy).toBe(ACTION.reflect.energy);
+    expect(state.player.energy - energy, "撃ち返しの必殺ゲージは 3 倍").toBe(ACTION.reflect.energy * BOON.parryEnergyMul);
     expect(hasText(state, ACTION.reflect.text)).toBe(true);
     expect(state.player.hp).toBe(hp);
     expect(state.projectiles).toContain(pr);
@@ -315,6 +347,14 @@ describe("弾返しパリィ", () => {
     const before = e.hp;
     for (let i = 0; i < 30 && e.hp === before; i++) updateProjectiles(state, FIXED_DT);
     expect(before - e.hp).toBe(16);
+  });
+
+  it("祝福が無ければ近接は敵弾を素通りし、プレイヤーに当たる", () => {
+    const state = arena();
+    const pr = enemyBullet(state, 22, 135, 8);
+    for (let i = 0; i < SWING_STEPS; i++) step(state, withInput({ attackPressed: i === 0 }), FIXED_DT);
+    expect(pr.owner, "反射されない").toBe("enemy");
+    expect(state.player.hp, "被弾する").toBeLessThan(state.player.maxHp);
   });
 
   it("攻撃していなければ反射されずプレイヤーに当たる", () => {
@@ -406,8 +446,8 @@ describe("ダッシュ攻撃", () => {
     p.dashAttackQueued = true;
     e.body.pos = { x: p.body.pos.x + ACTION.dashAttack.reach, y: p.body.pos.y };
     run(state, SWING_STEPS);
-    expect(1000 - e.hp).toBe(ACTION.dashAttack.damage);
-    expect(ACTION.dashAttack.damage).toBeGreaterThan(PLAYER.melee[0]!.damage);
+    expect(1000 - e.hp, "ダッシュ攻撃の威力").toBe(slashDamage(state, 0, true));
+    expect(slashDamage(state, 0, true)).toBeGreaterThan(slashDamage(state, 0));
     expect(ACTION.dashAttack.reach).toBeGreaterThan(PLAYER.melee[1]!.reach);
   });
 

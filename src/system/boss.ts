@@ -10,6 +10,7 @@ import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy } from "./enemies";
 import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
+import { inflictOnPlayer, isSilenced } from "./statusEffects";
 
 /** 階層ボス。depth が BOSS.interval の倍数の階は、階段のある最後の部屋がボス部屋になる */
 
@@ -21,7 +22,6 @@ const DEFEAT_TEXT_COLOR = "#ffd75f";
 const SPLIT_TEXT_COLOR = "#80ff80";
 const RAGE_TEXT_COLOR = "#c0ffb0";
 const PHASE_FLASH = 0.6;
-const BOSS_STAGGER_MAX = 0.25;
 const FREE_POINT_ATTEMPTS = 30;
 const DROP_SPREAD = 14;
 /** King Slime の着地直下でのダメージ判定半径（衝撃波の半径に対する割合） */
@@ -92,11 +92,6 @@ export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: n
       return;
     case "idle":
       if (state.rooms[e.roomIndex]?.locked) e.phase = "chase";
-      return;
-    case "stagger":
-      // ボスは長く怯まない
-      e.phaseTimer = Math.min(e.phaseTimer, BOSS_STAGGER_MAX) - dt;
-      if (e.phaseTimer <= 0) toChase(e, def);
       return;
     default:
       break;
@@ -197,7 +192,7 @@ function landKingSlime(state: GameState, e: Enemy, def: EnemyDef): void {
   // 真下にいたら潰される
   const p = state.player.body;
   if (circlesOverlap(e.body.pos.x, e.body.pos.y, ks.shockRadius * SLAM_CORE_RATIO, p.pos.x, p.pos.y, p.radius)) {
-    damagePlayer(state, dmg, e.body.pos, e);
+    if (damagePlayer(state, dmg, e.body.pos, e) === "hit") inflictOnPlayer(state, e, "shockwave");
   }
   e.phase = "recover";
   e.phaseTimer = def.recover / kingSlimeSpeedMul(e);
@@ -293,6 +288,8 @@ function tickBarrage(state: GameState, e: Enemy, dt: number): void {
   ai.timer -= dt;
   if (ai.timer > 0) return;
   ai.timer += bl.volleyInterval;
+  // 沈黙中は弾幕を出せない（斉射の拍は進める）
+  if (isSilenced(e)) return;
   const offset = ai.counter * bl.volleySpin;
   for (let i = 0; i < bl.bulletDirs; i++) {
     fireBone(state, e, fromAngle(offset + (i / bl.bulletDirs) * FULL_CIRCLE));

@@ -5,22 +5,29 @@ export const PLAYER = {
   speed: 120,
   /** 攻撃中の移動速度倍率 */
   attackMoveMul: 0.35,
+  /** 怯み（被弾硬直）中の移動速度倍率。攻撃・射撃・ダッシュ・バーストは出せない（docs/COMBAT_DESIGN.md D-5） */
+  staggerMoveMul: 0.3,
   dash: {
     time: 0.16,
     speed: 400,
-    cooldown: 0.32,
-    /** ダッシュ後に少しだけ残る無敵（回避猶予） */
-    graceInvuln: 0.04,
-    /** ダッシュ開始からの無敵秒（docs/COMBAT_DESIGN.md C-1。段階 1 の L4 が読む。それまでは全長が無敵） */
+    /** 連打で無敵を繋げないよう、無敵（invulnTime）より十分長くする（docs/COMBAT_DESIGN.md C-1） */
+    cooldown: 0.45,
+    /** ダッシュ後に少しだけ残る無敵（回避猶予）。無効化手段を絞るため 0 */
+    graceInvuln: 0,
+    /** ダッシュ開始からの無敵秒（docs/COMBAT_DESIGN.md C-1）。ダッシュの後半は被弾する */
     invulnTime: 0.1,
   },
-  /** 被弾後の無敵時間 */
-  hurtInvuln: 0.7,
+  /** 被弾後の無敵時間（docs/COMBAT_DESIGN.md C-1: 0.7 → 0.5） */
+  hurtInvuln: 0.5,
   hurtKnockback: 220,
+  /**
+   * 近接 3 段。scaling は威力の係数（docs/COMBAT_DESIGN.md A-6。基礎値で 9 / 9 / 18）、
+   * poise は基礎怯み値（D-2）、heavy は重いヒットストップと壁叩きつけを起こす段
+   */
   melee: [
-    { windup: 0.05, active: 0.1, recover: 0.16, damage: 9, reach: 16, size: 26, knockback: 140, stagger: false },
-    { windup: 0.05, active: 0.1, recover: 0.16, damage: 9, reach: 18, size: 28, knockback: 160, stagger: false },
-    { windup: 0.08, active: 0.12, recover: 0.3, damage: 18, reach: 22, size: 38, knockback: 320, stagger: true },
+    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 6, str: 0.6 }, poise: 8, reach: 16, size: 26, knockback: 140, heavy: false },
+    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 6, str: 0.6 }, poise: 8, reach: 18, size: 28, knockback: 160, heavy: false },
+    { windup: 0.08, active: 0.12, recover: 0.3, scaling: { base: 12, str: 1.2 }, poise: 22, reach: 22, size: 38, knockback: 320, heavy: true },
   ],
   /** コンボ最終段の後、次の 1 段目まで待たせる時間 */
   comboLockout: 0.18,
@@ -29,7 +36,9 @@ export const PLAYER = {
   shoot: {
     cooldown: 0.17,
     speed: 300,
-    damage: 5,
+    /** 1 発の威力（基礎値で 5）と怯み値 */
+    scaling: { base: 3.5, dex: 0.3 },
+    poise: 2,
     life: 0.9,
     radius: 2,
     /** 発射時に少しだけ後ろに下がる反動 */
@@ -37,9 +46,13 @@ export const PLAYER = {
   },
   special: {
     cost: 100,
-    damage: 34,
+    /** 威力（基礎値で 34）と怯み値 */
+    scaling: { base: 24, mnd: 1, spi: 1 },
+    poise: 60,
     radius: 64,
     knockback: 380,
+    /** 発動後の無敵（秒）。弾消しは維持するので短め（docs/COMBAT_DESIGN.md C-1 の 10） */
+    invuln: 0.15,
   },
   maxEnergy: 100,
   /** 近接ヒット 1 回あたりの必殺ゲージ */
@@ -195,6 +208,19 @@ export const ATTR = {
   spiBuffPotency: 0.02,
 } as const;
 
+/** ステータスの入手（共鳴）とラン内の振り分け（docs/COMBAT_DESIGN.md A-3） */
+export const ATTR_GAIN = {
+  /** 共鳴: 支配はその色のステータス、二重は 2 色それぞれ、散光は全ステータスに加算 */
+  resonanceDominant: 3,
+  resonanceDual: 2,
+  resonanceScatter: 1,
+  /** ラン内: 階層到達ごと・ボス撃破後の階段で得る振り分け点 */
+  perFloor: 1,
+  perBoss: 2,
+  /** 振り分けパネルが出てから入力を受け付けるまで（秒）。祝福の選択キーの押しっぱなしで誤爆しない */
+  allocInputDelay: 0.25,
+} as const;
+
 /** マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源 */
 export const MANA = {
   /** 精神 base のときの最大マナと自然回復 / 秒 */
@@ -237,8 +263,10 @@ export const POISE = {
   eliteMul: 1.5,
   /** 怯んでいない敵へのノックバック倍率 */
   knockbackUnstaggered: 0.35,
-  /** 移行期間に HitOptions.stagger: true を怯み値に読み替える値 */
-  legacyStagger: 25,
+  /** 盾騎士が正面の近接をブロックしたときに溜まる怯み値の割合 */
+  blockMul: 0.5,
+  /** 猪の壁激突の自傷怯み（秒） */
+  chargerWallStagger: 0.9,
 } as const;
 
 /** トリガー効果 */
@@ -257,6 +285,8 @@ export const TRIGGER = {
   percent: 100,
   /** duration が無い効果の既定持続秒 */
   defaultDuration: 3,
+  /** 効果 invuln の持続の上限（秒）。被弾時・ゲージ満タンの無敵で常時無敵にしない（docs/COMBAT_DESIGN.md C-1 の 13） */
+  invulnMax: 0.4,
 } as const;
 
 /** キーストーンの数値 */
@@ -267,6 +297,9 @@ export const KEYSTONE = {
   gamblerMin: 0.2,
   gamblerMax: 3,
   berserkerHealMul: 0.5,
+  /** ks_overdraw（過負荷）: 足りないマナ 1 あたりに払う HP と、払った後に残す HP の下限（自滅させない） */
+  overdrawHpPerMana: 0.5,
+  overdrawMinHp: 1,
 } as const;
 
 /** 装備ドロップ */
@@ -295,7 +328,7 @@ export const FEEL = {
   shakeHurt: 7,
   shakeSpecial: 10,
   /** ジャスト回避のスローモーション（実時間秒）と倍率 */
-  justDodgeSlowmo: 0.45,
+  justDodgeSlowmo: 0.35,
   slowmoScale: 0.3,
   comboWindow: 2.2,
 } as const;
@@ -325,8 +358,6 @@ export const ENEMY_AI = {
     blockPushback: 40,
     /** 突進の速度倍率（def.speed に掛ける） */
     lungeSpeedMul: 6,
-    /** GUARD BREAK（カウンター/JUST カウンターで盾を無視）した後のスタガー時間（秒） */
-    guardBreakStagger: 0.6,
   },
   bomber: {
     /** この距離より近いと離れる */
@@ -362,8 +393,6 @@ export const ENEMY_AI = {
     retreatMul: 1.2,
   },
   wisp: {
-    /** 触れたプレイヤーに炎をまとわせる演出時間（秒）。ダメージは contactDamage */
-    burnDuration: 2,
     deathExplodeRadius: 26,
     deathExplodeDamage: 10,
     /** 死亡から爆発までの猶予（秒）。テレグラフを見て離れられるように即時にしない */
@@ -514,6 +543,8 @@ export const ACTION = {
   /** カウンターヒット: 敵の windup 中に近接を当てる */
   counter: {
     damageMul: 1.5,
+    /** 怯み値の倍率。確定の怯みではなく、敵の強靭（攻撃中 ×0.5）と相殺して等倍になる値 */
+    poiseMul: 2,
     /** 通常の hitstop に足すステップ */
     hitstopBonus: 2,
     text: "カウンター！",
@@ -543,17 +574,19 @@ export const ACTION = {
     window: 3,
     /** 近接 1 ヒットで戻る量（被ダメに対する割合） */
     perHitRatio: 0.15,
-    /** 取り戻せる合計（被ダメに対する割合） */
-    poolRatio: 0.6,
+    /** 取り戻せる合計（被ダメに対する割合）。C-1 で 0.6 → 0.5 */
+    poolRatio: 0.5,
     color: "#b0ffb0",
     particles: 4,
   },
-  /** JUST 回避カウンター: JUST 回避直後に攻撃で回避した敵へ瞬間移動斬り */
+  /** 見切り斬り（祝福 justSlash）: JUST 回避直後に攻撃で回避した敵へ瞬間移動斬り */
   justCounter: {
     /** JUST 回避後に攻撃を受け付ける秒数 */
     window: 0.4,
     /** 近接 3 段目のダメージに掛ける倍率 */
     damageMul: 1.5,
+    /** 基礎怯み値（docs/COMBAT_DESIGN.md D-2） */
+    poise: 60,
     /** この距離より遠い敵へは飛ばない（px） */
     maxRange: 160,
     /** 敵の縁からこの距離だけ手前で止まる（px） */
@@ -566,7 +599,7 @@ export const ACTION = {
     lineLife: 0.2,
     particles: 16,
   },
-  /** 弾返しパリィ: 近接の active で敵弾を斬るとプレイヤー弾として反射 */
+  /** 弾返し（祝福 reflect）: 近接の active で敵弾を斬るとプレイヤー弾として反射 */
   reflect: {
     speedMul: 1.3,
     damageMul: 2,
@@ -584,6 +617,8 @@ export const ACTION = {
   /** 壁叩きつけ: 近接 3 段目などで吹き飛んだ敵が壁に激突 */
   wallSplat: {
     damage: 10,
+    /** 基礎怯み値（強靭を無視する。docs/COMBAT_DESIGN.md D-2） */
+    poise: 20,
     color: "#c0c0c0",
     particles: 12,
     hitstop: 3,
@@ -593,11 +628,18 @@ export const ACTION = {
     windup: 0.03,
     active: 0.1,
     recover: 0.18,
-    damage: 13,
+    /** 威力（基礎値で 13）と怯み値 */
+    scaling: { base: 9, str: 0.8 },
+    poise: 12,
     reach: 26,
     size: 30,
     knockback: 220,
-    stagger: false,
+    heavy: false,
+  },
+  /** 弾斬り（性質 bulletCut）: 近接の active で敵弾を消す */
+  bulletCut: {
+    color: "#c0e0ff",
+    particles: 4,
   },
 } as const;
 
@@ -622,7 +664,7 @@ export const BOON = {
   wavePierce: 99,
   waveColor: "#ffe0a0",
   comboWaveThreshold: 20,
-  /** 敵弾を斬ったときの必殺ゲージ倍率 */
+  /** 弾返し（reflect）で撃ち返したときの必殺ゲージ倍率 */
   parryEnergyMul: 3,
   /** 部屋ロック中 / 非ロック中の移動速度倍率 */
   lockdownFastMul: 1.3,

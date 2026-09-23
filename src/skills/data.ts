@@ -1,3 +1,5 @@
+import type { StatusApply } from "../core/status";
+import { STATUS } from "../data/tuning";
 import type {
   CastParams,
   ModifierDef,
@@ -12,11 +14,18 @@ import type {
 /** 割合 → % 表記 */
 const PERCENT_UNIT = 100;
 
-/** スキルの数値。docs/ideas/skills.md「7-5」 */
+/**
+ * スキルの数値。docs/ideas/skills.md「7-5」、docs/COMBAT_DESIGN.md B-2 / B-4。
+ * damage は Scaling（base + 係数 × ステータス実効値）。ステータスが基礎値（各 5）のとき旧来の固定値と一致する
+ */
 export const SKILL = {
-  slots: 2,
-  /** リンク 1 本ごとに素の CD に足す割合 */
-  linkCooldownPenalty: 0.15,
+  slots: 4,
+  /** 共通最低間隔: どのスキルを撃った後も全スロット共通でこの秒は撃てない */
+  gcd: 0.15,
+  /** マナ不足の不発で HUD のマナバーを点滅させる秒 */
+  manaFlashTime: 0.3,
+  /** リンク 1 本ごとに足す負担の割合（マナ型はコスト、CD 型は CD） */
+  linkBurdenPenalty: 0.15,
   maxLinks: 3,
   /** リンク数 0..3 の重み */
   linkWeights: [30, 45, 20, 5],
@@ -28,38 +37,160 @@ export const SKILL = {
   inputBuffer: 0.25,
   notReadyTextInterval: 0.6,
   stashCapacity: 60,
-  whirl: { cooldown: 5, duration: 0.45, hits: 4, radius: 28, damage: 7, knockback: 60, moveMul: 0.6, recover: 0.15 },
-  lunge: { cooldown: 4, distance: 90, time: 0.14, hitPad: 10, damage: 16, knockback: 200, wallStun: 0.25, comboLinkWindow: 0.3 },
-  frag: { cooldown: 6, maxRange: 120, flight: 0.35, fuse: 0.5, radius: 36, damage: 26, knockback: 240, selfDamageFraction: 0.1, spread: 14, wallProbe: 2 },
-  railshot: { cooldown: 5, aim: 0.35, damage: 30, knockback: 180, recoil: 120, stepPx: 2, maxLength: 400, halfWidth: 3, cancelRefund: 0.5, spreadRad: 0.1 },
-  parry: { cooldown: 3, window: 0.22, failLock: 0.35, radius: 40, damage: 12, knockback: 260, catchPad: 4 },
-  bloodPact: { cooldown: 12, hpFraction: 0.12, duration: 4, speedMul: 1.35, lifesteal: 0.08 },
-  /** 地裂き: 溜めて前方扇に衝撃波。溜め中の被弾で中断（CD は消費） */
-  quake: { cooldown: 5, windup: 0.35, recover: 0.2, radius: 56, halfAngle: 0.6, damage: 22, knockback: 220 },
-  /** 雷撃: カーソル地点に遅れて落雷、中心の敵から連鎖雷 */
-  thunder: { cooldown: 5, maxRange: 140, delay: 0.5, radius: 22, damage: 24, shockMul: 0.5, extraGap: 0.12, extraOffset: 22 },
-  /** 引力球: 範囲の敵（と敵弾）を中心へ引き、最後に弾ける */
+  // ---- マナ型は cost / minInterval、CD 型は cooldown / minInterval。poise は 1 ヒットの基礎怯み値 ----
+  whirl: {
+    cost: 18,
+    minInterval: 0.6,
+    poise: 6,
+    duration: 0.45,
+    hits: 4,
+    radius: 28,
+    damage: { base: 3, str: 0.4, spi: 0.4 },
+    knockback: 60,
+    moveMul: 0.6,
+    recover: 0.15,
+  },
+  lunge: {
+    cooldown: 3,
+    minInterval: 0.3,
+    poise: 20,
+    distance: 90,
+    time: 0.14,
+    hitPad: 10,
+    damage: { base: 8, str: 1, dex: 0.6 },
+    knockback: 200,
+    wallStun: 0.25,
+    comboLinkWindow: 0.3,
+  },
+  frag: {
+    cost: 22,
+    minInterval: 0.5,
+    poise: 30,
+    maxRange: 120,
+    flight: 0.35,
+    fuse: 0.5,
+    radius: 36,
+    damage: { base: 12, dex: 1.4, spi: 1.4 },
+    knockback: 240,
+    selfDamageFraction: 0.1,
+    spread: 14,
+    wallProbe: 2,
+  },
+  railshot: {
+    cost: 25,
+    minInterval: 0.8,
+    poise: 25,
+    aim: 0.35,
+    damage: { base: 14, dex: 2, spi: 1.2 },
+    knockback: 180,
+    recoil: 120,
+    stepPx: 2,
+    maxLength: 400,
+    halfWidth: 3,
+    /** 照準中のダッシュキャンセルで、払ったマナのこの割合を返す */
+    cancelRefund: 0.5,
+    spreadRad: 0.1,
+    /** 命中した敵を脆弱にする秒 */
+    vulnerableTime: 3,
+  },
+  /** パリィ（CD 型）。窓・失敗硬直・成功時の CD 回復は docs/COMBAT_DESIGN.md C-1 の 7 */
+  parry: {
+    cooldown: 3.5,
+    minInterval: 0.3,
+    poise: 40,
+    window: 0.16,
+    failLock: 0.45,
+    /** 成功時に戻す CD の割合 */
+    successRefund: 0.5,
+    radius: 40,
+    damage: { base: 6, str: 0.6, spi: 0.6 },
+    knockback: 260,
+    catchPad: 4,
+  },
+  bloodPact: { cooldown: 12, minInterval: 0.3, hpFraction: 0.12, duration: 4, speedMul: 1.35, lifesteal: 0.08 },
+  /** 地裂き: 溜めて前方扇に衝撃波。溜め中の被弾で中断（マナは消費済み） */
+  quake: {
+    cost: 24,
+    minInterval: 0.6,
+    poise: 45,
+    windup: 0.35,
+    recover: 0.2,
+    radius: 56,
+    halfAngle: 0.6,
+    damage: { base: 10, str: 1.6, spi: 0.8 },
+    knockback: 220,
+  },
+  /** 雷撃: カーソル地点に遅れて落雷、中心の敵から連鎖雷。命中した敵に感電 */
+  thunder: {
+    cost: 20,
+    minInterval: 0.5,
+    poise: 15,
+    maxRange: 140,
+    delay: 0.5,
+    radius: 22,
+    damage: { base: 10, dex: 1.2, spi: 1.6 },
+    shockMul: 0.5,
+    extraGap: 0.12,
+    extraOffset: 22,
+    shockStacks: 2,
+    /** 感電の連鎖 1 回のダメージ（状態異常の potency） */
+    shockPotency: 3,
+  },
+  /** 引力球: 範囲の敵（と敵弾）を中心へ引き、最後に弾ける。引き寄せ中の敵は沈黙 */
   gravityWell: {
-    cooldown: 9,
+    cost: 30,
+    minInterval: 1,
+    /** 破裂の怯み値（tick は 0） */
+    poise: 20,
     maxRange: 120,
     duration: 2,
     radius: 50,
     pull: 70,
     core: 6,
     tickEvery: 0.5,
-    tickDamage: 3,
-    burstDamage: 18,
+    tickDamage: { base: 1, spi: 0.4 },
+    burstDamage: { base: 8, spi: 2 },
     burstKnockback: 80,
+    /** tick ごとに付け直す沈黙の秒（tick 間隔より少し長く、引いている間は切れない） */
+    silenceTime: 0.6,
   },
   /** 地雷: 足元に設置、起動後に敵が踏むと爆発 */
-  mines: { cooldown: 3, arm: 0.4, life: 20, maxAlive: 3, trigger: 10, radius: 30, damage: 20, knockback: 160 },
+  mines: {
+    cost: 12,
+    minInterval: 0.3,
+    poise: 25,
+    arm: 0.4,
+    life: 20,
+    maxAlive: 3,
+    trigger: 10,
+    radius: 30,
+    damage: { base: 8, dex: 1.2, spi: 1.2 },
+    knockback: 160,
+  },
   /** 加速: ダッシュ CD 0 + 移動速度。切れた後はダッシュ不可 */
-  haste: { cooldown: 11, duration: 3, moveBonus: 0.3, exhaust: 1.5 },
-  /** 鎖鎌: 鎖を伸ばし、刺さった敵を手元へ引き寄せる（ボスなら自分が飛ぶ） */
-  chainHook: { cooldown: 4, range: 110, extendTime: 0.18, recover: 0.25, hitPad: 3, damage: 14, knockback: 40, landGap: 2 },
+  haste: { cooldown: 11, minInterval: 0.3, duration: 3, moveBonus: 0.3, exhaust: 1.5 },
+  /** 鎖鎌: 鎖を伸ばし、刺さった敵を手元へ引き寄せる（ボスなら自分が飛ぶ）。命中した敵に出血 */
+  chainHook: {
+    cost: 14,
+    minInterval: 0.5,
+    poise: 15,
+    range: 110,
+    extendTime: 0.18,
+    recover: 0.25,
+    hitPad: 3,
+    damage: { base: 6, str: 1, dex: 0.6 },
+    knockback: 40,
+    landGap: 2,
+    bleedStacks: 1,
+    bleedTime: 4,
+    /** 出血の 10px あたりダメージ（状態異常の potency） */
+    bleedPotency: 1,
+  },
   /** 回転弾幕: 自分中心に螺旋状の弾。発射中は移動 40%、近接・射撃不可 */
   spiral: {
-    cooldown: 7,
+    cost: 28,
+    minInterval: 1.1,
+    poise: 2,
     duration: 1,
     bullets: 24,
     bulletsPerCount: 4,
@@ -68,34 +199,39 @@ export const SKILL = {
     speed: 160,
     life: 0.6,
     radius: 2.5,
-    damage: 5,
+    damage: { base: 2, dex: 0.3, spi: 0.3 },
     knockback: 30,
     moveMul: 0.4,
   },
   /** 氷結地帯: 中の敵を chill + 継続ダメージ。自分も中では遅くなる */
   frostField: {
-    cooldown: 8,
+    cost: 26,
+    minInterval: 0.8,
+    poise: 0,
     maxRange: 110,
     duration: 3,
     radius: 40,
     tickEvery: 0.5,
-    tickDamage: 4,
+    tickDamage: { base: 1, spi: 0.6 },
     slow: 0.5,
     maxSlow: 0.8,
     chillTime: 0.6,
     selfMoveMul: 0.8,
   },
   modifier: {
-    multiCharge: { extraCharges: 2, damageMul: 0.7, cooldownMul: 1.3 },
-    bloodPrice: { hpFraction: 0.06, damageMul: 1.6, potencyMul: 1.6 },
+    /** CD 型: チャージ +2・負担 ×1.3。マナ型: コスト ×0.6・最低間隔 ×0.5。どちらも威力 ×0.7 */
+    multiCharge: { extraCharges: 2, damageMul: 0.7, burdenMul: 1.3, manaBurdenMul: 0.6, intervalMul: 0.5 },
+    /** マナ型は血でマナを肩代わりしてコスト ×0.5 */
+    bloodPrice: { hpFraction: 0.06, damageMul: 1.6, potencyMul: 1.6, manaBurdenMul: 0.5 },
     comboFuel: { perStack: 0.04, cap: 1.2, emptyMul: 0.8 },
-    echo: { delay: 0.8, damageMul: 0.5, cooldownMul: 1.25 },
+    echo: { delay: 0.8, damageMul: 0.5, burdenMul: 1.25 },
     pierce: { count: 3, areaMul: 0.8 },
     recoil: { speed: 220, invuln: 0.1, damageMul: 0.85 },
-    chainReset: { cooldownMul: 1.35 },
+    /** CD 型: 撃破でチャージ +1・負担 ×1.35。マナ型: 撃破でコストの manaRefund を返す・負担 ×1.2 */
+    chainReset: { burdenMul: 1.35, manaBurdenMul: 1.2, manaRefund: 0.5 },
     curse: { duration: 4, bonus: 0.35, damageMul: 0.85 },
     delay: { time: 0.8, damageMul: 1.8 },
-    expand: { areaMul: 1.5, cooldownMul: 1.4 },
+    expand: { areaMul: 1.5, burdenMul: 1.4 },
     /** 溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる */
     charge: { maxTime: 1.2, minTime: 0.15, maxDamageMul: 2.2, maxAreaMul: 1.5, moveMul: 0.6 },
   },
@@ -144,11 +280,39 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   frostField: 7,
 };
 
-/**
- * 段階 0 の中立値: 全スキルを既存どおりの CD 型として扱う（コスト・最低間隔・怯み値なし）。
- * 段階 1 の L2 が docs/COMBAT_DESIGN.md B-4 の表の値に置き換えて、この定数を消す
- */
-const LEGACY_RESOURCE = { resource: "cooldown", manaCost: 0, minInterval: 0, poise: 0 } as const;
+/** マナ型の共通項: CD とチャージは使わない（docs/COMBAT_DESIGN.md B-4） */
+function manaSkill(block: { cost: number; minInterval: number; poise: number }) {
+  return {
+    resource: "mana",
+    cooldown: 0,
+    charges: 1,
+    manaCost: block.cost,
+    minInterval: block.minInterval,
+    poise: block.poise,
+  } as const;
+}
+
+/** CD 型の共通項: コスト 0、既存の CD とチャージ制 */
+function cooldownSkill(block: { cooldown: number; minInterval: number }, poise: number) {
+  return {
+    resource: "cooldown",
+    cooldown: block.cooldown,
+    charges: 1,
+    manaCost: 0,
+    minInterval: block.minInterval,
+    poise,
+  } as const;
+}
+
+/** 命中した敵に付ける状態異常（docs/COMBAT_DESIGN.md B-4 の「付与」列） */
+const APPLIES = {
+  railshot: [{ kind: "vulnerable", stacks: 1, duration: SKILL.railshot.vulnerableTime, potency: 0 }],
+  thunder: [{ kind: "shock", stacks: SKILL.thunder.shockStacks, duration: STATUS.shock.duration, potency: SKILL.thunder.shockPotency }],
+  gravityWell: [{ kind: "silence", stacks: 1, duration: SKILL.gravityWell.silenceTime, potency: 0 }],
+  chainHook: [
+    { kind: "bleed", stacks: SKILL.chainHook.bleedStacks, duration: SKILL.chainHook.bleedTime, potency: SKILL.chainHook.bleedPotency },
+  ],
+} as const satisfies Partial<Record<SkillKey, readonly StatusApply[]>>;
 
 export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   whirl: {
@@ -158,10 +322,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "回転して周囲の敵を斬り払う",
     tags: ["melee", "area"],
     damageKind: "melee",
-    cooldown: SKILL.whirl.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.whirl),
   },
   lunge: {
     key: "lunge",
@@ -170,10 +332,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "カーソル方向へ突進して斬る（無敵時間なし）",
     tags: ["melee", "movement"],
     damageKind: "melee",
-    cooldown: SKILL.lunge.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...cooldownSkill(SKILL.lunge, SKILL.lunge.poise),
   },
   frag: {
     key: "frag",
@@ -182,10 +342,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "導火線付きの手榴弾を投げ、少し遅れて爆発させる",
     tags: ["area", "projectile", "placed"],
     damageKind: "ranged",
-    cooldown: SKILL.frag.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.frag),
   },
   railshot: {
     key: "railshot",
@@ -194,10 +352,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "照準してから、壁まで貫通するビームを撃つ",
     tags: ["projectile"],
     damageKind: "ranged",
-    cooldown: SKILL.railshot.cooldown,
-    charges: 1,
     axes: ["cooldownVsDamage", "speedVsDamage", "countVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.railshot),
+    applies: APPLIES.railshot,
   },
   parry: {
     key: "parry",
@@ -206,10 +363,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "構える。防いだ一撃はJUST扱いになり、CDが戻る",
     tags: ["defense", "melee"],
     damageKind: "melee",
-    cooldown: SKILL.parry.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...cooldownSkill(SKILL.parry, SKILL.parry.poise),
   },
   bloodPact: {
     key: "bloodPact",
@@ -218,10 +373,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "HPを払って攻撃速度と吸血を得る",
     tags: ["buff"],
     damageKind: "none",
-    cooldown: SKILL.bloodPact.cooldown,
-    charges: 1,
     axes: ["durationVsPotency"],
-    ...LEGACY_RESOURCE,
+    ...cooldownSkill(SKILL.bloodPact, 0),
   },
   quake: {
     key: "quake",
@@ -230,10 +383,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "溜めてから前方扇状に衝撃波を放つ（溜め中の被弾で中断）",
     tags: ["melee", "area"],
     damageKind: "melee",
-    cooldown: SKILL.quake.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.quake),
   },
   thunder: {
     key: "thunder",
@@ -242,10 +393,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "カーソル地点に遅れて雷を落とす",
     tags: ["lightning", "area", "placed"],
     damageKind: "ranged",
-    cooldown: SKILL.thunder.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "speedVsDamage", "countVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.thunder),
+    applies: APPLIES.thunder,
   },
   gravityWell: {
     key: "gravityWell",
@@ -254,10 +404,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "設置した場所へ範囲内の敵（と敵弾）を引き寄せる",
     tags: ["area", "placed"],
     damageKind: "ranged",
-    cooldown: SKILL.gravityWell.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "durationVsPotency", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.gravityWell),
+    applies: APPLIES.gravityWell,
   },
   mines: {
     key: "mines",
@@ -266,10 +415,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "足元に地雷を設置する。起動後、敵が踏むと爆発する",
     tags: ["placed", "area"],
     damageKind: "ranged",
-    cooldown: SKILL.mines.cooldown,
-    charges: 1,
     axes: ["countVsDamage", "areaVsDamage", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.mines),
   },
   haste: {
     key: "haste",
@@ -278,10 +425,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "ダッシュがCD無しになり移動速度が上がる。切れた後はダッシュ不可",
     tags: ["buff", "movement"],
     damageKind: "none",
-    cooldown: SKILL.haste.cooldown,
-    charges: 1,
     axes: ["durationVsPotency", "cooldownVsPotency"],
-    ...LEGACY_RESOURCE,
+    ...cooldownSkill(SKILL.haste, 0),
   },
   chainHook: {
     key: "chainHook",
@@ -290,10 +435,9 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "鎖を伸ばし、最初に当たった敵を手元へ引き寄せる",
     tags: ["melee", "projectile"],
     damageKind: "melee",
-    cooldown: SKILL.chainHook.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.chainHook),
+    applies: APPLIES.chainHook,
   },
   spiral: {
     key: "spiral",
@@ -302,10 +446,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "自分を中心に螺旋状の弾を放つ（発射中は移動が遅くなり、近接・射撃不可）",
     tags: ["projectile", "channel"],
     damageKind: "ranged",
-    cooldown: SKILL.spiral.cooldown,
-    charges: 1,
     axes: ["countVsDamage", "speedVsDamage", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.spiral),
   },
   frostField: {
     key: "frostField",
@@ -314,10 +456,8 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     verb: "地面を凍らせ、中の敵を凍結させながら継続ダメージを与える（自分も遅くなる）",
     tags: ["cold", "area", "placed"],
     damageKind: "ranged",
-    cooldown: SKILL.frostField.cooldown,
-    charges: 1,
     axes: ["areaVsDamage", "durationVsPotency", "cooldownVsDamage"],
-    ...LEGACY_RESOURCE,
+    ...manaSkill(SKILL.frostField),
   },
 };
 
@@ -327,27 +467,39 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   multiCharge: {
     key: "multiCharge",
     name: "多重",
-    verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、CD x${M.multiCharge.cooldownMul}`,
+    verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、CD x${M.multiCharge.burdenMul}`,
+    manaVerb: `コスト x${M.multiCharge.manaBurdenMul}、連打間隔 x${M.multiCharge.intervalMul}、ダメージ x${M.multiCharge.damageMul}`,
     color: "#ffffff",
     excludesTags: [],
-    apply: (p) => ({
-      ...p,
-      charges: p.charges + M.multiCharge.extraCharges,
-      damageMul: p.damageMul * M.multiCharge.damageMul,
-      cooldownMul: p.cooldownMul * M.multiCharge.cooldownMul,
-    }),
+    apply: (p, def) =>
+      def.resource === "mana"
+        ? {
+            ...p,
+            burdenMul: p.burdenMul * M.multiCharge.manaBurdenMul,
+            intervalMul: p.intervalMul * M.multiCharge.intervalMul,
+            damageMul: p.damageMul * M.multiCharge.damageMul,
+          }
+        : {
+            ...p,
+            charges: p.charges + M.multiCharge.extraCharges,
+            damageMul: p.damageMul * M.multiCharge.damageMul,
+            burdenMul: p.burdenMul * M.multiCharge.burdenMul,
+          },
   },
   bloodPrice: {
     key: "bloodPrice",
     name: "血の代償",
-    verb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * 100}%を消費`,
+    verb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費`,
+    manaVerb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費してコスト x${M.bloodPrice.manaBurdenMul}`,
     color: "#ff4040",
     excludesTags: [],
-    apply: (p) => ({
+    apply: (p, def) => ({
       ...p,
       hpCostFraction: p.hpCostFraction + M.bloodPrice.hpFraction,
       damageMul: p.damageMul * M.bloodPrice.damageMul,
       potencyMul: p.potencyMul * M.bloodPrice.potencyMul,
+      // 血でマナを肩代わりする（CD 型は現行どおり CD に触れない）
+      burdenMul: def.resource === "mana" ? p.burdenMul * M.bloodPrice.manaBurdenMul : p.burdenMul,
     }),
   },
   comboFuel: {
@@ -364,13 +516,14 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   echo: {
     key: "echo",
     name: "反響",
-    verb: `${M.echo.delay}秒後に${M.echo.damageMul * 100}%の威力で再発動、CD x${M.echo.cooldownMul}`,
+    verb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、CD x${M.echo.burdenMul}`,
+    manaVerb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、コスト x${M.echo.burdenMul}`,
     color: "#c080ff",
     excludesTags: ["defense", "buff"],
     apply: (p) => ({
       ...p,
       echo: { delay: M.echo.delay, damageMul: M.echo.damageMul },
-      cooldownMul: p.cooldownMul * M.echo.cooldownMul,
+      burdenMul: p.burdenMul * M.echo.burdenMul,
     }),
   },
   pierce: {
@@ -396,10 +549,14 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   chainReset: {
     key: "chainReset",
     name: "連鎖",
-    verb: `このスキルでの撃破でチャージが1回復、CD x${M.chainReset.cooldownMul}`,
+    verb: `このスキルでの撃破でチャージが1回復、CD x${M.chainReset.burdenMul}`,
+    manaVerb: `このスキルでの撃破でコストの${M.chainReset.manaRefund * PERCENT_UNIT}%を返す、コスト x${M.chainReset.manaBurdenMul}`,
     color: "#ffff80",
     excludesTags: ["buff", "defense"],
-    apply: (p) => ({ ...p, killRefund: true, cooldownMul: p.cooldownMul * M.chainReset.cooldownMul }),
+    apply: (p, def) =>
+      def.resource === "mana"
+        ? { ...p, killManaRefund: M.chainReset.manaRefund, burdenMul: p.burdenMul * M.chainReset.manaBurdenMul }
+        : { ...p, killRefund: true, burdenMul: p.burdenMul * M.chainReset.burdenMul },
   },
   curse: {
     key: "curse",
@@ -424,16 +581,18 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
   expand: {
     key: "expand",
     name: "拡大",
-    verb: `範囲 x${M.expand.areaMul}、CD x${M.expand.cooldownMul}`,
+    verb: `範囲 x${M.expand.areaMul}、CD x${M.expand.burdenMul}`,
+    manaVerb: `範囲 x${M.expand.areaMul}、コスト x${M.expand.burdenMul}`,
     color: "#60a0ff",
     excludesTags: [],
     requiresTags: ["area"],
-    apply: (p) => ({ ...p, areaMul: p.areaMul * M.expand.areaMul, cooldownMul: p.cooldownMul * M.expand.cooldownMul }),
+    apply: (p) => ({ ...p, areaMul: p.areaMul * M.expand.areaMul, burdenMul: p.burdenMul * M.expand.burdenMul }),
   },
   charge: {
     key: "charge",
     name: "溜め",
     verb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}`,
+    manaVerb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}。コストは離した瞬間に払う`,
     color: "#ffd060",
     // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、回転弾幕はチャネル系で「溜めて離す」と噛み合わない
     excludesTags: ["defense", "buff", "channel"],
@@ -462,7 +621,7 @@ export function baseCastParams(def: SkillDef): CastParams {
     areaMul: 1,
     timeMul: 1,
     durationMul: 1,
-    cooldownMul: 1,
+    burdenMul: 1,
     charges: def.charges,
     countBonus: 0,
     hpCostFraction: 0,
@@ -476,6 +635,8 @@ export function baseCastParams(def: SkillDef): CastParams {
     slot: -1,
     intervalMul: 1,
     killManaRefund: 0,
+    skillKey: def.key,
+    manaPaid: 0,
   };
 }
 
@@ -486,7 +647,7 @@ function applyVariant(p: CastParams, roll: VariantRoll): CastParams {
     case "areaVsDamage":
       return { ...p, areaMul: p.areaMul * (1 + c.gain * v), damageMul: p.damageMul * (1 - c.cost * v) };
     case "cooldownVsDamage":
-      return { ...p, cooldownMul: p.cooldownMul * (1 - c.gain * v), damageMul: p.damageMul * (1 - c.cost * v) };
+      return { ...p, burdenMul: p.burdenMul * (1 - c.gain * v), damageMul: p.damageMul * (1 - c.cost * v) };
     case "speedVsDamage":
       return { ...p, timeMul: p.timeMul * (1 - c.gain * v), damageMul: p.damageMul * (1 - c.cost * v) };
     case "countVsDamage":
@@ -494,7 +655,7 @@ function applyVariant(p: CastParams, roll: VariantRoll): CastParams {
     case "durationVsPotency":
       return { ...p, durationMul: p.durationMul * (1 + c.gain * v), potencyMul: p.potencyMul * (1 - c.cost * v) };
     case "cooldownVsPotency":
-      return { ...p, cooldownMul: p.cooldownMul * (1 - c.gain * v), potencyMul: p.potencyMul * (1 - c.cost * v) };
+      return { ...p, burdenMul: p.burdenMul * (1 - c.gain * v), potencyMul: p.potencyMul * (1 - c.cost * v) };
   }
 }
 
@@ -507,15 +668,35 @@ export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonl
   for (const roll of stone.variants) {
     if (def.axes.includes(roll.axis)) p = applyVariant(p, roll);
   }
-  p = { ...p, cooldownMul: p.cooldownMul * (1 + SKILL.linkCooldownPenalty * stone.links) };
-  for (const key of activeModifiers(def, stone.links, modifiers)) p = MODIFIERS[key].apply(p);
+  p = { ...p, burdenMul: p.burdenMul * (1 + SKILL.linkBurdenPenalty * stone.links) };
+  for (const key of activeModifiers(def, stone.links, modifiers)) p = MODIFIERS[key].apply(p, def);
   return p;
 }
 
-/** CD の秒数（stats の CD 短縮は未実装なので def × params のみ） */
-export function castCooldown(def: SkillDef, params: Readonly<CastParams>): number {
-  return def.cooldown * params.cooldownMul;
+/** 1 回の発動の負担。マナ型はコスト（CD 0）、CD 型は CD の秒数（コスト 0）。docs/COMBAT_DESIGN.md B-6 */
+export interface CastBurden {
+  cost: number;
+  cooldown: number;
 }
+
+export function castBurden(def: SkillDef, params: Readonly<CastParams>): CastBurden {
+  if (def.resource === "mana") return { cost: def.manaCost * params.burdenMul, cooldown: 0 };
+  return { cost: 0, cooldown: def.cooldown * params.burdenMul };
+}
+
+/** このスロットだけの連打下限（秒）。多重（マナ型）で縮む */
+export function castInterval(def: SkillDef, params: Readonly<CastParams>): number {
+  return def.minInterval * params.intervalMul;
+}
+
+/** 刻印符の説明文。マナ型で読み替えるものは manaVerb を使う */
+export function modifierVerb(key: ModifierKey, def: Readonly<SkillDef>): string {
+  const m = MODIFIERS[key];
+  return def.resource === "mana" ? (m.manaVerb ?? m.verb) : m.verb;
+}
+
+/** 負担の軸（cooldownVs*）の表示名。マナ型は「コスト」、CD 型は「CD」 */
+const BURDEN_LABEL: Record<SkillDef["resource"], string> = { mana: "コスト", cooldown: "CD" };
 
 const AXIS_LABEL: Record<VariantAxis, readonly [string, string]> = {
   areaVsDamage: ["範囲", "ダメージ"],
@@ -532,15 +713,17 @@ function signed(n: number): string {
   return n >= 0 ? `+${n}` : String(n);
 }
 
-/** ツールチップ用の 1 行。例: "Area +24% / Damage -18%" */
-export function formatVariant(roll: VariantRoll): string {
+/** ツールチップ用の 1 行。例: "範囲 +24% / ダメージ -18%"。負担の軸は def の資源で「コスト」「CD」を出し分ける */
+export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>): string {
   const c = VARIANT_COEF[roll.axis];
-  const [gainLabel, costLabel] = AXIS_LABEL[roll.axis];
+  const [axisGain, costLabel] = AXIS_LABEL[roll.axis];
+  const burdenAxis = roll.axis === "cooldownVsDamage" || roll.axis === "cooldownVsPotency";
+  const gainLabel = burdenAxis ? BURDEN_LABEL[def.resource] : axisGain;
   const v = roll.value;
   const cost = `${costLabel} ${signed(Math.round(-c.cost * v * PERCENT))}%`;
   if (roll.axis === "countVsDamage") return `${gainLabel} ${signed(Math.round(c.gain * v))} / ${cost}`;
-  // CD は短くなる向きが「伸びる」側
-  const shrinks = roll.axis === "cooldownVsDamage" || roll.axis === "cooldownVsPotency" || roll.axis === "speedVsDamage";
+  // 負担（CD / コスト）と発動時間は短くなる向きが「伸びる」側
+  const shrinks = burdenAxis || roll.axis === "speedVsDamage";
   const gainSign = shrinks ? -1 : 1;
   const label = roll.axis === "speedVsDamage" ? "発動時間" : gainLabel;
   return `${label} ${signed(Math.round(gainSign * c.gain * v * PERCENT))}% / ${cost}`;

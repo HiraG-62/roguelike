@@ -94,7 +94,8 @@ export interface PlayerBuffs {
   invuln: number;
 }
 
-export type EnemyPhase = "idle" | "chase" | "windup" | "strike" | "recover" | "stagger" | "spawning";
+/** 怯みは phase ではなく状態異常 stagger で持つ（docs/COMBAT_DESIGN.md D-4） */
+export type EnemyPhase = "idle" | "chase" | "windup" | "strike" | "recover" | "spawning";
 
 /** 敵の怯みの蓄積（docs/COMBAT_DESIGN.md D） */
 export interface PoiseState {
@@ -123,7 +124,6 @@ export interface Enemy {
   /** ノックバック速度。減衰する */
   knock: Vec;
   animTime: number;
-  effects: EnemyEffects;
   /** エリート修飾子（src/system/elites.ts） */
   elite?: EliteKind;
   /** Shielded: hp の上乗せぶんのシールド量。hp > maxHp - shieldMax の間はシールドが残っている */
@@ -134,7 +134,7 @@ export interface Enemy {
   ai?: EnemyAi;
   /** 強い吹き飛び中（近接 3 段目など）。壁に激突すると追加ダメージ（壁叩きつけ） */
   wallSplat?: boolean;
-  /** 統一の状態異常（段階 1 の L3 で effects から移行する） */
+  /** 統一の状態異常（燃焼・冷気・感電・怯みなど。src/system/statusEffects.ts） */
   status: StatusBag;
   poise: PoiseState;
 }
@@ -154,7 +154,7 @@ export interface EnemyAi {
   move: number;
 }
 
-export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall" | "playerBurn";
+export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall";
 
 /** 地面に残る攻撃（爆弾・レーザー・衝撃波）と、その予告 */
 export interface Hazard {
@@ -174,6 +174,8 @@ export interface Hazard {
   tile: number;
   /** 出した敵の id */
   sourceId?: number;
+  /** 出した敵の種類（倒された後も状態異常の付与元を引けるように） */
+  sourceKey?: string;
 }
 
 export interface BossState {
@@ -190,26 +192,6 @@ export interface Reaper {
   pos: Vec;
   radius: number;
   animTime: number;
-}
-
-export interface BurnEffect {
-  time: number;
-  dps: number;
-  /** 1 未満の端数ダメージ */
-  acc: number;
-}
-
-export interface ChillEffect {
-  time: number;
-  /** 0..1。移動と phaseTimer の進行がこの割合だけ遅くなる */
-  slow: number;
-}
-
-export interface EnemyEffects {
-  burn: BurnEffect;
-  chill: ChillEffect;
-  /** burn / chill / shock の on-hit 判定の内部クールダウン残り秒 */
-  onHitCooldown: number;
 }
 
 /** ダメージの出どころ。melee / ranged だけが on-hit 効果とトリガーを起こす */
@@ -230,6 +212,10 @@ export interface Projectile {
   pierceLeft: number;
   /** 撃った敵の id（thorns 用）。プレイヤー弾は undefined */
   sourceId?: number;
+  /** プレイヤー弾の最終の怯み値（poiseDamageMul 込み）。命中時に HitOptions.poise へ渡す。未指定は 0 */
+  poise?: number;
+  /** 同じ射撃で出た弾の共有カウンタ（マナ回収の上限 MANA.shotVolleyCap 用）。projectiles.ts が付ける */
+  volley?: { manaHits: number };
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */
@@ -385,7 +371,14 @@ export interface GameState {
   /** 装備の芽（来歴の節目で出る 2 択）の提示中。UI が表示し、system/loot.ts の chooseBud で選ぶ */
   pendingBud: PendingBud | null;
   /** ラン内のステータス振り分け（docs/COMBAT_DESIGN.md A-3）。ランで消える */
-  runAttributes: { alloc: Attributes; unspent: number };
+  runAttributes: {
+    alloc: Attributes;
+    unspent: number;
+    /** 振り分けパネルでマウスが乗っている枠（-1 = なし）。入力から決まるので決定的 */
+    hover: number;
+    /** パネルが受付可能になってからの経過（実時間秒）。src/ui/attributeAlloc.ts */
+    timer: number;
+  };
 }
 
 export function allocId(state: GameState): number {

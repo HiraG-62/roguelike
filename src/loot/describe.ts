@@ -1,16 +1,19 @@
+import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMIES } from "../data/enemies";
-import { formatAffix } from "./affixes";
+import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
 import { traitColorOf } from "./colors";
 import { CALM_FLUX_LIMIT, WAVER_FLUX_LIMIT, fluxMagnitude } from "./flux";
 import { milestoneDef } from "./provenance";
 import { baseName, dominantColor } from "./names";
-import { colorWeights } from "./resonance";
+import { ATTR_LABEL, colorWeights } from "./resonance";
 import {
+  ATTR_KEYS,
   RARITY_LABEL,
   TRAIT_COLORS,
   TRAIT_COLOR_HEX,
   TRAIT_COLOR_LABEL,
   type AffixRoll,
+  type AttrKey,
   type Item,
   type Provenance,
   type TraitColor,
@@ -71,14 +74,93 @@ function fluxLevelOf(roll: AffixRoll): FluxLevel {
   return 2;
 }
 
+// ---------------------------------------------------------------------------
+// ステータスの一言（docs/COMBAT_DESIGN.md A-1）
+// ---------------------------------------------------------------------------
+
+/** ステータスが何を伸ばすかの一言（動詞）。装備の性質の行と装備画面のステータス表示で共有する */
+export const ATTRIBUTE_HINT: Readonly<Record<AttrKey, string>> = {
+  str: "斬る技と、敵を怯ませる力が伸びる",
+  dex: "撃つ技と、身のこなしが伸びる",
+  vit: "HPが増え、状態異常から早く立ち直る",
+  mnd: "マナが増えて早く戻り、会心が冴える",
+  spi: "スキルが深まり、状態異常が重くなる",
+};
+
+export interface AttributeDescription {
+  key: AttrKey;
+  /** 表示名（筋力 など） */
+  label: string;
+  hint: string;
+  color: TraitColor;
+  /** 色の hex */
+  hex: string;
+}
+
+/** ステータス 1 つの表示情報 */
+export function describeAttribute(key: AttrKey): AttributeDescription {
+  const color = ATTR_COLOR[key];
+  return { key, label: ATTR_LABEL[key], hint: ATTRIBUTE_HINT[key], color, hex: TRAIT_COLOR_HEX[color] };
+}
+
+function isAttrKey(text: string): text is AttrKey {
+  return (ATTR_KEYS as readonly string[]).includes(text);
+}
+
+/** ステータスの性質（attr_str など）なら一言を返す */
+function attributeHintOfKey(key: string): string | undefined {
+  if (!key.startsWith(ATTR_TRAIT_PREFIX)) return undefined;
+  const attr = key.slice(ATTR_TRAIT_PREFIX.length);
+  return isAttrKey(attr) ? ATTRIBUTE_HINT[attr] : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// 状態異常の付与（PlayerStats.statusProcs）の説明
+// ---------------------------------------------------------------------------
+
+/** 状態異常を付ける動詞（docs/COMBAT_DESIGN.md E-2 の表記） */
+const STATUS_VERB: Readonly<Record<StatusKind, string>> = {
+  burn: "燃焼させる",
+  chill: "冷気で凍えさせる",
+  freeze: "凍結させる",
+  shock: "感電させる",
+  paralyze: "麻痺させる",
+  poison: "毒を与える",
+  bleed: "出血させる",
+  vulnerable: "脆弱にする",
+  weaken: "弱体にする",
+  fear: "恐怖させる",
+  silence: "沈黙させる",
+  stagger: "怯ませる",
+  guarded: "堅守を与える",
+};
+
+const PROC_TRIGGER_TEXT: Readonly<Record<StatusProc["on"], string>> = {
+  melee: "近接命中時",
+  ranged: "射撃命中時",
+  skill: "スキル命中時",
+  any: "命中時",
+};
+const CRIT_TRIGGER_TEXT = "会心時";
+const PERCENT = 100;
+const PERCENT_DECIMALS = 1;
+
+/** 例「近接命中時 12% で出血させる」「会心時 30% で恐怖させる」 */
+export function describeStatusProc(proc: StatusProc): string {
+  const head = proc.requiresCrit === true ? CRIT_TRIGGER_TEXT : PROC_TRIGGER_TEXT[proc.on];
+  const chance = Number((proc.chance * PERCENT).toFixed(PERCENT_DECIMALS));
+  return `${head} ${chance}% で${STATUS_VERB[proc.kind]}`;
+}
+
 /** 性質 1 つの表示行 */
 export function describeTrait(roll: AffixRoll): TraitLine {
   const hue = traitColorOf(roll);
   const inverted = roll.inverted === true;
   const grown = roll.origin === "bud";
   const prefix = `${grown ? GROWN_PREFIX : ""}${inverted ? INVERTED_PREFIX : ""}`;
+  const hint = attributeHintOfKey(roll.key);
   const line: TraitLine = {
-    text: `${prefix}${formatAffix(roll)}`,
+    text: `${prefix}${formatAffix(roll)}${hint === undefined ? "" : `（${hint}）`}`,
     color: hue === undefined ? UNCOLORED : TRAIT_COLOR_HEX[hue],
     fluxLevel: fluxLevelOf(roll),
   };

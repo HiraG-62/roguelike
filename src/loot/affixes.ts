@@ -1,5 +1,7 @@
+import type { StatusKind, StatusProc } from "../core/status";
+import { STATUS, TRIGGER } from "../data/tuning";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
-import type { AffixRoll, PlayerStats, Slot, TraitColor } from "./types";
+import { ATTR_KEYS, type AffixRoll, type AttrKey, type PlayerStats, type Slot, type TraitColor } from "./types";
 
 /**
  * 性質（旧アフィックス）の定義（データ駆動）。docs/LOOT_DESIGN.md の「性質」を参照。
@@ -26,6 +28,10 @@ export type AffixTag =
   | "combo"
   | "elemental"
   | "utility"
+  /** ステータス（筋力〜霊力）を足す・移す */
+  | "attribute"
+  /** 命中時に状態異常を付ける（PlayerStats.statusProcs） */
+  | "status"
   /** 変換（A を B に変換する。"convert" 段階で適用） */
   | "conversion"
   /** 代償付き（label に代償も出す）。純粋な上位互換を作らないための枠 */
@@ -75,6 +81,11 @@ export interface AffixDef {
   decimals2?: number;
   /** 省略時 "flat" */
   stage?: ApplyStage;
+  /**
+   * value の上限（適用と表示の両方で切り詰める）。揺らぎで上振れしても超えさせたくない性質用
+   * （例: 無敵の持続は TRIGGER.invulnMax まで）
+   */
+  cap?: number;
   apply: ApplyFn;
 }
 
@@ -115,6 +126,79 @@ const RANGED_SLOTS: readonly Slot[] = ["gun", "ring", "amulet"];
 const ATTACK_SLOTS: readonly Slot[] = ["weapon", "gun", "ring"];
 const OFFENSE_SLOTS: readonly Slot[] = ["weapon", "gun", "ring", "amulet"];
 const JEWELRY_SLOTS: readonly Slot[] = ["ring", "amulet"];
+
+// ---------------------------------------------------------------------------
+// ステータスの性質・状態異常の性質の部品
+// ---------------------------------------------------------------------------
+
+/** ステータスの表示名（docs/GLOSSARY.md）。resonance.ts の ATTR_LABEL と同じ表記（循環 import を避けて持つ） */
+const ATTR_NAME: Readonly<Record<AttrKey, string>> = {
+  str: "筋力",
+  dex: "技巧",
+  vit: "体力",
+  mnd: "精神",
+  spi: "霊力",
+};
+
+/** ステータスの色（docs/COMBAT_DESIGN.md A-1）。resonance.ts の COLOR_ATTR の逆引き */
+export const ATTR_COLOR: Readonly<Record<AttrKey, TraitColor>> = {
+  str: "crimson",
+  dex: "azure",
+  vit: "jade",
+  mnd: "gold",
+  spi: "umbra",
+};
+
+/** ステータスの性質の key（attr_str など） */
+export const ATTR_TRAIT_PREFIX = "attr_";
+
+/** ステータスを付けられる部位。その色の性質が出やすい部位に寄せる */
+const ATTR_SLOTS: Readonly<Record<AttrKey, readonly Slot[]>> = {
+  str: ["weapon", "armor", "ring", "amulet"],
+  dex: ["gun", "boots", "ring", "amulet"],
+  vit: ["armor", "boots", "ring", "amulet"],
+  mnd: ["weapon", "gun", "ring", "amulet"],
+  spi: ["gun", "armor", "ring", "amulet"],
+};
+
+/** 期待値: 深度 1 で 2、10 で 5、20 で 8（docs/COMBAT_DESIGN.md A-3） */
+const ATTR_CURVE: readonly CurvePoint[] = [
+  { depth: 20, min: 7, max: 9 },
+  { depth: 10, min: 4, max: 6 },
+  { depth: 1, min: 1, max: 3 },
+];
+
+/** ステータス 5 種の性質。flat 段階で attributes（生の値）に足す */
+function attributeTraits(): AffixDef[] {
+  return ATTR_KEYS.map((attr) => ({
+    key: `${ATTR_TRAIT_PREFIX}${attr}`,
+    label: `${ATTR_NAME[attr]} +{v}`,
+    tags: ["attribute"],
+    slots: ATTR_SLOTS[attr],
+    curve: ATTR_CURVE,
+    color: ATTR_COLOR[attr],
+    apply: (s: PlayerStats, v: number) => {
+      s.attributes[attr] += v;
+    },
+  }));
+}
+
+/** 効果量を持たない状態異常（沈黙・恐怖）の potency */
+const NO_POTENCY = 0;
+/** 性質 1 つが付ける状態異常のスタック */
+const PROC_STACKS = 1;
+/** bulletCut の加算値（0 より大きければ有効。値の大小に意味は無い） */
+const BULLET_CUT_ON = 1;
+
+function statusProc(kind: StatusKind, chancePct: number, duration: number, potency: number, on: StatusProc["on"]): StatusProc {
+  return { kind, chance: pct(chancePct), stacks: PROC_STACKS, duration, potency, on };
+}
+
+/** 確率が 0 以下（反転・減衰で消えた）なら積まない */
+function pushProc(stats: PlayerStats, proc: StatusProc): void {
+  if (proc.chance <= 0) return;
+  stats.statusProcs.push(proc);
+}
 
 // ---------------------------------------------------------------------------
 // アフィックス一覧
@@ -811,10 +895,97 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "エネルギー満タン時に被弾: {v}秒間無敵",
     tags: ["burst", "defense"],
     slots: ["armor", "ring", "amulet"],
-    curve: [t(24, 0.5, 0.6), t(10, 0.4, 0.5), t(1, 0.3, 0.4)],
+    curve: [t(24, 0.35, 0.4), t(10, 0.3, 0.4), t(1, 0.2, 0.3)],
     decimals: 1,
+    cap: TRIGGER.invulnMax,
     apply: (s, v) => {
       s.triggers.push({ trigger: "onHurt", condition: "fullEnergy", effect: "invuln", magnitude: v, chance: 1 });
+    },
+  }),
+
+  // ---- ステータス（docs/COMBAT_DESIGN.md A-3）: 色はそのステータスの色（紅 = 筋力 … 冥 = 霊力） ----
+  ...attributeTraits(),
+
+  // ---- 状態異常の付与（docs/COMBAT_DESIGN.md E-5）: PlayerStats.statusProcs に積む ----
+  trait({
+    key: "procBleed",
+    color: "crimson",
+    label: "近接命中時 {v}% で出血させる（10px 動くごとに {v2} ダメージ）",
+    tags: ["status", "melee", "damage"],
+    slots: MELEE_SLOTS,
+    curve: [t2(20, 15, 20, 2.5, 3.5), t2(10, 10, 15, 1.5, 2.5), t2(1, 6, 10, 1, 1.5)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, v2, "melee"));
+    },
+  }),
+  trait({
+    key: "procPoison",
+    color: "umbra",
+    label: "命中時 {v}% で毒を与え、じわじわと削る",
+    tags: ["status", "damage"],
+    slots: ATTACK_SLOTS,
+    curve: [t(22, 15, 20), t(12, 10, 15), t(3, 6, 10)],
+    apply: (s, v) => {
+      pushProc(s, statusProc("poison", v, STATUS.poison.duration, STATUS.poison.hpRatioPerSec, "any"));
+    },
+  }),
+  trait({
+    key: "procVulnerable",
+    color: "umbra",
+    label: "スキル命中時 {v}% で脆弱にする（受けるダメージが増える）",
+    tags: ["status", "damage"],
+    slots: OFFENSE_SLOTS,
+    curve: [t(25, 22, 30), t(15, 16, 22), t(5, 10, 15)],
+    apply: (s, v) => {
+      pushProc(s, statusProc("vulnerable", v, STATUS.vulnerable.duration, STATUS.vulnerable.mul, "skill"));
+    },
+  }),
+  trait({
+    key: "procWeaken",
+    color: "jade",
+    label: "命中時 {v}% で弱体にする（敵の攻撃が弱まる）",
+    tags: ["status", "defense"],
+    slots: ["weapon", "gun", "armor", "ring"],
+    curve: [t(24, 15, 20), t(14, 10, 15), t(4, 6, 10)],
+    apply: (s, v) => {
+      pushProc(s, statusProc("weaken", v, STATUS.weaken.duration, STATUS.weaken.mul, "any"));
+    },
+  }),
+  trait({
+    key: "procSilence",
+    color: "azure",
+    label: "射撃命中時 {v}% で沈黙させる（敵の弾・光線・爆弾を封じる）",
+    tags: ["status", "ranged"],
+    slots: RANGED_SLOTS,
+    curve: [t(26, 14, 18), t(16, 10, 14), t(6, 6, 10)],
+    apply: (s, v) => {
+      pushProc(s, statusProc("silence", v, STATUS.silence.enemyDuration, NO_POTENCY, "ranged"));
+    },
+  }),
+  trait({
+    key: "procFear",
+    color: "gold",
+    label: "会心時 {v}% で恐怖させる（敵が逃げ惑い、攻撃をやめる）",
+    tags: ["status", "critical"],
+    slots: OFFENSE_SLOTS,
+    curve: [t(28, 31, 40), t(18, 23, 30), t(8, 15, 22)],
+    apply: (s, v) => {
+      pushProc(s, { ...statusProc("fear", v, STATUS.fear.duration, NO_POTENCY, "any"), requiresCrit: true });
+    },
+  }),
+
+  // ---- 弾斬り（docs/COMBAT_DESIGN.md C-1 の 6）: 既定では近接は敵弾を素通りする ----
+  trait({
+    key: "bulletCut",
+    color: "azure",
+    label: "近接攻撃で敵弾を斬り消す（リーチ -{v}%）",
+    tags: ["melee", "defense"],
+    slots: ["weapon"],
+    curve: [t(4, 8, 12)],
+    apply: (s, v) => {
+      s.bulletCut += BULLET_CUT_ON;
+      s.meleeReachMul -= pct(v);
     },
   }),
 ];
@@ -851,6 +1022,20 @@ const MIN_SPLIT_DAMAGE_FACTOR = 0.2;
 const BASE_MULTIPLIER = 1;
 const BASE_PROJECTILES = 1;
 const REMAINING_DASH_CHARGES = 1;
+
+/** ステータスの変換は 50% を基準にする（深さで割合は変えず、揺らぎだけで振れる） */
+const ATTR_CONVERSION_CURVE: readonly CurvePoint[] = [t(1, 50, 50)];
+const ATTR_CONVERSION_PAIRS: readonly (readonly [AttrKey, AttrKey])[] = [
+  ["dex", "str"],
+  ["str", "spi"],
+  ["spi", "vit"],
+  ["vit", "mnd"],
+  ["mnd", "dex"],
+];
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 /** 変換割合（0..1）。負の値は 0 */
 const fraction = (v: number): number => Math.max(0, pct(v));
@@ -993,7 +1178,33 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
       s.burnDps += moved * BURN_DPS_PER_CRIT;
     },
   }),
+
+  // ---- ステータスの変換（docs/COMBAT_DESIGN.md A-3）: 片方を捨てて片方を伸ばす交換 ----
+  ...attributeConversions(),
 ];
+
+/**
+ * ステータスの変換 5 種。各ステータスが 1 回ずつ移し元・移し先になる輪
+ * （技巧 → 筋力 → 霊力 → 体力 → 精神 → 技巧）。
+ * convert 段階の attributes は基礎値と装備の合計なので、基礎値ごと移す（「技巧は 50% 減る」）。
+ * 共鳴とラン内の振り分けは convert の後に足されるので移らない
+ */
+function attributeConversions(): AffixDef[] {
+  return ATTR_CONVERSION_PAIRS.map(([from, to]) => ({
+    key: `${CONVERSION_KEY_PREFIX}${from}To${capitalize(to)}`,
+    label: `${ATTR_NAME[from]}の{v}%を${ATTR_NAME[to]}に変換`,
+    tags: ["conversion", "attribute"],
+    slots: JEWELRY_SLOTS,
+    curve: ATTR_CONVERSION_CURVE,
+    color: ATTR_COLOR[to],
+    stage: "convert",
+    apply: (s: PlayerStats, v: number) => {
+      const moved = Math.max(0, s.attributes[from]) * fraction(v);
+      s.attributes[from] -= moved;
+      s.attributes[to] += moved;
+    },
+  }));
+}
 
 export function isConversionKey(key: string): boolean {
   return key.startsWith(CONVERSION_KEY_PREFIX);
@@ -1027,7 +1238,13 @@ export const KEYSTONE_KEY_PREFIX = "ks_";
 const KEYSTONE_VALUE = 0;
 const KEYSTONE_COLOR: TraitColor = "umbra";
 
-export type KeystoneGroup = "body" | "tempo" | "style";
+export type KeystoneGroup = "body" | "tempo" | "style" | "mana";
+
+/** ks_overdraw（過負荷）のスキル威力の低下 */
+const OVERDRAW_SKILL_PENALTY = 0.1;
+/** ks_silentVow（静寂の誓い）のマナ自然回復の倍率とスキル威力の上昇 */
+const SILENT_VOW_REGEN_MUL = 3;
+const SILENT_VOW_SKILL_BONUS = 0.3;
 
 export interface KeystoneDef {
   key: string;
@@ -1135,6 +1352,26 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     apply: (s) => {
       s.dashCharges += 2;
       s.dashCooldownMul += 0.5;
+    },
+  },
+  // ---- マナ（docs/COMBAT_DESIGN.md F-2 の L5）。支払いと回収の規則は src/system/keystones.ts ----
+  {
+    key: "ks_overdraw",
+    name: "過負荷",
+    description: "マナが足りなくても、不足分をHPで払ってスキルを撃てる（マナ1につきHP0.5）。スキル威力 -10%。",
+    exclusiveGroup: "mana",
+    apply: (s) => {
+      s.skillDamageMul -= OVERDRAW_SKILL_PENALTY;
+    },
+  },
+  {
+    key: "ks_silentVow",
+    name: "静寂の誓い",
+    description: "通常攻撃を当ててもマナが戻らない。マナの自然回復が3倍になり、スキル威力 +30%。",
+    exclusiveGroup: "mana",
+    apply: (s) => {
+      s.manaRegen *= SILENT_VOW_REGEN_MUL;
+      s.skillDamageMul += SILENT_VOW_SKILL_BONUS;
     },
   },
 ];
@@ -1559,6 +1796,13 @@ function fillTemplate(label: string, roll: AffixRoll, decimals: number, decimals
   return fixSigns(label.replaceAll("{v2}", v2).replaceAll("{v}", v));
 }
 
+/** 定義の上限（AffixDef.cap）で value を切り詰めた roll。上限が無ければそのまま */
+function cappedRoll(def: AffixDef | ImplicitDef, roll: AffixRoll): AffixRoll {
+  const cap = "cap" in def ? def.cap : undefined;
+  if (cap === undefined || roll.value <= cap) return roll;
+  return { ...roll, value: cap };
+}
+
 function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): ResolvedAffix {
   const decimals = def.decimals ?? 0;
   const decimals2 = def.decimals2 ?? 0;
@@ -1566,8 +1810,11 @@ function resolveTable(def: AffixDef | ImplicitDef, source: AffixSource): Resolve
     key: def.key,
     source,
     stage: def.stage ?? "flat",
-    apply: (stats, roll) => def.apply(stats, roll.value, roll.value2 ?? 0),
-    format: (roll) => fillTemplate(def.label, roll, decimals, decimals2),
+    apply: (stats, roll) => {
+      const r = cappedRoll(def, roll);
+      def.apply(stats, r.value, r.value2 ?? 0);
+    },
+    format: (roll) => fillTemplate(def.label, cappedRoll(def, roll), decimals, decimals2),
   };
 }
 

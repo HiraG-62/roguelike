@@ -4,6 +4,7 @@ import { enemyDef } from "../data/enemies";
 import { ELITE } from "../data/tuning";
 import { damageEnemy } from "./combat";
 import { eliteChance, finalizeLinks, makeElite, shieldLeft, updateElites } from "./elites";
+import { isStaggered } from "./poise";
 import { updateEnemies } from "./enemies";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
@@ -71,7 +72,7 @@ describe("Shielded", () => {
     expect(e.shieldMax).toBe(0);
     expect(e.maxHp).toBe(base);
     expect(e.hp).toBe(base - 2);
-    expect(e.phase).toBe("stagger");
+    expect(isStaggered(e), "障壁が割れると怯む").toBe(true);
   });
 });
 

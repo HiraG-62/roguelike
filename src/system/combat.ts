@@ -1,13 +1,15 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, PLAYER, ROOM_KIND } from "../data/tuning";
+import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones";
 import { rollEnemyDrop } from "./loot";
-import { applyOnHitStatus, explodeOnKill } from "./statusEffects";
+import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
+import { addPoise, isStaggered } from "./poise";
+import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
 import { interceptEnemyDamage } from "./elites";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, tryRevive } from "./boons";
@@ -18,7 +20,6 @@ export const COLOR_JUST = "#60e0ff";
 export const COLOR_HEAL = "#70e070";
 
 const ENEMY_HIT_FLASH = 0.09;
-const STAGGER_TIME = 0.4;
 const COMBO_POP_TIME = 0.15;
 /** コンボ 5 ヒットごとにスコア倍率 +0.5 */
 const COMBO_SCORE_STEP = 5;
@@ -29,14 +30,20 @@ const PLAYER_HIT_FLASH = 0.12;
 const DEATH_SLOWMO = 1.2;
 /** JUST 回避で得るゲージ（近接ヒット何回ぶんか） */
 const JUST_ENERGY_HITS = 2;
+/** 怯ませた一撃の演出（数字の大きさ・粒子数） */
+const HEAVY_TEXT_SCALE = 1.4;
+const HEAVY_PARTICLES = 10;
+const LIGHT_PARTICLES = 5;
+const SHATTER_TEXT = "砕き";
+const SHATTER_PARTICLES = 12;
 
 export interface HitOptions {
-  /** @deprecated 移行期間のみ（docs/COMBAT_DESIGN.md D-4）。poise 未指定なら POISE.legacyStagger として扱う */
-  stagger?: boolean;
-  /** 最終の怯み値（poiseDamageMul 込み）。0 / 未指定は怯み値なし。段階 1 の L3 が読む */
+  /** 最終の怯み値（poiseDamageMul 込み）。0 / 未指定は怯み値なし */
   poise?: number;
-  /** 壁叩きつけなど: 強靭を無視する。段階 1 の L3 が読む */
+  /** 壁叩きつけなど: 強靭を無視する */
   ignoreSuperArmor?: boolean;
+  /** スキル由来の命中（性質の on-hit 付与で on: "skill" を判定する） */
+  skill?: boolean;
   hitstopSteps?: number;
   /** 必殺ゲージを貯めるか（近接のみ true） */
   buildsEnergy?: boolean;
@@ -49,7 +56,7 @@ export interface HitOptions {
   guardBreak?: boolean;
 }
 
-/** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける。段階 1 の L3 が読む） */
+/** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
 export interface OutgoingOptions {
   skill?: boolean;
 }
@@ -87,17 +94,19 @@ export function rollOutgoing(
   enemy: Enemy | null,
   base: number,
   kind: DamageKind,
-  _opts: OutgoingOptions = {},
+  opts: OutgoingOptions = {},
 ): OutgoingHit {
   const s = state.stats;
   const p = state.player;
   let amount = base;
   if (kind === "melee") amount = (base + s.meleeDamageFlat) * s.meleeDamageMul;
   if (kind === "ranged") amount = (base + s.rangedDamageFlat) * s.rangedDamageMul;
+  if (opts.skill) amount *= s.skillDamageMul;
+  if (hasStatus(p.status, "weaken")) amount *= 1 - STATUS.weaken.mul;
 
   let crit = false;
   if (kind !== "proc") {
-    if (enemy?.phase === "stagger") amount *= s.damageVsStaggeredMul;
+    if (enemy && isStaggered(enemy)) amount *= s.damageVsStaggeredMul;
     amount *= comboDamageMul(state);
     if (p.justTimer > 0) amount *= s.justDodgeDamageMul;
     if (p.buffs.damage.time > 0) amount *= p.buffs.damage.mul;
@@ -119,32 +128,36 @@ export function damageEnemy(
   opts: HitOptions = {},
 ): boolean {
   if (enemy.hp <= 0) return false;
-  const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, opts.kind ?? "proc", opts.guardBreak);
-  if (intercepted <= 0) return false;
-  amount = intercepted;
-  const def = enemyDef(enemy.defKey);
   const kind = opts.kind ?? "proc";
+  const poise = opts.poise ?? 0;
+  const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
+  if (intercepted <= 0) return false;
+  // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない
+  const shatter = !opts.silent && hasStatus(enemy.status, "freeze");
+  amount = takenDamage(enemy, intercepted, shatter);
+  const def = enemyDef(enemy.defKey);
   enemy.hp -= amount;
+  if (shatter) shatterFreeze(state, enemy);
+  const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
+  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor });
 
   if (!opts.silent) {
     enemy.hitFlash = ENEMY_HIT_FLASH;
     const dir = normalize(knockDir);
-    if (knockForce > 0) enemy.knock = scale(dir, knockForce);
-    if (opts.stagger && enemy.phase !== "spawning") {
-      enemy.phase = "stagger";
-      enemy.phaseTimer = STAGGER_TIME;
-    }
+    // 怯んでいない敵は押し出しすぎない（殴っても射程外へ逃げない）
+    const knockMul = isStaggered(enemy) ? 1 : POISE.knockbackUnstaggered;
+    if (knockForce > 0) enemy.knock = scale(dir, knockForce * knockMul);
     registerComboHit(state);
-    showHit(state, enemy, amount, dir, def.color, opts);
+    showHit(state, enemy, amount, dir, def.color, opts, heavy);
   }
 
   if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
-  if (kind === "melee") pushSfx(state, opts.stagger ? "hitHeavy" : "hit");
+  if (kind === "melee") pushSfx(state, heavy ? "hitHeavy" : "hit");
   if (kind === "ranged") pushSfx(state, "bulletHit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state);
-    applyOnHitStatus(state, enemy);
+    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
   }
 
   if (opts.crit) onBoonCrit(state, enemy, amount);
@@ -153,15 +166,35 @@ export function damageEnemy(
   return true;
 }
 
-function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color: string, opts: HitOptions): void {
-  const baseScale = opts.stagger ? 1.4 : 1;
+/** 受ける側の倍率: 脆弱・砕き・ボスのダウン中 */
+function takenDamage(enemy: Enemy, amount: number, shatter: boolean): number {
+  let mul = 1;
+  if (hasStatus(enemy.status, "vulnerable")) mul *= STATUS.vulnerable.mul;
+  if (shatter) mul *= STATUS.freeze.shatterDamageMul;
+  if (enemyDef(enemy.defKey).boss && isStaggered(enemy)) mul *= POISE.bossDownDamageMul;
+  if (mul === 1) return amount;
+  return Math.max(MIN_DAMAGE, Math.round(amount * mul));
+}
+
+/** 砕き: 凍結を解き（冷気免疫が付く）、氷の破片を散らす */
+function shatterFreeze(state: GameState, enemy: Enemy): void {
+  removeStatus(state, { kind: "enemy", enemy }, "freeze");
+  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6);
+  spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
+  pushSfx(state, "freeze");
+}
+
+/** heavy = この一撃で怯んだ。数字・粒子・揺れを大きくし、ヒットストップも重くする */
+function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color: string, opts: HitOptions, heavy: boolean): void {
+  const baseScale = heavy ? HEAVY_TEXT_SCALE : 1;
   const textScale = opts.crit ? Math.max(baseScale, PLAYER.critTextScale) : baseScale;
   const textColor = opts.crit ? PLAYER.critColor : COLOR_DAMAGE;
   addFloatingText(state, enemy.body.pos, String(amount), textColor, textScale);
-  spawnDirectional(state, enemy.body.pos, dir, color, opts.stagger ? 10 : 5, 140);
-  const steps = (opts.hitstopSteps ?? FEEL.hitstopLight) + (opts.crit ? PLAYER.critHitstopBonus : 0);
+  spawnDirectional(state, enemy.body.pos, dir, color, heavy ? HEAVY_PARTICLES : LIGHT_PARTICLES, 140);
+  const base = opts.hitstopSteps ?? FEEL.hitstopLight;
+  const steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
   hitstop(state, steps);
-  shake(state, opts.stagger ? FEEL.shakeHeavy : FEEL.shakeLight);
+  shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
 }
 
 /** 必殺ゲージを増やす（energyGainMul 込み） */
@@ -183,6 +216,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   pushSfx(state, "kill");
 
   if (state.stats.lifeOnKill > 0) healPlayer(state, state.stats.lifeOnKill);
+  gainMana(state, MANA.onKill);
   rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
@@ -302,7 +336,7 @@ export function damagePlayer(
     return "ignored";
   }
 
-  const taken = mitigate(state, amount);
+  const taken = mitigate(state, amount * playerTakenMul(state) * enemyDamageMul(attacker));
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);
   recordProvenance(state, { kind: "hurt" });
@@ -328,6 +362,23 @@ export function damagePlayer(
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
   return "hit";
+}
+
+/** プレイヤーが受けるダメージの倍率（脆弱） */
+function playerTakenMul(state: GameState): number {
+  return hasStatus(state.player.status, "vulnerable") ? STATUS.vulnerable.mul : 1;
+}
+
+/**
+ * 状態異常の継続ダメージ（燃焼・毒・出血・蒸発）。無敵・ノックバック・コンボ切れ・リゲインを起こさない。
+ * 0 になったら再起を試し、だめなら倒れる
+ */
+export function damagePlayerDot(state: GameState, amount: number): void {
+  const p = state.player;
+  if (state.status !== "playing" || amount <= 0) return;
+  p.hp = Math.max(0, p.hp - amount);
+  if (p.hp > 0 || tryRevive(state)) return;
+  killPlayer(state);
 }
 
 function reflectThorns(state: GameState, attacker: Enemy | undefined): void {
@@ -372,6 +423,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   p.justCounterTargetId = attacker && attacker.hp > 0 ? attacker.id : null;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
+  gainMana(state, MANA.onJust);
   registerComboHit(state);
   addFloatingText(state, p.body.pos, "ジャスト！", COLOR_JUST, 1.5, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
