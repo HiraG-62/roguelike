@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import type { GameState } from "../core/state";
-import { BOON, PLAYER } from "../data/tuning";
+import { BOON, BOSS, PLAYER } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import { DEFAULT_STATS } from "../loot/types";
 import { TILE_SIZE, Tile } from "../map/grid";
@@ -257,6 +257,21 @@ describe("ルール変更の実効", () => {
     expect(state.player.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * BOON.clearHealMaxHpMul));
     applyStats(state, computeStats(state.profile.equipment));
     expect(state.player.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * BOON.clearHealMaxHpMul));
+  });
+
+  it("giantSlayer: 取った階に配置済みのボス / 通常敵にも遡って掛かる", () => {
+    const state = createGame(11);
+    state.depth = BOSS.interval;
+    buildFloor(state);
+    const bossId = state.boss?.enemyId;
+    const boss = state.enemies.find((e) => e.id === bossId);
+    const mob = state.enemies.find((e) => e.id !== bossId && e.hp > 0);
+    if (!boss || !mob) throw new Error("boss floor without enemies");
+    const bossHp = boss.maxHp;
+    const mobHp = mob.maxHp;
+    grantBoon(state, "giantSlayer");
+    expect(boss.maxHp).toBe(Math.max(1, Math.round(bossHp * BOON.bossHpMul)));
+    expect(mob.maxHp).toBe(Math.max(1, Math.round(mobHp * BOON.mobHpMul)));
   });
 
   it("triggerHappy: 近接できない代わりに連射 2 倍", () => {

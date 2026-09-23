@@ -81,6 +81,8 @@ export class GamepadInput {
   private index: number | null = null;
   private justConnected = false;
   private prevPressed = new Array<boolean>(BUTTON_SLOT_COUNT).fill(false);
+  /** 直近の read() で Start が押されたか。プレイ中の「ポーズ」は B（= ダッシュと共用）ではなくこれだけで開く */
+  private startJustPressed = false;
 
   /** 接続/切断イベントを購読する */
   attach(target: Window): void {
@@ -93,6 +95,11 @@ export class GamepadInput {
       this.index = null;
       this.prevPressed.fill(false);
     });
+  }
+
+  /** 直近の read() で Start が今押されたか（B を含まない） */
+  pausePressed(): boolean {
+    return this.startJustPressed;
   }
 
   /** 接続していれば true。UI 表示用 */
@@ -119,6 +126,7 @@ export class GamepadInput {
    */
   read(): GamepadFrame {
     const pad = this.currentPad();
+    this.startJustPressed = false;
     if (!pad) return EMPTY_GAMEPAD_FRAME;
 
     const isDown = new Array<boolean>(BUTTON_SLOT_COUNT).fill(false);
@@ -151,6 +159,7 @@ export class GamepadInput {
       skill2Pressed: justPressed(BTN_RSTICK) || justPressed(BTN_DPAD_UP),
     };
 
+    this.startJustPressed = justPressed(BTN_START);
     for (let i = 0; i < BUTTON_SLOT_COUNT; i++) this.prevPressed[i] = isDown[i] ?? false;
     return frame;
   }

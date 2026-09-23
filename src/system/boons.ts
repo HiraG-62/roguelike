@@ -501,7 +501,8 @@ function takeWeighted(state: GameState, pool: BoonDef[], tags: ReadonlySet<BoonT
 
 /** 3 枚（重複なし）を抽選する。cursedChance で 1 枚が呪い付き祝福になる */
 export function rollBoonOptions(state: GameState): BoonKey[] {
-  const tags = equipmentTags(state.stats);
+  // 祝福を畳み込む前の装備 stats で判定する（triggerHappy の射撃速度 x2 などを「装備のタグ」と誤認しない）
+  const tags = equipmentTags(state.boonRun.baseStats ?? state.stats);
   const all = BOON_KEYS.map(boonDef);
   const normal = all.filter((d) => !d.cursed);
   const cursed = all.filter((d) => d.cursed);
@@ -603,6 +604,8 @@ export function grantBoon(state: GameState, key: BoonKey): void {
   if (hasBoon(state, key)) return;
   state.boons.push(key);
   applyBoonsToStats(state);
+  // 祝福は階に着いた後で選ぶので、この階に配置済みの敵（ボス含む）にも遡って掛ける
+  if (key === "giantSlayer") applyGiantSlayerToExisting(state);
   const def = boonDef(key);
   const color = def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
   addFloatingText(state, state.player.body.pos, def.name, color, 1.4, 1.2);
@@ -911,6 +914,15 @@ export function onBossSpawned(state: GameState): void {
   const id = state.boss.enemyId;
   const boss = state.enemies.find((e) => e.id === id);
   if (boss) scaleHp(boss, BOON.bossHpMul);
+}
+
+/** giantSlayer を取った時点で生きている敵に適用する（ボスは -25%、それ以外は +25%） */
+function applyGiantSlayerToExisting(state: GameState): void {
+  const bossId = state.boss?.enemyId;
+  for (const e of state.enemies) {
+    if (e.hp <= 0) continue;
+    scaleHp(e, e.id === bossId ? BOON.bossHpMul : BOON.mobHpMul);
+  }
 }
 
 function scaleHp(e: Enemy, mul: number): void {

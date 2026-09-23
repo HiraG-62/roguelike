@@ -296,8 +296,10 @@ startLoop(
   (dt) => {
     const frame = input.snapshot(state?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
-    // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する
-    if (input.gamepadEscapePressed()) hotkeys.escape = true;
+    // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する。
+    // ただしプレイ中（装備画面を閉じている間）は B がダッシュと共用なので、ポーズは Start だけで開く
+    const padInGame = screen === "playing" && !inventoryUi.open;
+    if (padInGame ? gamepad.pausePressed() : input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
 
     if (gamepad.consumeJustConnected()) gamepadConnectedTimer = GAMEPAD_CONNECTED_MESSAGE_DURATION;

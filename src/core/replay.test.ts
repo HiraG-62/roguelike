@@ -163,6 +163,8 @@ describe("encodeInputs / decodeInputs", () => {
       skill2Pressed: true,
       clickPressed: true,
       shiftHeld: true,
+      skill1Held: true,
+      skill2Held: true,
       wheel: -3,
     });
     expect(decodeInputs(encodeInputs([all]))).toEqual([all]);
