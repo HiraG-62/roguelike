@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createGame } from "../core/game";
+import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Attributes } from "../loot/types";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
@@ -21,7 +21,7 @@ import {
 import { damageEnemy } from "./combat";
 import { applyStagger } from "./poise";
 import { applyStatus, findStatus, hasStatus, statusStacks } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const HUGE = 100_000;
 
@@ -233,5 +233,31 @@ describe("装備タグと抽選", () => {
       return Array.from({ length: 5 }, () => rollBoonOptions(state));
     };
     expect(roll()).toEqual(roll());
+  });
+});
+
+describe("祝福の統合（実際の攻撃経路）", () => {
+  it("霊刃: 射撃の弾の威力に霊力 × 0.3 が加わる", () => {
+    const shotDamageWith = (boon: boolean): number => {
+      const state = arena(5, { attributesEff: { ...DEFAULT_STATS.attributesEff, spi: 10 } });
+      if (boon) state.boons.push("spiritBlade");
+      step(state, withInput({ shootHeld: true }), FIXED_DT);
+      const shot = state.projectiles.find((p) => p.owner === "player");
+      if (!shot) throw new Error("弾が出ていない");
+      return shot.damage;
+    };
+    expect(shotDamageWith(true) - shotDamageWith(false)).toBeCloseTo(BOON.spiritBladeSpi * 10);
+  });
+
+  it("凍て刺し: 凍結の敵を殴って砕くと、周囲の敵に冷気が重なる", () => {
+    const state = arena(7);
+    state.boons.push("frostPierce");
+    const frozen = placeEnemy(state, "golem", 30, 0);
+    const near = placeEnemy(state, "golem", 30, 20);
+    applyStatus(state, { kind: "enemy", enemy: frozen }, { kind: "freeze", stacks: 1, duration: STATUS.freeze.duration, potency: 0 }, "player");
+    expect(hasStatus(frozen.status, "freeze")).toBe(true);
+    damageEnemy(state, frozen, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(hasStatus(frozen.status, "freeze"), "砕けて凍結が解ける").toBe(false);
+    expect(statusStacks(near.status, "chill")).toBe(BOON.frostPierceStacks);
   });
 });

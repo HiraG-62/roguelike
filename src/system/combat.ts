@@ -12,7 +12,7 @@ import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
 import { interceptEnemyDamage } from "./elites";
-import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, tryRevive } from "./boons";
+import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -182,6 +182,7 @@ function shatterFreeze(state: GameState, enemy: Enemy): void {
   addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6);
   spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
   pushSfx(state, "freeze");
+  onBoonShatter(state, enemy);
 }
 
 /** heavy = この一撃で怯んだ。数字・粒子・揺れを大きくし、ヒットストップも重くする */

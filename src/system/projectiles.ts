@@ -4,6 +4,7 @@ import { FEEL, MANA } from "../data/tuning";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
+import { boonAttackManaMul } from "./boons";
 import { attackManaMul } from "./keystones";
 import { gainMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
@@ -57,7 +58,7 @@ function gainShotMana(state: GameState, pr: Projectile): void {
   if (volley.manaHits >= MANA.shotVolleyCap) return;
   volley.manaHits += 1;
   // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
-  gainMana(state, MANA.onShot * attackManaMul(state));
+  gainMana(state, MANA.onShot * attackManaMul(state) * boonAttackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */

@@ -25,8 +25,10 @@ import {
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 import {
+  boonAttackManaMul,
   boonBlocksMelee,
   boonMoveMul,
+  boonNormalAttackBonus,
   boonSwingCombo,
   canShootWhileDashing,
   foldBoonStats,
@@ -487,7 +489,8 @@ function resolveMeleeBullets(state: GameState, box: Box): void {
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
   const p = state.player;
   const counter = isCounterable(e);
-  const out = rollOutgoing(state, e, step.damage, "melee");
+  // 霊刃（spiritBlade）: 通常攻撃に霊力の係数が加わる
+  const out = rollOutgoing(state, e, step.damage + boonNormalAttackBonus(state), "melee");
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
   const baseHitstop = step.heavy ? FEEL.hitstopHeavy : FEEL.hitstopLight;
   const pos = { ...e.body.pos };
@@ -517,7 +520,7 @@ function gainMeleeMana(state: GameState, combo: number, dashStrike: boolean, cou
   const base = dashStrike ? MANA.onDashAttack : (MANA.onMelee[combo] ?? 0);
   // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
   const mul = counter ? MANA.onCounterMul : 1;
-  gainMana(state, base * mul * attackManaMul(state));
+  gainMana(state, base * mul * attackManaMul(state) * boonAttackManaMul(state));
 }
 
 /** 近接 1 ヒットの怯み値。カウンターは確定の怯みではなく怯み値を倍にする（敵の強靭 ×0.5 と相殺して等倍になる） */
@@ -652,7 +655,7 @@ function tryShoot(state: GameState): void {
   const muzzle = add(p.body.pos, scale(dir, p.body.radius + 2));
   const baseAngle = angle(dir);
   const speed = PLAYER.shoot.speed * s.projectileSpeedMul;
-  const damage = shotDamage(s);
+  const damage = shotDamage(s) + boonNormalAttackBonus(state);
   const poise = PLAYER.shoot.poise * s.poiseDamageMul;
   const firstShot = state.projectiles.length;
   for (const offset of spreadOffsets(s.projectileCount)) {
