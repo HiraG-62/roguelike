@@ -120,7 +120,7 @@ describe("updateInventoryUi: クリックで装備", () => {
     expect(computeStats).toHaveBeenCalledWith(state.profile.equipment);
     expect(state.stats.maxHp).toBe(150);
     expect(state.player.maxHp).toBe(150);
-    expect(ui.message).toBe("Equipped: Test Sword");
+    expect(ui.message).toBe("装備した: Test Sword");
   });
 
   it("HP は割合を維持し、最低 1 を保つ", () => {
@@ -159,7 +159,7 @@ describe("updateInventoryUi: shift クリックで分解", () => {
 
     expect(state.profile.stash).toEqual([]);
     expect(state.profile.equipment.weapon).toBeNull();
-    expect(ui.message).toBe("Salvaged: Junk Sword (+1 dust)");
+    expect(ui.message).toBe("分解した: Junk Sword（+1 塵）");
     expect(ui.craft.save.wallet.dust).toBe(1);
   });
 
@@ -211,7 +211,7 @@ describe("updateInventoryUi: クラフトタブ", () => {
 
     expect(state.profile.stash[0]?.affixes).toHaveLength(1);
     expect(ui.craft.save.wallet.dust).toBe(1);
-    expect(ui.craft.result).toMatch(/^Annulled: /);
+    expect(ui.craft.result).toMatch(/^無効化: /);
   });
 
   it("通貨が足りない操作は拒否され、アイテムは変わらない", () => {
@@ -223,7 +223,7 @@ describe("updateInventoryUi: クラフトタブ", () => {
     clickRow(state, ui, "m-1");
     clickButton(state, ui, "annul");
     expect(state.profile.stash[0]?.affixes).toHaveLength(2);
-    expect(ui.craft.result).toBe("Need 5 dust");
+    expect(ui.craft.result).toBe("粉塵が5必要です");
   });
 
   it("Fuse は 2 つ目のクリックで実行され、2 つが 1 つになる", () => {

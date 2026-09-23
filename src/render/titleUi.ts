@@ -37,16 +37,22 @@ const PARTICLE_COUNT = 36;
 const LINE_H = 9;
 
 const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
-  resume: "Resume",
-  settings: "Settings",
-  restart: "Restart",
-  title: "Title",
+  resume: "再開",
+  settings: "設定",
+  restart: "やり直す",
+  title: "タイトルへ",
 };
 
 const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
-  mute: "Mute",
-  volume: "Volume",
-  screenShake: "Screen shake",
+  mute: "ミュート",
+  volume: "音量",
+  screenShake: "画面揺れ",
+};
+
+/** RunHistoryEntry.cause（英語のキーのまま持つ）の表示専用ラベル */
+const CAUSE_LABEL: Readonly<Record<string, string>> = {
+  defeated: "力尽きた",
+  abandoned: "離脱",
 };
 
 function fillBg(ctx: CanvasRenderingContext2D): void {
@@ -208,22 +214,22 @@ export function drawTitle(
   const blinkOn = Math.sin((time / BLINK_PERIOD_SECONDS) * Math.PI * 2) > 0;
   ctx.font = FONT_MED;
   ctx.fillStyle = COLOR_TEXT;
-  if (blinkOn) ctx.fillText("PRESS ENTER", VIEW_W / 2, 112);
+  if (blinkOn) ctx.fillText("Enter で開始", VIEW_W / 2, 112);
 
   ctx.font = FONT_SMALL;
   ctx.fillStyle = seedInput.active ? COLOR_ACCENT : COLOR_DIM;
   // URL の ?seed= は常に同期しているので、アドレスバーをコピーすればシードを共有できる
   const seedLabel = seedInput.active
-    ? `SEED: ${seedInput.text}_`
-    : `SEED: ${seedInput.text}  (N: edit / copy URL to share)`;
+    ? `シード: ${seedInput.text}_`
+    : `シード: ${seedInput.text}  (N: 編集 / URL を共有できます)`;
   ctx.fillText(seedLabel, VIEW_W / 2, 132);
 
   // 右下: 操作一覧
   const controls = [
-    "Enter / Click: start   D: daily seed",
-    "N: edit seed   H: history   O: settings",
-    "WASD/Arrows move, Space dash",
-    "E/LMB melee, Q/RMB shoot, F burst",
+    "Enter / クリック: 開始   D: デイリーシード",
+    "N: シード編集   H: 履歴   O: 設定",
+    "WASD / 矢印キー: 移動、Space: ダッシュ",
+    "E / 左クリック: 近接、Q / 右クリック: 射撃、F: バースト",
   ];
   ctx.textAlign = "right";
   ctx.fillStyle = COLOR_DIM;
@@ -235,11 +241,11 @@ export function drawTitle(
 
   // 左下: 統計
   const statLines = [
-    `runs: ${stats.runs}`,
-    `best depth: ${stats.bestDepth}`,
-    `best score: ${stats.bestScore}`,
-    `total kills: ${stats.totalKills}`,
-    `stash: ${stats.stashCount}`,
+    `挑戦回数: ${stats.runs}`,
+    `最深到達: ${stats.bestDepth}`,
+    `最高スコア: ${stats.bestScore}`,
+    `総撃破: ${stats.totalKills}`,
+    `倉庫: ${stats.stashCount}`,
   ];
   ctx.textAlign = "left";
   ctx.fillStyle = COLOR_TEXT;
@@ -275,12 +281,12 @@ export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistorySc
   ctx.textAlign = "center";
   ctx.font = FONT_BIG;
   ctx.fillStyle = COLOR_TITLE;
-  ctx.fillText("RUN HISTORY", VIEW_W / 2, 18);
+  ctx.fillText("ラン履歴", VIEW_W / 2, 18);
 
   ctx.font = FONT_SMALL;
   if (history.length === 0) {
     ctx.fillStyle = COLOR_DIM;
-    ctx.fillText("no runs yet", VIEW_W / 2, VIEW_H / 2);
+    ctx.fillText("まだ記録がありません", VIEW_W / 2, VIEW_H / 2);
   } else {
     const dailyBest = dailyBestIndices(history);
     ctx.textAlign = "left";
@@ -294,7 +300,8 @@ export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistorySc
       const best = dailyBest.has(i);
       // 行頭の印: R = リプレイあり、D = デイリー（* = その日のベスト）
       const marks = `${view.hasReplay(i) ? "R" : " "}${daily ? (best ? "*" : "D") : " "}`;
-      const line = `${marks} ${historyDateLabel(entry.date)}  seed:${entry.seedText}  depth:${entry.depth}  kills:${entry.kills}  score:${entry.score}  combo:${entry.bestCombo}  ${Math.round(entry.durationSec)}s  ${entry.cause ?? ""}`;
+      const cause = entry.cause ? (CAUSE_LABEL[entry.cause] ?? entry.cause) : "";
+      const line = `${marks} ${historyDateLabel(entry.date)}  シード:${entry.seedText}  階:${entry.depth}  撃破:${entry.kills}  スコア:${entry.score}  コンボ:${entry.bestCombo}  ${Math.round(entry.durationSec)}秒  ${cause}`;
       if (best) ctx.fillStyle = COLOR_DAILY_BEST;
       else if (daily) ctx.fillStyle = COLOR_DAILY;
       else ctx.fillStyle = i === cursor ? COLOR_CURSOR : COLOR_TEXT;
@@ -309,7 +316,11 @@ export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistorySc
     ctx.fillText(view.message, VIEW_W / 2, VIEW_H - 18);
   }
   ctx.fillStyle = COLOR_DIM;
-  ctx.fillText("Up/Down: select   P: replay   S: play seed   Esc: back   (R replay, D daily, * daily best)", VIEW_W / 2, VIEW_H - 8);
+  ctx.fillText(
+    "↑↓: 選択   P: 再生   S: このシードで開始   Esc: 戻る   （R: リプレイ, D: デイリー, *: デイリー最高）",
+    VIEW_W / 2,
+    VIEW_H - 8,
+  );
 }
 
 export interface ReplayHudInfo {
@@ -331,7 +342,7 @@ export function drawReplayHud(ctx: CanvasRenderingContext2D, info: ReplayHudInfo
   ctx.textAlign = "center";
   ctx.font = FONT_MED;
   ctx.fillStyle = COLOR_REPLAY;
-  const label = info.finished ? "REPLAY END" : `${blinkOn ? "● " : "  "}REPLAY ${info.speed}x`;
+  const label = info.finished ? "リプレイ終了" : `${blinkOn ? "● " : "  "}リプレイ ${info.speed}x`;
   ctx.fillText(label, VIEW_W / 2, REPLAY_HUD_Y);
 
   const barX = (VIEW_W - REPLAY_BAR_W) / 2;
@@ -343,7 +354,7 @@ export function drawReplayHud(ctx: CanvasRenderingContext2D, info: ReplayHudInfo
 
   ctx.font = FONT_SMALL;
   ctx.fillStyle = COLOR_DIM;
-  ctx.fillText(`seed:${info.seedText}   <- ->: speed   Esc: exit`, VIEW_W / 2, barY + REPLAY_BAR_H + 9);
+  ctx.fillText(`シード:${info.seedText}   ← →: 速度   Esc: 終了`, VIEW_W / 2, barY + REPLAY_BAR_H + 9);
 }
 
 export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number): void {
@@ -362,7 +373,7 @@ export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number): vo
   ctx.textAlign = "center";
   ctx.font = FONT_MED;
   ctx.fillStyle = COLOR_TITLE;
-  ctx.fillText("PAUSED", VIEW_W / 2, panelY + 16);
+  ctx.fillText("ポーズ中", VIEW_W / 2, panelY + 16);
 
   ctx.font = FONT_SMALL;
   const itemY = panelY + 36;
@@ -401,7 +412,7 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
   ctx.textAlign = "center";
   ctx.font = FONT_MED;
   ctx.fillStyle = COLOR_TITLE;
-  ctx.fillText("SETTINGS", VIEW_W / 2, panelY + 16);
+  ctx.fillText("設定", VIEW_W / 2, panelY + 16);
 
   ctx.font = FONT_SMALL;
   const valueOf: Record<(typeof SETTINGS_ITEMS)[number], string> = {
@@ -422,7 +433,7 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
 
   ctx.textAlign = "center";
   ctx.fillStyle = COLOR_DIM;
-  ctx.fillText("<- ->: adjust   M: mute   Esc: back", VIEW_W / 2, panelY + panelH - 8);
+  ctx.fillText("← →: 調整   M: ミュート   Esc: 戻る", VIEW_W / 2, panelY + panelH - 8);
 }
 
 export interface DeathSummaryInfo {
@@ -431,14 +442,22 @@ export interface DeathSummaryInfo {
   bossesDefeated: number;
 }
 
+/** items found の内訳表示専用。loot/types.ts の Rarity は英語のキーのまま（ロジック側は別エージェントが管轄） */
+const RARITY_LABEL_JA: Readonly<Record<(typeof RARITIES)[number], string>> = {
+  normal: "通常",
+  magic: "魔法",
+  rare: "希少",
+  unique: "固有",
+};
+
 /** renderer.drawDeath の上に重ね描きする追加情報 */
 export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSummaryInfo): void {
   ctx.textAlign = "center";
   ctx.font = FONT_SMALL;
   ctx.fillStyle = COLOR_TEXT;
-  const rarityText = RARITIES.map((r) => `${r}:${info.itemSummary.byRarity[r]}`).join("  ");
-  ctx.fillText(`items found ${info.itemSummary.total}  (${rarityText})`, VIEW_W / 2, VIEW_H / 2 + 60);
-  ctx.fillText(`bosses defeated ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72);
+  const rarityText = RARITIES.map((r) => `${RARITY_LABEL_JA[r]} ${info.itemSummary.byRarity[r]}`).join(" / ");
+  ctx.fillText(`拾った装備: ${info.itemSummary.total}（${rarityText}）`, VIEW_W / 2, VIEW_H / 2 + 60);
+  ctx.fillText(`撃破したボス: ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72);
   ctx.fillStyle = COLOR_DIM;
-  ctx.fillText("Enter: retry   R: new seed   T: title", VIEW_W / 2, VIEW_H / 2 + 90);
+  ctx.fillText("Enter: 同じシードで再挑戦   R: 新しいシード   T: タイトル", VIEW_W / 2, VIEW_H / 2 + 90);
 }

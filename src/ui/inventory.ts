@@ -64,8 +64,27 @@ const CRAFT_RESULT_OFFSET = 36;
 export const SKILL_SLOT_H = 30;
 export const SKILL_SLOT_GAP = 4;
 
-/** メッセージ（"Equipped: xxx" 等）の表示秒数 */
+/** メッセージ（「装備した: xxx」等）の表示秒数 */
 const MESSAGE_DURATION = 1.5;
+
+/**
+ * 表示専用のラベル。loot/crafting.ts の Currency・loot/types.ts の Slot は英語のキーのまま
+ * （ロジック側は別エージェントが管轄）。render/inventoryUi.ts でも使うためここで export する
+ */
+export const CURRENCY_LABEL: Readonly<Record<Currency, string>> = {
+  dust: "塵",
+  shard: "欠片",
+  essence: "精髄",
+  relic: "遺物",
+};
+export const SLOT_LABEL: Readonly<Record<Slot, string>> = {
+  weapon: "武器",
+  gun: "銃",
+  armor: "鎧",
+  boots: "靴",
+  ring: "指輪",
+  amulet: "首飾り",
+};
 
 /** クラフト操作ごとの効果音 */
 const CRAFT_SFX: Record<CraftOp, SfxName> = {
@@ -350,7 +369,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
     const stoneId = row.stone.id;
     if (input.shiftHeld) {
       if (salvageStone(profile, stoneId)) {
-        showMessage(ui, "Salvaged skill stone");
+        showMessage(ui, "スキル石を分解した");
         pushSfx(state, "dismantle");
       }
     } else {
@@ -358,7 +377,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
       const target = empty >= 0 ? empty : ui.skillSlot;
       equipStone(profile, stoneId, target);
       ui.skillSlot = target;
-      showMessage(ui, `Skill ${target + 1} set`);
+      showMessage(ui, `スキル ${target + 1} を設定した`);
       pushSfx(state, "equipOn");
     }
     saveSkillProfile(profile);
@@ -369,7 +388,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   if (!slot.stone) return;
   unequipSlot(profile, slot.index);
   saveSkillProfile(profile);
-  showMessage(ui, `Skill ${slot.index + 1} cleared`);
+  showMessage(ui, `スキル ${slot.index + 1} を解除した`);
   pushSfx(state, "equipOff");
 }
 
@@ -416,7 +435,7 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     const name = hoveredRow.item.name;
     equipItem(state.profile, hoveredRow.item.id);
     applyEquipmentChange(state);
-    showMessage(ui, `Equipped: ${name}`);
+    showMessage(ui, `装備した: ${name}`);
     pushSfx(state, "equipOn");
     return;
   }
@@ -425,7 +444,7 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     const name = hoveredSlot.item.name;
     unequipItem(state.profile, hoveredSlot.slot);
     applyEquipmentChange(state);
-    showMessage(ui, `Unequipped: ${name}`);
+    showMessage(ui, `外した: ${name}`);
     pushSfx(state, "equipOff");
   }
 }
@@ -441,7 +460,7 @@ function salvageForCurrency(state: GameState, ui: InventoryUi, item: Item): void
   saveProfile(state.profile);
   saveCraft(ui.craft.save);
   if (ui.craft.selectedId === item.id) ui.craft.selectedId = null;
-  showMessage(ui, `Salvaged: ${item.name} (+1 ${currency})`);
+  showMessage(ui, `分解した: ${item.name}（+1 ${CURRENCY_LABEL[currency]}）`);
   pushSfx(state, "dismantle");
 }
 
@@ -490,7 +509,7 @@ function runCraft(state: GameState, ui: InventoryUi, op: CraftOp, item: Item, pa
 function toggleFuse(ui: InventoryUi, item: Item): void {
   if (ui.craft.fusePending) {
     ui.craft.fusePending = false;
-    ui.craft.result = "Fuse cancelled";
+    ui.craft.result = "融合をキャンセルした";
     return;
   }
   const blocked = craftBlockReason(ui.craft.save.wallet, "fuse", item);
@@ -499,13 +518,13 @@ function toggleFuse(ui: InventoryUi, item: Item): void {
     return;
   }
   ui.craft.fusePending = true;
-  ui.craft.result = `Pick a second ${item.slot} item to fuse with ${item.name}`;
+  ui.craft.result = `${item.name} と融合する 2 つ目の${SLOT_LABEL[item.slot]}を選んでください`;
 }
 
 function clickCraftButton(state: GameState, ui: InventoryUi, op: CraftOp): void {
   const item = selectedCraftItem(state, ui);
   if (item === null) {
-    ui.craft.result = "Select an item from the stash first";
+    ui.craft.result = "先に倉庫からアイテムを選んでください";
     return;
   }
   if (op === "fuse") {

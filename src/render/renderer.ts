@@ -1,5 +1,5 @@
 import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { BossState, Enemy, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
+import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef } from "../data/enemies";
 import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
@@ -30,7 +30,7 @@ import {
 } from "./renderMath";
 import { uiFont } from "./font";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, spriteFrame } from "./sprites";
-import { FLOOR_KIND_LABEL, isDark } from "../system/roomTypes";
+import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
@@ -38,6 +38,13 @@ import { drawBoonChoice, drawBoonHud } from "./boonUi";
 const FONT_SMALL = uiFont(8);
 const FONT_MED = uiFont(12);
 const FONT_BIG = uiFont(20);
+
+/** HUD の階層表示用（system/roomTypes.ts の FLOOR_KIND_LABEL は英語のまま別用途で使われるため、表示専用にここで持つ） */
+const FLOOR_KIND_LABEL_JA: Readonly<Record<FloorKind, string>> = {
+  rooms: "通常",
+  cave: "洞窟",
+  dark: "暗闇",
+};
 
 const COLOR_BG = "#08080c";
 const COLOR_HP = "#e04848";
@@ -167,7 +174,7 @@ const BOSS_DEATH_GROW = 1.8;
 const BOSS_DEATH_RINGS = 3;
 const BOSS_DEATH_RING_R = 70;
 const BOSS_DEATH_RING_DELAY = 0.15;
-const BOSS_LABEL = "- BOSS -";
+const BOSS_LABEL = "― ボス ―";
 /** 階層移動ワイプ: map が変わった瞬間の flash がこれ以上ならワイプにする */
 const WIPE_TRIGGER_FLASH = 0.7;
 const WIPE_EDGE_ALPHA = 0.6;
@@ -212,7 +219,7 @@ const SHIELD_BAR_ICON_SCALE = 0.75;
 const ELITE_AURA_PULSE_SPEED = 3;
 const ELITE_AURA_PULSE_MIN = 0.75;
 /** Reaper */
-const REAPER_WARN_TEXT = "SOMETHING IS COMING";
+const REAPER_WARN_TEXT = "何かが近づいている";
 const REAPER_WARN_Y = 44;
 const REAPER_EDGE_MIN = 0.15;
 const REAPER_EDGE_MAX = 0.85;
@@ -1783,7 +1790,7 @@ export class Renderer {
       ctx.strokeStyle = blinkOn ? COLOR_ENERGY : COLOR_ENERGY_READY;
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
       ctx.fillStyle = energyColor;
-      ctx.fillText("F: BURST", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1);
+      ctx.fillText("F: バースト", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1);
     }
     this.drawDashPips(state);
     this.drawKeystoneHud(state);
@@ -1793,9 +1800,9 @@ export class Renderer {
     const rightX = VIEW_W - HUD_RIGHT_X_PAD;
     ctx.textAlign = "right";
     ctx.font = FONT_SMALL;
-    const depthText = `DEPTH ${state.depth} · ${FLOOR_KIND_LABEL[state.floorKind]}`;
-    const scoreText = `SCORE ${state.score}`;
-    const seedText = `seed ${state.seedText}`;
+    const depthText = `地下 ${state.depth} 階 · ${FLOOR_KIND_LABEL_JA[state.floorKind]}`;
+    const scoreText = `スコア ${state.score}`;
+    const seedText = `シード ${state.seedText}`;
     const panelW =
       Math.ceil(Math.max(ctx.measureText(depthText).width, ctx.measureText(scoreText).width, ctx.measureText(seedText).width)) +
       HUD_PANEL_PAD * 2;
@@ -1812,7 +1819,7 @@ export class Renderer {
     this.shadowText(scoreText, rightX, rightY + HUD_RIGHT_LINE, COLOR_HUD_SCORE);
     this.shadowText(seedText, rightX, rightY + HUD_RIGHT_LINE * 2, COLOR_HUD_SEED);
     if (state.cursed) {
-      this.shadowText("CURSED: next room elites x2", rightX, rightY + HUD_RIGHT_LINE * HUD_CURSED_LINE, ROOM_KIND.cursedColor);
+      this.shadowText("呪い: 次の部屋のエリート x2", rightX, rightY + HUD_RIGHT_LINE * HUD_CURSED_LINE, ROOM_KIND.cursedColor);
     }
 
     if (state.combo.count > 1) {
@@ -1821,7 +1828,7 @@ export class Renderer {
       ctx.font = uiFont(Math.round(14 * pop));
       const fading = state.combo.timer < 0.6;
       ctx.fillStyle = fading && state.tick % 8 < 4 ? COLOR_DIM : COLOR_ENERGY;
-      ctx.fillText(`${state.combo.count} HIT`, VIEW_W / 2, 22);
+      ctx.fillText(`${state.combo.count} ヒット`, VIEW_W / 2, 22);
       ctx.font = FONT_SMALL;
       ctx.fillStyle = COLOR_TEXT;
       ctx.fillText(`x${comboMultiplier(state.combo.count).toFixed(1)}`, VIEW_W / 2, 32);
@@ -1834,7 +1841,7 @@ export class Renderer {
       ctx.textAlign = "center";
       ctx.font = FONT_SMALL;
       ctx.fillStyle = COLOR_LOCK;
-      ctx.fillText("- ROOM LOCKED -", VIEW_W / 2, VIEW_H - 8);
+      ctx.fillText("― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8);
     }
 
     const last = state.log[state.log.length - 1];
@@ -2003,11 +2010,11 @@ export class Renderer {
     ctx.font = FONT_SMALL;
     if (state.reaper) {
       ctx.fillStyle = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2 ? REAPER.color : COLOR_WARN;
-      ctx.fillText("REAPER! find the stairs", VIEW_W - HUD_RIGHT_X_PAD, reaperY);
+      ctx.fillText("死神出現！ 階段へ急げ", VIEW_W - HUD_RIGHT_X_PAD, reaperY);
       return;
     }
     if (!reaperWarning(state)) return;
-    this.shadowText(`reaper in ${Math.ceil(reaperTimeLeft(state))}s`, VIEW_W - HUD_RIGHT_X_PAD, reaperY, REAPER.color);
+    this.shadowText(`死神まで ${Math.ceil(reaperTimeLeft(state))} 秒`, VIEW_W - HUD_RIGHT_X_PAD, reaperY, REAPER.color);
     if (state.status !== "playing") return;
     ctx.textAlign = "center";
     ctx.font = FONT_MED;
@@ -2065,7 +2072,7 @@ export class Renderer {
       .flat()
       .filter((d) => !state.stats.keystones.includes(d.key))
       .map((d) => d.name);
-    this.hudConflictText = inactive.length > 0 ? `! CONFLICT: ${inactive.join(", ")} inactive` : "";
+    this.hudConflictText = inactive.length > 0 ? `排他グループが競合: ${inactive.join("、")} は無効` : "";
   }
 
   /** リゲイン（取り戻せる HP）を現在 HP の右に薄いオレンジで。消える直前は点滅 */
@@ -2104,13 +2111,13 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.font = FONT_BIG;
     ctx.fillStyle = COLOR_HP;
-    ctx.fillText("YOU DIED", VIEW_W / 2, VIEW_H / 2 - 24);
+    ctx.fillText("力尽きた", VIEW_W / 2, VIEW_H / 2 - 24);
     ctx.font = FONT_MED;
     ctx.fillStyle = COLOR_TEXT;
-    ctx.fillText(`depth ${state.depth}  ·  ${state.kills} kills  ·  best combo ${state.combo.best}`, VIEW_W / 2, VIEW_H / 2);
-    ctx.fillText(`score ${state.score}`, VIEW_W / 2, VIEW_H / 2 + 16);
+    ctx.fillText(`地下 ${state.depth} 階 · 撃破 ${state.kills} · 最大コンボ ${state.combo.best}`, VIEW_W / 2, VIEW_H / 2);
+    ctx.fillText(`スコア ${state.score}`, VIEW_W / 2, VIEW_H / 2 + 16);
     ctx.font = FONT_SMALL;
     ctx.fillStyle = "#a0a0a0";
-    ctx.fillText("Enter: retry same seed   R: new seed", VIEW_W / 2, VIEW_H / 2 + 40);
+    ctx.fillText("Enter: 同じシードで再挑戦   R: 新しいシード", VIEW_W / 2, VIEW_H / 2 + 40);
   }
 }

@@ -51,6 +51,13 @@ function boonColor(def: BoonDef): string {
   return def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
 }
 
+/** 表示専用。system/boons.ts の BoonRarity は英語のキーのまま（ロジック側は別エージェントが管轄） */
+const BOON_RARITY_LABEL: Readonly<Record<BoonDef["rarity"], string>> = {
+  common: "通常",
+  rare: "希少",
+  epic: "極稀",
+};
+
 export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState): void {
   const c = state.boonChoice;
   if (!c) return;
@@ -59,10 +66,10 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   ctx.textAlign = "center";
   ctx.font = FONT_TITLE;
   ctx.fillStyle = COLOR_TITLE;
-  ctx.fillText(`DEPTH ${state.depth} - CHOOSE A BOON`, VIEW_W / 2, TITLE_Y);
+  ctx.fillText(`地下 ${state.depth} 階 - 祝福を選べ`, VIEW_W / 2, TITLE_Y);
   ctx.font = FONT_BODY;
   ctx.fillStyle = COLOR_SUB;
-  ctx.fillText("this run only", VIEW_W / 2, HINT_Y);
+  ctx.fillText("このランのみ有効", VIEW_W / 2, HINT_Y);
 
   const tags = equipmentTags(state.stats);
   c.options.forEach((key, i) => {
@@ -98,7 +105,8 @@ function drawCard(
   ctx.font = FONT_NAME;
   ctx.fillText(def.name, cx, y + NAME_Y);
   ctx.font = FONT_BODY;
-  ctx.fillText(def.cursed ? `${def.rarity} / CURSED` : def.rarity, cx, y + RARITY_Y);
+  const rarityLabel = BOON_RARITY_LABEL[def.rarity];
+  ctx.fillText(def.cursed ? `${rarityLabel} ・ 呪い付き` : rarityLabel, cx, y + RARITY_Y);
 
   ctx.fillStyle = COLOR_TEXT;
   const maxWidth = r.w - CARD_PAD * 2;

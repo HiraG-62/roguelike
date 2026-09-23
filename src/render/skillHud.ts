@@ -184,7 +184,7 @@ function drawRunes(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.fillRect(x - RUNE_SIZE, y - RUNE_SIZE, RUNE_SIZE * 2, RUNE_SIZE * 2);
     ctx.fillStyle = def.color;
     ctx.fillRect(x - 1, y - 1, DOT_SIZE, DOT_SIZE);
-    drawLabel(ctx, `Rune: ${def.name}`, x, Math.round(rune.pos.y) - PILLAR_H - LABEL_OFFSET, COLOR_RUNE);
+    drawLabel(ctx, `刻印符: ${def.name}`, x, Math.round(rune.pos.y) - PILLAR_H - LABEL_OFFSET, COLOR_RUNE);
   }
 }
 

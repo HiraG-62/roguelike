@@ -85,8 +85,8 @@ function deathConfirmPressed(frame: FrameInput, deathTimer: number): boolean {
 type Screen = "title" | "playing" | "paused" | "history" | "settings" | "replay";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
-const NO_REPLAY_MESSAGE = "no replay saved for this run";
-const BROKEN_REPLAY_MESSAGE = "replay data is broken";
+const NO_REPLAY_MESSAGE = "このランのリプレイは保存されていません";
+const BROKEN_REPLAY_MESSAGE = "リプレイデータが壊れています";
 
 function initialSeedText(): string {
   return new URLSearchParams(location.search).get(SEED_PARAM) ?? randomSeedText();
@@ -282,7 +282,7 @@ function foundItems(p: Profile): Item[] {
   return [...p.stash, ...equipped];
 }
 
-const GAMEPAD_HINT_TEXT = "Gamepad connected";
+const GAMEPAD_HINT_TEXT = "ゲームパッドを接続しました";
 const GAMEPAD_HINT_FONT = uiFont(8);
 const GAMEPAD_HINT_COLOR = "#e0e0e0";
 const GAMEPAD_HINT_Y_FROM_BOTTOM = 6;
