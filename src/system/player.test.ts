@@ -3,9 +3,10 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import type { StatusEffect } from "../core/status";
-import { MANA, PLAYER, TRIGGER } from "../data/tuning";
+import { MANA, PLAYER, STATUS, TRIGGER } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
+import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { burstDamage, dashCooldownTime, isPlayerStaggered, shotDamage } from "./player";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -193,6 +194,28 @@ describe("プレイヤーの怯み（被弾硬直）", () => {
     const state = arena();
     step(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.player.attack.phase).not.toBe("none");
+  });
+});
+
+describe("プレイヤーの冷気による移動速度低下", () => {
+  it("冷気を付与すると移動距離が減る", () => {
+    const moved = (chilled: boolean): number => {
+      const state = arena();
+      if (chilled) {
+        applyStatus(
+          state,
+          { kind: "player" },
+          { kind: "chill", stacks: 1, duration: STATUS.chill.duration, potency: STATUS.chill.slowPerStack },
+          "enemy",
+        );
+      }
+      const x = state.player.body.pos.x;
+      step(state, withInput({ move: { x: 1, y: 0 } }), FIXED_DT);
+      return state.player.body.pos.x - x;
+    };
+    const normal = moved(false);
+    expect(normal, "通常は動く").toBeGreaterThan(0);
+    expect(moved(true), "冷気中は移動距離が減る").toBeLessThan(normal);
   });
 });
 

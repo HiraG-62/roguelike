@@ -608,7 +608,7 @@ export const ACTION = {
     pierce: 2,
     /** 反射弾の残り寿命の下限（秒） */
     minLife: 1,
-    text: "パリィ",
+    text: "弾返し",
     color: "#ffe080",
     textScale: 1.2,
     textLife: 0.5,

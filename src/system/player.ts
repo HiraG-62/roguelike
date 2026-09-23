@@ -9,7 +9,7 @@ import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing, tickRe
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
 import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
-import { explodeAt, hasStatus } from "./statusEffects";
+import { explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { addRunAttributes, deriveAttributes, scaled } from "./attributes";
 import { gainMana } from "./mana";
 import { createStatusBag } from "../core/status";
@@ -344,7 +344,12 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     }
   } else {
     const staggerMul = isPlayerStaggered(p) ? PLAYER.staggerMoveMul : 1;
-    const attackMul = (isAttacking(p) ? PLAYER.attackMoveMul : 1) * skillMoveMul(state) * boonMoveMul(state) * staggerMul;
+    const attackMul =
+      (isAttacking(p) ? PLAYER.attackMoveMul : 1) *
+      skillMoveMul(state) *
+      boonMoveMul(state) *
+      staggerMul *
+      playerStatusMoveMul(state);
     const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
     vel = scale(input.move, PLAYER.speed * state.stats.moveSpeedMul * attackMul * buffMul);
     if (!aiming && !isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
