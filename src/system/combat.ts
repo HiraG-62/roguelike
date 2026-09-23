@@ -3,6 +3,7 @@ import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, PLAYER, ROOM_KIND } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
+import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones";
 import { rollEnemyDrop } from "./loot";
@@ -170,6 +171,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
   onBoonKill(state, enemy);
+  recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
   if (isLastKillInLockedRoom(state, enemy)) lastKillFx(state, enemy);
 }
 
@@ -287,6 +289,7 @@ export function damagePlayer(
   const taken = mitigate(state, amount);
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);
+  recordProvenance(state, { kind: "hurt" });
   p.invulnTimer = PLAYER.hurtInvuln;
   p.hitFlash = PLAYER_HIT_FLASH;
   const away = normalize(sub(p.body.pos, fromPos));
@@ -360,6 +363,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   pushSfx(state, "just");
   onBoonJust(state);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
+  recordProvenance(state, { kind: "just" });
 }
 
 export function cancelAttack(state: GameState): void {

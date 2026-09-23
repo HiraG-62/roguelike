@@ -79,8 +79,8 @@ describe("トリガー文法", () => {
     const rng = createRng(21);
     for (const slot of SLOTS) {
       for (let i = 0; i < 200; i++) {
-        const roll = generateTriggerRoll(rng, 20, slot, "suffix");
-        expect(roll.kind).toBe("suffix");
+        const roll = generateTriggerRoll(rng, 20, slot);
+        expect(roll.kind).toBeUndefined();
         const decoded = decodeTriggerRoll(roll);
         expect(decoded).not.toBeNull();
         if (decoded === null) continue;
@@ -93,7 +93,7 @@ describe("トリガー文法", () => {
     const rng = createRng(13);
     for (let i = 0; i < MANY; i++) {
       const effect = generateTrigger(rng, 1 + (i % HIGH_LEVEL));
-      const roll = triggerToRoll(effect, "prefix");
+      const roll = triggerToRoll(effect);
       expect(roll.key.startsWith(`tr:${effect.trigger}:${effect.condition}:${effect.effect}`)).toBe(true);
       expect(decodeTriggerRoll(roll)).toEqual(effect);
     }

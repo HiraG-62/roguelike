@@ -21,6 +21,7 @@ import { addFloatingText, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { heartsAllowed } from "./keystones";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
+import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
 import { type Box, boxCircleOverlap, circlesOverlap, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
@@ -440,6 +441,7 @@ function clearRoom(state: GameState, room: RoomState): void {
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   onBoonRoomClear(state);
+  recordProvenance(state, { kind: "roomClear" });
   // 試練: rare 確定 + ハート確定
   if (room.kind === "challenge") {
     dropRareItem(state, center);
@@ -509,6 +511,7 @@ function checkStairs(state: GameState): void {
 
 export function descend(state: GameState): void {
   state.depth += 1;
+  recordProvenance(state, { kind: "floorClear" });
   state.score += ROOM.clearBonus * state.depth;
   buildFloor(state);
   state.flash = 1;

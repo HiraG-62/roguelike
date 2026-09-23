@@ -1,77 +1,459 @@
 import { createRng, hashSeed, type Rng } from "../core/rng";
-import {
-  KEYSTONES,
-  affixDef,
-  affixesFor,
-  conversionsFor,
-  corruptedMarkerRoll,
-  formatAffix,
-  isConversionKey,
-  isKeystoneKey,
-  isMarkerKey,
-  keystoneToRoll,
-} from "./affixes";
-import { baseDef, type BaseItemDef } from "./bases";
-import {
-  affixKindLimit,
-  rollAffix,
-  rollAffixAtTier,
-  rollAffixes,
-  rollKeystone,
-} from "./generator";
+import { formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
+import { baseLean, traitColorOf } from "./colors";
+import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, sigmaAt } from "./flux";
+import { VESSEL_CAPACITY, refluxTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
+import { ensureGrowthFields } from "./migrate";
 import { nameItem } from "./names";
-import { generateTriggerRoll } from "./triggers";
-import { RARITIES, type AffixKind, type AffixRoll, type Item, type Profile, type Rarity } from "./types";
+import { maybeInscribe } from "./provenance";
+import { isTriggerKey } from "./triggers";
+import {
+  TRAIT_COLORS,
+  type AffixRoll,
+  type Item,
+  type Profile,
+  type Rarity,
+  type TraitColor,
+} from "./types";
 
 /**
- * クラフト（純ロジック）。docs/ideas/build-diversity.md「6. クラフト」。
- * 原則: クラフトは「ゴールへの近道」ではなく「分岐の選択」。どの操作も何かを得て何かを失う。
- * - Reforge: tier の上限は itemLevel で縛られる（深く潜らないと上位 tier は出ない）
- * - Corrupt: 必ずリスク（結果を選べず、以降クラフト不可）
- * - Fuse: 枠が縮む（元の合計より 1 枠少ない）
+ * クラフト（純ロジック）。docs/LOOT_DESIGN.md「クラフト（残響）」。
+ * 原則: ランダムに性質を「足す」操作は無い。性質が増える経路は来歴（芽）だけ。
+ * 通貨は色ごとの残響（紅響 / 蒼響 / 翠響 / 金響 / 冥響）。分解（砕く）で、性質の色に応じて得る。
+ * 6 操作: 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し。どれも何かを得て何かを失う。
  * 乱数はゲームの state.rng ではなく専用 RNG（item.id + クラフト回数）。ゲームの決定性に影響しない。
  */
 
 // ---------------------------------------------------------------------------
-// 通貨
+// 残響（通貨）
 // ---------------------------------------------------------------------------
 
+export type EchoWallet = Record<TraitColor, number>;
+
+export function createEchoWallet(): EchoWallet {
+  return { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0 };
+}
+
+/** 残響の表示名 */
+export const ECHO_LABEL: Readonly<Record<TraitColor, string>> = {
+  crimson: "紅響",
+  azure: "蒼響",
+  jade: "翠響",
+  gold: "金響",
+  umbra: "冥響",
+};
+
+// ---------------------------------------------------------------------------
+// 操作とコスト
+// ---------------------------------------------------------------------------
+
+export const ECHO_OPS = ["shatter", "dye", "calm", "stir", "pare", "transfer"] as const;
+export type EchoOp = (typeof ECHO_OPS)[number];
+
+export const ECHO_OP_LABEL: Readonly<Record<EchoOp, string>> = {
+  shatter: "砕く",
+  dye: "染め",
+  calm: "鎮め",
+  stir: "煽り",
+  pare: "削ぎ",
+  transfer: "移し",
+};
+
+/** 操作の説明（UI のツールチップ用。動詞で語る） */
+export const ECHO_OP_HINT: Readonly<Record<EchoOp, string>> = {
+  shatter: "遺物を砕き、性質の色の残響を得る",
+  dye: "性質 1 つを、残響の色の別の性質に置き換える（揺らぎは引き継ぐ）",
+  calm: "性質 1 つの揺らぎを半分にし、期待値へ寄せる（反転も解ける）。代わりに余白が 1 減る",
+  stir: "性質 1 つの揺らぎを大きく引き直す。反転することもある",
+  pare: "性質 1 つを消し、余白を 1 戻す",
+  transfer: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われる",
+};
+
+/** 染め: 目標色の残響 */
+export const DYE_COST = 3;
+/** 鎮め: 性質の色の残響 */
+export const CALM_COST = 2;
+/** 煽り: 冥響 */
+export const STIR_COST = 2;
+/** 削ぎ: 性質の色の残響 */
+export const PARE_COST = 1;
+/** 移し: 冥響 */
+export const TRANSFER_COST = 3;
+/** 鎮めの代償（余白） */
+export const CALM_MARGIN_COST = 1;
+/** 削ぎで戻る余白 */
+export const PARE_MARGIN_GAIN = 1;
+/** 煽りの σ 倍率と、反転の最低確率（浅い遺物でも反転し得る） */
+export const STIR_SIGMA_SCALE = 1.2;
+export const STIR_MIN_INVERSION_CHANCE = 0.1;
+/** 鎮めは flux をこの倍率にする（0 へ寄せる） */
+export const CALM_FLUX_FACTOR = 0.5;
+/** 砕く: 性質 1 つにつきその色の残響 */
+export const SHATTER_PER_TRAIT = 1;
+/** 砕く: 性質の無い遺物はベースの傾きの色（無ければ紅）を 1 */
+export const SHATTER_EMPTY_YIELD = 1;
+const SHATTER_FALLBACK_COLOR: TraitColor = "crimson";
+/** これ以下の |flux| は 0 とみなす（鎮め済み） */
+const FLUX_EPSILON = 0.005;
+
+const UMBRA: TraitColor = "umbra";
+
+export interface EchoCost {
+  color: TraitColor;
+  amount: number;
+}
+
+/** 移す対象。銘か、芽吹いた性質（source.affixes の index） */
+export type TransferWhat = { kind: "inscription" } | { kind: "bud"; traitIndex: number };
+
+export type EchoRequest =
+  | { op: "shatter"; item: Item }
+  | { op: "dye"; item: Item; traitIndex: number; color: TraitColor }
+  | { op: "calm"; item: Item; traitIndex: number }
+  | { op: "stir"; item: Item; traitIndex: number }
+  | { op: "pare"; item: Item; traitIndex: number }
+  | { op: "transfer"; item: Item; target: Item; what: TransferWhat };
+
+/** 操作ごとの専用 RNG。同じ item.id / counter なら同じ結果 */
+export function craftRng(itemId: string, counter: number): Rng {
+  return createRng(hashSeed(`${itemId}#${counter}`));
+}
+
+function traitAt(item: Item, index: number): AffixRoll | undefined {
+  return item.affixes[index];
+}
+
+/** 操作のコスト。砕くは null（無料）。対象の性質が無い・色が無い場合も null */
+export function echoCost(req: EchoRequest): EchoCost | null {
+  switch (req.op) {
+    case "shatter":
+      return null;
+    case "dye":
+      return { color: req.color, amount: DYE_COST };
+    case "calm":
+    case "pare": {
+      const roll = traitAt(req.item, req.traitIndex);
+      const color = roll === undefined ? undefined : traitColorOf(roll);
+      if (color === undefined) return null;
+      return { color, amount: req.op === "calm" ? CALM_COST : PARE_COST };
+    }
+    case "stir":
+      return { color: UMBRA, amount: STIR_COST };
+    case "transfer":
+      return { color: UMBRA, amount: TRANSFER_COST };
+  }
+}
+
+export function canAffordEcho(echoes: Readonly<EchoWallet>, cost: EchoCost | null): boolean {
+  return cost === null || echoes[cost.color] >= cost.amount;
+}
+
+// ---------------------------------------------------------------------------
+// 各操作（純関数。成立しなければ null）
+// ---------------------------------------------------------------------------
+
+/** 性質や余白が変わった後の名前・分類の付け直し */
+function refreshed(item: Item): Item {
+  const out = { ...item, rarity: fluxClassOf(item.affixes) };
+  out.name = nameItem(out);
+  return out;
+}
+
+function replaceTrait(item: Item, index: number, roll: AffixRoll): Item {
+  return refreshed({ ...item, affixes: item.affixes.map((r, i) => (i === index ? roll : r)) });
+}
+
+/** 砕いて得る残響 */
+export function shatterYield(item: Item): EchoWallet {
+  const gained = createEchoWallet();
+  for (const roll of item.affixes) {
+    const color = traitColorOf(roll);
+    if (color !== undefined) gained[color] += SHATTER_PER_TRAIT;
+  }
+  if (TRAIT_COLORS.every((c) => gained[c] === 0)) {
+    gained[baseLean(item.baseKey) ?? SHATTER_FALLBACK_COLOR] += SHATTER_EMPTY_YIELD;
+  }
+  return gained;
+}
+
+function traitOptions(item: Item, origin: AffixRoll["origin"]): TraitRollOptions {
+  return { depth: item.itemLevel, foundDepth: item.foundDepth, allowInversion: false, origin: origin ?? "found" };
+}
+
+/** 染め: index の性質を、color の別の性質に置き換える。揺らぎ（flux）は引き継ぐ */
+export function dyeTrait(item: Item, index: number, color: TraitColor, rng: Rng): Item | null {
+  const roll = traitAt(item, index);
+  if (roll === undefined || traitColorOf(roll) === color) return null;
+  const used = new Set(item.affixes.map((r) => r.key));
+  const fresh = rollTraitOfColor(rng, item.slot, color, used, traitOptions(item, roll.origin));
+  if (fresh === undefined) return null;
+  const carried = roll.flux === undefined || isKeystoneKey(fresh.key) ? fresh : refluxTrait(fresh, roll.flux);
+  const colored: AffixRoll = carried.inverted === true ? carried : { ...carried, color };
+  return replaceTrait(item, index, colored);
+}
+
+function hasFlux(roll: AffixRoll): boolean {
+  return Math.abs(roll.flux ?? 0) > FLUX_EPSILON;
+}
+
+/** 鎮め: 揺らぎを半分にする（反転は解ける）。余白を CALM_MARGIN_COST 払う */
+export function calmTrait(item: Item, index: number): Item | null {
+  const roll = traitAt(item, index);
+  if (roll === undefined || !hasFlux(roll) || isKeystoneKey(roll.key)) return null;
+  const margin = item.margin ?? 0;
+  if (margin < CALM_MARGIN_COST) return null;
+  const calmed = refluxTrait(roll, (roll.flux ?? 0) * CALM_FLUX_FACTOR);
+  const out = { ...replaceTrait(item, index, calmed), margin: margin - CALM_MARGIN_COST };
+  maybeInscribe(out);
+  return out;
+}
+
+/** 表の性質（トリガー・変換以外）なら反転し得る */
+function stirCanInvert(roll: AffixRoll): boolean {
+  return !isTriggerKey(roll.key) && !isConversionKey(roll.key);
+}
+
+/** 煽り: 揺らぎを σ × STIR_SIGMA_SCALE で引き直す。反転の危険がある */
+export function stirTrait(item: Item, index: number, rng: Rng): Item | null {
+  const roll = traitAt(item, index);
+  if (roll === undefined || isKeystoneKey(roll.key)) return null;
+  const chance = Math.max(inversionChance(item.foundDepth), STIR_MIN_INVERSION_CHANCE);
+  const invert = stirCanInvert(roll) && rng.chance(chance);
+  const flux = invert ? rollInvertedFlux(rng) : rollFlux(rng, sigmaAt(item.itemLevel) * STIR_SIGMA_SCALE);
+  const stirred = refluxTrait(roll, flux);
+  if (stirred === roll) return null;
+  return replaceTrait(item, index, stirred);
+}
+
+/** 削ぎ: 性質 1 つを消し、余白を 1 戻す（器の容量まで） */
+export function pareTrait(item: Item, index: number): Item | null {
+  const roll = traitAt(item, index);
+  if (roll === undefined) return null;
+  const margin = Math.min(VESSEL_CAPACITY, (item.margin ?? 0) + PARE_MARGIN_GAIN);
+  const affixes = item.affixes.filter((_, i) => i !== index);
+  return refreshed({ ...item, affixes, margin, marginMax: Math.max(item.marginMax ?? 0, margin) });
+}
+
+/** 移し: 銘か芽吹いた性質を target へ。source は失われる（applyEchoResult が消す） */
+export function transferGrowth(source: Item, target: Item, what: TransferWhat): Item | null {
+  if (source.id === target.id || source.slot !== target.slot) return null;
+  if (what.kind === "inscription") {
+    if (source.inscription === undefined || target.inscription !== undefined) return null;
+    return refreshed({ ...target, inscription: source.inscription });
+  }
+  const roll = traitAt(source, what.traitIndex);
+  if (roll === undefined || roll.origin !== "bud") return null;
+  if (target.affixes.some((r) => r.key === roll.key)) return null;
+  const margin = target.margin ?? 0;
+  if (margin <= 0) return null;
+  const out = refreshed({ ...target, affixes: [...target.affixes, roll], margin: margin - 1 });
+  maybeInscribe(out);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 実行（通貨の確認・消費・回数の更新）
+// ---------------------------------------------------------------------------
+
+export interface EchoCraftState {
+  echoes: EchoWallet;
+  /** クラフト回数。専用 RNG の seed に混ぜる */
+  counter: number;
+}
+
+export type EchoRejectReason = "insufficient" | "invalid";
+
+export type EchoResult =
+  | {
+      ok: true;
+      op: EchoOp;
+      before: Item;
+      /** 操作後のアイテム。砕くは null */
+      item: Item | null;
+      /** stash / 装備から消えるアイテム（砕く・移しの元） */
+      consumedIds: string[];
+      /** 得た残響（砕く） */
+      gained: EchoWallet;
+      message: string;
+    }
+  | { ok: false; op: EchoOp; reason: EchoRejectReason; message: string };
+
+const INVALID_MESSAGE: Readonly<Record<EchoOp, string>> = {
+  shatter: "砕けるものがない",
+  dye: "その性質はすでにその色か、置き換えられる性質がない",
+  calm: "鎮める揺らぎがないか、余白が足りない",
+  stir: "煽れる性質がない（誓約は揺らがない）",
+  pare: "削ぐ性質がない",
+  transfer: "移せない（同じ部位の別の遺物へ、銘は無銘へ、芽は余白のある遺物へ）",
+};
+
+export function echoBlockMessage(reason: EchoRejectReason, req: EchoRequest): string {
+  if (reason === "invalid") return INVALID_MESSAGE[req.op];
+  const cost = echoCost(req);
+  return cost === null ? INVALID_MESSAGE[req.op] : `${ECHO_LABEL[cost.color]}が${cost.amount}必要`;
+}
+
+function runEchoOp(req: EchoRequest, rng: Rng): Item | null {
+  switch (req.op) {
+    case "shatter":
+      return null;
+    case "dye":
+      return dyeTrait(req.item, req.traitIndex, req.color, rng);
+    case "calm":
+      return calmTrait(req.item, req.traitIndex);
+    case "stir":
+      return stirTrait(req.item, req.traitIndex, rng);
+    case "pare":
+      return pareTrait(req.item, req.traitIndex);
+    case "transfer":
+      return transferGrowth(req.item, req.target, req.what);
+  }
+}
+
+function gainedText(gained: EchoWallet): string {
+  return TRAIT_COLORS.filter((c) => gained[c] > 0)
+    .map((c) => `${ECHO_LABEL[c]} +${gained[c]}`)
+    .join("・");
+}
+
+function changeNote(req: EchoRequest, after: Item): string {
+  if (req.op === "transfer") return `${req.item.name} → ${after.name}`;
+  if (req.op === "shatter") return "";
+  const before = traitAt(req.item, req.traitIndex);
+  if (req.op === "pare") return before === undefined ? "" : `- ${formatAffix(before)}`;
+  const now = traitAt(after, req.traitIndex);
+  return now === undefined ? "" : formatAffix(now);
+}
+
+function shatter(state: EchoCraftState, item: Item): EchoResult {
+  const gained = shatterYield(item);
+  for (const c of TRAIT_COLORS) state.echoes[c] += gained[c];
+  state.counter += 1;
+  const message = `${ECHO_OP_LABEL.shatter}: ${item.name}（${gainedText(gained)}）`;
+  return { ok: true, op: "shatter", before: item, item: null, consumedIds: [item.id], gained, message };
+}
+
+/**
+ * クラフトを 1 回実行する。成功時のみ残響を消費し counter を進める。profile は触らない（applyEchoResult を参照）
+ */
+export function craftEcho(state: EchoCraftState, req: EchoRequest): EchoResult {
+  const { op } = req;
+  if (op === "shatter") return shatter(state, req.item);
+  const cost = echoCost(req);
+  if (!canAffordEcho(state.echoes, cost)) {
+    return { ok: false, op, reason: "insufficient", message: echoBlockMessage("insufficient", req) };
+  }
+  const source = ensureGrowthFields({ ...req.item });
+  const normalized: EchoRequest =
+    req.op === "transfer" ? { ...req, item: source, target: ensureGrowthFields({ ...req.target }) } : { ...req, item: source };
+  const after = runEchoOp(normalized, craftRng(req.item.id, state.counter));
+  if (after === null) return { ok: false, op, reason: "invalid", message: echoBlockMessage("invalid", req) };
+  if (cost !== null) state.echoes[cost.color] -= cost.amount;
+  state.counter += 1;
+  const consumedIds = req.op === "transfer" ? [req.item.id] : [];
+  const note = changeNote(normalized, after);
+  const message = note.length === 0 ? `${ECHO_OP_LABEL[op]}: ${after.name}` : `${ECHO_OP_LABEL[op]}: ${after.name}（${note}）`;
+  return { ok: true, op, before: req.item, item: after, consumedIds, gained: createEchoWallet(), message };
+}
+
+function replaceInProfile(profile: Profile, item: Item): boolean {
+  const index = profile.stash.findIndex((it) => it.id === item.id);
+  if (index >= 0) {
+    profile.stash[index] = item;
+    return true;
+  }
+  const equipped = profile.equipment[item.slot];
+  if (equipped?.id !== item.id) return false;
+  profile.equipment[item.slot] = item;
+  return true;
+}
+
+function removeFromProfile(profile: Profile, id: string): void {
+  profile.stash = profile.stash.filter((it) => it.id !== id);
+  for (const item of Object.values(profile.equipment)) {
+    if (item?.id === id) profile.equipment[item.slot] = null;
+  }
+}
+
+/**
+ * 成功したクラフトを profile に反映する（stash と装備の両方を探す）。
+ * 砕く・移しの元は消え、それ以外は同じ位置で置き換える。反映できたら true
+ */
+export function applyEchoResult(profile: Profile, result: EchoResult): boolean {
+  if (!result.ok) return false;
+  for (const id of result.consumedIds) removeFromProfile(profile, id);
+  return result.item === null ? true : replaceInProfile(profile, result.item);
+}
+
+/** 旧通貨 → 残響の換算（1 単位あたりの点数）。点数の合計を 5 色に均等に配り、余りは TRAIT_COLORS 順に 1 ずつ */
+export const LEGACY_CURRENCY_POINTS: Readonly<Record<Currency, number>> = {
+  dust: 1,
+  shard: 2,
+  essence: 4,
+  relic: 8,
+};
+
+/** 旧 wallet を残響に換算する（旧 wallet は変えない） */
+export function convertLegacyWallet(wallet: Readonly<Wallet>): EchoWallet {
+  const points = CURRENCIES.reduce((sum, c) => sum + wallet[c] * LEGACY_CURRENCY_POINTS[c], 0);
+  const echoes = createEchoWallet();
+  const share = Math.floor(points / TRAIT_COLORS.length);
+  const remainder = points - share * TRAIT_COLORS.length;
+  TRAIT_COLORS.forEach((c, i) => {
+    echoes[c] = share + (i < remainder ? 1 : 0);
+  });
+  return echoes;
+}
+
+// ===========================================================================
+// 互換レイヤー（@deprecated）: 旧 UI（src/ui/inventory.ts・src/render/inventoryUi.ts）が
+// 新 API（craftEcho / applyEchoResult / ECHO_OPS / EchoWallet）へ移行するまでの間だけ残す。
+// 旧 5 操作は新しい操作へ読み替える: 再鍛造・腐敗 → 煽り（ランダムな性質）/ 付与 → 廃止（常に拒否）/
+// 無効化 → 削ぎ（ランダムな性質）/ 融合 → 2 つの性質を寄せ集めた 1 つ（合計 - 1 個）。
+// UI の移行後、この節と craftingStore.ts の wallet を削除すること。
+// ===========================================================================
+
+/** @deprecated 旧通貨。残響（EchoWallet）へ移行する */
 export const CURRENCIES = ["dust", "shard", "essence", "relic"] as const;
+/** @deprecated */
 export type Currency = (typeof CURRENCIES)[number];
+/** @deprecated */
 export type Wallet = Record<Currency, number>;
 
+/** @deprecated */
 export function createWallet(): Wallet {
   return { dust: 0, shard: 0, essence: 0, relic: 0 };
 }
 
-/** 分解で得る通貨（rarity ごと） */
+/** @deprecated 旧 rarity（= 揺らぎの分類）ごとの分解通貨 */
 export const SALVAGE_CURRENCY: Readonly<Record<Rarity, Currency>> = {
   normal: "dust",
   magic: "shard",
   rare: "essence",
   unique: "relic",
 };
+/** @deprecated */
 export const SALVAGE_AMOUNT = 1;
 
-/** 分解した item の通貨を wallet に加える。加えた通貨を返す */
+/** @deprecated 新 API は craftEcho({ op: "shatter" }) */
 export function addSalvageCurrency(wallet: Wallet, item: Item): Currency {
   const currency = SALVAGE_CURRENCY[item.rarity];
   wallet[currency] += SALVAGE_AMOUNT;
   return currency;
 }
 
-// ---------------------------------------------------------------------------
-// 操作とコスト
-// ---------------------------------------------------------------------------
-
+/** @deprecated 新 API は ECHO_OPS */
 export const CRAFT_OPS = ["reforge", "augment", "annul", "corrupt", "fuse"] as const;
+/** @deprecated */
 export type CraftOp = (typeof CRAFT_OPS)[number];
 
+/** @deprecated */
 export interface CraftCost {
   currency: Currency;
   amount: number;
 }
 
+/** @deprecated */
 export const CRAFT_COSTS: Readonly<Record<CraftOp, CraftCost>> = {
   reforge: { currency: "shard", amount: 3 },
   augment: { currency: "essence", amount: 2 },
@@ -80,319 +462,30 @@ export const CRAFT_COSTS: Readonly<Record<CraftOp, CraftCost>> = {
   fuse: { currency: "essence", amount: 1 },
 };
 
-/** Augment で追加する枠がトリガー文法から生成される確率 */
-export const AUGMENT_TRIGGER_CHANCE = 0.25;
-
-/** Fuse は元の合計枠よりこれだけ少ない枠になる */
-export const FUSE_SLOT_PENALTY = 1;
-
-export type CorruptOutcome = "keystone" | "conversion" | "exalt" | "nothing";
-export const CORRUPT_OUTCOMES: readonly CorruptOutcome[] = ["keystone", "conversion", "exalt", "nothing"];
-
-const CORRUPT_OUTCOME_TEXT: Readonly<Record<CorruptOutcome, string>> = {
-  keystone: "キーストーンを書き換え",
-  conversion: "変換アフィックスを獲得",
-  exalt: "tierが上昇、アフィックスを1つ反転",
-  nothing: "何も起きなかった",
-};
-
-const UINT32_MAX = 0xffffffff;
-const ID_RADIX = 36;
-const FUSED_ID_PREFIX = "fx";
-const TOP_TIER = 1;
-
-export function isCorrupted(item: Item): boolean {
-  return item.affixes.some((r) => isMarkerKey(r.key));
-}
-
-export function canAfford(wallet: Wallet, op: CraftOp): boolean {
-  const cost = CRAFT_COSTS[op];
-  return wallet[cost.currency] >= cost.amount;
-}
-
-/** 操作ごとの専用 RNG。同じ item.id / counter なら同じ結果 */
-export function craftRng(itemId: string, counter: number): Rng {
-  return createRng(hashSeed(`${itemId}#${counter}`));
-}
-
-// ---------------------------------------------------------------------------
-// ヘルパー
-// ---------------------------------------------------------------------------
-
-/** 枠を占めるアフィックス（キーストーンとマーカーは別枠） */
-function slotRolls(affixes: readonly AffixRoll[]): AffixRoll[] {
-  return affixes.filter((r) => !isKeystoneKey(r.key) && !isMarkerKey(r.key));
-}
-
-function countKind(affixes: readonly AffixRoll[], kind: AffixKind): number {
-  return slotRolls(affixes).filter((r) => r.kind === kind).length;
-}
-
-function withoutMarkers(affixes: readonly AffixRoll[]): AffixRoll[] {
-  return affixes.filter((r) => !isMarkerKey(r.key));
-}
-
-/** prefix → その他（suffix・キーストーン）→ マーカーの順に並べ直す */
-function sortAffixes(affixes: readonly AffixRoll[]): AffixRoll[] {
-  const body = withoutMarkers(affixes);
-  const markers = affixes.filter((r) => isMarkerKey(r.key));
-  return [...body.filter((r) => r.kind === "prefix"), ...body.filter((r) => r.kind !== "prefix"), ...markers];
-}
-
-/** magic 名はアフィックスから決まるので付け替える。それ以外は名前を保つ */
-function renamed(item: Item, affixes: readonly AffixRoll[], rng: Rng): string {
-  if (item.rarity !== "magic") return item.name;
-  const base = baseDef(item.baseKey);
-  return base === undefined ? item.name : nameItem(rng, base, item.rarity, affixes);
-}
-
-function withAffixes(item: Item, affixes: readonly AffixRoll[], rng: Rng): Item {
-  const sorted = sortAffixes(affixes);
-  return { ...item, affixes: sorted, name: renamed(item, sorted, rng) };
-}
-
-/** Fisher-Yates（rng 決定的） */
-function shuffled<T>(rng: Rng, arr: readonly T[]): T[] {
-  const out = [...arr];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = rng.int(0, i);
-    const tmp = out[i];
-    const other = out[j];
-    if (tmp === undefined || other === undefined) continue;
-    out[i] = other;
-    out[j] = tmp;
-  }
-  return out;
-}
-
-function rarityRank(rarity: Rarity): number {
-  return RARITIES.indexOf(rarity);
-}
-
-/** 操作の結果。null は「この対象には適用できない」 */
-export interface OpResult {
-  item: Item;
-  /** 結果メッセージに添える補足 */
-  note?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Reforge: 全アフィックスをロールし直す（rarity 維持）
-// ---------------------------------------------------------------------------
-
-/** unique は固定セットなので、各アフィックスの値を同じ tier の範囲でロールし直す（キーストーン・トリガーは保持） */
-function rerollUniqueValues(rng: Rng, affixes: readonly AffixRoll[]): AffixRoll[] {
-  return affixes.map((roll) => {
-    const def = affixDef(roll.key);
-    if (def === undefined || def.tiers[roll.tier - 1] === undefined) return roll;
-    return rollAffixAtTier(rng, def, roll.tier - 1);
-  });
-}
-
-/** itemLevel は元の itemLevel と maxLevel（profile.meta.bestDepth）の高い方 */
-export function reforgeItem(item: Item, rng: Rng, maxLevel: number): OpResult | null {
-  if (item.rarity === "normal") return null;
-  const base = baseDef(item.baseKey);
-  if (base === undefined) return null;
-  const itemLevel = Math.max(item.itemLevel, Math.floor(maxLevel));
-  if (item.rarity === "unique") {
-    return { item: { ...item, itemLevel, affixes: rerollUniqueValues(rng, item.affixes) } };
-  }
-  const rolled = rollAffixes(rng, item.slot, item.rarity, itemLevel);
-  const keystone = rollKeystone(rng, item.rarity);
-  const affixes = sortAffixes(keystone === undefined ? rolled : [...rolled, keystone]);
-  const name = nameItem(rng, base, item.rarity, affixes);
-  return { item: { ...item, itemLevel, affixes, name } };
-}
-
-// ---------------------------------------------------------------------------
-// Augment: 空き枠に 1 つ追加
-// ---------------------------------------------------------------------------
-
-function rollAugment(rng: Rng, item: Item, kind: AffixKind, used: ReadonlySet<string>): AffixRoll | undefined {
-  if (rng.chance(AUGMENT_TRIGGER_CHANCE)) {
-    const trigger = generateTriggerRoll(rng, item.itemLevel, item.slot, kind);
-    if (!used.has(trigger.key)) return trigger;
-  }
-  const candidates = affixesFor(item.slot, kind, item.itemLevel).filter((d) => !used.has(d.key));
-  if (candidates.length === 0) return undefined;
-  return rollAffix(rng, rng.pick(candidates), item.itemLevel);
-}
-
-export function augmentItem(item: Item, rng: Rng): OpResult | null {
-  const limit = affixKindLimit(item.rarity);
-  const used = new Set(item.affixes.map((r) => r.key));
-  const kinds = (["prefix", "suffix"] as const).filter(
-    (k) => countKind(item.affixes, k) < limit && affixesFor(item.slot, k, item.itemLevel).some((d) => !used.has(d.key)),
-  );
-  if (kinds.length === 0) return null;
-  const added = rollAugment(rng, item, rng.pick(kinds), used);
-  if (added === undefined) return null;
-  return { item: withAffixes(item, [...item.affixes, added], rng), note: `+ ${formatAffix(added)}` };
-}
-
-// ---------------------------------------------------------------------------
-// Annul: ランダムに 1 つ削除
-// ---------------------------------------------------------------------------
-
-export function annulItem(item: Item, rng: Rng): OpResult | null {
-  const removable = withoutMarkers(item.affixes);
-  if (removable.length === 0) return null;
-  const target = rng.pick(removable);
-  const affixes = item.affixes.filter((r) => r !== target);
-  return { item: withAffixes(item, affixes, rng), note: `- ${formatAffix(target)}` };
-}
-
-// ---------------------------------------------------------------------------
-// Corrupt: 1 回きり。結果は選べない
-// ---------------------------------------------------------------------------
-
-function corruptKeystone(item: Item, rng: Rng): AffixRoll[] | null {
-  const current = new Set(item.affixes.filter((r) => isKeystoneKey(r.key)).map((r) => r.key));
-  const candidates = KEYSTONES.filter((k) => !current.has(k.key));
-  if (candidates.length === 0) return null;
-  const rest = item.affixes.filter((r) => !isKeystoneKey(r.key));
-  return [...rest, keystoneToRoll(rng.pick(candidates))];
-}
-
-function corruptConversion(item: Item, rng: Rng): AffixRoll[] | null {
-  const used = new Set(item.affixes.map((r) => r.key));
-  const candidates = conversionsFor(item.slot, item.itemLevel).filter((d) => !used.has(d.key));
-  if (candidates.length === 0) return null;
-  return [...item.affixes, rollAffix(rng, rng.pick(candidates), item.itemLevel)];
-}
-
-/** 通常アフィックス（変換・トリガー・キーストーン・マーカー以外）か */
-function isInvertible(roll: AffixRoll): boolean {
-  return affixDef(roll.key) !== undefined && !isConversionKey(roll.key);
-}
-
-/** 全テーブルアフィックスの tier を 1 段上げ（itemLevel を超えてよい）、通常アフィックス 1 つの value を負にする */
-function corruptExalt(item: Item, rng: Rng): AffixRoll[] | null {
-  const raised = item.affixes.map((roll) => {
-    const def = affixDef(roll.key);
-    if (def === undefined || roll.tier <= TOP_TIER) return roll;
-    return rollAffixAtTier(rng, def, roll.tier - 2);
-  });
-  const invertible = raised.filter(isInvertible);
-  if (invertible.length === 0) return null;
-  const victim = rng.pick(invertible);
-  return raised.map((r) => (r === victim ? { ...r, value: -Math.abs(r.value) } : r));
-}
-
-function corruptAffixes(item: Item, rng: Rng, outcome: CorruptOutcome): AffixRoll[] | null {
-  switch (outcome) {
-    case "keystone":
-      return corruptKeystone(item, rng);
-    case "conversion":
-      return corruptConversion(item, rng);
-    case "exalt":
-      return corruptExalt(item, rng);
-    case "nothing":
-      return null;
-  }
-}
-
-export interface CorruptResult extends OpResult {
-  outcome: CorruptOutcome;
-}
-
-/** 適用できない結果（キーストーン候補なし等）は「何も起きない」になる。どの結果でも corrupted になる */
-export function corruptItem(item: Item, rng: Rng): CorruptResult {
-  const rolled = rng.pick(CORRUPT_OUTCOMES);
-  const changed = corruptAffixes(item, rng, rolled);
-  const outcome: CorruptOutcome = changed === null ? "nothing" : rolled;
-  const affixes = [...(changed ?? item.affixes), corruptedMarkerRoll()];
-  return { item: withAffixes(item, affixes, rng), outcome, note: CORRUPT_OUTCOME_TEXT[outcome] };
-}
-
-// ---------------------------------------------------------------------------
-// Fuse: 同スロットの 2 つから、合計より 1 枠少ない新アイテム
-// ---------------------------------------------------------------------------
-
-/** 両親の枠数の合計 - FUSE_SLOT_PENALTY（マーカーは数えない） */
-export function fuseSlotCount(a: Item, b: Item): number {
-  return Math.max(0, withoutMarkers(a.affixes).length + withoutMarkers(b.affixes).length - FUSE_SLOT_PENALTY);
-}
-
-function pickFusedAffixes(rng: Rng, pool: readonly AffixRoll[], target: number, rarity: Rarity): AffixRoll[] {
-  const limit = affixKindLimit(rarity);
-  const picked: AffixRoll[] = [];
-  const used = new Set<string>();
-  for (const roll of shuffled(rng, pool)) {
-    if (picked.length >= target) break;
-    if (used.has(roll.key)) continue;
-    if (isKeystoneKey(roll.key)) {
-      if (picked.some((r) => isKeystoneKey(r.key))) continue;
-    } else if (countKind(picked, roll.kind) >= limit) {
-      continue;
-    }
-    picked.push(roll);
-    used.add(roll.key);
-  }
-  return picked;
-}
-
-function fusedName(rng: Rng, base: BaseItemDef, rarity: Rarity, affixes: readonly AffixRoll[]): string {
-  // unique の固有名は引き継がない（別物になる）。rare と同じ生成名にする
-  return nameItem(rng, base, rarity === "unique" ? "rare" : rarity, affixes);
-}
-
-export function fuseItems(a: Item, b: Item, rng: Rng, now: number): OpResult | null {
-  if (a.id === b.id || a.slot !== b.slot) return null;
-  const target = fuseSlotCount(a, b);
-  if (target === 0) return null;
-  const rarity = rarityRank(a.rarity) >= rarityRank(b.rarity) ? a.rarity : b.rarity;
-  const parent = rng.pick([a, b]);
-  const base = baseDef(parent.baseKey);
-  if (base === undefined) return null;
-  const pool = [...withoutMarkers(a.affixes), ...withoutMarkers(b.affixes)];
-  const affixes = sortAffixes(pickFusedAffixes(rng, pool, target, rarity));
-  const seed = rng.int(0, UINT32_MAX);
-  const item: Item = {
-    id: `${FUSED_ID_PREFIX}-${seed.toString(ID_RADIX)}-${hashSeed(`${a.id}+${b.id}`).toString(ID_RADIX)}`,
-    seed,
-    baseKey: base.key,
-    slot: a.slot,
-    rarity,
-    itemLevel: Math.max(a.itemLevel, b.itemLevel),
-    name: fusedName(rng, base, rarity, affixes),
-    implicit: parent.implicit,
-    affixes,
-    foundDepth: Math.max(a.foundDepth, b.foundDepth),
-    foundAt: Math.max(now, a.foundAt, b.foundAt),
-  };
-  return { item };
-}
-
-// ---------------------------------------------------------------------------
-// 実行（通貨の確認・消費・回数の更新）
-// ---------------------------------------------------------------------------
-
+/** @deprecated */
 export interface CraftState {
   wallet: Wallet;
-  /** クラフト回数。専用 RNG の seed に混ぜる */
   counter: number;
 }
 
+/** @deprecated */
 export interface CraftRequest {
   op: CraftOp;
   item: Item;
-  /** Fuse の 2 つ目 */
   partner?: Item;
-  /** Reforge の itemLevel 上限の候補（profile.meta.bestDepth） */
   bestDepth: number;
-  /** Fuse で作るアイテムの foundAt（epoch ms） */
   now: number;
 }
 
+/** @deprecated "corrupted" は旧互換のため型にだけ残す（新形式に腐敗は無い） */
 export type CraftRejectReason = "corrupted" | "insufficient" | "invalid";
 
+/** @deprecated */
 export type CraftResult =
   | { ok: true; op: CraftOp; before: Item; item: Item; consumedIds: string[]; message: string }
   | { ok: false; op: CraftOp; reason: CraftRejectReason; message: string };
 
-const OP_VERB: Readonly<Record<CraftOp, string>> = {
+const LEGACY_VERB: Readonly<Record<CraftOp, string>> = {
   reforge: "再鍛造",
   augment: "付与",
   annul: "無効化",
@@ -400,84 +493,89 @@ const OP_VERB: Readonly<Record<CraftOp, string>> = {
   fuse: "融合",
 };
 
-const INVALID_MESSAGE: Readonly<Record<CraftOp, string>> = {
-  reforge: "再鍛造対象がありません（ノーマル装備にはアフィックスがありません）",
-  augment: "空いているアフィックス枠がありません",
-  annul: "無効化できるアフィックスがありません",
-  corrupt: "腐敗させられません",
-  fuse: "融合には同じ部位でアフィックスを持つ異なる2つの装備が必要です",
+const LEGACY_INVALID: Readonly<Record<CraftOp, string>> = {
+  reforge: "揺らせる性質がありません",
+  augment: "付与は廃止されました（性質は芽からしか増えません）",
+  annul: "削げる性質がありません",
+  corrupt: "揺らせる性質がありません",
+  fuse: "融合には同じ部位の異なる2つの装備が必要です",
 };
 
-const CORRUPTED_MESSAGE = "腐敗した装備はクラフトできません";
-
-/** 通貨の表示名 */
-const CURRENCY_LABEL: Readonly<Record<Currency, string>> = {
+const LEGACY_CURRENCY_LABEL: Readonly<Record<Currency, string>> = {
   dust: "塵",
   shard: "欠片",
   essence: "精髄",
-  relic: "遺物",
+  relic: "秘宝",
 };
+const LEGACY_FUSE_PENALTY = 1;
 
-/** 拒否理由の表示文 */
+/** @deprecated */
 export function craftBlockMessage(reason: CraftRejectReason, op: CraftOp): string {
-  const cost = CRAFT_COSTS[op];
-  switch (reason) {
-    case "corrupted":
-      return CORRUPTED_MESSAGE;
-    case "insufficient":
-      return `${CURRENCY_LABEL[cost.currency]}が${cost.amount}必要です`;
-    case "invalid":
-      return INVALID_MESSAGE[op];
+  if (reason === "insufficient") {
+    const cost = CRAFT_COSTS[op];
+    return `${LEGACY_CURRENCY_LABEL[cost.currency]}が${cost.amount}必要です`;
   }
+  return LEGACY_INVALID[op];
 }
 
-function runOp(req: CraftRequest, rng: Rng): OpResult | null {
+function randomTraitIndex(item: Item, rng: Rng, allowVow: boolean): number | undefined {
+  const indices = item.affixes.map((r, i) => ({ r, i })).filter(({ r }) => allowVow || !isKeystoneKey(r.key));
+  if (indices.length === 0) return undefined;
+  return rng.pick(indices).i;
+}
+
+function legacyFuse(a: Item, b: Item, rng: Rng): Item | null {
+  if (a.id === b.id || a.slot !== b.slot) return null;
+  const target = a.affixes.length + b.affixes.length - LEGACY_FUSE_PENALTY;
+  if (target <= 0) return null;
+  const pool = [...a.affixes, ...b.affixes];
+  const picked: AffixRoll[] = [];
+  const used = new Set<string>();
+  while (picked.length < target && pool.length > 0) {
+    const [roll] = pool.splice(rng.int(0, pool.length - 1), 1);
+    if (roll === undefined || used.has(roll.key)) continue;
+    picked.push(roll);
+    used.add(roll.key);
+  }
+  return refreshed({ ...ensureGrowthFields({ ...a }), affixes: picked });
+}
+
+function runLegacy(req: CraftRequest, rng: Rng): Item | null {
+  const item = ensureGrowthFields({ ...req.item });
   switch (req.op) {
     case "reforge":
-      return reforgeItem(req.item, rng, req.bestDepth);
+    case "corrupt": {
+      const index = randomTraitIndex(item, rng, false);
+      return index === undefined ? null : stirTrait(item, index, rng);
+    }
     case "augment":
-      return augmentItem(req.item, rng);
-    case "annul":
-      return annulItem(req.item, rng);
-    case "corrupt":
-      return corruptItem(req.item, rng);
+      return null;
+    case "annul": {
+      const index = randomTraitIndex(item, rng, true);
+      return index === undefined ? null : pareTrait(item, index);
+    }
     case "fuse":
-      return req.partner === undefined ? null : fuseItems(req.item, req.partner, rng, req.now);
+      return req.partner === undefined ? null : legacyFuse(item, req.partner, rng);
   }
 }
 
-function successMessage(req: CraftRequest, result: OpResult): string {
-  const from = req.partner === undefined ? req.item.name : `${req.item.name} + ${req.partner.name}`;
-  const head = `${OP_VERB[req.op]}: ${from} → ${result.item.name}`;
-  return result.note === undefined ? head : `${head}（${result.note}）`;
-}
-
-/**
- * クラフトを 1 回実行する。成功時のみ state の通貨を消費し counter を進める。
- * corrupted のアイテム（Fuse の相手を含む）は拒否。profile は触らない（applyCraftResult を参照）
- */
+/** @deprecated 新 API は craftEcho */
 export function craft(state: CraftState, req: CraftRequest): CraftResult {
   const { op } = req;
-  if (isCorrupted(req.item) || (req.partner !== undefined && isCorrupted(req.partner))) {
-    return { ok: false, op, reason: "corrupted", message: craftBlockMessage("corrupted", op) };
-  }
-  if (!canAfford(state.wallet, op)) {
+  const cost = CRAFT_COSTS[op];
+  if (state.wallet[cost.currency] < cost.amount) {
     return { ok: false, op, reason: "insufficient", message: craftBlockMessage("insufficient", op) };
   }
-  const result = runOp(req, craftRng(req.item.id, state.counter));
-  if (result === null) return { ok: false, op, reason: "invalid", message: craftBlockMessage("invalid", op) };
-
-  const cost = CRAFT_COSTS[op];
+  const after = runLegacy(req, craftRng(req.item.id, state.counter));
+  if (after === null) return { ok: false, op, reason: "invalid", message: craftBlockMessage("invalid", op) };
   state.wallet[cost.currency] -= cost.amount;
   state.counter += 1;
   const consumedIds = req.partner === undefined ? [] : [req.item.id, req.partner.id];
-  return { ok: true, op, before: req.item, item: result.item, consumedIds, message: successMessage(req, result) };
+  const from = req.partner === undefined ? req.item.name : `${req.item.name} + ${req.partner.name}`;
+  return { ok: true, op, before: req.item, item: after, consumedIds, message: `${LEGACY_VERB[op]}: ${from} → ${after.name}` };
 }
 
-/**
- * 成功したクラフトを stash に反映する。単体操作は同じ位置で置き換え、Fuse は 2 つを消して新アイテムを加える。
- * 反映できたら true
- */
+/** @deprecated 新 API は applyEchoResult */
 export function applyCraftResult(profile: Profile, result: CraftResult): boolean {
   if (!result.ok) return false;
   if (result.consumedIds.length > 0) {
@@ -492,10 +590,11 @@ export function applyCraftResult(profile: Profile, result: CraftResult): boolean
   return true;
 }
 
-/** UI 用: 実行可能か（通貨・corrupted・対象の有無）。理由付き */
+/** @deprecated */
 export function craftBlockReason(wallet: Wallet, op: CraftOp, item: Item | null): CraftRejectReason | null {
   if (item === null) return "invalid";
-  if (isCorrupted(item)) return "corrupted";
-  if (!canAfford(wallet, op)) return "insufficient";
+  const cost = CRAFT_COSTS[op];
+  if (wallet[cost.currency] < cost.amount) return "insufficient";
   return null;
 }
+

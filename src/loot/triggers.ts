@@ -1,7 +1,6 @@
 import type { Rng } from "../core/rng";
 import { PLAYER } from "../data/tuning";
 import type {
-  AffixKind,
   AffixRoll,
   Slot,
   TriggerCondition,
@@ -31,8 +30,6 @@ const DURATION_SCALE = 10;
 /** 発動確率の全体範囲 */
 export const MIN_TRIGGER_CHANCE = 0.15;
 export const MAX_TRIGGER_CHANCE = 0.6;
-/** 動的アフィックスの tier（UI 表示用。文法生成物は tier を持たない） */
-const TRIGGER_TIER = 1;
 /** magnitude のロール幅（基準値に対する倍率） */
 const MAGNITUDE_VARIANCE_MIN = 0.85;
 const MAGNITUDE_VARIANCE_MAX = 1.15;
@@ -309,13 +306,10 @@ export function generateTrigger(rng: Rng, itemLevel: number): TriggeredEffect {
   return rollTriggerEffect(rng, rng.pick(TRIGGER_GRAMMAR), itemLevel);
 }
 
-/**
- * スロットに合ったトリガーを生成し、AffixRoll にエンコードして返す。
- * kind はアフィックス枠（prefix / suffix）のどちらに入れるか。
- */
-export function generateTriggerRoll(rng: Rng, itemLevel: number, slot: Slot, kind: AffixKind = "prefix"): AffixRoll {
+/** スロットに合ったトリガーを生成し、AffixRoll にエンコードして返す */
+export function generateTriggerRoll(rng: Rng, itemLevel: number, slot: Slot): AffixRoll {
   const effect = rollTriggerEffect(rng, rng.pick(grammarForSlot(slot)), itemLevel);
-  return triggerToRoll(effect, kind);
+  return triggerToRoll(effect);
 }
 
 // ---------------------------------------------------------------------------
@@ -338,11 +332,9 @@ function encodeValue2(effect: TriggeredEffect): number {
   return durationUnits * CHANCE_SCALE + Math.round(effect.chance * CHANCE_SCALE);
 }
 
-export function triggerToRoll(effect: TriggeredEffect, kind: AffixKind): AffixRoll {
+export function triggerToRoll(effect: TriggeredEffect): AffixRoll {
   return {
     key: triggerKey(effect),
-    kind,
-    tier: TRIGGER_TIER,
     value: effect.magnitude,
     value2: encodeValue2(effect),
   };

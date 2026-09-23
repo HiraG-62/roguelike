@@ -1,21 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { KEYSTONE_KEY_PREFIX, affixDef, implicitDef, keystoneDef } from "./affixes";
+import { affixDef, implicitDef, isConversionKey, isKeystoneKey, keystoneDef } from "./affixes";
 import { baseDef } from "./bases";
-import { decodeTriggerRoll, isTriggerKey } from "./triggers";
+import { COLOR_ADJECTIVE, traitColorOf } from "./colors";
+import { INVERSION_MIN_DEPTH, fluxClassOf } from "./flux";
 import {
+  MAX_FOUND_TRAITS,
+  MAX_MARGIN,
+  MIN_MARGIN,
   UNIQUES,
+  VOW_MIN_TRAITS,
   generateItem,
-  rollAffixes,
-  rollRarity,
+  rollTraitCount,
+  rollTraitOfColor,
   uniquesFor,
   type GenerateOptions,
 } from "./generator";
-import { SLOTS, type AffixRoll, type Item, type Rarity } from "./types";
+import { isTriggerKey } from "./triggers";
+import { SLOTS, TRAIT_COLORS, createEmptyProvenance, type Item } from "./types";
 
 const NOW = 1_700_000_000_000;
 const MANY = 1000;
 const HIGH_LEVEL = 40;
+const SHALLOW = 3;
+const DEEP = 25;
 
 function opts(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
   return { itemLevel: 10, foundDepth: 5, now: NOW, ...overrides };
@@ -25,277 +33,241 @@ function generateMany(count: number, seed: number, o: Partial<GenerateOptions> =
   const rng = createRng(seed);
   const items: Item[] = [];
   for (let i = 0; i < count; i++) {
-    items.push(generateItem(rng, opts({ itemLevel: 1 + (i % HIGH_LEVEL), ...o })));
+    const depth = 1 + (i % HIGH_LEVEL);
+    items.push(generateItem(rng, opts({ itemLevel: depth, foundDepth: depth, ...o })));
   }
   return items;
 }
 
-const isKeystone = (r: AffixRoll): boolean => r.key.startsWith(KEYSTONE_KEY_PREFIX);
-/** アフィックス枠を占めるもの（キーストーンは別枠） */
-const slotAffixes = (item: Item): AffixRoll[] => item.affixes.filter((r) => !isKeystone(r));
-
-function expectRollInRange(roll: AffixRoll, itemLevel: number, rarity: Rarity): void {
-  const def = affixDef(roll.key);
-  expect(def, roll.key).toBeDefined();
-  if (def === undefined) return;
-  expect(roll.kind).toBe(def.kind);
-  const tier = def.tiers[roll.tier - 1];
-  expect(tier, `${roll.key} T${roll.tier}`).toBeDefined();
-  if (tier === undefined) return;
-  // unique は固定 tier なので minLevel 制約の対象外
-  if (rarity !== "unique") expect(tier.minLevel).toBeLessThanOrEqual(itemLevel);
-  expect(roll.value).toBeGreaterThanOrEqual(tier.min);
-  expect(roll.value).toBeLessThanOrEqual(tier.max);
-  if (tier.min2 === undefined || tier.max2 === undefined) {
-    expect(roll.value2).toBeUndefined();
-    return;
-  }
-  expect(roll.value2).toBeDefined();
-  expect(roll.value2 ?? Number.NaN).toBeGreaterThanOrEqual(tier.min2);
-  expect(roll.value2 ?? Number.NaN).toBeLessThanOrEqual(tier.max2);
+function withoutId(item: Item): Omit<Item, "id"> {
+  const { id: _id, ...rest } = item;
+  return rest;
 }
 
-describe("generateItem", () => {
+function meanAbsFlux(items: readonly Item[]): number {
+  const fluxes = items.flatMap((it) => it.affixes.filter((r) => r.inverted !== true).map((r) => Math.abs(r.flux ?? 0)));
+  return fluxes.reduce((a, b) => a + b, 0) / Math.max(1, fluxes.length);
+}
+
+function meanCount(items: readonly Item[]): number {
+  return items.reduce((sum, it) => sum + it.affixes.length, 0) / Math.max(1, items.length);
+}
+
+describe("generateItem: 決定性と基本形", () => {
   it("同 seed 同 opts で同一アイテム（id の連番部分を除く）", () => {
-    const a = generateItem(createRng(42), opts());
-    const b = generateItem(createRng(42), opts());
-    expect({ ...a, id: "" }).toEqual({ ...b, id: "" });
+    const a = generateItem(createRng(42), opts({ itemLevel: 18, foundDepth: 16 }));
+    const b = generateItem(createRng(42), opts({ itemLevel: 18, foundDepth: 16 }));
+    expect(withoutId(a)).toEqual(withoutId(b));
     expect(a.id.split("-")[0]).toBe(b.id.split("-")[0]);
   });
 
   it("1000 個生成して例外なし・id ユニーク", () => {
-    const items = generateMany(MANY, 7);
-    expect(items).toHaveLength(MANY);
+    const items = generateMany(MANY, 1);
     expect(new Set(items.map((i) => i.id)).size).toBe(MANY);
   });
 
-  it("rarity ごとのアフィックス数が範囲内（prefix/suffix 上限も守る）", () => {
-    const items = generateMany(MANY, 11, { rarityBoost: 2 });
-    const seen = new Set<Rarity>();
-    for (const item of items) {
-      seen.add(item.rarity);
-      const affixes = slotAffixes(item);
-      const prefixes = affixes.filter((a) => a.kind === "prefix").length;
-      const suffixes = affixes.filter((a) => a.kind === "suffix").length;
-      expect(item.affixes.filter(isKeystone).length).toBeLessThanOrEqual(1);
-      switch (item.rarity) {
-        case "normal":
-          expect(item.affixes).toHaveLength(0);
-          break;
-        case "magic":
-          expect(affixes.length).toBeGreaterThanOrEqual(1);
-          expect(affixes.length).toBeLessThanOrEqual(2);
-          expect(prefixes).toBeLessThanOrEqual(1);
-          expect(suffixes).toBeLessThanOrEqual(1);
-          break;
-        case "rare":
-          expect(affixes.length).toBeGreaterThanOrEqual(3);
-          expect(affixes.length).toBeLessThanOrEqual(6);
-          expect(prefixes).toBeLessThanOrEqual(3);
-          expect(suffixes).toBeLessThanOrEqual(3);
-          break;
-        case "unique":
-          expect(affixes.length).toBeGreaterThan(0);
-          expect(item.affixes.filter(isKeystone)).toHaveLength(1);
-          break;
-      }
-    }
-    expect(seen.has("normal") && seen.has("magic") && seen.has("rare")).toBe(true);
-  });
-
-  it("アフィックス key が 1 アイテム内で重複しない", () => {
-    for (const item of generateMany(MANY, 13, { rarityBoost: 3 })) {
-      const keys = item.affixes.map((a) => a.key);
-      expect(new Set(keys).size).toBe(keys.length);
-    }
-  });
-
-  it("tier の minLevel ≤ itemLevel、値が tier の範囲内", () => {
-    for (const item of generateMany(MANY, 17, { rarityBoost: 2 })) {
+  it("prefix / suffix / tier を持たない。各性質は色を持ち、key は重複しない", () => {
+    for (const item of generateMany(MANY, 2)) {
+      expect(new Set(item.affixes.map((r) => r.key)).size, item.name).toBe(item.affixes.length);
       for (const roll of item.affixes) {
-        if (isKeystone(roll)) {
-          expect(keystoneDef(roll.key), roll.key).toBeDefined();
-          expect(roll.kind).toBe("suffix");
-          continue;
-        }
-        if (isTriggerKey(roll.key)) {
-          expect(decodeTriggerRoll(roll), roll.key).not.toBeNull();
-          continue;
-        }
-        expectRollInRange(roll, item.itemLevel, item.rarity);
+        expect(roll.kind).toBeUndefined();
+        expect(roll.tier).toBeUndefined();
+        expect(TRAIT_COLORS).toContain(traitColorOf(roll));
       }
     }
   });
 
-  it("トレードオフ付きアフィックスが生成され、代償側 value2 も tier の範囲内", () => {
+  it("新形式のフィールド（来歴・余白・芽）が初期化されている", () => {
+    for (const item of generateMany(200, 3)) {
+      expect(item.provenance).toEqual(createEmptyProvenance());
+      expect(item.margin).toBeGreaterThanOrEqual(item.namedKey === undefined ? MIN_MARGIN : 1);
+      expect(item.margin).toBeLessThanOrEqual(MAX_MARGIN);
+      expect(item.marginMax).toBe(item.margin);
+      expect(item.milestones).toEqual([]);
+      expect(item.buds).toEqual([]);
+      expect(item.budOffer).toBeNull();
+      expect(item.inscription).toBeUndefined();
+    }
+  });
+
+  it("性質の数は 0..MAX_FOUND_TRAITS（名のある遺物を除く）", () => {
+    for (const item of generateMany(MANY, 4)) {
+      if (item.namedKey !== undefined) continue;
+      expect(item.affixes.length).toBeLessThanOrEqual(MAX_FOUND_TRAITS);
+    }
+  });
+
+  it("slot 指定が守られ、ベースと implicit が実在する", () => {
+    const rng = createRng(5);
+    for (const slot of SLOTS) {
+      for (let i = 0; i < 50; i++) {
+        const item = generateItem(rng, opts({ slot }));
+        expect(item.slot).toBe(slot);
+        expect(baseDef(item.baseKey)?.slot).toBe(slot);
+        if (item.implicit !== null) expect(implicitDef(item.implicit.key)).toBeDefined();
+      }
+    }
+  });
+
+  it("itemLevel が低くても（0 以下でも）生成できる", () => {
+    expect(() => generateItem(createRng(6), opts({ itemLevel: 0, foundDepth: 0 }))).not.toThrow();
+    expect(() => generateItem(createRng(6), opts({ itemLevel: -5, foundDepth: 0 }))).not.toThrow();
+  });
+});
+
+describe("generateItem: 揺らぎ", () => {
+  it("表の性質の値は nominal × (1 + flux) を丸めたもの", () => {
+    for (const item of generateMany(MANY, 7)) {
+      for (const roll of item.affixes) {
+        if (isKeystoneKey(roll.key) || isTriggerKey(roll.key)) continue;
+        expect(roll.nominal, roll.key).toBeDefined();
+        expect(roll.flux, roll.key).toBeDefined();
+        const expected = (roll.nominal ?? 0) * (1 + (roll.flux ?? 0));
+        const step = 10 ** -(affixDef(roll.key)?.decimals ?? 0);
+        expect(Math.abs(roll.value - expected), roll.key).toBeLessThanOrEqual(step);
+      }
+    }
+  });
+
+  it("深いほど性質の数が多く、揺らぎ（|flux| の平均）が大きい", () => {
+    const shallow = generateMany(MANY, 8, { itemLevel: SHALLOW, foundDepth: SHALLOW });
+    const deep = generateMany(MANY, 8, { itemLevel: DEEP, foundDepth: DEEP });
+    expect(meanCount(deep)).toBeGreaterThan(meanCount(shallow));
+    expect(meanAbsFlux(deep)).toBeGreaterThan(meanAbsFlux(shallow) * 2);
+  });
+
+  it("boost（ボス・宝物庫）で揺らぎが大きくなる", () => {
+    const calm = generateMany(MANY, 9, { itemLevel: 10, foundDepth: 10, rarityBoost: 0 });
+    const wild = generateMany(MANY, 9, { itemLevel: 10, foundDepth: 10, rarityBoost: 6 });
+    expect(meanAbsFlux(wild)).toBeGreaterThan(meanAbsFlux(calm));
+  });
+
+  it(`反転は発見深度 ${INVERSION_MIN_DEPTH} 未満では出ず、以降は一定確率で出る（値は負・色は冥・分類は反転あり）`, () => {
+    const shallow = generateMany(MANY, 10, { itemLevel: INVERSION_MIN_DEPTH - 1, foundDepth: INVERSION_MIN_DEPTH - 1 });
+    expect(shallow.some((it) => it.affixes.some((r) => r.inverted === true))).toBe(false);
+
+    const deep = generateMany(MANY, 10, { itemLevel: DEEP, foundDepth: DEEP });
+    const inverted = deep.flatMap((it) => it.affixes.filter((r) => r.inverted === true));
+    expect(inverted.length).toBeGreaterThan(0);
+    for (const r of inverted) {
+      expect(r.value).toBeLessThan(0);
+      expect(r.flux ?? 0).toBeLessThan(-1);
+      expect(traitColorOf(r)).toBe("umbra");
+      expect(isConversionKey(r.key) || isTriggerKey(r.key)).toBe(false);
+    }
+    for (const it of deep) if (it.affixes.some((r) => r.inverted === true)) expect(it.rarity).toBe("unique");
+  });
+
+  it("rarity は揺らぎの見た目の分類（fluxClassOf）で、静・揺・荒のどれも出る", () => {
+    const items = generateMany(MANY, 11);
+    for (const it of items) expect(it.rarity).toBe(fluxClassOf(it.affixes));
+    const classes = new Set(items.map((it) => it.rarity));
+    for (const r of ["normal", "magic", "rare"] as const) expect(classes.has(r), r).toBe(true);
+  });
+});
+
+describe("generateItem: 色・誓約・名前", () => {
+  it("ベースの色の傾き: 短剣（金寄り）は長剣（紅寄り）より金の性質が多い", () => {
+    const share = (baseKey: string, color: string): number => {
+      const rng = createRng(12);
+      let hit = 0;
+      let total = 0;
+      for (let i = 0; i < 3000; i++) {
+        const item = generateItem(rng, opts({ slot: "weapon", itemLevel: 12, foundDepth: 12 }));
+        if (item.baseKey !== baseKey) continue;
+        for (const r of item.affixes) {
+          total++;
+          if (traitColorOf(r) === color) hit++;
+        }
+      }
+      return hit / Math.max(1, total);
+    };
+    expect(share("dagger", "gold")).toBeGreaterThan(share("longsword", "gold"));
+  });
+
+  it(`誓約は性質 ${VOW_MIN_TRAITS} 個以上のときだけ付き、1 つまで（名のある遺物を除く）`, () => {
     let seen = 0;
-    for (const item of generateMany(MANY, 43, { rarityBoost: 3 })) {
-      for (const roll of item.affixes) {
-        const def = affixDef(roll.key);
-        if (def === undefined || !def.tags.includes("tradeoff")) continue;
+    for (const item of generateMany(3000, 13)) {
+      if (item.namedKey !== undefined) continue;
+      const vows = item.affixes.filter((r) => isKeystoneKey(r.key));
+      expect(vows.length).toBeLessThanOrEqual(1);
+      if (vows.length > 0) {
         seen++;
-        const tier = def.tiers[roll.tier - 1];
-        expect(tier?.min2).toBeDefined();
-        expect(roll.value2 ?? Number.NaN).toBeGreaterThanOrEqual(tier?.min2 ?? Infinity);
-        expect(roll.value2 ?? Number.NaN).toBeLessThanOrEqual(tier?.max2 ?? -Infinity);
+        expect(item.affixes.length).toBeGreaterThanOrEqual(VOW_MIN_TRAITS);
       }
     }
     expect(seen).toBeGreaterThan(0);
   });
 
-  it("トリガー文法アフィックスは rare にだけ付き、ある程度の頻度で出る", () => {
-    const items = generateMany(MANY, 37, { rarityBoost: 3 });
-    for (const item of items) {
-      if (item.rarity === "rare") continue;
-      expect(item.affixes.some((r) => isTriggerKey(r.key))).toBe(false);
+  it("無銘の名前は「{最も多い色の形容}{ベース名}」、性質が無ければベース名", () => {
+    for (const item of generateMany(300, 14)) {
+      if (item.namedKey !== undefined) continue;
+      const base = baseDef(item.baseKey)?.name ?? "";
+      expect(item.name.endsWith(base)).toBe(true);
+      if (item.affixes.length === 0) expect(item.name).toBe(base);
+      else expect(Object.values(COLOR_ADJECTIVE).some((adj) => item.name.startsWith(adj))).toBe(true);
     }
-    const rares = items.filter((i) => i.rarity === "rare");
-    const withTrigger = rares.filter((i) => i.affixes.some((r) => isTriggerKey(r.key)));
-    // 1 枠 25%・3〜6 枠なので、トリガー付き rare は過半数になるはず
-    expect(withTrigger.length / rares.length).toBeGreaterThan(0.5);
   });
 
-  it("キーストーンは rare の約 15% に付き、normal / magic には付かない", () => {
-    const items = generateMany(MANY * 3, 41, { rarityBoost: 3 });
-    for (const item of items) {
-      if (item.rarity === "normal" || item.rarity === "magic") {
-        expect(item.affixes.some(isKeystone)).toBe(false);
-      }
-    }
-    const rares = items.filter((i) => i.rarity === "rare");
-    const ratio = rares.filter((i) => i.affixes.some(isKeystone)).length / rares.length;
-    expect(ratio).toBeGreaterThan(0.08);
-    expect(ratio).toBeLessThan(0.22);
-  });
-
-  it("implicit はベースの定義どおりにロールされる", () => {
-    for (const item of generateMany(200, 19)) {
-      const base = baseDef(item.baseKey);
-      expect(base?.slot).toBe(item.slot);
-      expect(base?.minLevel ?? Infinity).toBeLessThanOrEqual(item.itemLevel);
-      const implicit = item.implicit;
-      expect(implicit?.key).toBe(base?.implicitKey);
-      if (implicit === null) continue;
-      const def = implicitDef(implicit.key);
+  it("高 boost・深層では名のある遺物が出る。固有名・固定の性質・反転なし", () => {
+    const items = generateMany(2000, 15, { itemLevel: HIGH_LEVEL, foundDepth: HIGH_LEVEL, rarityBoost: 6 });
+    const named = items.filter((it) => it.namedKey !== undefined);
+    expect(named.length).toBeGreaterThan(0);
+    for (const it of named) {
+      const def = UNIQUES.find((u) => u.key === it.namedKey);
       expect(def).toBeDefined();
-      if (def === undefined) continue;
-      expect(implicit.value).toBeGreaterThanOrEqual(def.range.min);
-      expect(implicit.value).toBeLessThanOrEqual(def.range.max);
+      expect(it.name).toBe(def?.name);
+      expect(it.affixes.some((r) => r.inverted === true)).toBe(false);
+      for (const r of it.affixes) expect(r.origin).toBe("named");
+    }
+  });
+});
+
+describe("rollTraitCount / rollTraitOfColor", () => {
+  it("rollTraitCount は 0..MAX_FOUND_TRAITS", () => {
+    const rng = createRng(16);
+    for (let i = 0; i < MANY; i++) {
+      const n = rollTraitCount(rng, i % HIGH_LEVEL);
+      expect(n).toBeGreaterThanOrEqual(0);
+      expect(n).toBeLessThanOrEqual(MAX_FOUND_TRAITS);
     }
   });
 
-  it("slot 指定が守られる", () => {
+  it("指定色の性質を返し、used の key は出さない", () => {
+    const rng = createRng(17);
     for (const slot of SLOTS) {
-      for (const item of generateMany(50, 23, { slot, rarityBoost: 5 })) {
-        expect(item.slot).toBe(slot);
-        expect(baseDef(item.baseKey)?.slot).toBe(slot);
+      for (const color of TRAIT_COLORS) {
+        const used = new Set(["meleeDamagePct"]);
+        const roll = rollTraitOfColor(rng, slot, color, used, { depth: 15, foundDepth: 15, allowInversion: false, origin: "bud" });
+        expect(roll, `${slot}/${color}`).toBeDefined();
+        if (roll === undefined) continue;
+        expect(traitColorOf(roll)).toBe(color);
+        expect(used.has(roll.key)).toBe(false);
       }
     }
   });
-
-  it("名前が rarity に応じて付く", () => {
-    for (const item of generateMany(300, 29, { rarityBoost: 3 })) {
-      const base = baseDef(item.baseKey);
-      expect(item.name.length).toBeGreaterThan(0);
-      if (item.rarity === "normal") expect(item.name).toBe(base?.name);
-      if (item.rarity === "magic") expect(item.name).toContain(base?.name ?? "");
-      if (item.rarity === "rare") expect(item.name.split("の")).toHaveLength(2);
-      if (item.rarity === "unique") expect(UNIQUES.map((u) => u.name)).toContain(item.name);
-    }
-  });
-
-  it("itemLevel が低くても（0 以下でも）生成できる", () => {
-    const item = generateItem(createRng(1), opts({ itemLevel: 0 }));
-    expect(item.itemLevel).toBe(1);
-  });
-
-  it("高 rarityBoost・高 itemLevel では unique が出る", () => {
-    const items = generateMany(MANY, 31, { itemLevel: HIGH_LEVEL, rarityBoost: 20 });
-    expect(items.some((i) => i.rarity === "unique")).toBe(true);
-  });
 });
 
-describe("rollRarity", () => {
-  it("rarityBoost で rare 以上の割合が増える", () => {
-    const countRare = (boost: number): number => {
-      const rng = createRng(99);
-      let n = 0;
-      for (let i = 0; i < MANY; i++) {
-        const r = rollRarity(rng, 5, boost);
-        if (r === "rare" || r === "unique") n++;
-      }
-      return n;
-    };
-    expect(countRare(3)).toBeGreaterThan(countRare(0));
-  });
-
-  it("itemLevel 8 / boost 0.3 で unique 出現率が 1%〜5%（通常ドロップ相当）", () => {
-    const rng = createRng(2024);
-    const N = 10_000;
-    let uniqueCount = 0;
-    for (let i = 0; i < N; i++) {
-      if (rollRarity(rng, 8, 0.3) === "unique") uniqueCount++;
-    }
-    const ratio = uniqueCount / N;
-    expect(ratio).toBeGreaterThanOrEqual(0.01);
-    expect(ratio).toBeLessThanOrEqual(0.05);
-  });
-
-  it("itemLevel 8 / boost 1.5 で unique 出現率が 10%〜25%（ボス撃破ドロップ相当）", () => {
-    const rng = createRng(4048);
-    const N = 10_000;
-    let uniqueCount = 0;
-    for (let i = 0; i < N; i++) {
-      if (rollRarity(rng, 8, 1.5) === "unique") uniqueCount++;
-    }
-    const ratio = uniqueCount / N;
-    expect(ratio).toBeGreaterThanOrEqual(0.1);
-    expect(ratio).toBeLessThanOrEqual(0.25);
-  });
-});
-
-describe("rollAffixes", () => {
-  it("normal は 0 個", () => {
-    expect(rollAffixes(createRng(3), "weapon", "normal", 10)).toHaveLength(0);
-  });
-
-  it("prefix → suffix の順に並ぶ", () => {
-    const rolls = rollAffixes(createRng(5), "ring", "rare", 30);
-    const firstSuffix = rolls.findIndex((r) => r.kind === "suffix");
-    if (firstSuffix < 0) return;
-    expect(rolls.slice(firstSuffix).every((r) => r.kind === "suffix")).toBe(true);
-  });
-});
-
-describe("unique 定義", () => {
-  it("15 個あり、ベース・アフィックス・tier が実在する", () => {
-    expect(UNIQUES.length).toBeGreaterThanOrEqual(15);
+describe("名のある遺物の定義", () => {
+  it("15 個あり、ベース・性質・誓約が実在する", () => {
+    expect(UNIQUES).toHaveLength(15);
     for (const u of UNIQUES) {
-      const base = baseDef(u.baseKey);
-      expect(base, u.key).toBeDefined();
-      expect(u.minLevel).toBeGreaterThanOrEqual(base?.minLevel ?? Infinity);
-      expect(uniquesFor(base?.slot ?? "weapon", u.minLevel)).toContain(u);
-      expect(u.keystone === undefined || keystoneDef(u.keystone) !== undefined, u.key).toBe(true);
-      for (const spec of u.affixes) {
-        const def = affixDef(spec.key);
-        expect(def?.tiers[spec.tier - 1], `${u.key}/${spec.key}`).toBeDefined();
-      }
+      expect(baseDef(u.baseKey), u.key).toBeDefined();
+      for (const spec of u.affixes) expect(affixDef(spec.key), `${u.key}/${spec.key}`).toBeDefined();
+      if (u.keystone !== undefined) expect(keystoneDef(u.keystone), u.key).toBeDefined();
     }
   });
 
   it("各スロットに 2 つ以上ある", () => {
     for (const slot of SLOTS) {
-      const count = UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length;
-      expect(count, slot).toBeGreaterThanOrEqual(2);
+      expect(UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length, slot).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it("uniquesFor はそのスロット・itemLevel で解禁済みの unique だけを返す", () => {
-    for (const slot of SLOTS) {
-      for (const u of uniquesFor(slot, 30)) {
-        expect(baseDef(u.baseKey)?.slot).toBe(slot);
-        expect(u.minLevel).toBeLessThanOrEqual(30);
-      }
+  it("uniquesFor はそのスロット・深度で解禁済みのものだけを返す", () => {
+    for (const u of uniquesFor("weapon", 10)) {
+      expect(u.minLevel).toBeLessThanOrEqual(10);
+      expect(baseDef(u.baseKey)?.slot).toBe("weapon");
     }
   });
 });

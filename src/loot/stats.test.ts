@@ -47,11 +47,14 @@ describe("computeStats", () => {
       ],
     });
     const stats = computeStats(equipment);
-    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.4 + 0.25);
+    // 紅 3 / 金 1 → 紅の支配（灼極）: 近接 +10%、金の性質（会心率）は 75% に弱まる。implicit は色を持たず弱まらない
+    expect(stats.resonance.kind).toBe("dominant");
+    expect(stats.resonance.colors).toEqual(["crimson"]);
+    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.4 + 0.25 + 0.1);
     expect(stats.attackSpeedMul).toBeCloseTo(0.75);
     expect(stats.meleeReachMul).toBeCloseTo(1.2);
     expect(stats.meleeDamageFlat).toBe(5);
-    expect(stats.critChance).toBeCloseTo(0.07);
+    expect(stats.critChance).toBeCloseTo(0.05 + 0.02 * 0.75);
     expect(stats.burnChance).toBeCloseTo(0.05);
     expect(stats.burnDps).toBe(3);
   });
@@ -167,7 +170,9 @@ describe("キーストーンとトリガーの集計", () => {
     equipment.ring = makeItem("ring", { affixes: [ks("ks_juggernaut"), ks("ks_gambler")] });
     const stats = computeStats(equipment);
     expect(stats.keystones).toEqual(["ks_juggernaut", "ks_gambler"]);
-    expect(stats.damageTakenMul).toBeCloseTo(0.5);
+    // 誓約 3 つ = 冥の支配（虚極: 被ダメ +10%）。負けた誓約も色の配合には数える
+    expect(stats.resonance.colors).toEqual(["umbra"]);
+    expect(stats.damageTakenMul).toBeCloseTo(0.5 + 0.1);
     expect(stats.moveSpeedMul).toBeCloseTo(0.65);
     expect(stats.critChance).toBeCloseTo(0.15);
     // 負けた glassCannon の数値効果は掛からない

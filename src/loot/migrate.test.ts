@@ -1,0 +1,151 @@
+import { describe, expect, it } from "vitest";
+import { createRng } from "../core/rng";
+import { CORRUPTED_KEY } from "./affixes";
+import { traitColorOf } from "./colors";
+import { describeItem, describeResonance } from "./describe";
+import { generateItem } from "./generator";
+import { LEGACY_RARITY_MARGIN, LEGACY_TIER_FLUX, migrateItem } from "./migrate";
+import { PROFILE_KEY, loadProfile, saveProfile } from "./profile";
+import { computeStats } from "./stats";
+import { createEmptyProfile, createEmptyProvenance, type Item } from "./types";
+
+class MemoryStorage implements Storage {
+  private map = new Map<string, string>();
+  get length(): number {
+    return this.map.size;
+  }
+  clear(): void {
+    this.map.clear();
+  }
+  getItem(key: string): string | null {
+    return this.map.get(key) ?? null;
+  }
+  key(index: number): string | null {
+    return Array.from(this.map.keys())[index] ?? null;
+  }
+  removeItem(key: string): void {
+    this.map.delete(key);
+  }
+  setItem(key: string, value: string): void {
+    this.map.set(key, value);
+  }
+}
+
+/** 旧形式（prefix / suffix / tier / rarity）のアイテム */
+function legacyRare(): Item {
+  return {
+    id: "old-rare",
+    seed: 9,
+    baseKey: "longsword",
+    slot: "weapon",
+    rarity: "rare",
+    itemLevel: 20,
+    name: "嵐の牙",
+    implicit: { key: "implicit.longsword", kind: "prefix", tier: 1, value: 40 },
+    affixes: [
+      { key: "meleeDamagePct", kind: "prefix", tier: 1, value: 56 },
+      { key: "maxLife", kind: "prefix", tier: 3, value: -20 },
+      { key: "tr:onKill:always:heal", kind: "suffix", tier: 1, value: 5, value2: 400 },
+      { key: "ks_blink", kind: "suffix", tier: 1, value: 0 },
+      { key: CORRUPTED_KEY, kind: "suffix", tier: 1, value: 0 },
+    ],
+    foundDepth: 18,
+    foundAt: 123,
+  };
+}
+
+describe("migrateItem", () => {
+  it("tier → 揺らぎ、期待値を逆算。値は変えない", () => {
+    const migrated = migrateItem(legacyRare());
+    const melee = migrated.affixes.find((r) => r.key === "meleeDamagePct");
+    expect(melee?.value).toBe(56);
+    expect(melee?.flux).toBeCloseTo(LEGACY_TIER_FLUX[1] ?? 0);
+    expect(melee?.nominal).toBeCloseTo(56 / (1 + (LEGACY_TIER_FLUX[1] ?? 0)));
+    expect(melee?.kind).toBeUndefined();
+    expect(melee?.tier).toBeUndefined();
+    expect(melee && traitColorOf(melee)).toBe("crimson");
+  });
+
+  it("負の値（旧 Corrupt）は反転（冥）。腐敗の印は捨てる。誓約は冥", () => {
+    const migrated = migrateItem(legacyRare());
+    const life = migrated.affixes.find((r) => r.key === "maxLife");
+    expect(life?.inverted).toBe(true);
+    expect(life?.flux ?? 0).toBeLessThan(-1);
+    expect(life && traitColorOf(life)).toBe("umbra");
+    expect(migrated.affixes.some((r) => r.key === CORRUPTED_KEY)).toBe(false);
+    expect(migrated.affixes.find((r) => r.key === "ks_blink")?.color).toBe("umbra");
+    expect(migrated.rarity).toBe("unique");
+  });
+
+  it("旧 rarity → 余白、旧 rare 名 → 銘、来歴は空", () => {
+    const migrated = migrateItem(legacyRare());
+    expect(migrated.margin).toBe(LEGACY_RARITY_MARGIN.rare);
+    expect(migrated.marginMax).toBe(LEGACY_RARITY_MARGIN.rare);
+    expect(migrated.inscription).toBe("嵐の牙");
+    expect(migrated.name).toBe("嵐の牙");
+    expect(migrated.provenance).toEqual(createEmptyProvenance());
+    expect(migrated.implicit).toEqual({ key: "implicit.longsword", value: 40 });
+  });
+
+  it("旧 unique は固有名から名のある遺物の key を引く", () => {
+    const old: Item = { ...legacyRare(), rarity: "unique", name: "喪服の剣", baseKey: "greatsword" };
+    expect(migrateItem(old).namedKey).toBe("widowmaker");
+  });
+
+  it("冪等: 新形式にもう一度掛けても変わらない。生成したアイテムも変わらない", () => {
+    const once = migrateItem(legacyRare());
+    expect(migrateItem(once)).toEqual(once);
+    const fresh = generateItem(createRng(3), { itemLevel: 20, foundDepth: 20, now: 0 });
+    expect(migrateItem(fresh)).toEqual(fresh);
+  });
+
+  it("旧 stash は読み込みで消えずに新形式になり、保存 → 読み込みで一致する（round-trip）", () => {
+    const storage = new MemoryStorage();
+    const legacyProfile = {
+      version: 1,
+      equipment: { weapon: legacyRare(), gun: null, armor: null, boots: null, ring: null, amulet: null },
+      stash: [legacyRare(), { ...legacyRare(), id: "old-2", rarity: "magic", name: "獰猛な長剣" }],
+      meta: { runs: 3, bestDepth: 9, totalKills: 40, bestScore: 100, history: [] },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(legacyProfile));
+    const loaded = loadProfile(storage);
+    expect(loaded.stash).toHaveLength(2);
+    expect(loaded.equipment.weapon?.provenance).toBeDefined();
+    expect(loaded.stash[1]?.margin).toBe(LEGACY_RARITY_MARGIN.magic);
+    saveProfile(loaded, storage);
+    expect(loadProfile(storage)).toEqual(loaded);
+    expect(() => computeStats(loaded.equipment)).not.toThrow();
+  });
+
+  it("空プロフィールはそのまま", () => {
+    const storage = new MemoryStorage();
+    saveProfile(createEmptyProfile(), storage);
+    expect(loadProfile(storage)).toEqual(createEmptyProfile());
+  });
+});
+
+describe("describeItem / describeResonance", () => {
+  it("名前・副題・色の配合・性質の行・来歴を返す。反転は印付き", () => {
+    const item = migrateItem(legacyRare());
+    item.provenance = { ...createEmptyProvenance(), kills: 12, killsByEnemy: { slime: 10, bat: 2 }, justDodges: 3 };
+    const desc = describeItem(item);
+    expect(desc.name).toBe("嵐の牙");
+    expect(desc.subtitle).toContain("長剣");
+    expect(desc.subtitle).toContain("反転あり");
+    expect(desc.inscription).toBe("嵐の牙");
+    expect(desc.implicit).toBeDefined();
+    expect(desc.lines).toHaveLength(item.affixes.length);
+    const inverted = desc.lines.find((l) => l.inverted === true);
+    expect(inverted?.text.startsWith("反転")).toBe(true);
+    expect(inverted?.fluxLevel).toBe(3);
+    expect(desc.colorBar.reduce((s, seg) => s + seg.ratio, 0)).toBeCloseTo(1);
+    expect(desc.provenanceLines[0]).toBe("深さ 18 で拾った");
+    expect(desc.provenanceLines.some((l) => l.startsWith("撃破 12（スライム 10"))).toBe(true);
+    expect(desc.summary.length).toBeGreaterThan(0);
+  });
+
+  it("describeResonance は装備の stats.resonance を語る", () => {
+    const eq = createEmptyProfile().equipment;
+    expect(describeResonance(computeStats(eq).resonance)[0]).toBe("共鳴なし");
+  });
+});

@@ -1,19 +1,31 @@
-import { CURRENCIES, createWallet, type CraftState, type Wallet } from "./crafting";
+import {
+  CURRENCIES,
+  convertLegacyWallet,
+  createEchoWallet,
+  createWallet,
+  type CraftState,
+  type EchoCraftState,
+  type EchoWallet,
+  type Wallet,
+} from "./crafting";
+import { TRAIT_COLORS } from "./types";
 
 /**
- * クラフト通貨とクラフト回数の永続化。profile（roguelike.profile.v1）とは別キーで持つ
- * （profile の形式を変えずに追加できるように）。
+ * クラフトの残響（通貨）とクラフト回数の永続化。profile（roguelike.profile.v1）とは別キーで持つ。
+ * version 1（旧通貨 dust / shard / essence / relic）は読み込み時に残響へ換算する（crafting.ts の convertLegacyWallet）。
+ * wallet は旧 UI の互換のためだけに残す。読み込みのたびに残響へ換算して 0 に戻す。
  */
 
 export const CRAFT_KEY = "roguelike.craft.v1";
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
+const LEGACY_VERSION = 1;
 
-export interface CraftSave extends CraftState {
+export interface CraftSave extends CraftState, EchoCraftState {
   version: typeof CURRENT_VERSION;
 }
 
 export function createCraftSave(): CraftSave {
-  return { version: CURRENT_VERSION, wallet: createWallet(), counter: 0 };
+  return { version: CURRENT_VERSION, wallet: createWallet(), echoes: createEchoWallet(), counter: 0 };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -33,6 +45,19 @@ function sanitizeWallet(v: unknown): Wallet {
   return wallet;
 }
 
+function sanitizeEchoes(v: unknown): EchoWallet {
+  const echoes = createEchoWallet();
+  if (!isRecord(v)) return echoes;
+  for (const color of TRAIT_COLORS) echoes[color] = sanitizeCount(v[color]);
+  return echoes;
+}
+
+function addEchoes(a: EchoWallet, b: Readonly<EchoWallet>): EchoWallet {
+  const out = { ...a };
+  for (const color of TRAIT_COLORS) out[color] += b[color];
+  return out;
+}
+
 /** localStorage が無い / 触れない環境では null（profile.ts と同じ方針） */
 function defaultStorage(): Storage | null {
   try {
@@ -42,7 +67,16 @@ function defaultStorage(): Storage | null {
   }
 }
 
-/** 保存された通貨を読み込む。無い / 壊れている / version 不一致なら空 */
+/** 保存データ（v1 / v2）を CraftSave にする。旧 wallet は残響へ換算して 0 に戻す。壊れていれば null */
+export function parseCraftSave(parsed: unknown): CraftSave | null {
+  if (!isRecord(parsed)) return null;
+  if (parsed.version !== CURRENT_VERSION && parsed.version !== LEGACY_VERSION) return null;
+  const legacy = sanitizeWallet(parsed.wallet);
+  const echoes = addEchoes(sanitizeEchoes(parsed.echoes), convertLegacyWallet(legacy));
+  return { version: CURRENT_VERSION, wallet: createWallet(), echoes, counter: sanitizeCount(parsed.counter) };
+}
+
+/** 保存された残響を読み込む。無い / 壊れている / 未知の version なら空 */
 export function loadCraft(storage?: Storage): CraftSave {
   const target = storage ?? defaultStorage();
   if (!target) return createCraftSave();
@@ -54,8 +88,7 @@ export function loadCraft(storage?: Storage): CraftSave {
   } catch {
     return createCraftSave();
   }
-  if (!isRecord(parsed) || parsed.version !== CURRENT_VERSION) return createCraftSave();
-  return { version: CURRENT_VERSION, wallet: sanitizeWallet(parsed.wallet), counter: sanitizeCount(parsed.counter) };
+  return parseCraftSave(parsed) ?? createCraftSave();
 }
 
 /** 保存する。容量超過などの失敗は握りつぶす */

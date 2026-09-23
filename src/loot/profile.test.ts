@@ -12,6 +12,7 @@ import {
   saveProfile,
   unequipItem,
 } from "./profile";
+import { migrateItem } from "./migrate";
 import { createEmptyProfile } from "./types";
 import type { Item, RunHistoryEntry } from "./types";
 
@@ -82,7 +83,7 @@ describe("loadProfile / saveProfile", () => {
   it("保存 → 読み込みで内容が一致する（round-trip）", () => {
     const storage = new MemoryStorage();
     const profile = createEmptyProfile();
-    addToStash(profile, makeItem());
+    addToStash(profile, migrateItem(makeItem()));
     saveProfile(profile, storage);
     expect(loadProfile(storage)).toEqual(profile);
   });
@@ -117,7 +118,7 @@ describe("loadProfile / saveProfile", () => {
     storage.setItem(PROFILE_KEY, JSON.stringify(raw));
     const loaded = loadProfile(storage);
     expect(loaded.equipment.weapon).toBeNull();
-    expect(loaded.stash).toEqual([makeItem({ id: "good" })]);
+    expect(loaded.stash).toEqual([migrateItem(makeItem({ id: "good" }))]);
     expect(loaded.meta).toEqual({ runs: 1, bestDepth: 2, totalKills: 3, bestScore: 4, history: [] });
   });
 

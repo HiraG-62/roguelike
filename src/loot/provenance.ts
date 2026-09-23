@@ -1,0 +1,228 @@
+import type { GameState } from "../core/state";
+import { createRng, hashSeed } from "../core/rng";
+import { OPPOSITE_COLOR } from "./colors";
+import { fluxClassOf } from "./flux";
+import { CALM_SIGMA_SCALE, rollTraitOfColor, type TraitRollOptions } from "./generator";
+import { ensureGrowthFields } from "./migrate";
+import { engraveName, nameItem } from "./names";
+import { saveProfile } from "./profile";
+import {
+  SLOTS,
+  createEmptyProvenance,
+  type AffixRoll,
+  type BudOffer,
+  type Item,
+  type PendingBud,
+  type Profile,
+  type Provenance,
+  type TraitColor,
+} from "./types";
+
+/**
+ * 来歴と芽。docs/LOOT_DESIGN.md「来歴と芽」。
+ * 装備中のアイテムに出来事（撃破 / JUST / 被弾 / ボス撃破 / 部屋・階層クリア）を積み、
+ * 節目に達すると「芽」（2 択の成長）を提示する。片方は節目の色、もう片方は反対色の性質。
+ * 選ばなかった方は二度と出ない。余白を使い切ると来歴から銘が刻まれる。
+ * 乱数は state.rng を使わず、item.seed と節目の key から作る（ゲームの決定性に影響しない）。
+ */
+
+export type ProvenanceEvent =
+  | { kind: "kill"; enemyKey: string; boss: boolean }
+  | { kind: "just" }
+  | { kind: "hurt" }
+  | { kind: "roomClear" }
+  | { kind: "floorClear" };
+
+type CounterKey = "kills" | "justDodges" | "hurtTaken" | "bosses" | "roomsCleared" | "floorsCleared";
+
+export interface MilestoneDef {
+  key: string;
+  counter: CounterKey;
+  threshold: number;
+  /** 芽の片方の色（もう片方は OPPOSITE_COLOR） */
+  color: TraitColor;
+  label: string;
+}
+
+function milestone(counter: CounterKey, threshold: number, color: TraitColor, label: string): MilestoneDef {
+  return { key: `${counter}:${threshold}`, counter, threshold, color, label: `${label} ${threshold}` };
+}
+
+/** 節目の表。表の順に判定し、1 度に提示する芽は 1 つ */
+export const MILESTONES: readonly MilestoneDef[] = [
+  milestone("kills", 50, "crimson", "撃破"),
+  milestone("justDodges", 20, "gold", "ジャスト回避"),
+  milestone("hurtTaken", 40, "jade", "被弾"),
+  milestone("bosses", 1, "umbra", "ボス撃破"),
+  milestone("floorsCleared", 10, "azure", "階層踏破"),
+  milestone("roomsCleared", 25, "jade", "部屋制圧"),
+  milestone("kills", 200, "crimson", "撃破"),
+  milestone("justDodges", 60, "gold", "ジャスト回避"),
+  milestone("hurtTaken", 150, "jade", "被弾"),
+  milestone("bosses", 3, "umbra", "ボス撃破"),
+  milestone("floorsCleared", 30, "azure", "階層踏破"),
+  milestone("kills", 500, "crimson", "撃破"),
+];
+
+const MILESTONE_BY_KEY: ReadonlyMap<string, MilestoneDef> = new Map(MILESTONES.map((m) => [m.key, m]));
+
+export function milestoneDef(key: string): MilestoneDef | undefined {
+  return MILESTONE_BY_KEY.get(key);
+}
+
+// ---------------------------------------------------------------------------
+// 来歴の加算
+// ---------------------------------------------------------------------------
+
+/** 出来事 1 つを来歴に積む（その場で書き換える） */
+export function bumpProvenance(p: Provenance, event: ProvenanceEvent, depth: number): void {
+  p.deepest = Math.max(p.deepest, depth);
+  switch (event.kind) {
+    case "kill":
+      p.kills += 1;
+      p.killsByEnemy[event.enemyKey] = (p.killsByEnemy[event.enemyKey] ?? 0) + 1;
+      if (event.boss) p.bosses += 1;
+      return;
+    case "just":
+      p.justDodges += 1;
+      return;
+    case "hurt":
+      p.hurtTaken += 1;
+      return;
+    case "roomClear":
+      p.roomsCleared += 1;
+      return;
+    case "floorClear":
+      p.floorsCleared += 1;
+      return;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 芽
+// ---------------------------------------------------------------------------
+
+/** 到達済み・未提示の節目のうち最初のもの */
+export function nextMilestone(item: Item): MilestoneDef | undefined {
+  const p = item.provenance;
+  if (p === undefined) return undefined;
+  const reached = new Set(item.milestones ?? []);
+  return MILESTONES.find((m) => !reached.has(m.key) && p[m.counter] >= m.threshold);
+}
+
+/** これまでに出た key（現在の性質 + 過去の芽の候補の両方）。捨てた枝は二度と出ない */
+function usedKeys(item: Item): Set<string> {
+  const keys = new Set(item.affixes.map((r) => r.key));
+  for (const bud of item.buds ?? []) for (const option of bud.options) keys.add(option.key);
+  return keys;
+}
+
+/**
+ * 節目の芽（2 択）を作る。純関数: 同じアイテム・同じ節目なら同じ候補。
+ * 候補が作れなければ null
+ */
+export function makeBudOffer(item: Item, def: MilestoneDef): BudOffer | null {
+  const rng = createRng(hashSeed(`${item.seed}|${def.key}`));
+  const used = usedKeys(item);
+  const opts: TraitRollOptions = {
+    depth: item.itemLevel,
+    foundDepth: item.foundDepth,
+    sigmaScale: CALM_SIGMA_SCALE,
+    allowInversion: false,
+    origin: "bud",
+  };
+  const along = rollTraitOfColor(rng, item.slot, def.color, used, opts);
+  if (along === undefined) return null;
+  used.add(along.key);
+  const against = rollTraitOfColor(rng, item.slot, OPPOSITE_COLOR[def.color], used, opts);
+  if (against === undefined) return null;
+  return { milestone: def.key, options: [along, against] };
+}
+
+/**
+ * 余白があり、提示中の芽が無ければ、次の節目の芽を提示する（その場で書き換える）。
+ * 提示したら true。候補が作れない節目は到達済みにして飛ばす
+ */
+export function offerNextBud(item: Item): boolean {
+  ensureGrowthFields(item);
+  if (item.budOffer !== null && item.budOffer !== undefined) return false;
+  if ((item.margin ?? 0) <= 0) return false;
+  for (let def = nextMilestone(item); def !== undefined; def = nextMilestone(item)) {
+    item.milestones?.push(def.key);
+    const offer = makeBudOffer(item, def);
+    if (offer === null) continue;
+    item.budOffer = offer;
+    return true;
+  }
+  return false;
+}
+
+/** 余白を使い切っていて銘が無ければ、来歴から銘を刻む（その場で書き換える） */
+export function maybeInscribe(item: Item): boolean {
+  if ((item.margin ?? 0) > 0 || item.inscription !== undefined) return false;
+  item.inscription = engraveName(item.provenance ?? createEmptyProvenance(), item.seed);
+  item.name = nameItem(item);
+  return true;
+}
+
+/**
+ * 提示中の芽から index（0 / 1）を選ぶ（その場で書き換える）。
+ * 選んだ性質を加え、余白を 1 減らし、履歴に残す。余白が 0 になれば銘を刻み、次の節目があれば続けて提示する。
+ * 選べたら選んだ性質、提示が無い / index 不正なら null
+ */
+export function chooseBudOnItem(item: Item, index: number): AffixRoll | null {
+  const offer = item.budOffer;
+  if (offer === null || offer === undefined) return null;
+  if (index !== 0 && index !== 1) return null;
+  ensureGrowthFields(item);
+  const chosen = offer.options[index];
+  item.affixes = [...item.affixes, { ...chosen, origin: "bud" }];
+  item.margin = Math.max(0, (item.margin ?? 0) - 1);
+  item.buds = [...(item.buds ?? []), { milestone: offer.milestone, options: offer.options, chosen: index }];
+  item.budOffer = null;
+  item.rarity = fluxClassOf(item.affixes);
+  if (!maybeInscribe(item)) item.name = nameItem(item);
+  offerNextBud(item);
+  return chosen;
+}
+
+// ---------------------------------------------------------------------------
+// GameState との接続
+// ---------------------------------------------------------------------------
+
+/** 装備中のアイテムのうち、芽を提示中の最初の 1 つ（SLOTS 順） */
+export function findPendingBud(profile: Profile): PendingBud | null {
+  for (const slot of SLOTS) {
+    const item = profile.equipment[slot];
+    const offer = item?.budOffer;
+    if (item === null || item === undefined || offer === null || offer === undefined) continue;
+    const def = milestoneDef(offer.milestone);
+    return {
+      itemId: item.id,
+      slot,
+      milestone: offer.milestone,
+      milestoneLabel: def?.label ?? offer.milestone,
+      options: offer.options,
+    };
+  }
+  return null;
+}
+
+/**
+ * 出来事を装備中の全アイテムの来歴に積み、節目に達したら芽を提示する。
+ * state.pendingBud を更新し、新しい芽が出たらプロフィールを保存する。
+ * combat / floor から最小のフックで呼ぶ
+ */
+export function recordProvenance(state: GameState, event: ProvenanceEvent): void {
+  let offered = false;
+  for (const slot of SLOTS) {
+    const item = state.profile.equipment[slot];
+    if (item === null) continue;
+    ensureGrowthFields(item);
+    if (item.provenance !== undefined) bumpProvenance(item.provenance, event, state.depth);
+    if (offerNextBud(item)) offered = true;
+  }
+  if (!offered) return;
+  state.pendingBud = findPendingBud(state.profile);
+  saveProfile(state.profile);
+}

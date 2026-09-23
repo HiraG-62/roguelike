@@ -14,6 +14,7 @@ import { updateProjectiles } from "../system/projectiles";
 import { VIEW_H, VIEW_W } from "./view";
 import { type Profile, createEmptyProfile } from "../loot/types";
 import { computeStats } from "../loot/stats";
+import { findPendingBud } from "../loot/provenance";
 import { updateStatusEffects } from "../system/statusEffects";
 import { updateHazards } from "../system/hazards";
 import { updateReaper } from "../system/reaper";
@@ -80,6 +81,7 @@ export function createGame(
     boons: [],
     boonChoice: null,
     boonRun: createBoonRunState(),
+    pendingBud: findPendingBud(profile),
   };
   buildFloor(state);
   pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");

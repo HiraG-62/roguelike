@@ -1,6 +1,7 @@
 import { STATUS } from "../data/tuning";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
-import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats } from "./types";
+import { adjustForResonance, applyResonanceEffect, computeResonance } from "./resonance";
+import { DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
 
 /** 倍率系の下限（マイナス補正の積み重ねで 0 以下にならないように） */
 const MIN_MULTIPLIER = 0.1;
@@ -77,12 +78,27 @@ function collectRolls(equipment: Equipment): AffixRoll[] {
   return rolls;
 }
 
+/** 装備中の性質（implicit を除く）。色の配合の入力 */
+export function equippedTraits(equipment: Equipment): AffixRoll[] {
+  return SLOTS.flatMap((slot) => equipment[slot]?.affixes ?? []);
+}
+
+/** 装備全体の共鳴（computeStats と同じ判定）。UI のプレビュー用 */
+export function equipmentResonance(equipment: Equipment): Resonance {
+  return computeResonance(equippedTraits(equipment));
+}
+
 /** DEFAULT_STATS のコピー。配列は共有しないよう複製する */
 function createBaseStats(): PlayerStats {
   return {
     ...DEFAULT_STATS,
     keystones: [...DEFAULT_STATS.keystones],
     triggers: [...DEFAULT_STATS.triggers],
+    resonance: {
+      ...DEFAULT_STATS.resonance,
+      colors: [...DEFAULT_STATS.resonance.colors],
+      ratios: { ...DEFAULT_STATS.resonance.ratios },
+    },
   };
 }
 
@@ -139,18 +155,24 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
 
 /**
  * 装備から PlayerStats を畳み込む。
- * 1. キーストーンの排他を解決（同グループは装備順で後勝ち）
- * 2. DEFAULT_STATS のコピーに、装備順で implicit → affixes（trigger 含む）を段階適用（flat → scale → convert）
- * 3. 主要倍率にソフトキャップ
- * 4. キーストーンを apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
- * 5. 整数化・クランプ
+ * 1. 誓約（旧キーストーン）の排他を解決（同グループは装備順で後勝ち）
+ * 2. 装備中の性質の色の配合から共鳴を決める（resonance.ts。支配 → 二重 → 散光 → なし）
+ * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う）
+ * 4. DEFAULT_STATS のコピーに、装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
+ * 5. 共鳴の効果を畳み込む
+ * 6. 主要倍率にソフトキャップ
+ * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
+ * 8. 整数化・クランプ
  */
 export function computeStats(equipment: Equipment): PlayerStats {
   const stats = createBaseStats();
-  const rolls = filterKeystoneRolls(collectRolls(equipment));
+  const resonance = computeResonance(equippedTraits(equipment));
+  const rolls = adjustForResonance(filterKeystoneRolls(collectRolls(equipment)), resonance);
   applyStaged(stats, rolls.filter((r) => !isKeystoneKey(r.key)));
+  applyResonanceEffect(stats, resonance);
   applySoftCaps(stats);
   applyStaged(stats, rolls.filter((r) => isKeystoneKey(r.key)));
+  stats.resonance = resonance;
   return finalize(stats);
 }
 

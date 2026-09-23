@@ -7,22 +7,23 @@ import {
   affixDef,
   affixDefForRoll,
   applyRoll,
-  affixesFor,
   formatAffix,
   implicitDef,
   keystoneConflicts,
   keystoneDef,
   keystoneToRoll,
   resolveKeystones,
+  traitsFor,
 } from "./affixes";
+import { affixColor } from "./colors";
 import { BASES, baseDef, basesForSlot } from "./bases";
 import { KS } from "../system/keystones";
-import { DEFAULT_STATS, SLOTS } from "./types";
+import { DEFAULT_STATS, SLOTS, TRAIT_COLORS } from "./types";
 
 const MIN_AFFIX_COUNT = 60;
 const MIN_TRADEOFF_COUNT = 13;
 const MIN_KEYSTONE_COUNT = 6;
-const KIND_LIMIT = 3;
+const MIN_TRAITS_PER_SLOT = 6;
 const FIRST_LEVEL = 1;
 
 describe("アフィックス定義", () => {
@@ -35,41 +36,63 @@ describe("アフィックス定義", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("全 def の tiers が minLevel 昇順（最下位 tier → T1）かつ min≤max", () => {
+  it("全 def の期待値曲線が空でなく、各点で min≤max（2 値も）", () => {
     for (const def of AFFIXES) {
-      expect(def.tiers.length, def.key).toBeGreaterThan(0);
-      // index 0 = T1 なので、末尾（最下位）から先頭に向かって minLevel が昇順
-      const levelsLowToHigh = [...def.tiers].reverse().map((t) => t.minLevel);
-      const sorted = [...levelsLowToHigh].sort((a, b) => a - b);
-      expect(levelsLowToHigh, def.key).toEqual(sorted);
-      for (const tier of def.tiers) {
-        expect(tier.min, def.key).toBeLessThanOrEqual(tier.max);
-        if (tier.min2 !== undefined || tier.max2 !== undefined) {
-          expect(tier.min2, def.key).toBeDefined();
-          expect(tier.max2, def.key).toBeDefined();
-          expect(tier.min2 ?? 0, def.key).toBeLessThanOrEqual(tier.max2 ?? 0);
+      expect(def.curve.length, def.key).toBeGreaterThan(0);
+      for (const point of def.curve) {
+        expect(point.min, def.key).toBeLessThanOrEqual(point.max);
+        if (point.min2 !== undefined || point.max2 !== undefined) {
+          expect(point.min2, def.key).toBeDefined();
+          expect(point.max2, def.key).toBeDefined();
+          expect(point.min2 ?? 0, def.key).toBeLessThanOrEqual(point.max2 ?? 0);
         }
       }
     }
   });
 
-  it("2 値ラベルを持つ def は全 tier に value2 のロール幅がある", () => {
+  it("2 値ラベルを持つ def は曲線の全点に value2 の幅がある", () => {
     for (const def of AFFIXES) {
       if (!def.label.includes("{v2}")) continue;
-      for (const tier of def.tiers) expect(tier.min2, def.key).toBeDefined();
+      for (const point of def.curve) expect(point.min2, def.key).toBeDefined();
     }
   });
 
-  it("各スロットで ilvl 1 から prefix / suffix が 3 種以上抽選できる", () => {
+  it(`各スロットで深度 1 から ${MIN_TRAITS_PER_SLOT} 種以上抽選できる`, () => {
     for (const slot of SLOTS) {
-      expect(affixesFor(slot, "prefix", FIRST_LEVEL).length, slot).toBeGreaterThanOrEqual(KIND_LIMIT);
-      expect(affixesFor(slot, "suffix", FIRST_LEVEL).length, slot).toBeGreaterThanOrEqual(KIND_LIMIT);
+      expect(traitsFor(slot, FIRST_LEVEL).length, slot).toBeGreaterThanOrEqual(MIN_TRAITS_PER_SLOT);
     }
   });
 
-  it("affixDef で引ける", () => {
-    expect(affixDef("meleeDamagePct")?.kind).toBe("prefix");
+  it("affixDef で引ける。prefix / suffix の区別は無い", () => {
+    const def = affixDef("meleeDamagePct");
+    expect(def).toBeDefined();
+    expect(def && "kind" in def).toBe(false);
     expect(affixDef("does-not-exist")).toBeUndefined();
+  });
+
+  it("全 def に色があり、5 色のどれか。紅 / 蒼 / 翠 / 金 がそれぞれ 5 種以上、冥も 1 種以上", () => {
+    const counts = new Map<string, number>();
+    for (const def of AFFIXES) {
+      const color = affixColor(def);
+      expect(TRAIT_COLORS, def.key).toContain(color);
+      counts.set(color, (counts.get(color) ?? 0) + 1);
+    }
+    for (const c of ["crimson", "azure", "jade", "gold"]) expect(counts.get(c) ?? 0, c).toBeGreaterThanOrEqual(5);
+    expect(counts.get("umbra") ?? 0).toBeGreaterThanOrEqual(1);
+  });
+
+  it("色の意味: 近接は紅 / 射撃・機動・冷気は蒼 / 生存は翠 / 会心・コンボは金", () => {
+    const colorOf = (key: string): string | undefined => {
+      const def = affixDef(key);
+      return def === undefined ? undefined : affixColor(def);
+    };
+    expect(colorOf("meleeDamagePct")).toBe("crimson");
+    expect(colorOf("rangedDamagePct")).toBe("azure");
+    expect(colorOf("moveSpeed")).toBe("azure");
+    expect(colorOf("chill")).toBe("azure");
+    expect(colorOf("maxLife")).toBe("jade");
+    expect(colorOf("critChance")).toBe("gold");
+    expect(colorOf("comboWindow")).toBe("gold");
   });
 
   it("formatAffix が 1 値 / 2 値 / 小数 / implicit を整形する", () => {
@@ -121,14 +144,14 @@ describe("キーストーン", () => {
     expect(keystoneConflicts(KEYSTONES.map((k) => k.key)).length).toBeGreaterThan(0);
   });
 
-  it("AffixRoll は suffix / tier 1 / value 0 で保存され、formatAffix は [Keystone] 形式", () => {
+  it("誓約（旧キーストーン）の AffixRoll は value 0・色は冥で保存され、formatAffix は【誓約】形式", () => {
     const def = keystoneDef("ks_glassCannon");
     expect(def).toBeDefined();
     if (def === undefined) return;
     const roll = keystoneToRoll(def);
-    expect(roll).toEqual({ key: "ks_glassCannon", kind: "suffix", tier: 1, value: 0 });
+    expect(roll).toEqual({ key: "ks_glassCannon", value: 0, color: "umbra" });
     expect(affixDefForRoll(roll)?.source).toBe("keystone");
-    expect(formatAffix(roll)).toBe(`【キーストーン】${def.name}: ${def.description}`);
+    expect(formatAffix(roll)).toBe(`【誓約】${def.name}: ${def.description}`);
   });
 
   it("apply で keystones に積み、数値効果も掛ける", () => {

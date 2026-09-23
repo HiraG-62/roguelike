@@ -1,58 +1,72 @@
 import { describe, expect, it } from "vitest";
-import { createRng } from "../core/rng";
+import { traitColorOf } from "./colors";
 import {
-  CONVERSION_AFFIXES,
-  CORRUPTED_KEY,
-  affixDef,
-  formatAffix,
-  isConversionKey,
-  isKeystoneKey,
-} from "./affixes";
-import {
-  CRAFT_COSTS,
-  addSalvageCurrency,
-  annulItem,
+  CALM_COST,
+  DYE_COST,
+  PARE_COST,
+  STIR_COST,
+  TRANSFER_COST,
   applyCraftResult,
-  augmentItem,
-  corruptItem,
+  applyEchoResult,
+  convertLegacyWallet,
   craft,
+  craftEcho,
+  createEchoWallet,
   createWallet,
-  fuseItems,
-  fuseSlotCount,
-  isCorrupted,
-  reforgeItem,
-  type CraftState,
-  type Wallet,
+  shatterYield,
+  type EchoCraftState,
+  type EchoRequest,
+  type EchoWallet,
 } from "./crafting";
 import { CRAFT_KEY, createCraftSave, loadCraft, saveCraft } from "./craftingStore";
-import { CONVERSION_AFFIX_CHANCE, UNIQUES, generateItem } from "./generator";
-import { computeStats } from "./stats";
-import {
-  DEFAULT_STATS,
-  createEmptyEquipment,
-  createEmptyProfile,
-  type AffixRoll,
-  type Equipment,
-  type Item,
-} from "./types";
+import { VESSEL_CAPACITY } from "./generator";
+import { createEmptyProfile, createEmptyProvenance, type AffixRoll, type Item } from "./types";
 
-const NOW = 1_700_000_000_000;
 const RICH = 100;
-const MANY = 200;
+const MANY = 300;
 
-function rich(): Wallet {
-  return { dust: RICH, shard: RICH, essence: RICH, relic: RICH };
+class MemoryStorage implements Storage {
+  private map = new Map<string, string>();
+  get length(): number {
+    return this.map.size;
+  }
+  clear(): void {
+    this.map.clear();
+  }
+  getItem(key: string): string | null {
+    return this.map.get(key) ?? null;
+  }
+  key(index: number): string | null {
+    return Array.from(this.map.keys())[index] ?? null;
+  }
+  removeItem(key: string): void {
+    this.map.delete(key);
+  }
+  setItem(key: string, value: string): void {
+    this.map.set(key, value);
+  }
 }
 
-function state(wallet: Wallet = rich()): CraftState {
-  return { wallet, counter: 0 };
+function richEchoes(): EchoWallet {
+  return { crimson: RICH, azure: RICH, jade: RICH, gold: RICH, umbra: RICH };
 }
 
-function roll(key: string, kind: AffixRoll["kind"], tier: number, value: number, value2?: number): AffixRoll {
-  const r: AffixRoll = { key, kind, tier, value };
-  if (value2 !== undefined) r.value2 = value2;
-  return r;
+function state(echoes: EchoWallet = richEchoes()): EchoCraftState {
+  return { echoes, counter: 0 };
 }
+
+const melee: AffixRoll = { key: "meleeDamagePct", value: 30, nominal: 25, flux: 0.2, color: "crimson", origin: "found" };
+const life: AffixRoll = { key: "maxLife", value: 20, nominal: 20, flux: 0, color: "jade", origin: "found" };
+const invertedSpeed: AffixRoll = {
+  key: "attackSpeed",
+  value: -5,
+  nominal: 10,
+  flux: -1.5,
+  inverted: true,
+  color: "umbra",
+  origin: "found",
+};
+const grown: AffixRoll = { key: "critChance", value: 4, nominal: 4, flux: 0, color: "gold", origin: "bud" };
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -60,381 +74,229 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     seed: 1,
     baseKey: "longsword",
     slot: "weapon",
-    rarity: "rare",
-    itemLevel: 20,
-    name: "Storm Fang",
+    rarity: "magic",
+    itemLevel: 15,
+    name: "test",
     implicit: null,
-    affixes: [
-      roll("meleeDamagePct", "prefix", 3, 35),
-      roll("meleeDamageFlat", "prefix", 4, 5),
-      roll("attackSpeed", "suffix", 3, 8),
-      roll("critChance", "suffix", 3, 4),
-    ],
-    foundDepth: 10,
+    affixes: [melee, life, invertedSpeed],
+    foundDepth: 15,
     foundAt: 0,
+    provenance: createEmptyProvenance(),
+    margin: 2,
+    marginMax: 2,
+    milestones: [],
+    buds: [],
+    budOffer: null,
     ...overrides,
   };
 }
 
-function equip(item: Item): Equipment {
-  const eq = createEmptyEquipment();
-  eq[item.slot] = item;
-  return eq;
+function okItem(result: ReturnType<typeof craftEcho>): Item {
+  if (!result.ok || result.item === null) throw new Error(`craft failed: ${result.message}`);
+  return result.item;
 }
 
-function statsWith(affixes: AffixRoll[], slot: Item["slot"] = "ring"): ReturnType<typeof computeStats> {
-  return computeStats(equip(makeItem({ slot, baseKey: "ironRing", affixes })));
-}
-
-// ---------------------------------------------------------------------------
-// 変換アフィックス
-// ---------------------------------------------------------------------------
-
-describe("変換アフィックス", () => {
-  it("8 種以上あり、すべて convert 段階・conversion タグ・cv_ 接頭辞", () => {
-    expect(CONVERSION_AFFIXES.length).toBeGreaterThanOrEqual(8);
-    for (const def of CONVERSION_AFFIXES) {
-      expect(isConversionKey(def.key)).toBe(true);
-      expect(def.stage).toBe("convert");
-      expect(def.tags).toContain("conversion");
-      expect(affixDef(def.key)).toBe(def);
-    }
+describe("砕く", () => {
+  it("性質の色ごとに残響を得る。性質が無ければベースの傾きの色を 1", () => {
+    expect(shatterYield(makeItem())).toEqual({ ...createEchoWallet(), crimson: 1, jade: 1, umbra: 1 });
+    expect(shatterYield(makeItem({ affixes: [], baseKey: "pistol", slot: "gun" }))).toEqual({ ...createEchoWallet(), azure: 1 });
   });
 
-  it("表示は動詞で語る", () => {
-    for (const def of CONVERSION_AFFIXES) {
-      const tier = def.tiers[0];
-      if (!tier) throw new Error(def.key);
-      const text = formatAffix(roll(def.key, def.kind, 1, tier.min, tier.min2));
-      expect(text).toMatch(/(変換|消費)/);
-    }
-    expect(formatAffix(roll("cv_meleeToBurn", "prefix", 2, 40))).toBe("近接ダメージの40%を炎上に変換");
-  });
-
-  it("melee → burn: 近接倍率の一部を burn に移す（scale の後に掛かる）", () => {
-    const s = statsWith([roll("meleeDamagePct", "prefix", 1, 50), roll("cv_meleeToBurn", "prefix", 2, 40)], "amulet");
-    // 1.5 * 0.6 = 0.9、移した 0.6 → burn DPS 6、chance 0.4 * 0.5 = 0.2
-    expect(s.meleeDamageMul).toBeCloseTo(0.9, 5);
-    expect(s.burnDps).toBeCloseTo(6, 5);
-    expect(s.burnChance).toBeCloseTo(0.2, 5);
-  });
-
-  it("crit chance → crit multiplier: chance が 0 になり、1% あたり v% の倍率になる", () => {
-    const s = statsWith([roll("critChance", "suffix", 1, 10), roll("cv_critToMultiplier", "prefix", 1, 5)]);
-    // chance 0.15 → multiplier +0.75
-    expect(s.critChance).toBe(0);
-    expect(s.critMul).toBeCloseTo(DEFAULT_STATS.critMul + 0.75, 5);
-  });
-
-  it("max HP → armor: 30% の HP を 1/3 の armor に", () => {
-    const s = statsWith([roll("cv_lifeToArmor", "prefix", 2, 30)], "armor");
-    expect(s.maxHp).toBe(70);
-    expect(s.armor).toBeCloseTo(10, 5);
-  });
-
-  it("dash charges → 距離: チャージは 1 に、距離はチャージ数に比例", () => {
-    const s = computeStats(
-      equip(
-        makeItem({
-          slot: "boots",
-          baseKey: "boots",
-          affixes: [roll("dashCharge", "suffix", 1, 1), roll("cv_chargesToDistance", "suffix", 3, 50)],
-        }),
-      ),
-    );
-    expect(s.dashCharges).toBe(1);
-    // 2 チャージ × 50% = +100%（boots の implicit は無し）
-    expect(s.dashDistanceMul).toBeCloseTo(2, 5);
-  });
-
-  it("spread → pierce: 弾数に比例して射撃ダメージが減り、pierce が増える", () => {
-    const s = statsWith([roll("projectiles", "suffix", 1, 2, 0), roll("cv_splitToPierce", "suffix", 1, 10, 3)], "amulet");
-    expect(s.projectileCount).toBe(3);
-    expect(s.pierce).toBe(3);
-    expect(s.rangedDamageMul).toBeCloseTo(0.8, 5);
-  });
-
-  it("move speed の超過分 → attack speed", () => {
-    const s = statsWith([roll("moveSpeed", "prefix", 1, 20), roll("cv_speedToAttack", "suffix", 1, 50)], "amulet");
-    expect(s.moveSpeedMul).toBeCloseTo(1.1, 5);
-    expect(s.attackSpeedMul).toBeCloseTo(1.1, 5);
-  });
-
-  it("combo damage → JUST damage、life on hit → energy", () => {
-    const combo = statsWith([roll("comboDamage", "prefix", 1, 2, 40), roll("cv_comboToJust", "prefix", 1, 50)]);
-    expect(combo.comboDamageCap).toBeCloseTo(0.2, 5);
-    expect(combo.justDodgeDamageMul).toBeCloseTo(1 + 0.2 * 1.5, 5);
-    const leech = statsWith([roll("lifeOnHit", "prefix", 1, 4), roll("cv_leechToEnergy", "suffix", 1, 50)]);
-    expect(leech.lifeOnHit).toBeCloseTo(2, 5);
-    expect(leech.energyGainMul).toBeCloseTo(1 + 2 * 0.15, 5);
-  });
-
-  it("rare の抽選に変換が混ざり、1 アイテムに 1 つまで。unique にも組み込まれている", () => {
-    expect(CONVERSION_AFFIX_CHANCE).toBeGreaterThan(0);
-    const rng = createRng(3);
-    let seen = 0;
-    for (let i = 0; i < 2000; i++) {
-      const item = generateItem(rng, { itemLevel: 30, rarityBoost: 4, foundDepth: 30, now: NOW });
-      const conversions = item.affixes.filter((a) => isConversionKey(a.key));
-      if (item.rarity !== "unique") expect(conversions.length).toBeLessThanOrEqual(1);
-      if (item.rarity === "rare" && conversions.length > 0) seen++;
-    }
-    expect(seen).toBeGreaterThan(0);
-    expect(UNIQUES.some((u) => u.affixes.some((a) => isConversionKey(a.key)))).toBe(true);
+  it("craftEcho で残響が増え、applyEchoResult で stash から消える", () => {
+    const profile = createEmptyProfile();
+    const item = makeItem();
+    profile.stash.push(item);
+    const s = state(createEchoWallet());
+    const result = craftEcho(s, { op: "shatter", item });
+    expect(result.ok).toBe(true);
+    expect(s.echoes.crimson).toBe(1);
+    expect(s.counter).toBe(1);
+    expect(applyEchoResult(profile, result)).toBe(true);
+    expect(profile.stash).toEqual([]);
   });
 });
 
-// ---------------------------------------------------------------------------
-// クラフト操作
-// ---------------------------------------------------------------------------
-
-describe("通貨", () => {
-  it("分解で rarity に応じた通貨が 1 増える", () => {
-    const wallet = createWallet();
-    expect(addSalvageCurrency(wallet, makeItem({ rarity: "normal" }))).toBe("dust");
-    expect(addSalvageCurrency(wallet, makeItem({ rarity: "magic" }))).toBe("shard");
-    expect(addSalvageCurrency(wallet, makeItem({ rarity: "rare" }))).toBe("essence");
-    expect(addSalvageCurrency(wallet, makeItem({ rarity: "unique" }))).toBe("relic");
-    expect(wallet).toEqual({ dust: 1, shard: 1, essence: 1, relic: 1 });
-  });
-
-  it("round-trip（別キー roguelike.craft.v1）", () => {
-    const store = new Map<string, string>();
-    const storage = {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v),
-    } as unknown as Storage;
-    const save = createCraftSave();
-    save.wallet = { dust: 3, shard: 2, essence: 1, relic: 7 };
-    save.counter = 12;
-    saveCraft(save, storage);
-    expect(store.has(CRAFT_KEY)).toBe(true);
-    expect(loadCraft(storage)).toEqual(save);
-  });
-
-  it("壊れたデータは空に戻す（負数や非数は 0）", () => {
-    const storage = {
-      getItem: () => JSON.stringify({ version: 1, wallet: { dust: -3, shard: "x", essence: 2.7 }, counter: "no" }),
-      setItem: () => {},
-    } as unknown as Storage;
-    expect(loadCraft(storage)).toEqual({ version: 1, wallet: { dust: 0, shard: 0, essence: 2, relic: 0 }, counter: 0 });
-    const broken = { getItem: () => "{oops", setItem: () => {} } as unknown as Storage;
-    expect(loadCraft(broken)).toEqual(createCraftSave());
-  });
-});
-
-describe("craft: 共通", () => {
-  it("同じ item.id / counter なら同じ結果（決定的）で、counter と通貨が進む", () => {
-    const a = state();
-    const b = state();
-    const ra = craft(a, { op: "reforge", item: makeItem(), bestDepth: 0, now: NOW });
-    const rb = craft(b, { op: "reforge", item: makeItem(), bestDepth: 0, now: NOW });
-    expect(ra).toEqual(rb);
-    expect(a.counter).toBe(1);
-    expect(a.wallet.shard).toBe(RICH - CRAFT_COSTS.reforge.amount);
-  });
-
-  it("counter が違えば別の結果になりうる", () => {
-    const results = new Set<string>();
-    const s = state();
-    for (let i = 0; i < 10; i++) {
-      const r = craft(s, { op: "reforge", item: makeItem(), bestDepth: 0, now: NOW });
-      if (r.ok) results.add(JSON.stringify(r.item.affixes));
-    }
-    expect(results.size).toBeGreaterThan(1);
+describe("共通: 決定性・通貨・拒否", () => {
+  it("同じ item.id / counter なら同じ結果", () => {
+    const req: EchoRequest = { op: "stir", item: makeItem(), traitIndex: 0 };
+    expect(okItem(craftEcho(state(), req))).toEqual(okItem(craftEcho(state(), req)));
   });
 
   it("通貨不足は拒否し、何も消費しない", () => {
-    for (const op of ["reforge", "augment", "annul", "corrupt"] as const) {
-      const s = state(createWallet());
-      const r = craft(s, { op, item: makeItem(), bestDepth: 0, now: NOW });
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.reason).toBe("insufficient");
-      expect(s.counter).toBe(0);
-      expect(s.wallet).toEqual(createWallet());
-    }
+    const s = state(createEchoWallet());
+    const result = craftEcho(s, { op: "stir", item: makeItem(), traitIndex: 0 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("insufficient");
+    expect(s.counter).toBe(0);
+    expect(s.echoes).toEqual(createEchoWallet());
   });
 
-  it("適用できない操作（normal の Reforge など）は通貨を消費しない", () => {
+  it("成立しない操作は invalid で、通貨も counter も変わらない", () => {
     const s = state();
-    const r = craft(s, { op: "reforge", item: makeItem({ rarity: "normal", affixes: [] }), bestDepth: 0, now: NOW });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("invalid");
-    expect(s.wallet).toEqual(rich());
+    const result = craftEcho(s, { op: "dye", item: makeItem(), traitIndex: 0, color: "crimson" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("invalid");
+    expect(s.echoes).toEqual(richEchoes());
+    expect(s.counter).toBe(0);
   });
+});
 
-  it("corrupted は二度とクラフトできない（Fuse の相手でも拒否）", () => {
+describe("染め", () => {
+  it(`目標色の残響 ${DYE_COST} で、同じ色の別の性質に置き換える（揺らぎは引き継ぐ）`, () => {
     const s = state();
-    const first = craft(s, { op: "corrupt", item: makeItem(), bestDepth: 0, now: NOW });
-    expect(first.ok).toBe(true);
-    if (!first.ok) return;
-    expect(isCorrupted(first.item)).toBe(true);
-    for (const op of ["reforge", "augment", "annul", "corrupt"] as const) {
-      const r = craft(s, { op, item: first.item, bestDepth: 0, now: NOW });
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.reason).toBe("corrupted");
-    }
-    const fuse = craft(s, { op: "fuse", item: makeItem({ id: "x" }), partner: first.item, bestDepth: 0, now: NOW });
-    expect(fuse.ok).toBe(false);
+    const after = okItem(craftEcho(s, { op: "dye", item: makeItem(), traitIndex: 0, color: "azure" }));
+    const dyed = after.affixes[0];
+    expect(dyed && traitColorOf(dyed)).toBe("azure");
+    expect(dyed?.key).not.toBe("meleeDamagePct");
+    expect(dyed?.flux).toBeCloseTo(0.2);
+    expect(s.echoes.azure).toBe(RICH - DYE_COST);
+    expect(after.affixes).toHaveLength(3);
+  });
+});
+
+describe("鎮め", () => {
+  it(`性質の色の残響 ${CALM_COST} で揺らぎを半分に。余白が 1 減る`, () => {
+    const s = state();
+    const after = okItem(craftEcho(s, { op: "calm", item: makeItem(), traitIndex: 0 }));
+    expect(after.affixes[0]?.flux).toBeCloseTo(0.1);
+    expect(after.affixes[0]?.value).toBe(Math.round(25 * 1.1));
+    expect(after.margin).toBe(1);
+    expect(s.echoes.crimson).toBe(RICH - CALM_COST);
   });
 
-  it("applyCraftResult: 単体操作は同じ位置で置き換え、Fuse は 2 つを 1 つにする", () => {
+  it("反転は解け、色は定義の色に戻る（冥響で払う）", () => {
+    const s = state();
+    const after = okItem(craftEcho(s, { op: "calm", item: makeItem(), traitIndex: 2 }));
+    const calmed = after.affixes[2];
+    expect(calmed?.inverted).toBeUndefined();
+    expect(calmed?.value).toBeGreaterThan(0);
+    expect(calmed && traitColorOf(calmed)).toBe("crimson");
+    expect(s.echoes.umbra).toBe(RICH - CALM_COST);
+  });
+
+  it("揺らぎが無い・余白が無いと拒否", () => {
+    expect(craftEcho(state(), { op: "calm", item: makeItem(), traitIndex: 1 }).ok).toBe(false);
+    expect(craftEcho(state(), { op: "calm", item: makeItem({ margin: 0 }), traitIndex: 0 }).ok).toBe(false);
+  });
+});
+
+describe("煽り", () => {
+  it(`冥響 ${STIR_COST} で揺らぎを引き直す。浅い遺物でも反転し得る`, () => {
+    const s = state({ ...richEchoes(), umbra: RICH * MANY });
+    let inverted = 0;
+    let item = makeItem({ foundDepth: 1, itemLevel: 5 });
+    for (let i = 0; i < MANY; i++) {
+      item = okItem(craftEcho(s, { op: "stir", item, traitIndex: 0 }));
+      if (item.affixes[0]?.inverted === true) inverted++;
+    }
+    expect(inverted).toBeGreaterThan(0);
+    expect(s.echoes.umbra).toBe(RICH * MANY - STIR_COST * MANY);
+  });
+
+  it("誓約は揺らがない", () => {
+    const item = makeItem({ affixes: [{ key: "ks_blink", value: 0, color: "umbra" }] });
+    expect(craftEcho(state(), { op: "stir", item, traitIndex: 0 }).ok).toBe(false);
+  });
+});
+
+describe("削ぎ", () => {
+  it(`性質の色の残響 ${PARE_COST} で性質を消し、余白を 1 戻す（器の容量まで）`, () => {
+    const s = state();
+    const after = okItem(craftEcho(s, { op: "pare", item: makeItem(), traitIndex: 1 }));
+    expect(after.affixes.map((r) => r.key)).toEqual(["meleeDamagePct", "attackSpeed"]);
+    expect(after.margin).toBe(3);
+    expect(after.marginMax).toBe(3);
+    expect(s.echoes.jade).toBe(RICH - PARE_COST);
+    const full = okItem(craftEcho(state(), { op: "pare", item: makeItem({ margin: VESSEL_CAPACITY }), traitIndex: 0 }));
+    expect(full.margin).toBe(VESSEL_CAPACITY);
+  });
+});
+
+describe("移し", () => {
+  it(`冥響 ${TRANSFER_COST} で芽吹いた性質を同じ部位の別の遺物へ。元は失われ、受け手の余白を 1 使う`, () => {
     const profile = createEmptyProfile();
-    profile.stash.push(makeItem({ id: "a" }), makeItem({ id: "b" }), makeItem({ id: "c" }));
+    const source = makeItem({ id: "src", affixes: [melee, grown] });
+    const target = makeItem({ id: "dst", affixes: [life] });
+    profile.stash.push(source, target);
     const s = state();
-    const annul = craft(s, { op: "annul", item: makeItem({ id: "b" }), bestDepth: 0, now: NOW });
-    expect(applyCraftResult(profile, annul)).toBe(true);
-    expect(profile.stash.map((i) => i.id)).toEqual(["a", "b", "c"]);
-    expect(profile.stash[1]?.affixes).toHaveLength(3);
-
-    const fuse = craft(s, { op: "fuse", item: makeItem({ id: "a" }), partner: makeItem({ id: "c" }), bestDepth: 0, now: NOW });
-    expect(applyCraftResult(profile, fuse)).toBe(true);
-    expect(profile.stash).toHaveLength(2);
-    expect(profile.stash.some((i) => i.id === "a" || i.id === "c")).toBe(false);
-  });
-});
-
-describe("Reforge", () => {
-  it("rarity を保ち、itemLevel は元と bestDepth の高い方。tier は itemLevel で縛られる", () => {
-    for (let i = 0; i < MANY; i++) {
-      const result = reforgeItem(makeItem({ itemLevel: 5 }), createRng(i), 12);
-      if (!result) throw new Error("reforge failed");
-      expect(result.item.rarity).toBe("rare");
-      expect(result.item.itemLevel).toBe(12);
-      for (const r of result.item.affixes) {
-        const def = affixDef(r.key);
-        if (def === undefined) continue;
-        expect(def.tiers[r.tier - 1]?.minLevel ?? Infinity).toBeLessThanOrEqual(12);
-      }
-    }
-    expect(reforgeItem(makeItem({ itemLevel: 30 }), createRng(1), 3)?.item.itemLevel).toBe(30);
+    const result = craftEcho(s, { op: "transfer", item: source, target, what: { kind: "bud", traitIndex: 1 } });
+    const after = okItem(result);
+    expect(after.id).toBe("dst");
+    expect(after.affixes.map((r) => r.key)).toEqual(["maxLife", "critChance"]);
+    expect(after.margin).toBe(1);
+    expect(s.echoes.umbra).toBe(RICH - TRANSFER_COST);
+    expect(applyEchoResult(profile, result)).toBe(true);
+    expect(profile.stash.map((it) => it.id)).toEqual(["dst"]);
   });
 
-  it("magic は名前も付け替わる", () => {
-    const magic = makeItem({ rarity: "magic", name: "Vicious Longsword", affixes: [roll("meleeDamagePct", "prefix", 3, 35)] });
-    const names = new Set<string>();
-    for (let i = 0; i < 20; i++) names.add(reforgeItem(magic, createRng(i), 0)?.item.name ?? "");
-    expect(names.size).toBeGreaterThan(1);
-  });
-});
-
-describe("Augment", () => {
-  it("空き枠に 1 つ追加する。枠が埋まっていれば拒否", () => {
-    const result = augmentItem(makeItem(), createRng(1));
-    expect(result?.item.affixes).toHaveLength(5);
-    const full = makeItem({
-      rarity: "magic",
-      affixes: [roll("meleeDamagePct", "prefix", 3, 35), roll("attackSpeed", "suffix", 3, 8)],
-    });
-    expect(augmentItem(full, createRng(1))).toBeNull();
-    expect(augmentItem(makeItem({ rarity: "normal", affixes: [] }), createRng(1))).toBeNull();
+  it("銘を無銘の遺物へ移せる", () => {
+    const source = makeItem({ id: "src", inscription: "見切り", name: "見切り" });
+    const target = makeItem({ id: "dst" });
+    const after = okItem(craftEcho(state(), { op: "transfer", item: source, target, what: { kind: "inscription" } }));
+    expect(after.inscription).toBe("見切り");
+    expect(after.name).toBe("見切り");
   });
 
-  it("prefix / suffix の上限と key の重複なしを守る", () => {
-    for (let i = 0; i < MANY; i++) {
-      let item = makeItem();
-      for (let n = 0; n < 4; n++) item = augmentItem(item, createRng(i * 10 + n))?.item ?? item;
-      const prefixes = item.affixes.filter((a) => a.kind === "prefix" && !isKeystoneKey(a.key));
-      const suffixes = item.affixes.filter((a) => a.kind === "suffix" && !isKeystoneKey(a.key));
-      expect(prefixes.length).toBeLessThanOrEqual(3);
-      expect(suffixes.length).toBeLessThanOrEqual(3);
-      const keys = item.affixes.map((a) => a.key);
-      expect(new Set(keys).size).toBe(keys.length);
-    }
-  });
-});
-
-describe("Annul", () => {
-  it("ランダムに 1 つ消す。空なら拒否", () => {
-    expect(annulItem(makeItem(), createRng(1))?.item.affixes).toHaveLength(3);
-    expect(annulItem(makeItem({ affixes: [] }), createRng(1))).toBeNull();
-  });
-});
-
-describe("Corrupt", () => {
-  it("どの結果でも corrupted マーカーが付き、4 種の結果がすべて起こりうる", () => {
-    const outcomes = new Set<string>();
-    for (let i = 0; i < MANY; i++) {
-      const result = corruptItem(makeItem(), createRng(i));
-      outcomes.add(result.outcome);
-      expect(isCorrupted(result.item)).toBe(true);
-      expect(result.item.affixes.filter((a) => a.key === CORRUPTED_KEY)).toHaveLength(1);
-    }
-    expect([...outcomes].sort()).toEqual(["conversion", "exalt", "keystone", "nothing"]);
-  });
-
-  it("exalt: tier が 1 段上がり、通常アフィックスの 1 つが負になる", () => {
-    for (let i = 0; i < MANY; i++) {
-      const result = corruptItem(makeItem(), createRng(i));
-      if (result.outcome !== "exalt") continue;
-      const body = result.item.affixes.filter((a) => a.key !== CORRUPTED_KEY);
-      expect(body.map((a) => a.tier)).toEqual(makeItem().affixes.map((a) => a.tier - 1));
-      expect(body.filter((a) => a.value < 0)).toHaveLength(1);
-      return;
-    }
-    throw new Error("exalt not rolled");
-  });
-
-  it("負の値は符号を整えて表示する", () => {
-    expect(formatAffix(roll("meleeDamagePct", "prefix", 1, -40))).toBe("近接ダメージ -40%");
-  });
-
-  it("keystone: キーストーンが 1 つだけになる", () => {
-    for (let i = 0; i < MANY; i++) {
-      const result = corruptItem(makeItem(), createRng(i));
-      if (result.outcome !== "keystone") continue;
-      expect(result.item.affixes.filter((a) => isKeystoneKey(a.key))).toHaveLength(1);
-      return;
-    }
-    throw new Error("keystone not rolled");
-  });
-});
-
-describe("Fuse", () => {
-  const other = (): Item =>
-    makeItem({
-      id: "item-2",
-      rarity: "magic",
-      affixes: [roll("burn", "suffix", 3, 8, 6), roll("damageVsStaggered", "prefix", 3, 20)],
-    });
-
-  it("枠は元の合計より 1 少なく、rarity は高い方・slot は同じ・名前は再生成", () => {
-    expect(fuseSlotCount(makeItem(), other())).toBe(5);
-    for (let i = 0; i < MANY; i++) {
-      const result = fuseItems(makeItem(), other(), createRng(i), NOW);
-      if (!result) throw new Error("fuse failed");
-      expect(result.item.affixes.length).toBeLessThanOrEqual(5);
-      expect(result.item.affixes.length).toBeGreaterThan(0);
-      expect(result.item.rarity).toBe("rare");
-      expect(result.item.slot).toBe("weapon");
-      expect(result.item.id).not.toBe("item-1");
-      const prefixes = result.item.affixes.filter((a) => a.kind === "prefix").length;
-      expect(prefixes).toBeLessThanOrEqual(3);
-      const keys = result.item.affixes.map((a) => a.key);
-      expect(new Set(keys).size).toBe(keys.length);
-    }
-  });
-
-  it("magic 同士は magic の枠（1+1）に収まる", () => {
-    const a = other();
-    const b = { ...other(), id: "item-3", affixes: [roll("attackSpeed", "suffix", 3, 8), roll("meleeDamagePct", "prefix", 3, 30)] };
-    const result = fuseItems(a, b, createRng(5), NOW);
-    expect(result?.item.affixes).toHaveLength(2);
-  });
-
-  it("違うスロット・同じアイテム・両方アフィックス無しは拒否", () => {
-    expect(fuseItems(makeItem(), makeItem({ id: "g", slot: "gun", baseKey: "pistol" }), createRng(1), NOW)).toBeNull();
-    expect(fuseItems(makeItem(), makeItem(), createRng(1), NOW)).toBeNull();
-    const empty = (id: string): Item => makeItem({ id, rarity: "normal", affixes: [] });
-    expect(fuseItems(empty("a"), empty("b"), createRng(1), NOW)).toBeNull();
-  });
-
-  it("craft 経由では essence を 1 消費し、両方の id を consumedIds に返す", () => {
+  it("別の部位・芽でない性質・銘のある受け手は拒否", () => {
+    const source = makeItem({ id: "src", affixes: [melee, grown], inscription: "銘" });
     const s = state();
-    const r = craft(s, { op: "fuse", item: makeItem(), partner: other(), bestDepth: 0, now: NOW });
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.consumedIds).toEqual(["item-1", "item-2"]);
-    expect(s.wallet.essence).toBe(RICH - CRAFT_COSTS.fuse.amount);
+    expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "g", slot: "gun" }), what: { kind: "bud", traitIndex: 1 } }).ok).toBe(false);
+    expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "d" }), what: { kind: "bud", traitIndex: 0 } }).ok).toBe(false);
+    expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "d", inscription: "既" }), what: { kind: "inscription" } }).ok).toBe(false);
+    expect(s.echoes.umbra).toBe(RICH);
+  });
+});
+
+describe("保存（roguelike.craft.v1）", () => {
+  it("round-trip", () => {
+    const storage = new MemoryStorage();
+    const save = createCraftSave();
+    save.echoes.gold = 7;
+    save.counter = 3;
+    saveCraft(save, storage);
+    expect(loadCraft(storage)).toEqual(save);
+  });
+
+  it("旧形式（version 1 の dust / shard / essence / relic）は残響へ換算する", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(CRAFT_KEY, JSON.stringify({ version: 1, wallet: { dust: 3, shard: 1, essence: 1, relic: 1 }, counter: 5 }));
+    const loaded = loadCraft(storage);
+    // 3*1 + 2 + 4 + 8 = 17 点 → 各色 3、余り 2 は紅・蒼へ
+    expect(loaded.echoes).toEqual({ crimson: 4, azure: 4, jade: 3, gold: 3, umbra: 3 });
+    expect(loaded.wallet).toEqual(createWallet());
+    expect(loaded.counter).toBe(5);
+    expect(convertLegacyWallet(createWallet())).toEqual(createEchoWallet());
+  });
+
+  it("壊れたデータは空に戻す（負数や非数は 0）", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(CRAFT_KEY, JSON.stringify({ version: 2, echoes: { crimson: -3, azure: "x" }, counter: Number.NaN }));
+    expect(loadCraft(storage)).toEqual(createCraftSave());
+    storage.setItem(CRAFT_KEY, "{broken");
+    expect(loadCraft(storage)).toEqual(createCraftSave());
+  });
+});
+
+describe("旧 API の互換レイヤー（UI 移行まで）", () => {
+  it("無効化は性質を 1 つ削ぎ、塵を 5 使う。付与は常に拒否", () => {
+    const wallet = { ...createWallet(), dust: 6, essence: 5 };
+    const s = { wallet, counter: 0 };
+    const result = craft(s, { op: "annul", item: makeItem(), bestDepth: 1, now: 0 });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.item.affixes).toHaveLength(2);
+    expect(wallet.dust).toBe(1);
+    expect(craft(s, { op: "augment", item: makeItem(), bestDepth: 1, now: 0 }).ok).toBe(false);
+  });
+
+  it("融合は 2 つを 1 つにする", () => {
+    const profile = createEmptyProfile();
+    const a = makeItem({ id: "a" });
+    const b = makeItem({ id: "b", affixes: [grown] });
+    profile.stash.push(a, b);
+    const result = craft({ wallet: { ...createWallet(), essence: 1 }, counter: 0 }, { op: "fuse", item: a, partner: b, bestDepth: 1, now: 0 });
+    expect(result.ok).toBe(true);
+    applyCraftResult(profile, result);
+    expect(profile.stash).toHaveLength(1);
+    expect(profile.stash[0]?.affixes).toHaveLength(3);
   });
 });

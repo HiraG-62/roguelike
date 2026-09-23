@@ -1,13 +1,21 @@
 import type { Vec } from "../core/vec";
 
 /**
- * 装備システムの共有型。docs/LOOT_DESIGN.md を参照。
+ * 装備システム（響き・揺らぎ・来歴）の共有型。docs/LOOT_DESIGN.md を参照。
  * 生成・集計・永続化・UI は全部この型を介してやり取りする。
  */
 
 export const SLOTS = ["weapon", "gun", "armor", "boots", "ring", "amulet"] as const;
 export type Slot = (typeof SLOTS)[number];
 
+/**
+ * 揺らぎの見た目の分類（旧レアリティ。キーは互換のため英語のまま残す）。
+ * 格付けではなく「どれだけ荒れているか」を表す。値の決め方は flux.ts の fluxClassOf。
+ * - normal = 静: 揺らぎが小さい
+ * - magic = 揺: ほどほどに振れている
+ * - rare = 荒: 大きく振れている（上振れも下振れも）
+ * - unique = 反転あり: 裏返った性質を 1 つ以上持つ
+ */
 export const RARITIES = ["normal", "magic", "rare", "unique"] as const;
 export type Rarity = (typeof RARITIES)[number];
 
@@ -15,20 +23,125 @@ export const RARITY_COLOR: Record<Rarity, string> = {
   normal: "#e0e0e0",
   magic: "#6a8cff",
   rare: "#ffd75f",
-  unique: "#ff9040",
+  unique: "#b070ff",
 };
 
+/** 揺らぎ分類の表示名 */
+export const RARITY_LABEL: Readonly<Record<Rarity, string>> = {
+  normal: "静",
+  magic: "揺",
+  rare: "荒",
+  unique: "反転あり",
+};
+
+// ---------------------------------------------------------------------------
+// 色（響き）。docs/LOOT_DESIGN.md「色と共鳴」
+// ---------------------------------------------------------------------------
+
+/** 性質の色。紅 / 蒼 / 翠 / 金 / 冥 */
+export const TRAIT_COLORS = ["crimson", "azure", "jade", "gold", "umbra"] as const;
+export type TraitColor = (typeof TRAIT_COLORS)[number];
+
+export const TRAIT_COLOR_HEX: Readonly<Record<TraitColor, string>> = {
+  crimson: "#e8553a",
+  azure: "#3a8ee8",
+  jade: "#49c46b",
+  gold: "#f2c84b",
+  umbra: "#9a5ae0",
+};
+
+export const TRAIT_COLOR_LABEL: Readonly<Record<TraitColor, string>> = {
+  crimson: "紅",
+  azure: "蒼",
+  jade: "翠",
+  gold: "金",
+  umbra: "冥",
+};
+
+/** 性質の出自。found = 拾った時点 / bud = 芽吹いた / named = 名のある遺物の固定 */
+export type TraitOrigin = "found" | "bud" | "named";
+
+/** @deprecated prefix / suffix は廃止。旧セーブの読み込みとテスト用の型としてだけ残す */
 export type AffixKind = "prefix" | "suffix";
 
-/** アイテムに付いたアフィックスの実体（ロール済み） */
+/** アイテムに付いた性質の実体（ロール済み） */
 export interface AffixRoll {
   key: string;
-  kind: AffixKind;
-  /** 1 が最上位 */
-  tier: number;
+  /** @deprecated 廃止（旧セーブ互換）。新しい生成では付けない */
+  kind?: AffixKind;
+  /** @deprecated 廃止（旧セーブ互換）。新しい生成では付けない */
+  tier?: number;
   value: number;
-  /** 2 値持ちのアフィックス（例: burn は chance と dps） */
+  /** 2 値持ちの性質（例: burn は chance と dps） */
   value2?: number;
+  /** 色。欠けていれば定義の既定色（colors.ts の traitColorOf） */
+  color?: TraitColor;
+  /** 発見深度で決まる期待値（表示単位）。value = nominal * (1 + flux) */
+  nominal?: number;
+  nominal2?: number;
+  /** 期待値からの相対的なずれ。-1 を下回ると反転 */
+  flux?: number;
+  /** 反転（値が負）。色は冥になり、共鳴への重みが 2 倍 */
+  inverted?: boolean;
+  origin?: TraitOrigin;
+}
+
+// ---------------------------------------------------------------------------
+// 来歴と芽。docs/LOOT_DESIGN.md「来歴と芽」
+// ---------------------------------------------------------------------------
+
+/** 装備中に起きた出来事の記録（そのアイテムを装備していた間だけ数える） */
+export interface Provenance {
+  kills: number;
+  /** 敵種 key → 撃破数 */
+  killsByEnemy: Record<string, number>;
+  justDodges: number;
+  hurtTaken: number;
+  bosses: number;
+  roomsCleared: number;
+  floorsCleared: number;
+  /** 装備中に到達した最深 */
+  deepest: number;
+}
+
+export function createEmptyProvenance(): Provenance {
+  return {
+    kills: 0,
+    killsByEnemy: {},
+    justDodges: 0,
+    hurtTaken: 0,
+    bosses: 0,
+    roomsCleared: 0,
+    floorsCleared: 0,
+    deepest: 0,
+  };
+}
+
+/** 芽の 2 択の履歴 1 件。選ばなかった方も記録する（二度と出ない） */
+export interface BudChoice {
+  /** 節目の key（例 "kills:50"） */
+  milestone: string;
+  options: [AffixRoll, AffixRoll];
+  chosen: 0 | 1;
+}
+
+/** 提示中（未選択）の芽 */
+export interface BudOffer {
+  milestone: string;
+  options: [AffixRoll, AffixRoll];
+}
+
+/**
+ * GameState.pendingBud: 装備中のアイテムに提示中の芽（UI が 2 択を出し、chooseBud で選ぶ）。
+ * 実体は Item.budOffer。これはその参照と表示用の情報
+ */
+export interface PendingBud {
+  itemId: string;
+  slot: Slot;
+  milestone: string;
+  /** 節目の表示名（例「撃破 50」） */
+  milestoneLabel: string;
+  options: [AffixRoll, AffixRoll];
 }
 
 export interface Item {
@@ -37,15 +150,35 @@ export interface Item {
   seed: number;
   baseKey: string;
   slot: Slot;
+  /** 揺らぎの見た目の分類（格付けではない）。RARITIES の説明を参照 */
   rarity: Rarity;
+  /** 生成に使った深度（発見深度 + 0..2）。期待値と揺らぎ幅の入力 */
   itemLevel: number;
+  /** 表示名。銘があれば銘、名のある遺物は固有名、それ以外は「{色の形容}{ベース名}」 */
   name: string;
-  /** ベース固有の暗黙補正（ロール済み） */
+  /** ベース固有の暗黙補正（ロール済み）。色の配合には数えない */
   implicit: AffixRoll | null;
+  /** 性質 */
   affixes: AffixRoll[];
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
+  // ---- 以下は新形式で必ず入る（旧セーブ・テストのリテラルのため optional。profile.ts の migrateItem が補う） ----
+  provenance?: Provenance;
+  /** 余白: まだ芽吹ける数 */
+  margin?: number;
+  /** 余白の上限（削ぎで戻せる上限） */
+  marginMax?: number;
+  /** 到達済みの節目（二度と芽は出ない） */
+  milestones?: string[];
+  /** 芽の 2 択の履歴 */
+  buds?: BudChoice[];
+  /** 提示中の芽（未選択）。ランを跨いで残る */
+  budOffer?: BudOffer | null;
+  /** 銘。余白を使い切ると来歴から刻まれる */
+  inscription?: string;
+  /** 名のある遺物の key（generator.ts の UNIQUES） */
+  namedKey?: string;
 }
 
 export interface FloorItem {
@@ -157,12 +290,32 @@ export interface PlayerStats {
   explodeDamage: number;
 
   /**
-   * キーストーン: 遊び方そのものを変える大型改造の key 一覧（例 "glassCannon", "berserker", "blinkDash"）。
+   * 誓約（旧キーストーン）: 遊び方そのものを変える大型改造の key 一覧（例 "glassCannon", "berserker", "blinkDash"）。
    * 同じ key は 1 つまで。相互排他グループは affixes.ts 側で定義する。
    */
   keystones: string[];
   /** trigger × condition × effect 文法で生成された条件付き効果 */
   triggers: TriggeredEffect[];
+  /** 装備全体の色の配合で発現した共鳴（resonance.ts）。数値効果は他のフィールドに畳み込み済み */
+  resonance: Resonance;
+}
+
+/**
+ * 共鳴の種類。同時に 1 つだけ。
+ * dominant = 支配（1 色 >= 50%）/ dual = 二重（上位 2 色が各 >= 30%）/ scatter = 散光（全色 < 30%）/ none = なし
+ */
+export type ResonanceKind = "dominant" | "dual" | "scatter" | "none";
+
+export interface Resonance {
+  kind: ResonanceKind;
+  /** dominant は 1 色、dual は 2 色（TRAIT_COLORS 順）、scatter / none は空 */
+  colors: TraitColor[];
+  /** 色ごとの配合比（合計 1。性質が無ければ全部 0） */
+  ratios: Record<TraitColor, number>;
+}
+
+export function createEmptyResonance(): Resonance {
+  return { kind: "none", colors: [], ratios: { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0 } };
 }
 
 export type TriggerKind =
@@ -264,4 +417,5 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
 
   keystones: [],
   triggers: [],
+  resonance: createEmptyResonance(),
 };

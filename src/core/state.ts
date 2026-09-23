@@ -1,7 +1,7 @@
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
-import type { FloorItem, PlayerStats, Profile } from "../loot/types";
+import type { FloorItem, PendingBud, PlayerStats, Profile } from "../loot/types";
 import type { SfxName } from "../audio/sfxNames";
 import type { SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
@@ -363,6 +363,8 @@ export interface GameState {
   /** 祝福 3 択の提示中。非 null の間は step が選択入力だけを処理する */
   boonChoice: BoonChoice | null;
   boonRun: BoonRunState;
+  /** 装備の芽（来歴の節目で出る 2 択）の提示中。UI が表示し、system/loot.ts の chooseBud で選ぶ */
+  pendingBud: PendingBud | null;
 }
 
 export function allocId(state: GameState): number {

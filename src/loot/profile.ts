@@ -1,23 +1,35 @@
 import { STASH_CAPACITY } from "../data/tuning";
+import { migrateItem } from "./migrate";
 import {
-  type AffixKind,
   type AffixRoll,
+  type BudChoice,
+  type BudOffer,
   type Equipment,
   type Item,
   type Profile,
   type ProfileMeta,
+  type Provenance,
   type RunHistoryEntry,
   type Slot,
   SLOTS,
+  TRAIT_COLORS,
+  type TraitColor,
+  type TraitOrigin,
   createEmptyEquipment,
   createEmptyProfile,
+  createEmptyProvenance,
 } from "./types";
 
 /** localStorage のキー。バージョンが変わったら数値を上げる */
 export const PROFILE_KEY = "roguelike.profile.v1";
 
+/**
+ * プロフィールの version は 1 のまま据え置く（キーも同じ）。
+ * アイテム単位で旧形式（prefix / suffix / tier）を検出し、読み込み時に migrateItem で新形式へ変換する
+ */
 const CURRENT_VERSION = 1;
-const AFFIX_KINDS: readonly AffixKind[] = ["prefix", "suffix"];
+const TRAIT_ORIGINS: readonly TraitOrigin[] = ["found", "bud", "named"];
+const BUD_OPTION_COUNT = 2;
 /** ラン履歴の保持件数（最新が先頭） */
 export const HISTORY_LIMIT = 20;
 
@@ -36,17 +48,105 @@ function isSlot(v: unknown): v is Slot {
   return typeof v === "string" && (SLOTS as readonly string[]).includes(v);
 }
 
-function isAffixRoll(v: unknown): v is AffixRoll {
-  if (!isRecord(v)) return false;
-  if (typeof v.key !== "string") return false;
-  if (!AFFIX_KINDS.includes(v.kind as AffixKind)) return false;
-  if (typeof v.tier !== "number") return false;
-  if (typeof v.value !== "number") return false;
-  if (v.value2 !== undefined && typeof v.value2 !== "number") return false;
-  return true;
+function isColor(v: unknown): v is TraitColor {
+  return typeof v === "string" && (TRAIT_COLORS as readonly string[]).includes(v);
 }
 
-/** Item として最低限成立しているかを検証する。壊れていたら null */
+function isOrigin(v: unknown): v is TraitOrigin {
+  return typeof v === "string" && (TRAIT_ORIGINS as readonly string[]).includes(v);
+}
+
+function optionalNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+function nonNegativeInt(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+}
+
+/** AffixRoll として成立しているかを検証し、既知のフィールドだけのコピーを返す。壊れていたら null */
+function sanitizeRoll(v: unknown): AffixRoll | null {
+  if (!isRecord(v)) return null;
+  if (typeof v.key !== "string") return null;
+  if (typeof v.value !== "number") return null;
+  if (v.value2 !== undefined && typeof v.value2 !== "number") return null;
+  const roll: AffixRoll = { key: v.key, value: v.value };
+  if (typeof v.value2 === "number") roll.value2 = v.value2;
+  // 旧形式の kind / tier は migrateItem が tier → 揺らぎの換算に使う
+  if (v.kind === "prefix" || v.kind === "suffix") roll.kind = v.kind;
+  const tier = optionalNumber(v.tier);
+  if (tier !== undefined) roll.tier = tier;
+  if (isColor(v.color)) roll.color = v.color;
+  const nominal = optionalNumber(v.nominal);
+  if (nominal !== undefined) roll.nominal = nominal;
+  const nominal2 = optionalNumber(v.nominal2);
+  if (nominal2 !== undefined) roll.nominal2 = nominal2;
+  const flux = optionalNumber(v.flux);
+  if (flux !== undefined) roll.flux = flux;
+  if (v.inverted === true) roll.inverted = true;
+  if (isOrigin(v.origin)) roll.origin = v.origin;
+  return roll;
+}
+
+function sanitizeProvenance(v: unknown): Provenance | undefined {
+  if (!isRecord(v)) return undefined;
+  const p = createEmptyProvenance();
+  p.kills = nonNegativeInt(v.kills);
+  p.justDodges = nonNegativeInt(v.justDodges);
+  p.hurtTaken = nonNegativeInt(v.hurtTaken);
+  p.bosses = nonNegativeInt(v.bosses);
+  p.roomsCleared = nonNegativeInt(v.roomsCleared);
+  p.floorsCleared = nonNegativeInt(v.floorsCleared);
+  p.deepest = nonNegativeInt(v.deepest);
+  if (isRecord(v.killsByEnemy)) {
+    for (const [key, n] of Object.entries(v.killsByEnemy)) p.killsByEnemy[key] = nonNegativeInt(n);
+  }
+  return p;
+}
+
+function sanitizeOptions(v: unknown): [AffixRoll, AffixRoll] | null {
+  if (!Array.isArray(v) || v.length !== BUD_OPTION_COUNT) return null;
+  const a = sanitizeRoll(v[0]);
+  const b = sanitizeRoll(v[1]);
+  return a === null || b === null ? null : [a, b];
+}
+
+function sanitizeBudOffer(v: unknown): BudOffer | null {
+  if (!isRecord(v) || typeof v.milestone !== "string") return null;
+  const options = sanitizeOptions(v.options);
+  return options === null ? null : { milestone: v.milestone, options };
+}
+
+function sanitizeBuds(v: unknown): BudChoice[] {
+  if (!Array.isArray(v)) return [];
+  const out: BudChoice[] = [];
+  for (const raw of v) {
+    const offer = sanitizeBudOffer(raw);
+    if (offer === null || !isRecord(raw)) continue;
+    out.push({ ...offer, chosen: raw.chosen === 1 ? 1 : 0 });
+  }
+  return out;
+}
+
+function sanitizeStrings(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
+/** 新形式の成長フィールド（来歴・余白・芽・銘）。provenance が無ければ旧形式なので何もしない */
+function copyGrowthFields(item: Item, v: Record<string, unknown>): void {
+  const provenance = sanitizeProvenance(v.provenance);
+  if (provenance === undefined) return;
+  item.provenance = provenance;
+  item.margin = nonNegativeInt(v.margin);
+  item.marginMax = Math.max(item.margin, nonNegativeInt(v.marginMax));
+  item.milestones = sanitizeStrings(v.milestones);
+  item.buds = sanitizeBuds(v.buds);
+  item.budOffer = sanitizeBudOffer(v.budOffer);
+  if (typeof v.inscription === "string" && v.inscription.length > 0) item.inscription = v.inscription;
+  if (typeof v.namedKey === "string") item.namedKey = v.namedKey;
+}
+
+/** Item として最低限成立しているかを検証し、新形式へ移行して返す。壊れていたら null */
 function sanitizeItem(v: unknown): Item | null {
   if (!isRecord(v)) return null;
   const { id, seed, baseKey, slot, rarity, itemLevel, name, implicit, affixes, foundDepth, foundAt } = v;
@@ -57,11 +157,14 @@ function sanitizeItem(v: unknown): Item | null {
   if (rarity !== "normal" && rarity !== "magic" && rarity !== "rare" && rarity !== "unique") return null;
   if (typeof itemLevel !== "number") return null;
   if (typeof name !== "string") return null;
-  if (implicit !== null && !isAffixRoll(implicit)) return null;
-  if (!Array.isArray(affixes) || !affixes.every(isAffixRoll)) return null;
+  const implicitRoll = implicit === null ? null : sanitizeRoll(implicit);
+  if (implicit !== null && implicitRoll === null) return null;
+  if (!Array.isArray(affixes)) return null;
+  const rolls = affixes.map(sanitizeRoll);
+  if (rolls.some((r) => r === null)) return null;
   if (typeof foundDepth !== "number") return null;
   if (typeof foundAt !== "number") return null;
-  return {
+  const item: Item = {
     id,
     seed,
     baseKey,
@@ -69,11 +172,13 @@ function sanitizeItem(v: unknown): Item | null {
     rarity,
     itemLevel,
     name,
-    implicit: implicit as AffixRoll | null,
-    affixes: affixes as AffixRoll[],
+    implicit: implicitRoll,
+    affixes: rolls.filter((r): r is AffixRoll => r !== null),
     foundDepth,
     foundAt,
   };
+  copyGrowthFields(item, v);
+  return migrateItem(item);
 }
 
 function sanitizeEquipment(v: unknown): Equipment {
