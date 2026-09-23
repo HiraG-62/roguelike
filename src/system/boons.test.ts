@@ -452,6 +452,15 @@ describe("マナ系の祝福（ルールでマナの回し方を変える）", (
     expect(boonAttackManaMul(state)).toBeCloseTo(BOON.hollowVesselAttackManaMul);
   });
 
+  it("最大マナは重ね掛けで 0 にならず、スキルのコストも 0 にならない", () => {
+    const state = arena();
+    grantBoon(state, "hollowVessel");
+    // 涸れ井戸の性質の重ね掛け・精神低下で装備側が 0 まで落ちた状態
+    applyStats(state, { ...DEFAULT_STATS, maxMana: 0 });
+    expect(state.stats.maxMana, "下限で止まる").toBe(MANA.maxMin);
+    expect(effectiveManaCost(state, SAMPLE_COST).cost, "コストは 0 に切り詰められない").toBeGreaterThan(0);
+  });
+
   it("虚ろの器と霊刃の通常攻撃マナ倍率は掛け合わせる", () => {
     const state = arena();
     grantBoon(state, "hollowVessel");

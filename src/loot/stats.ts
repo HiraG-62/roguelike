@@ -1,4 +1,4 @@
-import { STATUS } from "../data/tuning";
+import { MANA, STATUS } from "../data/tuning";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { adjustForResonance, applyResonanceEffect, computeResonance } from "./resonance";
 import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
@@ -139,6 +139,8 @@ function finalize(stats: PlayerStats): PlayerStats {
   for (const key of MULTIPLIER_KEYS) stats[key] = Math.max(MIN_MULTIPLIER, stats[key]);
   for (const key of PROBABILITY_KEYS) stats[key] = clamp(stats[key], 0, 1);
   stats.damageTakenMul = Math.max(MIN_DAMAGE_TAKEN_MUL, stats.damageTakenMul);
+  // 装備画面の表示と実払い（effectiveManaCost）が同じ下限を見るよう、装備側でも costMulMin で止める
+  stats.manaCostMul = Math.max(MANA.costMulMin, stats.manaCostMul);
   // chill の上限は STATUS.maxSlow（statusEffects.ts の chillFactor）と 1 箇所に統一する
   stats.chillSlow = clamp(stats.chillSlow, 0, STATUS.maxSlow);
   stats.maxHp = Math.max(MIN_MAX_HP, Math.round(stats.maxHp));

@@ -3,7 +3,7 @@ import type { StatusKind } from "../core/status";
 import { type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, fromAngle, length, scale } from "../core/vec";
 import { VIEW_W } from "../core/view";
-import { ATTR, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
+import { ATTR, BOON, FEEL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { ATTR_KEYS, type AttrKey, type Attributes, DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { cancelAttack, healPlayer } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
@@ -849,6 +849,8 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   }
   // 係数（実効値）を組み替える。派生（HP・移動など）は元のステータスで決まっているので触らない
   if (boons.includes("swapHands") || boons.includes("lopsided")) out.attributesEff = foldAttributeBoons(out.attributesEff, boons);
+  // 最終段で下限を掛ける。0 だと capManaCost がコストを 0 に切り詰めて撃ち放題になる
+  out.maxMana = Math.max(MANA.maxMin, out.maxMana);
   return out;
 }
 
