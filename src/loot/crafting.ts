@@ -12,7 +12,6 @@ import {
   type AffixRoll,
   type Item,
   type Profile,
-  type Rarity,
   type TraitColor,
 } from "./types";
 
@@ -385,8 +384,16 @@ export function applyEchoResult(profile: Profile, result: EchoResult): boolean {
   return result.item === null ? true : replaceInProfile(profile, result.item);
 }
 
+/**
+ * 旧セーブ（roguelike.craft.v1 の version 1）の通貨。読み込み時の換算にだけ使う。
+ * 旧クラフト API は撤去済みで、ここは移行のための定義
+ */
+export const LEGACY_CURRENCIES = ["dust", "shard", "essence", "relic"] as const;
+export type LegacyCurrency = (typeof LEGACY_CURRENCIES)[number];
+export type LegacyWallet = Record<LegacyCurrency, number>;
+
 /** 旧通貨 → 残響の換算（1 単位あたりの点数）。点数の合計を 5 色に均等に配り、余りは TRAIT_COLORS 順に 1 ずつ */
-export const LEGACY_CURRENCY_POINTS: Readonly<Record<Currency, number>> = {
+export const LEGACY_CURRENCY_POINTS: Readonly<Record<LegacyCurrency, number>> = {
   dust: 1,
   shard: 2,
   essence: 4,
@@ -394,8 +401,8 @@ export const LEGACY_CURRENCY_POINTS: Readonly<Record<Currency, number>> = {
 };
 
 /** 旧 wallet を残響に換算する（旧 wallet は変えない） */
-export function convertLegacyWallet(wallet: Readonly<Wallet>): EchoWallet {
-  const points = CURRENCIES.reduce((sum, c) => sum + wallet[c] * LEGACY_CURRENCY_POINTS[c], 0);
+export function convertLegacyWallet(wallet: Readonly<LegacyWallet>): EchoWallet {
+  const points = LEGACY_CURRENCIES.reduce((sum, c) => sum + wallet[c] * LEGACY_CURRENCY_POINTS[c], 0);
   const echoes = createEchoWallet();
   const share = Math.floor(points / TRAIT_COLORS.length);
   const remainder = points - share * TRAIT_COLORS.length;
@@ -404,197 +411,3 @@ export function convertLegacyWallet(wallet: Readonly<Wallet>): EchoWallet {
   });
   return echoes;
 }
-
-// ===========================================================================
-// 互換レイヤー（@deprecated）: 旧 UI（src/ui/inventory.ts・src/render/inventoryUi.ts）が
-// 新 API（craftEcho / applyEchoResult / ECHO_OPS / EchoWallet）へ移行するまでの間だけ残す。
-// 旧 5 操作は新しい操作へ読み替える: 再鍛造・腐敗 → 煽り（ランダムな性質）/ 付与 → 廃止（常に拒否）/
-// 無効化 → 削ぎ（ランダムな性質）/ 融合 → 2 つの性質を寄せ集めた 1 つ（合計 - 1 個）。
-// UI の移行後、この節と craftingStore.ts の wallet を削除すること。
-// ===========================================================================
-
-/** @deprecated 旧通貨。残響（EchoWallet）へ移行する */
-export const CURRENCIES = ["dust", "shard", "essence", "relic"] as const;
-/** @deprecated */
-export type Currency = (typeof CURRENCIES)[number];
-/** @deprecated */
-export type Wallet = Record<Currency, number>;
-
-/** @deprecated */
-export function createWallet(): Wallet {
-  return { dust: 0, shard: 0, essence: 0, relic: 0 };
-}
-
-/** @deprecated 旧 rarity（= 揺らぎの分類）ごとの分解通貨 */
-export const SALVAGE_CURRENCY: Readonly<Record<Rarity, Currency>> = {
-  normal: "dust",
-  magic: "shard",
-  rare: "essence",
-  unique: "relic",
-};
-/** @deprecated */
-export const SALVAGE_AMOUNT = 1;
-
-/** @deprecated 新 API は craftEcho({ op: "shatter" }) */
-export function addSalvageCurrency(wallet: Wallet, item: Item): Currency {
-  const currency = SALVAGE_CURRENCY[item.rarity];
-  wallet[currency] += SALVAGE_AMOUNT;
-  return currency;
-}
-
-/** @deprecated 新 API は ECHO_OPS */
-export const CRAFT_OPS = ["reforge", "augment", "annul", "corrupt", "fuse"] as const;
-/** @deprecated */
-export type CraftOp = (typeof CRAFT_OPS)[number];
-
-/** @deprecated */
-export interface CraftCost {
-  currency: Currency;
-  amount: number;
-}
-
-/** @deprecated */
-export const CRAFT_COSTS: Readonly<Record<CraftOp, CraftCost>> = {
-  reforge: { currency: "shard", amount: 3 },
-  augment: { currency: "essence", amount: 2 },
-  annul: { currency: "dust", amount: 5 },
-  corrupt: { currency: "relic", amount: 1 },
-  fuse: { currency: "essence", amount: 1 },
-};
-
-/** @deprecated */
-export interface CraftState {
-  wallet: Wallet;
-  counter: number;
-}
-
-/** @deprecated */
-export interface CraftRequest {
-  op: CraftOp;
-  item: Item;
-  partner?: Item;
-  bestDepth: number;
-  now: number;
-}
-
-/** @deprecated "corrupted" は旧互換のため型にだけ残す（新形式に腐敗は無い） */
-export type CraftRejectReason = "corrupted" | "insufficient" | "invalid";
-
-/** @deprecated */
-export type CraftResult =
-  | { ok: true; op: CraftOp; before: Item; item: Item; consumedIds: string[]; message: string }
-  | { ok: false; op: CraftOp; reason: CraftRejectReason; message: string };
-
-const LEGACY_VERB: Readonly<Record<CraftOp, string>> = {
-  reforge: "再鍛造",
-  augment: "付与",
-  annul: "無効化",
-  corrupt: "腐敗",
-  fuse: "融合",
-};
-
-const LEGACY_INVALID: Readonly<Record<CraftOp, string>> = {
-  reforge: "揺らせる性質がありません",
-  augment: "付与は廃止されました（性質は芽からしか増えません）",
-  annul: "削げる性質がありません",
-  corrupt: "揺らせる性質がありません",
-  fuse: "融合には同じ部位の異なる2つの装備が必要です",
-};
-
-const LEGACY_CURRENCY_LABEL: Readonly<Record<Currency, string>> = {
-  dust: "塵",
-  shard: "欠片",
-  essence: "精髄",
-  relic: "秘宝",
-};
-const LEGACY_FUSE_PENALTY = 1;
-
-/** @deprecated */
-export function craftBlockMessage(reason: CraftRejectReason, op: CraftOp): string {
-  if (reason === "insufficient") {
-    const cost = CRAFT_COSTS[op];
-    return `${LEGACY_CURRENCY_LABEL[cost.currency]}が${cost.amount}必要です`;
-  }
-  return LEGACY_INVALID[op];
-}
-
-function randomTraitIndex(item: Item, rng: Rng, allowVow: boolean): number | undefined {
-  const indices = item.affixes.map((r, i) => ({ r, i })).filter(({ r }) => allowVow || !isKeystoneKey(r.key));
-  if (indices.length === 0) return undefined;
-  return rng.pick(indices).i;
-}
-
-function legacyFuse(a: Item, b: Item, rng: Rng): Item | null {
-  if (a.id === b.id || a.slot !== b.slot) return null;
-  const target = a.affixes.length + b.affixes.length - LEGACY_FUSE_PENALTY;
-  if (target <= 0) return null;
-  const pool = [...a.affixes, ...b.affixes];
-  const picked: AffixRoll[] = [];
-  const used = new Set<string>();
-  while (picked.length < target && pool.length > 0) {
-    const [roll] = pool.splice(rng.int(0, pool.length - 1), 1);
-    if (roll === undefined || used.has(roll.key)) continue;
-    picked.push(roll);
-    used.add(roll.key);
-  }
-  return refreshed({ ...ensureGrowthFields({ ...a }), affixes: picked });
-}
-
-function runLegacy(req: CraftRequest, rng: Rng): Item | null {
-  const item = ensureGrowthFields({ ...req.item });
-  switch (req.op) {
-    case "reforge":
-    case "corrupt": {
-      const index = randomTraitIndex(item, rng, false);
-      return index === undefined ? null : stirTrait(item, index, rng);
-    }
-    case "augment":
-      return null;
-    case "annul": {
-      const index = randomTraitIndex(item, rng, true);
-      return index === undefined ? null : pareTrait(item, index);
-    }
-    case "fuse":
-      return req.partner === undefined ? null : legacyFuse(item, req.partner, rng);
-  }
-}
-
-/** @deprecated 新 API は craftEcho */
-export function craft(state: CraftState, req: CraftRequest): CraftResult {
-  const { op } = req;
-  const cost = CRAFT_COSTS[op];
-  if (state.wallet[cost.currency] < cost.amount) {
-    return { ok: false, op, reason: "insufficient", message: craftBlockMessage("insufficient", op) };
-  }
-  const after = runLegacy(req, craftRng(req.item.id, state.counter));
-  if (after === null) return { ok: false, op, reason: "invalid", message: craftBlockMessage("invalid", op) };
-  state.wallet[cost.currency] -= cost.amount;
-  state.counter += 1;
-  const consumedIds = req.partner === undefined ? [] : [req.item.id, req.partner.id];
-  const from = req.partner === undefined ? req.item.name : `${req.item.name} + ${req.partner.name}`;
-  return { ok: true, op, before: req.item, item: after, consumedIds, message: `${LEGACY_VERB[op]}: ${from} → ${after.name}` };
-}
-
-/** @deprecated 新 API は applyEchoResult */
-export function applyCraftResult(profile: Profile, result: CraftResult): boolean {
-  if (!result.ok) return false;
-  if (result.consumedIds.length > 0) {
-    const consumed = new Set(result.consumedIds);
-    profile.stash = profile.stash.filter((it) => !consumed.has(it.id));
-    profile.stash.push(result.item);
-    return true;
-  }
-  const index = profile.stash.findIndex((it) => it.id === result.item.id);
-  if (index < 0) return false;
-  profile.stash[index] = result.item;
-  return true;
-}
-
-/** @deprecated */
-export function craftBlockReason(wallet: Wallet, op: CraftOp, item: Item | null): CraftRejectReason | null {
-  if (item === null) return "invalid";
-  const cost = CRAFT_COSTS[op];
-  if (wallet[cost.currency] < cost.amount) return "insufficient";
-  return null;
-}
-

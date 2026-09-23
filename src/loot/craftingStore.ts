@@ -1,31 +1,29 @@
 import {
-  CURRENCIES,
+  LEGACY_CURRENCIES,
   convertLegacyWallet,
   createEchoWallet,
-  createWallet,
-  type CraftState,
   type EchoCraftState,
   type EchoWallet,
-  type Wallet,
+  type LegacyWallet,
 } from "./crafting";
 import { TRAIT_COLORS } from "./types";
 
 /**
  * クラフトの残響（通貨）とクラフト回数の永続化。profile（roguelike.profile.v1）とは別キーで持つ。
  * version 1（旧通貨 dust / shard / essence / relic）は読み込み時に残響へ換算する（crafting.ts の convertLegacyWallet）。
- * wallet は旧 UI の互換のためだけに残す。読み込みのたびに残響へ換算して 0 に戻す。
+ * version 1 の wallet は読み込み時に換算するだけで、保存し直すと消える。
  */
 
 export const CRAFT_KEY = "roguelike.craft.v1";
 const CURRENT_VERSION = 2;
 const LEGACY_VERSION = 1;
 
-export interface CraftSave extends CraftState, EchoCraftState {
+export interface CraftSave extends EchoCraftState {
   version: typeof CURRENT_VERSION;
 }
 
 export function createCraftSave(): CraftSave {
-  return { version: CURRENT_VERSION, wallet: createWallet(), echoes: createEchoWallet(), counter: 0 };
+  return { version: CURRENT_VERSION, echoes: createEchoWallet(), counter: 0 };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -38,10 +36,11 @@ function sanitizeCount(v: unknown): number {
   return Math.max(0, Math.floor(v));
 }
 
-function sanitizeWallet(v: unknown): Wallet {
-  const wallet = createWallet();
+/** 旧 version 1 の通貨。無ければ全部 0 */
+function sanitizeLegacyWallet(v: unknown): LegacyWallet {
+  const wallet: LegacyWallet = { dust: 0, shard: 0, essence: 0, relic: 0 };
   if (!isRecord(v)) return wallet;
-  for (const currency of CURRENCIES) wallet[currency] = sanitizeCount(v[currency]);
+  for (const currency of LEGACY_CURRENCIES) wallet[currency] = sanitizeCount(v[currency]);
   return wallet;
 }
 
@@ -67,13 +66,13 @@ function defaultStorage(): Storage | null {
   }
 }
 
-/** 保存データ（v1 / v2）を CraftSave にする。旧 wallet は残響へ換算して 0 に戻す。壊れていれば null */
+/** 保存データ（v1 / v2）を CraftSave にする。旧 wallet は残響へ換算して足す。壊れていれば null */
 export function parseCraftSave(parsed: unknown): CraftSave | null {
   if (!isRecord(parsed)) return null;
   if (parsed.version !== CURRENT_VERSION && parsed.version !== LEGACY_VERSION) return null;
-  const legacy = sanitizeWallet(parsed.wallet);
+  const legacy = sanitizeLegacyWallet(parsed.wallet);
   const echoes = addEchoes(sanitizeEchoes(parsed.echoes), convertLegacyWallet(legacy));
-  return { version: CURRENT_VERSION, wallet: createWallet(), echoes, counter: sanitizeCount(parsed.counter) };
+  return { version: CURRENT_VERSION, echoes, counter: sanitizeCount(parsed.counter) };
 }
 
 /** 保存された残響を読み込む。無い / 壊れている / 未知の version なら空 */

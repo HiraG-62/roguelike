@@ -8,6 +8,7 @@ import { ELITE_COLOR, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
 import { isKeystoneKey, keystoneConflicts, keystoneDef } from "../loot/affixes";
+import { describeResonance } from "../loot/describe";
 import { RARITY_COLOR, SLOTS, type Rarity } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
@@ -151,6 +152,8 @@ const HUD_RIGHT_LINE = 10;
 const HUD_RIGHT_X_PAD = 8;
 const HUD_REAPER_LINE = 3;
 const HUD_CURSED_LINE = 4;
+/** 共鳴の種類（describeResonance の 1 行目）。発現中だけ出す */
+const HUD_RESONANCE_LINE = 5;
 const REAPER_TINT = 0.7;
 const BOSS_BANNER_NAME_GAP = 16;
 const ELITE_BAR_W = 20;
@@ -1803,6 +1806,9 @@ export class Renderer {
     this.shadowText(seedText, rightX, rightY + line * 2, COLOR_HUD_SEED, m, "right");
     if (state.cursed) {
       this.shadowText("呪い: 次の部屋のエリート x2", rightX, rightY + line * HUD_CURSED_LINE, ROOM_KIND.cursedColor, m, "right");
+    }
+    if (state.stats.resonance.kind !== "none") {
+      this.shadowText(describeResonance(state.stats.resonance)[0] ?? "", rightX, rightY + line * HUD_RESONANCE_LINE, COLOR_TEXT, m, "right");
     }
 
     if (state.combo.count > 1) {

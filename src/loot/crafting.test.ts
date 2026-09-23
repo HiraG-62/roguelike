@@ -6,13 +6,10 @@ import {
   PARE_COST,
   STIR_COST,
   TRANSFER_COST,
-  applyCraftResult,
   applyEchoResult,
   convertLegacyWallet,
-  craft,
   craftEcho,
   createEchoWallet,
-  createWallet,
   shatterYield,
   type EchoCraftState,
   type EchoRequest,
@@ -263,9 +260,9 @@ describe("保存（roguelike.craft.v1）", () => {
     const loaded = loadCraft(storage);
     // 3*1 + 2 + 4 + 8 = 17 点 → 各色 3、余り 2 は紅・蒼へ
     expect(loaded.echoes).toEqual({ crimson: 4, azure: 4, jade: 3, gold: 3, umbra: 3 });
-    expect(loaded.wallet).toEqual(createWallet());
+    expect(loaded).not.toHaveProperty("wallet");
     expect(loaded.counter).toBe(5);
-    expect(convertLegacyWallet(createWallet())).toEqual(createEchoWallet());
+    expect(convertLegacyWallet({ dust: 0, shard: 0, essence: 0, relic: 0 })).toEqual(createEchoWallet());
   });
 
   it("壊れたデータは空に戻す（負数や非数は 0）", () => {
@@ -274,29 +271,5 @@ describe("保存（roguelike.craft.v1）", () => {
     expect(loadCraft(storage)).toEqual(createCraftSave());
     storage.setItem(CRAFT_KEY, "{broken");
     expect(loadCraft(storage)).toEqual(createCraftSave());
-  });
-});
-
-describe("旧 API の互換レイヤー（UI 移行まで）", () => {
-  it("無効化は性質を 1 つ削ぎ、塵を 5 使う。付与は常に拒否", () => {
-    const wallet = { ...createWallet(), dust: 6, essence: 5 };
-    const s = { wallet, counter: 0 };
-    const result = craft(s, { op: "annul", item: makeItem(), bestDepth: 1, now: 0 });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.item.affixes).toHaveLength(2);
-    expect(wallet.dust).toBe(1);
-    expect(craft(s, { op: "augment", item: makeItem(), bestDepth: 1, now: 0 }).ok).toBe(false);
-  });
-
-  it("融合は 2 つを 1 つにする", () => {
-    const profile = createEmptyProfile();
-    const a = makeItem({ id: "a" });
-    const b = makeItem({ id: "b", affixes: [grown] });
-    profile.stash.push(a, b);
-    const result = craft({ wallet: { ...createWallet(), essence: 1 }, counter: 0 }, { op: "fuse", item: a, partner: b, bestDepth: 1, now: 0 });
-    expect(result.ok).toBe(true);
-    applyCraftResult(profile, result);
-    expect(profile.stash).toHaveLength(1);
-    expect(profile.stash[0]?.affixes).toHaveLength(3);
   });
 });

@@ -1,64 +1,73 @@
 import { type GameState, pushSfx } from "../core/state";
 import type { FrameInput } from "../core/input";
-import type { SfxName } from "../audio/sfxNames";
-import { VIEW_H, VIEW_W } from "../core/view";
-import {
-  CRAFT_OPS,
-  CURRENCIES,
-  addSalvageCurrency,
-  applyCraftResult,
-  craft,
-  craftBlockMessage,
-  craftBlockReason,
-  type CraftOp,
-  type Currency,
-} from "../loot/crafting";
-import { loadCraft, saveCraft, type CraftSave } from "../loot/craftingStore";
-import { equipItem, saveProfile, salvageItem, unequipItem } from "../loot/profile";
+import { describeTrait } from "../loot/describe";
+import { equipItem, saveProfile, unequipItem } from "../loot/profile";
 import { computeStats } from "../loot/stats";
+import { refreshPendingBud } from "../system/loot";
 import { applyStats } from "../system/player";
 import { SLOTS, type Item, type Slot } from "../loot/types";
 import { SKILL } from "../skills/data";
 import { equipStone, saveSkillProfile, salvageStone, stoneInSlot, unequipSlot } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
+import { type BudUi, closeBudModal, createBudUi, tryOpenBudModal, updateBudModal } from "./bud";
+import { type EchoUi, createEchoUi, shatterStashItem, tickEchoUi, updateEchoTab } from "./echoTab";
+import {
+  CONTENT_BOTTOM,
+  CONTENT_H,
+  CONTENT_Y,
+  HINT_H,
+  LEFT_W,
+  PANEL_H,
+  PANEL_W,
+  PANEL_X,
+  PANEL_Y,
+  RIGHT_W,
+  RIGHT_X,
+  STASH_HEADER_H,
+  STASH_ROW_H,
+  TOOLTIP_H,
+  type Rect,
+  type StashRowLayout,
+  clamp,
+  findRowAt,
+  layoutStashList,
+  pointInRect,
+  sortStash,
+} from "./inventoryLayout";
 
-/** 装備画面のパネル配置。render 側もこの定数を使って揃える */
-export const PANEL_MARGIN = 8;
-export const PANEL_X = PANEL_MARGIN;
-export const PANEL_Y = PANEL_MARGIN;
-export const PANEL_W = VIEW_W - PANEL_MARGIN * 2;
-export const PANEL_H = VIEW_H - PANEL_MARGIN * 2;
-
-export const HEADER_H = 10;
-export const HINT_H = 10;
-export const TOOLTIP_H = 42;
-export const CONTENT_Y = PANEL_Y + HEADER_H;
-export const CONTENT_H = PANEL_H - HEADER_H - TOOLTIP_H - HINT_H;
-
-export const COLUMN_GAP = 4;
-export const LEFT_W = Math.floor(PANEL_W / 3);
-export const RIGHT_X = PANEL_X + LEFT_W + COLUMN_GAP;
-export const RIGHT_W = PANEL_W - LEFT_W - COLUMN_GAP;
+export {
+  COLUMN_GAP,
+  CONTENT_BOTTOM,
+  CONTENT_H,
+  CONTENT_Y,
+  HEADER_H,
+  HINT_H,
+  LEFT_W,
+  PANEL_H,
+  PANEL_MARGIN,
+  PANEL_W,
+  PANEL_X,
+  PANEL_Y,
+  RIGHT_W,
+  RIGHT_X,
+  SLOT_LABEL,
+  STASH_HEADER_H,
+  STASH_ROW_H,
+  TOOLTIP_H,
+  type Rect,
+  type StashRowLayout,
+} from "./inventoryLayout";
 
 export const SLOT_H = 18;
 export const SLOT_GAP = 4;
-export const STASH_ROW_H = 12;
 
 /** ヘッダーのタブ（クリック or Tab 連打で切替） */
 export const TAB_Y = PANEL_Y + 1;
-export const TAB_H = HEADER_H - 1;
+export const TAB_H = 9;
 export const TAB_GAP = 4;
-export const TAB_WIDTHS: Record<InventoryTab, number> = { equipment: 58, skills: 38, craft: 34 };
-export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "craft"];
-
-/** クラフトタブ: 左上に通貨、右に stash、下段右に操作ボタン + 状態行 + 結果行 */
-export const CURRENCY_ROW_H = 10;
-export const CURRENCY_BLOCK_H = CURRENCY_ROW_H * CURRENCIES.length + 4;
-export const CRAFT_BUTTON_H = 16;
-export const CRAFT_BUTTON_GAP = 3;
-const CRAFT_BUTTON_TOP_PAD = 2;
-const CRAFT_STATUS_OFFSET = 26;
-const CRAFT_RESULT_OFFSET = 36;
+export type InventoryTab = "equipment" | "skills" | "echo";
+export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 58, skills: 38, echo: 34 };
+export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "echo"];
 
 /** スキルタブ: 左にスロット、右に石の一覧 */
 export const SKILL_SLOT_H = 30;
@@ -67,96 +76,27 @@ export const SKILL_SLOT_GAP = 4;
 /** メッセージ（「装備した: xxx」等）の表示秒数 */
 const MESSAGE_DURATION = 1.5;
 
-/**
- * 表示専用のラベル。loot/crafting.ts の Currency・loot/types.ts の Slot は英語のキーのまま
- * （ロジック側は別エージェントが管轄）。render/inventoryUi.ts でも使うためここで export する
- */
-export const CURRENCY_LABEL: Readonly<Record<Currency, string>> = {
-  dust: "塵",
-  shard: "欠片",
-  essence: "精髄",
-  relic: "遺物",
-};
-export const SLOT_LABEL: Readonly<Record<Slot, string>> = {
-  weapon: "武器",
-  gun: "銃",
-  armor: "鎧",
-  boots: "靴",
-  ring: "指輪",
-  amulet: "首飾り",
-};
-
-/** クラフト操作ごとの効果音 */
-const CRAFT_SFX: Record<CraftOp, SfxName> = {
-  reforge: "craftReforge",
-  augment: "craftAugment",
-  annul: "craftAnnul",
-  corrupt: "craftCorrupt",
-  fuse: "craftFuse",
-};
-
-export interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 export interface SlotLayout {
   slot: Slot;
   rect: Rect;
   item: Item | null;
 }
 
-export interface StashRowLayout {
-  item: Item;
-  rect: Rect;
-  /** stash 配列上のインデックス（新しい順に並べ替えた後の元インデックス） */
-  index: number;
-}
-
 export interface InventoryLayout {
   panel: Rect;
   slots: SlotLayout[];
+  /** 倉庫の見出し行（芽があればバナー） */
+  stashHeader: Rect;
   /** 現在スクロール位置で画面に見えている行のみ */
   stashRows: StashRowLayout[];
   stashOrder: Item[];
+  /** 左下: ツールチップの基準（下端を揃えて上へ伸ばす） */
   tooltipRect: Rect;
-  statsRect: Rect;
+  /** 右下: 共鳴パネル */
+  resonanceRect: Rect;
   hintRect: Rect;
   visibleRowCount: number;
   maxScroll: number;
-}
-
-export type InventoryTab = "equipment" | "skills" | "craft";
-
-export interface CraftUi {
-  /** 通貨とクラフト回数（roguelike.craft.v1 に保存） */
-  save: CraftSave;
-  /** 操作対象（stash の item id） */
-  selectedId: string | null;
-  /** Fuse ボタンを押して 2 つ目の選択を待っている */
-  fusePending: boolean;
-  hoverOp: CraftOp | null;
-  /** 直前の結果メッセージ（次の操作まで残す） */
-  result: string;
-}
-
-export interface CurrencyRowLayout {
-  currency: Currency;
-  rect: Rect;
-}
-
-export interface CraftButtonLayout {
-  op: CraftOp;
-  rect: Rect;
-}
-
-export interface CraftLayout {
-  currencies: CurrencyRowLayout[];
-  buttons: CraftButtonLayout[];
-  statusY: number;
-  resultY: number;
 }
 
 export interface TabLayout {
@@ -197,7 +137,10 @@ export interface InventoryUi {
   hoverSlot: Slot | null;
   message: string;
   messageTimer: number;
-  craft: CraftUi;
+  /** 芽の 2 択モーダル */
+  bud: BudUi;
+  /** 残響タブ */
+  echo: EchoUi;
 }
 
 export function createInventoryUi(): InventoryUi {
@@ -213,74 +156,49 @@ export function createInventoryUi(): InventoryUi {
     hoverSlot: null,
     message: "",
     messageTimer: 0,
-    craft: { save: loadCraft(), selectedId: null, fusePending: false, hoverOp: null, result: "" },
+    bud: createBudUi(),
+    echo: createEchoUi(),
   };
 }
 
-function pointInRect(p: { x: number; y: number }, r: Rect): boolean {
-  return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
-}
-
 /**
- * 装備画面のレイアウトを計算する。ロジック（updateInventoryUi）と描画（drawInventoryUi）で共有する。
+ * 装備タブのレイアウト。ロジック（updateInventoryUi）と描画（drawInventoryUi）で共有する。
  * 内部解像度（480x270）基準の座標を返す。
  */
 export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLayout {
   const panel: Rect = { x: PANEL_X, y: PANEL_Y, w: PANEL_W, h: PANEL_H };
-
   const slots: SlotLayout[] = SLOTS.map((slot, i) => ({
     slot,
     rect: { x: PANEL_X, y: CONTENT_Y + i * (SLOT_H + SLOT_GAP), w: LEFT_W, h: SLOT_H },
     item: state.profile.equipment[slot],
   }));
-
-  // 新しい順（foundAt 降順）に並べる
-  const stashOrder = [...state.profile.stash].sort((a, b) => b.foundAt - a.foundAt);
-
-  const visibleRowCount = Math.max(0, Math.floor(CONTENT_H / STASH_ROW_H));
-  const maxScroll = Math.max(0, stashOrder.length - visibleRowCount);
-  const scroll = clamp(ui.scroll, 0, maxScroll);
-
-  const stashRows: StashRowLayout[] = [];
-  for (let row = 0; row < visibleRowCount; row++) {
-    const index = row + scroll;
-    const item = stashOrder[index];
-    if (!item) break;
-    stashRows.push({
-      item,
-      index,
-      rect: { x: RIGHT_X, y: CONTENT_Y + row * STASH_ROW_H, w: RIGHT_W, h: STASH_ROW_H },
-    });
-  }
-
-  const tooltipRect: Rect = { x: PANEL_X, y: CONTENT_Y + CONTENT_H, w: LEFT_W, h: TOOLTIP_H };
-  const statsRect: Rect = { x: RIGHT_X, y: CONTENT_Y + CONTENT_H, w: RIGHT_W, h: TOOLTIP_H };
-  const hintRect: Rect = { x: PANEL_X, y: PANEL_Y + PANEL_H - HINT_H, w: PANEL_W, h: HINT_H };
-
-  return { panel, slots, stashRows, stashOrder, tooltipRect, statsRect, hintRect, visibleRowCount, maxScroll };
+  const stashHeader: Rect = { x: RIGHT_X, y: CONTENT_Y, w: RIGHT_W, h: STASH_HEADER_H };
+  const stashOrder = sortStash(state.profile.stash);
+  const area: Rect = { x: RIGHT_X, y: CONTENT_Y + STASH_HEADER_H, w: RIGHT_W, h: CONTENT_H - STASH_HEADER_H };
+  const list = layoutStashList(stashOrder, ui.scroll, area);
+  const bottomY = CONTENT_Y + CONTENT_H;
+  return {
+    panel,
+    slots,
+    stashHeader,
+    stashRows: list.rows,
+    stashOrder,
+    tooltipRect: { x: PANEL_X, y: bottomY, w: LEFT_W, h: TOOLTIP_H },
+    resonanceRect: { x: RIGHT_X, y: bottomY, w: RIGHT_W, h: TOOLTIP_H },
+    hintRect: { x: PANEL_X, y: CONTENT_BOTTOM, w: PANEL_W, h: HINT_H },
+    visibleRowCount: list.visibleRowCount,
+    maxScroll: list.maxScroll,
+  };
 }
 
 function findHoveredSlot(layout: InventoryLayout, p: { x: number; y: number }): SlotLayout | null {
-  for (const s of layout.slots) {
-    if (pointInRect(p, s.rect)) return s;
-  }
-  return null;
+  return layout.slots.find((s) => pointInRect(p, s.rect)) ?? null;
 }
 
-function findHoveredStashRow(layout: InventoryLayout, p: { x: number; y: number }): StashRowLayout | null {
-  for (const row of layout.stashRows) {
-    if (pointInRect(p, row.rect)) return row;
-  }
-  return null;
-}
-
-/** 装備変更後の反映: stats 再計算・HP 割合維持・保存 */
+/** 装備変更後の反映: stats 再計算・HP 割合維持・芽の提示の付け直し・保存 */
 function applyEquipmentChange(state: GameState): void {
   applyStats(state, computeStats(state.profile.equipment));
+  refreshPendingBud(state);
   saveProfile(state.profile);
 }
 
@@ -298,24 +216,35 @@ export function tabRects(): TabLayout[] {
   });
 }
 
-/** Tab キー: 閉 → 装備 → スキル → クラフト → 閉 */
-function cycleTab(state: GameState, ui: InventoryUi): void {
-  if (!ui.open) {
-    ui.open = true;
-    ui.tab = "equipment";
-  } else {
-    const next = TAB_ORDER[TAB_ORDER.indexOf(ui.tab) + 1];
-    if (next === undefined) ui.open = false;
-    else ui.tab = next;
-  }
-  state.paused = ui.open;
-  if (ui.open) return;
+function clearHover(ui: InventoryUi): void {
   ui.hoverItemId = null;
   ui.hoverSlot = null;
   ui.hoverStoneId = null;
   ui.hoverSkillSlot = null;
-  ui.craft.hoverOp = null;
-  ui.craft.fusePending = false;
+  ui.echo.hoverOp = null;
+  ui.echo.hoverId = null;
+}
+
+function switchTab(ui: InventoryUi, tab: InventoryTab): void {
+  ui.tab = tab;
+  closeBudModal(ui.bud);
+  clearHover(ui);
+}
+
+/** Tab キー: 閉 → 装備 → スキル → 残響 → 閉 */
+function cycleTab(state: GameState, ui: InventoryUi): void {
+  if (!ui.open) {
+    ui.open = true;
+    switchTab(ui, "equipment");
+  } else {
+    const next = TAB_ORDER[TAB_ORDER.indexOf(ui.tab) + 1];
+    if (next === undefined) ui.open = false;
+    else switchTab(ui, next);
+  }
+  state.paused = ui.open;
+  if (ui.open) return;
+  closeBudModal(ui.bud);
+  clearHover(ui);
 }
 
 /** 装着中の石を先頭（スロット順）、残りは新しい順 */
@@ -392,54 +321,70 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   pushSfx(state, "equipOff");
 }
 
+function tickMessage(ui: InventoryUi, dt: number): void {
+  if (ui.messageTimer <= 0) return;
+  ui.messageTimer = Math.max(0, ui.messageTimer - dt);
+  if (ui.messageTimer === 0) ui.message = "";
+}
+
 export function updateInventoryUi(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
   if (input.inventoryPressed) cycleTab(state, ui);
-
-  if (ui.messageTimer > 0) {
-    ui.messageTimer = Math.max(0, ui.messageTimer - dt);
-    if (ui.messageTimer === 0) ui.message = "";
-  }
-
+  tickMessage(ui, dt);
+  tickEchoUi(ui.echo, dt);
   if (!ui.open) return;
 
   const aim = input.aimScreen;
   const tab = input.clickPressed && aim ? tabRects().find((t) => pointInRect(aim, t.rect)) : undefined;
   if (tab) {
-    ui.tab = tab.tab;
+    switchTab(ui, tab.tab);
     return;
   }
-  if (ui.tab === "skills") {
-    updateSkillsTab(state, ui, input);
-    return;
+  switch (ui.tab) {
+    case "skills":
+      updateSkillsTab(state, ui, input);
+      return;
+    case "echo":
+      updateEchoTab(state, ui.echo, input);
+      return;
+    case "equipment":
+      updateEquipmentTab(state, ui, input);
+      return;
   }
-  if (ui.tab === "craft") {
-    updateCraftTab(state, ui, input);
-    return;
-  }
+}
 
+// ---------------------------------------------------------------------------
+// 装備タブ
+// ---------------------------------------------------------------------------
+
+/** 芽のモーダルを開いている間は、それ以外の操作を受け付けない */
+function updateBudFlow(state: GameState, ui: InventoryUi, input: FrameInput): boolean {
+  if (ui.bud.open) {
+    const chosen = updateBudModal(state, ui.bud, input);
+    if (chosen !== null) showMessage(ui, `芽吹いた: ${describeTrait(chosen).text}`);
+    return true;
+  }
+  return tryOpenBudModal(state, ui.bud, input);
+}
+
+function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput): void {
+  if (updateBudFlow(state, ui, input)) {
+    ui.hoverItemId = null;
+    ui.hoverSlot = null;
+    return;
+  }
   const layout = layoutInventory(state, ui);
   ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
 
   const hoveredSlot = input.aimScreen ? findHoveredSlot(layout, input.aimScreen) : null;
-  const hoveredRow = input.aimScreen ? findHoveredStashRow(layout, input.aimScreen) : null;
+  const hoveredRow = findRowAt(layout.stashRows, input.aimScreen);
   ui.hoverSlot = hoveredSlot ? hoveredSlot.slot : null;
-  ui.hoverItemId = hoveredRow ? hoveredRow.item.id : hoveredSlot?.item ? hoveredSlot.item.id : null;
-
+  ui.hoverItemId = hoveredRow ? hoveredRow.item.id : (hoveredSlot?.item?.id ?? null);
   if (!input.clickPressed) return;
 
   if (hoveredRow) {
-    if (input.shiftHeld) {
-      salvageForCurrency(state, ui, hoveredRow.item);
-      return;
-    }
-    const name = hoveredRow.item.name;
-    equipItem(state.profile, hoveredRow.item.id);
-    applyEquipmentChange(state);
-    showMessage(ui, `装備した: ${name}`);
-    pushSfx(state, "equipOn");
+    clickStashRow(state, ui, hoveredRow.item, input.shiftHeld);
     return;
   }
-
   if (hoveredSlot?.item) {
     const name = hoveredSlot.item.name;
     unequipItem(state.profile, hoveredSlot.slot);
@@ -449,115 +394,15 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
   }
 }
 
-// ---------------------------------------------------------------------------
-// 分解（通貨の獲得）とクラフトタブ
-// ---------------------------------------------------------------------------
-
-/** stash のアイテムを分解し、rarity に応じた通貨を得る */
-function salvageForCurrency(state: GameState, ui: InventoryUi, item: Item): void {
-  if (!salvageItem(state.profile, item.id)) return;
-  const currency = addSalvageCurrency(ui.craft.save.wallet, item);
-  saveProfile(state.profile);
-  saveCraft(ui.craft.save);
-  if (ui.craft.selectedId === item.id) ui.craft.selectedId = null;
-  showMessage(ui, `分解した: ${item.name}（+1 ${CURRENCY_LABEL[currency]}）`);
-  pushSfx(state, "dismantle");
-}
-
-/** クラフトタブのレイアウト（状態に依存しない） */
-export function layoutCraft(): CraftLayout {
-  const currencies: CurrencyRowLayout[] = CURRENCIES.map((currency, i) => ({
-    currency,
-    rect: { x: PANEL_X, y: CONTENT_Y + i * CURRENCY_ROW_H, w: LEFT_W, h: CURRENCY_ROW_H },
-  }));
-  const top = CONTENT_Y + CONTENT_H;
-  const buttonW = Math.floor((RIGHT_W - CRAFT_BUTTON_GAP * (CRAFT_OPS.length - 1)) / CRAFT_OPS.length);
-  const buttons: CraftButtonLayout[] = CRAFT_OPS.map((op, i) => ({
-    op,
-    rect: { x: RIGHT_X + i * (buttonW + CRAFT_BUTTON_GAP), y: top + CRAFT_BUTTON_TOP_PAD, w: buttonW, h: CRAFT_BUTTON_H },
-  }));
-  return { currencies, buttons, statusY: top + CRAFT_STATUS_OFFSET, resultY: top + CRAFT_RESULT_OFFSET };
-}
-
-/** 選択中のアイテム（stash に無くなっていたら null） */
-export function selectedCraftItem(state: GameState, ui: InventoryUi): Item | null {
-  const id = ui.craft.selectedId;
-  if (id === null) return null;
-  return state.profile.stash.find((it) => it.id === id) ?? null;
-}
-
-function runCraft(state: GameState, ui: InventoryUi, op: CraftOp, item: Item, partner?: Item): void {
-  const result = craft(ui.craft.save, {
-    op,
-    item,
-    partner,
-    bestDepth: state.profile.meta.bestDepth,
-    // 決定性に影響しない（Fuse の foundAt = 一覧の先頭に出すため）
-    now: Date.now(),
-  });
-  ui.craft.fusePending = false;
-  ui.craft.result = result.message;
-  if (!result.ok) return;
-  applyCraftResult(state.profile, result);
-  ui.craft.selectedId = result.item.id;
-  saveProfile(state.profile);
-  saveCraft(ui.craft.save);
-  pushSfx(state, CRAFT_SFX[op]);
-}
-
-/** Fuse ボタン: 実行可能なら 2 つ目の選択待ちに入る（もう一度押すと取り消し） */
-function toggleFuse(ui: InventoryUi, item: Item): void {
-  if (ui.craft.fusePending) {
-    ui.craft.fusePending = false;
-    ui.craft.result = "融合をキャンセルした";
+/** クリックで装備、Shift+クリックで砕く（残響を得る） */
+function clickStashRow(state: GameState, ui: InventoryUi, item: Item, shift: boolean): void {
+  if (shift) {
+    const result = shatterStashItem(state, ui.echo, item);
+    showMessage(ui, result.message);
     return;
   }
-  const blocked = craftBlockReason(ui.craft.save.wallet, "fuse", item);
-  if (blocked !== null) {
-    ui.craft.result = craftBlockMessage(blocked, "fuse");
-    return;
-  }
-  ui.craft.fusePending = true;
-  ui.craft.result = `${item.name} と融合する 2 つ目の${SLOT_LABEL[item.slot]}を選んでください`;
-}
-
-function clickCraftButton(state: GameState, ui: InventoryUi, op: CraftOp): void {
-  const item = selectedCraftItem(state, ui);
-  if (item === null) {
-    ui.craft.result = "先に倉庫からアイテムを選んでください";
-    return;
-  }
-  if (op === "fuse") {
-    toggleFuse(ui, item);
-    return;
-  }
-  runCraft(state, ui, op, item);
-}
-
-function clickCraftRow(state: GameState, ui: InventoryUi, item: Item): void {
-  const selected = selectedCraftItem(state, ui);
-  if (ui.craft.fusePending && selected !== null && selected.id !== item.id) {
-    runCraft(state, ui, "fuse", selected, item);
-    return;
-  }
-  ui.craft.fusePending = false;
-  ui.craft.selectedId = item.id;
-}
-
-/** クラフトタブ: stash クリックで選択、ボタンで操作。Fuse は 2 つ目のクリックで実行 */
-function updateCraftTab(state: GameState, ui: InventoryUi, input: FrameInput): void {
-  const layout = layoutInventory(state, ui);
-  ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
-  const aim = input.aimScreen;
-  const row = aim ? findHoveredStashRow(layout, aim) : null;
-  const button = aim ? (layoutCraft().buttons.find((b) => pointInRect(aim, b.rect)) ?? null) : null;
-  ui.hoverItemId = row ? row.item.id : null;
-  ui.hoverSlot = null;
-  ui.craft.hoverOp = button ? button.op : null;
-  if (!input.clickPressed) return;
-  if (row) {
-    clickCraftRow(state, ui, row.item);
-    return;
-  }
-  if (button) clickCraftButton(state, ui, button.op);
+  equipItem(state.profile, item.id);
+  applyEquipmentChange(state);
+  showMessage(ui, `装備した: ${item.name}`);
+  pushSfx(state, "equipOn");
 }

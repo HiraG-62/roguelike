@@ -21,6 +21,7 @@ import { VIEW_H, VIEW_W } from "./core/view";
 import { loadProfile, pushRunHistory, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
 import { drawInventoryUi } from "./render/inventoryUi";
+import { drawBudUi } from "./render/budUi";
 import { Renderer } from "./render/renderer";
 import { drawSkillHud } from "./render/skillHud";
 import {
@@ -602,6 +603,7 @@ startLoop(
     renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
 
     drawSkillHud(ctx, cur);
+    if (!inventoryUi.open) drawBudUi(ctx, cur);
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
     if (screen === "paused") drawPauseMenu(ctx, pauseCursor);
     if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
