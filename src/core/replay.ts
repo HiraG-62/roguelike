@@ -26,7 +26,7 @@ import { SKILL_PROFILE_KEY, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
 
-export const REPLAY_VERSION = 2;
+export const REPLAY_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -108,7 +108,11 @@ type ButtonKey =
   | "shiftHeld"
   | "skill1Held"
   | "skill2Held"
-  | "padConfirmPressed";
+  | "padConfirmPressed"
+  | "skill3Pressed"
+  | "skill4Pressed"
+  | "skill3Held"
+  | "skill4Held";
 
 /** ビット順。末尾に追加するのは可、並べ替えは不可（過去のリプレイが壊れる） */
 const BUTTON_BITS: readonly ButtonKey[] = [
@@ -128,6 +132,11 @@ const BUTTON_BITS: readonly ButtonKey[] = [
   "skill2Held",
   // パッド A のエッジのみ。boons.ts の選択判定が見るので記録しないと再生がずれる
   "padConfirmPressed",
+  // スキルスロット 3 / 4（REPLAY_VERSION 3 で追加）
+  "skill3Pressed",
+  "skill4Pressed",
+  "skill3Held",
+  "skill4Held",
 ];
 
 /** 照準を 1px 単位に量子化する。-0 は 0 に寄せる */

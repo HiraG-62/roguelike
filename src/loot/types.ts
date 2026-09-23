@@ -1,4 +1,6 @@
+import type { StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
+import { ATTR, MANA } from "../data/tuning";
 
 /**
  * 装備システム（響き・揺らぎ・来歴）の共有型。docs/LOOT_DESIGN.md を参照。
@@ -233,6 +235,23 @@ export function createEmptyProfile(): Profile {
   };
 }
 
+// ---------------------------------------------------------------------------
+// ステータス（素質値）。docs/COMBAT_DESIGN.md A
+// ---------------------------------------------------------------------------
+
+/** 筋力 / 技巧 / 体力 / 精神 / 霊力 */
+export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
+export type AttrKey = (typeof ATTR_KEYS)[number];
+export type Attributes = Record<AttrKey, number>;
+
+/** 係数表。技の威力 = base + Σ(係数 × 実効値)。base は基礎値のとき現行値と一致するよう逆算する */
+export type Scaling = { base: number } & Partial<Record<AttrKey, number>>;
+
+/** 全ステータスが同じ値の Attributes */
+export function uniformAttributes(value: number): Attributes {
+  return { str: value, dex: value, vit: value, mnd: value, spi: value };
+}
+
 /**
  * 装備から畳み込んだ派生ステータス。ゲームロジックはこれだけを見る。
  * 倍率は 1 が基準、確率は 0..1、flat は加算値。
@@ -298,6 +317,24 @@ export interface PlayerStats {
   triggers: TriggeredEffect[];
   /** 装備全体の色の配合で発現した共鳴（resonance.ts）。数値効果は他のフィールドに畳み込み済み */
   resonance: Resonance;
+
+  // ---- 戦闘再設計（docs/COMBAT_DESIGN.md F-1）。既定値は中立 ----
+  /** 装備・共鳴・祝福・ラン内振り分けの生の合計（逓減前）。基礎値を含む */
+  attributes: Attributes;
+  /** 逓減後の実効値。deriveAttributes が埋める。計算はこちらを使う */
+  attributesEff: Attributes;
+  maxMana: number;
+  /** 毎秒 */
+  manaRegen: number;
+  manaGainMul: number;
+  skillDamageMul: number;
+  poiseDamageMul: number;
+  statusPotencyMul: number;
+  /** プレイヤーが受ける状態異常の持続倍率 */
+  statusTakenMul: number;
+  /** 性質「弾斬り」: 0 より大きければ近接の active で敵弾を消す */
+  bulletCut: number;
+  statusProcs: StatusProc[];
 }
 
 /**
@@ -418,4 +455,16 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   keystones: [],
   triggers: [],
   resonance: createEmptyResonance(),
+
+  attributes: uniformAttributes(ATTR.base),
+  attributesEff: uniformAttributes(ATTR.base),
+  maxMana: MANA.baseMax,
+  manaRegen: MANA.baseRegen,
+  manaGainMul: 1,
+  skillDamageMul: 1,
+  poiseDamageMul: 1,
+  statusPotencyMul: 1,
+  statusTakenMul: 1,
+  bulletCut: 0,
+  statusProcs: [],
 };

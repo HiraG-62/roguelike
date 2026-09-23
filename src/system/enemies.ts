@@ -7,7 +7,8 @@ import { shake, spawnBurst } from "./effects";
 import { eliteSpeedMul, eliteWindupMul, onEliteDeath, updateElites } from "./elites";
 import { explodeHostile, laserEnd, spawnBomb, spawnLaser, spawnPlayerBurn, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
-import { chillFactor, createEnemyEffects } from "./statusEffects";
+import { chillFactor, createEnemyEffects, createPoiseState } from "./statusEffects";
+import { createStatusBag } from "../core/status";
 import { onBossDeath, updateBossEnemy } from "./boss";
 import { TILE_SIZE } from "../map/grid";
 
@@ -74,6 +75,8 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     effects: createEnemyEffects(),
     lastHp: hp,
     ai: createAi(),
+    status: createStatusBag(),
+    poise: createPoiseState(),
   };
 }
 

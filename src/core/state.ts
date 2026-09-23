@@ -1,7 +1,8 @@
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
-import type { FloorItem, PendingBud, PlayerStats, Profile } from "../loot/types";
+import type { Attributes, FloorItem, PendingBud, PlayerStats, Profile } from "../loot/types";
+import type { StatusBag } from "./status";
 import type { SfxName } from "../audio/sfxNames";
 import type { SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
@@ -75,6 +76,10 @@ export interface Player {
   dashAttackQueued: boolean;
   /** 今の振りがダッシュ攻撃か（attack.combo の段ではなく ACTION.dashAttack を使う） */
   dashStrike: boolean;
+  /** スキルの資源（docs/COMBAT_DESIGN.md B）。上限は stats.maxMana */
+  mana: number;
+  /** プレイヤーに付いた状態異常（docs/COMBAT_DESIGN.md E） */
+  status: StatusBag;
 }
 
 export interface TimedMul {
@@ -90,6 +95,17 @@ export interface PlayerBuffs {
 }
 
 export type EnemyPhase = "idle" | "chase" | "windup" | "strike" | "recover" | "stagger" | "spawning";
+
+/** 敵の怯みの蓄積（docs/COMBAT_DESIGN.md D） */
+export interface PoiseState {
+  /** 深度・エリート・ボスの成長を掛けた現在の耐性。0 は怯まない */
+  max: number;
+  damage: number;
+  /** 最後に怯み値を受けてからの秒 */
+  sinceHit: number;
+  /** ボスのダウン回数 */
+  downs: number;
+}
 
 export interface Enemy {
   id: number;
@@ -118,6 +134,9 @@ export interface Enemy {
   ai?: EnemyAi;
   /** 強い吹き飛び中（近接 3 段目など）。壁に激突すると追加ダメージ（壁叩きつけ） */
   wallSplat?: boolean;
+  /** 統一の状態異常（段階 1 の L3 で effects から移行する） */
+  status: StatusBag;
+  poise: PoiseState;
 }
 
 export type EliteKind = "explosive" | "reflective" | "shielded" | "hasted" | "linked";
@@ -365,6 +384,8 @@ export interface GameState {
   boonRun: BoonRunState;
   /** 装備の芽（来歴の節目で出る 2 択）の提示中。UI が表示し、system/loot.ts の chooseBud で選ぶ */
   pendingBud: PendingBud | null;
+  /** ラン内のステータス振り分け（docs/COMBAT_DESIGN.md A-3）。ランで消える */
+  runAttributes: { alloc: Attributes; unspent: number };
 }
 
 export function allocId(state: GameState): number {

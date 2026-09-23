@@ -11,6 +11,8 @@ export const PLAYER = {
     cooldown: 0.32,
     /** ダッシュ後に少しだけ残る無敵（回避猶予） */
     graceInvuln: 0.04,
+    /** ダッシュ開始からの無敵秒（docs/COMBAT_DESIGN.md C-1。段階 1 の L4 が読む。それまでは全長が無敵） */
+    invulnTime: 0.1,
   },
   /** 被弾後の無敵時間 */
   hurtInvuln: 0.7,
@@ -84,6 +86,159 @@ export const STATUS = {
   explodeColor: "#ffb040",
   explodeKnockback: 200,
   fxLife: 0.25,
+  // ---- 以下は docs/COMBAT_DESIGN.md E-2 / E-3 の統一状態異常（段階 1 の L3 が読む） ----
+  /** 拘束上限: 行動停止系（怯み・凍結・麻痺・恐怖）は直近 ccWindow 秒に合計 ccBudget 秒まで */
+  ccWindow: 3,
+  ccBudget: 2,
+  chill: {
+    /** 1 スタックあたりの遅さ */
+    slowPerStack: 0.12,
+    maxStacks: 5,
+    playerMaxStacks: 3,
+    duration: 2,
+    /** ボスは凍結しない代わりに遅さをここで止める */
+    bossMaxSlow: 0.4,
+  },
+  freeze: {
+    duration: 1.2,
+    /** 砕き: 凍結中の被弾の与ダメ倍率と追加の怯み値 */
+    shatterDamageMul: 1.5,
+    shatterPoise: 20,
+    /** 解除後の冷気免疫（秒） */
+    chillImmuneAfter: 3,
+  },
+  shock: {
+    /** 連鎖の周期（秒）と届く半径 */
+    interval: 0.6,
+    radius: 50,
+    maxStacks: 3,
+    duration: 2.5,
+  },
+  paralyze: {
+    duration: 0.5,
+    bossDuration: 0.2,
+    /** 解除後の感電免疫（秒） */
+    shockImmuneAfter: 3,
+  },
+  poison: {
+    /** 最大 HP に対する 1 スタック / 秒の割合 */
+    hpRatioPerSec: 0.01,
+    bossHpRatioPerSec: 0.003,
+    playerHpRatioPerSec: 0.005,
+    maxStacks: 5,
+    playerMaxStacks: 3,
+    duration: 5,
+  },
+  bleed: {
+    /** この移動距離（px）ごとに potency × スタックのダメージ */
+    distance: 10,
+    maxStacks: 3,
+    duration: 4,
+    /** 毒がある間の出血ダメージ倍率 */
+    poisonMul: 1.5,
+  },
+  vulnerable: {
+    /** 受けるダメージ倍率 */
+    mul: 1.2,
+    duration: 4,
+  },
+  weaken: {
+    /** 与えるダメージの減少割合（× (1 − mul)） */
+    mul: 0.25,
+    duration: 4,
+  },
+  fear: {
+    duration: 2,
+    /** 解除後の恐怖免疫（秒） */
+    immuneAfter: 6,
+    /** 鬼火（怯まない）は恐怖が長く効く */
+    wispMul: 2,
+  },
+  silence: {
+    enemyDuration: 3,
+    playerDuration: 1.5,
+  },
+  /** 蒸発（燃焼 × 冷気）: 燃焼の残りダメージのうち即時に与える割合 */
+  vaporizeRatio: 0.5,
+} as const;
+
+/**
+ * ステータス（docs/COMBAT_DESIGN.md A）。基礎値は全員 base。
+ * 派生は「実効値 − base」の差分で既存の PlayerStats に畳み込むので、基礎値なら何も変わらない
+ */
+export const ATTR = {
+  base: 5,
+  /** 逓減: knee1 までは等倍、knee2 までは slope1、それ以降は slope2 */
+  knee1: 20,
+  slope1: 0.5,
+  knee2: 40,
+  slope2: 0.25,
+  /** 筋力: 怯み値倍率・ノックバック（1 点あたりの割合） */
+  strPoise: 0.03,
+  strKnockback: 0.02,
+  /** 技巧: 移動・連射・ダッシュ CD 短縮（1 点あたりの割合）と CD 倍率の下限 */
+  dexMove: 0.005,
+  dexFireRate: 0.01,
+  dexDashCooldown: 0.01,
+  dexDashCooldownMin: 0.7,
+  /** 体力: 最大 HP（1 点あたり）と、受ける状態異常の持続 100 / (100 + k × d) の k・下限 */
+  vitMaxHp: 4,
+  vitStatusTaken: 3,
+  vitStatusTakenBase: 100,
+  vitStatusTakenMin: 0.5,
+  /** 精神: 最大マナ・マナ自然回復（毎秒）・会心率（1 点あたり） */
+  mndMaxMana: 6,
+  mndManaRegen: 0.3,
+  mndCrit: 0.004,
+  /** 霊力: 状態異常の効果量・buff 系スキルの効果量（1 点あたりの割合） */
+  spiStatusPotency: 0.03,
+  spiBuffPotency: 0.02,
+} as const;
+
+/** マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源 */
+export const MANA = {
+  /** 精神 base のときの最大マナと自然回復 / 秒 */
+  baseMax: 100,
+  baseRegen: 3.5,
+  /** 封鎖されていない部屋・通路での自然回復倍率（待ち時間を作らない） */
+  idleRegenMul: 4,
+  /** 近接各段の命中 1 体ごと */
+  onMelee: [4, 4, 7],
+  /** 近接 1 振りで回収する敵の上限 */
+  meleeTargetCap: 3,
+  onDashAttack: 5,
+  /** カウンターヒットなら倍 */
+  onCounterMul: 2,
+  /** 射撃弾の命中 1 体ごとと、1 回の射撃で回収できる上限（発数） */
+  onShot: 1.5,
+  shotVolleyCap: 3,
+  onJust: 15,
+  onKill: 2,
+  /** ラン開始と階層到達で満タン */
+  startFull: true,
+} as const;
+
+/** 怯み（docs/COMBAT_DESIGN.md D-1）。段階 1 の L3 が読む */
+export const POISE = {
+  /** 最後に怯み値を受けてから減衰が始まるまで（秒）と、耐性に対する毎秒の減衰割合 */
+  decayDelay: 1,
+  decayRate: 0.3,
+  /** 堅守: 怯みが解けた直後の持続と受け怯み値倍率 */
+  guardedTime: 2,
+  guardedMul: 0.5,
+  bossGuardedTime: 6,
+  bossGuardedMul: 0.25,
+  /** ボスはダウンのたびに耐性 × bossPoiseGrowth（上限 × bossPoiseGrowthMax） */
+  bossPoiseGrowth: 1.5,
+  bossPoiseGrowthMax: 3,
+  bossDownDamageMul: 1.25,
+  /** 耐性 × (1 + depthScale × (深度 − 1)) */
+  depthScale: 0.08,
+  eliteMul: 1.5,
+  /** 怯んでいない敵へのノックバック倍率 */
+  knockbackUnstaggered: 0.35,
+  /** 移行期間に HitOptions.stagger: true を怯み値に読み替える値 */
+  legacyStagger: 25,
 } as const;
 
 /** トリガー効果 */

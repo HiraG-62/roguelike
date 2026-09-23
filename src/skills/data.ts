@@ -144,6 +144,12 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   frostField: 7,
 };
 
+/**
+ * 段階 0 の中立値: 全スキルを既存どおりの CD 型として扱う（コスト・最低間隔・怯み値なし）。
+ * 段階 1 の L2 が docs/COMBAT_DESIGN.md B-4 の表の値に置き換えて、この定数を消す
+ */
+const LEGACY_RESOURCE = { resource: "cooldown", manaCost: 0, minInterval: 0, poise: 0 } as const;
+
 export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   whirl: {
     key: "whirl",
@@ -155,6 +161,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.whirl.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   lunge: {
     key: "lunge",
@@ -166,6 +173,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.lunge.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   frag: {
     key: "frag",
@@ -177,6 +185,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.frag.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   railshot: {
     key: "railshot",
@@ -188,6 +197,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.railshot.cooldown,
     charges: 1,
     axes: ["cooldownVsDamage", "speedVsDamage", "countVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   parry: {
     key: "parry",
@@ -199,6 +209,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.parry.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   bloodPact: {
     key: "bloodPact",
@@ -210,6 +221,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.bloodPact.cooldown,
     charges: 1,
     axes: ["durationVsPotency"],
+    ...LEGACY_RESOURCE,
   },
   quake: {
     key: "quake",
@@ -221,6 +233,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.quake.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   thunder: {
     key: "thunder",
@@ -232,6 +245,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.thunder.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "speedVsDamage", "countVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   gravityWell: {
     key: "gravityWell",
@@ -243,6 +257,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.gravityWell.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "durationVsPotency", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   mines: {
     key: "mines",
@@ -254,6 +269,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.mines.cooldown,
     charges: 1,
     axes: ["countVsDamage", "areaVsDamage", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   haste: {
     key: "haste",
@@ -265,6 +281,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.haste.cooldown,
     charges: 1,
     axes: ["durationVsPotency", "cooldownVsPotency"],
+    ...LEGACY_RESOURCE,
   },
   chainHook: {
     key: "chainHook",
@@ -276,6 +293,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.chainHook.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   spiral: {
     key: "spiral",
@@ -287,6 +305,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.spiral.cooldown,
     charges: 1,
     axes: ["countVsDamage", "speedVsDamage", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
   frostField: {
     key: "frostField",
@@ -298,6 +317,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     cooldown: SKILL.frostField.cooldown,
     charges: 1,
     axes: ["areaVsDamage", "durationVsPotency", "cooldownVsDamage"],
+    ...LEGACY_RESOURCE,
   },
 };
 
@@ -454,6 +474,8 @@ export function baseCastParams(def: SkillDef): CastParams {
     curse: null,
     delay: null,
     slot: -1,
+    intervalMul: 1,
+    killManaRefund: 0,
   };
 }
 

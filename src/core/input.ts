@@ -91,6 +91,11 @@ export interface FrameInput {
   /** スキルスロット 1 / 2 の押しっぱなし（Charge 刻印符の溜め入力）。パッドは未対応でキーボード/マウスのみ */
   skill1Held: boolean;
   skill2Held: boolean;
+  /** スキルスロット 3 / 4（docs/COMBAT_DESIGN.md B-3）。キー割り当ては段階 1 の L2 が入れる。それまでは常に false */
+  skill3Pressed: boolean;
+  skill4Pressed: boolean;
+  skill3Held: boolean;
+  skill4Held: boolean;
   /** 今フレームのホイール移動量（正 = 下）。UI のスクロール用 */
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
@@ -113,6 +118,10 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   skill2Pressed: false,
   skill1Held: false,
   skill2Held: false,
+  skill3Pressed: false,
+  skill4Pressed: false,
+  skill3Held: false,
+  skill4Held: false,
   wheel: 0,
   clickPressed: false,
   shiftHeld: false,
@@ -248,6 +257,11 @@ export class PlayerInput {
       // パッドの「押しっぱなし」は GamepadFrame に無いのでキーボード/マウスのみで判定する
       skill1Held: this.isDown("skill1"),
       skill2Held: this.isDown("skill2"),
+      // スロット 3 / 4 のキーは段階 1 の L2 で割り当てる
+      skill3Pressed: false,
+      skill4Pressed: false,
+      skill3Held: false,
+      skill4Held: false,
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has("Mouse0"),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),

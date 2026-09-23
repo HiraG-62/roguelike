@@ -10,6 +10,8 @@ import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effect
 import { KEYSTONE_NAME, KS, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt } from "./statusEffects";
+import { addRunAttributes, deriveAttributes } from "./attributes";
+import { createStatusBag } from "../core/status";
 import {
   cancelSkills,
   consumeLungeCombo,
@@ -83,21 +85,27 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     justCounterTargetId: null,
     dashAttackQueued: false,
     dashStrike: false,
+    mana: stats.maxMana,
+    status: createStatusBag(),
   };
 }
 
 /**
  * 装備変更などで stats が変わったときにプレイヤーへ反映する。
- * maxHp が変わったら現在 HP の割合を維持する
+ * maxHp が変わったら現在 HP の割合を維持する。
+ * 集計順は 装備 → 祝福 → ラン内振り分け → ステータスの派生（docs/COMBAT_DESIGN.md A-4）
  */
 export function applyStats(state: GameState, equipStats: PlayerStats): void {
   const p = state.player;
   const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
   // 祝福（ラン内）は装備の stats に畳み込む。装備画面から呼ばれても祝福が消えない
   state.boonRun.baseStats = equipStats;
-  const stats = foldBoonStats(equipStats, state.boons, state.boonRun);
+  const withBoons = foldBoonStats(equipStats, state.boons, state.boonRun);
+  const stats = deriveAttributes(addRunAttributes(withBoons, state.runAttributes.alloc));
   state.stats = stats;
   p.maxHp = stats.maxHp;
+  // 精神が下がって上限が縮んだときだけ切り詰める（増えたぶんは自然回復で埋める）
+  p.mana = Math.min(p.mana, stats.maxMana);
   p.dashChargesLeft = Math.min(p.dashChargesLeft, stats.dashCharges);
   // 死亡中に装備画面を触っても蘇生しない
   if (state.status === "dead") return;

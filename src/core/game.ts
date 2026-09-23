@@ -12,7 +12,7 @@ import { createPlayer } from "../system/player";
 import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { VIEW_H, VIEW_W } from "./view";
-import { type Profile, createEmptyProfile } from "../loot/types";
+import { type Profile, createEmptyProfile, uniformAttributes } from "../loot/types";
 import { computeStats } from "../loot/stats";
 import { findPendingBud } from "../loot/provenance";
 import { updateStatusEffects } from "../system/statusEffects";
@@ -82,6 +82,7 @@ export function createGame(
     boonChoice: null,
     boonRun: createBoonRunState(),
     pendingBud: findPendingBud(profile),
+    runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
   };
   buildFloor(state);
   pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");

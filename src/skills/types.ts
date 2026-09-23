@@ -1,4 +1,5 @@
 import type { TimedMul } from "../core/state";
+import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
 
 /**
@@ -69,6 +70,9 @@ export const VARIANT_AXES = [
 ] as const;
 export type VariantAxis = (typeof VARIANT_AXES)[number];
 
+/** スキルの資源（docs/COMBAT_DESIGN.md B-4）。mana = マナ消費 / cooldown = 既存の CD とチャージ */
+export type SkillResource = "mana" | "cooldown";
+
 export interface SkillDef {
   key: SkillKey;
   name: string;
@@ -82,6 +86,16 @@ export interface SkillDef {
   charges: number;
   /** この石にロールされうる変異軸（得失が意味を持つものだけ） */
   axes: readonly VariantAxis[];
+  // ---- 戦闘再設計（docs/COMBAT_DESIGN.md B-4）。値は段階 1 の L2 が入れる。段階 0 は中立 ----
+  resource: SkillResource;
+  /** マナ型のコスト（CD 型は 0） */
+  manaCost: number;
+  /** このスロットだけの連打下限（秒） */
+  minInterval: number;
+  /** 1 ヒットの基礎怯み値 */
+  poise: number;
+  /** 命中した敵に付ける状態異常 */
+  applies?: readonly StatusApply[];
 }
 
 /** 1 回の発動の最終パラメータ。変異・リンク・修飾子を畳み込んだ結果 */
@@ -114,6 +128,10 @@ export interface CastParams {
   delay: { time: number; damageMul: number } | null;
   /** 発動したスロット（連鎖の返却先）。resolveCast の時点では -1 */
   slot: number;
+  /** マナ型の最低間隔倍率（多重）。段階 1 の L2 が読む */
+  intervalMul: number;
+  /** 連鎖（マナ型）: 撃破でコストのこの割合を返す。0 なら無し。段階 1 の L2 が読む */
+  killManaRefund: number;
 }
 
 export interface ModifierDef {
@@ -171,6 +189,8 @@ export interface SkillSlotState {
   charging: boolean;
   /** Charge 刻印符: 溜め始めてからの経過秒（溜めていなければ 0） */
   chargeTime: number;
+  /** 最低間隔の残り秒（docs/COMBAT_DESIGN.md B-2） */
+  intervalLeft: number;
 }
 
 export type ActiveSkillKey = "whirl" | "lunge" | "railshot" | "parry" | "quake" | "chainHook" | "spiral";
@@ -331,4 +351,8 @@ export interface SkillRunState {
   enemyHp: Map<number, number>;
   /** 部屋クリア・階層到達の検出用。depth が null なら未同期 */
   tracking: { depth: number | null; cleared: boolean[] };
+  /** 共通最低間隔の残り秒（docs/COMBAT_DESIGN.md B-2） */
+  gcd: number;
+  /** HUD: マナ不足の点滅の残り秒 */
+  manaFlash: number;
 }

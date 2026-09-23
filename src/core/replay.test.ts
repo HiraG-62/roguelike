@@ -167,9 +167,22 @@ describe("encodeInputs / decodeInputs", () => {
       shiftHeld: true,
       skill1Held: true,
       skill2Held: true,
+      skill3Pressed: true,
+      skill4Pressed: true,
+      skill3Held: true,
+      skill4Held: true,
       wheel: -3,
     });
     expect(decodeInputs(encodeInputs([all]))).toEqual([all]);
+  });
+
+  it("スキル 3 / 4 のビットは他のボタンと混ざらない", () => {
+    const only = withInput({ skill3Pressed: true, skill4Held: true });
+    const decoded = decodeInputs(encodeInputs([only]))[0];
+    expect(decoded?.skill3Pressed, "skill3Pressed が落ちた").toBe(true);
+    expect(decoded?.skill4Held, "skill4Held が落ちた").toBe(true);
+    expect(decoded?.skill4Pressed, "skill4Pressed が立った").toBe(false);
+    expect(decoded?.skill1Pressed, "skill1Pressed が立った").toBe(false);
   });
 
   it("壊れた文字列は例外", () => {

@@ -105,6 +105,7 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
       chargesLeft: 1,
       charging: false,
       chargeTime: 0,
+      intervalLeft: 0,
     })),
     active: null,
     pendingSlot: -1,
@@ -131,6 +132,8 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     notReadyTimer: 0,
     enemyHp: new Map(),
     tracking: { depth: null, cleared: [] },
+    gcd: 0,
+    manaFlash: 0,
   };
 }
 

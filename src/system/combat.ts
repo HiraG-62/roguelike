@@ -31,7 +31,12 @@ const DEATH_SLOWMO = 1.2;
 const JUST_ENERGY_HITS = 2;
 
 export interface HitOptions {
+  /** @deprecated 移行期間のみ（docs/COMBAT_DESIGN.md D-4）。poise 未指定なら POISE.legacyStagger として扱う */
   stagger?: boolean;
+  /** 最終の怯み値（poiseDamageMul 込み）。0 / 未指定は怯み値なし。段階 1 の L3 が読む */
+  poise?: number;
+  /** 壁叩きつけなど: 強靭を無視する。段階 1 の L3 が読む */
+  ignoreSuperArmor?: boolean;
   hitstopSteps?: number;
   /** 必殺ゲージを貯めるか（近接のみ true） */
   buildsEnergy?: boolean;
@@ -42,6 +47,11 @@ export interface HitOptions {
   silent?: boolean;
   /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
   guardBreak?: boolean;
+}
+
+/** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける。段階 1 の L3 が読む） */
+export interface OutgoingOptions {
+  skill?: boolean;
 }
 
 export interface OutgoingHit {
@@ -72,7 +82,13 @@ export function comboDamageMul(state: GameState): number {
  * プレイヤー由来の与ダメを stats / バフ / キーストーンで仕上げる。
  * base は tuning の基礎値（melee / ranged は flat と mul をここで足す）
  */
-export function rollOutgoing(state: GameState, enemy: Enemy | null, base: number, kind: DamageKind): OutgoingHit {
+export function rollOutgoing(
+  state: GameState,
+  enemy: Enemy | null,
+  base: number,
+  kind: DamageKind,
+  _opts: OutgoingOptions = {},
+): OutgoingHit {
   const s = state.stats;
   const p = state.player;
   let amount = base;

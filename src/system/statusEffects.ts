@@ -1,4 +1,5 @@
-import { type Enemy, type EnemyEffects, type GameState, pushSfx } from "../core/state";
+import { type Enemy, type EnemyEffects, type GameState, type PoiseState, pushSfx } from "../core/state";
+import type { StatusApply, StatusBag, StatusKind, StatusSource } from "../core/status";
 import { type Vec, dist, sub } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { damageEnemy, rollOutgoing } from "./combat";
@@ -19,6 +20,38 @@ export function createEnemyEffects(): EnemyEffects {
     chill: { time: 0, slow: 0 },
     onHitCooldown: 0,
   };
+}
+
+/** 怯みの蓄積の初期値。耐性は段階 1 の L3（ENEMY_COMBAT）が入れる。0 の間は怯まない */
+export function createPoiseState(): PoiseState {
+  return { max: 0, damage: 0, sinceHit: 0, downs: 0 };
+}
+
+/** 状態異常の付与先（docs/COMBAT_DESIGN.md E-1） */
+export type StatusTarget = { kind: "enemy"; enemy: Enemy } | { kind: "player" };
+
+/**
+ * 統一の状態異常を付与する。免疫・拘束上限・スタック規則・相互作用をここ 1 か所で処理する。
+ * 段階 0 では口だけ（何もせず false）。段階 1 の L3 が中身を入れる。付与できたら true
+ */
+export function applyStatus(
+  _state: GameState,
+  _target: StatusTarget,
+  _apply: Readonly<StatusApply>,
+  _source: StatusSource,
+): boolean {
+  return false;
+}
+
+/** その種類の状態異常が残り時間つきで付いているか */
+export function hasStatus(bag: Readonly<StatusBag>, kind: StatusKind): boolean {
+  return bag.effects.some((e) => e.kind === kind && e.time > 0);
+}
+
+/** その種類のスタック数。付いていなければ 0 */
+export function statusStacks(bag: Readonly<StatusBag>, kind: StatusKind): number {
+  const effect = bag.effects.find((e) => e.kind === kind && e.time > 0);
+  return effect ? effect.stacks : 0;
 }
 
 /** chill 中の時間倍率（移動と phaseTimer の進行に掛ける） */

@@ -99,6 +99,9 @@ function createBaseStats(): PlayerStats {
       colors: [...DEFAULT_STATS.resonance.colors],
       ratios: { ...DEFAULT_STATS.resonance.ratios },
     },
+    attributes: { ...DEFAULT_STATS.attributes },
+    attributesEff: { ...DEFAULT_STATS.attributesEff },
+    statusProcs: [...DEFAULT_STATS.statusProcs],
   };
 }
 
@@ -242,6 +245,14 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   shockDamage: { label: "感電ダメージ", style: "flat" },
   explodeOnKillChance: { label: "撃破時爆発確率", style: "percent" },
   explodeDamage: { label: "爆発ダメージ", style: "flat" },
+  maxMana: { label: "最大マナ", style: "flat" },
+  manaRegen: { label: "マナ自然回復", style: "flat" },
+  manaGainMul: { label: "マナ回収", style: "mul" },
+  skillDamageMul: { label: "スキル威力", style: "mul" },
+  poiseDamageMul: { label: "怯み値", style: "mul" },
+  statusPotencyMul: { label: "状態異常の効果量", style: "mul" },
+  statusTakenMul: { label: "受ける状態異常の持続", style: "mul" },
+  bulletCut: { label: "弾斬り", style: "flat" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */
