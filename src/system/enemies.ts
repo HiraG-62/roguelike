@@ -1,7 +1,7 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, ENEMY_AI, FEEL, POISE } from "../data/tuning";
+import { ACTION, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { eliteSpeedMul, eliteWindupMul, onEliteDeath, updateElites } from "./elites";
@@ -52,6 +52,38 @@ const ENEMY_BULLET_LIFE = 3;
 const SPAWN_TIME = 0.7;
 /** 沈黙中は予備動作に入れない（射撃・レーザー・爆弾） */
 const SILENCED_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["shooter", "laser", "bomber"]);
+
+/** 連続攻撃の定義（ENEMY_TEMPO.followUps の 1 行） */
+export interface FollowUpDef {
+  minDepth: number;
+  /** 追加の撃数 */
+  count: number;
+  /** 2 撃目以降の予備動作の基準（秒） */
+  windup: number;
+  /** 壁に激突したときだけ続ける（猪） */
+  onWallOnly: boolean;
+}
+const FOLLOW_UPS: Readonly<Record<string, FollowUpDef | undefined>> = ENEMY_TEMPO.followUps;
+
+/** 深度による予備動作の倍率。1 階で 1、深くなるほど短く windupDepthMin で止まる */
+export function depthWindupMul(depth: number): number {
+  return Math.max(ENEMY_TEMPO.windupDepthMin, 1 - ENEMY_TEMPO.windupDepthStep * Math.max(0, depth - 1));
+}
+
+/**
+ * 基準の予備動作に深度と追加の倍率（迅速エリート・ボスの段階）を掛ける。
+ * 掛け合わせても基準の windupFloor 倍を下回らせない（テレグラフが読めなくなるため。原則 3）
+ */
+export function scaledWindup(base: number, depth: number, extraMul = 1): number {
+  return base * Math.max(ENEMY_TEMPO.windupFloor, depthWindupMul(depth) * extraMul);
+}
+
+/** その深度で使える連続攻撃。無ければ undefined */
+export function followUpOf(key: string, depth: number): FollowUpDef | undefined {
+  const f = FOLLOW_UPS[key];
+  if (!f || depth < f.minDepth) return undefined;
+  return f;
+}
 
 export function createAi(): EnemyAi {
   return { target: { x: 0, y: 0 }, timer: 0, counter: 0, stage: 1, move: 0 };
@@ -254,9 +286,34 @@ function chaseMove(e: Enemy, def: EnemyDef, dir: Vec, d: number): Vec {
   }
 }
 
+/** 1 撃目の予備動作。連続攻撃の残り回数を入れ直し、近くの敵の攻撃開始をずらす */
 function beginWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void {
+  if (e.ai) e.ai.counter = followUpOf(def.key, state.depth)?.count ?? 0;
+  startWindup(state, e, def, dir, def.windup);
+  coordinateNearby(state, e, def);
+}
+
+/**
+ * 連携ずらし: 近くで攻撃しかけている敵の予備動作を遅らせる。
+ * 同時に振りかぶらせないことで、ダッシュ 1 回で全部を避けられないようにする（予備動作は個別に見える）
+ */
+function coordinateNearby(state: GameState, e: Enemy, def: EnemyDef): void {
+  const t = ENEMY_TEMPO;
+  for (const o of state.enemies) {
+    if (o === e || o.hp <= 0 || o.phase !== "chase") continue;
+    if (o.attackCooldown > t.coordCooldownMax) continue;
+    if (dist(o.body.pos, e.body.pos) > t.coordRadius) continue;
+    const other = enemyDef(o.defKey);
+    if (other.boss) continue;
+    const delay = def.behavior === "bat" && other.behavior === "bat" ? t.batCoordDelay : t.coordDelay;
+    o.attackCooldown = Math.max(o.attackCooldown, delay);
+  }
+}
+
+/** 予備動作に入る（1 撃目・2 撃目以降の共通）。base は深度前の基準秒 */
+function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: number): void {
   e.phase = "windup";
-  e.phaseTimer = def.windup * eliteWindupMul(e);
+  e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e));
   e.strikeDir = dir;
   if (def.behavior === "laser" && e.ai) {
     // 狙いはチャージ開始時のプレイヤー位置で固定（動けば避けられる）
@@ -330,6 +387,11 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
     const hit = moveEnemy(state, e, def, e.strikeDir.x * speed * dt, e.strikeDir.y * speed * dt);
     if (hit.hitX || hit.hitY) {
       if (def.behavior === "charger") {
+        if (tryFollowUp(state, e, def, true)) {
+          shake(state, FEEL.shakeLight);
+          pushSfx(state, "wallHit");
+          return;
+        }
         // 壁に激突して隙を晒す（自傷の怯み: 拘束上限を数えず、解除後に堅守も付かない）
         applyStagger(state, e, POISE.chargerWallStagger, { selfInflicted: true });
         shake(state, FEEL.shakeHeavy);
@@ -337,15 +399,15 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
         pushSfx(state, "wallHit");
         return;
       }
-      endStrike(e, def);
+      endStrike(state, e, def, true);
       return;
     }
     if (def.contactDamage > 0 && touchPlayer(state, e, def.contactDamage) !== null) {
-      endStrike(e, def);
+      endStrike(state, e, def);
       return;
     }
   }
-  if (e.phaseTimer <= 0) endStrike(e, def);
+  if (e.phaseTimer <= 0) endStrike(state, e, def);
 }
 
 /** 接触していればダメージ（当たれば ENEMY_COMBAT の接触の状態異常も付く）。接触していなければ null */
@@ -374,9 +436,29 @@ function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: n
   if (e.phaseTimer <= 0) toChase(e, def);
 }
 
-function endStrike(e: Enemy, def: EnemyDef): void {
+/** 攻撃の終わり。連続攻撃が残っていれば次の予備動作へ、無ければ隙（recover） */
+function endStrike(state: GameState, e: Enemy, def: EnemyDef, byWall = false): void {
+  if (tryFollowUp(state, e, def, byWall)) return;
   e.phase = "recover";
   e.phaseTimer = def.recover;
+}
+
+/**
+ * 連続攻撃の次の撃へ。2 撃目以降も予備動作を挟む（ダッシュ CD を跨がせつつ、読めば避けられる）。
+ * 壁で止まったときは来た方向へ向き直す（狙いは予備動作の終わりにプレイヤーへ更新される）
+ */
+function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean): boolean {
+  const f = followUpOf(def.key, state.depth);
+  const ai = e.ai;
+  if (!f || !ai || ai.counter <= 0) return false;
+  if (f.onWallOnly && !byWall) {
+    ai.counter = 0;
+    return false;
+  }
+  ai.counter -= 1;
+  const dir = byWall ? scale(e.strikeDir, -1) : e.strikeDir;
+  startWindup(state, e, def, dir, f.windup);
+  return true;
 }
 
 function fireAtPlayer(state: GameState, e: Enemy): void {

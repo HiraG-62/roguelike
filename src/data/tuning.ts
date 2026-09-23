@@ -401,6 +401,34 @@ export const ENEMY_AI = {
   },
 } as const;
 
+/**
+ * 敵の攻撃テンポ（docs/COMBAT_DESIGN.md C-2）: 深度による予備動作短縮・連携ずらし・連続攻撃。
+ * 予備動作は深度と迅速エリートを掛けても基準の windupFloor 倍を下回らない（読める長さを守る）
+ */
+export const ENEMY_TEMPO = {
+  /** 予備動作 × max(windupDepthMin, 1 − windupDepthStep × (深度 − 1)) */
+  windupDepthStep: 0.02,
+  windupDepthMin: 0.75,
+  /** 深度・エリートを掛けた後の下限（基準に対する割合） */
+  windupFloor: 0.6,
+  /** 連携ずらし: 1 体が予備動作に入ると、この半径内で攻撃間隔の残りが coordCooldownMax 以下の敵を遅らせる */
+  coordRadius: 90,
+  coordCooldownMax: 0.4,
+  coordDelay: 0.2,
+  /** 蝙蝠の群れは噛みをこの秒ずつずらす */
+  batCoordDelay: 0.15,
+  /**
+   * 連続攻撃（敵 key ごと）。count = 追加の撃数、windup = 2 撃目以降の予備動作（これも深度で縮む）。
+   * onWallOnly は猪: 壁に激突したときだけ反転してもう 1 回（それ以外の終わり方では続けない）
+   */
+  followUps: {
+    slime: { minDepth: 4, count: 1, windup: 0.25, onWallOnly: false },
+    knight: { minDepth: 1, count: 1, windup: 0.3, onWallOnly: false },
+    boar: { minDepth: 6, count: 1, windup: 0.35, onWallOnly: true },
+    golem: { minDepth: 1, count: 1, windup: 0.5, onWallOnly: false },
+  },
+} as const;
+
 /** エリート修飾子 */
 export const ELITE = {
   minDepth: 3,
@@ -713,4 +741,18 @@ export const BOON = {
   feastHeal: 3,
   frostLockSlow: 0.8,
   frostLockTime: 3,
+  /** 偏重: 最も高いステータスの実効値に掛ける倍率（最も低いものは 0 として扱う） */
+  lopsidedHighMul: 1.25,
+  /** 霊刃: 通常攻撃に加わる霊力の係数と、通常攻撃のマナ回収倍率 */
+  spiritBladeSpi: 0.3,
+  spiritBladeManaMul: 0.5,
+  /** 疫病: 毒の敵が死んだとき毒を引き継ぐ半径 */
+  plagueRadius: 48,
+  plagueColor: "#80d040",
+  /** 血煙: 出血の敵を倒したときの回復量 */
+  bloodMistHeal: 3,
+  bloodMistColor: "#d04050",
+  /** 凍て刺し: 砕きで周囲に付ける冷気のスタックと半径 */
+  frostPierceStacks: 2,
+  frostPierceRadius: 44,
 } as const;

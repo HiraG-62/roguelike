@@ -7,7 +7,7 @@ import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
 import { damagePlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
-import { createEnemy, moveEnemy } from "./enemies";
+import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { inflictOnPlayer, isSilenced } from "./statusEffects";
@@ -144,7 +144,8 @@ function updateKingSlime(state: GameState, e: Enemy, def: EnemyDef, dt: number):
       moveEnemy(state, e, def, dir.x * def.speed * mul * dt, dir.y * def.speed * mul * dt);
       if (e.attackCooldown > 0) return;
       e.phase = "windup";
-      e.phaseTimer = def.windup / mul;
+      // 第 2 段階の速さと深度の短縮を掛けても、基準の 60% は残す（scaledWindup の下限）
+      e.phaseTimer = scaledWindup(def.windup, state.depth, 1 / mul);
       pushSfx(state, "enemyWindup");
       return;
     }
@@ -235,7 +236,7 @@ function updateBoneLord(state: GameState, e: Enemy, def: EnemyDef, dt: number): 
       }
       if (e.attackCooldown > 0) return;
       e.phase = "windup";
-      e.phaseTimer = def.windup;
+      e.phaseTimer = scaledWindup(def.windup, state.depth);
       ai.counter = 0;
       pushSfx(state, "enemyWindup");
       return;

@@ -1,16 +1,27 @@
 import type { FrameInput } from "../core/input";
+import type { StatusKind } from "../core/status";
 import { type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, fromAngle, length, scale } from "../core/vec";
 import { VIEW_W } from "../core/view";
-import { BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
-import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
+import { ATTR, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
+import { ATTR_KEYS, type AttrKey, type Attributes, DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { cancelAttack, healPlayer } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { KS } from "./keystones";
 import { dropItem } from "./loot";
 import { scaled } from "./attributes";
 import { applyStats, dashTime } from "./player";
-import { applyBurn, applyChill, chainLightning, enemiesInRadius, explodeAt, findStatus, hasStatus } from "./statusEffects";
+import {
+  applyBurn,
+  applyChill,
+  applyStatus,
+  chainLightning,
+  enemiesInRadius,
+  explodeAt,
+  findStatus,
+  hasStatus,
+  removeStatus,
+} from "./statusEffects";
 
 /**
  * ラン内限定の祝福 3 択。docs/ideas/run-structure.md「祝福 3 択（Boon）」。
@@ -50,6 +61,13 @@ export const BOON_KEYS = [
   "bloodFeast",
   "eliteMagnet",
   "frostLock",
+  "lopsided",
+  "swapHands",
+  "spiritBlade",
+  "plague",
+  "bloodMist",
+  "crumble",
+  "frostPierce",
 ] as const;
 
 export type BoonKey = (typeof BOON_KEYS)[number];
@@ -69,7 +87,11 @@ export type BoonTag =
   | "hp"
   | "room"
   | "loot"
-  | "boss";
+  | "boss"
+  | "attr"
+  | "poison"
+  | "bleed"
+  | "stagger";
 
 export interface BoonDef {
   key: BoonKey;
@@ -368,6 +390,73 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["chill", "room"],
     cursed: false,
   },
+  lopsided: {
+    key: "lopsided",
+    name: "偏重",
+    desc: "最も高いステータスの伸びが1.25倍になる代わりに、最も低いステータスは0として扱う。",
+    icon: "^",
+    rarity: "rare",
+    tags: ["attr"],
+    cursed: true,
+    requires: "attr",
+  },
+  swapHands: {
+    key: "swapHands",
+    name: "持ち替え",
+    desc: "筋力と技巧を入れ替えて扱う。近接が技巧で、射撃が筋力で伸びる。",
+    icon: "%",
+    rarity: "common",
+    tags: ["attr", "melee", "ranged"],
+    cursed: false,
+  },
+  spiritBlade: {
+    key: "spiritBlade",
+    name: "霊刃",
+    desc: "通常攻撃が霊力でも伸びる代わりに、通常攻撃で戻るマナが半分になる。",
+    icon: "&",
+    rarity: "rare",
+    tags: ["attr", "melee", "ranged"],
+    cursed: true,
+  },
+  plague: {
+    key: "plague",
+    name: "疫病",
+    desc: "毒の敵が死ぬと、周囲の敵に毒を引き継ぐ。",
+    icon: "Q",
+    rarity: "common",
+    tags: ["poison"],
+    cursed: false,
+    requires: "poison",
+  },
+  bloodMist: {
+    key: "bloodMist",
+    name: "血煙",
+    desc: "出血の敵を倒すと、自分の出血が消えてHP3回復する。",
+    icon: "D",
+    rarity: "common",
+    tags: ["bleed", "hp"],
+    cursed: false,
+    requires: "bleed",
+  },
+  crumble: {
+    key: "crumble",
+    name: "崩し",
+    desc: "怯ませた敵を脆弱にする。",
+    icon: "Y",
+    rarity: "common",
+    tags: ["stagger", "melee"],
+    cursed: false,
+  },
+  frostPierce: {
+    key: "frostPierce",
+    name: "凍て刺し",
+    desc: "砕きで周囲の敵に冷気を2つ重ねる。",
+    icon: "N",
+    rarity: "rare",
+    tags: ["chill"],
+    cursed: false,
+    requires: "chill",
+  },
 };
 
 export function boonDef(key: BoonKey): BoonDef {
@@ -400,6 +489,8 @@ export interface BoonRunState {
   justExtendTimer: number;
   overchargeCd: number;
   critChainCd: number;
+  /** crumble: 前ステップまでに脆弱を付けた「怯み中の敵」の id。怯み 1 回につき 1 度だけ付ける */
+  crumbled: number[];
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -412,6 +503,7 @@ export function createBoonRunState(): BoonRunState {
     justExtendTimer: 0,
     overchargeCd: 0,
     critChainCd: 0,
+    crumbled: [],
   };
 }
 
@@ -484,8 +576,35 @@ export function equipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
     tags.add("hp");
   }
   if (triggers.has("onRoomClear") || conditions.has("roomLocked")) tags.add("room");
+  addAttributeTags(stats, tags);
+  addStatusProcTags(stats, tags);
   return tags;
 }
+
+/** ステータスの性質（基礎値より高いステータス）があれば attr、筋力・怯み値の性質なら stagger */
+function addAttributeTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
+  if (ATTR_KEYS.some((k) => stats.attributes[k] > ATTR.base)) tags.add("attr");
+  if (stats.attributes.str > ATTR.base || stats.poiseDamageMul > DEFAULT_STATS.poiseDamageMul) tags.add("stagger");
+}
+
+/** 状態異常 proc の性質（出血・毒など）の種類をタグにする */
+function addStatusProcTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
+  for (const proc of stats.statusProcs) {
+    const tag = STATUS_PROC_TAG[proc.kind];
+    if (tag) tags.add(tag);
+  }
+}
+
+const STATUS_PROC_TAG: Readonly<Partial<Record<StatusKind, BoonTag>>> = {
+  burn: "burn",
+  chill: "chill",
+  freeze: "chill",
+  shock: "shock",
+  paralyze: "shock",
+  poison: "poison",
+  bleed: "bleed",
+  vulnerable: "stagger",
+};
 
 /** 候補の重み。requires を満たさない / 取得済みなら 0。装備タグの一致数で上がる */
 export function boonWeight(def: BoonDef, tags: ReadonlySet<BoonTag>, owned: readonly BoonKey[]): number {
@@ -644,7 +763,36 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
     out.burnChance = Math.min(1, out.burnChance * BOON.heartBurnMul);
     out.burnDps *= BOON.heartBurnMul;
   }
+  // 係数（実効値）を組み替える。派生（HP・移動など）は元のステータスで決まっているので触らない
+  if (boons.includes("swapHands") || boons.includes("lopsided")) out.attributesEff = foldAttributeBoons(out.attributesEff, boons);
   return out;
+}
+
+/** swapHands → lopsided の順に実効値を組み替える（入力は書き換えない） */
+function foldAttributeBoons(eff: Readonly<Attributes>, boons: readonly BoonKey[]): Attributes {
+  const out: Attributes = { ...eff };
+  if (boons.includes("swapHands")) {
+    out.str = eff.dex;
+    out.dex = eff.str;
+  }
+  if (boons.includes("lopsided")) applyLopsided(out);
+  return out;
+}
+
+/**
+ * lopsided: 最も高いステータスの実効値 ×lopsidedHighMul、最も低いものを 0 に。
+ * 同値なら ATTR_KEYS の先頭を最高、末尾を最低にする（決定的）。全部同じなら偏りが無いので何もしない
+ */
+function applyLopsided(eff: Attributes): void {
+  let high: AttrKey = ATTR_KEYS[0];
+  let low: AttrKey = ATTR_KEYS[0];
+  for (const k of ATTR_KEYS) {
+    if (eff[k] > eff[high]) high = k;
+    if (eff[k] <= eff[low]) low = k;
+  }
+  if (eff[high] === eff[low]) return;
+  eff[high] *= BOON.lopsidedHighMul;
+  eff[low] = 0;
 }
 
 /** 装備の stats（祝福前）を覚えて、祝福を畳み込み直す。何度呼んでも同じ結果 */
@@ -663,9 +811,35 @@ export function updateBoons(state: GameState, dt: number): void {
   run.justExtendTimer = Math.max(0, run.justExtendTimer - dt);
   run.overchargeCd = Math.max(0, run.overchargeCd - dt);
   run.critChainCd = Math.max(0, run.critChainCd - dt);
+  updateCrumble(state);
   if (run.heartBurnTimer <= 0) return;
   run.heartBurnTimer = Math.max(0, run.heartBurnTimer - dt);
   if (run.heartBurnTimer === 0) applyBoonsToStats(state);
+}
+
+/**
+ * crumble: プレイヤー由来の怯みに入った敵へ脆弱を付ける（怯み 1 回につき 1 度）。
+ * 怯みの付与元（poise.ts）に手を入れずに済むよう、毎ステップ新しく怯んだ敵を探す。
+ * 自傷の怯み（猪の壁激突）は source が env なので対象外
+ */
+function updateCrumble(state: GameState): void {
+  const run = state.boonRun;
+  if (!hasBoon(state, "crumble")) {
+    run.crumbled = [];
+    return;
+  }
+  const seen = new Set(run.crumbled);
+  const now: number[] = [];
+  const v = STATUS.vulnerable;
+  for (const e of state.enemies) {
+    if (e.hp <= 0) continue;
+    const stagger = findStatus(e.status, "stagger");
+    if (!stagger || stagger.source !== "player") continue;
+    now.push(e.id);
+    if (seen.has(e.id)) continue;
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "vulnerable", stacks: 1, duration: v.duration, potency: 0 }, "player");
+  }
+  run.crumbled = now;
 }
 
 // -----------------------------------------------------------------------------
@@ -772,6 +946,20 @@ function slashBase(state: GameState): number {
   return Math.round((base + s.meleeDamageFlat) * s.meleeDamageMul);
 }
 
+/**
+ * spiritBlade: 通常攻撃（近接 3 段・ダッシュ攻撃・射撃 1 発）の威力に足す値（霊力の実効値 × 係数）。
+ * 祝福が無ければ 0。player.ts の近接・射撃の威力に加算する
+ */
+export function boonNormalAttackBonus(state: GameState): number {
+  if (!hasBoon(state, "spiritBlade")) return 0;
+  return BOON.spiritBladeSpi * state.stats.attributesEff.spi;
+}
+
+/** spiritBlade: 通常攻撃の命中で戻るマナに掛ける倍率（keystones の attackManaMul と掛け合わせる） */
+export function boonAttackManaMul(state: GameState): number {
+  return hasBoon(state, "spiritBlade") ? BOON.spiritBladeManaMul : 1;
+}
+
 export function boonMoveMul(state: GameState): number {
   if (state.boonRun.guardTimer > 0) return 0;
   if (!hasBoon(state, "lockdown")) return 1;
@@ -831,6 +1019,42 @@ export function onBoonKill(state: GameState, enemy: Enemy): void {
     spawnRing(state, enemy.body.pos, BOON.burnSpreadRadius, STATUS.burnColor, STATUS.fxLife);
   }
   if (hasStatus(enemy.status, "chill") && hasBoon(state, "chillShatter")) shatter(state, enemy.body.pos);
+  if (hasBoon(state, "plague")) spreadPlague(state, enemy);
+  if (hasBoon(state, "bloodMist")) bloodMist(state, enemy);
+}
+
+/** plague: 毒のスタックと強さをそのまま周囲の敵へ引き継ぐ */
+function spreadPlague(state: GameState, enemy: Enemy): void {
+  const poison = findStatus(enemy.status, "poison");
+  if (!poison) return;
+  // potency は付与時に霊力の倍率が掛かっている。applyStatus が player 由来に再度掛けないよう割り戻す
+  const potency = poison.potency / Math.max(Number.EPSILON, state.stats.statusPotencyMul);
+  const apply = { kind: "poison" as const, stacks: poison.stacks, duration: STATUS.poison.duration, potency };
+  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.plagueRadius)) {
+    if (e.id !== enemy.id) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
+  }
+  spawnRing(state, enemy.body.pos, BOON.plagueRadius, BOON.plagueColor, STATUS.fxLife);
+}
+
+/** bloodMist: 出血の敵を倒すと、自分の出血を消して回復 */
+function bloodMist(state: GameState, enemy: Enemy): void {
+  if (!hasStatus(enemy.status, "bleed")) return;
+  removeStatus(state, { kind: "player" }, "bleed");
+  healPlayer(state, BOON.bloodMistHeal, { silent: true });
+  spawnBurst(state, state.player.body.pos, BOON.bloodMistColor, 8, 60, 0.3, 1.5);
+}
+
+/**
+ * frostPierce: 凍結の敵を砕いたとき、周囲の敵に冷気を重ねる（砕かれた本人は冷気免疫なので除く）。
+ * combat.ts の砕き（shatterFreeze）から呼ぶ
+ */
+export function onBoonShatter(state: GameState, enemy: Enemy): void {
+  if (!hasBoon(state, "frostPierce")) return;
+  const apply = { kind: "chill" as const, stacks: BOON.frostPierceStacks, duration: STATUS.chill.duration, potency: 0 };
+  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.frostPierceRadius)) {
+    if (e.id !== enemy.id) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
+  }
+  spawnRing(state, enemy.body.pos, BOON.frostPierceRadius, STATUS.chillColor, STATUS.fxLife);
 }
 
 function shatter(state: GameState, pos: Vec): void {
