@@ -16,6 +16,7 @@ import { updatePlayer } from "./player";
 import {
   attachRune,
   beamEnd,
+  capManaCost,
   chargeRatio,
   createSkillRunState,
   dropRune,
@@ -261,9 +262,11 @@ describe("マナと最低間隔", () => {
     const state = skillArena([{ key: "frag" }]);
     const params = resolveSlot(state, 0)?.params;
     if (!params) throw new Error("params");
-    expect(skillPower(state, SKILL.frag.damage, params)).toBeCloseTo(26);
+    // frag.damage.base は QA 2026-09-23 でマナ型スキル一律 +10%（12 → 13.2）。基礎値（各 5）での
+    // 威力は 13.2 + 1.4*5 + 1.4*5 = 27.2
+    expect(skillPower(state, SKILL.frag.damage, params)).toBeCloseTo(27.2);
     state.stats = { ...state.stats, attributesEff: { ...state.stats.attributesEff, dex: 15 } };
-    expect(skillPower(state, SKILL.frag.damage, params), "技巧 +10 で 1.4 × 10 伸びる").toBeCloseTo(40);
+    expect(skillPower(state, SKILL.frag.damage, params), "技巧 +10 で 1.4 × 10 伸びる").toBeCloseTo(41.2);
   });
 });
 
@@ -1143,5 +1146,34 @@ describe("追加スキルの決定性", () => {
       return [p.body.pos.x.toFixed(3), p.body.pos.y.toFixed(3), p.hp, state.score, state.skills.bullets.length, state.nextId].join("|");
     };
     expect(play()).toBe(play());
+  });
+});
+
+describe("スキルのコストは最大マナで切り詰める", () => {
+  const MAX_MANA = 100;
+  const HEAVY_BURDEN = 3;
+
+  it("最大マナ 100・負担 3 倍でもコストが 100 を超えない", () => {
+    const capped = capManaCost(MAX_MANA * HEAVY_BURDEN, MAX_MANA);
+    expect(capped.cost).toBeLessThanOrEqual(MAX_MANA);
+    expect(capped.clamped, "切り詰めた印").toBe(true);
+    expect(capManaCost(MAX_MANA / 2, MAX_MANA), "上限以下はそのまま").toEqual({ cost: MAX_MANA / 2, clamped: false });
+  });
+
+  it("最大マナを超えるコストのスキルも、満タンなら撃てる", () => {
+    const state = skillArena([{ key: "frag" }]);
+    const max = SKILL.frag.cost / 2;
+    state.stats.maxMana = max;
+    state.player.mana = max;
+    expect(manaCost(state, 0), "コストは最大マナ").toBe(max);
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.grenades, "発動する").toHaveLength(1);
+    expect(state.player.mana, "マナを使い切る").toBe(0);
+  });
+
+  it("過負荷（ks_overdraw）は HP で払えるので切り詰めない", () => {
+    const state = skillArena([{ key: "frag" }], 5, ["ks_overdraw"]);
+    state.stats.maxMana = SKILL.frag.cost / 2;
+    expect(manaCost(state, 0)).toBe(SKILL.frag.cost);
   });
 });

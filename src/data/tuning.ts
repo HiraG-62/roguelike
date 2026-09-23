@@ -21,13 +21,15 @@ export const PLAYER = {
   hurtInvuln: 0.5,
   hurtKnockback: 220,
   /**
-   * 近接 3 段。scaling は威力の係数（docs/COMBAT_DESIGN.md A-6。基礎値で 9 / 9 / 18）、
+   * 近接 3 段。scaling は威力の係数（docs/COMBAT_DESIGN.md A-6。基礎値で 7.8 / 7.8 / 15.6）、
    * poise は基礎怯み値（D-2）、heavy は重いヒットストップと壁叩きつけを起こす段
+   * base は 6 / 6 / 12 → ×0.8（QA 2026-09-23: スキル由来与ダメ比率 30.8%＜目標 55〜65%、
+   * 通常攻撃の威力を落として相対的にスキル比率を上げる。docs/COMBAT_DESIGN.md B-7 段階 3）
    */
   melee: [
-    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 6, str: 0.6 }, poise: 8, reach: 16, size: 26, knockback: 140, heavy: false },
-    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 6, str: 0.6 }, poise: 8, reach: 18, size: 28, knockback: 160, heavy: false },
-    { windup: 0.08, active: 0.12, recover: 0.3, scaling: { base: 12, str: 1.2 }, poise: 22, reach: 22, size: 38, knockback: 320, heavy: true },
+    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 4.8, str: 0.6 }, poise: 8, reach: 16, size: 26, knockback: 140, heavy: false },
+    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 4.8, str: 0.6 }, poise: 8, reach: 18, size: 28, knockback: 160, heavy: false },
+    { windup: 0.08, active: 0.12, recover: 0.3, scaling: { base: 9.6, str: 1.2 }, poise: 22, reach: 22, size: 38, knockback: 320, heavy: true },
   ],
   /** コンボ最終段の後、次の 1 段目まで待たせる時間 */
   comboLockout: 0.18,
@@ -36,8 +38,8 @@ export const PLAYER = {
   shoot: {
     cooldown: 0.17,
     speed: 300,
-    /** 1 発の威力（基礎値で 5）と怯み値 */
-    scaling: { base: 3.5, dex: 0.3 },
+    /** 1 発の威力（基礎値で 4.3）と怯み値。base 3.5 → ×0.8（QA 2026-09-23、B-7 段階 3） */
+    scaling: { base: 2.8, dex: 0.3 },
     poise: 2,
     life: 0.9,
     radius: 2,
@@ -217,19 +219,17 @@ export const ATTR_GAIN = {
   /** ラン内: 階層到達ごと・ボス撃破後の階段で得る振り分け点 */
   perFloor: 1,
   perBoss: 2,
-  /** 振り分けパネルが出てから入力を受け付けるまで（秒）。祝福の選択キーの押しっぱなしで誤爆しない */
-  allocInputDelay: 0.25,
 } as const;
 
 /** マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源 */
 export const MANA = {
-  /** 精神 base のときの最大マナと自然回復 / 秒 */
+  /** 精神 base のときの最大マナと自然回復 / 秒。3.5 → 4.5（QA 2026-09-23: マナ不足不発 20 回/180 run と少ないため、不発を増やさない範囲でスキル使用頻度を上げる） */
   baseMax: 100,
-  baseRegen: 3.5,
+  baseRegen: 4.5,
   /** 封鎖されていない部屋・通路での自然回復倍率（待ち時間を作らない） */
   idleRegenMul: 4,
-  /** 近接各段の命中 1 体ごと */
-  onMelee: [4, 4, 7],
+  /** 近接各段の命中 1 体ごと。[4,4,7] → [5,5,8]（QA 2026-09-23: スキル由来与ダメ比率 30.8%＜目標のため回収を強化） */
+  onMelee: [5, 5, 8],
   /** 近接 1 振りで回収する敵の上限 */
   meleeTargetCap: 3,
   onDashAttack: 5,
@@ -261,8 +261,9 @@ export const POISE = {
   /** 耐性 × (1 + depthScale × (深度 − 1)) */
   depthScale: 0.08,
   eliteMul: 1.5,
-  /** 怯んでいない敵へのノックバック倍率 */
-  knockbackUnstaggered: 0.35,
+  /** 怯んでいない敵へのノックバック倍率。0.35 → 0.45（QA 2026-09-23: 1 対 1 被弾 9.33 回/60 秒＞目標 1〜3、
+   * 怯まない敵を押し返しやすくして密着を崩す） */
+  knockbackUnstaggered: 0.45,
   /** 盾騎士が正面の近接をブロックしたときに溜まる怯み値の割合 */
   blockMul: 0.5,
   /** 猪の壁激突の自傷怯み（秒） */
@@ -336,7 +337,11 @@ export const FEEL = {
 export const ROOM = {
   /** 部屋に入ったと判定する余白（px）。扉を跨いでいる間はロックしない */
   enterMargin: 10,
-  baseEnemies: 2,
+  /** 2 → 3（QA 2026-09-23: depth 1/2 到達率 100% / 88.9% で前回比 0% / −6.4%、目標 −10〜−20% に対し下げ不足。
+   * bat 群れは既に minDepth 1 で出現済みのため許可では効果が薄く、baseEnemies を上げて全 depth 一律の
+   * 湧き数を +1 する方を採った）
+   */
+  baseEnemies: 3,
   /** 敵数 = baseEnemies + floor(depth * enemiesPerDepth) */
   enemiesPerDepth: 0.8,
   maxEnemies: 12,
@@ -406,8 +411,9 @@ export const ENEMY_AI = {
  * 予備動作は深度と迅速エリートを掛けても基準の windupFloor 倍を下回らない（読める長さを守る）
  */
 export const ENEMY_TEMPO = {
-  /** 予備動作 × max(windupDepthMin, 1 − windupDepthStep × (深度 − 1)) */
-  windupDepthStep: 0.02,
+  /** 予備動作 × max(windupDepthMin, 1 − windupDepthStep × (深度 − 1))。0.02 → 0.015（QA 2026-09-23:
+   * 1 対 1 被弾 9.33 回/60 秒＞目標 1〜3。深度による予備動作短縮を緩め、下限 windupFloor は維持） */
+  windupDepthStep: 0.015,
   windupDepthMin: 0.75,
   /** 深度・エリートを掛けた後の下限（基準に対する割合） */
   windupFloor: 0.6,
@@ -656,8 +662,8 @@ export const ACTION = {
     windup: 0.03,
     active: 0.1,
     recover: 0.18,
-    /** 威力（基礎値で 13）と怯み値 */
-    scaling: { base: 9, str: 0.8 },
+    /** 威力（基礎値で 11.2）と怯み値。base 9 → ×0.8（QA 2026-09-23、B-7 段階 3） */
+    scaling: { base: 7.2, str: 0.8 },
     poise: 12,
     reach: 26,
     size: 30,

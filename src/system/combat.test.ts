@@ -30,7 +30,9 @@ describe("stats → 近接", () => {
   it("meleeDamageMul でダメージが増える", () => {
     const base = meleeDamageWith(1);
     const doubled = meleeDamageWith(2);
-    expect(base).toBe(meleeStep(arena().stats, 0)?.damage);
+    // 実ダメージは Math.round 後の整数（combat.ts）。QA 2026-09-23 の近接基礎値調整で
+    // scaled 値が端数（7.8）になったため、生の scaled 値ではなく丸め後の値と比較する
+    expect(base).toBe(Math.round(meleeStep(arena().stats, 0)?.damage ?? 0));
     expect(doubled).toBe(base * 2);
   });
 

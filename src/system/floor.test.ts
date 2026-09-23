@@ -10,14 +10,14 @@ import { enemyCount, updateRooms } from "./floor";
 import { overlapsWall } from "./physics";
 
 describe("depth 2 の難度調整", () => {
-  it("湧き数は base 2 + floor(depth * 0.8)（depth1:2, depth2:3, depth5:6）", () => {
+  it("湧き数は base 3 + floor(depth * 0.8)（depth1:3, depth2:4, depth5:7）。ROOM.baseEnemies は QA 2026-09-23 で 2 → 3", () => {
     const state = createGame(1);
     for (const [depth, expected] of [
-      [1, 2],
-      [2, 3],
-      [3, 4],
-      [4, 5],
-      [5, 6],
+      [1, 3],
+      [2, 4],
+      [3, 5],
+      [4, 6],
+      [5, 7],
     ] as const) {
       state.depth = depth;
       expect(enemyCount(state)).toBe(expected);

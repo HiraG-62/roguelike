@@ -92,7 +92,9 @@ describe("カウンターヒット", () => {
     e.phase = "chase";
     const before = e.hp;
     swingOnce(state);
-    expect(before - e.hp, "通常の 1 段目の威力").toBe(slashDamage(state, 0));
+    // 実ダメージは rollOutgoing で Math.round 済み（combat.ts）。QA 2026-09-23 の近接基礎値調整で
+    // scaled 値が端数（7.8）になったため、生の値ではなく丸め後の値と比較する
+    expect(before - e.hp, "通常の 1 段目の威力").toBe(Math.round(slashDamage(state, 0)));
     expect(hasText(state, ACTION.counter.text)).toBe(false);
   });
 
@@ -258,7 +260,9 @@ describe("見切り斬り（祝福 justSlash）", () => {
     const d = dist(state.player.body.pos, e.body.pos);
     expect(d).toBeLessThan(ENEMY_DIST / 2);
     expect(d).toBeGreaterThanOrEqual(e.body.radius + state.player.body.radius);
-    const expected = Math.round(slashDamage(state, PLAYER.melee.length - 1) * ACTION.justCounter.damageMul);
+    // rollOutgoing が先に Math.round するため（player.ts の justCounterStrike）、
+    // ここでも生の値ではなく丸め後の値に倍率をかけてから丸める（QA 2026-09-23 の端数化で表面化）
+    const expected = Math.round(Math.round(slashDamage(state, PLAYER.melee.length - 1)) * ACTION.justCounter.damageMul);
     expect(1000 - e.hp, "3 段目 × 見切り斬りの倍率").toBe(expected);
     expect(hasText(state, ACTION.justCounter.text)).toBe(true);
   });
@@ -446,7 +450,7 @@ describe("ダッシュ攻撃", () => {
     p.dashAttackQueued = true;
     e.body.pos = { x: p.body.pos.x + ACTION.dashAttack.reach, y: p.body.pos.y };
     run(state, SWING_STEPS);
-    expect(1000 - e.hp, "ダッシュ攻撃の威力").toBe(slashDamage(state, 0, true));
+    expect(1000 - e.hp, "ダッシュ攻撃の威力").toBe(Math.round(slashDamage(state, 0, true)));
     expect(slashDamage(state, 0, true)).toBeGreaterThan(slashDamage(state, 0));
     expect(ACTION.dashAttack.reach).toBeGreaterThan(PLAYER.melee[1]!.reach);
   });
