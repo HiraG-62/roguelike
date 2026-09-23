@@ -452,7 +452,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "justDodgeDamage",
-    label: "JUST回避後 {v2}秒間ダメージ +{v}%",
+    label: "ジャスト回避後 {v2}秒間ダメージ +{v}%",
     tags: ["combo", "damage"],
     slots: ["boots", "ring", "amulet"],
     curve: [t2(20, 36, 55, 2, 3), t2(10, 21, 35, 1.5, 2), t2(1, 10, 20, 1, 1.5)],
@@ -953,7 +953,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_comboToJust",
-    label: "コンボダメージの{v}%をJUST回避ダメージに変換",
+    label: "コンボダメージの{v}%をジャスト回避ダメージに変換",
     tags: ["conversion", "combo"],
     slots: ["boots", "ring", "amulet"],
     curve: CONVERSION_CURVE,

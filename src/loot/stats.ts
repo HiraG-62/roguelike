@@ -231,8 +231,8 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   comboWindowBonus: { label: "コンボ猶予", style: "seconds" },
   comboDamagePerStack: { label: "コンボ1段階ごとのダメージ", style: "percent" },
   comboDamageCap: { label: "コンボダメージ上限", style: "percent" },
-  justDodgeDamageMul: { label: "JUST回避ダメージ", style: "mul" },
-  justDodgeWindow: { label: "JUST回避猶予", style: "seconds" },
+  justDodgeDamageMul: { label: "ジャスト回避ダメージ", style: "mul" },
+  justDodgeWindow: { label: "ジャスト回避猶予", style: "seconds" },
 
   burnChance: { label: "炎上確率", style: "percent" },
   burnDps: { label: "炎上ダメージ/秒", style: "flat" },

@@ -8,7 +8,7 @@
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | ジャスト（ジャスト！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間。スロー + ゲージ増 | `system/combat.ts` |
-| ジャスト回避 | onJustDodge | 上の行為。説明文での名前 | `system/boons.ts`。※アフィックス・トリガーには `JUST回避` 表記が残る（下の「揺れ」） |
+| ジャスト回避 | onJustDodge | 上の行為。説明文での名前 | `system/boons.ts`、`loot/affixes.ts`、`loot/stats.ts`、`loot/triggers.ts` |
 | ジャストカウンター | justCounter | ジャスト直後の攻撃で背後へ瞬間移動して斬る | `data/tuning.ts` ACTION |
 | カウンター（カウンター！） | counter | 敵の予備動作中に近接を当てる。1.5 倍 + 必ずスタガー | `data/tuning.ts` ACTION |
 | ガードブレイク | guard break | 盾騎士の正面ブロックをカウンターで割る | `system/elites.ts` GUARD_BREAK_TEXT |
@@ -96,6 +96,4 @@
 
 | 揺れ | 箇所 | 推奨 |
 | --- | --- | --- |
-| `JUST回避` と `ジャスト回避` | 祝福 desc（`system/boons.ts`、統一済み）・性質 label / トリガー文（`loot/affixes.ts` label、`loot/stats.ts` label、`loot/triggers.ts` text は `JUST回避`）／来歴 / 共鳴の説明文（`loot/describe.ts`、`loot/provenance.ts`、`loot/resonance.ts` は `ジャスト回避`） | 「ジャスト回避」に統一 |
 | レアリティ `通常` と フロア種別 `通常` と 祝福 `通常` | titleUi / renderer / boonUi | 文脈で区別できるので現状維持 |
-| 揺らぎ分類のラベル | 装備画面・残響タブは `静 / 揺 / 荒 / 反転あり`（`loot/types.ts` RARITY_LABEL）だが、死亡画面の内訳だけ旧表記 `通常 / 魔法 / 希少 / 固有`（`render/titleUi.ts` RARITY_LABEL_JA） | 死亡画面を新表記に合わせる（src の変更が要る） |

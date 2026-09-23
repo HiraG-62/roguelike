@@ -200,7 +200,7 @@ describe("affixDefForRoll（動的アフィックス）", () => {
   it("固定テーブルに無いトリガー key を復元・整形できる", () => {
     const roll = { key: "tr:onJustDodge:always:shockwave", kind: "prefix" as const, tier: 1, value: 25, value2: 400 };
     expect(affixDefForRoll(roll)?.source).toBe("trigger");
-    expect(formatAffix(roll)).toBe("JUST回避時: 40% で衝撃波を放つ（25 ダメージ）");
+    expect(formatAffix(roll)).toBe("ジャスト回避時: 40% で衝撃波を放つ（25 ダメージ）");
   });
 
   it("不正な key は undefined", () => {

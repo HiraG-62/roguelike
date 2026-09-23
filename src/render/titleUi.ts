@@ -3,7 +3,7 @@
  * 文字は pixelText.ts のドット風描画（TEXT のサイズ段階）、配色は renderer.ts の作法（#e0e0 系）に合わせる。
  */
 import { VIEW_H, VIEW_W } from "../core/view";
-import { RARITIES, type RunHistoryEntry } from "../loot/types";
+import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
 import type { RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import { PAUSE_MENU_ITEMS, SETTINGS_ITEMS, dailyBestIndices, isDailyEntry } from "../ui/title";
 import type { Settings } from "../ui/settings";
@@ -422,19 +422,11 @@ export interface DeathSummaryInfo {
   bossesDefeated: number;
 }
 
-/** items found の内訳表示専用。loot/types.ts の Rarity は英語のキーのまま（ロジック側は別エージェントが管轄） */
-const RARITY_LABEL_JA: Readonly<Record<(typeof RARITIES)[number], string>> = {
-  normal: "通常",
-  magic: "魔法",
-  rare: "希少",
-  unique: "固有",
-};
-
 /** renderer.drawDeath の上に重ね描きする追加情報 */
 export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSummaryInfo): void {
   const m = TEXT.SMALL;
-  const rarityText = RARITIES.map((r) => `${RARITY_LABEL_JA[r]} ${info.itemSummary.byRarity[r]}`).join(" / ");
-  drawText(ctx, `拾った装備: ${info.itemSummary.total}（${rarityText}）`, VIEW_W / 2, VIEW_H / 2 + 60, m, COLOR_TEXT, "center");
+  const rarityText = RARITIES.map((r) => `${RARITY_LABEL[r]} ${info.itemSummary.byRarity[r]}`).join(" / ");
+  drawText(ctx, `拾った遺物: ${info.itemSummary.total}（${rarityText}）`, VIEW_W / 2, VIEW_H / 2 + 60, m, COLOR_TEXT, "center");
   drawText(ctx, `撃破したボス: ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72, m, COLOR_TEXT, "center");
   drawText(ctx, "Enter: 同じシードで再挑戦   R: 新しいシード   T: タイトル", VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
 }
