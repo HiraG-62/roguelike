@@ -363,40 +363,72 @@ function circleOnDoorTiles(state: GameState, room: RoomState, x: number, y: numb
 }
 
 /**
- * ドアタイルをロックで壁扱いにする直前に、ドアタイル上に AABB が掛かっている敵を
- * 部屋の中心方向へ 1 タイルぶんずつ最大 DOOR_PUSH_MAX_TRIES 回押し込む。
- * 押し込めなければ（壁に阻まれる等）その敵をその場で配列から取り除く
- * （以前は hp = 0 にするだけだったため、次フレームの死亡処理まで「壁に埋まった死体」が
- * 1 フレーム残っていた。死亡演出やドロップも通常の撃破経路を通らないので、
- * 静かに取り除く方が実態に合う）
+ * ドアタイルをロックで壁扱いにする直前に、ドアタイル上に AABB が掛かっている敵を押し出す。
+ * 所属（roomIndex）を問わず全ての敵が対象。以前は自室の敵だけを見ていたため、プレイヤーを
+ * 追って隣室から来た敵が扉タイル上にいるとそのまま壁に埋まっていた（QA seed=50025/50028）。
+ * - 自室の敵: 部屋の中へ。外へ出すと封鎖中の部屋から倒せない敵が生まれ、制圧できなくなる
+ * - 他室の敵: 部屋の外へ（元いた側）。無理なら部屋の中へ（倒せば済むので害はない）
+ * この step で撃破済み（hp <= 0）の敵も押し出す。配列からの除去と死亡時処理（爆発・エリート死亡）は
+ * 次の updateEnemies で行われるため、それまでの 1 フレームは扉の上に残ってしまう（QA seed=50020）。
+ * どちらにも押し出せない生存中の敵はその場で配列から取り除く
+ * （hp = 0 だけだと次フレームの死亡処理まで「壁に埋まった死体」が残り、死亡演出やドロップも
+ * 通常の撃破経路を通らないので、静かに取り除く方が実態に合う）。
+ * 撃破済みの敵は死亡時処理を飛ばさないよう取り除かない
  */
 function pushEnemiesOffDoorTiles(state: GameState, room: RoomState, index: number): void {
   if (room.doorTiles.length === 0) return;
   const center = rectCenterPx(room.rect);
-  let removed = false;
+  const stuck = new Set<Enemy>();
   for (const e of state.enemies) {
-    if (e.roomIndex !== index || e.hp <= 0) continue;
     if (!circleOnDoorTiles(state, room, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
-    if (!pushEnemyTowardCenter(state, room, e, center)) {
-      e.hp = 0;
-      removed = true;
-    }
+    const inward = normalize(sub(center, e.body.pos));
+    const outward = { x: -inward.x, y: -inward.y };
+    const pushed = e.roomIndex === index
+      ? pushEnemyToward(state, room, e, inward)
+      : pushEnemyToward(state, room, e, outward) || pushEnemyToward(state, room, e, inward);
+    if (!pushed && e.hp > 0) stuck.add(e);
   }
-  if (removed) state.enemies = state.enemies.filter((e) => e.hp > 0);
+  if (stuck.size > 0) state.enemies = state.enemies.filter((e) => !stuck.has(e));
 }
 
-/** 1 タイルぶんずつ中心方向へ動かす。壁に阻まれたら諦め、ドアタイルから外れたら成功 */
-function pushEnemyTowardCenter(state: GameState, room: RoomState, e: Enemy, center: { x: number; y: number }): boolean {
-  const dir = normalize(sub(center, e.body.pos));
-  for (let i = 0; i < DOOR_PUSH_MAX_TRIES; i++) {
-    const nx = e.body.pos.x + dir.x * TILE_SIZE;
-    const ny = e.body.pos.y + dir.y * TILE_SIZE;
-    if (overlapsWall(state, nx, ny, e.body.radius)) break;
-    e.body.pos.x = nx;
-    e.body.pos.y = ny;
-    if (!circleOnDoorTiles(state, room, nx, ny, e.body.radius)) return true;
+const CARDINALS = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+] as const;
+
+/**
+ * dir 側へ押し出す。まず dir そのもの、次に dir と同じ向きの成分を持つ軸方向を試す
+ * （細い通路の扉では斜めの dir だと 1 歩目で壁に当たるため、軸方向の候補が要る）。
+ * 逆向きの軸は試さない（自室の敵を部屋の外へ出さないため）。失敗時は元の位置に戻す
+ */
+function pushEnemyToward(state: GameState, room: RoomState, e: Enemy, dir: { x: number; y: number }): boolean {
+  const axes = CARDINALS.filter((c) => c.x * dir.x + c.y * dir.y > 0).sort((a, b) => b.x * dir.x + b.y * dir.y - (a.x * dir.x + a.y * dir.y));
+  for (const d of [dir, ...axes]) {
+    if (pushEnemyAlong(state, room, e, d)) return true;
   }
-  return !circleOnDoorTiles(state, room, e.body.pos.x, e.body.pos.y, e.body.radius);
+  return false;
+}
+
+/** 1 タイルぶんずつ d 方向へ動かす。壁に阻まれたら元の位置に戻して諦め、ドアタイルから外れたら成功 */
+function pushEnemyAlong(state: GameState, room: RoomState, e: Enemy, d: { x: number; y: number }): boolean {
+  const ox = e.body.pos.x;
+  const oy = e.body.pos.y;
+  let x = ox;
+  let y = oy;
+  for (let i = 0; i < DOOR_PUSH_MAX_TRIES; i++) {
+    x += d.x * TILE_SIZE;
+    y += d.y * TILE_SIZE;
+    if (overlapsWall(state, x, y, e.body.radius)) break;
+    if (circleOnDoorTiles(state, room, x, y, e.body.radius)) continue;
+    e.body.pos.x = x;
+    e.body.pos.y = y;
+    return true;
+  }
+  e.body.pos.x = ox;
+  e.body.pos.y = oy;
+  return false;
 }
 
 function lockRoom(state: GameState, room: RoomState, index: number): void {

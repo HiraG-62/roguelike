@@ -46,6 +46,42 @@ function findLockableRoom(state: GameState): { room: RoomState; index: number } 
 
 const SEARCH_SEEDS = 50;
 
+/** 最小マップの部屋 (5..8, 5..8) の右壁に開いた扉 (9,6) と、その先の幅 1 の通路 (10..14, 6) */
+const DOOR_TX = 9;
+const DOOR_TY = 6;
+const CORRIDOR_END_TX = 14;
+const OTHER_ROOM = 1;
+
+function doorCenter(): { x: number; y: number } {
+  return { x: (DOOR_TX + 0.5) * TILE_SIZE, y: (DOOR_TY + 0.5) * TILE_SIZE };
+}
+
+/**
+ * 壁で囲んだ部屋 1 つと細い通路だけの最小マップ。扉の中心から部屋の中心への向きは斜めなので、
+ * 通路側へ押し出すには斜め方向ではなく軸方向の候補が必要になる
+ */
+function corridorRoomState(): { state: GameState; room: RoomState } {
+  const state = createGame(1);
+  const map = createMap(20, 20);
+  map.tiles.fill(Tile.Wall);
+  for (let y = 5; y <= 8; y++) for (let x = 5; x <= 8; x++) map.tiles[toIndex(map, x, y)] = Tile.Floor;
+  for (let x = DOOR_TX; x <= CORRIDOR_END_TX; x++) map.tiles[toIndex(map, x, DOOR_TY)] = Tile.Floor;
+  state.map = map;
+  const room: RoomState = {
+    rect: { x: 5, y: 5, w: 4, h: 4 },
+    cleared: false,
+    locked: false,
+    doorTiles: [toIndex(map, DOOR_TX, DOOR_TY)],
+    kind: "normal",
+    wave: 0,
+    used: false,
+  };
+  state.rooms = [room];
+  state.lockedTiles = new Set();
+  state.enemies = [];
+  return { state, room };
+}
+
 describe("扉タイル上の敵とロック", () => {
   it("扉タイルに AABB が掛かっている敵はロック時に部屋の中心方向へ押し込まれ、壁（ロック済み扉含む）に重ならない", () => {
     let found: { state: GameState; room: RoomState; index: number } | null = null;
@@ -117,6 +153,37 @@ describe("扉タイル上の敵とロック", () => {
     expect(room.locked).toBe(true);
     expect(e.hp).toBeGreaterThan(0);
     expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius)).toBe(false);
+  });
+
+  it("他室所属の敵が扉タイル上にいても、ロック時に部屋の外側（通路）へ押し出され壁に埋まらない", () => {
+    // QA seed=50025/50028: プレイヤーを追って隣室から来た敵（roomIndex が別）が扉の上にいると、
+    // 押し出し対象が自室の敵だけだったためロック済み扉に埋まっていた
+    const { state, room } = corridorRoomState();
+    const e = createEnemy(state, enemyDef("slime"), doorCenter(), OTHER_ROOM, false);
+    state.enemies.push(e);
+
+    state.player.body.pos = rectCenterPx(room.rect);
+    updateRooms(state, FIXED_DT);
+
+    expect(room.locked, "部屋がロックされる").toBe(true);
+    expect(state.enemies.includes(e), "押し出せたので取り除かれない").toBe(true);
+    expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), "ロック済み扉に埋まらない").toBe(false);
+    expect(e.body.pos.x - e.body.radius, "通路側（部屋の外）へ出る").toBeGreaterThanOrEqual((DOOR_TX + 1) * TILE_SIZE);
+  });
+
+  it("この step で撃破済みの敵も扉タイルから押し出し、死亡時処理のため配列には残す", () => {
+    // QA seed=50020: 撃破済みの敵は次の updateEnemies まで配列に残るので、その 1 フレームだけ扉に埋まっていた
+    const { state, room } = corridorRoomState();
+    const dead = createEnemy(state, enemyDef("slime"), doorCenter(), 0, false);
+    dead.hp = 0;
+    state.enemies.push(dead);
+
+    state.player.body.pos = rectCenterPx(room.rect);
+    updateRooms(state, FIXED_DT);
+
+    expect(room.locked, "部屋がロックされる").toBe(true);
+    expect(state.enemies.includes(dead), "撃破済みの敵は死亡時処理のため残る").toBe(true);
+    expect(overlapsWall(state, dead.body.pos.x, dead.body.pos.y, dead.body.radius), "ロック済み扉に埋まらない").toBe(false);
   });
 
   it("プレイヤー自身が扉タイルに掛かっている間はロックされない（二重の保険）", () => {
