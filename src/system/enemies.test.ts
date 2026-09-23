@@ -11,6 +11,9 @@ import { updateHazards } from "./hazards";
 import { updateProjectiles } from "./projectiles";
 import { interceptEnemyDamage } from "./elites";
 import { reviveCorpse } from "./enemyTraits";
+import { SCAVENGER_EATING, finishEating } from "./enemyBehaviors";
+import { overlapsWall } from "./physics";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { isStaggered } from "./poise";
 import { applyStatus, hasStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -414,6 +417,42 @@ describe("死骸と骨拾い・墓守の鐘", () => {
     expect(s.maxHp).toBeGreaterThan(maxHp);
     expect(s.body.radius).toBeGreaterThan(enemyDef("scavenger").radius);
     expect(state.corpses.length, "食べた死骸は消える").toBe(0);
+  });
+
+  it("骨拾いが壁際で育つと、伸びた分だけ壁から押し出され、めり込まない", () => {
+    const state = arena();
+    const room = state.map.rooms[0];
+    if (!room) throw new Error("no room");
+    const s = placeEnemy(state, "scavenger", 0);
+    // 左の壁にぴったり付ける
+    s.body.pos = { x: room.x * TILE_SIZE + s.body.radius + 0.01, y: (room.y + room.h / 2) * TILE_SIZE };
+    expect(overlapsWall(state, s.body.pos.x, s.body.pos.y, s.body.radius)).toBe(false);
+    if (!s.ai) throw new Error("no ai");
+    s.ai.move = SCAVENGER_EATING;
+    finishEating(state, s, enemyDef("scavenger"));
+    expect(s.ai.counter, "育った").toBe(1);
+    expect(s.body.radius).toBe(enemyDef("scavenger").radius + ENEMY_AI.scavenger.radiusPerGrowth);
+    expect(overlapsWall(state, s.body.pos.x, s.body.pos.y, s.body.radius), "壁にめり込まない").toBe(false);
+  });
+
+  it("骨拾いは押し出す余地の無い狭い場所では育たない", () => {
+    const state = arena();
+    const s = placeEnemy(state, "scavenger", 0);
+    const tx = Math.floor(s.body.pos.x / TILE_SIZE);
+    const ty = Math.floor(s.body.pos.y / TILE_SIZE);
+    // 1 マスだけの空間に閉じ込める
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx !== 0 || dy !== 0) setTile(state.map, tx + dx, ty + dy, Tile.Wall);
+    s.body.pos = { x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE };
+    s.body.radius = 7.5;
+    if (!s.ai) throw new Error("no ai");
+    s.ai.counter = 2;
+    s.ai.move = SCAVENGER_EATING;
+    const maxHp = s.maxHp;
+    finishEating(state, s, enemyDef("scavenger"));
+    expect(s.ai.counter, "育たない").toBe(2);
+    expect(s.body.radius).toBe(7.5);
+    expect(s.maxHp).toBe(maxHp);
+    expect(s.ai.move, "食べ終わりの印は消える").toBe(0);
   });
 
   it("墓守の鐘は rings 回鳴ると死骸を 1 体蘇らせる", () => {

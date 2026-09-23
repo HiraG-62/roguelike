@@ -359,6 +359,17 @@ function anyEnemyInWall(state: GameState): boolean {
   return state.enemies.some((e) => !enemyDef(e.defKey).phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius));
 }
 
+/** 壁にめり込んだ敵を 1 行ずつ出す（QA_DEBUG=1 のときだけ呼ぶ） */
+function logWallEmbeds(state: GameState, step: number): void {
+  for (const e of state.enemies) {
+    const def = enemyDef(e.defKey);
+    if (def.phasing || !overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
+    const pos = `(${e.body.pos.x.toFixed(1)},${e.body.pos.y.toFixed(1)})`;
+    const status = JSON.stringify(e.status.effects.map((s) => s.kind));
+    console.error(`[WALL_EMBED] step=${step} defKey=${e.defKey} behavior=${def.behavior} phase=${e.phase} pos=${pos} radius=${e.body.radius} status=${status}`);
+  }
+}
+
 function hasDuplicateFloorItemId(state: GameState): boolean {
   const ids = new Set<number>();
   for (const fi of state.floorItems) {
@@ -478,15 +489,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
     if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) {
       metrics.wallOverlapDetected = true;
-      // eslint-disable-next-line no-console
-      for (const e of state.enemies) {
-        const def = enemyDef(e.defKey);
-        if (!def.phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius)) {
-          console.error(
-            `[WALL_EMBED] step=${i} defKey=${e.defKey} behavior=${def.behavior} phase=${e.phase} pos=(${e.body.pos.x.toFixed(1)},${e.body.pos.y.toFixed(1)}) radius=${e.body.radius} status=${JSON.stringify(e.status.effects.map((s) => s.kind))}`,
-          );
-        }
-      }
+      // めり込んだ敵の詳細は調査のときだけ出す（QA_DEBUG=1）。通常の実行ではログを汚さない
+      if (process.env.QA_DEBUG) logWallEmbeds(state, i);
     }
     if (!metrics.duplicateFloorItemId && hasDuplicateFloorItemId(state)) metrics.duplicateFloorItemId = true;
 

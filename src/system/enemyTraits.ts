@@ -24,6 +24,44 @@ const MANA_TEXT_COLOR = "#60a0ff";
 const VANISH_TEXT = "逃げた";
 
 // -----------------------------------------------------------------------------
+// 置き場所（壁に埋めない）
+// -----------------------------------------------------------------------------
+
+/** 空きを探す向きの数と、1 周ごとに広げる距離（px） */
+const FREE_SPOT_DIRECTIONS = 16;
+const FREE_SPOT_STEP = 2;
+/** 空きを探す最大距離（px）。これより遠くへは動かさない */
+export const FREE_SPOT_MAX_DIST = 48;
+
+/**
+ * pos から一番近い、半径 radius が壁に掛からない地点（決まった順に探すので決定的）。
+ * pos がそのまま空いていれば pos。見つからなければ null。
+ * すり抜ける敵（壁の中にいられる）の位置を代わりに使うと、取り巻き・寄生虫・蘇生体が壁に埋まるため、湧きの位置は必ずこれを通す
+ */
+export function findFreeSpot(
+  state: GameState,
+  pos: Vec,
+  radius: number,
+  maxDist = FREE_SPOT_MAX_DIST,
+  step = FREE_SPOT_STEP,
+): Vec | null {
+  if (!overlapsWall(state, pos.x, pos.y, radius)) return { ...pos };
+  for (let d = step; d <= maxDist; d += step) {
+    for (let k = 0; k < FREE_SPOT_DIRECTIONS; k++) {
+      const q = add(pos, scale(fromAngle((k / FREE_SPOT_DIRECTIONS) * FULL_CIRCLE), d));
+      if (!overlapsWall(state, q.x, q.y, radius)) return q;
+    }
+  }
+  return null;
+}
+
+/** 湧きの位置: want が空いていればそこ、だめなら fallback の近くの空き、それも無ければ fallback のまま */
+export function spawnSpot(state: GameState, want: Vec, fallback: Vec, radius: number): Vec {
+  if (!overlapsWall(state, want.x, want.y, radius)) return { ...want };
+  return findFreeSpot(state, fallback, radius) ?? { ...fallback };
+}
+
+// -----------------------------------------------------------------------------
 // 敵の弾
 // -----------------------------------------------------------------------------
 
@@ -162,7 +200,9 @@ export function consumeCorpse(state: GameState, corpse: Corpse): void {
 /** 死骸を蘇らせる（出現演出つき）。墓守の鐘が使う */
 export function reviveCorpse(state: GameState, corpse: Corpse): Enemy {
   consumeCorpse(state, corpse);
-  const revived = createEnemy(state, enemyDef(corpse.defKey), corpse.pos, corpse.roomIndex, true);
+  const def = enemyDef(corpse.defKey);
+  const pos = findFreeSpot(state, corpse.pos, def.radius) ?? corpse.pos;
+  const revived = createEnemy(state, def, pos, corpse.roomIndex, true);
   revived.revived = true;
   state.enemies.push(revived);
   return revived;
@@ -186,7 +226,7 @@ export function spawnPackOnce(state: GameState, e: Enemy, def: EnemyDef): void {
   for (let i = 0; i < pack.count; i++) {
     const offset = scale(fromAngle((i / pack.count) * FULL_CIRCLE + e.id), PACK_RING);
     const want = add(e.body.pos, offset);
-    const pos = overlapsWall(state, want.x, want.y, minionDef.radius) ? { ...e.body.pos } : want;
+    const pos = spawnSpot(state, want, e.body.pos, minionDef.radius);
     const minion = createEnemy(state, minionDef, pos, e.roomIndex, true);
     minion.leaderId = e.id;
     // 蘇生体が連れた取り巻きも蘇生体と同じ扱い（取り巻き経由で稼がせない）
@@ -226,7 +266,7 @@ export function tickTwinRevive(state: GameState, e: Enemy, dt: number): void {
   if (ai.timer > 0) return;
   ai.move = TWIN_IDLE;
   const def = enemyDef(e.defKey);
-  const twin = createEnemy(state, def, ai.target, e.roomIndex, true);
+  const twin = createEnemy(state, def, findFreeSpot(state, ai.target, def.radius) ?? ai.target, e.roomIndex, true);
   twin.hp = Math.max(1, Math.round(twin.maxHp * ENEMY_AI.twinShade.reviveHpRatio));
   twin.lastHp = twin.hp;
   twin.leaderId = e.id;

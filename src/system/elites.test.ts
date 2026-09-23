@@ -22,6 +22,8 @@ import { applyStatus, findStatus, hasStatus } from "./statusEffects";
 import { updateEnemies } from "./enemies";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
+import { overlapsWall } from "./physics";
+import { TILE_SIZE } from "../map/grid";
 
 describe("eliteChance", () => {
   it("depth < minDepth は 0、minDepth 以降は基準値から微増して上限で止まる", () => {
@@ -287,6 +289,22 @@ describe("寄生の / 群長の", () => {
     const bats = state.enemies.filter((o) => o.defKey === "bat");
     expect(bats.length).toBe(ELITE.parasiteCount);
     expect(bats.every((b) => b.maxHp === ELITE.parasiteHp)).toBe(true);
+  });
+
+  it("寄生のすり抜ける敵（鬼火）が壁の中で倒れても、蝙蝠は壁の外に湧く", () => {
+    const state = arena();
+    const room = state.map.rooms[0];
+    if (!room) throw new Error("no room");
+    const w = placeEnemy(state, "wisp", 0);
+    // 部屋の左の壁の中（1.5 マス奥）
+    w.body.pos = { x: room.x * TILE_SIZE - TILE_SIZE * 1.5, y: (room.y + room.h / 2) * TILE_SIZE };
+    expect(overlapsWall(state, w.body.pos.x, w.body.pos.y, w.body.radius), "親は壁の中").toBe(true);
+    makeElite(w, "parasitic");
+    damageEnemy(state, w, 9999, { x: 1, y: 0 }, 0);
+    updateEnemies(state, FIXED_DT);
+    const bats = state.enemies.filter((o) => o.defKey === "bat");
+    expect(bats.length).toBe(ELITE.parasiteCount);
+    for (const b of bats) expect(overlapsWall(state, b.body.pos.x, b.body.pos.y, b.body.radius), `蝙蝠 ${b.id}`).toBe(false);
   });
 
   it("群長のは同じ種類の小型を packedCount 体連れる（小型はエリートではない）", () => {

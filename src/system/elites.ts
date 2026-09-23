@@ -10,9 +10,8 @@ import { spawnBomb, spawnShockwave } from "./hazards";
 import { dropItem, enemyDropChance } from "./loot";
 import { applyOnHitStatus, applyStatus, findStatus } from "./statusEffects";
 import { createEnemy } from "./enemies";
-import { consumeCorpse, nearestCorpse } from "./enemyTraits";
+import { consumeCorpse, nearestCorpse, spawnSpot } from "./enemyTraits";
 import { bossArmorBlocks } from "./boss";
-import { overlapsWall } from "./physics";
 
 /** エリート修飾子と、盾・反射など「被弾の前に割り込む」処理 */
 
@@ -301,7 +300,7 @@ function spawnPacked(state: GameState, e: Enemy, w: EliteWork): void {
   const def = enemyDef(e.defKey);
   for (let i = 0; i < ELITE.packedCount; i++) {
     const want = add(e.body.pos, scale(fromAngle((i / ELITE.packedCount) * FULL_CIRCLE + e.id), ELITE.packedOffset));
-    const pos = overlapsWall(state, want.x, want.y, def.radius) ? { ...e.body.pos } : want;
+    const pos = spawnSpot(state, want, e.body.pos, def.radius);
     const small = createEnemy(state, def, pos, e.roomIndex, true);
     small.maxHp = Math.max(1, Math.round(small.maxHp * ELITE.packedHpRatio));
     small.hp = small.maxHp;
@@ -518,7 +517,8 @@ function releaseParasites(state: GameState, e: Enemy): void {
   const bat = enemyDef("bat");
   for (let i = 0; i < ELITE.parasiteCount; i++) {
     const want = add(e.body.pos, scale(fromAngle((i / ELITE.parasiteCount) * FULL_CIRCLE), ELITE.packedOffset));
-    const pos = overlapsWall(state, want.x, want.y, bat.radius) ? { ...e.body.pos } : want;
+    // 親がすり抜ける敵（鬼火・影蝙蝠）なら壁の中で倒れうるので、親の位置のままにせず近くの空きへ出す
+    const pos = spawnSpot(state, want, e.body.pos, bat.radius);
     const parasite = createEnemy(state, bat, pos, e.roomIndex, true);
     parasite.maxHp = ELITE.parasiteHp;
     parasite.hp = ELITE.parasiteHp;

@@ -6,7 +6,7 @@ import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
 import { explodeHostile, spawnLanding, spawnShockwave } from "./hazards";
 import { applyStagger, initEnemyPoise } from "./poise";
 import { applyStatus, hasStatus, isSilenced } from "./statusEffects";
-import { consumeCorpse, fanDirections, fireEnemyBullet, followersOf, nearestCorpse, reviveCorpse } from "./enemyTraits";
+import { consumeCorpse, fanDirections, findFreeSpot, fireEnemyBullet, followersOf, nearestCorpse, reviveCorpse } from "./enemyTraits";
 
 /**
  * 2026-09-24 に足した behavior の固有処理（docs/ideas/enemies.md）。
@@ -18,6 +18,10 @@ export const SCAVENGER_EATING = 1;
 /** ai.move: 喰らう宝箱の技（噛みつき / 舌） */
 export const MIMIC_BITE = 0;
 export const MIMIC_TONGUE = 1;
+/** 育って壁に掛かったとき押し出す距離の上限（伸ばした分に対する倍率。角では斜めに押すので √2 より少し大きく） */
+const GROW_PUSH_MUL = 1.5;
+/** 押し出し先を探す刻み（px） */
+const GROW_PUSH_STEP = 0.25;
 
 // -----------------------------------------------------------------------------
 // 自爆（導火鼠・結晶ダニ）
@@ -184,20 +188,34 @@ export function tryStartEating(state: GameState, e: Enemy): boolean {
   return true;
 }
 
-/** 食べ終わり: 1 段育つ（HP・接触ダメージ・体の大きさ） */
+/** 食べ終わり: 1 段育つ（HP・接触ダメージ・体の大きさ）。壁際で体を大きくできなければ育たない */
 export function finishEating(state: GameState, e: Enemy, def: EnemyDef): void {
   const ai = e.ai;
   if (!ai || ai.move !== SCAVENGER_EATING) return;
   const s = ENEMY_AI.scavenger;
   ai.move = 0;
-  ai.counter = Math.min(s.maxGrowth, ai.counter + 1);
+  const growth = Math.min(s.maxGrowth, ai.counter + 1);
+  if (!growBody(state, e, def.radius + growth * s.radiusPerGrowth)) return;
+  ai.counter = growth;
   const bonus = Math.round(e.maxHp * s.hpPerGrowth);
   e.maxHp += bonus;
   e.hp += bonus;
   e.lastHp = e.hp;
-  e.body.radius = def.radius + ai.counter * s.radiusPerGrowth;
   addFloatingText(state, e.body.pos, "育った", s.color, 1, 0.8);
   spawnBurst(state, e.body.pos, s.color, 10, 70, 0.3, 1.5);
+}
+
+/**
+ * 体を radius まで大きくする。壁に掛かるなら、伸ばした分（斜めの角を考えて GROW_PUSH_MUL 倍まで）だけ壁から離れる位置へ押し出す。
+ * 押し出せなければ大きくしない（false）。壁際で育って壁にめり込まないように
+ */
+function growBody(state: GameState, e: Enemy, radius: number): boolean {
+  const grown = Math.max(0, radius - e.body.radius);
+  const spot = findFreeSpot(state, e.body.pos, radius, grown * GROW_PUSH_MUL, GROW_PUSH_STEP);
+  if (!spot) return false;
+  e.body.pos = spot;
+  e.body.radius = radius;
+  return true;
 }
 
 /** 骨拾いは育つほど噛みつきが重い */
