@@ -1,4 +1,4 @@
-import { STATUS_LABEL, type StatusKind, type StatusProc } from "../core/status";
+import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMIES } from "../data/enemies";
 import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
 import { traitColorOf } from "./colors";
@@ -119,8 +119,8 @@ function attributeHintOfKey(key: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 /** 状態異常を付ける動詞（docs/COMBAT_DESIGN.md E-2 の表記） */
-/** 状態異常を付ける動詞。2026-09 に足された種類（濡れ・烙印など）は「{表示名}にする」で補う（statusVerb） */
-const STATUS_VERB: Readonly<Partial<Record<StatusKind, string>>> = {
+/** 状態異常を付ける動詞（docs/GLOSSARY.md の表示名に合わせる） */
+const STATUS_VERB: Readonly<Record<StatusKind, string>> = {
   burn: "燃焼させる",
   chill: "冷気で凍えさせる",
   freeze: "凍結させる",
@@ -134,11 +134,28 @@ const STATUS_VERB: Readonly<Partial<Record<StatusKind, string>>> = {
   silence: "沈黙させる",
   stagger: "怯ませる",
   guarded: "堅守を与える",
+  wet: "濡らす",
+  oiled: "油をかける",
+  corrode: "腐食させる",
+  brand: "烙印を刻む",
+  broken: "崩勢にする",
+  doom: "宣告を刻む",
+  siphon: "吸魔の印を付ける",
+  hue: "彩痕を付ける",
+  scorch: "灼熱させる",
+  blaze: "炎上させる",
+  venom: "猛毒を与える",
+  hemorrhage: "大出血させる",
+  encase: "氷棺に閉じ込める",
+  exposed: "露呈させる",
+  enfeeble: "無力にする",
+  soaked: "浸水させる",
+  haste: "加速する",
+  harden: "硬化する",
+  wrath: "怒気を得る",
+  fury: "激昂する",
+  charged: "帯電する",
 };
-
-function statusVerb(kind: StatusKind): string {
-  return STATUS_VERB[kind] ?? `${STATUS_LABEL[kind]}にする`;
-}
 
 const PROC_TRIGGER_TEXT: Readonly<Record<StatusProc["on"], string>> = {
   melee: "近接命中時",
@@ -154,7 +171,7 @@ const PERCENT_DECIMALS = 1;
 export function describeStatusProc(proc: StatusProc): string {
   const head = proc.requiresCrit === true ? CRIT_TRIGGER_TEXT : PROC_TRIGGER_TEXT[proc.on];
   const chance = Number((proc.chance * PERCENT).toFixed(PERCENT_DECIMALS));
-  return `${head} ${chance}% で${statusVerb(proc.kind)}`;
+  return `${head} ${chance}% で${STATUS_VERB[proc.kind]}`;
 }
 
 /** 性質 1 つの表示行 */

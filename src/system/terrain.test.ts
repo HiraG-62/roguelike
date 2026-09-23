@@ -3,12 +3,13 @@ import { createRng } from "../core/rng";
 import type { GameState } from "../core/state";
 import { TERRAIN_KINDS, terrainCode } from "../core/terrain";
 import { STATUS, TERRAIN } from "../data/tuning";
-import { TILE_SIZE, Tile, getTile } from "../map/grid";
+import { TILE_SIZE, Tile, getTile, setTile } from "../map/grid";
 import { generateRoomsAndCorridors, DEFAULT_GENERATOR_OPTIONS, planTerrain } from "../map/generator";
 import { descend } from "./floor";
 import { applyBurn, findStatus, hasStatus, statusStacks } from "./statusEffects";
 import { ensureTerrainLayer, igniteTerrainAt, placeTerrain, terrainAt, terrainSlide, updateTerrain } from "./terrain";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, placeEnemy, withInput } from "./testHelpers";
+import { updatePlayer } from "./player";
 
 /** 地形の層（docs/ideas/status-and-terrain.md 3 章） */
 
@@ -107,6 +108,23 @@ describe("置く・時間で消える・燃え広がる", () => {
     expect(terrainAt(state, p.x, p.y)).toBe("none");
   });
 
+  it("階段・泉のタイルには置かない（自然配置と同じく床だけ）", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    const tx = Math.floor(p.x / TILE_SIZE) + 2;
+    const ty = Math.floor(p.y / TILE_SIZE);
+    setTile(state.map, tx, ty, Tile.StairsDown);
+    setTile(state.map, tx + 1, ty, Tile.Fountain);
+    const cx = (tx + 0.5) * TILE_SIZE;
+    const cy = (ty + 0.5) * TILE_SIZE;
+    expect(placeTerrain(state, cx, cy, "lava", 0, 0), "階段の上").toBe(0);
+    expect(placeTerrain(state, cx + TILE_SIZE, cy, "water", 0, 0), "泉の上").toBe(0);
+    placeTerrain(state, cx, cy, "oil", TILE_SIZE * 2, 0);
+    expect(terrainAt(state, cx, cy), "広く撒いても階段は空ける").toBe("none");
+    expect(terrainAt(state, cx - TILE_SIZE, cy), "隣の床には置く").toBe("oil");
+  });
+
   it("持続 0 の地形は消えない", () => {
     const state = arena();
     cleanLayer(state);
@@ -196,6 +214,35 @@ describe("上に立つ者への効果（プレイヤーと敵の両方）", () =
     tickOnce(state);
     expect(hp - state.player.hp).toBe(TERRAIN.lava.damage);
     expect(findStatus(state.player.status, "burn")?.potency).toBe(TERRAIN.lava.burnDps);
+  });
+
+  it("溶岩: 被弾後の無敵中・無敵バフ中も無傷（燃焼も付かない）", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "lava", 0, 0);
+    const hp = state.player.hp;
+    state.player.invulnTimer = 1;
+    tickOnce(state);
+    state.player.invulnTimer = 0;
+    state.player.buffs.invuln = 1;
+    tickOnce(state);
+    expect(state.player.hp, "無敵の間は削れない").toBe(hp);
+    expect(hasStatus(state.player.status, "burn"), "無敵の間は燃えない").toBe(false);
+  });
+
+  it("壁に押し付けた軸の速度は残さない（氷床の滑りが壁への速度を引き継がない）", () => {
+    const state = arena();
+    cleanLayer(state);
+    const room = state.map.rooms[0];
+    if (!room) throw new Error("no room");
+    const body = state.player.body;
+    body.pos = { x: room.x * TILE_SIZE + body.radius + 0.5, y: (room.y + room.h / 2) * TILE_SIZE };
+    placeTerrain(state, body.pos.x, body.pos.y, "ice", TILE_SIZE, 0);
+    for (let i = 0; i < 30; i++) updatePlayer(state, withInput({ move: { x: -1, y: 0 } }), 1 / 60);
+    expect(body.vel.x, "壁の向きの速度は 0").toBe(0);
+    updatePlayer(state, withInput({ move: { x: 1, y: 0 } }), 1 / 60);
+    expect(body.vel.x, "離れる入力がすぐ効く").toBeGreaterThan(0);
   });
 
   it("溶岩は敵にも効き、押し込めば削れる", () => {

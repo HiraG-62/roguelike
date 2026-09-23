@@ -5,11 +5,11 @@ import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
 import { describeItem, describeResonance, itemColorBar } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item, type Slot } from "../loot/types";
 import { statsSummary } from "../loot/stats";
-import { MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, modifierVerb, resolveCast, stoneLabel } from "../skills/data";
+import { BURDEN_LABEL, MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, modifierVerb, resolveCast, stoneLabel } from "../skills/data";
 import { findStone } from "../skills/persistence";
 import type { CastParams, SkillDef, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
-import { effectiveManaCost, formatCooldown, slotModifierView } from "../system/skills";
+import { effectiveManaCost, formatCooldown, manaRuleCost, slotModifierView } from "../system/skills";
 import {
   CONTENT_BOTTOM,
   CONTENT_Y,
@@ -437,10 +437,11 @@ function drawStoneRow(ctx: CanvasRenderingContext2D, row: StoneRowLayout, ui: In
 function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams>): string {
   const interval = formatCooldown(castInterval(def, params));
   const burden = castBurden(def, params);
-  if (def.resource !== "mana") return `CD ${formatCooldown(burden.cooldown)}`;
+  // 定刻・燃料化で資源が差し替わるので def.resource ではなく params.resource で出し分ける
+  if (params.resource !== "mana") return `CD ${formatCooldown(burden.cooldown)}`;
   const capped = effectiveManaCost(state, burden.cost);
-  const note = capped.clamped ? COST_CLAMPED_NOTE : "";
-  return `コスト ${Math.round(capped.cost)}${note}  間隔 ${interval}`;
+  const note = capped.clamped && !def.manaRule ? COST_CLAMPED_NOTE : "";
+  return `コスト ${Math.round(manaRuleCost(state, def, capped.cost))}${note}  間隔 ${interval}`;
 }
 
 /** 石のツールチップ: 動詞・タグ・負担（コスト / CD）・リンク・変異軸・装着中の刻印符 */
@@ -450,7 +451,7 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   const modifiers = slot >= 0 ? (state.skills.slots[slot]?.modifiers ?? []) : [];
   const params = resolveCast(def, stone, modifiers);
   const linkPenalty = Math.round(stone.links * SKILL.linkBurdenPenalty * PERCENT);
-  const burdenName = def.resource === "mana" ? "コスト" : "CD";
+  const burdenName = BURDEN_LABEL[params.resource];
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },
     { text: def.verb, color: COLOR_TEXT },
@@ -458,11 +459,11 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
     { text: `リンク ${stone.links}（基本${burdenName} +${linkPenalty}%）`, color: COLOR_TEXT },
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });
-  for (const v of stone.variants) lines.push({ text: formatVariant(v, def), color: COLOR_TEXT });
+  for (const v of stone.variants) lines.push({ text: formatVariant(v, def, params.resource), color: COLOR_TEXT });
   if (slot < 0) return lines;
   for (const m of slotModifierView(state, slot)) {
     const d = MODIFIERS[m.key];
-    lines.push({ text: `${m.active ? "+" : "x"} ${d.name}: ${modifierVerb(m.key, def)}`, color: m.active ? d.color : COLOR_EMPTY });
+    lines.push({ text: `${m.active ? "+" : "x"} ${d.name}: ${modifierVerb(m.key, def, params.resource)}`, color: m.active ? d.color : COLOR_EMPTY });
   }
   return lines;
 }

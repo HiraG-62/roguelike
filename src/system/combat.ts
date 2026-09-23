@@ -1,6 +1,6 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
-import { enemyDef } from "../data/enemies";
+import { enemyDef, isBossClass } from "../data/enemies";
 import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
@@ -12,7 +12,7 @@ import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playe
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
-import { onTraitKill, onTraitStagger, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
+import { onTraitHit, onTraitKill, onTraitStagger, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
 import { interceptEnemyDamage } from "./elites";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
 import { boonForcesCrit, boonPoise, onBoonHurt } from "./boonRules";
@@ -144,7 +144,7 @@ export function damageEnemy(
   enemy.hp -= amount;
   if (shatter) shatterFreeze(state, enemy);
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
-  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor });
+  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
   if (heavy) onTraitStagger(state, enemy);
 
   if (!opts.silent) {
@@ -164,6 +164,7 @@ export function damageEnemy(
   if (kind !== "proc") {
     applyLifeOnHit(state);
     applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
+    onTraitHit(state, enemy, kind);
   }
 
   if (opts.crit) onBoonCrit(state, enemy, amount);
@@ -177,7 +178,7 @@ function takenDamage(enemy: Enemy, amount: number, shatter: boolean, statusMul =
   let mul = statusMul;
   if (hasStatus(enemy.status, "vulnerable")) mul *= STATUS.vulnerable.mul;
   if (shatter) mul *= STATUS.freeze.shatterDamageMul;
-  if (enemyDef(enemy.defKey).boss && isStaggered(enemy)) mul *= POISE.bossDownDamageMul;
+  if (isBossClass(enemyDef(enemy.defKey)) && isStaggered(enemy)) mul *= POISE.bossDownDamageMul;
   if (mul === 1) return amount;
   return Math.max(MIN_DAMAGE, Math.round(amount * mul));
 }
@@ -212,7 +213,9 @@ export function gainEnergy(state: GameState, amount: number): void {
 
 function killEnemy(state: GameState, enemy: Enemy): void {
   const def = enemyDef(enemy.defKey);
-  state.kills += 1;
+  // 鐘の蘇生体は撃破数・ドロップ・来歴の撃破に数えない（蘇生と撃破を繰り返して稼がせない）
+  const counted = enemy.revived !== true;
+  if (counted) state.kills += 1;
   const gained = Math.round(def.score * comboMultiplier(state.combo.count));
   state.score += gained;
   spawnBurst(state, enemy.body.pos, def.color, 18, 160, 0.5, 2.5);
@@ -224,12 +227,12 @@ function killEnemy(state: GameState, enemy: Enemy): void {
 
   if (state.stats.lifeOnKill > 0) healPlayer(state, state.stats.lifeOnKill);
   gainMana(state, MANA.onKill + state.stats.manaOnKill);
-  rollEnemyDrop(state, enemy);
+  if (counted) rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
   onBoonKill(state, enemy);
   onTraitKill(state, enemy);
-  recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
+  if (counted) recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
   if (isLastKillInLockedRoom(state, enemy)) lastKillFx(state, enemy);
 }
 

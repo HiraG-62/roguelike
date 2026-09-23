@@ -1,5 +1,6 @@
 import type { GameState } from "../core/state";
 import { MANA } from "../data/tuning";
+import { SKILL } from "../skills/data";
 import { manaRegenAllowed } from "./keystones";
 import { spillManaOverflow, traitManaGainMul } from "./traitHooks";
 
@@ -8,15 +9,43 @@ import { spillManaOverflow, traitManaGainMul } from "./traitHooks";
  * 通常攻撃の命中・ジャスト回避・撃破で溜まり、スキルで減る。上限は stats.maxMana
  */
 
-/** 回収する。manaGainMul を掛け、上限で止める。実際に増えた量を返す */
+/**
+ * 回収する。manaGainMul を掛け、後払いの返済残があれば先にそちらへ充て、上限で止める。実際に増えた量を返す
+ */
 export function gainMana(state: GameState, amount: number): number {
   if (amount <= 0 || state.status === "dead") return 0;
+  return addMana(state, amount * state.stats.manaGainMul * traitManaGainMul(state));
+}
+
+/**
+ * 通常攻撃（近接・ダッシュ攻撃・射撃）の命中の回収。mul は呼び出し側の誓約 × 祝福の倍率。
+ * 性質「底打ち」と合わせた積を MANA.attackGainMulMax で止める。後払いの返済残がある間は owedAttackManaMul（0）
+ */
+export function gainAttackMana(state: GameState, base: number, mul: number): number {
+  if (base <= 0 || state.status === "dead") return 0;
+  const owed = state.skills.debtOwed > 0 ? SKILL.modifier.deferred.owedAttackManaMul : 1;
+  const total = Math.min(MANA.attackGainMulMax, mul * traitManaGainMul(state)) * owed;
+  if (total <= 0) return 0;
+  return addMana(state, base * total * state.stats.manaGainMul);
+}
+
+/** 返済残へ先に充ててから足し、上限で溢れた分を必殺ゲージへ移す */
+function addMana(state: GameState, raw: number): number {
   const p = state.player;
   const before = p.mana;
-  const raw = amount * state.stats.manaGainMul * traitManaGainMul(state);
-  p.mana = Math.min(state.stats.maxMana, p.mana + raw);
-  spillManaOverflow(state, before + raw - p.mana);
+  const left = repayDebt(state, raw);
+  p.mana = Math.min(state.stats.maxMana, p.mana + left);
+  spillManaOverflow(state, before + left - p.mana);
   return Math.max(0, p.mana - before);
+}
+
+/** 後払いの返済残を回収から差し引き、残りを返す */
+function repayDebt(state: GameState, raw: number): number {
+  const rs = state.skills;
+  if (rs.debtOwed <= 0) return raw;
+  const paid = Math.min(rs.debtOwed, raw);
+  rs.debtOwed -= paid;
+  return raw - paid;
 }
 
 /** コストを払えるか */
@@ -41,7 +70,9 @@ export function tickMana(state: GameState, dt: number): void {
   const max = state.stats.maxMana;
   if (p.mana >= max) return;
   const locked = state.rooms.some((r) => r.locked);
-  const rate = state.stats.manaRegen * (locked ? 1 : MANA.idleRegenMul);
+  // 後払いの返済残がある間は自然回復しない（owedRegenMul）
+  const owed = state.skills.debtOwed > 0 ? SKILL.modifier.deferred.owedRegenMul : 1;
+  const rate = state.stats.manaRegen * (locked ? 1 : MANA.idleRegenMul) * owed;
   p.mana = Math.min(max, p.mana + rate * dt);
 }
 

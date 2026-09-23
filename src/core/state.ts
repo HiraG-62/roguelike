@@ -1,7 +1,7 @@
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
-import type { Attributes, FloorItem, PendingBud, PlayerStats, Profile } from "../loot/types";
+import type { Attributes, FloorItem, LootRuntime, PendingBud, PlayerStats, Profile } from "../loot/types";
 import type { StatusBag } from "./status";
 import type { TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
@@ -81,6 +81,8 @@ export interface Player {
   mana: number;
   /** プレイヤーに付いた状態異常（docs/COMBAT_DESIGN.md E） */
   status: StatusBag;
+  /** 装備の性質の作業領域（余韻斬り・形見。src/system/traitHooks.ts） */
+  loot: LootRuntime;
 }
 
 export interface TimedMul {
@@ -138,12 +140,16 @@ export interface Enemy {
   /** 統一の状態異常（燃焼・冷気・感電・怯みなど。src/system/statusEffects.ts） */
   status: StatusBag;
   poise: PoiseState;
+  /** 性質「撃ち込み杭」で刺さった弾の数（次の近接命中で爆ぜる。src/system/traitHooks.ts） */
+  stuckShots?: number;
   /** 群れの長・楽団長・双子の相方など、紐付いた敵の id（src/system/enemies.ts） */
   leaderId?: number;
   /** マナ喰いが奪ったマナ。倒すと倍にして返す */
   stolenMana?: number;
   /** 撃破ではなく消えた（自爆・時間切れ）。死後の報酬や置き土産を出さない */
   vanished?: boolean;
+  /** 墓守の鐘が死骸から蘇らせた。倒してもドロップ・撃破数・死骸を出さない（蘇生と撃破の繰り返しで稼がせない） */
+  revived?: boolean;
   /** 新しいエリート修飾子の作業領域（src/system/elites.ts） */
   eliteWork?: EliteWork;
 }
@@ -226,6 +232,8 @@ export interface Hazard {
   sourceId?: number;
   /** 出した敵の種類（倒された後も状態異常の付与元を引けるように） */
   sourceKey?: string;
+  /** landing: 出した敵の位置に付いて動く（自爆の範囲。src/system/hazards.ts の syncLanding） */
+  followSource?: boolean;
 }
 
 export interface BossState {

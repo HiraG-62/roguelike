@@ -296,6 +296,29 @@ describe("処刑", () => {
     poke(state, boss, POISE.executeMinPoise);
     expect(boss.hp).toBeGreaterThan(0);
   });
+
+  it.each(["twinSister", "mimic", "hollowArmor", "hollowWraith"])("%s（ボスの片割れ・部屋主・変身する敵）は処刑しない", (key) => {
+    const state = arena();
+    const e = placeEnemy(state, key, 30);
+    applyStagger(state, e, 1);
+    e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
+    poke(state, e, POISE.executeMinPoise);
+    expect(e.hp, "即死しない").toBeGreaterThan(0);
+  });
+
+  it("damageEnemy を通らない怯み値（伝播・祝福・スキル）では処刑しない（撃破の報酬を取りこぼさない）", () => {
+    const state = arena();
+    const e = placeEnemy(state, "golem", 30);
+    applyStagger(state, e, 1);
+    e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
+    const kills = state.kills;
+    addPoise(state, e, POISE.executeMinPoise * 3);
+    expect(e.hp, "HP は残る").toBeGreaterThan(0);
+    expect(state.kills, "撃破数は増えない（HP 0 のまま消える敵を作らない）").toBe(kills);
+    poke(state, e, POISE.executeMinPoise);
+    expect(e.hp, "命中なら処刑").toBe(0);
+    expect(state.kills, "処刑は撃破として数える").toBe(kills + 1);
+  });
 });
 
 describe("堅守を崩す手段", () => {

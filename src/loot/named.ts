@@ -496,6 +496,38 @@ export const UNIQUES: readonly UniqueDef[] = [
     flavor: "何も覚えていない。だから、まだ何にでもなれる。",
     affixes: [{ key: "sapling" }, { key: "maxLife" }],
   },
+  {
+    key: "brokenCadence",
+    name: "途切れの音",
+    baseKey: "longsword",
+    minLevel: 8,
+    flavor: "途切れたときに、初めて音がする。",
+    affixes: [{ key: "echoSlash" }, { key: "comboDamage" }],
+  },
+  {
+    key: "keepsakeRing",
+    name: "形見分け",
+    baseKey: "rubyRing",
+    minLevel: 9,
+    flavor: "死者の病は、生者が継ぐ。",
+    affixes: [{ key: "inheritance" }, { key: "kaleidoscope" }],
+  },
+  {
+    key: "returningSwallow",
+    name: "帰り燕",
+    baseKey: "pistol",
+    minLevel: 7,
+    flavor: "行って、刺さって、帰ってくる。",
+    affixes: [{ key: "stake" }, { key: "rangedDamageFlat" }],
+  },
+  {
+    key: "leftBehind",
+    name: "置き土産の輪",
+    baseKey: "ironRing",
+    minLevel: 8,
+    flavor: "去った後に、罠だけが喋る。",
+    affixes: [{ key: "placedInfuse" }, { key: "placedAnchor" }, { key: "bloodSignature" }],
+  },
 ];
 
 /** slot に対応し depth で解禁済みの名のある遺物 */

@@ -10,6 +10,7 @@ import { enemyTelegraph, moveEnemy, updateEnemies } from "./enemies";
 import { updateHazards } from "./hazards";
 import { updateProjectiles } from "./projectiles";
 import { interceptEnemyDamage } from "./elites";
+import { reviveCorpse } from "./enemyTraits";
 import { isStaggered } from "./poise";
 import { applyStatus, hasStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -124,13 +125,18 @@ describe("bomber", () => {
     expect(exploded).toBe(true);
   });
 
-  it("倒すと持っていた爆弾が即爆発する", () => {
+  it("倒すと持っていた爆弾がその場に落ち、deathFuse 秒の予告の後に爆ぜる（倒した瞬間は無害）", () => {
     const state = arena();
     const b = placeEnemy(state, "bomber", 20);
     const hp = state.player.hp;
     damageEnemy(state, b, 9999, { x: 1, y: 0 }, 0);
     updateEnemies(state, FIXED_DT);
-    expect(state.player.hp).toBeLessThan(hp);
+    expect(state.player.hp, "倒した瞬間は無害").toBe(hp);
+    const bomb = state.hazards.find((h) => h.kind === "bomb");
+    expect(bomb?.time, "予告の長さ").toBeCloseTo(ENEMY_AI.bomber.deathFuse, 5);
+    const fuseSteps = Math.ceil(ENEMY_AI.bomber.deathFuse / FIXED_DT) + 1;
+    for (let i = 0; i < fuseSteps; i++) updateHazards(state, FIXED_DT);
+    expect(state.player.hp, "予告の後に爆ぜる").toBeLessThan(hp);
     expect(ENEMY_AI.bomber.radius).toBeGreaterThan(20);
   });
 });
@@ -280,6 +286,24 @@ describe("自爆（導火鼠・結晶ダニ）", () => {
     expect(state.kills).toBe(0);
   });
 
+  it("冷気で予備動作が延びても影は炸裂まで残り、押し出されれば影も付いて動く", () => {
+    const state = arena();
+    const m = readyEnemy(state, "fuseRat", 20);
+    m.hp = 9999;
+    tickEnemies(state);
+    expect(m.phase).toBe("windup");
+    applyStatus(state, { kind: "enemy", enemy: m }, { kind: "chill", stacks: 4, duration: 30, potency: 0.5 }, "player");
+    m.body.pos = { x: m.body.pos.x, y: m.body.pos.y + 10 };
+    tickEnemies(state);
+    const landing = state.hazards.find((h) => h.kind === "landing");
+    expect(landing?.pos, "影は本体の位置に付いて動く").toEqual(m.body.pos);
+    for (let i = 0; i < 600 && m.phase === "windup"; i++) {
+      expect(state.hazards.some((h) => h.kind === "landing"), `${i} ステップ目: 予備動作の間は影がある`).toBe(true);
+      tickEnemies(state);
+    }
+    expect(m.hp, "最後は自爆する").toBe(0);
+  });
+
   it("結晶ダニを倒すとマナが戻る", () => {
     const state = arena();
     const m = placeEnemy(state, "crystalMite", 40);
@@ -406,6 +430,23 @@ describe("死骸と骨拾い・墓守の鐘", () => {
     expect(revived).toBe(true);
     expect(bell.hp).toBeGreaterThan(0);
     expect(state.corpses.length).toBe(0);
+  });
+
+  it("鐘の蘇生体は倒しても撃破数・ドロップ・死骸を出さない（蘇生と撃破の繰り返しで稼げない）", () => {
+    const state = arena();
+    // 金色スライムはドロップ確定（dropChance 1）なので、落ちないことを確かめられる
+    kill(state, placeEnemy(state, "goldSlime", -60));
+    const corpse = state.corpses[0];
+    if (!corpse) throw new Error("no corpse");
+    const revived = reviveCorpse(state, corpse);
+    expect(revived.revived).toBe(true);
+    revived.phase = "chase";
+    const kills = state.kills;
+    const items = state.floorItems.length;
+    kill(state, revived);
+    expect(state.kills, "撃破数は増えない").toBe(kills);
+    expect(state.floorItems.length, "ドロップしない").toBe(items);
+    expect(state.corpses.length, "死骸を残さない").toBe(0);
   });
 });
 

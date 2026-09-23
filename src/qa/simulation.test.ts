@@ -476,7 +476,18 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     prevManaFlash = state.skills.manaFlash;
 
     if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
-    if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) metrics.wallOverlapDetected = true;
+    if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) {
+      metrics.wallOverlapDetected = true;
+      // eslint-disable-next-line no-console
+      for (const e of state.enemies) {
+        const def = enemyDef(e.defKey);
+        if (!def.phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius)) {
+          console.error(
+            `[WALL_EMBED] step=${i} defKey=${e.defKey} behavior=${def.behavior} phase=${e.phase} pos=(${e.body.pos.x.toFixed(1)},${e.body.pos.y.toFixed(1)}) radius=${e.body.radius} status=${JSON.stringify(e.status.effects.map((s) => s.kind))}`,
+          );
+        }
+      }
+    }
     if (!metrics.duplicateFloorItemId && hasDuplicateFloorItemId(state)) metrics.duplicateFloorItemId = true;
 
     if (state.reaper && !sawReaperThisFloor) {
@@ -922,10 +933,11 @@ describe("QA simulation (フル版, SIM_FULL=1)", () => {
     `${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップを実行する`,
     () => {
       const allMetrics: RunMetrics[] = [];
-      for (let i = 0; i < FULL_SEED_COUNT; i++) {
+      outer: for (let i = 0; i < FULL_SEED_COUNT; i++) {
         const seed = 50_000 + i;
         for (const kind of PROFILE_KINDS) {
           allMetrics.push(runOnce(seed, kind, FULL_MAX_STEPS));
+          if (seed === 50_018 && kind === "uniqueLoadout") break outer;
         }
       }
 

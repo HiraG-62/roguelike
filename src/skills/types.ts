@@ -699,6 +699,11 @@ export interface SkillRunState {
   gasps: GaspRequest[];
   /** 後払いの返済予約 */
   debts: SkillDebt[];
+  /**
+   * 後払いの返済残（マナ量）。返済期限に HP が 1 まで削れても払いきれなかった分。
+   * 0 でない間はマナの自然回復と通常攻撃のマナ回収が止まり、ほかのマナ回収（撃破など）は先にここへ充てる（system/mana.ts）
+   */
+  debtOwed: number;
   /** 巻き戻し用の履歴（古い順） */
   history: SkillHistoryEntry[];
   historyTimer: number;

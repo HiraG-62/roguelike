@@ -483,7 +483,11 @@ export const EXTRA_SKILL_TUNING = {
 
 /** 大拡張の刻印符の数値（SKILL.modifier に展開する） */
 export const EXTRA_MODIFIER_TUNING = {
-  deferred: { delay: 1.5, costMul: 1.3, hpPerMana: 0.004 },
+  /**
+   * 後払い。返済で HP は 1 未満にならず、払いきれない分は返済残（debtOwed）として残る。
+   * 返済残がある間: 自然回復 x owedRegenMul、通常攻撃のマナ回収 x owedAttackManaMul、後払いのスキルは撃てない
+   */
+  deferred: { delay: 1.5, costMul: 1.3, hpPerMana: 0.004, owedRegenMul: 0, owedAttackManaMul: 0 },
   refund: { perHit: 0.12, cap: 0.6, damageMul: 0.85 },
   bloodTithe: { costMul: 1.1, hpPerMana: 0.003 },
   spillover: { fullMul: 1.5, otherMul: 0.9 },

@@ -4,7 +4,7 @@ import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, l
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
 import { ACTION, BOON, FEEL, KEYSTONE, MANA, PLAYER } from "../data/tuning";
-import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
+import { DEFAULT_STATS, createLootRuntime, type PlayerStats } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, healPlayer, rollOutgoing, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
 import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
@@ -12,7 +12,7 @@ import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics"
 import { explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { terrainSlide } from "./terrain";
 import { addRunAttributes, deriveAttributes, scaled } from "./attributes";
-import { gainMana } from "./mana";
+import { gainAttackMana } from "./mana";
 import { createStatusBag } from "../core/status";
 import {
   cancelSkills,
@@ -94,6 +94,7 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     dashStrike: false,
     mana: stats.maxMana,
     status: createStatusBag(),
+    loot: createLootRuntime(),
   };
 }
 
@@ -377,7 +378,8 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     p.invulnTimer = Math.max(p.invulnTimer, PLAYER.dash.graceInvuln);
     onBoonDashEnd(state);
   }
-  p.body.vel = vel;
+  // 壁に止められた軸の速度は残さない（氷床の滑りが前の速度を引き継ぐので、壁へ押し付けた速度が溜まらないように）
+  p.body.vel = { x: hit.hitX ? 0 : vel.x, y: hit.hitY ? 0 : vel.y };
   if (!isZero(input.move) && !isDashing(p)) p.walkTime += dt;
 }
 
@@ -530,7 +532,7 @@ function gainMeleeMana(state: GameState, combo: number, dashStrike: boolean, cou
   const base = dashStrike ? MANA.onDashAttack : (MANA.onMelee[combo] ?? 0);
   // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
   const mul = counter ? MANA.onCounterMul : 1;
-  gainMana(state, base * mul * attackManaMul(state) * boonAttackManaMul(state));
+  gainAttackMana(state, base * mul, attackManaMul(state) * boonAttackManaMul(state));
 }
 
 /** 近接 1 ヒットの怯み値。カウンターは確定の怯みではなく怯み値を倍にする（敵の強靭 ×0.5 と相殺して等倍になる） */

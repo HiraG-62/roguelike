@@ -554,6 +554,23 @@ describe("大拡張の刻印符（発動）", () => {
     expect(state.player.hp).toBeLessThan(hp);
   });
 
+  it("後払い: HP 1 で払いきれない分は返済残に残り、返済残がある間は後払いを撃てない", () => {
+    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["deferred"] }]);
+    state.player.mana = 0;
+    state.player.hp = 1;
+    cast(state);
+    run(state, SKILL.modifier.deferred.delay + 0.05);
+    expect(state.player.hp, "HP は 1 で止まる").toBe(1);
+    expect(state.skills.debtOwed, "払えなかった分が残る").toBeGreaterThan(0);
+    waitReady(state);
+    state.skills.active = null;
+    cast(state);
+    expect(state.skills.debts, "返済残がある間は撃てない").toHaveLength(0);
+    state.skills.debtOwed = 0;
+    cast(state);
+    expect(state.skills.debts, "返済残が 0 なら撃てる").toHaveLength(1);
+  });
+
   it("後払い: 返済待ちの間は同じスロットを撃てない", () => {
     const state = skillArena([{ key: "frag", links: 1, modifiers: ["deferred"] }]);
     cast(state);
@@ -682,6 +699,17 @@ describe("型替え符", () => {
     run(state, SKILL.modifier.toThrown.flight + SKILL.whirl.duration + 0.1);
     expect(lost(far)).toBeGreaterThan(0);
     expect(lost(near)).toBe(0);
+  });
+
+  it("投げ刃 + 遅延: 遅れて発動する場所も着弾点（自分の周りでは回らない）", () => {
+    const state = skillArena([{ key: "whirl", links: 3, modifiers: ["toThrown", "delay"] }]);
+    const near = tough(state, 15);
+    const at = { x: state.player.body.pos.x + 80, y: state.player.body.pos.y };
+    const far = tough(state, 80);
+    cast(state, at);
+    run(state, SKILL.modifier.delay.time + SKILL.whirl.duration + 0.1);
+    expect(lost(far), "着弾点の敵に当たる").toBeGreaterThan(0);
+    expect(lost(near), "自分の周りの敵には当たらない").toBe(0);
   });
 
   it("投げ込み: 地雷をカーソル地点へ投げ、着いた瞬間に爆発する", () => {

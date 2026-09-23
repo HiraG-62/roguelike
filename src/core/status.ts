@@ -89,8 +89,11 @@ export const GOOD_STATUS_KINDS: ReadonlySet<StatusKind> = new Set<StatusKind>(["
 /** 異常数・総スタックに数えない中立の状態（怯みと堅守は戦闘の区切りで、状態異常ビルドの成果ではない） */
 export const NEUTRAL_STATUS_KINDS: ReadonlySet<StatusKind> = new Set<StatusKind>(["stagger", "guarded"]);
 
-/** 付けた側。player 由来だけが装備・祝福のフック（野火・氷砕など）を起こす */
-export type StatusSource = "player" | "enemy" | "env";
+/**
+ * 付けた側。player 由来だけが装備・祝福のフック（野火・氷砕など）を起こす。
+ * self = 自傷（猪の壁激突・鎧が割れた隙など）。拘束上限を数えない唯一の付け元。env（地形・伝播・連結の紐）は上限に数える
+ */
+export type StatusSource = "player" | "enemy" | "env" | "self";
 
 export interface StatusEffect {
   kind: StatusKind;

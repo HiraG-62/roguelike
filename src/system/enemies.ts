@@ -5,7 +5,7 @@ import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites } from "./elites";
-import { explodeHostile, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
+import { laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
 import { applyStagger, initEnemyPoise } from "./poise";
@@ -273,9 +273,9 @@ function handleDeaths(state: GameState): void {
     const def = enemyDef(e.defKey);
     onEliteDeath(state, e);
     if (def.behavior === "bomber" && !e.vanished) {
-      // 持っていた爆弾がその場で爆発する
+      // 持っていた爆弾がその場に落ち、予告の後に爆ぜる（即時の爆発は近接で倒すと避けられない。テレグラフ原則）
       const b = ENEMY_AI.bomber;
-      explodeHostile(state, e.body.pos, b.radius, b.damage + depthDamageBonus(state.depth), b.color);
+      spawnBomb(state, e.body.pos, b.damage + depthDamageBonus(state.depth), e.id, b.deathFuse, b.radius);
     }
     if (def.behavior === "wisp" && !e.vanished) {
       // 即時爆発だと近接で倒しても避けられないので、bomb と同じ仕組みでテレグラフしてから爆発させる

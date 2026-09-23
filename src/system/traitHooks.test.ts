@@ -5,8 +5,10 @@ import { DEFAULT_STATS, type TraitStats } from "../loot/types";
 import { damageEnemy, damagePlayer, healPlayer, rollOutgoing } from "./combat";
 import { KS } from "./keystones";
 import { gainMana } from "./mana";
-import { applyStatus } from "./statusEffects";
+import { applyStatus, hasStatus } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
+import { BOONS, BOON_KEYS } from "./boonDefs";
+import { SKILL_DEFS, baseCastParams } from "../skills/data";
 import {
   afflictionKinds,
   tickTraitClocks,
@@ -258,3 +260,102 @@ describe("部屋・死神の誓約", () => {
     expect(plain.floorTime).toBe(0);
   });
 });
+
+describe("作業領域を使う性質（余韻斬り・形見・撃ち込み杭）", () => {
+  it("作業領域は createPlayer で初期化されている", () => {
+    const state = withTraits({});
+    expect(state.player.loot).toEqual({ lastCombo: 0, inherited: null });
+  });
+
+  it("余韻斬り: コンボが途切れた瞬間に衝撃波（途切れる前は出ない）", () => {
+    const state = withTraits({ comboBreakWave: 2 });
+    const e = placeEnemy(state, "slime", NEAR);
+    const hp = e.hp;
+    state.combo.count = 10;
+    tickTraitClocks(state, 1 / 60);
+    expect(e.hp, "続いている間は何もしない").toBe(hp);
+    state.combo.count = 0;
+    tickTraitClocks(state, 1 / 60);
+    expect(e.hp).toBeLessThan(hp);
+  });
+
+  it("余韻斬り: 短いコンボ（最低数未満）では出ない", () => {
+    const state = withTraits({ comboBreakWave: 2 });
+    const e = placeEnemy(state, "slime", NEAR);
+    const hp = e.hp;
+    state.combo.count = TRIGGER.trait.comboBreakMin - 1;
+    tickTraitClocks(state, 1 / 60);
+    state.combo.count = 0;
+    tickTraitClocks(state, 1 / 60);
+    expect(e.hp).toBe(hp);
+  });
+
+  it("形見: 状態異常の敵を倒すと、その種類を次の命中に乗せる（回数で尽きる）", () => {
+    const state = withTraits({ inheritCharges: 1 });
+    const dead = placeEnemy(state, "slime", FAR);
+    applyStatus(state, { kind: "enemy", enemy: dead }, { kind: "weaken", stacks: 1, duration: 4, potency: 0.25 }, "player");
+    damageEnemy(state, dead, dead.hp + 10, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(state.player.loot.inherited?.kind).toBe("weaken");
+    const next = placeEnemy(state, "slime", FAR + 60);
+    damageEnemy(state, next, 1, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    expect(hasStatus(next.status, "weaken")).toBe(true);
+    expect(state.player.loot.inherited).toBeNull();
+  });
+
+  it("撃ち込み杭: 射撃で刺さり、近接で本数ぶん爆ぜる（上限あり）", () => {
+    const state = withTraits({ stakeDamage: 5 });
+    const e = placeEnemy(state, "golem", FAR);
+    for (let i = 0; i < TRIGGER.trait.stakeMax + 3; i++) damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "ranged" });
+    expect(e.stuckShots).toBe(TRIGGER.trait.stakeMax);
+    const hp = e.hp;
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(hp - e.hp).toBeGreaterThanOrEqual(5 * TRIGGER.trait.stakeMax);
+    expect(e.stuckShots).toBe(0);
+  });
+});
+
+describe("ハブ性質（設置物・低 HP・祝福）", () => {
+  it("置き土産: 氷結地帯の中での近接が冷気を乗せる", () => {
+    const state = withTraits({ placedInfuse: 3 });
+    const e = placeEnemy(state, "golem", NEAR);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(hasStatus(e.status, "chill"), "設置物が無ければ乗らない").toBe(false);
+    state.skills.fields.push({ pos: { ...state.player.body.pos }, timer: 3, total: 3, tick: 0, params: fieldParams(state) });
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(hasStatus(e.status, "chill")).toBe(true);
+  });
+
+  it("杭打ち: 怯ませると近くの設置物が長く残る", () => {
+    const state = withTraits({ placedExtend: 2 });
+    const e = placeEnemy(state, "slime", FAR);
+    e.phase = "chase";
+    state.skills.fields.push({ pos: { ...e.body.pos }, timer: 1, total: 3, tick: 0, params: fieldParams(state) });
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", poise: e.poise.max * 10 });
+    expect(state.skills.fields[0]?.timer).toBeCloseTo(3);
+  });
+
+  it("血の署名: HP が半分を切っている間だけスキルが速く明ける", () => {
+    const state = withTraits({ lowHpSkillHaste: 1 });
+    for (const slot of state.skills.slots) slot.cooldownLeft = 2;
+    tickTraitClocks(state, 0.5);
+    expect(state.skills.slots[0]?.cooldownLeft).toBe(2);
+    state.player.hp = state.player.maxHp * 0.3;
+    tickTraitClocks(state, 0.5);
+    expect(state.skills.slots[0]?.cooldownLeft).toBeCloseTo(1.5);
+  });
+
+  it("祝福の響き: 色に対応する祝福ごとに +、対応しない祝福ごとに −", () => {
+    const state = withTraits({ boonEchoCrimson: 0.1 });
+    const melee = BOON_KEYS.find((k) => BOONS[k].tags.includes("melee"));
+    const other = BOON_KEYS.find((k) => !BOONS[k].tags.includes("melee") && !BOONS[k].tags.includes("burn"));
+    if (melee === undefined || other === undefined) throw new Error("祝福が見つからない");
+    state.boons = [melee, other];
+    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1 + 0.1 - TRIGGER.trait.boonEchoOffPenalty);
+  });
+});
+
+/** 氷結地帯の既定の発動パラメータ（範囲の倍率 1） */
+function fieldParams(state: GameState): GameState["skills"]["fields"][number]["params"] {
+  void state;
+  return baseCastParams(SKILL_DEFS.frostField);
+}

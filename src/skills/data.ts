@@ -11,6 +11,7 @@ import type {
   ModifierKey,
   SkillDef,
   SkillKey,
+  SkillResource,
   SkillStone,
   VariantAxis,
   VariantRoll,
@@ -867,14 +868,17 @@ export function castInterval(def: SkillDef, params: Readonly<CastParams>): numbe
   return def.minInterval * params.intervalMul;
 }
 
-/** 刻印符の説明文。マナ型で読み替えるものは manaVerb を使う */
-export function modifierVerb(key: ModifierKey, def: Readonly<SkillDef>): string {
+/**
+ * 刻印符の説明文。マナ型で読み替えるものは manaVerb を使う。
+ * resource は実際に使う資源（定刻・燃料化で def.resource から差し替わるので CastParams.resource を渡す）
+ */
+export function modifierVerb(key: ModifierKey, def: Readonly<SkillDef>, resource: SkillResource = def.resource): string {
   const m = MODIFIERS[key];
-  return def.resource === "mana" ? (m.manaVerb ?? m.verb) : m.verb;
+  return resource === "mana" ? (m.manaVerb ?? m.verb) : m.verb;
 }
 
 /** 負担の軸（cooldownVs*）の表示名。マナ型は「コスト」、CD 型は「CD」 */
-const BURDEN_LABEL: Record<SkillDef["resource"], string> = { mana: "コスト", cooldown: "CD" };
+export const BURDEN_LABEL: Record<SkillResource, string> = { mana: "コスト", cooldown: "CD" };
 
 const AXIS_LABEL: Record<VariantAxis, readonly [string, string]> = {
   areaVsDamage: ["範囲", "ダメージ"],
@@ -891,12 +895,15 @@ function signed(n: number): string {
   return n >= 0 ? `+${n}` : String(n);
 }
 
-/** ツールチップ用の 1 行。例: "範囲 +24% / ダメージ -18%"。負担の軸は def の資源で「コスト」「CD」を出し分ける */
-export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>): string {
+/**
+ * ツールチップ用の 1 行。例: "範囲 +24% / ダメージ -18%"。負担の軸は資源で「コスト」「CD」を出し分ける
+ * （resource は定刻・燃料化で差し替わった後の CastParams.resource を渡す）
+ */
+export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>, resource: SkillResource = def.resource): string {
   const c = VARIANT_COEF[roll.axis];
   const [axisGain, costLabel] = AXIS_LABEL[roll.axis];
   const burdenAxis = roll.axis === "cooldownVsDamage" || roll.axis === "cooldownVsPotency";
-  const gainLabel = burdenAxis ? BURDEN_LABEL[def.resource] : axisGain;
+  const gainLabel = burdenAxis ? BURDEN_LABEL[resource] : axisGain;
   const v = roll.value;
   const cost = `${costLabel} ${signed(Math.round(-c.cost * v * PERCENT))}%`;
   if (roll.axis === "countVsDamage") return `${gainLabel} ${signed(Math.round(c.gain * v))} / ${cost}`;

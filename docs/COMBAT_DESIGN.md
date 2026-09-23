@@ -439,6 +439,8 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 
 ### E-1. 型
 
+初回実装時（0.0.3α）の 13 種。2026-09-24 に E-6 の 21 種が加わり、`core/status.ts` の `STATUS_KINDS` は計 34 種。
+
 ```ts
 // 新規 src/core/status.ts（型と一覧だけ。ロジックは system/statusEffects.ts）
 export const STATUS_KINDS = [

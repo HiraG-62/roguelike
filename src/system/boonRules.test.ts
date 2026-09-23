@@ -354,6 +354,27 @@ describe("系譜: 月蝕", () => {
     onBoonSkillCast(state, 1, "mana", 10);
     expect(state.player.mana, "窓の間は何度でも戻る").toBe(20);
   });
+
+  it("月蝕: 窓の中の発動は次の窓の条件に数えない（交互撃ちで無料発動が続かない）", () => {
+    const state = arena();
+    give(state, "eclipse");
+    const stones = ["whirl", "frag"].map((k, i) => ({
+      ...stoneFromSeed(i + 1, { foundDepth: 1, now: 0, skillKey: k as "whirl" | "frag" }),
+      id: `boon-eclipse-loop-${i}`,
+    }));
+    state.skills.profile = { ...state.skills.profile, stones, loadout: [stones[0]!.id, stones[1]!.id, null, null] };
+    onBoonSkillCast(state, 0, "mana", 10);
+    onBoonSkillCast(state, 1, "mana", 10);
+    expect(state.boonRun.rules.eclipseTimer).toBe(BOON.eclipseWindow);
+    // 窓の中で交互に撃つ
+    onBoonSkillCast(state, 0, "mana", 10);
+    onBoonSkillCast(state, 1, "mana", 10);
+    updateBoonRules(state, BOON.eclipseWindow + 0.01);
+    expect(state.boonRun.rules.eclipseTimer, "窓は開き直さず閉じる").toBe(0);
+    state.player.mana = 0;
+    onBoonSkillCast(state, 0, "mana", 10);
+    expect(state.player.mana, "窓が閉じた後の発動は戻らない").toBe(0);
+  });
 });
 
 describe("単体の祝福（ジャスト回避・カウンター）", () => {

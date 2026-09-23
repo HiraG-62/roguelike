@@ -9,6 +9,7 @@ import {
   ELITE_KINDS,
   ELITE_PREFIX,
   eliteChance,
+  eliteKindsFor,
   eliteSpeedMul,
   finalizeLinks,
   makeElite,
@@ -298,6 +299,21 @@ describe("寄生の / 群長の", () => {
     expect(smalls.every((s) => s.defKey === "eye" && !s.elite && s.maxHp < e.maxHp)).toBe(true);
     updateElites(state, FIXED_DT);
     expect(state.enemies.length, "2 回目は増えない").toBe(1 + ELITE.packedCount);
+  });
+});
+
+describe("修飾子の抽選", () => {
+  it("ドロップ確定の敵（部屋主・金色スライム）には群長の（同じ敵を連れて湧く）が付かない", () => {
+    expect(eliteKindsFor(enemyDef("mimic"))).not.toContain("packed");
+    expect(eliteKindsFor(enemyDef("goldSlime"))).not.toContain("packed");
+    expect(eliteKindsFor(enemyDef("slime"))).toContain("packed");
+    const state = arena();
+    state.depth = 20;
+    for (let i = 0; i < 200; i++) {
+      const e = placeEnemy(state, "mimic", 40);
+      rollElite(state, e);
+      expect(e.elite, `${i} 回目`).not.toBe("packed");
+    }
   });
 });
 

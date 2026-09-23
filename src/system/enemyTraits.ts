@@ -119,7 +119,8 @@ function scatterFollowers(state: GameState, e: Enemy, def: EnemyDef): void {
 // -----------------------------------------------------------------------------
 
 function leaveCorpse(state: GameState, e: Enemy, def: EnemyDef): void {
-  if (def.boss || def.noCorpse) return;
+  // 鐘の蘇生体は死骸を残さない（同じ死骸で蘇生を繰り返させない）
+  if (def.boss || def.noCorpse || e.revived) return;
   state.corpses.push({
     id: allocId(state),
     defKey: def.key,
@@ -162,6 +163,7 @@ export function consumeCorpse(state: GameState, corpse: Corpse): void {
 export function reviveCorpse(state: GameState, corpse: Corpse): Enemy {
   consumeCorpse(state, corpse);
   const revived = createEnemy(state, enemyDef(corpse.defKey), corpse.pos, corpse.roomIndex, true);
+  revived.revived = true;
   state.enemies.push(revived);
   return revived;
 }
@@ -187,6 +189,8 @@ export function spawnPackOnce(state: GameState, e: Enemy, def: EnemyDef): void {
     const pos = overlapsWall(state, want.x, want.y, minionDef.radius) ? { ...e.body.pos } : want;
     const minion = createEnemy(state, minionDef, pos, e.roomIndex, true);
     minion.leaderId = e.id;
+    // 蘇生体が連れた取り巻きも蘇生体と同じ扱い（取り巻き経由で稼がせない）
+    if (e.revived) minion.revived = true;
     if (minion.ai) minion.ai.stage = PACK_DONE;
     state.enemies.push(minion);
     // 双子は互いを相方として持つ（どちらが倒れても残った方が蘇生の時計を持つ）

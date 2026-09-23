@@ -27,7 +27,7 @@ export const MIMIC_TONGUE = 1;
 export function telegraphKamikaze(state: GameState, e: Enemy, def: EnemyDef): void {
   const ex = def.explode;
   if (!ex) return;
-  spawnLanding(state, e.body.pos, ex.radius, e.phaseTimer);
+  spawnLanding(state, e.body.pos, ex.radius, e.phaseTimer, e.id, true);
 }
 
 /** 自分ごと爆ぜる。撃破ではないので報酬・死骸は出ない（vanished） */
@@ -69,7 +69,7 @@ export function telegraphEcho(state: GameState, e: Enemy): void {
   const ai = e.ai;
   if (!ai) return;
   ai.target = echoTarget(state, e);
-  spawnLanding(state, ai.target, ENEMY_AI.echoStriker.radius, e.phaseTimer);
+  spawnLanding(state, ai.target, ENEMY_AI.echoStriker.radius, e.phaseTimer, e.id);
 }
 
 export function strikeEcho(state: GameState, e: Enemy, def: EnemyDef): void {
@@ -89,7 +89,7 @@ export function telegraphSilence(state: GameState, e: Enemy): void {
   const ai = e.ai;
   if (!ai) return;
   ai.target = { ...state.player.body.pos };
-  spawnLanding(state, ai.target, ENEMY_AI.silencer.radius, e.phaseTimer);
+  spawnLanding(state, ai.target, ENEMY_AI.silencer.radius, e.phaseTimer, e.id);
 }
 
 export function strikeSilence(state: GameState, e: Enemy): void {

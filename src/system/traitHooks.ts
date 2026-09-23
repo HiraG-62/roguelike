@@ -1,15 +1,19 @@
 import type { DamageKind, Enemy, GameState } from "../core/state";
 import type { StatusBag, StatusKind } from "../core/status";
+import { type Vec, dist } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { KEYSTONE, POISE, TRIGGER } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
+import type { TraitColor, TraitStats } from "../loot/types";
+import { SKILL } from "../skills/data";
+import { BOONS, type BoonTag } from "./boonDefs";
 import { gainEnergy, healPlayer, isLastKillInLockedRoom } from "./combat";
 import { addFloatingText, spawnRing } from "./effects";
 import { KS, hasKeystone } from "./keystones";
 import { gainMana } from "./mana";
 import { addPoise, isStaggered, poiseRatio } from "./poise";
 import { applyStatus, enemiesInRadius, hasStatus } from "./statusEffects";
-import { fireTrigger } from "./triggers";
+import { fireTrigger, inflictApply, shockwave } from "./triggers";
 
 /**
  * 装備の性質（docs/ideas/loot-expansion.md）が持ち込むルール変更の読み取り口。
@@ -82,6 +86,41 @@ function fieldBonus(state: GameState, kind: DamageKind): number {
     bonus += state.floorKind === "dark" ? t.darkRangedMul : -t.lightRangedPenalty;
   }
   if (t.reaperDamageMul !== 0 && state.reaper !== null) bonus += t.reaperDamageMul;
+  return bonus + boonEchoBonus(state);
+}
+
+/** 祝福の響き: 色ごとの対応タグ（冥は呪い付きの祝福） */
+const BOON_ECHO_TAGS: Readonly<Record<Exclude<TraitColor, "umbra">, readonly BoonTag[]>> = {
+  crimson: ["melee", "burn"],
+  azure: ["ranged", "dash", "mana"],
+  jade: ["hp", "room"],
+  gold: ["combo", "crit", "energy", "shock"],
+};
+
+const BOON_ECHO_FIELD: Readonly<Record<TraitColor, keyof TraitStats>> = {
+  crimson: "boonEchoCrimson",
+  azure: "boonEchoAzure",
+  jade: "boonEchoJade",
+  gold: "boonEchoGold",
+  umbra: "boonEchoUmbra",
+};
+
+function boonMatchesColor(key: GameState["boons"][number], color: TraitColor): boolean {
+  const def = BOONS[key];
+  if (color === "umbra") return def.cursed;
+  return def.tags.some((tag) => BOON_ECHO_TAGS[color].includes(tag));
+}
+
+/** 祝福の響き: 色に対応する祝福 1 つにつき +、対応しない祝福 1 つにつき − */
+function boonEchoBonus(state: GameState): number {
+  const t = state.stats.traits;
+  let bonus = 0;
+  for (const color of Object.keys(BOON_ECHO_FIELD) as TraitColor[]) {
+    const per = t[BOON_ECHO_FIELD[color]];
+    if (per === 0) continue;
+    const matched = state.boons.filter((key) => boonMatchesColor(key, color)).length;
+    bonus += per * matched - TRIGGER.trait.boonEchoOffPenalty * (state.boons.length - matched);
+  }
   return bonus;
 }
 
@@ -183,6 +222,7 @@ export function onTraitStagger(state: GameState, enemy: Enemy): void {
   if (t.manaOnStagger > 0) gainMana(state, t.manaOnStagger);
   if (t.healOnStagger > 0) healPlayer(state, t.healOnStagger);
   staggerQuake(state, enemy, t.staggerQuake);
+  if (t.placedExtend > 0) extendPlacedNear(state, enemy.body.pos, t.placedExtend);
   fireTrigger(state, "onStagger", { pos: { ...enemy.body.pos }, targetId: enemy.id });
   recordProvenance(state, { kind: "stagger" });
 }
@@ -213,6 +253,7 @@ function onLastKill(state: GameState): void {
 /** 敵を倒した瞬間（combat.ts の killEnemy から。敵はまだ配列に残っていて状態異常も読める） */
 export function onTraitKill(state: GameState, enemy: Enemy): void {
   const t = state.stats.traits;
+  if (t.inheritCharges > 0) inheritAffliction(state, enemy, t.inheritCharges);
   if (t.silencedKillMana > 0 && hasStatus(enemy.status, "silence")) gainMana(state, t.silencedKillMana);
   if (hasKeystone(state, KS.contagion)) spreadAfflictions(state, enemy);
   if (enemy.elite !== undefined) recordProvenance(state, { kind: "eliteKill" });
@@ -272,8 +313,126 @@ export function spillManaOverflow(state: GameState, overflow: number): void {
 // 時間（system/triggers.ts の tickTriggerCooldowns から毎ステップ）
 // ---------------------------------------------------------------------------
 
-/** 死神の誓い: 死神の時計（floorTime）を速める。reaper.ts は floorTime だけを見て出現を決める */
+/** 毎ステップの性質（死神の誓い・余韻斬り・血の署名） */
 export function tickTraitClocks(state: GameState, dt: number): void {
+  tickReaperOath(state, dt);
+  tickComboBreak(state);
+  tickLowHpHaste(state, dt);
+}
+
+/** 死神の誓い: 死神の時計（floorTime）を速める。reaper.ts は floorTime だけを見て出現を決める */
+function tickReaperOath(state: GameState, dt: number): void {
   if (!hasKeystone(state, KS.reaperOath) || state.reaper !== null) return;
   state.floorTime += dt * (KEYSTONE.reaperOathClockMul - 1);
+}
+
+/** 余韻斬り: コンボが途切れた瞬間（前のステップより 0 に落ちた）、そのコンボ数に応じた衝撃波 */
+function tickComboBreak(state: GameState): void {
+  const loot = state.player.loot;
+  const now = state.combo.count;
+  const before = loot.lastCombo;
+  loot.lastCombo = now;
+  const per = state.stats.traits.comboBreakWave;
+  if (per <= 0 || now > 0 || before < TRIGGER.trait.comboBreakMin) return;
+  shockwave(state, state.player.body.pos, per * Math.min(before, TRIGGER.trait.comboBreakCap));
+}
+
+/** 血の署名: HP が半分を切っている間、スキルの再使用時間と最低間隔が速く明ける */
+function tickLowHpHaste(state: GameState, dt: number): void {
+  const haste = state.stats.traits.lowHpSkillHaste;
+  const p = state.player;
+  if (haste <= 0 || p.hp >= p.maxHp * TRIGGER.trait.lowHpRatio) return;
+  const extra = dt * haste;
+  for (const slot of state.skills.slots) {
+    slot.cooldownLeft = Math.max(0, slot.cooldownLeft - extra);
+    slot.intervalLeft = Math.max(0, slot.intervalLeft - extra);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 命中ごと（combat.ts の damageEnemy から。近接・射撃・スキルの命中だけ。proc は来ない）
+// ---------------------------------------------------------------------------
+
+/**
+ * 撃ち込み杭・形見・置き土産。damageEnemy の中から呼ばれるので、ここで damageEnemy を呼び直さない
+ * （同じ敵の撃破処理が 2 回走るのを避け、杭の爆ぜは HP を直接削って外側の撃破判定に任せる）
+ */
+export function onTraitHit(state: GameState, enemy: Enemy, kind: DamageKind): void {
+  if (enemy.hp <= 0) return;
+  const t = state.stats.traits;
+  if (t.stakeDamage > 0) stake(state, enemy, kind, t.stakeDamage);
+  applyInherited(state, enemy);
+  if (kind === "melee" && t.placedInfuse > 0) infuseFromPlaced(state, enemy, t.placedInfuse);
+}
+
+/** 撃ち込み杭: 射撃で刺し、近接で爆ぜさせる */
+function stake(state: GameState, enemy: Enemy, kind: DamageKind, perShot: number): void {
+  const stuck = enemy.stuckShots ?? 0;
+  if (kind === "ranged") {
+    enemy.stuckShots = Math.min(TRIGGER.trait.stakeMax, stuck + 1);
+    return;
+  }
+  if (kind !== "melee" || stuck <= 0) return;
+  enemy.stuckShots = 0;
+  const amount = Math.round(perShot * stuck);
+  enemy.hp -= amount;
+  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 10 }, `杭 ${amount}`, TRIGGER.trait.stakeColor, 1.2, 0.6);
+  spawnRing(state, enemy.body.pos, enemy.body.radius * 2, TRIGGER.trait.stakeColor, TRIGGER.icd);
+}
+
+/** 形見: 倒した敵の状態異常を 1 種受け継ぐ（付いた順の最初のもの） */
+function inheritAffliction(state: GameState, enemy: Enemy, charges: number): void {
+  const kind = afflictionList(enemy.status)[0];
+  if (kind === undefined) return;
+  state.player.loot.inherited = { kind, charges: Math.max(1, Math.round(charges)) };
+}
+
+function applyInherited(state: GameState, enemy: Enemy): void {
+  const inherited = state.player.loot.inherited;
+  if (inherited === null || inherited.charges <= 0) return;
+  applyStatus(state, { kind: "enemy", enemy }, inflictApply(inherited.kind, TRIGGER.trait.inheritDuration), "player");
+  inherited.charges -= 1;
+  if (inherited.charges <= 0) state.player.loot.inherited = null;
+}
+
+interface PlacedZone {
+  pos: Vec;
+  radius: number;
+  status: StatusKind;
+}
+
+/** 状態異常を持つ自分の設置物（雷撃 = 感電・引力球 = 沈黙・氷結地帯 = 冷気）の範囲 */
+function placedZones(state: GameState): PlacedZone[] {
+  const rs = state.skills;
+  return [
+    ...rs.strikes.map((s) => ({ pos: s.pos, radius: SKILL.thunder.radius * s.params.areaMul, status: "shock" as const })),
+    ...rs.wells.map((w) => ({ pos: w.pos, radius: SKILL.gravityWell.radius * w.params.areaMul, status: "silence" as const })),
+    ...rs.fields.map((f) => ({ pos: f.pos, radius: SKILL.frostField.radius * f.params.areaMul, status: "chill" as const })),
+  ];
+}
+
+/** 置き土産: 自分が設置物の範囲内にいれば、近接がその状態異常を乗せる */
+function infuseFromPlaced(state: GameState, enemy: Enemy, seconds: number): void {
+  const p = state.player.body.pos;
+  for (const zone of placedZones(state)) {
+    if (dist(p, zone.pos) > zone.radius) continue;
+    applyStatus(state, { kind: "enemy", enemy }, inflictApply(zone.status, seconds), "player");
+  }
+}
+
+/** 杭打ち: 怯ませた敵の近くの設置物（引力球・氷結地帯・地雷）を長持ちさせる */
+function extendPlacedNear(state: GameState, pos: Vec, seconds: number): void {
+  const rs = state.skills;
+  const near = (at: Vec): boolean => dist(at, pos) <= TRIGGER.trait.placedExtendRadius;
+  for (const w of rs.wells) {
+    if (!near(w.pos)) continue;
+    w.timer += seconds;
+    w.total = Math.max(w.total, w.timer);
+  }
+  for (const f of rs.fields) {
+    if (!near(f.pos)) continue;
+    f.timer += seconds;
+    f.total = Math.max(f.total, f.timer);
+  }
+  for (const m of rs.mines) if (near(m.pos)) m.life += seconds;
 }

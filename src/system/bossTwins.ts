@@ -34,8 +34,9 @@ const RAGE_COLOR = "#ff6060";
 /** 兄の隣に妹を置き、互いを相方として結ぶ */
 export function spawnTwinSister(state: GameState, brother: Enemy): void {
   const def = enemyDef("twinSister");
-  const want = add(brother.body.pos, { x: -SISTER_OFFSET, y: 0 });
-  const pos = overlapsWall(state, want.x, want.y, def.radius) ? add(brother.body.pos, { x: SISTER_OFFSET, y: 0 }) : want;
+  // 左 → 右 → 兄の足元の順に、壁に掛からない場所へ置く（壁の中の妹は倒せず、ボスが終わらない）
+  const candidates = [add(brother.body.pos, { x: -SISTER_OFFSET, y: 0 }), add(brother.body.pos, { x: SISTER_OFFSET, y: 0 })];
+  const pos = candidates.find((q) => !overlapsWall(state, q.x, q.y, def.radius)) ?? { ...brother.body.pos };
   const sister = createEnemy(state, def, pos, brother.roomIndex, false);
   sister.leaderId = brother.id;
   brother.leaderId = sister.id;

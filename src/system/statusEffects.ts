@@ -12,7 +12,7 @@ import {
   type StatusSource,
 } from "../core/status";
 import { type Vec, dist, sub } from "../core/vec";
-import { type EnemyBehavior, enemyDef } from "../data/enemies";
+import { type EnemyBehavior, enemyDef, isBossClass } from "../data/enemies";
 import { type EnemyAttackKind, enemyCombat } from "../data/enemyCombat";
 import { STATUS } from "../data/tuning";
 import { damageEnemy, damagePlayerDot, rollOutgoing } from "./combat";
@@ -142,7 +142,7 @@ function slowOf(bag: Readonly<StatusBag>, player: boolean): number {
 export function chillFactor(enemy: Enemy): number {
   const slow = slowOf(enemy.status, false);
   if (slow <= 0) return 1;
-  const cap = enemyDef(enemy.defKey).boss ? STATUS.chill.bossMaxSlow : STATUS.maxSlow;
+  const cap = isBossClass(enemyDef(enemy.defKey)) ? STATUS.chill.bossMaxSlow : STATUS.maxSlow;
   return 1 - Math.min(cap, slow);
 }
 
@@ -263,7 +263,7 @@ export function targetPos(state: GameState, target: StatusTarget): Vec {
 }
 
 export function isBossTarget(target: StatusTarget): boolean {
-  return target.kind === "enemy" && enemyDef(target.enemy.defKey).boss === true;
+  return target.kind === "enemy" && isBossClass(enemyDef(target.enemy.defKey));
 }
 
 function isImmune(target: StatusTarget, bag: StatusBag, kind: StatusKind): boolean {
@@ -291,7 +291,7 @@ function resolveDuration(state: GameState, target: StatusTarget, apply: Readonly
   }
   const def = enemyDef(target.enemy.defKey);
   if (apply.kind === "fear" && def.behavior === "wisp") return apply.duration * STATUS.fear.wispMul;
-  if (apply.kind === "paralyze" && def.boss) return Math.min(apply.duration, STATUS.paralyze.bossDuration);
+  if (apply.kind === "paralyze" && isBossClass(def)) return Math.min(apply.duration, STATUS.paralyze.bossDuration);
   // 崩落: 崩勢中に怯むと怯みが長い（拘束上限は applyStatus が別に掛ける）
   if (apply.kind === "stagger" && hasStatus(target.enemy.status, "broken")) return apply.duration * STATUS.broken.staggerMul;
   return apply.duration;
@@ -363,8 +363,8 @@ export function applyStatus(
   if (reaction === "consumed") return true;
   if (reaction === "blocked") return false;
 
-  // 自傷（env）は拘束上限を数えない。プレイヤーの連打で敵を永久に止めないための上限なので
-  const limited = CC_KINDS.has(apply.kind) && source !== "env";
+  // 自傷（self）だけは拘束上限を数えない。地形・伝播（env）はプレイヤーが仕掛けたものなので数える（永久に止めない）
+  const limited = CC_KINDS.has(apply.kind) && source !== "self";
   if (limited) {
     duration = Math.min(duration, ccAllowance(bag));
     if (duration < CC_MIN_DURATION) return false;

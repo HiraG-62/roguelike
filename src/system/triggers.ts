@@ -306,7 +306,8 @@ function applyTimedMul(buff: { time: number; mul: number }, mul: number, duratio
   buff.time = Math.max(buff.time, duration);
 }
 
-function shockwave(state: GameState, pos: Vec, damage: number): void {
+/** 衝撃波（traitHooks の余韻斬りも使う） */
+export function shockwave(state: GameState, pos: Vec, damage: number): void {
   spawnRing(state, pos, TRIGGER.shockwaveRadius, TRIGGER.shockwaveColor, STATUS.fxLife);
   spawnBurst(state, pos, TRIGGER.shockwaveColor, 10, 140, 0.3, 1.5);
   pushSfx(state, "explode");

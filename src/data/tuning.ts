@@ -445,6 +445,11 @@ export const MANA = {
   shotVolleyCap: 3,
   onJust: 12,
   onKill: 4,
+  /**
+   * 通常攻撃のマナ回収に掛かる倍率（誓約 × 祝福 × 性質「底打ち」）の積の上限。
+   * 詠唱の誓い × 余韻 × 詠唱返しなどを重ねると 24 倍に届き、数発で満タンになるため
+   */
+  attackGainMulMax: 6,
   /** 装備・祝福で下げられるコスト倍率の下限（0 コストにはしない） */
   costMulMin: 0.4,
   /**
@@ -583,6 +588,20 @@ export const TRIGGER = {
     wedgeRatio: 0.5,
     /** 与ダメージ・怯み値の性質の倍率の下限（減少を重ねても 0 にしない） */
     minMul: 0.1,
+    /** 余韻斬り: 衝撃波を出す最低のコンボ数と、数えるコンボの上限 */
+    comboBreakMin: 3,
+    comboBreakCap: 30,
+    /** 撃ち込み杭: 1 体に刺さる弾の上限 */
+    stakeMax: 8,
+    stakeColor: "#ffd060",
+    /** 形見: 乗せる状態異常の持続（秒） */
+    inheritDuration: 3,
+    /** 杭打ち: 怯ませた敵からこの距離の設置物を延ばす */
+    placedExtendRadius: 80,
+    /** 血の署名: HP の割合がこれ未満で効く */
+    lowHpRatio: 0.5,
+    /** 祝福の響き: 色に対応しない祝福 1 つにつきの与ダメージの減少 */
+    boonEchoOffPenalty: 0.02,
   },
 } as const;
 
@@ -711,6 +730,8 @@ export const ENEMY_AI = {
     /** 爆弾を置く先（プレイヤーへの方向にこの距離だけ投げる） */
     throwDist: 40,
     color: "#ff4040",
+    /** 倒されたとき持っていた爆弾が爆ぜるまでの秒（予告の影を見てから避けられる長さ） */
+    deathFuse: 0.5,
   },
   laser: {
     width: 8,

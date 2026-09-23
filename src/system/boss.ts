@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamageBonus, enemyDef, isBossClass } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
@@ -88,7 +88,15 @@ export function updateBossIntro(state: GameState, dt: number): void {
 
 /** ボスの AI で動く敵か（ボス本体と、ボスの座を継ぎうる双子の妹） */
 export function isBossDriven(def: EnemyDef): boolean {
-  return def.boss === true || def.behavior === "twinBow";
+  return isBossClass(def);
+}
+
+/**
+ * 上部のボス HP バーで見せる敵か（頭上の HP バーを出さない）。ボス本体と、ボスの座を継いだ敵（双子の妹）。
+ * 継ぐ前の妹は頭上のバーで見せる（上部バーは兄の HP なので）
+ */
+export function showsBossBar(state: GameState, e: Enemy): boolean {
+  return enemyDef(e.defKey).boss === true || state.boss?.enemyId === e.id;
 }
 
 /** 氷の鎧のように、ボスがダメージを受け付けない状態か（elites.ts の interceptEnemyDamage が読む） */

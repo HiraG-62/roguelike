@@ -13,7 +13,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
    │
    ├─ update(dt): core/game.ts step(state, input, dt)
    │     ├─ 一時停止 / 死亡 / 祝福 3 択中 / ヒットストップ中は早期 return
-   │     └─ player → boons → statusEffects → enemies → projectiles → hazards
+   │     └─ player → boons → statusEffects → terrain → enemies → projectiles → hazards
    │        → floor.updateRooms → reaper → combo → effects → camera
    │            │  書く: GameState（全部ここ）
    │            │  積む: state.sfx（効果音名）、state.log、state.texts / particles / shapes
@@ -29,7 +29,9 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 
 画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備 / スキル / クラフト画面は `src/ui/inventory.ts`。どちらも DOM 非依存でテストされる。
 
-戦闘再設計（`docs/COMBAT_DESIGN.md`）で入った主要システム: `system/attributes.ts`（ステータスの実効値・威力計算 `scaled`。`applyStats` から `deriveAttributes` として呼ぶ）、`system/mana.ts`（マナの増減。`core/game.ts` の `step` から `refillMana` / `tickMana` を直接呼ぶ）、`system/poise.ts`（怯みの蓄積・減衰・堅守。`combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれ、独立した `step` ステップは持たない）、`system/statusEffects.ts`（13 種の状態異常。`step` のパイプラインに `updateStatusEffects` として入っている）。
+戦闘再設計（`docs/COMBAT_DESIGN.md`）で入った主要システム: `system/attributes.ts`（ステータスの実効値・威力計算 `scaled`。`applyStats` から `deriveAttributes` として呼ぶ）、`system/mana.ts`（マナの増減。`core/game.ts` の `step` から `refillMana` / `tickMana` を直接呼ぶ）、`system/poise.ts`（怯みの蓄積・減衰・堅守・処刑・背面の一撃。`combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれ、独立した `step` ステップは持たない）、`system/statusEffects.ts`（34 種の状態異常。`step` のパイプラインに `updateStatusEffects` として入っている）。
+
+Wave 2（`docs/ideas/*-expansion.md`）で入ったシステム: `system/enemyTraits.ts`（死骸・取り巻き・マナ奪取・双子復活・臆病など敵に横断する仕組み）、`system/enemyBehaviors.ts`（新 behavior 1 つにつき関数 1 つの実装）、`system/bossTwins.ts` / `system/bossFrostGiant.ts`（ボス 2 体の専用ロジック。共通処理は `system/boss.ts`）、`system/boonDefs.ts`（祝福のデータ定義。系譜 `lineage`/`after`、結び `duo` を含む）、`system/boonRules.ts`（拡張分の祝福ルール `onBoonXxxRules`。`system/boons.ts` の既存フックから呼ぶ）、`system/statusReactions.ts`（状態異常や地形の層が出会ったときの反応 `ReactionKey`）、`core/terrain.ts` + `system/terrain.ts`（床の地形の層の型・一覧と効果。配置は `map/generator.ts` の `planTerrain`）、`system/traitHooks.ts`（装備の性質・トリガー文法拡張が読む倍率・フック）、`loot/traitContext.ts`（性質が装備全体や来歴など「自分の外」を読むための文脈）、`skills/{tuning,defs,modifiers,combos,actions,shots,summons,geom}.ts`（大拡張のスキル・刻印符・連携のデータと発動処理。`skills/data.ts` の `SKILL_DEFS`/`MODIFIERS` に混ぜ込む形）、`render/terrainUi.ts`（地形の層の描画）。
 
 ## ディレクトリの責務
 
@@ -63,19 +65,21 @@ SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout�
   └─ createSkillRunState ──> SkillRunState（ラン内: マナ型のコスト / CD 型の CD、GCD、刻印符、設置物、発動中）
 
 GameState
-  ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / JUST / リゲインのタイマー、buffs）
+  ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / JUST / リゲインのタイマー、buffs、loot: LootRuntime〔性質の作業領域〕）
   ├─ stats: PlayerStats（attributes / attributesEff を含む。ロジックは必ずこれを通す）
   ├─ runAttributes: { alloc: Attributes; unspent: number }（ラン内のステータス振り分け）
-  ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、status: StatusBag、poise: PoiseState、elite、ai）
+  ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、status: StatusBag、poise: PoiseState、elite、ai、leaderId?〔群れの長・双子の相方〕、stolenMana?、eliteWork?〔新エリート修飾子の作業領域〕）
   ├─ rooms: RoomState[]（kind、locked、cleared、wave …）、floorKind、map、lockedTiles
+  ├─ terrain: TerrainLayer（床の地形の層。フロアが変わると作り直す）
+  ├─ corpses: Corpse[]（敵の死骸。骨拾い・墓守の鐘・貪食のが使う）
   ├─ projectiles / hazards / pickups / floorItems
-  ├─ skills: SkillRunState
+  ├─ skills: SkillRunState（lastCast: LastCast | null〔連携の受付〕を含む）
   ├─ boons: BoonKey[]、boonChoice、boonRun
   ├─ boss、reaper
   └─ rng、tick、time、sfx、log、texts、particles、shapes、camera（演出系）
 ```
 
-型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind）、`skills/types.ts`（SkillStone / SkillRunState）、`system/boons.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）。
+型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState / Corpse）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind / ReactionKey）、`core/terrain.ts`（TerrainKind / TerrainLayer）、`skills/types.ts`（SkillStone / SkillRunState / LastCast / ComboKey）、`system/boonDefs.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）。
 
 ## 決定性とリプレイ
 

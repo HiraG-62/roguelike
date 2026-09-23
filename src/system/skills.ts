@@ -206,6 +206,7 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     marks: new Map(),
     gasps: [],
     debts: [],
+    debtOwed: 0,
     history: [],
     historyTimer: 0,
     hurtLog: [],
@@ -260,8 +261,8 @@ function cachedCast(def: SkillDef, stone: SkillStone, slot: SkillSlotState): Cas
   return params;
 }
 
-/** 満月の砲は常に最大マナ全量、枯渇の刃は 0 */
-function manaRuleCost(state: GameState, def: SkillDef, cost: number): number {
+/** 満月の砲は常に最大マナ全量、枯渇の刃は 0。装備画面の表示も実払いと揃えるためこれを通す */
+export function manaRuleCost(state: GameState, def: SkillDef, cost: number): number {
   if (def.manaRule === "full") return state.stats.maxMana;
   if (def.manaRule === "low") return 0;
   return cost;
@@ -480,21 +481,34 @@ function recordHistory(state: GameState, dt: number): void {
   rs.history = rs.history.filter((h) => h.at >= since);
 }
 
-/** 後払いの返済。足りない分は HP で払う（HP は 1 未満にならない） */
+/**
+ * 後払いの返済。足りない分は HP で払う（HP は 1 未満にならない）。
+ * HP でも払いきれない分は返済残（debtOwed）に積む。HP 1 のまま後払いを撃ち続けて踏み倒せないようにするため
+ */
 function updateDebts(state: GameState, dt: number): void {
   const rs = state.skills;
   if (rs.debts.length === 0) return;
-  const d = SKILL.modifier.deferred;
   for (const debt of rs.debts) {
     debt.timer -= dt;
     if (debt.timer > 0) continue;
     const p = state.player;
     const fromMana = Math.min(p.mana, debt.amount);
     p.mana -= fromMana;
-    const short = debt.amount - fromMana;
-    if (short > 0) p.hp = Math.max(1, p.hp - short * d.hpPerMana * p.maxHp);
+    rs.debtOwed += payDebtWithHp(state, debt.amount - fromMana);
   }
   rs.debts = rs.debts.filter((debt) => debt.timer > 0);
+}
+
+/** 返済の不足（マナ量）を HP で払い、HP 1 で止まって払えなかったマナ量を返す */
+function payDebtWithHp(state: GameState, short: number): number {
+  if (short <= 0) return 0;
+  const p = state.player;
+  const hpPerMana = SKILL.modifier.deferred.hpPerMana * p.maxHp;
+  if (hpPerMana <= 0) return short;
+  const room = Math.max(0, p.hp - 1);
+  const need = short * hpPerMana;
+  p.hp = Math.max(1, p.hp - need);
+  return need <= room ? 0 : (need - room) / hpPerMana;
 }
 
 function tickTimers(state: GameState, dt: number): void {
@@ -594,7 +608,7 @@ function manaAffordable(state: GameState, index: number, r: ResolvedSlot): boole
   const max = state.stats.maxMana;
   if (r.def.manaRule === "full") return p.mana >= max - SKILL.fullMoon.fullEpsilon;
   if (r.def.manaRule === "low") return p.mana < max * SKILL.dregsBlade.lowRatio;
-  if (r.params.deferredMul > 0) return !state.skills.debts.some((d) => d.slot === index);
+  if (r.params.deferredMul > 0) return state.skills.debtOwed <= 0 && !state.skills.debts.some((d) => d.slot === index);
   if (canAffordSkill(state, r.cost)) return true;
   if (!r.params.bloodTithe) return false;
   return p.hp - titheHpCost(state, r.cost) >= 1;
@@ -604,6 +618,7 @@ function manaAffordable(state: GameState, index: number, r: ResolvedSlot): boole
 function manaRuleReason(state: GameState, index: number, r: ResolvedSlot): string | null {
   if (r.def.manaRule === "full") return "満タンでない";
   if (r.def.manaRule === "low") return "マナが多い";
+  if (r.params.deferredMul > 0 && state.skills.debtOwed > 0) return "返済残あり";
   if (r.params.deferredMul > 0 && state.skills.debts.some((d) => d.slot === index)) return "返済待ち";
   return null;
 }
@@ -845,9 +860,11 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   const remote = { skillKey: key, origin, dir, target };
 
   if (params.delay) {
-    // 遅延: いま何も起きず、発動地点で後から本発動（反響はその時点から数える）
+    // 遅延: いま何も起きず、発動地点で後から本発動（反響はその時点から数える）。
+    // 投げ刃が付いていれば発動地点は着弾点（自分の位置で遅れて回ると 2 リンク払った型替えが消える）
     const time = params.delay.time;
-    rs.echoes.push({ ...remote, kind: "delay", timer: time, total: time, params: { ...params, damageMul: params.damageMul * params.delay.damageMul, delay: null } });
+    const at = params.reshape === "toThrown" ? { ...remote, origin: target } : remote;
+    rs.echoes.push({ ...at, kind: "delay", timer: time, total: time, params: { ...params, damageMul: params.damageMul * params.delay.damageMul, delay: null } });
   } else if (params.reshape === "toThrown") {
     // 型替え符「投げ刃」: 刃がカーソル地点へ飛び、着いた所で元の形のまま発動する（着弾点を発動地点にする）
     const flight = SKILL.modifier.toThrown.flight;
@@ -907,7 +924,7 @@ function castStateMul(state: GameState, r: ResolvedSlot): { damage: number; pote
 }
 
 /**
- * 同調: 共鳴の色（二重・三色ならどれか）がスキルの向きと合うか。
+ * 同調: 共鳴の色（二重・三和音ならどれか）がスキルの向きと合うか。
  * 紅 = 近接、蒼 = 射撃・移動、翠 = 防御・強化、冥 = 状態異常を付ける、金 = 会心の一撃だけ伸びる（"crit"）
  */
 export function attuneMatch(state: GameState, def: Readonly<SkillDef>): boolean | "crit" {

@@ -2,16 +2,18 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { createRng } from "../core/rng";
-import { BOSS, REAPER } from "../data/tuning";
+import { BOSS, REAPER, STATUS } from "../data/tuning";
 import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "../map/generator";
-import { Tile, getTile, rectCenter } from "../map/grid";
-import { bossEnemy, bossKeyForDepth, isBossDepth } from "./boss";
+import { TILE_SIZE, Tile, getTile, rectCenter } from "../map/grid";
+import { bossEnemy, bossKeyForDepth, isBossDepth, showsBossBar } from "./boss";
 import { damageEnemy } from "./combat";
 import { enemyTelegraph, updateEnemies } from "./enemies";
 import { updateHazards } from "./hazards";
-import { isStaggered } from "./poise";
+import { applyStagger, isStaggered } from "./poise";
+import { applyStatus, findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
+import { overlapsWall } from "./physics";
 import { GIANT_MOVE_ICICLE } from "./bossFrostGiant";
-import { enemyDef } from "../data/enemies";
+import { enemyDef, isBossClass } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { buildFloor, updateRooms } from "./floor";
 import { reaperAppearAfter, updateReaper } from "./reaper";
@@ -209,6 +211,29 @@ describe("双子の騎士", () => {
     expect(brother.ai?.stage).toBe(3);
   });
 
+  it("頭上の HP バー: 妹は兄が健在なら頭上に出し、ボスの座を継いだ後は上部バーだけ", () => {
+    const state = bossFloor(9);
+    const brother = bossEnemy(state);
+    const sister = state.enemies.find((e) => e.defKey === "twinSister");
+    if (!brother || !sister) throw new Error("no twins");
+    expect(showsBossBar(state, brother)).toBe(true);
+    expect(showsBossBar(state, sister), "継ぐ前は頭上のバー").toBe(false);
+    kill(state, brother);
+    expect(showsBossBar(state, sister), "継いだ後は上部バーだけ").toBe(true);
+  });
+
+  it("妹は状態異常の扱いがボスと同じ（麻痺は短く、昇華しない）", () => {
+    const state = bossFloor(9);
+    const sister = state.enemies.find((e) => e.defKey === "twinSister");
+    if (!sister) throw new Error("no sister");
+    expect(isBossClass(enemyDef("twinSister"))).toBe(true);
+    const target = { kind: "enemy" as const, enemy: sister };
+    applyStatus(state, target, { kind: "paralyze", stacks: 1, duration: 5, potency: 0 }, "player");
+    expect(findStatus(sister.status, "paralyze")?.time).toBe(STATUS.paralyze.bossDuration);
+    applyStatus(state, target, { kind: "poison", stacks: STATUS.poison.maxStacks, duration: 5, potency: 0 }, "player");
+    expect(hasStatus(sister.status, "venom"), "猛毒へ昇華しない").toBe(false);
+  });
+
   it("妹は弓を引く予備動作中に怯み値が多く入る（強靭 > 1 が窓）", () => {
     expect(enemyCombat("twinSister").superArmorMul).toBeGreaterThan(1);
   });
@@ -263,6 +288,67 @@ describe("霜の巨人", () => {
     expect(isStaggered(giant), "鎧が砕けてダウン").toBe(true);
     damageEnemy(state, giant, 50, { x: 1, y: 0 }, 0);
     expect(giant.hp).toBeLessThan(hp);
+  });
+
+  it("壁際で氷の鎧をまとっても、氷柱は壁に埋まらない（割れない柱で詰まない）", () => {
+    const state = bossFloor(12);
+    const giant = bossEnemy(state);
+    const room = state.rooms[state.boss?.roomIndex ?? -1];
+    if (!giant || !room) throw new Error("no giant");
+    // 部屋の左上の角に寄せる（4 本のうち 3 本の向きが壁に掛かる）
+    giant.body.pos = { x: room.rect.x * TILE_SIZE + giant.body.radius + 1, y: room.rect.y * TILE_SIZE + giant.body.radius + 1 };
+    giant.phase = "chase";
+    giant.hp = Math.floor(giant.maxHp * BOSS.frostGiant.phase2Ratio);
+    updateEnemies(state, FIXED_DT);
+    giant.hp = Math.floor(giant.maxHp * BOSS.frostGiant.phase3Ratio);
+    updateEnemies(state, FIXED_DT);
+    const pillars = state.enemies.filter((e) => e.defKey === "icePillar" && e.leaderId === giant.id);
+    expect(pillars.length).toBe(BOSS.frostGiant.pillarCount);
+    for (const p of pillars) expect(overlapsWall(state, p.body.pos.x, p.body.pos.y, p.body.radius), `氷柱 ${p.id}`).toBe(false);
+  });
+
+  it("つららの予備動作が麻痺で止まっても、影は落ちるまで残る（予告なしで落ちない）", () => {
+    const state = bossFloor(12);
+    const giant = bossEnemy(state);
+    if (!giant?.ai) throw new Error("no giant");
+    giant.phase = "chase";
+    giant.hp = Math.floor(giant.maxHp * BOSS.frostGiant.phase2Ratio);
+    giant.attackCooldown = 99;
+    updateEnemies(state, FIXED_DT);
+    giant.ai.move = GIANT_MOVE_ICICLE;
+    giant.attackCooldown = 0;
+    state.player.body.pos = { x: giant.body.pos.x + 60, y: giant.body.pos.y };
+    updateEnemies(state, FIXED_DT);
+    expect(giant.phase).toBe("windup");
+    applyStatus(state, { kind: "enemy", enemy: giant }, { kind: "paralyze", stacks: 1, duration: 5, potency: 0 }, "player");
+    expect(hasStatus(giant.status, "paralyze")).toBe(true);
+    const phaseOf = (): EnemyPhase => giant.phase;
+    for (let i = 0; i < 600 && phaseOf() === "windup"; i++) {
+      expect(state.hazards.some((h) => h.kind === "landing"), `${i} ステップ目: 予備動作の間は影がある`).toBe(true);
+      updateStatusEffects(state, FIXED_DT);
+      updateEnemies(state, FIXED_DT);
+      updateHazards(state, FIXED_DT);
+    }
+    expect(phaseOf(), "最後は落ちる").not.toBe("windup");
+    expect(state.hazards.some((h) => h.kind === "landing"), "落ちたら影は消える").toBe(false);
+  });
+
+  it("つららの予備動作が怯みで取り消されたら、影も消える（落ちない予告を残さない）", () => {
+    const state = bossFloor(12);
+    const giant = bossEnemy(state);
+    if (!giant?.ai) throw new Error("no giant");
+    giant.phase = "chase";
+    giant.hp = Math.floor(giant.maxHp * BOSS.frostGiant.phase2Ratio);
+    giant.attackCooldown = 99;
+    updateEnemies(state, FIXED_DT);
+    giant.ai.move = GIANT_MOVE_ICICLE;
+    giant.attackCooldown = 0;
+    state.player.body.pos = { x: giant.body.pos.x + 60, y: giant.body.pos.y };
+    updateEnemies(state, FIXED_DT);
+    expect(state.hazards.some((h) => h.kind === "landing")).toBe(true);
+    applyStagger(state, giant, 1);
+    updateHazards(state, FIXED_DT);
+    expect(state.hazards.some((h) => h.kind === "landing")).toBe(false);
   });
 
   it("叩きつけの予備動作は輪で予告する", () => {

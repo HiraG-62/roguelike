@@ -5,7 +5,7 @@ import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { enemyTelegraph } from "../system/enemies";
 import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
-import { bossEnemy } from "../system/boss";
+import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
@@ -1149,7 +1149,8 @@ export class Renderer {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
     drawEnemyStatus(ctx, e, cx, e.elite ? top - ELITE_NAME_OFFSET : top);
-    if (def.boss) return;
+    // ボスの座にいる敵（双子の妹が兄から継いだ後も）は上部バーだけで見せる
+    if (showsBossBar(state, e)) return;
     const barY = cy + sprite.h / 2 - 2;
     if (e.elite) {
       this.drawEliteBars(e, cx, barY);

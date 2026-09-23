@@ -428,6 +428,25 @@ export interface TraitStats {
   lastKillClearsBullets: number;
   /** 殲滅で得るエネルギー */
   lastKillEnergy: number;
+  // ---- 2026-09 追加（作業領域 LootRuntime / Enemy.stuckShots を使うもの・ハブ性質）----
+  /** 余韻斬り: コンボが途切れた瞬間、コンボ数 1 あたりの衝撃波のダメージ */
+  comboBreakWave: number;
+  /** 形見: 状態異常の敵を倒したとき、その 1 種を乗せる次の命中の回数 */
+  inheritCharges: number;
+  /** 撃ち込み杭: 刺さった弾 1 本あたりの、次の近接命中で爆ぜるダメージ */
+  stakeDamage: number;
+  /** 置き土産: 0 より大きければ、自分の設置物の範囲内での近接がその設置物の状態異常をこの秒数乗せる */
+  placedInfuse: number;
+  /** 杭打ち: 敵を怯ませたとき、近くの自分の設置物の残り時間を延ばす秒 */
+  placedExtend: number;
+  /** 血の署名: HP 半分未満の間、スキルの再使用時間と最低間隔が明ける速さの加算倍率 */
+  lowHpSkillHaste: number;
+  /** 祝福の響き（色ごと）: その色に対応するタグの祝福 1 つにつきの与ダメージ */
+  boonEchoCrimson: number;
+  boonEchoAzure: number;
+  boonEchoJade: number;
+  boonEchoGold: number;
+  boonEchoUmbra: number;
   // ---- 装備全体の文脈（computeStats が性質の適用前に入れる。性質の apply はこれを読む） ----
   /** 装備全体の残り余白の合計 */
   gearMargin: number;
@@ -439,6 +458,21 @@ export interface TraitStats {
   gearInverted: number;
   /** 異色（既定と別の色で生まれた）性質の数 */
   gearOffColor: number;
+}
+
+/**
+ * 装備の性質がラン中に覚えておく作業領域（Player.loot）。createPlayer が初期化する。
+ * 決定性のため state の中に置く（リプレイで同じ入力なら同じ値になる）
+ */
+export interface LootRuntime {
+  /** 余韻斬り: 前のステップのコンボ数（途切れた瞬間を検出する） */
+  lastCombo: number;
+  /** 形見: 次の命中に乗せる状態異常と残り回数 */
+  inherited: { kind: StatusKind; charges: number } | null;
+}
+
+export function createLootRuntime(): LootRuntime {
+  return { lastCombo: 0, inherited: null };
 }
 
 export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
@@ -477,6 +511,17 @@ export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
   weakenedExposure: 0,
   lastKillClearsBullets: 0,
   lastKillEnergy: 0,
+  comboBreakWave: 0,
+  inheritCharges: 0,
+  stakeDamage: 0,
+  placedInfuse: 0,
+  placedExtend: 0,
+  lowHpSkillHaste: 0,
+  boonEchoCrimson: 0,
+  boonEchoAzure: 0,
+  boonEchoJade: 0,
+  boonEchoGold: 0,
+  boonEchoUmbra: 0,
   gearMargin: 0,
   gearItems: 0,
   gearInscribed: 0,

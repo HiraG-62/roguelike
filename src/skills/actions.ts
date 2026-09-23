@@ -305,7 +305,7 @@ function kindleBurst(state: GameState, at: Vec, remaining: number, params: CastP
 
 // ---- 五彩の礫 ----
 
-/** 礫 i の色。支配 = 全部その色、二重・三色 = 順番に、散光 = 1 個ずつ別の色、共鳴なし = 無色 */
+/** 礫 i の色。支配 = 全部その色、二重・三和音 = 順番に、散光 = 1 個ずつ別の色、共鳴なし = 無色 */
 export function prismColor(state: GameState, index: number, scatterStart: number): TraitColor | null {
   const r = state.stats.resonance;
   switch (r.kind) {

@@ -311,6 +311,15 @@ describe("拘束上限", () => {
     updateStatusEffects(state, STATUS.ccWindow);
     expect(applyStatus(state, on(e), apply("paralyze", 0.5), "player"), "窓が明けたら付く").toBe(true);
   });
+
+  it("地形・伝播（env）の行動停止も上限に数え、自傷（self）だけが上限の外", () => {
+    const state = arena();
+    const e = sturdy(state, "golem");
+    applyStatus(state, on(e), apply("freeze", STATUS.ccBudget), "env");
+    expect(applyStatus(state, on(e), apply("paralyze", 0.5), "env"), "env で使い切った後は env も付かない").toBe(false);
+    expect(applyStatus(state, on(e), apply("paralyze", 0.5), "player"), "player も付かない").toBe(false);
+    expect(applyStatus(state, on(e), apply("stagger", 0.5), "self"), "自傷の怯みは入る").toBe(true);
+  });
 });
 
 describe("敵 → プレイヤー（E-4）", () => {

@@ -327,6 +327,18 @@ describe("resolveCast", () => {
     expect(formatVariant(roll, SKILL_DEFS.lunge)).toBe("CD -30% / ダメージ -25%");
   });
 
+  it("定刻・燃料化で資源が差し替わると、表示も差し替え後の資源で出す", () => {
+    const roll = { axis: "cooldownVsDamage", value: 1 } as const;
+    const timeLocked = resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["timeLock"]);
+    expect(timeLocked.resource, "定刻でマナ型が CD 型になる").toBe("cooldown");
+    expect(formatVariant(roll, SKILL_DEFS.whirl, timeLocked.resource)).toBe("CD -30% / ダメージ -25%");
+    expect(modifierVerb("multiCharge", SKILL_DEFS.whirl, timeLocked.resource)).toBe(MODIFIERS.multiCharge.verb);
+    const fueled = resolveCast(SKILL_DEFS.lunge, stone("lunge", 1), ["fuelize"]);
+    expect(fueled.resource, "燃料化で CD 型がマナ型になる").toBe("mana");
+    expect(formatVariant(roll, SKILL_DEFS.lunge, fueled.resource)).toBe("コスト -30% / ダメージ -25%");
+    expect(modifierVerb("multiCharge", SKILL_DEFS.lunge, fueled.resource)).toBe(MODIFIERS.multiCharge.manaVerb);
+  });
+
   it("新刻印符の効果（貫通・反動・連鎖・呪い・遅延・拡大）", () => {
     const m = SKILL.modifier;
     const spiral = resolveCast(SKILL_DEFS.spiral, stone("spiral", 1), ["pierce"]);

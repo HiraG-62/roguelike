@@ -17,6 +17,8 @@ import {
   type KeystoneGroup,
 } from "./affixes";
 import { BASES, baseDef } from "./bases";
+import { describeStatusProc } from "./describe";
+import { STATUS_KINDS } from "../core/status";
 import { BASE_LEAN, OPPOSITE_COLOR, traitColorOf } from "./colors";
 import { MODULATE_COST, craftEcho, createEchoWallet, modulateTrait, type EchoCraftState } from "./crafting";
 import { MAX_MARGIN, VESSEL_CAPACITY, generateItem, rollUniqueAffixes } from "./generator";
@@ -527,5 +529,42 @@ describe("名前の付いた性質の表示", () => {
       expect(text, def.key).not.toContain("{v");
     }
     expect(affixDef("kaleidoscope")?.label.startsWith("多彩:")).toBe(true);
+  });
+});
+
+describe("作業領域・ハブ性質の定義", () => {
+  it("余韻斬り・形見・撃ち込み杭・置き土産・杭打ち・血の署名が数値を積む", () => {
+    const s = stats();
+    applyRoll(s, roll("echoSlash", 2, 0.3));
+    applyRoll(s, roll("inheritance", 3, 10));
+    applyRoll(s, roll("stake", 6, 10));
+    applyRoll(s, roll("placedInfuse", 3, 8));
+    applyRoll(s, roll("placedAnchor", 1.5, 5));
+    applyRoll(s, roll("bloodSignature", 40, 10));
+    expect(s.traits.comboBreakWave).toBe(2);
+    expect(s.comboWindowBonus).toBeCloseTo(-0.3);
+    expect(s.traits.inheritCharges).toBe(3);
+    expect(s.traits.stakeDamage).toBe(6);
+    expect(s.traits.placedInfuse).toBe(3);
+    expect(s.maxHp, "置き土産 8 + 血の署名 10").toBe(DEFAULT_STATS.maxHp - 8 - 10);
+    expect(s.traits.placedExtend).toBe(1.5);
+    expect(s.traits.lowHpSkillHaste).toBeCloseTo(0.4);
+  });
+
+  it("祝福の響きは 5 色すべてにあり、色はその性質の色", () => {
+    for (const color of TRAIT_COLORS) {
+      const def = affixDef(`boonEcho_${color}`);
+      expect(def?.color, color).toBe(color);
+    }
+    const s = stats();
+    applyRoll(s, roll("boonEcho_gold", 5));
+    expect(s.traits.boonEchoGold).toBeCloseTo(0.05);
+  });
+
+  it("状態異常の付与の説明は全種類に動詞がある", () => {
+    for (const kind of STATUS_KINDS) {
+      const text = describeStatusProc({ kind, chance: 0.1, stacks: 1, duration: 2, potency: 0, on: "any" });
+      expect(text, kind).not.toContain("undefined");
+    }
   });
 });

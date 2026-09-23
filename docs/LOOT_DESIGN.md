@@ -166,7 +166,8 @@ docs/ideas/loot-identity.md の推奨案「響き・揺らぎ・来歴」に置�
 
 ## 2026-09 の拡張（docs/ideas/loot-expansion.md の「実装状況」）
 
-- **性質** 81 → 139（うち目覚め 5）、**変換** 15 → 26、**誓約** 13 → 28（新グループ status / poise / room / hue / chronicle）、**名のある遺物** 16 → 46、**ベース** 35 → 56
+- **性質** 81 → 150（うち目覚め 5、祝福の響き 5 色）、**変換** 15 → 26、**誓約** 13 → 28（新グループ status / poise / room / hue / chronicle）、**名のある遺物** 16 → 50、**ベース** 35 → 56
+- ラン中の作業領域は `Player.loot`（`LootRuntime`。余韻斬りの直前のコンボ数・形見の受け継ぎ。createPlayer が初期化）と `Enemy.stuckShots`（撃ち込み杭）
 - ルール変更の数値は `PlayerStats.traits`（`TraitStats`）にまとめ、戦闘側は `system/traitHooks.ts` だけが読む（与ダメージ・怯み値・被ダメージ・マナ回収・怯ませた瞬間・撃破・カウンター）
 - 装備全体を読む性質（若木・銘の重み・裏の糧・異郷の響き・黒鉄の指輪・忘却の誓い）は `computeStats` が適用の前に `traits.gear*` へ文脈を入れて読む（畳み込み後は 0 に戻す）。来歴で育つ性質（古傷・歴戦・旅の垢・王殺しの印・見切りの記憶）はその遺物の来歴から段数を出して値に掛ける（`loot/traitContext.ts`）
 - **トリガー文法**: 起点 `onStagger`（怯ませた）/ `onCounter`（カウンター）、条件 `manaFull` / `manaLow` / `selfAfflicted` / `targetInWindup` / `targetGuarded` / `targetMultiStatus` / `targetElite`、効果 `restoreMana` / `addPoise` / `inflict`（状態異常 11 種。key に `@<種類>`）/ `cleanse` / `extendStatus` / `skillHaste` / `volley` / `healMissing`（固定専用）

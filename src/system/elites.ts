@@ -1,7 +1,7 @@
 import { type EliteKind, type EliteWork, type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import type { StatusKind } from "../core/status";
 import { type Vec, add, fromAngle, length, normalize, scale } from "../core/vec";
-import { enemyDef } from "../data/enemies";
+import { type EnemyDef, enemyDef } from "../data/enemies";
 import { ELITE, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
 import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
@@ -98,7 +98,15 @@ export function rollElite(state: GameState, e: Enemy): void {
   const def = enemyDef(e.defKey);
   if (def.boss || def.weight <= 0) return;
   if (!state.rng.chance(eliteChance(state.depth))) return;
-  makeElite(e, state.rng.pick(ELITE_KINDS));
+  makeElite(e, state.rng.pick(eliteKindsFor(def)));
+}
+
+/** 群長のが複製すると報酬が増えすぎる敵（部屋主・金色スライムはドロップ確定） */
+const NO_PACKED_CLONE: readonly EliteKind[] = ELITE_KINDS.filter((k) => k !== "packed");
+
+/** その敵に付けられる修飾子。確定ドロップの敵は群長の（同じ敵を連れて湧く）を外す */
+export function eliteKindsFor(def: EnemyDef): readonly EliteKind[] {
+  return def.lairMaster || def.timid ? NO_PACKED_CLONE : ELITE_KINDS;
 }
 
 function createWork(): EliteWork {

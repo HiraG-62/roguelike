@@ -224,10 +224,17 @@ function addAttributeTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): voi
   if (stats.attributes.str > ATTR.base || stats.poiseDamageMul > DEFAULT_STATS.poiseDamageMul) tags.add("stagger");
 }
 
-/** 状態異常 proc の性質（出血・毒など）の種類をタグにする */
+/**
+ * 状態異常 proc の性質（出血・毒など）と、トリガー効果 inflict（"@poison" など）の種類をタグにする。
+ * inflict だけで毒を付ける装備でも requires: poison の祝福が出るように
+ */
 function addStatusProcTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
   for (const proc of stats.statusProcs) {
     for (const tag of STATUS_TAGS[proc.kind] ?? []) tags.add(tag);
+  }
+  for (const t of stats.triggers) {
+    if (t.effect !== "inflict" || t.status === undefined) continue;
+    for (const tag of STATUS_TAGS[t.status] ?? []) tags.add(tag);
   }
 }
 

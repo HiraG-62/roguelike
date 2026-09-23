@@ -1,6 +1,6 @@
 import { type EliteKind, type Enemy, type GameState, pushSfx } from "../core/state";
 import { normalize, sub } from "../core/vec";
-import { enemyDef } from "../data/enemies";
+import { enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { POISE, STATUS } from "../data/tuning";
 import { addFloatingText, spawnBurst } from "./effects";
@@ -56,6 +56,12 @@ export interface PoiseHitOptions {
   fromBehind?: boolean;
   /** 怯みの伝播で入った怯み値（さらに伝播しない） */
   noSpread?: boolean;
+  /**
+   * 処刑を判定する（damageEnemy の命中だけが true を渡す）。
+   * 処刑は HP を 0 にするだけで撃破の処理は damageEnemy に任せるので、伝播・祝福・スキルの
+   * addPoise から処刑すると撃破の報酬・トリガーが抜けたまま消える
+   */
+  canExecute?: boolean;
 }
 
 /**
@@ -70,7 +76,7 @@ export function poiseTakenMul(e: Enemy, opts: PoiseHitOptions = {}): number {
   let mul = 1;
   if (!ignoreArmor && e.phase === "windup") mul *= combat.superArmorMul;
   if (!ignoreArmor && e.phase === "strike") mul *= combat.strikeSuperArmorMul ?? combat.superArmorMul;
-  if (!opts.fromBehind && hasStatus(e.status, "guarded")) mul *= enemyDef(e.defKey).boss ? POISE.bossGuardedMul : POISE.guardedMul;
+  if (!opts.fromBehind && hasStatus(e.status, "guarded")) mul *= isBossClass(enemyDef(e.defKey)) ? POISE.bossGuardedMul : POISE.guardedMul;
   if (hasStatus(e.status, "broken")) mul *= STATUS.broken.poiseMul;
   mul *= 1 + STATUS.corrode.poisePerStack * statusStacks(e.status, "corrode");
   if (opts.fromBehind) mul *= POISE.backstabMul;
@@ -99,7 +105,7 @@ function cannotAccumulate(e: Enemy): boolean {
  */
 export function addPoise(state: GameState, e: Enemy, amount: number, opts: PoiseHitOptions = {}): boolean {
   if (amount <= 0) return false;
-  if (tryExecute(state, e, amount)) return true;
+  if (opts.canExecute === true && tryExecute(state, e, amount)) return true;
   if (cannotAccumulate(e)) return false;
   const hitOpts = opts.fromBehind === undefined ? { ...opts, fromBehind: isBehind(state, e) } : opts;
   const gained = amount * playerPoiseDealtMul(state) * poiseTakenMul(e, hitOpts);
@@ -113,12 +119,13 @@ export function addPoise(state: GameState, e: Enemy, amount: number, opts: Poise
 }
 
 /**
- * 処刑: 怯み中で HP が executeHpRatio 以下の敵（ボス除く）に、怯み値 executeMinPoise 以上の一撃（近接 3 段目など）が当たると即死。
+ * 処刑: 怯み中で HP が executeHpRatio 以下の敵に、怯み値 executeMinPoise 以上の一撃（近接 3 段目など）が当たると即死。
+ * ボス・ボスの片割れ・部屋主・変身する敵には効かない（isExecuteImmune）。
  * damageEnemy が HP を減らした後に呼ぶので、ここでは HP を 0 にするだけ（撃破の処理は damageEnemy が 1 回だけ行う）
  */
 function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
   if (amount < POISE.executeMinPoise || e.hp <= 0 || !isStaggered(e)) return false;
-  if (enemyDef(e.defKey).boss || e.hp > e.maxHp * POISE.executeHpRatio) return false;
+  if (isExecuteImmune(enemyDef(e.defKey)) || e.hp > e.maxHp * POISE.executeHpRatio) return false;
   e.hp = 0;
   addFloatingText(state, e.body.pos, EXECUTE_TEXT, EXECUTE_COLOR, EXECUTE_TEXT_SCALE, 0.7);
   spawnBurst(state, e.body.pos, EXECUTE_COLOR, EXECUTE_PARTICLES, 180, 0.45, 2.5);
@@ -145,7 +152,7 @@ function breakPoise(state: GameState, e: Enemy): boolean {
   e.poise.damage = e.poise.max;
   if (!applyStagger(state, e, combat.staggerTime)) return false;
   e.poise.damage = 0;
-  if (enemyDef(e.defKey).boss) {
+  if (isBossClass(enemyDef(e.defKey))) {
     e.poise.downs += 1;
     e.poise.max = basePoiseMax(e.defKey, state.depth) * bossPoiseGrowth(e.poise.downs);
   }
@@ -166,7 +173,7 @@ export function applyStagger(state: GameState, e: Enemy, time: number, opts: Sta
     state,
     { kind: "enemy", enemy: e },
     { kind: "stagger", stacks: 1, duration: time, potency: self ? SELF_INFLICTED_POTENCY : 0 },
-    self ? "env" : "player",
+    self ? "self" : "player",
   );
 }
 
@@ -179,7 +186,7 @@ export function onStaggerEnd(state: GameState, e: Enemy, potency: number): void 
     removeStatus(state, { kind: "enemy", enemy: e }, "broken", "consume");
     return;
   }
-  const boss = enemyDef(e.defKey).boss === true;
+  const boss = isBossClass(enemyDef(e.defKey));
   applyStatus(
     state,
     { kind: "enemy", enemy: e },

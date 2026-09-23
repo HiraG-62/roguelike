@@ -72,9 +72,27 @@ export function spawnShockwave(state: GameState, pos: Vec, radius: number, damag
   return addHazard(state, { kind: "shockwave", pos, radius, time: ENEMY_AI.golem.ringTime, damage, sourceId });
 }
 
-/** ボスの着地予告（見た目だけ。縮む影） */
-export function spawnLanding(state: GameState, pos: Vec, radius: number, time: number): Hazard {
-  return addHazard(state, { kind: "landing", pos, radius, time, damage: 0 });
+/**
+ * 着地・炸裂の予告（見た目だけ。縮む影）。
+ * sourceId を渡すと、その敵の予備動作に紐付く（syncLanding）: 凍結・麻痺・冷気で予備動作が延びても影が先に消えず、
+ * 予備動作が取り消されたら影も消える。follow なら出した敵の位置に付いて動く（自爆）
+ */
+export function spawnLanding(state: GameState, pos: Vec, radius: number, time: number, sourceId?: number, follow = false): Hazard {
+  const h = addHazard(state, { kind: "landing", pos, radius, time, damage: 0, sourceId });
+  if (follow) h.followSource = true;
+  return h;
+}
+
+/** 予備動作に紐付いた影を、出した敵の予備動作の残りに合わせる。予備動作でなくなったら（攻撃に移った・取り消された・倒れた）消す */
+function syncLanding(state: GameState, h: Hazard): void {
+  if (h.sourceId === undefined) return;
+  const source = state.enemies.find((e) => e.id === h.sourceId && e.hp > 0);
+  if (!source || source.phase !== "windup") {
+    h.time = 0;
+    return;
+  }
+  h.time = source.phaseTimer;
+  if (h.followSource) h.pos = { ...source.body.pos };
 }
 
 /** 一時的な壁タイル。lockedTiles を流用し、時間切れで消える */
@@ -177,6 +195,7 @@ export function updateHazards(state: GameState, dt: number): void {
         if (h.time <= 0) removeBoneWall(state, h);
         break;
       case "landing":
+        syncLanding(state, h);
         break;
     }
   }

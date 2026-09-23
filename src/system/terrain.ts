@@ -126,7 +126,10 @@ export function igniteTerrainAt(state: GameState, x: number, y: number, radius: 
   return changed;
 }
 
-/** 中心のタイルは必ず含め、あとはタイル中心が半径内の床タイル */
+/**
+ * 中心のタイルは必ず含め、あとはタイル中心が半径内の床タイル。
+ * 階段・泉には置かない（自然配置の planTerrain と同じく Tile.Floor だけ。階段の上の溶岩で降りられなくしない）
+ */
 function cellsInRadius(state: GameState, x: number, y: number, radius: number): number[] {
   const map = state.map;
   const cells: number[] = [];
@@ -135,7 +138,7 @@ function cellsInRadius(state: GameState, x: number, y: number, radius: number): 
   const reach = Math.ceil(radius / TILE_SIZE);
   for (let ty = cy - reach; ty <= cy + reach; ty++) {
     for (let tx = cx - reach; tx <= cx + reach; tx++) {
-      if (!inBounds(map, tx, ty) || getTile(map, tx, ty) === Tile.Wall) continue;
+      if (!inBounds(map, tx, ty) || getTile(map, tx, ty) !== Tile.Floor) continue;
       const px = (tx + 0.5) * TILE_SIZE - x;
       const py = (ty + 0.5) * TILE_SIZE - y;
       const center = tx === cx && ty === cy;
@@ -303,16 +306,25 @@ function onWater(state: GameState, layer: TerrainLayer, target: StatusTarget, i:
   layer.version += 1;
 }
 
-/** 溶岩: 燃焼 + 即時の小ダメージ。プレイヤーはダッシュ中なら無傷 */
+/** 溶岩: 燃焼 + 即時の小ダメージ。プレイヤーはダッシュ中・無敵中なら無傷 */
 function onLava(state: GameState, target: StatusTarget): void {
   if (target.kind === "player") {
-    if (state.player.dashTimer > 0) return;
+    if (playerUntouchable(state)) return;
     give(state, target, "burn", 1, TERRAIN.lava.burnDuration, TERRAIN.lava.burnDps);
     damagePlayerDot(state, TERRAIN.lava.damage);
     return;
   }
   give(state, target, "burn", 1, TERRAIN.lava.burnDuration, TERRAIN.lava.burnDps);
   burnEnemy(state, target.enemy);
+}
+
+/**
+ * 溶岩を踏んでも焼けない: ダッシュ中・被弾後や祝福・スキルの無敵中。
+ * 溶岩の即時ダメージは被弾扱いにしない（damagePlayerDot）ので、無敵の判定をここで持つ
+ */
+function playerUntouchable(state: GameState): boolean {
+  const p = state.player;
+  return p.dashTimer > 0 || p.invulnTimer > 0 || p.buffs.invuln > 0;
 }
 
 function burnEnemy(state: GameState, e: Enemy): void {

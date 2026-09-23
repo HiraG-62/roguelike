@@ -120,6 +120,11 @@ export interface EnemyDef {
   dropChance: number;
   /** ボス。通常の抽選には出ず、エリートにもならない */
   boss?: boolean;
+  /**
+   * ボスの片割れ（双子の妹）。ボスの座（HP バー・撃破判定）は持たないが、
+   * 状態異常・処刑・怯みの扱いはボスと同じにする（isBossClass）
+   */
+  bossPart?: boolean;
   /** 群れで湧く数（min..max）。抽選 1 回でこの数だけ出る */
   swarm?: { min: number; max: number };
   /** 壁をすり抜けて移動する */
@@ -460,7 +465,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     key: "twinSister", name: "双子の騎士・妹", sprite: "twinSister",
     radius: 12, hp: 450, speed: 38, behavior: "twinBow", contactDamage: 14,
     windup: 0.8, strikeTime: 0.1, recover: 0.7, engageRange: 220, attackInterval: 1.4,
-    score: 800, minDepth: 99, weight: 0, color: "#58d058", dropChance: 0, noCorpse: true,
+    score: 800, minDepth: 99, weight: 0, color: "#58d058", dropChance: 0, noCorpse: true, bossPart: true,
   },
   {
     key: "frostGiant", name: "霜の巨人", sprite: "frostGiant",
@@ -712,6 +717,16 @@ export function enemyDef(key: string): EnemyDef {
   const def = ENEMY_BY_KEY.get(key);
   if (!def) throw new Error(`unknown enemy: ${key}`);
   return def;
+}
+
+/** ボスとして扱う敵か（ボス本体と、双子の妹のようなボスの片割れ）。凍結・処刑・状態異常の上限はこれで判定する */
+export function isBossClass(def: EnemyDef): boolean {
+  return def.boss === true || def.bossPart === true;
+}
+
+/** 処刑（即死）が効かない敵: ボス・部屋主・変身する敵（鎧の中身に亡霊の段階を飛ばさせない） */
+export function isExecuteImmune(def: EnemyDef): boolean {
+  return isBossClass(def) || def.lairMaster === true || def.transformTo !== undefined;
 }
 
 /** 描画の見た目の元（再配色種は元の敵）。浮遊・影の扱いを元の敵に揃える */

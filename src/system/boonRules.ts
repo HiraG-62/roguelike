@@ -880,9 +880,13 @@ function takeRefund(state: GameState): boolean {
   return false;
 }
 
-/** 月蝕: 装着中のスキルを重複なく続けて全部撃ったら窓を開く */
+/**
+ * 月蝕: 装着中のスキルを重複なく続けて全部撃ったら窓を開く。
+ * 窓の中の（無料の）発動は数えない。数えると 2 スロットを交互に撃つだけで窓が開き直し、マナを払わず撃ち続けられる
+ */
 function trackEclipse(state: GameState, slot: number): void {
   const r = rules(state);
+  if (r.eclipseTimer > 0) return;
   const equipped = equippedSlotCount(state);
   r.castSeq.push(slot);
   if (r.castSeq.length > equipped) r.castSeq.shift();

@@ -202,6 +202,44 @@ function attributeTraits(): AffixDef[] {
   }));
 }
 
+/** 祝福の響きの色ごとの対応（表示）。判定は system/traitHooks.ts の BOON_ECHO_TAGS */
+const BOON_ECHO_TEXT: Readonly<Record<TraitColor, string>> = {
+  crimson: "近接・燃焼",
+  azure: "射撃・ダッシュ・マナ",
+  jade: "HP・部屋",
+  gold: "コンボ・会心・エネルギー・感電",
+  umbra: "呪い付き",
+};
+const BOON_ECHO_FIELD = {
+  crimson: "boonEchoCrimson",
+  azure: "boonEchoAzure",
+  jade: "boonEchoJade",
+  gold: "boonEchoGold",
+  umbra: "boonEchoUmbra",
+} as const satisfies Record<TraitColor, string>;
+/** 祝福の響きの key の接頭辞（色ごとに 1 つ。boonEcho_crimson など） */
+export const BOON_ECHO_PREFIX = "boonEcho_";
+
+/**
+ * 祝福の響き（ハブ性質 P93）: 色ごとに 1 つ。その色に対応するタグの祝福 1 つにつき与ダメージ +{v}%、
+ * 対応しない祝福 1 つにつき -2%（TRIGGER.trait.boonEchoOffPenalty）。装備と祝福の色を揃える理由を作る
+ */
+function boonEchoTraits(): AffixDef[] {
+  const colors: readonly TraitColor[] = ["crimson", "azure", "jade", "gold", "umbra"];
+  return colors.map((color) => ({
+    key: `${BOON_ECHO_PREFIX}${color}`,
+    label: `祝福の響き: ${BOON_ECHO_TEXT[color]}の祝福 1 つにつき与ダメージ +{v}%（それ以外の祝福 1 つにつき -${ratioPct(TRIGGER.trait.boonEchoOffPenalty)}%）`,
+    // 代償（対応しない祝福の −2%）は固定値なので tradeoff（{v2} を持つ代償）には数えない
+    tags: ["damage"],
+    slots: JEWELRY_SLOTS,
+    curve: [t(24, 6, 8), t(12, 4, 6), t(1, 3, 4)],
+    color,
+    apply: (s: PlayerStats, v: number) => {
+      s.traits[BOON_ECHO_FIELD[color]] += pct(v);
+    },
+  }));
+}
+
 /** 効果量を持たない状態異常（沈黙・恐怖）の potency */
 const NO_POTENCY = 0;
 /** 性質 1 つが付ける状態異常のスタック */
@@ -1729,6 +1767,87 @@ export const AFFIXES: readonly AffixDef[] = [
       s.justDodgeWindow += v2;
     },
   }),
+
+  // ---- 作業領域（Player.loot / Enemy.stuckShots）を使う性質 ----
+  trait({
+    key: "echoSlash",
+    color: "gold",
+    label: "余韻斬り: コンボが途切れた瞬間、コンボ数 × {v} の衝撃波を放つ、コンボ猶予 -{v2}秒",
+    tags: ["combo", "damage", "tradeoff"],
+    slots: ["weapon", "amulet"],
+    curve: [t2(24, 3, 4, 0.3, 0.3), t2(12, 2, 2.5, 0.3, 0.3), t2(1, 1, 1.5, 0.3, 0.3)],
+    decimals: 1,
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.traits.comboBreakWave += v;
+      s.comboWindowBonus -= v2;
+    },
+  }),
+  trait({
+    key: "inheritance",
+    color: "umbra",
+    label: "形見: 状態異常の敵を倒すと、その 1 種を次の {v} 回の命中に乗せる、状態異常の効果量 -{v2}%",
+    tags: ["status", "tradeoff"],
+    slots: ["weapon", "gun"],
+    curve: [t2(24, 5, 6, 10, 12), t2(12, 4, 5, 8, 10), t2(1, 2, 3, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.inheritCharges = Math.max(s.traits.inheritCharges, v);
+      s.statusPotencyMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "stake",
+    color: "gold",
+    label: "撃ち込み杭: 射撃が敵に刺さって残り、次の近接命中で 1 本につき {v} ダメージで爆ぜる、射撃ダメージ -{v2}%",
+    tags: ["ranged", "melee", "tradeoff"],
+    slots: ["gun"],
+    curve: [t2(24, 9, 12, 12, 15), t2(12, 6, 8, 10, 12), t2(1, 3, 4, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.stakeDamage += v;
+      s.rangedDamageMul -= pct(v2);
+    },
+  }),
+
+  // ---- ハブ性質（設置物・低 HP・祝福のタグをつなぐ。docs/ideas/loot-expansion.md 1-i）----
+  trait({
+    key: "placedInfuse",
+    color: "jade",
+    label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接がその状態異常を {v} 秒乗せる、最大HP -{v2}",
+    tags: ["status", "melee", "tradeoff"],
+    slots: ["weapon", "ring"],
+    curve: [t2(24, 3, 4, 6, 8), t2(12, 2.5, 3, 8, 10), t2(1, 2, 2.5, 10, 12)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.placedInfuse = Math.max(s.traits.placedInfuse, v);
+      s.maxHp -= v2;
+    },
+  }),
+  trait({
+    key: "placedAnchor",
+    color: "gold",
+    label: "杭打ち: 敵を怯ませると、近くの自分の設置物（引力球・氷結地帯・地雷）が {v} 秒長く残る、最大マナ -{v2}",
+    tags: ["utility", "tradeoff"],
+    slots: ["amulet"],
+    curve: [t2(24, 2, 2.5, 6, 8), t2(12, 1.5, 2, 5, 6), t2(1, 1, 1.5, 4, 5)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.placedExtend += v;
+      s.maxMana -= v2;
+    },
+  }),
+  trait({
+    key: "bloodSignature",
+    color: "umbra",
+    label: "血の署名: HP が半分を切っている間、スキルの再使用時間と最低間隔が {v}% 速く明ける、最大HP -{v2}",
+    tags: ["skill", "tradeoff"],
+    slots: ["armor", "amulet"],
+    curve: [t2(24, 50, 60, 12, 15), t2(12, 35, 45, 10, 12), t2(1, 20, 30, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.lowHpSkillHaste += pct(v);
+      s.maxHp -= v2;
+    },
+  }),
+  ...boonEchoTraits(),
 
   // ---- 目覚め（芽専用。ドロップ・染めでは出ない。provenance.ts の節目が名指しする）----
   trait({

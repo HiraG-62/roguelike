@@ -29,6 +29,8 @@ const ARMORED = 1;
 const UNARMORED = 0;
 const FULL_CIRCLE = Math.PI * 2;
 const ICICLE_ATTEMPTS = 4;
+/** 氷柱を置く距離の候補（pillarDistance に対する割合。壁に掛かれば近い方へ寄せる） */
+const PILLAR_DISTANCE_RATIOS: readonly number[] = [1, 0.75, 0.5, 0.3];
 const ICICLE_TEXT = "つららの雨";
 const ARMOR_TEXT = "氷の鎧";
 const ARMOR_BREAK_TEXT = "鎧が砕けた";
@@ -101,7 +103,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef): void {
   // つらら: 影が出てから落ちるまでがそのまま予備動作（深度で縮めても下限は守る）
   e.phaseTimer = scaledWindup(BOSS.frostGiant.icicleFall, state.depth);
   ai.points = pickIciclePoints(state);
-  for (const p of ai.points) spawnLanding(state, p, BOSS.frostGiant.icicleRadius, e.phaseTimer);
+  for (const p of ai.points) spawnLanding(state, p, BOSS.frostGiant.icicleRadius, e.phaseTimer, e.id);
 }
 
 /** プレイヤーの足元と、その周りにつららの落下点を選ぶ */
@@ -160,13 +162,26 @@ function raisePillars(state: GameState, e: Enemy): void {
   const g = BOSS.frostGiant;
   const def = enemyDef("icePillar");
   for (let i = 0; i < g.pillarCount; i++) {
-    const want = add(e.body.pos, scale(fromAngle((i / g.pillarCount) * FULL_CIRCLE + Math.PI / 4), g.pillarDistance));
-    const pos = overlapsWall(state, want.x, want.y, def.radius) ? add(e.body.pos, scale(fromAngle(i), e.body.radius * 2)) : want;
+    const angle = (i / g.pillarCount) * FULL_CIRCLE + Math.PI / 4;
+    const pos = pillarPos(state, e, angle, def.radius);
     const pillar = createEnemy(state, def, pos, e.roomIndex, true);
     pillar.leaderId = e.id;
     state.enemies.push(pillar);
   }
   if (e.ai) e.ai.counter = ARMORED;
+}
+
+/**
+ * 氷柱の置き場所: 巨人から angle の向きに、壁に掛からない一番遠い距離。どれも壁なら巨人の足元。
+ * 壁の中の氷柱は割れず、鎧が永久に解けなくなる（詰み）ので、必ず床の上に置く
+ */
+function pillarPos(state: GameState, e: Enemy, angle: number, radius: number): Vec {
+  const dir = fromAngle(angle);
+  for (const ratio of PILLAR_DISTANCE_RATIOS) {
+    const want = add(e.body.pos, scale(dir, BOSS.frostGiant.pillarDistance * ratio));
+    if (!overlapsWall(state, want.x, want.y, radius)) return want;
+  }
+  return { ...e.body.pos };
 }
 
 /** 氷柱を割り切ったら鎧が砕けてダウン */

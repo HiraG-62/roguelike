@@ -193,6 +193,15 @@ describe("抽選", () => {
     expect(tags.has("explode")).toBe(true);
     expect(tags.has("just")).toBe(true);
   });
+
+  it("トリガー効果 inflict の状態異常もタグになる（毒を付けるトリガーだけで requires: poison を満たす）", () => {
+    const tags = equipmentTags({
+      ...DEFAULT_STATS,
+      triggers: [{ trigger: "onMeleeHit", condition: "always", effect: "inflict", magnitude: 1, chance: 1, status: "poison" }],
+    });
+    expect(tags.has("poison"), "毒のタグ").toBe(true);
+    expect(tags.has("bleed"), "付けない種類のタグは付かない").toBe(false);
+  });
 });
 
 describe("ルール変更の実効", () => {
