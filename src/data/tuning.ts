@@ -525,8 +525,11 @@ export const BOSS = {
 
 /** 追跡者（Reaper） */
 export const REAPER = {
-  /** 出現までの猶予（秒）の基礎値。実際の猶予は appearAfter + 部屋数 * appearPerRoom */
-  appearAfter: 90,
+  /**
+   * 出現までの猶予（秒）の基礎値。実際の猶予は appearAfter + 部屋数 * appearPerRoom。
+   * 90 → 105（QA 2026-09-24: マナ経済の締め直しで各階層の滞在が約 10 秒伸び、Reaper 出現が 2 倍近くに増えたため猶予を補正）
+   */
+  appearAfter: 105,
   /** 部屋 1 つにつき出現猶予に足す秒数（treasure/shrine は数えない） */
   appearPerRoom: 12,
   /** 出現のこの秒前から HUD に残り時間を出す */
