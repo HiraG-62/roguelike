@@ -183,7 +183,8 @@ function traitOptions(item: Item, origin: AffixRoll["origin"]): TraitRollOptions
 export function dyeTrait(item: Item, index: number, color: TraitColor, rng: Rng): Item | null {
   const roll = traitAt(item, index);
   if (roll === undefined || traitColorOf(roll) === color) return null;
-  const used = new Set(item.affixes.map((r) => r.key));
+  // 提示中の芽の候補と重複すると、染めで作った性質を選んだ扱いになり得るので候補の key も避ける
+  const used = new Set([...item.affixes.map((r) => r.key), ...(item.budOffer?.options.map((o) => o.key) ?? [])]);
   const fresh = rollTraitOfColor(rng, item.slot, color, used, traitOptions(item, roll.origin));
   if (fresh === undefined) return null;
   const carried = roll.flux === undefined || isKeystoneKey(fresh.key) ? fresh : refluxTrait(fresh, roll.flux);

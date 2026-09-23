@@ -9,7 +9,9 @@ import {
   applyEchoResult,
   convertLegacyWallet,
   craftEcho,
+  craftRng,
   createEchoWallet,
+  dyeTrait,
   shatterYield,
   type EchoCraftState,
   type EchoRequest,
@@ -148,6 +150,25 @@ describe("染め", () => {
     expect(dyed?.flux).toBeCloseTo(0.2);
     expect(s.echoes.azure).toBe(RICH - DYE_COST);
     expect(after.affixes).toHaveLength(3);
+  });
+
+  it("提示中の芽の候補（budOffer）と同じ key は染めで選ばれない", () => {
+    const item = makeItem();
+    const sampleKeys = (budOfferKey: string | null, samples: number): Set<string> => {
+      const keys = new Set<string>();
+      const target = budOfferKey === null ? item : { ...item, budOffer: { milestone: "m", options: [{ ...life, key: budOfferKey }, life] as [AffixRoll, AffixRoll] } };
+      for (let i = 0; i < samples; i++) {
+        const key = dyeTrait(target, 0, "azure", craftRng(item.id, i))?.affixes[0]?.key;
+        if (key !== undefined) keys.add(key);
+      }
+      return keys;
+    };
+    const SAMPLES = 100;
+    const withoutOffer = sampleKeys(null, SAMPLES);
+    expect(withoutOffer.size).toBeGreaterThan(1);
+    const candidate = [...withoutOffer][0];
+    if (candidate === undefined) throw new Error("候補が取れなかった");
+    expect(sampleKeys(candidate, SAMPLES).has(candidate)).toBe(false);
   });
 });
 

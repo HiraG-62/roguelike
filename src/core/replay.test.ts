@@ -5,12 +5,14 @@ import { FIXED_DT } from "./loop";
 import { createRng, hashSeed } from "./rng";
 import {
   InputEncoder,
+  REPLAY_VERSION,
   ReplayRecorder,
   createReplaySession,
   dailySeedText,
   decodeInputs,
   encodeInputs,
   isDailySeedText,
+  isPlayable,
   isReplayFinished,
   normalizeFrame,
   quantizeAim,
@@ -273,15 +275,28 @@ describe("記録 → 再生", () => {
     const { data } = recordRun("bad", createEmptyProfile(), randomInputs(4, 10));
     expect(() => createReplaySession({ ...data, frameCount: 11 })).toThrow();
   });
+
+  it("版数が違うリプレイは再生を拒否する", () => {
+    const { data } = recordRun("old-version", createEmptyProfile(), randomInputs(4, 10));
+    const old: ReplayData = { ...data, version: REPLAY_VERSION - 1 };
+    expect(isPlayable(old)).toBe(false);
+    expect(() => createReplaySession(old)).toThrow();
+  });
 });
 
 describe("sanitizeReplay", () => {
-  it("version 違い・欠損は null", () => {
+  it("version 違いは一覧に残すが再生不可、version 欠損・破損は null", () => {
     const { data } = recordRun("s", createEmptyProfile(), randomInputs(4, 10));
-    expect(sanitizeReplay({ ...data, version: 999 })).toBeNull();
+    const oldVersion = sanitizeReplay({ ...data, version: REPLAY_VERSION - 1 });
+    expect(oldVersion).not.toBeNull();
+    expect(isPlayable(oldVersion!)).toBe(false);
+    const { version: _version, ...withoutVersion } = data;
+    expect(sanitizeReplay(withoutVersion)).toBeNull();
     expect(sanitizeReplay({ ...data, inputs: 1 })).toBeNull();
     expect(sanitizeReplay(null)).toBeNull();
-    expect(sanitizeReplay(JSON.parse(JSON.stringify(data)))).toEqual(data);
+    const sanitized = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    expect(sanitized).toEqual(data);
+    expect(isPlayable(sanitized!)).toBe(true);
   });
 });
 

@@ -26,7 +26,7 @@ import { SKILL_PROFILE_KEY, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
 
-export const REPLAY_VERSION = 1;
+export const REPLAY_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -466,7 +466,21 @@ export interface ReplaySession {
   lastInput: FrameInput;
 }
 
+/**
+ * このリプレイが今のシミュレーションで再生可能か（記録時の version が現行と一致するか）。
+ * 装備システムの再設計など、生成・共鳴のロジックが変わると旧リプレイは入力列を流しても
+ * 別の結果になり再生が壊れるため、version が違うものは再生を拒否する。
+ * データ自体は sanitizeReplay で捨てずに残すので、UI（main.ts のリプレイ一覧）側でこれを見て
+ * 「再生不可（旧バージョン）」の表示にし、再生ボタンを無効化する想定
+ */
+export function isPlayable(replay: ReplayData): boolean {
+  return replay.version === REPLAY_VERSION;
+}
+
 export function createReplaySession(data: ReplayData): ReplaySession {
+  if (!isPlayable(data)) {
+    throw new Error(`replay: unsupported version ${data.version} (current: ${REPLAY_VERSION})`);
+  }
   const inputs = decodeInputs(data.inputs);
   if (inputs.length !== data.frameCount) {
     throw new Error(`replay: frame count mismatch (${inputs.length} vs ${data.frameCount})`);
@@ -625,9 +639,12 @@ function sanitizeEvent(v: unknown): ReplayEvent | null {
   return { frame: v.frame, loadout, player };
 }
 
-/** 保存データを検証して ReplayData にする。壊れている / version 違いなら null */
+/**
+ * 保存データを検証して ReplayData にする。壊れていれば null。
+ * version が現行と違っても構造が正しければ一覧に残すため null にはしない（再生可否は isPlayable で見る）
+ */
 export function sanitizeReplay(v: unknown): ReplayData | null {
-  if (!isRecord(v) || v.version !== REPLAY_VERSION) return null;
+  if (!isRecord(v) || !isFiniteNumber(v.version)) return null;
   const { seedText, startedAt, endedAt, daily, inputs, frameCount, result } = v;
   if (typeof seedText !== "string" || typeof inputs !== "string") return null;
   if (!isFiniteNumber(startedAt) || !isFiniteNumber(endedAt) || !isFiniteNumber(frameCount)) return null;
@@ -643,7 +660,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     events.push(ev);
   }
   return {
-    version: REPLAY_VERSION,
+    version: v.version,
     seedText,
     startedAt,
     endedAt,
