@@ -1,58 +1,54 @@
-import type { Rng } from "../core/rng";
 import { type FloorKind, type GameState, type RoomKind, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
+import { type KeywordProfile, kw } from "../core/keywords";
 import { enemyDef } from "../data/enemies";
-import { FLOOR_KIND, ROOM_KIND } from "../data/tuning";
+import { ROOM_KIND } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import type { MapShape } from "../map/generator";
 import { TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
-import { isBossDepth } from "./boss";
+import { BIOMES, biomeShape } from "./biomes";
 import { COLOR_HEAL, healPlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { finalizeLinks, rollElite } from "./elites";
 import { dropItem } from "./loot";
 import { circlesOverlap, overlapsWall } from "./physics";
+import { blackoutActive } from "./runEvents";
+import { hasMod } from "./runSetup";
+import { startsEmptySpecial } from "./specialRooms";
+
+export { chooseFloorKind, isCaveDepth } from "./biomes";
 
 /** 部屋の種類とフロア種別。docs/ideas/run-structure.md「1. フロアの種類」「2. 部屋の種類」 */
 
 // -----------------------------------------------------------------------------
-// フロア種別
+// フロア種別（バイオームの定義と抽選は src/system/biomes.ts）
 // -----------------------------------------------------------------------------
 
-export const FLOOR_KIND_LABEL: Readonly<Record<FloorKind, string>> = {
-  rooms: "回廊",
-  cave: "洞窟",
-  dark: "暗闇",
-};
+export const FLOOR_KIND_LABEL: Readonly<Record<FloorKind, string>> = Object.fromEntries(
+  (Object.keys(BIOMES) as FloorKind[]).map((k) => [k, BIOMES[k].label]),
+) as Record<FloorKind, string>;
 
-const MAP_SHAPE: Readonly<Record<FloorKind, MapShape>> = {
-  rooms: "rooms",
-  cave: "cave",
-  dark: "rooms",
+/** フロア種別の共通語彙。洞窟は壁を、暗闇は静止を強める。バイオームは地形が出す状態を出す */
+export const FLOOR_KEYWORDS: Readonly<Record<FloorKind, KeywordProfile>> = {
+  rooms: kw(["clear"]),
+  cave: kw(["wall"], [], ["wall"]),
+  dark: kw([], ["ranged"], ["still"]),
+  forge: kw(["burn"], [], ["explode"]),
+  ossuary: kw(["kill"], ["kill"]),
+  swamp: kw(["poison"]),
+  glacier: kw(["chill"], [], ["wall"]),
+  mine: kw(["burn", "explode"]),
+  meadow: kw(["burn"], [], ["dash"]),
 };
 
 export function mapShapeOf(kind: FloorKind): MapShape {
-  return MAP_SHAPE[kind];
+  return biomeShape(kind);
 }
 
-export function isCaveDepth(depth: number): boolean {
-  return depth >= FLOOR_KIND.caveMinDepth && depth % FLOOR_KIND.caveInterval === FLOOR_KIND.caveRemainder;
-}
-
-/**
- * depth からフロア種別を決める。ボス階は boss.ts が「最後の部屋」を前提にしているので必ず rooms。
- * dark の抽選は darkMinDepth 以上でだけ rng を消費する（浅い階の乱数消費は従来どおり）
- */
-export function chooseFloorKind(depth: number, rng: Rng): FloorKind {
-  if (isBossDepth(depth)) return "rooms";
-  if (isCaveDepth(depth)) return "cave";
-  if (depth < FLOOR_KIND.darkMinDepth) return "rooms";
-  return rng.chance(FLOOR_KIND.darkChance) ? "dark" : "rooms";
-}
-
+/** 暗闇の階・縛り「常夜」・停電中は暗い */
 export function isDark(state: GameState): boolean {
-  return state.floorKind === "dark";
+  return state.floorKind === "dark" || hasMod(state, "eternalNight") || blackoutActive(state);
 }
 
 // -----------------------------------------------------------------------------
@@ -65,6 +61,29 @@ interface UniqueKindRule {
   minDepth: number;
 }
 
+/** 部屋の種類の共通語彙。試練は制圧・撃破を強め、泉は回復を出す */
+export const ROOM_KEYWORDS: Readonly<Record<RoomKind, KeywordProfile>> = {
+  normal: kw(["clear", "kill"]),
+  treasure: kw([], [], ["crimson", "azure", "jade", "gold", "umbra"]),
+  challenge: kw(["clear", "kill"], [], ["clear", "kill"]),
+  shrine: kw(["heal"]),
+  ambush: kw(["clear", "kill"], [], ["area"]),
+  altar: kw([], [], ["umbra"]),
+  library: kw([], [], ["mana"]),
+  arena: kw(["clear", "kill"], [], ["clear", "kill"]),
+  gamble: kw(["lowHp"]),
+  forge: kw(["burn"]),
+  exchange: kw([], [], ["crimson", "azure", "jade", "gold", "umbra"]),
+  curseShrine: kw(["umbra"]),
+  resonance: kw([], ["crimson", "azure", "jade", "gold", "umbra"]),
+  escort: kw(["clear"], ["area"]),
+  escape: kw(["burn"], ["dash"]),
+  reaperNest: kw(["elite"]),
+  nest: kw(["elite", "clear"]),
+  mirror: kw(["elite"]),
+  watchtower: kw(["elite"]),
+};
+
 /** 1 フロアに 0〜1 個の種類。この順に抽選する */
 const UNIQUE_KINDS: readonly UniqueKindRule[] = [
   { kind: "treasure", chance: ROOM_KIND.treasureChance, minDepth: 1 },
@@ -76,7 +95,7 @@ const UNIQUE_KINDS: readonly UniqueKindRule[] = [
 const EMPTY_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["treasure", "challenge", "shrine", "ambush"]);
 
 export function startsEmpty(kind: RoomKind): boolean {
-  return EMPTY_KINDS.has(kind);
+  return EMPTY_KINDS.has(kind) || startsEmptySpecial(kind);
 }
 
 /**
@@ -87,6 +106,8 @@ export function assignRoomKinds(state: GameState, reserved: ReadonlySet<number>)
   const candidates = state.rooms.map((_, i) => i).filter((i) => !reserved.has(i));
   for (const rule of UNIQUE_KINDS) {
     if (state.depth < rule.minDepth || candidates.length === 0) continue;
+    // 縛り「乾いた泉」: 泉は湧かない（抽選もしない）
+    if (rule.kind === "shrine" && hasMod(state, "dryFountain")) continue;
     if (!state.rng.chance(rule.chance)) continue;
     const [index] = candidates.splice(state.rng.int(0, candidates.length - 1), 1);
     const room = index === undefined ? undefined : state.rooms[index];
@@ -149,8 +170,15 @@ const WAVE_SHAKE = 3;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const RARE_ITEM_LEVEL_BONUS = 1;
 
-export function waveText(wave: number): string {
-  return `第${wave}波/${ROOM_KIND.challengeWaves}`;
+/** 波のある部屋の波の数（試練・闘技場） */
+export function waveCount(kind: RoomKind): number {
+  if (kind === "challenge") return ROOM_KIND.challengeWaves;
+  if (kind === "arena") return ROOM_KIND.arenaWaves;
+  return 0;
+}
+
+export function waveText(wave: number, total: number = ROOM_KIND.challengeWaves): string {
+  return `第${wave}波/${total}`;
 }
 
 /** 次の波へ。spawn は floor.ts の湧かせ処理（循環 import を避けるため受け取る） */
@@ -158,13 +186,13 @@ export function startWave(state: GameState, room: RoomState, spawn: () => void):
   room.wave += 1;
   spawn();
   shake(state, WAVE_SHAKE);
-  addFloatingText(state, textPos(state), waveText(room.wave), ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
+  addFloatingText(state, textPos(state), waveText(room.wave, waveCount(room.kind)), ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
   pushSfx(state, "roomLock");
   pushSfx(state, "waveStart");
 }
 
 export function hasMoreWaves(room: RoomState): boolean {
-  return room.kind === "challenge" && room.wave < ROOM_KIND.challengeWaves;
+  return room.wave < waveCount(room.kind);
 }
 
 /** rare 以上が出るまで引き直す（上限回数で打ち切り） */

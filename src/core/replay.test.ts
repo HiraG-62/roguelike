@@ -27,6 +27,7 @@ import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
 import { allocateAttribute } from "../ui/attributeAlloc";
 import type { GameState } from "./state";
+import type { RunSetup } from "../system/runSetup";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -217,10 +218,11 @@ function recordRun(
   profile: Profile,
   inputs: readonly FrameInput[],
   onFrame?: (state: GameState, frame: number) => boolean,
+  setup?: RunSetup,
 ): { data: ReplayData; state: GameState } {
   const skillProfile = createDefaultSkillProfile();
-  const recorder = new ReplayRecorder({ seedText, startedAt: 1, daily: false }, profile, skillProfile);
-  const state = createGame(hashSeed(seedText), seedText, profile, skillProfile);
+  const recorder = new ReplayRecorder({ seedText, startedAt: 1, daily: false, setup }, profile, skillProfile);
+  const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, setup);
   inputs.forEach((input, i) => {
     if (onFrame?.(state, i)) recorder.noteLoadout(state);
     step(state, recorder.record(input), FIXED_DT);
@@ -289,6 +291,26 @@ describe("記録 → 再生", () => {
   it("フレーム数が合わないデータは再生を拒否する", () => {
     const { data } = recordRun("bad", createEmptyProfile(), randomInputs(4, 10));
     expect(() => createReplaySession({ ...data, frameCount: 11 })).toThrow();
+  });
+
+  it("起点と縛りを記録し、再生でも同じ条件でランが始まる（REPLAY_VERSION 5）", () => {
+    const setup: RunSetup = { origin: "cursedOne", modifiers: ["thickHide", "quickHands", "eternalNight"] };
+    const { data, state } = recordRun("origin-replay", createEmptyProfile(), randomInputs(11, 1500), undefined, setup);
+    expect(data.version).toBe(5);
+    expect(data.origin).toBe("cursedOne");
+    expect(data.modifiers).toEqual(["thickHide", "quickHands", "eternalNight"]);
+    const replayed = playBack(data);
+    expect(replayed.origin, "起点が再生側にも入る").toBe("cursedOne");
+    expect(replayed.modifiers).toEqual(setup.modifiers);
+    expect(fingerprint(replayed)).toBe(fingerprint(state));
+  });
+
+  it("起点・縛りの未知の key は sanitize で捨てる（起点は放浪者に戻る）", () => {
+    const { data } = recordRun("origin-sanitize", createEmptyProfile(), randomInputs(3, 10));
+    const broken = { ...data, origin: "unknownOrigin", modifiers: ["thickHide", "nope", 3] };
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(broken)));
+    expect(loaded?.origin).toBe("wanderer");
+    expect(loaded?.modifiers).toEqual(["thickHide"]);
   });
 
   it("版数が違うリプレイは再生を拒否する", () => {

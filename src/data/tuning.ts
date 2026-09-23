@@ -605,6 +605,32 @@ export const TRIGGER = {
   },
 } as const;
 
+/**
+ * 統一ルール文法とイベント（src/core/events.ts / src/core/rules.ts / src/system/rules.ts）。
+ * docs/ideas/synergy-web.md 3 章・6 章 C7（世代減衰）
+ */
+export const SYNERGY = {
+  /** この深さ以上のイベントは Rule を起こさない（環が回っても 3 段で止まる） */
+  maxDepth: 3,
+  /** 深さ 1 段ごとに効果量へ掛ける倍率 */
+  chainDecay: 0.5,
+  /** 条件 recent と state.recent の数え直しの窓（秒） */
+  recentWindow: 3,
+  /** 1 語が keywordWindow 秒あたりに起こせる効果の回数（環を 2 本重ねても爆発が倍にならない） */
+  keywordBudget: 6,
+  keywordWindow: 1,
+  /** Rule の ICD の既定（装備トリガーの TRIGGER.icd と同じ） */
+  defaultIcd: 0.4,
+  /** 条件 lowHp: 最大 HP に対するこの割合以下 */
+  lowHpRatio: 0.5,
+  /** state.chains に残す件数 */
+  chainLog: 8,
+  /** 1 ステップに積めるイベントの上限（バーストで大量に倒したときの暴走止め） */
+  maxEventsPerStep: 256,
+  /** 次ステップへ持ち越せるイベントの上限 */
+  maxPendingEvents: 64,
+} as const;
+
 /** キーストーンの数値 */
 export const KEYSTONE = {
   blinkRadius: 40,
@@ -1040,6 +1066,80 @@ export const ROOM_KIND = {
   ambushMax: 2,
   /** 伏兵部屋で入った瞬間に湧く数（通常部屋の敵数に対する倍率） */
   ambushEnemyMul: 2,
+  // ---- ラン構造の拡張（src/system/specialRooms.ts。docs/ideas/run-expansion.md 2 章）----
+  /** 追加の部屋種類は 1 フロアにこの数まで（多すぎると戦闘部屋が消える） */
+  extraMax: 3,
+  /** 追加の部屋種類ごとの出る確率と出始める深度（抽選はこの並び順） */
+  extra: {
+    altar: { chance: 0.18, minDepth: 3 },
+    library: { chance: 0.22, minDepth: 2 },
+    arena: { chance: 0.15, minDepth: 4 },
+    gamble: { chance: 0.2, minDepth: 2 },
+    forge: { chance: 0.15, minDepth: 2 },
+    exchange: { chance: 0.15, minDepth: 2 },
+    curseShrine: { chance: 0.15, minDepth: 3 },
+    resonance: { chance: 0.2, minDepth: 2 },
+    escort: { chance: 0.15, minDepth: 3 },
+    escape: { chance: 0.12, minDepth: 3 },
+    reaperNest: { chance: 0.1, minDepth: 4 },
+    nest: { chance: 0.15, minDepth: 4 },
+    mirror: { chance: 0.08, minDepth: 5 },
+    watchtower: { chance: 0.15, minDepth: 2 },
+  },
+  /** 台座に触れたと判定する半径（px）と、台座どうしの間隔（タイル） */
+  propRadius: 9,
+  propSpacing: 3,
+  /** 台座の上に出す名前を読める距離（px） */
+  propLabelRange: 56,
+  altarColor: "#d08cff",
+  libraryColor: "#80c0ff",
+  /** 闘技場: 波の数・波ごとの湧き倍率・報酬の rarityBoost */
+  arenaWaves: 4,
+  arenaWaveMul: 0.8,
+  arenaColor: "#ff6040",
+  /** 賭博: 1 回に払う最大 HP の割合・回せる回数・当たりの重み */
+  gambleHpCost: 0.1,
+  gambleUses: 3,
+  gambleColor: "#ffd040",
+  gambleWeights: { item: 35, hearts: 20, rune: 15, ambush: 15, curse: 15 },
+  gambleRarityBoost: 2,
+  gambleHearts: 2,
+  /** 鍛冶場: 得る残響の数と、炉の熱で付く燃焼 */
+  forgeEchoes: 3,
+  forgeBurnDuration: 3,
+  forgeBurnDps: 2,
+  forgeColor: "#ff9040",
+  /** 交換所: 置いてある遺物の数と、残響への換算倍率 */
+  exchangeItems: 2,
+  exchangeMul: 1.5,
+  exchangeColor: "#60e0c0",
+  curseShrineColor: "#a040ff",
+  /** 共鳴炉: 色が合ったときの追加の部屋報酬の回数 */
+  resonanceBonusDrops: 2,
+  /** 護衛: 対象の HP（プレイヤーの最大 HP に対する倍率）・敵がこの距離にいると削れる・1 体あたりの毎秒ダメージ */
+  escortHpMul: 1.5,
+  escortRadius: 36,
+  escortDps: 3,
+  escortColor: "#80ff80",
+  /** 逃走: 床が崩れる（溶岩になる）広がる速さ（px/秒）・溶岩の残る秒・宝箱の報酬 */
+  escapeSpeed: 22,
+  escapeLavaTime: 6,
+  escapeTickInterval: 0.5,
+  escapeColor: "#ff6030",
+  /** 死神の巣: 箱の遺物の深度の上乗せ */
+  reaperNestDepthBonus: 3,
+  /** 巣: 部屋主の HP 倍率と、付けるエリート修飾子の数 */
+  nestHpMul: 2.5,
+  nestElites: 2,
+  nestColor: "#e06040",
+  /** 鏡: 写しの HP（プレイヤーの最大 HP に対する倍率）・祝福いくつでエリート修飾子 1 つか・上限 */
+  mirrorHpMul: 4,
+  mirrorBoonsPerElite: 3,
+  mirrorEliteMax: 2,
+  mirrorColor: "#c0e0ff",
+  /** 見張り台: 鐘を鳴らすと死神の猶予が縮む秒 */
+  watchtowerReaperCost: 20,
+  watchtowerColor: "#e0e0a0",
 } as const;
 
 /** フロア種別（src/system/roomTypes.ts の chooseFloorKind） */
@@ -1048,13 +1148,158 @@ export const FLOOR_KIND = {
   caveInterval: 3,
   caveRemainder: 1,
   caveMinDepth: 4,
-  darkMinDepth: 4,
-  darkChance: 0.25,
   /** 暗闇でプレイヤー周りだけ明るい半径（px） */
   darkLightRadius: 90,
   /** 光の縁のぼかし幅（半径に対する割合） */
   darkFeather: 0.35,
   darkAlpha: 0.94,
+  // ---- バイオームと分岐路（src/system/biomes.ts）----
+  /** フロア種別の抽選の重み（出始める深度は biomeMinDepth） */
+  weight: { rooms: 3, cave: 2, dark: 1, forge: 1, ossuary: 1, swamp: 1, glacier: 1, mine: 1, meadow: 1 },
+  biomeMinDepth: { rooms: 1, cave: 4, dark: 4, forge: 4, ossuary: 3, swamp: 2, glacier: 3, mine: 2, meadow: 2 },
+  /** バイオームの地形: 部屋 1 つあたりの塊の数と半径（px） */
+  patchesPerRoom: 2,
+  patchRadiusMin: 20,
+  patchRadiusMax: 40,
+  /** 溶岩は踏むと痛いので小さく */
+  lavaRadiusMul: 0.6,
+  /** 出やすい敵ファミリーの重み倍率 */
+  familyMul: 3,
+  /** 骨の墓所: 部屋ごとに最初から転がっている死骸の数と、死骸が残る秒 */
+  ossuaryCorpses: 3,
+  ossuaryCorpseTime: 600,
+  /** 床に重ねる色調の不透明度 */
+  tintAlpha: 0.16,
+  /** 分岐路: 最後の部屋に置く階段の数と、中心からの距離（タイル） */
+  forkMin: 2,
+  forkMax: 3,
+  forkOffset: 4,
+} as const;
+
+/** ランイベント（src/system/runEvents.ts。docs/ideas/run-expansion.md 3 章）。すべて予告してから始まる */
+export const RUN_EVENT = {
+  /** この深度からイベントが起きる */
+  minDepth: 2,
+  /** 予告（HUD の 1 行 + 効果音）から始まるまでの秒 */
+  warnTime: 1.8,
+  /** 1 つ終わってから次が起きるまでの最短秒 */
+  cooldown: 20,
+  /** 封鎖時に起きる確率 */
+  lockChance: { reinforce: 0.1, blackout: 0.06, meteor: 0.05, manaDrought: 0.06, shrink: 0.04, timeRift: 0.05 },
+  /** 階に入ったときに起きる確率（霧は沼・草原・氷窟では fogBiomeChance） */
+  floorChance: { bounty: 0.12, bloodMoon: 0.05, frenzyMoon: 0.05, fog: 0.03 },
+  fogBiomeChance: 0.2,
+  /** 時間で起きる: この秒を過ぎてから checkInterval ごとに抽選 */
+  timedAfter: 40,
+  checkInterval: 10,
+  timedChance: { quake: 0.08, curseWind: 0.06 },
+  /** 制圧時に起きる確率 */
+  clearChance: { treasureRain: 0.04, momentum: 0.12 },
+  /** 増援: 湧かせる抽選回数（通常部屋の敵数に対する倍率）と、この秒以内に倒すと報酬 */
+  reinforceMul: 0.6,
+  reinforceBonusTime: 8,
+  /** 賞金首: 撃破のスコア */
+  bountyScore: 300,
+  /** 停電: 長くてもこの秒で明かりが戻る */
+  blackoutMax: 25,
+  /** 地震・流星群: 続く秒・落下の間隔・予告の秒・半径・ダメージ・プレイヤーからのばらつき（px） */
+  quake: { duration: 6, interval: 0.45, telegraph: 0.9, radius: 14, damage: 8, spread: 90 },
+  meteor: { duration: 8, interval: 0.7, telegraph: 1.2, radius: 22, damage: 12, spread: 110 },
+  /** 落下物が敵に与えるダメージの倍率（地形を武器にする） */
+  impactEnemyMul: 2.5,
+  /** 宝の雨: 降る遺物とハートの数・散らばる距離（px） */
+  rainItems: 3,
+  rainHearts: 2,
+  rainSpread: 40,
+  rainRarityBoost: 0.8,
+  /** マナ枯渇: 毎秒抜けるマナ。制圧でマナが満ちる */
+  manaDrainPerSec: 4,
+  /** 刻の裂け目: 出ている秒・触れる半径・止める秒 */
+  riftTime: 6,
+  riftRadius: 10,
+  riftFreeze: 3,
+  /** 霧: 続く秒と見える半径（px） */
+  fogDuration: 40,
+  fogRadius: 110,
+  /** 呪いの風: HUD に残す秒 */
+  curseWindShow: 3,
+  /** 血の月: 撃破で戻る HP と、湧く敵の HP 倍率 */
+  bloodMoonHeal: 2,
+  bloodMoonHpMul: 1.3,
+  /** 縮みの呪い: 敵の HP 倍率と、足す湧きの抽選回数（倍率） */
+  shrinkHpMul: 0.5,
+  shrinkExtraMul: 1,
+  /** 勢いの風: この秒以内に次の部屋へ入ると移動速度が上がり、敵が 1 体減る */
+  momentumWindow: 5,
+  momentumSpeedMul: 1.3,
+  momentumSpeedTime: 6,
+  /** HUD の色 */
+  warnColor: "#ffb040",
+  activeColor: "#ff7050",
+  impactColor: "#ff9040",
+} as const;
+
+/** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
+export const LINGER = {
+  minDepth: 3,
+  /** 死神の猶予に対する、代償が始まる時刻の割合（長居の二重苦では doubleRatio） */
+  startRatio: 0.6,
+  doubleRatio: 0.35,
+  /** 始まるこの秒前から HUD に予告を出す */
+  warnMargin: 15,
+  /** 影の自分: 何秒前の軌跡をなぞるか・影どうしの遅れの差・新しい影が出る間隔・上限・記録の間隔・当たり */
+  shadowDelay: 10,
+  shadowGap: 2.5,
+  shadowInterval: 12,
+  shadowMax: 4,
+  trailStep: 0.1,
+  shadowRadius: 6,
+  shadowDamage: 10,
+  shadowColor: "#402060",
+  /** 天井の崩落: 落石の間隔（最初 → 最短）・縮む速さ（秒/秒）・予告・半径・ダメージ・ばらつき（px） */
+  collapseInterval: 3,
+  collapseMinInterval: 1.1,
+  collapseAccel: 0.03,
+  collapseTelegraph: 1,
+  collapseRadius: 14,
+  collapseDamage: 10,
+  collapseSpread: 28,
+  /** 潮: 水が広がる速さ（px/秒）・置き直す間隔・満潮までの秒・満潮後に水の上で受ける毎秒ダメージ */
+  tideSpeed: 18,
+  tideInterval: 1,
+  tideFullAfter: 40,
+  tideDrownDps: 3,
+} as const;
+
+/** 起点（ラン開始時の選択。src/system/runSetup.ts） */
+export const ORIGIN = {
+  /** 呪われた者: 最初に受ける呪い付き祝福の数と、代わりに得る振り分け点 */
+  cursedBoons: 2,
+  cursedPoints: 4,
+  /** 素手: 装備が封印される階（この深度に着くと解ける）と、代わりに得る振り分け点 */
+  unarmedUnsealDepth: 3,
+  unarmedPoints: 3,
+  /** 詠み手: 最初に差す刻印符の数と、最大 HP の倍率 */
+  chanterRunes: 2,
+  chanterHpMul: 0.8,
+  /** 死神の友: 死神の速さの倍率と、階ごとに追加で得る振り分け点 */
+  reaperFriendSpeedMul: 0.5,
+  reaperFriendPoints: 1,
+} as const;
+
+/** ラン修飾子（縛り）。点の合計が位階（src/system/runSetup.ts） */
+export const RUN_MOD = {
+  thickHideHpMul: 1.3,
+  /** 早い手: 予備動作が縮む割合（下限は基準の 60% を守る） */
+  quickHandsCut: 0.1,
+  /** 急かす死神: 猶予の倍率 */
+  hastyReaperMul: 0.7,
+  /** 部屋の砂時計: 封鎖からこの秒で増援、以後この間隔で繰り返す */
+  hourglassTime: 25,
+  /** 薄氷: 最大 HP の倍率 */
+  glassBodyHpMul: 0.7,
+  /** 位階 1 あたりの、階段で得るスコアの上乗せ */
+  scorePerTier: 0.1,
 } as const;
 
 /** ミニマップ */
@@ -1277,6 +1522,8 @@ export const BOON = {
   /** 系譜の前段を持つときの次段 / 結びの重み倍率 */
   lineageWeightMul: 2,
   duoWeightMul: 3,
+  /** 共通語彙: 候補が今のビルドの「飢え」（食うのに誰も出さない語）を 1 つでも埋めるときの重み倍率 */
+  affinityWeightMul: 1.5,
   /** 祝福が付ける燃焼の dps / 感電の強さ（近接 1 段目に対する割合。装備の値が大きければそちら） */
   emberDpsRatio: 0.4,
   shockPotencyRatio: 0.5,

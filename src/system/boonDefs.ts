@@ -3,6 +3,9 @@
  * system/boonRules.ts（拡張で足したルール）。docs/ideas/boons-expansion.md
  */
 
+import { type KeywordProfile, kw } from "../core/keywords";
+import type { Rule } from "../core/rules";
+
 export const BOON_KEYS = [
   "finisherOnly",
   "dashGun",
@@ -200,6 +203,10 @@ export interface BoonDef {
   after?: BoonKey;
   /** 結び: この 2 つを両方持っていないと出ない */
   duo?: readonly [BoonKey, BoonKey];
+  /** 統一ルール（src/core/rules.ts）。取得順に src/system/rules.ts の resolveRules が照合する */
+  rules?: readonly Rule[];
+  /** 共通語彙（docs/ideas/synergy-web.md 1 章）。tags / gives より細かい「出す・食う・強める」 */
+  keywords: KeywordProfile;
 }
 
 export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
@@ -210,6 +217,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "3",
     rarity: "rare",
     tags: ["melee"],
+    keywords: kw(["finisher"], ["melee"], ["finisher"]),
     cursed: false,
   },
   dashGun: {
@@ -219,6 +227,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "»",
     rarity: "common",
     tags: ["ranged", "dash"],
+    keywords: kw(["ranged"], ["dash"]),
     cursed: false,
   },
   reflect: {
@@ -228,6 +237,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "P",
     rarity: "common",
     tags: ["melee", "energy"],
+    keywords: kw(["energy", "bullet"], ["bullet", "melee"]),
     cursed: false,
   },
   justSlash: {
@@ -237,6 +247,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "/",
     rarity: "rare",
     tags: ["just", "melee"],
+    keywords: kw(["counter", "melee"], ["just"]),
     gives: ["counter"],
     cursed: false,
   },
@@ -247,6 +258,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "L",
     rarity: "common",
     tags: ["room", "dash"],
+    keywords: kw([], ["clear"], ["dash"]),
     cursed: true,
   },
   glassJust: {
@@ -256,6 +268,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "G",
     rarity: "epic",
     tags: ["just", "dash"],
+    keywords: kw(["lowHp"], ["ward"], ["just"]),
     cursed: true,
   },
   comboWave: {
@@ -265,6 +278,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "W",
     rarity: "rare",
     tags: ["melee", "combo"],
+    keywords: kw(["area"], ["combo"]),
     cursed: false,
   },
   heartBurn: {
@@ -274,6 +288,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "H",
     rarity: "common",
     tags: ["burn", "hp"],
+    keywords: kw([], ["heal"], ["burn"]),
     cursed: false,
     requires: "burn",
   },
@@ -284,6 +299,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "K",
     rarity: "rare",
     tags: ["loot"],
+    keywords: kw([], ["elite", "kill"]),
     cursed: false,
   },
   secondWind: {
@@ -293,6 +309,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "R",
     rarity: "epic",
     tags: ["hp"],
+    keywords: kw(["heal"], ["lowHp"]),
     cursed: false,
   },
   giantSlayer: {
@@ -302,6 +319,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "B",
     rarity: "common",
     tags: ["boss"],
+    keywords: kw([], ["elite"]),
     cursed: true,
   },
   dashBlast: {
@@ -311,6 +329,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "X",
     rarity: "rare",
     tags: ["dash", "explode"],
+    keywords: kw(["explode"], ["dash"]),
     gives: ["explode"],
     cursed: false,
   },
@@ -321,6 +340,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "J",
     rarity: "rare",
     tags: ["just"],
+    keywords: kw([], ["just", "bullet"]),
     cursed: false,
   },
   clearShield: {
@@ -330,6 +350,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "V",
     rarity: "common",
     tags: ["room"],
+    keywords: kw(["ward"], ["clear"]),
     cursed: false,
   },
   clearHeal: {
@@ -339,6 +360,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "T",
     rarity: "rare",
     tags: ["room", "hp"],
+    keywords: kw(["heal", "lowHp"], ["clear"]),
     cursed: true,
   },
   finisherWave: {
@@ -348,6 +370,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "~",
     rarity: "common",
     tags: ["melee"],
+    keywords: kw(["area", "wall"], ["finisher"]),
     cursed: false,
   },
   rearGuard: {
@@ -357,6 +380,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "<",
     rarity: "common",
     tags: ["ranged"],
+    keywords: kw(["bullet"], ["ranged"]),
     cursed: false,
   },
   standingSniper: {
@@ -366,6 +390,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "S",
     rarity: "common",
     tags: ["ranged"],
+    keywords: kw([], ["still", "ranged"], ["bullet"]),
     cursed: false,
   },
   triggerHappy: {
@@ -375,6 +400,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "!",
     rarity: "rare",
     tags: ["ranged"],
+    keywords: kw([], [], ["ranged"]),
     cursed: true,
   },
   dashGuard: {
@@ -384,6 +410,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "I",
     rarity: "rare",
     tags: ["just", "dash"],
+    keywords: kw(["just", "ward"], ["dash", "hurt"]),
     cursed: true,
   },
   comboKeeper: {
@@ -393,6 +420,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "C",
     rarity: "common",
     tags: ["combo"],
+    keywords: kw([], ["hurt"], ["combo"]),
     cursed: false,
   },
   comboClock: {
@@ -402,6 +430,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "@",
     rarity: "rare",
     tags: ["combo", "energy"],
+    keywords: kw(["energy"], ["combo"]),
     gives: ["energy"],
     cursed: true,
   },
@@ -412,6 +441,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "O",
     rarity: "rare",
     tags: ["energy", "melee", "explode"],
+    keywords: kw(["explode"], ["energy", "melee"]),
     gives: ["explode"],
     cursed: false,
   },
@@ -422,6 +452,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "E",
     rarity: "common",
     tags: ["energy"],
+    keywords: kw(["energy"], ["energy", "kill"]),
     cursed: false,
   },
   burnSpread: {
@@ -431,6 +462,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "F",
     rarity: "common",
     tags: ["burn"],
+    keywords: kw(["burn"], ["burn", "kill"]),
     gives: ["burn"],
     cursed: false,
     requires: "burn",
@@ -442,6 +474,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "*",
     rarity: "common",
     tags: ["chill"],
+    keywords: kw(["area", "reaction"], ["chill", "kill"]),
     gives: ["chill"],
     cursed: false,
     requires: "chill",
@@ -453,6 +486,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "Z",
     rarity: "rare",
     tags: ["dash", "shock"],
+    keywords: kw(["shock"], ["dash"]),
     gives: ["shock"],
     cursed: false,
   },
@@ -463,6 +497,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "A",
     rarity: "rare",
     tags: ["crit", "shock"],
+    keywords: kw(["shock"], ["crit"]),
     gives: ["shock"],
     cursed: false,
   },
@@ -473,6 +508,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "+",
     rarity: "rare",
     tags: ["hp"],
+    keywords: kw(["heal"], ["kill"]),
     cursed: true,
   },
   eliteMagnet: {
@@ -482,6 +518,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "M",
     rarity: "rare",
     tags: ["loot"],
+    keywords: kw(["elite"], [], ["elite"]),
     cursed: true,
   },
   frostLock: {
@@ -491,6 +528,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "#",
     rarity: "common",
     tags: ["chill", "room"],
+    keywords: kw(["chill"], ["clear"]),
     gives: ["chill"],
     cursed: false,
   },
@@ -501,6 +539,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "^",
     rarity: "rare",
     tags: ["attr"],
+    keywords: kw([], [], ["melee", "ranged", "mana"]),
     cursed: true,
     requires: "attr",
   },
@@ -511,6 +550,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "%",
     rarity: "common",
     tags: ["attr", "melee", "ranged"],
+    keywords: kw([], [], ["melee", "ranged"]),
     cursed: false,
   },
   spiritBlade: {
@@ -520,6 +560,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "&",
     rarity: "rare",
     tags: ["attr", "melee", "ranged"],
+    keywords: kw([], [], ["melee", "ranged"]),
     cursed: true,
   },
   plague: {
@@ -529,6 +570,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "Q",
     rarity: "common",
     tags: ["poison"],
+    keywords: kw(["poison"], ["poison", "kill"]),
     gives: ["poison"],
     cursed: false,
     requires: "poison",
@@ -540,6 +582,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "D",
     rarity: "common",
     tags: ["bleed", "hp"],
+    keywords: kw(["heal"], ["bleed", "kill"]),
     cursed: false,
     requires: "bleed",
   },
@@ -550,6 +593,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "Y",
     rarity: "common",
     tags: ["stagger", "melee"],
+    keywords: kw(["vulnerable"], ["stagger"]),
     gives: ["vulnerable"],
     cursed: false,
   },
@@ -560,6 +604,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "N",
     rarity: "rare",
     tags: ["chill"],
+    keywords: kw(["chill"], ["reaction"]),
     gives: ["chill"],
     cursed: false,
     requires: "chill",
@@ -571,6 +616,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "U",
     rarity: "rare",
     tags: ["mana", "room"],
+    keywords: kw(["mana"], ["clear"]),
     gives: ["mana"],
     cursed: false,
   },
@@ -581,6 +627,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "$",
     rarity: "common",
     tags: ["mana", "hp"],
+    keywords: kw([], ["lowHp"], ["mana"]),
     cursed: false,
   },
   reaperCup: {
@@ -590,6 +637,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "=",
     rarity: "common",
     tags: ["mana"],
+    keywords: kw(["mana"], ["kill"]),
     cursed: false,
   },
   keenBreath: {
@@ -599,6 +647,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "'",
     rarity: "common",
     tags: ["mana", "just"],
+    keywords: kw(["mana"], ["just"]),
     gives: ["mana"],
     cursed: false,
   },
@@ -609,6 +658,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "o",
     rarity: "rare",
     tags: ["mana"],
+    keywords: kw(["mana"], [], ["mana"]),
     cursed: false,
   },
   hollowVessel: {
@@ -618,6 +668,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "0",
     rarity: "rare",
     tags: ["mana"],
+    keywords: kw([], [], ["mana"]),
     cursed: true,
   },
   // ---------------------------------------------------------------------------
@@ -630,6 +681,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "火",
     rarity: "common",
     tags: ["burn", "melee"],
+    keywords: kw(["burn"], ["finisher"]),
     gives: ["burn"],
     cursed: false,
     lineage: "ash",
@@ -641,6 +693,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "延",
     rarity: "rare",
     tags: ["burn"],
+    keywords: kw(["burn"], ["burn"]),
     gives: ["burn"],
     cursed: false,
     lineage: "ash",
@@ -653,6 +706,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "灰",
     rarity: "rare",
     tags: ["burn", "melee"],
+    keywords: kw(["burn"], ["burn", "kill"]),
     gives: ["burn"],
     cursed: false,
     lineage: "ash",
@@ -665,6 +719,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "焦",
     rarity: "epic",
     tags: ["burn", "energy"],
+    keywords: kw(["explode"], ["burn", "energy"]),
     cursed: false,
     requires: "burn",
     lineage: "ash",
@@ -680,6 +735,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "霜",
     rarity: "common",
     tags: ["chill", "ranged"],
+    keywords: kw(["chill"], ["ranged"]),
     gives: ["chill"],
     cursed: false,
     lineage: "frost",
@@ -691,6 +747,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "凍",
     rarity: "rare",
     tags: ["chill", "counter"],
+    keywords: kw(["counter"], ["chill"]),
     gives: ["counter"],
     cursed: false,
     lineage: "frost",
@@ -703,6 +760,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "鐘",
     rarity: "rare",
     tags: ["chill", "freeze"],
+    keywords: kw(["reaction"], ["reaction", "chill"]),
     cursed: false,
     lineage: "frost",
     after: "frostFeet",
@@ -714,6 +772,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "冬",
     rarity: "epic",
     tags: ["chill", "freeze", "just"],
+    keywords: kw(["chill"], ["just"]),
     gives: ["freeze"],
     cursed: false,
     requires: "chill",
@@ -730,6 +789,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "静",
     rarity: "common",
     tags: ["shock", "dash"],
+    keywords: kw(["shock"], ["dash"]),
     gives: ["shock"],
     cursed: false,
     lineage: "thunder",
@@ -741,6 +801,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "刃",
     rarity: "rare",
     tags: ["shock", "melee"],
+    keywords: kw(["shock"], ["shock", "melee"]),
     gives: ["shock"],
     cursed: false,
     lineage: "thunder",
@@ -753,6 +814,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "落",
     rarity: "rare",
     tags: ["shock", "paralyze"],
+    keywords: kw(["shock", "area"], ["shock"]),
     cursed: false,
     lineage: "thunder",
     after: "chargedBlade",
@@ -764,6 +826,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "鼓",
     rarity: "epic",
     tags: ["shock", "combo"],
+    keywords: kw(["shock"], ["combo", "shock"]),
     cursed: false,
     requires: "shock",
     lineage: "thunder",
@@ -779,6 +842,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "月",
     rarity: "common",
     tags: ["mana", "skill", "silence"],
+    keywords: kw(["silence"], ["mana"]),
     gives: ["silence"],
     cursed: false,
     lineage: "moon",
@@ -790,6 +854,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "潮",
     rarity: "rare",
     tags: ["mana", "energy"],
+    keywords: kw(["energy"], ["mana"]),
     gives: ["energy"],
     cursed: false,
     lineage: "moon",
@@ -802,6 +867,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "朔",
     rarity: "rare",
     tags: ["mana", "skill"],
+    keywords: kw(["mana"], ["mana"]),
     cursed: false,
     lineage: "moon",
     after: "highTide",
@@ -813,6 +879,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "蝕",
     rarity: "epic",
     tags: ["mana", "skill"],
+    keywords: kw(["mana"], ["mana"]),
     cursed: false,
     requires: "mana",
     lineage: "moon",
@@ -828,6 +895,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "奪",
     rarity: "rare",
     tags: ["ranged", "just"],
+    keywords: kw(["bullet"], ["just", "bullet"]),
     cursed: false,
   },
   silenceShot: {
@@ -837,6 +905,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "封",
     rarity: "rare",
     tags: ["silence", "ranged", "counter"],
+    keywords: kw(["silence", "counter"], ["ranged"]),
     gives: ["silence"],
     cursed: false,
   },
@@ -847,6 +916,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "睨",
     rarity: "common",
     tags: ["weaken", "just"],
+    keywords: kw(["weaken"], ["just"]),
     gives: ["weaken"],
     cursed: false,
   },
@@ -857,6 +927,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "威",
     rarity: "common",
     tags: ["fear", "melee"],
+    keywords: kw(["fear"], ["finisher", "kill"]),
     gives: ["fear"],
     cursed: false,
   },
@@ -867,6 +938,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "遊",
     rarity: "epic",
     tags: ["reaper", "just"],
+    keywords: kw([], ["just"], ["just"]),
     cursed: false,
   },
   wakeupHunt: {
@@ -876,6 +948,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "起",
     rarity: "rare",
     tags: ["stagger", "counter"],
+    keywords: kw(["counter"], ["stagger"]),
     gives: ["counter"],
     cursed: false,
   },
@@ -886,6 +959,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "轍",
     rarity: "rare",
     tags: ["dash", "burn", "chill", "shock"],
+    keywords: kw(["burn", "chill", "shock"], ["dash"]),
     cursed: false,
   },
   recall: {
@@ -895,6 +969,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "戻",
     rarity: "rare",
     tags: ["ranged"],
+    keywords: kw(["bullet"], ["ranged"]),
     cursed: false,
   },
   huntBleed: {
@@ -904,6 +979,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "狩",
     rarity: "common",
     tags: ["bleed", "fear", "melee"],
+    keywords: kw(["fear"], ["bleed", "melee"]),
     gives: ["fear"],
     cursed: false,
   },
@@ -914,6 +990,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "読",
     rarity: "rare",
     tags: ["chill", "counter", "ranged"],
+    keywords: kw(["counter"], ["chill", "ranged"]),
     cursed: false,
   },
   venomBreak: {
@@ -923,6 +1000,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "腐",
     rarity: "common",
     tags: ["poison", "stagger", "guarded"],
+    keywords: kw([], ["poison", "stagger"], ["stagger"]),
     cursed: false,
   },
   insight: {
@@ -932,6 +1010,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "看",
     rarity: "common",
     tags: ["vulnerable", "counter"],
+    keywords: kw(["vulnerable"], ["counter"]),
     gives: ["vulnerable"],
     cursed: false,
   },
@@ -942,6 +1021,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "輪",
     rarity: "rare",
     tags: ["mana", "skill"],
+    keywords: kw(["mana"], ["mana"]),
     cursed: false,
   },
   iceRelay: {
@@ -951,6 +1031,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "伝",
     rarity: "rare",
     tags: ["shock", "chill"],
+    keywords: kw(["reaction"], ["shock", "chill"], ["shock"]),
     cursed: false,
   },
   trialSeeker: {
@@ -960,6 +1041,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "試",
     rarity: "rare",
     tags: ["room"],
+    keywords: kw([], ["clear"]),
     cursed: false,
   },
   oneWing: {
@@ -969,6 +1051,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "翼",
     rarity: "rare",
     tags: ["melee", "ranged"],
+    keywords: kw(["bullet"], ["finisher"]),
     cursed: true,
   },
   justReturn: {
@@ -978,6 +1061,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "還",
     rarity: "common",
     tags: ["dash", "just"],
+    keywords: kw(["dash"], ["just"]),
     cursed: false,
   },
   passCut: {
@@ -987,6 +1071,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "胴",
     rarity: "rare",
     tags: ["dash", "melee"],
+    keywords: kw(["melee"], ["dash"]),
     cursed: false,
   },
   ricochet: {
@@ -996,6 +1081,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "跳",
     rarity: "common",
     tags: ["ranged"],
+    keywords: kw([], ["wall"], ["bullet"]),
     cursed: false,
   },
   warhead: {
@@ -1005,6 +1091,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "炸",
     rarity: "common",
     tags: ["ranged", "explode"],
+    keywords: kw(["explode"], ["bullet", "wall"]),
     gives: ["explode"],
     cursed: false,
   },
@@ -1015,6 +1102,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "狙",
     rarity: "common",
     tags: ["vulnerable", "ranged"],
+    keywords: kw([], ["vulnerable"], ["bullet"]),
     cursed: false,
   },
   embers: {
@@ -1024,6 +1112,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "燠",
     rarity: "common",
     tags: ["burn", "melee"],
+    keywords: kw([], ["burn", "melee"], ["burn"]),
     cursed: false,
   },
   nerveCut: {
@@ -1033,6 +1122,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "断",
     rarity: "common",
     tags: ["paralyze", "weaken"],
+    keywords: kw(["weaken"], ["shock"]),
     gives: ["weaken"],
     cursed: false,
   },
@@ -1043,6 +1133,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "血",
     rarity: "common",
     tags: ["bleed", "dash"],
+    keywords: kw(["dash"], ["bleed", "kill"]),
     cursed: false,
   },
   laceration: {
@@ -1052,6 +1143,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "裂",
     rarity: "rare",
     tags: ["bleed", "crit"],
+    keywords: kw([], ["bleed", "crit"]),
     cursed: false,
   },
   frayWiden: {
@@ -1061,6 +1153,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "綻",
     rarity: "common",
     tags: ["vulnerable"],
+    keywords: kw(["vulnerable"], ["vulnerable", "kill"]),
     gives: ["vulnerable"],
     cursed: false,
   },
@@ -1071,6 +1164,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "背",
     rarity: "rare",
     tags: ["fear", "crit"],
+    keywords: kw(["crit"], ["fear"]),
     gives: ["crit"],
     cursed: false,
   },
@@ -1081,6 +1175,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "寂",
     rarity: "common",
     tags: ["silence", "mana"],
+    keywords: kw([], ["silence"], ["mana"]),
     cursed: false,
   },
   keenEye: {
@@ -1090,6 +1185,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "逃",
     rarity: "common",
     tags: ["stagger", "mana"],
+    keywords: kw(["mana"], ["stagger"]),
     gives: ["mana"],
     cursed: false,
   },
@@ -1100,6 +1196,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "鎖",
     rarity: "rare",
     tags: ["stagger"],
+    keywords: kw(["stagger"], ["stagger"]),
     gives: ["stagger"],
     cursed: false,
   },
@@ -1110,6 +1207,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "堅",
     rarity: "common",
     tags: ["guarded", "energy"],
+    keywords: kw(["energy"], ["stagger", "kill"]),
     gives: ["energy"],
     cursed: false,
   },
@@ -1120,6 +1218,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "際",
     rarity: "rare",
     tags: ["combo", "stagger"],
+    keywords: kw([], ["combo"], ["stagger"]),
     cursed: false,
   },
   cashOut: {
@@ -1129,6 +1228,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "換",
     rarity: "common",
     tags: ["combo", "mana", "energy"],
+    keywords: kw(["mana"], ["combo", "energy"]),
     gives: ["mana"],
     cursed: false,
   },
@@ -1139,6 +1239,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "取",
     rarity: "common",
     tags: ["hp"],
+    keywords: kw(["heal"], ["hurt", "kill"]),
     cursed: false,
   },
   woundMemory: {
@@ -1148,6 +1249,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "傷",
     rarity: "common",
     tags: ["hp", "vulnerable"],
+    keywords: kw(["vulnerable"], ["hurt"]),
     gives: ["vulnerable"],
     cursed: false,
   },
@@ -1158,6 +1260,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "影",
     rarity: "common",
     tags: ["reaper", "mana", "energy"],
+    keywords: kw(["mana", "energy"], ["kill"]),
     cursed: false,
   },
   stallTime: {
@@ -1167,6 +1270,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "稼",
     rarity: "common",
     tags: ["reaper", "room"],
+    keywords: kw([], ["clear"]),
     cursed: false,
   },
   deathRush: {
@@ -1176,6 +1280,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "急",
     rarity: "rare",
     tags: ["hp"],
+    keywords: kw(["ward", "lowHp"], ["kill"]),
     cursed: true,
   },
   burden: {
@@ -1185,6 +1290,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "重",
     rarity: "rare",
     tags: ["stagger", "melee"],
+    keywords: kw([], [], ["stagger"]),
     cursed: true,
   },
   karmaFire: {
@@ -1194,6 +1300,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "業",
     rarity: "rare",
     tags: ["burn"],
+    keywords: kw(["hurt"], [], ["burn"]),
     cursed: true,
   },
   heavenEarth: {
@@ -1203,6 +1310,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "乾",
     rarity: "rare",
     tags: ["mana", "just"],
+    keywords: kw(["mana"], ["just", "kill"]),
     cursed: true,
   },
   afterglow: {
@@ -1212,6 +1320,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "韻",
     rarity: "common",
     tags: ["mana", "skill"],
+    keywords: kw(["mana"], ["mana"]),
     cursed: false,
   },
   ambushReturn: {
@@ -1221,6 +1330,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "伏",
     rarity: "common",
     tags: ["room", "loot"],
+    keywords: kw([], ["clear"]),
     cursed: false,
   },
   appraise: {
@@ -1230,6 +1340,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "定",
     rarity: "rare",
     tags: ["melee", "crit"],
+    keywords: kw(["crit"], ["finisher"]),
     gives: ["crit"],
     cursed: false,
   },
@@ -1240,6 +1351,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "簒",
     rarity: "common",
     tags: ["weaken", "stagger"],
+    keywords: kw([], ["weaken", "kill"], ["stagger"]),
     cursed: false,
   },
   tightrope: {
@@ -1249,6 +1361,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "綱",
     rarity: "rare",
     tags: ["combo"],
+    keywords: kw(["hurt"], [], ["combo"]),
     cursed: true,
   },
   swallowFlight: {
@@ -1258,6 +1371,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "飛",
     rarity: "common",
     tags: ["melee", "ranged"],
+    keywords: kw(["bullet"], ["melee"]),
     cursed: false,
   },
   chantReturn: {
@@ -1267,6 +1381,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "詠",
     rarity: "common",
     tags: ["silence", "mana"],
+    keywords: kw(["mana"], ["silence"]),
     cursed: false,
   },
   fullMoonShot: {
@@ -1276,6 +1391,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "満",
     rarity: "common",
     tags: ["mana", "skill", "vulnerable"],
+    keywords: kw(["vulnerable"], ["mana"]),
     gives: ["vulnerable"],
     cursed: false,
   },
@@ -1286,6 +1402,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "越",
     rarity: "common",
     tags: ["combo", "room"],
+    keywords: kw([], ["clear"], ["combo"]),
     gives: ["combo"],
     cursed: false,
   },
@@ -1296,6 +1413,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "渡",
     rarity: "rare",
     tags: ["burn", "ranged"],
+    keywords: kw(["burn"], ["burn", "bullet"]),
     gives: ["burn"],
     cursed: false,
   },
@@ -1309,6 +1427,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "燕",
     rarity: "epic",
     tags: ["just", "melee"],
+    keywords: kw(["melee"], ["just", "bullet"]),
     cursed: false,
     duo: ["justSlash", "justWipe"],
   },
@@ -1319,6 +1438,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "疫",
     rarity: "epic",
     tags: ["poison", "bleed"],
+    keywords: kw(["poison", "bleed"], ["poison", "bleed", "kill"]),
     gives: ["poison", "bleed"],
     cursed: false,
     duo: ["plague", "bloodMist"],
@@ -1330,6 +1450,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "轟",
     rarity: "epic",
     tags: ["dash", "explode", "shock"],
+    keywords: kw(["shock"], ["explode"]),
     gives: ["shock"],
     cursed: false,
     duo: ["dashBlast", "dashShock"],
@@ -1341,6 +1462,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "総",
     rarity: "epic",
     tags: ["stagger", "vulnerable"],
+    keywords: kw(["vulnerable"], ["vulnerable"]),
     gives: ["vulnerable"],
     cursed: false,
     duo: ["crumble", "collapseChain"],
@@ -1352,6 +1474,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "盃",
     rarity: "epic",
     tags: ["hp", "mana"],
+    keywords: kw(["heal", "mana"], ["kill"]),
     cursed: false,
     duo: ["bloodFeast", "reaperCup"],
   },
@@ -1362,6 +1485,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "臨",
     rarity: "epic",
     tags: ["energy", "explode"],
+    keywords: kw(["explode"], ["energy"]),
     cursed: false,
     duo: ["overcharge", "burstRefund"],
   },
@@ -1372,6 +1496,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "虚",
     rarity: "epic",
     tags: ["mana", "attr"],
+    keywords: kw([], ["mana"], ["melee", "ranged"]),
     cursed: false,
     duo: ["spiritBlade", "hollowVessel"],
   },
@@ -1382,6 +1507,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "籠",
     rarity: "epic",
     tags: ["chill", "room"],
+    keywords: kw(["counter"], ["clear"]),
     gives: ["counter"],
     cursed: false,
     duo: ["frostLock", "clearShield"],
@@ -1393,6 +1519,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "鏡",
     rarity: "epic",
     tags: ["just", "mana"],
+    keywords: kw(["mana"], ["just"]),
     cursed: false,
     duo: ["keenBreath", "justReturn"],
   },
@@ -1403,6 +1530,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "停",
     rarity: "epic",
     tags: ["ranged", "dash"],
+    keywords: kw([], ["dash", "still"]),
     cursed: false,
     duo: ["standingSniper", "dashGun"],
   },
@@ -1413,6 +1541,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     icon: "波",
     rarity: "epic",
     tags: ["melee", "combo"],
+    keywords: kw([], ["wall"], ["area"]),
     cursed: false,
     duo: ["comboWave", "finisherWave"],
   },

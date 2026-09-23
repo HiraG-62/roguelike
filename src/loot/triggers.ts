@@ -1,4 +1,6 @@
 import type { Rng } from "../core/rng";
+import { type EventSource, triggerEventKind } from "../core/events";
+import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY } from "../core/rules";
 import { STATUS_LABEL, type StatusKind } from "../core/status";
 import { PLAYER, TRIGGER } from "../data/tuning";
 import type {
@@ -572,4 +574,34 @@ export function formatTrigger(effect: TriggeredEffect): string {
   if (effect.chance >= 1) return `${head}: ${body}`;
   const chancePct = roundTo(effect.chance * PERCENT_SCALE, 1);
   return `${head}: ${chancePct}% で${body}`;
+}
+
+// ---------------------------------------------------------------------------
+// 統一ルール文法への読み替え（docs/ideas/synergy-web.md 3-1）
+// ---------------------------------------------------------------------------
+
+/**
+ * 装備トリガーを統一ルール（src/core/rules.ts）の形に読み替える。tr: の保存形式は変えない。
+ * everyNthMeleeHit は「近接命中 + 条件 nthMeleeHit」、条件 always は空の if になる。
+ * id は index とトリガー内容を混ぜる（装備の入れ替えで別のトリガーが同じ ICD を引き継がない）
+ */
+export function ruleFromTrigger(t: Readonly<TriggeredEffect>, index: number): Rule {
+  const owner: EventSource = { kind: "item", key: triggerKey(t) };
+  const conditions: RuleCondition[] = [];
+  if (t.trigger === "everyNthMeleeHit") conditions.push({ kind: "nthMeleeHit", every: t.every ?? 0 });
+  if (t.condition !== "always") conditions.push({ kind: "trigger", condition: t.condition });
+  const then: RuleEffect = { kind: t.effect, magnitude: t.magnitude };
+  if (t.duration !== undefined) then.duration = t.duration;
+  if (t.count !== undefined) then.count = t.count;
+  if (t.status !== undefined) then.status = t.status;
+  return {
+    id: `${owner.kind}:${owner.key}:${index}`,
+    when: triggerEventKind(t.trigger),
+    if: conditions,
+    then,
+    chance: t.chance,
+    icd: TRIGGER.icd,
+    scope: SCOPE_ANY,
+    owner,
+  };
 }

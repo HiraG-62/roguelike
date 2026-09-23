@@ -4,7 +4,7 @@ import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, RoomKind, 
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { enemyTelegraph } from "../system/enemies";
-import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
+import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
@@ -43,6 +43,8 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGaug
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
 import { drawTerrainLayer } from "./terrainUi";
+import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
+import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
 /** コンボ表示（論理 px・y 座標） */
 const COMBO_TEXT_PX = 14;
@@ -58,9 +60,8 @@ const FLOAT_TEXT_MAX_M = 3;
 
 /** HUD の階層表示用（system/roomTypes.ts の FLOOR_KIND_LABEL は英語のまま別用途で使われるため、表示専用にここで持つ） */
 const FLOOR_KIND_LABEL_JA: Readonly<Record<FloorKind, string>> = {
+  ...FLOOR_KIND_LABEL,
   rooms: "通常",
-  cave: "洞窟",
-  dark: "暗闇",
 };
 
 const COLOR_BG = "#08080c";
@@ -162,6 +163,8 @@ const HUD_REAPER_LINE = 3;
 const HUD_CURSED_LINE = 4;
 /** 共鳴の種類（describeResonance の 1 行目）。発現中だけ出す */
 const HUD_RESONANCE_LINE = 5;
+/** 起点と位階（放浪者で縛りなしなら出さない） */
+const HUD_RUN_SETUP_LINE = 6;
 const REAPER_TINT = 0.7;
 const BOSS_BANNER_NAME_GAP = 16;
 const ELITE_BAR_W = 20;
@@ -601,11 +604,13 @@ export class Renderer {
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
+    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha);
     drawTerrainLayer(ctx, state, -ox, -oy);
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
     this.drawLinks(state);
+    drawRunWorld(ctx, state);
     this.drawEnemies(state);
     this.drawBossDeath(state);
     this.drawProjectiles(state);
@@ -618,6 +623,7 @@ export class Renderer {
     ctx.restore();
 
     if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
+    drawRunOverlay(ctx, state, ox, oy);
     this.drawOverlays(state);
     this.drawBossLetterbox(state);
     this.drawHud(state);
@@ -871,9 +877,9 @@ export class Renderer {
   /** 特別な部屋の入口に小さな菱形。用が済んだら消す */
   private drawDoorMark(state: GameState, room: RoomState | undefined, px: number, py: number): void {
     if (!room || room.locked) return;
-    const color = DOOR_MARK_COLOR[room.kind];
+    const color = DOOR_MARK_COLOR[room.kind] ?? specialDoorColor(room);
     if (!color) return;
-    const done = room.kind === "shrine" ? room.used : room.cleared;
+    const done = doorMarkDone(room);
     if (done) return;
     const { ctx } = this;
     const cx = px + TILE_SIZE / 2;
@@ -1851,6 +1857,8 @@ export class Renderer {
 
     this.drawBossHud(state);
     this.drawReaperHud(state);
+    drawRunHud(ctx, state);
+    drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
 
     if (state.rooms.some((r) => r.locked)) {
       drawText(ctx, "― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8, TEXT.SMALL, COLOR_LOCK, "center");

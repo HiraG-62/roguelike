@@ -6,7 +6,11 @@ import type { GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance } from "./elites";
 import { createEnemy } from "./enemies";
-import { enemyCount, updateRooms } from "./floor";
+import { descend, enemyCount, updateRooms } from "./floor";
+import { FLOOR_KIND } from "../data/tuning";
+import { terrainCode } from "../core/terrain";
+import { biomeEnemyWeight, floorKindCandidates } from "./biomes";
+import { stairsTilesValid } from "./specialRooms";
 import { overlapsWall } from "./physics";
 
 describe("depth 2 の難度調整", () => {
@@ -203,5 +207,86 @@ describe("扉タイル上の敵とロック", () => {
     updateRooms(state, FIXED_DT);
 
     expect(room.locked).toBe(false);
+  });
+});
+
+describe("分岐路（階段ごとの行き先）", () => {
+  it("最後の部屋に 1〜3 個の階段が置かれ、行き先は次の階の候補から重複なしで選ばれる", () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const state = createGame(seed);
+      expect(state.stairs.length, `seed=${seed}`).toBeGreaterThanOrEqual(1);
+      expect(state.stairs.length).toBeLessThanOrEqual(FLOOR_KIND.forkMax);
+      const kinds = state.stairs.map((s) => s.nextKind);
+      expect(new Set(kinds).size).toBe(kinds.length);
+      for (const k of kinds) expect(floorKindCandidates(state.depth + 1)).toContain(k);
+      expect(stairsTilesValid(state)).toBe(true);
+      const last = state.rooms[state.rooms.length - 1]!;
+      for (const s of state.stairs) {
+        const x = s.tile % state.map.width;
+        const y = Math.floor(s.tile / state.map.width);
+        expect(x >= last.rect.x && x < last.rect.x + last.rect.w && y >= last.rect.y && y < last.rect.y + last.rect.h, "最後の部屋の中").toBe(true);
+      }
+    }
+  });
+
+  it("同じ seed なら同じ分岐（決定的）", () => {
+    expect(createGame(33).stairs).toEqual(createGame(33).stairs);
+  });
+
+  it("階段を踏むと、その階段の行き先のフロア種別へ降りる", () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const state = createGame(seed);
+      const choice = state.stairs[state.stairs.length - 1];
+      if (!choice || state.stairs.length < 2) continue;
+      const x = ((choice.tile % state.map.width) + 0.5) * TILE_SIZE;
+      const y = (Math.floor(choice.tile / state.map.width) + 0.5) * TILE_SIZE;
+      state.player.body.pos = { x, y };
+      updateRooms(state, FIXED_DT);
+      expect(state.depth).toBe(2);
+      expect(state.floorKind).toBe(choice.nextKind);
+      return;
+    }
+    throw new Error("分岐のある seed が見つからない");
+  });
+
+  it("descend に行き先を渡すとそのバイオームになり、地形が置かれる", () => {
+    const state = createGame(8);
+    state.depth = 4;
+    descend(state, "forge");
+    expect(state.floorKind).toBe("forge");
+    let lava = 0;
+    for (let i = 0; i < state.terrain.kinds.length; i++) if (state.terrain.kinds[i] === terrainCode("lava")) lava++;
+    expect(lava).toBeGreaterThan(0);
+  });
+
+  it("骨の墓所は最初から部屋に死骸が転がっている", () => {
+    const state = createGame(8);
+    state.depth = 4;
+    descend(state, "ossuary");
+    expect(state.corpses.filter((c) => c.depth === state.depth).length).toBeGreaterThan(0);
+  });
+
+  it("バイオームのファミリーの敵は出やすい", () => {
+    const def = enemyDef("fireSlime");
+    expect(biomeEnemyWeight(def, "forge")).toBe(def.weight * FLOOR_KIND.familyMul);
+    expect(biomeEnemyWeight(def, "rooms")).toBe(def.weight);
+  });
+
+  it("ボス階は撃破まで行き先だけ決まっていて、撃破で中央の階段の横に分岐の階段が置かれる", () => {
+    const state = createGame(5);
+    state.depth = 2;
+    descend(state);
+    expect(state.depth).toBe(3);
+    expect(state.boss).not.toBeNull();
+    expect(state.stairs.every((s) => s.tile < 0)).toBe(true);
+    const room = state.rooms[state.boss!.roomIndex]!;
+    const c = { x: Math.floor(room.rect.x + room.rect.w / 2), y: Math.floor(room.rect.y + room.rect.h / 2) };
+    state.map.tiles[toIndex(state.map, c.x, c.y)] = Tile.StairsDown;
+    state.boss!.defeated = true;
+    state.player.body.pos = rectCenterPx(state.rooms[0]!.rect);
+    updateRooms(state, FIXED_DT);
+    expect(state.stairs.length).toBeGreaterThanOrEqual(1);
+    expect(state.stairs.every((s) => s.tile >= 0)).toBe(true);
+    expect(stairsTilesValid(state)).toBe(true);
   });
 });

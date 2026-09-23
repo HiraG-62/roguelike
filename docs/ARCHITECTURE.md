@@ -14,9 +14,9 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
    ├─ update(dt): core/game.ts step(state, input, dt)
    │     ├─ 一時停止 / 死亡 / 祝福 3 択中 / ヒットストップ中は早期 return
    │     └─ player → boons → statusEffects → terrain → enemies → projectiles → hazards
-   │        → floor.updateRooms → reaper → combo → effects → camera
+   │        → floor.updateRooms → reaper → combo → rules.resolveRules → effects → camera
    │            │  書く: GameState（全部ここ）
-   │            │  積む: state.sfx（効果音名）、state.log、state.texts / particles / shapes
+   │            │  積む: state.sfx（効果音名）、state.events（ゲームイベント、pushEvent）、state.log、state.texts / particles / shapes
    │            └─ 拾ったアイテムは即 state.profile へ → main.ts が saveProfile
    │
    ├─ main.ts: state.sfx を drain → audio/sfx.ts SfxPlayer.play(name)
@@ -32,6 +32,13 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 戦闘再設計（`docs/COMBAT_DESIGN.md`）で入った主要システム: `system/attributes.ts`（ステータスの実効値・威力計算 `scaled`。`applyStats` から `deriveAttributes` として呼ぶ）、`system/mana.ts`（マナの増減。`core/game.ts` の `step` から `refillMana` / `tickMana` を直接呼ぶ）、`system/poise.ts`（怯みの蓄積・減衰・堅守・処刑・背面の一撃。`combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれ、独立した `step` ステップは持たない）、`system/statusEffects.ts`（34 種の状態異常。`step` のパイプラインに `updateStatusEffects` として入っている）。
 
 Wave 2（`docs/ideas/*-expansion.md`）で入ったシステム: `system/enemyTraits.ts`（死骸・取り巻き・マナ奪取・双子復活・臆病など敵に横断する仕組み）、`system/enemyBehaviors.ts`（新 behavior 1 つにつき関数 1 つの実装）、`system/bossTwins.ts` / `system/bossFrostGiant.ts`（ボス 2 体の専用ロジック。共通処理は `system/boss.ts`）、`system/boonDefs.ts`（祝福のデータ定義。系譜 `lineage`/`after`、結び `duo` を含む）、`system/boonRules.ts`（拡張分の祝福ルール `onBoonXxxRules`。`system/boons.ts` の既存フックから呼ぶ）、`system/statusReactions.ts`（状態異常や地形の層が出会ったときの反応 `ReactionKey`）、`core/terrain.ts` + `system/terrain.ts`（床の地形の層の型・一覧と効果。配置は `map/generator.ts` の `planTerrain`）、`system/traitHooks.ts`（装備の性質・トリガー文法拡張が読む倍率・フック）、`loot/traitContext.ts`（性質が装備全体や来歴など「自分の外」を読むための文脈）、`skills/{tuning,defs,modifiers,combos,actions,shots,summons,geom}.ts`（大拡張のスキル・刻印符・連携のデータと発動処理。`skills/data.ts` の `SKILL_DEFS`/`MODIFIERS` に混ぜ込む形）、`render/terrainUi.ts`（地形の層の描画）。
+
+統一ルール文法（`docs/ideas/synergy-web.md` 3 章）: 各 system は起きたこと（近接命中・撃破・ダッシュ開始 / 終了・被弾・JUST・部屋のロック / 制圧・怯み・カウンター・反応・状態異常の付与・スキルの発動 / 命中・敵の予備動作・地形への進入…）を `core/events.ts` の `pushEvent` で `state.events` に積むだけ（`pushSfx` と同じ作法。既存のフック `onBoonKill` / `fireTrigger` などは残したまま隣で積む段階的移行）。`core/rules.ts` が `Rule`（when × if × then、chance、icd、scope、owner）の型、`system/rules.ts` の `resolveRules` が combo の後に 1 回だけ照合する。
+
+- 照合順: イベントは積んだ順（前ステップからの持ち越しが先）。Rule は祝福の取得順（`BoonDef.rules`）→ スキルスロット順（`SkillDef.rules` / `ModifierDef.rules`、scope は自分のスロットに縛る）→ 対象の敵（`EnemyCombatDef.rules`、効果は予告付きハザードのみ）。装備の `tr:` は `fireTrigger` がその場で `ruleFromTrigger`（`loot/triggers.ts`）に読み替えて照合する（手触りと乱数の消費順を変えないため、resolveRules では集めない）
+- 連鎖: 効果が起こしたイベントは深さ +1 で `state.pendingEvents` へ入り、次ステップで照合する（同ステップで再帰しない）。深さ `SYNERGY.maxDepth` 以上は照合せず、効果量は深さごとに × `SYNERGY.chainDecay`
+- ICD の 3 層: Rule ごと（`state.ruleIcd`、id の昇順で進める）・語ごとの 1 秒あたり回数（`SYNERGY.keywordBudget`、`state.ruleRun.keywordUse`）・敵ごと（状態異常を入れる効果は `StatusBag.procIcd`）
+- 乱数は Rule の照合順に `state.rng` から引く。確率 1 以上の Rule は引かない
 
 ## ディレクトリの責務
 
@@ -75,11 +82,12 @@ GameState
   ├─ projectiles / hazards / pickups / floorItems
   ├─ skills: SkillRunState（lastCast: LastCast | null〔連携の受付〕を含む）
   ├─ boons: BoonKey[]、boonChoice、boonRun
+  ├─ events / pendingEvents: GameEvent[]（今ステップのイベント / 効果が起こした次ステップ持ち越し）、recent（種類ごとの直近の発生時刻と回数）、ruleIcd: Map<ruleId, 残り秒>、chains（直近に成立した連鎖 8 件。連携表示の材料）、ruleRun（照合中の深さ・持ち主、語の窓、プレイヤーの足元の地形）
   ├─ boss、reaper
   └─ rng、tick、time、sfx、log、texts、particles、shapes、camera（演出系）
 ```
 
-型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState / Corpse）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind / ReactionKey）、`core/terrain.ts`（TerrainKind / TerrainLayer）、`skills/types.ts`（SkillStone / SkillRunState / LastCast / ComboKey）、`system/boonDefs.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）。
+型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState / Corpse）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/events.ts`（GameEvent / EventKind / EventSource / pushEvent）、`core/rules.ts`（Rule / RuleCondition / RuleEffect / EnemyRule）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind / ReactionKey）、`core/terrain.ts`（TerrainKind / TerrainLayer）、`skills/types.ts`（SkillStone / SkillRunState / LastCast / ComboKey）、`system/boonDefs.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）。
 
 ## 決定性とリプレイ
 

@@ -1,3 +1,5 @@
+import type { KeywordProfile } from "../core/keywords";
+import type { Rule } from "../core/rules";
 import type { TimedMul } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
@@ -201,6 +203,10 @@ export interface SkillDef {
   manaRule?: "full" | "low";
   /** 連携: このスキルが「後」になる組み合わせ（skills/combos.ts の COMBOS の key） */
   combos?: readonly ComboKey[];
+  /** 統一ルール（src/core/rules.ts）。scope が any ならこの石のスロットの発動が起こしたイベントだけを食う */
+  rules?: readonly Rule[];
+  /** 共通語彙（docs/ideas/synergy-web.md 1 章）。命中で付ける状態異常とマナ消費は system/keywords.ts が足す */
+  keywords: KeywordProfile;
 }
 
 /** 1 回の発動の最終パラメータ。変異・リンク・修飾子を畳み込んだ結果 */
@@ -329,6 +335,10 @@ export interface ModifierDef {
   reshape?: ReshapeKey;
   /** def はマナ型 / CD 型で効果を読み替えるために渡す */
   apply(p: Readonly<CastParams>, def: Readonly<SkillDef>): CastParams;
+  /** 統一ルール（src/core/rules.ts）。scope が any なら刺したスロットの発動が起こしたイベントだけを食う */
+  rules?: readonly Rule[];
+  /** 共通語彙（docs/ideas/synergy-web.md 1 章） */
+  keywords: KeywordProfile;
 }
 
 // ---- 永続（スキル石） ----

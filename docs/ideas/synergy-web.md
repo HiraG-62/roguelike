@@ -19,9 +19,9 @@
 | 鏡 | 自分が得たルールが敵側にも同じ形で効く代償（6 章） |
 | 原型 | 核となる環を中心にしたビルドの型（7 章） |
 
-## 1. 共通語彙（40 語）
+## 1. 共通語彙（40 語）【実装済み 2026-09-24】
 
-型は 要追加: 新規 `src/core/keywords.ts` に `KEYWORDS`（as const）/ `Keyword` / `KeywordProfile { produces; consumes; amplifies }`。表示は 1 文字の字形 + 色（状態異常の `STATUS_GLYPH` と同じ作り）。
+実装済み: `src/core/keywords.ts`（`KEYWORDS` / `KEYWORD_DEFS` / `kw` / `mergeProfiles`）と `src/system/keywords.ts`（推論・`buildGaps`・`affinity`）。当初の案: 新規 `src/core/keywords.ts` に `KEYWORDS`（as const）/ `Keyword` / `KeywordProfile { produces; consumes; amplifies }`。表示は 1 文字の字形 + 色（状態異常の `STATUS_GLYPH` と同じ作り）。
 
 ### 1-1. 語の一覧
 
@@ -87,10 +87,10 @@
 
 | # | 案 | 中身 | なぜ面白いか | コスト | 面白さ | 触るファイル |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1-a | 語の型 | `KEYWORDS` 40 語と `KeywordProfile`。字形・色・表示名を定義 | 4 系統のタグを 1 つの言葉で語れる | S | ★3 | 新規 `src/core/keywords.ts` |
-| 1-b | 装備の語を推論 | `equipmentTags` を一般化した `buildKeywords(stats)`。性質ごとの手書きは不要 | 既存 63 性質が即座に網へ参加する | S | ★3 | `src/system/boons.ts`、新規 `src/system/keywords.ts` |
-| 1-c | 明示の語 | 要追加: `BoonDef.keywords` / `SkillDef.keywords` / `ModifierDef.keywords` / `EnemyCombatDef.keywords` / `ROOM_KIND` の語 | 祝福・スキル・敵を同じ表で比べられる | M | ★3 | `src/system/boons.ts`、`src/skills/types.ts`、`src/skills/data.ts`、`src/data/enemyCombat.ts`、`src/system/roomTypes.ts` |
-| 1-d | 全要素が 1 語以上のテスト | 語を持たない要素があれば失敗する | 足した要素が網から漏れない | S | ★2 | 新規 `src/system/keywords.test.ts` |
+| 1-a | 語の型【実装済み】 | `KEYWORDS` 40 語と `KeywordProfile`。字形・色・表示名を定義 | 4 系統のタグを 1 つの言葉で語れる | S | ★3 | 新規 `src/core/keywords.ts` |
+| 1-b | 装備の語を推論【実装済み: `statsKeywords`。`equipmentTags` は同じ事実表を読むラッパー】 | `equipmentTags` を一般化した `buildKeywords(stats)`。性質ごとの手書きは不要 | 既存 63 性質が即座に網へ参加する | S | ★3 | `src/system/boons.ts`、新規 `src/system/keywords.ts` |
+| 1-c | 明示の語【実装済み: 祝福・スキル石・刻印符・敵・部屋・フロア】 | 要追加: `BoonDef.keywords` / `SkillDef.keywords` / `ModifierDef.keywords` / `EnemyCombatDef.keywords` / `ROOM_KIND` の語 | 祝福・スキル・敵を同じ表で比べられる | M | ★3 | `src/system/boons.ts`、`src/skills/types.ts`、`src/skills/data.ts`、`src/data/enemyCombat.ts`、`src/system/roomTypes.ts` |
+| 1-d | 全要素が 1 語以上のテスト【実装済み: 40 語すべてに出す・食う要素があることも検査】 | 語を持たない要素があれば失敗する | 足した要素が網から漏れない | S | ★2 | 新規 `src/system/keywords.test.ts` |
 
 ## 2. 出す → 食う グラフと環
 
@@ -154,12 +154,14 @@ flowchart LR
 
 | # | 案 | 中身 | なぜ面白いか | コスト | 面白さ | 触るファイル |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2-a | 連鎖深さ | 効果が起こした効果に深さを持たせ、深さ 3 で打ち切り、1 段ごとに × `SYNERGY.chainDecay`（0.5） | 環が回っても無限にならず、長い環ほど弱い | S | ★4 | `src/system/combat.ts`、`src/system/triggers.ts`、`src/data/tuning.ts` |
+| 2-a | 連鎖深さ（実装済み 2026-09-24: 統一ルールの効果が起こしたイベントに適用。装備の `tr:` は深さ上限の打ち切りだけ） | 効果が起こした効果に深さを持たせ、深さ 3 で打ち切り、1 段ごとに × `SYNERGY.chainDecay`（0.5） | 環が回っても無限にならず、長い環ほど弱い | S | ★4 | `src/system/combat.ts`、`src/system/triggers.ts`、`src/data/tuning.ts` |
 | 2-b | 延焼・引き継ぎの世代表示 | 延焼した燃焼・引き継いだ毒は点の色を薄くする | どこまで環が回ったか見える | S | ★3 | `src/render/statusUi.ts` |
 | 2-c | 恐怖の引き継ぎ祝福 | R19 の欠けている 1 要素。恐怖の敵が死ぬと周囲 1 体に恐怖 | 出血と恐怖が環になる | S | ★4 | `src/system/boons.ts` |
 | 2-d | resetDash / 反応時トリガー | build-diversity 3-3 の `resetDash` と新 trigger `onReaction` | R8・R3・R4 を装備だけで閉じられる | S | ★4 | `src/loot/triggers.ts`、`src/loot/types.ts`、`src/system/triggers.ts` |
 
 ## 3. 統一トリガー文法
+
+実装済み（2026-09-24）: `src/core/events.ts`（`GameEvent` / `EventKind` 21 種 / `pushEvent`）、`src/core/rules.ts`（`Rule` / `RuleCondition` / `RuleEffect` / `EnemyRule`）、`src/system/rules.ts`（`resolveRules`。`step` の combo の後）、`SYNERGY`（`src/data/tuning.ts`）。装備の `tr:` は `ruleFromTrigger` で同じ文法に読み替え、発火は今まで通り `fireTrigger` がその場で行う（二重発火を避けるため resolveRules では集めない）。祝福 3 つ（野火・帯電疾走・屠りの盃）の Rule 版は `BOON_RULE_EXAMPLES`（`src/system/boonRules.ts`）に見本として置き、フックと同じ結果になることをテストで確かめた。`BoonDef.rules` への移し替え・共鳴 / 誓約 / 部屋の Rule・スキル命中の scope（どの発動の命中かの紐付け）は未着手
 
 ### 3-1. 型の形（要追加）
 
@@ -199,9 +201,9 @@ flowchart LR
 
 | # | 案 | 中身 | なぜ面白いか | コスト | 面白さ | 触るファイル |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3-a | イベント列 | `events` / `recent` / `pushEvent`。既存の `triggers.ts` 呼び出しをイベント経由へ | trigger を 1 つ足す手間が 1 行になる | M | ★3 | `src/core/state.ts`、`src/core/game.ts`、`src/system/triggers.ts`、`src/system/combat.ts` |
-| 3-b | Rule 型と resolveRules | `TriggeredEffect` を Rule へ読み替える adapter。`tr:` の保存形式は変えない | セーブ互換のまま文法を全要素へ開ける | M | ★3 | `src/loot/types.ts`、`src/loot/triggers.ts`、`src/system/triggers.ts` |
-| 3-c | 祝福の Rule 化 | 数値でもフックでもない「〜時: 〜」型の祝福（野火・疫病・氷砕・湧水・屠りの盃）を `BoonDef.rules` へ移す | 祝福と装備のトリガーが同じ表で重なる | M | ★4 | `src/system/boons.ts` |
+| 3-a | イベント列（実装済み） | `events` / `recent` / `pushEvent`。既存の `triggers.ts` 呼び出しをイベント経由へ | trigger を 1 つ足す手間が 1 行になる | M | ★3 | `src/core/state.ts`、`src/core/game.ts`、`src/system/triggers.ts`、`src/system/combat.ts` |
+| 3-b | Rule 型と resolveRules（実装済み） | `TriggeredEffect` を Rule へ読み替える adapter。`tr:` の保存形式は変えない | セーブ互換のまま文法を全要素へ開ける | M | ★3 | `src/loot/types.ts`、`src/loot/triggers.ts`、`src/system/triggers.ts` |
+| 3-c | 祝福の Rule 化（見本 3 つのみ） | 数値でもフックでもない「〜時: 〜」型の祝福（野火・疫病・氷砕・湧水・屠りの盃）を `BoonDef.rules` へ移す | 祝福と装備のトリガーが同じ表で重なる | M | ★4 | `src/system/boons.ts` |
 | 3-d | スキル石の Rule | 例: 雷撃「このスキルで撃破時: 感電を周囲に 1」。変異軸と別に 1 つだけ持てる | 石の個体差が「何に噛むか」になる | M | ★4 | `src/skills/types.ts`、`src/skills/data.ts`、`src/skills/generator.ts` |
 | 3-e | 刻印符の Rule | 例: 新刻印符「火口」= このスキルの命中が燃焼中の敵なら蒸発を起こす | 刻印符が装備の語と掛け算になる | M | ★4 | `src/skills/data.ts`、`src/skills/hit.ts` |
 | 3-f | 敵の Rule | 爆裂 / 連結のエリート・鬼火の死亡爆発を Rule で書き、予告付きに統一 | 敵の爆発で自分の環が回る | M | ★3 | `src/data/enemyCombat.ts`、`src/system/elites.ts` |
@@ -210,7 +212,7 @@ flowchart LR
 
 | # | 案 | 中身 | なぜ面白いか | コスト | 面白さ | 触るファイル |
 | --- | --- | --- | --- | --- | --- | --- |
-| 4-a | 流れパネル | 装備タブの共鳴パネル隣に、今のビルドが出す語（左列）と食う語（右列）を字形で並べ、つながる語を線で結ぶ。余りは左に取り残され、飢えは右で点滅。数や太さは出さない | 何が足りないかが「穴」で見え、次に拾う物の目的ができる | M | ★5 | `src/render/inventoryUi.ts`、`src/render/lootUiParts.ts`、新規 `src/system/keywords.ts` |
+| 4-a | 流れパネル【ロジック実装済み: `buildGaps` / `affinity`。描画は未実装】 | 装備タブの共鳴パネル隣に、今のビルドが出す語（左列）と食う語（右列）を字形で並べ、つながる語を線で結ぶ。余りは左に取り残され、飢えは右で点滅。数や太さは出さない | 何が足りないかが「穴」で見え、次に拾う物の目的ができる | M | ★5 | `src/render/inventoryUi.ts`、`src/render/lootUiParts.ts`、新規 `src/system/keywords.ts` |
 | 4-b | 遺物の「ここに噛む」 | ツールチップ末尾に「燃焼を出す → 野火（祝福）が食う」「飢えている 感電 を満たす」を 1〜2 行。今のビルドに関係する語だけ | 比較ではなく「何とつながるか」で選ばせる | S | ★4 | `src/loot/describe.ts`、`src/render/inventoryUi.ts` |
 | 4-c | 祝福カードの印 | カード下に 3 種の印のどれか: 「流れを太くする」（余りを食う）/「穴を埋める」（飢えを満たす）/「新しい流れ」（どちらでもない）。並びは抽選順のまま | 選択の意味が読めるが優劣は出ない | S | ★4 | `src/render/boonUi.ts`、`src/system/boons.ts` |
 | 4-d | スキル石の「この装備で変わる」 | スキル画面の石の説明に、装備の語が効く行を足す（「装備の感電: この石の命中でも起きる」「コンボ燃料: 今のコンボ受付時間なら維持しやすい」） | 同じ石が装備で別物に見える | S | ★4 | `src/render/inventoryUi.ts`、`src/skills/data.ts` |

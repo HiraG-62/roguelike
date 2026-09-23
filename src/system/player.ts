@@ -12,6 +12,7 @@ import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics"
 import { explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { terrainSlide } from "./terrain";
 import { addRunAttributes, deriveAttributes, scaled } from "./attributes";
+import { applyRunStats } from "./runSetup";
 import { gainAttackMana } from "./mana";
 import { createStatusBag } from "../core/status";
 import {
@@ -27,6 +28,7 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
+import { enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
 import { onTraitCounter } from "./traitHooks";
 import {
   boonAttackManaMul,
@@ -106,10 +108,12 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
 export function applyStats(state: GameState, equipStats: PlayerStats): void {
   const p = state.player;
   const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 1;
+  // 起点・縛り・祭壇の誓約（ラン内）を装備の stats に先に足す。装備画面から呼ばれても消えない
+  const base = applyRunStats(state, equipStats);
   // 祝福（ラン内）は装備の stats に畳み込む。装備画面から呼ばれても祝福が消えない
-  state.boonRun.baseStats = equipStats;
+  state.boonRun.baseStats = base;
   // 派生 → 祝福の順: 祝福の固定値（硝子の見切りの最大 HP 1 など）を体力の加算で崩さない
-  const derived = deriveAttributes(addRunAttributes(equipStats, state.runAttributes.alloc));
+  const derived = deriveAttributes(addRunAttributes(base, state.runAttributes.alloc));
   const stats = foldBoonStats(derived, state.boons, state.boonRun);
   state.stats = stats;
   p.maxHp = stats.maxHp;
@@ -273,6 +277,7 @@ function tickTimers(state: GameState, dt: number): void {
     if (p.dashTimer === 0) {
       p.invulnTimer = Math.max(p.invulnTimer, PLAYER.dash.graceInvuln);
       onBoonDashEnd(state);
+      pushPlayerEvent(state, "onDashEnd", "dash");
     }
   }
 }
@@ -322,6 +327,7 @@ function tryDash(state: GameState, input: FrameInput): void {
   }
   onBoonDash(state);
   fireTrigger(state, "onDash", { pos: { ...p.body.pos } });
+  pushPlayerEvent(state, "onDash", "dash");
 }
 
 /** ks_blink: ダッシュ距離ぶん一瞬で移動（壁の手前で止まる）、着地点で爆発。無敵なし */
@@ -377,6 +383,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     p.dashTimer = 0;
     p.invulnTimer = Math.max(p.invulnTimer, PLAYER.dash.graceInvuln);
     onBoonDashEnd(state);
+    pushPlayerEvent(state, "onDashEnd", "dash");
   }
   // 壁に止められた軸の速度は残さない（氷床の滑りが前の速度を引き継ぐので、壁へ押し付けた速度が溜まらないように）
   p.body.vel = { x: hit.hitX ? 0 : vel.x, y: hit.hitY ? 0 : vel.y };
@@ -515,6 +522,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
   });
   if (counter) showCounter(state, pos);
   if (counter) onTraitCounter(state, e);
+  if (counter) pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
   gainMeleeMana(state, p.attack.combo, p.dashStrike, counter);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
@@ -694,6 +702,7 @@ function tryShoot(state: GameState): void {
   pushSfx(state, "shoot");
   payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });
+  pushPlayerEvent(state, "onShoot", "ranged", { pos: { ...muzzle } });
   onSkillPlayerShoot(state);
 }
 
@@ -732,5 +741,6 @@ function trySpecial(state: GameState): boolean {
   p.invulnTimer = Math.max(p.invulnTimer, PLAYER.special.invuln);
   pushSfx(state, "burst");
   onBoonBurstKills(state, kills);
+  pushPlayerEvent(state, "onBurst", "burst");
   return true;
 }

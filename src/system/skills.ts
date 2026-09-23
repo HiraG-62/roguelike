@@ -78,6 +78,7 @@ import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { addPoise } from "./poise";
 import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
+import { pushPlayerEvent } from "../core/events";
 
 /**
  * アクティブスキルの発動・更新・ドロップ・刻印符。docs/ideas/skills.md「7-4」〜「7-7」。
@@ -835,6 +836,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   const combo = findCombo(state, r.def);
   const manaPaid = payResource(state, index, slot, r);
   onBoonSkillCast(state, index, r.resource, manaPaid);
+  pushPlayerEvent(state, "onSkillCast", key, { slot: index, source: { kind: "skill", key } });
   recordProvenance(state, { kind: "skillCast" });
   const costed = payCosts(state, r.params);
   const base: CastParams = {
@@ -877,6 +879,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   recordCast(state, index, key, target, params);
   applyRecoil(state, dir, params);
   if (r.def.damageKind === "ranged") fireTrigger(state, "onShoot", { pos: origin });
+  if (r.def.damageKind === "ranged") pushPlayerEvent(state, "onShoot", key, { pos: { ...origin }, slot: index, source: { kind: "skill", key } });
   pushSfx(state, "skillCast");
   return true;
 }
@@ -1519,6 +1522,7 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
     meleeSkillHit(state, e, a.params, skillPower(state, SKILL.parry.damage, a.params), sub(e.body.pos, p.body.pos), SKILL.parry.knockback, true);
   }
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
+  pushPlayerEvent(state, "onJustDodge", "parry", { slot: a.slot, source: { kind: "skill", key: "parry" } });
   rs.lastCast = { skillKey: "parry", slot: a.slot, at: rs.clock, pos: { ...p.body.pos }, hitIds: a.params.hitLog };
 
   // 成功のご褒美は CD の一部だけ（全回復だと構え直しで固め続けられる。docs/COMBAT_DESIGN.md C-1 の 7）

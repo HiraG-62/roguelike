@@ -1,4 +1,5 @@
 import { FIXED_DT } from "../core/loop";
+import { pushStatusEvent } from "../core/events";
 import { type DamageKind, type Enemy, type GameState, type PoiseState, pushSfx } from "../core/state";
 import {
   GOOD_STATUS_KINDS,
@@ -372,6 +373,7 @@ export function applyStatus(
   if (!mergeEffect(state, target, bag, apply, potency, duration, source)) return false;
   if (limited) spendCc(bag, duration);
   afterApply(state, target, apply.kind, source);
+  pushStatusEvent(state, target.kind === "enemy" ? target.enemy : null, apply.kind, source);
   return true;
 }
 

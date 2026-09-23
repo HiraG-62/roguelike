@@ -1,3 +1,4 @@
+import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { EXTRA_SKILL_DEFS } from "./defs";
@@ -427,6 +428,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "W",
     verb: "回転して周囲の敵を斬り払う",
     tags: ["melee", "area"],
+    keywords: kw(["melee", "area"]),
     damageKind: "melee",
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.whirl),
@@ -438,6 +440,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "L",
     verb: "カーソル方向へ突進して斬る（無敵時間なし）",
     tags: ["melee", "movement"],
+    keywords: kw(["melee", "dash"]),
     damageKind: "melee",
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage"],
     ...cooldownSkill(SKILL.lunge, SKILL.lunge.poise),
@@ -448,6 +451,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "G",
     verb: "導火線付きの手榴弾を投げ、少し遅れて爆発させる",
     tags: ["area", "projectile", "placed"],
+    keywords: kw(["explode", "area"]),
     damageKind: "ranged",
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.frag),
@@ -458,6 +462,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "R",
     verb: "照準してから、壁まで貫通するビームを撃つ",
     tags: ["projectile"],
+    keywords: kw(["ranged", "bullet"]),
     damageKind: "ranged",
     axes: ["cooldownVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.railshot),
@@ -470,6 +475,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "P",
     verb: "構える。防いだ一撃はJUST扱いになり、CDが戻る",
     tags: ["defense", "melee"],
+    keywords: kw(["just", "counter"], ["hurt"]),
     damageKind: "melee",
     axes: ["areaVsDamage", "cooldownVsDamage"],
     ...cooldownSkill(SKILL.parry, SKILL.parry.poise),
@@ -480,6 +486,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "B",
     verb: "HPを払って攻撃速度と吸血を得る",
     tags: ["buff"],
+    keywords: kw(["lowHp", "heal"], [], ["melee"]),
     damageKind: "none",
     axes: ["durationVsPotency"],
     ...cooldownSkill(SKILL.bloodPact, 0),
@@ -490,6 +497,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "Q",
     verb: "溜めてから前方扇状に衝撃波を放つ（溜め中の被弾で中断）",
     tags: ["melee", "area"],
+    keywords: kw(["area", "wall", "stagger", "still"]),
     damageKind: "melee",
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
     ...manaSkill(SKILL.quake),
@@ -501,6 +509,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "T",
     verb: "カーソル地点に遅れて雷を落とす",
     tags: ["lightning", "area", "placed"],
+    keywords: kw(["placed", "area"]),
     damageKind: "ranged",
     axes: ["areaVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.thunder),
@@ -513,6 +522,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "O",
     verb: "設置した場所へ範囲内の敵（と敵弾）を引き寄せる",
     tags: ["area", "placed"],
+    keywords: kw(["placed", "area"]),
     damageKind: "ranged",
     axes: ["areaVsDamage", "durationVsPotency", "cooldownVsDamage"],
     ...manaSkill(SKILL.gravityWell),
@@ -524,6 +534,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "M",
     verb: "足元に地雷を設置する。起動後、敵が踏むと爆発する",
     tags: ["placed", "area"],
+    keywords: kw(["placed", "explode"]),
     damageKind: "ranged",
     axes: ["countVsDamage", "areaVsDamage", "cooldownVsDamage"],
     ...manaSkill(SKILL.mines),
@@ -534,6 +545,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "H",
     verb: "ダッシュがCD無しになり移動速度が上がる。切れた後はダッシュ不可",
     tags: ["buff", "movement"],
+    keywords: kw(["dash"], [], ["dash"]),
     damageKind: "none",
     axes: ["durationVsPotency", "cooldownVsPotency"],
     ...cooldownSkill(SKILL.haste, 0),
@@ -544,6 +556,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "K",
     verb: "鎖を伸ばし、最初に当たった敵を手元へ引き寄せる",
     tags: ["melee", "projectile"],
+    keywords: kw(["melee"]),
     damageKind: "melee",
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
     ...manaSkill(SKILL.chainHook),
@@ -555,6 +568,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "S",
     verb: "自分を中心に螺旋状の弾を放つ（発射中は移動が遅くなり、近接・射撃不可）",
     tags: ["projectile", "channel"],
+    keywords: kw(["ranged", "bullet", "still"]),
     damageKind: "ranged",
     axes: ["countVsDamage", "speedVsDamage", "cooldownVsDamage"],
     ...manaSkill(SKILL.spiral),
@@ -566,6 +580,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     icon: "F",
     verb: "地面を凍らせ、中の敵を凍結させながら継続ダメージを与える（自分も遅くなる）",
     tags: ["cold", "area", "placed"],
+    keywords: kw(["chill", "placed", "area"]),
     damageKind: "ranged",
     axes: ["areaVsDamage", "durationVsPotency", "cooldownVsDamage"],
     ...manaSkill(SKILL.frostField),
@@ -583,6 +598,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、CD x${M.multiCharge.burdenMul}`,
     manaVerb: `コスト x${M.multiCharge.manaBurdenMul}、連打間隔 x${M.multiCharge.intervalMul}、ダメージ x${M.multiCharge.damageMul}`,
     color: "#ffffff",
+    keywords: kw([], [], ["mana"]),
     excludesTags: [],
     apply: (p) =>
       p.resource === "mana"
@@ -605,6 +621,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費`,
     manaVerb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費してコスト x${M.bloodPrice.manaBurdenMul}`,
     color: "#ff4040",
+    keywords: kw(["lowHp"]),
     excludesTags: [],
     apply: (p) => ({
       ...p,
@@ -620,6 +637,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     name: "コンボ燃料",
     verb: `コンボを消費: 1ヒットにつき+${M.comboFuel.perStack * 100}%（コンボ0ならx${M.comboFuel.emptyMul}）`,
     color: "#ffd75f",
+    keywords: kw([], ["combo"]),
     excludesTags: [],
     apply: (p) => ({
       ...p,
@@ -632,6 +650,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、CD x${M.echo.burdenMul}`,
     manaVerb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、コスト x${M.echo.burdenMul}`,
     color: "#c080ff",
+    keywords: kw([], [], ["area"]),
     excludesTags: ["defense", "buff"],
     // 影渡りは自分が動くだけで、発動地点での再発動に意味が無い
     excludesSkills: ["shadowStep"],
@@ -646,6 +665,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     name: "貫通",
     verb: `弾・鎖が+${M.pierce.count}体貫通、範囲 x${M.pierce.areaMul}`,
     color: "#80ffc0",
+    keywords: kw([], [], ["bullet"]),
     excludesTags: ["placed"],
     requiresTags: ["projectile"],
     // 撃ち抜き・満月の砲・風切り・手繰り糸は元から全員に当たる
@@ -657,6 +677,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     name: "反動",
     verb: `発動時に後方へ跳ぶ（${M.recoil.invuln}秒無敵）、ダメージ x${M.recoil.damageMul}`,
     color: "#a0c0ff",
+    keywords: kw(["dash", "ward"]),
     // buff は威力を持たないので代償が空振りになる
     excludesTags: ["movement", "defense", "buff"],
     apply: (p) => ({ ...p, recoil: Math.max(p.recoil, M.recoil.speed), damageMul: p.damageMul * M.recoil.damageMul }),
@@ -667,6 +688,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `このスキルでの撃破でチャージが1回復、CD x${M.chainReset.burdenMul}`,
     manaVerb: `このスキルでの撃破でコストの${M.chainReset.manaRefund * PERCENT_UNIT}%を返す、コスト x${M.chainReset.manaBurdenMul}`,
     color: "#ffff80",
+    keywords: kw(["mana"], ["kill"]),
     excludesTags: ["buff", "defense"],
     apply: (p) =>
       p.resource === "mana"
@@ -678,6 +700,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     name: "呪い",
     verb: `命中した敵を${M.curse.duration}秒間呪う: スキル被ダメージ +${M.curse.bonus * PERCENT_UNIT}%、ダメージ x${M.curse.damageMul}`,
     color: "#b040ff",
+    keywords: kw(["vulnerable"]),
     excludesTags: ["buff"],
     apply: (p) => ({
       ...p,
@@ -690,6 +713,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     name: "遅延",
     verb: `発動地点で${M.delay.time}秒後に発動、ダメージ x${M.delay.damageMul}`,
     color: "#ff80c0",
+    keywords: kw(["placed"]),
     excludesTags: ["defense", "buff", "movement", "channel"],
     apply: (p) => ({ ...p, delay: { time: M.delay.time, damageMul: M.delay.damageMul } }),
   },
@@ -699,6 +723,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `範囲 x${M.expand.areaMul}、CD x${M.expand.burdenMul}`,
     manaVerb: `範囲 x${M.expand.areaMul}、コスト x${M.expand.burdenMul}`,
     color: "#60a0ff",
+    keywords: kw([], [], ["area"]),
     excludesTags: [],
     requiresTags: ["area"],
     apply: (p) => ({ ...p, areaMul: p.areaMul * M.expand.areaMul, burdenMul: p.burdenMul * M.expand.burdenMul }),
@@ -709,6 +734,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}`,
     manaVerb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}。コストは離した瞬間に払う`,
     color: "#ffd060",
+    keywords: kw(["still"]),
     // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、回転弾幕はチャネル系で「溜めて離す」と噛み合わない
     excludesTags: ["defense", "buff", "channel"],
     excludesModifiers: ["toStaged"],

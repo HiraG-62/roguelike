@@ -253,6 +253,10 @@ const TUNING = {
     noiseDuration: 0.15,
   },
   ambush: { noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2, lowFreq: 90, lowDuration: 0.25 },
+  pedestalUse: { tones: [392, 587.33, 783.99] as const, noteDuration: 0.07, gap: 0.02 },
+  runEventWarn: { freqFrom: 880, freqTo: 440, duration: 0.35, pulseFreq: 220, pulseDuration: 0.12 },
+  runEventStart: { noiseFreqFrom: 2500, noiseFreqTo: 200, noiseDuration: 0.3, lowFreq: 110, lowDuration: 0.3 },
+  lingerWarn: { freq: 55, duration: 0.5, detuneFreq: 58 },
   eliteKill: {
     tones: [440, 660, 880, 1108.73] as const,
     noteDuration: 0.06,
@@ -995,6 +999,49 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
     });
     const stab = tone(ctx, dest, opts, { type: "square", freq: TUNING.ambush.lowFreq, duration: TUNING.ambush.lowDuration, peak: 0.75 });
     return Math.max(noise, stab);
+  },
+
+  // 台座に触れた: 上がる 3 音
+  pedestalUse: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.pedestalUse.tones,
+      noteDuration: TUNING.pedestalUse.noteDuration,
+      gap: TUNING.pedestalUse.gap,
+      peak: 0.5,
+    }),
+
+  // ランイベントの予告: 下がるサイレン + 短い脈
+  runEventWarn: (ctx, dest, opts) => {
+    const siren = toneSweep(ctx, dest, opts, {
+      type: "triangle",
+      freqFrom: TUNING.runEventWarn.freqFrom,
+      freqTo: TUNING.runEventWarn.freqTo,
+      duration: TUNING.runEventWarn.duration,
+      peak: 0.45,
+    });
+    const pulse = tone(ctx, dest, opts, { type: "square", freq: TUNING.runEventWarn.pulseFreq, duration: TUNING.runEventWarn.pulseDuration, peak: 0.35 });
+    return Math.max(siren, pulse);
+  },
+
+  // ランイベントの開始: 吹き下ろすノイズ + 低い打撃
+  runEventStart: (ctx, dest, opts) => {
+    const noise = noiseBurst(ctx, dest, opts, {
+      filterType: "bandpass",
+      freqFrom: TUNING.runEventStart.noiseFreqFrom,
+      freqTo: TUNING.runEventStart.noiseFreqTo,
+      duration: TUNING.runEventStart.noiseDuration,
+      peak: 0.6,
+    });
+    const hit = tone(ctx, dest, opts, { type: "sine", freq: TUNING.runEventStart.lowFreq, duration: TUNING.runEventStart.lowDuration, peak: 0.7 });
+    return Math.max(noise, hit);
+  },
+
+  // 長居の代償の予告: うなる低音 2 本
+  lingerWarn: (ctx, dest, opts) => {
+    const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.lingerWarn.freq, duration: TUNING.lingerWarn.duration, peak: 0.55 });
+    const beat = tone(ctx, dest, opts, { type: "sawtooth", freq: TUNING.lingerWarn.detuneFreq, duration: TUNING.lingerWarn.duration, peak: 0.2 });
+    return Math.max(low, beat);
   },
 
   eliteKill: (ctx, dest, opts) => {

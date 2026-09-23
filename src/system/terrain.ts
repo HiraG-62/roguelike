@@ -7,6 +7,7 @@ import { TILE_SIZE, Tile, getTile, inBounds, toIndex } from "../map/grid";
 import { planTerrain } from "../map/generator";
 import { damageEnemy, damagePlayerDot } from "./combat";
 import { type StatusTarget, applyStatus, hasStatus } from "./statusEffects";
+import { pushPlayerEvent } from "../core/events";
 
 /**
  * 地形の層（docs/ideas/status-and-terrain.md 3 章）。床タイルに重ねる層で、プレイヤーと敵の両方に効く。
@@ -206,11 +207,21 @@ export function updateTerrain(state: GameState, dt: number): void {
   const layer = ensureTerrainLayer(state);
   planOnce(state, layer);
   if (layer.active.size > 0) tickCells(state, layer, dt);
+  notePlayerTerrain(state);
   layer.tickTimer += dt;
   if (layer.tickTimer < TERRAIN.tickInterval) return;
   layer.tickTimer -= TERRAIN.tickInterval;
   layer.tickCount += 1;
   applyToBodies(state, layer);
+}
+
+/** プレイヤーが別の地形に踏み込んだ瞬間を統一ルールのイベントにする（地形の上に居続ける間は積まない） */
+function notePlayerTerrain(state: GameState): void {
+  const p = state.player.body.pos;
+  const kind = terrainAt(state, p.x, p.y);
+  if (kind === state.ruleRun.playerTerrain) return;
+  state.ruleRun.playerTerrain = kind;
+  if (kind !== "none") pushPlayerEvent(state, "onTerrainEnter", kind, { tag: kind, source: { kind: "terrain", key: kind } });
 }
 
 /** 時間のあるセルだけを進める（Set の挿入順なので決定的） */

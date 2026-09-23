@@ -25,6 +25,10 @@ import { createSkillRunState } from "../system/skills";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import type { SkillProfile } from "../skills/types";
 import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
+import { createRunEventState, updateRunEvents } from "../system/runEvents";
+import { type RunSetup, defaultRunSetup, originKeystones, startOrigin } from "../system/runSetup";
+import { resolveRules } from "../system/rules";
+import { createRuleRunState } from "./events";
 
 /**
  * 新しいランを始める。profile.equipment から stats を畳み込んでプレイヤーに反映し、
@@ -35,6 +39,7 @@ export function createGame(
   seedText = String(seed),
   profile: Profile = createEmptyProfile(),
   skillProfile: SkillProfile = createDefaultSkillProfile(),
+  setup: RunSetup = defaultRunSetup(),
 ): GameState {
   const stats = computeStats(profile.equipment);
   profile.meta.runs += 1;
@@ -88,10 +93,23 @@ export function createGame(
     boonRun: createBoonRunState(),
     pendingBud: findPendingBud(profile),
     runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
+    runKeystones: originKeystones(setup.origin),
+    runEvents: createRunEventState(),
+    modifiers: [...setup.modifiers],
+    origin: setup.origin,
+    stairs: [],
+    events: [],
+    pendingEvents: [],
+    recent: {},
+    ruleIcd: new Map(),
+    chains: [],
+    ruleRun: createRuleRunState(),
   };
   // 祝福の畳み込み元（boonRun.baseStats）を覚えつつ、ステータスの派生（deriveAttributes）を通す
   applyStats(state, stats);
   refillMana(state);
+  // 起点の初期効果（祝福・刻印符・振り分け点）。放浪者は何もしない（乱数も消費しない）
+  startOrigin(state);
   buildFloor(state);
   pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");
   return state;
@@ -134,8 +152,10 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   updateProjectiles(state, gdt);
   updateHazards(state, gdt);
   updateRooms(state, gdt);
+  updateRunEvents(state, gdt);
   updateReaper(state, gdt);
   updateCombo(state, gdt);
+  resolveRules(state, gdt);
   updateEffects(state, gdt);
   updateCamera(state, dt, VIEW_W, VIEW_H);
 }

@@ -1,10 +1,10 @@
 import type { FrameInput } from "../core/input";
-import type { StatusKind } from "../core/status";
+import type { KeywordProfile } from "../core/keywords";
 import { type Enemy, type GameState, type Projectile, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, fromAngle, length, scale } from "../core/vec";
 import { VIEW_W } from "../core/view";
-import { ATTR, BOON, FEEL, MANA, PLAYER, STATUS } from "../data/tuning";
-import { ATTR_KEYS, type AttrKey, type Attributes, DEFAULT_STATS, type PlayerStats } from "../loot/types";
+import { BOON, FEEL, MANA, PLAYER, STATUS } from "../data/tuning";
+import { ATTR_KEYS, type AttrKey, type Attributes, type PlayerStats } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource, SkillTag } from "../skills/types";
@@ -37,7 +37,7 @@ import {
 } from "./boonRules";
 import { cancelAttack, healPlayer } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
-import { KS } from "./keystones";
+import { STATUS_BOON_TAGS, affinity, buildProfile, statsBoonTags } from "./keywords";
 import { dropItem } from "./loot";
 import { gainMana } from "./mana";
 import { applyStats, dashTime } from "./player";
@@ -138,122 +138,13 @@ export function hasBoon(state: GameState, key: BoonKey): boolean {
 // 装備タグと抽選
 // -----------------------------------------------------------------------------
 
-/** 装備（stats）から祝福タグを読む。keystones / triggers / 状態異常の有無に反応する */
-export function equipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
-  const tags = new Set<BoonTag>();
-  const effects = new Set(stats.triggers.map((t) => t.effect));
-  const triggers = new Set(stats.triggers.map((t) => t.trigger));
-  const conditions = new Set(stats.triggers.map((t) => t.condition));
-  const ks = new Set(stats.keystones);
-  const d = DEFAULT_STATS;
-
-  if (stats.burnChance > 0 || effects.has("burnNearby")) tags.add("burn");
-  if (stats.chillChance > 0 || effects.has("freezeNearby")) tags.add("chill");
-  if (stats.shockChance > 0 || effects.has("chainLightning")) tags.add("shock");
-  if (stats.explodeOnKillChance > 0 || effects.has("explode") || ks.has(KS.blink)) tags.add("explode");
-  if (
-    stats.meleeDamageMul > d.meleeDamageMul ||
-    stats.meleeDamageFlat > d.meleeDamageFlat ||
-    stats.attackSpeedMul > d.attackSpeedMul ||
-    triggers.has("onMeleeHit") ||
-    triggers.has("everyNthMeleeHit") ||
-    ks.has(KS.bladeOath)
-  ) {
-    tags.add("melee");
-  }
-  if (
-    stats.rangedDamageMul > d.rangedDamageMul ||
-    stats.rangedDamageFlat > d.rangedDamageFlat ||
-    stats.fireRateMul > d.fireRateMul ||
-    stats.projectileCount > d.projectileCount ||
-    stats.pierce > d.pierce ||
-    triggers.has("onShoot") ||
-    ks.has(KS.pacifist)
-  ) {
-    tags.add("ranged");
-  }
-  if (
-    stats.dashCharges > d.dashCharges ||
-    stats.dashCooldownMul < d.dashCooldownMul ||
-    stats.dashDistanceMul > d.dashDistanceMul ||
-    triggers.has("onDash") ||
-    ks.has(KS.blink)
-  ) {
-    tags.add("dash");
-  }
-  if (stats.justDodgeDamageMul > d.justDodgeDamageMul || stats.justDodgeWindow > d.justDodgeWindow || triggers.has("onJustDodge")) {
-    tags.add("just");
-  }
-  if (stats.comboDamagePerStack > 0 || stats.comboWindowBonus > 0 || conditions.has("comboAbove10")) tags.add("combo");
-  if (
-    stats.energyGainMul > d.energyGainMul ||
-    stats.burstDamageMul > d.burstDamageMul ||
-    stats.burstRadiusMul > d.burstRadiusMul ||
-    effects.has("energy") ||
-    conditions.has("fullEnergy")
-  ) {
-    tags.add("energy");
-  }
-  if (stats.critChance > d.critChance || stats.critMul > d.critMul) tags.add("crit");
-  if (stats.lifeOnHit > 0 || stats.lifeOnKill > 0 || stats.hpRegen > 0 || effects.has("heal") || ks.has(KS.vampire) || ks.has(KS.berserker)) {
-    tags.add("hp");
-  }
-  if (triggers.has("onRoomClear") || conditions.has("roomLocked")) tags.add("room");
-  addAttributeTags(stats, tags);
-  addStatusProcTags(stats, tags);
-  addManaTags(stats, tags);
-  return tags;
-}
-
-/** マナの性質（最大・回復・回収・軽減のどれか）が基礎より良ければ mana */
-function addManaTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
-  const d = DEFAULT_STATS;
-  if (
-    stats.maxMana > d.maxMana ||
-    stats.manaRegen > d.manaRegen ||
-    stats.manaGainMul > d.manaGainMul ||
-    stats.manaCostMul < d.manaCostMul
-  ) {
-    tags.add("mana");
-  }
-}
-
-/** ステータスの性質（基礎値より高いステータス）があれば attr、筋力・怯み値の性質なら stagger */
-function addAttributeTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
-  if (ATTR_KEYS.some((k) => stats.attributes[k] > ATTR.base)) tags.add("attr");
-  if (stats.attributes.str > ATTR.base || stats.poiseDamageMul > DEFAULT_STATS.poiseDamageMul) tags.add("stagger");
-}
-
 /**
- * 状態異常 proc の性質（出血・毒など）と、トリガー効果 inflict（"@poison" など）の種類をタグにする。
- * inflict だけで毒を付ける装備でも requires: poison の祝福が出るように
+ * 装備（stats）から祝福タグを読む。keystones / triggers / 状態異常の有無に反応する。
+ * 推論の表は共通語彙と共有している（system/keywords.ts の statsBoonTags）
  */
-function addStatusProcTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
-  for (const proc of stats.statusProcs) {
-    for (const tag of STATUS_TAGS[proc.kind] ?? []) tags.add(tag);
-  }
-  for (const t of stats.triggers) {
-    if (t.effect !== "inflict" || t.status === undefined) continue;
-    for (const tag of STATUS_TAGS[t.status] ?? []) tags.add(tag);
-  }
+export function equipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
+  return statsBoonTags(stats);
 }
-
-/** 状態異常の種類 → 祝福タグ。脆弱は崩し（stagger）の系統にも数える */
-const STATUS_TAGS: Readonly<Partial<Record<StatusKind, readonly BoonTag[]>>> = {
-  burn: ["burn"],
-  chill: ["chill"],
-  freeze: ["chill", "freeze"],
-  shock: ["shock"],
-  paralyze: ["shock", "paralyze"],
-  poison: ["poison"],
-  bleed: ["bleed"],
-  vulnerable: ["stagger", "vulnerable"],
-  weaken: ["weaken"],
-  fear: ["fear"],
-  silence: ["silence"],
-  stagger: ["stagger"],
-  guarded: ["guarded"],
-};
 
 /** スキル石のタグ → 祝福タグ（範囲・強化・詠唱は対応する祝福の系統が無いので読まない） */
 const SKILL_TAG_TO_BOON: Readonly<Partial<Record<SkillTag, BoonTag>>> = {
@@ -282,7 +173,7 @@ export function skillStoneTags(state: GameState): Set<BoonTag> {
       if (tag) tags.add(tag);
     }
     for (const a of def.applies ?? []) {
-      for (const tag of STATUS_TAGS[a.kind] ?? []) tags.add(tag);
+      for (const tag of STATUS_BOON_TAGS[a.kind] ?? []) tags.add(tag);
     }
   }
   return tags;
@@ -333,9 +224,17 @@ export function boonWeight(
   return weight;
 }
 
+/**
+ * 共通語彙の相性による重み倍率。候補が今のビルドの飢え（食うのに誰も出さない語）を 1 つでも埋めるなら上げる。
+ * 0 の重み（出ない候補）は 0 のまま
+ */
+export function boonAffinityMul(def: BoonDef, build: Readonly<KeywordProfile>): number {
+  return affinity(def.keywords, build).fills.length > 0 ? BOON.affinityWeightMul : 1;
+}
+
 /** 重み付きで 1 つ取り出す（pool から除く）。全て 0 なら null */
-function takeWeighted(state: GameState, pool: BoonDef[], tags: BuildTags): BoonDef | null {
-  const weights = pool.map((d) => boonWeight(d, tags.owned, state.boons, tags.gives));
+function takeWeighted(state: GameState, pool: BoonDef[], tags: BuildTags, build: Readonly<KeywordProfile>): BoonDef | null {
+  const weights = pool.map((d) => boonWeight(d, tags.owned, state.boons, tags.gives) * boonAffinityMul(d, build));
   const total = weights.reduce((s, w) => s + w, 0);
   if (total <= 0) return null;
   let roll = state.rng.next() * total;
@@ -364,12 +263,13 @@ function dropSiblings(pool: BoonDef[], picked: BoonDef): void {
 /** 3 枚（重複なし）を抽選する。cursedChance で 1 枚が呪い付き祝福になる。同じ系譜・結びは 1 枚まで */
 export function rollBoonOptions(state: GameState): BoonKey[] {
   const tags = buildTags(state);
+  const build = buildProfile(state);
   const all = BOON_KEYS.map(boonDef);
   const normal = all.filter((d) => !d.cursed);
   const cursed = all.filter((d) => d.cursed);
   const picks: BoonDef[] = [];
   const take = (pool: BoonDef[]): BoonDef | null => {
-    const picked = takeWeighted(state, pool, tags);
+    const picked = takeWeighted(state, pool, tags, build);
     if (!picked) return null;
     dropSiblings(normal, picked);
     dropSiblings(cursed, picked);
@@ -430,12 +330,12 @@ export function takeCurse(state: GameState): boolean {
   const c = state.boonChoice;
   if (!c || !canTakeCurse(state)) return false;
   const cursedPool = BOON_KEYS.map(boonDef).filter((d) => d.cursed && !c.options.includes(d.key));
-  const curse = takeWeighted(state, cursedPool, buildTags(state));
+  const curse = takeWeighted(state, cursedPool, buildTags(state), buildProfile(state));
   if (!curse) return false;
   grantBoon(state, curse.key);
   c.curseTaken = true;
   c.curse = curse.key;
-  const extra = takeWeighted(state, extraPool(c.options), buildTags(state));
+  const extra = takeWeighted(state, extraPool(c.options), buildTags(state), buildProfile(state));
   if (extra) c.options.push(extra.key);
   return true;
 }

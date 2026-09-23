@@ -67,6 +67,11 @@ export const SFX_NAMES = [
   "waveStart",
   "fountainHeal",
   "ambush",
+  // ラン構造（台座・ランイベントの予告と開始・長居の代償の予告）
+  "pedestalUse",
+  "runEventWarn",
+  "runEventStart",
+  "lingerWarn",
   // 敵の攻撃演出
   "bombFuse",
   "laserCharge",

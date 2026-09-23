@@ -88,6 +88,17 @@
 | 泉 | shrine | 全回復。代わりに次の部屋が呪われる | `system/roomTypes.ts` |
 | 伏兵 | ambush | 入ると 2 倍湧き | 同上 |
 | 通常 / 洞窟 / 暗闇 | rooms / cave / dark | フロア種別 | `render/renderer.ts` FLOOR_KIND_LABEL_JA |
+| バイオーム: 熔鉱炉 / 骨の墓所 / 沼 / 氷窟 / 油の坑道 / 草原 | forge / ossuary / swamp / glacier / mine / meadow | 形・地形・出やすい敵・色調を束ねたフロア種別。回廊（rooms）はログと階段の行き先では「回廊」、HUD では「通常」 | `system/biomes.ts` BIOMES |
+| 分岐路 | stairs / StairsChoice | 最後の部屋の 2〜3 個の階段。階段ごとに次のバイオームが違い、上に行き先を出す | `system/specialRooms.ts` planForkStairs |
+| 祭壇 / 図書館 / 闘技場 / 賭博 / 鍛冶場 / 交換所 / 呪いの祠 / 共鳴炉 / 護衛 / 逃走 / 死神の巣 / 巣 / 鏡 / 見張り台 | altar / library / arena / gamble / forge / exchange / curseShrine / resonance / escort / escape / reaperNest / nest / mirror / watchtower | 追加の部屋種類。台座の部屋は触れて選ぶ（誓約・刻印符・賭け台・金床・交換台・鐘・宝箱） | `system/specialRooms.ts` ROOM_KIND_LABEL / PROP_LABEL |
+| 賭け台 / 金床 / 交換台 / 鐘 / 捕らわれ人 | lever / anvil / exchange / bell / captive | 特別な部屋の触れる物。捕らわれ人は護衛の部屋で守る対象 | 同上 |
+| 鏡像 | mirrorSelf | 鏡の部屋で湧く、今のビルドを写した敵 | `data/enemies.ts` |
+| ランイベント | runEvent | 予告（HUD の 1 行 + 効果音）の後に始まる一時的なルール変更。増援 / 賞金首 / 停電 / 地震 / 宝の雨 / マナ枯渇 / 刻の裂け目 / 霧 / 呪いの風 / 血の月 / 狂乱の月 / 流星群 / 縮みの呪い / 勢いの風 | `system/runEvents.ts` RUN_EVENTS |
+| 予告 | warn | ランイベント・長居の代償が始まる前の知らせ。HUD の「予告: …」 | 同上 |
+| 長居の代償 | linger | 死神以外の、同じ階にいるほど悪化する仕組み。影の自分 / 天井の崩落 / 潮（満潮） | `system/linger.ts` LINGER_LABEL |
+| 起点 | origin | ラン開始時に選ぶ出発条件。放浪者 / 剣の巡礼者 / 呪われた者 / 素手 / 詠み手 / 賭博師 / 死神の友 | `system/runSetup.ts` ORIGINS |
+| 縛り / 位階 | runMod / tier | 起点画面で積むラン修飾子と、その点の合計。厚い皮 / 早い手 / 精鋭 / 乾いた泉 / 急かす死神 / 常夜 / 絶えぬ増援 / 荒れた大地 / 長居の二重苦 / 部屋の砂時計 / 薄氷 | `system/runSetup.ts` RUN_MODS |
+| 出発 | start | 起点画面でランを始める行 | `ui/origin.ts` START_LABEL |
 | 地下 n 階 | depth | 階層 | HUD |
 | 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper | `system/reaper.ts` |
 | ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人） | `data/enemies.ts` |
@@ -183,6 +194,9 @@
 | --- | --- | --- |
 | ゴール装備 / BiS | 「これを作れば最強」の装備。作らないのが方針 | `docs/LOOT_DESIGN.md` |
 | ソフトキャップ | +100% 超を sqrt 圧縮する逓減 | `loot/stats.ts` |
+| 語（キーワード） | 全要素（装備・祝福・スキル石・刻印符・敵・部屋）が共有するシナジーの単位。40 語。内部名 `Keyword` | `core/keywords.ts`、`docs/ideas/synergy-web.md` 1 章 |
+| 出す / 食う / 強める | 語への関わり方の 3 動詞。出す = その状況を作る、食う = その状況を条件・燃料にする、強める = 出した結果の量や質を上げる。内部名 `produces` / `consumes` / `amplifies` | `core/keywords.ts` |
+| 余り / 飢え | 余り = 出しているのに誰も食わない語。飢え = 食うのに誰も出さない語。ビルドの穴を示す。内部名 `surplus` / `hunger` | `system/keywords.ts` |
 
 装備の「響き・揺らぎ・来歴」（共鳴・揺らぎ・来歴・芽・銘・残響）は実装済み。用語は上の「装備」節を参照（旧: `docs/ideas/loot-identity.md`）。
 

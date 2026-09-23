@@ -1,6 +1,8 @@
 import type { GameState, RoomKind } from "../core/state";
-import { REAPER } from "../data/tuning";
-import { type GameMap, TILE_SIZE, Tile, toIndex } from "../map/grid";
+import { REAPER, RUN_EVENT } from "../data/tuning";
+import { type GameMap, TILE_SIZE, Tile, rectCenter, toIndex } from "../map/grid";
+import { bountyTargetId } from "../system/runEvents";
+import { ROOM_KIND_COLOR } from "../system/specialRooms";
 
 /**
  * 部屋のタイル所属表。描画側（床マーク・伏兵の暗い床・泉・ミニマップ）で共有する。
@@ -46,7 +48,43 @@ const ROOM_RGB: Readonly<Record<RoomKind, Rgb>> = {
   treasure: [236, 196, 64],
   challenge: [240, 132, 56],
   shrine: [96, 170, 240],
+  // 台座の部屋は床の色で見分ける。戦う特別な部屋は床は通常色で、中央の記号（ROOM_MARK）で示す
+  altar: [176, 120, 220],
+  library: [110, 160, 220],
+  gamble: [220, 190, 80],
+  forge: [220, 130, 70],
+  exchange: [90, 200, 170],
+  curseShrine: [140, 70, 200],
+  watchtower: [200, 200, 150],
+  reaperNest: [110, 60, 160],
+  arena: [150, 150, 170],
+  resonance: [150, 150, 170],
+  escort: [150, 150, 170],
+  escape: [150, 150, 170],
+  nest: [150, 150, 170],
+  mirror: [150, 150, 170],
 };
+
+/** 部屋の中央に打つ 3x3 の記号（行ごとの 3 ビット。1 = 塗る）。無い種類は打たない */
+const ROOM_MARK: Readonly<Partial<Record<RoomKind, readonly [number, number, number]>>> = {
+  altar: [0b010, 0b111, 0b010],
+  library: [0b111, 0b101, 0b111],
+  gamble: [0b101, 0b010, 0b101],
+  forge: [0b111, 0b010, 0b010],
+  exchange: [0b110, 0b011, 0b110],
+  curseShrine: [0b101, 0b111, 0b101],
+  watchtower: [0b010, 0b010, 0b111],
+  reaperNest: [0b111, 0b111, 0b010],
+  arena: [0b101, 0b010, 0b101],
+  resonance: [0b010, 0b101, 0b010],
+  escort: [0b010, 0b111, 0b101],
+  escape: [0b100, 0b110, 0b111],
+  nest: [0b111, 0b101, 0b101],
+  mirror: [0b101, 0b101, 0b111],
+};
+const MARK_SIZE = 3;
+const MARK_BITS_TOP = 0b100;
+const COLOR_MARK_DEFAULT = "#ffffff";
 const OPAQUE = 255;
 const RGBA = 4;
 
@@ -141,8 +179,29 @@ export class Minimap {
       const sy = Math.floor(i / map.width);
       target.fillRect(x0 + sx - STAIRS_HALF, y0 + sy - STAIRS_HALF, STAIRS_DOT, STAIRS_DOT);
     }
+    this.drawRoomMarks(target, state, x0, y0);
     this.dot(target, x0, y0, state.player.body.pos.x, state.player.body.pos.y, COLOR_PLAYER);
     if (state.reaper) this.dot(target, x0, y0, state.reaper.pos.x, state.reaper.pos.y, REAPER.color);
+    const bounty = state.enemies.find((e) => e.id === bountyTargetId(state));
+    if (bounty) this.dot(target, x0, y0, bounty.body.pos.x, bounty.body.pos.y, RUN_EVENT.activeColor);
+  }
+
+  /** 探索済みの特別な部屋の中央に種類の記号を打つ */
+  private drawRoomMarks(target: CanvasRenderingContext2D, state: GameState, x0: number, y0: number): void {
+    for (const room of state.rooms) {
+      const mark = ROOM_MARK[room.kind];
+      if (!mark) continue;
+      const c = rectCenter(room.rect);
+      if (!state.explored[toIndex(state.map, c.x, c.y)]) continue;
+      target.fillStyle = ROOM_KIND_COLOR[room.kind] ?? COLOR_MARK_DEFAULT;
+      for (let row = 0; row < MARK_SIZE; row++) {
+        const bits = mark[row] ?? 0;
+        for (let col = 0; col < MARK_SIZE; col++) {
+          if (!(bits & (MARK_BITS_TOP >> col))) continue;
+          target.fillRect(x0 + c.x - 1 + col, y0 + c.y - 1 + row, 1, 1);
+        }
+      }
+    }
   }
 
   private dot(target: CanvasRenderingContext2D, x0: number, y0: number, px: number, py: number, color: string): void {

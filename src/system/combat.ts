@@ -12,6 +12,7 @@ import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playe
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
+import { pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent } from "../core/events";
 import { onTraitHit, onTraitKill, onTraitStagger, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
 import { interceptEnemyDamage } from "./elites";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
@@ -168,6 +169,7 @@ export function damageEnemy(
   }
 
   if (opts.crit) onBoonCrit(state, enemy, amount);
+  if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true);
   if (enemy.hp > 0) return false;
   killEnemy(state, enemy);
   return true;
@@ -230,6 +232,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   if (counted) rollEnemyDrop(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
+  pushKillEvents(state, enemy);
   onBoonKill(state, enemy);
   onTraitKill(state, enemy);
   if (counted) recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
@@ -373,6 +376,7 @@ export function damagePlayer(
   pushSfx(state, "hurt");
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
+  pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" } });
   onBoonHurt(state, attacker);
   return "hit";
 }
@@ -444,6 +448,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   pushSfx(state, "just");
   onBoonJust(state, attacker);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
+  pushPlayerEvent(state, "onJustDodge", "just", { sourceId: attacker?.id });
   recordProvenance(state, { kind: "just" });
 }
 

@@ -1,4 +1,7 @@
 import type { StatusKind } from "../core/status";
+import type { EventSource } from "../core/events";
+import { type Rule, SCOPE_ANY, ruleId } from "../core/rules";
+import type { BoonKey } from "./boonDefs";
 import {
   type AttackPhase,
   type DamageKind,
@@ -43,6 +46,62 @@ import {
  * 既存のフック（boons.ts の onBoonKill など）から呼ばれる関数と、各 system へ 1〜2 行で差し込む新しいフックを持つ。
  * 暴走しないよう、連鎖するものは ICD・上限・再入防止のどれかを必ず持つ
  */
+
+const BURN_SPREAD_OWNER: EventSource = { kind: "boon", key: "burnSpread" };
+const DASH_SHOCK_OWNER: EventSource = { kind: "boon", key: "dashShock" };
+const REAPER_CUP_OWNER: EventSource = { kind: "boon", key: "reaperCup" };
+/** 見本の Rule は ICD・確率を持たない（今のフックが持たないので、同じ結果にするため） */
+const ALWAYS = 1;
+const NO_ICD = 0;
+/** 野火は燃焼の強さをそのまま広げる（元の potency に掛ける倍率） */
+const SAME_POTENCY = 1;
+
+/**
+ * 統一ルール文法（src/core/rules.ts）で書き直した祝福の見本（docs/ideas/synergy-web.md 3-c）。
+ * まだ BoonDef.rules へは移していない: 今のフック（boons.ts の onBoonKill / onBoonDash）と二重に発火させないため。
+ * 移すときは BOONS[key].rules にこれを置き、フック側の分岐を消す。等価性は src/system/rules.test.ts が確かめる
+ */
+export const BOON_RULE_EXAMPLES: Readonly<Partial<Record<BoonKey, readonly Rule[]>>> = {
+  // 野火: 燃えている敵が死ぬと周囲へ同じ強さの燃焼
+  burnSpread: [
+    {
+      id: ruleId(BURN_SPREAD_OWNER, 0),
+      when: "onKill",
+      if: [{ kind: "targetHas", status: "burn" }],
+      then: { kind: "spreadStatus", status: "burn", magnitude: SAME_POTENCY, radius: BOON.burnSpreadRadius, duration: STATUS.burnDuration },
+      chance: ALWAYS,
+      icd: NO_ICD,
+      scope: SCOPE_ANY,
+      owner: BURN_SPREAD_OWNER,
+    },
+  ],
+  // 帯電疾走: ダッシュ開始で近接 1 段目 × dashShockRatio の連鎖雷
+  dashShock: [
+    {
+      id: ruleId(DASH_SHOCK_OWNER, 0),
+      when: "onDash",
+      if: [],
+      then: { kind: "chainLightning", magnitude: BOON.dashShockRatio, scaleBy: "slashBase" },
+      chance: ALWAYS,
+      icd: NO_ICD,
+      scope: SCOPE_ANY,
+      owner: DASH_SHOCK_OWNER,
+    },
+  ],
+  // 屠りの盃: 撃破でマナ（自然回復の半減は数値の畳み込み foldBoonStats のまま）
+  reaperCup: [
+    {
+      id: ruleId(REAPER_CUP_OWNER, 0),
+      when: "onKill",
+      if: [],
+      then: { kind: "restoreMana", magnitude: BOON.reaperCupKillMana },
+      chance: ALWAYS,
+      icd: NO_ICD,
+      scope: SCOPE_ANY,
+      owner: REAPER_CUP_OWNER,
+    },
+  ],
+};
 
 const LAST_COMBO = PLAYER.melee.length - 1;
 const DEG_TO_RAD = Math.PI / 180;

@@ -1,4 +1,5 @@
 import { type EliteKind, type Enemy, type GameState, pushSfx } from "../core/state";
+import { enemyTarget, pushEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
 import { enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
@@ -157,6 +158,7 @@ function breakPoise(state: GameState, e: Enemy): boolean {
     e.poise.max = basePoiseMax(e.defKey, state.depth) * bossPoiseGrowth(e.poise.downs);
   }
   onBoonStagger(state, e);
+  pushEvent(state, { kind: "onStagger", actor: "player", source: { kind: "player", key: "stagger" }, ...enemyTarget(e) });
   return true;
 }
 

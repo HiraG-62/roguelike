@@ -1,4 +1,5 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
+import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
 import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
@@ -473,6 +474,7 @@ function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: 
   e.strikeDir = dir;
   telegraphWindup(state, e, def, dir);
   pushSfx(state, "enemyWindup");
+  pushEvent(state, { kind: "onEnemyWindup", actor: "enemy", source: { kind: "enemy", key: e.defKey }, ...enemyTarget(e) });
   if (def.behavior === "laser" || (def.behavior === "mimic" && isMimicTongue(e))) pushSfx(state, "laserCharge");
 }
 

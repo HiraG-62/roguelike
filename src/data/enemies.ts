@@ -1,4 +1,5 @@
 import type { StatusKind } from "../core/status";
+import type { FloorKind } from "../core/state";
 
 export type EnemyBehavior =
   | "chaser"
@@ -165,6 +166,8 @@ export interface EnemyDef {
   transformTo?: { key: string; hpRatio: number };
   /** ボスの表示名（兄妹のように、個体名と別に部屋の主の名前を出す） */
   bossTitle?: string;
+  /** バイオームごとの出現の重みの倍率（省略時は src/system/biomes.ts のファミリー表で決まる） */
+  biomeWeight?: Partial<Record<FloorKind, number>>;
 }
 
 /**
@@ -478,6 +481,13 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     radius: 6, hp: 40, speed: 0, behavior: "inert", contactDamage: 0,
     windup: 1, strikeTime: 0.1, recover: 1, engageRange: 0, attackInterval: 99,
     score: 20, minDepth: 99, weight: 0, color: "#8fd0ff", dropChance: 0, noCorpse: true,
+  },
+  // ---- 鏡の部屋の写し（src/system/specialRooms.ts が HP・エリート修飾子をプレイヤーの今のビルドから決める）----
+  {
+    key: "mirrorSelf", name: "鏡像", sprite: "mirrorSelf", recolor: { base: "player", swap: { b: "p", B: "P", a: "e", t: "3", T: "4", o: "A", O: "9" } },
+    radius: 6, hp: 60, speed: 46, behavior: "charger", contactDamage: 16,
+    windup: 0.55, strikeTime: 0.5, recover: 0.5, engageRange: 120, attackInterval: 0.8,
+    score: 400, minDepth: 99, weight: 0, color: "#c0e0ff", dropChance: 0, noCorpse: true,
   },
 ];
 

@@ -1,4 +1,5 @@
-import { type Enemy, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
+import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
+import { pushPlayerEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
 import { ATTR_GAIN, BOSS, ROOM, ROOM_KIND } from "../data/tuning";
@@ -55,6 +56,21 @@ import {
   startsEmpty,
   updateShrines,
 } from "./roomTypes";
+import { biomeEnemyWeight, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
+import {
+  assignExtraRoomKinds,
+  clearSpecialRoom,
+  enterSpecialRoom,
+  ensureForkStairs,
+  lockSpecialRoom,
+  planForkStairs,
+  roomHooks,
+  setupSpecialRoom,
+  stairsChoiceAt,
+  updateSpecialRooms,
+} from "./specialRooms";
+import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
+import { hasMod, onOriginDescend, tierScoreMul } from "./runSetup";
 
 const START_ROOM = 0;
 /** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の戦闘部屋にする */
@@ -66,9 +82,9 @@ const MIN_WAVE_ENEMIES = 1;
 const TEXT_LIFT = 10;
 const DEPTH_COLOR = "#ffd75f";
 
-/** 新しいフロアを生成してプレイヤーを配置する */
-export function buildFloor(state: GameState): void {
-  state.floorKind = chooseFloorKind(state.depth, state.rng);
+/** 新しいフロアを生成してプレイヤーを配置する。kind は分岐路で選んだ行き先（省略時は深度の規則で抽選） */
+export function buildFloor(state: GameState, kind?: FloorKind): void {
+  state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth));
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
   state.lockedTiles = new Set();
@@ -100,6 +116,7 @@ export function buildFloor(state: GameState): void {
   const last = state.rooms.length - 1;
   const reserved = new Set([START_ROOM, FIRST_FIGHT_ROOM, last]);
   assignRoomKinds(state, reserved);
+  assignExtraRoomKinds(state, reserved);
   applyBoonFloorRules(state, reserved);
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
@@ -109,10 +126,17 @@ export function buildFloor(state: GameState): void {
       return;
     }
     if (room.kind === "shrine") setupShrine(state, room);
+    setupSpecialRoom(state, room);
     if (startsEmpty(room.kind)) return;
     populateRoom(state, room, i);
   });
   revealAround(state);
+  // ここから下の乱数は部屋の中身が決まった後に引く（既存の部屋・敵の配置の乱数消費を変えない）
+  const ends = new Set([START_ROOM, last]);
+  placeBiomeTerrain(state, ends);
+  placeOssuaryCorpses(state, ends);
+  planForkStairs(state);
+  onFloorStart(state);
 }
 
 function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined): RoomState {
@@ -205,6 +229,7 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
     const e = createEnemy(state, def, pos, index, spawning);
     if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
     onBoonEnemySpawned(state, e);
+    onRunEnemySpawned(state, e);
     rollElite(state, e);
     if (extraEliteRoll(state, e)) rollElite(state, e);
     state.enemies.push(e);
@@ -229,10 +254,11 @@ function spawnCapped(state: GameState, room: RoomState, index: number, spawning:
 
 function pickEnemy(state: GameState): EnemyDef {
   const pool = enemiesForDepth(state.depth);
-  const total = pool.reduce((s, d) => s + d.weight, 0);
+  const weight = (d: EnemyDef): number => biomeEnemyWeight(d, state.floorKind);
+  const total = pool.reduce((s, d) => s + weight(d), 0);
   let roll = state.rng.next() * total;
   for (const def of pool) {
-    roll -= def.weight;
+    roll -= weight(def);
     if (roll <= 0) return def;
   }
   return pool[pool.length - 1] ?? pool[0]!;
@@ -331,10 +357,12 @@ export function updateRooms(state: GameState, dt: number): void {
       startWave(state, room, () => spawnWave(state, room, i));
       return;
     }
-    clearRoom(state, room);
+    clearRoom(state, room, i);
   });
 
   updateShrines(state);
+  updateSpecialRooms(state, dt);
+  ensureForkStairs(state);
   updateBossIntro(state, dt);
   updatePickups(state, dt);
   updateFloorItems(state, dt);
@@ -346,6 +374,7 @@ function enterRoom(state: GameState, room: RoomState, index: number): void {
     openTreasure(state, room);
     return;
   }
+  if (enterSpecialRoom(state, room)) return;
   // 保険: プレイヤーがドアタイルに掛かっている間はロックを次フレームへ延期
   // （enterMargin/insideRoom で通常は防げているはずだが、念のため二重に確認）
   const p = state.player.body;
@@ -444,20 +473,23 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
   }
   onBoonRoomLock(state, index);
+  pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
+  onRoomLocked(state, index);
   if (state.boss && state.boss.roomIndex === index) {
     announceBoss(state);
     return;
   }
-  if (room.kind === "challenge") {
+  if (room.kind === "challenge" || room.kind === "arena") {
     startWave(state, room, () => spawnWave(state, room, index));
     applyCurse(state, index);
     return;
   }
-  // 増援を telegraph 付きで湧かせる。伏兵部屋は最初は無人で、通常の 2 倍が一気に湧く
+  // 増援を telegraph 付きで湧かせる。伏兵部屋は最初は無人で、通常の 2 倍が一気に湧く。
+  // 護衛・鏡は自分で湧かせる（lockSpecialRoom が true）
   const ambush = room.kind === "ambush";
   const ratio = ambush ? ROOM_KIND.ambushEnemyMul : ROOM.reinforcementRatio;
   const extra = Math.round(enemyCount(state) * ratio);
-  spawnCapped(state, room, index, true, extra);
+  if (!lockSpecialRoom(state, room, index)) spawnCapped(state, room, index, true, extra);
   finalizeLinks(state, index);
   applyCurse(state, index);
   shake(state, ambush ? AMBUSH_SHAKE : LOCK_SHAKE);
@@ -466,14 +498,15 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   pushSfx(state, "roomLock");
 }
 
-/** challenge の 1 波ぶん（telegraph 付き） */
+/** challenge / arena の 1 波ぶん（telegraph 付き） */
 function spawnWave(state: GameState, room: RoomState, index: number): void {
-  const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * ROOM_KIND.challengeWaveMul));
+  const mul = room.kind === "arena" ? ROOM_KIND.arenaWaveMul : ROOM_KIND.challengeWaveMul;
+  const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * mul));
   for (let i = 0; i < count; i++) spawnGroup(state, room, index, true);
   finalizeLinks(state, index);
 }
 
-function clearRoom(state: GameState, room: RoomState): void {
+function clearRoom(state: GameState, room: RoomState, index: number): void {
   room.locked = false;
   room.cleared = true;
   for (const t of room.doorTiles) state.lockedTiles.delete(t);
@@ -484,8 +517,11 @@ function clearRoom(state: GameState, room: RoomState): void {
   const center = rewardAnchor(state, room);
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
+  pushPlayerEvent(state, "onRoomClear", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
   onBoonRoomClear(state, room);
   recordProvenance(state, { kind: "roomClear" });
+  onRoomCleared(state, room, index);
+  clearSpecialRoom(state, room, center);
   // 試練: rare 確定 + ハート確定
   if (room.kind === "challenge") {
     dropRareItem(state, center);
@@ -520,7 +556,7 @@ function onStairs(state: GameState, px: number, py: number): boolean {
 }
 
 function dropHeart(state: GameState, pos: { x: number; y: number }): void {
-  if (!boonHeartsAllowed(state)) return;
+  if (!boonHeartsAllowed(state) || hasMod(state, "dryFountain")) return;
   state.pickups.push({ id: allocId(state), kind: "heart", pos: { ...pos }, radius: PICKUP_RADIUS, bobTime: 0 });
 }
 
@@ -548,18 +584,20 @@ function checkStairs(state: GameState): void {
   const tx = Math.floor(p.x / TILE_SIZE);
   const ty = Math.floor(p.y / TILE_SIZE);
   if (getTile(state.map, tx, ty) !== Tile.StairsDown) return;
-  descend(state);
+  descend(state, stairsChoiceAt(state, toIndex(state.map, tx, ty)));
   // 祝福 3 択は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）
   offerBoons(state);
 }
 
-export function descend(state: GameState): void {
+/** 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選） */
+export function descend(state: GameState, nextKind?: FloorKind): void {
   // buildFloor が state.boss を消すので、ボス撃破の判定は先に行う
   grantAttributePoints(state, floorAttributePoints(state));
   state.depth += 1;
   recordProvenance(state, { kind: "floorClear" });
-  state.score += ROOM.clearBonus * state.depth;
-  buildFloor(state);
+  state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
+  buildFloor(state, nextKind);
+  onOriginDescend(state);
   descendMana(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
@@ -577,3 +615,34 @@ export function floorAttributePoints(state: GameState): number {
   const boss = state.boss?.defeated === true ? ATTR_GAIN.perBoss : 0;
   return ATTR_GAIN.perFloor + boss;
 }
+
+// -----------------------------------------------------------------------------
+// 特別な部屋・ランイベントが使う湧かせ処理（specialRooms.ts の roomHooks へ差し込む）
+// -----------------------------------------------------------------------------
+
+/** 部屋に追加で湧かせる（部屋の敵数の上限は守る） */
+function spawnReinforcements(state: GameState, index: number, rolls: number, spawning: boolean): void {
+  const room = state.rooms[index];
+  if (!room || rolls <= 0) return;
+  spawnCapped(state, room, index, spawning, rolls);
+  finalizeLinks(state, index);
+}
+
+/** 決まった種類を 1 体だけ湧かせる（巣の主・鏡像）。置ける場所が無ければ null */
+function spawnEnemyAt(state: GameState, def: EnemyDef, index: number): Enemy | null {
+  const room = state.rooms[index];
+  if (!room) return null;
+  const pos = randomFreePoint(state, room, index, def.radius);
+  if (!pos) return null;
+  const e = createEnemy(state, def, pos, index, true);
+  e.phaseTimer = ROOM.spawnTelegraph;
+  onBoonEnemySpawned(state, e);
+  onRunEnemySpawned(state, e);
+  state.enemies.push(e);
+  return e;
+}
+
+roomHooks.spawnReinforcements = spawnReinforcements;
+roomHooks.spawnEnemyAt = spawnEnemyAt;
+roomHooks.enemyCount = enemyCount;
+roomHooks.dropHeart = dropHeart;

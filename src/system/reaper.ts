@@ -1,11 +1,13 @@
 import { type GameState, type RoomKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, fromAngle, length, normalize, sub } from "../core/vec";
-import { REAPER } from "../data/tuning";
+import { ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { damagePlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { circlesOverlap } from "./physics";
 import { boonReaperDelay, boonReaperHalted, boonReaperJust, onBoonReaperDodged } from "./boonRules";
+import { hasMod } from "./runSetup";
+import { isPropRoom } from "./specialRooms";
 
 /**
  * 追跡者: 同じフロアに一定秒いると湧く、無敵で壁をすり抜ける死神。
@@ -20,13 +22,27 @@ const TRAIL_INTERVAL = 5;
 /** 警告中のパルス音の間隔（tick）。60fps 想定でおよそ 1.5 秒ごと */
 const WARN_PULSE_INTERVAL_TICKS = 90;
 
-/** 出現猶予の計算から除外する部屋種別（探索コストが低い部屋） */
+/** 出現猶予の計算から除外する部屋種別（探索コストが低い部屋。台座だけの部屋も含む） */
 const GRACE_EXCLUDED_KINDS = new Set<RoomKind>(["treasure", "shrine"]);
 
-/** このフロアで Reaper が出現するまでの猶予秒（部屋数ボーナス込み） */
+function excludedFromGrace(kind: RoomKind): boolean {
+  return GRACE_EXCLUDED_KINDS.has(kind) || isPropRoom(kind);
+}
+
+/** このフロアで Reaper が出現するまでの猶予秒（部屋数ボーナス込み。縛り「急かす死神」で縮む） */
 export function reaperAppearAfter(state: GameState): number {
-  const rooms = state.rooms.filter((r) => !GRACE_EXCLUDED_KINDS.has(r.kind)).length;
-  return REAPER.appearAfter + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
+  const rooms = state.rooms.filter((r) => !excludedFromGrace(r.kind)).length;
+  const base = REAPER.appearAfter + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
+  return hasMod(state, "hastyReaper") ? base * RUN_MOD.hastyReaperMul : base;
+}
+
+/** 起点「死神の友」: 階に入った直後から出ている（足は遅い） */
+function reaperFromStart(state: GameState): boolean {
+  return state.origin === "reaperFriend";
+}
+
+function reaperSpeed(state: GameState): number {
+  return reaperFromStart(state) ? REAPER.speed * ORIGIN.reaperFriendSpeedMul : REAPER.speed;
 }
 
 /** Reaper 出現までの残り秒（出現済みなら 0） */
@@ -44,7 +60,7 @@ export function updateReaper(state: GameState, dt: number): void {
   state.floorTime += dt;
   if (!state.reaper) {
     if (reaperWarning(state) && state.tick % WARN_PULSE_INTERVAL_TICKS === 0) pushSfx(state, "reaperWarnPulse");
-    if (state.floorTime >= reaperAppearAfter(state)) spawnReaper(state);
+    if (reaperFromStart(state) || state.floorTime >= reaperAppearAfter(state)) spawnReaper(state);
     return;
   }
   const r = state.reaper;
@@ -53,8 +69,8 @@ export function updateReaper(state: GameState, dt: number): void {
   const to = sub(p.pos, r.pos);
   if (length(to) > 0 && !boonReaperHalted(state)) {
     const dir = normalize(to);
-    r.pos.x += dir.x * REAPER.speed * dt;
-    r.pos.y += dir.y * REAPER.speed * dt;
+    r.pos.x += dir.x * reaperSpeed(state) * dt;
+    r.pos.y += dir.y * reaperSpeed(state) * dt;
   }
   if (state.tick % TRAIL_INTERVAL === 0) spawnBurst(state, r.pos, REAPER.color, 1, 20, 0.6, 2);
   if (circlesOverlap(r.pos.x, r.pos.y, r.radius, p.pos.x, p.pos.y, p.radius)) {
@@ -64,7 +80,8 @@ export function updateReaper(state: GameState, dt: number): void {
   }
 }
 
-function spawnReaper(state: GameState): void {
+/** 死神を呼ぶ（時間切れ・死神の巣の箱・死神の友） */
+export function spawnReaper(state: GameState): void {
   const pos = spawnPoint(state);
   state.reaper = { pos, radius: REAPER.radius, animTime: 0 };
   spawnBurst(state, pos, REAPER.color, SPAWN_PARTICLES, 120, 0.8, 2.5);

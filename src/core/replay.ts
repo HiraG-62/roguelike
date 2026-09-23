@@ -26,9 +26,13 @@ import { SKILL_PROFILE_KEY, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
 import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
+import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeRunSetup } from "../system/runSetup";
 
-/** 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った */
-export const REPLAY_VERSION = 4;
+/**
+ * 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った。
+ * 5: 起点とラン修飾子（縛り）を記録する（ラン開始の条件が変わり、分岐路・バイオームで生成も変わった）
+ */
+export const REPLAY_VERSION = 5;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -72,6 +76,10 @@ export interface ReplayData {
   /** ラン終了時刻（epoch ms）。ラン履歴エントリの date と一致させて紐付ける */
   endedAt: number;
   daily: boolean;
+  /** 起点（REPLAY_VERSION 5 から。無ければ放浪者） */
+  origin?: OriginKey;
+  /** ラン修飾子（REPLAY_VERSION 5 から。無ければ縛りなし） */
+  modifiers?: RunModKey[];
   snapshot: ReplayLoadout;
   events: ReplayEvent[];
   /** エンコード済みの入力列 */
@@ -406,6 +414,8 @@ export interface RecorderOptions {
   seedText: string;
   startedAt: number;
   daily: boolean;
+  /** 起点と縛り。省略時は放浪者・縛りなし */
+  setup?: RunSetup;
 }
 
 export class ReplayRecorder {
@@ -467,6 +477,8 @@ export class ReplayRecorder {
       startedAt: this.options.startedAt,
       endedAt,
       daily: this.options.daily,
+      origin: (this.options.setup ?? defaultRunSetup()).origin,
+      modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
       snapshot: structuredClone(this.snapshot),
       events: structuredClone(this.events),
       inputs: this.encoder.toString(),
@@ -513,7 +525,8 @@ export function createReplaySession(data: ReplayData): ReplaySession {
     throw new Error(`replay: frame count mismatch (${inputs.length} vs ${data.frameCount})`);
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
-  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile);
+  const setup = sanitizeRunSetup(data.origin, data.modifiers);
+  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
 
@@ -728,12 +741,15 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     if (!ev) return null;
     events.push(ev);
   }
+  const setup = sanitizeRunSetup(v.origin, v.modifiers);
   return {
     version: v.version,
     seedText,
     startedAt,
     endedAt,
     daily: daily === true,
+    origin: setup.origin,
+    modifiers: setup.modifiers,
     snapshot,
     events,
     inputs,

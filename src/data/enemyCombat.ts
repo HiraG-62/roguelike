@@ -1,3 +1,5 @@
+import { type KeywordProfile, kw } from "../core/keywords";
+import type { EnemyRule } from "../core/rules";
 import type { StatusApply, StatusKind } from "../core/status";
 
 /**
@@ -26,6 +28,10 @@ export interface EnemyCombatDef {
   inflicts: readonly EnemyInflict[];
   /** 怯み・恐怖などの個別免疫 */
   immune?: readonly StatusKind[];
+  /** 統一ルール。この敵が対象のイベントで照合する。効果は予告付きハザードに限る（テレグラフ原則） */
+  rules?: readonly EnemyRule[];
+  /** 共通語彙。出す = 使ってくる攻撃・場の変化、食う = 弱点（付与する状態異常は system/keywords.ts が足す） */
+  keywords: KeywordProfile;
 }
 
 const BOSS_IMMUNE: readonly StatusKind[] = ["freeze", "fear"];
@@ -45,66 +51,77 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 25,
     staggerTime: 0.5,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "poison", stacks: 2, duration: 5, potency: 0 }],
   },
   iceSlime: {
     poise: 25,
     staggerTime: 0.5,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "chill", stacks: 1, duration: 2.5, potency: 0 }],
   },
   fireSlime: {
     poise: 25,
     staggerTime: 0.5,
     superArmorMul: 0.5,
+    keywords: kw(["explode"], ["chill"]),
     inflicts: [{ on: "bomb", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
   },
-  goldSlime: { poise: 15, staggerTime: 0.6, superArmorMul: 1, inflicts: [] },
+  goldSlime: { poise: 15, staggerTime: 0.6, superArmorMul: 1, inflicts: [], keywords: kw([], ["ranged", "dash"]) },
   boneBoar: {
     poise: 70,
     staggerTime: 0.6,
     superArmorMul: 0.25,
+    keywords: kw(["hurt", "wall"], ["counter"]),
     inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.35, potency: 0 }],
   },
   curseEye: {
     poise: 20,
     staggerTime: 0.6,
     superArmorMul: 1,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "bullet", kind: "weaken", stacks: 1, duration: 3, potency: 0 }],
   },
   frostEye: {
     poise: 20,
     staggerTime: 0.6,
     superArmorMul: 1,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "bullet", kind: "chill", stacks: 1, duration: 2.5, potency: 0 }],
   },
   blackKnight: {
     poise: 60,
     staggerTime: 0.6,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["counter"]),
     inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
   },
   lavaGolem: {
     poise: 120,
     staggerTime: 0.8,
     superArmorMul: 0.25,
+    keywords: kw(["area", "wall"], ["chill"]),
     inflicts: [{ on: "shockwave", kind: "burn", stacks: 1, duration: 3, potency: 4 }],
   },
   frostGolem: {
     poise: 120,
     staggerTime: 0.8,
     superArmorMul: 0.25,
+    keywords: kw(["area", "wall"], ["burn"]),
     inflicts: [{ on: "shockwave", kind: "chill", stacks: 2, duration: 3, potency: 0 }],
   },
   crystalGolem: {
     poise: 100,
     staggerTime: 0.8,
     superArmorMul: 0.25,
+    keywords: kw(["area", "wall"], ["stagger"]),
     inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
   },
   frostWisp: {
     staggerTime: 0,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["ranged"]),
     inflicts: [{ on: "contact", kind: "chill", stacks: 1, duration: 2.5, potency: 0 }],
     immune: ["stagger"],
   },
@@ -112,75 +129,87 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 35,
     staggerTime: 0.7,
     superArmorMul: 0.5,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "laser", kind: "silence", stacks: 1, duration: 1.5, potency: 0 }],
   },
-  flyingBook: { poise: 8, staggerTime: 0.3, superArmorMul: 1, inflicts: [] },
-  ashBat: { poise: 5, staggerTime: 0.3, superArmorMul: 1, inflicts: [] },
+  flyingBook: { poise: 8, staggerTime: 0.3, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"], ["area"]) },
+  ashBat: { poise: 5, staggerTime: 0.3, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   // ---- 既存 behavior の流用 ----
-  sproutSlime: { poise: 10, staggerTime: 0.4, superArmorMul: 1, inflicts: [] },
+  sproutSlime: { poise: 10, staggerTime: 0.4, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   spikeRat: {
     poise: 10,
     staggerTime: 0.3,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
   },
   twinEye: {
     poise: 15,
     staggerTime: 0.6,
     superArmorMul: 1,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "bullet", minDepth: 5, kind: "silence", stacks: 1, duration: 1.2, potency: 0 }],
   },
   triLaser: {
     poise: 40,
     staggerTime: 0.7,
     superArmorMul: 0.5,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "laser", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
   },
   shadowBat: {
     poise: 8,
     staggerTime: 0.3,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
   },
   wolf: {
     poise: 12,
     staggerTime: 0.4,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
   },
   multiBomber: {
     poise: 25,
     staggerTime: 0.5,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["counter"]),
     inflicts: [{ on: "bomb", kind: "vulnerable", stacks: 1, duration: 2, potency: 0 }],
   },
   spearman: {
     poise: 40,
     staggerTime: 0.6,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["counter"]),
     inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
   },
   hornBeetle: {
     poise: 65,
     staggerTime: 0.6,
     superArmorMul: 0.25,
+    keywords: kw(["hurt"], ["wall"]),
     inflicts: [{ on: "bomb", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
   },
   netter: {
     poise: 30,
     staggerTime: 0.6,
     superArmorMul: 1,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "bullet", kind: "chill", stacks: 2, duration: 2, potency: 0 }],
   },
   carrionFly: {
     poise: 5,
     staggerTime: 0.3,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "poison", stacks: 1, duration: 4, potency: 0 }],
   },
   thunderWisp: {
     staggerTime: 0,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["ranged"]),
     inflicts: [{ on: "contact", kind: "shock", stacks: 1, duration: 2, potency: 4 }],
     immune: ["stagger"],
   },
@@ -188,6 +217,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 20,
     staggerTime: 0.5,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["stagger"]),
     inflicts: [{ on: "contact", minDepth: 6, kind: "weaken", stacks: 1, duration: 2, potency: 0 }],
   },
   // ---- 新しい behavior ----
@@ -195,35 +225,40 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 8,
     staggerTime: 0.4,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["ranged"]),
     inflicts: [{ on: "bomb", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
   },
-  crystalMite: { poise: 8, staggerTime: 0.4, superArmorMul: 1, inflicts: [] },
+  crystalMite: { poise: 8, staggerTime: 0.4, superArmorMul: 1, inflicts: [], keywords: kw(["explode"], ["ranged"]) },
   echoStriker: {
     poise: 30,
     staggerTime: 0.6,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["just"]),
     inflicts: [{ on: "bomb", kind: "vulnerable", stacks: 1, duration: 2.5, potency: 0 }],
   },
   packLeader: {
     poise: 40,
     staggerTime: 0.6,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["stagger"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
   },
-  manaLeech: { poise: 12, staggerTime: 0.5, superArmorMul: 1, inflicts: [] },
-  scavenger: { poise: 30, staggerTime: 0.5, superArmorMul: 0.5, inflicts: [] },
-  graveBell: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE },
-  silencer: { poise: 30, staggerTime: 0.7, superArmorMul: 1, inflicts: [] },
+  manaLeech: { poise: 12, staggerTime: 0.5, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"], ["mana"]) },
+  scavenger: { poise: 30, staggerTime: 0.5, superArmorMul: 0.5, inflicts: [], keywords: kw(["hurt"], ["kill"]) },
+  graveBell: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE, keywords: kw(["area"], ["ranged"]) },
+  silencer: { poise: 30, staggerTime: 0.7, superArmorMul: 1, inflicts: [], keywords: kw(["silence"], ["counter"]) },
   frostCrusher: {
     poise: 120,
     staggerTime: 0.8,
     superArmorMul: 0.25,
+    keywords: kw(["area", "wall"], ["burn"]),
     inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.5, potency: 0 }],
   },
   twinShade: {
     poise: 12,
     staggerTime: 0.4,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "weaken", stacks: 1, duration: 3, potency: 0 }],
   },
   // ---- 部屋主 ----
@@ -231,6 +266,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 90,
     staggerTime: 1.2,
     superArmorMul: 0.5,
+    keywords: kw(["elite", "hurt"], ["stagger"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 2, duration: 4, potency: BLEED_POTENCY }],
     immune: ["fear"],
   },
@@ -238,6 +274,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 110,
     staggerTime: 1,
     superArmorMul: 0.25,
+    keywords: kw(["elite", "area"], ["stagger"]),
     inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.4, potency: 0 }],
     immune: ["fear"],
   },
@@ -245,6 +282,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 40,
     staggerTime: 0.8,
     superArmorMul: 0.5,
+    keywords: kw(["elite", "hurt"], ["counter"]),
     inflicts: [{ on: "contact", kind: "fear", stacks: 1, duration: 1, potency: 0 }],
     immune: ["fear"],
   },
@@ -252,6 +290,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 60,
     staggerTime: 1,
     superArmorMul: 1.5,
+    keywords: kw(["elite", "bullet"], ["silence"]),
     inflicts: [{ on: "bullet", kind: "weaken", stacks: 1, duration: 2, potency: 0 }],
     immune: ["fear"],
   },
@@ -260,6 +299,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 220,
     staggerTime: 2,
     superArmorMul: 0.5,
+    keywords: kw(["elite", "hurt"], ["counter"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 2, duration: 4, potency: BLEED_POTENCY }],
     immune: BOSS_IMMUNE,
   },
@@ -268,6 +308,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 140,
     staggerTime: 1.6,
     superArmorMul: 1.5,
+    keywords: kw(["elite", "bullet"], ["counter"]),
     strikeSuperArmorMul: 1,
     inflicts: [{ on: "bullet", kind: "vulnerable", stacks: 1, duration: 2, potency: 0 }],
     immune: BOSS_IMMUNE,
@@ -276,13 +317,16 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 320,
     staggerTime: 2,
     superArmorMul: 0.5,
+    keywords: kw(["elite", "area"], ["burn"]),
     inflicts: [
       { on: "shockwave", kind: "chill", stacks: 2, duration: 3, potency: 0 },
       { on: "bomb", kind: "chill", stacks: 1, duration: 3, potency: 0 },
     ],
     immune: BOSS_IMMUNE,
   },
-  icePillar: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE },
+  icePillar: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE, keywords: kw([], ["area"]) },
+  // 鏡の部屋の写し（src/system/specialRooms.ts）。ジャスト回避・カウンターで返す相手
+  mirrorSelf: { poise: 70, staggerTime: 0.8, superArmorMul: 0.5, inflicts: [], keywords: kw(["elite", "dash"], ["just", "counter"]) },
 };
 
 export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
@@ -290,18 +334,21 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 25,
     staggerTime: 0.5,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", minDepth: 4, kind: "poison", stacks: 1, duration: 5, potency: 0 }],
   },
   eye: {
     poise: 20,
     staggerTime: 0.6,
     superArmorMul: 1,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "bullet", minDepth: 5, kind: "silence", stacks: 1, duration: 1.2, potency: 0 }],
   },
   boar: {
     poise: 60,
     staggerTime: 0.6,
     superArmorMul: 0.25,
+    keywords: kw(["hurt", "wall"], ["counter", "wall"]),
     inflicts: [
       { on: "contact", kind: "bleed", stacks: 2, duration: 4, potency: BLEED_POTENCY },
       { on: "contact", kind: "stagger", stacks: 1, duration: 0.35, potency: 0 },
@@ -311,35 +358,41 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 50,
     staggerTime: 0.6,
     superArmorMul: 0.5,
+    keywords: kw(["hurt"], ["counter"]),
     inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
   },
   bomber: {
     poise: 25,
     staggerTime: 0.5,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["counter"]),
     inflicts: [{ on: "bomb", kind: "vulnerable", stacks: 1, duration: 3, potency: 0 }],
   },
   laserEye: {
     poise: 35,
     staggerTime: 0.7,
     superArmorMul: 0.5,
+    keywords: kw(["bullet"], ["counter"]),
     inflicts: [{ on: "laser", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
   },
   golem: {
     poise: 120,
     staggerTime: 0.8,
     superArmorMul: 0.25,
+    keywords: kw(["wall", "area"], ["stagger"]),
     inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.4, potency: 0 }],
   },
   bat: {
     poise: 8,
     staggerTime: 0.3,
     superArmorMul: 1,
+    keywords: kw(["hurt"], ["area"]),
     inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
   },
   wisp: {
     staggerTime: 0,
     superArmorMul: 1,
+    keywords: kw(["explode"], ["ranged"]),
     inflicts: [{ on: "contact", kind: "burn", stacks: 1, duration: 2, potency: 3 }],
     immune: ["stagger"],
   },
@@ -347,6 +400,7 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 300,
     staggerTime: 2,
     superArmorMul: 0.5,
+    keywords: kw(["elite", "area"], ["stagger"]),
     strikeSuperArmorMul: 0,
     inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.4, potency: 0 }],
     immune: BOSS_IMMUNE,
@@ -355,6 +409,7 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     poise: 250,
     staggerTime: 2,
     superArmorMul: 0.5,
+    keywords: kw(["elite", "bullet"], ["counter"]),
     inflicts: [{ on: "bullet", kind: "weaken", stacks: 1, duration: 3, potency: 0 }],
     immune: BOSS_IMMUNE,
   },
@@ -362,7 +417,7 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
 };
 
 /** 表に無い敵は怯まず、何も付与しない（新しい敵を足したときに落ちないように） */
-const FALLBACK: EnemyCombatDef = { staggerTime: 0, superArmorMul: 1, inflicts: [] };
+const FALLBACK: EnemyCombatDef = { staggerTime: 0, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"]) };
 
 export function enemyCombat(key: string): EnemyCombatDef {
   return ENEMY_COMBAT[key] ?? FALLBACK;

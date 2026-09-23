@@ -1,4 +1,5 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
+import { pushReactionEvent } from "../core/events";
 import { REACTION_LABEL, type ReactionKey, type StatusBag, type StatusEffect, type StatusEndCause, type StatusKind, type StatusSource } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { TRAIT_COLORS, type TraitColor } from "../loot/types";
@@ -95,6 +96,7 @@ function fire(state: GameState, target: StatusTarget, key: ReactionKey, showText
     bag.reactionIcd = icd;
   }
   bag.lastReaction = { key, tick: state.tick };
+  pushReactionEvent(state, enemyOf(target), key);
   if (showText) addFloatingText(state, targetPos(state, target), REACTION_LABEL[key], REACTION_TEXT_COLOR, REACTION_TEXT_SCALE, REACTION_TEXT_LIFE);
   return true;
 }

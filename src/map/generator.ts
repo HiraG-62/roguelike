@@ -204,3 +204,43 @@ function fillPatch(map: GameMap, kinds: Uint8Array, room: Rect, cx: number, cy: 
     }
   }
 }
+
+// -----------------------------------------------------------------------------
+// 分岐路の階段（docs/ideas/run-expansion.md 4 章）
+// -----------------------------------------------------------------------------
+
+/** 中心からの向き（左右を先に試す: 横に並ぶと行き先の文字が重ならない） */
+const FORK_DIRS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+/**
+ * 最後の部屋に count 個の階段タイルを置き、そのタイル index を返す（先頭は中心の既存の階段）。
+ * 中心から offset タイル離れた床（部屋の中）だけを使う。置ける場所が足りなければ置けた数だけ返す。
+ * 中心がまだ階段でない（ボスの撃破前）なら何も置かない
+ */
+export function forkStairsTiles(
+  map: GameMap,
+  rect: Rect,
+  roomTiles: ReadonlySet<number> | undefined,
+  count: number,
+  offset: number,
+): number[] {
+  const c = rectCenter(rect);
+  if (getTile(map, c.x, c.y) !== Tile.StairsDown) return [];
+  const out = [toIndex(map, c.x, c.y)];
+  for (const [dx, dy] of FORK_DIRS) {
+    if (out.length >= count) break;
+    const x = c.x + dx * offset;
+    const y = c.y + dy * offset;
+    if (getTile(map, x, y) !== Tile.Floor) continue;
+    const inside = roomTiles ? roomTiles.has(toIndex(map, x, y)) : x > rect.x && y > rect.y && x < rect.x + rect.w - 1 && y < rect.y + rect.h - 1;
+    if (!inside) continue;
+    setTile(map, x, y, Tile.StairsDown);
+    out.push(toIndex(map, x, y));
+  }
+  return out;
+}

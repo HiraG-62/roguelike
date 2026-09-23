@@ -7,6 +7,10 @@ import type { TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
 import type { SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
+import type { ChainRecord, EventKind, GameEvent, RecentEvent, RuleRunState } from "./events";
+import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
+import type { RunEventState } from "../system/runEvents";
+import type { OriginKey, RunModKey } from "../system/runSetup";
 
 export type GameStatus = "playing" | "dead";
 
@@ -320,10 +324,33 @@ export interface Pickup {
 }
 
 /** 部屋の種類（src/system/roomTypes.ts）。ボス部屋は normal のまま boss.ts が管理する */
-export type RoomKind = "normal" | "treasure" | "challenge" | "shrine" | "ambush";
+export type RoomKind =
+  | "normal"
+  | "treasure"
+  | "challenge"
+  | "shrine"
+  | "ambush"
+  // ---- 以下ラン構造の拡張（src/system/specialRooms.ts。docs/ideas/run-expansion.md 2 章）----
+  | "altar"
+  | "library"
+  | "arena"
+  | "gamble"
+  | "forge"
+  | "exchange"
+  | "curseShrine"
+  | "resonance"
+  | "escort"
+  | "escape"
+  | "reaperNest"
+  | "nest"
+  | "mirror"
+  | "watchtower";
 
-/** フロア種別。rooms / dark は部屋+通路、cave はセルオートマトンの洞窟 */
-export type FloorKind = "rooms" | "cave" | "dark";
+/**
+ * フロア種別。rooms / dark は部屋+通路、cave はセルオートマトンの洞窟。
+ * forge 以降はバイオーム（形・地形・敵の出現表・色調。src/system/biomes.ts）
+ */
+export type FloorKind = "rooms" | "cave" | "dark" | "forge" | "ossuary" | "swamp" | "glacier" | "mine" | "meadow";
 
 export interface RoomState {
   rect: Rect;
@@ -338,6 +365,8 @@ export interface RoomState {
   used: boolean;
   /** 矩形でない部屋（洞窟の塊）の所属タイル。無ければ rect が部屋 */
   tiles?: ReadonlySet<number>;
+  /** 特別な部屋の作業領域（台座・炉の色・護衛対象など。src/system/specialRooms.ts） */
+  special?: RoomSpecial;
 }
 
 export interface Camera {
@@ -438,6 +467,29 @@ export interface GameState {
     /** 未振りの点。装備画面（src/ui/attributeAlloc.ts）で振る */
     unspent: number;
   };
+  // ---- ラン構造（起点・縛り・祭壇・ランイベント・分岐路。docs/ideas/run-expansion.md）----
+  /** 祭壇・起点がこのランだけ与えた誓約の key（applyStats が装備の誓約に足す） */
+  runKeystones: string[];
+  /** ランイベント・長居の代償・落下物の予告（src/system/runEvents.ts） */
+  runEvents: RunEventState;
+  /** ラン修飾子（縛り）。起点画面で積む（src/system/runSetup.ts） */
+  modifiers: RunModKey[];
+  /** ラン開始時に選んだ起点 */
+  origin: OriginKey;
+  /** この階の階段と、降りた先のフロア種別（分岐路） */
+  stairs: StairsChoice[];
+  // ---- 統一ルール文法（src/core/events.ts / src/system/rules.ts。docs/ideas/synergy-web.md 3 章）----
+  /** 今ステップに system が積んだイベント。resolveRules が照合して空にする */
+  events: GameEvent[];
+  /** Rule の効果が起こしたイベント（深さ +1）。次ステップの resolveRules で照合する */
+  pendingEvents: GameEvent[];
+  /** 種類ごとの直近の発生（条件 recent と UI 用） */
+  recent: Partial<Record<EventKind, RecentEvent>>;
+  /** Rule の id → 内部 CD の残り秒 */
+  ruleIcd: Map<string, number>;
+  /** 直近に成立した連鎖（新しい順ではなく起きた順。上限 SYNERGY.chainLog） */
+  chains: ChainRecord[];
+  ruleRun: RuleRunState;
 }
 
 export function allocId(state: GameState): number {

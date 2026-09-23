@@ -9,6 +9,7 @@ import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../
 import { isBossDepth } from "./boss";
 import { buildFloor, descend, enemyCount, insideRoom } from "./floor";
 import { applyCurse, chooseFloorKind, fountainPx, isCaveDepth, isDark } from "./roomTypes";
+import { BIOMES, floorKindCandidates } from "./biomes";
 import { placeEnemy, withInput } from "./testHelpers";
 
 const SEARCH_SEEDS = 300;
@@ -34,9 +35,16 @@ function enterRoom(state: GameState, index: number): void {
   step(state, IDLE, FIXED_DT);
 }
 
+/** 部屋の敵を倒す。死に際に湧く敵（寄生の など）がいれば、波が進むか制圧されるまで繰り返す */
+const KILL_ATTEMPTS = 6;
 function killRoom(state: GameState, index: number): void {
-  for (const e of state.enemies) if (e.roomIndex === index) e.hp = 0;
-  step(state, IDLE, FIXED_DT);
+  const room = state.rooms[index];
+  const wave = room?.wave ?? 0;
+  for (let i = 0; i < KILL_ATTEMPTS; i++) {
+    for (const e of state.enemies) if (e.roomIndex === index) e.hp = 0;
+    step(state, IDLE, FIXED_DT);
+    if (!room || room.cleared || room.wave !== wave) return;
+  }
 }
 
 function aliveIn(state: GameState, index: number): number {
@@ -44,30 +52,36 @@ function aliveIn(state: GameState, index: number): number {
 }
 
 describe("フロア種別", () => {
-  it("ボス階は必ず rooms、depth 4, 7, 10 は cave、浅い階は rng を消費しない", () => {
+  it("ボス階は必ず rooms、depth 4, 7, 10 は洞窟の形、それ以外に洞窟そのものは出ない。候補が 1 つの階は rng を消費しない", () => {
     for (let depth = 1; depth <= 30; depth++) {
-      const kind = chooseFloorKind(depth, createRng(depth));
-      if (isBossDepth(depth)) expect(kind, `depth=${depth}`).toBe("rooms");
-      else if (isCaveDepth(depth)) expect(kind, `depth=${depth}`).toBe("cave");
-      else expect(kind, `depth=${depth}`).not.toBe("cave");
+      for (let seed = 0; seed < 5; seed++) {
+        const kind = chooseFloorKind(depth, createRng(depth * 100 + seed));
+        expect(floorKindCandidates(depth), `depth=${depth}`).toContain(kind);
+        if (isBossDepth(depth)) expect(kind, `depth=${depth}`).toBe("rooms");
+        else if (isCaveDepth(depth)) expect(BIOMES[kind].shape, `depth=${depth}`).toBe("cave");
+        else expect(kind, `depth=${depth}`).not.toBe("cave");
+      }
     }
     expect(isCaveDepth(4) && isCaveDepth(7) && isCaveDepth(10)).toBe(true);
-    for (let depth = 1; depth < FLOOR_KIND.darkMinDepth; depth++) {
-      const a = createRng(1);
-      chooseFloorKind(depth, a);
-      expect(a.next()).toBe(createRng(1).next());
-    }
+    const a = createRng(1);
+    expect(chooseFloorKind(1, a)).toBe("rooms");
+    expect(a.next(), "depth 1 は乱数を引かない").toBe(createRng(1).next());
   });
 
-  it("dark は depth 4 以降の非ボス・非洞窟階でだいたい 25%", () => {
+  it("フロア種別は深度で解禁された候補から重みどおりに出る（dark は depth 4 から）", () => {
+    const samples = 2000;
+    const depth = 5;
+    const pool = floorKindCandidates(depth);
+    const total = pool.reduce((s, k) => s + FLOOR_KIND.weight[k], 0);
     let dark = 0;
-    const samples = 400;
     for (let seed = 0; seed < samples; seed++) {
-      if (chooseFloorKind(5, createRng(seed)) === "dark") dark++;
+      if (chooseFloorKind(depth, createRng(seed)) === "dark") dark++;
     }
-    expect(dark / samples).toBeGreaterThan(FLOOR_KIND.darkChance - 0.08);
-    expect(dark / samples).toBeLessThan(FLOOR_KIND.darkChance + 0.08);
-    for (let seed = 0; seed < 50; seed++) expect(chooseFloorKind(2, createRng(seed))).toBe("rooms");
+    const expected = FLOOR_KIND.weight.dark / total;
+    expect(Math.abs(dark / samples - expected), "暗闇の出る割合が重みに近い").toBeLessThan(0.04);
+    expect(floorKindCandidates(3)).not.toContain("dark");
+    expect(floorKindCandidates(3)).not.toContain("forge");
+    expect(floorKindCandidates(FLOOR_KIND.biomeMinDepth.forge + 1)).toContain("forge");
   });
 
   it("dark フロアでは isDark が true になる", () => {

@@ -76,6 +76,20 @@ import {
 } from "./ui/settings";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
 import { TEXT, drawText, textLineHeight } from "./render/pixelText";
+import { drawOriginScreen } from "./render/originUi";
+import {
+  activateOriginCursor,
+  createOriginScreen,
+  moveOriginCursor,
+  originItemAt,
+  originRowGap,
+  originSetup,
+  pointOriginRow,
+  type OriginScreen,
+} from "./ui/origin";
+import { type RunSetup, defaultRunSetup } from "./system/runSetup";
+import { saveCraft } from "./loot/craftingStore";
+import { TRAIT_COLORS } from "./loot/types";
 
 const canvasEl = document.getElementById("game");
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
@@ -98,7 +112,7 @@ function deathConfirmPressed(frame: FrameInput, deathTimer: number): boolean {
   return frame.confirmPressed;
 }
 
-type Screen = "title" | "playing" | "paused" | "history" | "settings" | "keybinds" | "replay";
+type Screen = "title" | "origin" | "playing" | "paused" | "history" | "settings" | "keybinds" | "replay";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
 const NO_REPLAY_MESSAGE = "このランのリプレイは保存されていません";
@@ -129,7 +143,7 @@ const settings: Settings = loadSettings();
 
 function startGame(seedText: string): GameState {
   syncSeedUrl(seedText);
-  return createGame(hashSeed(seedText), seedText, profile, skillProfile);
+  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup);
 }
 
 const input = new PlayerInput();
@@ -215,9 +229,75 @@ interface ReplayPlayback {
 }
 let replay: ReplayPlayback | null = null;
 
+// ---------------------------------------------------------------------------
+// 起点画面（タイトル → 起点 → ラン開始。docs/ideas/run-expansion.md 7・8 章）
+// ---------------------------------------------------------------------------
+
+/** 直近に選んだ起点と縛り。リスタート・同じシードでの再挑戦にも使う */
+let runSetup: RunSetup = defaultRunSetup();
+let originUi: OriginScreen = createOriginScreen(runSetup);
+/** 起点画面を抜けたら始めるシード */
+let pendingSeedText = "";
+
+function openOrigin(seedText: string, frameMoveX: number, frameMoveY: number): void {
+  pendingSeedText = seedText;
+  originUi = createOriginScreen(runSetup);
+  screen = "origin";
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateOriginScreen(frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    screen = "title";
+    return;
+  }
+  const rowGap = originRowGap(textLineHeight(TEXT.SMALL));
+  const aim = frame.aimScreen;
+  // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  const hovered = aim ? originItemAt(aim.x, aim.y, rowGap) : null;
+  if (aimMoved && hovered && pointOriginRow(originUi, hovered)) sfx.play("menuMove");
+  menuAimPrev = aim;
+
+  const navX = arrowX !== 0 ? arrowX : edgeDir(menuNav.prevX, frame.move.x);
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  if (moveOriginCursor(originUi, navX, navY)) sfx.play("menuMove");
+
+  const clicked = frame.clickPressed && hovered !== null;
+  if (clicked && hovered) pointOriginRow(originUi, hovered);
+  if (!frame.confirmPressed && !clicked) return;
+  const result = activateOriginCursor(originUi);
+  if (result === "none") return;
+  sfx.play("uiClick");
+  if (result !== "start") return;
+  runSetup = originSetup(originUi);
+  beginRun(pendingSeedText);
+}
+
+/** 鍛冶場・交換所で得た残響を、装備画面が持つ保存データへ移して保存する（step の中では保存しない） */
+function drainEchoes(s: GameState): void {
+  const pending = s.runEvents.pendingEchoes;
+  if (!TRAIT_COLORS.some((c) => pending[c] > 0)) return;
+  const save = inventoryUi.echo.save;
+  for (const c of TRAIT_COLORS) {
+    save.echoes[c] += pending[c];
+    pending[c] = 0;
+  }
+  saveCraft(save);
+}
+
 function beginRun(seedText: string): void {
   runStartedAt = Date.now();
-  recorder = new ReplayRecorder({ seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText) }, profile, skillProfile);
+  recorder = new ReplayRecorder(
+    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup },
+    profile,
+    skillProfile,
+  );
   loadoutDirty = false;
   state = startGame(seedText);
   committedSeedText = seedText;
@@ -470,7 +550,7 @@ startLoop(
         }
         if (hotkeys.d) {
           sfx.play("uiClick");
-          beginRun(dailySeedText(new Date()));
+          openOrigin(dailySeedText(new Date()), frame.move.x, frame.move.y);
           break;
         }
         if (hotkeys.o) {
@@ -482,8 +562,13 @@ startLoop(
         }
         if (frame.confirmPressed || frame.clickPressed) {
           sfx.play("uiClick");
-          beginRun(committedSeedText);
+          openOrigin(committedSeedText, frame.move.x, frame.move.y);
         }
+        break;
+      }
+
+      case "origin": {
+        updateOriginScreen(frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
         break;
       }
 
@@ -807,6 +892,7 @@ startLoop(
           stepRecorded(state, frame, dt);
           trackBoss(state);
           drainSfx();
+          drainEchoes(state);
         }
         break;
       }
@@ -820,6 +906,11 @@ startLoop(
 
     if (screen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile));
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "origin") {
+      drawOriginScreen(ctx, originUi, titleTime, originRowGap(textLineHeight(TEXT.SMALL)));
       drawGamepadConnectedHint(ctx);
       return;
     }

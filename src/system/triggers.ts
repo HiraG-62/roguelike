@@ -1,8 +1,10 @@
 import { type Enemy, type GameState, allocId, pushSfx } from "../core/state";
 import type { StatusApply, StatusKind } from "../core/status";
 import { type Vec, angle, fromAngle, normalize, scale, sub } from "../core/vec";
-import { PLAYER, STATUS, TRIGGER } from "../data/tuning";
+import { PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
+import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggerCondition, TriggeredEffect, TriggerKind } from "../loot/types";
+import { ruleConditionsMet } from "./rules";
 import { scaled } from "./attributes";
 import { damageEnemy, gainEnergy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
@@ -20,6 +22,9 @@ export interface TriggerContext {
   pos: Vec;
   targetId?: number;
 }
+
+/** 効果の実行に要る部分（統一ルールの RuleEffect からも組める） */
+export type EffectParams = Pick<TriggeredEffect, "effect" | "magnitude" | "duration" | "count" | "status">;
 
 const HALF = 0.5;
 const BULLET_RADIUS = 2;
@@ -41,22 +46,28 @@ function triggerCooldownKey(t: TriggeredEffect, index: number): string {
   return `${t.trigger}:${t.condition}:${t.effect}:${t.every ?? ""}:${index}`;
 }
 
+/**
+ * 装備トリガーは統一ルール（ruleFromTrigger）に読み替えて条件を照合する。
+ * 発火は今まで通りその場（resolveRules を待たない）: 既存の手触りと乱数の消費順を変えないため
+ */
 export function fireTrigger(state: GameState, kind: TriggerKind, ctx: TriggerContext): void {
   if (state.status !== "playing") return;
+  // 統一ルールの効果の中で起きた連鎖は深さ上限で止める（照合中でなければ深さは 0）
+  if (state.ruleRun.depth >= SYNERGY.maxDepth) return;
   const p = state.player;
   state.stats.triggers.forEach((t, index) => {
     if (t.trigger !== kind) return;
     const key = triggerCooldownKey(t, index);
     if ((p.triggerCooldowns.get(key) ?? 0) > 0) return;
-    if (kind === "everyNthMeleeHit" && !isNthHit(p.meleeHitCount, t.every)) return;
-    if (!conditionMet(state, t.condition, ctx)) return;
-    if (!state.rng.chance(t.chance)) return;
-    p.triggerCooldowns.set(key, TRIGGER.icd);
+    const rule = ruleFromTrigger(t, index);
+    if (!ruleConditionsMet(state, rule.if, ctx)) return;
+    if (!state.rng.chance(rule.chance)) return;
+    p.triggerCooldowns.set(key, rule.icd);
     runEffect(state, t, ctx);
   });
 }
 
-function isNthHit(count: number, every: number | undefined): boolean {
+export function isNthHit(count: number, every: number | undefined): boolean {
   if (every === undefined || every <= 0) return false;
   return count > 0 && count % every === 0;
 }
@@ -121,11 +132,12 @@ export function tickTriggerCooldowns(state: GameState, dt: number): void {
   }
 }
 
-function durationOf(t: TriggeredEffect): number {
+function durationOf(t: EffectParams): number {
   return t.duration ?? TRIGGER.defaultDuration;
 }
 
-function runEffect(state: GameState, t: TriggeredEffect, ctx: TriggerContext): void {
+/** 装備トリガーの効果を実行する（統一ルールの効果のうち装備と同じ種類もここを通る。src/system/rules.ts） */
+export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext): void {
   const p = state.player;
   switch (t.effect) {
     case "shockwave":
@@ -175,7 +187,7 @@ function runEffect(state: GameState, t: TriggeredEffect, ctx: TriggerContext): v
 }
 
 /** 2026-09 追加の効果（docs/ideas/loot-expansion.md 6-2） */
-function runExtendedEffect(state: GameState, t: TriggeredEffect, ctx: TriggerContext): void {
+function runExtendedEffect(state: GameState, t: EffectParams, ctx: TriggerContext): void {
   const p = state.player;
   switch (t.effect) {
     case "restoreMana":
