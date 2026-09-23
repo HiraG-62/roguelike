@@ -3,7 +3,6 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, GameStatus } from "../core/state";
 import { createRng, type Rng } from "../core/rng";
-import { TILE_SIZE, Tile, getTile, inBounds } from "../map/grid";
 import { enemyDef } from "../data/enemies";
 import {
   createEmptyProfile,
@@ -24,6 +23,7 @@ import { fluxClassOf } from "../loot/flux";
 import { nameItem } from "../loot/names";
 import { chooseBud } from "../system/loot";
 import { createBotState, botInput } from "./bot";
+import { overlapsWall } from "../system/physics";
 
 /**
  * ヘッドレス自動プレイによるロングランシミュレーション。
@@ -226,35 +226,14 @@ function hasNaN(state: GameState): boolean {
 }
 
 /**
- * overlapsWall (system/physics.ts) 相当の判定だが、実際の壁タイル (Tile.Wall) だけを見る。
- * overlapsWall は isSolidTile 経由でロック中のタイル（部屋ロック時の doorTiles など）も
- * 壁として扱うため、「敵がドアタイルの上に立っている瞬間に部屋がロックされる」だけで
- * 見た目は何も変わらないのに誤検知してしまう（report.md 2-2 に詳細。seed=50000 uniqueLoadout
- * tick25329 depth5 の knight などで固定再現した既知の挙動で、src/system/physics.ts /
- * src/system/floor.ts 側の話なので qa 側の判定を実際の壁だけに絞って対応する）
- */
-function overlapsRealWall(state: GameState, x: number, y: number, r: number): boolean {
-  const x0 = Math.floor((x - r) / TILE_SIZE);
-  const x1 = Math.floor((x + r - 0.001) / TILE_SIZE);
-  const y0 = Math.floor((y - r) / TILE_SIZE);
-  const y1 = Math.floor((y + r - 0.001) / TILE_SIZE);
-  for (let ty = y0; ty <= y1; ty++) {
-    for (let tx = x0; tx <= x1; tx++) {
-      if (!inBounds(state.map, tx, ty)) return true;
-      if (getTile(state.map, tx, ty) === Tile.Wall) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 敵の座標が実際の壁タイルの中に埋まっていないか。
- * wisp (data/enemies.ts の phasing: true) は仕様として壁をすり抜けて移動するので対象外にする
- * （最初はここで誤検知していた: seed=10001 rareLoadout depth4 で wisp が壁内にいることを確認したが、
- *  これはバグではなく仕様通りの挙動だった）
+ * 敵の座標が壁（lockedTiles 込みの overlapsWall、system/physics.ts）の中に埋まっていないか。
+ * 2026-09-23: 扉タイル判定の幾何を統一する修正（isSolidTile / lockRoom 側）が入ったため、
+ * 以前ここで実際の壁タイルだけを見る overlapsRealWall に緩めていた判定を overlapsWall に戻して
+ * 検証する（report.md 付録「ドアタイル上でロックされた敵」参照）。
+ * wisp (data/enemies.ts の phasing: true) は仕様として壁をすり抜けて移動するので対象外にする。
  */
 function anyEnemyInWall(state: GameState): boolean {
-  return state.enemies.some((e) => !enemyDef(e.defKey).phasing && overlapsRealWall(state, e.body.pos.x, e.body.pos.y, e.body.radius));
+  return state.enemies.some((e) => !enemyDef(e.defKey).phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius));
 }
 
 function hasDuplicateFloorItemId(state: GameState): boolean {
