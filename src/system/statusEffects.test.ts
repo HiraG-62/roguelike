@@ -384,6 +384,14 @@ describe("継続ダメージ", () => {
     expect(BIG_HP - e.hp).toBe(BIG_HP * STATUS.poison.hpRatioPerSec * 2);
     expect(BIG_HP - boss.hp).toBe(BIG_HP * STATUS.poison.bossHpRatioPerSec * 2);
   });
+
+  it("性質由来の毒は potency を割合として使い、霊力（statusPotencyMul）が掛かる", () => {
+    const state = arena(5, { statusPotencyMul: 2 });
+    const e = sturdy(state, "golem");
+    applyStatus(state, on(e), apply("poison", 5, 1, STATUS.poison.hpRatioPerSec), "player");
+    updateStatusEffects(state, 1);
+    expect(BIG_HP - e.hp).toBe(BIG_HP * STATUS.poison.hpRatioPerSec * 2);
+  });
 });
 
 describe("on-hit と性質の statusProcs", () => {
@@ -435,6 +443,27 @@ describe("マナの回収（B-1）", () => {
     }
     updateProjectiles(state, FIXED_DT);
     expect(state.player.mana).toBeCloseTo(MANA.onShot * MANA.shotVolleyCap, 5);
+  });
+
+  it("静寂の誓いでは射撃の命中でマナが戻らない", () => {
+    const state = arena(5, { keystones: ["ks_silentVow"] });
+    state.player.mana = 0;
+    const t = sturdy(state, "golem", 60);
+    state.projectiles.push({
+      id: state.nextId++,
+      owner: "player",
+      pos: { ...t.body.pos },
+      vel: { x: 1, y: 0 },
+      radius: 2,
+      damage: 1,
+      life: 1,
+      color: "#fff",
+      kind: "ranged",
+      hitIds: new Set(),
+      pierceLeft: 0,
+    });
+    updateProjectiles(state, FIXED_DT);
+    expect(state.player.mana).toBe(0);
   });
 });
 

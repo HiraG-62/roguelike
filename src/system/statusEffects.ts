@@ -580,7 +580,7 @@ function tickEffect(state: GameState, target: StatusTarget, effect: StatusEffect
       dealDot(state, target, effect, effect.potency * dt);
       return;
     case "poison":
-      dealDot(state, target, effect, targetMaxHp(state, target) * poisonRatio(target) * effect.stacks * dt);
+      dealDot(state, target, effect, targetMaxHp(state, target) * poisonRatio(target, effect.potency) * effect.stacks * dt);
       return;
     case "bleed":
       tickBleed(state, target, effect);
@@ -597,9 +597,15 @@ function targetMaxHp(state: GameState, target: StatusTarget): number {
   return target.kind === "enemy" ? target.enemy.maxHp : state.player.maxHp;
 }
 
-function poisonRatio(target: StatusTarget): number {
-  if (target.kind === "player") return STATUS.poison.playerHpRatioPerSec;
-  return isBossTarget(target) ? STATUS.poison.bossHpRatioPerSec : STATUS.poison.hpRatioPerSec;
+/**
+ * 毒の 1 スタック / 秒の最大 HP 割合。potency > 0（性質の statusProcs・霊力込み）ならそれを通常敵の割合として使い、
+ * ボスは bossHpRatioPerSec / hpRatioPerSec の比で弱める。potency 0 は既定値
+ */
+function poisonRatio(target: StatusTarget, potency: number): number {
+  if (target.kind === "player") return potency > 0 ? potency : STATUS.poison.playerHpRatioPerSec;
+  const base = potency > 0 ? potency : STATUS.poison.hpRatioPerSec;
+  if (!isBossTarget(target)) return base;
+  return base * (STATUS.poison.bossHpRatioPerSec / STATUS.poison.hpRatioPerSec);
 }
 
 function burnParticles(state: GameState, target: StatusTarget): void {
