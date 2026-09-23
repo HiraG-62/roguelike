@@ -16,15 +16,16 @@ import {
 } from "../skills/placed";
 import type { ActiveCast, Ghost, Grenade } from "../skills/types";
 import { beamEnd, chargeRatio, grenadeRadius, hookRange, quakeRadius, remoteAnchor, slotModifierView } from "../system/skills";
+import { uiFont } from "./font";
 
 /**
  * スキルの描画。renderer.ts を触らずに済むよう、main.ts が renderer.render の後に呼ぶ。
  * ワールド側（床の石・刻印符・グレネード・照準線・旋風の円弧）と画面側の HUD を描く。
  */
 
-const FONT_ICON = "bold 10px monospace";
-const FONT_KEY = "bold 6px monospace";
-const FONT_LABEL = "bold 8px monospace";
+const FONT_ICON = uiFont(10);
+const FONT_KEY = uiFont(6);
+const FONT_LABEL = uiFont(8);
 
 const COLOR_STONE = SKILL.drop.stoneColor;
 const COLOR_RUNE = SKILL.drop.runeColor;

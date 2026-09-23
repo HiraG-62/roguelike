@@ -3,17 +3,18 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { BOON } from "../data/tuning";
 import { BOON_CARD, type BoonDef, type BoonTag, boonCardRect, boonDef, equipmentTags } from "../system/boons";
+import { uiFont, wrapByWidth } from "./font";
 
 /**
  * 祝福の描画。選択オーバーレイ（3 枚のカード）と、右下の取得済みアイコン列（ホバーで名前）。
  * 当たり判定は boons.ts の boonCardRect と共有する。
  */
 
-const FONT_TITLE = "bold 12px monospace";
-const FONT_NAME = "bold 8px monospace";
-const FONT_BODY = "7px monospace";
-const FONT_ICON_BIG = "bold 20px monospace";
-const FONT_ICON = "bold 8px monospace";
+const FONT_TITLE = uiFont(12);
+const FONT_NAME = uiFont(8);
+const FONT_BODY = uiFont(8, "normal");
+const FONT_ICON_BIG = uiFont(20);
+const FONT_ICON = uiFont(8);
 
 const COLOR_DIM_BG = "rgba(0,0,0,0.7)";
 const COLOR_CARD = "rgba(16,16,28,0.95)";
@@ -34,8 +35,6 @@ const RARITY_Y = 52;
 const DESC_Y = 64;
 const LINE_H = 9;
 const TAGS_BOTTOM = 8;
-/** 7px monospace の 1 文字幅の概算（折り返し用） */
-const CHAR_W = 4.2;
 const KEY_HINTS = ["1 / C", "2 / V", "E"] as const;
 const KEY_Y_FROM_BOTTOM = 18;
 
@@ -47,27 +46,9 @@ const HUD_ICON_BASELINE = 8;
 const TIP_PAD = 3;
 const TIP_H = 22;
 const TIP_GAP = 3;
-const TIP_CHAR_W = 4.8;
 
 function boonColor(def: BoonDef): string {
   return def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
-}
-
-/** 単語単位で折り返す */
-function wrap(text: string, maxChars: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of text.split(" ")) {
-    const next = line ? `${line} ${word}` : word;
-    if (next.length > maxChars && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
 }
 
 export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState): void {
@@ -120,8 +101,8 @@ function drawCard(
   ctx.fillText(def.cursed ? `${def.rarity} / CURSED` : def.rarity, cx, y + RARITY_Y);
 
   ctx.fillStyle = COLOR_TEXT;
-  const maxChars = Math.floor((r.w - CARD_PAD * 2) / CHAR_W);
-  wrap(def.desc, maxChars).forEach((line, i) => ctx.fillText(line, cx, y + DESC_Y + i * LINE_H));
+  const maxWidth = r.w - CARD_PAD * 2;
+  wrapByWidth(def.desc, maxWidth, (t) => ctx.measureText(t).width).forEach((line, i) => ctx.fillText(line, cx, y + DESC_Y + i * LINE_H));
 
   // 装備タグと一致するタグは強調（なぜ出やすいかが分かる）
   const tagText = def.tags.map((t) => (tags.has(t) ? `[${t}]` : t)).join(" ");
@@ -166,7 +147,11 @@ export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aim
 }
 
 function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef): void {
-  const width = Math.ceil(Math.max(def.name.length, def.desc.length) * TIP_CHAR_W) + TIP_PAD * 2;
+  ctx.font = FONT_NAME;
+  const nameW = ctx.measureText(def.name).width;
+  ctx.font = FONT_BODY;
+  const descW = ctx.measureText(def.desc).width;
+  const width = Math.ceil(Math.max(nameW, descW)) + TIP_PAD * 2;
   const x = Math.max(0, VIEW_W - HUD_RIGHT - width);
   const y = VIEW_H - HUD_BOTTOM - HUD_ICON - TIP_GAP - TIP_H;
   ctx.fillStyle = COLOR_ICON_BG;

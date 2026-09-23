@@ -15,6 +15,7 @@ import {
   pulse,
   tileHash,
   wallStyle,
+  computeViewScale,
 } from "./renderMath";
 
 describe("floorVariant", () => {
@@ -133,5 +134,44 @@ describe("演出用の純関数", () => {
     expect(bossPhaseThreshold("kingSlime")).toBe(BOSS.kingSlime.phase2Ratio);
     expect(bossPhaseThreshold("boneLord")).toBe(BOSS.boneLord.teleportRatio);
     expect(bossPhaseThreshold("chaser")).toBeNull();
+  });
+});
+
+describe("computeViewScale", () => {
+  it("ウィンドウに収まる最大の整数倍率を選ぶ", () => {
+    const s = computeViewScale(1920, 1080, 1);
+    expect(s.cssScale).toBe(4);
+    expect(s.pixelRatio).toBe(4);
+    expect(s.canvasW).toBe(1920);
+    expect(s.canvasH).toBe(1080);
+  });
+
+  it("dpr を掛けた実ピクセルで canvas を持つ", () => {
+    const s = computeViewScale(1920, 1080, 2);
+    expect(s.cssScale).toBe(4);
+    expect(s.pixelRatio).toBe(8);
+    expect(s.canvasW).toBe(3840);
+    expect(s.canvasH).toBe(2160);
+  });
+
+  it("非整数 dpr は実ピクセルを丸める", () => {
+    const s = computeViewScale(1280, 720, 1.25);
+    expect(s.cssScale).toBe(2);
+    expect(s.pixelRatio).toBe(2.5);
+    expect(s.canvasW).toBe(1200);
+    expect(s.canvasH).toBe(675);
+  });
+
+  it("小さいウィンドウでも倍率は最低 1", () => {
+    expect(computeViewScale(100, 100, 1).cssScale).toBe(1);
+  });
+
+  it("不正な dpr は 1 とみなす", () => {
+    expect(computeViewScale(960, 540, 0).pixelRatio).toBe(2);
+    expect(computeViewScale(960, 540, Number.NaN).pixelRatio).toBe(2);
+  });
+
+  it("縦横の小さい方で倍率が決まる", () => {
+    expect(computeViewScale(2000, 600, 1).cssScale).toBe(2);
   });
 });

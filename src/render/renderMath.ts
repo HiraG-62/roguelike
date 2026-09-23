@@ -1,4 +1,5 @@
 import type { Hazard } from "../core/state";
+import { VIEW_H, VIEW_W } from "../core/view";
 import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
 import type { Rarity } from "../loot/types";
 import { type GameMap, Tile, getTile } from "../map/grid";
@@ -167,4 +168,36 @@ export function bossPhaseThreshold(behavior: string): number | null {
   if (behavior === "kingSlime") return BOSS.kingSlime.phase2Ratio;
   if (behavior === "boneLord") return BOSS.boneLord.teleportRatio;
   return null;
+}
+
+export interface ViewScale {
+  /** CSS 上の整数拡大率（ドット絵を崩さない） */
+  cssScale: number;
+  /** 論理 1px あたりの実ピクセル数（cssScale * devicePixelRatio）。ctx.setTransform に使う */
+  pixelRatio: number;
+  /** canvas の実ピクセルサイズ */
+  canvasW: number;
+  canvasH: number;
+}
+
+/**
+ * ウィンドウに収まる最大の整数倍率と、文字を高精細に描くための実ピクセルサイズ。
+ * 論理座標は viewW x viewH のまま、canvas だけデバイス解像度で持つ
+ */
+export function computeViewScale(
+  innerW: number,
+  innerH: number,
+  dpr: number,
+  viewW: number = VIEW_W,
+  viewH: number = VIEW_H,
+): ViewScale {
+  const cssScale = Math.max(1, Math.floor(Math.min(innerW / viewW, innerH / viewH)));
+  const safeDpr = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  const pixelRatio = cssScale * safeDpr;
+  return {
+    cssScale,
+    pixelRatio,
+    canvasW: Math.round(viewW * pixelRatio),
+    canvasH: Math.round(viewH * pixelRatio),
+  };
 }

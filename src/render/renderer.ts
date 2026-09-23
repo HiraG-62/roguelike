@@ -23,19 +23,21 @@ import {
   easeOutCubic,
   floorVariant,
   floorWipeCover,
+  computeViewScale,
   lerp,
   pulse,
   wallStyle,
 } from "./renderMath";
+import { uiFont } from "./font";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, spriteFrame } from "./sprites";
 import { FLOOR_KIND_LABEL, isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
 
-const FONT_SMALL = "bold 8px monospace";
-const FONT_MED = "bold 12px monospace";
-const FONT_BIG = "bold 20px monospace";
+const FONT_SMALL = uiFont(8);
+const FONT_MED = uiFont(12);
+const FONT_BIG = uiFont(20);
 
 const COLOR_BG = "#08080c";
 const COLOR_HP = "#e04848";
@@ -473,7 +475,6 @@ export class Renderer {
   private readonly edgeRed: HTMLCanvasElement;
   private readonly edgePurple: HTMLCanvasElement;
   private readonly glows = new Map<string, HTMLCanvasElement>();
-  private readonly fonts = new Map<number, string>();
   /** 描画側だけの演出トラッカー（state は読むだけ。state の差し替えでリセット） */
   private lastState: GameState | null = null;
   private lastMap: GameMap | null = null;
@@ -499,9 +500,10 @@ export class Renderer {
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
 
+  /** 論理 1px あたりの実ピクセル数。fitToWindow で更新する */
+  private pixelRatio = 1;
+
   constructor(private readonly canvas: HTMLCanvasElement) {
-    canvas.width = VIEW_W;
-    canvas.height = VIEW_H;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2D context unavailable");
     ctx.imageSmoothingEnabled = false;
@@ -516,11 +518,32 @@ export class Renderer {
     window.addEventListener("resize", () => this.fitToWindow());
   }
 
-  /** 整数倍で拡大してドットを崩さない */
+  /**
+   * CSS は整数倍で拡大してドットを崩さず、canvas の実ピクセルはデバイス解像度で持つ。
+   * 論理座標（VIEW_W x VIEW_H）は beginFrame の transform で揃えるので描画コードは変えなくてよい
+   */
   private fitToWindow(): void {
-    const scale = Math.max(1, Math.floor(Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H)));
-    this.canvas.style.width = `${VIEW_W * scale}px`;
-    this.canvas.style.height = `${VIEW_H * scale}px`;
+    const view = computeViewScale(window.innerWidth, window.innerHeight, window.devicePixelRatio);
+    this.canvas.style.width = `${VIEW_W * view.cssScale}px`;
+    this.canvas.style.height = `${VIEW_H * view.cssScale}px`;
+    this.pixelRatio = view.pixelRatio;
+    if (this.canvas.width === view.canvasW && this.canvas.height === view.canvasH) return;
+    // サイズ変更で context の状態（transform・smoothing）はリセットされる
+    this.canvas.width = view.canvasW;
+    this.canvas.height = view.canvasH;
+    this.beginFrame();
+  }
+
+  /**
+   * フレーム先頭で論理座標の transform を掛け直す。render を経由しない画面（タイトル等）も
+   * 描く前に必ず呼ぶ
+   */
+  beginFrame(): void {
+    const { ctx } = this;
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
   }
 
   /** オーバーレイ UI（装備画面など）が同じ描画先に描くための公開 */
@@ -530,7 +553,7 @@ export class Renderer {
 
   render(state: GameState, aimScreen: { x: number; y: number } | null = null): void {
     const { ctx } = this;
-    ctx.globalAlpha = 1;
+    this.beginFrame();
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
@@ -663,11 +686,7 @@ export class Renderer {
   }
 
   private font(px: number): string {
-    const hit = this.fonts.get(px);
-    if (hit) return hit;
-    const made = `bold ${px}px monospace`;
-    this.fonts.set(px, made);
-    return made;
+    return uiFont(px);
   }
 
   /** 1px の影付き文字 */
@@ -1799,7 +1818,7 @@ export class Renderer {
     if (state.combo.count > 1) {
       const pop = 1 + state.combo.popTimer * 3;
       ctx.textAlign = "center";
-      ctx.font = `bold ${Math.round(14 * pop)}px monospace`;
+      ctx.font = uiFont(Math.round(14 * pop));
       const fading = state.combo.timer < 0.6;
       ctx.fillStyle = fading && state.tick % 8 < 4 ? COLOR_DIM : COLOR_ENERGY;
       ctx.fillText(`${state.combo.count} HIT`, VIEW_W / 2, 22);

@@ -28,9 +28,10 @@ import {
   layoutInventory,
 } from "../ui/inventory";
 import { fitTooltip } from "./renderMath";
+import { uiFont } from "./font";
 
-const FONT_SMALL = "bold 8px monospace";
-const FONT_TITLE = "bold 10px monospace";
+const FONT_SMALL = uiFont(8);
+const FONT_TITLE = uiFont(10);
 
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
@@ -40,8 +41,8 @@ const COLOR_OVERLAY = "rgba(0,0,0,0.55)";
 const COLOR_HOVER_BG = "rgba(255,255,255,0.10)";
 const COLOR_EMPTY = "#606060";
 
-const FONT_TINY = "bold 6px monospace";
-const FONT_ICON = "bold 10px monospace";
+const FONT_TINY = uiFont(6);
+const FONT_ICON = uiFont(10);
 const COLOR_WARN = "#ff6060";
 
 const LINE_H = 8;

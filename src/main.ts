@@ -61,6 +61,7 @@ import {
   type Settings,
 } from "./ui/settings";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
+import { uiFont } from "./render/font";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
@@ -282,7 +283,7 @@ function foundItems(p: Profile): Item[] {
 }
 
 const GAMEPAD_HINT_TEXT = "Gamepad connected";
-const GAMEPAD_HINT_FONT = "bold 8px monospace";
+const GAMEPAD_HINT_FONT = uiFont(8);
 const GAMEPAD_HINT_COLOR = "#e0e0e0";
 const GAMEPAD_HINT_Y_FROM_BOTTOM = 6;
 
@@ -533,6 +534,8 @@ startLoop(
     }
   },
   () => {
+    // タイトル等は render を通らないので、ここで論理座標の transform を掛ける
+    renderer.beginFrame();
     const ctx = renderer.context;
 
     if (screen === "title") {

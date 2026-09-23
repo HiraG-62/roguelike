@@ -1,17 +1,18 @@
 /**
  * タイトル・ポーズ・設定・履歴・死亡サマリーの描画。ロジックは src/ui/title.ts。
- * renderer.ts のフォント/配色の作法（bold monospace, #e0e0 系）に合わせる。
+ * フォントは font.ts の uiFont、配色は renderer.ts の作法（#e0e0 系）に合わせる。
  */
 import { VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, type RunHistoryEntry } from "../loot/types";
 import type { RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import { PAUSE_MENU_ITEMS, SETTINGS_ITEMS, dailyBestIndices, isDailyEntry } from "../ui/title";
 import type { Settings } from "../ui/settings";
+import { uiFont } from "./font";
 
-const FONT_HUGE = "bold 24px monospace";
-const FONT_BIG = "bold 16px monospace";
-const FONT_MED = "bold 10px monospace";
-const FONT_SMALL = "bold 8px monospace";
+const FONT_HUGE = uiFont(24);
+const FONT_BIG = uiFont(16);
+const FONT_MED = uiFont(10);
+const FONT_SMALL = uiFont(8);
 
 const COLOR_BG = "#08080c";
 const COLOR_TITLE = "#ffd75f";
