@@ -107,7 +107,8 @@ type ButtonKey =
   | "clickPressed"
   | "shiftHeld"
   | "skill1Held"
-  | "skill2Held";
+  | "skill2Held"
+  | "padConfirmPressed";
 
 /** ビット順。末尾に追加するのは可、並べ替えは不可（過去のリプレイが壊れる） */
 const BUTTON_BITS: readonly ButtonKey[] = [
@@ -125,6 +126,8 @@ const BUTTON_BITS: readonly ButtonKey[] = [
   // Charge 刻印符の溜め入力。step が読むので記録しないと再生がずれる
   "skill1Held",
   "skill2Held",
+  // パッド A のエッジのみ。boons.ts の選択判定が見るので記録しないと再生がずれる
+  "padConfirmPressed",
 ];
 
 /** 照準を 1px 単位に量子化する。-0 は 0 に寄せる */

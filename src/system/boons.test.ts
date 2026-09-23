@@ -98,6 +98,16 @@ describe("祝福の提示タイミング", () => {
     step(other, withInput({ attackPressed: true }), FIXED_DT);
     expect(third && hasBoon(other, third)).toBe(true);
   });
+
+  it("パッド A（padConfirmPressed）は attackPressed も同時に立つが 1 枚目を選び、3 枚目にはならない", () => {
+    const state = arrivedAtDepth2();
+    const first = state.boonChoice?.options[0];
+    waitInputDelay(state);
+    // パッド A は GamepadFrame.attackPressed / confirmPressed の両方を justPressed(BTN_A) にする
+    step(state, withInput({ attackPressed: true, padConfirmPressed: true }), FIXED_DT);
+    expect(state.boonChoice).toBeNull();
+    expect(first && hasBoon(state, first)).toBe(true);
+  });
 });
 
 describe("抽選", () => {

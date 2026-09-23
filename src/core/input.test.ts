@@ -65,6 +65,23 @@ describe("PlayerInput とゲームパッドのマージ", () => {
     input.snapshot();
     expect(input.gamepadEscapePressed()).toBe(true);
   });
+
+  it("padConfirmPressed はパッド A のエッジのみを反映する（confirmPressed は kb/pad の OR）", () => {
+    const input = new PlayerInput();
+    input.attachGamepad(new StubGamepad(gamepadFrame({ confirmPressed: true })) as never);
+
+    const frame = input.snapshot();
+    expect(frame.padConfirmPressed).toBe(true);
+    expect(frame.confirmPressed).toBe(true);
+  });
+
+  it("padConfirmPressed はパッド未接続/未押下なら false", () => {
+    const input = new PlayerInput();
+    input.attachGamepad(new StubGamepad(gamepadFrame({ confirmPressed: false })) as never);
+
+    const frame = input.snapshot();
+    expect(frame.padConfirmPressed).toBe(false);
+  });
 });
 
 /** addEventListener を捕まえて手動で発火できる、DOM 無し環境用の最小スタブ */

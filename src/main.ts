@@ -69,6 +69,17 @@ const GAME_NAME = "DEPTHBREAKER";
 const SEED_PARAM = "seed";
 /** 死亡演出が出そろうまでリスタート入力を受け付けない */
 const DEATH_INPUT_DELAY = 0.6;
+/**
+ * 死亡画面のパッド A（confirm）は、攻撃連打からの誤リスタートを防ぐためこの秒数を待つ。
+ * キーボード Enter は DEATH_INPUT_DELAY のみで即受け付ける
+ */
+const DEATH_PAD_CONFIRM_DELAY = 1.2;
+
+/** 死亡画面のリスタート確定入力か。パッド A は DEATH_PAD_CONFIRM_DELAY を過ぎてから、キーボード Enter はそれより前でも受け付ける */
+function deathConfirmPressed(frame: FrameInput, deathTimer: number): boolean {
+  if (frame.padConfirmPressed) return deathTimer > DEATH_PAD_CONFIRM_DELAY;
+  return frame.confirmPressed;
+}
 
 type Screen = "title" | "playing" | "paused" | "history" | "settings" | "replay";
 
@@ -504,7 +515,7 @@ startLoop(
             screen = "title";
             break;
           }
-          if (frame.confirmPressed) beginRun(cur.seedText);
+          if (deathConfirmPressed(frame, cur.deathTimer)) beginRun(cur.seedText);
           else if (frame.restartPressed) beginRun(randomSeedText());
         } else if (frame.restartPressed) {
           // 死んでいない状態で R を押した中断も、ラン結果として一度だけメタと履歴に記録する

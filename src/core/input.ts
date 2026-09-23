@@ -78,6 +78,11 @@ export interface FrameInput {
   shootHeld: boolean;
   specialPressed: boolean;
   confirmPressed: boolean;
+  /**
+   * パッド A のエッジのみ（キーボード Enter を含まない）。confirmPressed はキーボード/パッド OR なので、
+   * 「パッドの A だけを特別扱いしたい」場面（死亡画面の誤爆防止、祝福選択の attack との衝突回避）はこちらを見る
+   */
+  padConfirmPressed: boolean;
   restartPressed: boolean;
   inventoryPressed: boolean;
   /** スキルスロット 1 / 2 */
@@ -101,6 +106,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   shootHeld: false,
   specialPressed: false,
   confirmPressed: false,
+  padConfirmPressed: false,
   restartPressed: false,
   inventoryPressed: false,
   skill1Pressed: false,
@@ -234,6 +240,7 @@ export class PlayerInput {
       shootHeld: this.isDown("shoot") || pad.shootHeld,
       specialPressed: this.wasPressed("special") || pad.specialPressed,
       confirmPressed: this.wasPressed("confirm") || pad.confirmPressed,
+      padConfirmPressed: pad.confirmPressed,
       restartPressed: this.wasPressed("restart"),
       inventoryPressed: this.wasPressed("inventory") || pad.inventoryPressed,
       skill1Pressed: this.wasPressed("skill1") || pad.skill1Pressed,

@@ -570,13 +570,17 @@ export function cardIndexAt(point: Vec, count: number): number {
   return -1;
 }
 
-/** 入力から選んだカード。クリックはカード上のみ。E（attack）は 3 枚目。無ければ -1 */
+/**
+ * 入力から選んだカード。クリックはカード上のみ。E（attack）は 3 枚目。無ければ -1
+ * パッドの A は attackPressed も同時に立つが、ここでは confirm 扱いで 1 枚目にする
+ * （3 枚目は attackPressed かつ padConfirmPressed でないときだけ＝RT 単独のときのみ）
+ */
 function selectedIndex(input: FrameInput, hover: number): number {
-  if (input.skill1Pressed) return 0;
+  if (input.skill1Pressed || input.padConfirmPressed) return 0;
   if (input.skill2Pressed) return 1;
   // クリックと attackPressed は同じ元なので、クリックならカード判定だけを使う
   if (input.clickPressed) return hover;
-  if (input.attackPressed) return 2;
+  if (input.attackPressed && !input.padConfirmPressed) return 2;
   return -1;
 }
 
