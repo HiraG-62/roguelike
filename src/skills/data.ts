@@ -17,6 +17,11 @@ const PERCENT_UNIT = 100;
 /**
  * スキルの数値。docs/ideas/skills.md「7-5」、docs/COMBAT_DESIGN.md B-2 / B-4。
  * damage は Scaling（base + 係数 × ステータス実効値）。ステータスが基礎値（各 5）のとき旧来の固定値と一致する
+ *
+ * マナ型（resource: "mana"）スキル全種は QA 2026-09-23 時点でスキル由来与ダメ比率 33.4%（目標 55〜65%）と
+ * 未達だったため、以下 2 点を一律で適用した（bot 側は射程判定の不具合も同時に修正済み、別途 src/qa/bot.ts 参照）。
+ * - cost（マナコスト）を一律 ×0.85（-15%）: 発動頻度を上げてスキル比重を増やす
+ * - damage.base を一律 ×1.15（+15%）: 前回サイクルの +10% と合わせて元の値から約 +26%
  */
 export const SKILL = {
   slots: 4,
@@ -39,14 +44,13 @@ export const SKILL = {
   stashCapacity: 60,
   // ---- マナ型は cost / minInterval、CD 型は cooldown / minInterval。poise は 1 ヒットの基礎怯み値 ----
   whirl: {
-    cost: 18,
+    cost: 15.3, // 18 → 15.3（-15%）
     minInterval: 0.6,
     poise: 6,
     duration: 0.45,
     hits: 4,
     radius: 28,
-    // damage.base はマナ型スキル一律 +10%（QA 2026-09-23: スキル由来与ダメ比率 30.8%＜目標 55〜65%）
-    damage: { base: 3.3, str: 0.4, spi: 0.4 },
+    damage: { base: 3.8, str: 0.4, spi: 0.4 }, // base 3.3 → 3.8（+15%、通算 +26%）
     knockback: 60,
     moveMul: 0.6,
     recover: 0.15,
@@ -64,25 +68,25 @@ export const SKILL = {
     comboLinkWindow: 0.3,
   },
   frag: {
-    cost: 22,
+    cost: 18.7, // 22 → 18.7（-15%）
     minInterval: 0.5,
     poise: 30,
     maxRange: 120,
     flight: 0.35,
     fuse: 0.5,
     radius: 36,
-    damage: { base: 13.2, dex: 1.4, spi: 1.4 },
+    damage: { base: 15.2, dex: 1.4, spi: 1.4 }, // base 13.2 → 15.2（+15%）
     knockback: 240,
     selfDamageFraction: 0.1,
     spread: 14,
     wallProbe: 2,
   },
   railshot: {
-    cost: 25,
+    cost: 21.3, // 25 → 21.3（-15%）
     minInterval: 0.8,
     poise: 25,
     aim: 0.35,
-    damage: { base: 15.4, dex: 2, spi: 1.2 },
+    damage: { base: 17.7, dex: 2, spi: 1.2 }, // base 15.4 → 17.7（+15%）
     knockback: 180,
     recoil: 120,
     stepPx: 2,
@@ -111,25 +115,25 @@ export const SKILL = {
   bloodPact: { cooldown: 12, minInterval: 0.3, hpFraction: 0.12, duration: 4, speedMul: 1.35, lifesteal: 0.08 },
   /** 地裂き: 溜めて前方扇に衝撃波。溜め中の被弾で中断（マナは消費済み） */
   quake: {
-    cost: 24,
+    cost: 20.4, // 24 → 20.4（-15%）
     minInterval: 0.6,
     poise: 45,
     windup: 0.35,
     recover: 0.2,
     radius: 56,
     halfAngle: 0.6,
-    damage: { base: 11, str: 1.6, spi: 0.8 },
+    damage: { base: 12.7, str: 1.6, spi: 0.8 }, // base 11 → 12.7（+15%）
     knockback: 220,
   },
   /** 雷撃: カーソル地点に遅れて落雷、中心の敵から連鎖雷。命中した敵に感電 */
   thunder: {
-    cost: 20,
+    cost: 17, // 20 → 17（-15%）
     minInterval: 0.5,
     poise: 15,
     maxRange: 140,
     delay: 0.5,
     radius: 22,
-    damage: { base: 11, dex: 1.2, spi: 1.6 },
+    damage: { base: 12.7, dex: 1.2, spi: 1.6 }, // base 11 → 12.7（+15%）
     shockMul: 0.5,
     extraGap: 0.12,
     extraOffset: 22,
@@ -139,7 +143,7 @@ export const SKILL = {
   },
   /** 引力球: 範囲の敵（と敵弾）を中心へ引き、最後に弾ける。引き寄せ中の敵は沈黙 */
   gravityWell: {
-    cost: 30,
+    cost: 25.5, // 30 → 25.5（-15%）
     minInterval: 1,
     /** 破裂の怯み値（tick は 0） */
     poise: 20,
@@ -149,15 +153,15 @@ export const SKILL = {
     pull: 70,
     core: 6,
     tickEvery: 0.5,
-    tickDamage: { base: 1.1, spi: 0.4 },
-    burstDamage: { base: 8.8, spi: 2 },
+    tickDamage: { base: 1.3, spi: 0.4 }, // base 1.1 → 1.3（+15%）
+    burstDamage: { base: 10.1, spi: 2 }, // base 8.8 → 10.1（+15%）
     burstKnockback: 80,
     /** tick ごとに付け直す沈黙の秒（tick 間隔より少し長く、引いている間は切れない） */
     silenceTime: 0.6,
   },
   /** 地雷: 足元に設置、起動後に敵が踏むと爆発 */
   mines: {
-    cost: 12,
+    cost: 10.2, // 12 → 10.2（-15%）
     minInterval: 0.3,
     poise: 25,
     arm: 0.4,
@@ -165,21 +169,21 @@ export const SKILL = {
     maxAlive: 3,
     trigger: 10,
     radius: 30,
-    damage: { base: 8.8, dex: 1.2, spi: 1.2 },
+    damage: { base: 10.1, dex: 1.2, spi: 1.2 }, // base 8.8 → 10.1（+15%）
     knockback: 160,
   },
   /** 加速: ダッシュ CD 0 + 移動速度。切れた後はダッシュ不可 */
   haste: { cooldown: 11, minInterval: 0.3, duration: 3, moveBonus: 0.3, exhaust: 1.5 },
   /** 鎖鎌: 鎖を伸ばし、刺さった敵を手元へ引き寄せる（ボスなら自分が飛ぶ）。命中した敵に出血 */
   chainHook: {
-    cost: 14,
+    cost: 11.9, // 14 → 11.9（-15%）
     minInterval: 0.5,
     poise: 15,
     range: 110,
     extendTime: 0.18,
     recover: 0.25,
     hitPad: 3,
-    damage: { base: 6.6, str: 1, dex: 0.6 },
+    damage: { base: 7.6, str: 1, dex: 0.6 }, // base 6.6 → 7.6（+15%）
     knockback: 40,
     landGap: 2,
     bleedStacks: 1,
@@ -189,7 +193,7 @@ export const SKILL = {
   },
   /** 回転弾幕: 自分中心に螺旋状の弾。発射中は移動 40%、近接・射撃不可 */
   spiral: {
-    cost: 28,
+    cost: 23.8, // 28 → 23.8（-15%）
     minInterval: 1.1,
     poise: 2,
     duration: 1,
@@ -200,20 +204,20 @@ export const SKILL = {
     speed: 160,
     life: 0.6,
     radius: 2.5,
-    damage: { base: 2.2, dex: 0.3, spi: 0.3 },
+    damage: { base: 2.5, dex: 0.3, spi: 0.3 }, // base 2.2 → 2.5（+15%）
     knockback: 30,
     moveMul: 0.4,
   },
   /** 氷結地帯: 中の敵を chill + 継続ダメージ。自分も中では遅くなる */
   frostField: {
-    cost: 26,
+    cost: 22.1, // 26 → 22.1（-15%）
     minInterval: 0.8,
     poise: 0,
     maxRange: 110,
     duration: 3,
     radius: 40,
     tickEvery: 0.5,
-    tickDamage: { base: 1.1, spi: 0.6 },
+    tickDamage: { base: 1.3, spi: 0.6 }, // base 1.1 → 1.3（+15%）
     slow: 0.5,
     maxSlow: 0.8,
     chillTime: 0.6,

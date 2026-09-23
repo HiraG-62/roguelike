@@ -203,7 +203,8 @@ export const ATTR = {
   vitStatusTakenMin: 0.5,
   /** 精神: 最大マナ・マナ自然回復（毎秒）・会心率（1 点あたり） */
   mndMaxMana: 6,
-  mndManaRegen: 0.3,
+  /** 0.3 → 0.45（QA 2026-09-23: スキル由来与ダメ比率 33.4%＜目標 55〜65%。マナ回復を上げて発動頻度を底上げ） */
+  mndManaRegen: 0.45,
   mndCrit: 0.004,
   /** 霊力: 状態異常の効果量・buff 系スキルの効果量（1 点あたりの割合） */
   spiStatusPotency: 0.03,
@@ -342,8 +343,11 @@ export const ROOM = {
    * 湧き数を +1 する方を採った）
    */
   baseEnemies: 3,
-  /** 敵数 = baseEnemies + floor(depth * enemiesPerDepth) */
-  enemiesPerDepth: 0.8,
+  /**
+   * 敵数 = baseEnemies + floor(depth * enemiesPerDepth)。0.8 → 1.0（QA 2026-09-23: depth 2/3 到達率
+   * 82.8% / 58.9%、前回比 -6.9% / -1.8% で目標 -10〜-20% に届かず。depth 1: 3+1、depth 2: 3+2 になる）
+   */
+  enemiesPerDepth: 1.0,
   maxEnemies: 12,
   /** ロック時に追加で湧く敵の割合 */
   reinforcementRatio: 0.5,

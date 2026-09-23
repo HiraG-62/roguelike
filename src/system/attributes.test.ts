@@ -106,10 +106,11 @@ describe("deriveAttributes（派生）", () => {
     expect(glass.maxHp).toBe(1);
   });
 
-  it("精神: 最大マナ +6 / 自然回復 +0.3 / 会心率 +0.4%", () => {
+  it("精神: 最大マナ +6 / 自然回復 +0.45 / 会心率 +0.4%", () => {
     const out = deriveAttributes(statsWith("mnd", RAW_PLUS_10));
     expect(out.maxMana).toBe(DEFAULT_STATS.maxMana + 60);
-    expect(out.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen + 3, FLOAT_DIGITS);
+    // mndManaRegen は QA 2026-09-23 の 2 巡目調整で 0.3 → 0.45（src/data/tuning.ts ATTR 参照）
+    expect(out.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen + 4.5, FLOAT_DIGITS);
     expect(out.critChance).toBeCloseTo(DEFAULT_STATS.critChance + 0.04, FLOAT_DIGITS);
   });
 
@@ -159,7 +160,8 @@ interface BaselineRow {
   /**
    * 基準として固定した威力（tuning / SKILL の値）。
    * 元は「段階 0 前に実測した威力」だったが、QA 2026-09-23 のバランス調整
-   * （通常攻撃 scaling.base −20%、マナ型スキル damage.base +10%。docs/COMBAT_DESIGN.md B-7）で
+   * （通常攻撃 scaling.base −20%、マナ型スキル damage.base +10%、さらにマナ型スキルはコスト −15% /
+   * damage.base +15%（通算 +26%）。docs/COMBAT_DESIGN.md B-7）で
    * 対象レーンの基礎値が変わったため、「調整後の scaling / SKILL の値を基礎ステータスで評価した値」に更新した
    */
   pinned: number;
@@ -185,19 +187,19 @@ const BASELINE: readonly BaselineRow[] = [
   { label: "射撃（1 発）", pinned: 4.3, scaling: { base: 2.8, dex: 0.3 }, current: () => atBase(PLAYER.shoot.scaling) },
   { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(PLAYER.special.scaling) },
   { label: "壁叩きつけ", pinned: 10, scaling: { base: 7, str: 0.6 }, current: () => ACTION.wallSplat.damage },
-  { label: "旋風斬り（1 回転）", pinned: 7.3, scaling: { base: 3.3, str: 0.4, spi: 0.4 }, current: () => atBase(SKILL.whirl.damage) },
+  { label: "旋風斬り（1 回転）", pinned: 7.8, scaling: { base: 3.8, str: 0.4, spi: 0.4 }, current: () => atBase(SKILL.whirl.damage) },
   { label: "突進斬り", pinned: 16, scaling: { base: 8, str: 1, dex: 0.6 }, current: () => atBase(SKILL.lunge.damage) },
-  { label: "グレネード", pinned: 27.2, scaling: { base: 13.2, dex: 1.4, spi: 1.4 }, current: () => atBase(SKILL.frag.damage) },
-  { label: "撃ち抜き", pinned: 31.4, scaling: { base: 15.4, dex: 2, spi: 1.2 }, current: () => atBase(SKILL.railshot.damage) },
+  { label: "グレネード", pinned: 29.2, scaling: { base: 15.2, dex: 1.4, spi: 1.4 }, current: () => atBase(SKILL.frag.damage) },
+  { label: "撃ち抜き", pinned: 33.7, scaling: { base: 17.7, dex: 2, spi: 1.2 }, current: () => atBase(SKILL.railshot.damage) },
   { label: "パリィ（衝撃波）", pinned: 12, scaling: { base: 6, str: 0.6, spi: 0.6 }, current: () => atBase(SKILL.parry.damage) },
-  { label: "地裂き", pinned: 23, scaling: { base: 11, str: 1.6, spi: 0.8 }, current: () => atBase(SKILL.quake.damage) },
-  { label: "雷撃", pinned: 25, scaling: { base: 11, dex: 1.2, spi: 1.6 }, current: () => atBase(SKILL.thunder.damage) },
-  { label: "引力球（tick）", pinned: 3.1, scaling: { base: 1.1, spi: 0.4 }, current: () => atBase(SKILL.gravityWell.tickDamage) },
-  { label: "引力球（破裂）", pinned: 18.8, scaling: { base: 8.8, spi: 2 }, current: () => atBase(SKILL.gravityWell.burstDamage) },
-  { label: "地雷", pinned: 20.8, scaling: { base: 8.8, dex: 1.2, spi: 1.2 }, current: () => atBase(SKILL.mines.damage) },
-  { label: "鎖鎌", pinned: 14.6, scaling: { base: 6.6, str: 1, dex: 0.6 }, current: () => atBase(SKILL.chainHook.damage) },
-  { label: "回転弾幕（1 発）", pinned: 5.2, scaling: { base: 2.2, dex: 0.3, spi: 0.3 }, current: () => atBase(SKILL.spiral.damage) },
-  { label: "氷結地帯（tick）", pinned: 4.1, scaling: { base: 1.1, spi: 0.6 }, current: () => atBase(SKILL.frostField.tickDamage) },
+  { label: "地裂き", pinned: 24.7, scaling: { base: 12.7, str: 1.6, spi: 0.8 }, current: () => atBase(SKILL.quake.damage) },
+  { label: "雷撃", pinned: 26.7, scaling: { base: 12.7, dex: 1.2, spi: 1.6 }, current: () => atBase(SKILL.thunder.damage) },
+  { label: "引力球（tick）", pinned: 3.3, scaling: { base: 1.3, spi: 0.4 }, current: () => atBase(SKILL.gravityWell.tickDamage) },
+  { label: "引力球（破裂）", pinned: 20.1, scaling: { base: 10.1, spi: 2 }, current: () => atBase(SKILL.gravityWell.burstDamage) },
+  { label: "地雷", pinned: 22.1, scaling: { base: 10.1, dex: 1.2, spi: 1.2 }, current: () => atBase(SKILL.mines.damage) },
+  { label: "鎖鎌", pinned: 15.6, scaling: { base: 7.6, str: 1, dex: 0.6 }, current: () => atBase(SKILL.chainHook.damage) },
+  { label: "回転弾幕（1 発）", pinned: 5.5, scaling: { base: 2.5, dex: 0.3, spi: 0.3 }, current: () => atBase(SKILL.spiral.damage) },
+  { label: "氷結地帯（tick）", pinned: 4.3, scaling: { base: 1.3, spi: 0.6 }, current: () => atBase(SKILL.frostField.tickDamage) },
 ];
 
 describe("基礎値のステータスで全攻撃・全スキルの威力が QA 2026-09-23 のバランス調整後の値と一致する", () => {

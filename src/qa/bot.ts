@@ -9,8 +9,10 @@ import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { BOONS, type BoonKey } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
-import { resolveSlot } from "../system/skills";
+import { resolveSlot, type ResolvedSlot } from "../system/skills";
 import { allocateAttribute } from "../ui/attributeAlloc";
+import { SKILL } from "../skills/data";
+import type { SkillKey } from "../skills/types";
 
 /**
  * ヘッドレス自動プレイ用のヒューリスティック bot。
@@ -50,11 +52,15 @@ const GOAL_CHANGE_THRESHOLD = TILE_SIZE;
 /** 祝福 3 択が出てから選ぶまで待つ秒数（提示直後 0.35 秒は inputDelay でどのみち無視されるが、指示通り 0.5 秒待つ） */
 const BOON_CHOICE_WAIT = 0.5;
 /**
- * スキルの有効射程（docs/COMBAT_DESIGN.md B-4 の各スキル maxRange 目安 110〜140 に、
- * 近接スキル（旋風斬り・突進斬り等）の接近余地を足した目安値）。この距離以内なら
- * スキルの発動を試み、外なら通常攻撃・射撃で近づきながらマナを貯める
+ * スキルの有効射程の既定値（明示的な maxRange/range を持たないスキル用のフォールバック）。
+ * この距離以内ならスキルの発動を試み、外なら通常攻撃・射撃で近づきながらマナを貯める
  */
 const SKILL_ENGAGE_RANGE = 150;
+/**
+ * 自分中心の近接スキル（半径のみで maxRange を持たない）の射程に足す接近余地（px）。
+ * 発動を判定するこのフレームの時点でまだ半径の外にいても、同フレームの移動でにじり寄れる分の猶予
+ */
+const MELEE_SKILL_RANGE_MARGIN = 20;
 const SKILL_SLOT_COUNT = 4;
 const SKILL_PRESSED_KEYS = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed"] as const;
 /**
@@ -80,6 +86,11 @@ export interface BotState {
   lastCheckPos: Vec;
   /** ラン内ステータス振り分けで、ALLOC_PRIORITY の何番目を次に選ぶか（循環） */
   allocCursor: number;
+  /**
+   * bot がスキルスロットを押した回数の累計（発動回数/分などの QA 指標用。ラン全体で単調増加）。
+   * QA 側で runOnce 終了時に経過時間と合わせて発動頻度を出す想定
+   */
+  skillCastAttempts: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -96,6 +107,7 @@ export function createBotState(seed: number): BotState {
     stuckTimer: 0,
     lastCheckPos: { x: 0, y: 0 },
     allocCursor: 0,
+    skillCastAttempts: 0,
   };
 }
 
@@ -233,24 +245,61 @@ function isThreatening(e: Enemy): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * このスロットを今フレーム押せるか。GCD・最低間隔・（マナ型なら）canAffordSkill 相当の
+ * スキルの有効射程。frag/thunder/gravityWell/frostField/chainHook は明示的な maxRange/range を
+ * 持つのでそれを使う。lunge は突進距離 + ヒット判定の余白。旋風斬り・地裂き・パリィ・回転弾幕は
+ * 自分中心の近接 AoE（半径のみで maxRange を持たない）なので、半径に接近余地を足した短い射程を使う。
+ * これが無く一律 SKILL_ENGAGE_RANGE（150px）で判定していたときは、旋風斬り（半径28）等を遠距離から
+ * 発動して素通り（空振り）することがあった（QA 2026-09-23 スキル由来与ダメ比率の伸び悩みの一因）。
+ * バフ・地雷・撃ち抜きなど距離の意味が薄い／別ロジックで判定するものは既定値のまま
+ */
+function skillEngageRange(resolved: ResolvedSlot): number {
+  const key: SkillKey = resolved.def.key;
+  switch (key) {
+    case "whirl":
+      return SKILL.whirl.radius + MELEE_SKILL_RANGE_MARGIN;
+    case "quake":
+      return SKILL.quake.radius + MELEE_SKILL_RANGE_MARGIN;
+    case "parry":
+      return SKILL.parry.radius + MELEE_SKILL_RANGE_MARGIN;
+    case "spiral":
+      return SKILL.spiral.speed * SKILL.spiral.life;
+    case "lunge":
+      return SKILL.lunge.distance + SKILL.lunge.hitPad;
+    case "chainHook":
+      return SKILL.chainHook.range;
+    case "frag":
+      return SKILL.frag.maxRange;
+    case "thunder":
+      return SKILL.thunder.maxRange;
+    case "gravityWell":
+      return SKILL.gravityWell.maxRange;
+    case "frostField":
+      return SKILL.frostField.maxRange;
+    default:
+      return SKILL_ENGAGE_RANGE;
+  }
+}
+
+/**
+ * このスロットを今フレーム押せるか。GCD・最低間隔・射程・（マナ型なら）canAffordSkill 相当の
  * 判定・（CD 型なら）チャージ残数を見る。発動中の別スキルやパリィ失敗硬直中も不可
  */
-function canCastSlotNow(state: GameState, index: number): boolean {
+function canCastSlotNow(state: GameState, index: number, distanceToTarget: number): boolean {
   const rs = state.skills;
   if (rs.active || rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.gcd > 0) return false;
   const slot = rs.slots[index];
   if (!slot || slot.intervalLeft > 0) return false;
   const resolved = resolveSlot(state, index);
   if (!resolved) return false;
+  if (distanceToTarget > skillEngageRange(resolved)) return false;
   if (resolved.def.resource === "mana") return canAffordSkill(state, resolved.cost);
   return slot.chargesLeft > 0;
 }
 
 /** 装着中のスロットをスロット順に見て、最初に撃てるものの index（無ければ -1）。決定的な優先順位 */
-function chooseSkillSlot(state: GameState): number {
+function chooseSkillSlot(state: GameState, distanceToTarget: number): number {
   for (let i = 0; i < SKILL_SLOT_COUNT; i++) {
-    if (canCastSlotNow(state, i)) return i;
+    if (canCastSlotNow(state, i, distanceToTarget)) return i;
   }
   return -1;
 }
@@ -463,10 +512,11 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
 
   input.move = steerToward(state, bot, enemy.body.pos, dt);
 
-  // マナ主体（docs/COMBAT_DESIGN.md B 章）: 射程内でスキルが撃てるならスキルを優先する
-  const skillIndex = d <= SKILL_ENGAGE_RANGE ? chooseSkillSlot(state) : -1;
+  // マナ主体（docs/COMBAT_DESIGN.md B 章）: スキルごとの実際の射程内で撃てるならスキルを優先する
+  const skillIndex = chooseSkillSlot(state, d);
   if (skillIndex >= 0) {
     pressSkillSlot(input, skillIndex);
+    bot.skillCastAttempts++;
     return input;
   }
 

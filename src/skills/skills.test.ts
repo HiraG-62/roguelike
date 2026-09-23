@@ -91,22 +91,25 @@ describe("スキル石の生成", () => {
   });
 });
 
-/** docs/COMBAT_DESIGN.md B-4 の表: 型・コスト（CD 型は CD）・最低間隔・怯み値 */
+/**
+ * docs/COMBAT_DESIGN.md B-4 の表: 型・コスト（CD 型は CD）・最低間隔・怯み値。
+ * マナ型のコストは QA 2026-09-23 の 2 巡目調整で一律 -15%（src/skills/data.ts SKILL 冒頭のコメント参照）
+ */
 const B4_TABLE: Record<SkillKey, { resource: SkillResource; cost: number; cooldown: number; interval: number; poise: number }> = {
-  whirl: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 6 },
+  whirl: { resource: "mana", cost: 15.3, cooldown: 0, interval: 0.6, poise: 6 },
   lunge: { resource: "cooldown", cost: 0, cooldown: 3, interval: 0.3, poise: 20 },
-  frag: { resource: "mana", cost: 22, cooldown: 0, interval: 0.5, poise: 30 },
-  railshot: { resource: "mana", cost: 25, cooldown: 0, interval: 0.8, poise: 25 },
+  frag: { resource: "mana", cost: 18.7, cooldown: 0, interval: 0.5, poise: 30 },
+  railshot: { resource: "mana", cost: 21.3, cooldown: 0, interval: 0.8, poise: 25 },
   parry: { resource: "cooldown", cost: 0, cooldown: 3.5, interval: 0.3, poise: 40 },
   bloodPact: { resource: "cooldown", cost: 0, cooldown: 12, interval: 0.3, poise: 0 },
-  quake: { resource: "mana", cost: 24, cooldown: 0, interval: 0.6, poise: 45 },
-  thunder: { resource: "mana", cost: 20, cooldown: 0, interval: 0.5, poise: 15 },
-  gravityWell: { resource: "mana", cost: 30, cooldown: 0, interval: 1, poise: 20 },
-  mines: { resource: "mana", cost: 12, cooldown: 0, interval: 0.3, poise: 25 },
+  quake: { resource: "mana", cost: 20.4, cooldown: 0, interval: 0.6, poise: 45 },
+  thunder: { resource: "mana", cost: 17, cooldown: 0, interval: 0.5, poise: 15 },
+  gravityWell: { resource: "mana", cost: 25.5, cooldown: 0, interval: 1, poise: 20 },
+  mines: { resource: "mana", cost: 10.2, cooldown: 0, interval: 0.3, poise: 25 },
   haste: { resource: "cooldown", cost: 0, cooldown: 11, interval: 0.3, poise: 0 },
-  chainHook: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 15 },
-  spiral: { resource: "mana", cost: 28, cooldown: 0, interval: 1.1, poise: 2 },
-  frostField: { resource: "mana", cost: 26, cooldown: 0, interval: 0.8, poise: 0 },
+  chainHook: { resource: "mana", cost: 11.9, cooldown: 0, interval: 0.5, poise: 15 },
+  spiral: { resource: "mana", cost: 23.8, cooldown: 0, interval: 1.1, poise: 2 },
+  frostField: { resource: "mana", cost: 22.1, cooldown: 0, interval: 0.8, poise: 0 },
 };
 
 describe("スキルの分類（マナ型 / CD 型）", () => {
