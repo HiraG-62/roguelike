@@ -13,16 +13,26 @@ import {
   BOONS,
   BOON_KEYS,
   type BoonKey,
+  type BoonTag,
   boonAttackManaMul,
   boonCardRect,
+  boonCurseRect,
+  boonGivenTags,
   boonWeight,
+  buildTags,
+  canTakeCurse,
   equipmentTags,
   grantBoon,
   hasBoon,
+  isSiblingBoon,
   offerBoons,
   onBoonSkillCast,
   rollBoonOptions,
+  skillStoneTags,
+  takeCurse,
+  updateBoonChoice,
 } from "./boons";
+import { VIEW_W } from "../core/view";
 import { damageEnemy, damagePlayer } from "./combat";
 import { buildFloor } from "./floor";
 import { applyStats } from "./player";
@@ -478,5 +488,168 @@ describe("マナ系の祝福（ルールでマナの回し方を変える）", (
   it("追加した 6 つはすべて mana タグを持つ", () => {
     const keys: BoonKey[] = ["springWell", "bloodMana", "reaperCup", "keenBreath", "circulation", "hollowVessel"];
     for (const k of keys) expect(BOONS[k].tags, k).toContain("mana");
+  });
+});
+
+describe("系譜（前段を持つと次段が出る）", () => {
+  const none = new Set<BoonTag>();
+  const burn = new Set<BoonTag>(["burn"]);
+
+  it("前段が無ければ次段の重みは 0、あれば系譜の倍率が掛かる", () => {
+    expect(boonWeight(BOONS.wildfire, none, [])).toBe(0);
+    const w = boonWeight(BOONS.wildfire, none, ["emberSeed"]);
+    expect(w).toBeCloseTo(BOON.rarityWeight[BOONS.wildfire.rarity] * BOON.lineageWeightMul);
+  });
+
+  it("奥義（4 段目）は 3 段目に加えて装備のタグを要求する", () => {
+    const owned: BoonKey[] = ["emberSeed", "wildfire", "ashBed"];
+    expect(boonWeight(BOONS.scorchedEarth, none, owned), "装備に燃焼が無い").toBe(0);
+    expect(boonWeight(BOONS.scorchedEarth, burn, owned)).toBeGreaterThan(0);
+    // 祝福が出す燃焼は requires を満たさない（奥義は装備で選ぶ）
+    expect(boonWeight(BOONS.scorchedEarth, none, owned, new Set<BoonTag>(["burn"]))).toBe(0);
+  });
+
+  it("同じ系譜は 1 回の 3 択に 1 枚まで", () => {
+    const state = arena(21, { burnChance: 0.3, burnDps: 5 });
+    state.boonRun.baseStats = state.stats;
+    state.boons = ["emberSeed", "wildfire", "frostBreath", "frostFeet", "staticDash", "moonRead"];
+    for (let i = 0; i < 300; i++) {
+      const lineages = rollBoonOptions(state)
+        .map((k) => BOONS[k].lineage)
+        .filter((l) => l !== undefined);
+      expect(new Set(lineages).size, "系譜の重複なし").toBe(lineages.length);
+    }
+  });
+
+  it("前段を持つと、次段が 3 択に出てくる", () => {
+    const state = arena(22);
+    state.boons = ["emberSeed"];
+    let seen = 0;
+    for (let i = 0; i < 300; i++) if (rollBoonOptions(state).includes("wildfire")) seen++;
+    expect(seen).toBeGreaterThan(0);
+    const fresh = arena(22);
+    for (let i = 0; i < 300; i++) expect(rollBoonOptions(fresh)).not.toContain("wildfire");
+  });
+});
+
+describe("結び祝福（2 つ揃うと出る）", () => {
+  const none = new Set<BoonTag>();
+
+  it("片方だけでは重み 0、両方あれば結びの倍率が掛かる", () => {
+    expect(boonWeight(BOONS.plagueBlood, none, ["plague"])).toBe(0);
+    const w = boonWeight(BOONS.plagueBlood, none, ["plague", "bloodMist"]);
+    expect(w).toBeCloseTo(BOON.rarityWeight.epic * BOON.duoWeightMul);
+  });
+
+  it("結びは 1 回の 3 択に 1 枚まで、揃えば出てくる", () => {
+    const state = arena(23);
+    state.boons = ["plague", "bloodMist", "dashBlast", "dashShock", "justSlash", "justWipe", "overcharge", "burstRefund"];
+    let seen = 0;
+    for (let i = 0; i < 300; i++) {
+      const options = rollBoonOptions(state);
+      const duos = options.filter((k) => BOONS[k].duo);
+      expect(duos.length, "結びは 1 枚まで").toBeLessThanOrEqual(1);
+      seen += duos.length;
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it("同じ 3 択に並べない組の判定（isSiblingBoon）", () => {
+    expect(isSiblingBoon(BOONS.emberSeed, BOONS.wildfire)).toBe(true);
+    expect(isSiblingBoon(BOONS.plagueBlood, BOONS.feastCup)).toBe(true);
+    expect(isSiblingBoon(BOONS.emberSeed, BOONS.frostBreath)).toBe(false);
+  });
+});
+
+describe("抽選の拡張: 出すタグとスキル石のタグ", () => {
+  it("取得済み祝福が出すタグで、それを食う祝福の重みが上がる（装備の一致よりは小さい）", () => {
+    const none = new Set<BoonTag>();
+    const base = boonWeight(BOONS.embers, none, []);
+    const fed = boonWeight(BOONS.embers, none, [], boonGivenTags(["emberSeed"]));
+    const equipped = boonWeight(BOONS.embers, new Set<BoonTag>(["burn"]), []);
+    expect(fed).toBeGreaterThan(base);
+    expect(equipped).toBeGreaterThan(fed);
+  });
+
+  it("スキル石のタグ・資源・付ける状態異常を祝福タグとして読む", () => {
+    const state = arena();
+    const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "thunder" }), id: "boon-tag-thunder" };
+    state.skills.profile = { ...state.skills.profile, stones: [stone], loadout: [stone.id, null, null, null] };
+    const tags = skillStoneTags(state);
+    expect(tags.has("skill")).toBe(true);
+    expect(tags.has("shock"), "雷のスキルは shock").toBe(true);
+    if (SKILL_DEFS.thunder.resource === "mana") expect(tags.has("mana")).toBe(true);
+    expect(buildTags(state).owned.has("shock"), "抽選のタグに入る").toBe(true);
+    state.skills.profile = { ...state.skills.profile, loadout: [null, null, null, null] };
+    expect(skillStoneTags(state).size, "何も付けていなければ空").toBe(0);
+  });
+
+  it("スキル石のタグで対応する祝福が出やすくなる", () => {
+    const count = (withStone: boolean): number => {
+      const state = arena(31);
+      const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "thunder" }), id: "boon-tag-thunder2" };
+      const loadout = withStone ? [stone.id, null, null, null] : [null, null, null, null];
+      state.skills.profile = { ...state.skills.profile, stones: [stone], loadout };
+      let n = 0;
+      for (let i = 0; i < 300; i++) if (rollBoonOptions(state).some((k) => BOONS[k].tags.includes("shock"))) n++;
+      return n;
+    };
+    expect(count(true)).toBeGreaterThan(count(false));
+  });
+});
+
+describe("呪いを受けて 4 択", () => {
+  function offered(seed = 41): GameState {
+    const state = arena(seed);
+    state.depth = 2;
+    offerBoons(state);
+    const c = state.boonChoice;
+    if (!c) throw new Error("3 択が出ていない");
+    c.timer = BOON.inputDelay;
+    return state;
+  }
+
+  it("呪いを 1 つ受けると 4 枚目が足され、受けた呪いは持ち物に入る。1 回の提示で 1 度だけ", () => {
+    const state = offered();
+    expect(canTakeCurse(state)).toBe(true);
+    expect(takeCurse(state)).toBe(true);
+    const c = state.boonChoice;
+    expect(c?.options).toHaveLength(BOON.choiceCountWithCurse);
+    expect(c?.curse && BOONS[c.curse].cursed).toBe(true);
+    expect(c?.curse && state.boons.includes(c.curse)).toBe(true);
+    expect(new Set(c?.options).size, "4 枚は重複しない").toBe(BOON.choiceCountWithCurse);
+    expect(canTakeCurse(state)).toBe(false);
+    expect(takeCurse(state)).toBe(false);
+  });
+
+  it("3 / X で呪いを受け、4 / Z で 4 枚目を選ぶ", () => {
+    const state = offered(42);
+    updateBoonChoice(state, withInput({ skill3Pressed: true }), 1 / 60);
+    const fourth = state.boonChoice?.options[3];
+    expect(fourth).toBeDefined();
+    updateBoonChoice(state, withInput({ skill4Pressed: true }), 1 / 60);
+    expect(state.boonChoice).toBeNull();
+    expect(fourth && hasBoon(state, fourth)).toBe(true);
+  });
+
+  it("呪いの札のクリックでも受けられる。4 枚のカードは画面に収まる", () => {
+    const state = offered(43);
+    const r = boonCurseRect();
+    const center = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+    updateBoonChoice(state, withInput({ aimScreen: center }), 1 / 60);
+    expect(state.boonChoice?.curseHover).toBe(true);
+    updateBoonChoice(state, withInput({ aimScreen: center, clickPressed: true, attackPressed: true }), 1 / 60);
+    expect(state.boonChoice?.options).toHaveLength(BOON.choiceCountWithCurse);
+    const last = boonCardRect(BOON.choiceCountWithCurse - 1, BOON.choiceCountWithCurse);
+    expect(boonCardRect(0, BOON.choiceCountWithCurse).x).toBeGreaterThanOrEqual(0);
+    expect(last.x + last.w).toBeLessThanOrEqual(VIEW_W);
+  });
+
+  it("提示直後（inputDelay 前）は呪いの札も押せない", () => {
+    const state = arena(44);
+    state.depth = 2;
+    offerBoons(state);
+    updateBoonChoice(state, withInput({ skill3Pressed: true }), 1 / 60);
+    expect(state.boonChoice?.curseTaken).toBe(false);
   });
 });

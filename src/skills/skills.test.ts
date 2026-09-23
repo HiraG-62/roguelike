@@ -5,12 +5,14 @@ import {
   MODIFIERS,
   SKILL,
   SKILL_DEFS,
+  SKILL_MIN_DEPTH,
   SKILL_WEIGHTS,
   activeModifiers,
   canAttach,
   castBurden,
   castInterval,
   formatVariant,
+  modifierLinkCost,
   modifierVerb,
   resolveCast,
 } from "./data";
@@ -110,13 +112,47 @@ const B4_TABLE: Record<SkillKey, { resource: SkillResource; cost: number; cooldo
   chainHook: { resource: "mana", cost: 11.9, cooldown: 0, interval: 0.5, poise: 15 },
   spiral: { resource: "mana", cost: 23.8, cooldown: 0, interval: 1.1, poise: 2 },
   frostField: { resource: "mana", cost: 22.1, cooldown: 0, interval: 0.8, poise: 0 },
+  // 大拡張（docs/ideas/skills-expansion.md 1 章。満月の砲と枯渇の刃の実コストは発動時に決まる）
+  contagion: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 0 },
+  unravel: { resource: "mana", cost: 16, cooldown: 0, interval: 0.6, poise: 8 },
+  kindle: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 10 },
+  prismShard: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 8 },
+  fullMoon: { resource: "mana", cost: 80, cooldown: 0, interval: 1, poise: 40 },
+  dregsBlade: { resource: "mana", cost: 0, cooldown: 0, interval: 0.6, poise: 8 },
+  shadowStep: { resource: "mana", cost: 10, cooldown: 0, interval: 0.5, poise: 0 },
+  powderKeg: { resource: "mana", cost: 12, cooldown: 0, interval: 0.4, poise: 35 },
+  swordGrave: { resource: "mana", cost: 16, cooldown: 0, interval: 0.5, poise: 12 },
+  iceBreaker: { resource: "mana", cost: 16, cooldown: 0, interval: 0.6, poise: 35 },
+  bloodlet: { resource: "mana", cost: 12, cooldown: 0, interval: 0.6, poise: 5 },
+  harvest: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 6 },
+  discharge: { resource: "mana", cost: 18, cooldown: 0, interval: 0.8, poise: 15 },
+  rout: { resource: "mana", cost: 10, cooldown: 0, interval: 0.4, poise: 6 },
+  verdict: { resource: "mana", cost: 18, cooldown: 0, interval: 0.7, poise: 35 },
+  exploit: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 20 },
+  strip: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 6 },
+  lastStand: { resource: "mana", cost: 16, cooldown: 0, interval: 0.7, poise: 30 },
+  comboChain: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 6 },
+  grudge: { resource: "mana", cost: 16, cooldown: 0, interval: 0.7, poise: 5 },
+  guillotine: { resource: "mana", cost: 18, cooldown: 0, interval: 0.7, poise: 35 },
+  ricochet: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 10 },
+  galeSlash: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 12 },
+  scatterSigil: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 4 },
+  stomp: { resource: "mana", cost: 14, cooldown: 0, interval: 0.8, poise: 40 },
+  threadReel: { resource: "mana", cost: 14, cooldown: 0, interval: 0.7, poise: 8 },
+  meteorDive: { resource: "mana", cost: 22, cooldown: 0, interval: 1, poise: 45 },
+  swallowFlip: { resource: "cooldown", cost: 0, cooldown: 5, interval: 0.3, poise: 15 },
+  boneRing: { resource: "cooldown", cost: 0, cooldown: 10, interval: 0.3, poise: 0 },
+  backflow: { resource: "cooldown", cost: 0, cooldown: 12, interval: 0.3, poise: 5 },
+  scarRoar: { resource: "cooldown", cost: 0, cooldown: 10, interval: 0.3, poise: 10 },
+  manaSpring: { resource: "cooldown", cost: 0, cooldown: 14, interval: 0.3, poise: 0 },
+  turret: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 3 },
 };
 
 describe("スキルの分類（マナ型 / CD 型）", () => {
-  it("マナ型 10 / CD 型 4", () => {
+  it("マナ型 38 / CD 型 9（大拡張でマナ型 +28・CD 型 +5）", () => {
     const mana = SKILL_KEYS.filter((k) => SKILL_DEFS[k].resource === "mana");
-    expect(mana, "マナ型の数").toHaveLength(10);
-    expect(SKILL_KEYS.length - mana.length, "CD 型の数").toBe(4);
+    expect(mana, "マナ型の数").toHaveLength(38);
+    expect(SKILL_KEYS.length - mana.length, "CD 型の数").toBe(9);
   });
 
   it.each(SKILL_KEYS)("%s: 型・コスト・CD・最低間隔・怯み値が B-4 の表どおり", (key) => {
@@ -131,14 +167,30 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
     if (row.resource === "mana") expect(def.charges, "マナ型はチャージを使わない").toBe(1);
   });
 
-  it("付与: 撃ち抜き=脆弱 / 雷撃=感電 2 / 引力球=沈黙 / 鎖鎌=出血 1。他は付与なし", () => {
+  it("付与: 撃ち抜き=脆弱 / 雷撃=感電 2 / 引力球=沈黙 / 鎖鎌=出血 1 / 満月の砲=脆弱 / 爆薬樽=燃焼 / 砕氷槌=冷気 2 / 処断=沈黙 / 手繰り糸=弱体。他は付与なし", () => {
     const kinds = (key: SkillKey): string[] => (SKILL_DEFS[key].applies ?? []).map((a) => `${a.kind}:${a.stacks}`);
-    expect(kinds("railshot")).toEqual(["vulnerable:1"]);
-    expect(kinds("thunder")).toEqual(["shock:2"]);
-    expect(kinds("gravityWell")).toEqual(["silence:1"]);
-    expect(kinds("chainHook")).toEqual(["bleed:1"]);
-    const others = SKILL_KEYS.filter((k) => !["railshot", "thunder", "gravityWell", "chainHook"].includes(k));
-    for (const key of others) expect(SKILL_DEFS[key].applies, `${key} に付与がある`).toBeUndefined();
+    const table: Partial<Record<SkillKey, string[]>> = {
+      railshot: ["vulnerable:1"],
+      thunder: ["shock:2"],
+      gravityWell: ["silence:1"],
+      chainHook: ["bleed:1"],
+      fullMoon: ["vulnerable:1"],
+      powderKeg: ["burn:1"],
+      iceBreaker: ["chill:2"],
+      verdict: ["silence:1"],
+      threadReel: ["weaken:1"],
+    };
+    for (const key of SKILL_KEYS) {
+      const want = table[key];
+      if (want) expect(kinds(key), key).toEqual(want);
+      else expect(SKILL_DEFS[key].applies, `${key} に付与がある`).toBeUndefined();
+    }
+  });
+
+  it("アイコンは 1 文字で重複しない", () => {
+    const icons = SKILL_KEYS.map((k) => SKILL_DEFS[k].icon);
+    for (const icon of icons) expect([...icon], icon).toHaveLength(1);
+    expect(new Set(icons).size).toBe(icons.length);
   });
 });
 
@@ -245,9 +297,9 @@ describe("resolveCast", () => {
 
   it("全スキル・全修飾子に定義がある", () => {
     for (const key of SKILL_KEYS) expect(SKILL_DEFS[key].key).toBe(key);
-    expect(SKILL_KEYS).toHaveLength(14);
+    expect(SKILL_KEYS).toHaveLength(47);
     expect(Object.keys(MODIFIERS)).toEqual([...MODIFIER_KEYS]);
-    expect(MODIFIER_KEYS).toHaveLength(11);
+    expect(MODIFIER_KEYS).toHaveLength(39);
     for (const key of MODIFIER_KEYS) expect(MODIFIERS[key].key).toBe(key);
   });
 
@@ -301,6 +353,108 @@ describe("resolveCast", () => {
   });
 });
 
+describe("大拡張の刻印符（resolveCast）", () => {
+  const m = SKILL.modifier;
+  const link = (n: number): number => 1 + SKILL.linkBurdenPenalty * n;
+
+  it("型替え符はリンクを 2 本使い、1 スロットに 1 枚まで", () => {
+    expect(modifierLinkCost("toStaged")).toBe(2);
+    expect(modifierLinkCost("heavy")).toBe(1);
+    expect(activeModifiers(SKILL_DEFS.whirl, 1, ["toStaged"]), "リンク 1 では効かない").toEqual([]);
+    expect(activeModifiers(SKILL_DEFS.whirl, 3, ["toStaged", "toThrown"]), "2 枚目の型替え符は効かない").toEqual(["toStaged"]);
+    expect(activeModifiers(SKILL_DEFS.whirl, 3, ["heavy", "toStaged"]), "1 + 2 = 3 本").toEqual(["heavy", "toStaged"]);
+    expect(activeModifiers(SKILL_DEFS.whirl, 2, ["heavy", "toStaged"]), "残り 1 本には入らない").toEqual(["heavy"]);
+  });
+
+  it("排他の組は古い方だけが効く（重撃 / 軽打、至近 / 遠当て、突き放し / 手繰り、溜め / 段階溜め）", () => {
+    expect(activeModifiers(SKILL_DEFS.whirl, 3, ["feather", "heavy"])).toEqual(["feather"]);
+    expect(activeModifiers(SKILL_DEFS.railshot, 3, ["longshot", "pointBlank"])).toEqual(["longshot"]);
+    expect(activeModifiers(SKILL_DEFS.quake, 3, ["repel", "tether"])).toEqual(["repel"]);
+    expect(activeModifiers(SKILL_DEFS.quake, 3, ["charge", "toStaged"])).toEqual(["charge"]);
+  });
+
+  it("定刻: マナ型を CD 型に変える（CD = コスト x0.3 秒、連打間隔 x1.5）。多重は CD 型として読み替わる", () => {
+    const def = SKILL_DEFS.frag;
+    const p = resolveCast(def, stone("frag", 2), ["multiCharge", "timeLock"]);
+    expect(p.resource).toBe("cooldown");
+    const burden = castBurden(def, p);
+    expect(burden.cost, "マナは使わない").toBe(0);
+    expect(burden.cooldown).toBeCloseTo(SKILL.frag.cost * m.timeLock.cooldownPerCost * link(2) * m.multiCharge.burdenMul);
+    expect(p.charges, "多重は CD 型の読み（チャージ +2）").toBe(1 + m.multiCharge.extraCharges);
+    expect(castInterval(def, p)).toBeCloseTo(SKILL.frag.minInterval * m.timeLock.intervalMul);
+  });
+
+  it("燃料化: CD 型をマナ型に変える（コスト = CD x5、チャージ 1）。パリィには付かない", () => {
+    const def = SKILL_DEFS.haste;
+    const p = resolveCast(def, stone("haste", 1), ["fuelize"]);
+    expect(p.resource).toBe("mana");
+    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.haste.cooldown * m.fuelize.costPerCooldown * link(1));
+    expect(castBurden(def, p).cooldown).toBe(0);
+    expect(canAttach(SKILL_DEFS.parry, "fuelize")).toBe(false);
+  });
+
+  it("定刻とマナ経済の刻印符は同時に効かない", () => {
+    expect(activeModifiers(SKILL_DEFS.frag, 3, ["timeLock", "refund", "dryFire"])).toEqual(["timeLock"]);
+  });
+
+  it("重撃は怯み値 x2・威力 x0.8・連打間隔 x1.5、軽打は負担 x0.6・怯み値 0", () => {
+    const heavy = resolveCast(SKILL_DEFS.quake, stone("quake", 1), ["heavy"]);
+    expect(heavy.poiseMul).toBeCloseTo(m.heavy.poiseMul);
+    expect(heavy.damageMul).toBeCloseTo(m.heavy.damageMul);
+    expect(castInterval(SKILL_DEFS.quake, heavy)).toBeCloseTo(SKILL.quake.minInterval * m.heavy.intervalMul);
+    const feather = resolveCast(SKILL_DEFS.quake, stone("quake", 1), ["feather"]);
+    expect(feather.poiseMul).toBe(0);
+    expect(castBurden(SKILL_DEFS.quake, feather).cost).toBeCloseTo(SKILL.quake.cost * link(1) * m.feather.burdenMul);
+  });
+
+  it("延命・伝播は付与を持つスキルにだけ付く", () => {
+    expect(canAttach(SKILL_DEFS.thunder, "linger")).toBe(true);
+    expect(canAttach(SKILL_DEFS.whirl, "linger")).toBe(false);
+    expect(canAttach(SKILL_DEFS.iceBreaker, "spread")).toBe(true);
+    const p = resolveCast(SKILL_DEFS.thunder, stone("thunder", 1), ["linger"]);
+    expect(p.statusDurationMul).toBeCloseTo(m.linger.durationMul);
+    expect(p.damageMul).toBeCloseTo(m.linger.damageMul);
+  });
+
+  it("マナの払い方が特殊なスキル（満月の砲・枯渇の刃）にはコストを動かす刻印符が付かない", () => {
+    for (const mod of ["deferred", "refund", "bloodTithe", "spillover", "bladeFeed", "timeLock", "overheat"] as const) {
+      expect(canAttach(SKILL_DEFS.fullMoon, mod), `満月の砲 + ${mod}`).toBe(false);
+      expect(canAttach(SKILL_DEFS.dregsBlade, mod), `枯渇の刃 + ${mod}`).toBe(false);
+    }
+    expect(canAttach(SKILL_DEFS.dregsBlade, "dryFire"), "渇き撃ちは枯渇の刃と噛み合う").toBe(true);
+  });
+
+  it("旗を立てるだけの刻印符（背面・至近・遠当て・散り際・着地衝撃・追撃・返金・後払い）", () => {
+    expect(resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["flank"]).flank).toBe(true);
+    expect(resolveCast(SKILL_DEFS.spiral, stone("spiral", 1), ["pointBlank"]).rangeBias).toBe("pointBlank");
+    expect(resolveCast(SKILL_DEFS.railshot, stone("railshot", 1), ["longshot"]).rangeBias).toBe("longshot");
+    expect(resolveCast(SKILL_DEFS.frag, stone("frag", 1), ["lastGasp"]).lastGasp).toBeCloseTo(m.lastGasp.damageMul);
+    expect(resolveCast(SKILL_DEFS.lunge, stone("lunge", 1), ["landing"]).landing).toBe(true);
+    expect(resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["followUp"]).followUp).toBe(true);
+    const refund = resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["refund"]);
+    expect(refund.refundPerHit).toBeCloseTo(m.refund.perHit);
+    expect(refund.damageMul).toBeCloseTo(m.refund.damageMul);
+    expect(resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["deferred"]).deferredMul).toBeCloseTo(m.deferred.costMul);
+  });
+
+  it("手繰りはノックバックの倍率を負にする（向きを反転する印）", () => {
+    const p = resolveCast(SKILL_DEFS.quake, stone("quake", 1), ["tether"]);
+    expect(p.knockbackMul).toBeLessThan(0);
+  });
+
+  it("投げ込みは持続・発動時間を縮めて威力を上げる", () => {
+    const p = resolveCast(SKILL_DEFS.gravityWell, stone("gravityWell", 2), ["toLobbed"]);
+    expect(p.reshape).toBe("toLobbed");
+    expect(p.durationMul).toBeCloseTo(m.toLobbed.durationMul);
+    expect(p.damageMul).toBeCloseTo(m.toLobbed.damageMul);
+  });
+
+  it("新しい刻印符の説明はマナ型で読み替える（軽打・散り際・着地衝撃・巡り）", () => {
+    expect(modifierVerb("feather", SKILL_DEFS.whirl)).toContain("コスト");
+    expect(modifierVerb("feather", SKILL_DEFS.lunge)).toContain("CD");
+  });
+});
+
 describe("相性表", () => {
   /**
    * 付けられない組み合わせ（これ以外はすべて付く）。
@@ -310,14 +464,42 @@ describe("相性表", () => {
     multiCharge: [],
     bloodPrice: [],
     comboFuel: [],
-    echo: ["parry", "bloodPact", "haste"],
-    pierce: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField"],
-    recoil: ["lunge", "parry", "bloodPact", "haste"],
-    chainReset: ["parry", "bloodPact", "haste"],
-    curse: ["bloodPact", "haste"],
-    delay: ["lunge", "parry", "bloodPact", "haste", "spiral"],
-    expand: ["lunge", "railshot", "parry", "bloodPact", "haste", "chainHook", "spiral"],
-    charge: ["parry", "bloodPact", "haste", "spiral"],
+    echo: ["parry", "bloodPact", "haste", "shadowStep", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    pierce: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "galeSlash", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    recoil: ["lunge", "parry", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    chainReset: ["parry", "bloodPact", "haste", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    curse: ["bloodPact", "haste", "manaSpring"],
+    delay: ["lunge", "parry", "bloodPact", "haste", "spiral", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    expand: ["lunge", "railshot", "parry", "bloodPact", "haste", "chainHook", "spiral", "unravel", "prismShard", "fullMoon", "shadowStep", "harvest", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "guillotine", "ricochet", "galeSlash", "scatterSigil", "threadReel", "swallowFlip", "boneRing", "backflow", "manaSpring", "turret"],
+    charge: ["parry", "bloodPact", "haste", "spiral", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    deferred: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    refund: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    bloodTithe: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    spillover: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    dryFire: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    bladeFeed: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    timeLock: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    fuelize: ["whirl", "frag", "railshot", "parry", "quake", "thunder", "gravityWell", "mines", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "turret"],
+    overheat: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    heavy: ["bloodPact", "haste", "frostField", "contagion", "shadowStep", "boneRing", "manaSpring"],
+    feather: ["bloodPact", "haste", "frostField", "contagion", "shadowStep", "boneRing", "manaSpring"],
+    repel: ["lunge", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "backflow", "manaSpring"],
+    tether: ["lunge", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "backflow", "manaSpring"],
+    linger: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "dregsBlade", "shadowStep", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    spread: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "dregsBlade", "shadowStep", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    followUp: ["bloodPact", "haste", "manaSpring"],
+    lastGasp: ["lunge", "parry", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    sustain: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar"],
+    landing: ["whirl", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "boneRing", "scarRoar", "manaSpring", "turret"],
+    desperate: ["bloodPact", "haste", "lastStand", "manaSpring"],
+    attune: [],
+    cycle: [],
+    flank: ["frag", "railshot", "bloodPact", "thunder", "gravityWell", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "strip", "ricochet", "scatterSigil", "threadReel", "meteorDive", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    pointBlank: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    longshot: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    toThrown: ["lunge", "frag", "railshot", "parry", "bloodPact", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "strip", "grudge", "ricochet", "galeSlash", "scatterSigil", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    toLobbed: ["whirl", "lunge", "railshot", "parry", "bloodPact", "quake", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    toStaged: ["parry", "bloodPact", "haste", "spiral", "boneRing", "backflow", "scarRoar", "manaSpring"],
   };
 
   it("全スキル x 全刻印符が表どおり", () => {
@@ -342,12 +524,12 @@ describe("相性表", () => {
 });
 
 describe("生成の重み", () => {
-  it("新スキルも抽選され、全 14 種が出る。重みに沿って初期 6 種がやや多い", () => {
+  it("深い層では全 47 種が出る。重みに沿って初期 6 種がやや多い", () => {
     const rng = createRng(123);
     const counts = new Map<SkillKey, number>();
-    const n = 7000;
+    const n = 24000;
     for (let i = 0; i < n; i++) {
-      const s = generateSkillStone(rng, { foundDepth: 1, now: 0 });
+      const s = generateSkillStone(rng, { foundDepth: 5, now: 0 });
       counts.set(s.skillKey, (counts.get(s.skillKey) ?? 0) + 1);
     }
     for (const key of SKILL_KEYS) expect(counts.get(key) ?? 0).toBeGreaterThan(0);
@@ -355,6 +537,14 @@ describe("生成の重み", () => {
     for (const key of SKILL_KEYS) {
       const expected = (SKILL_WEIGHTS[key] / total) * n;
       expect(Math.abs((counts.get(key) ?? 0) - expected)).toBeLessThan(expected * 0.25);
+    }
+  });
+
+  it("浅い層では SKILL_MIN_DEPTH より深いスキルが出ない", () => {
+    const rng = createRng(77);
+    for (let i = 0; i < SAMPLE_COUNT * 3; i++) {
+      const s = generateSkillStone(rng, { foundDepth: 1, now: 0 });
+      expect(SKILL_MIN_DEPTH[s.skillKey], s.skillKey).toBeLessThanOrEqual(1);
     }
   });
 
@@ -370,11 +560,22 @@ describe("生成の重み", () => {
     expect(createDefaultSkillProfile().stones.map((s) => s.skillKey)).toEqual(["whirl", "frag"]);
   });
 
-  it("刻印符の抽選は装着スキルに付くものだけ（加速 + 血の契約なら 3 種の汎用だけ）", () => {
+  it("刻印符の抽選は装着スキルに付くものだけ（加速 + 血の契約なら汎用の 5 種と燃料化だけ）", () => {
     const rng = createRng(4);
     const seen = new Set<ModifierKey>();
     for (let i = 0; i < SAMPLE_COUNT; i++) seen.add(rollRuneModifier(rng, ["haste", "bloodPact"]));
-    expect([...seen].sort()).toEqual(["bloodPrice", "comboFuel", "multiCharge"]);
+    expect([...seen].sort()).toEqual(["attune", "bloodPrice", "comboFuel", "cycle", "fuelize", "multiCharge"]);
+  });
+
+  it("型替え符は通常の刻印符より出にくい", () => {
+    const rng = createRng(8);
+    const counts = new Map<ModifierKey, number>();
+    for (let i = 0; i < 20000; i++) {
+      const k = rollRuneModifier(rng, ["whirl"]);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    expect(counts.get("toStaged") ?? 0, "段階溜めも出る").toBeGreaterThan(0);
+    expect(counts.get("toStaged") ?? 0, "型替え符は通常の半分未満").toBeLessThan((counts.get("multiCharge") ?? 0) / 2);
   });
 });
 

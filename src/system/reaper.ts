@@ -5,6 +5,7 @@ import { TILE_SIZE } from "../map/grid";
 import { damagePlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { circlesOverlap } from "./physics";
+import { boonReaperDelay, boonReaperHalted, boonReaperJust, onBoonReaperDodged } from "./boonRules";
 
 /**
  * 追跡者: 同じフロアに一定秒いると湧く、無敵で壁をすり抜ける死神。
@@ -25,7 +26,7 @@ const GRACE_EXCLUDED_KINDS = new Set<RoomKind>(["treasure", "shrine"]);
 /** このフロアで Reaper が出現するまでの猶予秒（部屋数ボーナス込み） */
 export function reaperAppearAfter(state: GameState): number {
   const rooms = state.rooms.filter((r) => !GRACE_EXCLUDED_KINDS.has(r.kind)).length;
-  return REAPER.appearAfter + rooms * REAPER.appearPerRoom;
+  return REAPER.appearAfter + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
 }
 
 /** Reaper 出現までの残り秒（出現済みなら 0） */
@@ -50,7 +51,7 @@ export function updateReaper(state: GameState, dt: number): void {
   r.animTime += dt;
   const p = state.player.body;
   const to = sub(p.pos, r.pos);
-  if (length(to) > 0) {
+  if (length(to) > 0 && !boonReaperHalted(state)) {
     const dir = normalize(to);
     r.pos.x += dir.x * REAPER.speed * dt;
     r.pos.y += dir.y * REAPER.speed * dt;
@@ -58,7 +59,8 @@ export function updateReaper(state: GameState, dt: number): void {
   if (state.tick % TRAIL_INTERVAL === 0) spawnBurst(state, r.pos, REAPER.color, 1, 20, 0.6, 2);
   if (circlesOverlap(r.pos.x, r.pos.y, r.radius, p.pos.x, p.pos.y, p.radius)) {
     // Reaper は無敵で常に接触するため、JUST 回避（スロー + ゲージ）を成立させない。無敵中は単に無視
-    damagePlayer(state, REAPER.damage, r.pos, undefined, { noJust: true });
+    const result = damagePlayer(state, REAPER.damage, r.pos, undefined, { noJust: !boonReaperJust(state) });
+    if (result === "dodged") onBoonReaperDodged(state);
   }
 }
 

@@ -1,5 +1,6 @@
 import { type Rng, createRng } from "../core/rng";
-import { SKILL, SKILL_DEFS, SKILL_WEIGHTS, canAttach } from "./data";
+import { MODIFIERS, SKILL, SKILL_DEFS, SKILL_MIN_DEPTH, SKILL_WEIGHTS, canAttach } from "./data";
+import { modifierWeight } from "./modifiers";
 import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "./types";
 
 /**
@@ -49,19 +50,20 @@ function rollVariants(rng: Rng, skillKey: SkillKey): VariantRoll[] {
   return out;
 }
 
-/** SKILL_WEIGHTS に従ってスキルの種類を選ぶ */
-function rollSkillKey(rng: Rng): SkillKey {
+/** SKILL_WEIGHTS に従ってスキルの種類を選ぶ。拾った深度より深い層から出るスキル（SKILL_MIN_DEPTH）は除く */
+function rollSkillKey(rng: Rng, depth: number): SkillKey {
+  const pool = SKILL_KEYS.filter((k) => SKILL_MIN_DEPTH[k] <= Math.max(1, depth));
   const idx = weightedIndex(
     rng,
-    SKILL_KEYS.map((k) => SKILL_WEIGHTS[k]),
+    pool.map((k) => SKILL_WEIGHTS[k]),
   );
-  return SKILL_KEYS[idx] ?? SKILL_KEYS[0];
+  return pool[idx] ?? SKILL_KEYS[0];
 }
 
 /** seed から石を作る（同じ seed なら id / foundAt 以外は同じ） */
 export function stoneFromSeed(seed: number, opts: StoneOptions): SkillStone {
   const rng = createRng(seed);
-  const skillKey = opts.skillKey ?? rollSkillKey(rng);
+  const skillKey = opts.skillKey ?? rollSkillKey(rng, opts.foundDepth);
   const links = weightedIndex(rng, SKILL.linkWeights);
   const variants = rollVariants(rng, skillKey);
   return {
@@ -79,9 +81,17 @@ export function generateSkillStone(rng: Rng, opts: StoneOptions): SkillStone {
   return stoneFromSeed(rng.int(1, SEED_MAX), opts);
 }
 
-/** 刻印符の種類: 装着中スキルのどれかに付けられるものから一様。装着が無ければ全種 */
+/**
+ * 刻印符の種類: 装着中スキルのどれかに付けられるものから選ぶ（装着が無ければ全種）。
+ * 型替え符は珍しい（modifierWeight）。通常の刻印符どうしは同じ重み
+ */
 export function rollRuneModifier(rng: Rng, equipped: readonly SkillKey[]): ModifierKey {
-  const pool = MODIFIER_KEYS.filter((k) => equipped.some((s) => canAttach(SKILL_DEFS[s], k)));
-  return rng.pick(pool.length > 0 ? pool : MODIFIER_KEYS);
+  const fits = MODIFIER_KEYS.filter((k) => equipped.some((s) => canAttach(SKILL_DEFS[s], k)));
+  const pool = fits.length > 0 ? fits : [...MODIFIER_KEYS];
+  const idx = weightedIndex(
+    rng,
+    pool.map((k) => modifierWeight(MODIFIERS[k])),
+  );
+  return pool[idx] ?? MODIFIER_KEYS[0];
 }
 

@@ -175,6 +175,200 @@ export const STATUS = {
   },
   /** 蒸発（燃焼 × 冷気）: 燃焼の残りダメージのうち即時に与える割合 */
   vaporizeRatio: 0.5,
+  // ---- 以下は docs/ideas/status-and-terrain.md（2026-09-24 追加の状態異常・反応・昇華） ----
+  /** 燃焼の積み重ね（灼熱への昇華用。dps は強い方を採用のまま） */
+  burnMaxStacks: 5,
+  /** 同じ反応を同じ対象で起こせる間隔（秒） */
+  reactionIcd: 0.5,
+  /** 語彙「直前に消えた状態異常」を参照できる秒 */
+  lastEndedWindow: 1,
+  /** 語彙「異常数」「総スタック」の頭打ち */
+  statusCountCap: 5,
+  totalStacksCap: 15,
+  /** 語彙「良い状態の数」の頭打ち */
+  goodCountCap: 4,
+  wet: {
+    maxStacks: 3,
+    duration: 5,
+    /** 濡れている敵の感電の連鎖半径の倍率 */
+    shockRadiusMul: 1.5,
+  },
+  soaked: {
+    duration: 4,
+    /** 移動と行動の遅さ（冷気と同じ掛け方） */
+    slow: 0.3,
+  },
+  oiled: { duration: 6 },
+  blaze: {
+    duration: 4,
+    /** 元の燃焼 dps に掛ける倍率と下限 */
+    dpsMul: 2,
+    minDps: 4,
+    spreadRadius: 40,
+    spreadInterval: 1,
+  },
+  corrode: {
+    maxStacks: 5,
+    duration: 6,
+    /** 敵: 1 スタックあたり受ける怯み値 +8% */
+    poisePerStack: 0.08,
+    /** 自: 1 スタックあたり被ダメ +3% */
+    playerTakenPerStack: 0.03,
+  },
+  brand: {
+    maxStacks: 5,
+    duration: 4,
+    /** 起爆: 1 スタックあたりのダメージ（potency 0 のとき）と怯み値。怯み中なら × staggeredMul */
+    damagePerStack: 6,
+    poisePerStack: 6,
+    staggeredMul: 1.5,
+  },
+  broken: {
+    duration: 3,
+    /** 受ける怯み値の倍率と、崩落（崩勢中に怯む）の怯み時間の倍率 */
+    poiseMul: 1.3,
+    staggerMul: 1.5,
+  },
+  doom: {
+    duration: 4,
+    /** 付与中に減った HP のうち、切れた瞬間にまとめて与える割合（脆弱中は vulnerableRatio） */
+    ratio: 0.3,
+    vulnerableRatio: 0.5,
+  },
+  siphon: {
+    duration: 5,
+    /** この敵への命中 1 回で回収するマナと、沈黙中の倍率（魔断） */
+    manaPerHit: 1,
+    silencedMul: 2,
+    /** 倒したとき残り秒あたりに回収するマナ */
+    manaPerSecOnKill: 2,
+  },
+  hue: {
+    duration: 6,
+    /** 共鳴の色と同じ色の彩痕なら受けるダメージ倍率 */
+    takenMul: 1.15,
+    /** 色爆: 紅 = 燃焼の残りのこの割合を即時 / 蒼 = 冷気 + chill / 翠 = HP 回復 / 冥 = 宣告の持続 */
+    burstBurnRatio: 1,
+    burstChill: 2,
+    burstHeal: 3,
+    burstDoomDuration: 4,
+  },
+  scorch: {
+    duration: 4,
+    dpsMul: 2,
+    spreadRadius: 40,
+    spreadInterval: 1,
+    /** 灼熱に冷気を当てたときの蒸発の倍率 */
+    vaporizeMul: 2,
+  },
+  venom: {
+    duration: 4,
+    damageMul: 1.5,
+    /** 猛毒の敵が死ぬと残す毒沼の半径（px） */
+    deathTerrainRadius: 24,
+  },
+  hemorrhage: {
+    duration: 3,
+    /** 静止していても毎秒 potency × スタック × perSec */
+    perSec: 3,
+  },
+  encase: {
+    /** 凍結中に冷気がこの回数入ると氷棺 */
+    threshold: 3,
+    /** 砕けたときの破片: 半径・本体の最大 HP に対する割合・上限・怯み値 */
+    shardRadius: 50,
+    shardHpRatio: 0.15,
+    shardMax: 60,
+    shardPoise: 15,
+    /** 融解（燃焼で解ける）で残す水たまりの半径（px） */
+    thawRadius: 20,
+  },
+  exposed: {
+    /** 脆弱中に脆弱をこの回数付け直すと露呈 */
+    threshold: 3,
+    duration: 4,
+    /** 受けるダメージ倍率（脆弱の 1.2 を置き換える） */
+    mul: 1.4,
+  },
+  enfeeble: {
+    threshold: 3,
+    duration: 4,
+    /** 与えるダメージ倍率（弱体の 0.75 を置き換える） */
+    mul: 0.5,
+  },
+  haste: {
+    duration: 3,
+    moveMul: 1.2,
+    /** 攻撃が当たるたびに延びる秒と、延長の上限 */
+    extendOnHit: 0.5,
+    maxTime: 6,
+    /** 奮起: 冷気を 1 つ食って延びる秒 */
+    chillExtend: 1,
+  },
+  harden: {
+    duration: 2,
+    takenMul: 0.8,
+    moveMul: 0.85,
+    /** 氷鎧: 冷気 1 スタックごとの追加軽減 */
+    iceArmorPerChill: 0.05,
+  },
+  wrath: {
+    maxStacks: 5,
+    duration: 6,
+    /** 1 スタックあたり与える怯み値 +10% */
+    poisePerStack: 0.1,
+    /** 被弾で +1、自分が怯むと +2（逆上） */
+    onHurt: 1,
+    onStagger: 2,
+  },
+  fury: {
+    duration: 4,
+    poiseMul: 1.5,
+    damageMul: 1.15,
+    takenMul: 1.2,
+  },
+  charged: {
+    maxStacks: 6,
+    duration: 5,
+    /** 近接 1 回の放電ダメージ（potency 0 のとき） */
+    damage: 6,
+    /** 放電（濡れ + 帯電）: 半径の倍率と自分への小ダメージ */
+    wetRadiusMul: 2,
+    wetSelfDamage: 1,
+  },
+  steam: {
+    /** 蒸気: 周囲の敵に弱体 */
+    radius: 40,
+    weakenDuration: 2,
+  },
+  conduct: {
+    /** 拡散: 濡れた敵に感電が入った瞬間の連鎖（半径倍率・追加の対象数・potency 0 のときのダメージ） */
+    radiusMul: 2,
+    extraTargets: 2,
+    damage: 4,
+  },
+  kindle: { dps: 3, duration: 3 },
+  /** 急冷: 濡れを消費して冷気 + chillBonus。濡れが上限（3）なら凍結の閾値まで一気に積む */
+  quench: { chillBonus: 2 },
+  miasma: {
+    /** 毒霧: 毒沼を置く半径（px）と周囲の敵へ毒 1 を配る半径 */
+    terrainRadius: 24,
+    radius: 50,
+    duration: 4,
+  },
+  shatterBleed: {
+    /** 砕血: 出血スタック × potency × 残り秒 × perStackSec を即時。周囲 1 体へ出血 1 */
+    perStackSec: 4,
+    spreadRadius: 60,
+  },
+  cauterize: {
+    /** 焼灼: 出血スタック × potency × 残り秒 × perStackSec を即時（自分にも起きる） */
+    perStackSec: 3,
+    /** プレイヤーに起きたときの倍率（燃える床で出血を止める代わりの小ダメージにとどめる） */
+    playerMul: 0.25,
+  },
+  panic: { bleedMul: 2 },
+  lacerate: { extraStacks: 2 },
 } as const;
 
 /**
@@ -288,6 +482,59 @@ export const POISE = {
   blockMul: 0.5,
   /** 猪の壁激突の自傷怯み（秒） */
   chargerWallStagger: 0.9,
+  // ---- 怯みの拡張（docs/ideas/status-and-terrain.md 4 章、2026-09-24） ----
+  /** 処刑: 怯み中で HP がこの割合以下の敵に、怯み値 executeMinPoise 以上の一撃（近接 3 段目など）で即死。ボスは除く */
+  executeHpRatio: 0.25,
+  executeMinPoise: 20,
+  executeMana: 10,
+  /** 処刑の瞬間、周囲の敵に恐怖 */
+  executeFearRadius: 60,
+  executeFearDuration: 0.5,
+  /** 背面の一撃: 敵の向きの背後（内積がこれ未満）からの怯み値は堅守を無視して × backstabMul */
+  backstabDot: -0.3,
+  backstabMul: 1.25,
+  /** 怯みの伝播: 怯んだ瞬間、周囲の敵に怯み値（連鎖はしない） */
+  spreadRadius: 40,
+  spreadPoise: 15,
+} as const;
+
+/** 地形の層（docs/ideas/status-and-terrain.md 3 章）。src/system/terrain.ts と src/map/generator.ts の planTerrain が読む */
+export const TERRAIN = {
+  /** 上に立つ者へ効果を入れる周期（秒） */
+  tickInterval: 0.5,
+  water: { wetStacks: 1 },
+  oil: { oiledStacks: 1 },
+  /** 溶岩: QA bot が固まらないよう軽め。ダッシュ中は無傷 */
+  lava: { damage: 1, enemyDamage: 3, burnDps: 2, burnDuration: 1.5 },
+  /** 毒沼: 周期ごとに毒 1、corrodeEvery 回に 1 回腐食 1 */
+  bog: { poisonDuration: 3, corrodeEvery: 3 },
+  /** 氷床: chillEvery 回に 1 回冷気 1。滑り = 入力への追従の速さ（1/秒） */
+  ice: { chillEvery: 4, chillDuration: 2, accel: 5 },
+  /** 炎: 上に立つと燃焼。油・草に燃え移る。燃え尽きると何も残らない */
+  fire: {
+    burnDps: 3,
+    burnDuration: 2,
+    /** 油・草が燃えている秒 */
+    oilBurnTime: 3,
+    grassBurnTime: 2,
+    /** 隣のセルへ燃え移るまでの秒 */
+    spreadOil: 0.3,
+    spreadGrass: 0.8,
+  },
+  /** placeTerrain で置いた地形の既定の持続（秒）。0 は消えない */
+  placedDuration: { none: 0, water: 8, oil: 10, lava: 6, bog: 6, ice: 6, grass: 0, fire: 3 },
+  /** マップ生成時の配置 */
+  gen: {
+    patchesBase: 1,
+    patchesPerDepth: 0.5,
+    patchesMax: 6,
+    /** 1 つの塊の半径（タイル） */
+    radiusMin: 1,
+    radiusMax: 2,
+    /** 種類ごとの出始める深度と重み */
+    minDepth: { water: 1, grass: 1, oil: 2, ice: 3, bog: 3, lava: 5 },
+    weight: { water: 3, grass: 3, oil: 2, ice: 2, bog: 2, lava: 1 },
+  },
 } as const;
 
 /** トリガー効果 */
@@ -308,6 +555,35 @@ export const TRIGGER = {
   defaultDuration: 3,
   /** 効果 invuln の持続の上限（秒）。被弾時・ゲージ満タンの無敵で常時無敵にしない（docs/COMBAT_DESIGN.md C-1 の 13） */
   invulnMax: 0.4,
+  // ---- 文法の拡張（docs/ideas/loot-expansion.md 6 章） ----
+  /** 条件 manaLow: 最大マナに対するこの割合未満 */
+  manaLowRatio: 0.25,
+  /** 条件 targetMultiStatus: 対象の状態異常の種類数 */
+  multiStatusKinds: 2,
+  /** 効果 extendStatus: 延ばした後の残り秒の上限（付け直しの延命を青天井にしない） */
+  extendMax: 8,
+  /** 効果 volley: 2 発以上のときの扇の角度（ラジアン、隣との間隔） */
+  volleySpread: 0.12,
+  /** 効果 inflict: 行動停止系の持続の上限（秒）。拘束上限とは別に 1 回の長さを抑える */
+  inflictHaltMax: 1.2,
+  /** 効果 inflict の効果量（燃焼 = dps、出血 = 10px あたり、感電 = 連鎖ダメージ）。他は STATUS の既定値 */
+  inflictBurnDps: 5,
+  inflictBleed: 1.5,
+  inflictShock: 6,
+  /** 性質のルール変更（system/traitHooks.ts） */
+  trait: {
+    /** 底打ち: 最大マナに対するこの割合未満を「少ない」とみなす */
+    lowManaRatio: 0.25,
+    /** 身代わり: 払えたときの被ダメージ倍率 */
+    manaShieldMul: 0.5,
+    manaShieldColor: "#80c0ff",
+    /** 崩れの反響: 怯ませた敵の周囲の半径。基本の「怯みの伝播」（POISE.spreadRadius）より広く届く */
+    staggerQuakeRadius: 72,
+    /** 楔: 蓄積がこの割合以上の敵に強く効く */
+    wedgeRatio: 0.5,
+    /** 与ダメージ・怯み値の性質の倍率の下限（減少を重ねても 0 にしない） */
+    minMul: 0.1,
+  },
 } as const;
 
 /** キーストーンの数値 */
@@ -321,6 +597,45 @@ export const KEYSTONE = {
   /** ks_overdraw（過負荷）: 足りないマナ 1 あたりに払う HP と、払った後に残す HP の下限（自滅させない） */
   overdrawHpPerMana: 0.5,
   overdrawMinHp: 1,
+  // ---- 2026-09 追加の誓約（docs/ideas/loot-expansion.md 2 章） ----
+  /** ks_wedgeOath（楔の誓い）: 怯み値の倍率と、怯んでいない敵への与ダメージ倍率 */
+  wedgePoiseMul: 2.5,
+  wedgeUnstaggeredMul: 0.6,
+  /** ks_unshaken（揺るがぬ誓い）: 与ダメージの上乗せと、怯み値の上昇分をダメージへ移す割合 */
+  unshakenDamageBonus: 0.35,
+  unshakenPoiseToDamage: 0.5,
+  /** ks_chokehold（締め上げの誓い）: 怯み値の倍率（堅守は無視する） */
+  chokeholdPoiseMul: 0.7,
+  /** ks_readOath（読み勝ちの誓い）: 予備動作中の敵への近接の怯み値倍率と、それ以外への近接の与ダメージ倍率 */
+  readPoiseMul: 10,
+  readOffWindupDamageMul: 0.7,
+  /** ks_backwater（背水の誓い）: 封鎖中の与ダメージ倍率と、制圧時に取り戻す「失った HP」の割合（%） */
+  backwaterDamageMul: 1.15,
+  backwaterClearHealPct: 50,
+  /** ks_reaperOath（死神の誓い）: 死神の時計の進みの倍率と与ダメージ倍率（出る前 / 出た後） */
+  reaperOathClockMul: 2,
+  reaperOathDamageMul: 1.15,
+  reaperOathHuntedMul: 1.4,
+  /** ks_chant（詠唱の誓い）: 近接・射撃の与ダメージ倍率 / 通常攻撃のマナ回収倍率 / スキル威力の上乗せ */
+  chantAttackDamageMul: 0.3,
+  chantManaMul: 4,
+  chantSkillBonus: 0.5,
+  /** ks_blight（蝕みの誓約）: 付与確率の倍率と、受ける状態異常の持続の倍率 */
+  blightChanceMul: 2,
+  blightTakenMul: 2,
+  /** ks_contagion（病みの誓い）: 直接ダメージ倍率と、死んだ敵の状態異常が移る半径 */
+  contagionDamageMul: 0.6,
+  contagionRadius: 60,
+  /** ks_monochrome（単色の誓い）: 支配の閾値と、支配色以外の性質の係数 */
+  monochromeRatio: 0.35,
+  monochromeDamping: 0.5,
+  /** ks_colorless（無色の誓い）: 共鳴を捨てた代わりの性質の値の倍率 */
+  colorlessTraitMul: 1.2,
+  /** ks_discipline（修行の誓い）: 来歴の進みの倍率と与ダメージ倍率 */
+  disciplineProgress: 3,
+  disciplineDamageMul: 0.8,
+  /** ks_oblivion（忘却の誓い）: 装備全体の余白 1 につき全ステータス */
+  oblivionAttrPerMargin: 1,
 } as const;
 
 /** 装備ドロップ */
@@ -427,6 +742,63 @@ export const ENEMY_AI = {
     deathExplodeFuse: 0.35,
     color: "#60c0ff",
   },
+  // ---- 以下 2026-09-24 敵の量産（docs/ideas/enemies.md） ----
+  /** 射撃の弾・死に際の弾の共通 */
+  volley: {
+    bulletLife: 3,
+    bulletRadius: 3,
+  },
+  /** 狼の回り込み: この距離より遠いときだけ横へ回る（近づいたら素直に飛びかかる） */
+  flank: { minDist: 60 },
+  /** 金色スライム: 逃げる速さの倍率と、消えるときの色 */
+  timid: { fleeMul: 1, color: "#f8d848" },
+  /** 腐肉蝿などの死に際の弾・逃げ足 */
+  deathBurst: { life: 2 },
+  /** 角甲虫が壁に激突したときの落石（予告の影 → 爆発扱いの落下） */
+  rockfall: { count: 3, spread: 44, radius: 16, damage: 14, fuse: 0.9 },
+  /** 自爆の予告の円は explode.radius。窓は windup */
+  kamikaze: { color: "#ff8030" },
+  /** 残像打ち: delay 秒前のプレイヤーの位置を狙う */
+  echoStriker: {
+    delay: 1.5,
+    sampleInterval: 0.1,
+    radius: 26,
+    damage: 16,
+    /** この距離を保つ */
+    keepAway: 110,
+    color: "#b090ff",
+  },
+  /** 群れの長: 倒れると取り巻きが怯える秒 */
+  packLeader: { fearTime: 3 },
+  /** 骨の楽団長: 指揮の弾（扇） */
+  conductor: { bulletCount: 5, spreadDeg: 60, bulletSpeed: 105, bulletDamage: 8, keepAway: 110, color: "#c060e0" },
+  /** マナ喰い: 1 噛みで奪うマナと、倒したときに返す倍率 */
+  manaLeech: { steal: 20, returnMul: 1.5 },
+  /** 死骸（骨拾い・墓守の鐘・貪食の が使う） */
+  corpse: { lifetime: 12, max: 24 },
+  /** 骨拾い: 死骸を探す半径、食べる秒、1 段ごとの伸び、段の上限 */
+  scavenger: {
+    seekRadius: 180,
+    eatRange: 10,
+    eatTime: 1.0,
+    maxGrowth: 3,
+    hpPerGrowth: 0.35,
+    damagePerGrowth: 0.3,
+    radiusPerGrowth: 1,
+    color: "#b0f0a0",
+  },
+  /** 墓守の鐘: 何回鳴ると死骸を蘇らせるか */
+  graveBell: { rings: 3, color: "#f8d848" },
+  /** 沈黙の修道士: 予告の円の半径と、炸裂で付く沈黙の秒 */
+  silencer: { radius: 50, duration: 3, keepAway: 100, color: "#c060e0" },
+  /** 霜砕き: 冷気・凍結のプレイヤーにだけ出す砕きの衝撃波 */
+  frostCrusher: { ringRadius: 55, damage: 30, color: "#8fd0ff" },
+  /** 双子の影: 片方が倒れてから蘇るまでの猶予と、蘇ったときの HP 割合 */
+  twinShade: { reviveTime: 3, reviveHpRatio: 0.6, color: "#b090ff" },
+  /** 喰らう宝箱: 舌の薙ぎ払い（短いレーザー）と噛みつきの突進倍率 */
+  mimic: { tongueLength: 90, tongueDamage: 16, biteSpeedMul: 5, color: "#e04848" },
+  /** 鎧の中身: 叩きつけの衝撃波と、鎧が割れたときの怯み */
+  hollowArmor: { ringRadius: 60, damage: 22, breakStagger: 2, color: "#c8c8d0" },
 } as const;
 
 /**
@@ -483,6 +855,34 @@ export const ELITE = {
   linkColor: "#ff80ff",
   /** 足元オーラの不透明度 */
   auraAlpha: 0.45,
+  // ---- 以下 2026-09-24 追加の修飾子（docs/ideas/enemies.md 4 章） ----
+  /** 残響の: 攻撃の後、この予備動作でもう一度同じ攻撃を繰り返す */
+  echoWindup: 0.8,
+  /** 堅牢の: 怯み耐性の追加倍率（eliteMul に掛ける）、怯みの延長倍率、怯んだときの脆弱の秒 */
+  bulwarkPoiseMul: 2,
+  bulwarkStaggerMul: 2,
+  bulwarkVulnerableTime: 3,
+  /** 報復の: 怯んでから衝撃波を返すまでの秒と、衝撃波の半径・威力 */
+  retaliateDelay: 0.4,
+  retaliateRadius: 56,
+  retaliateDamage: 14,
+  /** 分光の: 受けた状態異常への免疫の秒 */
+  prismaticImmune: 5,
+  /** 刻限の: 時計の秒と、切れた後の怯み耐性の倍率（速さは迅速と同じ） */
+  timedClock: 12,
+  timedPoiseMul: 2,
+  /** 寄生の: 倒れたときに出る蝙蝠の数と HP */
+  parasiteCount: 4,
+  parasiteHp: 3,
+  /** 不動の: 移動の倍率 */
+  anchoredSpeedMul: 0.7,
+  /** 貪食の: 死骸を吸う距離と、1 体で回復する最大 HP の割合 */
+  devourRange: 48,
+  devourHeal: 0.25,
+  /** 群長の: 連れて湧く小型の数と HP の割合 */
+  packedCount: 2,
+  packedHpRatio: 0.5,
+  packedOffset: 16,
 } as const;
 
 /** ボス */
@@ -520,6 +920,50 @@ export const BOSS = {
     teleportRatio: 0.3,
     teleportInterval: 1.8,
     color: "#c0ffb0",
+  },
+  /** 双子の騎士（兄 = 剣と盾 / 妹 = 弓）。相方が倒れると形見を拾って両方の技を使う */
+  twinKnights: {
+    /** 兄の突進（def.speed に掛ける） */
+    lungeSpeedMul: 6,
+    /** 妹の矢 */
+    arrowSpeed: 160,
+    arrowDamage: 10,
+    arrowCount: 3,
+    arrowSpreadDeg: 24,
+    /** 第 3 段階の矢の数 */
+    rageArrowCount: 5,
+    /** 妹の保ちたい距離 */
+    keepAway: 120,
+    /** 相方を失った後の予備動作の倍率（形見の技は溜めが長い） */
+    bereavedWindupMul: 1.2,
+    /** この HP 割合を切ると第 3 段階（激昂） */
+    rageRatio: 0.35,
+    /** 第 3 段階の攻撃間隔の倍率 */
+    rageIntervalMul: 0.7,
+    color: "#e0e0ff",
+  },
+  /** 霜の巨人: 叩きつけ → つらら → 氷の鎧 */
+  frostGiant: {
+    slamRadius: 80,
+    slamDamage: 22,
+    /** 叩きつけの真下の判定（半径に対する割合） */
+    slamCoreRatio: 0.35,
+    /** 第 2 段階へ（つららを混ぜる） */
+    phase2Ratio: 0.6,
+    /** 第 3 段階へ（氷の鎧と氷柱） */
+    phase3Ratio: 0.25,
+    icicleCount: 6,
+    icicleRadius: 18,
+    icicleDamage: 14,
+    /** 予告の影が出てから落ちるまで */
+    icicleFall: 1.1,
+    /** プレイヤーの周りに落とす範囲 */
+    icicleSpread: 70,
+    pillarCount: 4,
+    pillarDistance: 64,
+    /** 氷柱を全部割ったときのダウン */
+    armorBreakDown: 3,
+    color: "#8fd0ff",
   },
 } as const;
 
@@ -804,4 +1248,164 @@ export const BOON = {
   hollowVesselCostMul: 0.65,
   hollowVesselMaxManaMul: 0.6,
   hollowVesselAttackManaMul: 0.5,
+  // ---- 祝福の拡張（docs/ideas/boons-expansion.md。system/boonRules.ts） ----
+  /** 呪いを受けて 4 択にしたときの枚数 */
+  choiceCountWithCurse: 4,
+  /** 取得済み祝福の「出す」タグ 1 つ一致ごとの重み加算（装備タグ tagBonus の半分） */
+  givesTagBonus: 0.75,
+  /** 系譜の前段を持つときの次段 / 結びの重み倍率 */
+  lineageWeightMul: 2,
+  duoWeightMul: 3,
+  /** 祝福が付ける燃焼の dps / 感電の強さ（近接 1 段目に対する割合。装備の値が大きければそちら） */
+  emberDpsRatio: 0.4,
+  shockPotencyRatio: 0.5,
+  /** 延焼: 燃焼を移す半径と、移す間隔の下限（秒） */
+  wildfireRadius: 32,
+  wildfireIcd: 0.3,
+  /** 灰積もり: 灰の寿命・同時に残る数・拾う半径・溜められる回数・燃焼の倍率・粒子の間隔（tick） */
+  ashLife: 8,
+  ashMax: 6,
+  ashPickupRadius: 10,
+  ashMaxCharges: 3,
+  ashBurnMul: 2,
+  ashFxEvery: 12,
+  ashColor: "#a09080",
+  /** 焦土: 起爆する半径と、残りの燃焼ダメージに掛ける倍率 */
+  scorchRadius: 160,
+  scorchMul: 1.5,
+  /** 霜息: 射撃で付ける冷気の遅さ（装備の値が大きければそちら） */
+  frostBreathSlow: 0.12,
+  /** 凍て足: この冷気のスタック以上で予備動作に掛ける倍率 */
+  frostFeetStacks: 3,
+  frostFeetMul: 1.4,
+  /** 砕氷の鐘: 連鎖して砕く半径と、砕く一撃（近接 1 段目に対する割合） */
+  bellRadius: 40,
+  bellRatio: 0.5,
+  /** 永冬: ジャスト回避で凍結させる半径 */
+  winterRadius: 64,
+  /** 抜き胴 / 静電気: すり抜け判定の余白・威力（近接 1 段目に対する割合）・怯み値 */
+  passCutReach: 4,
+  passCutRatio: 0.6,
+  passCutPoise: 10,
+  chargedBladeIcd: 0.3,
+  /** 落雷予告: 予告の秒数・半径・威力（近接 1 段目に対する割合）・怯み値・同時の上限・稲妻の長さ */
+  markDelay: 1,
+  markRadius: 20,
+  markRatio: 1.2,
+  markPoise: 15,
+  markMax: 8,
+  markBoltHeight: 60,
+  /** 雷神の鼓: コンボの区切り・起点を探す半径・起点の上限 */
+  drumEvery: 10,
+  drumRadius: 200,
+  drumMaxSources: 6,
+  /** 月読: 沈黙の秒数 */
+  moonReadSilence: 0.5,
+  /** 満ち潮: マナ満タン中の通常攻撃 1 命中で溜まる必殺ゲージ */
+  highTideEnergy: 3,
+  /** 新月 / 月蝕 / 明鏡: 払ったマナが戻る窓（秒）。月蝕の成立に必要な装着数 */
+  newMoonWindow: 2,
+  eclipseWindow: 2,
+  eclipseMinSlots: 2,
+  mirrorWindow: 1.5,
+  /** 奪弾: 奪う半径・威力倍率・最低速度・最低寿命・色 */
+  stealRadius: 48,
+  stealDamageMul: 1.5,
+  stealMinSpeed: 180,
+  stealMinLife: 0.6,
+  stealColor: "#ffe080",
+  /** 口封じ / 睨み / 威圧 / 狩り立て / 神経断ち / 傷の記憶: 付ける状態異常の秒数（威圧は半径も） */
+  silenceShotTime: 1.5,
+  glareTime: 4,
+  intimidateRadius: 48,
+  intimidateTime: 0.8,
+  huntFearTime: 0.6,
+  nerveCutTime: 3,
+  woundTime: 4,
+  /** 死神遊び: ジャスト回避で死神が止まる秒数 */
+  reaperStunTime: 3,
+  /** 起き上がり狙い: 怯みが解けてからカウンターになる秒数 */
+  wakeupWindow: 0.4,
+  /** 属性の轍: 帯を置く間隔・寿命・半径・同じ敵への付与間隔・点の上限・既定の燃焼 dps / 冷気の遅さ */
+  trailDropInterval: 0.05,
+  trailLife: 0.8,
+  trailRadius: 8,
+  trailIcd: 0.3,
+  trailMaxPoints: 40,
+  trailBurnDps: 4,
+  trailChillSlow: 0.12,
+  /** 呼び戻し: 連発の下限（秒）と戻る弾の最低速度 */
+  recallIcd: 0.5,
+  recallMinSpeed: 200,
+  /** 両輪: 次のマナのスキルのコスト倍率 / クールダウンの短縮（秒） */
+  twinCostMul: 0.5,
+  twinCdCut: 1,
+  /** 氷伝い: 冷気の敵を経由したときに延びる連鎖の回数 */
+  iceRelayJumps: 2,
+  /** 片翼: 3 段目で出す弾の最低数と扇の間隔（度） */
+  oneWingMinShots: 3,
+  oneWingSpreadDeg: 12,
+  oneWingColor: "#ffd0a0",
+  /** 跳弾 / 炸裂弾頭 / 狙い目 */
+  ricochetDamageMul: 1.3,
+  warheadRadius: 20,
+  warheadRatio: 0.5,
+  weakSpotPierce: 2,
+  /** 燠火: 燃焼の残り時間の延長（秒） */
+  embersExtend: 1,
+  /** 裂傷: 消費に必要な出血のスタックと、1 スタックあたり何回ぶんの出血ダメージを即時に与えるか */
+  lacerationStacks: 3,
+  lacerationUnits: 10,
+  /** 綻び広げ: 脆弱を移す先を探す半径 */
+  frayRange: 120,
+  /** 静寂の間: 沈黙中の敵を探す半径とコスト倍率 */
+  quietHallRadius: 200,
+  quietHallCostMul: 0.7,
+  keenEyeMana: 8,
+  /** 崩し連鎖: 同じ部屋の敵の怯み耐性に対して足す割合 */
+  collapseRatio: 0.2,
+  /** 立て直し狩り: 必殺ゲージの最大値に対して足す割合 */
+  regroupEnergyRatio: 0.3,
+  edgeStrikeWindow: 0.3,
+  edgeStrikePoiseMul: 2,
+  cashOutManaPerCombo: 2,
+  reaperShadowMana: 10,
+  reaperShadowEnergy: 10,
+  stallTimeDelay: 10,
+  deathRushMaxHpMul: 0.5,
+  deathRushInvuln: 0.5,
+  burdenMoveMul: 0.75,
+  burdenPoiseMul: 2,
+  /** 業の火: 燃焼 dps の倍率・自分が燃える半径・間隔・燃焼の秒数と dps */
+  karmaBurnMul: 2,
+  karmaRadius: 32,
+  karmaIcd: 1,
+  karmaBurnTime: 2,
+  karmaBurnDps: 2,
+  afterglowWindow: 0.6,
+  afterglowManaMul: 2,
+  usurpPoiseMul: 2,
+  /** 綱渡り: 被弾時の追加ダメージ = コンボ数 / この値 */
+  tightropeComboDiv: 5,
+  /** 飛燕: 空振りの斬撃波の威力（近接 1 段目に対する割合） */
+  swallowFlightRatio: 0.4,
+  chantReturnManaMul: 3,
+  /** 満月撃ち: 満タンで撃ってから命中を数える秒数 */
+  fullMoonWindow: 1,
+  /** 燕返し: 斬り渡る上限・届く距離・威力（近接 1 段目に対する割合）・怯み値 */
+  swallowMaxTargets: 5,
+  swallowRange: 120,
+  swallowRatio: 1,
+  swallowPoise: 15,
+  thunderBlastStacks: 2,
+  /** 総崩れ: 脆弱が伝わる半径 */
+  collapseSpreadRadius: 40,
+  hollowBladeMul: 2,
+  winterNestMul: 1.2,
+  /** 臨界: バースト後に過充填の爆発が続く秒数 */
+  criticalWindow: 3,
+  /** 瞬停: ダッシュの残りがこの秒数以下なら静止扱い */
+  stillDashWindow: 0.2,
+  /** 浮き文字 */
+  ruleTextColor: "#ffd75f",
 } as const;

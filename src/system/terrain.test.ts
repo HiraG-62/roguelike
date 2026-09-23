@@ -1,0 +1,265 @@
+import { describe, expect, it } from "vitest";
+import { createRng } from "../core/rng";
+import type { GameState } from "../core/state";
+import { TERRAIN_KINDS, terrainCode } from "../core/terrain";
+import { STATUS, TERRAIN } from "../data/tuning";
+import { TILE_SIZE, Tile, getTile } from "../map/grid";
+import { generateRoomsAndCorridors, DEFAULT_GENERATOR_OPTIONS, planTerrain } from "../map/generator";
+import { descend } from "./floor";
+import { applyBurn, findStatus, hasStatus, statusStacks } from "./statusEffects";
+import { ensureTerrainLayer, igniteTerrainAt, placeTerrain, terrainAt, terrainSlide, updateTerrain } from "./terrain";
+import { arena, placeEnemy } from "./testHelpers";
+
+/** 地形の層（docs/ideas/status-and-terrain.md 3 章） */
+
+const BIG_HP = 100000;
+
+/** 地形の効果が 1 回入るまで進める（周期 TERRAIN.tickInterval） */
+function tickOnce(state: GameState): void {
+  updateTerrain(state, TERRAIN.tickInterval);
+}
+
+/** 自然配置を済ませてから、テスト用に地形を全部消す（決まった場所だけで確かめる） */
+function cleanLayer(state: GameState): void {
+  updateTerrain(state, 0);
+  const layer = ensureTerrainLayer(state);
+  layer.kinds.fill(0);
+  layer.time.fill(0);
+  layer.active.clear();
+  layer.tickTimer = 0;
+}
+
+function playerPos(state: GameState): { x: number; y: number } {
+  return state.player.body.pos;
+}
+
+describe("地形の配置（planTerrain）", () => {
+  it("同じ rng なら同じ配置になり、床タイルの上にだけ置かれ、除外した部屋には置かない", () => {
+    const map = generateRoomsAndCorridors(createRng(3), DEFAULT_GENERATOR_OPTIONS);
+    const skip = new Set([0, map.rooms.length - 1]);
+    const a = planTerrain(createRng(9), map, 6, skip);
+    const b = planTerrain(createRng(9), map, 6, skip);
+    expect([...a]).toEqual([...b]);
+    expect(a.some((k) => k !== 0), "深度 6 なら何か置かれる").toBe(true);
+    a.forEach((code, i) => {
+      if (code === 0) return;
+      const x = i % map.width;
+      const y = Math.floor(i / map.width);
+      expect(getTile(map, x, y), `(${x}, ${y}) は床`).toBe(Tile.Floor);
+      for (const r of [0, map.rooms.length - 1]) {
+        const room = map.rooms[r];
+        if (!room) continue;
+        const inside = x >= room.x && y >= room.y && x < room.x + room.w && y < room.y + room.h;
+        expect(inside, `除外した部屋 ${r} には置かない`).toBe(false);
+      }
+    });
+  });
+
+  it("溶岩は minDepth より浅い階には出ない", () => {
+    const map = generateRoomsAndCorridors(createRng(3), DEFAULT_GENERATOR_OPTIONS);
+    const lava = terrainCode("lava");
+    for (let seed = 0; seed < 30; seed++) {
+      const kinds = planTerrain(createRng(seed), map, TERRAIN.gen.minDepth.lava - 1, new Set([0]));
+      expect(kinds.includes(lava), `seed ${seed}`).toBe(false);
+    }
+  });
+
+  it("updateTerrain はフロアごとに 1 回だけ自然配置し、階を降りると層を作り直す", () => {
+    const state = arena();
+    updateTerrain(state, 0);
+    const layer = ensureTerrainLayer(state);
+    expect(layer.map).toBe(state.map);
+    expect(layer.planned).toBe(true);
+    const before = [...layer.kinds];
+    updateTerrain(state, 0);
+    expect([...layer.kinds], "2 回目は置き直さない").toEqual(before);
+    descend(state);
+    expect(terrainAt(state, playerPos(state).x, playerPos(state).y), "新しい階では層が古い").toBe("none");
+    updateTerrain(state, 0);
+    expect(state.terrain.map).toBe(state.map);
+    expect(state.terrain.kinds.length).toBe(state.map.width * state.map.height);
+  });
+
+  it("開始部屋には自然配置の地形が無い", () => {
+    const state = arena();
+    state.depth = 8;
+    state.terrain.map = null;
+    updateTerrain(state, 0);
+    const start = state.map.rooms[0];
+    if (!start) throw new Error("開始部屋が無い");
+    for (let y = start.y; y < start.y + start.h; y++) {
+      for (let x = start.x; x < start.x + start.w; x++) {
+        expect(terrainAt(state, (x + 0.5) * TILE_SIZE, (y + 0.5) * TILE_SIZE)).toBe("none");
+      }
+    }
+  });
+});
+
+describe("置く・時間で消える・燃え広がる", () => {
+  it("placeTerrain は半径内の床に置き、持続が切れると消える", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    const placed = placeTerrain(state, p.x, p.y, "water", TILE_SIZE, 1);
+    expect(placed).toBeGreaterThan(1);
+    expect(terrainAt(state, p.x, p.y)).toBe("water");
+    updateTerrain(state, 1.01);
+    expect(terrainAt(state, p.x, p.y)).toBe("none");
+  });
+
+  it("持続 0 の地形は消えない", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "grass", 0, 0);
+    updateTerrain(state, 30);
+    expect(terrainAt(state, p.x, p.y)).toBe("grass");
+  });
+
+  it("油に火がつくと隣の油へ燃え移り、燃え尽きると何も残らない", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    const far = { x: p.x + TILE_SIZE * 3, y: p.y };
+    placeTerrain(state, p.x, p.y, "oil", TILE_SIZE * 4, 0);
+    igniteTerrainAt(state, p.x, p.y, 0);
+    expect(terrainAt(state, p.x, p.y)).toBe("fire");
+    expect(terrainAt(state, far.x, far.y), "まだ燃え移っていない").toBe("oil");
+    for (let i = 0; i < 10; i++) updateTerrain(state, TERRAIN.fire.spreadOil);
+    expect(terrainAt(state, far.x, far.y), "3 マス先まで燃え移る").toBe("fire");
+    updateTerrain(state, TERRAIN.fire.oilBurnTime + 1);
+    expect(terrainAt(state, p.x, p.y), "燃え尽きた").toBe("none");
+  });
+
+  it("炎は氷を溶かして水たまりにし、水の上には置けない。溶岩の上には何も置けない", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "ice", 0);
+    placeTerrain(state, p.x, p.y, "fire", 0);
+    expect(terrainAt(state, p.x, p.y)).toBe("water");
+    expect(placeTerrain(state, p.x, p.y, "fire", 0)).toBe(0);
+    placeTerrain(state, p.x, p.y, "lava", 0, 0);
+    expect(placeTerrain(state, p.x, p.y, "water", 0)).toBe(0);
+    expect(terrainAt(state, p.x, p.y)).toBe("lava");
+  });
+
+  it("燃えている者が草の上に立つと草に火がつく", () => {
+    const state = arena();
+    cleanLayer(state);
+    const e = placeEnemy(state, "golem", 40);
+    e.hp = BIG_HP;
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "grass", 0, 0);
+    applyBurn(state, e, 3, 3);
+    expect(terrainAt(state, e.body.pos.x, e.body.pos.y)).toBe("fire");
+  });
+});
+
+describe("上に立つ者への効果（プレイヤーと敵の両方）", () => {
+  it("水たまり: 濡れ。冷えている者が立つと氷床になる", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "water", 0, 0);
+    tickOnce(state);
+    expect(statusStacks(state.player.status, "wet")).toBe(TERRAIN.water.wetStacks);
+    state.player.status.effects = [];
+    state.player.status.effects.push({ kind: "chill", stacks: 1, time: 2, maxTime: 2, potency: 0, source: "enemy", acc: 0, tick: 0 });
+    tickOnce(state);
+    expect(terrainAt(state, p.x, p.y)).toBe("ice");
+  });
+
+  it("油: 油膜。毒沼: 毒と、数回に 1 回の腐食", () => {
+    const state = arena();
+    cleanLayer(state);
+    const oil = placeEnemy(state, "golem", 40);
+    const bog = placeEnemy(state, "golem", 40, 40);
+    for (const e of [oil, bog]) e.hp = BIG_HP;
+    placeTerrain(state, oil.body.pos.x, oil.body.pos.y, "oil", 0, 0);
+    placeTerrain(state, bog.body.pos.x, bog.body.pos.y, "bog", 0, 0);
+    for (let i = 0; i < TERRAIN.bog.corrodeEvery; i++) tickOnce(state);
+    expect(hasStatus(oil.status, "oiled")).toBe(true);
+    expect(hasStatus(bog.status, "poison")).toBe(true);
+    expect(hasStatus(bog.status, "corrode")).toBe(true);
+  });
+
+  it("溶岩: 燃焼と小ダメージ。プレイヤーはダッシュ中なら無傷", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "lava", 0, 0);
+    state.player.dashTimer = 0.1;
+    const hp = state.player.hp;
+    tickOnce(state);
+    expect(state.player.hp).toBe(hp);
+    state.player.dashTimer = 0;
+    tickOnce(state);
+    expect(hp - state.player.hp).toBe(TERRAIN.lava.damage);
+    expect(findStatus(state.player.status, "burn")?.potency).toBe(TERRAIN.lava.burnDps);
+  });
+
+  it("溶岩は敵にも効き、押し込めば削れる", () => {
+    const state = arena();
+    cleanLayer(state);
+    const e = placeEnemy(state, "golem", 40);
+    e.hp = BIG_HP;
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "lava", 0, 0);
+    tickOnce(state);
+    expect(BIG_HP - e.hp).toBe(TERRAIN.lava.enemyDamage);
+    expect(hasStatus(e.status, "burn")).toBe(true);
+  });
+
+  it("氷床: 数回に 1 回冷気。入力にすぐ追従せず滑る（氷床の外ではそのまま）", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "ice", 0, 0);
+    for (let i = 0; i < TERRAIN.ice.chillEvery; i++) tickOnce(state);
+    expect(statusStacks(state.player.status, "chill")).toBe(1);
+    const slid = terrainSlide(state, p, { x: 100, y: 0 }, { x: -100, y: 0 }, 1 / 60);
+    expect(slid.x, "前の速度が残る").toBeGreaterThan(0);
+    const dry = terrainSlide(state, { x: p.x + TILE_SIZE * 4, y: p.y }, { x: 100, y: 0 }, { x: -100, y: 0 }, 1 / 60);
+    expect(dry.x).toBe(-100);
+  });
+
+  it("炎の上では燃焼", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "fire", 0, 5);
+    tickOnce(state);
+    expect(findStatus(state.player.status, "burn")?.potency).toBe(TERRAIN.fire.burnDps);
+  });
+
+  it("濡れた者は炎の上でも燃えない（蒸気）", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    state.player.status.effects.push({ kind: "wet", stacks: 2, time: STATUS.wet.duration, maxTime: STATUS.wet.duration, potency: 0, source: "env", acc: 0, tick: 0 });
+    placeTerrain(state, p.x, p.y, "fire", 0, 5);
+    tickOnce(state);
+    expect(hasStatus(state.player.status, "burn")).toBe(false);
+    expect(statusStacks(state.player.status, "wet")).toBe(1);
+  });
+});
+
+describe("決定性", () => {
+  it("同じ seed なら自然配置も燃え広がりも同じ", () => {
+    function run(): string {
+      const state = arena(21);
+      state.depth = 7;
+      state.terrain.map = null;
+      updateTerrain(state, 0);
+      const p = playerPos(state);
+      placeTerrain(state, p.x, p.y, "oil", TILE_SIZE * 2, 0);
+      igniteTerrainAt(state, p.x, p.y, 0);
+      for (let i = 0; i < 120; i++) updateTerrain(state, 1 / 60);
+      return [...state.terrain.kinds].join("");
+    }
+    expect(run()).toBe(run());
+  });
+
+  it("地形の種類の一覧は none から始まる（0 = 地形なし）", () => {
+    expect(TERRAIN_KINDS[0]).toBe("none");
+  });
+});

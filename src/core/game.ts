@@ -17,6 +17,8 @@ import { type Profile, createEmptyProfile, uniformAttributes } from "../loot/typ
 import { computeStats } from "../loot/stats";
 import { findPendingBud } from "../loot/provenance";
 import { updateStatusEffects } from "../system/statusEffects";
+import { updateTerrain } from "../system/terrain";
+import { createTerrainLayer } from "./terrain";
 import { updateHazards } from "../system/hazards";
 import { updateReaper } from "../system/reaper";
 import { createSkillRunState } from "../system/skills";
@@ -72,6 +74,8 @@ export function createGame(
     runRecorded: false,
     skills: createSkillRunState(skillProfile),
     hazards: [],
+    terrain: createTerrainLayer(),
+    corpses: [],
     boss: null,
     floorTime: 0,
     reaper: null,
@@ -125,6 +129,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   updatePlayer(state, input, gdt);
   updateBoons(state, gdt);
   updateStatusEffects(state, gdt);
+  updateTerrain(state, gdt);
   updateEnemies(state, gdt);
   updateProjectiles(state, gdt);
   updateHazards(state, gdt);

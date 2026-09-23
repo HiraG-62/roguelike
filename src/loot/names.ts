@@ -67,6 +67,11 @@ export const ENGRAVING_SCALE = {
   bosses: 2,
   floorsCleared: 20,
   roomsCleared: 60,
+  staggers: 200,
+  counters: 60,
+  skillCasts: 600,
+  eliteKills: 20,
+  lastKills: 40,
 } as const;
 
 /** 来歴が 1 つも無いときの銘（seed で選ぶ） */
@@ -96,6 +101,11 @@ function engravingParts(provenance: Provenance): EngravingPart[] {
     { head: "王殺しの", tail: "王殺し", score: provenance.bosses / ENGRAVING_SCALE.bosses },
     { head: "深淵を歩いた", tail: "深潜り", score: provenance.floorsCleared / ENGRAVING_SCALE.floorsCleared },
     { head: "封鎖を破る", tail: "破城", score: provenance.roomsCleared / ENGRAVING_SCALE.roomsCleared },
+    { head: "崩しの", tail: "崩し", score: provenance.staggers / ENGRAVING_SCALE.staggers },
+    { head: "先読みの", tail: "先読み", score: provenance.counters / ENGRAVING_SCALE.counters },
+    { head: "詠み手の", tail: "詠み手", score: provenance.skillCasts / ENGRAVING_SCALE.skillCasts },
+    { head: "剥ぎ取りの", tail: "剥ぎ取り", score: provenance.eliteKills / ENGRAVING_SCALE.eliteKills },
+    { head: "幕引きの", tail: "幕引き", score: provenance.lastKills / ENGRAVING_SCALE.lastKills },
   );
   return parts.filter((p) => p.score > 0).sort((a, b) => b.score - a.score);
 }

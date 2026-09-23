@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PALETTE, SPRITES } from "../data/sprites";
-import { ENEMIES } from "../data/enemies";
-import { type Sprite, spriteFrame } from "./sprites";
+import { ENEMIES, spriteBaseKey } from "../data/enemies";
+import { type Sprite, recolorFrames, spriteFrame, spriteSources } from "./sprites";
 
 const TRANSPARENT = ".";
 const TILE = 16;
@@ -95,8 +95,9 @@ describe("SPRITES", () => {
     expect(SPRITES.fountain?.[0]?.[0]?.length).toBe(TILE);
   });
 
-  it("全ての敵定義のスプライトが存在する", () => {
-    for (const def of ENEMIES) expect(SPRITES[def.sprite], def.sprite).toBeDefined();
+  it("全ての敵定義のスプライトが存在する（再配色種はアトラスの元で作られる）", () => {
+    const sources = spriteSources();
+    for (const def of ENEMIES) expect(sources[def.sprite], def.sprite).toBeDefined();
   });
 
   it("タイル系は透明ピクセルを持たない", () => {
@@ -136,5 +137,67 @@ describe("spriteFrame", () => {
 
   it("負の時間でも範囲内", () => {
     expect(spriteFrame(fake(3), -0.1, 0.1)).toBe(2);
+  });
+});
+
+describe("再配色種（EnemyDef.recolor）", () => {
+  const recolored = ENEMIES.filter((d) => d.recolor);
+
+  it("再配色種は 8 種以上ある", () => {
+    expect(recolored.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("recolorFrames はパレット文字だけを差し替え、寸法と透明を保つ", () => {
+    const frames = [[".gG.", "hg.k"]];
+    expect(recolorFrames(frames, { g: "p", G: "P" })).toEqual([[".pP.", "hp.k"]]);
+  });
+
+  it.each(recolored.map((d) => [d.key, d] as const))("%s: 元の絵があり、差し替え先がパレットにあり、元の絵と違う", (_key, def) => {
+    const r = def.recolor;
+    if (!r) throw new Error("no recolor");
+    const base = SPRITES[r.base];
+    expect(base, r.base).toBeDefined();
+    for (const [from, to] of Object.entries(r.swap)) {
+      expect(from in PALETTE, `差し替え元 ${from}`).toBe(true);
+      expect(to in PALETTE, `差し替え先 ${to}`).toBe(true);
+    }
+    const made = spriteSources()[def.sprite];
+    expect(made?.length).toBe(base?.length);
+    expect(made?.[0]?.length).toBe(base?.[0]?.length);
+    expect(made, "色が変わっている").not.toEqual(base);
+    // 見た目の元（浮遊・影の扱い）は元の敵に揃う
+    expect(spriteBaseKey(def)).toBe(r.base);
+  });
+
+  it("再配色種の sprite は元の絵のキーと衝突しない", () => {
+    for (const def of recolored) expect(SPRITES[def.sprite], def.sprite).toBeUndefined();
+  });
+});
+
+describe("量産した敵のスプライト寸法", () => {
+  const SIZE: Readonly<Record<string, number>> = {
+    rat: 16,
+    wolf: 16,
+    skeleton: 16,
+    beetle: 16,
+    mite: 16,
+    hooded: 16,
+    leech: 16,
+    ghoul: 16,
+    bell: 16,
+    shade: 16,
+    icePillar: 16,
+    mimic: 24,
+    hollowArmor: 24,
+    twinBrother: 32,
+    twinSister: 32,
+    frostGiant: 32,
+  };
+
+  it.each(Object.entries(SIZE))("%s は %i px 四方で 4 フレーム", (key, size) => {
+    const frames = SPRITES[key];
+    expect(frames?.length).toBe(4);
+    expect(frames?.[0]?.length).toBe(size);
+    expect(frames?.[0]?.[0]?.length).toBe(size);
   });
 });

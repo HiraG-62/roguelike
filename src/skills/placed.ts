@@ -3,7 +3,9 @@ import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from ".
 import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEffects";
 import { shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
+import { STATUS } from "../data/tuning";
 import { SKILL } from "./data";
+import { COMBO_TUNING } from "./tuning";
 import { skillHit, skillPower } from "./hit";
 import type { CastParams } from "./types";
 
@@ -73,6 +75,29 @@ export function playerInFrost(state: GameState): boolean {
 // 設置
 // ---------------------------------------------------------------------------
 
+/** 連携「渦雷」（引力球 → 雷撃）: 感電を 1 つ多く付ける */
+const WELL_THUNDER_APPLIES = [
+  {
+    kind: "shock",
+    stacks: SKILL.thunder.shockStacks + COMBO_TUNING.wellThunder.shockBonus,
+    duration: STATUS.shock.duration,
+    potency: SKILL.thunder.shockPotency,
+  },
+] as const;
+
+/**
+ * 連携「渦雷」: 雷の落下点を最寄りの引力球の中心へ吸い寄せ、半径を球の大きさまで広げる。
+ * 成立していなければ照準地点と params をそのまま返す
+ */
+export function wellThunderTarget(state: GameState, target: Vec, params: CastParams): { target: Vec; params: CastParams } {
+  if (params.combo !== "wellThunder") return { target, params };
+  let best = state.skills.wells[0];
+  for (const w of state.skills.wells) if (best && dist(w.pos, target) < dist(best.pos, target)) best = w;
+  if (!best) return { target, params };
+  const areaMul = Math.max(params.areaMul, wellRadius(best.params) / SKILL.thunder.radius);
+  return { target: { ...best.pos }, params: { ...params, areaMul, countBonus: 0 } };
+}
+
 /** 雷撃: 中心に 1 本、回数ぶん周囲へ時間差で追加 */
 export function placeStrikes(state: GameState, target: Vec, params: CastParams): void {
   const t = SKILL.thunder;
@@ -92,10 +117,15 @@ export function spawnWell(state: GameState, target: Vec, params: CastParams): vo
   spawnRing(state, target, wellRadius(params), COLOR_WELL, RING_LIFE);
 }
 
-/** 地雷: 上限を超えたら古いものから不発で消える */
+/** 地雷: 上限を超えたら古いものから不発で消える。投げ込み（型替え）は着いた瞬間に爆発する */
 export function placeMine(state: GameState, pos: Vec, params: CastParams): void {
+  if (params.reshape === "toLobbed") {
+    explodeMine(state, pos, params);
+    return;
+  }
   const rs = state.skills;
-  rs.mines.push({ id: allocId(state), pos: { ...pos }, arm: SKILL.mines.arm, life: SKILL.mines.life, params });
+  // 起動の遅れは速度（timeMul）、残る時間は延長（durationMul）で変わる
+  rs.mines.push({ id: allocId(state), pos: { ...pos }, arm: SKILL.mines.arm * params.timeMul, life: SKILL.mines.life * params.durationMul, params });
   const limit = maxMines(params);
   while (rs.mines.length > limit) {
     const old = rs.mines.shift();
@@ -153,10 +183,11 @@ function strike(state: GameState, pos: Vec, params: CastParams): void {
   shake(state, SHAKE_PLACED);
   pushSfx(state, "shock");
   const power = skillPower(state, t.damage, params);
+  const applies = params.combo === "wellThunder" ? WELL_THUNDER_APPLIES : undefined;
   let first: number | null = null;
   for (const e of enemiesInRadius(state, pos, radius)) {
     first ??= e.id;
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: 0, stagger: true });
+    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: 0, stagger: true, applies, from: pos });
   }
   if (first !== null) chainLightning(state, pos, power * t.shockMul, first);
 }

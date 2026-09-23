@@ -14,16 +14,31 @@ import {
   thunderRadius,
   wellRadius,
 } from "../skills/placed";
-import type { ActiveCast, Ghost, Grenade } from "../skills/types";
+import { meteorRadius, stompRadius } from "../skills/actions";
+import { COMBO_TUNING } from "../skills/tuning";
+import {
+  COLOR_BONE,
+  COLOR_GRAVE,
+  COLOR_KEG,
+  COLOR_SPRING,
+  COLOR_TURRET,
+  bonePositions,
+  graveRadius,
+  kegRadius,
+  springRadius,
+} from "../skills/summons";
+import type { ActiveCast, EchoCast, Ghost, Grenade } from "../skills/types";
 import {
   type ResolvedSlot,
   beamEnd,
   chargeRatio,
+  chargeStageMarks,
   grenadeRadius,
   hookRange,
   quakeRadius,
   remoteAnchor,
   resolveSlot,
+  slotComboReady,
   slotModifierView,
 } from "../system/skills";
 import { TEXT, drawText, drawTextShadow } from "./pixelText";
@@ -112,6 +127,32 @@ const HASTE_SPIN = 12;
 const COLOR_CHARGE = MODIFIERS.charge.color;
 const CHARGE_BAR_H = 2;
 const CHARGE_BAR_BG = "rgba(0,0,0,0.6)";
+const COLOR_STAGE_MARK = "#000000";
+
+// ---- 大拡張の描画 ----
+const COLOR_COMBO = COMBO_TUNING.color;
+/** 連携可の印: 枠の左上の小さな菱形（点滅） */
+const COMBO_MARK_SIZE = 2;
+const COMBO_MARK_BLINK = 12;
+const COLOR_THROWN = MODIFIERS.toThrown.color;
+const THROWN_ARC_H = 14;
+const THROWN_SIZE = 2;
+const SHOT_SIZE = 2;
+const KEG_W = 5;
+const KEG_H = 6;
+const KEG_BAND = 1;
+const KEG_RANGE_ALPHA = 0.15;
+const GRAVE_H = 9;
+const GRAVE_GUARD = 3;
+const GRAVE_RANGE_ALPHA = 0.18;
+const TURRET_SIZE = 3;
+const TURRET_BARREL = 5;
+const BONE_SIZE = 2;
+const COLOR_METEOR = "#ffb060";
+const COLOR_THREAD = "#e0d0b0";
+const COLOR_GUILLOTINE = "#ffffff";
+const COLOR_STOMP = "#d0a060";
+const THREAD_DASH = [2, 2];
 
 export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): void {
   const cam = state.camera;
@@ -122,12 +163,19 @@ export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): v
   drawFloorStones(ctx, state);
   drawRunes(ctx, state);
   drawFields(ctx, state);
+  drawSprings(ctx, state);
   drawWells(ctx, state);
   drawMines(ctx, state);
+  drawKegs(ctx, state);
+  drawGraves(ctx, state);
+  drawTurrets(ctx, state);
   drawStrikes(ctx, state);
   drawDelays(ctx, state);
+  drawThrown(ctx, state);
   drawGrenades(ctx, state);
   drawBullets(ctx, state);
+  drawShots(ctx, state);
+  drawBones(ctx, state);
   drawCurses(ctx, state);
   for (const g of state.skills.ghosts) drawGhost(ctx, state, g);
   drawActive(ctx, state);
@@ -346,6 +394,118 @@ function drawDelays(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
+/** 型替え符「投げ刃」: 発動地点から着弾点へ放物線で飛ぶ刃 */
+function drawThrown(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const e of state.skills.echoes) {
+    if (e.kind !== "thrown") continue;
+    const from = state.player.body.pos;
+    drawThrownBlade(ctx, e, from);
+  }
+}
+
+function drawThrownBlade(ctx: CanvasRenderingContext2D, e: EchoCast, from: { x: number; y: number }): void {
+  const t = e.total > 0 ? 1 - e.timer / e.total : 1;
+  const x = from.x + (e.origin.x - from.x) * t;
+  const y = from.y + (e.origin.y - from.y) * t - Math.sin(t * Math.PI) * THROWN_ARC_H;
+  ctx.fillStyle = COLOR_THROWN;
+  ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, THROWN_SIZE + 1, THROWN_SIZE + 1);
+  ctx.setLineDash(DELAY_DASH);
+  ctx.strokeStyle = COLOR_THROWN;
+  circlePath(ctx, e.origin.x, e.origin.y, DELAY_RADIUS * (1 - t) + 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+/** 大拡張の射撃弾（綻び・跳弾・風切り …）。風切りは大きめの円 */
+function drawShots(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const s of state.skills.shots) {
+    ctx.fillStyle = s.color;
+    if (s.effect === "gale") {
+      ctx.globalAlpha = AIM_ALPHA;
+      circlePath(ctx, s.pos.x, s.pos.y, s.radius);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    ctx.fillRect(Math.round(s.pos.x) - 1, Math.round(s.pos.y) - 1, SHOT_SIZE, SHOT_SIZE);
+  }
+}
+
+/** 爆薬樽: 小さな樽 + 爆発範囲の薄い円 */
+function drawKegs(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const k of state.skills.kegs) {
+    const x = Math.round(k.pos.x);
+    const y = Math.round(k.pos.y);
+    circlePath(ctx, x, y, kegRadius(k.params));
+    ctx.globalAlpha = KEG_RANGE_ALPHA;
+    ctx.strokeStyle = COLOR_KEG;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(x - Math.ceil(KEG_W / 2) - 1, y - KEG_H - 1, KEG_W + 2, KEG_H + 2);
+    ctx.fillStyle = COLOR_KEG;
+    ctx.fillRect(x - Math.ceil(KEG_W / 2), y - KEG_H, KEG_W, KEG_H);
+    ctx.fillStyle = COLOR_WARN;
+    ctx.fillRect(x - Math.ceil(KEG_W / 2), y - Math.ceil(KEG_H / 2), KEG_W, KEG_BAND);
+  }
+}
+
+/** 剣の墓標: 地面に刺さった剣。回転斬りの瞬間は範囲の円を濃く */
+function drawGraves(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const g of state.skills.graves) {
+    const x = Math.round(g.pos.x);
+    const y = Math.round(g.pos.y);
+    circlePath(ctx, x, y, graveRadius(g.params));
+    ctx.globalAlpha = g.spin > 0 ? ZONE_EDGE_ALPHA : GRAVE_RANGE_ALPHA;
+    ctx.strokeStyle = COLOR_GRAVE;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (g.spin > 0) drawWhirlArcs(ctx, state, x, y, graveRadius(g.params), AIM_ALPHA);
+    ctx.strokeStyle = COLOR_GRAVE;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y - GRAVE_H);
+    ctx.moveTo(x - GRAVE_GUARD, y - GRAVE_H + GRAVE_GUARD);
+    ctx.lineTo(x + GRAVE_GUARD, y - GRAVE_H + GRAVE_GUARD);
+    ctx.stroke();
+  }
+}
+
+/** 砲台: 四角い台座 + 自分の向きへの砲身 */
+function drawTurrets(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const f = state.player.facing;
+  for (const t of state.skills.turrets) {
+    const x = Math.round(t.pos.x);
+    const y = Math.round(t.pos.y);
+    ctx.globalAlpha = ZONE_FADE_MIN + (1 - ZONE_FADE_MIN) * (t.total > 0 ? t.life / t.total : 0);
+    ctx.fillStyle = COLOR_TURRET;
+    ctx.fillRect(x - TURRET_SIZE, y - TURRET_SIZE, TURRET_SIZE * 2, TURRET_SIZE * 2);
+    ctx.strokeStyle = COLOR_TURRET;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + f.x * TURRET_BARREL, y + f.y * TURRET_BARREL);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** 骨片の輪: 自分の周りを回る骨片 */
+function drawBones(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const ring = state.skills.boneRing;
+  if (!ring) return;
+  ctx.fillStyle = COLOR_BONE;
+  for (const b of bonePositions(state, ring)) {
+    ctx.fillRect(Math.round(b.x) - 1, Math.round(b.y) - 1, BONE_SIZE, BONE_SIZE);
+  }
+}
+
+/** 湧き石: 青い円（この中で近接を当てるとマナが多く戻る） */
+function drawSprings(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const s of state.skills.springs) {
+    drawZone(ctx, s.pos.x, s.pos.y, springRadius(s.params), COLOR_SPRING, s.total > 0 ? s.timer / s.total : 0);
+  }
+}
+
 function drawBullets(ctx: CanvasRenderingContext2D, state: GameState): void {
   ctx.fillStyle = COLOR_BULLET;
   for (const b of state.skills.bullets) {
@@ -495,7 +655,55 @@ function drawActiveCast(ctx: CanvasRenderingContext2D, state: GameState, a: Acti
       return;
     case "lunge":
       return;
+    case "meteorDive":
+      // 落下点の予告（敵にも見える）
+      drawZone(ctx, a.target.x, a.target.y, meteorRadius(a.params), COLOR_METEOR, 1 - (a.total > 0 ? a.timer / a.total : 1));
+      return;
+    case "threadReel":
+      if (a.phase !== "main") return;
+      ctx.setLineDash(THREAD_DASH);
+      ctx.strokeStyle = COLOR_THREAD;
+      ctx.beginPath();
+      ctx.moveTo(a.target.x, a.target.y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    case "guillotine":
+      if (a.phase === "main") drawGuillotineAim(ctx, state, x, y, a);
+      return;
+    case "dregsBlade":
+      if (a.phase === "main") drawWhirlArcs(ctx, state, x, y, SKILL.dregsBlade.radius * a.params.areaMul, AIM_ALPHA);
+      return;
+    case "stomp":
+      ctx.strokeStyle = COLOR_STOMP;
+      ctx.globalAlpha = AIM_ALPHA / 2;
+      circlePath(ctx, x, y, stompRadius(a.params));
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    case "comboChain":
+    case "swallowFlip":
+      return;
   }
+}
+
+/** 断頭振りの溜め: 振り下ろす線と、刃先（威力が倍になる所）の印 */
+function drawGuillotineAim(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number, a: ActiveCast): void {
+  const g = SKILL.guillotine;
+  const reach = state.stats.meleeReachMul * a.params.areaMul;
+  const progress = a.total > 0 ? 1 - a.timer / a.total : 1;
+  ctx.globalAlpha = AIM_ALPHA * progress;
+  ctx.strokeStyle = COLOR_GUILLOTINE;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + a.dir.x * g.length * reach, y + a.dir.y * g.length * reach);
+  ctx.stroke();
+  ctx.fillStyle = COLOR_WARN;
+  const sx = x + a.dir.x * g.sweetFrom * reach;
+  const sy = y + a.dir.y * g.sweetFrom * reach;
+  ctx.fillRect(Math.round(sx) - 1, Math.round(sy) - 1, DOT_SIZE, DOT_SIZE);
+  ctx.globalAlpha = 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -529,16 +737,34 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
 
   drawText(ctx, String(index + 1), x + HUD_SIZE / 2, y + HUD_SIZE + KEY_OFFSET_Y, TEXT.SMALL, COLOR_DIM, "center");
 
-  if (r?.def.resource === "mana") drawCost(ctx, r.cost, x, y);
-  if (stone && slot && r?.def.resource === "cooldown") drawCharges(ctx, x, y, slot.chargesLeft);
+  if (r?.resource === "mana") drawCost(ctx, r.cost, x, y);
+  if (stone && slot && r?.resource === "cooldown") drawCharges(ctx, x, y, slot.chargesLeft);
   drawModifierDots(ctx, state, index, x, y);
   drawChargeGauge(ctx, state, index, x, y);
+  drawComboMark(ctx, state, index, x, y);
 }
 
-/** マナ型はマナが足りるか、CD 型はチャージが残っているか */
+/** 連携可: いま撃てばこのスロットが連携で変化するなら、枠の左上に点滅する小さな菱形 */
+function drawComboMark(ctx: CanvasRenderingContext2D, state: GameState, index: number, x: number, y: number): void {
+  if (!slotComboReady(state, index)) return;
+  if (Math.sin(state.time * COMBO_MARK_BLINK) < 0) return;
+  const cx = x + COMBO_MARK_SIZE + 1;
+  const cy = y + COMBO_MARK_SIZE + 1;
+  ctx.fillStyle = COLOR_COMBO;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - COMBO_MARK_SIZE);
+  ctx.lineTo(cx + COMBO_MARK_SIZE, cy);
+  ctx.lineTo(cx, cy + COMBO_MARK_SIZE);
+  ctx.lineTo(cx - COMBO_MARK_SIZE, cy);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** マナ型はマナが足りるか（枯渇の刃は残り少ないときだけ）、CD 型はチャージが残っているか */
 function slotReady(state: GameState, chargesLeft: number, r: ResolvedSlot): boolean {
-  if (r.def.resource === "mana") return state.player.mana >= r.cost;
-  return chargesLeft > 0;
+  if (r.resource !== "mana") return chargesLeft > 0;
+  if (r.def.manaRule === "low") return state.player.mana < state.stats.maxMana * SKILL.dregsBlade.lowRatio;
+  return state.player.mana >= r.cost;
 }
 
 /** マナ型の不足は枠全体を暗く、CD 型は上から暗いマスクが減っていく */
@@ -552,7 +778,7 @@ function drawReadyMask(
 ): void {
   if (ready) return;
   ctx.fillStyle = COLOR_MASK;
-  if (r.def.resource === "mana") {
+  if (r.resource === "mana") {
     ctx.fillRect(x, y, HUD_SIZE, HUD_SIZE);
     return;
   }
@@ -587,6 +813,11 @@ function drawChargeGauge(ctx: CanvasRenderingContext2D, state: GameState, index:
   ctx.fillRect(x, y - CHARGE_BAR_H - 1, HUD_SIZE, CHARGE_BAR_H);
   ctx.fillStyle = COLOR_CHARGE;
   ctx.fillRect(x, y - CHARGE_BAR_H - 1, Math.round(HUD_SIZE * ratio), CHARGE_BAR_H);
+  // 段階溜めは段の区切りを刻む
+  ctx.fillStyle = COLOR_STAGE_MARK;
+  for (const mark of chargeStageMarks(state, index)) {
+    ctx.fillRect(x + Math.round(HUD_SIZE * mark), y - CHARGE_BAR_H - 1, 1, CHARGE_BAR_H);
+  }
 }
 
 /** チャージは枠の下のドット（2 以上のときだけ） */

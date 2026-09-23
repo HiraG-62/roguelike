@@ -91,3 +91,16 @@ describe("誓約の判定ヘルパー（マナ）", () => {
     expect(paySkillCost(state, 0)).toBe(true);
   });
 });
+
+describe("誓約の判定ヘルパー（2026-09 追加）", () => {
+  it("KS の全 key が affixes.ts の定義と表示名で揃っている", () => {
+    for (const key of Object.values(KS)) {
+      expect(keystoneDef(key)?.name, key).toBe(KEYSTONE_NAME[key]);
+    }
+  });
+
+  it("詠唱の誓い: 通常攻撃のマナ回収が KEYSTONE.chantManaMul 倍", () => {
+    expect(attackManaMul({ stats: { keystones: [KS.chant] } })).toBe(KEYSTONE.chantManaMul);
+    expect(attackManaMul({ stats: { keystones: [] } })).toBe(1);
+  });
+});

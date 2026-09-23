@@ -205,6 +205,7 @@ const TUNING = {
   parry: { freq: 1800, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 1500, noiseDuration: 0.08 },
   railshot: { freqFrom: 1400, freqTo: 120, duration: 0.25, noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2 },
   runeAttach: { tones: [440, 660, 990] as const, noteDuration: 0.06, gap: 0.02 },
+  synergy: { tones: [784, 1175, 1568] as const, noteDuration: 0.05, gap: 0.015 },
   manaEmpty: { freqFrom: 260, freqTo: 140, duration: 0.09 },
   counter: { freq: 95, duration: 0.18, noiseFreqFrom: 3200, noiseFreqTo: 400, noiseDuration: 0.16, ringFreq: 2400, ringDuration: 0.1 },
   reflect: { freqFrom: 900, freqTo: 2600, duration: 0.09, noiseFreqFrom: 6000, noiseFreqTo: 2500, noiseDuration: 0.06 },
@@ -669,6 +670,16 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       noteDuration: TUNING.skillReady.noteDuration,
       gap: TUNING.skillReady.gap,
       peak: 0.35,
+    }),
+
+  // 連携: 短く明るい 3 音の上昇（刻印符の装着音より高く速い）
+  synergy: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.synergy.tones,
+      noteDuration: TUNING.synergy.noteDuration,
+      gap: TUNING.synergy.gap,
+      peak: 0.4,
     }),
 
   parry: (ctx, dest, opts) => {

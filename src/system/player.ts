@@ -10,6 +10,7 @@ import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effect
 import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot, regenAllowed } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
+import { terrainSlide } from "./terrain";
 import { addRunAttributes, deriveAttributes, scaled } from "./attributes";
 import { gainMana } from "./mana";
 import { createStatusBag } from "../core/status";
@@ -17,6 +18,8 @@ import {
   cancelSkills,
   consumeLungeCombo,
   frenzyMul,
+  onSkillMeleeHit,
+  onSkillPlayerShoot,
   skillLocksAttack,
   skillLocksDash,
   skillMoveMul,
@@ -24,6 +27,7 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
+import { onTraitCounter } from "./traitHooks";
 import {
   boonAttackManaMul,
   boonBlocksMelee,
@@ -41,6 +45,7 @@ import {
   onBoonSwing,
   tryDashGuard,
 } from "./boons";
+import { boonBlocksShoot, boonCounterable, onBoonShootInput } from "./boonRules";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -197,6 +202,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
   updateAttack(state, dt);
   updateMovement(state, input, dt, aiming);
+  onBoonShootInput(state, input.shootHeld);
   if (input.shootHeld && !staggered && !skillLocksAttack(state)) tryShoot(state);
   if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
   trackDamageDealt(state);
@@ -354,6 +360,8 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       playerStatusMoveMul(state);
     const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
     vel = scale(input.move, PLAYER.speed * state.stats.moveSpeedMul * attackMul * buffMul);
+    // 氷床の上は慣性で滑る（src/system/terrain.ts）
+    vel = terrainSlide(state, p.body.pos, p.body.vel, vel, dt);
     if (!aiming && !isZero(input.move) && !isAttacking(p)) p.facing = { ...input.move };
   }
 
@@ -488,7 +496,7 @@ function resolveMeleeBullets(state: GameState, box: Box): void {
 /** 近接 1 ヒット。敵の windup 中ならカウンターヒット */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
   const p = state.player;
-  const counter = isCounterable(e);
+  const counter = isCounterable(e) || boonCounterable(state, e);
   // 霊刃（spiritBlade）: 通常攻撃に霊力の係数が加わる
   const out = rollOutgoing(state, e, step.damage + boonNormalAttackBonus(state), "melee");
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
@@ -504,11 +512,13 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep): void {
     guardBreak: counter,
   });
   if (counter) showCounter(state, pos);
+  if (counter) onTraitCounter(state, e);
   gainMeleeMana(state, p.attack.combo, p.dashStrike, counter);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
-  onBoonMeleeHit(state, e);
+  onBoonMeleeHit(state, e, counter);
+  onSkillMeleeHit(state, e, p.attack.combo);
 }
 
 /**
@@ -644,6 +654,7 @@ function tryShoot(state: GameState): void {
   const p = state.player;
   if (p.shootCooldown > 0 || isAttacking(p)) return;
   if (isDashing(p) && !canShootWhileDashing(state)) return;
+  if (boonBlocksShoot(state)) return;
   if (hasKeystone(state, KS.bladeOath)) {
     addFloatingText(state, p.body.pos, KEYSTONE_NAME[KS.bladeOath] ?? KS.bladeOath, PACIFIST_COLOR, 0.9, 0.4);
     p.shootCooldown = BLADE_OATH_TEXT_INTERVAL;
@@ -681,6 +692,7 @@ function tryShoot(state: GameState): void {
   pushSfx(state, "shoot");
   payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });
+  onSkillPlayerShoot(state);
 }
 
 /** バースト。発動したら true */

@@ -11,10 +11,12 @@ import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { inflictOnPlayer, isSilenced } from "./statusEffects";
+import { spawnTwinSister, twinPartner, updateTwin } from "./bossTwins";
+import { frostGiantArmored, updateFrostGiant } from "./bossFrostGiant";
 
 /** 階層ボス。depth が BOSS.interval の倍数の階は、階段のある最後の部屋がボス部屋になる */
 
-const BOSS_ROTATION = ["kingSlime", "boneLord"] as const;
+const BOSS_ROTATION = ["kingSlime", "boneLord", "twinBrother", "frostGiant"] as const;
 const FULL_CIRCLE = Math.PI * 2;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const BOSS_TEXT_COLOR = "#ff4040";
@@ -57,7 +59,8 @@ export function setupBossRoom(state: GameState, roomIndex: number): void {
   const def = enemyDef(bossKeyForDepth(state.depth));
   const boss = createEnemy(state, def, rectCenterPx(room.rect), roomIndex, false);
   state.enemies.push(boss);
-  state.boss = { enemyId: boss.id, name: def.name, roomIndex, introTimer: 0, defeated: false };
+  state.boss = { enemyId: boss.id, name: def.bossTitle ?? def.name, roomIndex, introTimer: 0, defeated: false };
+  if (def.behavior === "twinBlade") spawnTwinSister(state, boss);
 }
 
 /** ボス部屋のロック時の演出 */
@@ -83,6 +86,16 @@ export function updateBossIntro(state: GameState, dt: number): void {
   if (state.boss) state.boss.introTimer = Math.max(0, state.boss.introTimer - dt);
 }
 
+/** ボスの AI で動く敵か（ボス本体と、ボスの座を継ぎうる双子の妹） */
+export function isBossDriven(def: EnemyDef): boolean {
+  return def.boss === true || def.behavior === "twinBow";
+}
+
+/** 氷の鎧のように、ボスがダメージを受け付けない状態か（elites.ts の interceptEnemyDamage が読む） */
+export function bossArmorBlocks(state: GameState, e: Enemy): boolean {
+  return e.defKey === "frostGiant" && frostGiantArmored(state, e);
+}
+
 /** enemies.ts から毎ステップ呼ばれる */
 export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   switch (e.phase) {
@@ -96,8 +109,23 @@ export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: n
     default:
       break;
   }
-  if (def.behavior === "kingSlime") updateKingSlime(state, e, def, dt);
-  else updateBoneLord(state, e, def, dt);
+  switch (def.behavior) {
+    case "kingSlime":
+      updateKingSlime(state, e, def, dt);
+      return;
+    case "boneLord":
+      updateBoneLord(state, e, def, dt);
+      return;
+    case "twinBlade":
+    case "twinBow":
+      updateTwin(state, e, def, dt);
+      return;
+    case "frostGiant":
+      updateFrostGiant(state, e, def, dt);
+      return;
+    default:
+      return;
+  }
 }
 
 function toChase(e: Enemy, def: EnemyDef): void {
@@ -109,10 +137,10 @@ function toPlayerDir(state: GameState, e: Enemy): Vec {
   return normalize(sub(state.player.body.pos, e.body.pos));
 }
 
-/** フェーズ移行: 敵弾を消し、光と揺れで知らせる */
-function phaseShift(state: GameState, e: Enemy, text: string, color: string): void {
+/** フェーズ移行: 敵弾を消し、光と揺れで知らせる。stage は移行先の段階 */
+export function phaseShift(state: GameState, e: Enemy, text: string, color: string, stage = STAGE_TWO): void {
   if (!e.ai) return;
-  e.ai.stage = STAGE_TWO;
+  e.ai.stage = stage;
   state.projectiles = state.projectiles.filter((p) => p.owner !== "enemy");
   state.flash = Math.max(state.flash, PHASE_FLASH);
   shake(state, FEEL.shakeSpecial);
@@ -368,6 +396,7 @@ function randomPointInRoom(state: GameState, r: Rect, radius: number): Vec | nul
 export function onBossDeath(state: GameState, e: Enemy): void {
   const b = state.boss;
   if (!b || b.enemyId !== e.id || b.defeated) return;
+  if (handOverBoss(state, e)) return;
   b.defeated = true;
   const room = state.rooms[b.roomIndex];
   if (room) {
@@ -382,6 +411,16 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   for (let i = 0; i < BOSS.rareDrops; i++) dropRareItem(state, e.body.pos, i);
+}
+
+/** 双子の騎士: 片方が倒れても相方が生きていれば、ボスの座（HP バーと撃破判定）を相方へ移す */
+function handOverBoss(state: GameState, e: Enemy): boolean {
+  const b = state.boss;
+  const partner = twinPartner(state, e);
+  if (!b || !partner) return false;
+  b.enemyId = partner.id;
+  pushLog(state, `${enemyDef(e.defKey).name}が倒れた。`, BOSS_TEXT_COLOR);
+  return true;
 }
 
 /** rare 以上が出るまで引き直す（上限回数で打ち切り） */

@@ -50,9 +50,504 @@ export const PALETTE: Record<string, string> = {
   d: "#4e4a42", // 石 暗
   C: "#3c7ad8", // 青白い炎・魔法の影
   n: "#3e1a56", // ローブの影
+  "2": "#e0f4ff", // 氷 明
+  "3": "#8fd0ff", // 氷 中
+  "4": "#3c6ea8", // 氷 暗
+  "9": "#2a2438", // 影の体
+  A: "#5a4a8a", // 修道衣・フード
+  D: "#e0d8c0", // 骨
+  E: "#8a8070", // 骨の影
+  J: "#a0e040", // 腐肉の緑
+  N: "#fff4a0", // 雷の黄
+  U: "#b88a50", // 宝箱の木 明
+  X: "#6a4a28", // 宝箱の木 暗
 };
 
 export type SpriteFrames = readonly (readonly string[])[];
+
+// -----------------------------------------------------------------------------
+// 敵の量産（docs/ideas/enemies.md）。歩行は 2 枚の原画から 4 フレームを作る（原画は右向き、最上段を空ける）
+// -----------------------------------------------------------------------------
+
+type Frame = readonly string[];
+
+/** 1px 持ち上げる（最上段を捨てて最下段に透明行を足す）。歩行の上下動に使う */
+function lift(frame: Frame): Frame {
+  const w = frame[0]?.length ?? 0;
+  return [...frame.slice(1), ".".repeat(w)];
+}
+
+/** 原画 2 枚から 4 フレームの歩行（a → 持ち上げた a → b → 持ち上げた b） */
+function walkCycle(a: Frame, b: Frame): SpriteFrames {
+  return [a, lift(a), b, lift(b)];
+}
+
+/** 16x16 の原画を 2 倍にして 32x32 にする（ボス用。シルエットの読みやすさを優先して手描きを減らす） */
+function upscale2x(frame: Frame): Frame {
+  const out: string[] = [];
+  for (const row of frame) {
+    const wide = [...row].map((ch) => ch + ch).join("");
+    out.push(wide, wide);
+  }
+  return out;
+}
+
+const RAT_A: Frame = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "......k.k.k.....",
+  ".....kSkSkSk....",
+  "....kSSSSSSSkk..",
+  "...kSSSSSSSSSsk.",
+  "kk.kSSSSSSSS1kk.",
+  ".kkkssssssssssrk",
+  "....kkkkkkkkkkk.",
+  ".....kS...kS....",
+  "................",
+  "................",
+];
+const RAT_B: Frame = [...RAT_A.slice(0, 13), "......kS.kS.....", ...RAT_A.slice(14)];
+
+const WOLF_A: Frame = [
+  "................",
+  "................",
+  "...........k.k..",
+  "..........kSkSk.",
+  "..........kSSSSk",
+  "k........kSS1Skk",
+  "Sk.......kSSSSSk",
+  ".SkkkkkkkSSSskkk",
+  "..kSSSSSSSSSsk..",
+  "..kSSSSSSSSSk...",
+  "..kSsssssssSk...",
+  "..kSk.kSk.kSk...",
+  "..kSk.kSk.kSk...",
+  "..kk..kk..kk....",
+  "................",
+  "................",
+];
+const WOLF_B: Frame = [
+  ...WOLF_A.slice(0, 11),
+  "...kSkkSk.kSk...",
+  "...kSk.kSkkSk...",
+  "...kk...kk.kk...",
+  "................",
+  "................",
+];
+
+const SKELETON_A: Frame = [
+  "................",
+  "......kkkk......",
+  ".....kDDDDk.....",
+  ".....kD0D0k.....",
+  ".....kDDDDk.....",
+  "......kDDk......",
+  ".....kkDDkk.....",
+  "....kDEDDEDk....",
+  "....kDkDDkDk....",
+  "......kDDk......",
+  ".....kDEkDk.....",
+  ".....kD..Dk.....",
+  "....kDk..kDk....",
+  "....kk....kk....",
+  "................",
+  "................",
+];
+const SKELETON_B: Frame = [
+  ...SKELETON_A.slice(0, 10),
+  "......kDkDk.....",
+  "......kDDk......",
+  ".....kDkkDk.....",
+  ".....kk..kk.....",
+  "................",
+  "................",
+];
+
+const BEETLE_A: Frame = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "...........kk...",
+  "..........kSSk..",
+  "....kkkkkkSk.k..",
+  "...kGgggggGk....",
+  "..kGghgggggGkk..",
+  ".kGgggggggggGSk.",
+  ".kGGGGGGGGGGGkkk",
+  "..kkkkkkkkkkkk..",
+  "...kS..kS..kS...",
+  "................",
+  "................",
+  "................",
+];
+const BEETLE_B: Frame = [...BEETLE_A.slice(0, 12), "..kS..kS..kS....", ...BEETLE_A.slice(13)];
+
+const MITE_A: Frame = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  ".......k........",
+  "......kck.......",
+  ".....kc1ck......",
+  "....kkCcCkk.....",
+  "...kKKKKKKKk....",
+  "...kK1KKK1Kk....",
+  "....kkkkkkk.....",
+  "...k.k...k.k....",
+  "................",
+  "................",
+];
+const MITE_B: Frame = [...MITE_A.slice(0, 13), "....k.k.k.k.....", ...MITE_A.slice(14)];
+
+const HOOD_A: Frame = [
+  "................",
+  "......kkkk......",
+  ".....kAAAAk.....",
+  "....kAA99AAk....",
+  "....kA9c9cAk....",
+  "....kA9999Ak....",
+  ".....kA99Ak.....",
+  "....kAAAAAAk....",
+  "...kAAAAAAAAk...",
+  "...kA9AAAA9Ak...",
+  "...kAAAAAAAAk...",
+  "....kAAAAAAk....",
+  "....kAAAAAAk....",
+  "...kAAAkkAAAk...",
+  "...kkkk..kkkk...",
+  "................",
+];
+const HOOD_B: Frame = [...HOOD_A.slice(0, 13), "....kAAkkAAk....", "....kkk..kkk....", "................"];
+
+const LEECH_A: Frame = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "..........kkk...",
+  "....kkkkkkCCCk..",
+  "...kCCCCCCCcCck.",
+  "..kCcCCCCCCCC1k.",
+  ".kCCCCcCCCCCkkk.",
+  ".kCCCCCCCCCCCk..",
+  "..kkkkkkkkkkk...",
+  "................",
+  "................",
+  "................",
+];
+const LEECH_B: Frame = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "...........kkk..",
+  ".....kkkkkkCCCk.",
+  "...kkCCCCCCCcCck",
+  "..kCcCCCCCCCCC1k",
+  ".kCCCCCcCCCCCkkk",
+  "..kkkkkkkkkkkk..",
+  "................",
+  "................",
+  "................",
+];
+
+const GHOUL_A: Frame = [
+  "................",
+  "................",
+  "................",
+  "........kkk.....",
+  ".......kVVVk....",
+  "......kVV0Vk....",
+  "...kkkVVVVVkk...",
+  "..kVVVVVVVkVk...",
+  ".kVVvVVVVVkk....",
+  ".kVvvvVVVVk.....",
+  "..kVVVVVVk......",
+  "...kVk.kVk......",
+  "...kVk..kVk.....",
+  "...kk....kk.....",
+  "................",
+  "................",
+];
+const GHOUL_B: Frame = [
+  ...GHOUL_A.slice(0, 11),
+  "....kVkVk.......",
+  "....kVkkVk......",
+  "....kk..kk......",
+  "................",
+  "................",
+];
+
+const BELL_A: Frame = [
+  "................",
+  "......kkkk......",
+  ".....kWwwWk.....",
+  "......kkkk......",
+  ".....kYyyYk.....",
+  "....kYyyyyYk....",
+  "....kYy1yyYk....",
+  "...kYyyyyyyYk...",
+  "...kYyyyyyyYk...",
+  "..kYyyyyyyyyYk..",
+  "..kkkkkkkkkkkk..",
+  ".......kk.......",
+  "......kYYk......",
+  ".......kk.......",
+  "................",
+  "................",
+];
+const BELL_B: Frame = [
+  ...BELL_A.slice(0, 11),
+  "........kk......",
+  ".......kYYk.....",
+  "........kk......",
+  "................",
+  "................",
+];
+
+const SHADE_A: Frame = [
+  "................",
+  "................",
+  ".....kkkkk......",
+  "....k99999k.....",
+  "...k99r9r99k....",
+  "...k9999999k....",
+  "....k99999k.....",
+  "...k9999999k....",
+  "..k999999999k...",
+  "..k99999999k....",
+  "...k9999999k....",
+  "....k99999k.....",
+  ".....k9.9.k.....",
+  "......k.k.......",
+  "................",
+  "................",
+];
+const SHADE_B: Frame = [...SHADE_A.slice(0, 12), "....k9..9.k.....", ".....k..k.......", "................", "................"];
+
+const PILLAR: Frame = [
+  "................",
+  ".......kk.......",
+  "......k22k......",
+  ".....k2332k.....",
+  ".....k2334k.....",
+  "....k233334k....",
+  "....k233344k....",
+  "....k233344k....",
+  "....k233344k....",
+  "...k2333344k....",
+  "...k2333444k....",
+  "...k23334444k...",
+  "..kk33334444kk..",
+  "..kkkkkkkkkkkk..",
+  "................",
+  "................",
+];
+const PILLAR_GLINT: Frame = [...PILLAR.slice(0, 5), "....k213334k....", ...PILLAR.slice(6)];
+
+const MIMIC_SHUT: Frame = [
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "...kkkkkkkkkkkkkkkkkk...",
+  "..kUUUUUUUUUUUUUUUUUUk..",
+  "..kUXXXXXXXXXXXXXXXXUk..",
+  "..kUXUUUUUUUUUUUUUUXUk..",
+  "..kkkkkkkkkkkkkkkkkkkk..",
+  "..k1k1k1k1k1k1k1k1k1kk..",
+  "..kXXXXXXXXyyXXXXXXXXk..",
+  "..kUUUUUUUUyyUUUUUUUUk..",
+  "..kUXXXXXXXXXXXXXXXXUk..",
+  "..kUUUUUUUUUUUUUUUUUUk..",
+  "..kUXXXXXXXXXXXXXXXXUk..",
+  "..kUUUUUUUUUUUUUUUUUUk..",
+  "..kkkkkkkkkkkkkkkkkkkk..",
+  "...kX..............Xk...",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+];
+const MIMIC_OPEN: Frame = [
+  "........................",
+  "........................",
+  "........................",
+  "...kkkkkkkkkkkkkkkkkk...",
+  "..kUUUUUUUUUUUUUUUUUUk..",
+  "..kUXXXXXXXXXXXXXXXXUk..",
+  "..kUXUUUUUUUUUUUUUUXUk..",
+  "..kkkkkkkkkkkkkkkkkkkk..",
+  "..k1k1k1k1k1k1k1k1k1kk..",
+  "..kRRRRRRRRRRRRRRRRRRk..",
+  "..kRRRrrrrrrrrrrrrRRRk..",
+  "..kk1k1k1k1k1k1k1k1k1k..",
+  "..kXXXXXXXXyyXXXXXXXXk..",
+  "..kUUUUUUUUyyUUUUUUUUk..",
+  "..kUXXXXXXXXXXXXXXXXUk..",
+  "..kUUUUUUUUUUUUUUUUUUk..",
+  "..kUXXXXXXXXXXXXXXXXUk..",
+  "..kUUUUUUUUUUUUUUUUUUk..",
+  "..kkkkkkkkkkkkkkkkkkkk..",
+  "...kX..............Xk...",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+];
+
+const ARMOR_A: Frame = [
+  "........................",
+  "........................",
+  "..........kkkk..........",
+  ".........kSssSk.........",
+  "........kSsssssk........",
+  "........kS0000Sk........",
+  "........kSsssSSk........",
+  ".......kkSSSSSSkk.......",
+  "......kSsSSSSSSsSk......",
+  ".....kSsssSSSSsssSk.....",
+  ".....kSsSkSSSSkSsSk.....",
+  ".....kSSkkSSSSkkSSk.....",
+  "....kSSk.kSSSSk.kSSk....",
+  "....kssk.kSSSSk.kssk....",
+  ".........kSSSSk.........",
+  ".........kSkkSk.........",
+  "........kSSkkSSk........",
+  "........kSSk.kSSk.......",
+  "........kSSk..kSSk......",
+  ".......kSSSk..kSSSk.....",
+  ".......kkkkk..kkkkk.....",
+  "........................",
+  "........................",
+  "........................",
+];
+const ARMOR_B: Frame = [
+  ...ARMOR_A.slice(0, 16),
+  "........kSSkkSSk........",
+  ".......kSSk..kSSk.......",
+  "......kSSk....kSSk......",
+  ".....kSSSk....kSSSk.....",
+  ".....kkkkk....kkkkk.....",
+  "........................",
+  "........................",
+  "........................",
+];
+
+const TWIN_BLADE_A: Frame = [
+  "................",
+  "......kkkk......",
+  ".....kssssk.....",
+  ".....ks00sk.....",
+  ".....kssssk.....",
+  "...rkkSSSSkk....",
+  "..rRkSsSSsSk.1..",
+  "..rRkSSSSSSkk1..",
+  "..rRkSsSSsSk.1..",
+  "...RkSSSSSSk.1..",
+  "....kkSSSSkkkYk.",
+  ".....kSkkSk..k..",
+  ".....kSk.kSk....",
+  "....kSSk.kSSk...",
+  "....kkk...kkk...",
+  "................",
+];
+const TWIN_BLADE_B: Frame = [
+  ...TWIN_BLADE_A.slice(0, 11),
+  "......kSkSk..k..",
+  "......kSkSk.....",
+  ".....kSSkSSk....",
+  ".....kkk.kkk....",
+  "................",
+];
+
+const TWIN_BOW_A: Frame = [
+  "................",
+  "......kkkk......",
+  ".....kGGGGk.....",
+  "....kGGttGGk....",
+  "....kGt0t0Gkk...",
+  ".....kttttk.Wk..",
+  "....kkGGGGkk.Wk.",
+  "...kGgGGGGgGk.W.",
+  "...kGgGGGGgGkkW1",
+  "....kGGGGGGk..W.",
+  ".....kGGGGk..Wk.",
+  ".....kGkkGk.Wk..",
+  ".....kGk.kGk....",
+  "....kGGk.kGGk...",
+  "....kkk...kkk...",
+  "................",
+];
+const TWIN_BOW_B: Frame = [
+  ...TWIN_BOW_A.slice(0, 11),
+  "......kGkGk.Wk..",
+  "......kGkGk.....",
+  ".....kGGkGGk....",
+  ".....kkk.kkk....",
+  "................",
+];
+
+const GIANT_A: Frame = [
+  "................",
+  ".....kkkkkk.....",
+  "....k222222k....",
+  "...k22c22c22k...",
+  "...k23333332k...",
+  "..kk33333333kk..",
+  ".k223333333322k.",
+  "k2333k3333k3332k",
+  "k233k233332k332k",
+  "k22k23333332k22k",
+  ".kk.k333333k.kk.",
+  "....k334433k....",
+  "...k33k..k33k...",
+  "...k34k..k34k...",
+  "..k444k..k444k..",
+  "..kkkkk..kkkkk..",
+];
+const GIANT_B: Frame = [
+  ...GIANT_A.slice(0, 12),
+  "..k33k....k33k..",
+  "..k34k....k34k..",
+  ".k444k....k444k.",
+  ".kkkkk....kkkkk.",
+];
+
+/** 量産した敵のスプライト。再配色種はここに置かず、render/sprites.ts が元の絵から作る */
+const WAVE2_ENEMY_SPRITES: Record<string, SpriteFrames> = {
+  rat: walkCycle(RAT_A, RAT_B),
+  wolf: walkCycle(WOLF_A, WOLF_B),
+  skeleton: walkCycle(SKELETON_A, SKELETON_B),
+  beetle: walkCycle(BEETLE_A, BEETLE_B),
+  mite: walkCycle(MITE_A, MITE_B),
+  hooded: walkCycle(HOOD_A, HOOD_B),
+  leech: walkCycle(LEECH_A, LEECH_B),
+  ghoul: walkCycle(GHOUL_A, GHOUL_B),
+  bell: [BELL_A, BELL_A, BELL_B, BELL_B],
+  shade: walkCycle(SHADE_A, SHADE_B),
+  icePillar: [PILLAR, PILLAR, PILLAR_GLINT, PILLAR],
+  mimic: [MIMIC_SHUT, MIMIC_SHUT, MIMIC_OPEN, MIMIC_SHUT],
+  hollowArmor: walkCycle(ARMOR_A, ARMOR_B),
+  twinBrother: walkCycle(TWIN_BLADE_A, TWIN_BLADE_B).map(upscale2x),
+  twinSister: walkCycle(TWIN_BOW_A, TWIN_BOW_B).map(upscale2x),
+  frostGiant: [GIANT_A, GIANT_B, GIANT_A, lift(GIANT_B)].map(upscale2x),
+};
 
 /**
  * renderer が参照するキー: player(歩行4) / slime・eye・boar(各4) / heart / floor(6バリアント) / wall / stairs / door
@@ -1821,4 +2316,5 @@ export const SPRITES: Record<string, SpriteFrames> = {
       "................",
     ],
   ],
+  ...WAVE2_ENEMY_SPRITES,
 };

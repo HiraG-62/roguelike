@@ -1,15 +1,44 @@
 import type { FrameInput } from "../core/input";
 import type { StatusKind } from "../core/status";
-import { type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type Projectile, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, fromAngle, length, scale } from "../core/vec";
 import { VIEW_W } from "../core/view";
 import { ATTR, BOON, FEEL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { ATTR_KEYS, type AttrKey, type Attributes, DEFAULT_STATS, type PlayerStats } from "../loot/types";
+import { SKILL_DEFS } from "../skills/data";
+import { stoneInSlot } from "../skills/persistence";
+import type { SkillResource, SkillTag } from "../skills/types";
+import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonTag } from "./boonDefs";
+import {
+  type BoonRuleState,
+  boonRuleAttackManaMul,
+  boonRuleCostMul,
+  createBoonRuleState,
+  onBoonBurstRules,
+  onBoonComboHitRules,
+  onBoonCritRules,
+  onBoonDashEndRules,
+  onBoonDashRules,
+  onBoonJustRules,
+  onBoonJustSteal,
+  onBoonKillRules,
+  onBoonMeleeHitRules,
+  onBoonRoomClearRules,
+  onBoonRoomLockRules,
+  onBoonShatterRules,
+  onBoonSkillCastRules,
+  onBoonSkillHitRules,
+  onBoonSwingRules,
+  resetBoonRulesForFloor,
+  slashBase,
+  spawnBoonWave,
+  tightropePenalty,
+  updateBoonRules,
+} from "./boonRules";
 import { cancelAttack, healPlayer } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { KS } from "./keystones";
 import { dropItem } from "./loot";
-import { scaled } from "./attributes";
 import { gainMana } from "./mana";
 import { applyStats, dashTime } from "./player";
 import {
@@ -30,496 +59,16 @@ import {
  * 各システムは hasBoon で分岐し、数値系は foldBoonStats（applyStats 内）で stats に畳み込む。
  */
 
-export const BOON_KEYS = [
-  "finisherOnly",
-  "dashGun",
-  "reflect",
-  "justSlash",
-  "lockdown",
-  "glassJust",
-  "comboWave",
-  "heartBurn",
-  "eliteVault",
-  "secondWind",
-  "giantSlayer",
-  "dashBlast",
-  "justWipe",
-  "clearShield",
-  "clearHeal",
-  "finisherWave",
-  "rearGuard",
-  "standingSniper",
-  "triggerHappy",
-  "dashGuard",
-  "comboKeeper",
-  "comboClock",
-  "overcharge",
-  "burstRefund",
-  "burnSpread",
-  "chillShatter",
-  "dashShock",
-  "critChain",
-  "bloodFeast",
-  "eliteMagnet",
-  "frostLock",
-  "lopsided",
-  "swapHands",
-  "spiritBlade",
-  "plague",
-  "bloodMist",
-  "crumble",
-  "frostPierce",
-  "springWell",
-  "bloodMana",
-  "reaperCup",
-  "keenBreath",
-  "circulation",
-  "hollowVessel",
-] as const;
-
-export type BoonKey = (typeof BOON_KEYS)[number];
-export type BoonRarity = "common" | "rare" | "epic";
-export type BoonTag =
-  | "melee"
-  | "ranged"
-  | "dash"
-  | "just"
-  | "combo"
-  | "energy"
-  | "burn"
-  | "chill"
-  | "shock"
-  | "explode"
-  | "crit"
-  | "hp"
-  | "room"
-  | "loot"
-  | "boss"
-  | "attr"
-  | "poison"
-  | "bleed"
-  | "stagger"
-  | "mana";
-
-export interface BoonDef {
-  key: BoonKey;
-  name: string;
-  desc: string;
-  /** HUD のアイコン文字（1 文字） */
-  icon: string;
-  rarity: BoonRarity;
-  tags: readonly BoonTag[];
-  /** 呪い付き（強い効果 + 代償）。3 択のうち 1 枠に確率で混ざる */
-  cursed: boolean;
-  /** このタグを装備が持っていないと出ない（burn の無い装備に燃焼祝福を出さない） */
-  requires?: BoonTag;
-}
-
-export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
-  finisherOnly: {
-    key: "finisherOnly",
-    name: "終撃のみ",
-    desc: "近接は常に3段目のみ。1・2段目は出ない。",
-    icon: "3",
-    rarity: "rare",
-    tags: ["melee"],
-    cursed: false,
-  },
-  dashGun: {
-    key: "dashGun",
-    name: "疾走射撃",
-    desc: "ダッシュ中でも射撃できる。",
-    icon: "»",
-    rarity: "common",
-    tags: ["ranged", "dash"],
-    cursed: false,
-  },
-  reflect: {
-    key: "reflect",
-    name: "弾返し",
-    desc: "近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージが3倍増える。",
-    icon: "P",
-    rarity: "common",
-    tags: ["melee", "energy"],
-    cursed: false,
-  },
-  justSlash: {
-    key: "justSlash",
-    name: "見切り斬り",
-    desc: "ジャスト回避の直後に攻撃すると、回避した敵の目の前へ瞬間移動して斬る。",
-    icon: "/",
-    rarity: "rare",
-    tags: ["just", "melee"],
-    cursed: false,
-  },
-  lockdown: {
-    key: "lockdown",
-    name: "封鎖疾走",
-    desc: "封鎖中は移動速度+30%になる代わりに、それ以外では-10%になる。",
-    icon: "L",
-    rarity: "common",
-    tags: ["room", "dash"],
-    cursed: true,
-  },
-  glassJust: {
-    key: "glassJust",
-    name: "硝子の見切り",
-    desc: "最大HPが1になる代わりに、ジャスト回避の受付時間が2倍になる。",
-    icon: "G",
-    rarity: "epic",
-    tags: ["just", "dash"],
-    cursed: true,
-  },
-  comboWave: {
-    key: "comboWave",
-    name: "連撃波",
-    desc: "コンボ20以上で、斬るたびに貫通する衝撃波が出る。",
-    icon: "W",
-    rarity: "rare",
-    tags: ["melee", "combo"],
-    cursed: false,
-  },
-  heartBurn: {
-    key: "heartBurn",
-    name: "業火の心",
-    desc: "ハートを拾うと10秒間、燃焼効果が2倍になる。",
-    icon: "H",
-    rarity: "common",
-    tags: ["burn", "hp"],
-    cursed: false,
-    requires: "burn",
-  },
-  eliteVault: {
-    key: "eliteVault",
-    name: "宝物の鍵",
-    desc: "エリートを倒すと、次の階に宝物庫が確定で出現する。",
-    icon: "K",
-    rarity: "rare",
-    tags: ["loot"],
-    cursed: false,
-  },
-  secondWind: {
-    key: "secondWind",
-    name: "再起",
-    desc: "ラン中1回だけ、力尽きる代わりにHP30%で復活する。",
-    icon: "R",
-    rarity: "epic",
-    tags: ["hp"],
-    cursed: false,
-  },
-  giantSlayer: {
-    key: "giantSlayer",
-    name: "巨人殺し",
-    desc: "ボスのHPが-25%になる代わりに、通常の敵のHPが+25%になる。",
-    icon: "B",
-    rarity: "common",
-    tags: ["boss"],
-    cursed: true,
-  },
-  dashBlast: {
-    key: "dashBlast",
-    name: "爆走",
-    desc: "ダッシュの終わりに爆発が起こる。",
-    icon: "X",
-    rarity: "rare",
-    tags: ["dash", "explode"],
-    cursed: false,
-  },
-  justWipe: {
-    key: "justWipe",
-    name: "回避一掃",
-    desc: "ジャスト回避で敵弾を全て消し去る。",
-    icon: "J",
-    rarity: "rare",
-    tags: ["just"],
-    cursed: false,
-  },
-  clearShield: {
-    key: "clearShield",
-    name: "勝利の帳",
-    desc: "部屋を制圧すると5秒間無敵になる。",
-    icon: "V",
-    rarity: "common",
-    tags: ["room"],
-    cursed: false,
-  },
-  clearHeal: {
-    key: "clearHeal",
-    name: "血の代償",
-    desc: "部屋を制圧するとHPが全回復する代わりに、最大HPが-30%になる。",
-    icon: "T",
-    rarity: "rare",
-    tags: ["room", "hp"],
-    cursed: true,
-  },
-  finisherWave: {
-    key: "finisherWave",
-    name: "断裂波",
-    desc: "3段目の斬撃で貫通する衝撃波が出る。",
-    icon: "~",
-    rarity: "common",
-    tags: ["melee"],
-    cursed: false,
-  },
-  rearGuard: {
-    key: "rearGuard",
-    name: "背面射撃",
-    desc: "射撃するたびに後方へも弾を1発撃つ。",
-    icon: "<",
-    rarity: "common",
-    tags: ["ranged"],
-    cursed: false,
-  },
-  standingSniper: {
-    key: "standingSniper",
-    name: "静止狙撃",
-    desc: "静止して撃った弾は貫通+3、速度+50%になる。",
-    icon: "S",
-    rarity: "common",
-    tags: ["ranged"],
-    cursed: false,
-  },
-  triggerHappy: {
-    key: "triggerHappy",
-    name: "連射狂い",
-    desc: "連射速度が2倍になる代わりに、近接攻撃ができなくなる。",
-    icon: "!",
-    rarity: "rare",
-    tags: ["ranged"],
-    cursed: true,
-  },
-  dashGuard: {
-    key: "dashGuard",
-    name: "鉄壁の構え",
-    desc: "ダッシュがその場の防御になり、防御中の被弾はJUST扱いになる。",
-    icon: "I",
-    rarity: "rare",
-    tags: ["just", "dash"],
-    cursed: true,
-  },
-  comboKeeper: {
-    key: "comboKeeper",
-    name: "堅実な手",
-    desc: "被弾してもコンボが0にならず半分残る。",
-    icon: "C",
-    rarity: "common",
-    tags: ["combo"],
-    cursed: false,
-  },
-  comboClock: {
-    key: "comboClock",
-    name: "刻限コンボ",
-    desc: "コンボ受付時間が半分になる代わりに、10コンボごとに必殺ゲージが満タンになる。",
-    icon: "@",
-    rarity: "rare",
-    tags: ["combo", "energy"],
-    cursed: true,
-  },
-  overcharge: {
-    key: "overcharge",
-    name: "過充填",
-    desc: "必殺ゲージが満タンの間、斬撃が爆発する。",
-    icon: "O",
-    rarity: "rare",
-    tags: ["energy", "melee", "explode"],
-    cursed: false,
-  },
-  burstRefund: {
-    key: "burstRefund",
-    name: "残響爆発",
-    desc: "バーストでの撃破ごとにゲージが25%還元される。",
-    icon: "E",
-    rarity: "common",
-    tags: ["energy"],
-    cursed: false,
-  },
-  burnSpread: {
-    key: "burnSpread",
-    name: "野火",
-    desc: "燃えている敵は死亡時に周囲へ燃焼を広げる。",
-    icon: "F",
-    rarity: "common",
-    tags: ["burn"],
-    cursed: false,
-    requires: "burn",
-  },
-  chillShatter: {
-    key: "chillShatter",
-    name: "氷砕",
-    desc: "凍えた敵は死亡時に氷の破片となって弾け飛ぶ。",
-    icon: "*",
-    rarity: "common",
-    tags: ["chill"],
-    cursed: false,
-    requires: "chill",
-  },
-  dashShock: {
-    key: "dashShock",
-    name: "帯電疾走",
-    desc: "ダッシュ開始時に連鎖する雷を放つ。",
-    icon: "Z",
-    rarity: "rare",
-    tags: ["dash", "shock"],
-    cursed: false,
-  },
-  critChain: {
-    key: "critChain",
-    name: "会心雷撃",
-    desc: "クリティカルヒットで連鎖する雷を放つ。",
-    icon: "A",
-    rarity: "rare",
-    tags: ["crit", "shock"],
-    cursed: false,
-  },
-  bloodFeast: {
-    key: "bloodFeast",
-    name: "血の饗宴",
-    desc: "ハートが出なくなる代わりに、撃破するたびHP3回復する。",
-    icon: "+",
-    rarity: "rare",
-    tags: ["hp"],
-    cursed: true,
-  },
-  eliteMagnet: {
-    key: "eliteMagnet",
-    name: "エリート誘引",
-    desc: "エリートの出現率が大きく上がる代わりに、エリートは必ずアイテムを落とす。",
-    icon: "M",
-    rarity: "rare",
-    tags: ["loot"],
-    cursed: true,
-  },
-  frostLock: {
-    key: "frostLock",
-    name: "氷結封鎖",
-    desc: "部屋をロックすると、中の敵全員を3秒間凍えさせる。",
-    icon: "#",
-    rarity: "common",
-    tags: ["chill", "room"],
-    cursed: false,
-  },
-  lopsided: {
-    key: "lopsided",
-    name: "偏重",
-    desc: "最も高いステータスの伸びが1.25倍になる代わりに、最も低いステータスは0として扱う。",
-    icon: "^",
-    rarity: "rare",
-    tags: ["attr"],
-    cursed: true,
-    requires: "attr",
-  },
-  swapHands: {
-    key: "swapHands",
-    name: "持ち替え",
-    desc: "筋力と技巧を入れ替えて扱う。近接が技巧で、射撃が筋力で伸びる。",
-    icon: "%",
-    rarity: "common",
-    tags: ["attr", "melee", "ranged"],
-    cursed: false,
-  },
-  spiritBlade: {
-    key: "spiritBlade",
-    name: "霊刃",
-    desc: "通常攻撃が霊力でも伸びる代わりに、通常攻撃で戻るマナが半分になる。",
-    icon: "&",
-    rarity: "rare",
-    tags: ["attr", "melee", "ranged"],
-    cursed: true,
-  },
-  plague: {
-    key: "plague",
-    name: "疫病",
-    desc: "毒の敵が死ぬと、周囲の敵に毒を引き継ぐ。",
-    icon: "Q",
-    rarity: "common",
-    tags: ["poison"],
-    cursed: false,
-    requires: "poison",
-  },
-  bloodMist: {
-    key: "bloodMist",
-    name: "血煙",
-    desc: "出血の敵を倒すと、自分の出血が消えてHP3回復する。",
-    icon: "D",
-    rarity: "common",
-    tags: ["bleed", "hp"],
-    cursed: false,
-    requires: "bleed",
-  },
-  crumble: {
-    key: "crumble",
-    name: "崩し",
-    desc: "怯ませた敵を脆弱にする。",
-    icon: "Y",
-    rarity: "common",
-    tags: ["stagger", "melee"],
-    cursed: false,
-  },
-  frostPierce: {
-    key: "frostPierce",
-    name: "凍て刺し",
-    desc: "砕きで周囲の敵に冷気を2つ重ねる。",
-    icon: "N",
-    rarity: "rare",
-    tags: ["chill"],
-    cursed: false,
-    requires: "chill",
-  },
-  springWell: {
-    key: "springWell",
-    name: "湧水",
-    desc: "部屋を制圧するとマナが満タンになる。",
-    icon: "U",
-    rarity: "rare",
-    tags: ["mana", "room"],
-    cursed: false,
-  },
-  bloodMana: {
-    key: "bloodMana",
-    name: "血の対価",
-    desc: "HPが50%以下の間、スキルのマナコストが-40%になる。",
-    icon: "$",
-    rarity: "common",
-    tags: ["mana", "hp"],
-    cursed: false,
-  },
-  reaperCup: {
-    key: "reaperCup",
-    name: "屠りの盃",
-    desc: "撃破するたびマナが10回復する代わりに、マナの自然回復が半分になる。",
-    icon: "=",
-    rarity: "common",
-    tags: ["mana"],
-    cursed: false,
-  },
-  keenBreath: {
-    key: "keenBreath",
-    name: "見切りの息",
-    desc: "ジャスト回避でマナが25回復する。",
-    icon: "'",
-    rarity: "common",
-    tags: ["mana", "just"],
-    cursed: false,
-  },
-  circulation: {
-    key: "circulation",
-    name: "循環",
-    desc: "スキルが命中するたびマナが2回復する。1回の発動で8まで。",
-    icon: "o",
-    rarity: "rare",
-    tags: ["mana"],
-    cursed: false,
-  },
-  hollowVessel: {
-    key: "hollowVessel",
-    name: "虚ろの器",
-    desc: "スキルのマナコストが-35%になる代わりに、最大マナが-40%、通常攻撃で戻るマナが半分になる。",
-    icon: "0",
-    rarity: "rare",
-    tags: ["mana"],
-    cursed: true,
-  },
-};
+export {
+  BOONS,
+  BOON_KEYS,
+  LINEAGE_LABEL,
+  type BoonDef,
+  type BoonKey,
+  type BoonRarity,
+  type BoonTag,
+  type LineageKey,
+} from "./boonDefs";
 
 export function boonDef(key: BoonKey): BoonDef {
   return BOONS[key];
@@ -533,8 +82,14 @@ export interface BoonChoice {
   options: BoonKey[];
   /** マウスが乗っているカード（-1 = なし）。入力から決まるので決定的 */
   hover: number;
+  /** マウスが「呪いを受けて 4 択」の札に乗っているか */
+  curseHover: boolean;
   /** 提示からの経過（実時間秒）。inputDelay までは入力を無視 */
   timer: number;
+  /** 呪いを受けて 4 択にした（1 回の提示につき 1 回まで） */
+  curseTaken: boolean;
+  /** 受けた呪い付き祝福（表示用）。受けていなければ null */
+  curse: BoonKey | null;
 }
 
 /** 祝福のラン内の作業領域 */
@@ -555,6 +110,8 @@ export interface BoonRunState {
   crumbled: number[];
   /** circulation: 直近の発動 1 回で既に戻したマナ。発動ごとに 0 へ戻す（多段ヒットの過剰還元を防ぐ） */
   circulationGained: number;
+  /** 拡張の祝福（system/boonRules.ts）の作業領域 */
+  rules: BoonRuleState;
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -569,6 +126,7 @@ export function createBoonRunState(): BoonRunState {
     critChainCd: 0,
     crumbled: [],
     circulationGained: 0,
+    rules: createBoonRuleState(),
   };
 }
 
@@ -669,33 +227,108 @@ function addAttributeTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): voi
 /** 状態異常 proc の性質（出血・毒など）の種類をタグにする */
 function addStatusProcTags(stats: Readonly<PlayerStats>, tags: Set<BoonTag>): void {
   for (const proc of stats.statusProcs) {
-    const tag = STATUS_PROC_TAG[proc.kind];
-    if (tag) tags.add(tag);
+    for (const tag of STATUS_TAGS[proc.kind] ?? []) tags.add(tag);
   }
 }
 
-const STATUS_PROC_TAG: Readonly<Partial<Record<StatusKind, BoonTag>>> = {
-  burn: "burn",
-  chill: "chill",
-  freeze: "chill",
-  shock: "shock",
-  paralyze: "shock",
-  poison: "poison",
-  bleed: "bleed",
-  vulnerable: "stagger",
+/** 状態異常の種類 → 祝福タグ。脆弱は崩し（stagger）の系統にも数える */
+const STATUS_TAGS: Readonly<Partial<Record<StatusKind, readonly BoonTag[]>>> = {
+  burn: ["burn"],
+  chill: ["chill"],
+  freeze: ["chill", "freeze"],
+  shock: ["shock"],
+  paralyze: ["shock", "paralyze"],
+  poison: ["poison"],
+  bleed: ["bleed"],
+  vulnerable: ["stagger", "vulnerable"],
+  weaken: ["weaken"],
+  fear: ["fear"],
+  silence: ["silence"],
+  stagger: ["stagger"],
+  guarded: ["guarded"],
 };
 
-/** 候補の重み。requires を満たさない / 取得済みなら 0。装備タグの一致数で上がる */
-export function boonWeight(def: BoonDef, tags: ReadonlySet<BoonTag>, owned: readonly BoonKey[]): number {
+/** スキル石のタグ → 祝福タグ（範囲・強化・詠唱は対応する祝福の系統が無いので読まない） */
+const SKILL_TAG_TO_BOON: Readonly<Partial<Record<SkillTag, BoonTag>>> = {
+  melee: "melee",
+  projectile: "ranged",
+  movement: "dash",
+  defense: "counter",
+  placed: "placed",
+  fire: "burn",
+  cold: "chill",
+  lightning: "shock",
+};
+
+/** 装着中のスキル石から祝福タグを読む（タグ・資源・命中で付ける状態異常） */
+export function skillStoneTags(state: GameState): Set<BoonTag> {
+  const tags = new Set<BoonTag>();
+  const rs = state.skills;
+  for (let i = 0; i < rs.slots.length; i++) {
+    const stone = stoneInSlot(rs.profile, i);
+    if (!stone) continue;
+    const def = SKILL_DEFS[stone.skillKey];
+    tags.add("skill");
+    if (def.resource === "mana") tags.add("mana");
+    for (const t of def.tags) {
+      const tag = SKILL_TAG_TO_BOON[t];
+      if (tag) tags.add(tag);
+    }
+    for (const a of def.applies ?? []) {
+      for (const tag of STATUS_TAGS[a.kind] ?? []) tags.add(tag);
+    }
+  }
+  return tags;
+}
+
+/** 取得済みの祝福が「出す」タグ */
+export function boonGivenTags(boons: readonly BoonKey[]): Set<BoonTag> {
+  const tags = new Set<BoonTag>();
+  for (const key of boons) for (const t of BOONS[key].gives ?? []) tags.add(t);
+  return tags;
+}
+
+/** 抽選に使うタグ。owned = 装備 + スキル石（requires はこちらだけを見る）、gives = 取得済み祝福が出すもの */
+export interface BuildTags {
+  owned: ReadonlySet<BoonTag>;
+  gives: ReadonlySet<BoonTag>;
+}
+
+export function buildTags(state: GameState): BuildTags {
+  // 祝福を畳み込む前の装備 stats で判定する（triggerHappy の射撃速度 x2 などを「装備のタグ」と誤認しない）
+  const owned = equipmentTags(state.boonRun.baseStats ?? state.stats);
+  for (const t of skillStoneTags(state)) owned.add(t);
+  return { owned, gives: boonGivenTags(state.boons) };
+}
+
+const NO_TAGS: ReadonlySet<BoonTag> = new Set();
+
+/**
+ * 候補の重み。取得済み / requires を満たさない / 系譜の前段が無い / 結びの片方が無いなら 0。
+ * 装備・スキル石のタグの一致で大きく、取得済み祝福の「出す」タグの一致で小さく上がる（同じタグは二重に数えない）。
+ * 系譜の次段と結びは、条件を満たした時点で出やすくする
+ */
+export function boonWeight(
+  def: BoonDef,
+  tags: ReadonlySet<BoonTag>,
+  owned: readonly BoonKey[],
+  gives: ReadonlySet<BoonTag> = NO_TAGS,
+): number {
   if (owned.includes(def.key)) return 0;
   if (def.requires && !tags.has(def.requires)) return 0;
+  if (def.after && !owned.includes(def.after)) return 0;
+  if (def.duo && !def.duo.every((k) => owned.includes(k))) return 0;
   const matches = def.tags.filter((t) => tags.has(t)).length;
-  return BOON.rarityWeight[def.rarity] * (1 + BOON.tagBonus * matches);
+  const fed = def.tags.filter((t) => gives.has(t) && !tags.has(t)).length;
+  let weight = BOON.rarityWeight[def.rarity] * (1 + BOON.tagBonus * matches + BOON.givesTagBonus * fed);
+  if (def.after) weight *= BOON.lineageWeightMul;
+  if (def.duo) weight *= BOON.duoWeightMul;
+  return weight;
 }
 
 /** 重み付きで 1 つ取り出す（pool から除く）。全て 0 なら null */
-function takeWeighted(state: GameState, pool: BoonDef[], tags: ReadonlySet<BoonTag>): BoonDef | null {
-  const weights = pool.map((d) => boonWeight(d, tags, state.boons));
+function takeWeighted(state: GameState, pool: BoonDef[], tags: BuildTags): BoonDef | null {
+  const weights = pool.map((d) => boonWeight(d, tags.owned, state.boons, tags.gives));
   const total = weights.reduce((s, w) => s + w, 0);
   if (total <= 0) return null;
   let roll = state.rng.next() * total;
@@ -708,23 +341,38 @@ function takeWeighted(state: GameState, pool: BoonDef[], tags: ReadonlySet<BoonT
   return pool.pop() ?? null;
 }
 
-/** 3 枚（重複なし）を抽選する。cursedChance で 1 枚が呪い付き祝福になる */
+/** 同じ 3 択に並べない組: 同じ系譜 / 結び同士 */
+export function isSiblingBoon(a: BoonDef, b: BoonDef): boolean {
+  if (a.lineage !== undefined && a.lineage === b.lineage) return true;
+  return a.duo !== undefined && b.duo !== undefined;
+}
+
+function dropSiblings(pool: BoonDef[], picked: BoonDef): void {
+  for (let i = pool.length - 1; i >= 0; i--) {
+    const d = pool[i];
+    if (d && isSiblingBoon(d, picked)) pool.splice(i, 1);
+  }
+}
+
+/** 3 枚（重複なし）を抽選する。cursedChance で 1 枚が呪い付き祝福になる。同じ系譜・結びは 1 枚まで */
 export function rollBoonOptions(state: GameState): BoonKey[] {
-  // 祝福を畳み込む前の装備 stats で判定する（triggerHappy の射撃速度 x2 などを「装備のタグ」と誤認しない）
-  const tags = equipmentTags(state.boonRun.baseStats ?? state.stats);
+  const tags = buildTags(state);
   const all = BOON_KEYS.map(boonDef);
   const normal = all.filter((d) => !d.cursed);
   const cursed = all.filter((d) => d.cursed);
   const picks: BoonDef[] = [];
+  const take = (pool: BoonDef[]): BoonDef | null => {
+    const picked = takeWeighted(state, pool, tags);
+    if (!picked) return null;
+    dropSiblings(normal, picked);
+    dropSiblings(cursed, picked);
+    picks.push(picked);
+    return picked;
+  };
   const wantCursed = state.rng.chance(BOON.cursedChance);
-  if (wantCursed) {
-    const c = takeWeighted(state, cursed, tags);
-    if (c) picks.push(c);
-  }
+  if (wantCursed) take(cursed);
   while (picks.length < BOON.choiceCount) {
-    const next = takeWeighted(state, normal, tags) ?? takeWeighted(state, cursed, tags);
-    if (!next) break;
-    picks.push(next);
+    if (!take(normal) && !take(cursed)) break;
   }
   // 呪い枠の位置もランダム（いつも左端だと読まれる）
   if (wantCursed && picks.length > 1) {
@@ -739,9 +387,50 @@ export function offerBoons(state: GameState): void {
   if (state.depth < 2) return;
   const options = rollBoonOptions(state);
   if (options.length === 0) return;
-  state.boonChoice = { options, hover: -1, timer: 0 };
+  state.boonChoice = { options, hover: -1, curseHover: false, timer: 0, curseTaken: false, curse: null };
   pushSfx(state, "lootRare");
   pushSfx(state, "boonOffer");
+}
+
+// -----------------------------------------------------------------------------
+// 呪いを受けて 4 択（docs/ideas/boons-expansion.md 4-5）
+// -----------------------------------------------------------------------------
+
+/** 表の候補と並べられない / 取得済みでない、呪いなしの候補 */
+function extraPool(shown: readonly BoonKey[]): BoonDef[] {
+  const shownDefs = shown.map(boonDef);
+  return BOON_KEYS.map(boonDef).filter(
+    (d) => !d.cursed && !shown.includes(d.key) && !shownDefs.some((s) => isSiblingBoon(d, s)),
+  );
+}
+
+/** いま呪いを受けて 4 択にできるか（未使用・受けられる呪いと 4 枚目の候補がある） */
+export function canTakeCurse(state: GameState): boolean {
+  const c = state.boonChoice;
+  if (!c || c.curseTaken || c.options.length >= BOON.choiceCountWithCurse) return false;
+  const tags = buildTags(state);
+  const owned = [...state.boons, ...c.options];
+  const hasCurse = BOON_KEYS.some((k) => BOONS[k].cursed && boonWeight(BOONS[k], tags.owned, owned, tags.gives) > 0);
+  const hasExtra = extraPool(c.options).some((d) => boonWeight(d, tags.owned, state.boons, tags.gives) > 0);
+  return hasCurse && hasExtra;
+}
+
+/**
+ * 呪い付き祝福を 1 つ強制で受け、4 枚目の候補を足す。呪いは「罰」ではなく「選択肢を買う通貨」。
+ * 呪いで結びの条件が揃うこともあるので、4 枚目は受けた後の持ち物で抽選する
+ */
+export function takeCurse(state: GameState): boolean {
+  const c = state.boonChoice;
+  if (!c || !canTakeCurse(state)) return false;
+  const cursedPool = BOON_KEYS.map(boonDef).filter((d) => d.cursed && !c.options.includes(d.key));
+  const curse = takeWeighted(state, cursedPool, buildTags(state));
+  if (!curse) return false;
+  grantBoon(state, curse.key);
+  c.curseTaken = true;
+  c.curse = curse.key;
+  const extra = takeWeighted(state, extraPool(c.options), buildTags(state));
+  if (extra) c.options.push(extra.key);
+  return true;
 }
 
 // -----------------------------------------------------------------------------
@@ -750,11 +439,18 @@ export function offerBoons(state: GameState): void {
 
 export const BOON_CARD = {
   w: 128,
-  h: 124,
+  /** 4 択（呪いを受けた後）のときの幅と間隔。480 px に 4 枚収める */
+  narrowW: 108,
+  h: 150,
   gap: 12,
-  y: 64,
+  narrowGap: 8,
+  y: 60,
   /** ホバーで浮く量（px） */
   hoverLift: 4,
+  /** 「呪いを受けて 4 択」の札（カードの下） */
+  curseW: 200,
+  curseH: 14,
+  curseGap: 8,
 } as const;
 
 export interface CardRect {
@@ -766,31 +462,50 @@ export interface CardRect {
 
 /** index 番目のカード矩形（画面座標）。描画と当たり判定で共有する */
 export function boonCardRect(index: number, count: number): CardRect {
-  const total = count * BOON_CARD.w + (count - 1) * BOON_CARD.gap;
+  const narrow = count > BOON.choiceCount;
+  const w = narrow ? BOON_CARD.narrowW : BOON_CARD.w;
+  const gap = narrow ? BOON_CARD.narrowGap : BOON_CARD.gap;
+  const total = count * w + (count - 1) * gap;
   const x0 = Math.round((VIEW_W - total) / 2);
-  return { x: x0 + index * (BOON_CARD.w + BOON_CARD.gap), y: BOON_CARD.y, w: BOON_CARD.w, h: BOON_CARD.h };
+  return { x: x0 + index * (w + gap), y: BOON_CARD.y, w, h: BOON_CARD.h };
+}
+
+/** 「呪いを受けて 4 択」の札の矩形 */
+export function boonCurseRect(): CardRect {
+  const w = BOON_CARD.curseW;
+  return { x: Math.round((VIEW_W - w) / 2), y: BOON_CARD.y + BOON_CARD.h + BOON_CARD.curseGap, w, h: BOON_CARD.curseH };
+}
+
+function inRect(point: Vec, r: CardRect): boolean {
+  return point.x >= r.x && point.x < r.x + r.w && point.y >= r.y && point.y < r.y + r.h;
 }
 
 export function cardIndexAt(point: Vec, count: number): number {
   for (let i = 0; i < count; i++) {
     const r = boonCardRect(i, count);
-    if (point.x >= r.x && point.x < r.x + r.w && point.y >= r.y - BOON_CARD.hoverLift && point.y < r.y + r.h) return i;
+    if (inRect(point, { ...r, y: r.y - BOON_CARD.hoverLift, h: r.h + BOON_CARD.hoverLift })) return i;
   }
   return -1;
 }
 
 /**
- * 入力から選んだカード。クリックはカード上のみ。E（attack）は 3 枚目。無ければ -1
+ * 入力から選んだカード。クリックはカード上のみ。E（attack）は 3 枚目、4（skill4）は 4 枚目。無ければ -1
  * パッドの A は attackPressed も同時に立つが、ここでは confirm 扱いで 1 枚目にする
  * （3 枚目は attackPressed かつ padConfirmPressed でないときだけ＝RT 単独のときのみ）
  */
 function selectedIndex(input: FrameInput, hover: number): number {
   if (input.skill1Pressed || input.padConfirmPressed) return 0;
   if (input.skill2Pressed) return 1;
+  if (input.skill4Pressed) return 3;
   // クリックと attackPressed は同じ元なので、クリックならカード判定だけを使う
   if (input.clickPressed) return hover;
   if (input.attackPressed && !input.padConfirmPressed) return 2;
   return -1;
+}
+
+/** 呪いの札を押したか（3 / X か、札のクリック） */
+function curseRequested(input: FrameInput, curseHover: boolean): boolean {
+  return input.skill3Pressed || (input.clickPressed && curseHover);
 }
 
 /** 選択中の 1 ステップ（step から呼ぶ。他の更新は止まっている） */
@@ -799,7 +514,12 @@ export function updateBoonChoice(state: GameState, input: FrameInput, dt: number
   if (!c) return;
   c.timer += dt;
   c.hover = input.aimScreen ? cardIndexAt(input.aimScreen, c.options.length) : -1;
+  c.curseHover = input.aimScreen !== null && inRect(input.aimScreen, boonCurseRect());
   if (c.timer < BOON.inputDelay) return;
+  if (curseRequested(input, c.curseHover)) {
+    takeCurse(state);
+    return;
+  }
   const index = selectedIndex(input, c.hover);
   if (index < 0 || index >= c.options.length) return;
   chooseBoon(state, index);
@@ -835,10 +555,13 @@ export function grantBoon(state: GameState, key: BoonKey): void {
 export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly BoonKey[], run: Readonly<BoonRunState>): PlayerStats {
   const out: PlayerStats = { ...stats };
   if (boons.includes("clearHeal")) out.maxHp = Math.round(out.maxHp * BOON.clearHealMaxHpMul);
+  if (boons.includes("deathRush")) out.maxHp = Math.max(1, Math.round(out.maxHp * BOON.deathRushMaxHpMul));
   if (boons.includes("glassJust")) out.maxHp = BOON.glassJustMaxHp;
   if (boons.includes("triggerHappy")) out.fireRateMul *= BOON.triggerHappyFireMul;
   if (boons.includes("comboClock")) out.comboWindowBonus -= FEEL.comboWindow * BOON.comboClockWindowMul;
   if (boons.includes("reaperCup")) out.manaRegen *= BOON.reaperCupRegenMul;
+  if (boons.includes("heavenEarth")) out.manaRegen = 0;
+  if (boons.includes("karmaFire")) out.burnDps *= BOON.karmaBurnMul;
   if (boons.includes("hollowVessel")) {
     out.manaCostMul *= BOON.hollowVesselCostMul;
     out.maxMana = Math.round(out.maxMana * BOON.hollowVesselMaxManaMul);
@@ -898,6 +621,7 @@ export function updateBoons(state: GameState, dt: number): void {
   run.overchargeCd = Math.max(0, run.overchargeCd - dt);
   run.critChainCd = Math.max(0, run.critChainCd - dt);
   updateCrumble(state);
+  updateBoonRules(state, dt);
   if (run.heartBurnTimer <= 0) return;
   run.heartBurnTimer = Math.max(0, run.heartBurnTimer - dt);
   if (run.heartBurnTimer === 0) applyBoonsToStats(state);
@@ -924,8 +648,19 @@ function updateCrumble(state: GameState): void {
     now.push(e.id);
     if (seen.has(e.id)) continue;
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "vulnerable", stacks: 1, duration: v.duration, potency: 0 }, "player");
+    if (hasBoon(state, "totalCollapse")) spreadCollapse(state, e);
   }
   run.crumbled = now;
+}
+
+/** totalCollapse: 崩しの脆弱を周囲の敵にも伝える */
+function spreadCollapse(state: GameState, source: Enemy): void {
+  const v = STATUS.vulnerable;
+  for (const e of enemiesInRadius(state, source.body.pos, BOON.collapseSpreadRadius)) {
+    if (e.id === source.id) continue;
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "vulnerable", stacks: 1, duration: v.duration, potency: 0 }, "player");
+  }
+  spawnRing(state, source.body.pos, BOON.collapseSpreadRadius, BOON.ruleTextColor, STATUS.fxLife);
 }
 
 // -----------------------------------------------------------------------------
@@ -945,23 +680,11 @@ export function boonSwingCombo(state: GameState, combo: number, dashStrike: bool
 
 /** 振り始め: 3 段目 / コンボ 20 以上なら貫通する衝撃波 */
 export function onBoonSwing(state: GameState, combo: number, dashStrike: boolean, baseDamage: number): void {
+  onBoonSwingRules(state, combo, dashStrike);
   const finisher = !dashStrike && combo === LAST_COMBO && hasBoon(state, "finisherWave");
   const comboWave = hasBoon(state, "comboWave") && state.combo.count >= BOON.comboWaveThreshold;
   if (!finisher && !comboWave) return;
-  const p = state.player;
-  state.projectiles.push({
-    id: allocId(state),
-    owner: "player",
-    pos: { ...p.body.pos },
-    vel: scale(p.attack.dir, BOON.waveSpeed),
-    radius: BOON.waveRadius,
-    damage: baseDamage * BOON.waveDamageRatio,
-    life: BOON.waveLife,
-    color: BOON.waveColor,
-    kind: "melee",
-    hitIds: new Set(),
-    pierceLeft: BOON.wavePierce,
-  });
+  spawnBoonWave(state, state.player.attack.dir, baseDamage * BOON.waveDamageRatio);
 }
 
 /** triggerHappy: 近接できない */
@@ -976,7 +699,7 @@ export function canShootWhileDashing(state: GameState): boolean {
 /** 射撃直後: 背面撃ち / 静止射撃 */
 export function onBoonShoot(state: GameState, shots: readonly Projectile[]): void {
   const p = state.player;
-  if (hasBoon(state, "standingSniper") && length(p.body.vel) < BOON.standStillSpeed) {
+  if (hasBoon(state, "standingSniper") && (length(p.body.vel) < BOON.standStillSpeed || stillDashing(state))) {
     for (const s of shots) {
       s.pierceLeft += BOON.standPierceBonus;
       s.vel = scale(s.vel, BOON.standSpeedMul);
@@ -992,6 +715,12 @@ export function onBoonShoot(state: GameState, shots: readonly Projectile[]): voi
     damage: first.damage * BOON.rearShotDamageMul,
     hitIds: new Set(),
   });
+}
+
+/** stillDash: ダッシュの残りが短い（終わり際）なら静止とみなす */
+function stillDashing(state: GameState): boolean {
+  const t = state.player.dashTimer;
+  return hasBoon(state, "stillDash") && t > 0 && t <= BOON.stillDashWindow;
 }
 
 /** dashGuard: ダッシュの代わりにその場ガード。置き換えたら true */
@@ -1011,6 +740,7 @@ export function tryDashGuard(state: GameState): boolean {
 /** ダッシュ開始: glassJust の JUST 窓延長、dashShock の連鎖雷 */
 export function onBoonDash(state: GameState): void {
   const p = state.player;
+  onBoonDashRules(state);
   if (hasBoon(state, "glassJust")) {
     const extended = dashTime(state.stats) * BOON.glassJustMul;
     state.boonRun.justExtendTimer = extended;
@@ -1021,15 +751,10 @@ export function onBoonDash(state: GameState): void {
 
 /** ダッシュ終了（時間切れ / 壁）: dashBlast */
 export function onBoonDashEnd(state: GameState): void {
-  if (!hasBoon(state, "dashBlast")) return;
-  explodeAt(state, state.player.body.pos, BOON.dashBlastRadius, slashBase(state) * BOON.dashBlastRatio);
-}
-
-/** 近接 1 段目の装備・ステータス込みダメージ（祝福の威力は装備 stat に比例させる） */
-function slashBase(state: GameState): number {
-  const s = state.stats;
-  const base = scaled(s, PLAYER.melee[0].scaling);
-  return Math.round((base + s.meleeDamageFlat) * s.meleeDamageMul);
+  if (hasBoon(state, "dashBlast")) {
+    explodeAt(state, state.player.body.pos, BOON.dashBlastRadius, slashBase(state) * BOON.dashBlastRatio);
+  }
+  onBoonDashEndRules(state);
 }
 
 /**
@@ -1038,14 +763,15 @@ function slashBase(state: GameState): number {
  */
 export function boonNormalAttackBonus(state: GameState): number {
   if (!hasBoon(state, "spiritBlade")) return 0;
-  return BOON.spiritBladeSpi * state.stats.attributesEff.spi;
+  const hollow = hasBoon(state, "hollowBlade") && state.player.mana < 1 ? BOON.hollowBladeMul : 1;
+  return BOON.spiritBladeSpi * state.stats.attributesEff.spi * hollow;
 }
 
 /** spiritBlade / hollowVessel: 通常攻撃の命中で戻るマナに掛ける倍率（keystones の attackManaMul と掛け合わせる） */
 export function boonAttackManaMul(state: GameState): number {
   const spirit = hasBoon(state, "spiritBlade") ? BOON.spiritBladeManaMul : 1;
   const hollow = hasBoon(state, "hollowVessel") ? BOON.hollowVesselAttackManaMul : 1;
-  return spirit * hollow;
+  return spirit * hollow * boonRuleAttackManaMul(state);
 }
 
 /**
@@ -1053,22 +779,27 @@ export function boonAttackManaMul(state: GameState): number {
  * skills.ts の effectiveManaCost が払う瞬間に読む（下限 MANA.costMulMin は向こうで掛かる）
  */
 export function boonManaCostMul(state: GameState): number {
-  if (!hasBoon(state, "bloodMana")) return 1;
   const p = state.player;
-  return p.hp <= p.maxHp * BOON.bloodManaHpRatio ? BOON.bloodManaCostMul : 1;
+  const blood = hasBoon(state, "bloodMana") && p.hp <= p.maxHp * BOON.bloodManaHpRatio ? BOON.bloodManaCostMul : 1;
+  return blood * boonRuleCostMul(state);
 }
 
 // -----------------------------------------------------------------------------
 // フック: skills.ts / skills/hit.ts
 // -----------------------------------------------------------------------------
 
-/** スキル発動（castSlot）: circulation の還元量を発動単位で数え直す */
-export function onBoonSkillCast(state: GameState): void {
+/**
+ * スキル発動（castSlot。払った後）: circulation の還元量を発動単位で数え直す。
+ * slot / resource / manaPaid は拡張の祝福（月蝕・両輪・満月撃ちなど）が読む。省略はテストの直接呼び出し
+ */
+export function onBoonSkillCast(state: GameState, slot = -1, resource: SkillResource | null = null, manaPaid = 0): void {
   state.boonRun.circulationGained = 0;
+  onBoonSkillCastRules(state, slot, resource, manaPaid);
 }
 
 /** スキル命中（skillHit）: circulation。1 回の発動で circulationCap まで */
-export function onBoonSkillHit(state: GameState): void {
+export function onBoonSkillHit(state: GameState, e?: Enemy): void {
+  onBoonSkillHitRules(state, e);
   if (!hasBoon(state, "circulation")) return;
   const run = state.boonRun;
   const room = BOON.circulationCap - run.circulationGained;
@@ -1081,21 +812,24 @@ export function onBoonSkillHit(state: GameState): void {
 
 export function boonMoveMul(state: GameState): number {
   if (state.boonRun.guardTimer > 0) return 0;
-  if (!hasBoon(state, "lockdown")) return 1;
-  return state.rooms.some((r) => r.locked) ? BOON.lockdownFastMul : BOON.lockdownSlowMul;
+  const burden = hasBoon(state, "burden") ? BOON.burdenMoveMul : 1;
+  if (!hasBoon(state, "lockdown")) return burden;
+  return burden * (state.rooms.some((r) => r.locked) ? BOON.lockdownFastMul : BOON.lockdownSlowMul);
 }
 
-/** overcharge: ゲージ満タン中の近接ヒットで爆発 */
-export function onBoonMeleeHit(state: GameState, e: Enemy): void {
+/** 近接ヒット: 拡張の祝福（counter = カウンターヒット）と overcharge（ゲージ満タン中 / 臨界の窓で爆発） */
+export function onBoonMeleeHit(state: GameState, e: Enemy, counter = false): void {
+  onBoonMeleeHitRules(state, e, counter);
   if (!hasBoon(state, "overcharge") || state.boonRun.overchargeCd > 0) return;
   const p = state.player;
-  if (p.energy < p.maxEnergy) return;
+  if (p.energy < p.maxEnergy && state.boonRun.rules.criticalTimer <= 0) return;
   state.boonRun.overchargeCd = BOON.overchargeIcd;
   explodeAt(state, e.body.pos, BOON.overchargeRadius, slashBase(state) * BOON.overchargeRatio, e.id);
 }
 
 /** burstRefund: バーストで倒した数だけゲージを返す */
 export function onBoonBurstKills(state: GameState, kills: number): void {
+  onBoonBurstRules(state);
   if (kills <= 0 || !hasBoon(state, "burstRefund")) return;
   const p = state.player;
   p.energy = Math.min(p.maxEnergy, p.energy + kills * BOON.burstRefundPerKill);
@@ -1107,6 +841,7 @@ export function onBoonBurstKills(state: GameState, kills: number): void {
 
 /** comboClock: コンボ 10 ごとにゲージ満タン */
 export function onBoonComboHit(state: GameState): void {
+  onBoonComboHitRules(state);
   if (!hasBoon(state, "comboClock")) return;
   if (state.combo.count <= 0 || state.combo.count % BOON.comboClockEvery !== 0) return;
   const p = state.player;
@@ -1116,6 +851,7 @@ export function onBoonComboHit(state: GameState): void {
 
 /** critChain: クリティカルで連鎖雷 */
 export function onBoonCrit(state: GameState, enemy: Enemy, amount: number): void {
+  onBoonCritRules(state, enemy);
   if (!hasBoon(state, "critChain") || state.boonRun.critChainCd > 0) return;
   state.boonRun.critChainCd = BOON.critChainIcd;
   chainLightning(state, enemy.body.pos, amount * BOON.critChainRatio, enemy.id);
@@ -1123,6 +859,7 @@ export function onBoonCrit(state: GameState, enemy: Enemy, amount: number): void
 
 /** 撃破時: eliteVault / burnSpread / chillShatter / bloodFeast / eliteMagnet */
 export function onBoonKill(state: GameState, enemy: Enemy): void {
+  onBoonKillRules(state, enemy);
   if (enemy.elite && hasBoon(state, "eliteVault") && !state.boonRun.vaultNext) {
     state.boonRun.vaultNext = true;
     addFloatingText(state, enemy.body.pos, "次階に宝物庫", BOON.rarityColor.rare, TEXT_SCALE, 1);
@@ -1169,6 +906,7 @@ function bloodMist(state: GameState, enemy: Enemy): void {
  * combat.ts の砕き（shatterFreeze）から呼ぶ
  */
 export function onBoonShatter(state: GameState, enemy: Enemy): void {
+  onBoonShatterRules(state, enemy);
   if (!hasBoon(state, "frostPierce")) return;
   const apply = { kind: "chill" as const, stacks: BOON.frostPierceStacks, duration: STATUS.chill.duration, potency: 0 };
   for (const e of enemiesInRadius(state, enemy.body.pos, BOON.frostPierceRadius)) {
@@ -1204,6 +942,8 @@ export function boonJustEligible(state: GameState): boolean {
 
 /** 被弾後のコンボ数。comboKeeper なら半分残す */
 export function comboAfterHurt(state: GameState): number {
+  // 綱渡りの追加ダメージはコンボが消える前の数で決まるので、ここで先に取る
+  tightropePenalty(state);
   if (!hasBoon(state, "comboKeeper")) return 0;
   return Math.floor(state.combo.count / 2);
 }
@@ -1224,20 +964,30 @@ export function tryRevive(state: GameState): boolean {
   return true;
 }
 
-/** JUST 回避時: justWipe / glassJust / keenBreath */
-export function onBoonJust(state: GameState): void {
+/** JUST 回避時: keenBreath / glassJust / 奪弾 → justWipe → 拡張の祝福。attacker は回避した攻撃の主 */
+export function onBoonJust(state: GameState, attacker?: Enemy): void {
   const p = state.player;
   if (hasBoon(state, "keenBreath")) gainMana(state, BOON.keenBreathJustMana);
   if (hasBoon(state, "glassJust")) {
     p.justTimer *= BOON.glassJustMul;
     p.justCounterTimer *= BOON.glassJustMul;
   }
-  if (!hasBoon(state, "justWipe")) return;
+  // 奪弾は一掃より先（奪った弾は自分の弾なので一掃で消えない）
+  onBoonJustSteal(state);
+  const wiped = hasBoon(state, "justWipe") ? wipeEnemyBullets(state) : 0;
+  onBoonJustRules(state, attacker, wiped);
+}
+
+/** justWipe: 敵弾を全て消す。消した数を返す（燕渡りが読む） */
+function wipeEnemyBullets(state: GameState): number {
+  let wiped = 0;
   for (const pr of state.projectiles) {
     if (pr.owner !== "enemy" || pr.life <= 0) continue;
     pr.life = 0;
+    wiped += 1;
     spawnBurst(state, pr.pos, pr.color, 3, 60, 0.2, 1.5);
   }
+  return wiped;
 }
 
 // -----------------------------------------------------------------------------
@@ -1246,6 +996,7 @@ export function onBoonJust(state: GameState): void {
 
 /** eliteVault: 予約があれば、この階の空いている部屋を 1 つ宝物庫にする */
 export function applyBoonFloorRules(state: GameState, reserved: ReadonlySet<number>): void {
+  resetBoonRulesForFloor(state);
   const run = state.boonRun;
   if (!run.vaultNext) return;
   if (state.rooms.some((r) => r.kind === "treasure")) {
@@ -1296,14 +1047,16 @@ export function extraEliteRoll(state: GameState, e: Enemy): boolean {
 
 /** frostLock: ロックした部屋の敵を凍えさせる */
 export function onBoonRoomLock(state: GameState, index: number): void {
+  onBoonRoomLockRules(state);
   if (!hasBoon(state, "frostLock")) return;
   for (const e of state.enemies) {
     if (e.roomIndex === index && e.hp > 0) applyChill(state, e, BOON.frostLockSlow, BOON.frostLockTime);
   }
 }
 
-/** 部屋クリア: clearShield / clearHeal / springWell */
-export function onBoonRoomClear(state: GameState): void {
+/** 部屋クリア: clearShield / clearHeal / springWell と拡張の祝福（room は制圧した部屋。試練・伏兵の判定に使う） */
+export function onBoonRoomClear(state: GameState, room?: RoomState): void {
+  onBoonRoomClearRules(state, room);
   const p = state.player;
   // 回収ではなく補充なので manaGainMul を通さず上限へ直接揃える
   if (hasBoon(state, "springWell")) {

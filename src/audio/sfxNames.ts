@@ -40,6 +40,8 @@ export const SFX_NAMES = [
   "parry",
   "railshot",
   "runeAttach",
+  /** スキルの連携が成立した（docs/ideas/skills-expansion.md 4 章） */
+  "synergy",
   /** マナ不足の不発（docs/COMBAT_DESIGN.md B-2） */
   "manaEmpty",
   // アクション手触り（docs/ideas/action-feel.md）

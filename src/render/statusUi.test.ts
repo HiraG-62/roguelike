@@ -1,15 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { STATUS_KINDS, createStatusBag } from "../core/status";
+import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
 import { applyStatus } from "../system/statusEffects";
 import { arena, placeEnemy } from "../system/testHelpers";
 import { POISE_GAUGE_SHOW_RATIO, STATUS_COLOR, STATUS_GLYPH, poiseGaugeVisible, statusIcons } from "./statusUi";
 
 describe("状態異常アイコン", () => {
-  it("13 種すべてに 1 文字の表記と色がある", () => {
+  it("すべての状態異常に 1 文字の表記と色があり、表記は重ならない", () => {
     for (const kind of STATUS_KINDS) {
       expect([...STATUS_GLYPH[kind]], `${kind} の表記`).toHaveLength(1);
       expect(STATUS_COLOR[kind], `${kind} の色`).toMatch(/^#[0-9a-f]{6}$/);
     }
+    const glyphs = STATUS_KINDS.map((kind) => STATUS_GLYPH[kind]);
+    expect(new Set(glyphs).size, "表記の重複").toBe(glyphs.length);
+  });
+
+  it("良い状態は good、彩痕は付いている色で出す", () => {
+    const state = arena();
+    const target = { kind: "player" } as const;
+    applyStatus(state, target, { kind: "haste", stacks: 1, duration: 3, potency: 0 }, "player");
+    expect(statusIcons(state.player.status)[0]?.good).toBe(true);
+    const e = placeEnemy(state, "golem", 40);
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "hue", stacks: 1, duration: 3, potency: TRAIT_COLORS.indexOf("gold") }, "player");
+    expect(statusIcons(e.status)[0]?.color).toBe(TRAIT_COLOR_HEX.gold);
+    expect(statusIcons(e.status)[0]?.good).toBe(false);
   });
 
   it("付いている状態異常だけを STATUS_KINDS の順に、スタック数と残り時間の割合つきで並べる", () => {

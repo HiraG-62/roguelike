@@ -26,6 +26,8 @@ const MANY = 1000;
 const HIGH_LEVEL = 40;
 const SHALLOW = 3;
 const DEEP = 25;
+/** 名のある遺物の数の下限（2026-09 の拡張で 16 → 46） */
+const MIN_NAMED_COUNT = 40;
 
 function opts(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
   return { itemLevel: 10, foundDepth: 5, now: NOW, ...overrides };
@@ -100,7 +102,8 @@ describe("generateItem: 決定性と基本形", () => {
     for (const item of generateMany(200, 3)) {
       expect(item.provenance).toEqual(createEmptyProvenance());
       expect(item.margin).toBeGreaterThanOrEqual(item.namedKey === undefined ? MIN_MARGIN : 1);
-      expect(item.margin).toBeLessThanOrEqual(MAX_MARGIN);
+      // 襤褸（marginBonus）は器の容量まで余白が多い
+      expect(item.margin).toBeLessThanOrEqual(MAX_MARGIN + (baseDef(item.baseKey)?.marginBonus ?? 0));
       expect(item.marginMax).toBe(item.margin);
       expect(item.milestones).toEqual([]);
       expect(item.buds).toEqual([]);
@@ -285,8 +288,9 @@ describe("rollTraitCount / rollTraitOfColor", () => {
 });
 
 describe("名のある遺物の定義", () => {
-  it("16 個あり、ベース・性質・誓約が実在する", () => {
-    expect(UNIQUES).toHaveLength(16);
+  it(`${MIN_NAMED_COUNT} 個以上あり、key が重複せず、ベース・性質・誓約が実在する`, () => {
+    expect(UNIQUES.length).toBeGreaterThanOrEqual(MIN_NAMED_COUNT);
+    expect(new Set(UNIQUES.map((u) => u.key)).size, "key の重複").toBe(UNIQUES.length);
     for (const u of UNIQUES) {
       expect(baseDef(u.baseKey), u.key).toBeDefined();
       for (const spec of u.affixes) expect(affixDef(spec.key), `${u.key}/${spec.key}`).toBeDefined();

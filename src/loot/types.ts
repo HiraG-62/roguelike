@@ -1,4 +1,4 @@
-import type { StatusProc } from "../core/status";
+import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
 import { ATTR, MANA } from "../data/tuning";
 
@@ -104,6 +104,17 @@ export interface Provenance {
   floorsCleared: number;
   /** 装備中に到達した最深 */
   deepest: number;
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 7 章）。旧セーブは 0 で補う ----
+  /** 敵を怯ませた回数（ボスのダウンを含む） */
+  staggers: number;
+  /** カウンター（予備動作中の敵への近接）の成立回数 */
+  counters: number;
+  /** スキルの発動回数 */
+  skillCasts: number;
+  /** エリートの撃破数 */
+  eliteKills: number;
+  /** 殲滅（封鎖中の部屋の最後の 1 体）の回数 */
+  lastKills: number;
 }
 
 export function createEmptyProvenance(): Provenance {
@@ -116,6 +127,11 @@ export function createEmptyProvenance(): Provenance {
     roomsCleared: 0,
     floorsCleared: 0,
     deepest: 0,
+    staggers: 0,
+    counters: 0,
+    skillCasts: 0,
+    eliteKills: 0,
+    lastKills: 0,
   };
 }
 
@@ -339,17 +355,145 @@ export interface PlayerStats {
   /** 性質「弾斬り」: 0 より大きければ近接の active で敵弾を消す */
   bulletCut: number;
   statusProcs: StatusProc[];
+  /** 性質のルール変更（docs/ideas/loot-expansion.md）。戦闘側は system/traitHooks.ts が読む */
+  traits: TraitStats;
 }
 
 /**
- * 共鳴の種類。同時に 1 つだけ。
- * dominant = 支配（1 色 >= 50%）/ dual = 二重（上位 2 色が各 >= 30%）/ scatter = 散光（全色 < 30%）/ none = なし
+ * 性質が持ち込むルール変更の数値。すべて 0 が「効果なし」。% 系は 0.01 単位の加算値（+25% なら 0.25）。
+ * 数値のフィールドを PlayerStats の直下に増やすと statsSummary の表示表まで広がるので、ここにまとめる
  */
-export type ResonanceKind = "dominant" | "dual" | "scatter" | "none";
+export interface TraitStats {
+  // ---- マナ ----
+  /** 敵を怯ませた瞬間に戻るマナ */
+  manaOnStagger: number;
+  /** マナが少ない間（TRIGGER.trait.lowManaRatio 未満）のマナ回収の加算倍率 */
+  lowManaGainMul: number;
+  /** マナ満タンの間のスキル威力の加算倍率 */
+  fullManaSkillMul: number;
+  /** 残りマナが 0 に近いほど効くスキル威力の加算倍率（0 で満額） */
+  lowManaSkillMul: number;
+  /** 身代わり: 被弾時に払うマナ（0 = 無効）。払えれば被ダメージが TRIGGER.trait.manaShieldMul 倍 */
+  manaShieldCost: number;
+  /** 沈黙中の敵を倒したときに戻るマナ */
+  silencedKillMana: number;
+  /** 殲滅で戻るマナ（最大マナに対する割合 0..1） */
+  lastKillManaRatio: number;
+  /** マナ満タンで溢れた回収のうち、必殺ゲージへ移す割合 0..1 */
+  manaOverflowToEnergy: number;
+  // ---- 与ダメージ（近接・射撃・スキル。proc は対象外） ----
+  /** 対象に付いた状態異常 1 種ごと */
+  damagePerStatusKind: number;
+  /** 自分に付いた状態異常 1 種ごと */
+  damagePerSelfStatus: number;
+  /** 予備動作中の敵へ / それ以外への減少 */
+  windupDamageMul: number;
+  offWindupPenalty: number;
+  /** 堅守中の敵へ */
+  guardedDamageMul: number;
+  /** ボスへ / ボス以外への減少 */
+  bossDamageMul: number;
+  nonBossPenalty: number;
+  /** 封鎖中の部屋で / それ以外での減少 */
+  lockedDamageMul: number;
+  unlockedPenalty: number;
+  /** 暗闇フロアの射撃 / それ以外のフロアの射撃の減少 */
+  darkRangedMul: number;
+  lightRangedPenalty: number;
+  /** 死神が出ている間 */
+  reaperDamageMul: number;
+  // ---- 怯み値 ----
+  fearPoiseMul: number;
+  silencedPoiseMul: number;
+  vulnerablePoiseMul: number;
+  guardedPoiseMul: number;
+  /** 蓄積が耐性の半分以上の敵へ / 半分未満の敵への減少（楔） */
+  wedgePoiseMul: number;
+  wedgePenalty: number;
+  /** 射撃の怯み値の加算倍率（負で減る） */
+  rangedPoiseMul: number;
+  /** 会心時の怯み値の加算倍率 */
+  critPoiseMul: number;
+  /** 堅守による射撃の怯み値の減衰を打ち消す割合 0..1（剥がし撃ち） */
+  guardPierce: number;
+  /** 敵を怯ませた瞬間、周囲の敵に与える怯み値（崩れの反響） */
+  staggerQuake: number;
+  // ---- 生存 ----
+  healOnStagger: number;
+  /** 弱体中の敵から受けるダメージの減少 / 弱体でない敵からの増加 */
+  weakenedGuard: number;
+  weakenedExposure: number;
+  // ---- その他 ----
+  /** 1 以上: 殲滅の瞬間に敵弾をすべて消す（目覚め「幕引き」） */
+  lastKillClearsBullets: number;
+  /** 殲滅で得るエネルギー */
+  lastKillEnergy: number;
+  // ---- 装備全体の文脈（computeStats が性質の適用前に入れる。性質の apply はこれを読む） ----
+  /** 装備全体の残り余白の合計 */
+  gearMargin: number;
+  /** 装備している遺物の数 */
+  gearItems: number;
+  /** 銘を持つ遺物の数 */
+  gearInscribed: number;
+  /** 反転した性質の数 */
+  gearInverted: number;
+  /** 異色（既定と別の色で生まれた）性質の数 */
+  gearOffColor: number;
+}
+
+export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
+  manaOnStagger: 0,
+  lowManaGainMul: 0,
+  fullManaSkillMul: 0,
+  lowManaSkillMul: 0,
+  manaShieldCost: 0,
+  silencedKillMana: 0,
+  lastKillManaRatio: 0,
+  manaOverflowToEnergy: 0,
+  damagePerStatusKind: 0,
+  damagePerSelfStatus: 0,
+  windupDamageMul: 0,
+  offWindupPenalty: 0,
+  guardedDamageMul: 0,
+  bossDamageMul: 0,
+  nonBossPenalty: 0,
+  lockedDamageMul: 0,
+  unlockedPenalty: 0,
+  darkRangedMul: 0,
+  lightRangedPenalty: 0,
+  reaperDamageMul: 0,
+  fearPoiseMul: 0,
+  silencedPoiseMul: 0,
+  vulnerablePoiseMul: 0,
+  guardedPoiseMul: 0,
+  wedgePoiseMul: 0,
+  wedgePenalty: 0,
+  rangedPoiseMul: 0,
+  critPoiseMul: 0,
+  guardPierce: 0,
+  staggerQuake: 0,
+  healOnStagger: 0,
+  weakenedGuard: 0,
+  weakenedExposure: 0,
+  lastKillClearsBullets: 0,
+  lastKillEnergy: 0,
+  gearMargin: 0,
+  gearItems: 0,
+  gearInscribed: 0,
+  gearInverted: 0,
+  gearOffColor: 0,
+};
+
+/**
+ * 共鳴の種類。同時に 1 つだけ。
+ * dominant = 支配（1 色 >= 50%）/ dual = 二重（上位 2 色が各 >= 30%）/
+ * triad = 三和音（上位 3 色が各 >= 22%）/ scatter = 散光（全色 < 30%）/ none = なし
+ */
+export type ResonanceKind = "dominant" | "dual" | "triad" | "scatter" | "none";
 
 export interface Resonance {
   kind: ResonanceKind;
-  /** dominant は 1 色、dual は 2 色（TRAIT_COLORS 順）、scatter / none は空 */
+  /** dominant は 1 色、dual は 2 色、triad は 3 色（TRAIT_COLORS 順）、scatter / none は空 */
   colors: TraitColor[];
   /** 色ごとの配合比（合計 1。性質が無ければ全部 0） */
   ratios: Record<TraitColor, number>;
@@ -367,7 +511,11 @@ export type TriggerKind =
   | "onDash"
   | "onHurt"
   | "onRoomClear"
-  | "everyNthMeleeHit";
+  | "everyNthMeleeHit"
+  /** 敵を怯ませた瞬間（ボスのダウンを含む） */
+  | "onStagger"
+  /** カウンター（予備動作中の敵への近接）が成立した瞬間 */
+  | "onCounter";
 
 export type TriggerCondition =
   | "always"
@@ -375,7 +523,16 @@ export type TriggerCondition =
   | "belowHalfHp"
   | "comboAbove10"
   | "roomLocked"
-  | "fullEnergy";
+  | "fullEnergy"
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 6-1）----
+  | "manaFull"
+  | "manaLow"
+  | "selfAfflicted"
+  /** 以下は対象（TriggerContext.targetId の敵）を見る。対象の無い起点とは組まない */
+  | "targetInWindup"
+  | "targetGuarded"
+  | "targetMultiStatus"
+  | "targetElite";
 
 export type TriggerEffectKind =
   | "shockwave"
@@ -388,7 +545,19 @@ export type TriggerEffectKind =
   | "damageBuff"
   | "speedBuff"
   | "energy"
-  | "invuln";
+  | "invuln"
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 6-2）----
+  | "restoreMana"
+  | "addPoise"
+  /** 状態異常を付ける。種類は TriggeredEffect.status */
+  | "inflict"
+  | "cleanse"
+  | "extendStatus"
+  | "skillHaste"
+  /** 照準方向へ射撃の弾を撃つ（射撃の性質が乗る） */
+  | "volley"
+  /** 失った HP の割合を回復する（誓約・性質の固定効果専用。文法からは出ない） */
+  | "healMissing";
 
 export interface TriggeredEffect {
   trigger: TriggerKind;
@@ -404,6 +573,8 @@ export interface TriggeredEffect {
   count?: number;
   /** 発動確率 0..1 */
   chance: number;
+  /** inflict の状態異常 */
+  status?: StatusKind;
 }
 
 export const DEFAULT_STATS: Readonly<PlayerStats> = {
@@ -473,4 +644,5 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   statusTakenMul: 1,
   bulletCut: 0,
   statusProcs: [],
+  traits: DEFAULT_TRAIT_STATS,
 };

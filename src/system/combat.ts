@@ -8,11 +8,14 @@ import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRin
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
+import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playerStatusTakenMul } from "./statusEffects";
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
+import { onTraitKill, onTraitStagger, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
 import { interceptEnemyDamage } from "./elites";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
+import { boonForcesCrit, boonPoise, onBoonHurt } from "./boonRules";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -103,6 +106,7 @@ export function rollOutgoing(
   if (kind === "ranged") amount = (base + s.rangedDamageFlat) * s.rangedDamageMul;
   if (opts.skill) amount *= s.skillDamageMul;
   if (hasStatus(p.status, "weaken")) amount *= 1 - STATUS.weaken.mul;
+  amount *= playerStatusOutgoingMul(state);
 
   let crit = false;
   if (kind !== "proc") {
@@ -110,11 +114,12 @@ export function rollOutgoing(
     amount *= comboDamageMul(state);
     if (p.justTimer > 0) amount *= s.justDodgeDamageMul;
     if (p.buffs.damage.time > 0) amount *= p.buffs.damage.mul;
-    crit = state.rng.chance(s.critChance);
+    crit = state.rng.chance(s.critChance) || boonForcesCrit(state, enemy, kind);
     if (crit) amount *= s.critMul;
   }
   amount *= berserkerMul(state);
   amount *= gamblerMul(state);
+  amount *= traitOutgoingMul(state, enemy, kind, opts.skill === true);
   return { amount: Math.max(MIN_DAMAGE, Math.round(amount)), crit };
 }
 
@@ -129,17 +134,18 @@ export function damageEnemy(
 ): boolean {
   if (enemy.hp <= 0) return false;
   const kind = opts.kind ?? "proc";
-  const poise = opts.poise ?? 0;
+  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;
   // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない
   const shatter = !opts.silent && hasStatus(enemy.status, "freeze");
-  amount = takenDamage(enemy, intercepted, shatter);
+  amount = takenDamage(enemy, intercepted, shatter, enemyStatusTakenMul(state, enemy));
   const def = enemyDef(enemy.defKey);
   enemy.hp -= amount;
   if (shatter) shatterFreeze(state, enemy);
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
   const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor });
+  if (heavy) onTraitStagger(state, enemy);
 
   if (!opts.silent) {
     enemy.hitFlash = ENEMY_HIT_FLASH;
@@ -167,8 +173,8 @@ export function damageEnemy(
 }
 
 /** 受ける側の倍率: 脆弱・砕き・ボスのダウン中 */
-function takenDamage(enemy: Enemy, amount: number, shatter: boolean): number {
-  let mul = 1;
+function takenDamage(enemy: Enemy, amount: number, shatter: boolean, statusMul = 1): number {
+  let mul = statusMul;
   if (hasStatus(enemy.status, "vulnerable")) mul *= STATUS.vulnerable.mul;
   if (shatter) mul *= STATUS.freeze.shatterDamageMul;
   if (enemyDef(enemy.defKey).boss && isStaggered(enemy)) mul *= POISE.bossDownDamageMul;
@@ -222,6 +228,7 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
   onBoonKill(state, enemy);
+  onTraitKill(state, enemy);
   recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
   if (isLastKillInLockedRoom(state, enemy)) lastKillFx(state, enemy);
 }
@@ -337,9 +344,10 @@ export function damagePlayer(
     return "ignored";
   }
 
-  const taken = mitigate(state, amount * playerTakenMul(state) * enemyDamageMul(attacker));
+  const taken = mitigate(state, amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker));
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);
+  onPlayerHurtStatus(state);
   recordProvenance(state, { kind: "hurt" });
   p.invulnTimer = PLAYER.hurtInvuln;
   p.hitFlash = PLAYER_HIT_FLASH;
@@ -362,12 +370,13 @@ export function damagePlayer(
   pushSfx(state, "hurt");
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
+  onBoonHurt(state, attacker);
   return "hit";
 }
 
 /** プレイヤーが受けるダメージの倍率（脆弱） */
 function playerTakenMul(state: GameState): number {
-  return hasStatus(state.player.status, "vulnerable") ? STATUS.vulnerable.mul : 1;
+  return (hasStatus(state.player.status, "vulnerable") ? STATUS.vulnerable.mul : 1) * playerStatusTakenMul(state);
 }
 
 /**
@@ -430,7 +439,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");
-  onBoonJust(state);
+  onBoonJust(state, attacker);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
   recordProvenance(state, { kind: "just" });
 }

@@ -1,5 +1,6 @@
 import type { Enemy } from "../core/state";
-import { STATUS_KINDS, type StatusBag, type StatusKind } from "../core/status";
+import { GOOD_STATUS_KINDS, STATUS_KINDS, type StatusBag, type StatusEffect, type StatusKind } from "../core/status";
+import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
 import { poiseRatio } from "../system/poise";
 import { findStatus } from "../system/statusEffects";
 import { TEXT, drawText, textWidth } from "./pixelText";
@@ -25,6 +26,27 @@ export const STATUS_GLYPH: Readonly<Record<StatusKind, string>> = {
   silence: "沈",
   stagger: "怯",
   guarded: "堅",
+  wet: "濡",
+  oiled: "油",
+  corrode: "蝕",
+  brand: "烙",
+  broken: "崩",
+  doom: "宣",
+  siphon: "吸",
+  hue: "彩",
+  scorch: "灼",
+  blaze: "炎",
+  venom: "猛",
+  hemorrhage: "裂",
+  encase: "棺",
+  exposed: "露",
+  enfeeble: "無",
+  soaked: "浸",
+  haste: "速",
+  harden: "硬",
+  wrath: "怒",
+  fury: "昂",
+  charged: "帯",
 };
 
 export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
@@ -41,6 +63,27 @@ export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
   silence: "#a0a0c0",
   stagger: "#f8d848",
   guarded: "#d0d0d0",
+  wet: "#60a0ff",
+  oiled: "#b09050",
+  corrode: "#a0c040",
+  brand: "#ff5040",
+  broken: "#ffa060",
+  doom: "#9050d0",
+  siphon: "#50b0ff",
+  hue: "#ffffff",
+  scorch: "#ff4010",
+  blaze: "#ff6020",
+  venom: "#60ff30",
+  hemorrhage: "#ff2030",
+  encase: "#e0ffff",
+  exposed: "#ff50a0",
+  enfeeble: "#8070e0",
+  soaked: "#4070ff",
+  haste: "#80ffc0",
+  harden: "#c0b090",
+  wrath: "#ff7050",
+  fury: "#ff3030",
+  charged: "#f0f080",
 };
 
 /** 怯みゲージを出し始める蓄積の割合（小さな蓄積で頭上をうるさくしない） */
@@ -55,6 +98,9 @@ const ENEMY_ICON_RISE = 9;
 const PLAYER_CELL = 8;
 const PLAYER_CELL_GAP = 1;
 const PLAYER_CELL_BG = "#101018";
+/** 良い状態の枠（悪い状態と見分ける） */
+const PLAYER_GOOD_CELL_BG = "#103020";
+const PLAYER_GOOD_EDGE = "#60e0a0";
 const PLAYER_CELL_ALPHA = 0.8;
 const PLAYER_TIMER_H = 1;
 const COLOR_STACKS = "#ffffff";
@@ -66,6 +112,15 @@ export interface StatusIcon {
   stacks: number;
   /** 残り時間の割合 0..1 */
   ratio: number;
+  /** 良い状態（HUD の枠色を変える） */
+  good: boolean;
+}
+
+/** 彩痕は付いている色（共鳴の色）で出す。他は種類ごとの色 */
+function iconColor(effect: Readonly<StatusEffect>): string {
+  if (effect.kind !== "hue") return STATUS_COLOR[effect.kind];
+  const color = TRAIT_COLORS[Math.round(effect.potency)];
+  return color ? TRAIT_COLOR_HEX[color] : STATUS_COLOR.hue;
 }
 
 /** 表示する状態異常の一覧（STATUS_KINDS の順）。描画しない側でもテストできるよう純関数にしておく */
@@ -75,7 +130,7 @@ export function statusIcons(bag: Readonly<StatusBag>): StatusIcon[] {
     const effect = findStatus(bag, kind);
     if (!effect) continue;
     const ratio = effect.maxTime > 0 ? Math.max(0, Math.min(1, effect.time / effect.maxTime)) : 0;
-    icons.push({ kind, glyph: STATUS_GLYPH[kind], color: STATUS_COLOR[kind], stacks: effect.stacks, ratio });
+    icons.push({ kind, glyph: STATUS_GLYPH[kind], color: iconColor(effect), stacks: effect.stacks, ratio, good: GOOD_STATUS_KINDS.has(kind) });
   }
   return icons;
 }
@@ -133,9 +188,14 @@ export function drawPlayerStatusRow(ctx: CanvasRenderingContext2D, bag: Readonly
   statusIcons(bag).forEach((icon, i) => {
     const cx = x + i * (PLAYER_CELL + PLAYER_CELL_GAP);
     ctx.globalAlpha = PLAYER_CELL_ALPHA;
-    ctx.fillStyle = PLAYER_CELL_BG;
+    ctx.fillStyle = icon.good ? PLAYER_GOOD_CELL_BG : PLAYER_CELL_BG;
     ctx.fillRect(cx, y, PLAYER_CELL, PLAYER_CELL);
     ctx.globalAlpha = 1;
+    if (icon.good) {
+      ctx.strokeStyle = PLAYER_GOOD_EDGE;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx + 0.5, y + 0.5, PLAYER_CELL - 1, PLAYER_CELL - 1);
+    }
     drawText(ctx, icon.glyph, cx + PLAYER_CELL / 2, y + PLAYER_CELL / 2, m, icon.color, "center", "middle");
     if (icon.stacks > 1) drawText(ctx, String(icon.stacks), cx + PLAYER_CELL, y + PLAYER_CELL, m, COLOR_STACKS, "right", "bottom");
     ctx.fillStyle = icon.color;

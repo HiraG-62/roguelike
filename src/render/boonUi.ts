@@ -2,12 +2,22 @@ import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { BOON } from "../data/tuning";
-import { BOON_CARD, type BoonDef, type BoonTag, boonCardRect, boonDef, equipmentTags } from "../system/boons";
-import { TEXT, drawText, textLineHeight, textWidth, wrapText } from "./pixelText";
+import {
+  BOON_CARD,
+  type BoonDef,
+  type BoonTag,
+  LINEAGE_LABEL,
+  boonCardRect,
+  boonCurseRect,
+  boonDef,
+  buildTags,
+  canTakeCurse,
+} from "../system/boons";
+import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
 
 /**
- * 祝福の描画。選択オーバーレイ（3 枚のカード）と、右下の取得済みアイコン列（ホバーで名前）。
- * 当たり判定は boons.ts の boonCardRect と共有する。
+ * 祝福の描画。選択オーバーレイ（3 枚 / 呪いを受けた後は 4 枚のカードと呪いの札）と、右下の取得済みアイコン列（ホバーで名前）。
+ * 当たり判定は boons.ts の boonCardRect / boonCurseRect と共有する。
  */
 
 const COLOR_DIM_BG = "rgba(0,0,0,0.7)";
@@ -19,6 +29,11 @@ const COLOR_TAG_MATCH = "#ffd75f";
 const COLOR_TITLE = "#ffd75f";
 const COLOR_ICON_BG = "rgba(12,12,18,0.85)";
 const COLOR_USED = "#505050";
+const COLOR_CURSE_BG = "rgba(48,12,16,0.95)";
+const COLOR_CURSE_BG_HOVER = "rgba(80,20,24,0.98)";
+/** 系譜・結びの注記の色 */
+const COLOR_LINEAGE = "#ffb060";
+const COLOR_DUO = "#80e0c0";
 
 const TITLE_Y = 44;
 const HINT_Y = 52;
@@ -29,8 +44,13 @@ const RARITY_Y = 52;
 const DESC_Y = 64;
 const LINE_H = 9;
 const TAGS_BOTTOM = 8;
-const KEY_HINTS = ["1 / C", "2 / V", "E"] as const;
+const KEY_HINTS = ["1 / C", "2 / V", "E", "4 / Z"] as const;
 const KEY_Y_FROM_BOTTOM = 18;
+const CURSE_KEY = "3 / X";
+/** 呪いの札の文字のベースライン（札の上端から） */
+const CURSE_TEXT_Y = 10;
+/** 系譜の段数をたどる上限（定義の循環で止まらないように） */
+const LINEAGE_MAX_DEPTH = 8;
 
 const HUD_ICON = 10;
 const HUD_GAP = 2;
@@ -40,6 +60,10 @@ const HUD_ICON_BASELINE = 8;
 const TIP_PAD = 3;
 const TIP_H = 22;
 const TIP_GAP = 3;
+/** アイコン列の 1 段の数（祝福が増えても画面の左端まで伸ばさない） */
+const HUD_PER_ROW = 16;
+/** ツールチップの説明の折り返し幅 */
+const TIP_MAX_W = 220;
 
 function boonColor(def: BoonDef): string {
   return def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
@@ -52,6 +76,26 @@ const BOON_RARITY_LABEL: Readonly<Record<BoonDef["rarity"], string>> = {
   epic: "極稀",
 };
 
+/** 系譜の何段目か（1 始まり） */
+function lineageStage(def: BoonDef): number {
+  let stage = 1;
+  let prev = def.after;
+  while (prev && stage < LINEAGE_MAX_DEPTH) {
+    stage += 1;
+    prev = boonDef(prev).after;
+  }
+  return stage;
+}
+
+/** カードの 3 行目（希少度・呪い・系譜・結び） */
+function cardSubtitle(def: BoonDef): { text: string; color: string | null } {
+  const rarity = BOON_RARITY_LABEL[def.rarity];
+  if (def.cursed) return { text: `${rarity} ・ 呪い付き`, color: null };
+  if (def.lineage) return { text: `${rarity} ・ ${LINEAGE_LABEL[def.lineage]} ${lineageStage(def)}段`, color: COLOR_LINEAGE };
+  if (def.duo) return { text: `${rarity} ・ 結び`, color: COLOR_DUO };
+  return { text: rarity, color: null };
+}
+
 export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState): void {
   const c = state.boonChoice;
   if (!c) return;
@@ -60,10 +104,33 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   drawText(ctx, `地下 ${state.depth} 階 - 祝福を選べ`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
   drawText(ctx, "このランのみ有効", VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
 
-  const tags = equipmentTags(state.stats);
+  // 装備・スキル石のタグと、取得済み祝福が出すタグのどちらかに一致すれば強調（なぜ出やすいかが分かる）
+  const t = buildTags(state);
+  const tags = new Set<BoonTag>([...t.owned, ...t.gives]);
   c.options.forEach((key, i) => {
     drawCard(ctx, boonDef(key), i, c.options.length, i === c.hover, tags);
   });
+  drawCurseOffer(ctx, state);
+}
+
+/** 「呪いを受けて 4 択」の札。受けた後は受けた呪いの名前を出す */
+function drawCurseOffer(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const c = state.boonChoice;
+  if (!c) return;
+  const r = boonCurseRect();
+  const cx = r.x + r.w / 2;
+  if (c.curse) {
+    const def = boonDef(c.curse);
+    drawText(ctx, `呪いを受けた: ${def.name}`, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
+    return;
+  }
+  if (!canTakeCurse(state)) return;
+  ctx.fillStyle = c.curseHover ? COLOR_CURSE_BG_HOVER : COLOR_CURSE_BG;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.strokeStyle = BOON.cursedColor;
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+  const label = truncateText(`${CURSE_KEY}  呪いを1つ受けて4択にする`, r.w - CARD_PAD * 2, TEXT.SMALL);
+  drawText(ctx, label, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
 }
 
 function drawCard(
@@ -86,29 +153,31 @@ function drawCard(
   ctx.strokeRect(r.x + 0.5, y + 0.5, r.w - 1, r.h - 1);
   ctx.lineWidth = 1;
 
-  drawText(ctx, def.icon, cx, y + ICON_Y, TEXT.BIG, color, "center");
-  drawText(ctx, def.name, cx, y + NAME_Y, TEXT.SMALL, color, "center");
-  const rarityLabel = BOON_RARITY_LABEL[def.rarity];
-  drawText(ctx, def.cursed ? `${rarityLabel} ・ 呪い付き` : rarityLabel, cx, y + RARITY_Y, TEXT.SMALL, color, "center");
-
   const maxWidth = r.w - CARD_PAD * 2;
+  drawText(ctx, def.icon, cx, y + ICON_Y, TEXT.BIG, color, "center");
+  drawText(ctx, truncateText(def.name, maxWidth, TEXT.SMALL), cx, y + NAME_Y, TEXT.SMALL, color, "center");
+  const sub = cardSubtitle(def);
+  drawText(ctx, truncateText(sub.text, maxWidth, TEXT.SMALL), cx, y + RARITY_Y, TEXT.SMALL, sub.color ?? color, "center");
+
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
   wrapText(def.desc, maxWidth, TEXT.SMALL).forEach((line, i) =>
     drawText(ctx, line, cx, y + DESC_Y + i * lineH, TEXT.SMALL, COLOR_TEXT, "center"),
   );
 
-  // 装備タグと一致するタグは強調（なぜ出やすいかが分かる）
+  // 一致するタグは強調（なぜ出やすいかが分かる）
   const tagText = def.tags.map((t) => (tags.has(t) ? `[${t}]` : t)).join(" ");
   const tagColor = def.tags.some((t) => tags.has(t)) ? COLOR_TAG_MATCH : COLOR_SUB;
-  drawText(ctx, tagText, cx, y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM, TEXT.SMALL, tagColor, "center");
+  drawText(ctx, truncateText(tagText, maxWidth, TEXT.SMALL), cx, y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM, TEXT.SMALL, tagColor, "center");
   drawText(ctx, KEY_HINTS[index] ?? "", cx, y + r.h - TAGS_BOTTOM, TEXT.SMALL, COLOR_SUB, "center");
 }
 
-/** 右下のアイコン列の index 番目（右から並べる） */
+/** 右下のアイコン列の index 番目（右から並べ、HUD_PER_ROW 個で上の段へ折り返す） */
 function hudIconPos(index: number): Vec {
+  const col = index % HUD_PER_ROW;
+  const row = Math.floor(index / HUD_PER_ROW);
   return {
-    x: VIEW_W - HUD_RIGHT - HUD_ICON - index * (HUD_ICON + HUD_GAP),
-    y: VIEW_H - HUD_BOTTOM - HUD_ICON,
+    x: VIEW_W - HUD_RIGHT - HUD_ICON - col * (HUD_ICON + HUD_GAP),
+    y: VIEW_H - HUD_BOTTOM - HUD_ICON - row * (HUD_ICON + HUD_GAP),
   };
 }
 
@@ -131,23 +200,25 @@ export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aim
       aimScreen.x >= pos.x && aimScreen.x < pos.x + HUD_ICON && aimScreen.y >= pos.y && aimScreen.y < pos.y + HUD_ICON;
     if (inside) hovered = def;
   });
-  if (hovered) drawTooltip(ctx, hovered);
+  const rows = Math.ceil(state.boons.length / HUD_PER_ROW);
+  if (hovered) drawTooltip(ctx, hovered, rows);
 }
 
-function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef): void {
+/** 名前 + 説明（TIP_MAX_W で折り返す）。アイコン列の上に出す */
+function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef, rows: number): void {
   const m = TEXT.SMALL;
-  const nameW = textWidth(def.name, m);
-  const descW = textWidth(def.desc, m);
-  const width = Math.min(VIEW_W, Math.ceil(Math.max(nameW, descW)) + TIP_PAD * 2);
+  const lines = wrapText(def.desc, TIP_MAX_W, m);
+  const widest = Math.max(textWidth(def.name, m), ...lines.map((l) => textWidth(l, m)));
+  const width = Math.min(VIEW_W, Math.ceil(widest) + TIP_PAD * 2);
   const lineH = Math.max(LINE_H, textLineHeight(m));
-  // 2 行ぶん + 下余白。行高がフォント倍率で伸びたら枠も伸ばす
-  const tipH = Math.max(TIP_H, Math.ceil(lineH * 2 + TIP_PAD + 1));
+  // 名前 1 行 + 説明の行数 + 下余白。行高がフォント倍率で伸びたら枠も伸ばす
+  const tipH = Math.max(TIP_H, Math.ceil(lineH * (1 + lines.length) + TIP_PAD + 1));
   const x = Math.max(0, VIEW_W - HUD_RIGHT - width);
-  const y = VIEW_H - HUD_BOTTOM - HUD_ICON - TIP_GAP - tipH;
+  const y = Math.max(0, VIEW_H - HUD_BOTTOM - rows * (HUD_ICON + HUD_GAP) - TIP_GAP - tipH);
   ctx.fillStyle = COLOR_ICON_BG;
   ctx.fillRect(x, y, width, tipH);
   ctx.strokeStyle = boonColor(def);
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, tipH - 1);
   drawText(ctx, def.name, x + TIP_PAD, y + lineH, m, boonColor(def));
-  drawText(ctx, def.desc, x + TIP_PAD, y + lineH * 2, m, COLOR_TEXT);
+  lines.forEach((line, i) => drawText(ctx, line, x + TIP_PAD, y + lineH * (2 + i), m, COLOR_TEXT));
 }

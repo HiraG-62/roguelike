@@ -1,15 +1,16 @@
 import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
-import type { Vec } from "../core/vec";
-import { FEEL } from "../data/tuning";
+import { type Vec, length, normalize, scale, sub } from "../core/vec";
+import { FEEL, POISE } from "../data/tuning";
 import type { Scaling } from "../loot/types";
 import { scaled } from "../system/attributes";
 import { onBoonSkillHit } from "../system/boons";
 import { damageEnemy, rollOutgoing } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
+import { isStaggered } from "../system/poise";
 import { applyStatus } from "../system/statusEffects";
 import { fireTrigger } from "../system/triggers";
-import { SKILL_DEFS, resolveCast } from "./data";
+import { SKILL, SKILL_DEFS, resolveCast } from "./data";
 import { stoneInSlot } from "./persistence";
 import type { CastParams } from "./types";
 
@@ -17,6 +18,8 @@ import type { CastParams } from "./types";
  * スキルのダメージの共通入口。rollOutgoing → damageEnemy に、
  * 怯み値・状態異常の付与（docs/COMBAT_DESIGN.md B-4）と
  * 刻印符の呪い（被ダメ増 + 刻印）と連鎖（キルでチャージ / マナ返却）を重ねる。
+ * 大拡張の刻印符のうち「命中ごとに決まるもの」（背面・至近 / 遠当て・重撃 / 軽打・突き放し / 手繰り・
+ * 延命・伝播・返金・追撃・散り際・同調の金）もここで畳む。
  */
 
 export const COLOR_CURSE = "#b040ff";
@@ -27,6 +30,7 @@ const CURSE_PARTICLES = 4;
 const CURSE_PARTICLE_SPEED = 30;
 const CURSE_PARTICLE_LIFE = 0.3;
 const CURSE_PARTICLE_SIZE = 1.5;
+const MIN_DAMAGE = 1;
 
 export interface SkillHitSpec {
   base: number;
@@ -39,6 +43,10 @@ export interface SkillHitSpec {
   poise?: number;
   /** 付与する状態異常の上書き。null なら付けない。省略時は SKILL_DEFS[params.skillKey].applies */
   applies?: readonly StatusApply[] | null;
+  /** 攻撃した位置（背面の判定）。省略時はプレイヤーの位置 */
+  from?: Vec;
+  /** 会心を確定させる（刺し穿ちの脆弱消費） */
+  forceCrit?: boolean;
 }
 
 /** スキルの威力 = scaled(ステータス, 係数表) × damageMul（docs/COMBAT_DESIGN.md A-6 の 1） */
@@ -52,19 +60,52 @@ export function curseMul(state: GameState, enemyId: number): number {
   return c && c.time > 0 ? 1 + c.bonus : 1;
 }
 
+/** 背面: 攻撃した位置が敵の向きの反対側なら背後 */
+export function isBehind(e: Enemy, from: Vec): boolean {
+  const to = sub(from, e.body.pos);
+  return e.facing.x * to.x + e.facing.y * to.y < 0;
+}
+
+/** 位置で決まる倍率（背面・至近 / 遠当て）。damage と poise に掛ける */
+export function positionalMul(e: Enemy, params: Readonly<CastParams>, from: Vec): { damage: number; poise: number } {
+  const m = SKILL.modifier;
+  let damage = 1;
+  let poise = 1;
+  if (params.flank) {
+    const mul = isBehind(e, from) ? m.flank.backMul : m.flank.frontMul;
+    damage *= mul;
+    poise *= mul;
+  }
+  if (params.rangeBias === "pointBlank") {
+    damage *= length(sub(e.body.pos, params.origin)) <= m.pointBlank.range ? m.pointBlank.nearMul : m.pointBlank.farMul;
+  } else if (params.rangeBias === "longshot") {
+    const ratio = Math.min(1, length(sub(e.body.pos, params.origin)) / m.longshot.range);
+    damage *= m.longshot.nearMul + (m.longshot.farMul - m.longshot.nearMul) * ratio;
+  }
+  return { damage, poise };
+}
+
 /** 1 体への命中。倒したら true */
 export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec): boolean {
   const def = SKILL_DEFS[params.skillKey];
-  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true });
-  const amount = Math.round(out.amount * curseMul(state, e.id));
+  const from = spec.from ?? state.player.body.pos;
   const pos = { ...e.body.pos };
+  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true });
+  const crit = out.crit || spec.forceCrit === true;
+  const critMul = crit && !out.crit ? state.stats.critMul : 1;
+  const attune = crit && params.attuneCrit ? SKILL.modifier.attune.matchMul : 1;
+  const place = positionalMul(e, params, from);
+  const amount = Math.max(MIN_DAMAGE, Math.round(out.amount * critMul * attune * place.damage * curseMul(state, e.id)));
   const melee = spec.kind === "melee";
-  const killed = damageEnemy(state, e, amount, spec.dir, spec.knockback * state.stats.knockbackMul, {
-    poise: (spec.poise ?? def.poise) * state.stats.poiseDamageMul,
+  const knock = knockback(e, params, spec);
+  if (params.repel) e.wallSplat = true;
+  params.hitLog.add(e.id);
+  const killed = damageEnemy(state, e, amount, knock.dir, knock.force * state.stats.knockbackMul, {
+    poise: (spec.poise ?? def.poise) * state.stats.poiseDamageMul * params.poiseMul * place.poise,
     hitstopSteps: spec.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight,
     buildsEnergy: melee,
     kind: spec.kind,
-    crit: out.crit,
+    crit,
     // 性質の statusProcs（on: "skill"）を判定させる
     skill: true,
   });
@@ -73,16 +114,33 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
     fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
     fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   }
-  onBoonSkillHit(state);
-  if (!killed) applySkillStatuses(state, e, spec.applies === undefined ? def.applies : spec.applies, params);
-  if (params.curse && !killed) applyCurse(state, e, params.curse);
-  if (killed && params.killRefund) refundCharge(state, params.slot, pos);
-  if (killed && params.killManaRefund > 0) refundMana(state, params.manaPaid * params.killManaRefund, pos, params.refundPool);
+  onBoonSkillHit(state, e);
+  afterHit(state, e, params, spec, killed, pos);
   return killed;
 }
 
-/** 命中した敵に状態異常を付ける。効果量は血の代償などの potencyMul で伸びる */
-function applySkillStatuses(
+/** ノックバックの向きと強さ。手繰り（負の倍率）は向きを反転して発動側へ引く。突き放しは怯んでいない敵の軽減を打ち消す */
+function knockback(e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec): { dir: Vec; force: number } {
+  const mul = params.knockbackMul;
+  const unstaggered = params.repel && !isStaggered(e) ? 1 / POISE.knockbackUnstaggered : 1;
+  const force = spec.knockback * Math.abs(mul) * unstaggered;
+  return { dir: mul < 0 ? scale(spec.dir, -1) : spec.dir, force };
+}
+
+/** 命中の後始末: 付与・呪い・連鎖・返金・追撃・散り際 */
+function afterHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec, killed: boolean, pos: Vec): void {
+  const def = SKILL_DEFS[params.skillKey];
+  if (!killed) applySkillStatuses(state, e, spec.applies === undefined ? def.applies : spec.applies, params);
+  if (params.curse && !killed) applyCurse(state, e, params.curse);
+  if (params.followUp && !killed) markFollowUp(state, e, spec.base);
+  if (params.refundPerHit > 0) refundOnHit(state, params, pos);
+  if (killed && params.killRefund) refundCharge(state, params.slot, pos);
+  if (killed && params.killManaRefund > 0) refundMana(state, params.manaPaid * params.killManaRefund, pos, params.refundPool);
+  if (killed) queueLastGasp(state, params, pos, spec.dir);
+}
+
+/** 命中した敵に状態異常を付ける。効果量は血の代償などの potencyMul、持続は延命で伸びる。伝播なら近くの 1 体にも */
+export function applySkillStatuses(
   state: GameState,
   e: Enemy,
   applies: readonly StatusApply[] | null | undefined,
@@ -90,22 +148,72 @@ function applySkillStatuses(
 ): void {
   if (!applies) return;
   for (const a of applies) {
-    applyStatus(state, { kind: "enemy", enemy: e }, { ...a, potency: a.potency * params.potencyMul }, "player");
+    const apply = { ...a, potency: a.potency * params.potencyMul, duration: a.duration * params.statusDurationMul };
+    applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
+    if (params.spread) spreadStatus(state, e, apply);
   }
 }
 
+/** 伝播: 近くの別の敵 1 体に、持続を減らし重ねる数を 1 減らして付ける（最低 1） */
+function spreadStatus(state: GameState, from: Enemy, apply: StatusApply): void {
+  const s = SKILL.modifier.spread;
+  const next = nearestOther(state, from, s.radius);
+  if (!next) return;
+  const copy = { ...apply, stacks: Math.max(1, apply.stacks - 1), duration: apply.duration * s.durationMul };
+  applyStatus(state, { kind: "enemy", enemy: next }, copy, "player");
+}
+
+function nearestOther(state: GameState, from: Enemy, radius: number): Enemy | null {
+  let best: Enemy | null = null;
+  let bestD = radius;
+  for (const e of state.enemies) {
+    if (e.id === from.id || e.hp <= 0 || e.phase === "spawning") continue;
+    const d = length(sub(e.body.pos, from.body.pos));
+    if (d > bestD) continue;
+    best = e;
+    bestD = d;
+  }
+  return best;
+}
+
+/** 追撃の印。近接で当てると追加ヒット（system/skills.ts の onSkillMeleeHit） */
+function markFollowUp(state: GameState, e: Enemy, base: number): void {
+  const f = SKILL.modifier.followUp;
+  state.skills.marks.set(e.id, { time: f.time, power: base * f.powerRatio });
+}
+
+/** 返金: 命中 1 回ごとにコストの一部を返す。上限は hitRefundPool と、払った額そのもの（refundPool） */
+function refundOnHit(state: GameState, params: Readonly<CastParams>, pos: Vec): void {
+  const want = Math.min(params.manaPaid * params.refundPerHit, params.hitRefundPool.left);
+  if (want <= 0) return;
+  params.hitRefundPool.left -= refundMana(state, want, pos, params.refundPool, false);
+}
+
+/** 散り際: 倒した位置で同じスキルを弱く起こす予約（1 回の発動で上限まで。写しからは起きない） */
+function queueLastGasp(state: GameState, params: Readonly<CastParams>, pos: Vec, dir: Vec): void {
+  if (params.lastGasp === null || params.gaspPool.left <= 0) return;
+  params.gaspPool.left -= 1;
+  state.skills.gasps.push({
+    pos: { ...pos },
+    dir: normalize(dir, state.player.facing),
+    params: { ...params, damageMul: params.damageMul * params.lastGasp, lastGasp: null, echo: null, delay: null },
+  });
+}
+
 /**
- * 連鎖（マナ型）: 払ったコストの一部を返す。回収ではなく払い戻しなので manaGainMul は掛けない
+ * 払い戻し: 払ったコストの一部を返す。回収ではなく払い戻しなので manaGainMul は掛けない
  * （スキル自身の命中でマナが増える無限ループを作らないため、返すのは払った分の割合だけ）。
- * pool は発動 1 回ぶんの残り。複数撃破・反響の撃破を合わせても払った額を超えて戻さない
+ * pool は発動 1 回ぶんの残り。複数撃破・反響の撃破を合わせても払った額を超えて戻さない。実際に返した量を返す
  */
-export function refundMana(state: GameState, amount: number, pos: Vec, pool: { left: number }): void {
+export function refundMana(state: GameState, amount: number, pos: Vec, pool: { left: number }, showText = true): number {
   const refund = Math.min(amount, pool.left);
-  if (refund <= 0) return;
+  if (refund <= 0) return 0;
   pool.left -= refund;
   const p = state.player;
+  const before = p.mana;
   p.mana = Math.min(state.stats.maxMana, p.mana + refund);
-  addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
+  if (showText) addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
+  return p.mana - before;
 }
 
 function applyCurse(state: GameState, e: Enemy, curse: { duration: number; bonus: number }): void {
@@ -129,13 +237,18 @@ export function refundCharge(state: GameState, slotIndex: number, pos: Vec): voi
   addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
 }
 
-/** 呪いの時間経過。切れたもの・いなくなった敵は消す */
+/** 呪い・追撃の印の時間経過。切れたもの・いなくなった敵は消す */
 export function tickCurses(state: GameState, dt: number): void {
   const curses = state.skills.curses;
-  if (curses.size === 0) return;
+  const marks = state.skills.marks;
+  if (curses.size === 0 && marks.size === 0) return;
   const alive = new Set(state.enemies.filter((e) => e.hp > 0).map((e) => e.id));
   for (const [id, c] of curses) {
     c.time -= dt;
     if (c.time <= 0 || !alive.has(id)) curses.delete(id);
+  }
+  for (const [id, m] of marks) {
+    m.time -= dt;
+    if (m.time <= 0 || !alive.has(id)) marks.delete(id);
   }
 }

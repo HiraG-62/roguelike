@@ -13,7 +13,7 @@ import {
   type RollRange,
 } from "./affixes";
 import { baseDef, basesForSlot, type BaseItemDef } from "./bases";
-import { BASE_LEAN_WEIGHT, affixColor, baseLean, triggerColor } from "./colors";
+import { BASE_LEAN_WEIGHT, affixColor, baseLean, triggerCanBeColor, triggerColor } from "./colors";
 import {
   MAX_CONVERSION_FLUX,
   MIN_FLUX,
@@ -188,16 +188,19 @@ export function rollTableTrait(rng: Rng, def: AffixDef, opts: TraitRollOptions):
 
 type TriggerShape = Parameters<typeof rollTriggerEffect>[1];
 
-/** トリガー文法の性質を 1 つロールする。magnitude に揺らぎを掛ける（反転はしない） */
-export function rollTriggerTrait(rng: Rng, shape: TriggerShape, opts: TraitRollOptions): AffixRoll {
-  const effect = rollTriggerEffect(rng, shape, opts.depth);
+/**
+ * トリガー文法の性質を 1 つロールする。magnitude に揺らぎを掛ける（反転はしない）。
+ * statusColor は inflict の状態異常をその色から選ぶ（芽・染めで色を合わせる）
+ */
+export function rollTriggerTrait(rng: Rng, shape: TriggerShape, opts: TraitRollOptions, statusColor?: TraitColor): AffixRoll {
+  const effect = rollTriggerEffect(rng, shape, opts.depth, statusColor);
   const flux = rollFlux(rng, sigmaFor(opts));
   const nominal = effect.magnitude;
   const decimals = effectDecimals(nominal);
   const magnitude = fluxedValues({ nominal }, flux, decimals, 0).value;
   return {
     ...triggerToRoll({ ...effect, magnitude }),
-    color: triggerColor(shape),
+    color: triggerColor(effect),
     nominal,
     flux,
     origin: opts.origin ?? "found",
@@ -357,7 +360,7 @@ export function rollTraitOfColor(
   opts: TraitRollOptions,
 ): AffixRoll | undefined {
   const tables = traitsFor(slot, opts.depth).filter((d) => affixColor(d) === color && !used.has(d.key));
-  const shapes = grammarForSlot(slot).filter((s) => triggerColor(s) === color);
+  const shapes = grammarForSlot(slot).filter((s) => triggerCanBeColor(s, color));
   const vows = color === "umbra" ? KEYSTONES.filter((k) => !used.has(k.key)) : [];
   const groups: { group: ColoredGroup; weight: number }[] = [
     { group: "table", weight: tables.length },
@@ -371,7 +374,7 @@ export function rollTraitOfColor(
       return rollTableTrait(rng, def, opts);
     }
     case "trigger": {
-      const roll = rollTriggerTrait(rng, rng.pick(shapes), opts);
+      const roll = rollTriggerTrait(rng, rng.pick(shapes), opts, color);
       if (!used.has(roll.key)) return roll;
       // 既出の key と衝突したら同じ色の表の性質に回す（芽の節目が候補なしで失われないように）
       if (tables.length > 0) return rollTableTrait(rng, rng.pick(tables), opts);
@@ -472,7 +475,8 @@ function rollNamedItem(rng: Rng, slot: Slot, depth: number): Rolled | undefined 
 function rollRegularItem(rng: Rng, slot: Slot, opts: TraitRollOptions): Rolled {
   const base = rollBase(rng, slot, opts.depth);
   const count = rollTraitCount(rng, opts.depth);
-  const margin = rollMargin(rng, count);
+  // 襤褸などの余白の上乗せ。器の容量は超えない
+  const margin = Math.min(VESSEL_CAPACITY, rollMargin(rng, count) + (base.marginBonus ?? 0));
   const affixes = maybeVow(rng, rollTraits(rng, slot, base.key, count, opts));
   return { base, affixes, margin };
 }

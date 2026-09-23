@@ -32,6 +32,259 @@ const BOSS_IMMUNE: readonly StatusKind[] = ["freeze", "fear"];
 /** 敵の出血: 10px ごとに 0.2 × スタック（歩き続けると 1 スタックで毎秒約 2.4。避けて走るほど削れる） */
 const BLEED_POTENCY = 0.2;
 
+/** 行動停止を受け付けない設置物（鐘・氷柱）。怯み・凍結・麻痺・恐怖で止める意味がない */
+const FIXTURE_IMMUNE: readonly StatusKind[] = ["stagger", "freeze", "paralyze", "fear"];
+
+/**
+ * 量産した敵（docs/ideas/enemies.md）。怯みの目安は 低 〜15 / 中 25〜50 / 高 60〜120、強靭は予備動作・攻撃中の倍率。
+ * 付与は既存の 13 種だけを使い、プレイヤーを止めやすいものは minDepth で段階的に解禁する
+ */
+const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
+  // ---- 再配色種 ----
+  poisonSlime: {
+    poise: 25,
+    staggerTime: 0.5,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "poison", stacks: 2, duration: 5, potency: 0 }],
+  },
+  iceSlime: {
+    poise: 25,
+    staggerTime: 0.5,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "chill", stacks: 1, duration: 2.5, potency: 0 }],
+  },
+  fireSlime: {
+    poise: 25,
+    staggerTime: 0.5,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "bomb", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
+  },
+  goldSlime: { poise: 15, staggerTime: 0.6, superArmorMul: 1, inflicts: [] },
+  boneBoar: {
+    poise: 70,
+    staggerTime: 0.6,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.35, potency: 0 }],
+  },
+  curseEye: {
+    poise: 20,
+    staggerTime: 0.6,
+    superArmorMul: 1,
+    inflicts: [{ on: "bullet", kind: "weaken", stacks: 1, duration: 3, potency: 0 }],
+  },
+  frostEye: {
+    poise: 20,
+    staggerTime: 0.6,
+    superArmorMul: 1,
+    inflicts: [{ on: "bullet", kind: "chill", stacks: 1, duration: 2.5, potency: 0 }],
+  },
+  blackKnight: {
+    poise: 60,
+    staggerTime: 0.6,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
+  },
+  lavaGolem: {
+    poise: 120,
+    staggerTime: 0.8,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "shockwave", kind: "burn", stacks: 1, duration: 3, potency: 4 }],
+  },
+  frostGolem: {
+    poise: 120,
+    staggerTime: 0.8,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "shockwave", kind: "chill", stacks: 2, duration: 3, potency: 0 }],
+  },
+  crystalGolem: {
+    poise: 100,
+    staggerTime: 0.8,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
+  },
+  frostWisp: {
+    staggerTime: 0,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "chill", stacks: 1, duration: 2.5, potency: 0 }],
+    immune: ["stagger"],
+  },
+  purpleLaser: {
+    poise: 35,
+    staggerTime: 0.7,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "laser", kind: "silence", stacks: 1, duration: 1.5, potency: 0 }],
+  },
+  flyingBook: { poise: 8, staggerTime: 0.3, superArmorMul: 1, inflicts: [] },
+  ashBat: { poise: 5, staggerTime: 0.3, superArmorMul: 1, inflicts: [] },
+  // ---- 既存 behavior の流用 ----
+  sproutSlime: { poise: 10, staggerTime: 0.4, superArmorMul: 1, inflicts: [] },
+  spikeRat: {
+    poise: 10,
+    staggerTime: 0.3,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
+  },
+  twinEye: {
+    poise: 15,
+    staggerTime: 0.6,
+    superArmorMul: 1,
+    inflicts: [{ on: "bullet", minDepth: 5, kind: "silence", stacks: 1, duration: 1.2, potency: 0 }],
+  },
+  triLaser: {
+    poise: 40,
+    staggerTime: 0.7,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "laser", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
+  },
+  shadowBat: {
+    poise: 8,
+    staggerTime: 0.3,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
+  },
+  wolf: {
+    poise: 12,
+    staggerTime: 0.4,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
+  },
+  multiBomber: {
+    poise: 25,
+    staggerTime: 0.5,
+    superArmorMul: 1,
+    inflicts: [{ on: "bomb", kind: "vulnerable", stacks: 1, duration: 2, potency: 0 }],
+  },
+  spearman: {
+    poise: 40,
+    staggerTime: 0.6,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
+  },
+  hornBeetle: {
+    poise: 65,
+    staggerTime: 0.6,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "bomb", kind: "stagger", stacks: 1, duration: 0.3, potency: 0 }],
+  },
+  netter: {
+    poise: 30,
+    staggerTime: 0.6,
+    superArmorMul: 1,
+    inflicts: [{ on: "bullet", kind: "chill", stacks: 2, duration: 2, potency: 0 }],
+  },
+  carrionFly: {
+    poise: 5,
+    staggerTime: 0.3,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "poison", stacks: 1, duration: 4, potency: 0 }],
+  },
+  thunderWisp: {
+    staggerTime: 0,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "shock", stacks: 1, duration: 2, potency: 4 }],
+    immune: ["stagger"],
+  },
+  skeleton: {
+    poise: 20,
+    staggerTime: 0.5,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", minDepth: 6, kind: "weaken", stacks: 1, duration: 2, potency: 0 }],
+  },
+  // ---- 新しい behavior ----
+  fuseRat: {
+    poise: 8,
+    staggerTime: 0.4,
+    superArmorMul: 1,
+    inflicts: [{ on: "bomb", kind: "burn", stacks: 1, duration: 2, potency: 4 }],
+  },
+  crystalMite: { poise: 8, staggerTime: 0.4, superArmorMul: 1, inflicts: [] },
+  echoStriker: {
+    poise: 30,
+    staggerTime: 0.6,
+    superArmorMul: 1,
+    inflicts: [{ on: "bomb", kind: "vulnerable", stacks: 1, duration: 2.5, potency: 0 }],
+  },
+  packLeader: {
+    poise: 40,
+    staggerTime: 0.6,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }],
+  },
+  manaLeech: { poise: 12, staggerTime: 0.5, superArmorMul: 1, inflicts: [] },
+  scavenger: { poise: 30, staggerTime: 0.5, superArmorMul: 0.5, inflicts: [] },
+  graveBell: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE },
+  silencer: { poise: 30, staggerTime: 0.7, superArmorMul: 1, inflicts: [] },
+  frostCrusher: {
+    poise: 120,
+    staggerTime: 0.8,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.5, potency: 0 }],
+  },
+  twinShade: {
+    poise: 12,
+    staggerTime: 0.4,
+    superArmorMul: 1,
+    inflicts: [{ on: "contact", kind: "weaken", stacks: 1, duration: 3, potency: 0 }],
+  },
+  // ---- 部屋主 ----
+  mimic: {
+    poise: 90,
+    staggerTime: 1.2,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 2, duration: 4, potency: BLEED_POTENCY }],
+    immune: ["fear"],
+  },
+  hollowArmor: {
+    poise: 110,
+    staggerTime: 1,
+    superArmorMul: 0.25,
+    inflicts: [{ on: "shockwave", kind: "stagger", stacks: 1, duration: 0.4, potency: 0 }],
+    immune: ["fear"],
+  },
+  hollowWraith: {
+    poise: 40,
+    staggerTime: 0.8,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "fear", stacks: 1, duration: 1, potency: 0 }],
+    immune: ["fear"],
+  },
+  boneConductor: {
+    poise: 60,
+    staggerTime: 1,
+    superArmorMul: 1.5,
+    inflicts: [{ on: "bullet", kind: "weaken", stacks: 1, duration: 2, potency: 0 }],
+    immune: ["fear"],
+  },
+  // ---- ボス ----
+  twinBrother: {
+    poise: 220,
+    staggerTime: 2,
+    superArmorMul: 0.5,
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 2, duration: 4, potency: BLEED_POTENCY }],
+    immune: BOSS_IMMUNE,
+  },
+  /** 妹は弓を引く溜め（予備動作）が窓。強靭 1.5 = 溜め中は怯み値が多く入る */
+  twinSister: {
+    poise: 140,
+    staggerTime: 1.6,
+    superArmorMul: 1.5,
+    strikeSuperArmorMul: 1,
+    inflicts: [{ on: "bullet", kind: "vulnerable", stacks: 1, duration: 2, potency: 0 }],
+    immune: BOSS_IMMUNE,
+  },
+  frostGiant: {
+    poise: 320,
+    staggerTime: 2,
+    superArmorMul: 0.5,
+    inflicts: [
+      { on: "shockwave", kind: "chill", stacks: 2, duration: 3, potency: 0 },
+      { on: "bomb", kind: "chill", stacks: 1, duration: 3, potency: 0 },
+    ],
+    immune: BOSS_IMMUNE,
+  },
+  icePillar: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE },
+};
+
 export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   slime: {
     poise: 25,
@@ -105,6 +358,7 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     inflicts: [{ on: "bullet", kind: "weaken", stacks: 1, duration: 3, potency: 0 }],
     immune: BOSS_IMMUNE,
   },
+  ...WAVE2_COMBAT,
 };
 
 /** 表に無い敵は怯まず、何も付与しない（新しい敵を足したときに落ちないように） */

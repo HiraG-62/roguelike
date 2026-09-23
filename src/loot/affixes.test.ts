@@ -25,6 +25,7 @@ const MIN_TRADEOFF_COUNT = 13;
 const MIN_KEYSTONE_COUNT = 6;
 const MIN_TRAITS_PER_SLOT = 6;
 const FIRST_LEVEL = 1;
+const MIN_BASES_PER_SLOT = 8;
 
 describe("アフィックス定義", () => {
   it(`${MIN_AFFIX_COUNT} 種以上ある`, () => {
@@ -210,11 +211,10 @@ describe("affixDefForRoll（動的アフィックス）", () => {
 });
 
 describe("ベースアイテム定義", () => {
-  it("各スロットに 5〜7 種あり、ilvl 1 で最低 1 種出る", () => {
+  it("各スロットに 8 種以上あり、ilvl 1 で最低 1 種出る", () => {
     for (const slot of SLOTS) {
       const count = BASES.filter((b) => b.slot === slot).length;
-      expect(count, slot).toBeGreaterThanOrEqual(5);
-      expect(count, slot).toBeLessThanOrEqual(7);
+      expect(count, slot).toBeGreaterThanOrEqual(MIN_BASES_PER_SLOT);
       expect(basesForSlot(slot, FIRST_LEVEL).length, slot).toBeGreaterThan(0);
     }
   });

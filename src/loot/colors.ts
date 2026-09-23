@@ -1,5 +1,6 @@
+import type { StatusKind } from "../core/status";
 import { affixDef, isKeystoneKey, type AffixDef, type AffixTag } from "./affixes";
-import { decodeTriggerRoll } from "./triggers";
+import { INFLICT_COLOR, decodeTriggerRoll, inflictKindsOfColor, type TriggerShape } from "./triggers";
 import type { AffixRoll, TraitColor, TriggeredEffect } from "./types";
 
 /**
@@ -35,25 +36,48 @@ export function affixColor(def: AffixDef): TraitColor {
   return def.color ?? colorFromTags(def.tags);
 }
 
-/** トリガー文法の性質の色。代償的な条件 → 効果 → 条件 → 起点の順に決める */
-export function triggerColor(effect: Pick<TriggeredEffect, "trigger" | "condition" | "effect">): TraitColor {
-  if (effect.condition === "belowHalfHp") return "umbra";
+/** 付ける状態異常が決まっていない inflict（文法の組み合わせ段階）の色 */
+const UNDECIDED_INFLICT_COLOR: TraitColor = "umbra";
+
+/** トリガーの色を決める入力。inflict は付ける状態異常（status）で色が変わる */
+export type TriggerColorInput = Pick<TriggeredEffect, "trigger" | "condition" | "effect"> & { status?: StatusKind };
+
+function effectColor(effect: TriggerColorInput): TraitColor | undefined {
   switch (effect.effect) {
     case "heal":
     case "invuln":
+    case "cleanse":
+    case "healMissing":
       return "jade";
     case "freezeNearby":
+    case "restoreMana":
+    case "skillHaste":
+    case "volley":
       return "azure";
     case "chainLightning":
     case "energy":
       return "gold";
     case "burnNearby":
     case "explode":
+    case "addPoise":
       return "crimson";
+    case "extendStatus":
+      return "umbra";
+    case "inflict":
+      return effect.status === undefined ? UNDECIDED_INFLICT_COLOR : (INFLICT_COLOR[effect.status] ?? UNDECIDED_INFLICT_COLOR);
     default:
-      break;
+      return undefined;
   }
+}
+
+/** トリガー文法の性質の色。代償的な条件 → 効果 → 条件 → 起点の順に決める */
+export function triggerColor(effect: TriggerColorInput): TraitColor {
+  if (effect.condition === "belowHalfHp" || effect.condition === "selfAfflicted") return "umbra";
+  const byEffect = effectColor(effect);
+  if (byEffect !== undefined) return byEffect;
   if (effect.condition === "comboAbove10" || effect.condition === "fullEnergy") return "gold";
+  if (effect.condition === "manaFull" || effect.condition === "manaLow") return "azure";
+  if (effect.condition === "targetInWindup") return "gold";
   switch (effect.trigger) {
     case "onShoot":
     case "onDash":
@@ -66,8 +90,22 @@ export function triggerColor(effect: Pick<TriggeredEffect, "trigger" | "conditio
     case "onMeleeHit":
     case "everyNthMeleeHit":
     case "onKill":
+    case "onStagger":
       return "crimson";
+    case "onCounter":
+      return "gold";
   }
+}
+
+/**
+ * 組み合わせがその色の性質として出せるか（芽・染めで色を指定して引くとき）。
+ * inflict は付ける状態異常をその色から選べば色が合う
+ */
+export function triggerCanBeColor(shape: TriggerShape, color: TraitColor): boolean {
+  if (shape.effect !== "inflict") return triggerColor(shape) === color;
+  const kinds = inflictKindsOfColor(color);
+  const sample = kinds[0];
+  return sample !== undefined && INFLICT_COLOR[sample] === color && triggerColor({ ...shape, status: sample }) === color;
 }
 
 /** key の既定色。未知の key（旧マーカー等）は undefined（配合に数えない） */
@@ -123,6 +161,27 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   lapisAmulet: "azure",
   coralAmulet: "jade",
   duskAmulet: "gold",
+  machete: "crimson",
+  rapier: "gold",
+  staff: "azure",
+  scythe: "umbra",
+  throwingKnives: "gold",
+  blowgun: "umbra",
+  matchlock: "crimson",
+  rags: "jade",
+  robe: "azure",
+  scale: "jade",
+  spiked: "crimson",
+  tabi: "azure",
+  ironGeta: "jade",
+  snowBoots: "azure",
+  boneRing: "umbra",
+  signet: "gold",
+  twinRing: "gold",
+  blackIronRing: "umbra",
+  rosary: "azure",
+  fangNecklace: "crimson",
+  bell: "umbra",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

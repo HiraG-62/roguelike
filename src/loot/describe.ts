@@ -1,4 +1,4 @@
-import type { StatusKind, StatusProc } from "../core/status";
+import { STATUS_LABEL, type StatusKind, type StatusProc } from "../core/status";
 import { ENEMIES } from "../data/enemies";
 import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
 import { traitColorOf } from "./colors";
@@ -119,7 +119,8 @@ function attributeHintOfKey(key: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 /** 状態異常を付ける動詞（docs/COMBAT_DESIGN.md E-2 の表記） */
-const STATUS_VERB: Readonly<Record<StatusKind, string>> = {
+/** 状態異常を付ける動詞。2026-09 に足された種類（濡れ・烙印など）は「{表示名}にする」で補う（statusVerb） */
+const STATUS_VERB: Readonly<Partial<Record<StatusKind, string>>> = {
   burn: "燃焼させる",
   chill: "冷気で凍えさせる",
   freeze: "凍結させる",
@@ -135,6 +136,10 @@ const STATUS_VERB: Readonly<Record<StatusKind, string>> = {
   guarded: "堅守を与える",
 };
 
+function statusVerb(kind: StatusKind): string {
+  return STATUS_VERB[kind] ?? `${STATUS_LABEL[kind]}にする`;
+}
+
 const PROC_TRIGGER_TEXT: Readonly<Record<StatusProc["on"], string>> = {
   melee: "近接命中時",
   ranged: "射撃命中時",
@@ -149,7 +154,7 @@ const PERCENT_DECIMALS = 1;
 export function describeStatusProc(proc: StatusProc): string {
   const head = proc.requiresCrit === true ? CRIT_TRIGGER_TEXT : PROC_TRIGGER_TEXT[proc.on];
   const chance = Number((proc.chance * PERCENT).toFixed(PERCENT_DECIMALS));
-  return `${head} ${chance}% で${STATUS_VERB[proc.kind]}`;
+  return `${head} ${chance}% で${statusVerb(proc.kind)}`;
 }
 
 /** 性質 1 つの表示行 */

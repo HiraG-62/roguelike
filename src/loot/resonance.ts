@@ -1,6 +1,6 @@
 import { isTriggerKey } from "./triggers";
-import { traitColorOf } from "./colors";
-import { ATTR_GAIN } from "../data/tuning";
+import { OPPOSITE_COLOR, traitColorOf } from "./colors";
+import { ATTR_GAIN, KEYSTONE } from "../data/tuning";
 import {
   ATTR_KEYS,
   TRAIT_COLORS,
@@ -17,7 +17,7 @@ import {
 
 /**
  * 共鳴: 装備全体の色の配合で、同時に 1 つだけ発現する効果。docs/LOOT_DESIGN.md「色と共鳴」。
- * 判定順は 支配 → 二重 → 散光 → なし。
+ * 判定順は 支配 → 二重 → 三和音 → 散光 → なし。誓約（色の誓約）と一部の性質は判定の規則を変える（ResonanceRules）。
  * 数値効果は computeStats（stats.ts）が段階適用の後・ソフトキャップの前に畳み込み、
  * メカニクスはトリガー文法（TriggeredEffect）で表す（戦闘側の追加実装なしで動く）。
  */
@@ -26,10 +26,99 @@ import {
 export const DOMINANT_RATIO = 0.5;
 /** 二重: 上位 2 色がそれぞれこの比率以上 */
 export const DUAL_MIN_RATIO = 0.3;
-/** 散光: すべての色がこの比率未満 */
-export const SCATTER_MAX_RATIO = 0.3;
 /** 支配中、支配色以外の性質の値に掛かる係数 */
 export const OFF_COLOR_DAMPING = 0.75;
+/** 三和音: 上位 3 色がそれぞれこの比率以上（4 色目はこの比率未満） */
+export const TRIAD_MIN_RATIO = 0.22;
+/** 散光: すべての色がこの比率未満 */
+export const SCATTER_MAX_RATIO = 0.3;
+/** 二重の成立条件を下げる性質（橋渡し・双頭の指輪）でも、これより下げない */
+export const DUAL_MIN_RATIO_FLOOR = 0.2;
+/** 三和音のステータス加算（3 色それぞれ。散光と同じ小ささ） */
+export const TRIAD_ATTR_GAIN = ATTR_GAIN.resonanceScatter;
+const PERCENT = 100;
+
+/**
+ * 共鳴の判定の規則。既定は docs/LOOT_DESIGN.md の表のとおり。
+ * 誓約（単色・無色・鏡）と性質（橋渡し・双頭の指輪）が変える
+ */
+export interface ResonanceRules {
+  dominantRatio: number;
+  dualMinRatio: number;
+  allowDual: boolean;
+  allowTriad: boolean;
+  allowScatter: boolean;
+  /** 支配中、支配色以外の性質に掛ける係数 */
+  offColorDamping: number;
+  /** 共鳴の効果を何回畳むか（単色の誓いは 2） */
+  effectRepeats: number;
+  /** 鏡の誓い: 色を反対色として数え、冥は数えない */
+  mirror: boolean;
+  /** 無色の誓い: 共鳴しない */
+  disabled: boolean;
+  /** 無色の誓い: 性質（誓約を除く）の値に掛ける倍率 */
+  traitMul: number;
+}
+
+export const DEFAULT_RESONANCE_RULES: Readonly<ResonanceRules> = {
+  dominantRatio: DOMINANT_RATIO,
+  dualMinRatio: DUAL_MIN_RATIO,
+  allowDual: true,
+  allowTriad: true,
+  allowScatter: true,
+  offColorDamping: OFF_COLOR_DAMPING,
+  effectRepeats: 1,
+  mirror: false,
+  disabled: false,
+  traitMul: 1,
+};
+
+/** 規則を変える key（誓約・性質・implicit） */
+const RULE_KEYS = {
+  monochrome: "ks_monochrome",
+  colorless: "ks_colorless",
+  mirror: "ks_mirror",
+  bridge: "bridge",
+  twinRing: "implicit.twinRing",
+} as const;
+
+/**
+ * 装備中のロール（implicit を含む。誓約は排他を解決済み）から判定の規則を作る。
+ * 橋渡しは最も低い値、双頭の指輪は値の分だけ二重の条件を下げる（下限 DUAL_MIN_RATIO_FLOOR）
+ */
+export function resonanceRules(rolls: readonly AffixRoll[]): ResonanceRules {
+  const rules: ResonanceRules = { ...DEFAULT_RESONANCE_RULES };
+  for (const roll of rolls) {
+    if (roll.key === RULE_KEYS.bridge && roll.value > 0) {
+      rules.dualMinRatio = Math.min(rules.dualMinRatio, roll.value / PERCENT);
+      rules.allowScatter = false;
+    }
+    if (roll.key === RULE_KEYS.twinRing) rules.dualMinRatio -= Math.max(0, roll.value) / PERCENT;
+  }
+  rules.dualMinRatio = Math.max(DUAL_MIN_RATIO_FLOOR, rules.dualMinRatio);
+  const keys = new Set(rolls.map((r) => r.key));
+  if (keys.has(RULE_KEYS.monochrome)) {
+    rules.dominantRatio = KEYSTONE.monochromeRatio;
+    rules.allowDual = false;
+    rules.allowTriad = false;
+    rules.allowScatter = false;
+    rules.offColorDamping = KEYSTONE.monochromeDamping;
+    rules.effectRepeats = 2;
+  }
+  if (keys.has(RULE_KEYS.colorless)) {
+    rules.disabled = true;
+    rules.traitMul = KEYSTONE.colorlessTraitMul;
+  }
+  if (keys.has(RULE_KEYS.mirror)) rules.mirror = true;
+  return rules;
+}
+
+/** 配合に数える色。鏡の誓いは反対色（冥は数えない = undefined） */
+export function countedColor(roll: AffixRoll, rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): TraitColor | undefined {
+  const color = traitColorOf(roll);
+  if (color === undefined || !rules.mirror) return color;
+  return color === "umbra" ? undefined : OPPOSITE_COLOR[color];
+}
 /** 反転した性質は色の重みが 2 倍（呪いは強く響く） */
 export const INVERTED_COLOR_WEIGHT = 2;
 /** 重みの合計がこれ未満なら共鳴しない（性質 1〜2 個で支配にならないように） */
@@ -56,10 +145,10 @@ export function traitWeight(roll: AffixRoll): number {
 }
 
 /** 色ごとの重みの合計。色を持たないもの（implicit・旧マーカー）は数えない */
-export function colorWeights(rolls: readonly AffixRoll[]): ColorWeights {
+export function colorWeights(rolls: readonly AffixRoll[], rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): ColorWeights {
   const weights = emptyWeights();
   for (const roll of rolls) {
-    const color = traitColorOf(roll);
+    const color = countedColor(roll, rules);
     if (color !== undefined) weights[color] += traitWeight(roll);
   }
   return weights;
@@ -82,23 +171,29 @@ function inPaletteOrder(colors: readonly TraitColor[]): TraitColor[] {
   return [...colors].sort((a, b) => TRAIT_COLORS.indexOf(a) - TRAIT_COLORS.indexOf(b));
 }
 
-/** 重みから共鳴を 1 つ決める（支配 → 二重 → 散光 → なし） */
-export function resolveResonance(weights: Readonly<ColorWeights>): Resonance {
+/** 重みから共鳴を 1 つ決める（支配 → 二重 → 三和音 → 散光 → なし。規則で止められたものは飛ばす） */
+export function resolveResonance(weights: Readonly<ColorWeights>, rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): Resonance {
   const { ratios, total } = toRatios(weights);
   const none: Resonance = { ...createEmptyResonance(), ratios };
-  if (total < MIN_RESONANCE_WEIGHT) return none;
-  const [first, second] = rankColors(ratios);
-  if (first === undefined || second === undefined) return none;
-  if (ratios[first] >= DOMINANT_RATIO) return { kind: "dominant", colors: [first], ratios };
-  if (ratios[first] >= DUAL_MIN_RATIO && ratios[second] >= DUAL_MIN_RATIO) {
+  if (rules.disabled || total < MIN_RESONANCE_WEIGHT) return none;
+  const [first, second, third, fourth] = rankColors(ratios);
+  if (first === undefined || second === undefined || third === undefined || fourth === undefined) return none;
+  if (ratios[first] >= rules.dominantRatio) return { kind: "dominant", colors: [first], ratios };
+  if (rules.allowDual && ratios[first] >= rules.dualMinRatio && ratios[second] >= rules.dualMinRatio) {
     return { kind: "dual", colors: inPaletteOrder([first, second]), ratios };
   }
-  if (TRAIT_COLORS.every((c) => ratios[c] < SCATTER_MAX_RATIO)) return { kind: "scatter", colors: [], ratios };
+  // 三和音はちょうど 3 色が強いとき（4 色目まで強ければ散光の側に残す）
+  if (rules.allowTriad && ratios[third] >= TRIAD_MIN_RATIO && ratios[fourth] < TRIAD_MIN_RATIO) {
+    return { kind: "triad", colors: inPaletteOrder([first, second, third]), ratios };
+  }
+  if (rules.allowScatter && TRAIT_COLORS.every((c) => ratios[c] < SCATTER_MAX_RATIO)) {
+    return { kind: "scatter", colors: [], ratios };
+  }
   return none;
 }
 
-export function computeResonance(rolls: readonly AffixRoll[]): Resonance {
-  return resolveResonance(colorWeights(rolls));
+export function computeResonance(rolls: readonly AffixRoll[], rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): Resonance {
+  return resolveResonance(colorWeights(rolls, rules), rules);
 }
 
 // ---------------------------------------------------------------------------
@@ -127,19 +222,31 @@ export const SCATTER_INVERSION_CANCEL = 0;
  * - 冥の支配（虚極）: 反転した性質の負の値を正として扱う
  * - 散光: 反転した性質の値を 0 にする（負の値としての代償を打ち消すだけで、虚極のように正へは転じない）
  */
-export function adjustForResonance(rolls: readonly AffixRoll[], resonance: Resonance): AffixRoll[] {
+export function adjustForResonance(
+  rolls: readonly AffixRoll[],
+  resonance: Resonance,
+  rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES,
+): AffixRoll[] {
+  const boosted = rules.traitMul === 1 ? [...rolls] : rolls.map((roll) => boostTrait(roll, rules.traitMul));
   if (resonance.kind === "scatter") {
-    return rolls.map((roll) => (roll.inverted === true ? scaled(roll, SCATTER_INVERSION_CANCEL) : roll));
+    return boosted.map((roll) => (roll.inverted === true ? scaled(roll, SCATTER_INVERSION_CANCEL) : roll));
   }
-  if (resonance.kind !== "dominant") return [...rolls];
+  if (resonance.kind !== "dominant") return boosted;
   const dominant = resonance.colors[0];
-  return rolls.map((roll) => {
-    const color = traitColorOf(roll);
+  return boosted.map((roll) => {
+    const color = countedColor(roll, rules);
     const base = dominant === "umbra" ? absolute(roll) : roll;
     if (color === undefined || color === dominant) return base;
-    return scaled(base, OFF_COLOR_DAMPING);
+    return scaled(base, rules.offColorDamping);
   });
 }
+
+/** 無色の誓い: 色を持つ性質（implicit と誓約以外）の値を倍にする */
+function boostTrait(roll: AffixRoll, mul: number): AffixRoll {
+  if (traitColorOf(roll) === undefined || roll.key.startsWith(KEYSTONE_PREFIX)) return roll;
+  return scaled(roll, mul);
+}
+const KEYSTONE_PREFIX = "ks_";
 
 // ---------------------------------------------------------------------------
 // 共鳴の効果（支配 5 + 二重 10 + 散光 1）
@@ -338,9 +445,108 @@ export const SCATTER_EFFECT: ResonanceEffect = {
   },
 };
 
+
+/** 三和音の効果。key は TRAIT_COLORS 順の "a+b+c"（docs/ideas/loot-expansion.md 9-1） */
+export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
+  "crimson+azure+jade": {
+    name: "四季",
+    lines: ["3 回に 1 回の近接で周囲を燃やす", "ダッシュ時に 50% の確率で周囲を凍らせる", "部屋を制圧すると HP を 8 回復する"],
+    apply: both(
+      trigger({ trigger: "everyNthMeleeHit", every: 3, condition: "always", effect: "burnNearby", magnitude: 5, duration: 3, chance: 1 }),
+      trigger({ trigger: "onDash", condition: "always", effect: "freezeNearby", magnitude: 30, duration: 2, chance: 0.5 }),
+      trigger({ trigger: "onRoomClear", condition: "always", effect: "heal", magnitude: 8, chance: 1 }),
+    ),
+  },
+  "crimson+azure+gold": {
+    name: "雷雨",
+    lines: ["状態異常が 2 種以上の敵を殴ると、35% の確率で連鎖雷を呼ぶ", "攻撃が感電させやすくなる"],
+    apply: both(
+      trigger({ trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "chainLightning", magnitude: 12, chance: 0.35 }),
+      (s) => {
+        s.shockChance += 0.05;
+      },
+    ),
+  },
+  "crimson+azure+umbra": {
+    name: "煤",
+    lines: ["状態異常が 2 種以上の敵を殴ると、50% の確率で脆弱にする", "炎上が少し熱くなる"],
+    apply: both(
+      trigger({ trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "inflict", status: "vulnerable", magnitude: 3, chance: 0.5 }),
+      (s) => {
+        s.burnDps += 2;
+      },
+    ),
+  },
+  "crimson+jade+gold": {
+    name: "祭",
+    lines: ["10 回に 1 回の近接で HP を 5 回復し、エネルギーを 8 得る"],
+    apply: both(
+      trigger({ trigger: "everyNthMeleeHit", every: 10, condition: "always", effect: "heal", magnitude: 5, chance: 1 }),
+      trigger({ trigger: "everyNthMeleeHit", every: 10, condition: "always", effect: "energy", magnitude: 8, chance: 1 }),
+    ),
+  },
+  "crimson+jade+umbra": {
+    name: "血肉",
+    lines: ["命中のたびに HP を 1 吸う", "HP が半分を切っている間の撃破で HP を 6 回復する"],
+    apply: both(trigger({ trigger: "onKill", condition: "belowHalfHp", effect: "heal", magnitude: 6, chance: 1 }), (s) => {
+      s.lifeOnHit += 1;
+    }),
+  },
+  "crimson+gold+umbra": {
+    name: "賭場",
+    lines: ["敵を怯ませると、50% の確率でその場が爆発する", "会心が少し出やすくなる"],
+    apply: both(
+      trigger({ trigger: "onStagger", condition: "always", effect: "explode", magnitude: 20, chance: 0.5 }),
+      (s) => {
+        s.critChance += 0.03;
+      },
+    ),
+  },
+  "azure+jade+gold": {
+    name: "凪",
+    lines: ["マナが満タンの間の撃破でエネルギーを 10 得る", "傷が少しずつ塞がる"],
+    apply: both(trigger({ trigger: "onKill", condition: "manaFull", effect: "energy", magnitude: 10, chance: 1 }), (s) => {
+      s.hpRegen += 0.3;
+    }),
+  },
+  "azure+jade+umbra": {
+    name: "沼",
+    lines: ["射撃のたびに 20% の確率で、近くの敵を毒にする", "冷気の遅さが少し深くなる"],
+    apply: both(
+      trigger({ trigger: "onShoot", condition: "always", effect: "inflict", status: "poison", magnitude: 3, chance: 0.2 }),
+      (s) => {
+        s.chillSlow += 0.05;
+      },
+    ),
+  },
+  "azure+gold+umbra": {
+    name: "流星",
+    lines: ["ジャスト回避でマナを 8 回収する", "ジャスト回避の瞬間、50% の確率で弾をばら撒く"],
+    apply: both(
+      trigger({ trigger: "onJustDodge", condition: "always", effect: "restoreMana", magnitude: 8, chance: 1 }),
+      trigger({ trigger: "onJustDodge", condition: "always", effect: "spawnBullets", magnitude: 6, count: 5, chance: 0.5 }),
+    ),
+  },
+  "jade+gold+umbra": {
+    name: "輪廻",
+    lines: ["撃破時に 40% の確率で、周囲の敵を弱体にする", "コンボが途切れにくくなる"],
+    apply: both(
+      trigger({ trigger: "onKill", condition: "always", effect: "inflict", status: "weaken", magnitude: 3, chance: 0.4 }),
+      (s) => {
+        s.comboWindowBonus += 0.2;
+      },
+    ),
+  },
+};
+
 export function dualKey(a: TraitColor, b: TraitColor): string {
   const [x, y] = inPaletteOrder([a, b]);
   return `${x ?? a}+${y ?? b}`;
+}
+
+/** 三和音の key（TRAIT_COLORS 順の "a+b+c"） */
+export function triadKey(colors: readonly TraitColor[]): string {
+  return inPaletteOrder(colors).join("+");
 }
 
 /** 発現中の共鳴の効果定義。なしは undefined */
@@ -354,6 +560,8 @@ export function resonanceEffect(resonance: Resonance): ResonanceEffect | undefin
       const [a, b] = resonance.colors;
       return a === undefined || b === undefined ? undefined : DUAL_EFFECTS[dualKey(a, b)];
     }
+    case "triad":
+      return resonance.colors.length === 3 ? TRIAD_EFFECTS[triadKey(resonance.colors)] : undefined;
     case "scatter":
       return SCATTER_EFFECT;
     case "none":
@@ -361,9 +569,13 @@ export function resonanceEffect(resonance: Resonance): ResonanceEffect | undefin
   }
 }
 
-/** 共鳴の数値効果・トリガー・ステータス加算を stats に畳み込む */
-export function applyResonanceEffect(stats: PlayerStats, resonance: Resonance): void {
-  resonanceEffect(resonance)?.apply(stats);
+/** 共鳴の数値効果・トリガー・ステータス加算を stats に畳み込む（単色の誓いは効果を 2 回） */
+export function applyResonanceEffect(
+  stats: PlayerStats,
+  resonance: Resonance,
+  rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES,
+): void {
+  for (let i = 0; i < rules.effectRepeats; i++) resonanceEffect(resonance)?.apply(stats);
   const bonus = resonanceAttributes(resonance);
   for (const k of ATTR_KEYS) stats.attributes[k] += bonus[k];
 }
@@ -404,6 +616,9 @@ export function resonanceAttributes(resonance: Resonance): Attributes {
     case "dual":
       for (const c of resonance.colors) out[COLOR_ATTR[c]] += ATTR_GAIN.resonanceDual;
       return out;
+    case "triad":
+      for (const c of resonance.colors) out[COLOR_ATTR[c]] += TRIAD_ATTR_GAIN;
+      return out;
     case "scatter":
       for (const k of ATTR_KEYS) out[k] += ATTR_GAIN.resonanceScatter;
       return out;
@@ -437,6 +652,8 @@ function headline(resonance: Resonance, effect: ResonanceEffect): string {
       return `共鳴 ${effect.name}（${labels.join("")}の支配）`;
     case "dual":
       return `共鳴 ${effect.name}（${labels.join("と")}の二重）`;
+    case "triad":
+      return `共鳴 ${effect.name}（${labels.join("・")}の三和音）`;
     case "scatter":
       return `共鳴 ${effect.name}（散光）`;
     case "none":

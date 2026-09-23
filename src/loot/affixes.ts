@@ -1,7 +1,16 @@
 import type { StatusKind, StatusProc } from "../core/status";
-import { STATUS, TRIGGER } from "../data/tuning";
+import { KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
-import { ATTR_KEYS, type AffixRoll, type AttrKey, type PlayerStats, type Slot, type TraitColor } from "./types";
+import {
+  ATTR_KEYS,
+  SLOTS,
+  type AffixRoll,
+  type AttrKey,
+  type PlayerStats,
+  type Slot,
+  type TraitColor,
+  type TriggeredEffect,
+} from "./types";
 
 /**
  * 性質（旧アフィックス）の定義（データ駆動）。docs/LOOT_DESIGN.md の「性質」を参照。
@@ -90,6 +99,11 @@ export interface AffixDef {
    * （例: 無敵の持続は TRIGGER.invulnMax まで）
    */
   cap?: number;
+  /**
+   * 目覚め（芽専用の性質）。ドロップ・染め・芽の通常の抽選には出ず、
+   * provenance.ts の節目が名指ししたときだけ芽の片方に出る
+   */
+  awakening?: boolean;
   apply: ApplyFn;
 }
 
@@ -130,6 +144,7 @@ const RANGED_SLOTS: readonly Slot[] = ["gun", "ring", "amulet"];
 const ATTACK_SLOTS: readonly Slot[] = ["weapon", "gun", "ring"];
 const OFFENSE_SLOTS: readonly Slot[] = ["weapon", "gun", "ring", "amulet"];
 const JEWELRY_SLOTS: readonly Slot[] = ["ring", "amulet"];
+const ALL_SLOTS: readonly Slot[] = SLOTS;
 
 // ---------------------------------------------------------------------------
 // ステータスの性質・状態異常の性質の部品
@@ -203,6 +218,27 @@ function pushProc(stats: PlayerStats, proc: StatusProc): void {
   if (proc.chance <= 0) return;
   stats.statusProcs.push(proc);
 }
+
+/** 性質の固定トリガー（確率 1。内部クールダウン TRIGGER.icd は system/triggers.ts が掛ける）。値が 0 以下なら積まない */
+function pushFixedTrigger(stats: PlayerStats, effect: Omit<TriggeredEffect, "chance">): void {
+  if (effect.magnitude <= 0) return;
+  stats.triggers.push({ ...effect, chance: 1 });
+}
+
+/** 数値を持たない性質（判定は別の場所が key を見る） */
+const noTraitEffect = (): void => {};
+
+/** 0..1 の割合を % の整数に（表示用） */
+function ratioPct(ratio: number): number {
+  return Math.round(ratio * 100);
+}
+
+/** ベースの implicit の固定値（ロールしない側） */
+const MACHETE_BURN_DPS = 3;
+const MATCHLOCK_BURN_DPS = 4;
+const BLOWGUN_POISON_PCT = 25;
+const FANG_BLEED_POTENCY = 1.5;
+const TABI_BUFF_SECONDS = 1;
 
 // ---------------------------------------------------------------------------
 // アフィックス一覧
@@ -1061,6 +1097,703 @@ export const AFFIXES: readonly AffixDef[] = [
       s.maxMana -= v2;
     },
   }),
+
+  // =====================================================================================
+  // 2026-09 追加（docs/ideas/loot-expansion.md 1 章）。数値盛りより「ルール変更」を中心にし、
+  // 強いものには代償（v2）を付ける。名前は「名前: 効果」で見せる（何ができるかを語る）。
+  // 戦闘側は system/traitHooks.ts が stats.traits を読む。固定のトリガーは system/triggers.ts が撃つ
+  // =====================================================================================
+
+  // ---- マナ経済 ----
+  trait({
+    key: "manaOnStagger",
+    label: "汲み上げ: 敵を怯ませるとマナ +{v}、撃破時のマナ回収 -{v2}",
+    tags: ["mana", "skill", "tradeoff"],
+    slots: ["weapon", "gun", "ring"],
+    curve: [t2(22, 8, 10, 4, 4), t2(10, 5, 7, 3, 3), t2(1, 3, 4, 2, 2)],
+    apply: (s, v, v2) => {
+      s.traits.manaOnStagger += v;
+      s.manaOnKill -= v2;
+    },
+  }),
+  trait({
+    key: "lowTide",
+    label: `底打ち: マナが ${ratioPct(TRIGGER.trait.lowManaRatio)}% 未満の間、マナ回収 +{v}%、マナ自然回復 -{v2}%`,
+    tags: ["mana", "skill", "tradeoff"],
+    slots: ["weapon", "ring", "amulet"],
+    curve: [t2(24, 100, 130, 30, 35), t2(12, 70, 90, 25, 30), t2(1, 40, 60, 20, 25)],
+    stage: "scale",
+    apply: (s, v, v2) => {
+      s.traits.lowManaGainMul += pct(v);
+      s.manaRegen *= 1 - pct(v2);
+    },
+  }),
+  trait({
+    key: "fullTide",
+    label: "満ち潮: マナが満タンの間、スキル威力 +{v}%、マナ回収 -{v2}%",
+    tags: ["mana", "skill", "tradeoff"],
+    slots: ["armor", "amulet"],
+    curve: [t2(24, 32, 42, 12, 15), t2(12, 22, 30, 10, 12), t2(1, 12, 18, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.fullManaSkillMul += pct(v);
+      s.manaGainMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "ebbTide",
+    color: "umbra",
+    label: "引き潮: 残りマナが少ないほどスキル威力が上がる（0 で +{v}%）、最大マナ -{v2}",
+    tags: ["mana", "skill", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 50, 65, 10, 12), t2(12, 35, 45, 8, 10), t2(1, 20, 30, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.lowManaSkillMul += pct(v);
+      s.maxMana -= v2;
+    },
+  }),
+  trait({
+    key: "manaShield",
+    color: "jade",
+    label: `身代わり: 被弾時にマナ {v} を払って被ダメージを ${ratioPct(1 - TRIGGER.trait.manaShieldMul)}% 減らす（足りなければ不発）、マナ自然回復 -{v2}%`,
+    tags: ["defense", "mana", "tradeoff"],
+    slots: ["armor"],
+    // 値は払うマナ。深いほど安い
+    curve: [t2(24, 8, 10, 15, 20), t2(12, 11, 13, 15, 20), t2(1, 14, 16, 15, 20)],
+    stage: "scale",
+    apply: (s, v, v2) => {
+      s.traits.manaShieldCost = Math.max(s.traits.manaShieldCost, v);
+      s.manaRegen *= 1 - pct(v2);
+    },
+  }),
+  trait({
+    key: "painToMana",
+    color: "umbra",
+    label: "痛覚遮断: 被弾でマナ +{v}、被ダメージ +{v2}%",
+    tags: ["mana", "tradeoff"],
+    slots: ["armor"],
+    curve: [t2(24, 13, 16, 8, 10), t2(12, 9, 12, 6, 8), t2(1, 6, 8, 5, 6)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onHurt", condition: "always", effect: "restoreMana", magnitude: v });
+      s.damageTakenMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "silencedKillMana",
+    label: "沈黙の報い: 沈黙中の敵を倒すとマナ +{v}、射撃ダメージ -{v2}%",
+    tags: ["mana", "ranged", "tradeoff"],
+    slots: ["gun", "ring"],
+    curve: [t2(24, 16, 20, 8, 10), t2(14, 12, 15, 6, 8), t2(4, 8, 10, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.silencedKillMana += v;
+      s.rangedDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "lastKillMana",
+    color: "gold",
+    label: "殲滅の余韻: 殲滅でマナが最大の {v}% 戻る、最大マナ -{v2}",
+    tags: ["mana", "tradeoff"],
+    slots: ["weapon", "gun", "amulet"],
+    curve: [t2(24, 85, 100, 6, 8), t2(14, 60, 75, 5, 7), t2(3, 40, 50, 4, 6)],
+    cap: 100,
+    apply: (s, v, v2) => {
+      s.traits.lastKillManaRatio += pct(v);
+      s.maxMana -= v2;
+    },
+  }),
+  trait({
+    key: "manaOverflow",
+    label: "溢れ: マナが満タンで溢れた回収の {v}% を必殺ゲージに移す、最大マナ -{v2}",
+    tags: ["mana", "burst", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 130, 160, 8, 10), t2(12, 90, 120, 6, 8), t2(1, 60, 80, 4, 6)],
+    apply: (s, v, v2) => {
+      s.traits.manaOverflowToEnergy += pct(v);
+      s.maxMana -= v2;
+    },
+  }),
+  trait({
+    key: "counterMana",
+    color: "gold",
+    label: "構えの呼吸: カウンターでマナ +{v}、攻撃速度 -{v2}%",
+    tags: ["mana", "melee", "tradeoff"],
+    slots: ["weapon"],
+    curve: [t2(24, 13, 16, 6, 8), t2(12, 9, 12, 5, 6), t2(1, 6, 8, 4, 5)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "restoreMana", magnitude: v });
+      s.attackSpeedMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "justBreath",
+    label: "見切りの息吹: ジャスト回避でマナ +{v}、ダッシュ再使用時間 +{v2}%",
+    tags: ["mana", "mobility", "tradeoff"],
+    slots: ["boots", "ring"],
+    curve: [t2(24, 13, 16, 10, 12), t2(12, 9, 12, 8, 10), t2(1, 6, 8, 6, 8)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onJustDodge", condition: "always", effect: "restoreMana", magnitude: v });
+      s.dashCooldownMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "arcaneFocus",
+    label: "詠唱の集中: スキル威力 +{v}%、近接・射撃ダメージ -{v2}%",
+    tags: ["mana", "skill", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 28, 35, 8, 10), t2(12, 18, 24, 6, 8), t2(1, 10, 14, 5, 6)],
+    apply: (s, v, v2) => {
+      s.skillDamageMul += pct(v);
+      s.meleeDamageMul -= pct(v2);
+      s.rangedDamageMul -= pct(v2);
+    },
+  }),
+
+  // ---- 状態異常 ----
+  trait({
+    key: "kaleidoscope",
+    color: "gold",
+    label: "多彩: 相手に付いた状態異常 1 種ごとに与ダメージ +{v}%、状態異常の効果量 -{v2}%",
+    tags: ["status", "damage", "tradeoff"],
+    slots: ATTACK_SLOTS,
+    curve: [t2(24, 10, 13, 10, 12), t2(12, 7, 9, 8, 10), t2(1, 4, 6, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.damagePerStatusKind += pct(v);
+      s.statusPotencyMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "fever",
+    color: "umbra",
+    label: "病み上がり: 自分に付いた状態異常 1 種ごとに与ダメージ +{v}%、受ける状態異常の持続 +{v2}%",
+    tags: ["status", "damage", "tradeoff"],
+    slots: ["armor", "amulet"],
+    curve: [t2(24, 20, 26, 20, 25), t2(12, 14, 18, 15, 20), t2(1, 8, 12, 15, 20)],
+    apply: (s, v, v2) => {
+      s.traits.damagePerSelfStatus += pct(v);
+      s.statusTakenMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "weakenedGuard",
+    color: "jade",
+    label: "弱体の盾: 弱体中の敵から受けるダメージ -{v}%、弱体でない敵からは +{v2}%",
+    tags: ["status", "defense", "tradeoff"],
+    slots: ["armor"],
+    curve: [t2(24, 30, 36, 6, 8), t2(12, 22, 28, 5, 6), t2(1, 15, 20, 4, 5)],
+    cap: 60,
+    apply: (s, v, v2) => {
+      s.traits.weakenedGuard += pct(v);
+      s.traits.weakenedExposure += pct(v2);
+    },
+  }),
+  trait({
+    key: "plagueSeed",
+    color: "umbra",
+    label: "疫病の種: 撃破時、周囲の敵を毒にする（{v} 秒）",
+    tags: ["status", "damage"],
+    slots: ATTACK_SLOTS,
+    curve: [t(24, 5, 6), t(12, 4, 5), t(1, 3, 4)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onKill", condition: "always", effect: "inflict", magnitude: v, status: "poison" });
+    },
+  }),
+  trait({
+    key: "hurtWeaken",
+    color: "jade",
+    label: "払い手: 被弾時、攻撃してきた敵を弱体にする（{v} 秒）",
+    tags: ["status", "defense"],
+    slots: ["armor", "boots"],
+    curve: [t(24, 5, 6), t(12, 4, 5), t(1, 3, 4)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onHurt", condition: "always", effect: "inflict", magnitude: v, status: "weaken" });
+    },
+  }),
+  trait({
+    key: "procParalyze",
+    color: "gold",
+    label: "近接命中時 {v}% で麻痺させる、攻撃速度 -{v2}%",
+    tags: ["status", "melee", "tradeoff"],
+    slots: ["weapon", "ring"],
+    curve: [t2(24, 11, 14, 8, 10), t2(14, 8, 10, 6, 8), t2(4, 5, 7, 5, 6)],
+    apply: (s, v, v2) => {
+      pushProc(s, statusProc("paralyze", v, STATUS.paralyze.duration, NO_POTENCY, "melee"));
+      s.attackSpeedMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "rotBurst",
+    color: "umbra",
+    label: "腐れ落ち: 状態異常が 2 種以上の敵への近接命中で爆発する（{v} ダメージ）、近接ダメージ -{v2}%",
+    tags: ["status", "melee", "damage", "tradeoff"],
+    slots: ["weapon"],
+    curve: [t2(24, 32, 40, 8, 10), t2(14, 22, 28, 6, 8), t2(4, 14, 18, 5, 6)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "explode", magnitude: v });
+      s.meleeDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "virulent",
+    color: "umbra",
+    label: "毒気: 状態異常の効果量 +{v}%、会心率 -{v2}%",
+    tags: ["status", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 28, 35, 4, 4), t2(12, 18, 24, 3, 3), t2(1, 10, 14, 2, 2)],
+    apply: (s, v, v2) => {
+      s.statusPotencyMul += pct(v);
+      s.critChance -= pct(v2);
+    },
+  }),
+  trait({
+    key: "statusWard",
+    color: "jade",
+    label: "耐性の布: 受ける状態異常の持続 -{v}%",
+    tags: ["status", "defense"],
+    slots: ["armor", "boots", "amulet"],
+    curve: [t(24, 22, 28), t(12, 15, 20), t(1, 8, 12)],
+    apply: (s, v) => {
+      s.statusTakenMul -= pct(v);
+    },
+  }),
+  trait({
+    key: "hurtCleanse",
+    color: "jade",
+    label: "払い清め: 自分が状態異常中に被弾すると 1 つ払う、受ける状態異常の持続 -{v}%",
+    tags: ["status", "defense"],
+    slots: ["armor", "boots"],
+    curve: [t(24, 16, 20), t(12, 12, 15), t(1, 8, 10)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onHurt", condition: "selfAfflicted", effect: "cleanse", magnitude: 1 });
+      s.statusTakenMul -= pct(v);
+    },
+  }),
+
+  // ---- 怯み ----
+  trait({
+    key: "wedge",
+    label: "楔: 怯みの蓄積が半分を超えた敵への怯み値 +{v}%、半分未満の敵へは -{v2}%",
+    tags: ["melee", "tradeoff"],
+    slots: ["weapon"],
+    curve: [t2(24, 65, 80, 15, 18), t2(12, 45, 60, 12, 15), t2(1, 30, 40, 10, 12)],
+    apply: (s, v, v2) => {
+      s.traits.wedgePoiseMul += pct(v);
+      s.traits.wedgePenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "guardPiercer",
+    label: "剥がし撃ち: 堅守中の敵への射撃の怯み値の減衰を {v}% 打ち消す、射撃の怯み値 -{v2}%",
+    tags: ["ranged", "tradeoff"],
+    slots: ["gun"],
+    curve: [t2(20, 90, 100, 8, 10), t2(10, 70, 80, 10, 12), t2(1, 50, 60, 10, 12)],
+    cap: 100,
+    apply: (s, v, v2) => {
+      s.traits.guardPierce += pct(v);
+      s.traits.rangedPoiseMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "staggerQuake",
+    label: "崩れの反響: 敵を怯ませると周囲の敵に怯み値 {v}、ノックバック -{v2}%",
+    tags: ["melee", "tradeoff"],
+    slots: ["weapon", "armor"],
+    curve: [t2(24, 22, 28, 15, 18), t2(12, 14, 18, 12, 15), t2(1, 8, 10, 10, 12)],
+    apply: (s, v, v2) => {
+      s.traits.staggerQuake += v;
+      s.knockbackMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "staggerLeech",
+    label: "怯み吸い: 敵を怯ませると HP +{v}、撃破時HP回復 -{v2}",
+    tags: ["life", "tradeoff"],
+    slots: ["weapon", "ring"],
+    curve: [t2(24, 8, 10, 3, 3), t2(12, 5, 7, 2, 2), t2(1, 3, 4, 1, 1)],
+    apply: (s, v, v2) => {
+      s.traits.healOnStagger += v;
+      s.lifeOnKill -= v2;
+    },
+  }),
+  trait({
+    key: "fearPoise",
+    color: "umbra",
+    label: "追い討ち: 恐怖中の敵への怯み値 +{v}%、近接ダメージ -{v2}%",
+    tags: ["status", "melee", "tradeoff"],
+    slots: ["weapon"],
+    curve: [t2(24, 100, 130, 8, 10), t2(12, 80, 100, 6, 8), t2(1, 60, 80, 5, 6)],
+    apply: (s, v, v2) => {
+      s.traits.fearPoiseMul += pct(v);
+      s.meleeDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "vortexCore",
+    color: "umbra",
+    label: "渦の芯: 沈黙中の敵への怯み値 +{v}%、射撃ダメージ -{v2}%",
+    tags: ["status", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 100, 130, 8, 10), t2(12, 80, 100, 6, 8), t2(1, 60, 80, 5, 6)],
+    apply: (s, v, v2) => {
+      s.traits.silencedPoiseMul += pct(v);
+      s.rangedDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "vulnPoise",
+    color: "umbra",
+    label: "脆弱の楔: 脆弱の敵への怯み値 +{v}%、被ダメージ +{v2}%",
+    tags: ["status", "tradeoff"],
+    slots: ["weapon", "ring"],
+    curve: [t2(24, 80, 100, 5, 6), t2(12, 60, 75, 4, 5), t2(1, 40, 55, 3, 4)],
+    apply: (s, v, v2) => {
+      s.traits.vulnerablePoiseMul += pct(v);
+      s.damageTakenMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "heavyHand",
+    label: "重い手: 怯み値 +{v}%、攻撃速度 -{v2}%",
+    tags: ["melee", "tradeoff"],
+    slots: ["weapon", "armor"],
+    curve: [t2(24, 30, 38, 8, 10), t2(12, 20, 26, 6, 8), t2(1, 12, 16, 5, 6)],
+    apply: (s, v, v2) => {
+      s.poiseDamageMul += pct(v);
+      s.attackSpeedMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "staggerSpark",
+    color: "gold",
+    label: "崩れ雷: 敵を怯ませると連鎖雷を呼ぶ（{v} ダメージ）",
+    tags: ["elemental", "damage"],
+    slots: ["weapon", "gun"],
+    curve: [t(24, 22, 28), t(12, 14, 18), t(1, 8, 10)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "chainLightning", magnitude: v });
+    },
+  }),
+  trait({
+    key: "staggerCharge",
+    label: "崩れの充填: 敵を怯ませるとエネルギー +{v}、必殺ダメージ -{v2}%",
+    tags: ["burst", "tradeoff"],
+    slots: ["weapon", "amulet"],
+    curve: [t2(24, 16, 20, 10, 12), t2(12, 12, 15, 8, 10), t2(1, 8, 10, 6, 8)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "energy", magnitude: v });
+      s.burstDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "staggerMark",
+    color: "umbra",
+    label: "崩れの刻印: 怯ませた敵を脆弱にする（{v} 秒）",
+    tags: ["status", "damage"],
+    slots: ["weapon", "ring"],
+    curve: [t(24, 4, 5), t(12, 3, 4), t(1, 2, 3)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "inflict", magnitude: v, status: "vulnerable" });
+    },
+  }),
+
+  // ---- テレグラフ・カウンター ----
+  trait({
+    key: "readAhead",
+    color: "gold",
+    label: "先読み: 予備動作中の敵への与ダメージ +{v}%、それ以外の敵へは -{v2}%",
+    tags: ["damage", "combo", "tradeoff"],
+    slots: ["weapon", "gun"],
+    curve: [t2(24, 55, 70, 10, 12), t2(12, 40, 50, 8, 10), t2(1, 25, 35, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.windupDamageMul += pct(v);
+      s.traits.offWindupPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "windupCrack",
+    color: "gold",
+    label: "崩し打ち: 予備動作中の敵への近接命中で、追加の怯み値 {v}",
+    tags: ["melee", "combo"],
+    slots: ["weapon"],
+    curve: [t(24, 18, 24), t(12, 12, 16), t(1, 8, 10)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetInWindup", effect: "addPoise", magnitude: v });
+    },
+  }),
+  trait({
+    key: "counterWave",
+    label: "返し波: カウンター時、衝撃波を放つ（{v} ダメージ）",
+    tags: ["melee", "damage"],
+    slots: ["weapon"],
+    curve: [t(24, 28, 34), t(12, 18, 22), t(1, 10, 12)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "shockwave", magnitude: v });
+    },
+  }),
+  trait({
+    key: "guardedBane",
+    label: "堅守崩し: 堅守中の敵への与ダメージ +{v}%",
+    tags: ["melee", "damage"],
+    slots: ["weapon", "gun"],
+    curve: [t(24, 38, 46), t(12, 25, 32), t(1, 15, 20)],
+    apply: (s, v) => {
+      s.traits.guardedDamageMul += pct(v);
+    },
+  }),
+  trait({
+    key: "downHunter",
+    color: "gold",
+    label: "ダウン狩り: ボスへの与ダメージ +{v}%、ボス以外への与ダメージ -{v2}%",
+    tags: ["damage", "tradeoff"],
+    slots: ["weapon", "amulet"],
+    curve: [t2(25, 35, 42, 6, 8), t2(15, 25, 30, 5, 6), t2(5, 15, 20, 4, 5)],
+    apply: (s, v, v2) => {
+      s.traits.bossDamageMul += pct(v);
+      s.traits.nonBossPenalty += pct(v2);
+    },
+  }),
+
+  // ---- 射撃・機動 ----
+  trait({
+    key: "dashVolley",
+    label: "撒き足: ダッシュ時に照準の方向へ射撃の {v}% の弾を撃つ、ダッシュ距離 -{v2}%",
+    tags: ["ranged", "mobility", "tradeoff"],
+    slots: ["boots"],
+    curve: [t2(24, 95, 110, 6, 8), t2(12, 70, 85, 8, 10), t2(1, 50, 60, 8, 10)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onDash", condition: "always", effect: "volley", magnitude: v, count: 1 });
+      s.dashDistanceMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "brimShock",
+    color: "gold",
+    label: "満ちた器: マナが満タンの間、射撃で連鎖雷を呼ぶ（{v} ダメージ）",
+    tags: ["elemental", "mana", "ranged"],
+    slots: ["gun", "ring"],
+    curve: [t(24, 15, 19), t(12, 10, 13), t(1, 6, 8)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onShoot", condition: "manaFull", effect: "chainLightning", magnitude: v });
+    },
+  }),
+  trait({
+    key: "nightEyes",
+    label: "夜目: 暗闇フロアで射撃ダメージ +{v}%、それ以外のフロアでは -{v2}%",
+    tags: ["ranged", "tradeoff"],
+    slots: ["gun", "amulet"],
+    curve: [t2(24, 40, 48, 6, 8), t2(12, 30, 36, 5, 6), t2(1, 20, 25, 4, 5)],
+    apply: (s, v, v2) => {
+      s.traits.darkRangedMul += pct(v);
+      s.traits.lightRangedPenalty += pct(v2);
+    },
+  }),
+
+  // ---- 部屋・死神 ----
+  trait({
+    key: "lockdownFury",
+    label: "封鎖の熱: 封鎖中の部屋で与ダメージ +{v}%、それ以外では -{v2}%",
+    tags: ["damage", "tradeoff"],
+    slots: ["weapon", "armor", "ring"],
+    curve: [t2(24, 16, 20, 12, 15), t2(12, 12, 15, 10, 12), t2(1, 8, 10, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.lockedDamageMul += pct(v);
+      s.traits.unlockedPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "reaperShadow",
+    color: "umbra",
+    label: "死神の影: 死神が出ている間、与ダメージ +{v}%、最大HP -{v2}",
+    tags: ["damage", "tradeoff"],
+    slots: ["boots", "amulet"],
+    curve: [t2(24, 40, 48, 10, 12), t2(12, 30, 36, 8, 10), t2(1, 20, 25, 5, 6)],
+    apply: (s, v, v2) => {
+      s.traits.reaperDamageMul += pct(v);
+      s.maxHp -= v2;
+    },
+  }),
+
+  // ---- 装備全体・来歴・共鳴を読む（loot/traitContext.ts）----
+  trait({
+    key: "sapling",
+    color: "jade",
+    label: "若木: 装備全体の残り余白 1 につき近接・射撃ダメージ +{v}%（芽を選ぶほど弱まる）",
+    tags: ["damage", "utility"],
+    slots: ["weapon", "gun", "armor", "boots", "ring", "amulet"],
+    curve: [t(24, 3, 4), t(12, 2, 3), t(1, 1, 2)],
+    apply: (s, v) => {
+      const bonus = pct(v) * s.traits.gearMargin;
+      s.meleeDamageMul += bonus;
+      s.rangedDamageMul += bonus;
+    },
+  }),
+  trait({
+    key: "inscribedWeight",
+    label: "銘の重み: 銘を持つ装備 1 つにつき会心倍率 +{v}%、銘の無い装備 1 つにつき最大HP -{v2}",
+    tags: ["critical", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 20, 26, 4, 5), t2(12, 14, 18, 3, 4), t2(1, 8, 12, 2, 3)],
+    apply: (s, v, v2) => {
+      const t = s.traits;
+      s.critMul += pct(v) * t.gearInscribed;
+      s.maxHp -= v2 * Math.max(0, t.gearItems - t.gearInscribed);
+    },
+  }),
+  trait({
+    key: "invertedFeast",
+    color: "umbra",
+    label: "裏の糧: 装備中の反転した性質 1 つにつき近接・射撃ダメージ +{v}%、被ダメージ +{v2}%",
+    tags: ["damage", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 12, 15, 3, 4), t2(12, 9, 12, 3, 3), t2(1, 6, 8, 2, 3)],
+    apply: (s, v, v2) => {
+      const inverted = s.traits.gearInverted;
+      s.meleeDamageMul += pct(v) * inverted;
+      s.rangedDamageMul += pct(v) * inverted;
+      s.damageTakenMul += pct(v2) * inverted;
+    },
+  }),
+  trait({
+    key: "foreignEcho",
+    color: "umbra",
+    label: "異郷の響き: 装備中の異色の性質 1 つにつき全ステータス +{v}、最大HP -{v2}",
+    tags: ["attribute", "tradeoff"],
+    slots: ["ring"],
+    curve: [t2(16, 1, 2, 6, 8), t2(4, 1, 1, 4, 6)],
+    apply: (s, v, v2) => {
+      for (const k of ATTR_KEYS) s.attributes[k] += v * s.traits.gearOffColor;
+      s.maxHp -= v2;
+    },
+  }),
+  trait({
+    key: "bridge",
+    color: "jade",
+    label: "橋渡し: 二重の共鳴が各色 {v}% から成立する（散光は成立しなくなる）",
+    tags: ["utility"],
+    slots: JEWELRY_SLOTS,
+    // 値は二重の成立条件（%）。低いほど成立しやすい。判定は resonance.ts の resonanceRules
+    curve: [t(24, 22, 23), t(12, 24, 25), t(1, 26, 27)],
+    apply: noTraitEffect,
+  }),
+  trait({
+    key: "oldScars",
+    color: "jade",
+    label: "古傷: この遺物で被弾 100 回ごとにアーマー +{v}（5 段まで）",
+    tags: ["defense"],
+    slots: ["armor"],
+    curve: [t(24, 3, 4), t(12, 2, 3), t(1, 1, 2)],
+    apply: (s, v) => {
+      s.armor += v;
+    },
+  }),
+  trait({
+    key: "veteran",
+    label: "歴戦: この遺物での撃破 100 ごとに近接・射撃ダメージ +{v}%（8 段まで）",
+    tags: ["damage"],
+    slots: ["weapon", "gun"],
+    curve: [t(24, 3, 4), t(12, 2, 3), t(1, 1, 2)],
+    apply: (s, v) => {
+      s.meleeDamageMul += pct(v);
+      s.rangedDamageMul += pct(v);
+    },
+  }),
+  trait({
+    key: "wayfarer",
+    label: "旅の垢: この遺物で階層を 3 つ踏破するごとに移動速度 +{v}%（6 段まで）",
+    tags: ["mobility"],
+    slots: ["boots"],
+    curve: [t(24, 2, 3), t(12, 1, 2), t(1, 1, 1)],
+    apply: (s, v) => {
+      s.moveSpeedMul += pct(v);
+    },
+  }),
+  trait({
+    key: "kingslayerMark",
+    color: "umbra",
+    label: "王殺しの印: この遺物でのボス撃破 1 ごとにボスへの与ダメージ +{v}%（5 段まで）",
+    tags: ["damage"],
+    slots: JEWELRY_SLOTS,
+    curve: [t(24, 8, 10), t(14, 6, 8), t(3, 4, 6)],
+    apply: (s, v) => {
+      s.traits.bossDamageMul += pct(v);
+    },
+  }),
+  trait({
+    key: "keenMemory",
+    label: "見切りの記憶: この遺物でのジャスト回避 25 ごとに、ジャスト回避後 {v2} 秒間のダメージ +{v}%（4 段まで）",
+    tags: ["combo", "damage"],
+    slots: ["boots", "ring"],
+    curve: [t2(24, 12, 15, 0.4, 0.5), t2(12, 9, 12, 0.3, 0.4), t2(1, 6, 8, 0.2, 0.3)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.justDodgeDamageMul += pct(v);
+      s.justDodgeWindow += v2;
+    },
+  }),
+
+  // ---- 目覚め（芽専用。ドロップ・染めでは出ない。provenance.ts の節目が名指しする）----
+  trait({
+    key: "shieldSplitter",
+    color: "crimson",
+    awakening: true,
+    label: "盾割り: 堅守中の敵への与ダメージ +{v}%・怯み値 +{v2}%",
+    tags: ["melee", "damage"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 30, 36, 45, 55), t2(1, 20, 25, 30, 40)],
+    apply: (s, v, v2) => {
+      s.traits.guardedDamageMul += pct(v);
+      s.traits.guardedPoiseMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "kickback",
+    color: "crimson",
+    awakening: true,
+    label: "蹴り返し: 予備動作中の敵を殴ると、その場で爆発を返す（{v} ダメージ）",
+    tags: ["melee", "damage"],
+    slots: ALL_SLOTS,
+    curve: [t(15, 24, 30), t(1, 14, 18)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetInWindup", effect: "explode", magnitude: v });
+    },
+  }),
+  trait({
+    key: "plunder",
+    color: "crimson",
+    awakening: true,
+    label: "剥ぎ取り: エリートを倒すと {v2} 秒間ダメージ +{v}%・移動速度 +{v}%",
+    tags: ["damage", "mobility"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 30, 36, 8, 10), t2(1, 20, 25, 6, 8)],
+    apply: (s, v, v2) => {
+      pushFixedTrigger(s, { trigger: "onKill", condition: "targetElite", effect: "damageBuff", magnitude: v, duration: v2 });
+      pushFixedTrigger(s, { trigger: "onKill", condition: "targetElite", effect: "speedBuff", magnitude: v, duration: v2 });
+    },
+  }),
+  trait({
+    key: "firstMove",
+    color: "gold",
+    awakening: true,
+    label: "先の先: カウンターで相手に怯み値 {v} を追加で与える",
+    tags: ["melee", "combo"],
+    slots: ALL_SLOTS,
+    curve: [t(15, 25, 32), t(1, 15, 20)],
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "addPoise", magnitude: v });
+    },
+  }),
+  trait({
+    key: "curtainCall",
+    color: "gold",
+    awakening: true,
+    label: "幕引き: 殲滅の瞬間に敵弾をすべて消し、エネルギー +{v}",
+    tags: ["burst"],
+    slots: ALL_SLOTS,
+    curve: [t(15, 30, 36), t(1, 20, 25)],
+    apply: (s, v) => {
+      s.traits.lastKillClearsBullets += 1;
+      s.traits.lastKillEnergy += v;
+    },
+  }),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1095,6 +1828,17 @@ const MIN_SPLIT_DAMAGE_FACTOR = 0.2;
 const BASE_MULTIPLIER = 1;
 const BASE_PROJECTILES = 1;
 const REMAINING_DASH_CHARGES = 1;
+/** cv_regenToGain: 移したマナ自然回復 1/秒あたりのマナ回収倍率 */
+const MANA_GAIN_PER_REGEN = 0.15;
+/** cv_poiseToDamage: 移した怯み値倍率 1.0 あたりの与ダメージ倍率 */
+const DAMAGE_PER_POISE = 0.5;
+/** cv_lifeToMana / cv_manaToLife の交換比 */
+const MANA_PER_HP = 0.5;
+const HP_PER_MANA = 1.5;
+/** cv_burstToSkill: 移した必殺ダメージ倍率 1.0 あたりのスキル威力 */
+const SKILL_PER_BURST = 0.5;
+/** cv_critToPoise: 移した会心率 1.0 あたりの怯み値倍率 */
+const POISE_PER_CRIT = 2;
 
 /** ステータスの変換は 50% を基準にする（深さで割合は変えず、揺らぎだけで振れる） */
 const ATTR_CONVERSION_CURVE: readonly CurvePoint[] = [t(1, 50, 50)];
@@ -1252,6 +1996,159 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     },
   }),
 
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 3 章）: マナ・怯み・状態異常へ移す ----
+  trait({
+    key: "cv_regenToGain",
+    label: "マナ自然回復の{v}%をマナ回収に変換（自然回復 1/秒につき回収 +15%）",
+    tags: ["conversion", "mana", "skill"],
+    slots: ["weapon", "ring", "amulet"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.manaRegen) * fraction(v);
+      s.manaRegen -= moved;
+      s.manaGainMul += moved * MANA_GAIN_PER_REGEN;
+    },
+  }),
+  trait({
+    key: "cv_knockbackToPoise",
+    label: "ノックバックの上昇分の{v}%を怯み値に変換",
+    tags: ["conversion", "melee"],
+    slots: ["weapon", "armor", "ring"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.knockbackMul - BASE_MULTIPLIER) * fraction(v);
+      s.knockbackMul -= moved;
+      s.poiseDamageMul += moved;
+    },
+  }),
+  trait({
+    key: "cv_projectilesToPoise",
+    label: "弾数を 1 に変換し、減らした弾 1 本ごとに射撃の怯み値 +{v}%",
+    tags: ["conversion", "ranged"],
+    slots: ["gun", "amulet"],
+    curve: [t(24, 120, 150), t(12, 90, 110), t(1, 60, 80)],
+    stage: "convert",
+    apply: (s, v) => {
+      const removed = Math.max(0, Math.round(s.projectileCount) - BASE_PROJECTILES);
+      s.projectileCount = BASE_PROJECTILES;
+      s.traits.rangedPoiseMul += fraction(v) * removed;
+    },
+  }),
+  trait({
+    key: "cv_poiseToDamage",
+    label: "怯み値の上昇分の{v}%を近接・射撃ダメージに変換（半分の率で）",
+    tags: ["conversion", "melee", "damage"],
+    slots: ["weapon", "ring"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.poiseDamageMul - BASE_MULTIPLIER) * fraction(v);
+      s.poiseDamageMul -= moved;
+      s.meleeDamageMul += moved * DAMAGE_PER_POISE;
+      s.rangedDamageMul += moved * DAMAGE_PER_POISE;
+    },
+  }),
+  trait({
+    key: "cv_lifeToMana",
+    label: "最大HPの{v}%を最大マナに変換（HP 2 につきマナ 1）",
+    tags: ["conversion", "mana", "life"],
+    slots: ["armor", "amulet"],
+    curve: [t(24, 22, 26), t(12, 16, 20), t(1, 10, 14)],
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.maxHp) * fraction(v);
+      s.maxHp -= moved;
+      s.maxMana += moved * MANA_PER_HP;
+    },
+  }),
+  trait({
+    key: "cv_manaToLife",
+    color: "jade",
+    label: "最大マナの{v}%を最大HPに変換（マナ 1 につき HP 1.5）",
+    tags: ["conversion", "life", "mana"],
+    slots: ["armor", "amulet"],
+    curve: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.maxMana) * fraction(v);
+      s.maxMana -= moved;
+      s.maxHp += moved * HP_PER_MANA;
+    },
+  }),
+  trait({
+    key: "cv_energyToMana",
+    label: "エネルギー獲得の上昇分の{v}%をマナ回収に変換",
+    tags: ["conversion", "mana", "burst"],
+    slots: JEWELRY_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.energyGainMul - BASE_MULTIPLIER) * fraction(v);
+      s.energyGainMul -= moved;
+      s.manaGainMul += moved;
+    },
+  }),
+  trait({
+    key: "cv_burstToSkill",
+    color: "gold",
+    label: "必殺ダメージの上昇分の{v}%をスキル威力に変換（半分の率で）",
+    tags: ["conversion", "burst", "skill"],
+    slots: ["weapon", "amulet"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.burstDamageMul - BASE_MULTIPLIER) * fraction(v);
+      s.burstDamageMul -= moved;
+      s.skillDamageMul += moved * SKILL_PER_BURST;
+    },
+  }),
+  trait({
+    key: "cv_critToPoise",
+    color: "crimson",
+    label: "会心率の{v}%を怯み値に変換（会心率 1% につき怯み値 +2%）",
+    tags: ["conversion", "critical", "melee"],
+    slots: ["weapon", "ring"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.critChance) * fraction(v);
+      s.critChance -= moved;
+      s.poiseDamageMul += moved * POISE_PER_CRIT;
+    },
+  }),
+  trait({
+    key: "cv_burnToPoison",
+    color: "umbra",
+    label: "炎上の確率の{v}%を毒の付与に変換（炎上のダメージも同じ割合で消える）",
+    tags: ["conversion", "status", "elemental"],
+    slots: ATTACK_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const f = fraction(v);
+      const moved = Math.max(0, s.burnChance) * f;
+      s.burnChance -= moved;
+      s.burnDps -= Math.max(0, s.burnDps) * f;
+      pushProc(s, { kind: "poison", chance: moved, stacks: PROC_STACKS, duration: STATUS.poison.duration, potency: STATUS.poison.hpRatioPerSec, on: "any" });
+    },
+  }),
+  trait({
+    key: "cv_chillToVulnerable",
+    color: "umbra",
+    label: "凍結確率の{v}%を脆弱の付与に変換",
+    tags: ["conversion", "status", "elemental"],
+    slots: ATTACK_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.chillChance) * fraction(v);
+      s.chillChance -= moved;
+      pushProc(s, { kind: "vulnerable", chance: moved, stacks: PROC_STACKS, duration: STATUS.vulnerable.duration, potency: STATUS.vulnerable.mul, on: "any" });
+    },
+  }),
+
   // ---- ステータスの変換（docs/COMBAT_DESIGN.md A-3）: 片方を捨てて片方を伸ばす交換 ----
   ...attributeConversions(),
 ];
@@ -1311,7 +2208,7 @@ export const KEYSTONE_KEY_PREFIX = "ks_";
 const KEYSTONE_VALUE = 0;
 const KEYSTONE_COLOR: TraitColor = "umbra";
 
-export type KeystoneGroup = "body" | "tempo" | "style" | "mana";
+export type KeystoneGroup = "body" | "tempo" | "style" | "mana" | "status" | "poise" | "room" | "hue" | "chronicle";
 
 /** ks_overdraw（過負荷）のスキル威力の低下 */
 const OVERDRAW_SKILL_PENALTY = 0.1;
@@ -1457,6 +2354,153 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     // 誓約は全性質の後（computeStats の最後）に畳むので、+自然回復の性質の順序に依らず 0 になる
     apply: (s) => {
       s.manaRegen = THIRST_MANA_REGEN;
+    },
+  },
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 2 章）。新しい排他グループ status / poise / room / hue / chronicle ----
+  {
+    key: "ks_pure",
+    name: "無垢の誓い",
+    description: "状態異常を一切受けない。代わりに装備による状態異常の付与（炎上・凍結・感電・命中時の付与・トリガーの付与）がすべて消える。",
+    exclusiveGroup: "status",
+    apply: (s) => {
+      s.statusTakenMul = 0;
+      s.burnChance = 0;
+      s.chillChance = 0;
+      s.shockChance = 0;
+      s.statusProcs = [];
+      s.triggers = s.triggers.filter((t) => t.effect !== "inflict");
+    },
+  },
+  {
+    key: "ks_blight",
+    name: "蝕みの誓約",
+    description: "装備による状態異常の付与確率が2倍になる。自分が受ける状態異常の持続も2倍になる。",
+    exclusiveGroup: "status",
+    apply: (s) => {
+      const mul = KEYSTONE.blightChanceMul;
+      s.burnChance *= mul;
+      s.chillChance *= mul;
+      s.shockChance *= mul;
+      s.statusProcs = s.statusProcs.map((p) => ({ ...p, chance: Math.min(1, p.chance * mul) }));
+      s.triggers = s.triggers.map((t) => (t.effect === "inflict" ? { ...t, chance: Math.min(1, t.chance * mul) } : t));
+      s.statusTakenMul *= KEYSTONE.blightTakenMul;
+    },
+  },
+  {
+    key: "ks_contagion",
+    name: "病みの誓い",
+    description: "敵が倒れると、付いていた状態異常が周囲の敵へすべて移る。近接・射撃ダメージ -40%。",
+    exclusiveGroup: "status",
+    apply: (s) => {
+      s.meleeDamageMul *= KEYSTONE.contagionDamageMul;
+      s.rangedDamageMul *= KEYSTONE.contagionDamageMul;
+    },
+  },
+  {
+    key: "ks_wedgeOath",
+    name: "楔の誓い",
+    description: "怯み値が2.5倍になる。怯んでいない敵への与ダメージ -40%。",
+    exclusiveGroup: "poise",
+    apply: (s) => {
+      s.poiseDamageMul *= KEYSTONE.wedgePoiseMul;
+    },
+  },
+  {
+    key: "ks_unshaken",
+    name: "揺るがぬ誓い",
+    description: "攻撃で敵を怯ませられなくなる。代わりに近接・射撃・スキルの与ダメージ +35%、怯み値の上昇分の半分も与ダメージになる。",
+    exclusiveGroup: "poise",
+    apply: (s) => {
+      const bonus = KEYSTONE.unshakenDamageBonus + Math.max(0, s.poiseDamageMul - BASE_MULTIPLIER) * KEYSTONE.unshakenPoiseToDamage;
+      s.meleeDamageMul += bonus;
+      s.rangedDamageMul += bonus;
+      s.skillDamageMul += bonus;
+      s.poiseDamageMul = 0;
+    },
+  },
+  {
+    key: "ks_chokehold",
+    name: "締め上げの誓い",
+    description: "堅守中の敵にも怯み値が減らずに通り、固め続けられる。怯み値 -30%。",
+    exclusiveGroup: "poise",
+    apply: (s) => {
+      s.poiseDamageMul *= KEYSTONE.chokeholdPoiseMul;
+    },
+  },
+  {
+    key: "ks_readOath",
+    name: "読み勝ちの誓い",
+    description: "予備動作中の敵への近接は怯み値が10倍になる。それ以外の敵への近接は怯み値が0になり、与ダメージ -30%。",
+    exclusiveGroup: "tempo",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_backwater",
+    name: "背水の誓い",
+    description: "封鎖中の部屋では回復が効かない代わりに与ダメージ +15%。部屋を制圧すると失ったHPの50%を取り戻す。",
+    exclusiveGroup: "room",
+    apply: (s) => {
+      s.triggers.push({ trigger: "onRoomClear", condition: "always", effect: "healMissing", magnitude: KEYSTONE.backwaterClearHealPct, chance: 1 });
+    },
+  },
+  {
+    key: "ks_reaperOath",
+    name: "死神の誓い",
+    description: "死神が2倍の早さで現れる。与ダメージ +15%、死神が出ている間は +40%。",
+    exclusiveGroup: "room",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_chant",
+    name: "詠唱の誓い",
+    description: "近接・射撃の与ダメージが30%になる。通常攻撃の命中で戻るマナが4倍になり、スキル威力 +50%。",
+    exclusiveGroup: "mana",
+    apply: (s) => {
+      s.meleeDamageMul *= KEYSTONE.chantAttackDamageMul;
+      s.rangedDamageMul *= KEYSTONE.chantAttackDamageMul;
+      s.skillDamageMul += KEYSTONE.chantSkillBonus;
+    },
+  },
+  {
+    key: "ks_monochrome",
+    name: "単色の誓い",
+    description: "共鳴は支配だけになり、1色が35%で成立する。支配の効果が2回掛かり、支配色以外の性質は50%に弱まる。",
+    exclusiveGroup: "hue",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_colorless",
+    name: "無色の誓い",
+    description: "共鳴が起きなくなる。代わりに全ての性質（誓約を除く）の値が20%上がる。",
+    exclusiveGroup: "hue",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_mirror",
+    name: "鏡の誓い",
+    description: "性質の色を反対色として数える（紅と蒼、翠と金が入れ替わる）。冥は配合に数えない。",
+    exclusiveGroup: "hue",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_discipline",
+    name: "修行の誓い",
+    description: "装備の来歴が3倍の早さで積もる。近接・射撃・スキルの与ダメージ -20%。",
+    exclusiveGroup: "chronicle",
+    apply: (s) => {
+      s.meleeDamageMul *= KEYSTONE.disciplineDamageMul;
+      s.rangedDamageMul *= KEYSTONE.disciplineDamageMul;
+      s.skillDamageMul *= KEYSTONE.disciplineDamageMul;
+    },
+  },
+  {
+    key: "ks_oblivion",
+    name: "忘却の誓い",
+    description: "来歴が積もらず、芽も出ない。代わりに装備全体の残り余白1につき全ステータス +1。",
+    exclusiveGroup: "chronicle",
+    apply: (s) => {
+      const bonus = s.traits.gearMargin * KEYSTONE.oblivionAttrPerMargin;
+      for (const k of ATTR_KEYS) s.attributes[k] += bonus;
     },
   },
 ];
@@ -1825,6 +2869,190 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.energyGainMul -= pct(8);
     },
   },
+  // ---- 2026-09 追加のベース（docs/ideas/loot-expansion.md 5-1）----
+  {
+    key: "implicit.machete",
+    label: "炎上確率 +{v}%（炎上 3 ダメージ/秒）、リーチ -10%",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.burnChance += pct(v);
+      s.burnDps += MACHETE_BURN_DPS;
+      s.meleeReachMul -= pct(10);
+    },
+  },
+  {
+    key: "implicit.rapier",
+    label: "会心時の怯み値 +{v}%、会心率 +3%、ノックバック -20%",
+    range: { min: 40, max: 60 },
+    apply: (s, v) => {
+      s.traits.critPoiseMul += pct(v);
+      s.critChance += pct(3);
+      s.knockbackMul -= pct(20);
+    },
+  },
+  {
+    key: "implicit.scythe",
+    label: "撃破時HP回復 +{v}、リーチ +15%、攻撃速度 -15%",
+    range: { min: 2, max: 4 },
+    apply: (s, v) => {
+      s.lifeOnKill += v;
+      s.meleeReachMul += pct(15);
+      s.attackSpeedMul -= pct(15);
+    },
+  },
+  {
+    key: "implicit.staff",
+    label: "怯み値 +{v}%、マナ回収 +20%、近接ダメージ -20%",
+    range: { min: 25, max: 35 },
+    apply: (s, v) => {
+      s.poiseDamageMul += pct(v);
+      s.manaGainMul += pct(20);
+      s.meleeDamageMul -= pct(20);
+    },
+  },
+  {
+    key: "implicit.throwingKnives",
+    label: "連射速度 +{v}%、会心率 +3%、射撃ダメージ -15%",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      s.fireRateMul += pct(v);
+      s.critChance += pct(3);
+      s.rangedDamageMul -= pct(15);
+    },
+  },
+  {
+    key: "implicit.matchlock",
+    label: "炎上確率 +{v}%（炎上 4 ダメージ/秒）、連射速度 -30%",
+    range: { min: 45, max: 60 },
+    apply: (s, v) => {
+      s.burnChance += pct(v);
+      s.burnDps += MATCHLOCK_BURN_DPS;
+      s.fireRateMul -= pct(30);
+    },
+  },
+  {
+    key: "implicit.blowgun",
+    label: "射撃命中時 25% で毒、状態異常の効果量 +{v}%、射撃ダメージ -35%",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      pushProc(s, statusProc("poison", BLOWGUN_POISON_PCT, STATUS.poison.duration, STATUS.poison.hpRatioPerSec, "ranged"));
+      s.statusPotencyMul += pct(v);
+      s.rangedDamageMul -= pct(35);
+    },
+  },
+  {
+    key: "implicit.robe",
+    label: "最大マナ +{v}、最大HP -15",
+    range: { min: 12, max: 18 },
+    apply: (s, v) => {
+      s.maxMana += v;
+      s.maxHp -= 15;
+    },
+  },
+  {
+    key: "implicit.scale",
+    label: "受ける状態異常の持続 -{v}%、最大HP +10",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      s.statusTakenMul -= pct(v);
+      s.maxHp += 10;
+    },
+  },
+  {
+    key: "implicit.spiked",
+    label: "攻撃者に{v}ダメージを反射、被ダメージ +5%",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.thorns += v;
+      s.damageTakenMul += pct(5);
+    },
+  },
+  {
+    key: "implicit.ironGeta",
+    label: "アーマー +{v}、怯み値 +10%、移動速度 -12%",
+    range: { min: 5, max: 8 },
+    apply: (s, v) => {
+      s.armor += v;
+      s.poiseDamageMul += pct(10);
+      s.moveSpeedMul -= pct(12);
+    },
+  },
+  {
+    key: "implicit.tabi",
+    label: "ダッシュ時: 1 秒間移動速度 +{v}%",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      pushFixedTrigger(s, { trigger: "onDash", condition: "always", effect: "speedBuff", magnitude: v, duration: TABI_BUFF_SECONDS });
+    },
+  },
+  {
+    key: "implicit.snowBoots",
+    label: "{v}%の確率で凍結（15%減速）、移動速度 -5%",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.chillChance += pct(v);
+      s.chillSlow += pct(15);
+      s.moveSpeedMul -= pct(5);
+    },
+  },
+  {
+    key: "implicit.boneRing",
+    label: "撃破でマナ +{v}",
+    range: { min: 1, max: 3 },
+    apply: (s, v) => {
+      s.manaOnKill += v;
+    },
+  },
+  {
+    key: "implicit.twinRing",
+    label: "二重の共鳴の成立条件を {v} ポイント下げる",
+    range: { min: 2, max: 4 },
+    // 判定は resonance.ts の resonanceRules（数値は stats に畳まない）
+    apply: noTraitEffect,
+  },
+  {
+    key: "implicit.blackIronRing",
+    label: "装備中の反転した性質 1 つにつき会心率 +{v}%",
+    range: { min: 2, max: 3 },
+    apply: (s, v) => {
+      s.critChance += pct(v) * s.traits.gearInverted;
+    },
+  },
+  {
+    key: "implicit.signet",
+    label: "この遺物の来歴が 2 倍の早さで積もる、最大HP -{v}",
+    range: { min: 4, max: 8 },
+    // 来歴の倍速は provenance.ts の progressFor
+    apply: (s, v) => {
+      s.maxHp -= v;
+    },
+  },
+  {
+    key: "implicit.rosary",
+    label: "マナ自然回復 +{v}/秒、近接ダメージ -10%",
+    range: { min: 0.3, max: 0.5 },
+    decimals: 1,
+    apply: (s, v) => {
+      s.manaRegen += v;
+      s.meleeDamageMul -= pct(10);
+    },
+  },
+  {
+    key: "implicit.bell",
+    label: "会心時 {v}% で恐怖させる",
+    range: { min: 15, max: 25 },
+    apply: (s, v) => {
+      pushProc(s, { ...statusProc("fear", v, STATUS.fear.duration, NO_POTENCY, "any"), requiresCrit: true });
+    },
+  },
+  {
+    key: "implicit.fangNecklace",
+    label: "近接命中時 {v}% で出血させる（10px 動くごとに 1.5 ダメージ）",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1851,9 +3079,14 @@ export function firstDepth(def: AffixDef): number {
   return Math.min(...def.curve.map((p) => p.depth));
 }
 
-/** slot に付けられ、depth で曲線が始まっている通常の性質（変換は含まない） */
+/** slot に付けられ、depth で曲線が始まっている通常の性質（変換・目覚めは含まない） */
 export function traitsFor(slot: Slot, depth: number): AffixDef[] {
-  return AFFIXES.filter((d) => d.slots.includes(slot) && firstDepth(d) <= depth);
+  return AFFIXES.filter((d) => d.awakening !== true && d.slots.includes(slot) && firstDepth(d) <= depth);
+}
+
+/** 目覚め（芽専用の性質）の定義 */
+export function isAwakeningKey(key: string): boolean {
+  return affixDef(key)?.awakening === true;
 }
 
 export type AffixSource = "affix" | "conversion" | "implicit" | "keystone" | "trigger" | "marker";

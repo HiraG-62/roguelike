@@ -1,8 +1,11 @@
 import type { GameState } from "../core/state";
-import { createRng, hashSeed } from "../core/rng";
+import { createRng, hashSeed, type Rng } from "../core/rng";
+import { ENEMIES } from "../data/enemies";
+import { KEYSTONE } from "../data/tuning";
+import { affixDef } from "./affixes";
 import { OPPOSITE_COLOR } from "./colors";
 import { fluxClassOf } from "./flux";
-import { CALM_SIGMA_SCALE, rollTraitOfColor, type TraitRollOptions } from "./generator";
+import { CALM_SIGMA_SCALE, rollTableTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
 import { ensureGrowthFields } from "./migrate";
 import { engraveName, nameItem } from "./names";
 import { saveProfile } from "./profile";
@@ -31,9 +34,26 @@ export type ProvenanceEvent =
   | { kind: "just" }
   | { kind: "hurt" }
   | { kind: "roomClear" }
-  | { kind: "floorClear" };
+  | { kind: "floorClear" }
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 7 章）----
+  | { kind: "stagger" }
+  | { kind: "counter" }
+  | { kind: "skillCast" }
+  | { kind: "eliteKill" }
+  | { kind: "lastKill" };
 
-type CounterKey = "kills" | "justDodges" | "hurtTaken" | "bosses" | "roomsCleared" | "floorsCleared";
+type CounterKey =
+  | "kills"
+  | "justDodges"
+  | "hurtTaken"
+  | "bosses"
+  | "roomsCleared"
+  | "floorsCleared"
+  | "staggers"
+  | "counters"
+  | "skillCasts"
+  | "eliteKills"
+  | "lastKills";
 
 export interface MilestoneDef {
   key: string;
@@ -42,10 +62,33 @@ export interface MilestoneDef {
   /** 芽の片方の色（もう片方は OPPOSITE_COLOR） */
   color: TraitColor;
   label: string;
+  /** 敵種別の撃破数で数える節目（killsByEnemy[enemyKey]）。counter は kills のまま */
+  enemyKey?: string;
+  /** 目覚め: 芽の片方をこの性質（affixes.ts の awakening）にする */
+  awakening?: string;
 }
 
-function milestone(counter: CounterKey, threshold: number, color: TraitColor, label: string): MilestoneDef {
-  return { key: `${counter}:${threshold}`, counter, threshold, color, label: `${label} ${threshold}` };
+function milestone(counter: CounterKey, threshold: number, color: TraitColor, label: string, awakening?: string): MilestoneDef {
+  const def: MilestoneDef = { key: `${counter}:${threshold}`, counter, threshold, color, label: `${label} ${threshold}` };
+  if (awakening !== undefined) def.awakening = awakening;
+  return def;
+}
+
+function enemyName(key: string): string {
+  return ENEMIES.find((e) => e.key === key)?.name ?? key;
+}
+
+/** 敵種別の撃破数の節目（目覚めを出す）。key は "enemy:<敵種>:<数>" */
+function enemyMilestone(enemyKey: string, threshold: number, color: TraitColor, awakening: string): MilestoneDef {
+  return {
+    key: `enemy:${enemyKey}:${threshold}`,
+    counter: "kills",
+    threshold,
+    color,
+    label: `${enemyName(enemyKey)}撃破 ${threshold}`,
+    enemyKey,
+    awakening,
+  };
 }
 
 /** 節目の表。表の順に判定し、1 度に提示する芽は 1 つ */
@@ -62,7 +105,25 @@ export const MILESTONES: readonly MilestoneDef[] = [
   milestone("bosses", 3, "umbra", "ボス撃破"),
   milestone("floorsCleared", 30, "azure", "階層踏破"),
   milestone("kills", 500, "crimson", "撃破"),
+  // ---- 2026-09 追加。旧セーブの到達済み節目の並びを崩さないよう末尾に足す ----
+  milestone("staggers", 100, "crimson", "怯ませた"),
+  milestone("counters", 30, "gold", "カウンター", "firstMove"),
+  milestone("skillCasts", 300, "azure", "スキル発動"),
+  milestone("eliteKills", 30, "crimson", "エリート撃破", "plunder"),
+  milestone("lastKills", 20, "gold", "殲滅", "curtainCall"),
+  enemyMilestone("knight", 30, "crimson", "shieldSplitter"),
+  enemyMilestone("bomber", 40, "crimson", "kickback"),
+  milestone("staggers", 400, "crimson", "怯ませた"),
+  milestone("counters", 120, "gold", "カウンター"),
+  milestone("skillCasts", 1200, "azure", "スキル発動"),
 ];
+
+/** 来歴を 2 倍で積むベース（印章指輪） */
+const DOUBLE_PROGRESS_BASES: ReadonlySet<string> = new Set(["signet"]);
+const DOUBLE_PROGRESS = 2;
+/** 来歴の誓約の key（loot から system/keystones.ts を import しないよう文字列で持つ） */
+const DISCIPLINE_KEY = "ks_discipline";
+const OBLIVION_KEY = "ks_oblivion";
 
 const MILESTONE_BY_KEY: ReadonlyMap<string, MilestoneDef> = new Map(MILESTONES.map((m) => [m.key, m]));
 
@@ -95,7 +156,28 @@ export function bumpProvenance(p: Provenance, event: ProvenanceEvent, depth: num
     case "floorClear":
       p.floorsCleared += 1;
       return;
+    case "stagger":
+      p.staggers += 1;
+      return;
+    case "counter":
+      p.counters += 1;
+      return;
+    case "skillCast":
+      p.skillCasts += 1;
+      return;
+    case "eliteKill":
+      p.eliteKills += 1;
+      return;
+    case "lastKill":
+      p.lastKills += 1;
+      return;
   }
+}
+
+/** 節目が見る来歴の量 */
+export function milestoneProgress(p: Provenance, def: MilestoneDef): number {
+  if (def.enemyKey !== undefined) return p.killsByEnemy[def.enemyKey] ?? 0;
+  return p[def.counter];
 }
 
 // ---------------------------------------------------------------------------
@@ -106,8 +188,9 @@ export function bumpProvenance(p: Provenance, event: ProvenanceEvent, depth: num
 export function nextMilestone(item: Item): MilestoneDef | undefined {
   const p = item.provenance;
   if (p === undefined) return undefined;
-  const reached = new Set(item.milestones ?? []);
-  return MILESTONES.find((m) => !reached.has(m.key) && p[m.counter] >= m.threshold);
+  const reached = item.milestones ?? [];
+  // 出来事ごとに呼ばれるので、安い数値の比較を先にして到達済みの照合は届いた節目だけにする
+  return MILESTONES.find((m) => milestoneProgress(p, m) >= m.threshold && !reached.includes(m.key));
 }
 
 /** これまでに出た key（現在の性質 + 過去の芽の候補の両方）。捨てた枝は二度と出ない */
@@ -131,12 +214,20 @@ export function makeBudOffer(item: Item, def: MilestoneDef): BudOffer | null {
     allowInversion: false,
     origin: "bud",
   };
-  const along = rollTraitOfColor(rng, item.slot, def.color, used, opts);
+  const along = rollAwakening(rng, def, used, opts) ?? rollTraitOfColor(rng, item.slot, def.color, used, opts);
   if (along === undefined) return null;
   used.add(along.key);
   const against = rollTraitOfColor(rng, item.slot, OPPOSITE_COLOR[def.color], used, opts);
   if (against === undefined) return null;
   return { milestone: def.key, options: [along, against] };
+}
+
+/** 目覚め（節目が名指しする芽専用の性質）。既に出ていれば undefined（通常の芽に戻る） */
+function rollAwakening(rng: Rng, def: MilestoneDef, used: ReadonlySet<string>, opts: TraitRollOptions): AffixRoll | undefined {
+  if (def.awakening === undefined || used.has(def.awakening)) return undefined;
+  const trait = affixDef(def.awakening);
+  if (trait === undefined) return undefined;
+  return rollTableTrait(rng, trait, opts);
 }
 
 /**
@@ -190,6 +281,11 @@ export function chooseBudOnItem(item: Item, index: number): AffixRoll | null {
 // GameState との接続
 // ---------------------------------------------------------------------------
 
+/** ベースによる来歴の進みの倍率（印章指輪は 2 倍） */
+export function progressFor(baseKey: string): number {
+  return DOUBLE_PROGRESS_BASES.has(baseKey) ? DOUBLE_PROGRESS : 1;
+}
+
 /** 装備中のアイテムのうち、芽を提示中の最初の 1 つ（SLOTS 順） */
 export function findPendingBud(profile: Profile): PendingBud | null {
   for (const slot of SLOTS) {
@@ -214,12 +310,20 @@ export function findPendingBud(profile: Profile): PendingBud | null {
  * combat / floor から最小のフックで呼ぶ
  */
 export function recordProvenance(state: GameState, event: ProvenanceEvent): void {
+  const keystones = state.stats.keystones;
+  // 忘却の誓い: 来歴は積もらず、芽も出ない
+  if (keystones.includes(OBLIVION_KEY)) return;
+  const pace = keystones.includes(DISCIPLINE_KEY) ? KEYSTONE.disciplineProgress : 1;
   let offered = false;
   for (const slot of SLOTS) {
     const item = state.profile.equipment[slot];
     if (item === null) continue;
     ensureGrowthFields(item);
-    if (item.provenance !== undefined) bumpProvenance(item.provenance, event, state.depth);
+    const provenance = item.provenance;
+    if (provenance !== undefined) {
+      const times = pace * progressFor(item.baseKey);
+      for (let i = 0; i < times; i++) bumpProvenance(provenance, event, state.depth);
+    }
     if (offerNextBud(item)) offered = true;
   }
   if (!offered) return;

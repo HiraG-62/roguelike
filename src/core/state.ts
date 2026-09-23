@@ -3,6 +3,7 @@ import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
 import type { Attributes, FloorItem, PendingBud, PlayerStats, Profile } from "../loot/types";
 import type { StatusBag } from "./status";
+import type { TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
 import type { SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
@@ -137,9 +138,56 @@ export interface Enemy {
   /** 統一の状態異常（燃焼・冷気・感電・怯みなど。src/system/statusEffects.ts） */
   status: StatusBag;
   poise: PoiseState;
+  /** 群れの長・楽団長・双子の相方など、紐付いた敵の id（src/system/enemies.ts） */
+  leaderId?: number;
+  /** マナ喰いが奪ったマナ。倒すと倍にして返す */
+  stolenMana?: number;
+  /** 撃破ではなく消えた（自爆・時間切れ）。死後の報酬や置き土産を出さない */
+  vanished?: boolean;
+  /** 新しいエリート修飾子の作業領域（src/system/elites.ts） */
+  eliteWork?: EliteWork;
 }
 
-export type EliteKind = "explosive" | "reflective" | "shielded" | "hasted" | "linked";
+export type EliteKind =
+  | "explosive"
+  | "reflective"
+  | "shielded"
+  | "hasted"
+  | "linked"
+  | "echoing"
+  | "contagious"
+  | "bulwark"
+  | "retaliating"
+  | "prismatic"
+  | "timed"
+  | "parasitic"
+  | "anchored"
+  | "devouring"
+  | "packed";
+
+/** エリート修飾子ごとの状態（刻限の時計・報復の遅延・残響の残り回数など） */
+export interface EliteWork {
+  /** 汎用タイマー（刻限の残り秒・報復までの秒） */
+  timer: number;
+  /** 汎用カウンタ（残響の残り回数） */
+  count: number;
+  /** 前ステップで怯んでいたか（怯んだ瞬間を拾う） */
+  wasStaggered: boolean;
+  /** 初回処理（群長の取り巻き生成）を済ませたか */
+  initialized: boolean;
+}
+
+/** 敵が倒れた跡。骨拾い・墓守の鐘・貪食の が使う（src/system/enemies.ts） */
+export interface Corpse {
+  id: number;
+  defKey: string;
+  pos: Vec;
+  roomIndex: number;
+  /** 残り秒 */
+  time: number;
+  /** 置かれた階。階が変わったら捨てる */
+  depth: number;
+}
 
 export interface EnemyAi {
   /** 狙う地点（レーザーの向き先、ジャンプの着地点など） */
@@ -152,6 +200,8 @@ export interface EnemyAi {
   stage: number;
   /** 行動の種類（ボスの技の選択など） */
   move: number;
+  /** 地点の列（残像打ちの位置の履歴・霜の巨人のつららの落下点など） */
+  points?: Vec[];
 }
 
 export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall";
@@ -351,6 +401,10 @@ export interface GameState {
   /** スキル（永続の石 + ラン内の CD・刻印符・発動中状態）。docs/ideas/skills.md */
   skills: SkillRunState;
   hazards: Hazard[];
+  /** 地形の層（水たまり・油・溶岩…。src/system/terrain.ts）。フロアが変わると作り直す */
+  terrain: TerrainLayer;
+  /** 敵の死骸（src/system/enemies.ts） */
+  corpses: Corpse[];
   /** このフロアのボス。ボス階以外は null */
   boss: BossState | null;
   /** 今のフロアに入ってからの経過秒 */

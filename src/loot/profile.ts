@@ -98,6 +98,12 @@ function sanitizeProvenance(v: unknown): Provenance | undefined {
   p.roomsCleared = nonNegativeInt(v.roomsCleared);
   p.floorsCleared = nonNegativeInt(v.floorsCleared);
   p.deepest = nonNegativeInt(v.deepest);
+  // 2026-09 追加の来歴。旧セーブには無いので 0 になる
+  p.staggers = nonNegativeInt(v.staggers);
+  p.counters = nonNegativeInt(v.counters);
+  p.skillCasts = nonNegativeInt(v.skillCasts);
+  p.eliteKills = nonNegativeInt(v.eliteKills);
+  p.lastKills = nonNegativeInt(v.lastKills);
   if (isRecord(v.killsByEnemy)) {
     for (const [key, n] of Object.entries(v.killsByEnemy)) p.killsByEnemy[key] = nonNegativeInt(n);
   }

@@ -4,7 +4,7 @@ import { fluxClassOf } from "./flux";
 import { UNIQUES } from "./named";
 import { nameItem } from "./names";
 import { isTriggerKey } from "./triggers";
-import { createEmptyProvenance, type AffixRoll, type Item, type Rarity } from "./types";
+import { createEmptyProvenance, type AffixRoll, type Item, type Provenance, type Rarity } from "./types";
 
 /**
  * 旧形式（prefix / suffix / tier / rarity）のアイテムを新形式（色・揺らぎ・来歴）へ変換する。
@@ -97,6 +97,7 @@ function namedKeyFor(item: Item): string | undefined {
  */
 export function ensureGrowthFields(item: Item): Item {
   if (item.provenance === undefined) item.provenance = createEmptyProvenance();
+  else fillProvenanceCounters(item.provenance);
   if (item.margin === undefined) item.margin = LEGACY_RARITY_MARGIN[item.rarity];
   if (item.marginMax === undefined) item.marginMax = Math.max(item.margin, LEGACY_RARITY_MARGIN[item.rarity]);
   if (item.milestones === undefined) item.milestones = [];
@@ -104,6 +105,37 @@ export function ensureGrowthFields(item: Item): Item {
   if (item.budOffer === undefined) item.budOffer = null;
   return item;
 }
+
+/**
+ * 来歴に後から足したカウンタ（怯ませた・カウンター …）が欠けていれば 0 で補う（その場で書き換える）。
+ * profile.ts の読み込みは補うが、リプレイの装備スナップショットなど読み込みを通らない来歴もある
+ */
+export function fillProvenanceCounters(p: Provenance): void {
+  // 毎回の出来事で呼ばれるので、最後に足したカウンタがあれば（= 全部そろっていれば）何もしない
+  if (typeof p.lastKills === "number") return;
+  for (const key of PROVENANCE_COUNTERS) {
+    if (typeof p[key] !== "number" || !Number.isFinite(p[key])) p[key] = EMPTY_COUNTER;
+  }
+}
+
+/** 空の来歴のカウンタの値（createEmptyProvenance と同じ） */
+const EMPTY_COUNTER = 0;
+
+/** 数値のカウンタ（killsByEnemy 以外） */
+const PROVENANCE_COUNTERS = [
+  "kills",
+  "justDodges",
+  "hurtTaken",
+  "bosses",
+  "roomsCleared",
+  "floorsCleared",
+  "deepest",
+  "staggers",
+  "counters",
+  "skillCasts",
+  "eliteKills",
+  "lastKills",
+] as const satisfies readonly (keyof Provenance)[];
 
 /** 旧形式 → 新形式。新形式ならフィールドを補うだけ（冪等）。引数は変更しない */
 export function migrateItem(item: Item): Item {

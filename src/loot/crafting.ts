@@ -1,6 +1,6 @@
 import { createRng, hashSeed, type Rng } from "../core/rng";
 import { formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
-import { baseLean, traitColorOf } from "./colors";
+import { OPPOSITE_COLOR, baseLean, traitColorOf } from "./colors";
 import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, sigmaAt } from "./flux";
 import { VESSEL_CAPACITY, refluxTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
 import { ensureGrowthFields } from "./migrate";
@@ -19,7 +19,7 @@ import {
  * クラフト（純ロジック）。docs/LOOT_DESIGN.md「クラフト（残響）」。
  * 原則: ランダムに性質を「足す」操作は無い。性質が増える経路は来歴（芽）だけ。
  * 通貨は色ごとの残響（紅響 / 蒼響 / 翠響 / 金響 / 冥響）。分解（砕く）で、性質の色に応じて得る。
- * 6 操作: 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し。どれも何かを得て何かを失う。
+ * 7 操作: 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し / 転調。どれも何かを得て何かを失う。
  * 乱数はゲームの state.rng ではなく専用 RNG（item.id + クラフト回数）。ゲームの決定性に影響しない。
  */
 
@@ -46,7 +46,7 @@ export const ECHO_LABEL: Readonly<Record<TraitColor, string>> = {
 // 操作とコスト
 // ---------------------------------------------------------------------------
 
-export const ECHO_OPS = ["shatter", "dye", "calm", "stir", "pare", "transfer"] as const;
+export const ECHO_OPS = ["shatter", "dye", "calm", "stir", "pare", "transfer", "modulate"] as const;
 export type EchoOp = (typeof ECHO_OPS)[number];
 
 export const ECHO_OP_LABEL: Readonly<Record<EchoOp, string>> = {
@@ -56,6 +56,7 @@ export const ECHO_OP_LABEL: Readonly<Record<EchoOp, string>> = {
   stir: "煽り",
   pare: "削ぎ",
   transfer: "移し",
+  modulate: "転調",
 };
 
 /** 操作の説明（UI のツールチップ用。動詞で語る） */
@@ -66,6 +67,7 @@ export const ECHO_OP_HINT: Readonly<Record<EchoOp, string>> = {
   stir: "性質 1 つの揺らぎを大きく引き直す。反転することもある",
   pare: "性質 1 つを消し、余白を 1 戻す",
   transfer: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われる",
+  modulate: "性質 1 つの効果はそのままに、色だけを反対色へ変える（紅と蒼、翠と金。冥は翠へ）",
 };
 
 /** 染め: 目標色の残響 */
@@ -78,6 +80,8 @@ export const STIR_COST = 2;
 export const PARE_COST = 1;
 /** 移し: 冥響 */
 export const TRANSFER_COST = 3;
+/** 転調: 変えた先の色（反対色）の残響 */
+export const MODULATE_COST = 3;
 /** 鎮めの代償（余白） */
 export const CALM_MARGIN_COST = 1;
 /** 削ぎで戻る余白 */
@@ -111,7 +115,8 @@ export type EchoRequest =
   | { op: "calm"; item: Item; traitIndex: number }
   | { op: "stir"; item: Item; traitIndex: number }
   | { op: "pare"; item: Item; traitIndex: number }
-  | { op: "transfer"; item: Item; target: Item; what: TransferWhat };
+  | { op: "transfer"; item: Item; target: Item; what: TransferWhat }
+  | { op: "modulate"; item: Item; traitIndex: number };
 
 /** 操作ごとの専用 RNG。同じ item.id / counter なら同じ結果 */
 export function craftRng(itemId: string, counter: number): Rng {
@@ -140,6 +145,10 @@ export function echoCost(req: EchoRequest): EchoCost | null {
       return { color: UMBRA, amount: STIR_COST };
     case "transfer":
       return { color: UMBRA, amount: TRANSFER_COST };
+    case "modulate": {
+      const to = modulatedColor(traitAt(req.item, req.traitIndex));
+      return to === undefined ? null : { color: to, amount: MODULATE_COST };
+    }
   }
 }
 
@@ -234,6 +243,25 @@ export function pareTrait(item: Item, index: number): Item | null {
   return refreshed({ ...item, affixes, margin, marginMax: Math.max(item.marginMax ?? 0, margin) });
 }
 
+/**
+ * 転調で変わる先の色。反転（色は冥に固定）・誓約（遊び方そのもの）・色の無いものは変えられない
+ */
+export function modulatedColor(roll: AffixRoll | undefined): TraitColor | undefined {
+  if (roll === undefined || roll.inverted === true || isKeystoneKey(roll.key)) return undefined;
+  const color = traitColorOf(roll);
+  if (color === undefined) return undefined;
+  const to = OPPOSITE_COLOR[color];
+  return to === color ? undefined : to;
+}
+
+/** 転調: 性質 1 つの色だけを反対色へ（値・揺らぎ・出自はそのまま）。共鳴の配合を性質を失わずに動かす */
+export function modulateTrait(item: Item, index: number): Item | null {
+  const roll = traitAt(item, index);
+  const to = modulatedColor(roll);
+  if (roll === undefined || to === undefined) return null;
+  return replaceTrait(item, index, { ...roll, color: to });
+}
+
 /** 移し: 銘か芽吹いた性質を target へ。source は失われる（applyEchoResult が消す） */
 export function transferGrowth(source: Item, target: Item, what: TransferWhat): Item | null {
   if (source.id === target.id || source.slot !== target.slot) return null;
@@ -285,6 +313,7 @@ const INVALID_MESSAGE: Readonly<Record<EchoOp, string>> = {
   stir: "煽れる性質がない（誓約は揺らがない）",
   pare: "削ぐ性質がない",
   transfer: "移せない（同じ部位の別の遺物へ、銘は無銘へ、芽は余白のある遺物へ）",
+  modulate: "転調できる性質がない（反転した性質と誓約は色を変えられない）",
 };
 
 export function echoBlockMessage(reason: EchoRejectReason, req: EchoRequest): string {
@@ -307,6 +336,8 @@ function runEchoOp(req: EchoRequest, rng: Rng): Item | null {
       return pareTrait(req.item, req.traitIndex);
     case "transfer":
       return transferGrowth(req.item, req.target, req.what);
+    case "modulate":
+      return modulateTrait(req.item, req.traitIndex);
   }
 }
 

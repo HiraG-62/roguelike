@@ -1,8 +1,10 @@
 import type { Rng } from "../core/rng";
+import { STATUS_LABEL, type StatusKind } from "../core/status";
 import { PLAYER, TRIGGER } from "../data/tuning";
 import type {
   AffixRoll,
   Slot,
+  TraitColor,
   TriggerCondition,
   TriggerEffectKind,
   TriggeredEffect,
@@ -14,7 +16,7 @@ import type {
  * docs/LOOT_DESIGN.md「設計哲学」4 / docs/ideas/build-diversity.md 3 章を参照。
  *
  * AffixRoll へのエンコード（可逆）:
- *   key    = "tr:<trigger>:<condition>:<effect>[:<every>][:x<count>]"
+ *   key    = "tr:<trigger>:<condition>:<effect>[:<every>][:x<count>][:@<status>]"
  *   value  = magnitude
  *   value2 = duration(0.1 秒単位) × 1000 + chance(1/1000 単位)
  *            例: duration 3.5s・chance 0.4 → 35 × 1000 + 400 = 35400
@@ -23,6 +25,8 @@ import type {
 export const TRIGGER_KEY_PREFIX = "tr:";
 const KEY_SEPARATOR = ":";
 const COUNT_MARK = "x";
+/** inflict の状態異常の印（"@poison"） */
+const STATUS_MARK = "@";
 /** chance は 1/1000 単位 */
 export const CHANCE_SCALE = 1000;
 /** duration は 0.1 秒単位 */
@@ -70,7 +74,8 @@ interface EffectSpec {
   count?: NumRange;
   /** 秒 */
   duration?: NumRange;
-  text: (magnitude: string, count: number | undefined, duration: string | undefined) => string;
+  /** status は inflict の状態異常の表示名 */
+  text: (magnitude: string, count: number | undefined, duration: string | undefined, status: string) => string;
 }
 
 export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
@@ -86,6 +91,8 @@ export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
     chance: { min: 0.4, max: 0.6 },
     every: { min: 4, max: 8 },
   },
+  onStagger: { text: () => "敵を怯ませた時", chance: { min: 0.35, max: 0.55 } },
+  onCounter: { text: () => "カウンター時", chance: { min: 0.4, max: 0.6 } },
 };
 
 export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
@@ -95,6 +102,13 @@ export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   comboAbove10: "（10 コンボ以上）",
   roomLocked: "（部屋封鎖中）",
   fullEnergy: "（エネルギー満タン）",
+  manaFull: "（マナ満タン）",
+  manaLow: "（マナ残りわずか）",
+  selfAfflicted: "（自分が状態異常中）",
+  targetInWindup: "（相手が予備動作中）",
+  targetGuarded: "（相手が堅守中）",
+  targetMultiStatus: "（相手の状態異常が 2 種以上）",
+  targetElite: "（相手がエリート）",
 };
 
 export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
@@ -175,11 +189,85 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     cap: TRIGGER.invulnMax,
     text: (m) => `${m} 秒間無敵になる`,
   },
+  restoreMana: { base: 4, perLevel: 0.04, decimals: 0, cap: 16, text: (m) => `マナを${m}回収する` },
+  addPoise: { base: 12, perLevel: 0.05, decimals: 0, cap: 48, text: (m) => `相手に怯み値${m}を与える` },
+  inflict: {
+    base: 2.5,
+    perLevel: 0.02,
+    decimals: 1,
+    cap: 5,
+    text: (m, _c, _d, status) => `相手を${status}にする（${m} 秒）`,
+  },
+  cleanse: { base: 1, perLevel: 0, decimals: 0, cap: 1, text: () => "自分の状態異常を 1 つ払う" },
+  extendStatus: { base: 1, perLevel: 0.02, decimals: 1, cap: 3, text: (m) => `相手の状態異常を${m}秒延ばす` },
+  skillHaste: {
+    base: 0.5,
+    perLevel: 0.01,
+    decimals: 1,
+    cap: 1.5,
+    text: (m) => `スキルの再使用時間と最低間隔を${m}秒縮める`,
+  },
+  volley: {
+    base: 60,
+    perLevel: 0.01,
+    decimals: 0,
+    cap: 150,
+    count: { min: 1, max: 2 },
+    text: (m, c) => `照準の方向へ弾を${c ?? 1}発撃つ（射撃の${m}%）`,
+  },
+  healMissing: { base: 30, perLevel: 0, decimals: 0, cap: 100, text: (m) => `失った HP の${m}%を回復する` },
 };
+
+/** 文法（ドロップ・芽・染め）から出さない効果。誓約・固定の性質が直接使う */
+const FIXED_ONLY_EFFECTS: ReadonlySet<TriggerEffectKind> = new Set(["healMissing"]);
+
+/**
+ * 効果 inflict で付けられる状態異常。怯み・堅守は怯み値の系統なので除く。
+ * 2026-09 に core/status.ts へ足された種類（濡れ・烙印など）は状態異常レーンの仕様が固まってから足す
+ */
+export const INFLICT_KINDS: readonly StatusKind[] = [
+  "burn",
+  "chill",
+  "freeze",
+  "shock",
+  "paralyze",
+  "poison",
+  "bleed",
+  "vulnerable",
+  "weaken",
+  "fear",
+  "silence",
+];
+
+/** inflict の色（状態異常の付与の性質 procX と同じ割り当て） */
+export const INFLICT_COLOR: Readonly<Partial<Record<StatusKind, TraitColor>>> = {
+  burn: "crimson",
+  bleed: "crimson",
+  chill: "azure",
+  freeze: "azure",
+  silence: "azure",
+  shock: "gold",
+  paralyze: "gold",
+  fear: "gold",
+  weaken: "jade",
+  poison: "umbra",
+  vulnerable: "umbra",
+};
+
+function isInflictKind(s: string): s is StatusKind {
+  return (INFLICT_KINDS as readonly string[]).includes(s);
+}
+
+/** inflict で選べる状態異常。color を指定したらその色のものだけ（その色が無ければ全部） */
+export function inflictKindsOfColor(color: TraitColor | undefined): readonly StatusKind[] {
+  if (color === undefined) return INFLICT_KINDS;
+  const matched = INFLICT_KINDS.filter((k) => INFLICT_COLOR[k] === color);
+  return matched.length > 0 ? matched : INFLICT_KINDS;
+}
 
 const TRIGGER_KINDS = Object.keys(TRIGGER_SPECS) as TriggerKind[];
 const CONDITIONS = Object.keys(CONDITION_TEXT) as TriggerCondition[];
-const EFFECT_KINDS = Object.keys(EFFECT_SPECS) as TriggerEffectKind[];
+const EFFECT_KINDS = (Object.keys(EFFECT_SPECS) as TriggerEffectKind[]).filter((e) => !FIXED_ONLY_EFFECTS.has(e));
 
 function isTriggerKind(s: string): s is TriggerKind {
   return Object.hasOwn(TRIGGER_SPECS, s);
@@ -193,8 +281,8 @@ function isEffectKind(s: string): s is TriggerEffectKind {
 
 /** スロットごとに出るトリガー（その部位らしい起点に寄せる）。ring / amulet は全部 */
 export const SLOT_TRIGGERS: Readonly<Record<Slot, readonly TriggerKind[]>> = {
-  weapon: ["onMeleeHit", "everyNthMeleeHit", "onKill", "onJustDodge"],
-  gun: ["onShoot", "onKill", "onJustDodge"],
+  weapon: ["onMeleeHit", "everyNthMeleeHit", "onKill", "onJustDodge", "onStagger", "onCounter"],
+  gun: ["onShoot", "onKill", "onJustDodge", "onStagger"],
   armor: ["onHurt", "onKill", "onRoomClear"],
   boots: ["onDash", "onJustDodge", "onRoomClear"],
   ring: TRIGGER_KINDS,
@@ -216,9 +304,56 @@ const OFFENSIVE_EFFECTS: ReadonlySet<TriggerEffectKind> = new Set([
 ]);
 /** 無敵はここからしか出さない（常時無敵化を防ぐ） */
 const INVULN_TRIGGERS: ReadonlySet<TriggerKind> = new Set(["onHurt", "onJustDodge"]);
+/** 敵に向けて使う効果（対象がいなければ周囲の敵へ）。部屋クリア時には敵がいない */
+const TARGETED_EFFECTS: ReadonlySet<TriggerEffectKind> = new Set(["addPoise", "inflict", "extendStatus", "volley"]);
+/** 対象（敵）を見る条件 */
+const TARGET_CONDITIONS: ReadonlySet<TriggerCondition> = new Set([
+  "targetInWindup",
+  "targetGuarded",
+  "targetMultiStatus",
+  "targetElite",
+]);
+/** 対象の敵を持つ起点（被弾は攻撃してきた敵） */
+const TARGETED_TRIGGERS: ReadonlySet<TriggerKind> = new Set([
+  "onMeleeHit",
+  "everyNthMeleeHit",
+  "onKill",
+  "onStagger",
+  "onCounter",
+  "onHurt",
+]);
+
+/** 対象を見る条件が成り立ち得る組か（常に真・常に偽になる組を外す） */
+function targetConditionFits(trigger: TriggerKind, condition: TriggerCondition): boolean {
+  if (!TARGET_CONDITIONS.has(condition)) return true;
+  if (!TARGETED_TRIGGERS.has(trigger)) return false;
+  // カウンターは予備動作中の敵にしか起きない（常に真）/ 怯むと予備動作は取り消される（常に偽）/ 被弾は攻撃の後
+  if (condition === "targetInWindup") return trigger !== "onCounter" && trigger !== "onStagger" && trigger !== "onHurt";
+  // 攻撃してきた敵が堅守中というのはほぼ起きない
+  if (condition === "targetGuarded") return trigger !== "onHurt";
+  return true;
+}
+
+/** 2026-09 追加の効果の相性（docs/ideas/loot-expansion.md 6 章の除外表） */
+function newEffectFits(trigger: TriggerKind, condition: TriggerCondition, effect: TriggerEffectKind): boolean {
+  if (trigger === "onRoomClear" && TARGETED_EFFECTS.has(effect)) return false;
+  // 射撃で弾を撃つ → その弾の射撃でまた、の連鎖
+  if (trigger === "onShoot" && effect === "volley") return false;
+  // 満タンに回収しても溢れるだけ / 枯渇中に縮めても撃てない
+  if (condition === "manaFull" && effect === "restoreMana") return false;
+  if (condition === "manaLow" && effect === "skillHaste") return false;
+  // 怯んだ直後の敵には怯み値が溜まらない
+  if (trigger === "onStagger" && effect === "addPoise") return false;
+  // 払う状態異常が無ければ空振りなので、自分が状態異常中のときだけ
+  if (effect === "cleanse") return condition === "selfAfflicted";
+  return true;
+}
 
 /** 相性の悪い組み合わせを除外する */
 export function isCompatible(trigger: TriggerKind, condition: TriggerCondition, effect: TriggerEffectKind): boolean {
+  if (FIXED_ONLY_EFFECTS.has(effect)) return false;
+  if (!targetConditionFits(trigger, condition)) return false;
+  if (!newEffectFits(trigger, condition, effect)) return false;
   // 射撃で弾を出す → その弾でまた発動、の無限ループ気味
   if (trigger === "onShoot" && effect === "spawnBullets") return false;
   // 撃破で爆発 → 爆発で撃破 → …の連鎖暴走
@@ -250,10 +385,17 @@ export const TRIGGER_GRAMMAR: readonly TriggerShape[] = TRIGGER_KINDS.flatMap((t
   ),
 );
 
+/** スロットごとの組み合わせ（文法が大きいので毎回の抽選で絞り直さない） */
+const GRAMMAR_BY_SLOT = new Map<Slot, readonly TriggerShape[]>();
+
 /** スロットで出うる組み合わせ */
-export function grammarForSlot(slot: Slot): TriggerShape[] {
+export function grammarForSlot(slot: Slot): readonly TriggerShape[] {
+  const cached = GRAMMAR_BY_SLOT.get(slot);
+  if (cached !== undefined) return cached;
   const allowed = SLOT_TRIGGERS[slot];
-  return TRIGGER_GRAMMAR.filter((shape) => allowed.includes(shape.trigger));
+  const shapes = TRIGGER_GRAMMAR.filter((shape) => allowed.includes(shape.trigger));
+  GRAMMAR_BY_SLOT.set(slot, shapes);
+  return shapes;
 }
 
 // ---------------------------------------------------------------------------
@@ -286,8 +428,16 @@ function rollChance(rng: Rng, range: NumRange): number {
   return rng.int(Math.round(min * CHANCE_SCALE), Math.round(max * CHANCE_SCALE)) / CHANCE_SCALE;
 }
 
-/** 組み合わせを 1 つ具体化する。magnitude は itemLevel でスケール */
-export function rollTriggerEffect(rng: Rng, shape: TriggerShape, itemLevel: number): TriggeredEffect {
+/**
+ * 組み合わせを 1 つ具体化する。magnitude は itemLevel でスケール。
+ * inflict は状態異常の種類もここで選ぶ（statusColor を渡すとその色の種類から）
+ */
+export function rollTriggerEffect(
+  rng: Rng,
+  shape: TriggerShape,
+  itemLevel: number,
+  statusColor?: TraitColor,
+): TriggeredEffect {
   const triggerSpec = TRIGGER_SPECS[shape.trigger];
   const effectSpec = EFFECT_SPECS[shape.effect];
   const result: TriggeredEffect = {
@@ -300,6 +450,7 @@ export function rollTriggerEffect(rng: Rng, shape: TriggerShape, itemLevel: numb
   if (triggerSpec.every !== undefined) result.every = rng.int(triggerSpec.every.min, triggerSpec.every.max);
   if (effectSpec.count !== undefined) result.count = rng.int(effectSpec.count.min, effectSpec.count.max);
   if (effectSpec.duration !== undefined) result.duration = rollFloat(rng, effectSpec.duration, DURATION_DECIMALS);
+  if (shape.effect === "inflict") result.status = rng.pick(inflictKindsOfColor(statusColor));
   return result;
 }
 
@@ -326,6 +477,7 @@ export function triggerKey(effect: TriggeredEffect): string {
   const parts: string[] = [effect.trigger, effect.condition, effect.effect];
   if (effect.every !== undefined) parts.push(String(effect.every));
   if (effect.count !== undefined) parts.push(`${COUNT_MARK}${effect.count}`);
+  if (effect.status !== undefined) parts.push(`${STATUS_MARK}${effect.status}`);
   return TRIGGER_KEY_PREFIX + parts.join(KEY_SEPARATOR);
 }
 
@@ -342,10 +494,21 @@ export function triggerToRoll(effect: TriggeredEffect): AffixRoll {
   };
 }
 
-/** 数字だけの部品 → every、"x<数字>" → count。それ以外は null で不正扱い */
-function parseParams(params: readonly string[]): { every?: number; count?: number } | null {
-  const out: { every?: number; count?: number } = {};
+interface TriggerParams {
+  every?: number;
+  count?: number;
+  status?: StatusKind;
+}
+
+/** 数字だけの部品 → every、"x<数字>" → count、"@<種類>" → status。それ以外は null で不正扱い */
+function parseParams(params: readonly string[]): TriggerParams | null {
+  const out: TriggerParams = {};
   for (const part of params) {
+    const status = part.startsWith(STATUS_MARK) ? part.slice(STATUS_MARK.length) : "";
+    if (isInflictKind(status)) {
+      out.status = status;
+      continue;
+    }
     if (/^\d+$/.test(part)) {
       out.every = Number(part);
       continue;
@@ -377,6 +540,8 @@ export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | null {
   if (effect === undefined || !isEffectKind(effect)) return null;
   const params = parseParams(rest);
   if (params === null) return null;
+  // inflict は種類が無いと何も付けられない（壊れたデータ）
+  if (effect === "inflict" && params.status === undefined) return null;
 
   const value2 = roll.value2 ?? 0;
   const durationUnits = Math.floor(value2 / CHANCE_SCALE);
@@ -389,6 +554,7 @@ export function decodeTriggerRoll(roll: AffixRoll): TriggeredEffect | null {
   };
   if (params.every !== undefined) result.every = params.every;
   if (params.count !== undefined) result.count = params.count;
+  if (params.status !== undefined) result.status = params.status;
   if (durationUnits > 0) result.duration = durationUnits / DURATION_SCALE;
   return result;
 }
@@ -401,6 +567,7 @@ export function formatTrigger(effect: TriggeredEffect): string {
     effect.magnitude.toFixed(effectSpec.decimals),
     effect.count,
     effect.duration === undefined ? undefined : String(effect.duration),
+    effect.status === undefined ? "" : STATUS_LABEL[effect.status],
   );
   if (effect.chance >= 1) return `${head}: ${body}`;
   const chancePct = roundTo(effect.chance * PERCENT_SCALE, 1);

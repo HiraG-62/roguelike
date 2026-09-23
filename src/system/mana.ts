@@ -1,6 +1,7 @@
 import type { GameState } from "../core/state";
 import { MANA } from "../data/tuning";
 import { manaRegenAllowed } from "./keystones";
+import { spillManaOverflow, traitManaGainMul } from "./traitHooks";
 
 /**
  * マナ（スキルの資源）。docs/COMBAT_DESIGN.md B-1。
@@ -12,7 +13,9 @@ export function gainMana(state: GameState, amount: number): number {
   if (amount <= 0 || state.status === "dead") return 0;
   const p = state.player;
   const before = p.mana;
-  p.mana = Math.min(state.stats.maxMana, p.mana + amount * state.stats.manaGainMul);
+  const raw = amount * state.stats.manaGainMul * traitManaGainMul(state);
+  p.mana = Math.min(state.stats.maxMana, p.mana + raw);
+  spillManaOverflow(state, before + raw - p.mana);
   return Math.max(0, p.mana - before);
 }
 

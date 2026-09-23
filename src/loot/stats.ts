@@ -1,6 +1,7 @@
 import { MANA, STATUS } from "../data/tuning";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
-import { adjustForResonance, applyResonanceEffect, computeResonance } from "./resonance";
+import { adjustForResonance, applyResonanceEffect, computeResonance, resonanceRules, type ResonanceRules } from "./resonance";
+import { gearContext, gearContextCleared, scaleByProvenance } from "./traitContext";
 import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
 
 /** 倍率系の下限（マイナス補正の積み重ねで 0 以下にならないように） */
@@ -41,6 +42,8 @@ const MULTIPLIER_KEYS: readonly StatKey[] = [
   "manaGainMul",
   "manaCostMul",
   "skillDamageMul",
+  // 多彩（効果量 −）などの代償を重ねても 0 以下にしない
+  "statusPotencyMul",
 ];
 
 const PROBABILITY_KEYS: readonly StatKey[] = [
@@ -70,16 +73,24 @@ const SOFT_CAPPED_KEYS: readonly StatKey[] = [
 
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
 
-/** 装備順（SLOTS 順）に implicit → affixes を並べる */
+/**
+ * 装備順（SLOTS 順）に implicit → affixes を並べる。
+ * 来歴で育つ性質（古傷・歴戦 …）はここでその遺物の来歴の段数を掛けておく（traitContext.ts）
+ */
 function collectRolls(equipment: Equipment): AffixRoll[] {
   const rolls: AffixRoll[] = [];
   for (const slot of SLOTS) {
     const item = equipment[slot];
     if (item === null) continue;
     if (item.implicit !== null) rolls.push(item.implicit);
-    rolls.push(...item.affixes);
+    rolls.push(...item.affixes.map((roll) => scaleByProvenance(roll, item.provenance)));
   }
   return rolls;
+}
+
+/** 共鳴の判定の規則（色の誓約・橋渡し・双頭の指輪）。誓約は排他を解決した後のものだけを見る */
+function rulesOf(equipment: Equipment): ResonanceRules {
+  return resonanceRules(filterKeystoneRolls(collectRolls(equipment)));
 }
 
 /** 装備中の性質（implicit を除く）。色の配合の入力 */
@@ -89,7 +100,7 @@ export function equippedTraits(equipment: Equipment): AffixRoll[] {
 
 /** 装備全体の共鳴（computeStats と同じ判定）。UI のプレビュー用 */
 export function equipmentResonance(equipment: Equipment): Resonance {
-  return computeResonance(equippedTraits(equipment));
+  return computeResonance(equippedTraits(equipment), rulesOf(equipment));
 }
 
 /** DEFAULT_STATS のコピー。配列は共有しないよう複製する */
@@ -106,6 +117,7 @@ function createBaseStats(): PlayerStats {
     attributes: { ...DEFAULT_STATS.attributes },
     attributesEff: { ...DEFAULT_STATS.attributesEff },
     statusProcs: [...DEFAULT_STATS.statusProcs],
+    traits: { ...DEFAULT_STATS.traits },
   };
 }
 
@@ -139,6 +151,10 @@ function finalize(stats: PlayerStats): PlayerStats {
   for (const key of MULTIPLIER_KEYS) stats[key] = Math.max(MIN_MULTIPLIER, stats[key]);
   for (const key of PROBABILITY_KEYS) stats[key] = clamp(stats[key], 0, 1);
   stats.damageTakenMul = Math.max(MIN_DAMAGE_TAKEN_MUL, stats.damageTakenMul);
+  // 無垢の誓いは 0（状態異常を受けない）。耐性の性質を重ねても負にはしない
+  stats.statusTakenMul = Math.max(0, stats.statusTakenMul);
+  // 揺るがぬ誓いは 0（怯ませない）。代償の −% を重ねても負にはしない
+  stats.poiseDamageMul = Math.max(0, stats.poiseDamageMul);
   // 装備画面の表示と実払い（effectiveManaCost）が同じ下限を見るよう、装備側でも costMulMin で止める
   stats.manaCostMul = Math.max(MANA.costMulMin, stats.manaCostMul);
   // chill の上限は STATUS.maxSlow（statusEffects.ts の chillFactor）と 1 箇所に統一する
@@ -169,10 +185,11 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
 
 /**
  * 装備から PlayerStats を畳み込む。
- * 1. 誓約（旧キーストーン）の排他を解決（同グループは装備順で後勝ち）
- * 2. 装備中の性質の色の配合から共鳴を決める（resonance.ts。支配 → 二重 → 散光 → なし）
- * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う）
- * 4. DEFAULT_STATS のコピーに、装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
+ * 1. 誓約（旧キーストーン）の排他を解決（同グループは装備順で後勝ち）。来歴で育つ性質は段数を掛ける
+ * 2. 装備中の性質の色の配合から共鳴を決める（resonance.ts。支配 → 二重 → 三和音 → 散光 → なし。規則は色の誓約などで変わる）
+ * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う / 無色の誓い: 全性質 +20%）
+ * 4. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
+ *    装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
  * 5. 共鳴の効果を畳み込む
  * 6. 主要倍率にソフトキャップ
  * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
@@ -180,12 +197,17 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
  */
 export function computeStats(equipment: Equipment): PlayerStats {
   const stats = createBaseStats();
-  const resonance = computeResonance(equippedTraits(equipment));
-  const rolls = adjustForResonance(filterKeystoneRolls(collectRolls(equipment)), resonance);
+  Object.assign(stats.traits, gearContext(equipment));
+  const filtered = filterKeystoneRolls(collectRolls(equipment));
+  const rules = resonanceRules(filtered);
+  const resonance = computeResonance(equippedTraits(equipment), rules);
+  const rolls = adjustForResonance(filtered, resonance, rules);
   applyStaged(stats, rolls.filter((r) => !isKeystoneKey(r.key)));
-  applyResonanceEffect(stats, resonance);
+  applyResonanceEffect(stats, resonance, rules);
   applySoftCaps(stats);
   applyStaged(stats, rolls.filter((r) => isKeystoneKey(r.key)));
+  // 装備全体の文脈は性質の適用の間だけ使う入力。畳み込み後は既定へ戻す（比較・表示に装備の数を紛れ込ませない）
+  Object.assign(stats.traits, gearContextCleared());
   stats.resonance = resonance;
   return finalize(stats);
 }

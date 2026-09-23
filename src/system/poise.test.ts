@@ -7,7 +7,7 @@ import { damageEnemy, rollOutgoing } from "./combat";
 import { interceptEnemyDamage, makeElite, updateElites } from "./elites";
 import { updateEnemies } from "./enemies";
 import { addPoise, applyStagger, basePoiseMax, bossPoiseGrowth, isStaggered } from "./poise";
-import { findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
+import { applyStatus, findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
 
 const BIG_HP = 100000;
@@ -73,6 +73,8 @@ describe("怯みの蓄積（D-1）", () => {
     const e = sturdy(state, "boar");
     e.phase = "windup";
     e.phaseTimer = 10;
+    // 予備動作はプレイヤー（左）を向いている（背面の一撃にならない）
+    e.strikeDir = { x: -1, y: 0 };
     poke(state, e, 20);
     expect(e.poise.damage).toBeCloseTo(20 * (ENEMY_COMBAT.boar?.superArmorMul ?? 0), 5);
     damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { poise: 20, ignoreSuperArmor: true });
@@ -244,5 +246,122 @@ describe("拘束上限と怯み", () => {
     updateStatusEffects(state, 0.02);
     poke(state, e, 1);
     expect(isStaggered(e), "窓が明けたら怯む").toBe(true);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 怯みの拡張（docs/ideas/status-and-terrain.md 4 章）
+// -----------------------------------------------------------------------------
+
+function applyTo(state: GameState, e: Enemy, kind: "broken" | "corrode" | "weaken" | "vulnerable", stacks = 1): void {
+  applyStatus(state, { kind: "enemy", enemy: e }, { kind, stacks, duration: 5, potency: 0 }, "player");
+}
+
+describe("処刑", () => {
+  it("怯み中で HP が 25% 以下の敵に重い一撃（怯み値 20 以上）を当てると即死し、マナが戻り周囲に恐怖", () => {
+    const state = arena();
+    const e = placeEnemy(state, "golem", 30);
+    const near = placeEnemy(state, "slime", 30, 40);
+    applyStagger(state, e, 1);
+    e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
+    state.player.mana = 0;
+    poke(state, e, POISE.executeMinPoise);
+    expect(e.hp).toBe(0);
+    expect(state.player.mana).toBeGreaterThanOrEqual(POISE.executeMana);
+    expect(hasStatus(near.status, "fear")).toBe(true);
+    expect(state.texts.some((t) => t.text === "処刑")).toBe(true);
+  });
+
+  it("軽い一撃・HP が多い・怯んでいない・ボスは処刑しない", () => {
+    const state = arena();
+    const light = placeEnemy(state, "golem", 30);
+    applyStagger(state, light, 1);
+    light.hp = Math.floor(light.maxHp * POISE.executeHpRatio);
+    poke(state, light, POISE.executeMinPoise - 1);
+    expect(light.hp).toBeGreaterThan(0);
+
+    const healthy = placeEnemy(state, "golem", 30, 40);
+    applyStagger(state, healthy, 1);
+    poke(state, healthy, POISE.executeMinPoise);
+    expect(healthy.hp).toBeGreaterThan(0);
+
+    const standing = placeEnemy(state, "golem", 30, -40);
+    standing.hp = Math.floor(standing.maxHp * POISE.executeHpRatio);
+    poke(state, standing, POISE.executeMinPoise);
+    expect(standing.hp).toBeGreaterThan(0);
+
+    const boss = sturdy(state, "boneLord", 80);
+    applyStagger(state, boss, 1);
+    boss.hp = Math.floor(boss.maxHp * 0.1);
+    poke(state, boss, POISE.executeMinPoise);
+    expect(boss.hp).toBeGreaterThan(0);
+  });
+});
+
+describe("堅守を崩す手段", () => {
+  it("背面の一撃: 攻撃中の敵を背後から殴ると堅守を無視して × backstabMul", () => {
+    const state = arena();
+    const e = sturdy(state, "slime");
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "guarded", stacks: 1, duration: 2, potency: 0 }, "env");
+    e.phase = "recover";
+    // 敵はプレイヤー（左）と反対の右を向いて攻撃している
+    e.strikeDir = { x: 1, y: 0 };
+    poke(state, e, 10);
+    expect(e.poise.damage).toBeCloseTo(10 * POISE.backstabMul, 5);
+  });
+
+  it("正面からは堅守が効く（攻撃中でなければ背面の判定はしない）", () => {
+    const state = arena();
+    const e = sturdy(state, "slime");
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "guarded", stacks: 1, duration: 2, potency: 0 }, "env");
+    poke(state, e, 10);
+    expect(e.poise.damage).toBeCloseTo(10 * POISE.guardedMul, 5);
+  });
+
+  it("崩勢は受ける怯み値 × 1.3、腐食は +8% × スタック", () => {
+    const state = arena();
+    const a = sturdy(state, "golem");
+    const b = sturdy(state, "golem", 30);
+    applyTo(state, a, "broken");
+    applyTo(state, b, "corrode", 3);
+    poke(state, a, 10);
+    poke(state, b, 10);
+    expect(a.poise.damage).toBeCloseTo(10 * STATUS.broken.poiseMul, 5);
+    expect(b.poise.damage).toBeCloseTo(10 * (1 + STATUS.corrode.poisePerStack * 3), 5);
+  });
+
+  it("萎縮（弱体 + 脆弱）の敵は予備動作中でも強靭が効かない", () => {
+    const state = arena();
+    const e = sturdy(state, "boar");
+    e.phase = "windup";
+    e.phaseTimer = 10;
+    e.strikeDir = { x: -1, y: 0 };
+    applyTo(state, e, "weaken");
+    applyTo(state, e, "vulnerable");
+    poke(state, e, 10);
+    expect(e.poise.damage).toBeCloseTo(10, 5);
+  });
+
+  it("怒気のスタックぶん与える怯み値が増える", () => {
+    const state = arena();
+    const e = sturdy(state, "golem");
+    applyStatus(state, { kind: "player" }, { kind: "wrath", stacks: 2, duration: 5, potency: 0 }, "player");
+    poke(state, e, 10);
+    expect(e.poise.damage).toBeCloseTo(10 * (1 + STATUS.wrath.poisePerStack * 2), 5);
+  });
+});
+
+describe("怯みの伝播", () => {
+  it("怯んだ瞬間、周囲の敵に怯み値が入る（伝播先からはさらに伝播しない）", () => {
+    const state = arena();
+    const a = sturdy(state, "slime");
+    const b = sturdy(state, "golem", 30);
+    b.body.pos.y += 20;
+    const c = sturdy(state, "golem", 30);
+    c.body.pos.y += 60;
+    poke(state, a, a.poise.max);
+    expect(isStaggered(a)).toBe(true);
+    expect(b.poise.damage).toBeCloseTo(POISE.spreadPoise, 5);
+    expect(c.poise.damage, "半径の外").toBe(0);
   });
 });

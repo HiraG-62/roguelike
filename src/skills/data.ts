@@ -1,6 +1,11 @@
 import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
+import { EXTRA_SKILL_DEFS } from "./defs";
+import { EXTRA_MODIFIERS, RESOURCE_CONVERTERS } from "./modifiers";
+import { EXTRA_MODIFIER_TUNING, EXTRA_SKILL_TUNING } from "./tuning";
 import type {
+  BASE_MODIFIER_KEYS,
+  BASE_SKILL_KEYS,
   CastParams,
   ModifierDef,
   ModifierKey,
@@ -10,6 +15,9 @@ import type {
   VariantAxis,
   VariantRoll,
 } from "./types";
+
+type BaseSkillKey = (typeof BASE_SKILL_KEYS)[number];
+type BaseModifierKey = (typeof BASE_MODIFIER_KEYS)[number];
 
 /** 割合 → % 表記 */
 const PERCENT_UNIT = 100;
@@ -239,7 +247,11 @@ export const SKILL = {
     expand: { areaMul: 1.5, burdenMul: 1.4 },
     /** 溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる */
     charge: { maxTime: 1.2, minTime: 0.15, maxDamageMul: 2.2, maxAreaMul: 1.5, moveMul: 0.6 },
+    // 大拡張の刻印符・型替え符（skills/tuning.ts）
+    ...EXTRA_MODIFIER_TUNING,
   },
+  // 大拡張のスキル（skills/tuning.ts）
+  ...EXTRA_SKILL_TUNING,
   drop: {
     stoneOnKill: 0.03,
     stoneOnDepth: 0.2,
@@ -283,6 +295,94 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   chainHook: 8,
   spiral: 8,
   frostField: 7,
+  // 大拡張: 1 種あたりは既存より薄く（種類が多いので合計では十分出る）
+  contagion: 6,
+  unravel: 6,
+  kindle: 6,
+  prismShard: 6,
+  fullMoon: 5,
+  dregsBlade: 5,
+  shadowStep: 6,
+  powderKeg: 6,
+  swordGrave: 6,
+  iceBreaker: 6,
+  bloodlet: 5,
+  harvest: 5,
+  discharge: 5,
+  rout: 5,
+  verdict: 5,
+  exploit: 5,
+  strip: 5,
+  lastStand: 6,
+  comboChain: 6,
+  grudge: 5,
+  guillotine: 6,
+  ricochet: 6,
+  galeSlash: 6,
+  scatterSigil: 6,
+  stomp: 6,
+  threadReel: 6,
+  meteorDive: 5,
+  swallowFlip: 6,
+  boneRing: 5,
+  backflow: 5,
+  scarRoar: 5,
+  manaSpring: 5,
+  turret: 5,
+};
+
+/**
+ * この深度から拾えるスキル。状態異常を「食う」スキルは、装備や祝福で状態異常を「出す」手段が
+ * 揃い始める 2 層目から。変わり種（召喚・特殊な資源）は 3 層目から
+ */
+export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
+  whirl: 1,
+  lunge: 1,
+  frag: 1,
+  railshot: 1,
+  parry: 1,
+  bloodPact: 1,
+  quake: 1,
+  thunder: 1,
+  gravityWell: 1,
+  mines: 1,
+  haste: 1,
+  chainHook: 1,
+  spiral: 1,
+  frostField: 1,
+  contagion: 2,
+  unravel: 2,
+  kindle: 2,
+  prismShard: 1,
+  fullMoon: 1,
+  dregsBlade: 1,
+  shadowStep: 1,
+  powderKeg: 1,
+  swordGrave: 2,
+  iceBreaker: 1,
+  bloodlet: 2,
+  harvest: 2,
+  discharge: 2,
+  rout: 2,
+  verdict: 2,
+  exploit: 2,
+  strip: 2,
+  lastStand: 1,
+  comboChain: 1,
+  grudge: 1,
+  guillotine: 1,
+  ricochet: 1,
+  galeSlash: 1,
+  scatterSigil: 1,
+  stomp: 1,
+  threadReel: 1,
+  meteorDive: 2,
+  swallowFlip: 1,
+  boneRing: 2,
+  backflow: 3,
+  scarRoar: 3,
+  manaSpring: 2,
+  turret: 3,
 };
 
 /** マナ型の共通項: CD とチャージは使わない（docs/COMBAT_DESIGN.md B-4） */
@@ -319,7 +419,7 @@ const APPLIES = {
   ],
 } as const satisfies Partial<Record<SkillKey, readonly StatusApply[]>>;
 
-export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
+const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
   whirl: {
     key: "whirl",
     name: "旋風斬り",
@@ -329,6 +429,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     damageKind: "melee",
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.whirl),
+    combos: ["hookWhirl", "pactWhirl"],
   },
   lunge: {
     key: "lunge",
@@ -359,6 +460,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     damageKind: "ranged",
     axes: ["cooldownVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.railshot),
+    combos: ["parryRail"],
     applies: APPLIES.railshot,
   },
   parry: {
@@ -390,6 +492,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     damageKind: "melee",
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
     ...manaSkill(SKILL.quake),
+    combos: ["diveQuake"],
   },
   thunder: {
     key: "thunder",
@@ -400,6 +503,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     damageKind: "ranged",
     axes: ["areaVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.thunder),
+    combos: ["wellThunder"],
     applies: APPLIES.thunder,
   },
   gravityWell: {
@@ -453,6 +557,7 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
     damageKind: "ranged",
     axes: ["countVsDamage", "speedVsDamage", "cooldownVsDamage"],
     ...manaSkill(SKILL.spiral),
+    combos: ["hasteSpiral"],
   },
   frostField: {
     key: "frostField",
@@ -466,9 +571,11 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = {
   },
 };
 
+export const SKILL_DEFS: Record<SkillKey, SkillDef> = { ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS };
+
 const M = SKILL.modifier;
 
-export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
+const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   multiCharge: {
     key: "multiCharge",
     name: "多重",
@@ -476,8 +583,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     manaVerb: `コスト x${M.multiCharge.manaBurdenMul}、連打間隔 x${M.multiCharge.intervalMul}、ダメージ x${M.multiCharge.damageMul}`,
     color: "#ffffff",
     excludesTags: [],
-    apply: (p, def) =>
-      def.resource === "mana"
+    apply: (p) =>
+      p.resource === "mana"
         ? {
             ...p,
             burdenMul: p.burdenMul * M.multiCharge.manaBurdenMul,
@@ -498,13 +605,13 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     manaVerb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費してコスト x${M.bloodPrice.manaBurdenMul}`,
     color: "#ff4040",
     excludesTags: [],
-    apply: (p, def) => ({
+    apply: (p) => ({
       ...p,
       hpCostFraction: p.hpCostFraction + M.bloodPrice.hpFraction,
       damageMul: p.damageMul * M.bloodPrice.damageMul,
       potencyMul: p.potencyMul * M.bloodPrice.potencyMul,
       // 血でマナを肩代わりする（CD 型は現行どおり CD に触れない）
-      burdenMul: def.resource === "mana" ? p.burdenMul * M.bloodPrice.manaBurdenMul : p.burdenMul,
+      burdenMul: p.resource === "mana" ? p.burdenMul * M.bloodPrice.manaBurdenMul : p.burdenMul,
     }),
   },
   comboFuel: {
@@ -525,6 +632,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     manaVerb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、コスト x${M.echo.burdenMul}`,
     color: "#c080ff",
     excludesTags: ["defense", "buff"],
+    // 影渡りは自分が動くだけで、発動地点での再発動に意味が無い
+    excludesSkills: ["shadowStep"],
     apply: (p) => ({
       ...p,
       echo: { delay: M.echo.delay, damageMul: M.echo.damageMul },
@@ -538,8 +647,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     color: "#80ffc0",
     excludesTags: ["placed"],
     requiresTags: ["projectile"],
-    // 撃ち抜きは元から全貫通
-    excludesSkills: ["railshot"],
+    // 撃ち抜き・満月の砲・風切り・手繰り糸は元から全員に当たる
+    excludesSkills: ["railshot", "fullMoon", "galeSlash", "threadReel"],
     apply: (p) => ({ ...p, pierce: p.pierce + M.pierce.count, areaMul: p.areaMul * M.pierce.areaMul }),
   },
   recoil: {
@@ -558,8 +667,8 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     manaVerb: `このスキルでの撃破でコストの${M.chainReset.manaRefund * PERCENT_UNIT}%を返す、コスト x${M.chainReset.manaBurdenMul}`,
     color: "#ffff80",
     excludesTags: ["buff", "defense"],
-    apply: (p, def) =>
-      def.resource === "mana"
+    apply: (p) =>
+      p.resource === "mana"
         ? { ...p, killManaRefund: M.chainReset.manaRefund, burdenMul: p.burdenMul * M.chainReset.manaBurdenMul }
         : { ...p, killRefund: true, burdenMul: p.burdenMul * M.chainReset.burdenMul },
   },
@@ -601,22 +710,51 @@ export const MODIFIERS: Record<ModifierKey, ModifierDef> = {
     color: "#ffd060",
     // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、回転弾幕はチャネル系で「溜めて離す」と噛み合わない
     excludesTags: ["defense", "buff", "channel"],
+    excludesModifiers: ["toStaged"],
     // 実際の倍率は system/skills.ts が発動時の経過秒から計算して CastParams に掛けるので、ここでは素通し
     apply: (p) => p,
   },
 };
 
-/** 相性表: 除外タグ・必須タグ・個別除外のすべてを満たすか */
+export const MODIFIERS: Record<ModifierKey, ModifierDef> = { ...BASE_MODIFIERS, ...EXTRA_MODIFIERS };
+
+/** 相性表: 除外タグ・必須タグ・個別除外・資源・付与の有無のすべてを満たすか */
 export function canAttach(def: SkillDef, key: ModifierKey): boolean {
   const m = MODIFIERS[key];
   if (m.excludesTags.some((t) => def.tags.includes(t))) return false;
   if (m.requiresTags && !m.requiresTags.some((t) => def.tags.includes(t))) return false;
+  if (m.requiresResource && m.requiresResource !== def.resource) return false;
+  if (m.requiresApplies && !def.applies) return false;
   return !(m.excludesSkills?.includes(def.key) ?? false);
 }
 
-/** スロットの修飾子のうち実際に効くもの: 付けられるものを古い順にリンク数まで */
+/** 刻印符が使うリンクの本数（型替え符は 2） */
+export function modifierLinkCost(key: ModifierKey): number {
+  return MODIFIERS[key].linkCost ?? 1;
+}
+
+/** a と b が同じスロットで同時に効かないか（どちらかが相手を excludesModifiers に持つ） */
+function modifiersClash(a: ModifierKey, b: ModifierKey): boolean {
+  return (MODIFIERS[a].excludesModifiers?.includes(b) ?? false) || (MODIFIERS[b].excludesModifiers?.includes(a) ?? false);
+}
+
+/**
+ * スロットの修飾子のうち実際に効くもの。付けられるものを古い順に、リンクの残りに収まる限り採る。
+ * 型替え符は 1 枚まで、排他の組は古い方だけが効く
+ */
 export function activeModifiers(def: SkillDef, links: number, modifiers: readonly ModifierKey[]): ModifierKey[] {
-  return modifiers.filter((k) => canAttach(def, k)).slice(0, Math.max(0, links));
+  const out: ModifierKey[] = [];
+  let used = 0;
+  for (const key of modifiers) {
+    if (!canAttach(def, key)) continue;
+    const cost = modifierLinkCost(key);
+    if (used + cost > links) continue;
+    if (MODIFIERS[key].reshape && out.some((k) => MODIFIERS[k].reshape)) continue;
+    if (out.some((k) => modifiersClash(k, key))) continue;
+    out.push(key);
+    used += cost;
+  }
+  return out;
 }
 
 export function baseCastParams(def: SkillDef): CastParams {
@@ -643,6 +781,36 @@ export function baseCastParams(def: SkillDef): CastParams {
     skillKey: def.key,
     manaPaid: 0,
     refundPool: { left: 0 },
+    resource: def.resource,
+    baseCost: def.manaCost,
+    baseCooldown: def.cooldown,
+    poiseMul: 1,
+    knockbackMul: 1,
+    repel: false,
+    statusDurationMul: 1,
+    spread: false,
+    refundPerHit: 0,
+    hitRefundPool: { left: 0 },
+    followUp: false,
+    lastGasp: null,
+    landing: false,
+    flank: false,
+    rangeBias: null,
+    attuneCrit: false,
+    deferredMul: 0,
+    bloodTithe: false,
+    spillover: false,
+    dryFire: false,
+    bladeFeed: false,
+    overheat: false,
+    desperate: false,
+    attune: false,
+    cycle: false,
+    reshape: null,
+    combo: null,
+    origin: { x: 0, y: 0 },
+    hitLog: new Set(),
+    gaspPool: { left: 0 },
   };
 }
 
@@ -675,7 +843,10 @@ export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonl
     if (def.axes.includes(roll.axis)) p = applyVariant(p, roll);
   }
   p = { ...p, burdenMul: p.burdenMul * (1 + SKILL.linkBurdenPenalty * stone.links) };
-  for (const key of activeModifiers(def, stone.links, modifiers)) p = MODIFIERS[key].apply(p, def);
+  const active = activeModifiers(def, stone.links, modifiers);
+  // 資源を差し替える刻印符（定刻・燃料化）を先に当て、多重・連鎖などが差し替え後の資源で読み替えるようにする
+  const ordered = [...active.filter((k) => RESOURCE_CONVERTERS.includes(k)), ...active.filter((k) => !RESOURCE_CONVERTERS.includes(k))];
+  for (const key of ordered) p = MODIFIERS[key].apply(p, def);
   return p;
 }
 
@@ -685,9 +856,10 @@ export interface CastBurden {
   cooldown: number;
 }
 
-export function castBurden(def: SkillDef, params: Readonly<CastParams>): CastBurden {
-  if (def.resource === "mana") return { cost: def.manaCost * params.burdenMul, cooldown: 0 };
-  return { cost: 0, cooldown: def.cooldown * params.burdenMul };
+/** 資源は params.resource（定刻・燃料化で def.resource から差し替わる）。基準値も params が持つ */
+export function castBurden(_def: SkillDef, params: Readonly<CastParams>): CastBurden {
+  if (params.resource === "mana") return { cost: params.baseCost * params.burdenMul, cooldown: 0 };
+  return { cost: 0, cooldown: params.baseCooldown * params.burdenMul };
 }
 
 /** このスロットだけの連打下限（秒）。多重（マナ型）で縮む */

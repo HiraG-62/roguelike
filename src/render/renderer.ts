@@ -2,7 +2,8 @@ import { actionKeyLabel } from "../core/input";
 import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
-import { enemyDef } from "../data/enemies";
+import { enemyDef, spriteBaseKey } from "../data/enemies";
+import { enemyTelegraph } from "../system/enemies";
 import { BOSS, ELITE, ENEMY_AI, REAPER, ROOM, ROOM_KIND, STATUS } from "../data/tuning";
 import { bossEnemy } from "../system/boss";
 import { ELITE_COLOR, eliteDisplayName, shieldLeft } from "../system/elites";
@@ -41,6 +42,7 @@ import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGauge } from "./statusUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
+import { drawTerrainLayer } from "./terrainUi";
 
 /** コンボ表示（論理 px・y 座標） */
 const COMBO_TEXT_PX = 14;
@@ -599,6 +601,7 @@ export class Renderer {
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
+    drawTerrainLayer(ctx, state, -ox, -oy);
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
@@ -1078,7 +1081,7 @@ export class Renderer {
       return;
     }
 
-    const floating = FLOATING_SPRITES.has(key);
+    const floating = FLOATING_SPRITES.has(spriteBaseKey(def));
     const feetY = cy + sprite.h / 2;
     const isBat = def.behavior === "bat";
     const isWisp = def.behavior === "wisp";
@@ -1131,14 +1134,16 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     if (isWisp) this.drawSparkles(x, bottom - 2, e.animTime, ENEMY_AI.wisp.color);
-    if (def.behavior === "knight") this.drawKnightShield(state, e, cx, cy);
+    if (def.blocks) this.drawKnightShield(state, e, cx, cy);
 
     const top = cy - sprite.h / 2 - 2;
     if (e.phase === "windup") {
       drawText(ctx, "!", cx, top, TEXT.SMALL, COLOR_TELEGRAPH, "center");
-      if (def.behavior === "charger") this.drawChargeLine(e);
-      if (def.behavior === "laser") this.drawLaserTelegraph(state, e, def.windup);
-      if (def.behavior === "golem") this.drawRingTelegraph(cx, cy, ENEMY_AI.golem.ringRadius);
+      // 予告の種類は system 側（enemyTelegraph）が決める。影で見せるものは hazards の landing が描く
+      const tele = enemyTelegraph(e, def);
+      if (tele?.kind === "line") this.drawChargeLine(e);
+      if (tele?.kind === "laser") this.drawLaserTelegraph(state, e, def.windup);
+      if (tele?.kind === "ring") this.drawRingTelegraph(cx, cy, tele.radius);
     }
     if (staggered) {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");

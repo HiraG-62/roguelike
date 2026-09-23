@@ -18,6 +18,22 @@ export const KS = {
   overdraw: "ks_overdraw",
   silentVow: "ks_silentVow",
   thirst: "ks_thirst",
+  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 2 章）----
+  pure: "ks_pure",
+  blight: "ks_blight",
+  contagion: "ks_contagion",
+  wedgeOath: "ks_wedgeOath",
+  unshaken: "ks_unshaken",
+  chokehold: "ks_chokehold",
+  readOath: "ks_readOath",
+  backwater: "ks_backwater",
+  reaperOath: "ks_reaperOath",
+  chant: "ks_chant",
+  monochrome: "ks_monochrome",
+  colorless: "ks_colorless",
+  mirror: "ks_mirror",
+  discipline: "ks_discipline",
+  oblivion: "ks_oblivion",
 } as const;
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
@@ -41,6 +57,21 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_overdraw: "過負荷",
   ks_silentVow: "静寂の誓い",
   ks_thirst: "渇きの誓約",
+  ks_pure: "無垢の誓い",
+  ks_blight: "蝕みの誓約",
+  ks_contagion: "病みの誓い",
+  ks_wedgeOath: "楔の誓い",
+  ks_unshaken: "揺るがぬ誓い",
+  ks_chokehold: "締め上げの誓い",
+  ks_readOath: "読み勝ちの誓い",
+  ks_backwater: "背水の誓い",
+  ks_reaperOath: "死神の誓い",
+  ks_chant: "詠唱の誓い",
+  ks_monochrome: "単色の誓い",
+  ks_colorless: "無色の誓い",
+  ks_mirror: "鏡の誓い",
+  ks_discipline: "修行の誓い",
+  ks_oblivion: "忘却の誓い",
 };
 
 /** 誓約の判定に要る state の部分（テストで GameState 全体を作らずに済むよう絞る） */
@@ -76,7 +107,9 @@ export function regenAllowed(state: GameState): boolean {
   return !hasKeystone(state, KS.berserker) && !hasKeystone(state, KS.vampire);
 }
 
+/** 回復量の倍率。狂戦士は半減、背水の誓いは封鎖中の部屋で 0（制圧時の回復は部屋が開いた後に入る） */
 export function healMul(state: GameState): number {
+  if (hasKeystone(state, KS.backwater) && state.rooms.some((r) => r.locked)) return 0;
   return hasKeystone(state, KS.berserker) ? KEYSTONE.berserkerHealMul : 1;
 }
 
@@ -111,12 +144,14 @@ const THIRST_ATTACK_MANA_MUL = 3;
 
 /**
  * 通常攻撃（近接・ダッシュ攻撃・射撃）の命中で戻るマナに掛ける倍率。
- * ks_silentVow は 0、ks_thirst は THIRST_ATTACK_MANA_MUL。
+ * ks_silentVow は 0、ks_thirst は THIRST_ATTACK_MANA_MUL、ks_chant は KEYSTONE.chantManaMul。
  * ジャスト回避と撃破の回収は通常攻撃ではないので対象外
  */
 export function attackManaMul(state: KeystoneHolder): number {
   if (hasKeystone(state, KS.silentVow)) return 0;
   if (hasKeystone(state, KS.thirst)) return THIRST_ATTACK_MANA_MUL;
+  // 詠唱の誓い: 通常攻撃はほとんど傷を付けない代わりにマナの蛇口になる
+  if (hasKeystone(state, KS.chant)) return KEYSTONE.chantManaMul;
   return 1;
 }
 

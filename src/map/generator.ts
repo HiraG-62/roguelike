@@ -4,10 +4,14 @@ import {
   type Rect,
   Tile,
   createMap,
+  getTile,
   rectCenter,
   rectsIntersect,
   setTile,
+  toIndex,
 } from "./grid";
+import { terrainCode } from "../core/terrain";
+import { TERRAIN } from "../data/tuning";
 import { DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
 
 export interface GeneratorOptions {
@@ -142,4 +146,61 @@ export function generateMap(shape: MapShape, rng: Rng, options: GeneratorOptions
     if (map) return map;
   }
   return generateRoomsAndCorridors(rng, options);
+}
+
+// -----------------------------------------------------------------------------
+// 地形の配置（docs/ideas/status-and-terrain.md 3 章）
+// -----------------------------------------------------------------------------
+
+/** 深度で出始める地形の候補（配置の重みは TERRAIN.gen） */
+type PlacedTerrain = keyof typeof TERRAIN.gen.weight;
+const PLACED_TERRAIN: readonly PlacedTerrain[] = ["water", "grass", "oil", "ice", "bog", "lava"];
+
+/** この深度で出せる地形を重みつきで 1 つ選ぶ */
+function pickTerrain(rng: Rng, depth: number): PlacedTerrain | null {
+  const pool = PLACED_TERRAIN.filter((k) => depth >= TERRAIN.gen.minDepth[k]);
+  const total = pool.reduce((sum, k) => sum + TERRAIN.gen.weight[k], 0);
+  if (total <= 0) return null;
+  let roll = rng.next() * total;
+  for (const k of pool) {
+    roll -= TERRAIN.gen.weight[k];
+    if (roll < 0) return k;
+  }
+  return pool[pool.length - 1] ?? null;
+}
+
+/**
+ * マップに地形の塊を少量置く（純関数）。戻り値はタイル index → 地形番号（TERRAIN_KINDS の添字）。
+ * skipRooms（開始部屋・階段 / ボスの部屋）には置かない。床（Tile.Floor）の上にだけ置き、階段・泉は避ける
+ */
+export function planTerrain(rng: Rng, map: GameMap, depth: number, skipRooms: ReadonlySet<number>): Uint8Array {
+  const kinds = new Uint8Array(map.width * map.height);
+  const rooms = map.rooms.map((r, i) => ({ r, i })).filter(({ i }) => !skipRooms.has(i));
+  if (rooms.length === 0) return kinds;
+  const g = TERRAIN.gen;
+  const count = Math.min(g.patchesMax, Math.floor(g.patchesBase + g.patchesPerDepth * Math.max(0, depth - 1)));
+  for (let n = 0; n < count; n++) {
+    const kind = pickTerrain(rng, depth);
+    const { r } = rng.pick(rooms);
+    if (!kind || r.w < 3 || r.h < 3) continue;
+    const cx = rng.int(r.x + 1, r.x + r.w - 2);
+    const cy = rng.int(r.y + 1, r.y + r.h - 2);
+    const radius = rng.int(g.radiusMin, g.radiusMax);
+    fillPatch(map, kinds, r, cx, cy, radius, terrainCode(kind));
+  }
+  return kinds;
+}
+
+function fillPatch(map: GameMap, kinds: Uint8Array, room: Rect, cx: number, cy: number, radius: number, code: number): void {
+  for (let y = cy - radius; y <= cy + radius; y++) {
+    for (let x = cx - radius; x <= cx + radius; x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      // 半径ちょうどの角を少し削って丸く見せる
+      if (dx * dx + dy * dy > radius * radius + radius) continue;
+      if (x < room.x || y < room.y || x >= room.x + room.w || y >= room.y + room.h) continue;
+      if (getTile(map, x, y) !== Tile.Floor) continue;
+      kinds[toIndex(map, x, y)] = code;
+    }
+  }
 }

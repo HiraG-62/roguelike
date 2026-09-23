@@ -484,7 +484,7 @@ function clearRoom(state: GameState, room: RoomState): void {
   const center = rewardAnchor(state, room);
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
-  onBoonRoomClear(state);
+  onBoonRoomClear(state, room);
   recordProvenance(state, { kind: "roomClear" });
   // 試練: rare 確定 + ハート確定
   if (room.kind === "challenge") {

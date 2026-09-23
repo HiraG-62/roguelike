@@ -5,6 +5,7 @@ import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { boonAttackManaMul } from "./boons";
+import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
 import { attackManaMul } from "./keystones";
 import { gainMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
@@ -22,6 +23,7 @@ export function updateProjectiles(state: GameState, dt: number): void {
     pr.pos.y += pr.vel.y * dt;
 
     if (overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
+      if (onBoonProjectileWall(state, pr, dt)) continue;
       pr.life = 0;
       spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
       if (pr.owner === "player") pushSfx(state, "bulletHit");
@@ -69,7 +71,7 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    const out = rollOutgoing(state, e, pr.damage, pr.kind);
+    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind);
     gainShotMana(state, pr);
     damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: BULLET_HITSTOP,

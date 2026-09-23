@@ -1,3 +1,4 @@
+import { ENEMIES } from "../data/enemies";
 import { PALETTE, SPRITES, type SpriteFrames } from "../data/sprites";
 
 export interface Sprite {
@@ -40,10 +41,31 @@ function buildSprite(frames: SpriteFrames): Sprite {
 
 export type SpriteAtlas = Record<string, Sprite>;
 
+/**
+ * 再配色: パレット文字を差し替えた新しいフレーム列を作る。
+ * 描画時の合成ではなく文字の置き換えにしておくと、絵の読み分けを純関数のテストで確かめられる
+ */
+export function recolorFrames(frames: SpriteFrames, swap: Readonly<Record<string, string>>): SpriteFrames {
+  return frames.map((frame) => frame.map((row) => [...row].map((ch) => swap[ch] ?? ch).join("")));
+}
+
+/** アトラスに載せる全フレーム: SPRITES に、敵定義の再配色種（EnemyDef.recolor）を足したもの */
+export function spriteSources(): Record<string, SpriteFrames> {
+  const out: Record<string, SpriteFrames> = { ...SPRITES };
+  for (const def of ENEMIES) {
+    const recolor = def.recolor;
+    if (!recolor) continue;
+    const base = SPRITES[recolor.base];
+    if (!base) throw new Error(`unknown recolor base: ${recolor.base}`);
+    out[def.sprite] = recolorFrames(base, recolor.swap);
+  }
+  return out;
+}
+
 /** 起動時に一度だけ全スプライトをオフスクリーンへ描いておく */
 export function buildAtlas(): SpriteAtlas {
   const atlas: SpriteAtlas = {};
-  for (const [key, frames] of Object.entries(SPRITES)) {
+  for (const [key, frames] of Object.entries(spriteSources())) {
     atlas[key] = buildSprite(frames);
   }
   return atlas;

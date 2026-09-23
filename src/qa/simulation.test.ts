@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { EnemyPhase, GameState, GameStatus } from "../core/state";
-import { STATUS_KINDS, type StatusKind } from "../core/status";
+import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
 import { createRng, type Rng } from "../core/rng";
 import { enemyDef } from "../data/enemies";
 import {
@@ -599,8 +599,11 @@ function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: nu
   return fingerprintState(state);
 }
 
+/** 6 装備 × 2 回 × 4,000 step。要素が増えて 5 秒の既定を超えるようになったので余裕を持たせる */
+const DETERMINISM_TIMEOUT_MS = 30_000;
+
 describe("QA simulation (決定性)", () => {
-  it("同じ seed・装備なら bot 駆動でも 2 回とも同じ結果になる", () => {
+  it("同じ seed・装備なら bot 駆動でも 2 回とも同じ結果になる", { timeout: DETERMINISM_TIMEOUT_MS }, () => {
     for (const profileKind of PROFILE_KINDS) {
       const seed = 30_000;
       const a = runOnceFingerprint(seed, profileKind, 4_000);
@@ -794,22 +797,6 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   return lines.join("\n");
 }
 
-/** docs/COMBAT_DESIGN.md E-2 の表記 */
-const STATUS_LABEL: Record<StatusKind, string> = {
-  burn: "燃焼",
-  chill: "冷気",
-  freeze: "凍結",
-  shock: "感電",
-  paralyze: "麻痺",
-  poison: "毒",
-  bleed: "出血",
-  vulnerable: "脆弱",
-  weaken: "弱体",
-  fear: "恐怖",
-  silence: "沈黙",
-  stagger: "怯み",
-  guarded: "堅守",
-};
 
 /**
  * L6 の計測項目（docs/COMBAT_DESIGN.md B-7 / C-2 / F-2 L6 行）。

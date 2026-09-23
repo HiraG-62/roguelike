@@ -4,7 +4,17 @@ import { type Vec, add, fromAngle, angle, length, normalize, scale, sub } from "
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { FEEL, MANA, PLAYER } from "../data/tuning";
+import { recordProvenance } from "../loot/provenance";
 import { rectCenterPx } from "../map/grid";
+import {
+  EXTRA_CAST,
+  EXTRA_CAST_RANGE,
+  extraActiveMoveMul,
+  extraCastBlock,
+  landingShock,
+  updateExtraActive,
+} from "../skills/actions";
+import { type ComboDef, findCombo } from "../skills/combos";
 import {
   MODIFIERS,
   SKILL,
@@ -13,6 +23,7 @@ import {
   canAttach,
   castBurden,
   castInterval,
+  modifierLinkCost,
   resolveCast,
   stoneLabel,
 } from "../skills/data";
@@ -27,27 +38,44 @@ import {
   spawnField,
   spawnWell,
   updatePlacedSkills,
+  wellThunderTarget,
 } from "../skills/placed";
-import type {
-  ActiveCast,
-  CastParams,
-  EchoCast,
-  Ghost,
-  ModifierKey,
-  SkillDef,
-  SkillKey,
-  SkillProfile,
-  SkillRunState,
-  SkillSlotState,
-  SkillStone,
+import { updateShots } from "../skills/shots";
+import { COMBO_TUNING } from "../skills/tuning";
+import {
+  onGraveFinisher,
+  onSpringMeleeHit,
+  onTurretShoot,
+  updateBoneRing,
+  updateGraves,
+  updateKegs,
+  updateSprings,
+  updateTurrets,
+} from "../skills/summons";
+import {
+  type ActiveCast,
+  type CastParams,
+  type EchoCast,
+  EXTRA_SKILL_KEYS,
+  type ExtraSkillKey,
+  type Ghost,
+  type ModifierKey,
+  type SkillDef,
+  type SkillKey,
+  type SkillProfile,
+  type SkillResource,
+  type SkillRunState,
+  type SkillSlotState,
+  type SkillStone,
 } from "../skills/types";
 import { buffPotencyMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
-import { COLOR_JUST, cancelAttack, damagePlayer, gainEnergy, healPlayer, registerComboHit } from "./combat";
+import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healPlayer, registerComboHit, rollOutgoing } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
+import { addPoise } from "./poise";
 import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 
@@ -92,13 +120,21 @@ const SPARK_SPEED = 50;
 const SPARK_LIFE = 0.2;
 const SPARK_SIZE = 1.5;
 const FULL_TURN = Math.PI * 2;
+const COLOR_COMBO = "#ffe070";
+const COLOR_BACKSTAB = "#8060c0";
+const COLOR_FOLLOW = "#ffe0a0";
 /** 照準地点を使うスキルの最大射程（無いものはグレネードと同じ） */
 const CAST_RANGE: Partial<Record<SkillKey, number>> = {
   frag: SKILL.frag.maxRange,
   thunder: SKILL.thunder.maxRange,
   gravityWell: SKILL.gravityWell.maxRange,
   frostField: SKILL.frostField.maxRange,
+  ...EXTRA_CAST_RANGE,
 };
+
+function isExtraKey(key: SkillKey): key is ExtraSkillKey {
+  return (EXTRA_SKILL_KEYS as readonly string[]).includes(key);
+}
 
 /** 1 スロットぶんの解決結果 */
 export interface ResolvedSlot {
@@ -111,6 +147,8 @@ export interface ResolvedSlot {
   cost: number;
   /** このスロットの最低間隔（秒） */
   interval: number;
+  /** 実際に使う資源（刻印符「定刻」「燃料化」で def.resource と変わる） */
+  resource: SkillResource;
 }
 
 export function createSkillRunState(profile: SkillProfile): SkillRunState {
@@ -124,6 +162,8 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
       charging: false,
       chargeTime: 0,
       intervalLeft: 0,
+      heat: 0,
+      heatTimer: 0,
     })),
     active: null,
     pendingSlot: -1,
@@ -152,6 +192,24 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     tracking: { depth: null, cleared: [] },
     gcd: 0,
     manaFlash: 0,
+    clock: 0,
+    shots: [],
+    kegs: [],
+    graves: [],
+    turrets: [],
+    boneRing: null,
+    springs: [],
+    lastCast: null,
+    recentSlots: [],
+    lastMeleeHitAt: null,
+    backstabTimer: 0,
+    marks: new Map(),
+    gasps: [],
+    debts: [],
+    history: [],
+    historyTimer: 0,
+    hurtLog: [],
+    lastHp: null,
   };
 }
 
@@ -161,10 +219,84 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const slotState = rs.slots[slot];
   if (!stone || !slotState) return null;
   const def = SKILL_DEFS[stone.skillKey];
-  const params = resolveCast(def, stone, slotState.modifiers);
+  const params = cachedCast(def, stone, slotState);
   const burden = castBurden(def, params);
-  const cost = effectiveManaCost(state, burden.cost).cost;
-  return { stone, def, params, cooldown: burden.cooldown, cost, interval: castInterval(def, params) };
+  const dynamic = dynamicBurdenMul(state, slot, def, params);
+  const cost = manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic).cost);
+  return {
+    stone,
+    def,
+    params,
+    cooldown: burden.cooldown * dynamic,
+    cost,
+    interval: castInterval(def, params),
+    resource: params.resource,
+  };
+}
+
+/** resolveCast の結果の覚え書き（スロットごと）。石・リンク・変異・刻印符が同じなら同じ結果なので毎フレーム作り直さない */
+interface CastCache {
+  stone: SkillStone;
+  links: number;
+  variants: SkillStone["variants"];
+  modifiers: string;
+  params: CastParams;
+}
+
+const castCache = new WeakMap<SkillSlotState, CastCache>();
+
+/**
+ * 覚え書き付きの resolveCast。返す params は読むだけにする（castSlot は写しを作ってから書き換える）。
+ * 決定性には関わらない（入力が同じなら resolveCast と同じ値）
+ */
+function cachedCast(def: SkillDef, stone: SkillStone, slot: SkillSlotState): CastParams {
+  const modifiers = slot.modifiers.join(",");
+  const hit = castCache.get(slot);
+  if (hit && hit.stone === stone && hit.links === stone.links && hit.variants === stone.variants && hit.modifiers === modifiers) {
+    return hit.params;
+  }
+  const params = resolveCast(def, stone, slot.modifiers);
+  castCache.set(slot, { stone, links: stone.links, variants: stone.variants, modifiers, params });
+  return params;
+}
+
+/** 満月の砲は常に最大マナ全量、枯渇の刃は 0 */
+function manaRuleCost(state: GameState, def: SkillDef, cost: number): number {
+  if (def.manaRule === "full") return state.stats.maxMana;
+  if (def.manaRule === "low") return 0;
+  return cost;
+}
+
+/**
+ * 状態で変わる負担の倍率（刻印符「渇き撃ち」「刃の給油」「過熱」「巡り」と背水の一閃）。
+ * HUD のコスト表示と実際の支払いが同じ値になるよう resolveSlot で掛ける
+ */
+function dynamicBurdenMul(state: GameState, slot: number, def: SkillDef, params: Readonly<CastParams>): number {
+  const m = SKILL.modifier;
+  const rs = state.skills;
+  const p = state.player;
+  let mul = 1;
+  if (params.dryFire && p.mana >= state.stats.maxMana * m.dryFire.lowRatio) mul *= m.dryFire.costMul;
+  if (params.bladeFeed) mul *= meleeFed(state) ? m.bladeFeed.costMul : m.bladeFeed.missMul;
+  if (params.overheat) mul *= m.overheat.stepMul ** (rs.slots[slot]?.heat ?? 0);
+  if (params.cycle) mul *= cycleMul(state, slot);
+  if (def.key === "lastStand" && p.hp >= p.maxHp * SKILL.lastStand.heavyCostAt) mul *= SKILL.lastStand.heavyCostMul;
+  return mul;
+}
+
+/** 刃の給油: 直前 window 秒以内に近接を当てたか */
+function meleeFed(state: GameState): boolean {
+  const at = state.skills.lastMeleeHitAt;
+  return at !== null && state.skills.clock - at <= SKILL.modifier.bladeFeed.window;
+}
+
+/** 巡り: 直前 2 回が他のスロットなら軽く、直前が同じスロットなら重い */
+function cycleMul(state: GameState, slot: number): number {
+  const c = SKILL.modifier.cycle;
+  const recent = state.skills.recentSlots;
+  if (recent[0] === slot) return c.repeatMul;
+  if (recent.length >= 2 && recent.every((s) => s !== slot)) return c.freshMul;
+  return 1;
 }
 
 /**
@@ -205,8 +337,19 @@ export function skillMoveMul(state: GameState): number {
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0) return 0;
   const haste = rs.haste.time > 0 ? rs.haste.mul : 1;
   const frost = playerInFrost(state) ? SKILL.frostField.selfMoveMul : 1;
-  const charging = rs.slots.some((s) => s.charging) ? SKILL.modifier.charge.moveMul : 1;
-  return activeMoveMul(rs.active) * haste * frost * charging;
+  return activeMoveMul(rs.active) * haste * frost * chargingMoveMul(state);
+}
+
+/** 溜め中の移動倍率（段階溜めは溜め符より重い） */
+function chargingMoveMul(state: GameState): number {
+  const rs = state.skills;
+  let mul = 1;
+  rs.slots.forEach((s, i) => {
+    if (!s.charging) return;
+    const staged = chargeKind(state, i) === "staged";
+    mul = Math.min(mul, staged ? SKILL.modifier.toStaged.moveMul : SKILL.modifier.charge.moveMul);
+  });
+  return mul;
 }
 
 function activeMoveMul(a: ActiveCast | null): number {
@@ -215,7 +358,8 @@ function activeMoveMul(a: ActiveCast | null): number {
     case "whirl":
       return a.phase === "main" ? SKILL.whirl.moveMul : 1;
     case "spiral":
-      return SKILL.spiral.moveMul;
+      // 連携「疾風弾幕」（加速 → 回転弾幕）は遅くならない
+      return a.params.combo === "hasteSpiral" ? 1 : SKILL.spiral.moveMul;
     case "lunge":
     case "railshot":
     case "quake":
@@ -223,6 +367,8 @@ function activeMoveMul(a: ActiveCast | null): number {
       return 0;
     case "parry":
       return PARRY_MOVE_MUL;
+    default:
+      return extraActiveMoveMul(a);
   }
 }
 
@@ -269,9 +415,13 @@ export function trackDamageDealt(state: GameState): void {
 
 export function updateSkills(state: GameState, input: FrameInput, dt: number): void {
   const rs = state.skills;
+  rs.clock += dt;
   syncTracking(state);
+  const hurt = trackHurt(state);
+  recordHistory(state, dt);
   tickTimers(state, dt);
   for (let i = 0; i < SLOT_COUNT; i++) tickSlot(state, i, dt);
+  updateDebts(state, dt);
 
   // ダッシュは発動中のスキルをキャンセルする（CD は消費済み）
   if (rs.active && state.player.dashTimer > 0) cancelActive(state, true);
@@ -283,17 +433,68 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
     else requestCast(state, i, input);
   });
   tryPending(state, input);
-  updateCharging(state, input, dt);
+  updateCharging(state, input, dt, hurt);
 
   updateActive(state, dt);
   updateGrenades(state, dt);
   updateEchoes(state, dt);
+  updateGasps(state);
   updateGhosts(state, dt);
   updatePlacedSkills(state, dt);
+  updateShots(state, dt);
+  updateKegs(state, dt);
+  updateGraves(state, dt);
+  updateTurrets(state, dt);
+  updateBoneRing(state, dt);
+  updateSprings(state, dt);
   updateHaste(state);
   updateFloorStones(state, dt);
   updateRunes(state, dt);
   spawnAura(state);
+  // 自分で払った HP（血の代償・後払い・自爆）は被ダメに数えないよう、フレームの最後に基準を取り直す
+  rs.lastHp = state.player.hp;
+}
+
+/** 前フレームの終わりからの HP の減少を被ダメとして記録する（恨み返し）。減った量を返す */
+function trackHurt(state: GameState): number {
+  const rs = state.skills;
+  const hp = state.player.hp;
+  const before = rs.lastHp;
+  rs.lastHp = hp;
+  const since = rs.clock - SKILL.grudge.window;
+  rs.hurtLog = rs.hurtLog.filter((h) => h.at >= since);
+  if (before === null || hp >= before) return 0;
+  rs.hurtLog.push({ at: rs.clock, amount: before - hp });
+  return before - hp;
+}
+
+/** 巻き戻し用に位置と HP を一定間隔で記録する（巻き戻せる秒 + 1 回ぶんだけ残す） */
+function recordHistory(state: GameState, dt: number): void {
+  const rs = state.skills;
+  const b = SKILL.backflow;
+  rs.historyTimer -= dt;
+  if (rs.historyTimer > 0) return;
+  rs.historyTimer = b.record;
+  rs.history.push({ at: rs.clock, pos: { ...state.player.body.pos }, hp: state.player.hp });
+  const since = rs.clock - b.rewind - b.record;
+  rs.history = rs.history.filter((h) => h.at >= since);
+}
+
+/** 後払いの返済。足りない分は HP で払う（HP は 1 未満にならない） */
+function updateDebts(state: GameState, dt: number): void {
+  const rs = state.skills;
+  if (rs.debts.length === 0) return;
+  const d = SKILL.modifier.deferred;
+  for (const debt of rs.debts) {
+    debt.timer -= dt;
+    if (debt.timer > 0) continue;
+    const p = state.player;
+    const fromMana = Math.min(p.mana, debt.amount);
+    p.mana -= fromMana;
+    const short = debt.amount - fromMana;
+    if (short > 0) p.hp = Math.max(1, p.hp - short * d.hpPerMana * p.maxHp);
+  }
+  rs.debts = rs.debts.filter((debt) => debt.timer > 0);
 }
 
 function tickTimers(state: GameState, dt: number): void {
@@ -313,6 +514,11 @@ function tickTimers(state: GameState, dt: number): void {
   if (rs.pendingTimer === 0) rs.pendingSlot = -1;
   rs.gcd = Math.max(0, rs.gcd - dt);
   rs.manaFlash = Math.max(0, rs.manaFlash - dt);
+  rs.backstabTimer = Math.max(0, rs.backstabTimer - dt);
+  for (const slot of rs.slots) {
+    slot.heatTimer = Math.max(0, slot.heatTimer - dt);
+    if (slot.heatTimer === 0) slot.heat = 0;
+  }
 }
 
 /**
@@ -324,7 +530,7 @@ function tickSlot(state: GameState, index: number, dt: number): void {
   if (slot) slot.intervalLeft = Math.max(0, slot.intervalLeft - dt);
   const r = resolveSlot(state, index);
   if (!slot || !r) return;
-  const max = r.def.resource === "mana" ? 1 : r.params.charges;
+  const max = r.resource === "mana" ? 1 : r.params.charges;
   if (slot.chargesLeft >= max) {
     slot.chargesLeft = max;
     slot.cooldownLeft = 0;
@@ -366,14 +572,46 @@ function intervalBlocked(state: GameState, index: number): boolean {
 
 /** 払えるか。払えなければ理由を出して false（何も消費しない） */
 function checkAffordable(state: GameState, index: number, r: ResolvedSlot): boolean {
-  if (r.def.resource === "mana") {
-    if (canAffordSkill(state, r.cost)) return true;
-    misfire(state);
+  if (r.resource === "mana") {
+    if (manaAffordable(state, index, r)) return true;
+    const reason = manaRuleReason(state, index, r);
+    if (reason) notReady(state, reason);
+    else misfire(state);
+    state.skills.pendingSlot = -1;
     return false;
   }
   if ((state.skills.slots[index]?.chargesLeft ?? 0) > 0) return true;
   notReady(state, "冷却中");
   return false;
+}
+
+/**
+ * マナ型が撃てるか。満月の砲 = 満タン、枯渇の刃 = 一定割合未満、後払い = 返済待ちでなければいつでも、
+ * 血の肩代わり = 不足分を HP で払っても HP が残るなら撃てる
+ */
+function manaAffordable(state: GameState, index: number, r: ResolvedSlot): boolean {
+  const p = state.player;
+  const max = state.stats.maxMana;
+  if (r.def.manaRule === "full") return p.mana >= max - SKILL.fullMoon.fullEpsilon;
+  if (r.def.manaRule === "low") return p.mana < max * SKILL.dregsBlade.lowRatio;
+  if (r.params.deferredMul > 0) return !state.skills.debts.some((d) => d.slot === index);
+  if (canAffordSkill(state, r.cost)) return true;
+  if (!r.params.bloodTithe) return false;
+  return p.hp - titheHpCost(state, r.cost) >= 1;
+}
+
+/** マナ不足以外の理由で撃てないときの浮き文字（満月の砲・枯渇の刃・後払いの返済待ち）。マナ不足なら null */
+function manaRuleReason(state: GameState, index: number, r: ResolvedSlot): string | null {
+  if (r.def.manaRule === "full") return "満タンでない";
+  if (r.def.manaRule === "low") return "マナが多い";
+  if (r.params.deferredMul > 0 && state.skills.debts.some((d) => d.slot === index)) return "返済待ち";
+  return null;
+}
+
+/** 血の肩代わり: マナの不足分を HP で払う量 */
+function titheHpCost(state: GameState, cost: number): number {
+  const short = Math.max(0, cost - state.player.mana);
+  return short * SKILL.modifier.bloodTithe.hpPerMana * state.player.maxHp;
 }
 
 function attackCommitted(state: GameState): boolean {
@@ -416,13 +654,25 @@ function tryPending(state: GameState, input: FrameInput): void {
 // Charge（溜め）刻印符
 // ---------------------------------------------------------------------------
 
-/** このスロットに Charge が実際に効いているか（リンク数・相性表を通した上で） */
-function hasChargeModifier(state: GameState, index: number): boolean {
+/** このスロットの溜めの種類（溜め符 / 段階溜め / 無し）。リンク数・相性表を通した上で */
+function chargeKind(state: GameState, index: number): "charge" | "staged" | null {
   const rs = state.skills;
   const stone = stoneInSlot(rs.profile, index);
   const slot = rs.slots[index];
-  if (!stone || !slot) return false;
-  return activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, slot.modifiers).includes("charge");
+  if (!stone || !slot) return null;
+  const active = activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, slot.modifiers);
+  if (active.includes("toStaged")) return "staged";
+  return active.includes("charge") ? "charge" : null;
+}
+
+function hasChargeModifier(state: GameState, index: number): boolean {
+  return chargeKind(state, index) !== null;
+}
+
+/** 溜めの上限秒（段階溜めは 3 段目の秒） */
+function chargeMaxTime(kind: "charge" | "staged" | null): number {
+  const stages = SKILL.modifier.toStaged.stages;
+  return kind === "staged" ? (stages[stages.length - 1] ?? SKILL.modifier.charge.maxTime) : SKILL.modifier.charge.maxTime;
 }
 
 /**
@@ -443,23 +693,53 @@ function startCharge(state: GameState, index: number): void {
   slot.chargeTime = 0;
 }
 
+/** 溜めで上乗せするもの（段階溜めの 3 段目は回数と貫通も） */
+export interface ChargeBonus {
+  damageMul: number;
+  areaMul: number;
+  countBonus?: number;
+  pierce?: number;
+}
+
 /** 経過秒(0..maxTime) から威力・範囲の倍率を出す。0.15 秒未満は通常発動（倍率 1） */
-function chargeBonus(time: number): { damageMul: number; areaMul: number } {
+function chargeBonus(time: number): ChargeBonus {
   const c = SKILL.modifier.charge;
   const t = time < c.minTime ? 0 : Math.min(time, c.maxTime);
   const ratio = t / c.maxTime;
   return { damageMul: 1 + (c.maxDamageMul - 1) * ratio, areaMul: 1 + (c.maxAreaMul - 1) * ratio };
 }
 
-/** 溜め中のスロットを毎フレーム進め、離された瞬間に倍率付きで発動する */
-function updateCharging(state: GameState, input: FrameInput, dt: number): void {
+/** 段階溜めの段（0 = 1 段目未満 … 3 = 3 段目） */
+export function stagedLevel(time: number): number {
+  return SKILL.modifier.toStaged.stages.filter((t) => time >= t).length;
+}
+
+/** 段階溜め: 2 段目で範囲、3 段目でさらに回数と貫通 */
+function stagedBonus(time: number): ChargeBonus {
+  const s = SKILL.modifier.toStaged;
+  const level = stagedLevel(time);
+  if (level >= 3) return { damageMul: s.stage3.damageMul, areaMul: s.stage3.areaMul, countBonus: s.stage3.countBonus, pierce: s.stage3.pierce };
+  if (level === 2) return { damageMul: s.stage2.damageMul, areaMul: s.stage2.areaMul };
+  return { damageMul: 1, areaMul: 1 };
+}
+
+/** 段階溜めで被弾したら 1 段下げる（その段に入った瞬間の秒へ戻す） */
+function dropStage(time: number): number {
+  const stages = SKILL.modifier.toStaged.stages;
+  const level = stagedLevel(time);
+  return level >= 2 ? (stages[level - 2] ?? 0) : 0;
+}
+
+/** 溜め中のスロットを毎フレーム進め、離された瞬間に倍率付きで発動する。段階溜めは被弾で段が下がる */
+function updateCharging(state: GameState, input: FrameInput, dt: number, hurt: number): void {
   const rs = state.skills;
   const held = [input.skill1Held, input.skill2Held, input.skill3Held, input.skill4Held];
-  const maxTime = SKILL.modifier.charge.maxTime;
   for (let i = 0; i < SLOT_COUNT; i++) {
     const slot = rs.slots[i];
     if (!slot || !slot.charging) continue;
-    slot.chargeTime = Math.min(maxTime, slot.chargeTime + dt);
+    const kind = chargeKind(state, i);
+    if (kind === "staged" && hurt > 0) slot.chargeTime = dropStage(slot.chargeTime);
+    slot.chargeTime = Math.min(chargeMaxTime(kind), slot.chargeTime + dt);
     if (held[i]) continue;
     const time = slot.chargeTime;
     slot.charging = false;
@@ -471,7 +751,7 @@ function updateCharging(state: GameState, input: FrameInput, dt: number): void {
       bufferCast(state, i);
       continue;
     }
-    castSlot(state, i, input, chargeBonus(time));
+    castSlot(state, i, input, kind === "staged" ? stagedBonus(time) : chargeBonus(time));
   }
 }
 
@@ -479,7 +759,14 @@ function updateCharging(state: GameState, input: FrameInput, dt: number): void {
 export function chargeRatio(state: GameState, index: number): number | null {
   const slot = state.skills.slots[index];
   if (!slot || !slot.charging) return null;
-  return Math.min(1, slot.chargeTime / SKILL.modifier.charge.maxTime);
+  return Math.min(1, slot.chargeTime / chargeMaxTime(chargeKind(state, index)));
+}
+
+/** HUD 用: 段階溜めの段の区切り（ゲージ上の割合）。段階溜めでなければ空 */
+export function chargeStageMarks(state: GameState, index: number): number[] {
+  if (chargeKind(state, index) !== "staged") return [];
+  const max = chargeMaxTime("staged");
+  return SKILL.modifier.toStaged.stages.slice(0, -1).map((t) => t / max);
 }
 
 function aimTarget(state: GameState, input: FrameInput): Vec {
@@ -506,12 +793,7 @@ function payCosts(state: GameState, params: CastParams): CastParams {
  * 発動。成功したら true。chargeMul は Charge 刻印符が離した瞬間に渡す威力・範囲の追加倍率。
  * 最低間隔の中なら何もしない（呼び出し側が先行入力に回す）。払えなければ何も消費せず不発
  */
-export function castSlot(
-  state: GameState,
-  index: number,
-  input: FrameInput,
-  chargeMul?: { damageMul: number; areaMul: number },
-): boolean {
+export function castSlot(state: GameState, index: number, input: FrameInput, chargeMul?: ChargeBonus): boolean {
   const rs = state.skills;
   const slot = rs.slots[index];
   const r = resolveSlot(state, index);
@@ -519,59 +801,177 @@ export function castSlot(
   // 怯み・沈黙中はスキル不可（docs/COMBAT_DESIGN.md D-5 / E-2）
   if (!playerCanCast(state)) return false;
   if (intervalBlocked(state, index)) return false;
-  if (!checkAffordable(state, index, r)) return false;
-  if (state.player.attack.phase !== "none") cancelAttack(state);
-
-  const manaPaid = payResource(state, slot, r);
-  onBoonSkillCast(state);
-  const costed = payCosts(state, r.params);
-  const params: CastParams = {
-    ...costed,
-    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1),
-    areaMul: costed.areaMul * (chargeMul?.areaMul ?? 1),
-    slot: index,
-    manaPaid,
-    // 払い戻しの上限は払った額。反響・遅延の写しとも共有する（新しい参照を発動ごとに作る）
-    refundPool: { left: manaPaid },
-  };
   const p = state.player;
   const dir = { ...p.facing };
   const origin = { ...p.body.pos };
   const key = r.def.key;
   const target = clampTarget(state, origin, aimTarget(state, input), CAST_RANGE[key] ?? SKILL.frag.maxRange);
+  // 対象のいない消費系・影渡りは何も払わずに弾く
+  const blocked = isExtraKey(key) ? extraCastBlock(state, key, target, r.params) : null;
+  if (blocked) {
+    notReady(state, blocked);
+    rs.pendingSlot = -1;
+    return false;
+  }
+  if (!checkAffordable(state, index, r)) return false;
+  if (state.player.attack.phase !== "none") cancelAttack(state);
+
+  const stateMul = castStateMul(state, r);
+  const combo = findCombo(state, r.def);
+  const manaPaid = payResource(state, index, slot, r);
+  onBoonSkillCast(state, index, r.resource, manaPaid);
+  recordProvenance(state, { kind: "skillCast" });
+  const costed = payCosts(state, r.params);
+  const base: CastParams = {
+    ...costed,
+    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1) * stateMul.damage,
+    potencyMul: costed.potencyMul * stateMul.potency,
+    areaMul: costed.areaMul * (chargeMul?.areaMul ?? 1),
+    countBonus: costed.countBonus + (chargeMul?.countBonus ?? 0),
+    pierce: costed.pierce + (chargeMul?.pierce ?? 0),
+    attuneCrit: stateMul.attuneCrit,
+    slot: index,
+    manaPaid,
+    // 払い戻しの上限は払った額。反響・遅延の写しとも共有する（新しい参照を発動ごとに作る）
+    refundPool: { left: manaPaid },
+    hitRefundPool: { left: manaPaid * SKILL.modifier.refund.cap },
+    gaspPool: { left: costed.lastGasp === null ? 0 : SKILL.modifier.lastGasp.maxPerCast },
+    hitLog: new Set(),
+    origin,
+    combo: combo?.key ?? null,
+  };
+  const params = combo?.apply ? combo.apply(base) : base;
+  if (combo) announceCombo(state, combo);
   const remote = { skillKey: key, origin, dir, target };
 
   if (params.delay) {
     // 遅延: いま何も起きず、発動地点で後から本発動（反響はその時点から数える）
     const time = params.delay.time;
     rs.echoes.push({ ...remote, kind: "delay", timer: time, total: time, params: { ...params, damageMul: params.damageMul * params.delay.damageMul, delay: null } });
+  } else if (params.reshape === "toThrown") {
+    // 型替え符「投げ刃」: 刃がカーソル地点へ飛び、着いた所で元の形のまま発動する（着弾点を発動地点にする）
+    const flight = SKILL.modifier.toThrown.flight;
+    rs.echoes.push({ ...remote, origin: target, kind: "thrown", timer: flight, total: flight, params });
   } else {
-    CAST[key](state, index, params, dir, target);
+    castNow(state, index, key, params, dir, target);
     scheduleEcho(state, { ...remote, params });
   }
 
+  recordCast(state, index, key, target, params);
   applyRecoil(state, dir, params);
   if (r.def.damageKind === "ranged") fireTrigger(state, "onShoot", { pos: origin });
   pushSfx(state, "skillCast");
   return true;
 }
 
+/** 手動の本発動（大拡張のスキルは skills/actions.ts へ） */
+function castNow(state: GameState, index: number, key: SkillKey, params: CastParams, dir: Vec, target: Vec): void {
+  if (isExtraKey(key)) {
+    EXTRA_CAST[key](state, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
+    return;
+  }
+  CAST[key](state, index, params, dir, target);
+}
+
+/** 連携の成立を知らせる（浮き文字と効果音） */
+function announceCombo(state: GameState, combo: ComboDef): void {
+  addFloatingText(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, LABEL_SCALE, PARRY_TEXT_LIFE);
+  pushSfx(state, "synergy");
+}
+
+/** 連携の「直前の発動」と巡りの履歴を残す。パリィは成功した瞬間に残す（構えただけでは連携しない） */
+function recordCast(state: GameState, index: number, key: SkillKey, target: Vec, params: CastParams): void {
+  const rs = state.skills;
+  rs.recentSlots = [index, ...rs.recentSlots].slice(0, 2);
+  if (key === "parry") return;
+  rs.lastCast = { skillKey: key, slot: index, at: rs.clock, pos: { ...target }, hitIds: params.hitLog };
+}
+
+/**
+ * 発動時の状態で決まる威力・効果量の倍率（溢れ・渇き撃ち・背水・同調）。
+ * 払う前のマナ・HP を見る（溢れは払う前が満タンか）
+ */
+function castStateMul(state: GameState, r: ResolvedSlot): { damage: number; potency: number; attuneCrit: boolean } {
+  const m = SKILL.modifier;
+  const p = state.player;
+  const params = r.params;
+  let damage = 1;
+  if (params.spillover) damage *= p.mana >= state.stats.maxMana - SKILL.fullMoon.fullEpsilon ? m.spillover.fullMul : m.spillover.otherMul;
+  if (params.dryFire && p.mana < state.stats.maxMana * m.dryFire.lowRatio) damage *= m.dryFire.damageMul;
+  if (params.desperate) damage *= p.hp < p.maxHp * m.desperate.hpRatio ? m.desperate.lowMul : m.desperate.highMul;
+  if (!params.attune) return { damage, potency: 1, attuneCrit: false };
+  const match = attuneMatch(state, r.def);
+  if (match === "crit") return { damage, potency: 1, attuneCrit: true };
+  const mul = match ? m.attune.matchMul : m.attune.missMul;
+  return { damage: damage * mul, potency: mul, attuneCrit: false };
+}
+
+/**
+ * 同調: 共鳴の色（二重・三色ならどれか）がスキルの向きと合うか。
+ * 紅 = 近接、蒼 = 射撃・移動、翠 = 防御・強化、冥 = 状態異常を付ける、金 = 会心の一撃だけ伸びる（"crit"）
+ */
+export function attuneMatch(state: GameState, def: Readonly<SkillDef>): boolean | "crit" {
+  const r = state.stats.resonance;
+  // 散光・共鳴なしは色が定まらないので合わない
+  if (r.kind === "scatter" || r.kind === "none") return false;
+  let gold = false;
+  for (const color of r.colors) {
+    if (color === "crimson" && def.tags.includes("melee")) return true;
+    if (color === "azure" && (def.tags.includes("projectile") || def.tags.includes("movement"))) return true;
+    if (color === "jade" && (def.tags.includes("defense") || def.tags.includes("buff"))) return true;
+    if (color === "umbra" && def.applies !== undefined) return true;
+    if (color === "gold") gold = true;
+  }
+  return gold ? "crit" : false;
+}
+
 /**
  * 資源を払い、共通最低間隔とスロットの最低間隔を立てる。払ったマナを返す（CD 型は 0）。
  * 呼ぶ前に checkAffordable で払えることを確かめておく
  */
-function payResource(state: GameState, slot: SkillSlotState, r: ResolvedSlot): number {
+function payResource(state: GameState, index: number, slot: SkillSlotState, r: ResolvedSlot): number {
   state.skills.gcd = SKILL.gcd;
   slot.intervalLeft = r.interval;
-  if (r.def.resource === "mana") {
-    // 過負荷（ks_overdraw）はマナ不足を HP で払う。払い戻しの基準は実際に減ったマナだけ（HP 分をマナで返さない）
-    const before = state.player.mana;
-    paySkillCost(state, r.cost);
-    return Math.max(0, before - state.player.mana);
+  if (r.resource === "mana") {
+    const paid = payMana(state, index, r);
+    heatUp(slot, r);
+    return paid;
   }
   slot.chargesLeft -= 1;
   if (slot.cooldownLeft <= 0) setCooldown(slot, r.cooldown);
   return 0;
+}
+
+/**
+ * マナを払う。後払いは返済を予約して 0、血の肩代わりは不足分を HP で。
+ * 過負荷（ks_overdraw）はマナ不足を HP で払う。払い戻しの基準は実際に減ったマナだけ（HP 分をマナで返さない）
+ */
+function payMana(state: GameState, index: number, r: ResolvedSlot): number {
+  const p = state.player;
+  if (r.params.deferredMul > 0) {
+    state.skills.debts.push({ slot: index, timer: SKILL.modifier.deferred.delay, amount: r.cost * r.params.deferredMul });
+    return 0;
+  }
+  const before = p.mana;
+  if (r.params.bloodTithe && !canAffordSkill(state, r.cost)) {
+    p.hp = Math.max(1, p.hp - titheHpCost(state, r.cost));
+    p.mana = 0;
+    return before;
+  }
+  paySkillCost(state, r.cost);
+  return Math.max(0, before - p.mana);
+}
+
+/** 過熱: 続けて撃った回数を数え、上限に達したらしばらく撃てない */
+function heatUp(slot: SkillSlotState, r: ResolvedSlot): void {
+  if (!r.params.overheat) return;
+  const o = SKILL.modifier.overheat;
+  slot.heat += 1;
+  slot.heatTimer = o.window;
+  if (slot.heat < o.maxStacks) return;
+  slot.heat = 0;
+  slot.heatTimer = 0;
+  slot.intervalLeft = Math.max(slot.intervalLeft, o.lockTime);
 }
 
 /** 反響の予約（params.echo があるときだけ）。反響の反響は起きない */
@@ -612,10 +1012,13 @@ function startActive(state: GameState, slot: number, key: ActiveCast["skillKey"]
     hitsDone: 0,
     startHp: state.player.hp,
     reach: 0,
+    target: { ...state.player.body.pos },
   };
 }
 
-const CAST: Record<SkillKey, CastFn> = {
+type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey>;
+
+const CAST: Record<BaseSkillKey, CastFn> = {
   whirl: (state, slot, params, dir) => startActive(state, slot, "whirl", params, dir, SKILL.whirl.duration * params.timeMul),
   lunge: (state, slot, params, dir) => {
     startActive(state, slot, "lunge", params, dir, SKILL.lunge.time * params.timeMul);
@@ -643,9 +1046,13 @@ const CAST: Record<SkillKey, CastFn> = {
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
   quake: (state, slot, params, dir) => startActive(state, slot, "quake", params, dir, SKILL.quake.windup * params.timeMul),
-  thunder: (state, _slot, params, _dir, target) => placeStrikes(state, target, params),
+  thunder: (state, _slot, params, _dir, target) => {
+    const t = wellThunderTarget(state, target, params);
+    placeStrikes(state, t.target, t.params);
+  },
   gravityWell: (state, _slot, params, _dir, target) => spawnWell(state, target, params),
-  mines: (state, _slot, params) => placeMine(state, state.player.body.pos, params),
+  // 投げ込み（型替え）なら足元ではなく照準地点へ
+  mines: (state, _slot, params, _dir, target) => placeMine(state, params.reshape === "toLobbed" ? target : state.player.body.pos, params),
   haste: (state, _slot, params) => {
     const h = SKILL.haste;
     const p = state.player;
@@ -687,6 +1094,7 @@ function cancelActive(state: GameState, dashCancel: boolean): void {
 function updateActive(state: GameState, dt: number): void {
   const a = state.skills.active;
   if (!a) return;
+  if (updateExtraActive(state, a, dt)) return;
   switch (a.skillKey) {
     case "whirl":
       updateWhirl(state, a, dt);
@@ -708,6 +1116,8 @@ function updateActive(state: GameState, dt: number): void {
       return;
     case "spiral":
       updateSpiral(state, a, dt);
+      return;
+    default:
       return;
   }
 }
@@ -903,12 +1313,20 @@ function whirlRadius(state: GameState, params: CastParams): number {
   return SKILL.whirl.radius * state.stats.meleeReachMul * params.areaMul;
 }
 
+const COMBO_BLEED = COMBO_TUNING.pactWhirl;
+
+/** 連携「血風」（血の契約 → 旋風斬り）: 当てるたびに出血 */
+const PACT_WHIRL_APPLIES = [
+  { kind: "bleed", stacks: COMBO_BLEED.bleedStacks, duration: COMBO_BLEED.bleedTime, potency: COMBO_BLEED.bleedPotency },
+] as const;
+
 function whirlHit(state: GameState, center: Vec, params: CastParams): void {
   const radius = whirlRadius(state, params);
   const power = skillPower(state, SKILL.whirl.damage, params);
+  const applies = params.combo === "pactWhirl" ? PACT_WHIRL_APPLIES : undefined;
   spawnRing(state, center, radius, COLOR_WHIRL, RING_LIFE);
   for (const e of enemiesInRadius(state, center, radius)) {
-    meleeSkillHit(state, e, params, power, sub(e.body.pos, center), SKILL.whirl.knockback, false);
+    skillHit(state, e, params, { base: power, kind: "melee", dir: sub(e.body.pos, center), knockback: SKILL.whirl.knockback, stagger: false, applies, from: center });
   }
 }
 
@@ -960,11 +1378,13 @@ function updateLunge(state: GameState, a: ActiveCast, dt: number): void {
     rs.stunTimer = SKILL.lunge.wallStun;
     shake(state, SHAKE_SKILL);
     pushSfx(state, "wallHit");
+    landingShock(state, p.body.pos, a.params);
     return;
   }
   if (a.timer > 0) return;
   rs.active = null;
   rs.lungeComboTimer = SKILL.lunge.comboLinkWindow;
+  landingShock(state, p.body.pos, a.params);
 }
 
 function updateRailshot(state: GameState, a: ActiveCast, dt: number): void {
@@ -1082,6 +1502,7 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
     meleeSkillHit(state, e, a.params, skillPower(state, SKILL.parry.damage, a.params), sub(e.body.pos, p.body.pos), SKILL.parry.knockback, true);
   }
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
+  rs.lastCast = { skillKey: "parry", slot: a.slot, at: rs.clock, pos: { ...p.body.pos }, hitIds: a.params.hitLog };
 
   // 成功のご褒美は CD の一部だけ（全回復だと構え直しで固め続けられる。docs/COMBAT_DESIGN.md C-1 の 7）
   const slot = rs.slots[a.slot];
@@ -1178,8 +1599,19 @@ function updateEchoes(state: GameState, dt: number): void {
   rs.echoes = rs.echoes.filter((e) => e.timer > 0);
   for (const e of due) {
     executeRemote(state, e);
-    // 遅延の本発動に反響が付いていれば、ここから数える
-    if (e.kind === "delay") scheduleEcho(state, e);
+    // 遅延の本発動・投げ刃の着弾に反響が付いていれば、ここから数える
+    if (e.kind === "delay" || e.kind === "thrown") scheduleEcho(state, e);
+  }
+}
+
+/** 散り際: 倒した敵の位置で同じスキルを弱く起こす（skills/hit.ts が積んだ予約を捌く） */
+function updateGasps(state: GameState): void {
+  const rs = state.skills;
+  if (rs.gasps.length === 0) return;
+  const due = rs.gasps;
+  rs.gasps = [];
+  for (const g of due) {
+    executeRemote(state, { kind: "gasp", timer: 0, total: 0, skillKey: g.params.skillKey, origin: g.pos, dir: g.dir, target: g.pos, params: g.params });
   }
 }
 
@@ -1189,15 +1621,20 @@ const GHOST_TIME: Record<Ghost["skillKey"], (p: CastParams) => number> = {
   spiral: (p) => SKILL.spiral.duration * p.timeMul,
 };
 
-/** 反響・遅延の発動。プレイヤーは動かさず、発動地点・向き・照準地点で起こす */
+/** 反響・遅延・投げ刃・散り際の発動。プレイヤーは動かさず、発動地点・向き・照準地点で起こす */
 function executeRemote(state: GameState, e: EchoCast): void {
-  switch (e.skillKey) {
+  const key = e.skillKey;
+  if (isExtraKey(key)) {
+    EXTRA_CAST[key](state, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, target: e.target, remote: true });
+    return;
+  }
+  switch (key) {
     case "whirl":
     case "lunge":
     case "spiral": {
-      const total = GHOST_TIME[e.skillKey](e.params);
+      const total = GHOST_TIME[key](e.params);
       state.skills.ghosts.push({
-        skillKey: e.skillKey,
+        skillKey: key,
         timer: total,
         total,
         pos: { ...e.origin },
@@ -1220,9 +1657,11 @@ function executeRemote(state: GameState, e: EchoCast): void {
     case "chainHook":
       hookInstant(state, e.origin, e.dir, e.params);
       return;
-    case "thunder":
-      placeStrikes(state, e.target, e.params);
+    case "thunder": {
+      const t = wellThunderTarget(state, e.target, e.params);
+      placeStrikes(state, t.target, t.params);
       return;
+    }
     case "gravityWell":
       spawnWell(state, e.target, e.params);
       return;
@@ -1295,6 +1734,15 @@ function syncTracking(state: GameState): void {
     rs.fields = [];
     rs.bullets = [];
     rs.curses.clear();
+    rs.shots = [];
+    rs.kegs = [];
+    rs.graves = [];
+    rs.turrets = [];
+    rs.boneRing = null;
+    rs.springs = [];
+    rs.marks.clear();
+    rs.gasps = [];
+    rs.history = [];
     if (state.rng.chance(SKILL.drop.stoneOnDepth)) {
       const p = state.player.body.pos;
       dropSkillStone(state, { x: p.x, y: p.y + SKILL.drop.depthOffsetY });
@@ -1349,9 +1797,11 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
     return slot.modifiers.filter((k) => canAttach(SKILL_DEFS[stone.skillKey], k));
   };
   const linksOf = (i: number): number => stoneInSlot(rs.profile, i)?.links ?? 0;
-  const without = candidates.filter((i) => !(rs.slots[i]?.modifiers.includes(modifier) ?? false));
+  const usedLinks = (keys: readonly ModifierKey[]): number => keys.reduce((sum, k) => sum + modifierLinkCost(k), 0);
+  const cost = modifierLinkCost(modifier);
+  const without = candidates.filter((i) => !(rs.slots[i]?.modifiers.includes(modifier) ?? false) && linksOf(i) >= cost);
 
-  const free = without.find((i) => usable(i).length < linksOf(i));
+  const free = without.find((i) => usedLinks(usable(i)) + cost <= linksOf(i));
   if (free !== undefined) {
     rs.slots[free]?.modifiers.push(modifier);
     return free;
@@ -1359,9 +1809,13 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   const target = without[0];
   if (target !== undefined) {
     const slot = rs.slots[target];
-    const oldest = usable(target)[0];
-    if (!slot || !oldest) return -1;
-    slot.modifiers.splice(slot.modifiers.indexOf(oldest), 1);
+    if (!slot) return -1;
+    // 収まるまで古い順に押し出す（型替え符はリンクを 2 本使う）
+    while (usedLinks(usable(target)) + cost > linksOf(target)) {
+      const oldest = usable(target)[0];
+      if (!oldest) break;
+      slot.modifiers.splice(slot.modifiers.indexOf(oldest), 1);
+    }
     slot.modifiers.push(modifier);
     return target;
   }
@@ -1433,13 +1887,54 @@ export function slotModifierView(state: GameState, slot: number): { key: Modifie
   const stone = stoneInSlot(state.skills.profile, slot);
   if (!s) return [];
   if (!stone) return s.modifiers.map((key) => ({ key, active: false }));
-  const def = SKILL_DEFS[stone.skillKey];
-  let used = 0;
-  return s.modifiers.map((key) => {
-    const active = canAttach(def, key) && used < stone.links;
-    if (active) used += 1;
-    return { key, active };
-  });
+  const active = new Set(activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, s.modifiers));
+  return s.modifiers.map((key) => ({ key, active: active.has(key) }));
+}
+
+// ---------------------------------------------------------------------------
+// player.ts から呼ぶフック（近接の命中・射撃）
+// ---------------------------------------------------------------------------
+
+/**
+ * 通常の近接が敵に当たった瞬間（player.ts の meleeHitEnemy から）。
+ * 刃の給油の記録・湧き石のマナ・剣の墓標（3 段目）・影渡りの背面・追撃の印をここで処理する
+ */
+export function onSkillMeleeHit(state: GameState, e: Enemy, combo: number): void {
+  const rs = state.skills;
+  rs.lastMeleeHitAt = rs.clock;
+  onSpringMeleeHit(state);
+  if (combo >= PLAYER.melee.length - 1) onGraveFinisher(state);
+  if (rs.backstabTimer > 0 && e.hp > 0) backstab(state, e);
+  if (e.hp > 0) popFollowUp(state, e);
+}
+
+/** 影渡りの直後の近接 1 回: 背面から当たったものとして怯み値を上乗せ */
+function backstab(state: GameState, e: Enemy): void {
+  state.skills.backstabTimer = 0;
+  addPoise(state, e, SKILL.shadowStep.backstabPoise * state.stats.poiseDamageMul);
+  addFloatingText(state, e.body.pos, "背面", COLOR_BACKSTAB, TEXT_SCALE, TEXT_LIFE);
+}
+
+/** 追撃の印が付いた敵に近接を当てると、印が弾けて追加の一撃 */
+function popFollowUp(state: GameState, e: Enemy): void {
+  const mark = state.skills.marks.get(e.id);
+  if (!mark) return;
+  state.skills.marks.delete(e.id);
+  const out = rollOutgoing(state, e, mark.power, "proc");
+  damageEnemy(state, e, out.amount, sub(e.body.pos, state.player.body.pos), 0, { hitstopSteps: FEEL.hitstopLight });
+  spawnBurst(state, e.body.pos, COLOR_FOLLOW, SPARK_COUNT, SPARK_SPEED, SPARK_LIFE, SPARK_SIZE);
+}
+
+/** 自分が射撃した瞬間（player.ts の tryShoot から）。砲台が合わせて撃つ */
+export function onSkillPlayerShoot(state: GameState): void {
+  onTurretShoot(state);
+}
+
+/** HUD 用: このスロットでいま成立する連携（無ければ null） */
+export function slotComboReady(state: GameState, index: number): ComboDef | null {
+  const stone = stoneInSlot(state.skills.profile, index);
+  if (!stone) return null;
+  return findCombo(state, SKILL_DEFS[stone.skillKey]);
 }
 
 /** ツールチップ用の CD 表記（0.1 秒単位） */

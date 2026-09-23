@@ -14,7 +14,10 @@ import {
   rollTriggerEffect,
   triggerToRoll,
 } from "./triggers";
-import { SLOTS } from "./types";
+import { SLOTS, TRAIT_COLORS } from "./types";
+import { INFLICT_COLOR, INFLICT_KINDS } from "./triggers";
+import { traitColorOf, triggerCanBeColor } from "./colors";
+import { rollTraitOfColor } from "./generator";
 import { TRIGGER } from "../data/tuning";
 
 const MANY = 1000;
@@ -154,5 +157,71 @@ describe("トリガー文法", () => {
     expect(formatTrigger(decoded ?? { trigger: "onHurt", condition: "always", effect: "invuln", magnitude: 0, chance: 0 })).toBe(
       `被弾時: 40% で${TRIGGER.invulnMax} 秒間無敵になる`,
     );
+  });
+});
+
+describe("トリガー文法の拡張（2026-09）", () => {
+  it("新しい起点・条件・効果が文法に入り、固定専用の効果（healMissing）は出ない", () => {
+    const triggers = new Set(TRIGGER_GRAMMAR.map((s) => s.trigger));
+    const conditions = new Set(TRIGGER_GRAMMAR.map((s) => s.condition));
+    const effects = new Set(TRIGGER_GRAMMAR.map((s) => s.effect));
+    for (const t of ["onStagger", "onCounter"] as const) expect(triggers.has(t), t).toBe(true);
+    for (const c of ["manaFull", "manaLow", "targetInWindup", "targetMultiStatus", "targetGuarded", "targetElite", "selfAfflicted"] as const) {
+      expect(conditions.has(c), c).toBe(true);
+    }
+    for (const e of ["restoreMana", "addPoise", "inflict", "cleanse", "extendStatus", "skillHaste", "volley"] as const) {
+      expect(effects.has(e), e).toBe(true);
+    }
+    expect(effects.has("healMissing")).toBe(false);
+  });
+
+  it("対象を見る条件は対象の無い起点と組まない。常に真 / 偽の組も外す", () => {
+    expect(isCompatible("onShoot", "targetInWindup", "shockwave")).toBe(false);
+    expect(isCompatible("onDash", "targetElite", "heal")).toBe(false);
+    expect(isCompatible("onCounter", "targetInWindup", "shockwave")).toBe(false);
+    expect(isCompatible("onStagger", "targetInWindup", "shockwave")).toBe(false);
+    expect(isCompatible("onMeleeHit", "targetInWindup", "addPoise")).toBe(true);
+    expect(isCompatible("onKill", "targetElite", "damageBuff")).toBe(true);
+  });
+
+  it("除外表: 満タン × マナ回収 / 枯渇 × スキル短縮 / 部屋クリア × 敵向け / 払いは自分が状態異常中だけ", () => {
+    expect(isCompatible("onKill", "manaFull", "restoreMana")).toBe(false);
+    expect(isCompatible("onKill", "manaLow", "skillHaste")).toBe(false);
+    expect(isCompatible("onRoomClear", "always", "inflict")).toBe(false);
+    expect(isCompatible("onShoot", "always", "volley")).toBe(false);
+    expect(isCompatible("onHurt", "always", "cleanse")).toBe(false);
+    expect(isCompatible("onHurt", "selfAfflicted", "cleanse")).toBe(true);
+  });
+
+  it("inflict は状態異常の種類をキーに持ち、往復で復元できる", () => {
+    const rng = createRng(19);
+    const shape = TRIGGER_GRAMMAR.find((s) => s.effect === "inflict");
+    expect(shape).toBeDefined();
+    if (shape === undefined) return;
+    for (let i = 0; i < 50; i++) {
+      const effect = rollTriggerEffect(rng, shape, 10);
+      expect(INFLICT_KINDS).toContain(effect.status);
+      const decoded = decodeTriggerRoll(triggerToRoll(effect));
+      expect(decoded?.status).toBe(effect.status);
+      expect(formatTrigger(effect)).toContain("にする");
+    }
+    expect(decodeTriggerRoll({ key: "tr:onKill:always:inflict", value: 3, value2: 1000 }), "種類の無い inflict は壊れたデータ").toBeNull();
+    expect(decodeTriggerRoll({ key: "tr:onKill:always:inflict:@stagger", value: 3, value2: 1000 }), "怯みは付けられない").toBeNull();
+  });
+
+  it("芽・染めで色を指定すると、inflict もその色の状態異常を選ぶ", () => {
+    const rng = createRng(23);
+    for (const color of TRAIT_COLORS) {
+      for (let i = 0; i < 40; i++) {
+        const roll = rollTraitOfColor(rng, "ring", color, new Set(), { depth: 12, foundDepth: 12 });
+        expect(roll === undefined ? undefined : traitColorOf(roll), `${color}`).toBe(color);
+      }
+    }
+    const inflict = TRIGGER_GRAMMAR.find((s) => s.effect === "inflict" && s.condition === "always");
+    expect(inflict).toBeDefined();
+    if (inflict === undefined) return;
+    for (const color of TRAIT_COLORS) {
+      expect(triggerCanBeColor(inflict, color), color).toBe(INFLICT_KINDS.some((k) => INFLICT_COLOR[k] === color));
+    }
   });
 });

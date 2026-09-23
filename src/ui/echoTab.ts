@@ -41,7 +41,7 @@ import {
 /** 結果メッセージの表示秒数 */
 export const ECHO_RESULT_SECONDS = 2;
 
-/** 左列: 残響の所持数 → 操作ボタン（2 列 × 3 行）→ 実行ボタン → 状態 */
+/** 左列: 残響の所持数 → 操作ボタン（2 列 × 4 行）→ 実行ボタン → 状態 */
 export const ECHO_ROW_H = 10;
 const ECHO_BLOCK_PAD = 4;
 export const ECHO_BUTTON_COLUMNS = 2;
@@ -68,6 +68,7 @@ const ECHO_SFX: Readonly<Record<EchoOp, SfxName>> = {
   stir: "craftCorrupt",
   pare: "craftAnnul",
   transfer: "craftFuse",
+  modulate: "craftReforge",
 };
 
 /** 詳細で選んでいるもの。性質の行か、銘の行 */

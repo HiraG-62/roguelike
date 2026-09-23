@@ -57,14 +57,15 @@ describe("resolveResonance: 境界", () => {
     const dual = resolveResonance(w({ gold: 40, crimson: 30, jade: 30 }));
     expect(dual.kind).toBe("dual");
     expect(dual.colors).toEqual(["crimson", "gold"]);
-    // 2 色目が 29% なら二重にならない（紅 45% があるので散光でもない）
-    expect(resolveResonance(w({ crimson: 45, azure: 29, jade: 26 })).kind).toBe("none");
+    // 2 色目が 29% なら二重にならない（紅 45% があるので散光でもない。3 色目が 22% 未満なら三和音でもない）
+    expect(resolveResonance(w({ crimson: 45, azure: 29, jade: 15, gold: 11 })).kind).toBe("none");
   });
 
   it("散光: すべての色が 30% 未満", () => {
     expect(resolveResonance(w({ crimson: 20, azure: 20, jade: 20, gold: 20, umbra: 20 })).kind).toBe("scatter");
-    expect(resolveResonance(w({ crimson: 29, azure: 29, jade: 28, gold: 14 })).kind).toBe("scatter");
-    expect(resolveResonance(w({ crimson: 30, azure: 28, jade: 28, gold: 14 })).kind).toBe("none");
+    expect(resolveResonance(w({ crimson: 26, azure: 26, jade: 24, gold: 24 })).kind).toBe("scatter");
+    expect(resolveResonance(w({ crimson: 29, azure: 29, jade: 21, gold: 21 })).kind).toBe("scatter");
+    expect(resolveResonance(w({ crimson: 30, azure: 29, jade: 21, gold: 20 })).kind).toBe("none");
   });
 
   it("配合比の合計は 1", () => {
