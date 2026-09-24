@@ -268,6 +268,26 @@ describe("updateInventoryUi: 装備タブ", () => {
     updateInventoryUi(state, ui, withInput({ wheel: -1000 }), 0);
     expect(ui.scroll).toBe(0);
   });
+
+  it("倉庫の部位タブをクリックするとその部位だけが並び、スクロールは先頭へ戻る", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    state.profile.stash = [];
+    for (let i = 0; i < 30; i++) addToStash(state.profile, makeItem({ id: `sword-${i}`, foundAt: i }));
+    addToStash(state.profile, makeItem({ id: "ring-1", slot: "ring", baseKey: "ironRing", foundAt: 100 }));
+    ui.scroll = 5;
+    const ringTab = layoutInventory(state, ui).stashToolbar.find((c) => c.control.kind === "slot" && c.control.slot === "ring");
+    if (!ringTab) throw new Error("指輪タブが無い");
+
+    clickAt(state, ui, ringTab.rect);
+
+    expect(ui.stashView.slot).toBe("ring");
+    expect(ui.scroll, "先頭へ戻る").toBe(0);
+    const layout = layoutInventory(state, ui);
+    expect(layout.stashOrder.map((it) => it.id)).toEqual(["ring-1"]);
+    expect(layout.stashTotal, "総数は倉庫全体").toBe(31);
+    expect(layout.stashCounts.mainHand, "他の部位の件数も数える").toBe(30);
+  });
 });
 
 describe("芽: 装備と 2 択", () => {

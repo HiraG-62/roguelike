@@ -47,8 +47,17 @@ import {
   findRowAt,
   layoutStashList,
   pointInRect,
-  sortStash,
 } from "./inventoryLayout";
+import {
+  type SlotCounts,
+  type StashControlLayout,
+  type StashView,
+  applyStashView,
+  createStashView,
+  layoutStashToolbar,
+  slotCounts,
+  updateStashToolbar,
+} from "./stashFilter";
 
 export {
   COLUMN_GAP,
@@ -107,7 +116,14 @@ export interface InventoryLayout {
   stashHeader: Rect;
   /** 現在スクロール位置で画面に見えている行のみ */
   stashRows: StashRowLayout[];
+  /** 部位・並べ替え・絞り込みを通した後の表示順 */
   stashOrder: Item[];
+  /** 倉庫の総数（絞り込み前） */
+  stashTotal: number;
+  /** 倉庫の上の部位タブと並べ替え・絞り込みのボタン */
+  stashToolbar: StashControlLayout[];
+  /** 部位タブに添える件数 */
+  stashCounts: SlotCounts;
   /** 左下: ツールチップの基準（下端を揃えて上へ伸ばす） */
   tooltipRect: Rect;
   /** 右下: 共鳴パネル */
@@ -167,6 +183,8 @@ export interface InventoryUi {
   web: SynergyPanelUi;
   /** 装備タブのステータス振り分け「+」でマウスが乗っている行（-1 = なし） */
   hoverAlloc: number;
+  /** 装備タブの倉庫の部位分け・並べ替え・絞り込み（開き直しても保つ） */
+  stashView: StashView;
 }
 
 export function createInventoryUi(): InventoryUi {
@@ -187,6 +205,7 @@ export function createInventoryUi(): InventoryUi {
     echo: createEchoUi(),
     web: createSynergyPanelUi(),
     hoverAlloc: -1,
+    stashView: createStashView(),
   };
 }
 
@@ -202,8 +221,11 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
     item: state.profile.equipment[slot],
   }));
   const stashHeader: Rect = { x: RIGHT_X, y: CONTENT_Y, w: RIGHT_W, h: STASH_HEADER_H };
-  const stashOrder = sortStash(state.profile.stash);
-  const area: Rect = { x: RIGHT_X, y: CONTENT_Y + STASH_HEADER_H, w: RIGHT_W, h: CONTENT_H - STASH_HEADER_H };
+  const toolbarY = CONTENT_Y + STASH_HEADER_H;
+  const toolbar = layoutStashToolbar({ x: RIGHT_X, y: toolbarY, w: RIGHT_W }, state.profile.stash);
+  const stashOrder = applyStashView(state.profile.stash, ui.stashView);
+  const listY = toolbarY + toolbar.h;
+  const area: Rect = { x: RIGHT_X, y: listY, w: RIGHT_W, h: CONTENT_Y + CONTENT_H - listY };
   const list = layoutStashList(stashOrder, ui.scroll, area);
   const bottomY = CONTENT_Y + CONTENT_H;
   return {
@@ -212,6 +234,9 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
     stashHeader,
     stashRows: list.rows,
     stashOrder,
+    stashTotal: state.profile.stash.length,
+    stashToolbar: toolbar.controls,
+    stashCounts: slotCounts(state.profile.stash, ui.stashView),
     tooltipRect: { x: PANEL_X, y: bottomY, w: LEFT_W, h: TOOLTIP_H },
     resonanceRect: { x: RIGHT_X, y: bottomY, w: RIGHT_W, h: TOOLTIP_H },
     hintRect: { x: PANEL_X, y: CONTENT_BOTTOM, w: PANEL_W, h: HINT_H },
@@ -261,6 +286,7 @@ function clearHover(ui: InventoryUi): void {
   ui.echo.hoverOp = null;
   ui.echo.hoverId = null;
   ui.hoverAlloc = -1;
+  ui.stashView.hover = null;
 }
 
 function switchTab(ui: InventoryUi, tab: InventoryTab): void {
@@ -485,6 +511,12 @@ function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput
   ui.hoverAlloc = alloc.hover;
   if (alloc.used) return;
   const layout = layoutInventory(state, ui);
+  if (updateStashToolbar(ui.stashView, layout.stashToolbar, input, state.profile.stash)) {
+    // 条件が変わったら一覧の先頭から見せる
+    ui.scroll = 0;
+    pushSfx(state, "uiClick");
+    return;
+  }
   ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
 
   const hoveredSlot = input.aimScreen ? findHoveredSlot(layout, input.aimScreen) : null;
