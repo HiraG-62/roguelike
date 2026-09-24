@@ -16,6 +16,27 @@
 
 各ブロックの `_note` に「なぜこの値か」と単位が書いてある。設計の詳細は `docs/ideas/data-externalization.md`。
 
+## 項目の意味を読む / 書く
+
+**読む**: 項目の意味は、同じブロックの先頭にある `_fields` に「項目名 → 説明（意味。単位。目安）」で書いてある。敵のように同じ形の行が並ぶ表では、表の先頭に 1 回だけ書き、行（`slime` など）はそれを引き継ぐ。行の中に `_fields` があれば、その行だけの説明が優先。`swarm.min` のようなドット表記は、行の中の `swarm` の中の `min` を指す。`resist` のようにオブジェクト名だけの説明は、その中の項目全部に効く。
+
+例: スライムの `windup`（`enemies.json` の `stats.slime.windup`）の意味は、`stats` の先頭の `_fields.windup` にある。
+
+```json
+"stats": {
+  "_fields": {
+    "windup": "攻撃の予備動作（予告）の秒。長いほど避けやすい（テレグラフ原則）。深度 1 つごとに 1.5% 短くなり、…。目安 0.35〜0.9",
+    …
+  },
+  "slime": { "radius": 6, "hp": 20, "speed": 55, "contactDamage": 10, "windup": 0.35, … }
+```
+
+**書く**: 新しい数値の項目を足したら、そのブロック（表なら表の先頭）の `_fields` にも 1 行足す。説明は「意味。単位（秒 / px / 倍率〔1 = 等倍〕/ 割合〔0..1〕/ %〔表示単位〕）。目安 / 範囲」の順で、用語は `docs/GLOSSARY.md`。推測で書かず、その数値を読む system のコードで効き方を確かめる。「なぜこの値か（QA の履歴）」は `_fields` ではなく `_note` に書く。
+
+- 検査（`src/data/balance/balance.test.ts`）: `_fields` にある項目が JSON に無ければ（名前の打ち間違い・項目を消した）落ちる。説明の無い数値の数はファイルごとに基準値（`UNDOCUMENTED_BASELINE`）以下でなければ落ちる。説明を書き足したら基準値を実測まで下げる（上げない）。`enemies.json` の `stats` / `combat` / `defense` と `jobs.json` は説明の無い項目 0
+- 雛形: `node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef` のように TS の型名を渡すと、JSDoc から `_fields` の雛形を出す。単位と目安を足してから貼る
+- `_fields` は `_note` と同じく読み込み時に剥がされるので、足しても数値の版（`BALANCE_HASH`）は変わらない
+
 ## 数値の変え方
 
 全部 `src/data/balance/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`npm run check` は通さなくても `npm run dev` は動くが、変える前に一度 `npm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。

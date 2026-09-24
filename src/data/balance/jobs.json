@@ -1,6 +1,51 @@
 {
   "_note": "ジョブ(docs/COMBAT_DESIGN.md A-9)。単位: 秒 / % は表示単位(+25%は25) / 倍率(1=等倍)。attributes は基礎値(各5)に足す偏り、weakness は掛け算の倍率(JobMulStat)。「見習い」(none)は数値を持たないので TS 側(src/data/jobs.ts)にそのまま残る",
   "JOB": {
+    "_fields": {
+      "favoredMeleeMul": "得意な武器種を持つ間の威力の倍率（1 = 等倍）。銃なら射撃、それ以外は近接に掛かる。目安 1.05〜1.2",
+      "favoredAttackSpeedMul": "得意な武器種を持つ間の攻撃速度の倍率（銃なら連射速度）。目安 1.05〜1.15",
+      "starterStoneLinks": "開始時に渡す初期スキル石の連結数",
+      "starterWeaponLevel": "開始時に渡す初期武器（素の器）のアイテムレベル",
+      "swordsmanFinisherPoise": "剣士: 終撃が当たったときに上乗せする怯み値",
+      "swordsmanJustBuffPct": "剣士: 見切りを決めた後のダメージ増。%（表示単位。25 なら +25%）",
+      "swordsmanJustBuffSec": "剣士: 見切りの後のダメージ増が続く秒",
+      "swordsmanSkillMul": "剣士の弱点: スキルの威力の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.swordsman.skillDamageMul なので、両方を同じ値にする",
+      "hunterWindupPoise": "狩人: 予備動作中の敵を射撃・遠距離スキルで撃ったときに上乗せする怯み値",
+      "hunterVulnerableSec": "狩人: 精鋭を射撃・遠距離スキルで撃ったときに付ける脆弱の秒",
+      "hunterEliteIcd": "狩人: 精鋭を脆弱にする規則がもう一度発動できるまでの秒（内部の再使用時間）",
+      "hunterHpMul": "狩人の弱点: 最大生命の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.hunter.maxHp なので、両方を同じ値にする",
+      "brawlerEveryHits": "拳闘士: 近接をこの回数当てるごとに周りへ衝撃波",
+      "brawlerShockwaveRatio": "拳闘士: 衝撃波の威力。近接 1 段目の威力に掛ける倍率",
+      "brawlerHurtBuffPct": "拳闘士: 被弾した後のダメージ増。%（表示単位）",
+      "brawlerHurtBuffSec": "拳闘士: 被弾の後のダメージ増が続く秒",
+      "brawlerDamageTakenMul": "拳闘士の弱点: 受けるダメージの倍率（1.1 で 10% 増）。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.brawler.damageTakenMul なので、両方を同じ値にする",
+      "shieldHurtInvulnSec": "盾持ち: 被弾した直後の無敵の秒",
+      "shieldHurtIcd": "盾持ち: 被弾後の無敵がもう一度発動できるまでの秒（内部の再使用時間）",
+      "shieldCounterRatio": "盾持ち: カウンターで出す衝撃波の威力。近接 1 段目の威力に掛ける倍率",
+      "shieldMoveMul": "盾持ちの弱点: 移動速度の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.shieldBearer.moveSpeedMul なので、両方を同じ値にする",
+      "hexerStatusMana": "呪術師: 敵に状態異常を付けるたびに戻る気力",
+      "hexerStatusIcd": "呪術師: 気力が戻る規則がもう一度発動できるまでの秒（内部の再使用時間）。多段の付与で一気に戻りすぎないための間隔",
+      "hexerSpreadRadius": "呪術師: 毒の付いた敵を倒したときに毒が広がる半径。px（10px = 1m）",
+      "hexerSpreadSec": "呪術師: 広がった毒の持続の秒",
+      "hexerMeleeMul": "呪術師の弱点: 近接の威力の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.hexer.meleeDamageMul なので、両方を同じ値にする",
+      "lancerGuardPoise": "槍兵: 堅守中の敵に近接を当てたときに上乗せする怯み値",
+      "lancerStaggerEnergy": "槍兵: 敵を怯ませるたびに溜まる必殺ゲージ（最大 100）",
+      "lancerDashCdMul": "槍兵の弱点: ダッシュの再使用時間の倍率（1.15 で 15% 延びる）。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.lancer.dashCooldownMul なので、両方を同じ値にする",
+      "invokerCastBuffPct": "術士: スキルを使った後のダメージ増。%（表示単位）",
+      "invokerCastBuffSec": "術士: スキルの後のダメージ増が続く秒",
+      "invokerLowManaKill": "術士: 気力が少ないときに敵を倒すと戻る気力",
+      "invokerHpMul": "術士の弱点: 最大生命の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.invoker.maxHp なので、両方を同じ値にする",
+      "shadowAfterDashSec": "影: ダッシュを終えてからこの秒以内の近接が脆弱を付ける",
+      "shadowVulnerableSec": "影: ダッシュ直後の近接で付ける脆弱の秒",
+      "shadowVulnerableIcd": "影: 脆弱を付ける規則がもう一度発動できるまでの秒（内部の再使用時間）",
+      "shadowJustSpeedPct": "影: 見切りを決めた後の移動速度増。%（表示単位）",
+      "shadowJustSpeedSec": "影: 見切りの後の移動速度増が続く秒",
+      "shadowHpMul": "影の弱点: 最大生命の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.shadow.maxHp なので、両方を同じ値にする",
+      "alchemistReactionEnergy": "錬金術師: 状態異常の反応を起こすたびに溜まる必殺ゲージ（最大 100）",
+      "alchemistBlastRatio": "錬金術師: 状態異常が 2 種以上付いた敵を倒したときの爆発の威力。近接 1 段目の威力に掛ける倍率",
+      "alchemistBlastIcd": "錬金術師: 爆発の規則がもう一度発動できるまでの秒（内部の再使用時間）",
+      "alchemistAttackSpeedMul": "錬金術師の弱点: 攻撃速度の倍率。弱点の説明文の % はこの値から作る。実際に掛かる倍率は weakness.alchemist.attackSpeedMul なので、両方を同じ値にする"
+    },
     "favoredMeleeMul": 1.1,
     "favoredAttackSpeedMul": 1.08,
     "starterStoneLinks": 1,
@@ -46,6 +91,13 @@
     "alchemistAttackSpeedMul": 0.9
   },
   "attributes": {
+    "_fields": {
+      "str": "筋力の偏り。基礎値（各 5）に足す点数。ジョブごとに 5 つの合計を 0 にする（jobs.test.ts が検査）。書かないステータスは 0",
+      "dex": "技巧の偏り。基礎値（各 5）に足す点数。ジョブごとに 5 つの合計を 0 にする（jobs.test.ts が検査）。書かないステータスは 0",
+      "vit": "体力の偏り。基礎値（各 5）に足す点数。ジョブごとに 5 つの合計を 0 にする（jobs.test.ts が検査）。書かないステータスは 0",
+      "mnd": "精神の偏り。基礎値（各 5）に足す点数。ジョブごとに 5 つの合計を 0 にする（jobs.test.ts が検査）。書かないステータスは 0",
+      "spi": "霊力の偏り。基礎値（各 5）に足す点数。ジョブごとに 5 つの合計を 0 にする（jobs.test.ts が検査）。書かないステータスは 0"
+    },
     "swordsman": {
       "str": 2,
       "vit": 1,
@@ -103,6 +155,15 @@
     }
   },
   "weakness": {
+    "_fields": {
+      "maxHp": "最大生命の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+      "skillDamageMul": "スキルの威力の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+      "meleeDamageMul": "近接の威力の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+      "moveSpeedMul": "移動速度の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+      "attackSpeedMul": "攻撃速度の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+      "dashCooldownMul": "ダッシュの再使用時間の倍率（1 = 等倍。1 より大きいと延びる）。JOB の同じ弱点の値（表示の % の元）と揃える",
+      "damageTakenMul": "受けるダメージの倍率（1 = 等倍。1 より大きいと増える）。JOB の同じ弱点の値（表示の % の元）と揃える"
+    },
     "swordsman": {
       "skillDamageMul": 0.85
     },

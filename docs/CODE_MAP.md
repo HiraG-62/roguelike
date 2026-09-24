@@ -15,7 +15,7 @@ src/
   render/   Canvas 描画（state を読むだけ）
   ui/       画面ロジック（DOM 非依存。タイトル・起点・拠点・装備画面・設定・リプレイ保存）
   audio/    Web Audio 合成の効果音と音楽
-  data/     balance/*.json（バランス数値。読み込みと _note の剥ぎ取りは balance/index.ts、実行時の形の検査は balance/validate.ts。tuning が再 export）/ tiles（外部 PNG 素材の取り込み表）/ enemies・enemiesWave3（敵定義）/ enemyCombat・enemyCombatWave3（怯み・状態異常の戦闘パラメータ）/ enemyDefense（防御・耐性）/ weapons（武器種の型定義）/ jobs / actionText（浮き文字の表示文字列）/ sprites と sprites/<family>.ts（ピクセルマップ。家族は beasts / bosses / cloister / heavy / player / shallows / still / w3back / w3front / weapons、共通の小道具は frameKit）
+  data/     balance/*.json（バランス数値。読み込みと _note の剥ぎ取りは balance/index.ts、実行時の形の検査は balance/validate.ts。項目の説明は各ブロックの `_fields`（親に 1 回、行は引き継ぐ。検査は `validateFieldDocs` / `undocumentedLeaves`）。tuning が再 export）/ tiles（外部 PNG 素材の取り込み表）/ enemies・enemiesWave3（敵定義）/ enemyCombat・enemyCombatWave3（怯み・状態異常の戦闘パラメータ）/ enemyDefense（防御・耐性）/ weapons（武器種の型定義）/ jobs / actionText（浮き文字の表示文字列）/ sprites と sprites/<family>.ts（ピクセルマップ。家族は beasts / bosses / cloister / heavy / player / shallows / still / w3back / w3front / weapons、共通の小道具は frameKit）
   meta/     図鑑・依頼・実績・連携の発見・拠点の既読の定義と永続化（ラン中の記録は system 側が積むだけ）
   save/     保存先の唯一の入口（backend。ブラウザは localStorage、Electron は fileStorage がファイルへ遅延書き込み。ファイルの封筒は fileEnvelope、preload との契約は bridge）。bootstrap が起動時に差し替える
   qa/       ヘッドレス bot とシミュレーション、report.md
