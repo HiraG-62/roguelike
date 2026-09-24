@@ -109,6 +109,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     pickups: [],
     camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
     hitstop: 0,
+    hitstopScale: 1,
     slowmo: 0,
     flash: 0,
     combo: { count: 0, timer: 0, best: 0, popTimer: 0 },

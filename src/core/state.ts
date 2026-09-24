@@ -630,6 +630,8 @@ export interface GameState {
   camera: Camera;
   /** 残りヒットストップ（ステップ数） */
   hitstop: number;
+  /** ヒットストップの強度（0..1）。設定画面で変えられる。0 でヒットストップ無効。system/effects.ts の hitstop() が掛ける */
+  hitstopScale: number;
   /** 残りスローモーション（実時間秒） */
   slowmo: number;
   /** 画面全体の白フラッシュ (0..1) */

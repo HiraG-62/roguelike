@@ -218,7 +218,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 export const PAUSE_MENU_ITEMS = ["resume", "settings", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
-export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "keybinds", "close"] as const;
+export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "close"] as const;
 export type SettingsItem = (typeof SETTINGS_ITEMS)[number];
 
 /** move 系の値が 0 → 非0 に変わった瞬間だけ、その符号を返す（連射防止のエッジ検出） */
@@ -285,8 +285,8 @@ export function pauseMenuItemAt(x: number, y: number, itemGap: number): number |
 }
 
 export const SETTINGS_PANEL_W = 220;
-/** 6 項目 + 見出し + 下の案内が収まる高さ（音楽の音量の行を足して 142 → 160） */
-export const SETTINGS_PANEL_H = 160;
+/** 8 項目 + 見出し + 下の案内が収まる高さ（ヒットストップ・アイテム情報表示の行を足して 160 → 196） */
+export const SETTINGS_PANEL_H = 196;
 const SETTINGS_ROW_TOP = 40;
 
 export interface SettingsLayout {
@@ -326,15 +326,16 @@ export function isActionRow(row: KeybindsRow): row is RebindableAction {
   return row !== "reset" && row !== "close";
 }
 
-// 「拾う」を足して 17 行になったので、最小の行間（13）で全行が 1 画面に収まるよう上下の余白を詰めた
-const KEYBINDS_PANEL: Rect = { x: 40, y: 2, w: 400, h: 266 };
+// 「アイテム情報」を足して 18 行になったので、パネルを画面いっぱい（y0）にし上下の余白をさらに詰めて
+// 最小の行間（13）で全行が 1 画面に収まるようにした
+const KEYBINDS_PANEL: Rect = { x: 40, y: 0, w: 400, h: 270 };
 /** パネル上端から見出し・列見出し・最初の行の中心までの距離 */
-const KEYBINDS_TITLE_TOP = 11;
-const KEYBINDS_HEADER_TOP = 25;
-const KEYBINDS_FIRST_ROW_TOP = 36;
+const KEYBINDS_TITLE_TOP = 8;
+const KEYBINDS_HEADER_TOP = 20;
+const KEYBINDS_FIRST_ROW_TOP = 30;
 /** パネル下端から操作説明の中心・一覧の下端までの距離 */
-const KEYBINDS_FOOTER_BOTTOM = 8;
-const KEYBINDS_LIST_BOTTOM = 15;
+const KEYBINDS_FOOTER_BOTTOM = 6;
+const KEYBINDS_LIST_BOTTOM = 11;
 /** アクション名の列の幅（この右から 主 / 副 / 予備 の列が並ぶ） */
 const KEYBINDS_NAME_W = 120;
 const KEYBINDS_SLOT_W = 88;

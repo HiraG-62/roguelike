@@ -4,7 +4,7 @@ import { FEEL, MANA } from "../data/tuning";
 import type { BulletDef } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
-import { spawnBurst, spawnRing } from "./effects";
+import { hitstop, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { boonAttackManaMul } from "./boons";
 import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
@@ -216,7 +216,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
       poise: (pr.poise ?? 0) * mul,
     });
   }
-  spawnRing(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
+  spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
   spawnBurst(state, pr.pos, pr.color, MINE_PARTICLES, 120, 0.3, 2);
   pushSfx(state, "explode");
 }
@@ -282,5 +282,5 @@ function hitPlayer(state: GameState, pr: Projectile): void {
   if (result === "ignored") return;
   pr.life = 0;
   spawnBurst(state, pr.pos, pr.color, 6, 90, 0.25, 1.5);
-  if (result === "dodged") state.hitstop = Math.max(state.hitstop, FEEL.hitstopLight);
+  if (result === "dodged") hitstop(state, FEEL.hitstopLight);
 }

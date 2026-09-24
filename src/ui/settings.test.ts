@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_KEYBINDS, assignBinding, defaultKeybinds } from "../core/input";
 import {
+  DEFAULT_DROP_TOOLTIP,
+  DEFAULT_HITSTOP_SCALE,
   DEFAULT_MUSIC_VOLUME,
   KEYBINDS_KEY,
   SETTINGS_KEY,
+  adjustHitstopScale,
   adjustMusicVolume,
   adjustScreenShake,
   adjustVolume,
@@ -11,6 +14,7 @@ import {
   loadSettings,
   resetKeybinds,
   saveSettings,
+  toggleDropTooltip,
   toggleMute,
 } from "./settings";
 
@@ -51,7 +55,7 @@ describe("settings persistence", () => {
 
   it("保存した内容がそのまま読み戻る（round trip）", () => {
     const storage = new MemoryStorage();
-    const settings = { muted: true, volume: 0.3, musicVolume: 0.8, screenShake: 0.7, keybinds: defaultKeybinds() };
+    const settings = { muted: true, volume: 0.3, musicVolume: 0.8, screenShake: 0.7, hitstopScale: 0.5, dropTooltip: false, keybinds: defaultKeybinds() };
     saveSettings(settings, storage);
     expect(loadSettings(storage)).toEqual(settings);
   });
@@ -68,7 +72,15 @@ describe("settings persistence", () => {
   it("範囲外の値は 0..1 にクランプされる", () => {
     const storage = new MemoryStorage();
     storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 5, musicVolume: 3, screenShake: -2 }));
-    expect(loadSettings(storage)).toEqual({ muted: false, volume: 1, musicVolume: 1, screenShake: 0, keybinds: defaultKeybinds() });
+    expect(loadSettings(storage)).toEqual({
+      muted: false,
+      volume: 1,
+      musicVolume: 1,
+      screenShake: 0,
+      hitstopScale: DEFAULT_HITSTOP_SCALE,
+      dropTooltip: DEFAULT_DROP_TOOLTIP,
+      keybinds: defaultKeybinds(),
+    });
   });
 
   it("音楽の音量が無い旧データは既定の音楽の音量で読める", () => {
@@ -77,6 +89,59 @@ describe("settings persistence", () => {
     const loaded = loadSettings(storage);
     expect(loaded.musicVolume, "既定の音楽の音量").toBe(DEFAULT_MUSIC_VOLUME);
     expect(loaded.volume, "全体の音量は残る").toBeCloseTo(0.3);
+  });
+});
+
+describe("ヒットストップ強度 / アイテム情報表示の設定", () => {
+  it("旧データ（新フィールド無し）は既定値に落ちる", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1 }));
+    const loaded = loadSettings(storage);
+    expect(loaded.hitstopScale).toBe(DEFAULT_HITSTOP_SCALE);
+    expect(loaded.dropTooltip).toBe(DEFAULT_DROP_TOOLTIP);
+  });
+
+  it("hitstopScale は範囲外を 0..1 に丸め、0.25 刻みへ寄せる", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1, hitstopScale: 5 }));
+    expect(loadSettings(storage).hitstopScale).toBe(1);
+
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1, hitstopScale: -2 }));
+    expect(loadSettings(storage).hitstopScale).toBe(0);
+
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1, hitstopScale: 0.6 }));
+    expect(loadSettings(storage).hitstopScale, "0.6 は 0.5 刻みに丸まる").toBe(0.5);
+  });
+
+  it("保存して読み直せる（round trip）", () => {
+    const storage = new MemoryStorage();
+    const settings = defaultSettings();
+    settings.hitstopScale = 0.25;
+    settings.dropTooltip = false;
+    saveSettings(settings, storage);
+    const loaded = loadSettings(storage);
+    expect(loaded.hitstopScale).toBe(0.25);
+    expect(loaded.dropTooltip).toBe(false);
+  });
+
+  it("adjustHitstopScale は 0.25 刻みで動き 0..1 でクランプする", () => {
+    const s = defaultSettings();
+    adjustHitstopScale(s, -1);
+    expect(s.hitstopScale).toBe(0.75);
+    s.hitstopScale = 0;
+    adjustHitstopScale(s, -5);
+    expect(s.hitstopScale, "0 未満にはならない").toBe(0);
+    s.hitstopScale = 1;
+    adjustHitstopScale(s, 5);
+    expect(s.hitstopScale, "1 を超えない").toBe(1);
+  });
+
+  it("toggleDropTooltip は反転する", () => {
+    const s = defaultSettings();
+    toggleDropTooltip(s);
+    expect(s.dropTooltip).toBe(false);
+    toggleDropTooltip(s);
+    expect(s.dropTooltip).toBe(true);
   });
 });
 

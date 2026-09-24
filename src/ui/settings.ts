@@ -14,6 +14,13 @@ export interface Settings {
   musicVolume: number;
   /** 0..1。1 で通常の揺れ、0 で無効 */
   screenShake: number;
+  /**
+   * ヒットストップの強度（0..1、0.25 刻み）。既定 1、0 で無効。core/game.ts の createGame へ渡り、
+   * state.hitstopScale としてシミュレーションに効くため決定性を保つ（core/replay.ts が記録する）
+   */
+  hitstopScale: number;
+  /** 床のアイテムの性能ポップアップ（render/dropTooltip.ts）を表示するか。既定 true。表示だけの設定 */
+  dropTooltip: boolean;
   /** キー設定。KEYBINDS_KEY に別保存する。どちらにも無ければ既定 */
   keybinds: Keybinds;
 }
@@ -26,15 +33,31 @@ const CURRENT_VERSION = 1;
 export const DEFAULT_VOLUME = 0.5;
 export const DEFAULT_MUSIC_VOLUME = 0.5;
 export const DEFAULT_SCREEN_SHAKE = 1;
+export const DEFAULT_HITSTOP_SCALE = 1;
+export const DEFAULT_DROP_TOOLTIP = true;
 export const VOLUME_STEP = 0.1;
 export const SCREEN_SHAKE_STEP = 0.1;
+export const HITSTOP_SCALE_STEP = 0.25;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/** 0..1 を HITSTOP_SCALE_STEP 刻みに丸める */
+function clampHitstopScale(value: number): number {
+  return Math.round(clamp01(value) / HITSTOP_SCALE_STEP) * HITSTOP_SCALE_STEP;
+}
+
 export function defaultSettings(): Settings {
-  return { muted: false, volume: DEFAULT_VOLUME, musicVolume: DEFAULT_MUSIC_VOLUME, screenShake: DEFAULT_SCREEN_SHAKE, keybinds: defaultKeybinds() };
+  return {
+    muted: false,
+    volume: DEFAULT_VOLUME,
+    musicVolume: DEFAULT_MUSIC_VOLUME,
+    screenShake: DEFAULT_SCREEN_SHAKE,
+    hitstopScale: DEFAULT_HITSTOP_SCALE,
+    dropTooltip: DEFAULT_DROP_TOOLTIP,
+    keybinds: defaultKeybinds(),
+  };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -69,7 +92,9 @@ export function loadSettings(storage?: Storage): Settings {
   const volume = typeof parsed.volume === "number" ? clamp01(parsed.volume) : DEFAULT_VOLUME;
   const musicVolume = typeof parsed.musicVolume === "number" ? clamp01(parsed.musicVolume) : DEFAULT_MUSIC_VOLUME;
   const screenShake = typeof parsed.screenShake === "number" ? clamp01(parsed.screenShake) : DEFAULT_SCREEN_SHAKE;
-  return { muted, volume, musicVolume, screenShake, keybinds };
+  const hitstopScale = typeof parsed.hitstopScale === "number" ? clampHitstopScale(parsed.hitstopScale) : DEFAULT_HITSTOP_SCALE;
+  const dropTooltip = typeof parsed.dropTooltip === "boolean" ? parsed.dropTooltip : DEFAULT_DROP_TOOLTIP;
+  return { muted, volume, musicVolume, screenShake, hitstopScale, dropTooltip, keybinds };
 }
 
 export function saveSettings(settings: Settings, storage?: Storage): void {
@@ -99,6 +124,14 @@ export function adjustMusicVolume(settings: Settings, dir: number): void {
 
 export function adjustScreenShake(settings: Settings, dir: number): void {
   settings.screenShake = clamp01(settings.screenShake + Math.sign(dir) * SCREEN_SHAKE_STEP);
+}
+
+export function adjustHitstopScale(settings: Settings, dir: number): void {
+  settings.hitstopScale = clampHitstopScale(settings.hitstopScale + Math.sign(dir) * HITSTOP_SCALE_STEP);
+}
+
+export function toggleDropTooltip(settings: Settings): void {
+  settings.dropTooltip = !settings.dropTooltip;
 }
 
 /** キー設定だけを既定に戻す（音量などは残す） */

@@ -1,7 +1,7 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEffects";
-import { shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { STATUS } from "../data/tuning";
@@ -279,7 +279,7 @@ function updateMines(state: GameState, dt: number): void {
 function explodeMine(state: GameState, pos: Vec, params: CastParams): void {
   const m = SKILL.mines;
   const radius = mineRadius(params);
-  spawnRing(state, pos, radius, COLOR_MINE, RING_LIFE * 2);
+  spawnBlast(state, pos, radius, COLOR_MINE, RING_LIFE * 2);
   spawnBurst(state, pos, COLOR_MINE, MINE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");

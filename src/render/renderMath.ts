@@ -743,3 +743,105 @@ export function playerBodyPose(phase: SwingPhase, t: number, charging: boolean):
   if (phase === "recover" && t < STRIKE_HOLD) return "strike";
   return "walk";
 }
+
+// ---------------------------------------------------------------------------
+// 画面下の HUD の配置（右下の列: 祝福の列 → 芽の知らせ → スキル枠 → 変身の行 → 連鎖。下中央: コンボ）
+// ---------------------------------------------------------------------------
+
+/** 画面上の矩形（論理 px） */
+export interface HudRect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** スキル枠の寸法（skillHud.ts が描き、配置の計算もこれで行う） */
+export const SKILL_SLOT = {
+  size: 16,
+  gap: 4,
+  /** 枠の右に出す刻印符のドット（隙間 1 + ドット 2） */
+  sideDots: 3,
+  /** 枠の上の溜めバー（高さ 2 + 隙間 1） */
+  gaugeH: 3,
+  /** 枠の下のキー番号の行の最小の高さ */
+  keyLabelMinH: 9,
+  /** キー番号の基準線から行の下端まで（文字の下がり） */
+  keyDescent: 2,
+} as const;
+
+/** 右下の列の右端の余白（祝福の列・芽の知らせと揃える） */
+const HUD_EDGE_RIGHT = 4;
+/** 右下の列の段と段の隙間 */
+const HUD_STACK_GAP = 3;
+/** 芽の知らせのアイコン（budUi.ts）の高さ。出ていないときも場所を空けて、スキル枠が上下に動かないようにする */
+const BUD_ICON_H = 11;
+/** 変身の行の基準線とスキル枠（溜めバー込み）の隙間 */
+const FORM_BASELINE_GAP = 2;
+/** 文字の行が基準線より下に出る分 */
+const TEXT_DESCENT = 2;
+/** コンボ HUD の最下行（案内）の基準線の、画面下端からの距離。その下は画面下中央のラン情報（runUi.ts）が使う */
+const COMBO_BOTTOM_FROM_EDGE = 46;
+/** コンボ HUD は 3 行（武器名・段・案内） */
+const COMBO_LINES = 3;
+/** 行の最小の高さ（倍率が小さくても詰まり過ぎない） */
+const HUD_LINE_MIN = 10;
+
+export interface HudLayout {
+  /** スキル枠の列全体（溜めバー・刻印符のドット・キー番号を含む） */
+  readonly skills: HudRect;
+  /** 1 つ目の枠の左上 */
+  readonly slotLeft: number;
+  readonly slotTop: number;
+  /** キー番号の基準線 */
+  readonly keyBaseline: number;
+  /** 芽の知らせのアイコンに空けておく段（描くのは budUi.ts） */
+  readonly bud: HudRect;
+  /** 変身の行（右寄せ。幅はスキル枠の列と同じに切り詰める） */
+  readonly form: HudRect;
+  readonly formBaseline: number;
+  /** 連鎖の表示の最下行の基準線（ここから上へ積む） */
+  readonly chainBottom: number;
+  /** コンボ HUD（下中央、3 行）。幅はスキル枠の列に掛からない範囲 */
+  readonly combo: HudRect;
+  readonly comboBottom: number;
+}
+
+/**
+ * 画面下の HUD の配置。boonTop は祝福アイコン列の上端（boonUi.ts の boonHudTop）、lineH は小さい文字の行高。
+ * 右下の列は下から 祝福 → 芽 → スキル枠 → 変身の行 → 連鎖 の順に積み、コンボは下中央でスキル枠の左に収める
+ */
+export function hudLayout(boonTop: number, lineH: number, slotCount: number): HudLayout {
+  const line = Math.max(HUD_LINE_MIN, lineH);
+  const slotsW = slotCount * SKILL_SLOT.size + Math.max(0, slotCount - 1) * SKILL_SLOT.gap + SKILL_SLOT.sideDots;
+  const bud: HudRect = { x: VIEW_W - HUD_EDGE_RIGHT - slotsW, y: boonTop - HUD_STACK_GAP - BUD_ICON_H, w: slotsW, h: BUD_ICON_H };
+  const labelH = Math.max(SKILL_SLOT.keyLabelMinH, line);
+  const skillsBottom = bud.y - HUD_STACK_GAP;
+  const slotTop = skillsBottom - labelH - SKILL_SLOT.size;
+  const skillsTop = slotTop - SKILL_SLOT.gaugeH;
+  const skills: HudRect = { x: VIEW_W - HUD_EDGE_RIGHT - slotsW, y: skillsTop, w: slotsW, h: skillsBottom - skillsTop };
+  const formBaseline = skillsTop - FORM_BASELINE_GAP;
+  const form: HudRect = { x: skills.x, y: formBaseline + TEXT_DESCENT - line, w: skills.w, h: line };
+  const comboBottom = VIEW_H - COMBO_BOTTOM_FROM_EDGE;
+  const comboTop = comboBottom + TEXT_DESCENT - line * COMBO_LINES;
+  const comboHalf = skills.x - HUD_STACK_GAP - VIEW_W / 2;
+  const combo: HudRect = { x: VIEW_W / 2 - comboHalf, y: comboTop, w: comboHalf * 2, h: comboBottom + TEXT_DESCENT - comboTop };
+  const chainBottom = Math.min(form.y, combo.y) - HUD_STACK_GAP - TEXT_DESCENT;
+  return {
+    skills,
+    slotLeft: skills.x,
+    slotTop,
+    keyBaseline: skillsBottom - SKILL_SLOT.keyDescent,
+    bud,
+    form,
+    formBaseline,
+    chainBottom,
+    combo,
+    comboBottom,
+  };
+}
+
+/** 2 つの矩形が重なるか（辺が接するだけなら重ならない） */
+export function rectsOverlap(a: HudRect, b: HudRect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}

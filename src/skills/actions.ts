@@ -4,7 +4,7 @@ import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec"
 import { STATUS } from "../data/tuning";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
 import { healPlayer } from "../system/combat";
-import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { moveBody, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
@@ -295,7 +295,7 @@ function castKindle(state: GameState, ctx: CastCtx): void {
 function kindleBurst(state: GameState, at: Vec, remaining: number, params: CastParams): void {
   const k = SKILL.kindle;
   const radius = k.burstRadius * params.areaMul;
-  spawnRing(state, at, radius, COLOR_KINDLE, RING_LIFE * 2);
+  spawnBlast(state, at, radius, COLOR_KINDLE, RING_LIFE * 2);
   spawnBurst(state, at, COLOR_KINDLE, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_LIGHT);
   pushSfx(state, "explode");

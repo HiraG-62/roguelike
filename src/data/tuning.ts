@@ -213,6 +213,12 @@ export const ELEMENT = {
  */
 export const EFFECTS = BALANCE.feel.EFFECTS;
 
+/**
+ * 攻撃エフェクト（src/render/fxAttack.ts / fxMath.ts・system/effects.ts の spawnBlast）。
+ * 見た目だけで、ロジックの結果に影響しない
+ */
+export const FX_ATTACK = BALANCE.feel.FX_ATTACK;
+
 /** 音楽（src/audio/music.ts）。曲の中身（音階・旋律）は music.ts の表、ここは混ぜ方と時間 */
 export const MUSIC = BALANCE.feel.MUSIC;
 

@@ -1,8 +1,8 @@
 import type { Element } from "../core/element";
-import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, pushSfx } from "../core/state";
+import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type ShapeFx, pushSfx } from "../core/state";
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
-import { EFFECTS, FX_WAVE3, REAPER } from "../data/tuning";
+import { EFFECTS, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
 import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures } from "../data/weapons";
 import type { SfxName } from "../audio/sfxNames";
 import { TRAIT_COLORS, type Item, type TraitColor } from "../loot/types";
@@ -153,7 +153,8 @@ export function shake(state: GameState, amount: number): void {
 }
 
 export function hitstop(state: GameState, steps: number): void {
-  state.hitstop = Math.max(state.hitstop, steps);
+  // hitstopScale 0 は無効化（丸めると 0 ステップになり積まれない）。将来のマルチプレイではここを 0 固定にする想定
+  state.hitstop = Math.max(state.hitstop, Math.round(steps * state.hitstopScale));
 }
 
 /** 広がるリング（衝撃波・爆発） */
@@ -166,6 +167,30 @@ export function spawnRing(state: GameState, pos: Vec, radius: number, color: str
 export function spawnLine(state: GameState, from: Vec, to: Vec, color: string, life: number): void {
   state.shapes.push({ kind: "line", pos: { ...from }, to: { ...to }, radius: 0, life, maxLife: life, color });
   capList(state.shapes, EFFECTS.maxShapes);
+}
+
+/**
+ * 爆発の輪として描く ShapeFx（src/render/fxAttack.ts が閃光 → 火球 → 煙 → 破片で描く）。
+ * 見た目だけの印なので state の型は増やさず、輪のオブジェクトそのものに印を付ける（弱参照なので消えた輪は残らない）
+ */
+const blastShapes = new WeakSet<ShapeFx>();
+
+export function isBlastShape(shape: ShapeFx): boolean {
+  return blastShapes.has(shape);
+}
+
+/**
+ * 爆発（spawnRing の代わりに 1 行で呼ぶ）。輪は段階を見せるため FX_ATTACK.blast.life 以上に延ばし、
+ * 火の粉を少し上へ散らす。粒は演出専用の乱数なのでゲームの乱数列は変わらない
+ */
+export function spawnBlast(state: GameState, pos: Vec, radius: number, color: string, life = FX_ATTACK.blast.life): void {
+  const c = FX_ATTACK.blast;
+  const span = Math.max(life, c.life);
+  const shape: ShapeFx = { kind: "ring", pos: { ...pos }, to: { ...pos }, radius, life: span, maxLife: span, color };
+  state.shapes.push(shape);
+  blastShapes.add(shape);
+  capList(state.shapes, EFFECTS.maxShapes);
+  spawnDirectional(state, pos, { x: 0, y: -1 }, color, c.embers, c.emberSpeed, 1.2, span);
 }
 
 /** 時間で消える演出の印を置く */

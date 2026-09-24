@@ -1,5 +1,4 @@
 import type { GameState } from "../core/state";
-import { VIEW_H, VIEW_W } from "../core/view";
 import {
   type BranchHint,
   type ButtonKey,
@@ -13,16 +12,15 @@ import {
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
 import { currentShot, isAttacking, playerMoveset } from "../system/player";
-import { TEXT, drawText, textLineHeight } from "./pixelText";
+import { hudLayoutFor } from "./layers";
+import { TEXT, drawText, textLineHeight, truncateText } from "./pixelText";
+import type { HudLayout } from "./renderMath";
 
 /**
- * コンボの可視化 HUD（画面下中央、スキル HUD の上）。武器名 / 段のピップ / 次に押すと出る派生を出す
+ * コンボの可視化 HUD（画面下中央。位置と幅は renderMath.ts の hudLayout で、右下のスキル枠に掛からない）。武器名 / 段のピップ / 次に押すと出る派生を出す
  * （docs/ideas/combat-feel-design.md D-1）。state を読むだけで、ロジックには触れない
  */
 
-/** スキル HUD の枠（skillHud.ts の HUD_BOTTOM 26 + HUD_SIZE 16）の上に積む隙間 */
-const SKILL_HUD_TOP = 42;
-const BOTTOM_GAP = 4;
 const COLOR_NAME = "#d0d0d0";
 const COLOR_HINT = "#a0c8e0";
 const PIP_SIZE = 3;
@@ -104,26 +102,28 @@ export function formatBranchHints(hints: readonly BranchHint[]): string {
   return hints.map((h) => `${BUTTON_LABEL[h.button]}: ${h.name}`).join(" / ");
 }
 
-export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, layout: HudLayout = hudLayoutFor(state)): void {
   if (state.status !== "playing") return;
   const p = state.player;
   const moveset = playerMoveset(state);
-  const cx = VIEW_W / 2;
+  const cx = layout.combo.x + layout.combo.w / 2;
+  const maxW = layout.combo.w;
   const line = textLineHeight(TEXT.SMALL);
-  const bottom = VIEW_H - SKILL_HUD_TOP - BOTTOM_GAP;
+  const bottom = layout.comboBottom;
 
   // 派生を振っている間は、段のピップの代わりに派生名を出す
   const branchName = p.attack.branch >= 0 ? moveset.branches[p.attack.branch]?.name : undefined;
   if (branchName) {
-    drawText(ctx, branchName, cx, bottom - line, TEXT.SMALL, FEEL.branchTextColor, "center");
+    drawText(ctx, truncateText(branchName, maxW, TEXT.SMALL), cx, bottom - line, TEXT.SMALL, FEEL.branchTextColor, "center");
     return;
   }
 
-  drawText(ctx, moveset.name, cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
+  drawText(ctx, truncateText(moveset.name, maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
   const gauge = activeChargeGauge(state, moveset);
   if (gauge) drawGauge(ctx, cx, bottom - line, gauge);
   else drawPips(ctx, cx, bottom - line, comboPips(moveset.steps.length, p.attack.step, isAttacking(p)));
-  drawText(ctx, hudHintText(moveset, p.attack.inputs, currentShot(state.stats), p.art.cooldown), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
+  const hint = hudHintText(moveset, p.attack.inputs, currentShot(state.stats), p.art.cooldown);
+  drawText(ctx, truncateText(hint, maxW, TEXT.SMALL), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
 }
 
 /**

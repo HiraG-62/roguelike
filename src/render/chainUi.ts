@@ -7,8 +7,9 @@ import { DISCOVERY } from "../data/tuning";
 import { linkHintText } from "../meta/linkHint";
 import { type LinkRun, chainNameOfWords, linkName } from "../meta/links";
 import { STATUS_KEYWORDS } from "../system/keywords";
-import { boonHudTop } from "./boonUi";
+import { hudLayoutFor } from "./layers";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixelText";
+import type { HudLayout } from "./renderMath";
 
 /**
  * 連鎖の表示（docs/ideas/synergy-web.md 4-e）。state.chains の直近を HUD の右下（祝福アイコン列の上）に
@@ -26,7 +27,6 @@ export const CHAIN_MAX_LINES = 3;
 /** この深さ以上の段を含む連鎖は大きめの文字で出す */
 export const CHAIN_BIG_DEPTH = 2;
 const CHAIN_RIGHT = 4;
-const CHAIN_GAP_ABOVE_BOONS = 3;
 const CHAIN_LINE_MIN = 10;
 const CHAIN_BIG_LINE_MIN = 11;
 const ARROW = "→";
@@ -160,9 +160,9 @@ function lineHeight(line: ChainLine): number {
   return Math.max(big ? CHAIN_BIG_LINE_MIN : CHAIN_LINE_MIN, textLineHeight(lineSize(line)));
 }
 
-/** 各行のベースライン y（新しい行ほど下。祝福アイコン列の上に積む） */
-export function chainBaselines(heights: readonly number[], boonCount: number): number[] {
-  let y = boonHudTop(boonCount) - CHAIN_GAP_ABOVE_BOONS;
+/** 各行のベースライン y（新しい行ほど下。bottom は最下行の基準線で、右下のスキル枠・変身の行の上） */
+export function chainBaselines(heights: readonly number[], bottom: number): number[] {
+  let y = bottom;
   const out: number[] = new Array<number>(heights.length).fill(0);
   for (let i = heights.length - 1; i >= 0; i--) {
     out[i] = y;
@@ -209,14 +209,14 @@ function drawNote(ctx: CanvasRenderingContext2D, note: DiscoveryNote, baseline: 
   drawText(ctx, text, VIEW_W - CHAIN_RIGHT, baseline, m, note.kind === "fresh" ? COLOR_FRESH : COLOR_HINT, "right");
 }
 
-export function drawChainHud(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawChainHud(ctx: CanvasRenderingContext2D, state: GameState, layout: HudLayout = hudLayoutFor(state)): void {
   if (state.status !== "playing") return;
   const lines = state.chains.length === 0 ? [] : chainLines(state.chains, state.time);
   const notes = discoveryNotes(state.codexRun.links, state.time);
   if (lines.length === 0 && notes.length === 0) return;
-  // 知らせを上、連鎖を下に積む（新しい連鎖ほど祝福アイコン列に近い）
+  // 知らせを上、連鎖を下に積む（新しい連鎖ほどスキル枠に近い）
   const heights = [...notes.map(noteHeight), ...lines.map(lineHeight)];
-  const baselines = chainBaselines(heights, state.boons.length);
+  const baselines = chainBaselines(heights, layout.chainBottom);
   notes.forEach((note, i) => {
     ctx.globalAlpha = chainAlpha(note.age, note.life);
     drawNote(ctx, note, baselines[i] ?? 0);

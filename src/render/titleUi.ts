@@ -67,6 +67,8 @@ const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
   volume: "音量",
   musicVolume: "音楽の音量",
   screenShake: "画面揺れ",
+  hitstopScale: "ヒットストップ",
+  dropTooltip: "アイテム情報",
   keybinds: "キー設定",
   close: "閉じる",
 };
@@ -87,6 +89,7 @@ const ACTION_LABEL: Record<RebindableAction, string> = {
   skill3: "スキル 3",
   skill4: "スキル 4",
   interact: "拾う",
+  toggleDropInfo: "アイテム情報",
   restart: "やり直す（新シード）",
 };
 
@@ -499,6 +502,8 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
     volume: barText(settings.volume),
     musicVolume: barText(settings.musicVolume),
     screenShake: barText(settings.screenShake),
+    hitstopScale: barText(settings.hitstopScale),
+    dropTooltip: settings.dropTooltip ? "オン" : "オフ",
   };
   SETTINGS_ITEMS.forEach((item, i) => {
     const active = i === cursor;

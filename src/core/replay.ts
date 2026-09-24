@@ -99,6 +99,8 @@ export interface ReplayData {
   job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
+  /** ヒットストップの強度（0..1）。無ければ 1（既定）として読む。ステップ数に効くため決定性を保つには記録が要る */
+  hitstopScale?: number;
   /**
    * 記録時の数値の版（BALANCE_HASH）。無ければ数値外出し前の記録。再生時に今の BALANCE_HASH と食い違えば
    * 結果がずれ得ることを再生画面が注記する（balanceMismatch。docs/ideas/data-externalization.md 5.3）
@@ -471,6 +473,8 @@ export interface RecorderOptions {
   daily: boolean;
   /** 起点と縛り。省略時は放浪者・縛りなし */
   setup?: RunSetup;
+  /** ヒットストップの強度（0..1）。省略時は 1 */
+  hitstopScale?: number;
 }
 
 export class ReplayRecorder {
@@ -552,6 +556,7 @@ export class ReplayRecorder {
       modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
       ...lockedRelicsField(this.options.setup?.lockedRelics),
       ...jobField(this.options.setup?.job),
+      ...hitstopScaleField(this.options.hitstopScale),
       ...snapshotAfterStartField(this.snapshotAfterStart),
       balance: BALANCE_HASH,
       snapshot: structuredClone(this.snapshot),
@@ -609,7 +614,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
   const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), job: sanitizeJob(data.job), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
-  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup);
+  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup, clampHitstopScale(data.hitstopScale));
   if (data.snapshotAfterStart === true) syncLoadoutCounts(profile, skillProfile, data.snapshot);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
@@ -806,6 +811,16 @@ function jobField(job: JobKey | undefined): Pick<ReplayData, "job"> {
   return job !== undefined && job !== "none" ? { job } : {};
 }
 
+/** 既定の 1 は書かない。旧データと同じ形を保つ */
+function hitstopScaleField(scale: number | undefined): Pick<ReplayData, "hitstopScale"> {
+  return scale !== undefined && scale !== 1 ? { hitstopScale: clampHitstopScale(scale) } : {};
+}
+
+/** 0..1 にクランプする。壊れた値・欄無しは 1（既定） */
+function clampHitstopScale(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
+
 /** 数値外出し前の記録には無い欄。無ければ書かない */
 function balanceField(hash: string | undefined): Pick<ReplayData, "balance"> {
   return typeof hash === "string" && hash.length > 0 ? { balance: hash } : {};
@@ -848,6 +863,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     modifiers: setup.modifiers,
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     ...jobField(sanitizeJob(v.job)),
+    ...hitstopScaleField(typeof v.hitstopScale === "number" ? v.hitstopScale : undefined),
     ...snapshotAfterStartField(v.snapshotAfterStart === true),
     ...balanceField(typeof v.balance === "string" ? v.balance : undefined),
     snapshot,

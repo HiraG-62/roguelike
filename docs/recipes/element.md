@@ -6,3 +6,4 @@
 - テスト: `system/elementCombat.test.ts` / `data/genre.test.ts`
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+- 新しい爆発は `system/effects.ts` の `spawnBlast` で積む（閃光 → 火球 → 煙 → 破片の段階と焦げ跡が付く。`spawnRing` はただの輪）。ダメージは `system/blast.ts` の `blastMulAt` で距離減衰を通す

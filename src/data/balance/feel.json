@@ -151,11 +151,117 @@
       "fadeIn": 0.25,
       "hold": 1.2,
       "fadeOut": 0.5
-    },
-    "trailAlpha": 0.35
+    }
   },
   "MINIMAP": {
     "revealRadius": 6
+  },
+  "FX_ATTACK": {
+    "_note": "攻撃エフェクト（src/render/fxAttack.ts / fxMath.ts・system/effects.ts の spawnBlast）。見た目だけでロジックに影響しない。秒・px・倍率",
+    "maxEvents": 96,
+    "slash": {
+      "_note": "斬撃の軌跡（三日月）。thickness は基本の厚み px、武器種の軌跡の太さ（WEAPON_TRAIL_WIDTH）を widthMul 倍して足す。heavyMul は重い段・終撃・溜めの倍率",
+      "thickness": 4,
+      "widthMul": 1.5,
+      "heavyMul": 1.6,
+      "tailRatio": 1,
+      "segments": 10,
+      "alpha": 0.7,
+      "glowAlpha": 0.55,
+      "coreAlpha": 0.95,
+      "coreFrom": 0.45,
+      "fadeTime": 0.1,
+      "tipGlow": 7,
+      "heavyTipGlow": 11,
+      "thrustWidth": 3
+    },
+    "hitSpark": {
+      "_note": "命中の斬り裂き線（近接）と火花。length は光の線の半分の長さ px",
+      "life": 0.16,
+      "length": 13,
+      "width": 2,
+      "critMul": 1.7,
+      "weakMul": 1.4,
+      "heavyMul": 1.3,
+      "sparks": 5,
+      "sparkSpeed": 170,
+      "glow": 10,
+      "critColor": "#ffe060"
+    },
+    "impact": {
+      "_note": "射撃・スキルの命中と弾の消滅の火花。rays は放射の本数、ring は広がる輪の最終半径 px",
+      "life": 0.13,
+      "rays": 5,
+      "length": 7,
+      "ring": 7,
+      "killMul": 1.5,
+      "fizzleLife": 0.1
+    },
+    "muzzle": {
+      "_note": "銃口の閃光。life は数フレーム（秒）、length / width は前方の炎の長さと幅 px",
+      "life": 0.07,
+      "length": 9,
+      "width": 4,
+      "glow": 9,
+      "spreadWidthMul": 1.8,
+      "chargeMul": 1.6,
+      "pierceLengthMul": 1.6
+    },
+    "bullet": {
+      "_note": "弾の尾。長さは速さ × trailTime（maxTrail で頭打ち）。pierce は長く細く、charge は太く光る",
+      "trailTime": 0.05,
+      "maxTrail": 22,
+      "glow": 5,
+      "glowAlpha": 0.4,
+      "coreAlpha": 0.9,
+      "trailAlpha": 0.6,
+      "pierceTrailMul": 1.8,
+      "chargeGlowMul": 1.8,
+      "enemyGlowAlpha": 0.3,
+      "enemyColor": "#ff5040"
+    },
+    "blast": {
+      "_note": "爆発の段階（閃光 → 火球 → 煙の輪 → 破片）と焦げ跡。flashEnd / fireEnd は寿命のうち閃光・火球が終わる割合",
+      "life": 0.55,
+      "flashEnd": 0.14,
+      "fireEnd": 0.45,
+      "fireCore": "#fff4c0",
+      "smokeColor": "#6a605a",
+      "smokeAlpha": 0.6,
+      "debris": 10,
+      "debrisColor": "#5a3a24",
+      "debrisReach": 1.25,
+      "scorchLife": 1.6,
+      "scorchAlpha": 0.4,
+      "scorchColor": "#120a06",
+      "scorchRatio": 0.55,
+      "embers": 6,
+      "emberSpeed": 70
+    },
+    "ring": {
+      "_note": "広がる輪（衝撃波・範囲）の見た目。flashTime 秒だけ中を薄く光らせる",
+      "flashTime": 0.08,
+      "flashAlpha": 0.3,
+      "glowWidth": 4,
+      "glowAlpha": 0.3
+    },
+    "bolt": {
+      "_note": "稲妻の線。segments で折り、jitter px ずらす。枝は雷の色の線だけ",
+      "segments": 6,
+      "jitter": 5,
+      "branches": 2,
+      "branchRatio": 0.3,
+      "glowWidth": 3,
+      "glowAlpha": 0.35,
+      "flicker": 30
+    },
+    "particle": {
+      "_note": "粒の描き方。速い粒は速度の向きに streakTime 秒ぶん尾を引く。炎の粒は熱い色 → 元の色 → 冷めた色",
+      "streakTime": 0.022,
+      "streakMinSpeed": 55,
+      "emberHot": "#fff0a0",
+      "emberCool": "#8a2810"
+    }
   },
   "MUSIC": {
     "gain": 0.32,

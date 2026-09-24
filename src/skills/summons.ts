@@ -1,6 +1,6 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { shake, spawnBurst, spawnRing } from "../system/effects";
+import { shake, spawnBlast, spawnBurst, spawnRing } from "../system/effects";
 import { gainMana } from "../system/mana";
 import { circlesOverlap, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
@@ -142,7 +142,7 @@ function detonate(state: GameState, k: PowderKeg, blown: Set<number>): void {
 export function explodeKeg(state: GameState, pos: Vec, params: CastParams): void {
   const kp = SKILL.powderKeg;
   const radius = kegRadius(params);
-  spawnRing(state, pos, radius, COLOR_KEG, RING_LIFE * 2);
+  spawnBlast(state, pos, radius, COLOR_KEG, RING_LIFE * 2);
   spawnBurst(state, pos, "#ffb060", BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_KEG);
   pushSfx(state, "explode");

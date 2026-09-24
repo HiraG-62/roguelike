@@ -73,6 +73,7 @@
 | 強靭 | `EnemyCombatDef.superArmorMul` | 敵の攻撃中（予備動作・攻撃）に受ける怯み値の倍率。低いほど怯みにくい | `data/enemyCombat.ts` |
 | テレグラフ / 予備動作 | windup | 敵の攻撃前の予告。コード上の phase は windup | 設計文書 |
 | 音量 / 音楽の音量 / 画面揺れ / ミュート | volume / musicVolume / screenShake / muted | 設定画面の項目。音楽の実際の大きさは 音量 × 音楽の音量。ミュートは効果音と音楽の両方を止める | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` SETTINGS_LABEL、`ui/settings.ts` |
+| ヒットストップ / アイテム情報 | hitstopScale / dropTooltip | 設定画面の項目。ヒットストップは打撃が止まる強さ（0..1、0.25 刻み、0 で無効）。アイテム情報は床のアイテムの性能ポップアップの表示 ON/OFF（キー設定の `toggleDropInfo`、既定 T） | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` SETTINGS_LABEL、`ui/settings.ts`、`core/input.ts` |
 | キー設定 | keybinds | 設定画面の項目とサブ画面。アクションごとのキー / マウスボタンの割り当て | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` |
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |

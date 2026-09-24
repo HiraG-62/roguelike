@@ -106,7 +106,7 @@ import { MOVESETS } from "../data/weapons";
 import { buffMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
-import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -1862,7 +1862,7 @@ function updateGrenades(state: GameState, dt: number): void {
 function explodeGrenade(state: GameState, pos: Vec, params: CastParams): void {
   const f = SKILL.frag;
   const radius = grenadeRadius(params);
-  spawnRing(state, pos, radius, COLOR_RAIL, RING_LIFE * 2);
+  spawnBlast(state, pos, radius, COLOR_RAIL, RING_LIFE * 2);
   spawnBurst(state, pos, "#ffb060", 24, 180, 0.45, 2.5);
   shake(state, SHAKE_SKILL);
   pushSfx(state, "explode");

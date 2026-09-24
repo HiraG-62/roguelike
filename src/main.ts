@@ -33,7 +33,6 @@ import { drawBudUi } from "./render/budUi";
 import { loadImageAtlas } from "./render/imageAtlas";
 import { SHEETS, TILE_SPRITES } from "./data/tiles";
 import { Renderer } from "./render/renderer";
-import { drawSkillHud } from "./render/skillHud";
 import {
   drawDeathSummary,
   drawHistoryScreen,
@@ -76,12 +75,14 @@ import {
 } from "./ui/title";
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
 import {
+  adjustHitstopScale,
   adjustMusicVolume,
   adjustScreenShake,
   adjustVolume,
   loadSettings,
   resetKeybinds,
   saveSettings,
+  toggleDropTooltip,
   toggleMute,
   type Settings,
 } from "./ui/settings";
@@ -196,7 +197,7 @@ const achievementSave = loadAchievements();
 
 function startGame(seedText: string): GameState {
   syncSeedUrl(seedText);
-  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup);
+  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup, settings.hitstopScale);
 }
 
 /** ラン開始時に依頼の除外遺物を確定させる（記録器と createGame が同じ集合を見る） */
@@ -217,6 +218,10 @@ menuKeys.attach(window);
 /** "Gamepad connected" 表示の残り秒数 */
 const GAMEPAD_CONNECTED_MESSAGE_DURATION = 2;
 let gamepadConnectedTimer = 0;
+
+/** アイテム情報表示（drop tooltip）切替の通知の残り秒数。state を書き換えない表示側だけの仕組み */
+const DROP_INFO_HINT_DURATION = 1.5;
+let dropInfoHintTimer = 0;
 
 const renderer = new Renderer(canvas);
 // PNG 取り込み（未ロード中はピクセルマップのまま。フォントの読み込みと同じ流儀でループを待たない）
@@ -367,7 +372,7 @@ function beginRun(seedText: string): void {
   state = startGame(seedText);
   // スナップショットは createGame の後に取る（startJob が倉庫へ入れる初期スキル石の有無を記録に残すため）
   recorder = ReplayRecorder.fromStartedGame(
-    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup },
+    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup, hitstopScale: settings.hitstopScale },
     state,
   );
   // 受けた依頼（やり直し・同じシードでの再挑戦は起点画面を通らないので、保存の active を引き継ぐ）
@@ -731,7 +736,6 @@ function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
   const s = session.state;
   renderGame(s, inventoryUi.open ? null : lastAim);
-  drawSkillHud(ctx, s);
   const { ox, oy } = hubScreenOffset(s);
   const h = session.hub;
   drawHubOverlay(
@@ -962,11 +966,18 @@ function drawGamepadConnectedHint(ctx: CanvasRenderingContext2D): void {
   drawText(ctx, GAMEPAD_HINT_TEXT, VIEW_W / 2, VIEW_H - GAMEPAD_HINT_Y_FROM_BOTTOM, TEXT.SMALL, GAMEPAD_HINT_COLOR, "center");
 }
 
+/** アイテム情報表示 ON/OFF の切替通知。state を書き換えない表示側だけの仕組み（gamepadConnectedTimer と同じ流儀） */
+function drawDropInfoHint(ctx: CanvasRenderingContext2D): void {
+  if (dropInfoHintTimer <= 0) return;
+  const text = `アイテム情報: ${settings.dropTooltip ? "オン" : "オフ"}`;
+  drawText(ctx, text, VIEW_W / 2, VIEW_H - GAMEPAD_HINT_Y_FROM_BOTTOM, TEXT.SMALL, GAMEPAD_HINT_COLOR, "center");
+}
+
 /** 画面揺れの強度は renderer / system を触らず、描画直前だけカメラオフセットを倍率適用して戻す */
 function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
   const savedOffset = s.camera.offset;
   s.camera.offset = { x: savedOffset.x * settings.screenShake, y: savedOffset.y * settings.screenShake };
-  renderer.render(s, aim);
+  renderer.render(s, aim, settings.dropTooltip);
   s.camera.offset = savedOffset;
 }
 
@@ -996,6 +1007,7 @@ startLoop(
 
     if (gamepad.consumeJustConnected()) gamepadConnectedTimer = GAMEPAD_CONNECTED_MESSAGE_DURATION;
     if (gamepadConnectedTimer > 0) gamepadConnectedTimer = Math.max(0, gamepadConnectedTimer - dt);
+    if (dropInfoHintTimer > 0) dropInfoHintTimer = Math.max(0, dropInfoHintTimer - dt);
 
     // 自然死（system/combat.ts が state.status を "dead" にして recordRunOnce を呼ぶ）も
     // ここで拾ってラン履歴に積む。endRun は何度呼んでも安全
@@ -1177,6 +1189,12 @@ startLoop(
           } else if (item === "screenShake") {
             adjustScreenShake(settings, dir);
             saveSettings(settings);
+          } else if (item === "hitstopScale") {
+            adjustHitstopScale(settings, dir);
+            saveSettings(settings);
+          } else if (item === "dropTooltip") {
+            toggleDropTooltip(settings);
+            saveSettings(settings);
           }
         };
 
@@ -1235,7 +1253,7 @@ startLoop(
             } else if (item === "keybinds") {
               openKeybinds(frame.move.x, frame.move.y);
             } else {
-              applySettingsAdjust(item, item === "mute" ? 1 : settingsRowSide(aim.x));
+              applySettingsAdjust(item, item === "mute" || item === "dropTooltip" ? 1 : settingsRowSide(aim.x));
             }
             sfx.play("uiClick");
           }
@@ -1415,6 +1433,12 @@ startLoop(
           beginRun(randomSeedText());
         }
 
+        if (cur.status === "playing" && frame.toggleDropInfoPressed) {
+          toggleDropTooltip(settings);
+          saveSettings(settings);
+          dropInfoHintTimer = DROP_INFO_HINT_DURATION;
+        }
+
         if (state) {
           stepRecorded(state, frame, dt);
           trackBoss(state);
@@ -1497,7 +1521,6 @@ startLoop(
     if (screen === "replay" && replay) {
       const session = replay.session;
       renderGame(session.state, session.lastInput.aimScreen);
-      drawSkillHud(ctx, session.state);
       drawReplayHud(
         ctx,
         {
@@ -1521,7 +1544,6 @@ startLoop(
 
     renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
 
-    drawSkillHud(ctx, cur);
     if (!inventoryUi.open) drawBudUi(ctx, cur);
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
     if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
@@ -1536,5 +1558,6 @@ startLoop(
       });
     }
     drawGamepadConnectedHint(ctx);
+    drawDropInfoHint(ctx);
   },
 );

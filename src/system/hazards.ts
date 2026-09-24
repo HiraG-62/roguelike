@@ -3,7 +3,7 @@ import { type Vec, dist, sub } from "../core/vec";
 import { BOSS, ENEMY_AI, STATUS } from "../data/tuning";
 import { TILE_SIZE, toIndex } from "../map/grid";
 import { damageEnemy, damagePlayer } from "./combat";
-import { shake, spawnBurst, spawnRing } from "./effects";
+import { shake, spawnBlast, spawnBurst } from "./effects";
 import { overlapsWall } from "./physics";
 import { blastMulAt } from "./blast";
 import type { EnemyAttackKind } from "../data/enemyCombat";
@@ -194,7 +194,7 @@ export function explodeHostile(
   color: string,
   source?: InflictSource,
 ): void {
-  spawnRing(state, pos, radius, color, STATUS.fxLife);
+  spawnBlast(state, pos, radius, color, STATUS.fxLife);
   spawnBurst(state, pos, color, EXPLODE_PARTICLES, EXPLODE_SPEED, 0.4, 2.5);
   shake(state, EXPLODE_SHAKE);
   pushSfx(state, "explode");

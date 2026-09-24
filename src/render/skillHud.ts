@@ -1,5 +1,4 @@
 import type { GameState } from "../core/state";
-import { VIEW_H, VIEW_W } from "../core/view";
 import { MODIFIERS, SKILL, SKILL_DEFS } from "../skills/data";
 import { COLOR_CURSE } from "../skills/hit";
 import { stoneInSlot } from "../skills/persistence";
@@ -45,11 +44,13 @@ import {
   slotComboReady,
   slotModifierView,
 } from "../system/skills";
-import { TEXT, drawText, drawTextShadow } from "./pixelText";
+import { TEXT, drawText, drawTextShadow, truncateText } from "./pixelText";
+import { type HudLayout, SKILL_SLOT } from "./renderMath";
 
 /**
- * スキルの描画。renderer.ts を触らずに済むよう、main.ts が renderer.render の後に呼ぶ。
- * ワールド側（床の石・刻印符・グレネード・照準線・旋風の円弧）と画面側の HUD を描く。
+ * スキルの描画。renderer.ts が層の順（render/layers.ts）に合わせて呼ぶ。
+ * ワールド側は床に置く物（drawSkillGround: 床の石・刻印符・設置物）と宙の物（drawSkillAir: 弾・グレネード・照準線・変身）に分け、
+ * 画面側は右下のスキル枠（drawSkillSlots）を描く
  */
 
 const COLOR_STONE = SKILL.drop.stoneColor;
@@ -73,18 +74,15 @@ const COLOR_WHIRL = "#ffffff";
 const COLOR_PARRY = "#60e0ff";
 const COLOR_GRENADE = "#c0c0c0";
 
-/** スキル枠 4 つ（docs/COMBAT_DESIGN.md B-8）。間隔は右の刻印符ドット（幅 3）が収まる幅 */
-const HUD_SIZE = 16;
-const HUD_GAP = 4;
+/** スキル枠 4 つ（docs/COMBAT_DESIGN.md B-8）。間隔は右の刻印符ドット（幅 3）が収まる幅。配置は renderMath.ts の hudLayout */
+const HUD_SIZE = SKILL_SLOT.size;
+const HUD_GAP = SKILL_SLOT.gap;
 /** 最低間隔中に枠の縁を点滅させる速さ */
 const INTERVAL_BLINK = 40;
 const COLOR_COST = "#4aa0ff";
 const COST_PAD = 1;
-/** 画面下端からの距離（「封鎖中」表示の上） */
-const HUD_BOTTOM = 26;
 const DOT_SIZE = 2;
 const DOT_GAP = 1;
-const KEY_OFFSET_Y = 7;
 const FULL_CIRCLE = Math.PI * 2;
 
 const PILLAR_W = 5;
@@ -184,17 +182,12 @@ const SHAPE_TINT_ALPHA = 0.28;
 const SHAPE_TINT_PULSE = 0.1;
 const SHAPE_PULSE_SPEED = 8;
 const SHAPE_RING_PAD = 3;
-/** スキル枠の上に出す「変身名 残り秒」「変身待ち」の行の、枠からの高さ（文字の基準線まで） */
-const FORM_BANNER_GAP = 4;
 const SECONDS_DIGITS = 1;
 const COLOR_FORM_WAIT = "#a080a0";
 
-export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): void {
-  const cam = state.camera;
-  const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
-  const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
-  ctx.save();
-  ctx.translate(ox, oy);
+
+/** 床に置く物（敵より下）。ワールドの座標系（カメラの translate 済み）で呼ぶ */
+export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState): void {
   drawFloorStones(ctx, state);
   drawRunes(ctx, state);
   drawFields(ctx, state);
@@ -208,6 +201,11 @@ export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): v
   drawTurrets(ctx, state);
   drawStrikes(ctx, state);
   drawDelays(ctx, state);
+  resetDrawState(ctx);
+}
+
+/** 宙の物と変身・発動中の見た目（自分より上）。ワールドの座標系で呼ぶ */
+export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState): void {
   drawThrown(ctx, state);
   drawGrenades(ctx, state);
   drawBullets(ctx, state);
@@ -218,10 +216,21 @@ export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): v
   drawForm(ctx, state);
   drawShape(ctx, state);
   drawActive(ctx, state);
-  ctx.restore();
+  resetDrawState(ctx);
+}
+
+/** 右下のスキル枠と変身の行（HUD 層）。配置は layers.ts の hudLayoutFor */
+export function drawSkillSlots(ctx: CanvasRenderingContext2D, state: GameState, layout: HudLayout): void {
+  if (state.status !== "playing") return;
+  drawSlots(ctx, state, layout);
+  drawFormBanner(ctx, state, layout);
+}
+
+/** 後に描く renderer.ts の描画に透明度・線幅を持ち越さない */
+function resetDrawState(ctx: CanvasRenderingContext2D): void {
   ctx.globalAlpha = 1;
-  if (state.status === "playing") drawSlots(ctx, state);
-  if (state.status === "playing") drawFormBanner(ctx, state);
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
 }
 
 // ---------------------------------------------------------------------------
@@ -843,18 +852,16 @@ function drawGuillotineAim(ctx: CanvasRenderingContext2D, state: GameState, x: n
 }
 
 // ---------------------------------------------------------------------------
-// HUD（画面下中央）
+// HUD（画面右下）
 // ---------------------------------------------------------------------------
 
-function drawSlots(ctx: CanvasRenderingContext2D, state: GameState): void {
-  const count = SKILL.slots;
-  const totalW = count * HUD_SIZE + (count - 1) * HUD_GAP;
-  const left = Math.round(VIEW_W / 2 - totalW / 2);
-  const top = VIEW_H - HUD_BOTTOM - HUD_SIZE;
-  for (let i = 0; i < count; i++) drawSlot(ctx, state, i, left + i * (HUD_SIZE + HUD_GAP), top);
+function drawSlots(ctx: CanvasRenderingContext2D, state: GameState, layout: HudLayout): void {
+  for (let i = 0; i < SKILL.slots; i++) {
+    drawSlot(ctx, state, i, layout.slotLeft + i * (HUD_SIZE + HUD_GAP), layout.slotTop, layout.keyBaseline);
+  }
 }
 
-function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number, x: number, y: number): void {
+function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number, x: number, y: number, keyBaseline: number): void {
   const rs = state.skills;
   const slot = rs.slots[index];
   const stone = stoneInSlot(rs.profile, index);
@@ -874,7 +881,7 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   ctx.strokeStyle = frameColor(state, index, ready && !!stone && !bodyBlocked);
   ctx.strokeRect(x + 0.5, y + 0.5, HUD_SIZE - 1, HUD_SIZE - 1);
 
-  drawText(ctx, String(index + 1), x + HUD_SIZE / 2, y + HUD_SIZE + KEY_OFFSET_Y, TEXT.SMALL, COLOR_DIM, "center");
+  drawText(ctx, String(index + 1), x + HUD_SIZE / 2, keyBaseline, TEXT.SMALL, COLOR_DIM, "center");
 
   if (r?.resource === "mana") drawCost(ctx, r.cost, x, y);
   if (stone && slot && r?.resource === "cooldown") drawCharges(ctx, x, y, slot.chargesLeft);
@@ -888,12 +895,13 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
  * スキル枠の上に変身の種類と残り秒（時間で切れない変身は「維持中」）。変身していなければ共有の待ちの残り秒。
  * 第 2 弾の変身（剛 / 迅 / 霊の型）も同じ行に出す
  */
-function drawFormBanner(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawFormBanner(ctx: CanvasRenderingContext2D, state: GameState, layout: HudLayout): void {
   const text = formBannerText(state);
   if (!text) return;
-  const y = VIEW_H - HUD_BOTTOM - HUD_SIZE - FORM_BANNER_GAP;
   const color = state.skills.shape ? SHAPE_COLOR[state.skills.shape.key] : inForm(state) ? COLOR_FORM : COLOR_FORM_WAIT;
-  drawTextShadow(ctx, text, VIEW_W / 2, y, TEXT.SMALL, color, COLOR_BLACK, "center");
+  // 右寄せで枠の列の幅に収め、左のコンボ HUD に掛からないようにする
+  const right = layout.form.x + layout.form.w;
+  drawTextShadow(ctx, truncateText(text, layout.form.w, TEXT.SMALL), right, layout.formBaseline, TEXT.SMALL, color, COLOR_BLACK, "right");
 }
 
 function inForm(state: GameState): boolean {
