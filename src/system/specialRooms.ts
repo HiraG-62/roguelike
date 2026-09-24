@@ -4,7 +4,7 @@ import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ENEMIES, type EnemyDef, enemiesForDepth, enemyDef } from "../data/enemies";
 import { keystoneDef } from "../loot/affixes";
-import { FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { BOON, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { createEchoWallet, shatterYield, stirTrait } from "../loot/crafting";
 import { generateItem } from "../loot/generator";
 import { type Item, TRAIT_COLORS, type TraitColor } from "../loot/types";
@@ -954,6 +954,10 @@ export function clearSpecialRoom(state: GameState, room: RoomState, center: Vec)
     case "arena":
       dropRareItem(state, center);
       offerBoons(state);
+      return;
+    case "challenge":
+      // 試練の制圧は祝福の 3 択の確定枠。格が 1 段上がる（試練の徒はそこへさらに 1 段）
+      offerBoons(state, BOON.gradeBoostChallenge);
       return;
     case "resonance":
       clearResonance(state, room, center);

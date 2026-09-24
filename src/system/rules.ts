@@ -11,7 +11,8 @@ import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
 import { isRoamerTarget, isRoamingEnemy, slashBase, spawnBoonWave } from "./boonRules";
-import { offerBoons } from "./boons";
+import { offerBoonsFromRule } from "./boons";
+import { gradeMagnitudeMul, gradedEffect, gradedIcd, ruleOwnerGrade } from "./boonGrade";
 import { damageEnemy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
 import { engagedRoomIndex } from "./engagement";
@@ -155,7 +156,8 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   if (procTarget !== undefined && procTarget.status.procIcd > 0) return;
   // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）
   if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
-  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), rule.icd);
+  // 祝福の格（神威）は ICD を縮める。direct（旧フックの回数と揃えたもの）には掛けない
+  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), gradedIcd(rule.icd, ruleOwnerGrade(state, rule.owner)));
   if (rule.group !== undefined) fired.add(rule.group);
   state.ruleRun.keywordUse.set(keyword, used + 1);
   if (procTarget !== undefined) procTarget.status.procIcd = STATUS.onHitIcd;
@@ -179,7 +181,8 @@ function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fi
   // 深さはイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い。減衰は掛けない）
   run.depth = ev.depth;
   try {
-    applyRuleEffect(state, rule.then, ev, 1);
+    const grade = ruleOwnerGrade(state, rule.owner);
+    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
   } finally {
     run.depth = prevDepth;
   }
@@ -198,7 +201,9 @@ function runRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
   run.depth = ev.depth + 1;
   run.owner = rule.owner;
   try {
-    applyRuleEffect(state, rule.then, ev, SYNERGY.chainDecay ** ev.depth);
+    // 祝福の格は効果量・半径に掛かる（呪い付き・祝福以外の Rule は並 = ×1）
+    const grade = ruleOwnerGrade(state, rule.owner);
+    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, SYNERGY.chainDecay ** ev.depth * gradeMagnitudeMul(grade));
   } finally {
     run.depth = prevDepth;
     run.owner = prevOwner;
@@ -285,7 +290,7 @@ function applyMigratedEffect(state: GameState, effect: Readonly<RuleEffect>, ev:
       dropItem(state, ev.pos);
       return true;
     case "offerBoons":
-      offerBoons(state);
+      offerBoonsFromRule(state);
       return true;
     case "roomEnemies":
       for (const e of roomEnemiesOf(state, effect, ev)) hitEnemyWith(state, e, effect, magnitude, "poise", ev.pos);

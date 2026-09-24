@@ -242,6 +242,10 @@ export interface BoonDef {
   rules?: readonly Rule[];
   /** 共通語彙（docs/ideas/synergy-web.md 1 章）。tags / gives より細かい「出す・食う・強める」 */
   keywords: KeywordProfile;
+  /** 芯（1 ランに 1 つ、深度 BOON.coreDepth の最初の提示だけに出る。通常の 3 択には出ない） */
+  core?: true;
+  /** 格の対象を明示する（省略時は boonGrade.ts の isGraded が Rule の効果量から自動で決める。フック型は true で opt-in） */
+  graded?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -1315,7 +1319,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   trialSeeker: {
     key: "trialSeeker",
     name: "試練の徒",
-    desc: "試練の部屋を制圧すると、祝福の3択がもう1回出る。",
+    desc: "試練の部屋を制圧したときの祝福の3択は、格がもう1段上がる。",
     icon: "試",
     rarity: "rare",
     tags: ["room"],
