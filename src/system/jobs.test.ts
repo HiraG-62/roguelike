@@ -154,7 +154,8 @@ describe("ジョブの適用", () => {
     expect(hunter.maxHp).toBeCloseTo(DEFAULT_STATS.maxHp * JOB.hunterHpMul);
     expect(game("hunter").stats.maxHp, "ラン開始時にも弱い").toBeLessThan(game("none").stats.maxHp);
     const plain = game("none");
-    expect(game("swordsman").stats.rangedDamageMul).toBeCloseTo(plain.stats.rangedDamageMul * JOB.swordsmanRangedMul);
+    expect(game("swordsman").stats.skillDamageMul).toBeCloseTo(plain.stats.skillDamageMul * JOB.swordsmanSkillMul);
+    expect(game("brawler").stats.damageTakenMul).toBeCloseTo(plain.stats.damageTakenMul * JOB.brawlerDamageTakenMul);
   });
 
   it("得意な武器種を持つ間だけ近接の威力と攻撃速度が上がる", () => {
@@ -180,6 +181,8 @@ describe("ジョブの適用", () => {
       expect(s.stats.meleeDamageMul, `${job} の近接倍率`).toBeCloseTo(before.meleeDamageMul);
       expect(s.stats.attackSpeedMul, `${job} の攻撃速度`).toBeCloseTo(before.attackSpeedMul);
       expect(s.stats.rangedDamageMul, `${job} の射撃倍率`).toBeCloseTo(before.rangedDamageMul);
+      expect(s.stats.skillDamageMul, `${job} のスキル倍率`).toBeCloseTo(before.skillDamageMul);
+      expect(s.stats.damageTakenMul, `${job} の被ダメ倍率`).toBeCloseTo(before.damageTakenMul);
     }
   });
 

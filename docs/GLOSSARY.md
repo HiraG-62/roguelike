@@ -77,7 +77,8 @@
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |
 | 左クリック / 右クリック / サイド1 / サイド2 | Mouse0 / Mouse2 / Mouse3 / Mouse4 | マウスボタンの表示名。サイド1 = 戻る、サイド2 = 進む | `core/input.ts` formatBindingCode |
-| 近接攻撃 / 射撃 / 装備画面 | attack / shoot / inventory | キー設定画面でのアクション名（ほかは 上 / 下 / 左 / 右 / ダッシュ / バースト / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |
+| 攻撃 / 固有技 / 装備画面 | attack / shoot / inventory | キー設定画面でのアクション名。左クリック（攻撃）は近接なら 3 段コンボ、銃なら射撃。右クリック（固有技）は全武器種共通で武器ごとの技（内部名は変えていない）（ほかは 上 / 下 / 左 / 右 / ダッシュ / バースト / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |
+| 固有技 | `WeaponArtDef`（`MovesetDef.art`） | 右クリックの技。武器種ごとに 5 種の型（strike 1 振り / charge 溜め / hold 構え / throw 弾を出す / recall 弾を戻す）を持つ | `data/weapons.ts`、`system/weaponArts.ts` |
 | 拾う | interact / interactPressed | 注目中の遺物・スキル石を倉庫へ入れる操作（既定 G、パッドは右スティック押し込み）。手の届く距離（`PICKUP.reach`）にあるものだけ。ハート・刻印符などは従来どおり触れて拾う。キー案内は「G: 拾う」、遠いときは「近づいて拾う」 | `system/loot.ts` updateDropInteract、`core/input.ts` |
 | 注目 | focusedDrop | カーソル（パッドは照準スティックの先、中立なら手の届く最寄り）の近くにある床の遺物・スキル石。環とキー案内が付き、性能のポップアップが出る。state には持たず毎フレーム求める | `system/loot.ts` focusedDrop、`render/dropTooltip.ts` |
 
@@ -196,7 +197,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 装備 / 倉庫 | equipment / stash | 装着中と所持品 | `ui/inventory.ts` |
-| 武器 / 銃 / 鎧 / 靴 / 指輪 / 首飾り | Slot | 6 スロット | `ui/inventoryLayout.ts` SLOT_LABEL |
+| 右手 / 左手 / 鎧 / 靴 / 指輪 / 首飾り | Slot（mainHand / offHand / armor / boots / ring / amulet） | 6 スロット。右手は近接武器・銃どちらも装備する 1 枠、左手は今はベースが無く常に空（倉庫・並べ替えの対象からは外す） | `ui/inventoryLayout.ts` SLOT_LABEL、`loot/types.ts` LOOT_SLOTS |
 | 遺物 | Item | 装備アイテム全般の呼称 | `loot/types.ts`、`loot/names.ts` |
 | 静 / 揺 / 荒 / 反転あり | normal / magic / rare / unique（`Rarity`。キーは旧レアリティのまま） | 揺らぎの見た目の分類。格付けではない | `loot/types.ts` RARITY_LABEL |
 | 性質 | AffixRoll（旧 affix） | 遺物に宿る 1 つの性質。表の性質 / トリガー文法 / 変換 / 誓約 | `loot/describe.ts`、装備画面 |
@@ -205,7 +206,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 支配 / 二重 / 三和音 / 散光 | dominant / dual / triad / scatter | 共鳴の種類。1 色が過半 / 上位 2 色が各 30% 以上 / ちょうど 3 色が各 22% 以上 / 全色が分散 | `loot/resonance.ts` resolveResonance |
 | 陰画 | `Resonance.form = "negative"`（kind は dominant） | 反転した性質の重みが 35% 以上で、反転を除いた配合に支配色があると支配が裏返る。冷たい炎（紅）/ 熱い氷（蒼）/ 枯れ森（翠）/ 暗雷（金）。冥の支配は虚極のまま | `loot/resonance.ts` NEGATIVE_EFFECTS |
 | 拮抗 | `Resonance.form = "balance"`（kind は dual） | 他の共鳴が成立しないとき、反対色の組（紅と蒼 / 翠と金）がそれぞれ 25% 以上で差 5% 以内なら成立。天秤（紅と蒼）/ 表裏（翠と金） | `loot/resonance.ts` BALANCE_EFFECTS |
-| 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖 | `loot/resonance.ts` CONSTELLATIONS |
+| 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖。うち双子 / 対岸 / 鏡像 / 鎖は左手が使えるまで非表示（`hidden`） | `loot/resonance.ts` CONSTELLATIONS |
 | 主色 | itemMainColor | 遺物 1 つの性質（implicit を除く）で重みが最も大きい色。同点なら先に付いた性質の色。無色の性質は数えない | `loot/resonance.ts` |
 | 無色（性質） | `AffixRoll.colorless` | 脱色した性質。共鳴の配合に数えず、支配の減衰も受けない。行の頭に「無色」 | `loot/crafting.ts` bleachTrait |
 | 三和音の名前 | TRIAD_EFFECTS | 四季 / 雷雨 / 煤 / 祭 / 血肉 / 賭場 / 凪 / 沼 / 流星 / 輪廻 | `loot/resonance.ts` |
@@ -216,7 +217,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 芽 | budOffer / buds | 節目で出る 2 択の成長。選ばなかった方は消える | `loot/provenance.ts` |
 | 銘 | inscription | 余白を使い切った遺物に来歴から刻まれる名前 | `loot/names.ts` engraveName |
 | 誓約 | keystone（`ks_`）。表示は「誓約」に統一 | 遊び方を変える大型改造。排他グループあり | `system/keystones.ts` |
-| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow` / 渇きの誓約 `ks_thirst`（後 3 つは気力関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
+| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 近間の誓い（旧「剣の誓い」、2026-09-24 に近距離ほど与ダメージが上がる効果へ作り直した。内部 key は ks_bladeOath のまま）/ 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow` / 渇きの誓約 `ks_thirst`（後 3 つは気力関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
 | 誓約名（2026-09 追加） | - | 無垢の誓い / 蝕みの誓約 / 病みの誓い（status）/ 楔の誓い / 揺るがぬ誓い / 締め上げの誓い（poise）/ 読み勝ちの誓い（tempo）/ 背水の誓い / 死神の誓い（room）/ 詠唱の誓い（mana）/ 単色の誓い / 無色の誓い / 鏡の誓い（hue）/ 修行の誓い / 忘却の誓い（chronicle） | `system/keystones.ts` KEYSTONE_NAME |
 | 性質名（2026-09 追加） | `loot/affixes.ts` | 「名前: 効果」で表示する。汲み上げ / 底打ち / 満ち潮 / 引き潮 / 身代わり / 痛覚遮断 / 沈黙の報い / 殲滅の余韻 / 溢れ / 構えの呼吸 / 見切りの息吹 / 詠唱の集中 / 多彩 / 病み上がり / 弱体の盾 / 疫病の種 / 払い手 / 腐爆 / 毒気 / 耐性の布 / 払い清め / 楔 / 剥がし撃ち / 崩れの反響 / 怯み吸い / 追い討ち / 静寂崩し / 脆弱の楔 / 重い手 / 崩れ雷 / 崩れの充填 / 崩れの刻印 / 先読み / 崩し打ち / 返し波 / 堅守崩し / ダウン狩り / 撒き足 / 満ちた器 / 夜目 / 封鎖の熱 / 死神の影 / 若木 / 銘の重み / 裏の糧 / 異郷の響き / 橋渡し / 古傷 / 歴戦 / 旅の垢 / 王殺しの印 / 見切りの記憶 / 余韻斬り / 形見 / 撃ち込み杭 / 置き土産 / 杭打ち / 血の署名 / 祝福の響き | `loot/affixes.ts` |
 | 目覚め | `AffixDef.awakening` | 芽専用の性質。ドロップ・染めでは出ず、特定の節目の芽の片方にだけ出る（盾割り / 蹴り返し / 剥ぎ取り / 先の先 / 幕引き） | `loot/provenance.ts` MILESTONES |
@@ -247,7 +248,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向 | `data/weapons.ts` MOVESETS |
+| 武器種 | moveset（`MovesetKey`） | 右手のベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向。銃の家系も武器種の一種で、この場合は左クリックが近接の連撃ではなく射撃になる | `data/weapons.ts` MOVESETS |
 | 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner | 武器種の表示名。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
 | 短銃 / 長銃 / 砲 / 投擲 / 擲弾 / 仕掛け / 戦輪 | sidearm / longarm / cannon / thrown / grenade / trapper / warRing | 銃の家系（左で撃つ武器種）の表示名。弾は銃のベースごとに持つ（擲弾 = 曲射、仕掛け = 設置弾、戦輪 = 回転刃・跳弾） | `data/weapons.ts` MOVESETS[].name |
 | 弾 | bullet（`BulletDef`、`PlayerStats.bullet` = ベースの key） | 銃のベースそれぞれが持つ弾の性能。共有の「射撃の型」は廃止（表示名はベース名） | `loot/bullets.ts` BULLETS |
@@ -261,7 +262,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | ジョブ固有の派生 | `JOB_BRANCHES`（`BranchDef`） | 左左左右で出るジョブごとのフィニッシュ。どの武器種にも足される（同じ入力の派生を武器種が持てば武器種が優先）。残月（剣士。刀の「燕返し」と重ならないよう）/ 射抜き / 猛連打（極意の「猛打」と別）/ 盾殴り / 呪い刃 / 穂先返し / 魔力放出 / 影縫い / 反応刃 | `data/jobs.ts` |
 | 武器種の固有効果 | `MovesetDef.rules` | 武器種を持つ間だけ効く統一ルール（刀のカウンターの勢い・大盾の身固め など） | `data/weapons.ts` |
 | 反転撃ち | gunner の dashAttack | 二丁拳銃のダッシュ攻撃（ダッシュ中に撃つと、終わりに周りを撃ち払う） | `data/weapons.ts` | `data/weapons.ts` |
-| 近接 / 射撃 / 溜め（ボタンの役割） | ActionKind: melee / shot / charge | 武器種ごとの左クリック・右クリックの役割 | `data/weapons.ts` |
+| 近接 / 射撃 / 溜め（左クリックの役割） | PrimaryKind: melee / shot / charge | 武器種ごとの左クリックの役割。右クリックは全武器種共通で固有技 | `data/weapons.ts` |
 | 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |
 | 引き寄せ / 投げ | pull / throw | 大鎌の手前へのノックバック / 拳のダッシュ攻撃の背後へのノックバック | `system/player.ts` knockDirection |
 | 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・弾の器になるベース（implicit なし） | `loot/bases.ts` |
@@ -339,7 +340,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 連携名 | wellThunder … reelStomp | 渦雷（引力球 → 雷撃）/ 引き回し（鎖鎌 → 旋風斬り）/ 返し撃ち（パリィ成功 → 撃ち抜き）/ 落地裂（墜星 → 地裂き）/ 総解き（伝染 → 綻び）/ 血風（血の契約 → 旋風斬り）/ 氷砕き（氷結地帯 → 砕氷槌）/ 影刺し（影渡り → 刺し穿ち）/ 疾風弾幕（加速 → 回転弾幕）/ 手繰り踏み（手繰り糸 → 震脚） | `skills/combos.ts` COMBOS |
 | 第 2 弾の連携名 | waterFreeze … levelMeteor | 瞬氷（水瓶 → 瞬凍）/ 走り火（油流し → 焼き払い）/ 烙火連（焼き印 → 烙火）/ 崩し落とし（崩し蹴り → 崩落槌）/ 彩爆（彩刻 → 色解き）/ 地裂墜（地均し → 墜星）。空間の連携（直前に撃っていなくてよく、照準地点が設置物の中なら成立）: 渦爆（引力球の中へグレネード）/ 氷雷（氷結地帯の中へ雷撃）。化身の極意（変身中の極意）。祝福「凍て水」「油火斬り」と重ならないよう瞬氷 / 走り火にした | `skills/combos.ts` COMBOS |
 | 空間の連携 | `ComboDef.untimed` / `requiresAt` | 時間ではなく照準地点で成立する連携（渦爆・氷雷）。HUD の「連携可」の菱形は照準地点が分からないので出ない | `skills/combos.ts` |
-| 連動体 | `SkillTag` の `summon` | 召喚スキルが出す味方の物体。自分では攻撃せず、近接 3 段目（剣の墓標）・射撃（砲台）に合わせてだけ動く | `skills/summons.ts` |
+| 連動体 | `SkillTag` の `summon` | 召喚スキルが出す味方の物体。自分では攻撃せず、近接 3 段目（剣の墓標）・攻撃の振り（砲台。射撃の型だけでなく近接の振りにも合わせる）に合わせてだけ動く | `skills/summons.ts` |
 | 対象なし / 燃焼なし / 出血なし / 感電なし / 戻れない | - | 撃つ前に弾かれたときの浮き文字（何も払わない）。影渡り・伝染 / 燃え種爆ぜ / 血抜き / 放電 / 巻き戻し | `skills/actions.ts` extraCastBlock |
 | 烙印なし / 彩痕なし / 濡れなし | - | 第 2 弾の撃つ前に弾かれたときの浮き文字（何も払わない）。烙火 / 色解き / 瞬凍（濡れた敵も水たまりも無い）。死の宣告は「対象なし」 | `skills/actions2.ts` wave2CastBlock |
 | 地均し n / 火吸い n / 宣告 / 剛の型・迅の型・霊の型 / 変身が解けた / 芽: 刻印符の枠 +1 / 芽: 威力 +n% | - | 第 2 弾の浮き文字（砕いた地形の数 / 吸った炎の数 / 死の宣告を付けた / 変身した / 変身が切れた / 使い込みの芽） | `skills/actions2.ts`、`skills/wear.ts` |
@@ -373,7 +374,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 依頼 | quest | ラン開始時に 3 択から 1 つ受けるお題。達成で永続の報酬（強さではなく選択肢と表現）。未達成なら次のやり直しへ引き継ぐ。「契約」は使わない | `meta/quests.ts`、`ui/quests.ts` |
 | 受けずに出発 | - | 依頼の 3 択で何も受けない選択 | `render/questUi.ts` |
 | 目標 / 報酬 | goal / reward | 依頼の札の表記。報酬は 起点の解放 / 名のある遺物が抽選に加わる / 図鑑の頁 / 称号 | `meta/quests.ts` |
-| 依頼名 | burnout … burstMaster | 燃え尽き / 蒸気の手 / 揺るがす者 / 誓約なき者 / 反応の目録 / 連携の稽古 / 巣窟崩し / 王殺し / 刃のみ / 無傷の階 / 見切りの舞 / 返し手 / 五重苦 / 呪いを抱く / 大博打 / 死神と踊る / 連鎖の糸 / 三段の連鎖 / 凍てつく刃 / 毒の庭 / 血の道 / 急所読み / 詠唱の道 / 深みへ / 試練を越えて / 部屋主狩り / 雷の狩り / 解き放つ者 | `meta/quests.ts` |
+| 依頼名 | burnout … burstMaster | 燃え尽き / 蒸気の手 / 揺るがす者 / 誓約なき者 / 反応の目録 / 連携の稽古 / 巣窟崩し / 王殺し / 無傷の階 / 見切りの舞 / 返し手 / 五重苦 / 呪いを抱く / 大博打 / 死神と踊る / 連鎖の糸 / 三段の連鎖 / 凍てつく刃 / 毒の庭 / 血の道 / 急所読み / 詠唱の道 / 深みへ / 試練を越えて / 部屋主狩り / 雷の狩り / 解き放つ者 | `meta/quests.ts` |
 | 依頼名（2026-09-24 第 3 弾、発見系 5 件） | pathfinder / newReaction / comboForms / chainForms / linkWeb | 未踏の連携 / 新しい反応 / 連携の型 / 糸の綾 / 網の目 | `meta/quests.ts` |
 | 実績 | achievement | 図鑑・依頼・履歴から判定する記録。解除した実績の名前は称号として名乗れる | `meta/achievements.ts` |
 | 実績名（2026-09-24 第 3 弾、発見系 4 件） | link5 / link15 / link30 / comboAll | 連携の芽生え / 網の読み手 / 連携の賢者 / 型の極み | `meta/achievements.ts` |

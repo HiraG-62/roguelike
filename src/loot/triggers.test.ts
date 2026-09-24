@@ -10,6 +10,7 @@ import {
   formatTrigger,
   generateTrigger,
   generateTriggerRoll,
+  grammarForSlot,
   isCompatible,
   rollTriggerEffect,
   triggerToRoll,
@@ -91,6 +92,20 @@ describe("トリガー文法", () => {
         expect(SLOT_TRIGGERS[slot]).toContain(decoded.trigger);
       }
     }
+  });
+
+  it("右手の家系: 近接は onShoot を持たず、銃は everyNthMeleeHit を持たない", () => {
+    const meleeTriggers = new Set(grammarForSlot("mainHand", "melee").map((s) => s.trigger));
+    const gunTriggers = new Set(grammarForSlot("mainHand", "gun").map((s) => s.trigger));
+    expect(meleeTriggers.has("onShoot")).toBe(false);
+    expect(gunTriggers.has("everyNthMeleeHit")).toBe(false);
+    // 近接命中・カウンターはダッシュ攻撃・銃剣・零距離砲で銃でも実際に起きるので残す
+    expect(gunTriggers.has("onMeleeHit")).toBe(true);
+    expect(gunTriggers.has("onCounter")).toBe(true);
+    // 家系を渡さなければ従来どおり両方の起点を持つ（ring / amulet などの呼び出しに影響しない）
+    const noFamily = new Set(grammarForSlot("mainHand").map((s) => s.trigger));
+    expect(noFamily.has("onShoot")).toBe(true);
+    expect(noFamily.has("everyNthMeleeHit")).toBe(true);
   });
 
   it("AffixRoll へのエンコード → デコードで元に戻る（可逆）", () => {

@@ -325,12 +325,13 @@ describe("ルール変更の実効", () => {
     expect(mob.maxHp).toBe(Math.max(1, Math.round(mobHp * BOON.mobHpMul)));
   });
 
-  it("triggerHappy: 近接できない代わりに連射 2 倍", () => {
+  it("triggerHappy: 連射 2 倍・1 発の威力が落ちる代わりに近接は使える", () => {
     const state = arena();
     grantBoon(state, "triggerHappy");
     expect(state.stats.fireRateMul).toBe(DEFAULT_STATS.fireRateMul * BOON.triggerHappyFireMul);
+    expect(state.stats.rangedDamageMul).toBeCloseTo(DEFAULT_STATS.rangedDamageMul * BOON.triggerHappyDamageMul);
     step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.player.attack.phase).toBe("none");
+    expect(state.player.attack.phase).not.toBe("none");
   });
 });
 
@@ -643,12 +644,50 @@ describe("射撃の祝福の loadout（銃の家系だけに出す。docs/ideas/
   it("指輪の射撃性質だけでは射撃の祝福が出ない", () => {
     const state = arena();
     state.stats.moveset = "sword";
-    // 指輪・首飾りが乗せる射撃性質（弾を出せない武器種のまま）
+    // 指輪・首飾りが乗せる射撃性質（弾を出せない武器種のまま）。遠距離スキル石は外して装備由来だけを見る
     state.stats.rangedDamageMul += 0.5;
+    state.skills.profile = { ...state.skills.profile, loadout: [null, null, null, null] };
     state.boonRun.baseStats = state.stats;
     const tags = buildTags(state);
-    expect(tags.owned.has("ranged"), "弾を出せない武器種では ranged タグを外す").toBe(false);
+    expect(tags.owned.has("ranged"), "弾を出せない武器種では装備由来の ranged タグを外す").toBe(false);
     expect(boonWeight(BOONS.dashGun, tags.owned, [], tags.gives, tags.loadout)).toBe(0);
+  });
+
+  it("弾を出す武器（銃の家系・斧・杖）限定の祝福は剣では出ず、斧では出る", () => {
+    const state = arena();
+    state.stats.moveset = "sword";
+    state.boonRun.baseStats = state.stats;
+    const sword = buildTags(state);
+    for (const key of ["rearGuard", "ricochet", "warhead", "weakSpot", "fireWalk", "frostRead", "frostBreath"] as const) {
+      expect(boonWeight(BOONS[key], sword.owned, [], sword.gives, sword.loadout), `剣では${key}が出ない`).toBe(0);
+    }
+    state.stats.moveset = "axe";
+    const axe = buildTags(state);
+    for (const key of ["rearGuard", "ricochet", "warhead", "weakSpot", "fireWalk", "frostRead", "frostBreath"] as const) {
+      expect(boonWeight(BOONS[key], axe.owned, [], axe.gives, axe.loadout), `斧では${key}が出る`).toBeGreaterThan(0);
+    }
+  });
+
+  it("銃限定の祝福（呼び戻し・瞬停）は斧では出ず、銃では出る", () => {
+    const state = arena();
+    state.stats.moveset = "axe";
+    state.boonRun.baseStats = state.stats;
+    const axe = buildTags(state);
+    expect(boonWeight(BOONS.recall, axe.owned, [], axe.gives, axe.loadout), "斧では呼び戻しが出ない").toBe(0);
+    state.stats.moveset = "gunner";
+    const gun = buildTags(state);
+    expect(boonWeight(BOONS.recall, gun.owned, [], gun.gives, gun.loadout), "銃では呼び戻しが出る").toBeGreaterThan(0);
+  });
+
+  it("遠距離スキル石を付けていれば、弾を出せない武器種でも ranged タグは残る", () => {
+    const state = arena();
+    state.stats.moveset = "sword";
+    state.boonRun.baseStats = state.stats;
+    const stone = { ...stoneFromSeed(7, { foundDepth: 1, now: 0, skillKey: "frag" }), id: "boon-tag-ranged-skill" };
+    state.skills.profile = { ...state.skills.profile, stones: [stone], loadout: [stone.id, null, null, null] };
+    const tags = buildTags(state);
+    expect(SKILL_DEFS.frag.tags.includes("projectile"), "前提: グレネードは projectile タグ").toBe(true);
+    expect(tags.owned.has("ranged"), "遠距離スキル石由来の ranged タグは剣でも残る").toBe(true);
   });
 });
 

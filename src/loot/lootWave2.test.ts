@@ -623,21 +623,29 @@ describe("星座（6 部位の主色の並び）", () => {
     expect(itemMainColor([{ ...roll("maxLife", 5), colorless: true }])).toBeUndefined();
   });
 
-  it("並びごとに成立する（表の順で最初の 1 つ）", () => {
-    expect(resolveConstellation(mains({ mainHand: "crimson", offHand: "crimson" }))).toBe("twins");
-    expect(resolveConstellation(mains({ mainHand: "crimson", offHand: "azure" }))).toBe("shores");
+  it("並びごとに成立する（表の順で最初の 1 つ。左手を使う 4 種は隠していて成立しない）", () => {
     expect(resolveConstellation(mains({ mainHand: "crimson", offHand: "gold", amulet: "jade", armor: "jade", boots: "jade" }))).toBe("spine");
     expect(
       resolveConstellation(mains({ mainHand: "crimson", offHand: "gold", amulet: "jade", armor: "azure", boots: "umbra", ring: "crimson" })),
     ).toBe("ring");
+    expect(resolveConstellation(mains({ mainHand: "umbra", offHand: "gold", amulet: "umbra", armor: "jade", boots: "umbra" }))).toBe("void");
+    expect(resolveConstellation(mains({ mainHand: "crimson" }))).toBeUndefined();
+  });
+
+  it("左手（offHand）が絡む 4 種（双子・対岸・鏡像・鎖）は、並びが一致していても隠していて成立しない", () => {
+    expect(resolveConstellation(mains({ mainHand: "crimson", offHand: "crimson" })), "双子").toBeUndefined();
+    expect(resolveConstellation(mains({ mainHand: "crimson", offHand: "azure" })), "対岸").toBeUndefined();
     expect(
       resolveConstellation(mains({ mainHand: "crimson", offHand: "gold", amulet: "azure", armor: "crimson", boots: "gold", ring: "azure" })),
-    ).toBe("mirror");
-    expect(resolveConstellation(mains({ mainHand: "umbra", offHand: "gold", amulet: "umbra", armor: "jade", boots: "umbra" }))).toBe("void");
+      "鏡像",
+    ).toBeUndefined();
     expect(
       resolveConstellation(mains({ mainHand: "crimson", offHand: "gold", amulet: "crimson", armor: "gold", boots: "crimson", ring: "gold" })),
-    ).toBe("chain");
-    expect(resolveConstellation(mains({ mainHand: "crimson" }))).toBeUndefined();
+      "鎖",
+    ).toBeUndefined();
+    for (const key of ["twins", "shores", "mirror", "chain"] as const) {
+      expect(CONSTELLATIONS[key].hidden, `${key} は hidden`).toBe(true);
+    }
   });
 
   it("冥が隣り合えば虚空にならない", () => {
@@ -662,13 +670,12 @@ describe("星座（6 部位の主色の並び）", () => {
     expect(rolls[1]?.value).toBe(5);
   });
 
-  it("双子: 近接と射撃の上乗せが互いに少し効く（左手は今は塞がらないので式だけを確かめる合成データ）", () => {
+  it("双子: 左手に相当する装備を合成しても、隠している間は computeStats 上でも成立しない", () => {
     const eq = createEmptyEquipment();
     eq.mainHand = item("mainHand", [roll("meleeDamagePct", 40)]);
     eq.offHand = item("offHand", [roll("rangedDamagePct", 10, undefined, "crimson")]);
     const s = computeStats(eq);
-    expect(s.resonance.constellation).toBe("twins");
-    expect(s.rangedDamageMul).toBeGreaterThan(1.1);
+    expect(s.resonance.constellation).not.toBe("twins");
   });
 });
 

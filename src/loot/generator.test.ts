@@ -17,7 +17,7 @@ import {
   uniquesFor,
   type GenerateOptions,
 } from "./generator";
-import { isTriggerKey } from "./triggers";
+import { decodeTriggerRoll, isTriggerKey } from "./triggers";
 import { computeStats } from "./stats";
 import { DEFAULT_STATS, LOOT_SLOTS, TRAIT_COLORS, createEmptyEquipment, createEmptyProvenance, type Item } from "./types";
 
@@ -355,5 +355,56 @@ describe("generateItem: ベース指定と素の器", () => {
       const b = generateItem(createRng(seed), { itemLevel: 6, foundDepth: 4, now: 0, baseKey: undefined, plain: undefined });
       expect({ ...b, id: a.id }, `seed ${seed}`).toEqual(a);
     }
+  });
+});
+
+describe("generateItem: 右手の家系ゲート（剣は撃たず、銃は近接専用性質を持たない）", () => {
+  const SEEDS = 200;
+  const ITEM_LEVEL = 30;
+
+  function generateOnBase(baseKey: string, seed: number): Item {
+    return generateItem(createRng(seed), { baseKey, itemLevel: ITEM_LEVEL, foundDepth: ITEM_LEVEL, now: 0 });
+  }
+
+  it("剣（近接）は onShoot トリガーと family:gun の性質を持たない", () => {
+    let sawAnyTrait = false;
+    for (let seed = 0; seed < SEEDS; seed++) {
+      const item = generateOnBase("longsword", seed);
+      for (const roll of item.affixes) {
+        sawAnyTrait = true;
+        const trigger = decodeTriggerRoll(roll);
+        if (trigger !== null) expect(trigger.trigger, `seed ${seed}`).not.toBe("onShoot");
+        const def = affixDef(roll.key);
+        if (def !== undefined) expect(def.family, `seed ${seed}: ${roll.key}`).not.toBe("gun");
+      }
+    }
+    expect(sawAnyTrait, "検査対象の性質が生成されたこと").toBe(true);
+  });
+
+  it("銃（拳銃）は everyNthMeleeHit トリガーと family:melee の性質を持たない", () => {
+    let sawAnyTrait = false;
+    for (let seed = 0; seed < SEEDS; seed++) {
+      const item = generateOnBase("pistol", seed);
+      for (const roll of item.affixes) {
+        sawAnyTrait = true;
+        const trigger = decodeTriggerRoll(roll);
+        if (trigger !== null) expect(trigger.trigger, `seed ${seed}`).not.toBe("everyNthMeleeHit");
+        const def = affixDef(roll.key);
+        if (def !== undefined) expect(def.family, `seed ${seed}: ${roll.key}`).not.toBe("melee");
+      }
+    }
+    expect(sawAnyTrait, "検査対象の性質が生成されたこと").toBe(true);
+  });
+
+  it("銃でも onMeleeHit / onCounter トリガーは出うる（ダッシュ攻撃・銃剣・零距離砲で実際に機能するため）", () => {
+    const triggers = new Set<string>();
+    for (let seed = 0; seed < SEEDS * 4; seed++) {
+      const item = generateOnBase("pistol", seed);
+      for (const roll of item.affixes) {
+        const trigger = decodeTriggerRoll(roll);
+        if (trigger !== null) triggers.add(trigger.trigger);
+      }
+    }
+    expect(triggers.has("onMeleeHit") || triggers.has("onCounter")).toBe(true);
   });
 });

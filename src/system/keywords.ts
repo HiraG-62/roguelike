@@ -308,14 +308,14 @@ const TRIGGER_EFFECT_FACTS: Readonly<Record<TriggerEffectKind, StatFact>> = {
 
 /**
  * 誓約 → 語。どの誓約も冥の性質なので umbra を出す（keystoneFact が足す）。
- * 祝福タグは旧 equipmentTags が見ていた 5 つ（瞬歩・不殺・剣の誓い・吸血・狂戦士）だけ
+ * 祝福タグは旧 equipmentTags が見ていた 5 つ（瞬歩・不殺・近間の誓い・吸血・狂戦士）だけ
  */
 const KEYSTONE_FACTS: Readonly<Record<string, StatFact>> = {
   ks_glassCannon: { tags: [], keywords: kw(["lowHp"], [], ["melee", "ranged"]) },
   [KS.berserker]: { tags: ["hp"], keywords: kw([], ["lowHp"]) },
   [KS.blink]: { tags: ["explode", "dash"], keywords: kw(["explode"], ["dash"], ["dash"]) },
-  [KS.pacifist]: { tags: ["ranged"], keywords: kw([], [], ["ranged"]) },
-  [KS.bladeOath]: { tags: ["melee"], keywords: kw([], [], ["melee"]) },
+  [KS.pacifist]: { tags: ["stagger"], keywords: kw([], [], ["stagger"]) },
+  [KS.bladeOath]: { tags: ["melee", "ranged"], keywords: kw([], [], ["melee", "ranged"]) },
   [KS.juggernaut]: { tags: [], keywords: kw([], ["hurt"], ["hurt"]) },
   [KS.gambler]: { tags: [], keywords: kw(["crit"]) },
   [KS.vampire]: { tags: ["hp"], keywords: kw(["heal"], ["melee"]) },

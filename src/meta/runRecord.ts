@@ -159,10 +159,6 @@ function noteEvent(state: GameState, ev: GameEvent): void {
     case "onSkillCast":
       c.skillCasts += 1;
       return;
-    case "onShoot":
-      // スキルの射撃（source が skill）は「射撃を撃たずに」の対象外
-      if (ev.source.kind === "player") c.shots += 1;
-      return;
     case "onReaction":
       // 図鑑は誰が起こした反応でも記録するが、依頼「反応の目録」は自分が起こしたものだけを数える
       noteReactionEvent(state, ev.tag, ev.actor === "player");
@@ -195,10 +191,7 @@ function noteKill(state: GameState, ev: GameEvent): void {
     if (hadStatus(ev.targetStatus, rule.kinds)) c[rule.counter] += 1;
   }
   const def = ENEMY_BY_KEY.get(key);
-  if (def?.boss) {
-    c.bossKills += 1;
-    if (c.shots === 0) c.bossNoShot += 1;
-  }
+  if (def?.boss) c.bossKills += 1;
   if (def?.lairMaster) c.lairKills += 1;
 }
 

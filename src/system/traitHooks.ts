@@ -10,7 +10,7 @@ import { recordProvenance } from "../loot/provenance";
 import type { AttackMode, TraitColor, TraitStats } from "../loot/types";
 import { SKILL } from "../skills/data";
 import { BOONS, type BoonTag } from "./boonDefs";
-import { gainEnergy, healSustained, isLastKillInEngagedRoom } from "./combat";
+import { gainEnergy, healSustained, isLastKillInEngagedRoom, pacifistMercyClamp } from "./combat";
 import { addFloatingText, spawnRing } from "./effects";
 import { isEngaged } from "./engagement";
 import { KS, hasKeystone } from "./keystones";
@@ -776,7 +776,9 @@ function stake(state: GameState, enemy: Enemy, kind: DamageKind, perShot: number
   }
   if (kind !== "melee" || stuck <= 0) return;
   enemy.stuckShots = 0;
-  const amount = Math.round(perShot * stuck);
+  const raw = Math.round(perShot * stuck);
+  const amount = pacifistMercyClamp(state, enemy, raw);
+  if (amount <= 0) return;
   enemy.hp -= amount;
   addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 10 }, `杭 ${amount}`, TRIGGER.trait.stakeColor, 1.2, 0.6);
   spawnRing(state, enemy.body.pos, enemy.body.radius * 2, TRIGGER.trait.stakeColor, TRIGGER.icd);

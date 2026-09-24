@@ -1,14 +1,14 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
-import { ACTION, FEEL, HEAL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
+import { ACTION, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
-import { KS, berserkerMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
+import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
 import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playerStatusTakenMul } from "./statusEffects";
@@ -144,6 +144,8 @@ export function rollOutgoing(
   }
   amount *= berserkerMul(state);
   amount *= gamblerMul(state);
+  // ks_bladeOath（近間の誓い）: 近接・射撃・スキルに効く。素性なしの proc は距離を測る意味が薄いので対象外
+  if (kind !== "proc" || opts.skill) amount *= bladeOathMul(state, enemy);
   amount *= traitOutgoingMul(state, enemy, kind, opts.skill === true);
   const element = enemy ? genreAndElement(state, enemy, kind, opts) : null;
   if (element) amount *= element.mul;
@@ -179,6 +181,7 @@ export function damageEnemy(
   // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない
   const shatter = !opts.silent && hasStatus(enemy.status, "freeze");
   amount = takenDamage(enemy, intercepted, shatter, enemyStatusTakenMul(state, enemy));
+  amount = pacifistMercyClamp(state, enemy, amount);
   const def = enemyDef(enemy.defKey);
   enemy.hp -= amount;
   if (shatter) shatterFreeze(state, enemy);
@@ -228,6 +231,16 @@ function takenDamage(enemy: Enemy, amount: number, shatter: boolean, statusMul =
   if (isBossClass(enemyDef(enemy.defKey)) && isStaggered(enemy)) mul *= POISE.bossDownDamageMul;
   if (mul === 1) return amount;
   return Math.max(MIN_DAMAGE, Math.round(amount * mul));
+}
+
+/**
+ * ks_pacifist（不殺）: 怯んでいない敵の生命を pacifistMercyHp 未満にしない。
+ * 怯み値を持たない敵（怯まない敵）は対象外にして詰みを防ぐ。怯み中なら通常どおり倒しきれる
+ */
+export function pacifistMercyClamp(state: GameState, enemy: Enemy, amount: number): number {
+  if (!hasKeystone(state, KS.pacifist) || enemy.poise.max <= 0 || isStaggered(enemy)) return amount;
+  const room = enemy.hp - KEYSTONE.pacifistMercyHp;
+  return Math.max(0, Math.min(amount, room));
 }
 
 /** 砕き: 凍結を解き（冷気免疫が付く）、氷の破片を散らす */

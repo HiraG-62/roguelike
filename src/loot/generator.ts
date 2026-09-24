@@ -281,7 +281,7 @@ function pickTableDef(rng: Rng, pool: readonly AffixDef[], ctx: TraitContext, us
 
 function maybeRollTrigger(rng: Rng, ctx: TraitContext, used: ReadonlySet<string>): AffixRoll | undefined {
   if (!rng.chance(TRIGGER_TRAIT_CHANCE)) return undefined;
-  const shape = weightedPick(rng, grammarForSlot(ctx.slot), (s) => leanWeight(triggerColor(s), ctx.lean));
+  const shape = weightedPick(rng, grammarForSlot(ctx.slot, ctx.family), (s) => leanWeight(triggerColor(s), ctx.lean));
   if (shape === undefined) return undefined;
   const roll = rollTriggerTrait(rng, shape, ctx.opts);
   return used.has(roll.key) ? undefined : roll;
@@ -378,7 +378,7 @@ export function rollTraitOfColor(
   family?: "melee" | "gun",
 ): AffixRoll | undefined {
   const tables = traitsFor(slot, opts.depth, family).filter((d) => affixColor(d) === color && !used.has(d.key));
-  const shapes = grammarForSlot(slot).filter((s) => triggerCanBeColor(s, color));
+  const shapes = grammarForSlot(slot, family).filter((s) => triggerCanBeColor(s, color));
   const vows = color === "umbra" ? KEYSTONES.filter((k) => !used.has(k.key)) : [];
   const groups: { group: ColoredGroup; weight: number }[] = [
     { group: "table", weight: tables.length },

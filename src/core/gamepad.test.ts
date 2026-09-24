@@ -210,7 +210,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(input.read().specialPressed).toBe(true);
   });
 
-  it("LB(4) を押している間は A / X / Y / B がスキル 1〜4 になり、攻撃・射撃・必殺・ダッシュには使わない", () => {
+  it("LB(4) を押している間は A / X / Y / B がスキル 1〜4 になり、攻撃・固有技・必殺・ダッシュには使わない", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
@@ -226,7 +226,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect([f.skill1Held, f.skill2Held, f.skill3Held, f.skill4Held], "押しっぱなしも読む").toEqual([true, true, true, true]);
     expect(f.attackPressed, "A は攻撃にならない").toBe(false);
     expect(f.confirmPressed, "A は決定にならない").toBe(false);
-    expect(f.shootHeld, "X は射撃にならない").toBe(false);
+    expect(f.shootHeld, "X は固有技にならない").toBe(false);
     expect(f.specialPressed, "Y は必殺にならない").toBe(false);
     expect(f.dashPressed, "B はダッシュにならない").toBe(false);
     expect(f.escapePressed, "B は戻るにならない").toBe(false);
@@ -236,7 +236,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(held.skill1Held).toBe(true);
   });
 
-  it("LB 中も RT(攻撃) / LT(射撃) / RB(ダッシュ) は効く", () => {
+  it("LB 中も RT(攻撃) / LT(固有技) / RB(ダッシュ) は効く", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
@@ -295,15 +295,15 @@ describe("GamepadInput 拾う（右スティック押し込み）", () => {
     return input.read();
   }
 
-  it("右スティック押し込みで interactPressed が立ち、射撃は出ない", () => {
+  it("右スティック押し込みで interactPressed が立ち、固有技は出ない", () => {
     const frame = readWith([BTN_RSTICK]);
     expect(frame.interactPressed, "拾う").toBe(true);
-    expect(frame.shootHeld, "射撃は出ない").toBe(false);
+    expect(frame.shootHeld, "固有技は出ない").toBe(false);
   });
 
-  it("X は射撃だけで、拾うは立たない", () => {
+  it("X は固有技だけで、拾うは立たない", () => {
     const frame = readWith([BTN_X]);
-    expect(frame.shootHeld, "射撃").toBe(true);
+    expect(frame.shootHeld, "固有技").toBe(true);
     expect(frame.interactPressed, "拾わない").toBe(false);
   });
 

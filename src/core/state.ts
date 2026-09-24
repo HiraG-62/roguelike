@@ -113,7 +113,7 @@ export interface Player {
   status: StatusBag;
   /** 装備の性質の作業領域（余韻斬り・形見。src/system/traitHooks.ts） */
   loot: LootRuntime;
-  /** チャージ射撃（溜め撃ちの弾）: 射撃キーを押して溜めている最中か、その秒数 */
+  /** チャージ射撃（溜め撃ちの弾）: 攻撃キー（左クリック / attackHeld）を押して溜めている最中か、その秒数 */
   shotCharging: boolean;
   shotChargeTime: number;
   /** 前フレームに右クリック（固有技のキー）を押していたか。右の押した瞬間を取るため */

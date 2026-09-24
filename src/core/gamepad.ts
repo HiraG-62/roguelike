@@ -174,7 +174,7 @@ export class GamepadInput {
     const aimDir = isZero(rightStick) ? null : normalize(rightStick);
 
     // LB はスキル層のシフト: 押している間は A / X / Y / B をスキル 1〜4 として読み、
-    // 攻撃・射撃・必殺・ダッシュ・決定・戻るには使わない（RT / LT / RB はシフト中も効く）
+    // 攻撃・固有技・必殺・ダッシュ・決定・戻るには使わない（RT / LT / RB はシフト中も効く）
     const shift = isDown[BTN_LB] ?? false;
     const face = (i: number): { pressed: boolean; held: boolean } => ({
       pressed: shift && justPressed(i),
@@ -204,7 +204,7 @@ export class GamepadInput {
       skill2Held: s2?.held ?? false,
       skill3Held: s3?.held ?? false,
       skill4Held: s4?.held ?? false,
-      // 面ボタンは全部埋まっている。射撃（X）と共用すると拾うたびに弾が出るので、空いている R3 に置く。
+      // 面ボタンは全部埋まっている。固有技（X）と共用すると拾うたびに固有技が出るので、空いている R3 に置く。
       // LB のスキル層とは関係しないので、シフト中も効く
       interactPressed: justPressed(BTN_RSTICK),
     };

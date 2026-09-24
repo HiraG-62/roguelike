@@ -93,6 +93,8 @@ describe("実績: 永続化", () => {
     const parsed = parseAchievementSave({ version: 1, unlocked: { firstRun: 1, nope: 2 }, title: "x:bad" });
     expect(parsed?.unlocked, "未知の実績は捨てる").toEqual({ firstRun: 1 });
     expect(parsed?.title, "形の悪い称号は外す").toBeNull();
+    const legacyTitle = parseAchievementSave({ version: 1, unlocked: {}, title: "q:bladeOnly" });
+    expect(legacyTitle?.title, "廃止した依頼「刃のみ」の称号は黙って外す").toBeNull();
   });
 });
 

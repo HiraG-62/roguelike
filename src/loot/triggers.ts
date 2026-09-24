@@ -295,6 +295,21 @@ export const SLOT_TRIGGERS: Readonly<Record<Slot, readonly TriggerKind[]>> = {
   amulet: TRIGGER_KINDS,
 };
 
+/**
+ * 右手の家系で除く起点（docs/ideas/weapon-redesign.md 5.2）。
+ * 近接の家系は撃たないので onShoot は確実に死に性質（剣が発砲することは無い）。
+ * 銃の家系は「近接」に見える起点を全部殺すと壊れる: 銃の家系は全種がダッシュ攻撃の終わりに
+ * 反転撃ち（近接扱い）を持ち、長銃の銃剣（bayonet）・砲の零距離砲（pointBlank）は右クリックの
+ * 固有技そのものが近接ヒット（meleeHitEnemy 経由で onMeleeHit / onCounter を発火）になる
+ * （system/weaponArts.ts の strike art、system/player.ts の meleeHitEnemy）。
+ * そのため onMeleeHit / onCounter は銃でも機能するので残し、"同系統の連続ヒットを数える"
+ * everyNthMeleeHit だけ、単発のダッシュ攻撃・固有技頼みでは実質貯まらないので銃から落とす
+ */
+const FAMILY_EXCLUDED_TRIGGERS: Readonly<Record<"melee" | "gun", readonly TriggerKind[]>> = {
+  melee: ["onShoot"],
+  gun: ["everyNthMeleeHit"],
+};
+
 // ---------------------------------------------------------------------------
 // 組み合わせ表
 // ---------------------------------------------------------------------------
@@ -391,16 +406,18 @@ export const TRIGGER_GRAMMAR: readonly TriggerShape[] = TRIGGER_KINDS.flatMap((t
   ),
 );
 
-/** スロットごとの組み合わせ（文法が大きいので毎回の抽選で絞り直さない） */
-const GRAMMAR_BY_SLOT = new Map<Slot, readonly TriggerShape[]>();
+/** スロットごとの組み合わせ（文法が大きいので毎回の抽選で絞り直さない）。右手は家系ごとに分けてキャッシュする */
+const GRAMMAR_BY_SLOT = new Map<string, readonly TriggerShape[]>();
 
-/** スロットで出うる組み合わせ */
-export function grammarForSlot(slot: Slot): readonly TriggerShape[] {
-  const cached = GRAMMAR_BY_SLOT.get(slot);
+/** スロットで出うる組み合わせ。mainHand は family（省略時は両方の家系を許す）で起点を絞る */
+export function grammarForSlot(slot: Slot, family?: "melee" | "gun"): readonly TriggerShape[] {
+  const cacheKey = slot === "mainHand" ? `${slot}:${family ?? ""}` : slot;
+  const cached = GRAMMAR_BY_SLOT.get(cacheKey);
   if (cached !== undefined) return cached;
-  const allowed = SLOT_TRIGGERS[slot];
+  const excluded = slot === "mainHand" && family !== undefined ? FAMILY_EXCLUDED_TRIGGERS[family] : [];
+  const allowed = SLOT_TRIGGERS[slot].filter((t) => !excluded.includes(t));
   const shapes = TRIGGER_GRAMMAR.filter((shape) => allowed.includes(shape.trigger));
-  GRAMMAR_BY_SLOT.set(slot, shapes);
+  GRAMMAR_BY_SLOT.set(cacheKey, shapes);
   return shapes;
 }
 

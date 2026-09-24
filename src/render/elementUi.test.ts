@@ -31,6 +31,12 @@ describe("攻撃ジャンル・属性の表示（A-8）", () => {
     expect(loadoutAttackLines(state.stats)).toEqual(["二丁拳銃: 遠距離・物理 / 無属性", "射撃: 遠距離・物理 / 無属性"]);
   });
 
+  it("銃以外でも固有技が弾を出す型（斧の投擲）なら射撃扱いの素性を出す", () => {
+    const state = arena();
+    state.stats.moveset = "axe";
+    expect(loadoutAttackLines(state.stats)).toEqual(["斧: 近接・物理 / 無属性", "投擲: 遠距離・物理 / 無属性"]);
+  });
+
   it("弱点の印は倒すまで「？」、倒した種類は弱点の色", () => {
     const state = arena();
     const e = placeEnemy(state, "frostGolem", 40);

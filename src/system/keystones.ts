@@ -1,4 +1,5 @@
-import type { GameState, Player } from "../core/state";
+import type { Enemy, GameState, Player } from "../core/state";
+import { dist } from "../core/vec";
 import type { PlayerStats } from "../loot/types";
 import { KEYSTONE, PLAYER } from "../data/tuning";
 import { isEngaged } from "./engagement";
@@ -63,7 +64,7 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_gambler: "賭博師",
   ks_vampire: "吸血",
   ks_overclock: "過駆動",
-  ks_bladeOath: "剣の誓い",
+  ks_bladeOath: "近間の誓い",
   ks_windWalker: "風走り",
   ks_overdraw: "過負荷",
   ks_silentVow: "静寂の誓い",
@@ -120,6 +121,16 @@ export function berserkerMul(state: GameState): number {
 export function gamblerMul(state: GameState): number {
   if (!hasKeystone(state, KS.gambler)) return 1;
   return KEYSTONE.gamblerMin + state.rng.next() * (KEYSTONE.gamblerMax - KEYSTONE.gamblerMin);
+}
+
+/**
+ * ks_bladeOath（近間の誓い）: 対象との距離で与ダメージが変わる（近接・射撃・スキル共通）。
+ * 対象がいない proc ダメージは距離を測れないので等倍のまま
+ */
+export function bladeOathMul(state: GameState, enemy: Enemy | null): number {
+  if (!hasKeystone(state, KS.bladeOath) || !enemy) return 1;
+  const d = dist(state.player.body.pos, enemy.body.pos);
+  return d <= KEYSTONE.bladeOathRangePx ? KEYSTONE.bladeOathNearMul : KEYSTONE.bladeOathFarMul;
 }
 
 /** 毎秒回復が有効か（berserker / vampire は無効。土の誓いは地形の上の回復に置き換える） */

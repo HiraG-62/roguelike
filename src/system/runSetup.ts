@@ -41,7 +41,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   wanderer: { name: "放浪者", desc: "何も変えずに出発する。", keystones: [] },
   swordPilgrim: {
     name: "剣の巡礼者",
-    desc: "誓約「剣の誓い」を立て、近接の祝福を 1 つ持って出発する。",
+    desc: "誓約「近間の誓い」を立て、近接の祝福を 1 つ持って出発する。",
     keystones: ["ks_bladeOath"],
   },
   cursedOne: {

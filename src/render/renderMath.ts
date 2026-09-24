@@ -456,7 +456,7 @@ export interface WeaponPoseInput {
   /** 武器種の段。扇・箱は段ごとに振る向きを入れ替える（drawSwingTrail と同じ規則） */
   readonly step: number;
   readonly facingRight: boolean;
-  /** 構えずに照準へ向けて持つ（杖・二丁拳銃など、左で撃つ武器） */
+  /** 構えずに照準へ向けて持つ（銃の家系。primary が shot の武器種） */
   readonly aimHeld: boolean;
   /** 片刃・片頭の武器の刃の側（sprites/weapons.ts の WEAPON_EDGE）。無ければ刃の向きを選ばない */
   readonly edge?: WeaponEdge;

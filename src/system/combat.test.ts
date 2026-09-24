@@ -3,10 +3,11 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import type { TriggeredEffect } from "../loot/types";
-import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, tickHpRegen } from "./combat";
+import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, rollOutgoing, tickHpRegen } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
 import { applyStats, dashTime, meleeStep } from "./player";
+import { applyStagger } from "./poise";
 import { updateProjectiles } from "./projectiles";
 import { applyBurn, applyChill, applyOnHitStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -176,11 +177,58 @@ describe("トリガー", () => {
 });
 
 describe("キーストーン", () => {
-  it("ks_pacifist では近接が出ない", () => {
+  it("ks_pacifist では近接が振れる", () => {
     const state = arena(5, { keystones: [KS.pacifist] });
     step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.player.attack.phase).toBe("none");
-    expect(state.texts.some((t) => t.text === "不殺")).toBe(true);
+    expect(state.player.attack.phase).not.toBe("none");
+  });
+
+  it("ks_pacifist: 怯んでいない敵の生命を1未満にできない", () => {
+    const state = arena(5, { keystones: [KS.pacifist] });
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = 5;
+    const killed = damageEnemy(state, e, 999, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(killed).toBe(false);
+    expect(e.hp).toBe(1);
+  });
+
+  it("ks_pacifist: 怯み中の敵はそのまま倒せる", () => {
+    const state = arena(5, { keystones: [KS.pacifist] });
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = 5;
+    applyStagger(state, e, 1);
+    const killed = damageEnemy(state, e, 999, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(killed).toBe(true);
+    expect(e.hp).toBeLessThanOrEqual(0);
+  });
+
+  it("ks_pacifist: 怯まない敵（怯みゲージを持たない）は制限なく倒せる", () => {
+    const state = arena(5, { keystones: [KS.pacifist] });
+    const e = placeEnemy(state, "boar", 14);
+    e.poise.max = 0;
+    e.hp = 5;
+    const killed = damageEnemy(state, e, 999, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(killed).toBe(true);
+  });
+
+  it("ks_bladeOath（近間の誓い）: 距離で与ダメージが変わる", () => {
+    const near = arena(5, { keystones: [KS.bladeOath], critChance: 0 });
+    const eNear = placeEnemy(near, "boar", 10);
+    const far = arena(5, { keystones: [KS.bladeOath], critChance: 0 });
+    const eFar = placeEnemy(far, "boar", 100);
+    const base = arena(5, { critChance: 0 });
+    const eBase = placeEnemy(base, "boar", 10);
+    const nearHit = rollOutgoing(near, eNear, 10, "melee");
+    const farHit = rollOutgoing(far, eFar, 10, "melee");
+    const baseHit = rollOutgoing(base, eBase, 10, "melee");
+    expect(nearHit.amount).toBeGreaterThan(baseHit.amount);
+    expect(farHit.amount).toBeLessThan(baseHit.amount);
+  });
+
+  it("ks_bladeOath: 射撃・固有技を封じない", () => {
+    const state = arena(5, { keystones: [KS.bladeOath], moveset: "sidearm" });
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
+    expect(state.projectiles.filter((pr) => pr.owner === "player").length).toBeGreaterThan(0);
   });
 
   it("ks_blink ではダッシュが一瞬で移動し、無敵が付かない", () => {
@@ -223,7 +271,7 @@ describe("ks_overclock", () => {
 });
 
 describe("ks_vampire + ks_pacifist", () => {
-  it("近接不可でも vampire の life on hit は射撃ヒットで発動する", () => {
+  it("不殺でも近接は振れ、vampire の life on hit は射撃ヒットでも近接ヒットでも発動する", () => {
     const state = arena(5, { keystones: [KS.vampire, KS.pacifist], lifeOnHit: 3, moveset: "sidearm" });
     state.player.hp = 50;
     placeEnemy(state, "boar", 20);
@@ -332,15 +380,6 @@ describe("スモーク（全効果盛り）", () => {
     }
     expect(state.tick).toBeGreaterThan(0);
     expect(Number.isFinite(state.player.hp)).toBe(true);
-  });
-});
-
-describe("ks_bladeOath", () => {
-  it("射撃入力を無視して blade oath を表示する", () => {
-    const state = arena(5, { keystones: [KS.bladeOath], moveset: "sidearm" });
-    step(state, withInput({ attackHeld: true }), FIXED_DT);
-    expect(state.projectiles.filter((pr) => pr.owner === "player")).toHaveLength(0);
-    expect(state.texts.some((t) => t.text === "剣の誓い")).toBe(true);
   });
 });
 

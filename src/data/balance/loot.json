@@ -114,7 +114,13 @@
     "emberOnMul": 1.3,
     "emberOffMul": 0.85,
     "emberFireResistLoss": 25,
-    "emberKillFireSec": 4
+    "emberKillFireSec": 4,
+    "pacifistMercyHp": 1,
+    "pacifistPoiseMul": 2,
+    "bladeOathRangePx": 30,
+    "bladeOathNearMul": 1.8,
+    "bladeOathFarMul": 0.5,
+    "bladeOathAttackSpeedBonus": 0.2
   },
   "TRIGGER": {
     "icd": 0.4,

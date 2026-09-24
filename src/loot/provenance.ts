@@ -3,6 +3,7 @@ import { createRng, hashSeed, type Rng } from "../core/rng";
 import { ENEMIES } from "../data/enemies";
 import { KEYSTONE } from "../data/tuning";
 import { affixDef } from "./affixes";
+import { baseDef, baseFamily } from "./bases";
 import { OPPOSITE_COLOR } from "./colors";
 import { fluxClassOf } from "./flux";
 import { CALM_SIGMA_SCALE, rollTableTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
@@ -264,10 +265,12 @@ export function makeBudOffer(item: Item, def: MilestoneDef): BudOffer | null {
     allowInversion: false,
     origin: "bud",
   };
-  const along = rollAwakening(rng, def, used, opts) ?? rollTraitOfColor(rng, item.slot, def.color, used, opts);
+  const base = baseDef(item.baseKey);
+  const family = base === undefined ? undefined : baseFamily(base);
+  const along = rollAwakening(rng, def, used, opts) ?? rollTraitOfColor(rng, item.slot, def.color, used, opts, family);
   if (along === undefined) return null;
   used.add(along.key);
-  const against = rollTraitOfColor(rng, item.slot, OPPOSITE_COLOR[def.color], used, opts);
+  const against = rollTraitOfColor(rng, item.slot, OPPOSITE_COLOR[def.color], used, opts, family);
   if (against === undefined) return null;
   return { milestone: def.key, options: [along, against] };
 }

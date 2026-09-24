@@ -23,7 +23,15 @@ export const JOB_KEYS = ["none", "swordsman", "hunter", "brawler", "shieldBearer
 export type JobKey = (typeof JOB_KEYS)[number];
 
 /** 弱点・得意で掛ける倍率の対象（いずれも掛け算で効く数値） */
-export type JobMulStat = "maxHp" | "meleeDamageMul" | "rangedDamageMul" | "moveSpeedMul" | "attackSpeedMul" | "dashCooldownMul";
+export type JobMulStat =
+  | "maxHp"
+  | "meleeDamageMul"
+  | "rangedDamageMul"
+  | "skillDamageMul"
+  | "moveSpeedMul"
+  | "attackSpeedMul"
+  | "dashCooldownMul"
+  | "damageTakenMul";
 export type JobStatMul = Partial<Record<JobMulStat, number>>;
 
 export interface JobRuleDef {
@@ -43,7 +51,7 @@ export interface JobDef {
   desc: string;
   /** 基礎値（各 5）に足す偏り。合計は 0（どれかを伸ばせばどれかが下がる） */
   attributes: Partial<Attributes>;
-  /** この武器種を持つ間、近接の威力と攻撃速度が上がる（JOB.favoredMeleeMul / favoredAttackSpeedMul） */
+  /** この武器種を持つ間、その武器の攻撃（近接なら近接、銃なら射撃）の威力と速度が上がる（JOB.favoredMeleeMul / favoredAttackSpeedMul） */
   favored: readonly MovesetKey[];
   rules: readonly JobRuleDef[];
   /** 開始時に足元へ置くスキル石 */
@@ -66,6 +74,11 @@ const SAME_POTENCY = 1;
 /** 倍率が 1 からどれだけ離れているか（%）。0.85 → 15、1.15 → 15。説明文の数値を tuning から作る */
 function lessPct(mul: number): number {
   return Math.round(Math.abs(1 - mul) * PERCENT);
+}
+
+/** damageTakenMul のように 1 より大きくなる弱点の増加分（%） */
+function morePct(mul: number): number {
+  return Math.round((mul - 1) * PERCENT);
 }
 
 function owner(job: JobKey): EventSource {
@@ -119,21 +132,21 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "lunge",
     starterWeapon: "katana",
-    weakness: { text: `射撃の威力が ${lessPct(JOB.swordsmanRangedMul)}% 落ちる。`, mul: JOB_WEAKNESS.swordsman },
+    weakness: { text: `スキルの威力が ${lessPct(JOB.swordsmanSkillMul)}% 落ちる。`, mul: JOB_WEAKNESS.swordsman },
     keywords: kw(["melee", "finisher", "stagger"], ["just"]),
   },
   hunter: {
     name: "狩人",
-    desc: "予備動作中の敵を射撃で怯ませ、精鋭を脆弱にする。",
+    desc: "予備動作中の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
     favored: ["longarm", "thrown", "whip"],
     rules: [
-      jobRule("hunter", 0, `予備動作中の敵を射撃で撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
+      jobRule("hunter", 0, `予備動作中の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
         when: "onRangedHit",
         if: [{ kind: "trigger", condition: "targetInWindup" }],
         then: { kind: "addPoise", magnitude: JOB.hunterWindupPoise },
       }),
-      jobRule("hunter", 1, `精鋭を射撃で撃つと ${JOB.hunterVulnerableSec} 秒間脆弱にする。`, {
+      jobRule("hunter", 1, `精鋭を射撃・遠距離スキルで撃つと ${JOB.hunterVulnerableSec} 秒間脆弱にする。`, {
         when: "onRangedHit",
         if: [{ kind: "trigger", condition: "targetElite" }],
         then: { kind: "inflict", status: "vulnerable", magnitude: JOB.hunterVulnerableSec },
@@ -163,7 +176,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "quake",
     starterWeapon: "gauntlets",
-    weakness: { text: `射撃の威力が ${lessPct(JOB.brawlerRangedMul)}% 落ちる。`, mul: JOB_WEAKNESS.brawler },
+    weakness: { text: `受けるダメージが ${morePct(JOB.brawlerDamageTakenMul)}% 増える。`, mul: JOB_WEAKNESS.brawler },
     keywords: kw(["melee", "combo", "area"], ["hurt"]),
   },
   shieldBearer: {

@@ -832,6 +832,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- トレードオフ（value2 = 代償側の値）。同系統の純粋アフィックスより伸び幅が大きい ----
   trait({
     key: "crushing",
+    family: "melee",
     label: "近接ダメージ +{v}%、攻撃速度 -{v2}%",
     tags: ["damage", "melee", "tradeoff"],
     slots: ["mainHand"],
@@ -843,6 +844,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "frenzied",
+    family: "melee",
     label: "攻撃速度 +{v}%、近接ダメージ -{v2}%",
     tags: ["speed", "melee", "tradeoff"],
     slots: ["mainHand", "ring"],
@@ -912,6 +914,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "pike",
+    family: "melee",
     label: "リーチ +{v}%、攻撃速度 -{v2}%",
     tags: ["melee", "utility", "tradeoff"],
     slots: ["mainHand"],
@@ -1182,6 +1185,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 弾斬り（docs/COMBAT_DESIGN.md C-1 の 6）: 既定では近接は敵弾を素通りする ----
   trait({
     key: "bulletCut",
+    family: "melee",
     color: "azure",
     label: "近接攻撃で敵弾を消せる（リーチ -{v}%）",
     tags: ["melee", "defense"],
@@ -1379,6 +1383,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "counterMana",
+    family: "melee",
     color: "gold",
     label: "構えの呼吸: カウンターで気力 +{v}、攻撃速度 -{v2}%",
     tags: ["mana", "melee", "tradeoff"],
@@ -1475,6 +1480,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "procParalyze",
+    family: "melee",
     color: "gold",
     label: "近接命中時 {v}% で麻痺させる、攻撃速度 -{v2}%",
     tags: ["status", "melee", "tradeoff"],
@@ -1487,6 +1493,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "rotBurst",
+    family: "melee",
     color: "umbra",
     label: "腐爆: 状態異常が 2 種以上の敵への近接命中で爆発する（{v} ダメージ）、近接ダメージ -{v2}%",
     tags: ["status", "melee", "damage", "tradeoff"],
@@ -1676,6 +1683,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "windupCrack",
+    family: "melee",
     color: "gold",
     label: "崩し打ち: 予備動作中の敵への近接命中で、追加の怯み値 {v}",
     tags: ["melee", "combo"],
@@ -1687,6 +1695,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "counterWave",
+    family: "melee",
     label: "返し波: カウンター時、衝撃波を放つ（{v} ダメージ）",
     tags: ["melee", "damage"],
     slots: ["mainHand"],
@@ -3319,6 +3328,11 @@ const SILENT_VOW_REGEN_MUL = 3;
 const SILENT_VOW_SKILL_BONUS = 0.3;
 /** ks_thirst（渇きの誓約）の自然回復。攻撃の回収 ×3 は src/system/keystones.ts の attackManaMul */
 const THIRST_MANA_REGEN = 0;
+/** ks_bladeOath（近間の誓い）: 距離の境目の表示（m）。判定は src/system/combat.ts bladeOathMul */
+const BLADE_OATH_RANGE = formatMeters(KEYSTONE.bladeOathRangePx);
+const BLADE_OATH_FAR_PCT = Math.round((1 - KEYSTONE.bladeOathFarMul) * 100);
+const BLADE_OATH_NEAR_PCT = Math.round((KEYSTONE.bladeOathNearMul - 1) * 100);
+const BLADE_OATH_SPEED_PCT = Math.round(KEYSTONE.bladeOathAttackSpeedBonus * 100);
 
 export interface KeystoneDef {
   key: string;
@@ -3412,21 +3426,19 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_pacifist",
     name: "不殺",
-    description: "近接攻撃ができなくなる。射撃ダメージが3倍になり、弾数 +1。",
+    description: "怯んでいない敵の生命を1未満にできず、倒しきれない。怯み中の敵はそのまま倒せる。怯み値 +100%。",
     exclusiveGroup: "style",
     apply: (s) => {
-      s.rangedDamageMul += 2;
-      s.projectileCount += 1;
+      s.poiseDamageMul *= KEYSTONE.pacifistPoiseMul;
     },
   },
   {
     key: "ks_bladeOath",
-    name: "剣の誓い",
-    description: "射撃も、弾を撃つ武器の固有技も使えなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
+    name: "近間の誓い",
+    description: `${BLADE_OATH_RANGE}より遠い敵への与ダメージ -${BLADE_OATH_FAR_PCT}%、${BLADE_OATH_RANGE}以内の敵への与ダメージ +${BLADE_OATH_NEAR_PCT}%。攻撃速度 +${BLADE_OATH_SPEED_PCT}%。`,
     exclusiveGroup: "style",
     apply: (s) => {
-      s.meleeDamageMul += 1;
-      s.attackSpeedMul += 0.2;
+      s.attackSpeedMul += KEYSTONE.bladeOathAttackSpeedBonus;
     },
   },
   {

@@ -193,10 +193,10 @@ describe("キーストーンとトリガーの集計", () => {
     expect(stats.maxHp).toBe(30);
   });
 
-  it("キーストーンの倍率はソフトキャップの対象外（pacifist の射撃倍率 3.0 が残る）", () => {
+  it("キーストーンの倍率はソフトキャップの対象外（glassCannon の射撃倍率 2.0 が残る）", () => {
     const equipment = createEmptyEquipment();
-    equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_pacifist")] });
-    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(3);
+    equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
+    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(2);
   });
 
   it("通常アフィックスだけがソフトキャップされ、キーストーンはその後に足される", () => {
@@ -204,11 +204,11 @@ describe("キーストーンとトリガーの集計", () => {
     equipment.mainHand = makeItem("mainHand", {
       affixes: [
         { key: "rangedDamagePct", kind: "prefix", tier: 1, value: 200 },
-        ks("ks_pacifist"),
+        ks("ks_glassCannon"),
       ],
     });
-    // 1 + 2.0 = 3.0 → softCap → +2.0（キーストーン）
-    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(softCap(3) + 2);
+    // 1 + 2.0 = 3.0 → softCap → +1.0（キーストーン）
+    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(softCap(3) + 1);
   });
 
   it("同じキーストーンを 2 つ装備しても 1 回しか効かない", () => {
