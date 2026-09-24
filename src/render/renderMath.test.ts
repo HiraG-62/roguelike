@@ -1,4 +1,17 @@
 import { describe, expect, it } from "vitest";
+import {
+  type WeaponPoseInput,
+  offhandOffset,
+  phaseProgress,
+  playerBodyPose,
+  slashVisual,
+  slashWeight,
+  swingSign,
+  weaponGrip,
+  weaponPose,
+  weaponView,
+} from "./renderMath";
+import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_FRAME } from "../data/sprites/weapons";
 import { createMap, setTile, Tile } from "../map/grid";
 import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
 import { RARITIES, TRAIT_COLOR_HEX, createEmptyResonance, type Resonance } from "../loot/types";
@@ -333,5 +346,129 @@ describe("誓約のオーラ（7-20）", () => {
     for (const a of arcs) expect(a.end - a.start, "隙間ぶん短い").toBeCloseTo((Math.PI * 2) / 3 - 0.3);
     expect(auraArcs(3, 1, 1, 0.3)[0]?.start, "時間で回る").toBeCloseTo((arcs[0]?.start ?? 0) + 1);
     expect(auraArcs(0, 0, 1, 0.3)).toEqual([]);
+  });
+});
+
+describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）", () => {
+  const base: WeaponPoseInput = { phase: "none", t: 0, shape: "arc", deg: 120, aim: 0, step: 0, facingRight: true, aimHeld: false };
+  const pose = (over: Partial<WeaponPoseInput>) => weaponPose({ ...base, ...over });
+  /** 2 つの角度の差（-π..π） */
+  const diff = (a: number, b: number): number => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+
+  it("weaponView は 8 方向を横・斜め・縦の 3 枚と反転で表す", () => {
+    expect(weaponView(0)).toEqual({ frame: WEAPON_FRAME.side, flipX: false, flipY: false });
+    expect(weaponView(Math.PI)).toEqual({ frame: WEAPON_FRAME.side, flipX: true, flipY: false });
+    expect(weaponView(-Math.PI / 2)).toEqual({ frame: WEAPON_FRAME.up, flipX: false, flipY: false });
+    expect(weaponView(Math.PI / 2)).toEqual({ frame: WEAPON_FRAME.up, flipX: false, flipY: true });
+    expect(weaponView(-Math.PI / 4)).toEqual({ frame: WEAPON_FRAME.diagonal, flipX: false, flipY: false });
+    expect(weaponView((3 * Math.PI) / 4)).toEqual({ frame: WEAPON_FRAME.diagonal, flipX: true, flipY: true });
+    expect(weaponView(Math.PI * 2 + 0.1), "一周しても同じ").toEqual(weaponView(0.1));
+  });
+
+  it("待機は向いている側の上へ担ぎ、左向きは拳の位置も左右反転する", () => {
+    const right = pose({});
+    const left = pose({ facingRight: false });
+    expect(Math.sin(right.angle), "上向き").toBeLessThan(0);
+    expect(Math.cos(right.angle), "右寄り").toBeGreaterThan(0);
+    expect(Math.cos(left.angle), "左寄り").toBeLessThan(0);
+    expect(left.dx).toBe(-right.dx);
+    expect(right.behind, "担いだ武器は体の後ろ").toBe(true);
+  });
+
+  it("撃つ武器（aimHeld）は待機でも照準へ向ける", () => {
+    const p = pose({ aimHeld: true, aim: Math.PI / 2 });
+    expect(p.angle).toBeCloseTo(Math.PI / 2);
+    expect(p.dy, "下へ向けた拳は腕の付け根より下").toBeGreaterThan(-4);
+    expect(p.behind).toBe(false);
+  });
+
+  it("windup は攻撃方向の逆へ引き、active の終わりで攻撃方向の先へ振り抜く", () => {
+    const aim = 0.3;
+    for (const shape of ["arc", "box"] as const) {
+      const windup = pose({ shape, aim, phase: "windup", t: 1 });
+      const end = pose({ shape, aim, phase: "active", t: 1 });
+      expect(Math.abs(diff(windup.angle, aim)), `${shape}: 引く`).toBeGreaterThan(Math.PI / 2);
+      expect(Math.abs(diff(end.angle, aim)), `${shape}: 振り抜く`).toBeLessThan(Math.PI * 0.75);
+      expect(Math.sign(diff(end.angle, aim)), `${shape}: 引いた側の反対へ抜ける`).toBe(-Math.sign(diff(windup.angle, aim)));
+    }
+  });
+
+  it("arc は段が偶数と奇数で振る向きが反転する", () => {
+    const even = pose({ phase: "active", t: 1, step: 0 });
+    const odd = pose({ phase: "active", t: 1, step: 1 });
+    expect(diff(even.angle, 0)).toBeCloseTo(-diff(odd.angle, 0));
+    expect(swingSign(0)).toBe(1);
+    expect(swingSign(3)).toBe(-1);
+  });
+
+  it("thrust は active で前へ伸び recover で戻る", () => {
+    const pulled = pose({ shape: "thrust", phase: "windup", t: 1 });
+    const out = pose({ shape: "thrust", phase: "active", t: 1 });
+    const back = pose({ shape: "thrust", phase: "recover", t: 1 });
+    expect(out.angle).toBeCloseTo(0);
+    expect(out.dx).toBeGreaterThan(back.dx);
+    expect(back.dx).toBeGreaterThan(pulled.dx);
+  });
+
+  it("circle は active の間に一周する", () => {
+    const half = pose({ shape: "circle", phase: "active", t: 0.3 });
+    const done = pose({ shape: "circle", phase: "active", t: 1 });
+    expect(Math.abs(diff(half.angle, 0)), "途中は攻撃方向から離れる").toBeGreaterThan(0.5);
+    expect(diff(done.angle, 0)).toBeCloseTo(0);
+  });
+
+  it("weaponGrip は反転すると拳の中心を鏡に写す", () => {
+    const plain = weaponGrip({ frame: WEAPON_FRAME.side, flipX: false, flipY: false });
+    const flipped = weaponGrip({ frame: WEAPON_FRAME.side, flipX: true, flipY: true });
+    expect(flipped.x).toBe(WEAPON_CANVAS - plain.x);
+    expect(flipped.y).toBe(WEAPON_CANVAS - plain.y);
+  });
+
+  it("二丁拳銃の 2 挺は照準に直交して左右に分かれる", () => {
+    const a = offhandOffset(0, 3, 1);
+    const b = offhandOffset(0, 3, -1);
+    expect(a.x).toBeCloseTo(0);
+    expect(a.y).toBeCloseTo(3);
+    expect(b.y).toBeCloseTo(-3);
+  });
+
+  it("phaseProgress は段階の残り秒から 0 → 1 の進みを出す", () => {
+    const step = { windup: 0.2, active: 0.1, recover: 0.4 };
+    expect(phaseProgress("windup", 0.2, step)).toBeCloseTo(0);
+    expect(phaseProgress("active", 0.05, step)).toBeCloseTo(0.5);
+    expect(phaseProgress("recover", 0, step)).toBeCloseTo(1);
+    expect(phaseProgress("none", 0, step)).toBe(1);
+  });
+
+  it("playerBodyPose は予備動作と溜めで構え、振りと戻しの前半で振り抜き", () => {
+    expect(playerBodyPose("windup", 0.5, false)).toBe("windup");
+    expect(playerBodyPose("none", 0, true)).toBe("windup");
+    expect(playerBodyPose("active", 0.5, false)).toBe("strike");
+    expect(playerBodyPose("recover", 0.2, false)).toBe("strike");
+    expect(playerBodyPose("recover", 0.8, false)).toBe("walk");
+    expect(playerBodyPose("none", 0, false)).toBe("walk");
+  });
+});
+
+describe("斬撃の絵の選び方（docs/ideas/combat-feel-design.md C-3）", () => {
+  it("当たり判定の形ごとに別の絵を使う（扇は開き角で 2 種）", () => {
+    expect(slashVisual("box", 0, 0, false, 1).key).toBe(SLASH_SPRITE.box);
+    expect(slashVisual("arc", 120, 0, false, 1).key).toBe(SLASH_SPRITE.arc);
+    expect(slashVisual("arc", 240, 0, false, 1).key).toBe(SLASH_SPRITE.arcWide);
+    expect(slashVisual("thrust", 0, 0, false, 1).key).toBe(SLASH_SPRITE.thrust);
+    expect(slashVisual("circle", 0, 0, false, 1).key).toBe(SLASH_SPRITE.ring);
+  });
+
+  it("5 段の武器でも段ごとに絵（フレームと反転の組）が違う", () => {
+    const steps = [0, 1, 2, 3, 4].map((i) => slashVisual("arc", 120, i, i === 4, 1));
+    const looks = new Set(steps.map((v) => `${v.frame}:${v.flipY}`));
+    expect(looks.size).toBe(5);
+  });
+
+  it("太さの段で違うフレームを使い、軌跡の太さから段が決まる", () => {
+    expect(slashWeight(1)).toBe(0);
+    expect(slashWeight(2)).toBe(1);
+    expect(slashWeight(4)).toBe(2);
+    expect(slashVisual("box", 0, 0, false, 0).frame).not.toBe(slashVisual("box", 0, 0, false, 2).frame);
   });
 });

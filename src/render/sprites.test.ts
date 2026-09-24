@@ -1,19 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { PALETTE, SPRITES } from "../data/sprites";
 import { ENEMIES, spriteBaseKey } from "../data/enemies";
-import { CANVAS_24, CANVAS_32, POSE_SUFFIXES, poseKey } from "../data/sprites/frameKit";
+import { CANVAS_24, CANVAS_32, CANVAS_48, POSE_SUFFIXES, poseKey } from "../data/sprites/frameKit";
 import { BEASTS_KEYS, BEASTS_SMALL_KEYS } from "../data/sprites/beasts";
+import { BOSS_KEYS, BOSS_STATE_KEYS } from "../data/sprites/bosses";
 import { CLOISTER_KEYS } from "../data/sprites/cloister";
 import { HEAVY_KEYS } from "../data/sprites/heavy";
+import { STILL_PLAIN, STILL_POSED } from "../data/sprites/still";
+import { W3_BACK_KEYS } from "../data/sprites/w3back";
 import { W3_FRONT_KEYS, W3_FRONT_STILL_KEYS } from "../data/sprites/w3front";
 import { SHALLOWS_KEYS } from "../data/sprites/shallows";
+import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_GRIPS, type WeaponFrame, weaponSpriteKey } from "../data/sprites/weapons";
+import { MOVESET_KEYS } from "../data/weapons";
 import { type Sprite, enemySpriteKey, recolorFrames, spriteFrame, spriteSources } from "./sprites";
 
 const TRANSPARENT = ".";
 const TILE = 16;
 
-/** renderer が既に参照しているキー（サイズ 16x16 を維持する）。slime / eye / boar は 24x24 に描き直した（下の「描き直した敵」） */
-const LEGACY_KEYS = ["player", "heart", "floor", "wall", "stairs", "door"] as const;
+/** renderer が既に参照しているキー（サイズ 16x16 を維持する）。slime / eye / boar は 24x24 に描き直した（下の「描き直した敵」）、player は 24x24（下の「プレイヤーと手に持つ武器」） */
+const LEGACY_KEYS = ["heart", "floor", "wall", "stairs", "door"] as const;
 
 const ADDED_KEYS = [
   "wallTop",
@@ -180,21 +185,6 @@ describe("再配色種（EnemyDef.recolor）", () => {
   });
 });
 
-describe("量産した敵のスプライト寸法", () => {
-  const SIZE: Readonly<Record<string, number>> = {
-    icePillar: 16,
-    twinBrother: 32,
-    twinSister: 32,
-    frostGiant: 32,
-  };
-
-  it.each(Object.entries(SIZE))("%s は %i px 四方で 4 フレーム", (key, size) => {
-    const frames = SPRITES[key];
-    expect(frames?.length).toBe(4);
-    expect(frames?.[0]?.length).toBe(size);
-    expect(frames?.[0]?.[0]?.length).toBe(size);
-  });
-});
 
 describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
   /** 頭上のラベル・「!」のために空ける行数 */
@@ -202,16 +192,23 @@ describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
   const isEmptyRow = (row: string | undefined): boolean => (row ?? "").split("").every((ch) => ch === TRANSPARENT);
   /** 原画 4 枚で描き直したキーとキャンバスの一辺 */
   const CANVAS_OF: Readonly<Record<string, number>> = Object.fromEntries([
-    ...[...SHALLOWS_KEYS, ...BEASTS_KEYS, ...CLOISTER_KEYS, ...W3_FRONT_KEYS].map((k) => [k, CANVAS_24] as const),
+    ...[...SHALLOWS_KEYS, ...BEASTS_KEYS, ...CLOISTER_KEYS, ...W3_FRONT_KEYS, ...W3_BACK_KEYS].map((k) => [k, CANVAS_24] as const),
     ...HEAVY_KEYS.map((k) => [k, CANVAS_32] as const),
+    ...BOSS_KEYS.map((k) => [k, CANVAS_48] as const),
+    ...STILL_POSED,
   ]);
   const REDRAWN: readonly string[] = Object.keys(CANVAS_OF);
   const sizeOf = (key: string): number => CANVAS_OF[key] ?? CANVAS_24;
   const SMALL: readonly string[] = [...BEASTS_SMALL_KEYS];
   /** 動かず予備動作を持たないキー（旗・台座など）と一辺 */
-  const STILL: readonly (readonly [string, number])[] = W3_FRONT_STILL_KEYS.map((k) => [k, CANVAS_24] as const);
+  const STILL: readonly (readonly [string, number])[] = [
+    ...W3_FRONT_STILL_KEYS.map((k) => [k, CANVAS_24] as const),
+    // 状態フレームのボス（kingSlime の伸び・boneLord の杖）も同じ検査に載せる
+    ...BOSS_STATE_KEYS.map((k) => [k, CANVAS_48] as const),
+    ...STILL_PLAIN,
+  ];
 
-  it.each(STILL)("据え置きの %s は %i px 四方で 4 フレーム、最下段に接地している", (key, size) => {
+  it.each(STILL)("据え置き・状態フレームの %s は %i px 四方で 4 フレーム、最下段に接地している", (key, size) => {
     const frames = SPRITES[key] ?? [];
     expect(frames.length).toBe(4);
     for (const frame of frames) {
@@ -232,7 +229,7 @@ describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
     }
   });
 
-  it.each(REDRAWN)("%s は様式書のキャンバス（24 / 32）で歩行 4 フレーム", (key) => {
+  it.each(REDRAWN)("%s は様式書のキャンバス（16〜48）で 4 フレーム", (key) => {
     const frames = SPRITES[key];
     expect(frames?.length).toBe(4);
     for (const frame of frames ?? []) {
@@ -311,6 +308,75 @@ describe("予備動作・攻撃の原画の選び方", () => {
         const base = SPRITES[poseKey(r.base, pose)];
         expect(sources[poseKey(def.sprite, pose)], `${def.key}.${pose}`).toEqual(base && recolorFrames(base, r.swap));
       }
+    }
+  });
+});
+
+describe("プレイヤーと手に持つ武器（docs/ideas/combat-feel-design.md C-1）", () => {
+  const isEmptyRow = (row: string | undefined): boolean => (row ?? "").split("").every((ch) => ch === TRANSPARENT);
+  const originals = (): (readonly string[])[] => [
+    SPRITES.player?.[0] ?? [],
+    SPRITES.player?.[2] ?? [],
+    ...POSE_SUFFIXES.map((pose) => SPRITES[poseKey("player", pose)]?.[0] ?? []),
+  ];
+
+  it("player は 24x24 で歩き 4 フレーム、構えと振り抜きを 1 フレームずつ持つ", () => {
+    expect(SPRITES.player?.length).toBe(4);
+    for (const frame of originals()) {
+      expect(frame.length).toBe(CANVAS_24);
+      expect(frame[0]?.length).toBe(CANVAS_24);
+    }
+    for (const pose of POSE_SUFFIXES) expect(SPRITES[poseKey("player", pose)]?.length, pose).toBe(1);
+  });
+
+  it("player は頭上 2 行を空け、原画の足が最下段にある", () => {
+    for (const frame of originals()) {
+      expect(isEmptyRow(frame[0])).toBe(true);
+      expect(isEmptyRow(frame[1])).toBe(true);
+      expect(isEmptyRow(frame[CANVAS_24 - 1])).toBe(false);
+    }
+  });
+
+  it("構え・振り抜きは歩きと形が違う", () => {
+    const [walk, , windup, strike] = originals();
+    expect(windup).not.toEqual(walk);
+    expect(strike).not.toEqual(walk);
+    expect(strike).not.toEqual(windup);
+  });
+
+  it("player の体に剣（刃の白）を描き込んでいない", () => {
+    for (const frame of originals()) expect(frame.join("").includes("1s"), "刃の明部").toBe(false);
+  });
+
+  it.each([...MOVESET_KEYS])("武器種 %s の持ち手が 12x12 の 3 フレーム（横・斜め・縦）である", (key) => {
+    const frames = SPRITES[weaponSpriteKey(key)];
+    expect(frames?.length).toBe(3);
+    for (const frame of frames ?? []) {
+      expect(frame.length).toBe(WEAPON_CANVAS);
+      expect(frame[0]?.length).toBe(WEAPON_CANVAS);
+    }
+  });
+
+  it.each([...MOVESET_KEYS])("武器種 %s の各フレームは拳の中心（WEAPON_GRIPS）に肌の色がある", (key) => {
+    const frames = SPRITES[weaponSpriteKey(key)] ?? [];
+    frames.forEach((frame, i) => {
+      const grip = WEAPON_GRIPS[i as WeaponFrame];
+      // 拳の中心は 2x2 の肌の境目。その左上の画素が肌（明 t / 暗 T）
+      const ch = frame[grip.y - 1]?.[grip.x - 1];
+      expect(ch === "t" || ch === "T" || key === "fists", `${key} フレーム ${i}: ${ch}`).toBe(true);
+    });
+  });
+});
+
+describe("斬撃の絵（docs/ideas/combat-feel-design.md C-3）", () => {
+  it.each(Object.values(SLASH_SPRITE))("%s は太さ 3 段 × 絵 3 種の 9 フレーム", (key) => {
+    expect(SPRITES[key]?.length).toBe(9);
+  });
+
+  it("同じ形の中で絵がすべて違う（段ごとに見分けられる）", () => {
+    for (const key of Object.values(SLASH_SPRITE)) {
+      const frames = (SPRITES[key] ?? []).map((f) => f.join("/"));
+      expect(new Set(frames).size, key).toBe(frames.length);
     }
   });
 });

@@ -47,6 +47,8 @@
 
 ## 5. ファイルの置き方
 
+- 32 / 48 の大きな絵は scratchpad の作図補助（楕円・角丸矩形・手足の線分を左上光源の 3 段で塗り、外周に輪郭を足す）で下描きし、顔・武器・模様を手で足して、最後は文字列リテラルとして家族ファイルに貼る。リポジトリに作図補助は置かない
+
 - 家族ごとに `src/data/sprites/<family>.ts`。`export const <FAMILY>_SPRITES: Record<string, SpriteFrames>` と、描き直したキーの一覧 `<FAMILY>_KEYS` を出す
 - 原画は `const <NAME>_WALK_A: Frame = [...]`（24 行のリテラル。行の省略や生成で埋めない。差分で読めるように）
 - `src/data/sprites.ts` は `SPRITES` の末尾に `...<FAMILY>_SPRITES` を足すだけ（同名の旧 16x16 を上書きする）。旧原画の削除は統合時にまとめて行う
@@ -72,5 +74,8 @@
 | 2 | 獣と骨（`beasts.ts`） | wolf / skeleton / laserEye（24）、rat / mite / beetle / bat（16。bat は 12 → 16） | 済 |
 | 3 | 修道院（`cloister.ts`） | hooded / leech / ghoul / bell / shade | 済 |
 | 4 | 重量級（`heavy.ts`） | golem / mimic / hollowArmor（32） | 済 |
-| 5 | W3 前半 | flameEater / windSprite / banner / hanger / maw / scribeImp | |
-| 6 以降 | W3 後半・ボス 48x48・動かないもの | | |
+| 5 | W3 前半（`w3front.ts`） | flameEater / windSprite / hanger / maw / scribeImp、banner（据え置き） | 済 |
+| 6 | W3 後半（`w3back.ts`） | mudman / toad / oiler / bellImp / bannerBearer / mole / homunculus / hollow | 済 |
+| 7 | ボス（`bosses.ts`） | 15 体を 48x48 で描き下ろし（kingSlime / boneLord は状態フレーム 4 のまま） | 済 |
+| 8 | 動かないもの（`still.ts`） | icePillar（木人は再配色）/ anvil（24、据え置き）、turret（24）/ enemyMine / broodEgg（16）+ ポーズ、fountain（16） | 済 |
+| 9 | プレイヤー | 体 + 武器の持ち手オーバーレイ（戦闘レーン C と一緒に） | |

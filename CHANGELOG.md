@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 追加（見た目）
+- プレイヤーを 24x24 で描き直し（剣を体から外し、構えと振り抜きのポーズ）。**手に持つ武器** 16 種（12x12、向き 3 枚 + 反転、待機は担ぐ）、**斬撃の絵** を形ごとに 5 種（箱 / 扇 / 広い扇 / 突き / 環）× 段ごとに 3 種（5 段の武器でも段ごとに違う絵）。属性の色で染める。曲射の山なりと影、溜めの目盛りを HUD に
+- ボス 15 体を 48x48 で描き直し、敵第 2 弾の後半 8 体・動かないもの 6 種を描き直し（敵とボスの描き直しはこれで全部）
+
 ### 追加
 - **Electron 版**（`docs/ideas/electron-design.md`）: `npm run electron:dev` / `electron:build`（`release/win-unpacked/DEPTHBREAKER.exe`）。セーブは `%APPDATA%\DEPTHBREAKER\save\*.json`（キーごとに 1 ファイル、キー設定は `keybinds.json` に独立、一時ファイル → 置き換え、`.bak`、壊れたら `.corrupt`）。ブラウザ版は localStorage のまま（`src/save/backend.ts` の窓口に統一）。リプレイ再生中は本物の保存へ書かない。app:// 配信・contextIsolation・sandbox・CSP、480x270 の整数倍のウィンドウ、F11 / Alt+Enter
 - **武器種 6**（刀〔右長押しで居合〕/ 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃〔左右とも射撃〕）と **射撃の型 3**（三点 / 回転刃 / 曲射）、ジョブ固有の派生 9 本（左左左右）、武器ごとの固有ルール、ベース 19

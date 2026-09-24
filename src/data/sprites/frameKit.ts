@@ -10,6 +10,8 @@ export type Frame = readonly string[];
 export const CANVAS_24 = 24;
 /** 様式書のキャンバス（ゴーレム・鎧・宝箱などの重量級） */
 export const CANVAS_32 = 32;
+/** 様式書のキャンバス（ボス） */
+export const CANVAS_48 = 48;
 
 /** 予備動作・攻撃の原画を載せるキーの接尾辞（`slime.windup` のように引く） */
 export const POSE_SUFFIXES = ["windup", "strike"] as const;

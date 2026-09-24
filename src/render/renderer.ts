@@ -1,6 +1,6 @@
 import { actionKeyLabel } from "../core/input";
 import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, RoomKind, RoomState } from "../core/state";
+import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, Projectile, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
@@ -22,6 +22,7 @@ import {
   isDashing,
   meleeAnchor,
   meleeChargeLevel,
+  playerMoveset,
   shotChargeLevel,
 } from "../system/player";
 import {
@@ -58,9 +59,23 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
 import { EFFECTS } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { type HitShape, MOVESETS, SHOT_TYPES, isShotOnly, lobHeight } from "../data/weapons";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
-import { WEAPON_TRAIL_WIDTH } from "./renderMath";
+import {
+  type SwingPhase,
+  type WeaponPose,
+  WEAPON_TRAIL_WIDTH,
+  offhandOffset,
+  phaseProgress,
+  playerBodyPose,
+  slashVisual,
+  slashWeight,
+  swingSign,
+  weaponGrip,
+  weaponPose,
+} from "./renderMath";
+import { weaponSpriteKey } from "../data/sprites/weapons";
+import { poseKey } from "../data/sprites/frameKit";
 import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
@@ -133,7 +148,6 @@ const SPR = {
   wisp: "wisp",
   fountain: "fountain",
 } as const;
-const SLASH_KEYS = ["slash1", "slash2", "slash3"] as const;
 /** 浮遊する敵（影を離して描き、上下に揺らす） */
 const FLOATING_SPRITES: ReadonlySet<string> = new Set(["eye", "laserEye", "bat", "wisp"]);
 
@@ -473,6 +487,20 @@ const CROSSHAIR_HOVER_MARGIN = 4;
 const WALK_FRAME_TIME = 0.12;
 const ENEMY_FRAME_TIME = 0.15;
 const PLAYER_SPRITE_LIFT = 2;
+/** 溜め中の武器を段の色で染める強さ */
+const CHARGE_WEAPON_TINT = 0.55;
+/** 斬撃を属性色（無ければ段の残像色）で染める強さ。外縁の白は少し残る */
+const SLASH_TINT = 0.7;
+/** 属性も段の残像色も無い斬撃の色 */
+const SLASH_DEFAULT_COLOR = "#8ce0f0";
+/** 近接の段を持たない武器種が持つ形（待機の姿勢にしか使わない） */
+const SHAPE_ARC: HitShape = { kind: "arc", deg: 120 };
+/** 二丁拳銃の左右 */
+const GUN_SIDES = [1, -1] as const;
+/** 曲射の弾の影（地面の位置に置く楕円の半径） */
+const LOB_SHADOW_RX = 3;
+const LOB_SHADOW_RY = 1.5;
+const LOB_SHADOW_ALPHA = 0.35;
 
 function makeCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
@@ -1778,13 +1806,17 @@ export class Renderer {
       const dy = speed > 0 ? pr.vel.y / speed : 0;
 
       const isPlayer = pr.owner === "player";
+      // 曲射は山なりに持ち上げて描き、地面の位置に影を落とす（当たり判定は着弾点だけ）
+      const lift = this.lobLift(pr);
+      if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
+      const py = pr.pos.y - lift;
       // 位置履歴が無いので速度の逆方向に残像を置く
       ctx.fillStyle = isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL;
       for (let i = 1; i <= TRAIL_POINTS; i++) {
         const size = Math.max(1, Math.round(pr.radius * 2 * (1 - i / (TRAIL_POINTS + 1))));
         ctx.globalAlpha = TRAIL_ALPHA * (1 - i / (TRAIL_POINTS + 1));
         const tx = pr.pos.x - dx * TRAIL_SPACING * i;
-        const ty = pr.pos.y - dy * TRAIL_SPACING * i;
+        const ty = py - dy * TRAIL_SPACING * i;
         ctx.fillRect(Math.round(tx - size / 2), Math.round(ty - size / 2), size, size);
       }
       ctx.globalAlpha = 1;
@@ -1796,8 +1828,26 @@ export class Renderer {
           ? this.tinted(key, pr.color, BULLET_TINT_STRENGTH)
           : sprite.frames;
       const scale = Math.max(1, (pr.radius * 2) / sprite.w);
-      this.drawRotated(frames[0], pr.pos.x, pr.pos.y, Math.atan2(dy, dx), scale);
+      this.drawRotated(frames[0], pr.pos.x, py, Math.atan2(dy, dx), scale);
     }
+  }
+
+  /** 曲射の弾の見かけの高さ（px）。曲射以外は 0 */
+  private lobLift(pr: Projectile): number {
+    const runtime = pr.shot;
+    const peak = runtime ? SHOT_TYPES[runtime.key].lob?.peak : undefined;
+    if (!runtime || peak === undefined) return 0;
+    return lobHeight(runtime, pr.life, peak);
+  }
+
+  private drawLobShadow(x: number, y: number): void {
+    const { ctx } = this;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.globalAlpha = LOB_SHADOW_ALPHA;
+    ctx.beginPath();
+    ctx.ellipse(x, y, LOB_SHADOW_RX, LOB_SHADOW_RY, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   // ---------------------------------------------------------------------------
@@ -1816,13 +1866,22 @@ export class Renderer {
     this.drawAimGuide(state);
 
     const moving = p.body.vel.x !== 0 || p.body.vel.y !== 0;
-    const frame = moving ? spriteFrame(sprite, p.walkTime, WALK_FRAME_TIME) : 0;
+    const walkFrame = moving ? spriteFrame(sprite, p.walkTime, WALK_FRAME_TIME) : 0;
     const flip = p.facing.x < 0;
     const dashing = isDashing(p);
-    if (dashing) this.drawDashGhosts(p, sprite, frame, cx, bottom, flip);
+    if (dashing) this.drawDashGhosts(p, sprite, walkFrame, cx, bottom, flip);
+
+    // 構え・振り抜きの原画（無ければ歩きのまま）。docs/ideas/combat-feel-design.md C-4
+    const swing = this.playerSwing(state);
+    const bodyPose = playerBodyPose(swing.phase, swing.t, p.attack.charging);
+    const posed = bodyPose === "walk" ? undefined : this.atlas[poseKey(SPR.player, bodyPose)];
+    const body = posed ?? sprite;
+    const frame = posed ? 0 : walkFrame;
+    const held = this.heldWeaponPose(state, swing);
 
     // 被弾無敵中は点滅（ダッシュ無敵は点滅させない）
     const blink = p.invulnTimer > 0 && !dashing && p.hitFlash <= 0 && state.tick % 6 < 3;
+    if (!blink && held.behind) this.drawHeldWeapon(state, held);
     if (!blink) {
       const hit = p.hitFlash > 0;
       let sx = 1;
@@ -1838,11 +1897,77 @@ export class Renderer {
         sx = SQUASH_X;
         sy = SQUASH_Y;
       }
-      this.drawAnchored(pick(hit ? sprite.white : sprite.frames, frame), cx, bottom, sx, sy, 0, flip);
+      this.drawAnchored(pick(hit ? body.white : body.frames, frame), cx, bottom, sx, sy, 0, flip);
     }
+    if (!blink && !held.behind) this.drawHeldWeapon(state, held);
 
     if (isAttacking(p) && p.attack.phase === "active") this.drawSlash(state, p);
     this.drawChargeRing(state, p);
+  }
+
+  /** 今の振りの段階と進み・形。溜め中は予備動作の終わりで止める（C-2） */
+  private playerSwing(state: GameState): { phase: SwingPhase; t: number; shape: HitShape; step: number } {
+    const p = state.player;
+    const moveset = playerMoveset(state);
+    if (p.attack.charging) return { phase: "windup", t: 1, shape: moveset.charge?.step.shape ?? moveset.steps[0]?.shape ?? SHAPE_ARC, step: 0 };
+    const step = currentMeleeStep(state);
+    if (!step || !isAttacking(p)) return { phase: "none", t: 0, shape: moveset.steps[0]?.shape ?? SHAPE_ARC, step: 0 };
+    return { phase: p.attack.phase, t: phaseProgress(p.attack.phase, p.attack.timer, step), shape: step.shape, step: p.attack.step };
+  }
+
+  private heldWeaponPose(state: GameState, swing: { phase: SwingPhase; t: number; shape: HitShape; step: number }): WeaponPose {
+    const p = state.player;
+    const aimVec = swing.phase === "none" ? p.facing : p.attack.dir;
+    return weaponPose({
+      phase: swing.phase,
+      t: swing.t,
+      shape: swing.shape.kind,
+      deg: swing.shape.kind === "arc" ? swing.shape.deg : 0,
+      aim: Math.atan2(aimVec.y, aimVec.x),
+      step: swing.step,
+      facingRight: p.facing.x >= 0,
+      aimHeld: playerMoveset(state).primary === "shot",
+    });
+  }
+
+  /** 手に持つ武器（docs/ideas/combat-feel-design.md C-1）。二丁拳銃は照準に直交して 2 挺並べる */
+  private drawHeldWeapon(state: GameState, pose: WeaponPose): void {
+    const p = state.player;
+    const moveset = playerMoveset(state);
+    const key = weaponSpriteKey(moveset.key);
+    const sprite = this.atlas[key];
+    if (!sprite) return;
+    const level = p.attack.charging ? meleeChargeLevel(state) : 0;
+    const frames = level > 0 ? this.tinted(key, WEAPON.chargeRingColors[level] ?? COLOR_WHITE, CHARGE_WEAPON_TINT) : sprite.frames;
+    const img = frames[pose.frame];
+    if (!img) return;
+    const hx = p.body.pos.x + pose.dx;
+    const hy = p.body.pos.y + pose.dy;
+    if (!isShotOnly(moveset)) {
+      this.drawWeaponImage(img, hx, hy, pose);
+      return;
+    }
+    for (const side of GUN_SIDES) {
+      const o = offhandOffset(pose.angle, WEAPON.movesets.gunner.muzzleOffset, side);
+      this.drawWeaponImage(img, hx + o.x, hy + o.y, pose);
+    }
+  }
+
+  /** 拳の中心を (hx, hy) に合わせ、反転だけで向きを作って描く（回転しないので画素が崩れない） */
+  private drawWeaponImage(img: HTMLCanvasElement, hx: number, hy: number, pose: WeaponPose): void {
+    const grip = weaponGrip(pose);
+    const x = Math.round(hx - grip.x);
+    const y = Math.round(hy - grip.y);
+    const { ctx } = this;
+    if (!pose.flipX && !pose.flipY) {
+      ctx.drawImage(img, x, y);
+      return;
+    }
+    ctx.save();
+    ctx.translate(x + (pose.flipX ? img.width : 0), y + (pose.flipY ? img.height : 0));
+    ctx.scale(pose.flipX ? -1 : 1, pose.flipY ? -1 : 1);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
   }
 
   private drawDashGhosts(p: Player, sprite: Sprite, frame: number, cx: number, bottom: number, flip: boolean): void {
@@ -1901,31 +2026,58 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** 斬撃スプライトを攻撃方向へ回転し、active の残り時間でフェードする */
+  /**
+   * 斬撃スプライトを攻撃方向へ回転し、active の残り時間でフェードする。
+   * 絵は当たり判定の形と段で選び（renderMath.ts の slashVisual）、太さは武器種、色は属性（C-3）
+   */
   private drawSlash(state: GameState, p: Player): void {
-    const combo = p.attack.combo;
     const step = currentMeleeStep(state);
     if (!step) return;
+    const moveset = playerMoveset(state);
     const anchor = meleeAnchor(p, step);
-    const key = SLASH_KEYS[Math.min(combo, SLASH_KEYS.length - 1)] ?? SLASH_KEYS[0];
-    const sprite = this.sprite(key);
+    const finalStep = p.attack.branch < 0 && !p.dashStrike && p.attack.step >= moveset.steps.length - 1;
+    const finisher = finalStep || step.heavy || p.attack.chargeLevel > 0;
+    const deg = step.shape.kind === "arc" ? step.shape.deg : 0;
+    const visual = slashVisual(step.shape.kind, deg, p.attack.step, finisher, slashWeight(WEAPON_TRAIL_WIDTH[moveset.key]));
+    const sprite = this.sprite(visual.key);
+    const color = this.slashColor(state, step);
     const cx = anchor.pos.x;
     const cy = anchor.pos.y;
     const angle = Math.atan2(p.attack.dir.y, p.attack.dir.x);
-    const scale = anchor.size / sprite.w;
+    // 突きは長さを届く距離に、太さを当たり判定の幅に合わせる。他は一辺を当たり判定に合わせる
+    const sx = anchor.size / sprite.w;
+    const sy = (step.shape.kind === "thrust" ? step.size / sprite.h : sx) * (visual.flipY ? -1 : 1);
     const t = step.active > 0 ? Math.min(1, Math.max(0, p.attack.timer / step.active)) : 0;
     const { ctx } = this;
     this.drawMeleeShape(p, step, t);
     this.drawSwingTrail(state, p, step, t);
 
-    const finisher = combo >= SLASH_KEYS.length - 1;
     if (finisher && t > SLASH_AFTERIMAGE_T) {
       ctx.globalAlpha = SLASH_AFTERIMAGE_ALPHA;
-      this.drawRotated(sprite.white[0], cx, cy, angle + SLASH_AFTERIMAGE_ROT, scale);
+      this.drawRotatedScaled(sprite.white[visual.frame], cx, cy, angle + SLASH_AFTERIMAGE_ROT * Math.sign(sy), sx, sy);
     }
     ctx.globalAlpha = SLASH_MIN_ALPHA + (1 - SLASH_MIN_ALPHA) * t;
-    this.drawRotated(sprite.frames[0], cx, cy, angle, scale);
+    this.drawRotatedScaled(this.tinted(visual.key, color, SLASH_TINT)[visual.frame], cx, cy, angle, sx, sy);
     ctx.globalAlpha = 1;
+  }
+
+  /** 斬撃と軌跡の色: 属性が乗っていれば属性色、無ければ段の残像色、どちらも無ければ既定 */
+  private slashColor(state: GameState, step: MeleeStep): string {
+    const element = hitElement(state, "melee", false);
+    if (element !== "none") return ELEMENT_FX_COLOR[element];
+    return step.trail ?? SLASH_DEFAULT_COLOR;
+  }
+
+  /** 中心基準で回転し、x / y を別々に拡縮して描く（負の倍率で反転） */
+  private drawRotatedScaled(img: HTMLCanvasElement | undefined, cx: number, cy: number, rot: number, sx: number, sy: number): void {
+    if (!img) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(sx, sy);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
   }
 
   /** 武器種の当たり判定の形を薄く縁取る（扇・突き・円。箱は斬撃スプライトだけで足りる） */
@@ -1963,7 +2115,7 @@ export class Renderer {
   }
 
   /**
-   * 武器種ごとの振りの軌跡（docs/ideas/meta-and-weapons.md 7-1）。太さは武器種、色は近接の属性。
+   * 武器種ごとの振りの軌跡（docs/ideas/meta-and-weapons.md 7-1）。太さは武器種、色は近接の属性（無ければ段の残像色）。
    * 大剣 = 太い弧、槍 = 細い突きの線、鞭 = しなる曲線、鎌 = 三日月（弧を 2 重）
    */
   private drawSwingTrail(state: GameState, p: Player, step: MeleeStep, t: number): void {
@@ -1972,7 +2124,7 @@ export class Renderer {
     const progress = 1 - t;
     const o = p.body.pos;
     const d = p.attack.dir;
-    ctx.strokeStyle = ELEMENT_FX_COLOR[hitElement(state, "melee", false)];
+    ctx.strokeStyle = this.slashColor(state, step);
     ctx.lineWidth = WEAPON_TRAIL_WIDTH[moveset];
     ctx.globalAlpha = EFFECTS.trailAlpha * (0.4 + 0.6 * t);
     ctx.beginPath();
@@ -1988,8 +2140,8 @@ export class Renderer {
     } else if (step.shape.kind === "arc") {
       const dir = Math.atan2(d.y, d.x);
       const half = (step.shape.deg * Math.PI) / 360;
-      // 段ごとに振る向きを変える（左右の往復に見せる）
-      const sign = p.attack.combo % 2 === 0 ? 1 : -1;
+      // 段ごとに振る向きを変える（左右の往復に見せる。手に持つ武器の振りと同じ規則）
+      const sign = swingSign(p.attack.step);
       const from = dir - sign * half;
       const to = from + sign * 2 * half * progress;
       const r = step.reach * TRAIL_REACH_RATIO;

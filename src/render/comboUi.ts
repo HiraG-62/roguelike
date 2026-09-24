@@ -1,8 +1,17 @@
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { type BranchHint, type ButtonKey, branchHints } from "../data/weapons";
-import { FEEL } from "../data/tuning";
-import { isAttacking, playerMoveset } from "../system/player";
+import {
+  type BranchHint,
+  type ButtonKey,
+  type MovesetDef,
+  type ShotDef,
+  branchHints,
+  chargeButton,
+  chargeLevelAt,
+  shotButtons,
+} from "../data/weapons";
+import { FEEL, WEAPON } from "../data/tuning";
+import { currentShot, isAttacking, playerMoveset } from "../system/player";
 import { TEXT, drawText, textLineHeight } from "./pixelText";
 
 /**
@@ -21,6 +30,10 @@ const PIP_GAP = 2;
 const COLOR_PIP_EMPTY = "#505050";
 const COLOR_PIP_FILLED = "#e0e0e0";
 const COLOR_PIP_FINAL = "#ffd75f";
+/** 溜めの目盛り（段のピップの行に、溜めている間だけ出す） */
+const GAUGE_W = 40;
+const GAUGE_H = 3;
+const COLOR_GAUGE_MARK = "#202020";
 
 export interface ComboPip {
   readonly filled: boolean;
@@ -33,6 +46,48 @@ export function comboPips(stepsCount: number, step: number, attacking: boolean):
 }
 
 const BUTTON_LABEL: Readonly<Record<ButtonKey, string>> = { primary: "左", secondary: "右" };
+
+/**
+ * 溜めの役割と両手で撃つ武器の案内（「右 長押し: 溜め」「左 / 右: 撃つ」）。
+ * 刀・大剣・戦鎚の溜め、二丁拳銃の左右、溜めて撃つ射撃の型を 1 行にまとめる。案内が無ければ undefined
+ */
+export function chargeHint(moveset: MovesetDef, shot: ShotDef): string | undefined {
+  const parts: string[] = [];
+  const charge = chargeButton(moveset);
+  if (charge) parts.push(`${BUTTON_LABEL[charge]} 長押し: 溜め`);
+  const shots = shotButtons(moveset).map((b) => BUTTON_LABEL[b]).join(" / ");
+  if (shots && shot.charge) parts.push(`${shots} 長押し: 溜め撃ち`);
+  else if (shotButtons(moveset).length > 1) parts.push(`${shots}: 撃つ`);
+  return parts.length > 0 ? parts.join(" / ") : undefined;
+}
+
+export interface ChargeGauge {
+  /** 最後の段までの進み（0..1） */
+  readonly ratio: number;
+  /** 届いた段（0 = まだ） */
+  readonly level: number;
+  /** 各段の位置（0..1） */
+  readonly marks: readonly number[];
+}
+
+/** 溜めの目盛り。押している秒と段の定義から、進み・届いた段・段の位置を出す */
+export function chargeGauge(held: number, levels: readonly { readonly time: number }[]): ChargeGauge | undefined {
+  const last = levels[levels.length - 1]?.time ?? 0;
+  if (last <= 0) return undefined;
+  return {
+    ratio: Math.min(1, Math.max(0, held / last)),
+    level: chargeLevelAt(levels, held),
+    marks: levels.map((l) => l.time / last),
+  };
+}
+
+/** 今溜めている近接または射撃の目盛り。溜めていなければ undefined */
+function activeChargeGauge(state: GameState, moveset: MovesetDef): ChargeGauge | undefined {
+  const p = state.player;
+  if (p.attack.charging) return chargeGauge(p.attack.chargeTime, moveset.charge?.levels ?? []);
+  if (p.shotCharging) return chargeGauge(p.shotChargeTime, currentShot(state.stats).charge?.levels ?? []);
+  return undefined;
+}
 
 /** 「右: 十字断ち」のように、次に押すと出る派生を 1 行にまとめる */
 export function formatBranchHints(hints: readonly BranchHint[]): string {
@@ -55,9 +110,24 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState): v
   }
 
   drawText(ctx, moveset.name, cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
-  drawPips(ctx, cx, bottom - line, comboPips(moveset.steps.length, p.attack.step, isAttacking(p)));
+  const gauge = activeChargeGauge(state, moveset);
+  if (gauge) drawGauge(ctx, cx, bottom - line, gauge);
+  else drawPips(ctx, cx, bottom - line, comboPips(moveset.steps.length, p.attack.step, isAttacking(p)));
+  // 派生の案内が無いときは溜め・両手撃ちの案内を出す（刀の右長押しなど、押し方が見えない役割のため）
   const hints = branchHints(moveset, p.attack.inputs);
-  if (hints.length > 0) drawText(ctx, formatBranchHints(hints), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
+  const hintText = hints.length > 0 ? formatBranchHints(hints) : chargeHint(moveset, currentShot(state.stats));
+  if (hintText) drawText(ctx, hintText, cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
+}
+
+function drawGauge(ctx: CanvasRenderingContext2D, cx: number, y: number, gauge: ChargeGauge): void {
+  const left = Math.round(cx - GAUGE_W / 2);
+  const top = Math.round(y - GAUGE_H);
+  ctx.fillStyle = COLOR_PIP_EMPTY;
+  ctx.fillRect(left, top, GAUGE_W, GAUGE_H);
+  ctx.fillStyle = WEAPON.chargeRingColors[gauge.level] ?? COLOR_PIP_FILLED;
+  ctx.fillRect(left, top, Math.round(GAUGE_W * gauge.ratio), GAUGE_H);
+  ctx.fillStyle = COLOR_GAUGE_MARK;
+  for (const m of gauge.marks) ctx.fillRect(left + Math.round(GAUGE_W * m) - 1, top, 1, GAUGE_H);
 }
 
 function drawPips(ctx: CanvasRenderingContext2D, cx: number, y: number, pips: readonly ComboPip[]): void {
