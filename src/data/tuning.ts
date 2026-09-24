@@ -1,76 +1,15 @@
+import { ACTION_TEXT } from "./actionText";
 import { BALANCE } from "./balance";
 
-/** プレイヤーの手触りに関わる定数。ここをいじって調整する */
+/**
+ * プレイヤーの手触りに関わる定数。数値は src/data/balance/combat.json の "PLAYER"
+ * （変更したい場合はそこを編集する。_note に調整の経緯）。
+ * melee（近接 3 段）は src/data/balance/weapons.json の PLAYER_MELEE をここで合流する
+ * （速さは docs/ideas/weapon-redesign.md 8 章）
+ */
 export const PLAYER = {
-  radius: 5,
-  maxHp: 100,
-  speed: 120,
-  /** 攻撃中の移動速度倍率 */
-  attackMoveMul: 0.35,
-  /** 怯み（被弾硬直）中の移動速度倍率。攻撃・射撃・ダッシュ・バーストは出せない（docs/COMBAT_DESIGN.md D-5） */
-  staggerMoveMul: 0.3,
-  dash: {
-    time: 0.16,
-    speed: 400,
-    /** 連打で無敵を繋げないよう、無敵（invulnTime）より十分長くする（docs/COMBAT_DESIGN.md C-1） */
-    cooldown: 0.45,
-    /** ダッシュ後に少しだけ残る無敵（回避猶予）。無効化手段を絞るため 0 */
-    graceInvuln: 0,
-    /** ダッシュ開始からの無敵秒（docs/COMBAT_DESIGN.md C-1）。ダッシュの後半は被弾する */
-    invulnTime: 0.1,
-  },
-  /** 被弾後の無敵時間（docs/COMBAT_DESIGN.md C-1: 0.7 → 0.5） */
-  hurtInvuln: 0.5,
-  hurtKnockback: 220,
-  /**
-   * 近接 3 段。scaling は威力の係数（docs/COMBAT_DESIGN.md A-6。基礎値で 7.8 / 7.8 / 15.6）、
-   * poise は基礎怯み値（D-2）、heavy は重いヒットストップと壁叩きつけを起こす段
-   * base は 6 / 6 / 12 → ×0.8（QA 2026-09-23: スキル由来与ダメ比率 30.8%＜目標 55〜65%、
-   * 通常攻撃の威力を落として相対的にスキル比率を上げる。docs/COMBAT_DESIGN.md B-7 段階 3）
-   */
-  // 速さは docs/ideas/weapon-redesign.md 8 章（旧 0.05 / 0.1 / 0.16・0.08 / 0.12 / 0.3 → 旧双剣より少し遅い程度）。定義元は balance/weapons.json の PLAYER_MELEE
+  ...BALANCE.combat.PLAYER,
   melee: BALANCE.weapons.PLAYER_MELEE,
-  /** コンボ最終段の後、次の 1 段目まで待たせる時間 */
-  comboLockout: 0.18,
-  /**
-   * recover の残りがこの割合を切ったら、先行入力（次段・派生の予約）で振りを前倒しに終える
-   * （docs/ideas/combat-feel-design.md D-4）。段ごとに変えたい場合は MeleeStepDef.cancel で上書きできる
-   */
-  recoverCancel: 0.5,
-  shoot: {
-    cooldown: 0.17,
-    speed: 300,
-    /** 1 発の威力（基礎値で 4.3）と怯み値。base 3.5 → ×0.8（QA 2026-09-23、B-7 段階 3） */
-    scaling: { base: 2.8, dex: 0.3 },
-    poise: 2,
-    life: 0.9,
-    radius: 2,
-    /** 発射時に少しだけ後ろに下がる反動 */
-    recoil: 30,
-  },
-  special: {
-    cost: 100,
-    /** 威力（基礎値で 34）と怯み値 */
-    scaling: { base: 24, mnd: 1, spi: 1 },
-    poise: 60,
-    radius: 64,
-    knockback: 380,
-    /** 発動後の無敵（秒）。弾消しは維持するので短め（docs/COMBAT_DESIGN.md C-1 の 10） */
-    invuln: 0.15,
-  },
-  maxEnergy: 100,
-  /** 近接ヒット 1 回あたりの必殺ゲージ */
-  energyPerHit: 12,
-  /** 複数弾の扇の間隔（度） */
-  projectileSpreadDeg: 8,
-  /** クリティカル時に足すヒットストップ（ステップ） */
-  critHitstopBonus: 1,
-  critTextScale: 1.6,
-  critColor: "#ffe040",
-  /** ks_overclock: 1 振り / 3 発ごとの HP コスト */
-  overclockHpCost: 1,
-  /** ks_overclock: 射撃はこの発数ごとに overclockHpCost を消費する（近接は 1 振りごと） */
-  overclockShootInterval: 3,
 } as const;
 
 /**
@@ -215,101 +154,20 @@ export const RUN_MOD = BALANCE.world.RUN_MOD;
 /** ミニマップ */
 export const MINIMAP = BALANCE.feel.MINIMAP;
 
-/** アクション手触り（docs/ideas/action-feel.md「まず入れるべき 5 つ」+ 壁叩きつけ・ダッシュ攻撃） */
+/**
+ * アクション手触り（docs/ideas/action-feel.md「まず入れるべき 5 つ」+ 壁叩きつけ・ダッシュ攻撃）。
+ * 数値・色は src/data/balance/combat.json の "ACTION"、表示文言（浮き文字）は src/data/actionText.ts。
+ * dashAttack（ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃）は balance/weapons.json の ACTION_DASH_ATTACK
+ */
 export const ACTION = {
-  /** カウンターヒット: 敵の windup 中に近接を当てる */
-  counter: {
-    damageMul: 1.5,
-    /** 怯み値の倍率。確定の怯みではなく、敵の強靭（攻撃中 ×0.5）と相殺して等倍になる値 */
-    poiseMul: 2,
-    /** 通常の hitstop に足すステップ */
-    hitstopBonus: 2,
-    text: "カウンター！",
-    color: "#ff9040",
-    textScale: 1.6,
-    textLife: 0.7,
-    particles: 12,
-  },
-  /** ラストキル・スロー: ロック中の部屋で最後の敵を倒した瞬間 */
-  lastKill: {
-    /** スローモーション（実時間秒） */
-    slowmo: 0.5,
-    flash: 0.85,
-    text: "殲滅",
-    color: "#ffffff",
-    textScale: 2.6,
-    textLife: 1.2,
-    /** テキストを倒した敵の少し上に出す（px） */
-    textOffsetY: 14,
-    ringRadius: 60,
-    ringLife: 0.45,
-    particles: 30,
-  },
-  /** リゲイン: 被弾後しばらく近接ヒットで HP を取り戻す */
-  regain: {
-    /** 取り戻せる猶予（秒） */
-    window: 3,
-    /** 近接 1 ヒットで戻る量（被ダメに対する割合）。0.15 → 0.1（memo 2026-09-24） */
-    perHitRatio: 0.1,
-    /** 取り戻せる合計（被ダメに対する割合）。C-1 で 0.6 → 0.5、memo 2026-09-24 で 0.5 → 0.3 */
-    poolRatio: 0.3,
-    color: "#b0ffb0",
-    particles: 4,
-  },
-  /** 見切り斬り（祝福 justSlash）: JUST 回避直後に攻撃で回避した敵へ瞬間移動斬り */
-  justCounter: {
-    /** JUST 回避後に攻撃を受け付ける秒数 */
-    window: 0.4,
-    /** 近接 3 段目のダメージに掛ける倍率 */
-    damageMul: 1.5,
-    /** 基礎怯み値（docs/COMBAT_DESIGN.md D-2） */
-    poise: 60,
-    /** この距離より遠い敵へは飛ばない（px） */
-    maxRange: 160,
-    /** 敵の縁からこの距離だけ手前で止まる（px） */
-    gap: 2,
-    hitstopBonus: 3,
-    text: "見切り斬り！",
-    color: "#60e0ff",
-    textScale: 1.7,
-    textLife: 0.8,
-    lineLife: 0.2,
-    particles: 16,
-  },
-  /** 弾返し（祝福 reflect）: 近接の active で敵弾を斬るとプレイヤー弾として反射 */
-  reflect: {
-    speedMul: 1.3,
-    damageMul: 2,
-    energy: 8,
-    /** 反射弾の貫通数 */
-    pierce: 2,
-    /** 反射弾の残り寿命の下限（秒） */
-    minLife: 1,
-    text: "弾返し",
-    color: "#ffe080",
-    textScale: 1.2,
-    textLife: 0.5,
-    particles: 8,
-  },
-  /** 壁叩きつけ: 近接 3 段目などで吹き飛んだ敵が壁に激突 */
-  wallSplat: {
-    damage: 10,
-    /** 基礎怯み値（強靭を無視する。docs/COMBAT_DESIGN.md D-2） */
-    poise: 20,
-    color: "#c0c0c0",
-    particles: 12,
-    hitstop: 3,
-  },
-  /**
-   * ダッシュ攻撃: ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃（1 段目と 2 段目の間の性能）。
-   * 威力（基礎値で 11.2）と怯み値。base 9 → ×0.8（QA 2026-09-23、B-7 段階 3）。定義元は balance/weapons.json の ACTION_DASH_ATTACK
-   */
+  counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
+  lastKill: { ...BALANCE.combat.ACTION.lastKill, text: ACTION_TEXT.lastKill },
+  regain: BALANCE.combat.ACTION.regain,
+  justCounter: { ...BALANCE.combat.ACTION.justCounter, text: ACTION_TEXT.justCounter },
+  reflect: { ...BALANCE.combat.ACTION.reflect, text: ACTION_TEXT.reflect },
+  wallSplat: BALANCE.combat.ACTION.wallSplat,
   dashAttack: BALANCE.weapons.ACTION_DASH_ATTACK,
-  /** 弾斬り（性質 bulletCut）: 近接の active で敵弾を消す */
-  bulletCut: {
-    color: "#c0e0ff",
-    particles: 4,
-  },
+  bulletCut: BALANCE.combat.ACTION.bulletCut,
 } as const;
 
 /** ラン内限定の祝福 3 択（src/system/boons.ts）。docs/ideas/run-structure.md「祝福 3 択」 */

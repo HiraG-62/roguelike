@@ -8,9 +8,10 @@ import {
   SKILL_KEYS,
   WAVE2_MODIFIER_KEYS,
 } from "../../skills/types";
+import { ACTION_TEXT } from "../actionText";
 import { ENEMIES } from "../enemies";
 import { JOB_KEYS } from "../jobs";
-import { PLAYER } from "../tuning";
+import { ACTION, PLAYER } from "../tuning";
 import { MOVESET_KEYS, SHOT_KEYS } from "../weapons";
 import { AFFIXES, CONVERSION_AFFIXES } from "../../loot/affixes";
 import { BASES } from "../../loot/bases";
@@ -105,6 +106,23 @@ describe("武器種のキー集合(段 5)", () => {
   it("shots.single の radius / spreadDeg は PLAYER.shoot.radius / PLAYER.projectileSpreadDeg と一致する(元は参照だった値)", () => {
     expect(weaponsJson.WEAPON.shots.single.radius).toBe(PLAYER.shoot.radius);
     expect(weaponsJson.WEAPON.shots.single.spreadDeg).toBe(PLAYER.projectileSpreadDeg);
+  });
+});
+
+describe("PLAYER / ACTION（プレイヤーの移動・ダッシュ・生命・射撃の共通値）", () => {
+  it("combat.json の PLAYER が数値をそのまま渡し、melee は weapons.json の PLAYER_MELEE と合流する", () => {
+    expect(PLAYER.maxHp).toBe(combatJson.PLAYER.maxHp);
+    expect(PLAYER.dash.speed).toBe(combatJson.PLAYER.dash.speed);
+    expect(PLAYER.melee).toBe(BALANCE.weapons.PLAYER_MELEE);
+  });
+
+  it("ACTION は combat.json の数値と actionText.ts の文言を合流する", () => {
+    expect(ACTION.counter.damageMul).toBe(combatJson.ACTION.counter.damageMul);
+    expect(ACTION.counter.text).toBe(ACTION_TEXT.counter);
+    expect(ACTION.lastKill.text).toBe(ACTION_TEXT.lastKill);
+    expect(ACTION.justCounter.text).toBe(ACTION_TEXT.justCounter);
+    expect(ACTION.reflect.text).toBe(ACTION_TEXT.reflect);
+    expect(ACTION.dashAttack).toBe(BALANCE.weapons.ACTION_DASH_ATTACK);
   });
 });
 
