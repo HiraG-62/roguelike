@@ -1,16 +1,22 @@
 import { type EventActor, type GameEvent, type StatusSnap, happenedWithin } from "../core/events";
-import { type Rule, type RuleCondition, type RuleEffect, effectKeyword } from "../core/rules";
+import type { Element } from "../core/element";
+import { type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, effectKeyword } from "../core/rules";
 import type { Enemy, GameState } from "../core/state";
 import type { StatusKind } from "../core/status";
-import type { Vec } from "../core/vec";
+import type { TerrainKind } from "../core/terrain";
+import { type Vec, normalize, sub } from "../core/vec";
 import { enemyCombat } from "../data/enemyCombat";
-import { PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
+import { BOON, PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
-import { slashBase } from "./boonRules";
-import { jobRules } from "./jobs";
-import { spawnRing } from "./effects";
+import { isRoamerTarget, slashBase, spawnBoonWave } from "./boonRules";
+import { damageEnemy, rollOutgoing } from "./combat";
+import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
+import { engagedRoomIndex } from "./engagement";
+import { isFavoredWeapon, jobRules } from "./jobs";
+import { addFloatingText, spawnRing } from "./effects";
+import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 import { spawnBomb } from "./hazards";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus } from "./statusEffects";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
@@ -138,6 +144,17 @@ function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
     case "hazardBomb":
       spawnBomb(state, { ...ev.pos }, magnitude, ev.targetId, effect.duration, effect.radius);
       return;
+    case "placeTerrain":
+    case "igniteTerrain":
+    case "spreadTerrain":
+      applyTerrainEffect(state, effect, ev.pos);
+      return;
+    case "selfStatus":
+    case "strike":
+    case "wave":
+    case "refillDash":
+      applyPlayerSideEffect(state, effect, ev, magnitude);
+      return;
     default:
       runEffect(
         state,
@@ -145,6 +162,62 @@ function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
         { pos: ev.pos, targetId: ev.targetId },
       );
   }
+}
+
+/** 地形の効果（置く・火をつける・広げる）。半径の既定は BOON.ruleTerrainRadius */
+function applyTerrainEffect(state: GameState, effect: Readonly<RuleEffect>, pos: Vec): void {
+  const radius = effect.radius ?? BOON.ruleTerrainRadius;
+  if (effect.kind === "igniteTerrain") {
+    igniteTerrainAt(state, pos.x, pos.y, radius);
+    return;
+  }
+  const kind = effect.kind === "spreadTerrain" ? terrainAt(state, pos.x, pos.y) : effect.terrain;
+  if (kind === undefined || kind === "none") return;
+  placeTerrain(state, pos.x, pos.y, kind, radius, effect.duration);
+}
+
+/** 自分への状態・追撃・衝撃波・ダッシュの回数（装備トリガーには無い効果） */
+function applyPlayerSideEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
+  const p = state.player;
+  switch (effect.kind) {
+    case "selfStatus":
+      if (effect.status === undefined) return;
+      // self: 拘束上限に数えない付け元（呪いの代償・自分への加護は拘束の予算を食わない）
+      applyStatus(
+        state,
+        { kind: "player" },
+        { kind: effect.status, stacks: effect.count ?? 1, duration: effect.duration ?? TRIGGER.defaultDuration, potency: magnitude },
+        "self",
+      );
+      return;
+    case "strike":
+      strikeTarget(state, ev, magnitude);
+      return;
+    case "wave":
+      spawnBoonWave(state, waveDir(state), magnitude);
+      return;
+    case "refillDash":
+      p.dashChargesLeft = Math.min(state.stats.dashCharges, p.dashChargesLeft + Math.max(1, effect.count ?? 1));
+      addFloatingText(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+      return;
+    default:
+      return;
+  }
+}
+
+/** 衝撃波の向き: 振っている向き、振っていなければ向いている方 */
+function waveDir(state: GameState): Vec {
+  const p = state.player;
+  const d = p.attack.phase === "none" ? p.facing : p.attack.dir;
+  return normalize(d.x === 0 && d.y === 0 ? p.facing : d);
+}
+
+/** 追撃: 対象の敵に素性なしのダメージ（生きていなければ何もしない） */
+function strikeTarget(state: GameState, ev: GameEvent, magnitude: number): void {
+  const target = liveTarget(state, ev.targetId);
+  if (target === undefined) return;
+  const out = rollOutgoing(state, target, magnitude, "proc");
+  damageEnemy(state, target, out.amount, sub(target.body.pos, state.player.body.pos), 0, { hitstopSteps: 0 });
 }
 
 function baseMagnitude(state: GameState, effect: Readonly<RuleEffect>): number {
@@ -227,7 +300,80 @@ function conditionHolds(state: GameState, c: RuleCondition, subject: ConditionSu
       return subject.tag === c.tag;
     case "actor":
       return subject.actor === c.actor;
+    default:
+      return extendedConditionHolds(state, c, subject);
   }
+}
+
+/** 2026-09-24 追加の条件（武器種・射撃の型・ジョブ・地形・属性・部屋） */
+function extendedConditionHolds(state: GameState, c: RuleCondition, subject: ConditionSubject): boolean {
+  const p = state.player;
+  switch (c.kind) {
+    case "not":
+      return !conditionHolds(state, c.condition, subject);
+    case "moveset":
+      return c.movesets.includes(state.stats.moveset);
+    case "shot":
+      return c.shots.includes(state.stats.shot);
+    case "swingStep":
+      return p.attack.step >= c.atLeast;
+    case "chargedSwing":
+      return p.attack.chargeLevel >= c.atLeast;
+    case "charging":
+      return p.attack.charging;
+    case "branchSwing":
+      return p.attack.branch >= 0;
+    case "job":
+      return c.jobs.includes(state.job);
+    case "favoredWeapon":
+      return isFavoredWeapon(state.stats, state.job);
+    case "selfOnTerrain":
+      return terrainMatches(terrainAt(state, p.body.pos.x, p.body.pos.y), c.terrain);
+    case "targetOnTerrain":
+      return terrainMatches(terrainAt(state, subject.pos.x, subject.pos.y), c.terrain);
+    case "targetAffinity":
+      return targetAffinity(state, subject, c.via) === c.affinity;
+    case "attackElement":
+      return attackElement(state, c.via) === c.element;
+    case "engagedIn":
+      return engagedRoomKindIn(state, c.rooms);
+    case "targetRoamer":
+      return targetRoamer(state, subject);
+    case "floorKind":
+      return c.kinds.includes(state.floorKind);
+    default:
+      return false;
+  }
+}
+
+function terrainMatches(kind: TerrainKind, want: TerrainKind | "any"): boolean {
+  if (want === "any") return kind !== "none";
+  return kind === want;
+}
+
+/** 対象の敵が via の攻撃をどう受けるか（生きた対象がいなければ neutral） */
+function targetAffinity(state: GameState, subject: ConditionSubject, via: RuleAttackVia): "weak" | "resist" | "neutral" {
+  const target = liveTarget(state, subject.targetId);
+  if (target === undefined) return "neutral";
+  const atk = resolveAttack(state.stats, via, false);
+  if (atk === null) return "neutral";
+  return affinityOf(enemyElementMul(target, elementShares(state.stats, atk, false)));
+}
+
+function attackElement(state: GameState, via: RuleAttackVia): Element | undefined {
+  const atk = resolveAttack(state.stats, via, false);
+  if (atk === null) return undefined;
+  return dominantElement(elementShares(state.stats, atk, false))?.element;
+}
+
+function engagedRoomKindIn(state: GameState, rooms: readonly string[]): boolean {
+  const room = state.rooms[engagedRoomIndex(state)];
+  return room !== undefined && rooms.includes(room.kind);
+}
+
+/** 対象の敵が徘徊か（判定は boonRules の isRoamerTarget。spawner をここから読むと初期化順の循環を起こす） */
+function targetRoamer(state: GameState, subject: ConditionSubject): boolean {
+  return subject.targetId !== undefined && isRoamerTarget(state, subject.targetId);
 }
 
 function targetHas(state: GameState, subject: ConditionSubject, kind: StatusKind): boolean {

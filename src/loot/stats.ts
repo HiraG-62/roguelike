@@ -3,7 +3,17 @@ import { HEAL, MANA, STATUS } from "../data/tuning";
 import { DEFAULT_MOVESET, DEFAULT_SHOT } from "../data/weapons";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { baseDef } from "./bases";
-import { adjustForResonance, applyResonanceEffect, computeResonance, resonanceRules, type ResonanceRules } from "./resonance";
+import {
+  adjustForResonance,
+  applyConstellation,
+  applyResonanceEffect,
+  cancelInversions,
+  computeResonance,
+  mainColors,
+  resolveConstellation,
+  resonanceRules,
+  type ResonanceRules,
+} from "./resonance";
 import { gearContext, gearContextCleared, scaleByProvenance } from "./traitContext";
 import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
 
@@ -101,9 +111,15 @@ export function equippedTraits(equipment: Equipment): AffixRoll[] {
   return SLOTS.flatMap((slot) => equipment[slot]?.affixes ?? []);
 }
 
-/** 装備全体の共鳴（computeStats と同じ判定）。UI のプレビュー用 */
+/** 装備全体の共鳴（computeStats と同じ判定。星座も入れる）。UI のプレビュー用 */
 export function equipmentResonance(equipment: Equipment): Resonance {
-  return computeResonance(equippedTraits(equipment), rulesOf(equipment));
+  return withConstellation(computeResonance(equippedTraits(equipment), rulesOf(equipment)), equipment);
+}
+
+/** 星座が成立していれば共鳴に添える（成立しなければ元のまま。比較・表示に空のフィールドを増やさない） */
+function withConstellation(resonance: Resonance, equipment: Equipment): Resonance {
+  const constellation = resolveConstellation(mainColors(equipment));
+  return constellation === undefined ? resonance : { ...resonance, constellation };
 }
 
 /** DEFAULT_STATS のコピー。配列は共有しないよう複製する */
@@ -210,7 +226,7 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
  * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う / 無色の誓い: 全性質 +20%）
  * 4. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
  *    装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
- * 5. 共鳴の効果を畳み込む
+ * 5. 共鳴の効果を畳み込む。星座（6 部位の主色の並び）が成立していればその効果も（虚空は 3 の後に反転を打ち消す）
  * 6. 主要倍率にソフトキャップ
  * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
  * 8. 整数化・クランプ
@@ -220,10 +236,13 @@ export function computeStats(equipment: Equipment): PlayerStats {
   Object.assign(stats.traits, gearContext(equipment));
   const filtered = filterKeystoneRolls(collectRolls(equipment));
   const rules = resonanceRules(filtered);
-  const resonance = computeResonance(equippedTraits(equipment), rules);
-  const rolls = adjustForResonance(filtered, resonance, rules);
+  const resonance = withConstellation(computeResonance(equippedTraits(equipment), rules), equipment);
+  const constellation = resonance.constellation;
+  const adjusted = adjustForResonance(filtered, resonance, rules);
+  const rolls = constellation === "void" ? cancelInversions(adjusted) : adjusted;
   applyStaged(stats, rolls.filter((r) => !isKeystoneKey(r.key)));
   applyResonanceEffect(stats, resonance, rules);
+  if (constellation !== undefined) applyConstellation(stats, constellation);
   applySoftCaps(stats);
   applyStaged(stats, rolls.filter((r) => isKeystoneKey(r.key)));
   // 装備全体の文脈は性質の適用の間だけ使う入力。畳み込み後は既定へ戻す（比較・表示に装備の数を紛れ込ませない）

@@ -147,13 +147,37 @@ const B4_TABLE: Record<SkillKey, { resource: SkillResource; cost: number; cooldo
   scarRoar: { resource: "cooldown", cost: 0, cooldown: 10, interval: 0.3, poise: 10 },
   manaSpring: { resource: "cooldown", cost: 0, cooldown: 14, interval: 0.3, poise: 0 },
   turret: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 3 },
+  // 第 2 弾（地形・新しい状態異常・属性・武器種・変身・空間）
+  waterJar: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 5 },
+  oilPot: { resource: "mana", cost: 13, cooldown: 0, interval: 0.5, poise: 4 },
+  scorchLine: { resource: "mana", cost: 19, cooldown: 0, interval: 0.7, poise: 10 },
+  iceSlide: { resource: "cooldown", cost: 0, cooldown: 7, interval: 0.3, poise: 12 },
+  levelGround: { resource: "mana", cost: 19, cooldown: 0, interval: 0.7, poise: 30 },
+  emberDraw: { resource: "mana", cost: 15, cooldown: 0, interval: 0.5, poise: 8 },
+  bogCall: { resource: "mana", cost: 20, cooldown: 0, interval: 0.8, poise: 0 },
+  brandSear: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 10 },
+  brandBlast: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 10 },
+  breakKick: { resource: "mana", cost: 13, cooldown: 0, interval: 0.5, poise: 28 },
+  collapseHammer: { resource: "mana", cost: 19, cooldown: 0, interval: 0.7, poise: 35 },
+  tideSlash: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 10 },
+  flashFreeze: { resource: "mana", cost: 19, cooldown: 0, interval: 0.7, poise: 15 },
+  hueEtch: { resource: "mana", cost: 15, cooldown: 0, interval: 0.5, poise: 8 },
+  hueRelease: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 12 },
+  siphonMark: { resource: "mana", cost: 11, cooldown: 0, interval: 0.5, poise: 4 },
+  doomSentence: { resource: "mana", cost: 18, cooldown: 0, interval: 0.8, poise: 6 },
+  shiftingEdge: { resource: "mana", cost: 15, cooldown: 0, interval: 0.5, poise: 10 },
+  weaponArt: { resource: "mana", cost: 22, cooldown: 0, interval: 0.8, poise: 25 },
+  titanForm: { resource: "cooldown", cost: 0, cooldown: 18, interval: 0.3, poise: 30 },
+  swiftForm: { resource: "cooldown", cost: 0, cooldown: 16, interval: 0.3, poise: 12 },
+  spiritForm: { resource: "cooldown", cost: 0, cooldown: 16, interval: 0.3, poise: 15 },
+  wardStake: { resource: "mana", cost: 15, cooldown: 0, interval: 0.4, poise: 3 },
 };
 
 describe("スキルの分類（マナ型 / CD 型）", () => {
-  it("マナ型 38 / CD 型 9（大拡張でマナ型 +28・CD 型 +5）", () => {
+  it("マナ型 57 / CD 型 13（大拡張でマナ型 +28・CD 型 +5、第 2 弾でマナ型 +19・CD 型 +4）", () => {
     const mana = SKILL_KEYS.filter((k) => SKILL_DEFS[k].resource === "mana");
-    expect(mana, "マナ型の数").toHaveLength(38);
-    expect(SKILL_KEYS.length - mana.length, "CD 型の数").toBe(9);
+    expect(mana, "マナ型の数").toHaveLength(57);
+    expect(SKILL_KEYS.length - mana.length, "CD 型の数").toBe(13);
   });
 
   it.each(SKILL_KEYS)("%s: 型・コスト・CD・最低間隔・怯み値が B-4 の表どおり", (key) => {
@@ -168,7 +192,7 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
     if (row.resource === "mana") expect(def.charges, "マナ型はチャージを使わない").toBe(1);
   });
 
-  it("付与: 撃ち抜き=脆弱 / 雷撃=感電 2 / 引力球=沈黙 / 鎖鎌=出血 1 / 満月の砲=脆弱 / 爆薬樽=燃焼 / 砕氷槌=冷気 2 / 処断=沈黙 / 手繰り糸=弱体。他は付与なし", () => {
+  it("付与: 既存 9 種と第 2 弾（濡れ・油膜・燃焼・冷気・毒・烙印・崩勢・彩痕・吸魔・宣告）の表どおり。他は付与なし", () => {
     const kinds = (key: SkillKey): string[] => (SKILL_DEFS[key].applies ?? []).map((a) => `${a.kind}:${a.stacks}`);
     const table: Partial<Record<SkillKey, string[]>> = {
       railshot: ["vulnerable:1"],
@@ -180,6 +204,17 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
       iceBreaker: ["chill:2"],
       verdict: ["silence:1"],
       threadReel: ["weaken:1"],
+      waterJar: ["wet:2"],
+      oilPot: ["oiled:1"],
+      scorchLine: ["burn:1"],
+      iceSlide: ["chill:1"],
+      bogCall: ["poison:1"],
+      brandSear: ["brand:2"],
+      breakKick: ["broken:1"],
+      tideSlash: ["wet:2"],
+      hueEtch: ["hue:1"],
+      siphonMark: ["siphon:1"],
+      doomSentence: ["doom:1"],
     };
     for (const key of SKILL_KEYS) {
       const want = table[key];
@@ -298,9 +333,9 @@ describe("resolveCast", () => {
 
   it("全スキル・全修飾子に定義がある", () => {
     for (const key of SKILL_KEYS) expect(SKILL_DEFS[key].key).toBe(key);
-    expect(SKILL_KEYS).toHaveLength(47);
+    expect(SKILL_KEYS).toHaveLength(70);
     expect(Object.keys(MODIFIERS)).toEqual([...MODIFIER_KEYS]);
-    expect(MODIFIER_KEYS).toHaveLength(39);
+    expect(MODIFIER_KEYS).toHaveLength(52);
     for (const key of MODIFIER_KEYS) expect(MODIFIERS[key].key).toBe(key);
   });
 
@@ -478,41 +513,54 @@ describe("相性表", () => {
     bloodPrice: [],
     comboFuel: [],
     echo: ["parry", "bloodPact", "haste", "shadowStep", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    pierce: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "galeSlash", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
-    recoil: ["lunge", "parry", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    pierce: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "galeSlash", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "flashFreeze", "hueEtch", "hueRelease", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake"],
+    recoil: ["lunge", "parry", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide"],
     chainReset: ["parry", "bloodPact", "haste", "boneRing", "backflow", "scarRoar", "manaSpring"],
     curse: ["bloodPact", "haste", "manaSpring"],
-    delay: ["lunge", "parry", "bloodPact", "haste", "spiral", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    expand: ["lunge", "railshot", "parry", "bloodPact", "haste", "chainHook", "spiral", "unravel", "prismShard", "fullMoon", "shadowStep", "harvest", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "guillotine", "ricochet", "galeSlash", "scatterSigil", "threadReel", "swallowFlip", "boneRing", "backflow", "manaSpring", "turret"],
+    delay: ["lunge", "parry", "bloodPact", "haste", "spiral", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    expand: ["lunge", "railshot", "parry", "bloodPact", "haste", "chainHook", "spiral", "unravel", "prismShard", "fullMoon", "shadowStep", "harvest", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "guillotine", "ricochet", "galeSlash", "scatterSigil", "threadReel", "swallowFlip", "boneRing", "backflow", "manaSpring", "turret", "iceSlide", "emberDraw", "brandSear", "breakKick", "tideSlash", "hueEtch", "siphonMark", "shiftingEdge"],
     charge: ["parry", "bloodPact", "haste", "spiral", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    deferred: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    refund: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    bloodTithe: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    spillover: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    dryFire: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    bladeFeed: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    timeLock: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    fuelize: ["whirl", "frag", "railshot", "parry", "quake", "thunder", "gravityWell", "mines", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "turret"],
-    overheat: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    deferred: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    refund: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    bloodTithe: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    spillover: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    dryFire: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    bladeFeed: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    timeLock: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
+    fuelize: ["whirl", "frag", "railshot", "parry", "quake", "thunder", "gravityWell", "mines", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "turret", "waterJar", "oilPot", "scorchLine", "levelGround", "emberDraw", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "wardStake"],
+    overheat: ["lunge", "parry", "bloodPact", "haste", "fullMoon", "dregsBlade", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide", "titanForm", "swiftForm", "spiritForm"],
     heavy: ["bloodPact", "haste", "frostField", "contagion", "shadowStep", "boneRing", "manaSpring"],
     feather: ["bloodPact", "haste", "frostField", "contagion", "shadowStep", "boneRing", "manaSpring"],
-    repel: ["lunge", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "backflow", "manaSpring"],
-    tether: ["lunge", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "backflow", "manaSpring"],
-    linger: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "dregsBlade", "shadowStep", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
-    spread: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "dregsBlade", "shadowStep", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
+    repel: ["lunge", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "backflow", "manaSpring", "iceSlide"],
+    tether: ["lunge", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "backflow", "manaSpring", "iceSlide"],
+    linger: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "dregsBlade", "shadowStep", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "levelGround", "emberDraw", "brandBlast", "collapseHammer", "flashFreeze", "hueRelease", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake"],
+    spread: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "dregsBlade", "shadowStep", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "levelGround", "emberDraw", "brandBlast", "collapseHammer", "flashFreeze", "hueRelease", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake"],
     followUp: ["bloodPact", "haste", "manaSpring"],
-    lastGasp: ["lunge", "parry", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
-    sustain: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar"],
-    landing: ["whirl", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "boneRing", "scarRoar", "manaSpring", "turret"],
+    lastGasp: ["lunge", "parry", "bloodPact", "haste", "shadowStep", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "iceSlide"],
+    sustain: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "scorchLine", "iceSlide", "levelGround", "emberDraw", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm"],
+    landing: ["whirl", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "boneRing", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "levelGround", "emberDraw", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake"],
     desperate: ["bloodPact", "haste", "lastStand", "manaSpring"],
     attune: [],
     cycle: [],
-    flank: ["frag", "railshot", "bloodPact", "thunder", "gravityWell", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "strip", "ricochet", "scatterSigil", "threadReel", "meteorDive", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
-    pointBlank: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
-    longshot: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
-    toThrown: ["lunge", "frag", "railshot", "parry", "bloodPact", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "strip", "grudge", "ricochet", "galeSlash", "scatterSigil", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"],
-    toLobbed: ["whirl", "lunge", "railshot", "parry", "bloodPact", "quake", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    flank: ["frag", "railshot", "bloodPact", "thunder", "gravityWell", "mines", "haste", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "strip", "ricochet", "scatterSigil", "threadReel", "meteorDive", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "emberDraw", "bogCall", "brandBlast", "tideSlash", "flashFreeze", "hueRelease", "siphonMark", "doomSentence", "titanForm", "swiftForm", "spiritForm", "wardStake"],
+    pointBlank: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "flashFreeze", "hueEtch", "hueRelease", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake"],
+    longshot: ["whirl", "lunge", "frag", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "frostField", "contagion", "kindle", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "discharge", "verdict", "exploit", "lastStand", "comboChain", "grudge", "guillotine", "stomp", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "flashFreeze", "hueEtch", "hueRelease", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake"],
+    toThrown: ["lunge", "frag", "railshot", "parry", "bloodPact", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "harvest", "discharge", "rout", "strip", "grudge", "ricochet", "galeSlash", "scatterSigil", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "emberDraw", "bogCall", "brandBlast", "tideSlash", "flashFreeze", "hueRelease", "siphonMark", "doomSentence", "titanForm", "swiftForm", "spiritForm", "wardStake"],
+    toLobbed: ["whirl", "lunge", "railshot", "parry", "bloodPact", "quake", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "scorchLine", "iceSlide", "levelGround", "emberDraw", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm"],
     toStaged: ["parry", "bloodPact", "haste", "spiral", "boneRing", "backflow", "scarRoar", "manaSpring"],
+    fireInfuse: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "shiftingEdge", "weaponArt"],
+    iceInfuse: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "shiftingEdge", "weaponArt"],
+    stormInfuse: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "shiftingEdge", "weaponArt"],
+    venomInfuse: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "shiftingEdge", "weaponArt"],
+    breakInfuse: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "breakKick"],
+    hueInfuse: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "hueEtch"],
+    leyline: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring"],
+    jobMastery: [],
+    weaponBond: ["bloodPact", "haste", "contagion", "shadowStep", "boneRing", "manaSpring", "shiftingEdge", "weaponArt"],
+    formSurge: ["titanForm", "swiftForm", "spiritForm"],
+    formLinger: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "emberDraw", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "wardStake"],
+    toNova: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "mines", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "scorchLine", "iceSlide", "levelGround", "emberDraw", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm"],
+    toTrap: ["lunge", "frag", "parry", "bloodPact", "thunder", "gravityWell", "mines", "haste", "spiral", "frostField", "contagion", "kindle", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "discharge", "grudge", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "bogCall", "brandBlast", "flashFreeze", "hueRelease", "doomSentence", "titanForm", "swiftForm", "spiritForm", "wardStake"],
   };
 
   it("全スキル x 全刻印符が表どおり", () => {
@@ -594,7 +642,7 @@ describe("刻印符のドロップ（rollRuneDrop）", () => {
 });
 
 describe("生成の重み", () => {
-  it("深い層では全 47 種が出る。重みに沿って初期 6 種がやや多い", () => {
+  it("深い層では全 70 種が出る。重みに沿って初期 6 種がやや多い", () => {
     const rng = createRng(123);
     const counts = new Map<SkillKey, number>();
     const n = 24000;
@@ -630,11 +678,11 @@ describe("生成の重み", () => {
     expect(createDefaultSkillProfile().stones.map((s) => s.skillKey)).toEqual(["whirl", "frag"]);
   });
 
-  it("刻印符の抽選は装着スキルに付くものだけ（加速 + 血の契約なら汎用の 5 種と燃料化だけ）", () => {
+  it("刻印符の抽選は装着スキルに付くものだけ（加速 + 血の契約なら汎用の 7 種と燃料化だけ）", () => {
     const rng = createRng(4);
     const seen = new Set<ModifierKey>();
     for (let i = 0; i < SAMPLE_COUNT; i++) seen.add(rollRuneModifier(rng, ["haste", "bloodPact"]));
-    expect([...seen].sort()).toEqual(["attune", "bloodPrice", "comboFuel", "cycle", "fuelize", "multiCharge"]);
+    expect([...seen].sort()).toEqual(["attune", "bloodPrice", "comboFuel", "cycle", "formSurge", "fuelize", "jobMastery", "multiCharge"]);
   });
 
   it("型替え符は通常の刻印符より出にくい", () => {

@@ -24,6 +24,7 @@ import {
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
+import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
 import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
@@ -642,6 +643,7 @@ function onChargeLevelUp(state: GameState, level: number): void {
   const color = WEAPON.chargeRingColors[level] ?? WEAPON.chargeRingColors[0];
   spawnBurst(state, state.player.body.pos, color, CHARGE_LEVEL_PARTICLES, 70, 0.2, 1.5);
   pushSfx(state, "chargeLevel");
+  chargeUpFx(state, level, color);
 }
 
 /** 溜めの段（0 = 段なし）。描画の環に使う */
@@ -711,6 +713,7 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   a.dir = { ...p.facing };
   const sfx = SLASH_SFX[spec.combo];
   if (sfx) pushSfx(state, sfx);
+  onSwingFx(state);
   payOverclock(state, PLAYER.overclockHpCost);
   onBoonSwing(state, spec.combo, spec.dashStrike, step.damage);
 }
@@ -1225,7 +1228,7 @@ function fireVolley(state: GameState, level: number): void {
   p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   spawnBurst(state, muzzle, spec.color, 3, 60, 0.12, 1.5);
   shake(state, 1);
-  pushSfx(state, "shoot");
+  pushSfx(state, shotSfxName(s.shot));
   payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });
   pushPlayerEvent(state, "onShoot", "ranged", { pos: { ...muzzle } });

@@ -132,12 +132,27 @@ export function chooseFloorKind(depth: number, rng: Rng): FloorKind {
   return pickFloorKinds(depth, rng, 1)[0] ?? "rooms";
 }
 
+/** 反転層（docs/ideas/run-expansion.md 4 章 #4）: この深度から世界が裏返る */
+export function isInvertedDepth(depth: number): boolean {
+  return depth >= FLOOR_KIND.invertedDepth;
+}
+
+/**
+ * 抽選の重み。反転層ではバイオームの並び（FLOOR_KINDS）を逆にした相手の重みを使う
+ * （浅い層で多く出た洞窟・回廊が減り、後から解禁された土地が多く出る）
+ */
+export function floorKindWeight(kind: FloorKind, depth: number): number {
+  if (!isInvertedDepth(depth)) return FLOOR_KIND.weight[kind];
+  const mirrored = FLOOR_KINDS[FLOOR_KINDS.length - 1 - FLOOR_KINDS.indexOf(kind)] ?? kind;
+  return FLOOR_KIND.weight[mirrored];
+}
+
 /** 重複なしで count 個まで選ぶ（分岐路の行き先）。候補が足りなければ候補の数だけ */
 export function pickFloorKinds(depth: number, rng: Rng, count: number): FloorKind[] {
   const pool = floorKindCandidates(depth);
   const picks: FloorKind[] = [];
   while (picks.length < count && pool.length > 0) {
-    const index = pool.length === 1 ? 0 : weightedIndex(rng, pool.map((k) => FLOOR_KIND.weight[k]));
+    const index = pool.length === 1 ? 0 : weightedIndex(rng, pool.map((k) => floorKindWeight(k, depth)));
     const [kind] = pool.splice(index, 1);
     if (kind) picks.push(kind);
   }

@@ -22,6 +22,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
    │            └─ 拾ったアイテムは即 state.profile へ → main.ts が saveProfile
    │
    ├─ main.ts: state.sfx を drain → audio/sfx.ts SfxPlayer.play(name)
+   ├─ main.ts: updateMusic が state（floorKind / isEngaged / boss とダウン / seed・深度）を読んで audio/music.ts の musicCue → MusicPlayer.update（state は音楽を知らない）
    ├─ main.ts: ReplayRecorder に FrameInput を記録（ui/replayStore に保存）
    │
    └─ render(): render/renderer.ts Renderer.render(state, aimScreen)
@@ -65,7 +66,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 | `map/` | グリッドと生成器（純関数） | core/rng |
 | `render/` | Canvas 描画。state を読むだけ | すべて（読み取りのみ） |
 | `ui/` | 画面ロジック・設定・リプレイ保存 | core / loot / skills、system/player（applyStats） |
-| `audio/` | Web Audio 合成。ロジックからは名前だけ参照される | なし |
+| `audio/` | Web Audio 合成。ロジックからは名前だけ参照される。効果音は `sfx.ts`（個別定義）+ `sfxLayers.ts`（層の表、`layers.ts` が鳴らす）。音楽は `music.ts`（曲の表・`pickTrack` / `musicCue` の純関数・`MusicPlayer`。AudioContext は SfxPlayer と共有） | core/state の型（`FloorKind`）、data/tuning の `MUSIC` |
 | `data/` | tuning（手触り定数）、敵定義、武器種・射撃の型（`weapons.ts`）、スプライトのピクセルマップ | なし |
 | `meta/` | 図鑑・依頼・実績の定義と永続化。`runRecord.ts` が state から数え上げるだけで、ゲーム進行には効かない | core / loot / system（読むだけ） |
 | `qa/` | ヘッドレス bot・シミュレーション・report.md | すべて |
@@ -97,10 +98,12 @@ GameState
   ├─ projectiles / hazards / pickups / floorItems
   ├─ skills: SkillRunState（lastCast: LastCast | null〔連携の受付〕を含む）
   ├─ boons: BoonKey[]、boonChoice、boonRun
+  ├─ runEvents: RunEventState（部屋の枠・階の枠のランイベント、落下物・落雷、長居の代償、変異、strata〔最深の階・戻った回数・帰還中か・反転層の遺物の抽選済み id〕、pendingEchoes〔main.ts が残響へ移す〕）、stairs: StairsChoice[]（分岐路）
+  ├─ contracts: ContractState（この階の契約者と台座、結んだ契約、鍛冶・属性の祭壇の属性の上乗せ、占いの予言、語り部の目撃、渡し守の回数）、shards（欠片。ラン内だけの資源）。属性の上乗せは `system/contractors.ts` の ensureContractStats が applyStats の結果に足し直す
   ├─ events / pendingEvents: GameEvent[]（今ステップのイベント / 効果が起こした次ステップ持ち越し）、recent（種類ごとの直近の発生時刻と回数）、ruleIcd: Map<ruleId, 残り秒>、chains（直近に成立した連鎖 8 件。連携表示の材料）、ruleRun（照合中の深さ・持ち主、語の窓、プレイヤーの足元の地形）
   ├─ boss、reaper
   ├─ codexRun: CodexRun（図鑑用。このランで見た / 倒した敵、反応、連鎖、部屋・階の種類）、questRun: QuestRun（依頼用。受けた依頼 key とラン中の数え上げ）。どちらも `meta/runRecord.ts` の `noteRunEvents` が積むだけで、ラン終了時に `main.ts` が `meta/{codexStore,questStore}` へ保存する
-  └─ rng、tick、time、sfx、log、texts、particles、shapes、camera（演出系）
+  └─ rng、tick、time、sfx、log、texts、particles、shapes、effects（死に方・演出の印・演出専用の乱数。`system/effects.ts` の fxState が遅延で作る）、camera（演出系）
 ```
 
 型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState / Corpse）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/events.ts`（GameEvent / EventKind / EventSource / pushEvent）、`core/rules.ts`（Rule / RuleCondition / RuleEffect / EnemyRule）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind / ReactionKey）、`core/terrain.ts`（TerrainKind / TerrainLayer）、`skills/types.ts`（SkillStone / SkillRunState / LastCast / ComboKey）、`system/boonDefs.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）、`data/weapons.ts`（MovesetKey / ShotKey / MeleeStepDef / HitShape）、`meta/codex.ts`（CodexRun / CodexSave）、`meta/quests.ts`（QuestKey / QuestDef / QuestRun / QuestSave）、`meta/achievements.ts`（AchievementDef / AchievementSave / TitleId）。

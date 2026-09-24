@@ -617,6 +617,23 @@ export const TRIGGER = {
     lowHpRatio: 0.5,
     /** 祝福の響き: 色に対応しない祝福 1 つにつきの与ダメージの減少 */
     boonEchoOffPenalty: 0.02,
+    // ---- 2026-09 第 2 弾（属性・武器種・地形・持ち替え。system/traitHooks.ts） ----
+    /** 散弾の「近い敵」の距離（px、縁どうしではなく中心間） */
+    spreadCloseRange: 48,
+    /** 持ち替え（天秤）の重なりが途切れるまでの秒 */
+    alternateWindow: 2,
+    /** 地形の衝撃波の半径と、状態異常の秒・内部クールダウン */
+    terrainBlastRadius: 56,
+    terrainBlastStatusSec: 3,
+    terrainBlastIcd: 0.4,
+    /** 燃えている敵を倒したときに置く炎の半径（px） */
+    burningKillFireRadius: 12,
+    /** ダッシュの氷の轍の半径（px） */
+    iceTrailRadius: 8,
+    /** 連射の烙印 1 つの秒とスタック */
+    rapidBrandSec: 4,
+    /** 属性の性質・誓約の倍率の下限（減少を重ねても 0 にしない） */
+    elementMinMul: 0.1,
   },
 } as const;
 
@@ -699,6 +716,89 @@ export const KEYSTONE = {
   disciplineDamageMul: 0.8,
   /** ks_oblivion（忘却の誓い）: 装備全体の余白 1 につき全ステータス */
   oblivionAttrPerMargin: 1,
+  // ---- 2026-09 第 2 弾: 属性 / 武器 / 地形の排他グループ ----
+  /** ks_oneElement（一色の誓い）: 近接・射撃の与ダメージの上乗せと、全属性耐性の減少（%） */
+  oneElementDamageBonus: 0.2,
+  oneElementResistLoss: 15,
+  /** ks_weakOath（弱点の誓い）: 弱点を突いた命中 / 突かなかった命中の倍率 */
+  weakOathWeakMul: 1.4,
+  weakOathOtherMul: 0.8,
+  /** ks_nullOath（無の誓い）: 近接・射撃の与ダメージの上乗せと、状態異常の効果量の倍率 */
+  nullOathDamageBonus: 0.1,
+  nullOathPotencyMul: 0.75,
+  /** ks_ironOath（鉄の誓い）: 得意武器の近接の与ダメージ・怯み値の倍率 / 得意でない武器の近接の与ダメージ倍率 */
+  ironFavoredMul: 1.3,
+  ironFavoredPoiseMul: 1.2,
+  ironUnfavoredMul: 0.7,
+  /** ks_chargeOath（溜めの誓い）: 溜めの段 1 つにつきの近接の上乗せ / 溜めを持つ武器で溜めずに振った近接の倍率 */
+  chargeOathPerLevel: 0.25,
+  chargeOathUnchargedMul: 0.75,
+  /** ks_stanceOath（構えの誓い）: 攻撃の振り（予備動作〜攻撃判定）の間 / それ以外の被ダメージ倍率 */
+  stanceGuardMul: 0.6,
+  stanceExposedMul: 1.2,
+  /** ks_earthOath（土の誓い）: 地形の上に立つ間の毎秒の回復 */
+  earthRegenPerSec: 2,
+  /** ks_slickOath（滑りの誓い）: 水たまり・氷床の上 / それ以外の与ダメージ倍率 */
+  slickOnMul: 1.35,
+  slickOffMul: 0.9,
+  /** ks_emberOath（熾火の誓い）: 燃えている敵か燃える地形の上の敵 / それ以外への与ダメージ倍率、炎耐性の減少、置く炎の秒 */
+  emberOnMul: 1.3,
+  emberOffMul: 0.85,
+  emberFireResistLoss: 25,
+  emberKillFireSec: 4,
+} as const;
+
+/**
+ * 共鳴の拡張（docs/ideas/loot-expansion.md 9-2〜9-4。src/loot/resonance.ts）。
+ * 陰画・拮抗は共鳴の変形、星座は 6 部位の主色の並びで成立する別の層
+ */
+export const RESONANCE = {
+  /** 陰画: 反転した性質の重みが全体のこの割合以上で、反転していない性質の中に支配色があれば成立 */
+  negativeInvertedRatio: 0.35,
+  /** 拮抗: 反対色の組がそれぞれこの割合以上で、差がこの割合以内 */
+  balanceMinRatio: 0.25,
+  balanceMaxGap: 0.05,
+  /** 天秤（紅と蒼の拮抗）: 近接と射撃を交互に当てるたびの与ダメージと上限 */
+  balanceStep: 0.08,
+  balanceCap: 0.32,
+  /** 表裏（翠と金の拮抗）: 生命が半分以上の与ダメージ / 半分未満の被ダメージの減少 */
+  twoFacesDamage: 0.1,
+  twoFacesGuard: 0.15,
+  /** 冷たい炎（紅の陰画）: 燃焼の確率を冷気へ移す割合と、近接の上乗せを射撃へ移す量 */
+  coldFlameShift: 0.1,
+  /** 熱い氷（蒼の陰画）: 射撃で周囲を燃やす確率・dps・秒 */
+  hotIceChance: 0.25,
+  hotIceDps: 5,
+  hotIceSec: 3,
+  /** 枯れ森（翠の陰画）: 回復の倍率と、被弾時の衝撃波のダメージ */
+  witheredHealMul: 0.5,
+  witheredWave: 14,
+  /** 暗雷（金の陰画）: 感電の確率の上乗せと、近接で呼ぶ連鎖雷の確率・ダメージ */
+  darkThunderShock: 0.1,
+  darkThunderChance: 0.35,
+  darkThunderDamage: 12,
+  // ---- 星座 ----
+  /** 双子: 近接と射撃の上乗せのうち、もう片方にも効く割合と、代償の攻撃速度・連射の減少 */
+  twinsShare: 0.25,
+  twinsTempoLoss: 0.05,
+  /** 対岸: 持ち替えた命中の怯み値 / 同じ手段が続いた命中の減少 */
+  shoresPoise: 0.4,
+  shoresRepeat: 0.15,
+  /** 背骨: 被ダメージの減少と、代償の移動速度の減少 */
+  spineGuard: 0.1,
+  spineSlow: 0.06,
+  /** 環: 全ステータスの上乗せと、代償の最大気力の減少 */
+  ringAttr: 2,
+  ringManaLoss: 10,
+  /** 鏡像: トリガーの内部クールダウンを縮める割合と、代償の最大生命の減少 */
+  mirrorIcdCut: 0.25,
+  mirrorHpLoss: 15,
+  /** 虚空: 主色が冥の遺物の数と、代償の被ダメージの増加 */
+  voidMinUmbra: 3,
+  voidExposure: 0.08,
+  /** 鎖: 持ち替えて当てるたびの気力と、代償の気力回収の減少 */
+  chainMana: 2,
+  chainGainLoss: 0.1,
 } as const;
 
 /** 装備ドロップ */
@@ -708,7 +808,8 @@ export const LOOT_DROP = {
    * 通常敵のドロップ確率に掛ける倍率。添字 0 = 深度 1、表より深ければ最後の値。
    * エリート・ボス・巣窟の主（dropChance 1）には掛けない（memo 2026-09-24: 「たくさん倒しても出ない、強敵を倒すと出る」）
    */
-  mobDropMulByDepth: [0.1, 0.12, 0.15, 0.2],
+  /** [0.1..0.2] → [0.18..0.35]（QA 0.0.8α: 拾得数が 0.0.7α 比 31〜46% と目標 60〜70% より絞りすぎ） */
+  mobDropMulByDepth: [0.18, 0.22, 0.27, 0.35],
   /**
    * 徘徊・増援（roomIndex = ROAMING_ROOM。開放型フロアの時間湧き）の通常敵に、さらに掛ける倍率。
    * 増援は時間とともに湧き続けるので、倒した数でドロップの母数が膨らまないよう絞る（エリートは掛けない）
@@ -724,9 +825,9 @@ export const LOOT_DROP = {
    * 部屋制圧の報酬が出る確率（添字 0 = 深度 1、表より深ければ最後の値。旧: 常に 1 個）。
    * 開放型フロアは塊が多く制圧の回数が増えたので [0.35, 0.45, 0.55, 0.7] から下げた（QA 0.0.7α: 拾得数が前回比 1.5〜2.6 倍）
    */
-  roomClearChanceByDepth: [0.1, 0.12, 0.15, 0.2],
+  roomClearChanceByDepth: [0.2, 0.25, 0.3, 0.4],
   /** 階層到達の報酬が出る確率（旧: 常に 1 個。同上の理由で絞る） */
-  depthArrivalChance: 0.35,
+  depthArrivalChance: 0.6,
   /** itemLevel = depth + rng(0..spread) */
   itemLevelSpread: 2,
   rarityBoostPerDepth: 0.02,
@@ -1356,6 +1457,13 @@ export const ROOM_KIND = {
     nest: { chance: 0.15, minDepth: 4 },
     mirror: { chance: 0.08, minDepth: 5 },
     watchtower: { chance: 0.15, minDepth: 2 },
+    // ---- 第 2 弾（docs/ideas/run-expansion.md 2 章の残り）----
+    vault: { chance: 0.12, minDepth: 3 },
+    elementAltar: { chance: 0.15, minDepth: 2 },
+    dummyHall: { chance: 0.1, minDepth: 2 },
+    fogRoom: { chance: 0.12, minDepth: 2 },
+    tideRoom: { chance: 0.12, minDepth: 3 },
+    invertHall: { chance: 0.08, minDepth: 4 },
   },
   /** 台座に触れたと判定する半径（px）と、台座どうしの間隔（タイル） */
   propRadius: 9,
@@ -1411,6 +1519,31 @@ export const ROOM_KIND = {
   /** 見張り台: 鐘を鳴らすと死神の猶予が縮む秒 */
   watchtowerReaperCost: 20,
   watchtowerColor: "#e0e0a0",
+  // ---- 第 2 弾の部屋（src/system/specialRooms.ts）----
+  /** 封印庫: 解錠に払う欠片と、中の遺物の数 */
+  vaultCost: 5,
+  vaultDrops: 2,
+  vaultColor: "#b0f0ff",
+  /** 属性の祭壇: 並べる属性の数と、この階の間だけ通常攻撃に乗る属性の割合 */
+  elementAltarChoices: 3,
+  elementAltarShare: 0.5,
+  elementAltarColor: "#ffe890",
+  /** 試し場: 木人の数と、木人を並べる間隔（タイル） */
+  dummyCount: 3,
+  dummySpacing: 2.5,
+  dummyColor: "#c8a070",
+  /** 霧の部屋: 中にいる間だけ見える半径（px）と、制圧の上乗せの欠片 */
+  fogRoomRadius: 72,
+  fogRoomColor: "#c8ccd8",
+  /** 潮の間: 封鎖すると部屋の中心から水が広がる。広がる速さ（px/秒）・置き直す間隔（秒）・水が残る秒 */
+  tideRoomSpeed: 14,
+  tideRoomInterval: 0.8,
+  tideRoomWaterTime: 30,
+  tideRoomColor: "#60a0ff",
+  /** 反転の間: 置いてある遺物の数と、1 つの性質が反転するまで煽り直す上限回数 */
+  invertHallItems: 2,
+  invertHallAttempts: 24,
+  invertHallColor: "#a060e0",
   // ---- 巣窟（モンスターハウス。開放型フロアでたまに出る、入ると封鎖される部屋）----
   /** 巣窟が出始める深度・2 つ目が出始める深度・1 つあたりの出る確率 */
   hordeMinDepth: 2,
@@ -1447,6 +1580,12 @@ export const ROOM_KIND = {
     mirror: true,
     watchtower: false,
     horde: true,
+    vault: false,
+    elementAltar: false,
+    dummyHall: false,
+    fogRoom: false,
+    tideRoom: true,
+    invertHall: false,
   },
 } as const;
 
@@ -1479,6 +1618,23 @@ export const FLOOR_KIND = {
   forkMin: 2,
   forkMax: 3,
   forkOffset: 4,
+  // ---- 階層構造（docs/ideas/run-expansion.md 4 章 #4〜#6）----
+  /** 反転層: この深度から。バイオームの重みが逆順になり、敵はエリート抽選を 1 回多く引き、落ちた遺物は反転の抽選をもう 1 回受ける */
+  invertedDepth: 20,
+  invertedColor: "#a060e0",
+  /** 無限の深み: この深度からは敵の HP の伸びを deepHpSlope まで寝かせ、部屋の敵数の上限を deepMaxEnemiesBonus だけ外す */
+  deepDepth: 30,
+  deepHpSlope: 0.05,
+  deepMaxEnemiesBonus: 4,
+  /** 無限の深み: mutationEvery 階ごとに「変異」（階のランイベントの常時化）を 1 つ積む */
+  mutationEvery: 10,
+  /** 上り階段（戻る）: 出始める深度・1 ランで戻れる回数・触れ続ける秒 */
+  ascendMinDepth: 3,
+  ascendMaxReturns: 2,
+  ascendHold: 1.2,
+  /** 戻った階は死神の猶予をこの秒だけ進めて始まり、敵は半分 */
+  revisitReaperHeadStart: 40,
+  ascendColor: "#90e0ff",
 } as const;
 
 /**
@@ -1549,16 +1705,31 @@ export const RUN_EVENT = {
   /** 1 つ終わってから次が起きるまでの最短秒 */
   cooldown: 20,
   /** 封鎖時に起きる確率 */
-  lockChance: { reinforce: 0.1, blackout: 0.06, meteor: 0.05, manaDrought: 0.06, shrink: 0.04, timeRift: 0.05 },
+  lockChance: {
+    reinforce: 0.1,
+    blackout: 0.06,
+    meteor: 0.05,
+    manaDrought: 0.06,
+    shrink: 0.04,
+    timeRift: 0.05,
+    // ---- 第 2 弾（条件を満たさない種類は抽選しない）----
+    curseVoice: 0.08,
+    duel: 0.06,
+    sluggish: 0.04,
+    flood: 0.04,
+    silence: 0.04,
+    reactionSurge: 0.04,
+    thunderstorm: 0.04,
+  },
   /** 階に入ったときに起きる確率（霧は沼・草原・氷窟では fogBiomeChance） */
-  floorChance: { bounty: 0.12, bloodMoon: 0.05, frenzyMoon: 0.05, fog: 0.03 },
+  floorChance: { bounty: 0.12, bloodMoon: 0.05, frenzyMoon: 0.05, fog: 0.03, elementStorm: 0.05 },
   fogBiomeChance: 0.2,
   /** 時間で起きる: この秒を過ぎてから checkInterval ごとに抽選 */
   timedAfter: 40,
   checkInterval: 10,
-  timedChance: { quake: 0.08, curseWind: 0.06 },
+  timedChance: { quake: 0.08, curseWind: 0.06, reaperPass: 0.08, echoVein: 0.06, bats: 0.05, lifeFlow: 0.04 },
   /** 制圧時に起きる確率 */
-  clearChance: { treasureRain: 0.04, momentum: 0.12 },
+  clearChance: { treasureRain: 0.04, momentum: 0.12, boonReroll: 0.03 },
   /** 増援: 湧かせる抽選回数（通常部屋の敵数に対する倍率）と、この秒以内に倒すと報酬 */
   reinforceMul: 0.6,
   reinforceBonusTime: 8,
@@ -1601,6 +1772,31 @@ export const RUN_EVENT = {
   warnColor: "#ffb040",
   activeColor: "#ff7050",
   impactColor: "#ff9040",
+  // ---- 第 2 弾のイベント ----
+  /** 鈍重: ダッシュの再使用が dashCdMul 倍、ダッシュの直後 buffTime 秒の与ダメが dashDamageMul 倍 */
+  sluggish: { dashCdMul: 2, dashDamageMul: 2, buffTime: 0.6 },
+  /** 地形の氾濫: 続く秒・広げる間隔・広がる速さ（px/秒）・最大半径・地形が残る秒 */
+  flood: { duration: 10, interval: 1, growth: 9, maxRadius: 72, terrainTime: 20 },
+  /** 決闘: 他の敵が止まる秒（麻痺）と、決闘に勝ったとき他の敵に付く恐怖の秒 */
+  duel: { holdTime: 5, fearTime: 4 },
+  /** 静寂: 部屋の敵に付く沈黙の秒 */
+  silenceTime: 30,
+  /** 反応の共振: 反応が起きた点から半径 radius に damage（+ 深度ごとに perDepth 倍ずつ）。同じ点で連鎖し続けないよう icd 秒あける */
+  surge: { radius: 40, damage: 10, perDepth: 0.1, icd: 0.25, color: "#ffe060" },
+  /** 雷鳴の刻: 続く秒・落雷の間隔・予告・半径・ダメージ・プレイヤーからのばらつき（px）・当たった敵の感電 */
+  thunder: { duration: 10, interval: 0.8, telegraph: 1, radius: 18, damage: 6, spread: 100, shockStacks: 1, shockDuration: 3, color: "#c0e0ff" },
+  /** 呪詛の声: 制圧までに要るコンボ */
+  curseVoiceCombo: 20,
+  /** 属性の嵐: 通常攻撃に乗る属性の割合 */
+  elementStormShare: 0.5,
+  /** 死神の通り道: 死神の猶予のこの割合を過ぎてから起きる。横切る速さ（px/秒）・横切る長さの半分（px）・当たり・ダメージ・通過後の冥の残響 */
+  reaperPass: { minRatio: 0.5, speed: 240, span: 300, radius: 12, damage: 30, echoes: 2 },
+  /** 生命の逆流: 続く秒と、生命 ⇔ 気力の換算 */
+  lifeFlow: { duration: 30, ratio: 1 },
+  /** 蝙蝠の渡り: 続く秒・湧く数・撃破 1 体で戻る気力 */
+  bats: { duration: 20, count: 6, manaPerKill: 6 },
+  /** 残響の鉱脈: 触れられる回数・1 回の残響・1 回ごとに寄ってくる増援の抽選回数 */
+  vein: { uses: 4, echoes: 1, reinforce: 1, color: "#80ffe0" },
 } as const;
 
 /** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
@@ -1717,6 +1913,78 @@ export const META = {
 } as const;
 
 /** ラン修飾子（縛り）。点の合計が位階（src/system/runSetup.ts） */
+/** 契約者・契約・欠片（src/system/contractors.ts。docs/ideas/run-expansion.md 0 章・6 章） */
+export const CONTRACT = {
+  /** 契約者が階の入口（開始部屋）に立つ深度と確率。ボスを倒した次の階は必ず立つ */
+  minDepth: 2,
+  appearChance: 0.4,
+  /** 契約者の出る重み */
+  weights: { notary: 3, peddler: 3, mender: 2, seer: 2, bookie: 2, bard: 2, smith: 2, guide: 2, ferryman: 2 },
+  /** 立ち位置（開始部屋の中心から上へ、タイル）・台座の列（中心から上へ、タイル）・台座の間隔（タイル） */
+  standOffset: 3,
+  offerOffset: 1.6,
+  offerSpacing: 2.5,
+  /** 近づくと一言を出す距離（px） */
+  greetRange: 56,
+  color: "#d8d0b8",
+  pactColor: "#c0b0a0",
+  // ---- 欠片（ラン内だけの小さな資源）----
+  /** 部屋の制圧で得る欠片。波の部屋・巣・鏡などは bonusRoom を上乗せ */
+  shardsPerClear: 1,
+  shardsBonusRoom: 2,
+  /** 初めて着いた階で得る欠片 */
+  shardsPerFloor: 1,
+  /** 賞金首・決闘で得る欠片 */
+  shardsBounty: 3,
+  shardsDuel: 2,
+  shardColor: "#b0f0ff",
+  // ---- 灰の公証人（契約）----
+  pactSlayerKills: 12,
+  pactSwiftTime: 75,
+  pactSwiftPenalty: 30,
+  pactSwiftPoints: 2,
+  pactUnscathedShards: 3,
+  pactSilentShards: 5,
+  pactSilentPenaltyShards: 3,
+  // ---- 行商 ----
+  peddlerItemCost: 4,
+  peddlerItemBoost: 2,
+  peddlerEchoCost: 3,
+  peddlerEchoes: 4,
+  peddlerSalveCost: 2,
+  peddlerSalveHeal: 0.35,
+  // ---- 修理屋 ----
+  menderStitchCost: 2,
+  menderStitchHeal: 0.5,
+  menderUncurseCost: 4,
+  menderCleanseCost: 1,
+  // ---- 占い ----
+  seerReadCost: 1,
+  seerWardCost: 3,
+  seerMapCost: 2,
+  // ---- 賭場の主 ----
+  bookieBet: 3,
+  bookieWinChance: 0.5,
+  bookieLifeCost: 0.2,
+  bookieLifeWinChance: 0.5,
+  // ---- 語り部 ----
+  bardTaleCost: 2,
+  bardTales: 4,
+  bardWitnessTime: 60,
+  // ---- 鍛冶 ----
+  smithCost: 3,
+  smithShare: 0.3,
+  smithChoices: 3,
+  // ---- 案内人 ----
+  guideForkCost: 1,
+  guideRevealCost: 1,
+  // ---- 渡し守 ----
+  ferryLifeCost: 0.15,
+  ferryShardCost: 3,
+  ferryTime: 30,
+  ferryMaxUses: 3,
+} as const;
+
 export const RUN_MOD = {
   thickHideHpMul: 1.3,
   /** 早い手: 予備動作が縮む割合（下限は基準の 60% を守る） */
@@ -2108,6 +2376,160 @@ export const BOON = {
   stillDashWindow: 0.2,
   /** 浮き文字 */
   ruleTextColor: "#ffd75f",
+  // ---- 祝福 第 2 弾（統一ルール文法の拡張で書いたもの。src/system/boonDefs.ts） ----
+  /** 文法の地形の効果の既定半径・ダッシュ回数が戻った浮き文字 */
+  ruleTerrainRadius: 16,
+  ruleDashRefillText: "再駆",
+  ruleTextScale: 1.1,
+  ruleTextLife: 0.6,
+  /** 第 2 弾の Rule の ICD の下限（毎ヒットで回る効果も同じ瞬間の多重発火を抑える） */
+  ruleMinIcd: 0.1,
+  /** 倒れた徘徊の敵を条件 targetRoamer が覚えておく秒（撃破の照合は同じステップの後で起きる） */
+  roamerKillMemory: 1,
+  /** 系譜「大地」: 地脈 / 足場崩し / 油撒き / 大地の怒り */
+  leyLineMana: 6,
+  leyLineIcd: 1.5,
+  footBreakPoise: 10,
+  oilSpillRadius: 12,
+  oilSpillTime: 8,
+  oilSpillIcd: 1,
+  earthWrathRadius: 32,
+  earthWrathIcd: 1.5,
+  earthWrathBurstRadius: 64,
+  /** 系譜「刃鳴」: 刃鳴 / 重ね刃 / 溜め鳴り / 百刃 */
+  bladeHumMana: 4,
+  bladeHumIcd: 0.4,
+  /** 重ね刃: 武器種の段（0 始まり）がこれ以上の振り */
+  layeredEdgeStep: 3,
+  layeredEdgeRatio: 0.4,
+  layeredEdgeIcd: 0.4,
+  chargeRingBroken: 3,
+  hundredBladesRatio: 0.8,
+  hundredBladesIcd: 0.3,
+  hundredBladesEnergy: 5,
+  /** 武器種: 岩の構え / 影分身 / 穂先貫き / 鎌の実り / 連打の熱 / 鞭の脅し / 叩き割り / 棍の響き / 杖の灯 */
+  rockStanceTime: 2,
+  rockStanceWrath: 2,
+  rockStanceIcd: 1,
+  /** 影分身: 双剣の 5 段目（段 4）以上 */
+  twinShadowStep: 4,
+  twinShadowRatio: 0.6,
+  spearPierceRatio: 0.7,
+  spearPierceIcd: 0.5,
+  scytheReapMana: 6,
+  scytheReapBleed: 3,
+  scytheReapIcd: 0.5,
+  fistsHeatCombo: 15,
+  fistsHeatEnergy: 2,
+  fistsHeatIcd: 0.1,
+  whipThreatFear: 0.6,
+  whipThreatIcd: 1.5,
+  cleaverSplitBroken: 3,
+  cleaverSplitIcd: 1,
+  staffRingRatio: 0.5,
+  staffRingIcd: 0.5,
+  wandLampMana: 1,
+  wandLampIcd: 0.15,
+  /** 射撃の型: 油の地雷 / 撃ち離れ / 毒蜂 / 礫雨 */
+  oilMineRadius: 16,
+  oilMineTime: 8,
+  oilMineIcd: 1,
+  chargeRecoilIcd: 2,
+  venomBeePoison: 3,
+  pebbleRainPoise: 3,
+  /** 属性: 弱点突き / 耐性崩し / 油火斬り / 属性の奔流 / 闇喰らい / 光刺し / 水面の雷 */
+  weakStrikeMeleeMana: 3,
+  weakStrikeRangedMana: 2,
+  weakStrikeIcd: 0.3,
+  resistBreakVulnerable: 3,
+  resistBreakIcd: 1,
+  oilSlashBurn: 3,
+  oilSlashIcd: 0.5,
+  elementTorrentEnergy: 4,
+  elementTorrentIcd: 0.5,
+  darkFeastHeal: 2,
+  lightPierceVulnerable: 2,
+  lightPierceIcd: 0.5,
+  waterThunderRadius: 40,
+  waterThunderTime: 2,
+  waterThunderIcd: 1,
+  /** 地形: 氷滑り / 野焼き / 水走り / 凍て水 */
+  iceSkateHaste: 2,
+  iceSkateIcd: 3,
+  fieldBurnBurn: 3,
+  fieldBurnIcd: 0.5,
+  waterRunnerStacks: 2,
+  waterRunnerTime: 5,
+  waterRunnerIcd: 2,
+  frozenWaterFreeze: 1,
+  frozenWaterIcd: 3,
+  /** ジョブ: 得物の誉れ / 無名の誇り / 他流 */
+  favoredPrideEnergy: 6,
+  favoredPrideIcd: 0.3,
+  namelessMana: 3,
+  namelessEnergy: 3,
+  otherStyleMana: 2,
+  otherStyleIcd: 0.5,
+  /** 部屋: 巣窟の主 / 群れ喰らい / 徘徊狩り / 迷い討ち / 旅慣れ / 口火 */
+  hordeLordEnergy: 30,
+  hordeLordMana: 20,
+  hordeEaterHeal: 1,
+  hordeEaterEnergy: 2,
+  roamHuntMana: 10,
+  roamHuntEnergy: 10,
+  strayMarkVulnerable: 3,
+  wayfarerEnergy: 5,
+  wayfarerIcd: 2,
+  wayfarerClearMana: 15,
+  engageSparkFear: 0.6,
+  /** 反応: 反応の余熱 / 蒸気隠れ */
+  reactionEmberMana: 3,
+  reactionEmberIcd: 0.5,
+  steamVeilHaste: 2,
+  steamVeilIcd: 3,
+  /** 気力: 織り交ぜ（K02）/ 満ち溢れ（K06 を払い戻しの形に） */
+  weaveOtherMul: 0.75,
+  weaveSameMul: 1.25,
+  overflowPerHit: 4,
+  /** 満ち溢れ: 溜められる上限（最大気力に対する割合） */
+  overflowCapRatio: 0.5,
+  /** 呪い: 血染めの地 / 一念 / 焦がれ刃 / 狂い咲き / 野良の賞金 / 重き誓い / 濡れ鼠 */
+  bloodSoilEnergy: 15,
+  bloodSoilBleedTime: 3,
+  bloodSoilBleed: 1,
+  bloodSoilIcd: 2,
+  singleMindMainMul: 0.5,
+  singleMindOtherMul: 2,
+  scorchBladeBurn: 2,
+  scorchBladeIcd: 0.3,
+  scorchBladeSelfTime: 1.5,
+  scorchBladeSelfDps: 2,
+  scorchBladeSelfIcd: 1,
+  madBloomRatio: 0.6,
+  madBloomWeaken: 1.5,
+  madBloomIcd: 0.5,
+  strayBountyEnergy: 100,
+  strayBountyWeaken: 3,
+  strayBountyIcd: 1,
+  heavyOathPoise: 30,
+  heavyOathWeaken: 1,
+  heavyOathIcd: 1,
+  drenchedMana: 100,
+  drenchedWetStacks: 3,
+  drenchedWetTime: 6,
+  drenchedIcd: 6,
+  /** 結び: 油火爆 / 氷上の舞 / 雷雨 / 地走り / 狩場の王 / 弱点連鎖 */
+  oilBlastRatio: 1,
+  oilBlastIcd: 1,
+  iceDanceFreeze: 1,
+  iceDanceIcd: 3,
+  thunderRainRatio: 0.8,
+  thunderRainIcd: 1.5,
+  groundRendRadius: 24,
+  groundRendIcd: 1.5,
+  huntLordFear: 1.5,
+  weakChainRatio: 0.6,
+  weakChainIcd: 0.8,
 } as const;
 
 /**
@@ -2476,4 +2898,90 @@ export const ELEMENT = {
     unknownGlyph: "？",
     unknownColor: "#a0a0a0",
   },
+} as const;
+
+/**
+ * 演出（src/system/effects.ts / src/render/effectsUi.ts / src/render/statusUi.ts）。見た目だけで、ロジックの結果に影響しない。
+ * 粒は演出専用の乱数を使うので、ここの数を変えてもゲームの乱数列は変わらない
+ */
+export const EFFECTS = {
+  /** 同時に存在できる数の上限。超えたら古いものから消す（1 フレームの描画を重くしない） */
+  maxParticles: 500,
+  maxTexts: 80,
+  maxShapes: 120,
+  maxDeaths: 32,
+  maxMarks: 64,
+  /** 状態異常の見た目: 敵 1 体に描く状態の数と、1 状態あたりの疑似粒の数（毎フレームの描画量の上限） */
+  statusKindsPerEnemy: 2,
+  statusParticlesPerKind: 2,
+  /** 状態異常の色調を重ねる濃さ */
+  statusTintAlpha: 0.4,
+  /** 撃破の演出（死に方ごとの長さと粒の数） */
+  death: {
+    life: { burst: 0, ash: 0.9, shatter: 0.5, discharge: 0.6, melt: 0.9, blood: 0.6, sever: 0.7, void: 0.6, holy: 0.9 },
+    particles: 10,
+    shardSpeed: 170,
+    ashRise: 18,
+    severGap: 10,
+    dischargeHop: 6,
+    bloodSpeed: 150,
+  },
+  /** 属性の命中の火花 */
+  hitSpark: { count: 3, speed: 110, life: 0.3 },
+  /** コンボ数に応じた浮き文字（min 以上で scale と色）。高い段ほど後ろに置く */
+  comboTiers: [
+    { min: 10, scale: 1.1, color: "#fff0a0" },
+    { min: 25, scale: 1.2, color: "#ffd060" },
+    { min: 50, scale: 1.3, color: "#ff9040" },
+    { min: 100, scale: 1.45, color: "#ff5080" },
+  ],
+  comboMilestones: [10, 25, 50, 100, 200],
+  comboMilestoneScale: 1.7,
+  comboMilestoneLife: 1,
+  comboMilestoneRise: 18,
+  /** 部屋の制圧の波: 最後の撃破地点から床が順に光る */
+  clearWave: { life: 1.1, speed: 240, band: 22, alpha: 0.4, color: "#ffe8a0", edgeAlpha: 0.7 },
+  /** 精鋭の撃破: 色の輪と短い画面の色づき */
+  eliteBurst: { life: 0.55, radius: 46, tintAlpha: 0.18, particles: 16 },
+  /** ボス撃破: 画面全体の光と光条 */
+  bossLight: { life: 1.8, rays: 12, rayWidth: 0.08, alpha: 0.55, color: "#fff4c0" },
+  /** 見切り: 広がる輪と放射線 */
+  justRing: { life: 0.4, radius: 30, lines: 8, color: "#60e0ff" },
+  /** 連携成立の残光 */
+  synergyGlow: { life: 0.7, radius: 24, color: "#ffd060" },
+  /** 弱点ヒットの割れ（ひびの線） */
+  weakCrack: { life: 0.4, size: 9, lines: 5, color: "#fff080" },
+  /** 会心の反転（色反転の短い閃き） */
+  critFlash: { life: 0.07 },
+  /** 封鎖の扉（格子が落ちる） */
+  doorSlam: { life: 0.45, drop: 12, color: "#ff6060", hordeColor: "#ff9040" },
+  /** 溜めの段が上がった瞬間の輪 */
+  chargeUp: { life: 0.3, radius: 20 },
+  /** 遺物ドロップの光柱が空から落ちる */
+  dropBeam: { life: 0.55, height: 140, width: 6 },
+  /** ダッシュの残像（置く間隔と残る時間） */
+  dashGhost: { interval: 0.03, life: 0.22, alpha: 0.45, color: "#80e0ff" },
+  /** 階層到達の名札（地下 n 階・バイオーム名） */
+  floorCard: { delay: 0.35, fadeIn: 0.25, hold: 1.2, fadeOut: 0.5 },
+  /** 武器種ごとの振りの軌跡（太さ・濃さ）。未指定は既定 */
+  trailAlpha: 0.35,
+} as const;
+
+/** 音楽（src/audio/music.ts）。曲の中身（音階・旋律）は music.ts の表、ここは混ぜ方と時間 */
+export const MUSIC = {
+  /** 効果音に対する音楽の基準の大きさ（設定の音量 × 音楽の音量 × これ） */
+  gain: 0.32,
+  defaultVolume: 0.5,
+  /** 先読みで予約する秒（main のフレームが多少遅れても途切れない） */
+  lookahead: 0.3,
+  /** 曲の切り替えのフェード秒 */
+  crossfade: 1.2,
+  /** 交戦で打楽器の層が入る / 抜けるフェード秒 */
+  percFade: 0.35,
+  /** 制圧の解決の和音の長さ */
+  resolveTime: 1.8,
+  /** ボスのダウン中のテンポ倍率 */
+  bossDownTempoMul: 1.2,
+  /** 曲の途中から予約が遅れたときに打ち直す猶予（タブが裏にあった等） */
+  resyncGap: 0.5,
 } as const;

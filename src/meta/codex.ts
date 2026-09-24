@@ -225,15 +225,25 @@ const ENEMY_KEYS: ReadonlySet<string> = new Set(ENEMIES.map((d) => d.key));
 const RELIC_KEYS: ReadonlySet<string> = new Set(UNIQUES.map((u) => u.key));
 const BOON_KEY_SET: ReadonlySet<string> = new Set(BOON_KEYS);
 const REACTION_KEY_SET: ReadonlySet<string> = new Set(REACTION_KEYS);
-const FLOOR_KIND_SET: ReadonlySet<string> = new Set(FLOOR_KINDS);
-const ROOM_KIND_SET: ReadonlySet<string> = new Set(ROOM_KINDS);
+// フロア種別と部屋種類は循環 import（biomes → floor → … → codex）の途中で読まれることがあり、
+// トップレベルで Set にすると空になる。初回の呼び出しで作る
+let floorKindSet: ReadonlySet<string> | null = null;
+let roomKindSet: ReadonlySet<string> | null = null;
+function floorKinds(): ReadonlySet<string> {
+  if (floorKindSet === null || floorKindSet.size === 0) floorKindSet = new Set(FLOOR_KINDS);
+  return floorKindSet;
+}
+function roomKinds(): ReadonlySet<string> {
+  if (roomKindSet === null || roomKindSet.size === 0) roomKindSet = new Set(ROOM_KINDS);
+  return roomKindSet;
+}
 
 export const isEnemyKey = (k: string): boolean => ENEMY_KEYS.has(k);
 export const isRelicKey = (k: string): boolean => RELIC_KEYS.has(k);
 export const isBoonKeyString = (k: string): boolean => BOON_KEY_SET.has(k);
 export const isReactionKeyString = (k: string): boolean => REACTION_KEY_SET.has(k);
-export const isFloorKindString = (k: string): boolean => FLOOR_KIND_SET.has(k);
-export const isRoomKindString = (k: string): boolean => ROOM_KIND_SET.has(k);
+export const isFloorKindString = (k: string): boolean => floorKinds().has(k);
+export const isRoomKindString = (k: string): boolean => roomKinds().has(k);
 
 /** 連鎖の key として成り立つか（既知の語が 2 つ以上） */
 export function isChainKey(k: string): boolean {

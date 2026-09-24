@@ -4,7 +4,8 @@ import { FIXED_DT } from "../core/loop";
 import type { EnemyPhase, GameState, GameStatus } from "../core/state";
 import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
 import { createRng, type Rng } from "../core/rng";
-import { enemyDef } from "../data/enemies";
+import { enemyDef, isBossClass } from "../data/enemies";
+import { ENEMY_AI } from "../data/tuning";
 import {
   createEmptyProfile,
   createEmptyProvenance,
@@ -26,6 +27,7 @@ import { chooseBud } from "../system/loot";
 import { ROAMING_ROOM } from "../system/spawner";
 import * as combat from "../system/combat";
 import * as statusEffectsModule from "../system/statusEffects";
+import * as elementCombatModule from "../system/elementCombat";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
@@ -245,6 +247,90 @@ function countEngagedEnemies(state: GameState): number {
 /** 計測中のラン 1 本ぶんの集計先。runOnce がループの間だけ差し替える（null なら計測しない） */
 let activeSkillMetrics: SkillMetrics | null = null;
 
+/**
+ * 攻撃ジャンル・属性・防御の効き（docs/COMBAT_DESIGN.md A-8）。elementCombat.ts は他レーンの
+ * 持ち物なので書き換えず、outgoingElement を vi.spyOn で素通し計測する（combat.ts の
+ * genreAndElement から呼ばれる、非 proc ヒット 1 回につき 1 回）
+ */
+interface GenreMetrics {
+  /** outgoingElement が呼ばれた回数（＝敵に当たった非 proc ヒットの総数） */
+  hits: number;
+  weakHits: number;
+  resistHits: number;
+  neutralHits: number;
+  /** quality === "physical" で敵の防御が正（軽減）だった回数・軽減%の合計 */
+  physReduceSum: number;
+  physReduceCount: number;
+  /** quality === "physical" で敵の防御が負（弱点。CASTER 体型など）だった回数・増加%の合計 */
+  physBoostSum: number;
+  physBoostCount: number;
+  /** 上記のうちボス級（isBossClass）に限った軽減%の合計・回数 */
+  bossPhysReduceSum: number;
+  bossPhysReduceCount: number;
+  /** quality === "arcane" で敵の魔防が正（軽減）だった回数・軽減%の合計 */
+  magicReduceSum: number;
+  magicReduceCount: number;
+  /** quality === "arcane" で敵の魔防が負（弱点。CASTER 体型など）だった回数・増加%の合計 */
+  magicBoostSum: number;
+  magicBoostCount: number;
+}
+
+function emptyGenreMetrics(): GenreMetrics {
+  return {
+    hits: 0,
+    weakHits: 0,
+    resistHits: 0,
+    neutralHits: 0,
+    physReduceSum: 0,
+    physReduceCount: 0,
+    physBoostSum: 0,
+    physBoostCount: 0,
+    bossPhysReduceSum: 0,
+    bossPhysReduceCount: 0,
+    magicReduceSum: 0,
+    magicReduceCount: 0,
+    magicBoostSum: 0,
+    magicBoostCount: 0,
+  };
+}
+
+/** 上と同じく runOnce がループの間だけ差し替える */
+let activeGenreMetrics: GenreMetrics | null = null;
+
+const originalOutgoingElement = elementCombatModule.outgoingElement;
+vi.spyOn(elementCombatModule, "outgoingElement").mockImplementation((...args: Parameters<typeof originalOutgoingElement>) => {
+  const [, enemy, atk] = args;
+  const result = originalOutgoingElement(...args);
+  const g = activeGenreMetrics;
+  if (g) {
+    g.hits++;
+    if (result.affinity === "weak") g.weakHits++;
+    else if (result.affinity === "resist") g.resistHits++;
+    else g.neutralHits++;
+
+    const quality = atk.genre.quality;
+    if (quality === "physical" || quality === "arcane") {
+      const defensePct = elementCombatModule.enemyDefenseFor(enemy, quality);
+      const reduceSumKey = quality === "physical" ? "physReduceSum" : "magicReduceSum";
+      const reduceCountKey = quality === "physical" ? "physReduceCount" : "magicReduceCount";
+      const boostSumKey = quality === "physical" ? "physBoostSum" : "magicBoostSum";
+      const boostCountKey = quality === "physical" ? "physBoostCount" : "magicBoostCount";
+      if (defensePct >= 0) {
+        g[reduceSumKey] += defensePct;
+        g[reduceCountKey]++;
+      } else {
+        g[boostSumKey] += -defensePct;
+        g[boostCountKey]++;
+      }
+      if (quality === "physical" && isBossClass(enemyDef(enemy.defKey)) && defensePct >= 0) {
+        g.bossPhysReduceSum += defensePct;
+        g.bossPhysReduceCount++;
+      }
+    }
+  }
+  return result;
+});
+
 interface DropMetrics {
   /** 撃破した damageEnemy の呼び出しの中で床に増えた遺物の数（エリートの追加抽選・祝福の上乗せを含む） */
   killDrops: number;
@@ -344,6 +430,10 @@ interface RunMetrics {
   skill: SkillMetrics;
   /** ドロップの内訳（撃破あたりのドロップ率と、徘徊・増援が母数を増やしているかの確認） */
   drop: DropMetrics;
+  /** 攻撃ジャンル・属性・防御の効き（A-8） */
+  genre: GenreMetrics;
+  /** ラン中に同時に phase === "strike" だった敵数の最大（ENEMY_AI.maxSimultaneousStrikers の上限確認） */
+  maxConcurrentStrikers: number;
 }
 
 function emptyRarityCounts(): Record<Rarity, number> {
@@ -452,6 +542,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     budsChosen: 0,
     skill: emptySkillMetrics(),
     drop: { killDrops: 0, roamingKills: 0 },
+    genre: emptyGenreMetrics(),
+    maxConcurrentStrikers: 0,
   };
 
   let depthEnterTime = state.time;
@@ -466,6 +558,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   // 抜けたら必ず null に戻す。runOnce は例外を catch して抜けるだけで投げ直さないので try/finally は不要）
   activeSkillMetrics = metrics.skill;
   activeDropMetrics = metrics.drop;
+  activeGenreMetrics = metrics.genre;
 
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
@@ -505,6 +598,9 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     // マナ不足の不発（src/system/skills.ts の misfire）: manaFlash が 0 から立ち上がった瞬間を数える
     if (state.skills.manaFlash > 0 && prevManaFlash <= 0) metrics.skill.manaMisfires++;
     prevManaFlash = state.skills.manaFlash;
+
+    const strikingNow = state.enemies.reduce((n, e) => n + (e.hp > 0 && e.phase === "strike" ? 1 : 0), 0);
+    if (strikingNow > metrics.maxConcurrentStrikers) metrics.maxConcurrentStrikers = strikingNow;
 
     if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
     if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) {
@@ -566,6 +662,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
 
   activeSkillMetrics = null;
   activeDropMetrics = null;
+  activeGenreMetrics = null;
   return metrics;
 }
 
@@ -835,6 +932,7 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   lines.push("");
 
   lines.push(...buildSkillMetricsSection(allMetrics));
+  lines.push(...buildGenreMetricsSection(allMetrics));
 
   lines.push("## バランス所見");
   lines.push("");
@@ -903,6 +1001,58 @@ function buildSkillMetricsSection(allMetrics: readonly RunMetrics[]): string[] {
     const count = allMetrics.reduce((s, m) => s + (m.skill.statusApplyCounts[kind] ?? 0), 0);
     lines.push(`| ${STATUS_LABEL[kind]} (${kind}) | ${count} |`);
   }
+  lines.push("");
+
+  return lines;
+}
+
+/**
+ * 攻撃ジャンル・属性・防御の効き（A-8）。全 run 合計で、プレイヤー→敵の非 proc ヒットのうち
+ * 弱点/耐性になった割合と、物理/魔法それぞれで敵の防御・魔防による軽減%・増加%の平均を出す。
+ * 設計目標（docs/COMBAT_DESIGN.md A-8）: 物理はボスへ 15〜35% 減、魔法は術者（CASTER 体型）へ 10〜20% 増。
+ */
+function buildGenreMetricsSection(allMetrics: readonly RunMetrics[]): string[] {
+  const lines: string[] = [];
+  lines.push("## 攻撃ジャンル・属性・防御の効き（A-8）");
+  lines.push("");
+
+  const totalHits = allMetrics.reduce((s, m) => s + m.genre.hits, 0);
+  const weakHits = allMetrics.reduce((s, m) => s + m.genre.weakHits, 0);
+  const resistHits = allMetrics.reduce((s, m) => s + m.genre.resistHits, 0);
+  lines.push(
+    `- **弱点 / 耐性ヒットの発生割合**: 弱点 ${percent(weakHits, totalHits)}（${weakHits} 件）/ 耐性 ${percent(resistHits, totalHits)}（${resistHits} 件）/ 総ヒット ${totalHits.toLocaleString()} 件（プレイヤー→敵の非 proc ヒットのみ）。`,
+  );
+
+  const physReduceSum = allMetrics.reduce((s, m) => s + m.genre.physReduceSum, 0);
+  const physReduceCount = allMetrics.reduce((s, m) => s + m.genre.physReduceCount, 0);
+  const physBoostSum = allMetrics.reduce((s, m) => s + m.genre.physBoostSum, 0);
+  const physBoostCount = allMetrics.reduce((s, m) => s + m.genre.physBoostCount, 0);
+  lines.push(
+    `- **物理攻撃が受ける敵の防御**: 軽減側の平均 ${physReduceCount > 0 ? (physReduceSum / physReduceCount).toFixed(1) : "-"}%（n=${physReduceCount}）/ 弱点側（CASTER 体型など、防御が負）の平均増加 ${physBoostCount > 0 ? (physBoostSum / physBoostCount).toFixed(1) : "-"}%（n=${physBoostCount}）。`,
+  );
+
+  const bossPhysReduceSum = allMetrics.reduce((s, m) => s + m.genre.bossPhysReduceSum, 0);
+  const bossPhysReduceCount = allMetrics.reduce((s, m) => s + m.genre.bossPhysReduceCount, 0);
+  const bossPhysAvg = bossPhysReduceCount > 0 ? bossPhysReduceSum / bossPhysReduceCount : null;
+  lines.push(
+    `- **物理攻撃がボス級に受ける軽減（目標 15〜35%）**: 平均 ${bossPhysAvg !== null ? bossPhysAvg.toFixed(1) : "-"}%（n=${bossPhysReduceCount}）。` +
+      (bossPhysAvg === null ? "ボス級への物理ヒットが観測されなかった。" : bossPhysAvg < 15 ? "目標未満: ボスが硬くなりすぎている可能性。" : bossPhysAvg > 35 ? "目標超過: ボスが柔らかすぎる可能性。" : "目標範囲内。"),
+  );
+
+  const magicReduceSum = allMetrics.reduce((s, m) => s + m.genre.magicReduceSum, 0);
+  const magicReduceCount = allMetrics.reduce((s, m) => s + m.genre.magicReduceCount, 0);
+  const magicBoostSum = allMetrics.reduce((s, m) => s + m.genre.magicBoostSum, 0);
+  const magicBoostCount = allMetrics.reduce((s, m) => s + m.genre.magicBoostCount, 0);
+  const magicBoostAvg = magicBoostCount > 0 ? magicBoostSum / magicBoostCount : null;
+  lines.push(
+    `- **魔法攻撃が術者（魔防が負）へ与える増加（目標 10〜20%）**: 平均 ${magicBoostAvg !== null ? magicBoostAvg.toFixed(1) : "-"}%（n=${magicBoostCount}）/ 軽減側の平均 ${magicReduceCount > 0 ? (magicReduceSum / magicReduceCount).toFixed(1) : "-"}%（n=${magicReduceCount}）。` +
+      (magicBoostAvg === null ? " 術者への魔法ヒットが観測されなかった（QA 標準ビルドが物理武器主体のため。武器種を変えたビルドを別途 QA する必要がある）。" : magicBoostAvg < 10 ? " 目標未満。" : magicBoostAvg > 20 ? " 目標超過。" : " 目標範囲内。"),
+  );
+  lines.push("");
+
+  const maxStrikers = Math.max(0, ...allMetrics.map((m) => m.maxConcurrentStrikers));
+  const overCap = allMetrics.filter((m) => m.maxConcurrentStrikers > ENEMY_AI.maxSimultaneousStrikers);
+  lines.push(`- **同時に phase===strike だった敵数の最大**（上限 ENEMY_AI.maxSimultaneousStrikers=${ENEMY_AI.maxSimultaneousStrikers}）: 全 run 中の最大 ${maxStrikers}。上限超過 run: ${overCap.length} 件${overCap.length > 0 ? `（seed/profile: ${overCap.map((m) => `${m.seed}/${m.profileKind}`).join(", ")}）` : "。"}`);
   lines.push("");
 
   return lines;

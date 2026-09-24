@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GameState } from "../core/state";
 import { KEYSTONE, POISE, TRIGGER } from "../data/tuning";
-import { DEFAULT_STATS, type TraitStats } from "../loot/types";
+import { DEFAULT_STATS, createLootRuntime, type TraitStats } from "../loot/types";
 import { damageEnemy, damagePlayer, healPlayer, rollOutgoing } from "./combat";
 import { KS } from "./keystones";
 import { gainMana } from "./mana";
@@ -265,7 +265,7 @@ describe("部屋・死神の誓約", () => {
 describe("作業領域を使う性質（余韻斬り・形見・撃ち込み杭）", () => {
   it("作業領域は createPlayer で初期化されている", () => {
     const state = withTraits({});
-    expect(state.player.loot).toEqual({ lastCombo: 0, inherited: null });
+    expect(state.player.loot).toEqual(createLootRuntime());
   });
 
   it("余韻斬り: コンボが途切れた瞬間に衝撃波（途切れる前は出ない）", () => {

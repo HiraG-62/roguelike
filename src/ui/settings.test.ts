@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_KEYBINDS, assignBinding, defaultKeybinds } from "../core/input";
 import {
+  DEFAULT_MUSIC_VOLUME,
   SETTINGS_KEY,
+  adjustMusicVolume,
   adjustScreenShake,
   adjustVolume,
   defaultSettings,
@@ -48,7 +50,7 @@ describe("settings persistence", () => {
 
   it("保存した内容がそのまま読み戻る（round trip）", () => {
     const storage = new MemoryStorage();
-    const settings = { muted: true, volume: 0.3, screenShake: 0.7, keybinds: defaultKeybinds() };
+    const settings = { muted: true, volume: 0.3, musicVolume: 0.8, screenShake: 0.7, keybinds: defaultKeybinds() };
     saveSettings(settings, storage);
     expect(loadSettings(storage)).toEqual(settings);
   });
@@ -64,8 +66,16 @@ describe("settings persistence", () => {
 
   it("範囲外の値は 0..1 にクランプされる", () => {
     const storage = new MemoryStorage();
-    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 5, screenShake: -2 }));
-    expect(loadSettings(storage)).toEqual({ muted: false, volume: 1, screenShake: 0, keybinds: defaultKeybinds() });
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 5, musicVolume: 3, screenShake: -2 }));
+    expect(loadSettings(storage)).toEqual({ muted: false, volume: 1, musicVolume: 1, screenShake: 0, keybinds: defaultKeybinds() });
+  });
+
+  it("音楽の音量が無い旧データは既定の音楽の音量で読める", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1 }));
+    const loaded = loadSettings(storage);
+    expect(loaded.musicVolume, "既定の音楽の音量").toBe(DEFAULT_MUSIC_VOLUME);
+    expect(loaded.volume, "全体の音量は残る").toBeCloseTo(0.3);
   });
 });
 
@@ -85,6 +95,12 @@ describe("settings mutation", () => {
     adjustVolume(s, -1);
     adjustVolume(s, -1);
     expect(s.volume).toBeCloseTo(0.4);
+
+    adjustMusicVolume(s, 1);
+    expect(s.musicVolume, "音楽の音量も 1 段階").toBeCloseTo(DEFAULT_MUSIC_VOLUME + 0.1);
+    s.musicVolume = 1;
+    adjustMusicVolume(s, 1);
+    expect(s.musicVolume, "音楽の音量は 1 で止まる").toBe(1);
 
     s.screenShake = 0;
     adjustScreenShake(s, -5);

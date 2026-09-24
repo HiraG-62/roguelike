@@ -85,6 +85,9 @@ function sanitizeRoll(v: unknown): AffixRoll | null {
   if (flux !== undefined) roll.flux = flux;
   if (v.inverted === true) roll.inverted = true;
   if (isOrigin(v.origin)) roll.origin = v.origin;
+  // 2026-09 第 2 弾の残響の操作（脱色・張り）。旧セーブには無い
+  if (v.colorless === true) roll.colorless = true;
+  if (v.tensed === true) roll.tensed = true;
   return roll;
 }
 
@@ -104,6 +107,13 @@ function sanitizeProvenance(v: unknown): Provenance | undefined {
   p.skillCasts = nonNegativeInt(v.skillCasts);
   p.eliteKills = nonNegativeInt(v.eliteKills);
   p.lastKills = nonNegativeInt(v.lastKills);
+  // 2026-09 第 2 弾の来歴
+  p.weakHits = nonNegativeInt(v.weakHits);
+  p.resistedHits = nonNegativeInt(v.resistedHits);
+  p.terrainKills = nonNegativeInt(v.terrainKills);
+  p.favoredKills = nonNegativeInt(v.favoredKills);
+  p.chargedHits = nonNegativeInt(v.chargedHits);
+  p.branchHits = nonNegativeInt(v.branchHits);
   if (isRecord(v.killsByEnemy)) {
     for (const [key, n] of Object.entries(v.killsByEnemy)) p.killsByEnemy[key] = nonNegativeInt(n);
   }
@@ -129,7 +139,9 @@ function sanitizeBuds(v: unknown): BudChoice[] {
   for (const raw of v) {
     const offer = sanitizeBudOffer(raw);
     if (offer === null || !isRecord(raw)) continue;
-    out.push({ ...offer, chosen: raw.chosen === 1 ? 1 : 0 });
+    const bud: BudChoice = { ...offer, chosen: raw.chosen === 1 ? 1 : 0 };
+    if (raw.recalled === true) bud.recalled = true;
+    out.push(bud);
   }
   return out;
 }
@@ -150,6 +162,8 @@ function copyGrowthFields(item: Item, v: Record<string, unknown>): void {
   item.budOffer = sanitizeBudOffer(v.budOffer);
   if (typeof v.inscription === "string" && v.inscription.length > 0) item.inscription = v.inscription;
   if (typeof v.namedKey === "string") item.namedKey = v.namedKey;
+  const reforged = nonNegativeInt(v.reforged);
+  if (reforged > 0) item.reforged = reforged;
 }
 
 /** Item として最低限成立しているかを検証し、新形式へ移行して返す。壊れていたら null */

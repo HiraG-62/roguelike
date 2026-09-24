@@ -8,7 +8,9 @@ import { ATTR_KEYS, type AttrKey, type Attributes, type PlayerStats } from "../l
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource, SkillTag } from "../skills/types";
-import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonTag } from "./boonDefs";
+import type { JobKey } from "../data/jobs";
+import type { MovesetKey, ShotKey } from "../data/weapons";
+import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag } from "./boonDefs";
 import {
   type BoonRuleState,
   boonRuleAttackManaMul,
@@ -29,6 +31,7 @@ import {
   onBoonSkillCastRules,
   onBoonSkillHitRules,
   onBoonSwingRules,
+  onBoonWaveStart,
   resetBoonRulesForFloor,
   slashBase,
   spawnBoonWave,
@@ -67,9 +70,11 @@ export {
   type BoonDef,
   type BoonKey,
   type BoonRarity,
+  type BoonLoadout,
   type BoonTag,
   type LineageKey,
 } from "./boonDefs";
+export { onBoonWaveStart } from "./boonRules";
 
 export function boonDef(key: BoonKey): BoonDef {
   return BOONS[key];
@@ -187,17 +192,35 @@ export function boonGivenTags(boons: readonly BoonKey[]): Set<BoonTag> {
   return tags;
 }
 
+/** 今の武器種・射撃の型・ジョブ（BoonDef.loadout の照合に使う） */
+export interface LoadoutNow {
+  moveset: MovesetKey;
+  shot: ShotKey;
+  job: JobKey;
+}
+
 /** 抽選に使うタグ。owned = 装備 + スキル石（requires はこちらだけを見る）、gives = 取得済み祝福が出すもの */
 export interface BuildTags {
   owned: ReadonlySet<BoonTag>;
   gives: ReadonlySet<BoonTag>;
+  loadout?: LoadoutNow;
 }
 
 export function buildTags(state: GameState): BuildTags {
   // 祝福を畳み込む前の装備 stats で判定する（triggerHappy の射撃速度 x2 などを「装備のタグ」と誤認しない）
-  const owned = equipmentTags(state.boonRun.baseStats ?? state.stats);
+  const base = state.boonRun.baseStats ?? state.stats;
+  const owned = equipmentTags(base);
   for (const t of skillStoneTags(state)) owned.add(t);
-  return { owned, gives: boonGivenTags(state.boons) };
+  return { owned, gives: boonGivenTags(state.boons), loadout: { moveset: base.moveset, shot: base.shot, job: state.job } };
+}
+
+/** loadout の列を持つなら、今の武器種・射撃の型・ジョブがその列に入っているか。now が無ければ（テストの直接呼び出し）通す */
+export function loadoutMatches(want: BoonLoadout | undefined, now: LoadoutNow | undefined): boolean {
+  if (want === undefined || now === undefined) return true;
+  if (want.movesets && !want.movesets.includes(now.moveset)) return false;
+  if (want.shots && !want.shots.includes(now.shot)) return false;
+  if (want.jobs && !want.jobs.includes(now.job)) return false;
+  return true;
 }
 
 const NO_TAGS: ReadonlySet<BoonTag> = new Set();
@@ -212,8 +235,10 @@ export function boonWeight(
   tags: ReadonlySet<BoonTag>,
   owned: readonly BoonKey[],
   gives: ReadonlySet<BoonTag> = NO_TAGS,
+  loadout?: LoadoutNow,
 ): number {
   if (owned.includes(def.key)) return 0;
+  if (!loadoutMatches(def.loadout, loadout)) return 0;
   if (def.requires && !tags.has(def.requires)) return 0;
   if (def.after && !owned.includes(def.after)) return 0;
   if (def.duo && !def.duo.every((k) => owned.includes(k))) return 0;
@@ -235,7 +260,7 @@ export function boonAffinityMul(def: BoonDef, build: Readonly<KeywordProfile>): 
 
 /** 重み付きで 1 つ取り出す（pool から除く）。全て 0 なら null */
 function takeWeighted(state: GameState, pool: BoonDef[], tags: BuildTags, build: Readonly<KeywordProfile>): BoonDef | null {
-  const weights = pool.map((d) => boonWeight(d, tags.owned, state.boons, tags.gives) * boonAffinityMul(d, build));
+  const weights = pool.map((d) => boonWeight(d, tags.owned, state.boons, tags.gives, tags.loadout) * boonAffinityMul(d, build));
   const total = weights.reduce((s, w) => s + w, 0);
   if (total <= 0) return null;
   let roll = state.rng.next() * total;
@@ -318,8 +343,8 @@ export function canTakeCurse(state: GameState): boolean {
   if (!c || c.curseTaken || c.options.length >= BOON.choiceCountWithCurse) return false;
   const tags = buildTags(state);
   const owned = [...state.boons, ...c.options];
-  const hasCurse = BOON_KEYS.some((k) => BOONS[k].cursed && boonWeight(BOONS[k], tags.owned, owned, tags.gives) > 0);
-  const hasExtra = extraPool(c.options).some((d) => boonWeight(d, tags.owned, state.boons, tags.gives) > 0);
+  const hasCurse = BOON_KEYS.some((k) => BOONS[k].cursed && boonWeight(BOONS[k], tags.owned, owned, tags.gives, tags.loadout) > 0);
+  const hasExtra = extraPool(c.options).some((d) => boonWeight(d, tags.owned, state.boons, tags.gives, tags.loadout) > 0);
   return hasCurse && hasExtra;
 }
 
@@ -686,10 +711,10 @@ export function boonAttackManaMul(state: GameState): number {
  * bloodMana: HP が閾値以下の間だけのコスト倍率。HP で変わるので stats（manaCostMul）には畳めず、
  * skills.ts の effectiveManaCost が払う瞬間に読む（下限 MANA.costMulMin は向こうで掛かる）
  */
-export function boonManaCostMul(state: GameState): number {
+export function boonManaCostMul(state: GameState, slot = -1): number {
   const p = state.player;
   const blood = hasBoon(state, "bloodMana") && p.hp <= p.maxHp * BOON.bloodManaHpRatio ? BOON.bloodManaCostMul : 1;
-  return blood * boonRuleCostMul(state);
+  return blood * boonRuleCostMul(state, slot);
 }
 
 // -----------------------------------------------------------------------------
@@ -957,6 +982,9 @@ export function extraEliteRoll(state: GameState, e: Enemy): boolean {
 /** frostLock: ロックした部屋の敵を凍えさせる */
 export function onBoonRoomLock(state: GameState, index: number): void {
   onBoonRoomLockRules(state);
+  // 封鎖で最初の波が始まる（巣窟・試練・闘技場）。2 波目以降は floor.ts の updateLockedRoom が onBoonWaveStart を呼ぶ
+  const room = state.rooms[index];
+  if (room?.locked) onBoonWaveStart(state, room);
   if (!hasBoon(state, "frostLock")) return;
   for (const e of state.enemies) {
     if (e.roomIndex === index && e.hp > 0) applyChill(state, e, BOON.frostLockSlow, BOON.frostLockTime);

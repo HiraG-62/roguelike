@@ -1,7 +1,7 @@
 import { defaultKeybinds, sanitizeKeybinds, type Keybinds } from "../core/input";
 
 /**
- * 設定（mute / volume / screen shake / キー設定）。localStorage に永続化する。
+ * 設定（mute / volume / 音楽の音量 / screen shake / キー設定）。localStorage に永続化する。
  * profile.ts の loadProfile / saveProfile と同じパターン: 壊れたデータは黙ってデフォルトへ落とす。
  */
 
@@ -9,6 +9,8 @@ export interface Settings {
   muted: boolean;
   /** 0..1 */
   volume: number;
+  /** 0..1。音楽の音量（全体の volume に掛かる）。旧データ（フィールド無し）は既定 */
+  musicVolume: number;
   /** 0..1。1 で通常の揺れ、0 で無効 */
   screenShake: number;
   /** キー設定。旧データ（フィールド無し）は既定になる。キー名は v1 のまま（追加フィールドで後方互換） */
@@ -19,6 +21,7 @@ export const SETTINGS_KEY = "roguelike.settings.v1";
 
 const CURRENT_VERSION = 1;
 export const DEFAULT_VOLUME = 0.5;
+export const DEFAULT_MUSIC_VOLUME = 0.5;
 export const DEFAULT_SCREEN_SHAKE = 1;
 export const VOLUME_STEP = 0.1;
 export const SCREEN_SHAKE_STEP = 0.1;
@@ -28,7 +31,7 @@ function clamp01(value: number): number {
 }
 
 export function defaultSettings(): Settings {
-  return { muted: false, volume: DEFAULT_VOLUME, screenShake: DEFAULT_SCREEN_SHAKE, keybinds: defaultKeybinds() };
+  return { muted: false, volume: DEFAULT_VOLUME, musicVolume: DEFAULT_MUSIC_VOLUME, screenShake: DEFAULT_SCREEN_SHAKE, keybinds: defaultKeybinds() };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -66,9 +69,10 @@ export function loadSettings(storage?: Storage): Settings {
 
   const muted = typeof parsed.muted === "boolean" ? parsed.muted : false;
   const volume = typeof parsed.volume === "number" ? clamp01(parsed.volume) : DEFAULT_VOLUME;
+  const musicVolume = typeof parsed.musicVolume === "number" ? clamp01(parsed.musicVolume) : DEFAULT_MUSIC_VOLUME;
   const screenShake = typeof parsed.screenShake === "number" ? clamp01(parsed.screenShake) : DEFAULT_SCREEN_SHAKE;
   const keybinds = sanitizeKeybinds(parsed.keybinds);
-  return { muted, volume, screenShake, keybinds };
+  return { muted, volume, musicVolume, screenShake, keybinds };
 }
 
 export function saveSettings(settings: Settings, storage?: Storage): void {
@@ -88,6 +92,10 @@ export function toggleMute(settings: Settings): void {
 /** dir の符号方向に 1 段階だけ動かす（連射防止は呼び出し側でエッジ検出する） */
 export function adjustVolume(settings: Settings, dir: number): void {
   settings.volume = clamp01(settings.volume + Math.sign(dir) * VOLUME_STEP);
+}
+
+export function adjustMusicVolume(settings: Settings, dir: number): void {
+  settings.musicVolume = clamp01(settings.musicVolume + Math.sign(dir) * VOLUME_STEP);
 }
 
 export function adjustScreenShake(settings: Settings, dir: number): void {

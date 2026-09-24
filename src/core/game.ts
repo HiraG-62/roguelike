@@ -27,6 +27,7 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import type { SkillProfile } from "../skills/types";
 import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
+import { createContractState } from "../system/contractors";
 import { type RunSetup, defaultRunSetup, originKeystones, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
 import { startJob } from "../system/jobs";
@@ -104,6 +105,8 @@ export function createGame(
     job: setup.job ?? "none",
     lockedRelics: [...(setup.lockedRelics ?? [])],
     stairs: [],
+    contracts: createContractState(),
+    shards: 0,
     events: [],
     pendingEvents: [],
     recent: {},

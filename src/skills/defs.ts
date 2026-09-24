@@ -351,6 +351,7 @@ export const EXTRA_SKILL_DEFS: Record<ExtraSkillKey, SkillDef> = {
     damageKind: "melee",
     axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
     ...manaSkill(T.meteorDive),
+    combos: ["levelMeteor"],
   },
   swallowFlip: {
     key: "swallowFlip",

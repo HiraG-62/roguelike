@@ -3,8 +3,11 @@ import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { EXTRA_SKILL_DEFS } from "./defs";
+import { WAVE2_SKILL_DEFS } from "./defs2";
 import { EXTRA_MODIFIERS, RESOURCE_CONVERTERS } from "./modifiers";
+import { WAVE2_MODIFIERS } from "./modifiers2";
 import { EXTRA_MODIFIER_TUNING, EXTRA_SKILL_TUNING } from "./tuning";
+import { WAVE2_MODIFIER_TUNING, WAVE2_SKILL_TUNING, WEAR_TUNING } from "./tuning2";
 import type {
   BASE_MODIFIER_KEYS,
   BASE_SKILL_KEYS,
@@ -252,9 +255,13 @@ export const SKILL = {
     charge: { maxTime: 1.2, minTime: 0.15, maxDamageMul: 2.2, maxAreaMul: 1.5, moveMul: 0.6 },
     // 大拡張の刻印符・型替え符（skills/tuning.ts）
     ...EXTRA_MODIFIER_TUNING,
+    // 第 2 弾の刻印符・型替え符（skills/tuning2.ts）
+    ...WAVE2_MODIFIER_TUNING,
   },
   // 大拡張のスキル（skills/tuning.ts）
   ...EXTRA_SKILL_TUNING,
+  // 第 2 弾のスキル（skills/tuning2.ts）
+  ...WAVE2_SKILL_TUNING,
   drop: {
     stoneOnKill: 0.03,
     stoneOnDepth: 0.2,
@@ -340,6 +347,30 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   scarRoar: 5,
   manaSpring: 5,
   turret: 5,
+  // 第 2 弾: 大拡張と同じく 1 種あたりは薄め。変身は珍しめ
+  waterJar: 6,
+  oilPot: 6,
+  scorchLine: 6,
+  iceSlide: 5,
+  levelGround: 5,
+  emberDraw: 5,
+  bogCall: 5,
+  brandSear: 6,
+  brandBlast: 5,
+  breakKick: 6,
+  collapseHammer: 5,
+  tideSlash: 6,
+  flashFreeze: 5,
+  hueEtch: 5,
+  hueRelease: 5,
+  siphonMark: 5,
+  doomSentence: 5,
+  shiftingEdge: 6,
+  weaponArt: 6,
+  titanForm: 4,
+  swiftForm: 4,
+  spiritForm: 4,
+  wardStake: 5,
 };
 
 /**
@@ -394,6 +425,30 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   scarRoar: 3,
   manaSpring: 2,
   turret: 3,
+  // 第 2 弾: 地形・素直な付与は 1 層目から、それを「食う」技と変身・空間は 2〜3 層目から
+  waterJar: 1,
+  oilPot: 1,
+  scorchLine: 1,
+  iceSlide: 1,
+  levelGround: 2,
+  emberDraw: 2,
+  bogCall: 2,
+  brandSear: 1,
+  brandBlast: 2,
+  breakKick: 1,
+  collapseHammer: 2,
+  tideSlash: 1,
+  flashFreeze: 2,
+  hueEtch: 2,
+  hueRelease: 2,
+  siphonMark: 2,
+  doomSentence: 3,
+  shiftingEdge: 1,
+  weaponArt: 1,
+  titanForm: 3,
+  swiftForm: 3,
+  spiritForm: 3,
+  wardStake: 2,
 };
 
 /** マナ型の共通項: CD とチャージは使わない（docs/COMBAT_DESIGN.md B-4） */
@@ -464,6 +519,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     damageKind: "ranged",
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.frag),
+    combos: ["wellFrag"],
   },
   railshot: {
     key: "railshot",
@@ -522,7 +578,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     damageKind: "ranged",
     axes: ["areaVsDamage", "speedVsDamage", "countVsDamage"],
     ...manaSkill(SKILL.thunder),
-    combos: ["wellThunder"],
+    combos: ["wellThunder", "frostThunder"],
     applies: APPLIES.thunder,
   },
   gravityWell: {
@@ -617,6 +673,7 @@ export const BODY_SKILL_KEYS: readonly SkillKey[] = [
   "meteorDive",
   "swallowFlip",
   "shadowStep",
+  "iceSlide",
 ];
 
 function withExclusiveGroups(defs: Record<SkillKey, SkillDef>): Record<SkillKey, SkillDef> {
@@ -625,7 +682,7 @@ function withExclusiveGroups(defs: Record<SkillKey, SkillDef>): Record<SkillKey,
   return out;
 }
 
-export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({ ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS });
+export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({ ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS, ...WAVE2_SKILL_DEFS });
 
 const M = SKILL.modifier;
 
@@ -752,7 +809,8 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     verb: `発動地点で${M.delay.time}秒後に発動、ダメージ x${M.delay.damageMul}`,
     color: "#ff80c0",
     keywords: kw(["placed"]),
-    excludesTags: ["defense", "buff", "movement", "channel"],
+    // 変身は発動地点で後から起こしても変身しない（衝撃だけになる）
+    excludesTags: ["defense", "buff", "movement", "channel", "form"],
     apply: (p) => ({ ...p, delay: { time: M.delay.time, damageMul: M.delay.damageMul } }),
   },
   expand: {
@@ -781,15 +839,16 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   },
 };
 
-export const MODIFIERS: Record<ModifierKey, ModifierDef> = { ...BASE_MODIFIERS, ...EXTRA_MODIFIERS };
+export const MODIFIERS: Record<ModifierKey, ModifierDef> = { ...BASE_MODIFIERS, ...EXTRA_MODIFIERS, ...WAVE2_MODIFIERS };
 
-/** 相性表: 除外タグ・必須タグ・個別除外・資源・付与の有無のすべてを満たすか */
+/** 相性表: 除外タグ・必須タグ・個別除外・資源・付与の有無・与ダメの有無のすべてを満たすか */
 export function canAttach(def: SkillDef, key: ModifierKey): boolean {
   const m = MODIFIERS[key];
   if (m.excludesTags.some((t) => def.tags.includes(t))) return false;
   if (m.requiresTags && !m.requiresTags.some((t) => def.tags.includes(t))) return false;
   if (m.requiresResource && m.requiresResource !== def.resource) return false;
   if (m.requiresApplies && !def.applies) return false;
+  if (m.requiresDamage && def.damageKind === "none") return false;
   return !(m.excludesSkills?.includes(def.key) ?? false);
 }
 
@@ -876,6 +935,16 @@ export function baseCastParams(def: SkillDef): CastParams {
     origin: { x: 0, y: 0 },
     hitLog: new Set(),
     gaspPool: { left: 0 },
+    element: null,
+    extraApplies: [],
+    hueInfuse: false,
+    leyline: false,
+    leyPool: { left: 0 },
+    jobMastery: false,
+    weaponBond: false,
+    formSurge: false,
+    formDurationMul: 1,
+    formRecoverMul: 1,
   };
 }
 
@@ -907,7 +976,14 @@ export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonl
   for (const roll of stone.variants) {
     if (def.axes.includes(roll.axis)) p = applyVariant(p, roll);
   }
-  p = { ...p, burdenMul: p.burdenMul * (1 + SKILL.linkBurdenPenalty * stone.links) };
+  // 使い込みの芽: 枠の芽で増えたリンクは負担に数えない、威力の芽は威力と効果量を伸ばす
+  const wear = wearPowerMul(stone);
+  p = {
+    ...p,
+    burdenMul: p.burdenMul * (1 + SKILL.linkBurdenPenalty * burdenLinks(stone)),
+    damageMul: p.damageMul * wear,
+    potencyMul: p.potencyMul * wear,
+  };
   const active = activeModifiers(def, stone.links, modifiers);
   // 資源を差し替える刻印符（定刻・燃料化）を先に当て、多重・連鎖などが差し替え後の資源で読み替えるようにする
   const ordered = [...active.filter((k) => RESOURCE_CONVERTERS.includes(k)), ...active.filter((k) => !RESOURCE_CONVERTERS.includes(k))];
@@ -978,9 +1054,38 @@ export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>, resour
   return `${label} ${signed(Math.round(gainSign * c.gain * v * PERCENT))}% / ${cost}`;
 }
 
-/** 石の表示名: スキル名 + リンク記号 */
+/** 石の表示名: スキル名 + リンク記号（使い込みの枠の芽で上限を超えたリンクも ◆ で出す） */
 export function stoneLabel(stone: SkillStone): string {
-  return `${SKILL_DEFS[stone.skillKey].name} ${"◆".repeat(stone.links)}${"◇".repeat(SKILL.maxLinks - stone.links)}`;
+  return `${SKILL_DEFS[stone.skillKey].name} ${"◆".repeat(stone.links)}${"◇".repeat(Math.max(0, SKILL.maxLinks - stone.links))}`;
+}
+
+// ---------------------------------------------------------------------------
+// 使い込み（docs/ideas/skills-expansion.md 5 章）の純粋な読み出し。記録は skills/wear.ts
+// ---------------------------------------------------------------------------
+
+/** 出た芽のうち、この種類の数 */
+export function wearBudCount(stone: Readonly<SkillStone>, bud: "link" | "power"): number {
+  return (stone.wear?.buds ?? []).filter((b) => b === bud).length;
+}
+
+/** 枠の芽で増えたリンク（上限は WEAR_TUNING.maxBonusLinks） */
+export function wearBonusLinks(stone: Readonly<SkillStone>): number {
+  return Math.min(WEAR_TUNING.maxBonusLinks, wearBudCount(stone, "link"));
+}
+
+/** 威力の芽の倍率 */
+export function wearPowerMul(stone: Readonly<SkillStone>): number {
+  return 1 + WEAR_TUNING.powerPerBud * wearBudCount(stone, "power");
+}
+
+/** 負担（リンク 1 本ごとの +15%）に数えるリンク。枠の芽のぶんは数えない */
+export function burdenLinks(stone: Readonly<SkillStone>): number {
+  return Math.max(0, stone.links - wearBonusLinks(stone));
+}
+
+/** この石が持てるリンクの上限（基本の上限 + 枠の芽） */
+export function maxStoneLinks(stone: Readonly<SkillStone>): number {
+  return SKILL.maxLinks + wearBonusLinks(stone);
 }
 
 // ---------------------------------------------------------------------------
@@ -1040,6 +1145,30 @@ export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
   scarRoar: attack("area", "arcane"),
   manaSpring: null,
   turret: attack("ranged", "physical"),
+  // 第 2 弾（移ろい刃・奥義は発動時に属性を差し替える。ここは名目の無属性）
+  waterJar: attack("area", "arcane"),
+  oilPot: attack("area", "hybrid"),
+  scorchLine: attack("area", "arcane", "fire"),
+  iceSlide: attack("melee", "physical", "ice"),
+  levelGround: attack("area", "physical"),
+  emberDraw: attack("ranged", "arcane", "fire"),
+  bogCall: attack("area", "arcane", "poison"),
+  brandSear: attack("melee", "hybrid", "fire"),
+  brandBlast: attack("area", "arcane", "fire"),
+  breakKick: attack("melee", "physical"),
+  collapseHammer: attack("melee", "physical"),
+  tideSlash: attack("ranged", "physical"),
+  flashFreeze: attack("area", "arcane", "ice"),
+  hueEtch: attack("melee", "hybrid"),
+  hueRelease: attack("area", "arcane"),
+  siphonMark: attack("ranged", "arcane", "dark"),
+  doomSentence: attack("area", "arcane", "dark"),
+  shiftingEdge: attack("melee", "hybrid"),
+  weaponArt: attack("melee", "hybrid"),
+  titanForm: attack("area", "physical"),
+  swiftForm: attack("melee", "physical"),
+  spiritForm: attack("area", "arcane", "light"),
+  wardStake: attack("area", "hybrid"),
 };
 
 /** スキルの攻撃の素性（与ダメを持たないスキルは null） */

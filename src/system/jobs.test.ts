@@ -10,6 +10,7 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { QUESTS, createQuestSave, lockedJobs, questRewardLabel } from "../meta/quests";
 import { ORIGINS, ORIGIN_KEYS } from "./runSetup";
 import { applyJobStats, isFavoredWeapon, jobDetailLines, jobRules, ownsSkillStone } from "./jobs";
+import { applyBoonsToStats } from "./boons";
 import { collectRules, resolveRules } from "./rules";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
@@ -161,6 +162,27 @@ describe("ジョブの適用", () => {
     expect(favored.meleeDamageMul).toBeCloseTo(DEFAULT_STATS.meleeDamageMul * JOB.favoredMeleeMul);
     expect(favored.attackSpeedMul).toBeCloseTo(DEFAULT_STATS.attackSpeedMul * JOB.favoredAttackSpeedMul);
     expect(other.meleeDamageMul, "得意でなければ等倍").toBeCloseTo(DEFAULT_STATS.meleeDamageMul);
+  });
+
+  it("祝福・振り分けで畳み込み直してもジョブの偏り・倍率は二重に掛からない", () => {
+    for (const job of PLAYABLE) {
+      const s = game(job);
+      const before = structuredClone(s.stats);
+      applyBoonsToStats(s);
+      applyBoonsToStats(s);
+      expect(s.stats.attributes, `${job} の生値`).toEqual(before.attributes);
+      expect(s.stats.maxHp, `${job} の最大生命`).toBeCloseTo(before.maxHp);
+      expect(s.stats.meleeDamageMul, `${job} の近接倍率`).toBeCloseTo(before.meleeDamageMul);
+      expect(s.stats.attackSpeedMul, `${job} の攻撃速度`).toBeCloseTo(before.attackSpeedMul);
+      expect(s.stats.rangedDamageMul, `${job} の射撃倍率`).toBeCloseTo(before.rangedDamageMul);
+    }
+  });
+
+  it("起点・縛りの最大生命の倍率も畳み込み直しで重ならない（詠み手・薄氷）", () => {
+    const s = createGame(SEED, String(SEED), createEmptyProfile(), undefined, { origin: "chanter", modifiers: ["glassBody"], job: "hunter" });
+    const maxHp = s.stats.maxHp;
+    applyBoonsToStats(s);
+    expect(s.stats.maxHp).toBeCloseTo(maxHp);
   });
 
   it("初期スキル石は未所持のときだけ倉庫に加わり、2 回始めても増えない", () => {

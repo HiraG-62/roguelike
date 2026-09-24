@@ -28,6 +28,7 @@ import { shotDamage } from "./player";
 import { addPoise, isStaggered } from "./poise";
 import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
+import { ROAMING_ROOM } from "./spawner";
 import {
   applyBurn,
   applyChill,
@@ -195,6 +196,13 @@ export interface BoonRuleState {
   karmaCd: number;
   /** 臨界: バースト後、ゲージが空でも過充填の爆発が起きる残り秒 */
   criticalTimer: number;
+  // ---- 第 2 弾 ----
+  /** 倒れた徘徊の敵 id → 覚えておく残り秒（条件 targetRoamer。撃破の照合は敵が配列から消えた後に起きる） */
+  roamerKills: Map<number, number>;
+  /** 織り交ぜ: 直前にスキルを撃ったスロット（-1 = まだ撃っていない） */
+  lastCastSlot: number;
+  /** 満ち溢れ: 溜めた溢れの気力 */
+  overflow: number;
 }
 
 export function createBoonRuleState(): BoonRuleState {
@@ -235,6 +243,9 @@ export function createBoonRuleState(): BoonRuleState {
     carryCombo: false,
     karmaCd: 0,
     criticalTimer: 0,
+    roamerKills: new Map(),
+    lastCastSlot: -1,
+    overflow: 0,
   };
 }
 
@@ -353,6 +364,7 @@ function tickRuleTimers(r: BoonRuleState, dt: number): void {
   r.criticalTimer = Math.max(0, r.criticalTimer - dt);
   tickMap(r.wakeup, dt);
   tickMap(r.trailIcd, dt);
+  tickMap(r.roamerKills, dt);
 }
 
 function tickMap(map: Map<number, number>, dt: number): void {
@@ -559,6 +571,7 @@ export function resetBoonRulesForFloor(state: GameState): void {
   r.reaperDelay = 0;
   r.reaperStun = 0;
   r.carryCombo = false;
+  r.roamerKills.clear();
 }
 
 // -----------------------------------------------------------------------------
@@ -624,6 +637,15 @@ export function onBoonMeleeHitRules(state: GameState, e: Enemy, counter: boolean
   if (counter && hasBoon(state, "insight")) inflict(state, e, "vulnerable", STATUS.vulnerable.duration);
   meleeBurn(state, e);
   highTide(state);
+  fillOverflow(state);
+}
+
+/** 満ち溢れ: 気力が満ちている間の近接で、溢れた分を上限まで溜める */
+function fillOverflow(state: GameState): void {
+  if (!hasBoon(state, "overflowCup") || !manaFull(state)) return;
+  const r = rules(state);
+  const cap = state.stats.maxMana * BOON.overflowCapRatio;
+  r.overflow = Math.min(cap, r.overflow + BOON.overflowPerHit);
 }
 
 /** 見定め: 1 段目 → 2 段目を同じ敵に当てたかを数える */
@@ -692,6 +714,7 @@ function highTide(state: GameState): void {
 
 /** 撃破時（boons.ts の onBoonKill の先頭から。回復系の祝福より前の HP / マナを見る） */
 export function onBoonKillRules(state: GameState, enemy: Enemy): void {
+  if (enemy.roomIndex === ROAMING_ROOM) rules(state).roamerKills.set(enemy.id, BOON.roamerKillMemory);
   feastCup(state);
   if (hasBoon(state, "intimidate") && killedByFinisher(state, enemy)) intimidate(state, enemy);
   if (hasBoon(state, "bloodReturn") && hasStatus(enemy.status, "bleed")) {
@@ -923,6 +946,29 @@ export function onBoonSkillCastRules(state: GameState, slot: number, resource: S
     say(state, p.body.pos, "還流", BOON.springWellColor);
   }
   if (slot >= 0 && hasBoon(state, "eclipse")) trackEclipse(state, slot);
+  if (manaPaid > 0) refundOverflow(state, manaPaid);
+  if (slot >= 0) r.lastCastSlot = slot;
+}
+
+/** 満ち溢れ: 払った気力のうち、溜めた溢れの分だけを返す */
+function refundOverflow(state: GameState, manaPaid: number): void {
+  const r = rules(state);
+  if (!hasBoon(state, "overflowCup") || r.overflow <= 0) return;
+  const p = state.player;
+  const back = Math.min(r.overflow, manaPaid);
+  r.overflow -= back;
+  p.mana = Math.min(state.stats.maxMana, p.mana + back);
+  say(state, p.body.pos, "溢れ", BOON.springWellColor);
+}
+
+/**
+ * 条件 targetRoamer: 敵 id が徘徊か。生きていれば今の所属、倒れた後は撃破の記録
+ * （撃破の照合は敵が配列から消えた後に起きるので、BOON.roamerKillMemory 秒の間だけ覚えている）
+ */
+export function isRoamerTarget(state: GameState, id: number): boolean {
+  const live = state.enemies.find((e) => e.id === id && e.hp > 0);
+  if (live !== undefined) return live.roomIndex === ROAMING_ROOM;
+  return rules(state).roamerKills.has(id);
 }
 
 /** 払ったマナが戻るか。月蝕は窓の間ずっと、新月・明鏡は 1 回で窓を閉じる */
@@ -978,11 +1024,21 @@ export function onBoonSkillHitRules(state: GameState, e: Enemy | undefined): voi
   for (const slot of state.skills.slots) slot.cooldownLeft = Math.max(0, slot.cooldownLeft - BOON.twinCdCut);
 }
 
-/** スキルのマナコスト倍率への上乗せ（両輪 / 静寂の間） */
-export function boonRuleCostMul(state: GameState): number {
+/** スキルのマナコスト倍率への上乗せ（両輪 / 静寂の間 / 織り交ぜ / 一念）。slot は -1 なら不明（スロット別の倍率を掛けない） */
+export function boonRuleCostMul(state: GameState, slot = -1): number {
   let mul = 1;
   if (hasBoon(state, "twinWheels") && rules(state).twinDiscount) mul *= BOON.twinCostMul;
   if (hasBoon(state, "quietHall") && silencedNearby(state)) mul *= BOON.quietHallCostMul;
+  return mul * slotCostMul(state, slot);
+}
+
+/** スロット別のコスト倍率（織り交ぜ: 直前と同じか / 一念: スロット 1 か） */
+export function slotCostMul(state: GameState, slot: number): number {
+  if (slot < 0) return 1;
+  let mul = 1;
+  const last = rules(state).lastCastSlot;
+  if (hasBoon(state, "weave") && last >= 0) mul *= last === slot ? BOON.weaveSameMul : BOON.weaveOtherMul;
+  if (hasBoon(state, "singleMind")) mul *= slot === 0 ? BOON.singleMindMainMul : BOON.singleMindOtherMul;
   return mul;
 }
 
@@ -1007,6 +1063,29 @@ export function onBoonRoomClearRules(state: GameState, room: RoomState | undefin
   if (!room) return;
   if (room.kind === "ambush" && hasBoon(state, "ambushReturn")) dropRune(state, state.player.body.pos);
   if (room.kind === "challenge" && hasBoon(state, "trialSeeker")) offerBoons(state);
+  if (WAVE_ROOMS.has(room.kind) && hasBoon(state, "huntLord")) huntLord(state);
+}
+
+/** 波で湧く部屋（巣窟の主・狩場の王が見る） */
+const WAVE_ROOMS: ReadonlySet<RoomState["kind"]> = new Set<RoomState["kind"]>(["horde", "challenge", "arena"]);
+
+/** 狩場の王: この階の徘徊の敵すべてに脆弱と恐怖 */
+function huntLord(state: GameState): void {
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.roomIndex !== ROAMING_ROOM) continue;
+    inflict(state, e, "vulnerable", STATUS.vulnerable.duration);
+    inflict(state, e, "fear", BOON.huntLordFear);
+  }
+  say(state, state.player.body.pos, "狩場", BOON.rarityColor.epic);
+}
+
+/** 波が始まった（封鎖の最初の波は onBoonRoomLock、2 波目以降は floor.ts の updateLockedRoom から）。巣窟の主 */
+export function onBoonWaveStart(state: GameState, room: RoomState | undefined): void {
+  if (!room || !WAVE_ROOMS.has(room.kind) || !hasBoon(state, "hordeLord")) return;
+  const p = state.player;
+  gainEnergy(state, BOON.hordeLordEnergy);
+  gainMana(state, BOON.hordeLordMana);
+  say(state, p.body.pos, "巣窟の主", BOON.rarityColor.rare);
 }
 
 /** 部屋の封鎖: 持ち越しは次の封鎖で終わる */

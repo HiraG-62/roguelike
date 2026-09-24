@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
-import { LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { ELEMENT_LABEL } from "../core/element";
+import { CONTRACT, FLOOR_KIND, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
 import { shadowPositions } from "./linger";
@@ -12,11 +14,16 @@ import {
   RUN_EVENTS,
   RUN_EVENT_KEYS,
   type RunEventKey,
+  activeElementStorm,
   bountyTargetId,
+  deepHpMul,
   fogActive,
   hourglassLeft,
+  mutationsFor,
+  reaperPassLine,
   runEventHudLines,
   scheduleRunEvent,
+  updateRunEvents,
 } from "./runEvents";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
@@ -378,5 +385,243 @@ describe("縛りの効果", () => {
     state.runEvents.lockTime = RUN_MOD.hourglassTime - FIXED_DT;
     run(state, 2);
     expect(state.enemies.filter((e) => e.roomIndex === index).length).toBeGreaterThan(before);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 第 2 弾のイベント
+// -----------------------------------------------------------------------------
+
+describe("ランイベント第 2 弾の効果", () => {
+  it("第 2 弾のイベントは 12 種以上ある", () => {
+    const wave2: RunEventKey[] = [
+      "curseVoice",
+      "duel",
+      "sluggish",
+      "flood",
+      "silence",
+      "reactionSurge",
+      "thunderstorm",
+      "elementStorm",
+      "reaperPass",
+      "echoVein",
+      "bats",
+      "lifeFlow",
+      "boonReroll",
+    ];
+    for (const key of wave2) expect(RUN_EVENT_KEYS, key).toContain(key);
+    expect(wave2.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("属性の嵐: 階の間、通常攻撃に属性が乗る（予告の段階で属性が決まっている）", () => {
+    const { state } = setup();
+    scheduleRunEvent(state, "elementStorm", -1);
+    const element = state.runEvents.floor?.element;
+    expect(element, "属性").toBeTruthy();
+    if (!element) return;
+    const before = state.stats.infuse[element];
+    run(state, WARN_STEPS);
+    expect(activeElementStorm(state)?.element, "実行中").toBe(element);
+    expect(state.stats.infuse[element], "通常攻撃の属性").toBeCloseTo(before + RUN_EVENT.elementStormShare, 5);
+    expect(runEventHudLines(state).some((l) => l.text.includes(ELEMENT_LABEL[element])), "HUD に属性").toBe(true);
+  });
+
+  it("生命の逆流: 回復は気力に、気力の増えは生命に流れる", () => {
+    const { state } = setup();
+    start(state, "lifeFlow", -1);
+    const p = state.player;
+    p.hp = p.maxHp / 2;
+    p.mana = 0;
+    run(state, 1);
+    const hp = p.hp;
+    const mana = p.mana;
+    p.hp += 10;
+    run(state, 1);
+    // 自然回復の気力は生命へ流れるので、生命はわずかに増えうる。回復した 10 は気力へ移る
+    expect(p.hp, "回復は生命に残らない").toBeLessThan(hp + 5);
+    expect(p.mana, "気力が増える").toBeGreaterThan(mana + 5);
+  });
+
+  it("静寂: 気力が自然に戻らず、部屋の敵が沈黙する。制圧で気力が満ちる", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    thin(state, index, 2);
+    start(state, "silence", index);
+    const enemy = state.enemies.find((e) => e.roomIndex === index && e.hp > 0);
+    expect(enemy && hasStatus(enemy.status, "silence"), "沈黙").toBe(true);
+    state.player.mana = 1;
+    run(state, 60);
+    expect(state.player.mana, "自然には戻らない").toBeLessThan(1.5);
+    clearOut(state, room, index);
+    expect(state.player.mana, "制圧で満ちる").toBe(state.stats.maxMana);
+  });
+
+  it("決闘: 名乗った敵以外が止まり、名乗った敵を倒すと残りが怯えて欠片", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    thin(state, index, 3);
+    start(state, "duel", index);
+    const current = state.runEvents.room;
+    const champion = current?.target;
+    expect(champion, "名乗った敵").toBeTruthy();
+    if (!champion || !current) return;
+    run(state, 1);
+    const others = state.enemies.filter((e) => e !== champion && e.roomIndex === index && e.hp > 0);
+    expect(others.length, "他の敵").toBeGreaterThan(0);
+    expect(others.every((e) => e.attackCooldown > 0), "他の敵は手を出さない").toBe(true);
+    const shards = state.shards;
+    champion.hp = 0;
+    run(state, 1);
+    expect(state.shards - shards, "欠片").toBeGreaterThanOrEqual(CONTRACT.shardsDuel);
+    expect(others.filter((e) => e.hp > 0).some((e) => hasStatus(e.status, "fear")), "恐怖").toBe(true);
+  });
+
+  it("呪詛の声: 呪い持ちにだけ起き、コンボが届けば呪いが解け、届かなければ増える", () => {
+    const cursed = BOON_KEYS.filter((k) => BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const first = cursed[0];
+    if (!first) throw new Error("呪い付きの祝福が無い");
+    const ok = setup();
+    grantBoon(ok.state, first);
+    lock(ok.state, ok.room);
+    start(ok.state, "curseVoice", ok.index);
+    ok.state.combo.count = RUN_EVENT.curseVoiceCombo;
+    run(ok.state, 1);
+    clearOut(ok.state, ok.room, ok.index);
+    expect(ok.state.boons.includes(first), "呪いが解けた").toBe(false);
+
+    const ng = setup();
+    grantBoon(ng.state, first);
+    lock(ng.state, ng.room);
+    start(ng.state, "curseVoice", ng.index);
+    const before = ng.state.boons.filter((k) => BOONS[k].cursed).length;
+    ng.state.combo.count = 0;
+    clearOut(ng.state, ng.room, ng.index);
+    expect(ng.state.boons.filter((k) => BOONS[k].cursed).length, "呪いが増えた").toBe(before + 1);
+  });
+
+  it("雷鳴の刻: 落雷の予告が満ちると円の中の敵に当たって感電させる", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    thin(state, index, 1);
+    start(state, "thunderstorm", index);
+    const e = state.enemies.find((x) => x.roomIndex === index && x.hp > 0);
+    if (!e) throw new Error("enemy");
+    const hp = e.hp;
+    state.runEvents.strikes.push({ pos: { ...e.body.pos }, timer: FIXED_DT / 2, telegraph: 1 });
+    run(state, 1);
+    expect(e.hp, "当たった").toBeLessThan(hp);
+    expect(hasStatus(e.status, "shock"), "感電").toBe(true);
+  });
+
+  it("死神の通り道: 予告中から線が見え、線の上にいると 1 回だけ大きく削られ、通り過ぎると冥の残響", () => {
+    const { state } = setup();
+    state.floorTime = reaperAppearAfter(state);
+    scheduleRunEvent(state, "reaperPass", -1);
+    expect(reaperPassLine(state)?.warn, "予告の線").toBe(true);
+    state.player.invulnTimer = 0;
+    const hp = state.player.hp;
+    const umbra = state.runEvents.pendingEchoes.umbra;
+    let steps = 0;
+    for (; steps < 600 && state.runEvents.room?.key === "reaperPass"; steps++) {
+      state.player.invulnTimer = Math.min(state.player.invulnTimer, 0.01);
+      // 線の中心に立ち続ける
+      const line = reaperPassLine(state);
+      if (line) state.player.body.pos = { x: (line.from.x + line.to.x) / 2, y: (line.from.y + line.to.y) / 2 };
+      step(state, IDLE, FIXED_DT);
+    }
+    expect(state.player.hp, "削られた").toBeLessThan(hp);
+    expect(state.runEvents.pendingEchoes.umbra, "冥の残響").toBe(umbra + RUN_EVENT.reaperPass.echoes);
+  });
+
+  it("鈍重: ダッシュに入った瞬間、再使用が伸び、直後の与ダメが上がる", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    start(state, "sluggish", index);
+    const p = state.player;
+    p.dashTimer = 0.1;
+    p.dashChargesLeft = state.stats.dashCharges - 1;
+    p.dashCooldown = 1;
+    run(state, 1);
+    expect(p.dashCooldown, "再使用").toBeGreaterThan(1.5);
+    expect(p.buffs.damage.mul, "直後の一撃").toBeGreaterThanOrEqual(RUN_EVENT.sluggish.dashDamageMul);
+  });
+
+  it("地形の氾濫: 部屋に水か油が広がる", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    start(state, "flood", index);
+    run(state, Math.ceil(RUN_EVENT.flood.interval / FIXED_DT) + 2);
+    const pos = state.runEvents.room?.pos;
+    if (!pos) throw new Error("氾濫の源");
+    expect(["water", "oil"], "地形").toContain(terrainAt(state, pos.x, pos.y));
+  });
+
+  it("反応の共振: 反応が起きた点の周りの敵に当たる", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    thin(state, index, 1);
+    start(state, "reactionSurge", index);
+    const e = state.enemies.find((x) => x.roomIndex === index && x.hp > 0);
+    if (!e) throw new Error("enemy");
+    e.phase = "idle";
+    const hp = e.hp;
+    state.events.push({ kind: "onReaction", actor: "player", pos: { ...e.body.pos }, depth: 0, source: { kind: "player", key: "test" } });
+    updateRunEvents(state, FIXED_DT);
+    expect(e.hp, "弾けた").toBeLessThan(hp);
+  });
+
+  it("残響の鉱脈: 部屋に鉱脈が現れ、触れると残響", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    start(state, "echoVein", index);
+    const vein = room.special?.props.find((p) => p.kind === "vein");
+    expect(vein, "鉱脈").toBeTruthy();
+  });
+
+  it("蝙蝠の渡り: 蝙蝠が湧き、倒すと気力が戻る", () => {
+    const { state, room, index } = setup();
+    lock(state, room);
+    const bats = state.enemies.filter((e) => e.defKey === "bat").length;
+    start(state, "bats", index);
+    expect(state.enemies.filter((e) => e.defKey === "bat").length, "蝙蝠").toBeGreaterThan(bats);
+    state.player.mana = 0;
+    state.kills += 1;
+    updateRunEvents(state, FIXED_DT);
+    expect(state.player.mana, "気力").toBeGreaterThan(0);
+  });
+
+  it("流れ星: 祝福を 1 つ手放して 3 択を開く", () => {
+    const { state, room, index } = setup();
+    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    if (!plain) throw new Error("祝福");
+    grantBoon(state, plain);
+    lock(state, room);
+    scheduleRunEvent(state, "boonReroll", index);
+    for (let i = 0; i < START_LIMIT && !state.boonChoice; i++) step(state, IDLE, FIXED_DT);
+    expect(state.boons.includes(plain), "手放した").toBe(false);
+    expect(state.boonChoice, "3 択").not.toBeNull();
+  });
+});
+
+describe("無限の深み（変異）", () => {
+  it("深みより浅ければ変異なし、深いほど積み上がる", () => {
+    expect(mutationsFor(FLOOR_KIND.deepDepth - 1)).toEqual([]);
+    expect(mutationsFor(FLOOR_KIND.deepDepth).length).toBe(1);
+    expect(mutationsFor(FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery).length).toBe(2);
+    for (const key of mutationsFor(FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery * 10)) expect(RUN_EVENTS[key].scope, key).toBe("floor");
+  });
+
+  it("深みの階では変異が常に効き、HUD に出る", () => {
+    const { state } = setup(7, FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery * 2);
+    buildFloor(state, "rooms");
+    quiet(state);
+    expect(state.runEvents.mutations.length).toBe(3);
+    expect(fogActive(state), "霧の変異").toBe(true);
+    expect(runEventHudLines(state).some((l) => l.text.startsWith("変異")), "HUD").toBe(true);
+  });
+
+  it("深みでは敵の HP の伸びが寝る", () => {
+    expect(deepHpMul(FLOOR_KIND.deepDepth)).toBe(1);
+    expect(deepHpMul(FLOOR_KIND.deepDepth + 20)).toBeLessThan(1);
   });
 });

@@ -136,7 +136,8 @@ export function ensureGrowthFields(item: Item): Item {
  */
 export function fillProvenanceCounters(p: Provenance): void {
   // 毎回の出来事で呼ばれるので、最後に足したカウンタがあれば（= 全部そろっていれば）何もしない
-  if (typeof p.lastKills === "number") return;
+  // 第 1 弾・第 2 弾それぞれの最後のカウンタを見る（片方だけ欠けた来歴も補う）
+  if (typeof p.lastKills === "number" && typeof p.branchHits === "number") return;
   for (const key of PROVENANCE_COUNTERS) {
     if (typeof p[key] !== "number" || !Number.isFinite(p[key])) p[key] = EMPTY_COUNTER;
   }
@@ -145,8 +146,8 @@ export function fillProvenanceCounters(p: Provenance): void {
 /** 空の来歴のカウンタの値（createEmptyProvenance と同じ） */
 const EMPTY_COUNTER = 0;
 
-/** 数値のカウンタ（killsByEnemy 以外） */
-const PROVENANCE_COUNTERS = [
+/** 数値のカウンタ（killsByEnemy 以外）。注ぎ（crafting.ts）も同じ一覧で来歴を足す */
+export const PROVENANCE_COUNTERS = [
   "kills",
   "justDodges",
   "hurtTaken",
@@ -159,6 +160,12 @@ const PROVENANCE_COUNTERS = [
   "skillCasts",
   "eliteKills",
   "lastKills",
+  "weakHits",
+  "resistedHits",
+  "terrainKills",
+  "favoredKills",
+  "chargedHits",
+  "branchHits",
 ] as const satisfies readonly (keyof Provenance)[];
 
 /** 旧形式 → 新形式。新形式ならフィールドを補うだけ（冪等）。引数は変更しない */

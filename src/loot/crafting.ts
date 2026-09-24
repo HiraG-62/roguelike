@@ -1,17 +1,18 @@
 import { createRng, hashSeed, type Rng } from "../core/rng";
-import { formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
+import { affixDef, formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
 import { OPPOSITE_COLOR, baseLean, traitColorOf } from "./colors";
-import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, sigmaAt } from "./flux";
+import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, scaledNominalAt, sigmaAt } from "./flux";
 import { VESSEL_CAPACITY, refluxTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
-import { ensureGrowthFields } from "./migrate";
+import { PROVENANCE_COUNTERS, ensureGrowthFields } from "./migrate";
 import { nameItem } from "./names";
-import { maybeInscribe } from "./provenance";
+import { maybeInscribe, offerNextBud } from "./provenance";
 import { isTriggerKey } from "./triggers";
 import {
   TRAIT_COLORS,
   type AffixRoll,
   type Item,
   type Profile,
+  type Provenance,
   type TraitColor,
 } from "./types";
 
@@ -19,7 +20,7 @@ import {
  * クラフト（純ロジック）。docs/LOOT_DESIGN.md「クラフト（残響）」。
  * 原則: ランダムに性質を「足す」操作は無い。性質が増える経路は来歴（芽）だけ。
  * 通貨は色ごとの残響（紅響 / 蒼響 / 翠響 / 金響 / 冥響）。分解（砕く）で、性質の色に応じて得る。
- * 7 操作: 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し / 転調。どれも何かを得て何かを失う。
+ * 12 操作: 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し / 転調 / 脱色 / 呼び戻し / 注ぎ / 鍛え直し / 張り。どれも何かを得て何かを失う。
  * 乱数はゲームの state.rng ではなく専用 RNG（item.id + クラフト回数）。ゲームの決定性に影響しない。
  */
 
@@ -46,7 +47,21 @@ export const ECHO_LABEL: Readonly<Record<TraitColor, string>> = {
 // 操作とコスト
 // ---------------------------------------------------------------------------
 
-export const ECHO_OPS = ["shatter", "dye", "calm", "stir", "pare", "transfer", "modulate"] as const;
+export const ECHO_OPS = [
+  "shatter",
+  "dye",
+  "calm",
+  "stir",
+  "pare",
+  "transfer",
+  "modulate",
+  // 2026-09 第 2 弾（docs/ideas/loot-expansion.md 8 章 O2〜O6）
+  "bleach",
+  "recall",
+  "pour",
+  "reforge",
+  "tension",
+] as const;
 export type EchoOp = (typeof ECHO_OPS)[number];
 
 export const ECHO_OP_LABEL: Readonly<Record<EchoOp, string>> = {
@@ -57,6 +72,11 @@ export const ECHO_OP_LABEL: Readonly<Record<EchoOp, string>> = {
   pare: "削ぎ",
   transfer: "移し",
   modulate: "転調",
+  bleach: "脱色",
+  recall: "呼び戻し",
+  pour: "注ぎ",
+  reforge: "鍛え直し",
+  tension: "張り",
 };
 
 /** 操作の説明（UI のツールチップ用。動詞で語る） */
@@ -68,6 +88,11 @@ export const ECHO_OP_HINT: Readonly<Record<EchoOp, string>> = {
   pare: "性質 1 つを消し、余白を 1 戻す",
   transfer: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われる",
   modulate: "性質 1 つの効果はそのままに、色だけを反対色へ変える（紅と蒼、翠と金。冥は翠へ）",
+  bleach: "性質 1 つを無色にし、共鳴の配合から外す（支配の減衰も受けない）。値は 9 割になる",
+  recall: "過去の芽で選ばなかった方を取り直す。代わりに選んでいた方を失う。1 つの遺物に 1 回だけ",
+  pour: "遺物を捧げ、その来歴の半分を同じ部位の別の遺物へ注ぐ。捧げた遺物は消える",
+  reforge: "性質 1 つの期待値を、来歴の最深で取り直す（揺らぎはそのまま）。余白の上限が 1 減る",
+  tension: "代償付きの性質 1 つの利得と代償を両方 1.3 倍にする。鎮めでも戻らない",
 };
 
 /** 染め: 目標色の残響 */
@@ -82,6 +107,19 @@ export const PARE_COST = 1;
 export const TRANSFER_COST = 3;
 /** 転調: 変えた先の色（反対色）の残響 */
 export const MODULATE_COST = 3;
+/** 脱色: 翠響 / 呼び戻し: 冥響 / 鍛え直し: 性質の色の残響 / 張り: 冥響（注ぎは無料） */
+export const BLEACH_COST = 2;
+export const RECALL_COST = 5;
+export const REFORGE_COST = 4;
+export const TENSION_COST = 2;
+/** 脱色した性質の値の倍率 */
+export const BLEACH_VALUE_FACTOR = 0.9;
+/** 注ぎで移す来歴の割合（端数は切り捨て） */
+export const POUR_SHARE = 0.5;
+/** 張りで利得と代償に掛ける倍率 */
+export const TENSION_FACTOR = 1.3;
+/** 鍛え直しの代償（余白の上限） */
+export const REFORGE_MARGIN_COST = 1;
 /** 鎮めの代償（余白） */
 export const CALM_MARGIN_COST = 1;
 /** 削ぎで戻る余白 */
@@ -100,6 +138,9 @@ const SHATTER_FALLBACK_COLOR: TraitColor = "crimson";
 const FLUX_EPSILON = 0.005;
 
 const UMBRA: TraitColor = "umbra";
+const JADE: TraitColor = "jade";
+/** 値の丸め（脱色・張りの掛け算で出る浮動小数の端数を落とす） */
+const VALUE_DECIMALS = 3;
 
 export interface EchoCost {
   color: TraitColor;
@@ -116,7 +157,12 @@ export type EchoRequest =
   | { op: "stir"; item: Item; traitIndex: number }
   | { op: "pare"; item: Item; traitIndex: number }
   | { op: "transfer"; item: Item; target: Item; what: TransferWhat }
-  | { op: "modulate"; item: Item; traitIndex: number };
+  | { op: "modulate"; item: Item; traitIndex: number }
+  | { op: "bleach"; item: Item; traitIndex: number }
+  | { op: "recall"; item: Item; budIndex: number }
+  | { op: "pour"; item: Item; target: Item }
+  | { op: "reforge"; item: Item; traitIndex: number }
+  | { op: "tension"; item: Item; traitIndex: number };
 
 /** 操作ごとの専用 RNG。同じ item.id / counter なら同じ結果 */
 export function craftRng(itemId: string, counter: number): Rng {
@@ -127,20 +173,38 @@ function traitAt(item: Item, index: number): AffixRoll | undefined {
   return item.affixes[index];
 }
 
-/** 操作のコスト。砕くは null（無料）。対象の性質が無い・色が無い場合も null */
+/** 費用の色に使う性質の色。脱色済みでも元の色で払う（無色だから無料、にはしない） */
+function costColorOf(roll: AffixRoll | undefined): TraitColor | undefined {
+  if (roll === undefined) return undefined;
+  return traitColorOf(roll.colorless === true ? { ...roll, colorless: false } : roll);
+}
+
+/** 性質の色の残響で払う操作の費用 */
+function traitColorCost(item: Item, index: number, amount: number): EchoCost | null {
+  const color = costColorOf(traitAt(item, index));
+  return color === undefined ? null : { color, amount };
+}
+
+/** 操作のコスト。砕く・注ぎは null（無料）。対象の性質が無い・色が無い場合も null */
 export function echoCost(req: EchoRequest): EchoCost | null {
   switch (req.op) {
     case "shatter":
+    case "pour":
       return null;
     case "dye":
       return { color: req.color, amount: DYE_COST };
     case "calm":
-    case "pare": {
-      const roll = traitAt(req.item, req.traitIndex);
-      const color = roll === undefined ? undefined : traitColorOf(roll);
-      if (color === undefined) return null;
-      return { color, amount: req.op === "calm" ? CALM_COST : PARE_COST };
-    }
+      return traitColorCost(req.item, req.traitIndex, CALM_COST);
+    case "pare":
+      return traitColorCost(req.item, req.traitIndex, PARE_COST);
+    case "reforge":
+      return traitColorCost(req.item, req.traitIndex, REFORGE_COST);
+    case "bleach":
+      return { color: JADE, amount: BLEACH_COST };
+    case "recall":
+      return { color: UMBRA, amount: RECALL_COST };
+    case "tension":
+      return { color: UMBRA, amount: TENSION_COST };
     case "stir":
       return { color: UMBRA, amount: STIR_COST };
     case "transfer":
@@ -280,6 +344,136 @@ export function transferGrowth(source: Item, target: Item, what: TransferWhat): 
 }
 
 // ---------------------------------------------------------------------------
+// 2026-09 第 2 弾の操作（脱色・呼び戻し・注ぎ・鍛え直し・張り）
+// ---------------------------------------------------------------------------
+
+function roundValue(v: number): number {
+  const scale = 10 ** VALUE_DECIMALS;
+  return Math.round(v * scale) / scale;
+}
+
+/**
+ * 値と期待値を factor 倍にしたコピー（期待値も掛けるので、鎮め・煽りで揺らぎを引き直しても倍率は残る）。
+ * トリガーの value2 は発動確率と持続のエンコードなので触らない
+ */
+function scaleRollValues(roll: AffixRoll, factor: number): AffixRoll {
+  const out: AffixRoll = { ...roll, value: roundValue(roll.value * factor) };
+  if (roll.nominal !== undefined) out.nominal = roll.nominal * factor;
+  if (roll.value2 === undefined || affixDef(roll.key) === undefined) return out;
+  out.value2 = roundValue(roll.value2 * factor);
+  if (roll.nominal2 !== undefined) out.nominal2 = roll.nominal2 * factor;
+  return out;
+}
+
+/** 脱色できるか: 色を持つ（無色でない）・反転していない・誓約でない */
+export function canBleachTrait(roll: AffixRoll | undefined): roll is AffixRoll {
+  if (roll === undefined || roll.colorless === true || roll.inverted === true || isKeystoneKey(roll.key)) return false;
+  return traitColorOf(roll) !== undefined;
+}
+
+/** 脱色: 無色にして共鳴の配合から外す。値は BLEACH_VALUE_FACTOR 倍 */
+export function bleachTrait(item: Item, index: number): Item | null {
+  const roll = traitAt(item, index);
+  if (!canBleachTrait(roll)) return null;
+  return replaceTrait(item, index, { ...scaleRollValues(roll, BLEACH_VALUE_FACTOR), colorless: true });
+}
+
+/** 呼び戻しをもう使ったか（1 つの遺物に 1 回） */
+export function hasRecalled(item: Item): boolean {
+  return (item.buds ?? []).some((b) => b.recalled === true);
+}
+
+/** 呼び戻せる芽か: 選んだ方がまだ芽吹いた性質として残っていて、選ばなかった方と同じ key が無い */
+export function canRecallBud(item: Item, budIndex: number): boolean {
+  const bud = item.buds?.[budIndex];
+  if (bud === undefined || hasRecalled(item)) return false;
+  const chosen = bud.options[bud.chosen];
+  const other = bud.options[bud.chosen === 0 ? 1 : 0];
+  const held = item.affixes.some((r) => r.key === chosen.key && r.origin === "bud");
+  return held && !item.affixes.some((r) => r.key === other.key);
+}
+
+/** 呼び戻し: 過去の芽で選ばなかった方を取り直し、選んでいた方を失う */
+export function recallBud(item: Item, budIndex: number): Item | null {
+  if (!canRecallBud(item, budIndex)) return null;
+  const buds = item.buds ?? [];
+  const bud = buds[budIndex];
+  if (bud === undefined) return null;
+  const flipped: 0 | 1 = bud.chosen === 0 ? 1 : 0;
+  const chosen = bud.options[bud.chosen];
+  const index = item.affixes.findIndex((r) => r.key === chosen.key && r.origin === "bud");
+  const affixes = item.affixes.map((r, i) => (i === index ? { ...bud.options[flipped], origin: "bud" as const } : r));
+  const nextBuds = buds.map((b, i) => (i === budIndex ? { ...b, chosen: flipped, recalled: true } : b));
+  return refreshed({ ...item, affixes, buds: nextBuds });
+}
+
+/** 注ぎ: source の来歴の半分を target の来歴へ足した来歴（元は変えない） */
+export function pouredProvenance(source: Readonly<Provenance>, target: Readonly<Provenance>): Provenance {
+  const out: Provenance = { ...target, killsByEnemy: { ...target.killsByEnemy } };
+  for (const key of PROVENANCE_COUNTERS) {
+    // 最深は量ではないので足さず、深い方を残す
+    out[key] = key === "deepest" ? Math.max(target.deepest, source.deepest) : target[key] + Math.floor(source[key] * POUR_SHARE);
+  }
+  for (const [enemy, n] of Object.entries(source.killsByEnemy)) {
+    out.killsByEnemy[enemy] = (out.killsByEnemy[enemy] ?? 0) + Math.floor(n * POUR_SHARE);
+  }
+  return out;
+}
+
+/** 注ぎ: 捧げた遺物（source）の来歴の半分を同じ部位の target へ。届いた節目の芽はその場で出す */
+export function pourGrowth(source: Item, target: Item): Item | null {
+  if (source.id === target.id || source.slot !== target.slot || source.provenance === undefined) return null;
+  const base = ensureGrowthFields({ ...target, milestones: [...(target.milestones ?? [])], buds: [...(target.buds ?? [])] });
+  const provenance = pouredProvenance(source.provenance, base.provenance ?? source.provenance);
+  const out: Item = { ...base, provenance };
+  offerNextBud(out);
+  return out;
+}
+
+/** 性質の修飾（張り・脱色）の倍率。鍛え直しで期待値を取り直しても修飾は残す */
+function modifierFactor(roll: AffixRoll): number {
+  return (roll.tensed === true ? TENSION_FACTOR : 1) * (roll.colorless === true ? BLEACH_VALUE_FACTOR : 1);
+}
+
+/**
+ * 鍛え直し: 期待値を来歴の最深で取り直す（揺らぎはそのまま）。余白の上限を REFORGE_MARGIN_COST 払う。
+ * 期待値が上がらない（最深がまだ浅い）なら成立しない
+ */
+export function reforgeTrait(item: Item, index: number): Item | null {
+  const roll = traitAt(item, index);
+  const def = roll === undefined ? undefined : affixDef(roll.key);
+  const marginMax = item.marginMax ?? 0;
+  if (roll === undefined || def === undefined || isKeystoneKey(roll.key) || marginMax < REFORGE_MARGIN_COST) return null;
+  const deepest = item.provenance?.deepest ?? 0;
+  const fresh = scaledNominalAt(def, deepest, !isConversionKey(def.key));
+  const factor = modifierFactor(roll);
+  const nominal = fresh.nominal * factor;
+  const current = roll.nominal ?? Math.abs(roll.value);
+  if (nominal <= current) return null;
+  const lifted: AffixRoll = { ...roll, nominal };
+  if (fresh.nominal2 !== undefined && roll.value2 !== undefined) lifted.nominal2 = fresh.nominal2 * factor;
+  const reforged = refluxTrait(lifted, roll.flux ?? 0);
+  const nextMax = marginMax - REFORGE_MARGIN_COST;
+  const out = { ...replaceTrait(item, index, reforged), marginMax: nextMax, margin: Math.min(item.margin ?? 0, nextMax) };
+  out.reforged = (item.reforged ?? 0) + 1;
+  maybeInscribe(out);
+  return out;
+}
+
+/** 張れる性質: 代償付き（tradeoff）で value2 を持ち、まだ張っていない・反転していない */
+export function canTension(roll: AffixRoll | undefined): roll is AffixRoll {
+  if (roll === undefined || roll.tensed === true || roll.inverted === true || roll.value2 === undefined) return false;
+  return affixDef(roll.key)?.tags.includes("tradeoff") === true;
+}
+
+/** 張り: 利得と代償を両方 TENSION_FACTOR 倍（期待値ごと掛けるので鎮めでは戻らない） */
+export function tensionTrait(item: Item, index: number): Item | null {
+  const roll = traitAt(item, index);
+  if (!canTension(roll)) return null;
+  return replaceTrait(item, index, { ...scaleRollValues(roll, TENSION_FACTOR), tensed: true });
+}
+
+// ---------------------------------------------------------------------------
 // 実行（通貨の確認・消費・回数の更新）
 // ---------------------------------------------------------------------------
 
@@ -314,6 +508,11 @@ const INVALID_MESSAGE: Readonly<Record<EchoOp, string>> = {
   pare: "削ぐ性質がない",
   transfer: "移せない（同じ部位の別の遺物へ、銘は無銘へ、芽は余白のある遺物へ）",
   modulate: "転調できる性質がない（反転した性質と誓約は色を変えられない）",
+  bleach: "脱色できる性質がない（反転・誓約・無色のものは脱色できない）",
+  recall: "呼び戻せない（1 つの遺物に 1 回だけ。選んだ芽が残っていて、選ばなかった方が重ならないこと）",
+  pour: "注げない（来歴のある遺物から、同じ部位の別の遺物へ）",
+  reforge: "鍛え直せない（来歴の最深が期待値を上げるほど深くないか、余白の上限が足りない）",
+  tension: "張れる性質がない（代償付きの性質に 1 回だけ）",
 };
 
 export function echoBlockMessage(reason: EchoRejectReason, req: EchoRequest): string {
@@ -338,6 +537,16 @@ function runEchoOp(req: EchoRequest, rng: Rng): Item | null {
       return transferGrowth(req.item, req.target, req.what);
     case "modulate":
       return modulateTrait(req.item, req.traitIndex);
+    case "bleach":
+      return bleachTrait(req.item, req.traitIndex);
+    case "recall":
+      return recallBud(req.item, req.budIndex);
+    case "pour":
+      return pourGrowth(req.item, req.target);
+    case "reforge":
+      return reforgeTrait(req.item, req.traitIndex);
+    case "tension":
+      return tensionTrait(req.item, req.traitIndex);
   }
 }
 
@@ -348,12 +557,30 @@ function gainedText(gained: EchoWallet): string {
 }
 
 function changeNote(req: EchoRequest, after: Item): string {
-  if (req.op === "transfer") return `${req.item.name} → ${after.name}`;
-  if (req.op === "shatter") return "";
-  const before = traitAt(req.item, req.traitIndex);
-  if (req.op === "pare") return before === undefined ? "" : `- ${formatAffix(before)}`;
-  const now = traitAt(after, req.traitIndex);
-  return now === undefined ? "" : formatAffix(now);
+  switch (req.op) {
+    case "transfer":
+    case "pour":
+      return `${req.item.name} → ${after.name}`;
+    case "shatter":
+      return "";
+    case "recall": {
+      const bud = after.buds?.[req.budIndex];
+      return bud === undefined ? "" : formatAffix(bud.options[bud.chosen]);
+    }
+    case "pare": {
+      const before = traitAt(req.item, req.traitIndex);
+      return before === undefined ? "" : `- ${formatAffix(before)}`;
+    }
+    default: {
+      const now = traitAt(after, req.traitIndex);
+      return now === undefined ? "" : formatAffix(now);
+    }
+  }
+}
+
+/** 相手を取る操作（移し・注ぎ）は元の遺物が消える */
+function consumesSource(req: EchoRequest): boolean {
+  return req.op === "transfer" || req.op === "pour";
 }
 
 function shatter(state: EchoCraftState, item: Item): EchoResult {
@@ -376,12 +603,14 @@ export function craftEcho(state: EchoCraftState, req: EchoRequest): EchoResult {
   }
   const source = ensureGrowthFields({ ...req.item });
   const normalized: EchoRequest =
-    req.op === "transfer" ? { ...req, item: source, target: ensureGrowthFields({ ...req.target }) } : { ...req, item: source };
+    req.op === "transfer" || req.op === "pour"
+      ? { ...req, item: source, target: ensureGrowthFields({ ...req.target }) }
+      : { ...req, item: source };
   const after = runEchoOp(normalized, craftRng(req.item.id, state.counter));
   if (after === null) return { ok: false, op, reason: "invalid", message: echoBlockMessage("invalid", req) };
   if (cost !== null) state.echoes[cost.color] -= cost.amount;
   state.counter += 1;
-  const consumedIds = req.op === "transfer" ? [req.item.id] : [];
+  const consumedIds = consumesSource(req) ? [req.item.id] : [];
   const note = changeNote(normalized, after);
   const message = note.length === 0 ? `${ECHO_OP_LABEL[op]}: ${after.name}` : `${ECHO_OP_LABEL[op]}: ${after.name}（${note}）`;
   return { ok: true, op, before: req.item, item: after, consumedIds, gained: createEchoWallet(), message };

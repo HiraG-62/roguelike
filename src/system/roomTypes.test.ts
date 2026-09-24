@@ -396,8 +396,8 @@ describe("決定性", () => {
 });
 
 describe("封鎖する種類（ROOM_KIND.locks）", () => {
-  it("試練・闘技場・巣・巣窟・伏兵・護衛・鏡は封鎖し、通常の部屋・宝物庫・泉・台座の部屋・共鳴炉・逃走は封鎖しない", () => {
-    const locking: RoomKind[] = ["challenge", "arena", "nest", "horde", "ambush", "escort", "mirror"];
+  it("試練・闘技場・巣・巣窟・伏兵・護衛・鏡・潮の間は封鎖し、通常の部屋・宝物庫・泉・台座の部屋・共鳴炉・逃走・霧の部屋は封鎖しない", () => {
+    const locking: RoomKind[] = ["challenge", "arena", "nest", "horde", "ambush", "escort", "mirror", "tideRoom"];
     for (const kind of Object.keys(ROOM_LOCKS) as RoomKind[]) {
       expect(ROOM_LOCKS[kind], kind).toBe(locking.includes(kind));
     }

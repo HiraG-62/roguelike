@@ -10,6 +10,7 @@ import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
 import type { ChainRecord, EventKind, GameEvent, RecentEvent, RuleRunState } from "./events";
 import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
 import type { RunEventState } from "../system/runEvents";
+import type { ContractState } from "../system/contractors";
 import type { OriginKey, RunModKey } from "../system/runSetup";
 import type { ButtonKey, ShotRuntime } from "../data/weapons";
 import type { JobKey } from "../data/jobs";
@@ -401,6 +402,61 @@ export interface FloatingText {
   scale: number;
 }
 
+/** 撃破の演出の種類（src/system/effects.ts が最後の一撃と状態異常から決める）。burst は従来の飛び散りだけ */
+export type DeathFxKind = "burst" | "ash" | "shatter" | "discharge" | "melt" | "blood" | "sever" | "void" | "holy";
+
+export interface DeathFx {
+  kind: DeathFxKind;
+  /** 描くスプライトを引くための敵の key */
+  defKey: string;
+  pos: Vec;
+  flip: boolean;
+  /** 両断の切り口・血飛沫の向き（ラジアン） */
+  angle: number;
+  age: number;
+  life: number;
+}
+
+/** 時間で消える演出の印（src/render/effectsUi.ts が種類ごとに描く） */
+export type FxMarkKind =
+  | "clearWave"
+  | "eliteBurst"
+  | "bossLight"
+  | "justRing"
+  | "synergyGlow"
+  | "weakCrack"
+  | "critFlash"
+  | "doorSlam"
+  | "chargeUp"
+  | "dropBeam"
+  | "dashGhost";
+
+export interface FxMark {
+  kind: FxMarkKind;
+  pos: Vec;
+  age: number;
+  life: number;
+  color: string;
+  /** 種類ごとの値（clearWave / doorSlam = 部屋の番号、critFlash = 敵 id、chargeUp = 段、dashGhost = 1 なら左向き） */
+  value: number;
+}
+
+/** 演出だけの状態。ロジックは読まない（読むのは render と effects.ts だけ） */
+export interface EffectsState {
+  /** 演出専用の乱数の内部状態。state.rng を消費しないので、粒の数を変えてもゲームの結果は変わらない */
+  seed: number;
+  deaths: DeathFx[];
+  marks: FxMark[];
+  /** 色ごとのドロップ音を鳴らし終えた floorItems の id の最大値 */
+  lastDropId: number;
+  /** 連携の残光を出し終えた chains の最新時刻 */
+  lastChainTime: number;
+  /** ダッシュの残像を置く間隔の残り秒 */
+  ghostTimer: number;
+  /** 処刑された敵の id（死に方を両断にする）。無ければ -1 */
+  executedId: number;
+}
+
 export type PickupKind = "heart";
 
 export interface Pickup {
@@ -434,7 +490,14 @@ export type RoomKind =
   | "mirror"
   | "watchtower"
   // ---- 開放型フロア（src/system/spawner.ts）: 入ると封鎖して波で大量に湧く巣窟 ----
-  | "horde";
+  | "horde"
+  // ---- ラン構造の第 2 弾（src/system/specialRooms.ts）----
+  | "vault"
+  | "elementAltar"
+  | "dummyHall"
+  | "fogRoom"
+  | "tideRoom"
+  | "invertHall";
 
 /**
  * フロア種別。rooms / dark は部屋+通路、cave はセルオートマトンの洞窟。
@@ -525,6 +588,8 @@ export interface GameState {
   /** 今フレームに鳴らす効果音。main.ts が毎フレーム drain する */
   sfx: SfxName[];
   shapes: ShapeFx[];
+  /** 演出だけの状態（src/system/effects.ts の fxState が初回に作る） */
+  effects?: EffectsState;
   /** 死亡時の recordRun を 1 回だけにする */
   runRecorded: boolean;
   /** スキル（永続の石 + ラン内の CD・刻印符・発動中状態）。docs/ideas/skills.md */
@@ -576,6 +641,10 @@ export interface GameState {
   lockedRelics: readonly string[];
   /** この階の階段と、降りた先のフロア種別（分岐路） */
   stairs: StairsChoice[];
+  /** 契約者・結んだ契約・鍛冶や祭壇の属性・占いの予言（src/system/contractors.ts） */
+  contracts: ContractState;
+  /** 欠片: ラン内でだけ集まる小さな資源。契約者との取引と封印庫の解錠に使う。死ぬと消える */
+  shards: number;
   // ---- 統一ルール文法（src/core/events.ts / src/system/rules.ts。docs/ideas/synergy-web.md 3 章）----
   /** 今ステップに system が積んだイベント。resolveRules が照合して空にする */
   events: GameEvent[];

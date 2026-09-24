@@ -143,3 +143,42 @@ describe("永続化と移行（roguelike.skills.v1）", () => {
     expect(loaded.runes).toEqual([]);
   });
 });
+
+describe("使い込みの互換（SkillStone.wear は省略可）", () => {
+  it("使い込みを持つ石は round-trip で同じ内容が戻る", () => {
+    const storage = new MemoryStorage();
+    const s: SkillStone = { ...stone("whirl", 2, "w1"), wear: { casts: 41, hits: 120, buds: ["power"] } };
+    const profile = profileWith([s], []);
+    saveSkillProfile(profile, storage);
+    expect(loadSkillProfile(storage).stones).toEqual([s]);
+  });
+
+  it("旧セーブの石（wear 無し）は wear を足さずにそのまま読む", () => {
+    const storage = new MemoryStorage();
+    const s = stone("frag", 1, "old");
+    storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["old"], stones: [s] }));
+    const loaded = loadSkillProfile(storage).stones[0];
+    expect(loaded).toEqual(s);
+    expect(loaded && "wear" in loaded, "wear を足さない").toBe(false);
+  });
+
+  it("壊れた使い込みは直す（負の数は 0、知らない芽は捨て、芽は節目の数まで）", () => {
+    const storage = new MemoryStorage();
+    const s = { ...stone("frag", 1, "b1"), wear: { casts: -5, hits: "x", buds: ["link", "nope", "power", "power"] } };
+    storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["b1"], stones: [s] }));
+    const wear = loadSkillProfile(storage).stones[0]?.wear;
+    expect(wear?.casts).toBe(0);
+    expect(wear?.hits).toBe(0);
+    expect(wear?.buds).toEqual(["link", "power"]);
+  });
+
+  it("リンクの上限は枠の芽のぶんだけ超えてよい（芽が無ければ基本の上限で切る）", () => {
+    const storage = new MemoryStorage();
+    const worn = { ...stone("whirl", SKILL.maxLinks + 1, "l1"), wear: { casts: 40, hits: 0, buds: ["link"] } };
+    const plain = stone("whirl", SKILL.maxLinks + 1, "l2");
+    storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["l1", "l2"], stones: [worn, plain] }));
+    const loaded = loadSkillProfile(storage).stones;
+    expect(loaded[0]?.links).toBe(SKILL.maxLinks + 1);
+    expect(loaded[1]?.links).toBe(SKILL.maxLinks);
+  });
+});

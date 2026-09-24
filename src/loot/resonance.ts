@@ -1,10 +1,13 @@
 import { isTriggerKey } from "./triggers";
 import { OPPOSITE_COLOR, traitColorOf } from "./colors";
 import { scaleFlat } from "./flux";
-import { ATTR_GAIN, KEYSTONE } from "../data/tuning";
+import { ATTR_GAIN, KEYSTONE, RESONANCE } from "../data/tuning";
 import {
   ATTR_KEYS,
   TRAIT_COLORS,
+  type ConstellationKey,
+  type Equipment,
+  type Slot,
   type AttrKey,
   type Attributes,
   TRAIT_COLOR_LABEL,
@@ -18,7 +21,8 @@ import {
 
 /**
  * 共鳴: 装備全体の色の配合で、同時に 1 つだけ発現する効果。docs/LOOT_DESIGN.md「色と共鳴」。
- * 判定順は 支配 → 二重 → 三和音 → 散光 → なし。誓約（色の誓約）と一部の性質は判定の規則を変える（ResonanceRules）。
+ * 判定順は 冥の支配 → 陰画 → 支配 → 二重 → 三和音 → 散光 → 拮抗 → なし。誓約（色の誓約）と一部の性質は判定の規則を変える（ResonanceRules）。
+ * 星座（6 部位の主色の並び）は共鳴とは別の層で、同時に 1 つだけ成立する（CONSTELLATIONS）。
  * 数値効果は computeStats（stats.ts）が段階適用の後・ソフトキャップの前に畳み込み、
  * メカニクスはトリガー文法（TriggeredEffect）で表す（戦闘側の追加実装なしで動く）。
  */
@@ -174,13 +178,63 @@ function inPaletteOrder(colors: readonly TraitColor[]): TraitColor[] {
   return [...colors].sort((a, b) => TRAIT_COLORS.indexOf(a) - TRAIT_COLORS.indexOf(b));
 }
 
-/** 重みから共鳴を 1 つ決める（支配 → 二重 → 三和音 → 散光 → なし。規則で止められたものは飛ばす） */
-export function resolveResonance(weights: Readonly<ColorWeights>, rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): Resonance {
+/**
+ * 陰画の判定の入力。反転した性質の重みの合計と、反転していない性質だけの色の重み
+ * （反転は冥に数えられるので、裏返る前の「表の支配色」は反転を除いた配合で見る）
+ */
+export interface NegativeInput {
+  invertedWeight: number;
+  upright: ColorWeights;
+}
+
+/** 陰画にならない入力（反転なし） */
+const NO_NEGATIVE: NegativeInput = { invertedWeight: 0, upright: emptyWeights() };
+
+/** 陰画: 反転の重みが全体の RESONANCE.negativeInvertedRatio 以上で、反転を除いた配合に冥以外の支配色がある */
+function negativeColor(input: NegativeInput, total: number, rules: Readonly<ResonanceRules>): TraitColor | undefined {
+  if (rules.mirror || total <= 0 || input.invertedWeight / total < RESONANCE.negativeInvertedRatio) return undefined;
+  const { ratios } = toRatios(input.upright);
+  const top = rankColors(ratios)[0];
+  if (top === undefined || top === "umbra" || ratios[top] < rules.dominantRatio) return undefined;
+  return top;
+}
+
+/** 比率の比較の誤差 */
+const FLOAT_EPSILON = 1e-9;
+
+/** 拮抗の組（反対色）。紅と蒼、翠と金 */
+const BALANCE_PAIRS: readonly (readonly [TraitColor, TraitColor])[] = [
+  ["crimson", "azure"],
+  ["jade", "gold"],
+];
+
+/** 拮抗: 反対色の組がそれぞれ RESONANCE.balanceMinRatio 以上で、差が RESONANCE.balanceMaxGap 以内（先の組が優先） */
+function balancePair(ratios: Readonly<ColorWeights>): readonly [TraitColor, TraitColor] | undefined {
+  return BALANCE_PAIRS.find(
+    ([a, b]) =>
+      ratios[a] >= RESONANCE.balanceMinRatio &&
+      ratios[b] >= RESONANCE.balanceMinRatio &&
+      Math.abs(ratios[a] - ratios[b]) <= RESONANCE.balanceMaxGap + FLOAT_EPSILON,
+  );
+}
+
+/**
+ * 重みから共鳴を 1 つ決める（冥の支配（虚極）→ 陰画 → 支配 → 二重 → 三和音 → 散光 → 拮抗 → なし。規則で止められたものは飛ばす）。
+ * 陰画は kind = dominant・form = negative、拮抗は kind = dual・form = balance で返す（kind で分岐する他の仕組みを壊さない）
+ */
+export function resolveResonance(
+  weights: Readonly<ColorWeights>,
+  rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES,
+  negative: Readonly<NegativeInput> = NO_NEGATIVE,
+): Resonance {
   const { ratios, total } = toRatios(weights);
   const none: Resonance = { ...createEmptyResonance(), ratios };
   if (rules.disabled || total < MIN_RESONANCE_WEIGHT) return none;
   const [first, second, third, fourth] = rankColors(ratios);
   if (first === undefined || second === undefined || third === undefined || fourth === undefined) return none;
+  const umbraDominant = first === "umbra" && ratios[first] >= rules.dominantRatio;
+  const flipped = umbraDominant ? undefined : negativeColor(negative, total, rules);
+  if (flipped !== undefined) return { kind: "dominant", colors: [flipped], ratios, form: "negative" };
   if (ratios[first] >= rules.dominantRatio) return { kind: "dominant", colors: [first], ratios };
   if (rules.allowDual && ratios[first] >= rules.dualMinRatio && ratios[second] >= rules.dualMinRatio) {
     return { kind: "dual", colors: inPaletteOrder([first, second]), ratios };
@@ -192,11 +246,23 @@ export function resolveResonance(weights: Readonly<ColorWeights>, rules: Readonl
   if (rules.allowScatter && TRAIT_COLORS.every((c) => ratios[c] < SCATTER_MAX_RATIO)) {
     return { kind: "scatter", colors: [], ratios };
   }
+  // 拮抗は他のどの共鳴も成立しないときだけ（「共鳴なし」の隙間を埋める。散光・二重を奪わない）
+  const pair = rules.allowDual ? balancePair(ratios) : undefined;
+  if (pair !== undefined) return { kind: "dual", colors: inPaletteOrder(pair), ratios, form: "balance" };
   return none;
 }
 
+/** 陰画の入力（反転の重みと、反転を除いた配合）。配合に数えない反転（鏡の誓い）は数えない */
+export function negativeInput(rolls: readonly AffixRoll[], rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): NegativeInput {
+  let invertedWeight = 0;
+  for (const roll of rolls) {
+    if (roll.inverted === true && countedColor(roll, rules) !== undefined) invertedWeight += traitWeight(roll);
+  }
+  return { invertedWeight, upright: colorWeights(rolls.filter((r) => r.inverted !== true), rules) };
+}
+
 export function computeResonance(rolls: readonly AffixRoll[], rules: Readonly<ResonanceRules> = DEFAULT_RESONANCE_RULES): Resonance {
-  return resolveResonance(colorWeights(rolls, rules), rules);
+  return resolveResonance(colorWeights(rolls, rules), rules, negativeInput(rolls, rules));
 }
 
 // ---------------------------------------------------------------------------
@@ -555,6 +621,91 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
 };
 
+/** 陰画の効果（紅・蒼・翠・金。冥の支配は虚極のまま）。docs/ideas/loot-expansion.md 9-2 */
+export const NEGATIVE_EFFECTS: Readonly<Record<Exclude<TraitColor, "umbra">, ResonanceEffect>> = {
+  crimson: {
+    name: "冷たい炎",
+    lines: ["燃焼の確率が、すべて冷気の確率に変わる", "近接の一撃の重さが、射撃へ移る"],
+    apply: (s) => {
+      s.chillChance += Math.max(0, s.burnChance);
+      s.burnChance = 0;
+      s.rangedDamageMul += frac(RESONANCE.coldFlameShift);
+    },
+  },
+  azure: {
+    name: "熱い氷",
+    lines: ["冷気の確率が、すべて燃焼の確率に変わる", `射撃のたびに ${Math.round(RESONANCE.hotIceChance * PERCENT)}% の確率で、周囲の敵を燃やす`],
+    apply: both(
+      (s) => {
+        s.burnChance += Math.max(0, s.chillChance);
+        s.chillChance = 0;
+      },
+      trigger({
+        trigger: "onShoot",
+        condition: "always",
+        effect: "burnNearby",
+        magnitude: amt(RESONANCE.hotIceDps),
+        duration: RESONANCE.hotIceSec,
+        chance: RESONANCE.hotIceChance,
+      }),
+    ),
+  },
+  jade: {
+    name: "枯れ森",
+    lines: ["命中・撃破・自然回復で戻る生命が半分になる", `被弾すると周囲に衝撃波を放つ（${amt(RESONANCE.witheredWave)} ダメージ）`],
+    apply: both(
+      (s) => {
+        s.lifeOnHit *= RESONANCE.witheredHealMul;
+        s.lifeOnKill *= RESONANCE.witheredHealMul;
+        s.hpRegen *= RESONANCE.witheredHealMul;
+      },
+      trigger({ trigger: "onHurt", condition: "always", effect: "shockwave", magnitude: amt(RESONANCE.witheredWave), chance: 1 }),
+    ),
+  },
+  gold: {
+    name: "暗雷",
+    lines: ["会心が出なくなる", `攻撃が感電させやすくなり、近接で ${Math.round(RESONANCE.darkThunderChance * PERCENT)}% の確率で連鎖雷を呼ぶ`],
+    apply: both(
+      (s) => {
+        s.critChance = 0;
+        s.shockChance += frac(RESONANCE.darkThunderShock);
+      },
+      trigger({
+        trigger: "onMeleeHit",
+        condition: "always",
+        effect: "chainLightning",
+        magnitude: amt(RESONANCE.darkThunderDamage),
+        chance: RESONANCE.darkThunderChance,
+      }),
+    ),
+  },
+};
+
+/** 拮抗の効果。key は TRAIT_COLORS 順の "a+b"（紅と蒼 / 翠と金）。docs/ideas/loot-expansion.md 9-3 */
+export const BALANCE_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
+  "crimson+azure": {
+    name: "天秤",
+    lines: [
+      `近接と射撃を交互に当てるたび与ダメージ +${Math.round(RESONANCE.balanceStep * PERCENT)}%（交互に当て続ける間は重なる。上限 +${Math.round(RESONANCE.balanceCap * PERCENT)}%）`,
+    ],
+    apply: (s) => {
+      s.traits.alternateDamageStep += frac(RESONANCE.balanceStep);
+      s.traits.alternateDamageCap = Math.max(s.traits.alternateDamageCap, frac(RESONANCE.balanceCap));
+    },
+  },
+  "jade+gold": {
+    name: "表裏",
+    lines: [
+      `生命が半分以上なら与ダメージ +${Math.round(RESONANCE.twoFacesDamage * PERCENT)}%`,
+      `生命が半分未満なら被ダメージ -${Math.round(RESONANCE.twoFacesGuard * PERCENT)}%`,
+    ],
+    apply: (s) => {
+      s.traits.highHpDamageMul += frac(RESONANCE.twoFacesDamage);
+      s.traits.lowHpGuard += frac(RESONANCE.twoFacesGuard);
+    },
+  },
+};
+
 export function dualKey(a: TraitColor, b: TraitColor): string {
   const [x, y] = inPaletteOrder([a, b]);
   return `${x ?? a}+${y ?? b}`;
@@ -567,6 +718,8 @@ export function triadKey(colors: readonly TraitColor[]): string {
 
 /** 発現中の共鳴の効果定義。なしは undefined */
 export function resonanceEffect(resonance: Resonance): ResonanceEffect | undefined {
+  const variant = formEffect(resonance);
+  if (variant !== undefined) return variant;
   switch (resonance.kind) {
     case "dominant": {
       const color = resonance.colors[0];
@@ -583,6 +736,19 @@ export function resonanceEffect(resonance: Resonance): ResonanceEffect | undefin
     case "none":
       return undefined;
   }
+}
+
+/** 陰画・拮抗の効果（変形でなければ undefined） */
+function formEffect(resonance: Resonance): ResonanceEffect | undefined {
+  if (resonance.form === "negative") {
+    const color = resonance.colors[0];
+    return color === undefined || color === "umbra" ? undefined : NEGATIVE_EFFECTS[color];
+  }
+  if (resonance.form === "balance") {
+    const [a, b] = resonance.colors;
+    return a === undefined || b === undefined ? undefined : BALANCE_EFFECTS[dualKey(a, b)];
+  }
+  return undefined;
 }
 
 /** 共鳴の数値効果・トリガー・ステータス加算を stats に畳み込む（単色の誓いは効果を 2 回） */
@@ -663,6 +829,8 @@ const NONE_LINES: readonly string[] = [
 
 function headline(resonance: Resonance, effect: ResonanceEffect): string {
   const labels = resonance.colors.map((c) => TRAIT_COLOR_LABEL[c]);
+  if (resonance.form === "negative") return `共鳴 ${effect.name}（${labels.join("")}の陰画）`;
+  if (resonance.form === "balance") return `共鳴 ${effect.name}（${labels.join("と")}の拮抗）`;
   switch (resonance.kind) {
     case "dominant":
       return `共鳴 ${effect.name}（${labels.join("")}の支配）`;
@@ -682,6 +850,10 @@ function headline(resonance: Resonance, effect: ResonanceEffect): string {
  * 支配中は減衰の注意も添える
  */
 export function describeResonance(resonance: Resonance): string[] {
+  return [...describeColorResonance(resonance), ...describeConstellation(resonance.constellation)];
+}
+
+function describeColorResonance(resonance: Resonance): string[] {
   const effect = resonanceEffect(resonance);
   if (effect === undefined) return [...NONE_LINES];
   const lines = [headline(resonance, effect), ...effect.lines];
@@ -691,4 +863,186 @@ export function describeResonance(resonance: Resonance): string[] {
     lines.push(`支配していない色の性質は ${Math.round(OFF_COLOR_DAMPING * PERCENT_SCALE)}% に弱まる`);
   }
   return lines;
+}
+
+// ---------------------------------------------------------------------------
+// 星座（6 部位の主色の並び。docs/ideas/loot-expansion.md 9-4）
+// ---------------------------------------------------------------------------
+
+/** 部位の輪（武器 - 銃 - 首飾り - 鎧 - 靴 - 指輪 - 武器）。隣り合い・向かい合いはこの並びで見る */
+export const CONSTELLATION_RING: readonly Slot[] = ["weapon", "gun", "amulet", "armor", "boots", "ring"];
+/** 輪で向かい合う 3 組 */
+const OPPOSED_SLOTS: readonly (readonly [Slot, Slot])[] = [
+  ["weapon", "armor"],
+  ["gun", "boots"],
+  ["amulet", "ring"],
+];
+
+export type MainColors = Readonly<Record<Slot, TraitColor | undefined>>;
+
+/**
+ * 遺物 1 つの主色: 性質（implicit を除く）の色の重みが最も大きい色。同点なら先に付いた性質の色。
+ * 色を持たない（脱色済み・性質なし）なら undefined
+ */
+export function itemMainColor(affixes: readonly AffixRoll[]): TraitColor | undefined {
+  const weights = colorWeights(affixes);
+  const best = Math.max(...TRAIT_COLORS.map((c) => weights[c]));
+  if (best <= 0) return undefined;
+  for (const roll of affixes) {
+    const color = traitColorOf(roll);
+    if (color !== undefined && Math.abs(weights[color] - best) < FLOAT_EPSILON) return color;
+  }
+  return undefined;
+}
+
+/** 装備の部位ごとの主色（空き部位は undefined） */
+export function mainColors(equipment: Equipment): MainColors {
+  const out: Record<Slot, TraitColor | undefined> = {
+    weapon: undefined,
+    gun: undefined,
+    armor: undefined,
+    boots: undefined,
+    ring: undefined,
+    amulet: undefined,
+  };
+  for (const slot of CONSTELLATION_RING) {
+    const item = equipment[slot];
+    if (item !== null) out[slot] = itemMainColor(item.affixes);
+  }
+  return out;
+}
+
+function same(a: TraitColor | undefined, b: TraitColor | undefined): boolean {
+  return a !== undefined && a === b;
+}
+
+/** 輪の上の隣り合う 2 部位（最後と最初も隣り合う） */
+function ringNeighbors(): (readonly [Slot, Slot])[] {
+  return CONSTELLATION_RING.map((slot, i) => [slot, CONSTELLATION_RING[(i + 1) % CONSTELLATION_RING.length] ?? slot] as const);
+}
+
+type ConstellationRule = (main: MainColors) => boolean;
+
+const CONSTELLATION_RULES: Readonly<Record<ConstellationKey, ConstellationRule>> = {
+  twins: (m) => same(m.weapon, m.gun),
+  shores: (m) => m.weapon !== undefined && m.gun !== undefined && (OPPOSITE_COLOR[m.weapon] === m.gun || OPPOSITE_COLOR[m.gun] === m.weapon),
+  spine: (m) => same(m.amulet, m.armor) && same(m.armor, m.boots),
+  ring: (m) => new Set(CONSTELLATION_RING.map((s) => m[s]).filter((c) => c !== undefined)).size === TRAIT_COLORS.length,
+  mirror: (m) => OPPOSED_SLOTS.every(([a, b]) => same(m[a], m[b])),
+  void: (m) =>
+    CONSTELLATION_RING.filter((s) => m[s] === "umbra").length >= RESONANCE.voidMinUmbra &&
+    ringNeighbors().every(([a, b]) => !(m[a] === "umbra" && m[b] === "umbra")),
+  chain: (m) =>
+    CONSTELLATION_RING.every((s) => m[s] !== undefined) && ringNeighbors().every(([a, b]) => m[a] !== m[b]),
+};
+
+/** 判定の順（表の順で最初に成立したもの 1 つ） */
+const CONSTELLATION_ORDER: readonly ConstellationKey[] = ["twins", "shores", "spine", "ring", "mirror", "void", "chain"];
+
+/** 主色の並びから星座を 1 つ決める。成立しなければ undefined */
+export function resolveConstellation(main: MainColors): ConstellationKey | undefined {
+  return CONSTELLATION_ORDER.find((key) => CONSTELLATION_RULES[key](main));
+}
+
+export interface ConstellationDef {
+  name: string;
+  /** 並びの条件（UI） */
+  pattern: string;
+  /** 動詞で語る効果。最後の行が代償 */
+  lines: readonly string[];
+  apply: (stats: PlayerStats) => void;
+}
+
+const pctText = (ratio: number): number => Math.round(ratio * PERCENT);
+
+/** 星座の効果。すべて代償を持つ（単一の最強の並びを作らない） */
+export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>> = {
+  twins: {
+    name: "双子",
+    pattern: "武器と銃が同じ主色",
+    lines: [
+      `近接と射撃の上乗せのうち ${pctText(RESONANCE.twinsShare)}% が、もう片方にも効く`,
+      `代償: 攻撃速度・連射速度 -${pctText(RESONANCE.twinsTempoLoss)}%`,
+    ],
+    apply: (s) => {
+      const melee = Math.max(0, s.meleeDamageMul - 1);
+      const ranged = Math.max(0, s.rangedDamageMul - 1);
+      s.meleeDamageMul += ranged * RESONANCE.twinsShare;
+      s.rangedDamageMul += melee * RESONANCE.twinsShare;
+      s.attackSpeedMul -= RESONANCE.twinsTempoLoss;
+      s.fireRateMul -= RESONANCE.twinsTempoLoss;
+    },
+  },
+  shores: {
+    name: "対岸",
+    pattern: "武器と銃が反対色",
+    lines: [
+      `直前と違う攻撃手段で当てると怯み値 +${pctText(RESONANCE.shoresPoise)}%`,
+      `代償: 同じ手段が続くと怯み値 -${pctText(RESONANCE.shoresRepeat)}%`,
+    ],
+    apply: (s) => {
+      s.traits.alternatePoiseMul += RESONANCE.shoresPoise;
+      s.traits.repeatPoisePenalty += RESONANCE.shoresRepeat;
+    },
+  },
+  spine: {
+    name: "背骨",
+    pattern: "首飾り・鎧・靴が同じ主色",
+    lines: [`被ダメージ -${pctText(RESONANCE.spineGuard)}%`, `代償: 移動速度 -${pctText(RESONANCE.spineSlow)}%`],
+    apply: (s) => {
+      s.damageTakenMul -= RESONANCE.spineGuard;
+      s.moveSpeedMul -= RESONANCE.spineSlow;
+    },
+  },
+  ring: {
+    name: "環",
+    pattern: "6 部位の主色に 5 色すべてが出る",
+    lines: [`全ステータス +${RESONANCE.ringAttr}`, `代償: 最大気力 -${RESONANCE.ringManaLoss}`],
+    apply: (s) => {
+      for (const k of ATTR_KEYS) s.attributes[k] += RESONANCE.ringAttr;
+      s.maxMana -= RESONANCE.ringManaLoss;
+    },
+  },
+  mirror: {
+    name: "鏡像",
+    pattern: "輪で向かい合う 3 組（武器と鎧・銃と靴・首飾りと指輪）が同じ主色",
+    lines: [`装備のトリガーの内部クールダウン -${pctText(RESONANCE.mirrorIcdCut)}%`, `代償: 最大生命 -${RESONANCE.mirrorHpLoss}`],
+    apply: (s) => {
+      s.traits.triggerIcdCut = Math.max(s.traits.triggerIcdCut, RESONANCE.mirrorIcdCut);
+      s.maxHp -= RESONANCE.mirrorHpLoss;
+    },
+  },
+  void: {
+    name: "虚空",
+    pattern: `主色が冥の遺物が ${RESONANCE.voidMinUmbra} つ以上で、隣り合わない`,
+    lines: ["反転した性質の負の値が 0 になる", `代償: 被ダメージ +${pctText(RESONANCE.voidExposure)}%`],
+    // 反転の打ち消しは性質の適用前に掛ける（stats.ts が cancelInversions を呼ぶ）。ここは代償だけ
+    apply: (s) => {
+      s.damageTakenMul += RESONANCE.voidExposure;
+    },
+  },
+  chain: {
+    name: "鎖",
+    pattern: "隣り合う部位がすべて違う主色（6 部位すべて）",
+    lines: [`直前と違う攻撃手段で当てるたびに気力 +${RESONANCE.chainMana}`, `代償: 気力回収 -${pctText(RESONANCE.chainGainLoss)}%`],
+    apply: (s) => {
+      s.traits.switchMana += RESONANCE.chainMana;
+      s.manaGainMul -= RESONANCE.chainGainLoss;
+    },
+  },
+};
+
+/** 虚空: 反転した性質の値を 0 にしたコピー（散光の打ち消しと同じ扱い） */
+export function cancelInversions(rolls: readonly AffixRoll[]): AffixRoll[] {
+  return rolls.map((roll) => (roll.inverted === true ? scaled(roll, SCATTER_INVERSION_CANCEL) : roll));
+}
+
+export function applyConstellation(stats: PlayerStats, key: ConstellationKey): void {
+  CONSTELLATIONS[key].apply(stats);
+}
+
+function describeConstellation(key: ConstellationKey | undefined): string[] {
+  if (key === undefined) return [];
+  const def = CONSTELLATIONS[key];
+  return [`星座 ${def.name}（${def.pattern}）`, ...def.lines];
 }

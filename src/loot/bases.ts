@@ -38,6 +38,16 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "gauntlets", name: "手甲", slot: "weapon", minLevel: 3, moveset: "fists" },
   { key: "whip", name: "鞭", slot: "weapon", minLevel: 6, moveset: "whip" },
   { key: "wand", name: "杖", slot: "weapon", minLevel: 5, moveset: "wand" },
+  // 2026-09 第 2 弾: 武器種ごとに器を選べるように（implicit で個性を付ける）
+  { key: "katana", name: "打刀", slot: "weapon", minLevel: 6, implicitKey: "implicit.katana", moveset: "sword" },
+  { key: "zanbato", name: "斬馬刀", slot: "weapon", minLevel: 12, implicitKey: "implicit.zanbato", moveset: "greatsword" },
+  { key: "twinDaggers", name: "双短刀", slot: "weapon", minLevel: 3, implicitKey: "implicit.twinDaggers", moveset: "twinBlades" },
+  { key: "halberd", name: "矛槍", slot: "weapon", minLevel: 11, implicitKey: "implicit.halberd", moveset: "spear" },
+  { key: "sickle", name: "小鎌", slot: "weapon", minLevel: 5, implicitKey: "implicit.sickle", moveset: "scythe" },
+  { key: "cestus", name: "鉄拳", slot: "weapon", minLevel: 8, implicitKey: "implicit.cestus", moveset: "fists" },
+  { key: "chainWhip", name: "鎖鞭", slot: "weapon", minLevel: 10, implicitKey: "implicit.chainWhip", moveset: "whip" },
+  { key: "shakujo", name: "錫杖", slot: "weapon", minLevel: 9, implicitKey: "implicit.shakujo", moveset: "staff" },
+  { key: "crystalWand", name: "水晶杖", slot: "weapon", minLevel: 11, implicitKey: "implicit.crystalWand", moveset: "wand" },
 
   // gun: 連射 / 弾数 / 貫通
   { key: "pistol", name: "拳銃", slot: "gun", minLevel: 1, implicitKey: "implicit.pistol", shot: "single" },
@@ -52,6 +62,13 @@ export const BASES: readonly BaseItemDef[] = [
   // 射撃の型の器（implicit なし）
   { key: "ricochetGun", name: "跳ね銃", slot: "gun", minLevel: 5, shot: "ricochet" },
   { key: "mineLauncher", name: "置き撃ち筒", slot: "gun", minLevel: 10, shot: "mine" },
+  // 2026-09 第 2 弾: 射撃の型ごとに器を選べるように
+  { key: "blunderbuss", name: "喇叭銃", slot: "gun", minLevel: 6, implicitKey: "implicit.blunderbuss", shot: "spread" },
+  { key: "crossbow", name: "弩", slot: "gun", minLevel: 5, implicitKey: "implicit.crossbow", shot: "pierce" },
+  { key: "chakram", name: "円月輪", slot: "gun", minLevel: 9, implicitKey: "implicit.chakram", shot: "ricochet" },
+  { key: "handCannon", name: "手砲", slot: "gun", minLevel: 13, implicitKey: "implicit.handCannon", shot: "charge" },
+  { key: "caltrops", name: "撒き菱筒", slot: "gun", minLevel: 7, implicitKey: "implicit.caltrops", shot: "mine" },
+  { key: "seekerOrb", name: "導きの珠", slot: "gun", minLevel: 8, implicitKey: "implicit.seekerOrb", shot: "homing" },
 
   // armor: HP / armor
   { key: "cloth", name: "布の服", slot: "armor", minLevel: 1, implicitKey: "implicit.cloth" },
@@ -64,6 +81,7 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "robe", name: "法衣", slot: "armor", minLevel: 5, implicitKey: "implicit.robe" },
   { key: "scale", name: "鱗鎧", slot: "armor", minLevel: 9, implicitKey: "implicit.scale" },
   { key: "spiked", name: "棘甲", slot: "armor", minLevel: 11, implicitKey: "implicit.spiked" },
+  { key: "mino", name: "蓑", slot: "armor", minLevel: 4, implicitKey: "implicit.mino" },
 
   // boots: 移動 / ダッシュ
   { key: "sandals", name: "草鞋", slot: "boots", minLevel: 1, implicitKey: "implicit.sandals" },

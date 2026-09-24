@@ -1,4 +1,8 @@
 import { SfxPlayer } from "./audio/sfx";
+import { MusicPlayer, musicCue } from "./audio/music";
+import { isEngaged } from "./system/engagement";
+import { bossEnemy } from "./system/boss";
+import { isStaggered } from "./system/poise";
 import { createGame, step } from "./core/game";
 import { GamepadInput } from "./core/gamepad";
 import { KEYBIND_SLOTS, PlayerInput, assignBinding, clearBinding, isAssignableCode, type FrameInput } from "./core/input";
@@ -66,6 +70,7 @@ import {
 } from "./ui/title";
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
 import {
+  adjustMusicVolume,
   adjustScreenShake,
   adjustVolume,
   loadSettings,
@@ -206,9 +211,14 @@ const unlockAudio = (): void => sfx.unlock();
 window.addEventListener("keydown", unlockAudio);
 window.addEventListener("mousedown", unlockAudio);
 
+// 音楽は効果音と AudioContext を共有する（unlock 前は鳴らない）
+const music = new MusicPlayer(() => sfx.context());
+
 function applySettings(): void {
   sfx.setMuted(settings.muted);
   sfx.setMasterVolume(settings.volume);
+  music.setMuted(settings.muted);
+  music.setVolume(settings.volume * settings.musicVolume);
   saveSettings(settings);
 }
 applySettings();
@@ -627,6 +637,33 @@ function titleMetaView(): { title: string | null; hovered: TitleMenuItem | null 
   return { title: currentTitleLabel(achievementSave, questSave), hovered: aim ? titleMenuItemAt(aim.x, aim.y) : null };
 }
 
+/**
+ * 音楽の切り替え（src/audio/music.ts）。state は音楽を知らないので、ここで state を読んで曲を選ぶ。
+ * ラン中の画面（プレイ・一時停止・設定・装備画面）は鳴らし続け、タイトル系・死亡後は止める
+ */
+const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay"]);
+function updateMusic(): void {
+  const s = screen === "replay" ? (replay?.session.state ?? null) : state;
+  const inRun = s !== null && s.status !== "dead" && MUSIC_RUN_SCREENS.has(screen);
+  if (!s || !inRun) {
+    music.update(musicCue({ inRun: false, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
+    return;
+  }
+  const bossFoe = s.boss && !s.boss.defeated ? bossEnemy(s) : undefined;
+  music.update(
+    musicCue({
+      inRun,
+      floorKind: s.floorKind,
+      engaged: isEngaged(s),
+      // ボスの部屋が封鎖されてから（登場演出以降）ボス曲にする
+      boss: bossFoe !== undefined && s.rooms[s.boss?.roomIndex ?? -1]?.locked === true,
+      bossDown: bossFoe !== undefined && isStaggered(bossFoe),
+      seed: s.seed,
+      depth: s.depth,
+    }),
+  );
+}
+
 function drainSfx(s: GameState | null = state): void {
   if (!s) return;
   const names = s.sfx.splice(0);
@@ -683,6 +720,7 @@ startLoop(
     const padInGame = screen === "playing" && !inventoryUi.open;
     if (padInGame ? gamepad.pausePressed() : input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
+    updateMusic();
 
     if (gamepad.consumeJustConnected()) gamepadConnectedTimer = GAMEPAD_CONNECTED_MESSAGE_DURATION;
     if (gamepadConnectedTimer > 0) gamepadConnectedTimer = Math.max(0, gamepadConnectedTimer - dt);
@@ -830,6 +868,9 @@ startLoop(
             applySettings();
           } else if (item === "volume") {
             adjustVolume(settings, dir);
+            applySettings();
+          } else if (item === "musicVolume") {
+            adjustMusicVolume(settings, dir);
             applySettings();
           } else if (item === "screenShake") {
             adjustScreenShake(settings, dir);

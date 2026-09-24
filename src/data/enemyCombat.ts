@@ -332,6 +332,8 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     immune: BOSS_IMMUNE,
   },
   icePillar: { staggerTime: 0, superArmorMul: 1, inflicts: [], immune: FIXTURE_IMMUNE, keywords: kw([], ["area"]) },
+  // 試し場の木人（src/system/specialRooms.ts）。怯みや状態異常の入り方を試せるよう、免疫は持たない
+  trainingDummy: { poise: 40, staggerTime: 0.6, superArmorMul: 1, inflicts: [], keywords: kw([], ["melee", "ranged"]) },
   // 鏡の部屋の写し（src/system/specialRooms.ts）。ジャスト回避・カウンターで返す相手
   mirrorSelf: { poise: 70, staggerTime: 0.8, superArmorMul: 0.5, inflicts: [], keywords: kw(["elite", "dash"], ["just", "counter"]) },
 };

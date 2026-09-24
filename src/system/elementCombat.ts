@@ -184,6 +184,28 @@ export function playerMitigationMul(stats: Readonly<PlayerStats>, atk: AttackPro
   return (1 - playerDefenseReduction(stats, quality)) * (1 - effectiveResist(stats.resist[element]) / PERCENT);
 }
 
+// -----------------------------------------------------------------------------
+// 継続ダメージ（燃焼・毒など）
+// -----------------------------------------------------------------------------
+
+/**
+ * 継続ダメージの属性。属性を持つ継続ダメージは、受け手の属性耐性で増減する（毒に強い沼の敵へ毒が素通しにならない）。
+ * 防御 / 魔防は掛けない（継続ダメージは質軸を持たない）。出血・大出血は属性を持たない（無属性にもしない）
+ */
+const DOT_ELEMENT: Readonly<Partial<Record<StatusKind, Element>>> = {
+  burn: "fire",
+  blaze: "fire",
+  poison: "poison",
+};
+
+/** 継続ダメージに掛ける耐性の倍率。enemy が null ならプレイヤー（ソフトキャップ後の耐性） */
+export function dotResistMul(stats: Readonly<PlayerStats>, enemy: Enemy | null, status: StatusKind): number {
+  const element = DOT_ELEMENT[status];
+  if (element === undefined) return 1;
+  const resist = enemy ? enemyResistTable(enemyGuard(enemy.defKey), stageOf(enemy))[element] : effectiveResist(stats.resist[element]);
+  return 1 - resist / PERCENT;
+}
+
 /** 敵の攻撃の素性（attacker が無ければ null） */
 export function enemyAttackOf(attacker: Enemy | undefined): AttackProfile | null {
   return attacker ? enemyGuard(attacker.defKey).attack : null;

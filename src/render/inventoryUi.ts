@@ -5,8 +5,22 @@ import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
 import { type SynergyDescription, describeItem, describeResonance, describeSynergy, itemColorBar } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item, type Slot } from "../loot/types";
 import { statsSummary } from "../loot/stats";
-import { BURDEN_LABEL, MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, modifierVerb, resolveCast, stoneLabel } from "../skills/data";
-import { COMBOS } from "../skills/combos";
+import {
+  BURDEN_LABEL,
+  MODIFIERS,
+  SKILL,
+  SKILL_DEFS,
+  burdenLinks,
+  castBurden,
+  castInterval,
+  formatVariant,
+  modifierVerb,
+  resolveCast,
+  stoneLabel,
+} from "../skills/data";
+import { WEAR_TUNING } from "../skills/tuning2";
+import { wearSummary } from "../skills/wear";
+import { COMBOS, comboAfter } from "../skills/combos";
 import { findStone, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
 import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
@@ -353,8 +367,10 @@ function stoneSynergyLines(state: GameState, stone: SkillStone, slot: number, mo
   if (words.length > 0) lines.push({ text: `${GROWN_MARK} 今のビルドと噛む（${labels(words)}）`, color: COLOR_SYNERGY });
   for (const key of def.combos ?? []) {
     const combo = COMBOS[key];
-    if (!partnerEquipped(state, combo.after, slot)) continue;
-    lines.push({ text: `連携「${combo.name}」: ${SKILL_DEFS[combo.after].name} → これ`, color: COLOR_SYNERGY });
+    // 先のスキルが複数ある連携（変身 → 奥義）は、装着済みの最初の 1 つを出す
+    const after = comboAfter(combo).find((k) => partnerEquipped(state, k, slot));
+    if (after === undefined) continue;
+    lines.push({ text: `連携「${combo.name}」: ${SKILL_DEFS[after].name} → これ`, color: COLOR_SYNERGY });
   }
   return lines;
 }
@@ -525,7 +541,8 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   // 装備画面での付け外しは次のステップまで slot.modifiers に入らないので、石から直接読む
   const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot) : stoneModifierKeys(stone);
   const params = resolveCast(def, stone, modifiers);
-  const linkPenalty = Math.round(stone.links * SKILL.linkBurdenPenalty * PERCENT);
+  // 使い込みの枠の芽で増えたリンクは負担に数えない
+  const linkPenalty = Math.round(burdenLinks(stone) * SKILL.linkBurdenPenalty * PERCENT);
   const burdenName = BURDEN_LABEL[params.resource];
   const attackLine = skillAttackLine(def.key);
   const lines: TipLine[] = [
@@ -534,6 +551,7 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
     ...(attackLine === null ? [] : [{ text: attackLine, color: COLOR_DIM }]),
     { text: `${def.tags.join(" / ")}  ${burdenText(state, def, params)}`, color: COLOR_DIM },
     { text: `リンク ${stone.links}（基本${burdenName} +${linkPenalty}%）`, color: COLOR_TEXT },
+    { text: wearSummary(stone), color: WEAR_TUNING.color },
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });
   for (const v of stone.variants) lines.push({ text: formatVariant(v, def, params.resource), color: COLOR_TEXT });

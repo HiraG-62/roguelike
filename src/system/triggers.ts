@@ -12,7 +12,7 @@ import { isEngaged } from "./engagement";
 import { gainMana } from "./mana";
 import { addPoise } from "./poise";
 import { applyBurn, applyChill, applyStatus, chainLightning, enemiesInRadius, explodeAt, hasStatus, removeStatus } from "./statusEffects";
-import { afflictionKinds, afflictionList, tickTraitClocks } from "./traitHooks";
+import { afflictionKinds, afflictionList, tickTraitClocks, traitTriggerIcdMul } from "./traitHooks";
 
 /**
  * trigger × condition × effect の条件付き効果を実行する。
@@ -63,7 +63,8 @@ export function fireTrigger(state: GameState, kind: TriggerKind, ctx: TriggerCon
     const rule = ruleFromTrigger(t, index);
     if (!ruleConditionsMet(state, rule.if, ctx)) return;
     if (!state.rng.chance(rule.chance)) return;
-    p.triggerCooldowns.set(key, rule.icd);
+    // 星座「鏡像」は内部クールダウンを縮める
+    p.triggerCooldowns.set(key, rule.icd * traitTriggerIcdMul(state));
     runEffect(state, t, ctx);
   });
 }

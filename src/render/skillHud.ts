@@ -15,6 +15,8 @@ import {
   wellRadius,
 } from "../skills/placed";
 import { meteorRadius, stompRadius } from "../skills/actions";
+import { shiftElement, stakeSegments } from "../skills/actions2";
+import { ELEMENT_COLOR, type Element } from "../core/element";
 import { COMBO_TUNING } from "../skills/tuning";
 import {
   COLOR_BONE,
@@ -160,6 +162,21 @@ const COLOR_GUILLOTINE = "#ffffff";
 const COLOR_STOMP = "#d0a060";
 const THREAD_DASH = [2, 2];
 
+// ---- 第 2 弾の描画 ----
+const COLOR_STAKE = "#d0c090";
+const COLOR_TRAP = MODIFIERS.toTrap.color;
+const COLOR_FORM = "#ff90d0";
+const STAKE_H = 7;
+const STAKE_LINE_ALPHA = 0.55;
+const STAKE_FILL_ALPHA = 0.12;
+const TRAP_SIZE = 3;
+const TRAP_ARMED_BLINK = 10;
+const FORM_RING_PAD = 5;
+const FORM_SPIN = 6;
+const FORM_SEGMENTS = 3;
+const FORM_SEGMENT_SPAN = 1.2;
+const ELEMENT_MARK = 2;
+
 export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): void {
   const cam = state.camera;
   const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
@@ -170,8 +187,10 @@ export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): v
   drawRunes(ctx, state);
   drawFields(ctx, state);
   drawSprings(ctx, state);
+  drawStakes(ctx, state);
   drawWells(ctx, state);
   drawMines(ctx, state);
+  drawTraps(ctx, state);
   drawKegs(ctx, state);
   drawGraves(ctx, state);
   drawTurrets(ctx, state);
@@ -184,6 +203,7 @@ export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): v
   drawBones(ctx, state);
   drawCurses(ctx, state);
   for (const g of state.skills.ghosts) drawGhost(ctx, state, g);
+  drawForm(ctx, state);
   drawActive(ctx, state);
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -505,6 +525,82 @@ function drawBones(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
+/** 結界杭: 杭と、杭同士を結ぶ線。3 本以上なら内側を薄く塗る（中の敵は脆くなる） */
+function drawStakes(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const stakes = state.skills.stakes;
+  if (stakes.length === 0) return;
+  if (stakes.length >= 3) {
+    ctx.beginPath();
+    stakes.forEach((s, i) => (i === 0 ? ctx.moveTo(s.pos.x, s.pos.y) : ctx.lineTo(s.pos.x, s.pos.y)));
+    ctx.closePath();
+    ctx.globalAlpha = STAKE_FILL_ALPHA;
+    ctx.fillStyle = COLOR_STAKE;
+    ctx.fill();
+  }
+  ctx.globalAlpha = STAKE_LINE_ALPHA;
+  ctx.strokeStyle = COLOR_STAKE;
+  for (const [a, b] of stakeSegments(stakes)) {
+    ctx.beginPath();
+    ctx.moveTo(a.pos.x, a.pos.y);
+    ctx.lineTo(b.pos.x, b.pos.y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  for (const s of stakes) {
+    const x = Math.round(s.pos.x);
+    const y = Math.round(s.pos.y);
+    ctx.globalAlpha = ZONE_FADE_MIN + (1 - ZONE_FADE_MIN) * (s.total > 0 ? s.life / s.total : 0);
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(x - 1, y - STAKE_H - 1, 3, STAKE_H + 2);
+    ctx.fillStyle = COLOR_STAKE;
+    ctx.fillRect(x, y - STAKE_H, 1, STAKE_H);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** 型替え符「罠化」の罠: 起動前は暗く、起動後は点滅する菱形と踏まれる範囲 */
+function drawTraps(ctx: CanvasRenderingContext2D, state: GameState): void {
+  for (const t of state.skills.traps) {
+    const x = Math.round(t.pos.x);
+    const y = Math.round(t.pos.y);
+    const armed = t.arm <= 0;
+    circlePath(ctx, x, y, SKILL.modifier.toTrap.trigger);
+    ctx.globalAlpha = armed ? MINE_RANGE_ALPHA : MINE_RANGE_ALPHA / 2;
+    ctx.strokeStyle = COLOR_TRAP;
+    ctx.stroke();
+    const lit = !armed || Math.sin(state.time * TRAP_ARMED_BLINK) > 0;
+    ctx.globalAlpha = lit ? 1 : ZONE_FADE_MIN;
+    ctx.fillStyle = COLOR_TRAP;
+    ctx.beginPath();
+    ctx.moveTo(x, y - TRAP_SIZE);
+    ctx.lineTo(x + TRAP_SIZE, y);
+    ctx.lineTo(x, y + TRAP_SIZE);
+    ctx.lineTo(x - TRAP_SIZE, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** 変身中: 自分の周りを回る桃色の弧。弧の長さが残り時間 */
+function drawForm(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const form = state.skills.form;
+  if (!form) return;
+  const p = state.player.body;
+  const radius = p.radius + FORM_RING_PAD;
+  const remain = form.total > 0 ? Math.max(0, form.timer / form.total) : 0;
+  const base = state.time * FORM_SPIN;
+  ctx.strokeStyle = COLOR_FORM;
+  ctx.globalAlpha = AIM_ALPHA;
+  for (let i = 0; i < FORM_SEGMENTS; i++) {
+    const start = base + (i * FULL_CIRCLE) / FORM_SEGMENTS;
+    ctx.beginPath();
+    ctx.arc(p.pos.x, p.pos.y, radius, start, start + FORM_SEGMENT_SPAN * remain);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
 /** 湧き石: 青い円（この中で近接を当てるとマナが多く戻る） */
 function drawSprings(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.springs) {
@@ -751,6 +847,15 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   drawModifierDots(ctx, state, index, x, y);
   drawChargeGauge(ctx, state, index, x, y);
   drawComboMark(ctx, state, index, x, y);
+  if (stone?.skillKey === "shiftingEdge" && slot) drawElementMark(ctx, shiftElement(slot.elementStep), x, y);
+}
+
+/** 移ろい刃: 次に撃つ属性の色を枠の右上に小さく出す */
+function drawElementMark(ctx: CanvasRenderingContext2D, element: Element, x: number, y: number): void {
+  ctx.fillStyle = COLOR_BLACK;
+  ctx.fillRect(x + HUD_SIZE - ELEMENT_MARK - 3, y + 1, ELEMENT_MARK + 2, ELEMENT_MARK + 2);
+  ctx.fillStyle = ELEMENT_COLOR[element];
+  ctx.fillRect(x + HUD_SIZE - ELEMENT_MARK - 2, y + 2, ELEMENT_MARK, ELEMENT_MARK);
 }
 
 /** 連携可: いま撃てばこのスロットが連携で変化するなら、枠の左上に点滅する小さな菱形 */

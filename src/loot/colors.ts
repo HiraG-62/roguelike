@@ -118,8 +118,9 @@ export function defaultColorOfKey(key: string): TraitColor | undefined {
   return undefined;
 }
 
-/** ロール済みの性質の色。反転していれば冥、次に保存された色、無ければ既定色 */
+/** ロール済みの性質の色。脱色済みは無色、反転していれば冥、次に保存された色、無ければ既定色 */
 export function traitColorOf(roll: AffixRoll): TraitColor | undefined {
+  if (roll.colorless === true) return undefined;
   if (roll.inverted === true) return "umbra";
   return roll.color ?? defaultColorOfKey(roll.key);
 }
@@ -188,6 +189,23 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   wand: "azure",
   ricochetGun: "gold",
   mineLauncher: "crimson",
+  // 2026-09 第 2 弾
+  katana: "gold",
+  zanbato: "crimson",
+  twinDaggers: "gold",
+  halberd: "crimson",
+  sickle: "umbra",
+  cestus: "crimson",
+  chainWhip: "gold",
+  shakujo: "azure",
+  crystalWand: "gold",
+  blunderbuss: "crimson",
+  crossbow: "azure",
+  chakram: "azure",
+  handCannon: "crimson",
+  caltrops: "jade",
+  seekerOrb: "umbra",
+  mino: "jade",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

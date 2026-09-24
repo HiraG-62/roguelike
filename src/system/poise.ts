@@ -4,7 +4,7 @@ import { normalize, sub } from "../core/vec";
 import { enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { POISE, STATUS } from "../data/tuning";
-import { addFloatingText, spawnBurst } from "./effects";
+import { addFloatingText, markExecuted, spawnBurst } from "./effects";
 import { shieldLeft } from "./elites";
 import { gainMana } from "./mana";
 import { boonSkipsGuarded, onBoonStagger, onBoonStaggerEnd } from "./boonRules";
@@ -128,6 +128,7 @@ function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
   if (amount < POISE.executeMinPoise || e.hp <= 0 || !isStaggered(e)) return false;
   if (isExecuteImmune(enemyDef(e.defKey)) || e.hp > e.maxHp * POISE.executeHpRatio) return false;
   e.hp = 0;
+  markExecuted(state, e);
   addFloatingText(state, e.body.pos, EXECUTE_TEXT, EXECUTE_COLOR, EXECUTE_TEXT_SCALE, 0.7);
   spawnBurst(state, e.body.pos, EXECUTE_COLOR, EXECUTE_PARTICLES, 180, 0.45, 2.5);
   pushSfx(state, "hitHeavy");

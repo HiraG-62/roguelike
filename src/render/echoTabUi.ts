@@ -1,6 +1,19 @@
 import type { GameState } from "../core/state";
 import { describeItem, describeTrait } from "../loot/describe";
-import { DYE_COST, ECHO_LABEL, ECHO_OP_HINT, ECHO_OP_LABEL, canAffordEcho, echoCost, type EchoOp } from "../loot/crafting";
+import { formatAffix } from "../loot/affixes";
+import {
+  DYE_COST,
+  ECHO_LABEL,
+  ECHO_OP_HINT,
+  ECHO_OP_LABEL,
+  canAffordEcho,
+  canBleachTrait,
+  canRecallBud,
+  canTension,
+  echoCost,
+  type EchoOp,
+} from "../loot/crafting";
+import { milestoneDef } from "../loot/provenance";
 import { traitColorOf } from "../loot/colors";
 import { TRAIT_COLOR_HEX, type Item, type TraitColor } from "../loot/types";
 import { itemColor } from "../system/loot";
@@ -40,11 +53,11 @@ import { TEXT, drawText, truncateText, wrapText } from "./pixelText";
 
 /**
  * 残響タブの描画（ui/echoTab.ts の layoutEcho と当たり判定を共有）。state と ui を読むだけ。
- * 左列: 残響の所持数 → 操作ボタン 7 → 実行ボタン（費用。払えなければ灰色）→ 次の手順・操作の説明・結果。
- * 右列: 倉庫（対象 / 移し先の選択）→ 対象の詳細（性質の行をクリックで選ぶ、染めは色も選ぶ）
+ * 左列: 残響の所持数 → 操作ボタン 12 → 実行ボタン（費用。払えなければ灰色）→ 次の手順・操作の説明・結果。
+ * 右列: 倉庫（対象 / 移し先・注ぎ先の選択）→ 対象の詳細（性質の行をクリックで選ぶ、染めは色も選ぶ。呼び戻しは過去の芽の行）
  */
 
-const HINT_ECHO = "倉庫で対象 → 操作 → 性質（→ 色 / 移し先）→ 実行  装備中の遺物は対象外  Tab: 閉じる";
+const HINT_ECHO = "倉庫で対象 → 操作 → 性質・芽（→ 色 / 受け取る遺物）→ 実行  装備中の遺物は対象外  Tab: 閉じる";
 const COLOR_BUTTON_BG = "rgba(255,255,255,0.08)";
 const COLOR_DISABLED_BG = "rgba(255,255,255,0.03)";
 const COLOR_PICK_BG = "rgba(255,215,95,0.14)";
@@ -53,6 +66,8 @@ const BUTTON_BASELINE = 11;
 const EXECUTE_BASELINE = 12;
 const ROW_TEXT_BASELINE = 8;
 const WALLET_BASELINE_INSET = 2;
+/** 操作ボタンの文字の左右の余白（3 列にしたので、長い名前は切り詰める） */
+const BUTTON_TEXT_PAD = 4;
 
 export function drawEchoTab(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi, hintRect: Rect): void {
   const layout = layoutEcho(state, ui);
@@ -78,7 +93,8 @@ function drawOpButton(ctx: CanvasRenderingContext2D, ui: EchoUi, op: EchoOp, rec
   fillRectPx(ctx, rect, COLOR_BUTTON_BG);
   if (ui.hoverOp === op) fillRectPx(ctx, rect, COLOR_HOVER_BG);
   strokeRectPx(ctx, rect, selected ? COLOR_SELECTED : COLOR_BORDER);
-  drawText(ctx, ECHO_OP_LABEL[op], rect.x + rect.w / 2, rect.y + BUTTON_BASELINE, TEXT.SMALL, selected ? COLOR_SELECTED : COLOR_TEXT, "center");
+  const label = truncateText(ECHO_OP_LABEL[op], rect.w - BUTTON_TEXT_PAD, TEXT.SMALL);
+  drawText(ctx, label, rect.x + rect.w / 2, rect.y + BUTTON_BASELINE, TEXT.SMALL, selected ? COLOR_SELECTED : COLOR_TEXT, "center");
 }
 
 /** 実行ボタン: 費用は echoCost。選択が足りない・払えないときは灰色 */
@@ -120,14 +136,15 @@ function drawStatus(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi,
 
 function choosingDestination(state: GameState, ui: EchoUi): boolean {
   const target = echoTarget(state, ui);
-  return ui.op === "transfer" && target !== null && transferWhatOf(target, ui.pick) !== null;
+  if (target === null) return false;
+  return ui.op === "pour" || (ui.op === "transfer" && transferWhatOf(target, ui.pick) !== null);
 }
 
 function drawEchoStash(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi, layout: EchoLayout): void {
   const m = TEXT.SMALL;
   const header = layout.stashHeader;
   const destination = choosingDestination(state, ui);
-  const title = destination ? "倉庫: 移し先を選ぶ（同じ部位）" : "倉庫: 対象を選ぶ";
+  const title = destination ? `倉庫: ${ui.op === "pour" ? "注ぎ先" : "移し先"}を選ぶ（同じ部位）` : "倉庫: 対象を選ぶ";
   drawText(ctx, title, header.x + TEXT_PAD_X, header.y + header.h - 2, m, destination ? COLOR_GROWN : COLOR_DIM);
   if (layout.stashOrder.length === 0) {
     drawText(ctx, "倉庫は空です", header.x + TEXT_PAD_X, header.y + header.h + bodyLineH(), m, COLOR_DIM);
@@ -164,15 +181,44 @@ function drawDetail(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi,
   if (target.affixes.length === 0) {
     drawText(ctx, "性質なし", x, rect.y + lineH * 3, m, COLOR_DIM);
   }
+  if (ui.op === "recall" && (target.buds ?? []).length === 0) {
+    drawText(ctx, "芽吹いた記録がない", x, rect.y + lineH * 3, m, COLOR_DIM);
+  }
   for (const row of layout.traitRows) drawTraitRow(ctx, ui, target, row.index, row.rect);
+  for (const row of layout.budRows) drawBudRow(ctx, ui, target, row.index, row.rect);
   if (layout.inscriptionRow !== null) drawInscriptionRow(ctx, ui, target, layout.inscriptionRow);
   for (const chip of layout.colorChips) drawColorChip(ctx, ui, target, chip.color, chip.rect);
 }
 
-/** 移しでは芽吹いた性質だけが選べる（他は灰色） */
+/** 操作ごとに選べる性質（移し = 芽吹いた性質、脱色 = 色のあるもの、張り = 代償付き）。他は灰色 */
 function traitSelectable(ui: EchoUi, target: Item, index: number): boolean {
-  if (ui.op !== "transfer") return true;
-  return transferWhatOf(target, { kind: "trait", index }) !== null;
+  switch (ui.op) {
+    case "transfer":
+      return transferWhatOf(target, { kind: "trait", index }) !== null;
+    case "bleach":
+      return canBleachTrait(target.affixes[index]);
+    case "tension":
+      return canTension(target.affixes[index]);
+    default:
+      return true;
+  }
+}
+
+/** 呼び戻しの行: 「節目: 選ばなかった方」。呼び戻せない芽は灰色 */
+function drawBudRow(ctx: CanvasRenderingContext2D, ui: EchoUi, target: Item, index: number, rect: Rect): void {
+  const bud = target.buds?.[index];
+  if (bud === undefined) return;
+  const picked = ui.pick?.kind === "bud" && ui.pick.index === index;
+  if (picked) {
+    fillRectPx(ctx, rect, COLOR_PICK_BG);
+    strokeRectPx(ctx, rect, COLOR_SELECTED);
+  }
+  const other = bud.options[bud.chosen === 0 ? 1 : 0];
+  const label = milestoneDef(bud.milestone)?.label ?? bud.milestone;
+  const usable = canRecallBud(target, index);
+  const text = `${label}: ${formatAffix(other)}`;
+  const maxWidth = rect.w - TEXT_PAD_X * 2;
+  drawText(ctx, truncateText(text, maxWidth, TEXT.SMALL), rect.x + TEXT_PAD_X, rect.y + ROW_TEXT_BASELINE, TEXT.SMALL, usable ? COLOR_GROWN : COLOR_EMPTY);
 }
 
 function drawTraitRow(ctx: CanvasRenderingContext2D, ui: EchoUi, target: Item, index: number, rect: Rect): void {

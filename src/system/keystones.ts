@@ -35,6 +35,16 @@ export const KS = {
   mirror: "ks_mirror",
   discipline: "ks_discipline",
   oblivion: "ks_oblivion",
+  // ---- 2026-09 第 2 弾（属性 / 武器 / 地形）。判定は src/system/traitHooks.ts ----
+  oneElement: "ks_oneElement",
+  weakOath: "ks_weakOath",
+  nullOath: "ks_nullOath",
+  ironOath: "ks_ironOath",
+  chargeOath: "ks_chargeOath",
+  stanceOath: "ks_stanceOath",
+  earthOath: "ks_earthOath",
+  slickOath: "ks_slickOath",
+  emberOath: "ks_emberOath",
 } as const;
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
@@ -73,6 +83,15 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_mirror: "鏡の誓い",
   ks_discipline: "修行の誓い",
   ks_oblivion: "忘却の誓い",
+  ks_oneElement: "一色の誓い",
+  ks_weakOath: "弱点の誓い",
+  ks_nullOath: "無の誓い",
+  ks_ironOath: "鉄の誓い",
+  ks_chargeOath: "溜めの誓い",
+  ks_stanceOath: "構えの誓い",
+  ks_earthOath: "土の誓い",
+  ks_slickOath: "滑りの誓い",
+  ks_emberOath: "熾火の誓い",
 };
 
 /** 誓約の判定に要る state の部分（テストで GameState 全体を作らずに済むよう絞る） */
@@ -103,9 +122,9 @@ export function gamblerMul(state: GameState): number {
   return KEYSTONE.gamblerMin + state.rng.next() * (KEYSTONE.gamblerMax - KEYSTONE.gamblerMin);
 }
 
-/** 毎秒回復が有効か（berserker / vampire は無効） */
+/** 毎秒回復が有効か（berserker / vampire は無効。土の誓いは地形の上の回復に置き換える） */
 export function regenAllowed(state: GameState): boolean {
-  return !hasKeystone(state, KS.berserker) && !hasKeystone(state, KS.vampire);
+  return !hasKeystone(state, KS.berserker) && !hasKeystone(state, KS.vampire) && !hasKeystone(state, KS.earthOath);
 }
 
 /** 回復量の倍率。狂戦士は半減、背水の誓いは交戦中の部屋で 0（制圧時の回復は部屋が開いた後に入る） */

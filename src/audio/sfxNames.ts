@@ -98,6 +98,53 @@ export const SFX_NAMES = [
   /** 属性の弱点 / 耐性に当たった（docs/COMBAT_DESIGN.md A-8） */
   "weakHit",
   "resistHit",
+  // ---- 武器種ごとの振り音（docs/ideas/meta-and-weapons.md 8-1。段の slash1〜3 に重ねる）----
+  "swingSword",
+  "swingGreatsword",
+  "swingTwinBlades",
+  "swingSpear",
+  "swingScythe",
+  "swingFists",
+  "swingWhip",
+  "swingCleaver",
+  "swingStaff",
+  "swingWand",
+  // ---- 射撃の型ごとの発射音（8-2。単発は shoot のまま）----
+  "shotRapid",
+  "shotSpread",
+  "shotPierce",
+  "shotHoming",
+  "shotRicochet",
+  "shotCharge",
+  "shotMine",
+  // ---- 属性の命中音（無属性は hit / bulletHit のまま）----
+  "hitFire",
+  "hitIce",
+  "hitLightning",
+  "hitPoison",
+  "hitDark",
+  "hitLight",
+  // ---- 状態異常の付与音（8-3）と怯みの成立（8-6）----
+  "statusPoison",
+  "statusBleed",
+  "statusParalyze",
+  "statusFear",
+  "statusCurse",
+  "statusWet",
+  "statusBuff",
+  "stagger",
+  "bossDown",
+  // ---- 響きの色ごとのドロップ音（8-5）----
+  "dropCrimson",
+  "dropAzure",
+  "dropJade",
+  "dropGold",
+  "dropUmbra",
+  // ---- 演出に合わせた音 ----
+  "crit",
+  "comboMilestone",
+  "hordeSeal",
+  "execute",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

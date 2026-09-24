@@ -50,7 +50,13 @@ import { drawChainHud } from "./chainUi";
 import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
-import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGauge } from "./statusUi";
+import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
+import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawScreenMarks } from "./effectsUi";
+import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
+import { EFFECTS } from "../data/tuning";
+import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
+import { WEAPON_TRAIL_WIDTH } from "./renderMath";
 import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
@@ -324,6 +330,16 @@ const PICKUP_BOB_AMOUNT = 2;
 const CHILL_TINT_ALPHA = 0.4;
 const BURN_TINT_ALPHA = 0.35;
 const BURN_FLICKER_SPEED = 20;
+/** drawEnemy が個別に色を重ねる状態（statusTint の汎用の色調とは二重に塗らない） */
+const BUILTIN_TINT_KINDS: ReadonlySet<string> = new Set(["chill", "freeze", "burn"]);
+const STATUS_TINT_SPEED = 6;
+/** 溜めの段の目盛り（プレイヤーの頭上の点） */
+const CHARGE_PIP_GAP = 4;
+const CHARGE_PIP_Y = 16;
+/** 振りの軌跡の半径（リーチに対する割合）、鎌の内側の弧、鞭のしなり */
+const TRAIL_REACH_RATIO = 0.85;
+const SCYTHE_INNER_RATIO = 0.8;
+const WHIP_BEND = 10;
 const SQUASH_X = 1.15;
 const SQUASH_Y = 0.85;
 const DASH_STRETCH_X = 1.2;
@@ -546,6 +562,19 @@ export class Renderer {
   private readonly reaperTrail: { x: number; y: number }[] = [];
   private reaperTrailAt = 0;
   private readonly pillars = new Map<string, HTMLCanvasElement>();
+  /** 遺物の響きの色（光柱の色）。毎フレーム配合を数え直さないよう id で覚える。色なしは空文字 */
+  private readonly itemColors = new Map<string, string>();
+  /** 階層到達の名札を出し始めた時刻（state.time） */
+  private floorCardAt = Number.NEGATIVE_INFINITY;
+  /** 演出（effectsUi.ts）にスプライトを貸す窓口 */
+  private readonly fxSprites: FxSprites = {
+    enemy: (defKey, color) => {
+      const key = enemyDef(defKey).sprite;
+      return color ? this.tinted(key, color)[0] : this.sprite(key).frames[0];
+    },
+    player: (color) => this.tinted(SPR.player, color)[0],
+    glow: (x, y, color, r, alpha) => this.drawGlow(x, y, color, r, alpha),
+  };
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
   /** HUD のキーストーン表示（装備が変わったときだけ作り直す） */
@@ -629,6 +658,7 @@ export class Renderer {
     this.drawTiles(state, -ox, -oy);
     drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha);
     drawTerrainLayer(ctx, state, -ox, -oy);
+    drawGroundMarks(ctx, state, this.fxSprites);
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
@@ -636,12 +666,14 @@ export class Renderer {
     this.drawEliteChains(state);
     drawRunWorld(ctx, state);
     this.drawEnemies(state);
+    drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
     this.drawProjectiles(state);
     this.drawLasers(state);
     this.drawPlayer(state);
     this.drawReaper(state);
     this.drawShapes(state);
+    drawAirMarks(ctx, state, this.fxSprites);
     this.drawParticles(state);
     this.drawTexts(state);
     ctx.restore();
@@ -649,9 +681,11 @@ export class Renderer {
     if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
     drawRunOverlay(ctx, state, ox, oy);
     this.drawOverlays(state);
+    drawScreenMarks(ctx, state, ox, oy);
     this.drawBossLetterbox(state);
     this.drawHud(state);
     this.drawFloorWipe(state);
+    if (state.status === "playing") drawFloorCard(ctx, `地下 ${state.depth} 階`, FLOOR_KIND_LABEL_JA[state.floorKind], state.time - this.floorCardAt);
     drawBoonHud(ctx, state, aimScreen);
     drawChainHud(ctx, state);
     drawDropFocus(ctx, state, aimScreen, ox, oy);
@@ -672,6 +706,7 @@ export class Renderer {
       this.wipeActive = false;
       this.bossRef = null;
       this.reaperTrail.length = 0;
+      this.floorCardAt = state.time;
     }
     const dt = Math.max(0, state.time - this.lastTime);
     this.lastTime = state.time;
@@ -679,6 +714,7 @@ export class Renderer {
       this.lastMap = state.map;
       this.wipeActive = state.flash >= WIPE_TRIGGER_FLASH;
       this.reaperTrail.length = 0;
+      this.floorCardAt = state.time;
     }
     if (this.wipeActive && state.flash <= 0) this.wipeActive = false;
     this.trackBoss(state, dt);
@@ -952,6 +988,16 @@ export class Renderer {
     }
   }
 
+  /** 遺物の支配色（響き）。色を持たない遺物は undefined（レアリティ色で描く） */
+  private itemColor(item: Item): string | undefined {
+    const hit = this.itemColors.get(item.id);
+    if (hit !== undefined) return hit === "" ? undefined : hit;
+    const trait = itemTraitColor(item);
+    const color = trait ? TRAIT_COLOR_HEX[trait] : "";
+    this.itemColors.set(item.id, color);
+    return color === "" ? undefined : color;
+  }
+
   private pillar(color: string): HTMLCanvasElement {
     const hit = this.pillars.get(color);
     if (hit) return hit;
@@ -966,7 +1012,7 @@ export class Renderer {
     const diamond = this.sprite(SPR.itemDiamond);
     for (const fi of state.floorItems) {
       const { rarity } = fi.item;
-      const color = RARITY_COLOR[rarity];
+      const color = this.itemColor(fi.item) ?? RARITY_COLOR[rarity];
       const x = Math.round(fi.pos.x);
       const y = Math.round(fi.pos.y);
       const wobble = 1 + Math.sin(fi.bobTime * LOOT_WOBBLE_SPEED) * LOOT_WOBBLE_AMOUNT;
@@ -1166,7 +1212,16 @@ export class Renderer {
       ctx.globalAlpha = BURN_TINT_ALPHA * (0.6 + 0.4 * Math.sin(state.time * BURN_FLICKER_SPEED + e.id));
       this.drawAnchored(pick(this.tinted(key, STATUS.burnColor), frame), x, bottom, sx, sy, rot, flip);
     }
+    this.drawStatusTint(state, e, key, frame, x, bottom, sx, sy, rot, flip);
+    if (critFlashActive(state, e.id)) {
+      // 会心の反転: 白いシルエットを差の合成で重ねて 1 瞬だけ色を反転する
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "difference";
+      this.drawAnchored(pick(sprite.white, frame), x, bottom, sx, sy, rot, flip);
+      ctx.globalCompositeOperation = "source-over";
+    }
     ctx.globalAlpha = 1;
+    drawEnemyStatusFx(ctx, e, x, bottom, sprite.w, sprite.h, state.time);
     if (isWisp) this.drawSparkles(x, bottom - 2, e.animTime, ENEMY_AI.wisp.color);
     if (def.blocks) this.drawKnightShield(state, e, cx, cy);
 
@@ -1198,6 +1253,25 @@ export class Renderer {
     }
     if (e.hp < e.maxHp) this.drawBar(cx - 8, barY, 16, 2, e.hp / e.maxHp, COLOR_HP, COLOR_HP_BG);
     drawPoiseGauge(ctx, e, cx, barY + 2, 16);
+  }
+
+  /** 冷気・凍結・燃焼（drawEnemy が個別に重ねる色）以外の状態異常の色調（毒の緑・濡れの青・宣告の紫 …） */
+  private drawStatusTint(
+    state: GameState,
+    e: Enemy,
+    key: string,
+    frame: number,
+    x: number,
+    bottom: number,
+    sx: number,
+    sy: number,
+    rot: number,
+    flip: boolean,
+  ): void {
+    const tint = statusTint(e.status);
+    if (!tint || BUILTIN_TINT_KINDS.has(tint.kind)) return;
+    this.ctx.globalAlpha = EFFECTS.statusTintAlpha * (0.7 + 0.3 * Math.sin(state.time * STATUS_TINT_SPEED + e.id));
+    this.drawAnchored(pick(this.tinted(key, tint.color), frame), x, bottom, sx, sy, rot, flip);
   }
 
   /** ボスは行動に合わせてフレームを選ぶ。他は時間で回す */
@@ -1659,6 +1733,9 @@ export class Renderer {
 
   private drawProjectiles(state: GameState): void {
     const { ctx } = this;
+    // 射撃の属性で残像の色を変える（無属性は弾の色のまま）
+    const rangedElement = state.projectiles.length > 0 ? hitElement(state, "ranged", false) : "none";
+    const rangedTrail = rangedElement === "none" ? null : ELEMENT_FX_COLOR[rangedElement];
     for (const pr of state.projectiles) {
       const speed = Math.hypot(pr.vel.x, pr.vel.y);
       const dx = speed > 0 ? pr.vel.x / speed : 1;
@@ -1666,7 +1743,7 @@ export class Renderer {
 
       const isPlayer = pr.owner === "player";
       // 位置履歴が無いので速度の逆方向に残像を置く
-      ctx.fillStyle = isPlayer ? pr.color : COLOR_ENEMY_TRAIL;
+      ctx.fillStyle = isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL;
       for (let i = 1; i <= TRAIL_POINTS; i++) {
         const size = Math.max(1, Math.round(pr.radius * 2 * (1 - i / (TRAIL_POINTS + 1))));
         ctx.globalAlpha = TRAIL_ALPHA * (1 - i / (TRAIL_POINTS + 1));
@@ -1799,6 +1876,7 @@ export class Renderer {
     const t = step.active > 0 ? Math.min(1, Math.max(0, p.attack.timer / step.active)) : 0;
     const { ctx } = this;
     this.drawMeleeShape(p, step, t);
+    this.drawSwingTrail(state, p, step, t);
 
     const finisher = combo >= SLASH_KEYS.length - 1;
     if (finisher && t > SLASH_AFTERIMAGE_T) {
@@ -1844,6 +1922,64 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /**
+   * 武器種ごとの振りの軌跡（docs/ideas/meta-and-weapons.md 7-1）。太さは武器種、色は近接の属性。
+   * 大剣 = 太い弧、槍 = 細い突きの線、鞭 = しなる曲線、鎌 = 三日月（弧を 2 重）
+   */
+  private drawSwingTrail(state: GameState, p: Player, step: MeleeStep, t: number): void {
+    const { ctx } = this;
+    const moveset = state.stats.moveset;
+    const progress = 1 - t;
+    const o = p.body.pos;
+    const d = p.attack.dir;
+    ctx.strokeStyle = ELEMENT_FX_COLOR[hitElement(state, "melee", false)];
+    ctx.lineWidth = WEAPON_TRAIL_WIDTH[moveset];
+    ctx.globalAlpha = EFFECTS.trailAlpha * (0.4 + 0.6 * t);
+    ctx.beginPath();
+    if (moveset === "whip") {
+      const ex = o.x + d.x * step.reach;
+      const ey = o.y + d.y * step.reach;
+      const bend = Math.sin(progress * Math.PI) * WHIP_BEND;
+      ctx.moveTo(o.x, o.y);
+      ctx.quadraticCurveTo((o.x + ex) / 2 - d.y * bend, (o.y + ey) / 2 + d.x * bend, ex, ey);
+    } else if (step.shape.kind === "thrust") {
+      ctx.moveTo(o.x, o.y);
+      ctx.lineTo(o.x + d.x * step.reach * progress, o.y + d.y * step.reach * progress);
+    } else if (step.shape.kind === "arc") {
+      const dir = Math.atan2(d.y, d.x);
+      const half = (step.shape.deg * Math.PI) / 360;
+      // 段ごとに振る向きを変える（左右の往復に見せる）
+      const sign = p.attack.combo % 2 === 0 ? 1 : -1;
+      const from = dir - sign * half;
+      const to = from + sign * 2 * half * progress;
+      const r = step.reach * TRAIL_REACH_RATIO;
+      ctx.arc(o.x, o.y, r, Math.min(from, to), Math.max(from, to));
+      if (moveset === "scythe") ctx.arc(o.x, o.y, r * SCYTHE_INNER_RATIO, Math.max(from, to), Math.min(from, to), true);
+    } else {
+      ctx.arc(o.x + d.x * step.reach, o.y + d.y * step.reach, (step.size / 2) * (0.6 + 0.4 * progress), 0, Math.PI * 2);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /** 溜めの段の目盛り: 頭上に段の数だけ点を並べ、届いた段を塗る */
+  private drawChargePips(state: GameState, p: Player, level: number): void {
+    const levels = p.attack.charging
+      ? (MOVESETS[state.stats.moveset].charge?.levels.length ?? 0)
+      : (SHOT_TYPES[state.stats.shot].charge?.levels.length ?? 0);
+    if (levels <= 0) return;
+    const { ctx } = this;
+    const left = p.body.pos.x - ((levels - 1) * CHARGE_PIP_GAP) / 2;
+    const y = Math.round(p.body.pos.y - CHARGE_PIP_Y);
+    for (let i = 0; i < levels; i++) {
+      const lit = i < level;
+      ctx.fillStyle = lit ? (WEAPON.chargeRingColors[i + 1] ?? COLOR_WHITE) : COLOR_DIM;
+      const size = lit ? 3 : 2;
+      ctx.fillRect(Math.round(left + i * CHARGE_PIP_GAP) - 1, y - 1, size, size);
+    }
+  }
+
   /** 溜め攻撃・チャージ射撃の環。段が上がるほど大きく色が変わり、離す時を目で計れる */
   private drawChargeRing(state: GameState, p: Player): void {
     const charging = p.attack.charging || p.shotCharging;
@@ -1857,6 +1993,7 @@ export class Renderer {
     ctx.arc(p.body.pos.x, p.body.pos.y, WEAPON.chargeRingRadius + level * WEAPON.chargeRingStep, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
+    this.drawChargePips(state, p, level);
   }
 
   // ---------------------------------------------------------------------------

@@ -567,6 +567,13 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     windup: 1, strikeTime: 0.1, recover: 1, engageRange: 0, attackInterval: 99,
     score: 20, minDepth: 99, weight: 0, color: "#8fd0ff", dropChance: 0, noCorpse: true,
   },
+  // ---- 試し場の木人（src/system/specialRooms.ts が置く。動かず殴り返さず、撃破数・報酬に数えない）----
+  {
+    key: "trainingDummy", name: "木人", sprite: "trainingDummy", recolor: { base: "icePillar", swap: { "1": "T", "2": "T", "3": "T", "4": "X" } },
+    radius: 6, hp: 120, speed: 0, behavior: "inert", contactDamage: 0,
+    windup: 1, strikeTime: 0.1, recover: 1, engageRange: 0, attackInterval: 99,
+    score: 0, minDepth: 99, weight: 0, color: "#c8a070", dropChance: 0, noCorpse: true,
+  },
   // ---- 鏡の部屋の写し（src/system/specialRooms.ts が HP・エリート修飾子をプレイヤーの今のビルドから決める）----
   {
     key: "mirrorSelf", name: "鏡像", sprite: "mirrorSelf", recolor: { base: "player", swap: { b: "p", B: "P", a: "e", t: "3", T: "4", o: "A", O: "9" } },

@@ -6,7 +6,7 @@ import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
 import { damagePlayer } from "./combat";
-import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
+import { addFloatingText, bossKillFx, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
@@ -476,6 +476,7 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   pushLog(state, `${b.name}を倒した。階段が現れた。`, DEFEAT_TEXT_COLOR);
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
+  bossKillFx(state, e.body.pos);
   for (let i = 0; i < BOSS.rareDrops; i++) dropRareItem(state, e.body.pos, i);
 }
 

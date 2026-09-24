@@ -4,6 +4,8 @@ import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
 import { poiseRatio } from "../system/poise";
 import { findStatus } from "../system/statusEffects";
 import { TEXT, drawText, textWidth } from "./pixelText";
+import { EFFECTS } from "../data/tuning";
+import { type StatusMotion, statusParticle } from "./renderMath";
 
 /**
  * 状態異常と怯みゲージの描画（docs/COMBAT_DESIGN.md E-4 HUD）。state は読むだけ。
@@ -218,4 +220,143 @@ export function drawPlayerStatusRow(ctx: CanvasRenderingContext2D, bag: Readonly
     ctx.fillStyle = icon.color;
     ctx.fillRect(cx, y + PLAYER_CELL - PLAYER_TIMER_H, Math.round(PLAYER_CELL * icon.ratio), PLAYER_TIMER_H);
   });
+}
+
+// -----------------------------------------------------------------------------
+// 状態異常の見た目（docs/ideas/meta-and-weapons.md 7-2〜7-5・7-9）。頭上の文字の列はそのまま残し、
+// 敵の色調と 1〜2 個の疑似粒を足す。粒は時間と敵 id から計算するだけで state を持たない
+// -----------------------------------------------------------------------------
+
+export interface StatusFxStyle {
+  /** 疑似粒の動き。null は粒を出さない */
+  motion: StatusMotion | null;
+  /** 粒の色 */
+  color: string;
+  /** 敵のスプライトに重ねる色調（null は重ねない） */
+  tint: string | null;
+}
+
+/** 状態異常ごとの見た目。良い状態（プレイヤーのバフ）は敵に付かないので粒だけ定義しておく */
+export const STATUS_FX: Readonly<Record<StatusKind, StatusFxStyle>> = {
+  burn: { motion: "rise", color: "#ffa040", tint: "#ff8030" },
+  chill: { motion: "fall", color: "#c0e8ff", tint: "#80c8ff" },
+  freeze: { motion: null, color: "#e0f8ff", tint: "#c0f0ff" },
+  shock: { motion: "spark", color: "#fff080", tint: null },
+  paralyze: { motion: "spark", color: "#f0f070", tint: "#f0f070" },
+  poison: { motion: "bubble", color: "#90e050", tint: "#80d040" },
+  bleed: { motion: "fall", color: "#e04040", tint: null },
+  vulnerable: { motion: null, color: "#ff80c0", tint: "#ff80c0" },
+  weaken: { motion: "fall", color: "#b0a0ff", tint: null },
+  fear: { motion: "orbit", color: "#c070ff", tint: "#8050c0" },
+  silence: { motion: "orbit", color: "#a0a0c0", tint: null },
+  stagger: { motion: "stars", color: "#f8d848", tint: null },
+  guarded: { motion: null, color: "#d0d0d0", tint: null },
+  wet: { motion: "fall", color: "#60a0ff", tint: "#6090e0" },
+  oiled: { motion: "fall", color: "#b09050", tint: "#806030" },
+  corrode: { motion: "bubble", color: "#a0c040", tint: null },
+  brand: { motion: "spark", color: "#ff5040", tint: null },
+  broken: { motion: "fall", color: "#ffa060", tint: null },
+  doom: { motion: "orbit", color: "#9050d0", tint: "#502080" },
+  siphon: { motion: "rise", color: "#50b0ff", tint: null },
+  hue: { motion: "orbit", color: "#ffffff", tint: null },
+  scorch: { motion: "rise", color: "#ff5020", tint: "#ff4010" },
+  blaze: { motion: "rise", color: "#ffd040", tint: "#ff6020" },
+  venom: { motion: "bubble", color: "#60ff30", tint: "#50d020" },
+  hemorrhage: { motion: "fall", color: "#ff2030", tint: "#c01020" },
+  encase: { motion: null, color: "#e0ffff", tint: "#e0ffff" },
+  exposed: { motion: "spark", color: "#ff50a0", tint: "#ff50a0" },
+  enfeeble: { motion: "fall", color: "#8070e0", tint: null },
+  soaked: { motion: "fall", color: "#4070ff", tint: "#4070ff" },
+  haste: { motion: "rise", color: "#80ffc0", tint: null },
+  harden: { motion: null, color: "#c0b090", tint: null },
+  wrath: { motion: "rise", color: "#ff7050", tint: null },
+  fury: { motion: "rise", color: "#ff3030", tint: null },
+  charged: { motion: "spark", color: "#f0f080", tint: null },
+};
+
+/**
+ * 見た目の優先順（先ほど強く目立たせる）。凍結・氷棺は全身の色なので最優先、次に昇華、最後に弱い状態。
+ * ここに無い種類（堅守・硬化）は見た目を足さない
+ */
+export const STATUS_FX_PRIORITY: readonly StatusKind[] = [
+  "encase",
+  "freeze",
+  "stagger",
+  "blaze",
+  "scorch",
+  "venom",
+  "hemorrhage",
+  "burn",
+  "paralyze",
+  "shock",
+  "poison",
+  "bleed",
+  "doom",
+  "fear",
+  "chill",
+  "soaked",
+  "wet",
+  "oiled",
+  "corrode",
+  "brand",
+  "exposed",
+  "vulnerable",
+  "broken",
+  "weaken",
+  "enfeeble",
+  "silence",
+  "siphon",
+  "hue",
+  "charged",
+];
+
+/** 見た目を描く状態（優先順に最大 limit 個）。頭上の文字と違い、描画量を抑えるため数を絞る */
+export function statusFxKinds(bag: Readonly<StatusBag>, limit: number = EFFECTS.statusKindsPerEnemy): StatusKind[] {
+  if (bag.effects.length === 0 || limit <= 0) return [];
+  const out: StatusKind[] = [];
+  for (const kind of STATUS_FX_PRIORITY) {
+    if (!findStatus(bag, kind)) continue;
+    out.push(kind);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** スプライトに重ねる色調（最も優先の高い、色調を持つ状態）。無ければ null */
+export function statusTint(bag: Readonly<StatusBag>): { kind: StatusKind; color: string } | null {
+  if (bag.effects.length === 0) return null;
+  for (const kind of STATUS_FX_PRIORITY) {
+    const tint = STATUS_FX[kind].tint;
+    if (tint && findStatus(bag, kind)) return { kind, color: tint };
+  }
+  return null;
+}
+
+const STATUS_FX_KIND_SALT = 31;
+const STAR_SIZE = 1;
+
+/** 敵の状態異常の疑似粒（cx = 中心、bottom = 足元、w / h = スプライトの寸法） */
+export function drawEnemyStatusFx(ctx: CanvasRenderingContext2D, e: Enemy, cx: number, bottom: number, w: number, h: number, time: number): void {
+  if (e.status.effects.length === 0) return;
+  const kinds = statusFxKinds(e.status);
+  kinds.forEach((kind, k) => {
+    const style = STATUS_FX[kind];
+    if (!style.motion) return;
+    ctx.fillStyle = style.color;
+    for (let i = 0; i < EFFECTS.statusParticlesPerKind; i++) {
+      const p = statusParticle(style.motion, e.id * STATUS_FX_KIND_SALT + k, i, time, w / 2, h);
+      if (p.alpha <= 0) continue;
+      ctx.globalAlpha = p.alpha;
+      const x = Math.round(cx + p.x);
+      const y = Math.round(bottom + p.y);
+      if (style.motion === "stars") {
+        // ダウンの星: 小さな十字
+        ctx.fillRect(x - STAR_SIZE, y, STAR_SIZE * 2 + 1, 1);
+        ctx.fillRect(x, y - STAR_SIZE, 1, STAR_SIZE * 2 + 1);
+        continue;
+      }
+      ctx.fillRect(x, y, 1, style.motion === "fall" ? 2 : 1);
+    }
+  });
+  ctx.globalAlpha = 1;
 }

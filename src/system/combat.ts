@@ -5,6 +5,7 @@ import { ACTION, FEEL, HEAL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../d
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
+import { comboDamageText, justFx, onHitFx, spawnDeathFx } from "./effects";
 import { roomInCombat } from "./engagement";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
@@ -14,7 +15,7 @@ import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
 import { pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent } from "../core/events";
-import { onTraitHit, onTraitKill, onTraitStagger, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
+import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
 import { interceptEnemyDamage } from "./elites";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
 import { boonForcesCrit, boonPoise, onBoonHurt } from "./boonRules";
@@ -144,6 +145,7 @@ function genreAndElement(state: GameState, enemy: Enemy, kind: DamageKind, opts:
   const atk = resolveAttack(state.stats, kind, skill, opts.attack);
   if (!atk) return null;
   const out = outgoingElement(state.stats, enemy, atk, skill);
+  out.mul *= traitElementMul(state, enemy, out, kind);
   showAffinity(state, enemy, out.affinity);
   rollElementAffinity(state, enemy, out.shares);
   return out;
@@ -181,6 +183,7 @@ export function damageEnemy(
     if (knockForce > 0) enemy.knock = scale(dir, knockForce * knockMul);
     registerComboHit(state);
     showHit(state, enemy, amount, dir, def.color, opts, heavy);
+    onHitFx(state, enemy, opts);
   }
 
   if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
@@ -190,12 +193,13 @@ export function damageEnemy(
   if (kind !== "proc") {
     applyLifeOnHit(state, amount);
     applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
-    onTraitHit(state, enemy, kind);
+    onTraitHit(state, enemy, kind, opts.skill === true);
   }
 
   if (opts.crit) onBoonCrit(state, enemy, amount);
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true);
   if (enemy.hp > 0) return false;
+  spawnDeathFx(state, enemy, opts);
   killEnemy(state, enemy);
   return true;
 }
@@ -224,7 +228,8 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   const baseScale = heavy ? HEAVY_TEXT_SCALE : 1;
   const textScale = opts.crit ? Math.max(baseScale, PLAYER.critTextScale) : baseScale;
   const textColor = opts.crit ? PLAYER.critColor : COLOR_DAMAGE;
-  addFloatingText(state, enemy.body.pos, String(amount), textColor, textScale);
+  const comboText = comboDamageText(state.combo.count, textColor, textScale, opts.crit === true);
+  addFloatingText(state, enemy.body.pos, String(amount), comboText.color, comboText.scale);
   spawnDirectional(state, enemy.body.pos, dir, color, heavy ? HEAVY_PARTICLES : LIGHT_PARTICLES, 140);
   const base = opts.hitstopSteps ?? FEEL.hitstopLight;
   const steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
@@ -518,6 +523,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   registerComboHit(state);
   addFloatingText(state, p.body.pos, "見切り！", COLOR_JUST, 1.5, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
+  justFx(state);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");
   onBoonJust(state, attacker);

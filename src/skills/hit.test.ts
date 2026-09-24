@@ -66,6 +66,13 @@ describe("skillHit が戦闘の口へ渡す値", () => {
     expect(damageDealt("frag", { skillDamageMul: 2 })).toBeCloseTo(plain * 2, 0);
   });
 
+  it("素性が null のスキル（影渡りの着地など）が当てても、敵の防御を素通ししない", () => {
+    const noCrit = { critChance: 0 };
+    const shadow = damageDealt("shadowStep", noCrit);
+    expect(shadow, "ゴーレムの防御で減る").toBeLessThan(HIT_BASE_BIG);
+    expect(shadow, "既定（無属性の物理）と同じ").toBe(damageDealt("rout", noCrit));
+  });
+
   it("怯み値はスキルの基礎怯み値 × poiseDamageMul で溜まる", () => {
     const base = poiseDealt("quake", 1);
     expect(base, "前提: 怯み値が溜まる").toBeGreaterThan(0);

@@ -17,7 +17,8 @@ import { type EnemyBehavior, enemyDef, isBossClass } from "../data/enemies";
 import { type EnemyAttackKind, enemyCombat } from "../data/enemyCombat";
 import { STATUS } from "../data/tuning";
 import { damageEnemy, damagePlayerDot, rollOutgoing } from "./combat";
-import { shake, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { dotResistMul } from "./elementCombat";
+import { onStatusAppliedFx, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { circlesOverlap } from "./physics";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { boonChainExtension } from "./boonRules";
@@ -373,6 +374,7 @@ export function applyStatus(
   if (!mergeEffect(state, target, bag, apply, potency, duration, source)) return false;
   if (limited) spendCc(bag, duration);
   afterApply(state, target, apply.kind, source);
+  onStatusAppliedFx(state, target.kind === "enemy" ? target.enemy : null, apply.kind, isBossTarget(target));
   pushStatusEvent(state, target.kind === "enemy" ? target.enemy : null, apply.kind, source);
   return true;
 }
@@ -876,9 +878,12 @@ function burnParticles(state: GameState, target: StatusTarget): void {
   spawnBurst(state, targetPos(state, target), STATUS.burnColor, 1, BURN_PARTICLE_SPEED, BURN_PARTICLE_LIFE, 1.5);
 }
 
-/** 継続ダメージ。端数は貯めて整数ぶんだけ減らす（数字は出さず HP バーだけ減る） */
+/**
+ * 継続ダメージ。端数は貯めて整数ぶんだけ減らす（数字は出さず HP バーだけ減る）。
+ * 炎・毒の継続ダメージは受け手の属性耐性で増減する（docs/COMBAT_DESIGN.md A-8。防御 / 魔防は掛けない）
+ */
 function dealDot(state: GameState, target: StatusTarget, effect: StatusEffect, amount: number): void {
-  effect.acc += amount;
+  effect.acc += amount * dotResistMul(state.stats, target.kind === "enemy" ? target.enemy : null, effect.kind);
   const whole = Math.floor(effect.acc);
   if (whole < 1) return;
   effect.acc -= whole;

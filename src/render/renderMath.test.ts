@@ -175,3 +175,72 @@ describe("computeViewScale", () => {
     expect(computeViewScale(2000, 600, 1).cssScale).toBe(2);
   });
 });
+
+describe("演出の位置計算", () => {
+  it("制圧の波は前線の手前だけ光り、寿命の終わりに消える", async () => {
+    const { clearWaveAlpha } = await import("./renderMath");
+    expect(clearWaveAlpha(100, 0.1, 1, 240, 20), "前線より先はまだ暗い").toBe(0);
+    expect(clearWaveAlpha(20, 0.1, 1, 240, 20), "前線の手前は光る").toBeGreaterThan(0);
+    expect(clearWaveAlpha(0, 0.5, 1, 240, 20), "通り過ぎた床は元に戻る").toBe(0);
+    expect(clearWaveAlpha(230, 1, 1, 240, 20), "寿命の終わりは 0").toBe(0);
+  });
+
+  it("両断の半身は離れていき、最大で gap", async () => {
+    const { severGap } = await import("./renderMath");
+    expect(severGap(0, 10)).toBe(0);
+    expect(severGap(0.5, 10)).toBeGreaterThan(0);
+    expect(severGap(1, 10)).toBeCloseTo(10);
+    expect(severGap(2, 10), "範囲外は丸める").toBeCloseTo(10);
+  });
+
+  it("灰は溜めてから崩れ、溶けると縦に潰れて横に広がる", async () => {
+    const { ashCrumble, meltScale } = await import("./renderMath");
+    expect(ashCrumble(0.1), "最初は崩れない").toBe(0);
+    expect(ashCrumble(1)).toBe(1);
+    const m = meltScale(0.8);
+    expect(m.sy).toBeLessThan(1);
+    expect(m.sx).toBeGreaterThan(1);
+  });
+
+  it("砕けた破片は四方へ散る", async () => {
+    const { shardOffset } = await import("./renderMath");
+    const offsets = [0, 1, 2, 3].map((i) => shardOffset(i, 4, 1, 20));
+    expect(offsets.some((o) => o.x > 0) && offsets.some((o) => o.x < 0), "左右に散る").toBe(true);
+    expect(offsets.some((o) => o.y > 0) && offsets.some((o) => o.y < 0), "上下に散る").toBe(true);
+  });
+
+  it("階層到達の名札は遅れて現れ、保って消える", async () => {
+    const { floorCardAlpha } = await import("./renderMath");
+    const c = { delay: 0.3, fadeIn: 0.2, hold: 1, fadeOut: 0.5 };
+    expect(floorCardAlpha(0.1, c), "到達直後は出ない").toBe(0);
+    expect(floorCardAlpha(0.9, c), "保っている間は 1").toBe(1);
+    expect(floorCardAlpha(5, c), "最後は消える").toBe(0);
+  });
+
+  it("状態異常の疑似粒は敵の幅と高さの中に収まり、同じ入力で同じ位置", async () => {
+    const { statusParticle } = await import("./renderMath");
+    for (const motion of ["rise", "fall", "bubble", "orbit", "stars", "spark"] as const) {
+      for (let i = 0; i < 20; i++) {
+        const p = statusParticle(motion, 17, i, i * 0.13, 8, 16);
+        expect(Math.abs(p.x), `${motion} の横`).toBeLessThanOrEqual(8);
+        expect(p.y, `${motion} の縦`).toBeLessThanOrEqual(0);
+        expect(p.y, `${motion} の縦`).toBeGreaterThanOrEqual(-16 - 2 - 8);
+        expect(statusParticle(motion, 17, i, i * 0.13, 8, 16), "決定的").toEqual(p);
+      }
+    }
+  });
+
+  it("光条は本数ぶん等間隔", async () => {
+    const { rayAngles } = await import("./renderMath");
+    const a = rayAngles(4, 0, 1);
+    expect(a.length).toBe(4);
+    expect((a[1] ?? 0) - (a[0] ?? 0)).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("武器種ごとの軌跡の太さがあり、大剣は剣より太い", async () => {
+    const { WEAPON_TRAIL_WIDTH } = await import("./renderMath");
+    const { MOVESET_KEYS } = await import("../data/weapons");
+    for (const key of MOVESET_KEYS) expect(WEAPON_TRAIL_WIDTH[key], key).toBeGreaterThan(0);
+    expect(WEAPON_TRAIL_WIDTH.greatsword).toBeGreaterThan(WEAPON_TRAIL_WIDTH.sword);
+  });
+});

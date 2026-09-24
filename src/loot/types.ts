@@ -88,6 +88,10 @@ export interface AffixRoll {
   /** 反転（値が負）。色は冥になり、共鳴への重みが 2 倍 */
   inverted?: boolean;
   origin?: TraitOrigin;
+  /** 脱色（残響の操作）: 共鳴の配合に数えず、支配の減衰も受けない。値は脱色した時点で 90% */
+  colorless?: boolean;
+  /** 張り（残響の操作）: 利得と代償を両方 1.3 倍にした。1 つの性質に 1 回だけ */
+  tensed?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +121,19 @@ export interface Provenance {
   eliteKills: number;
   /** 殲滅（封鎖中の部屋の最後の 1 体）の回数 */
   lastKills: number;
+  // ---- 2026-09 第 2 弾（属性・武器種・ジョブ・地形）。旧セーブは 0 で補う ----
+  /** 属性の弱点を突いた命中 */
+  weakHits: number;
+  /** 属性の耐性に阻まれた命中 */
+  resistedHits: number;
+  /** 地形の上にいる敵の撃破 */
+  terrainKills: number;
+  /** ジョブの得意武器を持っていた間の撃破 */
+  favoredKills: number;
+  /** 溜め攻撃（溜めの段 1 以上の近接）の命中 */
+  chargedHits: number;
+  /** コンボ派生の命中 */
+  branchHits: number;
 }
 
 export function createEmptyProvenance(): Provenance {
@@ -134,6 +151,12 @@ export function createEmptyProvenance(): Provenance {
     skillCasts: 0,
     eliteKills: 0,
     lastKills: 0,
+    weakHits: 0,
+    resistedHits: 0,
+    terrainKills: 0,
+    favoredKills: 0,
+    chargedHits: 0,
+    branchHits: 0,
   };
 }
 
@@ -143,6 +166,8 @@ export interface BudChoice {
   milestone: string;
   options: [AffixRoll, AffixRoll];
   chosen: 0 | 1;
+  /** 呼び戻し（残響の操作）で選び直した芽。1 遺物 1 回 */
+  recalled?: boolean;
 }
 
 /** 提示中（未選択）の芽 */
@@ -199,6 +224,8 @@ export interface Item {
   inscription?: string;
   /** 名のある遺物の key（generator.ts の UNIQUES） */
   namedKey?: string;
+  /** 鍛え直し（残響の操作）の回数 */
+  reforged?: number;
 }
 
 export interface FloorItem {
@@ -464,6 +491,105 @@ export interface TraitStats {
   boonEchoJade: number;
   boonEchoGold: number;
   boonEchoUmbra: number;
+  // ---- 2026-09 第 2 弾: 属性（combat.ts の genreAndElement から traitElementMul が読む）----
+  /** 弱点を突いた命中の与ダメージ / 弱点でない相手への減少 */
+  weakDamageMul: number;
+  nonWeakPenalty: number;
+  /** 耐性による減少を打ち消す割合 0..1 */
+  resistPierce: number;
+  /** 弱点を突いた命中で戻る気力 */
+  weakHitMana: number;
+  /** 耐性に阻まれた命中で、攻撃の主な属性の状態異常を付ける秒（0 = 無効） */
+  resistedInflict: number;
+  /** 濡れ・浸水の敵への与ダメージ（雷の割合が大きいほど伸びる） */
+  wetConductMul: number;
+  /** 油膜の敵への与ダメージ（炎の割合が大きいほど伸びる） */
+  oiledIgniteMul: number;
+  // ---- 武器種・射撃の型・ジョブ ----
+  /** 溜めの段 1 つにつきの近接の与ダメージ / 溜めを持つ武器で溜めずに振った近接の減少 */
+  chargedMeleeMul: number;
+  unchargedPenalty: number;
+  /** 溜めの段 1 つにつきの怯み値 */
+  chargedPoiseMul: number;
+  /** 溜めの段 1 つにつき、命中で得る必殺ゲージ */
+  chargedHitEnergy: number;
+  /** コンボ派生の命中の与ダメージ / 命中で戻る気力 */
+  branchDamageMul: number;
+  branchHitMana: number;
+  /** ジョブの得意武器を持つ間の与ダメージ / 持たない間の減少 */
+  favoredDamageMul: number;
+  unfavoredPenalty: number;
+  /** 得意でない武器の近接の怯み値 / 得意武器の近接の怯み値の減少（我流） */
+  unfavoredPoiseMul: number;
+  favoredPoisePenalty: number;
+  /** 得意武器を持つ間の撃破で戻る気力 */
+  favoredKillMana: number;
+  /** 見習い（ジョブなし）の間の与ダメージ / ジョブを持つ間の減少 */
+  noJobDamageMul: number;
+  jobPenalty: number;
+  /** 散弾の射撃: 近い敵への与ダメージ / 遠い敵への減少 / 怯み値 */
+  spreadCloseMul: number;
+  spreadFarPenalty: number;
+  spreadPoiseMul: number;
+  /** 追尾の射撃の命中で毒を付ける秒 */
+  homingPoison: number;
+  /** 連射の射撃の命中で烙印を付ける確率 0..1 */
+  rapidBrandChance: number;
+  // ---- 新しい状態異常 ----
+  /** 烙印の敵への射撃・スキルの与ダメージ / 烙印の無い敵への射撃の減少 */
+  brandedMul: number;
+  unbrandedPenalty: number;
+  /** 崩勢の敵への与ダメージ */
+  brokenMul: number;
+  /** 腐食の敵への怯み値 */
+  corrodePoiseMul: number;
+  /** 宣告の付いた敵を倒したときに戻る気力 */
+  doomKillMana: number;
+  // ---- 地形 ----
+  /** 自分が地形の上に立つ間の与ダメージ / 地形の無い床での減少 */
+  terrainDamageMul: number;
+  offTerrainPenalty: number;
+  /** 自分が水たまり・氷床の上に立つ間の与ダメージ */
+  slickDamageMul: number;
+  /** 地形の上にいる敵への与ダメージ */
+  enemyOnTerrainMul: number;
+  /** 自分が地形の上に立つ間の被ダメージの減少 */
+  terrainGuard: number;
+  /** 地形の上に立つ間の毎秒の回復（戦闘中の共通上限を受ける） */
+  terrainRegen: number;
+  /** 地形の上にいる敵を倒すと、その地形に応じた衝撃波（ダメージ） */
+  terrainKillBlast: number;
+  /** 燃えている敵を倒すと足元に炎を置く秒 */
+  burningKillFire: number;
+  /** ダッシュ中に足元へ氷床を置く秒 */
+  dashIceTrail: number;
+  // ---- 交戦中 ----
+  /** 交戦中の被ダメージの減少 / 交戦外の被ダメージの増加 */
+  engagedGuard: number;
+  roamExposure: number;
+  /** 交戦中の撃破で得る必殺ゲージ */
+  engagedKillEnergy: number;
+  // ---- 被ダメージの属性 ----
+  /** 属性を持つ攻撃から受けるダメージの減少 / 無属性の攻撃から受けるダメージの増加 */
+  elementalGuard: number;
+  physicalExposure: number;
+  // ---- 攻撃手段の持ち替え（近接 / 射撃 / スキル） ----
+  /** 直前と違う手段で当てた命中の怯み値 / 同じ手段が続いた命中の減少 */
+  alternatePoiseMul: number;
+  repeatPoisePenalty: number;
+  /** 直前と違う手段で当てるたびに戻る気力 */
+  switchMana: number;
+  /** 近接と射撃を交互に当てるたびに重なる与ダメージ（1 段）と上限 */
+  alternateDamageStep: number;
+  alternateDamageCap: number;
+  /** 怯ませた敵に、武器の主な属性の状態異常を付ける秒 */
+  elementBreak: number;
+  // ---- 共鳴・星座が持ち込むもの ----
+  /** 生命が半分以上の間の与ダメージ / 半分未満の間の被ダメージの減少（表裏） */
+  highHpDamageMul: number;
+  lowHpGuard: number;
+  /** 装備トリガーの内部クールダウンを縮める割合 0..1（鏡像） */
+  triggerIcdCut: number;
   // ---- 装備全体の文脈（computeStats が性質の適用前に入れる。性質の apply はこれを読む） ----
   /** 装備全体の残り余白の合計 */
   gearMargin: number;
@@ -486,10 +612,20 @@ export interface LootRuntime {
   lastCombo: number;
   /** 形見: 次の命中に乗せる状態異常と残り回数 */
   inherited: { kind: StatusKind; charges: number } | null;
+  /** 直前に当てた攻撃手段（持ち替えの性質・星座・拮抗が読む） */
+  lastMode: AttackMode | null;
+  /** 天秤（拮抗）: 近接と射撃を交互に当て続けた回数と、途切れるまでの残り秒 */
+  alternateStacks: number;
+  alternateTimer: number;
+  /** 地形の衝撃波の内部クールダウン（連鎖で画面が爆ぜ続けないように） */
+  terrainBlastIcd: number;
 }
 
+/** 攻撃手段。スキルは近接・射撃どちらの命中でも「スキル」として数える */
+export type AttackMode = "melee" | "ranged" | "skill";
+
 export function createLootRuntime(): LootRuntime {
-  return { lastCombo: 0, inherited: null };
+  return { lastCombo: 0, inherited: null, lastMode: null, alternateStacks: 0, alternateTimer: 0, terrainBlastIcd: 0 };
 }
 
 export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
@@ -539,6 +675,59 @@ export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
   boonEchoJade: 0,
   boonEchoGold: 0,
   boonEchoUmbra: 0,
+  weakDamageMul: 0,
+  nonWeakPenalty: 0,
+  resistPierce: 0,
+  weakHitMana: 0,
+  resistedInflict: 0,
+  wetConductMul: 0,
+  oiledIgniteMul: 0,
+  chargedMeleeMul: 0,
+  unchargedPenalty: 0,
+  chargedPoiseMul: 0,
+  chargedHitEnergy: 0,
+  branchDamageMul: 0,
+  branchHitMana: 0,
+  favoredDamageMul: 0,
+  unfavoredPenalty: 0,
+  unfavoredPoiseMul: 0,
+  favoredPoisePenalty: 0,
+  favoredKillMana: 0,
+  noJobDamageMul: 0,
+  jobPenalty: 0,
+  spreadCloseMul: 0,
+  spreadFarPenalty: 0,
+  spreadPoiseMul: 0,
+  homingPoison: 0,
+  rapidBrandChance: 0,
+  brandedMul: 0,
+  unbrandedPenalty: 0,
+  brokenMul: 0,
+  corrodePoiseMul: 0,
+  doomKillMana: 0,
+  terrainDamageMul: 0,
+  offTerrainPenalty: 0,
+  slickDamageMul: 0,
+  enemyOnTerrainMul: 0,
+  terrainGuard: 0,
+  terrainRegen: 0,
+  terrainKillBlast: 0,
+  burningKillFire: 0,
+  dashIceTrail: 0,
+  engagedGuard: 0,
+  roamExposure: 0,
+  engagedKillEnergy: 0,
+  elementalGuard: 0,
+  physicalExposure: 0,
+  alternatePoiseMul: 0,
+  repeatPoisePenalty: 0,
+  switchMana: 0,
+  alternateDamageStep: 0,
+  alternateDamageCap: 0,
+  elementBreak: 0,
+  highHpDamageMul: 0,
+  lowHpGuard: 0,
+  triggerIcdCut: 0,
   gearMargin: 0,
   gearItems: 0,
   gearInscribed: 0,
@@ -559,7 +748,21 @@ export interface Resonance {
   colors: TraitColor[];
   /** 色ごとの配合比（合計 1。性質が無ければ全部 0） */
   ratios: Record<TraitColor, number>;
+  /**
+   * 共鳴の変形（docs/ideas/loot-expansion.md 9-2 / 9-3）。kind は据え置いたまま効果だけを差し替える
+   * （kind で分岐する他の仕組みを壊さない）。negative = 陰画（支配が裏返る。kind は dominant）/
+   * balance = 拮抗（反対色の均衡。kind は dual）
+   */
+  form?: ResonanceForm;
+  /** 星座（6 部位の主色の並び。共鳴とは別の層で同時に 1 つ）。computeStats が入れる */
+  constellation?: ConstellationKey;
 }
+
+export type ResonanceForm = "negative" | "balance";
+
+/** 星座の key（resonance.ts の CONSTELLATIONS） */
+export const CONSTELLATION_KEYS = ["twins", "shores", "spine", "ring", "mirror", "void", "chain"] as const;
+export type ConstellationKey = (typeof CONSTELLATION_KEYS)[number];
 
 export function createEmptyResonance(): Resonance {
   return { kind: "none", colors: [], ratios: { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0 } };

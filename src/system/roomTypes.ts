@@ -83,6 +83,14 @@ export const ROOM_KEYWORDS: Readonly<Record<RoomKind, KeywordProfile>> = {
   mirror: kw(["elite"]),
   watchtower: kw(["elite"]),
   horde: kw(["clear", "kill"], [], ["clear", "kill", "area"]),
+  // 第 2 弾: 封印庫は精鋭狩り（欠片）を、属性の祭壇は属性を出し、試し場は近接・射撃の手触りを確かめる。
+  // 霧の部屋は近接を、潮の間は水で感電を、反転の間は反転を強める
+  vault: kw(["kill"], ["elite"]),
+  elementAltar: kw(["elFire", "elIce", "elLightning", "elPoison", "elDark", "elLight"]),
+  dummyHall: kw(["melee", "ranged"]),
+  fogRoom: kw(["clear"], ["ranged"], ["melee"]),
+  tideRoom: kw(["clear", "mana"], [], ["shock"]),
+  invertHall: kw(["inverted"], [], ["umbra"]),
 };
 
 /** 入ると封鎖する種類（tuning の ROOM_KIND.locks。Record なので種類の追加漏れは型エラー） */

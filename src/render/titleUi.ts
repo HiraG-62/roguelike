@@ -65,6 +65,7 @@ const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
 const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
   mute: "ミュート",
   volume: "音量",
+  musicVolume: "音楽の音量",
   screenShake: "画面揺れ",
   keybinds: "キー設定",
   close: "閉じる",
@@ -496,6 +497,7 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
   const valueOf: Record<Exclude<SettingsItem, "close" | "keybinds">, string> = {
     mute: settings.muted ? "オン" : "オフ",
     volume: barText(settings.volume),
+    musicVolume: barText(settings.musicVolume),
     screenShake: barText(settings.screenShake),
   };
   SETTINGS_ITEMS.forEach((item, i) => {

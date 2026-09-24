@@ -717,6 +717,22 @@ describe("同時攻撃の上限（ENEMY_AI.maxSimultaneousStrikers）", () => {
     expect(c.phase, "枠が空けば 3 体目も攻撃する").toBe("strike");
   });
 
+  it("技を出しているボスは枠を埋めない（取り巻きは待たずに攻撃する）", () => {
+    const state = arena();
+    state.player.maxHp = HUGE_HP;
+    state.player.hp = HUGE_HP;
+    const boss = placeEnemy(state, "frostGiant", 80, 0);
+    const a = aboutToStrike(state, 30, 0);
+    const b = aboutToStrike(state, -30, 0);
+    // 長い技の途中（このステップでは strike のまま）
+    boss.phase = "strike";
+    boss.phaseTimer = HUGE_HP;
+    tickEnemies(state);
+    expect(boss.phase, "前提: ボスは技の途中").toBe("strike");
+    expect(a.phase, "1 体目は攻撃に入る").toBe("strike");
+    expect(b.phase, "ボスが技中でも 2 体目は攻撃に入る").toBe("strike");
+  });
+
   it("上限未満なら待たずに攻撃へ移る", () => {
     const state = arena();
     const a = aboutToStrike(state, 30, 0);

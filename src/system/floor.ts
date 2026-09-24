@@ -19,7 +19,7 @@ import {
 } from "../map/grid";
 import { snapCamera } from "./camera";
 import { COLOR_HEAL, healPlayer } from "./combat";
-import { addFloatingText, shake, spawnBurst } from "./effects";
+import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { heartsAllowed } from "./keystones";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
@@ -37,6 +37,7 @@ import {
   onBoonHeartPickup,
   onBoonRoomClear,
   onBoonRoomLock,
+  onBoonWaveStart,
   onBossSpawned,
 } from "./boons";
 import { resetExplored, revealAround } from "./explore";
@@ -60,13 +61,14 @@ import {
   waveMul,
 } from "./roomTypes";
 import { ROAMING_ROOM, assignRoamers, makeRoamer, reinforceDue, roamCap, roamSpawnPoint, roamerCount, updateRoamers } from "./spawner";
-import { biomeEnemyWeight, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
+import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
   clearSpecialRoom,
   enterSpecialRoom,
   ensureForkStairs,
   lockSpecialRoom,
+  placeAscend,
   planForkStairs,
   roomHooks,
   setupSpecialRoom,
@@ -75,6 +77,9 @@ import {
 } from "./specialRooms";
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
 import { hasMod, onOriginDescend, tierScoreMul } from "./runSetup";
+import { gainShards, onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
+import { CONTRACT, FLOOR_KIND } from "../data/tuning";
+import { enemyDef } from "../data/enemies";
 
 const START_ROOM = 0;
 /** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の戦闘部屋にする */
@@ -88,6 +93,7 @@ const DEPTH_COLOR = "#ffd75f";
 
 /** 新しいフロアを生成してプレイヤーを配置する。kind は分岐路で選んだ行き先（省略時は深度の規則で抽選） */
 export function buildFloor(state: GameState, kind?: FloorKind): void {
+  installRoomHooks();
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind));
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
@@ -105,6 +111,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   // 前の階に残したアイテムは失われる
   state.floorItems = [];
   resetExplored(state);
+  resetFloorEffects(state);
 
   const start = state.rooms[START_ROOM];
   if (start) {
@@ -143,6 +150,9 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   assignRoamers(state, new Set([START_ROOM, bossRoom]));
   clearEmptyOpenRooms(state);
   onFloorStart(state);
+  // 契約者と上り階段は最後に置く（それより前の乱数消費を変えない）
+  placeContractor(state);
+  placeAscend(state);
 }
 
 /**
@@ -232,7 +242,12 @@ function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
 }
 
 export function enemyCount(state: GameState): number {
-  return Math.min(ROOM.maxEnemies, ROOM.baseEnemies + Math.floor(state.depth * ROOM.enemiesPerDepth));
+  return Math.min(maxEnemiesFor(state.depth), ROOM.baseEnemies + Math.floor(state.depth * ROOM.enemiesPerDepth));
+}
+
+/** 部屋の敵数の上限。無限の深み（FLOOR_KIND.deepDepth 以降）では上限を外して数でも押す */
+export function maxEnemiesFor(depth: number): number {
+  return ROOM.maxEnemies + (depth >= FLOOR_KIND.deepDepth ? FLOOR_KIND.deepMaxEnemiesBonus : 0);
 }
 
 function populateRoom(state: GameState, room: RoomState, index: number): void {
@@ -269,7 +284,7 @@ function roomEnemyCount(state: GameState, index: number): number {
  */
 function spawnCapped(state: GameState, room: RoomState, index: number, spawning: boolean, rolls: number): void {
   for (let i = 0; i < rolls; i++) {
-    if (roomEnemyCount(state, index) >= ROOM.maxEnemies) break;
+    if (roomEnemyCount(state, index) >= maxEnemiesFor(state.depth)) break;
     spawnGroup(state, room, index, spawning);
   }
 }
@@ -379,6 +394,7 @@ export function updateRooms(state: GameState, dt: number): void {
   if (reinforceDue(state, dt)) spawnRoamReinforcement(state);
   updateShrines(state);
   updateSpecialRooms(state, dt);
+  updateContractors(state, dt);
   ensureForkStairs(state);
   updateBossIntro(state, dt);
   updatePickups(state, dt);
@@ -390,6 +406,7 @@ function updateLockedRoom(state: GameState, room: RoomState, index: number): voi
   if (roomAlive(state, index)) return;
   if (hasMoreWaves(room)) {
     startWave(state, room, () => spawnWave(state, room, index));
+    onBoonWaveStart(state, room);
     return;
   }
   clearRoom(state, room, index);
@@ -538,6 +555,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   pushEnemiesOffDoorTiles(state, room, index);
   room.locked = true;
   for (const t of room.doorTiles) state.lockedTiles.add(t);
+  roomLockFx(state, index, room.kind === "horde");
   for (const e of state.enemies) {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
   }
@@ -595,12 +613,14 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   addFloatingText(state, p2(state), "制圧", "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
+  roomClearFx(state, index);
   const center = clearAnchor(state, room);
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   pushPlayerEvent(state, "onRoomClear", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
   onBoonRoomClear(state, room);
   recordProvenance(state, { kind: "roomClear" });
+  onContractsRoomCleared(state, room);
   onRoomCleared(state, room, index);
   clearSpecialRoom(state, room, center);
   // 試練: rare 確定 + ハート確定
@@ -681,20 +701,73 @@ function checkStairs(state: GameState): void {
 
 /** 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選） */
 export function descend(state: GameState, nextKind?: FloorKind): void {
+  const strata = state.runEvents.strata;
+  // 上り階段で戻ってから降り直した階は、振り分け点・スコア・来歴・階層到達の報酬を二重に取らない
+  const fresh = state.depth + 1 > strata.deepest;
   // buildFloor が state.boss を消すので、ボス撃破の判定は先に行う
-  grantAttributePoints(state, floorAttributePoints(state));
+  if (fresh) grantAttributePoints(state, floorAttributePoints(state));
   state.depth += 1;
-  recordProvenance(state, { kind: "floorClear" });
-  state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
+  strata.revisit = false;
+  if (fresh) {
+    strata.deepest = state.depth;
+    recordProvenance(state, { kind: "floorClear" });
+    state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
+  }
   buildFloor(state, nextKind);
   onOriginDescend(state);
   descendMana(state);
+  onContractsFloorReached(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
-  addFloatingText(state, p2(state), `地下 ${state.depth} 階・${label}`, DEPTH_COLOR, 2, 1.2);
   pushSfx(state, "descend");
-  dropDepthReward(state);
+  if (fresh) {
+    dropDepthReward(state);
+    gainShards(state, CONTRACT.shardsPerFloor);
+  }
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
+  if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);
+}
+
+/** 反転層に初めて着いた */
+function announceInverted(state: GameState): void {
+  addFloatingText(state, p2(state), "反転層", FLOOR_KIND.invertedColor, 2, 1.6);
+  pushLog(state, "世界が裏返った。反転層では敵が精鋭になりやすく、遺物は反転しやすい。", FLOOR_KIND.invertedColor);
+}
+
+/**
+ * 上り階段で 1 つ浅い階へ戻る（docs/ideas/run-expansion.md 4 章 #6）。戻った階は作り直され、敵は半分、
+ * 死神の猶予は FLOOR_KIND.revisitReaperHeadStart 秒進んだ状態で始まる。祝福の 3 択・振り分け点・階層到達の報酬は出ない
+ */
+export function ascend(state: GameState): void {
+  const strata = state.runEvents.strata;
+  if (state.depth <= 1) return;
+  strata.returns += 1;
+  strata.revisit = true;
+  state.depth -= 1;
+  buildFloor(state);
+  thinRevisitedFloor(state);
+  onContractsFloorReached(state);
+  state.flash = 1;
+  const label = FLOOR_KIND_LABEL[state.floorKind];
+  addFloatingText(state, p2(state), `地下 ${state.depth} 階へ帰還`, FLOOR_KIND.ascendColor, 2, 1.2);
+  pushSfx(state, "descend");
+  pushLog(state, `浅い層へ戻った（地下${state.depth}階・${label}、帰還 ${strata.returns}/${FLOOR_KIND.ascendMaxReturns}）。`, FLOOR_KIND.ascendColor);
+}
+
+/** 戻った階: ボス以外の敵を 1 体おきに除き（乱数を使わない）、死神を早める */
+function thinRevisitedFloor(state: GameState): void {
+  let keep = false;
+  state.enemies = state.enemies.filter((e) => {
+    if (enemyDef(e.defKey).boss) return true;
+    keep = !keep;
+    return keep;
+  });
+  state.floorTime += FLOOR_KIND.revisitReaperHeadStart;
+}
+
+/** 反転層か（HUD・描画が読む） */
+export function invertedLayer(state: GameState): boolean {
+  return isInvertedDepth(state.depth);
 }
 
 /**
@@ -754,7 +827,14 @@ function spawnEnemyAt(state: GameState, def: EnemyDef, index: number): Enemy | n
   return e;
 }
 
-roomHooks.spawnReinforcements = spawnReinforcements;
-roomHooks.spawnEnemyAt = spawnEnemyAt;
-roomHooks.enemyCount = enemyCount;
-roomHooks.dropHeart = dropHeart;
+/**
+ * 特別な部屋・ランイベントへ湧かせ処理を差し込む。モジュールの読み込み順（循環 import）に左右されないよう、
+ * トップレベルではなく buildFloor の頭で毎回差し込む（同じ関数を入れ直すだけなので何度呼んでもよい）
+ */
+function installRoomHooks(): void {
+  roomHooks.spawnReinforcements = spawnReinforcements;
+  roomHooks.spawnEnemyAt = spawnEnemyAt;
+  roomHooks.enemyCount = enemyCount;
+  roomHooks.dropHeart = dropHeart;
+  roomHooks.ascend = ascend;
+}

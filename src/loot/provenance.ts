@@ -40,7 +40,14 @@ export type ProvenanceEvent =
   | { kind: "counter" }
   | { kind: "skillCast" }
   | { kind: "eliteKill" }
-  | { kind: "lastKill" };
+  | { kind: "lastKill" }
+  // ---- 2026-09 第 2 弾（属性・地形・ジョブ・武器種。system/traitHooks.ts が積む）----
+  | { kind: "weakHit" }
+  | { kind: "resistedHit" }
+  | { kind: "terrainKill" }
+  | { kind: "favoredKill" }
+  | { kind: "chargedHit" }
+  | { kind: "branchHit" };
 
 type CounterKey =
   | "kills"
@@ -53,7 +60,13 @@ type CounterKey =
   | "counters"
   | "skillCasts"
   | "eliteKills"
-  | "lastKills";
+  | "lastKills"
+  | "weakHits"
+  | "resistedHits"
+  | "terrainKills"
+  | "favoredKills"
+  | "chargedHits"
+  | "branchHits";
 
 export interface MilestoneDef {
   key: string;
@@ -97,25 +110,36 @@ export const MILESTONES: readonly MilestoneDef[] = [
   milestone("justDodges", 20, "gold", "見切り"),
   milestone("hurtTaken", 40, "jade", "被弾"),
   milestone("bosses", 1, "umbra", "ボス撃破"),
-  milestone("floorsCleared", 10, "azure", "階層踏破"),
-  milestone("roomsCleared", 25, "jade", "部屋制圧"),
+  // 第 2 弾で目覚めを名指しするようにした節目（key は変えないので、到達済みの遺物に芽が出直すことはない）
+  milestone("floorsCleared", 10, "azure", "階層踏破", "emberWalk"),
+  milestone("roomsCleared", 25, "jade", "部屋制圧", "siegeHeart"),
   milestone("kills", 200, "crimson", "撃破"),
   milestone("justDodges", 60, "gold", "見切り"),
   milestone("hurtTaken", 150, "jade", "被弾"),
   milestone("bosses", 3, "umbra", "ボス撃破"),
-  milestone("floorsCleared", 30, "azure", "階層踏破"),
+  milestone("floorsCleared", 30, "azure", "階層踏破", "frostWalk"),
   milestone("kills", 500, "crimson", "撃破"),
   // ---- 2026-09 追加。旧セーブの到達済み節目の並びを崩さないよう末尾に足す ----
-  milestone("staggers", 100, "crimson", "怯ませた"),
+  milestone("staggers", 100, "crimson", "怯ませた", "hueBreak"),
   milestone("counters", 30, "gold", "カウンター", "firstMove"),
-  milestone("skillCasts", 300, "azure", "スキル発動"),
+  milestone("skillCasts", 300, "azure", "スキル発動", "battleRhythm"),
   milestone("eliteKills", 30, "crimson", "精鋭撃破", "plunder"),
   milestone("lastKills", 20, "gold", "殲滅", "curtainCall"),
   enemyMilestone("knight", 30, "crimson", "shieldSplitter"),
   enemyMilestone("bomber", 40, "crimson", "kickback"),
-  milestone("staggers", 400, "crimson", "怯ませた"),
+  milestone("staggers", 400, "crimson", "怯ませた", "brokenBreaker"),
   milestone("counters", 120, "gold", "カウンター"),
-  milestone("skillCasts", 1200, "azure", "スキル発動"),
+  milestone("skillCasts", 1200, "azure", "スキル発動", "stormConduit"),
+  // ---- 2026-09 第 2 弾: 属性・地形・ジョブ・武器種の節目（すべて目覚めを名指しする）----
+  milestone("weakHits", 150, "azure", "弱点を突いた", "weakInsight"),
+  milestone("resistedHits", 150, "umbra", "耐性に阻まれた", "counterGrain"),
+  milestone("terrainKills", 60, "jade", "地形の上の撃破", "groundWisdom"),
+  milestone("favoredKills", 150, "crimson", "得意武器での撃破", "schoolMastery"),
+  milestone("chargedHits", 100, "crimson", "溜めの命中", "fullCharge"),
+  milestone("branchHits", 150, "gold", "派生の命中", "formBreaker"),
+  milestone("weakHits", 600, "gold", "弱点を突いた", "sevenHues"),
+  milestone("terrainKills", 250, "jade", "地形の上の撃破", "mireLord"),
+  milestone("favoredKills", 600, "gold", "得意武器での撃破", "schoolSecret"),
 ];
 
 /** 来歴を 2 倍で積むベース（印章指輪） */
@@ -170,6 +194,24 @@ export function bumpProvenance(p: Provenance, event: ProvenanceEvent, depth: num
       return;
     case "lastKill":
       p.lastKills += 1;
+      return;
+    case "weakHit":
+      p.weakHits += 1;
+      return;
+    case "resistedHit":
+      p.resistedHits += 1;
+      return;
+    case "terrainKill":
+      p.terrainKills += 1;
+      return;
+    case "favoredKill":
+      p.favoredKills += 1;
+      return;
+    case "chargedHit":
+      p.chargedHits += 1;
+      return;
+    case "branchHit":
+      p.branchHits += 1;
       return;
   }
 }

@@ -739,12 +739,14 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
 
 /**
  * 同時攻撃の上限: すでに strike の敵が上限に達していれば待たせる。
- * 敵は配列順（id 順）に更新されるので、同じステップで予備動作が終わった敵は id の若い方が先に枠を取る（決定的）
+ * 敵は配列順（id 順）に更新されるので、同じステップで予備動作が終わった敵は id の若い方が先に枠を取る（決定的）。
+ * ボスは数えない: ボスは自前の AI（boss*.ts）で動いてこの上限を受けず、技の strike も長いので、数えると
+ * ボスが技を出している間ずっと取り巻きが予備動作のまま固まる（ボスの予告は取り巻きと重なる前提で作ってある）
  */
 function strikeSlotsFull(state: GameState, e: Enemy): boolean {
   let striking = 0;
   for (const o of state.enemies) {
-    if (o !== e && o.hp > 0 && o.phase === "strike") striking++;
+    if (o !== e && o.hp > 0 && o.phase === "strike" && !isBossDriven(enemyDef(o.defKey))) striking++;
   }
   return striking >= ENEMY_AI.maxSimultaneousStrikers;
 }

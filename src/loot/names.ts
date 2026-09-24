@@ -72,6 +72,12 @@ export const ENGRAVING_SCALE = {
   skillCasts: 600,
   eliteKills: 20,
   lastKills: 40,
+  weakHits: 300,
+  resistedHits: 300,
+  terrainKills: 120,
+  favoredKills: 300,
+  chargedHits: 200,
+  branchHits: 300,
 } as const;
 
 /** 来歴が 1 つも無いときの銘（seed で選ぶ） */
@@ -106,6 +112,12 @@ function engravingParts(provenance: Provenance): EngravingPart[] {
     { head: "詠み手の", tail: "詠み手", score: provenance.skillCasts / ENGRAVING_SCALE.skillCasts },
     { head: "剥ぎ取りの", tail: "剥ぎ取り", score: provenance.eliteKills / ENGRAVING_SCALE.eliteKills },
     { head: "幕引きの", tail: "幕引き", score: provenance.lastKills / ENGRAVING_SCALE.lastKills },
+    { head: "急所を知る", tail: "急所読み", score: provenance.weakHits / ENGRAVING_SCALE.weakHits },
+    { head: "逆らう", tail: "逆鱗", score: provenance.resistedHits / ENGRAVING_SCALE.resistedHits },
+    { head: "泥にまみれた", tail: "地這い", score: provenance.terrainKills / ENGRAVING_SCALE.terrainKills },
+    { head: "型を継ぐ", tail: "師範", score: provenance.favoredKills / ENGRAVING_SCALE.favoredKills },
+    { head: "満ちた", tail: "満月", score: provenance.chargedHits / ENGRAVING_SCALE.chargedHits },
+    { head: "型破りの", tail: "型破り", score: provenance.branchHits / ENGRAVING_SCALE.branchHits },
   );
   return parts.filter((p) => p.score > 0).sort((a, b) => b.score - a.score);
 }

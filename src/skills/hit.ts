@@ -1,7 +1,9 @@
+import type { AttackProfile, Element } from "../core/element";
 import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
+import type { TerrainKind } from "../core/terrain";
 import { type Vec, length, normalize, scale, sub } from "../core/vec";
-import { FEEL, POISE } from "../data/tuning";
+import { FEEL, POISE, STATUS } from "../data/tuning";
 import type { Scaling } from "../loot/types";
 import { scaled } from "../system/attributes";
 import { onBoonSkillHit } from "../system/boons";
@@ -9,10 +11,13 @@ import { damageEnemy, rollOutgoing } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
 import { isStaggered } from "../system/poise";
 import { applyStatus } from "../system/statusEffects";
+import { placeTerrain } from "../system/terrain";
 import { fireTrigger } from "../system/triggers";
+import { TRAIT_COLORS } from "../loot/types";
 import { SKILL, SKILL_DEFS, resolveCast, skillAttack } from "./data";
 import { stoneInSlot } from "./persistence";
 import type { CastParams } from "./types";
+import { noteWearHit } from "./wear";
 
 /**
  * スキルのダメージの共通入口。rollOutgoing → damageEnemy に、
@@ -23,6 +28,7 @@ import type { CastParams } from "./types";
  */
 
 export const COLOR_CURSE = "#b040ff";
+const STATUS_HUE_DURATION = STATUS.hue.duration;
 const COLOR_RESET = "#ffff80";
 const RESET_TEXT_SCALE = 1;
 const RESET_TEXT_LIFE = 0.6;
@@ -85,12 +91,25 @@ export function positionalMul(e: Enemy, params: Readonly<CastParams>, from: Vec)
   return { damage, poise };
 }
 
+/**
+ * この発動の攻撃の素性。属性の刻印符・武器写し・移ろい刃・極意は属性だけを差し替える（ジャンルはスキルのまま）。
+ * 与ダメを持たないスキル（null）は差し替えない
+ */
+export function castAttack(params: Readonly<CastParams>): AttackProfile | null {
+  const base = skillAttack(params.skillKey);
+  if (!base || params.element === null) return base;
+  return { ...base, element: params.element };
+}
+
 /** 1 体への命中。倒したら true */
 export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec): boolean {
   const def = SKILL_DEFS[params.skillKey];
   const from = spec.from ?? state.player.body.pos;
   const pos = { ...e.body.pos };
-  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true, attack: skillAttack(params.skillKey) });
+  noteWearHit(state, params.slot);
+  // 素性が null のスキル（影渡り・伝染など）も刻印符「着地」などで当てることがある。null のまま渡すと防御・耐性を
+  // 素通しするので、そのときは既定（範囲軸だけ合わせた無属性の物理）に任せる
+  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true, attack: castAttack(params) ?? undefined });
   const crit = out.crit || spec.forceCrit === true;
   const critMul = crit && !out.crit ? state.stats.critMul : 1;
   const attune = crit && params.attuneCrit ? SKILL.modifier.attune.matchMul : 1;
@@ -127,10 +146,14 @@ function knockback(e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec): 
   return { dir: mul < 0 ? scale(spec.dir, -1) : spec.dir, force };
 }
 
-/** 命中の後始末: 付与・呪い・連鎖・返金・追撃・散り際 */
+/** 命中の後始末: 付与・呪い・連鎖・返金・追撃・散り際・地染め */
 function afterHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec, killed: boolean, pos: Vec): void {
   const def = SKILL_DEFS[params.skillKey];
   if (!killed) applySkillStatuses(state, e, spec.applies === undefined ? def.applies : spec.applies, params);
+  // 刻印符の付与（属性・揺さぶり・彩り）はスキル本来の付与を消す命中（着地衝撃など）でも付く
+  if (!killed) applySkillStatuses(state, e, params.extraApplies, params);
+  if (!killed && params.hueInfuse) applyResonanceHue(state, e, params);
+  if (params.leyline) leylineAt(state, pos, params);
   if (params.curse && !killed) applyCurse(state, e, params.curse);
   if (params.followUp && !killed) markFollowUp(state, e, spec.base);
   if (params.refundPerHit > 0) refundOnHit(state, params, pos);
@@ -148,7 +171,9 @@ export function applySkillStatuses(
 ): void {
   if (!applies) return;
   for (const a of applies) {
-    const apply = { ...a, potency: a.potency * params.potencyMul, duration: a.duration * params.statusDurationMul };
+    // 彩痕の potency は色の番号なので効果量を掛けない（掛けると別の色になる）
+    const potency = a.kind === "hue" ? a.potency : a.potency * params.potencyMul;
+    const apply = { ...a, potency, duration: a.duration * params.statusDurationMul };
     applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
     if (params.spread) spreadStatus(state, e, apply);
   }
@@ -174,6 +199,43 @@ function nearestOther(state: GameState, from: Enemy, radius: number): Enemy | nu
     bestD = d;
   }
   return best;
+}
+
+/** 装備の共鳴の色（支配・二重・三和音の最初の色）の番号。散光・共鳴なしは null */
+export function resonanceHueIndex(state: GameState): number | null {
+  const r = state.stats.resonance;
+  if (r.kind === "scatter" || r.kind === "none") return null;
+  const color = r.colors[0];
+  if (color === undefined) return null;
+  const index = TRAIT_COLORS.indexOf(color);
+  return index >= 0 ? index : null;
+}
+
+/** 彩り: 共鳴の色の彩痕（色が定まらなければ付けない） */
+function applyResonanceHue(state: GameState, e: Enemy, params: Readonly<CastParams>): void {
+  const index = resonanceHueIndex(state);
+  if (index === null) return;
+  applySkillStatuses(state, e, [{ kind: "hue", stacks: 1, duration: STATUS_HUE_DURATION, potency: index }], params);
+}
+
+/** 地染めが湧かせる地形（属性ごと）。雷・光は水たまり（濡れと感電の噛み合い）、闇は油 */
+export const LEYLINE_TERRAIN: Readonly<Record<Element, TerrainKind>> = {
+  none: "grass",
+  fire: "fire",
+  ice: "ice",
+  lightning: "water",
+  light: "water",
+  poison: "bog",
+  dark: "oil",
+};
+
+/** 地染め: 命中した位置に属性の地形（発動 1 回ぶんの残り回数まで） */
+function leylineAt(state: GameState, pos: Vec, params: Readonly<CastParams>): void {
+  if (params.leyPool.left <= 0) return;
+  params.leyPool.left -= 1;
+  const l = SKILL.modifier.leyline;
+  const element = castAttack(params)?.element ?? "none";
+  placeTerrain(state, pos.x, pos.y, LEYLINE_TERRAIN[element], l.radius, l.time);
 }
 
 /** 追撃の印。近接で当てると追加ヒット（system/skills.ts の onSkillMeleeHit） */

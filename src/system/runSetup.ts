@@ -184,16 +184,25 @@ function maxHpMul(state: GameState): number {
   return origin * mod;
 }
 
+/** applyRunStats が作った stats → 畳む前の装備の stats。オブジェクトの同一性だけを見るので決定性に影響しない */
+const RUN_FOLD_SOURCE = new WeakMap<PlayerStats, PlayerStats>();
+
 /**
  * 装備の stats に、起点・ジョブ・縛り・祭壇の誓約を畳み込む。何も無ければ同じオブジェクトを返す（従来と完全に同じ結果）。
  * 誓約は装備の誓約と排他グループがぶつかるなら足さない（装備側が勝つ。祭壇は候補の時点で除いている）
+ *
+ * 祝福・振り分けの畳み込み直し（boons.ts の applyBoonsToStats）は、この関数の結果（boonRun.baseStats）をもう一度
+ * applyStats へ渡してくる。そのまま畳むとジョブの偏り・倍率や最大生命の倍率が重なるので、畳んだ結果には元の装備の
+ * stats を覚えさせ、再入力されたら元からやり直す（同じ状態なら何度呼んでも同じ結果）
  */
-export function applyRunStats(state: GameState, equipStats: PlayerStats): PlayerStats {
+export function applyRunStats(state: GameState, input: PlayerStats): PlayerStats {
+  const equipStats = RUN_FOLD_SOURCE.get(input) ?? input;
   const sealed = equipmentSealed(state);
   const hpMul = maxHpMul(state);
   const job = jobChangesStats(state.job);
   if (!sealed && hpMul === 1 && state.runKeystones.length === 0 && !job) return equipStats;
   const stats = structuredClone(sealed ? computeStats(createEmptyEquipment()) : equipStats);
+  RUN_FOLD_SOURCE.set(stats, equipStats);
   for (const key of state.runKeystones) addRunKeystone(stats, key);
   // ジョブの偏りは生値に足す（逓減は applyStats の deriveAttributes がまとめて掛ける）。倍率は誓約の後に掛ける
   if (job) applyJobStats(stats, state.job);

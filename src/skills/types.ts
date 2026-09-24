@@ -1,8 +1,10 @@
+import type { Element } from "../core/element";
 import type { KeywordProfile } from "../core/keywords";
 import type { Rule } from "../core/rules";
 import type { TimedMul } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
+import type { MovesetKey } from "../data/weapons";
 
 /**
  * スキルシステムの共有型。docs/ideas/skills.md「6-1」「7. 最小実装の仕様」。
@@ -23,6 +25,8 @@ export const SKILL_TAGS = [
   "lightning",
   /** 連動体（自分では攻撃せず、プレイヤーの近接・射撃に合わせて動く） */
   "summon",
+  /** 変身（一定秒だけ武器種が変わる。docs/ideas/skills-expansion.md 0 章） */
+  "form",
 ] as const;
 export type SkillTag = (typeof SKILL_TAGS)[number];
 
@@ -82,8 +86,41 @@ export const EXTRA_SKILL_KEYS = [
 ] as const;
 export type ExtraSkillKey = (typeof EXTRA_SKILL_KEYS)[number];
 
-/** 追加はここへ（BASE / EXTRA のどちらかに足す） */
-export const SKILL_KEYS = [...BASE_SKILL_KEYS, ...EXTRA_SKILL_KEYS] as const;
+/**
+ * 第 2 弾（地形・新しい状態異常・属性・武器種・変身・空間）。定義は skills/defs2.ts、発動は skills/actions2.ts
+ */
+export const WAVE2_SKILL_KEYS = [
+  "waterJar",
+  "oilPot",
+  "scorchLine",
+  "iceSlide",
+  "levelGround",
+  "emberDraw",
+  "bogCall",
+  "brandSear",
+  "brandBlast",
+  "breakKick",
+  "collapseHammer",
+  "tideSlash",
+  "flashFreeze",
+  "hueEtch",
+  "hueRelease",
+  "siphonMark",
+  "doomSentence",
+  "shiftingEdge",
+  "weaponArt",
+  "titanForm",
+  "swiftForm",
+  "spiritForm",
+  "wardStake",
+] as const;
+export type Wave2SkillKey = (typeof WAVE2_SKILL_KEYS)[number];
+
+/** 変身スキル（SkillRunState.form を立てる） */
+export type FormSkillKey = "titanForm" | "swiftForm" | "spiritForm";
+
+/** 追加はここへ（BASE / EXTRA / WAVE2 のどれかに足す） */
+export const SKILL_KEYS = [...BASE_SKILL_KEYS, ...EXTRA_SKILL_KEYS, ...WAVE2_SKILL_KEYS] as const;
 export type SkillKey = (typeof SKILL_KEYS)[number];
 
 /** 最小実装の 4 + 追加の 7 */
@@ -135,11 +172,30 @@ export const EXTRA_MODIFIER_KEYS = [
 ] as const;
 export type ExtraModifierKey = (typeof EXTRA_MODIFIER_KEYS)[number];
 
-export const MODIFIER_KEYS = [...BASE_MODIFIER_KEYS, ...EXTRA_MODIFIER_KEYS] as const;
+/** 第 2 弾の刻印符（属性・地形・ジョブ・変身）と型替え符。定義は skills/modifiers2.ts */
+export const WAVE2_MODIFIER_KEYS = [
+  "fireInfuse",
+  "iceInfuse",
+  "stormInfuse",
+  "venomInfuse",
+  "breakInfuse",
+  "hueInfuse",
+  "leyline",
+  "jobMastery",
+  "weaponBond",
+  "formSurge",
+  "formLinger",
+  // ---- 型替え符 ----
+  "toNova",
+  "toTrap",
+] as const;
+export type Wave2ModifierKey = (typeof WAVE2_MODIFIER_KEYS)[number];
+
+export const MODIFIER_KEYS = [...BASE_MODIFIER_KEYS, ...EXTRA_MODIFIER_KEYS, ...WAVE2_MODIFIER_KEYS] as const;
 export type ModifierKey = (typeof MODIFIER_KEYS)[number];
 
 /** 型替え符の種類。castSlot の入口で発動の「型」を差し替える */
-export type ReshapeKey = "toThrown" | "toLobbed" | "toStaged";
+export type ReshapeKey = "toThrown" | "toLobbed" | "toStaged" | "toNova" | "toTrap";
 
 /** 距離で威力が変わる刻印符（至近 / 遠当て） */
 export type RangeBias = "pointBlank" | "longshot";
@@ -155,7 +211,17 @@ export type ComboKey =
   | "frostBreaker"
   | "shadowExploit"
   | "hasteSpiral"
-  | "reelStomp";
+  | "reelStomp"
+  // ---- 第 2 弾（skills/combos.ts） ----
+  | "waterFreeze"
+  | "oilScorch"
+  | "brandChain"
+  | "breakCollapse"
+  | "hueBloom"
+  | "wellFrag"
+  | "frostThunder"
+  | "formArt"
+  | "levelMeteor";
 
 /** rollOutgoing に渡す種別。none は与ダメを持たない（buff） */
 export type SkillDamageKind = "melee" | "ranged" | "none";
@@ -316,6 +382,23 @@ export interface CastParams {
   hitLog: Set<number>;
   /** 散り際の残り回数（発動 1 回ぶんで共有） */
   gaspPool: { left: number };
+  // ---- 第 2 弾（属性・地形・ジョブ・変身） ----
+  /** 属性の差し替え（属性の刻印符・武器写し・移ろい刃・極意）。null なら SKILL_ATTACK のまま */
+  element: Element | null;
+  /** 命中で追加に付ける状態異常（属性の刻印符・揺さぶり）。スキル本来の付与とは別に付く */
+  extraApplies: readonly StatusApply[];
+  /** 彩り: 命中で共鳴の色の彩痕を付ける */
+  hueInfuse: boolean;
+  /** 地染め: 命中した位置に属性の地形を置く。残り回数は発動 1 回ぶんで共有 */
+  leyline: boolean;
+  leyPool: { left: number };
+  /** 心得 / 武器写し / 化身: 発動時の状態で決まる（system/skills.ts の wave2CastState が読む） */
+  jobMastery: boolean;
+  weaponBond: boolean;
+  formSurge: boolean;
+  /** 変身の持続と、切れた後の反動の倍率（深化） */
+  formDurationMul: number;
+  formRecoverMul: number;
 }
 
 export interface ModifierDef {
@@ -338,6 +421,8 @@ export interface ModifierDef {
   requiresApplies?: boolean;
   /** 同じスロットで同時に効かない刻印符（古い方が効き、後から刺した方は無効） */
   excludesModifiers?: readonly ModifierKey[];
+  /** true なら与ダメを持つスキル（damageKind が none でない）にだけ付けられる */
+  requiresDamage?: boolean;
   /** 使うリンクの本数（既定 1。型替え符は 2） */
   linkCost?: number;
   /** 型替え符か（1 スロットに 1 枚まで） */
@@ -373,6 +458,20 @@ export interface SkillStone {
    * 旧セーブ・リプレイの石には無いので省略可（無ければ空）
    */
   runes?: RuneItem[];
+  /** 使い込み（docs/ideas/skills-expansion.md 5 章）。旧セーブ・未使用の石には無いので省略可 */
+  wear?: StoneWear;
+}
+
+/** 使い込みの芽。link = 刻印符のリンク +1 / power = 威力・効果量 +（skills/tuning2.ts の WEAR_TUNING） */
+export type WearBud = "link" | "power";
+
+export interface StoneWear {
+  /** 手動で撃った回数 */
+  casts: number;
+  /** この石のスキルが敵に当たった回数（反響・遅延・設置物の命中も含む） */
+  hits: number;
+  /** 出た芽（古い順）。節目の数まで */
+  buds: WearBud[];
 }
 
 /** 所持品としての刻印符（1 枚）。拾うと SkillProfile.runes に入り、装備画面で石に付け外しする */
@@ -415,6 +514,8 @@ export interface SkillSlotState {
   /** 過熱: 続けて撃った回数と、途切れるまでの残り秒 */
   heat: number;
   heatTimer: number;
+  /** 移ろい刃: 次に撃つ属性の番号（撃つたびに進む） */
+  elementStep: number;
 }
 
 export type ActiveSkillKey =
@@ -432,7 +533,9 @@ export type ActiveSkillKey =
   | "stomp"
   | "threadReel"
   | "meteorDive"
-  | "swallowFlip";
+  | "swallowFlip"
+  // ---- 第 2 弾（skills/actions2.ts が更新する） ----
+  | "iceSlide";
 
 /** 発動中のスキル（同時に 1 つ） */
 export interface ActiveCast {
@@ -624,6 +727,37 @@ export interface ManaSpring {
   params: CastParams;
 }
 
+/** 変身中（skills/actions2.ts）。state.stats.moveset を moveset に差し替え、切れたら base に戻す */
+export interface FormState {
+  skillKey: FormSkillKey;
+  moveset: MovesetKey;
+  /** 変身前（装備）の武器種。変身中に装備を替えたらその武器種へ更新する */
+  base: MovesetKey;
+  timer: number;
+  total: number;
+  /** 切れた後の反動の秒（深化で伸びる） */
+  recover: number;
+}
+
+/** 結界杭 */
+export interface WardStake {
+  id: number;
+  pos: Vec;
+  life: number;
+  total: number;
+  params: CastParams;
+}
+
+/** 型替え符「罠化」の罠。敵が近づくと元のスキルが罠の位置から発動する */
+export interface SkillTrap {
+  id: number;
+  pos: Vec;
+  arm: number;
+  life: number;
+  skillKey: SkillKey;
+  params: CastParams;
+}
+
 /** 位置と HP の履歴（巻き戻し用）。一定間隔で記録する */
 export interface SkillHistoryEntry {
   at: number;
@@ -748,4 +882,12 @@ export interface SkillRunState {
   hurtLog: { at: number; amount: number }[];
   /** 被ダメ検出用: 前フレームの終わりの HP（null なら未同期） */
   lastHp: number | null;
+  // ---- 第 2 弾 ----
+  /** 変身中（無ければ null） */
+  form: FormState | null;
+  /** 変身が切れた後の反動（移動が遅い）の残り秒 */
+  formRecover: number;
+  stakes: WardStake[];
+  stakeTick: number;
+  traps: SkillTrap[];
 }

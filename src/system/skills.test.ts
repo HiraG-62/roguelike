@@ -1141,6 +1141,35 @@ describe("追加の刻印符", () => {
     expect(state.skills.fields).toHaveLength(0);
     expect(state.skills.curses.size).toBe(0);
   });
+
+  it("階層を移ると結界杭と罠は消え、変身は続く", () => {
+    const state = skillArena([{ key: "wardStake" }, { key: "titanForm" }, { key: "whirl", links: 2, modifiers: ["toTrap"] }]);
+    state.player.mana = state.stats.maxMana;
+    press(state, 0, aimAt(state, 30));
+    press(state, 1);
+    press(state, 2, aimAt(state, 60));
+    expect(state.skills.stakes, "前提: 杭").toHaveLength(1);
+    expect(state.skills.traps, "前提: 罠").toHaveLength(1);
+    state.depth += 1;
+    updateSkills(state, withInput({}), FIXED_DT);
+    expect(state.skills.stakes).toHaveLength(0);
+    expect(state.skills.traps).toHaveLength(0);
+    expect(state.skills.form?.skillKey).toBe("titanForm");
+  });
+});
+
+describe("第 2 弾の同時発動", () => {
+  it("変身・設置（杭）は本動作の最中でも並行して撃て、凍て道は本動作（body）", () => {
+    const state = skillArena([{ key: "iceSlide" }, { key: "titanForm" }, { key: "wardStake" }]);
+    state.player.mana = state.stats.maxMana;
+    press(state, 0, aimAt(state, 60));
+    expect(state.skills.active?.skillKey, "前提: 滑っている").toBe("iceSlide");
+    press(state, 1);
+    press(state, 2, aimAt(state, 40));
+    expect(state.skills.form?.skillKey).toBe("titanForm");
+    expect(state.skills.stakes).toHaveLength(1);
+    expect(BODY_SKILL_KEYS.includes("iceSlide")).toBe(true);
+  });
 });
 
 describe("溜め（Charge 刻印符）", () => {

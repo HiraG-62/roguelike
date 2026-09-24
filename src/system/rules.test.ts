@@ -2,19 +2,20 @@ import { describe, expect, it } from "vitest";
 import { type GameEvent, enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
 import { EMPTY_INPUT } from "../core/input";
 import { FIXED_DT } from "../core/loop";
-import { type EnemyRule, type Rule, SCOPE_ANY } from "../core/rules";
+import { type EnemyRule, type Rule, type RuleCondition, SCOPE_ANY } from "../core/rules";
 import { step } from "../core/game";
 import type { GameState } from "../core/state";
 import { type EnemyCombatDef, enemyCombat } from "../data/enemyCombat";
-import { STATUS, SYNERGY } from "../data/tuning";
+import { BOON, STATUS, SYNERGY } from "../data/tuning";
 import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggeredEffect } from "../loot/types";
 import { BOONS, type BoonDef } from "./boonDefs";
-import { BOON_RULE_EXAMPLES } from "./boonRules";
+import { BOON_RULE_EXAMPLES, updateBoonRules } from "./boonRules";
 import { onBoonDash, onBoonKill } from "./boons";
-import { collectRules, resolveRules } from "./rules";
+import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
 import { applyBurn, findStatus, hasStatus } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
+import { placeTerrain, terrainAt } from "./terrain";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 
 /** 統一ルール文法（src/core/rules.ts）と resolveRules（src/system/rules.ts）の検査 */
@@ -339,5 +340,149 @@ describe("祝福の Rule 化の見本（今のフックと同じ結果）", () =
     resolveRules(rule.state, 0, BOON_RULE_EXAMPLES.reaperCup);
     expect(hook.state.player.mana, "フックで戻る").toBeGreaterThan(0);
     expect(rule.state.player.mana, "同じだけ戻る").toBeCloseTo(hook.state.player.mana);
+  });
+});
+
+describe("文法の拡張（祝福 第 2 弾の条件）", () => {
+  /** 敵を対象にした条件の照合 */
+  function holds(state: GameState, c: RuleCondition, target?: ReturnType<typeof placeEnemy>): boolean {
+    const subject = target ? { pos: { ...target.body.pos }, targetId: target.id } : { pos: { ...state.player.body.pos } };
+    return ruleConditionsMet(state, [c], subject);
+  }
+
+  it("武器種・射撃の型・ジョブ・得意武器・否定", () => {
+    const state = cleanArena();
+    state.stats.moveset = "spear";
+    state.stats.shot = "mine";
+    state.job = "lancer";
+    expect(holds(state, { kind: "moveset", movesets: ["spear", "whip"] }), "槍は一致").toBe(true);
+    expect(holds(state, { kind: "moveset", movesets: ["sword"] }), "剣は不一致").toBe(false);
+    expect(holds(state, { kind: "shot", shots: ["mine"] }), "設置弾は一致").toBe(true);
+    expect(holds(state, { kind: "job", jobs: ["lancer"] }), "槍兵は一致").toBe(true);
+    expect(holds(state, { kind: "favoredWeapon" }), "槍兵の槍は得意").toBe(true);
+    expect(holds(state, { kind: "not", condition: { kind: "favoredWeapon" } }), "否定は反転する").toBe(false);
+  });
+
+  it("振りの段・溜めの段・溜め中・コンボ派生は AttackState を読む", () => {
+    const state = cleanArena();
+    const a = state.player.attack;
+    a.step = 4;
+    a.chargeLevel = 0;
+    a.charging = false;
+    a.branch = -1;
+    expect(holds(state, { kind: "swingStep", atLeast: 4 }), "5 段目").toBe(true);
+    expect(holds(state, { kind: "swingStep", atLeast: 5 }), "6 段目ではない").toBe(false);
+    expect(holds(state, { kind: "chargedSwing", atLeast: 1 }), "溜めていない").toBe(false);
+    expect(holds(state, { kind: "branchSwing" }), "派生ではない").toBe(false);
+    a.chargeLevel = 2;
+    a.charging = true;
+    a.branch = 0;
+    expect(holds(state, { kind: "chargedSwing", atLeast: 2 }), "溜め 2 段").toBe(true);
+    expect(holds(state, { kind: "charging" }), "溜め中").toBe(true);
+    expect(holds(state, { kind: "branchSwing" }), "派生").toBe(true);
+  });
+
+  it("自分の足元・対象の足元の地形（any は地形の上ならどれでも）", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "golem", MID);
+    expect(holds(state, { kind: "selfOnTerrain", terrain: "any" }), "地形なし").toBe(false);
+    const p = state.player.body.pos;
+    placeTerrain(state, p.x, p.y, "ice", 1, 0);
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "oil", 1, 0);
+    expect(holds(state, { kind: "selfOnTerrain", terrain: "ice" }), "自分は氷床").toBe(true);
+    expect(holds(state, { kind: "selfOnTerrain", terrain: "any" }), "any も真").toBe(true);
+    expect(holds(state, { kind: "targetOnTerrain", terrain: "oil" }, e), "敵は油の上").toBe(true);
+    expect(holds(state, { kind: "targetOnTerrain", terrain: "water" }, e), "水ではない").toBe(false);
+  });
+
+  it("弱点 / 耐性と主な属性は武器種（変換込み）で決まる", () => {
+    const state = cleanArena();
+    const eye = placeEnemy(state, "eye", MID);
+    state.stats.moveset = "scythe";
+    expect(holds(state, { kind: "attackElement", element: "dark", via: "melee" }), "大鎌は闇").toBe(true);
+    expect(holds(state, { kind: "targetAffinity", affinity: "weak", via: "melee" }, eye), "目玉は闇が弱点").toBe(true);
+    state.stats.moveset = "wand";
+    expect(holds(state, { kind: "targetAffinity", affinity: "resist", via: "melee" }, eye), "目玉は光に耐性").toBe(true);
+    state.stats.moveset = "sword";
+    expect(holds(state, { kind: "targetAffinity", affinity: "weak", via: "melee" }, eye), "剣は無属性で等倍").toBe(false);
+    expect(holds(state, { kind: "targetAffinity", affinity: "weak", via: "melee" }), "対象なしは偽").toBe(false);
+  });
+
+  it("交戦中の部屋の種類・階の種類", () => {
+    const state = cleanArena();
+    expect(holds(state, { kind: "engagedIn", rooms: ["normal"] }), "交戦していない").toBe(false);
+    engageStartRoom(state);
+    const kind = state.rooms[0]?.kind ?? "normal";
+    expect(holds(state, { kind: "engagedIn", rooms: [kind] }), "開始部屋で交戦中").toBe(true);
+    state.floorKind = "glacier";
+    expect(holds(state, { kind: "floorKind", kinds: ["glacier", "forge"] }), "氷河の階").toBe(true);
+    expect(holds(state, { kind: "floorKind", kinds: ["rooms"] }), "部屋の階ではない").toBe(false);
+  });
+
+  it("徘徊: 生きていれば所属で、倒れた後は撃破の記録で見る（記録は時間で消える）", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", MID);
+    e.roomIndex = -1;
+    expect(holds(state, { kind: "targetRoamer" }, e), "生きた徘徊").toBe(true);
+    onBoonKill(state, e);
+    e.hp = 0;
+    state.enemies = [];
+    expect(holds(state, { kind: "targetRoamer" }, e), "倒れた直後も徘徊と分かる").toBe(true);
+    updateBoonRules(state, BOON.roamerKillMemory + 0.1);
+    expect(holds(state, { kind: "targetRoamer" }, e), "記録が消えたら偽").toBe(false);
+  });
+});
+
+describe("文法の拡張（祝福 第 2 弾の効果）", () => {
+  it("地形を置く・火をつける・広げる", () => {
+    const state = cleanArena();
+    const p = state.player.body.pos;
+    const place = makeRule({ when: "onDash", then: { kind: "placeTerrain", terrain: "oil", magnitude: 0, radius: 1, duration: 0 } }, "test:t:0");
+    pushPlayerEvent(state, "onDash", "dash");
+    resolveRules(state, 0, [place]);
+    expect(terrainAt(state, p.x, p.y), "油が置かれる").toBe("oil");
+    const ignite = makeRule({ when: "onDash", then: { kind: "igniteTerrain", magnitude: 0, radius: 1 } }, "test:t:1");
+    pushPlayerEvent(state, "onDash", "dash");
+    resolveRules(state, 0, [ignite]);
+    expect(terrainAt(state, p.x, p.y), "油に火がつく").toBe("fire");
+    const spread = makeRule({ when: "onDash", then: { kind: "spreadTerrain", magnitude: 0, radius: 40 } }, "test:t:2");
+    pushPlayerEvent(state, "onDash", "dash");
+    resolveRules(state, 0, [spread]);
+    expect(terrainAt(state, p.x + 32, p.y), "足元の炎が周りへ広がる").toBe("fire");
+  });
+
+  it("地形の無い所で広げても何も置かない", () => {
+    const state = cleanArena();
+    const p = state.player.body.pos;
+    pushPlayerEvent(state, "onDash", "dash");
+    resolveRules(state, 0, [makeRule({ when: "onDash", then: { kind: "spreadTerrain", magnitude: 0, radius: 40 } })]);
+    expect(terrainAt(state, p.x, p.y), "地形なしのまま").toBe("none");
+  });
+
+  it("自分への状態・ダッシュの回数・追撃・衝撃波", () => {
+    const state = cleanArena();
+    const p = state.player;
+    const e = placeEnemy(state, "golem", NEAR);
+    p.dashChargesLeft = 0;
+    const rules = [
+      makeRule({ when: "onMeleeHit", then: { kind: "selfStatus", status: "haste", magnitude: 0, duration: 2 } }, "test:s:0"),
+      makeRule({ when: "onMeleeHit", then: { kind: "refillDash", magnitude: 0, count: 1 } }, "test:s:1"),
+      makeRule({ when: "onMeleeHit", then: { kind: "strike", magnitude: 5 } }, "test:s:2"),
+      makeRule({ when: "onMeleeHit", then: { kind: "wave", magnitude: 5 } }, "test:s:3"),
+    ];
+    const before = state.projectiles.length;
+    pushEvent(state, { kind: "onMeleeHit", actor: "player", source: { kind: "player", key: "melee" }, ...enemyTarget(e) });
+    resolveRules(state, 0, rules);
+    expect(hasStatus(p.status, "haste"), "加速が付く").toBe(true);
+    expect(p.dashChargesLeft, "ダッシュが 1 戻る").toBe(1);
+    expect(e.hp, "追撃で削れる").toBeLessThan(e.maxHp);
+    expect(state.projectiles.length, "衝撃波が 1 つ出る").toBe(before + 1);
+  });
+
+  it(`第 2 弾の Rule は ICD が ${BOON.ruleMinIcd} 秒以上`, () => {
+    const state = cleanArena();
+    state.boons = ["leyLine"];
+    const [rule] = collectRules(state);
+    expect(rule?.icd ?? 0, "ICD の下限").toBeGreaterThanOrEqual(BOON.ruleMinIcd);
   });
 });

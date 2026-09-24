@@ -1,4 +1,4 @@
-import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, modifierLinkCost, modifiersClash } from "./data";
+import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, maxStoneLinks, modifierLinkCost, modifiersClash } from "./data";
 import { stoneFromSeed } from "./generator";
 import {
   MODIFIER_KEYS,
@@ -9,9 +9,12 @@ import {
   type SkillKey,
   type SkillProfile,
   type SkillStone,
+  type StoneWear,
   type VariantAxis,
   type VariantRoll,
+  type WearBud,
 } from "./types";
+import { WEAR_TUNING } from "./tuning2";
 
 /**
  * スキル石と所持刻印符の永続化。装備プロフィール（roguelike.profile.v1）とは別キーにする
@@ -65,9 +68,31 @@ function sanitizeRunes(v: unknown): RuneItem[] {
   return v.map(sanitizeRune).filter((r): r is RuneItem => r !== null);
 }
 
+function isWearBud(v: unknown): v is WearBud {
+  return v === "link" || v === "power";
+}
+
+function countOf(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+}
+
+/**
+ * 使い込み（省略可）。壊れていれば無しとして扱う。芽は節目の数まで。
+ * 旧セーブ・未使用の石は wear を持たないので、キー形式は変えない（v2 は切らない）
+ */
+function sanitizeWear(v: unknown): StoneWear | null {
+  if (!isRecord(v)) return null;
+  const buds = Array.isArray(v.buds) ? v.buds.filter(isWearBud).slice(0, WEAR_TUNING.milestones.length) : [];
+  return { casts: countOf(v.casts), hits: countOf(v.hits), buds };
+}
+
+function wearField(wear: StoneWear | null): { wear?: StoneWear } {
+  return wear ? { wear } : {};
+}
+
 function sanitizeStone(v: unknown): SkillStone | null {
   if (!isRecord(v)) return null;
-  const { id, seed, skillKey, variants, links, foundDepth, foundAt, runes } = v;
+  const { id, seed, skillKey, variants, links, foundDepth, foundAt, runes, wear } = v;
   if (typeof id !== "string" || id.length === 0) return null;
   if (typeof seed !== "number") return null;
   if (!isSkillKey(skillKey)) return null;
@@ -75,15 +100,19 @@ function sanitizeStone(v: unknown): SkillStone | null {
   if (typeof links !== "number" || !Number.isInteger(links)) return null;
   if (typeof foundDepth !== "number" || typeof foundAt !== "number") return null;
   const rolls = variants.map(sanitizeVariant).filter((r): r is VariantRoll => r !== null);
+  const worn = wearField(sanitizeWear(wear));
+  // 使い込みの枠の芽で増えたリンクは上限を超えてよい
+  const maxLinks = maxStoneLinks({ skillKey, links: 0, id, seed, variants: [], foundDepth, foundAt, ...worn });
   return {
     id,
     seed,
     skillKey,
     variants: rolls.filter((r) => SKILL_DEFS[skillKey].axes.includes(r.axis)),
-    links: Math.max(0, Math.min(SKILL.maxLinks, links)),
+    links: Math.max(0, Math.min(maxLinks, links)),
     foundDepth,
     foundAt,
     ...runesField(sanitizeRunes(runes)),
+    ...worn,
   };
 }
 

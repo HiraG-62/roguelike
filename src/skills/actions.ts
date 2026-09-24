@@ -266,7 +266,9 @@ function castContagion(state: GameState, ctx: CastCtx): void {
     spawnLine(state, src.body.pos, e.body.pos, COLOR_CONTAGION, LINE_LIFE);
     for (const eff of effects) {
       const duration = Math.max(c.minDuration, eff.time * c.durationMul * ctx.params.durationMul);
-      applyStatus(state, { kind: "enemy", enemy: e }, { kind: eff.kind, stacks: eff.stacks, duration, potency: eff.potency * ctx.params.potencyMul }, "player");
+      // 彩痕の potency は色の番号なので効果量を掛けない
+      const potency = eff.kind === "hue" ? eff.potency : eff.potency * ctx.params.potencyMul;
+      applyStatus(state, { kind: "enemy", enemy: e }, { kind: eff.kind, stacks: eff.stacks, duration, potency }, "player");
     }
   }
 }

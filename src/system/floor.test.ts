@@ -6,14 +6,16 @@ import type { GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance } from "./elites";
 import { createEnemy } from "./enemies";
-import { buildFloor, descend, enemyCount, updateRooms } from "./floor";
+import { ascend, buildFloor, descend, enemyCount, maxEnemiesFor, updateRooms } from "./floor";
+import { dropItem } from "./loot";
+import { updateRunEvents } from "./runEvents";
 import { FLOOR_KIND, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { grantBoon } from "./boons";
 import { ROAMING_ROOM, reinforceDue, roamCap, roamerCount, updateRoamers } from "./spawner";
 import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
-import { biomeEnemyWeight, floorKindCandidates } from "./biomes";
-import { stairsTilesValid } from "./specialRooms";
+import { FLOOR_KINDS, biomeEnemyWeight, floorKindCandidates, floorKindWeight, isInvertedDepth } from "./biomes";
+import { stairsTilesValid, updateSpecialRooms } from "./specialRooms";
 import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
@@ -630,5 +632,130 @@ describe("巣窟（モンスターハウス）", () => {
         for (const r of hordes) expect(r.tiles ? r.tiles.size : r.rect.w * r.rect.h).toBeGreaterThanOrEqual(ROOM_KIND.hordeMinTiles);
       }
     }
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 階層構造（反転層・戻る・無限の深み）
+// -----------------------------------------------------------------------------
+
+describe("反転層", () => {
+  it("深度 invertedDepth からバイオームの重みが逆順になる", () => {
+    const n = FLOOR_KINDS.length;
+    FLOOR_KINDS.forEach((kind, i) => {
+      expect(floorKindWeight(kind, FLOOR_KIND.invertedDepth - 1), `${kind} 浅い`).toBe(FLOOR_KIND.weight[kind]);
+      const mirrored = FLOOR_KINDS[n - 1 - i];
+      if (!mirrored) throw new Error("mirrored");
+      expect(floorKindWeight(kind, FLOOR_KIND.invertedDepth), `${kind} 反転層`).toBe(FLOOR_KIND.weight[mirrored]);
+    });
+    expect(isInvertedDepth(FLOOR_KIND.invertedDepth - 1)).toBe(false);
+    expect(isInvertedDepth(FLOOR_KIND.invertedDepth)).toBe(true);
+  });
+
+  it("反転層では落ちた遺物がもう 1 回反転の抽選を受ける（済ませた id は二度と引かない）", () => {
+    const state = createGame(9);
+    state.depth = FLOOR_KIND.invertedDepth + 4;
+    buildFloor(state, "rooms");
+    state.floorItems = [];
+    const before = state.nextId;
+    for (let i = 0; i < 20; i++) dropItem(state, { ...state.player.body.pos });
+    updateRunEvents(state, FIXED_DT);
+    expect(state.runEvents.strata.lastItemId, "済ませた id").toBeGreaterThanOrEqual(before);
+    const snapshot = JSON.stringify(state.floorItems);
+    updateRunEvents(state, FIXED_DT);
+    expect(JSON.stringify(state.floorItems), "二度目は引かない").toBe(snapshot);
+  });
+
+  it("反転層に初めて降りると告げる", () => {
+    const state = createGame(9);
+    state.depth = FLOOR_KIND.invertedDepth - 1;
+    state.runEvents.strata.deepest = state.depth;
+    descend(state, "cave");
+    expect(state.depth).toBe(FLOOR_KIND.invertedDepth);
+    expect(state.log.some((l) => l.text.includes("反転層")), "ログ").toBe(true);
+  });
+});
+
+describe("無限の深み", () => {
+  it("深みでは部屋の敵数の上限が外れる", () => {
+    expect(maxEnemiesFor(FLOOR_KIND.deepDepth)).toBe(ROOM.maxEnemies + FLOOR_KIND.deepMaxEnemiesBonus);
+    expect(maxEnemiesFor(FLOOR_KIND.deepDepth - 1)).toBe(ROOM.maxEnemies);
+    const state = createGame(1);
+    state.depth = FLOOR_KIND.deepDepth + 10;
+    expect(enemyCount(state)).toBeGreaterThan(ROOM.maxEnemies);
+  });
+});
+
+describe("戻る（上り階段）", () => {
+  it("戻ると 1 つ浅い階が作り直され、帰還の印・死神の前倒し・回数が付く", () => {
+    const state = createGame(5);
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    expect(state.depth, "浅い階").toBe(5);
+    expect(state.runEvents.strata.revisit, "帰還").toBe(true);
+    expect(state.runEvents.strata.returns).toBe(1);
+    expect(state.floorTime, "死神の前倒し").toBeGreaterThanOrEqual(FLOOR_KIND.revisitReaperHeadStart);
+  });
+
+  it("戻った階は敵が半分になる（乱数を使わず 1 体おきに除く）", () => {
+    const a = createGame(5);
+    const b = createGame(5);
+    a.depth = 6;
+    b.depth = 6;
+    a.runEvents.strata.deepest = 6;
+    b.runEvents.strata.deepest = 6;
+    buildFloor(a, "rooms");
+    buildFloor(b, "rooms");
+    a.depth = 6;
+    ascend(a);
+    // 同じ乱数の流れで深度 5 を普通に作ったときと比べる
+    b.depth = 5;
+    buildFloor(b);
+    expect(a.enemies.length, "半分").toBe(Math.ceil(b.enemies.length / 2));
+  });
+
+  it("戻ってから降り直した階では、振り分け点・階層到達の報酬を二重に取らない", () => {
+    const state = createGame(5);
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    const points = state.runAttributes.unspent;
+    const score = state.score;
+    descend(state, "rooms");
+    expect(state.depth).toBe(6);
+    expect(state.runAttributes.unspent, "振り分け点").toBe(points);
+    expect(state.score, "スコア").toBe(score);
+    expect(state.runEvents.strata.revisit, "帰還の印は消える").toBe(false);
+    descend(state, "rooms");
+    expect(state.runAttributes.unspent, "初めての階では点が入る").toBeGreaterThan(points);
+  });
+
+  it("上り階段は乗り続けたときだけ戻る（通りすがりでは戻らない）", () => {
+    let state: GameState | null = null;
+    for (const seed of [5, 7, 9, 11, 13]) {
+      const s = createGame(seed);
+      s.depth = 5;
+      buildFloor(s, "rooms");
+      if (s.rooms[s.rooms.length - 1]?.special?.props.some((p) => p.kind === "ascend")) {
+        state = s;
+        break;
+      }
+    }
+    if (!state) throw new Error("上り階段を置ける seed が無い");
+    const last = state.rooms[state.rooms.length - 1];
+    const prop = last?.special?.props.find((p) => p.kind === "ascend");
+    if (!prop) throw new Error("上り階段");
+    state.player.body.pos = { ...prop.pos };
+    updateSpecialRooms(state, FLOOR_KIND.ascendHold / 2);
+    expect(state.depth, "まだ戻らない").toBe(5);
+    state.player.body.pos = rectCenterPx(state.rooms[0]?.rect ?? { x: 0, y: 0, w: 1, h: 1 });
+    updateSpecialRooms(state, FIXED_DT);
+    expect(prop.hold, "離れると戻る").toBe(0);
+    state.player.body.pos = { ...prop.pos };
+    for (let t = 0; t < FLOOR_KIND.ascendHold + FIXED_DT * 2 && state.depth === 5; t += FIXED_DT) updateSpecialRooms(state, FIXED_DT);
+    expect(state.depth, "戻った").toBe(4);
   });
 });

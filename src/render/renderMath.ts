@@ -2,6 +2,7 @@ import type { Hazard } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
 import type { Rarity } from "../loot/types";
+import type { MovesetKey } from "../data/weapons";
 import { type GameMap, Tile, getTile } from "../map/grid";
 
 /** 座標ハッシュ（描画のばらつき用。ゲーム rng は消費しない） */
@@ -201,3 +202,116 @@ export function computeViewScale(
     canvasH: Math.round(viewH * pixelRatio),
   };
 }
+
+// -----------------------------------------------------------------------------
+// 演出の位置計算（src/render/effectsUi.ts・statusUi.ts が使う。描画と切り離してテストする）
+// -----------------------------------------------------------------------------
+
+/** 座標ハッシュを 0..1 にしたもの（演出のばらつき用） */
+export function hash01(a: number, b: number): number {
+  return tileHash(Math.floor(a), Math.floor(b)) / 4294967296;
+}
+
+/**
+ * 制圧の波: 波の前線（speed × age）からの距離で床の明るさ 0..1 を返す。
+ * 前線の手前 band px だけ光り、全体は寿命の終わりに消える
+ */
+export function clearWaveAlpha(dist: number, age: number, life: number, speed: number, band: number): number {
+  if (life <= 0 || band <= 0) return 0;
+  const front = speed * age;
+  const behind = front - dist;
+  if (behind < 0 || behind > band) return 0;
+  const edge = 1 - behind / band;
+  return clamp01(edge * (1 - age / life));
+}
+
+/** 両断: 経過率 t で 2 つの半身が離れる距離（最初は速く、後は止まる） */
+export function severGap(t: number, gap: number): number {
+  return gap * easeOutCubic(clamp01(t));
+}
+
+/** 灰になって崩れる: 残っている上端の割合（0 = 全部残る、1 = 全部崩れた）。前半は溜めて後半で崩す */
+const ASH_HOLD = 0.25;
+export function ashCrumble(t: number): number {
+  const u = clamp01(t);
+  if (u < ASH_HOLD) return 0;
+  return (u - ASH_HOLD) / (1 - ASH_HOLD);
+}
+
+/** 溶ける: 縦横の伸縮（縦は潰れ、横は広がる） */
+export function meltScale(t: number): { sx: number; sy: number } {
+  const u = clamp01(t);
+  return { sx: 1 + u * 0.7, sy: Math.max(0.05, 1 - u) };
+}
+
+/** 砕ける: 破片 i（0..count-1）の飛ぶ向きと距離 */
+export function shardOffset(i: number, count: number, t: number, speed: number): { x: number; y: number } {
+  const a = ((i + 0.5) / Math.max(1, count)) * Math.PI * 2;
+  const d = speed * easeOutCubic(clamp01(t));
+  return { x: Math.cos(a) * d, y: Math.sin(a) * d };
+}
+
+/** 階層到達の名札の不透明度（elapsed は到達からの秒）。遅れて現れ、保って消える */
+export function floorCardAlpha(elapsed: number, c: { delay: number; fadeIn: number; hold: number; fadeOut: number }): number {
+  const u = elapsed - c.delay;
+  if (u <= 0) return 0;
+  if (u < c.fadeIn) return u / c.fadeIn;
+  if (u < c.fadeIn + c.hold) return 1;
+  const out = u - c.fadeIn - c.hold;
+  return clamp01(1 - out / c.fadeOut);
+}
+
+/**
+ * 状態異常の疑似粒（敵に乗る 1〜2 個の点）。seed は敵 id と状態の番号、i は粒の番号。
+ * 時間で周期的に動くだけなので state を持たない。rise = 昇る、fall = 垂れる、orbit = 周回、spark = 瞬く
+ */
+export type StatusMotion = "rise" | "fall" | "orbit" | "spark" | "bubble" | "stars";
+const STATUS_PARTICLE_PERIOD = 0.8;
+
+export function statusParticle(
+  motion: StatusMotion,
+  seed: number,
+  i: number,
+  time: number,
+  halfW: number,
+  height: number,
+): { x: number; y: number; alpha: number } {
+  const jitter = hash01(seed, i);
+  const phase = (time / STATUS_PARTICLE_PERIOD + jitter) % 1;
+  const x0 = (hash01(seed + 7, i + 3) * 2 - 1) * halfW;
+  switch (motion) {
+    case "rise":
+      return { x: x0, y: -phase * height, alpha: 1 - phase };
+    case "fall":
+      return { x: x0, y: -height * 0.5 + phase * height * 0.5, alpha: 1 - phase };
+    case "bubble":
+      return { x: x0 * 0.8, y: -height * 0.3 - phase * height * 0.5, alpha: phase < 0.85 ? 1 : 0 };
+    case "orbit":
+    case "stars": {
+      const a = (time * 3 + (i / 2) * Math.PI * 2 + jitter) % (Math.PI * 2);
+      const r = motion === "stars" ? halfW * 0.8 : halfW;
+      return { x: Math.cos(a) * r, y: -height - 2 + Math.sin(a) * r * 0.35, alpha: 1 };
+    }
+    case "spark":
+      return { x: x0, y: -hash01(seed + 13, i + Math.floor(time * 12)) * height, alpha: phase < 0.3 ? 1 : 0 };
+  }
+}
+
+/** 光条の角度（count 本を等間隔に、時間でゆっくり回す） */
+export function rayAngles(count: number, time: number, speed: number): number[] {
+  return Array.from({ length: Math.max(0, count) }, (_, i) => (i / Math.max(1, count)) * Math.PI * 2 + time * speed);
+}
+
+/** 武器種ごとの振りの軌跡の太さ（論理 px）。重い武器ほど太い */
+export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
+  sword: 2,
+  greatsword: 4,
+  twinBlades: 1,
+  spear: 1,
+  scythe: 3,
+  fists: 2,
+  whip: 1,
+  cleaver: 3,
+  staff: 2,
+  wand: 1,
+};

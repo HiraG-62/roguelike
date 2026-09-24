@@ -5,6 +5,9 @@
 
 import { type KeywordProfile, kw } from "../core/keywords";
 import type { Rule } from "../core/rules";
+import type { JobKey } from "../data/jobs";
+import type { MovesetKey, ShotKey } from "../data/weapons";
+import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
 
 export const BOON_KEYS = [
   "finisherOnly",
@@ -135,6 +138,8 @@ export const BOON_KEYS = [
   "clearMirror",
   "stillDash",
   "waveReturn",
+  // ---- 第 2 弾（src/system/boonDefsWave2.ts） ----
+  ...BOON_KEYS_WAVE2,
 ] as const;
 
 export type BoonKey = (typeof BOON_KEYS)[number];
@@ -172,10 +177,12 @@ export type BoonTag =
   | "placed"
   | "reaper"
   /** 属性（docs/COMBAT_DESIGN.md A-8）。属性の変換を持つ装備と、燃焼・冷気・感電の系譜・属性の轍を結ぶ */
-  | "element";
+  | "element"
+  /** 地形（水たまり・油・氷床…）を踏む・撒く・広げる祝福。祝福が出すタグとして重みに乗る */
+  | "terrain";
 
 /** 系譜（同じ主から出る 4 段の祝福）。前段を持っていると次段が抽選に出る */
-export type LineageKey = "ash" | "frost" | "thunder" | "moon";
+export type LineageKey = "ash" | "frost" | "thunder" | "moon" | "earth" | "blade";
 
 /** 系譜の表示名（カードと HUD の注記） */
 export const LINEAGE_LABEL: Readonly<Record<LineageKey, string>> = {
@@ -183,7 +190,16 @@ export const LINEAGE_LABEL: Readonly<Record<LineageKey, string>> = {
   frost: "霜枷",
   thunder: "雷鳴",
   moon: "月蝕",
+  earth: "大地",
+  blade: "刃鳴",
 };
+
+/** 武器種・射撃の型・ジョブで出る祝福の条件。どれかの列を持つなら、その列のどれかに当てはまるときだけ 3 択に出る */
+export interface BoonLoadout {
+  movesets?: readonly MovesetKey[];
+  shots?: readonly ShotKey[];
+  jobs?: readonly JobKey[];
+}
 
 export interface BoonDef {
   key: BoonKey;
@@ -205,6 +221,8 @@ export interface BoonDef {
   after?: BoonKey;
   /** 結び: この 2 つを両方持っていないと出ない */
   duo?: readonly [BoonKey, BoonKey];
+  /** 今の武器種・射撃の型・ジョブがこれに当てはまらないと出ない（大剣を持たない者に大剣の祝福を出さない） */
+  loadout?: BoonLoadout;
   /** 統一ルール（src/core/rules.ts）。取得順に src/system/rules.ts の resolveRules が照合する */
   rules?: readonly Rule[];
   /** 共通語彙（docs/ideas/synergy-web.md 1 章）。tags / gives より細かい「出す・食う・強める」 */
@@ -1547,4 +1565,5 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     cursed: false,
     duo: ["comboWave", "finisherWave"],
   },
+  ...BOONS_WAVE2,
 };

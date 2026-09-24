@@ -66,7 +66,11 @@ describe("resolveResonance: 境界", () => {
     expect(resolveResonance(w({ crimson: 20, azure: 20, jade: 20, gold: 20, umbra: 20 })).kind).toBe("scatter");
     expect(resolveResonance(w({ crimson: 26, azure: 26, jade: 24, gold: 24 })).kind).toBe("scatter");
     expect(resolveResonance(w({ crimson: 29, azure: 29, jade: 21, gold: 21 })).kind).toBe("scatter");
-    expect(resolveResonance(w({ crimson: 30, azure: 29, jade: 21, gold: 20 })).kind).toBe("none");
+    // 紅 30%・蒼 29% は散光にも二重にも届かないが、反対色の均衡なので拮抗（天秤）になる
+    const balanced = resolveResonance(w({ crimson: 30, azure: 29, jade: 21, gold: 20 }));
+    expect(balanced.kind).toBe("dual");
+    expect(balanced.form).toBe("balance");
+    expect(resolveResonance(w({ crimson: 31, azure: 19, jade: 29, gold: 21 })).kind, "反対色が均衡していなければなし").toBe("none");
   });
 
   it("配合比の合計は 1", () => {

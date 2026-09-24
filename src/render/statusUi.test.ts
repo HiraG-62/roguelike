@@ -68,3 +68,40 @@ describe("状態異常の世代表示（synergy-web 2-b）", () => {
     expect(statusIcons(spread.status)[0]?.inherited, "移ってきた").toBe(true);
   });
 });
+
+describe("状態異常の見た目", () => {
+  it("描く状態は優先順に EFFECTS.statusKindsPerEnemy 個まで（凍結が最優先）", async () => {
+    const { statusFxKinds } = await import("./statusUi");
+    const { EFFECTS } = await import("../data/tuning");
+    const state = arena(1);
+    const e = placeEnemy(state, "slime", 40);
+    const target = { kind: "enemy" as const, enemy: e };
+    applyStatus(state, target, { kind: "poison", stacks: 1, duration: 3, potency: 0.01 }, "player");
+    applyStatus(state, target, { kind: "bleed", stacks: 1, duration: 3, potency: 1 }, "player");
+    applyStatus(state, target, { kind: "freeze", stacks: 1, duration: 1, potency: 0 }, "player");
+    const kinds = statusFxKinds(e.status);
+    expect(kinds.length, "上限").toBeLessThanOrEqual(EFFECTS.statusKindsPerEnemy);
+    expect(kinds[0], "凍結が先頭").toBe("freeze");
+  });
+
+  it("何も付いていなければ色調も粒も無い", async () => {
+    const { statusFxKinds, statusTint } = await import("./statusUi");
+    const bag = createStatusBag();
+    expect(statusFxKinds(bag)).toEqual([]);
+    expect(statusTint(bag)).toBeNull();
+  });
+
+  it("毒は緑の色調になる", async () => {
+    const { statusTint, STATUS_FX } = await import("./statusUi");
+    const state = arena(1);
+    const e = placeEnemy(state, "slime", 40);
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "poison", stacks: 1, duration: 3, potency: 0.01 }, "player");
+    expect(statusTint(e.status)?.color).toBe(STATUS_FX.poison.tint);
+  });
+
+  it("優先順の一覧に重複が無く、すべて既知の状態異常", async () => {
+    const { STATUS_FX_PRIORITY } = await import("./statusUi");
+    expect(new Set(STATUS_FX_PRIORITY).size).toBe(STATUS_FX_PRIORITY.length);
+    for (const k of STATUS_FX_PRIORITY) expect(STATUS_KINDS).toContain(k);
+  });
+});

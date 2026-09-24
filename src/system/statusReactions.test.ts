@@ -4,6 +4,7 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { damageEnemy } from "./combat";
+import { dotResistMul } from "./elementCombat";
 import { isStaggered } from "./poise";
 import {
   type StatusTarget,
@@ -249,7 +250,9 @@ describe("昇華", () => {
     for (let i = 0; i < STATUS.burnMaxStacks; i++) applyBurn(state, e, 4, 5);
     expect(hasStatus(e.status, "scorch")).toBe(true);
     updateStatusEffects(state, STATUS.scorch.spreadInterval);
-    expect(BIG_HP - e.hp).toBe(4 * STATUS.scorch.dpsMul * STATUS.scorch.spreadInterval);
+    // 燃焼は炎の継続ダメージなので、受け手の炎耐性（ゴーレムは炎が弱点）で増減する（docs/COMBAT_DESIGN.md A-8）
+    const fireMul = dotResistMul(state.stats, e, "burn");
+    expect(BIG_HP - e.hp).toBe(Math.floor(4 * STATUS.scorch.dpsMul * STATUS.scorch.spreadInterval * fireMul));
     expect(hasStatus(near.status, "burn")).toBe(true);
   });
 

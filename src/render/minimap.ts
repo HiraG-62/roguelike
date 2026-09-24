@@ -64,6 +64,13 @@ const ROOM_RGB: Readonly<Record<RoomKind, Rgb>> = {
   nest: [150, 150, 170],
   mirror: [150, 150, 170],
   horde: [150, 150, 170],
+  // 第 2 弾: 台座の部屋（封印庫・属性の祭壇・試し場・反転の間）は床の色、戦う部屋（霧・潮）は記号で示す
+  vault: [110, 200, 220],
+  elementAltar: [220, 200, 110],
+  dummyHall: [190, 150, 100],
+  invertHall: [150, 90, 210],
+  fogRoom: [150, 150, 170],
+  tideRoom: [150, 150, 170],
 };
 
 /** 部屋の中央に打つ 3x3 の記号（行ごとの 3 ビット。1 = 塗る）。無い種類は打たない */
@@ -83,6 +90,12 @@ const ROOM_MARK: Readonly<Partial<Record<RoomKind, readonly [number, number, num
   nest: [0b111, 0b101, 0b101],
   mirror: [0b101, 0b101, 0b111],
   horde: [0b111, 0b000, 0b111],
+  vault: [0b111, 0b101, 0b010],
+  elementAltar: [0b010, 0b101, 0b111],
+  dummyHall: [0b110, 0b010, 0b011],
+  invertHall: [0b111, 0b010, 0b111],
+  fogRoom: [0b101, 0b000, 0b101],
+  tideRoom: [0b000, 0b101, 0b010],
 };
 const MARK_SIZE = 3;
 const MARK_BITS_TOP = 0b100;

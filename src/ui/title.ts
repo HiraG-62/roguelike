@@ -218,7 +218,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 export const PAUSE_MENU_ITEMS = ["resume", "settings", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
-export const SETTINGS_ITEMS = ["mute", "volume", "screenShake", "keybinds", "close"] as const;
+export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "keybinds", "close"] as const;
 export type SettingsItem = (typeof SETTINGS_ITEMS)[number];
 
 /** move 系の値が 0 → 非0 に変わった瞬間だけ、その符号を返す（連射防止のエッジ検出） */
@@ -285,7 +285,8 @@ export function pauseMenuItemAt(x: number, y: number, itemGap: number): number |
 }
 
 export const SETTINGS_PANEL_W = 220;
-export const SETTINGS_PANEL_H = 142;
+/** 6 項目 + 見出し + 下の案内が収まる高さ（音楽の音量の行を足して 142 → 160） */
+export const SETTINGS_PANEL_H = 160;
 const SETTINGS_ROW_TOP = 40;
 
 export interface SettingsLayout {

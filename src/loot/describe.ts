@@ -69,6 +69,9 @@ export interface ItemDescription {
 const UNCOLORED = "#c0c0c0";
 const INVERTED_PREFIX = "反転 ";
 const GROWN_PREFIX = "芽 ";
+/** 残響の操作の印（脱色・張り）。色や値が定義と違う理由を行の頭で見せる */
+const COLORLESS_PREFIX = "無色 ";
+const TENSED_PREFIX = "張り ";
 const TOP_ENEMIES = 3;
 
 function fluxLevelOf(roll: AffixRoll): FluxLevel {
@@ -184,7 +187,8 @@ export function describeTrait(roll: AffixRoll): TraitLine {
   const hue = traitColorOf(roll);
   const inverted = roll.inverted === true;
   const grown = roll.origin === "bud";
-  const prefix = `${grown ? GROWN_PREFIX : ""}${inverted ? INVERTED_PREFIX : ""}`;
+  const marks = `${roll.colorless === true ? COLORLESS_PREFIX : ""}${roll.tensed === true ? TENSED_PREFIX : ""}`;
+  const prefix = `${grown ? GROWN_PREFIX : ""}${inverted ? INVERTED_PREFIX : ""}${marks}`;
   const hint = attributeHintOfKey(roll.key);
   const line: TraitLine = {
     text: `${prefix}${formatAffix(roll)}${hint === undefined ? "" : `（${hint}）`}`,

@@ -114,7 +114,8 @@ export const ENEMY_DEFENSE: Readonly<Record<string, EnemyDefenseDef>> = {
   thunderWisp: d(SPIRIT, { lightning: NEAR_IMMUNE, ice: WEAK }, bolt("lightning")),
   skeleton: d(BEAST, BIOME_OSSUARY, CONTACT),
   fuseRat: d(SOFT, BIOME_FORGE, blast("fire")),
-  crystalMite: d(SOFT, { ice: MILD, lightning: WEAK }, blast("none")),
+  // 氷窟と油の坑道の両方に出るので、どちらの土地の属性（氷 / 雷）も弱点にしない
+  crystalMite: d(SOFT, { ice: MILD, fire: WEAK }, blast("none")),
   echoStriker: d(CASTER, { dark: MILD, light: WEAK }, spell("dark")),
   packLeader: d(BEAST, BIOME_MEADOW, CONTACT),
   manaLeech: d(CASTER, BIOME_SWAMP, contact("dark")),
@@ -133,6 +134,7 @@ export const ENEMY_DEFENSE: Readonly<Record<string, EnemyDefenseDef>> = {
   twinSister: d(BOSS, { light: MILD }, shot("none"), [{ fire: WEAK }, { dark: WEAK }]),
   frostGiant: d(BOSS, { ice: NEAR_IMMUNE }, blast("ice"), [{ fire: WEAK }, { lightning: WEAK }]),
   icePillar: d(FIXTURE, { ice: NEAR_IMMUNE, fire: WEAK }, CONTACT),
+  trainingDummy: d(FIXTURE, { fire: WEAK }, CONTACT),
   mirrorSelf: d(ELITE, { light: STRONG, dark: WEAK }, CONTACT),
   // ---- Wave 3 ----
   mudman: d(SOFT, { ...BIOME_SWAMP, none: MILD }, CONTACT),
@@ -188,11 +190,20 @@ export function enemyDefense(key: string): EnemyDefenseDef {
 
 const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
 
-/** 段階（1 始まり。ボス以外は 0 / undefined）を反映した耐性の表。範囲外の値は ELEMENT の範囲に収める */
+/**
+ * 段階（1 始まり。ボス以外は 0 / undefined）を反映した耐性の表。範囲外の値は ELEMENT の範囲に収める。
+ * 表より先の段階（3 段階のボスの段階 3 など）は最後の段階の表を使う（基底に戻して弱点を消さない）
+ */
 export function enemyResistTable(def: EnemyDefenseDef, stage = 0): ElementTable {
-  const table = { ...uniformElements(0), ...def.resist, ...(stage > 0 ? def.stages?.[stage - 1] : undefined) };
+  const table = { ...uniformElements(0), ...def.resist, ...stageResist(def, stage) };
   for (const e of Object.keys(table) as Element[]) table[e] = clamp(table[e], ELEMENT.enemyResistMin, ELEMENT.enemyResistMax);
   return table;
+}
+
+function stageResist(def: EnemyDefenseDef, stage: number): Readonly<Partial<ElementTable>> | undefined {
+  const stages = def.stages;
+  if (stage <= 0 || !stages || stages.length === 0) return undefined;
+  return stages[Math.min(stage, stages.length) - 1];
 }
 
 /** 弱点（耐性が負の属性）。表示用。耐性の低い順 */

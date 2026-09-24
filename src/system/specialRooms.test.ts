@@ -4,7 +4,7 @@ import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomKind, RoomState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { ELITE, ROOM_KIND } from "../data/tuning";
+import { ELITE, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { keystoneDef } from "../loot/affixes";
 import { TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, isWalkable, rectCenterPx } from "../map/grid";
@@ -12,7 +12,24 @@ import { BOONS } from "./boons";
 import { buildFloor } from "./floor";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
-import { ESCAPE_GRACE, assignExtraRoomKinds, isPropRoom, setupSpecialRoom, startsEmptySpecial } from "./specialRooms";
+import {
+  DUMMY_KEY,
+  ESCAPE_GRACE,
+  ROOM_KIND_COLOR,
+  ROOM_KIND_LABEL,
+  type RoomProp,
+  addForkStair,
+  addVein,
+  ascendAllowed,
+  assignExtraRoomKinds,
+  clearSpecialRoom,
+  inFogRoom,
+  invertTrait,
+  isPropRoom,
+  setupSpecialRoom,
+  stairsTilesValid,
+  startsEmptySpecial,
+} from "./specialRooms";
 import { withInput } from "./testHelpers";
 
 const IDLE = withInput({});
@@ -362,5 +379,158 @@ describe("戦う特別な部屋", () => {
     expect(mirror.maxHp).toBe(mirror.elite ? Math.round(base * ELITE.hpMul) + (mirror.shieldMax ?? 0) : base);
     clearOut(state, room, index);
     expect(state.boonChoice).not.toBeNull();
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 第 2 弾の部屋
+// -----------------------------------------------------------------------------
+
+function propOf(room: RoomState, kind: string): RoomProp {
+  const prop = room.special?.props.find((p) => p.kind === kind);
+  if (!prop) throw new Error(`台座 ${kind} が無い`);
+  return prop;
+}
+
+describe("第 2 弾の部屋", () => {
+  it("6 種が追加の部屋として抽選表にあり、表示名と色を持つ", () => {
+    const added: RoomKind[] = ["vault", "elementAltar", "dummyHall", "fogRoom", "tideRoom", "invertHall"];
+    for (const kind of added) {
+      expect(Object.keys(ROOM_KIND.extra), kind).toContain(kind);
+      expect(ROOM_KIND_LABEL[kind].length, kind).toBeGreaterThan(0);
+      expect(ROOM_KIND_COLOR[kind], kind).toBeTruthy();
+    }
+  });
+
+  it("封印庫: 欠片が足りなければ開かず、払えば深い遺物が並ぶ", () => {
+    const { state, room } = roomOf("vault");
+    expect(room.cleared, "台座の部屋は制圧済み").toBe(true);
+    const seal = propOf(room, "seal");
+    state.shards = ROOM_KIND.vaultCost - 1;
+    standAt(state, seal.pos);
+    expect(seal.used, "足りない").toBe(false);
+    expect(state.floorItems.length).toBe(0);
+    stepOff(state, room);
+    state.shards = ROOM_KIND.vaultCost;
+    standAt(state, seal.pos);
+    expect(seal.used, "開いた").toBe(true);
+    expect(state.shards, "欠片").toBe(0);
+    expect(state.floorItems.length, "遺物").toBe(ROOM_KIND.vaultDrops);
+  });
+
+  it("属性の祭壇: 選んだ属性がこの階の間だけ通常攻撃に乗り、他の属性は消える", () => {
+    const { state, room } = roomOf("elementAltar");
+    const props = room.special?.props.filter((p) => p.kind === "element") ?? [];
+    expect(props.length, "属性の数").toBe(ROOM_KIND.elementAltarChoices);
+    const first = props[0];
+    if (!first) throw new Error("属性");
+    const element = first.key as keyof typeof state.stats.infuse;
+    const before = state.stats.infuse[element];
+    standAt(state, first.pos);
+    expect(state.contracts.altar?.element, "祭壇の属性").toBe(element);
+    expect(state.stats.infuse[element], "通常攻撃の属性").toBeCloseTo(before + ROOM_KIND.elementAltarShare, 5);
+    expect(props.every((p) => p.used), "他は消える").toBe(true);
+    buildFloor(state, "rooms");
+    expect(state.contracts.altar, "次の階では消える").toBeNull();
+  });
+
+  it("試し場: 殴り返さない木人が並び、倒しても撃破数に数えない", () => {
+    const { state, room, index } = roomOf("dummyHall");
+    const dummies = state.enemies.filter((e) => e.roomIndex === index && e.defKey === DUMMY_KEY);
+    expect(dummies.length, "木人").toBe(ROOM_KIND.dummyCount);
+    expect(room.cleared, "戦う部屋ではない").toBe(true);
+    expect(dummies.every((e) => e.revived === true), "撃破数・報酬に数えない").toBe(true);
+    expect(enemyDef(DUMMY_KEY).contactDamage, "殴り返さない").toBe(0);
+  });
+
+  it("霧の部屋: 中にいる間だけ霧がかかり、制圧で rare 以上が落ちる", () => {
+    const { state, room, index } = roomOf("fogRoom");
+    stepOff(state, state.rooms[0] ?? room);
+    expect(inFogRoom(state), "外").toBe(false);
+    state.player.body.pos = rectCenterPx(room.rect);
+    expect(inFogRoom(state), "中").toBe(true);
+    const items = state.floorItems.length;
+    clearSpecialRoom(state, room, rectCenterPx(room.rect));
+    expect(state.floorItems.length, "rare").toBe(items + 1);
+    expect(index).toBeGreaterThan(0);
+  });
+
+  it("潮の間: 封鎖すると中心から水が広がり、制圧で引いて気力が満ちる", () => {
+    const { state, room, index } = roomOf("tideRoom");
+    enter(state, room);
+    expect(room.locked, "封鎖").toBe(true);
+    for (let i = 0; i < SETTLE_STEPS; i++) step(state, IDLE, FIXED_DT);
+    const c = rectCenterPx(room.rect);
+    expect(terrainAt(state, c.x, c.y), "水").toBe("water");
+    state.player.mana = 0;
+    for (let i = 0; i < SETTLE_STEPS * 4 && !room.cleared; i++) {
+      for (const e of state.enemies) if (e.roomIndex === index) e.hp = 0;
+      step(state, IDLE, FIXED_DT);
+    }
+    expect(room.cleared, "制圧").toBe(true);
+    expect(room.special?.timer, "潮が止まる").toBeNull();
+    expect(state.player.mana, "気力").toBe(state.stats.maxMana);
+  });
+
+  it("反転の間: 台に触れると置かれた遺物の性質が反転する", () => {
+    let inverted = 0;
+    for (const seed of [3, 5, 7]) {
+      const { state, room } = roomOf("invertHall", seed);
+      const inverter = propOf(room, "inverter");
+      standAt(state, inverter.pos);
+      expect(inverter.used, "使った").toBe(true);
+      inverted += state.floorItems.filter((f) => f.item.affixes.some((a) => a.inverted === true)).length;
+    }
+    expect(inverted, "反転した遺物").toBeGreaterThan(0);
+  });
+
+  it("反転: 反転できない遺物（性質なし）は null", () => {
+    const { state } = roomOf("invertHall");
+    const item = state.floorItems[0]?.item;
+    if (!item) throw new Error("遺物");
+    expect(invertTrait(state, { ...item, affixes: [] })).toBeNull();
+  });
+
+  it("残響の鉱脈: 触れるたびに残響が溜まり、回数で尽きる。敵が寄ってくる", () => {
+    const { state, room, index } = roomOf("normal");
+    expect(addVein(state, index), "置けた").toBe(true);
+    const vein = propOf(room, "vein");
+    const total = (): number => Object.values(state.runEvents.pendingEchoes).reduce((s, v) => s + v, 0);
+    for (let i = 0; i < RUN_EVENT.vein.uses; i++) {
+      stepOff(state, room);
+      standAt(state, vein.pos);
+    }
+    expect(total(), "残響").toBe(RUN_EVENT.vein.uses * RUN_EVENT.vein.echoes);
+    expect(vein.used, "尽きた").toBe(true);
+    expect(aliveIn(state, index), "寄ってきた敵").toBeGreaterThan(0);
+  });
+});
+
+describe("分岐路の追加と上り階段", () => {
+  it("案内人の階段: 行き先が重ならない階段が 1 つ増える（置けなければ false）", () => {
+    const state = createGame(5);
+    state.depth = 4;
+    buildFloor(state, "rooms");
+    const before = state.stairs.length;
+    const ok = addForkStair(state, false);
+    if (!ok) return;
+    expect(state.stairs.length).toBe(before + 1);
+    expect(stairsTilesValid(state), "階段タイル").toBe(true);
+    const kinds = state.stairs.map((s) => s.nextKind);
+    expect(new Set(kinds).size).toBe(kinds.length);
+  });
+
+  it("上り階段は深度 ascendMinDepth から、ボス階とボス階の 1 つ下には置かない", () => {
+    const state = createGame(5);
+    state.depth = FLOOR_KIND.ascendMinDepth - 1;
+    expect(ascendAllowed(state), "浅い").toBe(false);
+    state.depth = 3;
+    expect(ascendAllowed(state), "ボス階").toBe(false);
+    state.depth = 4;
+    expect(ascendAllowed(state), "ボス階の 1 つ下").toBe(false);
+    state.depth = 5;
+    expect(ascendAllowed(state), "深度 5").toBe(true);
+    state.runEvents.strata.returns = FLOOR_KIND.ascendMaxReturns;
+    expect(ascendAllowed(state), "回数の上限").toBe(false);
   });
 });

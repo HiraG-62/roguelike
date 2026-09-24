@@ -278,6 +278,10 @@ const MATCHLOCK_BURN_DPS = 4;
 const BLOWGUN_POISON_PCT = 25;
 const FANG_BLEED_POTENCY = 1.5;
 const TABI_BUFF_SECONDS = 1;
+/** 第 2 弾のベースの implicit の代償（ロールしない側。%） */
+const ZANBATO_SLOW_PCT = 8;
+const HALBERD_SLOW_PCT = 5;
+const CROSSBOW_SLOW_PCT = 10;
 
 // ---------------------------------------------------------------------------
 // アフィックス一覧
@@ -2006,6 +2010,649 @@ export const AFFIXES: readonly AffixDef[] = [
       s.traits.lastKillEnergy += v;
     },
   }),
+
+  // ---- 2026-09 第 2 弾: 属性（combat.ts の genreAndElement → system/traitHooks.ts の traitElementMul）----
+  trait({
+    key: "weakRead",
+    color: "azure",
+    label: "弱点読み: 属性の弱点を突くたびに気力 +{v}、弱点でない相手への与ダメージ -{v2}%",
+    tags: ["mana", "elemental", "tradeoff"],
+    slots: ["weapon", "gun", "ring"],
+    curve: [t2(24, 2.5, 3, 8, 10), t2(12, 1.5, 2, 6, 8), t2(1, 1, 1.5, 5, 6)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.weakHitMana += v;
+      s.traits.nonWeakPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "prismEdge",
+    color: "crimson",
+    label: "弱点刺し: 属性の弱点を突いた命中の与ダメージ +{v}%、弱点でない相手へは -{v2}%",
+    tags: ["damage", "elemental", "tradeoff"],
+    slots: ["weapon", "gun", "amulet"],
+    curve: [t2(24, 40, 48, 10, 12), t2(12, 28, 34, 8, 10), t2(1, 18, 22, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.weakDamageMul += pct(v);
+      s.traits.nonWeakPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "resistBreaker",
+    color: "gold",
+    label: "耐性破り: 敵の属性耐性による減少を {v}% 打ち消す、弱点を突いた命中の与ダメージ -{v2}%",
+    tags: ["damage", "elemental", "tradeoff"],
+    slots: ["weapon", "gun", "ring"],
+    curve: [t2(24, 55, 65, 10, 12), t2(12, 40, 50, 8, 10), t2(1, 25, 35, 6, 8)],
+    cap: 100,
+    apply: (s, v, v2) => {
+      s.traits.resistPierce = Math.min(1, s.traits.resistPierce + pct(v));
+      s.traits.weakDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "backlash",
+    color: "umbra",
+    label: "逆撫で: 属性の耐性に阻まれた命中で、その属性の状態異常を {v} 秒付ける（反応の起点になる）",
+    tags: ["status", "elemental"],
+    slots: ["weapon", "gun"],
+    curve: [t(24, 3.5, 4), t(12, 2.5, 3), t(1, 1.5, 2)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.resistedInflict = Math.max(s.traits.resistedInflict, v);
+    },
+  }),
+  trait({
+    key: "conductor",
+    color: "gold",
+    label: "通電: 濡れ・浸水の敵への与ダメージ +{v}%（雷属性の割合だけさらに伸びる）",
+    tags: ["damage", "elemental"],
+    slots: OFFENSE_SLOTS,
+    curve: [t(24, 30, 36), t(12, 20, 25), t(1, 12, 16)],
+    apply: (s, v) => {
+      s.traits.wetConductMul += pct(v);
+    },
+  }),
+  trait({
+    key: "igniter",
+    color: "crimson",
+    label: "引火: 油膜の敵への与ダメージ +{v}%（炎属性の割合だけさらに伸びる）",
+    tags: ["damage", "elemental"],
+    slots: OFFENSE_SLOTS,
+    curve: [t(24, 30, 36), t(12, 20, 25), t(1, 12, 16)],
+    apply: (s, v) => {
+      s.traits.oiledIgniteMul += pct(v);
+    },
+  }),
+  trait({
+    key: "elementalBreak",
+    color: "umbra",
+    label: "崩れの属性: 怯ませた敵に、武器の属性の状態異常を {v} 秒付ける（無属性の武器では付かない）",
+    tags: ["status", "elemental"],
+    slots: ["weapon", "amulet"],
+    curve: [t(24, 4, 5), t(12, 3, 4), t(1, 2, 3)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.elementBreak = Math.max(s.traits.elementBreak, v);
+    },
+  }),
+  trait({
+    key: "elementalWard",
+    color: "jade",
+    label: "属性の帳: 属性を持つ攻撃から受けるダメージ -{v}%、無属性の攻撃から受けるダメージ +{v2}%",
+    tags: ["defense", "elemental", "tradeoff"],
+    slots: ["armor", "boots", "amulet"],
+    curve: [t2(24, 22, 26, 8, 10), t2(12, 15, 18, 7, 8), t2(1, 9, 12, 5, 6)],
+    apply: (s, v, v2) => {
+      s.traits.elementalGuard += pct(v);
+      s.traits.physicalExposure += pct(v2);
+    },
+  }),
+
+  // ---- 武器種・射撃の型 ----
+  trait({
+    key: "chargeCore",
+    color: "crimson",
+    label: "溜めの芯: 溜めの段 1 つにつき近接ダメージ +{v}%、溜めを持つ武器で溜めずに振ると -{v2}%",
+    tags: ["melee", "damage", "tradeoff"],
+    slots: ["weapon", "ring"],
+    curve: [t2(24, 22, 26, 10, 12), t2(12, 15, 18, 8, 10), t2(1, 9, 12, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.chargedMeleeMul += pct(v);
+      s.traits.unchargedPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "chargeQuake",
+    color: "gold",
+    label: "溜め崩し: 溜めの段 1 つにつき、近接の怯み値 +{v}%・命中で必殺ゲージ +{v2}",
+    tags: ["melee", "burst"],
+    slots: ["weapon"],
+    curve: [t2(24, 25, 30, 4, 5), t2(12, 18, 22, 3, 4), t2(1, 10, 14, 2, 3)],
+    apply: (s, v, v2) => {
+      s.traits.chargedPoiseMul += pct(v);
+      s.traits.chargedHitEnergy += v2;
+    },
+  }),
+  trait({
+    key: "branchArt",
+    color: "gold",
+    label: "派生の冴え: コンボ派生の命中の与ダメージ +{v}%、命中で気力 +{v2}",
+    tags: ["combo", "melee"],
+    slots: ["weapon", "amulet"],
+    curve: [t2(24, 35, 42, 2, 2.5), t2(12, 25, 30, 1.5, 2), t2(1, 15, 20, 1, 1.5)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.traits.branchDamageMul += pct(v);
+      s.traits.branchHitMana += v2;
+    },
+  }),
+  trait({
+    key: "spreadCore",
+    label: "散弾の芯: 散弾の射撃が近い敵に与えるダメージ +{v}%、遠い敵へは -{v2}%",
+    tags: ["ranged", "tradeoff"],
+    slots: ["gun"],
+    curve: [t2(24, 45, 55, 15, 18), t2(12, 32, 40, 12, 15), t2(1, 20, 26, 10, 12)],
+    apply: (s, v, v2) => {
+      s.traits.spreadCloseMul += pct(v);
+      s.traits.spreadFarPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "spreadShove",
+    label: "散弾押し: 散弾の射撃の怯み値 +{v}%",
+    tags: ["ranged", "utility"],
+    slots: ["gun", "amulet"],
+    curve: [t(24, 40, 50), t(12, 28, 35), t(1, 16, 22)],
+    apply: (s, v) => {
+      s.traits.spreadPoiseMul += pct(v);
+    },
+  }),
+  trait({
+    key: "homingVenom",
+    color: "jade",
+    label: "追尾の毒: 追尾の射撃の命中で、毒を {v} 秒付ける",
+    tags: ["ranged", "status"],
+    slots: ["gun"],
+    curve: [t(24, 4, 5), t(12, 3, 4), t(1, 2, 3)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.homingPoison = Math.max(s.traits.homingPoison, v);
+    },
+  }),
+  trait({
+    key: "rapidBrand",
+    color: "umbra",
+    label: "連射の烙印: 連射の射撃の命中が {v}% で烙印を刻む、射撃ダメージ -{v2}%",
+    tags: ["ranged", "status", "tradeoff"],
+    slots: ["gun"],
+    curve: [t2(24, 30, 36, 10, 12), t2(12, 22, 26, 8, 10), t2(1, 14, 18, 6, 8)],
+    cap: 100,
+    apply: (s, v, v2) => {
+      s.traits.rapidBrandChance = Math.min(1, s.traits.rapidBrandChance + pct(v));
+      s.rangedDamageMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "brandDetonator",
+    color: "gold",
+    label: "起爆の手: 烙印の敵への射撃・スキルの与ダメージ +{v}%、烙印の無い敵への射撃 -{v2}%",
+    tags: ["ranged", "damage", "tradeoff"],
+    slots: ["gun", "ring", "amulet"],
+    curve: [t2(24, 45, 55, 10, 12), t2(12, 32, 40, 8, 10), t2(1, 20, 26, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.brandedMul += pct(v);
+      s.traits.unbrandedPenalty += pct(v2);
+    },
+  }),
+
+  // ---- ジョブ（state.job と得意武器。system/jobs.ts の isFavoredWeapon）----
+  trait({
+    key: "schoolForm",
+    color: "crimson",
+    label: "流派の型: ジョブの得意武器を持つ間、与ダメージ +{v}%、得意でない武器では -{v2}%",
+    tags: ["damage", "tradeoff"],
+    slots: ["weapon", "ring", "amulet"],
+    curve: [t2(24, 22, 26, 12, 15), t2(12, 15, 18, 10, 12), t2(1, 9, 12, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.favoredDamageMul += pct(v);
+      s.traits.unfavoredPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "selfTaught",
+    color: "crimson",
+    label: "我流: 得意でない武器の近接の怯み値 +{v}%、得意武器の近接の怯み値 -{v2}%",
+    tags: ["melee", "tradeoff"],
+    slots: ["weapon", "ring"],
+    curve: [t2(24, 40, 48, 15, 18), t2(12, 28, 34, 12, 15), t2(1, 18, 22, 10, 12)],
+    apply: (s, v, v2) => {
+      s.traits.unfavoredPoiseMul += pct(v);
+      s.traits.favoredPoisePenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "wanderer",
+    color: "gold",
+    label: "無所属: 見習い（ジョブなし）の間、与ダメージ +{v}%、ジョブを持つ間は -{v2}%",
+    tags: ["damage", "tradeoff"],
+    slots: JEWELRY_SLOTS,
+    curve: [t2(24, 26, 30, 8, 10), t2(12, 18, 22, 6, 8), t2(1, 12, 15, 5, 6)],
+    apply: (s, v, v2) => {
+      s.traits.noJobDamageMul += pct(v);
+      s.traits.jobPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "schoolHarvest",
+    color: "azure",
+    label: "流派の糧: ジョブの得意武器を持つ間の撃破で気力 +{v}",
+    tags: ["mana"],
+    slots: ["weapon", "amulet"],
+    curve: [t(24, 5, 6), t(12, 3.5, 4.5), t(1, 2, 3)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.favoredKillMana += v;
+    },
+  }),
+
+  // ---- 地形（system/terrain.ts の terrainAt）----
+  trait({
+    key: "groundRooted",
+    color: "jade",
+    label: "地の利: 地形の上に立つ間、与ダメージ +{v}%、何も無い床では -{v2}%",
+    tags: ["damage", "tradeoff"],
+    slots: ["armor", "boots", "ring"],
+    curve: [t2(24, 32, 38, 8, 10), t2(12, 22, 27, 6, 8), t2(1, 14, 18, 5, 6)],
+    apply: (s, v, v2) => {
+      s.traits.terrainDamageMul += pct(v);
+      s.traits.offTerrainPenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "slickFooting",
+    color: "azure",
+    label: "滑り足: 水たまり・氷床の上に立つ間、与ダメージ +{v}%",
+    tags: ["damage", "mobility"],
+    slots: ["boots", "ring"],
+    curve: [t(24, 32, 38), t(12, 22, 27), t(1, 14, 18)],
+    apply: (s, v) => {
+      s.traits.slickDamageMul += pct(v);
+    },
+  }),
+  trait({
+    key: "mireGuard",
+    color: "jade",
+    label: "泥除け: 地形の上に立つ間、被ダメージ -{v}%",
+    tags: ["defense"],
+    slots: ["armor", "boots"],
+    curve: [t(24, 16, 20), t(12, 11, 14), t(1, 7, 9)],
+    apply: (s, v) => {
+      s.traits.terrainGuard += pct(v);
+    },
+  }),
+  trait({
+    key: "terrainHunter",
+    color: "crimson",
+    label: "足場狩り: 地形の上にいる敵への与ダメージ +{v}%",
+    tags: ["damage"],
+    slots: ATTACK_SLOTS,
+    curve: [t(24, 28, 34), t(12, 19, 24), t(1, 11, 15)],
+    apply: (s, v) => {
+      s.traits.enemyOnTerrainMul += pct(v);
+    },
+  }),
+  trait({
+    key: "terrainBurst",
+    color: "crimson",
+    label: "地の爆ぜ: 地形の上にいる敵を倒すと、衝撃波を放つ（{v} ダメージ。炎・油・溶岩は燃焼、水・氷は冷気、毒沼・草は毒）",
+    tags: ["damage", "elemental"],
+    slots: ["weapon", "amulet"],
+    curve: [t(24, 26, 32), t(12, 17, 21), t(1, 10, 13)],
+    apply: (s, v) => {
+      s.traits.terrainKillBlast += v;
+    },
+  }),
+  trait({
+    key: "emberTrail",
+    color: "crimson",
+    label: "残り火: 燃えている敵を倒すと、足元に炎を {v} 秒置く、炎耐性 -{v2}%",
+    tags: ["elemental", "tradeoff"],
+    slots: ["weapon", "gun", "boots"],
+    curve: [t2(24, 5, 6, 12, 15), t2(12, 4, 5, 10, 12), t2(1, 3, 4, 8, 10)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.burningKillFire = Math.max(s.traits.burningKillFire, v);
+      s.resist.fire -= v2;
+    },
+  }),
+  trait({
+    key: "frostTrail",
+    color: "azure",
+    label: "霜の轍: ダッシュの軌跡に氷床を {v} 秒残す、ダッシュ距離 -{v2}%",
+    tags: ["mobility", "elemental", "tradeoff"],
+    slots: ["boots"],
+    curve: [t2(24, 5, 6, 8, 10), t2(12, 4, 5, 8, 10), t2(1, 3, 4, 8, 10)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.dashIceTrail = Math.max(s.traits.dashIceTrail, v);
+      s.dashDistanceMul -= pct(v2);
+    },
+  }),
+  trait({
+    key: "groundMend",
+    color: "jade",
+    label: "土の息: 地形の上に立つ間、毎秒生命 +{v}（戦闘中も。回復の上限は受ける）、最大生命 -{v2}",
+    tags: ["life", "tradeoff"],
+    slots: ["armor", "boots", "amulet"],
+    curve: [t2(24, 2, 2.5, 10, 12), t2(12, 1.5, 2, 8, 10), t2(1, 1, 1.5, 6, 8)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.terrainRegen += v;
+      s.maxHp -= v2;
+    },
+  }),
+
+  // ---- 新しい状態異常（崩勢・腐食・宣告）----
+  trait({
+    key: "brokenHunter",
+    color: "crimson",
+    label: "崩勢狩り: 崩勢の敵への与ダメージ +{v}%",
+    tags: ["damage", "melee"],
+    slots: ["weapon", "ring"],
+    curve: [t(24, 35, 42), t(12, 24, 30), t(1, 14, 18)],
+    apply: (s, v) => {
+      s.traits.brokenMul += pct(v);
+    },
+  }),
+  trait({
+    key: "corrodeClaw",
+    color: "umbra",
+    label: "腐食の爪: 腐食の敵への怯み値 +{v}%",
+    tags: ["status", "melee"],
+    slots: ["weapon", "gun"],
+    curve: [t(24, 40, 48), t(12, 28, 34), t(1, 16, 22)],
+    apply: (s, v) => {
+      s.traits.corrodePoiseMul += pct(v);
+    },
+  }),
+  trait({
+    key: "doomToll",
+    color: "azure",
+    label: "宣告の鐘: 宣告の付いた敵を倒すと気力 +{v}",
+    tags: ["mana", "status"],
+    slots: ["weapon", "ring", "amulet"],
+    curve: [t(24, 8, 10), t(12, 6, 7), t(1, 3, 5)],
+    apply: (s, v) => {
+      s.traits.doomKillMana += v;
+    },
+  }),
+
+  // ---- 交戦中・持ち替え ----
+  trait({
+    key: "siegeGuard",
+    color: "jade",
+    label: "籠城: 交戦中の部屋で被ダメージ -{v}%、それ以外では +{v2}%",
+    tags: ["defense", "tradeoff"],
+    slots: ["armor", "amulet"],
+    curve: [t2(24, 18, 22, 12, 15), t2(12, 12, 15, 10, 12), t2(1, 8, 10, 8, 10)],
+    apply: (s, v, v2) => {
+      s.traits.engagedGuard += pct(v);
+      s.traits.roamExposure += pct(v2);
+    },
+  }),
+  trait({
+    key: "siegeSpark",
+    color: "gold",
+    label: "封鎖の火花: 交戦中の部屋での撃破で必殺ゲージ +{v}",
+    tags: ["burst"],
+    slots: ["weapon", "gun", "amulet"],
+    curve: [t(24, 7, 8), t(12, 5, 6), t(1, 3, 4)],
+    apply: (s, v) => {
+      s.traits.engagedKillEnergy += v;
+    },
+  }),
+  trait({
+    key: "switchHitter",
+    color: "gold",
+    label: "持ち替え: 直前と違う攻撃手段（近接・射撃・スキル）で当てると怯み値 +{v}%、同じ手段が続くと -{v2}%",
+    tags: ["combo", "tradeoff"],
+    slots: ["weapon", "gun", "ring"],
+    curve: [t2(24, 45, 55, 10, 12), t2(12, 32, 40, 8, 10), t2(1, 20, 26, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.alternatePoiseMul += pct(v);
+      s.traits.repeatPoisePenalty += pct(v2);
+    },
+  }),
+  trait({
+    key: "switchBreath",
+    color: "azure",
+    label: "手替えの呼吸: 直前と違う攻撃手段（近接・射撃・スキル）で当てるたびに気力 +{v}",
+    tags: ["mana"],
+    slots: ["gun", "ring", "amulet"],
+    curve: [t(24, 2.5, 3), t(12, 1.5, 2), t(1, 1, 1.5)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.switchMana += v;
+    },
+  }),
+
+  // ---- 第 2 弾の目覚め（芽専用。provenance.ts の節目が名指しする）----
+  trait({
+    key: "weakInsight",
+    color: "azure",
+    awakening: true,
+    label: "弱点の目: 属性の弱点を突いた命中の与ダメージ +{v}%、気力 +{v2}",
+    tags: ["elemental", "mana"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 24, 30, 2, 2.5), t2(1, 15, 20, 1, 1.5)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.traits.weakDamageMul += pct(v);
+      s.traits.weakHitMana += v2;
+    },
+  }),
+  trait({
+    key: "sevenHues",
+    color: "gold",
+    awakening: true,
+    label: "七色: 敵の属性耐性による減少を {v}% 打ち消し、弱点を突いた命中の与ダメージ +{v2}%",
+    tags: ["elemental", "damage"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 45, 55, 15, 20), t2(1, 30, 36, 10, 12)],
+    cap: 100,
+    apply: (s, v, v2) => {
+      s.traits.resistPierce = Math.min(1, s.traits.resistPierce + pct(v));
+      s.traits.weakDamageMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "counterGrain",
+    color: "umbra",
+    awakening: true,
+    label: "逆目: 属性の耐性に阻まれた命中で、その属性の状態異常を {v} 秒付け、耐性による減少を {v2}% 打ち消す",
+    tags: ["elemental", "status"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 3, 4, 25, 30), t2(1, 2, 3, 15, 20)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.resistedInflict = Math.max(s.traits.resistedInflict, v);
+      s.traits.resistPierce = Math.min(1, s.traits.resistPierce + pct(v2));
+    },
+  }),
+  trait({
+    key: "groundWisdom",
+    color: "jade",
+    awakening: true,
+    label: "地の利を知る: 地形の上に立つ間、与ダメージ +{v}%・被ダメージ -{v2}%",
+    tags: ["damage", "defense"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 24, 30, 10, 12), t2(1, 15, 20, 6, 8)],
+    apply: (s, v, v2) => {
+      s.traits.terrainDamageMul += pct(v);
+      s.traits.terrainGuard += pct(v2);
+    },
+  }),
+  trait({
+    key: "mireLord",
+    color: "jade",
+    awakening: true,
+    label: "沼の主: 地形の上にいる敵を倒すと衝撃波（{v} ダメージ）、地形の上の敵への与ダメージ +{v2}%",
+    tags: ["damage", "elemental"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 24, 30, 20, 25), t2(1, 15, 20, 12, 16)],
+    apply: (s, v, v2) => {
+      s.traits.terrainKillBlast += v;
+      s.traits.enemyOnTerrainMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "schoolMastery",
+    color: "crimson",
+    awakening: true,
+    label: "奥義: ジョブの得意武器を持つ間、与ダメージ +{v}%・撃破で気力 +{v2}",
+    tags: ["damage", "mana"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 20, 25, 4, 5), t2(1, 12, 16, 2, 3)],
+    apply: (s, v, v2) => {
+      s.traits.favoredDamageMul += pct(v);
+      s.traits.favoredKillMana += v2;
+    },
+  }),
+  trait({
+    key: "schoolSecret",
+    color: "gold",
+    awakening: true,
+    label: "秘伝: ジョブの得意武器を持つ間の与ダメージ +{v}%、コンボ派生の命中の与ダメージ +{v2}%",
+    tags: ["damage", "combo"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 16, 20, 30, 36), t2(1, 10, 13, 20, 25)],
+    apply: (s, v, v2) => {
+      s.traits.favoredDamageMul += pct(v);
+      s.traits.branchDamageMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "fullCharge",
+    color: "crimson",
+    awakening: true,
+    label: "満ち溜め: 溜めの段 1 つにつき近接ダメージ +{v}%・命中で必殺ゲージ +{v2}",
+    tags: ["melee", "burst"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 20, 25, 4, 5), t2(1, 12, 16, 2, 3)],
+    apply: (s, v, v2) => {
+      s.traits.chargedMeleeMul += pct(v);
+      s.traits.chargedHitEnergy += v2;
+    },
+  }),
+  trait({
+    key: "formBreaker",
+    color: "gold",
+    awakening: true,
+    label: "型破り: コンボ派生の命中の与ダメージ +{v}%・気力 +{v2}",
+    tags: ["combo", "mana"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 30, 36, 2.5, 3), t2(1, 20, 25, 1.5, 2)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.traits.branchDamageMul += pct(v);
+      s.traits.branchHitMana += v2;
+    },
+  }),
+  trait({
+    key: "hueBreak",
+    color: "umbra",
+    awakening: true,
+    label: "崩れの色: 怯ませた敵に、武器の属性の状態異常を {v} 秒付ける",
+    tags: ["status", "elemental"],
+    slots: ALL_SLOTS,
+    curve: [t(15, 4, 5), t(1, 3, 4)],
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.elementBreak = Math.max(s.traits.elementBreak, v);
+    },
+  }),
+  trait({
+    key: "brokenBreaker",
+    color: "crimson",
+    awakening: true,
+    label: "崩勢砕き: 崩勢の敵への与ダメージ +{v}%、腐食の敵への怯み値 +{v2}%",
+    tags: ["damage", "status"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 30, 36, 30, 36), t2(1, 20, 25, 20, 25)],
+    apply: (s, v, v2) => {
+      s.traits.brokenMul += pct(v);
+      s.traits.corrodePoiseMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "battleRhythm",
+    color: "gold",
+    awakening: true,
+    label: "戦の拍子: 直前と違う攻撃手段で当てると怯み値 +{v}%・気力 +{v2}",
+    tags: ["combo", "mana"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 35, 42, 2, 2.5), t2(1, 24, 30, 1, 1.5)],
+    decimals2: 1,
+    apply: (s, v, v2) => {
+      s.traits.alternatePoiseMul += pct(v);
+      s.traits.switchMana += v2;
+    },
+  }),
+  trait({
+    key: "stormConduit",
+    color: "gold",
+    awakening: true,
+    label: "雷導: 濡れ・浸水の敵への与ダメージ +{v}%、油膜の敵への与ダメージ +{v2}%",
+    tags: ["elemental", "damage"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 30, 36, 20, 25), t2(1, 20, 25, 12, 16)],
+    apply: (s, v, v2) => {
+      s.traits.wetConductMul += pct(v);
+      s.traits.oiledIgniteMul += pct(v2);
+    },
+  }),
+  trait({
+    key: "siegeHeart",
+    color: "jade",
+    awakening: true,
+    label: "籠城の心: 交戦中の部屋で被ダメージ -{v}%、撃破で必殺ゲージ +{v2}",
+    tags: ["defense", "burst"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 14, 18, 4, 5), t2(1, 9, 12, 2, 3)],
+    apply: (s, v, v2) => {
+      s.traits.engagedGuard += pct(v);
+      s.traits.engagedKillEnergy += v2;
+    },
+  }),
+  trait({
+    key: "emberWalk",
+    color: "crimson",
+    awakening: true,
+    label: "熾火歩き: 燃えている敵を倒すと足元に炎を {v} 秒置く、地形の上に立つ間の被ダメージ -{v2}%",
+    tags: ["elemental", "defense"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 5, 6, 10, 12), t2(1, 3, 4, 6, 8)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.burningKillFire = Math.max(s.traits.burningKillFire, v);
+      s.traits.terrainGuard += pct(v2);
+    },
+  }),
+  trait({
+    key: "frostWalk",
+    color: "azure",
+    awakening: true,
+    label: "霜歩き: ダッシュの軌跡に氷床を {v} 秒残す、水たまり・氷床の上での与ダメージ +{v2}%",
+    tags: ["mobility", "elemental"],
+    slots: ALL_SLOTS,
+    curve: [t2(15, 5, 6, 20, 25), t2(1, 3, 4, 12, 16)],
+    decimals: 1,
+    apply: (s, v, v2) => {
+      s.traits.dashIceTrail = Math.max(s.traits.dashIceTrail, v);
+      s.traits.slickDamageMul += pct(v2);
+    },
+  }),
   ...defenseElementTraits(),
 ];
 
@@ -2052,6 +2699,27 @@ const HP_PER_MANA = 1.5;
 const SKILL_PER_BURST = 0.5;
 /** cv_critToPoise: 移した会心率 1.0 あたりの怯み値倍率 */
 const POISE_PER_CRIT = 2;
+/** cv_resistToDamage: 捨てた耐性の平均 1%（表示単位）あたりの与ダメージ倍率 */
+const DAMAGE_PER_RESIST_PCT = 0.005;
+/** cv_resistToWarding: 捨てた耐性の平均 1% あたりの魔防 */
+const WARDING_PER_RESIST_PCT = 1;
+/** 状態異常の確率（0..1）1 あたりに移す属性の変換割合 */
+const INFUSE_PER_STATUS_CHANCE = 2;
+/** 会心率（0..1）1 あたりに移す光属性の変換割合 */
+const INFUSE_PER_CRIT = 3;
+/** 属性耐性を数える属性（無属性は防御が受け持つので除く） */
+const RESIST_ELEMENTS: readonly Element[] = ELEMENTS.filter((e) => e !== "none");
+
+/** 正の属性耐性をそれぞれ f 割捨て、捨てた量の平均（%）を返す */
+function shedResist(s: PlayerStats, f: number): number {
+  let shed = 0;
+  for (const e of RESIST_ELEMENTS) {
+    const moved = Math.max(0, s.resist[e]) * f;
+    s.resist[e] -= moved;
+    shed += moved;
+  }
+  return shed / RESIST_ELEMENTS.length;
+}
 
 /** ステータスの変換は 50% を基準にする（深さで割合は変えず、揺らぎだけで振れる） */
 const ATTR_CONVERSION_CURVE: readonly CurvePoint[] = [t(1, 50, 50)];
@@ -2362,6 +3030,118 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     },
   }),
 
+  // ---- 2026-09 第 2 弾: 防御・耐性・状態異常の確率を属性へ移す ----
+  trait({
+    key: "cv_armorToWarding",
+    color: "jade",
+    label: "防御の{v}%を魔防に変換",
+    tags: ["conversion", "defense"],
+    slots: ["armor", "boots", "amulet"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.armor) * fraction(v);
+      s.armor -= moved;
+      s.warding += moved;
+    },
+  }),
+  trait({
+    key: "cv_wardingToArmor",
+    color: "jade",
+    label: "魔防の{v}%を防御に変換",
+    tags: ["conversion", "defense"],
+    slots: ["armor", "boots", "amulet"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.warding) * fraction(v);
+      s.warding -= moved;
+      s.armor += moved;
+    },
+  }),
+  trait({
+    key: "cv_resistToDamage",
+    color: "crimson",
+    label: "属性耐性の{v}%を近接・射撃ダメージに変換（捨てた耐性の平均 1% につき +0.5%）",
+    tags: ["conversion", "damage", "elemental"],
+    slots: ["armor", "ring", "amulet"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const bonus = shedResist(s, fraction(v)) * DAMAGE_PER_RESIST_PCT;
+      s.meleeDamageMul += bonus;
+      s.rangedDamageMul += bonus;
+    },
+  }),
+  trait({
+    key: "cv_resistToWarding",
+    color: "jade",
+    label: "属性耐性の{v}%を魔防に変換（捨てた耐性の平均 1% につき +1）",
+    tags: ["conversion", "defense", "elemental"],
+    slots: ["armor", "boots", "amulet"],
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      s.warding += shedResist(s, fraction(v)) * WARDING_PER_RESIST_PCT;
+    },
+  }),
+  trait({
+    key: "cv_burnToFire",
+    color: "crimson",
+    label: "炎上確率の{v}%を炎属性の変換に移す（確率 1% につき 2%）",
+    tags: ["conversion", "elemental"],
+    slots: ATTACK_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.burnChance) * fraction(v);
+      s.burnChance -= moved;
+      s.infuse.fire += moved * INFUSE_PER_STATUS_CHANCE;
+    },
+  }),
+  trait({
+    key: "cv_chillToIce",
+    color: "azure",
+    label: "凍結確率の{v}%を氷属性の変換に移す（確率 1% につき 2%）",
+    tags: ["conversion", "elemental"],
+    slots: ATTACK_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.chillChance) * fraction(v);
+      s.chillChance -= moved;
+      s.infuse.ice += moved * INFUSE_PER_STATUS_CHANCE;
+    },
+  }),
+  trait({
+    key: "cv_shockToLightning",
+    color: "gold",
+    label: "感電確率の{v}%を雷属性の変換に移す（確率 1% につき 2%）",
+    tags: ["conversion", "elemental"],
+    slots: ATTACK_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.shockChance) * fraction(v);
+      s.shockChance -= moved;
+      s.infuse.lightning += moved * INFUSE_PER_STATUS_CHANCE;
+    },
+  }),
+  trait({
+    key: "cv_critToLight",
+    color: "gold",
+    label: "会心率の{v}%を光属性の変換に移す（会心率 1% につき 3%）",
+    tags: ["conversion", "critical", "elemental"],
+    slots: OFFENSE_SLOTS,
+    curve: CONVERSION_CURVE,
+    stage: "convert",
+    apply: (s, v) => {
+      const moved = Math.max(0, s.critChance) * fraction(v);
+      s.critChance -= moved;
+      s.infuse.light += moved * INFUSE_PER_CRIT;
+    },
+  }),
+
   // ---- ステータスの変換（docs/COMBAT_DESIGN.md A-3）: 片方を捨てて片方を伸ばす交換 ----
   ...attributeConversions(),
   ...infuseConversions(),
@@ -2455,7 +3235,20 @@ export const KEYSTONE_KEY_PREFIX = "ks_";
 const KEYSTONE_VALUE = 0;
 const KEYSTONE_COLOR: TraitColor = "umbra";
 
-export type KeystoneGroup = "body" | "tempo" | "style" | "mana" | "status" | "poise" | "room" | "hue" | "chronicle";
+export type KeystoneGroup =
+  | "body"
+  | "tempo"
+  | "style"
+  | "mana"
+  | "status"
+  | "poise"
+  | "room"
+  | "hue"
+  | "chronicle"
+  // 2026-09 第 2 弾
+  | "element"
+  | "weapon"
+  | "terrain";
 
 /** ks_overdraw（過負荷）のスキル威力の低下 */
 const OVERDRAW_SKILL_PENALTY = 0.1;
@@ -2475,6 +3268,17 @@ export interface KeystoneDef {
 }
 
 const noNumericEffect = (): void => {};
+
+/**
+ * ks_oneElement（一色の誓い）: 属性の変換を最も大きい 1 つに寄せて 100% にする。変換が無ければ何もしない
+ * （武器種の素の属性はそのまま。誓約は変換の後に畳むので、ここで見る infuse は全性質の合計）
+ */
+function focusInfuse(s: PlayerStats): void {
+  let best: Element | undefined;
+  for (const e of RESIST_ELEMENTS) if (s.infuse[e] > 0 && (best === undefined || s.infuse[e] > s.infuse[best])) best = e;
+  if (best === undefined) return;
+  for (const e of ELEMENTS) s.infuse[e] = e === best ? 1 : 0;
+}
 
 export const KEYSTONES: readonly KeystoneDef[] = [
   {
@@ -2748,6 +3552,84 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     apply: (s) => {
       const bonus = s.traits.gearMargin * KEYSTONE.oblivionAttrPerMargin;
       for (const k of ATTR_KEYS) s.attributes[k] += bonus;
+    },
+  },
+  // ---- 2026-09 第 2 弾: 属性 / 武器 / 地形の排他グループ。判定は src/system/traitHooks.ts ----
+  {
+    key: "ks_oneElement",
+    name: "一色の誓い",
+    description: `近接・射撃の属性を、最も強い属性の変換 1 つに寄せる（100%）。近接・射撃ダメージ +${ratioPct(KEYSTONE.oneElementDamageBonus)}%。全属性耐性 -${KEYSTONE.oneElementResistLoss}%。`,
+    exclusiveGroup: "element",
+    apply: (s) => {
+      focusInfuse(s);
+      s.meleeDamageMul += KEYSTONE.oneElementDamageBonus;
+      s.rangedDamageMul += KEYSTONE.oneElementDamageBonus;
+      for (const e of ELEMENTS) if (e !== "none") s.resist[e] -= KEYSTONE.oneElementResistLoss;
+    },
+  },
+  {
+    key: "ks_weakOath",
+    name: "弱点の誓い",
+    description: `属性の弱点を突いた命中は ${KEYSTONE.weakOathWeakMul} 倍、弱点を突かなかった命中は ${KEYSTONE.weakOathOtherMul} 倍になる。`,
+    exclusiveGroup: "element",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_nullOath",
+    name: "無の誓い",
+    description: `属性の変換をすべて捨て、敵の属性耐性と弱点を無視する。近接・射撃ダメージ +${ratioPct(KEYSTONE.nullOathDamageBonus)}%。状態異常の効果量 -${ratioPct(1 - KEYSTONE.nullOathPotencyMul)}%。`,
+    exclusiveGroup: "element",
+    apply: (s) => {
+      for (const e of ELEMENTS) s.infuse[e] = 0;
+      s.meleeDamageMul += KEYSTONE.nullOathDamageBonus;
+      s.rangedDamageMul += KEYSTONE.nullOathDamageBonus;
+      s.statusPotencyMul *= KEYSTONE.nullOathPotencyMul;
+    },
+  },
+  {
+    key: "ks_ironOath",
+    name: "鉄の誓い",
+    description: `ジョブの得意武器の近接は与ダメージ ${KEYSTONE.ironFavoredMul} 倍・怯み値 ${KEYSTONE.ironFavoredPoiseMul} 倍。得意でない武器の近接は与ダメージ ${KEYSTONE.ironUnfavoredMul} 倍（見習いは得意武器を持たない）。`,
+    exclusiveGroup: "weapon",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_chargeOath",
+    name: "溜めの誓い",
+    description: `溜めの段 1 つにつき近接の与ダメージ +${ratioPct(KEYSTONE.chargeOathPerLevel)}%。溜めを持つ武器で溜めずに振った近接は ${KEYSTONE.chargeOathUnchargedMul} 倍。`,
+    exclusiveGroup: "weapon",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_stanceOath",
+    name: "構えの誓い",
+    description: `近接を振っている間（予備動作〜攻撃判定）の被ダメージが ${KEYSTONE.stanceGuardMul} 倍、それ以外の間は ${KEYSTONE.stanceExposedMul} 倍になる。`,
+    exclusiveGroup: "weapon",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_earthOath",
+    name: "土の誓い",
+    description: `生命が自然回復しなくなる。代わりに地形の上に立つ間は、戦闘中でも毎秒生命 +${KEYSTONE.earthRegenPerSec}（回復の上限は受ける）。`,
+    exclusiveGroup: "terrain",
+    apply: (s) => {
+      s.hpRegen = 0;
+    },
+  },
+  {
+    key: "ks_slickOath",
+    name: "滑りの誓い",
+    description: `水たまり・氷床の上に立つ間の与ダメージが ${KEYSTONE.slickOnMul} 倍、それ以外の床では ${KEYSTONE.slickOffMul} 倍になる。`,
+    exclusiveGroup: "terrain",
+    apply: noNumericEffect,
+  },
+  {
+    key: "ks_emberOath",
+    name: "熾火の誓い",
+    description: `燃えている敵か、炎・油・溶岩の上の敵への与ダメージ ${KEYSTONE.emberOnMul} 倍、それ以外は ${KEYSTONE.emberOffMul} 倍。燃えている敵を倒すと足元に炎を置く。炎耐性 -${KEYSTONE.emberFireResistLoss}%。`,
+    exclusiveGroup: "terrain",
+    apply: (s) => {
+      s.resist.fire -= KEYSTONE.emberFireResistLoss;
     },
   },
 ];
@@ -3301,6 +4183,141 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));
+    },
+  },
+  // ---- 2026-09 第 2 弾のベース（武器種・射撃の型ごとに選べる器を増やす）----
+  {
+    key: "implicit.katana",
+    label: "コンボ派生の命中の与ダメージ +{v}%",
+    range: { min: 15, max: 22 },
+    apply: (s, v) => {
+      s.traits.branchDamageMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.zanbato",
+    label: "溜めの段 1 つにつき近接ダメージ +{v}%、攻撃速度 -8%",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.traits.chargedMeleeMul += pct(v);
+      s.attackSpeedMul -= pct(ZANBATO_SLOW_PCT);
+    },
+  },
+  {
+    key: "implicit.twinDaggers",
+    label: "会心率 +{v}%",
+    range: { min: 4, max: 6 },
+    apply: (s, v) => {
+      s.critChance += pct(v);
+    },
+  },
+  {
+    key: "implicit.halberd",
+    label: "怯み値 +{v}%、攻撃速度 -5%",
+    range: { min: 15, max: 22 },
+    apply: (s, v) => {
+      s.poiseDamageMul += pct(v);
+      s.attackSpeedMul -= pct(HALBERD_SLOW_PCT);
+    },
+  },
+  {
+    key: "implicit.sickle",
+    label: "近接・射撃の{v}%を闇属性に変換",
+    range: { min: 20, max: 30 },
+    stage: "convert",
+    apply: (s, v) => {
+      s.infuse.dark += Math.max(0, pct(v));
+    },
+  },
+  {
+    key: "implicit.cestus",
+    label: "攻撃速度 +{v}%",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.attackSpeedMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.chainWhip",
+    label: "濡れ・浸水の敵への与ダメージ +{v}%",
+    range: { min: 15, max: 22 },
+    apply: (s, v) => {
+      s.traits.wetConductMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.shakujo",
+    label: "最大気力 +{v}",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.maxMana += v;
+    },
+  },
+  {
+    key: "implicit.crystalWand",
+    label: "属性の弱点を突くたびに気力 +{v}",
+    range: { min: 1, max: 1.5 },
+    decimals: 1,
+    apply: (s, v) => {
+      s.traits.weakHitMana += v;
+    },
+  },
+  {
+    key: "implicit.blunderbuss",
+    label: "散弾の射撃が近い敵に与えるダメージ +{v}%",
+    range: { min: 15, max: 22 },
+    apply: (s, v) => {
+      s.traits.spreadCloseMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.crossbow",
+    label: "射撃の怯み値 +{v}%、連射速度 -10%",
+    range: { min: 25, max: 35 },
+    apply: (s, v) => {
+      s.traits.rangedPoiseMul += pct(v);
+      s.fireRateMul -= pct(CROSSBOW_SLOW_PCT);
+    },
+  },
+  {
+    key: "implicit.chakram",
+    label: "弾速 +{v}%",
+    range: { min: 15, max: 22 },
+    apply: (s, v) => {
+      s.projectileSpeedMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.handCannon",
+    label: "近接・射撃の{v}%を炎属性に変換",
+    range: { min: 20, max: 30 },
+    stage: "convert",
+    apply: (s, v) => {
+      s.infuse.fire += Math.max(0, pct(v));
+    },
+  },
+  {
+    key: "implicit.caltrops",
+    label: "地形の上にいる敵への与ダメージ +{v}%",
+    range: { min: 12, max: 18 },
+    apply: (s, v) => {
+      s.traits.enemyOnTerrainMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.seekerOrb",
+    label: "状態異常の効果量 +{v}%",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.statusPotencyMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.mino",
+    label: "地形の上に立つ間、被ダメージ -{v}%",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.traits.terrainGuard += pct(v);
     },
   },
 ];

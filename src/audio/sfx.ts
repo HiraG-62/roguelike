@@ -19,6 +19,8 @@ import {
   safeStopTime,
 } from "./synth";
 import { SFX_NAMES, type SfxName } from "./sfxNames";
+import { type Layer, playLayers } from "./layers";
+import { LAYERED_SFX, type LayeredSfxName } from "./sfxLayers";
 
 /** play() に渡せる再生オプション */
 export interface SfxPlayOptions {
@@ -316,7 +318,18 @@ function makeSlash(stage: 0 | 1 | 2): SfxDefinition {
   };
 }
 
+/** sfxLayers.ts の表から層で組む効果音の定義を作る */
+function layeredDefinitions(): Record<LayeredSfxName, SfxDefinition> {
+  const out: Partial<Record<LayeredSfxName, SfxDefinition>> = {};
+  for (const name of Object.keys(LAYERED_SFX) as LayeredSfxName[]) {
+    const layers: readonly Layer[] = LAYERED_SFX[name];
+    out[name] = (ctx, dest, opts) => playLayers(ctx, dest, layers, opts.pitch);
+  }
+  return out as Record<LayeredSfxName, SfxDefinition>;
+}
+
 const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
+  ...layeredDefinitions(),
   slash1: makeSlash(0),
   slash2: makeSlash(1),
   slash3: makeSlash(2),
@@ -1385,6 +1398,11 @@ export class SfxPlayer {
     if (this.masterGain !== null && this.ctx !== null && !this.muted) {
       this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
     }
+  }
+
+  /** 音楽（music.ts）が同じ AudioContext を使うための公開。unlock() 前は null */
+  context(): AudioContext | null {
+    return this.ctx;
   }
 
   /** 現在同時発音中のボイス数（テスト・デバッグ用） */

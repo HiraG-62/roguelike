@@ -1,6 +1,6 @@
 import type { FrameInput } from "../core/input";
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
-import { type Vec, add, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, dist, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { FEEL, MANA, PLAYER } from "../data/tuning";
@@ -14,6 +14,15 @@ import {
   landingShock,
   updateExtraActive,
 } from "../skills/actions";
+import {
+  WAVE2_CAST,
+  WAVE2_CAST_RANGE,
+  formRecoverMoveMul,
+  updateForm,
+  updateStakes,
+  updateWave2Active,
+  wave2CastBlock,
+} from "../skills/actions2";
 import { type ComboDef, findCombo } from "../skills/combos";
 import {
   MODIFIERS,
@@ -25,11 +34,13 @@ import {
   castInterval,
   modifierLinkCost,
   resolveCast,
+  wearBudCount,
 } from "../skills/data";
 import { type RuneDropSource, makeRuneItem, rollRuneDrop, rollRuneModifier } from "../skills/generator";
 import { refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
 import { addRune, saveSkillProfile, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
 import {
+  fieldRadius,
   placeMine,
   placeStrikes,
   playerInFrost,
@@ -37,10 +48,13 @@ import {
   spawnField,
   spawnWell,
   updatePlacedSkills,
+  wellRadius,
   wellThunderTarget,
 } from "../skills/placed";
 import { updateShots } from "../skills/shots";
 import { COMBO_TUNING } from "../skills/tuning";
+import { WAVE2_COMBO_TUNING } from "../skills/tuning2";
+import { noteWearCast } from "../skills/wear";
 import {
   onGraveFinisher,
   onSpringMeleeHit,
@@ -66,7 +80,12 @@ import {
   type SkillRunState,
   type SkillSlotState,
   type SkillStone,
+  WAVE2_SKILL_KEYS,
+  type Wave2SkillKey,
 } from "../skills/types";
+import type { Element } from "../core/element";
+import { JOBS } from "../data/jobs";
+import { MOVESETS } from "../data/weapons";
 import { buffPotencyMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
@@ -127,6 +146,7 @@ const FULL_TURN = Math.PI * 2;
 const COLOR_COMBO = "#ffe070";
 const COLOR_BACKSTAB = "#8060c0";
 const COLOR_FOLLOW = "#ffe0a0";
+const COLOR_TRAP = "#c0a0ff";
 /** 照準地点を使うスキルの最大射程（無いものはグレネードと同じ） */
 const CAST_RANGE: Partial<Record<SkillKey, number>> = {
   frag: SKILL.frag.maxRange,
@@ -134,10 +154,15 @@ const CAST_RANGE: Partial<Record<SkillKey, number>> = {
   gravityWell: SKILL.gravityWell.maxRange,
   frostField: SKILL.frostField.maxRange,
   ...EXTRA_CAST_RANGE,
+  ...WAVE2_CAST_RANGE,
 };
 
 function isExtraKey(key: SkillKey): key is ExtraSkillKey {
   return (EXTRA_SKILL_KEYS as readonly string[]).includes(key);
+}
+
+function isWave2Key(key: SkillKey): key is Wave2SkillKey {
+  return (WAVE2_SKILL_KEYS as readonly string[]).includes(key);
 }
 
 /** 1 スロットぶんの解決結果 */
@@ -169,6 +194,7 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
       intervalLeft: 0,
       heat: 0,
       heatTimer: 0,
+      elementStep: 0,
     })),
     active: null,
     pendingSlot: -1,
@@ -215,6 +241,11 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     historyTimer: 0,
     hurtLog: [],
     lastHp: null,
+    form: null,
+    formRecover: 0,
+    stakes: [],
+    stakeTick: 0,
+    traps: [],
   };
   syncSlotModifiers(rs);
   return rs;
@@ -253,7 +284,7 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const params = cachedCast(def, stone, slotState);
   const burden = castBurden(def, params);
   const dynamic = dynamicBurdenMul(state, slot, def, params);
-  const cost = manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic).cost);
+  const cost = manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic, slot).cost);
   return {
     stone,
     def,
@@ -269,6 +300,8 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
 interface CastCache {
   stone: SkillStone;
   links: number;
+  /** 使い込みの威力の芽の数（ラン中に芽が出たら作り直す） */
+  powerBuds: number;
   variants: SkillStone["variants"];
   modifiers: string;
   params: CastParams;
@@ -283,11 +316,19 @@ const castCache = new WeakMap<SkillSlotState, CastCache>();
 function cachedCast(def: SkillDef, stone: SkillStone, slot: SkillSlotState): CastParams {
   const modifiers = slot.modifiers.join(",");
   const hit = castCache.get(slot);
-  if (hit && hit.stone === stone && hit.links === stone.links && hit.variants === stone.variants && hit.modifiers === modifiers) {
+  const powerBuds = wearBudCount(stone, "power");
+  if (
+    hit &&
+    hit.stone === stone &&
+    hit.links === stone.links &&
+    hit.powerBuds === powerBuds &&
+    hit.variants === stone.variants &&
+    hit.modifiers === modifiers
+  ) {
     return hit.params;
   }
   const params = resolveCast(def, stone, slot.modifiers);
-  castCache.set(slot, { stone, links: stone.links, variants: stone.variants, modifiers, params });
+  castCache.set(slot, { stone, links: stone.links, powerBuds, variants: stone.variants, modifiers, params });
   return params;
 }
 
@@ -340,8 +381,8 @@ export function capManaCost(cost: number, maxMana: number): { cost: number; clam
 }
 
 /** 実際に払うコスト。誓約「過負荷」は不足分を HP で払えて上限を超えても撃てるので切り詰めない */
-export function effectiveManaCost(state: GameState, cost: number): { cost: number; clamped: boolean } {
-  const scaled = cost * Math.max(MANA.costMulMin, state.stats.manaCostMul * boonManaCostMul(state));
+export function effectiveManaCost(state: GameState, cost: number, slot = -1): { cost: number; clamped: boolean } {
+  const scaled = cost * Math.max(MANA.costMulMin, state.stats.manaCostMul * boonManaCostMul(state, slot));
   if (hasKeystone(state, KS.overdraw)) return { cost: scaled, clamped: false };
   return capManaCost(scaled, state.stats.maxMana);
 }
@@ -368,7 +409,7 @@ export function skillMoveMul(state: GameState): number {
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0) return 0;
   const haste = rs.haste.time > 0 ? rs.haste.mul : 1;
   const frost = playerInFrost(state) ? SKILL.frostField.selfMoveMul : 1;
-  return activeMoveMul(rs.active) * haste * frost * chargingMoveMul(state);
+  return activeMoveMul(rs.active) * haste * frost * chargingMoveMul(state) * formRecoverMoveMul(state);
 }
 
 /** 溜め中の移動倍率（段階溜めは溜め符より重い） */
@@ -454,6 +495,8 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   tickTimers(state, dt);
   for (let i = 0; i < SLOT_COUNT; i++) tickSlot(state, i, dt);
   updateDebts(state, dt);
+  // 変身の武器種は発動・近接より先に確かめる（装備を替えて stats が作り直されていても差し直す）
+  updateForm(state, dt);
 
   // ダッシュは発動中のスキルをキャンセルする（CD は消費済み）
   if (rs.active && state.player.dashTimer > 0) cancelActive(state, true);
@@ -470,6 +513,7 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
 
   updateActive(state, dt);
   updateGrenades(state, dt);
+  updateTraps(state, dt);
   updateEchoes(state, dt);
   updateGasps(state);
   updateGhosts(state, dt);
@@ -480,6 +524,7 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   updateTurrets(state, dt);
   updateBoneRing(state, dt);
   updateSprings(state, dt);
+  updateStakes(state, dt);
   updateHaste(state);
   updateFloorStones(state, dt);
   updateRunes(state, dt);
@@ -869,9 +914,11 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   const dir = { ...p.facing };
   const origin = { ...p.body.pos };
   const key = r.def.key;
-  const target = clampTarget(state, origin, aimTarget(state, input), CAST_RANGE[key] ?? SKILL.frag.maxRange);
+  // 型替え符「自己中心化」は照準地点を自分の足元にする
+  const aimed = clampTarget(state, origin, aimTarget(state, input), CAST_RANGE[key] ?? SKILL.frag.maxRange);
+  const target = r.params.reshape === "toNova" ? { ...origin } : aimed;
   // 対象のいない消費系・影渡りは何も払わずに弾く
-  const blocked = isExtraKey(key) ? extraCastBlock(state, key, target, r.params) : null;
+  const blocked = castBlock(state, key, target, r.params);
   if (blocked) {
     notReady(state, blocked);
     rs.pendingSlot = -1;
@@ -881,7 +928,8 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   if (state.player.attack.phase !== "none") cancelAttack(state);
 
   const stateMul = castStateMul(state, r);
-  const combo = findCombo(state, r.def);
+  const wave2 = wave2CastState(state, r.params);
+  const combo = findCombo(state, r.def, target);
   const manaPaid = payResource(state, index, slot, r);
   onBoonSkillCast(state, index, r.resource, manaPaid);
   pushPlayerEvent(state, "onSkillCast", key, { slot: index, source: { kind: "skill", key } });
@@ -889,8 +937,10 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   const costed = payCosts(state, r.params);
   const base: CastParams = {
     ...costed,
-    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1) * stateMul.damage,
-    potencyMul: costed.potencyMul * stateMul.potency,
+    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1) * stateMul.damage * wave2.mul,
+    potencyMul: costed.potencyMul * stateMul.potency * wave2.mul,
+    element: wave2.element,
+    leyPool: { left: costed.leyline ? SKILL.modifier.leyline.maxPerCast : 0 },
     areaMul: costed.areaMul * (chargeMul?.areaMul ?? 1),
     countBonus: costed.countBonus + (chargeMul?.countBonus ?? 0),
     pierce: costed.pierce + (chargeMul?.pierce ?? 0),
@@ -909,7 +959,10 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   if (combo) announceCombo(state, combo);
   const remote = { skillKey: key, origin, dir, target };
 
-  if (params.delay) {
+  if (params.reshape === "toTrap") {
+    // 型替え符「罠化」: いま何も起きず、照準地点に罠を置く（踏まれたら罠の位置から発動。遅延・反響はそこから数える）
+    placeTrap(state, key, target, params);
+  } else if (params.delay) {
     // 遅延: いま何も起きず、発動地点で後から本発動（反響はその時点から数える）。
     // 投げ刃が付いていれば発動地点は着弾点（自分の位置で遅れて回ると 2 リンク払った型替えが消える）
     const time = params.delay.time;
@@ -925,6 +978,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   }
 
   recordCast(state, index, key, target, params);
+  noteWearCast(state, index);
   applyRecoil(state, dir, params);
   if (r.def.damageKind === "ranged") fireTrigger(state, "onShoot", { pos: origin });
   if (r.def.damageKind === "ranged") pushPlayerEvent(state, "onShoot", key, { pos: { ...origin }, slot: index, source: { kind: "skill", key } });
@@ -932,13 +986,42 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   return true;
 }
 
-/** 手動の本発動（大拡張のスキルは skills/actions.ts へ） */
+/** 手動の本発動（大拡張のスキルは skills/actions.ts、第 2 弾は skills/actions2.ts へ） */
 function castNow(state: GameState, index: number, key: SkillKey, params: CastParams, dir: Vec, target: Vec): void {
   if (isExtraKey(key)) {
     EXTRA_CAST[key](state, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
     return;
   }
+  if (isWave2Key(key)) {
+    WAVE2_CAST[key](state, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
+    return;
+  }
   CAST[key](state, index, params, dir, target);
+}
+
+/** 撃てない理由（対象のいない消費系など）。撃てるなら null */
+function castBlock(state: GameState, key: SkillKey, target: Vec, params: Readonly<CastParams>): string | null {
+  if (isExtraKey(key)) return extraCastBlock(state, key, target, params);
+  if (isWave2Key(key)) return wave2CastBlock(state, key, target, params);
+  return null;
+}
+
+/**
+ * 第 2 弾の刻印符で発動時に決まるもの: 得意（ジョブの得意な武器種か）・化身（変身中か）の倍率と、
+ * 武器写しの属性（近接の武器の属性。無属性の武器なら倍率）。変身中の武器種で判定する
+ */
+function wave2CastState(state: GameState, params: Readonly<CastParams>): { mul: number; element: Element | null } {
+  const m = SKILL.modifier;
+  let mul = 1;
+  let element = params.element;
+  if (params.jobMastery) mul *= JOBS[state.job].favored.includes(state.stats.moveset) ? m.jobMastery.favoredMul : m.jobMastery.otherMul;
+  if (params.formSurge) mul *= state.skills.form ? m.formSurge.formMul : m.formSurge.otherMul;
+  if (params.weaponBond) {
+    const weapon = (MOVESETS[state.stats.moveset] ?? MOVESETS.sword).attack.element;
+    if (weapon === "none") mul *= m.weaponBond.plainMul;
+    else element = weapon;
+  }
+  return { mul, element };
 }
 
 /** 連携の成立を知らせる（浮き文字と効果音） */
@@ -1084,7 +1167,7 @@ function startActive(state: GameState, slot: number, key: ActiveCast["skillKey"]
   };
 }
 
-type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey>;
+type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey | Wave2SkillKey>;
 
 const CAST: Record<BaseSkillKey, CastFn> = {
   whirl: (state, slot, params, dir) => startActive(state, slot, "whirl", params, dir, SKILL.whirl.duration * params.timeMul),
@@ -1101,7 +1184,10 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     const p = state.player;
     p.buffs.invuln = Math.max(p.buffs.invuln, window);
   },
-  frag: (state, _slot, params, _dir, target) => throwGrenades(state, state.player.body.pos, target, params),
+  frag: (state, _slot, params, _dir, target) => {
+    const t = wellFragTarget(state, target, params);
+    throwGrenades(state, state.player.body.pos, t.target, t.params);
+  },
   bloodPact: (state, _slot, params) => {
     const p = state.player;
     const b = SKILL.bloodPact;
@@ -1114,10 +1200,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
   quake: (state, slot, params, dir) => startActive(state, slot, "quake", params, dir, SKILL.quake.windup * params.timeMul),
-  thunder: (state, _slot, params, _dir, target) => {
-    const t = wellThunderTarget(state, target, params);
-    placeStrikes(state, t.target, t.params);
-  },
+  thunder: (state, _slot, params, _dir, target) => castThunderAt(state, target, params),
   gravityWell: (state, _slot, params, _dir, target) => spawnWell(state, target, params),
   // 投げ込み（型替え）なら足元ではなく照準地点へ
   mines: (state, _slot, params, _dir, target) => placeMine(state, params.reshape === "toLobbed" ? target : state.player.body.pos, params),
@@ -1163,6 +1246,7 @@ function updateActive(state: GameState, dt: number): void {
   const a = state.skills.active;
   if (!a) return;
   if (updateExtraActive(state, a, dt)) return;
+  if (updateWave2Active(state, a, dt)) return;
   switch (a.skillKey) {
     case "whirl":
       updateWhirl(state, a, dt);
@@ -1623,6 +1707,80 @@ function throwGrenades(state: GameState, from: Vec, target: Vec, params: CastPar
   }
 }
 
+/**
+ * 連携「渦爆」（引力球の中へ投げたグレネード）: 落下点を照準地点を含む引力球の中心へ吸い寄せ、範囲を広げる。
+ * 成立していなければそのまま返す
+ */
+function wellFragTarget(state: GameState, target: Vec, params: CastParams): { target: Vec; params: CastParams } {
+  if (params.combo !== "wellFrag") return { target, params };
+  const well = state.skills.wells.find((w) => dist(w.pos, target) <= wellRadius(w.params));
+  if (!well) return { target, params };
+  return { target: { ...well.pos }, params: { ...params, areaMul: params.areaMul * WAVE2_COMBO_TUNING.wellFrag.areaMul, countBonus: 0 } };
+}
+
+/**
+ * 雷撃を落とす。連携「渦雷」は引力球の中心へ、連携「氷雷」（氷結地帯の中へ落とす）は地帯の中の敵すべての足元へ落ちる
+ */
+function castThunderAt(state: GameState, target: Vec, params: CastParams): void {
+  if (params.combo === "frostThunder" && frostThunder(state, target, params)) return;
+  const t = wellThunderTarget(state, target, params);
+  placeStrikes(state, t.target, t.params);
+}
+
+/** 氷雷: 照準地点を含む氷結地帯の中の敵それぞれへ 1 本ずつ。敵がいなければ false（普通に落とす） */
+function frostThunder(state: GameState, target: Vec, params: CastParams): boolean {
+  const field = state.skills.fields.find((f) => dist(f.pos, target) <= fieldRadius(f.params));
+  if (!field) return false;
+  const inside = enemiesInRadius(state, field.pos, fieldRadius(field.params));
+  if (inside.length === 0) return false;
+  const single = { ...params, countBonus: 0 };
+  for (const e of inside) placeStrikes(state, { ...e.body.pos }, single);
+  return true;
+}
+
+// ---- 型替え符「罠化」 ----
+
+/** 罠を置く。上限を超えたら古いものから消える */
+function placeTrap(state: GameState, key: SkillKey, pos: Vec, params: CastParams): void {
+  const t = SKILL.modifier.toTrap;
+  const rs = state.skills;
+  rs.traps.push({ id: allocId(state), pos: { ...pos }, arm: t.arm, life: t.life, skillKey: key, params });
+  while (rs.traps.length > t.maxAlive) rs.traps.shift();
+  spawnBurst(state, pos, COLOR_TRAP, SPARK_COUNT, SPARK_SPEED, SPARK_LIFE, SPARK_SIZE);
+}
+
+/** 起動した罠に敵が近づいたら、罠の位置から最寄りの敵へ向けて元のスキルを発動する（遅延・反響もそこから） */
+function updateTraps(state: GameState, dt: number): void {
+  const rs = state.skills;
+  if (rs.traps.length === 0) return;
+  const t = SKILL.modifier.toTrap;
+  const sprung = new Set<number>();
+  for (const trap of rs.traps) {
+    trap.arm = Math.max(0, trap.arm - dt);
+    trap.life -= dt;
+    if (trap.arm > 0 || trap.life <= 0) continue;
+    const prey = enemiesInRadius(state, trap.pos, t.trigger)[0];
+    if (!prey) continue;
+    sprung.add(trap.id);
+    springTrap(state, trap.skillKey, trap.pos, prey.body.pos, trap.params);
+  }
+  rs.traps = rs.traps.filter((trap) => trap.life > 0 && !sprung.has(trap.id));
+}
+
+function springTrap(state: GameState, key: SkillKey, at: Vec, prey: Vec, params: CastParams): void {
+  const dir = normalize(sub(prey, at), state.player.facing);
+  const remote = { skillKey: key, origin: { ...at }, dir, target: { ...prey } };
+  spawnRing(state, at, SKILL.modifier.toTrap.trigger, COLOR_TRAP, RING_LIFE * 2);
+  pushSfx(state, "skillCast");
+  if (params.delay) {
+    const time = params.delay.time;
+    state.skills.echoes.push({ ...remote, kind: "delay", timer: time, total: time, params: { ...params, damageMul: params.damageMul * params.delay.damageMul, delay: null } });
+    return;
+  }
+  executeRemote(state, { ...remote, kind: "thrown", timer: 0, total: 0, params });
+  scheduleEcho(state, { ...remote, params });
+}
+
 export function grenadeRadius(params: CastParams): number {
   return SKILL.frag.radius * params.areaMul;
 }
@@ -1697,6 +1855,10 @@ function executeRemote(state: GameState, e: EchoCast): void {
     EXTRA_CAST[key](state, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, target: e.target, remote: true });
     return;
   }
+  if (isWave2Key(key)) {
+    WAVE2_CAST[key](state, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, target: e.target, remote: true });
+    return;
+  }
   switch (key) {
     case "whirl":
     case "lunge":
@@ -1714,9 +1876,11 @@ function executeRemote(state: GameState, e: EchoCast): void {
       });
       return;
     }
-    case "frag":
-      throwGrenades(state, e.origin, e.target, e.params);
+    case "frag": {
+      const t = wellFragTarget(state, e.target, e.params);
+      throwGrenades(state, e.origin, t.target, t.params);
       return;
+    }
     case "railshot":
       fireRails(state, e.origin, e.dir, e.params);
       return;
@@ -1726,11 +1890,9 @@ function executeRemote(state: GameState, e: EchoCast): void {
     case "chainHook":
       hookInstant(state, e.origin, e.dir, e.params);
       return;
-    case "thunder": {
-      const t = wellThunderTarget(state, e.target, e.params);
-      placeStrikes(state, t.target, t.params);
+    case "thunder":
+      castThunderAt(state, e.target, e.params);
       return;
-    }
     case "gravityWell":
       spawnWell(state, e.target, e.params);
       return;
@@ -1809,6 +1971,10 @@ function syncTracking(state: GameState): void {
     rs.turrets = [];
     rs.boneRing = null;
     rs.springs = [];
+    rs.stakes = [];
+    rs.traps = [];
+    // 石の使い込み（発動・命中の数）は階層ごとに保存する（芽が出たときは wear.ts がその場で保存する）
+    saveSkillProfile(rs.profile);
     rs.marks.clear();
     rs.gasps = [];
     rs.history = [];

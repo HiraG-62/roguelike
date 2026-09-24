@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { attack } from "../core/element";
+import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
 import { enemyGuard } from "../data/enemyCombat";
 import { enemyResistTable, enemyWeaknesses } from "../data/enemyDefense";
@@ -7,6 +8,7 @@ import { ELEMENT } from "../data/tuning";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { mitigate, rollOutgoing } from "./combat";
 import {
+  dotResistMul,
   effectiveResist,
   elementShares,
   enemyAttackOf,
@@ -15,7 +17,14 @@ import {
   playerMitigationMul,
   resolveAttack,
 } from "./elementCombat";
+import { applyStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
+
+/** 継続ダメージの検査: 1 秒ぶん進める */
+const DOT_SEC = 1;
+const DOT_STEPS = Math.round(DOT_SEC / FIXED_DT);
+/** 燃焼の dps（毒は 0 で既定の割合） */
+const DOT_POTENCY = 40;
 
 /** 会心で数値が揺れないようにする */
 function noCrit(stats: Partial<PlayerStats> = {}): GameState {
@@ -74,6 +83,44 @@ describe("与ダメ: 敵の防御・魔防", () => {
     const state = noCrit();
     const e = target(state, "frostGolem");
     expect(rollOutgoing(state, e, 10, "proc").amount).toBe(10);
+  });
+});
+
+describe("継続ダメージの属性耐性", () => {
+  /** 燃焼 / 毒を付けて 1 秒進め、減った生命を返す */
+  function dotLoss(key: string, kind: "burn" | "poison" | "bleed"): number {
+    const state = noCrit();
+    const e = target(state, key);
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind, stacks: 1, duration: DOT_SEC * 2, potency: DOT_POTENCY }, "player");
+    const before = e.hp;
+    for (let i = 0; i < DOT_STEPS; i++) updateStatusEffects(state, FIXED_DT);
+    return before - e.hp;
+  }
+
+  it("炎の継続ダメージは炎の弱点で増え、炎の耐性で減る", () => {
+    const weak = dotLoss("frostGolem", "burn");
+    const strong = dotLoss("lavaGolem", "burn");
+    const plain = dotLoss("knight", "burn");
+    expect(weak, "炎が弱点の霜ゴーレムは多く燃える").toBeGreaterThan(plain);
+    expect(strong, "炎に強い溶岩ゴーレムはあまり燃えない").toBeLessThan(plain);
+  });
+
+  it("毒の継続ダメージは毒に強い沼の敵で減る（素通しにしない）", () => {
+    expect(dotLoss("poisonSlime", "poison"), "毒に強い").toBeLessThan(dotLoss("iceSlime", "poison"));
+  });
+
+  it("倍率は 1 − 耐性%。属性を持たない出血は等倍", () => {
+    const state = noCrit();
+    const e = target(state, "poisonSlime");
+    const table = enemyResistTable(enemyGuard("poisonSlime"));
+    expect(dotResistMul(state.stats, e, "poison")).toBeCloseTo(1 - table.poison / 100);
+    expect(dotResistMul(state.stats, e, "bleed"), "出血は属性なし").toBe(1);
+  });
+
+  it("プレイヤーの燃焼・毒は自分の耐性（ソフトキャップ後）で減る", () => {
+    const state = arena(5, { resist: { ...DEFAULT_STATS.resist, fire: 60 } });
+    expect(dotResistMul(state.stats, null, "burn")).toBeCloseTo(1 - effectiveResist(60) / 100);
+    expect(dotResistMul(state.stats, null, "poison"), "毒耐性 0 は等倍").toBe(1);
   });
 });
 

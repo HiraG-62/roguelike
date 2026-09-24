@@ -1,23 +1,26 @@
+import { type Element, ELEMENT_COLOR, ELEMENT_LABEL } from "../core/element";
 import type { GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { CONTRACT, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
-import { BIOMES, floorKindLabel } from "../system/biomes";
+import { BIOMES, floorKindLabel, isInvertedDepth } from "../system/biomes";
+import { CONTRACTORS, type Contractor, offerLabel, pactHudLines } from "../system/contractors";
 import { LINGER_LABEL, lingerTimeLeft, shadowPositions, tideFull } from "../system/linger";
-import { bountyTargetId, fogActive, hourglassLeft, runEventHudLines } from "../system/runEvents";
+import { bountyTargetId, fogActive, hourglassLeft, reaperPassLine, reaperPassPos, runEventHudLines } from "../system/runEvents";
 import { ORIGINS, runTier } from "../system/runSetup";
 import { MODIFIERS } from "../skills/data";
 import type { ModifierKey } from "../skills/types";
 import { keystoneDef } from "../loot/affixes";
-import { PROP_LABEL, ROOM_KIND_COLOR, type RoomProp, escapeActive } from "../system/specialRooms";
+import { PROP_LABEL, ROOM_KIND_COLOR, type RoomProp, escapeActive, inFogRoom } from "../system/specialRooms";
 import { TEXT, drawTextShadow, textLineHeight } from "./pixelText";
 import { clamp01, pulse } from "./renderMath";
 
 /**
  * ラン構造の描画（docs/ideas/run-expansion.md）。state を読むだけで、乱数は使わない。
- * - ワールド座標: バイオームの色調・台座・護衛対象・刻の裂け目・落下物の予告・影の自分・賞金首の印・階段の行き先
- * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計の予告行、霧、起点と位階
+ * - ワールド座標: バイオームの色調（反転層の紫）・台座・契約者・護衛対象・刻の裂け目・落下物と落雷の予告・死神の通り道・
+ *   影の自分・賞金首の印・階段の行き先
+ * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計・契約の予告行、霧（霧の部屋）、起点と位階・欠片・反転層 / 帰還
  */
 
 const COLOR_SHADOW = "#000000";
@@ -28,10 +31,18 @@ const COLOR_DIM = "#909090";
 // ワールド座標
 // -----------------------------------------------------------------------------
 
-/** 床と壁に重ねるバイオームの色調（タイルを描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標 */
+/** 床と壁に重ねるバイオームの色調（タイルを描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標。反転層は紫を重ねる */
 export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number): void {
   const tint = BIOMES[state.floorKind].tint;
-  if (!tint) return;
+  if (isInvertedDepth(state.depth)) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = FLOOR_KIND.invertedColor;
+    ctx.fillRect(viewX, viewY, VIEW_W, VIEW_H);
+  }
+  if (!tint) {
+    ctx.globalAlpha = 1;
+    return;
+  }
   ctx.globalAlpha = alpha;
   ctx.fillStyle = tint;
   ctx.fillRect(viewX, viewY, VIEW_W, VIEW_H);
@@ -41,7 +52,11 @@ export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, v
 /** 台座・護衛対象・裂け目・落下物・影・賞金首・階段の行き先（敵より手前・弾より奥に描く想定） */
 export function drawRunWorld(ctx: CanvasRenderingContext2D, state: GameState): void {
   drawImpacts(ctx, state);
+  drawStrikes(ctx, state);
+  drawReaperPass(ctx, state);
   for (const room of state.rooms) drawRoomProps(ctx, state, room);
+  const who = state.contracts.contractor;
+  if (who) drawContractor(ctx, state, who);
   drawRift(ctx, state);
   drawShadows(ctx, state);
   drawBountyMark(ctx, state);
@@ -53,17 +68,42 @@ const PROP_PULSE_SPEED = 3;
 const LABEL_LIFT = 10;
 
 function propColor(room: RoomState, prop: RoomProp): string {
-  if (prop.kind === "keystone") return ROOM_KIND.altarColor;
-  if (prop.kind === "rune") return ROOM_KIND.libraryColor;
+  switch (prop.kind) {
+    case "keystone":
+      return ROOM_KIND.altarColor;
+    case "rune":
+      return ROOM_KIND.libraryColor;
+    case "ascend":
+      return FLOOR_KIND.ascendColor;
+    case "vein":
+      return RUN_EVENT.vein.color;
+    case "element":
+      return ELEMENT_COLOR[prop.key as Element] ?? ROOM_KIND.elementAltarColor;
+    default:
+      break;
+  }
   if (prop.kind === "chest" && prop.key === "reaper") return ROOM_KIND_COLOR.reaperNest ?? COLOR_TEXT;
   return ROOM_KIND_COLOR[room.kind] ?? COLOR_TEXT;
 }
 
-/** 台座の名前（誓約名・刻印符名。無ければ種類名） */
+/** 台座の名前（誓約名・刻印符名・属性・代価。無ければ種類名） */
 export function propName(prop: RoomProp): string {
-  if (prop.kind === "keystone") return keystoneDef(prop.key)?.name ?? PROP_LABEL.keystone;
-  if (prop.kind === "rune") return MODIFIERS[prop.key as ModifierKey]?.name ?? PROP_LABEL.rune;
-  return PROP_LABEL[prop.kind];
+  switch (prop.kind) {
+    case "keystone":
+      return keystoneDef(prop.key)?.name ?? PROP_LABEL.keystone;
+    case "rune":
+      return MODIFIERS[prop.key as ModifierKey]?.name ?? PROP_LABEL.rune;
+    case "element":
+      return `${ELEMENT_LABEL[prop.key as Element] ?? ""}${PROP_LABEL.element}`;
+    case "seal":
+      return `${PROP_LABEL.seal}（欠片 ${ROOM_KIND.vaultCost}）`;
+    case "vein":
+      return `${PROP_LABEL.vein} 残り ${prop.uses ?? 0}`;
+    case "ascend":
+      return `${PROP_LABEL.ascend}（乗り続ける）`;
+    default:
+      return PROP_LABEL[prop.kind];
+  }
 }
 
 function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: RoomState): void {
@@ -85,10 +125,118 @@ function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: Ro
     ctx.strokeStyle = COLOR_SHADOW;
     ctx.lineWidth = 1;
     ctx.strokeRect(Math.round(prop.pos.x - PROP_SIZE / 2) - 0.5, Math.round(prop.pos.y - PROP_SIZE / 2) - 0.5, PROP_SIZE + 1, PROP_SIZE + 1);
+    if (prop.kind === "ascend") drawHoldRing(ctx, prop, color);
     if (Math.hypot(p.x - prop.pos.x, p.y - prop.pos.y) > ROOM_KIND.propLabelRange) continue;
     const label = prop.kind === "lever" ? `${propName(prop)} 残り ${special.uses}` : propName(prop);
     drawTextShadow(ctx, label, prop.pos.x, prop.pos.y - LABEL_LIFT, TEXT.SMALL, color, COLOR_SHADOW, "center");
   }
+}
+
+const HOLD_RING_R = 8;
+
+/** 上り階段に乗り続けた割合の輪 */
+function drawHoldRing(ctx: CanvasRenderingContext2D, prop: RoomProp, color: string): void {
+  const ratio = clamp01((prop.hold ?? 0) / FLOOR_KIND.ascendHold);
+  if (ratio <= 0) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(prop.pos.x, prop.pos.y, HOLD_RING_R, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
+  ctx.stroke();
+}
+
+const CONTRACTOR_HEAD_R = 3;
+const CONTRACTOR_BODY_W = 6;
+const CONTRACTOR_BODY_H = 7;
+const CONTRACTOR_NAME_LIFT = 14;
+const OFFER_SIZE = 5;
+
+/** 契約者（頭と胴の簡単な人影）と、その前に並ぶ台座 */
+function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Contractor): void {
+  const def = CONTRACTORS[who.key];
+  const p = state.player.body.pos;
+  const x = Math.round(who.pos.x);
+  const y = Math.round(who.pos.y);
+  ctx.fillStyle = COLOR_SHADOW;
+  ctx.fillRect(x - CONTRACTOR_BODY_W / 2 - 1, y - 1, CONTRACTOR_BODY_W + 2, CONTRACTOR_BODY_H + 2);
+  ctx.fillStyle = def.color;
+  ctx.fillRect(x - CONTRACTOR_BODY_W / 2, y, CONTRACTOR_BODY_W, CONTRACTOR_BODY_H);
+  ctx.beginPath();
+  ctx.arc(x, y - CONTRACTOR_HEAD_R, CONTRACTOR_HEAD_R, 0, Math.PI * 2);
+  ctx.fill();
+  const near = Math.hypot(p.x - who.pos.x, p.y - who.pos.y) <= CONTRACT.greetRange * 2;
+  if (near) drawTextShadow(ctx, def.name, x, y - CONTRACTOR_NAME_LIFT, TEXT.SMALL, def.color, COLOR_SHADOW, "center");
+  for (const offer of who.offers) {
+    if (offer.used) continue;
+    ctx.globalAlpha = pulse(state.time, PROP_PULSE_SPEED, 0.5, 1);
+    ctx.fillStyle = def.color;
+    ctx.fillRect(Math.round(offer.pos.x - OFFER_SIZE / 2), Math.round(offer.pos.y - OFFER_SIZE / 2), OFFER_SIZE, OFFER_SIZE);
+    ctx.globalAlpha = 1;
+  }
+  // 台座どうしが近く名前が重なるので、いちばん近い台座の名前だけを出す
+  const offer = nearestOffer(state, who);
+  if (!offer) return;
+  const affordable = state.shards >= offer.cost;
+  drawTextShadow(ctx, offerLabel(offer), offer.pos.x, offer.pos.y - LABEL_LIFT, TEXT.SMALL, affordable ? def.color : COLOR_DIM, COLOR_SHADOW, "center");
+}
+
+/** 名前を読める距離にある、まだ使っていない台座のうち最も近いもの */
+export function nearestOffer(state: GameState, who: Contractor): Contractor["offers"][number] | null {
+  const p = state.player.body.pos;
+  let best: Contractor["offers"][number] | null = null;
+  let bestDist: number = ROOM_KIND.propLabelRange;
+  for (const offer of who.offers) {
+    if (offer.used) continue;
+    const d = Math.hypot(p.x - offer.pos.x, p.y - offer.pos.y);
+    if (d > bestDist) continue;
+    best = offer;
+    bestDist = d;
+  }
+  return best;
+}
+
+/** 雷鳴の刻の落雷の予告: 外周の輪と、満ちていく中の円 */
+function drawStrikes(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const t = RUN_EVENT.thunder;
+  for (const s of state.runEvents.strikes) {
+    const fill = s.telegraph > 0 ? clamp01(1 - s.timer / s.telegraph) : 1;
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = t.color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(s.pos.x, s.pos.y, t.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.2 + fill * 0.4;
+    ctx.fillStyle = t.color;
+    ctx.beginPath();
+    ctx.arc(s.pos.x, s.pos.y, t.radius * fill, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+const PASS_LINE_WIDTH = 3;
+const PASS_BLINK_SPEED = 8;
+
+/** 死神の通り道: 予告の赤い線と、線の上を行く死神 */
+function drawReaperPass(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const line = reaperPassLine(state);
+  if (!line) return;
+  ctx.globalAlpha = line.warn ? pulse(state.time, PASS_BLINK_SPEED, 0.3, 0.8) : 0.35;
+  ctx.strokeStyle = RUN_EVENT.activeColor;
+  ctx.lineWidth = PASS_LINE_WIDTH;
+  ctx.beginPath();
+  ctx.moveTo(line.from.x, line.from.y);
+  ctx.lineTo(line.to.x, line.to.y);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 1;
+  const pos = reaperPassPos(state);
+  if (!pos) return;
+  ctx.fillStyle = LINGER.shadowColor;
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, RUN_EVENT.reaperPass.radius, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 const CAPTIVE_R = 5;
@@ -211,10 +359,11 @@ const COLOR_FOG = "200,205,215";
 
 /** 霧: プレイヤーの周りだけ見える（ワールドを描いた後、HUD の前に呼ぶ） */
 export function drawRunOverlay(ctx: CanvasRenderingContext2D, state: GameState, ox: number, oy: number): void {
-  if (!fogActive(state)) return;
+  const fogRoom = inFogRoom(state);
+  if (!fogActive(state) && !fogRoom) return;
   const x = state.player.body.pos.x + ox;
   const y = state.player.body.pos.y + oy;
-  const r = RUN_EVENT.fogRadius;
+  const r = fogRoom ? ROOM_KIND.fogRoomRadius : RUN_EVENT.fogRadius;
   const g = ctx.createRadialGradient(x, y, r * (1 - FOG_FEATHER), x, y, r);
   g.addColorStop(0, `rgba(${COLOR_FOG},0)`);
   g.addColorStop(1, `rgba(${COLOR_FOG},${FOG_EDGE_ALPHA})`);
@@ -259,6 +408,9 @@ function collectHudLines(state: GameState): HudLine[] {
   if (hourglass !== null) lines.push({ text: `砂時計: 増援まで ${Math.ceil(hourglass)} 秒`, color: RUN_EVENT.warnColor, blink: hourglass <= RUN_EVENT.warnTime });
   const stairs = stairsLine(state);
   if (stairs) lines.push(stairs);
+  for (const text of pactHudLines(state)) lines.push({ text, color: CONTRACT.pactColor, blink: false });
+  const witness = state.contracts.witness;
+  if (witness > 0) lines.push({ text: `語り部の目撃 ${Math.ceil(witness)} 秒`, color: CONTRACTORS.bard.color, blink: false });
   return lines;
 }
 
@@ -300,12 +452,22 @@ function stairsLine(state: GameState): HudLine | null {
   return { text: `分岐路: ${state.stairs.map((s) => floorKindLabel(s.nextKind)).join(" / ")}`, color: COLOR_TEXT, blink: false };
 }
 
-/** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない） */
+/** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない）・欠片・反転層 / 帰還 */
 export function drawRunSetupHud(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number): void {
+  const parts = runSetupParts(state);
+  if (parts.length === 0) return;
+  drawTextShadow(ctx, parts.join(" · "), x, y, TEXT.SMALL, COLOR_DIM, COLOR_SHADOW, "right");
+}
+
+/** 右上 HUD の 1 行の中身（テスト用に切り出し） */
+export function runSetupParts(state: GameState): string[] {
+  const parts: string[] = [];
   const tier = runTier(state.modifiers);
-  if (state.origin === "wanderer" && tier === 0) return;
-  const text = tier > 0 ? `${ORIGINS[state.origin].name} · 位階 ${tier}` : ORIGINS[state.origin].name;
-  drawTextShadow(ctx, text, x, y, TEXT.SMALL, COLOR_DIM, COLOR_SHADOW, "right");
+  if (state.origin !== "wanderer" || tier > 0) parts.push(tier > 0 ? `${ORIGINS[state.origin].name} · 位階 ${tier}` : ORIGINS[state.origin].name);
+  if (state.shards > 0) parts.push(`欠片 ${state.shards}`);
+  if (isInvertedDepth(state.depth)) parts.push("反転層");
+  if (state.runEvents.strata.revisit) parts.push("帰還");
+  return parts;
 }
 
 /** 共鳴炉の扉の色（部屋の色）。drawDoorMark が使う */
