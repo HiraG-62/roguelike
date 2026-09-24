@@ -5,7 +5,8 @@ import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { EXTRA_SKILL_TUNING } from "../skills/tuning";
 import { scaledAtBase } from "../system/attributes";
 import { PLAYER } from "./tuning";
-import { BURST_ATTACK, MOVESETS, SHOT_TYPES } from "./weapons";
+import { BURST_ATTACK, MOVESETS } from "./weapons";
+import { BULLETS } from "../loot/bullets";
 
 /**
  * 攻撃ジャンルと係数表（docs/COMBAT_DESIGN.md A-8 / A-10）。
@@ -41,7 +42,7 @@ function expectSane(scalings: readonly Scaling[], label: string): void {
   }
 }
 
-describe("武器種・射撃の型・必殺の係数", () => {
+describe("武器種・銃の弾・必殺の係数", () => {
   it("武器種の全段・ダッシュ攻撃・派生・溜めの係数表が正しい形", () => {
     for (const m of Object.values(MOVESETS)) {
       const steps = [...m.steps, m.dashAttack, ...m.branches.map((b) => b.step), ...(m.charge ? [m.charge.step] : [])];
@@ -49,9 +50,9 @@ describe("武器種・射撃の型・必殺の係数", () => {
     }
   });
 
-  it("射撃の型と必殺の係数表が正しい形", () => {
+  it("弾と必殺の係数表が正しい形", () => {
     expectSane([PLAYER.shoot.scaling, PLAYER.special.scaling], "射撃・必殺");
-    for (const s of Object.values(SHOT_TYPES)) if (s.scaling) expectSane([s.scaling], s.key);
+    for (const s of Object.values(BULLETS)) if (s.scaling) expectSane([s.scaling], s.key);
   });
 
   it("必殺の素性は範囲・魔法", () => {

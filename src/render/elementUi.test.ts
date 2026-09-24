@@ -28,7 +28,7 @@ describe("攻撃ジャンル・属性の表示（A-8）", () => {
   it("銃の家系ではこれまで通り射撃の素性を出す", () => {
     const state = arena();
     state.stats.moveset = "gunner";
-    expect(loadoutAttackLines(state.stats)).toEqual(["二丁拳銃: 遠距離・物理 / 無属性", "単発: 遠距離・物理 / 無属性"]);
+    expect(loadoutAttackLines(state.stats)).toEqual(["二丁拳銃: 遠距離・物理 / 無属性", "射撃: 遠距離・物理 / 無属性"]);
   });
 
   it("弱点の印は倒すまで「？」、倒した種類は弱点の色", () => {

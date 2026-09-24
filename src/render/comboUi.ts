@@ -4,7 +4,7 @@ import {
   type BranchHint,
   type ButtonKey,
   type MovesetDef,
-  type ShotDef,
+  type BulletDef,
   type WeaponArtDef,
   branchHints,
   chargeLevelAt,
@@ -60,7 +60,7 @@ function artPress(art: WeaponArtDef): string {
  * 右の固有技と左の押し方の案内（「右: 受け流し」「右 長押し: 居合」「左 長押し: 溜め」「左 長押し: 溜め撃ち」）。
  * 技の再使用中は残り秒を添える（docs/ideas/weapon-redesign.md 6 章）
  */
-export function controlHint(moveset: MovesetDef, shot: ShotDef, cooldownLeft = 0): string {
+export function controlHint(moveset: MovesetDef, shot: BulletDef, cooldownLeft = 0): string {
   const parts: string[] = [];
   if (moveset.primary === "charge") parts.push(`${BUTTON_LABEL.primary} 長押し: 溜め`);
   if (isGun(moveset) && shot.charge) parts.push(`${BUTTON_LABEL.primary} 長押し: 溜め撃ち`);
@@ -130,7 +130,7 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState): v
  * 案内の 1 行。技ではない派生（「左左」の後の「右: 十字断ち」など）があればそれを、無ければ右の固有技と押し方を出す
  * （右単独の技は派生にも混ざっているので、派生の案内から技の名前を除いて二重に出さない）
  */
-export function hudHintText(moveset: MovesetDef, inputs: readonly ButtonKey[], shot: ShotDef, cooldownLeft: number): string {
+export function hudHintText(moveset: MovesetDef, inputs: readonly ButtonKey[], shot: BulletDef, cooldownLeft: number): string {
   const hints = branchHints(moveset, inputs).filter((h) => h.name !== moveset.art.name);
   if (hints.length > 0) return formatBranchHints(hints);
   return controlHint(moveset, shot, cooldownLeft);

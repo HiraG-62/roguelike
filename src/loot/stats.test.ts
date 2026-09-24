@@ -292,27 +292,27 @@ describe("computeStats: マナの性質と渇きの誓約", () => {
   });
 });
 
-describe("computeStats: 武器種と射撃の型（ベースから決まる）", () => {
-  it("空装備は剣と単発", () => {
+describe("computeStats: 武器種と弾（ベースから決まる）", () => {
+  it("空装備は剣と既定の弾", () => {
     const stats = computeStats(createEmptyEquipment());
     expect(stats.moveset, "武器なしは剣").toBe("sword");
-    expect(stats.shot, "銃なしは単発").toBe("single");
+    expect(stats.bullet, "銃なしは既定の弾").toBe("pistol");
   });
 
-  it("近接ベースは武器種だけを決め、射撃の型は既定のまま", () => {
+  it("近接ベースは武器種だけを決め、弾は既定のまま", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { baseKey: "spear" });
     const stats = computeStats(equipment);
     expect(stats.moveset, "槍 → 槍").toBe("spear");
-    expect(stats.shot, "近接ベースは shot を持たない").toBe("single");
+    expect(stats.bullet, "近接ベースは弾を持たない").toBe("pistol");
   });
 
-  it("銃ベースは武器種（家系）と射撃の型の両方を決める", () => {
+  it("銃ベースは武器種（家系）と自分の弾の両方を決める", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { baseKey: "shotgun" });
     const stats = computeStats(equipment);
     expect(stats.moveset, "散弾銃 → 砲の家系").toBe("cannon");
-    expect(stats.shot, "散弾銃 → 散弾").toBe("spread");
+    expect(stats.bullet, "散弾銃 → 散弾銃の弾").toBe("shotgun");
   });
 
   it("新しい器のベース（手甲・跳ね銃）も型を持つ", () => {
@@ -322,7 +322,7 @@ describe("computeStats: 武器種と射撃の型（ベースから決まる）",
     equipment.mainHand = makeItem("mainHand", { baseKey: "ricochetGun" });
     const stats = computeStats(equipment);
     expect(stats.moveset).toBe("thrown");
-    expect(stats.shot).toBe("ricochet");
+    expect(stats.bullet).toBe("ricochetGun");
   });
 
   it("型を持たない未知のベースは既定に落ちる", () => {
@@ -330,6 +330,6 @@ describe("computeStats: 武器種と射撃の型（ベースから決まる）",
     equipment.mainHand = makeItem("mainHand", { baseKey: "test" });
     const stats = computeStats(equipment);
     expect(stats.moveset).toBe("sword");
-    expect(stats.shot).toBe("single");
+    expect(stats.bullet).toBe("pistol");
   });
 });

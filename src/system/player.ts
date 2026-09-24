@@ -9,13 +9,13 @@ import {
   type HitShape,
   type MeleeStepDef,
   type MovesetDef,
-  type ShotDef,
+  type BulletDef,
   type ShotRuntime,
   type TipDef,
   BURST_ATTACK,
   MOVESETS,
-  SHOT_TYPES,
   chargeButton,
+  bulletFeatures,
   chargeLevelAt,
   isGun,
   matchBranch,
@@ -28,6 +28,7 @@ import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
+import { currentBullet } from "../loot/bullets";
 import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { applyStatus, explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
@@ -249,9 +250,9 @@ export function withJobBranch(moveset: MovesetDef, job: JobKey): MovesetDef {
   return merged;
 }
 
-/** 装備中の射撃の型。銃なしは単発 */
-export function currentShot(stats: Readonly<PlayerStats>): ShotDef {
-  return SHOT_TYPES[stats.shot] ?? SHOT_TYPES.single;
+/** 装備中の銃の弾（src/loot/bullets.ts）。銃なしは既定の弾 */
+export function currentShot(stats: Readonly<PlayerStats>): BulletDef {
+  return currentBullet(stats);
 }
 
 /** 武器種の段 → 祝福・スキルに渡す combo（1 段目 0 / 途中 1 / 最終段 2）。段数が違っても最終段の祝福が最終段で出る */
@@ -321,18 +322,18 @@ export function currentMeleeStep(state: GameState): MeleeStep | undefined {
   return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state));
 }
 
-/** 射撃 1 発の基礎威力（今の射撃の型の係数を評価した値。射撃の型の damageMul は含まない） */
+/** 射撃 1 発の基礎威力（今の銃の弾の係数を評価した値。銃の弾の damageMul は含まない） */
 export function shotDamage(stats: Readonly<PlayerStats>): number {
   return scaled(stats, shotScaling(stats));
 }
 
-/** 今の射撃の型の係数表（型が持たなければ共通の PLAYER.shoot.scaling） */
+/** 今の弾の係数表（弾が持たなければ共通の PLAYER.shoot.scaling） */
 export function shotScaling(stats: Readonly<PlayerStats>): Scaling {
-  return (SHOT_TYPES[stats.shot] ?? SHOT_TYPES.single).scaling ?? PLAYER.shoot.scaling;
+  return currentBullet(stats).scaling ?? PLAYER.shoot.scaling;
 }
 
 /** 射撃 1 発の怯み値（ステータスが基礎値のときの値に型の係数を足す。poiseDamageMul は含まない） */
-function shotPoise(stats: Readonly<PlayerStats>, shot: Readonly<ShotDef>, poiseMul: number): number {
+function shotPoise(stats: Readonly<PlayerStats>, shot: Readonly<BulletDef>, poiseMul: number): number {
   return withRatio(stats, PLAYER.shoot.poise * poiseMul, shot.poiseRatio);
 }
 
@@ -1218,7 +1219,7 @@ function releaseDashAttack(state: GameState): void {
   startSwing(state, 0, true);
 }
 
-/** n 発を扇状に並べた角度オフセット（ラジアン）。1 発なら [0]。間隔は射撃の型ごと（既定は PLAYER.projectileSpreadDeg） */
+/** n 発を扇状に並べた角度オフセット（ラジアン）。1 発なら [0]。間隔は銃の弾ごと（既定は PLAYER.projectileSpreadDeg） */
 export function spreadOffsets(count: number, spreadDeg: number = PLAYER.projectileSpreadDeg): number[] {
   const step = spreadDeg * DEG_TO_RAD;
   const center = (count - 1) / 2;
@@ -1250,7 +1251,7 @@ function aimDistance(state: GameState, input: FrameInput): number | undefined {
  * 三点の続きの弾。1 発目は fireVolley が撃ち、残りを interval 秒おきに出す。
  * 近接・怯み・撃てないダッシュ・射撃を禁じる祝福・型の付け替えで残りは捨てる
  */
-function updateBurst(state: GameState, shot: ShotDef, dt: number): void {
+function updateBurst(state: GameState, shot: BulletDef, dt: number): void {
   const p = state.player;
   const b = p.shotBurst;
   if (b.left <= 0) return;
@@ -1282,7 +1283,7 @@ function cancelShotCharge(p: Player): void {
   p.shotChargeTime = 0;
 }
 
-function updateShotCharge(state: GameState, shot: ShotDef, held: boolean, dt: number, aim?: number): void {
+function updateShotCharge(state: GameState, shot: BulletDef, held: boolean, dt: number, aim?: number): void {
   const p = state.player;
   const levels = shot.charge?.levels ?? [];
   if (held) {
@@ -1328,7 +1329,7 @@ function tryShoot(state: GameState, aim?: number): void {
   fireVolley(state, 0, aim);
 }
 
-/** 1 回の射撃で出す弾の形（射撃の型 × 溜めの段 × 装備） */
+/** 1 回の射撃で出す弾の形（銃の弾 × 溜めの段 × 装備） */
 interface VolleySpec {
   damage: number;
   poise: number;
@@ -1341,8 +1342,8 @@ interface VolleySpec {
 }
 
 /**
- * 射撃の型を借りて弾を出す別の経路（固有技の投擲・魔弾・乱れ撃ち、短銃の狙い撃ち）が差し替える値。
- * damage / poise は最終値（省略は射撃の型の値）、damageMul / pierceBonus は射撃の型の値に掛ける・足す
+ * 今の銃の弾とは別に弾を出す経路（固有技の投擲・魔弾・乱れ撃ち、短銃の狙い撃ち）が差し替える値。
+ * damage / poise は最終値（省略は銃の弾の値）、damageMul / pierceBonus は銃の弾の値に掛ける・足す
  */
 export interface VolleyOverride {
   damage?: number;
@@ -1359,7 +1360,7 @@ export interface VolleyOverride {
   sprite?: string;
 }
 
-function volleySpec(state: GameState, shot: ShotDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
+function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
   const s = state.stats;
   const charged = level > 0 ? shot.charge?.levels[level - 1] : undefined;
   const damageMul = (charged?.damageMul ?? shot.damageMul) * (override.damageMul ?? 1);
@@ -1377,7 +1378,7 @@ function volleySpec(state: GameState, shot: ShotDef, level: number, aim?: number
 }
 
 /** 弾の寿命。設置弾は信管、曲射は照準の距離（minRange〜射程）を飛び切る秒、それ以外は射程 */
-function shotLife(shot: ShotDef, speed: number, aim: number | undefined): number {
+function shotLife(shot: BulletDef, speed: number, aim: number | undefined): number {
   if (shot.mine) return shot.mine.fuse;
   const life = PLAYER.shoot.life * shot.lifeMul;
   if (!shot.lob || speed <= 0) return life;
@@ -1387,14 +1388,14 @@ function shotLife(shot: ShotDef, speed: number, aim: number | undefined): number
 }
 
 /** 連射の弾筋の揺れ（ラジアン）。乱数ではなくゲーム内時間の正弦で決める（決定性） */
-function swayOffset(state: GameState, shot: ShotDef): number {
+function swayOffset(state: GameState, shot: BulletDef): number {
   if (!shot.sway) return 0;
   return Math.sin(state.time * shot.sway.freq * FULL_TURN) * shot.sway.deg * DEG_TO_RAD;
 }
 
-/** 弾ごとの型の作業領域。単発は持たない（従来の弾と同じ形のまま）。回転刃・曲射は撃った瞬間の寿命を覚える */
-function shotRuntime(shot: ShotDef, life: number): ShotRuntime | undefined {
-  if (shot.key === "single") return undefined;
+/** 弾ごとの作業領域。挙動の性質を持たない弾は持たない（従来の弾と同じ形のまま）。回転刃・曲射は撃った瞬間の寿命を覚える */
+function shotRuntime(shot: BulletDef, life: number): ShotRuntime | undefined {
+  if (bulletFeatures(shot).length === 0) return undefined;
   const lifeTotal = shot.boomerang || shot.lob ? { lifeTotal: life } : {};
   return { key: shot.key, bouncesLeft: shot.bounce?.count, ...lifeTotal };
 }
@@ -1425,7 +1426,7 @@ function muzzleAt(state: GameState, dir: Vec): Vec {
  * 弾を出す（再使用時間は触らない。三点の続きの弾・固有技の弾もここを通る）。出したら true。
  * 剣の誓い（ks_bladeOath）は射撃も弾を出す固有技も封じるので入口で見る
  */
-export function emitVolley(state: GameState, shot: ShotDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
+export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   if (blockedByBladeOath(state)) return false;
   const p = state.player;
   const dir = { ...p.facing };
@@ -1449,7 +1450,7 @@ export function emitVolley(state: GameState, shot: ShotDef, level: number, aim?:
       pierceLeft: spec.pierce,
       poise: spec.poise,
       ...(runtime ? { shot: runtime } : {}),
-      // 固有技の弾（魔弾の光など）は技の素性を持つ。無ければ elementCombat が stats.shot の型から引く
+      // 固有技の弾（魔弾の光など）は技の素性を持つ。無ければ elementCombat が stats.bullet から引く
       ...(override.attack ? { attack: override.attack } : {}),
       ...(override.sprite ? { sprite: override.sprite } : {}),
     });
@@ -1458,8 +1459,8 @@ export function emitVolley(state: GameState, shot: ShotDef, level: number, aim?:
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   spawnBurst(state, muzzle, spec.color, 3, 60, 0.12, 1.5);
   shake(state, 1);
-  // 固有技の弾は借りた型の音（docs/ideas/weapon-redesign.md 6 章）
-  pushSfx(state, shotSfxName(shot.key));
+  // 固有技の弾も弾の性質で音を選ぶ（docs/ideas/weapon-redesign.md 6 章）
+  pushSfx(state, shotSfxName(shot));
   payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });
   pushPlayerEvent(state, "onShoot", "ranged", { pos: { ...muzzle } });

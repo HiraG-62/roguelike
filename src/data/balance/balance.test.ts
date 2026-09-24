@@ -12,9 +12,10 @@ import { ACTION_TEXT } from "../actionText";
 import { ENEMIES } from "../enemies";
 import { JOB_KEYS } from "../jobs";
 import { ACTION, PLAYER } from "../tuning";
-import { MOVESET_KEYS, SHOT_KEYS } from "../weapons";
+import { MOVESET_KEYS } from "../weapons";
 import { AFFIXES, CONVERSION_AFFIXES } from "../../loot/affixes";
-import { BASES } from "../../loot/bases";
+import { BASES, baseFamily } from "../../loot/bases";
+import { BULLET_PROFILE_KEYS } from "../../loot/bullets";
 import boonsJson from "./boons.json";
 import combatJson from "./combat.json";
 import enemiesJson from "./enemies.json";
@@ -99,13 +100,15 @@ describe("武器種のキー集合(段 5)", () => {
     expect(diffKeySets("weapons.movesets", Object.keys(weaponsJson.WEAPON.movesets), MOVESET_KEYS)).toEqual([]);
   });
 
-  it("weapons.json の shots のキー集合が SHOT_KEYS と一致する", () => {
-    expect(diffKeySets("weapons.shots", Object.keys(weaponsJson.WEAPON.shots), SHOT_KEYS)).toEqual([]);
+  it("weapons.json の bullets のキー集合が銃のベース（弾の語と素性の表）と一致する", () => {
+    const gunBases = BASES.filter((b) => baseFamily(b) === "gun").map((b) => b.key);
+    expect(diffKeySets("weapons.bullets", Object.keys(weaponsJson.WEAPON.bullets), gunBases)).toEqual([]);
+    expect(diffKeySets("BULLET_PROFILES", BULLET_PROFILE_KEYS, gunBases)).toEqual([]);
   });
 
-  it("shots.single の radius / spreadDeg は PLAYER.shoot.radius / PLAYER.projectileSpreadDeg と一致する(元は参照だった値)", () => {
-    expect(weaponsJson.WEAPON.shots.single.radius).toBe(PLAYER.shoot.radius);
-    expect(weaponsJson.WEAPON.shots.single.spreadDeg).toBe(PLAYER.projectileSpreadDeg);
+  it("bullets.pistol の radius / spreadDeg は PLAYER.shoot.radius / PLAYER.projectileSpreadDeg と一致する(元は参照だった値)", () => {
+    expect(weaponsJson.WEAPON.bullets.pistol.radius).toBe(PLAYER.shoot.radius);
+    expect(weaponsJson.WEAPON.bullets.pistol.spreadDeg).toBe(PLAYER.projectileSpreadDeg);
   });
 });
 

@@ -41,7 +41,7 @@ function target(state: GameState, key: string) {
 }
 
 describe("攻撃の素性（ジャンル・属性）の既定", () => {
-  it("近接は武器種、射撃は射撃の型、proc は素性なし、スキルは無属性の物理", () => {
+  it("近接は武器種、射撃は銃の弾、proc は素性なし、スキルは無属性の物理", () => {
     const s = DEFAULT_STATS;
     expect(resolveAttack(s, "melee", false), "剣").toEqual(attack("melee", "physical"));
     expect(resolveAttack(s, "ranged", false), "単発").toEqual(attack("ranged", "physical"));
@@ -180,8 +180,8 @@ describe("与ダメ: 属性耐性と弱点", () => {
     expect(enemyWeaknesses(giant, 2), "段階 2").toEqual(["lightning"]);
   });
 
-  it("投擲の弾の素性は技のものが優先される（射撃の型の既定を上書きする）", () => {
-    // 射撃の型の既定（無属性・物理）は敵の弱点を突かないが、技（斧の投擲など）の素性は Projectile.attack として優先される
+  it("投擲の弾の素性は技のものが優先される（銃の弾の既定を上書きする）", () => {
+    // 銃の弾の既定（無属性・物理）は敵の弱点を突かないが、技（斧の投擲など）の素性は Projectile.attack として優先される
     const state = noCrit();
     const e = target(state, "frostGolem");
     const byShotType = rollOutgoing(state, e, 100, "ranged").amount;

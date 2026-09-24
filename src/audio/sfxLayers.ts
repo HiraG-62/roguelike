@@ -115,7 +115,7 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "bandpass", from: 5200, to: 2600, dur: 0.07, q: 2.5, peak: 0.12 },
   ],
 
-  // ---- 射撃の型の発射音（8-2）----
+  // ---- 銃の弾の発射音（8-2）----
   shotRapid: [{ k: "sweep", type: "square", from: 1400, to: 500, dur: 0.04, peak: 0.25 }],
   shotSpread: [
     { k: "noise", filter: "lowpass", from: 2600, to: 150, dur: 0.18, peak: 0.65 },
@@ -143,7 +143,7 @@ export const LAYERED_SFX = {
     { k: "tone", type: "square", freq: 660, dur: 0.03, peak: 0.22, at: 0.05 },
     { k: "noise", filter: "lowpass", from: 600, to: 200, dur: 0.06, peak: 0.3 },
   ],
-  // 2026-09-24 レーン B の射撃の型（三点は 1 発ごとに鳴る）
+  // 2026-09-24 レーン B の銃の弾（三点は 1 発ごとに鳴る）
   shotBurst: [{ k: "sweep", type: "square", from: 1700, to: 700, dur: 0.035, peak: 0.22 }],
   shotBoomerang: [
     { k: "sweep", type: "triangle", from: 900, to: 1600, dur: 0.1, peak: 0.2 },

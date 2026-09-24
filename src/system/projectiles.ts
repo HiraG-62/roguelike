@@ -1,7 +1,8 @@
 import { type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { FEEL, MANA } from "../data/tuning";
-import { SHOT_TYPES, type ShotDef } from "../data/weapons";
+import type { BulletDef } from "../data/weapons";
+import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { spawnBurst, spawnRing } from "./effects";
 import { deflectProjectile } from "./elites";
@@ -58,14 +59,14 @@ export function updateProjectiles(state: GameState, dt: number): void {
   state.projectiles = state.projectiles.filter((p) => p.life > 0);
 }
 
-/** プレイヤー弾の射撃の型（src/data/weapons.ts）。型を持たない弾は undefined（単発と同じ動き） */
-function shotDefOf(pr: Projectile): ShotDef | undefined {
+/** プレイヤー弾の弾の定義（src/loot/bullets.ts）。作業領域を持たない弾は undefined（まっすぐ飛ぶだけ） */
+function shotDefOf(pr: Projectile): BulletDef | undefined {
   if (pr.owner !== "player" || !pr.shot) return undefined;
-  return SHOT_TYPES[pr.shot.key];
+  return BULLETS[pr.shot.key];
 }
 
 /** 飛んでいる間の型ごとの動き（追尾の旋回・設置弾の減速・回転刃の折り返し） */
-function steerShot(state: GameState, pr: Projectile, def: ShotDef, dt: number): void {
+function steerShot(state: GameState, pr: Projectile, def: BulletDef, dt: number): void {
   if (def.homing) steerHoming(state, pr, def.homing.turnRate, def.homing.range, dt);
   if (def.mine) slowMine(pr, def.mine.drag, dt);
   if (def.boomerang) steerBoomerang(state, pr, def.boomerang.returnAt);
@@ -93,14 +94,14 @@ function turnBack(pr: Projectile): void {
 }
 
 /** 戻ってきた回転刃が手元に触れたら消える */
-function catchBoomerang(state: GameState, pr: Projectile, def: ShotDef): void {
+function catchBoomerang(state: GameState, pr: Projectile, def: BulletDef): void {
   if (!pr.shot?.returning || !def.boomerang) return;
   const p = state.player.body;
   if (circlesOverlap(pr.pos.x, pr.pos.y, pr.radius + def.boomerang.catchRadius, p.pos.x, p.pos.y, p.radius)) pr.life = 0;
 }
 
 /** 曲射: 飛んでいる間は当たらず、寿命（照準までの距離）が尽きた地点で炸裂する */
-function updateLob(state: GameState, pr: Projectile, def: ShotDef): void {
+function updateLob(state: GameState, pr: Projectile, def: BulletDef): void {
   if (!def.lob || pr.shot?.detonated || pr.life > 0) return;
   detonateMine(state, pr, def.lob.blastRadius);
 }
@@ -149,7 +150,7 @@ function slowMine(pr: Projectile, drag: number, dt: number): void {
  * 壁に当たった型ごとの処理。弾を残すなら true
  * （跳弾は反射、設置弾は壁際で止まる、回転刃は行きなら折り返す、曲射は壁の手前で炸裂する）
  */
-function hitWallByShot(state: GameState, pr: Projectile, def: ShotDef, prev: Vec, dt: number): boolean {
+function hitWallByShot(state: GameState, pr: Projectile, def: BulletDef, prev: Vec, dt: number): boolean {
   if (def.mine) {
     pr.pos = prev;
     pr.vel = { x: 0, y: 0 };
@@ -169,7 +170,7 @@ function hitWallByShot(state: GameState, pr: Projectile, def: ShotDef, prev: Vec
 }
 
 /** 跳弾: 当たった軸の速度を反転し、威力と怯み値を上げる。跳ねるたびに同じ敵へもう一度当たれる */
-function bounceShot(state: GameState, pr: Projectile, def: ShotDef, prev: Vec, dt: number): boolean {
+function bounceShot(state: GameState, pr: Projectile, def: BulletDef, prev: Vec, dt: number): boolean {
   const left = pr.shot?.bouncesLeft ?? 0;
   if (!def.bounce || !pr.shot || left <= 0) return false;
   const hitX = overlapsWall(state, prev.x + pr.vel.x * dt, prev.y, pr.radius);
@@ -188,7 +189,7 @@ function bounceShot(state: GameState, pr: Projectile, def: ShotDef, prev: Vec, d
 }
 
 /** 設置弾: 敵が近づくか信管が尽きたら炸裂する */
-function updateMine(state: GameState, pr: Projectile, def: ShotDef): void {
+function updateMine(state: GameState, pr: Projectile, def: BulletDef): void {
   const mine = def.mine;
   if (!mine || pr.shot?.detonated) return;
   const near = state.enemies.some(

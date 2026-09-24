@@ -387,14 +387,15 @@ describe("文法の拡張（祝福 第 2 弾の条件）", () => {
     return ruleConditionsMet(state, [c], subject);
   }
 
-  it("武器種・射撃の型・ジョブ・得意武器・否定", () => {
+  it("武器種・弾の性質・ジョブ・得意武器・否定", () => {
     const state = cleanArena();
     state.stats.moveset = "spear";
-    state.stats.shot = "mine";
+    state.stats.bullet = "mineLauncher";
     state.job = "lancer";
     expect(holds(state, { kind: "moveset", movesets: ["spear", "whip"] }), "槍は一致").toBe(true);
     expect(holds(state, { kind: "moveset", movesets: ["sword"] }), "剣は不一致").toBe(false);
-    expect(holds(state, { kind: "shot", shots: ["mine"] }), "設置弾は一致").toBe(true);
+    expect(holds(state, { kind: "bullet", has: ["mine"] }), "設置弾は一致").toBe(true);
+    expect(holds(state, { kind: "bullet", has: ["lob", "charge"] }), "曲射・溜め撃ちは不一致").toBe(false);
     expect(holds(state, { kind: "job", jobs: ["lancer"] }), "槍兵は一致").toBe(true);
     expect(holds(state, { kind: "favoredWeapon" }), "槍兵の槍は得意").toBe(true);
     expect(holds(state, { kind: "not", condition: { kind: "favoredWeapon" } }), "否定は反転する").toBe(false);

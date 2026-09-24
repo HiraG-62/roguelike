@@ -30,6 +30,7 @@ import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
+import { statsBulletHas } from "../loot/bullets";
 
 /**
  * 統一ルールの照合（docs/ideas/synergy-web.md 3-3）。step の combo の後・effects の前に 1 回呼ぶ。
@@ -686,7 +687,7 @@ function conditionHolds(state: GameState, c: RuleCondition, subject: ConditionSu
   }
 }
 
-/** 2026-09-24 追加の条件（武器種・射撃の型・ジョブ・地形・属性・部屋） */
+/** 2026-09-24 追加の条件（武器種・銃の弾・ジョブ・地形・属性・部屋） */
 function extendedConditionHolds(state: GameState, c: RuleCondition, subject: ConditionSubject): boolean {
   const p = state.player;
   switch (c.kind) {
@@ -694,8 +695,8 @@ function extendedConditionHolds(state: GameState, c: RuleCondition, subject: Con
       return !conditionHolds(state, c.condition, subject);
     case "moveset":
       return c.movesets.includes(state.stats.moveset);
-    case "shot":
-      return c.shots.includes(state.stats.shot);
+    case "bullet":
+      return c.has.some((f) => statsBulletHas(state.stats, f));
     case "swingStep":
       return p.attack.step >= c.atLeast;
     case "chargedSwing":

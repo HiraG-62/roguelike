@@ -11,7 +11,7 @@ import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } fro
 import type { StatusKind } from "../core/status";
 import type { JobKey } from "../data/jobs";
 import { BOON, STATUS } from "../data/tuning";
-import { GUN_MOVESETS, type MovesetKey, type ShotKey } from "../data/weapons";
+import { type BulletFeature, GUN_MOVESETS, type MovesetKey } from "../data/weapons";
 
 /** 銃の家系だけに出す祝福の loadout（射撃前提の祝福が近接ビルドの 3 択に出ないようにする） */
 const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
@@ -202,10 +202,11 @@ export const LINEAGE_LABEL: Readonly<Record<LineageKey, string>> = {
   blade: "刃鳴",
 };
 
-/** 武器種・射撃の型・ジョブで出る祝福の条件。どれかの列を持つなら、その列のどれかに当てはまるときだけ 3 択に出る */
+/** 武器種・弾の性質・ジョブで出る祝福の条件。どれかの列を持つなら、その列のどれかに当てはまるときだけ 3 択に出る */
 export interface BoonLoadout {
   movesets?: readonly MovesetKey[];
-  shots?: readonly ShotKey[];
+  /** 今の弾がこのどれかの性質を持つ（設置弾・溜め撃ちなど） */
+  bullets?: readonly BulletFeature[];
   jobs?: readonly JobKey[];
 }
 
@@ -229,7 +230,7 @@ export interface BoonDef {
   after?: BoonKey;
   /** 結び: この 2 つを両方持っていないと出ない */
   duo?: readonly [BoonKey, BoonKey];
-  /** 今の武器種・射撃の型・ジョブがこれに当てはまらないと出ない（大剣を持たない者に大剣の祝福を出さない） */
+  /** 今の武器種・銃の弾・ジョブがこれに当てはまらないと出ない（大剣を持たない者に大剣の祝福を出さない） */
   loadout?: BoonLoadout;
   /** 統一ルール（src/core/rules.ts）。取得順に src/system/rules.ts の resolveRules が照合する */
   rules?: readonly Rule[];

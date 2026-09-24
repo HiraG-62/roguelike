@@ -104,7 +104,7 @@ describe("属性の性質（traitElementMul）", () => {
   });
 });
 
-describe("武器種・射撃の型・ジョブ（traitOutgoingMul / traitPoiseMul）", () => {
+describe("武器種・銃の弾・ジョブ（traitOutgoingMul / traitPoiseMul）", () => {
   it("溜めの芯: 段 1 つにつき近接 +、溜めを持つ武器で溜めないと −（スキルには掛けない）", () => {
     const state = withTraits({ chargedMeleeMul: 0.2, unchargedPenalty: 0.1 });
     state.stats = { ...state.stats, moveset: "greatsword" };
@@ -126,7 +126,7 @@ describe("武器種・射撃の型・ジョブ（traitOutgoingMul / traitPoiseMu
 
   it("散弾の芯: 散弾の射撃で近い敵へ + / 遠い敵へ −", () => {
     const state = withTraits({ spreadCloseMul: 0.5, spreadFarPenalty: 0.2 });
-    state.stats = { ...state.stats, shot: "spread" };
+    state.stats = { ...state.stats, bullet: "shotgun" };
     const near = placeEnemy(state, "slime", NEAR);
     const far = placeEnemy(state, "slime", FAR);
     expect(traitOutgoingMul(state, near, "ranged", false)).toBeCloseTo(1.5);
@@ -148,7 +148,7 @@ describe("武器種・射撃の型・ジョブ（traitOutgoingMul / traitPoiseMu
     const e = placeEnemy(state, "slime", FAR);
     state.job = "none";
     expect(traitPoiseMul(state, e, "melee", false)).toBeCloseTo(1.4);
-    state.stats = { ...state.stats, shot: "spread" };
+    state.stats = { ...state.stats, bullet: "shotgun" };
     expect(traitPoiseMul(state, e, "ranged", false)).toBeCloseTo(1.3);
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "corrode", stacks: 1, duration: 5, potency: 0 }, "env");
     expect(traitPoiseMul(state, e, "ranged", false)).toBeCloseTo(1.8);
@@ -345,10 +345,10 @@ describe("怯ませた・命中ごと・時間", () => {
   it("追尾の毒・連射の烙印", () => {
     const state = withTraits({ homingPoison: 3, rapidBrandChance: 1 });
     const e = placeEnemy(state, "slime", FAR);
-    state.stats = { ...state.stats, shot: "homing" };
+    state.stats = { ...state.stats, bullet: "blowgun" };
     onTraitHit(state, e, "ranged");
     expect(hasStatus(e.status, "poison")).toBe(true);
-    state.stats = { ...state.stats, shot: "rapid" };
+    state.stats = { ...state.stats, bullet: "smg" };
     onTraitHit(state, e, "ranged");
     expect(hasStatus(e.status, "brand")).toBe(true);
   });

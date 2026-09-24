@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { KEYSTONE, RESONANCE } from "../data/tuning";
-import { MOVESET_KEYS, SHOT_KEYS } from "../data/weapons";
+import { MOVESET_KEYS } from "../data/weapons";
 import {
   CONVERSION_AFFIXES,
   KEYSTONES,
@@ -70,7 +70,7 @@ import {
 } from "./types";
 
 /**
- * 装備の第 2 弾（属性・武器種・射撃の型・地形・新しい状態異常・ジョブ・交戦中）のテスト。
+ * 装備の第 2 弾（属性・武器種・銃の弾・地形・新しい状態異常・ジョブ・交戦中）のテスト。
  * 性質・誓約・変換・名のある遺物・ベース・共鳴の拡張（陰画・拮抗・星座）・残響の新操作・来歴の節目と目覚め
  */
 
@@ -453,7 +453,7 @@ describe("第 2 弾の誓約（8 種以上）", () => {
 // ---------------------------------------------------------------------------
 
 describe("第 2 弾のベース（10 種以上）", () => {
-  it("implicit が実在し、色の傾きを持ち、武器種・射撃の型ごとに 2 つ以上の器がある", () => {
+  it("implicit が実在し、色の傾きを持ち、武器種・銃の弾ごとに 2 つ以上の器がある", () => {
     expect(NEW_BASES.length).toBeGreaterThanOrEqual(10);
     for (const key of NEW_BASES) {
       const base = baseDef(key);
@@ -462,7 +462,6 @@ describe("第 2 弾のベース（10 種以上）", () => {
       if (base?.implicitKey !== undefined) expect(implicitDef(base.implicitKey), key).toBeDefined();
     }
     for (const m of MOVESET_KEYS) expect(BASES.filter((b) => b.moveset === m).length, m).toBeGreaterThanOrEqual(2);
-    for (const s of SHOT_KEYS) expect(BASES.filter((b) => b.shot === s).length, s).toBeGreaterThanOrEqual(2);
   });
 
   it("implicit が個性を持つ（斬馬刀は溜め、小鎌は闇の変換、喇叭銃は散弾の間合い）", () => {
@@ -474,7 +473,7 @@ describe("第 2 弾のベース（10 種以上）", () => {
     const eqGun = createEmptyEquipment();
     eqGun.mainHand = item("mainHand", [], { baseKey: "blunderbuss", implicit: { key: "implicit.blunderbuss", value: 20 } });
     const sGun = computeStats(eqGun);
-    expect(sGun.shot).toBe("spread");
+    expect(sGun.bullet).toBe("blunderbuss");
     expect(sGun.traits.spreadCloseMul).toBeCloseTo(0.2);
     const eq2 = createEmptyEquipment();
     eq2.mainHand = item("mainHand", [], { baseKey: "sickle", implicit: { key: "implicit.sickle", value: 25 } });

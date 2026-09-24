@@ -21,6 +21,7 @@ import { fireTrigger, inflictApply, shockwave } from "./triggers";
 import { type OutgoingElement, dominantElement, elementShares, enemyAttackOf, enemyElementMul } from "./elementCombat";
 import { isFavoredWeapon } from "./jobs";
 import { placeTerrain, terrainAt } from "./terrain";
+import { statsBulletHas } from "../loot/bullets";
 
 /**
  * 装備の性質（docs/ideas/loot-expansion.md）が持ち込むルール変更の読み取り口。
@@ -85,7 +86,7 @@ function targetBonus(state: GameState, enemy: Enemy): number {
 }
 
 // ---------------------------------------------------------------------------
-// 第 2 弾: 武器種・射撃の型・ジョブ・地形・新しい状態異常・持ち替え
+// 第 2 弾: 武器種・銃の弾・ジョブ・地形・新しい状態異常・持ち替え
 // ---------------------------------------------------------------------------
 
 /** 水たまり・氷床（滑り足・滑りの誓い） */
@@ -175,7 +176,7 @@ function meleeFormBonus(state: GameState): number {
 /** 散弾の射撃の間合い（近い敵へ + / 遠い敵へ −） */
 function spreadRangeBonus(state: GameState, enemy: Enemy | null): number {
   const t = state.stats.traits;
-  if (enemy === null || state.stats.shot !== "spread" || (t.spreadCloseMul === 0 && t.spreadFarPenalty === 0)) return 0;
+  if (enemy === null || !statsBulletHas(state.stats, "spread") || (t.spreadCloseMul === 0 && t.spreadFarPenalty === 0)) return 0;
   const close = dist(state.player.body.pos, enemy.body.pos) <= TRIGGER.trait.spreadCloseRange;
   return close ? t.spreadCloseMul : -t.spreadFarPenalty;
 }
@@ -219,7 +220,7 @@ function rhythmBonus(state: GameState): number {
   return bonus;
 }
 
-/** 第 2 弾の与ダメージの加算（武器の形・射撃の型・烙印・足元・ジョブ・持ち替えの拍子） */
+/** 第 2 弾の与ダメージの加算（武器の形・銃の弾・烙印・足元・ジョブ・持ち替えの拍子） */
 function wave2Bonus(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): number {
   let bonus = footingBonus(state) + jobBonus(state) + rhythmBonus(state) + brandBonus(state, enemy, kind, skill);
   if (kind === "melee" && !skill) bonus += meleeFormBonus(state);
@@ -435,7 +436,7 @@ function wave2PoiseBonus(state: GameState, enemy: Enemy, kind: DamageKind): numb
     if (t.unfavoredPoiseMul !== 0 || t.favoredPoisePenalty !== 0) bonus += holdsFavored(state) ? -t.favoredPoisePenalty : t.unfavoredPoiseMul;
     bonus += t.chargedPoiseMul * state.player.attack.chargeLevel;
   }
-  if (kind === "ranged" && state.stats.shot === "spread") bonus += t.spreadPoiseMul;
+  if (kind === "ranged" && statsBulletHas(state.stats, "spread")) bonus += t.spreadPoiseMul;
   if (t.corrodePoiseMul !== 0 && hasStatus(enemy.status, "corrode")) bonus += t.corrodePoiseMul;
   if (t.alternatePoiseMul !== 0 || t.repeatPoisePenalty !== 0) {
     const shift = modeShift(state, attackMode(kind, false));
@@ -741,13 +742,12 @@ function onMeleeFormHit(state: GameState): void {
   }
 }
 
-/** 追尾の毒・連射の烙印（射撃の型で決まる付与）。確率は性質を持つときだけ引く（乱数列を変えない） */
+/** 追尾の毒・連射の烙印（弾の性質で決まる付与）。確率は性質を持つときだけ引く（乱数列を変えない） */
 function onShotHit(state: GameState, enemy: Enemy): void {
   const t = state.stats.traits;
-  const shot = state.stats.shot;
   const target = { kind: "enemy" as const, enemy };
-  if (shot === "homing" && t.homingPoison > 0) applyStatus(state, target, inflictApply("poison", t.homingPoison), "player");
-  if (shot === "rapid" && t.rapidBrandChance > 0 && state.rng.chance(t.rapidBrandChance)) {
+  if (t.homingPoison > 0 && statsBulletHas(state.stats, "homing")) applyStatus(state, target, inflictApply("poison", t.homingPoison), "player");
+  if (t.rapidBrandChance > 0 && statsBulletHas(state.stats, "rapid") && state.rng.chance(t.rapidBrandChance)) {
     applyStatus(state, target, { kind: "brand", stacks: 1, duration: TRIGGER.trait.rapidBrandSec, potency: 0 }, "player");
   }
 }

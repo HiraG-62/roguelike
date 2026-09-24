@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { StatusApply } from "../core/status";
 import { ATTR, PLAYER } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES, type MovesetDef } from "../data/weapons";
+import { MOVESETS, type MovesetDef } from "../data/weapons";
+import { BULLETS } from "../loot/bullets";
 import { DEFAULT_STATS, type AttrKey, type PlayerStats } from "../loot/types";
 import { deriveAttributes, scaled } from "./attributes";
 import { meleeStep, shotDamage } from "./player";
@@ -64,10 +65,10 @@ describe("近接の怯み値の係数（MeleeStepDef.poiseRatio）", () => {
   });
 });
 
-describe("射撃の型ごとの係数（ShotDef.scaling）", () => {
-  it("型が係数表を持てばそれを、持たなければ共通の係数表を使う", () => {
-    for (const shot of Object.values(SHOT_TYPES)) {
-      const stats: PlayerStats = { ...statsPlus("dex"), shot: shot.key };
+describe("弾ごとの係数（BulletDef.scaling）", () => {
+  it("弾が係数表を持てばそれを、持たなければ共通の係数表を使う", () => {
+    for (const shot of Object.values(BULLETS)) {
+      const stats: PlayerStats = { ...statsPlus("dex"), bullet: shot.key };
       const expected = scaled(stats, shot.scaling ?? PLAYER.shoot.scaling);
       expect(shotDamage(stats), shot.key).toBeCloseTo(expected, DIGITS);
     }
