@@ -10,7 +10,7 @@
 4. **並列実装**: `implementer` を所有ごとに起動（`/parallel`）。互いの完了を待つ依存があれば、先に型だけ入れる Agent を走らせる
 5. **レビュー**: まとまった変更ごとに `reviewer`（`/review`）。レビュアーはバグを見つけたら直すところまでやる
 6. **QA**: `qa-runner`（`/qa`）で `npm run check` と `npm run qa:full`。数値の問題は `balance-tuner` へ
-7. **統合**: メインが報告を読み、共有ファイルの差分を確認し、`git add <所有ファイル>` で論理単位ごとにコミット。`docs/HANDOFF.md`・`IDEAS.md` の「現状」・`docs/ideas/README.md` を更新（`/handoff-docs`）
+7. **統合**: メインが報告を読み、共有ファイルの差分を確認し、報告の「資料に必要な変更」を CLAUDE.md などに反映して（`/agent-docs`）、`git add <所有ファイル>` で論理単位ごとにコミット。`docs/HANDOFF.md`・`IDEAS.md` の「現状」・`docs/ideas/README.md` を更新（`/handoff-docs`）
 
 ## リリース手順（check → bump → tag）
 
@@ -114,6 +114,7 @@ implementer を Sonnet で動かす前提は **設計が固まっていること
 | 機能の並列実装 | `/parallel` | implementer × N |
 | 直近コミットのレビュー | `/review` | reviewer |
 | 引き継ぎ文書の更新 | `/handoff-docs` | - |
+| エージェント資料（CLAUDE.md・`.claude/`・この文書）の追随 | `/agent-docs`（機械検査は `npm run audit:docs`） | - |
 | 変更点まとめ | `/release-notes` | - |
 | バージョンを上げる | `/bump` | - |
 | アイデア出し | - | brainstormer |

@@ -11,6 +11,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bin = (rel) => path.join(ROOT, "node_modules", rel);
 
 const STEPS = [
+  // エージェント資料（CLAUDE.md / .claude / AI_WORKFLOW）がコードとずれていないか。速いので最初に回す
+  { label: "audit docs", entry: path.join(ROOT, "scripts", "audit-agent-docs.mjs"), args: [] },
   { label: "tsc", entry: bin("typescript/bin/tsc"), args: ["--noEmit"] },
   { label: "tsc (electron)", entry: bin("typescript/bin/tsc"), args: ["-p", "tsconfig.electron.json", "--noEmit"] },
   { label: "vitest", entry: bin("vitest/vitest.mjs"), args: ["run"] },

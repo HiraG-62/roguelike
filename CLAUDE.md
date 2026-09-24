@@ -19,8 +19,9 @@
 | コマンド | 内容 |
 | --- | --- |
 | `npm run dev` | 開発サーバ（Vite） |
-| `npm run check` | tsc → vitest → vite build を順に実行。1 つでも失敗で非 0。**作業完了の判定はこれ** |
+| `npm run check` | audit:docs → tsc → vitest → vite build を順に実行。1 つでも失敗で非 0。**作業完了の判定はこれ** |
 | `npm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
+| `npm run audit:docs` | エージェント資料（CLAUDE.md・`.claude/`・`docs/AI_WORKFLOW.md`）とコードのずれを検査（下の「エージェント資料の保守」）。`check` の最初の段でも走る |
 | `npm run qa:full` | `SIM_FULL=1` でフル QA（30 seed × 3 装備 × 60,000 step、数分）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run build` | tsc --noEmit + vite build |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`、設計は `docs/ideas/electron-design.md`） |
@@ -44,9 +45,9 @@ src/
   render/   Canvas 描画（state を読むだけ）
   ui/       画面ロジック（DOM 非依存。タイトル・起点・拠点・装備画面・設定・リプレイ保存）
   audio/    Web Audio 合成の効果音と音楽
-  data/     balance/*.json（バランス数値。tuning が再 export）/ enemies・enemiesWave3（敵定義）/ enemyCombat・enemyCombatWave3（怯み・状態異常の戦闘パラメータ）/ enemyDefense（防御・耐性）/ weapons（武器種の型定義）/ jobs / actionText（浮き文字の表示文字列）/ sprites と sprites/<family>.ts（ピクセルマップ）
+  data/     balance/*.json（バランス数値。読み込みと _note の剥ぎ取りは balance/index.ts、実行時の形の検査は balance/validate.ts。tuning が再 export）/ tiles（外部 PNG 素材の取り込み表）/ enemies・enemiesWave3（敵定義）/ enemyCombat・enemyCombatWave3（怯み・状態異常の戦闘パラメータ）/ enemyDefense（防御・耐性）/ weapons（武器種の型定義）/ jobs / actionText（浮き文字の表示文字列）/ sprites と sprites/<family>.ts（ピクセルマップ）
   meta/     図鑑・依頼・実績・連携の発見・拠点の既読の定義と永続化（ラン中の記録は system 側が積むだけ）
-  save/     保存先の唯一の入口（backend。ブラウザは localStorage、Electron はファイル）。bootstrap が起動時に差し替える
+  save/     保存先の唯一の入口（backend。ブラウザは localStorage、Electron は fileStorage がファイルへ遅延書き込み。ファイルの封筒は fileEnvelope、preload との契約は bridge）。bootstrap が起動時に差し替える
   qa/       ヘッドレス bot とシミュレーション、report.md
 electron/   Electron 版の main / preload / IPC / セーブファイル（src とは別ツリー。src/save/bridge.ts の契約で繋がる）
 ```
@@ -69,10 +70,10 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `enemies.ts` 敵 AI（phase: idle → chase → windup → strike → recover / spawning。怯みは `EnemyPhase` ではなく状態異常 `stagger` で表す）。behavior ごとの分岐。個別 behavior の実装は `enemyBehaviors.ts`（自爆・残像・沈黙・鐘・擬態・喰らう宝箱など 1 behavior 1 関数）、死骸・取り巻き・気力奪取・双子復活など横断的な仕組みは `enemyTraits.ts`
 - `elites.ts` 精鋭修飾子（`ELITE_KINDS`、21 種）/ `boss.ts` 階層ボス共通処理（`BOSS_ROTATION`、9 体）。双子の騎士の専用ロジックは `bossTwins.ts`、霜の巨人は `bossFrostGiant.ts`、敵第 2 弾のボス 4 体（図書館主・鏡の騎士・油の王・巣母）の共通補助は `bossKit.ts`、専用ロジックは `bossLibrarian.ts` / `bossMirrorKnight.ts` / `bossOilKing.ts` / `bossBroodMother.ts`、逃げるボス「盗賊王」は `bossThiefKing.ts` / `reaper.ts` 長居すると出る追跡者（ローテーション 5 体の専用ロジックは `reaperVariants.ts`）
 - `projectiles.ts` 弾 / `hazards.ts` 地面に残る攻撃（爆弾・レーザー・衝撃波・着地・骨壁・プレイヤーの炎）と予告。敵第 2 弾の behavior は `enemyWave3.ts`、地形の層を絡めた攻撃は `enemyTerrain.ts`
-- `floor.ts` フロア構築・部屋ロック・階段・`descend` / `roomTypes.ts` 部屋種類 / `biomes.ts` フロア種別 × テーマ（`FLOOR_KINDS`。地形の配置・出やすい敵・色調）/ `specialRooms.ts` 台座の部屋（祭壇・図書館・賭博など。触れて選ぶのでモーダルを出さない）と戦う部屋（闘技場・護衛・逃走など）と分岐路 / `linger.ts` 長居の代償（死神より先に始まるフロアごとの悪化: 影の自分・崩落・潮）/ `impacts.ts` 予告つきの落下物（敵にも当たる）/ `contractors.ts` 契約者（台座での取引。レシピ「契約者」）/ `jobs.ts` ジョブ / `runSetup.ts` ラン開始時のステータス畳み込み / `explore.ts` ミニマップ用探索 / `spawner.ts` 徘徊の目的地選びと増援の抽選（tuning の `ROAM`）/ `engagement.ts`「封鎖中 または 交戦中」の唯一の判定 / `map/pathing.ts` 視線判定と距離場ベースの経路（徘徊・敵の気付き・回り込み・QA bot が共有）
-- `statusEffects.ts` 状態異常 34 種の付与・更新・相互作用（`applyStatus` / `hasStatus` / `updateStatusEffects`）。2 つの状態異常（か地形）が出会ったときの反応は `statusReactions.ts` / `triggers.ts` 装備トリガーの発火（起点・条件・効果の文法） / `traitHooks.ts` 性質由来の倍率・フック（`traitOutgoingMul` など）/ `keystones.ts` 誓約判定と日本語名
+- `floor.ts` フロア構築・部屋ロック・階段・`descend` / `roomTypes.ts` 部屋種類 / `biomes.ts` フロア種別 × テーマ（`FLOOR_KINDS`。地形の配置・出やすい敵・色調）/ `specialRooms.ts` 台座の部屋（祭壇・図書館・賭博など。触れて選ぶのでモーダルを出さない）と戦う部屋（闘技場・護衛・逃走など）と分岐路 / `linger.ts` 長居の代償（死神より先に始まるフロアごとの悪化: 影の自分・崩落・潮）/ `impacts.ts` 予告つきの落下物（敵にも当たる）/ `hub.ts` 拠点の 1 部屋を歩く小さなセッション（`createHub` / `stepHub`。ランの `step` とは別）/ `contractors.ts` 契約者（台座での取引。レシピ「契約者」）/ `jobs.ts` ジョブ / `runSetup.ts` ラン開始時のステータス畳み込み / `explore.ts` ミニマップ用探索 / `spawner.ts` 徘徊の目的地選びと増援の抽選（tuning の `ROAM`）/ `engagement.ts`「封鎖中 または 交戦中」の唯一の判定 / `map/pathing.ts` 視線判定と距離場ベースの経路（徘徊・敵の気付き・回り込み・QA bot が共有）
+- `statusEffects.ts` 状態異常（`STATUS_KINDS`、34 種）の付与・更新・相互作用（`applyStatus` / `hasStatus` / `updateStatusEffects`）。2 つの状態異常（か地形）が出会ったときの反応は `statusReactions.ts` / `triggers.ts` 装備トリガーの発火（起点・条件・効果の文法） / `traitHooks.ts` 性質由来の倍率・フック（`traitOutgoingMul` など）/ `keystones.ts` 誓約判定と日本語名
 - `terrain.ts` 床の地形の層（水たまり・油・溶岩・毒沼・氷床・草むら・炎）の効果・延焼。型と一覧は `core/terrain.ts`、配置は `map/generator.ts` の `planTerrain`、描画は `render/terrainUi.ts`
-- `boons.ts` 祝福 3 択（抽選・選択・呪いを受けて 4 択・既存フック）/ 定義データは `boonDefs.ts`（`BOON_KEYS` / `BOONS`。系譜・結びを含む）、拡張ルールの実装は `boonRules.ts`（`onBoonXxxRules`。`boons.ts` の各フックから呼ぶ）/ `skills.ts` スキル発動・気力 / 再使用時間・スロットごとの最低間隔・body 排他・刻印符の付け外し / `loot.ts` ドロップ・拾得
+- `boons.ts` 祝福 3 択（抽選・選択・呪いを受けて 4 択・既存フック）/ 定義データは `boonDefs.ts`（`BOON_KEYS` / `BOONS`。系譜・結びを含む。第 2 弾は `boonDefsWave2.ts` に置いて混ぜる）、拡張ルールの実装は `boonRules.ts`（`onBoonXxxRules`。`boons.ts` の各フックから呼ぶ）/ `skills.ts` スキル発動・気力 / 再使用時間・スロットごとの最低間隔・body 排他・刻印符の付け外し / `loot.ts` ドロップ・拾得
 - `rules.ts` 統一ルール文法の照合（`resolveRules`。`core/rules.ts` の `Rule` 型を combo の後に 1 回だけ照合。詳細は `docs/ARCHITECTURE.md`）/ `keywords.ts` 語の推論と集計（装備の stats から語と祝福タグを出す 1 つの表。UI にスコアは出さない）/ `elementCombat.ts` 属性・ジャンルの与ダメ計算 / `runEvents.ts` 図鑑・依頼のラン中の数え上げ（`updateRunEvents` が `meta/runRecord.ts` の `noteRunEvents` を呼ぶだけ。ゲーム進行には効かない）
 - `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
 
@@ -82,7 +83,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - ui（画面ロジック）: `origin.ts`（起点画面: ジョブ → 起点・縛り → ラン開始）、`hubFlow.ts`（拠点の台 → 開く画面の対応表）、`scalingText.ts`（計算式「威力 18 = 10 ＋ 筋力×1.3」の組み立て。純関数）、`title.ts` / `settings.ts` / `replayStore.ts`、装備・クラフト画面は `inventory.ts`（タブと入力）、`inventoryLayout.ts`（枠・一覧・詳細欄の位置の定数・`SLOT_LABEL`）、`equipmentLayout.ts`（装備タブの部位の枠・帯・芽のバナー・ステータスの位置）、`echoTab.ts`（残響タブの状態機械）、`bud.ts`（芽モーダルの当たり判定）、`attributeAlloc.ts`（ラン内のステータス振り分け UI の状態）、`skillRunes.ts`（スキルタブの刻印符所持一覧の付け外し）、`synergyPanel.ts`（流れタブの一覧の状態）、`quests.ts`（起点直後の依頼 3 択の状態）、`stashFilter.ts`（倉庫の部位タブ・並べ替え・絞り込みの仕組みとボタンの折り返し配置）、`stashFacets.ts`（並び・絞り込みの軸の定義表）
 - render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`runUi.ts`（ラン構造: バイオームの色調・台座・契約者・長居の代償・分岐路など）、`hubUi.ts`（拠点の重ね描き）、`originUi.ts`（起点画面）、`comboUi.ts`（コンボ HUD: 武器名・段・次の派生）、`effectsUi.ts`（演出。`state.effects` を読む）、`chargeLineUi.ts`（二度突きの予告線）、`elementUi.ts`（弱点の印）、`imageAtlas.ts` / `tileAtlas.ts` / `imageLut.ts`（PNG アトラスの読み込み・バイオームの再配色。読み込み時に 1 回だけ合成）、`terrainUi.ts`（地形の層の描画）、`budUi.ts`（芽のバナー・モーダル描画）、`echoTabUi.ts`（残響タブ描画）、`lootUiParts.ts`（装備 UI 共通部品: 色の配合バー・性質の行）、`attributeUi.ts`（ステータス画面）、`manaHud.ts`（気力バー）、`statusUi.ts`（状態異常の表示・怯みゲージ）、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`、`dropTooltip.ts`（床のアイテム / スキル石に注目した時のツールチップ）、`skillRuneUi.ts`（刻印符所持一覧の描画）、`synergyUi.ts`（流れタブの描画）、`chainUi.ts`（直近の連鎖の表示）、`questUi.ts`（依頼 3 択の描画）、`codexUi.ts`（図鑑・依頼一覧・実績の共通タブ画面の描画）、`detailPane.ts`（装備画面の右の固定の詳細欄。要点 / 詳しく / 操作）、`inventoryHelp.ts`（装備画面の ？ のヘルプ。操作説明・仕組みの説明はここに置き、画面に常時出さない）
 - audio: `sfxNames.ts`（`SFX_NAMES`）、`sfxLayers.ts`（層を並べて作る効果音 `LAYERED_SFX`。`layers.ts` が鳴らす）、`sfx.ts`（個別合成 `SFX_DEFINITIONS`）、`synth.ts`、`music.ts`（曲の表 `TRACKS`・`pickTrack`）、`cues.ts`（main.ts が state の変わり目を拾って鳴らす効果音。依頼の達成など）
-- meta（図鑑・依頼・実績。ラン中の記録はゲーム進行に効かない）: `codex.ts` / `codexStore.ts`（図鑑の定義・集計・永続化）、`quests.ts` / `questStore.ts`（依頼 32 種の定義・進行判定・永続化）、`achievements.ts`（実績 41 種と称号）、`runRecord.ts`（`state.codexRun` / `questRun` へラン中の出来事を積む記録係。`system/runEvents.ts` から呼ぶ）、`listScreen.ts` / `screens.ts`（図鑑・依頼一覧・実績の共通タブ画面の状態とレイアウト）、`links.ts` / `linkParts.ts` / `linkHint.ts`（連携の発見と手がかり枠。スキルの連携・状態異常の反応・ルールの連鎖を 1 つの「発見」として扱う）、`hubStore.ts`（拠点の既読）、`storage.ts`（メタ進行の保存の共通部分）、`lockedRelicKeys` などの補助関数
+- meta（図鑑・依頼・実績。ラン中の記録はゲーム進行に効かない）: `codex.ts` / `codexStore.ts`（図鑑の定義・集計・永続化）、`quests.ts` / `questStore.ts`（依頼（`QUEST_KEYS`、32 種）の定義・進行判定・永続化）、`achievements.ts`（実績（`ACHIEVEMENTS`、41 種）と称号）、`runRecord.ts`（`state.codexRun` / `questRun` へラン中の出来事を積む記録係。`system/runEvents.ts` から呼ぶ）、`listScreen.ts` / `screens.ts`（図鑑・依頼一覧・実績の共通タブ画面の状態とレイアウト）、`links.ts` / `linkParts.ts` / `linkHint.ts`（連携の発見と手がかり枠。スキルの連携・状態異常の反応・ルールの連鎖を 1 つの「発見」として扱う）、`hub.ts`（拠点の成長: 建っている設備と飾りを既存の保存データから導く）、`hubStore.ts`（拠点の既読）、`storage.ts`（メタ進行の保存の共通部分）、`lockedRelicKeys` などの補助関数
 
 ## 不変条件（破ったらレビューで差し戻す）
 
@@ -96,7 +97,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 8. **永続化**: 保存は `src/save/backend.ts` の `saveStorage()`（ブラウザは localStorage、Electron はファイル `%APPDATA%\DEPTHBREAKER\save\*.json`）経由で、loot/profile・craftingStore・skills/persistence・ui/settings（キー設定は `roguelike.keybinds.v1` に分離）・ui/replayStore・meta/{codexStore,questStore,achievements,hubStore} からのみ触る。step の中では触らない（拾得やイベントの保存は main.ts が行う）。壊れたデータは黙ってデフォルトへ落とす。キーの形式を変えるなら `v2` を切る
 9. **型**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので配列 / Record の添字結果は undefined を扱う
 10. **コード作法**: マジックナンバーは定数化、早期リターンでネストを浅く、関数は単一責任。コメントは日本語で「なぜ」を書く
-11. **テスト**: Vitest。`it` / `describe` の名前とアサーションメッセージは日本語。新しい仕組みには必ずテストを付ける
+11. **テスト**: Vitest。`it` / `describe` の名前とアサーションメッセージは日本語。新しい仕組みには必ずテストを付ける。テスト専用のヘルパーは `system/testHelpers.ts`（`arena` / `placeEnemy` / `withInput`）・`meta/testStorage.ts`・`audio/testAudioMock.ts`（本体からは import しない）
 12. **UI の方針**: 単一指標（DPS・アイテムスコア）を出さない。ツールチップは「何ができるか」を語る（`docs/DESIGN_PRINCIPLES.md`）
 13. **用語**: 表示文字列は `docs/GLOSSARY.md` の表記に揃える。内部 key（英語）は変えない
    - 気力（旧マナ）・生命（旧 HP）・再使用時間（旧 CD）・見切り（旧ジャスト回避）・精鋭（旧エリート）などの世界観語は `docs/GLOSSARY.md` の「世界観語の対応表」を正とする。表示に英字略語を出さない
@@ -204,7 +205,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - テスト: `audio/sfx.test.ts` / `audio/music.test.ts`
 
 ### スプライト
-- `src/data/sprites.ts` の `SPRITES` にフレーム配列（1 フレーム = 文字列の行配列）。様式書（`docs/ideas/graphics-style.md`）で描き直した家族は `src/data/sprites/<family>.ts`（beasts / bosses / heavy / player / weapons など。共通の小道具は `frameKit.ts`）に置き、`sprites.ts` の末尾で合流する。新しい敵は近い家族のファイルに足す。`'.'` は透明、他は `PALETTE` の 1 文字。キャラは **右向き** で描く（左は描画側で反転）
+- `src/data/sprites.ts` の `SPRITES` にフレーム配列（1 フレーム = 文字列の行配列）。様式書（`docs/ideas/graphics-style.md`）で描き直した家族は `src/data/sprites/<family>.ts`（beasts / bosses / cloister / heavy / player / shallows / still / w3back / w3front / weapons。共通の小道具は `frameKit.ts`）に置き、`sprites.ts` の末尾で合流する。新しい敵は近い家族のファイルに足す。`'.'` は透明、他は `PALETTE` の 1 文字。キャラは **右向き** で描く（左は描画側で反転）
 - 通常 16x16、ボス 32x32、ゴーレム 24x24、小物 8x8 / 12x12。歩行は 4 フレーム。全フレーム同寸
 - 新色は `PALETTE` に 1 文字キーで追加。テスト（`render/sprites.test.ts`）が寸法・パレット・空フレームを検査
 
@@ -223,7 +224,16 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
   - テスト結果（`npm run check` の成否と件数。失敗が他 Agent 起因ならその旨）
 - サブエージェント定義は `.claude/agents/`（implementer / reviewer / qa-runner / brainstormer / pixel-artist / localizer / balance-tuner / architect）
 - **モデルの使い分け**: メインは Opus。高度な推論が要る仕事（設計判断・原因の見えない不具合の診断・深いレビュー・発想）は Fable の Agent（architect / reviewer / brainstormer）に委任し、設計が固まった実装と定型作業は Sonnet（implementer / qa-runner / localizer）、ドット絵と数値調整は Opus（pixel-artist / balance-tuner）。設計が曖昧なまま Sonnet に実装させない。詳細は `docs/AI_WORKFLOW.md` の「モデルの使い分け」
-- skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/release-notes` `/bump`
+- skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/agent-docs` `/release-notes` `/bump`
+
+## エージェント資料の保守
+
+CLAUDE.md・`.claude/agents/`・`.claude/skills/`・`docs/AI_WORKFLOW.md` を「エージェント資料」と呼ぶ。コードとずれると Agent が古い前提で動くので、**コードを変えた同じ作業の中で直す**（後回しにしない）。
+
+- 機械検査: `npm run audit:docs`（`scripts/audit-agent-docs.mjs`。`npm run check` の最初の段）。資料が参照するパス・識別子の実在、src の本体ファイルが地図に載っているか、「`XXX`、N 種」の数、skill / agent の登録、旧用語を検査する。落ちたら資料を直す（検査を緩めない）
+  - **ファイルを足したら地図に 1 行、消したら行を消す。skill / agent を足したら上の一覧に足す**。件数を書くときは `（\`XXX_KEYS\`、N 種）` の形にすると検査が数を照合する
+- 判断が要る追随（レシピ・作法・雛形・不変条件の書き換え）は `/agent-docs`。「何を変えたらどこを直すか」の表はその skill にある。統合役はコミット前に表を見る。`/review` は資料の追随もチェック項目に含む
+- 並列の Agent は資料を直さず、報告の「統合手順」に「資料に必要な変更」を 1 行で書く（統合役が反映する）
 
 ## バージョニング
 

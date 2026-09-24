@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "check": "node scripts/check.mjs",
     "qa:full": "node scripts/qa-full.mjs",
+    "audit:docs": "node scripts/audit-agent-docs.mjs",
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:build": "node scripts/electron-build.mjs",
     "sync:claude": "node scripts/sync-claude-global.mjs"
