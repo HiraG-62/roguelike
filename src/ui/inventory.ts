@@ -99,7 +99,7 @@ export const TAB_Y = PANEL_Y + 2;
 export const TAB_H = 10;
 export const TAB_GAP = 2;
 export type InventoryTab = "equipment" | "skills" | "echo" | "web";
-export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 34, skills: 40, echo: 34, web: 50 };
+export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 34, skills: 40, echo: 34, web: 34 };
 export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "echo", "web"];
 
 /** 見出し右端の ？（そのタブの操作と仕組みの説明を開く） */

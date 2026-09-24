@@ -1,6 +1,7 @@
 import { BALANCE } from "../data/balance";
 import { ELEMENTS, ELEMENT_LABEL, type Element } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
+import { formatMeters } from "../core/units";
 import { HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
 import {
@@ -292,6 +293,8 @@ const MACHETE_BURN_DPS = 3;
 const MATCHLOCK_BURN_DPS = 4;
 const BLOWGUN_POISON_PCT = 25;
 const FANG_BLEED_POTENCY = 1.5;
+/** 出血が 1 回刻まれる移動距離（表示用。m に直す） */
+const BLEED_STEP = formatMeters(STATUS.bleed.distance);
 const TABI_BUFF_SECONDS = 1;
 /** 第 2 弾のベースの implicit の代償（ロールしない側。%） */
 const ZANBATO_SLOW_PCT = 8;
@@ -1110,7 +1113,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "procBleed",
     color: "crimson",
-    label: "近接命中時 {v}% で出血させる（10px 動くごとに {v2} ダメージ）",
+    label: `近接命中時 {v}% で出血させる（${BLEED_STEP} 動くごとに {v2} ダメージ）`,
     tags: ["status", "melee", "damage"],
     slots: MELEE_SLOTS,
     curve: curveFor("procBleed"),
@@ -4238,7 +4241,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.fangNecklace",
-    label: "近接命中時 {v}% で出血させる（10px 動くごとに 1.5 ダメージ）",
+    label: `近接命中時 {v}% で出血させる（${BLEED_STEP} 動くごとに ${FANG_BLEED_POTENCY} ダメージ）`,
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));
@@ -4390,7 +4393,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.battleAxe",
-    label: "近接命中時 {v}% で出血させる（10px 動くごとに 1.5 ダメージ）",
+    label: `近接命中時 {v}% で出血させる（${BLEED_STEP} 動くごとに ${FANG_BLEED_POTENCY} ダメージ）`,
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));

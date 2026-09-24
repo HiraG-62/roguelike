@@ -10,6 +10,7 @@ import { kw } from "../core/keywords";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { FloorKind } from "../core/state";
 import type { TerrainKind } from "../core/terrain";
+import { formatMeters } from "../core/units";
 import type { MovesetKey } from "../data/weapons";
 import { BOON, STATUS } from "../data/tuning";
 import type { BoonDef } from "./boonDefs";
@@ -650,7 +651,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   waterThunder: {
     key: "waterThunder",
     name: "水面の雷",
-    desc: `水たまりに立つ敵に感電が付くと、半径${BOON.waterThunderRadius}の敵へ感電が走る。`,
+    desc: `水たまりに立つ敵に感電が付くと、半径${formatMeters(BOON.waterThunderRadius)}の敵へ感電が走る。`,
     icon: "水",
     rarity: "rare",
     tags: ["shock", "terrain", "element"],

@@ -1,4 +1,5 @@
 import { kw } from "../core/keywords";
+import { formatMeters } from "../core/units";
 import { EXTRA_MODIFIER_TUNING as M } from "./tuning";
 import type { ExtraModifierKey, ModifierDef, ModifierKey, SkillKey } from "./types";
 
@@ -296,7 +297,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   pointBlank: {
     key: "pointBlank",
     name: "至近",
-    verb: `撃った位置から${M.pointBlank.range}px以内の敵に x${M.pointBlank.nearMul}（遠い敵には x${M.pointBlank.farMul}）`,
+    verb: `撃った位置から${formatMeters(M.pointBlank.range)}以内の敵に x${M.pointBlank.nearMul}（遠い敵には x${M.pointBlank.farMul}）`,
     color: "#ffb0b0",
     keywords: kw([], [], ["ranged"]),
     excludesTags: ["placed"],
@@ -307,7 +308,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   longshot: {
     key: "longshot",
     name: "遠当て",
-    verb: `遠い敵ほど強い（${M.longshot.range}pxで x${M.longshot.farMul}、至近は x${M.longshot.nearMul}）`,
+    verb: `遠い敵ほど強い（${formatMeters(M.longshot.range)}で x${M.longshot.farMul}、至近は x${M.longshot.nearMul}）`,
     color: "#b0b0ff",
     keywords: kw([], [], ["ranged"]),
     excludesTags: ["placed"],

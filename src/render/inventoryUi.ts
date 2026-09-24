@@ -92,7 +92,7 @@ const COLOR_BANNER_BG = "rgba(157,255,176,0.14)";
 const COLOR_TILE_ACTIVE_BG = "rgba(255,215,95,0.10)";
 const COLOR_SKILL = SKILL.drop.stoneColor;
 
-const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響", web: "シナジー" };
+const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響", web: "流れ" };
 const TAB_UNDERLINE_H = 1;
 const HELP_GLYPH = "？";
 /** 部位の枠・スキルのスロットの 1 行目と 2 行目のベースライン（枠の上端から） */

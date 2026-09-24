@@ -214,8 +214,8 @@ describe("状態異常を付ける性質（statusProcs）", () => {
     expect(s.statusProcs).toHaveLength(0);
   });
 
-  it("表示は動詞で語る", () => {
-    expect(formatAffix(roll("procBleed", 12, 1.5))).toBe("近接命中時 12% で出血させる（10px 動くごとに 1.5 ダメージ）");
+  it("表示は効果を文で書く", () => {
+    expect(formatAffix(roll("procBleed", 12, 1.5))).toBe("近接命中時 12% で出血させる（1m 動くごとに 1.5 ダメージ）");
     for (const key of STATUS_TRAIT_KEYS) {
       expect(formatAffix(roll(key, 10, 1)), key).toMatch(/(させる|にする|与え)/);
     }

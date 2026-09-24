@@ -457,7 +457,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
     // 元は chillChance/shockChance を足すだけの数値効果だったが、QA での指摘（二重の固有効果に
     // 「遊び方が変わる」ものを最低 1 つ）を受けて、JUST 回避を避けるだけの防御行動から
     // 攻めにも使える行動に変える。数値ボーナスは半分にして帳尻を合わせる
-    lines: ["見切りの瞬間、周囲へ凍雷の弾をばら撒く", "攻撃で敵を冷気・感電にしやすくなる"],
+    lines: ["見切りの瞬間、50% の確率で周囲へ凍雷の弾をばら撒く", "攻撃で敵を冷気・感電にしやすくなる"],
     apply: both(
       trigger({ trigger: "onJustDodge", condition: "always", effect: "spawnBullets", magnitude: amt(8), count: 6, chance: 0.5 }),
       (s) => {

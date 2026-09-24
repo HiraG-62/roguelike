@@ -99,7 +99,7 @@ export const KEYWORD_DEFS: Readonly<Record<Keyword, KeywordDef>> = {
   crit: { label: "会心", glyph: "会", color: "#fff0a0" },
   kill: { label: "撃破", glyph: "撃", color: "#ff4040" },
   clear: { label: "制圧", glyph: "制", color: "#80ff80" },
-  elite: { label: "大物", glyph: "大", color: "#ffa0ff" },
+  elite: { label: "精鋭", glyph: "精", color: "#ffa0ff" },
   crimson: { label: "紅", glyph: "紅", color: "#e04848" },
   azure: { label: "蒼", glyph: "蒼", color: "#4890e0" },
   jade: { label: "翠", glyph: "翠", color: "#48c070" },
