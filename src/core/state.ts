@@ -113,13 +113,13 @@ export interface Player {
   status: StatusBag;
   /** 装備の性質の作業領域（余韻斬り・形見。src/system/traitHooks.ts） */
   loot: LootRuntime;
-  /** チャージ射撃（射撃の型 charge）: 攻撃キー（左クリック / attackHeld）を押して溜めている最中か、その秒数 */
+  /** チャージ射撃（溜め撃ちの弾）: 攻撃キー（左クリック / attackHeld）を押して溜めている最中か、その秒数 */
   shotCharging: boolean;
   shotChargeTime: number;
   /** 前フレームに右クリック（固有技のキー）を押していたか。右の押した瞬間を取るため */
   secondaryWasHeld: boolean;
   /**
-   * 三点（射撃の型 burst）の残り弾数と次の弾までの秒、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
+   * 三点撃ち（burst を持つ弾）の残り弾数と次の弾までの秒、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
    * docs/ideas/combat-feel-design.md B-1 / B-2
    */
   shotBurst: { left: number; timer: number; side: number };
@@ -389,9 +389,9 @@ export interface Projectile {
   poise?: number;
   /** 同じ射撃で出た弾の共有カウンタ（マナ回収の上限 MANA.shotVolleyCap 用）。projectiles.ts が付ける */
   volley?: { manaHits: number };
-  /** 射撃の型の作業領域（跳弾の残り・設置弾。src/data/weapons.ts）。無ければ単発と同じ */
+  /** 銃の弾の作業領域（跳弾の残り・設置弾。src/data/weapons.ts）。無ければ単発と同じ */
   shot?: ShotRuntime;
-  /** この弾自身の攻撃素性（投擲の技など）。未指定なら従来通り stats.shot の SHOT_TYPES から引く */
+  /** この弾自身の攻撃素性（投擲の技など）。未指定なら今の銃の弾（stats.bullet）から引く */
   attack?: AttackProfile;
   /** 弾の代わりに武器の絵を回して描く（斧の投擲など。ThrowArtDef.sprite）。未指定は既定の弾の絵 */
   sprite?: string;

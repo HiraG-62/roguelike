@@ -706,6 +706,96 @@ const THROWN_DIAG: Frame = [
   ".kk.........",
 ];
 
+// ---- 擲弾: 砲より太く短い筒。口から丸い砲弾が覗く ----
+const GRENADE_SIDE: Frame = [
+  "............",
+  "............",
+  "..kkkkkkkk..",
+  ".k11sssyYkk.",
+  ".k1ssssyY1sk",
+  ".kssssSyYsSk",
+  "kttSSSSyYSKk",
+  "kTTKKKKyYKKk",
+  ".kKKKKKyYkk.",
+  "..kkkkkkkk..",
+  "............",
+  "............",
+];
+const GRENADE_DIAG: Frame = [
+  "............",
+  "............",
+  ".......kkk..",
+  ".....kk1sSk.",
+  "....kyYsSKk.",
+  "...k1syYKk..",
+  "..k1sssYYk..",
+  ".k1sssSKk...",
+  ".ksssSKk....",
+  "kttsSKk.....",
+  "kTTkkk......",
+  ".kk.........",
+];
+
+// ---- 仕掛け: 箱型の筒。側面の窓と口に黄橙の設置弾が見える ----
+const TRAPPER_SIDE: Frame = [
+  "............",
+  "............",
+  ".kkkkkkkkkk.",
+  ".k11ssssSyk.",
+  ".k1kkkkkSyKk",
+  ".kskqookSyok",
+  "kttkoOOkSyOk",
+  "kTTkkkkkSyKk",
+  ".kSSSSSSSyk.",
+  "..kkkkkkkkk.",
+  "............",
+  "............",
+];
+const TRAPPER_DIAG: Frame = [
+  "............",
+  "............",
+  "......kkk...",
+  ".....k1yok..",
+  "....k1ssyKk.",
+  "...k1qosSYk.",
+  "..k1soOSKk..",
+  ".k1sssSKk...",
+  ".ksssSKk....",
+  "kttsSKk.....",
+  "kTTkkk......",
+  ".kk.........",
+];
+
+// ---- 戦輪: 刃の外周と真鍮の内輪を持つ大きな輪（投擲の円月輪より大きく、歯が立つ） ----
+const WAR_RING_SIDE: Frame = [
+  "........k...",
+  "....kkkk1k..",
+  "...k111sssk.",
+  "..k11yyyyssk",
+  "..k1ykkkkYSk",
+  ".kk1yk..kYSk",
+  "ktt1yk..kYSk",
+  "kTT1ykkkkYSk",
+  ".kkssYYYYSSk",
+  "...ksSSSSSSk",
+  "....kkkkkkSk",
+  "..........k.",
+];
+const WAR_RING_DIAG: Frame = [
+  ".....kkk.k..",
+  "...kk111ksk.",
+  "..k111yyssk.",
+  "..k1yykyysk.",
+  ".k11yk.kYSSk",
+  ".k1yk...kYSk",
+  ".k11yk.kYSSk",
+  "..ksyYkYYSk.",
+  ".kkssSYSSSSk",
+  "kttssSSSkkk.",
+  "kTTkkkkk....",
+  ".kk.........",
+];
+
 /** 武器種ごとの持ち手（`weapon.<MovesetKey>`）。Record なので武器種を足すと型エラーで気付ける */
 const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   sword: held(SWORD_SIDE, SWORD_DIAG),
@@ -730,6 +820,9 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   longarm: held(LONGARM_SIDE, LONGARM_DIAG),
   cannon: held(CANNON_SIDE, CANNON_DIAG),
   thrown: held(THROWN_SIDE, THROWN_DIAG),
+  grenade: held(GRENADE_SIDE, GRENADE_DIAG),
+  trapper: held(TRAPPER_SIDE, TRAPPER_DIAG),
+  warRing: held(WAR_RING_SIDE, WAR_RING_DIAG),
 };
 
 export const WEAPON_SPRITES: Record<string, SpriteFrames> = Object.fromEntries(

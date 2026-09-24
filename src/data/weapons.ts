@@ -7,8 +7,8 @@ import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/t
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 
 /**
- * 武器種（通常攻撃の型・右クリックの固有技）と射撃の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
- * 右手のベースが moveset を決め、銃の家系（GUN_MOVESETS）のベースは撃つ弾の型 shot も決める（src/loot/bases.ts）。
+ * 武器種（通常攻撃の型・右クリックの固有技）と弾（BulletDef）の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
+ * 右手のベースが moveset を決め、銃の家系（GUN_MOVESETS）のベースは自分の弾も持つ（src/loot/bullets.ts）。
  * 数値は src/data/tuning.ts の WEAPON。ここは形の型・表示名・語（kw）をまとめる
  */
 
@@ -35,11 +35,19 @@ export const MOVESET_KEYS = [
   "longarm",
   "cannon",
   "thrown",
+  // 砲・投擲に埋もれていた弾（曲射・設置弾・回転刃）を独立させた銃の家系
+  "grenade",
+  "trapper",
+  "warRing",
 ] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
-export const SHOT_KEYS = ["single", "rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob"] as const;
-export type ShotKey = (typeof SHOT_KEYS)[number];
+/**
+ * 弾の挙動の性質。弾は銃のベースごとに持ち（src/loot/bullets.ts）、性質はその数値から読む（bulletFeatures）。
+ * 祝福の出現条件・統一ルールの条件・性質の効き先が「設置弾を撃つ武器」のように弾の挙動で絞るときに使う
+ */
+export const BULLET_FEATURES = ["rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob"] as const;
+export type BulletFeature = (typeof BULLET_FEATURES)[number];
 
 /**
  * 近接の当たり判定の形。reach / size の意味が形ごとに違う
@@ -111,7 +119,7 @@ export type ButtonKey = "primary" | "secondary";
 
 /**
  * 左クリックの役割。melee = 押すたびに連撃の次の段 / charge = 長押しで溜め、離して振る（大剣・戦鎚。tap は連撃）/
- * shot = 押している間、ベースの射撃の型で撃つ（銃の家系だけ）
+ * shot = 押している間、ベースの弾を撃つ（銃の家系だけ）
  */
 export type PrimaryKind = "melee" | "charge" | "shot";
 
@@ -166,9 +174,9 @@ export interface HoldArtDef {
   readonly releaseNext?: number;
 }
 
-/** 弾を出す技。弾の挙動は射撃の型（SHOT_TYPES）を借り、威力・怯み値・素性は技のもの */
+/** 弾を出す技。弾は技自身が持ち（bullet）、威力・怯み値・素性は技のもの */
 export interface ThrowArtDef {
-  readonly shot: ShotKey;
+  readonly bullet: BulletDef;
   readonly scaling: Scaling;
   readonly poise: number;
   readonly poiseRatio?: AttrRatio;
@@ -245,7 +253,7 @@ export interface MovesetDef {
   readonly rules?: readonly Rule[];
 }
 
-export interface ShotChargeLevelDef {
+export interface BulletChargeLevelDef {
   readonly time: number;
   readonly damageMul: number;
   readonly radius: number;
@@ -264,10 +272,16 @@ export interface MineDef {
   readonly color: string;
 }
 
-export interface ShotDef {
-  readonly key: ShotKey;
+/**
+ * 1 つの武器が撃つ弾（銃のベースごと、または弾を出す固有技ごと）。数値は src/data/balance/weapons.json の
+ * WEAPON.bullets.<ベースの key>（技は movesets.<武器種>.art.throw.bullet）。挙動のブロック（sway / homing / … / lob）を
+ * 持つかどうかがそのまま弾の性質になる（bulletFeatures）
+ */
+export interface BulletDef {
+  /** 銃のベースの key（技の弾は `art.<技の key>`）。弾の作業領域 ShotRuntime.key から引き直すのに使う */
+  readonly key: string;
+  /** 表示名（ベース名・技の名前） */
   readonly name: string;
-  readonly desc: string;
   readonly cooldownMul: number;
   readonly damageMul: number;
   readonly speedMul: number;
@@ -284,7 +298,7 @@ export interface ShotDef {
   readonly sway?: { readonly deg: number; readonly freq: number };
   readonly homing?: { readonly turnRate: number; readonly range: number };
   readonly bounce?: { readonly count: number; readonly mul: number };
-  readonly charge?: { readonly levels: readonly ShotChargeLevelDef[] };
+  readonly charge?: { readonly levels: readonly BulletChargeLevelDef[] };
   readonly mine?: MineDef;
   /** 三点: 1 押しで count 発を interval 秒おきに撃つ */
   readonly burst?: { readonly count: number; readonly interval: number };
@@ -301,9 +315,10 @@ export interface ShotDef {
   readonly attack: AttackProfile;
 }
 
-/** 弾ごとの型の作業領域（Projectile.shot）。projectiles.ts が読む */
+/** 弾ごとの作業領域（Projectile.shot）。projectiles.ts が読む */
 export interface ShotRuntime {
-  key: ShotKey;
+  /** 撃った弾の BulletDef.key */
+  key: string;
   /** 跳弾の残り回数 */
   bouncesLeft?: number;
   /** 設置弾が炸裂したか（二重に炸裂させない） */
@@ -312,6 +327,35 @@ export interface ShotRuntime {
   lifeTotal?: number;
   /** 回転刃が手元へ戻っている最中 */
   returning?: boolean;
+}
+
+/** 弾の挙動ブロックの数値だけ（JSON の形。key・名前・語・素性は持ち主が足す） */
+export type BulletNumbers = Omit<BulletDef, "key" | "name" | "keywords" | "attack">;
+
+/** 弾の性質（数値に挙動のブロックがあるか）。何も無ければまっすぐ飛ぶだけの弾 */
+export function bulletFeatures(b: Readonly<BulletNumbers>): BulletFeature[] {
+  const out: BulletFeature[] = [];
+  if (b.sway) out.push("rapid");
+  if (b.pellets > 0) out.push("spread");
+  if (b.pierceBonus > 0 && !b.boomerang) out.push("pierce");
+  if (b.homing) out.push("homing");
+  if (b.bounce) out.push("ricochet");
+  if (b.charge) out.push("charge");
+  if (b.mine) out.push("mine");
+  if (b.burst) out.push("burst");
+  if (b.boomerang) out.push("boomerang");
+  if (b.lob) out.push("lob");
+  return out;
+}
+
+export function hasBulletFeature(b: Readonly<BulletNumbers>, feature: BulletFeature): boolean {
+  return bulletFeatures(b).includes(feature);
+}
+
+/** JSON の弾の数値に key・名前・語・素性を足して BulletDef にする（数値の中に union 文字列は無いのでそのまま通す） */
+export function reviveBullet(raw: unknown, key: string, name: string, keywords: KeywordProfile, profile: AttackProfile): BulletDef {
+  if (!isRecord(raw) || typeof raw.cooldownMul !== "number") throw new Error(`不正な弾: ${key}`);
+  return { ...(raw as unknown as BulletNumbers), key, name, keywords, attack: profile };
 }
 
 /** 曲射の弾の見かけの高さ（px。描画用）。撃った瞬間と着弾で 0、寿命の中ほどで peak */
@@ -374,11 +418,6 @@ function buttonKey(raw: unknown): ButtonKey {
   throw new Error(`未知の ButtonKey: ${String(raw)}`);
 }
 
-function shotKeyOf(raw: unknown): ShotKey {
-  if (typeof raw === "string" && (SHOT_KEYS as readonly string[]).includes(raw)) return raw as ShotKey;
-  throw new Error(`未知の ShotKey: ${String(raw)}`);
-}
-
 /** JSON の段（steps / dashAttack / branches[].step / art.step など）を MeleeStepDef に絞る。jobs.ts の jobBranches も使う */
 export function reviveStep(raw: unknown): MeleeStepDef {
   const r = raw as Record<string, unknown>;
@@ -416,10 +455,10 @@ function reviveHold(raw: unknown): HoldArtDef {
   return { ...(r as unknown as HoldArtDef), release: r.release !== undefined ? reviveStep(r.release) : undefined };
 }
 
-/** 弾を出す技（ThrowTuning）。throw.shot だけ絞る */
+/** 弾を出す技（ThrowTuning）。弾の数値（throw.bullet）は throwArt が技の名前と素性を足して BulletDef にする */
 function reviveThrowTuning(raw: unknown): ThrowTuning {
-  const r = raw as { readonly cooldown: number; readonly throw: Record<string, unknown> };
-  return { cooldown: r.cooldown, throw: { ...(r.throw as unknown as ThrowTuning["throw"]), shot: shotKeyOf(r.throw.shot) } };
+  const r = raw as { readonly cooldown: number; readonly throw: ThrowTuning["throw"] };
+  return { cooldown: r.cooldown, throw: r.throw };
 }
 
 const W = WEAPON.movesets;
@@ -472,6 +511,9 @@ export const ART_NAMES: Readonly<Record<string, string>> = {
   pointBlank: "零距離砲",
   recall: "手元返し",
   barrage: "乱れ撃ち",
+  tubeBash: "筒払い",
+  scatterMines: "撒き散らし",
+  ringSweep: "輪払い",
 };
 
 type BranchTable = Readonly<Record<string, { readonly sequence: readonly ButtonKey[]; readonly step: MeleeStepDef; readonly next?: number }>>;
@@ -508,7 +550,7 @@ function strikeArt(key: string, desc: string, t: StrikeTuning): WeaponArtDef {
 interface ThrowTuning {
   readonly cooldown: number;
   readonly throw: {
-    readonly shot: ShotKey;
+    readonly bullet: unknown;
     readonly scaling: Scaling;
     readonly poise: number;
     readonly poiseRatio?: AttrRatio;
@@ -519,8 +561,13 @@ interface ThrowTuning {
 
 /** 弾を出す技。素性（ジャンル・属性）は技ごとに決める */
 function throwArt(key: string, desc: string, t: ThrowTuning, profile: AttackProfile, sprite?: string): WeaponArtDef {
-  return { kind: "throw", key, name: artName(key), desc, cooldown: t.cooldown, throw: { ...t.throw, attack: profile, sprite } };
+  const name = artName(key);
+  const bullet = reviveBullet(t.throw.bullet, `art.${key}`, name, ART_BULLET_KEYWORDS, profile);
+  return { kind: "throw", key, name, desc, cooldown: t.cooldown, throw: { ...t.throw, bullet, attack: profile, sprite } };
 }
+
+/** 技の弾の語（技そのものの語は武器種の keywords が持つので、弾は射撃であることだけ） */
+const ART_BULLET_KEYWORDS: KeywordProfile = kw(["ranged"]);
 
 /** 固有技から派生を作る。strike は右単独の派生、hold の release は構えを離したときだけ出す派生（押した瞬間には照合しない） */
 function artBranches(art: WeaponArtDef): BranchDef[] {
@@ -874,10 +921,49 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     keywords: kw(["ranged", "bullet"], [], ["dash"]),
     attack: attack("ranged", "physical"),
   }),
+  grenade: defineMoveset({
+    key: "grenade",
+    name: "擲弾",
+    desc: "左で照準の地点へ砲弾を山なりに撃ち込む。至近には落とせないので、右の筒払いで押し返して間合いを作る",
+    steps: [],
+    dashAttack: reviveStep(W.grenade.dashAttack),
+    attackMoveMul: W.grenade.attackMoveMul,
+    primary: "shot",
+    art: strikeArt("tubeBash", "筒で殴って敵を押し返し、自分も後ろへ下がる", reviveStrikeTuning(W.grenade.art)),
+    branches: [],
+    keywords: kw(["ranged", "explode", "area"], ["still"], ["stagger"]),
+    attack: attack("ranged", "physical"),
+  }),
+  trapper: defineMoveset({
+    key: "trapper",
+    name: "仕掛け",
+    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らす",
+    steps: [],
+    dashAttack: reviveStep(W.trapper.dashAttack),
+    attackMoveMul: W.trapper.attackMoveMul,
+    primary: "shot",
+    art: throwArt("scatterMines", "前方へ設置弾を扇に 3 つ撒く", reviveThrowTuning(W.trapper.art), attack("ranged", "physical", "fire")),
+    branches: [],
+    keywords: kw(["ranged", "placed", "explode", "area"], [], ["dash"]),
+    attack: attack("ranged", "physical"),
+  }),
+  warRing: defineMoveset({
+    key: "warRing",
+    name: "戦輪",
+    desc: "左で刃の輪を投げる。右の輪払いで手に持った輪を振り、張り付いた敵を広く斬る",
+    steps: [],
+    dashAttack: reviveStep(W.warRing.dashAttack),
+    attackMoveMul: W.warRing.attackMoveMul,
+    primary: "shot",
+    art: strikeArt("ringSweep", "手元の輪で周りを広く斬る", reviveStrikeTuning(W.warRing.art)),
+    branches: [],
+    keywords: kw(["ranged", "bullet", "area"], [], ["melee"]),
+    attack: attack("ranged", "physical"),
+  }),
 };
 
 /** 銃の家系（左で撃つ武器種）。祝福の loadout・性質の家系条件が読む */
-export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner"];
+export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner", "grenade", "trapper", "warRing"];
 
 /** 武器種の固有効果の Rule（今の武器種のものだけ。定義が無ければ空） */
 export function movesetRules(key: MovesetKey): readonly Rule[] {
@@ -966,54 +1052,13 @@ function tailMatches(inputs: readonly ButtonKey[], need: readonly ButtonKey[]): 
   return need.every((k, i) => inputs[offset + i] === k);
 }
 
-const S = WEAPON.shots;
-
-export const SHOT_TYPES: Readonly<Record<ShotKey, ShotDef>> = {
-  single: { key: "single", name: "単発", desc: "まっすぐ飛ぶ 1 発", ...S.single, keywords: kw(["ranged", "bullet"]), attack: attack("ranged", "physical") },
-  rapid: { key: "rapid", name: "連射", desc: "間隔が短く軽い弾。弾筋が揺れる", ...S.rapid, keywords: kw(["ranged", "bullet", "combo"], [], ["crit"]), attack: attack("ranged", "physical") },
-  spread: {
-    key: "spread",
-    name: "散弾",
-    desc: "近距離に弾をばら撒き、反動で後ろへ跳ねる",
-    ...S.spread,
-    keywords: kw(["ranged", "bullet", "stagger"], [], ["melee", "dash"]), attack: attack("ranged", "physical"),
-  },
-  pierce: { key: "pierce", name: "貫通", desc: "重い弾が敵を 2 体抜ける", ...S.pierce, keywords: kw(["ranged", "bullet", "stagger"], [], ["area"]), attack: attack("ranged", "physical") },
-  homing: { key: "homing", name: "追尾", desc: "遅い弾が近くの敵へ曲がる", ...S.homing, keywords: kw(["ranged", "bullet"], [], ["dash"]), attack: attack("ranged", "physical", "poison") },
-  ricochet: { key: "ricochet", name: "跳弾", desc: "壁で 2 回跳ね、跳ねるたびに強くなる", ...S.ricochet, keywords: kw(["ranged", "bullet", "wall"]), attack: attack("ranged", "physical") },
-  charge: { key: "charge", name: "チャージ", desc: "押して溜め、離して撃つ。溜めるほど大きく貫く", ...S.charge, keywords: kw(["ranged", "bullet", "stagger"], ["still"]), attack: attack("ranged", "physical", "fire") },
-  mine: { key: "mine", name: "設置弾", desc: "床で止まり、近づいた敵を巻き込んで炸裂する", ...S.mine, keywords: kw(["ranged", "placed", "explode", "area"]), attack: attack("ranged", "physical", "fire") },
-  burst: { key: "burst", name: "三点", desc: "1 回押すと 3 発を続けて撃つ。次の 3 発までは間が空く", ...S.burst, keywords: kw(["ranged", "bullet", "combo"], [], ["crit"]), attack: attack("ranged", "physical") },
-  boomerang: {
-    key: "boomerang",
-    name: "回転刃",
-    desc: "刃が射程の半ばで折り返して手元へ戻り、行きと帰りで同じ敵を 2 度斬る",
-    ...S.boomerang,
-    keywords: kw(["ranged", "bullet", "area"], [], ["still"]),
-    attack: attack("ranged", "physical"),
-  },
-  lob: {
-    key: "lob",
-    name: "曲射",
-    desc: "照準の地点へ山なりに撃ち込んで炸裂する。飛んでいる間は何にも当たらない",
-    ...S.lob,
-    keywords: kw(["ranged", "explode", "area"], ["still"]),
-    attack: attack("ranged", "physical"),
-  },
-};
-
 /** 必殺（バースト）の素性。威力は精神 + 霊力（PLAYER.special）なので範囲・魔法（docs/COMBAT_DESIGN.md A-8） */
 export const BURST_ATTACK: AttackProfile = attack("area", "arcane");
 
 export const DEFAULT_MOVESET: MovesetKey = "sword";
-export const DEFAULT_SHOT: ShotKey = "single";
 
 export function movesetDef(key: MovesetKey): MovesetDef {
   return MOVESETS[key];
-}
-
-export function shotDef(key: ShotKey): ShotDef {
-  return SHOT_TYPES[key];
 }
 
 /** 溜めた秒数から段（0 = 段なし）を求める */

@@ -162,9 +162,9 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 
 段階 2（スキル主体化）で近接・射撃の `base` を約 20% 下げる（B-7）。
 
-### A-7. 武器種と射撃の型（2026-09-24、`src/data/weapons.ts`、数値は `WEAPON`）
+### A-7. 武器種と銃の弾（2026-09-24、`src/data/weapons.ts`、数値は `WEAPON`）
 
-右手（`mainHand`）1 枠のベースが **武器種**（`MovesetKey`）を決め、銃の家系の武器種なら合わせて **射撃の型**（`ShotKey`）も決まる。`BaseItemDef.moveset` / `shot` → `computeStats` が `PlayerStats.moveset` / `shot` に畳み込む（武器なしは剣、銃なしは単発）。左手（`offHand`）は今はベースが無く常に空。横並びで、上位互換を作らない（`data/weapons.test.ts` が「攻撃中の移動・リーチ・秒間の威力のどれかで剣に劣る」を検査する）。
+右手のベースが **武器種**（`MovesetKey`）を決め、銃の家系のベースは **自分の弾**（`BulletDef`。`WEAPON.bullets.<ベースの key>` + `loot/bullets.ts`）を持つ。`computeStats` が `PlayerStats.moveset` / `bullet` に畳み込む（武器なしは剣、銃なしは既定の弾 = 拳銃）。左手（`offHand`）は今はベースが無く常に空。2026-09-24 に共有の「射撃の型」（`SHOT_TYPES`）を廃止し、弾は武器そのものの性能にした（同じ曲射でも曲射筒と擲弾筒で数値を変えられる）。下の表は弾の性質（`BulletFeature`）ごとの中身。横並びで、上位互換を作らない（`data/weapons.test.ts` が「攻撃中の移動・リーチ・秒間の威力のどれかで剣に劣る」を検査する）。
 
 **段の定義**（`MeleeStepDef`）: windup / active / recover・`Scaling`・怯み値・reach / size・ノックバック・heavy（壁叩きつけ）・命中 1 体ごとの気力・当たり判定の形・引き寄せ（pull）・投げ（throw）。剣は `PLAYER.melee` / `ACTION.dashAttack` / `MANA.onMelee` をそのまま読む（数値の定義元は変えない）。
 
@@ -214,6 +214,9 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 長銃 | 同上 | 銃剣突き（strike。突き 34・踏み込み 20・heavy） | 同上 |
 | 砲 | 同上 | 零距離砲（strike。円 44 heavy・自分が後ろへ約 40 px 跳ぶ・床の自分の設置弾をすべて起爆） | 同上 |
 | 投擲 | 同上 | 手元返し（recall。飛んでいる自分の弾を手元へ向け直し、戻りは威力 ×1.3） | 同上 |
+| 擲弾 | 同上（曲射。至近には落とせない） | 筒払い（strike。扇 150° heavy・ノックバック大・自分も後ろへ下がる。再使用 1 秒） | 同上 |
+| 仕掛け | 同上（設置弾） | 撒き散らし（throw。設置弾の型を前方の扇へ 3 つ・再使用 4 秒） | 同上 |
+| 戦輪 | 同上（回転刃・跳弾） | 輪払い（strike。扇 220° の近接。再使用 0.6 秒） | 同上 |
 | 二丁拳銃 | 同上（銃口が左右交互） | 乱れ撃ち（throw。散弾の型を 45° 刻みで全周 8 発・再使用 1.5 秒） | 同上 |
 
 振りの速さ（2026-09-24）: 軽量武器（剣・双剣・拳・刀・鎖鎌・槍・棍・杖・鞭・大盾）は windup / active / recover をおよそ ×0.7（剣 1 段 0.31 → 0.215 秒）。大剣・戦鎚・斧・鉈・大鎌は据え置き。新旧は `docs/ideas/weapon-redesign.md` 8 章。
@@ -237,15 +240,15 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 戦鎚 hammer | 円（heavy） | 怯み最大 / 移動 ×0.2 | 筋力 + 体力 | 崩し担当・衝撃波 / 最も遅い |
 | 二丁拳銃 gunner | 反転撃ち（円） | 射撃の命中で必殺ゲージ | 技巧 | 左右どちらでも撃つ / 近接が無い |
 
-| 射撃の型 | 中身 | ベース |
+| 弾の性質 | 中身 | ベース |
 | --- | --- | --- |
-| 単発 single | 現行 | 拳銃・回転式拳銃 |
+| （性質なし） | まっすぐ飛ぶだけ | 拳銃・回転式拳銃・二丁拳銃・双回転式 |
 | 連射 rapid | 間隔 ×0.5・威力 ×0.55。弾筋がゲーム内時間の正弦で揺れる（乱数を使わない） | 短機関銃・投げ短剣 |
 | 散弾 spread | +2 発の扇・射程 ×0.4・反動 ×5（後ろへ跳ねる） | 散弾銃 |
 | 貫通 pierce | 貫通 +2・威力 ×1.5・弾速 ×1.5・間隔 ×1.5 | 小銃・電磁砲 |
 | 追尾 homing | 遅い弾が 120 以内の最寄りの敵へ毎秒 5 ラジアンまで曲がる（カーソル追従は見送り） | 吹き矢 |
 | 跳弾 ricochet | 壁で 2 回跳ね、跳ねるたびに威力・怯み値 ×1.3、同じ敵にまた当たれる | 跳ね銃（新） |
-| チャージ charge | 射撃キーを押して溜め、離して撃つ（0.35 / 0.7 / 1.1 秒で 3 段、大きく・貫通・重く）。tap は ×0.6 | 火縄銃 |
+| 溜め撃ち charge | 射撃キーを押して溜め、離して撃つ（0.35 / 0.7 / 1.1 秒で 3 段、大きく・貫通・重く）。tap は ×0.6 | 火縄銃 |
 | 設置弾 mine | 床で止まり、敵が近づくか 3 秒で半径 30 を炸裂 | 置き撃ち筒（新） |
 | 三点 burst | 1 押しで 3 発を 0.05 秒（3 ステップ）おき。間隔 ×1.8・威力 ×0.7 | 三連銃・三連弩 |
 | 回転刃 boomerang | 寿命の半ばで折り返して手元へ戻る（行きの壁でも折り返す）。行きと帰りで同じ敵に当たる。貫通 +99 | 返し輪・飛刃 |
@@ -295,13 +298,13 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 与ダメ = rollOutgoing の既存の倍率 × 敵の防御倍率 × 属性倍率
   敵の防御倍率 = 1 − 防御%（物理）/ 魔防%（魔法）/ 平均（混成、GENRE.hybridMix）
   属性倍率     = Σ 属性の割合 × (1 − 敵の耐性% / 100)
-  属性の割合   = 通常攻撃: 変換（infuse）の割合をその属性へ、残りが武器種 / 射撃の型の属性
+  属性の割合   = 通常攻撃: 変換（infuse）の割合をその属性へ、残りが武器種 / 銃の弾の属性
                  スキル  : 無の刻印（skillNeutral）の割合を無属性へ、残りがスキルの属性
 被ダメ = 既存の倍率 × (1 − 軽減率) × (1 − 実効耐性% / 100) × damageTakenMul
   軽減率 = armorReduction(アーマー)（物理）/ armorReduction(魔防)（魔法）/ 両者の平均（混成）
   実効耐性 = 50 までは等倍、超えた分は ×0.5、上限 75・下限 −100（ELEMENT.resistKnee / Slope / Max / Min）
 ```
-- 素性の既定: 近接 = 武器種（`MovesetDef.attack`）、射撃 = 射撃の型（`ShotDef.attack`）、スキル = `skills/data.ts` の `SKILL_ATTACK`（`skills/hit.ts` の skillHit が渡す）、必殺 = `BURST_ATTACK`（範囲・魔法）。proc（反射・爆発・継続ダメージ・トリガー）は素性を持たず、防御も耐性も掛けない
+- 素性の既定: 近接 = 武器種（`MovesetDef.attack`）、射撃 = 銃の弾（`BulletDef.attack`）、スキル = `skills/data.ts` の `SKILL_ATTACK`（`skills/hit.ts` の skillHit が渡す）、必殺 = `BURST_ATTACK`（範囲・魔法）。proc（反射・爆発・継続ダメージ・トリガー）は素性を持たず、防御も耐性も掛けない
 - 敵の攻撃は敵ごとの `EnemyDefenseDef.attack`（接触・弾・爆発・衝撃波で共通）。攻撃者の無い罠・地形は物理・無属性
 - 弱点に当たると浮き文字「弱点」と効果音 `weakHit`、耐性に当たると「耐性」と `resistHit`。同じ敵の近くに同じ文字が濃く残っている間は重ねない（多段ヒット対策。`state.texts` を読むだけで状態を増やさない）
 - プレイヤーの物理防御は既存の `armor`（表示「アーマー」、世界観語の表で据え置き）をそのまま使い、魔法用に `warding`（魔防）を足した。キーも式も変えないので `migrate.ts` の変換は不要

@@ -78,7 +78,7 @@ export interface HitOptions {
 export interface OutgoingOptions {
   skill?: boolean;
   /**
-   * 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。省略時は近接 = 武器種、射撃 = 射撃の型、スキル = 無属性の物理、
+   * 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。省略時は近接 = 武器種、射撃 = 銃の弾、スキル = 無属性の物理、
    * proc = 素性なし（防御・耐性を掛けない）。null を渡すと素性なし
    */
   attack?: AttackProfile | null;

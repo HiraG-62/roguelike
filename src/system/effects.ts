@@ -3,7 +3,7 @@ import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type 
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
 import { EFFECTS, FX_WAVE3, REAPER } from "../data/tuning";
-import type { MovesetKey, ShotKey } from "../data/weapons";
+import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures } from "../data/weapons";
 import type { SfxName } from "../audio/sfxNames";
 import { TRAIT_COLORS, type Item, type TraitColor } from "../loot/types";
 import { colorWeights } from "../loot/resonance";
@@ -176,7 +176,7 @@ export function addMark(state: GameState, kind: FxMarkKind, pos: Vec, life: numb
 }
 
 // -----------------------------------------------------------------------------
-// 属性・武器種・射撃の型ごとの色と音
+// 属性・武器種・銃の弾ごとの色と音
 // -----------------------------------------------------------------------------
 
 /** 属性の火花の色（src/core/element.ts の ELEMENT_COLOR より少し明るくして闇でも見える） */
@@ -225,14 +225,17 @@ const SWING_SFX: Readonly<Record<MovesetKey, SfxName>> = {
   longarm: "swingLongarm",
   cannon: "swingCannon",
   thrown: "swingThrown",
+  grenade: "swingGrenade",
+  trapper: "swingTrapper",
+  warRing: "swingWarRing",
 };
 
 export function swingSfxName(moveset: MovesetKey): SfxName {
   return SWING_SFX[moveset];
 }
 
-const SHOT_SFX: Readonly<Record<ShotKey, SfxName>> = {
-  single: "shoot",
+/** 弾の性質ごとの発射音。複数持つ弾は bulletFeatures の並びで最初の性質の音、性質の無い弾は shoot */
+const SHOT_SFX: Readonly<Record<BulletFeature, SfxName>> = {
   rapid: "shotRapid",
   spread: "shotSpread",
   pierce: "shotPierce",
@@ -245,8 +248,9 @@ const SHOT_SFX: Readonly<Record<ShotKey, SfxName>> = {
   lob: "shotLob",
 };
 
-export function shotSfxName(shot: ShotKey): SfxName {
-  return SHOT_SFX[shot];
+export function shotSfxName(bullet: Readonly<BulletNumbers>): SfxName {
+  const feature = bulletFeatures(bullet)[0];
+  return feature === undefined ? "shoot" : SHOT_SFX[feature];
 }
 
 /** 振り始め: 武器種ごとの振り音（段の斬撃音 slash1〜3 に重ねる） */

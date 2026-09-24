@@ -4,7 +4,7 @@ import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { WEAPON } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { GUN_MOVESETS, MOVESETS, bulletFeatures } from "../data/weapons";
 import { botInput, createBotState } from "../qa/bot";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
@@ -12,6 +12,7 @@ import { damagePlayer } from "./combat";
 import { playerMoveset, shotDamage, updatePlayer } from "./player";
 import { createSkillRunState, updateSkills } from "./skills";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { bulletDef } from "../loot/bullets";
 
 /**
  * 右クリックの固有技（docs/ideas/weapon-redesign.md 3 章 / system/weaponArts.ts）と銃の家系。
@@ -41,6 +42,12 @@ const stepsFor = (sec: number): number => Math.ceil(sec / FIXED_DT);
 
 function playerShots(state: GameState): Projectile[] {
   return state.projectiles.filter((pr) => pr.owner === "player");
+}
+
+/** 弾の性質（作業領域の key から弾を引き直す） */
+function featuresOf(pr: Projectile | undefined): string[] {
+  const key = pr?.shot?.key;
+  return key === undefined ? [] : bulletFeatures(bulletDef(key));
 }
 
 function branchKey(state: GameState): string | undefined {
@@ -125,7 +132,7 @@ describe("右クリックの固有技", () => {
     play(state, [{ shootHeld: true }, {}]);
     const first = playerShots(state);
     expect(first, "1 本投げた").toHaveLength(1);
-    expect(first[0]?.shot?.key, "回転刃の型を借りる").toBe("boomerang");
+    expect(featuresOf(first[0]), "行って戻る弾").toEqual(["boomerang"]);
     expect(first[0]?.kind, "射撃扱い").toBe("ranged");
     expect(first[0]?.attack, "弾の素性は技のもの").toEqual(MOVESETS.axe.art.kind === "throw" ? MOVESETS.axe.art.throw.attack : undefined);
     expect(state.player.art.cooldown, "再使用が立った").toBeGreaterThan(0);
@@ -135,7 +142,7 @@ describe("右クリックの固有技", () => {
   });
 
   it("手元返しで自分の弾が反転し、戻りは強く当たる", () => {
-    const state = arena(5, { moveset: "thrown", shot: "single" });
+    const state = arena(5, { moveset: "thrown", bullet: "pistol" });
     play(state, [{ attackHeld: true }, ...idle(5)]);
     const shot = playerShots(state)[0];
     if (!shot) throw new Error("弾が出ていない");
@@ -164,7 +171,7 @@ describe("右クリックの固有技", () => {
   });
 
   it("砲の零距離砲は自分が後ろへ跳び、床の自分の設置弾をすべて起爆する", () => {
-    const state = arena(5, { moveset: "cannon", shot: "mine" });
+    const state = arena(5, { moveset: "cannon", bullet: "mineLauncher" });
     play(state, [{ attackHeld: true }, ...idle(20)]);
     const mine = playerShots(state)[0];
     if (!mine) throw new Error("設置弾が出ていない");
@@ -215,7 +222,7 @@ describe("銃の家系", () => {
     expect(playerShots(sword), "剣は撃たない").toHaveLength(0);
     expect(sword.player.attack.phase, "剣は振る").not.toBe("none");
 
-    for (const key of ["sidearm", "longarm", "cannon", "thrown", "gunner"] as const) {
+    for (const key of GUN_MOVESETS) {
       const gun = arena(5, { moveset: key });
       play(gun, [{ attackPressed: true, attackHeld: true }]);
       expect(playerShots(gun).length, `${key} は左で撃つ`).toBeGreaterThan(0);
@@ -223,11 +230,11 @@ describe("銃の家系", () => {
     }
   });
 
-  it("射撃の型はベースの shot のまま（短銃の三連銃は三点）", () => {
-    const state = arena(5, { moveset: "sidearm", shot: "burst" });
+  it("弾はベースのまま（短銃の三連銃は三点）", () => {
+    const state = arena(5, { moveset: "sidearm", bullet: "burstRifle" });
     play(state, Array.from({ length: 12 }, () => ({ attackHeld: true })));
-    expect(playerShots(state), "三点").toHaveLength(SHOT_TYPES.burst.burst?.count ?? 0);
-    expect(playerShots(state)[0]?.damage).toBeCloseTo(shotDamage(state.stats) * SHOT_TYPES.burst.damageMul);
+    expect(playerShots(state), "三点").toHaveLength(bulletDef("burstRifle").burst?.count ?? 0);
+    expect(playerShots(state)[0]?.damage).toBeCloseTo(shotDamage(state.stats) * bulletDef("burstRifle").damageMul);
   });
 
   it("長銃の銃剣突きは近接として当たる", () => {
@@ -237,6 +244,47 @@ describe("銃の家系", () => {
     expect(state.player.meleeHitCount, "突きが当たった").toBeGreaterThan(0);
     expect(e.hp).toBeLessThan(TOUGH_HP);
     expect(MOVESETS.longarm.art.cooldown).toBeGreaterThan(0);
+  });
+
+  it("擲弾は左で照準の地点へ曲射を撃ち、右の筒払いは近接で当てて自分が後ろへ下がる", () => {
+    const lob = arena(5, { moveset: "grenade", bullet: "mortar" });
+    play(lob, [{ attackHeld: true }]);
+    expect(featuresOf(playerShots(lob)[0]), "左は曲射").toEqual(["lob"]);
+
+    const state = arena(5, { moveset: "grenade", bullet: "mortar" });
+    const e = tough(placeEnemy(state, "boar", 20));
+    play(state, [{ shootHeld: true }]);
+    expect(branchKey(state)).toBe("tubeBash");
+    expect(state.player.knock.x, "後ろへ下がった").toBeLessThan(0);
+    play(state, idle(20));
+    expect(e.hp, "筒払いが当たった").toBeLessThan(TOUGH_HP);
+    expect(playerShots(state), "筒払いは弾を出さない").toHaveLength(0);
+  });
+
+  it("仕掛けの撒き散らしは設置弾を扇に 3 つ出し、再使用が明ける前は出ない", () => {
+    const state = arena(5, { moveset: "trapper", bullet: "mineLauncher" });
+    play(state, [{ shootHeld: true }, {}]);
+    const mines = playerShots(state);
+    expect(mines, "3 つ撒いた").toHaveLength(WEAPON.movesets.trapper.art.throw.count);
+    for (const m of mines) expect(featuresOf(m), "設置弾").toEqual(["mine"]);
+    const angles = new Set(mines.map((m) => Math.round(Math.atan2(m.vel.y, m.vel.x) * 100)));
+    expect(angles.size, "扇に散る").toBe(mines.length);
+    expect(state.player.art.cooldown, "再使用が立った").toBeGreaterThan(0);
+    play(state, [{ shootHeld: true }, {}]);
+    expect(playerShots(state).length, "再使用中は撒かない").toBe(mines.length);
+  });
+
+  it("戦輪は左で回転刃を投げ、右の輪払いは背中側の敵にも近接で当たる", () => {
+    const ring = arena(5, { moveset: "warRing", bullet: "returnChakram" });
+    play(ring, [{ attackHeld: true }]);
+    expect(featuresOf(playerShots(ring)[0]), "左は回転刃").toEqual(["boomerang"]);
+
+    const state = arena(5, { moveset: "warRing", bullet: "returnChakram" });
+    // 220 度の扇なので、向きから 100 度ずれた敵にも届く
+    const side = tough(placeEnemy(state, "boar", -4, 18));
+    play(state, [{ shootHeld: true }, ...idle(20)]);
+    expect(state.player.meleeHitCount, "輪払いが当たった").toBeGreaterThan(0);
+    expect(side.hp).toBeLessThan(TOUGH_HP);
   });
 });
 

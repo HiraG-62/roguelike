@@ -17,7 +17,7 @@ import { RARITIES, RARITY_COLOR, RARITY_LABEL, TRAIT_COLORS, TRAIT_COLOR_HEX, TR
 // 共通の読み取り
 // ---------------------------------------------------------------------------
 
-/** 遺物の武器種（ベースの近接・射撃の型）。武器でなければ undefined */
+/** 遺物の武器種（ベースの近接・銃の弾）。武器でなければ undefined */
 export function weaponKindOf(item: Item): MovesetKey | undefined {
   return baseDef(item.baseKey)?.moveset;
 }

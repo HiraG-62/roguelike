@@ -3,7 +3,8 @@ import type { Enemy, GameState } from "../core/state";
 import { enemyGuard } from "../data/enemyCombat";
 import { enemyWeaknesses } from "../data/enemyDefense";
 import { ELEMENT } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES, isGun } from "../data/weapons";
+import { MOVESETS, isGun } from "../data/weapons";
+import { BULLETS, currentBullet } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import type { Item, PlayerStats } from "../loot/types";
 import { SKILL_ATTACK } from "../skills/data";
@@ -12,17 +13,18 @@ import { TEXT, drawText } from "./pixelText";
 
 /**
  * 攻撃ジャンル・属性の表示（docs/COMBAT_DESIGN.md A-8）。state を読むだけ。
- * - ツールチップの 1 行（武器種 / 射撃の型 / スキルの「近接・物理 / 無属性」）
+ * - ツールチップの 1 行（武器種・銃の弾 / スキルの「近接・物理 / 無属性」）
  * - 装備画面のステータスの箱の先頭行（いまの近接・射撃の素性）
  * - 敵の頭上の弱点の印（このランで 1 体倒した種類だけ色で見せ、未知は「？」）
  */
 
-/** 武器・銃のツールチップの 1 行。武器種 / 射撃の型を持たないベースは null */
+/** 武器・銃のツールチップの 1 行（銃は弾の素性）。武器種を持たないベースは null */
 export function itemAttackLine(item: Item): string | null {
   const base = baseDef(item.baseKey);
-  if (base?.moveset !== undefined) return `${MOVESETS[base.moveset].name}: ${attackLabel(MOVESETS[base.moveset].attack)}`;
-  if (base?.shot !== undefined) return `${SHOT_TYPES[base.shot].name}: ${attackLabel(SHOT_TYPES[base.shot].attack)}`;
-  return null;
+  if (base?.moveset === undefined) return null;
+  const m = MOVESETS[base.moveset];
+  const bullet = isGun(m) ? BULLETS[base.key] : undefined;
+  return `${m.name}: ${attackLabel(bullet?.attack ?? m.attack)}`;
 }
 
 /** スキル石のツールチップの 1 行。与ダメを持たないスキルは null */
@@ -36,13 +38,13 @@ export function skillAttackLine(key: SkillKey): string | null {
  * 銃の家系（isGun）以外は「射撃: …」の代わりに右クリックの固有技を出す。
  * 固有技が弾を出す型（斧の投擲・杖の魔弾など）はその素性、それ以外は「固有技」とだけ出す
  */
+/** 射撃の行の見出し（弾の名前はベース名と同じなので、武器種の行と並べたとき紛れないよう「射撃」とだけ出す） */
+const SHOT_LINE_LABEL = "射撃";
+
 export function loadoutAttackLines(stats: Readonly<PlayerStats>): string[] {
   const m = MOVESETS[stats.moveset];
   const meleeLine = `${m.name}: ${attackLabel(m.attack)}`;
-  if (isGun(m)) {
-    const s = SHOT_TYPES[stats.shot];
-    return [meleeLine, `${s.name}: ${attackLabel(s.attack)}`];
-  }
+  if (isGun(m)) return [meleeLine, `${SHOT_LINE_LABEL}: ${attackLabel(currentBullet(stats).attack)}`];
   if (m.art.kind === "throw") return [meleeLine, `${m.art.name}: ${attackLabel(m.art.throw.attack)}`];
   return [meleeLine, `${m.art.name}: 固有技`];
 }

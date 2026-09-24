@@ -120,7 +120,7 @@ describe("祝福 第 2 弾の定義", () => {
   });
 });
 
-describe("武器種・射撃の型・ジョブで出る祝福（loadout）", () => {
+describe("武器種・銃の弾・ジョブで出る祝福（loadout）", () => {
   it("大剣でないと岩の構えは出ず、大剣なら出る", () => {
     const state = cleanArena();
     // 抽選は祝福を畳む前の装備 stats を読むので、テストでは stats だけを見させる
@@ -133,10 +133,10 @@ describe("武器種・射撃の型・ジョブで出る祝福（loadout）", () 
     expect(boonWeight(BOONS.rockStance, great.owned, [], great.gives, great.loadout), "大剣では出る").toBeGreaterThan(0);
   });
 
-  it("射撃の型とジョブも見る。loadout の無い祝福は影響を受けない", () => {
+  it("銃の弾とジョブも見る。loadout の無い祝福は影響を受けない", () => {
     const state = cleanArena();
     state.boonRun.baseStats = null;
-    state.stats.shot = "single";
+    state.stats.bullet = "pistol";
     state.job = "none";
     const t = buildTags(state);
     expect(boonWeight(BOONS.oilMine, t.owned, [], t.gives, t.loadout), "設置弾でないと 0").toBe(0);
@@ -238,9 +238,10 @@ function withMoveset(moveset: GameState["stats"]["moveset"], key = "golem") {
   };
 }
 
-function withShot(shot: GameState["stats"]["shot"]) {
+/** その弾を撃つ器（ベースの key）を持たせる */
+function withShot(bullet: string) {
   return (state: GameState): Enemy[] => {
-    state.stats.shot = shot;
+    state.stats.bullet = bullet;
     return targetsOf(state);
   };
 }
@@ -410,17 +411,17 @@ const SCENARIOS: readonly Scenario[] = [
     icd: BOON.staffRingIcd,
   },
   { key: "wandLamp", setup: withMoveset("wand"), fire: ranged, reset: zeroMana, check: manaUp, icd: BOON.wandLampIcd },
-  // ---- 射撃の型 ----
+  // ---- 銃の弾 ----
   {
     key: "oilMine",
-    setup: withShot("mine"),
+    setup: withShot("mineLauncher"),
     fire: ranged,
     check: (s, t, i) => (t[i] ? terrainOf(s, t[i]) === "oil" : false),
     icd: BOON.oilMineIcd,
   },
   {
     key: "chargeRecoil",
-    setup: withShot("charge"),
+    setup: withShot("matchlock"),
     fire: ranged,
     reset: (state) => {
       state.player.dashChargesLeft = 0;
@@ -428,8 +429,8 @@ const SCENARIOS: readonly Scenario[] = [
     check: (state) => state.player.dashChargesLeft === 1,
     icd: BOON.chargeRecoilIcd,
   },
-  { key: "venomBee", setup: withShot("homing"), fire: ranged, check: statusAt("poison"), icd: BOON.ruleMinIcd },
-  { key: "pebbleRain", setup: withShot("spread"), fire: ranged, check: poiseAt, icd: BOON.ruleMinIcd },
+  { key: "venomBee", setup: withShot("blowgun"), fire: ranged, check: statusAt("poison"), icd: BOON.ruleMinIcd },
+  { key: "pebbleRain", setup: withShot("shotgun"), fire: ranged, check: poiseAt, icd: BOON.ruleMinIcd },
   // ---- 属性 ----
   { key: "weakStrike", setup: withMoveset("scythe", "eye"), fire: melee, reset: zeroMana, check: manaUp, icd: BOON.weakStrikeIcd },
   { key: "resistBreak", setup: withMoveset("wand", "eye"), fire: react, check: statusAt("vulnerable"), icd: BOON.resistBreakIcd },

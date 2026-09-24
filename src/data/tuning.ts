@@ -174,7 +174,7 @@ export const ACTION = {
 export const BOON = BALANCE.boons.BOON;
 
 /**
- * 武器種（src/data/weapons.ts）と射撃の型の数値。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/meta-and-weapons.md 1〜2 章。
+ * 武器種（src/data/weapons.ts）と銃の弾の数値。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/meta-and-weapons.md 1〜2 章。
  * 剣（sword）と単発（single）の威力・形は PLAYER.melee / ACTION.dashAttack / PLAYER.shoot をそのまま使う。
  * 威力の scaling は基礎値（各 5）で剣の秒間期待値から大きく離れないよう揃え、
  * 差は「形・リーチ・怯み値・マナ回収・移動」で付ける（単一最強を作らない）。

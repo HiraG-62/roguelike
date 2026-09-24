@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chargeGauge, comboPips, controlHint, formatBranchHints, hudHintText } from "./comboUi";
-import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { MOVESETS } from "../data/weapons";
+import { bulletDef } from "../loot/bullets";
 
 describe("comboPips（docs/ideas/combat-feel-design.md D-1）", () => {
   it("攻撃中は現在の段までピップが塗られ、最終段だけ final", () => {
@@ -31,26 +32,26 @@ describe("formatBranchHints", () => {
 
 describe("controlHint（右の固有技と押し方の案内）", () => {
   it("剣は右で受け流し、刀は右の長押しで居合、大剣は左の長押しで溜め", () => {
-    expect(controlHint(MOVESETS.sword, SHOT_TYPES.single)).toBe("右: 受け流し");
-    expect(controlHint(MOVESETS.katana, SHOT_TYPES.single)).toBe("右 長押し: 居合");
-    expect(controlHint(MOVESETS.greatsword, SHOT_TYPES.single)).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"))).toBe("右: 受け流し");
+    expect(controlHint(MOVESETS.katana, bulletDef("pistol"))).toBe("右 長押し: 居合");
+    expect(controlHint(MOVESETS.greatsword, bulletDef("pistol"))).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
   });
 
   it("技の再使用中は残り秒を添える", () => {
-    expect(controlHint(MOVESETS.axe, SHOT_TYPES.single, 0.84)).toBe("右: 投擲（あと 0.8 秒）");
+    expect(controlHint(MOVESETS.axe, bulletDef("pistol"), 0.84)).toBe("右: 投擲（あと 0.8 秒）");
   });
 
   it("溜めて撃つ弾の型は銃の家系のときだけ左の長押しを案内する", () => {
-    expect(controlHint(MOVESETS.longarm, SHOT_TYPES.charge)).toBe("左 長押し: 溜め撃ち / 右: 銃剣突き");
-    expect(controlHint(MOVESETS.sword, SHOT_TYPES.charge), "剣は撃たない").toBe("右: 受け流し");
+    expect(controlHint(MOVESETS.longarm, bulletDef("matchlock"))).toBe("左 長押し: 溜め撃ち / 右: 銃剣突き");
+    expect(controlHint(MOVESETS.sword, bulletDef("matchlock")), "剣は撃たない").toBe("右: 受け流し");
   });
 });
 
 describe("hudHintText（案内の 1 行）", () => {
   it("技ではない派生があればそれを、無ければ固有技を出す（右単独の技は二重に出さない）", () => {
-    expect(hudHintText(MOVESETS.sword, ["primary", "primary"], SHOT_TYPES.single, 0)).toBe("右: 十字断ち");
-    expect(hudHintText(MOVESETS.sword, [], SHOT_TYPES.single, 0)).toBe("右: 受け流し");
-    expect(hudHintText(MOVESETS.greatsword, [], SHOT_TYPES.single, 0)).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
+    expect(hudHintText(MOVESETS.sword, ["primary", "primary"], bulletDef("pistol"), 0)).toBe("右: 十字断ち");
+    expect(hudHintText(MOVESETS.sword, [], bulletDef("pistol"), 0)).toBe("右: 受け流し");
+    expect(hudHintText(MOVESETS.greatsword, [], bulletDef("pistol"), 0)).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
   });
 });
 

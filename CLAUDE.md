@@ -42,7 +42,7 @@ src/
   render/   Canvas 描画（state を読むだけ）
   ui/       画面ロジック（DOM 非依存。タイトル・装備画面・設定・リプレイ保存）
   audio/    Web Audio 合成の効果音
-  data/     tuning（手触り定数）/ enemies（敵定義）/ enemyCombat（怯み・状態異常の戦闘パラメータ）/ weapons（武器種・射撃の型）/ sprites（ピクセルマップ）
+  data/     tuning（手触り定数）/ enemies（敵定義）/ enemyCombat（怯み・状態異常の戦闘パラメータ）/ weapons（武器種・弾の型定義）/ sprites（ピクセルマップ）
   meta/     図鑑・依頼・実績の定義と永続化（ラン中の記録は system 側が積むだけ）
   qa/       ヘッドレス bot とシミュレーション、report.md
 ```
@@ -72,7 +72,7 @@ src/
 - `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
 
 ### その他
-- loot（装備。響き・揺らぎ・来歴。`docs/LOOT_DESIGN.md`）: `types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TraitColor）、`affixes.ts`（性質・変換・誓約・implicit）、`bases.ts`、`colors.ts`（性質の色・共鳴の重み）、`flux.ts`（期待値曲線・揺らぎ・反転）、`resonance.ts`（共鳴の判定と効果、`ATTR_LABEL`。三和音含む）、`provenance.ts`（来歴・節目・芽・目覚め）、`traitContext.ts`（性質が「自分の外」＝装備全体・来歴を読むための文脈）、`named.ts`（`UNIQUES` = 名のある遺物）、`names.ts`（命名・銘）、`generator.ts`（生成。`UNIQUES` は `named.ts` を re-export）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`describe.ts`（UI 向けの表示情報）、`crafting.ts`（残響・クラフト 7 操作）、`migrate.ts`（旧セーブの変換）、`profile.ts` / `craftingStore.ts`（永続化）
+- loot（装備。響き・揺らぎ・来歴。`docs/LOOT_DESIGN.md`）: `bullets.ts`（銃のベースごとの弾 `BULLETS`）、`types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TraitColor）、`affixes.ts`（性質・変換・誓約・implicit）、`bases.ts`、`colors.ts`（性質の色・共鳴の重み）、`flux.ts`（期待値曲線・揺らぎ・反転）、`resonance.ts`（共鳴の判定と効果、`ATTR_LABEL`。三和音含む）、`provenance.ts`（来歴・節目・芽・目覚め）、`traitContext.ts`（性質が「自分の外」＝装備全体・来歴を読むための文脈）、`named.ts`（`UNIQUES` = 名のある遺物）、`names.ts`（命名・銘）、`generator.ts`（生成。`UNIQUES` は `named.ts` を re-export）、`triggers.ts`（トリガー文法）、`stats.ts`（`computeStats`、ソフトキャップ）、`describe.ts`（UI 向けの表示情報）、`crafting.ts`（残響・クラフト 7 操作）、`migrate.ts`（旧セーブの変換）、`profile.ts` / `craftingStore.ts`（永続化）
 - skills: `types.ts`（`SKILL_KEYS` / `MODIFIER_KEYS`、`SkillDef` の `resource` / `manaCost` / `minInterval` / `poise` / `applies`）、`data.ts`（`SKILL_DEFS` / `MODIFIERS` / `SKILL` 定数 / `resolveCast`）、`tuning.ts`（大拡張分の数値。`data.ts` の `SKILL` に展開して読む）、`defs.ts`（大拡張のスキル定義）、`modifiers.ts`（大拡張の刻印符・型替え符の定義）、`combos.ts`（連携: スキル A の直後に手動で B を撃つと変化する組み合わせ）、`actions.ts` / `shots.ts` / `summons.ts`（発動処理の実体。近接型・弾型・設置/召喚型で分割）、`geom.ts`（当たり判定の幾何: 扇・線分・壁までの光線）、`generator.ts`、`placed.ts`（設置物）、`hit.ts`、`persistence.ts`
 - ui（装備・クラフトの画面ロジック）: `inventory.ts`（タブと入力）、`inventoryLayout.ts`（枠・一覧・詳細欄の位置の定数・`SLOT_LABEL`）、`equipmentLayout.ts`（装備タブの部位の枠・帯・芽のバナー・ステータスの位置）、`echoTab.ts`（残響タブの状態機械）、`bud.ts`（芽モーダルの当たり判定）、`attributeAlloc.ts`（ラン内のステータス振り分け UI の状態）、`skillRunes.ts`（スキルタブの刻印符所持一覧の付け外し）、`synergyPanel.ts`（流れタブの一覧の状態）、`quests.ts`（起点直後の依頼 3 択の状態）、`stashFilter.ts`（倉庫の部位タブ・並べ替え・絞り込みの仕組みとボタンの折り返し配置）、`stashFacets.ts`（並び・絞り込みの軸の定義表）
 - render: `renderer.ts`（本体）、`inventoryUi` / `skillHud` / `boonUi` / `titleUi` / `minimap` / `darkness`、`terrainUi.ts`（地形の層の描画）、`budUi.ts`（芽のバナー・モーダル描画）、`echoTabUi.ts`（残響タブ描画）、`lootUiParts.ts`（装備 UI 共通部品: 色の配合バー・性質の行）、`attributeUi.ts`（ステータス画面）、`manaHud.ts`（気力バー）、`statusUi.ts`（状態異常の表示・怯みゲージ）、`sprites.ts`（アトラス）、`renderMath.ts`（テスト可能な描画計算）、`font.ts` / `pixelText.ts`、`dropTooltip.ts`（床のアイテム / スキル石に注目した時のツールチップ）、`skillRuneUi.ts`（刻印符所持一覧の描画）、`synergyUi.ts`（流れタブの描画）、`chainUi.ts`（直近の連鎖の表示）、`questUi.ts`（依頼 3 択の描画）、`codexUi.ts`（図鑑・依頼一覧・実績の共通タブ画面の描画）、`detailPane.ts`（装備画面の右の固定の詳細欄。要点 / 詳しく / 操作）、`inventoryHelp.ts`（装備画面の ？ のヘルプ。操作説明・仕組みの説明はここに置き、画面に常時出さない）
@@ -116,12 +116,14 @@ src/
 4. 必要なら `render/renderer.ts` に専用の予告表現、`audio` に効果音
 5. テスト: `system/enemies.test.ts` に「windup → strike で当たる」「予告中は無害」など
 
-### 武器種（近接の型）/ 射撃の型
-- `src/data/weapons.ts`: 近接は `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（3 段コンボ各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値と `poiseRatio` / 当たり判定の形 `HitShape` / 手触りの任意項目）、射撃は `SHOT_KEYS` に key を足し `SHOT_TYPES` に `ShotDef`。数値は tuning の `WEAPON`
-- 各段・銃の型の参照ステータスは `docs/STATS_AND_SCALING.md` に従う（効果から見て納得できるもの。怯み値の `poiseRatio` も付ける）
-- ベースへの紐付け: `src/loot/bases.ts` の `BASES` で右手（`mainHand`）のベースに、近接なら `moveset`、銃なら `shot` を指定（`PlayerStats.moveset` / `shot` へ流れる。左手 `offHand` は今はベースが無い）
-- 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.shot` で `SHOT_TYPES` を引いて発動処理を分岐
-- テスト: `data/weapons.test.ts`
+### 武器種 / 銃の弾
+- `src/data/weapons.ts`: `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（3 段コンボ各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値と `poiseRatio` / 当たり判定の形 `HitShape` / 手触りの任意項目）。左で撃つ銃の家系は `primary: "shot"` にして `GUN_MOVESETS` に足す。数値は tuning の `WEAPON`
+- **射撃の型（共有の弾の表）は無い。弾は銃のベースごとに持つ**: 数値は `src/data/balance/weapons.json` の `WEAPON.bullets.<ベースの key>`（`BulletDef` の数値。sway / homing / bounce / charge / mine / burst / boomerang / lob の挙動ブロックを持てばその挙動になる）、語と素性は `src/loot/bullets.ts` の `BULLET_PROFILES`。銃のベースを足したら両方に 1 件ずつ足す（`balance.test.ts` がキー集合を検査）。弾を出す固有技は `art.throw.bullet` に自分の弾を持つ
+- 祝福・統一ルール・性質が「設置弾を撃つとき」のように弾で絞るときは、弾の性質（`BulletFeature`。数値から `bulletFeatures` が読む）で書く（`BoonLoadout.bullets` / 条件 `{ kind: "bullet", has }` / `statsBulletHas`）。ベースの key で分岐しない
+- 各段・弾の参照ステータスは `docs/STATS_AND_SCALING.md` に従う（効果から見て納得できるもの。怯み値の `poiseRatio` も付ける）
+- ベースへの紐付け: `src/loot/bases.ts` の `BASES` で右手のベースに `moveset` を指定（`PlayerStats.moveset` へ流れる）。銃の家系のベースは `PlayerStats.bullet` に自分の key が入る
+- 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.bullet` で `loot/bullets.ts` の `BULLETS` を引いて発動処理を分岐
+- テスト: `data/weapons.test.ts` / `loot/bullets.test.ts`
 
 ### 性質（旧アフィックス）/ 変換 / 誓約 / 名のある遺物 / ベース
 - 性質: `src/loot/affixes.ts` の `AFFIXES` に `AffixDef`（`curve` = 深度ごとの期待値の点列、`slots`、`tags`、`color`〔省略時は `colors.ts` の `colorFromTags` が tags から決める〕、`apply`）。prefix / suffix / tier の区別は無い。値は表示単位（+25% なら 25）。新しい stat が要るなら `loot/types.ts` の `PlayerStats` と `DEFAULT_STATS` に追加し、system 側で読む。強いものほどトレードオフを付ける。装備全体や来歴など「自分の外」を読む性質は `loot/traitContext.ts` の文脈を通す

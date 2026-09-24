@@ -20,6 +20,8 @@ import { type HubSession, borrowRackEntry, borrowWeapon, createHub, setTrialKeys
 import { DUMMY_KEY } from "./specialRooms";
 import { applyStats } from "./player";
 import { withInput } from "./testHelpers";
+import { bulletFeatures } from "../data/weapons";
+import { DEFAULT_BULLET, currentBullet } from "../loot/bullets";
 
 const ALL: ReadonlySet<HubSpotKey> = new Set(HUB_SPOT_KEYS);
 
@@ -203,16 +205,22 @@ describe("武器掛け", () => {
     expect(state.stats.moveset, "装備の剣に戻る").toBe("sword");
   });
 
-  it("銃の家系を試すとその家系の shot も差し替わり、解除で装備の shot に戻る", () => {
+  it("銃の家系を試すと、借りるときと同じ器の弾で撃ち、外すと装備の弾に戻る", () => {
     const session = hub();
     const { state } = session;
-    expect(state.stats.shot, "武器なしの既定は single").toBe("single");
-    setTrialWeapon(session, "longarm");
-    expect(state.stats.moveset).toBe("longarm");
-    expect(state.stats.shot, "長銃の家系で一番早く出る器の shot（火縄銃）に差し替わる").toBe("charge");
+    const expected = { grenade: "lob", trapper: "mine", warRing: "boomerang" } as const;
+    for (const [moveset, feature] of Object.entries(expected)) {
+      setTrialWeapon(session, moveset as keyof typeof expected);
+      expect(bulletFeatures(currentBullet(state.stats)), `${moveset} の弾`).toContain(feature);
+      // 装備画面で作り直されても次のステップで戻る
+      applyStats(state, computeStats(state.profile.equipment));
+      idle(session, 1);
+      expect(bulletFeatures(currentBullet(state.stats)), `${moveset} の弾（作り直し後）`).toContain(feature);
+    }
+    setTrialWeapon(session, "greatsword");
+    expect(state.stats.bullet, "近接は装備の弾のまま").toBe(DEFAULT_BULLET);
     setTrialWeapon(session, null);
-    expect(state.stats.moveset).toBe("sword");
-    expect(state.stats.shot, "解除すると装備（剣なので既定値）の shot に戻る").toBe("single");
+    expect(state.stats.bullet, "装備の剣の弾に戻る").toBe(DEFAULT_BULLET);
   });
 
   it("装備画面を経由して applyStats が走っても試し中の武器種が保たれる", () => {
@@ -273,7 +281,7 @@ describe("武器掛け", () => {
     const loan = borrowWeapon(profile, "longarm", 0);
     expect(loan?.slot, "右手").toBe("mainHand");
     expect(computeStats(profile.equipment).moveset, "銃の家系になる").toBe("longarm");
-    expect(computeStats(profile.equipment).shot, "そのベースの射撃の型").toBe("charge");
+    expect(bulletFeatures(currentBullet(computeStats(profile.equipment))), "そのベースの弾（溜め撃ち）").toEqual(["charge"]);
   });
 
   it("borrowRackEntry は借りた武器種の「試す」を外し、stats を装備から作り直す", () => {

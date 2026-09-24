@@ -10,7 +10,6 @@ import {
   type RecallArtDef,
   type StrikeExtras,
   type ThrowArtDef,
-  SHOT_TYPES,
   matchBranch,
   releaseBranchIndex,
 } from "../data/weapons";
@@ -20,6 +19,7 @@ import { addFloatingText, spawnBurst } from "./effects";
 import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, playerMoveset, startArtBranch } from "./player";
 import { addPoise } from "./poise";
 import { onTraitCounter } from "./traitHooks";
+import { BULLETS } from "../loot/bullets";
 
 /**
  * 右クリックの固有技（docs/ideas/weapon-redesign.md 3 章）。strike の技は派生として player.ts の tryBranch が出すので、
@@ -246,11 +246,11 @@ function inFront(origin: Vec, facing: Vec, from: Vec, arcDeg: number): boolean {
 }
 
 /**
- * 弾を出す技（斧の投擲・杖の魔弾・乱れ撃ち）。弾の挙動は射撃の型を借り、威力・怯み値・弾数は技のもの。
- * 射撃扱い（射撃の性質・onRangedHit が乗る）
+ * 弾を出す技（斧の投擲・杖の魔弾・乱れ撃ち）。弾は技自身が持ち（ThrowArtDef.bullet）、威力・怯み値・弾数は技のもの。
+ * 射撃扱い（射撃の性質・onRangedHit が乗る）。出したら true
  */
 export function emitArtVolley(state: GameState, t: ThrowArtDef): boolean {
-  return emitVolley(state, SHOT_TYPES[t.shot], 0, undefined, {
+  return emitVolley(state, t.bullet, 0, undefined, {
     damage: scaled(state.stats, t.scaling),
     poise: withRatio(state.stats, t.poise, t.poiseRatio) * state.stats.poiseDamageMul,
     count: t.count,
@@ -286,10 +286,10 @@ export function recallShots(state: GameState, recall: RecallArtDef): number {
   return count;
 }
 
-function isGrounded(key: keyof typeof SHOT_TYPES | undefined): boolean {
+function isGrounded(key: string | undefined): boolean {
   if (key === undefined) return false;
-  const def = SHOT_TYPES[key];
-  return def.mine !== undefined || def.lob !== undefined;
+  const def = BULLETS[key];
+  return def !== undefined && (def.mine !== undefined || def.lob !== undefined);
 }
 
 /**
@@ -312,6 +312,6 @@ function applyStrikeExtras(state: GameState, extras: StrikeExtras): void {
 function detonateOwnMines(state: GameState): void {
   for (const pr of state.projectiles) {
     if (pr.owner !== "player" || pr.life <= 0 || pr.shot?.detonated) continue;
-    if (pr.shot && SHOT_TYPES[pr.shot.key].mine) pr.life = Math.min(pr.life, A.detonateLife);
+    if (pr.shot && BULLETS[pr.shot.key]?.mine) pr.life = Math.min(pr.life, A.detonateLife);
   }
 }

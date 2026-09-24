@@ -7,14 +7,15 @@ import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { FEEL, HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { MOVESETS, isGun, type MovesetKey, type ShotKey } from "../data/weapons";
+import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
+import { bulletOfBase } from "../loot/bullets";
 import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
 import { addToStash } from "../loot/profile";
 import { findPendingBud } from "../loot/provenance";
 import { computeStats } from "../loot/stats";
-import { DEFAULT_STATS, type Item, type Profile, type Slot, uniformAttributes } from "../loot/types";
+import { type Item, type Profile, type Slot, uniformAttributes } from "../loot/types";
 import { HUB_SPOT_KEYS, type HubLayout, type HubSpotKey, buildHubMap } from "../map/hubMap";
 import type { SkillProfile } from "../skills/types";
 import { createCodexRun } from "../meta/codex";
@@ -296,8 +297,7 @@ export type RackEntry = { kind: "moveset"; key: MovesetKey };
 
 /**
  * 試す武器種を差し替える（拠点を出ると state ごと捨てるので残らない）。null で装備のものに戻す。
- * 差し替えは変身と同じく stats の写しの moveset だけを替える。銃の家系を試すときはその家系の
- * 最速の器が持つ shot も差し替える（そうしないと元の装備の shot が左クリックの弾に残る）
+ * 差し替えは変身と同じく stats の写しの moveset と bullet だけを替える（銃は家系の一番早い器の弾。近接なら装備のまま）
  */
 export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null): void {
   const { state, hub } = session;
@@ -308,25 +308,21 @@ export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null):
   enforceTrialWeapon(session);
 }
 
-/** 銃の家系のうち一番早く出る器が持つ shot。その家系の器がどれも shot を指定していないなら既定値 */
-function earliestGunShot(moveset: MovesetKey): ShotKey {
-  const base = earliestBase("mainHand", (b) => b.moveset === moveset && b.shot !== undefined);
-  return base?.shot ?? DEFAULT_STATS.shot;
-}
-
 /** 装備画面などで applyStats が stats を作り直しても、試している型へ差し直す（stepHub が毎ステップ呼ぶ） */
 function enforceTrialWeapon(session: HubSession): void {
   const { state, hub } = session;
-  const moveset = hub.trialMoveset ?? state.stats.moveset;
-  if (state.stats.moveset === moveset) return;
+  const moveset = hub.trialMoveset;
+  if (moveset === null) return;
+  // 銃の家系は借りるときと同じ器（一番早く出るベース）の弾で撃つ（装備の武器の弾のままにしない）
+  const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
+  if (state.stats.moveset === moveset && state.stats.bullet === bullet) return;
   const prev = state.stats;
-  const shot = isGun(MOVESETS[moveset]) ? earliestGunShot(moveset) : prev.shot;
-  state.stats = { ...prev, moveset, shot };
+  state.stats = { ...prev, moveset, bullet };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }
 
-/** その武器種 / 射撃の型の器のうち、一番早く出る（minLevel が最小の）もの */
+/** その武器種 / 銃の弾の器のうち、一番早く出る（minLevel が最小の）もの */
 function earliestBase(slot: Slot, match: (b: BaseItemDef) => boolean): BaseItemDef | undefined {
   let best: BaseItemDef | undefined;
   for (const b of BASES) {

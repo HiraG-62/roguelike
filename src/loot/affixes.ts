@@ -2152,7 +2152,7 @@ export const AFFIXES: readonly AffixDef[] = [
     },
   }),
 
-  // ---- 武器種・射撃の型 ----
+  // ---- 武器種・銃の弾 ----
   trait({
     key: "chargeCore",
     color: "crimson",
@@ -4259,7 +4259,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));
     },
   },
-  // ---- 2026-09 第 2 弾のベース（武器種・射撃の型ごとに選べる器を増やす）----
+  // ---- 2026-09 第 2 弾のベース（武器種・銃の弾ごとに選べる器を増やす）----
   {
     key: "implicit.katana",
     label: "コンボ派生の命中の与ダメージ +{v}%",

@@ -1,6 +1,7 @@
 import { ELEMENTS, ELEMENT_LABEL } from "../core/element";
 import { HEAL, MANA, STATUS } from "../data/tuning";
-import { DEFAULT_MOVESET, DEFAULT_SHOT } from "../data/weapons";
+import { DEFAULT_MOVESET } from "../data/weapons";
+import { bulletOfBase } from "./bullets";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { baseDef } from "./bases";
 import {
@@ -252,11 +253,11 @@ export function computeStats(equipment: Equipment): PlayerStats {
   return finalize(stats);
 }
 
-/** 右手のベースが決める武器種と射撃の型（src/data/weapons.ts）。空きスロットや型を持たないベースは既定 */
+/** 右手のベースが決める武器種と弾（src/data/weapons.ts / src/loot/bullets.ts）。空きスロットや銃でないベースは既定 */
 function applyWeaponForms(stats: PlayerStats, equipment: Equipment): void {
   const base = equipment.mainHand ? baseDef(equipment.mainHand.baseKey) : undefined;
   stats.moveset = base?.moveset ?? DEFAULT_MOVESET;
-  stats.shot = base?.shot ?? DEFAULT_SHOT;
+  stats.bullet = bulletOfBase(base?.key);
 }
 
 // ---------------------------------------------------------------------------

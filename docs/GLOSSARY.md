@@ -244,14 +244,15 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 今のビルドと相性がよい | - | スキル石のツールチップ（旧「今のビルドと噛む」）。石の流れがビルドの枯れを潤す / 溢れを受けるときに出す。連携の先の石が装着済みなら「連携「渦雷」: 引力球 の直後に使う」 | `render/inventoryUi.ts` |
 | 連鎖の表示 | `state.chains` | HUD 右下（祝福アイコンの上）に「炎→爆 ×2」のように流れの字形で 3 秒出す。深さ 2 以上は大きい文字。長さは「3 段の連鎖」と数える | `render/chainUi.ts` |
 
-## 武器種・射撃の型（`docs/COMBAT_DESIGN.md` A-7）
+## 武器種・銃の弾（`docs/COMBAT_DESIGN.md` A-7）
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| 武器種 | moveset（`MovesetKey`） | 右手のベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向。銃の家系（短銃・長銃・砲・投擲・二丁拳銃）も武器種の一種で、この場合は左クリックが近接の連撃ではなく射撃になる | `data/weapons.ts` MOVESETS |
-| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 / 短銃 / 長銃 / 砲 / 投擲 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner / sidearm / longarm / cannon / thrown | 武器種の表示名（20 種）。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚・短銃・長銃・砲・投擲はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
-| 射撃の型 | shot（`ShotKey`） | 銃の家系の武器種（右手のベース）が決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
-| 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 / 三点 / 回転刃 / 曲射 | single / rapid / spread / pierce / homing / ricochet / charge / mine / burst / boomerang / lob | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
+| 武器種 | moveset（`MovesetKey`） | 右手のベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向。銃の家系も武器種の一種で、この場合は左クリックが近接の連撃ではなく射撃になる | `data/weapons.ts` MOVESETS |
+| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner | 武器種の表示名。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
+| 短銃 / 長銃 / 砲 / 投擲 / 擲弾 / 仕掛け / 戦輪 | sidearm / longarm / cannon / thrown / grenade / trapper / warRing | 銃の家系（左で撃つ武器種）の表示名。弾は銃のベースごとに持つ（擲弾 = 曲射、仕掛け = 設置弾、戦輪 = 回転刃・跳弾） | `data/weapons.ts` MOVESETS[].name |
+| 弾 | bullet（`BulletDef`、`PlayerStats.bullet` = ベースの key） | 銃のベースそれぞれが持つ弾の性能。共有の「射撃の型」は廃止（表示名はベース名） | `loot/bullets.ts` BULLETS |
+| 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / 溜め撃ち / 設置弾 / 三点 / 回転刃 / 曲射 | `BulletFeature`: rapid / spread / pierce / homing / ricochet / charge / mine / burst / boomerang / lob | 弾の性質（挙動のブロックを持つか）。祝福の出現条件・統一ルールの条件で使う。何も持たない弾は「まっすぐ飛ぶだけ」 | `data/weapons.ts` bulletFeatures |
 | 溜め攻撃 | attack.charging / chargeLevel | 溜めの役割のボタンの長押しで段を溜めて離す近接（大剣・戦鎚は左、刀は右）。刻印符の「溜め」（スキル用）とは別 |
 | 居合 | katana の charge | 刀の溜め攻撃（右の長押し。細く長い突き） | `system/player.ts` |
 | 穂先 / 先端 | tip（`TipDef`） | 突きの先の部分。槍は怯み値 ×2、鞭は先端だけ満額 | `data/weapons.ts` |
@@ -264,7 +265,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 近接 / 射撃 / 溜め（左クリックの役割） | PrimaryKind: melee / shot / charge | 武器種ごとの左クリックの役割。右クリックは全武器種共通で固有技 | `data/weapons.ts` |
 | 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |
 | 引き寄せ / 投げ | pull / throw | 大鎌の手前へのノックバック / 拳のダッシュ攻撃の背後へのノックバック | `system/player.ts` knockDirection |
-| 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・射撃の型の器になるベース（implicit なし） | `loot/bases.ts` |
+| 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・弾の器になるベース（implicit なし） | `loot/bases.ts` |
 | 脇差 / 太刀 / 手斧 / 戦斧 / 大盾 / 騎士盾 / 鎖鎌 / 分銅鎖 / 木槌 / 大槌 / 二丁拳銃 / 双回転式 / 大鉈 | wakizashi / tachi / handAxe / battleAxe / towerShield / kiteShield / kusarigama / weightedChain / mallet / maul / twinPistols / twinRevolvers / broadCleaver | 2026-09-24 に足した武器のベース（刀・斧・大盾・鎖鎌・戦鎚・二丁拳銃の器、大鉈は鉈の器） | `loot/bases.ts` |
 | 三連銃 / 三連弩 / 返し輪 / 飛刃 / 曲射筒 / 擲弾筒 | burstRifle / tripleCrossbow / returnChakram / flyingBlade / mortar / grenadeLauncher | 2026-09-24 に足した銃のベース（三点・回転刃・曲射の器） | `loot/bases.ts` |
 
@@ -286,7 +287,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 攻撃ジャンル | `AttackGenre`（range × quality） | 範囲軸と質軸の組み合わせ。表示は「近接・物理」 | `core/element.ts` genreLabel |
-| 近接 / 遠距離 / 範囲 | `AttackRange`: melee / ranged / area | 範囲軸。射撃の型・遠距離のスキルは「遠距離」（ボタンの役割の「射撃」とは別） | `core/element.ts` RANGE_LABEL |
+| 近接 / 遠距離 / 範囲 | `AttackRange`: melee / ranged / area | 範囲軸。銃の弾・遠距離のスキルは「遠距離」（ボタンの役割の「射撃」とは別） | `core/element.ts` RANGE_LABEL |
 | 物理 / 魔法 / 混成 | `AttackQuality`: physical / arcane / hybrid | 質軸。物理はアーマー（敵は防御）、魔法は魔防、混成は両方の平均で受ける | `core/element.ts` QUALITY_LABEL |
 | 属性 / 無属性 / 炎属性 / 氷属性 / 雷属性 / 毒属性 / 闇属性 / 光属性 | `Element`: none / fire / ice / lightning / poison / dark / light | 攻撃の属性。状態異常（燃焼・冷気…）とは別。表示は「炎属性」、耐性は「炎耐性」 | `core/element.ts` ELEMENT_LABEL |
 | 魔防 | `PlayerStats.warding` / 敵の `EnemyDefenseDef.warding` | 魔法の軽減。アーマーと同じ逓減式 | `loot/stats.ts`、`data/enemyDefense.ts` |
@@ -324,7 +325,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 結びの祝福名 | swallowReturn … waveReturn / oilBlast … weakChain | 燕渡り / 疫血 / 雷爆走 / 総崩れ / 饗宴の盃 / 臨界 / 虚刃 / 冬籠り / 明鏡 / 瞬停 / 波返し / 油火爆 / 氷上の舞 / 雷雨 / 地走り / 狩場の王 / 弱点連鎖 | 同上 |
 | 拡張の祝福名 | bulletSteal … fireWalk | 奪弾 / 口封じ / 睨み / 威圧 / 死神遊び / 起き上がり狙い / 属性の轍 / 呼び戻し / 狩り立て / 霜読み / 毒崩し / 看破 / 両輪 / 氷伝い / 試練の徒 / 片翼 / 見切り返し / 抜き胴 / 跳ね弾 / 炸裂弾頭 / 狙い目 / 燠火 / 神経断ち / 返り血 / 血裂き / 綻び広げ / 背討ち / 静寂の間 / 見逃さぬ / 崩し連鎖 / 立て直し狩り / 際打ち / 換金 / 取り返し / 傷の記憶 / 死神の影 / 時間稼ぎ / 死に急ぎ / 重荷 / 業の火 / 乾坤 / 余韻 / 伏兵返し / 見定め / 力の簒奪 / 綱渡り / 飛燕 / 詠唱返し / 満月撃ち / 持ち越し / 火渡り。状態異常「腐食」・スキル「跳弾」「燕返し」・状態異常「裂傷」と重ならないよう、祝福は 毒崩し / 跳ね弾 / 燕渡り / 血裂き にした | 同上 |
 | 第 2 弾の祝福名 | rockStance … drenched | 武器種: 岩の構え（大剣）/ 影分身（双剣）/ 穂先貫き（槍）/ 鎌の実り（大鎌）/ 連打の熱（拳）/ 鞭の脅し（鞭）/ 叩き割り（鉈）/ 棍の響き（棍）/ 杖の灯（杖）。射撃の型: 油の地雷 / 撃ち離れ / 毒蜂 / 礫雨。属性: 弱点突き / 耐性崩し / 油火斬り / 属性の奔流 / 闇喰らい / 光刺し / 水面の雷。地形: 氷滑り / 野焼き / 水走り / 凍て水。ジョブ: 得物の誉れ / 無名の誇り / 他流。部屋: 巣窟の主 / 群れ喰らい / 徘徊狩り / 迷い討ち / 旅慣れ / 口火。反応: 反応の余熱 / 蒸気隠れ。気力: 織り交ぜ / 満ち溢れ。呪い: 血染めの地 / 一念 / 焦がれ刃 / 狂い咲き / 野良の賞金 / 重き誓い / 濡れ鼠。刻印符「溢れ」・共鳴・分岐「刈り取り」「鞭鳴らし」と重ならないよう、満ち溢れ / 属性の奔流 / 鎌の実り / 鞭の脅し にした | `system/boonDefsWave2.ts` |
-| 武器種・射撃の型・ジョブの祝福 | `BoonDef.loadout` | その武器種（射撃の型・ジョブ）を今持っているときだけ 3 択に出る祝福。大剣を持たない者に大剣の祝福は出ない | `system/boonDefs.ts`、`system/boons.ts` loadoutMatches |
+| 武器種・弾の性質・ジョブの祝福 | `BoonDef.loadout` | その武器種（弾の性質・ジョブ）を今持っているときだけ 3 択に出る祝福。大剣を持たない者に大剣の祝福は出ない | `system/boonDefs.ts`、`system/boons.ts` loadoutMatches |
 | 地形（祝福のタグ） | `BoonTag` の `terrain` | 地形を踏む・撒く・広げる祝福のタグ。祝福が出すタグとして重みに乗る（装備からは出ない） | `system/boonDefs.ts` |
 | 足止め / 還流 / 雷鼓 / 奪弾 / 灰 | - | 祝福の浮き文字（死神遊び / 払った気力が戻る / 雷神の鼓 / 奪弾 / 灰を拾った） | `system/boonRules.ts` |
 | 再駆 / 溢れ / 狩場 / 巣窟の主 | - | 第 2 弾の祝福の浮き文字（ダッシュの回数が戻った / 満ち溢れで気力が戻った / 狩場の王 / 巣窟の主） | `system/rules.ts`、`system/boonRules.ts` |
@@ -383,7 +384,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 井戸 / 掲示板 / 鍛冶場 / 図書館 / 祭壇 / 訓練場 / 記録室 / 庭 | well / board / forge / library / altar / training / archive / garden（`FacilityKey`） | 拠点の設備。井戸 = ジョブ・起点・縛りの画面へ、掲示板 = 依頼の一覧、鍛冶場 = 残響、図書館 = スキル石、祭壇 = 誓約を試す（拠点を出ると消える）、訓練場 = 木人の区画、記録室 = 探索履歴・図鑑・実績の 3 台、庭 = 装備と芽。部屋の種類の「祭壇 / 図書館 / 鍛冶場」とは別物（拠点の中の名前） | `meta/hub.ts` FACILITY_NAME |
 | 〜が建った | `newlyBuilt` | 拠点の設備が新しく使えるようになったときのバナー。解放は既存の記録から導き、強さは変えない | `meta/hub.ts`、`render/hubUi.ts` |
 | 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。倒したボスの記念品、図鑑の埋まり具合で伸びる記録室の書架、名乗っている称号の看板 | `meta/hub.ts` |
-| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種（銃の家系を含む）を木人で試せる（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる | `system/hub.ts` setTrialWeapon / borrowRackEntry、`ui/hubFlow.ts` rackTabs |
+| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（銃は家系の一番早い器の弾で撃つ）（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる | `system/hub.ts` setTrialWeapon / borrowRackEntry、`ui/hubFlow.ts` rackTabs |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
 | 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される得意武器の素の器。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |

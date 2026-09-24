@@ -9,7 +9,8 @@ import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource, SkillTag } from "../skills/types";
 import type { JobKey } from "../data/jobs";
-import { MOVESETS, type MovesetKey, type ShotKey, usesProjectiles } from "../data/weapons";
+import { type BulletFeature, MOVESETS, type MovesetKey, bulletFeatures, usesProjectiles } from "../data/weapons";
+import { currentBullet } from "../loot/bullets";
 import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag } from "./boonDefs";
 import {
   type BoonRuleState,
@@ -173,10 +174,10 @@ export function boonGivenTags(boons: readonly BoonKey[]): Set<BoonTag> {
   return tags;
 }
 
-/** 今の武器種・射撃の型・ジョブ（BoonDef.loadout の照合に使う） */
+/** 今の武器種・弾の性質・ジョブ（BoonDef.loadout の照合に使う） */
 export interface LoadoutNow {
   moveset: MovesetKey;
-  shot: ShotKey;
+  bullet: readonly BulletFeature[];
   job: JobKey;
 }
 
@@ -195,14 +196,14 @@ export function buildTags(state: GameState): BuildTags {
   // スキル石由来の ranged（遠距離スキル石）は後で足すので、ここで消しても残らないようにする
   if (!usesProjectiles(MOVESETS[base.moveset])) owned.delete("ranged");
   for (const t of skillStoneTags(state)) owned.add(t);
-  return { owned, gives: boonGivenTags(state.boons), loadout: { moveset: base.moveset, shot: base.shot, job: state.job } };
+  return { owned, gives: boonGivenTags(state.boons), loadout: { moveset: base.moveset, bullet: bulletFeatures(currentBullet(base)), job: state.job } };
 }
 
-/** loadout の列を持つなら、今の武器種・射撃の型・ジョブがその列に入っているか。now が無ければ（テストの直接呼び出し）通す */
+/** loadout の列を持つなら、今の武器種・弾の性質・ジョブがその列に入っているか。now が無ければ（テストの直接呼び出し）通す */
 export function loadoutMatches(want: BoonLoadout | undefined, now: LoadoutNow | undefined): boolean {
   if (want === undefined || now === undefined) return true;
   if (want.movesets && !want.movesets.includes(now.moveset)) return false;
-  if (want.shots && !want.shots.includes(now.shot)) return false;
+  if (want.bullets && !want.bullets.some((f) => now.bullet.includes(f))) return false;
   if (want.jobs && !want.jobs.includes(now.job)) return false;
   return true;
 }

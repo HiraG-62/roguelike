@@ -59,7 +59,8 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
 import { EFFECTS } from "../data/tuning";
-import { type HitShape, MOVESETS, SHOT_TYPES, lobHeight } from "../data/weapons";
+import { type HitShape, MOVESETS, lobHeight } from "../data/weapons";
+import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
   type SwingPhase,
@@ -1844,7 +1845,7 @@ export class Renderer {
   /** 曲射の弾の見かけの高さ（px）。曲射以外は 0 */
   private lobLift(pr: Projectile): number {
     const runtime = pr.shot;
-    const peak = runtime ? SHOT_TYPES[runtime.key].lob?.peak : undefined;
+    const peak = runtime ? BULLETS[runtime.key]?.lob?.peak : undefined;
     if (!runtime || peak === undefined) return 0;
     return lobHeight(runtime, pr.life, peak);
   }
@@ -2171,7 +2172,7 @@ export class Renderer {
   private drawChargePips(state: GameState, p: Player, level: number): void {
     const levels = p.attack.charging
       ? (MOVESETS[state.stats.moveset].charge?.levels.length ?? 0)
-      : (SHOT_TYPES[state.stats.shot].charge?.levels.length ?? 0);
+      : (currentBullet(state.stats).charge?.levels.length ?? 0);
     if (levels <= 0) return;
     const { ctx } = this;
     const left = p.body.pos.x - ((levels - 1) * CHARGE_PIP_GAP) / 2;

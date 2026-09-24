@@ -1,5 +1,5 @@
 /**
- * 祝福の第 2 弾（データのみ）。Wave 2〜3 で入った仕組み（地形・新しい状態異常・反応・武器種・射撃の型・属性・ジョブ・
+ * 祝福の第 2 弾（データのみ）。Wave 2〜3 で入った仕組み（地形・新しい状態異常・反応・武器種・銃の弾・属性・ジョブ・
  * 交戦中・巣窟・徘徊・分岐路）を前提にした祝福。効果は可能な限り統一ルール文法（BoonDef.rules）で書き、
  * フックが要るもの（巣窟の主・狩場の王・織り交ぜ・一念・満ち溢れ）だけ system/boonRules.ts に置く。
  * boonDefs.ts が BOON_KEYS / BOONS に混ぜる（ここは型だけを boonDefs.ts から読む。実行時の循環を作らない）
@@ -36,7 +36,7 @@ export const BOON_KEYS_WAVE2 = [
   "cleaverSplit",
   "staffRing",
   "wandLamp",
-  // ---- 射撃の型 ----
+  // ---- 銃の弾 ----
   "oilMine",
   "chargeRecoil",
   "venomBee",
@@ -469,7 +469,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   },
 
   // ---------------------------------------------------------------------------
-  // 射撃の型（その型を持っているときだけ 3 択に出る）
+  // 銃の弾（その型を持っているときだけ 3 択に出る）
   // ---------------------------------------------------------------------------
   oilMine: {
     key: "oilMine",
@@ -481,11 +481,11 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
     gives: ["terrain"],
     keywords: kw(["placed"], ["ranged"], ["burn"]),
     cursed: false,
-    loadout: { shots: ["mine"] },
+    loadout: { bullets: ["mine"] },
     rules: rulesOf("oilMine", [
       {
         when: "onRangedHit",
-        if: [{ kind: "shot", shots: ["mine"] }],
+        if: [{ kind: "bullet", has: ["mine"] }],
         then: { kind: "placeTerrain", terrain: "oil", magnitude: 0, radius: BOON.oilMineRadius, duration: BOON.oilMineTime },
         icd: BOON.oilMineIcd,
       },
@@ -500,9 +500,9 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
     tags: ["ranged", "dash"],
     keywords: kw(["dash"], ["ranged", "still"]),
     cursed: false,
-    loadout: { shots: ["charge"] },
+    loadout: { bullets: ["charge"] },
     rules: rulesOf("chargeRecoil", [
-      { when: "onRangedHit", if: [{ kind: "shot", shots: ["charge"] }], then: { kind: "refillDash", magnitude: 0, count: 1 }, icd: BOON.chargeRecoilIcd },
+      { when: "onRangedHit", if: [{ kind: "bullet", has: ["charge"] }], then: { kind: "refillDash", magnitude: 0, count: 1 }, icd: BOON.chargeRecoilIcd },
     ]),
   },
   venomBee: {
@@ -515,9 +515,9 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
     gives: ["poison"],
     keywords: kw(["poison"], ["ranged"]),
     cursed: false,
-    loadout: { shots: ["homing"] },
+    loadout: { bullets: ["homing"] },
     rules: rulesOf("venomBee", [
-      { when: "onRangedHit", if: [{ kind: "shot", shots: ["homing"] }], then: { kind: "inflict", status: "poison", magnitude: BOON.venomBeePoison } },
+      { when: "onRangedHit", if: [{ kind: "bullet", has: ["homing"] }], then: { kind: "inflict", status: "poison", magnitude: BOON.venomBeePoison } },
     ]),
   },
   pebbleRain: {
@@ -530,9 +530,9 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
     gives: ["stagger"],
     keywords: kw(["stagger"], ["ranged", "bullet"]),
     cursed: false,
-    loadout: { shots: ["spread"] },
+    loadout: { bullets: ["spread"] },
     rules: rulesOf("pebbleRain", [
-      { when: "onRangedHit", if: [{ kind: "shot", shots: ["spread"] }], then: { kind: "addPoise", magnitude: BOON.pebbleRainPoise } },
+      { when: "onRangedHit", if: [{ kind: "bullet", has: ["spread"] }], then: { kind: "addPoise", magnitude: BOON.pebbleRainPoise } },
     ]),
   },
 

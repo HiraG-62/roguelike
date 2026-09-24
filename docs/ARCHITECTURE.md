@@ -81,7 +81,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 | `render/` | Canvas 描画。state を読むだけ | すべて（読み取りのみ） |
 | `ui/` | 画面ロジック・設定・リプレイ保存 | core / loot / skills、system/player（applyStats） |
 | `audio/` | Web Audio 合成。ロジックからは名前だけ参照される。効果音は `sfx.ts`（個別定義）+ `sfxLayers.ts`（層の表、`layers.ts` が鳴らす）。音楽は `music.ts`（曲の表・`pickTrack` / `musicCue` の純関数・`MusicPlayer`。AudioContext は SfxPlayer と共有） | core/state の型（`FloorKind`）、data/tuning の `MUSIC` |
-| `data/` | tuning（手触り定数）、敵定義、武器種・射撃の型（`weapons.ts`）、スプライトのピクセルマップ | なし |
+| `data/` | tuning（手触り定数）、敵定義、武器種と弾の型定義（`weapons.ts`。弾そのものは `loot/bullets.ts`）、スプライトのピクセルマップ | なし |
 | `meta/` | 図鑑・依頼・実績の定義と永続化。`runRecord.ts` が state から数え上げるだけで、ゲーム進行には効かない | core / loot / system（読むだけ） |
 | `qa/` | ヘッドレス bot・シミュレーション・report.md | すべて |
 
