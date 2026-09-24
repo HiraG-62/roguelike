@@ -9,6 +9,7 @@ import { inversionChance } from "../loot/flux";
 import { TILE_SIZE, inBounds, rectCenterPx, rectContainsPx, toIndex } from "../map/grid";
 import { biomeShape, isInvertedDepth } from "./biomes";
 import { BOONS, applyBoonsToStats, offerBoons } from "./boons";
+import { coreKeepsCurses } from "./boonCores";
 import { damageEnemy, damagePlayer, healPlayer, healSustained } from "./combat";
 import { type Infusion, gainShards, grantCurse, removeBoon } from "./contractors";
 import { addFloatingText, shake, spawnBurst } from "./effects";
@@ -893,7 +894,7 @@ function answerCurseVoice(state: GameState, current: ActiveRunEvent): void {
   const best = Math.max(current.memo, state.combo.count);
   if (best >= RUN_EVENT.curseVoiceCombo) {
     const cursed = state.boons.filter((k) => BOONS[k].cursed);
-    if (cursed.length > 0) removeBoon(state, state.rng.pick(cursed));
+    if (cursed.length > 0 && !coreKeepsCurses(state)) removeBoon(state, state.rng.pick(cursed));
     pushLog(state, "呪詛に応えた。呪いが 1 つ解けた。", RUN_EVENT.activeColor);
     return;
   }
@@ -1121,7 +1122,8 @@ function releaseBats(state: GameState, index: number): void {
  * 3 択が開かなかった（深度 1・候補切れ）ときは手放した祝福を元の位置へ戻す（引き直しにならず失うだけになるのを防ぐ）
  */
 function rerollBoon(state: GameState): void {
-  const pool = state.boons.filter((k) => !BOONS[k].cursed);
+  // 芯は手放させない（1 ランに 1 つ。引き直しで失うと方向性ごと消える）
+  const pool = state.boons.filter((k) => !BOONS[k].cursed && BOONS[k].core !== true);
   const before = state.boonChoice;
   const key = pool.length > 0 ? state.rng.pick(pool) : null;
   const at = key ? state.boons.indexOf(key) : -1;

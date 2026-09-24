@@ -1,6 +1,6 @@
 import type { EventSource } from "../core/events";
 import type { Rng } from "../core/rng";
-import type { RuleEffect } from "../core/rules";
+import type { RuleEffect, RuleEffectKind } from "../core/rules";
 import type { GameState } from "../core/state";
 import { BOON } from "../data/tuning";
 import type { BoonDef, BoonKey } from "./boonDefs";
@@ -102,8 +102,14 @@ export function ruleOwnerGrade(state: GameState, owner: Readonly<EventSource>): 
   return grades[owner.key] ?? GRADE_MIN;
 }
 
-/** 半径を持つ効果の半径だけを格で広げた写し（元の定義は書き換えない）。並・半径なしならそのまま返す */
+/** 無敵時間を与える効果（回避の無敵・被弾の無敵・長い加護）。秒は duration ?? magnitude で読まれる */
+const INVULN_EFFECTS: ReadonlySet<RuleEffectKind> = new Set<RuleEffectKind>(["iframes", "invuln", "ward"]);
+
+/** 半径を持つ効果の半径だけを格で広げた写し（元の定義は書き換えない）。並・半径なしならそのまま返す。無敵時間の効果は秒を固定する */
 export function gradedEffect(effect: Readonly<RuleEffect>, grade: BoonGrade): Readonly<RuleEffect> {
-  if (grade === GRADE_MIN || effect.radius === undefined) return effect;
+  if (grade === GRADE_MIN) return effect;
+  // 無敵の秒は格で伸ばさない（×2.2 で常時無敵に近づく）。秒を duration に固定し、効果量の倍率が秒へ流れないようにする
+  if (INVULN_EFFECTS.has(effect.kind)) return { ...effect, duration: effect.duration ?? effect.magnitude };
+  if (effect.radius === undefined) return effect;
   return { ...effect, radius: effect.radius * gradeRadiusMul(grade) };
 }

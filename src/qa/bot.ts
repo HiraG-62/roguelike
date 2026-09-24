@@ -11,7 +11,7 @@ import { lineOfSight } from "../map/pathing";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { playerMoveset } from "../system/player";
 import { type MovesetDef, isGun } from "../data/weapons";
-import { BOONS, type BoonKey } from "../system/boons";
+import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
@@ -168,10 +168,26 @@ export function createBotState(seed: number): BotState {
   };
 }
 
-/** 呪い付き (cursed) でない最初の候補の index。無ければ 1 枚目 (index 0) */
-function pickBoonIndex(options: readonly BoonKey[]): number {
-  const index = options.findIndex((key) => !BOONS[key].cursed);
-  return index >= 0 ? index : 0;
+/** bot が押せる札の数（skill1 / skill2 / attack の 3 つ。bot は呪いを受けないので 4 枚目は出ない） */
+const BOT_PICKABLE_CARDS = 3;
+
+/**
+ * 呪い付き (cursed) でない候補のうち格が最も高い札の index（同じ格なら前の札）。
+ * 呪い付きしか無ければ 1 枚目 (index 0)。格の効き（QA の格の分布・到達深度の差）を見るため高い格を取る
+ */
+export function pickBoonIndex(choice: Readonly<BoonChoice>): number {
+  let best = -1;
+  let bestGrade = 0;
+  const count = Math.min(choice.options.length, BOT_PICKABLE_CARDS);
+  for (let i = 0; i < count; i++) {
+    const key = choice.options[i];
+    if (key === undefined || BOONS[key].cursed) continue;
+    const grade = choiceGrade(choice, i);
+    if (grade <= bestGrade) continue;
+    best = i;
+    bestGrade = grade;
+  }
+  return best >= 0 ? best : 0;
 }
 
 /**
@@ -180,14 +196,14 @@ function pickBoonIndex(options: readonly BoonKey[]): number {
  * 提示直後 0.35 秒は inputDelay でどのみち入力が無視されるが、指示通り
  * `state.boonChoice.timer`（提示からの経過秒。ゲーム本体が管理）が
  * BOON_CHOICE_WAIT（0.5 秒）に達するまでは何も押さずに待つ。
- * 待った後は呪い付き (cursed) でない候補を優先して選ぶ（無ければ 1 枚目）
+ * 待った後は呪い付き (cursed) でない候補のうち格の最も高い札を選ぶ（無ければ 1 枚目）
  */
 function boonChoiceInput(state: GameState): FrameInput {
   const input = freshInput();
   const choice = state.boonChoice;
   if (!choice || choice.options.length === 0) return input;
   if (choice.timer < BOON_CHOICE_WAIT) return input;
-  const index = pickBoonIndex(choice.options);
+  const index = pickBoonIndex(choice);
   if (index === 0) input.skill1Pressed = true;
   else if (index === 1) input.skill2Pressed = true;
   else input.attackPressed = true;

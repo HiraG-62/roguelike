@@ -10,6 +10,7 @@ import { type PlayerStats, TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { grantAttributePoints } from "../ui/attributeAlloc";
 import { BOONS, BOON_KEYS, type BoonKey, applyBoonsToStats, grantBoon, hasBoon, offerBoons } from "./boons";
+import { coreKeepsCurses } from "./boonCores";
 import { bossKeyForDepth, isBossDepth } from "./boss";
 import { healPlayer } from "./combat";
 import { addFloatingText, spawnBurst } from "./effects";
@@ -561,6 +562,8 @@ function signPact(state: GameState, key: PactKey, color: string): void {
 }
 
 function cursedBoons(state: GameState): BoonKey[] {
+  // 呪い喰い（芯）の間は呪い付きを手放せない（解呪の対象が無い扱い）
+  if (coreKeepsCurses(state)) return [];
   return state.boons.filter((k) => BOONS[k].cursed);
 }
 

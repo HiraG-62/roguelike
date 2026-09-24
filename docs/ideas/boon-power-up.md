@@ -151,7 +151,7 @@
 | `tailwind` | 追い風 | 通常 | 撃破ごとに 3 秒、移動速度 +20% | - | Rule `onKill → speedBuff 20 duration 3` |
 | `woundReply` | 疵の返礼 | 通常 | 被弾すると自分の周りに衝撃波（1 段目の 80%） | - | Rule `onHurt → shockwave radius 40` |
 | `eliteHunt` | 精鋭狩り | 通常 | 精鋭への命中で脆弱 3 秒 | - | Rule `onMeleeHit / onRangedHit × targetElite → inflict vulnerable`、`gives: ["vulnerable"]` |
-| `shadowStitch` | 影縫い | 通常 | 恐怖中の敵を倒すと半径 48 の敵に恐怖 1 秒 | - | Rule `onKill × targetHas fear → nearbyEnemies status fear`、`requires: "fear"` |
+| `shadowStitch` | 怯え伝い（旧案「影縫い」はジョブの派生名と重なるため改名） | 通常 | 恐怖中の敵を倒すと半径 48 の敵に恐怖 1 秒 | - | Rule `onKill × targetHas fear → nearbyEnemies status fear`、`requires: "fear"` |
 | `iceStep` | 氷の足跡 | 通常 | ダッシュの終点に氷床（5 秒） | - | Rule `onDashEnd → placeTerrain ice radius 14 duration 5`、`gives: ["terrain", "chill"]`（氷滑り・氷上の舞と噛む） |
 | `counterBlast` | 逆撃 | 通常 | カウンターヒットで爆発（1 段目の 70%） | - | Rule `onCounter → explode radius 28` |
 

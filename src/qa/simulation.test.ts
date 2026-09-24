@@ -36,6 +36,9 @@ import { terrainAt, smokeAt } from "../system/terrain";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
+import * as boonsModule from "../system/boons";
+import * as specialRoomsModule from "../system/specialRooms";
+import { BOON_GRADES, BOON_GRADE_LABEL, type BoonGrade, boonGradeOf, isGraded } from "../system/boonGrade";
 import { overlapsWall } from "../system/physics";
 
 /**
@@ -392,6 +395,132 @@ vi.spyOn(statusEffectsModule, "applyStatus").mockImplementation((...args: Parame
 });
 
 // ---------------------------------------------------------------------------
+// 祝福の芯・格・取得機会（docs/ideas/boon-power-up.md 5 節）
+// ---------------------------------------------------------------------------
+
+/** 3 択の提示の出どころ。闘技場と鏡は同じ「部屋の制圧の報酬」なのでまとめる */
+const BOON_OFFER_SOURCES = ["stairs", "challenge", "arenaMirror", "curseShrine", "contract", "other"] as const;
+type BoonOfferSource = (typeof BOON_OFFER_SOURCES)[number];
+const BOON_OFFER_SOURCE_LABEL: Readonly<Record<BoonOfferSource, string>> = {
+  stairs: "階段",
+  challenge: "試練の部屋",
+  arenaMirror: "闘技場・鏡",
+  curseShrine: "呪いの祠",
+  contract: "契約",
+  other: "その他（流れ星・試練の徒など）",
+};
+/** 提示した札の格を見る深度帯（設計の目安: 2〜3 で神威 ≦ 5%、6 以上で大祝福 + 神威 ≧ 50%） */
+const GRADE_BANDS = ["2-3", "4-5", "6+"] as const;
+type GradeBand = (typeof GRADE_BANDS)[number];
+const GRADE_BAND_MID_MIN = 4;
+const GRADE_BAND_DEEP_MIN = 6;
+
+function gradeBandOf(depth: number): GradeBand {
+  if (depth >= GRADE_BAND_DEEP_MIN) return "6+";
+  if (depth >= GRADE_BAND_MID_MIN) return "4-5";
+  return "2-3";
+}
+
+function emptyGradeCounts(): Record<BoonGrade, number> {
+  return { 1: 0, 2: 0, 3: 0 };
+}
+
+interface BoonMetrics {
+  /** 開いた 3 択の数（出どころ別） */
+  offers: Record<BoonOfferSource, number>;
+  /** 提示した札のうち格の対象の札の格（深度帯別） */
+  offeredGrades: Record<GradeBand, Record<BoonGrade, number>>;
+  /** 取得した祝福の数（芯・呪い付きを含む全部） */
+  taken: number;
+  /** 取得した祝福のうち芯でないもの */
+  takenNonCore: number;
+  /** 取得した呪い付き（呪いの祠・呪いの 4 択・契約など） */
+  takenCursed: number;
+  /** 取得した格の対象の祝福の格 */
+  takenGrades: Record<BoonGrade, number>;
+  /** 取得した芯（無ければ null） */
+  core: boonsModule.BoonKey | null;
+}
+
+function emptyBoonMetrics(): BoonMetrics {
+  return {
+    offers: { stairs: 0, challenge: 0, arenaMirror: 0, curseShrine: 0, contract: 0, other: 0 },
+    offeredGrades: { "2-3": emptyGradeCounts(), "4-5": emptyGradeCounts(), "6+": emptyGradeCounts() },
+    taken: 0,
+    takenNonCore: 0,
+    takenCursed: 0,
+    takenGrades: emptyGradeCounts(),
+    core: null,
+  };
+}
+
+/** 上と同じく runOnce がループの間だけ差し替える */
+let activeBoonMetrics: BoonMetrics | null = null;
+/** clearSpecialRoom の最中の部屋の種類（offerBoons のスパイが出どころの判定に読む） */
+let clearingRoomKind: string | null = null;
+
+const originalClearSpecialRoom = specialRoomsModule.clearSpecialRoom;
+vi.spyOn(specialRoomsModule, "clearSpecialRoom").mockImplementation((...args: Parameters<typeof originalClearSpecialRoom>) => {
+  clearingRoomKind = args[1].kind;
+  try {
+    originalClearSpecialRoom(...args);
+  } finally {
+    clearingRoomKind = null;
+  }
+});
+
+/**
+ * 呼び出し元の関数名で出どころを分ける（system 側に計測用の引数を足さないため。QA だけの手段）。
+ * 部屋の制圧は clearSpecialRoom のスパイが立てた部屋の種類で分ける
+ */
+function offerSourceOf(stack: string): BoonOfferSource {
+  if (clearingRoomKind === "challenge") return "challenge";
+  if (clearingRoomKind === "arena" || clearingRoomKind === "mirror") return "arenaMirror";
+  if (stack.includes("checkStairs")) return "stairs";
+  if (stack.includes("useCurseShrine")) return "curseShrine";
+  if (stack.includes("payOwedBoons")) return "contract";
+  return "other";
+}
+
+const originalOfferBoons = boonsModule.offerBoons;
+vi.spyOn(boonsModule, "offerBoons").mockImplementation((...args: Parameters<typeof originalOfferBoons>) => {
+  const [state] = args;
+  const before = state.boonChoice;
+  originalOfferBoons(...args);
+  const b = activeBoonMetrics;
+  const c = state.boonChoice;
+  if (!b || !c || c === before) return;
+  b.offers[offerSourceOf(new Error().stack ?? "")]++;
+  const band = b.offeredGrades[gradeBandOf(state.depth)];
+  c.options.forEach((key, i) => {
+    const def = boonsModule.boonDef(key);
+    if (def.core === true || !isGraded(def)) return;
+    band[boonsModule.choiceGrade(c, i)]++;
+  });
+});
+
+/** 前ステップから増えた祝福を数える（流れ星で手放して取り直した祝福も取得として数える） */
+function recordTakenBoons(state: GameState, prev: ReadonlySet<boonsModule.BoonKey>, b: BoonMetrics): void {
+  for (const key of state.boons) {
+    if (prev.has(key)) continue;
+    const def = boonsModule.boonDef(key);
+    b.taken++;
+    if (def.cursed) b.takenCursed++;
+    if (def.core === true) {
+      b.core = key;
+      continue;
+    }
+    b.takenNonCore++;
+    if (isGraded(def)) b.takenGrades[boonGradeOf(state, key)]++;
+  }
+}
+
+/** 取得した格の最高（格の対象を 1 つも取っていなければ 0） */
+function maxTakenGrade(b: BoonMetrics): number {
+  return [...BOON_GRADES].reverse().find((g) => b.takenGrades[g] > 0) ?? 0;
+}
+
+// ---------------------------------------------------------------------------
 // 1 回のランを実行して指標を集める
 // ---------------------------------------------------------------------------
 
@@ -452,6 +581,8 @@ interface RunMetrics {
   eliteSpawnCounts: Partial<Record<EliteKind, number>>;
   /** SYNERGY.maxEventsPerStep / maxPendingEvents で捨てられたイベントが増えた回数（＝上限到達したステップ数） */
   synergyEventCapHits: number;
+  /** 祝福の芯・格・取得機会（docs/ideas/boon-power-up.md 5 節） */
+  boon: BoonMetrics;
 }
 
 /** 同時に strike 中の敵数。total はボス込み、nonBoss は strikeSlotsFull（system/enemies.ts）と同じくボスを除く */
@@ -579,6 +710,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     smokeEnterCount: 0,
     eliteSpawnCounts: {},
     synergyEventCapHits: 0,
+    boon: emptyBoonMetrics(),
   };
 
   let depthEnterTime = state.time;
@@ -598,6 +730,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   activeSkillMetrics = metrics.skill;
   activeDropMetrics = metrics.drop;
   activeGenreMetrics = metrics.genre;
+  activeBoonMetrics = metrics.boon;
+  let prevBoons = new Set(state.boons);
 
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
@@ -657,6 +791,10 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       seenEliteIds.add(e.id);
       metrics.eliteSpawnCounts[e.elite] = (metrics.eliteSpawnCounts[e.elite] ?? 0) + 1;
       if (e.eliteExtra) metrics.eliteSpawnCounts[e.eliteExtra] = (metrics.eliteSpawnCounts[e.eliteExtra] ?? 0) + 1;
+    }
+    if (state.boons.length !== prevBoons.size || state.boons.some((k) => !prevBoons.has(k))) {
+      recordTakenBoons(state, prevBoons, metrics.boon);
+      prevBoons = new Set(state.boons);
     }
     if (state.ruleRun.droppedEvents !== prevDroppedEvents) {
       metrics.synergyEventCapHits++;
@@ -724,6 +862,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   activeSkillMetrics = null;
   activeDropMetrics = null;
   activeGenreMetrics = null;
+  activeBoonMetrics = null;
   return metrics;
 }
 
@@ -740,10 +879,12 @@ describe("QA simulation (縮小版スモーク)", () => {
   it(
     `${FAST_SEED_COUNT} seed × ${FAST_MAX_STEPS} ステップで例外・NaN・壁めり込み・id重複が無い`,
     () => {
+      const all: RunMetrics[] = [];
       for (let i = 0; i < FAST_SEED_COUNT; i++) {
         const seed = 10_000 + i;
         const profileKind = PROFILE_KINDS[i % PROFILE_KINDS.length]!;
         const metrics = runOnce(seed, profileKind, FAST_MAX_STEPS);
+        all.push(metrics);
 
         expect(
           metrics.exceptions,
@@ -752,7 +893,10 @@ describe("QA simulation (縮小版スモーク)", () => {
         expect(metrics.nanDetected, `seed=${seed} profile=${profileKind} で NaN 混入`).toBe(false);
         expect(metrics.wallOverlapDetected, `seed=${seed} profile=${profileKind} で敵が壁にめり込んだ`).toBe(false);
         expect(metrics.duplicateFloorItemId, `seed=${seed} profile=${profileKind} で floorItems の id が重複した`).toBe(false);
+        expect(metrics.boon.takenNonCore, `seed=${seed} 芯を除く取得数は全体以下`).toBeLessThanOrEqual(metrics.boon.taken);
       }
+      // 祝福の計測だけを見たいとき（QA_DEBUG=1）に縮小版でも表を出す
+      if (process.env.QA_DEBUG) console.log(buildBoonMetricsSection(all).join("\n"));
     },
     30_000,
   );
@@ -995,6 +1139,7 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   lines.push(...buildSkillMetricsSection(allMetrics));
   lines.push(...buildGenreMetricsSection(allMetrics));
   lines.push(...buildObservationGapsSection(allMetrics));
+  lines.push(...buildBoonMetricsSection(allMetrics));
 
   lines.push("## バランス所見");
   lines.push("");
@@ -1176,6 +1321,95 @@ function buildObservationGapsSection(allMetrics: readonly RunMetrics[]): string[
   return lines;
 }
 
+function gradeRow(label: string, counts: Readonly<Record<BoonGrade, number>>): string {
+  const total = BOON_GRADES.reduce((s, g) => s + counts[g], 0);
+  const cells = BOON_GRADES.map((g) => `${counts[g]} (${percent(counts[g], total)})`);
+  return `| ${label} | ${cells.join(" | ")} | ${percent(counts[2] + counts[3], total)} |`;
+}
+
+/** 格の見出し（並は表示語を持たないのでここでだけ「並」と書く） */
+function gradeHeader(): string {
+  return BOON_GRADES.map((g) => (BOON_GRADE_LABEL[g] === "" ? "並" : BOON_GRADE_LABEL[g])).join(" | ");
+}
+
+/** 祝福の芯・格・取得機会（docs/ideas/boon-power-up.md 5 節）。bot は呪いでない札のうち格の最も高い札を取る */
+function buildBoonMetricsSection(allMetrics: readonly RunMetrics[]): string[] {
+  const lines: string[] = [];
+  const runs = Math.max(1, allMetrics.length);
+  const avgOf = (pick: (m: RunMetrics) => number): string => (allMetrics.reduce((s, m) => s + pick(m), 0) / runs).toFixed(2);
+  lines.push("## 祝福（芯・格・取得機会）");
+  lines.push("");
+  lines.push(
+    `ランあたりの取得数: 全体 ${avgOf((m) => m.boon.taken)} / 芯を除く ${avgOf((m) => m.boon.takenNonCore)} / うち呪い付き ${avgOf((m) => m.boon.takenCursed)}`,
+  );
+  lines.push("");
+
+  lines.push("### 3 択の提示回数（出どころ別）");
+  lines.push("");
+  lines.push("| 出どころ | 合計 | ランあたり |");
+  lines.push("| --- | --- | --- |");
+  for (const src of BOON_OFFER_SOURCES) {
+    const total = allMetrics.reduce((s, m) => s + m.boon.offers[src], 0);
+    lines.push(`| ${BOON_OFFER_SOURCE_LABEL[src]} | ${total} | ${(total / runs).toFixed(2)} |`);
+  }
+  lines.push("");
+
+  lines.push("### 提示した札の格（格の対象の札だけ、深度帯別）");
+  lines.push("");
+  lines.push(`| 深度 | ${gradeHeader()} | 大祝福 + 神威 |`);
+  lines.push("| --- | --- | --- | --- | --- |");
+  for (const band of GRADE_BANDS) {
+    const counts = emptyGradeCounts();
+    for (const m of allMetrics) for (const g of BOON_GRADES) counts[g] += m.boon.offeredGrades[band][g];
+    lines.push(gradeRow(band, counts));
+  }
+  lines.push("");
+
+  lines.push("### 取得した祝福の格（格の対象だけ）");
+  lines.push("");
+  lines.push(`| | ${gradeHeader()} | 大祝福 + 神威 |`);
+  lines.push("| --- | --- | --- | --- | --- |");
+  const taken = emptyGradeCounts();
+  for (const m of allMetrics) for (const g of BOON_GRADES) taken[g] += m.boon.takenGrades[g];
+  lines.push(gradeRow("取得", taken));
+  lines.push("");
+
+  lines.push("### 芯の取得回数");
+  lines.push("");
+  const cores = boonsModule.BOON_KEYS.filter((k) => boonsModule.BOONS[k].core === true);
+  if (cores.length === 0) {
+    lines.push("芯の祝福が定義されていない。");
+  } else {
+    lines.push("| 芯 | 取得回数 |");
+    lines.push("| --- | --- |");
+    for (const k of cores) lines.push(`| ${boonsModule.BOONS[k].name} (${k}) | ${allMetrics.filter((m) => m.boon.core === k).length} |`);
+    const zero = cores.filter((k) => allMetrics.every((m) => m.boon.core !== k));
+    lines.push("");
+    lines.push(`芯を取ったラン: ${allMetrics.filter((m) => m.boon.core !== null).length} / ${allMetrics.length}。0 回の芯: ${zero.length === 0 ? "無し" : zero.join("、")}`);
+  }
+  lines.push("");
+
+  lines.push("### 格 2 以上を取ったランと並だけのラン");
+  lines.push("");
+  lines.push("| 区分 | run 数 | 平均到達深度 | 平均 kills |");
+  lines.push("| --- | --- | --- | --- |");
+  const groups: [string, RunMetrics[]][] = [
+    ["大祝福・神威を 1 つ以上", allMetrics.filter((m) => maxTakenGrade(m.boon) >= 2)],
+    ["並だけ（格の対象を取った）", allMetrics.filter((m) => maxTakenGrade(m.boon) === 1)],
+    ["格の対象なし", allMetrics.filter((m) => maxTakenGrade(m.boon) === 0)],
+  ];
+  for (const [label, group] of groups) {
+    const n = group.length;
+    const depth = n > 0 ? average(group.map((m) => m.maxDepth)).toFixed(2) : "-";
+    const kills = n > 0 ? average(group.map((m) => m.kills)).toFixed(1) : "-";
+    lines.push(`| ${label} | ${n} | ${depth} | ${kills} |`);
+  }
+  lines.push("");
+  lines.push("到達深度が深いほど格の抽選回数も格の確率も増えるので、この比較は因果ではなく相関（目安）。");
+  lines.push("");
+  return lines;
+}
+
 function buildBalanceNotes(allMetrics: readonly RunMetrics[]): string {
   const notes: string[] = [];
   const deaths = allMetrics.filter((m) => m.died && m.deathDepth !== null);
@@ -1284,6 +1518,33 @@ describe("QA 計測: 同時攻撃数の切り分け", () => {
     expect(nonBossLine, "上限いっぱいは超過 0 件").toContain("上限超過 run: 0 件");
     expect(totalLine, "総数の行も出る").toContain(`最大 ${cap + 1}`);
     expect(strikerReportLines([atCap, over])[0], "非ボスが上限を超えた run だけを挙げる").toContain("上限超過 run: 1 件（seed/profile: 2/");
+  });
+});
+
+describe("QA 計測: 祝福の芯・格・取得機会", () => {
+  it("提示した札の格は深度帯 2〜3 / 4〜5 / 6 以上に分けて数える", () => {
+    expect(gradeBandOf(2), "深度 2").toBe("2-3");
+    expect(gradeBandOf(3), "深度 3").toBe("2-3");
+    expect(gradeBandOf(5), "深度 5").toBe("4-5");
+    expect(gradeBandOf(6), "深度 6").toBe("6+");
+  });
+
+  it("増えた祝福だけを取得として数え、格の対象は格ごとに数える", () => {
+    const state = createGame(1);
+    const graded = boonsModule.BOON_KEYS.find((k) => isGraded(boonsModule.BOONS[k]) && boonsModule.BOONS[k].core !== true);
+    const cursed = boonsModule.BOON_KEYS.find((k) => boonsModule.BOONS[k].cursed === true);
+    if (!graded || !cursed) throw new Error("祝福が足りない");
+    const b = emptyBoonMetrics();
+    const prev = new Set(state.boons);
+    state.boons = [...state.boons, graded, cursed];
+    state.boonRun.grades[graded] = 3;
+    recordTakenBoons(state, prev, b);
+    expect(b.taken, "2 つ増えた").toBe(2);
+    expect(b.takenCursed, "呪い付き 1 つ").toBe(1);
+    expect(b.takenGrades[3], "神威 1 つ").toBe(1);
+    expect(maxTakenGrade(b), "最高の格").toBe(3);
+    recordTakenBoons(state, new Set(state.boons), b);
+    expect(b.taken, "増えていなければ数えない").toBe(2);
   });
 });
 

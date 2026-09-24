@@ -315,7 +315,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 祝福 | boon | 階層到達時の 3 択。ルール変更が中心 | `system/boons.ts` |
 | 呪い付き | cursed | 強い効果 + 代償の祝福 | 同上 |
 | 気力系の祝福 | springWell / bloodMana / reaperCup / keenBreath / circulation / hollowVessel | 湧水 / 血の対価 / 屠りの盃 / 見切りの息 / 循環 / 虚ろの器。気力の回復・軽減のルールを変える（tag `mana`）。「血の代償」は祝福 clearHeal と刻印符で既に使っているので bloodMana は「血の対価」 | `system/boons.ts` |
-| 祝福のレア度 | common / rare / epic | 通常 / 希少 / 極稀 | `render/boonUi.ts` |
+| 祝福のレア度 | common / rare / epic | （表示しない。抽選の重みだけ。強さの表示は格〔大祝福 / 神威〕、芯は「芯 ・ 探索に 1 つ」） | `system/boons.ts` |
 | 系譜 | `BoonDef.lineage` / `after` | 同じ主から出る 4 段の祝福。前段を持つと次段が 3 択に出る。1 回の 3 択に同じ系譜は 1 枚まで。カードに「灰燼 2段」のように出す | `system/boonDefs.ts`、`render/boonUi.ts` |
 | 系譜名 | ash / frost / thunder / moon / earth / blade | 灰燼 / 霜枷 / 雷鳴 / 月蝕 / 大地 / 刃鳴（`LINEAGE_LABEL`） | `system/boonDefs.ts` |
 | 奥義 | 系譜の 4 段目 | 3 段目に加えて装備（またはスキル石）のタグを要求する最終段。焦土 / 永冬 / 雷神の鼓 / 月蝕 / 大地の怒り / 百刃 | 同上 |
@@ -328,6 +328,9 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 第 2 弾の祝福名 | rockStance … drenched | 武器種: 岩の構え（大剣）/ 影分身（双剣）/ 穂先貫き（槍）/ 鎌の実り（大鎌）/ 連打の熱（拳）/ 鞭の脅し（鞭）/ 叩き割り（鉈）/ 棍の響き（棍）/ 杖の灯（杖）。射撃の型: 油の地雷 / 撃ち離れ / 毒蜂 / 礫雨。属性: 弱点突き / 耐性崩し / 油火斬り / 属性の奔流 / 闇喰らい / 光刺し / 水面の雷。地形: 氷滑り / 野焼き / 水走り / 凍て水。ジョブ: 得物の誉れ / 無名の誇り / 他流。部屋: 巣窟の主 / 群れ喰らい / 徘徊狩り / 迷い討ち / 旅慣れ / 口火。反応: 反応の余熱 / 蒸気隠れ。気力: 織り交ぜ / 満ち溢れ。呪い: 血染めの地 / 一念 / 焦がれ刃 / 狂い咲き / 野良の賞金 / 重き誓い / 濡れ鼠。刻印符「溢れ」・共鳴・分岐「刈り取り」「鞭鳴らし」と重ならないよう、満ち溢れ / 属性の奔流 / 鎌の実り / 鞭の脅し にした | `system/boonDefsWave2.ts` |
 | 武器種・弾の性質・ジョブの祝福 | `BoonDef.loadout` | その武器種（弾の性質・ジョブ）を今持っているときだけ 3 択に出る祝福。大剣を持たない者に大剣の祝福は出ない | `system/boonDefs.ts`、`system/boons.ts` loadoutMatches |
 | 地形（祝福のタグ） | `BoonTag` の `terrain` | 地形を踏む・撒く・広げる祝福のタグ。祝福が出すタグとして重みに乗る（装備からは出ない） | `system/boonDefs.ts` |
+| 芯 | `BoonDef.core` | 1 回の探索に 1 つだけ持てる大型の祝福。深度 2 の最初の提示が芯だけの 3 択になる。遊び方を変える効果と代償を持ち、芯とタグが重なる祝福が以後出やすい。性質名の「溜めの芯」「散弾の芯」とは別 | `system/boonDefsWave3.ts`、`system/boonCores.ts` |
+| 大祝福 / 神威 | `BoonGrade` の 2 / 3 | 祝福の格。提示ごとに札 1 枚ずつ抽選し、効果量 ×1.5 / ×2.2（半径も広がり、神威は発動の間隔も縮む）。無敵時間は伸びない。並（格 1）は語を出さない。深いほど出やすい | `system/boonGrade.ts` BOON_GRADE_LABEL |
+| 第 3 弾の祝福名 | coreGlassHeart … counterBlast | 芯: 硝子の心 / 呪い喰い / 拍の刻 / 血の巡り / 満ち潮の器 / 逃げ水 / 鉄の巨人 / 病み喰い。通常: 火柱 / 雷落とし / 血脈 / 猛り / 追い風 / 疵の返礼 / 精鋭狩り / 怯え伝い / 氷の足跡 / 逆撃。月蝕の系譜「満ち潮」・ジョブの派生「影縫い」と重ならないよう、満ち潮の器 / 怯え伝い にした | `system/boonDefsWave3.ts` |
 | 足止め / 還流 / 雷鼓 / 奪弾 / 灰 | - | 祝福の浮き文字（死神遊び / 払った気力が戻る / 雷神の鼓 / 奪弾 / 灰を拾った） | `system/boonRules.ts` |
 | 再駆 / 溢れ / 狩場 / 巣窟の主 | - | 第 2 弾の祝福の浮き文字（ダッシュの回数が戻った / 満ち溢れで気力が戻った / 狩場の王 / 巣窟の主） | `system/rules.ts`、`system/boonRules.ts` |
 | 返却 | refundCharge | 刻印符「連鎖」でキルした時にチャージを 1 戻す時のフローティングテキスト | `skills/hit.ts` |

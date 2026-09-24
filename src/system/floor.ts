@@ -23,6 +23,7 @@ import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spa
 import { createEnemy } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { heartsAllowed } from "./keystones";
+import { coreBlocksHearts } from "./boonCores";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
@@ -768,7 +769,7 @@ function updatePickups(state: GameState, dt: number): void {
   for (const pk of state.pickups) {
     pk.bobTime += dt;
     // ks_vampire: ハートは触れても消えない
-    if (!heartsAllowed(state)) continue;
+    if (!heartsAllowed(state) || coreBlocksHearts(state)) continue;
     if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, p.pos.x, p.pos.y, p.radius)) continue;
     healPlayer(state, ROOM.heartHeal);
     onBoonHeartPickup(state);

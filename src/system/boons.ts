@@ -13,6 +13,7 @@ import { type BulletFeature, MOVESETS, type MovesetKey, bulletFeatures, usesProj
 import { currentBullet } from "../loot/bullets";
 import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag } from "./boonDefs";
 import { BOON_GRADE_LABEL, type BoonGrade, clampGrade, isGraded, rollGrade } from "./boonGrade";
+import { coreCursedForced, coreGradeShift, foldCoreStats } from "./boonCores";
 import {
   type BoonRuleState,
   boonRuleAttackManaMul,
@@ -329,7 +330,7 @@ export function rollBoonOptions(state: GameState): BoonKey[] {
     picks.push(picked);
     return picked;
   };
-  const wantCursed = state.rng.chance(BOON.cursedChance);
+  const wantCursed = state.rng.chance(BOON.cursedChance) || coreCursedForced(state);
   if (wantCursed) take(cursed);
   while (picks.length < BOON.choiceCount) {
     if (!take(normal) && !take(cursed)) break;
@@ -362,9 +363,9 @@ function wantsCore(state: GameState): boolean {
   return state.depth === BOON.coreDepth && ownedCoreDef(state.boons) === null;
 }
 
-/** 格の確率への加算（芯の呪い喰いなど。Lane B の coreGradeShift をここへ差す） */
-function gradeShift(_state: GameState): number {
-  return 0;
+/** 格の確率への加算（芯の呪い喰い。boonCores.ts） */
+function gradeShift(state: GameState): number {
+  return coreGradeShift(state);
 }
 
 /** 札 1 枚の格。格の対象でない札（呪い付き・効果量を持たない祝福・芯）は並 */
@@ -627,6 +628,7 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   }
   // 係数（実効値）を組み替える。派生（HP・移動など）は元のステータスで決まっているので触らない
   if (boons.includes("swapHands") || boons.includes("lopsided")) out.attributesEff = foldAttributeBoons(out.attributesEff, boons);
+  Object.assign(out, foldCoreStats(out, boons));
   // 最終段で下限を掛ける。0 だと capManaCost がコストを 0 に切り詰めて撃ち放題になる
   out.maxMana = Math.max(MANA.maxMin, out.maxMana);
   return out;

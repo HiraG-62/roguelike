@@ -33,6 +33,7 @@
 - 抽選: 4-1（出すタグ `gives`。装備タグの半分の重み）/ 4-2（スキル石のタグ・資源・付ける状態異常）/ 4-3（系譜の次段 ×2、同じ系譜は 1 枚まで）/ 4-5（呪いを受けて 4 択）を実装。結びは ×3、1 枚まで
 - 奥義の `requires` は装備とスキル石のタグだけを見る（祝福が出すタグでは満たせない）
 - 表の各行の「（実装済み）」が実装したもの。表示名を変えたものは注記に書いた
+- 第 3 弾（2026-09-25）: 180 種 → 198 種（芯 8 + 格を活かす 10。`boonDefsWave3.ts`）。格と芯の設計は `docs/ideas/boon-power-up.md`
 - 第 2 弾（2026-09-24）: 122 種 → 180 種（+58。系譜 2 × 4 段 = 8、結び 6、単体 44、うち呪い付き 7）。定義は `src/system/boonDefsWave2.ts`。Wave 2〜3 の仕組み（地形・反応・新しい状態異常・武器種・射撃の型・属性・ジョブ・交戦中・巣窟・徘徊・分岐路）を前提にし、効果は統一ルール文法（`BoonDef.rules`）で書いた。フックが要るのは 巣窟の主 / 狩場の王 / 織り交ぜ / 一念 / 満ち溢れ の 5 つだけ。下の「第 2 弾」節に一覧
 - 第 2 弾で文法（`src/core/rules.ts`）に足したもの: 条件 `not` / `moveset` / `shot` / `swingStep` / `chargedSwing` / `charging` / `branchSwing` / `job` / `favoredWeapon` / `selfOnTerrain` / `targetOnTerrain` / `targetAffinity` / `attackElement` / `engagedIn` / `targetRoamer` / `floorKind`。効果 `placeTerrain` / `igniteTerrain` / `spreadTerrain` / `selfStatus` / `strike` / `wave` / `refillDash`。第 2 弾の Rule は ICD が `BOON.ruleMinIcd` 以上で、語ごとの回数上限（`SYNERGY.keywordBudget`）も掛かる
 - 第 2 弾の抽選: `BoonDef.loadout`（武器種・射撃の型・ジョブ）を満たさない祝福は 3 択に出ない

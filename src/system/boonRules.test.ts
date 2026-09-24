@@ -26,6 +26,7 @@ import {
   comboAfterHurt,
   createBoonRunState,
   foldBoonStats,
+  grantBoon,
   onBoonBurstKills,
   onBoonComboHit,
   onBoonCrit,
@@ -41,6 +42,7 @@ import {
   onBoonSkillCast,
   onBoonSkillHit,
   onBoonSwing,
+  rollBoonOptions,
   updateBoons,
 } from "./boons";
 import {
@@ -69,7 +71,15 @@ import { reaperAppearAfter } from "./reaper";
 import { ROAMING_ROOM } from "./spawner";
 import { resolveRules } from "./rules";
 import { applyBurn, applyStatus, findStatus, hasStatus, removeStatus, statusStacks } from "./statusEffects";
-import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
+import { arena, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
+import { step } from "../core/game";
+import { KEYWORDS } from "../core/keywords";
+import { FIXED_DT } from "../core/loop";
+import type { RuleEffect } from "../core/rules";
+import { BOON_KEYS_WAVE3 } from "./boonDefsWave3";
+import { coreGradeShift, coreKeepsCurses, ownedCore } from "./boonCores";
+import { gradeMagnitudeMul, gradedEffect } from "./boonGrade";
+import { terrainAt } from "./terrain";
 
 const BIG_HP = 100000;
 const LAST = PLAYER.melee.length - 1;
@@ -1631,5 +1641,260 @@ describe("移行 第 2 弾の起点: 本体の経路でイベントが積まれ�
     const ev = state.events.find((x) => x.kind === "onKill");
     expect(ev?.targetElite, "精鋭の写し").toBe(true);
     expect(ev?.targetStatus?.find((s) => s.kind === "vulnerable")?.time, "残り秒の写し").toBeCloseTo(2);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 第 3 弾: 芯 8 種と格を活かす祝福 10 種（docs/ideas/boon-power-up.md 3-4 / Lane B）
+// -----------------------------------------------------------------------------
+
+/** ソフトキャップ（loot/stats.ts）なら頭打ちになる大きさの倍率。祝福はその後に掛かるのでそのまま伸びる */
+const OVER_CAP_MUL = 5;
+const BASE_MAX_HP = 100;
+const SEEDS = 30;
+
+function fold(keys: BoonKey[], over: Partial<typeof DEFAULT_STATS> = {}): typeof DEFAULT_STATS {
+  return foldBoonStats({ ...DEFAULT_STATS, ...over }, keys, createBoonRunState());
+}
+
+/** 近接・射撃の命中のイベント（damageEnemy の pushHitEvents と同じ形） */
+function hitEvent(state: GameState, e: Enemy, kind: "onMeleeHit" | "onRangedHit"): void {
+  dropEvents(state);
+  pushEvent(state, { kind, actor: "player", source: { kind: "player", key: kind }, ...enemyTarget(e) });
+  resolveRules(state, 0);
+}
+
+describe("芯の祝福（第 3 弾）", () => {
+  it("芯 8 種は core で格を持たず、ownedCore が持っている芯を返す", () => {
+    const cores = BOON_KEYS_WAVE3.filter((k) => BOONS[k].core === true);
+    expect(cores.length, "芯は 8 種").toBe(8);
+    for (const k of cores) expect(BOONS[k].graded, `${k} は格を持たない`).toBe(false);
+    const state = arena();
+    expect(ownedCore(state), "持っていなければ null").toBeNull();
+    give(state, "coreMirage");
+    expect(ownedCore(state)?.key).toBe("coreMirage");
+  });
+
+  it("硝子の心は近接・射撃・スキルの倍率を ×1.5 にし最大生命を半分にする（ソフトキャップの後に掛かる）", () => {
+    const over = { meleeDamageMul: OVER_CAP_MUL, rangedDamageMul: OVER_CAP_MUL, skillDamageMul: OVER_CAP_MUL, maxHp: BASE_MAX_HP };
+    const out = fold(["coreGlassHeart"], over);
+    expect(out.meleeDamageMul, "近接").toBeCloseTo(OVER_CAP_MUL * BOON.glassHeartDamageMul);
+    expect(out.rangedDamageMul, "射撃").toBeCloseTo(OVER_CAP_MUL * BOON.glassHeartDamageMul);
+    expect(out.skillDamageMul, "スキル").toBeCloseTo(OVER_CAP_MUL * BOON.glassHeartDamageMul);
+    expect(out.maxHp, "最大生命").toBe(Math.round(BASE_MAX_HP * BOON.glassHeartHpMul));
+  });
+
+  it("拍の刻はコンボ段ごとの倍率を上書きし、被弾でコンボが 0 になる", () => {
+    const out = fold(["coreTempo"], { comboDamagePerStack: 0.5, comboDamageCap: 3 });
+    expect(out.comboDamagePerStack, "段ごとの倍率").toBe(BOON.tempoPerStack);
+    expect(out.comboDamageCap, "上限").toBe(BOON.tempoCap);
+    expect(FEEL.comboWindow + out.comboWindowBonus, "猶予").toBeCloseTo(FEEL.comboWindow * BOON.tempoWindowMul);
+    // 堅実な手（半分残る）を持っていても 0 になる
+    const state = arena();
+    give(state, "coreTempo", "comboKeeper");
+    state.combo.count = 12;
+    hurtBy(state, dummy(state));
+    expect(state.combo.count, "被弾でコンボが 0").toBe(0);
+  });
+
+  it("血の巡りはハートを拾えず自然回復が 0", () => {
+    const out = fold(["coreBloodLoop"], { hpRegen: 2, lifeOnHit: 1 });
+    expect(out.hpRegen, "自然回復").toBe(0);
+    expect(out.lifeOnHit, "命中の回収").toBe(1 + BOON.bloodLoopLifeOnHit);
+    const state = arena();
+    give(state, "coreBloodLoop");
+    state.player.hp = 1;
+    state.pickups.push({ id: allocId(state), kind: "heart", pos: { ...state.player.body.pos }, radius: 6, bobTime: 0 });
+    step(state, withInput({}), FIXED_DT);
+    expect(state.pickups.some((pk) => pk.kind === "heart"), "ハートは残る").toBe(true);
+    expect(state.player.hp, "回復しない").toBe(1);
+  });
+
+  it("満ち潮の器は最大気力 ×2 で自然回復 0", () => {
+    const out = fold(["coreManaTide"], { maxMana: 50, manaRegen: 3, manaGainMul: 1 });
+    expect(out.maxMana, "最大気力").toBe(50 * BOON.manaTideMaxMul);
+    expect(out.manaGainMul, "回収").toBe(BOON.manaTideGainMul);
+    expect(out.manaRegen, "自然回復").toBe(0);
+  });
+
+  it("逃げ水はダッシュの終わりに爆発する", () => {
+    const out = fold(["coreMirage"]);
+    expect(out.dashCharges, "ダッシュ回数").toBe(DEFAULT_STATS.dashCharges + BOON.mirageCharges);
+    expect(out.moveSpeedMul, "移動").toBeCloseTo(BOON.mirageMoveMul);
+    const state = arena();
+    give(state, "coreMirage");
+    const e = dummy(state, 10);
+    dashEnded(state);
+    expect(e.hp, "爆発に巻き込まれる").toBeLessThan(BIG_HP);
+  });
+
+  it("鉄の巨人は怯み値 ×2 で攻撃速度が落ちる", () => {
+    const out = fold(["coreIronGiant"], { maxHp: BASE_MAX_HP });
+    expect(out.poiseDamageMul, "怯み値").toBe(BOON.ironGiantPoiseMul);
+    expect(out.knockbackMul, "ノックバック").toBe(BOON.ironGiantKnockbackMul);
+    expect(out.attackSpeedMul, "攻撃速度").toBeCloseTo(BOON.ironGiantAttackSpeedMul);
+    expect(out.maxHp, "最大生命").toBe(Math.round(BASE_MAX_HP * BOON.ironGiantHpMul));
+  });
+
+  it("病み喰いは状態異常 2 種の敵への攻撃が必ず会心になる", () => {
+    const state = arena();
+    const e = dummy(state);
+    put(state, e, "burn");
+    give(state, "corePlagueEater");
+    expect(boonForcesCrit(state, e, "melee"), "1 種では会心にならない").toBe(false);
+    put(state, e, "poison");
+    expect(boonForcesCrit(state, e, "melee"), "2 種で会心").toBe(true);
+    expect(boonForcesCrit(state, e, "ranged"), "射撃も会心").toBe(true);
+    expect(boonForcesCrit(state, e, "proc"), "追撃は対象外").toBe(false);
+    expect(fold(["corePlagueEater"]).statusPotencyMul, "状態異常の強さ").toBeCloseTo(BOON.plagueEaterPotencyMul);
+  });
+
+  it("呪い喰いは 3 択に必ず呪い付きが 1 枚混ざる", () => {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = arena(seed);
+      give(state, "coreCurseEater");
+      const options = rollBoonOptions(state);
+      expect(options.some((k) => BOONS[k].cursed), `seed ${seed} に呪い付き`).toBe(true);
+    }
+    const state = arena();
+    give(state, "coreCurseEater");
+    expect(coreGradeShift(state), "呪い付きが無ければ加算なし").toBe(0);
+    give(state, "glassJust");
+    expect(coreGradeShift(state), "呪い付き 1 つ").toBeCloseTo(BOON.curseEaterGradeShiftPerCurse);
+    give(state, "deathRush", "triggerHappy", "bloodFeast");
+    expect(coreGradeShift(state), "上限で止まる").toBeCloseTo(BOON.curseEaterMaxShift);
+    expect(coreKeepsCurses(state), "呪い付きを手放せない").toBe(true);
+  });
+});
+
+describe("格を活かす祝福（第 3 弾）", () => {
+  it("火柱は燃焼中の敵の撃破でだけ爆発する", () => {
+    const state = arena();
+    give(state, "firePillar");
+    const plain = dummy(state, 20);
+    const near = dummy(state, 30);
+    killed(state, plain);
+    expect(near.hp, "燃焼していない敵では起きない").toBe(BIG_HP);
+    const burning = dummy(state, 20, 10);
+    put(state, burning, "burn");
+    killed(state, burning);
+    expect(near.hp, "燃焼中の敵の撃破で爆発").toBeLessThan(BIG_HP);
+  });
+
+  it("雷落としは回避の見切りでだけ連鎖雷を出す（受け流しのスキルでは出ない）", () => {
+    const state = arena();
+    give(state, "boltDrop");
+    const e = dummy(state, 20);
+    dropEvents(state);
+    pushPlayerEvent(state, "onJustDodge", "just", { source: { kind: "skill", key: "parry" } });
+    resolveRules(state, 0);
+    expect(e.hp, "受け流しでは出ない").toBe(BIG_HP);
+    justDodged(state);
+    expect(e.hp, "回避の見切りで雷").toBeLessThan(BIG_HP);
+  });
+
+  it("血脈は出血中の敵への会心で出血が広がる", () => {
+    const state = arena();
+    give(state, "bloodVein");
+    const target = dummy(state, 20);
+    const near = dummy(state, 40);
+    critHit(state, target, 10);
+    expect(hasStatus(near.status, "bleed"), "出血が無ければ広がらない").toBe(false);
+    put(state, target, "bleed");
+    critHit(state, target, 10);
+    expect(hasStatus(near.status, "bleed"), "出血が広がる").toBe(true);
+  });
+
+  it("猛りは交戦開始から 6 秒だけ与ダメが上がる", () => {
+    const state = arena();
+    give(state, "surgeOfBattle");
+    roomLocked(state, 0);
+    const buff = state.player.buffs.damage;
+    expect(buff.mul, "与ダメ").toBeCloseTo(1 + BOON.surgeDamagePct / 100);
+    expect(buff.time, "持続").toBeCloseTo(BOON.surgeTime);
+  });
+
+  it("精鋭狩りは精鋭にだけ脆弱を付ける", () => {
+    const state = arena();
+    give(state, "eliteHunt");
+    const normal = dummy(state, 20);
+    const elite = dummy(state, 20, 30);
+    elite.elite = "hasted";
+    hitEvent(state, normal, "onMeleeHit");
+    expect(hasStatus(normal.status, "vulnerable"), "通常の敵には付かない").toBe(false);
+    hitEvent(state, elite, "onRangedHit");
+    expect(hasStatus(elite.status, "vulnerable"), "精鋭に脆弱").toBe(true);
+  });
+
+  it("影縫い（怯え伝い）は恐怖中の敵の撃破で周囲に恐怖", () => {
+    const state = arena();
+    give(state, "shadowStitch");
+    const near = dummy(state, 40);
+    killed(state, dummy(state, 20));
+    expect(hasStatus(near.status, "fear"), "恐怖していない敵では起きない").toBe(false);
+    const feared = dummy(state, 20, 10);
+    put(state, feared, "fear");
+    killed(state, feared);
+    expect(hasStatus(near.status, "fear"), "周囲に恐怖").toBe(true);
+  });
+
+  it("氷の足跡はダッシュの終点に氷床を置く", () => {
+    const state = arena();
+    give(state, "iceStep");
+    const p = state.player.body.pos;
+    dashEnded(state);
+    expect(terrainAt(state, p.x, p.y)).toBe("ice");
+  });
+
+  it("逆撃はカウンターヒットで爆発する", () => {
+    const state = arena();
+    give(state, "counterBlast");
+    const target = dummy(state, 20);
+    const near = dummy(state, 35);
+    swing(state, 0, target);
+    meleeHit(state, target);
+    expect(near.hp, "カウンターでなければ起きない").toBe(BIG_HP);
+    meleeHit(state, target, true);
+    expect(near.hp, "カウンターで爆発").toBeLessThan(BIG_HP);
+  });
+
+  it("格を読むフック型 10 種は大祝福で倍率が 1.5 倍になる（奪弾の弾ダメージで確認）", () => {
+    const stolen = (grade: 1 | 2): number => {
+      const state = arena();
+      grantBoon(state, "bulletSteal", grade);
+      const pr = bullet(state, { owner: "enemy", kind: "proc", pos: { x: state.player.body.pos.x + 20, y: state.player.body.pos.y } });
+      state.projectiles.push(pr);
+      justDodged(state);
+      return pr.damage;
+    };
+    expect(stolen(2) / stolen(1), "大祝福は ×1.5").toBeCloseTo(gradeMagnitudeMul(2));
+    for (const k of ["passCut", "elementTrail", "thunderMark", "bulletSteal", "swallowReturn", "quietHall", "ricochet", "intimidate"] as const) {
+      expect(BOONS[k].graded, `${k} は格を読む`).toBe(true);
+    }
+  });
+
+  it("無敵時間の効果は格で伸びない（半径・効果量は伸びる）", () => {
+    const iframes: RuleEffect = { kind: "iframes", magnitude: 0, duration: 1 };
+    expect(gradedEffect(iframes, 3).duration, "秒はそのまま").toBe(1);
+    const invuln: RuleEffect = { kind: "invuln", magnitude: 1 };
+    expect(gradedEffect(invuln, 3).duration, "magnitude の秒を duration に固定する").toBe(1);
+    const blast: RuleEffect = { kind: "explode", magnitude: 1, radius: 10 };
+    expect(gradedEffect(blast, 3).radius, "半径は伸びる").toBeGreaterThan(10);
+  });
+
+  it("新しい 18 種の tags / keywords / requires が語彙の範囲に収まる（既存の網羅テストへ追加）", () => {
+    expect(BOON_KEYS_WAVE3.length, "第 3 弾は 18 種").toBe(18);
+    const older = BOON_KEYS.filter((k) => !(BOON_KEYS_WAVE3 as readonly string[]).includes(k));
+    const knownTags = new Set(older.flatMap((k) => [...BOONS[k].tags, ...(BOONS[k].gives ?? [])]));
+    const words = new Set<string>(KEYWORDS);
+    for (const k of BOON_KEYS_WAVE3) {
+      const d = BOONS[k];
+      for (const t of [...d.tags, ...(d.gives ?? [])]) expect(knownTags.has(t), `${k} のタグ ${t}`).toBe(true);
+      if (d.requires) expect(knownTags.has(d.requires), `${k} の requires`).toBe(true);
+      const kws = [...d.keywords.produces, ...d.keywords.consumes, ...d.keywords.amplifies];
+      expect(kws.length, `${k} の keywords`).toBeGreaterThan(0);
+      for (const w of kws) expect(words.has(w), `${k} の語 ${w}`).toBe(true);
+      for (const r of d.rules ?? []) expect(r.icd, `${r.id} の ICD`).toBeGreaterThanOrEqual(BOON.ruleMinIcd);
+    }
   });
 });

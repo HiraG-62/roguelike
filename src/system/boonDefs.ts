@@ -22,6 +22,7 @@ const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
  */
 const PROJECTILE_LOADOUT: BoonLoadout = { movesets: [...GUN_MOVESETS, "wand", "axe"] };
 import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
+import { BOONS_WAVE3, BOON_KEYS_WAVE3 } from "./boonDefsWave3";
 
 export const BOON_KEYS = [
   "finisherOnly",
@@ -154,6 +155,8 @@ export const BOON_KEYS = [
   "waveReturn",
   // ---- 第 2 弾（src/system/boonDefsWave2.ts） ----
   ...BOON_KEYS_WAVE2,
+  // ---- 第 3 弾: 芯と格を活かす祝福（src/system/boonDefsWave3.ts） ----
+  ...BOON_KEYS_WAVE3,
 ] as const;
 
 export type BoonKey = (typeof BOON_KEYS)[number];
@@ -1063,6 +1066,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   thunderMark: {
     key: "thunderMark",
+    graded: true,
     name: "落雷予告",
     desc: "麻痺した敵の足元に予告の円が出て、1秒後に雷が落ちる。",
     icon: "落",
@@ -1145,6 +1149,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   // ---------------------------------------------------------------------------
   bulletSteal: {
     key: "bulletSteal",
+    graded: true,
     name: "奪弾",
     desc: "見切りの瞬間、周囲の敵弾を自分の弾に変えて照準の方向へ撃ち出す。",
     icon: "奪",
@@ -1182,6 +1187,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   intimidate: {
     key: "intimidate",
+    graded: true,
     name: "威圧",
     desc: "近接の3段目で敵を倒すと、周囲の敵を恐怖させる。",
     icon: "威",
@@ -1228,6 +1234,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   elementTrail: {
     key: "elementTrail",
+    graded: true,
     name: "属性の轍",
     desc: "ダッシュの軌跡に帯が残る。帯は装備で最も強い元素（燃焼・冷気・感電）を付ける。",
     icon: "轍",
@@ -1352,6 +1359,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   passCut: {
     key: "passCut",
+    graded: true,
     name: "抜き胴",
     desc: "ダッシュですり抜けた敵すべてを斬る。",
     icon: "胴",
@@ -1362,6 +1370,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   ricochet: {
     key: "ricochet",
+    graded: true,
     name: "跳ね弾",
     desc: "自分の弾が壁で1回跳ね返る。跳ねた弾は威力+30%。",
     icon: "跳",
@@ -1472,6 +1481,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   quietHall: {
     key: "quietHall",
+    graded: true,
     name: "静寂の間",
     desc: "沈黙中の敵が近くにいる間、スキルの気力コストが-30%になる。",
     icon: "寂",
@@ -1747,6 +1757,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   // ---------------------------------------------------------------------------
   swallowReturn: {
     key: "swallowReturn",
+    graded: true,
     name: "燕渡り",
     desc: "見切りで消した敵弾の数だけ、近い敵を最大5体まで次々に斬る。",
     icon: "燕",
@@ -1912,4 +1923,5 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     duo: ["comboWave", "finisherWave"],
   },
   ...BOONS_WAVE2,
+  ...BOONS_WAVE3,
 };
