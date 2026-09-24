@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import type { EnemyPhase, GameState, GameStatus } from "../core/state";
+import type { Enemy, EnemyPhase, GameState, GameStatus } from "../core/state";
 import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
 import { createRng, type Rng } from "../core/rng";
-import { enemyDef, isBossClass } from "../data/enemies";
+import { ENEMIES, enemyDef, isBossClass } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
 import {
   createEmptyProfile,
@@ -24,6 +24,8 @@ import { generateItem, makeItemId, MAX_FOUND_TRAITS, rollBase, rollImplicit, rol
 import { fluxClassOf } from "../loot/flux";
 import { nameItem } from "../loot/names";
 import { chooseBud } from "../system/loot";
+import { isBossDriven } from "../system/boss";
+import { createEnemy } from "../system/enemies";
 import { ROAMING_ROOM } from "../system/spawner";
 import * as combat from "../system/combat";
 import * as statusEffectsModule from "../system/statusEffects";
@@ -432,8 +434,25 @@ interface RunMetrics {
   drop: DropMetrics;
   /** 攻撃ジャンル・属性・防御の効き（A-8） */
   genre: GenreMetrics;
-  /** ラン中に同時に phase === "strike" だった敵数の最大（ENEMY_AI.maxSimultaneousStrikers の上限確認） */
+  /** ラン中に同時に phase === "strike" だった敵数の最大（ボス込みの総数。参考値） */
   maxConcurrentStrikers: number;
+  /**
+   * 上と同じだがボス（isBossDriven）を除いた数の最大。ゲームロジックの strikeSlotsFull と同じ基準なので、
+   * ENEMY_AI.maxSimultaneousStrikers の上限超過はこちらで判定する
+   */
+  maxConcurrentNonBossStrikers: number;
+}
+
+/** 同時に strike 中の敵数。total はボス込み、nonBoss は strikeSlotsFull（system/enemies.ts）と同じくボスを除く */
+function countStrikers(enemies: readonly Enemy[]): { total: number; nonBoss: number } {
+  let total = 0;
+  let nonBoss = 0;
+  for (const e of enemies) {
+    if (e.hp <= 0 || e.phase !== "strike") continue;
+    total++;
+    if (!isBossDriven(enemyDef(e.defKey))) nonBoss++;
+  }
+  return { total, nonBoss };
 }
 
 function emptyRarityCounts(): Record<Rarity, number> {
@@ -544,6 +563,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     drop: { killDrops: 0, roamingKills: 0 },
     genre: emptyGenreMetrics(),
     maxConcurrentStrikers: 0,
+    maxConcurrentNonBossStrikers: 0,
   };
 
   let depthEnterTime = state.time;
@@ -599,8 +619,9 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     if (state.skills.manaFlash > 0 && prevManaFlash <= 0) metrics.skill.manaMisfires++;
     prevManaFlash = state.skills.manaFlash;
 
-    const strikingNow = state.enemies.reduce((n, e) => n + (e.hp > 0 && e.phase === "strike" ? 1 : 0), 0);
-    if (strikingNow > metrics.maxConcurrentStrikers) metrics.maxConcurrentStrikers = strikingNow;
+    const striking = countStrikers(state.enemies);
+    metrics.maxConcurrentStrikers = Math.max(metrics.maxConcurrentStrikers, striking.total);
+    metrics.maxConcurrentNonBossStrikers = Math.max(metrics.maxConcurrentNonBossStrikers, striking.nonBoss);
 
     if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
     if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) {
@@ -1050,9 +1071,7 @@ function buildGenreMetricsSection(allMetrics: readonly RunMetrics[]): string[] {
   );
   lines.push("");
 
-  const maxStrikers = Math.max(0, ...allMetrics.map((m) => m.maxConcurrentStrikers));
-  const overCap = allMetrics.filter((m) => m.maxConcurrentStrikers > ENEMY_AI.maxSimultaneousStrikers);
-  lines.push(`- **同時に phase===strike だった敵数の最大**（上限 ENEMY_AI.maxSimultaneousStrikers=${ENEMY_AI.maxSimultaneousStrikers}）: 全 run 中の最大 ${maxStrikers}。上限超過 run: ${overCap.length} 件${overCap.length > 0 ? `（seed/profile: ${overCap.map((m) => `${m.seed}/${m.profileKind}`).join(", ")}）` : "。"}`);
+  lines.push(...strikerReportLines(allMetrics));
   lines.push("");
 
   return lines;
@@ -1115,6 +1134,59 @@ function buildSuggestions(allMetrics: readonly RunMetrics[]): string {
   ];
   return lines.join("\n");
 }
+
+/**
+ * 同時攻撃の上限の行。上限超過はボスを除いた数で判定する（strikeSlotsFull はボスを枠に数えないため、
+ * ボス込みの総数で比べると「ボス 1 + 取り巻き 2」が超過に見えていた。report.md の調査メモ）
+ */
+function strikerReportLines(allMetrics: readonly Pick<RunMetrics, "seed" | "profileKind" | "maxConcurrentStrikers" | "maxConcurrentNonBossStrikers">[]): string[] {
+  const cap = ENEMY_AI.maxSimultaneousStrikers;
+  const maxNonBoss = Math.max(0, ...allMetrics.map((m) => m.maxConcurrentNonBossStrikers));
+  const maxTotal = Math.max(0, ...allMetrics.map((m) => m.maxConcurrentStrikers));
+  const overCap = allMetrics.filter((m) => m.maxConcurrentNonBossStrikers > cap);
+  const overList = overCap.length > 0 ? `（seed/profile: ${overCap.map((m) => `${m.seed}/${m.profileKind}`).join(", ")}）` : "。";
+  return [
+    `- **同時に phase===strike だった非ボスの敵数の最大**（上限 ENEMY_AI.maxSimultaneousStrikers=${cap}。strikeSlotsFull と同じくボスを除く）: 全 run 中の最大 ${maxNonBoss}。上限超過 run: ${overCap.length} 件${overList}`,
+    `- **同時に phase===strike だった敵数の最大（ボス込みの総数。参考）**: 全 run 中の最大 ${maxTotal}（ボスは上限の枠に数えないので、非ボスが上限以内ならこの数が上限を超えても設計どおり）`,
+  ];
+}
+
+describe("QA 計測: 同時攻撃数の切り分け", () => {
+  /** 開始直後の state に、ボス 1 体と非ボスを並べて strike にする */
+  function strikingState(nonBossStriking: number): GameState {
+    const state = createGame(1, "1", buildProfile(PROFILE_KINDS[0]!, 1), buildQaSkillProfile());
+    const boss = ENEMIES.find((d) => isBossDriven(d));
+    const minion = ENEMIES.find((d) => !isBossDriven(d));
+    if (!boss || !minion) throw new Error("ボスと非ボスの定義が要る");
+    const pos = { ...state.player.body.pos };
+    const enemies = [createEnemy(state, boss, pos, 0, false)];
+    for (let i = 0; i < nonBossStriking; i++) enemies.push(createEnemy(state, minion, pos, 0, false));
+    // 倒れた敵と strike 以外の敵は数えない
+    const dead = createEnemy(state, minion, pos, 0, false);
+    dead.hp = 0;
+    const idle = createEnemy(state, minion, pos, 0, false);
+    for (const e of [...enemies, dead]) e.phase = "strike";
+    idle.phase = "windup";
+    state.enemies = [...enemies, dead, idle];
+    return state;
+  }
+
+  it("ボスを除いた数と、ボス込みの総数を分けて数える", () => {
+    const counted = countStrikers(strikingState(ENEMY_AI.maxSimultaneousStrikers).enemies);
+    expect(counted.nonBoss, "非ボスは strikeSlotsFull と同じくボスを除く").toBe(ENEMY_AI.maxSimultaneousStrikers);
+    expect(counted.total, "総数はボスを含む").toBe(ENEMY_AI.maxSimultaneousStrikers + 1);
+  });
+
+  it("上限超過はボスを除いた数で判定する（ボス 1 + 非ボスが上限いっぱいは超過にしない）", () => {
+    const cap = ENEMY_AI.maxSimultaneousStrikers;
+    const atCap = { seed: 1, profileKind: PROFILE_KINDS[0]!, maxConcurrentStrikers: cap + 1, maxConcurrentNonBossStrikers: cap };
+    const over = { seed: 2, profileKind: PROFILE_KINDS[0]!, maxConcurrentStrikers: cap + 1, maxConcurrentNonBossStrikers: cap + 1 };
+    const [nonBossLine, totalLine] = strikerReportLines([atCap]);
+    expect(nonBossLine, "上限いっぱいは超過 0 件").toContain("上限超過 run: 0 件");
+    expect(totalLine, "総数の行も出る").toContain(`最大 ${cap + 1}`);
+    expect(strikerReportLines([atCap, over])[0], "非ボスが上限を超えた run だけを挙げる").toContain("上限超過 run: 1 件（seed/profile: 2/");
+  });
+});
 
 const REPORT_START = "<<<QA_REPORT_START>>>";
 const REPORT_END = "<<<QA_REPORT_END>>>";

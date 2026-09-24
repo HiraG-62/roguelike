@@ -34,6 +34,9 @@ import { type JobKey, sanitizeJob } from "../data/jobs";
  * 5: 起点とラン修飾子（縛り）を記録する（ラン開始の条件が変わり、分岐路・バイオームで生成も変わった）
  * 6: 武器種とコンボ派生・attackHeld・GCD 廃止・開放型マップ・回復の再設計（同じ入力列でも進行が変わる）
  * 7: 契約者の配置・演出の乱数分離・部屋の追加・ジョブ・属性で乱数の消費順が変わった（0.0.9α）
+ *
+ * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
+ * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
 export const REPLAY_VERSION = 7;
 
@@ -92,6 +95,12 @@ export interface ReplayData {
   job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
+  /**
+   * true: snapshot を createGame の後（startJob が初期スキル石を倉庫へ入れた後）に取った記録。
+   * 再生は createGame の後で倉庫の件数を snapshot に合わせ直す（初期石を既に持っていたかで件数が変わり、
+   * 倉庫が上限付近だと拾得の成否がずれるため）。無い（旧記録）は createGame 前のスナップショットとして読む
+   */
+  snapshotAfterStart?: boolean;
   snapshot: ReplayLoadout;
   events: ReplayEvent[];
   /** エンコード済みの入力列 */
@@ -424,6 +433,18 @@ function applyLoadout(profile: Profile, skillProfile: SkillProfile, loadout: Rep
   resizeWith(ownedRunes(skillProfile), loadout.runeCount ?? 0, placeholderRune);
 }
 
+/**
+ * createGame の後に、倉庫・スキル石・刻印符の件数だけを snapshot に合わせ直す（装備と装着中の石は変えない）。
+ * startJob は再生用のダミーの石を見て初期石を入れたり入れなかったりするが、記録時の件数は snapshot が正なので上書きする。
+ * スキル石は装着中の石が先頭・ダミーと startJob の石が末尾に並ぶので、末尾から削れば装着中の石は残る
+ */
+function syncLoadoutCounts(profile: Profile, skillProfile: SkillProfile, loadout: ReplayLoadout): void {
+  resizeWith(profile.stash, loadout.stashCount, placeholderItem);
+  const equippedCount = loadout.skillStones.filter((s) => s !== null).length;
+  resizeWith(skillProfile.stones, Math.max(loadout.stoneCount, equippedCount), placeholderStone);
+  resizeWith(ownedRunes(skillProfile), loadout.runeCount ?? 0, placeholderRune);
+}
+
 export function createReplayProfiles(snapshot: ReplayLoadout): { profile: Profile; skillProfile: SkillProfile } {
   const profile = createEmptyProfile();
   const skillProfile: SkillProfile = { version: 1, loadout: [], stones: [] };
@@ -452,14 +473,30 @@ export class ReplayRecorder {
   /** ラン開始時は振り分け 0（createGame が作る） */
   private lastAllocSignature = allocSignature(uniformAttributes(0));
 
+  /**
+   * createGame の前のプロフィールから記録を始める（旧来の形。snapshotAfterStart を書かない）。
+   * ジョブの初期石の有無が記録に残らないので、ランの記録には fromStartedGame を使う
+   */
   constructor(
     private readonly options: RecorderOptions,
     profile: Profile,
     skillProfile: SkillProfile,
+    private readonly snapshotAfterStart = false,
   ) {
     this.snapshot = captureLoadout(profile, skillProfile);
     this.lastSignature = loadoutSignature(this.snapshot);
     this.lastEquipmentSignature = equipmentSignature(this.snapshot.equipment);
+  }
+
+  /**
+   * createGame の直後の state から記録を始める。startJob が倉庫へ入れた初期スキル石を含めた件数を
+   * スナップショットに残すので、倉庫が上限付近でも再生で拾得の成否がずれない
+   */
+  static fromStartedGame(options: RecorderOptions, state: GameState): ReplayRecorder {
+    const recorder = new ReplayRecorder(options, state.profile, state.skills.profile, true);
+    // 再生側も同じ createGame を通るので、開始時点の振り分けはそこからの差分として記録する
+    recorder.lastAllocSignature = allocSignature(state.runAttributes.alloc);
+    return recorder;
   }
 
   /**
@@ -506,6 +543,7 @@ export class ReplayRecorder {
       modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
       ...lockedRelicsField(this.options.setup?.lockedRelics),
       ...jobField(this.options.setup?.job),
+      ...snapshotAfterStartField(this.snapshotAfterStart),
       snapshot: structuredClone(this.snapshot),
       events: structuredClone(this.events),
       inputs: this.encoder.toString(),
@@ -554,6 +592,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
   const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), job: sanitizeJob(data.job), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
   const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup);
+  if (data.snapshotAfterStart === true) syncLoadoutCounts(profile, skillProfile, data.snapshot);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
 
@@ -759,6 +798,11 @@ function jobField(job: JobKey | undefined): Pick<ReplayData, "job"> {
   return job !== undefined && job !== "none" ? { job } : {};
 }
 
+/** createGame の後のスナップショットのときだけ書く（旧データと同じ形を保つ） */
+function snapshotAfterStartField(after: boolean): Pick<ReplayData, "snapshotAfterStart"> {
+  return after ? { snapshotAfterStart: true } : {};
+}
+
 /**
  * 保存データを検証して ReplayData にする。壊れていれば null。
  * version が現行と違っても構造が正しければ一覧に残すため null にはしない（再生可否は isPlayable で見る）
@@ -791,6 +835,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     modifiers: setup.modifiers,
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     ...jobField(sanitizeJob(v.job)),
+    ...snapshotAfterStartField(v.snapshotAfterStart === true),
     snapshot,
     events,
     inputs,

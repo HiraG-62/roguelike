@@ -341,13 +341,13 @@ function drainEchoes(s: GameState): void {
 function beginRun(seedText: string): void {
   runSetup = withLockedRelics(runSetup);
   runStartedAt = Date.now();
-  recorder = new ReplayRecorder(
-    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup },
-    profile,
-    skillProfile,
-  );
   loadoutDirty = false;
   state = startGame(seedText);
+  // スナップショットは createGame の後に取る（startJob が倉庫へ入れる初期スキル石の有無を記録に残すため）
+  recorder = ReplayRecorder.fromStartedGame(
+    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup },
+    state,
+  );
   // 受けた依頼（やり直し・同じシードでの再挑戦は起点画面を通らないので、保存の active を引き継ぐ）
   state.questRun.key = isQuestKey(questSave.active) ? questSave.active : null;
   deathMetaLines = [];
