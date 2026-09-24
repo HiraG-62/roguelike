@@ -401,6 +401,9 @@ describe("右クリックの固有技（docs/ideas/weapon-redesign.md 3 章）",
     longarm: "strike",
     cannon: "strike",
     thrown: "recall",
+    grenade: "strike",
+    trapper: "throw",
+    warRing: "strike",
   };
 
   it("すべての武器種が固有技を持ち、名前が登録済みで種類が設計どおり", () => {
@@ -442,8 +445,8 @@ describe("右クリックの固有技（docs/ideas/weapon-redesign.md 3 章）",
     expect(MOVESETS.axe.branches.find((b) => b.key === "axeSpin")?.sequence).toEqual(["secondary", "primary"]);
   });
 
-  it("銃の家系は 5 つで、弾を出す武器種の判定は銃と投げる技を持つ近接", () => {
-    expect([...GUN_MOVESETS].sort()).toEqual(["cannon", "gunner", "longarm", "sidearm", "thrown"]);
+  it("銃の家系は 8 つで、弾を出す武器種の判定は銃と投げる技を持つ近接", () => {
+    expect([...GUN_MOVESETS].sort()).toEqual(["cannon", "grenade", "gunner", "longarm", "sidearm", "thrown", "trapper", "warRing"]);
     for (const key of MOVESET_KEYS) expect(isGun(MOVESETS[key]), key).toBe(GUN_MOVESETS.includes(key));
     expect(usesProjectiles(MOVESETS.axe), "斧は投擲するので弾を出す").toBe(true);
     expect(usesProjectiles(MOVESETS.wand), "杖は魔弾").toBe(true);

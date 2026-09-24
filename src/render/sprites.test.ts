@@ -412,9 +412,9 @@ describe("プレイヤーと手に持つ武器（docs/ideas/combat-feel-design.m
     expect(grip).toEqual(WEAPON_GRIPS[WEAPON_FRAME.diagonal]);
   });
 
-  it("銃の家系（長銃・砲・投擲）は二丁拳銃の拳銃と別の絵を持つ", () => {
+  it("銃の家系（長銃・砲・投擲・擲弾・仕掛け・戦輪）は二丁拳銃の拳銃と別の絵を持つ", () => {
     const gun = SPRITES[weaponSpriteKey("gunner")]?.[WEAPON_FRAME.side];
-    for (const key of ["longarm", "cannon", "thrown"] as const) {
+    for (const key of ["longarm", "cannon", "thrown", "grenade", "trapper", "warRing"] as const) {
       expect(SPRITES[weaponSpriteKey(key)]?.[WEAPON_FRAME.side], key).not.toEqual(gun);
     }
   });

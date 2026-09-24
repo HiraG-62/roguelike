@@ -30,6 +30,9 @@ export const WEAPON_ART = {
   longarm: { kind: "thrust", name: "銃剣突撃", length: 56, halfWidth: 6, hits: 1, mul: 1.1 },
   cannon: { kind: "circle", name: "至近砲撃", radius: 46, hits: 1, mul: 1.3, knockbackMul: 1.8 },
   thrown: { kind: "shots", name: "投げ散らし", count: 5, spreadRad: 0.3, speed: 220, life: 0.6, radius: 3, mul: 0.35 },
+  grenade: { kind: "circle", name: "砲弾の雨", radius: 52, hits: 1, mul: 1.3, knockbackMul: 1.5 },
+  trapper: { kind: "circle", name: "一斉起爆", radius: 50, hits: 1, mul: 1.2 },
+  warRing: { kind: "shots", name: "乱れ輪", count: 5, spreadRad: 0.3, speed: 240, life: 0.6, radius: 3, mul: 0.35 },
 } as const;
 
 /** 極意の出血（鉈）の持続と 10px あたりダメージ */

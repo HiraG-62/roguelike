@@ -4,7 +4,7 @@ import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { WEAPON } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { GUN_MOVESETS, MOVESETS, SHOT_TYPES } from "../data/weapons";
 import { botInput, createBotState } from "../qa/bot";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
@@ -215,7 +215,7 @@ describe("銃の家系", () => {
     expect(playerShots(sword), "剣は撃たない").toHaveLength(0);
     expect(sword.player.attack.phase, "剣は振る").not.toBe("none");
 
-    for (const key of ["sidearm", "longarm", "cannon", "thrown", "gunner"] as const) {
+    for (const key of GUN_MOVESETS) {
       const gun = arena(5, { moveset: key });
       play(gun, [{ attackPressed: true, attackHeld: true }]);
       expect(playerShots(gun).length, `${key} は左で撃つ`).toBeGreaterThan(0);
@@ -237,6 +237,47 @@ describe("銃の家系", () => {
     expect(state.player.meleeHitCount, "突きが当たった").toBeGreaterThan(0);
     expect(e.hp).toBeLessThan(TOUGH_HP);
     expect(MOVESETS.longarm.art.cooldown).toBeGreaterThan(0);
+  });
+
+  it("擲弾は左で照準の地点へ曲射を撃ち、右の筒払いは近接で当てて自分が後ろへ下がる", () => {
+    const lob = arena(5, { moveset: "grenade", shot: "lob" });
+    play(lob, [{ attackHeld: true }]);
+    expect(playerShots(lob)[0]?.shot?.key, "左は曲射").toBe("lob");
+
+    const state = arena(5, { moveset: "grenade", shot: "lob" });
+    const e = tough(placeEnemy(state, "boar", 20));
+    play(state, [{ shootHeld: true }]);
+    expect(branchKey(state)).toBe("tubeBash");
+    expect(state.player.knock.x, "後ろへ下がった").toBeLessThan(0);
+    play(state, idle(20));
+    expect(e.hp, "筒払いが当たった").toBeLessThan(TOUGH_HP);
+    expect(playerShots(state), "筒払いは弾を出さない").toHaveLength(0);
+  });
+
+  it("仕掛けの撒き散らしは設置弾を扇に 3 つ出し、再使用が明ける前は出ない", () => {
+    const state = arena(5, { moveset: "trapper", shot: "mine" });
+    play(state, [{ shootHeld: true }, {}]);
+    const mines = playerShots(state);
+    expect(mines, "3 つ撒いた").toHaveLength(WEAPON.movesets.trapper.art.throw.count);
+    for (const m of mines) expect(m.shot?.key, "設置弾の型を借りる").toBe("mine");
+    const angles = new Set(mines.map((m) => Math.round(Math.atan2(m.vel.y, m.vel.x) * 100)));
+    expect(angles.size, "扇に散る").toBe(mines.length);
+    expect(state.player.art.cooldown, "再使用が立った").toBeGreaterThan(0);
+    play(state, [{ shootHeld: true }, {}]);
+    expect(playerShots(state).length, "再使用中は撒かない").toBe(mines.length);
+  });
+
+  it("戦輪は左で回転刃を投げ、右の輪払いは背中側の敵にも近接で当たる", () => {
+    const ring = arena(5, { moveset: "warRing", shot: "boomerang" });
+    play(ring, [{ attackHeld: true }]);
+    expect(playerShots(ring)[0]?.shot?.key, "左は回転刃").toBe("boomerang");
+
+    const state = arena(5, { moveset: "warRing", shot: "boomerang" });
+    // 220 度の扇なので、向きから 100 度ずれた敵にも届く
+    const side = tough(placeEnemy(state, "boar", -4, 18));
+    play(state, [{ shootHeld: true }, ...idle(20)]);
+    expect(state.player.meleeHitCount, "輪払いが当たった").toBeGreaterThan(0);
+    expect(side.hp).toBeLessThan(TOUGH_HP);
   });
 });
 

@@ -120,6 +120,9 @@ export const SFX_NAMES = [
   "swingLongarm",
   "swingCannon",
   "swingThrown",
+  "swingGrenade",
+  "swingTrapper",
+  "swingWarRing",
   // ---- 射撃の型ごとの発射音（8-2。単発は shoot のまま）----
   "shotRapid",
   "shotSpread",

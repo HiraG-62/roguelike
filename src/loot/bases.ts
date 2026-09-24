@@ -80,21 +80,21 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "matchlock", name: "火縄銃", slot: "mainHand", minLevel: B.matchlock.minLevel, implicitKey: "implicit.matchlock", moveset: "longarm", shot: "charge" },
   // 射撃の型の器（implicit なし）
   { key: "ricochetGun", name: "跳ね銃", slot: "mainHand", minLevel: B.ricochetGun.minLevel, moveset: "thrown", shot: "ricochet" },
-  { key: "mineLauncher", name: "置き撃ち筒", slot: "mainHand", minLevel: B.mineLauncher.minLevel, moveset: "cannon", shot: "mine" },
+  { key: "mineLauncher", name: "置き撃ち筒", slot: "mainHand", minLevel: B.mineLauncher.minLevel, moveset: "trapper", shot: "mine" },
   // 2026-09 第 2 弾: 射撃の型ごとに器を選べるように
   { key: "blunderbuss", name: "喇叭銃", slot: "mainHand", minLevel: B.blunderbuss.minLevel, implicitKey: "implicit.blunderbuss", moveset: "cannon", shot: "spread" },
   { key: "crossbow", name: "弩", slot: "mainHand", minLevel: B.crossbow.minLevel, implicitKey: "implicit.crossbow", moveset: "longarm", shot: "pierce" },
-  { key: "chakram", name: "円月輪", slot: "mainHand", minLevel: B.chakram.minLevel, implicitKey: "implicit.chakram", moveset: "thrown", shot: "ricochet" },
+  { key: "chakram", name: "円月輪", slot: "mainHand", minLevel: B.chakram.minLevel, implicitKey: "implicit.chakram", moveset: "warRing", shot: "ricochet" },
   { key: "handCannon", name: "手砲", slot: "mainHand", minLevel: B.handCannon.minLevel, implicitKey: "implicit.handCannon", moveset: "longarm", shot: "charge" },
-  { key: "caltrops", name: "撒き菱筒", slot: "mainHand", minLevel: B.caltrops.minLevel, implicitKey: "implicit.caltrops", moveset: "cannon", shot: "mine" },
+  { key: "caltrops", name: "撒き菱筒", slot: "mainHand", minLevel: B.caltrops.minLevel, implicitKey: "implicit.caltrops", moveset: "trapper", shot: "mine" },
   { key: "seekerOrb", name: "導きの珠", slot: "mainHand", minLevel: B.seekerOrb.minLevel, implicitKey: "implicit.seekerOrb", moveset: "thrown", shot: "homing" },
   // 2026-09-24 レーン B: 新しい射撃の型の器
   { key: "burstRifle", name: "三連銃", slot: "mainHand", minLevel: B.burstRifle.minLevel, moveset: "sidearm", shot: "burst" },
   { key: "tripleCrossbow", name: "三連弩", slot: "mainHand", minLevel: B.tripleCrossbow.minLevel, moveset: "longarm", shot: "burst" },
-  { key: "returnChakram", name: "返し輪", slot: "mainHand", minLevel: B.returnChakram.minLevel, moveset: "thrown", shot: "boomerang" },
-  { key: "flyingBlade", name: "飛刃", slot: "mainHand", minLevel: B.flyingBlade.minLevel, moveset: "thrown", shot: "boomerang" },
-  { key: "mortar", name: "曲射筒", slot: "mainHand", minLevel: B.mortar.minLevel, moveset: "cannon", shot: "lob" },
-  { key: "grenadeLauncher", name: "擲弾筒", slot: "mainHand", minLevel: B.grenadeLauncher.minLevel, moveset: "cannon", shot: "lob" },
+  { key: "returnChakram", name: "返し輪", slot: "mainHand", minLevel: B.returnChakram.minLevel, moveset: "warRing", shot: "boomerang" },
+  { key: "flyingBlade", name: "飛刃", slot: "mainHand", minLevel: B.flyingBlade.minLevel, moveset: "warRing", shot: "boomerang" },
+  { key: "mortar", name: "曲射筒", slot: "mainHand", minLevel: B.mortar.minLevel, moveset: "grenade", shot: "lob" },
+  { key: "grenadeLauncher", name: "擲弾筒", slot: "mainHand", minLevel: B.grenadeLauncher.minLevel, moveset: "grenade", shot: "lob" },
 
   // armor: HP / armor
   { key: "cloth", name: "布の服", slot: "armor", minLevel: B.cloth.minLevel, implicitKey: "implicit.cloth" },
