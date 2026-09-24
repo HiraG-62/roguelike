@@ -64,7 +64,7 @@ describe("祝福（ステータス）: 持ち替え swapHands", () => {
     const out = foldBoonStats(stats, ["swapHands"], createBoonRunState());
     expect(out.attributesEff.str).toBe(15);
     expect(out.attributesEff.dex).toBe(5);
-    expect(scaled(out, PLAYER.melee[0].scaling), "近接が技巧 15 で伸びる").toBeCloseTo(scaled(withEff({ str: 15 }), PLAYER.melee[0].scaling));
+    expect(scaled(out, PLAYER.melee[0]!.scaling), "近接が技巧 15 で伸びる").toBeCloseTo(scaled(withEff({ str: 15 }), PLAYER.melee[0]!.scaling));
     expect(scaled(out, PLAYER.shoot.scaling), "射撃は筋力 5 で決まる").toBeCloseTo(scaled(withEff({ dex: 5 }), PLAYER.shoot.scaling));
   });
 

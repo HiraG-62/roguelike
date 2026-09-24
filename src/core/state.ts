@@ -393,6 +393,8 @@ export interface Projectile {
   shot?: ShotRuntime;
   /** この弾自身の攻撃素性（投擲の技など）。未指定なら従来通り stats.shot の SHOT_TYPES から引く */
   attack?: AttackProfile;
+  /** 弾の代わりに武器の絵を回して描く（斧の投擲など。ThrowArtDef.sprite）。未指定は既定の弾の絵 */
+  sprite?: string;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

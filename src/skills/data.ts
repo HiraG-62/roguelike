@@ -1,15 +1,14 @@
 import { type AttackProfile, attack } from "../core/element";
 import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
+import { BALANCE } from "../data/balance";
 import { STATUS } from "../data/tuning";
 import { EXTRA_SKILL_DEFS } from "./defs";
 import { WAVE2_SKILL_DEFS } from "./defs2";
 import { WAVE3_SKILL_DEFS } from "./defs3";
 import { EXTRA_MODIFIERS, RESOURCE_CONVERTERS } from "./modifiers";
 import { WAVE2_MODIFIERS } from "./modifiers2";
-import { EXTRA_MODIFIER_TUNING, EXTRA_SKILL_TUNING } from "./tuning";
-import { WAVE2_MODIFIER_TUNING, WAVE2_SKILL_TUNING, WEAR_TUNING } from "./tuning2";
-import { WAVE3_SKILL_TUNING } from "./tuning3";
+import { IRON_SWING_STEP, WOLF_BITE_STEP } from "./reshapes";
 import type {
   BASE_MODIFIER_KEYS,
   BASE_SKILL_KEYS,
@@ -30,270 +29,26 @@ type BaseModifierKey = (typeof BASE_MODIFIER_KEYS)[number];
 /** 割合 → % 表記 */
 const PERCENT_UNIT = 100;
 
+const B = BALANCE.skills;
+
+/** 使い込み（skills/wear.ts）の芽の数値。docs/ideas/skills-expansion.md 5 章。数値は data/balance/skills.json の WEAR_TUNING */
+const WEAR_TUNING = B.WEAR_TUNING;
+
 /**
- * スキルの数値。docs/ideas/skills.md「7-5」、docs/COMBAT_DESIGN.md B-2 / B-4。
- * damage は Scaling（base + 係数 × ステータス実効値）。ステータスが基礎値（各 5）のとき旧来の固定値と一致する
- *
- * マナ型（resource: "mana"）スキル全種は QA 2026-09-23 時点でスキル由来与ダメ比率 33.4%（目標 55〜65%）と
- * 未達だったため、以下 2 点を一律で適用した（bot 側は射程判定の不具合も同時に修正済み、別途 src/qa/bot.ts 参照）。
- * - cost（マナコスト）を一律 ×0.85（-15%）: 発動頻度を上げてスキル比重を増やす
- * - damage.base を一律 ×1.15（+15%）: 前回サイクルの +10% と合わせて元の値から約 +26%
+ * スキルの数値。数値本体は data/balance/skills.json（docs/ideas/skills.md「7-5」、docs/COMBAT_DESIGN.md B-2 / B-4 の解説や
+ * QA での調整履歴は各エントリの _note に転記済み）。damage は Scaling（base + 係数 × ステータス実効値）。
+ * ステータスが基礎値（各 5）のとき旧来の固定値と一致する。
+ * wolfForm.bite / ironForm.swing だけは union 文字列（HitShape の kind）を含むため skills/reshapes.ts の TS 定数から合流させる
+ * （docs/ideas/data-externalization.md 2 章の境界規則）
  */
 export const SKILL = {
-  slots: 4,
-  /** マナ不足の不発で HUD のマナバーを点滅させる秒 */
-  manaFlashTime: 0.3,
-  /** リンク 1 本ごとに足す負担の割合（マナ型はコスト、CD 型は CD） */
-  linkBurdenPenalty: 0.15,
-  maxLinks: 3,
-  /** リンク数 0..3 の重み */
-  linkWeights: [30, 45, 20, 5],
-  /** 変異軸の本数 0..2 の重み */
-  variantCountWeights: [35, 45, 20],
-  /** 変異値の丸め（0.01 刻み） */
-  variantPrecision: 100,
-  /** ダッシュ中・近接中に押したスキルを保持する秒 */
-  inputBuffer: 0.25,
-  notReadyTextInterval: 0.6,
-  stashCapacity: 60,
-  /** 所持刻印符（石に付けていないもの）の上限 */
-  runeCapacity: 60,
-  // ---- マナ型は cost / minInterval、CD 型は cooldown / minInterval。poise は 1 ヒットの基礎怯み値 ----
-  whirl: {
-    // 18 → 15.3 → 13.0（-15%、QA 2026-09-24: スキル由来与ダメ比率 49.6%＜目標 55〜65%。威力ではなく発動回数を増やす方向で追加調整）
-    cost: 13.0,
-    minInterval: 0.6,
-    poise: 6,
-    duration: 0.45,
-    hits: 4,
-    radius: 28,
-    // QA 2026-09-24: base 3.8 → 4.9（+29%）。スキル由来与ダメ比率が 3 世代連続 48〜49% で目標未達のため、
-    // 従来の +15% 刻みでは足りないと判断し引き上げ幅を拡大（気力不足での不発は QA 上わずか 0.27 回/run と稀なので回収側ではなく威力側を強化）
-    damage: { base: 4.9, str: 0.4, spi: 0.4 }, // base 3.3 → 3.8 → 4.9
-    knockback: 60,
-    moveMul: 0.6,
-    recover: 0.15,
-  },
-  lunge: {
-    cooldown: 3,
-    minInterval: 0.3,
-    poise: 20,
-    distance: 90,
-    time: 0.14,
-    hitPad: 10,
-    // QA 2026-09-24: base 8 → 10.4（+30%、スキル由来与ダメ比率の底上げ。理由は旋風斬りのコメント参照）
-    damage: { base: 10.4, str: 1, dex: 0.6 },
-    knockback: 200,
-    wallStun: 0.25,
-    comboLinkWindow: 0.3,
-  },
-  frag: {
-    // 22 → 18.7 → 15.9（-15%、理由は旋風斬りのコメント参照）
-    cost: 15.9,
-    minInterval: 0.5,
-    poise: 30,
-    maxRange: 120,
-    flight: 0.35,
-    fuse: 0.5,
-    radius: 36,
-    // QA 2026-09-24: base 15.2 → 19.8（+30%、スキル由来与ダメ比率の底上げ。理由は旋風斬りのコメント参照）
-    damage: { base: 19.8, dex: 1.4, spi: 1.4 }, // base 13.2 → 15.2 → 19.8
-    knockback: 240,
-    selfDamageFraction: 0.1,
-    spread: 14,
-    wallProbe: 2,
-  },
-  railshot: {
-    // 25 → 21.3 → 18.1（-15%、理由は旋風斬りのコメント参照）
-    cost: 18.1,
-    minInterval: 0.8,
-    poise: 25,
-    aim: 0.35,
-    // QA 2026-09-24: base 17.7 → 23.0（+30%、スキル由来与ダメ比率の底上げ。理由は旋風斬りのコメント参照）
-    damage: { base: 23.0, dex: 2, spi: 1.2 }, // base 15.4 → 17.7 → 23.0
-    knockback: 180,
-    recoil: 120,
-    stepPx: 2,
-    maxLength: 400,
-    halfWidth: 3,
-    /** 照準中のダッシュキャンセルで、払ったマナのこの割合を返す */
-    cancelRefund: 0.5,
-    spreadRad: 0.1,
-    /** 命中した敵を脆弱にする秒 */
-    vulnerableTime: 3,
-  },
-  /** パリィ（CD 型）。窓・失敗硬直・成功時の CD 回復は docs/COMBAT_DESIGN.md C-1 の 7 */
-  parry: {
-    cooldown: 3.5,
-    minInterval: 0.3,
-    poise: 40,
-    window: 0.16,
-    failLock: 0.45,
-    /** 成功時に戻す CD の割合 */
-    successRefund: 0.5,
-    radius: 40,
-    damage: { base: 6, str: 0.6, spi: 0.6 },
-    knockback: 260,
-    catchPad: 4,
-  },
-  bloodPact: { cooldown: 12, minInterval: 0.3, hpFraction: 0.12, duration: 4, speedMul: 1.35, lifesteal: 0.08 },
-  /** 地裂き: 溜めて前方扇に衝撃波。溜め中の被弾で中断（マナは消費済み） */
-  quake: {
-    cost: 20.4, // 24 → 20.4（-15%）
-    minInterval: 0.6,
-    poise: 45,
-    windup: 0.35,
-    recover: 0.2,
-    radius: 56,
-    halfAngle: 0.6,
-    damage: { base: 12.7, str: 1.6, spi: 0.8 }, // base 11 → 12.7（+15%）
-    knockback: 220,
-  },
-  /** 雷撃: カーソル地点に遅れて落雷、中心の敵から連鎖雷。命中した敵に感電 */
-  thunder: {
-    cost: 17, // 20 → 17（-15%）
-    minInterval: 0.5,
-    poise: 15,
-    maxRange: 140,
-    delay: 0.5,
-    radius: 22,
-    damage: { base: 12.7, dex: 1.2, spi: 1.6 }, // base 11 → 12.7（+15%）
-    shockMul: 0.5,
-    extraGap: 0.12,
-    extraOffset: 22,
-    shockStacks: 2,
-    /** 感電の連鎖 1 回のダメージ（状態異常の potency） */
-    shockPotency: 3,
-  },
-  /** 引力球: 範囲の敵（と敵弾）を中心へ引き、最後に弾ける。引き寄せ中の敵は沈黙 */
-  gravityWell: {
-    cost: 25.5, // 30 → 25.5（-15%）
-    minInterval: 1,
-    /** 破裂の怯み値（tick は 0） */
-    poise: 20,
-    maxRange: 120,
-    duration: 2,
-    radius: 50,
-    pull: 70,
-    core: 6,
-    tickEvery: 0.5,
-    tickDamage: { base: 1.3, spi: 0.4 }, // base 1.1 → 1.3（+15%）
-    burstDamage: { base: 10.1, spi: 2 }, // base 8.8 → 10.1（+15%）
-    burstKnockback: 80,
-    /** tick ごとに付け直す沈黙の秒（tick 間隔より少し長く、引いている間は切れない） */
-    silenceTime: 0.6,
-  },
-  /** 地雷: 足元に設置、起動後に敵が踏むと爆発 */
-  mines: {
-    cost: 10.2, // 12 → 10.2（-15%）
-    minInterval: 0.3,
-    poise: 25,
-    arm: 0.4,
-    life: 20,
-    maxAlive: 3,
-    trigger: 10,
-    radius: 30,
-    damage: { base: 10.1, dex: 1.2, spi: 1.2 }, // base 8.8 → 10.1（+15%）
-    knockback: 160,
-  },
-  /** 加速: ダッシュ CD 0 + 移動速度。切れた後はダッシュ不可 */
-  haste: { cooldown: 11, minInterval: 0.3, duration: 3, moveBonus: 0.3, exhaust: 1.5 },
-  /** 鎖鎌: 鎖を伸ばし、刺さった敵を手元へ引き寄せる（ボスなら自分が飛ぶ）。命中した敵に出血 */
-  chainHook: {
-    cost: 11.9, // 14 → 11.9（-15%）
-    minInterval: 0.5,
-    poise: 15,
-    range: 110,
-    extendTime: 0.18,
-    recover: 0.25,
-    hitPad: 3,
-    damage: { base: 7.6, str: 1, dex: 0.6 }, // base 6.6 → 7.6（+15%）
-    knockback: 40,
-    landGap: 2,
-    bleedStacks: 1,
-    bleedTime: 4,
-    /** 出血の 10px あたりダメージ（状態異常の potency） */
-    bleedPotency: 1,
-  },
-  /** 回転弾幕: 自分中心に螺旋状の弾。発射中は移動 40%、近接・射撃不可 */
-  spiral: {
-    cost: 23.8, // 28 → 23.8（-15%）
-    minInterval: 1.1,
-    poise: 2,
-    duration: 1,
-    bullets: 24,
-    bulletsPerCount: 4,
-    arms: 2,
-    turns: 2,
-    speed: 160,
-    life: 0.6,
-    radius: 2.5,
-    damage: { base: 2.5, dex: 0.3, spi: 0.3 }, // base 2.2 → 2.5（+15%）
-    knockback: 30,
-    moveMul: 0.4,
-  },
-  /** 氷結地帯: 中の敵を chill + 継続ダメージ。自分も中では遅くなる */
-  frostField: {
-    cost: 22.1, // 26 → 22.1（-15%）
-    minInterval: 0.8,
-    poise: 0,
-    maxRange: 110,
-    duration: 3,
-    radius: 40,
-    tickEvery: 0.5,
-    tickDamage: { base: 1.3, spi: 0.6 }, // base 1.1 → 1.3（+15%）
-    slow: 0.5,
-    maxSlow: 0.8,
-    chillTime: 0.6,
-    selfMoveMul: 0.8,
-  },
-  modifier: {
-    /** CD 型: チャージ +2・負担 ×1.3。マナ型: コスト ×0.6・最低間隔 ×0.5。どちらも威力 ×0.7 */
-    multiCharge: { extraCharges: 2, damageMul: 0.7, burdenMul: 1.3, manaBurdenMul: 0.6, intervalMul: 0.5 },
-    /** マナ型は血でマナを肩代わりしてコスト ×0.5 */
-    bloodPrice: { hpFraction: 0.06, damageMul: 1.6, potencyMul: 1.6, manaBurdenMul: 0.5 },
-    comboFuel: { perStack: 0.04, cap: 1.2, emptyMul: 0.8 },
-    echo: { delay: 0.8, damageMul: 0.5, burdenMul: 1.25 },
-    pierce: { count: 3, areaMul: 0.8 },
-    recoil: { speed: 220, invuln: 0.1, damageMul: 0.85 },
-    /** CD 型: 撃破でチャージ +1・負担 ×1.35。マナ型: 撃破でコストの manaRefund を返す・負担 ×1.2 */
-    chainReset: { burdenMul: 1.35, manaBurdenMul: 1.2, manaRefund: 0.5 },
-    curse: { duration: 4, bonus: 0.35, damageMul: 0.85 },
-    delay: { time: 0.8, damageMul: 1.8 },
-    expand: { areaMul: 1.5, burdenMul: 1.4 },
-    /** 溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる */
-    charge: { maxTime: 1.2, minTime: 0.15, maxDamageMul: 2.2, maxAreaMul: 1.5, moveMul: 0.6 },
-    // 大拡張の刻印符・型替え符（skills/tuning.ts）
-    ...EXTRA_MODIFIER_TUNING,
-    // 第 2 弾の刻印符・型替え符（skills/tuning2.ts）
-    ...WAVE2_MODIFIER_TUNING,
-  },
-  // 大拡張のスキル（skills/tuning.ts）
-  ...EXTRA_SKILL_TUNING,
-  // 第 2 弾のスキル（skills/tuning2.ts）
-  ...WAVE2_SKILL_TUNING,
-  // 第 3 弾の変身（skills/tuning3.ts）
-  ...WAVE3_SKILL_TUNING,
-  drop: {
-    stoneOnKill: 0.03,
-    stoneOnDepth: 0.2,
-    runeOnRoomClear: 0.3,
-    stoneColor: "#b080ff",
-    runeColor: "#ffb040",
-    /** 部屋中央の装備報酬と重ならないようずらす */
-    runeOffsetX: 14,
-    depthOffsetY: 14,
-    pickupRadius: 8,
-    pickupDelay: 0.3,
-    /**
-     * 撃破時の刻印符ドロップ率（rollRuneDrop）。刻印符は所持品として残るので部屋クリアの 0.3 より薄く、
-     * エリート・ボス・図書館・巣窟の敵は厚くする（docs/COMBAT_DESIGN.md B-10）
-     */
-    runeOnKill: { normal: 0.01, elite: 0.12, boss: 0.6, library: 0.05, nest: 0.04 },
-    /** 深度 1 ごとの撃破時ドロップ率の加算（通常の敵だけ。上限 runeOnKillDepthCap） */
-    runeOnKillPerDepth: 0.001,
-    runeOnKillDepthCap: 0.02,
-  },
+  ...B.SKILL,
+  ...B.EXTRA_SKILL_TUNING,
+  ...B.WAVE2_SKILL_TUNING,
+  ...B.WAVE3_SKILL_TUNING,
+  wolfForm: { ...B.WAVE3_SKILL_TUNING.wolfForm, bite: WOLF_BITE_STEP },
+  ironForm: { ...B.WAVE3_SKILL_TUNING.ironForm, swing: IRON_SWING_STEP },
+  modifier: { ...B.SKILL.modifier, ...B.EXTRA_MODIFIER_TUNING, ...B.WAVE2_MODIFIER_TUNING },
 } as const;
 
 /** 変異軸の係数。value v に対して「伸びる側 x(1 + gain v)」「縮む側 x(1 - cost v)」 */

@@ -4,8 +4,14 @@ import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } fro
 import type { Attributes, PlayerStats } from "../loot/types";
 import type { QuestKey } from "../meta/quests";
 import type { SkillKey } from "../skills/types";
+import { BALANCE } from "./balance";
 import { JOB, WEAPON } from "./tuning";
+import { reviveStep } from "./weapons";
 import type { BranchDef, ButtonKey, MovesetKey } from "./weapons";
+
+/** 数値は src/data/balance/jobs.json の attributes / weakness（見習いは数値を持たないのでここで空を渡す） */
+const JOB_ATTRIBUTES = BALANCE.jobs.attributes;
+const JOB_WEAKNESS = BALANCE.jobs.weakness;
 
 /**
  * ジョブ（docs/COMBAT_DESIGN.md A-9）。起点とは別の軸で、ラン開始時に 1 つ選ぶ。
@@ -98,7 +104,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   swordsman: {
     name: "剣士",
     desc: "連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。",
-    attributes: { str: 2, vit: 1, mnd: -1, spi: -2 },
+    attributes: JOB_ATTRIBUTES.swordsman,
     favored: ["sword", "greatsword", "katana"],
     rules: [
       jobRule("swordsman", 0, `終撃が当たると怯み値 ${JOB.swordsmanFinisherPoise} を上乗せする。`, {
@@ -113,13 +119,13 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "lunge",
     starterWeapon: "katana",
-    weakness: { text: `射撃の威力が ${lessPct(JOB.swordsmanRangedMul)}% 落ちる。`, mul: { rangedDamageMul: JOB.swordsmanRangedMul } },
+    weakness: { text: `射撃の威力が ${lessPct(JOB.swordsmanRangedMul)}% 落ちる。`, mul: JOB_WEAKNESS.swordsman },
     keywords: kw(["melee", "finisher", "stagger"], ["just"]),
   },
   hunter: {
     name: "狩人",
     desc: "予備動作を射抜いて止め、精鋭に弱みを刻む。",
-    attributes: { dex: 3, mnd: 1, str: -2, vit: -2 },
+    attributes: JOB_ATTRIBUTES.hunter,
     favored: ["longarm", "thrown", "whip"],
     rules: [
       jobRule("hunter", 0, `予備動作中の敵を射撃で撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
@@ -136,13 +142,13 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "railshot",
     starterWeapon: "crossbow",
-    weakness: { text: `最大生命が ${lessPct(JOB.hunterHpMul)}% 減る。`, mul: { maxHp: JOB.hunterHpMul } },
+    weakness: { text: `最大生命が ${lessPct(JOB.hunterHpMul)}% 減る。`, mul: JOB_WEAKNESS.hunter },
     keywords: kw(["ranged", "stagger", "vulnerable"], ["elite"]),
   },
   brawler: {
     name: "拳闘士",
     desc: "殴り続けるほど衝撃波が出る。殴られると燃え上がる。",
-    attributes: { str: 2, vit: 2, dex: -1, spi: -3 },
+    attributes: JOB_ATTRIBUTES.brawler,
     favored: ["fists", "cleaver", "staff"],
     rules: [
       jobRule("brawler", 0, `近接を ${JOB.brawlerEveryHits} 回当てるごとに周りへ衝撃波。`, {
@@ -157,13 +163,13 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "quake",
     starterWeapon: "gauntlets",
-    weakness: { text: `射撃の威力が ${lessPct(JOB.brawlerRangedMul)}% 落ちる。`, mul: { rangedDamageMul: JOB.brawlerRangedMul } },
+    weakness: { text: `射撃の威力が ${lessPct(JOB.brawlerRangedMul)}% 落ちる。`, mul: JOB_WEAKNESS.brawler },
     keywords: kw(["melee", "combo", "area"], ["hurt"]),
   },
   shieldBearer: {
     name: "盾持ち",
     desc: "被弾の直後に身を固め、カウンターで押し返す。",
-    attributes: { vit: 3, str: 1, dex: -2, spi: -2 },
+    attributes: JOB_ATTRIBUTES.shieldBearer,
     favored: ["sword", "cleaver", "staff"],
     rules: [
       jobRule("shieldBearer", 0, `被弾すると ${JOB.shieldHurtInvulnSec} 秒間無敵（${JOB.shieldHurtIcd} 秒に 1 回）。`, {
@@ -178,13 +184,13 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "parry",
     starterWeapon: "machete",
-    weakness: { text: `移動速度が ${lessPct(JOB.shieldMoveMul)}% 落ちる。`, mul: { moveSpeedMul: JOB.shieldMoveMul } },
+    weakness: { text: `移動速度が ${lessPct(JOB.shieldMoveMul)}% 落ちる。`, mul: JOB_WEAKNESS.shieldBearer },
     keywords: kw(["ward", "counter", "area"], ["hurt"]),
   },
   hexer: {
     name: "呪術師",
     desc: "状態異常を付けるたびに気力が満ち、毒を死体から広げる。",
-    attributes: { spi: 3, mnd: 1, str: -2, vit: -2 },
+    attributes: JOB_ATTRIBUTES.hexer,
     favored: ["scythe", "wand"],
     rules: [
       jobRule("hexer", 0, `敵に状態異常を付けるたびに気力 +${JOB.hexerStatusMana}。`, {
@@ -201,14 +207,14 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "contagion",
     starterWeapon: "sickle",
-    weakness: { text: `近接の威力が ${lessPct(JOB.hexerMeleeMul)}% 落ちる。`, mul: { meleeDamageMul: JOB.hexerMeleeMul } },
+    weakness: { text: `近接の威力が ${lessPct(JOB.hexerMeleeMul)}% 落ちる。`, mul: JOB_WEAKNESS.hexer },
     keywords: kw(["mana", "poison"], ["poison", "kill"]),
     unlockedBy: "bloodPath",
   },
   lancer: {
     name: "槍兵",
     desc: "堅守を突き崩し、怯ませるたびに必殺ゲージを溜める。",
-    attributes: { dex: 2, str: 1, mnd: -1, spi: -2 },
+    attributes: JOB_ATTRIBUTES.lancer,
     favored: ["spear", "scythe"],
     rules: [
       jobRule("lancer", 0, `堅守中の敵に近接を当てると怯み値 ${JOB.lancerGuardPoise} を上乗せする。`, {
@@ -223,14 +229,14 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "chainHook",
     starterWeapon: "spear",
-    weakness: { text: `ダッシュの再使用時間が ${lessPct(JOB.lancerDashCdMul)}% 延びる。`, mul: { dashCooldownMul: JOB.lancerDashCdMul } },
+    weakness: { text: `ダッシュの再使用時間が ${lessPct(JOB.lancerDashCdMul)}% 延びる。`, mul: JOB_WEAKNESS.lancer },
     keywords: kw(["stagger", "energy"], ["melee"]),
     unlockedBy: "critStorm",
   },
   invoker: {
     name: "術士",
     desc: "スキルを撃つと続く攻撃が強まり、枯れた気力を撃破で取り戻す。",
-    attributes: { mnd: 2, spi: 2, str: -2, vit: -2 },
+    attributes: JOB_ATTRIBUTES.invoker,
     favored: ["wand", "whip"],
     rules: [
       jobRule("invoker", 0, `スキルを使うと ${JOB.invokerCastBuffSec} 秒間ダメージ +${JOB.invokerCastBuffPct}%。`, {
@@ -245,14 +251,14 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "thunder",
     starterWeapon: "wand",
-    weakness: { text: `最大生命が ${lessPct(JOB.invokerHpMul)}% 減る。`, mul: { maxHp: JOB.invokerHpMul } },
+    weakness: { text: `最大生命が ${lessPct(JOB.invokerHpMul)}% 減る。`, mul: JOB_WEAKNESS.invoker },
     keywords: kw(["mana"], ["mana", "kill"]),
     unlockedBy: "chainWeaver",
   },
   shadow: {
     name: "影",
     desc: "ダッシュで回り込んだ直後の一撃が急所を突く。見切りで駆け抜ける。",
-    attributes: { dex: 3, spi: 1, str: -2, vit: -2 },
+    attributes: JOB_ATTRIBUTES.shadow,
     favored: ["twinBlades", "fists"],
     rules: [
       jobRule("shadow", 0, `ダッシュを終えて ${JOB.shadowAfterDashSec} 秒以内の近接は敵を ${JOB.shadowVulnerableSec} 秒間脆弱にする。`, {
@@ -268,14 +274,14 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "shadowStep",
     starterWeapon: "twinDaggers",
-    weakness: { text: `最大生命が ${lessPct(JOB.shadowHpMul)}% 減る。`, mul: { maxHp: JOB.shadowHpMul } },
+    weakness: { text: `最大生命が ${lessPct(JOB.shadowHpMul)}% 減る。`, mul: JOB_WEAKNESS.shadow },
     keywords: kw(["dash", "vulnerable"], ["dash", "just"]),
     unlockedBy: "justDancer",
   },
   alchemist: {
     name: "錬金術師",
     desc: "反応を起こすたびに必殺ゲージが溜まり、状態異常の重なった敵は倒すと爆ぜる。",
-    attributes: { mnd: 2, spi: 1, vit: 1, str: -2, dex: -2 },
+    attributes: JOB_ATTRIBUTES.alchemist,
     favored: ["staff", "cleaver"],
     rules: [
       jobRule("alchemist", 0, `状態異常の反応を起こすと必殺ゲージ +${JOB.alchemistReactionEnergy}。`, {
@@ -292,7 +298,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "powderKeg",
     starterWeapon: "staff",
-    weakness: { text: `攻撃速度が ${lessPct(JOB.alchemistAttackSpeedMul)}% 落ちる。`, mul: { attackSpeedMul: JOB.alchemistAttackSpeedMul } },
+    weakness: { text: `攻撃速度が ${lessPct(JOB.alchemistAttackSpeedMul)}% 落ちる。`, mul: JOB_WEAKNESS.alchemist },
     keywords: kw(["reaction", "energy", "explode"], ["reaction", "kill"]),
     unlockedBy: "deepChain",
   },
@@ -340,7 +346,7 @@ export const JOB_BRANCHES: Readonly<Record<Exclude<JobKey, "none">, BranchDef>> 
 };
 
 function jobBranchDef(job: Exclude<JobKey, "none">): BranchDef {
-  return { key: `job.${job}`, name: JOB_BRANCH_NAMES[job], sequence: JOB_BRANCH_SEQUENCE, step: WEAPON.jobBranches[job] };
+  return { key: `job.${job}`, name: JOB_BRANCH_NAMES[job], sequence: JOB_BRANCH_SEQUENCE, step: reviveStep(WEAPON.jobBranches[job]) };
 }
 
 /** そのジョブの固有の派生（見習いは undefined） */

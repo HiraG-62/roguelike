@@ -4,8 +4,15 @@
  * 既存の参照経路(`PLAYER.dash.speed` など)は変えない。設計は docs/ideas/data-externalization.md
  */
 import { hashSeed } from "../../core/rng";
+import boonsJson from "./boons.json";
 import combatJson from "./combat.json";
 import enemiesJson from "./enemies.json";
+import skillsJson from "./skills.json";
+import feelJson from "./feel.json";
+import lootJson from "./loot.json";
+import worldJson from "./world.json";
+import jobsJson from "./jobs.json";
+import weaponsJson from "./weapons.json";
 
 /** `_` で始まるキー(_note)を型から消し、全体を readonly にする */
 export type Clean<T> = T extends readonly (infer U)[]
@@ -35,6 +42,13 @@ export function stripNotes<T>(value: T): Clean<T> {
 export const BALANCE = {
   combat: stripNotes(combatJson),
   enemies: stripNotes(enemiesJson),
+  jobs: stripNotes(jobsJson),
+  weapons: stripNotes(weaponsJson),
+  skills: stripNotes(skillsJson),
+  boons: stripNotes(boonsJson),
+  loot: stripNotes(lootJson),
+  world: stripNotes(worldJson),
+  feel: stripNotes(feelJson),
 } as const;
 
 const HASH_RADIX = 16;

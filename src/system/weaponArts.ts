@@ -260,6 +260,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef): boolean {
     spreadDeg: t.spreadDeg,
     attack: t.attack,
     recoil: false,
+    sprite: t.sprite,
   });
 }
 

@@ -1,10 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed } from "../../core/rng";
+import {
+  BASE_MODIFIER_KEYS,
+  BASE_SKILL_KEYS,
+  EXTRA_MODIFIER_KEYS,
+  MODIFIER_KEYS,
+  SKILL_KEYS,
+  WAVE2_MODIFIER_KEYS,
+} from "../../skills/types";
 import { ENEMIES } from "../enemies";
+import { JOB_KEYS } from "../jobs";
+import { PLAYER } from "../tuning";
+import { MOVESET_KEYS, SHOT_KEYS } from "../weapons";
+import { AFFIXES, CONVERSION_AFFIXES } from "../../loot/affixes";
+import { BASES } from "../../loot/bases";
+import boonsJson from "./boons.json";
 import combatJson from "./combat.json";
 import enemiesJson from "./enemies.json";
+import feelJson from "./feel.json";
 import { BALANCE, BALANCE_HASH } from "./index";
+import jobsJson from "./jobs.json";
+import lootJson from "./loot.json";
+import skillsJson from "./skills.json";
 import { diffKeySets, validateBalanceShape } from "./validate";
+import weaponsJson from "./weapons.json";
+import worldJson from "./world.json";
 
 describe("BALANCE", () => {
   it("_note を剥がして readonly の値を返す", () => {
@@ -27,6 +47,13 @@ describe("BALANCE", () => {
 const JSON_FILES: readonly [string, unknown][] = [
   ["combat.json", combatJson],
   ["enemies.json", enemiesJson],
+  ["skills.json", skillsJson],
+  ["boons.json", boonsJson],
+  ["jobs.json", jobsJson],
+  ["weapons.json", weaponsJson],
+  ["loot.json", lootJson],
+  ["world.json", worldJson],
+  ["feel.json", feelJson],
 ];
 
 describe("各 JSON の形", () => {
@@ -54,5 +81,74 @@ describe("敵のキー集合(段 1)", () => {
       expect(bodies[entry.body], `${key} の body`).toBeDefined();
       if (entry.biome) expect(biomes[entry.biome], `${key} の biome`).toBeDefined();
     }
+  });
+});
+
+describe("ジョブのキー集合(段 2)", () => {
+  const nonNoneKeys = JOB_KEYS.filter((k) => k !== "none");
+
+  it("jobs.json の attributes / weakness のキー集合が「見習い」を除いた JOB_KEYS と一致する", () => {
+    expect(diffKeySets("jobs.attributes", Object.keys(jobsJson.attributes), nonNoneKeys)).toEqual([]);
+    expect(diffKeySets("jobs.weakness", Object.keys(jobsJson.weakness), nonNoneKeys)).toEqual([]);
+  });
+});
+
+describe("武器種のキー集合(段 5)", () => {
+  it("weapons.json の movesets のキー集合が MOVESET_KEYS と一致する", () => {
+    expect(diffKeySets("weapons.movesets", Object.keys(weaponsJson.WEAPON.movesets), MOVESET_KEYS)).toEqual([]);
+  });
+
+  it("weapons.json の shots のキー集合が SHOT_KEYS と一致する", () => {
+    expect(diffKeySets("weapons.shots", Object.keys(weaponsJson.WEAPON.shots), SHOT_KEYS)).toEqual([]);
+  });
+
+  it("shots.single の radius / spreadDeg は PLAYER.shoot.radius / PLAYER.projectileSpreadDeg と一致する(元は参照だった値)", () => {
+    expect(weaponsJson.WEAPON.shots.single.radius).toBe(PLAYER.shoot.radius);
+    expect(weaponsJson.WEAPON.shots.single.spreadDeg).toBe(PLAYER.projectileSpreadDeg);
+  });
+});
+
+describe("スキル・祝福のキー集合(段 3)", () => {
+  // JSON 直読みなので "_note" が混ざる。診断対象のキー集合からは除く
+  const withoutNote = (keys: readonly string[]) => keys.filter((k) => k !== "_note");
+
+  it("skills.json のスキルのキー集合が SKILL_KEYS と一致する", () => {
+    const baseKeys = withoutNote(Object.keys(skillsJson.SKILL)).filter((k) => (BASE_SKILL_KEYS as readonly string[]).includes(k));
+    const extraKeys = withoutNote(Object.keys(skillsJson.EXTRA_SKILL_TUNING));
+    const wave2Keys = withoutNote(Object.keys(skillsJson.WAVE2_SKILL_TUNING));
+    const wave3Keys = withoutNote(Object.keys(skillsJson.WAVE3_SKILL_TUNING));
+    const allKeys = [...baseKeys, ...extraKeys, ...wave2Keys, ...wave3Keys];
+    expect(diffKeySets("skills(base+extra+wave2+wave3)", allKeys, SKILL_KEYS)).toEqual([]);
+  });
+
+  it("skills.json の modifier のキー集合が MODIFIER_KEYS と一致する", () => {
+    const baseKeys = withoutNote(Object.keys(skillsJson.SKILL.modifier)).filter((k) => (BASE_MODIFIER_KEYS as readonly string[]).includes(k));
+    const extraKeys = withoutNote(Object.keys(skillsJson.EXTRA_MODIFIER_TUNING)).filter((k) => (EXTRA_MODIFIER_KEYS as readonly string[]).includes(k));
+    const wave2Keys = withoutNote(Object.keys(skillsJson.WAVE2_MODIFIER_TUNING)).filter((k) => (WAVE2_MODIFIER_KEYS as readonly string[]).includes(k));
+    const allKeys = [...baseKeys, ...extraKeys, ...wave2Keys];
+    expect(diffKeySets("skills.modifier(base+extra+wave2)", allKeys, MODIFIER_KEYS)).toEqual([]);
+  });
+
+  it("満月の砲のコストと払い戻し基準は MANA.baseMax と一致する(数値をJSONへ展開したぶんの検査)", () => {
+    expect(skillsJson.EXTRA_SKILL_TUNING.fullMoon.cost).toBe(BALANCE.combat.MANA.baseMax);
+    expect(skillsJson.EXTRA_SKILL_TUNING.fullMoon.refMana).toBe(BALANCE.combat.MANA.baseMax);
+  });
+
+  it("狼化の遠吠え・業火の化身の燃焼秒は STATUS の値と一致する(数値をJSONへ展開したぶんの検査)", () => {
+    expect(skillsJson.WAVE3_SKILL_TUNING.wolfForm.fearDuration).toBe(BALANCE.combat.STATUS.fear.duration);
+    expect(skillsJson.WAVE3_SKILL_TUNING.pyreForm.burnDuration).toBe(BALANCE.combat.STATUS.burnDuration);
+    expect(skillsJson.WAVE3_SKILL_TUNING.pyreForm.selfBurnDuration).toBe(BALANCE.combat.STATUS.burnDuration);
+  });
+});
+
+describe("装備のキー集合(段 4)", () => {
+  it("loot.json の affixCurves のキー集合が AFFIXES / CONVERSION_AFFIXES の key と一致する", () => {
+    const affixKeys = [...AFFIXES, ...CONVERSION_AFFIXES].map((a) => a.key);
+    expect(diffKeySets("loot.affixCurves", Object.keys(lootJson.affixCurves), affixKeys)).toEqual([]);
+  });
+
+  it("loot.json の bases のキー集合が BASES の key と一致する", () => {
+    const baseKeys = BASES.map((b) => b.key);
+    expect(diffKeySets("loot.bases", Object.keys(lootJson.bases), baseKeys)).toEqual([]);
   });
 });

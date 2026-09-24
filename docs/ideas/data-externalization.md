@@ -324,3 +324,28 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 6. **`!` を足す 4 か所以外に tuple 型へ依存した箇所が無いか**: 段 0 で `PLAYER` を移した時点の tsc のエラー一覧がそのまま網羅になる（他ブロックも段ごとの tsc で洗う）
 7. **QA report のハッシュ**: `src/qa/simulation.ts` の所有者（qa-runner）と調整
 8. **武器の作り直しとの順序**: `arch-weapon2` の設計が `MeleeStepDef` / `MovesetDef` を変える前提で、段 5 はその後。段 0〜4 は `WEAPON` ブロックと `weapons.ts` を触らないことを各レーンの編集禁止に明記する
+
+## 11. ユーザー向け: 数値の変え方
+
+全部 `src/data/balance/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`npm run check` は通さなくても `npm run dev` は動くが、変える前に一度 `npm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
+
+**武器の振りの速さを変える**（例: 大剣の 1 段目を速くする）:
+1. `src/data/balance/weapons.json` を開き、`WEAPON.movesets.greatsword.steps` の配列を探す（1 段 1 行）
+2. 1 段目の `"windup"`（振りかぶり）・`"active"`（当たり判定が出ている秒数）・`"recover"`（硬直）を小さくする。単位は秒（ファイル先頭の `_note` に凡例）
+3. 保存 → dev サーバが再読み込み。3 段目だけ・特定の派生（`branches`）だけ変えたいときも同じ配列の中の該当オブジェクトを探して編集する
+
+**武器の威力を変える**:
+- 同じ `steps[i]` の `"scaling"`（`{ "base": 8, "str": 0.9 }` の形）。`base` はステータス基礎値（各 5）のときの威力、`str` などは 1 あたりの伸び。持っているステータス次第で最終ダメージは変わるので、`base` だけ上げると素の威力が、`str` を上げるとそのステータスを伸ばしたときの伸びしろが変わる
+- 固有技（右クリック）は `WEAPON.movesets.<武器種>.art` の中（`strike` 技なら `.step.scaling`、`throw` 技なら `.throw.scaling`）
+
+**ジョブのステータスの偏りを変える**:
+1. `src/data/balance/jobs.json` の `attributes.<ジョブ名>` を開く（例: `attributes.swordsman`）
+2. `str` / `dex` / `vit` / `mnd` / `spi` の数値を書き換える。**合計が 0 になるように**（`system/jobs.test.ts` の「合計 0」テストが崩れを検出する）。弱点（`weakness.<ジョブ名>`）はこの偏りと対になっているので、強くしすぎたら弱点側もセットで見直す
+
+**敵の HP を変える**:
+1. `src/data/balance/enemies.json` の `stats.<敵の key>.hp` を書き換える（例: `stats.slime.hp`）。敵の key は `src/data/enemies.ts` の `ENEMIES` 一覧の `key` と同じ（日本語名ではなく英語の key で引く）
+2. 怯み耐性（怯みにくさ）を変えたいときは `combat.<敵の key>.poise`、防御・耐性は `defense.enemies.<敵の key>`
+
+**共通の注意**:
+- 数値だけを直す分には型は壊れない（`shape.kind` のような形の種類や `key` は文字列の一覧と照合されるので、存在しない値を書くと `npm run check` の vitest で落ちる）
+- 変えたら該当のテスト（`npx vitest run src/data/weapons.test.ts` など）と `npm run check` を通す。テストは「数値を変えていないこと」を固定しているものが多いので、意図した数値変更でテストが落ちるのは正常（そのテストの期待値も一緒に直す）

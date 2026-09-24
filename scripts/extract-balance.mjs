@@ -52,6 +52,30 @@ const STEPS = {
     },
     out: "src/data/balance/enemies.json",
   },
+  jobs: {
+    async pick(runner) {
+      const tuning = await runner.import("/src/data/tuning.ts");
+      const jobsMod = await runner.import("/src/data/jobs.ts");
+      // attributes / weakness.mul だけを JSON へ抜く。"none"(見習い)は空 / null なので TS 側に残す
+      const attributes = {};
+      const weakness = {};
+      for (const key of jobsMod.JOB_KEYS) {
+        if (key === "none") continue;
+        const def = jobsMod.JOBS[key];
+        attributes[key] = def.attributes;
+        if (def.weakness) weakness[key] = def.weakness.mul;
+      }
+      return { JOB: tuning.JOB, attributes, weakness };
+    },
+    out: "src/data/balance/jobs.json",
+  },
+  weapons: {
+    async pick(runner) {
+      const tuning = await runner.import("/src/data/tuning.ts");
+      return { WEAPON: tuning.WEAPON, PLAYER_MELEE: tuning.PLAYER.melee, ACTION_DASH_ATTACK: tuning.ACTION.dashAttack };
+    },
+    out: "src/data/balance/weapons.json",
+  },
 };
 
 /** 既存 JSON の `_note`(キーごと)を新しい値へ引き継ぐ。配列はそのまま新しい値を使う */

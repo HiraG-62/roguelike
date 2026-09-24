@@ -717,7 +717,7 @@ function updateCharge(state: GameState, input: FrameInput, dt: number): void {
 
 /** 溜めの段が上がった合図（音と色の粒）。離すタイミングを目と耳で計れるように */
 function onChargeLevelUp(state: GameState, level: number): void {
-  const color = WEAPON.chargeRingColors[level] ?? WEAPON.chargeRingColors[0];
+  const color = WEAPON.chargeRingColors[level] ?? WEAPON.chargeRingColors[0] ?? "#ffffff";
   spawnBurst(state, state.player.body.pos, color, CHARGE_LEVEL_PARTICLES, 70, 0.2, 1.5);
   pushSfx(state, "chargeLevel");
   chargeUpFx(state, level, color);
@@ -1345,6 +1345,8 @@ export interface VolleyOverride {
   attack?: AttackProfile;
   /** false なら反動を付けない（全周へ撒く技など） */
   recoil?: boolean;
+  /** 弾の代わりに武器の絵を回して描く（斧の投擲など。ThrowArtDef.sprite） */
+  sprite?: string;
 }
 
 function volleySpec(state: GameState, shot: ShotDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1439,6 +1441,7 @@ export function emitVolley(state: GameState, shot: ShotDef, level: number, aim?:
       ...(runtime ? { shot: runtime } : {}),
       // 固有技の弾（魔弾の光など）は技の素性を持つ。無ければ elementCombat が stats.shot の型から引く
       ...(override.attack ? { attack: override.attack } : {}),
+      ...(override.sprite ? { sprite: override.sprite } : {}),
     });
   }
   onBoonShoot(state, state.projectiles.slice(firstShot));

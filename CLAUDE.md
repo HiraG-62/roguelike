@@ -75,7 +75,7 @@ src/
 1. **ロジックと描画の分離**: system は state を読み書きし、render は state を読むだけ。描画から state を書き換えない
 2. **描画で `state.rng` を消費しない**。見た目のばらつきは `renderMath.ts` の `tileHash` など座標ハッシュを使う
 3. **決定性**: 同じ seed + 同じ FrameInput 列 → 同じ結果。`Math.random` や実時間に依存しない。リプレイテスト（`core/replay.test.ts`）を壊さない
-4. **バランス数値は `src/data/balance/*.json`**（トップレベルのキーは `MANA` / `ENEMY_AI` / `BOON` などブロック名。`_note` に「なぜ」と単位）。ロジックは `data/tuning.ts` / `skills/data.ts` が再 export する定数（`MANA.baseMax` など）経由で読み、数値を直書きしない。union 文字列・key・表示名・関数は TS に残す（境界は `docs/ideas/data-externalization.md` 2 章）。JSON と TS のテーブルは同じ key で対応させ、キー集合の一致を `src/data/balance/balance.test.ts` が検査する。**移行中**: まだ JSON に移っていないブロックは `tuning.ts` / `skills/data.ts` の `SKILL` / tuning の `BOON` にある。新しく足す数値は JSON に置く
+4. **バランス数値は `src/data/balance/*.json`**（トップレベルのキーは `MANA` / `ENEMY_AI` / `BOON` などブロック名。`_note` に「なぜ」と単位）。ロジックは `data/tuning.ts` / `skills/data.ts` が再 export する定数（`MANA.baseMax` など）経由で読み、数値を直書きしない。union 文字列・key・表示名・関数は TS に残す（境界は `docs/ideas/data-externalization.md` 2 章）。JSON と TS のテーブルは同じ key で対応させ、キー集合の一致を `src/data/balance/balance.test.ts` が検査する。新しく足す数値も必ず JSON に置く（置き場所は `docs/BALANCE.md`）
 5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`（DotGothic16 のドット風描画、サイズは `TEXT.SMALL/BODY/TITLE/BIG`）で描く。`ctx.fillText` / `measureText` / `ctx.font` の直接使用は禁止（`uiFont` はフォント未ロード時のフォールバック専用）。**等幅前提の文字数計算は禁止**、行高は `Math.max(定数, textLineHeight())`
 6. **座標は 480x270 の論理座標**（`core/view.ts` の `VIEW_W` / `VIEW_H`）。DPR 拡大は Renderer の transform が担う
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts が `audio/sfx.ts` で行う
@@ -213,6 +213,7 @@ src/
 
 | ファイル | 内容 |
 | --- | --- |
+| `docs/BALANCE.md` | バランス数値（JSON）の置き場所と変え方（ユーザー向け） |
 | `docs/HANDOFF.md` | **セッション開始時に最初に読む**: 現在地・進行中のレーン・次にやる候補・ユーザーに聞くこと |
 | `IDEAS.md` | 企画メモと「現状」（引き継ぎの起点） |
 | `CHANGELOG.md` | 版ごとの変更履歴（Keep a Changelog 風） |

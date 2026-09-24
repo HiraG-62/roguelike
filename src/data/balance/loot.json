@@ -1,0 +1,5379 @@
+{
+  "_note": "装備系の数値。LOOT_DROP はドロップ確率・itemLevel、KEYSTONE/TRIGGER/SYNERGY/RESONANCE はルール文法の効果量、affixCurves は性質の期待値曲線（depth/min/max、%は表示単位）、bases はベースの minLevel（itemLevel）とmarginBonus（余白）",
+  "LOOT_DROP": {
+    "depthChanceBonus": 0.005,
+    "mobDropMulByDepth": [
+      0.2,
+      0.24,
+      0.19,
+      0.24
+    ],
+    "roamingDropMul": 0.5,
+    "eliteDropMul": 0.35,
+    "roomClearChanceByDepth": [
+      0.24,
+      0.28,
+      0.24,
+      0.29
+    ],
+    "depthArrivalChance": 0.8,
+    "itemLevelSpread": 2,
+    "rarityBoostPerDepth": 0.02,
+    "roomClearRarityBoost": 0.3,
+    "depthArrivalRarityBoost": 0.15,
+    "scatter": 10,
+    "arrivalOffset": 18
+  },
+  "PICKUP": {
+    "focusRadius": 14,
+    "reach": 48
+  },
+  "RESONANCE": {
+    "negativeInvertedRatio": 0.35,
+    "balanceMinRatio": 0.25,
+    "balanceMaxGap": 0.05,
+    "balanceStep": 0.08,
+    "balanceCap": 0.32,
+    "twoFacesDamage": 0.1,
+    "twoFacesGuard": 0.15,
+    "coldFlameShift": 0.1,
+    "hotIceChance": 0.25,
+    "hotIceDps": 5,
+    "hotIceSec": 3,
+    "witheredHealMul": 0.5,
+    "witheredWave": 14,
+    "darkThunderShock": 0.1,
+    "darkThunderChance": 0.35,
+    "darkThunderDamage": 12,
+    "twinsShare": 0.25,
+    "twinsTempoLoss": 0.05,
+    "shoresPoise": 0.4,
+    "shoresRepeat": 0.15,
+    "spineGuard": 0.1,
+    "spineSlow": 0.06,
+    "ringAttr": 2,
+    "ringManaLoss": 10,
+    "mirrorIcdCut": 0.25,
+    "mirrorHpLoss": 15,
+    "voidMinUmbra": 3,
+    "voidExposure": 0.08,
+    "chainMana": 2,
+    "chainGainLoss": 0.1
+  },
+  "KEYSTONE": {
+    "blinkRadius": 40,
+    "blinkDamage": 20,
+    "blinkColor": "#c080ff",
+    "gamblerMin": 0.2,
+    "gamblerMax": 3,
+    "berserkerHealMul": 0.5,
+    "vampireLeechPct": 5,
+    "overdrawHpPerMana": 0.5,
+    "overdrawMinHp": 1,
+    "wedgePoiseMul": 2.5,
+    "wedgeUnstaggeredMul": 0.6,
+    "unshakenDamageBonus": 0.35,
+    "unshakenPoiseToDamage": 0.5,
+    "chokeholdPoiseMul": 0.7,
+    "readPoiseMul": 10,
+    "readOffWindupDamageMul": 0.7,
+    "backwaterDamageMul": 1.15,
+    "backwaterClearHealPct": 30,
+    "reaperOathClockMul": 2,
+    "reaperOathDamageMul": 1.15,
+    "reaperOathHuntedMul": 1.4,
+    "chantAttackDamageMul": 0.3,
+    "chantManaMul": 4,
+    "chantSkillBonus": 0.5,
+    "blightChanceMul": 2,
+    "blightTakenMul": 2,
+    "contagionDamageMul": 0.6,
+    "contagionRadius": 60,
+    "monochromeRatio": 0.35,
+    "monochromeDamping": 0.5,
+    "colorlessTraitMul": 1.2,
+    "disciplineProgress": 3,
+    "disciplineDamageMul": 0.8,
+    "oblivionAttrPerMargin": 1,
+    "oneElementDamageBonus": 0.2,
+    "oneElementResistLoss": 15,
+    "weakOathWeakMul": 1.4,
+    "weakOathOtherMul": 0.8,
+    "nullOathDamageBonus": 0.1,
+    "nullOathPotencyMul": 0.75,
+    "ironFavoredMul": 1.3,
+    "ironFavoredPoiseMul": 1.2,
+    "ironUnfavoredMul": 0.7,
+    "chargeOathPerLevel": 0.25,
+    "chargeOathUnchargedMul": 0.75,
+    "stanceGuardMul": 0.6,
+    "stanceExposedMul": 1.2,
+    "earthRegenPerSec": 2,
+    "slickOnMul": 1.35,
+    "slickOffMul": 0.9,
+    "emberOnMul": 1.3,
+    "emberOffMul": 0.85,
+    "emberFireResistLoss": 25,
+    "emberKillFireSec": 4
+  },
+  "TRIGGER": {
+    "icd": 0.4,
+    "shockwaveRadius": 50,
+    "shockwaveKnockback": 260,
+    "shockwaveColor": "#ffffff",
+    "nearbyRadius": 60,
+    "bulletSpeed": 240,
+    "bulletLife": 0.7,
+    "bulletColor": "#ffe080",
+    "comboThreshold": 10,
+    "percent": 100,
+    "defaultDuration": 3,
+    "invulnMax": 0.4,
+    "manaLowRatio": 0.25,
+    "multiStatusKinds": 2,
+    "extendMax": 8,
+    "volleySpread": 0.12,
+    "inflictHaltMax": 1.2,
+    "inflictBurnDps": 5,
+    "inflictBleed": 1.5,
+    "inflictShock": 6,
+    "trait": {
+      "lowManaRatio": 0.25,
+      "manaShieldMul": 0.5,
+      "manaShieldColor": "#80c0ff",
+      "staggerQuakeRadius": 72,
+      "wedgeRatio": 0.5,
+      "minMul": 0.1,
+      "comboBreakMin": 3,
+      "comboBreakCap": 30,
+      "stakeMax": 8,
+      "stakeColor": "#ffd060",
+      "inheritDuration": 3,
+      "placedExtendRadius": 80,
+      "lowHpRatio": 0.5,
+      "boonEchoOffPenalty": 0.02,
+      "spreadCloseRange": 48,
+      "alternateWindow": 2,
+      "terrainBlastRadius": 56,
+      "terrainBlastStatusSec": 3,
+      "terrainBlastIcd": 0.4,
+      "burningKillFireRadius": 12,
+      "iceTrailRadius": 8,
+      "rapidBrandSec": 4,
+      "elementMinMul": 0.1
+    }
+  },
+  "SYNERGY": {
+    "maxDepth": 3,
+    "chainDecay": 0.5,
+    "recentWindow": 3,
+    "keywordBudget": 6,
+    "keywordWindow": 1,
+    "defaultIcd": 0.4,
+    "lowHpRatio": 0.5,
+    "chainLog": 8,
+    "maxEventsPerStep": 256,
+    "maxPendingEvents": 64
+  },
+  "STASH_CAPACITY": 400,
+  "ARMOR_K": 50,
+  "ARMOR_MAX_REDUCTION": 0.75,
+  "affixCurves": {
+    "wardingFlat": [
+      {
+        "depth": 28,
+        "min": 12,
+        "max": 16
+      },
+      {
+        "depth": 20,
+        "min": 8,
+        "max": 11
+      },
+      {
+        "depth": 12,
+        "min": 5,
+        "max": 7
+      },
+      {
+        "depth": 6,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "sturdy": [
+      {
+        "depth": 20,
+        "min": 8,
+        "max": 10,
+        "min2": 3,
+        "max2": 5
+      },
+      {
+        "depth": 10,
+        "min": 4,
+        "max": 6,
+        "min2": 3,
+        "max2": 5
+      },
+      {
+        "depth": 3,
+        "min": 2,
+        "max": 3,
+        "min2": 3,
+        "max2": 5
+      }
+    ],
+    "meleeDamagePct": [
+      {
+        "depth": 26,
+        "min": 50,
+        "max": 60
+      },
+      {
+        "depth": 19,
+        "min": 40,
+        "max": 49
+      },
+      {
+        "depth": 13,
+        "min": 30,
+        "max": 39
+      },
+      {
+        "depth": 8,
+        "min": 21,
+        "max": 29
+      },
+      {
+        "depth": 4,
+        "min": 13,
+        "max": 20
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 12
+      }
+    ],
+    "meleeDamageFlat": [
+      {
+        "depth": 26,
+        "min": 14,
+        "max": 18
+      },
+      {
+        "depth": 19,
+        "min": 10,
+        "max": 13
+      },
+      {
+        "depth": 13,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 8,
+        "min": 5,
+        "max": 6
+      },
+      {
+        "depth": 4,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "attackSpeed": [
+      {
+        "depth": 24,
+        "min": 14,
+        "max": 16
+      },
+      {
+        "depth": 15,
+        "min": 10,
+        "max": 13
+      },
+      {
+        "depth": 8,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 3,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "meleeReach": [
+      {
+        "depth": 18,
+        "min": 13,
+        "max": 18
+      },
+      {
+        "depth": 8,
+        "min": 8,
+        "max": 12
+      },
+      {
+        "depth": 1,
+        "min": 4,
+        "max": 7
+      }
+    ],
+    "knockback": [
+      {
+        "depth": 16,
+        "min": 25,
+        "max": 40
+      },
+      {
+        "depth": 8,
+        "min": 15,
+        "max": 24
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 14
+      }
+    ],
+    "damageVsStaggered": [
+      {
+        "depth": 26,
+        "min": 40,
+        "max": 55
+      },
+      {
+        "depth": 16,
+        "min": 25,
+        "max": 39
+      },
+      {
+        "depth": 8,
+        "min": 15,
+        "max": 24
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 14
+      }
+    ],
+    "rangedDamagePct": [
+      {
+        "depth": 26,
+        "min": 50,
+        "max": 60
+      },
+      {
+        "depth": 19,
+        "min": 40,
+        "max": 49
+      },
+      {
+        "depth": 13,
+        "min": 30,
+        "max": 39
+      },
+      {
+        "depth": 8,
+        "min": 21,
+        "max": 29
+      },
+      {
+        "depth": 4,
+        "min": 13,
+        "max": 20
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 12
+      }
+    ],
+    "rangedDamageFlat": [
+      {
+        "depth": 28,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 20,
+        "min": 5,
+        "max": 7
+      },
+      {
+        "depth": 12,
+        "min": 3,
+        "max": 5
+      },
+      {
+        "depth": 6,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "fireRate": [
+      {
+        "depth": 24,
+        "min": 14,
+        "max": 16
+      },
+      {
+        "depth": 15,
+        "min": 10,
+        "max": 13
+      },
+      {
+        "depth": 8,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 3,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "projectiles": [
+      {
+        "depth": 30,
+        "min": 2,
+        "max": 2,
+        "min2": 30,
+        "max2": 40
+      },
+      {
+        "depth": 10,
+        "min": 1,
+        "max": 1,
+        "min2": 15,
+        "max2": 25
+      }
+    ],
+    "pierce": [
+      {
+        "depth": 18,
+        "min": 2,
+        "max": 2
+      },
+      {
+        "depth": 3,
+        "min": 1,
+        "max": 1
+      }
+    ],
+    "projectileSpeed": [
+      {
+        "depth": 18,
+        "min": 19,
+        "max": 28
+      },
+      {
+        "depth": 8,
+        "min": 11,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "maxLife": [
+      {
+        "depth": 32,
+        "min": 61,
+        "max": 80
+      },
+      {
+        "depth": 24,
+        "min": 46,
+        "max": 60
+      },
+      {
+        "depth": 16,
+        "min": 31,
+        "max": 45
+      },
+      {
+        "depth": 10,
+        "min": 21,
+        "max": 30
+      },
+      {
+        "depth": 5,
+        "min": 11,
+        "max": 20
+      },
+      {
+        "depth": 1,
+        "min": 5,
+        "max": 10
+      }
+    ],
+    "maxLifePct": [
+      {
+        "depth": 30,
+        "min": 14,
+        "max": 18
+      },
+      {
+        "depth": 20,
+        "min": 10,
+        "max": 13
+      },
+      {
+        "depth": 12,
+        "min": 6,
+        "max": 9
+      },
+      {
+        "depth": 5,
+        "min": 3,
+        "max": 5
+      }
+    ],
+    "hpRegen": [
+      {
+        "depth": 28,
+        "min": 2.9,
+        "max": 4
+      },
+      {
+        "depth": 20,
+        "min": 1.9,
+        "max": 2.8
+      },
+      {
+        "depth": 12,
+        "min": 1.1,
+        "max": 1.8
+      },
+      {
+        "depth": 6,
+        "min": 0.6,
+        "max": 1
+      },
+      {
+        "depth": 1,
+        "min": 0.2,
+        "max": 0.5
+      }
+    ],
+    "lifeOnHit": [
+      {
+        "depth": 26,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 16,
+        "min": 4.5,
+        "max": 6
+      },
+      {
+        "depth": 8,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "lifeOnKill": [
+      {
+        "depth": 25,
+        "min": 11,
+        "max": 15
+      },
+      {
+        "depth": 15,
+        "min": 7,
+        "max": 10
+      },
+      {
+        "depth": 7,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "armorFlat": [
+      {
+        "depth": 28,
+        "min": 12,
+        "max": 16
+      },
+      {
+        "depth": 20,
+        "min": 8,
+        "max": 11
+      },
+      {
+        "depth": 12,
+        "min": 5,
+        "max": 7
+      },
+      {
+        "depth": 6,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "damageTaken": [
+      {
+        "depth": 24,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 14,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 6,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "thorns": [
+      {
+        "depth": 26,
+        "min": 17,
+        "max": 25
+      },
+      {
+        "depth": 16,
+        "min": 10,
+        "max": 16
+      },
+      {
+        "depth": 8,
+        "min": 5,
+        "max": 9
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 4
+      }
+    ],
+    "moveSpeed": [
+      {
+        "depth": 30,
+        "min": 21,
+        "max": 25
+      },
+      {
+        "depth": 22,
+        "min": 15,
+        "max": 20
+      },
+      {
+        "depth": 13,
+        "min": 10,
+        "max": 14
+      },
+      {
+        "depth": 6,
+        "min": 6,
+        "max": 9
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 5
+      }
+    ],
+    "dashCooldown": [
+      {
+        "depth": 26,
+        "min": 19,
+        "max": 25
+      },
+      {
+        "depth": 16,
+        "min": 13,
+        "max": 18
+      },
+      {
+        "depth": 8,
+        "min": 8,
+        "max": 12
+      },
+      {
+        "depth": 1,
+        "min": 4,
+        "max": 7
+      }
+    ],
+    "dashCharge": [
+      {
+        "depth": 15,
+        "min": 1,
+        "max": 1
+      }
+    ],
+    "dashDistance": [
+      {
+        "depth": 18,
+        "min": 16,
+        "max": 24
+      },
+      {
+        "depth": 8,
+        "min": 10,
+        "max": 15
+      },
+      {
+        "depth": 1,
+        "min": 5,
+        "max": 9
+      }
+    ],
+    "critChance": [
+      {
+        "depth": 30,
+        "min": 7,
+        "max": 10
+      },
+      {
+        "depth": 20,
+        "min": 5,
+        "max": 7
+      },
+      {
+        "depth": 12,
+        "min": 3,
+        "max": 5
+      },
+      {
+        "depth": 6,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "critMultiplier": [
+      {
+        "depth": 30,
+        "min": 39,
+        "max": 50
+      },
+      {
+        "depth": 22,
+        "min": 28,
+        "max": 38
+      },
+      {
+        "depth": 13,
+        "min": 19,
+        "max": 27
+      },
+      {
+        "depth": 6,
+        "min": 11,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 5,
+        "max": 10
+      }
+    ],
+    "energyGain": [
+      {
+        "depth": 25,
+        "min": 25,
+        "max": 35
+      },
+      {
+        "depth": 15,
+        "min": 16,
+        "max": 24
+      },
+      {
+        "depth": 7,
+        "min": 10,
+        "max": 15
+      },
+      {
+        "depth": 1,
+        "min": 5,
+        "max": 9
+      }
+    ],
+    "burstDamage": [
+      {
+        "depth": 25,
+        "min": 40,
+        "max": 60
+      },
+      {
+        "depth": 15,
+        "min": 25,
+        "max": 39
+      },
+      {
+        "depth": 7,
+        "min": 15,
+        "max": 24
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 14
+      }
+    ],
+    "burstRadius": [
+      {
+        "depth": 18,
+        "min": 17,
+        "max": 25
+      },
+      {
+        "depth": 8,
+        "min": 10,
+        "max": 16
+      },
+      {
+        "depth": 1,
+        "min": 5,
+        "max": 9
+      }
+    ],
+    "comboWindow": [
+      {
+        "depth": 18,
+        "min": 0.9,
+        "max": 1.3
+      },
+      {
+        "depth": 8,
+        "min": 0.5,
+        "max": 0.8
+      },
+      {
+        "depth": 1,
+        "min": 0.2,
+        "max": 0.4
+      }
+    ],
+    "comboDamage": [
+      {
+        "depth": 20,
+        "min": 2.3,
+        "max": 3,
+        "min2": 26,
+        "max2": 40
+      },
+      {
+        "depth": 10,
+        "min": 1.6,
+        "max": 2.2,
+        "min2": 16,
+        "max2": 25
+      },
+      {
+        "depth": 3,
+        "min": 1,
+        "max": 1.5,
+        "min2": 10,
+        "max2": 15
+      }
+    ],
+    "justDodgeDamage": [
+      {
+        "depth": 20,
+        "min": 36,
+        "max": 55,
+        "min2": 2,
+        "max2": 3
+      },
+      {
+        "depth": 10,
+        "min": 21,
+        "max": 35,
+        "min2": 1.5,
+        "max2": 2
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 20,
+        "min2": 1,
+        "max2": 1.5
+      }
+    ],
+    "burn": [
+      {
+        "depth": 26,
+        "min": 18,
+        "max": 25,
+        "min2": 15,
+        "max2": 22
+      },
+      {
+        "depth": 16,
+        "min": 12,
+        "max": 17,
+        "min2": 9,
+        "max2": 14
+      },
+      {
+        "depth": 8,
+        "min": 7,
+        "max": 11,
+        "min2": 5,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 6,
+        "min2": 2,
+        "max2": 4
+      }
+    ],
+    "chill": [
+      {
+        "depth": 18,
+        "min": 12,
+        "max": 18,
+        "min2": 23,
+        "max2": 30
+      },
+      {
+        "depth": 9,
+        "min": 7,
+        "max": 11,
+        "min2": 16,
+        "max2": 22
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 6,
+        "min2": 10,
+        "max2": 15
+      }
+    ],
+    "shock": [
+      {
+        "depth": 18,
+        "min": 12,
+        "max": 18,
+        "min2": 13,
+        "max2": 20
+      },
+      {
+        "depth": 9,
+        "min": 7,
+        "max": 11,
+        "min2": 7,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 6,
+        "min2": 3,
+        "max2": 6
+      }
+    ],
+    "explodeOnKill": [
+      {
+        "depth": 23,
+        "min": 16,
+        "max": 24,
+        "min2": 21,
+        "max2": 32
+      },
+      {
+        "depth": 13,
+        "min": 10,
+        "max": 15,
+        "min2": 13,
+        "max2": 20
+      },
+      {
+        "depth": 5,
+        "min": 5,
+        "max": 9,
+        "min2": 8,
+        "max2": 12
+      }
+    ],
+    "hybridDamage": [
+      {
+        "depth": 26,
+        "min": 19,
+        "max": 25
+      },
+      {
+        "depth": 16,
+        "min": 13,
+        "max": 18
+      },
+      {
+        "depth": 8,
+        "min": 8,
+        "max": 12
+      },
+      {
+        "depth": 1,
+        "min": 4,
+        "max": 7
+      }
+    ],
+    "hybridDefense": [
+      {
+        "depth": 18,
+        "min": 16,
+        "max": 24,
+        "min2": 4,
+        "max2": 6
+      },
+      {
+        "depth": 9,
+        "min": 9,
+        "max": 15,
+        "min2": 2,
+        "max2": 3
+      },
+      {
+        "depth": 1,
+        "min": 4,
+        "max": 8,
+        "min2": 1,
+        "max2": 1
+      }
+    ],
+    "hybridSpeed": [
+      {
+        "depth": 18,
+        "min": 8,
+        "max": 11
+      },
+      {
+        "depth": 9,
+        "min": 5,
+        "max": 7
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 4
+      }
+    ],
+    "crushing": [
+      {
+        "depth": 22,
+        "min": 55,
+        "max": 70,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 35,
+        "max": 50,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 4,
+        "min": 20,
+        "max": 30,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "frenzied": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 10,
+        "min": 14,
+        "max": 19,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 2,
+        "min": 8,
+        "max": 13,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "overcharged": [
+      {
+        "depth": 22,
+        "min": 55,
+        "max": 70,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 35,
+        "max": 50,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 4,
+        "min": 20,
+        "max": 30,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "reckless": [
+      {
+        "depth": 20,
+        "min": 18,
+        "max": 24,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 17,
+        "min2": 10,
+        "max2": 15
+      },
+      {
+        "depth": 1,
+        "min": 7,
+        "max": 11,
+        "min2": 5,
+        "max2": 10
+      }
+    ],
+    "bloodbound": [
+      {
+        "depth": 22,
+        "min": 45,
+        "max": 60,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 12,
+        "min": 30,
+        "max": 44,
+        "min2": 10,
+        "max2": 15
+      },
+      {
+        "depth": 3,
+        "min": 18,
+        "max": 29,
+        "min2": 6,
+        "max2": 10
+      }
+    ],
+    "ironclad": [
+      {
+        "depth": 20,
+        "min": 10,
+        "max": 14,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 10,
+        "min": 7,
+        "max": 9,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 3,
+        "min": 4,
+        "max": 6,
+        "min2": 4,
+        "max2": 6
+      }
+    ],
+    "razor": [
+      {
+        "depth": 20,
+        "min": 8,
+        "max": 12,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 10,
+        "min": 5,
+        "max": 7,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 2,
+        "min": 3,
+        "max": 4,
+        "min2": 4,
+        "max2": 6
+      }
+    ],
+    "pike": [
+      {
+        "depth": 16,
+        "min": 25,
+        "max": 35,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 6,
+        "min": 15,
+        "max": 24,
+        "min2": 5,
+        "max2": 7
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 14,
+        "min2": 4,
+        "max2": 5
+      }
+    ],
+    "flickering": [
+      {
+        "depth": 18,
+        "min": 30,
+        "max": 40,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 8,
+        "min": 20,
+        "max": 29,
+        "min2": 10,
+        "max2": 15
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 19,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "emberMomentum": [
+      {
+        "depth": 24,
+        "min": 10,
+        "max": 13,
+        "min2": 9,
+        "max2": 13
+      },
+      {
+        "depth": 14,
+        "min": 7,
+        "max": 9,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 6,
+        "min": 4,
+        "max": 6,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "shatterEdge": [
+      {
+        "depth": 22,
+        "min": 14,
+        "max": 20,
+        "min2": 30,
+        "max2": 42
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 13,
+        "min2": 20,
+        "max2": 29
+      },
+      {
+        "depth": 4,
+        "min": 5,
+        "max": 8,
+        "min2": 12,
+        "max2": 19
+      }
+    ],
+    "chainedBarrage": [
+      {
+        "depth": 26,
+        "min": 14,
+        "max": 20,
+        "min2": 1,
+        "max2": 1
+      },
+      {
+        "depth": 12,
+        "min": 8,
+        "max": 13,
+        "min2": 1,
+        "max2": 1
+      }
+    ],
+    "deepPiercing": [
+      {
+        "depth": 20,
+        "min": 2,
+        "max": 2,
+        "min2": 20,
+        "max2": 28
+      },
+      {
+        "depth": 8,
+        "min": 1,
+        "max": 1,
+        "min2": 12,
+        "max2": 19
+      }
+    ],
+    "wallSlammer": [
+      {
+        "depth": 20,
+        "min": 45,
+        "max": 60,
+        "min2": 12,
+        "max2": 16
+      },
+      {
+        "depth": 8,
+        "min": 28,
+        "max": 44,
+        "min2": 8,
+        "max2": 11
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 27,
+        "min2": 5,
+        "max2": 7
+      }
+    ],
+    "vampiricRush": [
+      {
+        "depth": 24,
+        "min": 4,
+        "max": 5,
+        "min2": 9,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 2,
+        "max": 3,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1,
+        "min2": 3,
+        "max2": 5
+      }
+    ],
+    "stormcaller": [
+      {
+        "depth": 22,
+        "min": 18,
+        "max": 26,
+        "min2": 14,
+        "max2": 18
+      },
+      {
+        "depth": 10,
+        "min": 11,
+        "max": 17,
+        "min2": 9,
+        "max2": 13
+      },
+      {
+        "depth": 2,
+        "min": 5,
+        "max": 10,
+        "min2": 5,
+        "max2": 8
+      }
+    ],
+    "frostbite": [
+      {
+        "depth": 20,
+        "min": 25,
+        "max": 34,
+        "min2": 14,
+        "max2": 18
+      },
+      {
+        "depth": 8,
+        "min": 16,
+        "max": 24,
+        "min2": 9,
+        "max2": 13
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 15,
+        "min2": 5,
+        "max2": 8
+      }
+    ],
+    "arcaneBattery": [
+      {
+        "depth": 20,
+        "min": 30,
+        "max": 42,
+        "min2": 14,
+        "max2": 18
+      },
+      {
+        "depth": 8,
+        "min": 18,
+        "max": 29,
+        "min2": 9,
+        "max2": 13
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 17,
+        "min2": 5,
+        "max2": 8
+      }
+    ],
+    "gildedFang": [
+      {
+        "depth": 22,
+        "min": 30,
+        "max": 42,
+        "min2": 8,
+        "max2": 11
+      },
+      {
+        "depth": 10,
+        "min": 18,
+        "max": 29,
+        "min2": 5,
+        "max2": 7
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 17,
+        "min2": 2,
+        "max2": 4
+      }
+    ],
+    "dashStrike": [
+      {
+        "depth": 22,
+        "min": 20,
+        "max": 28,
+        "min2": 0.6,
+        "max2": 0.8
+      },
+      {
+        "depth": 10,
+        "min": 13,
+        "max": 19,
+        "min2": 0.5,
+        "max2": 0.6
+      },
+      {
+        "depth": 2,
+        "min": 7,
+        "max": 12,
+        "min2": 0.4,
+        "max2": 0.5
+      }
+    ],
+    "finisherMend": [
+      {
+        "depth": 24,
+        "min": 14,
+        "max": 20
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 13
+      },
+      {
+        "depth": 1,
+        "min": 4,
+        "max": 8
+      }
+    ],
+    "wardedSanctuary": [
+      {
+        "depth": 20,
+        "min": 22,
+        "max": 30,
+        "min2": 1.5,
+        "max2": 2
+      },
+      {
+        "depth": 8,
+        "min": 14,
+        "max": 21,
+        "min2": 1,
+        "max2": 1.4
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 13,
+        "min2": 0.6,
+        "max2": 0.9
+      }
+    ],
+    "roomMender": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 28
+      },
+      {
+        "depth": 8,
+        "min": 12,
+        "max": 19
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 11
+      }
+    ],
+    "energyReserve": [
+      {
+        "depth": 24,
+        "min": 0.35,
+        "max": 0.4
+      },
+      {
+        "depth": 10,
+        "min": 0.3,
+        "max": 0.4
+      },
+      {
+        "depth": 1,
+        "min": 0.2,
+        "max": 0.3
+      }
+    ],
+    "procBleed": [
+      {
+        "depth": 20,
+        "min": 15,
+        "max": 20,
+        "min2": 2.5,
+        "max2": 3.5
+      },
+      {
+        "depth": 10,
+        "min": 10,
+        "max": 15,
+        "min2": 1.5,
+        "max2": 2.5
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10,
+        "min2": 1,
+        "max2": 1.5
+      }
+    ],
+    "procPoison": [
+      {
+        "depth": 22,
+        "min": 15,
+        "max": 20
+      },
+      {
+        "depth": 12,
+        "min": 10,
+        "max": 15
+      },
+      {
+        "depth": 3,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "procVulnerable": [
+      {
+        "depth": 25,
+        "min": 22,
+        "max": 30
+      },
+      {
+        "depth": 15,
+        "min": 16,
+        "max": 22
+      },
+      {
+        "depth": 5,
+        "min": 10,
+        "max": 15
+      }
+    ],
+    "procWeaken": [
+      {
+        "depth": 24,
+        "min": 15,
+        "max": 20
+      },
+      {
+        "depth": 14,
+        "min": 10,
+        "max": 15
+      },
+      {
+        "depth": 4,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "procSilence": [
+      {
+        "depth": 26,
+        "min": 14,
+        "max": 18
+      },
+      {
+        "depth": 16,
+        "min": 10,
+        "max": 14
+      },
+      {
+        "depth": 6,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "procFear": [
+      {
+        "depth": 28,
+        "min": 31,
+        "max": 40
+      },
+      {
+        "depth": 18,
+        "min": 23,
+        "max": 30
+      },
+      {
+        "depth": 8,
+        "min": 15,
+        "max": 22
+      }
+    ],
+    "bulletCut": [
+      {
+        "depth": 4,
+        "min": 8,
+        "max": 12
+      }
+    ],
+    "maxManaFlat": [
+      {
+        "depth": 26,
+        "min": 27,
+        "max": 33
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 20
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "manaRegenFlat": [
+      {
+        "depth": 26,
+        "min": 1.3,
+        "max": 1.7
+      },
+      {
+        "depth": 12,
+        "min": 0.7,
+        "max": 1
+      },
+      {
+        "depth": 1,
+        "min": 0.2,
+        "max": 0.4
+      }
+    ],
+    "manaGainPct": [
+      {
+        "depth": 26,
+        "min": 50,
+        "max": 60
+      },
+      {
+        "depth": 12,
+        "min": 25,
+        "max": 35
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 15
+      }
+    ],
+    "manaCostPct": [
+      {
+        "depth": 26,
+        "min": 27,
+        "max": 32,
+        "min2": 13,
+        "max2": 16
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 19,
+        "min2": 7,
+        "max2": 9
+      },
+      {
+        "depth": 1,
+        "min": 7,
+        "max": 9,
+        "min2": 3,
+        "max2": 4
+      }
+    ],
+    "manaOnKillFlat": [
+      {
+        "depth": 26,
+        "min": 7,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "manaDrought": [
+      {
+        "depth": 22,
+        "min": 12,
+        "max": 14,
+        "min2": 34,
+        "max2": 40
+      },
+      {
+        "depth": 8,
+        "min": 9,
+        "max": 11,
+        "min2": 28,
+        "max2": 32
+      }
+    ],
+    "manaOnStagger": [
+      {
+        "depth": 22,
+        "min": 8,
+        "max": 10,
+        "min2": 4,
+        "max2": 4
+      },
+      {
+        "depth": 10,
+        "min": 5,
+        "max": 7,
+        "min2": 3,
+        "max2": 3
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 2,
+        "max2": 2
+      }
+    ],
+    "lowTide": [
+      {
+        "depth": 24,
+        "min": 100,
+        "max": 130,
+        "min2": 30,
+        "max2": 35
+      },
+      {
+        "depth": 12,
+        "min": 70,
+        "max": 90,
+        "min2": 25,
+        "max2": 30
+      },
+      {
+        "depth": 1,
+        "min": 40,
+        "max": 60,
+        "min2": 20,
+        "max2": 25
+      }
+    ],
+    "fullTide": [
+      {
+        "depth": 24,
+        "min": 32,
+        "max": 42,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 22,
+        "max": 30,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 18,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "ebbTide": [
+      {
+        "depth": 24,
+        "min": 50,
+        "max": 65,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 35,
+        "max": 45,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 30,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "manaShield": [
+      {
+        "depth": 24,
+        "min": 8,
+        "max": 10,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 12,
+        "min": 11,
+        "max": 13,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 1,
+        "min": 14,
+        "max": 16,
+        "min2": 15,
+        "max2": 20
+      }
+    ],
+    "painToMana": [
+      {
+        "depth": 24,
+        "min": 13,
+        "max": 16,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 12,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 8,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "silencedKillMana": [
+      {
+        "depth": 24,
+        "min": 16,
+        "max": 20,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 14,
+        "min": 12,
+        "max": 15,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 4,
+        "min": 8,
+        "max": 10,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "lastKillMana": [
+      {
+        "depth": 24,
+        "min": 85,
+        "max": 100,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 14,
+        "min": 60,
+        "max": 75,
+        "min2": 5,
+        "max2": 7
+      },
+      {
+        "depth": 3,
+        "min": 40,
+        "max": 50,
+        "min2": 4,
+        "max2": 6
+      }
+    ],
+    "manaOverflow": [
+      {
+        "depth": 24,
+        "min": 130,
+        "max": 160,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 90,
+        "max": 120,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 60,
+        "max": 80,
+        "min2": 4,
+        "max2": 6
+      }
+    ],
+    "counterMana": [
+      {
+        "depth": 24,
+        "min": 13,
+        "max": 16,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 12,
+        "min2": 5,
+        "max2": 6
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 8,
+        "min2": 4,
+        "max2": 5
+      }
+    ],
+    "justBreath": [
+      {
+        "depth": 24,
+        "min": 13,
+        "max": 16,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 12,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 8,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "arcaneFocus": [
+      {
+        "depth": 24,
+        "min": 28,
+        "max": 35,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 18,
+        "max": 24,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 14,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "kaleidoscope": [
+      {
+        "depth": 24,
+        "min": 10,
+        "max": 13,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 7,
+        "max": 9,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 4,
+        "max": 6,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "fever": [
+      {
+        "depth": 24,
+        "min": 20,
+        "max": 26,
+        "min2": 20,
+        "max2": 25
+      },
+      {
+        "depth": 12,
+        "min": 14,
+        "max": 18,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 12,
+        "min2": 15,
+        "max2": 20
+      }
+    ],
+    "weakenedGuard": [
+      {
+        "depth": 24,
+        "min": 30,
+        "max": 36,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 12,
+        "min": 22,
+        "max": 28,
+        "min2": 5,
+        "max2": 6
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20,
+        "min2": 4,
+        "max2": 5
+      }
+    ],
+    "plagueSeed": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "hurtWeaken": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "procParalyze": [
+      {
+        "depth": 24,
+        "min": 11,
+        "max": 14,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 14,
+        "min": 8,
+        "max": 10,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 4,
+        "min": 5,
+        "max": 7,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "rotBurst": [
+      {
+        "depth": 24,
+        "min": 32,
+        "max": 40,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 14,
+        "min": 22,
+        "max": 28,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 4,
+        "min": 14,
+        "max": 18,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "virulent": [
+      {
+        "depth": 24,
+        "min": 28,
+        "max": 35,
+        "min2": 4,
+        "max2": 4
+      },
+      {
+        "depth": 12,
+        "min": 18,
+        "max": 24,
+        "min2": 3,
+        "max2": 3
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 14,
+        "min2": 2,
+        "max2": 2
+      }
+    ],
+    "statusWard": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 28
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 20
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 12
+      }
+    ],
+    "hurtCleanse": [
+      {
+        "depth": 24,
+        "min": 16,
+        "max": 20
+      },
+      {
+        "depth": 12,
+        "min": 12,
+        "max": 15
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10
+      }
+    ],
+    "wedge": [
+      {
+        "depth": 24,
+        "min": 65,
+        "max": 80,
+        "min2": 15,
+        "max2": 18
+      },
+      {
+        "depth": 12,
+        "min": 45,
+        "max": 60,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 40,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "guardPiercer": [
+      {
+        "depth": 20,
+        "min": 90,
+        "max": 100,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 10,
+        "min": 70,
+        "max": 80,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 60,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "staggerQuake": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 28,
+        "min2": 15,
+        "max2": 18
+      },
+      {
+        "depth": 12,
+        "min": 14,
+        "max": 18,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "staggerLeech": [
+      {
+        "depth": 24,
+        "min": 8,
+        "max": 10,
+        "min2": 3,
+        "max2": 3
+      },
+      {
+        "depth": 12,
+        "min": 5,
+        "max": 7,
+        "min2": 2,
+        "max2": 2
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 1,
+        "max2": 1
+      }
+    ],
+    "fearPoise": [
+      {
+        "depth": 24,
+        "min": 100,
+        "max": 130,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 80,
+        "max": 100,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 60,
+        "max": 80,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "vortexCore": [
+      {
+        "depth": 24,
+        "min": 100,
+        "max": 130,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 80,
+        "max": 100,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 60,
+        "max": 80,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "vulnPoise": [
+      {
+        "depth": 24,
+        "min": 80,
+        "max": 100,
+        "min2": 5,
+        "max2": 6
+      },
+      {
+        "depth": 12,
+        "min": 60,
+        "max": 75,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 1,
+        "min": 40,
+        "max": 55,
+        "min2": 3,
+        "max2": 4
+      }
+    ],
+    "heavyHand": [
+      {
+        "depth": 24,
+        "min": 30,
+        "max": 38,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 20,
+        "max": 26,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 16,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "staggerSpark": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 28
+      },
+      {
+        "depth": 12,
+        "min": 14,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10
+      }
+    ],
+    "staggerCharge": [
+      {
+        "depth": 24,
+        "min": 16,
+        "max": 20,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 12,
+        "max": 15,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "staggerMark": [
+      {
+        "depth": 24,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 12,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "readAhead": [
+      {
+        "depth": 24,
+        "min": 55,
+        "max": 70,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 40,
+        "max": 50,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 25,
+        "max": 35,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "windupCrack": [
+      {
+        "depth": 24,
+        "min": 18,
+        "max": 24
+      },
+      {
+        "depth": 12,
+        "min": 12,
+        "max": 16
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10
+      }
+    ],
+    "counterWave": [
+      {
+        "depth": 24,
+        "min": 28,
+        "max": 34
+      },
+      {
+        "depth": 12,
+        "min": 18,
+        "max": 22
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 12
+      }
+    ],
+    "guardedBane": [
+      {
+        "depth": 24,
+        "min": 38,
+        "max": 46
+      },
+      {
+        "depth": 12,
+        "min": 25,
+        "max": 32
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20
+      }
+    ],
+    "downHunter": [
+      {
+        "depth": 25,
+        "min": 35,
+        "max": 42,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 15,
+        "min": 25,
+        "max": 30,
+        "min2": 5,
+        "max2": 6
+      },
+      {
+        "depth": 5,
+        "min": 15,
+        "max": 20,
+        "min2": 4,
+        "max2": 5
+      }
+    ],
+    "dashVolley": [
+      {
+        "depth": 24,
+        "min": 95,
+        "max": 110,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 12,
+        "min": 70,
+        "max": 85,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 60,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "brimShock": [
+      {
+        "depth": 24,
+        "min": 15,
+        "max": 19
+      },
+      {
+        "depth": 12,
+        "min": 10,
+        "max": 13
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 8
+      }
+    ],
+    "nightEyes": [
+      {
+        "depth": 24,
+        "min": 40,
+        "max": 48,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 12,
+        "min": 30,
+        "max": 36,
+        "min2": 5,
+        "max2": 6
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 4,
+        "max2": 5
+      }
+    ],
+    "lockdownFury": [
+      {
+        "depth": 24,
+        "min": 16,
+        "max": 20,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 12,
+        "max": 15,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "reaperShadow": [
+      {
+        "depth": 24,
+        "min": 40,
+        "max": 48,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 30,
+        "max": 36,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "sapling": [
+      {
+        "depth": 24,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 12,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "inscribedWeight": [
+      {
+        "depth": 24,
+        "min": 20,
+        "max": 26,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 12,
+        "min": 14,
+        "max": 18,
+        "min2": 3,
+        "max2": 4
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 12,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "invertedFeast": [
+      {
+        "depth": 24,
+        "min": 12,
+        "max": 15,
+        "min2": 3,
+        "max2": 4
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 12,
+        "min2": 3,
+        "max2": 3
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 8,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "foreignEcho": [
+      {
+        "depth": 16,
+        "min": 1,
+        "max": 2,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 4,
+        "min": 1,
+        "max": 1,
+        "min2": 4,
+        "max2": 6
+      }
+    ],
+    "bridge": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 23
+      },
+      {
+        "depth": 12,
+        "min": 24,
+        "max": 25
+      },
+      {
+        "depth": 1,
+        "min": 26,
+        "max": 27
+      }
+    ],
+    "oldScars": [
+      {
+        "depth": 24,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 12,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "veteran": [
+      {
+        "depth": 24,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 12,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "wayfarer": [
+      {
+        "depth": 24,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "depth": 12,
+        "min": 1,
+        "max": 2
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1
+      }
+    ],
+    "kingslayerMark": [
+      {
+        "depth": 24,
+        "min": 8,
+        "max": 10
+      },
+      {
+        "depth": 14,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 3,
+        "min": 4,
+        "max": 6
+      }
+    ],
+    "keenMemory": [
+      {
+        "depth": 24,
+        "min": 12,
+        "max": 15,
+        "min2": 0.4,
+        "max2": 0.5
+      },
+      {
+        "depth": 12,
+        "min": 9,
+        "max": 12,
+        "min2": 0.3,
+        "max2": 0.4
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 8,
+        "min2": 0.2,
+        "max2": 0.3
+      }
+    ],
+    "echoSlash": [
+      {
+        "depth": 24,
+        "min": 3,
+        "max": 4,
+        "min2": 0.3,
+        "max2": 0.3
+      },
+      {
+        "depth": 12,
+        "min": 2,
+        "max": 2.5,
+        "min2": 0.3,
+        "max2": 0.3
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1.5,
+        "min2": 0.3,
+        "max2": 0.3
+      }
+    ],
+    "inheritance": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 5,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "stake": [
+      {
+        "depth": 24,
+        "min": 9,
+        "max": 12,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 6,
+        "max": 8,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "placedInfuse": [
+      {
+        "depth": 24,
+        "min": 3,
+        "max": 4,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 12,
+        "min": 2.5,
+        "max": 3,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 2.5,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "placedAnchor": [
+      {
+        "depth": 24,
+        "min": 2,
+        "max": 2.5,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 12,
+        "min": 1.5,
+        "max": 2,
+        "min2": 5,
+        "max2": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1.5,
+        "min2": 4,
+        "max2": 5
+      }
+    ],
+    "bloodSignature": [
+      {
+        "depth": 24,
+        "min": 50,
+        "max": 60,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 35,
+        "max": 45,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 30,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "shieldSplitter": [
+      {
+        "depth": 15,
+        "min": 30,
+        "max": 36,
+        "min2": 45,
+        "max2": 55
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 30,
+        "max2": 40
+      }
+    ],
+    "kickback": [
+      {
+        "depth": 15,
+        "min": 24,
+        "max": 30
+      },
+      {
+        "depth": 1,
+        "min": 14,
+        "max": 18
+      }
+    ],
+    "plunder": [
+      {
+        "depth": 15,
+        "min": 30,
+        "max": 36,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "firstMove": [
+      {
+        "depth": 15,
+        "min": 25,
+        "max": 32
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20
+      }
+    ],
+    "curtainCall": [
+      {
+        "depth": 15,
+        "min": 30,
+        "max": 36
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25
+      }
+    ],
+    "weakRead": [
+      {
+        "depth": 24,
+        "min": 2.5,
+        "max": 3,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 1.5,
+        "max": 2,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1.5,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "prismEdge": [
+      {
+        "depth": 24,
+        "min": 40,
+        "max": 48,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 28,
+        "max": 34,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 18,
+        "max": 22,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "resistBreaker": [
+      {
+        "depth": 24,
+        "min": 55,
+        "max": 65,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 40,
+        "max": 50,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 25,
+        "max": 35,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "backlash": [
+      {
+        "depth": 24,
+        "min": 3.5,
+        "max": 4
+      },
+      {
+        "depth": 12,
+        "min": 2.5,
+        "max": 3
+      },
+      {
+        "depth": 1,
+        "min": 1.5,
+        "max": 2
+      }
+    ],
+    "conductor": [
+      {
+        "depth": 24,
+        "min": 30,
+        "max": 36
+      },
+      {
+        "depth": 12,
+        "min": 20,
+        "max": 25
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 16
+      }
+    ],
+    "igniter": [
+      {
+        "depth": 24,
+        "min": 30,
+        "max": 36
+      },
+      {
+        "depth": 12,
+        "min": 20,
+        "max": 25
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 16
+      }
+    ],
+    "elementalBreak": [
+      {
+        "depth": 24,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 12,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "elementalWard": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 26,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 18,
+        "min2": 7,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 9,
+        "max": 12,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "chargeCore": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 26,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 18,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 9,
+        "max": 12,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "chargeQuake": [
+      {
+        "depth": 24,
+        "min": 25,
+        "max": 30,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 12,
+        "min": 18,
+        "max": 22,
+        "min2": 3,
+        "max2": 4
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 14,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "branchArt": [
+      {
+        "depth": 24,
+        "min": 35,
+        "max": 42,
+        "min2": 2,
+        "max2": 2.5
+      },
+      {
+        "depth": 12,
+        "min": 25,
+        "max": 30,
+        "min2": 1.5,
+        "max2": 2
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20,
+        "min2": 1,
+        "max2": 1.5
+      }
+    ],
+    "spreadCore": [
+      {
+        "depth": 24,
+        "min": 45,
+        "max": 55,
+        "min2": 15,
+        "max2": 18
+      },
+      {
+        "depth": 12,
+        "min": 32,
+        "max": 40,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 26,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "spreadShove": [
+      {
+        "depth": 24,
+        "min": 40,
+        "max": 50
+      },
+      {
+        "depth": 12,
+        "min": 28,
+        "max": 35
+      },
+      {
+        "depth": 1,
+        "min": 16,
+        "max": 22
+      }
+    ],
+    "homingVenom": [
+      {
+        "depth": 24,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 12,
+        "min": 3,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "rapidBrand": [
+      {
+        "depth": 24,
+        "min": 30,
+        "max": 36,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 22,
+        "max": 26,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 14,
+        "max": 18,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "brandDetonator": [
+      {
+        "depth": 24,
+        "min": 45,
+        "max": 55,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 32,
+        "max": 40,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 26,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "schoolForm": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 26,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 18,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 9,
+        "max": 12,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "selfTaught": [
+      {
+        "depth": 24,
+        "min": 40,
+        "max": 48,
+        "min2": 15,
+        "max2": 18
+      },
+      {
+        "depth": 12,
+        "min": 28,
+        "max": 34,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 1,
+        "min": 18,
+        "max": 22,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "wanderer": [
+      {
+        "depth": 24,
+        "min": 26,
+        "max": 30,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 18,
+        "max": 22,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 15,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "schoolHarvest": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6
+      },
+      {
+        "depth": 12,
+        "min": 3.5,
+        "max": 4.5
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "groundRooted": [
+      {
+        "depth": 24,
+        "min": 32,
+        "max": 38,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 22,
+        "max": 27,
+        "min2": 6,
+        "max2": 8
+      },
+      {
+        "depth": 1,
+        "min": 14,
+        "max": 18,
+        "min2": 5,
+        "max2": 6
+      }
+    ],
+    "slickFooting": [
+      {
+        "depth": 24,
+        "min": 32,
+        "max": 38
+      },
+      {
+        "depth": 12,
+        "min": 22,
+        "max": 27
+      },
+      {
+        "depth": 1,
+        "min": 14,
+        "max": 18
+      }
+    ],
+    "mireGuard": [
+      {
+        "depth": 24,
+        "min": 16,
+        "max": 20
+      },
+      {
+        "depth": 12,
+        "min": 11,
+        "max": 14
+      },
+      {
+        "depth": 1,
+        "min": 7,
+        "max": 9
+      }
+    ],
+    "terrainHunter": [
+      {
+        "depth": 24,
+        "min": 28,
+        "max": 34
+      },
+      {
+        "depth": 12,
+        "min": 19,
+        "max": 24
+      },
+      {
+        "depth": 1,
+        "min": 11,
+        "max": 15
+      }
+    ],
+    "terrainBurst": [
+      {
+        "depth": 24,
+        "min": 26,
+        "max": 32
+      },
+      {
+        "depth": 12,
+        "min": 17,
+        "max": 21
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 13
+      }
+    ],
+    "emberTrail": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 5,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "frostTrail": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 5,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "groundMend": [
+      {
+        "depth": 24,
+        "min": 2,
+        "max": 2.5,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 1.5,
+        "max": 2,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1.5,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "brokenHunter": [
+      {
+        "depth": 24,
+        "min": 35,
+        "max": 42
+      },
+      {
+        "depth": 12,
+        "min": 24,
+        "max": 30
+      },
+      {
+        "depth": 1,
+        "min": 14,
+        "max": 18
+      }
+    ],
+    "corrodeClaw": [
+      {
+        "depth": 24,
+        "min": 40,
+        "max": 48
+      },
+      {
+        "depth": 12,
+        "min": 28,
+        "max": 34
+      },
+      {
+        "depth": 1,
+        "min": 16,
+        "max": 22
+      }
+    ],
+    "doomToll": [
+      {
+        "depth": 24,
+        "min": 8,
+        "max": 10
+      },
+      {
+        "depth": 12,
+        "min": 6,
+        "max": 7
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 5
+      }
+    ],
+    "siegeGuard": [
+      {
+        "depth": 24,
+        "min": 18,
+        "max": 22,
+        "min2": 12,
+        "max2": 15
+      },
+      {
+        "depth": 12,
+        "min": 12,
+        "max": 15,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 8,
+        "max": 10,
+        "min2": 8,
+        "max2": 10
+      }
+    ],
+    "siegeSpark": [
+      {
+        "depth": 24,
+        "min": 7,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 5,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "switchHitter": [
+      {
+        "depth": 24,
+        "min": 45,
+        "max": 55,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 12,
+        "min": 32,
+        "max": 40,
+        "min2": 8,
+        "max2": 10
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 26,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "switchBreath": [
+      {
+        "depth": 24,
+        "min": 2.5,
+        "max": 3
+      },
+      {
+        "depth": 12,
+        "min": 1.5,
+        "max": 2
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 1.5
+      }
+    ],
+    "weakInsight": [
+      {
+        "depth": 15,
+        "min": 24,
+        "max": 30,
+        "min2": 2,
+        "max2": 2.5
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20,
+        "min2": 1,
+        "max2": 1.5
+      }
+    ],
+    "sevenHues": [
+      {
+        "depth": 15,
+        "min": 45,
+        "max": 55,
+        "min2": 15,
+        "max2": 20
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 36,
+        "min2": 10,
+        "max2": 12
+      }
+    ],
+    "counterGrain": [
+      {
+        "depth": 15,
+        "min": 3,
+        "max": 4,
+        "min2": 25,
+        "max2": 30
+      },
+      {
+        "depth": 1,
+        "min": 2,
+        "max": 3,
+        "min2": 15,
+        "max2": 20
+      }
+    ],
+    "groundWisdom": [
+      {
+        "depth": 15,
+        "min": 24,
+        "max": 30,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "mireLord": [
+      {
+        "depth": 15,
+        "min": 24,
+        "max": 30,
+        "min2": 20,
+        "max2": 25
+      },
+      {
+        "depth": 1,
+        "min": 15,
+        "max": 20,
+        "min2": 12,
+        "max2": 16
+      }
+    ],
+    "schoolMastery": [
+      {
+        "depth": 15,
+        "min": 20,
+        "max": 25,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 16,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "schoolSecret": [
+      {
+        "depth": 15,
+        "min": 16,
+        "max": 20,
+        "min2": 30,
+        "max2": 36
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 13,
+        "min2": 20,
+        "max2": 25
+      }
+    ],
+    "fullCharge": [
+      {
+        "depth": 15,
+        "min": 20,
+        "max": 25,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 1,
+        "min": 12,
+        "max": 16,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "formBreaker": [
+      {
+        "depth": 15,
+        "min": 30,
+        "max": 36,
+        "min2": 2.5,
+        "max2": 3
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 1.5,
+        "max2": 2
+      }
+    ],
+    "hueBreak": [
+      {
+        "depth": 15,
+        "min": 4,
+        "max": 5
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "brokenBreaker": [
+      {
+        "depth": 15,
+        "min": 30,
+        "max": 36,
+        "min2": 30,
+        "max2": 36
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 20,
+        "max2": 25
+      }
+    ],
+    "battleRhythm": [
+      {
+        "depth": 15,
+        "min": 35,
+        "max": 42,
+        "min2": 2,
+        "max2": 2.5
+      },
+      {
+        "depth": 1,
+        "min": 24,
+        "max": 30,
+        "min2": 1,
+        "max2": 1.5
+      }
+    ],
+    "stormConduit": [
+      {
+        "depth": 15,
+        "min": 30,
+        "max": 36,
+        "min2": 20,
+        "max2": 25
+      },
+      {
+        "depth": 1,
+        "min": 20,
+        "max": 25,
+        "min2": 12,
+        "max2": 16
+      }
+    ],
+    "siegeHeart": [
+      {
+        "depth": 15,
+        "min": 14,
+        "max": 18,
+        "min2": 4,
+        "max2": 5
+      },
+      {
+        "depth": 1,
+        "min": 9,
+        "max": 12,
+        "min2": 2,
+        "max2": 3
+      }
+    ],
+    "emberWalk": [
+      {
+        "depth": 15,
+        "min": 5,
+        "max": 6,
+        "min2": 10,
+        "max2": 12
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 6,
+        "max2": 8
+      }
+    ],
+    "frostWalk": [
+      {
+        "depth": 15,
+        "min": 5,
+        "max": 6,
+        "min2": 20,
+        "max2": 25
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4,
+        "min2": 12,
+        "max2": 16
+      }
+    ],
+    "cv_meleeToBurn": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_splitToPierce": [
+      {
+        "depth": 24,
+        "min": 10,
+        "max": 14,
+        "min2": 3,
+        "max2": 3
+      },
+      {
+        "depth": 12,
+        "min": 15,
+        "max": 20,
+        "min2": 2,
+        "max2": 2
+      },
+      {
+        "depth": 1,
+        "min": 21,
+        "max": 25,
+        "min2": 1,
+        "max2": 1
+      }
+    ],
+    "cv_critToMultiplier": [
+      {
+        "depth": 24,
+        "min": 5,
+        "max": 6
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 3
+      }
+    ],
+    "cv_speedToAttack": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_lifeToArmor": [
+      {
+        "depth": 24,
+        "min": 36,
+        "max": 45
+      },
+      {
+        "depth": 12,
+        "min": 26,
+        "max": 35
+      },
+      {
+        "depth": 1,
+        "min": 18,
+        "max": 25
+      }
+    ],
+    "cv_chargesToDistance": [
+      {
+        "depth": 24,
+        "min": 86,
+        "max": 100
+      },
+      {
+        "depth": 12,
+        "min": 66,
+        "max": 85
+      },
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 65
+      }
+    ],
+    "cv_leechToEnergy": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_comboToJust": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_meleeToRanged": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_critToBurn": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_regenToGain": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_knockbackToPoise": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_projectilesToPoise": [
+      {
+        "depth": 24,
+        "min": 120,
+        "max": 150
+      },
+      {
+        "depth": 12,
+        "min": 90,
+        "max": 110
+      },
+      {
+        "depth": 1,
+        "min": 60,
+        "max": 80
+      }
+    ],
+    "cv_poiseToDamage": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_lifeToMana": [
+      {
+        "depth": 24,
+        "min": 22,
+        "max": 26
+      },
+      {
+        "depth": 12,
+        "min": 16,
+        "max": 20
+      },
+      {
+        "depth": 1,
+        "min": 10,
+        "max": 14
+      }
+    ],
+    "cv_manaToLife": [
+      {
+        "depth": 24,
+        "min": 36,
+        "max": 45
+      },
+      {
+        "depth": 12,
+        "min": 26,
+        "max": 35
+      },
+      {
+        "depth": 1,
+        "min": 18,
+        "max": 25
+      }
+    ],
+    "cv_energyToMana": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_burstToSkill": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_critToPoise": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_burnToPoison": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_chillToVulnerable": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_armorToWarding": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_wardingToArmor": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_resistToDamage": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_resistToWarding": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_burnToFire": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_chillToIce": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_shockToLightning": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_critToLight": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "attr_str": [
+      {
+        "depth": 20,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 10,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "attr_dex": [
+      {
+        "depth": 20,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 10,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "attr_vit": [
+      {
+        "depth": 20,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 10,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "attr_mnd": [
+      {
+        "depth": 20,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 10,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "attr_spi": [
+      {
+        "depth": 20,
+        "min": 7,
+        "max": 9
+      },
+      {
+        "depth": 10,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "boonEcho_crimson": [
+      {
+        "depth": 24,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "boonEcho_azure": [
+      {
+        "depth": 24,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "boonEcho_jade": [
+      {
+        "depth": 24,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "boonEcho_gold": [
+      {
+        "depth": 24,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "boonEcho_umbra": [
+      {
+        "depth": 24,
+        "min": 6,
+        "max": 8
+      },
+      {
+        "depth": 12,
+        "min": 4,
+        "max": 6
+      },
+      {
+        "depth": 1,
+        "min": 3,
+        "max": 4
+      }
+    ],
+    "res_fire": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "res_ice": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "res_lightning": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "res_poison": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "res_dark": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "res_light": [
+      {
+        "depth": 20,
+        "min": 20,
+        "max": 26
+      },
+      {
+        "depth": 10,
+        "min": 12,
+        "max": 18
+      },
+      {
+        "depth": 1,
+        "min": 6,
+        "max": 10
+      }
+    ],
+    "res_all": [
+      {
+        "depth": 22,
+        "min": 10,
+        "max": 13
+      },
+      {
+        "depth": 12,
+        "min": 6,
+        "max": 9
+      },
+      {
+        "depth": 3,
+        "min": 3,
+        "max": 5
+      }
+    ],
+    "cv_dexToStr": [
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 50
+      }
+    ],
+    "cv_strToSpi": [
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 50
+      }
+    ],
+    "cv_spiToVit": [
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 50
+      }
+    ],
+    "cv_vitToMnd": [
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 50
+      }
+    ],
+    "cv_mndToDex": [
+      {
+        "depth": 1,
+        "min": 50,
+        "max": 50
+      }
+    ],
+    "cv_infuseFire": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_infuseIce": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_infuseLightning": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_infusePoison": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_infuseDark": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_infuseLight": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ],
+    "cv_infuseNone": [
+      {
+        "depth": 24,
+        "min": 56,
+        "max": 70
+      },
+      {
+        "depth": 12,
+        "min": 43,
+        "max": 55
+      },
+      {
+        "depth": 1,
+        "min": 30,
+        "max": 42
+      }
+    ]
+  },
+  "bases": {
+    "dagger": {
+      "minLevel": 1
+    },
+    "shortsword": {
+      "minLevel": 1
+    },
+    "longsword": {
+      "minLevel": 5
+    },
+    "spear": {
+      "minLevel": 7
+    },
+    "greatsword": {
+      "minLevel": 3
+    },
+    "twinblades": {
+      "minLevel": 6
+    },
+    "warpick": {
+      "minLevel": 3
+    },
+    "machete": {
+      "minLevel": 2
+    },
+    "rapier": {
+      "minLevel": 3
+    },
+    "staff": {
+      "minLevel": 2
+    },
+    "scythe": {
+      "minLevel": 11
+    },
+    "gauntlets": {
+      "minLevel": 1
+    },
+    "whip": {
+      "minLevel": 3
+    },
+    "wand": {
+      "minLevel": 3
+    },
+    "katana": {
+      "minLevel": 3
+    },
+    "zanbato": {
+      "minLevel": 12
+    },
+    "twinDaggers": {
+      "minLevel": 2
+    },
+    "halberd": {
+      "minLevel": 11
+    },
+    "sickle": {
+      "minLevel": 3
+    },
+    "cestus": {
+      "minLevel": 8
+    },
+    "chainWhip": {
+      "minLevel": 10
+    },
+    "shakujo": {
+      "minLevel": 9
+    },
+    "crystalWand": {
+      "minLevel": 11
+    },
+    "wakizashi": {
+      "minLevel": 3
+    },
+    "tachi": {
+      "minLevel": 8
+    },
+    "handAxe": {
+      "minLevel": 2
+    },
+    "battleAxe": {
+      "minLevel": 9
+    },
+    "towerShield": {
+      "minLevel": 3
+    },
+    "kiteShield": {
+      "minLevel": 10
+    },
+    "kusarigama": {
+      "minLevel": 3
+    },
+    "weightedChain": {
+      "minLevel": 9
+    },
+    "mallet": {
+      "minLevel": 3
+    },
+    "maul": {
+      "minLevel": 12
+    },
+    "twinPistols": {
+      "minLevel": 3
+    },
+    "twinRevolvers": {
+      "minLevel": 11
+    },
+    "broadCleaver": {
+      "minLevel": 9
+    },
+    "pistol": {
+      "minLevel": 1
+    },
+    "smg": {
+      "minLevel": 4
+    },
+    "rifle": {
+      "minLevel": 8
+    },
+    "shotgun": {
+      "minLevel": 12
+    },
+    "revolver": {
+      "minLevel": 7
+    },
+    "railgun": {
+      "minLevel": 16
+    },
+    "throwingKnives": {
+      "minLevel": 2
+    },
+    "blowgun": {
+      "minLevel": 3
+    },
+    "matchlock": {
+      "minLevel": 4
+    },
+    "ricochetGun": {
+      "minLevel": 3
+    },
+    "mineLauncher": {
+      "minLevel": 10
+    },
+    "blunderbuss": {
+      "minLevel": 3
+    },
+    "crossbow": {
+      "minLevel": 4
+    },
+    "chakram": {
+      "minLevel": 9
+    },
+    "handCannon": {
+      "minLevel": 13
+    },
+    "caltrops": {
+      "minLevel": 4
+    },
+    "seekerOrb": {
+      "minLevel": 8
+    },
+    "burstRifle": {
+      "minLevel": 3
+    },
+    "tripleCrossbow": {
+      "minLevel": 10
+    },
+    "returnChakram": {
+      "minLevel": 3
+    },
+    "flyingBlade": {
+      "minLevel": 11
+    },
+    "mortar": {
+      "minLevel": 3
+    },
+    "grenadeLauncher": {
+      "minLevel": 11
+    },
+    "cloth": {
+      "minLevel": 1
+    },
+    "leather": {
+      "minLevel": 3
+    },
+    "chain": {
+      "minLevel": 8
+    },
+    "plate": {
+      "minLevel": 14
+    },
+    "berserkerHide": {
+      "minLevel": 6
+    },
+    "rags": {
+      "minLevel": 1,
+      "marginBonus": 1
+    },
+    "robe": {
+      "minLevel": 5
+    },
+    "scale": {
+      "minLevel": 9
+    },
+    "spiked": {
+      "minLevel": 11
+    },
+    "mino": {
+      "minLevel": 4
+    },
+    "sandals": {
+      "minLevel": 1
+    },
+    "boots": {
+      "minLevel": 4
+    },
+    "greaves": {
+      "minLevel": 10
+    },
+    "wingedBoots": {
+      "minLevel": 16
+    },
+    "lungingBoots": {
+      "minLevel": 7
+    },
+    "tabi": {
+      "minLevel": 5
+    },
+    "ironGeta": {
+      "minLevel": 6
+    },
+    "snowBoots": {
+      "minLevel": 8
+    },
+    "ironRing": {
+      "minLevel": 1
+    },
+    "rubyRing": {
+      "minLevel": 3
+    },
+    "sapphireRing": {
+      "minLevel": 3
+    },
+    "goldRing": {
+      "minLevel": 6
+    },
+    "bloodRing": {
+      "minLevel": 10
+    },
+    "voidBand": {
+      "minLevel": 13
+    },
+    "boneRing": {
+      "minLevel": 4
+    },
+    "signet": {
+      "minLevel": 5
+    },
+    "twinRing": {
+      "minLevel": 8
+    },
+    "blackIronRing": {
+      "minLevel": 13
+    },
+    "jadeAmulet": {
+      "minLevel": 1
+    },
+    "amberAmulet": {
+      "minLevel": 1
+    },
+    "onyxAmulet": {
+      "minLevel": 5
+    },
+    "lapisAmulet": {
+      "minLevel": 8
+    },
+    "coralAmulet": {
+      "minLevel": 12
+    },
+    "duskAmulet": {
+      "minLevel": 9
+    },
+    "rosary": {
+      "minLevel": 3
+    },
+    "fangNecklace": {
+      "minLevel": 6
+    },
+    "bell": {
+      "minLevel": 7
+    }
+  }
+}

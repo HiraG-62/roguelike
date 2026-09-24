@@ -196,7 +196,7 @@ function rules(state: GameState): BoonRuleState {
 /** 近接 1 段目の装備・ステータス込みダメージ（祝福の威力は装備 stat に比例させる） */
 export function slashBase(state: GameState): number {
   const s = state.stats;
-  const base = scaled(s, PLAYER.melee[0].scaling);
+  const base = scaled(s, PLAYER.melee[0]!.scaling);
   return Math.round((base + s.meleeDamageFlat) * s.meleeDamageMul);
 }
 

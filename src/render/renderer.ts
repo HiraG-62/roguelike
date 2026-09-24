@@ -400,6 +400,8 @@ const BULLET_TINT_STRENGTH = 0.5;
 const COLOR_PLAYER_BULLET_DEFAULT = "#a0e0ff";
 /** enemyBullet スプライトの色に揃える */
 const COLOR_ENEMY_TRAIL = "#e04848";
+/** 武器の絵を回す弾（斧の投擲など。ThrowArtDef.sprite）の毎秒の回転（ラジアン）。state.time で回すので rng は使わない */
+const THROWN_WEAPON_SPIN = 14;
 
 /** オーラ */
 const AURA_RX = 11;
@@ -1822,6 +1824,12 @@ export class Renderer {
       }
       ctx.globalAlpha = 1;
 
+      // 武器の絵を持つ弾（斧の投擲など。ThrowArtDef.sprite）はその武器を回しながら飛ばす
+      const weaponFrame = pr.sprite ? this.atlas[pr.sprite]?.frames[0] : undefined;
+      if (weaponFrame) {
+        this.drawRotated(weaponFrame, pr.pos.x, py, state.time * THROWN_WEAPON_SPIN, 1);
+        continue;
+      }
       const key = isPlayer ? SPR.bullet : SPR.enemyBullet;
       const sprite = this.sprite(key);
       const frames =
