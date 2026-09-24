@@ -290,6 +290,11 @@ export interface Profile {
   equipment: Equipment;
   stash: Item[];
   meta: ProfileMeta;
+  /**
+   * 武器種ごとに拠点の武器掛けで選んだ奥義の key（追加フィールド。version は変えない）。
+   * 欠けた武器種はその武器種の 1 本目（data/ultimates.ts の defaultUltimate）。sanitize は loot/profile.ts（Lane C）
+   */
+  ultimates?: Partial<Record<MovesetKey, string>>;
 }
 
 export function createEmptyEquipment(): Equipment {

@@ -1,0 +1,30 @@
+{
+  "_note": "奥義（F で奥義ゲージを使って出す。docs/ideas/ougi-and-dual-actions.md 3 章）。common は全奥義に共通の値、defs.<奥義の名前> は奥義ごとの行為の数値で、src/data/ultimates.ts が UltimateDef に組み立てる。旧 combat.json の PLAYER.special（バースト）を値を変えずに common と defs.fullMoon（円月）へ移した（2026-09-25 Lane 0）。係数は docs/STATS_AND_SCALING.md 2 章（奥義は 3 種以上の係数を許す例外）。円月の invuln は発動後の無敵秒で、弾消しを持つので短め。円月は溜めた気力を練って放つ魔法の一撃なので威力・怯み値とも精神 + 霊力（poiseRatio は怯み値 60 × 3% = 1.8 を 1 点ぶんとして等分。2026-09-24、A-10）",
+  "ULTIMATE": {
+    "_fields": {
+      "cost": "奥義 1 回に要る奥義ゲージ。PLAYER.maxEnergy と同じにすると満タンでだけ撃てる。目安 100",
+      "invuln": "一撃の奥義を出した後の無敵の秒。目安 0.1〜0.3",
+      "radius": "周囲攻撃（nova）の半径（px。10px = 1m）。burstRadiusMul が掛かる。目安 40〜80",
+      "scaling": "威力の係数表（base + Σ 係数 × ステータス）。burstDamageMul が掛かる。基礎値（各 5）で 34 前後が円月の基準",
+      "poise": "1 ヒットの怯み値（ステータスが基礎値のとき）。poiseDamageMul が掛かる",
+      "poiseRatio": "怯み値のステータス係数（ステータス 1 あたりの上乗せ）",
+      "knockback": "当てた敵を押し飛ばす速さ（px/秒）。knockbackMul が掛かる"
+    },
+    "common": {
+      "cost": 100,
+      "invuln": 0.15,
+      "textColor": "#ffd75f"
+    },
+    "defs": {
+      "fullMoon": {
+        "nova": {
+          "radius": 64,
+          "scaling": { "base": 24, "mnd": 1, "spi": 1 },
+          "poise": 60,
+          "poiseRatio": { "mnd": 0.9, "spi": 0.9 },
+          "knockback": 380
+        }
+      }
+    }
+  }
+}

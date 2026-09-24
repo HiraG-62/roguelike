@@ -1,6 +1,7 @@
 import { STATUS_LABEL } from "../core/status";
 import { PLAYER } from "../data/tuning";
-import { MOVESETS, type MeleeStepDef, type MovesetDef, isGun } from "../data/weapons";
+import { DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun } from "../data/weapons";
+import { defaultUltimate } from "../data/ultimates";
 import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { ATTR_LABEL } from "../loot/resonance";
@@ -261,13 +262,17 @@ export function shotFormulas(stats: Readonly<PlayerStats>, key: string, name: st
   };
 }
 
-/** バースト（必殺ゲージで出す周囲攻撃） */
+/**
+ * 奥義（F）の周囲攻撃の式。今は武器種の 1 本目（円月）の nova を出す。
+ * 選んだ奥義の名前と行為ごとの式にするのは Lane C（docs/ideas/ougi-and-dual-actions.md 5 章）
+ */
 export function specialFormulas(stats: Readonly<PlayerStats>): ActionFormulas {
-  const sp = PLAYER.special;
-  const poiseRatio: AttrRatio | undefined = "poiseRatio" in sp ? sp.poiseRatio : undefined;
+  const def = defaultUltimate(MOVESETS[stats.moveset] ? stats.moveset : DEFAULT_MOVESET);
+  const nova = def.kind === "instant" ? def.acts.find((a) => a.kind === "nova") : undefined;
+  if (nova?.kind !== "nova") return { name: SPECIAL_NAME, formulas: [] };
   return {
     name: SPECIAL_NAME,
-    formulas: [scalingFormula(stats, "power", POWER_LABEL, sp.scaling), ratioFormula(stats, "poise", POISE_LABEL, sp.poise, poiseRatio)],
+    formulas: [scalingFormula(stats, "power", POWER_LABEL, nova.scaling), ratioFormula(stats, "poise", POISE_LABEL, nova.poise, nova.poiseRatio)],
   };
 }
 
@@ -305,22 +310,24 @@ function comboStepFormulas(stats: Readonly<PlayerStats>, steps: readonly MeleeSt
 
 /** 固有技（右クリック）。構えの受け流し・手元返しは威力を持たないので出さない */
 function artFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
-  const art = moveset.art;
+  const art = moveset.steps2[0];
+  const name = actionStepName(art, 0);
   switch (art.kind) {
-    case "strike":
-      return [stepFormulas(stats, art.name, art.step)];
+    case "swing":
+      return [stepFormulas(stats, name, art.step)];
     case "hold": {
       const release = art.hold.release;
       if (release === undefined) return [];
       const branch = moveset.branches.find((b) => b.art === "release");
       return [stepFormulas(stats, branch?.name ?? art.name, release)];
     }
-    case "throw": {
+    case "volley": {
       const t = art.throw;
       return [{ name: art.name, formulas: [scalingFormula(stats, "power", POWER_LABEL, t.scaling), ratioFormula(stats, "poise", POISE_LABEL, t.poise, t.poiseRatio)] }];
     }
     case "charge":
-      if (art.charge !== undefined) return [stepFormulas(stats, art.name, art.charge.step)];
+      return [stepFormulas(stats, art.name, art.charge.step)];
+    case "aim":
       return [shotFormulas(stats, bullet, art.name, art.aim.damageMul)];
     case "recall":
       return [];

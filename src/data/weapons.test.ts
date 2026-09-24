@@ -11,7 +11,11 @@ import {
   MOVESETS,
   MOVESET_KEYS,
   ART_NAMES,
+  actionLane,
   branchHints,
+  laneLength,
+  laneStep,
+  laneSwing,
   chargeButton,
   chargeLevelAt,
   isGun,
@@ -59,7 +63,7 @@ describe("武器種の定義", () => {
         continue;
       }
       // strike の技は既に branches に入っている。それ以外（構え・投擲・居合）は技を 1 本と数える
-      const total = def.branches.filter((b) => b.art !== "release").length + (def.art.kind === "strike" ? 0 : 1);
+      const total = def.branches.filter((b) => b.art !== "release").length + (def.steps2[0].kind === "swing" ? 0 : 1);
       expect(total, `${key} の派生 + 技`).toBeGreaterThanOrEqual(MIN_BRANCHES);
       expect(total, `${key} の派生 + 技`).toBeLessThanOrEqual(MAX_BRANCHES);
       const sequences = new Set<string>();
@@ -87,11 +91,11 @@ describe("武器種の定義", () => {
 
   it("ボタンの役割: 近接の武器種は撃てず、右は固有技。銃の家系だけ左で撃つ", () => {
     expect(MOVESETS.sword.primary).toBe("melee");
-    expect(MOVESETS.sword.art.kind, "剣の右は受け流し").toBe("hold");
+    expect(MOVESETS.sword.steps2[0].kind, "剣の右は受け流し").toBe("hold");
     expect(isGun(MOVESETS.sword), "剣は撃てない").toBe(false);
     expect(isGun(MOVESETS.greatsword), "大剣は撃てない").toBe(false);
     expect(MOVESETS.wand.primary, "杖は左で打つ").toBe("melee");
-    expect(MOVESETS.wand.art.kind, "杖の右は魔弾").toBe("throw");
+    expect(MOVESETS.wand.steps2[0].kind, "杖の右は魔弾").toBe("volley");
     for (const key of GUN_MOVESETS) expect(isGun(MOVESETS[key]), `${key} は左で撃つ`).toBe(true);
   });
 
@@ -146,7 +150,7 @@ describe("武器種の定義", () => {
       const def = MOVESETS[key];
       const charge = meleeChargeOf(def);
       // 短銃の狙い撃ちは右の溜めだが近接の溜めではない
-      if (def.art.kind === "charge" && def.art.aim) continue;
+      if (def.steps2[0].kind === "aim") continue;
       if (chargeButton(def) === undefined) {
         expect(charge, `${key} は溜めを持たない`).toBeUndefined();
         continue;
@@ -325,36 +329,36 @@ describe("ジョブ固有の派生", () => {
 describe("右クリックの固有技（docs/ideas/weapon-redesign.md 3 章）", () => {
   const EXPECTED_ART: Readonly<Record<MovesetKey, string>> = {
     sword: "hold",
-    greatsword: "strike",
-    twinBlades: "strike",
-    spear: "strike",
-    scythe: "strike",
-    fists: "strike",
-    whip: "strike",
-    cleaver: "strike",
-    staff: "strike",
-    wand: "throw",
+    greatsword: "swing",
+    twinBlades: "swing",
+    spear: "swing",
+    scythe: "swing",
+    fists: "swing",
+    whip: "swing",
+    cleaver: "swing",
+    staff: "swing",
+    wand: "volley",
     katana: "charge",
-    axe: "throw",
+    axe: "volley",
     shield: "hold",
-    chainSickle: "strike",
-    hammer: "strike",
-    gunner: "throw",
-    sidearm: "charge",
-    longarm: "strike",
-    cannon: "strike",
+    chainSickle: "swing",
+    hammer: "swing",
+    gunner: "volley",
+    sidearm: "aim",
+    longarm: "swing",
+    cannon: "swing",
     thrown: "recall",
-    grenade: "strike",
-    trapper: "throw",
-    warRing: "strike",
+    grenade: "swing",
+    trapper: "volley",
+    warRing: "swing",
   };
 
   it("すべての武器種が固有技を持ち、名前が登録済みで種類が設計どおり", () => {
     for (const key of MOVESET_KEYS) {
-      const art = MOVESETS[key].art;
+      const art = MOVESETS[key].steps2[0];
       expect(art.kind, `${key} の技の種類`).toBe(EXPECTED_ART[key]);
-      expect(art.name, `${key} の技の名前`).toBe(ART_NAMES[art.key]);
-      expect(art.desc.length, `${key} の技の説明`).toBeGreaterThan(0);
+      expect(art.name, `${key} の技の名前`).toBe(ART_NAMES[art.key ?? ""]);
+      expect(art.desc?.length ?? 0, `${key} の技の説明`).toBeGreaterThan(0);
       expect(art.cooldown, `${key} の再使用`).toBeGreaterThanOrEqual(0);
     }
   });
@@ -410,5 +414,31 @@ describe("右クリックの固有技（docs/ideas/weapon-redesign.md 3 章）",
         expect(s.windup, `${key} の windup は 2 ステップ以上`).toBeGreaterThanOrEqual(0.02);
       }
     }
+  });
+});
+
+describe("右レーン（steps2）の骨組み（docs/ideas/ougi-and-dual-actions.md 6 章 Lane 0）", () => {
+  it("すべての武器種が右レーンを 1 段以上持ち、1 段目は互換の art と同じ技", () => {
+    for (const key of MOVESET_KEYS) {
+      const def = MOVESETS[key];
+      expect(laneLength(def, "secondary"), `${key} の右レーン`).toBeGreaterThanOrEqual(1);
+      expect(laneLength(def, "primary"), `${key} の左レーン`).toBe(def.steps.length);
+      expect(def.art.key, `${key} の互換の art`).toBe(def.steps2[0].key);
+    }
+  });
+
+  it("laneStep / laneSwing はレーンごとに段を引き、右の振り以外の段は振りを返さない", () => {
+    const gs = MOVESETS.greatsword;
+    expect(laneStep(gs, "primary", 0), "左の 1 段目").toBe(gs.steps[0]);
+    expect(laneStep(gs, "secondary", 0), "右の 1 段目").toBe(gs.steps2[0]);
+    const first = gs.steps2[0];
+    expect(laneSwing(gs, "secondary", 0), "薙ぎ払いは振り").toBe(first.kind === "swing" ? first.step : "振りではない");
+    expect(laneSwing(MOVESETS.sword, "secondary", 0), "受け流しは振りではない").toBeUndefined();
+    expect(laneStep(gs, "secondary", 99), "範囲外").toBeUndefined();
+  });
+
+  it("actionLane は空の右レーンを読み込み時に落とす", () => {
+    expect(() => actionLane([]), "空は誤り").toThrow();
+    expect(actionLane([MOVESETS.sword.steps2[0]])[0], "1 段なら通す").toBe(MOVESETS.sword.steps2[0]);
   });
 });

@@ -12,7 +12,6 @@ import {
   type BulletDef,
   type ShotRuntime,
   type TipDef,
-  BURST_ATTACK,
   MOVESETS,
   chargeButton,
   bulletFeatures,
@@ -26,7 +25,7 @@ import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
-import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
+import { addFloatingText, shake, spawnBurst, spawnLine } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
 import { currentBullet } from "../loot/bullets";
 import { KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from "./keystones";
@@ -60,7 +59,6 @@ import {
   canShootWhileDashing,
   foldBoonStats,
   hasBoon,
-  onBoonBurstKills,
   onBoonDash,
   onBoonDashEnd,
   onBoonMeleeHit,
@@ -71,6 +69,7 @@ import {
 import { boonCounterable, onBoonShootInput } from "./boonRules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
 import { artInputBlocked, artLocksActions, artMoveMul, endArtHold, onArtStrike, startArt, updateArt } from "./weaponArts";
+import { createUltimateState, tryUltimate, ultimateMoveset, updateUltimate } from "./ultimates";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -118,6 +117,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
       inputs: [],
       inputTimer: 0,
       hitTick: 0,
+      lane: "primary",
+      bufferedLane: "primary",
     },
     shootCooldown: 0,
     energy: 0,
@@ -145,7 +146,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     secondaryWasHeld: false,
     shotBurst: { left: 0, timer: 0, side: 1 },
     swingImpact: 0,
-    art: { cooldown: 0, holding: false, holdTime: 0, recover: 0 },
+    art: { cooldown: 0, holding: false, holdTime: 0, recover: 0, cooldowns: new Map() },
+    ultimate: createUltimateState(),
   };
 }
 
@@ -226,9 +228,12 @@ export function currentMoveset(stats: Readonly<PlayerStats>): MovesetDef {
   return MOVESETS[stats.moveset] ?? MOVESETS.sword;
 }
 
-/** いま振る近接の型。狼化・鉄塊化の最中は変身の型（skills/forms.ts）、それ以外は装備の武器種にジョブ固有の派生を足した型 */
+/**
+ * いま振る近接の型。狼化・鉄塊化の最中は変身の型（skills/forms.ts）、それ以外は装備の武器種に
+ * 持続の奥義の差し替え（system/ultimates.ts）→ ジョブ固有の派生の順に重ねた型
+ */
 export function playerMoveset(state: GameState): MovesetDef {
-  return shapeMoveset(state) ?? withJobBranch(currentMoveset(state.stats), state.job);
+  return shapeMoveset(state) ?? withJobBranch(ultimateMoveset(state, currentMoveset(state.stats)), state.job);
 }
 
 /** ジョブ × 武器種ごとの合成済みの型。毎ステップ新しいオブジェクトを作らない（中身は定義から決まるので決定性に影響しない） */
@@ -333,11 +338,6 @@ function shotPoise(stats: Readonly<PlayerStats>, shot: Readonly<BulletDef>, pois
   return withRatio(stats, PLAYER.shoot.poise * poiseMul, shot.poiseRatio);
 }
 
-/** バーストの威力（ステータスの係数 × burstDamageMul） */
-export function burstDamage(stats: Readonly<PlayerStats>): number {
-  return scaled(stats, PLAYER.special.scaling) * stats.burstDamageMul;
-}
-
 /** 怯み（被弾硬直）中か。移動が遅くなり、攻撃・射撃・ダッシュ・バースト・スキルが出せない（docs/COMBAT_DESIGN.md D-5） */
 export function isPlayerStaggered(p: Player): boolean {
   return hasStatus(p.status, "stagger");
@@ -367,6 +367,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   if (!staggered) readActions(state, input);
   updateCharge(state, input, dt);
   updateArt(state, input, dt);
+  updateUltimate(state, dt);
   releaseDashAttack(state);
   updateSkills(state, staggered ? withoutSkillInput(input) : input, dt);
 
@@ -389,7 +390,7 @@ function readActions(state: GameState, input: FrameInput): void {
   if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
   if (!skillLocksAttack(state) && !artLocksActions(state)) readAttackButtons(state, input);
   // バーストは常にスキルをキャンセルできる
-  if (input.specialPressed && trySpecial(state)) cancelSkills(state);
+  if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
 }
 
 /** 左右のボタンの押した瞬間。左は武器種の役割（連撃 / 溜め / 射撃）、右は固有技。派生の入力列が先 */
@@ -426,8 +427,8 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
 
 /** 右の固有技。居合（近接の溜め）は溜めの経路、それ以外（strike は派生で出るので除く）は weaponArts.ts */
 function pressArt(state: GameState, moveset: MovesetDef): void {
-  const art = moveset.art;
-  if (art.kind === "charge" && art.charge) {
+  const art = moveset.steps2[0];
+  if (art.kind === "charge") {
     tryAttack(state, true);
     return;
   }
@@ -1441,44 +1442,5 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   fireTrigger(state, "onShoot", { pos: muzzle });
   pushPlayerEvent(state, "onShoot", "ranged", { pos: { ...muzzle } });
   onSkillPlayerShoot(state);
-  return true;
-}
-
-/** バースト。発動したら true */
-function trySpecial(state: GameState): boolean {
-  const p = state.player;
-  if (p.energy < PLAYER.special.cost) {
-    addFloatingText(state, p.body.pos, "未充填", "#808080", 0.9, 0.4);
-    return false;
-  }
-  p.energy = 0;
-  cancelAttack(state);
-  const s = state.stats;
-  const radius = PLAYER.special.radius * s.burstRadiusMul;
-  const damage = burstDamage(s);
-  const poise = withRatio(s, PLAYER.special.poise, PLAYER.special.poiseRatio) * s.poiseDamageMul;
-  const knockback = PLAYER.special.knockback * s.knockbackMul;
-  let kills = 0;
-  for (const e of state.enemies) {
-    if (!circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
-    const dir = normalize(sub(e.body.pos, p.body.pos));
-    const out = rollOutgoing(state, e, damage, "proc", { attack: BURST_ATTACK });
-    if (damageEnemy(state, e, out.amount, dir, knockback, { poise, hitstopSteps: FEEL.hitstopHeavy })) kills += 1;
-  }
-  for (const pr of state.projectiles) {
-    if (pr.owner === "enemy" && circlesOverlap(p.body.pos.x, p.body.pos.y, radius, pr.pos.x, pr.pos.y, pr.radius)) {
-      pr.life = 0;
-    }
-  }
-  spawnBurst(state, p.body.pos, "#ffd75f", 40, 260, 0.5, 3);
-  spawnBurst(state, p.body.pos, "#ffffff", 20, 120, 0.3, 2);
-  addFloatingText(state, p.body.pos, "バースト！", "#ffd75f", 1.8, 0.8);
-  hitstop(state, FEEL.hitstopHeavy);
-  shake(state, FEEL.shakeSpecial);
-  state.flash = Math.max(state.flash, 0.5);
-  p.invulnTimer = Math.max(p.invulnTimer, PLAYER.special.invuln);
-  pushSfx(state, "burst");
-  onBoonBurstKills(state, kills);
-  pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
   return true;
 }

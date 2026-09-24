@@ -92,16 +92,17 @@ describe("武器ごとの弾", () => {
   });
 
   it("弾を出す固有技は技自身の弾を持ち、同じ表から key で引ける", () => {
-    const throws = Object.values(MOVESETS).filter((m) => m.art.kind === "throw");
+    const throws = Object.values(MOVESETS).filter((m) => m.steps2[0].kind === "volley");
     expect(throws.length, "投擲・魔弾・乱れ撃ち・撒き散らし").toBeGreaterThanOrEqual(4);
     for (const m of throws) {
-      if (m.art.kind !== "throw") continue;
-      const bullet = m.art.throw.bullet;
-      expect(bullet.key, m.key).toBe(`art.${m.art.key}`);
+      const art = m.steps2[0];
+      if (art.kind !== "volley") continue;
+      const bullet = art.throw.bullet;
+      expect(bullet.key, m.key).toBe(`art.${art.key}`);
       expect(BULLETS[bullet.key], m.key).toBe(bullet);
     }
-    expect(MOVESETS.axe.art.kind === "throw" && bulletFeatures(MOVESETS.axe.art.throw.bullet), "斧は行って戻る").toEqual(["boomerang"]);
-    expect(MOVESETS.trapper.art.kind === "throw" && bulletFeatures(MOVESETS.trapper.art.throw.bullet), "撒き散らしは設置弾").toEqual(["mine"]);
+    expect(MOVESETS.axe.steps2[0].kind === "volley" && bulletFeatures(MOVESETS.axe.steps2[0].throw.bullet), "斧は行って戻る").toEqual(["boomerang"]);
+    expect(MOVESETS.trapper.steps2[0].kind === "volley" && bulletFeatures(MOVESETS.trapper.steps2[0].throw.bullet), "撒き散らしは設置弾").toEqual(["mine"]);
   });
 
   it("銃の家系はどれも一番早い器が撃てる弾を持つ（拠点で試すときの弾）", () => {

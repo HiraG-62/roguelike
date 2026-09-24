@@ -755,6 +755,10 @@ function migratedConditionHolds(state: GameState, c: RuleCondition, subject: Con
     }
     case "targetElite":
       return targetElite(state, subject);
+    case "ultimateActive":
+      return p.ultimate.active !== null;
+    case "lane":
+      return p.attack.lane === c.lane;
     default:
       return false;
   }

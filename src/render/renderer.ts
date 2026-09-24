@@ -1937,7 +1937,7 @@ export class Renderer {
       facingRight: p.facing.x >= 0,
       aimHeld: moveset.primary === "shot",
       edge: WEAPON_EDGE[moveset.key],
-      hold: artHoldPose(moveset.art, p.art.holding),
+      hold: artHoldPose(moveset.steps2[0], p.art.holding),
     });
   }
 

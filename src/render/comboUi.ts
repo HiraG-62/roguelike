@@ -4,7 +4,8 @@ import {
   type ButtonKey,
   type MovesetDef,
   type BulletDef,
-  type WeaponArtDef,
+  type ActionStepDef,
+  actionStepName,
   branchHints,
   chargeLevelAt,
   isGun,
@@ -50,8 +51,9 @@ const BUTTON_LABEL: Readonly<Record<ButtonKey, string>> = { primary: "左", seco
 const COOLDOWN_DIGITS = 1;
 
 /** 押し続ける技（居合・狙い撃ち・受け流し・構え）は「長押し」と添える */
-function artPress(art: WeaponArtDef): string {
-  return art.kind === "charge" || (art.kind === "hold" && art.hold.guard) ? `${BUTTON_LABEL.secondary} 長押し` : BUTTON_LABEL.secondary;
+function artPress(art: ActionStepDef): string {
+  const long = art.kind === "charge" || art.kind === "aim" || (art.kind === "hold" && art.hold.guard);
+  return long ? `${BUTTON_LABEL.secondary} 長押し` : BUTTON_LABEL.secondary;
 }
 
 /**
@@ -63,7 +65,8 @@ export function controlHint(moveset: MovesetDef, shot: BulletDef, cooldownLeft =
   if (moveset.primary === "charge") parts.push(`${BUTTON_LABEL.primary} 長押し: 溜め`);
   if (isGun(moveset) && shot.charge) parts.push(`${BUTTON_LABEL.primary} 長押し: 溜め撃ち`);
   const wait = cooldownLeft > 0 ? `（あと ${cooldownLeft.toFixed(COOLDOWN_DIGITS)} 秒）` : "";
-  parts.push(`${artPress(moveset.art)}: ${moveset.art.name}${wait}`);
+  const art = moveset.steps2[0];
+  parts.push(`${artPress(art)}: ${actionStepName(art, 0)}${wait}`);
   return parts.join(" / ");
 }
 
@@ -92,7 +95,8 @@ function activeChargeGauge(state: GameState, moveset: MovesetDef): ChargeGauge |
   const p = state.player;
   if (p.attack.charging) return chargeGauge(p.attack.chargeTime, meleeChargeOf(moveset)?.levels ?? []);
   if (p.shotCharging) return chargeGauge(p.shotChargeTime, currentShot(state.stats).charge?.levels ?? []);
-  const aim = moveset.art.kind === "charge" ? moveset.art.aim : undefined;
+  const first = moveset.steps2[0];
+  const aim = first.kind === "aim" ? first.aim : undefined;
   if (p.art.holding && aim) return chargeGauge(p.art.holdTime, [{ time: aim.time }]);
   return undefined;
 }
@@ -131,7 +135,8 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, la
  * （右単独の技は派生にも混ざっているので、派生の案内から技の名前を除いて二重に出さない）
  */
 export function hudHintText(moveset: MovesetDef, inputs: readonly ButtonKey[], shot: BulletDef, cooldownLeft: number): string {
-  const hints = branchHints(moveset, inputs).filter((h) => h.name !== moveset.art.name);
+  const artName = actionStepName(moveset.steps2[0], 0);
+  const hints = branchHints(moveset, inputs).filter((h) => h.name !== artName);
   if (hints.length > 0) return formatBranchHints(hints);
   return controlHint(moveset, shot, cooldownLeft);
 }

@@ -24,6 +24,7 @@ import { BALANCE, BALANCE_HASH } from "./index";
 import jobsJson from "./jobs.json";
 import lootJson from "./loot.json";
 import skillsJson from "./skills.json";
+import ultimatesJson from "./ultimates.json";
 import { diffKeySets, undocumentedLeaves, validateBalanceShape, validateFieldDocs } from "./validate";
 import weaponsJson from "./weapons.json";
 import worldJson from "./world.json";
@@ -56,6 +57,7 @@ const JSON_FILES: readonly [string, unknown][] = [
   ["loot.json", lootJson],
   ["world.json", worldJson],
   ["feel.json", feelJson],
+  ["ultimates.json", ultimatesJson],
 ];
 
 /** 表の行の key（_note / _fields は行ではない） */
@@ -184,7 +186,7 @@ describe("装備のキー集合(段 4)", () => {
  * 書き足したら実測まで下げる。上げてはいけない（新しい項目を足したら _fields にも 1 行書く）
  */
 const UNDOCUMENTED_BASELINE: Readonly<Record<string, number>> = {
-  "combat.json": 380,
+  "combat.json": 370,
   "enemies.json": 451,
   "skills.json": 1250,
   "boons.json": 382,
@@ -193,6 +195,7 @@ const UNDOCUMENTED_BASELINE: Readonly<Record<string, number>> = {
   "loot.json": 3155,
   "world.json": 309,
   "feel.json": 216,
+  "ultimates.json": 0,
 };
 
 describe("項目の説明（_fields）", () => {

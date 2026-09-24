@@ -10,6 +10,7 @@ import {
   type RecallArtDef,
   type StrikeExtras,
   type ThrowArtDef,
+  actionCooldown,
   matchBranch,
   releaseBranchIndex,
 } from "../data/weapons";
@@ -41,14 +42,14 @@ const RECALL_MIN_DIST = 1;
 
 /** 押している間の構え（受け流し・盾の構え）。今の武器種の技が構えでなければ undefined */
 function currentHold(state: GameState): HoldArtDef | undefined {
-  const art = playerMoveset(state).art;
+  const art = playerMoveset(state).steps2[0];
   return art.kind === "hold" ? art.hold : undefined;
 }
 
 /** 短銃の狙い撃ち。今の武器種の技が狙い撃ちでなければ undefined */
 function currentAim(state: GameState): AimArtDef | undefined {
-  const art = playerMoveset(state).art;
-  return art.kind === "charge" ? art.aim : undefined;
+  const art = playerMoveset(state).steps2[0];
+  return art.kind === "aim" ? art.aim : undefined;
 }
 
 /**
@@ -83,8 +84,8 @@ function freeForArt(state: GameState): boolean {
  * 出したら true
  */
 export function startArt(state: GameState): boolean {
-  const art = playerMoveset(state).art;
-  if (art.kind === "strike" || (art.kind === "charge" && art.charge)) return false;
+  const art = playerMoveset(state).steps2[0];
+  if (art.kind === "swing" || art.kind === "charge") return false;
   if (!freeForArt(state)) return false;
   const p = state.player;
   switch (art.kind) {
@@ -93,10 +94,10 @@ export function startArt(state: GameState): boolean {
       // 受け流しは押した瞬間に再使用を立てる（連打で窓を繋げない）。構えは離したときに立てる
       if (art.hold.parry) p.art.cooldown = art.cooldown;
       return true;
-    case "charge":
+    case "aim":
       beginHold(state);
       return true;
-    case "throw":
+    case "volley":
       if (!emitArtVolley(state, art.throw)) return false;
       p.art.cooldown = art.cooldown;
       return true;
@@ -163,7 +164,7 @@ function updateGuard(state: GameState, hold: HoldArtDef, held: boolean, dt: numb
   a.holdTime += dt;
   if (held && a.holdTime < hold.maxSec) return;
   endArtHold(state);
-  a.cooldown = playerMoveset(state).art.cooldown;
+  a.cooldown = actionCooldown(playerMoveset(state).steps2[0]);
   const index = releaseBranchIndex(playerMoveset(state));
   if (index !== undefined) startArtBranch(state, index);
 }
@@ -180,7 +181,7 @@ function updateAim(state: GameState, aim: AimArtDef, held: boolean, dt: number):
   const ready = a.holdTime >= aim.time;
   endArtHold(state);
   const fired = emitVolley(state, currentShot(state.stats), 0, undefined, ready ? { count: 1, damageMul: aim.damageMul, pierceBonus: aim.pierceBonus } : { count: 1 });
-  if (fired) a.cooldown = playerMoveset(state).art.cooldown;
+  if (fired) a.cooldown = actionCooldown(playerMoveset(state).steps2[0]);
 }
 
 /** 狙いが定まった合図（離すタイミングを目と耳で計れるように） */
@@ -296,9 +297,9 @@ function isGrounded(key: string | undefined): boolean {
  * 1 振りの技を振り始めたとき（player.ts の startBranch から）。再使用を立て、付随効果（砲の零距離砲の反動・設置弾の起爆）を出す
  */
 export function onArtStrike(state: GameState): void {
-  const art = playerMoveset(state).art;
-  if (art.kind !== "strike") return;
-  state.player.art.cooldown = art.cooldown;
+  const art = playerMoveset(state).steps2[0];
+  if (art.kind !== "swing") return;
+  state.player.art.cooldown = actionCooldown(art);
   if (art.extras) applyStrikeExtras(state, art.extras);
 }
 

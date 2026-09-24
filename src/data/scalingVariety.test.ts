@@ -5,6 +5,7 @@ import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { scaledAtBase } from "../system/attributes";
 import combatJson from "./balance/combat.json";
 import skillsJson from "./balance/skills.json";
+import ultimatesJson from "./balance/ultimates.json";
 import weaponsJson from "./balance/weapons.json";
 import { PLAYER } from "./tuning";
 import { BULLETS } from "../loot/bullets";
@@ -257,7 +258,8 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "skills.WAVE2_SKILL_TUNING.mire.tickDamage": [2, 0.3],
   "skills.WAVE3_SKILL_TUNING.siegeForm.damage": [28, 2.8],
   "combat.PLAYER.shoot.scaling": [4.3, 0.3],
-  "combat.PLAYER.special.scaling": [34, 2],
+  // 旧 combat.PLAYER.special（バースト）。2026-09-25 に奥義の円月へ値を変えずに移した
+  "ultimates.ULTIMATE.defs.fullMoon.nova.scaling": [34, 2],
 };
 
 const ATTR_FIELDS = new Set(["base", ...ATTR_KEYS]);
@@ -312,6 +314,7 @@ const CURRENT = new Map<string, Scaling>();
 collectPaths(weaponsJson, "weapons", CURRENT);
 collectPaths(skillsJson, "skills", CURRENT);
 collectPaths(combatJson, "combat", CURRENT);
+collectPaths(ultimatesJson, "ultimates", CURRENT);
 
 interface Action {
   readonly label: string;
@@ -328,7 +331,8 @@ function movesetActions(key: keyof typeof MOVESETS): Action[] {
   out.push({ label: `${key}.ダッシュ攻撃`, ...m.dashAttack });
   for (const b of m.branches) out.push({ label: `${key}.${b.name}`, ...b.step });
   if (m.charge) out.push({ label: `${key}.溜め`, ...m.charge.step });
-  if (m.art.kind === "throw") out.push({ label: `${key}.${m.art.name}`, ...m.art.throw });
+  const art = m.steps2[0];
+  if (art.kind === "volley") out.push({ label: `${key}.${art.name}`, ...art.throw });
   return out;
 }
 

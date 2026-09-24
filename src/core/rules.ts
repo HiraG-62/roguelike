@@ -4,7 +4,7 @@ import type { FloorKind, RoomKind } from "./state";
 import type { StatusKind } from "./status";
 import type { TerrainKind } from "./terrain";
 import type { JobKey } from "../data/jobs";
-import type { BulletFeature, MovesetKey } from "../data/weapons";
+import type { BulletFeature, ButtonKey, MovesetKey } from "../data/weapons";
 import type { TriggerCondition, TriggerEffectKind } from "../loot/types";
 import type { SkillKey } from "../skills/types";
 
@@ -87,7 +87,12 @@ export type RuleCondition =
   /** 今の振り（ダッシュ攻撃を除く）が当たり判定中で、対象の敵に当たっている（終撃で倒した、などの判定） */
   | { kind: "swingStruck" }
   /** 対象の敵が精鋭（撃破は倒れた瞬間の写しを見る） */
-  | { kind: "targetElite" };
+  | { kind: "targetElite" }
+  // ---- 2026-09-25 追加（奥義と左右アクション。docs/ideas/ougi-and-dual-actions.md） ----
+  /** 持続（sustain）の奥義の最中（Player.ultimate.active） */
+  | { kind: "ultimateActive" }
+  /** 今の振りのレーン（左 = primary / 右 = secondary。AttackState.lane） */
+  | { kind: "lane"; lane: ButtonKey };
 
 /** 属性・弱点の条件がどの攻撃の素性を見るか */
 export type RuleAttackVia = "melee" | "ranged";

@@ -12,6 +12,7 @@ import feelJson from "./feel.json";
 import lootJson from "./loot.json";
 import worldJson from "./world.json";
 import jobsJson from "./jobs.json";
+import ultimatesJson from "./ultimates.json";
 import weaponsJson from "./weapons.json";
 
 /** `_` で始まるキー(_note)を型から消し、全体を readonly にする */
@@ -49,6 +50,7 @@ export const BALANCE = {
   loot: stripNotes(lootJson),
   world: stripNotes(worldJson),
   feel: stripNotes(feelJson),
+  ultimates: stripNotes(ultimatesJson),
 } as const;
 
 const HASH_RADIX = 16;

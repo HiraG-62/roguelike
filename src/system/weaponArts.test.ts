@@ -4,7 +4,7 @@ import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { WEAPON } from "../data/tuning";
-import { GUN_MOVESETS, MOVESETS, bulletFeatures } from "../data/weapons";
+import { GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
 import { botInput, createBotState } from "../qa/bot";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
@@ -134,7 +134,7 @@ describe("右クリックの固有技", () => {
     expect(first, "1 本投げた").toHaveLength(1);
     expect(featuresOf(first[0]), "行って戻る弾").toEqual(["boomerang"]);
     expect(first[0]?.kind, "射撃扱い").toBe("ranged");
-    expect(first[0]?.attack, "弾の素性は技のもの").toEqual(MOVESETS.axe.art.kind === "throw" ? MOVESETS.axe.art.throw.attack : undefined);
+    expect(first[0]?.attack, "弾の素性は技のもの").toEqual(MOVESETS.axe.steps2[0].kind === "volley" ? MOVESETS.axe.steps2[0].throw.attack : undefined);
     expect(state.player.art.cooldown, "再使用が立った").toBeGreaterThan(0);
     const before = state.projectiles.length;
     play(state, [{ shootHeld: true }, {}]);
@@ -243,7 +243,7 @@ describe("銃の家系", () => {
     play(state, [{ shootHeld: true }, ...idle(20)]);
     expect(state.player.meleeHitCount, "突きが当たった").toBeGreaterThan(0);
     expect(e.hp).toBeLessThan(TOUGH_HP);
-    expect(MOVESETS.longarm.art.cooldown).toBeGreaterThan(0);
+    expect(actionCooldown(MOVESETS.longarm.steps2[0])).toBeGreaterThan(0);
   });
 
   it("擲弾は左で照準の地点へ曲射を撃ち、右の筒払いは近接で当てて自分が後ろへ下がる", () => {

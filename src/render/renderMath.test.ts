@@ -534,11 +534,11 @@ describe("固有技の構え（docs/ideas/weapon-redesign.md 3 章）", () => {
   });
 
   it("artHoldPose は押している最中の構えの種類を選ぶ", () => {
-    expect(artHoldPose(MOVESETS.sword.art, true)).toBe("parry");
-    expect(artHoldPose(MOVESETS.shield.art, true)).toBe("guard");
-    expect(artHoldPose(MOVESETS.sidearm.art, true)).toBe("aim");
-    expect(artHoldPose(MOVESETS.katana.art, true), "居合は溜めの経路").toBeUndefined();
-    expect(artHoldPose(MOVESETS.sword.art, false), "押していなければ構えない").toBeUndefined();
+    expect(artHoldPose(MOVESETS.sword.steps2[0], true)).toBe("parry");
+    expect(artHoldPose(MOVESETS.shield.steps2[0], true)).toBe("guard");
+    expect(artHoldPose(MOVESETS.sidearm.steps2[0], true)).toBe("aim");
+    expect(artHoldPose(MOVESETS.katana.steps2[0], true), "居合は溜めの経路").toBeUndefined();
+    expect(artHoldPose(MOVESETS.sword.steps2[0], false), "押していなければ構えない").toBeUndefined();
   });
 });
 

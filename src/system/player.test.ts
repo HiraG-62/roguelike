@@ -3,7 +3,7 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import type { StatusEffect } from "../core/status";
-import { MANA, PLAYER, STATUS, TRIGGER, WEAPON } from "../data/tuning";
+import { MANA, PLAYER, STATUS, TRIGGER, ULTIMATE, WEAPON } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
@@ -12,7 +12,6 @@ import { MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
 import type { FrameInput } from "../core/input";
 import {
   type MeleeStep,
-  burstDamage,
   dashCooldownTime,
   hookCombo,
   isPlayerStaggered,
@@ -22,6 +21,7 @@ import {
   playerMoveset,
   shotDamage,
 } from "./player";
+import { ultimateDamage } from "./ultimates";
 import { collectRules } from "./rules";
 import { hasStatus } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -182,14 +182,14 @@ describe("プレイヤーの怯み（被弾硬直）", () => {
   it("怯み中は近接・ダッシュ・射撃・バーストが出ない", () => {
     const state = arena();
     staggerPlayer(state);
-    state.player.energy = PLAYER.special.cost;
+    state.player.energy = ULTIMATE.common.cost;
     expect(isPlayerStaggered(state.player)).toBe(true);
     step(state, withInput({ attackPressed: true, dashPressed: true, shootHeld: true, specialPressed: true }), FIXED_DT);
     const p = state.player;
     expect(p.attack.phase, "近接が出ない").toBe("none");
     expect(p.dashTimer, "ダッシュしない").toBe(0);
     expect(state.projectiles.filter((pr) => pr.owner === "player"), "射撃しない").toHaveLength(0);
-    expect(p.energy, "バーストを撃たない").toBe(PLAYER.special.cost);
+    expect(p.energy, "バーストを撃たない").toBe(ULTIMATE.common.cost);
   });
 
   it("怯み中の移動は staggerMoveMul 倍", () => {
@@ -246,11 +246,12 @@ describe("射撃・バーストの威力と怯み値", () => {
 
   it("バーストは burstDamageMul を掛け、無敵は 0.15 秒", () => {
     const state = arena(5, { burstDamageMul: 2 });
-    expect(burstDamage(state.stats), "バースト威力 × burstDamageMul").toBeCloseTo(burstDamage({ ...state.stats, burstDamageMul: 1 }) * 2);
-    state.player.energy = PLAYER.special.cost;
+    const scaling = ULTIMATE.defs.fullMoon.nova.scaling;
+    expect(ultimateDamage(state.stats, scaling), "バースト威力 × burstDamageMul").toBeCloseTo(ultimateDamage({ ...state.stats, burstDamageMul: 1 }, scaling) * 2);
+    state.player.energy = ULTIMATE.common.cost;
     step(state, withInput({ specialPressed: true }), FIXED_DT);
     expect(state.player.energy, "ゲージを消費した").toBe(0);
-    expect(state.player.invulnTimer, "バースト後の無敵").toBeCloseTo(PLAYER.special.invuln);
+    expect(state.player.invulnTimer, "バースト後の無敵").toBeCloseTo(ULTIMATE.common.invuln);
   });
 });
 

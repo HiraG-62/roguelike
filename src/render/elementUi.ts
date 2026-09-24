@@ -3,7 +3,7 @@ import type { Enemy, GameState } from "../core/state";
 import { enemyGuard } from "../data/enemyCombat";
 import { enemyWeaknesses } from "../data/enemyDefense";
 import { ELEMENT } from "../data/tuning";
-import { MOVESETS, isGun } from "../data/weapons";
+import { MOVESETS, actionStepName, isGun } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import type { Item, PlayerStats } from "../loot/types";
@@ -45,8 +45,9 @@ export function loadoutAttackLines(stats: Readonly<PlayerStats>): string[] {
   const m = MOVESETS[stats.moveset];
   const meleeLine = `${m.name}: ${attackLabel(m.attack)}`;
   if (isGun(m)) return [meleeLine, `${SHOT_LINE_LABEL}: ${attackLabel(currentBullet(stats).attack)}`];
-  if (m.art.kind === "throw") return [meleeLine, `${m.art.name}: ${attackLabel(m.art.throw.attack)}`];
-  return [meleeLine, `${m.art.name}: 固有技`];
+  const art = m.steps2[0];
+  if (art.kind === "volley") return [meleeLine, `${art.name}: ${attackLabel(art.throw.attack)}`];
+  return [meleeLine, `${actionStepName(art, 0)}: 固有技`];
 }
 
 export interface WeaknessMark {

@@ -3,7 +3,7 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
 import { type KeystoneGroup, keystoneDef } from "../loot/affixes";
 import { type Rarity, type Resonance, TRAIT_COLOR_HEX } from "../loot/types";
-import type { HitShape, MovesetKey, WeaponArtDef } from "../data/weapons";
+import type { ActionStepDef, HitShape, MovesetKey } from "../data/weapons";
 import {
   SLASH_SPRITE,
   SLASH_VARIANT,
@@ -467,11 +467,11 @@ export interface WeaponPoseInput {
 /** 固有技の構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
 export type HoldPose = "parry" | "guard" | "aim";
 
-/** 固有技の定義と押している最中かから、構えの姿勢を選ぶ（構えの無い技・押していないなら undefined） */
-export function artHoldPose(art: WeaponArtDef, holding: boolean): HoldPose | undefined {
+/** 右レーンの段と押している最中かから、構えの姿勢を選ぶ（構えの無い段・押していないなら undefined） */
+export function artHoldPose(step: ActionStepDef, holding: boolean): HoldPose | undefined {
   if (!holding) return undefined;
-  if (art.kind === "hold") return art.hold.parry ? "parry" : "guard";
-  if (art.kind === "charge" && art.aim) return "aim";
+  if (step.kind === "hold") return step.hold.parry ? "parry" : "guard";
+  if (step.kind === "aim") return "aim";
   return undefined;
 }
 

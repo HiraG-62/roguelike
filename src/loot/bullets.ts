@@ -76,8 +76,9 @@ function baseBullets(): BulletDef[] {
 function artBullets(): BulletDef[] {
   const out: BulletDef[] = [];
   for (const key of MOVESET_KEYS) {
-    const art = MOVESETS[key].art;
-    if (art.kind === "throw") out.push(art.throw.bullet);
+    for (const s of MOVESETS[key].steps2) {
+      if (s.kind === "volley") out.push(s.throw.bullet);
+    }
   }
   return out;
 }

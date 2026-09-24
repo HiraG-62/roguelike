@@ -459,7 +459,7 @@
     "particles": 10
   },
   "PLAYER": {
-    "_note": "プレイヤーの手触り（docs/COMBAT_DESIGN.md C-1 / D-5）。melee は src/data/balance/weapons.json の PLAYER_MELEE（近接3段。data/tuning.ts の PLAYER が合流する）を参照。staggerMoveMul は怯み中の移動速度倍率で攻撃・射撃・ダッシュ・バーストは出せない。dash.cooldown は連打で無敵を繋げないよう invulnTime より十分長くし、graceInvuln は無効化手段を絞るため0、invulnTime はダッシュ開始からの無敵秒でダッシュ後半は被弾する。hurtInvuln は C-1 で 0.7→0.5。recoverCancel は recover の残りがこの割合を切ったら先行入力（次段・派生の予約）で振りを前倒しに終える（docs/ideas/combat-feel-design.md D-4）。shoot.scaling / special.scaling は基礎値（各5）のときの威力（A-6）、shoot は base 3.5→×0.8（QA 2026-09-23、B-7段階3）。special.invuln は発動後の無敵秒で弾消しは維持するため短め（C-1の10との対比）。overclockHpCost / overclockShootInterval は誓約 ks_overclock 用。special は溜めた気力を練って放つ魔法の一撃なので威力・怯み値とも精神 + 霊力（poiseRatio は怯み値 60 × 3% = 1.8 を 1 点ぶんとして等分。2026-09-24、A-10）。shoot.scaling は射撃の型が scaling を持たないとき（単発・連射・跳弾）の共通値",
+    "_note": "プレイヤーの手触り（docs/COMBAT_DESIGN.md C-1 / D-5）。melee は src/data/balance/weapons.json の PLAYER_MELEE（近接3段。data/tuning.ts の PLAYER が合流する）を参照。staggerMoveMul は怯み中の移動速度倍率で攻撃・射撃・ダッシュ・バーストは出せない。dash.cooldown は連打で無敵を繋げないよう invulnTime より十分長くし、graceInvuln は無効化手段を絞るため0、invulnTime はダッシュ開始からの無敵秒でダッシュ後半は被弾する。hurtInvuln は C-1 で 0.7→0.5。recoverCancel は recover の残りがこの割合を切ったら先行入力（次段・派生の予約）で振りを前倒しに終える（docs/ideas/combat-feel-design.md D-4）。shoot.scaling は基礎値（各5）のときの威力（A-6）、shoot は base 3.5→×0.8（QA 2026-09-23、B-7段階3）。overclockHpCost / overclockShootInterval は誓約 ks_overclock 用。special（旧バースト）は奥義として src/data/balance/ultimates.json の ULTIMATE へ移した（2026-09-25）。shoot.scaling は射撃の型が scaling を持たないとき（単発・連射・跳弾）の共通値",
     "radius": 5,
     "maxHp": 100,
     "speed": 120,
@@ -484,15 +484,6 @@
       "life": 0.9,
       "radius": 2,
       "recoil": 30
-    },
-    "special": {
-      "cost": 100,
-      "scaling": { "base": 24, "mnd": 1, "spi": 1 },
-      "poise": 60,
-      "poiseRatio": { "mnd": 0.9, "spi": 0.9 },
-      "radius": 64,
-      "knockback": 380,
-      "invuln": 0.15
     },
     "maxEnergy": 100,
     "energyPerHit": 12,

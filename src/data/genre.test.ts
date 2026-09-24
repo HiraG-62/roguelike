@@ -4,7 +4,7 @@ import type { Scaling } from "../loot/types";
 import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { EXTRA_SKILL_TUNING } from "../skills/tuning";
 import { scaledAtBase } from "../system/attributes";
-import { PLAYER } from "./tuning";
+import { PLAYER, ULTIMATE } from "./tuning";
 import { BURST_ATTACK, MOVESETS } from "./weapons";
 import { BULLETS } from "../loot/bullets";
 
@@ -51,7 +51,7 @@ describe("武器種・銃の弾・必殺の係数", () => {
   });
 
   it("弾と必殺の係数表が正しい形", () => {
-    expectSane([PLAYER.shoot.scaling, PLAYER.special.scaling], "射撃・必殺");
+    expectSane([PLAYER.shoot.scaling, ULTIMATE.defs.fullMoon.nova.scaling], "射撃・必殺");
     for (const s of Object.values(BULLETS)) if (s.scaling) expectSane([s.scaling], s.key);
   });
 

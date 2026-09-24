@@ -187,6 +187,12 @@ export const BOON = BALANCE.boons.BOON;
 export const WEAPON = BALANCE.weapons.WEAPON;
 
 /**
+ * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3 章）の共通値と奥義ごとの行為の数値。
+ * 定義元は src/data/balance/ultimates.json の ULTIMATE。組み立ては src/data/ultimates.ts
+ */
+export const ULTIMATE = BALANCE.ultimates.ULTIMATE;
+
+/**
  * 攻撃ジャンル（docs/COMBAT_DESIGN.md A-8）。範囲軸 × 質軸。参照ステータスは縛らない（A-10。係数は技ごとに自由）
  */
 export const GENRE = BALANCE.combat.GENRE;

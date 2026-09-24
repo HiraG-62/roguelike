@@ -58,6 +58,25 @@ export interface AttackState {
   inputTimer: number;
   /** 多段ヒットの今の区切り（0 始まり） */
   hitTick: number;
+  /**
+   * 今の振りのレーン（左 = primary の steps / 右 = secondary の steps2）。step は左右で共有する
+   * （docs/ideas/ougi-and-dual-actions.md 4.2。配線は Lane A。今は常に primary）
+   */
+  lane: ButtonKey;
+  /** 先行入力（buffered）がどちらのボタンか */
+  bufferedLane: ButtonKey;
+}
+
+/**
+ * 奥義の作業領域（docs/ideas/ougi-and-dual-actions.md 3.2。src/system/ultimates.ts）。
+ * active = 持続（sustain）の奥義の key（一撃の奥義は state に残らない）、elapsed = 持続の経過秒、
+ * kills = 持続中に倒した数（終了時の onBurst の量）、auraTick = 周囲ダメージの次の刻みまでの秒
+ */
+export interface UltimateState {
+  active: string | null;
+  elapsed: number;
+  kills: number;
+  auraTick: number;
 }
 
 export interface Player {
@@ -127,9 +146,12 @@ export interface Player {
   swingImpact: number;
   /**
    * 右クリックの固有技（docs/ideas/weapon-redesign.md 3 章。src/system/weaponArts.ts）。
-   * cooldown = 再使用の残り秒、holding / holdTime = 構え・受け流し・狙い撃ちを押している最中とその秒、recover = 受け流しを外した硬直の残り秒
+   * cooldown = 再使用の残り秒、holding / holdTime = 構え・受け流し・狙い撃ちを押している最中とその秒、recover = 受け流しを外した硬直の残り秒。
+   * cooldowns = 右レーンの段（ActionStepDef.key）ごとの再使用の残り秒（Lane A で配線。今は cooldown だけが効く）
    */
-  art: { cooldown: number; holding: boolean; holdTime: number; recover: number };
+  art: { cooldown: number; holding: boolean; holdTime: number; recover: number; cooldowns: Map<string, number> };
+  /** 奥義（F）の作業領域 */
+  ultimate: UltimateState;
 }
 
 export interface TimedMul {

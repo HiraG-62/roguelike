@@ -30,6 +30,7 @@ import { applyStats } from "../system/player";
 import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
 import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeLockedRelics, sanitizeRunSetup } from "../system/runSetup";
 import { type JobKey, sanitizeJob } from "../data/jobs";
+import type { MovesetKey } from "../data/weapons";
 
 /**
  * 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った。
@@ -38,11 +39,13 @@ import { type JobKey, sanitizeJob } from "../data/jobs";
  * 7: 契約者の配置・演出の乱数分離・部屋の追加・ジョブ・属性で乱数の消費順が変わった（0.0.9α）
  * 8: 装備欄を近接 / 銃から右手 / 左手へ統合し、右クリックの意味が武器種の固有技に変わった
  *    （docs/ideas/weapon-redesign.md）
+ * 9: 右クリックが右レーンの連撃（段カウンタを左右で共有）になり、F が武器種ごとに選ぶ奥義になった
+ *    （docs/ideas/ougi-and-dual-actions.md）
  *
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
-export const REPLAY_VERSION = 8;
+export const REPLAY_VERSION = 9;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -62,6 +65,11 @@ export interface ReplayLoadout {
    * 無い（この欄を足す前の記録）なら 0 として読む
    */
   runeCount?: number;
+  /**
+   * 武器種ごとに選んだ奥義の key（Profile.ultimates の写し。REPLAY_VERSION 9 から）。
+   * 無い武器種はその武器種の 1 本目。写し・適用は captureLoadout / applyLoadout（Lane C）
+   */
+  ultimates?: Partial<Record<MovesetKey, string>>;
 }
 
 /** 装備画面での付け替え・ステータス振り分け。frame 番目の step の直前に適用する */
