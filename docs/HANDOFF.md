@@ -18,9 +18,17 @@
 - リプレイの既知の制限（初期スキル石と倉庫上限）を解消。QA の同時攻撃計測をボス除外で切り分け（非ボスの上限超過は 0 件で解消）
 - バランス: `LOOT_DROP` の深度 3 以降を 25〜33% 絞る、QA 標準 4 スキルの基礎威力 +30%
 
-## 2. 進行中のレーン
+## 2. 進行中のレーン（2026-09-24 再開、メインは Opus 5.5）
 
-無し。
+| 名前 | 内容 | 所有 |
+| --- | --- | --- |
+| `tune-011`（balance-tuner） | ドロップ率 60〜70%、スキル比率（気力回転）、QA の観測カウンタ、怯み −15% の原因 | `data/tuning.ts`（LOOT_DROP / MANA）、QA 標準 4 スキルの数値、`qa/**` |
+| `fix-011`（implementer） | 封鎖時に外の自室の敵を中へ寄せる、イベント上限の保険、ステップ末の仕様を ARCHITECTURE に | `system/floor.ts` / `rules.ts`、`core/events.ts` |
+| `rules-011`（implementer, opus） | 祝福の統一ルール文法化の続き（起点 3・効果 3 を足し 30 種以上移す） | `core/rules.ts`、`system/boon*.ts` |
+| `content-011`（implementer, opus） | 盗賊王・盗賊の追跡・泥沼スキル・崩れる床・帰還の節目・変身中の極意 | 新ボス、`runEvents.ts`、`skills/**`、`terrain` |
+| `arch-hub`（architect, fable） | 拠点（ハブ）の設計（コードは書かない）。結果で実装レーンを起こす | なし |
+
+全部そろったら `npm run check` → CHANGELOG → コミット → bump → push（ブランチ運用は 3 章）。
 
 再開するときの作法: レーンは implementer / reviewer / qa-runner / localizer / brainstormer / balance-tuner の Agent を名前付きで起動し、完了報告を統合役が取り込む。利用上限で止まった場合、`SendMessage` で名前宛てに「利用上限で中断していたが回復した。作業ツリーの途中の変更は残っている。元の指示どおり完了まで進めて報告」と送ると再開する（文脈を保持している）。作業ツリーの部分編集は `npx tsc --noEmit` で状態を確認してから。
 
