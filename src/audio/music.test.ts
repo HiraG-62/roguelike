@@ -7,6 +7,7 @@ import {
   TRACKS,
   degreeSemitone,
   midiToFreq,
+  HUB_TRACK,
   musicCue,
   notesAt,
   pickTrack,
@@ -36,6 +37,15 @@ describe("曲の選択（pickTrack）", () => {
   it("ボス戦はフロア種別に関係なくボス曲で、常に打楽器入り", () => {
     expect(pickTrack("cave", false, true)).toEqual({ track: "boss", combat: true });
     expect(pickTrack("glacier", true, true)).toEqual({ track: "boss", combat: true });
+  });
+
+  it("拠点は交戦・ボスに関係なく静かな拠点の曲で、打楽器なし・移調なし", () => {
+    expect(pickTrack("forge", true, true, true)).toEqual({ track: HUB_TRACK, combat: false });
+    const cue = musicCue(input({ hub: true, engaged: true, seed: 999, depth: 5 }));
+    expect(cue.track).toBe(HUB_TRACK);
+    expect(cue.combat, "打楽器を入れない").toBe(false);
+    expect(cue.transpose, "移調しない").toBe(0);
+    expect(TRACKS[HUB_TRACK].bpm, "ボス曲より遅い").toBeLessThan(TRACKS.boss.bpm);
   });
 
   it("ラン外（タイトル・死亡）は鳴らさない", () => {

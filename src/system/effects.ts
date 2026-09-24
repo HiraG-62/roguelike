@@ -215,6 +215,16 @@ const SWING_SFX: Readonly<Record<MovesetKey, SfxName>> = {
   cleaver: "swingCleaver",
   staff: "swingStaff",
   wand: "swingWand",
+  katana: "swingKatana",
+  axe: "swingAxe",
+  shield: "swingShield",
+  chainSickle: "swingChainSickle",
+  hammer: "swingHammer",
+  gunner: "swingGunner",
+  sidearm: "swingSidearm",
+  longarm: "swingLongarm",
+  cannon: "swingCannon",
+  thrown: "swingThrown",
 };
 
 export function swingSfxName(moveset: MovesetKey): SfxName {
@@ -230,6 +240,9 @@ const SHOT_SFX: Readonly<Record<ShotKey, SfxName>> = {
   ricochet: "shotRicochet",
   charge: "shotCharge",
   mine: "shotMine",
+  burst: "shotBurst",
+  boomerang: "shotBoomerang",
+  lob: "shotLob",
 };
 
 export function shotSfxName(shot: ShotKey): SfxName {

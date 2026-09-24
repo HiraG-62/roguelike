@@ -126,6 +126,18 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
     requiresDamage: true,
     apply: (p) => ({ ...p, leyline: true, burdenMul: p.burdenMul * M.leyline.burdenMul }),
   },
+  crumble: {
+    key: "crumble",
+    name: "地崩れ",
+    verb: `地裂き専用。命中した敵までの地割れが崩れる床になる（${M.crumble.time}秒。敵が1秒乗り続けると抜けて落ち、ダメージと怯み）、再使用時間 x${M.crumble.burdenMul}`,
+    manaVerb: `地裂き専用。命中した敵までの地割れが崩れる床になる（${M.crumble.time}秒。敵が1秒乗り続けると抜けて落ち、ダメージと怯み）、コスト x${M.crumble.burdenMul}`,
+    color: "#b09070",
+    keywords: kw(["placed", "stagger"], [], ["area"]),
+    excludesTags: [],
+    requiresDamage: true,
+    onlySkills: ["quake"],
+    apply: (p) => ({ ...p, crumble: true, burdenMul: p.burdenMul * M.crumble.burdenMul }),
+  },
   // ---- ジョブ・武器種 ----
   jobMastery: {
     key: "jobMastery",

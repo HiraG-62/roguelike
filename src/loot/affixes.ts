@@ -1,3 +1,4 @@
+import { BALANCE } from "../data/balance";
 import { ELEMENTS, ELEMENT_LABEL, type Element } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import { HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
@@ -68,6 +69,14 @@ export interface CurvePoint extends RollRange {
   depth: number;
 }
 
+/** 期待値曲線の実体（数値だけの点列）。src/data/balance/loot.json の "affixCurves" */
+const CURVES = BALANCE.loot.affixCurves;
+
+/** 性質の key で期待値曲線を引く。JSON にキーが無ければ tsc がここで落ちる（キーは AffixDef.key と同じ） */
+function curveFor(key: keyof typeof CURVES): readonly CurvePoint[] {
+  return CURVES[key];
+}
+
 /**
  * 適用段階。flat → scale → convert の順に畳み込む（例: max HP % は flat の max HP を全部足した後に掛ける）。
  * convert は変換の性質用で、scale の後・ソフトキャップと誓約の前に掛かる
@@ -85,6 +94,11 @@ export interface AffixDef {
   label: string;
   tags: readonly AffixTag[];
   slots: readonly Slot[];
+  /**
+   * 右手の家系を絞る（docs/ideas/weapon-redesign.md 5.2）。省略は家系を問わない。
+   * mainHand を含む性質だけが意味を持つ（ring / amulet では常に出る）
+   */
+  family?: "melee" | "gun";
   /** 期待値曲線（順不同。深度の昇順に並べ直して使う） */
   curve: readonly CurvePoint[];
   /** 色。省略時は tags から決める（colors.ts の colorFromTags） */
@@ -127,23 +141,13 @@ function trait(def: AffixDef): AffixDef {
   return def;
 }
 
-/** 期待値曲線の点（1 値） */
-function t(depth: number, min: number, max: number): CurvePoint {
-  return { depth, min, max };
-}
-
-/** 期待値曲線の点（2 値） */
-function t2(depth: number, min: number, max: number, min2: number, max2: number): CurvePoint {
-  return { depth, min, max, min2, max2 };
-}
-
 const pct = (v: number): number => v * PERCENT;
 
 // スロットのよく使う組み合わせ
-const MELEE_SLOTS: readonly Slot[] = ["weapon", "ring", "amulet"];
-const RANGED_SLOTS: readonly Slot[] = ["gun", "ring", "amulet"];
-const ATTACK_SLOTS: readonly Slot[] = ["weapon", "gun", "ring"];
-const OFFENSE_SLOTS: readonly Slot[] = ["weapon", "gun", "ring", "amulet"];
+const MELEE_SLOTS: readonly Slot[] = ["mainHand", "ring", "amulet"];
+const RANGED_SLOTS: readonly Slot[] = ["mainHand", "ring", "amulet"];
+const ATTACK_SLOTS: readonly Slot[] = ["mainHand", "ring"];
+const OFFENSE_SLOTS: readonly Slot[] = ["mainHand", "ring", "amulet"];
 const JEWELRY_SLOTS: readonly Slot[] = ["ring", "amulet"];
 const ALL_SLOTS: readonly Slot[] = SLOTS;
 
@@ -174,19 +178,21 @@ export const ATTR_TRAIT_PREFIX = "attr_";
 
 /** ステータスを付けられる部位。その色の性質が出やすい部位に寄せる */
 const ATTR_SLOTS: Readonly<Record<AttrKey, readonly Slot[]>> = {
-  str: ["weapon", "armor", "ring", "amulet"],
-  dex: ["gun", "boots", "ring", "amulet"],
+  str: ["mainHand", "armor", "ring", "amulet"],
+  dex: ["mainHand", "boots", "ring", "amulet"],
   vit: ["armor", "boots", "ring", "amulet"],
-  mnd: ["weapon", "gun", "ring", "amulet"],
-  spi: ["gun", "armor", "ring", "amulet"],
+  mnd: ["mainHand", "ring", "amulet"],
+  spi: ["mainHand", "armor", "ring", "amulet"],
 };
 
-/** 期待値: 深度 1 で 2、10 で 5、20 で 8（docs/COMBAT_DESIGN.md A-3） */
-const ATTR_CURVE: readonly CurvePoint[] = [
-  { depth: 20, min: 7, max: 9 },
-  { depth: 10, min: 4, max: 6 },
-  { depth: 1, min: 1, max: 3 },
-];
+/** 期待値曲線（属性ごとに同じ形。docs/COMBAT_DESIGN.md A-3）。attr_str など key ごとに JSON から引く */
+const ATTR_TRAIT_CURVES: Readonly<Record<AttrKey, readonly CurvePoint[]>> = {
+  str: curveFor("attr_str"),
+  dex: curveFor("attr_dex"),
+  vit: curveFor("attr_vit"),
+  mnd: curveFor("attr_mnd"),
+  spi: curveFor("attr_spi"),
+};
 
 /** ステータス 5 種の性質。flat 段階で attributes（生の値）に足す */
 function attributeTraits(): AffixDef[] {
@@ -195,7 +201,7 @@ function attributeTraits(): AffixDef[] {
     label: `${ATTR_NAME[attr]} +{v}`,
     tags: ["attribute"],
     slots: ATTR_SLOTS[attr],
-    curve: ATTR_CURVE,
+    curve: ATTR_TRAIT_CURVES[attr],
     color: ATTR_COLOR[attr],
     apply: (s: PlayerStats, v: number) => {
       s.attributes[attr] += v;
@@ -221,6 +227,15 @@ const BOON_ECHO_FIELD = {
 /** 祝福の響きの key の接頭辞（色ごとに 1 つ。boonEcho_crimson など） */
 export const BOON_ECHO_PREFIX = "boonEcho_";
 
+/** 期待値曲線（色ごとに同じ形）。boonEcho_crimson など key ごとに JSON から引く */
+const BOON_ECHO_CURVES: Readonly<Record<TraitColor, readonly CurvePoint[]>> = {
+  crimson: curveFor("boonEcho_crimson"),
+  azure: curveFor("boonEcho_azure"),
+  jade: curveFor("boonEcho_jade"),
+  gold: curveFor("boonEcho_gold"),
+  umbra: curveFor("boonEcho_umbra"),
+};
+
 /**
  * 祝福の響き（ハブ性質 P93）: 色ごとに 1 つ。その色に対応するタグの祝福 1 つにつき与ダメージ +{v}%、
  * 対応しない祝福 1 つにつき -2%（TRIGGER.trait.boonEchoOffPenalty）。装備と祝福の色を揃える理由を作る
@@ -233,7 +248,7 @@ function boonEchoTraits(): AffixDef[] {
     // 代償（対応しない祝福の −2%）は固定値なので tradeoff（{v2} を持つ代償）には数えない
     tags: ["damage"],
     slots: JEWELRY_SLOTS,
-    curve: [t(24, 6, 8), t(12, 4, 6), t(1, 3, 4)],
+    curve: BOON_ECHO_CURVES[color],
     color,
     apply: (s: PlayerStats, v: number) => {
       s.traits[BOON_ECHO_FIELD[color]] += pct(v);
@@ -282,6 +297,8 @@ const TABI_BUFF_SECONDS = 1;
 const ZANBATO_SLOW_PCT = 8;
 const HALBERD_SLOW_PCT = 5;
 const CROSSBOW_SLOW_PCT = 10;
+/** レーン B の大槌の implicit の代償（%） */
+const MAUL_SLOW_PCT = 10;
 
 // ---------------------------------------------------------------------------
 // アフィックス一覧
@@ -309,28 +326,26 @@ export const ELEMENT_TRAIT_COLOR: Readonly<Record<Element, TraitColor>> = {
 export const RESIST_TRAIT_PREFIX = "res_";
 export const INFUSE_KEY_PREFIX = "cv_infuse";
 
-/** 属性の耐性 1 種。深度 1 で 6〜10%、20 で 20〜26% */
-const RESIST_CURVE: readonly CurvePoint[] = [
-  { depth: 20, min: 20, max: 26 },
-  { depth: 10, min: 12, max: 18 },
-  { depth: 1, min: 6, max: 10 },
-];
-/** 全属性耐性は 1 種の半分弱 */
-const ALL_RESIST_CURVE: readonly CurvePoint[] = [
-  { depth: 22, min: 10, max: 13 },
-  { depth: 12, min: 6, max: 9 },
-  { depth: 3, min: 3, max: 5 },
-];
 const RESIST_SLOTS: readonly Slot[] = ["armor", "boots", "ring", "amulet"];
+
+/** 期待値曲線（属性ごとに同じ形。深度 1 で 6〜10%、20 で 20〜26%）。res_fire など key ごとに JSON から引く */
+const RESIST_TRAIT_CURVES: Readonly<Record<Exclude<Element, "none">, readonly CurvePoint[]>> = {
+  fire: curveFor("res_fire"),
+  ice: curveFor("res_ice"),
+  lightning: curveFor("res_lightning"),
+  poison: curveFor("res_poison"),
+  dark: curveFor("res_dark"),
+  light: curveFor("res_light"),
+};
 
 /** 属性耐性 6 種（無属性は防御が受け持つので除く）+ 全属性耐性 + 魔防 + 堅牢 */
 function defenseElementTraits(): AffixDef[] {
-  const single: AffixDef[] = ELEMENTS.filter((e) => e !== "none").map((e) => ({
+  const single: AffixDef[] = ELEMENTS.filter((e): e is Exclude<Element, "none"> => e !== "none").map((e) => ({
     key: `${RESIST_TRAIT_PREFIX}${e}`,
     label: `${ELEMENT_LABEL[e]}耐性 +{v}%`,
     tags: ["defense"],
     slots: RESIST_SLOTS,
-    curve: RESIST_CURVE,
+    curve: RESIST_TRAIT_CURVES[e],
     color: e === "light" ? "jade" : ELEMENT_TRAIT_COLOR[e],
     apply: (s: PlayerStats, v: number) => {
       s.resist[e] += v;
@@ -343,7 +358,7 @@ function defenseElementTraits(): AffixDef[] {
       label: "全属性耐性 +{v}%（無属性を除く）",
       tags: ["defense"],
       slots: ["armor", "amulet"],
-      curve: ALL_RESIST_CURVE,
+      curve: curveFor("res_all"),
       apply: (s: PlayerStats, v: number) => {
         for (const e of ELEMENTS) if (e !== "none") s.resist[e] += v;
       },
@@ -353,7 +368,7 @@ function defenseElementTraits(): AffixDef[] {
       label: "魔防 +{v}",
       tags: ["defense"],
       slots: ["armor", "ring", "amulet"],
-      curve: [t(28, 12, 16), t(20, 8, 11), t(12, 5, 7), t(6, 3, 4), t(1, 1, 2)],
+      curve: curveFor("wardingFlat"),
       apply: (s: PlayerStats, v: number) => {
         s.warding += v;
       },
@@ -364,7 +379,7 @@ function defenseElementTraits(): AffixDef[] {
       label: "堅牢: アーマーと魔防 +{v}、移動速度 -{v2}%",
       tags: ["defense", "tradeoff"],
       slots: ["armor", "boots"],
-      curve: [t2(20, 8, 10, 3, 5), t2(10, 4, 6, 3, 5), t2(3, 2, 3, 3, 5)],
+      curve: curveFor("sturdy"),
       apply: (s: PlayerStats, v: number, v2: number) => {
         s.armor += v;
         s.warding += v;
@@ -381,7 +396,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "近接ダメージ +{v}%",
     tags: ["damage", "melee"],
     slots: MELEE_SLOTS,
-    curve: [t(26, 50, 60), t(19, 40, 49), t(13, 30, 39), t(8, 21, 29), t(4, 13, 20), t(1, 6, 12)],
+    curve: curveFor("meleeDamagePct"),
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
     },
@@ -390,8 +405,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "meleeDamageFlat",
     label: "近接ダメージ +{v}",
     tags: ["damage", "melee"],
-    slots: ["weapon", "ring"],
-    curve: [t(26, 14, 18), t(19, 10, 13), t(13, 7, 9), t(8, 5, 6), t(4, 3, 4), t(1, 1, 2)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("meleeDamageFlat"),
     apply: (s, v) => {
       s.meleeDamageFlat += v;
     },
@@ -401,7 +416,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "攻撃速度 +{v}%",
     tags: ["speed", "melee"],
     slots: MELEE_SLOTS,
-    curve: [t(24, 14, 16), t(15, 10, 13), t(8, 7, 9), t(3, 4, 6), t(1, 2, 3)],
+    curve: curveFor("attackSpeed"),
     apply: (s, v) => {
       s.attackSpeedMul += pct(v);
     },
@@ -410,8 +425,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "meleeReach",
     label: "リーチ +{v}%",
     tags: ["melee", "utility"],
-    slots: ["weapon", "amulet"],
-    curve: [t(18, 13, 18), t(8, 8, 12), t(1, 4, 7)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("meleeReach"),
     apply: (s, v) => {
       s.meleeReachMul += pct(v);
     },
@@ -420,8 +435,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "knockback",
     label: "ノックバック +{v}%",
     tags: ["melee", "utility"],
-    slots: ["weapon", "armor"],
-    curve: [t(16, 25, 40), t(8, 15, 24), t(1, 8, 14)],
+    slots: ["mainHand", "armor"],
+    curve: curveFor("knockback"),
     apply: (s, v) => {
       s.knockbackMul += pct(v);
     },
@@ -430,8 +445,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "damageVsStaggered",
     label: "怯み中の敵へのダメージ +{v}%",
     tags: ["damage", "melee"],
-    slots: ["weapon", "ring"],
-    curve: [t(26, 40, 55), t(16, 25, 39), t(8, 15, 24), t(1, 8, 14)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("damageVsStaggered"),
     apply: (s, v) => {
       s.damageVsStaggeredMul += pct(v);
     },
@@ -440,40 +455,44 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 射撃 ----
   trait({
     key: "rangedDamagePct",
+    family: "gun",
     label: "射撃ダメージ +{v}%",
     tags: ["damage", "ranged"],
     slots: RANGED_SLOTS,
-    curve: [t(26, 50, 60), t(19, 40, 49), t(13, 30, 39), t(8, 21, 29), t(4, 13, 20), t(1, 6, 12)],
+    curve: curveFor("rangedDamagePct"),
     apply: (s, v) => {
       s.rangedDamageMul += pct(v);
     },
   }),
   trait({
     key: "rangedDamageFlat",
+    family: "gun",
     label: "射撃ダメージ +{v}",
     tags: ["damage", "ranged"],
-    slots: ["gun", "ring"],
-    curve: [t(28, 7, 9), t(20, 5, 7), t(12, 3, 5), t(6, 2, 3), t(1, 1, 2)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("rangedDamageFlat"),
     apply: (s, v) => {
       s.rangedDamageFlat += v;
     },
   }),
   trait({
     key: "fireRate",
+    family: "gun",
     label: "連射速度 +{v}%",
     tags: ["speed", "ranged"],
     slots: RANGED_SLOTS,
-    curve: [t(24, 14, 16), t(15, 10, 13), t(8, 7, 9), t(3, 4, 6), t(1, 2, 3)],
+    curve: curveFor("fireRate"),
     apply: (s, v) => {
       s.fireRateMul += pct(v);
     },
   }),
   trait({
     key: "projectiles",
+    family: "gun",
     label: "弾数 +{v}、射撃ダメージ -{v2}%",
     tags: ["ranged", "tradeoff"],
-    slots: ["gun", "amulet"],
-    curve: [t2(30, 2, 2, 30, 40), t2(10, 1, 1, 15, 25)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("projectiles"),
     apply: (s, v, v2) => {
       s.projectileCount += v;
       s.rangedDamageMul -= pct(v2);
@@ -481,20 +500,22 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "pierce",
+    family: "gun",
     label: "貫通 +{v}",
     tags: ["ranged"],
-    slots: ["gun"],
-    curve: [t(18, 2, 2), t(3, 1, 1)],
+    slots: ["mainHand"],
+    curve: curveFor("pierce"),
     apply: (s, v) => {
       s.pierce += v;
     },
   }),
   trait({
     key: "projectileSpeed",
+    family: "gun",
     label: "弾速 +{v}%",
     tags: ["ranged", "speed"],
-    slots: ["gun", "ring"],
-    curve: [t(18, 19, 28), t(8, 11, 18), t(1, 6, 10)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("projectileSpeed"),
     apply: (s, v) => {
       s.projectileSpeedMul += pct(v);
     },
@@ -506,7 +527,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "最大生命 +{v}",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
-    curve: [t(32, 61, 80), t(24, 46, 60), t(16, 31, 45), t(10, 21, 30), t(5, 11, 20), t(1, 5, 10)],
+    curve: curveFor("maxLife"),
     apply: (s, v) => {
       s.maxHp += v;
     },
@@ -516,7 +537,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "最大生命 +{v}%",
     tags: ["life"],
     slots: ["armor", "amulet"],
-    curve: [t(30, 14, 18), t(20, 10, 13), t(12, 6, 9), t(5, 3, 5)],
+    curve: curveFor("maxLifePct"),
     stage: "scale",
     apply: (s, v) => {
       s.maxHp *= 1 + pct(v);
@@ -528,7 +549,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "生命自然回復 +{v}/秒（敵が近くにいない間）",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
-    curve: [t(28, 2.9, 4), t(20, 1.9, 2.8), t(12, 1.1, 1.8), t(6, 0.6, 1), t(1, 0.2, 0.5)],
+    curve: curveFor("hpRegen"),
     decimals: 1,
     apply: (s, v) => {
       s.hpRegen += v;
@@ -541,7 +562,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "与ダメの {v}% を回復",
     tags: ["life"],
     slots: ATTACK_SLOTS,
-    curve: [t(26, 6, 8), t(16, 4.5, 6), t(8, 3, 4), t(1, 2, 3)],
+    curve: curveFor("lifeOnHit"),
     decimals: 1,
     apply: (s, v) => {
       s.lifeOnHit += v;
@@ -552,8 +573,8 @@ export const AFFIXES: readonly AffixDef[] = [
     // コンボ HEAL.killHealMinCombo 以上の撃破だけ回復する（system/combat.ts の applyLifeOnKill）
     label: `撃破時の生命回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
     tags: ["life"],
-    slots: ["weapon", "gun", "armor", "ring", "amulet"],
-    curve: [t(25, 11, 15), t(15, 7, 10), t(7, 4, 6), t(1, 1, 3)],
+    slots: ["mainHand", "armor", "ring", "amulet"],
+    curve: curveFor("lifeOnKill"),
     apply: (s, v) => {
       s.lifeOnKill += v;
     },
@@ -563,7 +584,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "アーマー +{v}",
     tags: ["defense"],
     slots: ["armor", "boots", "ring"],
-    curve: [t(28, 12, 16), t(20, 8, 11), t(12, 5, 7), t(6, 3, 4), t(1, 1, 2)],
+    curve: curveFor("armorFlat"),
     apply: (s, v) => {
       s.armor += v;
     },
@@ -573,7 +594,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "被ダメージ -{v}%",
     tags: ["defense"],
     slots: ["armor", "amulet"],
-    curve: [t(24, 6, 8), t(14, 4, 5), t(6, 2, 3)],
+    curve: curveFor("damageTaken"),
     apply: (s, v) => {
       s.damageTakenMul -= pct(v);
     },
@@ -583,7 +604,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "攻撃者に{v}ダメージを反射",
     tags: ["defense", "damage"],
     slots: ["armor", "boots"],
-    curve: [t(26, 17, 25), t(16, 10, 16), t(8, 5, 9), t(1, 2, 4)],
+    curve: curveFor("thorns"),
     apply: (s, v) => {
       s.thorns += v;
     },
@@ -595,7 +616,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "移動速度 +{v}%",
     tags: ["mobility", "speed"],
     slots: ["boots", "amulet"],
-    curve: [t(30, 21, 25), t(22, 15, 20), t(13, 10, 14), t(6, 6, 9), t(1, 3, 5)],
+    curve: curveFor("moveSpeed"),
     apply: (s, v) => {
       s.moveSpeedMul += pct(v);
     },
@@ -605,7 +626,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "ダッシュ再使用時間 -{v}%",
     tags: ["mobility"],
     slots: ["boots", "amulet"],
-    curve: [t(26, 19, 25), t(16, 13, 18), t(8, 8, 12), t(1, 4, 7)],
+    curve: curveFor("dashCooldown"),
     apply: (s, v) => {
       s.dashCooldownMul -= pct(v);
     },
@@ -615,7 +636,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "ダッシュ回数 +{v}",
     tags: ["mobility"],
     slots: ["boots"],
-    curve: [t(15, 1, 1)],
+    curve: curveFor("dashCharge"),
     apply: (s, v) => {
       s.dashCharges += v;
     },
@@ -625,7 +646,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "ダッシュ距離 +{v}%",
     tags: ["mobility"],
     slots: ["boots"],
-    curve: [t(18, 16, 24), t(8, 10, 15), t(1, 5, 9)],
+    curve: curveFor("dashDistance"),
     apply: (s, v) => {
       s.dashDistanceMul += pct(v);
     },
@@ -637,7 +658,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "会心率 +{v}%",
     tags: ["critical"],
     slots: OFFENSE_SLOTS,
-    curve: [t(30, 7, 10), t(20, 5, 7), t(12, 3, 5), t(6, 2, 3), t(1, 1, 2)],
+    curve: curveFor("critChance"),
     apply: (s, v) => {
       s.critChance += pct(v);
     },
@@ -647,7 +668,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "会心倍率 +{v}%",
     tags: ["critical", "damage"],
     slots: OFFENSE_SLOTS,
-    curve: [t(30, 39, 50), t(22, 28, 38), t(13, 19, 27), t(6, 11, 18), t(1, 5, 10)],
+    curve: curveFor("critMultiplier"),
     apply: (s, v) => {
       s.critMul += pct(v);
     },
@@ -658,8 +679,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "energyGain",
     label: "必殺ゲージ獲得 +{v}%",
     tags: ["burst"],
-    slots: ["weapon", "armor", "ring", "amulet"],
-    curve: [t(25, 25, 35), t(15, 16, 24), t(7, 10, 15), t(1, 5, 9)],
+    slots: ["mainHand", "armor", "ring", "amulet"],
+    curve: curveFor("energyGain"),
     apply: (s, v) => {
       s.energyGainMul += pct(v);
     },
@@ -668,8 +689,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "burstDamage",
     label: "必殺ダメージ +{v}%",
     tags: ["burst", "damage"],
-    slots: ["weapon", "amulet"],
-    curve: [t(25, 40, 60), t(15, 25, 39), t(7, 15, 24), t(1, 8, 14)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("burstDamage"),
     apply: (s, v) => {
       s.burstDamageMul += pct(v);
     },
@@ -679,7 +700,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "必殺範囲 +{v}%",
     tags: ["burst"],
     slots: ["armor", "amulet"],
-    curve: [t(18, 17, 25), t(8, 10, 16), t(1, 5, 9)],
+    curve: curveFor("burstRadius"),
     apply: (s, v) => {
       s.burstRadiusMul += pct(v);
     },
@@ -690,8 +711,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "comboWindow",
     label: "コンボ猶予 +{v}秒",
     tags: ["combo"],
-    slots: ["weapon", "boots", "ring", "amulet"],
-    curve: [t(18, 0.9, 1.3), t(8, 0.5, 0.8), t(1, 0.2, 0.4)],
+    slots: ["mainHand", "boots", "ring", "amulet"],
+    curve: curveFor("comboWindow"),
     decimals: 1,
     apply: (s, v) => {
       s.comboWindowBonus += v;
@@ -702,7 +723,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "コンボ1段階ごとにダメージ +{v}%（上限 {v2}%）",
     tags: ["combo", "damage"],
     slots: MELEE_SLOTS,
-    curve: [t2(20, 2.3, 3, 26, 40), t2(10, 1.6, 2.2, 16, 25), t2(3, 1, 1.5, 10, 15)],
+    curve: curveFor("comboDamage"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.comboDamagePerStack += pct(v);
@@ -714,7 +735,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "見切り後 {v2}秒間ダメージ +{v}%",
     tags: ["combo", "damage"],
     slots: ["boots", "ring", "amulet"],
-    curve: [t2(20, 36, 55, 2, 3), t2(10, 21, 35, 1.5, 2), t2(1, 10, 20, 1, 1.5)],
+    curve: curveFor("justDodgeDamage"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.justDodgeDamageMul += pct(v);
@@ -728,7 +749,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "{v}%の確率で炎上（{v2}ダメージ/秒）",
     tags: ["elemental", "damage"],
     slots: ATTACK_SLOTS,
-    curve: [t2(26, 18, 25, 15, 22), t2(16, 12, 17, 9, 14), t2(8, 7, 11, 5, 8), t2(1, 3, 6, 2, 4)],
+    curve: curveFor("burn"),
     apply: (s, v, v2) => {
       s.burnChance += pct(v);
       s.burnDps += v2;
@@ -740,7 +761,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "{v}%の確率で凍結、{v2}%減速",
     tags: ["elemental", "utility"],
     slots: ATTACK_SLOTS,
-    curve: [t2(18, 12, 18, 23, 30), t2(9, 7, 11, 16, 22), t2(1, 3, 6, 10, 15)],
+    curve: curveFor("chill"),
     apply: (s, v, v2) => {
       s.chillChance += pct(v);
       s.chillSlow += pct(v2);
@@ -752,7 +773,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "{v}%の確率で感電、{v2}ダメージが連鎖",
     tags: ["elemental", "damage"],
     slots: ATTACK_SLOTS,
-    curve: [t2(18, 12, 18, 13, 20), t2(9, 7, 11, 7, 12), t2(1, 3, 6, 3, 6)],
+    curve: curveFor("shock"),
     apply: (s, v, v2) => {
       s.shockChance += pct(v);
       s.shockDamage += v2;
@@ -762,8 +783,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "explodeOnKill",
     label: "撃破時{v}%の確率で爆発（{v2}ダメージ）",
     tags: ["elemental", "damage"],
-    slots: ["weapon", "gun", "amulet"],
-    curve: [t2(23, 16, 24, 21, 32), t2(13, 10, 15, 13, 20), t2(5, 5, 9, 8, 12)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("explodeOnKill"),
     apply: (s, v, v2) => {
       s.explodeOnKillChance += pct(v);
       s.explodeDamage += v2;
@@ -776,7 +797,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "近接・射撃ダメージ +{v}%",
     tags: ["damage", "melee", "ranged"],
     slots: JEWELRY_SLOTS,
-    curve: [t(26, 19, 25), t(16, 13, 18), t(8, 8, 12), t(1, 4, 7)],
+    curve: curveFor("hybridDamage"),
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
       s.rangedDamageMul += pct(v);
@@ -787,7 +808,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "最大生命 +{v}、アーマー +{v2}",
     tags: ["life", "defense"],
     slots: ["armor", "boots"],
-    curve: [t2(18, 16, 24, 4, 6), t2(9, 9, 15, 2, 3), t2(1, 4, 8, 1, 1)],
+    curve: curveFor("hybridDefense"),
     apply: (s, v, v2) => {
       s.maxHp += v;
       s.armor += v2;
@@ -798,7 +819,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "攻撃速度・連射速度 +{v}%",
     tags: ["speed", "melee", "ranged"],
     slots: JEWELRY_SLOTS,
-    curve: [t(18, 8, 11), t(9, 5, 7), t(1, 2, 4)],
+    curve: curveFor("hybridSpeed"),
     apply: (s, v) => {
       s.attackSpeedMul += pct(v);
       s.fireRateMul += pct(v);
@@ -810,8 +831,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "crushing",
     label: "近接ダメージ +{v}%、攻撃速度 -{v2}%",
     tags: ["damage", "melee", "tradeoff"],
-    slots: ["weapon"],
-    curve: [t2(22, 55, 70, 12, 15), t2(12, 35, 50, 10, 12), t2(4, 20, 30, 8, 10)],
+    slots: ["mainHand"],
+    curve: curveFor("crushing"),
     apply: (s, v, v2) => {
       s.meleeDamageMul += pct(v);
       s.attackSpeedMul -= pct(v2);
@@ -821,8 +842,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "frenzied",
     label: "攻撃速度 +{v}%、近接ダメージ -{v2}%",
     tags: ["speed", "melee", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(20, 20, 26, 10, 12), t2(10, 14, 19, 8, 10), t2(2, 8, 13, 6, 8)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("frenzied"),
     apply: (s, v, v2) => {
       s.attackSpeedMul += pct(v);
       s.meleeDamageMul -= pct(v2);
@@ -830,10 +851,11 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "overcharged",
+    family: "gun",
     label: "射撃ダメージ +{v}%、連射速度 -{v2}%",
     tags: ["damage", "ranged", "tradeoff"],
-    slots: ["gun"],
-    curve: [t2(22, 55, 70, 12, 15), t2(12, 35, 50, 10, 12), t2(4, 20, 30, 8, 10)],
+    slots: ["mainHand"],
+    curve: curveFor("overcharged"),
     apply: (s, v, v2) => {
       s.rangedDamageMul += pct(v);
       s.fireRateMul -= pct(v2);
@@ -844,7 +866,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "移動速度 +{v}%、最大生命 -{v2}",
     tags: ["mobility", "speed", "tradeoff"],
     slots: ["boots", "amulet"],
-    curve: [t2(20, 18, 24, 15, 20), t2(10, 12, 17, 10, 15), t2(1, 7, 11, 5, 10)],
+    curve: curveFor("reckless"),
     apply: (s, v, v2) => {
       s.moveSpeedMul += pct(v);
       s.maxHp -= v2;
@@ -856,7 +878,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "会心倍率 +{v}%、最大生命 -{v2}",
     tags: ["critical", "damage", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(22, 45, 60, 15, 20), t2(12, 30, 44, 10, 15), t2(3, 18, 29, 6, 10)],
+    curve: curveFor("bloodbound"),
     apply: (s, v, v2) => {
       s.critMul += pct(v);
       s.maxHp -= v2;
@@ -867,7 +889,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "被ダメージ -{v}%、移動速度 -{v2}%",
     tags: ["defense", "tradeoff"],
     slots: ["armor"],
-    curve: [t2(20, 10, 14, 8, 10), t2(10, 7, 9, 6, 8), t2(3, 4, 6, 4, 6)],
+    curve: curveFor("ironclad"),
     apply: (s, v, v2) => {
       s.damageTakenMul -= pct(v);
       s.moveSpeedMul -= pct(v2);
@@ -878,8 +900,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "会心率 +{v}%、被ダメージ +{v2}%",
     tags: ["critical", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(20, 8, 12, 8, 10), t2(10, 5, 7, 6, 8), t2(2, 3, 4, 4, 6)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("razor"),
     apply: (s, v, v2) => {
       s.critChance += pct(v);
       s.damageTakenMul += pct(v2);
@@ -889,8 +911,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "pike",
     label: "リーチ +{v}%、攻撃速度 -{v2}%",
     tags: ["melee", "utility", "tradeoff"],
-    slots: ["weapon"],
-    curve: [t2(16, 25, 35, 8, 10), t2(6, 15, 24, 5, 7), t2(1, 10, 14, 4, 5)],
+    slots: ["mainHand"],
+    curve: curveFor("pike"),
     apply: (s, v, v2) => {
       s.meleeReachMul += pct(v);
       s.attackSpeedMul -= pct(v2);
@@ -901,7 +923,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "ダッシュ再使用時間 -{v}%、ダッシュ距離 -{v2}%",
     tags: ["mobility", "tradeoff"],
     slots: ["boots"],
-    curve: [t2(18, 30, 40, 15, 20), t2(8, 20, 29, 10, 15), t2(1, 12, 19, 8, 10)],
+    curve: curveFor("flickering"),
     apply: (s, v, v2) => {
       s.dashCooldownMul -= pct(v);
       s.dashDistanceMul -= pct(v2);
@@ -914,7 +936,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "攻撃速度 +{v}%、炎上ダメージ +{v2}/秒",
     tags: ["speed", "elemental", "melee"],
     slots: MELEE_SLOTS,
-    curve: [t2(24, 10, 13, 9, 13), t2(14, 7, 9, 6, 8), t2(6, 4, 6, 4, 5), t2(1, 2, 3, 2, 3)],
+    curve: curveFor("emberMomentum"),
     apply: (s, v, v2) => {
       s.attackSpeedMul += pct(v);
       s.burnDps += v2;
@@ -926,7 +948,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "凍結確率 +{v}%、怯み中の敵へのダメージ +{v2}%",
     tags: ["elemental", "melee", "damage"],
     slots: ATTACK_SLOTS,
-    curve: [t2(22, 14, 20, 30, 42), t2(12, 9, 13, 20, 29), t2(4, 5, 8, 12, 19)],
+    curve: curveFor("shatterEdge"),
     apply: (s, v, v2) => {
       s.chillChance += pct(v);
       s.damageVsStaggeredMul += pct(v2);
@@ -934,10 +956,11 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "chainedBarrage",
+    family: "gun",
     label: "{v}%の確率で感電、弾数 +{v2}",
     tags: ["elemental", "ranged"],
     slots: RANGED_SLOTS,
-    curve: [t2(26, 14, 20, 1, 1), t2(12, 8, 13, 1, 1)],
+    curve: curveFor("chainedBarrage"),
     apply: (s, v, v2) => {
       s.shockChance += pct(v);
       s.projectileCount += v2;
@@ -945,10 +968,11 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "deepPiercing",
+    family: "gun",
     label: "貫通 +{v}、弾速 -{v2}%",
     tags: ["ranged", "damage", "tradeoff"],
-    slots: ["gun"],
-    curve: [t2(20, 2, 2, 20, 28), t2(8, 1, 1, 12, 19)],
+    slots: ["mainHand"],
+    curve: curveFor("deepPiercing"),
     apply: (s, v, v2) => {
       s.pierce += v;
       s.projectileSpeedMul -= pct(v2);
@@ -958,8 +982,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "wallSlammer",
     label: "ノックバック +{v}%、移動速度 -{v2}%",
     tags: ["melee", "damage", "tradeoff"],
-    slots: ["weapon", "armor"],
-    curve: [t2(20, 45, 60, 12, 16), t2(8, 28, 44, 8, 11), t2(1, 15, 27, 5, 7)],
+    slots: ["mainHand", "armor"],
+    curve: curveFor("wallSlammer"),
     apply: (s, v, v2) => {
       s.knockbackMul += pct(v);
       s.moveSpeedMul -= pct(v2);
@@ -970,7 +994,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "与ダメの {v}% を回復、攻撃速度 +{v2}%",
     tags: ["life", "speed"],
     slots: ATTACK_SLOTS,
-    curve: [t2(24, 4, 5, 9, 12), t2(12, 2, 3, 6, 8), t2(1, 1, 1, 3, 5)],
+    curve: curveFor("vampiricRush"),
     apply: (s, v, v2) => {
       s.lifeOnHit += v;
       s.attackSpeedMul += pct(v2);
@@ -978,11 +1002,12 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "stormcaller",
+    family: "gun",
     color: "gold",
     label: "感電連鎖ダメージ +{v}、射撃ダメージ -{v2}%",
     tags: ["elemental", "ranged", "tradeoff"],
     slots: RANGED_SLOTS,
-    curve: [t2(22, 18, 26, 14, 18), t2(10, 11, 17, 9, 13), t2(2, 5, 10, 5, 8)],
+    curve: curveFor("stormcaller"),
     apply: (s, v, v2) => {
       s.shockDamage += v;
       s.rangedDamageMul -= pct(v2);
@@ -993,7 +1018,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "凍結減速 +{v}%、移動速度 -{v2}%",
     tags: ["elemental", "mobility", "tradeoff"],
     slots: ATTACK_SLOTS,
-    curve: [t2(20, 25, 34, 14, 18), t2(8, 16, 24, 9, 13), t2(1, 8, 15, 5, 8)],
+    curve: curveFor("frostbite"),
     apply: (s, v, v2) => {
       s.chillSlow += pct(v);
       s.moveSpeedMul -= pct(v2);
@@ -1003,8 +1028,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "arcaneBattery",
     label: "必殺ゲージ獲得 +{v}%、必殺ダメージ -{v2}%",
     tags: ["burst", "tradeoff"],
-    slots: ["weapon", "armor", "ring", "amulet"],
-    curve: [t2(20, 30, 42, 14, 18), t2(8, 18, 29, 9, 13), t2(1, 10, 17, 5, 8)],
+    slots: ["mainHand", "armor", "ring", "amulet"],
+    curve: curveFor("arcaneBattery"),
     apply: (s, v, v2) => {
       s.energyGainMul += pct(v);
       s.burstDamageMul -= pct(v2);
@@ -1015,7 +1040,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: `会心倍率 +{v}%、撃破時の生命回復 +{v2}（${HEAL.killHealMinCombo}コンボ以上）`,
     tags: ["critical", "life"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(22, 30, 42, 8, 11), t2(10, 18, 29, 5, 7), t2(1, 8, 17, 2, 4)],
+    curve: curveFor("gildedFang"),
     apply: (s, v, v2) => {
       s.critMul += pct(v);
       s.lifeOnKill += v2;
@@ -1028,7 +1053,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "ダッシュ時: {v2}秒間ダメージ +{v}%",
     tags: ["mobility", "damage"],
     slots: ["boots", "ring", "amulet"],
-    curve: [t2(22, 20, 28, 0.6, 0.8), t2(10, 13, 19, 0.5, 0.6), t2(2, 7, 12, 0.4, 0.5)],
+    curve: curveFor("dashStrike"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.triggers.push({ trigger: "onDash", condition: "always", effect: "damageBuff", magnitude: v, duration: v2, chance: 1 });
@@ -1039,7 +1064,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "10コンボ以上での撃破時: 生命 {v} 回復",
     tags: ["combo", "life"],
     slots: MELEE_SLOTS,
-    curve: [t(24, 14, 20), t(12, 9, 13), t(1, 4, 8)],
+    curve: curveFor("finisherMend"),
     apply: (s, v) => {
       s.triggers.push({ trigger: "onKill", condition: "comboAbove10", effect: "heal", magnitude: v, chance: 1 });
     },
@@ -1049,7 +1074,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "交戦中の部屋で被弾時: {v2}秒間移動速度 +{v}%",
     tags: ["defense", "utility"],
     slots: ["armor", "boots"],
-    curve: [t2(20, 22, 30, 1.5, 2), t2(8, 14, 21, 1, 1.4), t2(1, 8, 13, 0.6, 0.9)],
+    curve: curveFor("wardedSanctuary"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.triggers.push({ trigger: "onHurt", condition: "roomLocked", effect: "speedBuff", magnitude: v, duration: v2, chance: 1 });
@@ -1060,7 +1085,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "部屋クリア時: 生命 {v} 回復",
     tags: ["life", "utility"],
     slots: ["armor", "amulet"],
-    curve: [t(20, 20, 28), t(8, 12, 19), t(1, 6, 11)],
+    curve: curveFor("roomMender"),
     apply: (s, v) => {
       s.triggers.push({ trigger: "onRoomClear", condition: "always", effect: "heal", magnitude: v, chance: 1 });
     },
@@ -1070,7 +1095,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "必殺ゲージ満タン時に被弾: {v}秒間無敵",
     tags: ["burst", "defense"],
     slots: ["armor", "ring", "amulet"],
-    curve: [t(24, 0.35, 0.4), t(10, 0.3, 0.4), t(1, 0.2, 0.3)],
+    curve: curveFor("energyReserve"),
     decimals: 1,
     cap: TRIGGER.invulnMax,
     apply: (s, v) => {
@@ -1088,7 +1113,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "近接命中時 {v}% で出血させる（10px 動くごとに {v2} ダメージ）",
     tags: ["status", "melee", "damage"],
     slots: MELEE_SLOTS,
-    curve: [t2(20, 15, 20, 2.5, 3.5), t2(10, 10, 15, 1.5, 2.5), t2(1, 6, 10, 1, 1.5)],
+    curve: curveFor("procBleed"),
     decimals2: 1,
     apply: (s, v, v2) => {
       pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, v2, "melee"));
@@ -1100,7 +1125,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "命中時 {v}% で毒を与え、じわじわと削る",
     tags: ["status", "damage"],
     slots: ATTACK_SLOTS,
-    curve: [t(22, 15, 20), t(12, 10, 15), t(3, 6, 10)],
+    curve: curveFor("procPoison"),
     apply: (s, v) => {
       pushProc(s, statusProc("poison", v, STATUS.poison.duration, STATUS.poison.hpRatioPerSec, "any"));
     },
@@ -1111,7 +1136,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "スキル命中時 {v}% で脆弱にする（受けるダメージが増える）",
     tags: ["status", "damage"],
     slots: OFFENSE_SLOTS,
-    curve: [t(25, 22, 30), t(15, 16, 22), t(5, 10, 15)],
+    curve: curveFor("procVulnerable"),
     apply: (s, v) => {
       pushProc(s, statusProc("vulnerable", v, STATUS.vulnerable.duration, STATUS.vulnerable.mul, "skill"));
     },
@@ -1121,19 +1146,20 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "jade",
     label: "命中時 {v}% で弱体にする（敵の攻撃が弱まる）",
     tags: ["status", "defense"],
-    slots: ["weapon", "gun", "armor", "ring"],
-    curve: [t(24, 15, 20), t(14, 10, 15), t(4, 6, 10)],
+    slots: ["mainHand", "armor", "ring"],
+    curve: curveFor("procWeaken"),
     apply: (s, v) => {
       pushProc(s, statusProc("weaken", v, STATUS.weaken.duration, STATUS.weaken.mul, "any"));
     },
   }),
   trait({
     key: "procSilence",
+    family: "gun",
     color: "azure",
     label: "射撃命中時 {v}% で沈黙させる（敵の弾・光線・爆弾を封じる）",
     tags: ["status", "ranged"],
     slots: RANGED_SLOTS,
-    curve: [t(26, 14, 18), t(16, 10, 14), t(6, 6, 10)],
+    curve: curveFor("procSilence"),
     apply: (s, v) => {
       pushProc(s, statusProc("silence", v, STATUS.silence.enemyDuration, NO_POTENCY, "ranged"));
     },
@@ -1144,7 +1170,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "会心時 {v}% で恐怖させる（敵が逃げ惑い、攻撃をやめる）",
     tags: ["status", "critical"],
     slots: OFFENSE_SLOTS,
-    curve: [t(28, 31, 40), t(18, 23, 30), t(8, 15, 22)],
+    curve: curveFor("procFear"),
     apply: (s, v) => {
       pushProc(s, { ...statusProc("fear", v, STATUS.fear.duration, NO_POTENCY, "any"), requiresCrit: true });
     },
@@ -1156,8 +1182,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "azure",
     label: "近接攻撃で敵弾を斬り消す（リーチ -{v}%）",
     tags: ["melee", "defense"],
-    slots: ["weapon"],
-    curve: [t(4, 8, 12)],
+    slots: ["mainHand"],
+    curve: curveFor("bulletCut"),
     apply: (s, v) => {
       s.bulletCut += BULLET_CUT_ON;
       s.meleeReachMul -= pct(v);
@@ -1170,7 +1196,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "最大気力 +{v}",
     tags: ["mana", "skill"],
     slots: ["amulet", "ring", "armor"],
-    curve: [t(26, 27, 33), t(12, 15, 20), t(1, 6, 10)],
+    curve: curveFor("maxManaFlat"),
     apply: (s, v) => {
       s.maxMana += v;
     },
@@ -1182,7 +1208,7 @@ export const AFFIXES: readonly AffixDef[] = [
     // 兜の部位は無いので鎧で代える
     slots: ["amulet", "ring", "armor"],
     decimals: 1,
-    curve: [t(26, 1.3, 1.7), t(12, 0.7, 1), t(1, 0.2, 0.4)],
+    curve: curveFor("manaRegenFlat"),
     apply: (s, v) => {
       s.manaRegen += v;
     },
@@ -1192,8 +1218,8 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "気力回収 +{v}%",
     tags: ["mana", "skill"],
     // 籠手の部位は無いので、通常攻撃を担う銃で代える
-    slots: ["weapon", "gun", "ring"],
-    curve: [t(26, 50, 60), t(12, 25, 35), t(1, 10, 15)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("manaGainPct"),
     apply: (s, v) => {
       s.manaGainMul += pct(v);
     },
@@ -1202,9 +1228,9 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "manaCostPct",
     label: "スキルのコスト -{v}%、スキル威力 -{v2}%",
     tags: ["mana", "skill", "tradeoff"],
-    slots: ["weapon", "amulet", "ring"],
+    slots: ["mainHand", "amulet", "ring"],
     // 代償（v2）は利得の半分の幅で振る（コスト軽減だけの上位互換にしない）
-    curve: [t2(26, 27, 32, 13, 16), t2(12, 15, 19, 7, 9), t2(1, 7, 9, 3, 4)],
+    curve: curveFor("manaCostPct"),
     apply: (s, v, v2) => {
       s.manaCostMul -= pct(v);
       s.skillDamageMul -= pct(v2);
@@ -1214,8 +1240,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "manaOnKillFlat",
     label: "撃破で気力 +{v}",
     tags: ["mana", "skill"],
-    slots: ["weapon", "boots", "ring"],
-    curve: [t(26, 7, 8), t(12, 4, 5), t(1, 2, 3)],
+    slots: ["mainHand", "boots", "ring"],
+    curve: curveFor("manaOnKillFlat"),
     apply: (s, v) => {
       s.manaOnKill += v;
     },
@@ -1226,7 +1252,7 @@ export const AFFIXES: readonly AffixDef[] = [
     tags: ["mana", "skill", "tradeoff"],
     slots: JEWELRY_SLOTS,
     // manaOnKillFlat より伸び幅が大きい代わりに器が縮む。名のある遺物「涸れ井戸の指輪」の核
-    curve: [t2(22, 12, 14, 34, 40), t2(8, 9, 11, 28, 32)],
+    curve: curveFor("manaDrought"),
     apply: (s, v, v2) => {
       s.manaOnKill += v;
       s.maxMana -= v2;
@@ -1244,8 +1270,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "manaOnStagger",
     label: "汲み上げ: 敵を怯ませると気力 +{v}、撃破時の気力回収 -{v2}",
     tags: ["mana", "skill", "tradeoff"],
-    slots: ["weapon", "gun", "ring"],
-    curve: [t2(22, 8, 10, 4, 4), t2(10, 5, 7, 3, 3), t2(1, 3, 4, 2, 2)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("manaOnStagger"),
     apply: (s, v, v2) => {
       s.traits.manaOnStagger += v;
       s.manaOnKill -= v2;
@@ -1255,8 +1281,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "lowTide",
     label: `底打ち: 気力が ${ratioPct(TRIGGER.trait.lowManaRatio)}% 未満の間、気力回収 +{v}%、気力自然回復 -{v2}%`,
     tags: ["mana", "skill", "tradeoff"],
-    slots: ["weapon", "ring", "amulet"],
-    curve: [t2(24, 100, 130, 30, 35), t2(12, 70, 90, 25, 30), t2(1, 40, 60, 20, 25)],
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("lowTide"),
     stage: "scale",
     apply: (s, v, v2) => {
       s.traits.lowManaGainMul += pct(v);
@@ -1268,7 +1294,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "満ち潮: 気力が満タンの間、スキル威力 +{v}%、気力回収 -{v2}%",
     tags: ["mana", "skill", "tradeoff"],
     slots: ["armor", "amulet"],
-    curve: [t2(24, 32, 42, 12, 15), t2(12, 22, 30, 10, 12), t2(1, 12, 18, 8, 10)],
+    curve: curveFor("fullTide"),
     apply: (s, v, v2) => {
       s.traits.fullManaSkillMul += pct(v);
       s.manaGainMul -= pct(v2);
@@ -1280,7 +1306,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "引き潮: 残り気力が少ないほどスキル威力が上がる（0 で +{v}%）、最大気力 -{v2}",
     tags: ["mana", "skill", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 50, 65, 10, 12), t2(12, 35, 45, 8, 10), t2(1, 20, 30, 6, 8)],
+    curve: curveFor("ebbTide"),
     apply: (s, v, v2) => {
       s.traits.lowManaSkillMul += pct(v);
       s.maxMana -= v2;
@@ -1293,7 +1319,7 @@ export const AFFIXES: readonly AffixDef[] = [
     tags: ["defense", "mana", "tradeoff"],
     slots: ["armor"],
     // 値は払うマナ。深いほど安い
-    curve: [t2(24, 8, 10, 15, 20), t2(12, 11, 13, 15, 20), t2(1, 14, 16, 15, 20)],
+    curve: curveFor("manaShield"),
     stage: "scale",
     apply: (s, v, v2) => {
       s.traits.manaShieldCost = Math.max(s.traits.manaShieldCost, v);
@@ -1306,7 +1332,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "痛覚遮断: 被弾で気力 +{v}、被ダメージ +{v2}%",
     tags: ["mana", "tradeoff"],
     slots: ["armor"],
-    curve: [t2(24, 13, 16, 8, 10), t2(12, 9, 12, 6, 8), t2(1, 6, 8, 5, 6)],
+    curve: curveFor("painToMana"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onHurt", condition: "always", effect: "restoreMana", magnitude: v });
       s.damageTakenMul += pct(v2);
@@ -1314,10 +1340,11 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "silencedKillMana",
+    family: "gun",
     label: "沈黙の報い: 沈黙中の敵を倒すと気力 +{v}、射撃ダメージ -{v2}%",
     tags: ["mana", "ranged", "tradeoff"],
-    slots: ["gun", "ring"],
-    curve: [t2(24, 16, 20, 8, 10), t2(14, 12, 15, 6, 8), t2(4, 8, 10, 6, 8)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("silencedKillMana"),
     apply: (s, v, v2) => {
       s.traits.silencedKillMana += v;
       s.rangedDamageMul -= pct(v2);
@@ -1328,8 +1355,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "殲滅の余韻: 殲滅で気力が最大の {v}% 戻る、最大気力 -{v2}",
     tags: ["mana", "tradeoff"],
-    slots: ["weapon", "gun", "amulet"],
-    curve: [t2(24, 85, 100, 6, 8), t2(14, 60, 75, 5, 7), t2(3, 40, 50, 4, 6)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("lastKillMana"),
     cap: 100,
     apply: (s, v, v2) => {
       s.traits.lastKillManaRatio += pct(v);
@@ -1341,7 +1368,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "溢れ: 気力が満タンで溢れた回収の {v}% を必殺ゲージに移す、最大気力 -{v2}",
     tags: ["mana", "burst", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 130, 160, 8, 10), t2(12, 90, 120, 6, 8), t2(1, 60, 80, 4, 6)],
+    curve: curveFor("manaOverflow"),
     apply: (s, v, v2) => {
       s.traits.manaOverflowToEnergy += pct(v);
       s.maxMana -= v2;
@@ -1352,8 +1379,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "構えの呼吸: カウンターで気力 +{v}、攻撃速度 -{v2}%",
     tags: ["mana", "melee", "tradeoff"],
-    slots: ["weapon"],
-    curve: [t2(24, 13, 16, 6, 8), t2(12, 9, 12, 5, 6), t2(1, 6, 8, 4, 5)],
+    slots: ["mainHand"],
+    curve: curveFor("counterMana"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "restoreMana", magnitude: v });
       s.attackSpeedMul -= pct(v2);
@@ -1364,7 +1391,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "見切りの息吹: 見切りで気力 +{v}、ダッシュ再使用時間 +{v2}%",
     tags: ["mana", "mobility", "tradeoff"],
     slots: ["boots", "ring"],
-    curve: [t2(24, 13, 16, 10, 12), t2(12, 9, 12, 8, 10), t2(1, 6, 8, 6, 8)],
+    curve: curveFor("justBreath"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onJustDodge", condition: "always", effect: "restoreMana", magnitude: v });
       s.dashCooldownMul += pct(v2);
@@ -1375,7 +1402,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "詠唱の集中: スキル威力 +{v}%、近接・射撃ダメージ -{v2}%",
     tags: ["mana", "skill", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 28, 35, 8, 10), t2(12, 18, 24, 6, 8), t2(1, 10, 14, 5, 6)],
+    curve: curveFor("arcaneFocus"),
     apply: (s, v, v2) => {
       s.skillDamageMul += pct(v);
       s.meleeDamageMul -= pct(v2);
@@ -1390,7 +1417,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "多彩: 相手に付いた状態異常 1 種ごとに与ダメージ +{v}%、状態異常の効果量 -{v2}%",
     tags: ["status", "damage", "tradeoff"],
     slots: ATTACK_SLOTS,
-    curve: [t2(24, 10, 13, 10, 12), t2(12, 7, 9, 8, 10), t2(1, 4, 6, 8, 10)],
+    curve: curveFor("kaleidoscope"),
     apply: (s, v, v2) => {
       s.traits.damagePerStatusKind += pct(v);
       s.statusPotencyMul -= pct(v2);
@@ -1402,7 +1429,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "病み上がり: 自分に付いた状態異常 1 種ごとに与ダメージ +{v}%、受ける状態異常の持続 +{v2}%",
     tags: ["status", "damage", "tradeoff"],
     slots: ["armor", "amulet"],
-    curve: [t2(24, 20, 26, 20, 25), t2(12, 14, 18, 15, 20), t2(1, 8, 12, 15, 20)],
+    curve: curveFor("fever"),
     apply: (s, v, v2) => {
       s.traits.damagePerSelfStatus += pct(v);
       s.statusTakenMul += pct(v2);
@@ -1414,7 +1441,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "弱体の盾: 弱体中の敵から受けるダメージ -{v}%、弱体でない敵からは +{v2}%",
     tags: ["status", "defense", "tradeoff"],
     slots: ["armor"],
-    curve: [t2(24, 30, 36, 6, 8), t2(12, 22, 28, 5, 6), t2(1, 15, 20, 4, 5)],
+    curve: curveFor("weakenedGuard"),
     cap: 60,
     apply: (s, v, v2) => {
       s.traits.weakenedGuard += pct(v);
@@ -1427,7 +1454,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "疫病の種: 撃破時、周囲の敵を毒にする（{v} 秒）",
     tags: ["status", "damage"],
     slots: ATTACK_SLOTS,
-    curve: [t(24, 5, 6), t(12, 4, 5), t(1, 3, 4)],
+    curve: curveFor("plagueSeed"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onKill", condition: "always", effect: "inflict", magnitude: v, status: "poison" });
     },
@@ -1438,7 +1465,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "払い手: 被弾時、攻撃してきた敵を弱体にする（{v} 秒）",
     tags: ["status", "defense"],
     slots: ["armor", "boots"],
-    curve: [t(24, 5, 6), t(12, 4, 5), t(1, 3, 4)],
+    curve: curveFor("hurtWeaken"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onHurt", condition: "always", effect: "inflict", magnitude: v, status: "weaken" });
     },
@@ -1448,8 +1475,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "近接命中時 {v}% で麻痺させる、攻撃速度 -{v2}%",
     tags: ["status", "melee", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(24, 11, 14, 8, 10), t2(14, 8, 10, 6, 8), t2(4, 5, 7, 5, 6)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("procParalyze"),
     apply: (s, v, v2) => {
       pushProc(s, statusProc("paralyze", v, STATUS.paralyze.duration, NO_POTENCY, "melee"));
       s.attackSpeedMul -= pct(v2);
@@ -1460,8 +1487,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "腐れ落ち: 状態異常が 2 種以上の敵への近接命中で爆発する（{v} ダメージ）、近接ダメージ -{v2}%",
     tags: ["status", "melee", "damage", "tradeoff"],
-    slots: ["weapon"],
-    curve: [t2(24, 32, 40, 8, 10), t2(14, 22, 28, 6, 8), t2(4, 14, 18, 5, 6)],
+    slots: ["mainHand"],
+    curve: curveFor("rotBurst"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "explode", magnitude: v });
       s.meleeDamageMul -= pct(v2);
@@ -1473,7 +1500,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "毒気: 状態異常の効果量 +{v}%、会心率 -{v2}%",
     tags: ["status", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 28, 35, 4, 4), t2(12, 18, 24, 3, 3), t2(1, 10, 14, 2, 2)],
+    curve: curveFor("virulent"),
     apply: (s, v, v2) => {
       s.statusPotencyMul += pct(v);
       s.critChance -= pct(v2);
@@ -1485,7 +1512,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "耐性の布: 受ける状態異常の持続 -{v}%",
     tags: ["status", "defense"],
     slots: ["armor", "boots", "amulet"],
-    curve: [t(24, 22, 28), t(12, 15, 20), t(1, 8, 12)],
+    curve: curveFor("statusWard"),
     apply: (s, v) => {
       s.statusTakenMul -= pct(v);
     },
@@ -1496,7 +1523,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "払い清め: 自分が状態異常中に被弾すると 1 つ払う、受ける状態異常の持続 -{v}%",
     tags: ["status", "defense"],
     slots: ["armor", "boots"],
-    curve: [t(24, 16, 20), t(12, 12, 15), t(1, 8, 10)],
+    curve: curveFor("hurtCleanse"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onHurt", condition: "selfAfflicted", effect: "cleanse", magnitude: 1 });
       s.statusTakenMul -= pct(v);
@@ -1508,8 +1535,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "wedge",
     label: "楔: 怯みの蓄積が半分を超えた敵への怯み値 +{v}%、半分未満の敵へは -{v2}%",
     tags: ["melee", "tradeoff"],
-    slots: ["weapon"],
-    curve: [t2(24, 65, 80, 15, 18), t2(12, 45, 60, 12, 15), t2(1, 30, 40, 10, 12)],
+    slots: ["mainHand"],
+    curve: curveFor("wedge"),
     apply: (s, v, v2) => {
       s.traits.wedgePoiseMul += pct(v);
       s.traits.wedgePenalty += pct(v2);
@@ -1517,10 +1544,11 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "guardPiercer",
+    family: "gun",
     label: "剥がし撃ち: 堅守中の敵への射撃の怯み値の減衰を {v}% 打ち消す、射撃の怯み値 -{v2}%",
     tags: ["ranged", "tradeoff"],
-    slots: ["gun"],
-    curve: [t2(20, 90, 100, 8, 10), t2(10, 70, 80, 10, 12), t2(1, 50, 60, 10, 12)],
+    slots: ["mainHand"],
+    curve: curveFor("guardPiercer"),
     cap: 100,
     apply: (s, v, v2) => {
       s.traits.guardPierce += pct(v);
@@ -1531,8 +1559,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "staggerQuake",
     label: "崩れの反響: 敵を怯ませると周囲の敵に怯み値 {v}、ノックバック -{v2}%",
     tags: ["melee", "tradeoff"],
-    slots: ["weapon", "armor"],
-    curve: [t2(24, 22, 28, 15, 18), t2(12, 14, 18, 12, 15), t2(1, 8, 10, 10, 12)],
+    slots: ["mainHand", "armor"],
+    curve: curveFor("staggerQuake"),
     apply: (s, v, v2) => {
       s.traits.staggerQuake += v;
       s.knockbackMul -= pct(v2);
@@ -1542,8 +1570,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "staggerLeech",
     label: "怯み吸い: 敵を怯ませると生命 +{v}、撃破時の生命回復 -{v2}",
     tags: ["life", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(24, 8, 10, 3, 3), t2(12, 5, 7, 2, 2), t2(1, 3, 4, 1, 1)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("staggerLeech"),
     apply: (s, v, v2) => {
       s.traits.healOnStagger += v;
       s.lifeOnKill -= v2;
@@ -1554,8 +1582,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "追い討ち: 恐怖中の敵への怯み値 +{v}%、近接ダメージ -{v2}%",
     tags: ["status", "melee", "tradeoff"],
-    slots: ["weapon"],
-    curve: [t2(24, 100, 130, 8, 10), t2(12, 80, 100, 6, 8), t2(1, 60, 80, 5, 6)],
+    slots: ["mainHand"],
+    curve: curveFor("fearPoise"),
     apply: (s, v, v2) => {
       s.traits.fearPoiseMul += pct(v);
       s.meleeDamageMul -= pct(v2);
@@ -1567,7 +1595,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "渦の芯: 沈黙中の敵への怯み値 +{v}%、射撃ダメージ -{v2}%",
     tags: ["status", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 100, 130, 8, 10), t2(12, 80, 100, 6, 8), t2(1, 60, 80, 5, 6)],
+    curve: curveFor("vortexCore"),
     apply: (s, v, v2) => {
       s.traits.silencedPoiseMul += pct(v);
       s.rangedDamageMul -= pct(v2);
@@ -1578,8 +1606,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "脆弱の楔: 脆弱の敵への怯み値 +{v}%、被ダメージ +{v2}%",
     tags: ["status", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(24, 80, 100, 5, 6), t2(12, 60, 75, 4, 5), t2(1, 40, 55, 3, 4)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("vulnPoise"),
     apply: (s, v, v2) => {
       s.traits.vulnerablePoiseMul += pct(v);
       s.damageTakenMul += pct(v2);
@@ -1589,8 +1617,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "heavyHand",
     label: "重い手: 怯み値 +{v}%、攻撃速度 -{v2}%",
     tags: ["melee", "tradeoff"],
-    slots: ["weapon", "armor"],
-    curve: [t2(24, 30, 38, 8, 10), t2(12, 20, 26, 6, 8), t2(1, 12, 16, 5, 6)],
+    slots: ["mainHand", "armor"],
+    curve: curveFor("heavyHand"),
     apply: (s, v, v2) => {
       s.poiseDamageMul += pct(v);
       s.attackSpeedMul -= pct(v2);
@@ -1601,8 +1629,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "崩れ雷: 敵を怯ませると連鎖雷を呼ぶ（{v} ダメージ）",
     tags: ["elemental", "damage"],
-    slots: ["weapon", "gun"],
-    curve: [t(24, 22, 28), t(12, 14, 18), t(1, 8, 10)],
+    slots: ["mainHand"],
+    curve: curveFor("staggerSpark"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "chainLightning", magnitude: v });
     },
@@ -1611,8 +1639,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "staggerCharge",
     label: "崩れの充填: 敵を怯ませると必殺ゲージ +{v}、必殺ダメージ -{v2}%",
     tags: ["burst", "tradeoff"],
-    slots: ["weapon", "amulet"],
-    curve: [t2(24, 16, 20, 10, 12), t2(12, 12, 15, 8, 10), t2(1, 8, 10, 6, 8)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("staggerCharge"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "energy", magnitude: v });
       s.burstDamageMul -= pct(v2);
@@ -1623,8 +1651,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "崩れの刻印: 怯ませた敵を脆弱にする（{v} 秒）",
     tags: ["status", "damage"],
-    slots: ["weapon", "ring"],
-    curve: [t(24, 4, 5), t(12, 3, 4), t(1, 2, 3)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("staggerMark"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "inflict", magnitude: v, status: "vulnerable" });
     },
@@ -1636,8 +1664,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "先読み: 予備動作中の敵への与ダメージ +{v}%、それ以外の敵へは -{v2}%",
     tags: ["damage", "combo", "tradeoff"],
-    slots: ["weapon", "gun"],
-    curve: [t2(24, 55, 70, 10, 12), t2(12, 40, 50, 8, 10), t2(1, 25, 35, 6, 8)],
+    slots: ["mainHand"],
+    curve: curveFor("readAhead"),
     apply: (s, v, v2) => {
       s.traits.windupDamageMul += pct(v);
       s.traits.offWindupPenalty += pct(v2);
@@ -1648,8 +1676,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "崩し打ち: 予備動作中の敵への近接命中で、追加の怯み値 {v}",
     tags: ["melee", "combo"],
-    slots: ["weapon"],
-    curve: [t(24, 18, 24), t(12, 12, 16), t(1, 8, 10)],
+    slots: ["mainHand"],
+    curve: curveFor("windupCrack"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetInWindup", effect: "addPoise", magnitude: v });
     },
@@ -1658,8 +1686,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "counterWave",
     label: "返し波: カウンター時、衝撃波を放つ（{v} ダメージ）",
     tags: ["melee", "damage"],
-    slots: ["weapon"],
-    curve: [t(24, 28, 34), t(12, 18, 22), t(1, 10, 12)],
+    slots: ["mainHand"],
+    curve: curveFor("counterWave"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "shockwave", magnitude: v });
     },
@@ -1668,8 +1696,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "guardedBane",
     label: "堅守崩し: 堅守中の敵への与ダメージ +{v}%",
     tags: ["melee", "damage"],
-    slots: ["weapon", "gun"],
-    curve: [t(24, 38, 46), t(12, 25, 32), t(1, 15, 20)],
+    slots: ["mainHand"],
+    curve: curveFor("guardedBane"),
     apply: (s, v) => {
       s.traits.guardedDamageMul += pct(v);
     },
@@ -1679,8 +1707,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "ダウン狩り: ボスへの与ダメージ +{v}%、ボス以外への与ダメージ -{v2}%",
     tags: ["damage", "tradeoff"],
-    slots: ["weapon", "amulet"],
-    curve: [t2(25, 35, 42, 6, 8), t2(15, 25, 30, 5, 6), t2(5, 15, 20, 4, 5)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("downHunter"),
     apply: (s, v, v2) => {
       s.traits.bossDamageMul += pct(v);
       s.traits.nonBossPenalty += pct(v2);
@@ -1693,7 +1721,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "撒き足: ダッシュ時に照準の方向へ射撃の {v}% の弾を撃つ、ダッシュ距離 -{v2}%",
     tags: ["ranged", "mobility", "tradeoff"],
     slots: ["boots"],
-    curve: [t2(24, 95, 110, 6, 8), t2(12, 70, 85, 8, 10), t2(1, 50, 60, 8, 10)],
+    curve: curveFor("dashVolley"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onDash", condition: "always", effect: "volley", magnitude: v, count: 1 });
       s.dashDistanceMul -= pct(v2);
@@ -1701,21 +1729,23 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "brimShock",
+    family: "gun",
     color: "gold",
     label: "満ちた器: 気力が満タンの間、射撃で連鎖雷を呼ぶ（{v} ダメージ）",
     tags: ["elemental", "mana", "ranged"],
-    slots: ["gun", "ring"],
-    curve: [t(24, 15, 19), t(12, 10, 13), t(1, 6, 8)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("brimShock"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onShoot", condition: "manaFull", effect: "chainLightning", magnitude: v });
     },
   }),
   trait({
     key: "nightEyes",
+    family: "gun",
     label: "夜目: 暗闇フロアで射撃ダメージ +{v}%、それ以外のフロアでは -{v2}%",
     tags: ["ranged", "tradeoff"],
-    slots: ["gun", "amulet"],
-    curve: [t2(24, 40, 48, 6, 8), t2(12, 30, 36, 5, 6), t2(1, 20, 25, 4, 5)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("nightEyes"),
     apply: (s, v, v2) => {
       s.traits.darkRangedMul += pct(v);
       s.traits.lightRangedPenalty += pct(v2);
@@ -1727,8 +1757,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "lockdownFury",
     label: "封鎖の熱: 交戦中の部屋で与ダメージ +{v}%、それ以外では -{v2}%",
     tags: ["damage", "tradeoff"],
-    slots: ["weapon", "armor", "ring"],
-    curve: [t2(24, 16, 20, 12, 15), t2(12, 12, 15, 10, 12), t2(1, 8, 10, 8, 10)],
+    slots: ["mainHand", "armor", "ring"],
+    curve: curveFor("lockdownFury"),
     apply: (s, v, v2) => {
       s.traits.lockedDamageMul += pct(v);
       s.traits.unlockedPenalty += pct(v2);
@@ -1740,7 +1770,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "死神の影: 死神が出ている間、与ダメージ +{v}%、最大生命 -{v2}",
     tags: ["damage", "tradeoff"],
     slots: ["boots", "amulet"],
-    curve: [t2(24, 40, 48, 10, 12), t2(12, 30, 36, 8, 10), t2(1, 20, 25, 5, 6)],
+    curve: curveFor("reaperShadow"),
     apply: (s, v, v2) => {
       s.traits.reaperDamageMul += pct(v);
       s.maxHp -= v2;
@@ -1753,8 +1783,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "jade",
     label: "若木: 装備全体の残り余白 1 につき近接・射撃ダメージ +{v}%（芽を選ぶほど弱まる）",
     tags: ["damage", "utility"],
-    slots: ["weapon", "gun", "armor", "boots", "ring", "amulet"],
-    curve: [t(24, 3, 4), t(12, 2, 3), t(1, 1, 2)],
+    slots: ["mainHand", "armor", "boots", "ring", "amulet"],
+    curve: curveFor("sapling"),
     apply: (s, v) => {
       const bonus = pct(v) * s.traits.gearMargin;
       s.meleeDamageMul += bonus;
@@ -1766,7 +1796,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "銘の重み: 銘を持つ装備 1 つにつき会心倍率 +{v}%、銘の無い装備 1 つにつき最大生命 -{v2}",
     tags: ["critical", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 20, 26, 4, 5), t2(12, 14, 18, 3, 4), t2(1, 8, 12, 2, 3)],
+    curve: curveFor("inscribedWeight"),
     apply: (s, v, v2) => {
       const t = s.traits;
       s.critMul += pct(v) * t.gearInscribed;
@@ -1779,7 +1809,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "裏の糧: 装備中の反転した性質 1 つにつき近接・射撃ダメージ +{v}%、被ダメージ +{v2}%",
     tags: ["damage", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 12, 15, 3, 4), t2(12, 9, 12, 3, 3), t2(1, 6, 8, 2, 3)],
+    curve: curveFor("invertedFeast"),
     apply: (s, v, v2) => {
       const inverted = s.traits.gearInverted;
       s.meleeDamageMul += pct(v) * inverted;
@@ -1793,7 +1823,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "異郷の響き: 装備中の異色の性質 1 つにつき全ステータス +{v}、最大生命 -{v2}",
     tags: ["attribute", "tradeoff"],
     slots: ["ring"],
-    curve: [t2(16, 1, 2, 6, 8), t2(4, 1, 1, 4, 6)],
+    curve: curveFor("foreignEcho"),
     apply: (s, v, v2) => {
       for (const k of ATTR_KEYS) s.attributes[k] += v * s.traits.gearOffColor;
       s.maxHp -= v2;
@@ -1806,7 +1836,7 @@ export const AFFIXES: readonly AffixDef[] = [
     tags: ["utility"],
     slots: JEWELRY_SLOTS,
     // 値は二重の成立条件（%）。低いほど成立しやすい。判定は resonance.ts の resonanceRules
-    curve: [t(24, 22, 23), t(12, 24, 25), t(1, 26, 27)],
+    curve: curveFor("bridge"),
     apply: noTraitEffect,
   }),
   trait({
@@ -1815,7 +1845,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "古傷: この遺物で被弾 100 回ごとにアーマー +{v}（5 段まで）",
     tags: ["defense"],
     slots: ["armor"],
-    curve: [t(24, 3, 4), t(12, 2, 3), t(1, 1, 2)],
+    curve: curveFor("oldScars"),
     apply: (s, v) => {
       s.armor += v;
     },
@@ -1824,8 +1854,8 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "veteran",
     label: "歴戦: この遺物での撃破 100 ごとに近接・射撃ダメージ +{v}%（8 段まで）",
     tags: ["damage"],
-    slots: ["weapon", "gun"],
-    curve: [t(24, 3, 4), t(12, 2, 3), t(1, 1, 2)],
+    slots: ["mainHand"],
+    curve: curveFor("veteran"),
     apply: (s, v) => {
       s.meleeDamageMul += pct(v);
       s.rangedDamageMul += pct(v);
@@ -1836,7 +1866,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "旅の垢: この遺物で階層を 3 つ踏破するごとに移動速度 +{v}%（6 段まで）",
     tags: ["mobility"],
     slots: ["boots"],
-    curve: [t(24, 2, 3), t(12, 1, 2), t(1, 1, 1)],
+    curve: curveFor("wayfarer"),
     apply: (s, v) => {
       s.moveSpeedMul += pct(v);
     },
@@ -1847,7 +1877,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "王殺しの印: この遺物でのボス撃破 1 ごとにボスへの与ダメージ +{v}%（5 段まで）",
     tags: ["damage"],
     slots: JEWELRY_SLOTS,
-    curve: [t(24, 8, 10), t(14, 6, 8), t(3, 4, 6)],
+    curve: curveFor("kingslayerMark"),
     apply: (s, v) => {
       s.traits.bossDamageMul += pct(v);
     },
@@ -1857,7 +1887,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "見切りの記憶: この遺物での見切り 25 ごとに、見切り後 {v2} 秒間のダメージ +{v}%（4 段まで）",
     tags: ["combo", "damage"],
     slots: ["boots", "ring"],
-    curve: [t2(24, 12, 15, 0.4, 0.5), t2(12, 9, 12, 0.3, 0.4), t2(1, 6, 8, 0.2, 0.3)],
+    curve: curveFor("keenMemory"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.justDodgeDamageMul += pct(v);
@@ -1871,8 +1901,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "余韻斬り: コンボが途切れた瞬間、コンボ数 × {v} の衝撃波を放つ、コンボ猶予 -{v2}秒",
     tags: ["combo", "damage", "tradeoff"],
-    slots: ["weapon", "amulet"],
-    curve: [t2(24, 3, 4, 0.3, 0.3), t2(12, 2, 2.5, 0.3, 0.3), t2(1, 1, 1.5, 0.3, 0.3)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("echoSlash"),
     decimals: 1,
     decimals2: 1,
     apply: (s, v, v2) => {
@@ -1885,8 +1915,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "形見: 状態異常の敵を倒すと、その 1 種を次の {v} 回の命中に乗せる、状態異常の効果量 -{v2}%",
     tags: ["status", "tradeoff"],
-    slots: ["weapon", "gun"],
-    curve: [t2(24, 5, 6, 10, 12), t2(12, 4, 5, 8, 10), t2(1, 2, 3, 8, 10)],
+    slots: ["mainHand"],
+    curve: curveFor("inheritance"),
     apply: (s, v, v2) => {
       s.traits.inheritCharges = Math.max(s.traits.inheritCharges, v);
       s.statusPotencyMul -= pct(v2);
@@ -1894,11 +1924,12 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "stake",
+    family: "gun",
     color: "gold",
     label: "撃ち込み杭: 射撃が敵に刺さって残り、次の近接命中で 1 本につき {v} ダメージで爆ぜる、射撃ダメージ -{v2}%",
     tags: ["ranged", "melee", "tradeoff"],
-    slots: ["gun"],
-    curve: [t2(24, 9, 12, 12, 15), t2(12, 6, 8, 10, 12), t2(1, 3, 4, 8, 10)],
+    slots: ["mainHand"],
+    curve: curveFor("stake"),
     apply: (s, v, v2) => {
       s.traits.stakeDamage += v;
       s.rangedDamageMul -= pct(v2);
@@ -1911,8 +1942,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "jade",
     label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接がその状態異常を {v} 秒乗せる、最大生命 -{v2}",
     tags: ["status", "melee", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(24, 3, 4, 6, 8), t2(12, 2.5, 3, 8, 10), t2(1, 2, 2.5, 10, 12)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("placedInfuse"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.placedInfuse = Math.max(s.traits.placedInfuse, v);
@@ -1925,7 +1956,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "杭打ち: 敵を怯ませると、近くの自分の設置物（引力球・氷結地帯・地雷）が {v} 秒長く残る、最大気力 -{v2}",
     tags: ["utility", "tradeoff"],
     slots: ["amulet"],
-    curve: [t2(24, 2, 2.5, 6, 8), t2(12, 1.5, 2, 5, 6), t2(1, 1, 1.5, 4, 5)],
+    curve: curveFor("placedAnchor"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.placedExtend += v;
@@ -1938,7 +1969,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "血の署名: 生命が半分を切っている間、スキルの再使用時間と最低間隔が {v}% 速く明ける、最大生命 -{v2}",
     tags: ["skill", "tradeoff"],
     slots: ["armor", "amulet"],
-    curve: [t2(24, 50, 60, 12, 15), t2(12, 35, 45, 10, 12), t2(1, 20, 30, 8, 10)],
+    curve: curveFor("bloodSignature"),
     apply: (s, v, v2) => {
       s.traits.lowHpSkillHaste += pct(v);
       s.maxHp -= v2;
@@ -1954,7 +1985,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "盾割り: 堅守中の敵への与ダメージ +{v}%・怯み値 +{v2}%",
     tags: ["melee", "damage"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 30, 36, 45, 55), t2(1, 20, 25, 30, 40)],
+    curve: curveFor("shieldSplitter"),
     apply: (s, v, v2) => {
       s.traits.guardedDamageMul += pct(v);
       s.traits.guardedPoiseMul += pct(v2);
@@ -1967,7 +1998,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "蹴り返し: 予備動作中の敵を殴ると、その場で爆発を返す（{v} ダメージ）",
     tags: ["melee", "damage"],
     slots: ALL_SLOTS,
-    curve: [t(15, 24, 30), t(1, 14, 18)],
+    curve: curveFor("kickback"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetInWindup", effect: "explode", magnitude: v });
     },
@@ -1979,7 +2010,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "剥ぎ取り: 精鋭を倒すと {v2} 秒間ダメージ +{v}%・移動速度 +{v}%",
     tags: ["damage", "mobility"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 30, 36, 8, 10), t2(1, 20, 25, 6, 8)],
+    curve: curveFor("plunder"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onKill", condition: "targetElite", effect: "damageBuff", magnitude: v, duration: v2 });
       pushFixedTrigger(s, { trigger: "onKill", condition: "targetElite", effect: "speedBuff", magnitude: v, duration: v2 });
@@ -1992,7 +2023,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "先の先: カウンターで相手に怯み値 {v} を追加で与える",
     tags: ["melee", "combo"],
     slots: ALL_SLOTS,
-    curve: [t(15, 25, 32), t(1, 15, 20)],
+    curve: curveFor("firstMove"),
     apply: (s, v) => {
       pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "addPoise", magnitude: v });
     },
@@ -2004,7 +2035,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "幕引き: 殲滅の瞬間に敵弾をすべて消し、必殺ゲージ +{v}",
     tags: ["burst"],
     slots: ALL_SLOTS,
-    curve: [t(15, 30, 36), t(1, 20, 25)],
+    curve: curveFor("curtainCall"),
     apply: (s, v) => {
       s.traits.lastKillClearsBullets += 1;
       s.traits.lastKillEnergy += v;
@@ -2017,8 +2048,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "azure",
     label: "弱点読み: 属性の弱点を突くたびに気力 +{v}、弱点でない相手への与ダメージ -{v2}%",
     tags: ["mana", "elemental", "tradeoff"],
-    slots: ["weapon", "gun", "ring"],
-    curve: [t2(24, 2.5, 3, 8, 10), t2(12, 1.5, 2, 6, 8), t2(1, 1, 1.5, 5, 6)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("weakRead"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.weakHitMana += v;
@@ -2030,8 +2061,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "弱点刺し: 属性の弱点を突いた命中の与ダメージ +{v}%、弱点でない相手へは -{v2}%",
     tags: ["damage", "elemental", "tradeoff"],
-    slots: ["weapon", "gun", "amulet"],
-    curve: [t2(24, 40, 48, 10, 12), t2(12, 28, 34, 8, 10), t2(1, 18, 22, 6, 8)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("prismEdge"),
     apply: (s, v, v2) => {
       s.traits.weakDamageMul += pct(v);
       s.traits.nonWeakPenalty += pct(v2);
@@ -2042,8 +2073,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "耐性破り: 敵の属性耐性による減少を {v}% 打ち消す、弱点を突いた命中の与ダメージ -{v2}%",
     tags: ["damage", "elemental", "tradeoff"],
-    slots: ["weapon", "gun", "ring"],
-    curve: [t2(24, 55, 65, 10, 12), t2(12, 40, 50, 8, 10), t2(1, 25, 35, 6, 8)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("resistBreaker"),
     cap: 100,
     apply: (s, v, v2) => {
       s.traits.resistPierce = Math.min(1, s.traits.resistPierce + pct(v));
@@ -2055,8 +2086,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "逆撫で: 属性の耐性に阻まれた命中で、その属性の状態異常を {v} 秒付ける（反応の起点になる）",
     tags: ["status", "elemental"],
-    slots: ["weapon", "gun"],
-    curve: [t(24, 3.5, 4), t(12, 2.5, 3), t(1, 1.5, 2)],
+    slots: ["mainHand"],
+    curve: curveFor("backlash"),
     decimals: 1,
     apply: (s, v) => {
       s.traits.resistedInflict = Math.max(s.traits.resistedInflict, v);
@@ -2068,7 +2099,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "通電: 濡れ・浸水の敵への与ダメージ +{v}%（雷属性の割合だけさらに伸びる）",
     tags: ["damage", "elemental"],
     slots: OFFENSE_SLOTS,
-    curve: [t(24, 30, 36), t(12, 20, 25), t(1, 12, 16)],
+    curve: curveFor("conductor"),
     apply: (s, v) => {
       s.traits.wetConductMul += pct(v);
     },
@@ -2079,7 +2110,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "引火: 油膜の敵への与ダメージ +{v}%（炎属性の割合だけさらに伸びる）",
     tags: ["damage", "elemental"],
     slots: OFFENSE_SLOTS,
-    curve: [t(24, 30, 36), t(12, 20, 25), t(1, 12, 16)],
+    curve: curveFor("igniter"),
     apply: (s, v) => {
       s.traits.oiledIgniteMul += pct(v);
     },
@@ -2089,8 +2120,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "崩れの属性: 怯ませた敵に、武器の属性の状態異常を {v} 秒付ける（無属性の武器では付かない）",
     tags: ["status", "elemental"],
-    slots: ["weapon", "amulet"],
-    curve: [t(24, 4, 5), t(12, 3, 4), t(1, 2, 3)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("elementalBreak"),
     decimals: 1,
     apply: (s, v) => {
       s.traits.elementBreak = Math.max(s.traits.elementBreak, v);
@@ -2102,7 +2133,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "属性の帳: 属性を持つ攻撃から受けるダメージ -{v}%、無属性の攻撃から受けるダメージ +{v2}%",
     tags: ["defense", "elemental", "tradeoff"],
     slots: ["armor", "boots", "amulet"],
-    curve: [t2(24, 22, 26, 8, 10), t2(12, 15, 18, 7, 8), t2(1, 9, 12, 5, 6)],
+    curve: curveFor("elementalWard"),
     apply: (s, v, v2) => {
       s.traits.elementalGuard += pct(v);
       s.traits.physicalExposure += pct(v2);
@@ -2115,8 +2146,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "溜めの芯: 溜めの段 1 つにつき近接ダメージ +{v}%、溜めを持つ武器で溜めずに振ると -{v2}%",
     tags: ["melee", "damage", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(24, 22, 26, 10, 12), t2(12, 15, 18, 8, 10), t2(1, 9, 12, 6, 8)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("chargeCore"),
     apply: (s, v, v2) => {
       s.traits.chargedMeleeMul += pct(v);
       s.traits.unchargedPenalty += pct(v2);
@@ -2127,8 +2158,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "溜め崩し: 溜めの段 1 つにつき、近接の怯み値 +{v}%・命中で必殺ゲージ +{v2}",
     tags: ["melee", "burst"],
-    slots: ["weapon"],
-    curve: [t2(24, 25, 30, 4, 5), t2(12, 18, 22, 3, 4), t2(1, 10, 14, 2, 3)],
+    slots: ["mainHand"],
+    curve: curveFor("chargeQuake"),
     apply: (s, v, v2) => {
       s.traits.chargedPoiseMul += pct(v);
       s.traits.chargedHitEnergy += v2;
@@ -2139,8 +2170,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "派生の冴え: コンボ派生の命中の与ダメージ +{v}%、命中で気力 +{v2}",
     tags: ["combo", "melee"],
-    slots: ["weapon", "amulet"],
-    curve: [t2(24, 35, 42, 2, 2.5), t2(12, 25, 30, 1.5, 2), t2(1, 15, 20, 1, 1.5)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("branchArt"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.traits.branchDamageMul += pct(v);
@@ -2149,10 +2180,11 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "spreadCore",
+    family: "gun",
     label: "散弾の芯: 散弾の射撃が近い敵に与えるダメージ +{v}%、遠い敵へは -{v2}%",
     tags: ["ranged", "tradeoff"],
-    slots: ["gun"],
-    curve: [t2(24, 45, 55, 15, 18), t2(12, 32, 40, 12, 15), t2(1, 20, 26, 10, 12)],
+    slots: ["mainHand"],
+    curve: curveFor("spreadCore"),
     apply: (s, v, v2) => {
       s.traits.spreadCloseMul += pct(v);
       s.traits.spreadFarPenalty += pct(v2);
@@ -2160,21 +2192,23 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "spreadShove",
+    family: "gun",
     label: "散弾押し: 散弾の射撃の怯み値 +{v}%",
     tags: ["ranged", "utility"],
-    slots: ["gun", "amulet"],
-    curve: [t(24, 40, 50), t(12, 28, 35), t(1, 16, 22)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("spreadShove"),
     apply: (s, v) => {
       s.traits.spreadPoiseMul += pct(v);
     },
   }),
   trait({
     key: "homingVenom",
+    family: "gun",
     color: "jade",
     label: "追尾の毒: 追尾の射撃の命中で、毒を {v} 秒付ける",
     tags: ["ranged", "status"],
-    slots: ["gun"],
-    curve: [t(24, 4, 5), t(12, 3, 4), t(1, 2, 3)],
+    slots: ["mainHand"],
+    curve: curveFor("homingVenom"),
     decimals: 1,
     apply: (s, v) => {
       s.traits.homingPoison = Math.max(s.traits.homingPoison, v);
@@ -2182,11 +2216,12 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "rapidBrand",
+    family: "gun",
     color: "umbra",
     label: "連射の烙印: 連射の射撃の命中が {v}% で烙印を刻む、射撃ダメージ -{v2}%",
     tags: ["ranged", "status", "tradeoff"],
-    slots: ["gun"],
-    curve: [t2(24, 30, 36, 10, 12), t2(12, 22, 26, 8, 10), t2(1, 14, 18, 6, 8)],
+    slots: ["mainHand"],
+    curve: curveFor("rapidBrand"),
     cap: 100,
     apply: (s, v, v2) => {
       s.traits.rapidBrandChance = Math.min(1, s.traits.rapidBrandChance + pct(v));
@@ -2195,11 +2230,12 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "brandDetonator",
+    family: "gun",
     color: "gold",
     label: "起爆の手: 烙印の敵への射撃・スキルの与ダメージ +{v}%、烙印の無い敵への射撃 -{v2}%",
     tags: ["ranged", "damage", "tradeoff"],
-    slots: ["gun", "ring", "amulet"],
-    curve: [t2(24, 45, 55, 10, 12), t2(12, 32, 40, 8, 10), t2(1, 20, 26, 6, 8)],
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("brandDetonator"),
     apply: (s, v, v2) => {
       s.traits.brandedMul += pct(v);
       s.traits.unbrandedPenalty += pct(v2);
@@ -2212,8 +2248,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "流派の型: ジョブの得意武器を持つ間、与ダメージ +{v}%、得意でない武器では -{v2}%",
     tags: ["damage", "tradeoff"],
-    slots: ["weapon", "ring", "amulet"],
-    curve: [t2(24, 22, 26, 12, 15), t2(12, 15, 18, 10, 12), t2(1, 9, 12, 8, 10)],
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("schoolForm"),
     apply: (s, v, v2) => {
       s.traits.favoredDamageMul += pct(v);
       s.traits.unfavoredPenalty += pct(v2);
@@ -2224,8 +2260,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "我流: 得意でない武器の近接の怯み値 +{v}%、得意武器の近接の怯み値 -{v2}%",
     tags: ["melee", "tradeoff"],
-    slots: ["weapon", "ring"],
-    curve: [t2(24, 40, 48, 15, 18), t2(12, 28, 34, 12, 15), t2(1, 18, 22, 10, 12)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("selfTaught"),
     apply: (s, v, v2) => {
       s.traits.unfavoredPoiseMul += pct(v);
       s.traits.favoredPoisePenalty += pct(v2);
@@ -2237,7 +2273,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "無所属: 見習い（ジョブなし）の間、与ダメージ +{v}%、ジョブを持つ間は -{v2}%",
     tags: ["damage", "tradeoff"],
     slots: JEWELRY_SLOTS,
-    curve: [t2(24, 26, 30, 8, 10), t2(12, 18, 22, 6, 8), t2(1, 12, 15, 5, 6)],
+    curve: curveFor("wanderer"),
     apply: (s, v, v2) => {
       s.traits.noJobDamageMul += pct(v);
       s.traits.jobPenalty += pct(v2);
@@ -2248,8 +2284,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "azure",
     label: "流派の糧: ジョブの得意武器を持つ間の撃破で気力 +{v}",
     tags: ["mana"],
-    slots: ["weapon", "amulet"],
-    curve: [t(24, 5, 6), t(12, 3.5, 4.5), t(1, 2, 3)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("schoolHarvest"),
     decimals: 1,
     apply: (s, v) => {
       s.traits.favoredKillMana += v;
@@ -2263,7 +2299,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "地の利: 地形の上に立つ間、与ダメージ +{v}%、何も無い床では -{v2}%",
     tags: ["damage", "tradeoff"],
     slots: ["armor", "boots", "ring"],
-    curve: [t2(24, 32, 38, 8, 10), t2(12, 22, 27, 6, 8), t2(1, 14, 18, 5, 6)],
+    curve: curveFor("groundRooted"),
     apply: (s, v, v2) => {
       s.traits.terrainDamageMul += pct(v);
       s.traits.offTerrainPenalty += pct(v2);
@@ -2275,7 +2311,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "滑り足: 水たまり・氷床の上に立つ間、与ダメージ +{v}%",
     tags: ["damage", "mobility"],
     slots: ["boots", "ring"],
-    curve: [t(24, 32, 38), t(12, 22, 27), t(1, 14, 18)],
+    curve: curveFor("slickFooting"),
     apply: (s, v) => {
       s.traits.slickDamageMul += pct(v);
     },
@@ -2286,7 +2322,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "泥除け: 地形の上に立つ間、被ダメージ -{v}%",
     tags: ["defense"],
     slots: ["armor", "boots"],
-    curve: [t(24, 16, 20), t(12, 11, 14), t(1, 7, 9)],
+    curve: curveFor("mireGuard"),
     apply: (s, v) => {
       s.traits.terrainGuard += pct(v);
     },
@@ -2297,7 +2333,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "足場狩り: 地形の上にいる敵への与ダメージ +{v}%",
     tags: ["damage"],
     slots: ATTACK_SLOTS,
-    curve: [t(24, 28, 34), t(12, 19, 24), t(1, 11, 15)],
+    curve: curveFor("terrainHunter"),
     apply: (s, v) => {
       s.traits.enemyOnTerrainMul += pct(v);
     },
@@ -2307,8 +2343,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "地の爆ぜ: 地形の上にいる敵を倒すと、衝撃波を放つ（{v} ダメージ。炎・油・溶岩は燃焼、水・氷は冷気、毒沼・草は毒）",
     tags: ["damage", "elemental"],
-    slots: ["weapon", "amulet"],
-    curve: [t(24, 26, 32), t(12, 17, 21), t(1, 10, 13)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("terrainBurst"),
     apply: (s, v) => {
       s.traits.terrainKillBlast += v;
     },
@@ -2318,8 +2354,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "残り火: 燃えている敵を倒すと、足元に炎を {v} 秒置く、炎耐性 -{v2}%",
     tags: ["elemental", "tradeoff"],
-    slots: ["weapon", "gun", "boots"],
-    curve: [t2(24, 5, 6, 12, 15), t2(12, 4, 5, 10, 12), t2(1, 3, 4, 8, 10)],
+    slots: ["mainHand", "boots"],
+    curve: curveFor("emberTrail"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.burningKillFire = Math.max(s.traits.burningKillFire, v);
@@ -2332,7 +2368,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "霜の轍: ダッシュの軌跡に氷床を {v} 秒残す、ダッシュ距離 -{v2}%",
     tags: ["mobility", "elemental", "tradeoff"],
     slots: ["boots"],
-    curve: [t2(24, 5, 6, 8, 10), t2(12, 4, 5, 8, 10), t2(1, 3, 4, 8, 10)],
+    curve: curveFor("frostTrail"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.dashIceTrail = Math.max(s.traits.dashIceTrail, v);
@@ -2345,7 +2381,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "土の息: 地形の上に立つ間、毎秒生命 +{v}（戦闘中も。回復の上限は受ける）、最大生命 -{v2}",
     tags: ["life", "tradeoff"],
     slots: ["armor", "boots", "amulet"],
-    curve: [t2(24, 2, 2.5, 10, 12), t2(12, 1.5, 2, 8, 10), t2(1, 1, 1.5, 6, 8)],
+    curve: curveFor("groundMend"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.terrainRegen += v;
@@ -2359,8 +2395,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "崩勢狩り: 崩勢の敵への与ダメージ +{v}%",
     tags: ["damage", "melee"],
-    slots: ["weapon", "ring"],
-    curve: [t(24, 35, 42), t(12, 24, 30), t(1, 14, 18)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("brokenHunter"),
     apply: (s, v) => {
       s.traits.brokenMul += pct(v);
     },
@@ -2370,8 +2406,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "umbra",
     label: "腐食の爪: 腐食の敵への怯み値 +{v}%",
     tags: ["status", "melee"],
-    slots: ["weapon", "gun"],
-    curve: [t(24, 40, 48), t(12, 28, 34), t(1, 16, 22)],
+    slots: ["mainHand"],
+    curve: curveFor("corrodeClaw"),
     apply: (s, v) => {
       s.traits.corrodePoiseMul += pct(v);
     },
@@ -2381,8 +2417,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "azure",
     label: "宣告の鐘: 宣告の付いた敵を倒すと気力 +{v}",
     tags: ["mana", "status"],
-    slots: ["weapon", "ring", "amulet"],
-    curve: [t(24, 8, 10), t(12, 6, 7), t(1, 3, 5)],
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("doomToll"),
     apply: (s, v) => {
       s.traits.doomKillMana += v;
     },
@@ -2395,7 +2431,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "籠城: 交戦中の部屋で被ダメージ -{v}%、それ以外では +{v2}%",
     tags: ["defense", "tradeoff"],
     slots: ["armor", "amulet"],
-    curve: [t2(24, 18, 22, 12, 15), t2(12, 12, 15, 10, 12), t2(1, 8, 10, 8, 10)],
+    curve: curveFor("siegeGuard"),
     apply: (s, v, v2) => {
       s.traits.engagedGuard += pct(v);
       s.traits.roamExposure += pct(v2);
@@ -2406,8 +2442,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "封鎖の火花: 交戦中の部屋での撃破で必殺ゲージ +{v}",
     tags: ["burst"],
-    slots: ["weapon", "gun", "amulet"],
-    curve: [t(24, 7, 8), t(12, 5, 6), t(1, 3, 4)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("siegeSpark"),
     apply: (s, v) => {
       s.traits.engagedKillEnergy += v;
     },
@@ -2417,8 +2453,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "持ち替え: 直前と違う攻撃手段（近接・射撃・スキル）で当てると怯み値 +{v}%、同じ手段が続くと -{v2}%",
     tags: ["combo", "tradeoff"],
-    slots: ["weapon", "gun", "ring"],
-    curve: [t2(24, 45, 55, 10, 12), t2(12, 32, 40, 8, 10), t2(1, 20, 26, 6, 8)],
+    slots: ["mainHand", "ring"],
+    curve: curveFor("switchHitter"),
     apply: (s, v, v2) => {
       s.traits.alternatePoiseMul += pct(v);
       s.traits.repeatPoisePenalty += pct(v2);
@@ -2429,8 +2465,8 @@ export const AFFIXES: readonly AffixDef[] = [
     color: "azure",
     label: "手替えの呼吸: 直前と違う攻撃手段（近接・射撃・スキル）で当てるたびに気力 +{v}",
     tags: ["mana"],
-    slots: ["gun", "ring", "amulet"],
-    curve: [t(24, 2.5, 3), t(12, 1.5, 2), t(1, 1, 1.5)],
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("switchBreath"),
     decimals: 1,
     apply: (s, v) => {
       s.traits.switchMana += v;
@@ -2445,7 +2481,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "弱点の目: 属性の弱点を突いた命中の与ダメージ +{v}%、気力 +{v2}",
     tags: ["elemental", "mana"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 24, 30, 2, 2.5), t2(1, 15, 20, 1, 1.5)],
+    curve: curveFor("weakInsight"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.traits.weakDamageMul += pct(v);
@@ -2459,7 +2495,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "七色: 敵の属性耐性による減少を {v}% 打ち消し、弱点を突いた命中の与ダメージ +{v2}%",
     tags: ["elemental", "damage"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 45, 55, 15, 20), t2(1, 30, 36, 10, 12)],
+    curve: curveFor("sevenHues"),
     cap: 100,
     apply: (s, v, v2) => {
       s.traits.resistPierce = Math.min(1, s.traits.resistPierce + pct(v));
@@ -2473,7 +2509,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "逆目: 属性の耐性に阻まれた命中で、その属性の状態異常を {v} 秒付け、耐性による減少を {v2}% 打ち消す",
     tags: ["elemental", "status"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 3, 4, 25, 30), t2(1, 2, 3, 15, 20)],
+    curve: curveFor("counterGrain"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.resistedInflict = Math.max(s.traits.resistedInflict, v);
@@ -2487,7 +2523,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "地の利を知る: 地形の上に立つ間、与ダメージ +{v}%・被ダメージ -{v2}%",
     tags: ["damage", "defense"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 24, 30, 10, 12), t2(1, 15, 20, 6, 8)],
+    curve: curveFor("groundWisdom"),
     apply: (s, v, v2) => {
       s.traits.terrainDamageMul += pct(v);
       s.traits.terrainGuard += pct(v2);
@@ -2500,7 +2536,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "沼の主: 地形の上にいる敵を倒すと衝撃波（{v} ダメージ）、地形の上の敵への与ダメージ +{v2}%",
     tags: ["damage", "elemental"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 24, 30, 20, 25), t2(1, 15, 20, 12, 16)],
+    curve: curveFor("mireLord"),
     apply: (s, v, v2) => {
       s.traits.terrainKillBlast += v;
       s.traits.enemyOnTerrainMul += pct(v2);
@@ -2513,7 +2549,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "奥義: ジョブの得意武器を持つ間、与ダメージ +{v}%・撃破で気力 +{v2}",
     tags: ["damage", "mana"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 20, 25, 4, 5), t2(1, 12, 16, 2, 3)],
+    curve: curveFor("schoolMastery"),
     apply: (s, v, v2) => {
       s.traits.favoredDamageMul += pct(v);
       s.traits.favoredKillMana += v2;
@@ -2526,7 +2562,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "秘伝: ジョブの得意武器を持つ間の与ダメージ +{v}%、コンボ派生の命中の与ダメージ +{v2}%",
     tags: ["damage", "combo"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 16, 20, 30, 36), t2(1, 10, 13, 20, 25)],
+    curve: curveFor("schoolSecret"),
     apply: (s, v, v2) => {
       s.traits.favoredDamageMul += pct(v);
       s.traits.branchDamageMul += pct(v2);
@@ -2539,7 +2575,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "満ち溜め: 溜めの段 1 つにつき近接ダメージ +{v}%・命中で必殺ゲージ +{v2}",
     tags: ["melee", "burst"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 20, 25, 4, 5), t2(1, 12, 16, 2, 3)],
+    curve: curveFor("fullCharge"),
     apply: (s, v, v2) => {
       s.traits.chargedMeleeMul += pct(v);
       s.traits.chargedHitEnergy += v2;
@@ -2552,7 +2588,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "型破り: コンボ派生の命中の与ダメージ +{v}%・気力 +{v2}",
     tags: ["combo", "mana"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 30, 36, 2.5, 3), t2(1, 20, 25, 1.5, 2)],
+    curve: curveFor("formBreaker"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.traits.branchDamageMul += pct(v);
@@ -2566,7 +2602,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "崩れの色: 怯ませた敵に、武器の属性の状態異常を {v} 秒付ける",
     tags: ["status", "elemental"],
     slots: ALL_SLOTS,
-    curve: [t(15, 4, 5), t(1, 3, 4)],
+    curve: curveFor("hueBreak"),
     decimals: 1,
     apply: (s, v) => {
       s.traits.elementBreak = Math.max(s.traits.elementBreak, v);
@@ -2579,7 +2615,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "崩勢砕き: 崩勢の敵への与ダメージ +{v}%、腐食の敵への怯み値 +{v2}%",
     tags: ["damage", "status"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 30, 36, 30, 36), t2(1, 20, 25, 20, 25)],
+    curve: curveFor("brokenBreaker"),
     apply: (s, v, v2) => {
       s.traits.brokenMul += pct(v);
       s.traits.corrodePoiseMul += pct(v2);
@@ -2592,7 +2628,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "戦の拍子: 直前と違う攻撃手段で当てると怯み値 +{v}%・気力 +{v2}",
     tags: ["combo", "mana"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 35, 42, 2, 2.5), t2(1, 24, 30, 1, 1.5)],
+    curve: curveFor("battleRhythm"),
     decimals2: 1,
     apply: (s, v, v2) => {
       s.traits.alternatePoiseMul += pct(v);
@@ -2606,7 +2642,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "雷導: 濡れ・浸水の敵への与ダメージ +{v}%、油膜の敵への与ダメージ +{v2}%",
     tags: ["elemental", "damage"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 30, 36, 20, 25), t2(1, 20, 25, 12, 16)],
+    curve: curveFor("stormConduit"),
     apply: (s, v, v2) => {
       s.traits.wetConductMul += pct(v);
       s.traits.oiledIgniteMul += pct(v2);
@@ -2619,7 +2655,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "籠城の心: 交戦中の部屋で被ダメージ -{v}%、撃破で必殺ゲージ +{v2}",
     tags: ["defense", "burst"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 14, 18, 4, 5), t2(1, 9, 12, 2, 3)],
+    curve: curveFor("siegeHeart"),
     apply: (s, v, v2) => {
       s.traits.engagedGuard += pct(v);
       s.traits.engagedKillEnergy += v2;
@@ -2632,7 +2668,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "熾火歩き: 燃えている敵を倒すと足元に炎を {v} 秒置く、地形の上に立つ間の被ダメージ -{v2}%",
     tags: ["elemental", "defense"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 5, 6, 10, 12), t2(1, 3, 4, 6, 8)],
+    curve: curveFor("emberWalk"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.burningKillFire = Math.max(s.traits.burningKillFire, v);
@@ -2646,7 +2682,7 @@ export const AFFIXES: readonly AffixDef[] = [
     label: "霜歩き: ダッシュの軌跡に氷床を {v} 秒残す、水たまり・氷床の上での与ダメージ +{v2}%",
     tags: ["mobility", "elemental"],
     slots: ALL_SLOTS,
-    curve: [t2(15, 5, 6, 20, 25), t2(1, 3, 4, 12, 16)],
+    curve: curveFor("frostWalk"),
     decimals: 1,
     apply: (s, v, v2) => {
       s.traits.dashIceTrail = Math.max(s.traits.dashIceTrail, v);
@@ -2665,8 +2701,6 @@ export const AFFIXES: readonly AffixDef[] = [
 
 export const CONVERSION_KEY_PREFIX = "cv_";
 
-/** 変換割合（%）の共通の期待値曲線。深いほど多く移す */
-const CONVERSION_CURVE: readonly CurvePoint[] = [t(24, 56, 70), t(12, 43, 55), t(1, 30, 42)];
 /** 近接ダメージ倍率 1.0 を移したときの burn DPS */
 const BURN_DPS_PER_MELEE_MUL = 10;
 /** 変換割合 1.0 あたりの burn 付与確率 */
@@ -2721,8 +2755,6 @@ function shedResist(s: PlayerStats, f: number): number {
   return shed / RESIST_ELEMENTS.length;
 }
 
-/** ステータスの変換は 50% を基準にする（深さで割合は変えず、揺らぎだけで振れる） */
-const ATTR_CONVERSION_CURVE: readonly CurvePoint[] = [t(1, 50, 50)];
 const ATTR_CONVERSION_PAIRS: readonly (readonly [AttrKey, AttrKey])[] = [
   ["dex", "str"],
   ["str", "spi"],
@@ -2738,13 +2770,33 @@ function capitalize(text: string): string {
 /** 変換割合（0..1）。負の値は 0 */
 const fraction = (v: number): number => Math.max(0, pct(v));
 
+/** 期待値曲線（組ごとに同じ形。深さで割合は変えず、揺らぎだけで振れる）。cv_dexToStr など key ごとに JSON から引く */
+const ATTR_CONVERSION_CURVES: Readonly<Record<string, readonly CurvePoint[]>> = {
+  cv_dexToStr: curveFor("cv_dexToStr"),
+  cv_strToSpi: curveFor("cv_strToSpi"),
+  cv_spiToVit: curveFor("cv_spiToVit"),
+  cv_vitToMnd: curveFor("cv_vitToMnd"),
+  cv_mndToDex: curveFor("cv_mndToDex"),
+};
+
+/** 期待値曲線（元は「変換割合の共通の期待値曲線」。深いほど多く移す）。cv_infuseFire など key ごとに JSON から引く */
+const INFUSE_TRAIT_CURVES: Readonly<Record<Element, readonly CurvePoint[]>> = {
+  none: curveFor("cv_infuseNone"),
+  fire: curveFor("cv_infuseFire"),
+  ice: curveFor("cv_infuseIce"),
+  lightning: curveFor("cv_infuseLightning"),
+  poison: curveFor("cv_infusePoison"),
+  dark: curveFor("cv_infuseDark"),
+  light: curveFor("cv_infuseLight"),
+};
+
 export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   trait({
     key: "cv_meleeToBurn",
     label: "近接ダメージの{v}%を炎上に変換",
     tags: ["conversion", "melee", "elemental"],
     slots: MELEE_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_meleeToBurn"),
     stage: "convert",
     apply: (s, v) => {
       const f = fraction(v);
@@ -2756,10 +2808,11 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_splitToPierce",
+    family: "gun",
     label: "拡散を貫通に変換: 追加弾1本ごとに射撃ダメージ -{v}%、貫通 +{v2}",
     tags: ["conversion", "ranged"],
     slots: RANGED_SLOTS,
-    curve: [t2(24, 10, 14, 3, 3), t2(12, 15, 20, 2, 2), t2(1, 21, 25, 1, 1)],
+    curve: curveFor("cv_splitToPierce"),
     stage: "convert",
     apply: (s, v, v2) => {
       const extra = Math.max(0, s.projectileCount - BASE_PROJECTILES);
@@ -2773,7 +2826,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "会心率をすべて会心倍率に変換（会心率1%につき +{v}%）",
     tags: ["conversion", "critical"],
     slots: OFFENSE_SLOTS,
-    curve: [t(24, 5, 6), t(12, 4, 4), t(1, 3, 3)],
+    curve: curveFor("cv_critToMultiplier"),
     stage: "convert",
     apply: (s, v) => {
       s.critMul += s.critChance * Math.max(0, v);
@@ -2785,7 +2838,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "移動速度の上昇分の{v}%を攻撃速度に変換",
     tags: ["conversion", "speed", "melee"],
     slots: ["boots", "ring", "amulet"],
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_speedToAttack"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.moveSpeedMul - BASE_MULTIPLIER) * fraction(v);
@@ -2798,7 +2851,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "最大生命の{v}%をアーマーに変換",
     tags: ["conversion", "life", "defense"],
     slots: ["armor", "amulet"],
-    curve: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
+    curve: curveFor("cv_lifeToArmor"),
     stage: "convert",
     apply: (s, v) => {
       const moved = s.maxHp * fraction(v);
@@ -2811,7 +2864,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "ダッシュ回数を1残して消費: 消費1回につきダッシュ距離 +{v}%",
     tags: ["conversion", "mobility"],
     slots: ["boots"],
-    curve: [t(24, 86, 100), t(12, 66, 85), t(1, 50, 65)],
+    curve: curveFor("cv_chargesToDistance"),
     stage: "convert",
     apply: (s, v) => {
       s.dashDistanceMul += fraction(v) * s.dashCharges;
@@ -2822,8 +2875,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     key: "cv_leechToEnergy",
     label: "命中時・撃破時の生命回復の{v}%を必殺ゲージ獲得に変換",
     tags: ["conversion", "life", "burst"],
-    slots: ["weapon", "gun", "ring", "amulet"],
-    curve: CONVERSION_CURVE,
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("cv_leechToEnergy"),
     stage: "convert",
     apply: (s, v) => {
       const f = fraction(v);
@@ -2839,7 +2892,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "コンボダメージの{v}%を見切りダメージに変換",
     tags: ["conversion", "combo"],
     slots: ["boots", "ring", "amulet"],
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_comboToJust"),
     stage: "convert",
     apply: (s, v) => {
       const f = fraction(v);
@@ -2854,7 +2907,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "近接ダメージの上昇分の{v}%を射撃ダメージに変換",
     tags: ["conversion", "melee", "ranged"],
     slots: JEWELRY_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_meleeToRanged"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.meleeDamageMul - BASE_MULTIPLIER) * fraction(v);
@@ -2867,7 +2920,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "会心率の{v}%を2倍の炎上確率に変換",
     tags: ["conversion", "critical", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_critToBurn"),
     stage: "convert",
     apply: (s, v) => {
       const moved = s.critChance * fraction(v);
@@ -2882,8 +2935,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     key: "cv_regenToGain",
     label: "気力自然回復の{v}%を気力回収に変換（自然回復 1/秒につき回収 +15%）",
     tags: ["conversion", "mana", "skill"],
-    slots: ["weapon", "ring", "amulet"],
-    curve: CONVERSION_CURVE,
+    slots: ["mainHand", "ring", "amulet"],
+    curve: curveFor("cv_regenToGain"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.manaRegen) * fraction(v);
@@ -2895,8 +2948,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     key: "cv_knockbackToPoise",
     label: "ノックバックの上昇分の{v}%を怯み値に変換",
     tags: ["conversion", "melee"],
-    slots: ["weapon", "armor", "ring"],
-    curve: CONVERSION_CURVE,
+    slots: ["mainHand", "armor", "ring"],
+    curve: curveFor("cv_knockbackToPoise"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.knockbackMul - BASE_MULTIPLIER) * fraction(v);
@@ -2906,10 +2959,11 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_projectilesToPoise",
+    family: "gun",
     label: "弾数を 1 に変換し、減らした弾 1 本ごとに射撃の怯み値 +{v}%",
     tags: ["conversion", "ranged"],
-    slots: ["gun", "amulet"],
-    curve: [t(24, 120, 150), t(12, 90, 110), t(1, 60, 80)],
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("cv_projectilesToPoise"),
     stage: "convert",
     apply: (s, v) => {
       const removed = Math.max(0, Math.round(s.projectileCount) - BASE_PROJECTILES);
@@ -2921,8 +2975,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     key: "cv_poiseToDamage",
     label: "怯み値の上昇分の{v}%を近接・射撃ダメージに変換（半分の率で）",
     tags: ["conversion", "melee", "damage"],
-    slots: ["weapon", "ring"],
-    curve: CONVERSION_CURVE,
+    slots: ["mainHand", "ring"],
+    curve: curveFor("cv_poiseToDamage"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.poiseDamageMul - BASE_MULTIPLIER) * fraction(v);
@@ -2936,7 +2990,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "最大生命の{v}%を最大気力に変換（生命 2 につき気力 1）",
     tags: ["conversion", "mana", "life"],
     slots: ["armor", "amulet"],
-    curve: [t(24, 22, 26), t(12, 16, 20), t(1, 10, 14)],
+    curve: curveFor("cv_lifeToMana"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.maxHp) * fraction(v);
@@ -2950,7 +3004,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "最大気力の{v}%を最大生命に変換（気力 1 につき生命 1.5）",
     tags: ["conversion", "life", "mana"],
     slots: ["armor", "amulet"],
-    curve: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
+    curve: curveFor("cv_manaToLife"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.maxMana) * fraction(v);
@@ -2963,7 +3017,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "必殺ゲージ獲得の上昇分の{v}%を気力回収に変換",
     tags: ["conversion", "mana", "burst"],
     slots: JEWELRY_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_energyToMana"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.energyGainMul - BASE_MULTIPLIER) * fraction(v);
@@ -2976,8 +3030,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     color: "gold",
     label: "必殺ダメージの上昇分の{v}%をスキル威力に変換（半分の率で）",
     tags: ["conversion", "burst", "skill"],
-    slots: ["weapon", "amulet"],
-    curve: CONVERSION_CURVE,
+    slots: ["mainHand", "amulet"],
+    curve: curveFor("cv_burstToSkill"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.burstDamageMul - BASE_MULTIPLIER) * fraction(v);
@@ -2990,8 +3044,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     color: "crimson",
     label: "会心率の{v}%を怯み値に変換（会心率 1% につき怯み値 +2%）",
     tags: ["conversion", "critical", "melee"],
-    slots: ["weapon", "ring"],
-    curve: CONVERSION_CURVE,
+    slots: ["mainHand", "ring"],
+    curve: curveFor("cv_critToPoise"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.critChance) * fraction(v);
@@ -3005,7 +3059,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "炎上の確率の{v}%を毒の付与に変換（炎上のダメージも同じ割合で消える）",
     tags: ["conversion", "status", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_burnToPoison"),
     stage: "convert",
     apply: (s, v) => {
       const f = fraction(v);
@@ -3021,7 +3075,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "凍結確率の{v}%を脆弱の付与に変換",
     tags: ["conversion", "status", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_chillToVulnerable"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.chillChance) * fraction(v);
@@ -3037,7 +3091,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "防御の{v}%を魔防に変換",
     tags: ["conversion", "defense"],
     slots: ["armor", "boots", "amulet"],
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_armorToWarding"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.armor) * fraction(v);
@@ -3051,7 +3105,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "魔防の{v}%を防御に変換",
     tags: ["conversion", "defense"],
     slots: ["armor", "boots", "amulet"],
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_wardingToArmor"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.warding) * fraction(v);
@@ -3065,7 +3119,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "属性耐性の{v}%を近接・射撃ダメージに変換（捨てた耐性の平均 1% につき +0.5%）",
     tags: ["conversion", "damage", "elemental"],
     slots: ["armor", "ring", "amulet"],
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_resistToDamage"),
     stage: "convert",
     apply: (s, v) => {
       const bonus = shedResist(s, fraction(v)) * DAMAGE_PER_RESIST_PCT;
@@ -3079,7 +3133,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "属性耐性の{v}%を魔防に変換（捨てた耐性の平均 1% につき +1）",
     tags: ["conversion", "defense", "elemental"],
     slots: ["armor", "boots", "amulet"],
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_resistToWarding"),
     stage: "convert",
     apply: (s, v) => {
       s.warding += shedResist(s, fraction(v)) * WARDING_PER_RESIST_PCT;
@@ -3091,7 +3145,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "炎上確率の{v}%を炎属性の変換に移す（確率 1% につき 2%）",
     tags: ["conversion", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_burnToFire"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.burnChance) * fraction(v);
@@ -3105,7 +3159,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "凍結確率の{v}%を氷属性の変換に移す（確率 1% につき 2%）",
     tags: ["conversion", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_chillToIce"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.chillChance) * fraction(v);
@@ -3119,7 +3173,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "感電確率の{v}%を雷属性の変換に移す（確率 1% につき 2%）",
     tags: ["conversion", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_shockToLightning"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.shockChance) * fraction(v);
@@ -3133,7 +3187,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     label: "会心率の{v}%を光属性の変換に移す（会心率 1% につき 3%）",
     tags: ["conversion", "critical", "elemental"],
     slots: OFFENSE_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: curveFor("cv_critToLight"),
     stage: "convert",
     apply: (s, v) => {
       const moved = Math.max(0, s.critChance) * fraction(v);
@@ -3159,7 +3213,7 @@ function attributeConversions(): AffixDef[] {
     label: `${ATTR_NAME[from]}の{v}%を${ATTR_NAME[to]}に変換`,
     tags: ["conversion", "attribute"],
     slots: JEWELRY_SLOTS,
-    curve: ATTR_CONVERSION_CURVE,
+    curve: ATTR_CONVERSION_CURVES[`${CONVERSION_KEY_PREFIX}${from}To${capitalize(to)}`]!,
     color: ATTR_COLOR[to],
     stage: "convert",
     apply: (s: PlayerStats, v: number) => {
@@ -3176,12 +3230,12 @@ function attributeConversions(): AffixDef[] {
  * 無だけはスキル向けで、スキル固有の属性の v% を無属性に戻す（耐性の高い相手に通す代わりに弱点も突けなくなる）
  */
 function infuseConversions(): AffixDef[] {
-  const elemental: AffixDef[] = ELEMENTS.filter((e) => e !== "none").map((e) => ({
+  const elemental: AffixDef[] = ELEMENTS.filter((e): e is Exclude<Element, "none"> => e !== "none").map((e) => ({
     key: `${INFUSE_KEY_PREFIX}${capitalize(e)}`,
     label: `近接・射撃の{v}%を${ELEMENT_LABEL[e]}属性に変換`,
     tags: ["conversion", "elemental"],
     slots: ATTACK_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: INFUSE_TRAIT_CURVES[e],
     color: ELEMENT_TRAIT_COLOR[e],
     stage: "convert",
     apply: (s: PlayerStats, v: number) => {
@@ -3193,7 +3247,7 @@ function infuseConversions(): AffixDef[] {
     label: "無の刻印: スキルの属性の{v}%を無属性に変換",
     tags: ["conversion", "skill"],
     slots: JEWELRY_SLOTS,
-    curve: CONVERSION_CURVE,
+    curve: INFUSE_TRAIT_CURVES.none,
     color: ELEMENT_TRAIT_COLOR.none,
     stage: "convert",
     apply: (s: PlayerStats, v: number) => {
@@ -3208,8 +3262,13 @@ export function isConversionKey(key: string): boolean {
 }
 
 /** slot に付けられ、depth で曲線が始まっている変換の性質 */
-export function conversionsFor(slot: Slot, depth: number): AffixDef[] {
-  return CONVERSION_AFFIXES.filter((d) => d.slots.includes(slot) && firstDepth(d) <= depth);
+/** family を渡すと、その家系専用（AffixDef.family）の性質だけに絞る。省略は家系を問わない */
+function familyAllowed(d: AffixDef, family: "melee" | "gun" | undefined): boolean {
+  return d.family === undefined || family === undefined || d.family === family;
+}
+
+export function conversionsFor(slot: Slot, depth: number, family?: "melee" | "gun"): AffixDef[] {
+  return CONVERSION_AFFIXES.filter((d) => d.slots.includes(slot) && firstDepth(d) <= depth && familyAllowed(d, family));
 }
 
 // ---------------------------------------------------------------------------
@@ -3360,7 +3419,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_bladeOath",
     name: "剣の誓い",
-    description: "射撃ができなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
+    description: "射撃も、弾を出す武器の固有技もできなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
     exclusiveGroup: "style",
     apply: (s) => {
       s.meleeDamageMul += 1;
@@ -4320,6 +4379,56 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.traits.terrainGuard += pct(v);
     },
   },
+  // ---- 2026-09-24 レーン B の武器種の器（docs/ideas/combat-feel-design.md B-1） ----
+  {
+    key: "implicit.tachi",
+    label: "溜めの段 1 つにつき近接ダメージ +{v}%（居合が伸びる）",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.traits.chargedMeleeMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.battleAxe",
+    label: "近接命中時 {v}% で出血させる（10px 動くごとに 1.5 ダメージ）",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));
+    },
+  },
+  {
+    key: "implicit.kiteShield",
+    label: "防御 +{v}",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.armor += v;
+    },
+  },
+  {
+    key: "implicit.weightedChain",
+    label: "リーチ +{v}%（分銅が遠くまで届く）",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.meleeReachMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.maul",
+    label: "怯み値 +{v}%、攻撃速度 -10%",
+    range: { min: 20, max: 30 },
+    apply: (s, v) => {
+      s.poiseDamageMul += pct(v);
+      s.attackSpeedMul -= pct(MAUL_SLOW_PCT);
+    },
+  },
+  {
+    key: "implicit.twinRevolvers",
+    label: "会心率 +{v}%",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.critChance += pct(v);
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -4347,8 +4456,8 @@ export function firstDepth(def: AffixDef): number {
 }
 
 /** slot に付けられ、depth で曲線が始まっている通常の性質（変換・目覚めは含まない） */
-export function traitsFor(slot: Slot, depth: number): AffixDef[] {
-  return AFFIXES.filter((d) => d.awakening !== true && d.slots.includes(slot) && firstDepth(d) <= depth);
+export function traitsFor(slot: Slot, depth: number, family?: "melee" | "gun"): AffixDef[] {
+  return AFFIXES.filter((d) => d.awakening !== true && d.slots.includes(slot) && firstDepth(d) <= depth && familyAllowed(d, family));
 }
 
 /** 目覚め（芽専用の性質）の定義 */

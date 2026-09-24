@@ -1,5 +1,7 @@
+import { saveStorage } from "../save/backend";
+
 /**
- * メタ進行（図鑑・依頼・実績）の localStorage 読み書きの共通部分。
+ * メタ進行（図鑑・依頼・実績）の保存先（save/backend.ts の saveStorage）読み書きの共通部分。
  * 他の永続化（loot/profile.ts・loot/craftingStore.ts）と同じく、例外は握りつぶし、壊れたデータは null を返して既定へ落とす
  */
 
@@ -34,18 +36,9 @@ export function sanitizeCountMap(v: unknown, allowed: (key: string) => boolean):
   return out;
 }
 
-/** localStorage が無い / 触れない環境では null */
-export function defaultStorage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** JSON を読む。無い・壊れている・触れないなら undefined */
 export function readJson(key: string, storage?: Storage): unknown {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return undefined;
   try {
     const raw = target.getItem(key);
@@ -58,7 +51,7 @@ export function readJson(key: string, storage?: Storage): unknown {
 
 /** JSON を書く。容量超過などの失敗は握りつぶす */
 export function writeJson(key: string, value: unknown, storage?: Storage): void {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return;
   try {
     target.setItem(key, JSON.stringify(value));

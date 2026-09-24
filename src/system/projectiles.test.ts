@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
+import { VIEW_H, VIEW_W } from "../core/view";
 import { PLAYER } from "../data/tuning";
 import { SHOT_TYPES, type ShotKey } from "../data/weapons";
 import { overlapsWall } from "./physics";
@@ -17,7 +18,7 @@ const TOUGH_HP = 99999;
 const WALL_SEARCH = 2000;
 
 function shooter(shot: ShotKey): GameState {
-  return arena(5, { shot });
+  return arena(5, { shot, moveset: "sidearm" });
 }
 
 function tough(e: Enemy): Enemy {
@@ -33,7 +34,7 @@ function playerShots(state: GameState): Projectile[] {
 
 /** 1 フレームだけ撃つ */
 function fireOnce(state: GameState): Projectile[] {
-  step(state, withInput({ shootHeld: true }), FIXED_DT);
+  step(state, withInput({ attackHeld: true }), FIXED_DT);
   return playerShots(state);
 }
 
@@ -132,7 +133,7 @@ describe("射撃の型: 跳弾", () => {
 
 describe("射撃の型: チャージ", () => {
   function holdShoot(state: GameState, frames: number): void {
-    for (let i = 0; i < frames; i++) step(state, withInput({ shootHeld: true }), FIXED_DT);
+    for (let i = 0; i < frames; i++) step(state, withInput({ attackHeld: true }), FIXED_DT);
   }
 
   it("押している間は撃たず、離すと撃つ", () => {
@@ -183,5 +184,67 @@ describe("射撃の型: 設置弾", () => {
     const fuseSteps = Math.ceil((SHOT_TYPES.mine.mine?.fuse ?? 0) / FIXED_DT) + 2;
     for (let i = 0; i < fuseSteps; i++) step(state, withInput({}), FIXED_DT);
     expect(state.projectiles.includes(mine), "消えた").toBe(false);
+  });
+});
+
+describe("射撃の型: 三点・回転刃・曲射（docs/ideas/combat-feel-design.md B-2）", () => {
+  /** 三点の弾の間隔（ステップ） */
+  const BURST_GAP_STEPS = 3;
+
+  it("三点は 1 押しで 3 発が 3 ステップおきに出て、押しっぱなしでも次は再使用を待つ", () => {
+    const state = shooter("burst");
+    const counts: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      step(state, withInput({ attackHeld: true }), FIXED_DT);
+      counts.push(playerShots(state).length);
+    }
+    const firedAt = counts.map((c, i) => (c > (counts[i - 1] ?? 0) ? i : -1)).filter((i) => i >= 0);
+    expect(firedAt, "0・3・6 ステップ目に 1 発ずつ").toEqual([0, BURST_GAP_STEPS, BURST_GAP_STEPS * 2]);
+    expect(counts[counts.length - 1], "4 発目は出ない").toBe(SHOT_TYPES.burst.burst?.count);
+    expect(state.player.shootCooldown, "次の 3 発までは待つ").toBeGreaterThan(0);
+  });
+
+  it("回転刃は寿命の半ばで折り返して手元へ戻り、行きと帰りで同じ敵に当たる", () => {
+    const state = shooter("boomerang");
+    const e = tough(placeEnemy(state, "boar", 40));
+    const blade = fireOnce(state)[0];
+    if (!blade) throw new Error("弾が出ていない");
+    let farthest = 0;
+    let hitsOut = 0;
+    for (let i = 0; i < 240 && blade.life > 0; i++) {
+      step(state, withInput({}), FIXED_DT);
+      e.body.pos = { x: state.player.body.pos.x + 40, y: state.player.body.pos.y };
+      e.knock = { x: 0, y: 0 };
+      farthest = Math.max(farthest, blade.pos.x - state.player.body.pos.x);
+      if (!blade.shot?.returning) hitsOut = TOUGH_HP - e.hp;
+    }
+    expect(hitsOut, "行きで当たった").toBeGreaterThan(0);
+    expect(TOUGH_HP - e.hp, "帰りでもう一度当たった").toBeGreaterThan(hitsOut);
+    expect(farthest, "遠くまで飛んだ").toBeGreaterThan(40);
+    expect(blade.life, "手元に戻って消えた").toBeLessThanOrEqual(0);
+    expect(state.projectiles.includes(blade), "配列から消えた").toBe(false);
+  });
+
+  it("曲射は照準の距離で炸裂し、飛行中は敵に当たらない", () => {
+    const state = shooter("lob");
+    const onPath = tough(placeEnemy(state, "boar", 30));
+    const atTarget = tough(placeEnemy(state, "boar", 90));
+    // 照準はプレイヤーから +x へ 90（世界座標 → 画面座標は screenToWorld の逆）
+    const cam = state.camera;
+    const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
+    const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
+    const p = state.player.body.pos;
+    step(state, withInput({ attackHeld: true, aimScreen: { x: p.x + 90 + ox, y: p.y + oy } }), FIXED_DT);
+    const shell = playerShots(state)[0];
+    if (!shell) throw new Error("弾が出ていない");
+    for (let i = 0; i < 120 && shell.life > 0; i++) {
+      step(state, withInput({}), FIXED_DT);
+      onPath.body.pos = { x: state.player.body.pos.x + 30, y: state.player.body.pos.y };
+      onPath.knock = { x: 0, y: 0 };
+      atTarget.knock = { x: 0, y: 0 };
+    }
+    expect(onPath.hp, "通り道の敵には当たらない").toBe(TOUGH_HP);
+    expect(atTarget.hp, "着弾点の敵に爆風が当たった").toBeLessThan(TOUGH_HP);
+    expect(state.sfx).toContain("explode");
   });
 });

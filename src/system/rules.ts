@@ -4,21 +4,28 @@ import { type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, eff
 import { type Enemy, type GameState, allocId } from "../core/state";
 import type { StatusKind } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
-import { type Vec, fromAngle, normalize, scale, sub } from "../core/vec";
+import { type Vec, dist, fromAngle, normalize, scale, sub } from "../core/vec";
 import { enemyCombat } from "../data/enemyCombat";
 import { BOON, PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
-import { isRoamerTarget, slashBase, spawnBoonWave } from "./boonRules";
+import { isRoamerTarget, isRoamingEnemy, slashBase, spawnBoonWave } from "./boonRules";
+import { offerBoons } from "./boons";
 import { damageEnemy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
 import { engagedRoomIndex } from "./engagement";
 import { isFavoredWeapon, jobRules } from "./jobs";
-import { addFloatingText, spawnBurst, spawnRing } from "./effects";
+import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 import { spawnBomb } from "./hazards";
-import { applyStatus, enemiesInRadius, explodeAt, findStatus, hasStatus } from "./statusEffects";
+import { applyStatus, chainLightning, enemiesInRadius, explodeAt, findStatus, hasStatus, removeStatus } from "./statusEffects";
+import { dropItem } from "./loot";
+import { addPoise } from "./poise";
+import { reaperWarning } from "./reaper";
+import { dropRune } from "./skills";
+import { enemyDef } from "../data/enemies";
+import { movesetRules } from "../data/weapons";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
@@ -42,6 +49,8 @@ export interface ConditionSubject {
   tag?: string;
   actor?: EventActor;
   source?: EventSource;
+  amount?: number;
+  targetElite?: boolean;
 }
 
 const FULL_CIRCLE = Math.PI * 2;
@@ -51,6 +60,16 @@ const SHARD_PARTICLES = 8;
 const SHARD_PARTICLE_SPEED = 90;
 const SHARD_PARTICLE_LIFE = 0.3;
 const SHARD_PARTICLE_SIZE = 1.5;
+/** 起爆・解呪の粒と宝物庫の浮き文字（旧フックの焦土・血霧・宝物の鍵と同じ見た目） */
+const DETONATE_PARTICLES = 10;
+const DETONATE_SPEED = 120;
+const DETONATE_LIFE = 0.4;
+const DETONATE_SIZE = 2;
+const CLEANSE_PARTICLES = 8;
+const CLEANSE_SPEED = 60;
+const CLEANSE_LIFE = 0.3;
+const CLEANSE_SIZE = 1.5;
+const VAULT_TEXT_LIFE = 1;
 
 /** 敵ごとの procIcd を使う効果（対象の敵へ状態異常を入れるもの） */
 const PROC_ICD_EFFECTS: ReadonlySet<RuleEffect["kind"]> = new Set<RuleEffect["kind"]>(["inflict", "extendStatus"]);
@@ -82,6 +101,8 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
 export function collectRules(state: GameState): Rule[] {
   const out: Rule[] = [];
   out.push(...jobRules(state.job));
+  // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
+  out.push(...movesetRules(state.stats.moveset));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
   const rs = state.skills;
   for (let slot = 0; slot < rs.slots.length; slot++) {
@@ -124,7 +145,7 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   }
   if (ev.depth >= SYNERGY.maxDepth) return;
   if (rule.group !== undefined && fired.has(rule.group)) return;
-  if ((state.ruleIcd.get(rule.id) ?? 0) > 0) return;
+  if ((state.ruleIcd.get(icdKeyOf(rule)) ?? 0) > 0) return;
   if (!ruleConditionsMet(state, rule.if, ev)) return;
   const keyword = effectKeyword(rule);
   const used = state.ruleRun.keywordUse.get(keyword) ?? 0;
@@ -133,7 +154,7 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   if (procTarget !== undefined && procTarget.status.procIcd > 0) return;
   // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）
   if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
-  if (rule.icd > 0) state.ruleIcd.set(rule.id, rule.icd);
+  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), rule.icd);
   if (rule.group !== undefined) fired.add(rule.group);
   state.ruleRun.keywordUse.set(keyword, used + 1);
   if (procTarget !== undefined) procTarget.status.procIcd = STATUS.onHitIcd;
@@ -147,10 +168,10 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
  */
 function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
   if (rule.group !== undefined && fired.has(rule.group)) return;
-  if ((state.ruleIcd.get(rule.id) ?? 0) > 0) return;
+  if ((state.ruleIcd.get(icdKeyOf(rule)) ?? 0) > 0) return;
   if (!ruleConditionsMet(state, rule.if, ev)) return;
   if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
-  if (rule.icd > 0) state.ruleIcd.set(rule.id, rule.icd);
+  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), rule.icd);
   if (rule.group !== undefined) fired.add(rule.group);
   const run = state.ruleRun;
   const prevDepth = run.depth;
@@ -161,6 +182,11 @@ function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fi
   } finally {
     run.depth = prevDepth;
   }
+}
+
+/** ICD の鍵（icdKey で複数の Rule が 1 つの ICD を分け合う） */
+function icdKeyOf(rule: Readonly<Rule>): string {
+  return rule.icdKey ?? rule.id;
 }
 
 /** 効果を実行する。この間に積まれたイベントは深さ +1・持ち主の出どころで持ち越される */
@@ -186,6 +212,7 @@ function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
 
 function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
   if (applyVitalEffect(state, effect, magnitude)) return;
+  if (applyMigratedEffect(state, effect, ev, magnitude)) return;
   switch (effect.kind) {
     case "spreadStatus":
       spreadStatus(state, effect, ev, magnitude);
@@ -211,9 +238,16 @@ function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
       applyPlayerSideEffect(state, effect, ev, magnitude);
       return;
     case "explode":
-      // 半径を持つ爆発（爆走）。半径が無ければ装備トリガーと同じ STATUS.explodeRadius
-      if (effect.radius !== undefined) {
-        explodeAt(state, ev.pos, effect.radius, magnitude);
+      // 半径を持つ爆発（爆走・過充填）。半径が無ければ装備トリガーと同じ STATUS.explodeRadius
+      if (effect.radius !== undefined || effect.excludeTarget === true) {
+        explodeAt(state, ev.pos, effect.radius ?? STATUS.explodeRadius, magnitude, excludedId(effect, ev));
+        return;
+      }
+      runTriggerEffect(state, effect.kind, effect, ev, magnitude);
+      return;
+    case "chainLightning":
+      if (effect.excludeTarget === true) {
+        chainLightning(state, ev.pos, magnitude, ev.targetId);
         return;
       }
       runTriggerEffect(state, effect.kind, effect, ev, magnitude);
@@ -222,9 +256,181 @@ function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
     case "ward":
       // applyVitalEffect が扱い済み
       return;
+    case "dropRune":
+    case "dropItem":
+    case "offerBoons":
+    case "roomEnemies":
+    case "nearbyEnemies":
+    case "detonate":
+    case "passStatus":
+    case "iframes":
+    case "reclaim":
+    case "resetCombo":
+    case "reserveVault":
+      // applyMigratedEffect が扱い済み
+      return;
     default:
       runTriggerEffect(state, effect.kind, effect, ev, magnitude);
   }
+}
+
+/** 移行 第 2 弾で足した効果・既存の効果の「対象の状態異常だけ」版。扱ったら true */
+function applyMigratedEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): boolean {
+  switch (effect.kind) {
+    case "dropRune":
+      dropRune(state, ev.pos);
+      return true;
+    case "dropItem":
+      dropItem(state, ev.pos);
+      return true;
+    case "offerBoons":
+      offerBoons(state);
+      return true;
+    case "roomEnemies":
+      for (const e of roomEnemiesOf(state, effect, ev)) hitEnemyWith(state, e, effect, magnitude, "poise", ev.pos);
+      return true;
+    case "nearbyEnemies":
+      nearbyEnemies(state, effect, ev, magnitude);
+      return true;
+    case "detonate":
+      detonate(state, effect, ev, magnitude);
+      return true;
+    case "passStatus":
+      passStatus(state, effect, ev);
+      return true;
+    default:
+      return applyMigratedPlayerEffect(state, effect, ev, magnitude);
+  }
+}
+
+/** 移行 第 2 弾の効果のうち、自分・ラン側へ向くもの（無敵時間・リゲイン・コンボ・宝物庫・解呪・状態異常の延長） */
+function applyMigratedPlayerEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): boolean {
+  const p = state.player;
+  switch (effect.kind) {
+    case "iframes":
+      p.invulnTimer = Math.max(p.invulnTimer, effect.duration ?? magnitude);
+      return true;
+    case "reclaim":
+      reclaimRegain(state);
+      return true;
+    case "resetCombo":
+      state.combo.count = 0;
+      state.combo.timer = 0;
+      return true;
+    case "reserveVault":
+      reserveVault(state, effect, ev.pos);
+      return true;
+    case "cleanse":
+      if (effect.status === undefined) return false;
+      // 自分の特定の状態異常だけを消す（血霧の出血）。色があれば自分の位置に粒を散らす
+      removeStatus(state, { kind: "player" }, effect.status);
+      if (effect.color !== undefined) spawnBurst(state, p.body.pos, effect.color, CLEANSE_PARTICLES, CLEANSE_SPEED, CLEANSE_LIFE, CLEANSE_SIZE);
+      return true;
+    case "extendStatus":
+      if (effect.status === undefined) return false;
+      extendTargetStatus(state, ev, effect.status, magnitude);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** 対象の status だけを magnitude 秒延ばす（付与時の持続 maxTime まで。燠火） */
+function extendTargetStatus(state: GameState, ev: GameEvent, kind: StatusKind, seconds: number): void {
+  const target = liveTarget(state, ev.targetId);
+  const found = target === undefined ? undefined : findStatus(target.status, kind);
+  if (found === undefined) return;
+  found.time = Math.min(found.maxTime, found.time + seconds);
+}
+
+/** リゲインの取り戻せる分を全て回復する（取り返し） */
+function reclaimRegain(state: GameState): void {
+  const p = state.player;
+  if (p.regainTimer <= 0 || p.regainPool <= 0) return;
+  const pool = p.regainPool;
+  p.regainPool = 0;
+  p.regainStep = 0;
+  healPlayer(state, pool);
+}
+
+/** 次の階の宝物庫を予約する。予約済みなら何もしない（浮き文字も出さない） */
+function reserveVault(state: GameState, effect: Readonly<RuleEffect>, pos: Vec): void {
+  const run = state.boonRun;
+  if (run.vaultNext) return;
+  run.vaultNext = true;
+  if (effect.text !== undefined) addFloatingText(state, pos, effect.text, effect.color ?? BOON.ruleTextColor, BOON.ruleTextScale, VAULT_TEXT_LIFE);
+}
+
+/** roomEnemies の相手: 徘徊の敵か、イベントの部屋（無ければ交戦中の部屋）の生きた敵 */
+function roomEnemiesOf(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): Enemy[] {
+  if (effect.room === "roaming") return state.enemies.filter((e) => e.hp > 0 && isRoamingEnemy(e));
+  const index = ev.room ?? engagedRoomIndex(state);
+  if (index < 0) return [];
+  return state.enemies.filter((e) => e.hp > 0 && e.roomIndex === index);
+}
+
+/**
+ * 敵 1 体へ効果: status があれば状態異常、無ければ fallback（怯み値 / 素性なしのダメージ）。
+ * 状態異常は旧フックの付け方（持続そのまま・procIcd を見ない・付与元 player）
+ */
+function hitEnemyWith(state: GameState, e: Enemy, effect: Readonly<RuleEffect>, magnitude: number, fallback: "poise" | "damage", from: Vec): void {
+  if (effect.status !== undefined) {
+    const apply = { kind: effect.status, stacks: effect.count ?? 1, duration: effect.duration ?? TRIGGER.defaultDuration, potency: magnitude };
+    applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
+    return;
+  }
+  if (fallback === "poise") {
+    addPoise(state, e, magnitude);
+    return;
+  }
+  const out = rollOutgoing(state, e, magnitude, "proc");
+  damageEnemy(state, e, out.amount, sub(e.body.pos, from), 0, { hitstopSteps: 0 });
+}
+
+/** イベントの位置から半径 radius の敵すべて（対象は除く）。color があれば輪を出す */
+function nearbyEnemies(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
+  const radius = effect.radius ?? TRIGGER.nearbyRadius;
+  for (const e of enemiesInRadius(state, ev.pos, radius)) {
+    if (e.id === ev.targetId) continue;
+    if (effect.onlyWith !== undefined && !hasStatus(e.status, effect.onlyWith)) continue;
+    if (effect.skipBoss === true && enemyDef(e.defKey).boss === true) continue;
+    hitEnemyWith(state, e, effect, magnitude, "damage", ev.pos);
+  }
+  if (effect.color !== undefined && effect.quiet !== true) spawnRing(state, ev.pos, radius, effect.color, STATUS.fxLife);
+}
+
+/** 半径 radius の敵の status を起爆: 消して、強さ × 残り秒 × magnitude を即時に与える（焦土） */
+function detonate(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
+  const kind = effect.status;
+  if (kind === undefined) return;
+  const color = effect.color ?? spreadColor(kind);
+  for (const e of enemiesInRadius(state, ev.pos, effect.radius ?? TRIGGER.nearbyRadius)) {
+    const found = findStatus(e.status, kind);
+    if (found === undefined) continue;
+    const amount = Math.round(found.potency * found.time * magnitude);
+    removeStatus(state, { kind: "enemy", enemy: e }, kind);
+    spawnBurst(state, e.body.pos, color, DETONATE_PARTICLES, DETONATE_SPEED, DETONATE_LIFE, DETONATE_SIZE);
+    if (amount > 0) damageEnemy(state, e, amount, sub(e.body.pos, ev.pos), 0, { hitstopSteps: 0 });
+  }
+}
+
+/** 対象が持っていた status を残り時間ごと、半径 radius 内の最も近い敵（同距離は id の小さい方）へ移す（綻び広げ） */
+function passStatus(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): void {
+  const kind = effect.status;
+  if (kind === undefined) return;
+  const time = sourceStatus(state, ev, kind)?.time ?? 0;
+  if (time <= 0) return;
+  const next = enemiesInRadius(state, ev.pos, effect.radius ?? TRIGGER.nearbyRadius)
+    .filter((e) => e.id !== ev.targetId)
+    .sort((a, b) => dist(ev.pos, a.body.pos) - dist(ev.pos, b.body.pos) || a.id - b.id)[0];
+  if (next === undefined) return;
+  applyStatus(state, { kind: "enemy", enemy: next }, { kind, stacks: 1, duration: time, potency: 0 }, "player");
+  spawnLine(state, ev.pos, next.body.pos, effect.color ?? BOON.ruleTextColor, STATUS.fxLife);
+}
+
+/** explode の excludeTarget */
+function excludedId(effect: Readonly<RuleEffect>, ev: GameEvent): number | undefined {
+  return effect.excludeTarget === true ? ev.targetId : undefined;
 }
 
 /** 装備トリガーと同じ効果（src/system/triggers.ts の runEffect） */
@@ -255,6 +461,14 @@ function applyVitalEffect(state: GameState, effect: Readonly<RuleEffect>, magnit
     case "heal":
       if (effect.quiet !== true) return false;
       healSustained(state, magnitude, { silent: true });
+      return true;
+    case "energy":
+      if (effect.fill === true) {
+        p.energy = p.maxEnergy;
+        return true;
+      }
+      if (effect.raw !== true) return false;
+      p.energy = Math.min(p.maxEnergy, p.energy + magnitude);
       return true;
     case "healDirect":
       healPlayer(state, magnitude, { silent: effect.quiet === true });
@@ -361,6 +575,12 @@ function strikeTarget(state: GameState, ev: GameEvent, magnitude: number): void 
 }
 
 function baseMagnitude(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): number {
+  const base = scaledMagnitude(state, effect, ev);
+  if (effect.statFloor === undefined) return base;
+  return Math.max(state.stats[effect.statFloor], base);
+}
+
+function scaledMagnitude(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): number {
   switch (effect.scaleBy) {
     case "slashBase":
       return slashBase(state) * effect.magnitude;
@@ -368,6 +588,14 @@ function baseMagnitude(state: GameState, effect: Readonly<RuleEffect>, ev: GameE
       return state.player.maxHp * effect.magnitude;
     case "eventAmount":
       return (ev.amount ?? 0) * effect.magnitude;
+    case "maxEnergy":
+      return state.player.maxEnergy * effect.magnitude;
+    case "combo":
+      return state.combo.count * effect.magnitude;
+    case "targetPotency": {
+      const snap = effect.status === undefined ? undefined : sourceStatus(state, ev, effect.status);
+      return (snap?.potency ?? 0) * effect.magnitude;
+    }
     default:
       return effect.magnitude;
   }
@@ -405,7 +633,7 @@ function sourceStatus(state: GameState, ev: GameEvent, kind: StatusKind): Status
   if (ev.targetStatus !== undefined) return ev.targetStatus.find((s) => s.kind === kind);
   const target = liveTarget(state, ev.targetId);
   const found = target === undefined ? undefined : findStatus(target.status, kind);
-  return found === undefined ? undefined : { kind, stacks: found.stacks, potency: found.potency };
+  return found === undefined ? undefined : { kind, stacks: found.stacks, potency: found.potency, time: found.time };
 }
 
 function liveTarget(state: GameState, id: number | undefined): Enemy | undefined {
@@ -497,8 +725,39 @@ function extendedConditionHolds(state: GameState, c: RuleCondition, subject: Con
     case "from":
       return subject.source?.kind === c.source;
     default:
+      return migratedConditionHolds(state, c, subject);
+  }
+}
+
+/** 2026-09-24 追加の条件（祝福の移行 第 2 弾） */
+function migratedConditionHolds(state: GameState, c: RuleCondition, subject: ConditionSubject): boolean {
+  const p = state.player;
+  switch (c.kind) {
+    case "amountEvery": {
+      const n = subject.amount ?? 0;
+      return c.every > 0 && n > 0 && n % c.every === 0;
+    }
+    case "eventTagIn":
+      return subject.tag !== undefined && c.tags.includes(subject.tag);
+    case "energyFull":
+      return p.energy >= p.maxEnergy;
+    case "reaperNear":
+      return state.reaper !== null || reaperWarning(state);
+    case "swingStruck": {
+      const a = p.attack;
+      return a.phase === "active" && !p.dashStrike && subject.targetId !== undefined && a.hitIds.has(subject.targetId);
+    }
+    case "targetElite":
+      return targetElite(state, subject);
+    default:
       return false;
   }
+}
+
+function targetElite(state: GameState, subject: ConditionSubject): boolean {
+  if (subject.targetElite !== undefined) return subject.targetElite;
+  const target = liveTarget(state, subject.targetId);
+  return target?.elite !== undefined;
 }
 
 function terrainMatches(kind: TerrainKind, want: TerrainKind | "any"): boolean {

@@ -49,6 +49,8 @@ export interface GamepadFrame {
   shootHeld: boolean;
   specialPressed: boolean;
   confirmPressed: boolean;
+  /** A の押下中（LB のスキル層を除く）。拠点の出撃の長押しが読む */
+  confirmHeld: boolean;
   /** メニューの「戻る/ポーズ」に相当（B or Start）。今フレーム押されたときだけ true */
   escapePressed: boolean;
   inventoryPressed: boolean;
@@ -77,6 +79,7 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   shootHeld: false,
   specialPressed: false,
   confirmPressed: false,
+  confirmHeld: false,
   escapePressed: false,
   inventoryPressed: false,
   skill1Pressed: false,
@@ -190,6 +193,7 @@ export class GamepadInput {
       shootHeld: (isDown[BTN_LT] ?? false) || faceDown(BTN_X),
       specialPressed: faceJust(BTN_Y),
       confirmPressed: faceJust(BTN_A),
+      confirmHeld: faceDown(BTN_A),
       escapePressed: faceJust(BTN_B) || justPressed(BTN_START),
       inventoryPressed: justPressed(BTN_BACK),
       skill1Pressed: s1?.pressed ?? false,

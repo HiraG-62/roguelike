@@ -30,7 +30,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item-1",
     seed: 1,
     baseKey: "longsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "magic",
     itemLevel: 10,
     name: "test",
@@ -185,7 +185,7 @@ describe("残響タブ: 状態機械", () => {
   it("移し: 芽吹いた性質 → 同じ部位の移し先 → 実行。元は消え、受け手が次の対象になる", () => {
     const source = makeItem({ id: "src", affixes: [melee, grown], foundAt: 2 });
     const dest = makeItem({ id: "dst", affixes: [life], foundAt: 1 });
-    const gun = makeItem({ id: "gun", slot: "gun", baseKey: "pistol", foundAt: 0 });
+    const gun = makeItem({ id: "gun", slot: "ring", baseKey: "pistol", foundAt: 0 });
     const { state, ui } = setup([source, dest, gun]);
     clickRow(state, ui, "src");
     clickOp(state, ui, "transfer");
@@ -211,7 +211,7 @@ describe("残響タブ: 状態機械", () => {
 
   it("装備中の遺物は一覧に出ない（対象にできない）", () => {
     const { state, ui } = setup([makeItem({ id: "stash" })]);
-    state.profile.equipment.weapon = makeItem({ id: "worn" });
+    state.profile.equipment.mainHand = makeItem({ id: "worn" });
     const ids = layoutEcho(state, ui).stash.rows.map((r) => r.item.id);
     expect(ids).toEqual(["stash"]);
   });

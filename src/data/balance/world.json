@@ -1,0 +1,619 @@
+{
+  "_note": "フロア・部屋・地形イベント・拠点の数値。秒・px・確率（0..1）・重みが中心",
+  "ROOM": {
+    "enterMargin": 10,
+    "baseEnemies": 3,
+    "enemiesPerDepth": 1,
+    "maxEnemies": 12,
+    "reinforcementRatio": 0.5,
+    "spawnTelegraph": 0.7,
+    "heartDropChance": 0.2,
+    "heartHeal": 18,
+    "clearBonus": 50
+  },
+  "ROOM_KIND": {
+    "treasureChance": 0.35,
+    "treasureItemsMin": 2,
+    "treasureItemsMax": 3,
+    "treasureRarityBoost": 1.2,
+    "treasureItemSpread": 14,
+    "treasureCoinParticles": 28,
+    "treasureCoinColor": "#ffd040",
+    "challengeMinDepth": 2,
+    "challengeChance": 0.35,
+    "challengeWaves": 3,
+    "challengeWaveMul": 0.75,
+    "challengeRareBoost": 6,
+    "challengeRareAttempts": 40,
+    "challengeColor": "#ff9040",
+    "shrineMinDepth": 2,
+    "shrineDepths": [
+      3,
+      6
+    ],
+    "shrineChance": 0.6,
+    "fountainRadius": 8,
+    "shrineColor": "#60c0ff",
+    "cursedEliteRolls": 2,
+    "cursedColor": "#c060ff",
+    "ambushMinDepth": 3,
+    "ambushChance": 0.25,
+    "ambushMax": 2,
+    "ambushEnemyMul": 2,
+    "extraMax": 3,
+    "extra": {
+      "altar": {
+        "chance": 0.18,
+        "minDepth": 3
+      },
+      "library": {
+        "chance": 0.22,
+        "minDepth": 2
+      },
+      "arena": {
+        "chance": 0.15,
+        "minDepth": 4
+      },
+      "gamble": {
+        "chance": 0.2,
+        "minDepth": 2
+      },
+      "forge": {
+        "chance": 0.15,
+        "minDepth": 2
+      },
+      "exchange": {
+        "chance": 0.15,
+        "minDepth": 2
+      },
+      "curseShrine": {
+        "chance": 0.15,
+        "minDepth": 3
+      },
+      "resonance": {
+        "chance": 0.2,
+        "minDepth": 2
+      },
+      "escort": {
+        "chance": 0.15,
+        "minDepth": 3
+      },
+      "escape": {
+        "chance": 0.12,
+        "minDepth": 3
+      },
+      "reaperNest": {
+        "chance": 0.1,
+        "minDepth": 4
+      },
+      "nest": {
+        "chance": 0.15,
+        "minDepth": 4
+      },
+      "mirror": {
+        "chance": 0.08,
+        "minDepth": 5
+      },
+      "watchtower": {
+        "chance": 0.15,
+        "minDepth": 2
+      },
+      "vault": {
+        "chance": 0.12,
+        "minDepth": 3
+      },
+      "elementAltar": {
+        "chance": 0.15,
+        "minDepth": 2
+      },
+      "dummyHall": {
+        "chance": 0.1,
+        "minDepth": 2
+      },
+      "fogRoom": {
+        "chance": 0.12,
+        "minDepth": 2
+      },
+      "tideRoom": {
+        "chance": 0.12,
+        "minDepth": 3
+      },
+      "invertHall": {
+        "chance": 0.08,
+        "minDepth": 4
+      }
+    },
+    "propRadius": 9,
+    "propSpacing": 3,
+    "propLabelRange": 56,
+    "altarColor": "#d08cff",
+    "libraryColor": "#80c0ff",
+    "arenaWaves": 4,
+    "arenaWaveMul": 0.8,
+    "arenaColor": "#ff6040",
+    "gambleHpCost": 0.1,
+    "gambleUses": 3,
+    "gambleColor": "#ffd040",
+    "gambleWeights": {
+      "item": 35,
+      "hearts": 20,
+      "rune": 15,
+      "ambush": 15,
+      "curse": 15
+    },
+    "gambleRarityBoost": 2,
+    "gambleHearts": 2,
+    "forgeEchoes": 3,
+    "forgeBurnDuration": 3,
+    "forgeBurnDps": 2,
+    "forgeColor": "#ff9040",
+    "exchangeItems": 2,
+    "exchangeMul": 1.5,
+    "exchangeColor": "#60e0c0",
+    "curseShrineColor": "#a040ff",
+    "resonanceBonusDrops": 2,
+    "escortHpMul": 1.5,
+    "escortRadius": 36,
+    "escortDps": 3,
+    "escortColor": "#80ff80",
+    "escapeSpeed": 22,
+    "escapeLavaTime": 6,
+    "escapeTickInterval": 0.5,
+    "escapeColor": "#ff6030",
+    "reaperNestDepthBonus": 3,
+    "nestHpMul": 2.5,
+    "nestElites": 2,
+    "nestColor": "#e06040",
+    "mirrorHpMul": 4,
+    "mirrorBoonsPerElite": 3,
+    "mirrorEliteMax": 2,
+    "mirrorColor": "#c0e0ff",
+    "watchtowerReaperCost": 20,
+    "watchtowerColor": "#e0e0a0",
+    "vaultCost": 5,
+    "vaultDrops": 2,
+    "vaultColor": "#b0f0ff",
+    "elementAltarChoices": 3,
+    "elementAltarShare": 0.5,
+    "elementAltarColor": "#ffe890",
+    "dummyCount": 3,
+    "dummySpacing": 2.5,
+    "dummyColor": "#c8a070",
+    "fogRoomRadius": 72,
+    "fogRoomColor": "#c8ccd8",
+    "tideRoomSpeed": 14,
+    "tideRoomInterval": 0.8,
+    "tideRoomWaterTime": 30,
+    "tideRoomColor": "#60a0ff",
+    "invertHallItems": 2,
+    "invertHallAttempts": 24,
+    "invertHallColor": "#a060e0",
+    "hordeMinDepth": 2,
+    "hordeSecondDepth": 5,
+    "hordeChance": 0.6,
+    "hordeMinTiles": 60,
+    "hordeWaves": 3,
+    "hordeWaveMul": 1.2,
+    "hordeColor": "#ff5070",
+    "locks": {
+      "normal": false,
+      "treasure": false,
+      "challenge": true,
+      "shrine": false,
+      "ambush": true,
+      "altar": false,
+      "library": false,
+      "arena": true,
+      "gamble": false,
+      "forge": false,
+      "exchange": false,
+      "curseShrine": false,
+      "resonance": false,
+      "escort": true,
+      "escape": false,
+      "reaperNest": false,
+      "nest": true,
+      "mirror": true,
+      "watchtower": false,
+      "horde": true,
+      "vault": false,
+      "elementAltar": false,
+      "dummyHall": false,
+      "fogRoom": false,
+      "tideRoom": true,
+      "invertHall": false
+    }
+  },
+  "FLOOR_KIND": {
+    "darkLightRadius": 90,
+    "darkFeather": 0.35,
+    "darkAlpha": 0.94,
+    "weight": {
+      "rooms": 1,
+      "cave": 3,
+      "dark": 1,
+      "forge": 1,
+      "ossuary": 1,
+      "swamp": 1,
+      "glacier": 1,
+      "mine": 1,
+      "meadow": 1
+    },
+    "biomeMinDepth": {
+      "rooms": 2,
+      "cave": 1,
+      "dark": 4,
+      "forge": 4,
+      "ossuary": 3,
+      "swamp": 2,
+      "glacier": 3,
+      "mine": 2,
+      "meadow": 2
+    },
+    "patchesPerRoom": 2,
+    "patchRadiusMin": 20,
+    "patchRadiusMax": 40,
+    "lavaRadiusMul": 0.6,
+    "familyMul": 3,
+    "ossuaryCorpses": 3,
+    "ossuaryCorpseTime": 600,
+    "tintAlpha": 0.16,
+    "forkMin": 2,
+    "forkMax": 3,
+    "forkOffset": 4,
+    "invertedDepth": 20,
+    "invertedColor": "#a060e0",
+    "deepDepth": 30,
+    "deepHpSlope": 0.05,
+    "deepMaxEnemiesBonus": 4,
+    "mutationEvery": 10,
+    "ascendMinDepth": 3,
+    "ascendMaxReturns": 2,
+    "ascendHold": 1.2,
+    "revisitReaperHeadStart": 40,
+    "ascendColor": "#90e0ff"
+  },
+  "CAVE": {
+    "base": {
+      "fillChance": 0.45,
+      "smoothSteps": 5,
+      "wallBirth": 5,
+      "wallSurvive": 4,
+      "openDist": 3,
+      "minRoomTiles": 12,
+      "roomGrow": 3,
+      "maxRooms": 9,
+      "minRooms": 3,
+      "widen": 0
+    },
+    "biome": {
+      "swamp": {
+        "fillChance": 0.44,
+        "minRoomTiles": 10,
+        "maxRooms": 11
+      },
+      "glacier": {
+        "fillChance": 0.43,
+        "openDist": 4,
+        "minRoomTiles": 16,
+        "roomGrow": 4,
+        "maxRooms": 7,
+        "widen": 1
+      },
+      "meadow": {
+        "fillChance": 0.42,
+        "openDist": 4,
+        "maxRooms": 8
+      },
+      "forge": {
+        "fillChance": 0.47,
+        "minRoomTiles": 10,
+        "maxRooms": 10
+      },
+      "dark": {
+        "fillChance": 0.46,
+        "maxRooms": 10
+      }
+    }
+  },
+  "ROAM": {
+    "fraction": 0.25,
+    "speedMul": 0.4,
+    "reach": 12,
+    "stuckTime": 2.5,
+    "reinforceDelay": 30,
+    "reinforceInterval": 18,
+    "capBase": 3,
+    "capPerDepth": 0.5,
+    "capMax": 8,
+    "minSpawnDist": 260,
+    "spawnAttempts": 24,
+    "offscreenMargin": 24,
+    "engageLeash": 160
+  },
+  "RUN_EVENT": {
+    "minDepth": 2,
+    "warnTime": 1.8,
+    "cooldown": 20,
+    "lockChance": {
+      "reinforce": 0.1,
+      "blackout": 0.06,
+      "meteor": 0.05,
+      "manaDrought": 0.06,
+      "shrink": 0.04,
+      "timeRift": 0.05,
+      "curseVoice": 0.08,
+      "duel": 0.06,
+      "sluggish": 0.04,
+      "flood": 0.04,
+      "silence": 0.04,
+      "reactionSurge": 0.04,
+      "thunderstorm": 0.04
+    },
+    "floorChance": {
+      "bounty": 0.12,
+      "bloodMoon": 0.05,
+      "frenzyMoon": 0.05,
+      "fog": 0.03,
+      "elementStorm": 0.05
+    },
+    "fogBiomeChance": 0.2,
+    "timedAfter": 40,
+    "checkInterval": 10,
+    "timedChance": {
+      "quake": 0.08,
+      "curseWind": 0.06,
+      "reaperPass": 0.08,
+      "echoVein": 0.06,
+      "bats": 0.05,
+      "lifeFlow": 0.04,
+      "thiefChase": 0.05
+    },
+    "clearChance": {
+      "treasureRain": 0.04,
+      "momentum": 0.12,
+      "boonReroll": 0.03
+    },
+    "reinforceMul": 0.6,
+    "reinforceBonusTime": 8,
+    "bountyScore": 300,
+    "blackoutMax": 25,
+    "quake": {
+      "duration": 6,
+      "interval": 0.45,
+      "telegraph": 0.9,
+      "radius": 14,
+      "damage": 8,
+      "spread": 90
+    },
+    "meteor": {
+      "duration": 8,
+      "interval": 0.7,
+      "telegraph": 1.2,
+      "radius": 22,
+      "damage": 12,
+      "spread": 110
+    },
+    "impactEnemyMul": 2.5,
+    "rainItems": 3,
+    "rainHearts": 2,
+    "rainSpread": 40,
+    "rainRarityBoost": 0.8,
+    "manaDrainPerSec": 4,
+    "riftTime": 6,
+    "riftRadius": 10,
+    "riftFreeze": 3,
+    "fogDuration": 40,
+    "fogRadius": 110,
+    "curseWindShow": 3,
+    "bloodMoonHeal": 2,
+    "bloodMoonHpMul": 1.3,
+    "shrinkHpMul": 0.5,
+    "shrinkExtraMul": 1,
+    "momentumWindow": 5,
+    "momentumSpeedMul": 1.3,
+    "momentumSpeedTime": 6,
+    "warnColor": "#ffb040",
+    "activeColor": "#ff7050",
+    "impactColor": "#ff9040",
+    "sluggish": {
+      "dashCdMul": 2,
+      "dashDamageMul": 2,
+      "buffTime": 0.6
+    },
+    "flood": {
+      "duration": 10,
+      "interval": 1,
+      "growth": 9,
+      "maxRadius": 72,
+      "terrainTime": 20
+    },
+    "duel": {
+      "holdTime": 5,
+      "fearTime": 4
+    },
+    "silenceTime": 30,
+    "surge": {
+      "radius": 40,
+      "damage": 10,
+      "perDepth": 0.1,
+      "icd": 0.25,
+      "color": "#ffe060"
+    },
+    "thunder": {
+      "duration": 10,
+      "interval": 0.8,
+      "telegraph": 1,
+      "radius": 18,
+      "damage": 6,
+      "spread": 100,
+      "shockStacks": 1,
+      "shockDuration": 3,
+      "color": "#c0e0ff"
+    },
+    "curseVoiceCombo": 20,
+    "elementStormShare": 0.5,
+    "reaperPass": {
+      "minRatio": 0.5,
+      "speed": 240,
+      "span": 300,
+      "radius": 12,
+      "damage": 30,
+      "echoes": 2
+    },
+    "lifeFlow": {
+      "duration": 30,
+      "ratio": 1
+    },
+    "bats": {
+      "duration": 20,
+      "count": 6,
+      "manaPerKill": 6
+    },
+    "vein": {
+      "uses": 4,
+      "echoes": 1,
+      "reinforce": 1,
+      "color": "#80ffe0"
+    },
+    "thief": {
+      "duration": 30,
+      "searchRadius": 240,
+      "spawnOffset": 28,
+      "rarityBoost": 0.3,
+      "color": "#ffc040"
+    }
+  },
+  "LINGER": {
+    "minDepth": 3,
+    "startRatio": 0.6,
+    "doubleRatio": 0.35,
+    "warnMargin": 15,
+    "shadowDelay": 10,
+    "shadowGap": 2.5,
+    "shadowInterval": 12,
+    "shadowMax": 4,
+    "trailStep": 0.1,
+    "shadowRadius": 6,
+    "shadowDamage": 10,
+    "shadowColor": "#402060",
+    "collapseInterval": 3,
+    "collapseMinInterval": 1.1,
+    "collapseAccel": 0.03,
+    "collapseTelegraph": 1,
+    "collapseRadius": 14,
+    "collapseDamage": 10,
+    "collapseSpread": 28,
+    "tideSpeed": 18,
+    "tideInterval": 1,
+    "tideFullAfter": 40,
+    "tideDrownDps": 3
+  },
+  "ORIGIN": {
+    "cursedBoons": 2,
+    "cursedPoints": 4,
+    "unarmedUnsealDepth": 3,
+    "unarmedPoints": 3,
+    "chanterRunes": 2,
+    "chanterHpMul": 0.8,
+    "reaperFriendSpeedMul": 0.5,
+    "reaperFriendPoints": 1
+  },
+  "CONTRACT": {
+    "minDepth": 2,
+    "appearChance": 0.4,
+    "weights": {
+      "notary": 3,
+      "peddler": 3,
+      "mender": 2,
+      "seer": 2,
+      "bookie": 2,
+      "bard": 2,
+      "smith": 2,
+      "guide": 2,
+      "ferryman": 2
+    },
+    "standOffset": 3,
+    "offerOffset": 1.6,
+    "offerSpacing": 2.5,
+    "greetRange": 56,
+    "color": "#d8d0b8",
+    "pactColor": "#c0b0a0",
+    "shardsPerClear": 1,
+    "shardsBonusRoom": 2,
+    "shardsPerFloor": 1,
+    "shardsBounty": 3,
+    "shardsDuel": 2,
+    "shardColor": "#b0f0ff",
+    "pactSlayerKills": 12,
+    "pactSwiftTime": 75,
+    "pactSwiftPenalty": 30,
+    "pactSwiftPoints": 2,
+    "pactUnscathedShards": 3,
+    "pactSilentShards": 5,
+    "pactSilentPenaltyShards": 3,
+    "peddlerItemCost": 4,
+    "peddlerItemBoost": 2,
+    "peddlerEchoCost": 3,
+    "peddlerEchoes": 4,
+    "peddlerSalveCost": 2,
+    "peddlerSalveHeal": 0.35,
+    "menderStitchCost": 2,
+    "menderStitchHeal": 0.5,
+    "menderUncurseCost": 4,
+    "menderCleanseCost": 1,
+    "seerReadCost": 1,
+    "seerWardCost": 3,
+    "seerMapCost": 2,
+    "bookieBet": 3,
+    "bookieWinChance": 0.5,
+    "bookieLifeCost": 0.2,
+    "bookieLifeWinChance": 0.5,
+    "bardTaleCost": 2,
+    "bardTales": 4,
+    "bardWitnessTime": 60,
+    "smithCost": 3,
+    "smithShare": 0.3,
+    "smithChoices": 3,
+    "guideForkCost": 1,
+    "guideRevealCost": 1,
+    "ferryLifeCost": 0.15,
+    "ferryShardCost": 3,
+    "ferryTime": 30,
+    "ferryMaxUses": 3,
+    "lifeFloor": 1
+  },
+  "RUN_MOD": {
+    "thickHideHpMul": 1.3,
+    "quickHandsCut": 0.1,
+    "hastyReaperMul": 0.7,
+    "hourglassTime": 25,
+    "glassBodyHpMul": 0.7,
+    "scorePerTier": 0.1
+  },
+  "HUB": {
+    "interactRadius": 20,
+    "departHold": 0.8,
+    "dummyRespawn": 1.5,
+    "dummyCount": 3,
+    "trainingRuns": 3,
+    "seed": 1213547009,
+    "bannerSeconds": 3,
+    "rackBorrowHold": 0.6
+  },
+  "HUB_DECOR": {
+    "shelfMax": 5
+  },
+  "META": {
+    "questOffers": 3,
+    "roomSampleTicks": 15
+  },
+  "DISCOVERY": {
+    "milestonePage": 5,
+    "milestoneTitle": 15,
+    "milestoneGrand": 30,
+    "hintRefreshTicks": 30,
+    "hintShowSeconds": 6,
+    "freshShowSeconds": 3
+  }
+}

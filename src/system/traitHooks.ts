@@ -104,6 +104,7 @@ const GROUND_BLAST_STATUS: Readonly<Record<Exclude<TerrainKind, "none">, StatusK
   bog: "poison",
   grass: "poison",
   mud: "chill",
+  rubble: "broken",
   // 煙は床の地形ではない（terrainAt が返さない）ので引かれない。Record の網羅のためだけに置く
   smoke: "weaken",
 };

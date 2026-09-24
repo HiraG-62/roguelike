@@ -108,13 +108,16 @@ const RESONANCE_BAR_GAP = 2;
 
 /** 空きスロットに出すアイコン文字 */
 const SLOT_ICON: Record<Slot, string> = {
-  weapon: "†",
-  gun: "⌐",
+  mainHand: "†",
+  offHand: "⌐",
   armor: "▣",
   boots: "▙",
   ring: "○",
   amulet: "◊",
 };
+
+/** 左手（offHand）は今はベースが無く常に空。「― 空 ―」の代わりにその旨を出す */
+const OFF_HAND_TEXT = "―（両手の仕組みは後日）";
 
 const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響", web: "網" };
 const COLOR_SKILL = SKILL.drop.stoneColor;
@@ -249,7 +252,8 @@ function drawSlotRow(ctx: CanvasRenderingContext2D, s: SlotLayout, ui: Inventory
   drawText(ctx, label, rect.x + TEXT_PAD_X + (s.item ? HUE_STRIP_W : 0), baseline, m, COLOR_DIM);
   const right = rect.x + rect.w - TEXT_PAD_X;
   if (!s.item) {
-    drawText(ctx, "― 空 ―", right - ICON_OFFSET_X, baseline + 2, m, COLOR_EMPTY, "right");
+    const emptyText = s.slot === "offHand" ? OFF_HAND_TEXT : "― 空 ―";
+    drawText(ctx, emptyText, right - ICON_OFFSET_X, baseline + 2, m, COLOR_EMPTY, "right");
     drawText(ctx, SLOT_ICON[s.slot], right - ICON_OFFSET_X / 2 + 1, rect.y + rect.h / 2 + 4, TEXT.BODY, COLOR_EMPTY, "center");
     return;
   }

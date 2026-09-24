@@ -18,13 +18,13 @@ const ROLLS = 200;
 function rollNamedKeys(exclude: readonly string[] | undefined, seed = 3): (string | undefined)[] {
   const rng = createRng(seed);
   return Array.from({ length: ROLLS }, () =>
-    generateItem(rng, { itemLevel: ITEM_LEVEL, foundDepth: ITEM_LEVEL, rarityBoost: NAMED_BOOST, slot: "weapon", now: 0, excludeNamed: exclude }).namedKey,
+    generateItem(rng, { itemLevel: ITEM_LEVEL, foundDepth: ITEM_LEVEL, rarityBoost: NAMED_BOOST, slot: "mainHand", now: 0, excludeNamed: exclude }).namedKey,
   );
 }
 
 describe("依頼報酬の遺物の除外: 生成", () => {
   it("除外した名のある遺物は出ない", () => {
-    const pool = uniquesFor("weapon", ITEM_LEVEL).map((u) => u.key);
+    const pool = uniquesFor("mainHand", ITEM_LEVEL).map((u) => u.key);
     const [first] = pool;
     if (first === undefined) throw new Error("武器の名のある遺物が無い");
     const keys = rollNamedKeys([first]);

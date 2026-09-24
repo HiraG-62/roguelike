@@ -11,6 +11,7 @@ import {
   dailySeedText,
   decodeInputs,
   encodeInputs,
+  guardStorageWrites,
   isDailySeedText,
   isPlayable,
   isReplayFinished,
@@ -21,6 +22,9 @@ import {
   type ReplayData,
 } from "./replay";
 import { createEmptyProfile, type Item, type Profile } from "../loot/types";
+import { PROFILE_KEY, saveProfile } from "../loot/profile";
+import { MemoryStorage } from "../meta/testStorage";
+import { setSaveStorage } from "../save/backend";
 import { createDefaultSkillProfile, ownedRunes } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
@@ -559,3 +563,19 @@ describe("デイリーシード", () => {
   });
 });
 
+describe("再生中の保存ガード", () => {
+  it("guardStorageWrites は setSaveStorage で差し込んだ MemoryStorage にも効く", () => {
+    const memory = new MemoryStorage();
+    setSaveStorage(memory);
+    try {
+      const release = guardStorageWrites();
+      saveProfile(createEmptyProfile());
+      expect(memory.getItem(PROFILE_KEY), "再生中は本物の保存先へ書かない").toBeNull();
+      release();
+      saveProfile(createEmptyProfile());
+      expect(memory.getItem(PROFILE_KEY), "解除後は書ける").not.toBeNull();
+    } finally {
+      setSaveStorage(null);
+    }
+  });
+});

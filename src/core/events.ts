@@ -38,6 +38,12 @@ export const EVENT_KINDS = [
   // ---- 既存の祝福のルール文法移行で増えた起点 ----
   /** 近接の振り始め（amount = その段の威力、tag = SWING_TAG の段の種類） */
   "onSwing",
+  /** コンボの加算（amount = 加算後のコンボ数。プレイヤーの位置） */
+  "onComboHit",
+  /** 凍結の敵を砕いた（対象 = 砕かれた敵） */
+  "onShatter",
+  /** 通常の振り（近接の連撃・ダッシュ攻撃）の命中。tag = SWING_TAG の段の種類。スキルや衝撃波の近接命中は含まない */
+  "onSwingHit",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -56,6 +62,8 @@ export interface StatusSnap {
   kind: StatusKind;
   stacks: number;
   potency: number;
+  /** 残り秒（綻び広げが残り時間ごと移す。古い写し・テストの手組みでは無い） */
+  time?: number;
 }
 
 export interface GameEvent {
@@ -69,6 +77,10 @@ export interface GameEvent {
   targetKey?: string;
   /** 対象の敵の状態異常の写し（撃破・死亡のときだけ） */
   targetStatus?: readonly StatusSnap[];
+  /** 対象の敵が精鋭か（撃破・死亡のときだけ写す） */
+  targetElite?: boolean;
+  /** 部屋のイベント（封鎖・制圧）の部屋の添字 */
+  room?: number;
   /** 起こした敵の id（被弾の攻撃者など） */
   sourceId?: number;
   /** 連鎖深さ。0 = 操作や system が直接起こしたもの */
@@ -111,10 +123,19 @@ export interface RuleRunState {
   keywordWindowLeft: number;
   /** 前ステップでプレイヤーが立っていた地形（onTerrainEnter の差分検出） */
   playerTerrain: string;
+  /** 上限（maxEventsPerStep / maxPendingEvents）で捨てたイベントの累計。黙って消えると連鎖の不発を追えないので数える */
+  droppedEvents: number;
 }
 
 export function createRuleRunState(): RuleRunState {
-  return { depth: 0, owner: null, keywordUse: new Map(), keywordWindowLeft: SYNERGY.keywordWindow, playerTerrain: "none" };
+  return {
+    depth: 0,
+    owner: null,
+    keywordUse: new Map(),
+    keywordWindowLeft: SYNERGY.keywordWindow,
+    playerTerrain: "none",
+    droppedEvents: 0,
+  };
 }
 
 /** 装備トリガーの起点 → イベントの種類。everyNthMeleeHit は近接命中として受ける */
@@ -122,14 +143,17 @@ export function triggerEventKind(kind: TriggerKind): EventKind {
   return kind === "everyNthMeleeHit" ? "onMeleeHit" : kind;
 }
 
-/** 敵を対象にしたイベントの共通部分。withStatus は撃破・死亡のとき（倒れた後も状態異常を読めるように写す） */
-export function enemyTarget(e: Enemy, withStatus = false): Pick<GameEvent, "pos" | "targetId" | "targetKey" | "targetStatus"> {
+/** 敵を対象にしたイベントの共通部分。withStatus は撃破・死亡・通常の振りの命中のとき（照合の時点で倒れていても状態異常を読めるように写す） */
+export function enemyTarget(
+  e: Enemy,
+  withStatus = false,
+): Pick<GameEvent, "pos" | "targetId" | "targetKey" | "targetStatus" | "targetElite"> {
   const base = { pos: { ...e.body.pos }, targetId: e.id, targetKey: e.defKey };
   if (!withStatus) return base;
   const targetStatus = e.status.effects
     .filter((s) => s.time > 0)
-    .map((s) => ({ kind: s.kind, stacks: s.stacks, potency: s.potency }));
-  return { ...base, targetStatus };
+    .map((s) => ({ kind: s.kind, stacks: s.stacks, potency: s.potency, time: s.time }));
+  return { ...base, targetStatus, targetElite: e.elite !== undefined };
 }
 
 /**
@@ -140,11 +164,13 @@ export function pushEvent(state: GameState, input: EventInput): void {
   const run = state.ruleRun;
   const ev: GameEvent = { ...input, depth: run.depth, source: run.owner ?? input.source };
   noteRecent(state, ev.kind);
-  if (run.depth > 0) {
-    if (state.pendingEvents.length < SYNERGY.maxPendingEvents) state.pendingEvents.push(ev);
+  const queue = run.depth > 0 ? state.pendingEvents : state.events;
+  const cap = run.depth > 0 ? SYNERGY.maxPendingEvents : SYNERGY.maxEventsPerStep;
+  if (queue.length >= cap) {
+    run.droppedEvents++;
     return;
   }
-  if (state.events.length < SYNERGY.maxEventsPerStep) state.events.push(ev);
+  queue.push(ev);
 }
 
 /** 条件 recent と UI 用の直近記録。窓の外なら数え直す */
@@ -169,14 +195,17 @@ export function playerSource(key: string): EventSource {
   return { kind: "player", key };
 }
 
-/** 敵への命中: 近接 / 射撃 / スキル / 会心をそれぞれ積む（proc は起点にしない。装備トリガーと同じ線引き） */
-export function pushHitEvents(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean, crit: boolean): void {
+/**
+ * 敵への命中: 近接 / 射撃 / スキル / 会心をそれぞれ積む（proc は起点にしない。装備トリガーと同じ線引き）。
+ * amount は与えたダメージ（会心のイベントの量。会心雷撃が読む）
+ */
+export function pushHitEvents(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean, crit: boolean, amount?: number): void {
   const target = enemyTarget(enemy);
   const source = skill ? { kind: "skill" as const, key: kind } : playerSource(kind);
   if (kind === "melee") pushEvent(state, { kind: "onMeleeHit", actor: "player", source, ...target });
   if (kind === "ranged") pushEvent(state, { kind: "onRangedHit", actor: "player", source, ...target });
   if (skill) pushEvent(state, { kind: "onSkillHit", actor: "player", source, ...target });
-  if (crit && kind !== "proc") pushEvent(state, { kind: "onCrit", actor: "player", source, ...target });
+  if (crit && kind !== "proc") pushEvent(state, { kind: "onCrit", actor: "player", source, amount, ...target });
 }
 
 /** 撃破: プレイヤーの撃破（onKill）と敵の死（onEnemyDeath）。倒れた瞬間の状態異常を写す */
@@ -206,6 +235,25 @@ export const SWING_TAG = { dashStrike: "dashStrike", finisher: "finisher", norma
 export function pushSwingEvent(state: GameState, combo: number, dashStrike: boolean, damage: number): void {
   const tag = dashStrike ? SWING_TAG.dashStrike : combo >= PLAYER.melee.length - 1 ? SWING_TAG.finisher : SWING_TAG.normal;
   pushPlayerEvent(state, "onSwing", "swing", { tag, amount: damage });
+}
+
+/**
+ * 通常の振りの命中（player.ts の meleeHitEnemy）。combo / dashStrike は命中の瞬間の振り。
+ * 状態異常も命中の瞬間を写す（照合はステップ末なので、とどめの一撃でも「感電中の敵を斬った」を読めるように）
+ */
+export function pushSwingHitEvent(state: GameState, enemy: Enemy, combo: number, dashStrike: boolean): void {
+  const tag = dashStrike ? SWING_TAG.dashStrike : combo >= PLAYER.melee.length - 1 ? SWING_TAG.finisher : SWING_TAG.normal;
+  pushEvent(state, { kind: "onSwingHit", actor: "player", source: playerSource("swing"), tag, ...enemyTarget(enemy, true) });
+}
+
+/** コンボの加算（combat.ts の registerComboHit）。量は加算後のコンボ数（照合はステップ末なので写す） */
+export function pushComboEvent(state: GameState): void {
+  pushPlayerEvent(state, "onComboHit", "combo", { amount: state.combo.count });
+}
+
+/** 凍結の砕き（combat.ts の shatterFreeze） */
+export function pushShatterEvent(state: GameState, enemy: Enemy): void {
+  pushEvent(state, { kind: "onShatter", actor: "player", source: playerSource("shatter"), tag: "shatter", ...enemyTarget(enemy) });
 }
 
 /** プレイヤーの位置で起きた出来事（ダッシュ・ジャスト・射撃・バースト…） */

@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { enemyTarget, pushEvent, pushKillEvents, pushPlayerEvent, pushSwingEvent } from "../core/events";
+import {
+  enemyTarget,
+  pushEvent,
+  pushKillEvents,
+  pushPlayerEvent,
+  pushShatterEvent,
+  pushSwingEvent,
+  pushSwingHitEvent,
+} from "../core/events";
 import type { Rule, RuleCondition } from "../core/rules";
-import { type Enemy, type GameState, type Projectile, allocId } from "../core/state";
+import type { StatusKind } from "../core/status";
+import { type Enemy, type GameState, type Projectile, type RoomState, allocId } from "../core/state";
 import { ACTION, BOON, FEEL, PLAYER } from "../data/tuning";
 import { DEFAULT_STATS } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
@@ -18,6 +27,7 @@ import {
   createBoonRunState,
   foldBoonStats,
   onBoonBurstKills,
+  onBoonComboHit,
   onBoonCrit,
   onBoonDash,
   onBoonDashEnd,
@@ -26,6 +36,7 @@ import {
   onBoonMeleeHit,
   onBoonRoomClear,
   onBoonRoomLock,
+  onBoonShatter,
   onBoonShoot,
   onBoonSkillCast,
   onBoonSkillHit,
@@ -56,6 +67,7 @@ import {
 } from "./boonRules";
 import { damageEnemy, registerComboHit } from "./combat";
 import { reaperAppearAfter } from "./reaper";
+import { ROAMING_ROOM } from "./spawner";
 import { resolveRules } from "./rules";
 import { applyBurn, applyStatus, findStatus, hasStatus, removeStatus, statusStacks } from "./statusEffects";
 import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
@@ -159,6 +171,63 @@ function swung(state: GameState, combo: number, dashStrike: boolean, damage: num
   resolveRules(state, 0);
 }
 
+/** 通常の振りの命中（meleeHitEnemy と同じ: onBoonMeleeHit + カウンターと振りの命中のイベント） */
+function meleeHit(state: GameState, e: Enemy, counter = false): void {
+  dropEvents(state);
+  if (counter) pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
+  onBoonMeleeHit(state, e, counter);
+  pushSwingHitEvent(state, e, state.player.attack.combo, state.player.dashStrike);
+  resolveRules(state, 0);
+}
+
+/** バースト（fireBurst と同じ: onBoonBurstKills + バーストのイベント。量 = 倒した数） */
+function burst(state: GameState, kills: number): void {
+  dropEvents(state);
+  onBoonBurstKills(state, kills);
+  pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
+  resolveRules(state, 0);
+}
+
+/** ダッシュ終了（onBoonDashEnd + ダッシュ終了のイベント） */
+function dashEnded(state: GameState): void {
+  dropEvents(state);
+  onBoonDashEnd(state);
+  pushPlayerEvent(state, "onDashEnd", "dash");
+  resolveRules(state, 0);
+}
+
+/** 部屋の制圧（clearRoom と同じ: 制圧のイベント + onBoonRoomClear。部屋の種類は tag） */
+function roomCleared(state: GameState, room?: RoomState): void {
+  dropEvents(state);
+  pushPlayerEvent(state, "onRoomClear", "room", { tag: room?.kind, source: { kind: "room", key: room?.kind ?? "" } });
+  onBoonRoomClear(state, room);
+  resolveRules(state, 0);
+}
+
+/** 部屋の封鎖（lockRoom と同じ: onBoonRoomLock + 封鎖のイベント） */
+function roomLocked(state: GameState, index: number): void {
+  dropEvents(state);
+  onBoonRoomLock(state, index);
+  const room = state.rooms[index];
+  pushPlayerEvent(state, "onRoomLock", "room", { tag: room?.kind, room: index, source: { kind: "room", key: room?.kind ?? "" } });
+  resolveRules(state, 0);
+}
+
+/** 会心（damageEnemy と同じ: onBoonCrit + 会心のイベント。量 = 与えたダメージ） */
+function critHit(state: GameState, e: Enemy, amount: number): void {
+  dropEvents(state);
+  onBoonCrit(state, e, amount);
+  pushEvent(state, { kind: "onCrit", actor: "player", source: { kind: "player", key: "melee" }, amount, ...enemyTarget(e) });
+  resolveRules(state, 0);
+}
+
+/** damageEnemy をステップ末の照合まで通す（砕き・コンボ加算のイベントを rules が食う） */
+function hitThrough(state: GameState, e: Enemy, amount: number): void {
+  dropEvents(state);
+  damageEnemy(state, e, amount, { x: 1, y: 0 }, 0);
+  resolveRules(state, 0);
+}
+
 describe("祝福の定義（拡張）", () => {
   it("祝福は 84 種以上。アイコンは 1 文字で重複しない、名前も重複しない", () => {
     expect(BOON_KEYS.length).toBeGreaterThanOrEqual(84);
@@ -200,10 +269,10 @@ describe("系譜: 灰燼", () => {
     const a = dummy(state);
     const b = dummy(state, 20, 30);
     swing(state, 0);
-    onBoonMeleeHit(state, a);
+    meleeHit(state, a);
     expect(hasStatus(a.status, "burn"), "1 段目は付けない").toBe(false);
     swing(state, LAST);
-    onBoonMeleeHit(state, b);
+    meleeHit(state, b);
     expect(hasStatus(b.status, "burn"), "3 段目は燃焼").toBe(true);
   });
 
@@ -214,13 +283,13 @@ describe("系譜: 灰燼", () => {
     const b = dummy(state, 40);
     applyBurn(state, a, 5, 3);
     swing(state, 0);
-    onBoonMeleeHit(state, a);
+    meleeHit(state, a);
     expect(hasStatus(b.status, "burn")).toBe(true);
     removeStatus(state, { kind: "enemy", enemy: b }, "burn");
-    onBoonMeleeHit(state, a);
+    meleeHit(state, a);
     expect(hasStatus(b.status, "burn"), "ICD 中は移らない").toBe(false);
     updateBoonRules(state, BOON.wildfireIcd + 0.01);
-    onBoonMeleeHit(state, a);
+    meleeHit(state, a);
     expect(hasStatus(b.status, "burn"), "ICD 明けで再び移る").toBe(true);
   });
 
@@ -236,7 +305,7 @@ describe("系譜: 灰燼", () => {
     expect(state.boonRun.rules.ashCharges, "灰を拾った").toBe(1);
     const target = dummy(state, 20, 20);
     swing(state, 0);
-    onBoonMeleeHit(state, target);
+    meleeHit(state, target);
     expect(hasStatus(target.status, "burn")).toBe(true);
     expect(state.boonRun.rules.ashCharges, "1 回で消費").toBe(0);
   });
@@ -248,7 +317,7 @@ describe("系譜: 灰燼", () => {
     applyBurn(state, e, 10, 2);
     const burn = findStatus(e.status, "burn");
     const expected = Math.round((burn?.potency ?? 0) * (burn?.time ?? 0) * BOON.scorchMul);
-    onBoonBurstKills(state, 0);
+    burst(state, 0);
     expect(hasStatus(e.status, "burn"), "燃焼は消える").toBe(false);
     expect(BIG_HP - e.hp).toBe(expected);
   });
@@ -280,7 +349,7 @@ describe("系譜: 霜枷", () => {
     const b = dummy(state, 40);
     put(state, a, "freeze", 1);
     put(state, b, "freeze", 1);
-    damageEnemy(state, a, 5, { x: 1, y: 0 }, 0);
+    hitThrough(state, a, 5);
     expect(hasStatus(b.status, "freeze"), "連鎖して砕けた").toBe(false);
     expect(b.hp).toBeLessThan(BIG_HP);
   });
@@ -315,7 +384,7 @@ describe("系譜: 雷鳴", () => {
     const b = dummy(state, 50);
     put(state, a, "shock", 3, 1, 10);
     swing(state, 0);
-    onBoonMeleeHit(state, a);
+    meleeHit(state, a);
     expect(b.hp).toBeLessThan(BIG_HP);
   });
 
@@ -366,10 +435,10 @@ describe("系譜: 月蝕", () => {
     state.player.energy = 0;
     state.player.mana = 0;
     swing(state, 0);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(state.player.energy).toBe(0);
     state.player.mana = state.stats.maxMana;
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(state.player.energy).toBeGreaterThan(0);
   });
 
@@ -473,8 +542,8 @@ describe("単体の祝福（ジャスト回避・カウンター）", () => {
     const a = dummy(state);
     const b = dummy(state, 40);
     swing(state, 0);
-    onBoonMeleeHit(state, a, false);
-    onBoonMeleeHit(state, b, true);
+    meleeHit(state, a, false);
+    meleeHit(state, b, true);
     expect(hasStatus(a.status, "vulnerable")).toBe(false);
     expect(hasStatus(b.status, "vulnerable")).toBe(true);
   });
@@ -528,10 +597,10 @@ describe("単体の祝福（近接・射撃・ダッシュ）", () => {
     give(state, "huntBleed");
     const e = dummy(state);
     swing(state, 0);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(hasStatus(e.status, "fear"), "出血なしでは付かない").toBe(false);
     put(state, e, "bleed", 3, 1, 1);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(hasStatus(e.status, "fear")).toBe(true);
   });
 
@@ -541,9 +610,9 @@ describe("単体の祝福（近接・射撃・ダッシュ）", () => {
     const e = dummy(state);
     const other = dummy(state, 40);
     swing(state, 0);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     swing(state, 1);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     swing(state, LAST);
     expect(boonForcesCrit(state, e, "melee")).toBe(true);
     expect(boonForcesCrit(state, other, "melee"), "別の敵には効かない").toBe(false);
@@ -568,10 +637,10 @@ describe("単体の祝福（近接・射撃・ダッシュ）", () => {
     if (!burn) throw new Error("燃焼が付いていない");
     burn.time = 1;
     swing(state, 0);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(burn.time).toBeCloseTo(1 + BOON.embersExtend);
     burn.time = burn.maxTime - 0.1;
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(burn.time).toBeCloseTo(burn.maxTime);
   });
 
@@ -723,7 +792,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     put(state, e, "bleed", 4, 3, 1);
     const stacks = statusStacks(e.status, "bleed");
     const potency = findStatus(e.status, "bleed")?.potency ?? 0;
-    onBoonCrit(state, e, 10);
+    critHit(state, e, 10);
     expect(hasStatus(e.status, "bleed")).toBe(false);
     expect(BIG_HP - e.hp).toBe(Math.round(stacks * potency * BOON.lacerationUnits));
   });
@@ -831,7 +900,7 @@ describe("単体の祝福（マナ・スキル）", () => {
     give(state, "cashOut");
     state.player.mana = 0;
     state.combo.count = 10;
-    onBoonBurstKills(state, 0);
+    burst(state, 0);
     expect(state.combo.count).toBe(0);
     expect(state.player.mana).toBeCloseTo(10 * BOON.cashOutManaPerCombo * state.stats.manaGainMul);
   });
@@ -894,7 +963,7 @@ describe("単体の祝福（HP・部屋・死神・コンボ）", () => {
     const state = arena();
     give(state, "stallTime");
     const before = reaperAppearAfter(state);
-    onBoonRoomClear(state);
+    roomCleared(state);
     expect(boonReaperDelay(state)).toBe(BOON.stallTimeDelay);
     expect(reaperAppearAfter(state)).toBe(before + BOON.stallTimeDelay);
   });
@@ -906,10 +975,10 @@ describe("単体の祝福（HP・部屋・死神・コンボ）", () => {
     const room = state.rooms[0];
     if (!room) throw new Error("部屋が無い");
     room.kind = "normal";
-    onBoonRoomClear(state, room);
+    roomCleared(state, room);
     expect(state.boonChoice).toBeNull();
     room.kind = "challenge";
-    onBoonRoomClear(state, room);
+    roomCleared(state, room);
     expect(state.boonChoice?.options.length).toBeGreaterThan(0);
   });
 
@@ -920,7 +989,7 @@ describe("単体の祝福（HP・部屋・死神・コンボ）", () => {
     if (!room) throw new Error("部屋が無い");
     room.kind = "ambush";
     const before = state.skills.runes.length;
-    onBoonRoomClear(state, room);
+    roomCleared(state, room);
     expect(state.skills.runes.length).toBe(before + 1);
   });
 
@@ -928,11 +997,11 @@ describe("単体の祝福（HP・部屋・死神・コンボ）", () => {
     const state = arena();
     give(state, "carryOver");
     state.combo.count = 5;
-    onBoonRoomClear(state);
+    roomCleared(state);
     state.combo.timer = 0.01;
     updateBoonRules(state, DT);
     expect(state.combo.timer).toBeCloseTo(FEEL.comboWindow + state.stats.comboWindowBonus);
-    onBoonRoomLock(state, 0);
+    roomLocked(state, 0);
     state.combo.timer = 0.01;
     updateBoonRules(state, DT);
     expect(state.combo.timer, "封鎖で終わる").toBeCloseTo(0.01);
@@ -1023,7 +1092,7 @@ describe("結び祝福", () => {
     const state = arena();
     give(state, "dashBlast", "dashShock", "thunderBlast");
     const e = dummy(state, 10);
-    onBoonDashEnd(state);
+    dashEnded(state);
     expect(statusStacks(e.status, "shock")).toBeGreaterThanOrEqual(BOON.thunderBlastStacks);
   });
 
@@ -1057,10 +1126,10 @@ describe("結び祝福", () => {
     const near = dummy(state, 30);
     state.player.energy = 0;
     swing(state, 0);
-    onBoonMeleeHit(state, e);
+    meleeHit(state, e);
     expect(near.hp, "ゲージが空なら爆発しない").toBe(BIG_HP);
-    onBoonBurstKills(state, 0);
-    onBoonMeleeHit(state, e);
+    burst(state, 0);
+    meleeHit(state, e);
     expect(near.hp).toBeLessThan(BIG_HP);
   });
 
@@ -1138,9 +1207,11 @@ describe("祝福の威力は装備に比例する", () => {
 describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 回で効果 1 回、条件を欠けば 0 回", () => {
   /**
    * フックから rules へ移した祝福（フック側の実装は消した）。ここに足した key は rules を持ち、すべて direct であること。
-   * 数値の畳み込みやフックに残る部分を持つもの（血の代償の最大生命・乾坤の自然回復など）も、移した「〜時: 〜」の部分をここで見る
+   * 数値の畳み込みやフックに残る部分を持つもの（血の代償の最大生命・乾坤の自然回復・看破の射撃カウンター・
+   * 満ち潮の射撃・精鋭の磁力の精鋭化など）も、移した「〜時: 〜」の部分をここで見る
    */
   const MIGRATED: readonly BoonKey[] = [
+    // ---- 第 1 弾（0.0.11α） ----
     "comboWave",
     "finisherWave",
     "clearShield",
@@ -1159,10 +1230,58 @@ describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 �
     "woundMemory",
     "heavenEarth",
     "plagueBlood",
+    // ---- 第 2 弾（起点 onComboHit / onShatter / onSwingHit と効果の追加で移したもの） ----
+    "comboClock",
+    "frostPierce",
+    "shatterBell",
+    "frostLock",
+    "springWell",
+    "ambushReturn",
+    "trialSeeker",
+    "huntLord",
+    "dashBlast",
+    "thunderBlast",
+    "huntBleed",
+    "insight",
+    "embers",
+    "chargedBlade",
+    "highTide",
+    "overcharge",
+    "criticalMass",
+    "regroupHunt",
+    "deathRush",
+    "reaperShadow",
+    "intimidate",
+    "eternalWinter",
+    "critChain",
+    "eliteMagnet",
+    "eliteVault",
+    "bloodMist",
+    "burstRefund",
+    "takeBack",
+    "cashOut",
+    "frayWiden",
+    "scorchedEarth",
   ];
+  /** フックが祝福ごとの内部 CD を持っていたもの（Rule の ICD も同じ秒） */
+  const HOOK_ICD: Partial<Record<BoonKey, number>> = {
+    chargedBlade: BOON.chargedBladeIcd,
+    critChain: BOON.critChainIcd,
+    overcharge: BOON.overchargeIcd,
+    criticalMass: BOON.overchargeIcd,
+  };
   const LOW_HP = 10;
   const DASH_CHARGES = 3;
   const SWING_DAMAGE = 10;
+  const CRIT_AMOUNT = 10;
+  const BURST_KILLS = 1;
+  const SCENE_DEPTH = 3;
+  const REGAIN_POOL = 5;
+  const REGAIN_TIME = 1;
+  const STATUS_TIME = 3;
+  const STATUS_STACKS = 2;
+  const STATUS_POTENCY = 2;
+  const ELITE: Enemy["elite"] = "hasted";
   /** 状態異常のスタックを強さ・残り秒と混ぜずに数えるための重み */
   const STACK_WEIGHT = 1000;
   const NEIGHBOR = { dx: 30, dy: 20 };
@@ -1170,54 +1289,145 @@ describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 �
   interface Scene {
     state: GameState;
     target: Enemy;
+    neighbor: Enemy;
   }
 
-  /** 効果の副作用（気力・生命・ダッシュ・無敵・弾の数・生きた敵の生命の和・敵の状態異常の和） */
+  function statusWeight(effects: readonly { time: number; stacks: number; potency: number }[]): number {
+    return effects.filter((x) => x.time > 0).reduce((t, x) => t + x.stacks * STACK_WEIGHT + x.potency + x.time, 0);
+  }
+
+  /**
+   * 効果の副作用（気力・生命・ダッシュ・無敵・弾の数・生きた敵の生命の和・敵の状態異常の和・
+   * 必殺ゲージ・回避の無敵・コンボ・3 択・宝物庫の予約・落ちた装備・落ちた刻印符・自分の状態異常）
+   */
   function effectVector(state: GameState): number[] {
     const p = state.player;
     const hpSum = state.enemies.filter((e) => e.hp > 0).reduce((sum, e) => sum + e.hp, 0);
-    const statusSum = state.enemies.reduce(
-      (sum, e) => sum + e.status.effects.filter((x) => x.time > 0).reduce((t, x) => t + x.stacks * STACK_WEIGHT + x.potency + x.time, 0),
-      0,
-    );
-    return [p.mana, p.hp, p.dashChargesLeft, p.buffs.invuln, state.projectiles.length, hpSum, statusSum];
+    const statusSum = state.enemies.reduce((sum, e) => sum + statusWeight(e.status.effects), 0);
+    return [
+      p.mana,
+      p.hp,
+      p.dashChargesLeft,
+      p.buffs.invuln,
+      state.projectiles.length,
+      hpSum,
+      statusSum,
+      p.energy,
+      p.invulnTimer,
+      state.combo.count,
+      state.boonChoice === null ? 0 : 1,
+      state.boonRun.vaultNext ? 1 : 0,
+      state.floorItems.length,
+      state.skills.runes.length,
+      statusWeight(p.status.effects),
+    ];
   }
 
   function delta(before: readonly number[], after: readonly number[]): number[] {
     return after.map((v, i) => v - (before[i] ?? 0));
   }
 
-  /** 条件を満たす（met）/ 満たさないように場を整える。見切りの出どころと振りの段は起点の側で決める */
-  function prepare(scene: Scene, c: RuleCondition, met: boolean): void {
+  /** 対象に状態異常を付け、残りを半分にする（燠火の延長が上限で切れないように） */
+  function afflictTarget(state: GameState, e: Enemy, kind: StatusKind): void {
+    put(state, e, kind, STATUS_TIME, STATUS_STACKS, STATUS_POTENCY);
+    const found = findStatus(e.status, kind);
+    if (found) found.time = found.maxTime / 2;
+  }
+
+  /** 条件を満たす（met）/ 満たさないように場を整える。見切りの出どころ・振りの段・コンボ加算の量は起点の側で決める */
+  function prepare(scene: Scene, rule: Rule, c: RuleCondition, met: boolean): void {
+    const { state, target } = scene;
+    const p = state.player;
     switch (c.kind) {
       case "targetHas":
-        if (met) put(scene.state, scene.target, c.status, 3, 2, 2);
+        if (met) afflictTarget(state, target, c.status);
         return;
       case "comboAbove":
-        scene.state.combo.count = met ? c.count : 0;
-        scene.state.combo.timer = 1;
+        state.combo.count = met ? c.count : 0;
+        state.combo.timer = 1;
+        return;
+      case "manaFull":
+        p.mana = met ? state.stats.maxMana : 0;
+        return;
+      case "energyFull":
+        p.energy = met ? p.maxEnergy : 0;
+        return;
+      case "not":
+        prepare(scene, rule, c.condition, !met);
+        return;
+      case "recent":
+        if (met) state.recent[c.event] = { lastTime: state.time, count: 1 };
+        else delete state.recent[c.event];
+        return;
+      case "reaperNear":
+        state.floorTime = met ? reaperAppearAfter(state) : 0;
+        return;
+      case "swingStruck":
+        p.attack.phase = met ? "active" : "none";
+        p.attack.hitIds.clear();
+        p.attack.hitIds.add(target.id);
+        p.dashStrike = false;
+        return;
+      case "finisher":
+        p.attack.combo = met ? LAST : 0;
+        return;
+      case "targetElite":
+        target.elite = met ? ELITE : undefined;
+        return;
+      case "eventTag":
+        if (rule.when === "onRoomClear") setRoomKind(state, met ? c.tag : "normal");
+        return;
+      case "eventTagIn":
+        setRoomKind(state, met ? (c.tags[0] ?? "normal") : "normal");
+        return;
+      case "amountEvery":
+        // コンボ加算の量は加算後のコンボ数（起点の側でこの数をイベントに載せる）
+        state.combo.count = met ? c.every : c.every + 1;
         return;
       case "from":
-      case "eventTag":
         return;
       default:
         throw new Error(`テストが未対応の条件: ${c.kind}`);
     }
   }
 
-  /** 生命・気力・ダッシュを減らし、対象と隣の敵を置いた場。unmet = 満たさない条件の添字（-1 = すべて満たす） */
+  function setRoomKind(state: GameState, kind: string): void {
+    const room = state.rooms[0];
+    if (room) room.kind = kind as RoomState["kind"];
+  }
+
+  /** 効果が食う相手を場に置く（起爆・移す状態異常・凍結の敵だけ・徘徊の敵・リゲイン・自分の状態異常） */
+  function prepareEffect(scene: Scene, rule: Rule): void {
+    const { state, target, neighbor } = scene;
+    const then = rule.then;
+    if (then.kind === "detonate" && then.status) afflictTarget(state, target, then.status);
+    if (then.onlyWith) put(state, neighbor, then.onlyWith, STATUS_TIME);
+    if (then.room === "roaming") neighbor.roomIndex = ROAMING_ROOM;
+    if (then.kind === "cleanse" && then.status) {
+      applyStatus(state, { kind: "player" }, { kind: then.status, stacks: 1, duration: STATUS_TIME, potency: 1 }, "enemy");
+    }
+    if (then.kind === "reclaim") {
+      state.player.regainPool = REGAIN_POOL;
+      state.player.regainTimer = REGAIN_TIME;
+    }
+  }
+
+  /** 生命・気力・ダッシュ・ゲージを減らし、対象と隣の敵を置いた場。unmet = 満たさない条件の添字（-1 = すべて満たす） */
   function makeScene(key: BoonKey, rule: Rule, unmet: number): Scene {
     const state = arena(5, { dashCharges: DASH_CHARGES });
     give(state, key);
+    state.depth = SCENE_DEPTH;
     const p = state.player;
     p.hp = LOW_HP;
     p.mana = 0;
+    p.energy = 0;
     p.dashChargesLeft = 0;
     p.attack.dir = { x: 1, y: 0 };
     const target = dummy(state);
-    dummy(state, NEIGHBOR.dx, NEIGHBOR.dy);
-    const scene = { state, target };
-    rule.if.forEach((c, i) => prepare(scene, c, i !== unmet));
+    const neighbor = dummy(state, NEIGHBOR.dx, NEIGHBOR.dy);
+    const scene = { state, target, neighbor };
+    prepareEffect(scene, rule);
+    rule.if.forEach((c, i) => prepare(scene, rule, c, i !== unmet));
     // 撃破は倒れた後の照合（対象はもう生きていない）
     if (rule.when === "onKill") target.hp = 0;
     dropEvents(state);
@@ -1242,6 +1452,10 @@ describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 �
         if (withHook) onBoonDash(state);
         pushPlayerEvent(state, "onDash", "dash");
         return;
+      case "onDashEnd":
+        if (withHook) onBoonDashEnd(state);
+        pushPlayerEvent(state, "onDashEnd", "dash");
+        return;
       case "onJustDodge": {
         // 条件 from を欠く = 受け流しのスキルが積む見切り（フック onBoonJust は回避の見切りでしか呼ばれない）
         const dodged = conditionMetIn(rule, unmet, "from");
@@ -1257,29 +1471,70 @@ describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 �
       case "onHurt":
         pushEvent(state, { kind: "onHurt", actor: "enemy", pos, targetId: target.id, sourceId: target.id, source: { kind: "enemy", key: target.defKey } });
         return;
-      case "onRoomClear": {
-        const room = state.rooms[0];
+      default:
+        fireMore(scene, rule, unmet, withHook);
+    }
+  }
+
+  /** 第 2 弾で増えた起点（部屋・振り・コンボ・砕き・会心・バースト） */
+  function fireMore(scene: Scene, rule: Rule, unmet: number, withHook: boolean): void {
+    const { state, target } = scene;
+    const room = state.rooms[0];
+    const roomSource = { kind: "room" as const, key: room?.kind ?? "" };
+    switch (rule.when) {
+      case "onRoomClear":
+        pushPlayerEvent(state, "onRoomClear", "room", { tag: room?.kind, source: roomSource });
         if (withHook) onBoonRoomClear(state, room);
-        pushPlayerEvent(state, "onRoomClear", "room", { tag: room?.kind, source: { kind: "room", key: room?.kind ?? "" } });
         return;
-      }
+      case "onRoomLock":
+        if (withHook) onBoonRoomLock(state, 0);
+        pushPlayerEvent(state, "onRoomLock", "room", { tag: room?.kind, room: 0, source: roomSource });
+        return;
       case "onSwing": {
         const combo = conditionMetIn(rule, unmet, "eventTag") ? LAST : 0;
         if (withHook) onBoonSwing(state, combo, false);
         pushSwingEvent(state, combo, false, SWING_DAMAGE);
         return;
       }
+      case "onSwingHit":
+        if (withHook) onBoonMeleeHit(state, target, false);
+        pushSwingHitEvent(state, target, state.player.attack.combo, state.player.dashStrike);
+        return;
+      case "onCounter":
+        pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(target) });
+        if (withHook) onBoonMeleeHit(state, target, true);
+        return;
+      case "onComboHit":
+        if (withHook) onBoonComboHit(state);
+        pushPlayerEvent(state, "onComboHit", "combo", { amount: state.combo.count });
+        return;
+      case "onShatter":
+        if (withHook) onBoonShatter(state, target);
+        pushShatterEvent(state, target);
+        return;
+      case "onCrit":
+        if (withHook) onBoonCrit(state, target, CRIT_AMOUNT);
+        pushEvent(state, { kind: "onCrit", actor: "player", source: { kind: "player", key: "melee" }, amount: CRIT_AMOUNT, ...enemyTarget(target) });
+        return;
+      case "onBurst":
+        if (withHook) onBoonBurstKills(state, BURST_KILLS);
+        pushPlayerEvent(state, "onBurst", "burst", { amount: BURST_KILLS });
+        return;
       default:
         throw new Error(`テストが未対応の起点: ${rule.when}`);
     }
   }
 
-  /** 起点 1 回の効果（照合前後の差）。withHook なら本体と同じ経路、そうでなければこの Rule だけを照合する */
+  /**
+   * 起点 1 回の効果（照合前後の差）。withHook なら本体と同じ経路、そうでなければこの祝福の同じ起点の Rule だけを照合する
+   * （回復と解呪・気力とゲージのように 1 つの起点を 2 つの Rule に分けた祝福は、合わせて 1 回ぶん）
+   */
   function effectOf(key: BoonKey, rule: Rule, unmet: number, withHook: boolean): number[] {
     const scene = makeScene(key, rule, unmet);
     const before = effectVector(scene.state);
     fire(scene, rule, unmet, withHook);
-    resolveRules(scene.state, 0, withHook ? undefined : [rule]);
+    const siblings = (BOONS[key].rules ?? []).filter((r) => r.when === rule.when);
+    resolveRules(scene.state, 0, withHook ? undefined : siblings);
     return delta(before, effectVector(scene.state));
   }
 
@@ -1292,10 +1547,15 @@ describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 �
       for (const r of rules) {
         expect(r.direct, `${key} の ${r.id} は direct`).toBe(true);
         expect(r.chance, `${key} の ${r.id} は確定`).toBe(1);
-        expect(r.icd, `${key} の ${r.id} は ICD なし（フックと同じ回数）`).toBe(0);
+        expect(r.icd, `${key} の ${r.id} の ICD はフックと同じ（無ければ 0）`).toBe(HOOK_ICD[key] ?? 0);
         expect(r.owner, `${key} の ${r.id} の持ち主`).toEqual({ kind: "boon", key });
       }
     }
+  });
+
+  it("移した祝福は第 1 弾 18 種 + 第 2 弾 30 種以上で、重複しない", () => {
+    expect(new Set(MIGRATED).size).toBe(MIGRATED.length);
+    expect(MIGRATED.length).toBeGreaterThanOrEqual(48);
   });
 
   it.each(cases.map((c) => [`${c.key}（${c.rule.id} / ${c.rule.when}）`, c] as const))(
@@ -1317,4 +1577,61 @@ describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 �
       });
     },
   );
+
+  it.each(cases.filter((c) => c.rule.icd > 0).map((c) => [`${c.key}（${c.rule.id}）`, c] as const))(
+    "%s: ICD の間は 2 回目が起きない（フックの内部 CD と同じ）",
+    (_name, { key, rule }) => {
+      const scene = makeScene(key, rule, -1);
+      fire(scene, rule, -1, true);
+      resolveRules(scene.state, 0);
+      prepareEffect(scene, rule);
+      rule.if.forEach((c) => prepare(scene, rule, c, true));
+      const before = effectVector(scene.state);
+      fire(scene, rule, -1, true);
+      resolveRules(scene.state, 0);
+      expect(delta(before, effectVector(scene.state)).every((v) => v === 0), `${key}: ICD の間は起きない`).toBe(true);
+    },
+  );
+});
+
+describe("移行 第 2 弾の起点: 本体の経路でイベントが積まれる", () => {
+  it("コンボ加算は onComboHit を加算後のコンボ数つきで積む", () => {
+    const state = arena();
+    dropEvents(state);
+    state.combo.count = 9;
+    registerComboHit(state);
+    const ev = state.events.find((e) => e.kind === "onComboHit");
+    expect(ev?.amount, "加算後のコンボ数").toBe(10);
+  });
+
+  it("凍結の敵を砕くと onShatter を砕かれた敵を対象に積む", () => {
+    const state = arena();
+    const e = dummy(state);
+    put(state, e, "freeze", 1);
+    dropEvents(state);
+    damageEnemy(state, e, 5, { x: 1, y: 0 }, 0);
+    const ev = state.events.find((x) => x.kind === "onShatter");
+    expect(ev?.targetId, "砕かれた敵").toBe(e.id);
+  });
+
+  it("会心のイベントは与えたダメージを量に持つ（会心雷撃の威力）", () => {
+    const state = arena(5, { critChance: 1 });
+    const e = dummy(state);
+    dropEvents(state);
+    damageEnemy(state, e, 7, { x: 1, y: 0 }, 0, { kind: "melee", crit: true });
+    const ev = state.events.find((x) => x.kind === "onCrit");
+    expect(ev?.amount, "与えたダメージ").toBe(BIG_HP - e.hp);
+  });
+
+  it("撃破のイベントは精鋭かどうかと状態異常の残り秒を写す", () => {
+    const state = arena();
+    const e = dummy(state);
+    e.elite = "hasted";
+    put(state, e, "vulnerable", 2);
+    dropEvents(state);
+    pushKillEvents(state, e);
+    const ev = state.events.find((x) => x.kind === "onKill");
+    expect(ev?.targetElite, "精鋭の写し").toBe(true);
+    expect(ev?.targetStatus?.find((s) => s.kind === "vulnerable")?.time, "残り秒の写し").toBeCloseTo(2);
+  });
 });

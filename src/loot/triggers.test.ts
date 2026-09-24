@@ -14,7 +14,7 @@ import {
   rollTriggerEffect,
   triggerToRoll,
 } from "./triggers";
-import { SLOTS, TRAIT_COLORS } from "./types";
+import { LOOT_SLOTS, TRAIT_COLORS } from "./types";
 import { INFLICT_COLOR, INFLICT_KINDS } from "./triggers";
 import { traitColorOf, triggerCanBeColor } from "./colors";
 import { rollTraitOfColor } from "./generator";
@@ -81,7 +81,7 @@ describe("トリガー文法", () => {
 
   it("generateTriggerRoll はスロットに合ったトリガーだけを出す", () => {
     const rng = createRng(21);
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       for (let i = 0; i < 200; i++) {
         const roll = generateTriggerRoll(rng, 20, slot);
         expect(roll.kind).toBeUndefined();

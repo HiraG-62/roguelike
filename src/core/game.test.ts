@@ -127,9 +127,10 @@ describe("player actions", () => {
     expect(state.combo.count).toBeGreaterThanOrEqual(1);
   });
 
-  it("射撃で弾が出る", () => {
+  it("銃の家系を持てば左で弾が出る", () => {
     const state = createGame(5);
-    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    state.stats = { ...state.stats, moveset: "sidearm" };
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
     expect(state.projectiles.filter((pr) => pr.owner === "player")).toHaveLength(1);
   });
 });

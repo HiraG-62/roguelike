@@ -4,7 +4,7 @@ import { type Enemy, type GameState, pushSfx } from "../core/state";
 import type { StatusProc } from "../core/status";
 import { type Vec, add, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
-import type { ButtonKey, MeleeStepDef, MovesetDef, MovesetKey } from "../data/weapons";
+import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, defineMoveset } from "../data/weapons";
 import { ATTR_KEYS, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
@@ -62,7 +62,7 @@ const SHAKE_SHELL = 3;
 const TOGGLE_SHAPES: ReadonlySet<Wave3SkillKey> = new Set(["siegeForm", "pyreForm"]);
 /** 変身中はほかのスキル石を使えない変身 */
 const SEALING_SHAPES: ReadonlySet<Wave3SkillKey> = new Set(["wolfForm", "wraithForm", "ironForm"]);
-/** 右クリックの射撃を差し替える（通常の射撃を撃たない）変身 */
+/** 射撃（銃の家系の左）を止める変身。狼化は右を遠吠え、砲身化は左右とも砲撃に差し替える */
 const SHOT_LOCK_SHAPES: ReadonlySet<Wave3SkillKey> = new Set(["wolfForm", "siegeForm"]);
 
 /** 業火の化身が差し込んだ燃焼の付与（装備の付与と見分ける印。state の外に持つのは同一性の印だけ） */
@@ -111,7 +111,7 @@ export function shapeMoveset(state: GameState): MovesetDef | null {
   return state.skills.shape?.moveset ?? null;
 }
 
-/** 右クリック（射撃の役割のボタン）の通常の射撃を止めるか */
+/** 銃の通常の射撃を止めるか */
 export function shapeLocksShot(state: GameState): boolean {
   const key = shapeKey(state);
   return key !== null && SHOT_LOCK_SHAPES.has(key);
@@ -548,7 +548,8 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
   if (key === "wolfForm") {
     const w = SKILL.wolfForm;
     const bite = tunedStep(w.bite, params);
-    return {
+    // 右クリックは shapeButtonPress が遠吠えとして先に取るので、技の噛みつきは出ない（型を揃えるための置き場）
+    return defineMoveset({
       key: equipped,
       name: SKILL_NAME.wolfForm,
       desc: "噛みつき突進（出血）。右クリックは遠吠え",
@@ -556,28 +557,28 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       dashAttack: bite,
       attackMoveMul: w.attackMoveMul,
       primary: "melee",
-      secondary: "shot",
+      art: { kind: "strike", key: "wolfBite", name: "噛みつき", desc: "噛みついて出血させる", cooldown: 0, step: bite },
       branches: [],
       keywords: kw(["melee", "bleed"]),
       attack: attack("melee", "physical"),
-    };
+    });
   }
   if (key === "ironForm") {
     const f = SKILL.ironForm;
     const swing = tunedStep(f.swing, params);
-    return {
+    return defineMoveset({
       key: equipped,
       name: SKILL_NAME.ironForm,
-      desc: "1 段の重い振り（大きく怯ませる）",
+      desc: "1 段の重い振り（大きく怯ませる）。右クリックも同じ振り",
       steps: [swing],
       dashAttack: swing,
       attackMoveMul: f.attackMoveMul,
       primary: "melee",
-      secondary: "shot",
+      art: { kind: "strike", key: "ironSwing", name: "鉄塊の振り", desc: "重い振りで大きく怯ませる", cooldown: 0, step: swing },
       branches: [],
       keywords: kw(["melee", "stagger", "wall"]),
       attack: attack("melee", "physical"),
-    };
+    });
   }
   return null;
 }

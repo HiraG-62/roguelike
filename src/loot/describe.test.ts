@@ -65,7 +65,7 @@ function synergyItem(affixes: AffixRoll[]): Item {
     id: "syn-1",
     seed: 1,
     baseKey: "test",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "magic",
     itemLevel: 10,
     name: "試しの剣",

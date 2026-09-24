@@ -277,9 +277,13 @@ export function layoutEcho(state: GameState, ui: EchoUi): EchoLayout {
 // 状態機械
 // ---------------------------------------------------------------------------
 
+const LOANED_MESSAGE = "借り物は砕けない";
+
 function stashItem(state: GameState, id: string | null): Item | null {
   if (id === null) return null;
-  return state.profile.stash.find((it) => it.id === id) ?? null;
+  const item = state.profile.stash.find((it) => it.id === id) ?? null;
+  // 借り物（武器掛け）は残響で育てられない。素の器を育てる抜け道にしないため
+  return item?.loaned === true ? null : item;
 }
 
 /** 対象（倉庫から消えていたら null） */
@@ -396,6 +400,8 @@ function commitEchoResult(state: GameState, ui: EchoUi, result: EchoResult): voi
  * 砕いたら残響を足して保存する。対象に選んでいたら選択を外す
  */
 export function shatterStashItem(state: GameState, ui: EchoUi, item: Item): EchoResult {
+  // 借り物を砕いて残響を得る抜け道を塞ぐ
+  if (item.loaned === true) return { ok: false, op: "shatter", reason: "invalid", message: LOANED_MESSAGE };
   const result = craftEcho(ui.save, { op: "shatter", item });
   commitEchoResult(state, ui, result);
   if (result.ok && ui.targetId === item.id) {

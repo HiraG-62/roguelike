@@ -1,7 +1,8 @@
+import { saveStorage } from "../save/backend";
 import { defaultKeybinds, sanitizeKeybinds, type Keybinds } from "../core/input";
 
 /**
- * 設定（mute / volume / 音楽の音量 / screen shake / キー設定）。localStorage に永続化する。
+ * 設定（mute / volume / 音楽の音量 / screen shake / キー設定）。save/backend.ts の保存先に永続化する（キー設定だけは別キー）。
  * profile.ts の loadProfile / saveProfile と同じパターン: 壊れたデータは黙ってデフォルトへ落とす。
  */
 
@@ -13,11 +14,13 @@ export interface Settings {
   musicVolume: number;
   /** 0..1。1 で通常の揺れ、0 で無効 */
   screenShake: number;
-  /** キー設定。旧データ（フィールド無し）は既定になる。キー名は v1 のまま（追加フィールドで後方互換） */
+  /** キー設定。KEYBINDS_KEY に別保存する。どちらにも無ければ既定 */
   keybinds: Keybinds;
 }
 
 export const SETTINGS_KEY = "roguelike.settings.v1";
+/** キー設定は単独のファイル（Electron 版の keybinds.json）にするため settings から分離した別キー */
+export const KEYBINDS_KEY = "roguelike.keybinds.v1";
 
 const CURRENT_VERSION = 1;
 export const DEFAULT_VOLUME = 0.5;
@@ -38,48 +41,44 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-/** localStorage が存在しない環境（テスト等）でも安全に取得する */
-function defaultStorage(): Storage | null {
+/** 保存先から version の合う JSON オブジェクトを読む。無い・壊れている・触れない・version 不一致なら null */
+function readVersioned(target: Storage, key: string): Record<string, unknown> | null {
+  let parsed: unknown;
   try {
-    return typeof localStorage === "undefined" ? null : localStorage;
+    const raw = target.getItem(key);
+    if (!raw) return null;
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isRecord(parsed) || parsed.version !== CURRENT_VERSION) return null;
+  return parsed;
 }
 
 export function loadSettings(storage?: Storage): Settings {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return defaultSettings();
 
-  let raw: string | null;
-  try {
-    raw = target.getItem(SETTINGS_KEY);
-  } catch {
-    return defaultSettings();
-  }
-  if (!raw) return defaultSettings();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return defaultSettings();
-  }
-  if (!isRecord(parsed) || parsed.version !== CURRENT_VERSION) return defaultSettings();
+  const parsed = readVersioned(target, SETTINGS_KEY);
+  // キー設定は別キー。まだ分離前の保存なら旧 settings に埋め込まれた分を読む（次の保存で分離される）
+  const keybindsSave = readVersioned(target, KEYBINDS_KEY);
+  const keybinds = sanitizeKeybinds(keybindsSave ? keybindsSave.keybinds : parsed?.keybinds);
+  if (!parsed) return { ...defaultSettings(), keybinds };
 
   const muted = typeof parsed.muted === "boolean" ? parsed.muted : false;
   const volume = typeof parsed.volume === "number" ? clamp01(parsed.volume) : DEFAULT_VOLUME;
   const musicVolume = typeof parsed.musicVolume === "number" ? clamp01(parsed.musicVolume) : DEFAULT_MUSIC_VOLUME;
   const screenShake = typeof parsed.screenShake === "number" ? clamp01(parsed.screenShake) : DEFAULT_SCREEN_SHAKE;
-  const keybinds = sanitizeKeybinds(parsed.keybinds);
   return { muted, volume, musicVolume, screenShake, keybinds };
 }
 
 export function saveSettings(settings: Settings, storage?: Storage): void {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return;
+  const { keybinds, ...rest } = settings;
   try {
-    target.setItem(SETTINGS_KEY, JSON.stringify({ version: CURRENT_VERSION, ...settings }));
+    target.setItem(SETTINGS_KEY, JSON.stringify({ version: CURRENT_VERSION, ...rest }));
+    target.setItem(KEYBINDS_KEY, JSON.stringify({ version: CURRENT_VERSION, keybinds }));
   } catch (err) {
     console.warn("saveSettings failed", err);
   }

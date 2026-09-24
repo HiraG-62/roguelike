@@ -4,7 +4,7 @@ import { fluxClassOf } from "./flux";
 import { UNIQUES } from "./named";
 import { nameItem } from "./names";
 import { isTriggerKey } from "./triggers";
-import { createEmptyProvenance, type AffixRoll, type Item, type Provenance, type Rarity } from "./types";
+import { createEmptyProvenance, normalizeSlot, type AffixRoll, type Item, type Provenance, type Rarity } from "./types";
 
 /**
  * 旧形式（prefix / suffix / tier / rarity）のアイテムを新形式（色・揺らぎ・来歴）へ変換する。
@@ -136,8 +136,8 @@ export function ensureGrowthFields(item: Item): Item {
  */
 export function fillProvenanceCounters(p: Provenance): void {
   // 毎回の出来事で呼ばれるので、最後に足したカウンタがあれば（= 全部そろっていれば）何もしない
-  // 第 1 弾・第 2 弾それぞれの最後のカウンタを見る（片方だけ欠けた来歴も補う）
-  if (typeof p.lastKills === "number" && typeof p.branchHits === "number") return;
+  // 第 1 弾・第 2 弾・第 4 弾それぞれの最後のカウンタを見る（一部だけ欠けた来歴も補う）
+  if (typeof p.lastKills === "number" && typeof p.branchHits === "number" && typeof p.returns === "number") return;
   for (const key of PROVENANCE_COUNTERS) {
     if (typeof p[key] !== "number" || !Number.isFinite(p[key])) p[key] = EMPTY_COUNTER;
   }
@@ -166,18 +166,23 @@ export const PROVENANCE_COUNTERS = [
   "favoredKills",
   "chargedHits",
   "branchHits",
+  "returns",
 ] as const satisfies readonly (keyof Provenance)[];
 
-/** 旧形式 → 新形式。新形式ならフィールドを補うだけ（冪等）。引数は変更しない */
+/**
+ * 旧形式 → 新形式。新形式ならフィールドを補うだけ（冪等）。引数は変更しない。
+ * slot は常に normalizeSlot を通す（旧 weapon / gun。profile.ts を経由しないリプレイの装備スナップショットのため）
+ */
 export function migrateItem(item: Item): Item {
-  if (isNewFormat(item)) return ensureGrowthFields({ ...item });
+  const slot = normalizeSlot(item.slot) ?? item.slot;
+  if (isNewFormat(item)) return ensureGrowthFields({ ...item, slot });
   const affixes = item.affixes.map(migrateRoll).filter((r): r is AffixRoll => r !== null);
   const margin = LEGACY_RARITY_MARGIN[item.rarity];
   const out: Item = {
     id: item.id,
     seed: item.seed,
     baseKey: item.baseKey,
-    slot: item.slot,
+    slot,
     rarity: fluxClassOf(affixes),
     itemLevel: item.itemLevel,
     name: item.name,

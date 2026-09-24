@@ -74,9 +74,9 @@ describe("属性の変換（7 種）", () => {
   });
 
   it("通常攻撃の割合を属性へ移し、合計が 100% を超えたら按分で 100% に縮める", () => {
-    const s = statsWith([roll("cv_infuseFire", 40)], "weapon");
+    const s = statsWith([roll("cv_infuseFire", 40)], "mainHand");
     expect(s.infuse.fire).toBeCloseTo(0.4);
-    const over = statsWith([roll("cv_infuseFire", 80), roll("cv_infuseIce", 80)], "weapon");
+    const over = statsWith([roll("cv_infuseFire", 80), roll("cv_infuseIce", 80)], "mainHand");
     expect(over.infuse.fire + over.infuse.ice).toBeCloseTo(1);
     expect(over.infuse.fire).toBeCloseTo(over.infuse.ice);
   });

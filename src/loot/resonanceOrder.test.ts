@@ -170,10 +170,10 @@ describe("陰画の判定順（resonanceOrder）", () => {
 
   it("装備全体（部位をまたいだ性質）でも同じ順で陰画になる", () => {
     const equipment = createEmptyProfile().equipment;
-    equipment.weapon = item("weapon", crimsonTraits(3));
+    equipment.mainHand = item("mainHand", crimsonTraits(3));
     equipment.armor = item("armor", [...crimsonTraits(2), trait("maxLife", "jade")]);
     equipment.boots = item("boots", [inverted("moveSpeed")]);
-    equipment.gun = item("gun", [inverted("rangedDamagePct")]);
+    equipment.ring = item("ring", [inverted("rangedDamagePct")]);
     const r = equipmentResonance(equipment);
     expect(r.kind).toBe("dominant");
     expect(r.form, "部位をまたいでも陰画").toBe("negative");

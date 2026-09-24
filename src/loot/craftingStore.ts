@@ -1,3 +1,4 @@
+import { saveStorage } from "../save/backend";
 import {
   LEGACY_CURRENCIES,
   convertLegacyWallet,
@@ -57,15 +58,6 @@ function addEchoes(a: EchoWallet, b: Readonly<EchoWallet>): EchoWallet {
   return out;
 }
 
-/** localStorage が無い / 触れない環境では null（profile.ts と同じ方針） */
-function defaultStorage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** 保存データ（v1 / v2）を CraftSave にする。旧 wallet は残響へ換算して足す。壊れていれば null */
 export function parseCraftSave(parsed: unknown): CraftSave | null {
   if (!isRecord(parsed)) return null;
@@ -77,7 +69,7 @@ export function parseCraftSave(parsed: unknown): CraftSave | null {
 
 /** 保存された残響を読み込む。無い / 壊れている / 未知の version なら空 */
 export function loadCraft(storage?: Storage): CraftSave {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return createCraftSave();
   let parsed: unknown;
   try {
@@ -92,7 +84,7 @@ export function loadCraft(storage?: Storage): CraftSave {
 
 /** 保存する。容量超過などの失敗は握りつぶす */
 export function saveCraft(save: CraftSave, storage?: Storage): void {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return;
   try {
     target.setItem(CRAFT_KEY, JSON.stringify(save));

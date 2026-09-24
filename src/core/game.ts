@@ -23,6 +23,7 @@ import { createTerrainLayer } from "./terrain";
 import { updateHazards } from "../system/hazards";
 import { updateReaper } from "../system/reaper";
 import { createSkillRunState } from "../system/skills";
+import { syncTurretShots } from "../skills/summons";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import type { SkillProfile } from "../skills/types";
 import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
@@ -65,7 +66,7 @@ export function createGame(
     particles: [],
     texts: [],
     pickups: [],
-    camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 } },
+    camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
     hitstop: 0,
     slowmo: 0,
     flash: 0,
@@ -171,6 +172,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   updateRunEvents(state, gdt);
   updateReaper(state, gdt);
   updateCombo(state, gdt);
+  syncTurretShots(state); // 近接の振りに合わせて砲台を撃つ（resolveRules が state.events を空にする直前）
   resolveRules(state, gdt);
   updateEffects(state, gdt);
   updateCamera(state, dt, VIEW_W, VIEW_H);

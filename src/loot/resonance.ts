@@ -869,12 +869,12 @@ function describeColorResonance(resonance: Resonance): string[] {
 // 星座（6 部位の主色の並び。docs/ideas/loot-expansion.md 9-4）
 // ---------------------------------------------------------------------------
 
-/** 部位の輪（武器 - 銃 - 首飾り - 鎧 - 靴 - 指輪 - 武器）。隣り合い・向かい合いはこの並びで見る */
-export const CONSTELLATION_RING: readonly Slot[] = ["weapon", "gun", "amulet", "armor", "boots", "ring"];
+/** 部位の輪（右手 - 左手 - 首飾り - 鎧 - 靴 - 指輪 - 右手）。隣り合い・向かい合いはこの並びで見る */
+export const CONSTELLATION_RING: readonly Slot[] = ["mainHand", "offHand", "amulet", "armor", "boots", "ring"];
 /** 輪で向かい合う 3 組 */
 const OPPOSED_SLOTS: readonly (readonly [Slot, Slot])[] = [
-  ["weapon", "armor"],
-  ["gun", "boots"],
+  ["mainHand", "armor"],
+  ["offHand", "boots"],
   ["amulet", "ring"],
 ];
 
@@ -898,8 +898,8 @@ export function itemMainColor(affixes: readonly AffixRoll[]): TraitColor | undef
 /** 装備の部位ごとの主色（空き部位は undefined） */
 export function mainColors(equipment: Equipment): MainColors {
   const out: Record<Slot, TraitColor | undefined> = {
-    weapon: undefined,
-    gun: undefined,
+    mainHand: undefined,
+    offHand: undefined,
     armor: undefined,
     boots: undefined,
     ring: undefined,
@@ -924,8 +924,10 @@ function ringNeighbors(): (readonly [Slot, Slot])[] {
 type ConstellationRule = (main: MainColors) => boolean;
 
 const CONSTELLATION_RULES: Readonly<Record<ConstellationKey, ConstellationRule>> = {
-  twins: (m) => same(m.weapon, m.gun),
-  shores: (m) => m.weapon !== undefined && m.gun !== undefined && (OPPOSITE_COLOR[m.weapon] === m.gun || OPPOSITE_COLOR[m.gun] === m.weapon),
+  // 左手（offHand）は今はベースが無く常に空なので、twins / shores は「銃なし」のときと同じく成立しない
+  twins: (m) => same(m.mainHand, m.offHand),
+  shores: (m) =>
+    m.mainHand !== undefined && m.offHand !== undefined && (OPPOSITE_COLOR[m.mainHand] === m.offHand || OPPOSITE_COLOR[m.offHand] === m.mainHand),
   spine: (m) => same(m.amulet, m.armor) && same(m.armor, m.boots),
   ring: (m) => new Set(CONSTELLATION_RING.map((s) => m[s]).filter((c) => c !== undefined)).size === TRAIT_COLORS.length,
   mirror: (m) => OPPOSED_SLOTS.every(([a, b]) => same(m[a], m[b])),

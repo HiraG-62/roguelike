@@ -37,6 +37,7 @@ const COLOR_FIRE = "#ff7030";
 const COLOR_ICE = "#a0e0ff";
 const COLOR_STONE = "#b0a080";
 const COLOR_BOG = "#80a040";
+const COLOR_MUD = "#8a6a40";
 const COLOR_BRAND = "#ff9040";
 const COLOR_BREAK = "#e0a060";
 const COLOR_HUE = "#f0a0ff";
@@ -69,6 +70,7 @@ export const WAVE2_CAST_RANGE: Partial<Record<Wave2SkillKey, number>> = {
   hueRelease: SKILL.hueRelease.maxRange,
   doomSentence: SKILL.doomSentence.maxRange,
   wardStake: SKILL.wardStake.maxRange,
+  mire: SKILL.mire.maxRange,
 };
 
 // ---------------------------------------------------------------------------
@@ -120,6 +122,7 @@ export const WAVE2_CAST: Record<Wave2SkillKey, Wave2CastFn> = {
   swiftForm: (state, ctx) => castForm(state, ctx, "swiftForm"),
   spiritForm: (state, ctx) => castForm(state, ctx, "spiritForm"),
   wardStake: (state, ctx) => placeStake(state, ctx.target, ctx.params),
+  mire: castMire,
 };
 
 // ---- 共通の形 ----
@@ -144,6 +147,15 @@ function splashTerrain(state: GameState, ctx: CastCtx, block: SplashBlock, kind:
   for (const e of enemiesInRadius(state, at, radius)) {
     skillHit(state, e, ctx.params, { base: power, kind: "ranged", dir: sub(e.body.pos, at), knockback: block.knockback, stagger: false, from: at });
   }
+}
+
+/** 泥沼: 照準地点に泥を広げ、中の敵に怯み値を入れ続ける領域を置く（領域の周期は skills/placed.ts） */
+function castMire(state: GameState, ctx: CastCtx): void {
+  const m = SKILL.mire;
+  splashTerrain(state, ctx, m, "mud", COLOR_MUD);
+  const zones = state.skills.mires ?? [];
+  state.skills.mires = zones;
+  zones.push({ pos: { ...ctx.target }, timer: m.terrainTime * ctx.params.durationMul, tick: m.tickEvery, params: ctx.params, map: state.map });
 }
 
 interface ConeBlock {

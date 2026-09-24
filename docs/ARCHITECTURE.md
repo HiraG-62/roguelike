@@ -32,6 +32,8 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 
 画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備 / スキル / クラフト画面は `src/ui/inventory.ts`。どちらも DOM 非依存でテストされる。
 
+拠点（`docs/ideas/hub-design.md`）: タイトルの Enter → 拠点 → 井戸 → 起点画面 → 依頼の 3 択 → ラン。死亡画面の T とポーズの「拠点へ」は拠点へ戻り、拠点の Esc はタイトルへ。拠点の台は既存の画面（装備画面の各タブ・一覧画面・起点画面・履歴）を開き、その画面の Esc は拠点へ戻る（`main.ts` の `menuReturn`。タイトルから開いたときはタイトルへ）。台と画面の対応表・祭壇の一覧・長押しの判定は `src/ui/hubFlow.ts`。拠点の `GameState`（`sandbox`）は `main.ts` の `state` とは別の変数に持ち、リプレイの記録は従来どおり `beginRun` の後に始まる（拠点での装備変更はラン開始時のスナップショットに入る）。
+
 戦闘再設計（`docs/COMBAT_DESIGN.md`）で入った主要システム: `system/attributes.ts`（ステータスの実効値・威力計算 `scaled`。`applyStats` から `deriveAttributes` として呼ぶ）、`system/mana.ts`（気力の増減。`core/game.ts` の `step` から `refillMana` / `tickMana` を直接呼ぶ）、`system/poise.ts`（怯みの蓄積・減衰・堅守・処刑・背面の一撃。`combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれ、独立した `step` ステップは持たない）、`system/statusEffects.ts`（34 種の状態異常。`step` のパイプラインに `updateStatusEffects` として入っている）。
 
 Wave 2（`docs/ideas/*-expansion.md`）で入ったシステム: `system/enemyTraits.ts`（死骸・取り巻き・気力奪取・双子復活・臆病など敵に横断する仕組み）、`system/enemyBehaviors.ts`（新 behavior 1 つにつき関数 1 つの実装）、`system/bossTwins.ts` / `system/bossFrostGiant.ts`（ボス 2 体の専用ロジック。共通処理は `system/boss.ts`）、`system/boonDefs.ts`（祝福のデータ定義。系譜 `lineage`/`after`、結び `duo` を含む）、`system/boonRules.ts`（拡張分の祝福ルール `onBoonXxxRules`。`system/boons.ts` の既存フックから呼ぶ）、`system/statusReactions.ts`（状態異常や地形の層が出会ったときの反応 `ReactionKey`）、`core/terrain.ts` + `system/terrain.ts`（床の地形の層の型・一覧と効果。配置は `map/generator.ts` の `planTerrain`）、`system/traitHooks.ts`（装備の性質・トリガー文法拡張が読む倍率・フック）、`loot/traitContext.ts`（性質が装備全体や来歴など「自分の外」を読むための文脈）、`skills/{tuning,defs,modifiers,combos,actions,shots,summons,geom}.ts`（大拡張のスキル・刻印符・連携のデータと発動処理。`skills/data.ts` の `SKILL_DEFS`/`MODIFIERS` に混ぜ込む形）、`render/terrainUi.ts`（地形の層の描画）。
@@ -42,7 +44,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 
 0.0.9α で入ったシステム: スキル第 2 弾（地形を作る / 燃やす・烙印や崩勢や彩痕を使う・属性が巡る・武器種で形が変わる・変身・空間）は `skills/defs2.ts`（`SkillDef` を `data.ts` の `SKILL_DEFS` に展開）、`skills/actions2.ts`（発動処理）、`skills/modifiers2.ts`（刻印符・型替え符の `resolveCast` 拡張）、`skills/tuning2.ts`（数値）に分けて実装（第 1 弾と同じ形で `skills/data.ts` に混ぜ込む）。`skills/wear.ts`（スキル石の使い込み。手動の発動 / 命中回数の節目で芽〔威力 / 枠〕が出る。装備の来歴と同じ「積み重ね → 節目 → 芽」の形）。演出第 2 弾は `render/effectsUi.ts`（死に方 8 種・精鋭 / ボス撃破の光・見切りの輪などの `DeathFx` / `FxMark` の描画。`state.effects` を読むだけで、演出専用の乱数は `system/effects.ts` の `fxState` が作る。ゲームの乱数 `state.rng` を消費しない）。
 
-統一ルール文法（`docs/ideas/synergy-web.md` 3 章）: 各 system は起きたこと（近接命中・撃破・ダッシュ開始 / 終了・被弾・見切り・部屋のロック / 制圧・怯み・カウンター・反応・状態異常の付与・スキルの発動 / 命中・敵の予備動作・地形への進入・近接の振り始め…、`EventKind` 22 種）を `core/events.ts` の `pushEvent` で `state.events` に積むだけ（`pushSfx` と同じ作法。既存のフック `onBoonKill` / `fireTrigger` などは残したまま隣で積む段階的移行）。`core/rules.ts` が `Rule`（when × if × then、chance、icd、scope、owner）の型、`system/rules.ts` の `resolveRules` が combo の後に 1 回だけ照合する。
+統一ルール文法（`docs/ideas/synergy-web.md` 3 章）: 各 system は起きたこと（近接命中・撃破・ダッシュ開始 / 終了・被弾・見切り・部屋のロック / 制圧・怯み・カウンター・反応・状態異常の付与・スキルの発動 / 命中・敵の予備動作・地形への進入・近接の振り始め…、`EventKind` 25 種）を `core/events.ts` の `pushEvent` で `state.events` に積むだけ（`pushSfx` と同じ作法。既存のフック `onBoonKill` / `fireTrigger` などは残したまま隣で積む段階的移行）。`core/rules.ts` が `Rule`（when × if × then、chance、icd、scope、owner）の型、`system/rules.ts` の `resolveRules` が combo の後に 1 回だけ照合する。
 
 - 照合順: イベントは積んだ順（前ステップからの持ち越しが先）。Rule は祝福の取得順（`BoonDef.rules`）→ スキルスロット順（`SkillDef.rules` / `ModifierDef.rules`、scope は自分のスロットに縛る）→ 対象の敵（`EnemyCombatDef.rules`、効果は予告付きハザードのみ）。装備の `tr:` は `fireTrigger` がその場で `ruleFromTrigger`（`loot/triggers.ts`）に読み替えて照合する（手触りと乱数の消費順を変えないため、resolveRules では集めない）
 - 連鎖: 効果が起こしたイベントは深さ +1 で `state.pendingEvents` へ入り、次ステップで照合する（同ステップで再帰しない）。深さ `SYNERGY.maxDepth` 以上は照合せず、効果量は深さごとに × `SYNERGY.chainDecay`
@@ -53,6 +55,9 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 - 効果 `healDirect` / `ward` / `shards` / `afflict`（2026-09-24 追加）: 戦闘中の回復の上限（`HEAL.sustainCapRatio`）を通さない回復 / 上限なしの無敵 / 全方位への氷の破片 / 対象へ状態異常をそのまま付ける（`inflict` と違い、持続を切り詰めず procIcd も見ない旧フックの付け方）
 - イベント `onSwing`（2026-09-24 追加）: 近接の振り始め。`GameEvent.amount` にその段の威力、`tag` に `SWING_TAG`（`dashStrike` / `finisher` / `normal`）の段の種類が入る
 - 乱数は Rule の照合順に `state.rng` から引く。確率 1 以上の Rule は引かない
+- 効果の時点: ルール化した祝福の効果は、イベントが起きた瞬間ではなく同じステップの末（`resolveRules`）で起きる。連撃波はステップ末のコンボ数を見る。回復・無敵は同じステップの致死には間に合わない（仕様）
+- 上限: 1 ステップのイベントは `SYNERGY.maxEventsPerStep`、持ち越しは `SYNERGY.maxPendingEvents` まで。超えた分は捨て、`state.ruleRun.droppedEvents` に累計を数える
+- 煙（地形）は `state.projectiles` の弾（射撃・敵弾）だけを消す。スキルの弾（`state.skills` 側の弾）は消さない（仕様）
 
 ## フロアと部屋（開放型。2026-09-24）
 
@@ -132,18 +137,22 @@ GameState
 - デイリーシード: `dailySeedText(new Date())` の文字列を `hashSeed` で seed にする
 - 決定性は `core/game.test.ts` と `core/replay.test.ts` がテストで固定している
 
-## 永続化キー（localStorage）
+## 永続化キー（保存先）
+
+保存先は `save/backend.ts` の `saveStorage()` 経由のみ（ブラウザ版は localStorage、Electron 版は `save/bootstrap.ts` が差し込む `FileStorage` = `%APPDATA%\DEPTHBREAKER\save\*.json`。キーとファイル名の対応は `save/fileEnvelope.ts` の `SAVE_FILES`）。リプレイ再生中の書き込み抑止も `guardSaveWrites` がここで持つ。
 
 | キー | 中身 | 読み書き |
 | --- | --- | --- |
 | `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件） | `loot/profile.ts` |
 | `roguelike.skills.v1` | スキル石とスロット | `skills/persistence.ts` |
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
-| `roguelike.settings.v1` | ミュート・音量・画面揺れ・キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定。追加フィールドなので v1 のまま） | `ui/settings.ts` |
+| `roguelike.settings.v1` | ミュート・音量・音楽の音量・画面揺れ | `ui/settings.ts` |
+| `roguelike.keybinds.v1` | キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定）。2026-09-24 に settings から分離。このキーが無いときだけ旧 `settings.v1` に埋め込まれた `keybinds` を読み、次の保存で分離される | `ui/settings.ts` |
 | `roguelike.replays.v1` | リプレイ最新 10 件 | `ui/replayStore.ts` |
 | `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、スキルの連携の回数〔`combos`、2026-09-24 追加〕、連携の初発見〔`firstSeen`: id → 階とシード、2026-09-24 追加〕、階の種類・部屋の種類）。追加フィールドは旧データで `{}` に補うので `v1` のまま。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
 | `roguelike.quests.v1` | 依頼（達成した依頼と時刻、受けたまま未達成の依頼 `active`）。起点の解放・図鑑の頁・名のある遺物の抽選・称号はここから読む | `meta/questStore.ts` |
 | `roguelike.achievements.v1` | 実績（解除した実績と時刻）と名乗っている称号 | `meta/achievements.ts` |
+| `roguelike.hub.v1` | 拠点（施設の既読など） | `meta/hubStore.ts` |
 
 共通ルール: 例外（容量超過・プライベートモード）を握りつぶし、壊れたデータはデフォルトへ落とす。形式を非互換に変えるときはキーの版を上げる。
 

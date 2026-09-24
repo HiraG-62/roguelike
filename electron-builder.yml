@@ -1,0 +1,21 @@
+# Steam にそのまま上げられる展開済みフォルダ（release/win-unpacked/）を作る。インストーラは Steam 外で配るときだけ
+appId: com.hirag.depthbreaker
+productName: DEPTHBREAKER
+directories:
+  output: release
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+asar: true
+# ネイティブモジュールが無いので再ビルドは不要
+npmRebuild: false
+win:
+  target: dir
+# 配布物を node として動かしたり --inspect で main プロセスに入り込んだりできないようにする
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

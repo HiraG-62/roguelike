@@ -236,7 +236,7 @@ describe("summarizeRunItems", () => {
       id: "id",
       seed: 1,
       baseKey: "sword",
-      slot: "weapon",
+      slot: "mainHand",
       rarity: "normal",
       itemLevel: 1,
       name: "Sword",

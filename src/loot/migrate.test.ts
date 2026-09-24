@@ -37,7 +37,7 @@ function legacyRare(): Item {
     id: "old-rare",
     seed: 9,
     baseKey: "longsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "rare",
     itemLevel: 20,
     name: "嵐の牙",
@@ -130,7 +130,7 @@ describe("migrateItem", () => {
     storage.setItem(PROFILE_KEY, JSON.stringify(legacyProfile));
     const first = loadProfile(storage);
     expect(loadProfile(storage)).toEqual(first);
-    const weapon = first.equipment.weapon;
+    const weapon = first.equipment.mainHand;
     const trigger = weapon?.affixes.find((r) => r.key === "tr:onKill:always:heal");
     expect(trigger?.value).toBe(5);
     expect(trigger?.value2).toBe(400);
@@ -155,7 +155,7 @@ describe("migrateItem", () => {
     storage.setItem(PROFILE_KEY, JSON.stringify(legacyProfile));
     const loaded = loadProfile(storage);
     expect(loaded.stash).toHaveLength(2);
-    expect(loaded.equipment.weapon?.provenance).toBeDefined();
+    expect(loaded.equipment.mainHand?.provenance).toBeDefined();
     expect(loaded.stash[1]?.margin).toBe(LEGACY_RARITY_MARGIN.magic);
     saveProfile(loaded, storage);
     expect(loadProfile(storage)).toEqual(loaded);

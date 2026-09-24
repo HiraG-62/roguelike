@@ -3,6 +3,7 @@ import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
 import { damagePlayer } from "../system/combat";
 import { chooseBud } from "../system/loot";
+import { ascend, buildFloor } from "../system/floor";
 import { traitColorOf } from "./colors";
 import { generateItem } from "./generator";
 import { engraveName } from "./names";
@@ -22,7 +23,7 @@ const NOW = 1_700_000_000_000;
 const KILLS_FOR_FIRST_BUD = 50;
 
 function weapon(seed = 1, margin = 3): Item {
-  const item = generateItem(createRng(seed), { itemLevel: 10, foundDepth: 10, slot: "weapon", now: NOW });
+  const item = generateItem(createRng(seed), { itemLevel: 10, foundDepth: 10, slot: "mainHand", now: NOW });
   return { ...item, affixes: item.affixes.slice(0, 1), margin, marginMax: margin };
 }
 
@@ -49,7 +50,7 @@ describe("recordProvenance: 来歴の加算", () => {
     recordProvenance(state, { kind: "hurt" });
     recordProvenance(state, { kind: "roomClear" });
     recordProvenance(state, { kind: "floorClear" });
-    const p = state.profile.equipment.weapon?.provenance;
+    const p = state.profile.equipment.mainHand?.provenance;
     expect(p?.kills).toBe(4);
     expect(p?.killsByEnemy).toEqual({ slime: 3, kingSlime: 1 });
     expect(p?.bosses).toBe(1);
@@ -66,7 +67,7 @@ describe("recordProvenance: 来歴の加算", () => {
       id: "legacy",
       seed: 3,
       baseKey: "shortsword",
-      slot: "weapon",
+      slot: "mainHand",
       rarity: "magic",
       itemLevel: 5,
       name: "old",
@@ -77,15 +78,15 @@ describe("recordProvenance: 来歴の加算", () => {
     };
     const state = createGame(1, "1", profileWith(legacy));
     kill(state, 1);
-    expect(state.profile.equipment.weapon?.provenance?.kills).toBe(1);
-    expect(state.profile.equipment.weapon?.margin).toBe(3);
+    expect(state.profile.equipment.mainHand?.provenance?.kills).toBe(1);
+    expect(state.profile.equipment.mainHand?.margin).toBe(3);
   });
 
   it("戦闘のフック: 被弾で hurtTaken が増える", () => {
     const state = createGame(1, "1", profileWith(weapon()));
     state.player.invulnTimer = 0;
     damagePlayer(state, 5, { x: state.player.body.pos.x + 10, y: state.player.body.pos.y });
-    expect(state.profile.equipment.weapon?.provenance?.hurtTaken).toBe(1);
+    expect(state.profile.equipment.mainHand?.provenance?.hurtTaken).toBe(1);
   });
 });
 
@@ -99,12 +100,12 @@ describe("芽", () => {
     expect(pending).not.toBeNull();
     if (pending === null) return;
     expect(pending.milestone).toBe(`kills:${KILLS_FOR_FIRST_BUD}`);
-    expect(pending.slot).toBe("weapon");
+    expect(pending.slot).toBe("mainHand");
     const def = milestoneDef(pending.milestone);
     expect(def?.color).toBe("crimson");
     expect(traitColorOf(pending.options[0])).toBe("crimson");
     expect(traitColorOf(pending.options[1])).toBe(OPPOSITE_COLOR.crimson);
-    const item = state.profile.equipment.weapon;
+    const item = state.profile.equipment.mainHand;
     const existing = new Set(item?.affixes.map((r) => r.key));
     for (const option of pending.options) expect(existing.has(option.key)).toBe(false);
   });
@@ -123,7 +124,7 @@ describe("芽", () => {
     const statsBefore = state.stats;
     const chosen = chooseBud(state, 1);
     expect(chosen?.key).toBe(pending.options[1].key);
-    const item = state.profile.equipment.weapon;
+    const item = state.profile.equipment.mainHand;
     expect(item?.affixes.at(-1)?.key).toBe(pending.options[1].key);
     expect(item?.affixes.at(-1)?.origin).toBe("bud");
     expect(item?.margin).toBe(2);
@@ -178,5 +179,35 @@ describe("銘", () => {
     expect(engraveName(p, 0)).toBe("王殺しの不屈");
     expect(engraveName({ ...createEmptyProvenance(), justDodges: 5 }, 0)).toBe("見切り");
     expect(engraveName(createEmptyProvenance(), 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe("帰還の節目（2026-09-24 第 4 弾）", () => {
+  it("帰還の出来事で returns が積もり、最初の帰還で芽が 1 つ出る", () => {
+    const state = createGame(1, "1", profileWith(weapon(21, 3)));
+    recordProvenance(state, { kind: "returned" });
+    const item = state.profile.equipment.mainHand;
+    expect(item?.provenance?.returns).toBe(1);
+    expect(item?.budOffer?.milestone, "帰還の節目の芽").toBe("returns:1");
+    expect(state.pendingBud?.milestone).toBe("returns:1");
+    expect(milestoneDef("returns:1")?.label).toBe("帰還 1");
+  });
+
+  it("上り階段で戻る（ascend）と装備中の遺物に帰還が積もる", () => {
+    const state = createGame(5, "5", profileWith(weapon(22, 3)));
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    expect(state.profile.equipment.mainHand?.provenance?.returns).toBe(1);
+    expect(state.profile.equipment.mainHand?.milestones).toContain("returns:1");
+  });
+
+  it("旧セーブの来歴（returns 無し）は 0 で補われる", () => {
+    const { returns: _r, ...old } = createEmptyProvenance();
+    const item = weapon(23, 3);
+    item.provenance = old as ReturnType<typeof createEmptyProvenance>;
+    offerNextBud(item);
+    expect(item.provenance.returns).toBe(0);
   });
 });

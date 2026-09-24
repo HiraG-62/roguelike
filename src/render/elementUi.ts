@@ -3,7 +3,7 @@ import type { Enemy, GameState } from "../core/state";
 import { enemyGuard } from "../data/enemyCombat";
 import { enemyWeaknesses } from "../data/enemyDefense";
 import { ELEMENT } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { MOVESETS, SHOT_TYPES, usesProjectiles } from "../data/weapons";
 import { baseDef } from "../loot/bases";
 import type { Item, PlayerStats } from "../loot/types";
 import { SKILL_ATTACK } from "../skills/data";
@@ -31,11 +31,16 @@ export function skillAttackLine(key: SkillKey): string | null {
   return atk ? attackLabel(atk) : null;
 }
 
-/** いまの近接・射撃の素性（属性の変換はステータス一覧の「近接・射撃の炎属性 n%」が別に出す） */
+/**
+ * いまの近接・射撃の素性（属性の変換はステータス一覧の「近接・射撃の炎属性 n%」が別に出す）。
+ * 弾を出せない武器種（usesProjectiles が偽）は「射撃: …」の代わりに右クリックの固有技の名前を出す
+ */
 export function loadoutAttackLines(stats: Readonly<PlayerStats>): string[] {
   const m = MOVESETS[stats.moveset];
+  const meleeLine = `${m.name}: ${attackLabel(m.attack)}`;
+  if (!usesProjectiles(m)) return [meleeLine, `${m.art.name}: 固有技`];
   const s = SHOT_TYPES[stats.shot];
-  return [`${m.name}: ${attackLabel(m.attack)}`, `${s.name}: ${attackLabel(s.attack)}`];
+  return [meleeLine, `${s.name}: ${attackLabel(s.attack)}`];
 }
 
 export interface WeaknessMark {

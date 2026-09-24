@@ -131,8 +131,12 @@ export interface TrackChoice {
   combat: boolean;
 }
 
-/** フロア種別・交戦中か・ボス戦中か から曲を選ぶ。ボス戦はボス曲で常に打楽器入り */
-export function pickTrack(floorKind: FloorKind, engaged: boolean, boss: boolean): TrackChoice {
+/** 拠点の曲。拠点は戦わない休息の場なので、既存曲のうちテンポが遅く打楽器の薄い氷河の曲を流用する */
+export const HUB_TRACK: TrackKey = "glacier";
+
+/** フロア種別・交戦中か・ボス戦中か から曲を選ぶ。ボス戦はボス曲で常に打楽器入り。拠点は交戦が無いので打楽器なし */
+export function pickTrack(floorKind: FloorKind, engaged: boolean, boss: boolean, hub = false): TrackChoice {
+  if (hub) return { track: HUB_TRACK, combat: false };
   if (boss) return { track: "boss", combat: true };
   return { track: floorKind, combat: engaged };
 }
@@ -151,6 +155,8 @@ export interface MusicInput {
   depth: number;
   /** スローモーション中（ラストキル・見切り）。音楽に低域通過を掛けてこもらせる（8-15）。省略は false */
   slowmo?: boolean;
+  /** 拠点にいる（HUB_TRACK を流す）。省略は false */
+  hub?: boolean;
 }
 
 export interface MusicCue {
@@ -186,9 +192,10 @@ export function trackVariant(seed: number, depth: number): { transpose: number; 
 
 export function musicCue(input: Readonly<MusicInput>): MusicCue {
   if (!input.inRun) return { track: null, combat: false, tempoMul: 1, transpose: 0, arpShift: 0, muffle: false };
-  const choice = pickTrack(input.floorKind, input.engaged, input.boss);
-  // ボス曲は移調しない（固定の旋律として覚えさせる）。バイオーム曲だけ seed で揺らす
-  const variant = choice.track === "boss" ? { transpose: 0, arpShift: 0 } : trackVariant(input.seed, input.depth);
+  const choice = pickTrack(input.floorKind, input.engaged, input.boss, input.hub === true);
+  // ボス曲と拠点の曲は移調しない（固定の旋律として覚えさせる）。バイオーム曲だけ seed で揺らす
+  const fixed = choice.track === "boss" || input.hub === true;
+  const variant = fixed ? { transpose: 0, arpShift: 0 } : trackVariant(input.seed, input.depth);
   const tempoMul = input.boss && input.bossDown ? MUSIC.bossDownTempoMul : 1;
   return { track: choice.track, combat: choice.combat, tempoMul, ...variant, muffle: input.slowmo === true };
 }

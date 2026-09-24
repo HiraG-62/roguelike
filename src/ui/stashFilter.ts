@@ -5,6 +5,7 @@ import { dominantColor } from "../loot/names";
 import {
   RARITIES,
   RARITY_LABEL,
+  LOOT_SLOTS,
   SLOTS,
   TRAIT_COLORS,
   TRAIT_COLOR_LABEL,
@@ -21,9 +22,9 @@ import { type Point, type Rect, SLOT_LABEL, pointInRect } from "./inventoryLayou
  * 並べ替えの軸は「何を持っているか」で選ぶためのもので、強さの単一指標は作らない（docs/DESIGN_PRINCIPLES.md）
  */
 
-/** 部位タブ。all は全部位を部位ごとにまとめて並べる */
+/** 部位タブ。all は全部位を部位ごとにまとめて並べる。タブはドロップのある部位だけ（左手は今はベースが無い） */
 export type SlotFilter = Slot | "all";
-export const SLOT_FILTERS: readonly SlotFilter[] = ["all", ...SLOTS];
+export const SLOT_FILTERS: readonly SlotFilter[] = ["all", ...LOOT_SLOTS];
 
 /** 並べ替えの軸 */
 export const SORT_KEYS = ["found", "depth", "flux", "color", "name", "margin", "traits"] as const;
@@ -158,7 +159,7 @@ export function matchesView(item: Item, view: StashView): boolean {
 
 /** 部位タブに添える件数（色・揺らぎ・印の絞り込み後） */
 export function slotCounts(stash: readonly Item[], view: StashView): Record<SlotFilter, number> {
-  const counts = Object.fromEntries(SLOT_FILTERS.map((s) => [s, 0])) as Record<SlotFilter, number>;
+  const counts = Object.fromEntries((["all", ...SLOTS] as const).map((s) => [s, 0])) as Record<SlotFilter, number>;
   for (const item of stash) {
     if (!matchesTraits(item, view)) continue;
     counts.all += 1;

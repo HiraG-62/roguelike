@@ -23,8 +23,12 @@ import {
   reaperPassLine,
   runEventHudLines,
   scheduleRunEvent,
+  thiefTargetId,
   updateRunEvents,
 } from "./runEvents";
+import { damageEnemy } from "./combat";
+import { carriedCount } from "./elites";
+import { dropItem } from "./loot";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
 import { engageStartRoom, placeEnemy, withInput } from "./testHelpers";
@@ -659,5 +663,89 @@ describe("生命の逆流: 回復の上限", () => {
     p.mana += p.maxHp;
     run(state, 1);
     expect(p.hp - hp, "上限まで").toBeLessThanOrEqual(p.maxHp * HEAL.sustainCapRatio + 1e-6);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 第 4 弾: 盗賊の追跡
+// -----------------------------------------------------------------------------
+
+describe("盗賊の追跡（第 4 弾）", () => {
+  const CHASE_LIMIT = 900;
+
+  function thiefSetup(): { state: GameState; itemId: number } {
+    const { state } = setup();
+    const p = state.player.body.pos;
+    dropItem(state, { x: p.x + 50, y: p.y });
+    const last = state.floorItems[state.floorItems.length - 1];
+    if (!last) throw new Error("no item");
+    return { state, itemId: last.id };
+  }
+
+  function thiefOf(state: GameState): ReturnType<typeof placeEnemy> | undefined {
+    return state.enemies.find((e) => e.defKey === "thief" && e.hp > 0);
+  }
+
+  /** 盗賊が遺物を拾うまで進める */
+  function untilSnatched(state: GameState): ReturnType<typeof placeEnemy> {
+    for (let i = 0; i < CHASE_LIMIT; i++) {
+      const t = thiefOf(state);
+      if (t && carriedCount(t) > 0) {
+        run(state, 2);
+        return t;
+      }
+      step(state, IDLE, FIXED_DT);
+    }
+    throw new Error("盗賊が拾わなかった");
+  }
+
+  it("予告で狙いの遺物を決め、始まると強欲のの盗賊が湧いて遺物を拾う", () => {
+    const { state, itemId } = thiefSetup();
+    scheduleRunEvent(state, "thiefChase", -1);
+    expect(state.runEvents.room?.targetId, "予告の間は狙う遺物").toBe(itemId);
+    run(state, WARN_STEPS);
+    const thief = thiefOf(state);
+    expect(thief?.elite).toBe("greedy");
+    expect(thiefTargetId(state)).toBe(thief?.id);
+    untilSnatched(state);
+    expect(state.floorItems.some((f) => f.id === itemId), "床から消える").toBe(false);
+  });
+
+  it("倒すと抱えていた遺物が戻り、同じ数だけ追加で落ちる（倍で返る）", () => {
+    const { state, itemId } = thiefSetup();
+    start(state, "thiefChase", -1);
+    const thief = untilSnatched(state);
+    const carried = carriedCount(thief);
+    const before = state.floorItems.length;
+    damageEnemy(state, thief, 1e9, { x: 1, y: 0 }, 0);
+    // 撃破のヒットストップが明けるまで進める
+    run(state, 30);
+    expect(state.floorItems.some((f) => f.id === itemId), "奪われた遺物が戻る").toBe(true);
+    expect(state.floorItems.length - before, "倍").toBeGreaterThanOrEqual(carried * 2);
+    expect(state.runEvents.room, "イベントは終わる").toBeNull();
+  });
+
+  it("逃げ切られると盗賊は消え、荷物だけはその場に捨てていく（倍の褒美は無い）", () => {
+    const { state, itemId } = thiefSetup();
+    start(state, "thiefChase", -1);
+    const thief = untilSnatched(state);
+    const carried = carriedCount(thief);
+    const before = state.floorItems.length;
+    const ev = state.runEvents.room;
+    if (!ev) throw new Error("no event");
+    ev.timer = ev.duration;
+    run(state, 30);
+    expect(thief.vanished).toBe(true);
+    expect(state.floorItems.some((f) => f.id === itemId), "遺物は失われない").toBe(true);
+    expect(state.floorItems.length - before).toBe(carried);
+  });
+
+  it("予告の間に遺物を拾えば盗賊は来ない", () => {
+    const { state, itemId } = thiefSetup();
+    scheduleRunEvent(state, "thiefChase", -1);
+    state.floorItems = state.floorItems.filter((f) => f.id !== itemId);
+    run(state, WARN_STEPS);
+    expect(thiefOf(state)).toBeUndefined();
+    expect(state.runEvents.room).toBeNull();
   });
 });

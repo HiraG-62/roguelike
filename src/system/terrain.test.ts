@@ -17,7 +17,7 @@ import {
   terrainSlide,
   updateTerrain,
 } from "./terrain";
-import { TERRAIN_MUD_SMOKE } from "../data/tuning";
+import { TERRAIN_MUD_SMOKE, TERRAIN_RUBBLE } from "../data/tuning";
 import { lineOfSight } from "../map/pathing";
 import { fireEnemyBullet } from "./enemyTraits";
 import { updateProjectiles } from "./projectiles";
@@ -483,5 +483,82 @@ describe("煙", () => {
     placeTerrain(state, e.body.pos.x, e.body.pos.y, "smoke", 0, 0);
     igniteTerrainAt(state, e.body.pos.x, e.body.pos.y, 4);
     expect(smokeAt(state, e.body.pos.x, e.body.pos.y)).toBe(false);
+  });
+});
+
+describe("崩れる床（rubble。地裂きの刻印符「地崩れ」が作る）", () => {
+  function rubbleArena(): { state: GameState; e: ReturnType<typeof placeEnemy> } {
+    const state = arena(5);
+    cleanLayer(state);
+    const e = placeEnemy(state, "golem", 40);
+    e.hp = BIG_HP;
+    e.maxHp = BIG_HP;
+    e.phase = "idle";
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "rubble", 0, TERRAIN_RUBBLE.duration);
+    return { state, e };
+  }
+
+  function steps(state: GameState, seconds: number): void {
+    const n = Math.round(seconds / FIXED_DT);
+    for (let i = 0; i < n; i++) updateTerrain(state, FIXED_DT);
+  }
+
+  it("敵が 1 秒乗り続けると床が抜け、落下ダメージと怯み。床は空に戻る", () => {
+    const { state, e } = rubbleArena();
+    steps(state, TERRAIN_RUBBLE.fallDelay - 0.1);
+    expect(e.hp, "予告の間は無傷").toBe(BIG_HP);
+    expect(terrainAt(state, e.body.pos.x, e.body.pos.y)).toBe("rubble");
+    steps(state, 0.15);
+    expect(e.hp, "落下ダメージ").toBeLessThan(BIG_HP);
+    expect(hasStatus(e.status, "stagger"), "落ちて怯む").toBe(true);
+    expect(terrainAt(state, e.body.pos.x, e.body.pos.y), "抜けた床は空").toBe("none");
+    expect(state.sfx).toContain("rubbleFall");
+  });
+
+  it("途中で降りると溜まりは戻り、乗り直すとまた 1 秒かかる", () => {
+    const { state, e } = rubbleArena();
+    const on = { ...e.body.pos };
+    steps(state, TERRAIN_RUBBLE.fallDelay * 0.6);
+    e.body.pos = { x: on.x + TILE_SIZE * 4, y: on.y };
+    steps(state, FIXED_DT * 2);
+    e.body.pos = on;
+    steps(state, TERRAIN_RUBBLE.fallDelay * 0.6);
+    expect(e.hp, "合計では 1 秒を超えても、続けて乗っていなければ抜けない").toBe(BIG_HP);
+    steps(state, TERRAIN_RUBBLE.fallDelay * 0.5);
+    expect(e.hp).toBeLessThan(BIG_HP);
+  });
+
+  it("プレイヤーは乗っても落ちない", () => {
+    const state = arena(5);
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "rubble", 0, TERRAIN_RUBBLE.duration);
+    const hp = state.player.hp;
+    steps(state, TERRAIN_RUBBLE.fallDelay * 2);
+    expect(state.player.hp).toBe(hp);
+    expect(terrainAt(state, p.x, p.y)).toBe("rubble");
+  });
+
+  it("ボスは怯まず、怯み値だけが入る", () => {
+    const state = arena(5);
+    cleanLayer(state);
+    const boss = placeEnemy(state, "kingSlime", 50);
+    boss.hp = BIG_HP;
+    boss.maxHp = BIG_HP;
+    boss.poise.max = BIG_HP;
+    placeTerrain(state, boss.body.pos.x, boss.body.pos.y, "rubble", 0, TERRAIN_RUBBLE.duration);
+    steps(state, TERRAIN_RUBBLE.fallDelay + 0.05);
+    expect(boss.hp).toBeLessThan(BIG_HP);
+    expect(boss.poise.damage, "怯み値").toBeGreaterThan(0);
+    expect(hasStatus(boss.status, "stagger")).toBe(false);
+  });
+
+  it("持続が切れると消える", () => {
+    const state = arena(5);
+    cleanLayer(state);
+    const at = { x: playerPos(state).x + TILE_SIZE * 3, y: playerPos(state).y };
+    placeTerrain(state, at.x, at.y, "rubble", 0, TERRAIN_RUBBLE.duration);
+    steps(state, TERRAIN_RUBBLE.duration + 0.1);
+    expect(terrainAt(state, at.x, at.y)).toBe("none");
   });
 });

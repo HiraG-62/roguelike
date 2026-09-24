@@ -2,7 +2,7 @@ import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pu
 import { pushPlayerEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ATTR_GAIN, BOSS, CAVE, ROOM, ROOM_KIND } from "../data/tuning";
+import { ATTR_GAIN, BOSS, CAVE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import type { CaveShapeOptions } from "../map/cave";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap } from "../map/generator";
 import {
@@ -21,6 +21,7 @@ import { snapCamera } from "./camera";
 import { COLOR_HEAL, healPlayer } from "./combat";
 import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
+import { findFreeSpot } from "./enemyTraits";
 import { heartsAllowed } from "./keystones";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
@@ -451,7 +452,7 @@ function engageRoom(state: GameState, room: RoomState, index: number): void {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
   }
   onBoonRoomLock(state, index);
-  pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
+  pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   applyCurse(state, index);
 }
@@ -567,8 +568,77 @@ function pushEnemyAlong(state: GameState, room: RoomState, e: Enemy, d: { x: num
   return false;
 }
 
+/** 敵の中心が部屋（塊ならその所属タイル、矩形なら rect）の上か */
+function enemyInRoom(state: GameState, room: RoomState, e: Enemy): boolean {
+  const { x, y } = e.body.pos;
+  if (room.tiles) return pxInRoomTiles(state, room, x, y);
+  return rectContainsPx(room.rect, x, y);
+}
+
+/** 部屋の床タイル（塊なら所属タイル、矩形なら rect 内）の添字。走査順は決定的 */
+function roomTileIndices(state: GameState, room: RoomState): number[] {
+  if (room.tiles) return [...room.tiles];
+  const r = room.rect;
+  const out: number[] = [];
+  for (let ty = r.y; ty < r.y + r.h; ty++) {
+    for (let tx = r.x; tx < r.x + r.w; tx++) {
+      if (inBounds(state.map, tx, ty)) out.push(toIndex(state.map, tx, ty));
+    }
+  }
+  return out;
+}
+
+/** 寄せ先に使えるか: 部屋に収まり、壁・扉・他の生きた敵に重ならない */
+function strayTargetFree(state: GameState, room: RoomState, e: Enemy, x: number, y: number): boolean {
+  const r = e.body.radius;
+  if (!room.tiles && !rectContainsPx(room.rect, x, y, r)) return false;
+  if (!circleInRoomTiles(state, room, x, y, r)) return false;
+  if (overlapsWall(state, x, y, r) || circleOnDoorTiles(state, room, x, y, r)) return false;
+  return !state.enemies.some((o) => o !== e && o.hp > 0 && circlesOverlap(x, y, r, o.body.pos.x, o.body.pos.y, o.body.radius));
+}
+
+/**
+ * 寄せ先。部屋の床タイルの中心から、プレイヤーから一番遠い空き地点を選ぶ
+ * （ROAM.minSpawnDist 以上離れた点があれば必ずそれが選ばれる。目の前に湧かせないため）。
+ * 空きが無ければ部屋の中心付近の空き、それも無ければ中心
+ */
+function strayTarget(state: GameState, room: RoomState, e: Enemy): { x: number; y: number } {
+  const p = state.player.body.pos;
+  let best: { x: number; y: number } | null = null;
+  let bestD = -1;
+  for (const t of roomTileIndices(state, room)) {
+    const x = ((t % state.map.width) + 0.5) * TILE_SIZE;
+    const y = (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE;
+    const d = Math.hypot(x - p.x, y - p.y);
+    if (d <= bestD || !strayTargetFree(state, room, e, x, y)) continue;
+    best = { x, y };
+    bestD = d;
+    if (d >= ROAM.minSpawnDist) break;
+  }
+  if (best) return best;
+  const center = rectCenterPx(room.rect);
+  return findFreeSpot(state, center, e.body.radius) ?? center;
+}
+
+/**
+ * 封鎖の瞬間に部屋の外にいる自室の生きた敵を中へ寄せる。roomAlive は roomIndex だけで数えるので、
+ * 外に出た自室の敵（追跡で出た雑魚、抱えて逃げた強欲の）が残ると閉じた扉越しに倒せず制圧できなくなる。
+ * 決定性のため敵 id 順に処理し、乱数は使わない
+ */
+function pullStraysInside(state: GameState, room: RoomState, index: number): void {
+  const strays = state.enemies
+    .filter((e) => e.roomIndex === index && e.hp > 0 && !enemyInRoom(state, room, e))
+    .sort((a, b) => a.id - b.id);
+  for (const e of strays) {
+    const to = strayTarget(state, room, e);
+    e.body.pos.x = to.x;
+    e.body.pos.y = to.y;
+  }
+}
+
 function lockRoom(state: GameState, room: RoomState, index: number): void {
   const rescued = pushEnemiesOffDoorTiles(state, room, index);
+  pullStraysInside(state, room, index);
   room.locked = true;
   for (const t of room.doorTiles) state.lockedTiles.add(t);
   // 扉を閉じた後に置く（閉じる前だと扉タイルの上に落ちて、制圧まで壁の中に埋まる）
@@ -578,7 +648,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
   }
   onBoonRoomLock(state, index);
-  pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
+  pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   if (state.boss && state.boss.roomIndex === index) {
     announceBoss(state);
@@ -770,6 +840,7 @@ export function ascend(state: GameState): void {
   state.depth -= 1;
   buildFloor(state);
   thinRevisitedFloor(state);
+  recordProvenance(state, { kind: "returned" });
   onContractsFloorReached(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];

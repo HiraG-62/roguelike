@@ -183,9 +183,9 @@ function atBase(s: Scaling): number {
 }
 
 const BASELINE: readonly BaselineRow[] = [
-  { label: "近接 1 段", pinned: 7.8, scaling: { base: 4.8, str: 0.6 }, current: () => atBase(PLAYER.melee[0].scaling) },
-  { label: "近接 2 段", pinned: 7.8, scaling: { base: 4.8, str: 0.6 }, current: () => atBase(PLAYER.melee[1].scaling) },
-  { label: "近接 3 段", pinned: 15.6, scaling: { base: 9.6, str: 1.2 }, current: () => atBase(PLAYER.melee[2].scaling) },
+  { label: "近接 1 段", pinned: 7.8, scaling: { base: 4.8, str: 0.6 }, current: () => atBase(PLAYER.melee[0]!.scaling) },
+  { label: "近接 2 段", pinned: 7.8, scaling: { base: 4.8, str: 0.6 }, current: () => atBase(PLAYER.melee[1]!.scaling) },
+  { label: "近接 3 段", pinned: 15.6, scaling: { base: 9.6, str: 1.2 }, current: () => atBase(PLAYER.melee[2]!.scaling) },
   { label: "ダッシュ攻撃", pinned: 11.2, scaling: { base: 7.2, str: 0.8 }, current: () => atBase(ACTION.dashAttack.scaling) },
   { label: "射撃（1 発）", pinned: 4.3, scaling: { base: 2.8, dex: 0.3 }, current: () => atBase(PLAYER.shoot.scaling) },
   { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(PLAYER.special.scaling) },

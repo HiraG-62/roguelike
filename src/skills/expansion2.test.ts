@@ -6,6 +6,7 @@ import type { StatusKind } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { STATUS } from "../data/tuning";
+import { MOVESET_KEYS } from "../data/weapons";
 import { TRAIT_COLORS, type TraitColor, createEmptyResonance } from "../loot/types";
 import { updatePlayer } from "../system/player";
 import { createSkillRunState, resolveSlot, skillMoveMul, slotComboReady, updateSkills } from "../system/skills";
@@ -130,8 +131,8 @@ describe("第 2 弾: 全スキルの発動", () => {
     expect(lost(e), "当たった").toBeGreaterThan(0);
   });
 
-  it("全 23 種に定義がそろい、怯み値と最低間隔を持つ", () => {
-    expect(WAVE2_SKILL_KEYS).toHaveLength(23);
+  it("全 24 種（第 4 弾の泥沼を含む）に定義がそろい、怯み値と最低間隔を持つ", () => {
+    expect(WAVE2_SKILL_KEYS).toHaveLength(24);
     for (const key of WAVE2_SKILL_KEYS) {
       const def = SKILL_DEFS[key];
       expect(def.key, key).toBe(key);
@@ -368,7 +369,7 @@ describe("属性・武器種", () => {
     cast(spear);
     expect(lost(a), "剣の十文字は届かない").toBe(0);
     expect(lost(b), "槍の槍衾は届く").toBeGreaterThan(0);
-    expect(Object.keys(WEAPON_ART).length, "全武器種に形がある").toBe(10);
+    expect(Object.keys(WEAPON_ART).length, "全武器種に形がある").toBe(MOVESET_KEYS.length);
   });
 
   it("極意: 杖は魔弾を撃ち、属性は武器（光）に揃う", () => {
@@ -643,6 +644,15 @@ describe("第 2 弾の連携", () => {
     run(state, 3);
     expect(slotComboReady(state, 1)?.key).toBe("formArt");
     expect(COMBOS.formArt.untimed).toBe(true);
+  });
+
+  it.each(["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"] as const)("化身の極意: 第 3 弾の変身 %s の最中の極意でも成立する", (form) => {
+    const state = skillArena([{ key: form }, { key: "weaponArt" }]);
+    expect(slotComboReady(state, 1), "変身前は成立しない").toBeNull();
+    cast(state, undefined, 0);
+    run(state, 0.5);
+    expect(state.skills.shape?.key, "変身している").toBe(form);
+    expect(slotComboReady(state, 1)?.key).toBe("formArt");
   });
 });
 

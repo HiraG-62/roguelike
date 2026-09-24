@@ -1,28 +1,27 @@
-# 引き継ぎ（2026-09-24 時点、0.0.11α）
+# 引き継ぎ（2026-09-24 時点、0.0.15α）
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
 
 ## 1. 現在地
 
-- HEAD: 0.0.11α（`node scripts/bump.mjs patch` の直後。`git log --oneline -3` で確認）。`npm run check` 通過（テスト約 3,100 件）。ブランチ `claude/hopeful-ride-nd4l34` に push 済み
-- 稼働中のサブエージェントは無い。作業ツリーはクリーン
-- ユーザーの方針は変わらず「コンテンツ量はいくらあってもいい。明らかに不要なもの以外は全部入れる」「すべての要素でシナジー」「確認なしで進める。まとまったら `npm run check` → コミット → `node scripts/bump.mjs patch`」。前回の「一旦停止」はユーザーの「作業を再開してください」で解除済み。再開時に改めて確認は要らない
-- ユーザーのアイデアは `memo/YYYYMMDD-N.md`（`memo/20260924-1.md` はコミット済み）。項目は **ドット絵の精細化以外すべて実装済み**（`docs/ASSETS.md` に CC0 素材候補。導入はユーザーの判断待ち）
+- HEAD: 0.0.15α（`git log --oneline -3`）。`npm run check` 通過（テスト約 4,060 件）。稼働中のサブエージェントは無い。push はしていない
+- メインは Opus 5.5。難しい設計は architect（Fable）→ 設計文書 → Sonnet / Opus の implementer の順
+- 0.0.13α〜0.0.15α で入ったもの（詳細は CHANGELOG）
+  - Electron 版（`npm run electron:dev` / `electron:build`）、セーブは `%APPDATA%\DEPTHBREAKER\save\*.json`、キー設定は `keybinds.json`
+  - 武器の作り直し: 射撃は銃の武器種（5 系統）だけ、右クリックは武器ごとの固有技、装備欄は右手 / 左手（今は右手に 1 種類）、軽量武器の振りを約 3 割高速化、刃の向き
+  - 武器種 19、コンボ HUD、手触りの強化、プレイヤー・手に持つ武器・斬撃・敵とボス全部の描き直し、CC0 素材の床・壁・小物
+  - **バランス数値は全部 `src/data/balance/*.json`**。ユーザー向けの手引きは `docs/BALANCE.md`。新しい数値も必ず JSON に置く
 
-### 0.0.11α で入ったもの（要点。詳細は CHANGELOG）
+## 2. 次の候補
 
-- 変身 5 種（狼化 / 霊体化 / 砲身化 / 鉄塊化 / 業火の化身。`skills/forms.ts`。左右クリックの動作そのものを差し替える）。8 種の変身は待ちを共有し稼働率 60% 以下
-- 祝福 18 種を `BoonDef.rules` へ（`Rule.direct` = 祝福の 1 段目は減衰・深さ・語の上限に掛からない、`Rule.group`）。分類表は 0.0.11α のコミット `5559d2d` のレーン B 報告に相当する内容を `docs/ideas/synergy-web.md` 3-c に要約
-- 発見の報酬（図鑑「連携」頁・節目・手がかり枠・依頼 5・実績 4・祝福カードの印 3 種・名のある連鎖 12）
-- 地形の泥と煙、精鋭「強欲の」、二度突きの猪、演出 5、効果音 14、音楽のこもりと残響ノードの後始末
-- リプレイの既知の制限（初期スキル石と倉庫上限）を解消。QA の同時攻撃計測をボス除外で切り分け（非ボスの上限超過は 0 件で解消）
-- バランス: `LOOT_DROP` の深度 3 以降を 25〜33% 絞る、QA 標準 4 スキルの基礎威力 +30%
-
-## 2. 進行中のレーン
-
-無し。
-
-再開するときの作法: レーンは implementer / reviewer / qa-runner / localizer / brainstormer / balance-tuner の Agent を名前付きで起動し、完了報告を統合役が取り込む。利用上限で止まった場合、`SendMessage` で名前宛てに「利用上限で中断していたが回復した。作業ツリーの途中の変更は残っている。元の指示どおり完了まで進めて報告」と送ると再開する（文脈を保持している）。作業ツリーの部分編集は `npx tsc --noEmit` で状態を確認してから。
+- ユーザーの実プレイの感想待ち（右クリックの技、振りの速さ、銃の手触り、刃の向き、素材の馴染み）
+- 0.0.15α のフル QA（武器の作り直しで射撃の前提が変わったので、スキル由来与ダメ比率やドロップの計測がずれるはず）とレビュー
+- 星座「双子」「汀」は左手が空なので成立しない（両手の仕組みまでの扱いを決める）。QA の装備パターンの 1 つを銃に固定する
+- `skills/tuning*.ts` は JSON を転送するだけの薄いファイル。参照側を揃えれば削除できる
+- 0x72 DungeonTileset II（手動ダウンロード待ち）で溶岩・氷の質感を差し替え
+- `%APPDATA%\DEPTHBREAKER` に動作確認のテストデータが残っている（ユーザーに削除可否を確認中）
+- Electron のアイコン・package.json の説明文と作者が未設定
+- `memo/ideas.md` はユーザーの指示で「まだ気にしない」
 
 ## 3. 統合の作法（この期間に固まった運用）
 
@@ -32,6 +31,7 @@
 - QA は必ず **隔離 worktree**（`git worktree add <scratchpad>/wt-qa <commit>` → `node_modules` は前回の worktree からコピー → `npm run qa:full`）。本体で回すと他レーンの未コミット変更が混ざる。生成された report.md は統合役が本体へコピーする
 - 統合役は `git add -A -- . ':!.gitignore'` でコミット。1 バッチ 1 コミットで CHANGELOG の `[Unreleased]` に要点を書く。docs の更新は別コミット
 - コミット: `git -c user.name="Horry" -c user.email="hira6291gi@gmail.com" commit -m "<type>: <日本語>"` + `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`。push は `git push -u origin claude/hopeful-ride-nd4l34`。**タグの push はこの環境では 403 で拒否される**（remote に過去のタグも無い）。タグはローカルだけに残し、ブランチだけ push する
+- **クラウドセッション**: ユーザーの共通ルールと自動メモリは `.claude/global/`（`CLAUDE.md` が @import）。ローカルで memory を変えたら `npm run sync:claude` で写してコミットする。クラウド側で覚えるべきことが出たらこの HANDOFF に書く（memory は編集しない）
 - 事故と対処: node_modules が無ければ `npm install`。エージェントの一時ファイルが `src/` に残ったら `git status --short` で見つけて消す。`src/qa/simulation.test.ts` の差分は目視する
 
 ## 4. 次にやる候補（優先順）

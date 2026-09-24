@@ -5,6 +5,15 @@
 - 現在の要素一覧・操作・次の候補: `IDEAS.md` の「現状」節（ここに重複して書かない）
 - 応答・コメント・コミットは日本語（ユーザーのグローバル設定に従う）
 
+## ユーザー共通ルールと記憶（クラウドセッション向け）
+
+ローカルの `~/.claude` にあるユーザーの共通ルールと自動メモリを `.claude/global/` に写してある。クラウドセッションはこれで同じ前提に立つ（ローカルではグローバル設定と同じ内容が二重に載るだけで害はない）。
+
+@.claude/global/PREFERENCES.md
+
+- `.claude/global/memory/MEMORY.md` が自動メモリの索引。セッション開始時に読み、関係するメモリ本文（同じディレクトリの `*.md`）を開く。`docs/HANDOFF.md` → `memo/` の順で現在地を掴む
+- `.claude/global/` は **手で直さない**。ローカルで memory やグローバル CLAUDE.md を変えたら `npm run sync:claude` で写し直してコミットする（`--check` で差分だけ確認）。クラウド側で新しく覚えるべきことが出たら、memory ファイルを直接編集せず `docs/HANDOFF.md` の「ユーザーに聞くこと / 引き継ぎ」に書く
+
 ## コマンド
 
 | コマンド | 内容 |
@@ -75,11 +84,11 @@ src/
 1. **ロジックと描画の分離**: system は state を読み書きし、render は state を読むだけ。描画から state を書き換えない
 2. **描画で `state.rng` を消費しない**。見た目のばらつきは `renderMath.ts` の `tileHash` など座標ハッシュを使う
 3. **決定性**: 同じ seed + 同じ FrameInput 列 → 同じ結果。`Math.random` や実時間に依存しない。リプレイテスト（`core/replay.test.ts`）を壊さない
-4. **手触り・バランスの数値は `src/data/tuning.ts`**（スキルは `skills/data.ts` の `SKILL`、祝福は tuning の `BOON`）。ロジック中に数値を直書きしない
+4. **バランス数値は `src/data/balance/*.json`**（トップレベルのキーは `MANA` / `ENEMY_AI` / `BOON` などブロック名。`_note` に「なぜ」と単位）。ロジックは `data/tuning.ts` / `skills/data.ts` が再 export する定数（`MANA.baseMax` など）経由で読み、数値を直書きしない。union 文字列・key・表示名・関数は TS に残す（境界は `docs/ideas/data-externalization.md` 2 章）。JSON と TS のテーブルは同じ key で対応させ、キー集合の一致を `src/data/balance/balance.test.ts` が検査する。新しく足す数値も必ず JSON に置く（置き場所は `docs/BALANCE.md`）
 5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`（DotGothic16 のドット風描画、サイズは `TEXT.SMALL/BODY/TITLE/BIG`）で描く。`ctx.fillText` / `measureText` / `ctx.font` の直接使用は禁止（`uiFont` はフォント未ロード時のフォールバック専用）。**等幅前提の文字数計算は禁止**、行高は `Math.max(定数, textLineHeight())`
 6. **座標は 480x270 の論理座標**（`core/view.ts` の `VIEW_W` / `VIEW_H`）。DPR 拡大は Renderer の transform が担う
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts が `audio/sfx.ts` で行う
-8. **永続化**: localStorage は loot/profile・craftingStore・skills/persistence・ui/settings・ui/replayStore・meta/{codexStore,questStore,achievements} 経由のみ。step の中では触らない（拾得やイベントの保存は main.ts が行う）。壊れたデータは黙ってデフォルトへ落とす。キーの形式を変えるなら `v2` を切る
+8. **永続化**: 保存は `src/save/backend.ts` の `saveStorage()`（ブラウザは localStorage、Electron はファイル `%APPDATA%\DEPTHBREAKER\save\*.json`）経由で、loot/profile・craftingStore・skills/persistence・ui/settings（キー設定は `roguelike.keybinds.v1` に分離）・ui/replayStore・meta/{codexStore,questStore,achievements,hubStore} からのみ触る。step の中では触らない（拾得やイベントの保存は main.ts が行う）。壊れたデータは黙ってデフォルトへ落とす。キーの形式を変えるなら `v2` を切る
 9. **型**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので配列 / Record の添字結果は undefined を扱う
 10. **コード作法**: マジックナンバーは定数化、早期リターンでネストを浅く、関数は単一責任。コメントは日本語で「なぜ」を書く
 11. **テスト**: Vitest。`it` / `describe` の名前とアサーションメッセージは日本語。新しい仕組みには必ずテストを付ける
@@ -92,6 +101,7 @@ src/
 各レシピの最後は `npm run check`。サブエージェントに任せるときは `/add-enemy` などの skill を使う。
 
 ### 敵
+0. 数値（HP・速度・予告・怯み耐性・防御など）は `src/data/balance/enemies.json` の `stats` / `combat` / `defense.enemies` に同じ key で足す（無いと `...N.key` で tsc が落ちる）
 1. `src/data/enemies.ts`: `EnemyBehavior` に追加（既存 behavior の流用なら不要）、`ENEMIES` に `EnemyDef`（`name` は日本語、`minDepth` / `weight` / `windup` はテレグラフが読める長さ）。既存の敵の色替え + 挙動 1 つの追加なら新規 behavior を作らず `EnemyDef.recolor`（元のスプライトと behavior を流用し、色と 1 挙動だけ差し替える）
 2. `src/system/enemies.ts`: `STRIKE_SPEED_MUL` / `WINDUP_MOVE_MUL`（`Record<EnemyBehavior, number>` なので追加漏れは型エラー）と behavior の分岐。AI の数値は tuning の `ENEMY_AI`。個別 behavior の処理は `enemyBehaviors.ts`、死骸・取り巻き・気力奪取などの横断的な仕組みは `enemyTraits.ts`
 3. `src/data/sprites.ts`: `SPRITES[def.sprite]` を追加（下記スプライト）。`render/sprites.test.ts` が全敵のスプライト存在を検査する
@@ -189,7 +199,8 @@ src/
   - 追加した型フィールド・定数・公開関数
   - 統合手順（共有ファイルに入れるべき Edit があれば差分の形で）
   - テスト結果（`npm run check` の成否と件数。失敗が他 Agent 起因ならその旨）
-- サブエージェント定義は `.claude/agents/`（implementer / reviewer / qa-runner / brainstormer / pixel-artist / localizer / balance-tuner）
+- サブエージェント定義は `.claude/agents/`（implementer / reviewer / qa-runner / brainstormer / pixel-artist / localizer / balance-tuner / architect）
+- **モデルの使い分け**: メインは Opus。高度な推論が要る仕事（設計判断・原因の見えない不具合の診断・深いレビュー・発想）は Fable の Agent（architect / reviewer / brainstormer）に委任し、設計が固まった実装と定型作業は Sonnet（implementer / qa-runner / localizer）、ドット絵と数値調整は Opus（pixel-artist / balance-tuner）。設計が曖昧なまま Sonnet に実装させない。詳細は `docs/AI_WORKFLOW.md` の「モデルの使い分け」
 - skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/release-notes` `/bump`
 
 ## バージョニング
@@ -211,6 +222,7 @@ src/
 
 | ファイル | 内容 |
 | --- | --- |
+| `docs/BALANCE.md` | バランス数値（JSON）の置き場所と変え方（ユーザー向け） |
 | `docs/HANDOFF.md` | **セッション開始時に最初に読む**: 現在地・進行中のレーン・次にやる候補・ユーザーに聞くこと |
 | `IDEAS.md` | 企画メモと「現状」（引き継ぎの起点） |
 | `CHANGELOG.md` | 版ごとの変更履歴（Keep a Changelog 風） |

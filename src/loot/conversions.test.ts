@@ -18,7 +18,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item-1",
     seed: 1,
     baseKey: "longsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "magic",
     itemLevel: 20,
     name: "test",

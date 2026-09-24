@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
+import { pushShatterEvent } from "../core/events";
 import { FIXED_DT } from "../core/loop";
 import type { Attributes } from "../loot/types";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
@@ -63,7 +64,7 @@ describe("祝福（ステータス）: 持ち替え swapHands", () => {
     const out = foldBoonStats(stats, ["swapHands"], createBoonRunState());
     expect(out.attributesEff.str).toBe(15);
     expect(out.attributesEff.dex).toBe(5);
-    expect(scaled(out, PLAYER.melee[0].scaling), "近接が技巧 15 で伸びる").toBeCloseTo(scaled(withEff({ str: 15 }), PLAYER.melee[0].scaling));
+    expect(scaled(out, PLAYER.melee[0]!.scaling), "近接が技巧 15 で伸びる").toBeCloseTo(scaled(withEff({ str: 15 }), PLAYER.melee[0]!.scaling));
     expect(scaled(out, PLAYER.shoot.scaling), "射撃は筋力 5 で決まる").toBeCloseTo(scaled(withEff({ dex: 5 }), PLAYER.shoot.scaling));
   });
 
@@ -138,6 +139,8 @@ describe("祝福（状態異常）: 血煙 bloodMist", () => {
     const e = placeEnemy(state, "slime", 30);
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "bleed", stacks: 1, duration: STATUS.bleed.duration, potency: 1 }, "player");
     damageEnemy(state, e, HUGE, { x: 1, y: 0 }, 0);
+    // 血煙は BoonDef.rules（onKill）。ステップ末の照合で起きる
+    resolveRules(state, 0);
     expect(hasStatus(state.player.status, "bleed"), "自分の出血が消える").toBe(false);
     expect(state.player.hp).toBe(50 + BOON.bloodMistHeal);
   });
@@ -191,7 +194,10 @@ describe("祝福（状態異常）: 凍て刺し frostPierce", () => {
     const shattered = placeEnemy(state, "golem", 30, 0);
     const near = placeEnemy(state, "golem", 30, 20);
     const far = placeEnemy(state, "golem", 30 + BOON.frostPierceRadius * 3, 0);
+    // 凍て刺しは BoonDef.rules（onShatter）。砕き（combat.ts の shatterFreeze）と同じくフックとイベントを通して照合する
     onBoonShatter(state, shattered);
+    pushShatterEvent(state, shattered);
+    resolveRules(state, 0);
     expect(statusStacks(near.status, "chill")).toBe(BOON.frostPierceStacks);
     expect(hasStatus(far.status, "chill")).toBe(false);
     expect(hasStatus(shattered.status, "chill")).toBe(false);
@@ -242,9 +248,9 @@ describe("装備タグと抽選", () => {
 describe("祝福の統合（実際の攻撃経路）", () => {
   it("霊刃: 射撃の弾の威力に霊力 × 0.3 が加わる", () => {
     const shotDamageWith = (boon: boolean): number => {
-      const state = arena(5, { attributesEff: { ...DEFAULT_STATS.attributesEff, spi: 10 } });
+      const state = arena(5, { attributesEff: { ...DEFAULT_STATS.attributesEff, spi: 10 }, moveset: "sidearm" });
       if (boon) state.boons.push("spiritBlade");
-      step(state, withInput({ shootHeld: true }), FIXED_DT);
+      step(state, withInput({ attackHeld: true }), FIXED_DT);
       const shot = state.projectiles.find((p) => p.owner === "player");
       if (!shot) throw new Error("弾が出ていない");
       return shot.damage;
@@ -260,6 +266,7 @@ describe("祝福の統合（実際の攻撃経路）", () => {
     applyStatus(state, { kind: "enemy", enemy: frozen }, { kind: "freeze", stacks: 1, duration: STATUS.freeze.duration, potency: 0 }, "player");
     expect(hasStatus(frozen.status, "freeze")).toBe(true);
     damageEnemy(state, frozen, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    resolveRules(state, 0);
     expect(hasStatus(frozen.status, "freeze"), "砕けて凍結が解ける").toBe(false);
     expect(statusStacks(near.status, "chill")).toBe(BOON.frostPierceStacks);
   });

@@ -50,7 +50,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "drop-1",
     seed: 1,
     baseKey: "longsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "magic",
     itemLevel: 3,
     name: "床の剣",
@@ -133,7 +133,7 @@ describe("装備中との差", () => {
   it("空いた部位なら、付けたときに上がる能力値を ▲ で良い色にして並べる", async () => {
     const { compareLines, MARK_UP } = await import("./dropTooltip");
     const state = createGame(1);
-    state.profile.equipment.weapon = null;
+    state.profile.equipment.mainHand = null;
     const lines = compareLines(state, makeItem());
     const ups = lines.filter((l) => l.mark === MARK_UP);
     expect(ups.length, "上がる行がある").toBeGreaterThan(0);
@@ -144,7 +144,7 @@ describe("装備中との差", () => {
     const { compareLines, MARK_UP, MARK_DOWN } = await import("./dropTooltip");
     const state = createGame(1);
     const item = makeItem();
-    state.profile.equipment.weapon = item;
+    state.profile.equipment.mainHand = item;
     const lines = compareLines(state, makeItem({ id: "drop-2" }));
     expect(lines.filter((l) => l.mark === MARK_UP || l.mark === MARK_DOWN)).toHaveLength(0);
     expect(lines).toHaveLength(2);
@@ -153,9 +153,9 @@ describe("装備中との差", () => {
   it("装備中より弱い遺物は ▼ を出し、上がるときと違う色にする", async () => {
     const { compareLines, MARK_UP, MARK_DOWN } = await import("./dropTooltip");
     const state = createGame(1);
-    state.profile.equipment.weapon = null;
+    state.profile.equipment.mainHand = null;
     const up = compareLines(state, makeItem()).find((l) => l.mark === MARK_UP);
-    state.profile.equipment.weapon = makeItem({ id: "worn" });
+    state.profile.equipment.mainHand = makeItem({ id: "worn" });
     const down = compareLines(state, makeItem({ id: "weak", affixes: [] })).find((l) => l.mark === MARK_DOWN);
     expect(down, "下がる行がある").toBeDefined();
     expect(down?.color, "色が違う").not.toBe(up?.color);

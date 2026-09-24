@@ -18,7 +18,7 @@ import {
 import { affixColor } from "./colors";
 import { BASES, baseDef, basesForSlot } from "./bases";
 import { KS } from "../system/keystones";
-import { DEFAULT_STATS, SLOTS, TRAIT_COLORS, type PlayerStats } from "./types";
+import { DEFAULT_STATS, LOOT_SLOTS, TRAIT_COLORS, type PlayerStats } from "./types";
 
 const MIN_AFFIX_COUNT = 60;
 const MIN_TRADEOFF_COUNT = 13;
@@ -59,7 +59,7 @@ describe("アフィックス定義", () => {
   });
 
   it(`各スロットで深度 1 から ${MIN_TRAITS_PER_SLOT} 種以上抽選できる`, () => {
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       expect(traitsFor(slot, FIRST_LEVEL).length, slot).toBeGreaterThanOrEqual(MIN_TRAITS_PER_SLOT);
     }
   });
@@ -212,7 +212,7 @@ describe("affixDefForRoll（動的アフィックス）", () => {
 
 describe("ベースアイテム定義", () => {
   it("各スロットに 8 種以上あり、ilvl 1 で最低 1 種出る", () => {
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       const count = BASES.filter((b) => b.slot === slot).length;
       expect(count, slot).toBeGreaterThanOrEqual(MIN_BASES_PER_SLOT);
       expect(basesForSlot(slot, FIRST_LEVEL).length, slot).toBeGreaterThan(0);
@@ -227,7 +227,7 @@ describe("ベースアイテム定義", () => {
   });
 
   it("baseDef で引ける", () => {
-    expect(baseDef("greatsword")?.slot).toBe("weapon");
+    expect(baseDef("greatsword")?.slot).toBe("mainHand");
     expect(baseDef("nope")).toBeUndefined();
   });
 });

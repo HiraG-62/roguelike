@@ -15,6 +15,7 @@ import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
 import { FLOOR_KIND, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { grantBoon } from "./boons";
+import { resolveRules } from "./rules";
 import { ROAMING_ROOM, reinforceDue, roamCap, roamerCount, updateRoamers } from "./spawner";
 import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
@@ -438,12 +439,15 @@ describe("開放型フロア: 封鎖しない部屋の交戦と制圧", () => {
     state.player.mana = 0;
     const score = state.score;
     updateRooms(state, FIXED_DT);
+    // 湧水は BoonDef.rules（onRoomClear）。step と同じくステップ末の照合まで通す
+    resolveRules(state, 0);
     expect(room.cleared, "全滅で制圧").toBe(true);
     expect(state.player.mana, "湧水でマナが満ちる").toBe(state.stats.maxMana);
     expect(state.score - score, "制圧の得点").toBe(ROOM.clearBonus);
     state.player.mana = 0;
     updateRooms(state, FIXED_DT);
     updateRooms(state, FIXED_DT);
+    resolveRules(state, 0);
     expect(state.player.mana, "2 回目は起きない").toBe(0);
     expect(state.score - score, "得点も 1 回だけ").toBe(ROOM.clearBonus);
   });
@@ -879,5 +883,51 @@ describe("戻る（上り階段）: 階層到達の報酬", () => {
     expect(state.runAttributes.unspent, "降り直し").toBe(points);
     descend(state, "rooms");
     expect(state.runAttributes.unspent, "初めての階では入る").toBeGreaterThan(points);
+  });
+});
+
+describe("封鎖時に部屋の外にいる自室の敵を中へ寄せる", () => {
+  /** 最小マップの部屋 rect (5..8, 5..8) の中に中心があるか */
+  function inRoomRect(room: RoomState, e: Enemy): boolean {
+    const r = room.rect;
+    const { x, y } = e.body.pos;
+    return x >= r.x * TILE_SIZE && x < (r.x + r.w) * TILE_SIZE && y >= r.y * TILE_SIZE && y < (r.y + r.h) * TILE_SIZE;
+  }
+  const CORRIDOR_TX = 12;
+  function corridorPos(): { x: number; y: number } {
+    return { x: (CORRIDOR_TX + 0.5) * TILE_SIZE, y: (DOOR_TY + 0.5) * TILE_SIZE };
+  }
+
+  it("封鎖時に外（通路）にいる自室の敵は部屋の中の空き地点へ移り、他室の敵は動かない", () => {
+    const { state, room } = corridorRoomState();
+    const own = createEnemy(state, enemyDef("slime"), corridorPos(), 0, false);
+    const other = createEnemy(state, enemyDef("slime"), { x: (CORRIDOR_END_TX + 0.5) * TILE_SIZE, y: (DOOR_TY + 0.5) * TILE_SIZE }, OTHER_ROOM, false);
+    state.enemies.push(own, other);
+    const otherBefore = { ...other.body.pos };
+
+    state.player.body.pos = rectCenterPx(room.rect);
+    updateRooms(state, FIXED_DT);
+
+    expect(room.locked, "部屋が封鎖される").toBe(true);
+    expect(inRoomRect(room, own), "自室の敵は部屋の中へ入る").toBe(true);
+    expect(overlapsWall(state, own.body.pos.x, own.body.pos.y, own.body.radius), "壁（閉じた扉）に重ならない").toBe(false);
+    expect(other.body.pos, "他室の敵はそのまま").toEqual(otherBefore);
+  });
+
+  it("強欲のが外で抱えたまま封鎖されても、中へ寄せられて倒せば制圧できる", () => {
+    const { state, room } = corridorRoomState();
+    const { e, itemId } = greedyCarrying(state, corridorPos(), 0);
+
+    state.player.body.pos = rectCenterPx(room.rect);
+    updateRooms(state, FIXED_DT);
+
+    expect(room.locked, "部屋が封鎖される").toBe(true);
+    expect(inRoomRect(room, e), "強欲のは部屋の中へ入る").toBe(true);
+    expect(e.carried?.items.map((f) => f.id), "抱えた物はそのまま").toContain(itemId);
+
+    // 部屋の中にいるので倒せる。伏兵で湧いた分も含め自室の敵を全て倒すと制圧される
+    for (const en of state.enemies) if (en.roomIndex === 0) en.hp = 0;
+    updateRooms(state, FIXED_DT);
+    expect(room.cleared, "制圧できる").toBe(true);
   });
 });

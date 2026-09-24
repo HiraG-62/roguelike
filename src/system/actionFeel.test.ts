@@ -462,3 +462,54 @@ describe("ダッシュ攻撃", () => {
     expect(state.player.dashStrike).toBe(false);
   });
 });
+
+describe("近接のリカバリーキャンセル（docs/ideas/combat-feel-design.md D-4）", () => {
+  it("recover の後半に先行入力があると次段が前倒しで始まる", () => {
+    const state = arena();
+    step(state, withInput({ attackPressed: true }), FIXED_DT);
+    while (state.player.attack.phase !== "recover") step(state, withInput({}), FIXED_DT);
+    const recoverStep = state.player.attack.step;
+    const def = meleeStep(state.stats, recoverStep);
+    if (!def) throw new Error("段が無い");
+    // recover に入った直後に次段を先行入力
+    step(state, withInput({ attackPressed: true }), FIXED_DT);
+    let elapsed = FIXED_DT;
+    while (state.player.attack.phase === "recover") {
+      step(state, withInput({}), FIXED_DT);
+      elapsed += FIXED_DT;
+    }
+    expect(state.player.attack.phase, "次段の windup へ前倒しで進む").toBe("windup");
+    expect(state.player.attack.step, "1 段目から 2 段目へ").toBe(recoverStep + 1);
+    expect(elapsed, "recover を最後まで待たずに前倒しされた").toBeLessThan(def.recover);
+  });
+
+  it("最終段の後は前倒しされず comboLockout が効く", () => {
+    const state = arena();
+    const finalStep = PLAYER.melee.length - 1;
+    let guard = 0;
+    while (!(state.player.attack.step === finalStep && state.player.attack.phase === "recover") && guard < 200) {
+      step(state, withInput({ attackPressed: true }), FIXED_DT);
+      guard++;
+    }
+    expect(state.player.attack.phase, "最終段の recover に入った").toBe("recover");
+    const def = meleeStep(state.stats, finalStep);
+    if (!def) throw new Error("最終段が無い");
+    let elapsed = 0;
+    while (state.player.attack.phase === "recover") {
+      step(state, withInput({ attackPressed: true }), FIXED_DT);
+      elapsed += FIXED_DT;
+    }
+    expect(state.player.attack.phase, "前倒しされず none で終わる").toBe("none");
+    // 前倒しされないので recover の全体を消化する（フレーム量子化ぶんの誤差は許容）
+    expect(elapsed).toBeGreaterThanOrEqual(def.recover);
+    expect(elapsed).toBeLessThan(def.recover + FIXED_DT * 2);
+  });
+
+  it("ダッシュはこれまでどおり任意のタイミングで攻撃を切る", () => {
+    const state = arena();
+    step(state, withInput({ attackPressed: true }), FIXED_DT);
+    expect(state.player.attack.phase).not.toBe("none");
+    step(state, withInput({ dashPressed: true, move: { x: 1, y: 0 } }), FIXED_DT);
+    expect(state.player.attack.phase).toBe("none");
+  });
+});

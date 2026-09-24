@@ -12,7 +12,7 @@ import type { BoneRing, CastParams, GraveSword, PowderKeg } from "./types";
 
 /**
  * 大拡張の設置物・連動体（爆薬樽・剣の墓標・砲台・骨片の輪・湧き石）。
- * 連動体は自分では攻撃しない。プレイヤーの近接 3 段目（墓標）・射撃（砲台）に合わせてだけ動く（ヴァンサバ化しない）。
+ * 連動体は自分では攻撃しない。プレイヤーの近接 3 段目（墓標）・振り（砲台。射撃の型だけでなく近接の振りにも合わせる）に合わせてだけ動く（ヴァンサバ化しない）。
  */
 
 export const COLOR_KEG = "#c07030";
@@ -234,6 +234,17 @@ export function updateTurrets(state: GameState, dt: number): void {
   const rs = state.skills;
   for (const tur of rs.turrets) tur.life -= dt;
   rs.turrets = rs.turrets.filter((tur) => tur.life > 0);
+}
+
+/**
+ * 近接の振り（onSwing）に合わせて砲台も 1 発撃つ。銃を持たない近接ビルドだと onSkillPlayerShoot（射撃時）
+ * だけでは砲台が沈黙するので、ステップの終わりにこちらも見る（system/rules.ts の resolveRules が
+ * state.events を空にする直前、core/game.ts から 1 回呼ぶ）
+ */
+export function syncTurretShots(state: GameState): void {
+  if (state.skills.turrets.length === 0) return;
+  const swung = state.events.some((e) => e.kind === "onSwing" && e.actor === "player");
+  if (swung) onTurretShoot(state);
 }
 
 // ---------------------------------------------------------------------------

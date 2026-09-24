@@ -166,6 +166,29 @@ describe("長押し (skill1Held〜skill4Held)", () => {
   });
 });
 
+describe("決定キーの押しっぱなし（confirmHeld）", () => {
+  it("Enter の押下中とパッド A の押下中に true、どちらも離すと false", () => {
+    const input = new PlayerInput();
+    const target = new FakeEventTarget();
+    input.attachKeyboard(target as unknown as Window);
+    const pad = new StubGamepad(gamepadFrame({}));
+    input.attachGamepad(pad as never);
+
+    target.dispatch("keydown", keyEvent("Enter"));
+    input.snapshot();
+    input.snapshot();
+    expect(input.confirmHeld(), "Enter を押し続けている間").toBe(true);
+
+    target.dispatch("keyup", { code: "Enter" });
+    input.snapshot();
+    expect(input.confirmHeld(), "Enter を離した").toBe(false);
+
+    (pad as unknown as { frame: GamepadFrame }).frame = gamepadFrame({ confirmHeld: true });
+    input.snapshot();
+    expect(input.confirmHeld(), "パッド A を押し続けている間").toBe(true);
+  });
+});
+
 describe("スロット 3 / 4", () => {
   it("Digit3 / KeyX がスロット 3、Digit4 / KeyZ がスロット 4 の Pressed と Held", () => {
     const input = new PlayerInput();

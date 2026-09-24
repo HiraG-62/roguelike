@@ -22,7 +22,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item",
     seed: 1,
     baseKey: "shortsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "normal",
     itemLevel: 1,
     name: "短剣",
@@ -42,8 +42,8 @@ function makeItem(overrides: Partial<Item> = {}): Item {
 
 const stash: Item[] = [
   makeItem({ id: "ring-new", slot: "ring", foundAt: 30, itemLevel: 2, affixes: [life] }),
-  makeItem({ id: "sword-old", slot: "weapon", foundAt: 10, itemLevel: 5, affixes: [melee], rarity: "rare" }),
-  makeItem({ id: "sword-new", slot: "weapon", foundAt: 20, itemLevel: 1, affixes: [life, melee], margin: 2 }),
+  makeItem({ id: "sword-old", slot: "mainHand", foundAt: 10, itemLevel: 5, affixes: [melee], rarity: "rare" }),
+  makeItem({ id: "sword-new", slot: "mainHand", foundAt: 20, itemLevel: 1, affixes: [life, melee], margin: 2 }),
   makeItem({ id: "boots", slot: "boots", foundAt: 40, itemLevel: 3, inscription: "風の靴" }),
 ];
 
@@ -51,18 +51,18 @@ const ids = (items: readonly Item[]): string[] => items.map((it) => it.id);
 
 describe("倉庫の部位分け・並べ替え・絞り込み", () => {
   it("全部位では部位ごとにまとめ、その中を新しい順に並べる", () => {
-    expect(ids(applyStashView(stash, createStashView())), "武器 → 靴 → 指輪の順").toEqual(["sword-new", "sword-old", "boots", "ring-new"]);
+    expect(ids(applyStashView(stash, createStashView())), "右手 → 靴 → 指輪の順").toEqual(["sword-new", "sword-old", "boots", "ring-new"]);
   });
 
   it("部位タブで 1 部位だけに絞る", () => {
     const view = createStashView();
-    view.slot = "weapon";
+    view.slot = "mainHand";
     expect(ids(applyStashView(stash, view))).toEqual(["sword-new", "sword-old"]);
   });
 
   it("深度で並べ、Shift で向きを反転する", () => {
     const view = createStashView();
-    view.slot = "weapon";
+    view.slot = "mainHand";
     applyStashControl(view, { kind: "sort" }, false);
     expect(view.sort, "拾った順の次は深度").toBe("depth");
     expect(ids(applyStashView(stash, view)), "深い順").toEqual(["sword-old", "sword-new"]);
@@ -104,19 +104,19 @@ describe("倉庫の部位分け・並べ替え・絞り込み", () => {
     view.color = "crimson";
     const counts = slotCounts(stash, view);
     expect(counts.all).toBe(2);
-    expect(counts.weapon).toBe(2);
+    expect(counts.mainHand).toBe(2);
     expect(counts.ring).toBe(0);
-    expect(stashControlLabel(view, { kind: "slot", slot: "weapon" }, counts)).toBe("武器 2");
+    expect(stashControlLabel(view, { kind: "slot", slot: "mainHand" }, counts)).toBe("右手 2");
   });
 
   it("部位の境目を見分ける", () => {
     const order = applyStashView(stash, createStashView());
     expect(startsSlotGroup(order, 0), "先頭は区切らない").toBe(false);
     expect(startsSlotGroup(order, 1), "同じ部位の続き").toBe(false);
-    expect(startsSlotGroup(order, 2), "武器 → 靴").toBe(true);
+    expect(startsSlotGroup(order, 2), "右手 → 靴").toBe(true);
   });
 
-  it("ボタン列は部位タブ 7 つと操作 4 つを重ならずに並べ、クリックで操作する", () => {
+  it("ボタン列は部位タブと操作 4 つを重ならずに並べ、クリックで操作する", () => {
     const area = { x: 100, y: 20, w: 306, h: 22 };
     const layout = layoutStashToolbar(area);
     expect(layout, "部位タブ + 並び・色・揺らぎ・印").toHaveLength(SLOT_FILTERS.length + 4);

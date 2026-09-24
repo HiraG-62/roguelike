@@ -36,7 +36,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item-1",
     seed: 1,
     baseKey: "shortsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "normal",
     itemLevel: 1,
     name: "Shortsword",
@@ -223,7 +223,7 @@ describe("updateInventoryUi: 装備タブ", () => {
 
     clickAt(state, ui, stashRowRect(state, ui, "sword-1"));
 
-    expect(state.profile.equipment.weapon?.id, "装備された").toBe("sword-1");
+    expect(state.profile.equipment.mainHand?.id, "装備された").toBe("sword-1");
     expect(state.profile.stash.some((it) => it.id === "sword-1"), "倉庫から消える").toBe(false);
     expect(computeStats).toHaveBeenCalledWith(state.profile.equipment);
     expect(state.stats.maxHp, "stats に反映").toBe(150);
@@ -246,13 +246,13 @@ describe("updateInventoryUi: 装備タブ", () => {
   it("Shift+クリックで砕き、性質の色の残響を得る（装備はしない）", () => {
     const state = createGame(1);
     const ui = openUi(state);
-    const equippedBefore = state.profile.equipment.weapon;
+    const equippedBefore = state.profile.equipment.mainHand;
     addToStash(state.profile, makeItem({ id: "junk-1", affixes: [melee, life] }));
 
     clickAt(state, ui, stashRowRect(state, ui, "junk-1"), { shiftHeld: true });
 
     expect(state.profile.stash.some((it) => it.id === "junk-1"), "倉庫から消える").toBe(false);
-    expect(state.profile.equipment.weapon, "装備は変わらない").toBe(equippedBefore);
+    expect(state.profile.equipment.mainHand, "装備は変わらない").toBe(equippedBefore);
     expect(ui.echo.save.echoes.crimson, "紅響 +1").toBe(1);
     expect(ui.echo.save.echoes.jade, "翠響 +1").toBe(1);
   });
@@ -286,7 +286,7 @@ describe("updateInventoryUi: 装備タブ", () => {
     const layout = layoutInventory(state, ui);
     expect(layout.stashOrder.map((it) => it.id)).toEqual(["ring-1"]);
     expect(layout.stashTotal, "総数は倉庫全体").toBe(31);
-    expect(layout.stashCounts.weapon, "他の部位の件数も数える").toBe(30);
+    expect(layout.stashCounts.mainHand, "他の部位の件数も数える").toBe(30);
   });
 });
 
@@ -294,14 +294,14 @@ describe("芽: 装備と 2 択", () => {
   it("芽のある遺物を装備すると pendingBud が出て、外すと消える（refreshPendingBud）", () => {
     const state = createGame(1);
     const ui = openUi(state);
-    state.profile.equipment.weapon = null;
+    state.profile.equipment.mainHand = null;
     state.pendingBud = null;
     addToStash(state.profile, buddingItem());
 
     clickAt(state, ui, stashRowRect(state, ui, "bud-1"));
     expect(pendingItemId(state), "装備で芽が載る").toBe("bud-1");
 
-    const slot = layoutInventory(state, ui).slots.find((s) => s.slot === "weapon");
+    const slot = layoutInventory(state, ui).slots.find((s) => s.slot === "mainHand");
     if (!slot) throw new Error("weapon slot missing");
     clickAt(state, ui, slot.rect);
     expect(state.pendingBud, "外すと消える").toBeNull();
@@ -309,7 +309,7 @@ describe("芽: 装備と 2 択", () => {
 
   it("バナー → カードのクリックで chooseBud され、pendingBud が消える", () => {
     const state = createGame(1);
-    state.profile.equipment.weapon = buddingItem();
+    state.profile.equipment.mainHand = buddingItem();
     refreshPendingBud(state);
     const ui = openUi(state);
     expect(state.pendingBud, "芽が提示される").not.toBeNull();
@@ -323,7 +323,7 @@ describe("芽: 装備と 2 択", () => {
 
     expect(state.pendingBud, "選ぶと消える").toBeNull();
     expect(ui.bud.open, "モーダルは閉じる").toBe(false);
-    const weapon = state.profile.equipment.weapon;
+    const weapon = state.profile.equipment.mainHand;
     expect(weapon?.affixes.at(-1)?.key, "2 つ目の候補が加わる").toBe(crit.key);
     expect(weapon?.affixes.at(-1)?.origin).toBe("bud");
     expect(weapon?.margin, "余白が 1 減る").toBe(2);
@@ -331,11 +331,11 @@ describe("芽: 装備と 2 択", () => {
 
   it("モーダルの外をクリックすると選ばずに閉じる。芽が無ければバナーは開かない", () => {
     const state = createGame(1);
-    state.profile.equipment.weapon = buddingItem();
+    state.profile.equipment.mainHand = buddingItem();
     const ui = openUi(state);
     state.pendingBud = {
       itemId: "bud-1",
-      slot: "weapon",
+      slot: "mainHand",
       milestone: MILESTONES[0]?.key ?? "kills:50",
       milestoneLabel: "撃破 50",
       options: [life, crit],
@@ -353,18 +353,18 @@ describe("芽: 装備と 2 択", () => {
 
   it("1 / 2 キーでも選べる", () => {
     const state = createGame(1);
-    state.profile.equipment.weapon = buddingItem();
+    state.profile.equipment.mainHand = buddingItem();
     const ui = openUi(state);
     state.pendingBud = {
       itemId: "bud-1",
-      slot: "weapon",
+      slot: "mainHand",
       milestone: MILESTONES[0]?.key ?? "kills:50",
       milestoneLabel: "撃破 50",
       options: [life, crit],
     };
     clickAt(state, ui, budBannerRect());
     updateInventoryUi(state, ui, withInput({ skill1Pressed: true }), 0);
-    expect(state.profile.equipment.weapon?.affixes.at(-1)?.key, "1 つ目の候補").toBe(life.key);
+    expect(state.profile.equipment.mainHand?.affixes.at(-1)?.key, "1 つ目の候補").toBe(life.key);
     expect(state.pendingBud).toBeNull();
   });
 });

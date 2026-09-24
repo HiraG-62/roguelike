@@ -58,6 +58,47 @@ export const LAYERED_SFX = {
     { k: "arp", type: "sine", freqs: [1760, 2349], note: 0.04, gap: 0.01, peak: 0.12 },
     { k: "noise", filter: "highpass", from: 7000, to: 4000, dur: 0.06, peak: 0.09 },
   ],
+  // 2026-09-24 レーン B の武器種
+  swingKatana: [
+    { k: "noise", filter: "bandpass", from: 7000, to: 2400, dur: 0.06, q: 3, peak: 0.24 },
+    { k: "tone", type: "sine", freq: 2600, dur: 0.05, peak: 0.07 },
+  ],
+  swingAxe: [
+    { k: "noise", filter: "bandpass", from: 2000, to: 500, dur: 0.14, q: 1.4, peak: 0.32 },
+    { k: "tone", type: "triangle", freq: 130, dur: 0.12, peak: 0.18 },
+  ],
+  swingShield: [
+    { k: "noise", filter: "lowpass", from: 700, to: 160, dur: 0.12, peak: 0.36 },
+    { k: "tone", type: "square", freq: 95, dur: 0.08, peak: 0.12 },
+  ],
+  swingChainSickle: [
+    { k: "noise", filter: "highpass", from: 5000, to: 2600, dur: 0.05, peak: 0.2 },
+    { k: "tone", type: "triangle", freq: 3400, dur: 0.03, peak: 0.08, at: 0.03 },
+  ],
+  swingHammer: [
+    { k: "noise", filter: "lowpass", from: 1000, to: 120, dur: 0.3, peak: 0.4 },
+    { k: "tone", type: "sine", freq: 55, dur: 0.32, peak: 0.3 },
+  ],
+  swingGunner: [
+    { k: "noise", filter: "bandpass", from: 3000, to: 1200, dur: 0.05, q: 1.5, peak: 0.2 },
+    { k: "tone", type: "square", freq: 620, dur: 0.03, peak: 0.1 },
+  ],
+  // 銃の家系: 軽い銃ほど高く短く、砲は低く重く
+  swingSidearm: [
+    { k: "noise", filter: "bandpass", from: 3400, to: 1400, dur: 0.04, q: 1.5, peak: 0.18 },
+    { k: "tone", type: "square", freq: 720, dur: 0.025, peak: 0.08 },
+  ],
+  swingLongarm: [
+    { k: "noise", filter: "bandpass", from: 2200, to: 700, dur: 0.08, q: 1.2, peak: 0.22 },
+    { k: "tone", type: "triangle", freq: 330, dur: 0.05, peak: 0.1 },
+  ],
+  swingCannon: [
+    { k: "noise", filter: "lowpass", from: 1400, to: 200, dur: 0.12, peak: 0.3 },
+    { k: "tone", type: "sine", freq: 110, dur: 0.08, peak: 0.2 },
+  ],
+  swingThrown: [
+    { k: "noise", filter: "bandpass", from: 4200, to: 1800, dur: 0.06, q: 2, peak: 0.16 },
+  ],
 
   // ---- 射撃の型の発射音（8-2）----
   shotRapid: [{ k: "sweep", type: "square", from: 1400, to: 500, dur: 0.04, peak: 0.25 }],
@@ -86,6 +127,16 @@ export const LAYERED_SFX = {
     { k: "tone", type: "square", freq: 440, dur: 0.03, peak: 0.22 },
     { k: "tone", type: "square", freq: 660, dur: 0.03, peak: 0.22, at: 0.05 },
     { k: "noise", filter: "lowpass", from: 600, to: 200, dur: 0.06, peak: 0.3 },
+  ],
+  // 2026-09-24 レーン B の射撃の型（三点は 1 発ごとに鳴る）
+  shotBurst: [{ k: "sweep", type: "square", from: 1700, to: 700, dur: 0.035, peak: 0.22 }],
+  shotBoomerang: [
+    { k: "sweep", type: "triangle", from: 900, to: 1600, dur: 0.1, peak: 0.2 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 5000, dur: 0.1, q: 2, peak: 0.12 },
+  ],
+  shotLob: [
+    { k: "tone", type: "sine", freq: 120, dur: 0.1, peak: 0.35 },
+    { k: "noise", filter: "lowpass", from: 1400, to: 200, dur: 0.12, peak: 0.3 },
   ],
 
   // ---- 属性の命中音 ----
@@ -240,6 +291,28 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "lowpass", from: 260, to: 60, dur: 0.1, peak: 0.25 },
     { k: "tone", type: "sine", freq: 48, dur: 0.16, peak: 0.42, at: 0.18 },
   ],
+
+  // ---- 崩れる床が抜ける（低い崩落 + 砂利）/ 盗賊の煙玉（こもった破裂 + 噴き出す息）----
+  rubbleFall: [
+    { k: "noise", filter: "lowpass", from: 900, to: 90, dur: 0.35, peak: 0.45 },
+    { k: "tone", type: "sine", freq: 65, dur: 0.3, peak: 0.3 },
+    { k: "noise", filter: "bandpass", from: 3200, to: 1200, dur: 0.12, q: 2, peak: 0.16, at: 0.08 },
+  ],
+  smokeBomb: [
+    { k: "noise", filter: "lowpass", from: 700, to: 150, dur: 0.12, peak: 0.35 },
+    { k: "noise", filter: "highpass", from: 1800, to: 5000, dur: 0.4, peak: 0.22, at: 0.05 },
+  ],
+
+  // ---- コンボの可視化と爽快感パッケージ（docs/ideas/combat-feel-design.md D-1 / D-5）----
+  /** 派生成立: 短い上昇の 2 音 */
+  branch: [{ k: "arp", type: "triangle", freqs: [880, 1318.5], note: 0.05, gap: 0.01, peak: 0.2 }],
+  /** 武器種の最終段・フィニッシュ派生の命中: 低い衝撃 + 高い刃音 */
+  finisherHit: [
+    { k: "tone", type: "sine", freq: 55, dur: 0.16, peak: 0.4 },
+    { k: "noise", filter: "highpass", from: 8000, to: 3000, dur: 0.08, peak: 0.3 },
+  ],
+  /** 近接命中の低域のドン。hit と一緒に積む */
+  hitThump: [{ k: "tone", type: "sine", freq: 70, dur: 0.07, peak: 0.3 }],
 } as const satisfies Partial<Record<SfxName, readonly Layer[]>>;
 
 export type LayeredSfxName = keyof typeof LAYERED_SFX;

@@ -272,7 +272,7 @@ export function describeItem(item: Item): ItemDescription {
   const dominant = dominantColor(item.affixes);
   const hueText = dominant === undefined ? "" : `・${TRAIT_COLOR_LABEL[dominant]}`;
   const desc: ItemDescription = {
-    name: item.name,
+    name: item.loaned === true ? `${item.name}（借り物）` : item.name,
     subtitle: `${baseName(item.baseKey)}・${RARITY_LABEL[item.rarity]}${hueText}・深さ ${item.foundDepth}`,
     summary: itemSummary(item.affixes),
     colorBar: itemColorBar(item.affixes),

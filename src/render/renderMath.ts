@@ -3,7 +3,18 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
 import { type KeystoneGroup, keystoneDef } from "../loot/affixes";
 import { type Rarity, type Resonance, TRAIT_COLOR_HEX } from "../loot/types";
-import type { MovesetKey } from "../data/weapons";
+import type { HitShape, MovesetKey, WeaponArtDef } from "../data/weapons";
+import {
+  SLASH_SPRITE,
+  SLASH_VARIANT,
+  type SlashWeight,
+  WEAPON_CANVAS,
+  WEAPON_FRAME,
+  WEAPON_GRIPS,
+  type WeaponEdge,
+  type WeaponFrame,
+  slashFrame,
+} from "../data/sprites/weapons";
 import { type GameMap, Tile, getTile } from "../map/grid";
 
 /** 座標ハッシュ（描画のばらつき用。ゲーム rng は消費しない） */
@@ -30,6 +41,22 @@ export function wallStyle(map: GameMap, x: number, y: number): WallStyle {
     }
   }
   return "none";
+}
+
+/** 壁の自動接続の 4 方向ビット（N=1 / E=2 / S=4 / W=8）。「隣が床」を立てる */
+export function wallMask(map: GameMap, x: number, y: number): number {
+  let mask = 0;
+  if (getTile(map, x, y - 1) !== Tile.Wall) mask |= 1;
+  if (getTile(map, x + 1, y) !== Tile.Wall) mask |= 2;
+  if (getTile(map, x, y + 1) !== Tile.Wall) mask |= 4;
+  if (getTile(map, x - 1, y) !== Tile.Wall) mask |= 8;
+  return mask;
+}
+
+/** 足元の描画位置を当たり半径から決める。キャンバス高が変わっても当たり判定と足元がずれない */
+const FEET_PAD = 2;
+export function spriteFeetY(centerY: number, bodyRadius: number): number {
+  return centerY + bodyRadius + FEET_PAD;
 }
 
 /** sin で min..max を往復する */
@@ -395,4 +422,321 @@ export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
   cleaver: 3,
   staff: 2,
   wand: 1,
+  katana: 1,
+  axe: 3,
+  shield: 3,
+  chainSickle: 1,
+  hammer: 4,
+  gunner: 1,
+  sidearm: 1,
+  longarm: 2,
+  cannon: 3,
+  thrown: 1,
 };
+
+// ---------------------------------------------------------------------------
+// 手に持つ武器の姿勢と斬撃の絵（docs/ideas/combat-feel-design.md C-2 / C-3）
+// ---------------------------------------------------------------------------
+
+/** 攻撃の段階（core/state.ts の AttackPhase と同じ値） */
+export type SwingPhase = "none" | "windup" | "active" | "recover";
+
+export interface WeaponPoseInput {
+  readonly phase: SwingPhase;
+  /** phase の進み（0 → 1） */
+  readonly t: number;
+  readonly shape: HitShape["kind"];
+  /** 扇の開き角（度）。扇以外は使わない */
+  readonly deg: number;
+  /** 攻撃方向（攻撃中）または向き（それ以外）の角度。画面座標なので右 0・下 +π/2 */
+  readonly aim: number;
+  /** 武器種の段。扇・箱は段ごとに振る向きを入れ替える（drawSwingTrail と同じ規則） */
+  readonly step: number;
+  readonly facingRight: boolean;
+  /** 構えずに照準へ向けて持つ（杖・二丁拳銃など、左で撃つ武器） */
+  readonly aimHeld: boolean;
+  /** 片刃・片頭の武器の刃の側（sprites/weapons.ts の WEAPON_EDGE）。無ければ刃の向きを選ばない */
+  readonly edge?: WeaponEdge;
+  /** 右クリックの固有技を押している最中の構え（phase が none のときだけ効く） */
+  readonly hold?: HoldPose;
+}
+
+/** 固有技の構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
+export type HoldPose = "parry" | "guard" | "aim";
+
+/** 固有技の定義と押している最中かから、構えの姿勢を選ぶ（構えの無い技・押していないなら undefined） */
+export function artHoldPose(art: WeaponArtDef, holding: boolean): HoldPose | undefined {
+  if (!holding) return undefined;
+  if (art.kind === "hold") return art.hold.parry ? "parry" : "guard";
+  if (art.kind === "charge" && art.aim) return "aim";
+  return undefined;
+}
+
+export interface WeaponView {
+  readonly frame: WeaponFrame;
+  readonly flipX: boolean;
+  readonly flipY: boolean;
+}
+
+export interface WeaponPose extends WeaponView {
+  /** 武器の向き（rad） */
+  readonly angle: number;
+  /** 拳の位置（体の中心から、論理 px） */
+  readonly dx: number;
+  readonly dy: number;
+  /** 上を向いている間は体の後ろに描く（肩越しに担いで見える） */
+  readonly behind: boolean;
+}
+
+/** 腕の付け根（体の中心から上へ）。拳はここを中心に HAND_RADIUS の円を回る */
+const WEAPON_PIVOT_Y = -4;
+const HAND_RADIUS = 6;
+/** 待機中の拳（右向き。左向きは x を反転）と、担いだ武器の向き（右上） */
+const REST_HAND = { dx: 5, dy: -2 } as const;
+const REST_ANGLE = -Math.PI / 4;
+/** 予備動作でさらに引く角度（rad）。扇は背中側まで引いて頭の後ろから刃が覗くようにする */
+const ARC_WINDUP_PULL = 1.2;
+const BOX_WINDUP_PULL = 0.25;
+/** 箱（振り下ろし）: 振りかぶる角度と振り抜いた先の角度（攻撃方向から、rad） */
+const BOX_RAISE = 1.9;
+const BOX_FOLLOW = 0.6;
+/** 扇の半角の上限（背中側まで回すと体に隠れて読めない） */
+const ARC_HALF_MAX = (150 * Math.PI) / 180;
+/** 突き: 予備動作で引く距離と、突き出す距離（px） */
+const THRUST_PULL = 4;
+const THRUST_REACH = 4;
+/** 円: 予備動作で逆へ溜める角度 */
+const CIRCLE_PULL = 0.5;
+/** これより上を向いたら体の後ろ（sin の値。22 度ほど） */
+const BEHIND_SIN = -0.38;
+const OCTANT = Math.PI / 4;
+const FULL_TURN = Math.PI * 2;
+
+/** 8 方向 → 絵（横・斜め・縦）と反転。0 = 右、時計回り（画面座標） */
+const VIEW_RIGHT: WeaponView = { frame: WEAPON_FRAME.side, flipX: false, flipY: false };
+const OCTANT_VIEW: readonly WeaponView[] = [
+  VIEW_RIGHT,
+  { frame: WEAPON_FRAME.diagonal, flipX: false, flipY: true },
+  { frame: WEAPON_FRAME.up, flipX: false, flipY: true },
+  { frame: WEAPON_FRAME.diagonal, flipX: true, flipY: true },
+  { frame: WEAPON_FRAME.side, flipX: true, flipY: false },
+  { frame: WEAPON_FRAME.diagonal, flipX: true, flipY: false },
+  { frame: WEAPON_FRAME.up, flipX: false, flipY: false },
+  { frame: WEAPON_FRAME.diagonal, flipX: false, flipY: false },
+];
+
+/** 角度に一番近い 8 方向の絵。武器は回転で描かず、3 枚の絵と反転で向きを作る */
+export function weaponView(angle: number): WeaponView {
+  const octant = ((Math.round(angle / OCTANT) % 8) + 8) % 8;
+  return OCTANT_VIEW[octant] ?? VIEW_RIGHT;
+}
+
+/** 段ごとの振る向き（偶数段 +1 / 奇数段 -1） */
+export function swingSign(step: number): number {
+  return step % 2 === 0 ? 1 : -1;
+}
+
+/** 攻撃中の武器の向き（rad）と、拳を腕の付け根から離す距離 */
+function swingAngle(input: WeaponPoseInput): { angle: number; reach: number } {
+  const { phase, shape, aim } = input;
+  const t = clamp01(input.t);
+  const sign = swingSign(input.step);
+  const ease = easeOutCubic(t);
+  switch (shape) {
+    case "arc": {
+      const half = Math.min(ARC_HALF_MAX, (input.deg * Math.PI) / 360);
+      if (phase === "windup") return { angle: aim - sign * (half + ARC_WINDUP_PULL * t), reach: HAND_RADIUS };
+      if (phase === "active") return { angle: aim - sign * half + sign * 2 * half * ease, reach: HAND_RADIUS };
+      return { angle: aim + sign * half, reach: HAND_RADIUS };
+    }
+    case "box": {
+      const from = aim - sign * BOX_RAISE;
+      const to = aim + sign * BOX_FOLLOW;
+      if (phase === "windup") return { angle: from - sign * BOX_WINDUP_PULL * t, reach: HAND_RADIUS };
+      if (phase === "active") return { angle: lerp(from, to, ease), reach: HAND_RADIUS };
+      return { angle: to, reach: HAND_RADIUS };
+    }
+    case "thrust": {
+      if (phase === "windup") return { angle: aim, reach: HAND_RADIUS - THRUST_PULL * t };
+      if (phase === "active") return { angle: aim, reach: lerp(HAND_RADIUS - THRUST_PULL, HAND_RADIUS + THRUST_REACH, ease) };
+      return { angle: aim, reach: lerp(HAND_RADIUS + THRUST_REACH, HAND_RADIUS, t) };
+    }
+    case "circle": {
+      if (phase === "windup") return { angle: aim - sign * CIRCLE_PULL * t, reach: HAND_RADIUS };
+      if (phase === "active") return { angle: aim + sign * FULL_TURN * ease, reach: HAND_RADIUS };
+      return { angle: aim, reach: HAND_RADIUS };
+    }
+  }
+}
+
+/**
+ * 手に持つ武器の向き・拳の位置・使う絵。待機は右上へ担ぎ（左向きは左上）、撃つ武器は照準へ向ける。
+ * 予備動作は攻撃方向の逆へ引き、振りは形ごとに動かす（扇: 端から端へ / 箱: 振りかぶって振り下ろす /
+ * 突き: 引いて前へ伸ばす / 円: 一周）。戻しは振り抜いた先で止める
+ */
+export function weaponPose(input: WeaponPoseInput): WeaponPose {
+  const pose = basePose(input);
+  if (!input.edge) return pose;
+  return { ...pose, ...edgeView(pose, input.edge, edgeWant(input, pose)) };
+}
+
+function basePose(input: WeaponPoseInput): WeaponPose {
+  if (input.phase === "none") {
+    if (input.hold) return holdPose(input);
+    if (input.aimHeld) return poseAt(input.aim, HAND_RADIUS);
+    const side = input.facingRight ? 1 : -1;
+    const angle = input.facingRight ? REST_ANGLE : Math.PI - REST_ANGLE;
+    return { ...weaponView(angle), angle, dx: REST_HAND.dx * side, dy: REST_HAND.dy, behind: Math.sin(angle) < BEHIND_SIN };
+  }
+  const { angle, reach } = swingAngle(input);
+  return poseAt(angle, reach);
+}
+
+/** 構えで拳を前へ出す距離（px）。盾と狙い撃ちは腕を伸ばして見せる */
+const GUARD_PUSH = 2;
+const AIM_PUSH = 2;
+const QUARTER_TURN = Math.PI / 2;
+
+/**
+ * 固有技の構え。受け流しは照準の先に拳を出して刃を上へ立て（剣を横に寝かせた受けの形）、
+ * 盾は照準へ突き出し、狙い撃ちは照準へ腕を伸ばす
+ */
+function holdPose(input: WeaponPoseInput): WeaponPose {
+  const { aim } = input;
+  switch (input.hold) {
+    case "parry": {
+      // 照準に直交する 2 向きのうち上を向く方（真上・真下を狙うときは向いている側）
+      const a = aim - QUARTER_TURN;
+      const b = aim + QUARTER_TURN;
+      const tie = Math.abs(Math.sin(a) - Math.sin(b)) < 1e-6;
+      const up = tie ? ((Math.cos(a) >= 0) === input.facingRight ? a : b) : Math.sin(a) < Math.sin(b) ? a : b;
+      return { ...poseAt(aim, HAND_RADIUS), ...weaponView(up), angle: up };
+    }
+    case "guard":
+      return poseAt(aim, HAND_RADIUS + GUARD_PUSH);
+    default:
+      return poseAt(aim, HAND_RADIUS + AIM_PUSH);
+  }
+}
+
+/** 拳から見た頭の位置（体の中心から、論理 px）。構えの刃はこの反対側へ向ける */
+const HEAD_Y = -9;
+
+/**
+ * 刃が向いてほしい向き（docs/ideas/weapon-redesign.md 7 章）。
+ * 扇・箱・円の振り（予備動作と戻しも含む）は振り抜く向き（角速度の向き）、それ以外（構え・突き）は頭と反対側
+ */
+function edgeWant(input: WeaponPoseInput, pose: WeaponPose): { x: number; y: number } {
+  const swinging = input.phase !== "none" && input.shape !== "thrust";
+  if (swinging) {
+    const sign = swingSign(input.step);
+    return { x: -Math.sin(pose.angle) * sign, y: Math.cos(pose.angle) * sign };
+  }
+  return { x: pose.dx, y: pose.dy - HEAD_Y };
+}
+
+/** 絵のままの刃の法線（横の絵で刃が up のとき）。横 = 上、縦 = 左、斜め = 左上、斜め（刃が右下）= 右下 */
+const EDGE_NORMAL: Readonly<Record<WeaponFrame, { readonly x: number; readonly y: number }>> = {
+  [WEAPON_FRAME.side]: { x: 0, y: -1 },
+  [WEAPON_FRAME.diagonal]: { x: -1, y: -1 },
+  [WEAPON_FRAME.up]: { x: -1, y: 0 },
+  [WEAPON_FRAME.diagonalOut]: { x: 1, y: 1 },
+};
+
+/** 今の絵と反転での刃の法線 */
+export function edgeNormal(view: WeaponView, edge: WeaponEdge): { x: number; y: number } {
+  const n = EDGE_NORMAL[view.frame];
+  const s = edge === "down" ? -1 : 1;
+  return { x: n.x * (view.flipX ? -1 : 1) * s, y: n.y * (view.flipY ? -1 : 1) * s };
+}
+
+/**
+ * 刃が want と反対を向いていれば、柄の向きを保ったまま刃の側だけ入れ替えた絵にする。
+ * 横は上下反転、縦は左右反転、斜めは柄の線で写した絵（diagonalOut）と差し替える
+ */
+export function edgeView(view: WeaponView, edge: WeaponEdge, want: { x: number; y: number }): WeaponView {
+  const n = edgeNormal(view, edge);
+  if (n.x * want.x + n.y * want.y >= 0) return view;
+  switch (view.frame) {
+    case WEAPON_FRAME.side:
+      return { ...view, flipY: !view.flipY };
+    case WEAPON_FRAME.up:
+      return { ...view, flipX: !view.flipX };
+    case WEAPON_FRAME.diagonal:
+      return { ...view, frame: WEAPON_FRAME.diagonalOut };
+    case WEAPON_FRAME.diagonalOut:
+      return { ...view, frame: WEAPON_FRAME.diagonal };
+  }
+}
+
+function poseAt(angle: number, reach: number): WeaponPose {
+  return {
+    ...weaponView(angle),
+    angle,
+    dx: Math.cos(angle) * reach,
+    dy: WEAPON_PIVOT_Y + Math.sin(angle) * reach,
+    behind: Math.sin(angle) < BEHIND_SIN,
+  };
+}
+
+/** 反転を考えた拳の中心（絵の左上からの px）。描画側は手の位置からこれを引いた所に絵を置く */
+export function weaponGrip(view: WeaponView): { x: number; y: number } {
+  const grip = WEAPON_GRIPS[view.frame];
+  return {
+    x: view.flipX ? WEAPON_CANVAS - grip.x : grip.x,
+    y: view.flipY ? WEAPON_CANVAS - grip.y : grip.y,
+  };
+}
+
+/** 二丁拳銃のもう 1 挺: 照準に直交する向きへ spread px ずらす（side = 1 / -1） */
+export function offhandOffset(angle: number, spread: number, side: number): { x: number; y: number } {
+  return { x: -Math.sin(angle) * spread * side, y: Math.cos(angle) * spread * side };
+}
+
+/** 斬撃の太さの段（0 細 / 1 中 / 2 太）。振りの軌跡の太さ（WEAPON_TRAIL_WIDTH）から決める */
+export function slashWeight(trailWidth: number): SlashWeight {
+  if (trailWidth <= 1) return 0;
+  if (trailWidth === 2) return 1;
+  return 2;
+}
+
+/** 扇の開き角がこれを超えたら広い弧の絵 */
+const WIDE_ARC_DEG = 170;
+
+export interface SlashVisual {
+  readonly key: string;
+  readonly frame: number;
+  /** 奇数段は上下を反転（振る向きの入れ替えと揃える） */
+  readonly flipY: boolean;
+}
+
+/**
+ * 斬撃の絵: 形でキー（箱・扇・広い扇・突き・円）、太さの段と絵の種類でフレームを選ぶ。
+ * 最終段（または重い振り）は専用の絵、それ以外は 2 段ごとに A / B を替え、段の偶奇で上下を返す。
+ * 5 段の武器でも A+ / A- / B+ / B- / 最終 と段ごとに絵が変わる
+ */
+export function slashVisual(shape: HitShape["kind"], deg: number, step: number, finisher: boolean, weight: SlashWeight): SlashVisual {
+  const key =
+    shape === "arc" ? (deg > WIDE_ARC_DEG ? SLASH_SPRITE.arcWide : SLASH_SPRITE.arc) : shape === "circle" ? SLASH_SPRITE.ring : SLASH_SPRITE[shape];
+  const variant = finisher ? SLASH_VARIANT.finisher : Math.floor(step / 2) % 2 === 0 ? SLASH_VARIANT.a : SLASH_VARIANT.b;
+  return { key, frame: slashFrame(weight, variant), flipY: step % 2 === 1 };
+}
+
+/** 段階の進み（0 → 1）。timer は段階の残り秒（system/player.ts が段の長さから数え下げる） */
+export function phaseProgress(phase: SwingPhase, timer: number, step: { readonly windup: number; readonly active: number; readonly recover: number }): number {
+  const total = phase === "windup" ? step.windup : phase === "active" ? step.active : phase === "recover" ? step.recover : 0;
+  if (total <= 0) return 1;
+  return clamp01(1 - timer / total);
+}
+
+/** 体の絵の選び方: 予備動作と溜めは構え、振りと戻しの前半は振り抜き、それ以外は歩き（C-4） */
+export type PlayerBodyPose = "walk" | "windup" | "strike";
+/** 戻しのこの割合までは振り抜いた姿勢のまま（振りの余韻を残す） */
+const STRIKE_HOLD = 0.5;
+
+export function playerBodyPose(phase: SwingPhase, t: number, charging: boolean): PlayerBodyPose {
+  if (charging || phase === "windup") return "windup";
+  if (phase === "active") return "strike";
+  if (phase === "recover" && t < STRIKE_HOLD) return "strike";
+  return "walk";
+}

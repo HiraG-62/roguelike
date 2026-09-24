@@ -1,3 +1,4 @@
+import { saveStorage } from "../save/backend";
 import { STASH_CAPACITY } from "../data/tuning";
 import { migrateItem } from "./migrate";
 import {
@@ -18,9 +19,10 @@ import {
   createEmptyEquipment,
   createEmptyProfile,
   createEmptyProvenance,
+  normalizeSlot,
 } from "./types";
 
-/** localStorage のキー。バージョンが変わったら数値を上げる */
+/** 保存のキー（Electron 版は SAVE_FILES でファイル名に写る）。バージョンが変わったら数値を上げる */
 export const PROFILE_KEY = "roguelike.profile.v1";
 
 /**
@@ -42,10 +44,6 @@ export interface RunResult {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
-}
-
-function isSlot(v: unknown): v is Slot {
-  return typeof v === "string" && (SLOTS as readonly string[]).includes(v);
 }
 
 function isColor(v: unknown): v is TraitColor {
@@ -114,6 +112,8 @@ function sanitizeProvenance(v: unknown): Provenance | undefined {
   p.favoredKills = nonNegativeInt(v.favoredKills);
   p.chargedHits = nonNegativeInt(v.chargedHits);
   p.branchHits = nonNegativeInt(v.branchHits);
+  // 2026-09-24 第 4 弾の来歴（帰還）
+  p.returns = nonNegativeInt(v.returns);
   if (isRecord(v.killsByEnemy)) {
     for (const [key, n] of Object.entries(v.killsByEnemy)) p.killsByEnemy[key] = nonNegativeInt(n);
   }
@@ -173,7 +173,9 @@ function sanitizeItem(v: unknown): Item | null {
   if (typeof id !== "string" || id.length === 0) return null;
   if (typeof seed !== "number") return null;
   if (typeof baseKey !== "string" || baseKey.length === 0) return null;
-  if (!isSlot(slot)) return null;
+  // 旧セーブの weapon / gun スロットは右手（mainHand）へ読み替える（冪等: 新形式にも通る）
+  const normalizedSlot = normalizeSlot(slot);
+  if (normalizedSlot === null) return null;
   if (rarity !== "normal" && rarity !== "magic" && rarity !== "rare" && rarity !== "unique") return null;
   if (typeof itemLevel !== "number") return null;
   if (typeof name !== "string") return null;
@@ -188,7 +190,7 @@ function sanitizeItem(v: unknown): Item | null {
     id,
     seed,
     baseKey,
-    slot,
+    slot: normalizedSlot,
     rarity,
     itemLevel,
     name,
@@ -201,12 +203,25 @@ function sanitizeItem(v: unknown): Item | null {
   return migrateItem(item);
 }
 
-function sanitizeEquipment(v: unknown): Equipment {
+/**
+ * equipment を読み込む。旧セーブの weapon スロットは空いていれば右手へ、埋まっていれば倉庫へ。
+ * 旧セーブの gun スロットは常に倉庫へ（借り物なら捨てる）。overflow（stash）の先頭に積む
+ */
+function sanitizeEquipment(v: unknown, overflow: Item[]): Equipment {
   const out = createEmptyEquipment();
   if (!isRecord(v)) return out;
   for (const slot of SLOTS) {
     const item = sanitizeItem(v[slot]);
     if (item && item.slot === slot) out[slot] = item;
+  }
+  const legacyWeapon = sanitizeItem(v.weapon);
+  if (legacyWeapon && legacyWeapon.slot === "mainHand") {
+    if (out.mainHand === null) out.mainHand = legacyWeapon;
+    else overflow.unshift(legacyWeapon);
+  }
+  const legacyGun = sanitizeItem(v.gun);
+  if (legacyGun && legacyGun.slot === "mainHand" && legacyGun.loaned !== true) {
+    overflow.unshift(legacyGun);
   }
   return out;
 }
@@ -258,21 +273,9 @@ function sanitizeMeta(v: unknown): ProfileMeta {
   return { runs, bestDepth, totalKills, bestScore, history };
 }
 
-/**
- * localStorage が存在しない環境（テスト等）でも安全に取得するためのヘルパー。
- * Cookie ブロックや sandbox iframe では localStorage の getter 自体が SecurityError を投げるので握りつぶす
- */
-function defaultStorage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** 保存されたプロフィールを読み込む。無い/壊れている/version 不一致なら空プロフィール */
 export function loadProfile(storage?: Storage): Profile {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return createEmptyProfile();
 
   let raw: string | null;
@@ -291,20 +294,51 @@ export function loadProfile(storage?: Storage): Profile {
   }
   if (!isRecord(parsed) || parsed.version !== CURRENT_VERSION) return createEmptyProfile();
 
-  return {
-    version: CURRENT_VERSION,
-    equipment: sanitizeEquipment(parsed.equipment),
-    stash: sanitizeStash(parsed.stash),
-    meta: sanitizeMeta(parsed.meta),
-  };
+  const stash = sanitizeStash(parsed.stash);
+  const equipment = sanitizeEquipment(parsed.equipment, stash);
+  return { version: CURRENT_VERSION, equipment, stash, meta: sanitizeMeta(parsed.meta) };
 }
 
-/** プロフィールを保存する。容量超過などの失敗は握りつぶす。localStorage が無い環境では何もしない */
+function isLoaned(item: Item | null | undefined): boolean {
+  return item?.loaned === true;
+}
+
+/** 借り物を装備・倉庫から除いた写し（保存用）。借り物が無ければそのまま返す */
+function withoutLoaned(profile: Profile): Profile {
+  const equipped = SLOTS.some((slot) => isLoaned(profile.equipment[slot]));
+  if (!equipped && !profile.stash.some(isLoaned)) return profile;
+  const equipment = { ...profile.equipment };
+  for (const slot of SLOTS) if (isLoaned(equipment[slot])) equipment[slot] = null;
+  return { ...profile, equipment, stash: profile.stash.filter((it) => !isLoaned(it)) };
+}
+
+/**
+ * ランが終わったら借り物を装備・倉庫から外す（main.ts の endRun が呼ぶ）。外したら true。
+ * 借りたときに押し出した元の装備が倉庫に残っていれば、同じスロットへ戻す
+ */
+export function returnLoaned(profile: Profile): boolean {
+  const replaced = SLOTS.map((slot) => ({ slot, id: profile.equipment[slot]?.loaned === true ? profile.equipment[slot]?.loanedReplaces : undefined }));
+  const before = withoutLoaned(profile);
+  if (before === profile) return false;
+  profile.equipment = before.equipment;
+  profile.stash = before.stash;
+  for (const { slot, id } of replaced) {
+    if (id === undefined) continue;
+    const idx = profile.stash.findIndex((it) => it.id === id && it.slot === slot);
+    const original = profile.stash[idx];
+    if (!original || profile.equipment[slot]) continue;
+    profile.stash.splice(idx, 1);
+    profile.equipment[slot] = original;
+  }
+  return true;
+}
+
+/** プロフィールを保存する。借り物は書かない。容量超過などの失敗は握りつぶす。保存先が無い環境では何もしない */
 export function saveProfile(profile: Profile, storage?: Storage): void {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return;
   try {
-    target.setItem(PROFILE_KEY, JSON.stringify(profile));
+    target.setItem(PROFILE_KEY, JSON.stringify(withoutLoaned(profile)));
   } catch (err) {
     console.warn("saveProfile failed", err);
   }

@@ -281,10 +281,14 @@ function isEffectKind(s: string): s is TriggerEffectKind {
   return Object.hasOwn(EFFECT_SPECS, s);
 }
 
-/** スロットごとに出るトリガー（その部位らしい起点に寄せる）。ring / amulet は全部 */
+/**
+ * スロットごとに出るトリガー（その部位らしい起点に寄せる）。ring / amulet は全部。
+ * 右手は近接・銃どちらの家系も乗るので両方の起点を持つ（旧 weapon + gun の合併）。
+ * 左手（offHand）は今はベースが無く出番が無い
+ */
 export const SLOT_TRIGGERS: Readonly<Record<Slot, readonly TriggerKind[]>> = {
-  weapon: ["onMeleeHit", "everyNthMeleeHit", "onKill", "onJustDodge", "onStagger", "onCounter"],
-  gun: ["onShoot", "onKill", "onJustDodge", "onStagger"],
+  mainHand: ["onMeleeHit", "everyNthMeleeHit", "onShoot", "onKill", "onJustDodge", "onStagger", "onCounter"],
+  offHand: [],
   armor: ["onHurt", "onKill", "onRoomClear"],
   boots: ["onDash", "onJustDodge", "onRoomClear"],
   ring: TRIGGER_KINDS,

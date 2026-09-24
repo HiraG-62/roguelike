@@ -17,12 +17,13 @@ import { oilKingTelegraph, setupOilKingRoom, updateOilKing } from "./bossOilKing
 import { broodMotherTelegraph, updateBroodMother } from "./bossBroodMother";
 import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
 import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, updateMirrorKnight } from "./bossMirrorKnight";
+import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import type { EnemyTelegraph } from "./enemies";
 
 /** 階層ボス。depth が BOSS.interval の倍数の階は、階段のある最後の部屋がボス部屋になる */
 
 /**
- * ボスの回転（深度 3 の倍数ごとに 1 体。8 体で 24 階まで重複なし）。
+ * ボスの回転（深度 3 の倍数ごとに 1 体。9 体で 27 階まで重複なし。第 4 弾の盗賊王は逃げながら罠を撒く）。
  * Wave 3 の 4 体はバイオームと結び付く（油壺の王 = 油の坑道・熔鉱炉 / 群れの母 = 沼・草原 /
  * 図書館の司書 = 骨の墓所の書庫 / 鏡の騎士 = 鏡の部屋）。取り巻きの敵を biomes.ts のファミリー表に足してある
  */
@@ -35,6 +36,8 @@ const BOSS_ROTATION = [
   "broodMother",
   "librarian",
   "mirrorKnight",
+  // 2026-09-24 第 4 弾（深度 27）
+  "thiefKing",
 ] as const;
 const FULL_CIRCLE = Math.PI * 2;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
@@ -81,6 +84,7 @@ export function setupBossRoom(state: GameState, roomIndex: number): void {
   state.boss = { enemyId: boss.id, name: def.bossTitle ?? def.name, roomIndex, introTimer: 0, defeated: false };
   if (def.behavior === "twinBlade") spawnTwinSister(state, boss);
   if (def.behavior === "oilKing") setupOilKingRoom(state, roomIndex);
+  if (def.behavior === "thiefKing") setupThiefKingRoom(state, boss);
 }
 
 /** ボス部屋のロック時の演出 */
@@ -145,6 +149,8 @@ export function bossTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
       return librarianTelegraph(e);
     case "mirrorKnight":
       return mirrorKnightTelegraph(e);
+    case "thiefKing":
+      return thiefKingTelegraph(e);
     default:
       return null;
   }
@@ -188,6 +194,9 @@ export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: n
       return;
     case "mirrorKnight":
       updateMirrorKnight(state, e, def, dt);
+      return;
+    case "thiefKing":
+      updateThiefKing(state, e, def, dt);
       return;
     default:
       return;

@@ -116,6 +116,31 @@ function rulesOf(key: BoonKeyWave2, specs: readonly RuleSpec[]): Rule[] {
   }));
 }
 
+/**
+ * 旧フック（boonRules.ts）から移した祝福の Rule（boonDefs.ts の directRules と同じ形。ここから boonDefs.ts の値は読めない）。
+ * フックと数値・回数を揃えるため確率 1・ICD 0・direct（連鎖に数えない）
+ */
+function directRulesOf(key: BoonKeyWave2, specs: readonly RuleSpec[]): Rule[] {
+  const owner: EventSource = { kind: "boon", key };
+  return specs.map((s, i) => ({
+    id: ruleId(owner, i),
+    when: s.when,
+    if: s.if ?? [],
+    then: s.then,
+    chance: ALWAYS,
+    icd: s.icd ?? 0,
+    scope: SCOPE_ANY,
+    owner,
+    direct: true,
+  }));
+}
+
+/** 強さを持たない状態異常（脆弱・恐怖）の magnitude */
+const NO_AMOUNT = 0;
+
+/** 波で湧く部屋（巣窟・試練・闘技場。狩場の王の制圧の条件） */
+const WAVE_ROOM: RuleCondition = { kind: "eventTagIn", tags: ["horde", "challenge", "arena"] };
+
 const FINISHER: RuleCondition = { kind: "finisher" };
 const BRANCH: RuleCondition = { kind: "branchSwing" };
 const BY_PLAYER: RuleCondition = { kind: "actor", actor: "player" };
@@ -1114,6 +1139,26 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
     keywords: kw(["vulnerable", "fear"], ["clear"]),
     cursed: false,
     duo: ["roamHunt", "hordeLord"],
+    rules: directRulesOf("huntLord", [
+      {
+        when: "onRoomClear",
+        if: [WAVE_ROOM],
+        then: { kind: "roomEnemies", room: "roaming", status: "vulnerable", magnitude: NO_AMOUNT, duration: STATUS.vulnerable.duration },
+      },
+      {
+        when: "onRoomClear",
+        if: [WAVE_ROOM],
+        then: {
+          kind: "roomEnemies",
+          room: "roaming",
+          status: "fear",
+          magnitude: NO_AMOUNT,
+          duration: BOON.huntLordFear,
+          text: "狩場",
+          color: BOON.rarityColor.epic,
+        },
+      },
+    ]),
   },
   weakChain: {
     key: "weakChain",

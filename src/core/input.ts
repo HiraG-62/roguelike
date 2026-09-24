@@ -405,6 +405,14 @@ export class PlayerInput {
     return this.lastGamepadFrame.escapePressed;
   }
 
+  /**
+   * 決定キー（Enter / パッド A）を押し続けているか。FrameInput は押した瞬間しか持たず、
+   * 拠点の出撃の長押しはリプレイに記録しないので FrameInput の外で読ませる。パッドは直近 snapshot() の値
+   */
+  confirmHeld(): boolean {
+    return this.isDown("confirm") || this.lastGamepadFrame.confirmHeld;
+  }
+
   attachKeyboard(target: Window): void {
     target.addEventListener("keydown", (ev) => {
       if (ev.repeat) return;

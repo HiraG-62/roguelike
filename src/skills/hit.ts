@@ -2,7 +2,7 @@ import type { AttackProfile, Element } from "../core/element";
 import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
-import { type Vec, length, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { FEEL, POISE, STATUS } from "../data/tuning";
 import type { Scaling } from "../loot/types";
 import { scaled } from "../system/attributes";
@@ -154,6 +154,7 @@ function afterHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec
   if (!killed) applySkillStatuses(state, e, params.extraApplies, params);
   if (!killed && params.hueInfuse) applyResonanceHue(state, e, params);
   if (params.leyline) leylineAt(state, pos, params);
+  if (params.crumble) crumbleLine(state, spec.from ?? state.player.body.pos, pos, params);
   if (params.curse && !killed) applyCurse(state, e, params.curse);
   if (params.followUp && !killed) markFollowUp(state, e, spec.base);
   if (params.refundPerHit > 0) refundOnHit(state, params, pos);
@@ -236,6 +237,22 @@ function leylineAt(state: GameState, pos: Vec, params: Readonly<CastParams>): vo
   const l = SKILL.modifier.leyline;
   const element = castAttack(params)?.element ?? "none";
   placeTerrain(state, pos.x, pos.y, LEYLINE_TERRAIN[element], l.radius, l.time);
+}
+
+/**
+ * 地崩れ（地裂き専用）: 発動した位置から命中した敵まで（+ 吹き飛ぶぶん extend px 先まで）のマスを崩れる床にする。
+ * 崩れる規則（乗り続けると抜けて落ちる）は system/terrain.ts が持つ
+ */
+function crumbleLine(state: GameState, from: Vec, to: Vec, params: Readonly<CastParams>): void {
+  const c = SKILL.modifier.crumble;
+  const delta = sub(to, from);
+  const dir = normalize(delta, state.player.facing);
+  const total = length(delta) + c.extend;
+  const time = c.time * params.durationMul;
+  for (let d = 0; d <= total; d += c.step) {
+    const at = add(from, scale(dir, d));
+    placeTerrain(state, at.x, at.y, "rubble", 0, time);
+  }
 }
 
 /** 追撃の印。近接で当てると追加ヒット（system/skills.ts の onSkillMeleeHit） */

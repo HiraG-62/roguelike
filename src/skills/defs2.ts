@@ -325,4 +325,16 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     axes: ["countVsDamage", "durationVsPotency", "areaVsDamage"],
     ...manaSkill(T.wardStake),
   },
+  // ---- 第 4 弾 ----
+  mire: {
+    key: "mire",
+    name: "泥沼",
+    icon: "泥",
+    verb: "カーソル地点に泥沼を広げる（中の敵は歩きも突進も遅く、怯み値が溜まる。火が入ると固まって麻痺）",
+    tags: ["area", "placed"],
+    keywords: kw(["area", "placed", "stagger"], ["burn"]),
+    damageKind: "ranged",
+    axes: ["areaVsDamage", "durationVsPotency"],
+    ...manaSkill(T.mire),
+  },
 };

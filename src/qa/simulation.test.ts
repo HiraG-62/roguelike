@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import type { Enemy, EnemyPhase, GameState, GameStatus } from "../core/state";
+import type { Enemy, EliteKind, EnemyPhase, GameState, GameStatus } from "../core/state";
 import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
+import { TERRAIN_KINDS, TERRAIN_LABEL, type TerrainKind } from "../core/terrain";
 import { createRng, type Rng } from "../core/rng";
 import { ENEMIES, enemyDef, isBossClass } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
 import {
   createEmptyProfile,
   createEmptyProvenance,
+  LOOT_SLOTS,
   RARITIES,
-  SLOTS,
   TRAIT_COLORS,
   type AffixRoll,
   type Item,
@@ -27,9 +28,11 @@ import { chooseBud } from "../system/loot";
 import { isBossDriven } from "../system/boss";
 import { createEnemy } from "../system/enemies";
 import { ROAMING_ROOM } from "../system/spawner";
+import { ELITE_KINDS, ELITE_PREFIX } from "../system/elites";
 import * as combat from "../system/combat";
 import * as statusEffectsModule from "../system/statusEffects";
 import * as elementCombatModule from "../system/elementCombat";
+import { terrainAt, smokeAt } from "../system/terrain";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
@@ -160,14 +163,14 @@ function buildProfile(kind: ProfileKind, seed: number): Profile {
 
   if (kind === "rareLoadout" || kind === "uniqueLoadout") {
     const targetRarity: Rarity = kind === "rareLoadout" ? "rare" : "unique";
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       profile.equipment[slot] = rollUntilRarity(rng, slot, targetRarity, 20, 1, now);
     }
     return profile;
   }
 
   const colors = colorsForLoadout(kind, seed);
-  for (const slot of SLOTS) {
+  for (const slot of LOOT_SLOTS) {
     profile.equipment[slot] = buildColoredItem(rng, slot, colors, 20, 1, now);
   }
   return profile;
@@ -441,6 +444,14 @@ interface RunMetrics {
    * ENEMY_AI.maxSimultaneousStrikers の上限超過はこちらで判定する
    */
   maxConcurrentNonBossStrikers: number;
+  /** QA の観測の盲点（2026-09-24 追加）: 地形種別ごとにプレイヤーが踏み込んだ回数（前ステップと種類が変わった瞬間を数える） */
+  terrainEnterCounts: Partial<Record<TerrainKind, number>>;
+  /** 同上、煙（terrainAt とは別レイヤー）に入った回数 */
+  smokeEnterCount: number;
+  /** 精鋭修飾子ごとの出現数（elite / eliteExtra を敵の初出現時に 1 回だけ数える） */
+  eliteSpawnCounts: Partial<Record<EliteKind, number>>;
+  /** SYNERGY.maxEventsPerStep / maxPendingEvents で捨てられたイベントが増えた回数（＝上限到達したステップ数） */
+  synergyEventCapHits: number;
 }
 
 /** 同時に strike 中の敵数。total はボス込み、nonBoss は strikeSlotsFull（system/enemies.ts）と同じくボスを除く */
@@ -564,6 +575,10 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     genre: emptyGenreMetrics(),
     maxConcurrentStrikers: 0,
     maxConcurrentNonBossStrikers: 0,
+    terrainEnterCounts: {},
+    smokeEnterCount: 0,
+    eliteSpawnCounts: {},
+    synergyEventCapHits: 0,
   };
 
   let depthEnterTime = state.time;
@@ -573,6 +588,10 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   let sawBossDefeatThisFloor = false;
   let stepTimeTotal = 0;
   let prevManaFlash = state.skills.manaFlash;
+  let prevTerrain: TerrainKind = "none";
+  let prevSmoke = false;
+  let prevDroppedEvents = state.ruleRun.droppedEvents;
+  const seenEliteIds = new Set<number>();
 
   // このランの間だけ、上のスパイが metrics.skill に書き込むようにする（他ランと混ざらないよう
   // 抜けたら必ず null に戻す。runOnce は例外を catch して抜けるだけで投げ直さないので try/finally は不要）
@@ -622,6 +641,27 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     const striking = countStrikers(state.enemies);
     metrics.maxConcurrentStrikers = Math.max(metrics.maxConcurrentStrikers, striking.total);
     metrics.maxConcurrentNonBossStrikers = Math.max(metrics.maxConcurrentNonBossStrikers, striking.nonBoss);
+
+    // QA の観測の盲点（2026-09-24 追加）: 地形踏み込み・煙・精鋭出現・SYNERGY イベント上限到達
+    const playerPos = state.player.body.pos;
+    const terrain = terrainAt(state, playerPos.x, playerPos.y);
+    if (terrain !== prevTerrain) {
+      metrics.terrainEnterCounts[terrain] = (metrics.terrainEnterCounts[terrain] ?? 0) + 1;
+      prevTerrain = terrain;
+    }
+    const smoke = smokeAt(state, playerPos.x, playerPos.y);
+    if (smoke && !prevSmoke) metrics.smokeEnterCount++;
+    prevSmoke = smoke;
+    for (const e of state.enemies) {
+      if (!e.elite || seenEliteIds.has(e.id)) continue;
+      seenEliteIds.add(e.id);
+      metrics.eliteSpawnCounts[e.elite] = (metrics.eliteSpawnCounts[e.elite] ?? 0) + 1;
+      if (e.eliteExtra) metrics.eliteSpawnCounts[e.eliteExtra] = (metrics.eliteSpawnCounts[e.eliteExtra] ?? 0) + 1;
+    }
+    if (state.ruleRun.droppedEvents !== prevDroppedEvents) {
+      metrics.synergyEventCapHits++;
+      prevDroppedEvents = state.ruleRun.droppedEvents;
+    }
 
     if (!metrics.nanDetected && hasNaN(state)) metrics.nanDetected = true;
     if (!metrics.wallOverlapDetected && anyEnemyInWall(state)) {
@@ -954,6 +994,7 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
 
   lines.push(...buildSkillMetricsSection(allMetrics));
   lines.push(...buildGenreMetricsSection(allMetrics));
+  lines.push(...buildObservationGapsSection(allMetrics));
 
   lines.push("## バランス所見");
   lines.push("");
@@ -1072,6 +1113,64 @@ function buildGenreMetricsSection(allMetrics: readonly RunMetrics[]): string[] {
   lines.push("");
 
   lines.push(...strikerReportLines(allMetrics));
+  lines.push("");
+
+  return lines;
+}
+
+/**
+ * QA の観測の盲点（2026-09-24 追加、report.md 調査メモ「QA の観測の盲点」対応）。
+ * 地形（泥・煙）・精鋭修飾子・SYNERGY イベント上限到達を、QA 標準ビルド固定の装備パターンでどれだけ観測できているか出す。
+ * 0 件のものは「QA の装備パターン/loadout がその経路を踏まない」ことの傍証で、実装が無いことの証明ではない。
+ */
+function buildObservationGapsSection(allMetrics: readonly RunMetrics[]): string[] {
+  const lines: string[] = [];
+  lines.push("## QA の観測の盲点（地形・精鋭・SYNERGY イベント上限）");
+  lines.push("");
+
+  lines.push("### 地形種別ごとの踏み込み回数（プレイヤー、前ステップと種類が変わった瞬間を計上）");
+  lines.push("");
+  lines.push("| 地形 | 回数 |");
+  lines.push("| --- | --- |");
+  for (const kind of TERRAIN_KINDS) {
+    if (kind === "none" || kind === "smoke") continue;
+    const count = allMetrics.reduce((s, m) => s + (m.terrainEnterCounts[kind] ?? 0), 0);
+    lines.push(`| ${TERRAIN_LABEL[kind]} (${kind}) | ${count} |`);
+  }
+  const smokeTotal = allMetrics.reduce((s, m) => s + m.smokeEnterCount, 0);
+  lines.push(`| 煙 (smoke、terrainAt とは別レイヤー) | ${smokeTotal} |`);
+  lines.push("");
+
+  lines.push("### 精鋭修飾子の出現数（種類別、elite / eliteExtra を敵の初出現時に計上）");
+  lines.push("");
+  lines.push("| 精鋭 | 出現数 |");
+  lines.push("| --- | --- |");
+  let eliteTotal = 0;
+  for (const kind of ELITE_KINDS) {
+    const count = allMetrics.reduce((s, m) => s + (m.eliteSpawnCounts[kind] ?? 0), 0);
+    eliteTotal += count;
+    lines.push(`| ${ELITE_PREFIX[kind]} (${kind}) | ${count} |`);
+  }
+  lines.push("");
+  const zeroElites = ELITE_KINDS.filter((k) => allMetrics.every((m) => (m.eliteSpawnCounts[k] ?? 0) === 0));
+  lines.push(
+    `合計 ${eliteTotal} 体。0 件だった精鋭: ${zeroElites.length === 0 ? "無し" : zeroElites.map((k) => `${ELITE_PREFIX[k]}(${k})`).join("、")}。`,
+  );
+  lines.push("");
+
+  const zeroStatus = STATUS_KINDS.filter((k) => allMetrics.every((m) => (m.skill.statusApplyCounts[k] ?? 0) === 0));
+  lines.push(
+    `### 状態異常で 0 件だった種類（全 ${STATUS_KINDS.length} 種中）\n\n` +
+      (zeroStatus.length === 0 ? "無し。" : zeroStatus.map((k) => `${STATUS_LABEL[k]}(${k})`).join("、")),
+  );
+  lines.push("");
+
+  const capHitsTotal = allMetrics.reduce((s, m) => s + m.synergyEventCapHits, 0);
+  const capHitRuns = allMetrics.filter((m) => m.synergyEventCapHits > 0).length;
+  lines.push(
+    `### SYNERGY.maxEventsPerStep / maxPendingEvents 到達回数\n\n` +
+      `上限に到達した（イベントを捨てた）ステップの延べ回数: ${capHitsTotal}（${capHitRuns} / ${allMetrics.length} run で発生）。0 なら今回の QA 標準ビルドでは連鎖の不発は起きていない。`,
+  );
   lines.push("");
 
   return lines;

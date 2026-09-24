@@ -1,0 +1,134 @@
+{
+  "_note": "ジョブ(docs/COMBAT_DESIGN.md A-9)。単位: 秒 / % は表示単位(+25%は25) / 倍率(1=等倍)。attributes は基礎値(各5)に足す偏り、weakness は掛け算の倍率(JobMulStat)。「見習い」(none)は数値を持たないので TS 側(src/data/jobs.ts)にそのまま残る",
+  "JOB": {
+    "favoredMeleeMul": 1.1,
+    "favoredAttackSpeedMul": 1.08,
+    "starterStoneLinks": 1,
+    "starterWeaponLevel": 1,
+    "swordsmanFinisherPoise": 14,
+    "swordsmanJustBuffPct": 25,
+    "swordsmanJustBuffSec": 3,
+    "swordsmanRangedMul": 0.8,
+    "hunterWindupPoise": 10,
+    "hunterVulnerableSec": 2.5,
+    "hunterEliteIcd": 1,
+    "hunterHpMul": 0.85,
+    "brawlerEveryHits": 6,
+    "brawlerShockwaveRatio": 0.8,
+    "brawlerHurtBuffPct": 30,
+    "brawlerHurtBuffSec": 3,
+    "brawlerRangedMul": 0.7,
+    "shieldHurtInvulnSec": 0.4,
+    "shieldHurtIcd": 6,
+    "shieldCounterRatio": 1,
+    "shieldMoveMul": 0.92,
+    "hexerStatusMana": 2,
+    "hexerStatusIcd": 0.3,
+    "hexerSpreadRadius": 56,
+    "hexerSpreadSec": 4,
+    "hexerMeleeMul": 0.85,
+    "lancerGuardPoise": 16,
+    "lancerStaggerEnergy": 8,
+    "lancerDashCdMul": 1.15,
+    "invokerCastBuffPct": 15,
+    "invokerCastBuffSec": 2,
+    "invokerLowManaKill": 6,
+    "invokerHpMul": 0.85,
+    "shadowAfterDashSec": 0.5,
+    "shadowVulnerableSec": 2,
+    "shadowVulnerableIcd": 0.5,
+    "shadowJustSpeedPct": 30,
+    "shadowJustSpeedSec": 2,
+    "shadowHpMul": 0.8,
+    "alchemistReactionEnergy": 6,
+    "alchemistBlastRatio": 0.6,
+    "alchemistBlastIcd": 1,
+    "alchemistAttackSpeedMul": 0.9
+  },
+  "attributes": {
+    "swordsman": {
+      "str": 2,
+      "vit": 1,
+      "mnd": -1,
+      "spi": -2
+    },
+    "hunter": {
+      "dex": 3,
+      "mnd": 1,
+      "str": -2,
+      "vit": -2
+    },
+    "brawler": {
+      "str": 2,
+      "vit": 2,
+      "dex": -1,
+      "spi": -3
+    },
+    "shieldBearer": {
+      "vit": 3,
+      "str": 1,
+      "dex": -2,
+      "spi": -2
+    },
+    "hexer": {
+      "spi": 3,
+      "mnd": 1,
+      "str": -2,
+      "vit": -2
+    },
+    "lancer": {
+      "dex": 2,
+      "str": 1,
+      "mnd": -1,
+      "spi": -2
+    },
+    "invoker": {
+      "mnd": 2,
+      "spi": 2,
+      "str": -2,
+      "vit": -2
+    },
+    "shadow": {
+      "dex": 3,
+      "spi": 1,
+      "str": -2,
+      "vit": -2
+    },
+    "alchemist": {
+      "mnd": 2,
+      "spi": 1,
+      "vit": 1,
+      "str": -2,
+      "dex": -2
+    }
+  },
+  "weakness": {
+    "swordsman": {
+      "rangedDamageMul": 0.8
+    },
+    "hunter": {
+      "maxHp": 0.85
+    },
+    "brawler": {
+      "rangedDamageMul": 0.7
+    },
+    "shieldBearer": {
+      "moveSpeedMul": 0.92
+    },
+    "hexer": {
+      "meleeDamageMul": 0.85
+    },
+    "lancer": {
+      "dashCooldownMul": 1.15
+    },
+    "invoker": {
+      "maxHp": 0.85
+    },
+    "shadow": {
+      "maxHp": 0.8
+    },
+    "alchemist": {
+      "attackSpeedMul": 0.9
+    }
+  }
+}

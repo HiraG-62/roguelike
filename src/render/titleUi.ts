@@ -59,7 +59,7 @@ const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
   resume: "再開",
   settings: "設定",
   restart: "やり直す",
-  title: "タイトルへ",
+  title: "拠点へ",
 };
 
 const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
@@ -297,7 +297,7 @@ export function drawTitle(
   drawTextShadow(ctx, gameName, VIEW_W / 2, TITLE_Y, TEXT.BIG, COLOR_TITLE, COLOR_TITLE_SHADOW, "center", TITLE_SHADOW_OFFSET);
 
   const blinkOn = Math.sin((time / BLINK_PERIOD_SECONDS) * Math.PI * 2) > 0;
-  if (blinkOn) drawText(ctx, "Enter で開始", VIEW_W / 2, 112, TEXT.BODY, COLOR_TEXT, "center");
+  if (blinkOn) drawText(ctx, "Enter で拠点へ", VIEW_W / 2, 112, TEXT.BODY, COLOR_TEXT, "center");
 
   const seedColor = seedInput.active ? COLOR_ACCENT : COLOR_DIM;
   // URL の ?seed= は常に同期しているので、アドレスバーをコピーすればシードを共有できる
@@ -310,7 +310,7 @@ export function drawTitle(
 
   // 右下: 操作一覧
   const controls = [
-    "Enter / クリック: 開始   D: デイリーシード",
+    "Enter / クリック: 拠点へ   D: デイリーシード",
     "N: シード編集   H: 履歴   O: 設定",
     "C: 図鑑   Q: 依頼   A: 実績",
     "WASD / 矢印キー: 移動、Space: ダッシュ",
@@ -660,7 +660,7 @@ export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSumma
   const rarityText = RARITIES.map((r) => `${RARITY_LABEL[r]} ${info.itemSummary.byRarity[r]}`).join(" / ");
   drawText(ctx, `拾った遺物: ${info.itemSummary.total}（${rarityText}）`, VIEW_W / 2, VIEW_H / 2 + 60, m, COLOR_TEXT, "center");
   drawText(ctx, `撃破したボス: ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72, m, COLOR_TEXT, "center");
-  drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード   T: タイトル`, VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
+  drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード   T: 拠点へ`, VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
   const line = Math.max(DEATH_META_LINE, textLineHeight(m));
   (info.metaLines ?? []).forEach((text, i) => {
     drawText(ctx, truncateText(text, VIEW_W - SCREEN_MARGIN * 2, m), VIEW_W / 2, VIEW_H / 2 + DEATH_META_TOP + i * line, m, COLOR_META, "center");

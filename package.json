@@ -1,8 +1,9 @@
 {
   "name": "roguelike",
   "private": true,
-  "version": "0.0.11",
+  "version": "0.0.15",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -10,9 +11,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "node scripts/check.mjs",
-    "qa:full": "node scripts/qa-full.mjs"
+    "qa:full": "node scripts/qa-full.mjs",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:build": "node scripts/electron-build.mjs",
+    "sync:claude": "node scripts/sync-claude-global.mjs"
   },
   "devDependencies": {
+    "@types/node": "^24.13.6",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"

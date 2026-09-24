@@ -60,7 +60,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item-1",
     seed: 1,
     baseKey: "longsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "unique",
     itemLevel: 10,
     name: "テストの剣",
@@ -84,12 +84,12 @@ describe("装備画面の描画", () => {
     const { drawInventoryUi } = await import("./inventoryUi");
     const { drawBudUi } = await import("./budUi");
     const state = createGame(1);
-    state.profile.equipment.weapon = makeItem({ id: "worn" });
+    state.profile.equipment.mainHand = makeItem({ id: "worn" });
     addToStash(state.profile, makeItem({ id: "a" }));
     addToStash(state.profile, makeItem({ id: "b", affixes: [], budOffer: null, inscription: undefined }));
     state.pendingBud = {
       itemId: "worn",
-      slot: "weapon",
+      slot: "mainHand",
       milestone: "kills:50",
       milestoneLabel: "撃破 50",
       options: [melee, grown],
@@ -102,7 +102,7 @@ describe("装備画面の描画", () => {
     ui.hoverItemId = "a";
     drawInventoryUi(ctx, state, ui);
     ui.hoverItemId = "worn";
-    ui.hoverSlot = "weapon";
+    ui.hoverSlot = "mainHand";
     drawInventoryUi(ctx, state, ui);
     ui.bud.open = true;
     drawInventoryUi(ctx, state, ui);

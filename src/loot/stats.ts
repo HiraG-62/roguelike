@@ -252,12 +252,11 @@ export function computeStats(equipment: Equipment): PlayerStats {
   return finalize(stats);
 }
 
-/** 武器・銃のベースが決める武器種と射撃の型（src/data/weapons.ts）。空きスロットや型を持たないベースは既定 */
+/** 右手のベースが決める武器種と射撃の型（src/data/weapons.ts）。空きスロットや型を持たないベースは既定 */
 function applyWeaponForms(stats: PlayerStats, equipment: Equipment): void {
-  const weapon = equipment.weapon;
-  const gun = equipment.gun;
-  stats.moveset = (weapon ? baseDef(weapon.baseKey)?.moveset : undefined) ?? DEFAULT_MOVESET;
-  stats.shot = (gun ? baseDef(gun.baseKey)?.shot : undefined) ?? DEFAULT_SHOT;
+  const base = equipment.mainHand ? baseDef(equipment.mainHand.baseKey) : undefined;
+  stats.moveset = base?.moveset ?? DEFAULT_MOVESET;
+  stats.shot = base?.shot ?? DEFAULT_SHOT;
 }
 
 // ---------------------------------------------------------------------------
