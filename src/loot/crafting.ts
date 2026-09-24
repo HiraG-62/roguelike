@@ -1,5 +1,6 @@
 import { createRng, hashSeed, type Rng } from "../core/rng";
 import { affixDef, formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
+import { baseDef, baseFamily } from "./bases";
 import { OPPOSITE_COLOR, baseLean, traitColorOf } from "./colors";
 import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, scaledNominalAt, sigmaAt } from "./flux";
 import { VESSEL_CAPACITY, refluxTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
@@ -252,13 +253,19 @@ function traitOptions(item: Item, origin: AffixRoll["origin"]): TraitRollOptions
   return { depth: item.itemLevel, foundDepth: item.foundDepth, allowInversion: false, origin: origin ?? "found" };
 }
 
+/** アイテムの右手の家系（右手以外や moveset を持たないベースは undefined） */
+function itemFamily(item: Item): "melee" | "gun" | undefined {
+  const base = baseDef(item.baseKey);
+  return base === undefined ? undefined : baseFamily(base);
+}
+
 /** 染め: index の性質を、color の別の性質に置き換える。揺らぎ（flux）は引き継ぐ */
 export function dyeTrait(item: Item, index: number, color: TraitColor, rng: Rng): Item | null {
   const roll = traitAt(item, index);
   if (roll === undefined || traitColorOf(roll) === color) return null;
   // 提示中の芽の候補と重複すると、染めで作った性質を選んだ扱いになり得るので候補の key も避ける
   const used = new Set([...item.affixes.map((r) => r.key), ...(item.budOffer?.options.map((o) => o.key) ?? [])]);
-  const fresh = rollTraitOfColor(rng, item.slot, color, used, traitOptions(item, roll.origin));
+  const fresh = rollTraitOfColor(rng, item.slot, color, used, traitOptions(item, roll.origin), itemFamily(item));
   if (fresh === undefined) return null;
   const carried = roll.flux === undefined || isKeystoneKey(fresh.key) ? fresh : refluxTrait(fresh, roll.flux);
   const colored: AffixRoll = carried.inverted === true ? carried : { ...carried, color };

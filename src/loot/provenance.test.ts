@@ -4,6 +4,7 @@ import { createRng } from "../core/rng";
 import { damagePlayer } from "../system/combat";
 import { chooseBud } from "../system/loot";
 import { ascend, buildFloor } from "../system/floor";
+import { affixDef } from "./affixes";
 import { traitColorOf } from "./colors";
 import { generateItem } from "./generator";
 import { engraveName } from "./names";
@@ -114,6 +115,23 @@ describe("芽", () => {
     const def = MILESTONES[0];
     if (def === undefined) throw new Error("no milestones");
     expect(makeBudOffer(weapon(7), def)).toEqual(makeBudOffer(weapon(7), def));
+  });
+
+  it("右手の家系を守る: 銃の芽は family:melee を出さず、剣の芽は family:gun を出さない", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      for (const def of MILESTONES) {
+        const gun = { ...generateItem(createRng(seed), { itemLevel: 10, foundDepth: 10, slot: "mainHand", baseKey: "pistol", now: NOW }), affixes: [] };
+        const gunOffer = makeBudOffer(gun, def);
+        for (const option of gunOffer?.options ?? []) {
+          expect(affixDef(option.key)?.family, `seed ${seed} ${def.key}: ${option.key}`).not.toBe("melee");
+        }
+        const sword = { ...generateItem(createRng(seed), { itemLevel: 10, foundDepth: 10, slot: "mainHand", baseKey: "longsword", now: NOW }), affixes: [] };
+        const swordOffer = makeBudOffer(sword, def);
+        for (const option of swordOffer?.options ?? []) {
+          expect(affixDef(option.key)?.family, `seed ${seed} ${def.key}: ${option.key}`).not.toBe("gun");
+        }
+      }
+    }
   });
 
   it("chooseBud: 選んだ性質が芽として加わり、余白が 1 減り、履歴に 2 択が残る。stats も畳み込み直す", () => {

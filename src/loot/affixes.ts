@@ -832,6 +832,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- トレードオフ（value2 = 代償側の値）。同系統の純粋アフィックスより伸び幅が大きい ----
   trait({
     key: "crushing",
+    family: "melee",
     label: "近接ダメージ +{v}%、攻撃速度 -{v2}%",
     tags: ["damage", "melee", "tradeoff"],
     slots: ["mainHand"],
@@ -843,6 +844,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "frenzied",
+    family: "melee",
     label: "攻撃速度 +{v}%、近接ダメージ -{v2}%",
     tags: ["speed", "melee", "tradeoff"],
     slots: ["mainHand", "ring"],
@@ -912,6 +914,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "pike",
+    family: "melee",
     label: "リーチ +{v}%、攻撃速度 -{v2}%",
     tags: ["melee", "utility", "tradeoff"],
     slots: ["mainHand"],
@@ -1182,6 +1185,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 弾斬り（docs/COMBAT_DESIGN.md C-1 の 6）: 既定では近接は敵弾を素通りする ----
   trait({
     key: "bulletCut",
+    family: "melee",
     color: "azure",
     label: "近接攻撃で敵弾を消せる（リーチ -{v}%）",
     tags: ["melee", "defense"],
@@ -1379,6 +1383,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "counterMana",
+    family: "melee",
     color: "gold",
     label: "構えの呼吸: カウンターで気力 +{v}、攻撃速度 -{v2}%",
     tags: ["mana", "melee", "tradeoff"],
@@ -1475,6 +1480,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "procParalyze",
+    family: "melee",
     color: "gold",
     label: "近接命中時 {v}% で麻痺させる、攻撃速度 -{v2}%",
     tags: ["status", "melee", "tradeoff"],
@@ -1487,6 +1493,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "rotBurst",
+    family: "melee",
     color: "umbra",
     label: "腐爆: 状態異常が 2 種以上の敵への近接命中で爆発する（{v} ダメージ）、近接ダメージ -{v2}%",
     tags: ["status", "melee", "damage", "tradeoff"],
@@ -1676,6 +1683,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "windupCrack",
+    family: "melee",
     color: "gold",
     label: "崩し打ち: 予備動作中の敵への近接命中で、追加の怯み値 {v}",
     tags: ["melee", "combo"],
@@ -1687,6 +1695,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "counterWave",
+    family: "melee",
     label: "返し波: カウンター時、衝撃波を放つ（{v} ダメージ）",
     tags: ["melee", "damage"],
     slots: ["mainHand"],

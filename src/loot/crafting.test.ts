@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { affixDef } from "./affixes";
 import { traitColorOf } from "./colors";
 import {
   CALM_COST,
@@ -169,6 +170,23 @@ describe("染め", () => {
     const candidate = [...withoutOffer][0];
     if (candidate === undefined) throw new Error("候補が取れなかった");
     expect(sampleKeys(candidate, SAMPLES).has(candidate)).toBe(false);
+  });
+
+  it("右手の家系を守る: 銃のアイテムを染めても family:melee の性質は出ず、剣を染めても family:gun は出ない", () => {
+    const gun = makeItem({ baseKey: "pistol" });
+    const meleeItem = makeItem({ baseKey: "longsword" });
+    const colors = ["crimson", "azure", "jade", "gold", "umbra"] as const;
+    for (let i = 0; i < 200; i++) {
+      for (const color of colors) {
+        const gunDyed = dyeTrait(gun, 0, color, craftRng(`${gun.id}-${color}`, i));
+        const key = gunDyed?.affixes[0]?.key;
+        if (key !== undefined) expect(affixDef(key)?.family, `${color} ${i}: ${key}`).not.toBe("melee");
+
+        const meleeDyed = dyeTrait(meleeItem, 0, color, craftRng(`${meleeItem.id}-${color}`, i));
+        const meleeKey = meleeDyed?.affixes[0]?.key;
+        if (meleeKey !== undefined) expect(affixDef(meleeKey)?.family, `${color} ${i}: ${meleeKey}`).not.toBe("gun");
+      }
+    }
   });
 });
 
