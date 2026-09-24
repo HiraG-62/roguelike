@@ -35,12 +35,21 @@ function equipmentHelp(): TipLine[] {
     body("部位の枠 クリック: 一覧をその部位に絞る / Shift+クリック: 外す"),
     body("並び クリック: 次の軸 / Shift+クリック: 向きを反転"),
     body("絞り込み クリック: 次の候補 / Shift+クリック: 前へ（先頭は すべて）"),
-    body(`${detailKey}: 詳細欄の 要点 / 詳しく を切り替える`),
+    body(`${detailKey}: 詳細欄を 要点 → 詳しく → 計算式 の順に切り替える`),
     body("未振り点があれば、詳細欄の + か 1〜4・攻撃キーでステータスを振る"),
     head("ステータス"),
     ...ATTR_KEYS.map((k) => ({ text: `${ATTR_LABEL[k]}: ${ATTR_HINT[k]}`, color: COLOR_DIM })),
+    ...FORMULA_HELP,
   ];
 }
+
+/** 計算式の頁の読み方（docs/COMBAT_DESIGN.md A-10）。装備タブとスキルタブで共有する */
+const FORMULA_HELP: readonly TipLine[] = [
+  head("計算式の読み方"),
+  { text: "威力 18 = 10+筋力×1.3+技巧×0.2 は、ステータス 0 のとき 10、実効値 1 点ごとに筋力は 1.3・技巧は 0.2 増えるという意味", color: COLOR_DIM },
+  { text: "左の数は今のステータスでの基礎の値。装備の倍率・刻印符・祝福・敵の防御はこの後に掛かる", color: COLOR_DIM },
+  { text: "参照の無い行動は（ステータスで変わらない）。何も乗せずに計算式の頁を開くと、ステータスごとに参照している行動が出る", color: COLOR_DIM },
+];
 
 function skillsHelp(): TipLine[] {
   const detailKey = actionKeyLabel("interact");
@@ -49,11 +58,12 @@ function skillsHelp(): TipLine[] {
     body("スロット クリック / 1〜4 / ←→: 選ぶ  Shift+クリック: 外す"),
     body("スキル石 クリック: 空きスロット（無ければ選択中）へ装着  Shift+クリック: 分解"),
     body("刻印符 クリック / ↑↓+決定: 選択中のスロットの石に付け外し  Shift+クリック: 捨てる"),
-    body(`${detailKey}: 詳細欄の 要点 / 詳しく を切り替える`),
+    body(`${detailKey}: 詳細欄を 要点 → 詳しく → 計算式 の順に切り替える`),
     head("刻印符とリンク"),
     { text: "刻印符は拾うと所持品に入り、石に付け外しできる。石と一緒に持ち越す", color: COLOR_DIM },
     { text: "リンク数が多いほど負担（コスト / 再使用時間）が重くなる", color: COLOR_DIM },
     { text: "キー: 1〜4 / C V X Z / マウス戻る・進む  パッド: LB を押しながら A X Y B", color: COLOR_DIM },
+    ...FORMULA_HELP,
   ];
 }
 

@@ -55,6 +55,9 @@ export const DETAIL_X = PANEL_X + PANEL_W - FRAME_PAD - DETAIL_W;
 export const LIST_X = PANEL_X + FRAME_PAD;
 export const LIST_W = DETAIL_X - COLUMN_GAP - LIST_X;
 
+/** 詳細欄の頁。要点 → 詳しく → 計算式 の順に拾うキーで回す（render/detailPane.ts） */
+export type DetailPage = "brief" | "full" | "formula";
+
 export function detailRect(): Rect {
   return { x: DETAIL_X, y: CONTENT_Y, w: DETAIL_W, h: CONTENT_H };
 }

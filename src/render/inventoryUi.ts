@@ -38,6 +38,8 @@ import {
   type SkillSlotLayout,
   type SkillsLayout,
   type StoneRowLayout,
+  type DetailPage,
+  detailPageOf,
   helpButtonRect,
   layoutInventory,
   layoutSkills,
@@ -46,6 +48,19 @@ import {
 import { drawBudModal } from "./budUi";
 import { drawAttributePanel, drawSummaryHead } from "./attributeUi";
 import { DETAIL_GAP_LINE, type DetailContent, type DetailLine, drawDetailPane } from "./detailPane";
+import { MOVESETS } from "../data/weapons";
+import {
+  type ActionFormulas,
+  type LoadoutSources,
+  type ScalingFormula,
+  actionChunks,
+  attributeReferences,
+  formulaChunks,
+  itemFormulas,
+  mainReferenceChunks,
+  referenceChunks,
+  skillFormulas,
+} from "../ui/scalingText";
 import { itemAttackLine, loadoutAttackLines, skillAttackLine } from "./elementUi";
 import { drawEchoTab } from "./echoTabUi";
 import { drawInventoryHelp } from "./inventoryHelp";
@@ -153,8 +168,66 @@ function findItemById(state: GameState, id: string | null): Item | null {
   return state.profile.stash.find((it) => it.id === id) ?? null;
 }
 
-function detailToggleAction(full: boolean): string {
-  return `${actionKeyLabel("interact")}: ${full ? "要点だけ" : "詳しく"}`;
+/** 拾うキーで次に出る頁の名前 */
+const NEXT_PAGE_LABEL: Readonly<Record<DetailPage, string>> = { brief: "詳しく", full: "計算式", formula: "要点だけ" };
+
+function detailToggleAction(page: DetailPage): string {
+  return `${actionKeyLabel("interact")}: ${NEXT_PAGE_LABEL[page]}`;
+}
+
+// ---------------------------------------------------------------------------
+// 計算式の頁（docs/COMBAT_DESIGN.md A-10）。式の組み立ては ui/scalingText.ts
+// ---------------------------------------------------------------------------
+
+const FORMULA_CAPTION = "計算式（今のステータスでの基礎の値）";
+const REFERENCE_CAPTION = "ステータスを参照している行動（今の装備・スキル）";
+const NO_FORMULA_TEXT = "ステータスで変わらない";
+
+/** 今の武器種・射撃の型・装着中のスキル石 */
+function loadoutSources(state: GameState): LoadoutSources {
+  const skills: SkillKey[] = [];
+  for (let i = 0; i < SKILL.slots; i++) {
+    const stone = stoneInSlot(state.skills.profile, i);
+    if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
+  }
+  return { moveset: MOVESETS[state.stats.moveset], shot: state.stats.shot, skills };
+}
+
+/** ステータスごとに参照している行動の行（「筋力: 大剣の連撃・地裂き」） */
+function referenceLines(state: GameState): DetailLine[] {
+  return attributeReferences(state.stats, loadoutSources(state)).map((ref) => ({ chunks: referenceChunks(ref) }));
+}
+
+/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける */
+function actionFormulaLines(actions: readonly ActionFormulas[]): DetailLine[] {
+  return actions.flatMap((a) => a.formulas.map((f, i): DetailLine => ({ chunks: i === 0 ? actionChunks(a, f) : formulaChunks(f) })));
+}
+
+function captionLine(text: string): TipLine {
+  return { text, color: COLOR_DIM };
+}
+
+/** 武器なら行動ごとの式、武器でなければステータスを参照している行動（テストが欄に収まるかを見る） */
+export function itemFormulaLines(state: GameState, item: Item): DetailLine[] {
+  const head: TipLine = { text: item.name, color: itemColor(item) };
+  const actions = itemFormulas(state.stats, item);
+  if (actions.length === 0) return [head, captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
+  return [head, captionLine(FORMULA_CAPTION), ...actionFormulaLines(actions)];
+}
+
+/** 要点の「主に参照: 筋力・体力」（武器だけ） */
+function itemReferenceLine(state: GameState, item: Item): DetailLine | null {
+  const actions = itemFormulas(state.stats, item);
+  if (actions.length === 0) return null;
+  return { chunks: mainReferenceChunks(actions.flatMap((a) => a.formulas)) };
+}
+
+/** 要点の行の区切り（空の行）の手前に 1 行差し込む */
+function insertBeforeGap(lines: readonly DetailLine[], extra: DetailLine | null): DetailLine[] {
+  if (extra === null) return [...lines];
+  const gap = lines.indexOf(DETAIL_GAP_LINE);
+  if (gap < 0) return [...lines, extra];
+  return [...lines.slice(0, gap), extra, ...lines.slice(gap)];
 }
 
 export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
@@ -218,7 +291,7 @@ function drawEquipmentTab(ctx: CanvasRenderingContext2D, state: GameState, layou
   if (layout.budBanner) drawBudBanner(ctx, state, layout.budBanner);
   drawStash(ctx, layout, ui);
   const item = findItemById(state, ui.hoverItemId);
-  if (item) drawDetailPane(ctx, layout.detail, itemDetail(state, item, ui.hoverTile !== null, ui.detailFull), ui.detailFull);
+  if (item) drawDetailPane(ctx, layout.detail, itemDetail(state, item, ui.hoverTile !== null, detailPageOf(ui)), detailPageOf(ui));
   else drawBuildSummary(ctx, state, layout.detail, ui);
   drawBudModal(ctx, state, ui.bud);
 }
@@ -312,10 +385,27 @@ function itemDetailLines(state: GameState, item: Item): { lines: TipLine[]; more
   return { lines, more };
 }
 
-function itemDetail(state: GameState, item: Item, fromTile: boolean, full: boolean): DetailContent {
+function itemDetail(state: GameState, item: Item, fromTile: boolean, page: DetailPage): DetailContent {
   const { lines, more } = itemDetailLines(state, item);
   const actions = fromTile ? ["クリック: この部位を一覧", "Shift+クリック: 外す"] : ["クリック: 装備", "Shift+クリック: 砕く"];
-  return { lines, more, actions: [...actions, detailToggleAction(full)] };
+  return {
+    lines: insertBeforeGap(lines, itemReferenceLine(state, item)),
+    more,
+    formulas: itemFormulaLines(state, item),
+    actions: [...actions, detailToggleAction(page)],
+  };
+}
+
+/** 何も乗せていないときの計算式の頁: ステータスごとに参照している行動（テストが欄に収まるかを見る） */
+export function summaryFormulaLines(state: GameState): DetailLine[] {
+  return [captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
+}
+
+/** 要約の詳細欄: ステータスの一覧（「+」の当たり判定と同じ位置）の下から詳細欄の部品で流し込む */
+export function summaryBelowRect(rect: Rect): Rect {
+  const attrs = attributePanelRect();
+  const top = attrs.y + attrs.h + SECTION_GAP;
+  return { x: rect.x, y: top, w: rect.w, h: rect.y + rect.h - top };
 }
 
 /**
@@ -323,7 +413,6 @@ function itemDetail(state: GameState, item: Item, fromTile: boolean, full: boole
  * 詳しくでは装備の効果の一覧（statsSummary）を足す
  */
 function drawBuildSummary(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect, ui: InventoryUi): void {
-  const attrs = attributePanelRect();
   const lines: DetailLine[] = [];
   for (const text of equippedConflictLines(state)) lines.push({ text, color: COLOR_WARN });
   for (const text of loadoutAttackLines(state.stats)) lines.push({ text, color: COLOR_DIM });
@@ -335,13 +424,15 @@ function drawBuildSummary(ctx: CanvasRenderingContext2D, state: GameState, rect:
   lines.push({ bar: ratiosToBar(resonance.ratios) });
   for (const text of effects) lines.push({ text, color: resonance.kind === "none" ? COLOR_DIM : COLOR_TEXT });
   const more = statsSummary(state.stats).map((text): TipLine => ({ text, color: COLOR_TEXT }));
+  const formulas = summaryFormulaLines(state);
+  const page = detailPageOf(ui);
 
-  // ステータスの一覧（「+」の当たり判定と同じ位置）の下から詳細欄の部品で流し込む
-  const below: Rect = { x: rect.x, y: attrs.y + attrs.h + SECTION_GAP, w: rect.w, h: rect.y + rect.h - (attrs.y + attrs.h + SECTION_GAP) };
+  const attrs = attributePanelRect();
+  const below = summaryBelowRect(rect);
   strokeRectPx(ctx, rect, COLOR_BORDER);
   drawSummaryHead(ctx, state, { x: rect.x, y: rect.y, w: rect.w, h: SUMMARY_HEAD_H });
   drawAttributePanel(ctx, state, ui.hoverAlloc, attrs);
-  drawDetailPane(ctx, below, { lines, more, actions: more.length > 0 ? [detailToggleAction(ui.detailFull)] : [] }, ui.detailFull);
+  drawDetailPane(ctx, below, { lines, more, formulas, actions: [detailToggleAction(page)] }, page);
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +508,7 @@ function drawSkillsTab(ctx: CanvasRenderingContext2D, state: GameState, ui: Inve
   }
   for (const row of skills.rows) drawStoneRow(ctx, row, ui);
   drawRuneColumn(ctx, state, skills.runeList, ui);
-  drawDetailPane(ctx, skills.detail, skillDetail(state, ui, skills), ui.detailFull);
+  drawDetailPane(ctx, skills.detail, skillDetail(state, ui, skills), detailPageOf(ui));
 }
 
 /** スロット: アイコン・石の名前・キー・付いている刻印符の数。選択中は黄色の枠 */
@@ -507,9 +598,16 @@ function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine
   return { lines, more };
 }
 
+/** スキル石の計算式の頁。ステータスを参照する量が無ければそう書く（テストが欄に収まるかを見る） */
+export function stoneFormulaLines(stone: SkillStone, formulas: readonly ScalingFormula[]): DetailLine[] {
+  const head: TipLine = { text: stoneLabel(stone), color: COLOR_SKILL };
+  if (formulas.length === 0) return [head, captionLine(NO_FORMULA_TEXT)];
+  return [head, captionLine(FORMULA_CAPTION), ...formulas.map((f): DetailLine => ({ chunks: formulaChunks(f) }))];
+}
+
 /** 詳細欄の対象: 刻印符 → 乗せた石 → 乗せたスロット → 選択中のスロット */
 function skillDetail(state: GameState, ui: InventoryUi, skills: SkillsLayout): DetailContent {
-  const toggle = detailToggleAction(ui.detailFull);
+  const toggle = detailToggleAction(detailPageOf(ui));
   const rune = runeTooltipLines(state, ui, skills.runeList);
   if (rune) return { lines: rune, actions: ["Shift+クリック: 捨てる"] };
   const hoveredStone = findStone(state.skills.profile, ui.hoverStoneId);
@@ -524,6 +622,12 @@ function skillDetail(state: GameState, ui: InventoryUi, skills: SkillsLayout): D
   const { lines, more } = stoneDetailLines(state, stone);
   const fromList = hoveredStone !== null && !onSlot;
   const actions = fromList ? ["クリック: 装着", "Shift+クリック: 分解"] : ["クリック: 選ぶ", "Shift+クリック: 外す"];
-  return { lines, more, actions: [...actions, toggle] };
+  const formulas = skillFormulas(state.stats, stone.skillKey);
+  return {
+    lines: insertBeforeGap(lines, { chunks: mainReferenceChunks(formulas) }),
+    more,
+    formulas: stoneFormulaLines(stone, formulas),
+    actions: [...actions, toggle],
+  };
 }
 
