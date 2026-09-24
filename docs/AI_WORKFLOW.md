@@ -10,7 +10,7 @@
 4. **並列実装**: `implementer` を所有ごとに起動（`/parallel`）。互いの完了を待つ依存があれば、先に型だけ入れる Agent を走らせる
 5. **レビュー**: まとまった変更ごとに `reviewer`（`/review`）。レビュアーはバグを見つけたら直すところまでやる
 6. **QA**: `qa-runner`（`/qa`）で `npm run check` と `npm run qa:full`。数値の問題は `balance-tuner` へ
-7. **統合**: メインが報告を読み、共有ファイルの差分を確認し、`git add <所有ファイル>` で論理単位ごとにコミット。`IDEAS.md` の「現状」と `docs/ideas/README.md` を更新（`/handoff-docs`）
+7. **統合**: メインが報告を読み、共有ファイルの差分を確認し、`git add <所有ファイル>` で論理単位ごとにコミット。`docs/HANDOFF.md`・`IDEAS.md` の「現状」・`docs/ideas/README.md` を更新（`/handoff-docs`）
 
 ## リリース手順（check → bump → tag）
 
@@ -20,14 +20,14 @@
 4. レベルを決める（CLAUDE.md「バージョニング」。α 期間は 0.0.xx、major はユーザー指示のみ）
 5. `node scripts/bump.mjs <level> --dry-run` で確認し、`node scripts/bump.mjs <level>` を実行（`/bump`）
    - package.json / package-lock.json / src/version.ts / CHANGELOG.md を更新し、`chore: v0.0.2α` でコミット、`v0.0.2` タグを作る
-6. push はユーザーの指示があるときだけ（タグも `git push --tags` が要る）
+6. push はユーザーの指示があるときだけ（タグも `git push --tags` が要る。クラウドセッションではタグの push が拒否されることがあるので、その場合はブランチだけ push してタグはローカルに残す）
 
 ## ファイル所有の決め方
 
 - 新規ファイルはそれを作る Agent の所有
-- 共有ファイル: `src/core/state.ts`（型フィールドの追加）、`src/core/game.ts`（初期値と step の呼び出し）、`src/data/tuning.ts`（定数ブロックの追加）、`src/render/renderer.ts`、`src/main.ts`
+- 共有ファイル: `src/core/state.ts`（型フィールドの追加）、`src/core/game.ts`（初期値と step の呼び出し）、`src/data/balance/*.json` と `src/data/tuning.ts`（ブロックの追加）、`src/render/renderer.ts`、`src/main.ts`、`src/system/combat.ts`、`src/audio/sfxNames.ts` / `sfxLayers.ts`
   - 許すのは「自分の追加分だけの小さな Edit」。既存行の書き換えは所有者か統合役が行う
-  - tuning.ts は機能ごとに `export const XXX = { … }` のブロックを分ける（同じブロックを 2 Agent が触らない）
+  - 数値は JSON に機能ごとのブロック（`XXX`）を分けて置き、tuning.ts はそれを再 export する（同じブロックを 2 Agent が触らない）
 - テストファイルは対象ファイルの所有者のもの
 
 ## Agent プロンプトの雛形
@@ -42,7 +42,7 @@
 
 ## 最小 Edit のみ許可（全文 Write 禁止。自分の追加分だけ）
 - src/core/state.ts: <追加するフィールド>
-- src/data/tuning.ts: <追加する定数ブロック名>
+- src/data/balance/<file>.json + src/data/tuning.ts: <追加するブロック名>
 
 ## 編集禁止（読むのは OK）
 - 上記以外すべて。特に <並行作業中の Agent の所有ファイル>
@@ -52,7 +52,7 @@
 - <関連する設計文書と既存コード>
 
 ## 仕様
-- <箇条書き。数値は tuning.ts の定数にする前提で書く>
+- <箇条書き。数値は src/data/balance/*.json に置く前提で書く>
 
 ## 完了条件
 - npm run check が通る（他 Agent 起因の失敗はその旨を報告）
@@ -76,8 +76,10 @@
 | テストの英語アサーション | 日本語化でテストが英語の表示文字列に依存して壊れる / 方針違反 | it 名・メッセージは日本語。表示文字列ではなく key や数値で検証する |
 | `git add -A` | 他 Agent の作業途中の変更まで混ざる | 所有ファイルを列挙して add |
 | 描画での rng 消費 | リプレイと QA の再現性が崩れる | 描画のばらつきは座標ハッシュ。レビューで `state.rng` の出現箇所を確認 |
-| 数値の直書き | 調整箇所が散らばる | tuning.ts に定数ブロック。レビューで指摘 |
-| 等幅前提の文字幅 | 日本語でレイアウトが崩れる | `measureText` / `PixelText.width` / `wrapByWidth` |
+| 数値の直書き | 調整箇所が散らばる。ユーザーが JSON で調整できない | `src/data/balance/*.json` にブロック。レビューで指摘 |
+| 等幅前提の文字幅 | 日本語でレイアウトが崩れる | `pixelText.ts` の `textWidth` / `wrapText` / `truncateText`（`measureText` 禁止） |
+| seed 依存のテストが落ちる | 敵・修飾子・部屋を足すと抽選がずれる | seed を変えず、テストの意図を守る形で堅牢化（敵の生命を十分に、交戦フラグを解く、など） |
+| 並列の負荷でタイムアウト | 6 本並列で `replay.test.ts` / `qa/simulation.test.ts` が見かけ上失敗 | レーンには「報告だけ」と伝え、統合役が負荷の下がった後に `npm run check` |
 | 状態の選択待ちで bot が止まる | QA が途中で進まなくなる（祝福 3 択の前例） | モーダルな状態を足したら `src/qa/bot.ts` の対応も所有に含める |
 | 失敗を他人のせいにして終わる | 本当は自分の変更が原因 | 失敗したテストのファイルが自分の所有かを確認し、再現手順を報告 |
 
@@ -108,7 +110,7 @@ implementer を Sonnet で動かす前提は **設計が固まっていること
 | --- | --- | --- |
 | 型検査・テスト・ビルド | `/check` | - |
 | フル QA と報告 | `/qa` | qa-runner |
-| 敵 / アフィックス / スキル / 祝福の追加 | `/add-enemy` `/add-affix` `/add-skill` `/add-boon` | implementer（+ pixel-artist） |
+| 敵 / 性質 / スキル / 祝福の追加 | `/add-enemy` `/add-affix` `/add-skill` `/add-boon` | implementer（+ pixel-artist） |
 | 機能の並列実装 | `/parallel` | implementer × N |
 | 直近コミットのレビュー | `/review` | reviewer |
 | 引き継ぎ文書の更新 | `/handoff-docs` | - |

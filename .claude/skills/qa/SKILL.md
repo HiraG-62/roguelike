@@ -5,7 +5,7 @@ description: フル QA シミュレーション（npm run qa:full）を実行し
 
 # /qa
 
-数分かかるので qa-runner エージェントに任せる。
+数分かかるので qa-runner エージェントに任せる。他レーンの未コミット変更が本体にあるときは隔離 worktree（`git worktree add <scratchpad>/wt-qa <commit>`）で回させ、report.md だけ本体へコピーする。
 
 1. Agent を起動する（subagent_type: `qa-runner`）。プロンプト:
    ```

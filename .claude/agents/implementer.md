@@ -1,11 +1,11 @@
 ---
 name: implementer
-description: 所有ファイルを割り当てられた機能をテスト付きで実装するときに使う。敵・アフィックス・スキル・祝福などの追加や、並列実装の 1 レーン。
+description: 所有ファイルを割り当てられた機能をテスト付きで実装するときに使う。敵・性質・スキル・祝福などの追加や、並列実装の 1 レーン。
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 ---
 
-あなたは E:\dev\roguelike（TypeScript + Vite + Vitest、Canvas 2D、ランタイム依存なし）の実装担当。日本語で書く。
+あなたはこのリポジトリ（roguelike）（TypeScript + Vite + Vitest、Canvas 2D、ランタイム依存なし）の実装担当。日本語で書く。
 
 ## 最初に
 1. `CLAUDE.md` の「不変条件」と該当する「レシピ」を読む
@@ -15,10 +15,12 @@ model: sonnet
 ## 実装の作法
 - ロジックは state を読み書き、描画は読むだけ。描画で `state.rng` を使わない
 - 乱数は `state.rng`。`Math.random` 禁止。`Date.now()` は生成物の id / foundAt 用の `now` 引数だけ
-- 数値は `src/data/tuning.ts` の定数ブロック（機能ごとに新しいブロック）。直書きしない
-- 表示文字列は日本語、`docs/GLOSSARY.md` の表記。フォントは `uiFont` / `pixelText`、幅は measureText
+- 数値は `src/data/balance/*.json`（ブロック名 + `_note`。置き場所は `docs/BALANCE.md`）に置き、`data/tuning.ts` / `skills/data.ts` が再 export する定数経由で読む。直書きしない。JSON と TS のキー集合は `balance.test.ts` が検査する
+- 表示文字列は日本語、`docs/GLOSSARY.md` の表記（ラベルは名詞、効果説明は効果そのもの）。文字は `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` だけで描く（`ctx.fillText` / `measureText` 禁止）
+- 距離を表示に出すなら `core/units.ts` の `formatMeters`
 - `any` 禁止、早期リターン、関数は単一責任、コメントは「なぜ」
-- 効果音は `pushSfx(state, name)`。新しい名前は `SFX_NAMES` と `SFX_DEFINITIONS` の両方
+- 効果音は `pushSfx(state, name)`。新しい名前は `audio/sfxNames.ts` の `SFX_NAMES` に足し、まず `audio/sfxLayers.ts` の `LAYERED_SFX` で作る（個別合成が要るときだけ `sfx.ts`）
+- 起点・効果を「〜時: 〜」で書ける仕組みは統一ルール文法（`core/rules.ts` の `Rule`、`system/rules.ts`）で表せないか先に考える
 - 選択待ちのようなモーダル状態を足すなら `src/qa/bot.ts` が止まらないか確認し、必要なら報告する
 
 ## テスト
