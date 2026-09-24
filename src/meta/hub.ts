@@ -10,7 +10,7 @@ import { type CodexSave, type CodexTab, codexTabCount } from "./codex";
 import type { HubSave } from "./hubStore";
 import { type QuestSave, createQuestSave } from "./quests";
 
-export const FACILITY_KEYS = ["well", "board", "forge", "archive", "library", "training", "altar", "garden"] as const;
+export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden"] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
 export const FACILITY_NAME: Readonly<Record<FacilityKey, string>> = {
@@ -18,6 +18,7 @@ export const FACILITY_NAME: Readonly<Record<FacilityKey, string>> = {
   board: "掲示板",
   forge: "鍛冶場",
   archive: "記録室",
+  rack: "武器掛け",
   library: "図書館",
   training: "訓練場",
   altar: "祭壇",
@@ -35,10 +36,11 @@ export const FACILITY_OF_SPOT: Readonly<Record<HubSpotKey, FacilityKey>> = {
   history: "archive",
   codex: "archive",
   achievements: "archive",
+  rack: "rack",
 };
 
 /** 最初から建っている設備。建った演出は出さない（初回に 4 枚のバナーが並ばないように） */
-export const STARTER_FACILITIES: readonly FacilityKey[] = ["well", "board", "forge", "archive"];
+export const STARTER_FACILITIES: readonly FacilityKey[] = ["well", "board", "forge", "archive", "rack"];
 
 /** 訓練場の解放に数える部屋（試し場） */
 const TRAINING_ROOM = "dummyHall";

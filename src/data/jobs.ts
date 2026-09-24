@@ -4,8 +4,8 @@ import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } fro
 import type { Attributes, PlayerStats } from "../loot/types";
 import type { QuestKey } from "../meta/quests";
 import type { SkillKey } from "../skills/types";
-import { JOB } from "./tuning";
-import type { MovesetKey } from "./weapons";
+import { JOB, WEAPON } from "./tuning";
+import type { BranchDef, ButtonKey, MovesetKey } from "./weapons";
 
 /**
  * ジョブ（docs/COMBAT_DESIGN.md A-9）。起点とは別の軸で、ラン開始時に 1 つ選ぶ。
@@ -42,6 +42,8 @@ export interface JobDef {
   rules: readonly JobRuleDef[];
   /** 開始時に足元へ置くスキル石 */
   starterSkill: SkillKey | null;
+  /** 開始時に渡す素の武器（src/loot/bases.ts の BASES の key）。得意な武器種の器。剣は武器なしで振れるので剣士は打刀 */
+  starterWeapon: string | null;
   /** トレードオフ。単一最強を作らない */
   weakness: JobWeakness | null;
   keywords: KeywordProfile;
@@ -89,6 +91,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     favored: [],
     rules: [],
     starterSkill: null,
+    starterWeapon: null,
     weakness: null,
     keywords: kw([]),
   },
@@ -96,7 +99,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     name: "剣士",
     desc: "連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。",
     attributes: { str: 2, vit: 1, mnd: -1, spi: -2 },
-    favored: ["sword", "greatsword", "twinBlades"],
+    favored: ["sword", "greatsword", "katana"],
     rules: [
       jobRule("swordsman", 0, `終撃が当たると怯み値 ${JOB.swordsmanFinisherPoise} を上乗せする。`, {
         when: "onMeleeHit",
@@ -109,6 +112,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "lunge",
+    starterWeapon: "katana",
     weakness: { text: `射撃の威力が ${lessPct(JOB.swordsmanRangedMul)}% 落ちる。`, mul: { rangedDamageMul: JOB.swordsmanRangedMul } },
     keywords: kw(["melee", "finisher", "stagger"], ["just"]),
   },
@@ -131,6 +135,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "railshot",
+    starterWeapon: "whip",
     weakness: { text: `最大生命が ${lessPct(JOB.hunterHpMul)}% 減る。`, mul: { maxHp: JOB.hunterHpMul } },
     keywords: kw(["ranged", "stagger", "vulnerable"], ["elite"]),
   },
@@ -151,6 +156,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "quake",
+    starterWeapon: "gauntlets",
     weakness: { text: `射撃の威力が ${lessPct(JOB.brawlerRangedMul)}% 落ちる。`, mul: { rangedDamageMul: JOB.brawlerRangedMul } },
     keywords: kw(["melee", "combo", "area"], ["hurt"]),
   },
@@ -171,6 +177,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "parry",
+    starterWeapon: "machete",
     weakness: { text: `移動速度が ${lessPct(JOB.shieldMoveMul)}% 落ちる。`, mul: { moveSpeedMul: JOB.shieldMoveMul } },
     keywords: kw(["ward", "counter", "area"], ["hurt"]),
   },
@@ -193,6 +200,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "contagion",
+    starterWeapon: "sickle",
     weakness: { text: `近接の威力が ${lessPct(JOB.hexerMeleeMul)}% 落ちる。`, mul: { meleeDamageMul: JOB.hexerMeleeMul } },
     keywords: kw(["mana", "poison"], ["poison", "kill"]),
     unlockedBy: "bloodPath",
@@ -214,6 +222,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "chainHook",
+    starterWeapon: "spear",
     weakness: { text: `ダッシュの再使用時間が ${lessPct(JOB.lancerDashCdMul)}% 延びる。`, mul: { dashCooldownMul: JOB.lancerDashCdMul } },
     keywords: kw(["stagger", "energy"], ["melee"]),
     unlockedBy: "critStorm",
@@ -235,6 +244,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "thunder",
+    starterWeapon: "wand",
     weakness: { text: `最大生命が ${lessPct(JOB.invokerHpMul)}% 減る。`, mul: { maxHp: JOB.invokerHpMul } },
     keywords: kw(["mana"], ["mana", "kill"]),
     unlockedBy: "chainWeaver",
@@ -257,6 +267,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "shadowStep",
+    starterWeapon: "twinDaggers",
     weakness: { text: `最大生命が ${lessPct(JOB.shadowHpMul)}% 減る。`, mul: { maxHp: JOB.shadowHpMul } },
     keywords: kw(["dash", "vulnerable"], ["dash", "just"]),
     unlockedBy: "justDancer",
@@ -280,6 +291,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "powderKeg",
+    starterWeapon: "staff",
     weakness: { text: `攻撃速度が ${lessPct(JOB.alchemistAttackSpeedMul)}% 落ちる。`, mul: { attackSpeedMul: JOB.alchemistAttackSpeedMul } },
     keywords: kw(["reaction", "energy", "explode"], ["reaction", "kill"]),
     unlockedBy: "deepChain",
@@ -293,6 +305,47 @@ export function isJobKey(v: unknown): v is JobKey {
 /** 保存データから読む。未知の値は見習いへ落とす */
 export function sanitizeJob(v: unknown): JobKey {
   return isJobKey(v) ? v : "none";
+}
+
+/** ジョブ固有の派生の入力（左左左右）。武器種の派生（多くは 2〜3 手）と重ならない 4 手にする */
+export const JOB_BRANCH_SEQUENCE: readonly ButtonKey[] = ["primary", "primary", "primary", "secondary"];
+
+/** ジョブ固有の派生の表示名（数値は tuning の WEAPON.jobBranches） */
+const JOB_BRANCH_NAMES: Readonly<Record<Exclude<JobKey, "none">, string>> = {
+  swordsman: "残月",
+  hunter: "射抜き",
+  brawler: "猛連打",
+  shieldBearer: "盾殴り",
+  hexer: "呪い刃",
+  lancer: "穂先返し",
+  invoker: "魔力放出",
+  shadow: "影縫い",
+  alchemist: "反応刃",
+};
+
+/**
+ * ジョブ固有の派生（docs/ideas/combat-feel-design.md B-3）。どの武器種にも 1 本足される（system/player.ts の playerMoveset）。
+ * フィニッシュ（next なし）。見習いは持たない
+ */
+export const JOB_BRANCHES: Readonly<Record<Exclude<JobKey, "none">, BranchDef>> = {
+  swordsman: jobBranchDef("swordsman"),
+  hunter: jobBranchDef("hunter"),
+  brawler: jobBranchDef("brawler"),
+  shieldBearer: jobBranchDef("shieldBearer"),
+  hexer: jobBranchDef("hexer"),
+  lancer: jobBranchDef("lancer"),
+  invoker: jobBranchDef("invoker"),
+  shadow: jobBranchDef("shadow"),
+  alchemist: jobBranchDef("alchemist"),
+};
+
+function jobBranchDef(job: Exclude<JobKey, "none">): BranchDef {
+  return { key: `job.${job}`, name: JOB_BRANCH_NAMES[job], sequence: JOB_BRANCH_SEQUENCE, step: WEAPON.jobBranches[job] };
+}
+
+/** そのジョブの固有の派生（見習いは undefined） */
+export function jobBranch(job: JobKey): BranchDef | undefined {
+  return job === "none" ? undefined : JOB_BRANCHES[job];
 }
 
 /** 倍率を掛ける（PlayerStats の該当フィールドだけ。書き換えるのは渡した stats） */

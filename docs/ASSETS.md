@@ -117,3 +117,15 @@ Sources:
 - [Anokolisa - itch.io](https://anokolisa.itch.io/)
 - [Liberated Pixel Cup (LPC) Base Assets | OpenGameArt.org](https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles)
 - [Steam updates AI disclosure form (PC Gamer)](https://www.pcgamer.com/software/ai/steam-updates-ai-disclosure-form-to-specify-that-its-focused-on-ai-generated-content-that-is-consumed-by-players-not-efficiency-tools-used-behind-the-scenes/)
+
+## 6. 導入済み（`docs/ideas/graphics-design.md` レーン A）
+
+`public/assets/<pack>/` に PNG・LICENSE・SOURCE を配置済み。実際にゲームに使う素材の法的表示は `CREDITS.md` を正とする（このファイルは調査記録のまま更新しない）。
+
+- **16x16 Puny Dungeon Tileset（Shade、CC0）**: `public/assets/puny-dungeon/`。2026-09-24 取得
+- **Tiny Dungeon（Kenney、CC0）**: `public/assets/kenney-tiny-dungeon/`。2026-09-24 取得
+- **16x16 DungeonTileset II（0x72、CC0）**: 未取得。itch.io のダウンロードはセッション付きの JS フロー（「Download Now」→ 支払い額 $0 のまま「No thanks, just take me to the downloads」→ ファイル一覧）が必要で、`curl` では取得できなかった（bot 検出の回避はしない方針のため、ここで打ち切り）。導入するにはユーザーの手動ダウンロードが要る:
+  1. https://0x72.itch.io/dungeontileset-ii をブラウザで開く（ログイン不要）
+  2. 「Download Now」→ 金額はそのまま（Name your own price、$0 で可）で進み、「No thanks, just take me to the downloads」からダウンロードページへ
+  3. `0x72_DungeonTilesetII_v1.7.zip`（406kB）を保存
+  4. zip をこのリポジトリの作業用スクラッチ領域に置き、Claude に展開・`public/assets/0x72-dungeon/` への配置を依頼する（`tileset.png` 本体と、同梱があれば座標一覧ファイルを配置）

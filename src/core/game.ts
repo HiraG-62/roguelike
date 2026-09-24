@@ -65,7 +65,7 @@ export function createGame(
     particles: [],
     texts: [],
     pickups: [],
-    camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 } },
+    camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
     hitstop: 0,
     slowmo: 0,
     flash: 0,

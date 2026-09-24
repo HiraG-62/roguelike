@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { FIXED_DT } from "../core/loop";
 import { createRng } from "../core/rng";
 import type { Enemy } from "../core/state";
-import { HUB } from "../data/tuning";
+import { HUB, STASH_CAPACITY } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import { ensureGrowthFields } from "../loot/migrate";
 import { recordProvenance } from "../loot/provenance";
+import { returnLoaned } from "../loot/profile";
+import { computeStats } from "../loot/stats";
 import { createEmptyProfile } from "../loot/types";
 import { TILE_SIZE, Tile, getTile } from "../map/grid";
 import { HUB_SPOT_KEYS, type HubSpotKey, buildHubMap } from "../map/hubMap";
@@ -14,8 +16,9 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
 import { damageEnemy, damagePlayer, recordRunOnce } from "./combat";
-import { type HubSession, createHub, setTrialKeystone, stepHub, trialKeystoneKeys } from "./hub";
+import { type HubSession, borrowGun, borrowRackEntry, borrowWeapon, createHub, setTrialKeystone, setTrialWeapon, stepHub, trialKeystoneKeys } from "./hub";
 import { DUMMY_KEY } from "./specialRooms";
+import { applyStats } from "./player";
 import { withInput } from "./testHelpers";
 
 const ALL: ReadonlySet<HubSpotKey> = new Set(HUB_SPOT_KEYS);
@@ -182,5 +185,105 @@ describe("拠点のマップ", () => {
       expect(tile, `(${p.x}, ${p.y}) が床`).toBe(Tile.Floor);
     }
     expect(layout.dummySpots).toHaveLength(HUB.dummyCount);
+  });
+});
+
+describe("武器掛け", () => {
+  function ownWeapon(seed: number): ReturnType<typeof generateItem> {
+    return generateItem(createRng(seed), { baseKey: "dagger", plain: true, itemLevel: 1, foundDepth: 1, now: 0 });
+  }
+
+  it("setTrialWeapon で stats.moveset / shot が差し替わり、null で装備のものに戻る", () => {
+    const session = hub();
+    const { state } = session;
+    expect(state.stats.moveset, "武器なしは剣").toBe("sword");
+    setTrialWeapon(session, "greatsword", "spread");
+    expect(state.stats.moveset, "大剣を試す").toBe("greatsword");
+    expect(state.stats.shot, "散弾を試す").toBe("spread");
+    setTrialWeapon(session, null, null);
+    expect(state.stats.moveset, "装備の剣に戻る").toBe("sword");
+    expect(state.stats.shot, "装備の単発に戻る").toBe("single");
+  });
+
+  it("装備画面を経由して applyStats が走っても試し中の武器種が保たれる", () => {
+    const session = hub();
+    const { state } = session;
+    setTrialWeapon(session, "whip", null);
+    // 装備画面で付け替えると applyStats が装備から作り直す
+    applyStats(state, computeStats(state.profile.equipment));
+    expect(state.stats.moveset, "作り直した直後は装備の型").toBe("sword");
+    idle(session, 1);
+    expect(state.stats.moveset, "次のステップで試し中の型へ戻る").toBe("whip");
+  });
+
+  it("borrowWeapon は素の器を装着し、元の武器を倉庫へ移す", () => {
+    const profile = createEmptyProfile();
+    const own = ownWeapon(1);
+    profile.equipment.weapon = own;
+    const loan = borrowWeapon(profile, "greatsword", 0);
+    expect(loan?.loaned, "借り物の印").toBe(true);
+    expect(loan?.affixes, "性質なし").toEqual([]);
+    expect(profile.equipment.weapon?.id, "借り物を装着").toBe(loan?.id);
+    expect(computeStats(profile.equipment).moveset, "武器種が大剣になる").toBe("greatsword");
+    expect(profile.stash.map((it) => it.id), "元の武器は倉庫へ").toEqual([own.id]);
+  });
+
+  it("借り物を返すと、借りたときに倉庫へ移した元の武器が武器スロットへ戻る", () => {
+    const profile = createEmptyProfile();
+    const own = ownWeapon(3);
+    profile.equipment.weapon = own;
+    borrowWeapon(profile, "spear", 0);
+    // 借り物どうしの付け替えでも、最初の自分の武器を覚えている
+    borrowWeapon(profile, "whip", 0);
+    expect(returnLoaned(profile), "借り物を外す").toBe(true);
+    expect(profile.equipment.weapon?.id, "元の武器が戻る").toBe(own.id);
+    expect(profile.stash, "倉庫からは消える").toHaveLength(0);
+  });
+
+  it("借り物どうしの付け替えは前の借り物を倉庫へ入れない", () => {
+    const profile = createEmptyProfile();
+    borrowWeapon(profile, "spear", 0);
+    borrowWeapon(profile, "scythe", 0);
+    expect(computeStats(profile.equipment).moveset, "後から借りた型").toBe("scythe");
+    expect(profile.stash, "倉庫は膨らまない").toHaveLength(0);
+  });
+
+  it("倉庫が満杯なら borrowWeapon は null を返し装備を変えない", () => {
+    const profile = createEmptyProfile();
+    const own = ownWeapon(2);
+    profile.equipment.weapon = own;
+    for (let i = 0; i < STASH_CAPACITY; i++) profile.stash.push(ownWeapon(10 + i));
+    expect(borrowWeapon(profile, "greatsword", 0), "断る").toBeNull();
+    expect(profile.equipment.weapon?.id, "装備はそのまま").toBe(own.id);
+    expect(profile.stash, "倉庫もそのまま").toHaveLength(STASH_CAPACITY);
+  });
+
+  it("borrowGun は射撃の型の素の器を銃スロットに装着する", () => {
+    const profile = createEmptyProfile();
+    const loan = borrowGun(profile, "charge", 0);
+    expect(loan?.slot, "銃スロット").toBe("gun");
+    expect(computeStats(profile.equipment).shot, "溜め撃ちになる").toBe("charge");
+  });
+
+  it("borrowRackEntry は借りた種類の「試す」を外し、stats を装備から作り直す", () => {
+    const session = hub();
+    setTrialWeapon(session, "fists", "rapid");
+    borrowRackEntry(session, { kind: "moveset", key: "staff" }, 0);
+    expect(session.hub.trialMoveset, "武器種の試しは外れる").toBeNull();
+    expect(session.hub.trialShot, "射撃の型の試しは残る").toBe("rapid");
+    expect(session.state.stats.moveset, "借りた棍になる").toBe("staff");
+    expect(session.state.stats.shot, "射撃は試し中のまま").toBe("rapid");
+  });
+
+  it("武器掛けは木人の近くにあり、他の台と近すぎない", () => {
+    const layout = buildHubMap();
+    const rack = layout.spots.rack;
+    const nearest = Math.min(...layout.dummySpots.map((d) => Math.hypot(d.x - rack.x, d.y - rack.y)));
+    expect(nearest, "木人まで 5 タイル以内").toBeLessThanOrEqual(TILE_SIZE * 5);
+    for (const key of HUB_SPOT_KEYS) {
+      if (key === "rack") continue;
+      const p = layout.spots[key];
+      expect(Math.hypot(p.x - rack.x, p.y - rack.y), `${key} と離れている`).toBeGreaterThan(HUB.interactRadius * 2);
+    }
   });
 });

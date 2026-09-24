@@ -79,7 +79,7 @@ src/
 5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`（DotGothic16 のドット風描画、サイズは `TEXT.SMALL/BODY/TITLE/BIG`）で描く。`ctx.fillText` / `measureText` / `ctx.font` の直接使用は禁止（`uiFont` はフォント未ロード時のフォールバック専用）。**等幅前提の文字数計算は禁止**、行高は `Math.max(定数, textLineHeight())`
 6. **座標は 480x270 の論理座標**（`core/view.ts` の `VIEW_W` / `VIEW_H`）。DPR 拡大は Renderer の transform が担う
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts が `audio/sfx.ts` で行う
-8. **永続化**: localStorage は loot/profile・craftingStore・skills/persistence・ui/settings・ui/replayStore・meta/{codexStore,questStore,achievements} 経由のみ。step の中では触らない（拾得やイベントの保存は main.ts が行う）。壊れたデータは黙ってデフォルトへ落とす。キーの形式を変えるなら `v2` を切る
+8. **永続化**: 保存は `src/save/backend.ts` の `saveStorage()`（ブラウザは localStorage、Electron はファイル `%APPDATA%\DEPTHBREAKER\save\*.json`）経由で、loot/profile・craftingStore・skills/persistence・ui/settings（キー設定は `roguelike.keybinds.v1` に分離）・ui/replayStore・meta/{codexStore,questStore,achievements,hubStore} からのみ触る。step の中では触らない（拾得やイベントの保存は main.ts が行う）。壊れたデータは黙ってデフォルトへ落とす。キーの形式を変えるなら `v2` を切る
 9. **型**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので配列 / Record の添字結果は undefined を扱う
 10. **コード作法**: マジックナンバーは定数化、早期リターンでネストを浅く、関数は単一責任。コメントは日本語で「なぜ」を書く
 11. **テスト**: Vitest。`it` / `describe` の名前とアサーションメッセージは日本語。新しい仕組みには必ずテストを付ける

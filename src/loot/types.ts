@@ -230,6 +230,10 @@ export interface Item {
   namedKey?: string;
   /** 鍛え直し（残響の操作）の回数 */
   reforged?: number;
+  /** 拠点の武器掛けで借りた素の器。保存されず、ランが終わると消える */
+  loaned?: true;
+  /** 借り物が押し出した元の装備の id（返すときに同じスロットへ戻す） */
+  loanedReplaces?: string;
 }
 
 export interface FloorItem {

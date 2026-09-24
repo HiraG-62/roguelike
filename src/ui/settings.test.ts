@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_KEYBINDS, assignBinding, defaultKeybinds } from "../core/input";
 import {
   DEFAULT_MUSIC_VOLUME,
+  KEYBINDS_KEY,
   SETTINGS_KEY,
   adjustMusicVolume,
   adjustScreenShake,
@@ -149,5 +150,40 @@ describe("キー設定の永続化", () => {
     resetKeybinds(settings);
     expect(settings.keybinds.dash).toEqual(DEFAULT_KEYBINDS.dash);
     expect(settings.volume).toBeCloseTo(0.9);
+  });
+});
+
+describe("キー設定の別キー保存", () => {
+  it("キー設定は roguelike.keybinds.v1 に別保存され settings 側には含まれない", () => {
+    const storage = new MemoryStorage();
+    const settings = defaultSettings();
+    const changed = assignBinding(settings.keybinds, "dash", 0, "KeyG");
+    if (changed) settings.keybinds = changed;
+    saveSettings(settings, storage);
+    expect(KEYBINDS_KEY).toBe("roguelike.keybinds.v1");
+    const rawSettings = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<string, unknown>;
+    expect("keybinds" in rawSettings, "settings 側にキー設定を含めない").toBe(false);
+    const rawKeybinds = JSON.parse(storage.getItem(KEYBINDS_KEY) ?? "{}") as Record<string, unknown>;
+    expect(rawKeybinds.keybinds, "キー設定は別キーに入る").toEqual(settings.keybinds);
+  });
+
+  it("旧 settings に埋め込まれたキー設定を keybinds キーが無いときだけ読む", () => {
+    const legacy = assignBinding(defaultKeybinds(), "attack", 0, "KeyJ");
+    const separate = assignBinding(defaultKeybinds(), "attack", 0, "KeyK");
+    expect(legacy && separate, "割り当てできる").toBeTruthy();
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: true, volume: 0.2, screenShake: 1, keybinds: legacy }));
+    expect(loadSettings(storage).keybinds, "別キーが無ければ旧データを読む").toEqual(legacy);
+    storage.setItem(KEYBINDS_KEY, JSON.stringify({ version: 1, keybinds: separate }));
+    const loaded = loadSettings(storage);
+    expect(loaded.keybinds, "別キーがあればそちらを優先").toEqual(separate);
+    expect(loaded.muted, "他の設定は settings 側から").toBe(true);
+  });
+
+  it("settings が無くても別キーのキー設定は読める", () => {
+    const changed = assignBinding(defaultKeybinds(), "dash", 0, "KeyG");
+    const storage = new MemoryStorage();
+    storage.setItem(KEYBINDS_KEY, JSON.stringify({ version: 1, keybinds: changed }));
+    expect(loadSettings(storage)).toEqual({ ...defaultSettings(), keybinds: changed });
   });
 });

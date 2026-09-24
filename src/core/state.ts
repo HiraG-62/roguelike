@@ -117,6 +117,13 @@ export interface Player {
   shotChargeTime: number;
   /** 前フレームに射撃キー（右）を押していたか。右の押した瞬間を取るため */
   secondaryWasHeld: boolean;
+  /**
+   * 三点（射撃の型 burst）の残り弾数と次の弾までの秒、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
+   * docs/ideas/combat-feel-design.md B-1 / B-2
+   */
+  shotBurst: { left: number; timer: number; side: number };
+  /** 近接命中の直後、攻撃方向へ一瞬伸びる残り秒（FEEL.swingImpact。docs/ideas/combat-feel-design.md D-5） */
+  swingImpact: number;
 }
 
 export interface TimedMul {
@@ -573,6 +580,8 @@ export interface Camera {
   pos: Vec;
   shake: number;
   offset: Vec;
+  /** 攻撃方向へのキック（重撃・撃破）。減衰して 0 へ戻る（system/camera.ts の cameraKick） */
+  kick: Vec;
 }
 
 export interface Combo {

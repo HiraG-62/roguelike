@@ -38,10 +38,14 @@ import {
   computeViewScale,
   lerp,
   pulse,
+  spriteFeetY,
+  wallMask,
   wallStyle,
 } from "./renderMath";
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
-import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, getSprite, spriteFrame } from "./sprites";
+import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, enemySpriteKey, getSprite, mergeAtlas, spriteFrame } from "./sprites";
+import { expandTileAtlas } from "./tileAtlas";
+import { tileBiome } from "../data/tiles";
 import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
@@ -60,6 +64,7 @@ import { WEAPON_TRAIL_WIDTH } from "./renderMath";
 import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
+import { drawComboHud } from "./comboUi";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -541,7 +546,8 @@ function pick<T>(arr: readonly T[], i: number): T | undefined {
 
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly atlas: SpriteAtlas;
+  /** PNG 取り込み（setAtlas）で差し替わるので readonly にしない */
+  private atlas: SpriteAtlas;
   private readonly tints = new TintCache();
   private readonly vignette: HTMLCanvasElement;
   private readonly lowHpVignette: HTMLCanvasElement;
@@ -657,15 +663,15 @@ export class Renderer {
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
-    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha);
-    drawTerrainLayer(ctx, state, -ox, -oy);
+    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha, `tile.${tileBiome(state.floorKind, state.sandbox === true)}.floor` in this.atlas);
+    drawTerrainLayer(ctx, state, -ox, -oy, this.atlas);
     drawGroundMarks(ctx, state, this.fxSprites);
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
     this.drawLinks(state);
     this.drawEliteChains(state);
-    drawRunWorld(ctx, state);
+    drawRunWorld(ctx, state, this.atlas);
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
@@ -802,6 +808,20 @@ export class Renderer {
     return getSprite(this.atlas, key);
   }
 
+  /** 外から描く UI（拠点の設備など）が PNG 素材を引くための公開。無ければ undefined（呼び出し側がフォールバック） */
+  atlasSprite(key: string): Sprite | undefined {
+    return this.atlas[key];
+  }
+
+  /**
+   * PNG から作ったアトラスを合流させる（読み込み完了後に main.ts が呼ぶ）。
+   * ピクセルマップの上から同名キーだけ上書きするので、未ロード中はここまでの見た目のまま
+   */
+  setAtlas(over: SpriteAtlas): void {
+    this.atlas = mergeAtlas(buildAtlas(), expandTileAtlas(over));
+    this.tints.clear();
+  }
+
   private tinted(key: string, color: string, strength = 1): HTMLCanvasElement[] {
     return this.tints.get(this.sprite(key), key, color, strength);
   }
@@ -871,7 +891,9 @@ export class Renderer {
     const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
     const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
     const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
-    const floor = this.sprite(SPR.floor);
+    const biome = tileBiome(state.floorKind, state.sandbox === true);
+    // PNG 取り込みのバイオーム版（tile.<biome>.floor）があればそれを、無ければピクセルマップ
+    const floor = this.atlas[`tile.${biome}.floor`] ?? this.sprite(SPR.floor);
     const wallFace = this.sprite(SPR.wallFace);
     const wallTop = this.sprite(SPR.wallTop);
     const stairs = this.sprite(SPR.stairs);
@@ -886,6 +908,14 @@ export class Renderer {
         const py = y * TILE_SIZE;
         if (tile === Tile.Wall) {
           const style = wallStyle(map, x, y);
+          // 周囲 8 マスが壁の岩盤は、PNG の有無にかかわらず描かない（壁の模様で画面が埋まらないように）
+          if (style === "none") continue;
+          // PNG 取り込み（tile.<biome>.wall.<mask>）があればそれを、無ければ従来のピクセルマップにフォールバック
+          const masked = this.atlas[`tile.${biome}.wall.${wallMask(map, x, y)}`];
+          if (masked) {
+            this.blit(masked, 0, px, py);
+            continue;
+          }
           if (style === "face") this.blit(wallFace, 0, px, py);
           else if (style === "top") this.blit(wallTop, 0, px, py);
           continue;
@@ -1155,7 +1185,8 @@ export class Renderer {
     if (e.hidden) return;
     const { ctx } = this;
     const def = enemyDef(e.defKey);
-    const key = def.sprite;
+    // 予備動作・攻撃の原画があれば形でテレグラフを読ませる（無ければ歩きのまま）
+    const key = enemySpriteKey(def.sprite, e.phase, (k) => k in this.atlas);
     const sprite = this.sprite(key);
     const cx = e.body.pos.x;
     const cy = e.body.pos.y;
@@ -1166,7 +1197,7 @@ export class Renderer {
     }
 
     const floating = FLOATING_SPRITES.has(spriteBaseKey(def));
-    const feetY = cy + sprite.h / 2;
+    const feetY = spriteFeetY(cy, e.body.radius);
     const isBat = def.behavior === "bat";
     const isWisp = def.behavior === "wisp";
     // 群れで来る bat は影を小さく（重なって床が黒く潰れないように）
@@ -1778,7 +1809,7 @@ export class Renderer {
     if (state.status === "dead") return;
     const sprite = this.sprite(SPR.player);
     const cx = p.body.pos.x;
-    const bottom = p.body.pos.y + sprite.h / 2 - PLAYER_SPRITE_LIFT;
+    const bottom = spriteFeetY(p.body.pos.y, p.body.radius) - PLAYER_SPRITE_LIFT;
 
     this.drawBuffAura(state, p);
     this.drawShadow(cx, bottom - 1);
@@ -1802,6 +1833,10 @@ export class Renderer {
       } else if (dashing) {
         sx = DASH_STRETCH_X;
         sy = DASH_STRETCH_Y;
+      } else if (p.swingImpact > 0) {
+        // 近接命中の直後、攻撃方向へ一瞬伸びる（docs/ideas/combat-feel-design.md D-5）
+        sx = SQUASH_X;
+        sy = SQUASH_Y;
       }
       this.drawAnchored(pick(hit ? sprite.white : sprite.frames, frame), cx, bottom, sx, sy, 0, flip);
     }
@@ -2123,6 +2158,7 @@ export class Renderer {
     this.drawReaperHud(state);
     drawRunHud(ctx, state);
     drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
+    drawComboHud(ctx, state);
 
     if (state.rooms.some((r) => r.locked)) {
       drawText(ctx, "― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8, TEXT.SMALL, COLOR_LOCK, "center");

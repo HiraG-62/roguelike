@@ -8,6 +8,7 @@ import {
   loadProfile,
   pushRunHistory,
   recordRun,
+  returnLoaned,
   salvageItem,
   saveProfile,
   unequipItem,
@@ -297,5 +298,34 @@ describe("localStorage getter が例外を投げる環境", () => {
       if (original) Object.defineProperty(globalThis, "localStorage", original);
       else Reflect.deleteProperty(globalThis, "localStorage");
     }
+  });
+});
+
+describe("借り物（武器掛け）", () => {
+  function loanedItem(id: string): Item {
+    return { ...migrateItem(makeItem({ id, slot: "weapon", baseKey: "whip" })), loaned: true };
+  }
+
+  it("loaned の品は saveProfile で書かれない（装備からも倉庫からも除く）", () => {
+    const storage = new MemoryStorage();
+    const profile = createEmptyProfile();
+    profile.equipment.weapon = loanedItem("loan-a");
+    addToStash(profile, loanedItem("loan-b"));
+    addToStash(profile, migrateItem(makeItem({ id: "own" })));
+    saveProfile(profile, storage);
+    const loaded = loadProfile(storage);
+    expect(loaded.equipment.weapon, "装備の借り物は書かない").toBeNull();
+    expect(loaded.stash.map((it) => it.id), "倉庫の借り物も書かない").toEqual(["own"]);
+    expect(profile.equipment.weapon?.id, "手元の profile は書き換えない").toBe("loan-a");
+  });
+
+  it("returnLoaned は借り物を外し、借り物が無ければ何もしない", () => {
+    const profile = createEmptyProfile();
+    profile.equipment.weapon = loanedItem("loan");
+    addToStash(profile, migrateItem(makeItem({ id: "own" })));
+    expect(returnLoaned(profile), "外した").toBe(true);
+    expect(profile.equipment.weapon, "装備から消える").toBeNull();
+    expect(profile.stash.map((it) => it.id), "自分の品は残る").toEqual(["own"]);
+    expect(returnLoaned(profile), "2 回目は何もしない").toBe(false);
   });
 });

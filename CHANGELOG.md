@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+### 追加
+- **Electron 版**（`docs/ideas/electron-design.md`）: `npm run electron:dev` / `electron:build`（`release/win-unpacked/DEPTHBREAKER.exe`）。セーブは `%APPDATA%\DEPTHBREAKER\save\*.json`（キーごとに 1 ファイル、キー設定は `keybinds.json` に独立、一時ファイル → 置き換え、`.bak`、壊れたら `.corrupt`）。ブラウザ版は localStorage のまま（`src/save/backend.ts` の窓口に統一）。リプレイ再生中は本物の保存へ書かない。app:// 配信・contextIsolation・sandbox・CSP、480x270 の整数倍のウィンドウ、F11 / Alt+Enter
+- **武器種 6**（刀〔右長押しで居合〕/ 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃〔左右とも射撃〕）と **射撃の型 3**（三点 / 回転刃 / 曲射）、ジョブ固有の派生 9 本（左左左右）、武器ごとの固有ルール、ベース 19
+- **武器の導線**: ジョブごとの初期武器、全武器種を深度 3 以下で入手可能に、拠点の「武器掛け」（Enter で試す、長押しで借りて出撃。借り物は保存されず、返すと元の武器に戻る）
+- **コンボの可視化と手触り**: HUD に武器名・段・次の派生、派生成立の浮き文字と音、ヒットストップ 3 / 7 / 9、敵の吹き飛び強化、剣の踏み込み、振り終わりのキャンセル、重い一撃と撃破の画面キック、振りの伸び。画面の揺れを演出用の乱数に
+- **グラフィック**: CC0 素材 2 パック（Puny Dungeon / Kenney Tiny Dungeon）で床・壁（自動接続 16 種）・扉・階段・地形・台座・拠点の設備を差し替え（バイオームごとに色相を変換、読めなければ従来の絵）。敵を 24x24（重量級 32x32）で描き直し（浅層 5・獣と骨 7・修道院 5・重量級 3・第 2 弾前半 6 と各色違い）、予備動作と攻撃の専用ポーズ。`CREDITS.md`、様式書 `docs/ideas/graphics-style.md`
+
 ## [0.0.12α] - 2026-09-24
 
 ### 追加

@@ -1,5 +1,5 @@
 import { type Element, ELEMENT_COLOR, ELEMENT_LABEL } from "../core/element";
-import type { GameState, RoomState } from "../core/state";
+import type { FloorKind, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { CONTRACT, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { TRAIT_COLOR_HEX } from "../loot/types";
@@ -15,6 +15,7 @@ import { keystoneDef } from "../loot/affixes";
 import { PROP_LABEL, ROOM_KIND_COLOR, type RoomProp, escapeActive, inFogRoom } from "../system/specialRooms";
 import { TEXT, drawTextShadow, textLineHeight } from "./pixelText";
 import { clamp01, pulse } from "./renderMath";
+import type { SpriteAtlas } from "./sprites";
 
 /**
  * ラン構造の描画（docs/ideas/run-expansion.md）。state を読むだけで、乱数は使わない。
@@ -31,9 +32,17 @@ const COLOR_DIM = "#909090";
 // ワールド座標
 // -----------------------------------------------------------------------------
 
+/**
+ * バイオームの色調を全画面に重ねるか。PNG 素材の床・壁（tiled）は読み込み時にバイオームの色で染めてあるので、
+ * 重ねると二重に掛かる。素材が無い（未ロード・読み込み失敗）ときだけ重ねる
+ */
+export function biomeTintNeeded(kind: FloorKind, tiled: boolean): boolean {
+  return !tiled && BIOMES[kind].tint !== null;
+}
+
 /** 床と壁に重ねるバイオームの色調（タイルを描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標。反転層は紫を重ねる */
-export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number): void {
-  const tint = BIOMES[state.floorKind].tint;
+export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number, tiled = false): void {
+  const tint = biomeTintNeeded(state.floorKind, tiled) ? BIOMES[state.floorKind].tint : null;
   if (isInvertedDepth(state.depth)) {
     ctx.globalAlpha = alpha;
     ctx.fillStyle = FLOOR_KIND.invertedColor;
@@ -50,11 +59,11 @@ export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, v
 }
 
 /** 台座・護衛対象・裂け目・落下物・影・賞金首・階段の行き先（敵より手前・弾より奥に描く想定） */
-export function drawRunWorld(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawRunWorld(ctx: CanvasRenderingContext2D, state: GameState, atlas?: SpriteAtlas): void {
   drawImpacts(ctx, state);
   drawStrikes(ctx, state);
   drawReaperPass(ctx, state);
-  for (const room of state.rooms) drawRoomProps(ctx, state, room);
+  for (const room of state.rooms) drawRoomProps(ctx, state, room, atlas);
   const who = state.contracts.contractor;
   if (who) drawContractor(ctx, state, who);
   drawRift(ctx, state);
@@ -106,7 +115,20 @@ export function propName(prop: RoomProp): string {
   }
 }
 
-function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: RoomState): void {
+/** atlas 上の台座の素材のキー（data/tiles.ts の prop.<PropKind>） */
+export function propSpriteKey(prop: Pick<RoomProp, "kind">): string {
+  return `prop.${prop.kind}`;
+}
+
+/** 素材があれば足元を台座のタイルの下端に揃えて描く。無ければ false（呼び出し側が菱形で描く） */
+function drawPropSprite(ctx: CanvasRenderingContext2D, prop: RoomProp, atlas: SpriteAtlas | undefined): boolean {
+  const img = atlas?.[propSpriteKey(prop)]?.frames[0];
+  if (!img) return false;
+  ctx.drawImage(img, Math.round(prop.pos.x - img.width / 2), Math.round(prop.pos.y + TILE_SIZE / 2 - img.height));
+  return true;
+}
+
+function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: RoomState, atlas: SpriteAtlas | undefined): void {
   const special = room.special;
   if (!special) return;
   const p = state.player.body.pos;
@@ -117,19 +139,24 @@ function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: Ro
       drawCaptive(ctx, state, room, prop, color);
       continue;
     }
-    const glow = pulse(state.time, PROP_PULSE_SPEED, 0.5, 1);
-    ctx.globalAlpha = glow;
-    ctx.fillStyle = color;
-    ctx.fillRect(Math.round(prop.pos.x - PROP_SIZE / 2), Math.round(prop.pos.y - PROP_SIZE / 2), PROP_SIZE, PROP_SIZE);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = COLOR_SHADOW;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(Math.round(prop.pos.x - PROP_SIZE / 2) - 0.5, Math.round(prop.pos.y - PROP_SIZE / 2) - 0.5, PROP_SIZE + 1, PROP_SIZE + 1);
+    if (!drawPropSprite(ctx, prop, atlas)) drawPropDiamond(ctx, state, prop, color);
     if (prop.kind === "ascend") drawHoldRing(ctx, prop, color);
     if (Math.hypot(p.x - prop.pos.x, p.y - prop.pos.y) > ROOM_KIND.propLabelRange) continue;
     const label = prop.kind === "lever" ? `${propName(prop)} 残り ${special.uses}` : propName(prop);
     drawTextShadow(ctx, label, prop.pos.x, prop.pos.y - LABEL_LIFT, TEXT.SMALL, color, COLOR_SHADOW, "center");
   }
+}
+
+/** 素材が無いときの台座（明滅する色付きの四角） */
+function drawPropDiamond(ctx: CanvasRenderingContext2D, state: GameState, prop: RoomProp, color: string): void {
+  const glow = pulse(state.time, PROP_PULSE_SPEED, 0.5, 1);
+  ctx.globalAlpha = glow;
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(prop.pos.x - PROP_SIZE / 2), Math.round(prop.pos.y - PROP_SIZE / 2), PROP_SIZE, PROP_SIZE);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = COLOR_SHADOW;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(Math.round(prop.pos.x - PROP_SIZE / 2) - 0.5, Math.round(prop.pos.y - PROP_SIZE / 2) - 0.5, PROP_SIZE + 1, PROP_SIZE + 1);
 }
 
 const HOLD_RING_R = 8;

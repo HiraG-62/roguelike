@@ -1,3 +1,5 @@
+// 保存先の差し替え（Electron ならセーブファイル）はトップレベルの load*() より前に終わっていなければならないので最初に評価する
+import "./save/bootstrap";
 import { SfxPlayer } from "./audio/sfx";
 import { MusicPlayer, musicCue } from "./audio/music";
 import { RisingEdge } from "./audio/cues";
@@ -24,10 +26,12 @@ import {
 import { hashSeed } from "./core/rng";
 import type { GameState } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
-import { loadProfile, pushRunHistory, saveProfile } from "./loot/profile";
+import { loadProfile, pushRunHistory, returnLoaned, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { drawBudUi } from "./render/budUi";
+import { loadImageAtlas } from "./render/imageAtlas";
+import { SHEETS, TILE_SPRITES } from "./data/tiles";
 import { Renderer } from "./render/renderer";
 import { drawSkillHud } from "./render/skillHud";
 import {
@@ -109,13 +113,13 @@ import { type ListAction, type ListScreen, type ListTab, createListScreen, listC
 import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
-import { type HubSession, createHub, setTrialKeystone, stepHub } from "./system/hub";
+import { type HubSession, borrowRackEntry, createHub, rackEntryName, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
 import { HUB } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
 import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
 import { drawHubOverlay, hubScreenOffset } from "./render/hubUi";
-import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
+import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, rackEntryOf, rackTabs, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
 
 const canvasEl = document.getElementById("game");
@@ -153,7 +157,8 @@ type Screen =
   | "keybinds"
   | "replay"
   | "hub"
-  | "altar";
+  | "altar"
+  | "rack";
 
 /** タイトルのメニューから開く一覧画面 */
 type ListScreenKind = "codex" | "questBoard" | "achievements";
@@ -214,6 +219,8 @@ const GAMEPAD_CONNECTED_MESSAGE_DURATION = 2;
 let gamepadConnectedTimer = 0;
 
 const renderer = new Renderer(canvas);
+// PNG 取り込み（未ロード中はピクセルマップのまま。フォントの読み込みと同じ流儀でループを待たない）
+void loadImageAtlas(TILE_SPRITES, SHEETS).then((atlas) => renderer.setAtlas(atlas));
 const inventoryUi = createInventoryUi();
 const sfx = new SfxPlayer();
 let lastAim: { x: number; y: number } | null = null;
@@ -384,6 +391,8 @@ function endRun(current: GameState): void {
   // 履歴エントリの date とリプレイの endedAt を同じ値にして紐付ける
   const now = Date.now();
   pushRunHistory(current.profile, buildHistoryEntry(current, now));
+  // 武器掛けの借り物はランが終わると消える（saveProfile も書かないが、手元の profile からも外す）
+  returnLoaned(current.profile);
   saveProfile(current.profile);
   deathMetaLines = recordMeta(current, now);
   if (recorder) {
@@ -597,6 +606,10 @@ function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): 
     openAltar(session, frame.move.x, frame.move.y);
     return;
   }
+  if (open.kind === "rack") {
+    openRack(session, frame.move.x, frame.move.y);
+    return;
+  }
   menuReturn = "hub";
   if (open.screen === "origin") openOrigin(committedSeedText, frame.move.x, frame.move.y);
   else if (open.screen === "history") openHistory();
@@ -665,6 +678,60 @@ function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolea
   sfx.play("uiClick");
 }
 
+const RACK_TITLE = "武器掛け";
+const RACK_HINT = "←→ タブ　↑↓ 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　Esc 拠点へ";
+/** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
+let rackHold = 0;
+const rackLatch = createHoldLatch();
+
+function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): void {
+  screen = "rack";
+  listUi = createListScreen();
+  listTabs = rackTabs(session.hub.trialMoveset, session.hub.trialShot);
+  rackHold = 0;
+  resetHoldLatch(rackLatch);
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+/** 短押し（決定）で試し、長押しで借りる。試す行は押した瞬間に替わるので、借りる前に振り心地が変わって見える */
+function updateRackFrame(session: HubSession, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    returnToHub();
+    return;
+  }
+  const activated = stepListInput(frame, arrowX, arrowY) === "activate";
+  const row = rackEntryOf(listCursorEntry(listUi, listTabs)?.key ?? "");
+  if (row === null) return;
+  if (activated) {
+    if (row.kind === "moveset") setTrialWeapon(session, row.key, session.hub.trialShot);
+    else setTrialWeapon(session, session.hub.trialMoveset, row.key);
+    sfx.play("uiClick");
+    listTabs = rackTabs(session.hub.trialMoveset, session.hub.trialShot);
+  }
+  rackHold = latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
+  if (rackHold < HUB.rackBorrowHold) return;
+  rackHold = 0;
+  resetHoldLatch(rackLatch);
+  const borrowed = row.key === null ? null : borrowRackEntry(session, row.kind === "moveset" ? { kind: "moveset", key: row.key } : { kind: "shot", key: row.key }, Date.now());
+  sfx.play(borrowed ? "uiClick" : "uiClose");
+  listTabs = rackTabs(session.hub.trialMoveset, session.hub.trialShot);
+}
+
+/** 拠点の重ね描きに出す、試している武器と借り物の名前 */
+function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: string | null } {
+  const h = session.hub;
+  const names = [
+    h.trialMoveset === null ? null : rackEntryName({ kind: "moveset", key: h.trialMoveset }),
+    h.trialShot === null ? null : rackEntryName({ kind: "shot", key: h.trialShot }),
+  ].filter((n): n is string => n !== null);
+  const eq = session.state.profile.equipment;
+  const loaned = [eq.weapon, eq.gun].filter((it) => it?.loaned === true).map((it) => it?.name ?? "");
+  return { trialWeapon: names.length > 0 ? names.join(" / ") : null, loaned: loaned.length > 0 ? loaned.join(" / ") : null };
+}
+
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
   const s = session.state;
   renderGame(s, inventoryUi.open ? null : lastAim);
@@ -674,9 +741,10 @@ function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void
   drawHubOverlay(
     ctx,
     s,
-    { spots: h.layout.spots, available: h.available, near: h.near, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner },
+    { spots: h.layout.spots, available: h.available, near: h.near, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) },
     ox,
     oy,
+    (key) => renderer.atlasSprite(key),
   );
   if (!inventoryUi.open) drawBudUi(ctx, s);
   if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
@@ -842,7 +910,7 @@ function questDoneInRun(s: GameState): boolean {
  */
 const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay"]);
 /** 拠点の画面。ランの state は無いので、拠点の曲だけを流す */
-const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar"]);
+const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack"]);
 function updateMusic(): void {
   if (hub && MUSIC_HUB_SCREENS.has(screen)) {
     music.update(musicCue({ inRun: true, hub: true, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
@@ -1003,6 +1071,15 @@ startLoop(
           break;
         }
         updateAltarFrame(hub, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
+        break;
+      }
+
+      case "rack": {
+        if (!hub) {
+          screen = "title";
+          break;
+        }
+        updateRackFrame(hub, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY, dt);
         break;
       }
 
@@ -1365,6 +1442,11 @@ startLoop(
     }
     if (screen === "hub" && hub) {
       drawHubScreen(ctx, hub);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "rack") {
+      drawListScreen(ctx, { title: RACK_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: RACK_HINT });
       drawGamepadConnectedHint(ctx);
       return;
     }

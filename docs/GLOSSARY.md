@@ -232,18 +232,24 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向 | `data/weapons.ts` MOVESETS |
-| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand | 武器種の表示名。ベース名（短剣・刺突剣・戦鎚など）とは別 | `data/weapons.ts` MOVESETS[].name |
+| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner | 武器種の表示名。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
 | 射撃の型 | shot（`ShotKey`） | 銃スロットのベースが決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
-| 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 | single / rapid / spread / pierce / homing / ricochet / charge / mine | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
-| 溜め攻撃 | attack.charging / chargeLevel | 攻撃キーの長押しで段を溜めて離す近接（大剣）。刻印符の「溜め」（スキル用）とは別 | `system/player.ts` |
+| 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 / 三点 / 回転刃 / 曲射 | single / rapid / spread / pierce / homing / ricochet / charge / mine / burst / boomerang / lob | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
+| 溜め攻撃 | attack.charging / chargeLevel | 溜めの役割のボタンの長押しで段を溜めて離す近接（大剣・戦鎚は左、刀は右）。刻印符の「溜め」（スキル用）とは別 |
+| 居合 | katana の charge | 刀の溜め攻撃（右の長押し。細く長い突き） | `system/player.ts` |
 | 穂先 / 先端 | tip（`TipDef`） | 突きの先の部分。槍は怯み値 ×2、鞭は先端だけ満額 | `data/weapons.ts` |
 | 扇 / 突き / 円 / 箱 | arc / thrust / circle / box（`HitShape`） | 近接の当たり判定の形 | `data/weapons.ts` |
 | コンボ派生 | branches（`BranchDef`） | 左右の押し方の列で差し替わる技。「フィニッシュ」は連撃がそこで終わる派生 | `data/weapons.ts` |
-| 派生の技名 | BRANCH_NAMES | 十字断ち / 踏み込み斬り / 薙ぎ払い / 兜割り / 乱れ斬り / 交差斬り / 影踏み / 石突き回し / 飛び込み突き / 刈り取り / 鎌引き / 昇り拳 / 百裂拳 / 踏み込み拳 / 巻き打ち / 鞭鳴らし / 叩き落とし / 肩当て / 旋風 / 払い上げ / 魔力撃 / 杖払い | `data/weapons.ts` |
+| 派生の技名 | BRANCH_NAMES | 十字断ち / 踏み込み斬り / 薙ぎ払い / 兜割り / 乱れ斬り / 交差斬り / 影踏み / 石突き回し / 飛び込み突き / 刈り取り / 鎌引き / 昇り拳 / 百裂拳 / 踏み込み拳 / 巻き打ち / 鞭鳴らし / 叩き落とし / 肩当て / 旋風 / 払い上げ / 魔力撃 / 杖払い / 燕返し / 抜き打ち / 回転斬り / 断ち割り / 盾押し / 盾落とし / 分銅 / 巻き取り / 大薙ぎ / 地砕き |
+| ジョブ固有の派生 | `JOB_BRANCHES`（`BranchDef`） | 左左左右で出るジョブごとのフィニッシュ。どの武器種にも足される（同じ入力の派生を武器種が持てば武器種が優先）。残月（剣士。刀の「燕返し」と重ならないよう）/ 射抜き / 猛連打（極意の「猛打」と別）/ 盾殴り / 呪い刃 / 穂先返し / 魔力放出 / 影縫い / 反応刃 | `data/jobs.ts` |
+| 武器種の固有効果 | `MovesetDef.rules` | 武器種を持つ間だけ効く統一ルール（刀のカウンターの勢い・大盾の身固め など） | `data/weapons.ts` |
+| 反転撃ち | gunner の dashAttack | 二丁拳銃のダッシュ攻撃（ダッシュ中に撃つと、終わりに周りを撃ち払う） | `data/weapons.ts` | `data/weapons.ts` |
 | 近接 / 射撃 / 溜め（ボタンの役割） | ActionKind: melee / shot / charge | 武器種ごとの左クリック・右クリックの役割 | `data/weapons.ts` |
 | 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |
 | 引き寄せ / 投げ | pull / throw | 大鎌の手前へのノックバック / 拳のダッシュ攻撃の背後へのノックバック | `system/player.ts` knockDirection |
 | 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・射撃の型の器になるベース（implicit なし） | `loot/bases.ts` |
+| 脇差 / 太刀 / 手斧 / 戦斧 / 大盾 / 騎士盾 / 鎖鎌 / 分銅鎖 / 木槌 / 大槌 / 二丁拳銃 / 双回転式 / 大鉈 | wakizashi / tachi / handAxe / battleAxe / towerShield / kiteShield / kusarigama / weightedChain / mallet / maul / twinPistols / twinRevolvers / broadCleaver | 2026-09-24 に足した武器のベース（刀・斧・大盾・鎖鎌・戦鎚・二丁拳銃の器、大鉈は鉈の器） | `loot/bases.ts` |
+| 三連銃 / 三連弩 / 返し輪 / 飛刃 / 曲射筒 / 擲弾筒 | burstRifle / tripleCrossbow / returnChakram / flyingBlade / mortar / grenadeLauncher | 2026-09-24 に足した銃のベース（三点・回転刃・曲射の器） | `loot/bases.ts` |
 
 ## ジョブ（`docs/COMBAT_DESIGN.md` A-9）
 
@@ -360,6 +366,9 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 井戸 / 掲示板 / 鍛冶場 / 図書館 / 祭壇 / 訓練場 / 記録室 / 庭 | well / board / forge / library / altar / training / archive / garden（`FacilityKey`） | 拠点の設備。井戸 = ジョブ・起点・縛りの画面へ、掲示板 = 依頼の一覧、鍛冶場 = 残響、図書館 = スキル石、祭壇 = 誓約を試す（拠点を出ると消える）、訓練場 = 木人の区画、記録室 = 探索履歴・図鑑・実績の 3 台、庭 = 装備と芽。部屋の種類の「祭壇 / 図書館 / 鍛冶場」とは別物（拠点の中の名前） | `meta/hub.ts` FACILITY_NAME |
 | 〜が建った | `newlyBuilt` | 拠点の設備が新しく使えるようになったときのバナー。解放は既存の記録から導き、強さは変えない | `meta/hub.ts`、`render/hubUi.ts` |
 | 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。倒したボスの記念品、図鑑の埋まり具合で伸びる記録室の書架、名乗っている称号の看板 | `meta/hub.ts` |
+| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種・全射撃の型を木人で試せる（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる | `system/hub.ts` setTrialWeapon / borrowRackEntry、`ui/hubFlow.ts` rackTabs |
+| 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
+| 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される得意武器の素の器。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
 

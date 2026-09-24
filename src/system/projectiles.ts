@@ -43,12 +43,14 @@ export function updateProjectiles(state: GameState, dt: number): void {
       if (pr.owner === "player") pushSfx(state, "bulletHit");
       continue;
     }
-    // 煙に入った弾は消える（床に据えた設置弾は除く）
-    if (!def?.mine && swallowedBySmoke(state, pr)) continue;
+    // 煙に入った弾は消える（床に据えた設置弾・山なりに越える曲射は除く）
+    if (!def?.mine && !def?.lob && swallowedBySmoke(state, pr)) continue;
 
     if (pr.owner === "player") {
       if (def?.mine) updateMine(state, pr, def);
+      else if (def?.lob) updateLob(state, pr, def);
       else hitEnemies(state, pr);
+      if (def?.boomerang) catchBoomerang(state, pr, def);
     } else {
       hitPlayer(state, pr);
     }
@@ -62,10 +64,45 @@ function shotDefOf(pr: Projectile): ShotDef | undefined {
   return SHOT_TYPES[pr.shot.key];
 }
 
-/** 飛んでいる間の型ごとの動き（追尾の旋回・設置弾の減速） */
+/** 飛んでいる間の型ごとの動き（追尾の旋回・設置弾の減速・回転刃の折り返し） */
 function steerShot(state: GameState, pr: Projectile, def: ShotDef, dt: number): void {
   if (def.homing) steerHoming(state, pr, def.homing.turnRate, def.homing.range, dt);
   if (def.mine) slowMine(pr, def.mine.drag, dt);
+  if (def.boomerang) steerBoomerang(state, pr, def.boomerang.returnAt);
+}
+
+/**
+ * 回転刃: 寿命が returnAt の割合を切ったら折り返し、以後は毎ステップ手元へ向かう（速さは変えない）。
+ * 折り返した瞬間に当てた敵を忘れ、寿命を撃った瞬間の長さに戻す（帰りでもう一度当たり、帰り着くまで消えない）
+ */
+function steerBoomerang(state: GameState, pr: Projectile, returnAt: number): void {
+  const rt = pr.shot;
+  if (!rt) return;
+  if (!rt.returning && pr.life <= (rt.lifeTotal ?? 0) * returnAt) turnBack(pr);
+  if (!rt.returning) return;
+  const speed = length(pr.vel);
+  pr.vel = scale(normalize(sub(state.player.body.pos, pr.pos), scale(pr.vel, -1)), speed);
+}
+
+function turnBack(pr: Projectile): void {
+  const rt = pr.shot;
+  if (!rt || rt.returning) return;
+  rt.returning = true;
+  pr.hitIds.clear();
+  pr.life = Math.max(pr.life, rt.lifeTotal ?? pr.life);
+}
+
+/** 戻ってきた回転刃が手元に触れたら消える */
+function catchBoomerang(state: GameState, pr: Projectile, def: ShotDef): void {
+  if (!pr.shot?.returning || !def.boomerang) return;
+  const p = state.player.body;
+  if (circlesOverlap(pr.pos.x, pr.pos.y, pr.radius + def.boomerang.catchRadius, p.pos.x, p.pos.y, p.radius)) pr.life = 0;
+}
+
+/** 曲射: 飛んでいる間は当たらず、寿命（照準までの距離）が尽きた地点で炸裂する */
+function updateLob(state: GameState, pr: Projectile, def: ShotDef): void {
+  if (!def.lob || pr.shot?.detonated || pr.life > 0) return;
+  detonateMine(state, pr, def.lob.blastRadius);
 }
 
 /** 追尾: range 内で最も近い敵へ、毎秒 turnRate ラジアンまで向きを変える（速さは変えない） */
@@ -108,11 +145,24 @@ function slowMine(pr: Projectile, drag: number, dt: number): void {
   if (length(pr.vel) < MINE_REST_SPEED) pr.vel = { x: 0, y: 0 };
 }
 
-/** 壁に当たった型ごとの処理。弾を残すなら true（跳弾は反射、設置弾は壁際で止まる） */
+/**
+ * 壁に当たった型ごとの処理。弾を残すなら true
+ * （跳弾は反射、設置弾は壁際で止まる、回転刃は行きなら折り返す、曲射は壁の手前で炸裂する）
+ */
 function hitWallByShot(state: GameState, pr: Projectile, def: ShotDef, prev: Vec, dt: number): boolean {
   if (def.mine) {
     pr.pos = prev;
     pr.vel = { x: 0, y: 0 };
+    return true;
+  }
+  if (def.boomerang && pr.shot && !pr.shot.returning) {
+    pr.pos = prev;
+    turnBack(pr);
+    return true;
+  }
+  if (def.lob && def.lob.blastRadius > 0) {
+    pr.pos = prev;
+    detonateMine(state, pr, def.lob.blastRadius);
     return true;
   }
   return bounceShot(state, pr, def, prev, dt);

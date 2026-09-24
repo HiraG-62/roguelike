@@ -6,6 +6,7 @@ import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
+import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
@@ -45,6 +46,9 @@ const HEAVY_PARTICLES = 10;
 const LIGHT_PARTICLES = 5;
 const SHATTER_TEXT = "砕き";
 const SHATTER_PARTICLES = 12;
+/** 撃破の瞬間、攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5） */
+const KILL_DIRECTIONAL_PARTICLES = 8;
+const KILL_DIRECTIONAL_SPEED = 220;
 /** lifeOnHit は「与ダメの %」 */
 const PERCENT = 100;
 
@@ -65,6 +69,8 @@ export interface HitOptions {
   silent?: boolean;
   /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
   guardBreak?: boolean;
+  /** 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-2）。showHit のヒットストップに反映 */
+  finisher?: boolean;
 }
 
 /** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
@@ -179,9 +185,9 @@ export function damageEnemy(
   const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
   if (heavy) onTraitStagger(state, enemy);
 
+  const dir = normalize(knockDir);
   if (!opts.silent) {
     enemy.hitFlash = ENEMY_HIT_FLASH;
-    const dir = normalize(knockDir);
     // 怯んでいない敵は押し出しすぎない（殴っても射程外へ逃げない）
     const knockMul = isStaggered(enemy) ? 1 : POISE.knockbackUnstaggered;
     if (knockForce > 0) enemy.knock = scale(dir, knockForce * knockMul);
@@ -192,7 +198,11 @@ export function damageEnemy(
   if (opts.silent) noteDotDamage(state, enemy, amount);
 
   if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
-  if (kind === "melee") pushSfx(state, heavy ? "hitHeavy" : "hit");
+  if (kind === "melee") {
+    pushSfx(state, heavy ? "hitHeavy" : "hit");
+    // 命中の低域のドン（docs/ideas/combat-feel-design.md D-5）。重撃は hitHeavy が既に低域を持つ
+    if (!heavy) pushSfx(state, "hitThump");
+  }
   if (kind === "ranged") pushSfx(state, "bulletHit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
@@ -205,7 +215,7 @@ export function damageEnemy(
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
   if (enemy.hp > 0) return false;
   spawnDeathFx(state, enemy, opts);
-  killEnemy(state, enemy);
+  killEnemy(state, enemy, dir);
   return true;
 }
 
@@ -240,9 +250,13 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   addFloatingText(state, enemy.body.pos, String(amount), look.color, look.scale, undefined, textKind);
   spawnDirectional(state, enemy.body.pos, dir, color, heavy ? HEAVY_PARTICLES : LIGHT_PARTICLES, 140);
   const base = opts.hitstopSteps ?? FEEL.hitstopLight;
-  const steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
+  let steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
+  // 武器種の最終段・フィニッシュ派生の命中は、他の値より軽ければ底上げする（docs/ideas/combat-feel-design.md D-2）
+  if (opts.finisher) steps = Math.max(steps, FEEL.hitstopFinisher);
   hitstop(state, steps);
   shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
+  // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）
+  if (heavy) cameraKick(state, dir, FEEL.kickHeavy);
 }
 
 /** 必殺ゲージを増やす（energyGainMul 込み） */
@@ -251,7 +265,7 @@ export function gainEnergy(state: GameState, amount: number): void {
   p.energy = Math.min(p.maxEnergy, p.energy + amount * state.stats.energyGainMul);
 }
 
-function killEnemy(state: GameState, enemy: Enemy): void {
+function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   const def = enemyDef(enemy.defKey);
   // 鐘の蘇生体は撃破数・ドロップ・来歴の撃破に数えない（蘇生と撃破を繰り返して稼がせない）
   const counted = enemy.revived !== true;
@@ -260,9 +274,12 @@ function killEnemy(state: GameState, enemy: Enemy): void {
   state.score += gained;
   spawnBurst(state, enemy.body.pos, def.color, 18, 160, 0.5, 2.5);
   spawnBurst(state, enemy.body.pos, "#ffffff", 6, 90, 0.25, 1.5);
+  // 攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5）
+  spawnDirectional(state, enemy.body.pos, dir, def.color, KILL_DIRECTIONAL_PARTICLES, KILL_DIRECTIONAL_SPEED);
   addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 6 }, `+${gained}`, "#ffd75f", 1.1, 0.8);
   hitstop(state, FEEL.hitstopKill);
   shake(state, FEEL.shakeHeavy);
+  cameraKick(state, dir, FEEL.kickHeavy);
   pushSfx(state, "kill");
 
   applyLifeOnKill(state);

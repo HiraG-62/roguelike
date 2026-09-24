@@ -2,22 +2,15 @@
  * リプレイの永続化。プロフィールとは別キーに最新 REPLAY_LIMIT 件だけ保存する（最新が先頭）。
  * 容量超過したら古いものから捨てて保存し直す。
  */
+import { saveStorage } from "../save/backend";
 import { type ReplayData, sanitizeReplay } from "../core/replay";
 
 export const REPLAY_STORE_KEY = "roguelike.replays.v1";
 export const REPLAY_LIMIT = 10;
 
-function defaultStorage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** 保存済みリプレイを読む。壊れた要素は捨てる */
 export function loadReplays(storage?: Storage): ReplayData[] {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return [];
   let raw: string | null;
   try {
@@ -57,7 +50,7 @@ function writeReplays(target: Storage, replays: ReplayData[]): boolean {
 
 /** 先頭に 1 件追加し、最新 REPLAY_LIMIT 件だけ保存する。保存後の一覧を返す */
 export function pushReplay(replay: ReplayData, storage?: Storage): ReplayData[] {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   const list = [replay, ...loadReplays(target ?? undefined)].slice(0, REPLAY_LIMIT);
   if (!target) return list;
   if (!writeReplays(target, list)) console.warn("pushReplay: storage full");

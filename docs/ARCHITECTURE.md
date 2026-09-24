@@ -137,18 +137,22 @@ GameState
 - デイリーシード: `dailySeedText(new Date())` の文字列を `hashSeed` で seed にする
 - 決定性は `core/game.test.ts` と `core/replay.test.ts` がテストで固定している
 
-## 永続化キー（localStorage）
+## 永続化キー（保存先）
+
+保存先は `save/backend.ts` の `saveStorage()` 経由のみ（ブラウザ版は localStorage、Electron 版は `save/bootstrap.ts` が差し込む `FileStorage` = `%APPDATA%\DEPTHBREAKER\save\*.json`。キーとファイル名の対応は `save/fileEnvelope.ts` の `SAVE_FILES`）。リプレイ再生中の書き込み抑止も `guardSaveWrites` がここで持つ。
 
 | キー | 中身 | 読み書き |
 | --- | --- | --- |
 | `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件） | `loot/profile.ts` |
 | `roguelike.skills.v1` | スキル石とスロット | `skills/persistence.ts` |
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
-| `roguelike.settings.v1` | ミュート・音量・画面揺れ・キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定。追加フィールドなので v1 のまま） | `ui/settings.ts` |
+| `roguelike.settings.v1` | ミュート・音量・音楽の音量・画面揺れ | `ui/settings.ts` |
+| `roguelike.keybinds.v1` | キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定）。2026-09-24 に settings から分離。このキーが無いときだけ旧 `settings.v1` に埋め込まれた `keybinds` を読み、次の保存で分離される | `ui/settings.ts` |
 | `roguelike.replays.v1` | リプレイ最新 10 件 | `ui/replayStore.ts` |
 | `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、スキルの連携の回数〔`combos`、2026-09-24 追加〕、連携の初発見〔`firstSeen`: id → 階とシード、2026-09-24 追加〕、階の種類・部屋の種類）。追加フィールドは旧データで `{}` に補うので `v1` のまま。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
 | `roguelike.quests.v1` | 依頼（達成した依頼と時刻、受けたまま未達成の依頼 `active`）。起点の解放・図鑑の頁・名のある遺物の抽選・称号はここから読む | `meta/questStore.ts` |
 | `roguelike.achievements.v1` | 実績（解除した実績と時刻）と名乗っている称号 | `meta/achievements.ts` |
+| `roguelike.hub.v1` | 拠点（施設の既読など） | `meta/hubStore.ts` |
 
 共通ルール: 例外（容量超過・プライベートモード）を握りつぶし、壊れたデータはデフォルトへ落とす。形式を非互換に変えるときはキーの版を上げる。
 

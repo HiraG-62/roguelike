@@ -18,7 +18,9 @@ import {
   floorVariant,
   floorWipeCover,
   pulse,
+  spriteFeetY,
   tileHash,
+  wallMask,
   wallStyle,
   computeViewScale,
 } from "./renderMath";
@@ -54,6 +56,26 @@ describe("wallStyle", () => {
     expect(wallStyle(map, 1, 2)).toBe("top");
     expect(wallStyle(map, 2, 3)).toBe("top");
     expect(wallStyle(map, 0, 0)).toBe("none");
+  });
+});
+
+describe("wallMask", () => {
+  it("隣接 4 方向の床をビットにする", () => {
+    const map = createMap(5, 5);
+    setTile(map, 2, 1, Tile.Floor); // N
+    setTile(map, 3, 2, Tile.Floor); // E
+    expect(wallMask(map, 2, 2)).toBe(1 | 2);
+  });
+
+  it("周囲が全部壁なら 0", () => {
+    const map = createMap(5, 5);
+    expect(wallMask(map, 2, 2)).toBe(0);
+  });
+});
+
+describe("spriteFeetY", () => {
+  it("16px 当時の足元（半径 6 → +8）と一致する", () => {
+    expect(spriteFeetY(100, 6)).toBe(108);
   });
 });
 

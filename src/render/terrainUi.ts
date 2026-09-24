@@ -4,6 +4,7 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { TILE_SIZE, toIndex } from "../map/grid";
 import { tileHash } from "./renderMath";
 import { TERRAIN_RUBBLE } from "../data/tuning";
+import { type SpriteAtlas, spriteFrame } from "./sprites";
 
 /**
  * 地形の層の描画（docs/ideas/status-and-terrain.md 3 章）。state.terrain を読むだけ。
@@ -17,20 +18,22 @@ interface TerrainStyle {
   detail: string;
   /** 模様の点の数（1 タイルあたり） */
   dots: number;
+  /** PNG 素材の不透明度。素材（atlas の terrain.<kind>）がある地形だけ、単色 + 点の代わりに素材で描く */
+  spriteAlpha?: number;
 }
 
 /** 床に塗る地形（煙は床ではなく上に漂うので drawSmokeLayer が別に描く） */
 type GroundKind = Exclude<TerrainKind, "none" | "smoke">;
 
 const STYLE: Readonly<Record<GroundKind, TerrainStyle>> = {
-  water: { base: "#2a5ca8", alpha: 0.55, detail: "#9cc8ff", dots: 2 },
-  oil: { base: "#2a2418", alpha: 0.7, detail: "#6a5a90", dots: 2 },
-  lava: { base: "#c83810", alpha: 0.85, detail: "#ffd040", dots: 3 },
-  bog: { base: "#3c5a20", alpha: 0.65, detail: "#a0e060", dots: 2 },
-  ice: { base: "#b8e0f0", alpha: 0.5, detail: "#ffffff", dots: 2 },
+  water: { base: "#2a5ca8", alpha: 0.55, detail: "#9cc8ff", dots: 2, spriteAlpha: 0.85 },
+  oil: { base: "#2a2418", alpha: 0.7, detail: "#6a5a90", dots: 2, spriteAlpha: 0.85 },
+  lava: { base: "#c83810", alpha: 0.85, detail: "#ffd040", dots: 3, spriteAlpha: 0.95 },
+  bog: { base: "#3c5a20", alpha: 0.65, detail: "#a0e060", dots: 2, spriteAlpha: 0.85 },
+  ice: { base: "#b8e0f0", alpha: 0.5, detail: "#ffffff", dots: 2, spriteAlpha: 0.75 },
   grass: { base: "#2c5a24", alpha: 0.55, detail: "#70c050", dots: 4 },
   fire: { base: "#ff6010", alpha: 0.6, detail: "#ffe060", dots: 3 },
-  mud: { base: "#5a4028", alpha: 0.75, detail: "#8a6a40", dots: 3 },
+  mud: { base: "#5a4028", alpha: 0.75, detail: "#8a6a40", dots: 3, spriteAlpha: 0.85 },
   rubble: { base: "#4a4036", alpha: 0.8, detail: "#1e1a16", dots: 4 },
 };
 
@@ -46,11 +49,16 @@ const DOT_W = 2;
 const DOT_H = 1;
 /** 消えかけの地形を薄くする残り秒 */
 const FADE_TIME = 1;
+/** 素材の水面アニメの 1 コマ（Puny の Tiled 定義と同じ 100ms）。全タイル同じコマにして流れを繋げる */
+const TERRAIN_FRAME_TIME = 0.1;
 const HASH_BITS = 8;
 const HASH_MASK = 0xff;
 
-/** 画面内の地形タイルを描く。viewX / viewY はワールド座標での画面左上 */
-export function drawTerrainLayer(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number): void {
+/**
+ * 画面内の地形タイルを描く。viewX / viewY はワールド座標での画面左上。
+ * atlas に terrain.<kind> があればその素材で、無ければ単色 + 点で描く（PNG 未ロード時のフォールバック）
+ */
+export function drawTerrainLayer(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, atlas?: SpriteAtlas): void {
   const layer = state.terrain;
   const map = state.map;
   if (layer.map !== map) return;
@@ -63,19 +71,36 @@ export function drawTerrainLayer(ctx: CanvasRenderingContext2D, state: GameState
       const i = toIndex(map, x, y);
       const kind = terrainKindOf(layer.kinds[i] ?? 0);
       if (kind === "none" || kind === "smoke") continue;
-      drawTile(ctx, state, kind, x, y, layer.time[i] ?? 0, kind === "rubble" ? (layer.rubbleLoad[i] ?? 0) : 0);
+      drawTile(ctx, state, kind, x, y, layer.time[i] ?? 0, kind === "rubble" ? (layer.rubbleLoad[i] ?? 0) : 0, atlas);
     }
   }
   ctx.globalAlpha = 1;
 }
 
-function drawTile(ctx: CanvasRenderingContext2D, state: GameState, kind: GroundKind, x: number, y: number, timeLeft: number, load: number): void {
+function drawTile(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  kind: GroundKind,
+  x: number,
+  y: number,
+  timeLeft: number,
+  load: number,
+  atlas: SpriteAtlas | undefined,
+): void {
   const style = STYLE[kind];
   const hash = tileHash(x, y);
   const fade = timeLeft > 0 && timeLeft < FADE_TIME ? timeLeft / FADE_TIME : 1;
   const shake = rubbleShake(state, load, hash);
   const px = x * TILE_SIZE + shake;
   const py = y * TILE_SIZE;
+  const sprite = style.spriteAlpha === undefined ? undefined : atlas?.[terrainSpriteKey(kind)];
+  if (sprite && style.spriteAlpha !== undefined) {
+    const img = sprite.frames[spriteFrame(sprite, state.time, TERRAIN_FRAME_TIME)];
+    if (!img) return;
+    ctx.globalAlpha = style.spriteAlpha * fade * flicker(state, kind, hash);
+    ctx.drawImage(img, px, py);
+    return;
+  }
   ctx.globalAlpha = style.alpha * fade * flicker(state, kind, hash);
   ctx.fillStyle = style.base;
   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -86,6 +111,11 @@ function drawTile(ctx: CanvasRenderingContext2D, state: GameState, kind: GroundK
     const dy = ((h >>> (HASH_BITS / 2)) & HASH_MASK) % (TILE_SIZE - DOT_H);
     ctx.fillRect(px + dx, py + dy, DOT_W, DOT_H);
   }
+}
+
+/** atlas 上の地形素材のキー（data/tiles.ts の terrain.<kind>） */
+export function terrainSpriteKey(kind: TerrainKind): string {
+  return `terrain.${kind}`;
 }
 
 /** 崩れる床に敵が乗っている間は横に揺れる（抜けるまでの残りが短いほど大きい）。乗っていなければ 0 */

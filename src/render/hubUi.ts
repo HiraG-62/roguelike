@@ -12,6 +12,11 @@ import { FACILITY_NAME, FACILITY_OF_SPOT, type HubDecor } from "../meta/hub";
 import { KEYSTONE_NAME } from "../system/keystones";
 import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_PANEL_BG, COLOR_SELECTED, COLOR_TEXT, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, drawTextShadow, textLineHeight, textWidth, truncateText } from "./pixelText";
+import type { Sprite } from "./sprites";
+import { TILE_SIZE } from "../map/grid";
+
+/** 拠点の設備の PNG 素材を引く（Renderer.atlasSprite）。無ければ絵を出さずラベルだけにする */
+export type HubSpriteLookup = (key: string) => Sprite | undefined;
 
 export interface HubView {
   spots: Readonly<Record<HubSpotKey, Vec>>;
@@ -21,6 +26,10 @@ export interface HubView {
   trialKeystone: string | null;
   decor: readonly HubDecor[];
   banner: string | null;
+  /** 武器掛けで試している武器種・射撃の型（「大剣 / 散弾」）。無ければ null */
+  trialWeapon?: string | null;
+  /** 借りている素の器の名前。無ければ null */
+  loaned?: string | null;
 }
 
 /** 台ごとの操作の言葉（「E: 〜」の〜） */
@@ -34,6 +43,7 @@ const SPOT_ACTION: Readonly<Record<HubSpotKey, string>> = {
   history: "探索履歴を開く",
   codex: "図鑑を開く",
   achievements: "実績を開く",
+  rack: "武器を試す",
 };
 
 /** 記録室の 3 台は設備名だけだと区別できないので台の名前を出す */
@@ -79,11 +89,26 @@ function lineH(m: number): number {
   return Math.max(LINE_H_MIN, textLineHeight(m));
 }
 
-function drawSpotLabels(ctx: CanvasRenderingContext2D, view: HubView, ox: number, oy: number): void {
+/** atlas 上の設備の素材のキー（data/tiles.ts の hub.<HubSpotKey>） */
+export function hubSpriteKey(spot: HubSpotKey): string {
+  return `hub.${spot}`;
+}
+
+/** 素材の足元を台のタイルの下端に揃える。背の高い素材（書架）の分だけ上に伸びた量を返す */
+function drawSpotSprite(ctx: CanvasRenderingContext2D, sprite: Sprite | undefined, pos: Vec, ox: number, oy: number): number {
+  const img = sprite?.frames[0];
+  if (!img) return 0;
+  const bottom = pos.y + oy + TILE_SIZE / 2;
+  ctx.drawImage(img, Math.round(pos.x + ox - img.width / 2), Math.round(bottom - img.height));
+  return Math.max(0, img.height - TILE_SIZE);
+}
+
+function drawSpots(ctx: CanvasRenderingContext2D, view: HubView, ox: number, oy: number, lookup: HubSpriteLookup | undefined): void {
   for (const spot of view.available) {
     const pos = view.spots[spot];
+    const rise = drawSpotSprite(ctx, lookup?.(hubSpriteKey(spot)), pos, ox, oy);
     const color = view.near === spot ? NEAR_COLOR : COLOR_TEXT;
-    drawTextShadow(ctx, spotLabel(spot), pos.x + ox, pos.y + oy - LABEL_RISE, TEXT.SMALL, color, SHADOW, "center");
+    drawTextShadow(ctx, spotLabel(spot), pos.x + ox, pos.y + oy - LABEL_RISE - rise, TEXT.SMALL, color, SHADOW, "center");
   }
 }
 
@@ -91,6 +116,17 @@ function drawPrompt(ctx: CanvasRenderingContext2D, view: HubView): void {
   if (view.near === null || !view.available.has(view.near)) return;
   const text = `${actionKeyLabel("interact")}: ${SPOT_ACTION[view.near]}`;
   drawTextShadow(ctx, text, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM, TEXT.BODY, NEAR_COLOR, SHADOW, "center");
+}
+
+/** 出撃ゲージの上に、試している武器と借り物を出す（借り物はランが終わると消えることを出撃前に読めるように） */
+function drawRackStatus(ctx: CanvasRenderingContext2D, view: HubView): void {
+  const parts: string[] = [];
+  if (view.trialWeapon) parts.push(`試し中: ${view.trialWeapon}`);
+  if (view.loaned) parts.push(`借り物: ${view.loaned}`);
+  if (parts.length === 0) return;
+  const m = TEXT.SMALL;
+  const text = truncateText(parts.join("　"), VIEW_W - MARGIN * 2, m);
+  drawTextShadow(ctx, text, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM - lineH(m), m, COLOR_SELECTED, SHADOW, "center");
 }
 
 /** 決定キー長押しの案内と、押している間の出撃ゲージ */
@@ -133,13 +169,21 @@ function drawDecor(ctx: CanvasRenderingContext2D, view: HubView): void {
   });
 }
 
-export function drawHubOverlay(ctx: CanvasRenderingContext2D, state: GameState, view: HubView, ox: number, oy: number): void {
+export function drawHubOverlay(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  view: HubView,
+  ox: number,
+  oy: number,
+  lookup?: HubSpriteLookup,
+): void {
   // 装備画面などを開いている間（paused）は、上に重なる画面の邪魔をしないよう出さない
   if (state.paused) return;
-  drawSpotLabels(ctx, view, ox, oy);
+  drawSpots(ctx, view, ox, oy, lookup);
   drawDecor(ctx, view);
   drawTrialKeystone(ctx, view);
   drawBanner(ctx, view);
   drawPrompt(ctx, view);
+  drawRackStatus(ctx, view);
   drawDepartGauge(ctx, view);
 }

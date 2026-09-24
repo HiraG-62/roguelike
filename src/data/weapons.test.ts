@@ -10,11 +10,18 @@ import {
   MOVESET_KEYS,
   SHOT_KEYS,
   SHOT_TYPES,
+  branchHints,
+  chargeButton,
   chargeLevelAt,
+  isShotOnly,
   matchBranch,
   meleeButton,
+  movesetRules,
   shotButton,
+  shotButtons,
+  withExtraBranch,
 } from "./weapons";
+import { JOB_BRANCHES, JOB_BRANCH_SEQUENCE } from "./jobs";
 
 /** 剣以外の武器種の段数（ユーザーメモ: 3 段固定ではなく 4〜5 段）。剣は QA で調整済みの基準線として 3 段のまま */
 const MIN_STEPS = 4;
@@ -28,22 +35,26 @@ const DASH_PINNED = 11.2;
 const atBase = (s: Parameters<typeof scaled>[1]): number => scaled(DEFAULT_STATS, s);
 
 describe("武器種の定義", () => {
-  it("すべての武器種が表示名・説明・語を持ち、剣以外は 4〜5 段ある", () => {
+  it("すべての武器種が表示名・説明・語を持ち、剣と射撃専用以外は 4〜5 段ある", () => {
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       expect(def.key, key).toBe(key);
       expect(def.name.length, `${key} の表示名`).toBeGreaterThan(0);
       expect(def.desc.length, `${key} の説明`).toBeGreaterThan(0);
       expect(profileKeywords(def.keywords).length, `${key} が語を持つ`).toBeGreaterThan(0);
-      if (key === "sword") continue;
+      if (key === "sword" || isShotOnly(def)) continue;
       expect(def.steps.length, `${key} の段数`).toBeGreaterThanOrEqual(MIN_STEPS);
       expect(def.steps.length, `${key} の段数`).toBeLessThanOrEqual(MAX_STEPS);
     }
   });
 
-  it("すべての武器種が 2〜3 本のコンボ派生を持ち、入力列・続きの段が妥当", () => {
+  it("すべての武器種（射撃専用を除く）が 2〜3 本のコンボ派生を持ち、入力列・続きの段が妥当", () => {
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
+      if (isShotOnly(def)) {
+        expect(def.branches.length, `${key} は射撃専用なので派生を持たない`).toBe(0);
+        continue;
+      }
       expect(def.branches.length, `${key} の派生数`).toBeGreaterThanOrEqual(MIN_BRANCHES);
       expect(def.branches.length, `${key} の派生数`).toBeLessThanOrEqual(MAX_BRANCHES);
       const sequences = new Set<string>();
@@ -124,14 +135,15 @@ describe("武器種の定義", () => {
     expect(sword.attackMoveMul).toBe(PLAYER.attackMoveMul);
   });
 
-  it("溜めは大剣だけが持ち、段の時間と倍率が単調に増える", () => {
+  it("溜めは溜めの役割のボタンを持つ武器種だけが持ち、段の時間と倍率が単調に増える", () => {
     for (const key of MOVESET_KEYS) {
       const charge = MOVESETS[key].charge;
-      if (key !== "greatsword") {
+      if (chargeButton(MOVESETS[key]) === undefined) {
         expect(charge, `${key} は溜めを持たない`).toBeUndefined();
         continue;
       }
-      expect(charge?.levels.length, "大剣は 3 段階").toBe(3);
+      expect(charge, `${key} は溜めの役割があるので溜めを持つ`).toBeDefined();
+      expect(charge?.levels.length ?? 0, `${key} の段数`).toBeGreaterThanOrEqual(2);
       const levels = charge?.levels ?? [];
       for (let i = 1; i < levels.length; i++) {
         expect(levels[i]!.time).toBeGreaterThan(levels[i - 1]!.time);
@@ -159,8 +171,8 @@ describe("武器種の定義", () => {
     const swordReach = Math.max(...sword.steps.map((s) => s.reach + s.size / 2));
     const swordDamage = sword.steps.reduce((sum, s) => sum + atBase(s.scaling), 0);
     for (const key of MOVESET_KEYS) {
-      if (key === "sword") continue;
       const def = MOVESETS[key];
+      if (key === "sword" || isShotOnly(def)) continue;
       const reach = Math.max(...def.steps.map((s) => s.reach + s.size / 2));
       const damage = def.steps.reduce((sum, s) => sum + atBase(s.scaling), 0);
       const time = def.steps.reduce((sum, s) => sum + s.windup + s.active + s.recover, 0);
@@ -234,5 +246,121 @@ describe("ベースとの結び付き", () => {
     }
     for (const base of BASES.filter((b) => b.slot === "weapon")) expect(base.moveset, `${base.key} は武器種を持つ`).toBeDefined();
     for (const base of BASES.filter((b) => b.slot === "gun")) expect(base.shot, `${base.key} は射撃の型を持つ`).toBeDefined();
+  });
+});
+
+describe("branchHints（docs/ideas/combat-feel-design.md D-1）", () => {
+  it("剣で左左の後は右に十字断ちが出る", () => {
+    const hints = branchHints(MOVESETS.sword, ["primary", "primary"]);
+    expect(hints).toContainEqual({ button: "secondary", name: "十字断ち" });
+  });
+
+  it("右の後は左に踏み込み斬りが出る", () => {
+    const hints = branchHints(MOVESETS.sword, ["secondary"]);
+    expect(hints).toContainEqual({ button: "primary", name: "踏み込み斬り" });
+  });
+
+  it("一致する派生が無ければ空", () => {
+    expect(branchHints(MOVESETS.sword, [])).toEqual([]);
+    expect(branchHints(MOVESETS.sword, ["primary"])).toEqual([]);
+  });
+});
+
+describe("武器種・射撃の型の拡張（docs/ideas/combat-feel-design.md レーン B）", () => {
+  const NEW_MOVESETS = ["katana", "axe", "shield", "chainSickle", "hammer", "gunner"] as const;
+  const NEW_SHOTS = ["burst", "boomerang", "lob"] as const;
+  /** 序盤（itemLevel 3）で拾える器があること */
+  const EARLY_LEVEL = 3;
+
+  it("新しい武器種 6 種・射撃の型 3 種が登録されている", () => {
+    for (const key of NEW_MOVESETS) expect(MOVESET_KEYS, key).toContain(key);
+    for (const key of NEW_SHOTS) expect(SHOT_KEYS, key).toContain(key);
+  });
+
+  it("新しい武器種・射撃の型のそれぞれに itemLevel 3 以下の器がある", () => {
+    for (const key of NEW_MOVESETS) {
+      expect(BASES.some((b) => b.moveset === key && b.minLevel <= EARLY_LEVEL), `武器種 ${key} の序盤の器`).toBe(true);
+    }
+    for (const key of NEW_SHOTS) {
+      expect(BASES.some((b) => b.shot === key && b.minLevel <= EARLY_LEVEL), `射撃の型 ${key} の序盤の器`).toBe(true);
+    }
+  });
+
+  it("ボタンの役割: 刀は右が溜め、戦鎚は左が溜め、二丁拳銃は左右とも射撃", () => {
+    expect(chargeButton(MOVESETS.katana), "刀の溜めは右").toBe("secondary");
+    expect(meleeButton(MOVESETS.katana), "刀の連撃は左").toBe("primary");
+    expect(chargeButton(MOVESETS.hammer), "戦鎚の溜めは左").toBe("primary");
+    expect(chargeButton(MOVESETS.greatsword), "大剣の溜めは左のまま").toBe("primary");
+    expect(chargeButton(MOVESETS.sword), "剣は溜めを持たない").toBeUndefined();
+    expect(shotButtons(MOVESETS.gunner), "二丁拳銃は左右とも撃つ").toEqual(["primary", "secondary"]);
+    expect(meleeButton(MOVESETS.gunner), "二丁拳銃は近接の連撃ボタンを持たない").toBeUndefined();
+    expect(shotButton(MOVESETS.gunner)).toBe("secondary");
+    expect(isShotOnly(MOVESETS.gunner)).toBe(true);
+    expect(shotButtons(MOVESETS.sword), "剣は右だけ").toEqual(["secondary"]);
+  });
+
+  it("武器種の固有効果（rules）は持ち主の武器種ごとに id が分かれ、持たない武器種は空", () => {
+    expect(movesetRules("sword"), "剣は固有効果を持たない").toEqual([]);
+    const ids = new Set<string>();
+    for (const key of NEW_MOVESETS) {
+      const rules = movesetRules(key);
+      expect(rules.length, `${key} は固有効果を持つ`).toBeGreaterThan(0);
+      for (const r of rules) {
+        expect(r.owner.key, `${key} の持ち主`).toBe(`moveset.${key}`);
+        ids.add(r.id);
+      }
+    }
+    const total = NEW_MOVESETS.reduce((n, k) => n + movesetRules(k).length, 0);
+    expect(ids.size, "id は重ならない").toBe(total);
+  });
+
+  it("段の applies: 斧の最終段は出血、鎖鎌の分銅は崩勢を付ける", () => {
+    const axeLast = MOVESETS.axe.steps[MOVESETS.axe.steps.length - 1];
+    expect(axeLast?.applies?.map((a) => a.kind)).toEqual(["bleed"]);
+    const weight = MOVESETS.chainSickle.branches.find((b) => b.key === "chainWeight");
+    expect(weight?.step.applies?.map((a) => a.kind)).toEqual(["broken"]);
+    expect(weight?.step.pull, "分銅は引き寄せる").toBe(true);
+  });
+
+  it("射撃の型: 三点は 3 発、回転刃は折り返す、曲射は炸裂の半径を持つ", () => {
+    expect(SHOT_TYPES.burst.burst?.count).toBe(3);
+    expect(SHOT_TYPES.boomerang.boomerang?.returnAt ?? 0).toBeGreaterThan(0);
+    expect(SHOT_TYPES.boomerang.boomerang?.returnAt ?? 1).toBeLessThan(1);
+    expect(SHOT_TYPES.lob.lob?.blastRadius ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe("ジョブ固有の派生", () => {
+  it("すべてのジョブ（見習い以外）が固有の派生を持ち、表示名が登録済みで入力は左左左右", () => {
+    for (const [job, branch] of Object.entries(JOB_BRANCHES)) {
+      expect(branch.name.length, `${job} の表示名`).toBeGreaterThan(0);
+      expect(branch.name, `${job} の表示名が key のままでない`).not.toBe(branch.key);
+      expect(branch.sequence, `${job} の入力`).toEqual(JOB_BRANCH_SEQUENCE);
+      expect(branch.next, `${job} の派生はフィニッシュ`).toBeUndefined();
+      expect(atBase(branch.step.scaling), `${job} の威力`).toBeGreaterThan(0);
+    }
+  });
+
+  it("ジョブの派生は装備の武器種の派生と衝突せず、長い列が先に一致する", () => {
+    const extra = JOB_BRANCHES.swordsman;
+    for (const key of MOVESET_KEYS) {
+      const merged = withExtraBranch(MOVESETS[key], extra);
+      const seqs = merged.branches.map((b) => b.sequence.join(","));
+      expect(new Set(seqs).size, `${key}: 入力列が重ならない`).toBe(seqs.length);
+      for (let i = 1; i < merged.branches.length; i++) {
+        expect(merged.branches[i - 1]!.sequence.length, `${key}: 長い列が先`).toBeGreaterThanOrEqual(merged.branches[i]!.sequence.length);
+      }
+    }
+    // 剣: 左左左右はジョブの派生、左左右は十字断ちのまま
+    const sword = withExtraBranch(MOVESETS.sword, extra);
+    const at = (inputs: ButtonKey[]): string | undefined => {
+      const i = matchBranch(sword, inputs);
+      return i === undefined ? undefined : sword.branches[i]?.key;
+    };
+    expect(at(["primary", "primary", "primary", "secondary"])).toBe(extra.key);
+    expect(at(["primary", "primary", "secondary"])).toBe("crossCut");
+    // 双剣は同じ列（交差斬り）を持つので武器種が優先され、ジョブの派生は足されない
+    const twin = withExtraBranch(MOVESETS.twinBlades, extra);
+    expect(twin.branches.length, "双剣の派生数は変わらない").toBe(MOVESETS.twinBlades.branches.length);
   });
 });

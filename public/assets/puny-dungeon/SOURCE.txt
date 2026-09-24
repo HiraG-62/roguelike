@@ -1,0 +1,24 @@
+16x16 Puny Dungeon Tileset
+
+作者: Shade（OpenGameArt.org ユーザー shade-1）
+配布ページ: https://opengameart.org/content/16x16-puny-dungeon-tileset
+取得日: 2026-09-24
+取得元ファイル:
+  - https://opengameart.org/sites/default/files/puny_dungeon_v1.zip
+    （zip から punyworld-dungeon-tileset.png と Tiled/puny-dungeon-tiles.tsx を抽出）
+sha256（このフォルダに置いた PNG）:
+  0bec8a1262360c8828e450760551754d7cb734ae51b952df9e7100a656b656a8  punyworld-dungeon-tileset.png
+
+ライセンス表記（配布ページ本文からの引用。ページ右側の「License(s)」欄）:
+  License: CC0
+  （ページ内 HTML: <div class='license-name'>CC0</div>、
+   リンク先 http://creativecommons.org/publicdomain/zero/1.0/ ）
+
+画像仕様:
+  - punyworld-dungeon-tileset.png: 416x320px、16x16 タイル、26 列 x 20 行 = 520 タイル、隙間 0px
+  - puny-dungeon-tiles.tsx（Tiled 用タイルセット定義。座標の参考用）:
+    tilewidth=16 / tileheight=16 / columns=26 / tilecount=520
+    アニメーション定義 26 件（水面・松明などが複数フレームの tile id で連番、
+    duration は 100〜1000ms とタイルごとに異なる）
+  - 同梱の zip には Tiled サンプルマップ・sample-characters.png（16x16 サンプルキャラ、
+    96x96 = 6x6）も含まれるが、今回はタイルセット本体のみ配置した

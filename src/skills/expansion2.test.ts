@@ -6,6 +6,7 @@ import type { StatusKind } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { STATUS } from "../data/tuning";
+import { MOVESET_KEYS } from "../data/weapons";
 import { TRAIT_COLORS, type TraitColor, createEmptyResonance } from "../loot/types";
 import { updatePlayer } from "../system/player";
 import { createSkillRunState, resolveSlot, skillMoveMul, slotComboReady, updateSkills } from "../system/skills";
@@ -368,7 +369,7 @@ describe("属性・武器種", () => {
     cast(spear);
     expect(lost(a), "剣の十文字は届かない").toBe(0);
     expect(lost(b), "槍の槍衾は届く").toBeGreaterThan(0);
-    expect(Object.keys(WEAPON_ART).length, "全武器種に形がある").toBe(10);
+    expect(Object.keys(WEAPON_ART).length, "全武器種に形がある").toBe(MOVESET_KEYS.length);
   });
 
   it("極意: 杖は魔弾を撃ち、属性は武器（光）に揃う", () => {

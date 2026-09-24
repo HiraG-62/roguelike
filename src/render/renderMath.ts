@@ -32,6 +32,22 @@ export function wallStyle(map: GameMap, x: number, y: number): WallStyle {
   return "none";
 }
 
+/** 壁の自動接続の 4 方向ビット（N=1 / E=2 / S=4 / W=8）。「隣が床」を立てる */
+export function wallMask(map: GameMap, x: number, y: number): number {
+  let mask = 0;
+  if (getTile(map, x, y - 1) !== Tile.Wall) mask |= 1;
+  if (getTile(map, x + 1, y) !== Tile.Wall) mask |= 2;
+  if (getTile(map, x, y + 1) !== Tile.Wall) mask |= 4;
+  if (getTile(map, x - 1, y) !== Tile.Wall) mask |= 8;
+  return mask;
+}
+
+/** 足元の描画位置を当たり半径から決める。キャンバス高が変わっても当たり判定と足元がずれない */
+const FEET_PAD = 2;
+export function spriteFeetY(centerY: number, bodyRadius: number): number {
+  return centerY + bodyRadius + FEET_PAD;
+}
+
 /** sin で min..max を往復する */
 export function pulse(time: number, speed: number, min: number, max: number): number {
   return min + (max - min) * (0.5 + 0.5 * Math.sin(time * speed));
@@ -395,4 +411,10 @@ export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
   cleaver: 3,
   staff: 2,
   wand: 1,
+  katana: 1,
+  axe: 3,
+  shield: 3,
+  chainSickle: 1,
+  hammer: 4,
+  gunner: 1,
 };

@@ -346,6 +346,13 @@ export const WEAPON_ART = {
   cleaver: { kind: "cone", name: "唐竹割り", radius: 34, halfAngle: 0.5, hits: 1, mul: 1.3, bleed: 2 },
   staff: { kind: "circle", name: "大回し", radius: 40, hits: 1, mul: 1, knockbackMul: 1.8 },
   wand: { kind: "shots", name: "魔弾", count: 3, spreadRad: 0.2, speed: 220, life: 0.6, radius: 3, mul: 0.5 },
+  // 2026-09-24 レーン B の武器種（docs/ideas/combat-feel-design.md 5 章）
+  katana: { kind: "thrust", name: "一閃", length: 60, halfWidth: 5, hits: 1, mul: 1.3 },
+  axe: { kind: "cone", name: "大斧振り", radius: 40, halfAngle: 1, hits: 1, mul: 1.1, bleed: 2 },
+  shield: { kind: "circle", name: "盾撃", radius: 36, hits: 1, mul: 0.9, knockbackMul: 2 },
+  chainSickle: { kind: "tip", name: "鎖返し", length: 76, halfWidth: 5, tipFrom: 0.7, tipMul: 1.5, mul: 0.5 },
+  hammer: { kind: "circle", name: "大地割り", radius: 50, hits: 1, mul: 1.5 },
+  gunner: { kind: "shots", name: "乱れ撃ち", count: 5, spreadRad: 0.25, speed: 240, life: 0.6, radius: 2, mul: 0.35 },
 } as const;
 
 /** 極意の出血（鉈）の持続と 10px あたりダメージ */

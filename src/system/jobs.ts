@@ -3,9 +3,15 @@ import type { GameState } from "../core/state";
 import { JOBS, JOB_KEYS, type JobKey, applyJobMul } from "../data/jobs";
 import { JOB } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
+import { createRng } from "../core/rng";
+import { baseDef } from "../loot/bases";
+import { generateItem } from "../loot/generator";
+import { addToStash } from "../loot/profile";
 import { ATTR_LABEL } from "../loot/resonance";
-import { ATTR_KEYS, type PlayerStats } from "../loot/types";
+import { computeStats } from "../loot/stats";
+import { ATTR_KEYS, type Item, type PlayerStats, type Profile } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
+import { applyStats } from "./player";
 import { stoneFromSeed } from "../skills/generator";
 import { addStone } from "../skills/persistence";
 import type { SkillKey, SkillProfile } from "../skills/types";
@@ -14,7 +20,7 @@ import type { SkillKey, SkillProfile } from "../skills/types";
  * ジョブの効果（定義は src/data/jobs.ts）。
  * - ステータスの偏り・得意な武器種・弱点: applyJobStats（system/runSetup.ts の applyRunStats が畳み込む）
  * - 固有のルール: jobRules（system/rules.ts の collectRules が祝福より前に集める）
- * - 初期スキル石: startJob（createGame が呼ぶ。未所持のときだけ倉庫へ）
+ * - 初期スキル石・初期武器: startJob（createGame が呼ぶ。未所持のときだけ）
  */
 
 /** ジョブごとの Rule（定義の写しを 1 度だけ作る。collectRules は毎ステップ呼ばれるため） */
@@ -66,6 +72,7 @@ export function ownsSkillStone(profile: Readonly<SkillProfile>, skillKey: SkillK
  * 倉庫が満杯なら加えない（addStone が断る）。見習いは何もしない
  */
 export function startJob(state: GameState): void {
+  startJobWeapon(state);
   const skillKey = JOBS[state.job].starterSkill;
   if (skillKey === null) return;
   const profile = state.skills.profile;
@@ -74,6 +81,37 @@ export function startJob(state: GameState): void {
   // now は id と foundAt の表示用（決定性に影響しない）
   const stone = { ...stoneFromSeed(seed, { foundDepth: state.depth, now: Date.now(), skillKey }), variants: [], links: JOB.starterStoneLinks };
   addStone(profile, stone);
+}
+
+/** 初期武器の種をランの seed から離す（初期スキル石とも別の列にする） */
+const WEAPON_SALT = 0x3a7e;
+
+/** そのベースの武器を 1 つでも持っているか（装着中・倉庫を問わない。借り物は数えない） */
+export function ownsWeaponBase(profile: Readonly<Profile>, baseKey: string): boolean {
+  const owned = (it: Item | null | undefined): boolean => it?.baseKey === baseKey && it.loaned !== true;
+  return owned(profile.equipment.weapon) || profile.stash.some(owned);
+}
+
+/**
+ * ジョブの初期武器（素の器）を渡す。そのベースを持っていないときだけ（探索のたびに増やさない）。
+ * 武器スロットが空なら装着して stats を作り直し、空でなければ倉庫へ（満杯なら渡さない）
+ */
+export function startJobWeapon(state: GameState): void {
+  const baseKey = JOBS[state.job].starterWeapon;
+  if (baseKey === null) return;
+  const profile = state.profile;
+  if (ownsWeaponBase(profile, baseKey)) return;
+  const seed = (state.seed ^ (WEAPON_SALT + JOB_KEYS.indexOf(state.job))) >>> 0;
+  const level = JOB.starterWeaponLevel;
+  // now は id と foundAt の表示用（決定性に影響しない）
+  const item = generateItem(createRng(seed), { baseKey, plain: true, itemLevel: level, foundDepth: level, now: Date.now() });
+  if (profile.equipment.weapon) {
+    addToStash(profile, item);
+    return;
+  }
+  profile.equipment.weapon = item;
+  // createGame は applyStats の後に startJob を呼ぶので、装着した武器種をここで stats へ流す
+  applyStats(state, computeStats(profile.equipment));
 }
 
 // -----------------------------------------------------------------------------
@@ -104,6 +142,8 @@ export function jobDetailLines(job: JobKey): string[] {
   if (attrs !== "") lines.push(`ステータス: ${attrs}`);
   if (def.favored.length > 0) lines.push(`得意な武器: ${jobFavoredText(job)}（近接が強く速くなる）`);
   for (const r of def.rules) lines.push(`・${r.text}`);
+  const weapon = def.starterWeapon === null ? undefined : baseDef(def.starterWeapon);
+  if (weapon) lines.push(`初期武器: ${weapon.name}（持っていなければ渡される）`);
   if (def.starterSkill !== null) lines.push(`初期スキル石: ${SKILL_DEFS[def.starterSkill].name}（持っていなければ倉庫に入る）`);
   if (def.weakness) lines.push(`弱点: ${def.weakness.text}`);
   return lines;

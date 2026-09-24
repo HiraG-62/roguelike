@@ -25,6 +25,7 @@ import { addPoise } from "./poise";
 import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
+import { movesetRules } from "../data/weapons";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
@@ -100,6 +101,8 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
 export function collectRules(state: GameState): Rule[] {
   const out: Rule[] = [];
   out.push(...jobRules(state.job));
+  // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
+  out.push(...movesetRules(state.stats.moveset));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
   const rs = state.skills;
   for (let slot = 0; slot < rs.slots.length; slot++) {

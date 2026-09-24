@@ -109,6 +109,12 @@ export const SFX_NAMES = [
   "swingCleaver",
   "swingStaff",
   "swingWand",
+  "swingKatana",
+  "swingAxe",
+  "swingShield",
+  "swingChainSickle",
+  "swingHammer",
+  "swingGunner",
   // ---- 射撃の型ごとの発射音（8-2。単発は shoot のまま）----
   "shotRapid",
   "shotSpread",
@@ -117,6 +123,9 @@ export const SFX_NAMES = [
   "shotRicochet",
   "shotCharge",
   "shotMine",
+  "shotBurst",
+  "shotBoomerang",
+  "shotLob",
   // ---- 属性の命中音（無属性は hit / bulletHit のまま）----
   "hitFire",
   "hitIce",
@@ -177,6 +186,13 @@ export const SFX_NAMES = [
   // ---- 崩れる床が抜ける / 盗賊の煙玉（system/terrain.ts・bossThiefKing.ts・runEvents.ts）----
   "rubbleFall",
   "smokeBomb",
+  // ---- コンボの可視化と爽快感パッケージ（docs/ideas/combat-feel-design.md D-1 / D-5）----
+  /** コンボ派生が成立した瞬間 */
+  "branch",
+  /** 武器種の最終段・フィニッシュ派生の命中 */
+  "finisherHit",
+  /** 近接命中の低域のドン（hit と一緒に積む） */
+  "hitThump",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

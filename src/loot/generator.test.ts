@@ -326,3 +326,34 @@ describe("名のある遺物の定義", () => {
     }
   });
 });
+
+describe("generateItem: ベース指定と素の器", () => {
+  it("baseKey と plain を指定すると性質 0 でそのベースになる（implicit は残る）", () => {
+    const item = generateItem(createRng(9), { baseKey: "katana", plain: true, itemLevel: 20, foundDepth: 1, now: 0 });
+    expect(item.baseKey, "指定したベース").toBe("katana");
+    expect(item.slot, "スロットはベースのもの").toBe("weapon");
+    expect(item.affixes, "性質なし").toEqual([]);
+    expect(item.namedKey, "名のある遺物にならない").toBeUndefined();
+    expect(item.implicit?.key, "implicit はベースの個性として残る").toBe(baseDef("katana")?.implicitKey);
+  });
+
+  it("baseKey だけを指定すると性質は通常どおり抽選される", () => {
+    const items = Array.from({ length: 20 }, (_, i) =>
+      generateItem(createRng(100 + i), { baseKey: "leather", itemLevel: 10, foundDepth: 1, now: 0 }),
+    );
+    expect(items.every((it) => it.baseKey === "leather"), "ベースは固定").toBe(true);
+    expect(items.some((it) => it.affixes.length > 0), "性質を持つものがある").toBe(true);
+  });
+
+  it("未知の baseKey は throw する", () => {
+    expect(() => generateItem(createRng(1), { baseKey: "nope", plain: true, itemLevel: 1, foundDepth: 1, now: 0 })).toThrow();
+  });
+
+  it("省略時の生成結果は従来と同じ（baseKey: undefined を渡しても同じ乱数の引き方）", () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const a = generateItem(createRng(seed), { itemLevel: 6, foundDepth: 4, now: 0 });
+      const b = generateItem(createRng(seed), { itemLevel: 6, foundDepth: 4, now: 0, baseKey: undefined, plain: undefined });
+      expect({ ...b, id: a.id }, `seed ${seed}`).toEqual(a);
+    }
+  });
+});

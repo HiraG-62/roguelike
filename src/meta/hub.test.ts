@@ -4,7 +4,9 @@ import { HUB } from "../data/tuning";
 import { createAchievementSave } from "./achievements";
 import { createCodexSave } from "./codex";
 import {
+  FACILITY_KEYS,
   FACILITY_OF_SPOT,
+  STARTER_FACILITIES,
   type HubProgressSource,
   availableSpots,
   builtFacilities,
@@ -20,8 +22,15 @@ function freshSource(): HubProgressSource {
 }
 
 describe("拠点の設備の解放", () => {
-  it("初回は井戸・掲示板・鍛冶場・記録室だけが建っている", () => {
-    expect(builtFacilities(freshSource()), "初回の設備").toEqual(["well", "board", "forge", "archive"]);
+  it("初回は井戸・掲示板・鍛冶場・記録室・武器掛けだけが建っている", () => {
+    expect(builtFacilities(freshSource()), "初回の設備").toEqual(["well", "board", "forge", "archive", "rack"]);
+  });
+
+  it("武器掛けは最初から建っていて、台が使える", () => {
+    const built = builtFacilities(freshSource());
+    expect(built, "最初から建っている").toContain("rack");
+    expect(availableSpots(built).has("rack"), "武器掛けの台に反応する").toBe(true);
+    expect(newlyBuilt(built, createHubSave()), "建った演出は出さない").not.toContain("rack");
   });
 
   it("スキル石を持つと図書館が建つ", () => {
@@ -58,7 +67,7 @@ describe("拠点の設備の解放", () => {
     const b = builtFacilities(src);
     expect(a, "同じ入力で同じ結果").toEqual(b);
     expect(JSON.stringify(src), "入力を書き換えない").toBe(before);
-    expect(a, "全設備").toHaveLength(8);
+    expect(a, "全設備").toEqual([...FACILITY_KEYS]);
   });
 
   it("availableSpots は記録室が建つと履歴・図鑑・実績の 3 台を返す", () => {
@@ -67,7 +76,7 @@ describe("拠点の設備の解放", () => {
     expect(availableSpots(["training"]).size, "訓練場は台を持たない").toBe(0);
     const all = availableSpots(builtFacilities(freshSource()));
     for (const spot of all) {
-      expect(["well", "board", "forge", "archive"], `${spot} の設備`).toContain(FACILITY_OF_SPOT[spot]);
+      expect(STARTER_FACILITIES, `${spot} の設備`).toContain(FACILITY_OF_SPOT[spot]);
     }
   });
 });

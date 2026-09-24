@@ -12,6 +12,7 @@ const bin = (rel) => path.join(ROOT, "node_modules", rel);
 
 const STEPS = [
   { label: "tsc", entry: bin("typescript/bin/tsc"), args: ["--noEmit"] },
+  { label: "tsc (electron)", entry: bin("typescript/bin/tsc"), args: ["-p", "tsconfig.electron.json", "--noEmit"] },
   { label: "vitest", entry: bin("vitest/vitest.mjs"), args: ["run"] },
   { label: "vite build", entry: bin("vite/bin/vite.js"), args: ["build"] },
 ];

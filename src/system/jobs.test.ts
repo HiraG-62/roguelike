@@ -1,19 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { type GameEvent, type EventInput, enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
-import { createGame } from "../core/game";
+import { createGame, step } from "../core/game";
+import { FIXED_DT } from "../core/loop";
+import { ReplayRecorder, createReplaySession, isReplayFinished, sanitizeReplay, stepReplay } from "../core/replay";
+import { createRng, hashSeed } from "../core/rng";
 import { profileKeywords } from "../core/keywords";
 import type { Enemy, GameState } from "../core/state";
 import { JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
 import { ATTR, JOB, PLAYER } from "../data/tuning";
+import { baseDef } from "../loot/bases";
+import { generateItem } from "../loot/generator";
 import { ATTR_KEYS, DEFAULT_STATS, createEmptyProfile } from "../loot/types";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import { QUESTS, createQuestSave, lockedJobs, questRewardLabel } from "../meta/quests";
 import { ORIGINS, ORIGIN_KEYS } from "./runSetup";
-import { applyJobStats, isFavoredWeapon, jobDetailLines, jobRules, ownsSkillStone } from "./jobs";
+import { applyJobStats, isFavoredWeapon, jobDetailLines, jobRules, ownsSkillStone, ownsWeaponBase } from "./jobs";
 import { applyBoonsToStats } from "./boons";
 import { collectRules, resolveRules } from "./rules";
 import { applyStatus, hasStatus } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, placeEnemy, withInput } from "./testHelpers";
 
 /** ジョブ（src/data/jobs.ts / src/system/jobs.ts）の検査 */
 
@@ -118,10 +123,10 @@ describe("ジョブの定義", () => {
     expect(questRewardLabel(QUESTS.critStorm.reward)).toContain(JOBS.lancer.name);
   });
 
-  it("説明欄はステータス・得意な武器・ルール・初期スキル石・弱点を語る", () => {
+  it("説明欄はステータス・得意な武器・ルール・初期武器・初期スキル石・弱点を語る", () => {
     for (const key of PLAYABLE) {
       const lines = jobDetailLines(key);
-      expect(lines.length, `${key} の行数`).toBe(1 + 1 + RULES_PER_JOB + 1 + 1);
+      expect(lines.length, `${key} の行数`).toBe(1 + 1 + RULES_PER_JOB + 1 + 1 + 1);
     }
     expect(jobDetailLines("none"), "見習いは詳細なし").toEqual([]);
   });
@@ -337,3 +342,98 @@ describe("ジョブのルールが発火する", () => {
     expect(near.hp).toBeLessThan(near.maxHp);
   });
 });
+
+describe("ジョブの初期武器", () => {
+  it("初期武器は得意な武器種のベースを指す（見習いは持たない）", () => {
+    expect(JOBS.none.starterWeapon, "見習いは初期武器なし").toBeNull();
+    for (const key of PLAYABLE) {
+      const baseKey = JOBS[key].starterWeapon;
+      if (baseKey === null) throw new Error(`${key} に初期武器が無い`);
+      const base = baseDef(baseKey);
+      expect(base?.slot, `${key} の初期武器は武器スロット`).toBe("weapon");
+      const moveset = base?.moveset;
+      if (moveset === undefined) throw new Error(`${key} の初期武器に武器種が無い`);
+      expect(JOBS[key].favored, `${key} の初期武器は得意な武器種`).toContain(moveset);
+    }
+  });
+
+  it("初期武器は武器スロットが空なら装着され、stats.moveset がその武器種になる", () => {
+    const profile = createEmptyProfile();
+    const s = createGame(SEED, String(SEED), profile, undefined, { origin: "wanderer", modifiers: [], job: "hunter" });
+    const weapon = profile.equipment.weapon;
+    expect(weapon?.baseKey, "鞭を装着").toBe(JOBS.hunter.starterWeapon);
+    expect(weapon?.affixes, "性質なしの素の器").toEqual([]);
+    expect(s.stats.moveset, "武器種が鞭になる").toBe("whip");
+    expect(isFavoredWeapon(s.stats, "hunter"), "得意武器の上乗せが効く").toBe(true);
+  });
+
+  it("武器スロットが埋まっていれば初期武器は倉庫へ入る", () => {
+    const profile = createEmptyProfile();
+    const own = generateItem(createRng(1), { baseKey: "dagger", plain: true, itemLevel: 1, foundDepth: 1, now: 0 });
+    profile.equipment.weapon = own;
+    createGame(SEED, String(SEED), profile, undefined, { origin: "wanderer", modifiers: [], job: "brawler" });
+    expect(profile.equipment.weapon?.id, "装備はそのまま").toBe(own.id);
+    expect(profile.stash.map((it) => it.baseKey), "倉庫に手甲").toContain(JOBS.brawler.starterWeapon);
+  });
+
+  it("同じベースの武器を持っていれば初期武器を渡さない", () => {
+    const profile = createEmptyProfile();
+    const setup = { origin: "wanderer" as const, modifiers: [], job: "swordsman" as const };
+    createGame(SEED, String(SEED), profile, undefined, setup);
+    const first = profile.equipment.weapon;
+    expect(ownsWeaponBase(profile, "katana"), "1 回目で打刀を持つ").toBe(true);
+    createGame(SEED + 1, String(SEED + 1), profile, undefined, setup);
+    expect(profile.equipment.weapon?.id, "2 回目は差し替えない").toBe(first?.id);
+    expect(profile.stash, "倉庫にも増えない").toHaveLength(0);
+  });
+
+  it("借り物は「持っている」に数えない", () => {
+    const profile = createEmptyProfile();
+    const loan = generateItem(createRng(2), { baseKey: "katana", plain: true, itemLevel: 1, foundDepth: 1, now: 0 });
+    loan.loaned = true;
+    profile.equipment.weapon = loan;
+    expect(ownsWeaponBase(profile, "katana")).toBe(false);
+  });
+
+  it("初期武器は state.rng を消費しない（渡す前後で rng の次の値が同じ）", () => {
+    const setup = { origin: "wanderer" as const, modifiers: [], job: "shadow" as const };
+    const given = createGame(SEED, String(SEED), createEmptyProfile(), undefined, setup);
+    const owned = createEmptyProfile();
+    const baseKey = JOBS.shadow.starterWeapon;
+    if (baseKey === null) throw new Error("影の初期武器が無い");
+    owned.stash.push(generateItem(createRng(3), { baseKey, plain: true, itemLevel: 1, foundDepth: 1, now: 0 }));
+    const skipped = createGame(SEED, String(SEED), owned, undefined, setup);
+    expect(given.profile.equipment.weapon?.baseKey, "片方だけ渡している").toBe(baseKey);
+    expect(skipped.profile.equipment.weapon, "もう片方は渡していない").toBeNull();
+    expect(given.rng.next(), "乱数列がずれない").toBe(skipped.rng.next());
+  });
+
+  it("初期武器を装着したランを記録して再生すると同じ結果になる", () => {
+    const seedText = "starter-weapon";
+    const setup = { origin: "wanderer" as const, modifiers: [], job: "lancer" as const };
+    const state = createGame(hashSeed(seedText), seedText, createEmptyProfile(), createDefaultSkillProfile(), setup);
+    const recorder = ReplayRecorder.fromStartedGame({ seedText, startedAt: 1, daily: false, setup }, state);
+    for (let i = 0; i < REPLAY_FRAMES; i++) step(state, recorder.record(swingInput(i)), FIXED_DT);
+    const data = sanitizeReplay(JSON.parse(JSON.stringify(recorder.finish({ depth: state.depth, kills: state.kills, score: state.score }, 2))));
+    if (!data) throw new Error("記録を読み戻せない");
+    const session = createReplaySession(data);
+    expect(session.state.stats.moveset, "再生でも初期武器の武器種").toBe("spear");
+    while (!isReplayFinished(session)) stepReplay(session, FIXED_DT);
+    expect(runSignature(session.state), "再生の結果が一致する").toBe(runSignature(state));
+  });
+});
+
+const REPLAY_FRAMES = 900;
+const SWING_EVERY = 7;
+const TURN_EVERY = 120;
+
+/** 振りと移動を混ぜた決まった入力（武器種の違いが結果に出るように） */
+function swingInput(frame: number): ReturnType<typeof withInput> {
+  const dir = Math.floor(frame / TURN_EVERY) % 2 === 0 ? 1 : -1;
+  return withInput({ move: { x: dir, y: 0 }, attackPressed: frame % SWING_EVERY === 0 });
+}
+
+function runSignature(s: GameState): string {
+  const p = s.player.body.pos;
+  return [s.tick, s.depth, p.x.toFixed(4), p.y.toFixed(4), s.player.hp, s.kills, s.score, s.enemies.map((e) => `${e.id}:${e.hp}`).join(",")].join("|");
+}

@@ -206,6 +206,26 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   caltrops: "jade",
   seekerOrb: "umbra",
   mino: "jade",
+  // 2026-09-24 レーン B（新しい武器種・射撃の型の器）
+  wakizashi: "gold",
+  tachi: "crimson",
+  handAxe: "crimson",
+  battleAxe: "umbra",
+  towerShield: "jade",
+  kiteShield: "jade",
+  kusarigama: "gold",
+  weightedChain: "gold",
+  mallet: "crimson",
+  maul: "crimson",
+  twinPistols: "azure",
+  twinRevolvers: "gold",
+  broadCleaver: "crimson",
+  burstRifle: "azure",
+  tripleCrossbow: "gold",
+  returnChakram: "azure",
+  flyingBlade: "gold",
+  mortar: "crimson",
+  grenadeLauncher: "crimson",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

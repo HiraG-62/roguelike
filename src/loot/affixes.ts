@@ -282,6 +282,8 @@ const TABI_BUFF_SECONDS = 1;
 const ZANBATO_SLOW_PCT = 8;
 const HALBERD_SLOW_PCT = 5;
 const CROSSBOW_SLOW_PCT = 10;
+/** レーン B の大槌の implicit の代償（%） */
+const MAUL_SLOW_PCT = 10;
 
 // ---------------------------------------------------------------------------
 // アフィックス一覧
@@ -4318,6 +4320,56 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.traits.terrainGuard += pct(v);
+    },
+  },
+  // ---- 2026-09-24 レーン B の武器種の器（docs/ideas/combat-feel-design.md B-1） ----
+  {
+    key: "implicit.tachi",
+    label: "溜めの段 1 つにつき近接ダメージ +{v}%（居合が伸びる）",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      s.traits.chargedMeleeMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.battleAxe",
+    label: "近接命中時 {v}% で出血させる（10px 動くごとに 1.5 ダメージ）",
+    range: { min: 8, max: 12 },
+    apply: (s, v) => {
+      pushProc(s, statusProc("bleed", v, STATUS.bleed.duration, FANG_BLEED_POTENCY, "melee"));
+    },
+  },
+  {
+    key: "implicit.kiteShield",
+    label: "防御 +{v}",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.armor += v;
+    },
+  },
+  {
+    key: "implicit.weightedChain",
+    label: "リーチ +{v}%（分銅が遠くまで届く）",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.meleeReachMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.maul",
+    label: "怯み値 +{v}%、攻撃速度 -10%",
+    range: { min: 20, max: 30 },
+    apply: (s, v) => {
+      s.poiseDamageMul += pct(v);
+      s.attackSpeedMul -= pct(MAUL_SLOW_PCT);
+    },
+  },
+  {
+    key: "implicit.twinRevolvers",
+    label: "会心率 +{v}%",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.critChance += pct(v);
     },
   },
 ];

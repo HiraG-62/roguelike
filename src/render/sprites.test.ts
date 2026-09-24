@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { PALETTE, SPRITES } from "../data/sprites";
 import { ENEMIES, spriteBaseKey } from "../data/enemies";
-import { type Sprite, recolorFrames, spriteFrame, spriteSources } from "./sprites";
+import { CANVAS_24, CANVAS_32, POSE_SUFFIXES, poseKey } from "../data/sprites/frameKit";
+import { BEASTS_KEYS, BEASTS_SMALL_KEYS } from "../data/sprites/beasts";
+import { CLOISTER_KEYS } from "../data/sprites/cloister";
+import { HEAVY_KEYS } from "../data/sprites/heavy";
+import { W3_FRONT_KEYS, W3_FRONT_STILL_KEYS } from "../data/sprites/w3front";
+import { SHALLOWS_KEYS } from "../data/sprites/shallows";
+import { type Sprite, enemySpriteKey, recolorFrames, spriteFrame, spriteSources } from "./sprites";
 
 const TRANSPARENT = ".";
 const TILE = 16;
 
-/** renderer が既に参照しているキー（サイズ 16x16 を維持する） */
-const LEGACY_KEYS = ["player", "slime", "eye", "boar", "heart", "floor", "wall", "stairs", "door"] as const;
+/** renderer が既に参照しているキー（サイズ 16x16 を維持する）。slime / eye / boar は 24x24 に描き直した（下の「描き直した敵」） */
+const LEGACY_KEYS = ["player", "heart", "floor", "wall", "stairs", "door"] as const;
 
 const ADDED_KEYS = [
   "wallTop",
@@ -176,19 +182,7 @@ describe("再配色種（EnemyDef.recolor）", () => {
 
 describe("量産した敵のスプライト寸法", () => {
   const SIZE: Readonly<Record<string, number>> = {
-    rat: 16,
-    wolf: 16,
-    skeleton: 16,
-    beetle: 16,
-    mite: 16,
-    hooded: 16,
-    leech: 16,
-    ghoul: 16,
-    bell: 16,
-    shade: 16,
     icePillar: 16,
-    mimic: 24,
-    hollowArmor: 24,
     twinBrother: 32,
     twinSister: 32,
     frostGiant: 32,
@@ -199,5 +193,124 @@ describe("量産した敵のスプライト寸法", () => {
     expect(frames?.length).toBe(4);
     expect(frames?.[0]?.length).toBe(size);
     expect(frames?.[0]?.[0]?.length).toBe(size);
+  });
+});
+
+describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
+  /** 頭上のラベル・「!」のために空ける行数 */
+  const HEAD_ROOM = 2;
+  const isEmptyRow = (row: string | undefined): boolean => (row ?? "").split("").every((ch) => ch === TRANSPARENT);
+  /** 原画 4 枚で描き直したキーとキャンバスの一辺 */
+  const CANVAS_OF: Readonly<Record<string, number>> = Object.fromEntries([
+    ...[...SHALLOWS_KEYS, ...BEASTS_KEYS, ...CLOISTER_KEYS, ...W3_FRONT_KEYS].map((k) => [k, CANVAS_24] as const),
+    ...HEAVY_KEYS.map((k) => [k, CANVAS_32] as const),
+  ]);
+  const REDRAWN: readonly string[] = Object.keys(CANVAS_OF);
+  const sizeOf = (key: string): number => CANVAS_OF[key] ?? CANVAS_24;
+  const SMALL: readonly string[] = [...BEASTS_SMALL_KEYS];
+  /** 動かず予備動作を持たないキー（旗・台座など）と一辺 */
+  const STILL: readonly (readonly [string, number])[] = W3_FRONT_STILL_KEYS.map((k) => [k, CANVAS_24] as const);
+
+  it.each(STILL)("据え置きの %s は %i px 四方で 4 フレーム、最下段に接地している", (key, size) => {
+    const frames = SPRITES[key] ?? [];
+    expect(frames.length).toBe(4);
+    for (const frame of frames) {
+      expect(frame.length).toBe(size);
+      expect(frame[0]?.length).toBe(size);
+      expect(isEmptyRow(frame[size - 1])).toBe(false);
+    }
+  });
+  /** 小型のキャンバス（様式書 1 章） */
+  const SMALL_CANVAS = 16;
+
+  it.each(SMALL)("小型 %s は 16x16 で 4 フレーム", (key) => {
+    const frames = SPRITES[key];
+    expect(frames?.length).toBe(4);
+    for (const frame of frames ?? []) {
+      expect(frame.length).toBe(SMALL_CANVAS);
+      expect(frame[0]?.length).toBe(SMALL_CANVAS);
+    }
+  });
+
+  it.each(REDRAWN)("%s は様式書のキャンバス（24 / 32）で歩行 4 フレーム", (key) => {
+    const frames = SPRITES[key];
+    expect(frames?.length).toBe(4);
+    for (const frame of frames ?? []) {
+      expect(frame.length).toBe(sizeOf(key));
+      expect(frame[0]?.length).toBe(sizeOf(key));
+    }
+  });
+
+  it.each(REDRAWN)("%s は予備動作と攻撃の原画を歩きと同じ寸法の 1 フレームで持つ", (key) => {
+    for (const pose of POSE_SUFFIXES) {
+      const frames = SPRITES[poseKey(key, pose)];
+      expect(frames?.length, pose).toBe(1);
+      expect(frames?.[0]?.length, pose).toBe(sizeOf(key));
+      expect(frames?.[0]?.[0]?.length, pose).toBe(sizeOf(key));
+    }
+  });
+
+  it.each(REDRAWN)("%s の予備動作は歩きと形が違う（テレグラフが形で読める）", (key) => {
+    const walk = SPRITES[key]?.[0];
+    const windup = SPRITES[poseKey(key, "windup")]?.[0];
+    const strike = SPRITES[poseKey(key, "strike")]?.[0];
+    expect(windup).not.toEqual(walk);
+    expect(strike).not.toEqual(walk);
+    expect(strike).not.toEqual(windup);
+  });
+
+  it.each(REDRAWN)("%s は頭上 2 行を空け、歩き原画の足が最下段にある", (key) => {
+    const frames = SPRITES[key] ?? [];
+    // 原画（歩き A / B と各ポーズ）を見る。lift した 1・3 枚目は 1 段上がってよい
+    const all = [frames[0] ?? [], frames[2] ?? [], ...POSE_SUFFIXES.map((pose) => SPRITES[poseKey(key, pose)]?.[0] ?? [])];
+    for (const frame of all) {
+      for (let y = 0; y < HEAD_ROOM; y++) expect(isEmptyRow(frame[y]), `${y} 行目`).toBe(true);
+    }
+    // 歩き A / B（lift していない 0 と 2）は足元の基準を揃える
+    for (const i of [0, 2]) expect(isEmptyRow(frames[i]?.[sizeOf(key) - 1]), `フレーム ${i}`).toBe(false);
+  });
+
+  it("描き直した原画を元にする再配色種は、swap 元の文字が新原画に残っている", () => {
+    const targets = ENEMIES.filter((d) => d.recolor && REDRAWN.includes(d.recolor.base));
+    expect(targets.length).toBeGreaterThan(0);
+    for (const def of targets) {
+      const r = def.recolor;
+      if (!r) continue;
+      const used = new Set((SPRITES[r.base] ?? []).flatMap((f) => f.flatMap((row) => [...row])));
+      for (const from of Object.keys(r.swap)) expect(used.has(from), `${def.key}: ${from}`).toBe(true);
+    }
+  });
+});
+
+describe("予備動作・攻撃の原画の選び方", () => {
+  const has = (k: string): boolean => k in spriteSources();
+
+  it("予備動作・攻撃の phase では原画のキーを返す", () => {
+    expect(enemySpriteKey("slime", "windup", has)).toBe("slime.windup");
+    expect(enemySpriteKey("slime", "strike", has)).toBe("slime.strike");
+  });
+
+  it("それ以外の phase は歩きのキーのまま", () => {
+    for (const phase of ["idle", "chase", "recover", "spawning"] as const) {
+      expect(enemySpriteKey("slime", phase, has), phase).toBe("slime");
+    }
+  });
+
+  it("原画が無い敵は予備動作でも歩きのキーにフォールバックする", () => {
+    expect(enemySpriteKey("kingSlime", "windup", has)).toBe("kingSlime");
+  });
+
+  it("再配色種は元のポーズから同じ差し替えで予備動作・攻撃を作る", () => {
+    const sources = spriteSources();
+    const posed = ENEMIES.filter((d) => d.recolor && SPRITES[poseKey(d.recolor.base, "windup")]);
+    expect(posed.length).toBeGreaterThan(0);
+    for (const def of posed) {
+      const r = def.recolor;
+      if (!r) continue;
+      for (const pose of POSE_SUFFIXES) {
+        const base = SPRITES[poseKey(r.base, pose)];
+        expect(sources[poseKey(def.sprite, pose)], `${def.key}.${pose}`).toEqual(base && recolorFrames(base, r.swap));
+      }
+    }
   });
 });

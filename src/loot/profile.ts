@@ -1,3 +1,4 @@
+import { saveStorage } from "../save/backend";
 import { STASH_CAPACITY } from "../data/tuning";
 import { migrateItem } from "./migrate";
 import {
@@ -20,7 +21,7 @@ import {
   createEmptyProvenance,
 } from "./types";
 
-/** localStorage のキー。バージョンが変わったら数値を上げる */
+/** 保存のキー（Electron 版は SAVE_FILES でファイル名に写る）。バージョンが変わったら数値を上げる */
 export const PROFILE_KEY = "roguelike.profile.v1";
 
 /**
@@ -260,21 +261,9 @@ function sanitizeMeta(v: unknown): ProfileMeta {
   return { runs, bestDepth, totalKills, bestScore, history };
 }
 
-/**
- * localStorage が存在しない環境（テスト等）でも安全に取得するためのヘルパー。
- * Cookie ブロックや sandbox iframe では localStorage の getter 自体が SecurityError を投げるので握りつぶす
- */
-function defaultStorage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** 保存されたプロフィールを読み込む。無い/壊れている/version 不一致なら空プロフィール */
 export function loadProfile(storage?: Storage): Profile {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return createEmptyProfile();
 
   let raw: string | null;
@@ -301,12 +290,46 @@ export function loadProfile(storage?: Storage): Profile {
   };
 }
 
-/** プロフィールを保存する。容量超過などの失敗は握りつぶす。localStorage が無い環境では何もしない */
+function isLoaned(item: Item | null | undefined): boolean {
+  return item?.loaned === true;
+}
+
+/** 借り物を装備・倉庫から除いた写し（保存用）。借り物が無ければそのまま返す */
+function withoutLoaned(profile: Profile): Profile {
+  const equipped = SLOTS.some((slot) => isLoaned(profile.equipment[slot]));
+  if (!equipped && !profile.stash.some(isLoaned)) return profile;
+  const equipment = { ...profile.equipment };
+  for (const slot of SLOTS) if (isLoaned(equipment[slot])) equipment[slot] = null;
+  return { ...profile, equipment, stash: profile.stash.filter((it) => !isLoaned(it)) };
+}
+
+/**
+ * ランが終わったら借り物を装備・倉庫から外す（main.ts の endRun が呼ぶ）。外したら true。
+ * 借りたときに押し出した元の装備が倉庫に残っていれば、同じスロットへ戻す
+ */
+export function returnLoaned(profile: Profile): boolean {
+  const replaced = SLOTS.map((slot) => ({ slot, id: profile.equipment[slot]?.loaned === true ? profile.equipment[slot]?.loanedReplaces : undefined }));
+  const before = withoutLoaned(profile);
+  if (before === profile) return false;
+  profile.equipment = before.equipment;
+  profile.stash = before.stash;
+  for (const { slot, id } of replaced) {
+    if (id === undefined) continue;
+    const idx = profile.stash.findIndex((it) => it.id === id && it.slot === slot);
+    const original = profile.stash[idx];
+    if (!original || profile.equipment[slot]) continue;
+    profile.stash.splice(idx, 1);
+    profile.equipment[slot] = original;
+  }
+  return true;
+}
+
+/** プロフィールを保存する。借り物は書かない。容量超過などの失敗は握りつぶす。保存先が無い環境では何もしない */
 export function saveProfile(profile: Profile, storage?: Storage): void {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return;
   try {
-    target.setItem(PROFILE_KEY, JSON.stringify(profile));
+    target.setItem(PROFILE_KEY, JSON.stringify(withoutLoaned(profile)));
   } catch (err) {
     console.warn("saveProfile failed", err);
   }

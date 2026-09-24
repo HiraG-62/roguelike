@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
+import { MOVESET_KEYS, SHOT_KEYS } from "../data/weapons";
 import { generateItem } from "../loot/generator";
 import { createEmptyProfile } from "../loot/types";
 import { HUB_SPOT_KEYS } from "../map/hubMap";
@@ -16,6 +17,8 @@ import {
   hubProgressSource,
   latchedHold,
   openInventoryAt,
+  rackEntryOf,
+  rackTabs,
   resetHoldLatch,
   trialKeyOfEntry,
 } from "./hubFlow";
@@ -127,5 +130,33 @@ describe("出撃の長押し", () => {
     expect(latchedHold(latch, true), "押し直しは数える").toBe(true);
     resetHoldLatch(latch);
     expect(latchedHold(latch, true), "リセット後は再び離すまで数えない").toBe(false);
+  });
+});
+
+describe("武器掛けの一覧", () => {
+  it("武器掛けの台は武器掛けの一覧を開く", () => {
+    expect(hubOpenFor("rack"), "武器掛け → 一覧").toEqual({ kind: "rack" });
+  });
+
+  it("武器掛けの一覧は全武器種と全射撃の型を並べ、試しているものに印を付ける", () => {
+    const [movesets, shots] = rackTabs("greatsword", "spread");
+    if (!movesets || !shots) throw new Error("タブが 2 つ無い");
+    const movesetKeys = movesets.entries.map((e) => rackEntryOf(e.key)).filter((r) => r?.key !== null);
+    const shotKeys = shots.entries.map((e) => rackEntryOf(e.key)).filter((r) => r?.key !== null);
+    expect(movesetKeys.map((r) => r?.key), "全武器種").toEqual([...MOVESET_KEYS]);
+    expect(shotKeys.map((r) => r?.key), "全射撃の型").toEqual([...SHOT_KEYS]);
+    expect(movesets.entries.filter((e) => e.marked).map((e) => e.key), "試している武器種だけに印").toEqual(["moveset:greatsword"]);
+    expect(shots.entries.filter((e) => e.marked).map((e) => e.key), "試している射撃の型だけに印").toEqual(["shot:spread"]);
+    const [clear] = rackTabs(null, null)[0]?.entries ?? [];
+    expect(clear?.marked, "何も試していなければ「装備のまま」に印").toBe(true);
+  });
+
+  it("rackEntryOf は moveset と shot の行を見分ける", () => {
+    expect(rackEntryOf("moveset:whip"), "武器種").toEqual({ kind: "moveset", key: "whip" });
+    expect(rackEntryOf("shot:mine"), "射撃の型").toEqual({ kind: "shot", key: "mine" });
+    expect(rackEntryOf("moveset:none"), "武器種を外す").toEqual({ kind: "moveset", key: null });
+    expect(rackEntryOf("shot:none"), "射撃の型を外す").toEqual({ kind: "shot", key: null });
+    expect(rackEntryOf("moveset:mine"), "型の取り違えは null").toBeNull();
+    expect(rackEntryOf("ks_glass"), "知らない行は null").toBeNull();
   });
 });

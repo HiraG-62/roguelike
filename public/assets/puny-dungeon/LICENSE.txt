@@ -1,0 +1,6 @@
+16x16 Puny Dungeon Tileset (Shade)
+
+License: CC0 (Creative Commons Zero)
+
+配布ページ（OpenGameArt.org）に記載されたライセンス表記の引用は SOURCE.txt を参照。
+CC0 のため帰属表示は不要（商用利用・改変・再配布いずれも自由）。

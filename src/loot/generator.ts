@@ -57,6 +57,10 @@ export interface GenerateOptions {
   now: number;
   /** 抽選に出さない名のある遺物の key（依頼の報酬で未達成のもの）。省略・空なら従来どおり */
   excludeNamed?: readonly string[];
+  /** ベースを指定する（ジョブの初期武器・武器掛けの借り物）。指定時は rollBase も名のある遺物の抽選も通さない */
+  baseKey?: string;
+  /** 性質 0 の素の器にする。implicit はベースの個性なので残す */
+  plain?: boolean;
 }
 
 const MIN_ITEM_LEVEL = 1;
@@ -487,6 +491,34 @@ function rollRegularItem(rng: Rng, slot: Slot, opts: TraitRollOptions): Rolled {
   return { base, affixes, margin };
 }
 
+/** 従来の抽選（名のある遺物 → 通常）。乱数の引き方は baseKey を足す前と同じ */
+function rollRandomItem(
+  rng: Rng,
+  slot: Slot,
+  depth: number,
+  boost: number,
+  opts: TraitRollOptions,
+  excludeNamed: readonly string[] | undefined,
+): Rolled {
+  const named = rng.chance(namedChance(depth, boost)) ? rollNamedItem(rng, slot, depth, excludeNamed) : undefined;
+  return named ?? rollRegularItem(rng, slot, opts);
+}
+
+/** 指定 key のベース。未知の key は呼び出し側の書き間違いなので throw してテストで気付かせる */
+function fixedBaseDef(key: string): BaseItemDef {
+  const base = baseDef(key);
+  if (base === undefined) throw new Error(`generateItem: unknown base ${key}`);
+  return base;
+}
+
+/** ベースを決め打ちした生成。plain なら性質 0 で、余白は性質 0 のときの幅 */
+function rollFixedItem(rng: Rng, base: BaseItemDef, plain: boolean, opts: TraitRollOptions): Rolled {
+  const count = plain ? 0 : rollTraitCount(rng, opts.depth);
+  const margin = Math.min(VESSEL_CAPACITY, rollMargin(rng, count) + (base.marginBonus ?? 0));
+  const traits = rollTraits(rng, base.slot, base.key, count, opts);
+  return { base, affixes: plain ? traits : maybeVow(rng, traits), margin };
+}
+
 /** 誓約は常に末尾（表示の都合）。それ以外は抽選順 */
 function vowsLast(affixes: readonly AffixRoll[]): AffixRoll[] {
   return [...affixes.filter((r) => !isKeystoneKey(r.key)), ...affixes.filter((r) => isKeystoneKey(r.key))];
@@ -498,10 +530,12 @@ export function generateItem(rng: Rng, opts: GenerateOptions): Item {
   const r = createRng(seed);
   const boost = Math.max(0, opts.rarityBoost ?? 0);
 
-  const slot = opts.slot ?? rollSlot(r);
+  const fixedBase = opts.baseKey === undefined ? undefined : fixedBaseDef(opts.baseKey);
+  const slot = fixedBase?.slot ?? opts.slot ?? rollSlot(r);
   const traitOpts: TraitRollOptions = { depth, foundDepth: opts.foundDepth, boost };
-  const named = r.chance(namedChance(depth, boost)) ? rollNamedItem(r, slot, depth, opts.excludeNamed) : undefined;
-  const rolled = named ?? rollRegularItem(r, slot, traitOpts);
+  const rolled = fixedBase
+    ? rollFixedItem(r, fixedBase, opts.plain === true, traitOpts)
+    : rollRandomItem(r, slot, depth, boost, traitOpts, opts.excludeNamed);
   const implicit = rollImplicit(r, rolled.base);
   const affixes = vowsLast(rolled.affixes);
 

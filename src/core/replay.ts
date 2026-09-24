@@ -22,6 +22,7 @@ import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
 import { ATTR_KEYS, SLOTS, createEmptyProfile, type Attributes, type Equipment, type Item, type Profile, uniformAttributes } from "../loot/types";
 import { PROFILE_KEY } from "../loot/profile";
+import { guardSaveWrites } from "../save/backend";
 import { SKILL_PROFILE_KEY, ownedRunes, stoneInSlot } from "../skills/persistence";
 import { MODIFIER_KEYS, SKILL_KEYS, type RuneItem, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
@@ -667,22 +668,12 @@ export function stepReplay(session: ReplaySession, dt: number): boolean {
 export const GUARDED_STORAGE_KEYS: readonly string[] = [PROFILE_KEY, SKILL_PROFILE_KEY];
 
 /**
- * 再生中だけ、指定キーへの localStorage 書き込みを捨てる。戻り値で元に戻す。
+ * 再生中だけ、指定キーへの保存（localStorage / セーブファイル）を捨てる。戻り値で元に戻す。
  * step 内の saveProfile / saveSkillProfile は一時プロフィールを保存しようとするため。
- * Storage が無い環境（テスト等）では何もしない
+ * 判定は save/backend.ts の saveStorage が返すラッパが持つ（Electron の FileStorage にも効かせるため）
  */
 export function guardStorageWrites(keys: readonly string[] = GUARDED_STORAGE_KEYS): () => void {
-  if (typeof Storage === "undefined") return () => undefined;
-  const proto = Storage.prototype;
-  const original = proto.setItem;
-  const blocked = new Set(keys);
-  proto.setItem = function guardedSetItem(this: Storage, key: string, value: string): void {
-    if (blocked.has(key)) return;
-    original.call(this, key, value);
-  };
-  return () => {
-    proto.setItem = original;
-  };
+  return guardSaveWrites(keys);
 }
 
 // ---------------------------------------------------------------------------

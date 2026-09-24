@@ -5,6 +5,7 @@ import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enem
 import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
+import { cameraKick } from "./camera";
 import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites, updateGreedy } from "./elites";
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -103,7 +104,6 @@ import {
   tryStartEating,
 } from "./enemyBehaviors";
 
-const KNOCK_DECAY = 12;
 /** 通路からでも気付く距離 */
 const NOTICE_RANGE = 110;
 /** strike 中の移動速度倍率（def.speed に掛ける）。0 はその場で攻撃 */
@@ -436,7 +436,7 @@ function applyKnock(state: GameState, e: Enemy, def: EnemyDef, dt: number): void
     wallSplat(state, e);
     return;
   }
-  e.knock = scale(e.knock, Math.exp(-KNOCK_DECAY * dt));
+  e.knock = scale(e.knock, Math.exp(-ENEMY_AI.knockDecay * dt));
 }
 
 /** 恐怖: プレイヤーから逃げ、攻撃しない（予備動作は付与時に取り消し済み） */
@@ -456,6 +456,7 @@ function wallSplat(state: GameState, e: Enemy): void {
   e.knock = { x: 0, y: 0 };
   spawnBurst(state, e.body.pos, w.color, w.particles, 120, 0.4, 2);
   shake(state, FEEL.shakeHeavy);
+  cameraKick(state, back, FEEL.kickHeavy);
   pushSfx(state, "wallHit");
   const out = rollOutgoing(state, e, w.damage, "proc");
   const poise = w.poise * state.stats.poiseDamageMul;

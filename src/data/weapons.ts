@@ -1,5 +1,8 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
+import type { EventKind } from "../core/events";
+import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import type { StatusApply } from "../core/status";
 import type { Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 
@@ -9,10 +12,28 @@ import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
  * 数値は src/data/tuning.ts の WEAPON。ここは形の型・表示名・語（kw）をまとめる
  */
 
-export const MOVESET_KEYS = ["sword", "greatsword", "twinBlades", "spear", "scythe", "fists", "whip", "cleaver", "staff", "wand"] as const;
+export const MOVESET_KEYS = [
+  "sword",
+  "greatsword",
+  "twinBlades",
+  "spear",
+  "scythe",
+  "fists",
+  "whip",
+  "cleaver",
+  "staff",
+  "wand",
+  // 2026-09-24 レーン B（docs/ideas/combat-feel-design.md 5 章）
+  "katana",
+  "axe",
+  "shield",
+  "chainSickle",
+  "hammer",
+  "gunner",
+] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
-export const SHOT_KEYS = ["single", "rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine"] as const;
+export const SHOT_KEYS = ["single", "rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob"] as const;
 export type ShotKey = (typeof SHOT_KEYS)[number];
 
 /**
@@ -70,6 +91,10 @@ export interface MeleeStepDef {
   readonly lunge?: number;
   /** active に入った瞬間に引く残像の線の色 */
   readonly trail?: string;
+  /** 命中した敵に付ける状態異常（SkillDef.applies と同じ形。付与元は player） */
+  readonly applies?: readonly StatusApply[];
+  /** recover のキャンセル猶予（0..1。省略は PLAYER.recoverCancel。docs/ideas/combat-feel-design.md D-4） */
+  readonly cancel?: number;
 }
 
 /** 左クリック（攻撃キー）= primary、右クリック（射撃キー）= secondary */
@@ -130,6 +155,8 @@ export interface MovesetDef {
   readonly keywords: KeywordProfile;
   /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。近接の段・ダッシュ攻撃・派生すべてに掛かる */
   readonly attack: AttackProfile;
+  /** 武器種の固有効果（統一ルール文法）。system/rules.ts の collectRules が今の武器種の分だけ集める */
+  readonly rules?: readonly Rule[];
 }
 
 export interface ShotChargeLevelDef {
@@ -173,6 +200,12 @@ export interface ShotDef {
   readonly bounce?: { readonly count: number; readonly mul: number };
   readonly charge?: { readonly levels: readonly ShotChargeLevelDef[] };
   readonly mine?: MineDef;
+  /** 三点: 1 押しで count 発を interval 秒おきに撃つ */
+  readonly burst?: { readonly count: number; readonly interval: number };
+  /** 回転刃: 寿命の returnAt の割合で反転して手元へ戻り、catchRadius で手に収まる */
+  readonly boomerang?: { readonly returnAt: number; readonly catchRadius: number };
+  /** 曲射: 照準の距離（minRange〜射程）で炸裂する。peak は描画の山の高さ（px） */
+  readonly lob?: { readonly blastRadius: number; readonly minRange: number; readonly peak: number; readonly color: string };
   readonly keywords: KeywordProfile;
   /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。威力は PLAYER.shoot の Scaling（技巧）なので遠距離・物理に揃える */
   readonly attack: AttackProfile;
@@ -185,6 +218,18 @@ export interface ShotRuntime {
   bouncesLeft?: number;
   /** 設置弾が炸裂したか（二重に炸裂させない） */
   detonated?: boolean;
+  /** 撃った瞬間の寿命（回転刃の反転・曲射の山の高さの基準） */
+  lifeTotal?: number;
+  /** 回転刃が手元へ戻っている最中 */
+  returning?: boolean;
+}
+
+/** 曲射の弾の見かけの高さ（px。描画用）。撃った瞬間と着弾で 0、寿命の中ほどで peak */
+export function lobHeight(runtime: Readonly<ShotRuntime>, life: number, peak: number): number {
+  const total = runtime.lifeTotal ?? 0;
+  if (total <= 0) return 0;
+  const t = Math.min(1, Math.max(0, 1 - life / total));
+  return 4 * peak * t * (1 - t);
 }
 
 const BOX: HitShape = { kind: "box" };
@@ -220,6 +265,16 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   upswing: "払い上げ",
   arcaneStrike: "魔力撃",
   staffSweep: "杖払い",
+  tsubame: "燕返し",
+  quickDraw: "抜き打ち",
+  axeSpin: "回転斬り",
+  cleave: "断ち割り",
+  shieldPush: "盾押し",
+  shieldDrop: "盾落とし",
+  chainWeight: "分銅",
+  reelIn: "巻き取り",
+  hammerSweep: "大薙ぎ",
+  groundBreaker: "地砕き",
 };
 
 type BranchTable = Readonly<Record<string, { readonly sequence: readonly ButtonKey[]; readonly step: MeleeStepDef; readonly next?: number }>>;
@@ -233,6 +288,26 @@ function branchesOf(table: BranchTable): BranchDef[] {
 
 /** 既定の操作（左 = 近接、右 = 射撃） */
 const MELEE_SHOT = { primary: "melee", secondary: "shot" } as const;
+/** 左右とも近接（大剣の右以外で、右単独の派生を持つ武器種） */
+const MELEE_MELEE = { primary: "melee", secondary: "melee" } as const;
+
+const R = WEAPON.movesetRules;
+const ALWAYS = 1;
+const NO_ICD = 0;
+
+interface MovesetRuleSpec {
+  when: EventKind;
+  if?: readonly RuleCondition[];
+  then: RuleEffect;
+  icd?: number;
+}
+
+/** 武器種の Rule（確定発動。id は持ち主 + 添字で決まる。ジョブの jobRule と同じ形） */
+function movesetRule(key: MovesetKey, index: number, spec: MovesetRuleSpec): Rule {
+  // EventSource に武器種の種類は無いので、プレイヤー由来として key で区別する
+  const owner = { kind: "player" as const, key: `moveset.${key}` };
+  return { id: ruleId(owner, index), when: spec.when, if: spec.if ?? [], then: spec.then, chance: ALWAYS, icd: spec.icd ?? NO_ICD, scope: SCOPE_ANY, owner };
+}
 
 export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   sword: {
@@ -360,7 +435,153 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     keywords: kw(["melee", "ranged", "mana"], ["mana"], ["bullet"]),
     attack: attack("melee", "arcane", "light"),
   },
+  katana: {
+    key: "katana",
+    name: "刀",
+    desc: "速い 3 段の斬りと突き。右の長押しで居合、カウンターで当てると勢いづく",
+    steps: W.katana.steps,
+    dashAttack: W.katana.dashAttack,
+    charge: W.katana.charge,
+    attackMoveMul: W.katana.attackMoveMul,
+    primary: "melee",
+    secondary: "charge",
+    branches: branchesOf(W.katana.branches),
+    keywords: kw(["melee", "counter", "finisher"], ["still"], ["counter"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("katana", 0, {
+        when: "onCounter",
+        then: { kind: "damageBuff", magnitude: R.katanaCounterPct, duration: R.katanaCounterSec },
+      }),
+    ],
+  },
+  axe: {
+    key: "axe",
+    name: "斧",
+    desc: "扇の 4 段。最後の一振りで出血させ、出血した敵は崩れやすい。右は回転斬り",
+    steps: W.axe.steps,
+    dashAttack: W.axe.dashAttack,
+    attackMoveMul: W.axe.attackMoveMul,
+    ...MELEE_MELEE,
+    branches: branchesOf(W.axe.branches),
+    keywords: kw(["melee", "bleed", "stagger"], ["bleed"], ["area"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("axe", 0, {
+        when: "onMeleeHit",
+        if: [{ kind: "targetHas", status: "bleed" }],
+        then: { kind: "addPoise", magnitude: R.axeBleedPoise },
+        icd: R.axeBleedIcd,
+      }),
+    ],
+  },
+  shield: {
+    key: "shield",
+    name: "大盾",
+    desc: "弱いが重く押す 4 段。当てるたびに一瞬身が固まる。右は盾押し",
+    steps: W.shield.steps,
+    dashAttack: W.shield.dashAttack,
+    attackMoveMul: W.shield.attackMoveMul,
+    ...MELEE_MELEE,
+    branches: branchesOf(W.shield.branches),
+    keywords: kw(["melee", "ward", "wall", "stagger"], [], ["counter"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("shield", 0, {
+        when: "onMeleeHit",
+        then: { kind: "invuln", magnitude: R.shieldInvulnSec, duration: R.shieldInvulnSec },
+        icd: R.shieldInvulnIcd,
+      }),
+    ],
+  },
+  chainSickle: {
+    key: "chainSickle",
+    name: "鎖鎌",
+    desc: "短く速い鎌の 4 段。右の分銅で遠くの敵を引き寄せて崩し、引いた敵を斬ると大きく怯む",
+    steps: W.chainSickle.steps,
+    dashAttack: W.chainSickle.dashAttack,
+    attackMoveMul: W.chainSickle.attackMoveMul,
+    ...MELEE_MELEE,
+    branches: branchesOf(W.chainSickle.branches),
+    keywords: kw(["melee", "combo", "stagger"], [], ["crit"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("chainSickle", 0, {
+        when: "onMeleeHit",
+        if: [{ kind: "not", condition: { kind: "branchSwing" } }, { kind: "targetHas", status: "broken" }],
+        then: { kind: "addPoise", magnitude: R.chainBrokenPoise },
+      }),
+    ],
+  },
+  hammer: {
+    key: "hammer",
+    name: "戦鎚",
+    desc: "遅く重い 4 段。左の長押しで溜め、最終段で衝撃波。堅守を叩き崩す",
+    steps: W.hammer.steps,
+    dashAttack: W.hammer.dashAttack,
+    charge: W.hammer.charge,
+    attackMoveMul: W.hammer.attackMoveMul,
+    primary: "charge",
+    secondary: "melee",
+    branches: branchesOf(W.hammer.branches),
+    keywords: kw(["melee", "stagger", "area", "finisher"], ["still"], ["elite"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("hammer", 0, {
+        when: "onMeleeHit",
+        if: [{ kind: "finisher" }],
+        then: { kind: "shockwave", magnitude: R.hammerShockwaveRatio, scaleBy: "slashBase" },
+        icd: R.hammerShockwaveIcd,
+      }),
+      movesetRule("hammer", 1, {
+        when: "onMeleeHit",
+        if: [{ kind: "trigger", condition: "targetGuarded" }],
+        then: { kind: "addPoise", magnitude: R.hammerGuardPoise },
+      }),
+    ],
+  },
+  gunner: {
+    key: "gunner",
+    name: "二丁拳銃",
+    desc: "左右どちらでも銃の射撃の型で撃つ。近接はダッシュの終わりの反転撃ちだけ",
+    steps: [],
+    dashAttack: W.gunner.dashAttack,
+    attackMoveMul: W.gunner.attackMoveMul,
+    primary: "shot",
+    secondary: "shot",
+    branches: [],
+    keywords: kw(["ranged", "bullet", "combo"], [], ["energy", "dash"]),
+    attack: attack("ranged", "physical"),
+    rules: [
+      movesetRule("gunner", 0, {
+        when: "onRangedHit",
+        then: { kind: "energy", magnitude: R.gunnerHitEnergy },
+        icd: R.gunnerHitIcd,
+      }),
+    ],
+  },
 };
+
+/** 武器種の固有効果の Rule（今の武器種のものだけ。定義が無ければ空） */
+export function movesetRules(key: MovesetKey): readonly Rule[] {
+  return MOVESETS[key]?.rules ?? [];
+}
+
+/** 近接の段を持たない射撃専用の武器種か（二丁拳銃） */
+export function isShotOnly(moveset: MovesetDef): boolean {
+  return moveset.steps.length === 0;
+}
+
+/**
+ * 武器種に派生を 1 本足した型（ジョブ固有の派生）。同じ入力列の派生を武器種が既に持つなら足さない（武器種が優先）。
+ * 照合は長い列から（branchesOf と同じ並び）
+ */
+export function withExtraBranch(moveset: MovesetDef, extra: BranchDef): MovesetDef {
+  const seq = extra.sequence.join(",");
+  if (moveset.branches.some((b) => b.sequence.join(",") === seq)) return moveset;
+  const branches = [...moveset.branches, extra].sort((a, b) => b.sequence.length - a.sequence.length);
+  return { ...moveset, branches };
+}
 
 /** 近接の連撃を出すボタン（melee か charge の役割を持つ方）。両方なら primary */
 export function meleeButton(moveset: MovesetDef): ButtonKey | undefined {
@@ -369,10 +590,25 @@ export function meleeButton(moveset: MovesetDef): ButtonKey | undefined {
   return undefined;
 }
 
-/** 射撃のボタン。どちらも近接なら undefined（その武器種では銃を撃てない） */
+/** 射撃のボタン。どちらも近接なら undefined（その武器種では銃を撃てない）。両方射撃（二丁拳銃）なら右 */
 export function shotButton(moveset: MovesetDef): ButtonKey | undefined {
   if (moveset.secondary === "shot") return "secondary";
   if (moveset.primary === "shot") return "primary";
+  return undefined;
+}
+
+/** 射撃の役割を持つボタンすべて（二丁拳銃は左右の両方） */
+export function shotButtons(moveset: MovesetDef): ButtonKey[] {
+  const out: ButtonKey[] = [];
+  if (moveset.primary === "shot") out.push("primary");
+  if (moveset.secondary === "shot") out.push("secondary");
+  return out;
+}
+
+/** 溜めの役割を持つボタン（大剣・戦鎚は左、刀は右）。溜めを持たない武器種は undefined */
+export function chargeButton(moveset: MovesetDef): ButtonKey | undefined {
+  if (moveset.primary === "charge") return "primary";
+  if (moveset.secondary === "charge") return "secondary";
   return undefined;
 }
 
@@ -386,6 +622,36 @@ function endsWith(inputs: readonly ButtonKey[], tail: readonly ButtonKey[]): boo
   if (tail.length === 0 || tail.length > inputs.length) return false;
   const offset = inputs.length - tail.length;
   return tail.every((k, i) => inputs[offset + i] === k);
+}
+
+/** HUD の「次に押すと」に出す 1 件。button を押せば name の派生が出る */
+export interface BranchHint {
+  readonly button: ButtonKey;
+  readonly name: string;
+}
+
+/**
+ * いまの入力列に 1 手足すと成立する派生（docs/ideas/combat-feel-design.md D-1）。
+ * moveset.branches は長い sequence から並ぶので、左右それぞれ最長一致の派生だけを返す
+ */
+export function branchHints(moveset: MovesetDef, inputs: readonly ButtonKey[]): BranchHint[] {
+  const hints: BranchHint[] = [];
+  const seen = new Set<ButtonKey>();
+  for (const b of moveset.branches) {
+    const need = b.sequence.slice(0, -1);
+    const button = b.sequence[b.sequence.length - 1];
+    if (button === undefined || seen.has(button) || !tailMatches(inputs, need)) continue;
+    seen.add(button);
+    hints.push({ button, name: b.name });
+  }
+  return hints;
+}
+
+/** need が空なら常に一致（1 手だけの派生はいつでも「次に押すと」に出る） */
+function tailMatches(inputs: readonly ButtonKey[], need: readonly ButtonKey[]): boolean {
+  if (need.length > inputs.length) return false;
+  const offset = inputs.length - need.length;
+  return need.every((k, i) => inputs[offset + i] === k);
 }
 
 const S = WEAPON.shots;
@@ -405,6 +671,23 @@ export const SHOT_TYPES: Readonly<Record<ShotKey, ShotDef>> = {
   ricochet: { key: "ricochet", name: "跳弾", desc: "壁で 2 回跳ね、跳ねるたびに強くなる", ...S.ricochet, keywords: kw(["ranged", "bullet", "wall"]), attack: attack("ranged", "physical") },
   charge: { key: "charge", name: "チャージ", desc: "押して溜め、離して撃つ。溜めるほど大きく貫く", ...S.charge, keywords: kw(["ranged", "bullet", "stagger"], ["still"]), attack: attack("ranged", "physical", "fire") },
   mine: { key: "mine", name: "設置弾", desc: "床で止まり、近づいた敵を巻き込んで炸裂する", ...S.mine, keywords: kw(["ranged", "placed", "explode", "area"]), attack: attack("ranged", "physical", "fire") },
+  burst: { key: "burst", name: "三点", desc: "1 回押すと 3 発を続けて撃つ。次の 3 発までは間が空く", ...S.burst, keywords: kw(["ranged", "bullet", "combo"], [], ["crit"]), attack: attack("ranged", "physical") },
+  boomerang: {
+    key: "boomerang",
+    name: "回転刃",
+    desc: "刃が射程の半ばで折り返して手元へ戻り、行きと帰りで同じ敵を 2 度斬る",
+    ...S.boomerang,
+    keywords: kw(["ranged", "bullet", "area"], [], ["still"]),
+    attack: attack("ranged", "physical"),
+  },
+  lob: {
+    key: "lob",
+    name: "曲射",
+    desc: "照準の地点へ山なりに撃ち込んで炸裂する。飛んでいる間は何にも当たらない",
+    ...S.lob,
+    keywords: kw(["ranged", "explode", "area"], ["still"]),
+    attack: attack("ranged", "physical"),
+  },
 };
 
 /** 必殺（バースト）の素性。威力は精神 + 霊力（PLAYER.special）なので範囲・魔法（docs/COMBAT_DESIGN.md A-8） */

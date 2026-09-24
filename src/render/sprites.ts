@@ -1,5 +1,7 @@
 import { ENEMIES } from "../data/enemies";
 import { PALETTE, SPRITES, type SpriteFrames } from "../data/sprites";
+import { POSE_SUFFIXES, type PoseSuffix, poseKey } from "../data/sprites/frameKit";
+import type { EnemyPhase } from "../core/state";
 
 export interface Sprite {
   frames: HTMLCanvasElement[];
@@ -58,8 +60,27 @@ export function spriteSources(): Record<string, SpriteFrames> {
     const base = SPRITES[recolor.base];
     if (!base) throw new Error(`unknown recolor base: ${recolor.base}`);
     out[def.sprite] = recolorFrames(base, recolor.swap);
+    // 予備動作・攻撃の原画も同じ差し替えで作る（元に無いポーズは歩きのまま描かれる）
+    for (const pose of POSE_SUFFIXES) {
+      const posed = SPRITES[poseKey(recolor.base, pose)];
+      if (posed) out[poseKey(def.sprite, pose)] = recolorFrames(posed, recolor.swap);
+    }
   }
   return out;
+}
+
+/** 原画を持つ敵の phase（予備動作・攻撃）。他の phase は歩きの巡回で描く */
+const PHASE_POSE: Partial<Record<EnemyPhase, PoseSuffix>> = { windup: "windup", strike: "strike" };
+
+/**
+ * 敵を描くキー: 予備動作・攻撃の原画（`<key>.windup` / `<key>.strike`）があればそれを、無ければ歩きのキー。
+ * 形でテレグラフを読ませるため（docs/ideas/graphics-style.md 4 章）
+ */
+export function enemySpriteKey(base: string, phase: EnemyPhase, has: (key: string) => boolean): string {
+  const pose = PHASE_POSE[phase];
+  if (!pose) return base;
+  const key = poseKey(base, pose);
+  return has(key) ? key : base;
 }
 
 /** 起動時に一度だけ全スプライトをオフスクリーンへ描いておく */
@@ -69,6 +90,14 @@ export function buildAtlas(): SpriteAtlas {
     atlas[key] = buildSprite(frames);
   }
   return atlas;
+}
+
+/**
+ * PNG から作ったアトラスをピクセルマップのアトラスへ合流させる。
+ * 同名キーは PNG 側で上書きし、無いキーは元のまま（= 未ロード・読み込み失敗時のフォールバック）
+ */
+export function mergeAtlas(base: SpriteAtlas, over: SpriteAtlas): SpriteAtlas {
+  return { ...base, ...over };
 }
 
 export function getSprite(atlas: SpriteAtlas, key: string): Sprite {
@@ -116,5 +145,10 @@ export class TintCache {
     const frames = tintFrames(sprite, color, strength);
     this.cache.set(key, frames);
     return frames;
+  }
+
+  /** アトラス差し替え後に呼ぶ。古い canvas を掴んだ色付きフレームを持ち越さない */
+  clear(): void {
+    this.cache.clear();
   }
 }

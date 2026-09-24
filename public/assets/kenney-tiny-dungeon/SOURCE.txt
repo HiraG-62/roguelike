@@ -1,0 +1,25 @@
+Tiny Dungeon (Kenney)
+
+作者: Kenney（www.kenney.nl）
+配布ページ: https://kenney.nl/assets/tiny-dungeon
+取得日: 2026-09-24
+取得元ファイル:
+  https://kenney.nl/media/pages/assets/tiny-dungeon/f8422efb44-1674742415/kenney_tiny-dungeon.zip
+  （zip から Tilemap/tilemap_packed.png、License.txt、Tilesheet.txt を抽出。
+   ハッシュは更新のたびに変わるため URL は固定しない）
+sha256（このフォルダに置いた PNG）:
+  d24e60a41e4ac7a745c0304dfde121143688557f40215f23221c29cfe683825f  tilemap_packed.png
+
+ライセンス表記（配布ページ og:description および zip 同梱 License.txt からの引用）:
+  og:description: "Download this package (130 assets) for free, CC0 licensed!"
+  License.txt 本文:
+    License: (Creative Commons Zero, CC0)
+    http://creativecommons.org/publicdomain/zero/1.0/
+    This content is free to use in personal, educational and commercial projects.
+    Support us by crediting Kenney or www.kenney.nl (this is not mandatory)
+
+画像仕様:
+  - tilemap_packed.png: 192x176px、16x16 タイル、隙間 0px、12 列 x 11 行 = 132 タイル
+    （zip にはタイル間 1px 空きの tilemap.png と、個別 132 枚の Tiles/tile_0000.png〜
+     tile_0131.png も含まれるが、隙間の無い packed 版のみ配置した）
+  - Tilesheet.txt: タイル寸法・列数・行数の一覧（同梱テキストをそのまま転記）

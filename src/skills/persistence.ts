@@ -1,3 +1,4 @@
+import { saveStorage } from "../save/backend";
 import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, maxStoneLinks, modifierLinkCost, modifiersClash } from "./data";
 import { stoneFromSeed } from "./generator";
 import {
@@ -180,17 +181,9 @@ export function createDefaultSkillProfile(): SkillProfile {
   return { version: CURRENT_VERSION, loadout: sanitizeLoadout(stones.map((s) => s.id), stones), stones, runes: [] };
 }
 
-function defaultStorage(): Storage | null {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** 無い / 壊れている / version 不一致なら初期プロフィール */
 export function loadSkillProfile(storage?: Storage): SkillProfile {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return createDefaultSkillProfile();
   let raw: string | null;
   try {
@@ -216,7 +209,7 @@ export function loadSkillProfile(storage?: Storage): SkillProfile {
 }
 
 export function saveSkillProfile(profile: SkillProfile, storage?: Storage): void {
-  const target = storage ?? defaultStorage();
+  const target = storage ?? saveStorage();
   if (!target) return;
   try {
     target.setItem(SKILL_PROFILE_KEY, JSON.stringify(profile));
