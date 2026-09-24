@@ -77,7 +77,8 @@
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |
 | 左クリック / 右クリック / サイド1 / サイド2 | Mouse0 / Mouse2 / Mouse3 / Mouse4 | マウスボタンの表示名。サイド1 = 戻る、サイド2 = 進む | `core/input.ts` formatBindingCode |
-| 近接攻撃 / 射撃 / 装備画面 | attack / shoot / inventory | キー設定画面でのアクション名（ほかは 上 / 下 / 左 / 右 / ダッシュ / バースト / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |
+| 攻撃 / 固有技 / 装備画面 | attack / shoot / inventory | キー設定画面でのアクション名。左クリック（攻撃）は近接なら 3 段コンボ、銃なら射撃。右クリック（固有技）は全武器種共通で武器ごとの技（内部名は変えていない）（ほかは 上 / 下 / 左 / 右 / ダッシュ / バースト / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |
+| 固有技 | `WeaponArtDef`（`MovesetDef.art`） | 右クリックの技。武器種ごとに 5 種の型（strike 1 振り / charge 溜め / hold 構え / throw 弾を出す / recall 弾を戻す）を持つ | `data/weapons.ts`、`system/weaponArts.ts` |
 | 拾う | interact / interactPressed | 注目中の遺物・スキル石を倉庫へ入れる操作（既定 G、パッドは右スティック押し込み）。手の届く距離（`PICKUP.reach`）にあるものだけ。ハート・刻印符などは従来どおり触れて拾う。キー案内は「G: 拾う」、遠いときは「近づいて拾う」 | `system/loot.ts` updateDropInteract、`core/input.ts` |
 | 注目 | focusedDrop | カーソル（パッドは照準スティックの先、中立なら手の届く最寄り）の近くにある床の遺物・スキル石。環とキー案内が付き、性能のポップアップが出る。state には持たず毎フレーム求める | `system/loot.ts` focusedDrop、`render/dropTooltip.ts` |
 
@@ -196,7 +197,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 装備 / 倉庫 | equipment / stash | 装着中と所持品 | `ui/inventory.ts` |
-| 武器 / 銃 / 鎧 / 靴 / 指輪 / 首飾り | Slot | 6 スロット | `ui/inventoryLayout.ts` SLOT_LABEL |
+| 右手 / 左手 / 鎧 / 靴 / 指輪 / 首飾り | Slot（mainHand / offHand / armor / boots / ring / amulet） | 6 スロット。右手は近接武器・銃どちらも装備する 1 枠、左手は今はベースが無く常に空（倉庫・並べ替えの対象からは外す） | `ui/inventoryLayout.ts` SLOT_LABEL、`loot/types.ts` LOOT_SLOTS |
 | 遺物 | Item | 装備アイテム全般の呼称 | `loot/types.ts`、`loot/names.ts` |
 | 静 / 揺 / 荒 / 反転あり | normal / magic / rare / unique（`Rarity`。キーは旧レアリティのまま） | 揺らぎの見た目の分類。格付けではない | `loot/types.ts` RARITY_LABEL |
 | 性質 | AffixRoll（旧 affix） | 遺物に宿る 1 つの性質。表の性質 / トリガー文法 / 変換 / 誓約 | `loot/describe.ts`、装備画面 |
@@ -247,9 +248,9 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向 | `data/weapons.ts` MOVESETS |
-| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner | 武器種の表示名。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
-| 射撃の型 | shot（`ShotKey`） | 銃スロットのベースが決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
+| 武器種 | moveset（`MovesetKey`） | 右手のベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向。銃の家系（短銃・長銃・砲・投擲・二丁拳銃）も武器種の一種で、この場合は左クリックが近接の連撃ではなく射撃になる | `data/weapons.ts` MOVESETS |
+| 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 / 短銃 / 長銃 / 砲 / 投擲 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner / sidearm / longarm / cannon / thrown | 武器種の表示名（20 種）。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚・短銃・長銃・砲・投擲はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
+| 射撃の型 | shot（`ShotKey`） | 銃の家系の武器種（右手のベース）が決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
 | 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 / 三点 / 回転刃 / 曲射 | single / rapid / spread / pierce / homing / ricochet / charge / mine / burst / boomerang / lob | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
 | 溜め攻撃 | attack.charging / chargeLevel | 溜めの役割のボタンの長押しで段を溜めて離す近接（大剣・戦鎚は左、刀は右）。刻印符の「溜め」（スキル用）とは別 |
 | 居合 | katana の charge | 刀の溜め攻撃（右の長押し。細く長い突き） | `system/player.ts` |
@@ -260,7 +261,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | ジョブ固有の派生 | `JOB_BRANCHES`（`BranchDef`） | 左左左右で出るジョブごとのフィニッシュ。どの武器種にも足される（同じ入力の派生を武器種が持てば武器種が優先）。残月（剣士。刀の「燕返し」と重ならないよう）/ 射抜き / 猛連打（極意の「猛打」と別）/ 盾殴り / 呪い刃 / 穂先返し / 魔力放出 / 影縫い / 反応刃 | `data/jobs.ts` |
 | 武器種の固有効果 | `MovesetDef.rules` | 武器種を持つ間だけ効く統一ルール（刀のカウンターの勢い・大盾の身固め など） | `data/weapons.ts` |
 | 反転撃ち | gunner の dashAttack | 二丁拳銃のダッシュ攻撃（ダッシュ中に撃つと、終わりに周りを撃ち払う） | `data/weapons.ts` | `data/weapons.ts` |
-| 近接 / 射撃 / 溜め（ボタンの役割） | ActionKind: melee / shot / charge | 武器種ごとの左クリック・右クリックの役割 | `data/weapons.ts` |
+| 近接 / 射撃 / 溜め（左クリックの役割） | PrimaryKind: melee / shot / charge | 武器種ごとの左クリックの役割。右クリックは全武器種共通で固有技 | `data/weapons.ts` |
 | 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |
 | 引き寄せ / 投げ | pull / throw | 大鎌の手前へのノックバック / 拳のダッシュ攻撃の背後へのノックバック | `system/player.ts` knockDirection |
 | 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・射撃の型の器になるベース（implicit なし） | `loot/bases.ts` |
@@ -338,7 +339,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 連携名 | wellThunder … reelStomp | 渦雷（引力球 → 雷撃）/ 引き回し（鎖鎌 → 旋風斬り）/ 返し撃ち（パリィ成功 → 撃ち抜き）/ 落地裂（墜星 → 地裂き）/ 総解き（伝染 → 綻び）/ 血風（血の契約 → 旋風斬り）/ 氷砕き（氷結地帯 → 砕氷槌）/ 影刺し（影渡り → 刺し穿ち）/ 疾風弾幕（加速 → 回転弾幕）/ 手繰り踏み（手繰り糸 → 震脚） | `skills/combos.ts` COMBOS |
 | 第 2 弾の連携名 | waterFreeze … levelMeteor | 瞬氷（水瓶 → 瞬凍）/ 走り火（油流し → 焼き払い）/ 烙火連（焼き印 → 烙火）/ 崩し落とし（崩し蹴り → 崩落槌）/ 彩爆（彩刻 → 色解き）/ 地裂墜（地均し → 墜星）。空間の連携（直前に撃っていなくてよく、照準地点が設置物の中なら成立）: 渦爆（引力球の中へグレネード）/ 氷雷（氷結地帯の中へ雷撃）。化身の極意（変身中の極意）。祝福「凍て水」「油火斬り」と重ならないよう瞬氷 / 走り火にした | `skills/combos.ts` COMBOS |
 | 空間の連携 | `ComboDef.untimed` / `requiresAt` | 時間ではなく照準地点で成立する連携（渦爆・氷雷）。HUD の「連携可」の菱形は照準地点が分からないので出ない | `skills/combos.ts` |
-| 連動体 | `SkillTag` の `summon` | 召喚スキルが出す味方の物体。自分では攻撃せず、近接 3 段目（剣の墓標）・射撃（砲台）に合わせてだけ動く | `skills/summons.ts` |
+| 連動体 | `SkillTag` の `summon` | 召喚スキルが出す味方の物体。自分では攻撃せず、近接 3 段目（剣の墓標）・攻撃の振り（砲台。射撃の型だけでなく近接の振りにも合わせる）に合わせてだけ動く | `skills/summons.ts` |
 | 対象なし / 燃焼なし / 出血なし / 感電なし / 戻れない | - | 撃つ前に弾かれたときの浮き文字（何も払わない）。影渡り・伝染 / 燃え種爆ぜ / 血抜き / 放電 / 巻き戻し | `skills/actions.ts` extraCastBlock |
 | 烙印なし / 彩痕なし / 濡れなし | - | 第 2 弾の撃つ前に弾かれたときの浮き文字（何も払わない）。烙火 / 色解き / 瞬凍（濡れた敵も水たまりも無い）。死の宣告は「対象なし」 | `skills/actions2.ts` wave2CastBlock |
 | 地均し n / 火吸い n / 宣告 / 剛の型・迅の型・霊の型 / 変身が解けた / 芽: 刻印符の枠 +1 / 芽: 威力 +n% | - | 第 2 弾の浮き文字（砕いた地形の数 / 吸った炎の数 / 死の宣告を付けた / 変身した / 変身が切れた / 使い込みの芽） | `skills/actions2.ts`、`skills/wear.ts` |
@@ -382,7 +383,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 井戸 / 掲示板 / 鍛冶場 / 図書館 / 祭壇 / 訓練場 / 記録室 / 庭 | well / board / forge / library / altar / training / archive / garden（`FacilityKey`） | 拠点の設備。井戸 = ジョブ・起点・縛りの画面へ、掲示板 = 依頼の一覧、鍛冶場 = 残響、図書館 = スキル石、祭壇 = 誓約を試す（拠点を出ると消える）、訓練場 = 木人の区画、記録室 = 探索履歴・図鑑・実績の 3 台、庭 = 装備と芽。部屋の種類の「祭壇 / 図書館 / 鍛冶場」とは別物（拠点の中の名前） | `meta/hub.ts` FACILITY_NAME |
 | 〜が建った | `newlyBuilt` | 拠点の設備が新しく使えるようになったときのバナー。解放は既存の記録から導き、強さは変えない | `meta/hub.ts`、`render/hubUi.ts` |
 | 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。倒したボスの記念品、図鑑の埋まり具合で伸びる記録室の書架、名乗っている称号の看板 | `meta/hub.ts` |
-| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種・全射撃の型を木人で試せる（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる | `system/hub.ts` setTrialWeapon / borrowRackEntry、`ui/hubFlow.ts` rackTabs |
+| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種（銃の家系を含む）を木人で試せる（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる | `system/hub.ts` setTrialWeapon / borrowRackEntry、`ui/hubFlow.ts` rackTabs |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
 | 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される得意武器の素の器。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |

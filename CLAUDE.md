@@ -119,7 +119,7 @@ src/
 ### 武器種（近接の型）/ 射撃の型
 - `src/data/weapons.ts`: 近接は `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（3 段コンボ各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値と `poiseRatio` / 当たり判定の形 `HitShape` / 手触りの任意項目）、射撃は `SHOT_KEYS` に key を足し `SHOT_TYPES` に `ShotDef`。数値は tuning の `WEAPON`
 - 各段・銃の型の参照ステータスは `docs/STATS_AND_SCALING.md` に従う（効果から見て納得できるもの。怯み値の `poiseRatio` も付ける）
-- ベースへの紐付け: `src/loot/bases.ts` の `BASES` で武器スロットのベースに `moveset`、銃スロットのベースに `shot` を指定（`PlayerStats.moveset` / `shot` へ流れる）
+- ベースへの紐付け: `src/loot/bases.ts` の `BASES` で右手（`mainHand`）のベースに、近接なら `moveset`、銃なら `shot` を指定（`PlayerStats.moveset` / `shot` へ流れる。左手 `offHand` は今はベースが無い）
 - 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.shot` で `SHOT_TYPES` を引いて発動処理を分岐
 - テスト: `data/weapons.test.ts`
 
