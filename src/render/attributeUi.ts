@@ -13,7 +13,7 @@ import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
 
 export { attributePanelRect };
 
-/** 何が伸びるかの一言（docs/COMBAT_DESIGN.md A-1 の要約。単一の強さの指標は出さない） */
+/** 何が伸びるかの一言（docs/COMBAT_DESIGN.md A-1 の要約。単一の強さの指標は出さない）。装備タブの ？ のヘルプに出す */
 export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
   str: "近接・怯み",
   dex: "射撃・移動",
@@ -25,7 +25,6 @@ export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_SUB = "#a0a0a0";
 const COLOR_READY = "#ffd75f";
-const COLOR_DISABLED = "#505058";
 const COLOR_BUTTON_BG = "rgba(255,215,95,0.12)";
 const COLOR_BUTTON_HOVER = "rgba(255,215,95,0.3)";
 
@@ -60,7 +59,10 @@ function formatEff(eff: number): string {
   return String(Number(eff.toFixed(EFF_DIGITS)));
 }
 
-/** 行の並びは ALLOC_BUTTON.rowH 間隔（「+」の当たり判定と揃える）。hover は ui.hoverAlloc */
+/**
+ * 行の並びは ALLOC_BUTTON.rowH 間隔（「+」の当たり判定と揃える）。hover は ui.hoverAlloc。
+ * 「+」は振れる点があるときだけ出す（無いときに灰色のボタンを並べると文字が増えるだけなので）
+ */
 export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameState, hover = -1, rect: Rect = attributePanelRect()): void {
   const m = TEXT.SMALL;
   const x = rect.x + ALLOC_BUTTON.pad;
@@ -72,31 +74,27 @@ export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameSta
     const baseline = rect.y + (i + 1) * ALLOC_BUTTON.rowH - ROW_BASELINE_UP;
     const right = button.x - ALLOC_BUTTON.pad;
     const text = attributeValueText(key, state.stats.attributes[key], state.stats.attributesEff[key]);
-    const valueW = Math.min(textWidth(text, m), right - x);
     drawText(ctx, truncateText(text, right - x, m), x, baseline, m, attrColor(key));
-    const hintW = right - x - valueW - ALLOC_BUTTON.pad;
-    if (hintW > 0) drawText(ctx, truncateText(ATTR_HINT[key], hintW, m), right, baseline, m, COLOR_SUB, "right");
-    drawAllocButton(ctx, button, canAlloc, canAlloc && hover === i);
+    if (canAlloc) drawAllocButton(ctx, button, hover === i);
   });
-  drawJobLine(ctx, state, rect);
 }
 
-/**
- * ステータスの行の下にジョブ名。枠の下はツールチップの基準の空き（ツールチップは後から描くので上に重なる）
- */
-function drawJobLine(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect): void {
-  const baseline = rect.y + (ALLOC_ORDER.length + 1) * ALLOC_BUTTON.rowH - ROW_BASELINE_UP;
-  const width = rect.w - ALLOC_BUTTON.pad * HALF;
-  drawText(ctx, truncateText(`ジョブ: ${JOBS[state.job].name}`, width, TEXT.SMALL), rect.x + ALLOC_BUTTON.pad, baseline, TEXT.SMALL, COLOR_SUB);
+/** 詳細欄の要約の見出し: ジョブ名と未振り点 */
+export function drawSummaryHead(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect): void {
+  const m = TEXT.SMALL;
+  const baseline = rect.y + rect.h - ROW_BASELINE_UP - 1;
+  const unspent = state.runAttributes.unspent;
+  const right = rect.x + rect.w - ALLOC_BUTTON.pad;
+  const unspentText = unspent > 0 ? `未振り ${unspent}` : "";
+  if (unspentText) drawText(ctx, unspentText, right, baseline, m, COLOR_READY, "right");
+  const width = right - (rect.x + ALLOC_BUTTON.pad) - textWidth(unspentText, m) - ALLOC_BUTTON.pad;
+  drawText(ctx, truncateText(JOBS[state.job].name, width, m), rect.x + ALLOC_BUTTON.pad, baseline, m, COLOR_SUB);
 }
 
-/** 未振り点が 0 なら灰色（押しても何も起きない） */
-function drawAllocButton(ctx: CanvasRenderingContext2D, r: Rect, enabled: boolean, hover: boolean): void {
-  const color = enabled ? COLOR_READY : COLOR_DISABLED;
-  if (enabled) {
-    ctx.fillStyle = hover ? COLOR_BUTTON_HOVER : COLOR_BUTTON_BG;
-    ctx.fillRect(r.x, r.y, r.w, r.h);
-  }
+function drawAllocButton(ctx: CanvasRenderingContext2D, r: Rect, hover: boolean): void {
+  const color = COLOR_READY;
+  ctx.fillStyle = hover ? COLOR_BUTTON_HOVER : COLOR_BUTTON_BG;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
   ctx.strokeStyle = color;
   ctx.lineWidth = 1;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);

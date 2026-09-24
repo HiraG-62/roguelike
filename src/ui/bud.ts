@@ -3,12 +3,15 @@ import { type GameState, pushSfx } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import type { AffixRoll } from "../loot/types";
 import { chooseBud } from "../system/loot";
-import { CONTENT_Y, RIGHT_W, RIGHT_X, STASH_HEADER_H, type Rect, pointInRect } from "./inventoryLayout";
+import { budBannerRect } from "./equipmentLayout";
+import { type Rect, pointInRect } from "./inventoryLayout";
+
+export { budBannerRect };
 
 /**
  * 芽（2 択の成長）の画面ロジック。docs/LOOT_DESIGN.md「来歴と芽」。
  * 戦闘中は知らせるだけ（render/budUi.ts）。選択は装備画面を開いたときだけ:
- * 倉庫の見出し行が「芽が出ています」バナーになり、クリックで 2 択のモーダルを開く。誤操作で選ばないため
+ * 倉庫の一覧の上に「芽が出ています」バナーが出て、クリックで 2 択のモーダルを開く。誤操作で選ばないため
  */
 
 export const BUD_MODAL_W = 300;
@@ -33,11 +36,6 @@ export function createBudUi(): BudUi {
 export interface BudModalLayout {
   frame: Rect;
   cards: Rect[];
-}
-
-/** 装備タブの倉庫の見出し行。芽があるときはバナーになる */
-export function budBannerRect(): Rect {
-  return { x: RIGHT_X, y: CONTENT_Y, w: RIGHT_W, h: STASH_HEADER_H };
 }
 
 export function layoutBudModal(): BudModalLayout {

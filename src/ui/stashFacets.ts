@@ -98,8 +98,8 @@ function isMovesetKey(value: string): value is MovesetKey {
   return (MOVESET_KEYS as readonly string[]).includes(value);
 }
 
-const FILTER_MIN_W = 70;
-const FILTER_WIDE_MIN_W = 90;
+/** ボタンの最小幅。絞っていないときは軸の名前だけなので、選んだ値（「揺らぎ:反転あり」など）が入る幅を目安にする */
+const FILTER_MIN_W = { color: 40, rarity: 56, mark: 52, kind: 54 } as const;
 
 /** 絞り込みの軸。ボタンは FILTER_KEYS の順に並ぶ */
 export const FILTERS: Readonly<Record<FilterKey, FilterDef>> = {
@@ -109,7 +109,7 @@ export const FILTERS: Readonly<Record<FilterKey, FilterDef>> = {
     optionLabel: (v) => lookup(TRAIT_COLOR_LABEL, v) ?? v,
     valueColor: (v) => lookup(TRAIT_COLOR_HEX, v),
     matches: (item, v) => itemColorBar(item.affixes).some((seg) => seg.color === v),
-    minWidth: FILTER_MIN_W,
+    minWidth: FILTER_MIN_W.color,
   },
   rarity: {
     label: "揺らぎ",
@@ -117,14 +117,14 @@ export const FILTERS: Readonly<Record<FilterKey, FilterDef>> = {
     optionLabel: (v) => lookup(RARITY_LABEL, v) ?? v,
     valueColor: (v) => lookup(RARITY_COLOR, v),
     matches: (item, v) => item.rarity === v,
-    minWidth: FILTER_WIDE_MIN_W,
+    minWidth: FILTER_MIN_W.rarity,
   },
   mark: {
     label: "印",
     options: () => MARK_KEYS,
     optionLabel: (v) => MARKS[v]?.label ?? v,
     matches: (item, v) => MARKS[v]?.has(item) ?? false,
-    minWidth: FILTER_WIDE_MIN_W,
+    minWidth: FILTER_MIN_W.mark,
   },
   kind: {
     label: "武器種",
@@ -135,6 +135,6 @@ export const FILTERS: Readonly<Record<FilterKey, FilterDef>> = {
     },
     optionLabel: (v) => (isMovesetKey(v) ? MOVESETS[v].name : v),
     matches: (item, v) => weaponKindOf(item) === v,
-    minWidth: FILTER_WIDE_MIN_W,
+    minWidth: FILTER_MIN_W.kind,
   },
 };

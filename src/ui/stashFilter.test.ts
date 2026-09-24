@@ -113,7 +113,7 @@ describe("倉庫の部位分け・並べ替え・絞り込み", () => {
     expect(stashControlLabel(view, color)).toBe("色:紅");
     applyStashControl(view, color, true, stash);
     expect(view.filters.color, "すべてへ戻る").toBeUndefined();
-    expect(stashControlLabel(view, color)).toBe("色:すべて");
+    expect(stashControlLabel(view, color), "絞っていなければ軸の名前だけ").toBe("色");
     applyStashControl(view, color, true, stash);
     expect(view.filters.color, "すべての前は最後の色").toBe("umbra");
   });

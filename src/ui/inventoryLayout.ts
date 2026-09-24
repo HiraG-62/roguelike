@@ -35,19 +35,34 @@ export const PANEL_Y = PANEL_MARGIN;
 export const PANEL_W = VIEW_W - PANEL_MARGIN * 2;
 export const PANEL_H = VIEW_H - PANEL_MARGIN * 2;
 
-export const HEADER_H = 10;
-export const HINT_H = 10;
-/** 下段（ツールチップの基準位置と共鳴パネル）の高さ */
-export const TOOLTIP_H = 50;
-export const CONTENT_Y = PANEL_Y + HEADER_H;
-export const CONTENT_H = PANEL_H - HEADER_H - TOOLTIP_H - HINT_H;
-/** 下段の下端（= ヒント行の上端） */
-export const CONTENT_BOTTOM = PANEL_Y + PANEL_H - HINT_H;
+/** 見出し（タブ・メッセージ・？ボタン）の高さ */
+export const HEADER_H = 13;
+/** 枠の内側の余白 */
+export const FRAME_PAD = 3;
+/** 本文の上端・下端。画面下の操作説明の行は持たない（操作は詳細欄の下と ？ のヘルプに出す） */
+export const CONTENT_Y = PANEL_Y + HEADER_H + 2;
+export const CONTENT_BOTTOM = PANEL_Y + PANEL_H - FRAME_PAD;
+export const CONTENT_H = CONTENT_BOTTOM - CONTENT_Y;
 
 export const COLUMN_GAP = 4;
+
+/**
+ * 装備・スキルタブの骨組み: 左に一覧、右に固定の詳細欄。
+ * 詳細欄はマウスを乗せた物の説明を出し、何も乗せていなければ今のビルドの要約を出す（浮くツールチップは使わない）
+ */
+export const DETAIL_W = 164;
+export const DETAIL_X = PANEL_X + PANEL_W - FRAME_PAD - DETAIL_W;
+export const LIST_X = PANEL_X + FRAME_PAD;
+export const LIST_W = DETAIL_X - COLUMN_GAP - LIST_X;
+
+export function detailRect(): Rect {
+  return { x: DETAIL_X, y: CONTENT_Y, w: DETAIL_W, h: CONTENT_H };
+}
+
+/** 残響タブの左右の列（左: 残響と操作、右: 倉庫と対象） */
 export const LEFT_W = Math.floor(PANEL_W / 3);
 export const RIGHT_X = PANEL_X + LEFT_W + COLUMN_GAP;
-export const RIGHT_W = PANEL_W - LEFT_W - COLUMN_GAP;
+export const RIGHT_W = PANEL_X + PANEL_W - FRAME_PAD - RIGHT_X;
 
 export const STASH_ROW_H = 12;
 /** 倉庫一覧の見出し行（装備タブでは芽のバナーを兼ねる） */

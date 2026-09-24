@@ -2,7 +2,6 @@ import { KEYWORD_DEFS } from "../core/keywords";
 import type { GameState } from "../core/state";
 import type { SynergyElement, SynergyElementKind } from "../loot/describe";
 import { SKILL } from "../skills/data";
-import type { Rect } from "../ui/inventoryLayout";
 import {
   type SynergyPanelUi,
   type SynergyWordState,
@@ -10,10 +9,9 @@ import {
   synergyBuild,
   synergyCellRect,
   synergyDetailRect,
-  synergyLegendRect,
   synergyWords,
 } from "../ui/synergyPanel";
-import { COLOR_BORDER, COLOR_DIM, COLOR_HOVER_BG, COLOR_SELECTED, COLOR_TEXT, TEXT_PAD_X, bodyLineH, drawHint, fillRectPx, strokeRectPx } from "./lootUiParts";
+import { COLOR_BORDER, COLOR_DIM, COLOR_HOVER_BG, COLOR_SELECTED, COLOR_TEXT, TEXT_PAD_X, bodyLineH, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
 
 /**
@@ -56,21 +54,20 @@ const HUNGER_BLINK_LOW = 0.35;
 const GLYPH_X = 3;
 const LABEL_GAP = 3;
 const COUNT_PAD = 2;
-const HINT = "方向キー / スティック / マウス: 語を選ぶ  Tab: 閉じる";
-const LEGEND = [
+/** ？ のヘルプに出す凡例と操作（画面には常時出さない） */
+export const WEB_HELP: readonly { text: string; color: string }[] = [
+  { text: "方向キー / スティック / マウス: 語を選ぶ", color: COLOR_TEXT },
   { text: "暖色 = 余り（出しているのに誰も食わない）", color: STATE_COLOR.surplus },
   { text: "寒色の点滅 = 飢え（食うのに誰も出さない）", color: STATE_COLOR.hunger },
   { text: "右下の数 = 出す要素 / 食う要素", color: COLOR_DIM },
-] as const;
-const KIND_LEGEND = "名前の色: 遺物 / 共鳴 / スキル石 / 祝福";
+  { text: "名前の色: 遺物 / 共鳴 / スキル石 / 祝福", color: COLOR_DIM },
+];
 
-export function drawSynergyTab(ctx: CanvasRenderingContext2D, state: GameState, ui: SynergyPanelUi, hintRect: Rect): void {
+export function drawSynergyTab(ctx: CanvasRenderingContext2D, state: GameState, ui: SynergyPanelUi): void {
   const words = synergyWords(synergyBuild(state));
   words.forEach((w, i) => drawCell(ctx, w, i, i === ui.cursor, ui.time));
-  drawLegend(ctx);
   const selected = words[ui.cursor];
   if (selected) drawDetail(ctx, selected);
-  drawHint(ctx, hintRect, HINT);
 }
 
 function hungerAlpha(time: number): number {
@@ -102,18 +99,6 @@ function drawCell(ctx: CanvasRenderingContext2D, w: SynergyWordView, index: numb
   drawText(ctx, count, r.x + r.w - COUNT_PAD, r.y + r.h - COUNT_PAD, m, STATE_COLOR[w.state], "right");
 }
 
-function drawLegend(ctx: CanvasRenderingContext2D): void {
-  const r = synergyLegendRect();
-  const m = TEXT.SMALL;
-  const lineH = bodyLineH();
-  let y = r.y + lineH;
-  for (const line of LEGEND) {
-    if (y > r.y + r.h) return;
-    drawText(ctx, truncateText(line.text, r.w, m), r.x, y, m, line.color);
-    y += lineH;
-  }
-}
-
 /** 右側: 選んだ語 → 状態 → 出す要素 → 食う要素 */
 function drawDetail(ctx: CanvasRenderingContext2D, w: SynergyWordView): void {
   const r = synergyDetailRect();
@@ -128,8 +113,6 @@ function drawDetail(ctx: CanvasRenderingContext2D, w: SynergyWordView): void {
   drawText(ctx, `${def.glyph} ${def.label}`, x, y, TEXT.BODY, def.color);
   y += lineH + 1;
   drawText(ctx, truncateText(STATE_TEXT[w.state], maxWidth, m), x, y, m, STATE_COLOR[w.state]);
-  y += lineH;
-  drawText(ctx, truncateText(KIND_LEGEND, maxWidth, m), x, y, m, COLOR_DIM);
   y += lineH + 2;
   y = drawElementList(ctx, "出す", w.producers, x, y, maxWidth, bottom);
   drawElementList(ctx, "食う", w.consumers, x, y + 2, maxWidth, bottom);
