@@ -22,6 +22,7 @@ import {
   meleeChargeOf,
   movesetRules,
   releaseBranchIndex,
+  shotFor,
   shotButton,
   shotButtons,
   usesProjectiles,
@@ -443,6 +444,17 @@ describe("右クリックの固有技（docs/ideas/weapon-redesign.md 3 章）",
     expect(MOVESETS.fists.branches.some((b) => b.key === "steppingFist"), "拳の踏み込み拳は消す").toBe(false);
     expect(MOVESETS.sword.branches.find((b) => b.key === "steppingCut")?.sequence).toEqual(["secondary", "primary"]);
     expect(MOVESETS.axe.branches.find((b) => b.key === "axeSpin")?.sequence).toEqual(["secondary", "primary"]);
+  });
+
+  it("銃の家系はすべて代表の弾の型を持ち、近接は持たない。ベースの型が代表より優先される", () => {
+    for (const key of MOVESET_KEYS) {
+      expect(MOVESETS[key].defaultShot !== undefined, key).toBe(GUN_MOVESETS.includes(key));
+    }
+    expect(shotFor("grenade"), "擲弾は曲射").toBe("lob");
+    expect(shotFor("trapper"), "仕掛けは設置弾").toBe("mine");
+    expect(shotFor("warRing"), "戦輪は回転刃").toBe("boomerang");
+    expect(shotFor("warRing", "ricochet"), "円月輪は跳弾").toBe("ricochet");
+    expect(shotFor("sword"), "近接は単発").toBe("single");
   });
 
   it("銃の家系は 8 つで、弾を出す武器種の判定は銃と投げる技を持つ近接", () => {

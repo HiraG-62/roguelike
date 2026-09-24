@@ -296,7 +296,7 @@ export type RackEntry = { kind: "moveset"; key: MovesetKey };
 
 /**
  * 試す武器種を差し替える（拠点を出ると state ごと捨てるので残らない）。null で装備のものに戻す。
- * 差し替えは変身と同じく stats の写しの moveset だけを替える（shot は装備のベースのまま）
+ * 差し替えは変身と同じく stats の写しの moveset と shot だけを替える（shot は家系の代表の弾の型。近接なら装備のまま）
  */
 export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null): void {
   const { state, hub } = session;
@@ -310,10 +310,13 @@ export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null):
 /** 装備画面などで applyStats が stats を作り直しても、試している型へ差し直す（stepHub が毎ステップ呼ぶ） */
 function enforceTrialWeapon(session: HubSession): void {
   const { state, hub } = session;
-  const moveset = hub.trialMoveset ?? state.stats.moveset;
-  if (state.stats.moveset === moveset) return;
+  const moveset = hub.trialMoveset;
+  if (moveset === null) return;
+  // 銃の家系は代表の弾の型で撃つ（装備の剣の単発のままにしない）
+  const shot = MOVESETS[moveset].defaultShot ?? state.stats.shot;
+  if (state.stats.moveset === moveset && state.stats.shot === shot) return;
   const prev = state.stats;
-  state.stats = { ...prev, moveset };
+  state.stats = { ...prev, moveset, shot };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }

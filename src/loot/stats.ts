@@ -1,6 +1,6 @@
 import { ELEMENTS, ELEMENT_LABEL } from "../core/element";
 import { HEAL, MANA, STATUS } from "../data/tuning";
-import { DEFAULT_MOVESET, DEFAULT_SHOT } from "../data/weapons";
+import { DEFAULT_MOVESET, shotFor } from "../data/weapons";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { baseDef } from "./bases";
 import {
@@ -256,7 +256,7 @@ export function computeStats(equipment: Equipment): PlayerStats {
 function applyWeaponForms(stats: PlayerStats, equipment: Equipment): void {
   const base = equipment.mainHand ? baseDef(equipment.mainHand.baseKey) : undefined;
   stats.moveset = base?.moveset ?? DEFAULT_MOVESET;
-  stats.shot = base?.shot ?? DEFAULT_SHOT;
+  stats.shot = shotFor(stats.moveset, base?.shot);
 }
 
 // ---------------------------------------------------------------------------

@@ -237,6 +237,8 @@ export interface MovesetDef {
   readonly attackMoveMul: number;
   /** 左クリックの役割 */
   readonly primary: PrimaryKind;
+  /** 銃の家系の代表の弾の型。ベースが shot を持たないときと、拠点で武器種だけを試すときに撃つ（近接は持たない） */
+  readonly defaultShot?: ShotKey;
   /** 右クリックの固有技 */
   readonly art: WeaponArtDef;
   /** コンボ派生（入力列の長いものから照合する）。strike の技と hold の release は defineMoveset が ["secondary"] の派生として混ぜる */
@@ -817,6 +819,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.gunner.dashAttack),
     attackMoveMul: W.gunner.attackMoveMul,
     primary: "shot",
+    defaultShot: "single",
     art: throwArt("barrage", "全方位へ弾をばら撒く", reviveThrowTuning(W.gunner.art), GUN_ATTACK),
     branches: [],
     keywords: kw(["ranged", "bullet", "combo"], [], ["energy", "dash"]),
@@ -837,6 +840,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.sidearm.dashAttack),
     attackMoveMul: W.sidearm.attackMoveMul,
     primary: "shot",
+    defaultShot: "single",
     art: { kind: "charge", key: "aimedShot", name: artName("aimedShot"), desc: "足を止めて狙い、離すと強く貫く 1 発を撃つ", cooldown: W.sidearm.art.cooldown, aim: W.sidearm.art.aim },
     branches: [],
     keywords: kw(["ranged", "bullet"], ["still"], ["crit"]),
@@ -850,6 +854,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.longarm.dashAttack),
     attackMoveMul: W.longarm.attackMoveMul,
     primary: "shot",
+    defaultShot: "pierce",
     art: strikeArt("bayonet", "銃剣で踏み込んで突き、押し返す", reviveStrikeTuning(W.longarm.art)),
     branches: [],
     keywords: kw(["ranged", "bullet", "stagger"], [], ["wall"]),
@@ -863,6 +868,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,
     primary: "shot",
+    defaultShot: "spread",
     art: strikeArt("pointBlank", "至近を吹き飛ばして後ろへ跳ぶ。床の自分の設置弾をすべて起爆する", reviveStrikeTuning(W.cannon.art)),
     branches: [],
     keywords: kw(["ranged", "explode", "area"], ["placed"], ["stagger"]),
@@ -876,6 +882,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.thrown.dashAttack),
     attackMoveMul: W.thrown.attackMoveMul,
     primary: "shot",
+    defaultShot: "rapid",
     art: { kind: "recall", key: "recall", name: artName("recall"), desc: "飛んでいる自分の弾をすべて手元へ向け直す", cooldown: W.thrown.art.cooldown, recall: W.thrown.art.recall },
     branches: [],
     keywords: kw(["ranged", "bullet"], [], ["dash"]),
@@ -889,6 +896,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.grenade.dashAttack),
     attackMoveMul: W.grenade.attackMoveMul,
     primary: "shot",
+    defaultShot: "lob",
     art: strikeArt("tubeBash", "筒で殴って敵を押し返し、自分も後ろへ下がる", reviveStrikeTuning(W.grenade.art)),
     branches: [],
     keywords: kw(["ranged", "explode", "area"], ["still"], ["stagger"]),
@@ -902,6 +910,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.trapper.dashAttack),
     attackMoveMul: W.trapper.attackMoveMul,
     primary: "shot",
+    defaultShot: "mine",
     art: throwArt("scatterMines", "前方へ設置弾を扇に 3 つ撒く", reviveThrowTuning(W.trapper.art), attack("ranged", "physical", "fire")),
     branches: [],
     keywords: kw(["ranged", "placed", "explode", "area"], [], ["dash"]),
@@ -915,6 +924,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.warRing.dashAttack),
     attackMoveMul: W.warRing.attackMoveMul,
     primary: "shot",
+    defaultShot: "boomerang",
     art: strikeArt("ringSweep", "手元の輪で周りを広く斬る", reviveStrikeTuning(W.warRing.art)),
     branches: [],
     keywords: kw(["ranged", "bullet", "area"], [], ["melee"]),
@@ -1076,6 +1086,11 @@ export const DEFAULT_SHOT: ShotKey = "single";
 
 export function movesetDef(key: MovesetKey): MovesetDef {
   return MOVESETS[key];
+}
+
+/** 武器種が撃つ弾の型。ベースの shot が優先、無ければ家系の代表、それも無ければ既定（単発） */
+export function shotFor(moveset: MovesetKey, baseShot?: ShotKey): ShotKey {
+  return baseShot ?? MOVESETS[moveset].defaultShot ?? DEFAULT_SHOT;
 }
 
 export function shotDef(key: ShotKey): ShotDef {

@@ -203,6 +203,24 @@ describe("武器掛け", () => {
     expect(state.stats.moveset, "装備の剣に戻る").toBe("sword");
   });
 
+  it("銃の家系を試すと代表の弾の型で撃ち、外すと装備の弾の型に戻る", () => {
+    const session = hub();
+    const { state } = session;
+    const expected = { grenade: "lob", trapper: "mine", warRing: "boomerang", cannon: "spread", longarm: "pierce" } as const;
+    for (const [moveset, shot] of Object.entries(expected)) {
+      setTrialWeapon(session, moveset as keyof typeof expected);
+      expect(state.stats.shot, `${moveset} の弾`).toBe(shot);
+      // 装備画面で作り直されても次のステップで戻る
+      applyStats(state, computeStats(state.profile.equipment));
+      idle(session, 1);
+      expect(state.stats.shot, `${moveset} の弾（作り直し後）`).toBe(shot);
+    }
+    setTrialWeapon(session, "greatsword");
+    expect(state.stats.shot, "近接は装備の弾のまま").toBe("single");
+    setTrialWeapon(session, null);
+    expect(state.stats.shot, "装備の剣の弾に戻る").toBe("single");
+  });
+
   it("装備画面を経由して applyStats が走っても試し中の武器種が保たれる", () => {
     const session = hub();
     const { state } = session;
