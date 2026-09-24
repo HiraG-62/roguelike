@@ -30,6 +30,11 @@
     "sustainCapRatio": 0.04,
     "killHealMinCombo": 5
   },
+  "BLAST_FALLOFF": {
+    "_note": "爆発の距離減衰（system/blast.ts の blastFalloff。敵味方すべての爆発が使う）。距離は爆心から対象の近い側の縁まで(中心間距離 − 対象の半径)。innerRatio は半径に対する割合(0..1)で、そこまでは等倍、縁に向けて線形に edgeMul(倍率)まで下がる。ダメージ・怯み値・ノックバックに掛け、状態異常の付与には掛けない",
+    "innerRatio": 0.3,
+    "edgeMul": 0.4
+  },
   "STATUS": {
     "_note": "状態異常 34 種の数値（system/statusEffects.ts）。持続は秒、確率・割合は 0..1、スタックは数値。色は表示色",
     "burnDuration": 3,

@@ -3,8 +3,9 @@ import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from ".
 import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEffects";
 import { shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
+import { blastMulAt } from "../system/blast";
 import { STATUS } from "../data/tuning";
-import { SKILL } from "./data";
+import { SKILL, SKILL_DEFS } from "./data";
 import { COMBO_TUNING } from "./tuning";
 import { skillHit, skillPower } from "./hit";
 import { terrainAt } from "../system/terrain";
@@ -283,8 +284,10 @@ function explodeMine(state: GameState, pos: Vec, params: CastParams): void {
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
   const power = skillPower(state, m.damage, params);
+  const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback, stagger: true });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback * mul, stagger: true, poise: poise * mul });
   }
 }
 

@@ -47,6 +47,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `terrain.ts` 床の地形の層（水たまり・油・溶岩・毒沼・氷床・草むら・炎）の効果・延焼。型と一覧は `core/terrain.ts`、配置は `map/generator.ts` の `planTerrain`、描画は `render/terrainUi.ts`
 - `boons.ts` 祝福 3 択（抽選・選択・呪いを受けて 4 択・既存フック）/ 定義データは `boonDefs.ts`（`BOON_KEYS` / `BOONS`。系譜・結びを含む。第 2 弾は `boonDefsWave2.ts` に置いて混ぜる）、拡張ルールの実装は `boonRules.ts`（`onBoonXxxRules`。`boons.ts` の各フックから呼ぶ）/ `skills.ts` スキル発動・気力 / 再使用時間・スロットごとの最低間隔・body 排他・刻印符の付け外し / `loot.ts` ドロップ・拾得
 - `rules.ts` 統一ルール文法の照合（`resolveRules`。`core/rules.ts` の `Rule` 型を combo の後に 1 回だけ照合。詳細は `docs/ARCHITECTURE.md`）/ `keywords.ts` 語の推論と集計（装備の stats から語と祝福タグを出す 1 つの表。UI にスコアは出さない）/ `elementCombat.ts` 属性・ジャンルの与ダメ計算 / `runEvents.ts` 図鑑・依頼のラン中の数え上げ（`updateRunEvents` が `meta/runRecord.ts` の `noteRunEvents` を呼ぶだけ。ゲーム進行には効かない）
+- `blast.ts` 爆発の距離減衰（`blastFalloff` / `blastMulAt`。敵味方すべての爆発が通す。数値は combat.json の `BLAST_FALLOFF`）
 - `effects.ts` パーティクル・浮き文字・揺れ・ヒットストップ（見た目だけ）/ `camera.ts` / `physics.ts` 移動と壁判定
 
 ## その他

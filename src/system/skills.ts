@@ -108,6 +108,7 @@ import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effe
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
+import { blastMulAt } from "./blast";
 import { addPoise } from "./poise";
 import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
@@ -1861,14 +1862,17 @@ function explodeGrenade(state: GameState, pos: Vec, params: CastParams): void {
   spawnBurst(state, pos, "#ffb060", 24, 180, 0.45, 2.5);
   shake(state, SHAKE_SKILL);
   pushSfx(state, "explode");
+  const power = skillPower(state, f.damage, params);
+  const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
-    rangedSkillHit(state, e, params, skillPower(state, f.damage, params), sub(e.body.pos, pos), f.knockback, true);
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: f.knockback * mul, stagger: true, poise: poise * mul });
   }
   // 自爆: 無敵中（ダッシュ）なら無効
   const p = state.player;
   if (p.invulnTimer > 0 || p.buffs.invuln > 0) return;
   if (!circlesOverlap(pos.x, pos.y, radius, p.body.pos.x, p.body.pos.y, p.body.radius)) return;
-  damagePlayer(state, p.maxHp * f.selfDamageFraction, pos);
+  damagePlayer(state, p.maxHp * f.selfDamageFraction * blastMulAt(pos, radius, p.body.pos, p.body.radius), pos);
 }
 
 function updateEchoes(state: GameState, dt: number): void {

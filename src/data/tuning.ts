@@ -18,6 +18,9 @@ export const PLAYER = {
  */
 export const HEAL = BALANCE.combat.HEAL;
 
+/** 爆発の距離減衰（src/system/blast.ts）。爆心の近くほど重く、縁ほど軽い */
+export const BLAST_FALLOFF = BALANCE.combat.BLAST_FALLOFF;
+
 /** armor の被ダメ軽減（PoE 風の逓減式）。reduction = armor / (armor + ARMOR_K)、上限 ARMOR_MAX_REDUCTION */
 export const ARMOR_K = BALANCE.loot.ARMOR_K;
 export const ARMOR_MAX_REDUCTION = BALANCE.loot.ARMOR_MAX_REDUCTION;

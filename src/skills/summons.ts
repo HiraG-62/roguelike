@@ -3,8 +3,9 @@ import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } 
 import { shake, spawnBurst, spawnRing } from "../system/effects";
 import { gainMana } from "../system/mana";
 import { circlesOverlap, overlapsWall } from "../system/physics";
+import { blastMulAt } from "../system/blast";
 import { enemiesInRadius } from "../system/statusEffects";
-import { SKILL } from "./data";
+import { SKILL, SKILL_DEFS } from "./data";
 import { angleDiff } from "./geom";
 import { skillHit, skillPower } from "./hit";
 import { spawnShot } from "./shots";
@@ -146,8 +147,10 @@ export function explodeKeg(state: GameState, pos: Vec, params: CastParams): void
   shake(state, SHAKE_KEG);
   pushSfx(state, "explode");
   const power = skillPower(state, kp.damage, params);
+  const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: kp.knockback, stagger: true, from: pos });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: kp.knockback * mul, stagger: true, poise: poise * mul, from: pos });
   }
 }
 

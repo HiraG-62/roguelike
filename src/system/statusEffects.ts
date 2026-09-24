@@ -21,6 +21,7 @@ import { dotResistMul } from "./elementCombat";
 import { onStatusAppliedFx, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { withRatio } from "./attributes";
 import { circlesOverlap } from "./physics";
+import { blastMulAt } from "./blast";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { boonChainExtension } from "./boonRules";
 import {
@@ -748,8 +749,9 @@ export function explodeAt(state: GameState, pos: Vec, radius: number, damage: nu
   pushSfx(state, "explode");
   for (const e of enemiesInRadius(state, pos, radius)) {
     if (e.id === excludeId) continue;
-    const out = rollOutgoing(state, e, damage, "proc");
-    damageEnemy(state, e, out.amount, sub(e.body.pos, pos), STATUS.explodeKnockback, { hitstopSteps: 0 });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    const out = rollOutgoing(state, e, damage * mul, "proc");
+    damageEnemy(state, e, out.amount, sub(e.body.pos, pos), STATUS.explodeKnockback * mul, { hitstopSteps: 0 });
   }
 }
 
