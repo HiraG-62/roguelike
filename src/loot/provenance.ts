@@ -47,7 +47,9 @@ export type ProvenanceEvent =
   | { kind: "terrainKill" }
   | { kind: "favoredKill" }
   | { kind: "chargedHit" }
-  | { kind: "branchHit" };
+  | { kind: "branchHit" }
+  // ---- 2026-09-24 第 4 弾（system/floor.ts の ascend が積む）----
+  | { kind: "returned" };
 
 type CounterKey =
   | "kills"
@@ -66,7 +68,8 @@ type CounterKey =
   | "terrainKills"
   | "favoredKills"
   | "chargedHits"
-  | "branchHits";
+  | "branchHits"
+  | "returns";
 
 export interface MilestoneDef {
   key: string;
@@ -140,6 +143,8 @@ export const MILESTONES: readonly MilestoneDef[] = [
   milestone("weakHits", 600, "gold", "弱点を突いた", "sevenHues"),
   milestone("terrainKills", 250, "jade", "地形の上の撃破", "mireLord"),
   milestone("favoredKills", 600, "gold", "得意武器での撃破", "schoolSecret"),
+  // ---- 2026-09-24 第 4 弾: 上り階段で浅い階へ戻った探索を共にした（docs/ideas/run-expansion.md 4 章の見送り分）----
+  milestone("returns", 1, "azure", "帰還"),
 ];
 
 /** 来歴を 2 倍で積むベース（印章指輪） */
@@ -212,6 +217,9 @@ export function bumpProvenance(p: Provenance, event: ProvenanceEvent, depth: num
       return;
     case "branchHit":
       p.branchHits += 1;
+      return;
+    case "returned":
+      p.returns += 1;
       return;
   }
 }
@@ -352,6 +360,8 @@ export function findPendingBud(profile: Profile): PendingBud | null {
  * combat / floor から最小のフックで呼ぶ
  */
 export function recordProvenance(state: GameState, event: ProvenanceEvent): void {
+  // 拠点の木人で来歴を育てられないようにする
+  if (state.sandbox) return;
   const keystones = state.stats.keystones;
   // 忘却の誓い: 来歴は積もらず、芽も出ない
   if (keystones.includes(OBLIVION_KEY)) return;

@@ -9,7 +9,7 @@ import type { GameMap } from "../map/grid";
  * 並びが Uint8Array に入れる番号になる。0 は地形なし。既存の番号を変えないよう新しい種類は末尾に足す。
  * smoke（煙）は床ではなく空気に漂う層なので kinds には入らず、TerrainLayer.smoke に別に持つ（下の床の地形を消さない）
  */
-export const TERRAIN_KINDS = ["none", "water", "oil", "lava", "bog", "ice", "grass", "fire", "mud", "smoke"] as const;
+export const TERRAIN_KINDS = ["none", "water", "oil", "lava", "bog", "ice", "grass", "fire", "mud", "smoke", "rubble"] as const;
 export type TerrainKind = (typeof TERRAIN_KINDS)[number];
 
 export const TERRAIN_LABEL: Readonly<Record<TerrainKind, string>> = {
@@ -23,6 +23,7 @@ export const TERRAIN_LABEL: Readonly<Record<TerrainKind, string>> = {
   fire: "炎",
   mud: "泥",
   smoke: "煙",
+  rubble: "崩れる床",
 };
 
 export function terrainCode(kind: TerrainKind): number {
@@ -55,6 +56,11 @@ export interface TerrainLayer {
   smoke: Float64Array;
   /** 煙のあるセル。毎ステップ全セルを走査しないための索引 */
   smokeCells: Set<number>;
+  /**
+   * タイル index → 崩れる床（rubble）に敵が乗り続けている秒（地裂きの刻印符「地崩れ」。system/terrain.ts）。
+   * 誰も乗っていないステップで 0 に戻る。描画はこの値で床を揺らす（崩れる予告）
+   */
+  rubbleLoad: Float64Array;
 }
 
 export function createTerrainLayer(): TerrainLayer {
@@ -70,5 +76,6 @@ export function createTerrainLayer(): TerrainLayer {
     version: 0,
     smoke: new Float64Array(0),
     smokeCells: new Set(),
+    rubbleLoad: new Float64Array(0),
   };
 }

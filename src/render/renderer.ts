@@ -688,7 +688,8 @@ export class Renderer {
     this.drawBossLetterbox(state);
     this.drawHud(state);
     this.drawFloorWipe(state);
-    if (state.status === "playing") drawFloorCard(ctx, `地下 ${state.depth} 階`, FLOOR_KIND_LABEL_JA[state.floorKind], state.time - this.floorCardAt);
+    // 拠点（sandbox）は階層ではないのでフロアカードを出さない
+    if (state.status === "playing" && !state.sandbox) drawFloorCard(ctx, `地下 ${state.depth} 階`, FLOOR_KIND_LABEL_JA[state.floorKind], state.time - this.floorCardAt);
     drawBoonHud(ctx, state, aimScreen);
     drawChainHud(ctx, state);
     drawDropFocus(ctx, state, aimScreen, ox, oy);
@@ -2101,11 +2102,42 @@ export class Renderer {
     this.drawDashPips(state);
     this.drawKeystoneHud(state);
 
-    if (this.lookup) this.minimap.draw(ctx, state, this.lookup, VIEW_W);
+    // 拠点（sandbox）はミニマップと階層・スコア・シードの欄を出さない（右上は拠点の飾りが使う）
+    if (this.lookup && !state.sandbox) this.minimap.draw(ctx, state, this.lookup, VIEW_W);
     const rightY = this.hudRightY(state);
     const rightX = VIEW_W - HUD_RIGHT_X_PAD;
-    const m = TEXT.SMALL;
     const line = this.hudRightLine();
+    if (!state.sandbox) this.drawHudRightPanel(state, rightX, rightY, line);
+
+    if (state.combo.count > 1) {
+      const pop = 1 + state.combo.popTimer * 3;
+      const fading = state.combo.timer < 0.6;
+      const comboColor = fading && state.tick % 8 < 4 ? COLOR_DIM : COLOR_ENERGY;
+      const comboM = Math.min(TEXT.BIG, pixelText().sizeFor(COMBO_TEXT_PX * pop));
+      drawText(ctx, `${state.combo.count} ヒット`, VIEW_W / 2, COMBO_TEXT_Y, comboM, comboColor, "center");
+      const multY = COMBO_TEXT_Y + Math.max(COMBO_MULT_GAP, this.textLine(TEXT.SMALL));
+      drawText(ctx, `x${comboMultiplier(state.combo.count).toFixed(1)}`, VIEW_W / 2, multY, TEXT.SMALL, COLOR_TEXT, "center");
+    }
+
+    this.drawBossHud(state);
+    this.drawReaperHud(state);
+    drawRunHud(ctx, state);
+    drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
+
+    if (state.rooms.some((r) => r.locked)) {
+      drawText(ctx, "― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8, TEXT.SMALL, COLOR_LOCK, "center");
+    }
+
+    const last = state.log[state.log.length - 1];
+    if (last && state.time - last.time < 4) {
+      drawText(ctx, last.text, 8, VIEW_H - 8, TEXT.SMALL, last.color);
+    }
+  }
+
+  /** 右上の階層・スコア・シード・呪い・共鳴の欄 */
+  private drawHudRightPanel(state: GameState, rightX: number, rightY: number, line: number): void {
+    const m = TEXT.SMALL;
+    const { ctx } = this;
     const ascent = Math.max(HUD_PANEL_ASCENT, baselineOffset("alphabetic", m, this.pixelRatio));
     const depthText = `地下 ${state.depth} 階 · ${FLOOR_KIND_LABEL_JA[state.floorKind]}`;
     const scoreText = `スコア ${state.score}`;
@@ -2130,30 +2162,6 @@ export class Renderer {
     }
     if (state.stats.resonance.kind !== "none") {
       this.shadowText(describeResonance(state.stats.resonance)[0] ?? "", rightX, rightY + line * HUD_RESONANCE_LINE, COLOR_TEXT, m, "right");
-    }
-
-    if (state.combo.count > 1) {
-      const pop = 1 + state.combo.popTimer * 3;
-      const fading = state.combo.timer < 0.6;
-      const comboColor = fading && state.tick % 8 < 4 ? COLOR_DIM : COLOR_ENERGY;
-      const comboM = Math.min(TEXT.BIG, pixelText().sizeFor(COMBO_TEXT_PX * pop));
-      drawText(ctx, `${state.combo.count} ヒット`, VIEW_W / 2, COMBO_TEXT_Y, comboM, comboColor, "center");
-      const multY = COMBO_TEXT_Y + Math.max(COMBO_MULT_GAP, this.textLine(TEXT.SMALL));
-      drawText(ctx, `x${comboMultiplier(state.combo.count).toFixed(1)}`, VIEW_W / 2, multY, TEXT.SMALL, COLOR_TEXT, "center");
-    }
-
-    this.drawBossHud(state);
-    this.drawReaperHud(state);
-    drawRunHud(ctx, state);
-    drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
-
-    if (state.rooms.some((r) => r.locked)) {
-      drawText(ctx, "― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8, TEXT.SMALL, COLOR_LOCK, "center");
-    }
-
-    const last = state.log[state.log.length - 1];
-    if (last && state.time - last.time < 4) {
-      drawText(ctx, last.text, 8, VIEW_H - 8, TEXT.SMALL, last.color);
     }
   }
 

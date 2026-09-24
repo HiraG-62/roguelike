@@ -114,6 +114,8 @@ function sanitizeProvenance(v: unknown): Provenance | undefined {
   p.favoredKills = nonNegativeInt(v.favoredKills);
   p.chargedHits = nonNegativeInt(v.chargedHits);
   p.branchHits = nonNegativeInt(v.branchHits);
+  // 2026-09-24 第 4 弾の来歴（帰還）
+  p.returns = nonNegativeInt(v.returns);
   if (isRecord(v.killsByEnemy)) {
     for (const [key, n] of Object.entries(v.killsByEnemy)) p.killsByEnemy[key] = nonNegativeInt(n);
   }

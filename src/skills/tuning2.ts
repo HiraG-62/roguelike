@@ -306,6 +306,25 @@ export const WAVE2_SKILL_TUNING = {
     knockback: 0,
     vulnerableTime: 0.8,
   },
+  // ---- 第 4 弾（見送っていた泥沼） ----
+  /**
+   * 泥沼: カーソル地点に泥（中の敵は歩きも突進も遅い）。中にいる敵へ tickEvery ごとに怯み値。
+   * 燃焼が入ると泥が固まって中の敵が麻痺する（system/terrain.ts の bakeMud）
+   */
+  mire: {
+    cost: 18,
+    minInterval: 0.8,
+    poise: 0,
+    maxRange: 120,
+    radius: 30,
+    terrainRadius: 30,
+    terrainTime: 4,
+    damage: { base: 1, spi: 0.3, vit: 0.3 },
+    knockback: 0,
+    tickEvery: 0.5,
+    tickDamage: { base: 0.5, spi: 0.1, vit: 0.2 },
+    tickPoise: 7,
+  },
 } as const;
 
 /** 変身の共通: 変身先の武器種がジョブの得意なら持続を伸ばす / 切れた後の移動倍率と秒 */
@@ -343,6 +362,8 @@ export const WAVE2_MODIFIER_TUNING = {
   breakInfuse: { damageMul: 0.85 },
   /** 彩り: 命中で共鳴の色の彩痕 */
   hueInfuse: { damageMul: 0.9 },
+  /** 地崩れ（地裂き専用）: 命中した敵までの線（+ extend px 先まで）に崩れる床を time 秒 */
+  crumble: { burdenMul: 1.2, time: 5, extend: 16, step: 8 },
   /** 地染め: 命中した位置に属性の地形（1 回の発動で maxPerCast か所まで） */
   leyline: { burdenMul: 1.15, radius: 10, time: 4, maxPerCast: 3 },
   /** 心得: ジョブの得意な武器種を持っていれば強い */

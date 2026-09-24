@@ -174,6 +174,9 @@ export const SFX_NAMES = [
   "questComplete",
   /** 死神の接近の鼓動（8-14） */
   "reaperHeartbeat",
+  // ---- 崩れる床が抜ける / 盗賊の煙玉（system/terrain.ts・bossThiefKing.ts・runEvents.ts）----
+  "rubbleFall",
+  "smokeBomb",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

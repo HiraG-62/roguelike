@@ -178,6 +178,8 @@ export const ENEMY_DEFENSE: Readonly<Record<string, EnemyDefenseDef>> = {
   broodEgg: d(FIXTURE, { poison: MILD, fire: WEAK }, CONTACT),
   librarian: d(BOSS, { dark: MILD }, bolt("dark"), [{ fire: WEAK }, { light: WEAK }]),
   mirrorKnight: d(BOSS, { light: STRONG }, attack("melee", "hybrid", "light"), [{ dark: WEAK }, { lightning: WEAK }]),
+  thiefKing: d(BOSS, { dark: MILD }, blast("none"), [{ ice: WEAK }, { lightning: WEAK }, { light: WEAK }]),
+  thief: d(BEAST, { dark: MILD, light: WEAK }, CONTACT),
   mirrorImage: d(ELITE, { light: STRONG, dark: STRONG, none: SOFT_SPOT }, CONTACT),
   reaperShade: d(SPIRIT, { dark: NEAR_IMMUNE, light: WEAK }, contact("dark")),
 };

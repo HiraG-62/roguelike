@@ -95,7 +95,9 @@ export type EnemyBehavior =
   | "oilKing"
   | "broodMother"
   | "librarian"
-  | "mirrorKnight";
+  | "mirrorKnight"
+  /** ボス: 盗賊王（逃げながら罠を撒き、追い詰めるとダウン。src/system/bossThiefKing.ts） */
+  | "thiefKing";
 
 /** 再配色種: 元の絵のパレット文字を差し替えて別の絵にする（render/sprites.ts） */
 export interface SpriteRecolor {

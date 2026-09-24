@@ -16,10 +16,8 @@ import {
   boonRuleAttackManaMul,
   boonRuleCostMul,
   createBoonRuleState,
-  onBoonBurstRules,
   onBoonComboHitRules,
   onBoonCritRules,
-  onBoonDashEndRules,
   onBoonDashRules,
   onBoonJustRules,
   onBoonJustSteal,
@@ -27,33 +25,21 @@ import {
   onBoonMeleeHitRules,
   onBoonRoomClearRules,
   onBoonRoomLockRules,
-  onBoonShatterRules,
   onBoonSkillCastRules,
   onBoonSkillHitRules,
   onBoonSwingRules,
   onBoonWaveStart,
   resetBoonRulesForFloor,
-  slashBase,
   tightropePenalty,
   updateBoonRules,
 } from "./boonRules";
-import { cancelAttack, healSustained } from "./combat";
+import { cancelAttack } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { isEngaged } from "./engagement";
 import { STATUS_BOON_TAGS, affinity, buildProfile, statsBoonTags } from "./keywords";
-import { dropItem } from "./loot";
 import { gainMana } from "./mana";
 import { applyStats, dashTime } from "./player";
-import {
-  applyChill,
-  applyStatus,
-  chainLightning,
-  enemiesInRadius,
-  explodeAt,
-  findStatus,
-  hasStatus,
-  removeStatus,
-} from "./statusEffects";
+import { applyStatus, enemiesInRadius, findStatus } from "./statusEffects";
 
 /**
  * ラン内限定の祝福 3 択。docs/ideas/run-structure.md「祝福 3 択（Boon）」。
@@ -108,8 +94,6 @@ export interface BoonRunState {
   guardTimer: number;
   /** glassJust: ダッシュ後も JUST が取れる残り秒 */
   justExtendTimer: number;
-  overchargeCd: number;
-  critChainCd: number;
   /** crumble: 前ステップまでに脆弱を付けた「怯み中の敵」の id。怯み 1 回につき 1 度だけ付ける */
   crumbled: number[];
   /** circulation: 直近の発動 1 回で既に戻したマナ。発動ごとに 0 へ戻す（多段ヒットの過剰還元を防ぐ） */
@@ -126,8 +110,6 @@ export function createBoonRunState(): BoonRunState {
     heartBurnTimer: 0,
     guardTimer: 0,
     justExtendTimer: 0,
-    overchargeCd: 0,
-    critChainCd: 0,
     crumbled: [],
     circulationGained: 0,
     rules: createBoonRuleState(),
@@ -549,8 +531,6 @@ export function updateBoons(state: GameState, dt: number): void {
   const run = state.boonRun;
   run.guardTimer = Math.max(0, run.guardTimer - dt);
   run.justExtendTimer = Math.max(0, run.justExtendTimer - dt);
-  run.overchargeCd = Math.max(0, run.overchargeCd - dt);
-  run.critChainCd = Math.max(0, run.critChainCd - dt);
   updateCrumble(state);
   updateBoonRules(state, dt);
   if (run.heartBurnTimer <= 0) return;
@@ -673,13 +653,11 @@ export function onBoonDash(state: GameState): void {
   p.invulnTimer = Math.max(p.invulnTimer, extended);
 }
 
-/** ダッシュ終了（時間切れ / 壁）: dashBlast */
-export function onBoonDashEnd(state: GameState): void {
-  if (hasBoon(state, "dashBlast")) {
-    explodeAt(state, state.player.body.pos, BOON.dashBlastRadius, slashBase(state) * BOON.dashBlastRatio);
-  }
-  onBoonDashEndRules(state);
-}
+/**
+ * ダッシュ終了（時間切れ / 壁）。爆走・雷爆走は BoonDef.rules（onDashEnd）へ移したので、今は割り込む祝福が無い。
+ * 呼び出し（player.ts）は、ダッシュ終了の瞬間に割り込む祝福を足すときの置き場として残す
+ */
+export function onBoonDashEnd(_state: GameState): void {}
 
 /**
  * spiritBlade: 通常攻撃（近接 3 段・ダッシュ攻撃・射撃 1 発）の威力に足す値（霊力の実効値 × 係数）。
@@ -741,81 +719,48 @@ export function boonMoveMul(state: GameState): number {
   return burden * (isEngaged(state) ? BOON.lockdownFastMul : BOON.lockdownSlowMul);
 }
 
-/** 近接ヒット: 拡張の祝福（counter = カウンターヒット）と overcharge（ゲージ満タン中 / 臨界の窓で爆発） */
+/**
+ * 近接ヒット: 拡張の祝福（counter = カウンターヒット。今は読む祝福が無いが呼び出しの形を保つ）。
+ * 過充填・臨界は BoonDef.rules（onSwingHit）へ移した
+ */
 export function onBoonMeleeHit(state: GameState, e: Enemy, counter = false): void {
   onBoonMeleeHitRules(state, e, counter);
-  if (!hasBoon(state, "overcharge") || state.boonRun.overchargeCd > 0) return;
-  const p = state.player;
-  if (p.energy < p.maxEnergy && state.boonRun.rules.criticalTimer <= 0) return;
-  state.boonRun.overchargeCd = BOON.overchargeIcd;
-  explodeAt(state, e.body.pos, BOON.overchargeRadius, slashBase(state) * BOON.overchargeRatio, e.id);
 }
 
-/** burstRefund: バーストで倒した数だけゲージを返す */
-export function onBoonBurstKills(state: GameState, kills: number): void {
-  onBoonBurstRules(state);
-  if (kills <= 0 || !hasBoon(state, "burstRefund")) return;
-  const p = state.player;
-  p.energy = Math.min(p.maxEnergy, p.energy + kills * BOON.burstRefundPerKill);
-}
+/**
+ * バーストの後（kills = バーストで倒した数）。還元・臨界・焦土・換金は BoonDef.rules（onBurst。量 = 倒した数）へ移した。
+ * 呼び出し（player.ts）はバーストに割り込む祝福を足すときの置き場として残す
+ */
+export function onBoonBurstKills(_state: GameState, _kills: number): void {}
 
 // -----------------------------------------------------------------------------
 // フック: combat.ts
 // -----------------------------------------------------------------------------
 
-/** comboClock: コンボ 10 ごとにゲージ満タン */
+/** コンボ加算の後: 雷神の鼓。刻限のコンボ（10 ごとにゲージ満タン）は BoonDef.rules（onComboHit）へ移した */
 export function onBoonComboHit(state: GameState): void {
   onBoonComboHitRules(state);
-  if (!hasBoon(state, "comboClock")) return;
-  if (state.combo.count <= 0 || state.combo.count % BOON.comboClockEvery !== 0) return;
-  const p = state.player;
-  p.energy = p.maxEnergy;
-  addFloatingText(state, p.body.pos, "チャージ！", BOON.rarityColor.rare, TEXT_SCALE, TEXT_LIFE);
 }
 
-/** critChain: クリティカルで連鎖雷 */
-export function onBoonCrit(state: GameState, enemy: Enemy, amount: number): void {
+/** 会心: 血裂き（ダメージの途中に割り込む）。会心雷撃は BoonDef.rules（onCrit。量 = 与えたダメージ）へ移した */
+export function onBoonCrit(state: GameState, enemy: Enemy, _amount: number): void {
   onBoonCritRules(state, enemy);
-  if (!hasBoon(state, "critChain") || state.boonRun.critChainCd > 0) return;
-  state.boonRun.critChainCd = BOON.critChainIcd;
-  chainLightning(state, enemy.body.pos, amount * BOON.critChainRatio, enemy.id);
 }
 
 /**
- * 撃破時: eliteVault / eliteMagnet / bloodMist と拡張の祝福。
- * 野火・氷砕・血の饗宴・疫病・屠りの盃は BoonDef.rules（onKill）へ移した（撃破回復は rules でも HEAL.sustainCapRatio の下）
+ * 撃破時: 拡張の祝福（饗宴の盃・力の簒奪・灰積もり、徘徊の撃破の記録）。
+ * 野火・氷砕・血の饗宴・疫病・屠りの盃・宝物の鍵・精鋭の磁力・血霧は BoonDef.rules（onKill）へ移した
+ * （撃破回復は rules でも HEAL.sustainCapRatio の下）
  */
 export function onBoonKill(state: GameState, enemy: Enemy): void {
   onBoonKillRules(state, enemy);
-  if (enemy.elite && hasBoon(state, "eliteVault") && !state.boonRun.vaultNext) {
-    state.boonRun.vaultNext = true;
-    addFloatingText(state, enemy.body.pos, "次階に宝物庫", BOON.rarityColor.rare, TEXT_SCALE, 1);
-  }
-  if (enemy.elite && hasBoon(state, "eliteMagnet")) dropItem(state, enemy.body.pos);
-  if (hasBoon(state, "bloodMist")) bloodMist(state, enemy);
-}
-
-/** bloodMist: 出血の敵を倒すと、自分の出血を消して回復 */
-function bloodMist(state: GameState, enemy: Enemy): void {
-  if (!hasStatus(enemy.status, "bleed")) return;
-  removeStatus(state, { kind: "player" }, "bleed");
-  healSustained(state, BOON.bloodMistHeal, { silent: true });
-  spawnBurst(state, state.player.body.pos, BOON.bloodMistColor, 8, 60, 0.3, 1.5);
 }
 
 /**
- * frostPierce: 凍結の敵を砕いたとき、周囲の敵に冷気を重ねる（砕かれた本人は冷気免疫なので除く）。
- * combat.ts の砕き（shatterFreeze）から呼ぶ
+ * 凍結の砕き（combat.ts の shatterFreeze から）。霜貫き・砕氷の鐘は BoonDef.rules（onShatter）へ移した。
+ * 呼び出しは砕きに割り込む祝福を足すときの置き場として残す
  */
-export function onBoonShatter(state: GameState, enemy: Enemy): void {
-  onBoonShatterRules(state, enemy);
-  if (!hasBoon(state, "frostPierce")) return;
-  const apply = { kind: "chill" as const, stacks: BOON.frostPierceStacks, duration: STATUS.chill.duration, potency: 0 };
-  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.frostPierceRadius)) {
-    if (e.id !== enemy.id) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
-  }
-  spawnRing(state, enemy.body.pos, BOON.frostPierceRadius, STATUS.chillColor, STATUS.fxLife);
-}
+export function onBoonShatter(_state: GameState, _enemy: Enemy): void {}
 
 /** 無敵中に JUST 回避になる追加条件（ガード中 / glassJust の延長窓） */
 export function boonJustEligible(state: GameState): boolean {
@@ -930,29 +875,20 @@ export function extraEliteRoll(state: GameState, e: Enemy): boolean {
   return !e.elite && hasBoon(state, "eliteMagnet");
 }
 
-/** frostLock: ロックした部屋の敵を凍えさせる */
+/** 部屋の封鎖: 持ち越しの終わりと巣窟の主。氷結封鎖は BoonDef.rules（onRoomLock。roomEnemies）へ移した */
 export function onBoonRoomLock(state: GameState, index: number): void {
   onBoonRoomLockRules(state);
   // 封鎖で最初の波が始まる（巣窟・試練・闘技場）。2 波目以降は floor.ts の updateLockedRoom が onBoonWaveStart を呼ぶ
   const room = state.rooms[index];
   if (room?.locked) onBoonWaveStart(state, room);
-  if (!hasBoon(state, "frostLock")) return;
-  for (const e of state.enemies) {
-    if (e.roomIndex === index && e.hp > 0) applyChill(state, e, BOON.frostLockSlow, BOON.frostLockTime);
-  }
 }
 
 /**
- * 部屋クリア: springWell と拡張の祝福（room は制圧した部屋。試練・伏兵の判定に使う）。
- * 勝利の帳・血の代償は BoonDef.rules（onRoomClear）へ移した
+ * 部屋クリア: 拡張の祝福（時間稼ぎ・持ち越し）。room は呼び出しの形を保つために受ける。
+ * 勝利の帳・血の代償・湧水・伏兵返し・試練の徒・狩場の王は BoonDef.rules（onRoomClear。部屋の種類はイベントの tag）へ移した
  */
-export function onBoonRoomClear(state: GameState, room?: RoomState): void {
-  onBoonRoomClearRules(state, room);
-  const p = state.player;
-  // 回収ではなく補充なので manaGainMul を通さず上限へ直接揃える
-  if (!hasBoon(state, "springWell")) return;
-  p.mana = state.stats.maxMana;
-  addFloatingText(state, p.body.pos, "湧水", BOON.springWellColor, TEXT_SCALE, TEXT_LIFE);
+export function onBoonRoomClear(state: GameState, _room?: RoomState): void {
+  onBoonRoomClearRules(state);
 }
 
 export function boonHeartsAllowed(state: GameState): boolean {

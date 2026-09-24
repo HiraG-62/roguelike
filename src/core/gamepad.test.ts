@@ -146,6 +146,20 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(input.read().confirmPressed).toBe(false);
   });
 
+  it("A の押しっぱなしは confirmHeld が立ち続け、LB 中（スキル層）は立たない", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons([0]), axes: [0, 0, 0, 0] });
+
+    expect(input.read().confirmHeld, "押した瞬間").toBe(true);
+    expect(input.read().confirmHeld, "押し続けている間").toBe(true);
+
+    stubPads({ index: 0, buttons: makeButtons([0, 4]), axes: [0, 0, 0, 0] });
+    expect(input.read().confirmHeld, "LB + A はスキルなので決定に数えない").toBe(false);
+  });
+
   it("離して押し直すと再度 true になる", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();

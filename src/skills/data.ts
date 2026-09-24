@@ -60,7 +60,8 @@ export const SKILL = {
   runeCapacity: 60,
   // ---- マナ型は cost / minInterval、CD 型は cooldown / minInterval。poise は 1 ヒットの基礎怯み値 ----
   whirl: {
-    cost: 15.3, // 18 → 15.3（-15%）
+    // 18 → 15.3 → 13.0（-15%、QA 2026-09-24: スキル由来与ダメ比率 49.6%＜目標 55〜65%。威力ではなく発動回数を増やす方向で追加調整）
+    cost: 13.0,
     minInterval: 0.6,
     poise: 6,
     duration: 0.45,
@@ -87,7 +88,8 @@ export const SKILL = {
     comboLinkWindow: 0.3,
   },
   frag: {
-    cost: 18.7, // 22 → 18.7（-15%）
+    // 22 → 18.7 → 15.9（-15%、理由は旋風斬りのコメント参照）
+    cost: 15.9,
     minInterval: 0.5,
     poise: 30,
     maxRange: 120,
@@ -102,7 +104,8 @@ export const SKILL = {
     wallProbe: 2,
   },
   railshot: {
-    cost: 21.3, // 25 → 21.3（-15%）
+    // 25 → 21.3 → 18.1（-15%、理由は旋風斬りのコメント参照）
+    cost: 18.1,
     minInterval: 0.8,
     poise: 25,
     aim: 0.35,
@@ -380,6 +383,7 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   swiftForm: 4,
   spiritForm: 4,
   wardStake: 5,
+  mire: 5,
   wolfForm: 3,
   wraithForm: 3,
   siegeForm: 3,
@@ -463,6 +467,7 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   swiftForm: 3,
   spiritForm: 3,
   wardStake: 2,
+  mire: 2,
   wolfForm: 3,
   wraithForm: 3,
   siegeForm: 3,
@@ -868,6 +873,7 @@ export function canAttach(def: SkillDef, key: ModifierKey): boolean {
   if (m.requiresResource && m.requiresResource !== def.resource) return false;
   if (m.requiresApplies && !def.applies) return false;
   if (m.requiresDamage && def.damageKind === "none") return false;
+  if (m.onlySkills && !m.onlySkills.includes(def.key)) return false;
   return !(m.excludesSkills?.includes(def.key) ?? false);
 }
 
@@ -959,6 +965,7 @@ export function baseCastParams(def: SkillDef): CastParams {
     hueInfuse: false,
     leyline: false,
     leyPool: { left: 0 },
+    crumble: false,
     jobMastery: false,
     weaponBond: false,
     formSurge: false,
@@ -1188,6 +1195,7 @@ export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
   swiftForm: attack("melee", "physical"),
   spiritForm: attack("area", "arcane", "light"),
   wardStake: attack("area", "hybrid"),
+  mire: attack("area", "arcane"),
   // 第 3 弾の変身（噛みつき・重い振りは近接の仕組みで当てるので、変身そのものは与ダメを持たない。砲撃だけが持つ）
   wolfForm: null,
   wraithForm: null,

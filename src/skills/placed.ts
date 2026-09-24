@@ -7,6 +7,7 @@ import { STATUS } from "../data/tuning";
 import { SKILL } from "./data";
 import { COMBO_TUNING } from "./tuning";
 import { skillHit, skillPower } from "./hit";
+import { terrainAt } from "../system/terrain";
 import type { CastParams } from "./types";
 
 /**
@@ -162,6 +163,7 @@ export function updatePlacedSkills(state: GameState, dt: number): void {
   updateWells(state, dt);
   updateMines(state, dt);
   updateFields(state, dt);
+  updateMires(state, dt);
   updateBullets(state, dt);
 }
 
@@ -305,6 +307,32 @@ function updateFields(state: GameState, dt: number): void {
     }
   }
   rs.fields = rs.fields.filter((field) => field.timer > 0);
+}
+
+/**
+ * 泥沼: 周期ごとに、領域の中で泥の上に立っている敵へ小さな命中（怯み値つき）。
+ * 泥が燃えて固まった・別の地形で上書きされたマスの敵には入らない。階を移った領域は捨てる
+ */
+function updateMires(state: GameState, dt: number): void {
+  const zones = state.skills.mires;
+  if (!zones || zones.length === 0) return;
+  const m = SKILL.mire;
+  for (const z of zones) {
+    if (z.map !== state.map) {
+      z.timer = 0;
+      continue;
+    }
+    z.timer -= dt;
+    z.tick -= dt;
+    if (z.tick > 0) continue;
+    z.tick = m.tickEvery;
+    const power = skillPower(state, m.tickDamage, z.params);
+    for (const e of enemiesInRadius(state, z.pos, m.radius * z.params.areaMul)) {
+      if (terrainAt(state, e.body.pos.x, e.body.pos.y) !== "mud") continue;
+      skillHit(state, e, z.params, { base: power, kind: "ranged", dir: { x: 0, y: 0 }, knockback: 0, stagger: false, poise: m.tickPoise, applies: null, from: z.pos });
+    }
+  }
+  state.skills.mires = zones.filter((z) => z.timer > 0);
 }
 
 function updateBullets(state: GameState, dt: number): void {

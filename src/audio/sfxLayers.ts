@@ -240,6 +240,17 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "lowpass", from: 260, to: 60, dur: 0.1, peak: 0.25 },
     { k: "tone", type: "sine", freq: 48, dur: 0.16, peak: 0.42, at: 0.18 },
   ],
+
+  // ---- 崩れる床が抜ける（低い崩落 + 砂利）/ 盗賊の煙玉（こもった破裂 + 噴き出す息）----
+  rubbleFall: [
+    { k: "noise", filter: "lowpass", from: 900, to: 90, dur: 0.35, peak: 0.45 },
+    { k: "tone", type: "sine", freq: 65, dur: 0.3, peak: 0.3 },
+    { k: "noise", filter: "bandpass", from: 3200, to: 1200, dur: 0.12, q: 2, peak: 0.16, at: 0.08 },
+  ],
+  smokeBomb: [
+    { k: "noise", filter: "lowpass", from: 700, to: 150, dur: 0.12, peak: 0.35 },
+    { k: "noise", filter: "highpass", from: 1800, to: 5000, dur: 0.4, peak: 0.22, at: 0.05 },
+  ],
 } as const satisfies Partial<Record<SfxName, readonly Layer[]>>;
 
 export type LayeredSfxName = keyof typeof LAYERED_SFX;

@@ -105,10 +105,17 @@ import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, locked
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
-import { type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
+import { type ListAction, type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
+import { type HubSession, createHub, setTrialKeystone, stepHub } from "./system/hub";
+import { HUB } from "./data/tuning";
+import type { HubSpotKey } from "./map/hubMap";
+import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
+import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
+import { drawHubOverlay, hubScreenOffset } from "./render/hubUi";
+import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
 
 const canvasEl = document.getElementById("game");
@@ -144,7 +151,9 @@ type Screen =
   | "history"
   | "settings"
   | "keybinds"
-  | "replay";
+  | "replay"
+  | "hub"
+  | "altar";
 
 /** タイトルのメニューから開く一覧画面 */
 type ListScreenKind = "codex" | "questBoard" | "achievements";
@@ -301,7 +310,7 @@ function updateOriginScreen(frame: FrameInput, escape: boolean, arrowX: number, 
   if (escape) {
     sfx.play("uiClose");
     // 起点の段ならジョブの段へ 1 段戻る。ジョブの段ならタイトルへ
-    if (!backOriginStage(originUi)) screen = "title";
+    if (!backOriginStage(originUi)) leaveMenu();
     return;
   }
   const rowGap = originRowGap(textLineHeight(TEXT.SMALL));
@@ -342,6 +351,9 @@ function drainEchoes(s: GameState): void {
 }
 
 function beginRun(seedText: string): void {
+  // 拠点の state はランに持ち込まない（試した誓約も消える）。次に拠点へ入るとき作り直す
+  hub = null;
+  inventoryUi.open = false;
   runSetup = withLockedRelics(runSetup);
   runStartedAt = Date.now();
   loadoutDirty = false;
@@ -463,8 +475,7 @@ const LIST_SCREEN_HINT: Readonly<Record<ListScreenKind, string>> = {
   achievements: "←→ タブ　↑↓ / ホイール 選ぶ　Enter / クリック 称号を名乗る　Esc 戻る",
 };
 
-function openListScreen(item: TitleMenuItem, frameMoveX: number, frameMoveY: number): void {
-  const next = TITLE_MENU_SCREEN[item];
+function openListScreen(next: ListScreenKind, frameMoveX: number, frameMoveY: number): void {
   screen = next;
   listUi = createListScreen();
   listTabs = listTabsFor(next);
@@ -473,12 +484,8 @@ function openListScreen(item: TitleMenuItem, frameMoveX: number, frameMoveY: num
   menuAimPrev = null;
 }
 
-function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
-  if (escape) {
-    sfx.play("uiClose");
-    screen = "title";
-    return;
-  }
+/** 一覧画面（図鑑・依頼・実績・祭壇）の共通の入力。カーソル移動の音もここで鳴らす */
+function stepListInput(frame: FrameInput, arrowX: number, arrowY: number): ListAction {
   const aim = frame.aimScreen;
   const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
   menuAimPrev = aim;
@@ -489,12 +496,190 @@ function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: 
   const input = { navX, navY, wheel: frame.wheel, aim, aimMoved, click: frame.clickPressed, confirm: frame.confirmPressed };
   const action = stepListScreen(listUi, listTabs, input, listRowGap(textLineHeight(TEXT.SMALL)));
   if (action === "moved" || action === "tab") sfx.play("menuMove");
+  return action;
+}
+
+function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    leaveMenu();
+    return;
+  }
+  const action = stepListInput(frame, arrowX, arrowY);
   if (action !== "activate" || kind !== "achievements" || listUi.tab !== ACHIEVEMENT_TITLE_TAB) return;
   const entry = listCursorEntry(listUi, listTabs);
   if (!entry || !selectTitle(achievementSave, questSave, titleIdOfEntry(entry.key))) return;
   saveAchievements(achievementSave);
   listTabs = listTabsFor(kind);
   sfx.play("uiClick");
+}
+
+// ---------------------------------------------------------------------------
+// 拠点（タイトル → 拠点 → 井戸 → 起点 → 依頼 → ラン。docs/ideas/hub-design.md）
+// ---------------------------------------------------------------------------
+
+const ALTAR_TITLE = "祭壇";
+const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す　Esc 拠点へ（拠点を出ると消える）";
+/**
+ * 拠点の state。リプレイに記録しないので `state` とは別に持つ
+ * （`state` に入れると、ループ先頭の死亡判定や endRun が拠点を 1 ランとして記録してしまう）
+ */
+let hub: HubSession | null = null;
+let hubDecor: HubDecor[] = [];
+let hubBanner: string | null = null;
+let hubBannerTimer = 0;
+/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル */
+let menuReturn: "title" | "hub" = "title";
+const departLatch = createHoldLatch();
+
+function hubSource(): ReturnType<typeof hubProgressSource> {
+  return hubProgressSource(profile, skillProfile, codexSave, achievementSave, questSave);
+}
+
+/** 拠点へ入る。毎回作り直す（祭壇の試し打ちや木人の状態は持ち越さない） */
+function openHub(): void {
+  const src = hubSource();
+  const built = builtFacilities(src);
+  const hubSave = loadHub();
+  hubBanner = facilityBuiltBanner(newlyBuilt(built, hubSave));
+  hubBannerTimer = hubBanner === null ? 0 : HUB.bannerSeconds;
+  saveHub(markFacilitiesSeen(hubSave, built));
+  hub = createHub(profile, skillProfile, availableSpots(built));
+  inventoryUi.open = false;
+  returnToHub();
+}
+
+/** ラン後に拠点へ戻る。次の出撃が同じ迷宮にならないよう、シードを新しくする（死亡画面の R と同じ扱い） */
+function openHubAfterRun(): void {
+  committedSeedText = randomSeedText();
+  seedInput.text = committedSeedText;
+  syncSeedUrl(committedSeedText);
+  openHub();
+}
+
+/** 設備の画面から拠点へ戻る。拠点の state はそのまま */
+function returnToHub(): void {
+  if (!hub) {
+    openHub();
+    return;
+  }
+  // 実績の画面で称号を名乗り替えると看板が変わる
+  hubDecor = hubDecorations(hubSource());
+  resetHoldLatch(departLatch);
+  menuReturn = "hub";
+  screen = "hub";
+}
+
+/** 起点画面・一覧画面・履歴の Esc */
+function leaveMenu(): void {
+  if (menuReturn === "hub") {
+    returnToHub();
+    return;
+  }
+  screen = "title";
+}
+
+function leaveHub(): void {
+  hub = null;
+  inventoryUi.open = false;
+  menuReturn = "title";
+  screen = "title";
+}
+
+function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): void {
+  const open = hubOpenFor(spot);
+  sfx.play("uiClick");
+  if (open.kind === "inventory") {
+    openInventoryAt(session.state, inventoryUi, open.tab, open.bud);
+    return;
+  }
+  if (open.kind === "altar") {
+    openAltar(session, frame.move.x, frame.move.y);
+    return;
+  }
+  menuReturn = "hub";
+  if (open.screen === "origin") openOrigin(committedSeedText, frame.move.x, frame.move.y);
+  else if (open.screen === "history") openHistory();
+  else openListScreen(open.screen, frame.move.x, frame.move.y);
+}
+
+function tickHubBanner(dt: number): void {
+  if (hubBannerTimer <= 0) return;
+  hubBannerTimer = Math.max(0, hubBannerTimer - dt);
+  if (hubBannerTimer === 0) hubBanner = null;
+}
+
+function updateHubFrame(session: HubSession, frame: FrameInput, escape: boolean, dt: number): void {
+  tickHubBanner(dt);
+  // 装備画面は stepHub より前に処理する（開いている間は paused で拠点の時間が止まる。Tab は拠点でも使える）
+  updateInventoryUi(session.state, inventoryUi, frame, dt);
+  if (inventoryUi.open) {
+    // 装備画面で押した Enter を、閉じた後の出撃の長押しに数えない
+    resetHoldLatch(departLatch);
+    if (escape) {
+      inventoryUi.open = false;
+      session.state.paused = false;
+    }
+    drainSfx(session.state);
+    drainEchoes(session.state);
+    return;
+  }
+  if (escape) {
+    sfx.play("uiClose");
+    leaveHub();
+    return;
+  }
+  const action = stepHub(session, frame, dt, latchedHold(departLatch, input.confirmHeld()));
+  drainSfx(session.state);
+  drainEchoes(session.state);
+  if (action.kind === "open") {
+    openHubSpot(action.spot, session, frame);
+    return;
+  }
+  if (action.kind !== "depart") return;
+  // 即出撃: 前回の支度（runSetup）と保存中の依頼のまま始める
+  sfx.play("uiClick");
+  beginRun(committedSeedText);
+}
+
+function openAltar(session: HubSession, frameMoveX: number, frameMoveY: number): void {
+  screen = "altar";
+  listUi = createListScreen();
+  listTabs = altarTabs(session.hub.trialKeystone);
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    returnToHub();
+    return;
+  }
+  if (stepListInput(frame, arrowX, arrowY) !== "activate") return;
+  const entry = listCursorEntry(listUi, listTabs);
+  if (!entry) return;
+  setTrialKeystone(session, trialKeyOfEntry(entry.key));
+  listTabs = altarTabs(session.hub.trialKeystone);
+  sfx.play("uiClick");
+}
+
+function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
+  const s = session.state;
+  renderGame(s, inventoryUi.open ? null : lastAim);
+  drawSkillHud(ctx, s);
+  const { ox, oy } = hubScreenOffset(s);
+  const h = session.hub;
+  drawHubOverlay(
+    ctx,
+    s,
+    { spots: h.layout.spots, available: h.available, near: h.near, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner },
+    ox,
+    oy,
+  );
+  if (!inventoryUi.open) drawBudUi(ctx, s);
+  if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
 }
 
 /** 記録器を通して step する。記録中でなければそのまま */
@@ -653,10 +838,16 @@ function questDoneInRun(s: GameState): boolean {
 
 /**
  * 音楽の切り替え（src/audio/music.ts）。state は音楽を知らないので、ここで state を読んで曲を選ぶ。
- * ラン中の画面（プレイ・一時停止・設定・装備画面）は鳴らし続け、タイトル系・死亡後は止める
+ * ラン中の画面（プレイ・一時停止・設定・装備画面）と拠点は鳴らし続け、タイトル系・死亡後は止める
  */
 const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay"]);
+/** 拠点の画面。ランの state は無いので、拠点の曲だけを流す */
+const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar"]);
 function updateMusic(): void {
+  if (hub && MUSIC_HUB_SCREENS.has(screen)) {
+    music.update(musicCue({ inRun: true, hub: true, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
+    return;
+  }
   const s = screen === "replay" ? (replay?.session.state ?? null) : state;
   const inRun = s !== null && s.status !== "dead" && MUSIC_RUN_SCREENS.has(screen);
   if (!s || !inRun) {
@@ -721,7 +912,8 @@ function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
  */
 let cursorVisible = false;
 function updateCursorVisibility(cur: GameState | null): void {
-  const wantVisible = inventoryUi.open || screen !== "playing" || cur?.boonChoice != null;
+  const inWorld = screen === "playing" || screen === "hub";
+  const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null;
   if (wantVisible === cursorVisible) return;
   cursorVisible = wantVisible;
   canvas.style.cursor = wantVisible ? "default" : "none";
@@ -729,11 +921,11 @@ function updateCursorVisibility(cur: GameState | null): void {
 
 startLoop(
   (dt) => {
-    const frame = input.snapshot(state?.camera.offset);
+    const frame = input.snapshot((state ?? hub?.state)?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
     // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する。
     // ただしプレイ中（装備画面を閉じている間）は B がダッシュと共用なので、ポーズは Start だけで開く
-    const padInGame = screen === "playing" && !inventoryUi.open;
+    const padInGame = (screen === "playing" || screen === "hub") && !inventoryUi.open;
     if (padInGame ? gamepad.pausePressed() : input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
     updateMusic();
@@ -764,11 +956,13 @@ startLoop(
         }
         if (hotkeys.h) {
           sfx.play("uiClick");
+          menuReturn = "title";
           openHistory();
           break;
         }
         if (hotkeys.d) {
           sfx.play("uiClick");
+          menuReturn = "title";
           openOrigin(dailySeedText(new Date()), frame.move.x, frame.move.y);
           break;
         }
@@ -783,13 +977,32 @@ startLoop(
         const menuItem = titleMenuHotkey(hotkeys) ?? clickedMenu;
         if (menuItem) {
           sfx.play("uiClick");
-          openListScreen(menuItem, frame.move.x, frame.move.y);
+          menuReturn = "title";
+          openListScreen(TITLE_MENU_SCREEN[menuItem], frame.move.x, frame.move.y);
           break;
         }
         if (frame.confirmPressed || frame.clickPressed) {
           sfx.play("uiClick");
-          openOrigin(committedSeedText, frame.move.x, frame.move.y);
+          openHub();
         }
+        break;
+      }
+
+      case "hub": {
+        if (!hub) {
+          screen = "title";
+          break;
+        }
+        updateHubFrame(hub, frame, hotkeys.escape, dt);
+        break;
+      }
+
+      case "altar": {
+        if (!hub) {
+          screen = "title";
+          break;
+        }
+        updateAltarFrame(hub, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
         break;
       }
 
@@ -816,7 +1029,7 @@ startLoop(
           if (historyMessageTimer === 0) historyMessage = "";
         }
         if (hotkeys.escape) {
-          screen = "title";
+          leaveMenu();
           break;
         }
         const history = profile.meta.history ?? [];
@@ -1044,7 +1257,7 @@ startLoop(
             endRun(cur);
             cur.paused = false;
             state = null;
-            screen = "title";
+            openHubAfterRun();
           }
         };
 
@@ -1118,7 +1331,7 @@ startLoop(
           if (hotkeys.t) {
             endRun(cur);
             state = null;
-            screen = "title";
+            openHubAfterRun();
             break;
           }
           if (deathConfirmPressed(frame, cur.deathTimer)) beginRun(cur.seedText);
@@ -1147,6 +1360,16 @@ startLoop(
 
     if (screen === "title") {
       drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "hub" && hub) {
+      drawHubScreen(ctx, hub);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "altar") {
+      drawListScreen(ctx, { title: ALTAR_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: ALTAR_HINT });
       drawGamepadConnectedHint(ctx);
       return;
     }

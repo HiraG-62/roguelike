@@ -276,6 +276,8 @@ export interface EnemyAi {
   roam?: Vec;
   /** 徘徊で進めていない秒（詰まったら目的地を選び直す） */
   roamStuck?: number;
+  /** 盗賊王: 追い詰められている秒（src/system/bossThiefKing.ts） */
+  cornered?: number;
 }
 
 export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall";
@@ -635,6 +637,8 @@ export interface GameState {
   effects?: EffectsState;
   /** 死亡時の recordRun を 1 回だけにする */
   runRecorded: boolean;
+  /** 拠点の state。来歴・石の使い込み・ラン記録・ドロップへ書かない（src/system/hub.ts） */
+  sandbox?: true;
   /** スキル（永続の石 + ラン内の CD・刻印符・発動中状態）。docs/ideas/skills.md */
   skills: SkillRunState;
   hazards: Hazard[];

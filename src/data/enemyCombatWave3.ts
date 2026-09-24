@@ -272,6 +272,24 @@ export const WAVE3_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     ],
     immune: BOSS_IMMUNE,
   },
+  thiefKing: {
+    poise: 260,
+    staggerTime: 2,
+    superArmorMul: 0.5,
+    keywords: kw(["elite", "bullet", "explode", "placed"], ["chill", "wall"]),
+    inflicts: [
+      { on: "bullet", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY },
+      { on: "bomb", kind: "weaken", stacks: 1, duration: 3, potency: 0 },
+    ],
+    immune: BOSS_IMMUNE,
+  },
+  thief: {
+    poise: 18,
+    staggerTime: 0.6,
+    superArmorMul: 1,
+    keywords: kw(["melee"], ["chill"]),
+    inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 3, potency: BLEED_POTENCY }],
+  },
   mirrorImage: { poise: 20, staggerTime: 0.5, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   reaperShade: {
     poise: 10,

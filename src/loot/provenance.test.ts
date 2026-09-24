@@ -3,6 +3,7 @@ import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
 import { damagePlayer } from "../system/combat";
 import { chooseBud } from "../system/loot";
+import { ascend, buildFloor } from "../system/floor";
 import { traitColorOf } from "./colors";
 import { generateItem } from "./generator";
 import { engraveName } from "./names";
@@ -178,5 +179,35 @@ describe("銘", () => {
     expect(engraveName(p, 0)).toBe("王殺しの不屈");
     expect(engraveName({ ...createEmptyProvenance(), justDodges: 5 }, 0)).toBe("見切り");
     expect(engraveName(createEmptyProvenance(), 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe("帰還の節目（2026-09-24 第 4 弾）", () => {
+  it("帰還の出来事で returns が積もり、最初の帰還で芽が 1 つ出る", () => {
+    const state = createGame(1, "1", profileWith(weapon(21, 3)));
+    recordProvenance(state, { kind: "returned" });
+    const item = state.profile.equipment.weapon;
+    expect(item?.provenance?.returns).toBe(1);
+    expect(item?.budOffer?.milestone, "帰還の節目の芽").toBe("returns:1");
+    expect(state.pendingBud?.milestone).toBe("returns:1");
+    expect(milestoneDef("returns:1")?.label).toBe("帰還 1");
+  });
+
+  it("上り階段で戻る（ascend）と装備中の遺物に帰還が積もる", () => {
+    const state = createGame(5, "5", profileWith(weapon(22, 3)));
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    expect(state.profile.equipment.weapon?.provenance?.returns).toBe(1);
+    expect(state.profile.equipment.weapon?.milestones).toContain("returns:1");
+  });
+
+  it("旧セーブの来歴（returns 無し）は 0 で補われる", () => {
+    const { returns: _r, ...old } = createEmptyProvenance();
+    const item = weapon(23, 3);
+    item.provenance = old as ReturnType<typeof createEmptyProvenance>;
+    offerNextBud(item);
+    expect(item.provenance.returns).toBe(0);
   });
 });

@@ -1515,6 +1515,45 @@ const W3_MKNIGHT_B: Frame = [
   "....kkk....kkk..",
 ];
 
+// 盗賊王（2026-09-24 第 4 弾）: 王冠をかぶった頭巾の盗賊。背に盗品の袋、手に短剣
+const W4_THIEFKING_A: Frame = [
+  "................",
+  ".....k.k.k......",
+  "....kykykyk.....",
+  "....kyyyyyk.....",
+  "...kAAAAAAAk....",
+  "...kAntttnAk....",
+  "...kAt1tt1tk....",
+  "...kAnTTTnAk....",
+  "..kk9AAAAA9kk...",
+  ".kUXk99999kKKk..",
+  ".kUUk9r9r9kKsk..",
+  ".kXXk99999kkSk..",
+  "..kkkK999Kk.k...",
+  "....kKk.kKk.....",
+  "....k9k..k9k....",
+  "....kk....kk....",
+];
+
+const W4_THIEFKING_B: Frame = [
+  "................",
+  ".....k.k.k......",
+  "....kykykyk.....",
+  "....kyyyyyk.....",
+  "...kAAAAAAAk....",
+  "...kAntttnAk....",
+  "...kAt1tt1tk....",
+  "...kAnTTTnAk....",
+  "..kk9AAAAA9kk...",
+  ".kUXk99999kKKk..",
+  ".kUUk9r9r9kKsk..",
+  ".kXXk99999kkSk..",
+  "..kkkK999Kk.k...",
+  ".....kKkKk......",
+  ".....k9k9k......",
+  ".....kk.kk......",
+];
+
 /** Wave 3 の敵のスプライト。再配色種（霜蛙・熔岩蛙など）は render/sprites.ts が元の絵から作る */
 const WAVE3_ENEMY_SPRITES: Record<string, SpriteFrames> = {
   mudman: walkCycle(W3_MUD_A, W3_MUD_B),
@@ -1544,6 +1583,7 @@ const WAVE3_ENEMY_SPRITES: Record<string, SpriteFrames> = {
   broodMother: walkCycle(W3_BROOD_A, W3_BROOD_B).map(upscale2x),
   librarian: [W3_LIBRARIAN_A, lift(W3_LIBRARIAN_A), W3_LIBRARIAN_B, lift(W3_LIBRARIAN_B)].map(upscale2x),
   mirrorKnight: walkCycle(W3_MKNIGHT_A, W3_MKNIGHT_B).map(upscale2x),
+  thiefKing: walkCycle(W4_THIEFKING_A, W4_THIEFKING_B).map(upscale2x),
 };
 
 /**

@@ -3,7 +3,7 @@ import type { Enemy, FloorKind, GameState, RoomState } from "../core/state";
 import { pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, sub } from "../core/vec";
 import { depthHpScale, enemyDef } from "../data/enemies";
-import { CONTRACT, FLOOR_KIND, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { CONTRACT, ELITE_GREEDY, FLOOR_KIND, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { type EchoWallet, createEchoWallet } from "../loot/crafting";
 import { inversionChance } from "../loot/flux";
 import { TILE_SIZE, inBounds, rectCenterPx, rectContainsPx, toIndex } from "../map/grid";
@@ -13,7 +13,11 @@ import { damageEnemy, damagePlayer, healPlayer, healSustained } from "./combat";
 import { type Infusion, gainShards, grantCurse, removeBoon } from "./contractors";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { engagedRoomIndex } from "./engagement";
-import { eliteKindsFor, makeElite, rollElite } from "./elites";
+import { carriedCount, eliteKindsFor, makeElite, rollElite } from "./elites";
+import { createEnemy } from "./enemies";
+import { spawnSpot } from "./enemyTraits";
+import { ROAMING_ROOM } from "./spawner";
+import type { FloorItem } from "../loot/types";
 import { type Impact, pushImpact, updateImpacts } from "./impacts";
 import { type LingerState, createLingerState, resetLinger, updateLinger } from "./linger";
 import { dropBonusReward, dropItem } from "./loot";
@@ -62,6 +66,8 @@ export const RUN_EVENT_KEYS = [
   "bats",
   "lifeFlow",
   "boonReroll",
+  // ---- 2026-09-24 第 4 弾 ----
+  "thiefChase",
 ] as const;
 export type RunEventKey = (typeof RUN_EVENT_KEYS)[number];
 
@@ -103,6 +109,7 @@ export const RUN_EVENTS: Readonly<Record<RunEventKey, RunEventDef>> = {
   bats: { name: "蝙蝠の渡り", warn: "羽音が近づく", active: "蝙蝠の渡り: 倒すと気力が戻る", scope: "room" },
   lifeFlow: { name: "生命の逆流", warn: "脈が逆に打つ", active: "生命の逆流: 回復が気力に、気力が生命に", scope: "floor" },
   boonReroll: { name: "流れ星", warn: "星が流れる", active: "流れ星: 祝福を 1 つ引き直す", scope: "room" },
+  thiefChase: { name: "盗賊の追跡", warn: "床の遺物を狙う影がある", active: "盗賊の追跡: 倒せば奪われた遺物が倍になる", scope: "room" },
 };
 
 export interface ActiveRunEvent {
@@ -113,7 +120,7 @@ export interface ActiveRunEvent {
   /** active の長さ（Infinity は制圧・撃破まで） */
   duration: number;
   roomIndex: number;
-  /** 賞金首・決闘の敵 id */
+  /** 賞金首・決闘・盗賊の敵 id（盗賊の追跡は予告の間だけ狙う床の遺物の id） */
   targetId: number;
   /** 刻の裂け目の位置・賞金首の最後の位置・氾濫の源・死神の通り道の線の中心 */
   pos: Vec | null;
@@ -123,7 +130,7 @@ export interface ActiveRunEvent {
   tick: number;
   /** 属性の嵐の属性 */
   element: Element | null;
-  /** 汎用の記録（呪詛の声の最高コンボ・氾濫の地形・決闘の決着・通り道の当たり・鈍重の前ステップのダッシュ） */
+  /** 汎用の記録（呪詛の声の最高コンボ・氾濫の地形・決闘の決着・通り道の当たり・鈍重の前ステップのダッシュ・盗賊が抱えた数） */
   memo: number;
   /** 静寂・生命の逆流の前ステップの生命と気力 */
   prevHp: number;
@@ -234,9 +241,10 @@ export function scheduleRunEvent(state: GameState, key: RunEventKey, roomIndex: 
 
 const INFUSE_ELEMENTS: readonly Element[] = ELEMENTS.filter((e) => e !== "none");
 
-/** 予告の間に見せる物を先に決める（死神の通り道の線・属性の嵐の属性） */
+/** 予告の間に見せる物を先に決める（死神の通り道の線・属性の嵐の属性・盗賊の狙う遺物） */
 function prepareWarn(state: GameState, ev: ActiveRunEvent): void {
   if (ev.key === "elementStorm") ev.element = state.rng.pick(INFUSE_ELEMENTS);
+  if (ev.key === "thiefChase") markThiefTarget(state, ev);
   if (ev.key !== "reaperPass") return;
   const horizontal = state.rng.chance(0.5);
   const sign = state.rng.chance(0.5) ? 1 : -1;
@@ -265,6 +273,8 @@ function eventAllowed(state: GameState, key: RunEventKey, roomIndex: number): bo
       return !state.reaper && state.floorTime >= reaperAppearAfter(state) * RUN_EVENT.reaperPass.minRatio;
     case "echoVein":
       return biomeShape(state.floorKind) === "cave";
+    case "thiefChase":
+      return thiefTargetItem(state) !== null;
     default:
       return true;
   }
@@ -449,6 +459,7 @@ function tickEvent(state: GameState, current: ActiveRunEvent, dt: number): void 
 function endEvent(state: GameState, current: ActiveRunEvent): void {
   const ev = state.runEvents;
   if (current.key === "reaperPass" && current.phase === "active") finishReaperPass(state);
+  if (current.key === "thiefChase" && current.phase === "active") thiefEscapes(state, current);
   if (ev.room === current) {
     ev.room = null;
     ev.cooldown = RUN_EVENT.cooldown;
@@ -651,6 +662,10 @@ function activateWave2(state: GameState, current: ActiveRunEvent): void {
       current.duration = INSTANT;
       rerollBoon(state);
       return;
+    case "thiefChase":
+      current.duration = RUN_EVENT.thief.duration;
+      releaseThief(state, current);
+      return;
     default:
       return;
   }
@@ -700,6 +715,9 @@ function tickActive(state: GameState, current: ActiveRunEvent, dt: number): void
     case "lifeFlow":
       tickLifeFlow(state, current);
       return;
+    case "thiefChase":
+      tickThief(state, current);
+      return;
     default:
       return;
   }
@@ -709,8 +727,8 @@ function tickActive(state: GameState, current: ActiveRunEvent, dt: number): void
 function finishRoomEvent(state: GameState, current: ActiveRunEvent, room: RoomState, cleared: boolean): void {
   const center = rectCenterPx(room.rect);
   if (current.phase === "active" && cleared) rewardRoomEvent(state, current, center);
-  // 勢いの風は次の部屋で使うので、制圧では消さない。死神の通り道・蝙蝠は部屋に縛られない
-  if (current.key === "momentum" || current.key === "reaperPass" || current.key === "bats") return;
+  // 勢いの風は次の部屋で使うので、制圧では消さない。死神の通り道・蝙蝠・盗賊は部屋に縛られない
+  if (current.key === "momentum" || current.key === "reaperPass" || current.key === "bats" || current.key === "thiefChase") return;
   endEvent(state, current);
 }
 
@@ -1112,6 +1130,96 @@ function rerollBoon(state: GameState): void {
   if (!key || (state.boonChoice && state.boonChoice !== before)) return;
   state.boons.splice(at, 0, key);
   applyBoonsToStats(state);
+}
+
+// ---- 第 4 弾: 盗賊の追跡 ----
+
+/** 盗賊が狙える床の遺物: プレイヤーから searchRadius 以内で最も近いもの（床の並びは落ちた順なので決定的） */
+function thiefTargetItem(state: GameState): FloorItem | null {
+  const p = state.player.body.pos;
+  let best: FloorItem | null = null;
+  let bestD: number = RUN_EVENT.thief.searchRadius;
+  for (const f of state.floorItems) {
+    const d = Math.hypot(f.pos.x - p.x, f.pos.y - p.y);
+    if (d > bestD) continue;
+    best = f;
+    bestD = d;
+  }
+  return best;
+}
+
+const THIEF_WARN_TEXT = "狙われている";
+const THIEF_KEY = "thief";
+const THIEF_ESCAPE_PARTICLES = 14;
+const THIEF_ESCAPE_SPEED = 90;
+const THIEF_ESCAPE_LIFE = 0.4;
+
+/** 予告: 狙われる遺物を決めて印を出す（予告の間に拾えば盗賊は来ない） */
+function markThiefTarget(state: GameState, ev: ActiveRunEvent): void {
+  const item = thiefTargetItem(state);
+  if (!item) return;
+  ev.targetId = item.id;
+  ev.pos = { ...item.pos };
+  addFloatingText(state, { x: item.pos.x, y: item.pos.y - TEXT_LIFT }, THIEF_WARN_TEXT, RUN_EVENT.thief.color, 1, RUN_EVENT.warnTime);
+}
+
+/** 始まり: 狙った遺物の向こう側に強欲のの盗賊が湧く（出現の魔法陣が予告）。遺物が拾われていれば来ない */
+function releaseThief(state: GameState, current: ActiveRunEvent): void {
+  const item = state.floorItems.find((f) => f.id === current.targetId);
+  if (!item) {
+    current.duration = 0;
+    current.targetId = -1;
+    pushLog(state, "盗賊は諦めて去った。", RUN_EVENT.activeColor);
+    return;
+  }
+  const def = enemyDef(THIEF_KEY);
+  const away = normalize(sub(item.pos, state.player.body.pos), { x: 1, y: 0 });
+  const want = { x: item.pos.x + away.x * RUN_EVENT.thief.spawnOffset, y: item.pos.y + away.y * RUN_EVENT.thief.spawnOffset };
+  const thief = createEnemy(state, def, spawnSpot(state, want, item.pos, def.radius), ROAMING_ROOM, true);
+  makeElite(thief, "greedy");
+  state.enemies.push(thief);
+  current.target = thief;
+  current.targetId = thief.id;
+  current.memo = 0;
+  pushLog(state, "盗賊が遺物を狙って現れた。", RUN_EVENT.activeColor);
+}
+
+/** 追跡中: 抱えた数を覚える。倒されたら抱えた数だけ追加で落とす（抱えた物そのものは強欲のの撃破で落ちる） */
+function tickThief(state: GameState, current: ActiveRunEvent): void {
+  const thief = current.target;
+  if (!thief) return;
+  if (thief.hp > 0 && state.enemies.includes(thief)) {
+    current.memo = Math.max(current.memo, carriedCount(thief));
+    current.pos = { ...thief.body.pos };
+    return;
+  }
+  current.duration = 0;
+  if (thief.vanished) return;
+  // 強欲のは撃破で抱えた物 + bonusDrops 個を落とすので、残りを足して「倍」にする
+  const extra = Math.max(0, current.memo - ELITE_GREEDY.bonusDrops);
+  const pos = current.pos ?? thief.body.pos;
+  for (let i = 0; i < extra; i++) dropItem(state, pos, RUN_EVENT.thief.rarityBoost);
+  if (current.memo > 0) pushLog(state, "盗賊を仕留めた。奪われた遺物が倍になって戻った。", RUN_EVENT.activeColor);
+}
+
+/**
+ * 逃げ切られた: 盗賊は消え、抱えていた物だけはその場に捨てていく（永続の装備を敵に持ち去らせない。
+ * 強欲のは消えても抱えた物を落とす: elites.ts の onEliteDeath）。倍の褒美は無い
+ */
+function thiefEscapes(state: GameState, current: ActiveRunEvent): void {
+  const thief = current.target;
+  if (!thief || thief.hp <= 0 || !state.enemies.includes(thief)) return;
+  thief.vanished = true;
+  thief.hp = 0;
+  spawnBurst(state, thief.body.pos, RUN_EVENT.thief.color, THIEF_ESCAPE_PARTICLES, THIEF_ESCAPE_SPEED, THIEF_ESCAPE_LIFE, 2);
+  pushSfx(state, "smokeBomb");
+  pushLog(state, "盗賊に逃げられた。荷物だけは捨てていった。", RUN_EVENT.warnColor);
+}
+
+/** 盗賊の追跡の盗賊（描画の印・テスト用。起きていなければ -1） */
+export function thiefTargetId(state: GameState): number {
+  const r = state.runEvents.room;
+  return r?.key === "thiefChase" && r.phase === "active" && r.target && r.target.hp > 0 ? r.targetId : -1;
 }
 
 /** プレイヤーが立っている部屋（通路なら -1） */

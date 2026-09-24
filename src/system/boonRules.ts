@@ -14,8 +14,8 @@ import { type EnemyBehavior, enemyDef } from "../data/enemies";
 import { ACTION, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource } from "../skills/types";
-import { boonNormalAttackBonus, hasBoon, offerBoons } from "./boons";
-import { damageEnemy, gainEnergy, healPlayer, healSustained, rollOutgoing } from "./combat";
+import { boonNormalAttackBonus, hasBoon } from "./boons";
+import { damageEnemy, gainEnergy, healSustained, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { engagedRoomIndex } from "./engagement";
 import { scaled } from "./attributes";
@@ -23,8 +23,6 @@ import { gainMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { shotDamage } from "./player";
 import { addPoise, isStaggered } from "./poise";
-import { reaperWarning } from "./reaper";
-import { dropRune } from "./skills";
 import { ROAMING_ROOM } from "./spawner";
 import {
   applyBurn,
@@ -111,7 +109,6 @@ export interface BoonRuleState {
   /** 落雷予告 / 神経断ち: 前ステップに麻痺していた敵 */
   paralyzedIds: number[];
   marks: ThunderMark[];
-  chargedBladeCd: number;
   /** 雷神の鼓の連鎖中（連鎖のコンボで再び鳴らない） */
   drumActive: boolean;
   lastCastResource: SkillResource | null;
@@ -137,8 +134,6 @@ export interface BoonRuleState {
   /** 持ち越し: 次の封鎖までコンボを保つ */
   carryCombo: boolean;
   karmaCd: number;
-  /** 臨界: バースト後、ゲージが空でも過充填の爆発が起きる残り秒 */
-  criticalTimer: number;
   // ---- 第 2 弾 ----
   /** 倒れた徘徊の敵 id → 覚えておく残り秒（条件 targetRoamer。撃破の照合は敵が配列から消えた後に起きる） */
   roamerKills: Map<number, number>;
@@ -166,7 +161,6 @@ export function createBoonRuleState(): BoonRuleState {
     wildfireCd: 0,
     paralyzedIds: [],
     marks: [],
-    chargedBladeCd: 0,
     drumActive: false,
     lastCastResource: null,
     castRewarded: false,
@@ -185,7 +179,6 @@ export function createBoonRuleState(): BoonRuleState {
     reaperDelay: 0,
     carryCombo: false,
     karmaCd: 0,
-    criticalTimer: 0,
     roamerKills: new Map(),
     lastCastSlot: -1,
     overflow: 0,
@@ -296,7 +289,6 @@ export function updateBoonRules(state: GameState, dt: number): void {
 function tickRuleTimers(r: BoonRuleState, dt: number): void {
   r.recallCd = Math.max(0, r.recallCd - dt);
   r.wildfireCd = Math.max(0, r.wildfireCd - dt);
-  r.chargedBladeCd = Math.max(0, r.chargedBladeCd - dt);
   r.newMoonTimer = Math.max(0, r.newMoonTimer - dt);
   r.eclipseTimer = Math.max(0, r.eclipseTimer - dt);
   r.mirrorTimer = Math.max(0, r.mirrorTimer - dt);
@@ -304,7 +296,6 @@ function tickRuleTimers(r: BoonRuleState, dt: number): void {
   r.fullMoonTimer = Math.max(0, r.fullMoonTimer - dt);
   r.reaperStun = Math.max(0, r.reaperStun - dt);
   r.karmaCd = Math.max(0, r.karmaCd - dt);
-  r.criticalTimer = Math.max(0, r.criticalTimer - dt);
   tickMap(r.wakeup, dt);
   tickMap(r.trailIcd, dt);
   tickMap(r.roamerKills, dt);
@@ -561,25 +552,14 @@ export function onBoonDashRules(state: GameState): void {
   rules(state).dashHits = [];
 }
 
-/** ダッシュ終了: 雷爆走（爆走の爆発に感電を重ねる） */
-export function onBoonDashEndRules(state: GameState): void {
-  if (!hasBoon(state, "thunderBlast")) return;
-  const p = state.player.body.pos;
-  for (const e of enemiesInRadius(state, p, BOON.dashBlastRadius)) {
-    inflict(state, e, "shock", STATUS.shock.duration, BOON.thunderBlastStacks, shockPotency(state));
-  }
-}
-
-/** 近接 1 ヒットの後（counter = カウンターヒット） */
-export function onBoonMeleeHitRules(state: GameState, e: Enemy, counter: boolean): void {
+/**
+ * 近接 1 ヒットの後。燠火・帯電の刃・狩りの血・看破（カウンター）・満ち潮・過充填・臨界は
+ * BoonDef.rules（onSwingHit / onCounter）へ移した。ここに残るのは祝福内部の状態を持つものと、弾の命中と ICD を分け合う延焼
+ */
+export function onBoonMeleeHitRules(state: GameState, e: Enemy, _counter = false): void {
   trackAppraise(state, e);
-  if (hasBoon(state, "embers")) extendBurn(e);
   if (hasBoon(state, "wildfire")) spreadWildfire(state, e);
-  if (hasBoon(state, "chargedBlade")) chargedBlade(state, e);
-  if (hasBoon(state, "huntBleed") && hasStatus(e.status, "bleed")) inflict(state, e, "fear", BOON.huntFearTime);
-  if (counter && hasBoon(state, "insight")) inflict(state, e, "vulnerable", STATUS.vulnerable.duration);
   meleeBurn(state, e);
-  highTide(state);
   fillOverflow(state);
 }
 
@@ -609,13 +589,6 @@ function trackAppraise(state: GameState, e: Enemy): void {
   if (combo === LAST_COMBO && a.targetId === e.id) a.stage = 0;
 }
 
-/** 燠火: 燃焼の残り時間を延ばす（付与時の持続まで） */
-function extendBurn(e: Enemy): void {
-  const burn = findStatus(e.status, "burn");
-  if (!burn) return;
-  burn.time = Math.min(burn.maxTime, burn.time + BOON.embersExtend);
-}
-
 /** 延焼: 燃焼中の敵に当てると周囲へ燃焼を移す（全体で ICD） */
 function spreadWildfire(state: GameState, e: Enemy): void {
   const r = rules(state);
@@ -629,15 +602,6 @@ function spreadWildfire(state: GameState, e: Enemy): void {
   spawnRing(state, e.body.pos, BOON.wildfireRadius, STATUS.burnColor, STATUS.fxLife);
 }
 
-/** 帯電の刃: 感電中の敵から連鎖雷 */
-function chargedBlade(state: GameState, e: Enemy): void {
-  const r = rules(state);
-  const shock = findStatus(e.status, "shock");
-  if (!shock || r.chargedBladeCd > 0) return;
-  r.chargedBladeCd = BOON.chargedBladeIcd;
-  chainLightning(state, e.body.pos, shock.potency, e.id);
-}
-
 /** 火種（3 段目）と灰積もり（拾った灰 1 つで次の近接 1 回）の燃焼 */
 function meleeBurn(state: GameState, e: Enemy): void {
   const p = state.player;
@@ -649,28 +613,19 @@ function meleeBurn(state: GameState, e: Enemy): void {
   applyBurn(state, e, emberDps(state) * (ash ? BOON.ashBurnMul : 1), STATUS.burnDuration);
 }
 
-/** 満ち潮: マナ満タンの間、通常攻撃の命中で必殺ゲージ */
+/** 満ち潮: マナ満タンの間、射撃の命中で必殺ゲージ（近接の命中は BoonDef.rules の onSwingHit） */
 function highTide(state: GameState): void {
   if (!hasBoon(state, "highTide") || !manaFull(state)) return;
   gainEnergy(state, BOON.highTideEnergy);
 }
 
-/** 撃破時（boons.ts の onBoonKill の先頭から。回復系の祝福より前の HP / マナを見る） */
+/**
+ * 撃破時（boons.ts の onBoonKill の先頭から。回復系の祝福より前の HP / マナを見る）。
+ * 威圧・綻び広げ・立て直しの狩り・取り返し・死神の影・死に急ぎは BoonDef.rules（onKill）へ移した
+ */
 export function onBoonKillRules(state: GameState, enemy: Enemy): void {
   if (enemy.roomIndex === ROAMING_ROOM) rules(state).roamerKills.set(enemy.id, BOON.roamerKillMemory);
   feastCup(state);
-  if (hasBoon(state, "intimidate") && killedByFinisher(state, enemy)) intimidate(state, enemy);
-  if (hasBoon(state, "frayWiden")) frayWiden(state, enemy);
-  if (hasBoon(state, "regroupHunt") && hasStatus(enemy.status, "guarded")) {
-    const p = state.player;
-    p.energy = Math.min(p.maxEnergy, p.energy + p.maxEnergy * BOON.regroupEnergyRatio);
-  }
-  if (hasBoon(state, "takeBack")) takeBack(state);
-  if (hasBoon(state, "reaperShadow") && (state.reaper !== null || reaperWarning(state))) reaperShadow(state);
-  if (hasBoon(state, "deathRush")) {
-    const p = state.player;
-    p.invulnTimer = Math.max(p.invulnTimer, BOON.deathRushInvuln);
-  }
   if (hasBoon(state, "usurp") && hasStatus(enemy.status, "weaken")) rules(state).usurpCharges = 1;
   if (hasBoon(state, "ashBed") && hasStatus(enemy.status, "burn")) leaveAsh(state, enemy.body.pos);
 }
@@ -683,46 +638,6 @@ function feastCup(state: GameState): void {
   const full = manaFull(state);
   if (hpFull) gainMana(state, BOON.reaperCupKillMana);
   if (full) healSustained(state, BOON.feastHeal, { silent: true });
-}
-
-/** 近接 3 段目の振りで倒したか（ダッシュ攻撃は除く） */
-function killedByFinisher(state: GameState, enemy: Enemy): boolean {
-  const p = state.player;
-  const a = p.attack;
-  return a.phase === "active" && a.combo === LAST_COMBO && !p.dashStrike && a.hitIds.has(enemy.id);
-}
-
-function intimidate(state: GameState, enemy: Enemy): void {
-  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.intimidateRadius)) {
-    if (e.id !== enemy.id) inflict(state, e, "fear", BOON.intimidateTime);
-  }
-  spawnRing(state, enemy.body.pos, BOON.intimidateRadius, BOON.ruleTextColor, STATUS.fxLife);
-}
-
-/** 綻び広げ: 脆弱を最も近い敵へ残り時間ごと移す */
-function frayWiden(state: GameState, enemy: Enemy): void {
-  const v = findStatus(enemy.status, "vulnerable");
-  if (!v) return;
-  const [next] = nearestEnemies(state, enemy.body.pos, BOON.frayRange, 1, enemy.id);
-  if (!next) return;
-  inflict(state, next, "vulnerable", v.time);
-  spawnLine(state, enemy.body.pos, next.body.pos, BOON.ruleTextColor, STATUS.fxLife);
-}
-
-/** 取り返し: リゲインの取り戻せる分を全て回復する */
-function takeBack(state: GameState): void {
-  const p = state.player;
-  if (p.regainTimer <= 0 || p.regainPool <= 0) return;
-  const pool = p.regainPool;
-  p.regainPool = 0;
-  p.regainStep = 0;
-  healPlayer(state, pool);
-}
-
-function reaperShadow(state: GameState): void {
-  const p = state.player;
-  gainMana(state, BOON.reaperShadowMana);
-  p.energy = Math.min(p.maxEnergy, p.energy + BOON.reaperShadowEnergy);
 }
 
 function leaveAsh(state: GameState, pos: Vec): void {
@@ -773,11 +688,10 @@ export function onBoonJustSteal(state: GameState): void {
 
 /**
  * ジャスト回避の後（一掃の後）。wiped = 回避一掃で消した敵弾の数。
- * 睨み・見切り返し・乾坤は BoonDef.rules（onJustDodge）へ移した
+ * 睨み・見切り返し・乾坤・永冬は BoonDef.rules（onJustDodge）へ移した
  */
 export function onBoonJustRules(state: GameState, wiped: number): void {
   if (hasBoon(state, "swallowReturn")) swallowReturn(state, wiped);
-  if (hasBoon(state, "eternalWinter")) eternalWinter(state);
   if (hasBoon(state, "clearMirror")) rules(state).mirrorTimer = BOON.mirrorWindow;
 }
 
@@ -794,16 +708,6 @@ function swallowReturn(state: GameState, wiped: number): void {
     from = { ...e.body.pos };
   }
   pushSfx(state, "counter");
-}
-
-/** 永冬: 周囲の敵を凍結（ボスは凍結しない。拘束上限は applyStatus が見る） */
-function eternalWinter(state: GameState): void {
-  const p = state.player.body.pos;
-  for (const e of enemiesInRadius(state, p, BOON.winterRadius)) {
-    if (enemyDef(e.defKey).boss) continue;
-    inflict(state, e, "freeze", STATUS.freeze.duration);
-  }
-  spawnRing(state, p, BOON.winterRadius, STATUS.chillColor, STATUS.fxLife);
 }
 
 /** コンボ加算の後: 雷神の鼓 */
@@ -823,39 +727,6 @@ export function onBoonComboHitRules(state: GameState): void {
   }
   r.drumActive = false;
   say(state, state.player.body.pos, "雷鼓", STATUS.shockColor);
-}
-
-/** 砕き: 砕氷の鐘（近くの凍結中の敵も砕く。砕けた敵は凍結が外れるので連鎖は必ず止まる） */
-export function onBoonShatterRules(state: GameState, enemy: Enemy): void {
-  if (!hasBoon(state, "shatterBell")) return;
-  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.bellRadius)) {
-    if (e.id === enemy.id || !hasStatus(e.status, "freeze")) continue;
-    hitProc(state, e, slashBase(state) * BOON.bellRatio, enemy.body.pos);
-  }
-}
-
-/** バーストの後: 臨界 / 焦土 / 換金 */
-export function onBoonBurstRules(state: GameState): void {
-  if (hasBoon(state, "criticalMass")) rules(state).criticalTimer = BOON.criticalWindow;
-  if (hasBoon(state, "scorchedEarth")) scorchedEarth(state);
-  if (hasBoon(state, "cashOut") && state.combo.count > 0) {
-    gainMana(state, state.combo.count * BOON.cashOutManaPerCombo);
-    state.combo.count = 0;
-    state.combo.timer = 0;
-  }
-}
-
-/** 焦土: 周囲の燃焼を起爆し、残りの燃焼ダメージ × scorchMul を即時に与える */
-function scorchedEarth(state: GameState): void {
-  const p = state.player.body.pos;
-  for (const e of enemiesInRadius(state, p, BOON.scorchRadius)) {
-    const burn = findStatus(e.status, "burn");
-    if (!burn) continue;
-    const amount = Math.round(burn.potency * burn.time * BOON.scorchMul);
-    removeStatus(state, { kind: "enemy", enemy: e }, "burn");
-    spawnBurst(state, e.body.pos, STATUS.burnColor, 10, 120, 0.4, 2);
-    if (amount > 0) damageEnemy(state, e, amount, sub(e.body.pos, p), 0, { hitstopSteps: 0 });
-  }
 }
 
 /** スキル発動（払った後）。resource が null なら種類不明（テストの直接呼び出し） */
@@ -982,28 +853,19 @@ export function boonRuleAttackManaMul(state: GameState): number {
   return mul;
 }
 
-/** 部屋の制圧: 試練の徒 / 伏兵返し / 時間稼ぎ / 持ち越し */
-export function onBoonRoomClearRules(state: GameState, room: RoomState | undefined): void {
+/** 部屋の制圧: 時間稼ぎ / 持ち越し。伏兵返し・試練の徒・狩場の王は BoonDef.rules（onRoomClear）へ移した */
+export function onBoonRoomClearRules(state: GameState): void {
   const r = rules(state);
   if (hasBoon(state, "stallTime") && state.reaper === null) r.reaperDelay += BOON.stallTimeDelay;
   if (hasBoon(state, "carryOver")) r.carryCombo = true;
-  if (!room) return;
-  if (room.kind === "ambush" && hasBoon(state, "ambushReturn")) dropRune(state, state.player.body.pos);
-  if (room.kind === "challenge" && hasBoon(state, "trialSeeker")) offerBoons(state);
-  if (WAVE_ROOMS.has(room.kind) && hasBoon(state, "huntLord")) huntLord(state);
 }
 
-/** 波で湧く部屋（巣窟の主・狩場の王が見る） */
+/** 波で湧く部屋（巣窟の主が見る。狩場の王は boonDefsWave2.ts の条件 eventTagIn に同じ並びを持つ） */
 const WAVE_ROOMS: ReadonlySet<RoomState["kind"]> = new Set<RoomState["kind"]>(["horde", "challenge", "arena"]);
 
-/** 狩場の王: この階の徘徊の敵すべてに脆弱と恐怖 */
-function huntLord(state: GameState): void {
-  for (const e of state.enemies) {
-    if (e.hp <= 0 || e.roomIndex !== ROAMING_ROOM) continue;
-    inflict(state, e, "vulnerable", STATUS.vulnerable.duration);
-    inflict(state, e, "fear", BOON.huntLordFear);
-  }
-  say(state, state.player.body.pos, "狩場", BOON.rarityColor.epic);
+/** 徘徊の敵か（どの部屋にも属さない。rules.ts の roomEnemies が読む。spawner を rules.ts から直に読むと初期化順の循環を起こす） */
+export function isRoamingEnemy(e: Enemy): boolean {
+  return e.roomIndex === ROAMING_ROOM;
 }
 
 /** 波が始まった（封鎖の最初の波は onBoonRoomLock、2 波目以降は floor.ts の updateLockedRoom から）。巣窟の主 */

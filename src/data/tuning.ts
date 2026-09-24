@@ -544,7 +544,9 @@ export const TERRAIN = {
   /** placeTerrain で置いた地形の既定の持続（秒）。0 は消えない */
   placedDuration: { none: 0, water: 8, oil: 10, lava: 6, bog: 6, ice: 6, grass: 0, fire: 3,
     /** 泥は泥人形の倒れた跡の 4 秒、煙は煤ゴブリンの爆発の跡の 3 秒（docs/ideas/enemies.md E2 / V10） */
-    mud: 4, smoke: 3 },
+    mud: 4, smoke: 3,
+    /** 崩れる床は地裂きの刻印符「地崩れ」の跡（TERRAIN_RUBBLE.duration で置くので既定値は予備） */
+    rubble: 5 },
   /** マップ生成時の配置 */
   gen: {
     patchesBase: 1,
@@ -580,6 +582,25 @@ export const TERRAIN_MUD_SMOKE = {
     puffColor: "#9a9aa4",
     puffParticles: 3,
   },
+} as const;
+
+/**
+ * 地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2。地裂きの刻印符「地崩れ」が作る）。
+ * 敵が fallDelay 秒乗り続けると床が抜け、乗っている敵に落下ダメージと怯み。プレイヤーは落ちない（自分の技で自分を罰しない）
+ */
+export const TERRAIN_RUBBLE = {
+  /** 置いてから崩れずに残る秒 */
+  duration: 5,
+  /** この秒乗り続けると抜ける（揺れが予告） */
+  fallDelay: 1,
+  /** 落下ダメージ（深度ごとに perDepth 倍ずつ伸びる） */
+  fallDamage: 14,
+  perDepth: 0.08,
+  /** 落ちた敵の怯み（秒）。ボスは怯ませず怯み値だけ入れる */
+  fallStagger: 1.2,
+  bossPoise: 60,
+  color: "#8a7a60",
+  particles: 10,
 } as const;
 
 /** 精鋭修飾子「強欲の」（docs/ideas/enemies.md M12）。src/system/elites.ts が読む */
@@ -879,7 +900,11 @@ export const LOOT_DROP = {
    * ことによる seed ごとの抽選結果の振れ（system/contractors.ts の boonsOwed 遅延、system/floor.ts の
    * fresh 判定追加）と見られる。経路の重複は見つからなかった
    */
-  mobDropMulByDepth: [0.25, 0.3, 0.24, 0.3],
+  /**
+   * QA 2026-09-24（0.0.11α 追報）: 全深度 ×0.8（0.0.7α 比 79.8% → 目標 60〜70%。
+   * 深度 1-2 到達率が 97〜100% と高く、深度 3 以降だけ絞っても効きが薄いため今回は深度 1-2 も含めて薄く絞る
+   */
+  mobDropMulByDepth: [0.2, 0.24, 0.19, 0.24],
   /**
    * 徘徊・増援（roomIndex = ROAMING_ROOM。開放型フロアの時間湧き）の通常敵に、さらに掛ける倍率。
    * 増援は時間とともに湧き続けるので、倒した数でドロップの母数が膨らまないよう絞る（エリートは掛けない）
@@ -896,7 +921,8 @@ export const LOOT_DROP = {
    * 開放型フロアは塊が多く制圧の回数が増えたので [0.35, 0.45, 0.55, 0.7] から下げた（QA 0.0.7α: 拾得数が前回比 1.5〜2.6 倍）
    */
   /** QA 2026-09-24（0.0.10α）: depth3=0.4→0.3、depth4以降=0.5→0.36。ドロップ率超過（88.7%）是正のため深度3以降を優先して絞る */
-  roomClearChanceByDepth: [0.3, 0.35, 0.3, 0.36],
+  /** QA 2026-09-24（0.0.11α 追報）: 全深度 ×0.8（理由は mobDropMulByDepth 参照。深度 1-2 も含めて薄く絞る） */
+  roomClearChanceByDepth: [0.24, 0.28, 0.24, 0.29],
   /** 階層到達の報酬が出る確率（旧: 常に 1 個。同上の理由で絞る） */
   depthArrivalChance: 0.8,
   /** itemLevel = depth + rng(0..spread) */
@@ -1439,6 +1465,49 @@ export const BOSS = {
     phase3Ratio: 0.3,
     color: "#c0e0ff",
   },
+  // ---- 2026-09-24 第 4 弾（docs/ideas/enemies.md B3。src/system/bossThiefKing.ts）----
+  /**
+   * 盗賊王: 第 1・2 段階は距離を取って逃げながら短剣・地雷・煙玉。追い詰める（逃げ道が壁で塞がり、
+   * プレイヤーが cornerRadius 以内にいる状態が cornerTime 秒続く）とダウン。第 3 段階は開き直って突進する
+   */
+  thiefKing: {
+    keepAway: 120,
+    /** 逃げ足（def.speed に掛ける）と、逃げた距離がこの割合を下回ったら「塞がれた」とみなす */
+    fleeSpeedMul: 1.1,
+    stuckRatio: 0.35,
+    cornerRadius: 80,
+    cornerTime: 1.2,
+    cornerStagger: 2.5,
+    cornerCooldown: 7,
+    knifeCount: 3,
+    rageKnifeCount: 5,
+    knifeSpreadDeg: 36,
+    knifeSpeed: 150,
+    knifeDamage: 9,
+    /** 短剣の予告の扇の届く距離 */
+    knifeRange: 120,
+    /** 地雷を放る数（段階 1 / 2 以降）・放る距離・影の秒・自分の地雷の上限 */
+    mineCount: 2,
+    mineCountLate: 3,
+    mineSpread: 40,
+    mineFall: 0.8,
+    mineMax: 6,
+    /** 煙玉: 自分の足元に投げる。影の秒・半径・炸裂のダメージ・煙の秒 */
+    smokeFall: 1,
+    smokeRadius: 36,
+    smokeDamage: 8,
+    smokeTime: 4,
+    /** 第 3 段階の突進 */
+    dashSpeedMul: 5.5,
+    dashTime: 0.5,
+    wallStagger: 1.2,
+    /** 取り巻きの盗賊（部屋に最初から / 第 2 段階 / 第 3 段階） */
+    minions: [2, 2, 3],
+    minionSpread: 50,
+    phase2Ratio: 0.65,
+    phase3Ratio: 0.3,
+    color: "#d0a040",
+  },
 } as const;
 
 /** 追跡者（Reaper） */
@@ -1798,7 +1867,7 @@ export const RUN_EVENT = {
   /** 時間で起きる: この秒を過ぎてから checkInterval ごとに抽選 */
   timedAfter: 40,
   checkInterval: 10,
-  timedChance: { quake: 0.08, curseWind: 0.06, reaperPass: 0.08, echoVein: 0.06, bats: 0.05, lifeFlow: 0.04 },
+  timedChance: { quake: 0.08, curseWind: 0.06, reaperPass: 0.08, echoVein: 0.06, bats: 0.05, lifeFlow: 0.04, thiefChase: 0.05 },
   /** 制圧時に起きる確率 */
   clearChance: { treasureRain: 0.04, momentum: 0.12, boonReroll: 0.03 },
   /** 増援: 湧かせる抽選回数（通常部屋の敵数に対する倍率）と、この秒以内に倒すと報酬 */
@@ -1868,6 +1937,12 @@ export const RUN_EVENT = {
   bats: { duration: 20, count: 6, manaPerKill: 6 },
   /** 残響の鉱脈: 触れられる回数・1 回の残響・1 回ごとに寄ってくる増援の抽選回数 */
   vein: { uses: 4, echoes: 1, reinforce: 1, color: "#80ffe0" },
+  /**
+   * 盗賊の追跡（docs/ideas/run-expansion.md 2 章 #27。src/system/runEvents.ts）: 床の遺物の近くに強欲のの盗賊が湧き、
+   * 拾って逃げる。倒せば抱えた数と同じだけ追加で落とす（倍で返る）。duration 秒逃げ切られると荷物だけ捨てて消える。
+   * 狙う遺物はプレイヤーから searchRadius px 以内、湧く位置は遺物から spawnOffset px（プレイヤーと反対側）
+   */
+  thief: { duration: 30, searchRadius: 240, spawnOffset: 28, rarityBoost: 0.3, color: "#ffc040" },
 } as const;
 
 /** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
@@ -3107,4 +3182,28 @@ export const DISCOVERY = {
   hintShowSeconds: 6,
   /** 初めての連携を HUD に出しておく秒 */
   freshShowSeconds: 3,
+} as const;
+
+/** 拠点（src/system/hub.ts / src/meta/hub.ts） */
+export const HUB = {
+  /** 台に「近い」とみなす距離（px） */
+  interactRadius: 20,
+  /** 決定キーの長押しで即出撃するまでの秒 */
+  departHold: 0.8,
+  /** 倒れた木人が立ち直るまでの秒 */
+  dummyRespawn: 1.5,
+  /** 訓練場の木人の数 */
+  dummyCount: 3,
+  /** 訓練場が建つ通算ラン数（試し場に出会っていなくても） */
+  trainingRuns: 3,
+  /** 拠点の state の乱数の種（ランには影響しない） */
+  seed: 0x48554201,
+  /** 「建った」バナーを出しておく秒 */
+  bannerSeconds: 3,
+} as const;
+
+/** 拠点の飾り（src/meta/hub.ts）。見た目だけで強さには触れない */
+export const HUB_DECOR = {
+  /** 記録室の書架の最大段数（図鑑が全部埋まるとこの段数） */
+  shelfMax: 5,
 } as const;

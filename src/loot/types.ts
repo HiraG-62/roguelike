@@ -134,6 +134,9 @@ export interface Provenance {
   chargedHits: number;
   /** コンボ派生の命中 */
   branchHits: number;
+  // ---- 2026-09-24 第 4 弾。旧セーブは 0 で補う ----
+  /** 上り階段で浅い階へ戻った回数（帰還） */
+  returns: number;
 }
 
 export function createEmptyProvenance(): Provenance {
@@ -157,6 +160,7 @@ export function createEmptyProvenance(): Provenance {
     favoredKills: 0,
     chargedHits: 0,
     branchHits: 0,
+    returns: 0,
   };
 }
 

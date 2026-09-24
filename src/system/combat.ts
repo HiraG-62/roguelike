@@ -14,7 +14,7 @@ import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playe
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
-import { pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent } from "../core/events";
+import { pushComboEvent, pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent, pushShatterEvent } from "../core/events";
 import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
 import { interceptEnemyDamage } from "./elites";
 import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
@@ -95,6 +95,7 @@ export function registerComboHit(state: GameState): void {
   state.combo.popTimer = COMBO_POP_TIME;
   state.combo.best = Math.max(state.combo.best, state.combo.count);
   onBoonComboHit(state);
+  pushComboEvent(state);
 }
 
 /** コンボによる与ダメ倍率 */
@@ -201,7 +202,7 @@ export function damageEnemy(
   }
 
   if (opts.crit) onBoonCrit(state, enemy, amount);
-  if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true);
+  if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
   if (enemy.hp > 0) return false;
   spawnDeathFx(state, enemy, opts);
   killEnemy(state, enemy);
@@ -225,6 +226,7 @@ function shatterFreeze(state: GameState, enemy: Enemy): void {
   spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
   pushSfx(state, "freeze");
   onBoonShatter(state, enemy);
+  pushShatterEvent(state, enemy);
 }
 
 /** heavy = この一撃で怯んだ。数字・粒子・揺れを大きくし、ヒットストップも重くする */
@@ -494,6 +496,11 @@ function reflectThorns(state: GameState, attacker: Enemy | undefined): void {
 
 function killPlayer(state: GameState): void {
   const p = state.player;
+  // 拠点では倒れない（ラン記録も書かない）。満タンに戻して続ける
+  if (state.sandbox) {
+    p.hp = p.maxHp;
+    return;
+  }
   state.status = "dead";
   state.deathTimer = 0;
   spawnBurst(state, p.body.pos, "#ffffff", 40, 220, 0.9, 3);
@@ -508,7 +515,7 @@ function killPlayer(state: GameState): void {
  * runs は createGame で既に数えているので recordRun による加算は打ち消す
  */
 export function recordRunOnce(state: GameState): void {
-  if (state.runRecorded) return;
+  if (state.sandbox || state.runRecorded) return;
   state.runRecorded = true;
   const profile = state.profile;
   const runsBefore = profile.meta.runs;

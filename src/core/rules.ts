@@ -74,7 +74,20 @@ export type RuleCondition =
   | { kind: "floorKind"; kinds: readonly FloorKind[] }
   // ---- 2026-09-24 追加（既存の祝福のルール文法移行） ----
   /** イベントの出どころの種類（見切りのうち、受け流しのスキル〔skill〕ではなく回避で取ったもの = player） */
-  | { kind: "from"; source: EventSource["kind"] };
+  | { kind: "from"; source: EventSource["kind"] }
+  // ---- 2026-09-24 追加（祝福の移行 第 2 弾: コンボ加算・砕き・通常の振りの命中） ----
+  /** イベントの量（コンボ加算なら加算後のコンボ数）が every の倍数（0 は数えない） */
+  | { kind: "amountEvery"; every: number }
+  /** イベントの付随 key がどれか（eventTag の複数版） */
+  | { kind: "eventTagIn"; tags: readonly string[] }
+  /** 必殺ゲージが満タン */
+  | { kind: "energyFull" }
+  /** 死神が出ている、または出現の予兆が出ている */
+  | { kind: "reaperNear" }
+  /** 今の振り（ダッシュ攻撃を除く）が当たり判定中で、対象の敵に当たっている（終撃で倒した、などの判定） */
+  | { kind: "swingStruck" }
+  /** 対象の敵が精鋭（撃破は倒れた瞬間の写しを見る） */
+  | { kind: "targetElite" };
 
 /** 属性・弱点の条件がどの攻撃の素性を見るか */
 export type RuleAttackVia = "melee" | "ranged";
@@ -114,13 +127,55 @@ export type RuleEffectKind =
    * 対象の敵（生きていれば）へ状態異常をそのまま付ける（status / duration / count = スタック / magnitude = 強さ）。
    * inflict と違い、対象がいなくても周囲へは付けず、持続を切り詰めず、敵ごとの procIcd も見ない（旧フックの付け方）
    */
-  | "afflict";
+  | "afflict"
+  // ---- 2026-09-24 追加（祝福の移行 第 2 弾） ----
+  /** イベントの位置に刻印符を落とす */
+  | "dropRune"
+  /** イベントの位置に装備を落とす */
+  | "dropItem"
+  /** 祝福の 3 択を提示する */
+  | "offerBoons"
+  /**
+   * 部屋の敵すべて（room: event = イベントの部屋〔無ければ交戦中の部屋〕/ roaming = 徘徊の敵）へ
+   * 状態異常（status / duration / count / magnitude = 強さ）、status が無ければ怯み値 magnitude
+   */
+  | "roomEnemies"
+  /**
+   * イベントの位置から半径 radius の敵すべて（対象の敵は除く）へ状態異常（status …）、
+   * status が無ければ素性なしのダメージ magnitude。onlyWith / skipBoss で相手を絞る
+   */
+  | "nearbyEnemies"
+  /** 回避の無敵時間（invulnTimer）を duration 秒まで延ばす（被弾の無敵 invuln とは別。見切りの判定に乗る） */
+  | "iframes"
+  /** リゲイン（被弾で失って取り戻せる分）を全て回復する */
+  | "reclaim"
+  /** コンボを 0 に戻す */
+  | "resetCombo"
+  /** 半径 radius の敵の status を起爆し、残りの効果（強さ × 残り秒 × magnitude）を即時に与える */
+  | "detonate"
+  /** 対象が持っていた status を、残り時間ごと半径 radius 内の最も近い敵へ移す */
+  | "passStatus"
+  /** 次の階の宝物庫を予約する（予約済みなら何もしない） */
+  | "reserveVault";
 
 /**
  * 効果量の基準。flat = magnitude そのまま / slashBase = 近接 1 段目の威力 × magnitude /
  * maxHp = 最大生命 × magnitude / eventAmount = イベントの量（振りの威力など GameEvent.amount）× magnitude
  */
-export type RuleMagnitudeBase = "flat" | "slashBase" | "maxHp" | "eventAmount";
+export type RuleMagnitudeBase =
+  | "flat"
+  | "slashBase"
+  | "maxHp"
+  | "eventAmount"
+  /** 必殺ゲージの最大 × magnitude */
+  | "maxEnergy"
+  /** 今のコンボ数 × magnitude */
+  | "combo"
+  /** 対象の敵の status の強さ × magnitude（撃破は倒れた瞬間の写し） */
+  | "targetPotency";
+
+/** 効果量の下限に使う装備の値（祝福の雷・炎は「装備の方が強ければそちら」） */
+export type RuleStatFloor = "shockDamage" | "burnDps";
 
 export interface RuleEffect {
   kind: RuleEffectKind;
@@ -146,6 +201,19 @@ export interface RuleEffect {
   color?: string;
   /** afflict の相手。target = イベントの対象（既定）/ source = イベントを起こした敵（見切った攻撃の主） */
   on?: "target" | "source";
+  // ---- 2026-09-24 追加（祝福の移行 第 2 弾） ----
+  /** explode / chainLightning: 対象の敵を巻き込まない（対象から広がる爆発・連鎖雷） */
+  excludeTarget?: boolean;
+  /** energy: 回収量の倍率（energyGainMul）を通さず足す */
+  raw?: boolean;
+  /** roomEnemies の相手 */
+  room?: "event" | "roaming";
+  /** nearbyEnemies: この状態異常を持つ敵だけ */
+  onlyWith?: StatusKind;
+  /** nearbyEnemies: ボス（EnemyDef.boss）を除く（ボスを凍結させない効果など。ボスの片割れは含める） */
+  skipBoss?: boolean;
+  /** 効果量をこの装備の値以上にする（scaleBy で求めた値と比べて大きい方） */
+  statFloor?: RuleStatFloor;
 }
 
 /** 敵の Rule が持てる効果（予告付きハザードのみ） */
@@ -184,6 +252,8 @@ export interface Rule {
   direct?: boolean;
   /** 同じ group の Rule は 1 つのイベントにつき 1 回だけ起きる（断裂波と連撃波を同じ振りで 2 本出さない） */
   group?: string;
+  /** ICD を共有する鍵（省略時は id）。同じ鍵の Rule は発動のたびに互いの ICD を埋める（過充填と臨界の爆発） */
+  icdKey?: string;
 }
 
 /** 敵の Rule（src/data/enemyCombat.ts）。効果は予告付きハザードに限る */
@@ -219,12 +289,30 @@ const EFFECT_KEYWORD: Readonly<Partial<Record<RuleEffectKind, string>>> = {
   healDirect: "heal",
   ward: "ward",
   shards: "bullet",
+  iframes: "ward",
+  reclaim: "heal",
+  dropRune: "loot",
+  dropItem: "loot",
 };
+
+/** status を持てば語を status にする効果（状態異常を付ける・広げる・起爆する） */
+const STATUS_KEYWORD_EFFECTS: ReadonlySet<RuleEffectKind> = new Set<RuleEffectKind>([
+  "inflict",
+  "spreadStatus",
+  "selfStatus",
+  "afflict",
+  "roomEnemies",
+  "nearbyEnemies",
+  "detonate",
+  "passStatus",
+]);
 
 export function effectKeyword(rule: Readonly<Rule>): string {
   if (rule.keyword !== undefined) return rule.keyword;
   const { kind, status } = rule.then;
-  if ((kind === "inflict" || kind === "spreadStatus" || kind === "selfStatus" || kind === "afflict") && status !== undefined) return status;
+  if (STATUS_KEYWORD_EFFECTS.has(kind) && status !== undefined) return status;
+  if (kind === "nearbyEnemies") return "area";
+  if (kind === "roomEnemies") return "stagger";
   return EFFECT_KEYWORD[kind] ?? kind;
 }
 

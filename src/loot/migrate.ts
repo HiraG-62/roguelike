@@ -136,8 +136,8 @@ export function ensureGrowthFields(item: Item): Item {
  */
 export function fillProvenanceCounters(p: Provenance): void {
   // 毎回の出来事で呼ばれるので、最後に足したカウンタがあれば（= 全部そろっていれば）何もしない
-  // 第 1 弾・第 2 弾それぞれの最後のカウンタを見る（片方だけ欠けた来歴も補う）
-  if (typeof p.lastKills === "number" && typeof p.branchHits === "number") return;
+  // 第 1 弾・第 2 弾・第 4 弾それぞれの最後のカウンタを見る（一部だけ欠けた来歴も補う）
+  if (typeof p.lastKills === "number" && typeof p.branchHits === "number" && typeof p.returns === "number") return;
   for (const key of PROVENANCE_COUNTERS) {
     if (typeof p[key] !== "number" || !Number.isFinite(p[key])) p[key] = EMPTY_COUNTER;
   }
@@ -166,6 +166,7 @@ export const PROVENANCE_COUNTERS = [
   "favoredKills",
   "chargedHits",
   "branchHits",
+  "returns",
 ] as const satisfies readonly (keyof Provenance)[];
 
 /** 旧形式 → 新形式。新形式ならフィールドを補うだけ（冪等）。引数は変更しない */

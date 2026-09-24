@@ -178,12 +178,13 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
   },
   formArt: {
     key: "formArt",
-    after: ["titanForm", "swiftForm", "spiritForm"],
+    // 第 3 弾の変身（左右クリックを差し替える 5 種。SkillRunState.shape）も変身として数える
+    after: ["titanForm", "swiftForm", "spiritForm", "wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"],
     untimed: true,
     window: C2.formArt.window,
     name: "化身の極意",
     verb: "変身中の極意は威力が上がる",
-    requires: (state) => state.skills.form !== null,
+    requires: (state) => state.skills.form !== null || state.skills.shape !== null,
     apply: (p) => ({ ...p, damageMul: p.damageMul * C2.formArt.damageMul }),
   },
   levelMeteor: {

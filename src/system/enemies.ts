@@ -162,6 +162,7 @@ const STRIKE_SPEED_MUL: Record<EnemyBehavior, number> = {
   broodMother: 0,
   librarian: 0,
   mirrorKnight: 0,
+  thiefKing: 0,
 };
 /** 予備動作中も動けるか（laser はチャージ中に止まる） */
 const WINDUP_MOVE_MUL: Record<EnemyBehavior, number> = {
@@ -219,6 +220,7 @@ const WINDUP_MOVE_MUL: Record<EnemyBehavior, number> = {
   broodMother: 0,
   librarian: 0,
   mirrorKnight: 0,
+  thiefKing: 0,
 };
 /** 距離を保って動く（射撃・詠唱する）behavior と、その保つ距離 */
 const KEEP_AWAY: Partial<Record<EnemyBehavior, number>> = {

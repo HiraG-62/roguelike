@@ -29,13 +29,15 @@ export function stoneWear(stone: SkillStone): StoneWear {
 
 /** スキルの命中 1 回（skills/hit.ts の skillHit が呼ぶ）。slot は発動したスロット */
 export function noteWearHit(state: GameState, slot: number): void {
-  if (slot < 0) return;
+  // 拠点での試し撃ちは使い込みに数えない
+  if (state.sandbox || slot < 0) return;
   const stone = stoneInSlot(state.skills.profile, slot);
   if (stone) stoneWear(stone).hits += 1;
 }
 
 /** 手動の発動 1 回（system/skills.ts の castSlot が呼ぶ）。節目に届いたら芽を出し、出た芽を返す */
 export function noteWearCast(state: GameState, slot: number): WearBud | null {
+  if (state.sandbox) return null;
   const stone = stoneInSlot(state.skills.profile, slot);
   if (!stone) return null;
   const wear = stoneWear(stone);

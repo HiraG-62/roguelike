@@ -87,6 +87,8 @@ export function enemyDropChance(state: GameState, enemy: Enemy): number {
 
 /** 撃破時の確率ドロップ */
 export function rollEnemyDrop(state: GameState, enemy: Enemy): void {
+  // 拠点の木人は revived で除外済みだが、拠点で出た敵が何であっても落とさない
+  if (state.sandbox) return;
   if (state.rng.chance(enemyDropChance(state, enemy))) dropItem(state, enemy.body.pos);
   if (state.rng.chance(SKILL.drop.stoneOnKill)) dropSkillStone(state, enemy.body.pos);
   rollEnemyRuneDrop(state, enemy);

@@ -286,6 +286,19 @@ export const WAVE3_ENEMIES: readonly EnemyDef[] = [
     windup: 0.6, strikeTime: 0.45, recover: 0.6, engageRange: 110, attackInterval: 1.0,
     score: 0, minDepth: 99, weight: 0, color: "#c0e0ff", dropChance: 0, noCorpse: true,
   },
+  // ---- 2026-09-24 第 4 弾: 盗賊王と盗賊（盗賊はボスの取り巻きとランイベント「盗賊の追跡」だけに出る）----
+  {
+    key: "thiefKing", name: "盗賊王", sprite: "thiefKing",
+    radius: 12, hp: 950, speed: 46, behavior: "thiefKing", contactDamage: 16,
+    windup: 0.8, strikeTime: 0.4, recover: 0.8, engageRange: 400, attackInterval: 1.3,
+    score: 2500, minDepth: 99, weight: 0, color: "#d0a040", dropChance: 0, boss: true,
+  },
+  {
+    key: "thief", name: "盗賊", sprite: "thief", recolor: { base: "player", swap: { b: "9", B: "k", a: "A", O: "9", o: "K", y: "S", r: "A", R: "n" } },
+    radius: 6, hp: 30, speed: 62, behavior: "chaser", contactDamage: 10,
+    windup: 0.4, strikeTime: 0.22, recover: 0.45, engageRange: 40, attackInterval: 0.5,
+    score: 20, minDepth: 99, weight: 0, color: "#a08060", dropChance: 0.1,
+  },
   // ---- 死神の付き物（影の死神。src/system/reaper.ts が呼ぶ。倒せるが湧き直す） ----
   {
     key: "reaperShade", name: "死神の影", sprite: "reaperShade", recolor: { base: "shade", swap: { "9": "P", r: "p" } },

@@ -130,8 +130,8 @@ describe("第 2 弾: 全スキルの発動", () => {
     expect(lost(e), "当たった").toBeGreaterThan(0);
   });
 
-  it("全 23 種に定義がそろい、怯み値と最低間隔を持つ", () => {
-    expect(WAVE2_SKILL_KEYS).toHaveLength(23);
+  it("全 24 種（第 4 弾の泥沼を含む）に定義がそろい、怯み値と最低間隔を持つ", () => {
+    expect(WAVE2_SKILL_KEYS).toHaveLength(24);
     for (const key of WAVE2_SKILL_KEYS) {
       const def = SKILL_DEFS[key];
       expect(def.key, key).toBe(key);
@@ -643,6 +643,15 @@ describe("第 2 弾の連携", () => {
     run(state, 3);
     expect(slotComboReady(state, 1)?.key).toBe("formArt");
     expect(COMBOS.formArt.untimed).toBe(true);
+  });
+
+  it.each(["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"] as const)("化身の極意: 第 3 弾の変身 %s の最中の極意でも成立する", (form) => {
+    const state = skillArena([{ key: form }, { key: "weaponArt" }]);
+    expect(slotComboReady(state, 1), "変身前は成立しない").toBeNull();
+    cast(state, undefined, 0);
+    run(state, 0.5);
+    expect(state.skills.shape?.key, "変身している").toBe(form);
+    expect(slotComboReady(state, 1)?.key).toBe("formArt");
   });
 });
 

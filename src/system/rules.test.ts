@@ -55,6 +55,14 @@ describe("イベントの積み方", () => {
     expect(state.recent.onDash?.count, "窓の中で 2 回").toBe(2);
   });
 
+  it("1 ステップの上限を超えたイベントは捨て、捨てた数を droppedEvents に数える", () => {
+    const state = cleanArena();
+    const over = 3;
+    for (let i = 0; i < SYNERGY.maxEventsPerStep + over; i++) pushPlayerEvent(state, "onDash", "dash");
+    expect(state.events.length, "上限で止まる").toBe(SYNERGY.maxEventsPerStep);
+    expect(state.ruleRun.droppedEvents, "超えた分だけ数える").toBe(over);
+  });
+
   it("step 中の system がイベントを積み、resolveRules が照合後に空にする", () => {
     const state = cleanArena();
     state.player.dashChargesLeft = 1;

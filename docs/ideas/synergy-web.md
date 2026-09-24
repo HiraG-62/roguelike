@@ -203,10 +203,33 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | 3-a | イベント列（実装済み） | `events` / `recent` / `pushEvent`。既存の `triggers.ts` 呼び出しをイベント経由へ | trigger を 1 つ足す手間が 1 行になる | M | ★3 | `src/core/state.ts`、`src/core/game.ts`、`src/system/triggers.ts`、`src/system/combat.ts` |
 | 3-b | Rule 型と resolveRules（実装済み） | `TriggeredEffect` を Rule へ読み替える adapter。`tr:` の保存形式は変えない | セーブ互換のまま文法を全要素へ開ける | M | ★3 | `src/loot/types.ts`、`src/loot/triggers.ts`、`src/system/triggers.ts` |
-| 3-c | 祝福の Rule 化（見本 3 つのみ） | 数値でもフックでもない「〜時: 〜」型の祝福（野火・疫病・氷砕・湧水・屠りの盃）を `BoonDef.rules` へ移す | 祝福と装備のトリガーが同じ表で重なる | M | ★4 | `src/system/boons.ts` |
+| 3-c | 祝福の Rule 化【移行中 2026-09-24: 第 1 弾 18 種 + 第 2 弾 31 種 = 49 種を `BoonDef.rules`（direct）へ移した。残りの分類は下の 3-7】 | 数値でもフックでもない「〜時: 〜」型の祝福（野火・疫病・氷砕・湧水・屠りの盃）を `BoonDef.rules` へ移す | 祝福と装備のトリガーが同じ表で重なる | M | ★4 | `src/system/boons.ts` |
 | 3-d | スキル石の Rule | 例: 雷撃「このスキルで撃破時: 感電を周囲に 1」。変異軸と別に 1 つだけ持てる | 石の個体差が「何に噛むか」になる | M | ★4 | `src/skills/types.ts`、`src/skills/data.ts`、`src/skills/generator.ts` |
 | 3-e | 刻印符の Rule | 例: 新刻印符「火口」= このスキルの命中が燃焼中の敵なら蒸発を起こす | 刻印符が装備の語と掛け算になる | M | ★4 | `src/skills/data.ts`、`src/skills/hit.ts` |
 | 3-f | 敵の Rule | 爆裂 / 連結のエリート・鬼火の死亡爆発を Rule で書き、予告付きに統一 | 敵の爆発で自分の環が回る | M | ★3 | `src/data/enemyCombat.ts`、`src/system/elites.ts` |
+
+### 3-7. 祝福の移行の状況（3-c。2026-09-24 第 2 弾）
+
+旧フック（`src/system/boons.ts` / `src/system/boonRules.ts`）に直書きしていた「〜時: 〜」の効果を、`BoonDef.rules` の direct な Rule（連鎖に数えない・減衰なし・語の上限なし）へ移している。移した祝福の一覧は `src/system/boonRules.test.ts` の `MIGRATED` で、自動テストが「イベント 1 回で効果 1 回・条件を欠けば 0 回・フックの内部 CD と同じ ICD」を全件確かめる。
+
+第 2 弾で文法に足したもの:
+
+- 起点: `onComboHit`（コンボ加算。量 = 加算後のコンボ数）/ `onShatter`（砕き）/ `onSwingHit`（通常の振りの命中。スキル・衝撃波の近接命中は含まない。命中の瞬間の状態異常を写す）。既存の `onBurst` は量 = バーストで倒した数、`onCrit` は量 = 与えたダメージ、撃破の写しは精鋭かどうかと状態異常の残り秒を持つ
+- 効果: `dropRune` / `dropItem` / `offerBoons` / `roomEnemies`（部屋の敵すべて・徘徊の敵すべてへ状態異常か怯み値）/ `nearbyEnemies`（周囲の敵すべてへ状態異常かダメージ。`onlyWith` / `skipBoss`）/ `detonate`（状態異常の起爆）/ `passStatus`（残り時間ごと移す）/ `iframes` / `reclaim`（リゲイン）/ `resetCombo` / `reserveVault`。既存の効果に `excludeTarget`（爆発・連鎖雷）・`raw` / `fill`（必殺ゲージ）・`statFloor`（装備の値を下限に）、`cleanse` / `extendStatus` の状態異常の指定
+- 条件: `amountEvery` / `eventTagIn` / `energyFull` / `reaperNear` / `swingStruck` / `targetElite`。効果量の基準: `maxEnergy` / `combo` / `targetPotency`。Rule の `icdKey`（過充填と臨界が 1 つの CD を分け合う）
+
+| 分類 | 数 | 中身 | 例 |
+| --- | --- | --- | --- |
+| 移行済み（第 1 弾） | 18 | 撃破・見切り・ダッシュ・被弾・制圧・振り始めの効果 | 野火・疫病・連撃波・勝利の帳 |
+| 移行済み（第 2 弾） | 31 | コンボ加算・砕き・通常の振りの命中・バースト・会心・封鎖 / 制圧の部屋の種類・撃破 | 刻限のコンボ・凍て刺し・砕氷の鐘・過充填・臨界・伏兵返し・試練の徒・狩場の王・焦土・換金 |
+| 残り: 常時の倍率・可否・置き換え（文法に乗せない） | 27 | `foldBoonStats` / `boonMoveMul` / コスト倍率・判定の差し替え・ダッシュや死亡の置き換え | 終撃のみ・封鎖疾走・霊刃・巨人殺し・再起・その場ガード |
+| 残り: 祝福内部の状態を持つ | 32 | 窓・回数・目印・記録・再入防止・監視（麻痺の始まり / 終わり、怯みの始まり）・回復前の値を見る順序 | 月蝕・新月・両輪・見定め・灰積もり・崩し連鎖・雷神の鼓・饗宴の盃 |
+| 残り: 弾・判定の途中に割り込む | 17 | 弾の生成・跳弾・貫通の改変、敵弾の消去 / 奪取、ダメージの途中の上乗せ | 背面射撃・跳弾・火渡り・回避一掃・奪弾・血裂き・見切り斬り |
+| 残り: 起点がイベントに無い | 2 | ハートを拾う・波の開始（`floor.ts` の `updateLockedRoom`） | 業火の心・巣窟の主 |
+
+一部だけ移したもの（フックに残る部分がある）: 看破（射撃のカウンターは霜読みのフック）・満ち潮（射撃の命中は弾のフック）・精鋭の磁力（精鋭化の抽選）・死に急ぎ / 血の代償 / 刻限のコンボ（最大生命・受付時間の畳み込み）。
+
+効果のタイミングがステップ末へ動いたもの（同じステップの中で、フックの時点よりも後に起きる）: 第 2 弾の 31 種すべて。目に見えて違い得るのは、同じ祝福を複数持つときの起きる順（取得順になる。焦土と換金など）、宝物庫の予約・装備・刻印符の落下と 3 択の提示の乱数を引く位置、撃破の直後に死神が出た / 振りが取り消されたときの条件の読み（死神の影・威圧）。
 
 ## 4. シナジーの可視化 UI（数値・スコアを出さない）
 

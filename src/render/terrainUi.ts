@@ -3,6 +3,7 @@ import { type TerrainKind, terrainKindOf } from "../core/terrain";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { TILE_SIZE, toIndex } from "../map/grid";
 import { tileHash } from "./renderMath";
+import { TERRAIN_RUBBLE } from "../data/tuning";
 
 /**
  * 地形の層の描画（docs/ideas/status-and-terrain.md 3 章）。state.terrain を読むだけ。
@@ -30,12 +31,16 @@ const STYLE: Readonly<Record<GroundKind, TerrainStyle>> = {
   grass: { base: "#2c5a24", alpha: 0.55, detail: "#70c050", dots: 4 },
   fire: { base: "#ff6010", alpha: 0.6, detail: "#ffe060", dots: 3 },
   mud: { base: "#5a4028", alpha: 0.75, detail: "#8a6a40", dots: 3 },
+  rubble: { base: "#4a4036", alpha: 0.8, detail: "#1e1a16", dots: 4 },
 };
 
 /** 揺らぎの速さ（水面・炎・溶岩の明滅） */
 const SHIMMER_SPEED = 3;
 const FIRE_FLICKER_SPEED = 12;
 const FLICKER_AMPLITUDE = 0.25;
+/** 崩れる床の揺れ（予告）: 乗られている割合に比例して最大 RUBBLE_SHAKE px、速さ RUBBLE_SHAKE_SPEED */
+const RUBBLE_SHAKE = 1.5;
+const RUBBLE_SHAKE_SPEED = 40;
 /** 模様の点の大きさ（論理 px） */
 const DOT_W = 2;
 const DOT_H = 1;
@@ -58,17 +63,18 @@ export function drawTerrainLayer(ctx: CanvasRenderingContext2D, state: GameState
       const i = toIndex(map, x, y);
       const kind = terrainKindOf(layer.kinds[i] ?? 0);
       if (kind === "none" || kind === "smoke") continue;
-      drawTile(ctx, state, kind, x, y, layer.time[i] ?? 0);
+      drawTile(ctx, state, kind, x, y, layer.time[i] ?? 0, kind === "rubble" ? (layer.rubbleLoad[i] ?? 0) : 0);
     }
   }
   ctx.globalAlpha = 1;
 }
 
-function drawTile(ctx: CanvasRenderingContext2D, state: GameState, kind: GroundKind, x: number, y: number, timeLeft: number): void {
+function drawTile(ctx: CanvasRenderingContext2D, state: GameState, kind: GroundKind, x: number, y: number, timeLeft: number, load: number): void {
   const style = STYLE[kind];
   const hash = tileHash(x, y);
   const fade = timeLeft > 0 && timeLeft < FADE_TIME ? timeLeft / FADE_TIME : 1;
-  const px = x * TILE_SIZE;
+  const shake = rubbleShake(state, load, hash);
+  const px = x * TILE_SIZE + shake;
   const py = y * TILE_SIZE;
   ctx.globalAlpha = style.alpha * fade * flicker(state, kind, hash);
   ctx.fillStyle = style.base;
@@ -80,6 +86,14 @@ function drawTile(ctx: CanvasRenderingContext2D, state: GameState, kind: GroundK
     const dy = ((h >>> (HASH_BITS / 2)) & HASH_MASK) % (TILE_SIZE - DOT_H);
     ctx.fillRect(px + dx, py + dy, DOT_W, DOT_H);
   }
+}
+
+/** 崩れる床に敵が乗っている間は横に揺れる（抜けるまでの残りが短いほど大きい）。乗っていなければ 0 */
+function rubbleShake(state: GameState, load: number, hash: number): number {
+  if (load <= 0) return 0;
+  const ratio = Math.min(1, load / TERRAIN_RUBBLE.fallDelay);
+  const phase = (hash & HASH_MASK) / HASH_MASK;
+  return Math.round(Math.sin((state.time + phase) * RUBBLE_SHAKE_SPEED) * RUBBLE_SHAKE * ratio);
 }
 
 /** 水・溶岩はゆっくり、炎は速く明滅する。タイルごとに位相をずらす */

@@ -4,6 +4,7 @@ import type { Rule } from "../core/rules";
 import type { TimedMul } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
+import type { GameMap } from "../map/grid";
 import type { MovesetDef, MovesetKey } from "../data/weapons";
 
 /**
@@ -113,6 +114,8 @@ export const WAVE2_SKILL_KEYS = [
   "swiftForm",
   "spiritForm",
   "wardStake",
+  // ---- 2026-09-24 第 4 弾（地形を作る。見送っていた泥沼）----
+  "mire",
 ] as const;
 export type Wave2SkillKey = (typeof WAVE2_SKILL_KEYS)[number];
 
@@ -188,6 +191,8 @@ export const WAVE2_MODIFIER_KEYS = [
   "breakInfuse",
   "hueInfuse",
   "leyline",
+  /** 地崩れ: 地裂き専用。命中線に崩れる床を残す（2026-09-24 第 4 弾） */
+  "crumble",
   "jobMastery",
   "weaponBond",
   "formSurge",
@@ -399,6 +404,8 @@ export interface CastParams {
   /** 地染め: 命中した位置に属性の地形を置く。残り回数は発動 1 回ぶんで共有 */
   leyline: boolean;
   leyPool: { left: number };
+  /** 地崩れ: 命中した敵までの線に崩れる床を残す（skills/hit.ts） */
+  crumble: boolean;
   /** 心得 / 武器写し / 化身: 発動時の状態で決まる（system/skills.ts の wave2CastState が読む） */
   jobMastery: boolean;
   weaponBond: boolean;
@@ -420,6 +427,8 @@ export interface ModifierDef {
   requiresTags?: readonly SkillTag[];
   /** 個別に付けられないスキル（効果が既に内蔵されているもの） */
   excludesSkills?: readonly SkillKey[];
+  /** 指定があれば、このスキルにだけ付けられる（地崩れ = 地裂き専用） */
+  onlySkills?: readonly SkillKey[];
   /** マナ型スキルでの効果の説明。無ければ verb と同じ（docs/COMBAT_DESIGN.md B-5 で読み替えるものだけ持つ） */
   manaVerb?: string;
   /** 指定があれば、この資源のスキルにだけ付けられる */
@@ -629,6 +638,16 @@ export interface Mine {
   arm: number;
   life: number;
   params: CastParams;
+}
+
+/** 泥沼の領域（skills/placed.ts）。床の泥は system/terrain.ts が持ち、ここは中の敵に怯み値を入れる周期だけを持つ */
+export interface MireZone {
+  pos: Vec;
+  timer: number;
+  tick: number;
+  params: CastParams;
+  /** 置いたフロアのマップ（階を移ったら捨てる。SkillRunState の作り直しを待たずに済む） */
+  map: GameMap;
 }
 
 /** 氷結地帯 */
@@ -854,6 +873,8 @@ export interface SkillRunState {
   wells: GravityWell[];
   mines: Mine[];
   fields: FrostField[];
+  /** 泥沼の領域。後から足した設置物なので省略可（最初に置いたときに作る。system/skills.ts の初期化に手を入れない） */
+  mires?: MireZone[];
   bullets: SkillBullet[];
   runes: RuneTablet[];
   floorStones: FloorStone[];

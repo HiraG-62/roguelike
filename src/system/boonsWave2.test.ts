@@ -796,7 +796,10 @@ describe("フックの祝福", () => {
     const room = state.rooms[0];
     if (!room) throw new Error("開始部屋が無い");
     room.kind = "horde";
+    // 狩場の王は BoonDef.rules（onRoomClear。部屋の種類はイベントの tag）。clearRoom と同じくイベントを積んで照合する
+    pushPlayerEvent(state, "onRoomClear", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
     onBoonRoomClear(state, room);
+    resolveRules(state, 0);
     expect(has(roamer, "vulnerable") && has(roamer, "fear"), "徘徊は脆弱と恐怖").toBe(true);
     expect(has(local, "vulnerable"), "部屋の敵は対象外").toBe(false);
   });

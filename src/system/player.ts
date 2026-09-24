@@ -46,7 +46,7 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
-import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent } from "../core/events";
+import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
 import { onTraitCounter } from "./traitHooks";
 import {
   boonAttackManaMul,
@@ -957,6 +957,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   onBoonMeleeHit(state, e, counter);
+  pushSwingHitEvent(state, e, p.attack.combo, p.dashStrike);
   onSkillMeleeHit(state, e, p.attack.combo);
   onShapeMeleeHit(state, e);
 }
@@ -1284,6 +1285,6 @@ function trySpecial(state: GameState): boolean {
   p.invulnTimer = Math.max(p.invulnTimer, PLAYER.special.invuln);
   pushSfx(state, "burst");
   onBoonBurstKills(state, kills);
-  pushPlayerEvent(state, "onBurst", "burst");
+  pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
   return true;
 }

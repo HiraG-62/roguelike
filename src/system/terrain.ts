@@ -2,12 +2,14 @@ import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/st
 import type { StatusApply } from "../core/status";
 import { type TerrainKind, type TerrainLayer, terrainCode, terrainKindOf } from "../core/terrain";
 import { type Vec, add, scale, sub } from "../core/vec";
-import { STATUS, TERRAIN, TERRAIN_MUD_SMOKE } from "../data/tuning";
+import { STATUS, TERRAIN, TERRAIN_MUD_SMOKE, TERRAIN_RUBBLE } from "../data/tuning";
+import { enemyDef, isBossClass } from "../data/enemies";
 import { TILE_SIZE, Tile, getTile, inBounds, toIndex } from "../map/grid";
 import { planTerrain } from "../map/generator";
 import { setSightBlocker } from "../map/sightBlock";
 import { damageEnemy, damagePlayerDot } from "./combat";
 import { spawnBurst } from "./effects";
+import { applyStagger } from "./poise";
 import { type StatusTarget, applyStatus, hasStatus } from "./statusEffects";
 import { pushPlayerEvent } from "../core/events";
 
@@ -25,6 +27,7 @@ const ICE = terrainCode("ice");
 const GRASS = terrainCode("grass");
 const FIRE = terrainCode("fire");
 const MUD = terrainCode("mud");
+const RUBBLE = terrainCode("rubble");
 const NONE = terrainCode("none");
 /** 煙の残り秒で「晴れない」を表す値（duration 0 で置いた煙） */
 const SMOKE_FOREVER = Number.POSITIVE_INFINITY;
@@ -58,6 +61,7 @@ export function ensureTerrainLayer(state: GameState): TerrainLayer {
   layer.tickCount = 0;
   layer.smoke = new Float64Array(size);
   layer.smokeCells = new Set();
+  layer.rubbleLoad = new Float64Array(size);
   layer.version += 1;
   // 煙は視線を遮る（map/pathing.ts の lineOfSight が読む）。層の配列はフロアごとに作り直すので毎回 layer から読む
   setSightBlocker(state.map, (i) => (layer.smoke[i] ?? 0) > 0);
@@ -270,6 +274,7 @@ function writeCell(layer: TerrainLayer, i: number, code: number, time: number): 
 
 function clearCell(layer: TerrainLayer, i: number): void {
   layer.kinds[i] = NONE;
+  layer.rubbleLoad[i] = 0;
   layer.time[i] = 0;
   layer.spread[i] = SPREAD_DONE;
   layer.active.delete(i);
@@ -285,6 +290,7 @@ export function updateTerrain(state: GameState, dt: number): void {
   planOnce(state, layer);
   if (layer.active.size > 0) tickCells(state, layer, dt);
   if (layer.smokeCells.size > 0) tickSmoke(layer, dt);
+  if (layer.active.size > 0) tickRubble(state, layer, dt);
   notePlayerTerrain(state);
   layer.tickTimer += dt;
   if (layer.tickTimer < TERRAIN.tickInterval) return;
@@ -355,6 +361,60 @@ function tickFireSpread(state: GameState, layer: TerrainLayer, i: number, dt: nu
   }
   bakeMud(state, baked);
   return spread;
+}
+
+/**
+ * 崩れる床（地裂きの刻印符「地崩れ」）: 敵が乗り続けたセルは TERRAIN_RUBBLE.fallDelay 秒で抜け、乗っている敵が落ちる。
+ * 乗っている間は rubbleLoad が溜まり（描画が揺らして予告する）、誰も乗っていないステップで 0 に戻る。
+ * 毎ステップ判定する（効果の周期 tickInterval では 1 秒の予告がぶれるため）。プレイヤーは落ちない
+ */
+function tickRubble(state: GameState, layer: TerrainLayer, dt: number): void {
+  const riders = rubbleRiders(state, layer);
+  for (const i of layer.active) {
+    if ((layer.kinds[i] ?? NONE) === RUBBLE && !riders.has(i)) layer.rubbleLoad[i] = 0;
+  }
+  for (const [i, list] of riders) {
+    const load = (layer.rubbleLoad[i] ?? 0) + dt;
+    layer.rubbleLoad[i] = load;
+    if (load >= TERRAIN_RUBBLE.fallDelay) collapseRubble(state, layer, i, list);
+  }
+}
+
+/** 崩れる床のセル → 乗っている敵（敵の並び順なので決定的）。宙に浮く敵（壁抜け）・潜っている敵は乗らない */
+function rubbleRiders(state: GameState, layer: TerrainLayer): Map<number, Enemy[]> {
+  const riders = new Map<number, Enemy[]>();
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.phase === "spawning" || e.hidden) continue;
+    const i = tileIndexAt(state, e.body.pos.x, e.body.pos.y);
+    if (i < 0 || (layer.kinds[i] ?? NONE) !== RUBBLE || enemyDef(e.defKey).phasing) continue;
+    const list = riders.get(i);
+    if (list) list.push(e);
+    else riders.set(i, [e]);
+  }
+  return riders;
+}
+
+/** 床が抜ける: 乗っている敵に落下ダメージと怯み（ボスは怯み値だけ）。セルは何も無い床に戻る */
+function collapseRubble(state: GameState, layer: TerrainLayer, i: number, list: readonly Enemy[]): void {
+  clearCell(layer, i);
+  layer.version += 1;
+  const r = TERRAIN_RUBBLE;
+  const damage = r.fallDamage * (1 + state.depth * r.perDepth);
+  for (const e of list) {
+    const boss = isBossClass(enemyDef(e.defKey));
+    damageEnemy(state, e, damage, { x: 0, y: 0 }, 0, { kind: "proc", poise: boss ? r.bossPoise : 0 });
+    if (!boss && e.hp > 0) applyStagger(state, e, r.fallStagger);
+  }
+  const center = { x: (i % state.map.width + 0.5) * TILE_SIZE, y: (Math.floor(i / state.map.width) + 0.5) * TILE_SIZE };
+  spawnBurst(state, center, r.color, r.particles, 60, 0.4, 2);
+  pushSfx(state, "rubbleFall");
+}
+
+/** 崩れる床のセルに溜まった秒（描画の揺れ用。層が今のマップのものでなければ 0） */
+export function rubbleLoadAt(state: GameState, index: number): number {
+  const layer = state.terrain;
+  if (layer.map !== state.map) return 0;
+  return layer.rubbleLoad[index] ?? 0;
 }
 
 /**
