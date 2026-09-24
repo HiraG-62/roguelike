@@ -205,7 +205,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 支配 / 二重 / 三和音 / 散光 | dominant / dual / triad / scatter | 共鳴の種類。1 色が過半 / 上位 2 色が各 30% 以上 / ちょうど 3 色が各 22% 以上 / 全色が分散 | `loot/resonance.ts` resolveResonance |
 | 陰画 | `Resonance.form = "negative"`（kind は dominant） | 反転した性質の重みが 35% 以上で、反転を除いた配合に支配色があると支配が裏返る。冷たい炎（紅）/ 熱い氷（蒼）/ 枯れ森（翠）/ 暗雷（金）。冥の支配は虚極のまま | `loot/resonance.ts` NEGATIVE_EFFECTS |
 | 拮抗 | `Resonance.form = "balance"`（kind は dual） | 他の共鳴が成立しないとき、反対色の組（紅と蒼 / 翠と金）がそれぞれ 25% 以上で差 5% 以内なら成立。天秤（紅と蒼）/ 表裏（翠と金） | `loot/resonance.ts` BALANCE_EFFECTS |
-| 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖 | `loot/resonance.ts` CONSTELLATIONS |
+| 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖。うち双子 / 対岸 / 鏡像 / 鎖は左手が使えるまで非表示（`hidden`） | `loot/resonance.ts` CONSTELLATIONS |
 | 主色 | itemMainColor | 遺物 1 つの性質（implicit を除く）で重みが最も大きい色。同点なら先に付いた性質の色。無色の性質は数えない | `loot/resonance.ts` |
 | 無色（性質） | `AffixRoll.colorless` | 脱色した性質。共鳴の配合に数えず、支配の減衰も受けない。行の頭に「無色」 | `loot/crafting.ts` bleachTrait |
 | 三和音の名前 | TRIAD_EFFECTS | 四季 / 雷雨 / 煤 / 祭 / 血肉 / 賭場 / 凪 / 沼 / 流星 / 輪廻 | `loot/resonance.ts` |
@@ -372,7 +372,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 依頼 | quest | ラン開始時に 3 択から 1 つ受けるお題。達成で永続の報酬（強さではなく選択肢と表現）。未達成なら次のやり直しへ引き継ぐ。「契約」は使わない | `meta/quests.ts`、`ui/quests.ts` |
 | 受けずに出発 | - | 依頼の 3 択で何も受けない選択 | `render/questUi.ts` |
 | 目標 / 報酬 | goal / reward | 依頼の札の表記。報酬は 起点の解放 / 名のある遺物が抽選に加わる / 図鑑の頁 / 称号 | `meta/quests.ts` |
-| 依頼名 | burnout … burstMaster | 燃え尽き / 蒸気の手 / 揺るがす者 / 誓約なき者 / 反応の目録 / 連携の稽古 / 巣窟崩し / 王殺し / 刃のみ / 無傷の階 / 見切りの舞 / 返し手 / 五重苦 / 呪いを抱く / 大博打 / 死神と踊る / 連鎖の糸 / 三段の連鎖 / 凍てつく刃 / 毒の庭 / 血の道 / 急所読み / 詠唱の道 / 深みへ / 試練を越えて / 部屋主狩り / 雷の狩り / 解き放つ者 | `meta/quests.ts` |
+| 依頼名 | burnout … burstMaster | 燃え尽き / 蒸気の手 / 揺るがす者 / 誓約なき者 / 反応の目録 / 連携の稽古 / 巣窟崩し / 王殺し / 無傷の階 / 見切りの舞 / 返し手 / 五重苦 / 呪いを抱く / 大博打 / 死神と踊る / 連鎖の糸 / 三段の連鎖 / 凍てつく刃 / 毒の庭 / 血の道 / 急所読み / 詠唱の道 / 深みへ / 試練を越えて / 部屋主狩り / 雷の狩り / 解き放つ者 | `meta/quests.ts` |
 | 依頼名（2026-09-24 第 3 弾、発見系 5 件） | pathfinder / newReaction / comboForms / chainForms / linkWeb | 未踏の連携 / 新しい反応 / 連携の型 / 糸の綾 / 網の目 | `meta/quests.ts` |
 | 実績 | achievement | 図鑑・依頼・履歴から判定する記録。解除した実績の名前は称号として名乗れる | `meta/achievements.ts` |
 | 実績名（2026-09-24 第 3 弾、発見系 4 件） | link5 / link15 / link30 / comboAll | 連携の芽生え / 網の読み手 / 連携の賢者 / 型の極み | `meta/achievements.ts` |

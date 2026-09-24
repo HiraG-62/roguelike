@@ -58,7 +58,6 @@ const SATISFY: Readonly<Record<QuestKey, Partial<QuestSnapshot>>> = {
   comboArtist: { skillCombos: 5 },
   hordeBreaker: { hordesCleared: 3 },
   kingslayer: { bossKills: 2 },
-  bladeOnly: { bossNoShot: 1 },
   untouched: { floorsNoHurt: 1 },
   justDancer: { justDodges: 15 },
   counterman: { counters: 10 },
@@ -149,21 +148,7 @@ describe("依頼: ラン中の数え上げ", () => {
     expect(c.kills, "撃破 3").toBe(3);
     expect(c.burnKills, "燃焼中の撃破 1").toBe(1);
     expect(c.bossKills, "ボス 1").toBe(1);
-    expect(c.bossNoShot, "射撃なしのボス 1").toBe(1);
     expect(c.lairKills, "部屋主 1").toBe(1);
-  });
-
-  it("通常の射撃を撃った後のボス撃破は「刃のみ」に数えない。スキルの射撃は数えない", () => {
-    const state = arena();
-    const boss = ENEMIES.find((d) => d.boss === true);
-    if (!boss) throw new Error("ボスが無い");
-    pushEvent(state, { kind: "onShoot", actor: "player", pos: { x: 0, y: 0 }, source: { kind: "skill", key: "pierceShot" } });
-    flush(state);
-    expect(state.questRun.counters.shots, "スキルの射撃は数えない").toBe(0);
-    pushEvent(state, { kind: "onShoot", actor: "player", pos: { x: 0, y: 0 }, source: { kind: "player", key: "shoot" } });
-    pushEvent(state, { kind: "onKill", actor: "player", pos: { x: 0, y: 0 }, targetKey: boss.key, source: { kind: "player", key: "kill" } });
-    flush(state);
-    expect(state.questRun.counters.bossNoShot, "撃った後は数えない").toBe(0);
   });
 
   it("怯み・反応・状態異常の種類・巣窟の制圧・連携を数える", () => {
@@ -292,5 +277,11 @@ describe("依頼: 永続化", () => {
     const parsed = parseQuestSave({ version: 1, completed: { burnout: 5, nothing: 1 }, active: "nothing" });
     expect(parsed?.completed, "既知の依頼だけ").toEqual({ burnout: 5 });
     expect(parsed?.active, "未知の active は null").toBeNull();
+  });
+
+  it("廃止した依頼「刃のみ」(bladeOnly) の旧セーブは黙って無視される", () => {
+    const parsed = parseQuestSave({ version: 1, completed: { burnout: 3, bladeOnly: 1 }, active: "bladeOnly" });
+    expect(parsed?.completed, "廃止した依頼の進行は捨てる").toEqual({ burnout: 3 });
+    expect(parsed?.active, "廃止した依頼は選べない").toBeNull();
   });
 });

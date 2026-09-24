@@ -924,7 +924,8 @@ function ringNeighbors(): (readonly [Slot, Slot])[] {
 type ConstellationRule = (main: MainColors) => boolean;
 
 const CONSTELLATION_RULES: Readonly<Record<ConstellationKey, ConstellationRule>> = {
-  // 左手（offHand）は今はベースが無く常に空なので、twins / shores は「銃なし」のときと同じく成立しない
+  // 左手（offHand）は今はベースが無く常に空なので、twins / shores / mirror / chain は判定式としては成立し得ない
+  // （offHand を参照するか、6 部位すべてが埋まっている必要がある）。resolveConstellation 側で hidden として明示的にも外す
   twins: (m) => same(m.mainHand, m.offHand),
   shores: (m) =>
     m.mainHand !== undefined && m.offHand !== undefined && (OPPOSITE_COLOR[m.mainHand] === m.offHand || OPPOSITE_COLOR[m.offHand] === m.mainHand),
@@ -941,9 +942,12 @@ const CONSTELLATION_RULES: Readonly<Record<ConstellationKey, ConstellationRule>>
 /** 判定の順（表の順で最初に成立したもの 1 つ） */
 const CONSTELLATION_ORDER: readonly ConstellationKey[] = ["twins", "shores", "spine", "ring", "mirror", "void", "chain"];
 
-/** 主色の並びから星座を 1 つ決める。成立しなければ undefined */
+/**
+ * 主色の並びから星座を 1 つ決める。成立しなければ undefined。
+ * hidden な星座（左手が使えるまで隠す 4 種）は判定自体から外し、偶然成立しないよう保証する
+ */
 export function resolveConstellation(main: MainColors): ConstellationKey | undefined {
-  return CONSTELLATION_ORDER.find((key) => CONSTELLATION_RULES[key](main));
+  return CONSTELLATION_ORDER.find((key) => !CONSTELLATIONS[key].hidden && CONSTELLATION_RULES[key](main));
 }
 
 export interface ConstellationDef {
@@ -953,6 +957,11 @@ export interface ConstellationDef {
   /** 動詞で語る効果。最後の行が代償 */
   lines: readonly string[];
   apply: (stats: PlayerStats) => void;
+  /**
+   * 左手（offHand）が常に空で成立しない星座を、両手の仕組みができるまで一覧・成立判定から隠す。
+   * 定義自体は残し、将来外すだけで復帰できるようにする
+   */
+  hidden?: boolean;
 }
 
 const pctText = (ratio: number): number => Math.round(ratio * PERCENT);
@@ -974,6 +983,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
       s.attackSpeedMul -= RESONANCE.twinsTempoLoss;
       s.fireRateMul -= RESONANCE.twinsTempoLoss;
     },
+    hidden: true,
   },
   shores: {
     name: "対岸",
@@ -986,6 +996,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
       s.traits.alternatePoiseMul += RESONANCE.shoresPoise;
       s.traits.repeatPoisePenalty += RESONANCE.shoresRepeat;
     },
+    hidden: true,
   },
   spine: {
     name: "背骨",
@@ -1013,6 +1024,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
       s.traits.triggerIcdCut = Math.max(s.traits.triggerIcdCut, RESONANCE.mirrorIcdCut);
       s.maxHp -= RESONANCE.mirrorHpLoss;
     },
+    hidden: true,
   },
   void: {
     name: "虚空",
@@ -1031,6 +1043,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
       s.traits.switchMana += RESONANCE.chainMana;
       s.manaGainMul -= RESONANCE.chainGainLoss;
     },
+    hidden: true,
   },
 };
 

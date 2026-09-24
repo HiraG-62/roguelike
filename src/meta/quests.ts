@@ -32,8 +32,6 @@ export interface QuestCounters {
   crits: number;
   bursts: number;
   skillCasts: number;
-  /** 通常の射撃（スキルの射撃は数えない） */
-  shots: number;
   hurts: number;
   reactions: number;
   vaporizes: number;
@@ -48,8 +46,6 @@ export interface QuestCounters {
   /** 被弾 0 のまま階段で降りた階の数 */
   floorsNoHurt: number;
   bossKills: number;
-  /** 通常の射撃を 1 度も撃たずに倒したボス */
-  bossNoShot: number;
   lairKills: number;
   /** 死神が出ている間に階段で降りた */
   reaperEscapes: number;
@@ -73,7 +69,6 @@ export function createQuestCounters(): QuestCounters {
     crits: 0,
     bursts: 0,
     skillCasts: 0,
-    shots: 0,
     hurts: 0,
     reactions: 0,
     vaporizes: 0,
@@ -85,7 +80,6 @@ export function createQuestCounters(): QuestCounters {
     challengesCleared: 0,
     floorsNoHurt: 0,
     bossKills: 0,
-    bossNoShot: 0,
     lairKills: 0,
     reaperEscapes: 0,
     maxKeystones: 0,
@@ -182,7 +176,6 @@ export const QUEST_KEYS = [
   "comboArtist",
   "hordeBreaker",
   "kingslayer",
-  "bladeOnly",
   "untouched",
   "justDancer",
   "counterman",
@@ -247,7 +240,6 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   comboArtist: { name: "連携の稽古", desc: "スキルの連携を 5 回決める。", goal: 5, measure: (s) => s.skillCombos, reward: { kind: "relic", relic: "chantRosary" } },
   hordeBreaker: { name: "巣窟崩し", desc: "巣窟を 3 つ制圧する。", goal: 3, measure: (s) => s.hordesCleared, reward: { kind: "relic", relic: "lastBell" } },
   kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "kingslayerCollar" } },
-  bladeOnly: { name: "刃のみ", desc: "射撃を 1 度も撃たずにボスを倒す。", goal: 1, measure: (s) => s.bossNoShot, reward: { kind: "title", title: "刃一筋" } },
   untouched: { name: "無傷の階", desc: "1 度も被弾せずに階段を降りる。", goal: 1, measure: (s) => s.floorsNoHurt, reward: { kind: "page", page: "enemy" } },
   justDancer: { name: "見切りの舞", desc: "見切りを 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "job", job: "shadow" } },
   counterman: { name: "返し手", desc: "カウンターを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "returningSwallow" } },
