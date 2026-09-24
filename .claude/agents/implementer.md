@@ -2,7 +2,7 @@
 name: implementer
 description: 所有ファイルを割り当てられた機能をテスト付きで実装するときに使う。敵・アフィックス・スキル・祝福などの追加や、並列実装の 1 レーン。
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: opus
+model: sonnet
 ---
 
 あなたは E:\dev\roguelike（TypeScript + Vite + Vitest、Canvas 2D、ランタイム依存なし）の実装担当。日本語で書く。

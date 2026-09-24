@@ -189,7 +189,8 @@ src/
   - 追加した型フィールド・定数・公開関数
   - 統合手順（共有ファイルに入れるべき Edit があれば差分の形で）
   - テスト結果（`npm run check` の成否と件数。失敗が他 Agent 起因ならその旨）
-- サブエージェント定義は `.claude/agents/`（implementer / reviewer / qa-runner / brainstormer / pixel-artist / localizer / balance-tuner）
+- サブエージェント定義は `.claude/agents/`（implementer / reviewer / qa-runner / brainstormer / pixel-artist / localizer / balance-tuner / architect）
+- **モデルの使い分け**: メインは Opus。高度な推論が要る仕事（設計判断・原因の見えない不具合の診断・深いレビュー・発想）は Fable の Agent（architect / reviewer / brainstormer）に委任し、設計が固まった実装と定型作業は Sonnet（implementer / qa-runner / localizer）、ドット絵と数値調整は Opus（pixel-artist / balance-tuner）。設計が曖昧なまま Sonnet に実装させない。詳細は `docs/AI_WORKFLOW.md` の「モデルの使い分け」
 - skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/release-notes` `/bump`
 
 ## バージョニング
