@@ -121,6 +121,24 @@ src/
 - 刻印符: `MODIFIER_KEYS` → `MODIFIERS`（大拡張分は `skills/modifiers.ts`。`canAttach` の条件）→ `resolveCast` に効果。`CastParams.burdenMul`（旧 `cooldownMul`）は気力型ならコスト、再使用型なら再使用時間に掛かる。発動の「型」自体を変える型替え符は `ModifierDef.reshape`（リンク 2 本、1 スロット 1 枚まで）
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
 
+### 攻撃ジャンル・属性
+- ジャンル（範囲軸 × 質軸）は `core/element.ts` の `ATTACK_RANGES` / `ATTACK_QUALITIES` に型がある。新しい攻撃を追加するときは既存の 3×3 から選び、`AttackProfile`（`{ genre, element }`）を武器種（`data/weapons.ts` の `MOVESETS` / `SHOT_TYPES`）かスキル（`skills/data.ts` の `SKILL_ATTACK`）に渡す。参照ステータスの既定表は `system/attributes.ts` の `GENRE_ATTRS`
+- 属性を増やすなら `core/element.ts` の `ELEMENTS` に足し、`ELEMENT_LABEL` に日本語名、`data/tuning.ts` の `ELEMENT`（弱点 / 耐性の倍率・関連する状態異常）、`data/enemyDefense.ts` の各敵に耐性値を追加（`Record` なので漏れは型エラー）。プレイヤー側は `loot/affixes.ts` に属性の変換（`cv_infuse*`）・耐性（`res_*`）の性質を足す
+- 敵の防御・魔防・耐性・弱点は `data/enemyDefense.ts` の `ENEMY_DEFENSE`（`d(body, resist, attack, stages?)`。ボスは `stages` で段階ごとに上書き）。計算は `system/elementCombat.ts`、表示は `render/elementUi.ts`（弱点の頭上の印は倒すまで「？」）
+- テスト: `system/elementCombat.test.ts` / `data/genre.test.ts`
+
+### ジョブ
+1. `src/data/jobs.ts`: `JOB_KEYS` に key を足し、`JOBS` に `JobDef`（ステータスの偏り、得意な武器種 `favored`、固有ルール 2 つは統一ルール文法で `rules`、初期スキル石 `starterSkill`、弱点 `weakness`。合計 0 になるようにする）
+2. `src/system/jobs.ts`: `applyJobStats` がステータスの偏りと得意武器の上乗せを畳み込む（`system/runSetup.ts` の `applyRunStats` から呼ばれる）。`jobRules` が `collectRules` に合流し、`startJob`（`createGame` が呼ぶ）が未所持のときだけ初期スキル石を倉庫へ入れる
+3. 依頼の報酬でジョブを解放するなら `meta/quests.ts` の `QuestReward` に `job` を指定
+4. テスト: `system/jobs.test.ts`
+
+### 契約者
+1. `src/system/contractors.ts`: `CONTRACTOR_KEYS` に key を足し、`CONTRACTORS` に定義（`name` は日本語、台座の種類は `OfferKind`、効果は関数）。取引の代価は欠片（`state.shards`）か生命
+2. 契約（灰の公証人）を増やすなら `PACT_KEYS` に足し、失敗判定はその場、達成判定は `onContractsFloorReached`（次の階に着いたとき）
+3. 鍛冶・属性の祭壇など「通常攻撃に属性を乗せる」系は `ensureContractStats` が `applyStats` の結果に後から足す
+4. テスト: `system/contractors.test.ts`
+
 ### 状態異常
 - 種類を増やすなら `src/core/status.ts` の `STATUS_KINDS` に追加し、`src/system/statusEffects.ts` に効果・持続・スタック規則・相互作用を実装、`src/render/statusUi.ts` の `STATUS_GLYPH` / `STATUS_COLOR` に表示を足す
 - 既存 34 種に新しい付与経路を足すだけなら型を増やさず、以下のどちらかで `StatusApply`（kind / stacks / duration / potency）を渡す
@@ -148,8 +166,10 @@ src/
 - フロア種別は `FloorKind` と `chooseFloorKind`、tuning の `FLOOR_KIND`
 - **封鎖するかどうか（`locks`）**: 洞窟基本の開放型フロアでは、部屋に入っても既定では封鎖しない。封鎖する種類だけ tuning の `ROOM_KIND.locks`（`Record<RoomKind, boolean>` なので追加漏れは型エラー）に `true` を足す。`system/roomTypes.ts` の `ROOM_LOCKS` がそれを re-export し、`floor.ts` が入室時に見る。封鎖しない種類は代わりに「交戦中」（`system/engagement.ts`）で判定し、部屋の敵が全滅すると制圧扱いになる（封鎖と同じ報酬・フックを通す）
 
-### 効果音
-- `audio/sfxNames.ts` の `SFX_NAMES` に名前 → `audio/sfx.ts` の `SFX_DEFINITIONS` に合成定義（`Record<SfxName, …>` なので漏れは型エラー）→ ロジックから `pushSfx`
+### 効果音・音楽
+- `audio/sfxNames.ts` の `SFX_NAMES` に名前を足す → 実装は 2 通り。**層を並べるだけで作れるなら** `audio/sfxLayers.ts` の `LAYERED_SFX` に `Layer`（`noise` / `tone` / `sweep` / `chord` など、`audio/layers.ts` の型）の配列を書く（新しい効果音はまずこちらを検討する）。個別の合成が要るときだけ `audio/sfx.ts` の `SFX_DEFINITIONS` に関数を書く（`Record<SfxName, …>` なので両方から漏れは型エラー）→ ロジックから `pushSfx`
+- BGM を増やす・変えるなら `audio/music.ts` の `TRACKS`（`TrackKey = FloorKind | "boss"`。`TrackDef` は和音・リズム・打楽器の入り方）。曲の選択は `pickTrack`（フロア種別・交戦中・ボスで切り替え）、`main.ts` の `updateMusic` が state を読んで `musicCue` に渡す。ロジック（`system/`）は音楽を知らない
+- テスト: `audio/sfx.test.ts` / `audio/music.test.ts`
 
 ### スプライト
 - `src/data/sprites.ts` の `SPRITES` にフレーム配列（1 フレーム = 文字列の行配列）。`'.'` は透明、他は `PALETTE` の 1 文字。キャラは **右向き** で描く（左は描画側で反転）
@@ -191,6 +211,7 @@ src/
 
 | ファイル | 内容 |
 | --- | --- |
+| `docs/HANDOFF.md` | **セッション開始時に最初に読む**: 現在地・進行中のレーン・次にやる候補・ユーザーに聞くこと |
 | `IDEAS.md` | 企画メモと「現状」（引き継ぎの起点） |
 | `CHANGELOG.md` | 版ごとの変更履歴（Keep a Changelog 風） |
 | `docs/ARCHITECTURE.md` | データフロー・型の関係・決定性とリプレイ・永続化キー |
