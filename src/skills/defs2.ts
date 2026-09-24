@@ -15,7 +15,7 @@ import { cooldownSkill, manaSkill } from "./resource";
 const APPLIES = {
   waterJar: [{ kind: "wet", stacks: T.waterJar.wetStacks, duration: STATUS.wet.duration, potency: 0 }],
   oilPot: [{ kind: "oiled", stacks: 1, duration: STATUS.oiled.duration, potency: 0 }],
-  scorchLine: [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: T.scorchLine.burnPotency }],
+  scorchLine: [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: T.scorchLine.burnPotency, ratio: T.scorchLine.burnPotencyRatio }],
   iceSlide: [{ kind: "chill", stacks: 1, duration: STATUS.chill.duration, potency: 0 }],
   bogCall: [{ kind: "poison", stacks: 1, duration: STATUS.poison.duration, potency: 0 }],
   brandSear: [{ kind: "brand", stacks: T.brandSear.brandStacks, duration: STATUS.brand.duration, potency: 0 }],

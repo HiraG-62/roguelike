@@ -3,7 +3,7 @@ import { type KeywordProfile, kw } from "../core/keywords";
 import type { EventKind } from "../core/events";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
-import type { AttrRatio, Scaling } from "../loot/types";
+import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 
 /**
@@ -353,7 +353,20 @@ function statusApply(raw: unknown): StatusApply {
     throw new Error(`不正な applies: ${JSON.stringify(raw)}`);
   }
   if (!(STATUS_KINDS as readonly string[]).includes(raw.kind)) throw new Error(`未知の状態異常: ${raw.kind}`);
-  return { kind: raw.kind as StatusKind, stacks: raw.stacks, duration: raw.duration, potency: raw.potency };
+  const out: StatusApply = { kind: raw.kind as StatusKind, stacks: raw.stacks, duration: raw.duration, potency: raw.potency };
+  if (raw.ratio !== undefined) out.ratio = attrRatio(raw.ratio);
+  return out;
+}
+
+/** 状態異常の効果量の係数（docs/COMBAT_DESIGN.md A-10）。キーはステータス、値は非負の数 */
+function attrRatio(raw: unknown): AttrRatio {
+  if (!isRecord(raw)) throw new Error(`不正な ratio: ${JSON.stringify(raw)}`);
+  const out: AttrRatio = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!(ATTR_KEYS as readonly string[]).includes(k) || typeof v !== "number") throw new Error(`不正な ratio: ${JSON.stringify(raw)}`);
+    out[k as AttrKey] = v;
+  }
+  return out;
 }
 
 function buttonKey(raw: unknown): ButtonKey {

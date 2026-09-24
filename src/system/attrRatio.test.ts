@@ -73,3 +73,13 @@ describe("射撃の型ごとの係数（ShotDef.scaling）", () => {
     }
   });
 });
+
+describe("武器の技の状態異常の係数（weapons.json の applies.ratio）", () => {
+  it("JSON の ratio が StatusApply まで届く", () => {
+    const withRatio = Object.values(MOVESETS)
+      .flatMap((m) => [...m.steps, m.dashAttack, ...m.branches.map((b) => b.step)])
+      .flatMap((s) => s.applies ?? [])
+      .filter((a) => a.ratio !== undefined);
+    expect(withRatio.length, "係数付きの付与が 1 つも無い").toBeGreaterThan(0);
+  });
+});

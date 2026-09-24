@@ -234,10 +234,10 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
 /** 命中した敵に付ける状態異常（docs/COMBAT_DESIGN.md B-4 の「付与」列） */
 const APPLIES = {
   railshot: [{ kind: "vulnerable", stacks: 1, duration: SKILL.railshot.vulnerableTime, potency: 0 }],
-  thunder: [{ kind: "shock", stacks: SKILL.thunder.shockStacks, duration: STATUS.shock.duration, potency: SKILL.thunder.shockPotency }],
+  thunder: [{ kind: "shock", stacks: SKILL.thunder.shockStacks, duration: STATUS.shock.duration, potency: SKILL.thunder.shockPotency, ratio: SKILL.thunder.shockPotencyRatio }],
   gravityWell: [{ kind: "silence", stacks: 1, duration: SKILL.gravityWell.silenceTime, potency: 0 }],
   chainHook: [
-    { kind: "bleed", stacks: SKILL.chainHook.bleedStacks, duration: SKILL.chainHook.bleedTime, potency: SKILL.chainHook.bleedPotency },
+    { kind: "bleed", stacks: SKILL.chainHook.bleedStacks, duration: SKILL.chainHook.bleedTime, potency: SKILL.chainHook.bleedPotency, ratio: SKILL.chainHook.bleedPotencyRatio },
   ],
 } as const satisfies Partial<Record<SkillKey, readonly StatusApply[]>>;
 
