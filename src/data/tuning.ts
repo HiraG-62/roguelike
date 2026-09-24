@@ -1,3 +1,5 @@
+import { BALANCE } from "./balance";
+
 /** プレイヤーの手触りに関わる定数。ここをいじって調整する */
 export const PLAYER = {
   radius: 5,
@@ -27,9 +29,10 @@ export const PLAYER = {
    * 通常攻撃の威力を落として相対的にスキル比率を上げる。docs/COMBAT_DESIGN.md B-7 段階 3）
    */
   melee: [
-    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 4.8, str: 0.6 }, poise: 8, reach: 16, size: 26, knockback: 140, heavy: false, lunge: 4 },
-    { windup: 0.05, active: 0.1, recover: 0.16, scaling: { base: 4.8, str: 0.6 }, poise: 8, reach: 18, size: 28, knockback: 160, heavy: false, lunge: 4 },
-    { windup: 0.08, active: 0.12, recover: 0.3, scaling: { base: 9.6, str: 1.2 }, poise: 22, reach: 22, size: 38, knockback: 320, heavy: true, lunge: 8 },
+    // 速さは docs/ideas/weapon-redesign.md 8 章（旧 0.05 / 0.1 / 0.16・0.08 / 0.12 / 0.3 → 旧双剣より少し遅い程度）
+    { windup: 0.035, active: 0.08, recover: 0.1, scaling: { base: 4.8, str: 0.6 }, poise: 8, reach: 16, size: 26, knockback: 140, heavy: false, lunge: 4 },
+    { windup: 0.035, active: 0.08, recover: 0.1, scaling: { base: 4.8, str: 0.6 }, poise: 8, reach: 18, size: 28, knockback: 160, heavy: false, lunge: 4 },
+    { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 9.6, str: 1.2 }, poise: 22, reach: 22, size: 38, knockback: 320, heavy: true, lunge: 8 },
   ],
   /** コンボ最終段の後、次の 1 段目まで待たせる時間 */
   comboLockout: 0.18,
@@ -431,55 +434,11 @@ export const ATTR_GAIN = {
   perBoss: 2,
 } as const;
 
-/** マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源 */
-export const MANA = {
-  /**
-   * 精神 base のときの最大マナと自然回復 / 秒。3.5 → 4.5（QA 2026-09-23: マナ不足不発 20 回/180 run と少ないため、不発を増やさない範囲でスキル使用頻度を上げる）。
-   * 最大 100 → 80、回復 4.5 → 1.2（2026-09-24 プレイ所見: 回復が早すぎコストが機能していない。序盤は満タンから 3〜4 発でほぼ空になり、
-   * 回復・軽減は装備の性質と祝福で伸ばす）
-   */
-  baseMax: 80,
-  baseRegen: 1.2,
-  /** 封鎖されていない部屋・通路での自然回復倍率（待ち時間を作らない）。4 → 2.5（2026-09-24 プレイ所見: 回復が早すぎコストが機能していない） */
-  idleRegenMul: 2.5,
-  /**
-   * この半径（px）に生きた敵がいる間は idleRegenMul を掛けない（戦闘中は等倍）。
-   * 開放型フロア（2026-09-24）で「封鎖中」の代わりに使う。気付かれる距離（110）より少し広い
-   */
-  combatRadius: 140,
-  /**
-   * 近接各段の命中 1 体ごと。[4,4,7] → [5,5,8]（QA 2026-09-23: スキル由来与ダメ比率 30.8%＜目標のため回収を強化）。
-   * [5,5,8] → [3,3,5]、上限 3 → 2 体、ダッシュ攻撃 5 → 3（2026-09-24 プレイ所見: 回復が早すぎコストが機能していない。1 振りで大きく戻らず、殴り続けて少しずつ貯める）
-   */
-  onMelee: [3, 3, 5],
-  /** 近接 1 振りで回収する敵の上限 */
-  meleeTargetCap: 2,
-  onDashAttack: 3,
-  /** カウンターヒットなら倍 */
-  onCounterMul: 2,
-  /** 射撃弾の命中 1 体ごとと、1 回の射撃で回収できる上限（発数） */
-  /** 1.5 → 1、ジャスト 15 → 12（2026-09-24 プレイ所見: 回復が早すぎコストが機能していない）。撃破は 2 → 4（倒し切る価値を上げ、回収の主軸を撃破にも置く） */
-  onShot: 1,
-  shotVolleyCap: 3,
-  onJust: 12,
-  onKill: 4,
-  /**
-   * 通常攻撃のマナ回収に掛かる倍率（誓約 × 祝福 × 性質「底打ち」）の積の上限。
-   * 詠唱の誓い × 余韻 × 詠唱返しなどを重ねると 24 倍に届き、数発で満タンになるため
-   */
-  attackGainMulMax: 6,
-  /** 装備・祝福で下げられるコスト倍率の下限（0 コストにはしない） */
-  costMulMin: 0.4,
-  /**
-   * 最大マナの下限。涸れ井戸の性質の重ね掛け・精神低下・虚ろの器で 0 になると、
-   * スキルのコストが最大マナで切り詰められて 0（撃ち放題）になるため
-   */
-  maxMin: 20,
-  /** ラン開始で満タン */
-  startFull: true,
-  /** 階層到達で最大のこの割合まで回復（既に上回っていれば何もしない）。満タン回復は階段が補給所になりすぎるのでやめた（2026-09-24 プレイ所見: 回復が早すぎコストが機能していない） */
-  descendRefill: 0.5,
-} as const;
+/**
+ * マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源。
+ * 数値は src/data/balance/combat.json の "MANA"（変更したい場合はそこを編集する。_note に調整の経緯）
+ */
+export const MANA = BALANCE.combat.MANA;
 
 /** 怯み（docs/COMBAT_DESIGN.md D-1）。段階 1 の L3 が読む */
 export const POISE = {
@@ -606,43 +565,12 @@ export const TERRAIN_RUBBLE = {
   particles: 10,
 } as const;
 
-/** 精鋭修飾子「強欲の」（docs/ideas/enemies.md M12）。src/system/elites.ts が読む */
-export const ELITE_GREEDY = {
-  /** 床の遺物・スキル石に気付く距離（px） */
-  seekRadius: 160,
-  /** この距離まで寄ったら拾う（px） */
-  grabRadius: 10,
-  /** 1 体が抱えられる数 */
-  carryMax: 2,
-  /** 拾いに行く・逃げる足の倍率（素の速さに掛ける。冷気・泥・迅速のはそのまま効く） */
-  runMul: 1.3,
-  /** プレイヤーがこの距離より近いと逃げる（px） */
-  fleeRadius: 150,
-  /** 逃げる向きに 1 ステップで進めた距離がこの割合を下回ったら追い詰められたとみなす */
-  stuckRatio: 0.3,
-  /** 追い詰められて戦う秒（この間は通常の敵と同じく攻撃してくる） */
-  cornerFightTime: 2.5,
-  /** 拾った物があれば倒したときに追加で落とす遺物の数 */
-  bonusDrops: 1,
-  /** 落とす物を並べる半径（px。乱数を使わず円周に並べる） */
-  dropSpread: 10,
-  color: "#ffc040",
-} as const;
-
-/** 二度突きの猪（docs/ideas/enemies.md E6）。src/system/enemyBehaviors.ts が読む */
-export const DOUBLE_CHARGE = {
-  /** 1 本目はプレイヤーの位置をこの距離だけ越えた所で曲がる（px） */
-  overshoot: 24,
-  leg1Min: 60,
-  leg1Max: 170,
-  /** 2 本目の長さ（px） */
-  leg2Len: 120,
-  /** 2 本目が 1 本目から曲がる角度（度）。左右は抽選 */
-  turnDeg: 75,
-  /** 予告線の不透明度（1 本目 / 2 本目。2 本目は薄い） */
-  lineAlpha: 0.35,
-  secondAlpha: 0.16,
-} as const;
+/**
+ * 精鋭修飾子「強欲の」/ 二度突きの猪。数値は src/data/balance/enemies.json の同名ブロック
+ * (src/system/elites.ts / enemyBehaviors.ts が読む)
+ */
+export const ELITE_GREEDY = BALANCE.enemies.ELITE_GREEDY;
+export const DOUBLE_CHARGE = BALANCE.enemies.DOUBLE_CHARGE;
 
 /** トリガー効果 */
 export const TRIGGER = {
@@ -998,569 +926,19 @@ export const ROOM = {
   clearBonus: 50,
 } as const;
 
-/** 追加敵の行動パラメータ */
-export const ENEMY_AI = {
-  /**
-   * 同時に攻撃の出だし（strike）に入れる敵の数。超えた敵は予備動作のまま strikerHoldTime ずつ待つ（予告は出たまま）。
-   * QA 0.0.7α: 1 対 1 被弾 9.74 回/60 秒。囲まれたときに予告の重なりで避けられない瞬間を作らない（テレグラフ原則）
-   */
-  maxSimultaneousStrikers: 2,
-  strikerHoldTime: 0.1,
-  /**
-   * 怯んでいない敵のノックバック減衰（毎秒）。距離 = 力 × knockbackUnstaggered / knockDecay
-   * （docs/ideas/combat-feel-design.md D-2。system/enemies.ts の局所定数をここへ移した）
-   */
-  knockDecay: 9,
-  knight: {
-    /** 盾で防ぐ正面の角度（度） */
-    blockArcDeg: 120,
-    blockColor: "#c0d0ff",
-    /** 防いだとき攻撃側へ返す小さな跳ね返り（敵自身の後退量） */
-    blockPushback: 40,
-    /** 突進の速度倍率（def.speed に掛ける） */
-    lungeSpeedMul: 6,
-  },
-  bomber: {
-    /** この距離より近いと離れる */
-    keepAway: 60,
-    fuse: 2,
-    radius: 36,
-    damage: 18,
-    /** 爆弾を置く先（プレイヤーへの方向にこの距離だけ投げる） */
-    throwDist: 40,
-    color: "#ff4040",
-    /** 倒されたとき持っていた爆弾が爆ぜるまでの秒（予告の影を見てから避けられる長さ） */
-    deathFuse: 0.5,
-  },
-  laser: {
-    width: 8,
-    length: 260,
-    damage: 16,
-    /** チャージのうち細い予告線を出す割合（残りは太い赤線） */
-    thinRatio: 0.6,
-    color: "#ff3030",
-  },
-  golem: {
-    ringRadius: 70,
-    /** 衝撃波の広がる時間（秒） */
-    ringTime: 0.55,
-    /** リングの縁の判定幅（px） */
-    ringThickness: 8,
-    damage: 20,
-    color: "#d0c8a0",
-  },
-  bat: {
-    zigzagFreq: 9,
-    zigzagAmount: 0.9,
-    /** 噛んだ後に離れる速度倍率 */
-    retreatMul: 1.2,
-  },
-  wisp: {
-    deathExplodeRadius: 26,
-    deathExplodeDamage: 10,
-    /** 死亡から爆発までの猶予（秒）。テレグラフを見て離れられるように即時にしない */
-    deathExplodeFuse: 0.35,
-    color: "#60c0ff",
-  },
-  // ---- 以下 2026-09-24 敵の量産（docs/ideas/enemies.md） ----
-  /** 射撃の弾・死に際の弾の共通 */
-  volley: {
-    bulletLife: 3,
-    bulletRadius: 3,
-  },
-  /** 狼の回り込み: この距離より遠いときだけ横へ回る（近づいたら素直に飛びかかる） */
-  flank: { minDist: 60 },
-  /** 金色スライム: 逃げる速さの倍率と、消えるときの色 */
-  timid: { fleeMul: 1, color: "#f8d848" },
-  /** 腐肉蝿などの死に際の弾・逃げ足 */
-  deathBurst: { life: 2 },
-  /** 角甲虫が壁に激突したときの落石（予告の影 → 爆発扱いの落下） */
-  rockfall: { count: 3, spread: 44, radius: 16, damage: 14, fuse: 0.9 },
-  /** 自爆の予告の円は explode.radius。窓は windup */
-  kamikaze: { color: "#ff8030" },
-  /** 残像打ち: delay 秒前のプレイヤーの位置を狙う */
-  echoStriker: {
-    delay: 1.5,
-    sampleInterval: 0.1,
-    radius: 26,
-    damage: 16,
-    /** この距離を保つ */
-    keepAway: 110,
-    color: "#b090ff",
-  },
-  /** 群れの長: 倒れると取り巻きが怯える秒 */
-  packLeader: { fearTime: 3 },
-  /** 骨の楽団長: 指揮の弾（扇） */
-  conductor: { bulletCount: 5, spreadDeg: 60, bulletSpeed: 105, bulletDamage: 8, keepAway: 110, color: "#c060e0" },
-  /** マナ喰い: 1 噛みで奪うマナと、倒したときに返す倍率 */
-  manaLeech: { steal: 20, returnMul: 1.5 },
-  /** 死骸（骨拾い・墓守の鐘・貪食の が使う） */
-  corpse: { lifetime: 12, max: 24 },
-  /** 骨拾い: 死骸を探す半径、食べる秒、1 段ごとの伸び、段の上限 */
-  scavenger: {
-    seekRadius: 180,
-    eatRange: 10,
-    eatTime: 1.0,
-    maxGrowth: 3,
-    hpPerGrowth: 0.35,
-    damagePerGrowth: 0.3,
-    radiusPerGrowth: 1,
-    color: "#b0f0a0",
-  },
-  /** 墓守の鐘: 何回鳴ると死骸を蘇らせるか */
-  graveBell: { rings: 3, color: "#f8d848" },
-  /** 沈黙の修道士: 予告の円の半径と、炸裂で付く沈黙の秒 */
-  silencer: { radius: 50, duration: 3, keepAway: 100, color: "#c060e0" },
-  /** 霜砕き: 冷気・凍結のプレイヤーにだけ出す砕きの衝撃波 */
-  frostCrusher: { ringRadius: 55, damage: 30, color: "#8fd0ff" },
-  /** 双子の影: 片方が倒れてから蘇るまでの猶予と、蘇ったときの HP 割合 */
-  twinShade: { reviveTime: 3, reviveHpRatio: 0.6, color: "#b090ff" },
-  /** 喰らう宝箱: 舌の薙ぎ払い（短いレーザー）と噛みつきの突進倍率 */
-  mimic: { tongueLength: 90, tongueDamage: 16, biteSpeedMul: 5, color: "#e04848" },
-  /** 鎧の中身: 叩きつけの衝撃波と、鎧が割れたときの怯み */
-  hollowArmor: { ringRadius: 60, damage: 22, breakStagger: 2, color: "#c8c8d0" },
-  // ---- 以下 Wave 3（docs/ideas/enemies.md。地形を作る敵を優先。敵の地形は敵にも効く） ----
-  /** 敵が作る地形: 予告の影を出してから置くまでの秒（テレグラフ原則）。持続は地形ごとの TERRAIN.placedDuration */
-  terrainSeed: { delay: 0.6 },
-  /** 敵の爆発が敵にも当たるときの威力の倍率 */
-  friendlyBlastMul: 1,
-  /** H8: プレイヤーが沈黙している間の通常攻撃のマナ回収の倍率（撃てない時間を溜める時間にする） */
-  silencedAttackManaMul: 1.5,
-  /** 山なりに吐く（毒吐き蛙・霜蛙・熔岩蛙）: 保つ距離 */
-  lobber: { keepAway: 90 },
-  /** 油壺運び: 油を撒く間隔と半径 */
-  oiler: { dropInterval: 1.4, dropRadius: 14 },
-  /** 呼び鈴小鬼: 鐘の届く半径・急かしの秒・急かし中の攻撃間隔の進みの倍率・保つ距離 */
-  bellImp: { radius: 100, rallyTime: 6, hasteMul: 2, keepAway: 100, color: "#f8d848" },
-  /** 旗持ち: 旗の加護の半径・被ダメージ倍率・加護の持続（毎ステップ掛け直す）・保つ距離 */
-  banner: { radius: 80, takenMul: 0.7, rallyTime: 0.3, keepAway: 90, color: "#f8d848" },
-  /** 帯電の鼓舞（雷鬼火が倒れると周りの敵が帯電）: 半径・秒・帯電した敵が倒れたときの連鎖雷の威力 */
-  charged: { radius: 60, time: 5, deathChainDamage: 8, contactShock: 2, color: "#fff4a0" },
-  /** 土潜り: 潜って動く速さの倍率・飛び出しの半径と威力・飛び出した後に晒す秒・土煙の間隔 */
-  burrower: { burrowSpeedMul: 1.4, emergeRadius: 20, damage: 14, exposeTime: 1.4, dustInterval: 0.15, color: "#8a6a40" },
-  /** 天井吊り: 気付く距離・落下の半径と威力 */
-  dropper: { noticeRange: 70, radius: 22, damage: 14, color: "#5a4a40" },
-  /** 吸い込み蟲: 吸い込む半径・溜められる弾の上限・吐き返す扇の広がりと速さと威力 */
-  absorber: { radius: 44, maxShots: 8, spreadDeg: 70, bulletSpeed: 120, bulletDamage: 8, color: "#c0a0ff" },
-  /** ホムンクルス: 炸裂の数・広がり・半径・威力・吸えないときの既定の弱体の秒・保つ距離 */
-  homunculus: { blasts: 3, spread: 36, radius: 18, damage: 10, fallbackDuration: 2.5, keepAway: 100, color: "#e080c0" },
-  /** 写本の小悪魔: 写しの技（元の技の弱い版）の数値と保つ距離 */
-  scribeImp: {
-    keepAway: 120,
-    bulletCount: 5,
-    spreadDeg: 50,
-    bulletSpeed: 115,
-    bulletDamage: 7,
-    ringRadius: 50,
-    ringDamage: 12,
-    blastCount: 3,
-    blastSpread: 40,
-    blastRadius: 20,
-    blastDamage: 10,
-    color: "#e0d8c0",
-  },
-  /** 十字ゴーレム: 十字の線の長さと威力 */
-  crossGolem: { length: 110, damage: 20 },
-  /** 風吹き: 扇の届く距離と広さ・押す強さ（加速度）と上限・弾を押す強さ・保つ距離 */
-  windSprite: { range: 120, arcDeg: 50, push: 520, maxPush: 170, bulletPush: 260, keepAway: 90, color: "#d0f0ff" },
-  /** 地雷撒き: 撒く間隔・同時に置ける数・保つ距離 */
-  mineLayer: { dropInterval: 2, max: 4, keepAway: 110 },
-  /** 敵の地雷: 踏んだと見なす距離・爆発の半径と威力 */
-  mine: { trigger: 16, radius: 30, damage: 16, color: "#ff6060" },
-  /** 鎖の番人: 鎖の長さ・当たったときの引き寄せ・叩きつけの予備動作と半径と威力 */
-  chainWarden: { length: 140, pull: 380, pullDamage: 6, slamWindup: 0.5, slamRadius: 40, slamDamage: 18, color: "#a0a0b0" },
-  /** 虚ろ: 照準がこの角度以内に入ると固まる */
-  hollow: { freezeArcDeg: 50, color: "#9090a0" },
-  /** 火喰い: 火を探す半径・食べる距離・食べて戻る HP の割合・1 段の伸び・段の上限 */
-  flameEater: { seekRadius: 160, eatRadius: 12, eatCooldown: 0.6, heal: 0.15, radiusPerGrowth: 1, maxGrowth: 3, color: "#ff9040" },
-  /** 苔ゴーレム: 被弾で胞子（小さな毒沼）を出す間隔と半径 */
-  spore: { cooldown: 1.2, radius: 10 },
-  /** 沼鬼火: 水たまり・毒沼の上での速さの倍率 */
-  swampWisp: { speedMul: 2 },
-  /** 氷猪: 突進の跡に氷床を置く半径 */
-  iceTrail: { radius: 8 },
-  /** 部屋主: 大蝦蟇（舌で引き寄せて噛む。周りに水たまり） */
-  giantToad: { tongueLength: 130, pull: 420, biteRadius: 30, biteDamage: 22, pondRadius: 40, color: "#58d058" },
-  /** 部屋主: 炎の鍛冶（金床を叩くと燃える刃。金床を壊すと怯んで怒る） */
-  forgeMaster: { keepAway: 100, bladeCount: 3, spreadDeg: 40, bladeSpeed: 130, bladeDamage: 12, fireRadius: 30, enrageMul: 0.6, anvilBreakStagger: 2, color: "#ff8030" },
-  /** 部屋主: 砲台長（四隅の砲台。砲台が壊れるたびに怯む） */
-  turretMaster: { turrets: 4, turretBreakStagger: 1, orbSpeed: 90, orbDamage: 10, color: "#c0c0c0" },
-  /** 砲台の弾 */
-  turret: { bulletSpeed: 150, bulletDamage: 8 },
-  /** 部屋主: 石化の蜥蜴（睨んだ扇の中で止まっていると冷気が溜まる） */
-  basilisk: { range: 130, arcDeg: 60, stillSpeed: 12, chillEvery: 0.3, biteTime: 0.35, color: "#a0e0a0" },
-  /** 部屋主: 影踏み（影に潜って背後から出る） */
-  shadowStalker: { behind: 26, radius: 26, damage: 20, exposeTime: 0.8, color: "#5a4a8a" },
-} as const;
-
 /**
- * 敵の攻撃テンポ（docs/COMBAT_DESIGN.md C-2）: 深度による予備動作短縮・連携ずらし・連続攻撃。
- * 予備動作は深度と迅速エリートを掛けても基準の windupFloor 倍を下回らない（読める長さを守る）
+ * 追加敵の行動パラメータ・敵の攻撃テンポ・エリート修飾子。数値は src/data/balance/enemies.json の同名ブロック
+ * (system/enemies.ts / elites.ts / enemyBehaviors.ts / enemyTerrain.ts / enemyWave3.ts が読む)
  */
-export const ENEMY_TEMPO = {
-  /** 予備動作 × max(windupDepthMin, 1 − windupDepthStep × (深度 − 1))。0.02 → 0.015（QA 2026-09-23:
-   * 1 対 1 被弾 9.33 回/60 秒＞目標 1〜3。深度による予備動作短縮を緩め、下限 windupFloor は維持） */
-  windupDepthStep: 0.015,
-  windupDepthMin: 0.75,
-  /** 深度・エリートを掛けた後の下限（基準に対する割合） */
-  windupFloor: 0.6,
-  /** 連携ずらし: 1 体が予備動作に入ると、この半径内で攻撃間隔の残りが coordCooldownMax 以下の敵を遅らせる */
-  coordRadius: 90,
-  coordCooldownMax: 0.4,
-  coordDelay: 0.2,
-  /** 蝙蝠の群れは噛みをこの秒ずつずらす */
-  batCoordDelay: 0.15,
-  /**
-   * 連続攻撃（敵 key ごと）。count = 追加の撃数、windup = 2 撃目以降の予備動作（これも深度で縮む）。
-   * onWallOnly は猪: 壁に激突したときだけ反転してもう 1 回（それ以外の終わり方では続けない）
-   */
-  followUps: {
-    slime: { minDepth: 4, count: 1, windup: 0.25, onWallOnly: false },
-    knight: { minDepth: 1, count: 1, windup: 0.3, onWallOnly: false },
-    boar: { minDepth: 6, count: 1, windup: 0.35, onWallOnly: true },
-    golem: { minDepth: 1, count: 1, windup: 0.5, onWallOnly: false },
-  },
-} as const;
+export const ENEMY_AI = BALANCE.enemies.ENEMY_AI;
+export const ENEMY_TEMPO = BALANCE.enemies.ENEMY_TEMPO;
+export const ELITE = BALANCE.enemies.ELITE;
 
-/** エリート修飾子 */
-export const ELITE = {
-  minDepth: 3,
-  baseChance: 0.1,
-  chancePerDepth: 0.01,
-  maxChance: 0.35,
-  scoreMul: 3,
-  dropMul: 3,
-  hpMul: 1.4,
-  speedMul: 1.5,
-  /** Hasted のテレグラフ短縮倍率 */
-  windupMul: 0.6,
-  /** Shielded のシールド量（最大 HP に対する割合） */
-  shieldRatio: 0.6,
-  shieldBreakStagger: 0.6,
-  explodeRadius: 40,
-  explodeDamage: 18,
-  /** Explosive の死亡から爆発までの猶予（秒） */
-  explodeFuse: 1,
-  explodeColor: "#ff8030",
-  reflectColor: "#e0e0ff",
-  reflectDamage: 8,
-  linkColor: "#ff80ff",
-  /** 足元オーラの不透明度 */
-  auraAlpha: 0.45,
-  // ---- 以下 2026-09-24 追加の修飾子（docs/ideas/enemies.md 4 章） ----
-  /** 残響の: 攻撃の後、この予備動作でもう一度同じ攻撃を繰り返す */
-  echoWindup: 0.8,
-  /** 堅牢の: 怯み耐性の追加倍率（eliteMul に掛ける）、怯みの延長倍率、怯んだときの脆弱の秒 */
-  bulwarkPoiseMul: 2,
-  bulwarkStaggerMul: 2,
-  bulwarkVulnerableTime: 3,
-  /** 報復の: 怯んでから衝撃波を返すまでの秒と、衝撃波の半径・威力 */
-  retaliateDelay: 0.4,
-  retaliateRadius: 56,
-  retaliateDamage: 14,
-  /** 分光の: 受けた状態異常への免疫の秒 */
-  prismaticImmune: 5,
-  /** 刻限の: 時計の秒と、切れた後の怯み耐性の倍率（速さは迅速と同じ） */
-  timedClock: 12,
-  timedPoiseMul: 2,
-  /** 寄生の: 倒れたときに出る蝙蝠の数と HP */
-  parasiteCount: 4,
-  parasiteHp: 3,
-  /** 不動の: 移動の倍率 */
-  anchoredSpeedMul: 0.7,
-  /** 貪食の: 死骸を吸う距離と、1 体で回復する最大 HP の割合 */
-  devourRange: 48,
-  devourHeal: 0.25,
-  /** 群長の: 連れて湧く小型の数と HP の割合 */
-  packedCount: 2,
-  packedHpRatio: 0.5,
-  packedOffset: 16,
-  // ---- 以下 Wave 3 の修飾子（docs/ideas/enemies.md 4 章 M5 / M6 / M7 / M10 / M18） ----
-  /** 灼熱の: 通った跡に炎を置く間隔・半径・炎の持続 */
-  searingInterval: 0.25,
-  searingRadius: 6,
-  searingDuration: 1.5,
-  /** 封魔の: 輪の半径（中ではマナの自然回復が止まる） */
-  hexRadius: 70,
-  /** 号令の: 号令が届く半径と、号令に応じる敵の攻撃間隔の残りの上限 */
-  commandRadius: 110,
-  commandCooldownMax: 1.2,
-  /** 見切りの: 跳ぶ距離と間隔 */
-  evadeDist: 40,
-  evadeCooldown: 4,
-  /** 鎖縛の: 結ぶ数・結ぶ半径・鎖に触れたときの冷気の秒・触れ直しの間隔・鎖の太さ */
-  chainCount: 2,
-  chainRadius: 100,
-  chainChillTime: 2,
-  chainTouchIcd: 1,
-  chainWidth: 3,
-  /** 相乗の組（2 つ重ねる）: この深度から、エリートになった敵のうちこの割合 */
-  pairMinDepth: 8,
-  pairChance: 0.25,
-  /** 炎の柱（灼熱の + 不動の）: 足元に炎の輪を置く間隔と半径 */
-  pyreInterval: 2.5,
-  pyreRadius: 22,
-  /** 封魔の + 障壁の: 障壁がある間は輪の中でマナが減っていく（毎秒） */
-  hexDrain: 6,
-  /** 見切りの + 迅速の: 跳ぶ距離と間隔の倍率 */
-  evadeHasteDistMul: 1.6,
-  evadeHasteCooldownMul: 0.5,
-} as const;
+/** ボス共通 + 個体別パラメータ。数値は src/data/balance/enemies.json の "BOSS"（各 src/system/boss<Name>.ts が読む） */
+export const BOSS = BALANCE.enemies.BOSS;
 
-/** ボス */
-export const BOSS = {
-  /** この階ごとにボス部屋が出る */
-  interval: 3,
-  roomMinW: 18,
-  roomMinH: 14,
-  introTime: 2,
-  defeatSlowmo: 1.5,
-  rareDrops: 2,
-  rareDropBoost: 6,
-  rareDropAttempts: 40,
-  kingSlime: {
-    jumpTime: 0.9,
-    shockRadius: 60,
-    /** 22 → 17: QA 0.0.7α で死因単独 2 位（18 件）。被ダメの 7 割が着地の衝撃波で、
-     * 深度 3 で他ボスの約 2 倍の速さでプレイヤーを倒していたため（頻度・範囲は変えず 1 回の重さを下げる） */
-    shockDamage: 17,
-    phase2Ratio: 0.5,
-    /** 4 → 3: 第 2 段階の囲まれ方を和らげる（分裂の意味は残す） */
-    splitCount: 3,
-    phase2SpeedMul: 1.6,
-    /** 着地までの空中時間の最小（フェーズ 2）。0.65 → 0.8: 影を見てから走って抜けられる長さにする（テレグラフ原則） */
-    phase2JumpTime: 0.8,
-  },
-  boneLord: {
-    bulletSpeed: 110,
-    bulletDamage: 10,
-    bulletDirs: 8,
-    /** 弾幕 1 回の斉射数と間隔 */
-    volleys: 5,
-    volleyInterval: 0.22,
-    /** 斉射ごとの回転量（rad） */
-    volleySpin: 0.2,
-    wallDuration: 4,
-    wallLength: 5,
-    /** 骨の壁の耐久（H6: 爆発・壁叩きつけ・弾で壊せる。叩きつけは一撃で崩す） */
-    wallHp: 30,
-    /** グレネードなど爆発する技が骨の壁を削る半径 */
-    wallBlastRadius: 30,
-    teleportRatio: 0.3,
-    teleportInterval: 1.8,
-    color: "#c0ffb0",
-  },
-  /** 双子の騎士（兄 = 剣と盾 / 妹 = 弓）。相方が倒れると形見を拾って両方の技を使う */
-  twinKnights: {
-    /** 兄の突進（def.speed に掛ける） */
-    lungeSpeedMul: 6,
-    /** 妹の矢 */
-    arrowSpeed: 160,
-    arrowDamage: 10,
-    arrowCount: 3,
-    arrowSpreadDeg: 24,
-    /** 第 3 段階の矢の数 */
-    rageArrowCount: 5,
-    /** 妹の保ちたい距離 */
-    keepAway: 120,
-    /** 相方を失った後の予備動作の倍率（形見の技は溜めが長い） */
-    bereavedWindupMul: 1.2,
-    /** この HP 割合を切ると第 3 段階（激昂） */
-    rageRatio: 0.35,
-    /** 第 3 段階の攻撃間隔の倍率 */
-    rageIntervalMul: 0.7,
-    color: "#e0e0ff",
-  },
-  /** 霜の巨人: 叩きつけ → つらら → 氷の鎧 */
-  frostGiant: {
-    slamRadius: 80,
-    slamDamage: 22,
-    /** 叩きつけの真下の判定（半径に対する割合） */
-    slamCoreRatio: 0.35,
-    /** 第 2 段階へ（つららを混ぜる） */
-    phase2Ratio: 0.6,
-    /** 第 3 段階へ（氷の鎧と氷柱） */
-    phase3Ratio: 0.25,
-    icicleCount: 6,
-    icicleRadius: 18,
-    icicleDamage: 14,
-    /** 予告の影が出てから落ちるまで */
-    icicleFall: 1.1,
-    /** プレイヤーの周りに落とす範囲 */
-    icicleSpread: 70,
-    pillarCount: 4,
-    pillarDistance: 64,
-    /** 氷柱を全部割ったときのダウン */
-    armorBreakDown: 3,
-    color: "#8fd0ff",
-  },
-  // ---- Wave 3 のボス（docs/ideas/enemies.md 3 章。各 src/system/boss<Name>.ts） ----
-  /** 油壺の王: 油壺を投げ、突進し、火を点ける。燃える床に立つと引火して怯む（部屋のギミック） */
-  oilKing: {
-    jarCount: 3,
-    jarSpread: 50,
-    jarRadius: 24,
-    jarBlast: 18,
-    jarDamage: 10,
-    jarFall: 1.0,
-    chargeSpeedMul: 5.5,
-    chargeTime: 0.7,
-    wallStagger: 1.2,
-    fireBombRadius: 34,
-    fireBombDamage: 16,
-    trailInterval: 0.2,
-    trailRadius: 10,
-    slamRadius: 70,
-    slamDamage: 20,
-    igniteStagger: 2,
-    igniteCooldown: 8,
-    phase2Ratio: 0.6,
-    phase3Ratio: 0.3,
-    color: "#c09050",
-  },
-  /** 群れの母: 卵を産み、跳び、壁から群れを呼ぶ。卵を割ると母に怯み値が入る */
-  broodMother: {
-    eggCount: 3,
-    eggHatch: 4,
-    eggSpread: 70,
-    layTime: 1.2,
-    biteSpeedMul: 5,
-    biteTime: 0.45,
-    jumpTime: 0.9,
-    landRadius: 50,
-    landDamage: 18,
-    acidRadius: 24,
-    swarmInterval: 6,
-    swarmCount: 3,
-    eggBreakPoise: 60,
-    phase2Ratio: 0.6,
-    phase3Ratio: 0.25,
-    color: "#a0c040",
-  },
-  /** 図書館の司書: 本棚で部屋を区切り、禁書を読み、本棚を倒す。禁書を読む間に沈黙・怯みで止めるとダウン */
-  librarian: {
-    keepAway: 110,
-    shelfLength: 5,
-    shelfFall: 0.8,
-    pageCount: 7,
-    pageSpread: 90,
-    pageSpeed: 110,
-    pageDamage: 8,
-    readTime: 1.2,
-    readDropStagger: 2.5,
-    thunderCount: 4,
-    thunderSpread: 60,
-    thunderRadius: 20,
-    thunderDamage: 14,
-    pullRadius: 110,
-    pullForce: 320,
-    pullRingDamage: 12,
-    toppleLength: 7,
-    toppleSpacing: 16,
-    toppleRadius: 14,
-    toppleDamage: 18,
-    toppleFall: 1.0,
-    phase2Ratio: 0.65,
-    phase3Ratio: 0.3,
-    color: "#c0a0ff",
-  },
-  /** 鏡の騎士: 正面の弾を返し、第 2 段階からプレイヤーの装備の状態異常を写し、第 3 段階で写し身を呼ぶ */
-  mirrorKnight: {
-    lungeSpeedMul: 6,
-    lungeTime: 0.45,
-    wallStagger: 1.5,
-    waveCount: 3,
-    waveSpread: 30,
-    waveSpeed: 140,
-    waveDamage: 10,
-    reflectDamage: 10,
-    procDuration: 3,
-    procMax: 2,
-    images: 2,
-    imageHpRatio: 0.08,
-    /** 写し身が残っている間に本体が受けるダメージの倍率 */
-    imageGuardMul: 0.5,
-    phase2Ratio: 0.6,
-    phase3Ratio: 0.3,
-    color: "#c0e0ff",
-  },
-  // ---- 2026-09-24 第 4 弾（docs/ideas/enemies.md B3。src/system/bossThiefKing.ts）----
-  /**
-   * 盗賊王: 第 1・2 段階は距離を取って逃げながら短剣・地雷・煙玉。追い詰める（逃げ道が壁で塞がり、
-   * プレイヤーが cornerRadius 以内にいる状態が cornerTime 秒続く）とダウン。第 3 段階は開き直って突進する
-   */
-  thiefKing: {
-    keepAway: 120,
-    /** 逃げ足（def.speed に掛ける）と、逃げた距離がこの割合を下回ったら「塞がれた」とみなす */
-    fleeSpeedMul: 1.1,
-    stuckRatio: 0.35,
-    cornerRadius: 80,
-    cornerTime: 1.2,
-    cornerStagger: 2.5,
-    cornerCooldown: 7,
-    knifeCount: 3,
-    rageKnifeCount: 5,
-    knifeSpreadDeg: 36,
-    knifeSpeed: 150,
-    knifeDamage: 9,
-    /** 短剣の予告の扇の届く距離 */
-    knifeRange: 120,
-    /** 地雷を放る数（段階 1 / 2 以降）・放る距離・影の秒・自分の地雷の上限 */
-    mineCount: 2,
-    mineCountLate: 3,
-    mineSpread: 40,
-    mineFall: 0.8,
-    mineMax: 6,
-    /** 煙玉: 自分の足元に投げる。影の秒・半径・炸裂のダメージ・煙の秒 */
-    smokeFall: 1,
-    smokeRadius: 36,
-    smokeDamage: 8,
-    smokeTime: 4,
-    /** 第 3 段階の突進 */
-    dashSpeedMul: 5.5,
-    dashTime: 0.5,
-    wallStagger: 1.2,
-    /** 取り巻きの盗賊（部屋に最初から / 第 2 段階 / 第 3 段階） */
-    minions: [2, 2, 3],
-    minionSpread: 50,
-    phase2Ratio: 0.65,
-    phase3Ratio: 0.3,
-    color: "#d0a040",
-  },
-} as const;
-
-/** 追跡者（Reaper） */
-export const REAPER = {
-  /**
-   * 出現までの猶予（秒）の基礎値。実際の猶予は appearAfter + 部屋数 * appearPerRoom。
-   * 90 → 105（QA 2026-09-24: マナ経済の締め直しで各階層の滞在が約 10 秒伸び、Reaper 出現が 2 倍近くに増えたため猶予を補正）
-   */
-  appearAfter: 105,
-  /** 部屋 1 つにつき出現猶予に足す秒数（treasure/shrine は数えない） */
-  appearPerRoom: 12,
-  /** 出現のこの秒前から HUD に残り時間を出す */
-  warnMargin: 30,
-  /** 出現後の追跡速度（旧 28 の 85%） */
-  speed: 23.8,
-  radius: 9,
-  damage: 25,
-  /** 出現位置はプレイヤーからこの距離 */
-  spawnDist: 180,
-  color: "#8040c0",
-  /** バリアント（docs/ideas/enemies.md 6 章。src/system/reaper.ts の chooseReaperVariant） */
-  variants: {
-    /** 鎖の死神: 足は遅いが、interval 秒ごとに charge 秒の予告線を出して鎖を投げ、当たると引き寄せる */
-    chain: { minDepth: 7, speedMul: 0.8, interval: 6, charge: 1, length: 170, width: 6, pull: 360, damage: 10, color: "#a080e0" },
-    /** 取り立て屋（呪い付きの祝福を持つとき）: 速い。輪の中に offerTime 秒留まると HP の tollRatio を取って去る */
-    collector: { speedMul: 1.3, offerRadius: 40, offerTime: 1.5, tollRatio: 0.3, color: "#e0c048" },
-    /** 双子の死神: 2 体に分かれ、それぞれ遅い */
-    twin: { minDepth: 12, speedMul: 0.75, spread: 140 },
-    /** 影の死神（暗闇）: 本体は出ず、倒せる影が群れで追う。respawn 秒ごとに数を戻す */
-    shadow: { shades: 5, respawn: 8, ring: 120 },
-    /** 静かな死神（死神の友）: 予告なく、プレイヤーが動いている間だけ近づく */
-    silent: { moveThreshold: 8 },
-  },
-} as const;
+/** 追跡者（Reaper）。数値は src/data/balance/enemies.json の "REAPER"（src/system/reaper.ts / reaperVariants.ts が読む） */
+export const REAPER = BALANCE.enemies.REAPER;
 
 /** 部屋の種類（src/system/roomTypes.ts） */
 export const ROOM_KIND = {
@@ -2262,8 +1640,8 @@ export const ACTION = {
   /** ダッシュ攻撃: ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃（1 段目と 2 段目の間の性能） */
   dashAttack: {
     windup: 0.03,
-    active: 0.1,
-    recover: 0.18,
+    active: 0.08,
+    recover: 0.14,
     /** 威力（基礎値で 11.2）と怯み値。base 9 → ×0.8（QA 2026-09-23、B-7 段階 3） */
     scaling: { base: 7.2, str: 0.8 },
     poise: 12,
@@ -2733,14 +2111,17 @@ export const WEAPON = {
       branches: {
         crossCut: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.06, active: 0.12, recover: 0.3, scaling: { base: 10, str: 1.3 }, poise: 24, reach: 22, size: 40, knockback: 340, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 6, shake: 3, lunge: 8, trail: "#ffffff" },
+          step: { windup: 0.045, active: 0.1, recover: 0.21, scaling: { base: 10, str: 1.3 }, poise: 24, reach: 22, size: 40, knockback: 340, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 6, shake: 3, lunge: 8, trail: "#ffffff" },
         },
+        /** 受け流し → 斬りの追い打ち */
         steppingCut: {
           sequence: ["secondary", "primary"],
           next: 1,
-          step: { windup: 0.04, active: 0.1, recover: 0.16, scaling: { base: 5.5, str: 0.7, dex: 0.2 }, poise: 10, reach: 30, size: 16, knockback: 200, heavy: false, mana: 3, shape: { kind: "thrust" }, lunge: 24, trail: "#c0e0ff" },
+          step: { windup: 0.03, active: 0.08, recover: 0.11, scaling: { base: 5.5, str: 0.7, dex: 0.2 }, poise: 10, reach: 30, size: 16, knockback: 200, heavy: false, mana: 3, shape: { kind: "thrust" }, lunge: 24, trail: "#c0e0ff" },
         },
       },
+      /** 右クリックの固有技: 受け流し（押してから windowSec の被弾を無効化し、相手に怯み値を入れる） */
+      art: { cooldown: 0.6, hold: { moveMul: 0.5, maxSec: 0.25, parry: { windowSec: 0.25, recoverSec: 0.2, staggerPoise: 40 } } },
     },
     greatsword: {
       attackMoveMul: 0.2,
@@ -2761,13 +2142,13 @@ export const WEAPON = {
           { time: 1.2, damageMul: 2.8, poiseMul: 3.2, reachMul: 1.4 },
         ],
       },
+      /** 右クリックの固有技: 薙ぎ払い。続けて左で 3 段目へ */
+      art: {
+        cooldown: 0,
+        next: 2,
+        step: { windup: 0.12, active: 0.14, recover: 0.34, scaling: { base: 9, str: 1, vit: 0.4 }, poise: 20, reach: 36, size: 36, knockback: 260, heavy: false, mana: 4, shape: { kind: "arc", deg: 240 }, hitstop: 4, shake: 2.5, trail: "#e0d0b0" },
+      },
       branches: {
-        /** 右クリック単独の薙ぎ払い（大剣は右も近接）。続けて左で 3 段目へ */
-        sweep: {
-          sequence: ["secondary"],
-          next: 2,
-          step: { windup: 0.12, active: 0.14, recover: 0.34, scaling: { base: 9, str: 1, vit: 0.4 }, poise: 20, reach: 36, size: 36, knockback: 260, heavy: false, mana: 4, shape: { kind: "arc", deg: 240 }, hitstop: 4, shake: 2.5, trail: "#e0d0b0" },
-        },
         helmSplitter: {
           sequence: ["primary", "primary", "secondary"],
           step: { windup: 0.18, active: 0.12, recover: 0.5, scaling: { base: 16, str: 2, vit: 0.6 }, poise: 40, reach: 24, size: 30, knockback: 380, heavy: true, mana: 6, shape: { kind: "box" }, hitstop: 8, shake: 5, lunge: 14, trail: "#ffd75f" },
@@ -2777,27 +2158,28 @@ export const WEAPON = {
     twinBlades: {
       attackMoveMul: 0.7,
       steps: [
-        { windup: 0.03, active: 0.07, recover: 0.09, scaling: { base: 2.4, dex: 0.45 }, poise: 4, reach: 14, size: 22, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "box" }, hitstop: 1, lunge: 3, trail: "#c0ffe0" },
-        { windup: 0.03, active: 0.07, recover: 0.09, scaling: { base: 2.4, dex: 0.45 }, poise: 4, reach: 14, size: 22, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "box" }, hitstop: 1, lunge: 3, trail: "#c0ffe0" },
-        { windup: 0.03, active: 0.1, recover: 0.1, scaling: { base: 1.6, dex: 0.3 }, poise: 3, reach: 14, size: 24, knockback: 50, heavy: false, mana: 1, shape: { kind: "box" }, hits: 2, hitstop: 1, trail: "#c0ffe0" },
-        { windup: 0.03, active: 0.07, recover: 0.09, scaling: { base: 2.4, dex: 0.45 }, poise: 4, reach: 14, size: 22, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "box" }, hitstop: 1, lunge: 3, trail: "#c0ffe0" },
-        { windup: 0.05, active: 0.1, recover: 0.22, scaling: { base: 5, dex: 0.9 }, poise: 12, reach: 16, size: 30, knockback: 200, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 4, shake: 2, lunge: 8, trail: "#ffffff" },
+        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.4, dex: 0.45 }, poise: 4, reach: 14, size: 22, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "box" }, hitstop: 1, lunge: 3, trail: "#c0ffe0" },
+        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.4, dex: 0.45 }, poise: 4, reach: 14, size: 22, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "box" }, hitstop: 1, lunge: 3, trail: "#c0ffe0" },
+        { windup: 0.02, active: 0.09, recover: 0.09, scaling: { base: 1.6, dex: 0.3 }, poise: 3, reach: 14, size: 24, knockback: 50, heavy: false, mana: 1, shape: { kind: "box" }, hits: 2, hitstop: 1, trail: "#c0ffe0" },
+        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.4, dex: 0.45 }, poise: 4, reach: 14, size: 22, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "box" }, hitstop: 1, lunge: 3, trail: "#c0ffe0" },
+        { windup: 0.04, active: 0.08, recover: 0.18, scaling: { base: 5, dex: 0.9 }, poise: 12, reach: 16, size: 30, knockback: 200, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 4, shake: 2, lunge: 8, trail: "#ffffff" },
       ],
       /** すれ違い斬り: 前方へ細長く */
-      dashAttack: { windup: 0.02, active: 0.1, recover: 0.16, scaling: { base: 5, dex: 0.8 }, poise: 8, reach: 34, size: 14, knockback: 120, heavy: false, mana: 2, shape: { kind: "thrust" }, trail: "#c0ffe0" },
+      dashAttack: { windup: 0.02, active: 0.09, recover: 0.12, scaling: { base: 5, dex: 0.8 }, poise: 8, reach: 34, size: 14, knockback: 120, heavy: false, mana: 2, shape: { kind: "thrust" }, trail: "#c0ffe0" },
+      /** 右クリックの固有技: 影踏み（踏み込み突き。踏み込み中は無敵）。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: { windup: 0.02, active: 0.09, recover: 0.1, scaling: { base: 4, dex: 0.7 }, poise: 6, reach: 34, size: 14, knockback: 100, heavy: false, mana: 2, shape: { kind: "thrust" }, lunge: 28, trail: "#c0ffe0", invuln: 0.1 },
+      },
       branches: {
         flurry: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.04, active: 0.24, recover: 0.26, scaling: { base: 2, dex: 0.4 }, poise: 4, reach: 0, size: 36, knockback: 60, heavy: false, mana: 1, shape: { kind: "circle" }, hits: 4, hitstop: 1, shake: 1, trail: "#c0ffe0" },
+          step: { windup: 0.03, active: 0.21, recover: 0.19, scaling: { base: 2, dex: 0.4 }, poise: 4, reach: 0, size: 36, knockback: 60, heavy: false, mana: 1, shape: { kind: "circle" }, hits: 4, hitstop: 1, shake: 1, trail: "#c0ffe0" },
         },
         crossing: {
           sequence: ["primary", "primary", "primary", "secondary"],
-          step: { windup: 0.04, active: 0.12, recover: 0.26, scaling: { base: 4, dex: 0.8 }, poise: 10, reach: 16, size: 34, knockback: 220, heavy: true, mana: 2, shape: { kind: "box" }, hits: 2, hitstop: 4, shake: 2.5, lunge: 6, trail: "#ffffff" },
-        },
-        shadowStep: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.02, active: 0.1, recover: 0.14, scaling: { base: 4, dex: 0.7 }, poise: 6, reach: 34, size: 14, knockback: 100, heavy: false, mana: 2, shape: { kind: "thrust" }, lunge: 28, trail: "#c0ffe0" },
+          step: { windup: 0.03, active: 0.1, recover: 0.19, scaling: { base: 4, dex: 0.8 }, poise: 10, reach: 16, size: 34, knockback: 220, heavy: true, mana: 2, shape: { kind: "box" }, hits: 2, hitstop: 4, shake: 2.5, lunge: 6, trail: "#ffffff" },
         },
       },
     },
@@ -2806,24 +2188,25 @@ export const WEAPON = {
       /** 穂先（先端 1/3）: 怯み値 ×2、マナ ×1.5 */
       tip: { ratio: 0.34, damageMul: 1.15, poiseMul: 2, manaMul: 1.5, offDamageMul: 1, offManaMul: 1 },
       steps: [
-        { windup: 0.07, active: 0.08, recover: 0.2, scaling: { base: 4, dex: 0.4, str: 0.3 }, poise: 8, reach: 38, size: 10, knockback: 180, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 2, lunge: 4, trail: "#e0f0ff" },
-        { windup: 0.07, active: 0.08, recover: 0.2, scaling: { base: 4, dex: 0.4, str: 0.3 }, poise: 8, reach: 40, size: 10, knockback: 180, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 2, lunge: 4, trail: "#e0f0ff" },
+        { windup: 0.05, active: 0.07, recover: 0.14, scaling: { base: 4, dex: 0.4, str: 0.3 }, poise: 8, reach: 38, size: 10, knockback: 180, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 2, lunge: 4, trail: "#e0f0ff" },
+        { windup: 0.05, active: 0.07, recover: 0.14, scaling: { base: 4, dex: 0.4, str: 0.3 }, poise: 8, reach: 40, size: 10, knockback: 180, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 2, lunge: 4, trail: "#e0f0ff" },
         /** 二連突き */
-        { windup: 0.08, active: 0.14, recover: 0.22, scaling: { base: 3, dex: 0.3, str: 0.2 }, poise: 6, reach: 40, size: 10, knockback: 120, heavy: false, mana: 2, shape: { kind: "thrust" }, hits: 2, hitstop: 2, trail: "#e0f0ff" },
-        { windup: 0.1, active: 0.12, recover: 0.32, scaling: { base: 8, dex: 0.8, str: 0.5 }, poise: 18, reach: 44, size: 12, knockback: 320, heavy: true, mana: 5, shape: { kind: "thrust" }, hitstop: 5, shake: 2, lunge: 10, trail: "#ffffff" },
+        { windup: 0.06, active: 0.12, recover: 0.16, scaling: { base: 3, dex: 0.3, str: 0.2 }, poise: 6, reach: 40, size: 10, knockback: 120, heavy: false, mana: 2, shape: { kind: "thrust" }, hits: 2, hitstop: 2, trail: "#e0f0ff" },
+        { windup: 0.08, active: 0.1, recover: 0.26, scaling: { base: 8, dex: 0.8, str: 0.5 }, poise: 18, reach: 44, size: 12, knockback: 320, heavy: true, mana: 5, shape: { kind: "thrust" }, hitstop: 5, shake: 2, lunge: 10, trail: "#ffffff" },
       ],
       /** 突進突き: 押し込んで壁に叩きつける */
-      dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 6.5, dex: 0.6, str: 0.4 }, poise: 14, reach: 46, size: 12, knockback: 300, heavy: true, mana: 3, shape: { kind: "thrust" }, hitstop: 4, shake: 1.5, trail: "#e0f0ff" },
+      dashAttack: { windup: 0.02, active: 0.09, recover: 0.14, scaling: { base: 6.5, dex: 0.6, str: 0.4 }, poise: 14, reach: 46, size: 12, knockback: 300, heavy: true, mana: 3, shape: { kind: "thrust" }, hitstop: 4, shake: 1.5, trail: "#e0f0ff" },
+      /** 右クリックの固有技: 突進突き（穂先判定・重い）。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: { windup: 0.04, active: 0.09, recover: 0.14, scaling: { base: 6, dex: 0.6, str: 0.3 }, poise: 14, reach: 48, size: 12, knockback: 280, heavy: true, mana: 3, shape: { kind: "thrust" }, hitstop: 4, shake: 1.5, lunge: 40, trail: "#ffffff" },
+      },
       branches: {
         /** 槍で唯一の範囲 */
         spearSweep: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.08, active: 0.12, recover: 0.3, scaling: { base: 5, str: 0.6, dex: 0.3 }, poise: 14, reach: 0, size: 50, knockback: 220, heavy: false, mana: 3, shape: { kind: "circle" }, hitstop: 3, shake: 2, trail: "#e0f0ff" },
-        },
-        divingThrust: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.05, active: 0.1, recover: 0.2, scaling: { base: 6, dex: 0.6, str: 0.3 }, poise: 14, reach: 48, size: 12, knockback: 280, heavy: true, mana: 3, shape: { kind: "thrust" }, hitstop: 4, shake: 1.5, lunge: 30, trail: "#ffffff" },
+          step: { windup: 0.06, active: 0.1, recover: 0.21, scaling: { base: 5, str: 0.6, dex: 0.3 }, poise: 14, reach: 0, size: 50, knockback: 220, heavy: false, mana: 3, shape: { kind: "circle" }, hitstop: 3, shake: 2, trail: "#e0f0ff" },
         },
       },
     },
@@ -2842,39 +2225,40 @@ export const WEAPON = {
           sequence: ["primary", "primary", "secondary"],
           step: { windup: 0.14, active: 0.16, recover: 0.4, scaling: { base: 10, spi: 1.2, str: 0.4 }, poise: 18, reach: 36, size: 36, knockback: 280, heavy: true, mana: 5, shape: { kind: "arc", deg: 360 }, hitstop: 5, shake: 3, trail: "#e0c0ff" },
         },
-        hookPull: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 5, spi: 0.6 }, poise: 8, reach: 44, size: 16, knockback: 200, heavy: false, mana: 2, shape: { kind: "thrust" }, pull: true, hitstop: 2, trail: "#b080ff" },
-        },
+      },
+      /** 右クリックの固有技: 鎌引き（突きで引き寄せる）。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 5, spi: 0.6 }, poise: 8, reach: 44, size: 16, knockback: 200, heavy: false, mana: 2, shape: { kind: "thrust" }, pull: true, hitstop: 2, trail: "#b080ff" },
       },
     },
     fists: {
       /** 殴りながらでも減速しない（張り付く型） */
       attackMoveMul: 1,
       steps: [
-        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.2, vit: 0.3, str: 0.3 }, poise: 6, reach: 10, size: 18, knockback: 60, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 1, lunge: 4 },
-        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.2, vit: 0.3, str: 0.3 }, poise: 6, reach: 10, size: 18, knockback: 60, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 1, lunge: 4 },
-        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.2, vit: 0.3, str: 0.3 }, poise: 6, reach: 10, size: 18, knockback: 60, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 1, lunge: 4 },
+        { windup: 0.02, active: 0.05, recover: 0.06, scaling: { base: 2.2, vit: 0.3, str: 0.3 }, poise: 6, reach: 10, size: 18, knockback: 60, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 1, lunge: 4 },
+        { windup: 0.02, active: 0.05, recover: 0.06, scaling: { base: 2.2, vit: 0.3, str: 0.3 }, poise: 6, reach: 10, size: 18, knockback: 60, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 1, lunge: 4 },
+        { windup: 0.02, active: 0.05, recover: 0.06, scaling: { base: 2.2, vit: 0.3, str: 0.3 }, poise: 6, reach: 10, size: 18, knockback: 60, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 1, lunge: 4 },
         /** 連打 */
-        { windup: 0.03, active: 0.15, recover: 0.12, scaling: { base: 1.4, vit: 0.2, str: 0.2 }, poise: 4, reach: 10, size: 18, knockback: 30, heavy: false, mana: 1.5, shape: { kind: "box" }, hits: 3, hitstop: 1 },
-        { windup: 0.04, active: 0.08, recover: 0.2, scaling: { base: 5, vit: 0.6, str: 0.6 }, poise: 16, reach: 12, size: 20, knockback: 260, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 5, shake: 3, lunge: 8, trail: "#ffb080" },
+        { windup: 0.03, active: 0.13, recover: 0.1, scaling: { base: 1.4, vit: 0.2, str: 0.2 }, poise: 4, reach: 10, size: 18, knockback: 30, heavy: false, mana: 1.5, shape: { kind: "box" }, hits: 3, hitstop: 1 },
+        { windup: 0.04, active: 0.07, recover: 0.16, scaling: { base: 5, vit: 0.6, str: 0.6 }, poise: 16, reach: 12, size: 20, knockback: 260, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 5, shake: 3, lunge: 8, trail: "#ffb080" },
       ],
       /** 投げ: 掴んで背後へ放る（壁叩きつけ） */
-      dashAttack: { windup: 0.02, active: 0.08, recover: 0.22, scaling: { base: 6, vit: 0.6, str: 0.6 }, poise: 20, reach: 12, size: 20, knockback: 380, heavy: true, mana: 3, shape: { kind: "box" }, throw: true, hitstop: 5, shake: 3 },
+      dashAttack: { windup: 0.02, active: 0.07, recover: 0.16, scaling: { base: 6, vit: 0.6, str: 0.6 }, poise: 20, reach: 12, size: 20, knockback: 380, heavy: true, mana: 3, shape: { kind: "box" }, throw: true, hitstop: 5, shake: 3 },
+      /** 右クリックの固有技: 掴み投げ（掴んで背後へ放る。フィニッシュ） */
+      art: {
+        cooldown: 0,
+        step: { windup: 0.03, active: 0.08, recover: 0.18, scaling: { base: 5, vit: 0.5, str: 0.5 }, poise: 18, reach: 10, size: 20, knockback: 360, heavy: true, mana: 3, shape: { kind: "box" }, throw: true, hitstop: 5, shake: 3, lunge: 6 },
+      },
       branches: {
         uppercut: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.04, active: 0.08, recover: 0.26, scaling: { base: 6, vit: 0.6, str: 0.6 }, poise: 26, reach: 12, size: 20, knockback: 300, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 6, shake: 3, trail: "#ffb080" },
+          step: { windup: 0.03, active: 0.07, recover: 0.18, scaling: { base: 6, vit: 0.6, str: 0.6 }, poise: 26, reach: 12, size: 20, knockback: 300, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 6, shake: 3, trail: "#ffb080" },
         },
         hundredFists: {
           sequence: ["primary", "primary", "primary", "primary", "secondary"],
-          step: { windup: 0.04, active: 0.3, recover: 0.3, scaling: { base: 1.6, vit: 0.2, str: 0.2 }, poise: 4, reach: 12, size: 22, knockback: 40, heavy: false, mana: 1, shape: { kind: "box" }, hits: 6, hitstop: 1, shake: 1 },
-        },
-        steppingFist: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.03, active: 0.08, recover: 0.12, scaling: { base: 3.5, vit: 0.4, str: 0.4 }, poise: 10, reach: 12, size: 18, knockback: 150, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 26 },
+          step: { windup: 0.03, active: 0.26, recover: 0.21, scaling: { base: 1.6, vit: 0.2, str: 0.2 }, poise: 4, reach: 12, size: 22, knockback: 40, heavy: false, mana: 1, shape: { kind: "box" }, hits: 6, hitstop: 1, shake: 1 },
         },
       },
     },
@@ -2883,22 +2267,26 @@ export const WEAPON = {
       /** 先端（1/4）だけ満額。根元は半分でマナも戻らない */
       tip: { ratio: 0.25, damageMul: 1, poiseMul: 1.5, manaMul: 1, offDamageMul: 0.5, offManaMul: 0 },
       steps: [
-        { windup: 0.1, active: 0.08, recover: 0.22, scaling: { base: 5, dex: 0.5, spi: 0.3 }, poise: 6, reach: 56, size: 6, knockback: 100, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 2, trail: "#d0a060" },
-        { windup: 0.08, active: 0.1, recover: 0.2, scaling: { base: 3.5, dex: 0.4, spi: 0.2 }, poise: 5, reach: 44, size: 44, knockback: 90, heavy: false, mana: 2, shape: { kind: "arc", deg: 120 }, hitstop: 1, trail: "#d0a060" },
+        { windup: 0.07, active: 0.08, recover: 0.15, scaling: { base: 5, dex: 0.5, spi: 0.3 }, poise: 6, reach: 56, size: 6, knockback: 100, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 2, trail: "#d0a060" },
+        { windup: 0.06, active: 0.1, recover: 0.14, scaling: { base: 3.5, dex: 0.4, spi: 0.2 }, poise: 5, reach: 44, size: 44, knockback: 90, heavy: false, mana: 2, shape: { kind: "arc", deg: 120 }, hitstop: 1, trail: "#d0a060" },
         /** 返しの多段 */
-        { windup: 0.08, active: 0.16, recover: 0.22, scaling: { base: 2.5, dex: 0.3, spi: 0.2 }, poise: 4, reach: 48, size: 48, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "arc", deg: 180 }, hits: 2, hitstop: 1, trail: "#d0a060" },
-        { windup: 0.12, active: 0.1, recover: 0.3, scaling: { base: 8, dex: 0.8, spi: 0.5 }, poise: 14, reach: 60, size: 6, knockback: 200, heavy: false, mana: 4, shape: { kind: "thrust" }, hitstop: 4, shake: 2, trail: "#ffffff" },
+        { windup: 0.06, active: 0.16, recover: 0.16, scaling: { base: 2.5, dex: 0.3, spi: 0.2 }, poise: 4, reach: 48, size: 48, knockback: 70, heavy: false, mana: 1.5, shape: { kind: "arc", deg: 180 }, hits: 2, hitstop: 1, trail: "#d0a060" },
+        { windup: 0.1, active: 0.1, recover: 0.26, scaling: { base: 8, dex: 0.8, spi: 0.5 }, poise: 14, reach: 60, size: 6, knockback: 200, heavy: false, mana: 4, shape: { kind: "thrust" }, hitstop: 4, shake: 2, trail: "#ffffff" },
       ],
-      dashAttack: { windup: 0.03, active: 0.12, recover: 0.2, scaling: { base: 5, dex: 0.5, spi: 0.3 }, poise: 6, reach: 0, size: 70, knockback: 150, heavy: false, mana: 2, shape: { kind: "circle" }, trail: "#d0a060" },
+      dashAttack: { windup: 0.02, active: 0.11, recover: 0.14, scaling: { base: 5, dex: 0.5, spi: 0.3 }, poise: 6, reach: 0, size: 70, knockback: 150, heavy: false, mana: 2, shape: { kind: "circle" }, trail: "#d0a060" },
+      /** 右クリックの固有技: 巻き付け（引き寄せて恐怖）。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: {
+          windup: 0.07, active: 0.09, recover: 0.17, scaling: { base: 7, dex: 0.7, spi: 0.4 }, poise: 12, reach: 64, size: 8, knockback: 220, heavy: false, mana: 3, shape: { kind: "thrust" }, pull: true, hitstop: 3, shake: 1.5, trail: "#ffffff",
+          applies: [{ kind: "fear", stacks: 1, duration: 1, potency: 0 }],
+        },
+      },
       branches: {
         whirl: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.06, active: 0.3, recover: 0.3, scaling: { base: 2.5, dex: 0.3, spi: 0.2 }, poise: 4, reach: 0, size: 80, knockback: 120, heavy: false, mana: 1, shape: { kind: "circle" }, hits: 3, hitstop: 1, shake: 1, trail: "#d0a060" },
-        },
-        crack: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.1, active: 0.1, recover: 0.24, scaling: { base: 7, dex: 0.7, spi: 0.4 }, poise: 12, reach: 64, size: 8, knockback: 220, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 3, shake: 1.5, trail: "#ffffff" },
+          step: { windup: 0.05, active: 0.27, recover: 0.21, scaling: { base: 2.5, dex: 0.3, spi: 0.2 }, poise: 4, reach: 0, size: 80, knockback: 120, heavy: false, mana: 1, shape: { kind: "circle" }, hits: 3, hitstop: 1, shake: 1, trail: "#d0a060" },
         },
       },
     },
@@ -2917,54 +2305,59 @@ export const WEAPON = {
           sequence: ["primary", "primary", "secondary"],
           step: { windup: 0.2, active: 0.12, recover: 0.5, scaling: { base: 15, str: 1.8 }, poise: 30, reach: 20, size: 40, knockback: 460, heavy: true, mana: 5, shape: { kind: "circle" }, hitstop: 8, shake: 5, trail: "#ffffff" },
         },
-        shoulderCharge: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.05, active: 0.1, recover: 0.2, scaling: { base: 6, str: 0.8 }, poise: 16, reach: 12, size: 24, knockback: 360, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 5, shake: 3, lunge: 22 },
-        },
+      },
+      /** 右クリックの固有技: 肩当て。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: { windup: 0.05, active: 0.1, recover: 0.2, scaling: { base: 6, str: 0.8 }, poise: 16, reach: 12, size: 24, knockback: 360, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 5, shake: 3, lunge: 22 },
       },
     },
     staff: {
       attackMoveMul: 0.4,
       /** 威力は低いが範囲・怯み値・マナ回収が高い（スキルを回す型） */
       steps: [
-        { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 3.5, mnd: 0.4, str: 0.2 }, poise: 10, reach: 26, size: 26, knockback: 150, heavy: false, mana: 4.5, shape: { kind: "arc", deg: 180 }, hitstop: 2, trail: "#a0c0ff" },
-        { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 3.5, mnd: 0.4, str: 0.2 }, poise: 10, reach: 26, size: 26, knockback: 150, heavy: false, mana: 4.5, shape: { kind: "arc", deg: 180 }, hitstop: 2, trail: "#a0c0ff" },
-        { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 3.5, mnd: 0.4, str: 0.2 }, poise: 12, reach: 36, size: 12, knockback: 200, heavy: false, mana: 4.5, shape: { kind: "thrust" }, hitstop: 2, lunge: 6, trail: "#a0c0ff" },
-        { windup: 0.1, active: 0.12, recover: 0.34, scaling: { base: 6, mnd: 0.7, str: 0.3 }, poise: 22, reach: 0, size: 56, knockback: 280, heavy: false, mana: 7, shape: { kind: "circle" }, hitstop: 4, shake: 2.5, trail: "#ffffff" },
+        { windup: 0.04, active: 0.09, recover: 0.14, scaling: { base: 3.5, mnd: 0.4, str: 0.2 }, poise: 10, reach: 26, size: 26, knockback: 150, heavy: false, mana: 4.5, shape: { kind: "arc", deg: 180 }, hitstop: 2, trail: "#a0c0ff" },
+        { windup: 0.04, active: 0.09, recover: 0.14, scaling: { base: 3.5, mnd: 0.4, str: 0.2 }, poise: 10, reach: 26, size: 26, knockback: 150, heavy: false, mana: 4.5, shape: { kind: "arc", deg: 180 }, hitstop: 2, trail: "#a0c0ff" },
+        { windup: 0.04, active: 0.09, recover: 0.14, scaling: { base: 3.5, mnd: 0.4, str: 0.2 }, poise: 12, reach: 36, size: 12, knockback: 200, heavy: false, mana: 4.5, shape: { kind: "thrust" }, hitstop: 2, lunge: 6, trail: "#a0c0ff" },
+        { windup: 0.08, active: 0.11, recover: 0.28, scaling: { base: 6, mnd: 0.7, str: 0.3 }, poise: 22, reach: 0, size: 56, knockback: 280, heavy: false, mana: 7, shape: { kind: "circle" }, hitstop: 4, shake: 2.5, trail: "#ffffff" },
       ],
-      dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 4.5, mnd: 0.5, str: 0.2 }, poise: 12, reach: 36, size: 12, knockback: 200, heavy: false, mana: 4, shape: { kind: "thrust" }, trail: "#a0c0ff" },
+      dashAttack: { windup: 0.02, active: 0.09, recover: 0.14, scaling: { base: 4.5, mnd: 0.5, str: 0.2 }, poise: 12, reach: 36, size: 12, knockback: 200, heavy: false, mana: 4, shape: { kind: "thrust" }, trail: "#a0c0ff" },
+      /** 右クリックの固有技: 払い上げ（大きく押し返す）。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: { windup: 0.04, active: 0.09, recover: 0.14, scaling: { base: 4, mnd: 0.5, str: 0.2 }, poise: 14, reach: 28, size: 28, knockback: 360, heavy: false, mana: 4, shape: { kind: "arc", deg: 180 }, hitstop: 2, lunge: 10, trail: "#a0c0ff" },
+      },
       branches: {
         tempest: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.08, active: 0.3, recover: 0.3, scaling: { base: 2.5, mnd: 0.3, str: 0.1 }, poise: 8, reach: 0, size: 64, knockback: 180, heavy: false, mana: 3, shape: { kind: "circle" }, hits: 3, hitstop: 1, shake: 1.5, trail: "#a0c0ff" },
-        },
-        upswing: {
-          sequence: ["secondary", "primary"],
-          next: 1,
-          step: { windup: 0.05, active: 0.1, recover: 0.2, scaling: { base: 4, mnd: 0.5, str: 0.2 }, poise: 14, reach: 28, size: 28, knockback: 200, heavy: false, mana: 4, shape: { kind: "arc", deg: 180 }, hitstop: 2, lunge: 10, trail: "#a0c0ff" },
+          step: { windup: 0.06, active: 0.27, recover: 0.21, scaling: { base: 2.5, mnd: 0.3, str: 0.1 }, poise: 8, reach: 0, size: 64, knockback: 180, heavy: false, mana: 3, shape: { kind: "circle" }, hits: 3, hitstop: 1, shake: 1.5, trail: "#a0c0ff" },
         },
       },
     },
-    /** 杖: 左が射撃（銃の型をそのまま撃つ）、右が杖打ちの連撃。「撃って打つ」を 1 本の武器でやる */
+    /** 杖: 左が杖打ちの連撃、右の固有技が魔弾。「打って撃つ」を 1 本の武器でやる */
     wand: {
       attackMoveMul: 0.5,
       steps: [
-        { windup: 0.05, active: 0.08, recover: 0.18, scaling: { base: 3, mnd: 0.4, spi: 0.3 }, poise: 8, reach: 14, size: 22, knockback: 150, heavy: false, mana: 5, shape: { kind: "box" }, hitstop: 2, trail: "#80a0ff" },
-        { windup: 0.05, active: 0.08, recover: 0.18, scaling: { base: 3, mnd: 0.4, spi: 0.3 }, poise: 8, reach: 14, size: 22, knockback: 150, heavy: false, mana: 5, shape: { kind: "box" }, hitstop: 2, trail: "#80a0ff" },
-        { windup: 0.05, active: 0.1, recover: 0.2, scaling: { base: 3.5, mnd: 0.5, spi: 0.3 }, poise: 10, reach: 16, size: 26, knockback: 170, heavy: false, mana: 5, shape: { kind: "box" }, hitstop: 2, lunge: 4, trail: "#80a0ff" },
-        { windup: 0.1, active: 0.12, recover: 0.3, scaling: { base: 5, mnd: 0.6, spi: 0.4 }, poise: 18, reach: 0, size: 48, knockback: 260, heavy: false, mana: 7, shape: { kind: "circle" }, hitstop: 4, shake: 2, trail: "#ffffff" },
+        { windup: 0.04, active: 0.07, recover: 0.12, scaling: { base: 3, mnd: 0.4, spi: 0.3 }, poise: 8, reach: 14, size: 22, knockback: 150, heavy: false, mana: 5, shape: { kind: "box" }, hitstop: 2, trail: "#80a0ff" },
+        { windup: 0.04, active: 0.07, recover: 0.12, scaling: { base: 3, mnd: 0.4, spi: 0.3 }, poise: 8, reach: 14, size: 22, knockback: 150, heavy: false, mana: 5, shape: { kind: "box" }, hitstop: 2, trail: "#80a0ff" },
+        { windup: 0.04, active: 0.08, recover: 0.14, scaling: { base: 3.5, mnd: 0.5, spi: 0.3 }, poise: 10, reach: 16, size: 26, knockback: 170, heavy: false, mana: 5, shape: { kind: "box" }, hitstop: 2, lunge: 4, trail: "#80a0ff" },
+        { windup: 0.08, active: 0.11, recover: 0.26, scaling: { base: 5, mnd: 0.6, spi: 0.4 }, poise: 18, reach: 0, size: 48, knockback: 260, heavy: false, mana: 7, shape: { kind: "circle" }, hitstop: 4, shake: 2, trail: "#ffffff" },
       ],
-      dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 4, mnd: 0.5, spi: 0.3 }, poise: 10, reach: 0, size: 40, knockback: 220, heavy: false, mana: 4, shape: { kind: "circle" }, trail: "#80a0ff" },
+      dashAttack: { windup: 0.02, active: 0.09, recover: 0.14, scaling: { base: 4, mnd: 0.5, spi: 0.3 }, poise: 10, reach: 0, size: 40, knockback: 220, heavy: false, mana: 4, shape: { kind: "circle" }, trail: "#80a0ff" },
+      /** 右クリックの固有技: 魔弾（単発の弾の型を借りた魔法・光の弾） */
+      art: { cooldown: 0.35, throw: { shot: "single", scaling: { base: 3.5, mnd: 0.5 }, poise: 4, count: 1, spreadDeg: 0 } },
       branches: {
-        /** 撃ってから打つ: 魔力を込めた一撃 */
+        /** 打ってから撃つ: 魔力を込めた一撃 */
         arcaneStrike: {
           sequence: ["primary", "secondary"],
-          step: { windup: 0.06, active: 0.12, recover: 0.3, scaling: { base: 6, mnd: 0.8, spi: 0.5 }, poise: 16, reach: 18, size: 30, knockback: 260, heavy: false, mana: 6, shape: { kind: "box" }, hitstop: 4, shake: 2, lunge: 8, trail: "#c0d0ff" },
+          step: { windup: 0.05, active: 0.1, recover: 0.21, scaling: { base: 6, mnd: 0.8, spi: 0.5 }, poise: 16, reach: 18, size: 30, knockback: 260, heavy: false, mana: 6, shape: { kind: "box" }, hitstop: 4, shake: 2, lunge: 8, trail: "#c0d0ff" },
         },
+        /** 2 発撃ってから打つ */
         staffSweep: {
           sequence: ["secondary", "secondary", "primary"],
-          step: { windup: 0.06, active: 0.12, recover: 0.28, scaling: { base: 4, mnd: 0.5, spi: 0.3 }, poise: 10, reach: 30, size: 30, knockback: 200, heavy: false, mana: 4, shape: { kind: "arc", deg: 200 }, hitstop: 3, shake: 1.5, trail: "#80a0ff" },
+          step: { windup: 0.05, active: 0.1, recover: 0.2, scaling: { base: 4, mnd: 0.5, spi: 0.3 }, poise: 10, reach: 30, size: 30, knockback: 200, heavy: false, mana: 4, shape: { kind: "arc", deg: 200 }, hitstop: 3, shake: 1.5, trail: "#80a0ff" },
         },
       },
     },
@@ -2973,13 +2366,13 @@ export const WEAPON = {
     katana: {
       attackMoveMul: 0.4,
       steps: [
-        { windup: 0.04, active: 0.08, recover: 0.14, scaling: { base: 3.6, str: 0.4, dex: 0.3 }, poise: 7, reach: 16, size: 24, knockback: 130, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 6, trail: "#e8f0ff" },
-        { windup: 0.04, active: 0.08, recover: 0.14, scaling: { base: 3.6, str: 0.4, dex: 0.3 }, poise: 7, reach: 17, size: 26, knockback: 130, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 6, trail: "#e8f0ff" },
-        { windup: 0.05, active: 0.08, recover: 0.16, scaling: { base: 3.6, str: 0.4, dex: 0.3 }, poise: 8, reach: 18, size: 28, knockback: 150, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 10, trail: "#e8f0ff" },
-        { windup: 0.08, active: 0.1, recover: 0.3, scaling: { base: 8, str: 0.8, dex: 0.5 }, poise: 18, reach: 34, size: 10, knockback: 300, heavy: true, mana: 5, shape: { kind: "thrust" }, hitstop: 5, shake: 2.5, lunge: 10, trail: "#ffffff" },
+        { windup: 0.03, active: 0.07, recover: 0.1, scaling: { base: 3.6, str: 0.4, dex: 0.3 }, poise: 7, reach: 16, size: 24, knockback: 130, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 6, trail: "#e8f0ff" },
+        { windup: 0.03, active: 0.07, recover: 0.1, scaling: { base: 3.6, str: 0.4, dex: 0.3 }, poise: 7, reach: 17, size: 26, knockback: 130, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 6, trail: "#e8f0ff" },
+        { windup: 0.04, active: 0.07, recover: 0.11, scaling: { base: 3.6, str: 0.4, dex: 0.3 }, poise: 8, reach: 18, size: 28, knockback: 150, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 2, lunge: 10, trail: "#e8f0ff" },
+        { windup: 0.06, active: 0.09, recover: 0.24, scaling: { base: 8, str: 0.8, dex: 0.5 }, poise: 18, reach: 34, size: 10, knockback: 300, heavy: true, mana: 5, shape: { kind: "thrust" }, hitstop: 5, shake: 2.5, lunge: 10, trail: "#ffffff" },
       ],
-      dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 6, str: 0.6, dex: 0.4 }, poise: 12, reach: 36, size: 12, knockback: 200, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 3, trail: "#e8f0ff" },
-      /** 居合: 右の長押し。2 段階（段に届かず離すと通常の段） */
+      dashAttack: { windup: 0.02, active: 0.09, recover: 0.14, scaling: { base: 6, str: 0.6, dex: 0.4 }, poise: 12, reach: 36, size: 12, knockback: 200, heavy: false, mana: 3, shape: { kind: "thrust" }, hitstop: 3, trail: "#e8f0ff" },
+      /** 右クリックの固有技: 居合（右の長押し）。2 段階（段に届かず離すと通常の段） */
       charge: {
         moveMul: 0.3,
         step: { windup: 0.04, active: 0.08, recover: 0.34, scaling: { base: 7, str: 0.8, dex: 0.5 }, poise: 14, reach: 60, size: 14, knockback: 260, heavy: true, mana: 5, shape: { kind: "thrust" }, hitstop: 6, shake: 3, lunge: 12, trail: "#c0e0ff" },
@@ -2991,12 +2384,13 @@ export const WEAPON = {
       branches: {
         tsubame: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.05, active: 0.14, recover: 0.3, scaling: { base: 5, str: 0.6, dex: 0.3 }, poise: 12, reach: 18, size: 30, knockback: 280, heavy: true, mana: 4, shape: { kind: "box" }, hits: 2, hitstop: 5, shake: 2.5, lunge: 8, trail: "#ffffff" },
+          step: { windup: 0.04, active: 0.12, recover: 0.21, scaling: { base: 5, str: 0.6, dex: 0.3 }, poise: 12, reach: 18, size: 30, knockback: 280, heavy: true, mana: 4, shape: { kind: "box" }, hits: 2, hitstop: 5, shake: 2.5, lunge: 8, trail: "#ffffff" },
         },
+        /** 抜き打ち: 溜めずに離した直後の斬り */
         quickDraw: {
           sequence: ["secondary", "primary"],
           next: 1,
-          step: { windup: 0.03, active: 0.08, recover: 0.16, scaling: { base: 5, str: 0.6, dex: 0.4 }, poise: 10, reach: 28, size: 14, knockback: 200, heavy: false, mana: 3, shape: { kind: "thrust" }, lunge: 20, trail: "#c0e0ff" },
+          step: { windup: 0.02, active: 0.07, recover: 0.11, scaling: { base: 5, str: 0.6, dex: 0.4 }, poise: 10, reach: 28, size: 14, knockback: 200, heavy: false, mana: 3, shape: { kind: "thrust" }, lunge: 20, trail: "#c0e0ff" },
         },
       },
     },
@@ -3013,10 +2407,12 @@ export const WEAPON = {
         },
       ],
       dashAttack: { windup: 0.04, active: 0.12, recover: 0.24, scaling: { base: 7, str: 0.9 }, poise: 14, reach: 26, size: 26, knockback: 260, heavy: false, mana: 3, shape: { kind: "arc", deg: 160 }, hitstop: 3, shake: 1.5, trail: "#d0b090" },
+      /** 右クリックの固有技: 投擲（回転刃の弾の型を借り、行って戻る） */
+      art: { cooldown: 1.2, throw: { shot: "boomerang", scaling: { base: 8, str: 1 }, poise: 20, count: 1, spreadDeg: 0 } },
       branches: {
-        /** 右単独の回転斬り（斧は右も近接）。続けて左で 3 段目へ */
+        /** 投げた直後に回る（右 → 左）。続けて左で 3 段目へ */
         axeSpin: {
-          sequence: ["secondary"],
+          sequence: ["secondary", "primary"],
           next: 2,
           step: { windup: 0.1, active: 0.2, recover: 0.3, scaling: { base: 4, str: 0.5, dex: 0.2 }, poise: 8, reach: 0, size: 50, knockback: 200, heavy: false, mana: 3, shape: { kind: "circle" }, hits: 2, hitstop: 2, shake: 1.5, trail: "#d0b090" },
         },
@@ -3030,21 +2426,30 @@ export const WEAPON = {
     shield: {
       attackMoveMul: 0.45,
       steps: [
-        { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 3, str: 0.3, vit: 0.4 }, poise: 12, reach: 14, size: 26, knockback: 260, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 3, shake: 1.5, lunge: 4, trail: "#c0c8d0" },
-        { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 3, str: 0.3, vit: 0.4 }, poise: 12, reach: 14, size: 26, knockback: 260, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 3, shake: 1.5, lunge: 4, trail: "#c0c8d0" },
-        { windup: 0.06, active: 0.1, recover: 0.2, scaling: { base: 3, str: 0.3, vit: 0.4 }, poise: 14, reach: 14, size: 28, knockback: 280, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 3, shake: 1.5, lunge: 4, trail: "#c0c8d0" },
-        { windup: 0.1, active: 0.12, recover: 0.34, scaling: { base: 6, str: 0.6, vit: 0.6 }, poise: 24, reach: 16, size: 30, knockback: 420, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 6, shake: 3, lunge: 8, trail: "#ffffff" },
+        { windup: 0.05, active: 0.09, recover: 0.14, scaling: { base: 3, str: 0.3, vit: 0.4 }, poise: 12, reach: 14, size: 26, knockback: 260, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 3, shake: 1.5, lunge: 4, trail: "#c0c8d0" },
+        { windup: 0.05, active: 0.09, recover: 0.14, scaling: { base: 3, str: 0.3, vit: 0.4 }, poise: 12, reach: 14, size: 26, knockback: 260, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 3, shake: 1.5, lunge: 4, trail: "#c0c8d0" },
+        { windup: 0.05, active: 0.09, recover: 0.14, scaling: { base: 3, str: 0.3, vit: 0.4 }, poise: 14, reach: 14, size: 28, knockback: 280, heavy: false, mana: 3, shape: { kind: "box" }, hitstop: 3, shake: 1.5, lunge: 4, trail: "#c0c8d0" },
+        { windup: 0.08, active: 0.12, recover: 0.3, scaling: { base: 6, str: 0.6, vit: 0.6 }, poise: 24, reach: 16, size: 30, knockback: 420, heavy: true, mana: 5, shape: { kind: "box" }, hitstop: 6, shake: 3, lunge: 8, trail: "#ffffff" },
       ],
-      dashAttack: { windup: 0.03, active: 0.12, recover: 0.22, scaling: { base: 5, str: 0.5, vit: 0.4 }, poise: 18, reach: 14, size: 28, knockback: 360, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 4, shake: 2 },
-      branches: {
-        shieldPush: {
-          sequence: ["secondary"],
-          next: 1,
-          step: { windup: 0.05, active: 0.12, recover: 0.24, scaling: { base: 4, str: 0.4, vit: 0.4 }, poise: 20, reach: 14, size: 28, knockback: 400, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 5, shake: 2.5, lunge: 26 },
+      dashAttack: { windup: 0.02, active: 0.11, recover: 0.15, scaling: { base: 5, str: 0.5, vit: 0.4 }, poise: 18, reach: 14, size: 28, knockback: 360, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 4, shake: 2 },
+      /**
+       * 右クリックの固有技: 構え。押している間 前方 arcDeg の被ダメを damageMul 倍にし、受けるたびに必殺ゲージ。
+       * 離すと盾押し（release。続けて左で 2 段目へ）
+       */
+      art: {
+        cooldown: 0.3,
+        hold: {
+          moveMul: 0.5,
+          maxSec: 2,
+          guard: { arcDeg: 120, damageMul: 0.3, energyGain: 3 },
+          releaseNext: 1,
+          release: { windup: 0.04, active: 0.11, recover: 0.17, scaling: { base: 4, str: 0.4, vit: 0.4 }, poise: 20, reach: 14, size: 28, knockback: 400, heavy: true, mana: 3, shape: { kind: "box" }, hitstop: 5, shake: 2.5, lunge: 26 },
         },
+      },
+      branches: {
         shieldDrop: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.14, active: 0.12, recover: 0.4, scaling: { base: 7, str: 0.7, vit: 0.7 }, poise: 30, reach: 10, size: 48, knockback: 360, heavy: true, mana: 5, shape: { kind: "circle" }, hitstop: 7, shake: 4, trail: "#ffffff" },
+          step: { windup: 0.11, active: 0.11, recover: 0.28, scaling: { base: 7, str: 0.7, vit: 0.7 }, poise: 30, reach: 10, size: 48, knockback: 360, heavy: true, mana: 5, shape: { kind: "circle" }, hitstop: 7, shake: 4, trail: "#ffffff" },
         },
       },
     },
@@ -3052,25 +2457,25 @@ export const WEAPON = {
     chainSickle: {
       attackMoveMul: 0.6,
       steps: [
-        { windup: 0.03, active: 0.07, recover: 0.1, scaling: { base: 2.6, str: 0.2, dex: 0.4 }, poise: 5, reach: 18, size: 18, knockback: 80, heavy: false, mana: 2, shape: { kind: "arc", deg: 100 }, hitstop: 1, lunge: 3, trail: "#b0b8c8" },
-        { windup: 0.03, active: 0.07, recover: 0.1, scaling: { base: 2.6, str: 0.2, dex: 0.4 }, poise: 5, reach: 18, size: 18, knockback: 80, heavy: false, mana: 2, shape: { kind: "arc", deg: 100 }, hitstop: 1, lunge: 3, trail: "#b0b8c8" },
-        { windup: 0.03, active: 0.07, recover: 0.1, scaling: { base: 2.6, str: 0.2, dex: 0.4 }, poise: 6, reach: 18, size: 18, knockback: 90, heavy: false, mana: 2, shape: { kind: "arc", deg: 100 }, hitstop: 1, lunge: 3, trail: "#b0b8c8" },
-        { windup: 0.05, active: 0.1, recover: 0.24, scaling: { base: 5, str: 0.4, dex: 0.8 }, poise: 14, reach: 20, size: 20, knockback: 220, heavy: true, mana: 4, shape: { kind: "arc", deg: 120 }, hitstop: 4, shake: 2, lunge: 6, trail: "#ffffff" },
+        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.6, str: 0.2, dex: 0.4 }, poise: 5, reach: 18, size: 18, knockback: 80, heavy: false, mana: 2, shape: { kind: "arc", deg: 100 }, hitstop: 1, lunge: 3, trail: "#b0b8c8" },
+        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.6, str: 0.2, dex: 0.4 }, poise: 5, reach: 18, size: 18, knockback: 80, heavy: false, mana: 2, shape: { kind: "arc", deg: 100 }, hitstop: 1, lunge: 3, trail: "#b0b8c8" },
+        { windup: 0.02, active: 0.06, recover: 0.08, scaling: { base: 2.6, str: 0.2, dex: 0.4 }, poise: 6, reach: 18, size: 18, knockback: 90, heavy: false, mana: 2, shape: { kind: "arc", deg: 100 }, hitstop: 1, lunge: 3, trail: "#b0b8c8" },
+        { windup: 0.04, active: 0.09, recover: 0.2, scaling: { base: 5, str: 0.4, dex: 0.8 }, poise: 14, reach: 20, size: 20, knockback: 220, heavy: true, mana: 4, shape: { kind: "arc", deg: 120 }, hitstop: 4, shake: 2, lunge: 6, trail: "#ffffff" },
       ],
-      dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 4, str: 0.3, dex: 0.6 }, poise: 8, reach: 40, size: 10, knockback: 150, heavy: false, mana: 2, shape: { kind: "thrust" }, pull: true, trail: "#b0b8c8" },
-      branches: {
-        /** 分銅: 右単独。遠くの敵を引き寄せて崩勢にする。続けて左で 2 段目へ */
-        chainWeight: {
-          sequence: ["secondary"],
-          next: 1,
-          step: {
-            windup: 0.08, active: 0.1, recover: 0.2, scaling: { base: 3, str: 0.2, dex: 0.4 }, poise: 6, reach: 64, size: 10, knockback: 220, heavy: false, mana: 2, shape: { kind: "thrust" }, pull: true, hitstop: 2, trail: "#b0b8c8",
-            applies: [{ kind: "broken", stacks: 1, duration: 1.5, potency: 0 }],
-          },
+      dashAttack: { windup: 0.02, active: 0.09, recover: 0.14, scaling: { base: 4, str: 0.3, dex: 0.6 }, poise: 8, reach: 40, size: 10, knockback: 150, heavy: false, mana: 2, shape: { kind: "thrust" }, pull: true, trail: "#b0b8c8" },
+      /** 右クリックの固有技: 分銅。遠くの敵を引き寄せて崩勢にする。続けて左で 2 段目へ */
+      art: {
+        cooldown: 0,
+        next: 1,
+        step: {
+          windup: 0.06, active: 0.09, recover: 0.14, scaling: { base: 3, str: 0.2, dex: 0.4 }, poise: 6, reach: 64, size: 10, knockback: 220, heavy: false, mana: 2, shape: { kind: "thrust" }, pull: true, hitstop: 2, trail: "#b0b8c8",
+          applies: [{ kind: "broken", stacks: 1, duration: 1.5, potency: 0 }],
         },
+      },
+      branches: {
         reelIn: {
           sequence: ["primary", "primary", "secondary"],
-          step: { windup: 0.06, active: 0.2, recover: 0.28, scaling: { base: 3, str: 0.3, dex: 0.4 }, poise: 6, reach: 0, size: 56, knockback: 160, heavy: false, mana: 2, shape: { kind: "circle" }, pull: true, hits: 2, hitstop: 2, shake: 1.5, trail: "#b0b8c8" },
+          step: { windup: 0.05, active: 0.18, recover: 0.2, scaling: { base: 3, str: 0.3, dex: 0.4 }, poise: 6, reach: 0, size: 56, knockback: 160, heavy: false, mana: 2, shape: { kind: "circle" }, pull: true, hits: 2, hitstop: 2, shake: 1.5, trail: "#b0b8c8" },
         },
       },
     },
@@ -3092,26 +2497,83 @@ export const WEAPON = {
           { time: 1, damageMul: 2.2, poiseMul: 2.6, reachMul: 1.3 },
         ],
       },
+      /** 右クリックの固有技: 大薙ぎ。続けて左で 3 段目へ */
+      art: {
+        cooldown: 0,
+        next: 2,
+        step: { windup: 0.12, active: 0.14, recover: 0.34, scaling: { base: 8, str: 1, vit: 0.3 }, poise: 20, reach: 32, size: 32, knockback: 260, heavy: false, mana: 4, shape: { kind: "arc", deg: 200 }, hitstop: 4, shake: 2.5, trail: "#c0a080" },
+      },
       branches: {
-        hammerSweep: {
-          sequence: ["secondary"],
-          next: 2,
-          step: { windup: 0.12, active: 0.14, recover: 0.34, scaling: { base: 8, str: 1, vit: 0.3 }, poise: 20, reach: 32, size: 32, knockback: 260, heavy: false, mana: 4, shape: { kind: "arc", deg: 200 }, hitstop: 4, shake: 2.5, trail: "#c0a080" },
-        },
         groundBreaker: {
           sequence: ["primary", "primary", "secondary"],
           step: { windup: 0.24, active: 0.14, recover: 0.55, scaling: { base: 16, str: 2, vit: 0.6 }, poise: 44, reach: 0, size: 60, knockback: 420, heavy: true, mana: 6, shape: { kind: "circle" }, hitstop: 9, shake: 6, trail: "#ffffff" },
         },
       },
     },
-    /** 二丁拳銃: 左右とも射撃（射撃の型は銃スロット）。近接の段を持たず、ダッシュ攻撃だけが近接 */
+    /** 二丁拳銃: 左で撃つ（弾の型はベース）。近接の段を持たず、ダッシュ攻撃だけが近接 */
     gunner: {
       attackMoveMul: 0.8,
       /** 左右の銃口のずれ（px。撃つたびに交互） */
       muzzleOffset: 3,
       /** 反転撃ち: ダッシュの終わりに周りを撃ち払う */
       dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 4, dex: 0.6, str: 0.2 }, poise: 8, reach: 0, size: 36, knockback: 180, heavy: false, mana: 3, shape: { kind: "circle" }, hits: 1, hitstop: 2, trail: "#ffe0a0" },
+      /** 右クリックの固有技: 乱れ撃ち（散弾の弾を 45° 刻みで全周に 8 発） */
+      art: { cooldown: 1.5, throw: { shot: "spread", scaling: { base: 2.4, dex: 0.3 }, poise: 3, count: 8, spreadDeg: 45 } },
     },
+    // ---- 2026-09-24 銃の家系（docs/ideas/weapon-redesign.md 4 章）。弾の型はベースの shot、家系は技と手触りを決める ----
+    /** 短銃: 軽く動ける。右の長押しで狙い撃ち */
+    sidearm: {
+      attackMoveMul: 0.8,
+      /** 反転撃ち（二丁拳銃と同じ段） */
+      dashAttack: { windup: 0.03, active: 0.1, recover: 0.2, scaling: { base: 4, dex: 0.6, str: 0.2 }, poise: 8, reach: 0, size: 36, knockback: 180, heavy: false, mana: 3, shape: { kind: "circle" }, hits: 1, hitstop: 2, trail: "#ffe0a0" },
+      /** 右クリックの固有技: 狙い撃ち。time 秒溜めて離すとベースの型の弾を 1 発、威力 damageMul 倍・貫通 +pierceBonus */
+      art: { cooldown: 0.3, aim: { moveMul: 0.3, time: 0.4, damageMul: 2, pierceBonus: 1 } },
+    },
+    /** 長銃: 重く遅い。右の銃剣突きで密着を剥がす */
+    longarm: {
+      attackMoveMul: 0.5,
+      /** 銃床薙ぎ */
+      dashAttack: { windup: 0.04, active: 0.12, recover: 0.24, scaling: { base: 5, str: 0.5, dex: 0.3 }, poise: 12, reach: 24, size: 24, knockback: 240, heavy: false, mana: 3, shape: { kind: "arc", deg: 160 }, hitstop: 3, shake: 1.5, trail: "#e0d0b0" },
+      art: {
+        cooldown: 0.4,
+        step: { windup: 0.04, active: 0.1, recover: 0.2, scaling: { base: 5, dex: 0.5, str: 0.3 }, poise: 18, reach: 34, size: 10, knockback: 280, heavy: true, mana: 3, shape: { kind: "thrust" }, hitstop: 4, shake: 1.5, lunge: 20, trail: "#e0f0ff" },
+      },
+    },
+    /** 砲: 最も重い。右の零距離砲は自分も後ろへ跳び、床の設置弾をすべて起爆する */
+    cannon: {
+      attackMoveMul: 0.4,
+      /** 零距離（ダッシュ攻撃） */
+      dashAttack: { windup: 0.04, active: 0.1, recover: 0.26, scaling: { base: 6, str: 0.6, dex: 0.2 }, poise: 16, reach: 0, size: 44, knockback: 300, heavy: true, mana: 3, shape: { kind: "circle" }, hitstop: 5, shake: 3, trail: "#ffc070" },
+      art: {
+        cooldown: 0.8,
+        /** 自分を後ろへ押す速さ（px/秒。ノックバックの減衰 14/秒 でおよそ 40 px） */
+        selfKnock: 560,
+        detonateMines: true,
+        step: { windup: 0.05, active: 0.1, recover: 0.24, scaling: { base: 8, str: 0.6, dex: 0.4 }, poise: 24, reach: 0, size: 44, knockback: 360, heavy: true, mana: 3, shape: { kind: "circle" }, hitstop: 6, shake: 4, trail: "#ffc070" },
+      },
+    },
+    /** 投擲: 手で投げる。右の手元返しで飛んでいる弾を呼び戻す */
+    thrown: {
+      attackMoveMul: 0.7,
+      /** 投げ抜け */
+      dashAttack: { windup: 0.02, active: 0.1, recover: 0.16, scaling: { base: 4.5, dex: 0.6 }, poise: 8, reach: 40, size: 12, knockback: 150, heavy: false, mana: 2, shape: { kind: "thrust" }, lunge: 16, trail: "#c0e0ff" },
+      art: { cooldown: 0.8, recall: { returnDamageMul: 1.3, speedMul: 1.2 } },
+    },
+  },
+  /** 固有技の共通の数値（受け流し・構えの手触り） */
+  artDefaults: {
+    /** 受け流し成功で付ける無敵（秒） */
+    parryInvuln: 0.3,
+    parryText: "受け流し",
+    parryColor: "#c0f0ff",
+    parryParticles: 12,
+    /** 構えで受けたときの粒の色 */
+    guardColor: "#c0c8d0",
+    guardParticles: 4,
+    /** 手元返しの弾の速さの下限（px/秒。止まっている弾も戻す） */
+    recallMinSpeed: 180,
+    /** 零距離砲が床の設置弾を起爆させるとき、次のステップで炸裂させるための寿命（秒） */
+    detonateLife: 1e-6,
   },
   /** 武器種の固有ルール（MovesetDef.rules）の数値 */
   movesetRules: {

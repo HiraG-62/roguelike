@@ -34,7 +34,7 @@ const crit = (value = 5): AffixRoll => ({ key: "critChance", value, nominal: val
 describe("共鳴のステータス加算", () => {
   it("支配: その色のステータスだけ +3（紅 = 筋力）", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = makeItem("weapon", [melee(), { key: "meleeDamageFlat", value: 4, nominal: 4, flux: 0 }]);
+    eq.mainHand = makeItem("mainHand", [melee(), { key: "meleeDamageFlat", value: 4, nominal: 4, flux: 0 }]);
     eq.ring = makeItem("ring", [{ key: "attackSpeed", value: 10, nominal: 10, flux: 0 }, crit(10)]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind, "紅の支配が成立する").toBe("dominant");
@@ -46,9 +46,9 @@ describe("共鳴のステータス加算", () => {
 
   it("二重: 2 色それぞれ +2（紅 + 翠 = 筋力と体力）", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = makeItem("weapon", [melee(), { key: "damageVsStaggered", value: 20, nominal: 20, flux: 0 }]);
+    eq.mainHand = makeItem("mainHand", [melee(), { key: "damageVsStaggered", value: 20, nominal: 20, flux: 0 }]);
     eq.armor = makeItem("armor", [life(), { key: "hpRegen", value: 1, nominal: 1, flux: 0 }]);
-    eq.gun = makeItem("gun", [ranged()]);
+    eq.boots = makeItem("boots", [ranged()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind, "紅と翠の二重が成立する").toBe("dual");
     const plus = ATTR.base + ATTR_GAIN.resonanceDual;
@@ -57,8 +57,8 @@ describe("共鳴のステータス加算", () => {
 
   it("散光: 全ステータス +1", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = makeItem("weapon", [melee()]);
-    eq.gun = makeItem("gun", [ranged()]);
+    eq.mainHand = makeItem("mainHand", [melee()]);
+    eq.boots = makeItem("boots", [ranged()]);
     eq.armor = makeItem("armor", [life()]);
     eq.ring = makeItem("ring", [crit()]);
     const stats = computeStats(eq);

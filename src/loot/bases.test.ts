@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MOVESET_KEYS, SHOT_KEYS } from "../data/weapons";
+import { GUN_MOVESETS, MOVESET_KEYS, SHOT_KEYS } from "../data/weapons";
 import { BASES, basesForSlot } from "./bases";
 
 /** 序盤のベース解禁（docs/ideas/combat-feel-design.md A-2）: 1 ランの浅い階でも武器種・射撃の型に触れられる */
@@ -16,20 +16,27 @@ function earliest(match: (b: (typeof BASES)[number]) => boolean): number {
 }
 
 describe("序盤のベース解禁", () => {
-  it(`すべての武器種に minLevel ${EARLY_WEAPON_LEVEL} 以下のベースがある`, () => {
+  it(`すべての近接武器種に minLevel ${EARLY_WEAPON_LEVEL} 以下のベースがある`, () => {
     for (const key of MOVESET_KEYS) {
-      expect(earliest((b) => b.slot === "weapon" && b.moveset === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_WEAPON_LEVEL);
+      if ((GUN_MOVESETS as readonly string[]).includes(key)) continue;
+      expect(earliest((b) => b.slot === "mainHand" && b.moveset === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_WEAPON_LEVEL);
+    }
+  });
+
+  it(`すべての銃の家系に minLevel ${EARLY_GUN_LEVEL} 以下のベースがある`, () => {
+    for (const key of GUN_MOVESETS) {
+      expect(earliest((b) => b.slot === "mainHand" && b.moveset === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);
     }
   });
 
   it(`すべての射撃の型に minLevel ${EARLY_GUN_LEVEL} 以下のベースがある`, () => {
     for (const key of SHOT_KEYS) {
-      expect(earliest((b) => b.slot === "gun" && b.shot === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);
+      expect(earliest((b) => b.shot === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);
     }
   });
 
-  it(`basesForSlot("weapon", ${EARLY_WEAPON_LEVEL}) に ${EARLY_MOVESET_VARIETY} 種類以上の武器種が含まれる`, () => {
-    const movesets = new Set(basesForSlot("weapon", EARLY_WEAPON_LEVEL).map((b) => b.moveset));
+  it(`basesForSlot("mainHand", ${EARLY_WEAPON_LEVEL}) に ${EARLY_MOVESET_VARIETY} 種類以上の武器種が含まれる`, () => {
+    const movesets = new Set(basesForSlot("mainHand", EARLY_WEAPON_LEVEL).map((b) => b.moveset));
     expect(movesets.size).toBeGreaterThanOrEqual(EARLY_MOVESET_VARIETY);
   });
 });

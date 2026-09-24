@@ -7,7 +7,7 @@ import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { FEEL, HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { MOVESETS, SHOT_TYPES, type MovesetKey, type ShotKey } from "../data/weapons";
+import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -42,9 +42,8 @@ export interface HubRun {
   /** 決定キーを押し続けている秒 */
   departHold: number;
   trialKeystone: string | null;
-  /** 武器掛けで試している武器種・射撃の型（null = 装備のまま）。拠点を出ると消える */
+  /** 武器掛けで試している武器種（銃の家系を含む。null = 装備のまま）。拠点を出ると消える */
   trialMoveset: MovesetKey | null;
-  trialShot: ShotKey | null;
   /** 木人ごとの立ち直りまでの残り秒（0 = 立っている） */
   dummyTimers: number[];
   /** 木人ごとの今立っている敵の id（立て直しで倒れたかを見分ける） */
@@ -80,7 +79,6 @@ export function createHub(profile: Profile, skillProfile: SkillProfile, availabl
     departHold: 0,
     trialKeystone: null,
     trialMoveset: null,
-    trialShot: null,
     dummyTimers: layout.dummySpots.map(() => 0),
     dummyIds: layout.dummySpots.map((pos) => placeDummy(state, pos)),
     available,
@@ -290,20 +288,19 @@ export function trialKeystoneKeys(): string[] {
 }
 
 // -----------------------------------------------------------------------------
-// 武器掛け（試す = 武器種・射撃の型だけを差し替える / 借りる = 素の器を装着する）
+// 武器掛け（試す = 武器種だけを差し替える / 借りる = 素の器を右手に装着する）
 // -----------------------------------------------------------------------------
 
-/** 武器掛けの 1 行が指すもの */
-export type RackEntry = { kind: "moveset"; key: MovesetKey } | { kind: "shot"; key: ShotKey };
+/** 武器掛けの 1 行が指すもの。銃の家系（GUN_MOVESETS）も武器種として並ぶ */
+export type RackEntry = { kind: "moveset"; key: MovesetKey };
 
 /**
- * 試す武器種・射撃の型を差し替える（拠点を出ると state ごと捨てるので残らない）。null で装備のものに戻す。
- * 差し替えは変身と同じく stats の写しの moveset / shot だけを替える
+ * 試す武器種を差し替える（拠点を出ると state ごと捨てるので残らない）。null で装備のものに戻す。
+ * 差し替えは変身と同じく stats の写しの moveset だけを替える（shot は装備のベースのまま）
  */
-export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null, shot: ShotKey | null): void {
+export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null): void {
   const { state, hub } = session;
   hub.trialMoveset = moveset;
-  hub.trialShot = shot;
   // 振りの途中で型が替わると段の添字が新しい型に無いことがあるので止める
   if (state.player.attack.phase !== "none") cancelAttack(state);
   refreshRunStats(state);
@@ -314,10 +311,9 @@ export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null, 
 function enforceTrialWeapon(session: HubSession): void {
   const { state, hub } = session;
   const moveset = hub.trialMoveset ?? state.stats.moveset;
-  const shot = hub.trialShot ?? state.stats.shot;
-  if (state.stats.moveset === moveset && state.stats.shot === shot) return;
+  if (state.stats.moveset === moveset) return;
   const prev = state.stats;
-  state.stats = { ...prev, moveset, shot };
+  state.stats = { ...prev, moveset };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }
@@ -350,31 +346,23 @@ function borrowInto(profile: Profile, base: BaseItemDef, salt: number, now: numb
   return item;
 }
 
-/** 武器種の素の器を借りて武器スロットに装着する。元の武器は倉庫へ（満杯なら断る）。借り物はランが終わると消える */
+/** 武器種の素の器を借りて右手に装着する。元の装備は倉庫へ（満杯なら断る）。借り物はランが終わると消える */
 export function borrowWeapon(profile: Profile, moveset: MovesetKey, now: number): Item | null {
-  const base = earliestBase("weapon", (b) => b.moveset === moveset);
+  const base = earliestBase("mainHand", (b) => b.moveset === moveset);
   if (base === undefined) return null;
   return borrowInto(profile, base, BASES.indexOf(base), now);
 }
 
-/** 射撃の型の素の器を借りて銃スロットに装着する。元の銃は倉庫へ（満杯なら断る） */
-export function borrowGun(profile: Profile, shot: ShotKey, now: number): Item | null {
-  const base = earliestBase("gun", (b) => b.shot === shot);
-  if (base === undefined) return null;
-  return borrowInto(profile, base, BASES.indexOf(base), now);
-}
-
-/** 武器掛けの行を借りる。借りたらその種類の「試す」を外し、装備から stats を作り直す */
+/** 武器掛けの行を借りる。借りたら「試す」を外し、装備から stats を作り直す */
 export function borrowRackEntry(session: HubSession, entry: RackEntry, now: number): Item | null {
-  const { state, hub } = session;
-  const item = entry.kind === "moveset" ? borrowWeapon(state.profile, entry.key, now) : borrowGun(state.profile, entry.key, now);
+  const { state } = session;
+  const item = borrowWeapon(state.profile, entry.key, now);
   if (item === null) return null;
-  if (entry.kind === "moveset") setTrialWeapon(session, null, hub.trialShot);
-  else setTrialWeapon(session, hub.trialMoveset, null);
+  setTrialWeapon(session, null);
   return item;
 }
 
-/** 表示名（「大剣」「散弾」） */
+/** 表示名（「大剣」「散弾銃」） */
 export function rackEntryName(entry: RackEntry): string {
-  return entry.kind === "moveset" ? MOVESETS[entry.key].name : SHOT_TYPES[entry.key].name;
+  return MOVESETS[entry.key].name;
 }

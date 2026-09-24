@@ -12,7 +12,7 @@ import {
   type AffixDef,
   type RollRange,
 } from "./affixes";
-import { baseDef, basesForSlot, type BaseItemDef } from "./bases";
+import { baseDef, baseFamily, basesForSlot, type BaseItemDef } from "./bases";
 import { BASE_LEAN_WEIGHT, affixColor, baseLean, triggerCanBeColor, triggerColor } from "./colors";
 import {
   MAX_CONVERSION_FLUX,
@@ -31,7 +31,7 @@ import {
 import { uniquesFor, type UniqueDef } from "./named";
 import { nameItem } from "./names";
 import { grammarForSlot, isTriggerKey, rollTriggerEffect, triggerToRoll } from "./triggers";
-import { SLOTS, TRAIT_COLORS, createEmptyProvenance, type AffixRoll, type Item, type Slot, type TraitColor, type TraitOrigin } from "./types";
+import { LOOT_SLOTS, TRAIT_COLORS, createEmptyProvenance, type AffixRoll, type Item, type Slot, type TraitColor, type TraitOrigin } from "./types";
 
 /**
  * 遺物（装備）の生成。純関数 + seedable RNG（docs/LOOT_DESIGN.md「生成」）。
@@ -270,6 +270,8 @@ interface TraitContext {
   slot: Slot;
   lean: TraitColor | undefined;
   opts: TraitRollOptions;
+  /** 右手の家系（docs/ideas/weapon-redesign.md 5.2）。mainHand 以外では意味を持たない */
+  family?: "melee" | "gun";
 }
 
 function pickTableDef(rng: Rng, pool: readonly AffixDef[], ctx: TraitContext, used: ReadonlySet<string>): AffixDef | undefined {
@@ -288,12 +290,12 @@ function maybeRollTrigger(rng: Rng, ctx: TraitContext, used: ReadonlySet<string>
 function maybeRollConversion(rng: Rng, ctx: TraitContext, used: ReadonlySet<string>): AffixRoll | undefined {
   if (!rng.chance(CONVERSION_TRAIT_CHANCE)) return undefined;
   if ([...used].some(isConversionKey)) return undefined;
-  const def = pickTableDef(rng, conversionsFor(ctx.slot, ctx.opts.depth), ctx, used);
+  const def = pickTableDef(rng, conversionsFor(ctx.slot, ctx.opts.depth, ctx.family), ctx, used);
   return def === undefined ? undefined : rollTableTrait(rng, def, ctx.opts);
 }
 
 function rollPlainTrait(rng: Rng, ctx: TraitContext, used: ReadonlySet<string>): AffixRoll | undefined {
-  const def = pickTableDef(rng, traitsFor(ctx.slot, ctx.opts.depth), ctx, used);
+  const def = pickTableDef(rng, traitsFor(ctx.slot, ctx.opts.depth, ctx.family), ctx, used);
   return def === undefined ? undefined : rollTableTrait(rng, def, ctx.opts);
 }
 
@@ -323,8 +325,15 @@ export function rollMargin(rng: Rng, traitCount: number): number {
  * 各枠は TRIGGER_TRAIT_CHANCE でトリガー文法、外れたら CONVERSION_TRAIT_CHANCE で変換、それ以外は表から。
  * ベースの色の傾きに合う性質は BASE_LEAN_WEIGHT 倍で選ばれる
  */
-export function rollTraits(rng: Rng, slot: Slot, baseKey: string, count: number, opts: TraitRollOptions): AffixRoll[] {
-  const ctx: TraitContext = { slot, lean: baseLean(baseKey), opts };
+export function rollTraits(
+  rng: Rng,
+  slot: Slot,
+  baseKey: string,
+  count: number,
+  opts: TraitRollOptions,
+  family?: "melee" | "gun",
+): AffixRoll[] {
+  const ctx: TraitContext = { slot, lean: baseLean(baseKey), opts, family };
   const rolls: AffixRoll[] = [];
   const used = new Set<string>();
   for (let i = 0; i < count; i++) {
@@ -366,8 +375,9 @@ export function rollTraitOfColor(
   color: TraitColor,
   used: ReadonlySet<string>,
   opts: TraitRollOptions,
+  family?: "melee" | "gun",
 ): AffixRoll | undefined {
-  const tables = traitsFor(slot, opts.depth).filter((d) => affixColor(d) === color && !used.has(d.key));
+  const tables = traitsFor(slot, opts.depth, family).filter((d) => affixColor(d) === color && !used.has(d.key));
   const shapes = grammarForSlot(slot).filter((s) => triggerCanBeColor(s, color));
   const vows = color === "umbra" ? KEYSTONES.filter((k) => !used.has(k.key)) : [];
   const groups: { group: ColoredGroup; weight: number }[] = [
@@ -393,7 +403,7 @@ export function rollTraitOfColor(
     case undefined:
       break;
   }
-  const fallback = traitsFor(slot, opts.depth).filter((d) => !used.has(d.key));
+  const fallback = traitsFor(slot, opts.depth, family).filter((d) => !used.has(d.key));
   if (fallback.length === 0) return undefined;
   return { ...rollTableTrait(rng, rng.pick(fallback), opts), color };
 }
@@ -402,8 +412,9 @@ export function rollTraitOfColor(
 // 各ステップ
 // ---------------------------------------------------------------------------
 
+/** ドロップの部位抽選。左手（offHand）はベースが無いので対象にしない */
 export function rollSlot(rng: Rng): Slot {
-  return rng.pick(SLOTS);
+  return rng.pick(LOOT_SLOTS);
 }
 
 export function rollBase(rng: Rng, slot: Slot, depth: number): BaseItemDef {
@@ -487,7 +498,7 @@ function rollRegularItem(rng: Rng, slot: Slot, opts: TraitRollOptions): Rolled {
   const count = rollTraitCount(rng, opts.depth);
   // 襤褸などの余白の上乗せ。器の容量は超えない
   const margin = Math.min(VESSEL_CAPACITY, rollMargin(rng, count) + (base.marginBonus ?? 0));
-  const affixes = maybeVow(rng, rollTraits(rng, slot, base.key, count, opts));
+  const affixes = maybeVow(rng, rollTraits(rng, slot, base.key, count, opts, baseFamily(base)));
   return { base, affixes, margin };
 }
 
@@ -515,7 +526,7 @@ function fixedBaseDef(key: string): BaseItemDef {
 function rollFixedItem(rng: Rng, base: BaseItemDef, plain: boolean, opts: TraitRollOptions): Rolled {
   const count = plain ? 0 : rollTraitCount(rng, opts.depth);
   const margin = Math.min(VESSEL_CAPACITY, rollMargin(rng, count) + (base.marginBonus ?? 0));
-  const traits = rollTraits(rng, base.slot, base.key, count, opts);
+  const traits = rollTraits(rng, base.slot, base.key, count, opts, baseFamily(base));
   return { base, affixes: plain ? traits : maybeVow(rng, traits), margin };
 }
 

@@ -99,7 +99,7 @@ describe("重み", () => {
 describe("computeStats と共鳴", () => {
   it("支配: 他の色の性質は 75% に弱まり、支配の効果（灼極）が乗る", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = makeItem("weapon", [melee(), { key: "meleeDamageFlat", value: 4, nominal: 4, flux: 0 }]);
+    eq.mainHand = makeItem("mainHand", [melee(), { key: "meleeDamageFlat", value: 4, nominal: 4, flux: 0 }]);
     eq.ring = makeItem("ring", [{ key: "attackSpeed", value: 10, nominal: 10, flux: 0 }, crit(10)]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("dominant");
@@ -125,9 +125,9 @@ describe("computeStats と共鳴", () => {
   it("二重: 組み合わせの効果が乗る（紅 + 翠 = 血潮で命中時 HP 回復 +1）", () => {
     const eq = createEmptyEquipment();
     // 紅 2 : 翠 2 : 蒼 1 = 40% / 40% / 20%（50% ちょうどは支配になるので 3 色目を混ぜる）
-    eq.weapon = makeItem("weapon", [melee(), { key: "damageVsStaggered", value: 20, nominal: 20, flux: 0 }]);
+    eq.mainHand = makeItem("mainHand", [melee(), { key: "damageVsStaggered", value: 20, nominal: 20, flux: 0 }]);
     eq.armor = makeItem("armor", [life(), { key: "hpRegen", value: 1, nominal: 1, flux: 0 }]);
-    eq.gun = makeItem("gun", [ranged()]);
+    eq.boots = makeItem("boots", [ranged()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("dual");
     expect(stats.resonance.colors).toEqual(["crimson", "jade"]);
@@ -136,8 +136,8 @@ describe("computeStats と共鳴", () => {
 
   it("散光: 主要倍率が少しずつ伸びる（支配/二重よりかなり高かったため半分に調整済み）", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = makeItem("weapon", [melee()]);
-    eq.gun = makeItem("gun", [ranged()]);
+    eq.mainHand = makeItem("mainHand", [melee()]);
+    eq.boots = makeItem("boots", [ranged()]);
     eq.armor = makeItem("armor", [life()]);
     eq.ring = makeItem("ring", [crit()]);
     const stats = computeStats(eq);

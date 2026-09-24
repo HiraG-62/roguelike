@@ -21,6 +21,7 @@ import { interceptEnemyDamage } from "./elites";
 import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
 import { boonForcesCrit, boonPoise } from "./boonRules";
+import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
 
@@ -452,8 +453,10 @@ export function damagePlayer(
     }
     return "ignored";
   }
+  // 右クリックの固有技: 受け流しの窓は無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
+  if (tryParry(state, attacker)) return "ignored";
 
-  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker);
+  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker) * guardDamageMul(state, fromPos);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);

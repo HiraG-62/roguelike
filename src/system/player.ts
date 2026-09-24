@@ -5,7 +5,6 @@ import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
 import { ACTION, BOON, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
 import {
-  type ActionKind,
   type ButtonKey,
   type HitShape,
   type MeleeStepDef,
@@ -18,11 +17,12 @@ import {
   SHOT_TYPES,
   chargeButton,
   chargeLevelAt,
-  isShotOnly,
+  isGun,
   matchBranch,
-  shotButtons,
+  meleeChargeOf,
   withExtraBranch,
 } from "../data/weapons";
+import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
@@ -70,6 +70,7 @@ import {
 } from "./boons";
 import { boonBlocksShoot, boonCounterable, onBoonShootInput } from "./boonRules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
+import { artInputBlocked, artLocksActions, artMoveMul, endArtHold, onArtStrike, startArt, updateArt } from "./weaponArts";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -147,6 +148,7 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     secondaryWasHeld: false,
     shotBurst: { left: 0, timer: 0, side: 1 },
     swingImpact: 0,
+    art: { cooldown: 0, holding: false, holdTime: 0, recover: 0 },
   };
 }
 
@@ -217,6 +219,8 @@ export interface MeleeStep {
   applies: readonly StatusApply[];
   /** recover のキャンセル猶予（省略は PLAYER.recoverCancel。docs/ideas/combat-feel-design.md D-4） */
   cancel?: number;
+  /** 振り始めから付く無敵（秒。0 なら無し） */
+  invuln: number;
 }
 
 /** 装備中の武器種。武器なしは剣 */
@@ -252,8 +256,8 @@ export function currentShot(stats: Readonly<PlayerStats>): ShotDef {
 
 /** 武器種の段 → 祝福・スキルに渡す combo（1 段目 0 / 途中 1 / 最終段 2）。段数が違っても最終段の祝福が最終段で出る */
 export function hookCombo(moveset: MovesetDef, step: number): number {
-  // 射撃専用（二丁拳銃）の反転撃ちは連撃ではないので最終段として渡さない
-  if (isShotOnly(moveset)) return 0;
+  // 銃の家系の反転撃ちは連撃ではないので最終段として渡さない
+  if (isGun(moveset)) return 0;
   if (step >= moveset.steps.length - 1) return FINISHER_COMBO;
   return Math.min(step, FINISHER_COMBO - 1);
 }
@@ -261,7 +265,8 @@ export function hookCombo(moveset: MovesetDef, step: number): number {
 function stepDef(moveset: MovesetDef, step: number, dashStrike: boolean, chargeLevel: number, branch: number): MeleeStepDef | undefined {
   if (dashStrike) return moveset.dashAttack;
   if (branch >= 0) return moveset.branches[branch]?.step;
-  if (chargeLevel > 0 && moveset.charge) return moveset.charge.step;
+  const charge = meleeChargeOf(moveset);
+  if (chargeLevel > 0 && charge) return charge.step;
   return moveset.steps[step];
 }
 
@@ -280,7 +285,7 @@ export function meleeStep(
 ): MeleeStep | undefined {
   const base = stepDef(moveset, step, dashStrike, chargeLevel, branch);
   if (!base) return undefined;
-  const level = chargeLevel > 0 ? moveset.charge?.levels[chargeLevel - 1] : undefined;
+  const level = chargeLevel > 0 ? meleeChargeOf(moveset)?.levels[chargeLevel - 1] : undefined;
   const speed = stats.attackSpeedMul;
   const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1);
   return {
@@ -305,6 +310,7 @@ export function meleeStep(
     trail: base.trail,
     applies: base.applies ?? [],
     cancel: base.cancel,
+    invuln: base.invuln ?? 0,
   };
 }
 
@@ -353,6 +359,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
   if (!staggered) readActions(state, input);
   updateCharge(state, input, dt);
+  updateArt(state, input, dt);
   releaseDashAttack(state);
   updateSkills(state, staggered ? withoutSkillInput(input) : input, dt);
 
@@ -360,7 +367,10 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   updateMovement(state, input, dt, aiming);
   const shotHeld = shotButtonHeld(state, input);
   onBoonShootInput(state, shotHeld);
-  updateShooting(state, shotHeld && !staggered && !skillLocksAttack(state), dt, aimDistance(state, input));
+  // 射撃は銃の家系だけ（docs/ideas/weapon-redesign.md 0 章）。持ち替えたら溜め撃ち・三点の残りを捨てる
+  const canShoot = shotHeld && !staggered && !skillLocksAttack(state) && !artLocksActions(state);
+  if (isGun(playerMoveset(state))) updateShooting(state, canShoot, dt, aimDistance(state, input));
+  else resetShooting(p);
   // 右の「押した瞬間」は前フレームとの差で取る（FrameInput は押しっぱなししか持たない）
   p.secondaryWasHeld = input.shootHeld;
   if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
@@ -370,12 +380,12 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 /** ダッシュ・近接・バーストの入力を読む（怯み中は呼ばない） */
 function readActions(state: GameState, input: FrameInput): void {
   if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
-  if (!skillLocksAttack(state)) readAttackButtons(state, input);
+  if (!skillLocksAttack(state) && !artLocksActions(state)) readAttackButtons(state, input);
   // バーストは常にスキルをキャンセルできる
   if (input.specialPressed && trySpecial(state)) cancelSkills(state);
 }
 
-/** 左右のボタンの押した瞬間。武器種の役割（近接 / 射撃 / 溜め）と派生の入力列で振り分ける */
+/** 左右のボタンの押した瞬間。左は武器種の役割（連撃 / 溜め / 射撃）、右は固有技。派生の入力列が先 */
 function readAttackButtons(state: GameState, input: FrameInput): void {
   if (input.attackPressed) onButtonPress(state, "primary");
   if (input.shootHeld && !state.player.secondaryWasHeld) onButtonPress(state, "secondary");
@@ -384,20 +394,37 @@ function readAttackButtons(state: GameState, input: FrameInput): void {
 function onButtonPress(state: GameState, button: ButtonKey): void {
   // 変身が左右クリックを差し替えていれば（遠吠え・砲撃）そちらが引き受ける
   if (shapeButtonPress(state, button)) return;
+  const p = state.player;
   const moveset = playerMoveset(state);
-  logButton(state.player, button);
-  if (tryBranch(state, moveset)) return;
-  const role = buttonRole(moveset, button);
-  if (role !== "shot") {
-    tryAttack(state, role === "charge");
+  logButton(p, button);
+  // 技の再使用中の右は何も起こさず、入力列にも残さない（派生の列が再使用中の右で崩れないように）
+  if (button === "secondary" && artInputBlocked(state, moveset)) {
+    p.attack.inputs.pop();
     return;
   }
-  // 射撃専用の武器種（二丁拳銃）はダッシュ中の押下を反転撃ち（ダッシュ攻撃）として予約する
-  if (isShotOnly(moveset) && isDashing(state.player) && !boonBlocksMelee(state)) state.player.dashAttackQueued = true;
+  // 構え中の左は構えを解いてから通常の流れへ（受け流し → 斬りの追い打ちもここを通る）
+  if (button === "primary" && p.art.holding) endArtHold(state);
+  if (tryBranch(state, moveset)) return;
+  if (button === "secondary") {
+    pressArt(state, moveset);
+    return;
+  }
+  if (!isGun(moveset)) {
+    tryAttack(state, moveset.primary === "charge");
+    return;
+  }
+  // 銃の家系はダッシュ中の押下を反転撃ち（ダッシュ攻撃）として予約する
+  if (isDashing(p) && !boonBlocksMelee(state)) p.dashAttackQueued = true;
 }
 
-function buttonRole(moveset: MovesetDef, button: ButtonKey): ActionKind {
-  return button === "primary" ? moveset.primary : moveset.secondary;
+/** 右の固有技。居合（近接の溜め）は溜めの経路、それ以外（strike は派生で出るので除く）は weaponArts.ts */
+function pressArt(state: GameState, moveset: MovesetDef): void {
+  const art = moveset.art;
+  if (art.kind === "charge" && art.charge) {
+    tryAttack(state, true);
+    return;
+  }
+  startArt(state);
 }
 
 function buttonHeld(input: FrameInput, button: ButtonKey | undefined): boolean {
@@ -406,10 +433,10 @@ function buttonHeld(input: FrameInput, button: ButtonKey | undefined): boolean {
   return false;
 }
 
-/** 射撃の役割を持つボタンの押しっぱなし。剣なら右、杖なら左、二丁拳銃は左右どちらでも。どちらも近接の武器種では撃たない */
+/** 射撃の押しっぱなし。銃の家系の左だけ（近接の武器種は撃たない） */
 function shotButtonHeld(state: GameState, input: FrameInput): boolean {
   if (shapeLocksShot(state)) return false;
-  return shotButtons(playerMoveset(state)).some((b) => buttonHeld(input, b));
+  return isGun(playerMoveset(state)) && input.attackHeld;
 }
 
 /** 派生の入力列に積む。長さは chainMaxInputs まで */
@@ -535,6 +562,7 @@ function tryDash(state: GameState, input: FrameInput): void {
   // ダッシュで攻撃・溜め・予約した派生をキャンセルできる（手触り重視）
   cancelAttack(state);
   cancelCharge(p);
+  endArtHold(state);
   p.attack.pendingBranch = -1;
   spawnBurst(state, p.body.pos, "#ffffff", 6, 40, 0.2, 1.5);
   pushSfx(state, "dash");
@@ -583,10 +611,11 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
   } else {
     const staggerMul = isPlayerStaggered(p) ? PLAYER.staggerMoveMul : 1;
     const moveset = playerMoveset(state);
-    const chargeMul = p.attack.charging ? (moveset.charge?.moveMul ?? 1) : 1;
+    const chargeMul = p.attack.charging ? (meleeChargeOf(moveset)?.moveMul ?? 1) : 1;
     const attackMul =
       (isAttacking(p) ? moveset.attackMoveMul : 1) *
       chargeMul *
+      artMoveMul(state) *
       skillMoveMul(state) *
       boonMoveMul(state) *
       staggerMul *
@@ -633,7 +662,7 @@ function tryAttack(state: GameState, charge = false): void {
   const a = p.attack;
   if (a.phase === "none") {
     // 溜めのある武器種は押した瞬間には振らず、離したときに段で決める（updateCharge）
-    if (charge && playerMoveset(state).charge) {
+    if (charge && meleeChargeOf(playerMoveset(state))) {
       // 押し直し（連打）で溜めを最初からにしない
       if (!a.charging) beginCharge(p);
       return;
@@ -668,7 +697,7 @@ function updateCharge(state: GameState, input: FrameInput, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (!a.charging) return;
-  const charge = playerMoveset(state).charge;
+  const charge = meleeChargeOf(playerMoveset(state));
   if (!charge || isPlayerStaggered(p) || isDashing(p) || skillLocksAttack(state) || isAttacking(p)) {
     cancelCharge(p);
     return;
@@ -697,7 +726,7 @@ function onChargeLevelUp(state: GameState, level: number): void {
 /** 溜めの段（0 = 段なし）。描画の環に使う */
 export function meleeChargeLevel(state: GameState): number {
   const a = state.player.attack;
-  const charge = playerMoveset(state).charge;
+  const charge = meleeChargeOf(playerMoveset(state));
   if (!a.charging || !charge) return 0;
   return chargeLevelAt(charge.levels, a.chargeTime);
 }
@@ -732,9 +761,19 @@ function startBranch(state: GameState, index: number): void {
   if (!branch) return;
   const combo = branch.next === undefined ? FINISHER_COMBO : 0;
   beginSwing(state, { step: state.player.attack.step, dashStrike: false, chargeLevel: 0, branch: index, combo });
+  // 1 振りの固有技は振り始めに再使用を立てる（予約のまま捨てられた技では立てない）
+  if (branch.art === "strike") onArtStrike(state);
   // 派生成立の合図（docs/ideas/combat-feel-design.md D-1）
   addFloatingText(state, state.player.body.pos, branch.name, FEEL.branchTextColor, FEEL.branchTextScale, FEEL.branchTextLife);
   pushSfx(state, "branch");
+}
+
+/** 固有技から派生を振る（盾の構えを離した盾押し。weaponArts.ts から）。振っている最中なら今の振りの後に予約する */
+export function startArtBranch(state: GameState, index: number): void {
+  const p = state.player;
+  if (hasKeystone(state, KS.pacifist) || boonBlocksMelee(state)) return;
+  if (p.attack.phase === "none") startBranch(state, index);
+  else p.attack.pendingBranch = index;
 }
 
 interface SwingSpec {
@@ -762,6 +801,7 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   a.hitIds.clear();
   a.hitTick = 0;
   a.dir = { ...p.facing };
+  if (step.invuln > 0) p.invulnTimer = Math.max(p.invulnTimer, step.invuln);
   const sfx = SLASH_SFX[spec.combo];
   if (sfx) pushSfx(state, sfx);
   onSwingFx(state);
@@ -1221,6 +1261,12 @@ function canContinueBurst(state: GameState): boolean {
   return !isDashing(p) || canShootWhileDashing(state);
 }
 
+/** 銃を持っていない間は射撃の途中経過を持ち越さない */
+function resetShooting(p: Player): void {
+  cancelShotCharge(p);
+  p.shotBurst.left = 0;
+}
+
 function cancelShotCharge(p: Player): void {
   p.shotCharging = false;
   p.shotChargeTime = 0;
@@ -1269,7 +1315,6 @@ function blockedByBladeOath(state: GameState): boolean {
 
 function tryShoot(state: GameState, aim?: number): void {
   if (!canShootNow(state)) return;
-  if (blockedByBladeOath(state)) return;
   fireVolley(state, 0, aim);
 }
 
@@ -1285,19 +1330,36 @@ interface VolleySpec {
   color: string;
 }
 
-function volleySpec(state: GameState, shot: ShotDef, level: number, aim?: number): VolleySpec {
+/**
+ * 射撃の型を借りて弾を出す別の経路（固有技の投擲・魔弾・乱れ撃ち、短銃の狙い撃ち）が差し替える値。
+ * damage / poise は最終値（省略は射撃の型の値）、damageMul / pierceBonus は射撃の型の値に掛ける・足す
+ */
+export interface VolleyOverride {
+  damage?: number;
+  poise?: number;
+  damageMul?: number;
+  pierceBonus?: number;
+  count?: number;
+  spreadDeg?: number;
+  /** 弾の素性（ジャンル・属性）。弾の型の既定から変えるもの */
+  attack?: AttackProfile;
+  /** false なら反動を付けない（全周へ撒く技など） */
+  recoil?: boolean;
+}
+
+function volleySpec(state: GameState, shot: ShotDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
   const s = state.stats;
   const charged = level > 0 ? shot.charge?.levels[level - 1] : undefined;
-  const damageMul = charged?.damageMul ?? shot.damageMul;
+  const damageMul = (charged?.damageMul ?? shot.damageMul) * (override.damageMul ?? 1);
   const speed = PLAYER.shoot.speed * shot.speedMul * s.projectileSpeedMul;
   return {
-    damage: shotDamage(s) * damageMul + boonNormalAttackBonus(state),
-    poise: PLAYER.shoot.poise * (charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
+    damage: override.damage ?? shotDamage(s) * damageMul + boonNormalAttackBonus(state),
+    poise: override.poise ?? PLAYER.shoot.poise * (charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
     radius: charged?.radius ?? shot.radius,
-    pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0),
+    pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0) + (override.pierceBonus ?? 0),
     speed,
     life: shotLife(shot, speed, aim),
-    count: s.projectileCount + shot.pellets,
+    count: override.count ?? s.projectileCount + shot.pellets,
     color: shot.mine?.color ?? shot.lob?.color ?? (level > 0 ? (WEAPON.chargeRingColors[level] ?? BULLET_COLOR) : BULLET_COLOR),
   };
 }
@@ -1337,26 +1399,29 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   p.shotBurst.timer = shot.burst.interval;
 }
 
-/** 銃口の位置。二丁拳銃（左右とも射撃）は撃つたびに左右の銃口を入れ替える */
+/** 銃口の位置。二丁拳銃は撃つたびに左右の銃口を入れ替える */
 function muzzleAt(state: GameState, dir: Vec): Vec {
   const p = state.player;
   const front = add(p.body.pos, scale(dir, p.body.radius + 2));
-  if (shotButtons(playerMoveset(state)).length < 2) return front;
+  if (playerMoveset(state).key !== "gunner") return front;
   const side = p.shotBurst.side;
   p.shotBurst.side = -side;
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
 
-/** 弾を出す（再使用時間は触らない。三点の続きの弾もここを通る） */
-function emitVolley(state: GameState, shot: ShotDef, level: number, aim?: number): void {
+/**
+ * 弾を出す（再使用時間は触らない。三点の続きの弾・固有技の弾もここを通る）。出したら true。
+ * 剣の誓い（ks_bladeOath）は射撃も弾を出す固有技も封じるので入口で見る
+ */
+export function emitVolley(state: GameState, shot: ShotDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
+  if (blockedByBladeOath(state)) return false;
   const p = state.player;
-  const s = state.stats;
   const dir = { ...p.facing };
   const muzzle = muzzleAt(state, dir);
   const baseAngle = angle(dir) + swayOffset(state, shot);
-  const spec = volleySpec(state, shot, level, aim);
+  const spec = volleySpec(state, shot, level, aim, override);
   const firstShot = state.projectiles.length;
-  for (const offset of spreadOffsets(spec.count, shot.spreadDeg)) {
+  for (const offset of spreadOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg)) {
     const runtime = shotRuntime(shot, spec.life);
     state.projectiles.push({
       id: allocId(state),
@@ -1372,17 +1437,21 @@ function emitVolley(state: GameState, shot: ShotDef, level: number, aim?: number
       pierceLeft: spec.pierce,
       poise: spec.poise,
       ...(runtime ? { shot: runtime } : {}),
+      // 固有技の弾（魔弾の光など）は技の素性を持つ。無ければ elementCombat が stats.shot の型から引く
+      ...(override.attack ? { attack: override.attack } : {}),
     });
   }
   onBoonShoot(state, state.projectiles.slice(firstShot));
-  p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
+  if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   spawnBurst(state, muzzle, spec.color, 3, 60, 0.12, 1.5);
   shake(state, 1);
-  pushSfx(state, shotSfxName(s.shot));
+  // 固有技の弾は借りた型の音（docs/ideas/weapon-redesign.md 6 章）
+  pushSfx(state, shotSfxName(shot.key));
   payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });
   pushPlayerEvent(state, "onShoot", "ranged", { pos: { ...muzzle } });
   onSkillPlayerShoot(state);
+  return true;
 }
 
 /** バースト。発動したら true */

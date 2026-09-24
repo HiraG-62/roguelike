@@ -115,6 +115,11 @@ export const SFX_NAMES = [
   "swingChainSickle",
   "swingHammer",
   "swingGunner",
+  // 銃の家系のダッシュ攻撃・固有技の振り音（docs/ideas/weapon-redesign.md 4 章）
+  "swingSidearm",
+  "swingLongarm",
+  "swingCannon",
+  "swingThrown",
   // ---- 射撃の型ごとの発射音（8-2。単発は shoot のまま）----
   "shotRapid",
   "shotSpread",

@@ -1,4 +1,4 @@
-import type { MovesetKey, ShotKey } from "../data/weapons";
+import { GUN_MOVESETS, type MovesetKey, type ShotKey } from "../data/weapons";
 import type { Slot } from "./types";
 
 /**
@@ -23,74 +23,74 @@ export interface BaseItemDef {
 
 export const BASES: readonly BaseItemDef[] = [
   // weapon: ダメージ / 速度 / リーチのトレードオフ
-  { key: "dagger", name: "短剣", slot: "weapon", minLevel: 1, implicitKey: "implicit.dagger", moveset: "sword" },
-  { key: "shortsword", name: "小剣", slot: "weapon", minLevel: 1, implicitKey: "implicit.shortsword", moveset: "sword" },
-  { key: "longsword", name: "長剣", slot: "weapon", minLevel: 5, implicitKey: "implicit.longsword", moveset: "sword" },
-  { key: "spear", name: "槍", slot: "weapon", minLevel: 7, implicitKey: "implicit.spear", moveset: "spear" },
-  { key: "greatsword", name: "大剣", slot: "weapon", minLevel: 3, implicitKey: "implicit.greatsword", moveset: "greatsword" },
-  { key: "twinblades", name: "双剣", slot: "weapon", minLevel: 6, implicitKey: "implicit.twinblades", moveset: "twinBlades" },
-  { key: "warpick", name: "戦鎚", slot: "weapon", minLevel: 3, implicitKey: "implicit.warpick", moveset: "hammer" },
-  { key: "machete", name: "鉈", slot: "weapon", minLevel: 2, implicitKey: "implicit.machete", moveset: "cleaver" },
-  { key: "rapier", name: "刺突剣", slot: "weapon", minLevel: 3, implicitKey: "implicit.rapier", moveset: "spear" },
-  { key: "staff", name: "棍", slot: "weapon", minLevel: 2, implicitKey: "implicit.staff", moveset: "staff" },
-  { key: "scythe", name: "大鎌", slot: "weapon", minLevel: 11, implicitKey: "implicit.scythe", moveset: "scythe" },
+  { key: "dagger", name: "短剣", slot: "mainHand", minLevel: 1, implicitKey: "implicit.dagger", moveset: "sword" },
+  { key: "shortsword", name: "小剣", slot: "mainHand", minLevel: 1, implicitKey: "implicit.shortsword", moveset: "sword" },
+  { key: "longsword", name: "長剣", slot: "mainHand", minLevel: 5, implicitKey: "implicit.longsword", moveset: "sword" },
+  { key: "spear", name: "槍", slot: "mainHand", minLevel: 7, implicitKey: "implicit.spear", moveset: "spear" },
+  { key: "greatsword", name: "大剣", slot: "mainHand", minLevel: 3, implicitKey: "implicit.greatsword", moveset: "greatsword" },
+  { key: "twinblades", name: "双剣", slot: "mainHand", minLevel: 6, implicitKey: "implicit.twinblades", moveset: "twinBlades" },
+  { key: "warpick", name: "戦鎚", slot: "mainHand", minLevel: 3, implicitKey: "implicit.warpick", moveset: "hammer" },
+  { key: "machete", name: "鉈", slot: "mainHand", minLevel: 2, implicitKey: "implicit.machete", moveset: "cleaver" },
+  { key: "rapier", name: "刺突剣", slot: "mainHand", minLevel: 3, implicitKey: "implicit.rapier", moveset: "spear" },
+  { key: "staff", name: "棍", slot: "mainHand", minLevel: 2, implicitKey: "implicit.staff", moveset: "staff" },
+  { key: "scythe", name: "大鎌", slot: "mainHand", minLevel: 11, implicitKey: "implicit.scythe", moveset: "scythe" },
   // 武器種の器（implicit なし。型そのものが個性）
-  { key: "gauntlets", name: "手甲", slot: "weapon", minLevel: 1, moveset: "fists" },
-  { key: "whip", name: "鞭", slot: "weapon", minLevel: 3, moveset: "whip" },
-  { key: "wand", name: "杖", slot: "weapon", minLevel: 3, moveset: "wand" },
+  { key: "gauntlets", name: "手甲", slot: "mainHand", minLevel: 1, moveset: "fists" },
+  { key: "whip", name: "鞭", slot: "mainHand", minLevel: 3, moveset: "whip" },
+  { key: "wand", name: "杖", slot: "mainHand", minLevel: 3, moveset: "wand" },
   // 2026-09 第 2 弾: 武器種ごとに器を選べるように（implicit で個性を付ける）
-  { key: "katana", name: "打刀", slot: "weapon", minLevel: 3, implicitKey: "implicit.katana", moveset: "katana" },
-  { key: "zanbato", name: "斬馬刀", slot: "weapon", minLevel: 12, implicitKey: "implicit.zanbato", moveset: "greatsword" },
-  { key: "twinDaggers", name: "双短刀", slot: "weapon", minLevel: 2, implicitKey: "implicit.twinDaggers", moveset: "twinBlades" },
-  { key: "halberd", name: "矛槍", slot: "weapon", minLevel: 11, implicitKey: "implicit.halberd", moveset: "spear" },
-  { key: "sickle", name: "小鎌", slot: "weapon", minLevel: 3, implicitKey: "implicit.sickle", moveset: "scythe" },
-  { key: "cestus", name: "鉄拳", slot: "weapon", minLevel: 8, implicitKey: "implicit.cestus", moveset: "fists" },
-  { key: "chainWhip", name: "鎖鞭", slot: "weapon", minLevel: 10, implicitKey: "implicit.chainWhip", moveset: "whip" },
-  { key: "shakujo", name: "錫杖", slot: "weapon", minLevel: 9, implicitKey: "implicit.shakujo", moveset: "staff" },
-  { key: "crystalWand", name: "水晶杖", slot: "weapon", minLevel: 11, implicitKey: "implicit.crystalWand", moveset: "wand" },
+  { key: "katana", name: "打刀", slot: "mainHand", minLevel: 3, implicitKey: "implicit.katana", moveset: "katana" },
+  { key: "zanbato", name: "斬馬刀", slot: "mainHand", minLevel: 12, implicitKey: "implicit.zanbato", moveset: "greatsword" },
+  { key: "twinDaggers", name: "双短刀", slot: "mainHand", minLevel: 2, implicitKey: "implicit.twinDaggers", moveset: "twinBlades" },
+  { key: "halberd", name: "矛槍", slot: "mainHand", minLevel: 11, implicitKey: "implicit.halberd", moveset: "spear" },
+  { key: "sickle", name: "小鎌", slot: "mainHand", minLevel: 3, implicitKey: "implicit.sickle", moveset: "scythe" },
+  { key: "cestus", name: "鉄拳", slot: "mainHand", minLevel: 8, implicitKey: "implicit.cestus", moveset: "fists" },
+  { key: "chainWhip", name: "鎖鞭", slot: "mainHand", minLevel: 10, implicitKey: "implicit.chainWhip", moveset: "whip" },
+  { key: "shakujo", name: "錫杖", slot: "mainHand", minLevel: 9, implicitKey: "implicit.shakujo", moveset: "staff" },
+  { key: "crystalWand", name: "水晶杖", slot: "mainHand", minLevel: 11, implicitKey: "implicit.crystalWand", moveset: "wand" },
   // 2026-09-24 レーン B: 新しい武器種の器（序盤の器は implicit なし、後半の器は implicit で個性を付ける）
-  { key: "wakizashi", name: "脇差", slot: "weapon", minLevel: 3, moveset: "katana" },
-  { key: "tachi", name: "太刀", slot: "weapon", minLevel: 8, implicitKey: "implicit.tachi", moveset: "katana" },
-  { key: "handAxe", name: "手斧", slot: "weapon", minLevel: 2, moveset: "axe" },
-  { key: "battleAxe", name: "戦斧", slot: "weapon", minLevel: 9, implicitKey: "implicit.battleAxe", moveset: "axe" },
-  { key: "towerShield", name: "大盾", slot: "weapon", minLevel: 3, moveset: "shield" },
-  { key: "kiteShield", name: "騎士盾", slot: "weapon", minLevel: 10, implicitKey: "implicit.kiteShield", moveset: "shield" },
-  { key: "kusarigama", name: "鎖鎌", slot: "weapon", minLevel: 3, moveset: "chainSickle" },
-  { key: "weightedChain", name: "分銅鎖", slot: "weapon", minLevel: 9, implicitKey: "implicit.weightedChain", moveset: "chainSickle" },
-  { key: "mallet", name: "木槌", slot: "weapon", minLevel: 3, moveset: "hammer" },
-  { key: "maul", name: "大槌", slot: "weapon", minLevel: 12, implicitKey: "implicit.maul", moveset: "hammer" },
-  { key: "twinPistols", name: "二丁拳銃", slot: "weapon", minLevel: 3, moveset: "gunner" },
-  { key: "twinRevolvers", name: "双回転式", slot: "weapon", minLevel: 11, implicitKey: "implicit.twinRevolvers", moveset: "gunner" },
+  { key: "wakizashi", name: "脇差", slot: "mainHand", minLevel: 3, moveset: "katana" },
+  { key: "tachi", name: "太刀", slot: "mainHand", minLevel: 8, implicitKey: "implicit.tachi", moveset: "katana" },
+  { key: "handAxe", name: "手斧", slot: "mainHand", minLevel: 2, moveset: "axe" },
+  { key: "battleAxe", name: "戦斧", slot: "mainHand", minLevel: 9, implicitKey: "implicit.battleAxe", moveset: "axe" },
+  { key: "towerShield", name: "大盾", slot: "mainHand", minLevel: 3, moveset: "shield" },
+  { key: "kiteShield", name: "騎士盾", slot: "mainHand", minLevel: 10, implicitKey: "implicit.kiteShield", moveset: "shield" },
+  { key: "kusarigama", name: "鎖鎌", slot: "mainHand", minLevel: 3, moveset: "chainSickle" },
+  { key: "weightedChain", name: "分銅鎖", slot: "mainHand", minLevel: 9, implicitKey: "implicit.weightedChain", moveset: "chainSickle" },
+  { key: "mallet", name: "木槌", slot: "mainHand", minLevel: 3, moveset: "hammer" },
+  { key: "maul", name: "大槌", slot: "mainHand", minLevel: 12, implicitKey: "implicit.maul", moveset: "hammer" },
+  { key: "twinPistols", name: "二丁拳銃", slot: "mainHand", minLevel: 3, moveset: "gunner" },
+  { key: "twinRevolvers", name: "双回転式", slot: "mainHand", minLevel: 11, implicitKey: "implicit.twinRevolvers", moveset: "gunner" },
   // 戦鎚（warpick）を戦鎚の型へ移したので、鉈の型の器を 1 つ補う
-  { key: "broadCleaver", name: "大鉈", slot: "weapon", minLevel: 9, moveset: "cleaver" },
+  { key: "broadCleaver", name: "大鉈", slot: "mainHand", minLevel: 9, moveset: "cleaver" },
 
   // gun: 連射 / 弾数 / 貫通
-  { key: "pistol", name: "拳銃", slot: "gun", minLevel: 1, implicitKey: "implicit.pistol", shot: "single" },
-  { key: "smg", name: "短機関銃", slot: "gun", minLevel: 4, implicitKey: "implicit.smg", shot: "rapid" },
-  { key: "rifle", name: "小銃", slot: "gun", minLevel: 8, implicitKey: "implicit.rifle", shot: "pierce" },
-  { key: "shotgun", name: "散弾銃", slot: "gun", minLevel: 12, implicitKey: "implicit.shotgun", shot: "spread" },
-  { key: "revolver", name: "回転式拳銃", slot: "gun", minLevel: 7, implicitKey: "implicit.revolver", shot: "single" },
-  { key: "railgun", name: "電磁砲", slot: "gun", minLevel: 16, implicitKey: "implicit.railgun", shot: "pierce" },
-  { key: "throwingKnives", name: "投げ短剣", slot: "gun", minLevel: 2, implicitKey: "implicit.throwingKnives", shot: "rapid" },
-  { key: "blowgun", name: "吹き矢", slot: "gun", minLevel: 3, implicitKey: "implicit.blowgun", shot: "homing" },
-  { key: "matchlock", name: "火縄銃", slot: "gun", minLevel: 4, implicitKey: "implicit.matchlock", shot: "charge" },
+  { key: "pistol", name: "拳銃", slot: "mainHand", minLevel: 1, implicitKey: "implicit.pistol", moveset: "sidearm", shot: "single" },
+  { key: "smg", name: "短機関銃", slot: "mainHand", minLevel: 4, implicitKey: "implicit.smg", moveset: "sidearm", shot: "rapid" },
+  { key: "rifle", name: "小銃", slot: "mainHand", minLevel: 8, implicitKey: "implicit.rifle", moveset: "longarm", shot: "pierce" },
+  { key: "shotgun", name: "散弾銃", slot: "mainHand", minLevel: 12, implicitKey: "implicit.shotgun", moveset: "cannon", shot: "spread" },
+  { key: "revolver", name: "回転式拳銃", slot: "mainHand", minLevel: 7, implicitKey: "implicit.revolver", moveset: "sidearm", shot: "single" },
+  { key: "railgun", name: "電磁砲", slot: "mainHand", minLevel: 16, implicitKey: "implicit.railgun", moveset: "longarm", shot: "pierce" },
+  { key: "throwingKnives", name: "投げ短剣", slot: "mainHand", minLevel: 2, implicitKey: "implicit.throwingKnives", moveset: "thrown", shot: "rapid" },
+  { key: "blowgun", name: "吹き矢", slot: "mainHand", minLevel: 3, implicitKey: "implicit.blowgun", moveset: "thrown", shot: "homing" },
+  { key: "matchlock", name: "火縄銃", slot: "mainHand", minLevel: 4, implicitKey: "implicit.matchlock", moveset: "longarm", shot: "charge" },
   // 射撃の型の器（implicit なし）
-  { key: "ricochetGun", name: "跳ね銃", slot: "gun", minLevel: 3, shot: "ricochet" },
-  { key: "mineLauncher", name: "置き撃ち筒", slot: "gun", minLevel: 10, shot: "mine" },
+  { key: "ricochetGun", name: "跳ね銃", slot: "mainHand", minLevel: 3, moveset: "thrown", shot: "ricochet" },
+  { key: "mineLauncher", name: "置き撃ち筒", slot: "mainHand", minLevel: 10, moveset: "cannon", shot: "mine" },
   // 2026-09 第 2 弾: 射撃の型ごとに器を選べるように
-  { key: "blunderbuss", name: "喇叭銃", slot: "gun", minLevel: 3, implicitKey: "implicit.blunderbuss", shot: "spread" },
-  { key: "crossbow", name: "弩", slot: "gun", minLevel: 4, implicitKey: "implicit.crossbow", shot: "pierce" },
-  { key: "chakram", name: "円月輪", slot: "gun", minLevel: 9, implicitKey: "implicit.chakram", shot: "ricochet" },
-  { key: "handCannon", name: "手砲", slot: "gun", minLevel: 13, implicitKey: "implicit.handCannon", shot: "charge" },
-  { key: "caltrops", name: "撒き菱筒", slot: "gun", minLevel: 4, implicitKey: "implicit.caltrops", shot: "mine" },
-  { key: "seekerOrb", name: "導きの珠", slot: "gun", minLevel: 8, implicitKey: "implicit.seekerOrb", shot: "homing" },
+  { key: "blunderbuss", name: "喇叭銃", slot: "mainHand", minLevel: 3, implicitKey: "implicit.blunderbuss", moveset: "cannon", shot: "spread" },
+  { key: "crossbow", name: "弩", slot: "mainHand", minLevel: 4, implicitKey: "implicit.crossbow", moveset: "longarm", shot: "pierce" },
+  { key: "chakram", name: "円月輪", slot: "mainHand", minLevel: 9, implicitKey: "implicit.chakram", moveset: "thrown", shot: "ricochet" },
+  { key: "handCannon", name: "手砲", slot: "mainHand", minLevel: 13, implicitKey: "implicit.handCannon", moveset: "longarm", shot: "charge" },
+  { key: "caltrops", name: "撒き菱筒", slot: "mainHand", minLevel: 4, implicitKey: "implicit.caltrops", moveset: "cannon", shot: "mine" },
+  { key: "seekerOrb", name: "導きの珠", slot: "mainHand", minLevel: 8, implicitKey: "implicit.seekerOrb", moveset: "thrown", shot: "homing" },
   // 2026-09-24 レーン B: 新しい射撃の型の器
-  { key: "burstRifle", name: "三連銃", slot: "gun", minLevel: 3, shot: "burst" },
-  { key: "tripleCrossbow", name: "三連弩", slot: "gun", minLevel: 10, shot: "burst" },
-  { key: "returnChakram", name: "返し輪", slot: "gun", minLevel: 3, shot: "boomerang" },
-  { key: "flyingBlade", name: "飛刃", slot: "gun", minLevel: 11, shot: "boomerang" },
-  { key: "mortar", name: "曲射筒", slot: "gun", minLevel: 3, shot: "lob" },
-  { key: "grenadeLauncher", name: "擲弾筒", slot: "gun", minLevel: 11, shot: "lob" },
+  { key: "burstRifle", name: "三連銃", slot: "mainHand", minLevel: 3, moveset: "sidearm", shot: "burst" },
+  { key: "tripleCrossbow", name: "三連弩", slot: "mainHand", minLevel: 10, moveset: "longarm", shot: "burst" },
+  { key: "returnChakram", name: "返し輪", slot: "mainHand", minLevel: 3, moveset: "thrown", shot: "boomerang" },
+  { key: "flyingBlade", name: "飛刃", slot: "mainHand", minLevel: 11, moveset: "thrown", shot: "boomerang" },
+  { key: "mortar", name: "曲射筒", slot: "mainHand", minLevel: 3, moveset: "cannon", shot: "lob" },
+  { key: "grenadeLauncher", name: "擲弾筒", slot: "mainHand", minLevel: 11, moveset: "cannon", shot: "lob" },
 
   // armor: HP / armor
   { key: "cloth", name: "布の服", slot: "armor", minLevel: 1, implicitKey: "implicit.cloth" },
@@ -148,4 +148,13 @@ export function baseDef(key: string): BaseItemDef | undefined {
 /** slot のベースのうち itemLevel で解禁済みのもの */
 export function basesForSlot(slot: Slot, itemLevel: number): BaseItemDef[] {
   return BASES.filter((b) => b.slot === slot && b.minLevel <= itemLevel);
+}
+
+/**
+ * 右手ベースの家系（docs/ideas/weapon-redesign.md 4 章）。moveset が GUN_MOVESETS に入るかで判定する。
+ * moveset を持たないベース（右手以外）は undefined
+ */
+export function baseFamily(base: BaseItemDef): "melee" | "gun" | undefined {
+  if (base.moveset === undefined) return undefined;
+  return (GUN_MOVESETS as readonly MovesetKey[]).includes(base.moveset) ? "gun" : "melee";
 }

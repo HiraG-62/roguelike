@@ -14,6 +14,7 @@
  *     aim   : `n` = null、`=x:y` = 絶対座標（直前が null のとき）、`dx:dy` = 直前フレームからの差分
  *   aim を差分にしているので、マウス静止中や等速移動中は同じ code になりランレングスで縮む
  */
+import { BALANCE_HASH } from "../data/balance";
 import { createGame, step } from "./game";
 import { EMPTY_INPUT, type FrameInput } from "./input";
 import { hashSeed } from "./rng";
@@ -35,11 +36,13 @@ import { type JobKey, sanitizeJob } from "../data/jobs";
  * 5: 起点とラン修飾子（縛り）を記録する（ラン開始の条件が変わり、分岐路・バイオームで生成も変わった）
  * 6: 武器種とコンボ派生・attackHeld・GCD 廃止・開放型マップ・回復の再設計（同じ入力列でも進行が変わる）
  * 7: 契約者の配置・演出の乱数分離・部屋の追加・ジョブ・属性で乱数の消費順が変わった（0.0.9α）
+ * 8: 装備欄を近接 / 銃から右手 / 左手へ統合し、右クリックの意味が武器種の固有技に変わった
+ *    （docs/ideas/weapon-redesign.md）
  *
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
-export const REPLAY_VERSION = 7;
+export const REPLAY_VERSION = 8;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -96,6 +99,11 @@ export interface ReplayData {
   job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
+  /**
+   * 記録時の数値の版（BALANCE_HASH）。無ければ数値外出し前の記録。再生時に今の BALANCE_HASH と食い違えば
+   * 結果がずれ得ることを再生画面が注記する（balanceMismatch。docs/ideas/data-externalization.md 5.3）
+   */
+  balance?: string;
   /**
    * true: snapshot を createGame の後（startJob が初期スキル石を倉庫へ入れた後）に取った記録。
    * 再生は createGame の後で倉庫の件数を snapshot に合わせ直す（初期石を既に持っていたかで件数が変わり、
@@ -545,6 +553,7 @@ export class ReplayRecorder {
       ...lockedRelicsField(this.options.setup?.lockedRelics),
       ...jobField(this.options.setup?.job),
       ...snapshotAfterStartField(this.snapshotAfterStart),
+      balance: BALANCE_HASH,
       snapshot: structuredClone(this.snapshot),
       events: structuredClone(this.events),
       inputs: this.encoder.toString(),
@@ -580,6 +589,14 @@ export interface ReplaySession {
  */
 export function isPlayable(replay: ReplayData): boolean {
   return replay.version === REPLAY_VERSION;
+}
+
+/**
+ * 記録時の数値の版が今と違うか（欄の無い旧記録は false = 注記しない）。
+ * 再生は拒否しない。ずれれば result との不一致を既存の仕組みが検出する
+ */
+export function balanceMismatch(replay: ReplayData): boolean {
+  return replay.balance !== undefined && replay.balance !== BALANCE_HASH;
 }
 
 export function createReplaySession(data: ReplayData): ReplaySession {
@@ -789,6 +806,11 @@ function jobField(job: JobKey | undefined): Pick<ReplayData, "job"> {
   return job !== undefined && job !== "none" ? { job } : {};
 }
 
+/** 数値外出し前の記録には無い欄。無ければ書かない */
+function balanceField(hash: string | undefined): Pick<ReplayData, "balance"> {
+  return typeof hash === "string" && hash.length > 0 ? { balance: hash } : {};
+}
+
 /** createGame の後のスナップショットのときだけ書く（旧データと同じ形を保つ） */
 function snapshotAfterStartField(after: boolean): Pick<ReplayData, "snapshotAfterStart"> {
   return after ? { snapshotAfterStart: true } : {};
@@ -827,6 +849,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     ...jobField(sanitizeJob(v.job)),
     ...snapshotAfterStartField(v.snapshotAfterStart === true),
+    ...balanceField(typeof v.balance === "string" ? v.balance : undefined),
     snapshot,
     events,
     inputs,

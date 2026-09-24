@@ -10,8 +10,17 @@ import { STILL_PLAIN, STILL_POSED } from "../data/sprites/still";
 import { W3_BACK_KEYS } from "../data/sprites/w3back";
 import { W3_FRONT_KEYS, W3_FRONT_STILL_KEYS } from "../data/sprites/w3front";
 import { SHALLOWS_KEYS } from "../data/sprites/shallows";
-import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_GRIPS, type WeaponFrame, weaponSpriteKey } from "../data/sprites/weapons";
-import { MOVESET_KEYS } from "../data/weapons";
+import {
+  SLASH_SPRITE,
+  WEAPON_CANVAS,
+  WEAPON_EDGE,
+  WEAPON_FRAME,
+  WEAPON_GRIPS,
+  type WeaponFrame,
+  mirrorAntiDiagonal,
+  weaponSpriteKey,
+} from "../data/sprites/weapons";
+import { MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { type Sprite, enemySpriteKey, recolorFrames, spriteFrame, spriteSources } from "./sprites";
 
 const TRANSPARENT = ".";
@@ -348,9 +357,9 @@ describe("プレイヤーと手に持つ武器（docs/ideas/combat-feel-design.m
     for (const frame of originals()) expect(frame.join("").includes("1s"), "刃の明部").toBe(false);
   });
 
-  it.each([...MOVESET_KEYS])("武器種 %s の持ち手が 12x12 の 3 フレーム（横・斜め・縦）である", (key) => {
+  it.each([...MOVESET_KEYS])("武器種 %s の持ち手が 12x12 の 3 フレーム（横・斜め・縦。片刃は刃が右下の斜めを足して 4）である", (key) => {
     const frames = SPRITES[weaponSpriteKey(key)];
-    expect(frames?.length).toBe(3);
+    expect(frames?.length).toBe(WEAPON_EDGE[key] ? 4 : 3);
     for (const frame of frames ?? []) {
       expect(frame.length).toBe(WEAPON_CANVAS);
       expect(frame[0]?.length).toBe(WEAPON_CANVAS);
@@ -365,6 +374,49 @@ describe("プレイヤーと手に持つ武器（docs/ideas/combat-feel-design.m
       const ch = frame[grip.y - 1]?.[grip.x - 1];
       expect(ch === "t" || ch === "T" || key === "fists", `${key} フレーム ${i}: ${ch}`).toBe(true);
     });
+  });
+
+  /** 斜めの絵で、柄の線（画素の x + y = 11）の左上側と右下側にある刃・頭（金属の 3 段）の画素の数 */
+  const METAL = new Set(["1", "s", "S"]);
+  const sidesOfShaft = (frame: readonly string[]): { ul: number; dr: number } => {
+    let ul = 0;
+    let dr = 0;
+    frame.forEach((row, y) =>
+      [...row].forEach((c, x) => {
+        if (!METAL.has(c)) return;
+        if (x + y < WEAPON_CANVAS - 1) ul++;
+        else if (x + y > WEAPON_CANVAS - 1) dr++;
+      }),
+    );
+    return { ul, dr };
+  };
+
+  it.each(Object.keys(WEAPON_EDGE) as MovesetKey[])("片刃の %s は斜めの絵の刃が柄の左上側にあり、4 枚目は右下側にある", (key) => {
+    const frames = SPRITES[weaponSpriteKey(key)] ?? [];
+    const diag = sidesOfShaft(frames[WEAPON_FRAME.diagonal] ?? []);
+    const out = sidesOfShaft(frames[WEAPON_FRAME.diagonalOut] ?? []);
+    expect(diag.ul, "斜め: 左上側が多い").toBeGreaterThan(diag.dr);
+    expect(out.dr, "4 枚目: 右下側が多い").toBeGreaterThan(out.ul);
+  });
+
+  it.each(Object.keys(WEAPON_EDGE) as MovesetKey[])("片刃の %s の 4 枚目は斜めの絵を柄の線で写した形（不透明画素の位置が一致）", (key) => {
+    const frames = SPRITES[weaponSpriteKey(key)] ?? [];
+    const mask = (f: readonly string[]) => f.map((r) => r.replace(/[^.]/g, "#"));
+    expect(mask(frames[WEAPON_FRAME.diagonalOut] ?? [])).toEqual(mask(mirrorAntiDiagonal(frames[WEAPON_FRAME.diagonal] ?? [])));
+  });
+
+  it("mirrorAntiDiagonal を 2 回かけると元に戻り、拳 (2,10) の画素は動かない", () => {
+    const frame = SPRITES[weaponSpriteKey("axe")]?.[WEAPON_FRAME.diagonal] ?? [];
+    expect(mirrorAntiDiagonal(mirrorAntiDiagonal(frame))).toEqual(frame);
+    const grip = WEAPON_GRIPS[WEAPON_FRAME.diagonalOut];
+    expect(grip).toEqual(WEAPON_GRIPS[WEAPON_FRAME.diagonal]);
+  });
+
+  it("銃の家系（長銃・砲・投擲）は二丁拳銃の拳銃と別の絵を持つ", () => {
+    const gun = SPRITES[weaponSpriteKey("gunner")]?.[WEAPON_FRAME.side];
+    for (const key of ["longarm", "cannon", "thrown"] as const) {
+      expect(SPRITES[weaponSpriteKey(key)]?.[WEAPON_FRAME.side], key).not.toEqual(gun);
+    }
   });
 });
 

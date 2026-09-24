@@ -2,7 +2,7 @@ import type { Rule } from "../core/rules";
 import type { GameState } from "../core/state";
 import { JOBS, JOB_KEYS, type JobKey, applyJobMul } from "../data/jobs";
 import { JOB } from "../data/tuning";
-import { MOVESETS } from "../data/weapons";
+import { MOVESETS, isGun } from "../data/weapons";
 import { createRng } from "../core/rng";
 import { baseDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -49,8 +49,14 @@ export function applyJobStats(stats: PlayerStats, job: JobKey): void {
   const def = JOBS[job];
   for (const k of ATTR_KEYS) stats.attributes[k] += def.attributes[k] ?? 0;
   if (isFavoredWeapon(stats, job)) {
-    stats.meleeDamageMul *= JOB.favoredMeleeMul;
-    stats.attackSpeedMul *= JOB.favoredAttackSpeedMul;
+    // 銃の家系なら射撃側、それ以外は近接側へ上乗せする（docs/ideas/weapon-redesign.md 6 章）
+    if (isGun(MOVESETS[stats.moveset])) {
+      stats.rangedDamageMul *= JOB.favoredMeleeMul;
+      stats.fireRateMul *= JOB.favoredAttackSpeedMul;
+    } else {
+      stats.meleeDamageMul *= JOB.favoredMeleeMul;
+      stats.attackSpeedMul *= JOB.favoredAttackSpeedMul;
+    }
   }
   if (def.weakness) applyJobMul(stats, def.weakness.mul);
 }
@@ -89,7 +95,7 @@ const WEAPON_SALT = 0x3a7e;
 /** そのベースの武器を 1 つでも持っているか（装着中・倉庫を問わない。借り物は数えない） */
 export function ownsWeaponBase(profile: Readonly<Profile>, baseKey: string): boolean {
   const owned = (it: Item | null | undefined): boolean => it?.baseKey === baseKey && it.loaned !== true;
-  return owned(profile.equipment.weapon) || profile.stash.some(owned);
+  return owned(profile.equipment.mainHand) || profile.stash.some(owned);
 }
 
 /**
@@ -105,11 +111,11 @@ export function startJobWeapon(state: GameState): void {
   const level = JOB.starterWeaponLevel;
   // now は id と foundAt の表示用（決定性に影響しない）
   const item = generateItem(createRng(seed), { baseKey, plain: true, itemLevel: level, foundDepth: level, now: Date.now() });
-  if (profile.equipment.weapon) {
+  if (profile.equipment.mainHand) {
     addToStash(profile, item);
     return;
   }
-  profile.equipment.weapon = item;
+  profile.equipment.mainHand = item;
   // createGame は applyStats の後に startJob を呼ぶので、装着した武器種をここで stats へ流す
   applyStats(state, computeStats(profile.equipment));
 }

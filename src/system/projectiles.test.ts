@@ -18,7 +18,7 @@ const TOUGH_HP = 99999;
 const WALL_SEARCH = 2000;
 
 function shooter(shot: ShotKey): GameState {
-  return arena(5, { shot });
+  return arena(5, { shot, moveset: "sidearm" });
 }
 
 function tough(e: Enemy): Enemy {
@@ -34,7 +34,7 @@ function playerShots(state: GameState): Projectile[] {
 
 /** 1 フレームだけ撃つ */
 function fireOnce(state: GameState): Projectile[] {
-  step(state, withInput({ shootHeld: true }), FIXED_DT);
+  step(state, withInput({ attackHeld: true }), FIXED_DT);
   return playerShots(state);
 }
 
@@ -133,7 +133,7 @@ describe("射撃の型: 跳弾", () => {
 
 describe("射撃の型: チャージ", () => {
   function holdShoot(state: GameState, frames: number): void {
-    for (let i = 0; i < frames; i++) step(state, withInput({ shootHeld: true }), FIXED_DT);
+    for (let i = 0; i < frames; i++) step(state, withInput({ attackHeld: true }), FIXED_DT);
   }
 
   it("押している間は撃たず、離すと撃つ", () => {
@@ -195,7 +195,7 @@ describe("射撃の型: 三点・回転刃・曲射（docs/ideas/combat-feel-des
     const state = shooter("burst");
     const counts: number[] = [];
     for (let i = 0; i < 12; i++) {
-      step(state, withInput({ shootHeld: true }), FIXED_DT);
+      step(state, withInput({ attackHeld: true }), FIXED_DT);
       counts.push(playerShots(state).length);
     }
     const firedAt = counts.map((c, i) => (c > (counts[i - 1] ?? 0) ? i : -1)).filter((i) => i >= 0);
@@ -234,7 +234,7 @@ describe("射撃の型: 三点・回転刃・曲射（docs/ideas/combat-feel-des
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
     const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
     const p = state.player.body.pos;
-    step(state, withInput({ shootHeld: true, aimScreen: { x: p.x + 90 + ox, y: p.y + oy } }), FIXED_DT);
+    step(state, withInput({ attackHeld: true, aimScreen: { x: p.x + 90 + ox, y: p.y + oy } }), FIXED_DT);
     const shell = playerShots(state)[0];
     if (!shell) throw new Error("弾が出ていない");
     for (let i = 0; i < 120 && shell.life > 0; i++) {

@@ -3,7 +3,7 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
 import { type KeystoneGroup, keystoneDef } from "../loot/affixes";
 import { type Rarity, type Resonance, TRAIT_COLOR_HEX } from "../loot/types";
-import type { HitShape, MovesetKey } from "../data/weapons";
+import type { HitShape, MovesetKey, WeaponArtDef } from "../data/weapons";
 import {
   SLASH_SPRITE,
   SLASH_VARIANT,
@@ -11,6 +11,7 @@ import {
   WEAPON_CANVAS,
   WEAPON_FRAME,
   WEAPON_GRIPS,
+  type WeaponEdge,
   type WeaponFrame,
   slashFrame,
 } from "../data/sprites/weapons";
@@ -427,6 +428,10 @@ export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
   chainSickle: 1,
   hammer: 4,
   gunner: 1,
+  sidearm: 1,
+  longarm: 2,
+  cannon: 3,
+  thrown: 1,
 };
 
 // ---------------------------------------------------------------------------
@@ -450,6 +455,21 @@ export interface WeaponPoseInput {
   readonly facingRight: boolean;
   /** 構えずに照準へ向けて持つ（杖・二丁拳銃など、左で撃つ武器） */
   readonly aimHeld: boolean;
+  /** 片刃・片頭の武器の刃の側（sprites/weapons.ts の WEAPON_EDGE）。無ければ刃の向きを選ばない */
+  readonly edge?: WeaponEdge;
+  /** 右クリックの固有技を押している最中の構え（phase が none のときだけ効く） */
+  readonly hold?: HoldPose;
+}
+
+/** 固有技の構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
+export type HoldPose = "parry" | "guard" | "aim";
+
+/** 固有技の定義と押している最中かから、構えの姿勢を選ぶ（構えの無い技・押していないなら undefined） */
+export function artHoldPose(art: WeaponArtDef, holding: boolean): HoldPose | undefined {
+  if (!holding) return undefined;
+  if (art.kind === "hold") return art.hold.parry ? "parry" : "guard";
+  if (art.kind === "charge" && art.aim) return "aim";
+  return undefined;
 }
 
 export interface WeaponView {
@@ -555,7 +575,14 @@ function swingAngle(input: WeaponPoseInput): { angle: number; reach: number } {
  * 突き: 引いて前へ伸ばす / 円: 一周）。戻しは振り抜いた先で止める
  */
 export function weaponPose(input: WeaponPoseInput): WeaponPose {
+  const pose = basePose(input);
+  if (!input.edge) return pose;
+  return { ...pose, ...edgeView(pose, input.edge, edgeWant(input, pose)) };
+}
+
+function basePose(input: WeaponPoseInput): WeaponPose {
   if (input.phase === "none") {
+    if (input.hold) return holdPose(input);
     if (input.aimHeld) return poseAt(input.aim, HAND_RADIUS);
     const side = input.facingRight ? 1 : -1;
     const angle = input.facingRight ? REST_ANGLE : Math.PI - REST_ANGLE;
@@ -563,6 +590,83 @@ export function weaponPose(input: WeaponPoseInput): WeaponPose {
   }
   const { angle, reach } = swingAngle(input);
   return poseAt(angle, reach);
+}
+
+/** 構えで拳を前へ出す距離（px）。盾と狙い撃ちは腕を伸ばして見せる */
+const GUARD_PUSH = 2;
+const AIM_PUSH = 2;
+const QUARTER_TURN = Math.PI / 2;
+
+/**
+ * 固有技の構え。受け流しは照準の先に拳を出して刃を上へ立て（剣を横に寝かせた受けの形）、
+ * 盾は照準へ突き出し、狙い撃ちは照準へ腕を伸ばす
+ */
+function holdPose(input: WeaponPoseInput): WeaponPose {
+  const { aim } = input;
+  switch (input.hold) {
+    case "parry": {
+      // 照準に直交する 2 向きのうち上を向く方（真上・真下を狙うときは向いている側）
+      const a = aim - QUARTER_TURN;
+      const b = aim + QUARTER_TURN;
+      const tie = Math.abs(Math.sin(a) - Math.sin(b)) < 1e-6;
+      const up = tie ? ((Math.cos(a) >= 0) === input.facingRight ? a : b) : Math.sin(a) < Math.sin(b) ? a : b;
+      return { ...poseAt(aim, HAND_RADIUS), ...weaponView(up), angle: up };
+    }
+    case "guard":
+      return poseAt(aim, HAND_RADIUS + GUARD_PUSH);
+    default:
+      return poseAt(aim, HAND_RADIUS + AIM_PUSH);
+  }
+}
+
+/** 拳から見た頭の位置（体の中心から、論理 px）。構えの刃はこの反対側へ向ける */
+const HEAD_Y = -9;
+
+/**
+ * 刃が向いてほしい向き（docs/ideas/weapon-redesign.md 7 章）。
+ * 扇・箱・円の振り（予備動作と戻しも含む）は振り抜く向き（角速度の向き）、それ以外（構え・突き）は頭と反対側
+ */
+function edgeWant(input: WeaponPoseInput, pose: WeaponPose): { x: number; y: number } {
+  const swinging = input.phase !== "none" && input.shape !== "thrust";
+  if (swinging) {
+    const sign = swingSign(input.step);
+    return { x: -Math.sin(pose.angle) * sign, y: Math.cos(pose.angle) * sign };
+  }
+  return { x: pose.dx, y: pose.dy - HEAD_Y };
+}
+
+/** 絵のままの刃の法線（横の絵で刃が up のとき）。横 = 上、縦 = 左、斜め = 左上、斜め（刃が右下）= 右下 */
+const EDGE_NORMAL: Readonly<Record<WeaponFrame, { readonly x: number; readonly y: number }>> = {
+  [WEAPON_FRAME.side]: { x: 0, y: -1 },
+  [WEAPON_FRAME.diagonal]: { x: -1, y: -1 },
+  [WEAPON_FRAME.up]: { x: -1, y: 0 },
+  [WEAPON_FRAME.diagonalOut]: { x: 1, y: 1 },
+};
+
+/** 今の絵と反転での刃の法線 */
+export function edgeNormal(view: WeaponView, edge: WeaponEdge): { x: number; y: number } {
+  const n = EDGE_NORMAL[view.frame];
+  const s = edge === "down" ? -1 : 1;
+  return { x: n.x * (view.flipX ? -1 : 1) * s, y: n.y * (view.flipY ? -1 : 1) * s };
+}
+
+/**
+ * 刃が want と反対を向いていれば、柄の向きを保ったまま刃の側だけ入れ替えた絵にする。
+ * 横は上下反転、縦は左右反転、斜めは柄の線で写した絵（diagonalOut）と差し替える
+ */
+export function edgeView(view: WeaponView, edge: WeaponEdge, want: { x: number; y: number }): WeaponView {
+  const n = edgeNormal(view, edge);
+  if (n.x * want.x + n.y * want.y >= 0) return view;
+  switch (view.frame) {
+    case WEAPON_FRAME.side:
+      return { ...view, flipY: !view.flipY };
+    case WEAPON_FRAME.up:
+      return { ...view, flipX: !view.flipX };
+    case WEAPON_FRAME.diagonal:
+      return { ...view, frame: WEAPON_FRAME.diagonalOut };
+    case WEAPON_FRAME.diagonalOut:
+      return { ...view, frame: WEAPON_FRAME.diagonal };
+  }
 }
 
 function poseAt(angle: number, reach: number): WeaponPose {

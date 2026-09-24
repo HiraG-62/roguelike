@@ -10,7 +10,7 @@ import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex
 import { lineOfSight } from "../map/pathing";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { playerMoveset } from "../system/player";
-import { meleeButton, shotButton } from "../data/weapons";
+import { type MovesetDef, isGun } from "../data/weapons";
 import { BOONS, type BoonKey } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
@@ -32,9 +32,7 @@ import type { SkillKey } from "../skills/types";
  * 直進 + 壁回避の簡易 steering のままにしている。
  */
 
-/** この距離より遠いと近づきながら撃つ */
-const SHOOT_RANGE = 40;
-/** この距離未満なら近接コンボに専念する */
+/** この距離未満なら近接コンボに専念する（遠ければ近づく。射撃は銃の家系だけ） */
 const MELEE_RANGE = 30;
 /** 敵の windup / strike をこの距離以内で検知したら回避を検討する */
 const DANGER_RANGE = 55;
@@ -62,8 +60,18 @@ const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parr
  */
 const MELEE_CHARGE_HOLD = 0.85;
 const SHOT_CHARGE_HOLD = 0.75;
-/** 右クリックの近接を押し直す周期（ステップ） */
-const MELEE_REPRESS_PERIOD = 2;
+/**
+ * 右クリックの固有技（docs/ideas/weapon-redesign.md 6 章）: strike / throw は射程内でこの秒ごとに右を 1 フレーム押す。
+ * parry は敵の予備動作を見て PARRY_HOLD 秒押す。guard / charge / recall は使わない（QA の穴として report に注記）
+ */
+const ART_PERIOD = 1.0;
+const PARRY_HOLD = 0.2;
+/** 予備動作を見たとき、回避より受け流しを選ぶ確率（両方の経路を踏ませる） */
+const PARRY_CHANCE = 0.5;
+/** 投げる技を撃つ距離の上限（px） */
+const ART_THROW_RANGE = 160;
+/** 1 振りの技の射程に足す接近余地（px） */
+const ART_STRIKE_MARGIN = 6;
 /** この割合以下の HP でハートが見えていれば拾いに行く */
 const LOW_HP_RATIO = 0.3;
 /** 詰まり判定のチェック間隔（秒） */
@@ -131,6 +139,10 @@ export interface BotState {
   skillCastAttempts: number;
   /** 拾おうとしたドロップ品の id。倉庫が満杯で拾えなかったものを毎フレーム押し続けないため */
   triedDropIds: Set<number>;
+  /** 次に固有技（strike / throw）を押せるまでの秒 */
+  artTimer: number;
+  /** 受け流しの右を押し続ける残り秒 */
+  parryTimer: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -150,6 +162,8 @@ export function createBotState(seed: number): BotState {
     allocCursor: 0,
     skillCastAttempts: 0,
     triedDropIds: new Set(),
+    artTimer: 0,
+    parryTimer: 0,
   };
 }
 
@@ -550,6 +564,15 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   // windup/strike は必ず評価する。それ以外のフェーズでも、手数の多い（攻撃間隔が短い）敵が
   // 近くにいるなら PREEMPTIVE_DODGE_CHANCE の確率で「そもそも危険を評価する」（毎フレーム
   // 評価すると近接スキルの射程内では常に離脱してしまい、スキルが全く当たらなくなるため）
+  bot.artTimer = Math.max(0, bot.artTimer - dt);
+  // 受け流しの途中は右を押したまま敵へ向く（離すと窓が閉じるわけではないが、押し直しで再使用を無駄にしない）
+  if (bot.parryTimer > 0) {
+    bot.parryTimer -= dt;
+    input.shootHeld = true;
+    return input;
+  }
+  if (tryParryInput(state, bot, enemy, d, input)) return input;
+
   const isFastAttacker = enemyDef(enemy.defKey).attackInterval <= FAST_ATTACKER_INTERVAL;
   const evaluateDanger = isThreatening(enemy) || (isFastAttacker && bot.rng.chance(PREEMPTIVE_DODGE_CHANCE));
   if (evaluateDanger && d < DANGER_RANGE && bot.rng.chance(1 - DODGE_FAIL_CHANCE)) {
@@ -576,37 +599,48 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     return input;
   }
 
-  // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃でマナを貯める
-  if (d > SHOOT_RANGE || d >= MELEE_RANGE) {
-    holdShot(state, input);
-  } else {
-    pressAttack(state, input);
-  }
+  // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃・固有技でマナを貯める
+  const moveset = playerMoveset(state);
+  if (pressArtInput(state, bot, moveset, d, input)) return input;
+  // 射撃は銃の家系だけ。近接の武器種は近づいて振る（docs/ideas/weapon-redesign.md 0 章）
+  if (isGun(moveset)) input.attackHeld = shootHeldFor(state);
+  else if (d < MELEE_RANGE) pressAttack(state, input);
   return input;
 }
 
+/** 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに右を押し続ける。押したら true */
+function tryParryInput(state: GameState, bot: BotState, enemy: Enemy, d: number, input: FrameInput): boolean {
+  const art = playerMoveset(state).art;
+  if (art.kind !== "hold" || !art.hold.parry || state.player.art.cooldown > 0) return false;
+  if (enemy.phase !== "windup" || d >= DANGER_RANGE || !bot.rng.chance(PARRY_CHANCE)) return false;
+  bot.parryTimer = PARRY_HOLD;
+  input.shootHeld = true;
+  return true;
+}
+
 /**
- * 射撃の役割を持つボタンを押しっぱなしにする（剣は右、杖は左。狼化・鉄塊化の最中は変身の型のボタンで見る）。
- * どちらも近接の武器種（大剣）は撃てないので、近づきながら振る
+ * 固有技（strike / throw）を射程内で ART_PERIOD 秒ごとに 1 フレームだけ押す。押したら true。
+ * 前のフレームも右を押していると「押した瞬間」にならないので、押しっぱなしにはしない
  */
-function holdShot(state: GameState, input: FrameInput): void {
-  const button = shotButton(playerMoveset(state));
-  if (button === undefined) {
-    pressAttack(state, input);
-    return;
-  }
-  const held = shootHeldFor(state);
-  if (button === "secondary") input.shootHeld = held;
-  else input.attackHeld = held;
+function pressArtInput(state: GameState, bot: BotState, moveset: MovesetDef, d: number, input: FrameInput): boolean {
+  if (bot.artTimer > 0 || state.player.art.cooldown > 0 || state.player.secondaryWasHeld) return false;
+  const range = artRange(moveset);
+  if (range === undefined || d > range) return false;
+  bot.artTimer = ART_PERIOD;
+  input.shootHeld = true;
+  return true;
+}
+
+/** bot が使う技の射程。構え・溜め・手元返しは使わない（undefined） */
+function artRange(moveset: MovesetDef): number | undefined {
+  const art = moveset.art;
+  if (art.kind === "throw") return ART_THROW_RANGE;
+  if (art.kind === "strike") return art.step.reach + art.step.size / 2 + ART_STRIKE_MARGIN;
+  return undefined;
 }
 
 /** 近接の入力。溜めのある武器種は MELEE_CHARGE_HOLD 秒まで押しっぱなしにして離す */
 function pressAttack(state: GameState, input: FrameInput): void {
-  // 右が近接の武器種（杖）は、押しっぱなしでは「押した瞬間」が 1 回しか出ないので 1 フレームおきに押し直す
-  if (meleeButton(playerMoveset(state)) === "secondary") {
-    input.shootHeld = state.tick % MELEE_REPRESS_PERIOD === 0;
-    return;
-  }
   input.attackPressed = true;
   const a = state.player.attack;
   input.attackHeld = !(a.charging && a.chargeTime >= MELEE_CHARGE_HOLD);

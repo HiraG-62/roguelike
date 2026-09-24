@@ -120,7 +120,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     name: "狩人",
     desc: "予備動作を射抜いて止め、精鋭に弱みを刻む。",
     attributes: { dex: 3, mnd: 1, str: -2, vit: -2 },
-    favored: ["spear", "whip"],
+    favored: ["longarm", "thrown", "whip"],
     rules: [
       jobRule("hunter", 0, `予備動作中の敵を射撃で撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
         when: "onRangedHit",
@@ -135,7 +135,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
       }),
     ],
     starterSkill: "railshot",
-    starterWeapon: "whip",
+    starterWeapon: "crossbow",
     weakness: { text: `最大生命が ${lessPct(JOB.hunterHpMul)}% 減る。`, mul: { maxHp: JOB.hunterHpMul } },
     keywords: kw(["ranged", "stagger", "vulnerable"], ["elite"]),
   },

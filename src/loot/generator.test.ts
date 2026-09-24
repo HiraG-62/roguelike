@@ -19,7 +19,7 @@ import {
 } from "./generator";
 import { isTriggerKey } from "./triggers";
 import { computeStats } from "./stats";
-import { DEFAULT_STATS, SLOTS, TRAIT_COLORS, createEmptyEquipment, createEmptyProvenance, type Item } from "./types";
+import { DEFAULT_STATS, LOOT_SLOTS, TRAIT_COLORS, createEmptyEquipment, createEmptyProvenance, type Item } from "./types";
 
 const NOW = 1_700_000_000_000;
 const MANY = 1000;
@@ -121,7 +121,7 @@ describe("generateItem: 決定性と基本形", () => {
 
   it("slot 指定が守られ、ベースと implicit が実在する", () => {
     const rng = createRng(5);
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       for (let i = 0; i < 50; i++) {
         const item = generateItem(rng, opts({ slot }));
         expect(item.slot).toBe(slot);
@@ -195,7 +195,7 @@ describe("generateItem: 色・誓約・名前", () => {
       let hit = 0;
       let total = 0;
       for (let i = 0; i < 3000; i++) {
-        const item = generateItem(rng, opts({ slot: "weapon", itemLevel: 12, foundDepth: 12 }));
+        const item = generateItem(rng, opts({ slot: "mainHand", itemLevel: 12, foundDepth: 12 }));
         if (item.baseKey !== baseKey) continue;
         for (const r of item.affixes) {
           total++;
@@ -257,7 +257,7 @@ describe("rollTraitCount / rollTraitOfColor", () => {
 
   it("指定色の性質を返し、used の key は出さない", () => {
     const rng = createRng(17);
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       for (const color of TRAIT_COLORS) {
         const used = new Set(["meleeDamagePct"]);
         const roll = rollTraitOfColor(rng, slot, color, used, { depth: 15, foundDepth: 15, allowInversion: false, origin: "bud" });
@@ -273,10 +273,10 @@ describe("rollTraitCount / rollTraitOfColor", () => {
     const traitOpts = { depth: 15, foundDepth: 15, allowInversion: false, origin: "bud" as const };
     let checked = 0;
     for (let seed = 0; seed < MANY && checked < 5; seed++) {
-      const first = rollTraitOfColor(createRng(seed), "weapon", "crimson", new Set(), traitOpts);
+      const first = rollTraitOfColor(createRng(seed), "mainHand", "crimson", new Set(), traitOpts);
       if (first === undefined || !isTriggerKey(first.key)) continue;
       // 同じ乱数列で、さっき引いたトリガーを既出にする → 衝突する
-      const again = rollTraitOfColor(createRng(seed), "weapon", "crimson", new Set([first.key]), traitOpts);
+      const again = rollTraitOfColor(createRng(seed), "mainHand", "crimson", new Set([first.key]), traitOpts);
       expect(again, `seed ${seed}`).toBeDefined();
       if (again === undefined) continue;
       expect(isTriggerKey(again.key), "表の性質に回っている").toBe(false);
@@ -299,7 +299,7 @@ describe("名のある遺物の定義", () => {
   });
 
   it("各スロットに 2 つ以上ある", () => {
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       expect(UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length, slot).toBeGreaterThanOrEqual(2);
     }
   });
@@ -320,9 +320,9 @@ describe("名のある遺物の定義", () => {
   });
 
   it("uniquesFor はそのスロット・深度で解禁済みのものだけを返す", () => {
-    for (const u of uniquesFor("weapon", 10)) {
+    for (const u of uniquesFor("mainHand", 10)) {
       expect(u.minLevel).toBeLessThanOrEqual(10);
-      expect(baseDef(u.baseKey)?.slot).toBe("weapon");
+      expect(baseDef(u.baseKey)?.slot).toBe("mainHand");
     }
   });
 });
@@ -331,7 +331,7 @@ describe("generateItem: ベース指定と素の器", () => {
   it("baseKey と plain を指定すると性質 0 でそのベースになる（implicit は残る）", () => {
     const item = generateItem(createRng(9), { baseKey: "katana", plain: true, itemLevel: 20, foundDepth: 1, now: 0 });
     expect(item.baseKey, "指定したベース").toBe("katana");
-    expect(item.slot, "スロットはベースのもの").toBe("weapon");
+    expect(item.slot, "スロットはベースのもの").toBe("mainHand");
     expect(item.affixes, "性質なし").toEqual([]);
     expect(item.namedKey, "名のある遺物にならない").toBeUndefined();
     expect(item.implicit?.key, "implicit はベースの個性として残る").toBe(baseDef("katana")?.implicitKey);

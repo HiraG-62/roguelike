@@ -59,12 +59,13 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
 import { EFFECTS } from "../data/tuning";
-import { type HitShape, MOVESETS, SHOT_TYPES, isShotOnly, lobHeight } from "../data/weapons";
+import { type HitShape, MOVESETS, SHOT_TYPES, lobHeight } from "../data/weapons";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
   type SwingPhase,
   type WeaponPose,
   WEAPON_TRAIL_WIDTH,
+  artHoldPose,
   offhandOffset,
   phaseProgress,
   playerBodyPose,
@@ -74,7 +75,7 @@ import {
   weaponGrip,
   weaponPose,
 } from "./renderMath";
-import { weaponSpriteKey } from "../data/sprites/weapons";
+import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
 import { poseKey } from "../data/sprites/frameKit";
 import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
@@ -1873,7 +1874,7 @@ export class Renderer {
 
     // 構え・振り抜きの原画（無ければ歩きのまま）。docs/ideas/combat-feel-design.md C-4
     const swing = this.playerSwing(state);
-    const bodyPose = playerBodyPose(swing.phase, swing.t, p.attack.charging);
+    const bodyPose = playerBodyPose(swing.phase, swing.t, p.attack.charging || p.art.holding);
     const posed = bodyPose === "walk" ? undefined : this.atlas[poseKey(SPR.player, bodyPose)];
     const body = posed ?? sprite;
     const frame = posed ? 0 : walkFrame;
@@ -1918,6 +1919,7 @@ export class Renderer {
   private heldWeaponPose(state: GameState, swing: { phase: SwingPhase; t: number; shape: HitShape; step: number }): WeaponPose {
     const p = state.player;
     const aimVec = swing.phase === "none" ? p.facing : p.attack.dir;
+    const moveset = playerMoveset(state);
     return weaponPose({
       phase: swing.phase,
       t: swing.t,
@@ -1926,7 +1928,9 @@ export class Renderer {
       aim: Math.atan2(aimVec.y, aimVec.x),
       step: swing.step,
       facingRight: p.facing.x >= 0,
-      aimHeld: playerMoveset(state).primary === "shot",
+      aimHeld: moveset.primary === "shot",
+      edge: WEAPON_EDGE[moveset.key],
+      hold: artHoldPose(moveset.art, p.art.holding),
     });
   }
 
@@ -1943,7 +1947,7 @@ export class Renderer {
     if (!img) return;
     const hx = p.body.pos.x + pose.dx;
     const hy = p.body.pos.y + pose.dy;
-    if (!isShotOnly(moveset)) {
+    if (moveset.key !== "gunner") {
       this.drawWeaponImage(img, hx, hy, pose);
       return;
     }

@@ -9,8 +9,25 @@ import type { MovesetKey, ShotKey } from "../data/weapons";
  * 生成・集計・永続化・UI は全部この型を介してやり取りする。
  */
 
-export const SLOTS = ["weapon", "gun", "armor", "boots", "ring", "amulet"] as const;
+/**
+ * 部位。右手 / 左手（旧「近接 / 銃」。docs/ideas/weapon-redesign.md 5 章）。
+ * 左手（offHand）は共鳴の環の席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
+ */
+export const SLOTS = ["mainHand", "offHand", "armor", "boots", "ring", "amulet"] as const;
 export type Slot = (typeof SLOTS)[number];
+
+/** ドロップ・依頼・QA の装備が対象にする部位（左手は今はベースが無い） */
+export const LOOT_SLOTS: readonly Slot[] = SLOTS.filter((s) => s !== "offHand");
+
+/** 旧セーブの武器 / 銃スロットの読み替え先（右手へ統合） */
+export const LEGACY_SLOT_MAP: Readonly<Record<string, Slot>> = { weapon: "mainHand", gun: "mainHand" };
+
+/** 未知の値（旧セーブの weapon / gun を含む）を今の Slot に読み替える。分からなければ null */
+export function normalizeSlot(v: unknown): Slot | null {
+  if (typeof v !== "string") return null;
+  if ((SLOTS as readonly string[]).includes(v)) return v as Slot;
+  return LEGACY_SLOT_MAP[v] ?? null;
+}
 
 /**
  * 揺らぎの見た目の分類（旧レアリティ。キーは互換のため英語のまま残す）。
@@ -276,7 +293,7 @@ export interface Profile {
 }
 
 export function createEmptyEquipment(): Equipment {
-  return { weapon: null, gun: null, armor: null, boots: null, ring: null, amulet: null };
+  return { mainHand: null, offHand: null, armor: null, boots: null, ring: null, amulet: null };
 }
 
 export function createEmptyProfile(): Profile {

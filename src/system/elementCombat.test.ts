@@ -179,6 +179,15 @@ describe("与ダメ: 属性耐性と弱点", () => {
     expect(enemyWeaknesses(giant, 1), "段階 1").toEqual(["fire"]);
     expect(enemyWeaknesses(giant, 2), "段階 2").toEqual(["lightning"]);
   });
+
+  it("投擲の弾の素性は技のものが優先される（射撃の型の既定を上書きする）", () => {
+    // 射撃の型の既定（無属性・物理）は敵の弱点を突かないが、技（斧の投擲など）の素性は Projectile.attack として優先される
+    const state = noCrit();
+    const e = target(state, "frostGolem");
+    const byShotType = rollOutgoing(state, e, 100, "ranged").amount;
+    const byArt = rollOutgoing(state, e, 100, "ranged", { attack: attack("ranged", "physical", "fire") }).amount;
+    expect(byArt, "技の火属性が霜ゴーレムの弱点を突く").toBeGreaterThan(byShotType);
+  });
 });
 
 describe("被ダメ: 防御・魔防・耐性", () => {

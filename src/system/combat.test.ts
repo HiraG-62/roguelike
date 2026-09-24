@@ -52,8 +52,8 @@ describe("stats → 近接", () => {
 
 describe("stats → 射撃", () => {
   it("projectileCount 3 で弾が 3 発出る", () => {
-    const state = arena(5, { projectileCount: 3 });
-    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    const state = arena(5, { projectileCount: 3, moveset: "sidearm" });
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
     const shots = state.projectiles.filter((pr) => pr.owner === "player");
     expect(shots).toHaveLength(3);
     const angles = shots.map((pr) => Math.atan2(pr.vel.y, pr.vel.x)).sort((a, b) => a - b);
@@ -63,12 +63,12 @@ describe("stats → 射撃", () => {
 
   it("pierce 1 なら並んだ 2 体を貫通し、pierce 0 なら 1 体で止まる", () => {
     for (const pierce of [0, 1]) {
-      const state = arena(5, { pierce });
+      const state = arena(5, { pierce, moveset: "sidearm" });
       const a = placeEnemy(state, "boar", 20);
       const b = placeEnemy(state, "boar", 40);
       const hpA = a.hp;
       const hpB = b.hp;
-      step(state, withInput({ shootHeld: true }), FIXED_DT);
+      step(state, withInput({ attackHeld: true }), FIXED_DT);
       for (let i = 0; i < 30; i++) updateProjectiles(state, FIXED_DT);
       expect(a.hp).toBeLessThan(hpA);
       if (pierce > 0) expect(b.hp).toBeLessThan(hpB);
@@ -224,10 +224,10 @@ describe("ks_overclock", () => {
 
 describe("ks_vampire + ks_pacifist", () => {
   it("近接不可でも vampire の life on hit は射撃ヒットで発動する", () => {
-    const state = arena(5, { keystones: [KS.vampire, KS.pacifist], lifeOnHit: 3 });
+    const state = arena(5, { keystones: [KS.vampire, KS.pacifist], lifeOnHit: 3, moveset: "sidearm" });
     state.player.hp = 50;
     placeEnemy(state, "boar", 20);
-    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
     for (let i = 0; i < 10; i++) step(state, withInput({}), FIXED_DT);
     expect(state.player.hp).toBeGreaterThan(50);
   });
@@ -337,8 +337,8 @@ describe("スモーク（全効果盛り）", () => {
 
 describe("ks_bladeOath", () => {
   it("射撃入力を無視して blade oath を表示する", () => {
-    const state = arena(5, { keystones: [KS.bladeOath] });
-    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    const state = arena(5, { keystones: [KS.bladeOath], moveset: "sidearm" });
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
     expect(state.projectiles.filter((pr) => pr.owner === "player")).toHaveLength(0);
     expect(state.texts.some((t) => t.text === "剣の誓い")).toBe(true);
   });
@@ -348,11 +348,11 @@ describe("回復の設計（与ダメの % 回復・共通上限・条件付き�
   /** 共通上限の窓（1 秒）ぶんの上限量 */
   const capOf = (state: ReturnType<typeof arena>): number => state.player.maxHp * HEAL.sustainCapRatio;
 
-  it("射撃のヒットでも回復する（gun スロットに付く性質が無効にならない）", () => {
-    const state = arena(5, { lifeOnHit: 3 });
+  it("射撃のヒットでも回復する（銃の家系に付く性質が無効にならない）", () => {
+    const state = arena(5, { lifeOnHit: 3, moveset: "sidearm" });
     state.player.hp = 50;
     placeEnemy(state, "boar", 20);
-    for (let i = 0; i < 10; i++) step(state, withInput({ shootHeld: i === 0 }), FIXED_DT);
+    for (let i = 0; i < 10; i++) step(state, withInput({ attackHeld: i === 0 }), FIXED_DT);
     expect(state.player.hp, "射撃の命中で回復する").toBeGreaterThan(50);
   });
 

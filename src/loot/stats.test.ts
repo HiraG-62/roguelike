@@ -4,7 +4,7 @@ import { STATUS } from "../data/tuning";
 import { scaleFlat } from "./flux";
 import { generateItem } from "./generator";
 import { computeStats, softCap, statsSummary } from "./stats";
-import { DEFAULT_STATS, SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
+import { DEFAULT_STATS, LOOT_SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
 
 const NOW = 1_700_000_000_000;
 
@@ -38,7 +38,7 @@ describe("computeStats", () => {
 
   it("implicit と affix を反映する", () => {
     const equipment = createEmptyEquipment();
-    equipment.weapon = makeItem("weapon", {
+    equipment.mainHand = makeItem("mainHand", {
       implicit: { key: "implicit.greatsword", kind: "prefix", tier: 1, value: 40 },
       affixes: [
         { key: "meleeDamagePct", kind: "prefix", tier: 3, value: 25 },
@@ -80,7 +80,7 @@ describe("computeStats", () => {
         { key: "maxLife", kind: "prefix", tier: 1, value: -1000 },
       ],
     });
-    equipment.gun = makeItem("gun", {
+    equipment.mainHand = makeItem("mainHand", {
       implicit: { key: "implicit.shotgun", kind: "prefix", tier: 1, value: 2 },
     });
     const stats = computeStats(equipment);
@@ -94,9 +94,9 @@ describe("computeStats", () => {
   it("chillSlow の上限は STATUS.maxSlow に統一されている（statusEffects.ts の chillFactor と同じ値）", () => {
     const equipment = createEmptyEquipment();
     const chillAffix = { key: "chill", kind: "prefix" as const, tier: 1, value: 20, value2: 30 };
-    // weapon / gun / ring に chill を積んで 90% 分（旧上限 0.9 を超えて検出できる値）にする
-    equipment.weapon = makeItem("weapon", { affixes: [chillAffix] });
-    equipment.gun = makeItem("gun", { affixes: [chillAffix] });
+    // mainHand / armor / ring に chill を積んで 90% 分（旧上限 0.9 を超えて検出できる値）にする
+    equipment.mainHand = makeItem("mainHand", { affixes: [chillAffix] });
+    equipment.armor = makeItem("armor", { affixes: [chillAffix] });
     equipment.ring = makeItem("ring", { affixes: [chillAffix] });
     const stats = computeStats(equipment);
     expect(stats.chillSlow).toBeCloseTo(STATUS.maxSlow);
@@ -116,7 +116,7 @@ describe("computeStats", () => {
     const rng = createRng(123);
     for (let run = 0; run < 100; run++) {
       const equipment = createEmptyEquipment();
-      for (const slot of SLOTS) {
+      for (const slot of LOOT_SLOTS) {
         equipment[slot] = generateItem(rng, { itemLevel: 40, slot, rarityBoost: 3, foundDepth: 1, now: NOW });
       }
       const stats = computeStats(equipment);
@@ -153,7 +153,7 @@ describe("softCap", () => {
     const equipment = createEmptyEquipment();
     const melee = (slot: Slot, value: number): Item =>
       makeItem(slot, { affixes: [{ key: "meleeDamagePct", kind: "prefix", tier: 1, value }] });
-    equipment.weapon = melee("weapon", 100);
+    equipment.mainHand = melee("mainHand", 100);
     equipment.ring = melee("ring", 100);
     equipment.amulet = melee("amulet", 100);
     const stats = computeStats(equipment);
@@ -167,7 +167,7 @@ describe("キーストーンとトリガーの集計", () => {
 
   it("同じ排他グループは後勝ち（装備順）で 1 つだけ残る", () => {
     const equipment = createEmptyEquipment();
-    equipment.weapon = makeItem("weapon", { affixes: [ks("ks_glassCannon")] });
+    equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
     equipment.ring = makeItem("ring", { affixes: [ks("ks_juggernaut"), ks("ks_gambler")] });
     const stats = computeStats(equipment);
     expect(stats.keystones).toEqual(["ks_juggernaut", "ks_gambler"]);
@@ -183,7 +183,7 @@ describe("キーストーンとトリガーの集計", () => {
 
   it("glassCannon は与ダメ 2 倍・最大 HP 1/4（flat 合算後に掛かる）", () => {
     const equipment = createEmptyEquipment();
-    equipment.weapon = makeItem("weapon", { affixes: [ks("ks_glassCannon")] });
+    equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
     equipment.ring = makeItem("ring", {
       affixes: [{ key: "maxLife", kind: "prefix", tier: 5, value: 20 }],
     });
@@ -195,13 +195,13 @@ describe("キーストーンとトリガーの集計", () => {
 
   it("キーストーンの倍率はソフトキャップの対象外（pacifist の射撃倍率 3.0 が残る）", () => {
     const equipment = createEmptyEquipment();
-    equipment.gun = makeItem("gun", { affixes: [ks("ks_pacifist")] });
+    equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_pacifist")] });
     expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(3);
   });
 
   it("通常アフィックスだけがソフトキャップされ、キーストーンはその後に足される", () => {
     const equipment = createEmptyEquipment();
-    equipment.gun = makeItem("gun", {
+    equipment.mainHand = makeItem("mainHand", {
       affixes: [
         { key: "rangedDamagePct", kind: "prefix", tier: 1, value: 200 },
         ks("ks_pacifist"),
@@ -240,7 +240,7 @@ describe("statsSummary", () => {
   it("DPS や総合スコアのような単一指標を出さない", () => {
     const rng = createRng(3);
     const equipment = createEmptyEquipment();
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       equipment[slot] = generateItem(rng, { itemLevel: 30, slot, rarityBoost: 5, foundDepth: 1, now: NOW });
     }
     for (const line of statsSummary(computeStats(equipment))) {
@@ -299,28 +299,35 @@ describe("computeStats: 武器種と射撃の型（ベースから決まる）",
     expect(stats.shot, "銃なしは単発").toBe("single");
   });
 
-  it("武器ベースが武器種を、銃ベースが射撃の型を決める", () => {
+  it("近接ベースは武器種だけを決め、射撃の型は既定のまま", () => {
     const equipment = createEmptyEquipment();
-    equipment.weapon = makeItem("weapon", { baseKey: "spear" });
-    equipment.gun = makeItem("gun", { baseKey: "shotgun" });
+    equipment.mainHand = makeItem("mainHand", { baseKey: "spear" });
     const stats = computeStats(equipment);
     expect(stats.moveset, "槍 → 槍").toBe("spear");
+    expect(stats.shot, "近接ベースは shot を持たない").toBe("single");
+  });
+
+  it("銃ベースは武器種（家系）と射撃の型の両方を決める", () => {
+    const equipment = createEmptyEquipment();
+    equipment.mainHand = makeItem("mainHand", { baseKey: "shotgun" });
+    const stats = computeStats(equipment);
+    expect(stats.moveset, "散弾銃 → 砲の家系").toBe("cannon");
     expect(stats.shot, "散弾銃 → 散弾").toBe("spread");
   });
 
   it("新しい器のベース（手甲・跳ね銃）も型を持つ", () => {
     const equipment = createEmptyEquipment();
-    equipment.weapon = makeItem("weapon", { baseKey: "gauntlets" });
-    equipment.gun = makeItem("gun", { baseKey: "ricochetGun" });
+    equipment.mainHand = makeItem("mainHand", { baseKey: "gauntlets" });
+    expect(computeStats(equipment).moveset).toBe("fists");
+    equipment.mainHand = makeItem("mainHand", { baseKey: "ricochetGun" });
     const stats = computeStats(equipment);
-    expect(stats.moveset).toBe("fists");
+    expect(stats.moveset).toBe("thrown");
     expect(stats.shot).toBe("ricochet");
   });
 
   it("型を持たない未知のベースは既定に落ちる", () => {
     const equipment = createEmptyEquipment();
-    equipment.weapon = makeItem("weapon", { baseKey: "test" });
-    equipment.gun = makeItem("gun", { baseKey: "test" });
+    equipment.mainHand = makeItem("mainHand", { baseKey: "test" });
     const stats = computeStats(equipment);
     expect(stats.moveset).toBe("sword");
     expect(stats.shot).toBe("single");

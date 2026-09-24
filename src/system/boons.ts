@@ -9,7 +9,7 @@ import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource, SkillTag } from "../skills/types";
 import type { JobKey } from "../data/jobs";
-import type { MovesetKey, ShotKey } from "../data/weapons";
+import { MOVESETS, type MovesetKey, type ShotKey, usesProjectiles } from "../data/weapons";
 import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag } from "./boonDefs";
 import {
   type BoonRuleState,
@@ -191,6 +191,8 @@ export function buildTags(state: GameState): BuildTags {
   const base = state.boonRun.baseStats ?? state.stats;
   const owned = equipmentTags(base);
   for (const t of skillStoneTags(state)) owned.add(t);
+  // 指輪・首飾りの射撃性質だけでは撃てない（弾を出せない武器種なら ranged タグを外す）
+  if (!usesProjectiles(MOVESETS[base.moveset])) owned.delete("ranged");
   return { owned, gives: boonGivenTags(state.boons), loadout: { moveset: base.moveset, shot: base.shot, job: state.job } };
 }
 

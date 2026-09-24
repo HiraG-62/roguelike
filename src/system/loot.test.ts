@@ -33,7 +33,7 @@ function makeStashFiller(id: number): Item {
     id: `filler-${id}`,
     seed: id,
     baseKey: "shortsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "normal",
     itemLevel: 1,
     name: "Shortsword",

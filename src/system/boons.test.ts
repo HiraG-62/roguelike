@@ -228,7 +228,9 @@ describe("ルール変更の実効", () => {
     const shoot = (boon: BoonKey | null): number => {
       const state = arena();
       if (boon) grantBoon(state, boon);
-      step(state, withInput({ dashPressed: true, shootHeld: true }), FIXED_DT);
+      // 祝福の畳み込みは装備の stats から作り直すので、銃の家系は後から持たせる
+      state.stats = { ...state.stats, moveset: "sidearm" };
+      step(state, withInput({ dashPressed: true, attackHeld: true }), FIXED_DT);
       expect(state.player.dashTimer).toBeGreaterThan(0);
       return state.projectiles.filter((p) => p.owner === "player").length;
     };
@@ -611,6 +613,9 @@ describe("抽選の拡張: 出すタグとスキル石のタグ", () => {
   it("スキル石のタグで対応する祝福が出やすくなる", () => {
     const count = (withStone: boolean): number => {
       const state = arena(31);
+      // 銃の家系にしておく（射撃前提の祝福の loadout 判定で母集団が変わらないよう固定する）
+      state.stats.moveset = "gunner";
+      state.boonRun.baseStats = state.stats;
       const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "thunder" }), id: "boon-tag-thunder2" };
       const loadout = withStone ? [stone.id, null, null, null] : [null, null, null, null];
       state.skills.profile = { ...state.skills.profile, stones: [stone], loadout };
@@ -619,6 +624,31 @@ describe("抽選の拡張: 出すタグとスキル石のタグ", () => {
       return n;
     };
     expect(count(true)).toBeGreaterThan(count(false));
+  });
+});
+
+describe("射撃の祝福の loadout（銃の家系だけに出す。docs/ideas/weapon-redesign.md 6 章）", () => {
+  it("射撃の祝福は銃の家系を持つときだけ 3 択に出る", () => {
+    const state = arena();
+    // buildTags は boonRun.baseStats（祝福を畳み込む前の装備 stats）を読むので、そちらも差し替える
+    state.stats.moveset = "sword";
+    state.boonRun.baseStats = state.stats;
+    const melee = buildTags(state);
+    expect(boonWeight(BOONS.dashGun, melee.owned, [], melee.gives, melee.loadout), "近接の武器種では出ない").toBe(0);
+    state.stats.moveset = "gunner";
+    const gun = buildTags(state);
+    expect(boonWeight(BOONS.dashGun, gun.owned, [], gun.gives, gun.loadout), "銃の家系では出る").toBeGreaterThan(0);
+  });
+
+  it("指輪の射撃性質だけでは射撃の祝福が出ない", () => {
+    const state = arena();
+    state.stats.moveset = "sword";
+    // 指輪・首飾りが乗せる射撃性質（弾を出せない武器種のまま）
+    state.stats.rangedDamageMul += 0.5;
+    state.boonRun.baseStats = state.stats;
+    const tags = buildTags(state);
+    expect(tags.owned.has("ranged"), "弾を出せない武器種では ranged タグを外す").toBe(false);
+    expect(boonWeight(BOONS.dashGun, tags.owned, [], tags.gives, tags.loadout)).toBe(0);
   });
 });
 

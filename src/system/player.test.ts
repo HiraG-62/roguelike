@@ -8,7 +8,7 @@ import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
-import { MOVESETS, MOVESET_KEYS, isShotOnly, meleeButton } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
 import type { FrameInput } from "../core/input";
 import {
   type MeleeStep,
@@ -140,7 +140,7 @@ describe("近接命中のマナ回収", () => {
     e.maxHp = 1000;
     swing(state);
     expect(e.hp, "当たっている").toBeLessThan(1000);
-    expect(state.player.mana, "1 段目の回収量").toBeCloseTo(MANA.onMelee[0]);
+    expect(state.player.mana, "1 段目の回収量").toBeCloseTo(MANA.onMelee[0] ?? 0);
   });
 
   it("カウンターヒットなら倍", () => {
@@ -149,7 +149,7 @@ describe("近接命中のマナ回収", () => {
     e.phase = "windup";
     e.phaseTimer = LONG_WINDUP;
     swing(state);
-    expect(state.player.mana, "カウンターの回収量").toBeCloseTo(MANA.onMelee[0] * MANA.onCounterMul);
+    expect(state.player.mana, "カウンターの回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.onCounterMul);
   });
 
   it("静寂の誓い（ks_silentVow）があると近接命中でマナが戻らない", () => {
@@ -174,7 +174,7 @@ describe("近接命中のマナ回収", () => {
     }
     swing(state);
     expect(crowd.every((e) => e.hp < 1000), "全員に当たっている").toBe(true);
-    expect(state.player.mana, "上限ぶんだけ回収").toBeCloseTo(MANA.onMelee[0] * MANA.meleeTargetCap);
+    expect(state.player.mana, "上限ぶんだけ回収").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.meleeTargetCap);
   });
 });
 
@@ -236,8 +236,8 @@ describe("プレイヤーの冷気による移動速度低下", () => {
 
 describe("射撃・バーストの威力と怯み値", () => {
   it("射撃弾は係数で評価した威力と怯み値を持つ", () => {
-    const state = arena();
-    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    const state = arena(5, { moveset: "sidearm" });
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
     const shot = state.projectiles.find((pr) => pr.owner === "player");
     if (!shot) throw new Error("射撃弾が出ていない");
     expect(shot.damage, "基礎値の射撃威力").toBeCloseTo(shotDamage(state.stats));
@@ -297,9 +297,8 @@ function insideDistance(s: MeleeStep): number {
   }
 }
 
-/** 近接の連撃ボタンを押す入力。右が近接の武器種（杖）は押した瞬間を作るため 1 フレームおきに押す */
-function meleePress(state: GameState, i: number): Partial<FrameInput> {
-  if (meleeButton(MOVESETS[state.stats.moveset]) === "secondary") return { shootHeld: i % 2 === 0 };
+/** 近接の連撃ボタン（どの武器種も左） */
+function meleePress(): Partial<FrameInput> {
   return { attackPressed: true };
 }
 
@@ -311,7 +310,7 @@ function runCombo(state: GameState, e: Enemy): number {
     const p = state.player.body.pos;
     e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
     e.knock = { x: 0, y: 0 };
-    step(state, withInput(meleePress(state, i)), FIXED_DT);
+    step(state, withInput(meleePress()), FIXED_DT);
     maxStep = Math.max(maxStep, state.player.attack.step);
     if (maxStep === last && state.player.attack.phase === "none") break;
   }
@@ -320,8 +319,8 @@ function runCombo(state: GameState, e: Enemy): number {
 
 describe("武器種: 各段が当たる", () => {
   for (const key of MOVESET_KEYS) {
-    // 射撃専用（二丁拳銃）は近接の段を持たない（射撃は projectiles.test.ts / 下の「二丁拳銃」で見る）
-    if (isShotOnly(MOVESETS[key])) continue;
+    // 銃の家系は近接の段を持たない（射撃は projectiles.test.ts / 下の「二丁拳銃」で見る）
+    if (isGun(MOVESETS[key])) continue;
     it(`${MOVESETS[key].name}（${key}）: 押し続けると最終段まで振り、全段が正面の敵に当たる（多段ヒットは回数ぶん）`, () => {
       const state = arena(5, { moveset: key });
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
@@ -512,7 +511,7 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     expect(state.player.attack.combo, "フィニッシュは combo 2").toBe(2);
   });
 
-  it("剣: 右（射撃）のすぐ後の左で踏み込み斬りになり、前へ踏み込む", () => {
+  it("剣: 右（受け流し）のすぐ後の左で踏み込み斬りになり、前へ踏み込む", () => {
     const state = arena(5);
     const x0 = state.player.body.pos.x;
     play(state, [{ shootHeld: true }, {}, { attackPressed: true }]);
@@ -521,7 +520,7 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     expect(state.player.body.pos.x - x0, "踏み込んだ").toBeGreaterThan(10);
   });
 
-  it("剣: 撃ってから入力の窓が切れた後の左は普通の 1 段目", () => {
+  it("剣: 受け流してから入力の窓が切れた後の左は普通の 1 段目", () => {
     const state = arena(5);
     const windowSteps = Math.ceil(WEAPON.chainWindow / FIXED_DT) + 2;
     play(state, [{ shootHeld: true }, ...idle(windowSteps), { attackPressed: true }]);
@@ -536,19 +535,19 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     expect(state.projectiles.filter((pr) => pr.owner === "player").length, "撃たない").toBe(0);
   });
 
-  it("杖: 左で撃ち、右で杖打ち。撃ってから右で魔力撃", () => {
+  it("杖: 左で杖打ち、右で魔弾。打ってから右で魔力撃", () => {
     const state = arena(5, { moveset: "wand" });
     play(state, [{ attackPressed: true, attackHeld: true }]);
-    expect(state.projectiles.filter((pr) => pr.owner === "player").length, "左で撃った").toBe(1);
-    expect(state.player.attack.phase, "左では振らない").toBe("none");
+    expect(state.player.attack.phase, "左で振った").toBe("windup");
+    expect(state.projectiles.filter((pr) => pr.owner === "player").length, "左では撃たない").toBe(0);
     play(state, [{ shootHeld: true }]);
     untilBranch(state);
     expect(branchKey(state)).toBe("arcaneStrike");
 
-    const melee = arena(5, { moveset: "wand" });
-    play(melee, [{ shootHeld: true }]);
-    expect(melee.player.attack.phase, "右だけなら杖打ちの 1 段目").toBe("windup");
-    expect(melee.player.attack.branch).toBe(-1);
+    const bolt = arena(5, { moveset: "wand" });
+    play(bolt, [{ shootHeld: true }]);
+    expect(bolt.projectiles.filter((pr) => pr.owner === "player").length, "右だけなら魔弾を 1 発").toBe(1);
+    expect(bolt.player.attack.phase, "右では振らない").toBe("none");
   });
 
   it("続く派生（踏み込み斬り）の後は指定の段から連撃が続く", () => {
@@ -639,7 +638,7 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     expect(meleeChargeLevel(state), "0.68 秒で 1 段").toBe(1);
   });
 
-  it("二丁拳銃は左だけでも右だけでも撃ち、銃口が左右交互になる", () => {
+  it("二丁拳銃は左で撃ち、銃口が左右交互になる。右は乱れ撃ち", () => {
     const left = arena(5, { moveset: "gunner" });
     step(left, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
     expect(playerShotCount(left), "左で撃った").toBe(1);
@@ -647,7 +646,7 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
 
     const right = arena(5, { moveset: "gunner" });
     step(right, withInput({ shootHeld: true }), FIXED_DT);
-    expect(playerShotCount(right), "右で撃った").toBe(1);
+    expect(playerShotCount(right), "右は乱れ撃ち（全周に 8 発）").toBe(8);
 
     const both = arena(5, { moveset: "gunner" });
     const cooldownSteps = Math.ceil(PLAYER.shoot.cooldown / FIXED_DT) + 1;

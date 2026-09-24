@@ -331,7 +331,7 @@ describe("芽吹きと銘（7-15 / 8-9）", () => {
     if (!roll) return;
     fxState(state);
     state.sfx = [];
-    state.pendingBud = { itemId: item.id, slot: "weapon", milestone: "kills50", milestoneLabel: "撃破 50", options: [roll, roll] };
+    state.pendingBud = { itemId: item.id, slot: "mainHand", milestone: "kills50", milestoneLabel: "撃破 50", options: [roll, roll] };
     updateEffects(state, 0.016);
     expect(fxState(state).marks.some((m) => m.kind === "budBloom"), "芽吹きの印").toBe(true);
     expect(state.sfx).toContain("budSprout");
@@ -346,7 +346,7 @@ describe("芽吹きと銘（7-15 / 8-9）", () => {
     const roll = item.affixes[0];
     if (!roll) return;
     state.effects = undefined;
-    state.pendingBud = { itemId: item.id, slot: "weapon", milestone: "kills50", milestoneLabel: "撃破 50", options: [roll, roll] };
+    state.pendingBud = { itemId: item.id, slot: "mainHand", milestone: "kills50", milestoneLabel: "撃破 50", options: [roll, roll] };
     state.sfx = [];
     updateEffects(state, 0.016);
     expect(state.sfx).not.toContain("budSprout");

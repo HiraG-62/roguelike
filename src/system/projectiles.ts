@@ -204,7 +204,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.hidden) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, blastRadius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
-    const out = rollOutgoing(state, e, pr.damage, pr.kind);
+    const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack });
     gainShotMana(state, pr);
     damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: MINE_HITSTOP,
@@ -250,7 +250,7 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind);
+    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind, { attack: pr.attack });
     gainShotMana(state, pr);
     damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: BULLET_HITSTOP,

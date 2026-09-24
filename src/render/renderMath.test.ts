@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   type WeaponPoseInput,
+  artHoldPose,
+  edgeNormal,
+  edgeView,
   offhandOffset,
   phaseProgress,
   playerBodyPose,
@@ -12,6 +15,7 @@ import {
   weaponView,
 } from "./renderMath";
 import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_FRAME } from "../data/sprites/weapons";
+import { MOVESETS } from "../data/weapons";
 import { createMap, setTile, Tile } from "../map/grid";
 import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
 import { RARITIES, TRAIT_COLOR_HEX, createEmptyResonance, type Resonance } from "../loot/types";
@@ -447,6 +451,94 @@ describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）"
     expect(playerBodyPose("recover", 0.2, false)).toBe("strike");
     expect(playerBodyPose("recover", 0.8, false)).toBe("walk");
     expect(playerBodyPose("none", 0, false)).toBe("walk");
+  });
+});
+
+describe("刃・頭を外向きにする規則（docs/ideas/weapon-redesign.md 7 章）", () => {
+  const base: WeaponPoseInput = { phase: "none", t: 0, shape: "arc", deg: 120, aim: 0, step: 0, facingRight: true, aimHeld: false };
+  const pose = (over: Partial<WeaponPoseInput>) => weaponPose({ ...base, ...over });
+
+  it("大鎌を右向きで構えると刃は頭と反対側（右下）を向く", () => {
+    const p = pose({ edge: "up" });
+    const n = edgeNormal(p, "up");
+    expect(p.frame, "斜めの絵を柄の線で写した方").toBe(WEAPON_FRAME.diagonalOut);
+    expect(n.x, "右").toBeGreaterThan(0);
+    expect(n.y, "下").toBeGreaterThan(0);
+  });
+
+  it("左向きの構えでも刃は頭と反対側（左下）を向く", () => {
+    const p = pose({ edge: "up", facingRight: false });
+    const n = edgeNormal(p, "up");
+    expect(n.x, "左").toBeLessThan(0);
+    expect(n.y, "下").toBeGreaterThan(0);
+  });
+
+  it("扇の振りでは刃が振り抜く方向を向く（段で振る向きが変わると刃も入れ替わる）", () => {
+    for (const step of [0, 1]) {
+      const p = pose({ edge: "up", phase: "active", t: 0.5, step });
+      const n = edgeNormal(p, "up");
+      const tangent = { x: -Math.sin(p.angle) * swingSign(step), y: Math.cos(p.angle) * swingSign(step) };
+      expect(n.x * tangent.x + n.y * tangent.y, `段 ${step}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("予備動作でも刃はこれから振り抜く側を向く", () => {
+    const p = pose({ edge: "up", phase: "windup", t: 1, shape: "box" });
+    const n = edgeNormal(p, "up");
+    const tangent = { x: -Math.sin(p.angle), y: Math.cos(p.angle) };
+    expect(n.x * tangent.x + n.y * tangent.y).toBeGreaterThan(0);
+  });
+
+  it("両刃の武器（edge なし）は反転しない", () => {
+    for (const over of [{}, { facingRight: false }, { phase: "active" as const, t: 0.5, step: 1 }]) {
+      const p = pose(over);
+      const view = weaponView(p.angle);
+      expect({ frame: p.frame, flipX: p.flipX, flipY: p.flipY }).toEqual(view);
+    }
+  });
+
+  it("edgeView は柄の向きを保ったまま刃の側だけ入れ替える", () => {
+    const side = { frame: WEAPON_FRAME.side, flipX: false, flipY: false } as const;
+    expect(edgeView(side, "up", { x: 0, y: 1 })).toEqual({ ...side, flipY: true });
+    expect(edgeView(side, "up", { x: 0, y: -1 }), "もう向いていれば変えない").toEqual(side);
+    expect(edgeView(side, "down", { x: 0, y: -1 }), "刃が下の武器は逆").toEqual({ ...side, flipY: true });
+    const up = { frame: WEAPON_FRAME.up, flipX: false, flipY: false } as const;
+    expect(edgeView(up, "up", { x: 1, y: 0 })).toEqual({ ...up, flipX: true });
+    const diag = { frame: WEAPON_FRAME.diagonal, flipX: true, flipY: false } as const;
+    expect(edgeView(diag, "up", { x: -1, y: 1 })).toEqual({ ...diag, frame: WEAPON_FRAME.diagonalOut });
+  });
+});
+
+describe("固有技の構え（docs/ideas/weapon-redesign.md 3 章）", () => {
+  const base: WeaponPoseInput = { phase: "none", t: 0, shape: "arc", deg: 120, aim: 0, step: 0, facingRight: true, aimHeld: false };
+  const pose = (over: Partial<WeaponPoseInput>) => weaponPose({ ...base, ...over });
+
+  it("受け流しは照準の先に拳を出し、刃を上へ立てる", () => {
+    const rest = pose({});
+    const p = pose({ hold: "parry" });
+    expect(p.dx, "拳が前へ出る").toBeGreaterThan(rest.dx);
+    expect(Math.sin(p.angle), "刃は上向き").toBeCloseTo(-1);
+    const left = pose({ hold: "parry", aim: Math.PI, facingRight: false });
+    expect(left.dx, "左向きは左へ出す").toBeLessThan(0);
+    expect(Math.sin(left.angle), "左向きでも刃は上").toBeCloseTo(-1);
+  });
+
+  it("盾の構えと狙い撃ちは照準へ腕を伸ばす", () => {
+    const aim = Math.PI / 4;
+    const plain = pose({ aimHeld: true, aim });
+    for (const hold of ["guard", "aim"] as const) {
+      const p = pose({ hold, aim, aimHeld: true });
+      expect(p.angle).toBeCloseTo(aim);
+      expect(Math.hypot(p.dx, p.dy + 4), hold).toBeGreaterThan(Math.hypot(plain.dx, plain.dy + 4));
+    }
+  });
+
+  it("artHoldPose は押している最中の構えの種類を選ぶ", () => {
+    expect(artHoldPose(MOVESETS.sword.art, true)).toBe("parry");
+    expect(artHoldPose(MOVESETS.shield.art, true)).toBe("guard");
+    expect(artHoldPose(MOVESETS.sidearm.art, true)).toBe("aim");
+    expect(artHoldPose(MOVESETS.katana.art, true), "居合は溜めの経路").toBeUndefined();
+    expect(artHoldPose(MOVESETS.sword.art, false), "押していなければ構えない").toBeUndefined();
   });
 });
 

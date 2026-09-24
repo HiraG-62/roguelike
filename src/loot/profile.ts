@@ -19,6 +19,7 @@ import {
   createEmptyEquipment,
   createEmptyProfile,
   createEmptyProvenance,
+  normalizeSlot,
 } from "./types";
 
 /** 保存のキー（Electron 版は SAVE_FILES でファイル名に写る）。バージョンが変わったら数値を上げる */
@@ -43,10 +44,6 @@ export interface RunResult {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
-}
-
-function isSlot(v: unknown): v is Slot {
-  return typeof v === "string" && (SLOTS as readonly string[]).includes(v);
 }
 
 function isColor(v: unknown): v is TraitColor {
@@ -176,7 +173,9 @@ function sanitizeItem(v: unknown): Item | null {
   if (typeof id !== "string" || id.length === 0) return null;
   if (typeof seed !== "number") return null;
   if (typeof baseKey !== "string" || baseKey.length === 0) return null;
-  if (!isSlot(slot)) return null;
+  // 旧セーブの weapon / gun スロットは右手（mainHand）へ読み替える（冪等: 新形式にも通る）
+  const normalizedSlot = normalizeSlot(slot);
+  if (normalizedSlot === null) return null;
   if (rarity !== "normal" && rarity !== "magic" && rarity !== "rare" && rarity !== "unique") return null;
   if (typeof itemLevel !== "number") return null;
   if (typeof name !== "string") return null;
@@ -191,7 +190,7 @@ function sanitizeItem(v: unknown): Item | null {
     id,
     seed,
     baseKey,
-    slot,
+    slot: normalizedSlot,
     rarity,
     itemLevel,
     name,
@@ -204,12 +203,25 @@ function sanitizeItem(v: unknown): Item | null {
   return migrateItem(item);
 }
 
-function sanitizeEquipment(v: unknown): Equipment {
+/**
+ * equipment を読み込む。旧セーブの weapon スロットは空いていれば右手へ、埋まっていれば倉庫へ。
+ * 旧セーブの gun スロットは常に倉庫へ（借り物なら捨てる）。overflow（stash）の先頭に積む
+ */
+function sanitizeEquipment(v: unknown, overflow: Item[]): Equipment {
   const out = createEmptyEquipment();
   if (!isRecord(v)) return out;
   for (const slot of SLOTS) {
     const item = sanitizeItem(v[slot]);
     if (item && item.slot === slot) out[slot] = item;
+  }
+  const legacyWeapon = sanitizeItem(v.weapon);
+  if (legacyWeapon && legacyWeapon.slot === "mainHand") {
+    if (out.mainHand === null) out.mainHand = legacyWeapon;
+    else overflow.unshift(legacyWeapon);
+  }
+  const legacyGun = sanitizeItem(v.gun);
+  if (legacyGun && legacyGun.slot === "mainHand" && legacyGun.loaned !== true) {
+    overflow.unshift(legacyGun);
   }
   return out;
 }
@@ -282,12 +294,9 @@ export function loadProfile(storage?: Storage): Profile {
   }
   if (!isRecord(parsed) || parsed.version !== CURRENT_VERSION) return createEmptyProfile();
 
-  return {
-    version: CURRENT_VERSION,
-    equipment: sanitizeEquipment(parsed.equipment),
-    stash: sanitizeStash(parsed.stash),
-    meta: sanitizeMeta(parsed.meta),
-  };
+  const stash = sanitizeStash(parsed.stash);
+  const equipment = sanitizeEquipment(parsed.equipment, stash);
+  return { version: CURRENT_VERSION, equipment, stash, meta: sanitizeMeta(parsed.meta) };
 }
 
 function isLoaned(item: Item | null | undefined): boolean {

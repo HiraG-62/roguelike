@@ -10,7 +10,7 @@ function item(baseKey: string, slot: Item["slot"]): Item {
 
 describe("攻撃ジャンル・属性の表示（A-8）", () => {
   it("武器のツールチップに武器種のジャンルと属性、防具には出さない", () => {
-    expect(itemAttackLine(item("longsword", "weapon"))).toBe("剣: 近接・物理 / 無属性");
+    expect(itemAttackLine(item("longsword", "mainHand"))).toBe("剣: 近接・物理 / 無属性");
     expect(itemAttackLine(item("ironRing", "ring"))).toBeNull();
   });
 
@@ -19,9 +19,16 @@ describe("攻撃ジャンル・属性の表示（A-8）", () => {
     expect(skillAttackLine("haste")).toBeNull();
   });
 
-  it("ステータスの箱の先頭はいまの近接と射撃の素性", () => {
+  it("ステータスの箱の先頭はいまの近接の素性。弾を出せない武器種では射撃の代わりに固有技の名前を出す", () => {
     const state = arena();
-    expect(loadoutAttackLines(state.stats)).toEqual(["剣: 近接・物理 / 無属性", "単発: 遠距離・物理 / 無属性"]);
+    state.stats.moveset = "sword";
+    expect(loadoutAttackLines(state.stats), "剣は撃てないので射撃の代わりに固有技").toEqual(["剣: 近接・物理 / 無属性", "受け流し: 固有技"]);
+  });
+
+  it("銃の家系ではこれまで通り射撃の素性を出す", () => {
+    const state = arena();
+    state.stats.moveset = "gunner";
+    expect(loadoutAttackLines(state.stats)).toEqual(["二丁拳銃: 遠距離・物理 / 無属性", "単発: 遠距離・物理 / 無属性"]);
   });
 
   it("弱点の印は倒すまで「？」、倒した種類は弱点の色", () => {

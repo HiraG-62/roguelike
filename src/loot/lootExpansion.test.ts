@@ -189,7 +189,7 @@ describe("装備全体の文脈を読む性質", () => {
   it("異郷の響き: 異色の性質 1 つにつき全ステータスが上がる", () => {
     const eq = createEmptyEquipment();
     eq.ring = item("ring", [roll("foreignEcho", 1, 6)]);
-    eq.weapon = item("weapon", [{ ...roll("meleeDamagePct", 10), color: "azure" }]);
+    eq.mainHand = item("mainHand", [{ ...roll("meleeDamagePct", 10), color: "azure" }]);
     expect(gearContext(eq).gearOffColor).toBe(1);
     const s = computeStats(eq);
     for (const k of ATTR_KEYS) expect(s.attributes[k], k).toBeGreaterThanOrEqual(DEFAULT_STATS.attributes[k] + 1);
@@ -249,7 +249,7 @@ describe("誓約の追加", () => {
 
   it("無垢の誓い: 受ける状態異常の持続が 0、装備の付与がすべて消える", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = item("weapon", [roll("burn", 10, 5), roll("procPoison", 20), roll("plagueSeed", 4)]);
+    eq.mainHand = item("mainHand", [roll("burn", 10, 5), roll("procPoison", 20), roll("plagueSeed", 4)]);
     eq.armor = item("armor", [roll("statusWard", 20), { ...keystoneToRoll(keystoneDefOrThrow("ks_pure")) }]);
     const s = computeStats(eq);
     expect(s.statusTakenMul).toBe(0);
@@ -260,7 +260,7 @@ describe("誓約の追加", () => {
 
   it("蝕みの誓約: 付与確率 ×2（上限 1）、受ける持続 ×2", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = item("weapon", [roll("procPoison", 20)]);
+    eq.mainHand = item("mainHand", [roll("procPoison", 20)]);
     eq.armor = item("armor", [keystoneToRoll(keystoneDefOrThrow("ks_blight"))]);
     const s = computeStats(eq);
     expect(s.statusProcs[0]?.chance).toBeCloseTo(0.4);
@@ -269,7 +269,7 @@ describe("誓約の追加", () => {
 
   it("揺るがぬ誓い: 怯み値は 0、上昇分は与ダメージになる", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = item("weapon", [roll("heavyHand", 40, 5), keystoneToRoll(keystoneDefOrThrow("ks_unshaken"))]);
+    eq.mainHand = item("mainHand", [roll("heavyHand", 40, 5), keystoneToRoll(keystoneDefOrThrow("ks_unshaken"))]);
     const s = computeStats(eq);
     expect(s.poiseDamageMul).toBe(0);
     expect(s.skillDamageMul).toBeCloseTo(1 + KEYSTONE.unshakenDamageBonus + 0.4 * KEYSTONE.unshakenPoiseToDamage);
@@ -331,7 +331,7 @@ describe("共鳴: 三和音と規則", () => {
 
   it("無色の誓い: 共鳴せず、性質の値が上がる", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = item("weapon", [roll("meleeDamagePct", 20), roll("meleeDamageFlat", 5)]);
+    eq.mainHand = item("mainHand", [roll("meleeDamagePct", 20), roll("meleeDamageFlat", 5)]);
     eq.ring = item("ring", [roll("attackSpeed", 10), keystoneToRoll(keystoneDefOrThrow("ks_colorless"))]);
     const s = computeStats(eq);
     expect(s.resonance.kind).toBe("none");
@@ -340,7 +340,7 @@ describe("共鳴: 三和音と規則", () => {
 
   it("鏡の誓い: 色を反対色で数える（紅ばかりなら蒼の支配）", () => {
     const eq = createEmptyEquipment();
-    eq.weapon = item("weapon", [roll("meleeDamagePct", 20), roll("meleeDamageFlat", 5), roll("attackSpeed", 5)]);
+    eq.mainHand = item("mainHand", [roll("meleeDamagePct", 20), roll("meleeDamageFlat", 5), roll("attackSpeed", 5)]);
     eq.ring = item("ring", [roll("crushing", 30, 10), keystoneToRoll(keystoneDefOrThrow("ks_mirror"))]);
     const r = equipmentResonance(eq);
     expect(r.kind).toBe("dominant");
@@ -393,7 +393,7 @@ describe("名のある遺物の追加", () => {
 });
 
 describe("来歴の節目と目覚め", () => {
-  function equippedState(slot: Slot = "weapon", baseKey = "shortsword"): ReturnType<typeof createGame> {
+  function equippedState(slot: Slot = "mainHand", baseKey = "shortsword"): ReturnType<typeof createGame> {
     const gen = generateItem(createRng(21), { itemLevel: 10, foundDepth: 10, slot, now: NOW });
     const profile = createEmptyProfile();
     profile.equipment[slot] = { ...gen, baseKey, affixes: gen.affixes.slice(0, 1), margin: 3, marginMax: 3 };
@@ -403,7 +403,7 @@ describe("来歴の節目と目覚め", () => {
   it("怯ませた / カウンター / スキル発動 / エリート撃破 / 殲滅を数える", () => {
     const state = equippedState();
     for (const kind of ["stagger", "counter", "skillCast", "eliteKill", "lastKill"] as const) recordProvenance(state, { kind });
-    const p = state.profile.equipment.weapon?.provenance;
+    const p = state.profile.equipment.mainHand?.provenance;
     expect([p?.staggers, p?.counters, p?.skillCasts, p?.eliteKills, p?.lastKills]).toEqual([1, 1, 1, 1, 1]);
   });
 
@@ -413,7 +413,7 @@ describe("来歴の節目と目覚め", () => {
     const def = milestoneDef("counters:30");
     expect(def?.awakening).toBe("firstMove");
     if (def === undefined) return;
-    const gen = generateItem(createRng(3), { itemLevel: 10, foundDepth: 10, slot: "weapon", now: NOW });
+    const gen = generateItem(createRng(3), { itemLevel: 10, foundDepth: 10, slot: "mainHand", now: NOW });
     const offer = makeBudOffer({ ...gen, affixes: [] }, def);
     expect(offer?.options[0].key).toBe("firstMove");
     expect(traitColorOf(offer?.options[1] ?? { key: "", value: 0 })).toBe(OPPOSITE_COLOR.gold);
@@ -421,7 +421,7 @@ describe("来歴の節目と目覚め", () => {
 
   it("盾騎士の撃破数で「盾割り」が芽吹く", () => {
     const state = equippedState();
-    const weapon = state.profile.equipment.weapon;
+    const weapon = state.profile.equipment.mainHand;
     if (weapon === null) throw new Error("武器が無い");
     // 他の節目は到達済みにして、盾騎士 30 の節目だけを見る
     weapon.milestones = MILESTONES.map((m) => m.key).filter((k) => k !== "enemy:knight:30");
@@ -435,12 +435,12 @@ describe("来歴の節目と目覚め", () => {
     const disciplined = equippedState();
     disciplined.stats = { ...disciplined.stats, keystones: ["ks_discipline"] };
     recordProvenance(disciplined, { kind: "just" });
-    expect(disciplined.profile.equipment.weapon?.provenance?.justDodges).toBe(KEYSTONE.disciplineProgress);
+    expect(disciplined.profile.equipment.mainHand?.provenance?.justDodges).toBe(KEYSTONE.disciplineProgress);
 
     const forgotten = equippedState();
     forgotten.stats = { ...forgotten.stats, keystones: ["ks_oblivion"] };
     recordProvenance(forgotten, { kind: "just" });
-    expect(forgotten.profile.equipment.weapon?.provenance?.justDodges).toBe(0);
+    expect(forgotten.profile.equipment.mainHand?.provenance?.justDodges).toBe(0);
 
     const signet = equippedState("ring", "signet");
     recordProvenance(signet, { kind: "just" });
@@ -449,7 +449,7 @@ describe("来歴の節目と目覚め", () => {
 
   it("読み込みを通らない来歴（リプレイの装備など）も、積む前に欠けたカウンタを 0 で補う", () => {
     const state = equippedState();
-    const weapon = state.profile.equipment.weapon;
+    const weapon = state.profile.equipment.mainHand;
     if (weapon?.provenance === undefined) throw new Error("来歴が無い");
     const { staggers: _s, counters: _c, skillCasts: _k, eliteKills: _e, lastKills: _l, ...old } = weapon.provenance;
     weapon.provenance = old as typeof weapon.provenance;
@@ -487,7 +487,7 @@ describe("残響: 転調", () => {
   }
 
   it("効果はそのまま、色だけ反対色へ。費用は変えた先の色の残響", () => {
-    const target = item("weapon", [{ ...roll("meleeDamagePct", 20), color: "crimson" }]);
+    const target = item("mainHand", [{ ...roll("meleeDamagePct", 20), color: "crimson" }]);
     const craft = richState();
     const result = craftEcho(craft, { op: "modulate", item: target, traitIndex: 0 });
     expect(result.ok).toBe(true);
@@ -511,13 +511,13 @@ describe("残響: 転調", () => {
   it("転調で共鳴の配合が動く（紅 4・翠 1・金 1 の紅 2 つを蒼へ → 二重）", () => {
     const eq = createEmptyEquipment();
     const reds = [roll("meleeDamagePct", 20), roll("meleeDamageFlat", 5), roll("attackSpeed", 5), roll("crushing", 30, 10)];
-    eq.weapon = item("weapon", reds);
+    eq.mainHand = item("mainHand", reds);
     eq.armor = item("armor", [roll("maxLife", 20)]);
     eq.ring = item("ring", [roll("critChance", 3)]);
     expect(equipmentResonance(eq).kind).toBe("dominant");
-    let changed = eq.weapon;
+    let changed = eq.mainHand;
     for (const index of [0, 1]) changed = modulateTrait(changed, index) ?? changed;
-    eq.weapon = changed;
+    eq.mainHand = changed;
     expect(equipmentResonance(eq).kind).toBe("dual");
   });
 });

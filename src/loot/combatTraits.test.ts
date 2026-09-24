@@ -17,7 +17,7 @@ import { affixColor } from "./colors";
 import { nominalAt } from "./flux";
 import { generateItem } from "./generator";
 import { computeStats } from "./stats";
-import { ATTR_KEYS, DEFAULT_STATS, SLOTS, createEmptyEquipment, type AffixRoll, type Equipment, type Item } from "./types";
+import { ATTR_KEYS, DEFAULT_STATS, LOOT_SLOTS, createEmptyEquipment, type AffixRoll, type Equipment, type Item } from "./types";
 
 /**
  * 戦闘再設計 L5（装備の追随）で足した性質: ステータス・ステータスの変換・状態異常の付与・弾斬り・マナの誓約。
@@ -117,7 +117,7 @@ describe("ステータスの性質（attr_*）", () => {
   });
 
   it("各スロットで少なくとも 1 種のステータスが抽選できる", () => {
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       const attrs = traitsFor(slot, 1).filter((d) => d.key.startsWith(ATTR_TRAIT_PREFIX));
       expect(attrs.length, slot).toBeGreaterThan(0);
     }
@@ -231,16 +231,16 @@ describe("状態異常を付ける性質（statusProcs）", () => {
 describe("弾斬り", () => {
   it("bulletCut が 0 より大きくなり、代償にリーチが縮む", () => {
     const s = computeStats(
-      equip(makeItem({ slot: "weapon", baseKey: "shortsword", affixes: [roll("bulletCut", 10)] })),
+      equip(makeItem({ slot: "mainHand", baseKey: "shortsword", affixes: [roll("bulletCut", 10)] })),
     );
     expect(s.bulletCut).toBeGreaterThan(0);
     expect(s.meleeReachMul).toBeCloseTo(0.9);
   });
 
-  it("武器だけに付き、色は蒼", () => {
+  it("右手だけに付き、色は蒼", () => {
     const def = affixDef("bulletCut");
     if (def === undefined) throw new Error("bulletCut が無い");
-    expect(def.slots).toEqual(["weapon"]);
+    expect(def.slots).toEqual(["mainHand"]);
     expect(affixColor(def)).toBe("azure");
     expect(formatAffix(roll("bulletCut", 10))).toBe("近接攻撃で敵弾を斬り消す（リーチ -10%）");
   });
@@ -277,7 +277,7 @@ describe("マナの誓約（過負荷・静寂の誓い）", () => {
   it("装備 2 部位で両方を持つと、装備順で後の方だけが効く", () => {
     const s = computeStats(
       equip(
-        makeItem({ slot: "weapon", baseKey: "shortsword", affixes: [{ key: "ks_overdraw", value: 0 }] }),
+        makeItem({ slot: "mainHand", baseKey: "shortsword", affixes: [{ key: "ks_overdraw", value: 0 }] }),
         makeItem({ id: "item-2", affixes: [{ key: "ks_silentVow", value: 0 }] }),
       ),
     );
@@ -315,12 +315,12 @@ describe("生成", () => {
     for (const key of STATUS_TRAIT_KEYS) expect(seen.has(key), key).toBe(true);
   });
 
-  it("弾斬りは武器の生成で出る", () => {
+  it("弾斬りは右手の生成で出る", () => {
     const rng = createRng(7);
     let found = false;
     for (let i = 0; i < 1000 && !found; i++) {
       const depth = 4 + (i % 26);
-      const item = generateItem(rng, { itemLevel: depth, foundDepth: depth, slot: "weapon", now: NOW });
+      const item = generateItem(rng, { itemLevel: depth, foundDepth: depth, slot: "mainHand", now: NOW });
       found = item.affixes.some((a) => a.key === "bulletCut");
     }
     expect(found).toBe(true);

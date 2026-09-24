@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pushPlayerEvent } from "../core/events";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
@@ -21,6 +22,7 @@ import { applyStatus } from "../system/statusEffects";
 import { arena, placeEnemy, withInput } from "../system/testHelpers";
 import { SKILL } from "./data";
 import { stoneFromSeed } from "./generator";
+import { syncTurretShots } from "./summons";
 import type { ModifierKey, SkillKey, SkillStone } from "./types";
 
 /**
@@ -389,6 +391,18 @@ describe("移動・召喚・設置", () => {
     run(state, 1);
     expect(state.skills.shots, "自分では撃たない").toHaveLength(0);
     onSkillPlayerShoot(state);
+    expect(state.skills.shots).toHaveLength(1);
+  });
+
+  it("砲台は近接の振りに合わせて撃つ（銃を持たない近接ビルドでも沈黙しない）", () => {
+    const state = skillArena([{ key: "turret" }]);
+    cast(state, { x: state.player.body.pos.x + 40, y: state.player.body.pos.y });
+    run(state, 1);
+    state.events = [];
+    syncTurretShots(state);
+    expect(state.skills.shots, "振りが無ければ撃たない").toHaveLength(0);
+    pushPlayerEvent(state, "onSwing", "swing", { tag: "combo", amount: 0 });
+    syncTurretShots(state);
     expect(state.skills.shots).toHaveLength(1);
   });
 

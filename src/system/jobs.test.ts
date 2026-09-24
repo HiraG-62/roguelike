@@ -350,29 +350,29 @@ describe("ジョブの初期武器", () => {
       const baseKey = JOBS[key].starterWeapon;
       if (baseKey === null) throw new Error(`${key} に初期武器が無い`);
       const base = baseDef(baseKey);
-      expect(base?.slot, `${key} の初期武器は武器スロット`).toBe("weapon");
+      expect(base?.slot, `${key} の初期武器は右手`).toBe("mainHand");
       const moveset = base?.moveset;
       if (moveset === undefined) throw new Error(`${key} の初期武器に武器種が無い`);
       expect(JOBS[key].favored, `${key} の初期武器は得意な武器種`).toContain(moveset);
     }
   });
 
-  it("初期武器は武器スロットが空なら装着され、stats.moveset がその武器種になる", () => {
+  it("初期武器は右手が空なら装着され、stats.moveset がその武器種になる", () => {
     const profile = createEmptyProfile();
     const s = createGame(SEED, String(SEED), profile, undefined, { origin: "wanderer", modifiers: [], job: "hunter" });
-    const weapon = profile.equipment.weapon;
-    expect(weapon?.baseKey, "鞭を装着").toBe(JOBS.hunter.starterWeapon);
+    const weapon = profile.equipment.mainHand;
+    expect(weapon?.baseKey, "弩を装着").toBe(JOBS.hunter.starterWeapon);
     expect(weapon?.affixes, "性質なしの素の器").toEqual([]);
-    expect(s.stats.moveset, "武器種が鞭になる").toBe("whip");
+    expect(s.stats.moveset, "武器種が長銃になる").toBe("longarm");
     expect(isFavoredWeapon(s.stats, "hunter"), "得意武器の上乗せが効く").toBe(true);
   });
 
-  it("武器スロットが埋まっていれば初期武器は倉庫へ入る", () => {
+  it("右手が埋まっていれば初期武器は倉庫へ入る", () => {
     const profile = createEmptyProfile();
     const own = generateItem(createRng(1), { baseKey: "dagger", plain: true, itemLevel: 1, foundDepth: 1, now: 0 });
-    profile.equipment.weapon = own;
+    profile.equipment.mainHand = own;
     createGame(SEED, String(SEED), profile, undefined, { origin: "wanderer", modifiers: [], job: "brawler" });
-    expect(profile.equipment.weapon?.id, "装備はそのまま").toBe(own.id);
+    expect(profile.equipment.mainHand?.id, "装備はそのまま").toBe(own.id);
     expect(profile.stash.map((it) => it.baseKey), "倉庫に手甲").toContain(JOBS.brawler.starterWeapon);
   });
 
@@ -380,10 +380,10 @@ describe("ジョブの初期武器", () => {
     const profile = createEmptyProfile();
     const setup = { origin: "wanderer" as const, modifiers: [], job: "swordsman" as const };
     createGame(SEED, String(SEED), profile, undefined, setup);
-    const first = profile.equipment.weapon;
+    const first = profile.equipment.mainHand;
     expect(ownsWeaponBase(profile, "katana"), "1 回目で打刀を持つ").toBe(true);
     createGame(SEED + 1, String(SEED + 1), profile, undefined, setup);
-    expect(profile.equipment.weapon?.id, "2 回目は差し替えない").toBe(first?.id);
+    expect(profile.equipment.mainHand?.id, "2 回目は差し替えない").toBe(first?.id);
     expect(profile.stash, "倉庫にも増えない").toHaveLength(0);
   });
 
@@ -391,7 +391,7 @@ describe("ジョブの初期武器", () => {
     const profile = createEmptyProfile();
     const loan = generateItem(createRng(2), { baseKey: "katana", plain: true, itemLevel: 1, foundDepth: 1, now: 0 });
     loan.loaned = true;
-    profile.equipment.weapon = loan;
+    profile.equipment.mainHand = loan;
     expect(ownsWeaponBase(profile, "katana")).toBe(false);
   });
 
@@ -403,8 +403,8 @@ describe("ジョブの初期武器", () => {
     if (baseKey === null) throw new Error("影の初期武器が無い");
     owned.stash.push(generateItem(createRng(3), { baseKey, plain: true, itemLevel: 1, foundDepth: 1, now: 0 }));
     const skipped = createGame(SEED, String(SEED), owned, undefined, setup);
-    expect(given.profile.equipment.weapon?.baseKey, "片方だけ渡している").toBe(baseKey);
-    expect(skipped.profile.equipment.weapon, "もう片方は渡していない").toBeNull();
+    expect(given.profile.equipment.mainHand?.baseKey, "片方だけ渡している").toBe(baseKey);
+    expect(skipped.profile.equipment.mainHand, "もう片方は渡していない").toBeNull();
     expect(given.rng.next(), "乱数列がずれない").toBe(skipped.rng.next());
   });
 

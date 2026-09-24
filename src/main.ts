@@ -687,7 +687,7 @@ const rackLatch = createHoldLatch();
 function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): void {
   screen = "rack";
   listUi = createListScreen();
-  listTabs = rackTabs(session.hub.trialMoveset, session.hub.trialShot);
+  listTabs = rackTabs(session.hub.trialMoveset);
   rackHold = 0;
   resetHoldLatch(rackLatch);
   menuNav.prevX = frameMoveX;
@@ -706,30 +706,26 @@ function updateRackFrame(session: HubSession, frame: FrameInput, escape: boolean
   const row = rackEntryOf(listCursorEntry(listUi, listTabs)?.key ?? "");
   if (row === null) return;
   if (activated) {
-    if (row.kind === "moveset") setTrialWeapon(session, row.key, session.hub.trialShot);
-    else setTrialWeapon(session, session.hub.trialMoveset, row.key);
+    setTrialWeapon(session, row.key);
     sfx.play("uiClick");
-    listTabs = rackTabs(session.hub.trialMoveset, session.hub.trialShot);
+    listTabs = rackTabs(session.hub.trialMoveset);
   }
   rackHold = latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
   if (rackHold < HUB.rackBorrowHold) return;
   rackHold = 0;
   resetHoldLatch(rackLatch);
-  const borrowed = row.key === null ? null : borrowRackEntry(session, row.kind === "moveset" ? { kind: "moveset", key: row.key } : { kind: "shot", key: row.key }, Date.now());
+  const borrowed = row.key === null ? null : borrowRackEntry(session, { kind: "moveset", key: row.key }, Date.now());
   sfx.play(borrowed ? "uiClick" : "uiClose");
-  listTabs = rackTabs(session.hub.trialMoveset, session.hub.trialShot);
+  listTabs = rackTabs(session.hub.trialMoveset);
 }
 
 /** 拠点の重ね描きに出す、試している武器と借り物の名前 */
 function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: string | null } {
   const h = session.hub;
-  const names = [
-    h.trialMoveset === null ? null : rackEntryName({ kind: "moveset", key: h.trialMoveset }),
-    h.trialShot === null ? null : rackEntryName({ kind: "shot", key: h.trialShot }),
-  ].filter((n): n is string => n !== null);
+  const trialWeapon = h.trialMoveset === null ? null : rackEntryName({ kind: "moveset", key: h.trialMoveset });
   const eq = session.state.profile.equipment;
-  const loaned = [eq.weapon, eq.gun].filter((it) => it?.loaned === true).map((it) => it?.name ?? "");
-  return { trialWeapon: names.length > 0 ? names.join(" / ") : null, loaned: loaned.length > 0 ? loaned.join(" / ") : null };
+  const loaned = eq.mainHand?.loaned === true ? [eq.mainHand.name] : [];
+  return { trialWeapon, loaned: loaned.length > 0 ? loaned.join(" / ") : null };
 }
 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {

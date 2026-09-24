@@ -12,8 +12,8 @@ import {
   ATTR_KEYS,
   DEFAULT_STATS,
   type Equipment,
+  LOOT_SLOTS,
   type PlayerStats,
-  SLOTS,
   type TriggerCondition,
   type TriggerEffectKind,
   type TriggerKind,
@@ -147,7 +147,7 @@ function sorted(tags: ReadonlySet<BoonTag>): BoonTag[] {
 function randomLoadoutStats(seed: number): PlayerStats {
   const rng = createRng(seed);
   const eq: Equipment = createEmptyEquipment();
-  for (const slot of SLOTS) {
+  for (const slot of LOOT_SLOTS) {
     eq[slot] = generateItem(rng, { itemLevel: 1 + (seed % 20), foundDepth: 1 + (seed % 20), slot, rarityBoost: seed % 4, now: 0 });
   }
   return computeStats(eq);

@@ -10,8 +10,8 @@ import { ENEMY_AI } from "../data/tuning";
 import {
   createEmptyProfile,
   createEmptyProvenance,
+  LOOT_SLOTS,
   RARITIES,
-  SLOTS,
   TRAIT_COLORS,
   type AffixRoll,
   type Item,
@@ -163,14 +163,14 @@ function buildProfile(kind: ProfileKind, seed: number): Profile {
 
   if (kind === "rareLoadout" || kind === "uniqueLoadout") {
     const targetRarity: Rarity = kind === "rareLoadout" ? "rare" : "unique";
-    for (const slot of SLOTS) {
+    for (const slot of LOOT_SLOTS) {
       profile.equipment[slot] = rollUntilRarity(rng, slot, targetRarity, 20, 1, now);
     }
     return profile;
   }
 
   const colors = colorsForLoadout(kind, seed);
-  for (const slot of SLOTS) {
+  for (const slot of LOOT_SLOTS) {
     profile.equipment[slot] = buildColoredItem(rng, slot, colors, 20, 1, now);
   }
   return profile;

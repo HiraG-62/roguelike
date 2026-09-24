@@ -1,4 +1,5 @@
 import { type AttackProfile, type Element, type ElementTable, attack, uniformElements } from "../core/element";
+import { BALANCE } from "./balance";
 import { ELEMENT, GENRE } from "./tuning";
 
 /**
@@ -8,6 +9,9 @@ import { ELEMENT, GENRE } from "./tuning";
  * - 耐性は土地の属性に強く、弱点を 1 つ持つ（BIOME_*）。バイオームに属さない敵は種族の属性で決める
  * - ボスは段階（ai.stage）ごとに弱点を変えてよい（stages）
  * - attack はこの敵の攻撃の質（プレイヤーの防御 / 魔防のどちらで受けるか）と属性（プレイヤーの耐性）
+ *
+ * 体つき・土地の属性・敵ごとの body/biome/resist/stages は src/data/balance/enemies.json の "defense"
+ * （数値だけなので変更したい場合はそこを編集する）。attack は union 文字列を含むため TS 側（ENEMY_ATTACK）に残す
  */
 
 export interface EnemyDefenseDef {
@@ -23,47 +27,6 @@ export interface EnemyDefenseDef {
   readonly attack: AttackProfile;
 }
 
-// ---- 体つき（防御 / 魔防） ----
-type Body = { readonly defense: number; readonly warding: number };
-/** 柔らかい（スライム・小動物・蟲） */
-const SOFT: Body = { defense: 0, warding: 0 };
-/** 獣・骨（素の体。物理・魔法とも等倍。怯みや体力で硬さを出す） */
-const BEAST: Body = { defense: 0, warding: 0 };
-/** 兵（鎧を着た人型の軽装） */
-const GUARD: Body = { defense: 20, warding: -10 };
-/** 鎧・岩（物理に強く魔法に弱い） */
-const ARMORED: Body = { defense: 30, warding: -15 };
-/** 霊（物理がすり抜ける。魔法に弱い） */
-const SPIRIT: Body = { defense: 35, warding: -20 };
-/** 術者（物理に弱く魔法に強い） */
-const CASTER: Body = { defense: -10, warding: 20 };
-/** 設置物（どちらにも少し硬い） */
-const FIXTURE: Body = { defense: 20, warding: 20 };
-/** 部屋主・大物 */
-const ELITE: Body = { defense: 20, warding: 10 };
-/** 階層ボス */
-const BOSS: Body = { defense: 15, warding: 15 };
-
-// ---- 土地の属性（強い属性と弱点 1 つ） ----
-const STRONG = 50;
-const MILD = 25;
-const WEAK = -50;
-/** 浅い弱点（写し身の無属性など、ボスの取り巻きで大きく崩さない） */
-const SOFT_SPOT = -25;
-const NEAR_IMMUNE = 75;
-const BIOME_FORGE = { fire: STRONG, ice: WEAK };
-const BIOME_GLACIER = { ice: STRONG, fire: WEAK };
-const BIOME_SWAMP = { poison: STRONG, lightning: WEAK };
-const BIOME_OSSUARY = { dark: STRONG, light: WEAK };
-const BIOME_DARK = { dark: STRONG, none: MILD, light: WEAK };
-const BIOME_MINE = { lightning: MILD, fire: WEAK };
-const BIOME_MEADOW = { poison: MILD, ice: WEAK };
-
-/** 表を短く書く */
-function d(body: Body, resist: Partial<ElementTable>, atk: AttackProfile, stages?: readonly Partial<ElementTable>[]): EnemyDefenseDef {
-  return { ...body, resist, attack: atk, ...(stages ? { stages } : {}) };
-}
-
 const CONTACT = attack("melee", "physical");
 const contact = (e: Element): AttackProfile => attack("melee", "physical", e);
 const bolt = (e: Element): AttackProfile => attack("ranged", "arcane", e);
@@ -71,121 +34,163 @@ const shot = (e: Element): AttackProfile => attack("ranged", "physical", e);
 const blast = (e: Element): AttackProfile => attack("area", "physical", e);
 const spell = (e: Element): AttackProfile => attack("area", "arcane", e);
 
-export const ENEMY_DEFENSE: Readonly<Record<string, EnemyDefenseDef>> = {
+/** 敵の攻撃の質と属性（union 文字列を含むため JSON に出さず TS に残す。docs/ideas/data-externalization.md 2 章） */
+const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   // ---- 初期の敵 ----
-  slime: d(SOFT, BIOME_SWAMP, CONTACT),
-  eye: d(CASTER, { light: MILD, dark: WEAK }, bolt("none")),
-  boar: d(BEAST, BIOME_MEADOW, CONTACT),
-  knight: d(ARMORED, { lightning: WEAK }, CONTACT),
-  bomber: d(SOFT, BIOME_FORGE, blast("fire")),
-  laserEye: d(CASTER, { fire: MILD, ice: WEAK }, bolt("fire")),
-  golem: d(ARMORED, BIOME_MINE, blast("none")),
-  bat: d(SOFT, BIOME_MEADOW, CONTACT),
-  wisp: d(SPIRIT, { fire: NEAR_IMMUNE, ice: WEAK }, bolt("fire")),
-  kingSlime: d(BOSS, { poison: MILD }, blast("poison"), [{ lightning: WEAK }, { fire: WEAK }]),
-  boneLord: d(BOSS, { dark: STRONG }, bolt("dark"), [{ light: WEAK }, { fire: WEAK }]),
+  slime: CONTACT,
+  eye: bolt("none"),
+  boar: CONTACT,
+  knight: CONTACT,
+  bomber: blast("fire"),
+  laserEye: bolt("fire"),
+  golem: blast("none"),
+  bat: CONTACT,
+  wisp: bolt("fire"),
+  kingSlime: blast("poison"),
+  boneLord: bolt("dark"),
   // ---- 再配色種 ----
-  poisonSlime: d(SOFT, BIOME_SWAMP, contact("poison")),
-  iceSlime: d(SOFT, BIOME_GLACIER, contact("ice")),
-  fireSlime: d(SOFT, BIOME_FORGE, blast("fire")),
-  goldSlime: d(SOFT, { light: MILD, lightning: WEAK }, CONTACT),
-  boneBoar: d(BEAST, BIOME_OSSUARY, CONTACT),
-  boarDouble: d(BEAST, BIOME_MEADOW, CONTACT),
-  curseEye: d(CASTER, BIOME_OSSUARY, bolt("dark")),
-  frostEye: d(CASTER, BIOME_GLACIER, bolt("ice")),
-  blackKnight: d(ARMORED, { dark: MILD, lightning: WEAK }, CONTACT),
-  lavaGolem: d(ARMORED, BIOME_FORGE, blast("fire")),
-  frostGolem: d(ARMORED, BIOME_GLACIER, blast("ice")),
-  crystalGolem: d(ARMORED, { ice: MILD, light: MILD, lightning: WEAK }, blast("none")),
-  frostWisp: d(SPIRIT, { ice: NEAR_IMMUNE, fire: WEAK }, bolt("ice")),
-  purpleLaser: d(CASTER, { dark: MILD, light: WEAK }, bolt("dark")),
-  flyingBook: d(CASTER, { light: MILD, fire: WEAK }, CONTACT),
-  ashBat: d(SOFT, BIOME_FORGE, contact("fire")),
-  sproutSlime: d(SOFT, BIOME_SWAMP, CONTACT),
-  spikeRat: d(SOFT, BIOME_MINE, CONTACT),
-  twinEye: d(CASTER, { light: MILD, dark: WEAK }, bolt("none")),
-  triLaser: d(CASTER, { fire: MILD, ice: WEAK }, bolt("fire")),
-  shadowBat: d(SOFT, BIOME_DARK, contact("dark")),
-  wolf: d(BEAST, BIOME_MEADOW, CONTACT),
-  multiBomber: d(SOFT, BIOME_FORGE, blast("fire")),
-  spearman: d(GUARD, { lightning: WEAK }, CONTACT),
-  hornBeetle: d(ARMORED, BIOME_MINE, blast("none")),
-  netter: d(SOFT, { ice: MILD, fire: WEAK }, shot("ice")),
-  carrionFly: d(SOFT, BIOME_SWAMP, contact("poison")),
-  thunderWisp: d(SPIRIT, { lightning: NEAR_IMMUNE, ice: WEAK }, bolt("lightning")),
-  skeleton: d(BEAST, BIOME_OSSUARY, CONTACT),
-  fuseRat: d(SOFT, BIOME_FORGE, blast("fire")),
+  poisonSlime: contact("poison"),
+  iceSlime: contact("ice"),
+  fireSlime: blast("fire"),
+  goldSlime: CONTACT,
+  boneBoar: CONTACT,
+  boarDouble: CONTACT,
+  curseEye: bolt("dark"),
+  frostEye: bolt("ice"),
+  blackKnight: CONTACT,
+  lavaGolem: blast("fire"),
+  frostGolem: blast("ice"),
+  crystalGolem: blast("none"),
+  frostWisp: bolt("ice"),
+  purpleLaser: bolt("dark"),
+  flyingBook: CONTACT,
+  ashBat: contact("fire"),
+  sproutSlime: CONTACT,
+  spikeRat: CONTACT,
+  twinEye: bolt("none"),
+  triLaser: bolt("fire"),
+  shadowBat: contact("dark"),
+  wolf: CONTACT,
+  multiBomber: blast("fire"),
+  spearman: CONTACT,
+  hornBeetle: blast("none"),
+  netter: shot("ice"),
+  carrionFly: contact("poison"),
+  thunderWisp: bolt("lightning"),
+  skeleton: CONTACT,
+  fuseRat: blast("fire"),
   // 氷窟と油の坑道の両方に出るので、どちらの土地の属性（氷 / 雷）も弱点にしない
-  crystalMite: d(SOFT, { ice: MILD, fire: WEAK }, blast("none")),
-  echoStriker: d(CASTER, { dark: MILD, light: WEAK }, spell("dark")),
-  packLeader: d(BEAST, BIOME_MEADOW, CONTACT),
-  manaLeech: d(CASTER, BIOME_SWAMP, contact("dark")),
-  scavenger: d(BEAST, BIOME_OSSUARY, CONTACT),
-  graveBell: d(FIXTURE, BIOME_OSSUARY, spell("dark")),
-  silencer: d(CASTER, { light: STRONG, dark: WEAK }, spell("light")),
-  frostCrusher: d(ARMORED, BIOME_GLACIER, blast("ice")),
-  twinShade: d(SPIRIT, BIOME_DARK, contact("dark")),
+  crystalMite: blast("none"),
+  echoStriker: spell("dark"),
+  packLeader: CONTACT,
+  manaLeech: contact("dark"),
+  scavenger: CONTACT,
+  graveBell: spell("dark"),
+  silencer: spell("light"),
+  frostCrusher: blast("ice"),
+  twinShade: contact("dark"),
   // ---- 部屋主 ----
-  mimic: d(ELITE, { poison: MILD, fire: WEAK }, CONTACT),
-  hollowArmor: d(ARMORED, { dark: MILD, light: WEAK }, blast("none")),
-  hollowWraith: d(SPIRIT, { dark: STRONG, light: WEAK }, contact("dark")),
-  boneConductor: d(ELITE, BIOME_OSSUARY, bolt("dark")),
+  mimic: CONTACT,
+  hollowArmor: blast("none"),
+  hollowWraith: contact("dark"),
+  boneConductor: bolt("dark"),
   // ---- ボス（段階で弱点が変わる） ----
-  twinBrother: d(BOSS, { fire: MILD }, CONTACT, [{ lightning: WEAK }, { ice: WEAK }]),
-  twinSister: d(BOSS, { light: MILD }, shot("none"), [{ fire: WEAK }, { dark: WEAK }]),
-  frostGiant: d(BOSS, { ice: NEAR_IMMUNE }, blast("ice"), [{ fire: WEAK }, { lightning: WEAK }]),
-  icePillar: d(FIXTURE, { ice: NEAR_IMMUNE, fire: WEAK }, CONTACT),
-  trainingDummy: d(FIXTURE, { fire: WEAK }, CONTACT),
-  mirrorSelf: d(ELITE, { light: STRONG, dark: WEAK }, CONTACT),
+  twinBrother: CONTACT,
+  twinSister: shot("none"),
+  frostGiant: blast("ice"),
+  icePillar: CONTACT,
+  trainingDummy: CONTACT,
+  mirrorSelf: CONTACT,
   // ---- Wave 3 ----
-  mudman: d(SOFT, { ...BIOME_SWAMP, none: MILD }, CONTACT),
-  toad: d(SOFT, BIOME_SWAMP, shot("poison")),
-  oiler: d(SOFT, BIOME_MINE, CONTACT),
-  flameEater: d(BEAST, { fire: NEAR_IMMUNE, ice: WEAK }, contact("fire")),
-  windSprite: d(SPIRIT, { ice: MILD, fire: WEAK }, spell("none")),
-  mineLayer: d(SOFT, BIOME_MINE, blast("fire")),
-  enemyMine: d(FIXTURE, BIOME_MINE, blast("fire")),
-  bellImp: d(CASTER, BIOME_MEADOW, spell("none")),
-  bannerBearer: d(GUARD, BIOME_OSSUARY, CONTACT),
-  banner: d(FIXTURE, { fire: WEAK }, CONTACT),
-  burrower: d(BEAST, BIOME_MINE, blast("none")),
-  dropper: d(SOFT, BIOME_OSSUARY, blast("none")),
-  absorber: d(CASTER, { dark: MILD, light: WEAK }, bolt("dark")),
-  homunculus: d(CASTER, BIOME_OSSUARY, spell("dark")),
-  scribeImp: d(CASTER, { dark: MILD, fire: WEAK }, bolt("dark")),
-  crossGolem: d(ARMORED, BIOME_MINE, bolt("light")),
-  chainWarden: d(ARMORED, { dark: MILD, lightning: WEAK }, blast("none")),
-  hollow: d(SPIRIT, BIOME_DARK, contact("dark")),
-  lurker: d(SPIRIT, BIOME_DARK, contact("dark")),
-  iceBoar: d(BEAST, BIOME_GLACIER, contact("ice")),
-  sootBomber: d(SOFT, BIOME_MINE, blast("fire")),
-  mossGolem: d(ARMORED, BIOME_SWAMP, blast("poison")),
-  swampWisp: d(SPIRIT, { poison: NEAR_IMMUNE, lightning: WEAK }, bolt("poison")),
-  frostToad: d(SOFT, BIOME_GLACIER, shot("ice")),
-  magmaToad: d(SOFT, BIOME_FORGE, shot("fire")),
-  oilSlime: d(SOFT, BIOME_MINE, CONTACT),
-  stormEye: d(CASTER, { lightning: STRONG, poison: WEAK }, bolt("lightning")),
-  emberRat: d(SOFT, BIOME_FORGE, blast("fire")),
-  giantToad: d(ELITE, BIOME_SWAMP, blast("poison")),
-  forgeMaster: d(ELITE, BIOME_FORGE, bolt("fire")),
-  anvil: d(FIXTURE, BIOME_FORGE, CONTACT),
-  turretMaster: d(ELITE, BIOME_MINE, shot("none")),
-  turret: d(FIXTURE, BIOME_MINE, shot("none")),
-  basilisk: d(ELITE, BIOME_GLACIER, CONTACT),
-  shadowStalker: d(ELITE, BIOME_DARK, blast("dark")),
-  oilKing: d(BOSS, { poison: MILD }, blast("fire"), [{ ice: WEAK }, { fire: WEAK }]),
-  broodMother: d(BOSS, { poison: STRONG }, contact("poison"), [{ fire: WEAK }, { ice: WEAK }]),
-  broodEgg: d(FIXTURE, { poison: MILD, fire: WEAK }, CONTACT),
-  librarian: d(BOSS, { dark: MILD }, bolt("dark"), [{ fire: WEAK }, { light: WEAK }]),
-  mirrorKnight: d(BOSS, { light: STRONG }, attack("melee", "hybrid", "light"), [{ dark: WEAK }, { lightning: WEAK }]),
-  thiefKing: d(BOSS, { dark: MILD }, blast("none"), [{ ice: WEAK }, { lightning: WEAK }, { light: WEAK }]),
-  thief: d(BEAST, { dark: MILD, light: WEAK }, CONTACT),
-  mirrorImage: d(ELITE, { light: STRONG, dark: STRONG, none: SOFT_SPOT }, CONTACT),
-  reaperShade: d(SPIRIT, { dark: NEAR_IMMUNE, light: WEAK }, contact("dark")),
+  mudman: CONTACT,
+  toad: shot("poison"),
+  oiler: CONTACT,
+  flameEater: contact("fire"),
+  windSprite: spell("none"),
+  mineLayer: blast("fire"),
+  enemyMine: blast("fire"),
+  bellImp: spell("none"),
+  bannerBearer: CONTACT,
+  banner: CONTACT,
+  burrower: blast("none"),
+  dropper: blast("none"),
+  absorber: bolt("dark"),
+  homunculus: spell("dark"),
+  scribeImp: bolt("dark"),
+  crossGolem: bolt("light"),
+  chainWarden: blast("none"),
+  hollow: contact("dark"),
+  lurker: contact("dark"),
+  iceBoar: contact("ice"),
+  sootBomber: blast("fire"),
+  mossGolem: blast("poison"),
+  swampWisp: bolt("poison"),
+  frostToad: shot("ice"),
+  magmaToad: shot("fire"),
+  oilSlime: CONTACT,
+  stormEye: bolt("lightning"),
+  emberRat: blast("fire"),
+  giantToad: blast("poison"),
+  forgeMaster: bolt("fire"),
+  anvil: CONTACT,
+  turretMaster: shot("none"),
+  turret: shot("none"),
+  basilisk: CONTACT,
+  shadowStalker: blast("dark"),
+  oilKing: blast("fire"),
+  broodMother: contact("poison"),
+  broodEgg: CONTACT,
+  librarian: bolt("dark"),
+  mirrorKnight: attack("melee", "hybrid", "light"),
+  thiefKing: blast("none"),
+  thief: CONTACT,
+  mirrorImage: CONTACT,
+  reaperShade: contact("dark"),
 };
 
+interface DefenseBody {
+  readonly defense: number;
+  readonly warding: number;
+}
+
+interface DefenseEnemyEntry {
+  readonly body: string;
+  readonly biome?: string;
+  readonly resist?: Readonly<Partial<ElementTable>>;
+  readonly stages?: readonly Readonly<Partial<ElementTable>>[];
+}
+
+// JSON の型はエントリごとに個別の形を推論する（キーが違えば別の型）。104 体ぶんの union を素通しにせず、
+// 「body/biome/resist/stages を持つ表」という一枚の形にそろえてから読む（存在は balance.test.ts が検査する）
+const BODIES = BALANCE.enemies.defense.bodies as Readonly<Record<string, DefenseBody>>;
+const BIOMES = BALANCE.enemies.defense.biomes as Readonly<Record<string, Partial<ElementTable>>>;
+const DEFENSE_ENTRIES = BALANCE.enemies.defense.enemies as Readonly<Record<string, DefenseEnemyEntry>>;
+
+function resistOf(entry: DefenseEnemyEntry): Partial<ElementTable> {
+  const biome = entry.biome ? BIOMES[entry.biome] : undefined;
+  return { ...(biome ?? {}), ...(entry.resist ?? {}) };
+}
+
+function buildDefense(key: string, entry: DefenseEnemyEntry): EnemyDefenseDef {
+  const body = BODIES[entry.body];
+  const attackProfile = ENEMY_ATTACK[key];
+  if (!body) throw new Error(`enemyDefense: ${key} の body "${entry.body}" が bodies に無い`);
+  if (!attackProfile) throw new Error(`enemyDefense: ${key} の attack が ENEMY_ATTACK に無い`);
+  return {
+    defense: body.defense,
+    warding: body.warding,
+    resist: resistOf(entry),
+    attack: attackProfile,
+    ...(entry.stages ? { stages: entry.stages } : {}),
+  };
+}
+
+export const ENEMY_DEFENSE: Readonly<Record<string, EnemyDefenseDef>> = Object.fromEntries(
+  Object.entries(DEFENSE_ENTRIES).map(([key, entry]) => [key, buildDefense(key, entry)]),
+);
+
 /** 表に無い敵（新しく足した直後など）は無防備・無属性の物理 */
-const FALLBACK: EnemyDefenseDef = d(SOFT, {}, CONTACT);
+const FALLBACK: EnemyDefenseDef = { defense: 0, warding: 0, resist: {}, attack: CONTACT };
 
 export function enemyDefense(key: string): EnemyDefenseDef {
   return ENEMY_DEFENSE[key] ?? FALLBACK;

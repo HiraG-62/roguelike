@@ -353,6 +353,11 @@ export const WEAPON_ART = {
   chainSickle: { kind: "tip", name: "鎖返し", length: 76, halfWidth: 5, tipFrom: 0.7, tipMul: 1.5, mul: 0.5 },
   hammer: { kind: "circle", name: "大地割り", radius: 50, hits: 1, mul: 1.5 },
   gunner: { kind: "shots", name: "乱れ撃ち", count: 5, spreadRad: 0.25, speed: 240, life: 0.6, radius: 2, mul: 0.35 },
+  // 2026-09-24 銃の家系（docs/ideas/weapon-redesign.md 4 章）
+  sidearm: { kind: "shots", name: "早撃ち", count: 3, spreadRad: 0.12, speed: 280, life: 0.6, radius: 2, mul: 0.45 },
+  longarm: { kind: "thrust", name: "銃剣突撃", length: 56, halfWidth: 6, hits: 1, mul: 1.1 },
+  cannon: { kind: "circle", name: "至近砲撃", radius: 46, hits: 1, mul: 1.3, knockbackMul: 1.8 },
+  thrown: { kind: "shots", name: "投げ散らし", count: 5, spreadRad: 0.3, speed: 220, life: 0.6, radius: 3, mul: 0.35 },
 } as const;
 
 /** 極意の出血（鉈）の持続と 10px あたりダメージ */

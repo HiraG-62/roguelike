@@ -72,7 +72,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item-1",
     seed: 1,
     baseKey: "longsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "magic",
     itemLevel: 15,
     name: "test",
@@ -98,7 +98,7 @@ function okItem(result: ReturnType<typeof craftEcho>): Item {
 describe("砕く", () => {
   it("性質の色ごとに残響を得る。性質が無ければベースの傾きの色を 1", () => {
     expect(shatterYield(makeItem())).toEqual({ ...createEchoWallet(), crimson: 1, jade: 1, umbra: 1 });
-    expect(shatterYield(makeItem({ affixes: [], baseKey: "pistol", slot: "gun" }))).toEqual({ ...createEchoWallet(), azure: 1 });
+    expect(shatterYield(makeItem({ affixes: [], baseKey: "pistol", slot: "mainHand" }))).toEqual({ ...createEchoWallet(), azure: 1 });
   });
 
   it("craftEcho で残響が増え、applyEchoResult で stash から消える", () => {
@@ -258,7 +258,7 @@ describe("移し", () => {
   it("別の部位・芽でない性質・銘のある受け手は拒否", () => {
     const source = makeItem({ id: "src", affixes: [melee, grown], inscription: "銘" });
     const s = state();
-    expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "g", slot: "gun" }), what: { kind: "bud", traitIndex: 1 } }).ok).toBe(false);
+    expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "g", slot: "ring" }), what: { kind: "bud", traitIndex: 1 } }).ok).toBe(false);
     expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "d" }), what: { kind: "bud", traitIndex: 0 } }).ok).toBe(false);
     expect(craftEcho(s, { op: "transfer", item: source, target: makeItem({ id: "d", inscription: "既" }), what: { kind: "inscription" } }).ok).toBe(false);
     expect(s.echoes.umbra).toBe(RICH);

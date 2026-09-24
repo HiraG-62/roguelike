@@ -5,10 +5,11 @@ import {
   type ButtonKey,
   type MovesetDef,
   type ShotDef,
+  type WeaponArtDef,
   branchHints,
-  chargeButton,
   chargeLevelAt,
-  shotButtons,
+  isGun,
+  meleeChargeOf,
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
 import { currentShot, isAttacking, playerMoveset } from "../system/player";
@@ -47,18 +48,25 @@ export function comboPips(stepsCount: number, step: number, attacking: boolean):
 
 const BUTTON_LABEL: Readonly<Record<ButtonKey, string>> = { primary: "左", secondary: "右" };
 
+/** 再使用の残りを出す桁（0.1 秒刻み） */
+const COOLDOWN_DIGITS = 1;
+
+/** 押し続ける技（居合・狙い撃ち・受け流し・構え）は「長押し」と添える */
+function artPress(art: WeaponArtDef): string {
+  return art.kind === "charge" || (art.kind === "hold" && art.hold.guard) ? `${BUTTON_LABEL.secondary} 長押し` : BUTTON_LABEL.secondary;
+}
+
 /**
- * 溜めの役割と両手で撃つ武器の案内（「右 長押し: 溜め」「左 / 右: 撃つ」）。
- * 刀・大剣・戦鎚の溜め、二丁拳銃の左右、溜めて撃つ射撃の型を 1 行にまとめる。案内が無ければ undefined
+ * 右の固有技と左の押し方の案内（「右: 受け流し」「右 長押し: 居合」「左 長押し: 溜め」「左 長押し: 溜め撃ち」）。
+ * 技の再使用中は残り秒を添える（docs/ideas/weapon-redesign.md 6 章）
  */
-export function chargeHint(moveset: MovesetDef, shot: ShotDef): string | undefined {
+export function controlHint(moveset: MovesetDef, shot: ShotDef, cooldownLeft = 0): string {
   const parts: string[] = [];
-  const charge = chargeButton(moveset);
-  if (charge) parts.push(`${BUTTON_LABEL[charge]} 長押し: 溜め`);
-  const shots = shotButtons(moveset).map((b) => BUTTON_LABEL[b]).join(" / ");
-  if (shots && shot.charge) parts.push(`${shots} 長押し: 溜め撃ち`);
-  else if (shotButtons(moveset).length > 1) parts.push(`${shots}: 撃つ`);
-  return parts.length > 0 ? parts.join(" / ") : undefined;
+  if (moveset.primary === "charge") parts.push(`${BUTTON_LABEL.primary} 長押し: 溜め`);
+  if (isGun(moveset) && shot.charge) parts.push(`${BUTTON_LABEL.primary} 長押し: 溜め撃ち`);
+  const wait = cooldownLeft > 0 ? `（あと ${cooldownLeft.toFixed(COOLDOWN_DIGITS)} 秒）` : "";
+  parts.push(`${artPress(moveset.art)}: ${moveset.art.name}${wait}`);
+  return parts.join(" / ");
 }
 
 export interface ChargeGauge {
@@ -84,8 +92,10 @@ export function chargeGauge(held: number, levels: readonly { readonly time: numb
 /** 今溜めている近接または射撃の目盛り。溜めていなければ undefined */
 function activeChargeGauge(state: GameState, moveset: MovesetDef): ChargeGauge | undefined {
   const p = state.player;
-  if (p.attack.charging) return chargeGauge(p.attack.chargeTime, moveset.charge?.levels ?? []);
+  if (p.attack.charging) return chargeGauge(p.attack.chargeTime, meleeChargeOf(moveset)?.levels ?? []);
   if (p.shotCharging) return chargeGauge(p.shotChargeTime, currentShot(state.stats).charge?.levels ?? []);
+  const aim = moveset.art.kind === "charge" ? moveset.art.aim : undefined;
+  if (p.art.holding && aim) return chargeGauge(p.art.holdTime, [{ time: aim.time }]);
   return undefined;
 }
 
@@ -113,10 +123,17 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState): v
   const gauge = activeChargeGauge(state, moveset);
   if (gauge) drawGauge(ctx, cx, bottom - line, gauge);
   else drawPips(ctx, cx, bottom - line, comboPips(moveset.steps.length, p.attack.step, isAttacking(p)));
-  // 派生の案内が無いときは溜め・両手撃ちの案内を出す（刀の右長押しなど、押し方が見えない役割のため）
-  const hints = branchHints(moveset, p.attack.inputs);
-  const hintText = hints.length > 0 ? formatBranchHints(hints) : chargeHint(moveset, currentShot(state.stats));
-  if (hintText) drawText(ctx, hintText, cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
+  drawText(ctx, hudHintText(moveset, p.attack.inputs, currentShot(state.stats), p.art.cooldown), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
+}
+
+/**
+ * 案内の 1 行。技ではない派生（「左左」の後の「右: 十字断ち」など）があればそれを、無ければ右の固有技と押し方を出す
+ * （右単独の技は派生にも混ざっているので、派生の案内から技の名前を除いて二重に出さない）
+ */
+export function hudHintText(moveset: MovesetDef, inputs: readonly ButtonKey[], shot: ShotDef, cooldownLeft: number): string {
+  const hints = branchHints(moveset, inputs).filter((h) => h.name !== moveset.art.name);
+  if (hints.length > 0) return formatBranchHints(hints);
+  return controlHint(moveset, shot, cooldownLeft);
 }
 
 function drawGauge(ctx: CanvasRenderingContext2D, cx: number, y: number, gauge: ChargeGauge): void {

@@ -248,9 +248,9 @@ describe("装備タグと抽選", () => {
 describe("祝福の統合（実際の攻撃経路）", () => {
   it("霊刃: 射撃の弾の威力に霊力 × 0.3 が加わる", () => {
     const shotDamageWith = (boon: boolean): number => {
-      const state = arena(5, { attributesEff: { ...DEFAULT_STATS.attributesEff, spi: 10 } });
+      const state = arena(5, { attributesEff: { ...DEFAULT_STATS.attributesEff, spi: 10 }, moveset: "sidearm" });
       if (boon) state.boons.push("spiritBlade");
-      step(state, withInput({ shootHeld: true }), FIXED_DT);
+      step(state, withInput({ attackHeld: true }), FIXED_DT);
       const shot = state.projectiles.find((p) => p.owner === "player");
       if (!shot) throw new Error("弾が出ていない");
       return shot.damage;

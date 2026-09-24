@@ -9,8 +9,8 @@ import type { Item, Slot } from "../loot/types";
 
 /** 部位の表示名。loot/types.ts の Slot は英語のキーのまま */
 export const SLOT_LABEL: Readonly<Record<Slot, string>> = {
-  weapon: "武器",
-  gun: "銃",
+  mainHand: "右手",
+  offHand: "左手",
   armor: "鎧",
   boots: "靴",
   ring: "指輪",

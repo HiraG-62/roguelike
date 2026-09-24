@@ -11,7 +11,10 @@ import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } fro
 import type { StatusKind } from "../core/status";
 import type { JobKey } from "../data/jobs";
 import { BOON, STATUS } from "../data/tuning";
-import type { MovesetKey, ShotKey } from "../data/weapons";
+import { GUN_MOVESETS, type MovesetKey, type ShotKey } from "../data/weapons";
+
+/** 銃の家系だけに出す祝福の loadout（射撃前提の祝福が近接ビルドの 3 択に出ないようにする） */
+const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
 import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
 
 export const BOON_KEYS = [
@@ -331,6 +334,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged", "dash"],
     keywords: kw(["ranged"], ["dash"]),
     cursed: false,
+    loadout: GUN_LOADOUT,
   },
   reflect: {
     key: "reflect",
@@ -519,6 +523,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged"],
     keywords: kw([], ["still", "ranged"], ["bullet"]),
     cursed: false,
+    loadout: GUN_LOADOUT,
   },
   triggerHappy: {
     key: "triggerHappy",
@@ -529,6 +534,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged"],
     keywords: kw([], [], ["ranged"]),
     cursed: true,
+    loadout: GUN_LOADOUT,
   },
   dashGuard: {
     key: "dashGuard",
@@ -1133,6 +1139,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged", "just"],
     keywords: kw(["bullet"], ["just", "bullet"]),
     cursed: false,
+    loadout: GUN_LOADOUT,
   },
   silenceShot: {
     key: "silenceShot",
@@ -1144,6 +1151,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["silence", "counter"], ["ranged"]),
     gives: ["silence"],
     cursed: false,
+    loadout: GUN_LOADOUT,
   },
   glare: {
     key: "glare",

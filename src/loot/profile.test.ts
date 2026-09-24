@@ -51,7 +51,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "item-1",
     seed: 1,
     baseKey: "shortsword",
-    slot: "weapon",
+    slot: "mainHand",
     rarity: "normal",
     itemLevel: 1,
     name: "Shortsword",
@@ -118,7 +118,7 @@ describe("loadProfile / saveProfile", () => {
     };
     storage.setItem(PROFILE_KEY, JSON.stringify(raw));
     const loaded = loadProfile(storage);
-    expect(loaded.equipment.weapon).toBeNull();
+    expect(loaded.equipment.mainHand).toBeNull();
     expect(loaded.stash).toEqual([migrateItem(makeItem({ id: "good" }))]);
     expect(loaded.meta).toEqual({ runs: 1, bestDepth: 2, totalKills: 3, bestScore: 4, history: [] });
   });
@@ -141,14 +141,14 @@ describe("equipItem / unequipItem", () => {
   it("stash から装備し、同スロットの既存装備は stash に戻る（入れ替え）", () => {
     const profile = createEmptyProfile();
     const oldWeapon = makeItem({ id: "old", name: "Old Sword" });
-    profile.equipment.weapon = oldWeapon;
+    profile.equipment.mainHand = oldWeapon;
     const newWeapon = makeItem({ id: "new", name: "New Sword" });
     addToStash(profile, newWeapon);
 
     const removed = equipItem(profile, "new");
 
     expect(removed).toEqual(oldWeapon);
-    expect(profile.equipment.weapon).toEqual(newWeapon);
+    expect(profile.equipment.mainHand).toEqual(newWeapon);
     expect(profile.stash).toEqual([oldWeapon]);
   });
 
@@ -160,7 +160,7 @@ describe("equipItem / unequipItem", () => {
     const removed = equipItem(profile, "new");
 
     expect(removed).toBeNull();
-    expect(profile.equipment.weapon).toEqual(weapon);
+    expect(profile.equipment.mainHand).toEqual(weapon);
     expect(profile.stash).toEqual([]);
   });
 
@@ -172,11 +172,11 @@ describe("equipItem / unequipItem", () => {
   it("unequipItem は装備を外して stash に戻す", () => {
     const profile = createEmptyProfile();
     const weapon = makeItem({ id: "w" });
-    profile.equipment.weapon = weapon;
+    profile.equipment.mainHand = weapon;
 
-    unequipItem(profile, "weapon");
+    unequipItem(profile, "mainHand");
 
-    expect(profile.equipment.weapon).toBeNull();
+    expect(profile.equipment.mainHand).toBeNull();
     expect(profile.stash).toEqual([weapon]);
   });
 });
@@ -301,30 +301,76 @@ describe("localStorage getter が例外を投げる環境", () => {
   });
 });
 
+describe("旧セーブの weapon / gun スロット（docs/ideas/weapon-redesign.md 5.3）", () => {
+  it("旧 weapon スロットの遺物は右手へ、旧 gun スロットの遺物は倉庫へ移る", () => {
+    const storage = new MemoryStorage();
+    const raw = {
+      version: 1,
+      equipment: {
+        weapon: { ...makeItem({ id: "old-weapon", baseKey: "shortsword" }), slot: "weapon" },
+        gun: { ...makeItem({ id: "old-gun", baseKey: "pistol" }), slot: "gun" },
+        armor: null,
+        boots: null,
+        ring: null,
+        amulet: null,
+      },
+      stash: [],
+      meta: { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0 },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(raw));
+    const loaded = loadProfile(storage);
+    expect(loaded.equipment.mainHand?.id, "weapon が右手を取る").toBe("old-weapon");
+    expect(loaded.stash.map((it) => it.id), "gun は倉庫へ落ちる").toEqual(["old-gun"]);
+  });
+
+  it("gun スロットの文字列を持つアイテムは mainHand として読める（冪等）", () => {
+    const storage = new MemoryStorage();
+    const raw = {
+      version: 1,
+      equipment: {
+        weapon: null,
+        gun: { ...makeItem({ id: "g", baseKey: "pistol" }), slot: "gun" },
+        armor: null,
+        boots: null,
+        ring: null,
+        amulet: null,
+      },
+      stash: [],
+      meta: { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0 },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(raw));
+    const once = loadProfile(storage);
+    expect(once.stash[0]?.slot, "倉庫でも mainHand として読める").toBe("mainHand");
+    saveProfile(once, storage);
+    const twice = loadProfile(storage);
+    expect(twice, "書き戻すと新形式のまま冪等").toEqual(once);
+  });
+});
+
 describe("借り物（武器掛け）", () => {
   function loanedItem(id: string): Item {
-    return { ...migrateItem(makeItem({ id, slot: "weapon", baseKey: "whip" })), loaned: true };
+    return { ...migrateItem(makeItem({ id, slot: "mainHand", baseKey: "whip" })), loaned: true };
   }
 
   it("loaned の品は saveProfile で書かれない（装備からも倉庫からも除く）", () => {
     const storage = new MemoryStorage();
     const profile = createEmptyProfile();
-    profile.equipment.weapon = loanedItem("loan-a");
+    profile.equipment.mainHand = loanedItem("loan-a");
     addToStash(profile, loanedItem("loan-b"));
     addToStash(profile, migrateItem(makeItem({ id: "own" })));
     saveProfile(profile, storage);
     const loaded = loadProfile(storage);
-    expect(loaded.equipment.weapon, "装備の借り物は書かない").toBeNull();
+    expect(loaded.equipment.mainHand, "装備の借り物は書かない").toBeNull();
     expect(loaded.stash.map((it) => it.id), "倉庫の借り物も書かない").toEqual(["own"]);
-    expect(profile.equipment.weapon?.id, "手元の profile は書き換えない").toBe("loan-a");
+    expect(profile.equipment.mainHand?.id, "手元の profile は書き換えない").toBe("loan-a");
   });
 
   it("returnLoaned は借り物を外し、借り物が無ければ何もしない", () => {
     const profile = createEmptyProfile();
-    profile.equipment.weapon = loanedItem("loan");
+    profile.equipment.mainHand = loanedItem("loan");
     addToStash(profile, migrateItem(makeItem({ id: "own" })));
     expect(returnLoaned(profile), "外した").toBe(true);
-    expect(profile.equipment.weapon, "装備から消える").toBeNull();
+    expect(profile.equipment.mainHand, "装備から消える").toBeNull();
     expect(profile.stash.map((it) => it.id), "自分の品は残る").toEqual(["own"]);
     expect(returnLoaned(profile), "2 回目は何もしない").toBe(false);
   });

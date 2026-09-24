@@ -1,3 +1,4 @@
+import type { AttackProfile } from "./element";
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
@@ -115,7 +116,7 @@ export interface Player {
   /** チャージ射撃（射撃の型 charge）: 射撃キーを押して溜めている最中か、その秒数 */
   shotCharging: boolean;
   shotChargeTime: number;
-  /** 前フレームに射撃キー（右）を押していたか。右の押した瞬間を取るため */
+  /** 前フレームに右クリック（固有技のキー）を押していたか。右の押した瞬間を取るため */
   secondaryWasHeld: boolean;
   /**
    * 三点（射撃の型 burst）の残り弾数と次の弾までの秒、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
@@ -124,6 +125,11 @@ export interface Player {
   shotBurst: { left: number; timer: number; side: number };
   /** 近接命中の直後、攻撃方向へ一瞬伸びる残り秒（FEEL.swingImpact。docs/ideas/combat-feel-design.md D-5） */
   swingImpact: number;
+  /**
+   * 右クリックの固有技（docs/ideas/weapon-redesign.md 3 章。src/system/weaponArts.ts）。
+   * cooldown = 再使用の残り秒、holding / holdTime = 構え・受け流し・狙い撃ちを押している最中とその秒、recover = 受け流しを外した硬直の残り秒
+   */
+  art: { cooldown: number; holding: boolean; holdTime: number; recover: number };
 }
 
 export interface TimedMul {
@@ -385,6 +391,8 @@ export interface Projectile {
   volley?: { manaHits: number };
   /** 射撃の型の作業領域（跳弾の残り・設置弾。src/data/weapons.ts）。無ければ単発と同じ */
   shot?: ShotRuntime;
+  /** この弾自身の攻撃素性（投擲の技など）。未指定なら従来通り stats.shot の SHOT_TYPES から引く */
+  attack?: AttackProfile;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

@@ -83,6 +83,22 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "bandpass", from: 3000, to: 1200, dur: 0.05, q: 1.5, peak: 0.2 },
     { k: "tone", type: "square", freq: 620, dur: 0.03, peak: 0.1 },
   ],
+  // 銃の家系: 軽い銃ほど高く短く、砲は低く重く
+  swingSidearm: [
+    { k: "noise", filter: "bandpass", from: 3400, to: 1400, dur: 0.04, q: 1.5, peak: 0.18 },
+    { k: "tone", type: "square", freq: 720, dur: 0.025, peak: 0.08 },
+  ],
+  swingLongarm: [
+    { k: "noise", filter: "bandpass", from: 2200, to: 700, dur: 0.08, q: 1.2, peak: 0.22 },
+    { k: "tone", type: "triangle", freq: 330, dur: 0.05, peak: 0.1 },
+  ],
+  swingCannon: [
+    { k: "noise", filter: "lowpass", from: 1400, to: 200, dur: 0.12, peak: 0.3 },
+    { k: "tone", type: "sine", freq: 110, dur: 0.08, peak: 0.2 },
+  ],
+  swingThrown: [
+    { k: "noise", filter: "bandpass", from: 4200, to: 1800, dur: 0.06, q: 2, peak: 0.16 },
+  ],
 
   // ---- 射撃の型の発射音（8-2）----
   shotRapid: [{ k: "sweep", type: "square", from: 1400, to: 500, dur: 0.04, peak: 0.25 }],
