@@ -809,7 +809,7 @@ export const LOOT_DROP = {
    * エリート・ボス・巣窟の主（dropChance 1）には掛けない（memo 2026-09-24: 「たくさん倒しても出ない、強敵を倒すと出る」）
    */
   /** [0.1..0.2] → [0.18..0.35]（QA 0.0.8α: 拾得数が 0.0.7α 比 31〜46% と目標 60〜70% より絞りすぎ） */
-  mobDropMulByDepth: [0.18, 0.22, 0.27, 0.35],
+  mobDropMulByDepth: [0.25, 0.3, 0.35, 0.45],
   /**
    * 徘徊・増援（roomIndex = ROAMING_ROOM。開放型フロアの時間湧き）の通常敵に、さらに掛ける倍率。
    * 増援は時間とともに湧き続けるので、倒した数でドロップの母数が膨らまないよう絞る（エリートは掛けない）
@@ -825,9 +825,9 @@ export const LOOT_DROP = {
    * 部屋制圧の報酬が出る確率（添字 0 = 深度 1、表より深ければ最後の値。旧: 常に 1 個）。
    * 開放型フロアは塊が多く制圧の回数が増えたので [0.35, 0.45, 0.55, 0.7] から下げた（QA 0.0.7α: 拾得数が前回比 1.5〜2.6 倍）
    */
-  roomClearChanceByDepth: [0.2, 0.25, 0.3, 0.4],
+  roomClearChanceByDepth: [0.3, 0.35, 0.4, 0.5],
   /** 階層到達の報酬が出る確率（旧: 常に 1 個。同上の理由で絞る） */
-  depthArrivalChance: 0.6,
+  depthArrivalChance: 0.8,
   /** itemLevel = depth + rng(0..spread) */
   itemLevelSpread: 2,
   rarityBoostPerDepth: 0.02,
@@ -1983,6 +1983,8 @@ export const CONTRACT = {
   ferryShardCost: 3,
   ferryTime: 30,
   ferryMaxUses: 3,
+  /** 生命で払う取引（賭場・渡し守）の後に必ず残る生命。これを割るなら払えない */
+  lifeFloor: 1,
 } as const;
 
 export const RUN_MOD = {
