@@ -25,10 +25,11 @@ description: スキル石または刻印符を追加する。相性表の更新�
 - src/render/skillHud.ts / src/render/renderer.ts: 表示の追加分のみ
 - src/audio/sfxNames.ts / src/audio/sfx.ts: 新しい効果音が要る場合のみ
 ## 先に読む
-- CLAUDE.md（レシピ「スキル / 刻印符」）、docs/ideas/skills.md（6 章・7 章）、近い既存スキル <例>
+- CLAUDE.md（レシピ「スキル / 刻印符」）、docs/STATS_AND_SCALING.md、docs/ideas/skills.md（6 章・7 章）、近い既存スキル <例>
 ## 仕様
 - 挙動: <…>（手動で撃つ。オートにしない）
 - 数値: SKILL 定数に <…>
+- 係数: 威力の Scaling・怯み値の poiseRatio・状態異常の ratio は docs/STATS_AND_SCALING.md に従う（参照ステータス = <…>、理由 = <…>）
 - 相性: 付かない刻印符 / スキル = <…>
 ## 完了条件
 - src/skills/skills.test.ts の FORBIDDEN（相性表）を更新し、全組み合わせのテストが通る
