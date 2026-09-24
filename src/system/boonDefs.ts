@@ -15,6 +15,12 @@ import { GUN_MOVESETS, type MovesetKey, type ShotKey } from "../data/weapons";
 
 /** 銃の家系だけに出す祝福の loadout（射撃前提の祝福が近接ビルドの 3 択に出ないようにする） */
 const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
+/**
+ * 弾を出す武器種だけに出す祝福の loadout。銃の家系に加え、投げる/撃つ固有技で
+ * state.projectiles へ弾を積む近接武器（斧の投擲・杖の魔弾）も含める
+ * （src/system/player.ts の emitVolley、usesProjectiles 相当）
+ */
+const PROJECTILE_LOADOUT: BoonLoadout = { movesets: [...GUN_MOVESETS, "wand", "axe"] };
 import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
 
 export const BOON_KEYS = [
@@ -513,6 +519,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged"],
     keywords: kw(["bullet"], ["ranged"]),
     cursed: false,
+    loadout: PROJECTILE_LOADOUT,
   },
   standingSniper: {
     key: "standingSniper",
@@ -951,6 +958,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     gives: ["chill"],
     cursed: false,
     lineage: "frost",
+    loadout: PROJECTILE_LOADOUT,
   },
   frostFeet: {
     key: "frostFeet",
@@ -1232,6 +1240,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged"],
     keywords: kw(["bullet"], ["ranged"]),
     cursed: false,
+    loadout: GUN_LOADOUT,
   },
   huntBleed: {
     key: "huntBleed",
@@ -1256,6 +1265,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["chill", "counter", "ranged"],
     keywords: kw(["counter"], ["chill", "ranged"]),
     cursed: false,
+    loadout: PROJECTILE_LOADOUT,
   },
   venomBreak: {
     key: "venomBreak",
@@ -1354,6 +1364,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["ranged"],
     keywords: kw([], ["wall"], ["bullet"]),
     cursed: false,
+    loadout: PROJECTILE_LOADOUT,
   },
   warhead: {
     key: "warhead",
@@ -1365,6 +1376,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["explode"], ["bullet", "wall"]),
     gives: ["explode"],
     cursed: false,
+    loadout: PROJECTILE_LOADOUT,
   },
   weakSpot: {
     key: "weakSpot",
@@ -1375,6 +1387,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["vulnerable", "ranged"],
     keywords: kw([], ["vulnerable"], ["bullet"]),
     cursed: false,
+    loadout: PROJECTILE_LOADOUT,
   },
   embers: {
     key: "embers",
@@ -1722,6 +1735,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["burn"], ["burn", "bullet"]),
     gives: ["burn"],
     cursed: false,
+    loadout: PROJECTILE_LOADOUT,
   },
   // ---------------------------------------------------------------------------
   // 結び（duo の 2 つを両方持っていると抽選に出る）
@@ -1879,6 +1893,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw([], ["dash", "still"]),
     cursed: false,
     duo: ["standingSniper", "dashGun"],
+    loadout: GUN_LOADOUT,
   },
   waveReturn: {
     key: "waveReturn",

@@ -1048,7 +1048,7 @@ function bounceProjectile(state: GameState, pr: Projectile, dt: number): void {
   spawnBurst(state, pr.pos, pr.color, 3, 50, 0.15, 1.5);
 }
 
-/** player.ts: 射撃ボタンの押しっぱなし。離した瞬間に呼び戻す */
+/** player.ts: 銃の左押し（射撃）の押しっぱなし。離した瞬間に呼び戻す */
 export function onBoonShootInput(state: GameState, held: boolean): void {
   const r = rules(state);
   const released = r.shootHeldPrev && !held;

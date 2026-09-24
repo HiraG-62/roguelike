@@ -190,9 +190,10 @@ export function buildTags(state: GameState): BuildTags {
   // 祝福を畳み込む前の装備 stats で判定する（triggerHappy の射撃速度 x2 などを「装備のタグ」と誤認しない）
   const base = state.boonRun.baseStats ?? state.stats;
   const owned = equipmentTags(base);
-  for (const t of skillStoneTags(state)) owned.add(t);
-  // 指輪・首飾りの射撃性質だけでは撃てない（弾を出せない武器種なら ranged タグを外す）
+  // 指輪・首飾りの射撃性質だけでは撃てない（弾を出せない武器種なら装備由来の ranged タグを外す）。
+  // スキル石由来の ranged（遠距離スキル石）は後で足すので、ここで消しても残らないようにする
   if (!usesProjectiles(MOVESETS[base.moveset])) owned.delete("ranged");
+  for (const t of skillStoneTags(state)) owned.add(t);
   return { owned, gives: boonGivenTags(state.boons), loadout: { moveset: base.moveset, shot: base.shot, job: state.job } };
 }
 
