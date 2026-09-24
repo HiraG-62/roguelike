@@ -14,6 +14,7 @@
 - 拠点の武器掛けで銃の武器種を「試す」と、装備中の武器の弾（剣なら単発）のままだったのを直した。試用中は借りるときと同じ器（家系で一番早く出るベース）の弾で撃つ（擲弾 = 曲射、仕掛け = 設置弾、戦輪 = 回転刃 など）
 
 ### 整備
+- **オブジェクト指向化の第 1 段**（`docs/ideas/oop-migration.md`）: 敵の振る舞いを親クラス `EnemyBehaviorBase` → 家族（突っ込む / 突進 / 距離を保つ / 飛ぶ / 動かない / ボス）→ 個別クラスの継承にし、登録表 `BEHAVIORS` から引く形に（`src/system/behaviors/`）。基本パラメータ・攻撃開始の条件・狙いの固定を移した。挙動は変えていない（全 104 体の黄金テストで固定）
 - エージェント資料（CLAUDE.md・`.claude/agents`・`.claude/skills`・`docs/AI_WORKFLOW.md`）を現状に揃え、コードとのずれを機械で検査する `npm run audit:docs`（`scripts/audit-agent-docs.mjs`。`npm run check` の最初の段）と、判断の要る追随を行う skill `/agent-docs` を追加
 - CLAUDE.md を入口の索引（150 行以内。検査で上限を守る）に絞り、層ごとのファイル一覧を `docs/CODE_MAP.md`、要素の足し方を `docs/recipes/*.md` に分けて参照させる形にした
 

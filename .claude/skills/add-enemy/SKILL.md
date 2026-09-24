@@ -19,7 +19,7 @@ description: 新しい敵を docs/recipes/enemy.md のレシピに沿って追�
 ## 所有ファイル
 - src/data/enemies.ts（ENEMIES への追加、必要なら EnemyBehavior。色替え + 挙動 1 つなら EnemyDef.recolor）
 - src/data/enemyCombat.ts（怯み耐性・付与する状態異常 inflicts）、src/data/enemyDefense.ts（防御・魔防・耐性）
-- src/system/enemies.ts（behavior の分岐、STRIKE_SPEED_MUL / WINDUP_MOVE_MUL）、src/system/enemyBehaviors.ts（behavior の実装。1 behavior 1 関数）
+- src/system/behaviors/families.ts（家族を継いだクラス）・src/system/behaviors/registry.ts（BEHAVIORS に登録。漏れは型エラー）、src/system/enemies.ts（段の中身の behavior の分岐）、src/system/enemyBehaviors.ts（behavior の実装。1 behavior 1 関数）
 - src/system/enemies.test.ts
 ## 最小 Edit のみ許可
 - src/data/balance/enemies.json: stats / combat / defense.enemies に <key> を追加（無いと tsc が落ちる）。AI の数値は ENEMY_AI

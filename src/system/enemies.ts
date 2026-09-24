@@ -1,7 +1,7 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
 import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
@@ -14,6 +14,8 @@ import { applyStagger, initEnemyPoise } from "./poise";
 import { boonWindupMul } from "./boonRules";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
+import type { EnemyTelegraph } from "./behaviors/base";
+import { behaviorOf } from "./behaviors/registry";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
@@ -26,8 +28,6 @@ import {
   SCRIBE_BLASTS,
   SCRIBE_DASH,
   SCRIBE_RING,
-  absorberReady,
-  bannerAlive,
   beforeActWave3,
   blowWind,
   forgeEnraged,
@@ -85,7 +85,6 @@ import {
   contactDamageOf,
   detonate,
   finishEating,
-  frostCrusherReady,
   isMimicTongue,
   nextMimicMove,
   planDoubleCharge,
@@ -106,163 +105,12 @@ import {
 
 /** 通路からでも気付く距離 */
 const NOTICE_RANGE = 110;
-/** strike 中の移動速度倍率（def.speed に掛ける）。0 はその場で攻撃 */
-const STRIKE_SPEED_MUL: Record<EnemyBehavior, number> = {
-  chaser: 4.6,
-  shooter: 0,
-  charger: 7.5,
-  knight: ENEMY_AI.knight.lungeSpeedMul,
-  bomber: 0,
-  laser: 0,
-  golem: 0,
-  bat: 3.2,
-  wisp: 3,
-  kingSlime: 0,
-  boneLord: 0,
-  kamikaze: 0,
-  echoStriker: 0,
-  packLeader: 4.6,
-  conductor: 0,
-  manaLeech: 4.6,
-  scavenger: 4.6,
-  graveBell: 0,
-  silencer: 0,
-  frostCrusher: 0,
-  twinShade: 4.6,
-  mimic: ENEMY_AI.mimic.biteSpeedMul,
-  hollowArmor: 0,
-  inert: 0,
-  twinBlade: 0,
-  twinBow: 0,
-  frostGiant: 0,
-  lobber: 0,
-  oiler: 4.6,
-  bellImp: 0,
-  bannerBearer: 4.6,
-  burrower: 0,
-  dropper: 4.6,
-  absorber: 0,
-  homunculus: 0,
-  scribeImp: 0,
-  crossGolem: 0,
-  windSprite: 0,
-  mineLayer: 0,
-  mine: 0,
-  chainWarden: 0,
-  hollow: 5,
-  flameEater: 4.6,
-  egg: 0,
-  turret: 0,
-  giantToad: 0,
-  forgeMaster: 0,
-  turretMaster: 0,
-  basilisk: 0,
-  shadowStalker: 0,
-  oilKing: 0,
-  broodMother: 0,
-  librarian: 0,
-  mirrorKnight: 0,
-  thiefKing: 0,
-};
-/** 予備動作中も動けるか（laser はチャージ中に止まる） */
-const WINDUP_MOVE_MUL: Record<EnemyBehavior, number> = {
-  chaser: 0,
-  shooter: 0,
-  charger: 0,
-  knight: 0,
-  bomber: 0,
-  laser: 0,
-  golem: 0,
-  bat: 0.3,
-  wisp: 0.3,
-  kingSlime: 0,
-  boneLord: 0,
-  kamikaze: 0,
-  echoStriker: 0,
-  packLeader: 0,
-  conductor: 0,
-  manaLeech: 0,
-  scavenger: 0,
-  graveBell: 0,
-  silencer: 0,
-  frostCrusher: 0,
-  twinShade: 0,
-  mimic: 0,
-  hollowArmor: 0,
-  inert: 0,
-  twinBlade: 0,
-  twinBow: 0,
-  frostGiant: 0,
-  lobber: 0,
-  oiler: 0,
-  bellImp: 0,
-  bannerBearer: 0,
-  burrower: 0,
-  dropper: 0,
-  absorber: 0,
-  homunculus: 0,
-  scribeImp: 0,
-  crossGolem: 0,
-  windSprite: 0,
-  mineLayer: 0,
-  mine: 0,
-  chainWarden: 0,
-  hollow: 0,
-  flameEater: 0,
-  egg: 0,
-  turret: 0,
-  giantToad: 0,
-  forgeMaster: 0,
-  turretMaster: 0,
-  basilisk: 0,
-  shadowStalker: 0,
-  oilKing: 0,
-  broodMother: 0,
-  librarian: 0,
-  mirrorKnight: 0,
-  thiefKing: 0,
-};
-/** 距離を保って動く（射撃・詠唱する）behavior と、その保つ距離 */
-const KEEP_AWAY: Partial<Record<EnemyBehavior, number>> = {
-  echoStriker: ENEMY_AI.echoStriker.keepAway,
-  silencer: ENEMY_AI.silencer.keepAway,
-  conductor: ENEMY_AI.conductor.keepAway,
-  lobber: ENEMY_AI.lobber.keepAway,
-  bellImp: ENEMY_AI.bellImp.keepAway,
-  homunculus: ENEMY_AI.homunculus.keepAway,
-  scribeImp: ENEMY_AI.scribeImp.keepAway,
-  windSprite: ENEMY_AI.windSprite.keepAway,
-  mineLayer: ENEMY_AI.mineLayer.keepAway,
-  forgeMaster: ENEMY_AI.forgeMaster.keepAway,
-};
-/** その場から動かない behavior */
-const STATIONARY: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["graveBell", "inert", "absorber", "mine", "egg", "turret"]);
-/** 旗持ちが旗を立てた後に殴りに来る距離 */
-const BANNER_MELEE_RANGE = 44;
 const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
 const ENEMY_BULLET_COLOR = "#e070ff";
 const SPAWN_TIME = 0.7;
 const DEG_TO_RAD = Math.PI / 180;
-/** 沈黙中は予備動作に入れない（射撃・レーザー・爆弾・詠唱・鐘・指揮） */
-const SILENCED_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>([
-  "shooter",
-  "laser",
-  "bomber",
-  "echoStriker",
-  "silencer",
-  "graveBell",
-  "conductor",
-  "lobber",
-  "bellImp",
-  "homunculus",
-  "scribeImp",
-  "windSprite",
-  "turret",
-  "turretMaster",
-  "basilisk",
-]);
 
 /** 連続攻撃の定義（ENEMY_TEMPO.followUps の 1 行） */
 export interface FollowUpDef {
@@ -426,7 +274,7 @@ function handleDeaths(state: GameState): void {
 }
 
 function applyKnock(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
-  if (isBossDriven(def) || eliteKnockImmune(e) || STATIONARY.has(def.behavior) || length(e.knock) < 2) {
+  if (isBossDriven(def) || eliteKnockImmune(e) || behaviorOf(def).stationary || length(e.knock) < 2) {
     e.knock = { x: 0, y: 0 };
     e.wallSplat = false;
     return;
@@ -441,7 +289,7 @@ function applyKnock(state: GameState, e: Enemy, def: EnemyDef, dt: number): void
 
 /** 恐怖: プレイヤーから逃げ、攻撃しない（予備動作は付与時に取り消し済み） */
 function flee(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
-  if (STATIONARY.has(def.behavior)) return;
+  if (behaviorOf(def).stationary) return;
   const away = normalize(sub(e.body.pos, state.player.body.pos));
   if (away.x !== 0) e.facing = scale(away, -1);
   const speed = enemySpeed(state, e, def);
@@ -528,30 +376,15 @@ function wantsEngage(state: GameState, e: Enemy, def: EnemyDef, d: number): bool
 
 /** behavior ごとの攻撃開始の条件（沈黙・霜砕きの冷え待ち・骨拾いの食事優先・Wave 3 の条件） */
 function canBeginAttack(state: GameState, e: Enemy, def: EnemyDef, d: number): boolean {
-  if (isSilenced(e) && SILENCED_BEHAVIORS.has(def.behavior)) return false;
-  switch (def.behavior) {
-    case "frostCrusher":
-      return frostCrusherReady(state);
-    case "scavenger":
-      return scavengerHeading(state, e) === undefined;
-    case "absorber":
-      return absorberReady(e);
-    case "mineLayer":
-      return false;
-    case "hollow":
-      return !hollowFrozen(state, e);
-    case "bannerBearer":
-      return !bannerAlive(state, e) || d < BANNER_MELEE_RANGE;
-    default:
-      return true;
-  }
+  if (isSilenced(e) && behaviorOf(def).silenceable) return false;
+  return behaviorOf(def).canBeginAttack(state, e, def, d);
 }
 
 function chaseMove(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: number): Vec {
   const side = e.id % 2 === 0 ? 1 : -1;
   const perp = { x: -dir.y, y: dir.x };
-  if (STATIONARY.has(def.behavior)) return { x: 0, y: 0 };
-  const keep = KEEP_AWAY[def.behavior];
+  if (behaviorOf(def).stationary) return { x: 0, y: 0 };
+  const keep = behaviorOf(def).keepAway;
   if (keep !== undefined) return keepAwayMove(dir, perp, side, d, keep, e.animTime);
   switch (def.behavior) {
     case "shooter":
@@ -729,12 +562,12 @@ function telegraphWave3(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): vo
 
 function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
   // 予備動作の途中で沈黙したら詠唱・チャージを取り消す（docs/ideas/enemies.md H4。付与の瞬間の取り消しは statusEffects.ts）
-  if (isSilenced(e) && SILENCED_BEHAVIORS.has(def.behavior)) {
+  if (isSilenced(e) && behaviorOf(def).silenceable) {
     toChase(e, def);
     return;
   }
   e.phaseTimer -= dt;
-  const mul = WINDUP_MOVE_MUL[def.behavior];
+  const mul = behaviorOf(def).windupMoveMul;
   if (mul > 0) {
     const dir = normalize(toPlayer);
     const speed = enemySpeed(state, e, def) * mul;
@@ -764,21 +597,7 @@ function strikeSlotsFull(state: GameState, e: Enemy): boolean {
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */
 function aimFixedAtWindup(e: Enemy, def: EnemyDef): boolean {
-  switch (def.behavior) {
-    case "laser":
-    case "chainWarden":
-    case "giantToad":
-    case "windSprite":
-    case "basilisk":
-      return true;
-    case "mimic":
-      return isMimicTongue(e);
-    case "charger":
-      // 二度突きの猪は予告した折れ線をそのまま走る
-      return def.doubleCharge === true;
-    default:
-      return false;
-  }
+  return behaviorOf(def).aimFixedAtWindup(e, def);
 }
 
 function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): void {
@@ -1021,7 +840,7 @@ function strikeSpeedMul(e: Enemy, def: EnemyDef): number {
   if (def.behavior === "mimic" && isMimicTongue(e)) return 0;
   if (def.behavior === "scribeImp" && e.ai?.move === SCRIBE_DASH) return ENEMY_AI.mimic.biteSpeedMul;
   if (def.behavior === "basilisk" && e.ai?.move === BASILISK_BITE) return ENEMY_AI.mimic.biteSpeedMul;
-  return STRIKE_SPEED_MUL[def.behavior];
+  return behaviorOf(def).strikeSpeedMul;
 }
 
 /** 接触していればダメージ（当たれば ENEMY_COMBAT の接触の状態異常も付く）。接触していなければ null */
@@ -1172,7 +991,7 @@ function separate(state: GameState, dt: number): void {
 /** 動かない敵（鐘・氷柱）は押されない */
 function pushApart(state: GameState, e: Enemy, push: Vec): void {
   const def = enemyDef(e.defKey);
-  if (STATIONARY.has(def.behavior)) return;
+  if (behaviorOf(def).stationary) return;
   moveEnemy(state, e, def, push.x, push.y);
 }
 
@@ -1180,16 +999,8 @@ function pushApart(state: GameState, e: Enemy, push: Vec): void {
 // 描画向けの読み出し（render は state を読むだけ）
 // -----------------------------------------------------------------------------
 
-/** 予備動作中に描く予告の種類 */
-export type EnemyTelegraph =
-  | { kind: "line" }
-  | { kind: "laser" }
-  | { kind: "ring"; radius: number }
-  /** 十字の線（ai.points の各点へ。十字ゴーレム） */
-  | { kind: "cross" }
-  /** 扇（strikeDir を中心に range・半角 halfDeg。風吹き・石化の蜥蜴） */
-  | { kind: "cone"; range: number; halfDeg: number }
-  | null;
+/** 予備動作中に描く予告の種類（定義は behaviors/base.ts。render と boss*.ts の import 先を変えないため再 export） */
+export type { EnemyTelegraph };
 
 /** その敵の予備動作の予告。影（landing）で見せるものは hazards 側が描くので null */
 export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
