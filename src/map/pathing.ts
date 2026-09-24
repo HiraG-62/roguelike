@@ -1,4 +1,5 @@
 import { type GameMap, type Point, TILE_SIZE, Tile, inBounds, toIndex } from "./grid";
+import { sightBlockedAt } from "./sightBlock";
 
 /**
  * タイル上の視線と経路（純関数 + マップから作る派生データのキャッシュ）。
@@ -19,6 +20,8 @@ export function lineOfSight(map: GameMap, a: Point, b: Point): boolean {
     const tx = Math.floor((a.x + dx * t) / TILE_SIZE);
     const ty = Math.floor((a.y + dy * t) / TILE_SIZE);
     if (!inBounds(map, tx, ty) || map.tiles[toIndex(map, tx, ty)] === Tile.Wall) return false;
+    // 煙（system/terrain.ts）も視線を遮る
+    if (sightBlockedAt(map, toIndex(map, tx, ty))) return false;
   }
   return true;
 }

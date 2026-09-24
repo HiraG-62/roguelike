@@ -5,8 +5,11 @@ import type { GameMap } from "../map/grid";
  * 型と一覧だけを置く。ロジックは src/system/terrain.ts、配置は src/map/generator.ts の planTerrain
  */
 
-/** 並びが Uint8Array に入れる番号になる。0 は地形なし */
-export const TERRAIN_KINDS = ["none", "water", "oil", "lava", "bog", "ice", "grass", "fire"] as const;
+/**
+ * 並びが Uint8Array に入れる番号になる。0 は地形なし。既存の番号を変えないよう新しい種類は末尾に足す。
+ * smoke（煙）は床ではなく空気に漂う層なので kinds には入らず、TerrainLayer.smoke に別に持つ（下の床の地形を消さない）
+ */
+export const TERRAIN_KINDS = ["none", "water", "oil", "lava", "bog", "ice", "grass", "fire", "mud", "smoke"] as const;
 export type TerrainKind = (typeof TERRAIN_KINDS)[number];
 
 export const TERRAIN_LABEL: Readonly<Record<TerrainKind, string>> = {
@@ -18,6 +21,8 @@ export const TERRAIN_LABEL: Readonly<Record<TerrainKind, string>> = {
   ice: "氷床",
   grass: "草むら",
   fire: "炎",
+  mud: "泥",
+  smoke: "煙",
 };
 
 export function terrainCode(kind: TerrainKind): number {
@@ -46,6 +51,10 @@ export interface TerrainLayer {
   tickCount: number;
   /** 変化の通し番号（描画側のキャッシュ判定用） */
   version: number;
+  /** タイル index → 煙の残り秒（0 は煙なし）。床の地形とは重ねて持つ（煙が晴れても下の油・水は残る） */
+  smoke: Float64Array;
+  /** 煙のあるセル。毎ステップ全セルを走査しないための索引 */
+  smokeCells: Set<number>;
 }
 
 export function createTerrainLayer(): TerrainLayer {
@@ -59,5 +68,7 @@ export function createTerrainLayer(): TerrainLayer {
     tickTimer: 0,
     tickCount: 0,
     version: 0,
+    smoke: new Float64Array(0),
+    smokeCells: new Set(),
   };
 }

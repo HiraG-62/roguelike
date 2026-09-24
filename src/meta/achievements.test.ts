@@ -15,6 +15,8 @@ import {
   saveAchievements,
   selectTitle,
 } from "./achievements";
+import { DISCOVERY } from "../data/tuning";
+import { COMBOS } from "../skills/combos";
 import { createCodexSave } from "./codex";
 import { QUEST_KEYS, createQuestSave } from "./quests";
 import { MemoryStorage } from "./testStorage";
@@ -113,5 +115,23 @@ describe("実績: ジョブ", () => {
     expect(legacy?.jobsPlayed, "旧データは空").toEqual([]);
     const broken = parseAchievementSave({ version: 1, unlocked: {}, title: null, jobsPlayed: ["shadow", "nope", 3, "shadow"] });
     expect(broken?.jobsPlayed, "未知と重複は捨てる").toEqual(["shadow"]);
+  });
+});
+
+describe("実績: 連携の発見", () => {
+  it("発見数の節目で称号の実績が開き、スキルの連携をすべて決めると「型の極み」", () => {
+    const ctx = context();
+    const words = ["melee", "ranged", "dash", "burn", "chill", "shock", "poison", "bleed"];
+    const chains = words.flatMap((a) => words.map((b) => `${a}>${b}`)).slice(0, DISCOVERY.milestoneTitle);
+    for (const key of chains) ctx.codex.chains[key] = 1;
+    const save = createAchievementSave();
+    const unlocked = evaluateAchievements(ctx, save, 1);
+    expect(unlocked, "5 種").toContain("link5");
+    expect(unlocked, "15 種").toContain("link15");
+    expect(unlocked, "30 種はまだ").not.toContain("link30");
+    expect(unlocked, "連携はまだ").not.toContain("comboAll");
+    for (const key of Object.keys(COMBOS)) ctx.codex.combos[key] = 1;
+    expect(evaluateAchievements(ctx, save, 2), "連携をすべて + 30 種を越えた").toEqual(expect.arrayContaining(["comboAll", "link30"]));
+    expect(availableTitles(save, ctx.quests).some((t) => t.label === "網の読み手"), "称号として名乗れる").toBe(true);
   });
 });

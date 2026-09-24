@@ -1,18 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
-import { STATUS_KINDS, type StatusKind } from "../core/status";
+import { REACTION_KEYS, STATUS_KINDS, type StatusKind } from "../core/status";
 import { SFX_NAMES } from "../audio/sfxNames";
-import { EFFECTS } from "../data/tuning";
+import { EFFECTS, FX_WAVE3, REAPER } from "../data/tuning";
 import { MOVESET_KEYS, SHOT_KEYS } from "../data/weapons";
 import { generateItem } from "../loot/generator";
-import { TRAIT_COLORS } from "../loot/types";
+import { DEFAULT_STATS, TRAIT_COLORS } from "../loot/types";
 import { damageEnemy } from "./combat";
+import { reaperAppearAfter, updateReaper } from "./reaper";
 import {
   type DeathCause,
   addFloatingText,
   addMark,
+  budBloomFx,
+  chargeStepSfxName,
+  chargeUpFx,
   comboDamageText,
+  damageTextKind,
+  damageTextLook,
+  dotTextColor,
+  heartbeatInterval,
+  inscribeFx,
+  noteReaperWarning,
+  reactionSfxName,
+  reaperThreat,
   comboTier,
   deathKindOf,
   dropSfxName,
@@ -30,6 +42,8 @@ import {
 } from "./effects";
 import { applyStatus } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
+
+const DEFAULT_INFUSE = DEFAULT_STATS.infuse;
 
 function cause(partial: Partial<DeathCause>): DeathCause {
   return { statuses: new Set<StatusKind>(), element: "none", executed: false, silent: false, kind: "melee", crit: false, ...partial };
@@ -217,5 +231,228 @@ describe("部屋・ドロップの演出", () => {
     state.player.dashTimer = 0.2;
     updateEffects(state, 0.016);
     expect(fxState(state).marks.some((m) => m.kind === "dashGhost")).toBe(true);
+  });
+});
+
+describe("ダメージ文字の種類（7-19）", () => {
+  /** スライムは雷が弱点・毒に耐性（data/enemyDefense.ts の沼の敵） */
+  const LIGHTNING = { ...DEFAULT_INFUSE, lightning: 1 };
+  const POISON = { ...DEFAULT_INFUSE, poison: 1 };
+
+  it("会心 > 弱点 > 耐性 > 通常 の順に種類が決まる", () => {
+    const weak = arena(21, { infuse: LIGHTNING });
+    const e = placeEnemy(weak, "slime", 30);
+    expect(damageTextKind(weak, e, { kind: "melee", crit: true }), "会心が最優先").toBe("crit");
+    expect(damageTextKind(weak, e, { kind: "melee" }), "雷の近接は弱点").toBe("weak");
+    const resist = arena(21, { infuse: POISON });
+    const r = placeEnemy(resist, "slime", 30);
+    expect(damageTextKind(resist, r, { kind: "melee" }), "毒の近接は耐性").toBe("resist");
+    expect(damageTextKind(resist, r, { kind: "proc" }), "素性なしは通常").toBe("normal");
+  });
+
+  it("反応の直後の素性なしの一撃は reaction", () => {
+    const state = arena(22);
+    const e = placeEnemy(state, "slime", 30);
+    e.status.lastReaction = { key: "vaporize", tick: state.tick };
+    expect(damageTextKind(state, e, { kind: "proc" })).toBe("reaction");
+    e.status.lastReaction = { key: "vaporize", tick: state.tick - FX_WAVE3.damageText.reaction.ticks - 1 };
+    expect(damageTextKind(state, e, { kind: "proc" }), "古い反応は数えない").toBe("normal");
+    expect(damageTextKind(state, e, { kind: "melee" }), "近接は反応にしない").toBe("normal");
+  });
+
+  it("弱点は大きく、耐性は小さく、継続は小さい固定の大きさになる", () => {
+    const base = { color: "#ffffff", scale: 1 };
+    expect(damageTextLook("weak", base).scale).toBeGreaterThan(1);
+    expect(damageTextLook("resist", base).scale).toBeLessThan(1);
+    expect(damageTextLook("weak", base).color, "弱点の色").toBe(FX_WAVE3.damageText.weak.color);
+    expect(damageTextLook("dot", base).scale).toBe(FX_WAVE3.damageText.dot.scale);
+    expect(damageTextLook("normal", base), "通常はそのまま").toEqual(base);
+  });
+
+  it("damageEnemy の数字に種類が付く", () => {
+    const state = arena(23, { infuse: LIGHTNING });
+    const e = placeEnemy(state, "slime", 30);
+    e.hp = 999;
+    state.texts = [];
+    damageEnemy(state, e, 3, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(state.texts.find((t) => t.text === "3")?.kind, "弱点の数字").toBe("weak");
+  });
+
+  it("継続ダメージは敵ごとに束ねて、間隔ごとに 1 つの小さな数字にする", () => {
+    const state = arena(24);
+    const e = placeEnemy(state, "slime", 30);
+    e.hp = 999;
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: 1, duration: 5, potency: 1 }, "player");
+    state.texts = [];
+    damageEnemy(state, e, 1, { x: 0, y: 0 }, 0, { silent: true });
+    damageEnemy(state, e, 2, { x: 0, y: 0 }, 0, { silent: true });
+    expect(state.texts.length, "tick ごとには出さない").toBe(0);
+    updateEffects(state, FX_WAVE3.damageText.dot.interval);
+    const dots = state.texts.filter((t) => t.kind === "dot");
+    expect(dots.map((t) => t.text), "合計 1 つ").toEqual(["3"]);
+    expect(dots[0]?.color, "燃焼の色").toBe(FX_WAVE3.damageText.dot.burn);
+    expect(fxState(state).dots.length, "出し終えた束は捨てる").toBe(0);
+  });
+
+  it("継続ダメージの字色は状態異常で変わる", () => {
+    expect(dotTextColor(new Set<StatusKind>(["poison"]))).toBe(FX_WAVE3.damageText.dot.poison);
+    expect(dotTextColor(new Set<StatusKind>(["bleed"]))).toBe(FX_WAVE3.damageText.dot.bleed);
+    expect(dotTextColor(new Set<StatusKind>())).toBe(FX_WAVE3.damageText.dot.other);
+  });
+
+  it("ダメージ以外の浮き文字は種類を持たない", () => {
+    const state = arena(25);
+    state.texts = [];
+    addFloatingText(state, { x: 0, y: 0 }, "見切り！", "#fff");
+    expect(state.texts[0]?.kind).toBeUndefined();
+  });
+});
+
+describe("カウンターの白黒（7-10）", () => {
+  it("カウンターが起きたら短い間だけ白黒になり、同じカウンターでは繰り返さない", () => {
+    const state = arena(26);
+    fxState(state);
+    state.recent.onCounter = { lastTime: state.time, count: 1 };
+    updateEffects(state, 0.001);
+    expect(fxState(state).counterMono, "白黒が始まる").toBeGreaterThan(0);
+    updateEffects(state, FX_WAVE3.counterMono.time);
+    expect(fxState(state).counterMono, "時間で消える").toBe(0);
+    updateEffects(state, 0.001);
+    expect(fxState(state).counterMono, "同じカウンターでは始めない").toBe(0);
+  });
+});
+
+describe("芽吹きと銘（7-15 / 8-9）", () => {
+  it("芽が出た瞬間に光柱の印と音。同じ芽では繰り返さない", () => {
+    const state = arena(27);
+    const item = generateItem(createRng(3), { itemLevel: 5, foundDepth: 5, now: 0 });
+    const roll = item.affixes[0];
+    expect(roll, "性質を持つ遺物").toBeDefined();
+    if (!roll) return;
+    fxState(state);
+    state.sfx = [];
+    state.pendingBud = { itemId: item.id, slot: "weapon", milestone: "kills50", milestoneLabel: "撃破 50", options: [roll, roll] };
+    updateEffects(state, 0.016);
+    expect(fxState(state).marks.some((m) => m.kind === "budBloom"), "芽吹きの印").toBe(true);
+    expect(state.sfx).toContain("budSprout");
+    state.sfx = [];
+    updateEffects(state, 0.016);
+    expect(state.sfx, "同じ芽では鳴らさない").not.toContain("budSprout");
+  });
+
+  it("作る前から出ていた芽では芽吹かない", () => {
+    const state = arena(28);
+    const item = generateItem(createRng(4), { itemLevel: 5, foundDepth: 5, now: 0 });
+    const roll = item.affixes[0];
+    if (!roll) return;
+    state.effects = undefined;
+    state.pendingBud = { itemId: item.id, slot: "weapon", milestone: "kills50", milestoneLabel: "撃破 50", options: [roll, roll] };
+    state.sfx = [];
+    updateEffects(state, 0.016);
+    expect(state.sfx).not.toContain("budSprout");
+  });
+
+  it("芽吹きと銘の演出は印と音を積む", () => {
+    const state = arena(29);
+    state.sfx = [];
+    budBloomFx(state);
+    inscribeFx(state);
+    expect(fxState(state).marks.map((m) => m.kind)).toEqual(expect.arrayContaining(["budBloom", "inscribe"]));
+    expect(state.sfx).toEqual(expect.arrayContaining(["budSprout", "inscribe"]));
+  });
+});
+
+describe("反応と溜めの音（8-4 / 8-7）", () => {
+  const names: ReadonlySet<string> = new Set(SFX_NAMES);
+
+  it("すべての反応に音があり、SFX_NAMES にある", () => {
+    for (const key of REACTION_KEYS) expect(names.has(reactionSfxName(key)), `反応 ${key}`).toBe(true);
+  });
+
+  it("反応が起きると、その系統の音が積まれる", () => {
+    const state = arena(30);
+    const e = placeEnemy(state, "slime", 30);
+    e.hp = 999;
+    state.sfx = [];
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: 1, duration: 5, potency: 1 }, "player");
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "chill", stacks: 1, duration: 5, potency: 0.3 }, "player");
+    const last = e.status.lastReaction;
+    expect(last, "燃焼に冷気で反応が起きる").toBeDefined();
+    if (!last) return;
+    expect(state.sfx).toContain(reactionSfxName(last.key));
+  });
+
+  it("溜めの段が上がるたびに段の音。段が多すぎても最後の音", () => {
+    const state = arena(31);
+    state.sfx = [];
+    chargeUpFx(state, 2, "#fff");
+    expect(state.sfx).toContain("chargeStep2");
+    expect(chargeStepSfxName(1)).toBe("chargeStep1");
+    expect(chargeStepSfxName(9)).toBe("chargeStep3");
+    expect(chargeStepSfxName(0), "0 段は 1 段目の音").toBe("chargeStep1");
+  });
+});
+
+describe("気力満タンの音（8-8）", () => {
+  it("満タンに達した瞬間だけ鳴る", () => {
+    const state = arena(32);
+    state.player.mana = 0;
+    updateEffects(state, 0.016);
+    state.sfx = [];
+    state.player.mana = state.stats.maxMana;
+    updateEffects(state, 0.016);
+    expect(state.sfx, "満ちた瞬間").toContain("manaFull");
+    state.sfx = [];
+    updateEffects(state, 0.016);
+    expect(state.sfx, "満タンのままなら鳴らさない").not.toContain("manaFull");
+  });
+});
+
+describe("死神の接近の鼓動（8-14）", () => {
+  it("警告も死神も無ければ 0。警告が進むほど、死神が近いほど高い", () => {
+    expect(reaperThreat(null, null)).toBe(0);
+    expect(reaperThreat(1, null), "出現の直前は警告の始まりより近い").toBeGreaterThan(reaperThreat(REAPER.warnMargin, null));
+    expect(reaperThreat(null, FX_WAVE3.heartbeat.near), "すぐ近くで最大").toBe(1);
+    expect(reaperThreat(null, FX_WAVE3.heartbeat.far * 2), "遠くても追われている").toBe(FX_WAVE3.heartbeat.chaseMin);
+    expect(reaperThreat(null, FX_WAVE3.heartbeat.far * 2), "出現後は警告より速い").toBeGreaterThanOrEqual(reaperThreat(0, null));
+  });
+
+  it("近いほど鼓動の間隔が縮む", () => {
+    expect(heartbeatInterval(1)).toBeCloseTo(FX_WAVE3.heartbeat.fast);
+    expect(heartbeatInterval(0)).toBeCloseTo(FX_WAVE3.heartbeat.slow);
+    expect(heartbeatInterval(0.8)).toBeLessThan(heartbeatInterval(0.2));
+  });
+
+  it("警告中は鼓動を積み、間隔が来るまで次を積まない", () => {
+    const state = arena(33);
+    state.sfx = [];
+    noteReaperWarning(state, REAPER.warnMargin / 2);
+    updateEffects(state, 0.016);
+    expect(state.sfx, "最初の鼓動").toContain("reaperHeartbeat");
+    const threat = fxState(state).reaperThreat;
+    expect(threat, "近さを state に持つ").toBeGreaterThan(0);
+    state.sfx = [];
+    updateEffects(state, 0.016);
+    expect(state.sfx, "間隔の途中").not.toContain("reaperHeartbeat");
+    updateEffects(state, heartbeatInterval(threat));
+    expect(state.sfx, "間隔が来たら次の鼓動").toContain("reaperHeartbeat");
+  });
+
+  it("updateReaper は警告中だけ残り秒を渡す", () => {
+    const state = arena(34);
+    state.floorTime = 0;
+    updateReaper(state, 0.016);
+    expect(fxState(state).reaperWarnLeft, "警告前").toBeNull();
+    state.floorTime = reaperAppearAfter(state) - 5;
+    updateReaper(state, 0.016);
+    expect(fxState(state).reaperWarnLeft ?? 0, "残り約 5 秒").toBeCloseTo(5, 0);
+  });
+
+  it("死神が出ていなければ、警告が無い間は鳴らさない", () => {
+    const state = arena(35);
+    state.sfx = [];
+    noteReaperWarning(state, null);
+    updateEffects(state, 1);
+    expect(state.sfx).not.toContain("reaperHeartbeat");
   });
 });

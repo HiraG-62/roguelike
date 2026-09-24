@@ -1,13 +1,14 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
-import { type Vec, add, dist, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, dist, fromAngle, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
-import { ENEMY_AI } from "../data/tuning";
+import { DOUBLE_CHARGE, ENEMY_AI } from "../data/tuning";
 import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
 import { spawnLanding, spawnShockwave } from "./hazards";
 import { blastBoth } from "./enemyTerrain";
 import { placeTerrain } from "./terrain";
 import { applyStagger, initEnemyPoise } from "./poise";
 import { applyStatus, hasStatus, isSilenced } from "./statusEffects";
+import { overlapsWall } from "./physics";
 import { consumeCorpse, fanDirections, findFreeSpot, fireEnemyBullet, followersOf, nearestCorpse, reviveCorpse } from "./enemyTraits";
 
 /**
@@ -296,3 +297,62 @@ export function transformIfBroken(state: GameState, e: Enemy, def: EnemyDef): bo
   return true;
 }
 
+
+// -----------------------------------------------------------------------------
+// 二度突きの猪（docs/ideas/enemies.md E6）: 突進が折れ線の 2 本。1 本目の終点で即座に 2 本目へ曲がる
+// -----------------------------------------------------------------------------
+
+const DEG_TO_RAD = Math.PI / 180;
+/** 曲がり角を探す刻み（px） */
+const TURN_SCAN_STEP = 2;
+const TURN_PARTICLES = 5;
+const TURN_COLOR = "#c0c0c0";
+/** 2 本目が左右どちらへ曲がるかは五分五分（読めるのは予告線を見てから） */
+const TURN_SIDE_CHANCE = 0.5;
+
+/**
+ * 予備動作の始まりに折れ線を決める（予告線もこれを描くので、狙いは予備動作の終わりに更新しない）。
+ * 1 本目はプレイヤーの少し先まで。壁があればその手前で曲がる（曲がれずに激突する予告にしない）。
+ * 2 本目は 1 本目から左右どちらかへ DOUBLE_CHARGE.turnDeg 曲がる。2 本目の先の壁には既存の猪と同じく激突する
+ */
+export function planDoubleCharge(state: GameState, e: Enemy, dir: Vec): void {
+  const c = DOUBLE_CHARGE;
+  const from = e.body.pos;
+  const want = Math.min(c.leg1Max, Math.max(c.leg1Min, dist(from, state.player.body.pos) + c.overshoot));
+  const turn = reachAlong(state, from, dir, want, e.body.radius);
+  const side = state.rng.chance(TURN_SIDE_CHANCE) ? 1 : -1;
+  const dir2 = fromAngle(Math.atan2(dir.y, dir.x) + side * c.turnDeg * DEG_TO_RAD);
+  e.doubleCharge = { turn, end: add(turn, scale(dir2, c.leg2Len)), leg: 1 };
+}
+
+/** from から dir へ最大 len 進んだ点。半径 radius の体が壁に掛かる手前で止める */
+function reachAlong(state: GameState, from: Vec, dir: Vec, len: number, radius: number): Vec {
+  let end = { ...from };
+  for (let d = TURN_SCAN_STEP; d <= len; d += TURN_SCAN_STEP) {
+    const q = add(from, scale(dir, d));
+    if (overlapsWall(state, q.x, q.y, radius)) break;
+    end = q;
+  }
+  return end;
+}
+
+/** 点 point を dir の向きに越えたか（1 ステップで行き過ぎても曲がれるよう距離ではなく内積で見る） */
+function passed(pos: Vec, point: Vec, dir: Vec): boolean {
+  return (pos.x - point.x) * dir.x + (pos.y - point.y) * dir.y >= 0;
+}
+
+/**
+ * strike 中に毎ステップ呼ぶ: 1 本目の終点を越えたら 2 本目へ向きを変える。2 本目の終点を越えたら true（突進の終わり）。
+ * 向きは今の位置から 2 本目の終点へ取り直す（ノックバックで少しずれても予告線の終点へ向かう）
+ */
+export function steerDoubleCharge(state: GameState, e: Enemy): boolean {
+  const path = e.doubleCharge;
+  if (!path) return false;
+  if (path.leg === 2) return passed(e.body.pos, path.end, e.strikeDir);
+  if (!passed(e.body.pos, path.turn, e.strikeDir)) return false;
+  path.leg = 2;
+  e.strikeDir = normalize(sub(path.end, e.body.pos), e.strikeDir);
+  if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
+  spawnBurst(state, e.body.pos, TURN_COLOR, TURN_PARTICLES, 70, 0.25, 1.5);
+  return false;
+}

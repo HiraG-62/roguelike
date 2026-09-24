@@ -7,7 +7,23 @@ import { TILE_SIZE, Tile, getTile, setTile } from "../map/grid";
 import { generateRoomsAndCorridors, DEFAULT_GENERATOR_OPTIONS, planTerrain } from "../map/generator";
 import { descend } from "./floor";
 import { applyBurn, findStatus, hasStatus, statusStacks } from "./statusEffects";
-import { ensureTerrainLayer, igniteTerrainAt, placeTerrain, terrainAt, terrainSlide, updateTerrain } from "./terrain";
+import {
+  ensureTerrainLayer,
+  igniteTerrainAt,
+  placeTerrain,
+  smokeAt,
+  terrainAt,
+  terrainMoveMul,
+  terrainSlide,
+  updateTerrain,
+} from "./terrain";
+import { TERRAIN_MUD_SMOKE } from "../data/tuning";
+import { lineOfSight } from "../map/pathing";
+import { fireEnemyBullet } from "./enemyTraits";
+import { updateProjectiles } from "./projectiles";
+import { updateEnemies } from "./enemies";
+import { applyStatus } from "./statusEffects";
+import { FIXED_DT } from "../core/loop";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { updatePlayer } from "./player";
 
@@ -308,5 +324,164 @@ describe("決定性", () => {
 
   it("地形の種類の一覧は none から始まる（0 = 地形なし）", () => {
     expect(TERRAIN_KINDS[0]).toBe("none");
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 泥と煙（docs/ideas/enemies.md E2 / V10）
+// -----------------------------------------------------------------------------
+
+/** 燃焼を 1 つ付ける（付与の瞬間に足元の地形へ火が入る） */
+function burnEnemy(state: GameState, e: ReturnType<typeof placeEnemy>): void {
+  applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: 1, duration: 3, potency: 1 }, "player");
+}
+
+describe("泥", () => {
+  it("泥の中はプレイヤーの歩きと敵の足が moveMul 倍になり、泥の外では等倍", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    const desired = { x: 100, y: 0 };
+    expect(terrainSlide(state, p, { x: 0, y: 0 }, desired, FIXED_DT).x, "泥の外").toBe(100);
+    placeTerrain(state, p.x, p.y, "mud", 0, 0);
+    expect(terrainAt(state, p.x, p.y)).toBe("mud");
+    expect(terrainSlide(state, p, { x: 0, y: 0 }, desired, FIXED_DT).x, "泥の中").toBeCloseTo(100 * TERRAIN_MUD_SMOKE.mud.moveMul);
+    expect(terrainMoveMul(state, p)).toBe(TERRAIN_MUD_SMOKE.mud.moveMul);
+  });
+
+  it("泥の中の敵に燃焼が入ると泥が固まって消え、その敵が短く麻痺する", () => {
+    const state = arena();
+    cleanLayer(state);
+    const e = placeEnemy(state, "golem", 40);
+    e.hp = BIG_HP;
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "mud", 0, 0);
+    burnEnemy(state, e);
+    expect(terrainAt(state, e.body.pos.x, e.body.pos.y), "泥が固まって消える").toBe("none");
+    expect(hasStatus(e.status, "paralyze"), "中の敵は麻痺").toBe(true);
+    expect(state.sfx).toContain("mudHarden");
+  });
+
+  it("泥に炎を置くと炎は付かずに泥が固まり、泥の外の敵は麻痺しない", () => {
+    const state = arena();
+    cleanLayer(state);
+    const inside = placeEnemy(state, "golem", 40);
+    const outside = placeEnemy(state, "golem", 40, 80);
+    for (const e of [inside, outside]) e.hp = BIG_HP;
+    const pos = inside.body.pos;
+    placeTerrain(state, pos.x, pos.y, "mud", 0, 0);
+    placeTerrain(state, pos.x, pos.y, "fire", 0, 3);
+    expect(terrainAt(state, pos.x, pos.y)).toBe("none");
+    expect(hasStatus(inside.status, "paralyze")).toBe(true);
+    expect(hasStatus(outside.status, "paralyze")).toBe(false);
+  });
+
+  it("冷えた者が泥に立つと凍って氷床になる", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "mud", 0, 0);
+    state.player.status.effects.push({ kind: "chill", stacks: 1, time: 2, maxTime: 2, potency: 0, source: "enemy", acc: 0, tick: 0 });
+    tickOnce(state);
+    expect(terrainAt(state, p.x, p.y)).toBe("ice");
+  });
+
+  it("持続を省くと TERRAIN.placedDuration.mud 秒で消える", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "mud", 0);
+    updateTerrain(state, TERRAIN.placedDuration.mud - 0.1);
+    expect(terrainAt(state, p.x, p.y)).toBe("mud");
+    updateTerrain(state, 0.2);
+    expect(terrainAt(state, p.x, p.y)).toBe("none");
+  });
+});
+
+describe("煙", () => {
+  it("煙は床の地形に重なって漂い、晴れると下の油が残る", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "oil", 0, 0);
+    placeTerrain(state, p.x, p.y, "smoke", 0);
+    expect(smokeAt(state, p.x, p.y)).toBe(true);
+    expect(terrainAt(state, p.x, p.y), "床の地形は油のまま").toBe("oil");
+    updateTerrain(state, TERRAIN.placedDuration.smoke + 0.1);
+    expect(smokeAt(state, p.x, p.y), "持続が切れると晴れる").toBe(false);
+    expect(terrainAt(state, p.x, p.y)).toBe("oil");
+  });
+
+  it("煙は視線を遮る（晴れれば通る）", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    const far = { x: p.x + 64, y: p.y };
+    expect(lineOfSight(state.map, p, far), "煙の無い床は見通せる").toBe(true);
+    placeTerrain(state, p.x + 32, p.y, "smoke", 0, 2);
+    expect(lineOfSight(state.map, p, far), "間に煙").toBe(false);
+    updateTerrain(state, 2.1);
+    expect(lineOfSight(state.map, p, far), "晴れた").toBe(true);
+  });
+
+  it("煙の向こうの敵はプレイヤーに気付かない", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    const e = placeEnemy(state, "slime", 64);
+    e.phase = "idle";
+    placeTerrain(state, p.x + 32, p.y, "smoke", 0, 0);
+    updateEnemies(state, FIXED_DT);
+    expect(e.phase, "煙越しには気付かない").toBe("idle");
+    const layer = ensureTerrainLayer(state);
+    layer.smoke.fill(0);
+    layer.smokeCells.clear();
+    updateEnemies(state, FIXED_DT);
+    expect(e.phase, "煙が無ければ気付く").toBe("chase");
+  });
+
+  it("プレイヤーの弾と敵の弾は煙に入ると消える", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x + 40, p.y, "smoke", 0, 0);
+    fireEnemyBullet(state, { pos: { x: p.x + 70, y: p.y }, dir: { x: -1, y: 0 }, speed: 120, damage: 5, color: "#fff" });
+    state.projectiles.push({
+      id: 9999,
+      owner: "player",
+      pos: { x: p.x + 10, y: p.y },
+      vel: { x: 120, y: 0 },
+      radius: 2,
+      damage: 5,
+      life: 2,
+      color: "#fff",
+      kind: "ranged",
+      hitIds: new Set(),
+      pierceLeft: 0,
+    });
+    const hp = state.player.hp;
+    for (let i = 0; i < 40; i++) updateProjectiles(state, FIXED_DT);
+    expect(state.projectiles.length, "どちらの弾も煙の中で消える").toBe(0);
+    expect(state.player.hp, "敵の弾は届かない").toBe(hp);
+  });
+
+  it("煙は炎・燃焼で即座に晴れ、炎の上には漂わない", () => {
+    const state = arena();
+    cleanLayer(state);
+    const p = playerPos(state);
+    placeTerrain(state, p.x, p.y, "smoke", 0, 0);
+    placeTerrain(state, p.x, p.y, "fire", 0, 3);
+    expect(smokeAt(state, p.x, p.y), "炎を置くと晴れる").toBe(false);
+    expect(terrainAt(state, p.x, p.y), "炎はそのまま置ける").toBe("fire");
+    placeTerrain(state, p.x, p.y, "smoke", 0, 0);
+    expect(smokeAt(state, p.x, p.y), "炎の上には漂わない").toBe(false);
+
+    const e = placeEnemy(state, "golem", 48);
+    e.hp = BIG_HP;
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "smoke", 0, 0);
+    burnEnemy(state, e);
+    expect(smokeAt(state, e.body.pos.x, e.body.pos.y), "燃焼の付いた者の周りは晴れる").toBe(false);
+    placeTerrain(state, e.body.pos.x, e.body.pos.y, "smoke", 0, 0);
+    igniteTerrainAt(state, e.body.pos.x, e.body.pos.y, 4);
+    expect(smokeAt(state, e.body.pos.x, e.body.pos.y)).toBe(false);
   });
 });

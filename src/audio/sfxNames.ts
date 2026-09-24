@@ -134,6 +134,11 @@ export const SFX_NAMES = [
   "statusBuff",
   "stagger",
   "bossDown",
+  // ---- 変身 第 3 弾（skills/forms.ts）----
+  /** 変身した瞬間 / 狼化の遠吠え / 砲身化の砲撃 */
+  "formShift",
+  "wolfHowl",
+  "siegeCannon",
   // ---- 響きの色ごとのドロップ音（8-5）----
   "dropCrimson",
   "dropAzure",
@@ -145,6 +150,30 @@ export const SFX_NAMES = [
   "comboMilestone",
   "hordeSeal",
   "execute",
+  // ---- 地形の層「泥」と精鋭「強欲の」（system/terrain.ts・system/elites.ts）----
+  "mudHarden",
+  "greedySnatch",
+  // ---- 演出と音の第 3 弾（docs/ideas/meta-and-weapons.md 8-4 / 8-7〜8-10 / 8-14）----
+  /** 反応の成立（8-4）。反応の系統ごとに音程と質感を変える */
+  "reactionSteam",
+  "reactionShatter",
+  "reactionBlaze",
+  "reactionSpark",
+  "reactionBlight",
+  "reactionSurge",
+  /** 溜めの段（8-7）。段が上がるほど高い */
+  "chargeStep1",
+  "chargeStep2",
+  "chargeStep3",
+  /** 気力が満タンになった瞬間（8-8） */
+  "manaFull",
+  /** 芽が出た（8-9）/ 銘が刻まれた */
+  "budSprout",
+  "inscribe",
+  /** 依頼の達成（8-10） */
+  "questComplete",
+  /** 死神の接近の鼓動（8-14） */
+  "reaperHeartbeat",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

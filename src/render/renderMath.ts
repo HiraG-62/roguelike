@@ -1,7 +1,8 @@
-import type { Hazard } from "../core/state";
+import type { FloatTextKind, Hazard } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
-import type { Rarity } from "../loot/types";
+import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
+import { type KeystoneGroup, keystoneDef } from "../loot/affixes";
+import { type Rarity, type Resonance, TRAIT_COLOR_HEX } from "../loot/types";
 import type { MovesetKey } from "../data/weapons";
 import { type GameMap, Tile, getTile } from "../map/grid";
 
@@ -155,13 +156,93 @@ const OUTLINE_CRIT = "#b03000";
 const HEAVY_TEXT_SCALE = 1.3;
 const NUMERIC_TEXT = /^-?\d+$/;
 
-/** ダメージ数字の見た目。crit は combat.ts が PLAYER.critColor で出すのでそれで判定する */
-export function damageTextStyle(text: string, color: string, scale: number): DamageTextStyle {
+/** ダメージ文字の種類ごとの縁取り（7-19）。会心・通常は従来どおり（会心は朱、重い一撃は茶） */
+const KIND_OUTLINE: Readonly<Partial<Record<FloatTextKind, string>>> = {
+  weak: "#704800",
+  resist: "#283040",
+  reaction: "#5a4010",
+  dot: "#101010",
+};
+
+/**
+ * ダメージ数字の見た目。kind（combat.ts が渡す種類）があればそれで、無ければ従来どおり
+ * PLAYER.critColor の色で会心を判定する（種類を持たない古い浮き文字の互換）
+ */
+export function damageTextStyle(text: string, color: string, scale: number, kind?: FloatTextKind): DamageTextStyle {
   const numeric = NUMERIC_TEXT.test(text);
-  const crit = numeric && color === PLAYER.critColor;
+  const crit = numeric && (kind === undefined ? color === PLAYER.critColor : kind === "crit");
   if (crit) return { numeric, crit, outline: OUTLINE_CRIT };
+  const byKind = kind === undefined ? undefined : KIND_OUTLINE[kind];
+  if (numeric && byKind !== undefined) return { numeric, crit, outline: byKind };
   if (numeric && scale >= HEAVY_TEXT_SCALE) return { numeric, crit, outline: OUTLINE_HEAVY };
   return { numeric, crit, outline: OUTLINE_NORMAL };
+}
+
+// -----------------------------------------------------------------------------
+// 演出の第 3 弾（docs/ideas/meta-and-weapons.md 7-10 / 7-14 / 7-20）
+// -----------------------------------------------------------------------------
+
+/** カウンターの白黒の濃さ（7-10）。left は残り秒、time は全体の秒。残りに比例して薄れる */
+export function counterMonoAlpha(left: number, time: number, strength: number): number {
+  if (left <= 0 || time <= 0) return 0;
+  return strength * clamp01(left / time);
+}
+
+/**
+ * 共鳴のまといの色（7-14）。単色・二色・三和音は配合の色、陰画は支配色に冥を重ね、
+ * 星座があれば星の色を足す。散り（scatter）・無しで星座も無ければ空（描かない）
+ */
+export function resonanceMantleColors(res: Readonly<Resonance>): string[] {
+  const shown = res.kind === "dominant" || res.kind === "dual" || res.kind === "triad" ? res.colors : [];
+  const out = shown.map((c) => TRAIT_COLOR_HEX[c]);
+  if (res.form === "negative" && out.length > 0) out.push(TRAIT_COLOR_HEX.umbra);
+  if (res.constellation !== undefined) out.push(FX_WAVE3.mantle.constellationColor);
+  return out;
+}
+
+/** 誓約の系統ごとのオーラの色（7-20）。系統は src/loot/affixes.ts の KeystoneGroup（排他の単位） */
+export const KEYSTONE_GROUP_COLOR: Readonly<Record<KeystoneGroup, string>> = {
+  body: "#ff6a5a",
+  tempo: "#ffb040",
+  style: "#e8e8ff",
+  mana: "#60a0ff",
+  status: "#90e050",
+  poise: "#c8a078",
+  room: "#ffe080",
+  hue: "#ff80e0",
+  chronicle: "#b0a0ff",
+  element: "#80f0f0",
+  weapon: "#c8c8c8",
+  terrain: "#b08850",
+};
+
+/** 持っている誓約の系統の色（重複を除いて持っている順）。誓約が無ければ空 */
+export function keystoneAuraColors(keys: readonly string[]): string[] {
+  const groups: KeystoneGroup[] = [];
+  for (const key of keys) {
+    const group = keystoneDef(key)?.exclusiveGroup;
+    if (group !== undefined && !groups.includes(group)) groups.push(group);
+  }
+  return groups.map((g) => KEYSTONE_GROUP_COLOR[g]);
+}
+
+export interface AuraArc {
+  start: number;
+  end: number;
+}
+
+/** 輪を count 本の弧に等分し、弧の間に gap（ラジアン）の隙間を空けて time * spin だけ回す */
+export function auraArcs(count: number, time: number, spin: number, gap: number): AuraArc[] {
+  if (count <= 0) return [];
+  const span = (Math.PI * 2) / count;
+  const half = Math.min(gap, span * 0.5) / 2;
+  const offset = time * spin;
+  const out: AuraArc[] = [];
+  for (let i = 0; i < count; i++) {
+    const start = offset + i * span + half;
+    out.push({ start, end: start + span - half * 2 });
+  }
+  return out;
 }
 
 /** ボス HP バーのフェーズ境界（HP 割合）。無ければ null */

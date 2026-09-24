@@ -156,20 +156,20 @@ describe("図鑑: 保存データへの畳み込み", () => {
 
 describe("図鑑: 未発見のヒント", () => {
   it("未発見の反応は名前が？で、出す側だけを見せる", () => {
-    const entries = codexEntries(createCodexSave(), "reaction");
-    const vaporize = entries.find((e) => e.key === "vaporize");
+    const entries = codexEntries(createCodexSave(), "link");
+    const vaporize = entries.find((e) => e.key === "reaction:vaporize");
     expect(REACTION_PARTS.vaporize.parts, "蒸発は燃焼 + 冷気").toEqual(["burn", "chill"]);
     expect(vaporize?.name, "名前は？").toBe(UNKNOWN_NAME);
     expect(vaporize?.detail.includes(STATUS_LABEL.burn), "出す側は見える").toBe(true);
     expect(vaporize?.detail.includes(STATUS_LABEL.chill), "食う側は隠れる").toBe(false);
   });
 
-  it("反応の頁があれば両側が見え、発見済みは名前が出る", () => {
+  it("連携の頁があれば両側が見え、発見済みは名前が出る", () => {
     const save = createCodexSave();
-    const paged = codexEntries(save, "reaction", new Set(["reaction"])).find((e) => e.key === "vaporize");
+    const paged = codexEntries(save, "link", new Set(["link"])).find((e) => e.key === "reaction:vaporize");
     expect(paged?.detail.includes(STATUS_LABEL.chill), "頁があれば食う側も見える").toBe(true);
     save.reactions.vaporize = 1;
-    const known = codexEntries(save, "reaction").find((e) => e.key === "vaporize");
+    const known = codexEntries(save, "link").find((e) => e.key === "reaction:vaporize");
     expect(known?.known, "発見済み").toBe(true);
     expect(known?.name, "名前が出る").not.toBe(UNKNOWN_NAME);
   });
@@ -179,10 +179,11 @@ describe("図鑑: 未発見のヒント", () => {
     for (const tab of CODEX_TABS) {
       const count = codexTabCount(save, tab);
       expect(count.known, `${tab} は未発見`).toBe(0);
-      if (tab !== "chain") expect(count.total, `${tab} の総数`).toBeGreaterThan(0);
+      if (tab !== "link") expect(count.total, `${tab} の総数`).toBeGreaterThan(0);
     }
     expect(codexTabCount(save, "enemy").total, "敵の総数は図鑑の敵").toBe(CODEX_ENEMIES.length);
-    expect(codexTabCount(save, "reaction").total, "反応は全種").toBe(REACTION_KEYS.length);
+    const reactions = codexEntries(save, "link").filter((e) => e.key.startsWith("reaction:"));
+    expect(reactions.length, "反応は全種が連携の頁に並ぶ").toBe(REACTION_KEYS.length);
   });
 
   it("常時の反応はすべて状態異常 2 つの組", () => {

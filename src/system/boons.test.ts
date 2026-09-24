@@ -37,6 +37,7 @@ import { VIEW_W } from "../core/view";
 import { damageEnemy, damagePlayer } from "./combat";
 import { buildFloor } from "./floor";
 import { applyStats } from "./player";
+import { resolveRules } from "./rules";
 import { castSlot, effectiveManaCost } from "./skills";
 import { arena, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
 
@@ -410,6 +411,8 @@ describe("マナ系の祝福（ルールでマナの回し方を変える）", (
       const e = dummy(state, 20, "slime");
       state.player.mana = 0;
       expect(damageEnemy(state, e, KILL_DAMAGE, { x: 1, y: 0 }, 0), "倒せる").toBe(true);
+      // 屠りの盃は BoonDef.rules（撃破のイベント）。step と同じくステップ末の照合で起きる
+      resolveRules(state, 0);
       return state.player.mana;
     };
     expect(killGain("reaperCup") - killGain(null), "撃破で追加のマナ").toBeCloseTo(BOON.reaperCupKillMana);
@@ -430,6 +433,8 @@ describe("マナ系の祝福（ルールでマナの回し方を変える）", (
       p.invulnTimer = PLAYER.dash.time;
       p.dodgedThisDash = false;
       expect(damagePlayer(state, 10, e.body.pos, e), "ジャスト回避になる").toBe("dodged");
+      // 見切りの息は BoonDef.rules（見切りのイベント）。step と同じくステップ末の照合で起きる
+      resolveRules(state, 0);
       return p.mana;
     };
     expect(justGain("keenBreath") - justGain(null)).toBeCloseTo(BOON.keenBreathJustMana);

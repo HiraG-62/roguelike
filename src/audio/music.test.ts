@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FloorKind } from "../core/state";
-import { MUSIC } from "../data/tuning";
+import { MUSIC, SFX_WAVE3 } from "../data/tuning";
 import {
   MusicPlayer,
   STEPS_PER_BAR,
@@ -146,5 +146,67 @@ describe("MusicPlayer", () => {
     // 同じ時刻で交戦だけ解ける（先読みは済んでいるので増えるのは和音の分だけ）
     player.update(musicCue(input({ engaged: false })));
     expect(audio.sources() - before, "解決の和音 4 音").toBe(resolveChord(TRACKS.rooms, 0).length);
+  });
+});
+
+describe("残響ノードの後始末", () => {
+  it("曲を切り替えると、フェードし終えた旧曲のディレイ・フィードバック・戻りを外す", () => {
+    const audio = createMockAudio();
+    const player = new MusicPlayer(() => audio.ctx);
+    // 洞窟は残響あり（echo > 0）。ディレイが 1 つできる
+    player.update(musicCue(input({ floorKind: "cave" })));
+    const [caveDelay] = audio.nodes("delay");
+    expect(caveDelay, "洞窟の曲の残響ディレイ").toBeDefined();
+    if (!caveDelay) return;
+    const gainsBefore = audio.nodes("gain").length;
+
+    audio.setTime(0.5);
+    player.update(musicCue(input({ floorKind: "cave", boss: true })));
+    expect(caveDelay.disconnects, "フェード中はまだ外さない").toBe(0);
+
+    audio.setTime(0.5 + MUSIC.crossfade + 0.1);
+    player.update(musicCue(input({ floorKind: "cave", boss: true })));
+    expect(caveDelay.disconnects, "フェード後に旧曲のディレイを外す").toBeGreaterThan(0);
+    const oldGains = audio.nodes("gain").slice(0, gainsBefore);
+    // 旧曲の常駐ゲイン: 出力・打楽器の層・フィードバック・戻り の 4 つ（音符ごとのゲインは発音源の停止で消える）
+    expect(oldGains.filter((g) => g.disconnects > 0).length, "旧曲の出力・打楽器・フィードバック・戻りを外す").toBeGreaterThanOrEqual(4);
+    const bossDelay = audio.nodes("delay")[1];
+    expect(bossDelay?.disconnects, "今鳴っているボス曲の残響は外さない").toBe(0);
+  });
+
+  it("後始末は曲ごとに 1 回で、同じ旧曲を何度も外さない", () => {
+    const audio = createMockAudio();
+    const player = new MusicPlayer(() => audio.ctx);
+    player.update(musicCue(input({ floorKind: "glacier" })));
+    audio.setTime(0.2);
+    player.update(musicCue(input({ floorKind: "cave" })));
+    audio.setTime(0.2 + MUSIC.crossfade + 0.1);
+    player.update(musicCue(input({ floorKind: "cave" })));
+    audio.setTime(5);
+    player.update(musicCue(input({ floorKind: "cave" })));
+    expect(audio.nodes("delay")[0]?.disconnects, "1 回だけ外す").toBe(1);
+  });
+});
+
+describe("スロー中のこもり（8-15）", () => {
+  it("スロー中の入力で cue にこもりが立つ。ラン外は立たない", () => {
+    expect(musicCue(input({ slowmo: true })).muffle).toBe(true);
+    expect(musicCue(input({})).muffle, "省略は false").toBe(false);
+    expect(musicCue(input({ inRun: false, slowmo: true })).muffle, "ラン外").toBe(false);
+  });
+
+  it("スロー中は低域通過で閉じ、戻ると開く", () => {
+    const audio = createMockAudio();
+    const player = new MusicPlayer(() => audio.ctx);
+    player.update(musicCue(input({})));
+    expect(player.muffleCutoff(), "普段は開いている").toBe(SFX_WAVE3.muffle.open);
+    player.update(musicCue(input({ slowmo: true })));
+    expect(player.muffleCutoff(), "スロー中は閉じる").toBe(SFX_WAVE3.muffle.cutoff);
+    player.update(musicCue(input({})));
+    expect(player.muffleCutoff(), "戻ると開く").toBe(SFX_WAVE3.muffle.open);
+  });
+
+  it("AudioContext が無ければこもりの値も無い", () => {
+    expect(new MusicPlayer(() => null).muffleCutoff()).toBeNull();
   });
 });

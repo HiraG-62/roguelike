@@ -34,6 +34,9 @@ const DEPTH = 5;
 const WARN_STEPS = Math.ceil(RUN_EVENT.warnTime / FIXED_DT) + 2;
 
 /** 回廊の階。封鎖できる部屋（開始・最後以外）の index も返す。自然に起きるイベントと代償は止める */
+/** 落雷などの単発ダメージで死なない生命（テストの敵が抽選で蝙蝠になっても耐える） */
+const STURDY_HP = 10_000;
+
 function setup(seed = 7, depth = DEPTH): { state: GameState; room: RoomState; index: number } {
   const state = createGame(seed);
   state.depth = depth;
@@ -150,7 +153,8 @@ describe("ランイベントの効果", () => {
     expect(aliveIn(state, index)).toBeGreaterThan(before);
     const items = state.floorItems.length;
     clearOut(state, room, index);
-    expect(state.floorItems.length, "部屋の報酬 + 増援の報酬").toBeGreaterThanOrEqual(items + 2);
+    // 増援の褒美（dropBonusReward）は確定。制圧報酬は LOOT_DROP.roomClearChanceByDepth の抽選なので数えない
+    expect(state.floorItems.length, "増援の褒美").toBeGreaterThanOrEqual(items + 1);
   });
 
   it("停電: 部屋が暗くなり、制圧で明かりが戻る", () => {
@@ -506,6 +510,9 @@ describe("ランイベント第 2 弾の効果", () => {
     start(state, "thunderstorm", index);
     const e = state.enemies.find((x) => x.roomIndex === index && x.hp > 0);
     if (!e) throw new Error("enemy");
+    // 生命の少ない敵（蝙蝠など）だと落雷で即死して感電が付かないので、落雷に耐える生命にしておく
+    e.maxHp = STURDY_HP;
+    e.hp = STURDY_HP;
     const hp = e.hp;
     state.runEvents.strikes.push({ pos: { ...e.body.pos }, timer: FIXED_DT / 2, telegraph: 1 });
     run(state, 1);

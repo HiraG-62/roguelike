@@ -104,7 +104,8 @@
 | 反応 | ReactionKey | 2 つの状態異常（か地形）が出会ったときの追加効果（蒸発・蒸気・拡散・炎上・毒霧…） | `core/status.ts`、`system/statusReactions.ts` |
 | 昇華 | - | 同じ状態異常を積み切ると上位の状態に変わる・上乗せされること | 同上 |
 | 異常数 / 総スタック | statusCount / totalStacks | 付いている悪い状態異常の種類数 / スタック合計 | `system/statusEffects.ts` |
-| 地形 | TerrainLayer / TerrainKind | 床に重ねる層（水たまり・油・溶岩・毒沼・氷床・草むら・炎）。プレイヤーと敵の両方に効く | `core/terrain.ts`、`system/terrain.ts` |
+| 地形 | TerrainLayer / TerrainKind | 床に重ねる層（水たまり・油・溶岩・毒沼・氷床・草むら・炎・泥・煙）。プレイヤーと敵の両方に効く | `core/terrain.ts`、`system/terrain.ts` |
+| 泥 / 煙 | mud / smoke（`TerrainKind`） | 泥: 移動 ×0.6、突進の距離が縮む、燃焼で固まって麻痺、冷気で氷床。煙: 視線を遮り両陣営の弾が消える、火で晴れる、床の地形に重ねて持てる第 2 層 | `core/terrain.ts` TERRAIN_LABEL、`system/terrain.ts` |
 | 処刑 | - | 怯み中で生命の少ない敵を重い一撃で即死させる | `system/poise.ts` |
 | 背面の一撃 | - | 攻撃中の敵を背後から殴ると堅守を無視する | 同上 |
 
@@ -147,7 +148,7 @@
 | 地下 n 階 | depth | 階層 | HUD |
 | 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper。バリアントは 鎖の死神 / 取り立て屋 / 双子の死神 / 影の死神（付き物は 死神の影）/ 静かな死神 | `system/reaper.ts`、`system/reaperVariants.ts` |
 | ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士） | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
-| 精鋭 | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
+| 精鋭 | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の / 強欲の（2026-09-24 追加。床の遺物・気力結晶を拾って逃げる）。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
 | 部屋主 | lairMaster | 巣の主。通常の抽選にも低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長 / 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み） | `data/enemies.ts` |
 | 再配色種 | recolor | 元の敵の絵の色を差し替え、挙動を 1 つ足した派生 | `data/enemies.ts` recolor |
 | 死骸 | corpse | 倒れた敵の跡。骨拾い・墓守の鐘・貪食の が使う | `system/enemyTraits.ts` |
@@ -159,7 +160,7 @@
 敵名: スライム / 浮遊眼 / 猪 / 盾騎士 / 爆弾ゴブリン / 光線眼 / ゴーレム / 蝙蝠 / 鬼火 / スライム王 / 骸骨卿（`data/enemies.ts`）。
 
 量産した敵名（`data/enemies.ts`）:
-- 再配色種: 毒スライム / 氷スライム / 炎スライム / 金色スライム / 骨猪 / 呪い眼 / 氷眼 / 黒鉄騎士 / 溶岩ゴーレム / 霜ゴーレム / 結晶ゴーレム / 氷鬼火 / 紫光線眼 / 飛ぶ本 / 灰蝙蝠
+- 再配色種: 毒スライム / 氷スライム / 炎スライム / 金色スライム / 骨猪 / 呪い眼 / 氷眼 / 黒鉄騎士 / 溶岩ゴーレム / 霜ゴーレム / 結晶ゴーレム / 氷鬼火 / 紫光線眼 / 飛ぶ本 / 灰蝙蝠 / 二度突きの猪（2026-09-24 追加。深度 5〜。突進の予告線が 2 本の折れ線）
 - 既存の動きの流用: 若苗スライム / 棘鼠 / 双眼 / 三叉光線眼 / 影蝙蝠 / 狼 / 連投ゴブリン / 槍兵 / 角甲虫 / 投網兵 / 腐肉蝿 / 雷鬼火 / 骸骨兵
 - 新しい動き: 導火鼠 / 結晶ダニ / 残像打ち / 群れの長 / 気力喰い / 骨拾い / 墓守の鐘 / 沈黙の修道士 / 霜砕き / 双子の影
 - 部屋主: 喰らう宝箱 / 鎧の中身（割れると 鎧の中身・亡霊）/ 骨の楽団長
@@ -267,6 +268,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 防御（敵） | `EnemyDefenseDef.defense` | 敵の物理の軽減 %。プレイヤー側は「アーマー」 | `data/enemyDefense.ts` |
 | 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く | `loot/affixes.ts` res_* |
 | 弱点 / 耐性（浮き文字） | `ELEMENT.weakText` / `resistText` | 敵の耐性が負 / 正の属性で当てたとき | `system/elementCombat.ts` |
+| ダメージ数字の種類（2026-09-24 第 3 弾） | `FloatTextKind`: crit / weak / resist / dot / reaction / normal | 会心 / 弱点 / 耐性 / 継続 / 反応 / 通常の 6 種で色と大きさを変える（会心 > 反応 > 弱点 > 耐性 の優先順で 1 つ選ぶ）。継続（dot）は 0.5 秒ぶんを敵ごとに束ねて小さく表示 | `system/effects.ts` damageTextKind |
 | 弱点の印 / ？ | `weaknessMark` | 敵の頭上の弱点の色。このランでその種類を倒すまでは「？」 | `render/elementUi.ts` |
 | 属性の変換（近接・射撃の n% を炎属性に変換） | `cv_infuse*` / `PlayerStats.infuse` | 通常攻撃の一部を属性として扱う変換 | `loot/affixes.ts` |
 | 無の刻印 | `cv_infuseNone` / `skillNeutral` | スキルの属性の n% を無属性に変換する | `loot/affixes.ts` |
@@ -305,6 +307,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 型替え符 | `ModifierDef.reshape` | 発動の「型」（近接 / 射撃 / 設置 / 溜め / 足元 / 罠）を変える刻印符。リンクを 2 本使い、1 スロットに 1 枚まで | `skills/modifiers.ts`、`skills/modifiers2.ts` |
 | 罠（型替え符「罠化」） | `SkillRunState.traps` | 撃たずにカーソル地点へ置く罠。起動後に敵が近づくと、罠の位置から最寄りの敵へ向けて元のスキルが起きる（最大 3） | `system/skills.ts` |
 | 変身 | `SkillTag` の `form` / `SkillRunState.form` | 一定秒だけ武器種が変わる強化スキル（剛の型 = 大剣 / 迅の型 = 双剣 / 霊の型 = 杖）。変身の瞬間に周りを打ち、切れた後は少しの間遅くなる（反動）。変身先がジョブの得意な武器種なら長く続く | `skills/actions2.ts` |
+| 変身（2026-09-24 第 3 弾） | `SkillRunState.shape` / `Wave3SkillKey` | 左右クリックの動作そのものを差し替える強化スキル 5 種: 狼化 / 霊体化 / 砲身化 / 鉄塊化 / 業火の化身。第 2 弾の剛の型・迅の型・霊の型と合わせて計 8 種の変身は待ちを共有し、同時に 1 つしか変身できない | `skills/forms.ts`、`skills/defs3.ts` |
 | 使い込み | `SkillStone.wear` | スキル石の来歴。手動で撃った回数と命中数を数え、節目で芽が 1 つ出る。装備画面のスキルの説明に「使い込み 発動 n / 命中 n」と出る | `skills/wear.ts` |
 | 芽（スキル石） | `WearBud`（link / power） | 使い込みの節目で出る変化。1 発で多くに当てた石は「威力」、撃ち続けた石は「枠」（刻印符のリンク +1。負担には数えない）。石ごとに 2 つまで | `skills/wear.ts`、`skills/tuning2.ts` WEAR_TUNING |
 | 連携 | `ComboKey` / `SkillRunState.lastCast` | スキル A の直後にスキル B を手動で撃つと B が変化すること。成立すると「連携: 渦雷」のように浮き文字が出る。HUD の枠の左上の点滅する菱形が「連携可」 | `skills/combos.ts`、`render/skillHud.ts` |
@@ -332,7 +335,12 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| 図鑑 | codex | 見た・起きたものの記録。タブは 敵 / 遺物 / 祝福 / 反応 / 連鎖 / 場所。未発見は「？？？」と片側だけのヒント（反応なら「燃焼 + ？」） | `meta/codex.ts` |
+| 図鑑 | codex | 見た・起きたものの記録。タブは 敵 / 遺物 / 祝福 / 連携 / 場所（2026-09-24 第 3 弾で「反応」「連鎖」タブを「連携」1 頁へ統合）。未発見は「？？？」と片側だけのヒント（反応なら「燃焼 + ？」） | `meta/codex.ts` |
+| 連携（図鑑タブ・発見） | `LinkKind` / `CodexTab` の `link` | スキルの連携（`ComboKey`）・状態異常の反応（`ReactionKey`）・2 語以上の連鎖の 3 系統をまとめた発見の単位。id は「系統:key」。初めて成立したランの階とシードを記録し、5 / 15 / 30 種の節目で図鑑の頁と称号が開く | `meta/links.ts`、`meta/codex.ts` |
+| 手がかり | - | 祝福 3 択（選択画面）に常時出る、今のビルドで成立し得る未発見の連携を片側伏せた行。「手がかり: 〜」 | `render/boonUi.ts`、`render/chainUi.ts` |
+| 新たな連携 | - | 連携を初めて見つけた瞬間に HUD へ出す表示。「新たな連携「〜」」 | `render/chainUi.ts` |
+| 祝福カードの印（2026-09-24 第 3 弾） | `BoonMark` | 祝福カード下段の 3 種の印。穴を埋める（飢えを満たす）/ 流れを太くする（余りを食う）/ 新しい流れ（どちらでもない） | `render/boonUi.ts` BOON_MARK_LABEL |
+| 名のある連鎖 | `NamedChain` | 語の並び（連鎖）が特定の 2 語に一致すると付く名前。延焼 / 毒の連なり / 霜の連なり / 雷の連なり / 血の連なり / 誘爆 / 霜雷の兆し / 蒸気の兆し / 雷走り / 崩れの連なり / 設置の循環（計 12 エントリ） | `meta/links.ts` NAMED_CHAINS |
 | 見た / 撃破 | `seen` / `killed` | 図鑑の敵の記録。見た = 予兆・命中・被弾で関わった、撃破 = 倒した回数 | `meta/codex.ts` |
 | 常時の反応 | `CONSTANT_REACTIONS` | イベントを出さない反応（溶解・裂傷・崩落・萎縮・凍毒・恐慌・氷鎧・魔断）。2 つの状態異常が同時に付いたら起きたとみなす | `meta/codex.ts` |
 | 階の種類 / 部屋 | - | 図鑑「場所」タブの 2 区分（バイオームと部屋の種類） | `meta/codex.ts` |
@@ -341,8 +349,11 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 受けずに出発 | - | 依頼の 3 択で何も受けない選択 | `render/questUi.ts` |
 | 目標 / 報酬 | goal / reward | 依頼の札の表記。報酬は 起点の解放 / 名のある遺物が抽選に加わる / 図鑑の頁 / 称号 | `meta/quests.ts` |
 | 依頼名 | burnout … burstMaster | 燃え尽き / 蒸気の手 / 揺るがす者 / 誓約なき者 / 反応の目録 / 連携の稽古 / 巣窟崩し / 王殺し / 刃のみ / 無傷の階 / 見切りの舞 / 返し手 / 五重苦 / 呪いを抱く / 大博打 / 死神と踊る / 連鎖の糸 / 三段の連鎖 / 凍てつく刃 / 毒の庭 / 血の道 / 急所読み / 詠唱の道 / 深みへ / 試練を越えて / 部屋主狩り / 雷の狩り / 解き放つ者 | `meta/quests.ts` |
+| 依頼名（2026-09-24 第 3 弾、発見系 5 件） | pathfinder / newReaction / comboForms / chainForms / linkWeb | 未踏の連携 / 新しい反応 / 連携の型 / 糸の綾 / 網の目 | `meta/quests.ts` |
 | 実績 | achievement | 図鑑・依頼・履歴から判定する記録。解除した実績の名前は称号として名乗れる | `meta/achievements.ts` |
+| 実績名（2026-09-24 第 3 弾、発見系 4 件） | link5 / link15 / link30 / comboAll | 連携の芽生え / 網の読み手 / 連携の賢者 / 型の極み | `meta/achievements.ts` |
 | 称号 | title | 効果を持たない表示名。実績の名前と依頼の報酬から得る。タイトル画面に「称号「○○」」として 1 つ出る。「称号なし」で外せる | `meta/achievements.ts` |
+| 称号（2026-09-24 第 3 弾、依頼の報酬） | - | 未踏を拓く者 / 錬金の徒 / 型の探究者 / 糸を手繰る者（依頼「未踏の連携」「新しい反応」「連携の型」「糸の綾」の報酬。「網の目」の報酬は図鑑の頁） | `meta/quests.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
 
 ## 設計上の用語（未実装を含む）

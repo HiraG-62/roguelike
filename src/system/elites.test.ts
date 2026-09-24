@@ -1,29 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { FIXED_DT } from "../core/loop";
-import type { EnemyPhase } from "../core/state";
-import { enemyDef } from "../data/enemies";
-import { ELITE, POISE } from "../data/tuning";
+import type { Enemy, EnemyPhase, GameState, RoomKind, RoomState } from "../core/state";
+import { createRng } from "../core/rng";
+import { type Vec, dist } from "../core/vec";
+import { generateItem } from "../loot/generator";
+import type { FloorItem } from "../loot/types";
+import { generateSkillStone } from "../skills/generator";
+import { ENEMIES, enemyDef } from "../data/enemies";
+import { ELITE, ELITE_GREEDY, POISE } from "../data/tuning";
 import { damageEnemy } from "./combat";
 import {
   ELITE_COLOR,
   ELITE_KINDS,
   ELITE_PREFIX,
+  carriedCount,
+  dropGreedyLootAtPlayer,
   eliteChance,
+  eliteDisplayName,
   eliteKindsFor,
   eliteSpeedMul,
   finalizeLinks,
   makeElite,
   rollElite,
   shieldLeft,
+  takeGreedyLoot,
   updateElites,
+  updateGreedy,
 } from "./elites";
 import { applyStagger, isStaggered } from "./poise";
 import { applyStatus, findStatus, hasStatus } from "./statusEffects";
-import { updateEnemies } from "./enemies";
+import { createEnemy, updateEnemies } from "./enemies";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
 import { overlapsWall } from "./physics";
-import { TILE_SIZE } from "../map/grid";
+import { TILE_SIZE, Tile, createMap } from "../map/grid";
+// floor は他の system を束ねるので最後に読む（先に読むと循環 import の初期化順が崩れる）
+import { descend } from "./floor";
 
 describe("eliteChance", () => {
   it("depth < minDepth は 0、minDepth 以降は基準値から微増して上限で止まる", () => {
@@ -401,5 +413,175 @@ describe("シナジーの穴: 反射と連結", () => {
     expect(hasStatus(b.status, "shock")).toBe(false);
     updateElites(state, FIXED_DT);
     expect(hasStatus(b.status, "shock")).toBe(true);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 強欲の（docs/ideas/enemies.md M12）
+// -----------------------------------------------------------------------------
+
+/** 床に遺物を 1 つ置く（乱数は state.rng を使わない） */
+function floorItemAt(state: GameState, pos: Vec, id: number): FloorItem {
+  const item = generateItem(createRng(id), { itemLevel: 3, foundDepth: 3, now: 0 });
+  const fi: FloorItem = { id, item, pos: { ...pos }, bobTime: 0 };
+  state.floorItems.push(fi);
+  return fi;
+}
+
+/** 強欲のの部屋のテストに使う全面床のマップの一辺（タイル） */
+const ROOM_MAP_SIZE = 20;
+
+function greedyAt(state: GameState, dx: number, dy = 0): Enemy {
+  const e = placeEnemy(state, "slime", dx, dy);
+  makeElite(e, "greedy");
+  e.hp = 99_999;
+  return e;
+}
+
+/** 敵だけを n ステップ進める */
+function tick(state: GameState, n: number): void {
+  for (let i = 0; i < n; i++) updateEnemies(state, FIXED_DT);
+}
+
+describe("強欲の", () => {
+  it("接頭辞は「強欲の」で、抽選の候補に入っている（動けない敵には付かない）", () => {
+    expect(ELITE_KINDS).toContain("greedy");
+    expect(ELITE_PREFIX.greedy).toBe("強欲の");
+    expect(eliteKindsFor(enemyDef("slime"))).toContain("greedy");
+    const still = ENEMIES.find((d) => d.speed <= 0 && d.weight > 0 && !d.boss);
+    if (still) expect(eliteKindsFor(still), still.key).not.toContain("greedy");
+  });
+
+  it("床の遺物へ向かって拾い、抱えたらプレイヤーから逃げる", () => {
+    const state = arena();
+    const p = state.player.body.pos;
+    const e = greedyAt(state, 50);
+    const fi = floorItemAt(state, { x: p.x + 80, y: p.y }, 101);
+    for (let i = 0; i < 300 && carriedCount(e) === 0; i++) tick(state, 1);
+    expect(carriedCount(e), "拾った").toBe(1);
+    expect(state.floorItems.includes(fi), "床から消える").toBe(false);
+    expect(e.carried?.items).toContain(fi);
+    expect(state.sfx).toContain("greedySnatch");
+    expect(eliteDisplayName(e), "抱えた数が名前に添えられる").toContain("（1）");
+    const before = dist(e.body.pos, p);
+    tick(state, 10);
+    expect(dist(e.body.pos, p), "プレイヤーから離れる").toBeGreaterThan(before);
+  });
+
+  it("抱えられるのは carryMax 個まで", () => {
+    const state = arena();
+    const e = greedyAt(state, 60);
+    for (let i = 0; i < ELITE_GREEDY.carryMax + 1; i++) floorItemAt(state, e.body.pos, 200 + i);
+    tick(state, 10);
+    expect(carriedCount(e)).toBe(ELITE_GREEDY.carryMax);
+    expect(state.floorItems.length, "上限を超えた分は床に残る").toBe(1);
+  });
+
+  it("倒すと抱えていた遺物・スキル石と、おまけの遺物を落とす", () => {
+    const state = arena();
+    const e = greedyAt(state, 60);
+    const fi = floorItemAt(state, e.body.pos, 301);
+    const stone = generateSkillStone(createRng(3), { foundDepth: 3, now: 0 });
+    state.floorItems = [];
+    e.carried = { items: [fi], stones: [{ id: 302, stone, pos: { x: 0, y: 0 }, bobTime: 0, warned: false }] };
+    damageEnemy(state, e, 999_999, { x: 1, y: 0 }, 0);
+    updateEnemies(state, FIXED_DT);
+    expect(state.floorItems.map((f) => f.id)).toContain(301);
+    expect(state.skills.floorStones.map((f) => f.id)).toContain(302);
+    expect(state.floorItems.length, "抱えていた 1 つ + おまけ").toBeGreaterThanOrEqual(1 + ELITE_GREEDY.bonusDrops);
+    expect(dist(fi.pos, e.body.pos)).toBeLessThanOrEqual(ELITE_GREEDY.dropSpread + 0.001);
+  });
+
+  it("自爆などで消えても抱えていた物は必ず落とす（おまけは無い）", () => {
+    const state = arena();
+    const e = greedyAt(state, 60);
+    const fi = floorItemAt(state, e.body.pos, 401);
+    state.floorItems = [];
+    e.carried = { items: [fi], stones: [] };
+    e.vanished = true;
+    e.hp = 0;
+    updateEnemies(state, FIXED_DT);
+    expect(state.floorItems.map((f) => f.id)).toEqual([401]);
+  });
+
+  it("冷気で足が遅くなれば逃げ足も遅くなる", () => {
+    const fled = (chilled: boolean): number => {
+      const state = arena();
+      const e = greedyAt(state, 40);
+      e.carried = { items: [floorItemAt(state, e.body.pos, 501)], stones: [] };
+      state.floorItems = [];
+      if (chilled) applyStatus(state, { kind: "enemy", enemy: e }, { kind: "chill", stacks: 3, duration: 10, potency: 0 }, "player");
+      const start = { ...e.body.pos };
+      tick(state, 5);
+      return dist(start, e.body.pos);
+    };
+    const normal = fled(false);
+    expect(normal).toBeGreaterThan(0);
+    expect(fled(true), "冷えていると遅い").toBeLessThan(normal);
+  });
+
+  it("逃げ道が壁で塞がると、しばらく普通の敵として戦う", () => {
+    const state = arena();
+    const p = state.player.body.pos;
+    const e = greedyAt(state, 0);
+    // 右へ進んで壁の手前に置き、プレイヤーを左に置く（逃げる向き = 壁）
+    let x = p.x;
+    while (!overlapsWall(state, x + 1, p.y, e.body.radius)) x += 1;
+    e.body.pos = { x, y: p.y };
+    state.player.body.pos = { x: x - 40, y: p.y };
+    e.carried = { items: [floorItemAt(state, e.body.pos, 601)], stones: [] };
+    state.floorItems = [];
+    e.phase = "chase";
+    const def = enemyDef(e.defKey);
+    expect(updateGreedy(state, e, def, FIXED_DT, def.speed), "追い詰められたら状態機械に任せる").toBe(false);
+    expect(e.eliteWork?.timer).toBeCloseTo(ELITE_GREEDY.cornerFightTime);
+    expect(updateGreedy(state, e, def, FIXED_DT, def.speed), "戦う間は逃げない").toBe(false);
+  });
+
+  it("封鎖する部屋の強欲のは部屋の外の遺物には向かわず、部屋の中の遺物だけを拾う", () => {
+    /** 全面が床の最小マップに矩形の部屋 1 つ。部屋の中に強欲の、部屋の外（視線は通る）に遺物を置く */
+    const scene = (kind: RoomKind): { state: GameState; e: Enemy; outside: FloorItem } => {
+      const state = arena();
+      const map = createMap(ROOM_MAP_SIZE, ROOM_MAP_SIZE);
+      map.tiles.fill(Tile.Floor);
+      state.map = map;
+      const room: RoomState = { rect: { x: 5, y: 5, w: 4, h: 4 }, cleared: false, locked: false, doorTiles: [], kind, wave: 0, used: false };
+      state.rooms = [room];
+      state.lockedTiles = new Set();
+      // プレイヤーは遠くに置く（逃げる判定に入らないように）
+      state.player.body.pos = { x: (ROOM_MAP_SIZE - 1.5) * TILE_SIZE, y: (ROOM_MAP_SIZE - 1.5) * TILE_SIZE };
+      const e = createEnemy(state, enemyDef("slime"), { x: 7 * TILE_SIZE, y: 7 * TILE_SIZE }, 0, false);
+      makeElite(e, "greedy");
+      e.hp = 99_999;
+      state.enemies.push(e);
+      const outside = floorItemAt(state, { x: 13.5 * TILE_SIZE, y: 7 * TILE_SIZE }, 801);
+      return { state, e, outside };
+    };
+
+    const locked = scene("ambush");
+    tick(locked.state, 120);
+    expect(carriedCount(locked.e), "封鎖する部屋: 外の遺物は拾わない").toBe(0);
+    expect(locked.e.body.pos.x, "部屋の外へ出ていかない").toBeLessThan(9 * TILE_SIZE);
+    const inside = floorItemAt(locked.state, { x: 6 * TILE_SIZE, y: 6.5 * TILE_SIZE }, 802);
+    for (let i = 0; i < 300 && carriedCount(locked.e) === 0; i++) tick(locked.state, 1);
+    expect(locked.e.carried?.items, "部屋の中の遺物は拾う").toContain(inside);
+
+    const open = scene("normal");
+    for (let i = 0; i < 300 && carriedCount(open.e) === 0; i++) tick(open.state, 1);
+    expect(open.e.carried?.items, "封鎖しない部屋なら外の遺物も拾いに行く").toContain(open.outside);
+  });
+
+  it("階を移るとき抱えていた物は次の階のプレイヤーの足元に落ちる", () => {
+    const state = arena();
+    const e = greedyAt(state, 60);
+    const fi = floorItemAt(state, e.body.pos, 701);
+    state.floorItems = [];
+    e.carried = { items: [fi], stones: [] };
+    const loot = takeGreedyLoot(state);
+    expect(carriedCount(e), "取り上げた").toBe(0);
+    descend(state);
+    dropGreedyLootAtPlayer(state, loot);
+    expect(state.floorItems.map((f) => f.id)).toContain(701);
+    expect(dist(fi.pos, state.player.body.pos)).toBeLessThanOrEqual(ELITE_GREEDY.dropSpread + 0.001);
   });
 });

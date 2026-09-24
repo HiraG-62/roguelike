@@ -32,7 +32,20 @@ import { MemoryStorage } from "./testStorage";
 const DT = 1 / 60;
 
 function emptySnapshot(): QuestSnapshot {
-  return { ...createQuestCounters(), depth: 1, keystones: 0, cursedBoons: 0, tier: 0, reactionKinds: 0, statusKinds: 0 };
+  return {
+    ...createQuestCounters(),
+    depth: 1,
+    keystones: 0,
+    cursedBoons: 0,
+    tier: 0,
+    reactionKinds: 0,
+    statusKinds: 0,
+    linkKinds: 0,
+    comboKinds: 0,
+    chainKinds: 0,
+    newLinks: 0,
+    newReactions: 0,
+  };
 }
 
 /** 各依頼をちょうど満たす値（依頼を足したらここにも足す。漏れは下のテストが落ちる） */
@@ -65,6 +78,11 @@ const SATISFY: Readonly<Record<QuestKey, Partial<QuestSnapshot>>> = {
   lairHunter: { lairKills: 3 },
   thunderRing: { shockKills: 30 },
   burstMaster: { bursts: 8 },
+  pathfinder: { newLinks: 2 },
+  newReaction: { newReactions: 1 },
+  comboForms: { comboKinds: 3 },
+  chainForms: { chainKinds: 4 },
+  linkWeb: { linkKinds: 10 },
 };
 
 /** 条件の片側だけ満たしても達成しない依頼（複合条件） */
@@ -168,6 +186,22 @@ describe("依頼: ラン中の数え上げ", () => {
     expect(snap.skillCombos, "連携").toBe(1);
   });
 
+  it("連携の発見を系統ごとに数え、図鑑に無かったものを新しい発見として数える", () => {
+    const state = arena();
+    state.codexRun.links.known.add("reaction:steam");
+    pushEvent(state, { kind: "onReaction", actor: "player", pos: { x: 0, y: 0 }, tag: "steam", source: { kind: "player", key: "reaction" } });
+    pushEvent(state, { kind: "onReaction", actor: "player", pos: { x: 0, y: 0 }, tag: "vaporize", source: { kind: "player", key: "reaction" } });
+    noteSkillCombo(state, "wellThunder");
+    flush(state);
+    const snap = questSnapshot(state);
+    expect(snap.linkKinds, "成立した連携").toBe(3);
+    expect(snap.comboKinds, "スキルの連携").toBe(1);
+    expect(snap.newLinks, "図鑑に無かった連携").toBe(2);
+    expect(snap.newReactions, "図鑑に無かった反応").toBe(1);
+    expect(questProgress("newReaction", snap).done, "新しい反応を達成").toBe(true);
+    expect(questProgress("pathfinder", snap).done, "未踏の連携を達成").toBe(true);
+  });
+
   it("被弾せずに降りた階と、死神の出現中に降りた階を数える", () => {
     const state = arena();
     flush(state);
@@ -208,7 +242,7 @@ describe("依頼: ラン終了時の判定と報酬", () => {
     save.completed.shaker = 1;
     expect(lockedRelicKeys(save), "達成で抽選に加わる").not.toContain("unshakenScale");
     save.completed.steamHand = 1;
-    expect(codexPages(save).has("reaction"), "反応の頁").toBe(true);
+    expect(codexPages(save).has("link"), "連携の頁").toBe(true);
     save.completed.burnout = 1;
     expect(questTitles(save).map((t) => t.key), "称号").toContain("burnout");
   });

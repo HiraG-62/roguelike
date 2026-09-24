@@ -22,6 +22,8 @@ import {
 } from "./replay";
 import { createEmptyProfile, type Item, type Profile } from "../loot/types";
 import { createDefaultSkillProfile, ownedRunes } from "../skills/persistence";
+import { stoneFromSeed } from "../skills/generator";
+import type { SkillProfile } from "../skills/types";
 import { SKILL } from "../skills/data";
 import { dropRune } from "../system/skills";
 import { computeStats } from "../loot/stats";
@@ -223,8 +225,9 @@ function recordRun(
   setup?: RunSetup,
 ): { data: ReplayData; state: GameState } {
   const skillProfile = createDefaultSkillProfile();
-  const recorder = new ReplayRecorder({ seedText, startedAt: 1, daily: false, setup }, profile, skillProfile);
+  // main.ts と同じく createGame の後にスナップショットを取る
   const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, setup);
+  const recorder = ReplayRecorder.fromStartedGame({ seedText, startedAt: 1, daily: false, setup }, state);
   inputs.forEach((input, i) => {
     if (onFrame?.(state, i)) recorder.noteLoadout(state);
     step(state, recorder.record(input), FIXED_DT);
@@ -428,6 +431,100 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
     if (!first) throw new Error("イベントが無い");
     first.alloc = { str: -1, dex: 0, vit: 0, mnd: 0, spi: 0 };
     expect(sanitizeReplay(broken)).toBeNull();
+  });
+});
+
+describe("ジョブの初期スキル石と倉庫の上限（snapshotAfterStart）", () => {
+  const SEED = "starter-stone";
+  const JOB_SETUP: RunSetup = { origin: "wanderer", modifiers: [], job: "swordsman" };
+  const STARTER = "lunge";
+  /** 倉庫を上限の 1 つ手前まで埋める。拾えば満杯になり、初期石が 1 つ増えるだけで拾えなくなる */
+  const NEAR_FULL = SKILL.stashCapacity - 1;
+
+  function nearFullProfile(ownsStarter: boolean): SkillProfile {
+    const skillProfile = createDefaultSkillProfile();
+    const extra = ownsStarter ? [stoneFromSeed(1, { foundDepth: 1, now: 0, skillKey: STARTER })] : [];
+    skillProfile.stones.push(...extra);
+    for (let i = skillProfile.stones.length; i < NEAR_FULL; i++) {
+      skillProfile.stones.push(stoneFromSeed(i + 2, { foundDepth: 1, now: 0, skillKey: "frag" }));
+    }
+    return skillProfile;
+  }
+
+  /** 足元にスキル石を置いてインタラクトで拾う（記録側と再生側に同じ操作をする） */
+  function pickUpAtFeet(state: GameState): void {
+    const stone = stoneFromSeed(999, { foundDepth: 1, now: 0, skillKey: "frag" });
+    state.skills.floorStones.push({ id: 9999, stone, pos: { ...state.player.body.pos }, bobTime: 0, warned: false });
+    step(state, withInput({ interactPressed: true, aimScreen: null }), FIXED_DT);
+  }
+
+  function recordStart(skillProfile: SkillProfile, legacy: boolean): { data: ReplayData; state: GameState } {
+    const profile = createEmptyProfile();
+    const options = { seedText: SEED, startedAt: 1, daily: false, setup: JOB_SETUP };
+    // 旧来の記録器は createGame の前にスナップショットを取っていた
+    const legacyRecorder = legacy ? new ReplayRecorder(options, profile, skillProfile) : null;
+    const state = createGame(hashSeed(SEED), SEED, profile, skillProfile, JOB_SETUP);
+    const recorder = legacyRecorder ?? ReplayRecorder.fromStartedGame(options, state);
+    const data = recorder.finish({ depth: state.depth, kills: state.kills, score: state.score }, 2);
+    return { data, state };
+  }
+
+  function session(data: ReplayData): ReturnType<typeof createReplaySession> {
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    if (!loaded) throw new Error("sanitize failed");
+    return createReplaySession(loaded);
+  }
+
+  it("初期石を既に持っていて倉庫が上限の 1 つ手前でも、再生の倉庫の件数と拾得の成否が記録と一致する", () => {
+    const { data, state } = recordStart(nearFullProfile(true), false);
+    expect(data.snapshotAfterStart, "createGame の後のスナップショットだと記録される").toBe(true);
+    expect(state.skills.profile.stones, "持っているので初期石は増えない").toHaveLength(NEAR_FULL);
+    const replay = session(data);
+    expect(replay.skillProfile.stones, "再生側も同じ件数").toHaveLength(NEAR_FULL);
+    pickUpAtFeet(state);
+    pickUpAtFeet(replay.state);
+    expect(state.skills.floorStones, "記録側は拾える").toHaveLength(0);
+    expect(replay.state.skills.floorStones, "再生側も拾える").toHaveLength(0);
+    expect(replay.skillProfile.stones.length).toBe(state.skills.profile.stones.length);
+  });
+
+  it("初期石を持っていなければ、記録と再生の両方で初期石が入って満杯になり拾えない", () => {
+    const { data, state } = recordStart(nearFullProfile(false), false);
+    expect(state.skills.profile.stones, "初期石が入って満杯").toHaveLength(SKILL.stashCapacity);
+    expect(data.snapshot.stoneCount, "初期石を含めた件数を記録").toBe(SKILL.stashCapacity);
+    const replay = session(data);
+    expect(replay.skillProfile.stones).toHaveLength(SKILL.stashCapacity);
+    pickUpAtFeet(state);
+    pickUpAtFeet(replay.state);
+    expect(state.skills.floorStones, "記録側は床に残る").toHaveLength(1);
+    expect(replay.state.skills.floorStones, "再生側も床に残る").toHaveLength(1);
+  });
+
+  it("件数を合わせ直しても装着中のスキル石は残る", () => {
+    const { data, state } = recordStart(nearFullProfile(true), false);
+    const replay = session(data);
+    expect(replay.skillProfile.loadout, "装着の並び").toEqual(state.skills.profile.loadout);
+    for (const id of replay.skillProfile.loadout) {
+      if (id === null) continue;
+      expect(replay.skillProfile.stones.some((s) => s.id === id), `装着中の石 ${id} が倉庫に残る`).toBe(true);
+    }
+  });
+
+  it("欄の無い旧記録（createGame 前のスナップショット）は従来どおり再生でき、件数を合わせ直さない", () => {
+    const { data } = recordStart(nearFullProfile(true), true);
+    expect("snapshotAfterStart" in data, "旧来の記録器は欄を書かない").toBe(false);
+    expect(isPlayable(data), "版は変わらないので再生できる").toBe(true);
+    const replay = session(data);
+    // 旧記録はダミーの石が初期石と見なされないため startJob が 1 つ足す（既知の制限をそのまま再現する）
+    expect(replay.skillProfile.stones).toHaveLength(NEAR_FULL + 1);
+  });
+
+  it("snapshotAfterStart は true のときだけ sanitize の往復で残り、それ以外の値は捨てる", () => {
+    const { data } = recordStart(nearFullProfile(true), false);
+    expect(sanitizeReplay(JSON.parse(JSON.stringify(data)))?.snapshotAfterStart).toBe(true);
+    const broken = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, snapshotAfterStart: "yes" })));
+    expect(broken, "壊れた値でも記録は残す").not.toBeNull();
+    expect(broken?.snapshotAfterStart, "true 以外は欄ごと捨てる").toBeUndefined();
   });
 });
 

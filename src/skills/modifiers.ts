@@ -33,7 +33,8 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw(["lowHp"]),
     excludesTags: [],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
+    // 業火の化身は維持の気力を毎秒払うので、入口だけ後払いにしても意味が無い
+    excludesSkills: [...SPECIAL_MANA, "pyreForm"],
     apply: (p) => ({ ...p, deferredMul: M.deferred.costMul }),
   },
   refund: {
@@ -234,9 +235,10 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     color: "#70d0d0",
     keywords: kw([], ["placed"], ["placed"]),
     excludesTags: [],
-    requiresTags: ["placed"],
-    // グレネード・雷撃は置いたものが残らない（導火線・落雷の予告だけ）
-    excludesSkills: ["frag", "thunder"],
+    // 第 3 弾の変身（狼化・霊体化・鉄塊化）は持続が伸びる（durationMul）
+    requiresTags: ["placed", "form"],
+    // グレネード・雷撃は置いたものが残らない（導火線・落雷の予告だけ）。第 2 弾の変身と、時間で切れない変身（砲身化・業火の化身）は除く
+    excludesSkills: ["frag", "thunder", "titanForm", "swiftForm", "spiritForm", "siegeForm", "pyreForm"],
     apply: (p) => ({ ...p, durationMul: p.durationMul * M.sustain.durationMul, potencyMul: p.potencyMul * M.sustain.potencyMul }),
   },
   landing: {

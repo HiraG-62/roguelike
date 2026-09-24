@@ -14,6 +14,7 @@ import {
   buildTags,
   canTakeCurse,
 } from "../system/boons";
+import { linkHintText } from "../meta/linkHint";
 import { type KeywordAffinity, affinity, buildProfile } from "../system/keywords";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
 
@@ -58,6 +59,22 @@ const WORD_HEAD_PRODUCES = "出";
 const WORD_HEAD_CONSUMES = "食";
 const WORD_GROUP_GAP = 5;
 const WORD_HEAD_GAP = 2;
+/** 祝福カードの印（docs/ideas/synergy-web.md 4-c）。優劣ではなく「今のビルドとどう噛むか」の種類 */
+export const BOON_MARKS = ["fill", "feed", "fresh"] as const;
+export type BoonMark = (typeof BOON_MARKS)[number];
+export const BOON_MARK_LABEL: Readonly<Record<BoonMark, string>> = {
+  fill: "穴を埋める",
+  feed: "流れを太くする",
+  fresh: "新しい流れ",
+};
+const BOON_MARK_COLOR: Readonly<Record<BoonMark, string>> = {
+  fill: "#80e0ff",
+  feed: "#ffb060",
+  fresh: "#a0a0a0",
+};
+/** 手がかり枠（5-d）の行。呪いの札の下 */
+const HINT_GAP_BELOW_CURSE = 12;
+const COLOR_HINT = "#a0c0e0";
 /** 系譜の段数をたどる上限（定義の循環で止まらないように） */
 const LINEAGE_MAX_DEPTH = 8;
 
@@ -96,6 +113,16 @@ function lineageStage(def: BoonDef): number {
   return stage;
 }
 
+/**
+ * カードの印。飢え（食うのに誰も出さない語）を出すなら「穴を埋める」、余り（出すのに誰も食わない語）を食うなら
+ * 「流れを太くする」、どちらでもなければ「新しい流れ」。両方なら穴を先に見せる（ビルドの穴の方が次の目的になるので）
+ */
+export function boonMark(aff: Readonly<KeywordAffinity>): BoonMark {
+  if (aff.fills.length > 0) return "fill";
+  if (aff.feeds.length > 0) return "feed";
+  return "fresh";
+}
+
 /** カードの 3 行目（希少度・呪い・系譜・結び） */
 function cardSubtitle(def: BoonDef): { text: string; color: string | null } {
   const rarity = BOON_RARITY_LABEL[def.rarity];
@@ -123,6 +150,18 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
     drawCard(ctx, def, i, c.options.length, i === c.hover, tags, affinity(def.keywords, build));
   });
   drawCurseOffer(ctx, state);
+  drawLinkHint(ctx, state);
+}
+
+/** 手がかり枠: 今のビルドで成立し得る未発見の連携を 1 件（祝福を選ぶ手がかりになるよう、選択画面では常に出す） */
+function drawLinkHint(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const hint = state.codexRun.links.hint;
+  if (hint === null) return;
+  const text = linkHintText(hint);
+  if (text === "") return;
+  const r = boonCurseRect();
+  const line = truncateText(`手がかり: ${text}`, VIEW_W - CARD_PAD * 2, TEXT.SMALL);
+  drawText(ctx, line, VIEW_W / 2, r.y + r.h + HINT_GAP_BELOW_CURSE, TEXT.SMALL, COLOR_HINT, "center");
 }
 
 /** 「呪いを受けて 4 択」の札。受けた後は受けた呪いの名前を出す */
@@ -186,7 +225,13 @@ function drawCard(
   const tagText = def.tags.map((t) => (tags.has(t) ? `[${t}]` : t)).join(" ");
   const tagColor = def.tags.some((t) => tags.has(t)) ? COLOR_TAG_MATCH : COLOR_SUB;
   drawText(ctx, truncateText(tagText, maxWidth, TEXT.SMALL), cx, tagY, TEXT.SMALL, tagColor, "center");
-  drawText(ctx, KEY_HINTS[index] ?? "", cx, y + r.h - TAGS_BOTTOM, TEXT.SMALL, COLOR_SUB, "center");
+  // 最下段: 左にキー、右に印（並びは抽選順のまま。印は優劣ではなく噛み方の種類）
+  const keyHint = KEY_HINTS[index] ?? "";
+  const bottom = y + r.h - TAGS_BOTTOM;
+  drawText(ctx, keyHint, r.x + CARD_PAD, bottom, TEXT.SMALL, COLOR_SUB);
+  const mark = boonMark(aff);
+  const markW = maxWidth - textWidth(keyHint, TEXT.SMALL) - WORD_GROUP_GAP;
+  drawText(ctx, truncateText(BOON_MARK_LABEL[mark], markW, TEXT.SMALL), r.x + r.w - CARD_PAD, bottom, TEXT.SMALL, BOON_MARK_COLOR[mark], "right");
 }
 
 interface WordGroup {

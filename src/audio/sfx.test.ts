@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { SFX_NAMES, type SfxName } from "./sfxNames";
-import { SfxPlayer } from "./sfx";
+import { SFX_DEFINITIONS, SfxPlayer } from "./sfx";
+import { LAYERED_SFX } from "./sfxLayers";
 
 /**
  * 実際の音は鳴らさず、ノードグラフの API 呼び出しが例外なく通ることだけを検証するための
@@ -181,5 +182,47 @@ describe("SfxPlayer", () => {
     player.unlock();
     expect(() => player.setMasterVolume(2)).not.toThrow();
     expect(() => player.setMasterVolume(-1)).not.toThrow();
+  });
+});
+
+describe("演出と音の第 3 弾の効果音（8-4 / 8-7〜8-10 / 8-14）", () => {
+  const WAVE3: readonly SfxName[] = [
+    "reactionSteam",
+    "reactionShatter",
+    "reactionBlaze",
+    "reactionSpark",
+    "reactionBlight",
+    "reactionSurge",
+    "chargeStep1",
+    "chargeStep2",
+    "chargeStep3",
+    "manaFull",
+    "budSprout",
+    "inscribe",
+    "questComplete",
+    "reaperHeartbeat",
+  ];
+
+  it("名前が SFX_NAMES にあり、層の表（LAYERED_SFX）で定義されている", () => {
+    const layered: ReadonlySet<string> = new Set(Object.keys(LAYERED_SFX));
+    for (const name of WAVE3) {
+      expect(SFX_NAMES as readonly string[], `名前 ${name}`).toContain(name);
+      expect(layered.has(name), `層の定義 ${name}`).toBe(true);
+      expect(typeof SFX_DEFINITIONS[name], `再生の定義 ${name}`).toBe("function");
+    }
+  });
+
+  it("溜めの段の音は段が上がるほど高い", () => {
+    const firstFreq = (name: "chargeStep1" | "chargeStep2" | "chargeStep3"): number => {
+      const layer = LAYERED_SFX[name][0];
+      return layer.k === "tone" ? layer.freq : 0;
+    };
+    expect(firstFreq("chargeStep2"), "2 段目は 1 段目より高い").toBeGreaterThan(firstFreq("chargeStep1"));
+    expect(firstFreq("chargeStep3"), "3 段目は 2 段目より高い").toBeGreaterThan(firstFreq("chargeStep2"));
+  });
+
+  it("依頼の達成は 3 音のファンファーレから始まる", () => {
+    const first = LAYERED_SFX.questComplete[0];
+    expect(first.k === "arp" ? first.freqs.length : 0, "3 音").toBe(3);
   });
 });

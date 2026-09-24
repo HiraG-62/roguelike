@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChainRecord } from "../core/events";
 import { boonHudTop } from "./boonUi";
-import { CHAIN_MAX_LINES, CHAIN_SHOW_SECONDS, chainAlpha, chainBaselines, chainLines, chainWord } from "./chainUi";
+import { DISCOVERY } from "../data/tuning";
+import { createLinkRun } from "../meta/links";
+import { CHAIN_MAX_LINES, CHAIN_SHOW_SECONDS, chainAlpha, chainBaselines, chainLines, chainWord, discoveryNotes } from "./chainUi";
 
 function rec(keyword: string, depth: number, time: number): ChainRecord {
   return { keyword, depth, time };
@@ -56,5 +58,30 @@ describe("連鎖の表示: 位置と薄れ方", () => {
     expect(chainAlpha(0), "出た直後").toBe(1);
     expect(chainAlpha(CHAIN_SHOW_SECONDS - 0.25), "消える直前").toBeLessThan(1);
     expect(chainAlpha(CHAIN_SHOW_SECONDS + 0.1), "過ぎた").toBe(0);
+  });
+});
+
+describe("連鎖の表示: 連携名と発見の知らせ", () => {
+  it("名のある連鎖は行に名前を添え、名の無い並びは null", () => {
+    const named = chainLines([rec("burn", 0, 1), rec("burn", 1, 1.1)], 1.5);
+    expect(named[0]?.name, "炎→炎は延焼").toBe("延焼");
+    const plain = chainLines([rec("melee", 0, 1), rec("heal", 1, 1.1)], 1.5);
+    expect(plain[0]?.name, "名の無い並び").toBeNull();
+  });
+
+  it("初めて見つけた連携と手がかりは、それぞれの表示秒の間だけ出る", () => {
+    const links = createLinkRun();
+    links.fresh = { id: "reaction:vaporize", time: 10 };
+    links.hint = { id: "reaction:steam", shown: "first", depth: 1, since: 10 };
+    const now = discoveryNotes(links, 10.5);
+    expect(now.map((n) => n.kind), "手がかりが上、初発見が下").toEqual(["hint", "fresh"]);
+    const later = discoveryNotes(links, 10 + DISCOVERY.freshShowSeconds + 0.1);
+    expect(later.map((n) => n.kind), "初発見は先に消える").toEqual(DISCOVERY.hintShowSeconds > DISCOVERY.freshShowSeconds ? ["hint"] : []);
+    expect(discoveryNotes(links, 10 + DISCOVERY.hintShowSeconds + 0.1), "どちらも消える").toEqual([]);
+  });
+
+  it("知らせの薄れ方は各自の表示秒で決まる", () => {
+    expect(chainAlpha(0, DISCOVERY.hintShowSeconds), "出た直後").toBe(1);
+    expect(chainAlpha(DISCOVERY.hintShowSeconds + 0.1, DISCOVERY.hintShowSeconds), "過ぎた").toBe(0);
   });
 });

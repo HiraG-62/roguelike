@@ -77,6 +77,21 @@ function stepOff(state: GameState, room: RoomState): void {
   step(state, IDLE, FIXED_DT);
 }
 
+/** 台座から離れる（台座が部屋の隅に置かれた seed でも触れ続けないよう、4 隅のうち最も遠い隅へ） */
+function stepAwayFrom(state: GameState, room: RoomState, pos: Vec): void {
+  const inset = 1.5;
+  const corners: Vec[] = [
+    { x: (room.rect.x + inset) * TILE_SIZE, y: (room.rect.y + inset) * TILE_SIZE },
+    { x: (room.rect.x + room.rect.w - inset) * TILE_SIZE, y: (room.rect.y + inset) * TILE_SIZE },
+    { x: (room.rect.x + inset) * TILE_SIZE, y: (room.rect.y + room.rect.h - inset) * TILE_SIZE },
+    { x: (room.rect.x + room.rect.w - inset) * TILE_SIZE, y: (room.rect.y + room.rect.h - inset) * TILE_SIZE },
+  ];
+  const dist2 = (c: Vec): number => (c.x - pos.x) ** 2 + (c.y - pos.y) ** 2;
+  const far = corners.reduce((best, c) => (dist2(c) > dist2(best) ? c : best));
+  state.player.body.pos = { ...far };
+  step(state, IDLE, FIXED_DT);
+}
+
 function enter(state: GameState, room: RoomState): void {
   state.player.body.pos = rectCenterPx(room.rect);
   for (let i = 0; i < 3 && !room.locked && !room.cleared; i++) step(state, IDLE, FIXED_DT);
@@ -497,7 +512,7 @@ describe("第 2 弾の部屋", () => {
     const vein = propOf(room, "vein");
     const total = (): number => Object.values(state.runEvents.pendingEchoes).reduce((s, v) => s + v, 0);
     for (let i = 0; i < RUN_EVENT.vein.uses; i++) {
-      stepOff(state, room);
+      stepAwayFrom(state, room, vein.pos);
       standAt(state, vein.pos);
     }
     expect(total(), "残響").toBe(RUN_EVENT.vein.uses * RUN_EVENT.vein.echoes);

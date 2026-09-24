@@ -3,13 +3,17 @@ import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { STATUS_KINDS, type StatusKind } from "../core/status";
 import { VIEW_W } from "../core/view";
+import { DISCOVERY } from "../data/tuning";
+import { linkHintText } from "../meta/linkHint";
+import { type LinkRun, chainNameOfWords, linkName } from "../meta/links";
 import { STATUS_KEYWORDS } from "../system/keywords";
 import { boonHudTop } from "./boonUi";
-import { TEXT, drawText, textLineHeight, textWidth } from "./pixelText";
+import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixelText";
 
 /**
  * 連鎖の表示（docs/ideas/synergy-web.md 4-e）。state.chains の直近を HUD の右下（祝福アイコン列の上）に
- * 「炎→炎 ×2」のように語の字形で流し、CHAIN_SHOW_SECONDS で消す。
+ * 「炎→炎 ×2」のように語の字形で流し、CHAIN_SHOW_SECONDS で消す。名のある連鎖（src/meta/links.ts の NAMED_CHAINS）は
+ * 先頭に名前を添える（「延焼 炎→炎」）。その上に、初めて見つけた連携（「新たな連携「渦雷」」）と手がかり枠（5-d）を積む。
  * state を読むだけ。時刻は state.time だけを使い、rng は使わない
  */
 
@@ -28,10 +32,20 @@ const CHAIN_BIG_LINE_MIN = 11;
 const ARROW = "→";
 const COLOR_ARROW = "#909090";
 const COLOR_COUNT = "#ffffff";
+const COLOR_CHAIN_NAME = "#ffd75f";
+const COLOR_FRESH = "#ffd75f";
+const COLOR_HINT = "#a0c0e0";
+/** 名前と字形の間 */
+const CHAIN_NAME_GAP = 3;
+/** 通知の行（初発見・手がかり）の最大幅（右端から左へ。HUD の左側を隠さないように） */
+const NOTE_MAX_W = 220;
+const NOTE_LINE_MIN = 10;
 
 /** 表示する 1 行: 連鎖の語の並び（段の順）と、同じ並びが続いた回数 */
 export interface ChainLine {
   words: Keyword[];
+  /** 名のある連鎖の名前（無ければ null） */
+  name: string | null;
   count: number;
   maxDepth: number;
   /** 最後の段が起きてからの秒 */
@@ -100,16 +114,41 @@ export function chainLines(chains: readonly ChainRecord[], now: number): ChainLi
       prev.age = now - seq.lastTime;
       continue;
     }
-    lines.push({ words: seq.words, count: 1, maxDepth: seq.maxDepth, age: now - seq.lastTime });
+    lines.push({ words: seq.words, name: chainNameOfWords(seq.words), count: 1, maxDepth: seq.maxDepth, age: now - seq.lastTime });
   }
   return lines.slice(-CHAIN_MAX_LINES);
 }
 
-/** 行の不透明度（最後の CHAIN_FADE_SECONDS で薄くなる） */
-export function chainAlpha(age: number): number {
-  const left = CHAIN_SHOW_SECONDS - age;
+/** 行の不透明度（表示秒 life の最後の CHAIN_FADE_SECONDS で薄くなる） */
+export function chainAlpha(age: number, life: number = CHAIN_SHOW_SECONDS): number {
+  const left = life - age;
   if (left <= 0) return 0;
   return Math.min(1, left / CHAIN_FADE_SECONDS);
+}
+
+/** 連鎖の行の上に積む 1 行の知らせ（初めて見つけた連携・手がかり） */
+export interface DiscoveryNote {
+  kind: "fresh" | "hint";
+  text: string;
+  age: number;
+  life: number;
+}
+
+/** 今出す知らせ（上から 手がかり → 初発見）。出す時間を過ぎたものは出さない */
+export function discoveryNotes(links: Readonly<LinkRun>, now: number): DiscoveryNote[] {
+  const out: DiscoveryNote[] = [];
+  const hint = links.hint;
+  if (hint !== null) {
+    const age = now - hint.since;
+    const text = linkHintText(hint);
+    if (age >= 0 && age <= DISCOVERY.hintShowSeconds && text !== "") out.push({ kind: "hint", text: `手がかり: ${text}`, age, life: DISCOVERY.hintShowSeconds });
+  }
+  const fresh = links.fresh;
+  if (fresh !== null) {
+    const age = now - fresh.time;
+    if (age >= 0 && age <= DISCOVERY.freshShowSeconds) out.push({ kind: "fresh", text: `新たな連携「${linkName(fresh.id)}」`, age, life: DISCOVERY.freshShowSeconds });
+  }
+  return out;
 }
 
 function lineSize(line: ChainLine): number {
@@ -141,8 +180,13 @@ function drawLine(ctx: CanvasRenderingContext2D, line: ChainLine, baseline: numb
   const arrowW = textWidth(ARROW, m);
   const glyphW = line.words.reduce((sum, k) => sum + textWidth(KEYWORD_DEFS[k].glyph, m), 0);
   const tail = countText(line);
-  const total = glyphW + arrowW * (line.words.length - 1) + textWidth(tail, m);
+  const nameW = line.name === null ? 0 : textWidth(line.name, m) + CHAIN_NAME_GAP;
+  const total = nameW + glyphW + arrowW * (line.words.length - 1) + textWidth(tail, m);
   let x = VIEW_W - CHAIN_RIGHT - total;
+  if (line.name !== null) {
+    drawText(ctx, line.name, x, baseline, m, COLOR_CHAIN_NAME);
+    x += nameW;
+  }
   line.words.forEach((k, i) => {
     if (i > 0) {
       drawText(ctx, ARROW, x, baseline, m, COLOR_ARROW);
@@ -155,14 +199,31 @@ function drawLine(ctx: CanvasRenderingContext2D, line: ChainLine, baseline: numb
   if (tail !== "") drawText(ctx, tail, x, baseline, m, COLOR_COUNT);
 }
 
+function noteHeight(): number {
+  return Math.max(NOTE_LINE_MIN, textLineHeight(TEXT.SMALL));
+}
+
+function drawNote(ctx: CanvasRenderingContext2D, note: DiscoveryNote, baseline: number): void {
+  const m = TEXT.SMALL;
+  const text = truncateText(note.text, NOTE_MAX_W, m);
+  drawText(ctx, text, VIEW_W - CHAIN_RIGHT, baseline, m, note.kind === "fresh" ? COLOR_FRESH : COLOR_HINT, "right");
+}
+
 export function drawChainHud(ctx: CanvasRenderingContext2D, state: GameState): void {
-  if (state.chains.length === 0 || state.status !== "playing") return;
-  const lines = chainLines(state.chains, state.time);
-  if (lines.length === 0) return;
-  const baselines = chainBaselines(lines.map(lineHeight), state.boons.length);
+  if (state.status !== "playing") return;
+  const lines = state.chains.length === 0 ? [] : chainLines(state.chains, state.time);
+  const notes = discoveryNotes(state.codexRun.links, state.time);
+  if (lines.length === 0 && notes.length === 0) return;
+  // 知らせを上、連鎖を下に積む（新しい連鎖ほど祝福アイコン列に近い）
+  const heights = [...notes.map(noteHeight), ...lines.map(lineHeight)];
+  const baselines = chainBaselines(heights, state.boons.length);
+  notes.forEach((note, i) => {
+    ctx.globalAlpha = chainAlpha(note.age, note.life);
+    drawNote(ctx, note, baselines[i] ?? 0);
+  });
   lines.forEach((line, i) => {
     ctx.globalAlpha = chainAlpha(line.age);
-    drawLine(ctx, line, baselines[i] ?? 0);
+    drawLine(ctx, line, baselines[notes.length + i] ?? 0);
   });
   ctx.globalAlpha = 1;
 }

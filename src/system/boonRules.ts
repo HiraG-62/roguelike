@@ -1,7 +1,4 @@
 import type { StatusKind } from "../core/status";
-import type { EventSource } from "../core/events";
-import { type Rule, SCOPE_ANY, ruleId } from "../core/rules";
-import type { BoonKey } from "./boonDefs";
 import {
   type AttackPhase,
   type DamageKind,
@@ -46,64 +43,10 @@ import {
 /**
  * 祝福の拡張で足したルール（docs/ideas/boons-expansion.md）。系譜・結び・単体の祝福の効果をここに集める。
  * 既存のフック（boons.ts の onBoonKill など）から呼ばれる関数と、各 system へ 1〜2 行で差し込む新しいフックを持つ。
+ * 「〜時: 〜」で書ける祝福は BoonDef.rules（boonDefs.ts の directRules）へ移した。ここに残るのは
+ * 祝福内部の状態（窓・回数・目印）を持つもの、ダメージや判定の途中に割り込むもの、文法に無い効果を使うもの
  * 暴走しないよう、連鎖するものは ICD・上限・再入防止のどれかを必ず持つ
  */
-
-const BURN_SPREAD_OWNER: EventSource = { kind: "boon", key: "burnSpread" };
-const DASH_SHOCK_OWNER: EventSource = { kind: "boon", key: "dashShock" };
-const REAPER_CUP_OWNER: EventSource = { kind: "boon", key: "reaperCup" };
-/** 見本の Rule は ICD・確率を持たない（今のフックが持たないので、同じ結果にするため） */
-const ALWAYS = 1;
-const NO_ICD = 0;
-/** 野火は燃焼の強さをそのまま広げる（元の potency に掛ける倍率） */
-const SAME_POTENCY = 1;
-
-/**
- * 統一ルール文法（src/core/rules.ts）で書き直した祝福の見本（docs/ideas/synergy-web.md 3-c）。
- * まだ BoonDef.rules へは移していない: 今のフック（boons.ts の onBoonKill / onBoonDash）と二重に発火させないため。
- * 移すときは BOONS[key].rules にこれを置き、フック側の分岐を消す。等価性は src/system/rules.test.ts が確かめる
- */
-export const BOON_RULE_EXAMPLES: Readonly<Partial<Record<BoonKey, readonly Rule[]>>> = {
-  // 野火: 燃えている敵が死ぬと周囲へ同じ強さの燃焼
-  burnSpread: [
-    {
-      id: ruleId(BURN_SPREAD_OWNER, 0),
-      when: "onKill",
-      if: [{ kind: "targetHas", status: "burn" }],
-      then: { kind: "spreadStatus", status: "burn", magnitude: SAME_POTENCY, radius: BOON.burnSpreadRadius, duration: STATUS.burnDuration },
-      chance: ALWAYS,
-      icd: NO_ICD,
-      scope: SCOPE_ANY,
-      owner: BURN_SPREAD_OWNER,
-    },
-  ],
-  // 帯電疾走: ダッシュ開始で近接 1 段目 × dashShockRatio の連鎖雷
-  dashShock: [
-    {
-      id: ruleId(DASH_SHOCK_OWNER, 0),
-      when: "onDash",
-      if: [],
-      then: { kind: "chainLightning", magnitude: BOON.dashShockRatio, scaleBy: "slashBase" },
-      chance: ALWAYS,
-      icd: NO_ICD,
-      scope: SCOPE_ANY,
-      owner: DASH_SHOCK_OWNER,
-    },
-  ],
-  // 屠りの盃: 撃破でマナ（自然回復の半減は数値の畳み込み foldBoonStats のまま）
-  reaperCup: [
-    {
-      id: ruleId(REAPER_CUP_OWNER, 0),
-      when: "onKill",
-      if: [],
-      then: { kind: "restoreMana", magnitude: BOON.reaperCupKillMana },
-      chance: ALWAYS,
-      icd: NO_ICD,
-      scope: SCOPE_ANY,
-      owner: REAPER_CUP_OWNER,
-    },
-  ],
-};
 
 const LAST_COMBO = PLAYER.melee.length - 1;
 const DEG_TO_RAD = Math.PI / 180;
@@ -717,9 +660,6 @@ export function onBoonKillRules(state: GameState, enemy: Enemy): void {
   if (enemy.roomIndex === ROAMING_ROOM) rules(state).roamerKills.set(enemy.id, BOON.roamerKillMemory);
   feastCup(state);
   if (hasBoon(state, "intimidate") && killedByFinisher(state, enemy)) intimidate(state, enemy);
-  if (hasBoon(state, "bloodReturn") && hasStatus(enemy.status, "bleed")) {
-    state.player.dashChargesLeft = state.stats.dashCharges;
-  }
   if (hasBoon(state, "frayWiden")) frayWiden(state, enemy);
   if (hasBoon(state, "regroupHunt") && hasStatus(enemy.status, "guarded")) {
     const p = state.player;
@@ -731,10 +671,8 @@ export function onBoonKillRules(state: GameState, enemy: Enemy): void {
     const p = state.player;
     p.invulnTimer = Math.max(p.invulnTimer, BOON.deathRushInvuln);
   }
-  if (hasBoon(state, "heavenEarth")) state.player.mana = state.stats.maxMana;
   if (hasBoon(state, "usurp") && hasStatus(enemy.status, "weaken")) rules(state).usurpCharges = 1;
   if (hasBoon(state, "ashBed") && hasStatus(enemy.status, "burn")) leaveAsh(state, enemy.body.pos);
-  if (hasBoon(state, "plagueBlood")) plagueBlood(state, enemy);
 }
 
 /** 饗宴の盃: HP 満タンならマナを、マナ満タンなら回復を上乗せする */
@@ -793,16 +731,6 @@ function leaveAsh(state: GameState, pos: Vec): void {
   if (r.ashes.length > BOON.ashMax) r.ashes.shift();
 }
 
-/** 疫血: 毒と出血が両方付いた敵が死ぬと出血も引き継ぐ（毒は疫病が引き継ぐ） */
-function plagueBlood(state: GameState, enemy: Enemy): void {
-  const bleed = findStatus(enemy.status, "bleed");
-  if (!bleed || !hasStatus(enemy.status, "poison")) return;
-  const potency = rawPotency(state, bleed.potency);
-  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.plagueRadius)) {
-    if (e.id !== enemy.id) inflict(state, e, "bleed", STATUS.bleed.duration, bleed.stacks, potency);
-  }
-}
-
 /**
  * 血裂き: 出血 3 の敵への会心で出血を消費し、その分を即時に与える。
  * damageEnemy の内側（撃破判定の前）で呼ばれるので、再入させず HP を直接減らす（撃破は外側の判定に任せる）
@@ -843,14 +771,13 @@ export function onBoonJustSteal(state: GameState): void {
   if (stolen > 0) say(state, p.body.pos, "奪弾", BOON.stealColor);
 }
 
-/** ジャスト回避の後（一掃の後）。wiped = 回避一掃で消した敵弾の数 */
-export function onBoonJustRules(state: GameState, attacker: Enemy | undefined, wiped: number): void {
-  const p = state.player;
+/**
+ * ジャスト回避の後（一掃の後）。wiped = 回避一掃で消した敵弾の数。
+ * 睨み・見切り返し・乾坤は BoonDef.rules（onJustDodge）へ移した
+ */
+export function onBoonJustRules(state: GameState, wiped: number): void {
   if (hasBoon(state, "swallowReturn")) swallowReturn(state, wiped);
-  if (hasBoon(state, "glare") && attacker && attacker.hp > 0) inflict(state, attacker, "weaken", BOON.glareTime);
-  if (hasBoon(state, "justReturn")) p.dashChargesLeft = Math.min(state.stats.dashCharges, p.dashChargesLeft + 1);
   if (hasBoon(state, "eternalWinter")) eternalWinter(state);
-  if (hasBoon(state, "heavenEarth")) p.mana = state.stats.maxMana;
   if (hasBoon(state, "clearMirror")) rules(state).mirrorTimer = BOON.mirrorWindow;
 }
 
@@ -1141,9 +1068,8 @@ export function boonCounterable(state: GameState, e: Enemy): boolean {
   return hasBoon(state, "wakeupHunt") && rules(state).wakeup.has(e.id);
 }
 
-/** poise.ts: 敵が怯んだ瞬間（見逃さぬ / 崩し連鎖） */
+/** poise.ts: 敵が怯んだ瞬間（崩し連鎖。見逃さぬは BoonDef.rules の onStagger へ移した） */
 export function onBoonStagger(state: GameState, e: Enemy): void {
-  if (hasBoon(state, "keenEye")) gainMana(state, BOON.keenEyeMana);
   if (hasBoon(state, "collapseChain")) collapseChain(state, e);
 }
 
@@ -1167,12 +1093,6 @@ export function onBoonStaggerEnd(state: GameState, e: Enemy): void {
 /** poise.ts onStaggerEnd: 堅守を付けないか（毒崩し: 毒の敵） */
 export function boonSkipsGuarded(state: GameState, e: Enemy): boolean {
   return hasBoon(state, "venomBreak") && hasStatus(e.status, "poison");
-}
-
-/** combat.ts damagePlayer: 被弾して生き残った後（傷の記憶） */
-export function onBoonHurt(state: GameState, attacker: Enemy | undefined): void {
-  if (!attacker || attacker.hp <= 0 || !hasBoon(state, "woundMemory")) return;
-  inflict(state, attacker, "vulnerable", BOON.woundTime);
 }
 
 /**

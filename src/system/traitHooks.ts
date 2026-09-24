@@ -103,6 +103,9 @@ const GROUND_BLAST_STATUS: Readonly<Record<Exclude<TerrainKind, "none">, StatusK
   fire: "burn",
   bog: "poison",
   grass: "poison",
+  mud: "chill",
+  // 煙は床の地形ではない（terrainAt が返さない）ので引かれない。Record の網羅のためだけに置く
+  smoke: "weaken",
 };
 /** 属性ごとに関係の深い状態異常（逆撫で・崩れの属性。elementCombat.ts の低確率の付与と同じ対応） */
 const ELEMENT_STATUS: Readonly<Partial<Record<Element, StatusKind>>> = {

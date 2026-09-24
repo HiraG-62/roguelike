@@ -1,11 +1,13 @@
-import type { Enemy, GameState } from "../core/state";
+import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import type { StatusApply } from "../core/status";
 import { type TerrainKind, type TerrainLayer, terrainCode, terrainKindOf } from "../core/terrain";
 import { type Vec, add, scale, sub } from "../core/vec";
-import { STATUS, TERRAIN } from "../data/tuning";
+import { STATUS, TERRAIN, TERRAIN_MUD_SMOKE } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, inBounds, toIndex } from "../map/grid";
 import { planTerrain } from "../map/generator";
+import { setSightBlocker } from "../map/sightBlock";
 import { damageEnemy, damagePlayerDot } from "./combat";
+import { spawnBurst } from "./effects";
 import { type StatusTarget, applyStatus, hasStatus } from "./statusEffects";
 import { pushPlayerEvent } from "../core/events";
 
@@ -22,7 +24,10 @@ const BOG = terrainCode("bog");
 const ICE = terrainCode("ice");
 const GRASS = terrainCode("grass");
 const FIRE = terrainCode("fire");
+const MUD = terrainCode("mud");
 const NONE = terrainCode("none");
+/** 煙の残り秒で「晴れない」を表す値（duration 0 で置いた煙） */
+const SMOKE_FOREVER = Number.POSITIVE_INFINITY;
 /** 燃え移りを済ませた炎のセル */
 const SPREAD_DONE = -1;
 const NEIGHBORS_4 = [
@@ -51,7 +56,11 @@ export function ensureTerrainLayer(state: GameState): TerrainLayer {
   layer.active = new Set();
   layer.tickTimer = 0;
   layer.tickCount = 0;
+  layer.smoke = new Float64Array(size);
+  layer.smokeCells = new Set();
   layer.version += 1;
+  // 煙は視線を遮る（map/pathing.ts の lineOfSight が読む）。層の配列はフロアごとに作り直すので毎回 layer から読む
+  setSightBlocker(state.map, (i) => (layer.smoke[i] ?? 0) > 0);
   return layer;
 }
 
@@ -89,6 +98,32 @@ export function terrainAt(state: GameState, x: number, y: number): TerrainKind {
   return terrainKindOf(layer.kinds[i] ?? NONE);
 }
 
+/** ピクセル座標に煙が漂っているか（煙は床の地形と重なるので terrainAt とは別に引く） */
+export function smokeAt(state: GameState, x: number, y: number): boolean {
+  const layer = state.terrain;
+  if (layer.map !== state.map) return false;
+  const i = tileIndexAt(state, x, y);
+  if (i < 0) return false;
+  return (layer.smoke[i] ?? 0) > 0;
+}
+
+/** 地形による移動速度の倍率（泥の中は遅い）。プレイヤーの歩き（terrainSlide）と敵の歩き・突進（enemies.ts）が掛ける */
+export function terrainMoveMul(state: GameState, pos: Vec): number {
+  return terrainAt(state, pos.x, pos.y) === "mud" ? TERRAIN_MUD_SMOKE.mud.moveMul : 1;
+}
+
+/**
+ * 弾が煙に入ったら消す（中が見えないので撃ち抜けない。近接とスキルの領域攻撃は通る）。消したら true。
+ * projectiles.ts が壁の判定の直後に呼ぶ
+ */
+export function swallowedBySmoke(state: GameState, pr: Projectile): boolean {
+  if (!smokeAt(state, pr.pos.x, pr.pos.y)) return false;
+  pr.life = 0;
+  const s = TERRAIN_MUD_SMOKE.smoke;
+  spawnBurst(state, pr.pos, s.puffColor, s.puffParticles, 30, 0.3, 2);
+  return true;
+}
+
 /** タイル index の地形（描画用） */
 export function terrainAtIndex(state: GameState, index: number): TerrainKind {
   const layer = state.terrain;
@@ -107,23 +142,30 @@ export function terrainAtIndex(state: GameState, index: number): TerrainKind {
 export function placeTerrain(state: GameState, x: number, y: number, kind: TerrainKind, radius: number, duration?: number): number {
   const layer = ensureTerrainLayer(state);
   const time = duration ?? TERRAIN.placedDuration[kind];
+  if (kind === "smoke") return placeSmoke(layer, cellsInRadius(state, x, y, radius), time);
+  const baked: number[] = [];
   let placed = 0;
   for (const i of cellsInRadius(state, x, y, radius)) {
-    if (setCell(layer, i, kind, time)) placed += 1;
+    if (setCell(layer, i, kind, time, baked)) placed += 1;
   }
   if (placed > 0) layer.version += 1;
+  bakeMud(state, baked);
   return placed;
 }
 
-/** 半径内の油・草に火をつけ、氷を溶かす（燃焼の付いた者・炎上の延焼が呼ぶ）。変わったセル数を返す */
+/**
+ * 半径内の油・草に火をつけ、氷を溶かし、泥を固め、煙を晴らす（燃焼の付いた者・炎上の延焼が呼ぶ）。変わったセル数を返す
+ */
 export function igniteTerrainAt(state: GameState, x: number, y: number, radius: number): number {
   const layer = state.terrain;
   if (layer.map !== state.map) return 0;
+  const baked: number[] = [];
   let changed = 0;
   for (const i of cellsInRadius(state, x, y, radius)) {
-    if (igniteCell(layer, i)) changed += 1;
+    if (igniteCell(layer, i, baked)) changed += 1;
   }
   if (changed > 0) layer.version += 1;
+  bakeMud(state, baked);
   return changed;
 }
 
@@ -150,12 +192,39 @@ function cellsInRadius(state: GameState, x: number, y: number, radius: number): 
   return cells;
 }
 
-/** 1 セルへ置く。置けたら true */
-function setCell(layer: TerrainLayer, i: number, kind: TerrainKind, time: number): boolean {
+/** 1 セルへ置く。置けたら true。炎で固まった泥のセルは baked に積む */
+function setCell(layer: TerrainLayer, i: number, kind: TerrainKind, time: number, baked: number[]): boolean {
   const current = layer.kinds[i] ?? NONE;
   if (current === LAVA && kind !== "lava") return false;
-  if (kind === "fire") return igniteCell(layer, i) || placeFire(layer, i, time, current);
+  if (kind === "fire") {
+    // 煙を先に晴らしておく（晴れただけで「燃え移った」扱いにして炎を置き損ねないように）
+    clearSmoke(layer, i);
+    return igniteCell(layer, i, baked) || placeFire(layer, i, time, current);
+  }
   writeCell(layer, i, terrainCode(kind), time);
+  return true;
+}
+
+/** 煙を置く（床の地形は消さない）。炎・溶岩の上には漂わない（火で即座に晴れる）。置けたセル数を返す */
+function placeSmoke(layer: TerrainLayer, cells: readonly number[], time: number): number {
+  const left = time > 0 ? time : SMOKE_FOREVER;
+  let placed = 0;
+  for (const i of cells) {
+    const ground = layer.kinds[i] ?? NONE;
+    if (ground === FIRE || ground === LAVA) continue;
+    layer.smoke[i] = Math.max(layer.smoke[i] ?? 0, left);
+    layer.smokeCells.add(i);
+    placed += 1;
+  }
+  if (placed > 0) layer.version += 1;
+  return placed;
+}
+
+/** 煙を晴らす。晴れたら true */
+function clearSmoke(layer: TerrainLayer, i: number): boolean {
+  if ((layer.smoke[i] ?? 0) <= 0) return false;
+  layer.smoke[i] = 0;
+  layer.smokeCells.delete(i);
   return true;
 }
 
@@ -167,9 +236,15 @@ function placeFire(layer: TerrainLayer, i: number, time: number, current: number
   return true;
 }
 
-/** 油・草 → 炎、氷 → 水。変わったら true */
-function igniteCell(layer: TerrainLayer, i: number): boolean {
+/** 油・草 → 炎、氷 → 水、泥 → 固まって消える（baked に積む）、煙 → 晴れる。変わったら true */
+function igniteCell(layer: TerrainLayer, i: number, baked: number[]): boolean {
+  const cleared = clearSmoke(layer, i);
   const current = layer.kinds[i] ?? NONE;
+  if (current === MUD) {
+    clearCell(layer, i);
+    baked.push(i);
+    return true;
+  }
   if (current === OIL || current === GRASS) {
     const oil = current === OIL;
     writeCell(layer, i, FIRE, oil ? TERRAIN.fire.oilBurnTime : TERRAIN.fire.grassBurnTime);
@@ -180,10 +255,12 @@ function igniteCell(layer: TerrainLayer, i: number): boolean {
     writeCell(layer, i, WATER, TERRAIN.placedDuration.water);
     return true;
   }
-  return false;
+  return cleared;
 }
 
 function writeCell(layer: TerrainLayer, i: number, code: number, time: number): void {
+  // 炎・溶岩の上に煙は残らない
+  if (code === FIRE || code === LAVA) clearSmoke(layer, i);
   layer.kinds[i] = code;
   layer.time[i] = time;
   layer.spread[i] = SPREAD_DONE;
@@ -207,6 +284,7 @@ export function updateTerrain(state: GameState, dt: number): void {
   const layer = ensureTerrainLayer(state);
   planOnce(state, layer);
   if (layer.active.size > 0) tickCells(state, layer, dt);
+  if (layer.smokeCells.size > 0) tickSmoke(layer, dt);
   notePlayerTerrain(state);
   layer.tickTimer += dt;
   if (layer.tickTimer < TERRAIN.tickInterval) return;
@@ -222,6 +300,21 @@ function notePlayerTerrain(state: GameState): void {
   if (kind === state.ruleRun.playerTerrain) return;
   state.ruleRun.playerTerrain = kind;
   if (kind !== "none") pushPlayerEvent(state, "onTerrainEnter", kind, { tag: kind, source: { kind: "terrain", key: kind } });
+}
+
+/** 煙の残り秒を進める（Set の挿入順なので決定的） */
+function tickSmoke(layer: TerrainLayer, dt: number): void {
+  let changed = false;
+  for (const i of [...layer.smokeCells]) {
+    const left = (layer.smoke[i] ?? 0) - dt;
+    if (left > 0) {
+      layer.smoke[i] = left;
+      continue;
+    }
+    clearSmoke(layer, i);
+    changed = true;
+  }
+  if (changed) layer.version += 1;
 }
 
 /** 時間のあるセルだけを進める（Set の挿入順なので決定的） */
@@ -252,14 +345,33 @@ function tickFireSpread(state: GameState, layer: TerrainLayer, i: number, dt: nu
   const map = state.map;
   const tx = i % map.width;
   const ty = Math.floor(i / map.width);
+  const baked: number[] = [];
   let spread = false;
   for (const [dx, dy] of NEIGHBORS_4) {
     const nx = tx + dx;
     const ny = ty + dy;
     if (!inBounds(map, nx, ny)) continue;
-    if (igniteCell(layer, toIndex(map, nx, ny))) spread = true;
+    if (igniteCell(layer, toIndex(map, nx, ny), baked)) spread = true;
   }
+  bakeMud(state, baked);
   return spread;
+}
+
+/**
+ * 泥が火で固まった: そのセルに立っている敵を短く麻痺させる（固まった泥に足を取られる）。
+ * プレイヤーは止めない（docs/ideas/enemies.md E2 の「中の敵に短い麻痺」。自分の火で自分が止まる理不尽を避ける）
+ */
+function bakeMud(state: GameState, cells: readonly number[]): void {
+  if (cells.length === 0) return;
+  const set = new Set(cells);
+  const m = TERRAIN_MUD_SMOKE.mud;
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.phase === "spawning" || e.hidden) continue;
+    if (!set.has(tileIndexAt(state, e.body.pos.x, e.body.pos.y))) continue;
+    give(state, { kind: "enemy", enemy: e }, "paralyze", 1, m.bakeParalyze, 0);
+    spawnBurst(state, e.body.pos, m.bakeColor, m.bakeParticles, 50, 0.3, 1.5);
+  }
+  pushSfx(state, "mudHarden");
 }
 
 // -----------------------------------------------------------------------------
@@ -282,6 +394,9 @@ function applyAt(state: GameState, layer: TerrainLayer, target: StatusTarget, po
   switch (code) {
     case WATER:
       onWater(state, layer, target, i);
+      return;
+    case MUD:
+      freezeIfChilled(state, layer, target, i);
       return;
     case OIL:
       give(state, target, "oiled", TERRAIN.oil.oiledStacks, STATUS.oiled.duration, 0);
@@ -311,6 +426,11 @@ function give(state: GameState, target: StatusTarget, kind: StatusApply["kind"],
 /** 水たまり: 濡れ。冷えている者が立つと凍りついて氷床になる */
 function onWater(state: GameState, layer: TerrainLayer, target: StatusTarget, i: number): void {
   give(state, target, "wet", TERRAIN.water.wetStacks, STATUS.wet.duration, 0);
+  freezeIfChilled(state, layer, target, i);
+}
+
+/** 冷えている（冷気・凍結）者が立つと、そのセルが凍りついて氷床になる（水たまり・泥） */
+function freezeIfChilled(state: GameState, layer: TerrainLayer, target: StatusTarget, i: number): void {
   const bag = target.kind === "enemy" ? target.enemy.status : state.player.status;
   if (!hasStatus(bag, "chill") && !hasStatus(bag, "freeze")) return;
   writeCell(layer, i, ICE, TERRAIN.placedDuration.ice);
@@ -349,10 +469,13 @@ function burnEnemy(state: GameState, e: Enemy): void {
 
 /**
  * 氷床の上では入力にすぐ追従せず、前の速度から TERRAIN.ice.accel の速さで近づく（慣性で止まりにくい）。
- * 氷床でなければ desired をそのまま返す
+ * 泥の上では歩きが TERRAIN_MUD_SMOKE.mud.moveMul 倍に落ちる（player.ts はダッシュ中はここを通らない）。
+ * どちらでもなければ desired をそのまま返す
  */
 export function terrainSlide(state: GameState, pos: Vec, prevVel: Vec, desired: Vec, dt: number): Vec {
-  if (terrainAt(state, pos.x, pos.y) !== "ice") return desired;
+  const kind = terrainAt(state, pos.x, pos.y);
+  if (kind === "mud") return scale(desired, TERRAIN_MUD_SMOKE.mud.moveMul);
+  if (kind !== "ice") return desired;
   const blend = 1 - Math.exp(-TERRAIN.ice.accel * dt);
   return add(prevVel, scale(sub(desired, prevVel), blend));
 }

@@ -2,12 +2,13 @@ import type { DamageKind, Enemy, GameState } from "./state";
 import type { StatusKind, StatusSource } from "./status";
 import type { Vec } from "./vec";
 import type { TriggerKind } from "../loot/types";
-import { SYNERGY } from "../data/tuning";
+import { PLAYER, SYNERGY } from "../data/tuning";
 
 /**
  * ゲームイベント（docs/ideas/synergy-web.md 3-2）。各 system は起きたことを pushEvent で積むだけ（pushSfx と同じ作法）。
  * 積んだイベントは step の resolveRules（src/system/rules.ts）が統一ルール（src/core/rules.ts）と照合する。
- * 既存のフック（onBoonKill / fireTrigger 等）は残したまま隣で積む段階的移行
+ * 既存のフック（onBoonKill / fireTrigger 等）は残したまま隣で積む段階的移行。
+ * 祝福のうち「〜時: 〜」で書けるものは BoonDef.rules（direct）へ移し、フック側の実装は消した
  */
 
 export const EVENT_KINDS = [
@@ -34,6 +35,9 @@ export const EVENT_KINDS = [
   "onEnemyWindup",
   "onEnemyDeath",
   "onTerrainEnter",
+  // ---- 既存の祝福のルール文法移行で増えた起点 ----
+  /** 近接の振り始め（amount = その段の威力、tag = SWING_TAG の段の種類） */
+  "onSwing",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -74,6 +78,8 @@ export interface GameEvent {
   tag?: string;
   /** スキルスロット（scope: slot の照合用） */
   slot?: number;
+  /** イベントの量（振りの威力など）。効果量の基準 eventAmount が読む */
+  amount?: number;
 }
 
 /** pushEvent に渡す形。depth は照合中かどうかで pushEvent が決める */
@@ -191,6 +197,15 @@ export function pushStatusEvent(state: GameState, enemy: Enemy | null, kind: Sta
 export function pushReactionEvent(state: GameState, enemy: Enemy | null, reaction: string): void {
   const where = enemy === null ? { pos: { ...state.player.body.pos } } : enemyTarget(enemy);
   pushEvent(state, { kind: "onReaction", actor: enemy === null ? "enemy" : "player", source: playerSource("reaction"), tag: reaction, ...where });
+}
+
+/** onSwing の tag: ダッシュ攻撃 / 最終段（終撃） / それ以外。振り始めの瞬間の段を写す（照合はステップ末なので） */
+export const SWING_TAG = { dashStrike: "dashStrike", finisher: "finisher", normal: "normal" } as const;
+
+/** 近接の振り始め。combo は 3 段コンボの段（0 始まり）、damage はその段の威力 */
+export function pushSwingEvent(state: GameState, combo: number, dashStrike: boolean, damage: number): void {
+  const tag = dashStrike ? SWING_TAG.dashStrike : combo >= PLAYER.melee.length - 1 ? SWING_TAG.finisher : SWING_TAG.normal;
+  pushPlayerEvent(state, "onSwing", "swing", { tag, amount: damage });
 }
 
 /** プレイヤーの位置で起きた出来事（ダッシュ・ジャスト・射撃・バースト…） */

@@ -11,6 +11,7 @@ import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { inflictOnPlayer } from "./statusEffects";
+import { swallowedBySmoke } from "./terrain";
 
 const BULLET_KNOCKBACK = 60;
 const BULLET_HITSTOP = 1;
@@ -42,6 +43,8 @@ export function updateProjectiles(state: GameState, dt: number): void {
       if (pr.owner === "player") pushSfx(state, "bulletHit");
       continue;
     }
+    // 煙に入った弾は消える（床に据えた設置弾は除く）
+    if (!def?.mine && swallowedBySmoke(state, pr)) continue;
 
     if (pr.owner === "player") {
       if (def?.mine) updateMine(state, pr, def);
@@ -215,6 +218,8 @@ function hitEnemies(state: GameState, pr: Projectile): void {
 }
 
 function hitPlayer(state: GameState, pr: Projectile): void {
+  // 霊体化（skills/forms.ts）は敵弾をすり抜ける（弾は消えずに飛び続ける）
+  if (state.skills.shape?.key === "wraithForm") return;
   const p = state.player.body;
   if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, p.pos.x, p.pos.y, p.radius)) return;
   const attacker = pr.sourceId === undefined ? undefined : state.enemies.find((e) => e.id === pr.sourceId);

@@ -46,7 +46,7 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
-import { enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
+import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent } from "../core/events";
 import { onTraitCounter } from "./traitHooks";
 import {
   boonAttackManaMul,
@@ -66,6 +66,7 @@ import {
   tryDashGuard,
 } from "./boons";
 import { boonBlocksShoot, boonCounterable, onBoonShootInput } from "./boonRules";
+import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -213,6 +214,11 @@ export function currentMoveset(stats: Readonly<PlayerStats>): MovesetDef {
   return MOVESETS[stats.moveset] ?? MOVESETS.sword;
 }
 
+/** いま振る近接の型。狼化・鉄塊化の最中は変身の型（skills/forms.ts）、それ以外は装備の武器種 */
+export function playerMoveset(state: GameState): MovesetDef {
+  return shapeMoveset(state) ?? currentMoveset(state.stats);
+}
+
 /** 装備中の射撃の型。銃なしは単発 */
 export function currentShot(stats: Readonly<PlayerStats>): ShotDef {
   return SHOT_TYPES[stats.shot] ?? SHOT_TYPES.single;
@@ -233,7 +239,8 @@ function stepDef(moveset: MovesetDef, step: number, dashStrike: boolean, chargeL
 
 /**
  * 武器種の段に stats（ステータス・攻撃速度・リーチ・ノックバック）を掛けたもの。
- * dashStrike ならダッシュ攻撃、chargeLevel > 0 なら溜め攻撃（段の倍率を掛ける）
+ * dashStrike ならダッシュ攻撃、chargeLevel > 0 なら溜め攻撃（段の倍率を掛ける）。
+ * moveset は変身で差し替えた型（省略時は装備の武器種）
  */
 export function meleeStep(
   stats: Readonly<PlayerStats>,
@@ -241,8 +248,8 @@ export function meleeStep(
   dashStrike = false,
   chargeLevel = 0,
   branch = -1,
+  moveset: MovesetDef = currentMoveset(stats),
 ): MeleeStep | undefined {
-  const moveset = currentMoveset(stats);
   const base = stepDef(moveset, step, dashStrike, chargeLevel, branch);
   if (!base) return undefined;
   const level = chargeLevel > 0 ? moveset.charge?.levels[chargeLevel - 1] : undefined;
@@ -275,7 +282,7 @@ export function meleeStep(
 export function currentMeleeStep(state: GameState): MeleeStep | undefined {
   const p = state.player;
   if (!isAttacking(p)) return undefined;
-  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch);
+  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state));
 }
 
 /** 射撃 1 発の基礎威力（ステータスの係数を評価した値。射撃の型の倍率は含まない） */
@@ -310,6 +317,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   trackDamageDealt(state);
   tickTimers(state, dt);
   const aiming = applyAim(state, input);
+  // 鉄塊化は被弾硬直を受けない（敵の攻撃が付けた怯みを判定より先に外す）
+  shrugStagger(state);
   const staggered = isPlayerStaggered(p);
 
   if (!staggered) readActions(state, input);
@@ -343,7 +352,9 @@ function readAttackButtons(state: GameState, input: FrameInput): void {
 }
 
 function onButtonPress(state: GameState, button: ButtonKey): void {
-  const moveset = currentMoveset(state.stats);
+  // 変身が左右クリックを差し替えていれば（遠吠え・砲撃）そちらが引き受ける
+  if (shapeButtonPress(state, button)) return;
+  const moveset = playerMoveset(state);
   logButton(state.player, button);
   if (tryBranch(state, moveset)) return;
   const role = buttonRole(moveset, button);
@@ -362,7 +373,8 @@ function buttonHeld(input: FrameInput, button: ButtonKey | undefined): boolean {
 
 /** 射撃の役割を持つボタンの押しっぱなし。剣なら右、杖なら左、どちらも近接の武器種では撃たない */
 function shotButtonHeld(state: GameState, input: FrameInput): boolean {
-  return buttonHeld(input, shotButton(currentMoveset(state.stats)));
+  if (shapeLocksShot(state)) return false;
+  return buttonHeld(input, shotButton(playerMoveset(state)));
 }
 
 /** 派生の入力列に積む。長さは chainMaxInputs まで */
@@ -534,7 +546,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     }
   } else {
     const staggerMul = isPlayerStaggered(p) ? PLAYER.staggerMoveMul : 1;
-    const moveset = currentMoveset(state.stats);
+    const moveset = playerMoveset(state);
     const chargeMul = p.attack.charging ? (moveset.charge?.moveMul ?? 1) : 1;
     const attackMul =
       (isAttacking(p) ? moveset.attackMoveMul : 1) *
@@ -585,7 +597,7 @@ function tryAttack(state: GameState, charge = false): void {
   const a = p.attack;
   if (a.phase === "none") {
     // 溜めのある武器種は押した瞬間には振らず、離したときに段で決める（updateCharge）
-    if (charge && currentMoveset(state.stats).charge) {
+    if (charge && playerMoveset(state).charge) {
       // 押し直し（連打）で溜めを最初からにしない
       if (!a.charging) beginCharge(p);
       return;
@@ -620,12 +632,12 @@ function updateCharge(state: GameState, input: FrameInput, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (!a.charging) return;
-  const charge = currentMoveset(state.stats).charge;
+  const charge = playerMoveset(state).charge;
   if (!charge || isPlayerStaggered(p) || isDashing(p) || skillLocksAttack(state) || isAttacking(p)) {
     cancelCharge(p);
     return;
   }
-  if (buttonHeld(input, meleeButton(currentMoveset(state.stats)))) {
+  if (buttonHeld(input, meleeButton(playerMoveset(state)))) {
     const before = chargeLevelAt(charge.levels, a.chargeTime);
     a.chargeTime += dt;
     const after = chargeLevelAt(charge.levels, a.chargeTime);
@@ -649,7 +661,7 @@ function onChargeLevelUp(state: GameState, level: number): void {
 /** 溜めの段（0 = 段なし）。描画の環に使う */
 export function meleeChargeLevel(state: GameState): number {
   const a = state.player.attack;
-  const charge = currentMoveset(state.stats).charge;
+  const charge = playerMoveset(state).charge;
   if (!a.charging || !charge) return 0;
   return chargeLevelAt(charge.levels, a.chargeTime);
 }
@@ -667,7 +679,7 @@ export function shotChargeLevel(state: GameState): number {
  * 「常に最終段から」の祝福が最終段を返したら武器種の最終段を振る
  */
 function startSwing(state: GameState, requested: number, dashStrike = false, chargeLevel = 0): void {
-  const moveset = currentMoveset(state.stats);
+  const moveset = playerMoveset(state);
   const requestedCombo = chargeLevel > 0 ? FINISHER_COMBO : hookCombo(moveset, requested);
   const combo = boonSwingCombo(state, requestedCombo, dashStrike);
   const finisherForced = !dashStrike && chargeLevel === 0 && combo === FINISHER_COMBO;
@@ -680,7 +692,7 @@ function startSwing(state: GameState, requested: number, dashStrike = false, cha
  * 連撃が続く派生（踏み込み斬りなど）は 1 段目として渡す
  */
 function startBranch(state: GameState, index: number): void {
-  const branch = currentMoveset(state.stats).branches[index];
+  const branch = playerMoveset(state).branches[index];
   if (!branch) return;
   const combo = branch.next === undefined ? FINISHER_COMBO : 0;
   beginSwing(state, { step: state.player.attack.step, dashStrike: false, chargeLevel: 0, branch: index, combo });
@@ -696,7 +708,7 @@ interface SwingSpec {
 
 function beginSwing(state: GameState, spec: SwingSpec): void {
   const p = state.player;
-  const step = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch);
+  const step = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, playerMoveset(state));
   if (!step) return;
   const a = p.attack;
   p.dashStrike = spec.dashStrike;
@@ -715,14 +727,15 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   if (sfx) pushSfx(state, sfx);
   onSwingFx(state);
   payOverclock(state, PLAYER.overclockHpCost);
-  onBoonSwing(state, spec.combo, spec.dashStrike, step.damage);
+  onBoonSwing(state, spec.combo, spec.dashStrike);
+  pushSwingEvent(state, spec.combo, spec.dashStrike, step.damage);
 }
 
 function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch);
+  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state));
   if (!step) {
     cancelAttack(state);
     return;
@@ -756,7 +769,7 @@ function updateAttack(state: GameState, dt: number): void {
 function endSwing(state: GameState): void {
   const p = state.player;
   const a = p.attack;
-  const moveset = currentMoveset(state.stats);
+  const moveset = playerMoveset(state);
   if (a.pendingBranch >= 0) {
     startBranch(state, a.pendingBranch);
     return;
@@ -945,6 +958,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   onBoonMeleeHit(state, e, counter);
   onSkillMeleeHit(state, e, p.attack.combo);
+  onShapeMeleeHit(state, e);
 }
 
 /** 先端判定の倍率。先端判定を持たない段は等倍 */
@@ -1046,11 +1060,11 @@ function justCounterStrike(state: GameState, target: Enemy): void {
   p.facing = { ...dir };
 
   // 見た目は最終段の振り。対象にはここで当てるので hitIds に入れて二重ヒットを防ぐ
-  const lastStep = currentMoveset(state.stats).steps.length - 1;
+  const lastStep = playerMoveset(state).steps.length - 1;
   startSwing(state, lastStep);
   p.attack.dir = { ...dir };
   p.attack.hitIds.add(target.id);
-  const step = meleeStep(actionStats(state), lastStep);
+  const step = meleeStep(actionStats(state), lastStep, false, 0, -1, playerMoveset(state));
   if (!step) return;
   const out = rollOutgoing(state, target, step.damage, "melee");
   const hitPos = { ...target.body.pos };

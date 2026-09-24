@@ -54,8 +54,8 @@ describe("一覧画面: 操作", () => {
 });
 
 describe("一覧画面: 各画面のタブ", () => {
-  it("図鑑は 6 タブ、依頼は 2 タブ、実績は実績と称号", () => {
-    expect(codexListTabs(createCodexSave(), new Set()).length, "図鑑").toBe(6);
+  it("図鑑は 5 タブ（反応と連鎖は連携の頁にまとめた）、依頼は 2 タブ、実績は実績と称号", () => {
+    expect(codexListTabs(createCodexSave(), new Set()).length, "図鑑").toBe(5);
     expect(questBoardTabs(createQuestSave()).length, "依頼").toBe(2);
     const ach = achievementTabs(createAchievementSave(), createQuestSave());
     expect(ach.length, "実績").toBe(2);

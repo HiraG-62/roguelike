@@ -42,11 +42,16 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 
 0.0.9α で入ったシステム: スキル第 2 弾（地形を作る / 燃やす・烙印や崩勢や彩痕を使う・属性が巡る・武器種で形が変わる・変身・空間）は `skills/defs2.ts`（`SkillDef` を `data.ts` の `SKILL_DEFS` に展開）、`skills/actions2.ts`（発動処理）、`skills/modifiers2.ts`（刻印符・型替え符の `resolveCast` 拡張）、`skills/tuning2.ts`（数値）に分けて実装（第 1 弾と同じ形で `skills/data.ts` に混ぜ込む）。`skills/wear.ts`（スキル石の使い込み。手動の発動 / 命中回数の節目で芽〔威力 / 枠〕が出る。装備の来歴と同じ「積み重ね → 節目 → 芽」の形）。演出第 2 弾は `render/effectsUi.ts`（死に方 8 種・精鋭 / ボス撃破の光・見切りの輪などの `DeathFx` / `FxMark` の描画。`state.effects` を読むだけで、演出専用の乱数は `system/effects.ts` の `fxState` が作る。ゲームの乱数 `state.rng` を消費しない）。
 
-統一ルール文法（`docs/ideas/synergy-web.md` 3 章）: 各 system は起きたこと（近接命中・撃破・ダッシュ開始 / 終了・被弾・見切り・部屋のロック / 制圧・怯み・カウンター・反応・状態異常の付与・スキルの発動 / 命中・敵の予備動作・地形への進入…）を `core/events.ts` の `pushEvent` で `state.events` に積むだけ（`pushSfx` と同じ作法。既存のフック `onBoonKill` / `fireTrigger` などは残したまま隣で積む段階的移行）。`core/rules.ts` が `Rule`（when × if × then、chance、icd、scope、owner）の型、`system/rules.ts` の `resolveRules` が combo の後に 1 回だけ照合する。
+統一ルール文法（`docs/ideas/synergy-web.md` 3 章）: 各 system は起きたこと（近接命中・撃破・ダッシュ開始 / 終了・被弾・見切り・部屋のロック / 制圧・怯み・カウンター・反応・状態異常の付与・スキルの発動 / 命中・敵の予備動作・地形への進入・近接の振り始め…、`EventKind` 22 種）を `core/events.ts` の `pushEvent` で `state.events` に積むだけ（`pushSfx` と同じ作法。既存のフック `onBoonKill` / `fireTrigger` などは残したまま隣で積む段階的移行）。`core/rules.ts` が `Rule`（when × if × then、chance、icd、scope、owner）の型、`system/rules.ts` の `resolveRules` が combo の後に 1 回だけ照合する。
 
 - 照合順: イベントは積んだ順（前ステップからの持ち越しが先）。Rule は祝福の取得順（`BoonDef.rules`）→ スキルスロット順（`SkillDef.rules` / `ModifierDef.rules`、scope は自分のスロットに縛る）→ 対象の敵（`EnemyCombatDef.rules`、効果は予告付きハザードのみ）。装備の `tr:` は `fireTrigger` がその場で `ruleFromTrigger`（`loot/triggers.ts`）に読み替えて照合する（手触りと乱数の消費順を変えないため、resolveRules では集めない）
 - 連鎖: 効果が起こしたイベントは深さ +1 で `state.pendingEvents` へ入り、次ステップで照合する（同ステップで再帰しない）。深さ `SYNERGY.maxDepth` 以上は照合せず、効果量は深さごとに × `SYNERGY.chainDecay`
 - ICD の 3 層: Rule ごと（`state.ruleIcd`、id の昇順で進める）・語ごとの 1 秒あたり回数（`SYNERGY.keywordBudget`、`state.ruleRun.keywordUse`）・敵ごと（状態異常を入れる効果は `StatusBag.procIcd`）
+- `Rule.direct`（2026-09-24 追加）: フックから移した祝福の 1 段目を表す印。移す前は system が直接効果を起こしていたので、移してからも同じ結果になるよう連鎖に数えない（深さを進めない・減衰なし・語の回数上限に数えない・深さの上限に達したイベントでも照合する・`state.chains` に残さない）。祝福の効果は「他の連鎖の材料にはなるが、自分自身は連鎖のノイズとして減衰・上限を受けない」という非対称を、フック時代の挙動をそのまま保つ形で実現している
+- `Rule.group`（2026-09-24 追加）: 同じ group の Rule は 1 つのイベントにつき 1 回だけ発動する（例: 断裂波と連撃波を同じ振りで 2 本出さない）
+- 条件 `from`（2026-09-24 追加）: イベントの出どころの種類（`EventSource["kind"]`）で絞る。見切りのうち、受け流しのスキル（skill）ではなく回避で取ったもの（player）を区別するのに使う
+- 効果 `healDirect` / `ward` / `shards` / `afflict`（2026-09-24 追加）: 戦闘中の回復の上限（`HEAL.sustainCapRatio`）を通さない回復 / 上限なしの無敵 / 全方位への氷の破片 / 対象へ状態異常をそのまま付ける（`inflict` と違い、持続を切り詰めず procIcd も見ない旧フックの付け方）
+- イベント `onSwing`（2026-09-24 追加）: 近接の振り始め。`GameEvent.amount` にその段の威力、`tag` に `SWING_TAG`（`dashStrike` / `finisher` / `normal`）の段の種類が入る
 - 乱数は Rule の照合順に `state.rng` から引く。確率 1 以上の Rule は引かない
 
 ## フロアと部屋（開放型。2026-09-24）
@@ -121,7 +126,8 @@ GameState
 - `Date.now()` は生成物の `id` / `foundAt` に使うだけで、挙動には影響しない
 - 描画は `state.rng` を消費しない（見た目のばらつきは `render/renderMath.ts` の座標ハッシュ）
 - スローモーションは `gdt = dt * slowmoScale` で内部時間だけ縮め、ステップ数は変えない
-- リプレイ（`core/replay.ts`）: seed + 起点・ラン修飾子（縛り）+ 依頼報酬で抽選から外れる名のある遺物（`lockedRelics`）+ 開始時の装備 / スキルのスナップショット（`captureLoadout`。所持刻印符の件数も含む）+ FrameInput 列（ランレングス圧縮、照準は差分）+ ラン中の装備変更イベント（何フレーム目の前か）。`REPLAY_VERSION`（現行 6）は同じ入力列でも進行が変わる更新（武器種の追加、GCD 廃止、開放型マップ化など）のたびに上げ、`version` が一致しないリプレイは再生を拒否する
+- リプレイ（`core/replay.ts`）: seed + 起点・ラン修飾子（縛り）+ 依頼報酬で抽選から外れる名のある遺物（`lockedRelics`）+ 開始時の装備 / スキルのスナップショット（`captureLoadout`。所持刻印符の件数も含む）+ FrameInput 列（ランレングス圧縮、照準は差分）+ ラン中の装備変更イベント（何フレーム目の前か）。`REPLAY_VERSION`（現行 7）は同じ入力列でも進行が変わる更新（武器種の追加、GCD 廃止、開放型マップ化、契約者・演出の乱数分離など）のたびに上げ、`version` が一致しないリプレイは再生を拒否する
+- `ReplayData.snapshotAfterStart`（2026-09-24 追加）: スナップショットを `createGame` の後に取った記録かどうかの印。ジョブの初期スキル石を既に持っているとき、再生側で倉庫の件数を `createGame` 後の状態に合わせ直すために使う（版は上げず、印の無い旧記録は従来どおり `createGame` 前のスナップショットとして再生する）
 - 再生中は `guardStorageWrites` で永続キーへの書き込みを止め、再生がプロフィールを汚さない
 - デイリーシード: `dailySeedText(new Date())` の文字列を `hashSeed` で seed にする
 - 決定性は `core/game.test.ts` と `core/replay.test.ts` がテストで固定している
@@ -135,7 +141,7 @@ GameState
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
 | `roguelike.settings.v1` | ミュート・音量・画面揺れ・キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定。追加フィールドなので v1 のまま） | `ui/settings.ts` |
 | `roguelike.replays.v1` | リプレイ最新 10 件 | `ui/replayStore.ts` |
-| `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、階の種類・部屋の種類）。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
+| `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、スキルの連携の回数〔`combos`、2026-09-24 追加〕、連携の初発見〔`firstSeen`: id → 階とシード、2026-09-24 追加〕、階の種類・部屋の種類）。追加フィールドは旧データで `{}` に補うので `v1` のまま。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
 | `roguelike.quests.v1` | 依頼（達成した依頼と時刻、受けたまま未達成の依頼 `active`）。起点の解放・図鑑の頁・名のある遺物の抽選・称号はここから読む | `meta/questStore.ts` |
 | `roguelike.achievements.v1` | 実績（解除した実績と時刻）と名乗っている称号 | `meta/achievements.ts` |
 

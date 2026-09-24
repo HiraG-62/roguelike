@@ -4,10 +4,12 @@ import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { EXTRA_SKILL_DEFS } from "./defs";
 import { WAVE2_SKILL_DEFS } from "./defs2";
+import { WAVE3_SKILL_DEFS } from "./defs3";
 import { EXTRA_MODIFIERS, RESOURCE_CONVERTERS } from "./modifiers";
 import { WAVE2_MODIFIERS } from "./modifiers2";
 import { EXTRA_MODIFIER_TUNING, EXTRA_SKILL_TUNING } from "./tuning";
 import { WAVE2_MODIFIER_TUNING, WAVE2_SKILL_TUNING, WEAR_TUNING } from "./tuning2";
+import { WAVE3_SKILL_TUNING } from "./tuning3";
 import type {
   BASE_MODIFIER_KEYS,
   BASE_SKILL_KEYS,
@@ -64,7 +66,9 @@ export const SKILL = {
     duration: 0.45,
     hits: 4,
     radius: 28,
-    damage: { base: 3.8, str: 0.4, spi: 0.4 }, // base 3.3 → 3.8（+15%、通算 +26%）
+    // QA 2026-09-24: base 3.8 → 4.9（+29%）。スキル由来与ダメ比率が 3 世代連続 48〜49% で目標未達のため、
+    // 従来の +15% 刻みでは足りないと判断し引き上げ幅を拡大（気力不足での不発は QA 上わずか 0.27 回/run と稀なので回収側ではなく威力側を強化）
+    damage: { base: 4.9, str: 0.4, spi: 0.4 }, // base 3.3 → 3.8 → 4.9
     knockback: 60,
     moveMul: 0.6,
     recover: 0.15,
@@ -76,7 +80,8 @@ export const SKILL = {
     distance: 90,
     time: 0.14,
     hitPad: 10,
-    damage: { base: 8, str: 1, dex: 0.6 },
+    // QA 2026-09-24: base 8 → 10.4（+30%、スキル由来与ダメ比率の底上げ。理由は旋風斬りのコメント参照）
+    damage: { base: 10.4, str: 1, dex: 0.6 },
     knockback: 200,
     wallStun: 0.25,
     comboLinkWindow: 0.3,
@@ -89,7 +94,8 @@ export const SKILL = {
     flight: 0.35,
     fuse: 0.5,
     radius: 36,
-    damage: { base: 15.2, dex: 1.4, spi: 1.4 }, // base 13.2 → 15.2（+15%）
+    // QA 2026-09-24: base 15.2 → 19.8（+30%、スキル由来与ダメ比率の底上げ。理由は旋風斬りのコメント参照）
+    damage: { base: 19.8, dex: 1.4, spi: 1.4 }, // base 13.2 → 15.2 → 19.8
     knockback: 240,
     selfDamageFraction: 0.1,
     spread: 14,
@@ -100,7 +106,8 @@ export const SKILL = {
     minInterval: 0.8,
     poise: 25,
     aim: 0.35,
-    damage: { base: 17.7, dex: 2, spi: 1.2 }, // base 15.4 → 17.7（+15%）
+    // QA 2026-09-24: base 17.7 → 23.0（+30%、スキル由来与ダメ比率の底上げ。理由は旋風斬りのコメント参照）
+    damage: { base: 23.0, dex: 2, spi: 1.2 }, // base 15.4 → 17.7 → 23.0
     knockback: 180,
     recoil: 120,
     stepPx: 2,
@@ -262,6 +269,8 @@ export const SKILL = {
   ...EXTRA_SKILL_TUNING,
   // 第 2 弾のスキル（skills/tuning2.ts）
   ...WAVE2_SKILL_TUNING,
+  // 第 3 弾の変身（skills/tuning3.ts）
+  ...WAVE3_SKILL_TUNING,
   drop: {
     stoneOnKill: 0.03,
     stoneOnDepth: 0.2,
@@ -371,6 +380,11 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   swiftForm: 4,
   spiritForm: 4,
   wardStake: 5,
+  wolfForm: 3,
+  wraithForm: 3,
+  siegeForm: 3,
+  ironForm: 3,
+  pyreForm: 3,
 };
 
 /**
@@ -449,6 +463,11 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   swiftForm: 3,
   spiritForm: 3,
   wardStake: 2,
+  wolfForm: 3,
+  wraithForm: 3,
+  siegeForm: 3,
+  ironForm: 3,
+  pyreForm: 3,
 };
 
 /** マナ型の共通項: CD とチャージは使わない（docs/COMBAT_DESIGN.md B-4） */
@@ -682,7 +701,7 @@ function withExclusiveGroups(defs: Record<SkillKey, SkillDef>): Record<SkillKey,
   return out;
 }
 
-export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({ ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS, ...WAVE2_SKILL_DEFS });
+export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({ ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS, ...WAVE2_SKILL_DEFS, ...WAVE3_SKILL_DEFS });
 
 const M = SKILL.modifier;
 
@@ -1169,6 +1188,12 @@ export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
   swiftForm: attack("melee", "physical"),
   spiritForm: attack("area", "arcane", "light"),
   wardStake: attack("area", "hybrid"),
+  // 第 3 弾の変身（噛みつき・重い振りは近接の仕組みで当てるので、変身そのものは与ダメを持たない。砲撃だけが持つ）
+  wolfForm: null,
+  wraithForm: null,
+  siegeForm: attack("ranged", "physical"),
+  ironForm: null,
+  pyreForm: null,
 };
 
 /** スキルの攻撃の素性（与ダメを持たないスキルは null） */

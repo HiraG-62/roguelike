@@ -14,7 +14,7 @@ import { generateSkillStone } from "../skills/generator";
 import { addStone, saveSkillProfile } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
 import { RARITY_COLOR, TRAIT_COLOR_HEX, type AffixRoll, type Item, type Rarity } from "../loot/types";
-import { addFloatingText } from "./effects";
+import { addFloatingText, inscribeFx } from "./effects";
 import { overlapsWall } from "./physics";
 import { applyStats } from "./player";
 import { ROAMING_ROOM } from "./spawner";
@@ -283,8 +283,10 @@ export function chooseBud(state: GameState, index: number): AffixRoll | null {
     state.pendingBud = findPendingBud(state.profile);
     return null;
   }
+  const unnamed = item.inscription === undefined;
   const chosen = chooseBudOnItem(item, index);
   if (chosen === null) return null;
+  if (unnamed && item.inscription !== undefined) inscribeFx(state);
   applyStats(state, computeStats(state.profile.equipment));
   saveProfile(state.profile);
   state.pendingBud = findPendingBud(state.profile);

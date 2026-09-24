@@ -27,7 +27,7 @@ import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
-import { finalizeLinks, rollElite } from "./elites";
+import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
 import {
   applyBoonFloorRules,
   boonHeartsAllowed,
@@ -94,6 +94,8 @@ const DEPTH_COLOR = "#ffd75f";
 /** 新しいフロアを生成してプレイヤーを配置する。kind は分岐路で選んだ行き先（省略時は深度の規則で抽選） */
 export function buildFloor(state: GameState, kind?: FloorKind): void {
   installRoomHooks();
+  // 強欲のが抱えていた物は敵ごと消さず、新しい階のプレイヤーの足元へ届ける（system/elites.ts）
+  const stolen = takeGreedyLoot(state);
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind));
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
@@ -108,8 +110,10 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.particles = [];
   state.texts = [];
   state.shapes = [];
-  // 前の階に残したアイテムは失われる
+  // 前の階に残したアイテム・スキル石は失われる。スキル石もここで捨てる（skills.ts の syncTracking は次のステップに
+  // 階の変化を拾うので、そこで捨てると下の dropGreedyLootAtPlayer が届けた石まで消えてしまう）
   state.floorItems = [];
+  state.skills.floorStones = [];
   resetExplored(state);
   resetFloorEffects(state);
 
@@ -122,6 +126,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
     if (status.bleedFrom) status.bleedFrom = { ...state.player.body.pos };
   }
   snapCamera(state);
+  dropGreedyLootAtPlayer(state, stolen);
 
   const bossRoom = bossRoomIndex(state);
   const last = state.rooms.length - 1;
@@ -482,6 +487,13 @@ function circleOnDoorTiles(state: GameState, room: RoomState, x: number, y: numb
   return overlapsTiles(state, x, y, r, room.doorTiles);
 }
 
+/** 強欲のが抱えていた物（system/elites.ts の rescueCarried が取り上げる） */
+type CarriedLoot = ReturnType<typeof rescueCarried>;
+/** 何も抱えていない（呼び出しごとに新しく作り、共有の配列を持たない） */
+function nothingCarried(): CarriedLoot {
+  return { items: [], stones: [] };
+}
+
 /**
  * ドアタイルをロックで壁扱いにする直前に、ドアタイル上に AABB が掛かっている敵を押し出す。
  * 所属（roomIndex）を問わず全ての敵が対象。以前は自室の敵だけを見ていたため、プレイヤーを
@@ -495,8 +507,8 @@ function circleOnDoorTiles(state: GameState, room: RoomState, x: number, y: numb
  * 通常の撃破経路を通らないので、静かに取り除く方が実態に合う）。
  * 撃破済みの敵は死亡時処理を飛ばさないよう取り除かない
  */
-function pushEnemiesOffDoorTiles(state: GameState, room: RoomState, index: number): void {
-  if (room.doorTiles.length === 0) return;
+function pushEnemiesOffDoorTiles(state: GameState, room: RoomState, index: number): CarriedLoot {
+  if (room.doorTiles.length === 0) return nothingCarried();
   const center = rectCenterPx(room.rect);
   const stuck = new Set<Enemy>();
   for (const e of state.enemies) {
@@ -508,7 +520,11 @@ function pushEnemiesOffDoorTiles(state: GameState, room: RoomState, index: numbe
       : pushEnemyToward(state, room, e, outward) || pushEnemyToward(state, room, e, inward);
     if (!pushed && e.hp > 0) stuck.add(e);
   }
-  if (stuck.size > 0) state.enemies = state.enemies.filter((e) => !stuck.has(e));
+  if (stuck.size === 0) return nothingCarried();
+  // 強欲のが抱えていた遺物・スキル石は敵と一緒に消さない（撃破の経路を通らないので取り上げ、lockRoom が足元へ落とす）
+  const rescued = rescueCarried(stuck);
+  state.enemies = state.enemies.filter((e) => !stuck.has(e));
+  return rescued;
 }
 
 const CARDINALS = [
@@ -552,9 +568,11 @@ function pushEnemyAlong(state: GameState, room: RoomState, e: Enemy, d: { x: num
 }
 
 function lockRoom(state: GameState, room: RoomState, index: number): void {
-  pushEnemiesOffDoorTiles(state, room, index);
+  const rescued = pushEnemiesOffDoorTiles(state, room, index);
   room.locked = true;
   for (const t of room.doorTiles) state.lockedTiles.add(t);
+  // 扉を閉じた後に置く（閉じる前だと扉タイルの上に落ちて、制圧まで壁の中に埋まる）
+  dropGreedyLootAtPlayer(state, rescued);
   roomLockFx(state, index, room.kind === "horde");
   for (const e of state.enemies) {
     if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";

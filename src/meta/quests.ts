@@ -6,6 +6,7 @@ import { uniqueDef } from "../loot/named";
 import { BOONS } from "../system/boonDefs";
 import { ORIGINS, ORIGIN_KEYS, type OriginKey, runTier } from "../system/runSetup";
 import { CODEX_TAB_LABEL, type CodexTab } from "./codex";
+import { type LinkKind, linkId } from "./links";
 
 /**
  * 依頼（docs/ideas/meta-and-weapons.md 5 章）。ラン開始時に 3 択で 1 つ受け、ラン中の出来事を state.questRun に数える
@@ -99,6 +100,10 @@ export interface QuestRun {
   reactionKinds: Set<string>;
   /** プレイヤーが敵に付けた状態異常の種類 */
   statusKinds: Set<string>;
+  /** このランで成立した連携（src/meta/links.ts の id。スキルの連携・反応・連鎖） */
+  linkKinds: Set<string>;
+  /** そのうち図鑑に無かった（初めて見つけた）連携 */
+  newLinks: Set<string>;
   /** 今の階で受けた被弾の回数 */
   floorHurt: number;
   /** 前ステップの深さ（階段で降りたことを差分で拾う） */
@@ -113,6 +118,8 @@ export function createQuestRun(key: QuestKey | null = null): QuestRun {
     counters: createQuestCounters(),
     reactionKinds: new Set(),
     statusKinds: new Set(),
+    linkKinds: new Set(),
+    newLinks: new Set(),
     floorHurt: 0,
     lastDepth: 1,
     reaperOut: false,
@@ -127,6 +134,19 @@ export interface QuestSnapshot extends QuestCounters {
   tier: number;
   reactionKinds: number;
   statusKinds: number;
+  /** このランで成立した連携の種類（3 系統の合計）と系統ごとの内訳 */
+  linkKinds: number;
+  comboKinds: number;
+  chainKinds: number;
+  /** 図鑑に無かった連携の数 / そのうち反応の数 */
+  newLinks: number;
+  newReactions: number;
+}
+
+/** id の集合のうち、その系統（「系統:」で始まる）の数 */
+function countKind(ids: ReadonlySet<string>, kind: LinkKind): number {
+  const prefix = linkId(kind, "");
+  return [...ids].filter((id) => id.startsWith(prefix)).length;
 }
 
 export type QuestSnapshotSource = Pick<GameState, "questRun" | "depth" | "stats" | "boons" | "modifiers">;
@@ -141,6 +161,11 @@ export function questSnapshot(state: QuestSnapshotSource): QuestSnapshot {
     tier: runTier(state.modifiers),
     reactionKinds: run.reactionKinds.size,
     statusKinds: run.statusKinds.size,
+    linkKinds: run.linkKinds.size,
+    comboKinds: countKind(run.linkKinds, "combo"),
+    chainKinds: countKind(run.linkKinds, "chain"),
+    newLinks: run.newLinks.size,
+    newReactions: countKind(run.newLinks, "reaction"),
   };
 }
 
@@ -177,6 +202,11 @@ export const QUEST_KEYS = [
   "lairHunter",
   "thunderRing",
   "burstMaster",
+  "pathfinder",
+  "newReaction",
+  "comboForms",
+  "chainForms",
+  "linkWeb",
 ] as const;
 export type QuestKey = (typeof QUEST_KEYS)[number];
 
@@ -204,7 +234,7 @@ function depthIf(ok: boolean, depth: number): number {
 
 export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   burnout: { name: "燃え尽き", desc: "燃焼中の敵を 50 体倒す。", goal: 50, measure: (s) => s.burnKills, reward: { kind: "title", title: "灰を撒く者" } },
-  steamHand: { name: "蒸気の手", desc: "蒸発（燃焼 + 冷気）を 10 回起こす。", goal: 10, measure: (s) => s.vaporizes, reward: { kind: "page", page: "reaction" } },
+  steamHand: { name: "蒸気の手", desc: "蒸発（燃焼 + 冷気）を 10 回起こす。", goal: 10, measure: (s) => s.vaporizes, reward: { kind: "page", page: "link" } },
   shaker: { name: "揺るがす者", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "unshakenScale" } },
   oathless: {
     name: "誓約なき者",
@@ -249,6 +279,12 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   lairHunter: { name: "部屋主狩り", desc: "部屋主を 3 体倒す。", goal: 3, measure: (s) => s.lairKills, reward: { kind: "title", title: "主狩り" } },
   thunderRing: { name: "雷の狩り", desc: "感電中の敵を 30 体倒す。", goal: 30, measure: (s) => s.shockKills, reward: { kind: "title", title: "雷を纏う者" } },
   burstMaster: { name: "解き放つ者", desc: "バーストを 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" } },
+  // ---- 発見の依頼（docs/ideas/synergy-web.md 5-e）。図鑑の既知はラン開始時の写し ----
+  pathfinder: { name: "未踏の連携", desc: "図鑑に無い連携を 2 種見つける。", goal: 2, measure: (s) => s.newLinks, reward: { kind: "title", title: "未踏を拓く者" } },
+  newReaction: { name: "新しい反応", desc: "図鑑に無い反応を 1 種起こす。", goal: 1, measure: (s) => s.newReactions, reward: { kind: "title", title: "錬金の徒" } },
+  comboForms: { name: "連携の型", desc: "スキルの連携を 3 種決める。", goal: 3, measure: (s) => s.comboKinds, reward: { kind: "title", title: "型の探究者" } },
+  chainForms: { name: "糸の綾", desc: "連鎖を 4 種類つなぐ。", goal: 4, measure: (s) => s.chainKinds, reward: { kind: "title", title: "糸を手繰る者" } },
+  linkWeb: { name: "網の目", desc: "1 回の探索で連携を 10 種成立させる。", goal: 10, measure: (s) => s.linkKinds, reward: { kind: "page", page: "link" } },
 };
 
 export function isQuestKey(v: unknown): v is QuestKey {
