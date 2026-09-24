@@ -304,8 +304,9 @@ export interface FrameInput {
   aimScreen: Vec | null;
   dashPressed: boolean;
   attackPressed: boolean;
-  /** 攻撃キーの押しっぱなし（大剣の溜め攻撃。src/data/weapons.ts） */
+  /** 攻撃キーの押しっぱなし（大剣の溜め攻撃。src/data/weapons.ts。銃の連射はこちら） */
   attackHeld: boolean;
+  /** 右 = 武器ごとの固有技の押しっぱなし（構え技など）。内部名は改名しない */
   shootHeld: boolean;
   specialPressed: boolean;
   confirmPressed: boolean;

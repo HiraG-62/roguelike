@@ -457,7 +457,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   wandLamp: {
     key: "wandLamp",
     name: "杖の灯",
-    desc: `杖を持つ間、射撃が当たるたび気力+${BOON.wandLampMana}。`,
+    desc: `杖を持つ間、魔弾が当たるたび気力+${BOON.wandLampMana}。`,
     icon: "灯",
     rarity: "common",
     tags: ["ranged", "mana"],

@@ -428,7 +428,7 @@ export interface PlayerStats {
   statusProcs: StatusProc[];
   /** 性質のルール変更（docs/ideas/loot-expansion.md）。戦闘側は system/traitHooks.ts が読む */
   traits: TraitStats;
-  /** 武器種（武器スロットのベースが決める。src/data/weapons.ts） / 射撃の型（銃スロットのベース） */
+  /** 武器種（右手のベースが決める。src/data/weapons.ts） / 射撃の型（右手の銃のベース） */
   moveset: MovesetKey;
   shot: ShotKey;
   /** 属性の変換: 近接・射撃（通常攻撃）の威力のうちその属性へ移す割合 0..1（none は使わない。合計は 1 で頭打ち） */

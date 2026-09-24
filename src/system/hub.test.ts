@@ -203,6 +203,18 @@ describe("武器掛け", () => {
     expect(state.stats.moveset, "装備の剣に戻る").toBe("sword");
   });
 
+  it("銃の家系を試すとその家系の shot も差し替わり、解除で装備の shot に戻る", () => {
+    const session = hub();
+    const { state } = session;
+    expect(state.stats.shot, "武器なしの既定は single").toBe("single");
+    setTrialWeapon(session, "longarm");
+    expect(state.stats.moveset).toBe("longarm");
+    expect(state.stats.shot, "長銃の家系で一番早く出る器の shot（火縄銃）に差し替わる").toBe("charge");
+    setTrialWeapon(session, null);
+    expect(state.stats.moveset).toBe("sword");
+    expect(state.stats.shot, "解除すると装備（剣なので既定値）の shot に戻る").toBe("single");
+  });
+
   it("装備画面を経由して applyStats が走っても試し中の武器種が保たれる", () => {
     const session = hub();
     const { state } = session;

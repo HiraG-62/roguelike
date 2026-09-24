@@ -389,7 +389,7 @@ export const EXTRA_SKILL_DEFS: Record<ExtraSkillKey, SkillDef> = {
     key: "turret",
     name: "砲台",
     icon: "砲",
-    verb: "砲台を置く。自分が射撃するたび、砲台もカーソル方向へ 1 発撃つ（砲台だけでは撃たない）",
+    verb: "砲台を置く。自分が射撃・近接で攻撃するたび、砲台もカーソル方向へ 1 発撃つ（砲台だけでは撃たない）",
     tags: ["placed", "summon", "projectile"],
     keywords: kw(["placed", "bullet"], ["ranged"]),
     damageKind: "ranged",

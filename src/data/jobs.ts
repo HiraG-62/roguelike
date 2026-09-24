@@ -43,7 +43,7 @@ export interface JobDef {
   desc: string;
   /** 基礎値（各 5）に足す偏り。合計は 0（どれかを伸ばせばどれかが下がる） */
   attributes: Partial<Attributes>;
-  /** この武器種を持つ間、近接の威力と攻撃速度が上がる（JOB.favoredMeleeMul / favoredAttackSpeedMul） */
+  /** この武器種を持つ間、その武器の攻撃（近接なら近接、銃なら射撃）の威力と速度が上がる（JOB.favoredMeleeMul / favoredAttackSpeedMul） */
   favored: readonly MovesetKey[];
   rules: readonly JobRuleDef[];
   /** 開始時に足元へ置くスキル石 */
@@ -124,16 +124,16 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   hunter: {
     name: "狩人",
-    desc: "予備動作中の敵を射撃で怯ませ、精鋭を脆弱にする。",
+    desc: "予備動作中の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
     favored: ["longarm", "thrown", "whip"],
     rules: [
-      jobRule("hunter", 0, `予備動作中の敵を射撃で撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
+      jobRule("hunter", 0, `予備動作中の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
         when: "onRangedHit",
         if: [{ kind: "trigger", condition: "targetInWindup" }],
         then: { kind: "addPoise", magnitude: JOB.hunterWindupPoise },
       }),
-      jobRule("hunter", 1, `精鋭を射撃で撃つと ${JOB.hunterVulnerableSec} 秒間脆弱にする。`, {
+      jobRule("hunter", 1, `精鋭を射撃・遠距離スキルで撃つと ${JOB.hunterVulnerableSec} 秒間脆弱にする。`, {
         when: "onRangedHit",
         if: [{ kind: "trigger", condition: "targetElite" }],
         then: { kind: "inflict", status: "vulnerable", magnitude: JOB.hunterVulnerableSec },

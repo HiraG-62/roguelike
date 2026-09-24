@@ -146,7 +146,7 @@ export function jobDetailLines(job: JobKey): string[] {
   const lines: string[] = [];
   const attrs = jobAttributeText(job);
   if (attrs !== "") lines.push(`ステータス: ${attrs}`);
-  if (def.favored.length > 0) lines.push(`得意な武器: ${jobFavoredText(job)}（近接が強く速くなる）`);
+  if (def.favored.length > 0) lines.push(`得意な武器: ${jobFavoredText(job)}（その武器の攻撃が強く速くなる）`);
   for (const r of def.rules) lines.push(`・${r.text}`);
   const weapon = def.starterWeapon === null ? undefined : baseDef(def.starterWeapon);
   if (weapon) lines.push(`初期武器: ${weapon.name}（持っていなければ渡される）`);

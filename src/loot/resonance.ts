@@ -366,7 +366,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
   },
   azure: {
     name: "氷極",
-    lines: ["射撃のたびに 25% の確率で、周囲の敵を凍らせる", "弾速が上がる"],
+    lines: ["射撃・遠距離スキルのたびに 25% の確率で、周囲の敵を凍らせる", "弾速が上がる"],
     apply: both(
       trigger({ trigger: "onShoot", condition: "always", effect: "freezeNearby", magnitude: amt(40), duration: 2, chance: 0.25 }),
       (s) => {
@@ -409,7 +409,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
 export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   "crimson+azure": {
     name: "蒸気",
-    lines: ["射撃時に 20% の確率で、周囲の敵を燃やす", "攻撃で敵を冷気にしやすくなる"],
+    lines: ["射撃・遠距離スキル時に 20% の確率で、周囲の敵を燃やす", "攻撃で敵を冷気にしやすくなる"],
     apply: both(
       trigger({ trigger: "onShoot", condition: "always", effect: "burnNearby", magnitude: amt(5), duration: 3, chance: 0.2 }),
       (s) => {
@@ -593,7 +593,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+jade+umbra": {
     name: "沼",
-    lines: ["射撃のたびに 20% の確率で、近くの敵を毒にする", "冷気の減速が少し強くなる"],
+    lines: ["射撃・遠距離スキルのたびに 20% の確率で、近くの敵を毒にする", "冷気の減速が少し強くなる"],
     apply: both(
       trigger({ trigger: "onShoot", condition: "always", effect: "inflict", status: "poison", magnitude: 3, chance: 0.2 }),
       (s) => {
@@ -634,7 +634,7 @@ export const NEGATIVE_EFFECTS: Readonly<Record<Exclude<TraitColor, "umbra">, Res
   },
   azure: {
     name: "熱い氷",
-    lines: ["冷気の確率が、すべて燃焼の確率に変わる", `射撃のたびに ${Math.round(RESONANCE.hotIceChance * PERCENT)}% の確率で、周囲の敵を燃やす`],
+    lines: ["冷気の確率が、すべて燃焼の確率に変わる", `射撃・遠距離スキルのたびに ${Math.round(RESONANCE.hotIceChance * PERCENT)}% の確率で、周囲の敵を燃やす`],
     apply: both(
       (s) => {
         s.burnChance += Math.max(0, s.chillChance);
