@@ -123,6 +123,7 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
       hitTick: 0,
     },
     shootCooldown: 0,
+    bladeOathTextTimer: 0,
     energy: 0,
     maxEnergy: PLAYER.maxEnergy,
     walkTime: 0,
@@ -524,6 +525,7 @@ function tickTimers(state: GameState, dt: number): void {
   p.hitFlash = Math.max(0, p.hitFlash - dt);
   p.swingImpact = Math.max(0, p.swingImpact - dt);
   p.shootCooldown = Math.max(0, p.shootCooldown - dt);
+  p.bladeOathTextTimer = Math.max(0, p.bladeOathTextTimer - dt);
   p.justTimer = Math.max(0, p.justTimer - dt);
   p.buffs.damage.time = Math.max(0, p.buffs.damage.time - dt);
   p.buffs.speed.time = Math.max(0, p.buffs.speed.time - dt);
@@ -895,8 +897,8 @@ function endSwing(state: GameState): void {
   a.buffered = false;
   p.dashStrike = false;
   if (next !== undefined) return;
-  // 最終段・フィニッシュの後は少し間を置き、派生の入力列もここで終わる
-  p.shootCooldown = Math.max(p.shootCooldown, PLAYER.comboLockout);
+  // 最終段・フィニッシュの後は少し間を置く。効くのは銃の家系（strike の技で撃てる）だけ
+  if (isGun(moveset)) p.shootCooldown = Math.max(p.shootCooldown, PLAYER.comboLockout);
   a.inputs.length = 0;
 }
 
@@ -1314,12 +1316,14 @@ function canShootNow(state: GameState): boolean {
   return !boonBlocksShoot(state);
 }
 
-/** ks_bladeOath: 撃てないことを浮き文字で伝える。撃てなければ true */
+/** ks_bladeOath: 撃てないことを浮き文字で伝える（押しっぱなしで連打表示しない）。撃てなければ true */
 function blockedByBladeOath(state: GameState): boolean {
   if (!hasKeystone(state, KS.bladeOath)) return false;
   const p = state.player;
-  addFloatingText(state, p.body.pos, KEYSTONE_NAME[KS.bladeOath] ?? KS.bladeOath, PACIFIST_COLOR, 0.9, 0.4);
-  p.shootCooldown = BLADE_OATH_TEXT_INTERVAL;
+  if (p.bladeOathTextTimer <= 0) {
+    addFloatingText(state, p.body.pos, KEYSTONE_NAME[KS.bladeOath] ?? KS.bladeOath, PACIFIST_COLOR, 0.9, 0.4);
+    p.bladeOathTextTimer = BLADE_OATH_TEXT_INTERVAL;
+  }
   return true;
 }
 

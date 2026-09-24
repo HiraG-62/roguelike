@@ -889,11 +889,6 @@ export function isGun(moveset: MovesetDef): boolean {
   return moveset.primary === "shot";
 }
 
-/** @deprecated isGun の別名（段階的に消す） */
-export function isShotOnly(moveset: MovesetDef): boolean {
-  return isGun(moveset);
-}
-
 /** 弾を出す武器種か（銃の家系、または固有技が弾を出す）。祝福の「射撃」タグの生死判定 */
 export function usesProjectiles(moveset: MovesetDef): boolean {
   return isGun(moveset) || moveset.art.kind === "throw";
@@ -908,21 +903,6 @@ export function withExtraBranch(moveset: MovesetDef, extra: BranchDef): MovesetD
   if (moveset.branches.some((b) => b.sequence.join(",") === seq)) return moveset;
   const branches = [...moveset.branches, extra].sort((a, b) => b.sequence.length - a.sequence.length);
   return { ...moveset, branches };
-}
-
-/** 近接の連撃を出すボタン。銃の家系は持たない */
-export function meleeButton(moveset: MovesetDef): ButtonKey | undefined {
-  return isGun(moveset) ? undefined : "primary";
-}
-
-/** 射撃のボタン（銃の家系だけ左） */
-export function shotButton(moveset: MovesetDef): ButtonKey | undefined {
-  return isGun(moveset) ? "primary" : undefined;
-}
-
-/** 射撃の役割を持つボタンすべて（銃の家系は左だけ） */
-export function shotButtons(moveset: MovesetDef): ButtonKey[] {
-  return isGun(moveset) ? ["primary"] : [];
 }
 
 /** 溜めの役割を持つボタン（大剣・戦鎚は左、刀の居合・短銃の狙い撃ちは右）。溜めを持たない武器種は undefined */

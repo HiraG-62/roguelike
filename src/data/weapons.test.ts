@@ -18,12 +18,9 @@ import {
   chargeLevelAt,
   isGun,
   matchBranch,
-  meleeButton,
   meleeChargeOf,
   movesetRules,
   releaseBranchIndex,
-  shotButton,
-  shotButtons,
   usesProjectiles,
   withExtraBranch,
 } from "./weapons";
@@ -92,12 +89,11 @@ describe("武器種の定義", () => {
   it("ボタンの役割: 近接の武器種は撃てず、右は固有技。銃の家系だけ左で撃つ", () => {
     expect(MOVESETS.sword.primary).toBe("melee");
     expect(MOVESETS.sword.art.kind, "剣の右は受け流し").toBe("hold");
-    expect(shotButton(MOVESETS.sword), "剣は撃てない").toBeUndefined();
-    expect(shotButton(MOVESETS.greatsword), "大剣は撃てない").toBeUndefined();
-    expect(meleeButton(MOVESETS.greatsword)).toBe("primary");
-    expect(meleeButton(MOVESETS.wand), "杖は左で打つ").toBe("primary");
+    expect(isGun(MOVESETS.sword), "剣は撃てない").toBe(false);
+    expect(isGun(MOVESETS.greatsword), "大剣は撃てない").toBe(false);
+    expect(MOVESETS.wand.primary, "杖は左で打つ").toBe("melee");
     expect(MOVESETS.wand.art.kind, "杖の右は魔弾").toBe("throw");
-    for (const key of GUN_MOVESETS) expect(shotButton(MOVESETS[key]), `${key} は左で撃つ`).toBe("primary");
+    for (const key of GUN_MOVESETS) expect(isGun(MOVESETS[key]), `${key} は左で撃つ`).toBe(true);
   });
 
   it("多段ヒット・踏み込み・揺れの数値が正", () => {
@@ -303,14 +299,13 @@ describe("武器種・射撃の型の拡張（docs/ideas/combat-feel-design.md �
 
   it("ボタンの役割: 刀は右が居合、戦鎚は左が溜め、二丁拳銃は左だけで撃つ", () => {
     expect(chargeButton(MOVESETS.katana), "刀の溜めは右").toBe("secondary");
-    expect(meleeButton(MOVESETS.katana), "刀の連撃は左").toBe("primary");
+    expect(MOVESETS.katana.primary, "刀の連撃は左").toBe("melee");
     expect(chargeButton(MOVESETS.hammer), "戦鎚の溜めは左").toBe("primary");
     expect(chargeButton(MOVESETS.greatsword), "大剣の溜めは左のまま").toBe("primary");
     expect(chargeButton(MOVESETS.sword), "剣は溜めを持たない").toBeUndefined();
-    expect(shotButtons(MOVESETS.gunner), "二丁拳銃は左で撃つ").toEqual(["primary"]);
-    expect(meleeButton(MOVESETS.gunner), "二丁拳銃は近接の連撃ボタンを持たない").toBeUndefined();
-    expect(isGun(MOVESETS.gunner)).toBe(true);
-    expect(shotButtons(MOVESETS.sword), "剣は撃たない").toEqual([]);
+    expect(isGun(MOVESETS.gunner), "二丁拳銃は左で撃つ").toBe(true);
+    expect(MOVESETS.gunner.primary, "二丁拳銃は近接の連撃ボタンを持たない").toBe("shot");
+    expect(isGun(MOVESETS.sword), "剣は撃たない").toBe(false);
   });
 
   it("武器種の固有効果（rules）は持ち主の武器種ごとに id が分かれ、持たない武器種は空", () => {

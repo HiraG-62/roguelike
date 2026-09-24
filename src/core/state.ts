@@ -76,6 +76,8 @@ export interface Player {
   dodgedThisDash: boolean;
   attack: AttackState;
   shootCooldown: number;
+  /** ks_bladeOath: 「撃てない」の浮き文字を連打表示しないための間隔タイマー（射撃の再使用時間とは無関係） */
+  bladeOathTextTimer: number;
   energy: number;
   maxEnergy: number;
   /** 歩行アニメ用 */
