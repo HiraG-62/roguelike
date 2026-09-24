@@ -22,7 +22,7 @@ description: ラン内の祝福（3 択）を追加する。ルール変更型�
 - src/data/balance/boons.json: BOON に <key> 用の数値を追加（tuning.ts の BOON 経由で読む）
 - src/system/<呼び出し側>.ts: hasBoon 分岐かフック呼び出しの追加（既存フックで足りない場合のみ）
 ## 先に読む
-- CLAUDE.md（レシピ「祝福」）、docs/ideas/run-structure.md 5 章、docs/ideas/boons-expansion.md、src/system/boonDefs.ts の既存祝福 <近い例>
+- CLAUDE.md（不変条件）、docs/recipes/boon.md、docs/ideas/run-structure.md 5 章、docs/ideas/boons-expansion.md、src/system/boonDefs.ts の既存祝福 <近い例>
 ## 仕様
 - 効果: <…>
 - 代償（cursed の場合）: <…>
@@ -32,5 +32,5 @@ description: ラン内の祝福（3 択）を追加する。ルール変更型�
 - src/qa/bot.ts の祝福選択が引き続き動く
 - npm run check が通る
 ## 報告形式
-CLAUDE.md「並列開発の作法」の完了報告形式
+docs/AI_WORKFLOW.md の雛形の報告形式
 ```

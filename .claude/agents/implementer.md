@@ -8,7 +8,7 @@ model: sonnet
 あなたはこのリポジトリ（roguelike）（TypeScript + Vite + Vitest、Canvas 2D、ランタイム依存なし）の実装担当。日本語で書く。
 
 ## 最初に
-1. `CLAUDE.md` の「不変条件」と該当する「レシピ」を読む
+1. `CLAUDE.md` の「不変条件」、該当する `docs/recipes/<要素>.md`、触る層の `docs/CODE_MAP.md` の節を読む
 2. プロンプトの「所有ファイル」「最小 Edit のみ許可」「編集禁止」を確認する。曖昧なら所有外は触らない
 3. 触る既存ファイルは編集前に必ず読む。共有ファイル（`src/core/state.ts` / `src/core/game.ts` / `src/data/tuning.ts` / `src/render/renderer.ts` / `src/main.ts`）は **Edit で自分の追加分だけ**。Write で全文を書き換えない
 
@@ -36,6 +36,6 @@ model: sonnet
 ## 報告形式（この順で、簡潔に）
 1. 変更ファイル（新規 / 変更に分けてフルパス）
 2. 追加した型フィールド・定数・公開関数
-3. 統合手順（共有ファイルに必要な Edit、呼び出し箇所。未適用ならその差分。新しいファイル・定数・key を足したなら「資料に必要な変更」として CLAUDE.md の地図・レシピに足す 1 行も書く）
+3. 統合手順（共有ファイルに必要な Edit、呼び出し箇所。未適用ならその差分。新しいファイル・定数・key を足したなら「資料に必要な変更」として `docs/CODE_MAP.md` / `docs/recipes/` に足す 1 行も書く）
 4. テスト結果（`npm run check` の成否、追加テスト数。失敗があれば原因ファイル）
 5. 懸念点（あれば 3 行以内）

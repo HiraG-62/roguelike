@@ -48,7 +48,7 @@
 - 上記以外すべて。特に <並行作業中の Agent の所有ファイル>
 
 ## 先に読む
-- CLAUDE.md（不変条件とレシピ）
+- CLAUDE.md（不変条件）、docs/recipes/<要素>.md、docs/CODE_MAP.md の該当層
 - <関連する設計文書と既存コード>
 
 ## 仕様
@@ -114,7 +114,7 @@ implementer を Sonnet で動かす前提は **設計が固まっていること
 | 機能の並列実装 | `/parallel` | implementer × N |
 | 直近コミットのレビュー | `/review` | reviewer |
 | 引き継ぎ文書の更新 | `/handoff-docs` | - |
-| エージェント資料（CLAUDE.md・`.claude/`・この文書）の追随 | `/agent-docs`（機械検査は `npm run audit:docs`） | - |
+| エージェント資料（CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/`・この文書）の追随 | `/agent-docs`（機械検査は `npm run audit:docs`） | - |
 | 変更点まとめ | `/release-notes` | - |
 | バージョンを上げる | `/bump` | - |
 | アイデア出し | - | brainstormer |

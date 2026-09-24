@@ -27,7 +27,7 @@ description: スキル石または刻印符を追加する。相性表の更新�
 - src/render/skillHud.ts / src/render/renderer.ts: 表示の追加分のみ
 - src/audio/sfxNames.ts / src/audio/sfxLayers.ts: 新しい効果音が要る場合のみ
 ## 先に読む
-- CLAUDE.md（レシピ「スキル / 刻印符」）、docs/STATS_AND_SCALING.md、docs/ideas/skills.md（6 章・7 章）、近い既存スキル <例>
+- CLAUDE.md（不変条件）、docs/recipes/skill.md、docs/STATS_AND_SCALING.md、docs/ideas/skills.md（6 章・7 章）、近い既存スキル <例>
 ## 仕様
 - 挙動: <…>（手動で撃つ。オートにしない）
 - 数値: src/data/balance/skills.json に <…>
@@ -38,5 +38,5 @@ description: スキル石または刻印符を追加する。相性表の更新�
 - 発動・気力 / 再使用時間・刻印符の効果のテスト（日本語）
 - npm run check が通る
 ## 報告形式
-CLAUDE.md「並列開発の作法」の完了報告形式
+docs/AI_WORKFLOW.md の雛形の報告形式
 ```

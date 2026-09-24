@@ -23,7 +23,7 @@ description: このプロジェクトの引き継ぎ文書（docs/HANDOFF.md、I
    - 新しい要素は既存の小見出し（戦闘 / フロア・部屋 / 装備 / スキル / 祝福 / メタ）に 1〜2 行で足す
    - 「次にやる候補」から実装済みのものを消す
 4. `docs/ideas/README.md` のチェックリストを更新する（[ ] → [~] → [x]）。新しいブレストファイルがあれば一覧表に追加
-5. 表示用語が増えたら `docs/GLOSSARY.md` に追記。エージェント資料（CLAUDE.md・`.claude/`・AI_WORKFLOW）の追随は `/agent-docs`
+5. 表示用語が増えたら `docs/GLOSSARY.md` に追記。エージェント資料（CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/`・AI_WORKFLOW）の追随は `/agent-docs`
 6. 変更は `docs: 引き継ぎ文書を更新（<要点>）` でコミットする（ユーザーの指示がある場合）
 
 ## 報告

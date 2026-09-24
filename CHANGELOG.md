@@ -12,6 +12,7 @@
 
 ### 整備
 - エージェント資料（CLAUDE.md・`.claude/agents`・`.claude/skills`・`docs/AI_WORKFLOW.md`）を現状に揃え、コードとのずれを機械で検査する `npm run audit:docs`（`scripts/audit-agent-docs.mjs`。`npm run check` の最初の段）と、判断の要る追随を行う skill `/agent-docs` を追加
+- CLAUDE.md を入口の索引（150 行以内。検査で上限を守る）に絞り、層ごとのファイル一覧を `docs/CODE_MAP.md`、要素の足し方を `docs/recipes/*.md` に分けて参照させる形にした
 
 ### 変更
 - **射撃が右クリックだった頃の名残を整理**（0.0.15α で射撃は銃の武器種だけ、右クリックは固有技になった）

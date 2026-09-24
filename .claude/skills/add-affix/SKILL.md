@@ -24,7 +24,7 @@ description: 装備の性質（旧アフィックス）・名のある遺物・�
 - src/system/keystones.ts: KS と KEYSTONE_NAME（誓約の場合のみ）
 - src/data/balance/loot.json: 期待値曲線（affixCurves）など数値が要る場合のみ
 ## 先に読む
-- CLAUDE.md（レシピ「性質 / 変換 / 誓約 / 名のある遺物 / ベース」）、docs/LOOT_DESIGN.md、docs/GLOSSARY.md、近い既存定義 <例>
+- CLAUDE.md（不変条件）、docs/recipes/affix.md、docs/LOOT_DESIGN.md、docs/GLOSSARY.md、近い既存定義 <例>
 ## 仕様
 - 効果: <…>（値は表示単位。+25% なら 25）
 - curve（深度ごとの期待値の点列）: <…>、slots: <…>、tags: <…>、color（省略時は tags から決まる）
@@ -33,5 +33,5 @@ description: 装備の性質（旧アフィックス）・名のある遺物・�
 - テスト（日本語）: computeStats に正しく畳み込まれる / 生成で出る slot と出ない slot / 代償が効く
 - npm run check が通る
 ## 報告形式
-CLAUDE.md「並列開発の作法」の完了報告形式
+docs/AI_WORKFLOW.md の雛形の報告形式
 ```

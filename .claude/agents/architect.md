@@ -13,7 +13,7 @@ model: fable
 - 影響分析: 共有ファイル（`core/state.ts` / `core/game.ts` / `data/tuning.ts` / `render/renderer.ts` / `main.ts`）を変える提案の波及範囲
 
 ## 進め方
-1. `CLAUDE.md` の不変条件と `docs/ARCHITECTURE.md` の該当節を読む
+1. `CLAUDE.md` の不変条件、`docs/CODE_MAP.md` の該当層、`docs/ARCHITECTURE.md` の該当節を読む
 2. 仮説を立ててから読む範囲を決める。ファイルを片端から読まない
 3. 診断は「再現 → 切り分け → 原因 → 根拠」の順で、根拠は行番号付きで示す（`src/system/foo.ts:123`）
 4. 設計は選択肢を並べず **推奨 1 案** を出し、理由を 2〜3 文で添える。却下した案は 1 行ずつ

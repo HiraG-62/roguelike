@@ -1,5 +1,5 @@
 /**
- * エージェント資料（CLAUDE.md / .claude/agents / .claude/skills / docs/AI_WORKFLOW.md）が
+ * エージェント資料（CLAUDE.md / docs/CODE_MAP.md / docs/recipes / .claude/agents / .claude/skills / docs/AI_WORKFLOW.md）が
  * コードの現状からずれていないかを機械で検査する（`npm run audit:docs`。`npm run check` の最初の段）。
  *
  * 検査するのは「実在するか」「数が合うか」「登録されているか」だけ。説明文の正しさは
@@ -7,10 +7,11 @@
  *
  * 1. 資料が参照するパス（src/ docs/ scripts/ electron/ .claude/ と `xxx.ts` の裸のファイル名）が実在する
  * 2. 資料が参照する大文字の識別子（`BOON_KEYS` など）が src / scripts / electron のどこかにある
- * 3. src の本体ファイル（テスト以外）が CLAUDE.md の「アーキテクチャの地図」に載っている
- * 4. CLAUDE.md の「`XXX`、N 種 / N 体」の N が配列の要素数と一致する
- * 5. .claude/skills と .claude/agents が CLAUDE.md に登録され、frontmatter が形式どおり
+ * 3. src の本体ファイル（テスト以外）が docs/CODE_MAP.md に載っている
+ * 4. docs/CODE_MAP.md の「`XXX`、N 種 / N 体」の N が配列の要素数と一致する
+ * 5. .claude/skills / .claude/agents / docs/recipes が CLAUDE.md に登録され、frontmatter が形式どおり
  * 6. 用語集で置き換えた旧用語が「旧〜」の形以外で残っていない
+ * 7. CLAUDE.md が行数の上限を超えていない（詳細は docs/ 側へ分けて参照させる）
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -19,7 +20,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 資料として検査するファイル */
-const DOC_FILES = ["CLAUDE.md", "docs/AI_WORKFLOW.md"];
+const DOC_FILES = ["CLAUDE.md", "docs/CODE_MAP.md", "docs/AI_WORKFLOW.md"];
+const RECIPES_DIR = "docs/recipes";
+/** CLAUDE.md は入口の索引。これを超えたら docs/ 側へ分割する */
+const MAX_CLAUDE_LINES = 150;
 const SKILLS_DIR = ".claude/skills";
 const AGENTS_DIR = ".claude/agents";
 /** 識別子を探す範囲 */
@@ -65,8 +69,10 @@ for (const f of sourceFiles) {
 
 const skillFiles = walk(SKILLS_DIR).filter((f) => f.endsWith("SKILL.md"));
 const agentFiles = walk(AGENTS_DIR).filter((f) => f.endsWith(".md"));
-const docs = [...DOC_FILES, ...skillFiles, ...agentFiles].map((rel) => ({ rel, text: read(rel) }));
+const recipeFiles = walk(RECIPES_DIR).filter((f) => f.endsWith(".md"));
+const docs = [...DOC_FILES, ...recipeFiles, ...skillFiles, ...agentFiles].map((rel) => ({ rel, text: read(rel) }));
 const claudeMd = read("CLAUDE.md");
+const codeMap = read("docs/CODE_MAP.md");
 
 // ---------- 1. パス ----------
 function checkPaths({ rel, text }) {
@@ -125,8 +131,8 @@ function checkMapCoverage() {
     const name = basename(f, ".ts");
     if (MAP_EXEMPT.has(f)) continue;
     const re = new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`);
-    if (re.test(claudeMd)) continue;
-    note("CLAUDE.md", `地図に無いファイル: ${f}（該当する層の行に 1 行足す。消したファイルなら行を消す）`);
+    if (re.test(codeMap)) continue;
+    note("docs/CODE_MAP.md", `地図に無いファイル: ${f}（該当する層の行に 1 行足す。消したファイルなら行を消す）`);
   }
 }
 
@@ -162,17 +168,17 @@ function countElements(src, openIdx) {
 }
 
 function checkCounts() {
-  for (const m of claudeMd.matchAll(/`([A-Z][A-Z0-9_]+)`、(\d+) (?:種|体|件)/g)) {
+  for (const m of codeMap.matchAll(/`([A-Z][A-Z0-9_]+)`、(\d+) (?:種|体|件)/g)) {
     const [, name, expected] = m;
     const defRe = new RegExp(`(?:export )?const ${name}(?:\\s*:[^=\\n]+)?\\s*=\\s*\\[`);
     const file = sourceFiles.find((f) => f.endsWith(".ts") && defRe.test(stripComments(read(f))));
-    if (!file) { note("CLAUDE.md", `件数の参照先が無い: ${name}（配列の定義が見つからない）`); continue; }
+    if (!file) { note("docs/CODE_MAP.md", `件数の参照先が無い: ${name}（配列の定義が見つからない）`); continue; }
     const src = stripComments(read(file));
     const idx = src.search(defRe);
     // 型注釈の `[]` ではなく `=` の後の `[` から数える
     const open = idx + (src.slice(idx).match(defRe)?.[0].length ?? 1) - 1;
     const actual = countElements(src, open);
-    if (actual !== Number(expected)) note("CLAUDE.md", `件数のずれ: ${name} は ${actual}（資料は ${expected}。${file}）`);
+    if (actual !== Number(expected)) note("docs/CODE_MAP.md", `件数のずれ: ${name} は ${actual}（資料は ${expected}。${file}）`);
   }
 }
 
@@ -203,8 +209,17 @@ function checkRegistrations() {
     if (fm.name !== name) note(f, `frontmatter の name（${fm.name}）とファイル名（${name}）が違う`);
     if (!AGENT_MODELS.has(fm.model)) note(f, `model が想定外: ${fm.model}`);
     const listed = new RegExp(`(?<![A-Za-z0-9_-])${name}(?![A-Za-z0-9_-])`).test(claudeMd);
-    if (!listed) note("CLAUDE.md", `agent が未登録: ${name}（「並列開発の作法」のサブエージェント定義に足す）`);
+    if (!listed) note("CLAUDE.md", `agent が未登録: ${name}（「並列開発の作法」のモデルの行に足す）`);
   }
+  for (const f of recipeFiles) {
+    if (!claudeMd.includes(`\`${f}\``)) note("CLAUDE.md", `レシピが未登録: ${f}（「要素の足し方」の表に足す）`);
+  }
+}
+
+// ---------- 7. CLAUDE.md の長さ ----------
+function checkClaudeLength() {
+  const n = claudeMd.split("\n").length;
+  if (n > MAX_CLAUDE_LINES) note("CLAUDE.md", `${n} 行（上限 ${MAX_CLAUDE_LINES}）。詳細は docs/（CODE_MAP / recipes / AI_WORKFLOW）へ分けて、ここには参照だけ残す`);
 }
 
 // ---------- 6. 旧用語 ----------
@@ -226,9 +241,10 @@ for (const doc of docs) {
 checkMapCoverage();
 checkCounts();
 checkRegistrations();
+checkClaudeLength();
 
 if (problems.length === 0) {
-  console.log(`[audit:docs] OK（資料 ${docs.length} 件、src の本体ファイルは地図に網羅）`);
+  console.log(`[audit:docs] OK（資料 ${docs.length} 件、src の本体ファイルは CODE_MAP に網羅、CLAUDE.md ${claudeMd.split("\n").length} 行）`);
   process.exit(0);
 }
 console.error(`[audit:docs] ${problems.length} 件のずれ。資料をコードに合わせて直す（判断が要るものは /agent-docs）\n`);

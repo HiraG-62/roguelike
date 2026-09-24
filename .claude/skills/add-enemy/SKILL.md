@@ -1,6 +1,6 @@
 ---
 name: add-enemy
-description: 新しい敵を CLAUDE.md のレシピに沿って追加する。実装エージェント（とドット絵エージェント）を起動する手順とプロンプト雛形。
+description: 新しい敵を docs/recipes/enemy.md のレシピに沿って追加する。実装エージェント（とドット絵エージェント）を起動する手順とプロンプト雛形。
 ---
 
 # /add-enemy <敵の概要>
@@ -28,7 +28,7 @@ description: 新しい敵を CLAUDE.md のレシピに沿って追加する。�
 ## 編集禁止
 - src/data/sprites.ts と src/data/sprites/*.ts（pixel-artist が並行作業中。スプライトキーは <sprite>）
 ## 先に読む
-- CLAUDE.md（不変条件、レシピ「敵」）、docs/ideas/enemies.md、src/data/enemies.ts、src/system/enemyBehaviors.ts、近い既存 behavior（<例: bomber>）
+- CLAUDE.md（不変条件）、docs/recipes/enemy.md、docs/CODE_MAP.md の system 節、docs/ideas/enemies.md、src/data/enemies.ts、src/system/enemyBehaviors.ts、近い既存 behavior（<例: bomber>）
 ## 仕様
 - 行動: <idle → chase → windup で何を見せる → strike で何をする → recover>
 - 数値: hp / speed / windup / engageRange / attackInterval / minDepth / weight / dropChance（初期値の目安: <…>）
@@ -37,5 +37,5 @@ description: 新しい敵を CLAUDE.md のレシピに沿って追加する。�
 - テスト（日本語）: 予備動作中は無害 / strike で当たる / 出現 depth の条件 / <固有の仕組み>
 - npm run check が通る（スプライト未到着による失敗はその旨を報告）
 ## 報告形式
-CLAUDE.md「並列開発の作法」の完了報告形式
+docs/AI_WORKFLOW.md の雛形の報告形式
 ```
