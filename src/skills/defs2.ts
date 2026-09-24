@@ -3,6 +3,7 @@ import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { WAVE2_SKILL_TUNING as T } from "./tuning2";
 import type { SkillDef, Wave2SkillKey } from "./types";
+import { cooldownSkill, manaSkill } from "./resource";
 
 /**
  * スキル第 2 弾の定義（地形を作る・壊す・燃やす / 烙印・崩勢・濡れ・彩痕・吸魔・宣告を使う /
@@ -10,35 +11,11 @@ import type { SkillDef, Wave2SkillKey } from "./types";
  * 発動は skills/actions2.ts。数値は skills/tuning2.ts
  */
 
-/** マナ型の共通項（data.ts の manaSkill と同じ形。循環 import を避けるためここにも置く） */
-function manaSkill(block: { cost: number; minInterval: number; poise: number }) {
-  return {
-    resource: "mana",
-    cooldown: 0,
-    charges: 1,
-    manaCost: block.cost,
-    minInterval: block.minInterval,
-    poise: block.poise,
-  } as const;
-}
-
-/** CD 型の共通項 */
-function cooldownSkill(block: { cooldown: number; minInterval: number; poise: number }) {
-  return {
-    resource: "cooldown",
-    cooldown: block.cooldown,
-    charges: 1,
-    manaCost: 0,
-    minInterval: block.minInterval,
-    poise: block.poise,
-  } as const;
-}
-
 /** 命中した敵に付ける状態異常（彩刻の彩痕の色は発動時に共鳴で決める。ここの potency は名目） */
 const APPLIES = {
   waterJar: [{ kind: "wet", stacks: T.waterJar.wetStacks, duration: STATUS.wet.duration, potency: 0 }],
   oilPot: [{ kind: "oiled", stacks: 1, duration: STATUS.oiled.duration, potency: 0 }],
-  scorchLine: [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: T.scorchLine.burnPotency }],
+  scorchLine: [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: T.scorchLine.burnPotency, ratio: T.scorchLine.burnPotencyRatio }],
   iceSlide: [{ kind: "chill", stacks: 1, duration: STATUS.chill.duration, potency: 0 }],
   bogCall: [{ kind: "poison", stacks: 1, duration: STATUS.poison.duration, potency: 0 }],
   brandSear: [{ kind: "brand", stacks: T.brandSear.brandStacks, duration: STATUS.brand.duration, potency: 0 }],

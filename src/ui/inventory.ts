@@ -46,6 +46,7 @@ import {
   PANEL_Y,
   STASH_HEADER_H,
   STASH_ROW_H,
+  type DetailPage,
   type Rect,
   type StashRowLayout,
   clamp,
@@ -89,6 +90,7 @@ export {
   STASH_HEADER_H,
   STASH_ROW_H,
   detailRect,
+  type DetailPage,
   type Rect,
   type StashRowLayout,
 } from "./inventoryLayout";
@@ -196,6 +198,8 @@ export interface InventoryUi {
   stashView: StashView;
   /** 詳細欄に来歴・語などまで出すか（既定は要点だけ）。拾うキーで切り替え、開き直しても保つ */
   detailFull: boolean;
+  /** 詳細欄に行動ごとの計算式を出すか（詳しくの次の頁）。detailFull とは同時に立たない */
+  detailFormula: boolean;
   /** ？ のヘルプを開いている */
   helpOpen: boolean;
   hoverHelp: boolean;
@@ -221,6 +225,7 @@ export function createInventoryUi(): InventoryUi {
     hoverAlloc: -1,
     stashView: createStashView(),
     detailFull: false,
+    detailFormula: false,
     helpOpen: false,
     hoverHelp: false,
   };
@@ -493,14 +498,27 @@ function updateHelp(ui: InventoryUi, input: FrameInput): boolean {
   return true;
 }
 
+/** 詳細欄の今の頁 */
+export function detailPageOf(ui: Readonly<InventoryUi>): DetailPage {
+  if (ui.detailFormula) return "formula";
+  return ui.detailFull ? "full" : "brief";
+}
+
+/** 要点 → 詳しく → 計算式 → 要点 */
+export function advanceDetailPage(ui: InventoryUi): void {
+  const page = detailPageOf(ui);
+  ui.detailFull = page === "brief";
+  ui.detailFormula = page === "full";
+}
+
 export function updateInventoryUi(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
   if (input.inventoryPressed) cycleTab(state, ui);
   tickMessage(ui, dt);
   tickEchoUi(ui.echo, dt);
   if (!ui.open) return;
   if (updateHelp(ui, input)) return;
-  // 拾うキーで詳細欄の「要点 / 詳しく」を切り替える（装備画面を開いている間はゲームが止まっていて拾わない）
-  if (input.interactPressed) ui.detailFull = !ui.detailFull;
+  // 拾うキーで詳細欄の「要点 → 詳しく → 計算式」を回す（装備画面を開いている間はゲームが止まっていて拾わない）
+  if (input.interactPressed) advanceDetailPage(ui);
 
   const aim = input.aimScreen;
   const tab = input.clickPressed && aim ? tabRects().find((t) => pointInRect(aim, t.rect)) : undefined;

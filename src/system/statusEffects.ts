@@ -19,6 +19,7 @@ import { STATUS } from "../data/tuning";
 import { damageEnemy, damagePlayerDot, rollOutgoing } from "./combat";
 import { dotResistMul } from "./elementCombat";
 import { onStatusAppliedFx, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { withRatio } from "./attributes";
 import { circlesOverlap } from "./physics";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { boonChainExtension } from "./boonRules";
@@ -76,7 +77,7 @@ const ENEMY_ONLY: ReadonlySet<StatusKind> = new Set<StatusKind>([
 const PLAYER_IMMUNE: ReadonlySet<StatusKind> = new Set<StatusKind>(["freeze", "paralyze", "fear", ...ENEMY_ONLY]);
 /** 付いている間は付け直さない（持続も延ばさない）。行動停止を付け直しで延命させない / 宣告の記録を上書きさせない */
 const NO_REFRESH: ReadonlySet<StatusKind> = new Set<StatusKind>(["stagger", "freeze", "paralyze", "fear", "doom", "encase"]);
-/** potency を霊力（statusPotencyMul）で伸ばさないもの。彩痕の potency は色番号 */
+/** potency を係数・statusPotencyMul で伸ばさないもの。彩痕の potency は色番号 */
 const UNSCALED_POTENCY: ReadonlySet<StatusKind> = new Set<StatusKind>(["hue"]);
 /** 沈黙で予備動作を取り消せる（射撃・レーザー・爆弾） */
 const SILENCEABLE_WINDUP: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["shooter", "laser", "bomber"]);
@@ -358,7 +359,8 @@ export function applyStatus(
   const bag = bagOf(state, target);
   if (isImmune(target, bag, apply.kind)) return false;
   const scaled = source === "player" && !UNSCALED_POTENCY.has(apply.kind);
-  const potency = scaled ? apply.potency * state.stats.statusPotencyMul : apply.potency;
+  // 係数（行動ごとのステータス参照）→ 装備の効果量倍率の順。基礎値のステータスなら係数は何もしない
+  const potency = scaled ? withRatio(state.stats, apply.potency, apply.ratio) * state.stats.statusPotencyMul : apply.potency;
   let duration = resolveDuration(state, target, apply);
 
   const reaction = reactBefore(state, target, apply.kind, potency, duration, source);

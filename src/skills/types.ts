@@ -6,6 +6,7 @@ import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
 import type { GameMap } from "../map/grid";
 import type { MovesetDef, MovesetKey } from "../data/weapons";
+import type { AttrRatio, Scaling } from "../loot/types";
 
 /**
  * スキルシステムの共有型。docs/ideas/skills.md「6-1」「7. 最小実装の仕様」。
@@ -270,9 +271,13 @@ export interface SkillDef {
   manaCost: number;
   /** このスロットだけの連打下限（秒） */
   minInterval: number;
-  /** 1 ヒットの基礎怯み値（最終値は × poiseDamageMul） */
+  /** 1 ヒットの怯み値（ステータスが基礎値のとき。最終値は係数の上乗せ後に × poiseDamageMul） */
   poise: number;
-  /** 命中した敵に付ける状態異常 */
+  /** 怯み値のステータス係数（docs/COMBAT_DESIGN.md A-10）。省略はステータスで伸びない */
+  poiseRatio?: AttrRatio;
+  /** 強化系スキル（血の契約・加速）の効果量の倍率。ステータスが基礎値のとき 1 になる Scaling。省略は 1 固定 */
+  buffScaling?: Scaling;
+  /** 命中した敵に付ける状態異常（効果量の係数は StatusApply.ratio） */
   applies?: readonly StatusApply[];
   /**
    * マナの特殊な払い方。full = 満タンのときだけ撃て全量を払う（満月の砲）、

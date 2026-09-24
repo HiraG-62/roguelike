@@ -314,8 +314,17 @@ export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
 export type AttrKey = (typeof ATTR_KEYS)[number];
 export type Attributes = Record<AttrKey, number>;
 
-/** 係数表。技の威力 = base + Σ(係数 × 実効値)。base は基礎値のとき現行値と一致するよう逆算する */
+/**
+ * 係数表（LoL のレシオ）。技の威力 = base + Σ(係数 × 実効値)。base はステータスが 0 のときの値。
+ * 参照するステータスの種類・数は技ごとに自由（1 つでも全部でも、0 個 = 基礎値だけでもよい）
+ */
 export type Scaling = { base: number } & Partial<Record<AttrKey, number>>;
+
+/**
+ * 「基礎値での値」を持つ量（怯み値・状態異常の効果量など）への上乗せ。ステータス（実効値）1 点あたりの増分。
+ * 最終値 = 基礎値での値 + Σ(係数 × (実効値 − 基礎値))。ステータスが基礎値（各 5）なら元の値のまま
+ */
+export type AttrRatio = Partial<Record<AttrKey, number>>;
 
 /** 全ステータスが同じ値の Attributes */
 export function uniformAttributes(value: number): Attributes {

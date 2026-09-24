@@ -13,13 +13,16 @@ import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
 
 export { attributePanelRect };
 
-/** 何が伸びるかの一言（docs/COMBAT_DESIGN.md A-1 の要約。単一の強さの指標は出さない）。装備タブの ？ のヘルプに出す */
+/**
+ * 体の性能として何が伸びるかの一言（docs/COMBAT_DESIGN.md A-10。単一の強さの指標は出さない）。装備タブの ？ のヘルプに出す。
+ * 威力・怯み値などは行動ごとの係数で決まるので、筋力・霊力は体の性能を持たない
+ */
 export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
-  str: "近接・怯み",
-  dex: "射撃・移動",
-  vit: "最大生命・耐性",
-  mnd: "気力・会心",
-  spi: "スキル・状態異常",
+  str: "体の性能なし（行動の係数だけ）",
+  dex: "移動速度・ダッシュの再使用時間",
+  vit: "最大生命・状態異常への抵抗",
+  mnd: "最大気力・気力の自然回復",
+  spi: "体の性能なし（行動の係数だけ）",
 };
 
 const COLOR_TEXT = "#e0e0e0";

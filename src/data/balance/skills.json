@@ -1,5 +1,5 @@
 {
-  "_note": "スキル石・刻印符・連携の数値。単位: 気力型は cost（気力）、再使用型は cooldown（秒）。minInterval はスロットごとの連打下限（秒）。poise は 1 ヒットの基礎怯み値。damage / tickDamage / burstDamage は Scaling（base + 係数 × ステータス実効値。ステータス基礎値 各 5 のとき旧来の固定値と一致）。radius / range / length / reach / size は px、speed は px/秒、life / duration / time は秒、知能な割合は 0..1、色は表示単位の文字列。fullMoon.cost / refMana は MANA.baseMax、wolfForm.fearDuration は STATUS.fear.duration、pyreForm.burnDuration / selfBurnDuration は STATUS.burnDuration の値を展開したもの（一致は balance.test.ts が検査する）",
+  "_note": "スキル石・刻印符・連携の数値。単位: 気力型は cost（気力）、再使用型は cooldown（秒）。minInterval はスロットごとの連打下限（秒）。poise は 1 ヒットの基礎怯み値。damage / tickDamage / burstDamage は Scaling（base + 係数 × ステータス実効値。ステータス基礎値 各 5 のとき旧来の固定値と一致）。radius / range / length / reach / size は px、speed は px/秒、life / duration / time は秒、知能な割合は 0..1、色は表示単位の文字列。fullMoon.cost / refMana は MANA.baseMax、wolfForm.fearDuration は STATUS.fear.duration、pyreForm.burnDuration / selfBurnDuration は STATUS.burnDuration の値を展開したもの（一致は balance.test.ts が検査する）。係数（2026-09-24 振り直し、A-10）: 参照ステータスはスキルの中身から決め（筋力 = 重さ・押し込み / 技巧 = 速さ・精度・刃 / 体力 = 体を張る・自傷 / 精神 = 集中・溜め・気力 / 霊力 = 魔法・闇・状態異常）、基礎値での威力と Σ係数は振り直し前と同じに保つ。地雷・爆薬樽・砲台は仕掛け・道具なのでステータスを参照しない。poiseRatio は怯み値 × 3% を 1 点ぶんとして威力と同じ比で配る。*PotencyRatio は付ける状態異常の効果量の係数（1 点あたりの増分）",
   "SKILL": {
     "slots": 4,
     "manaFlashTime": 0.3,
@@ -20,7 +20,8 @@
       "duration": 0.45,
       "hits": 4,
       "radius": 28,
-      "damage": { "base": 4.9, "str": 0.4, "spi": 0.4 },
+      "damage": { "base": 4.9, "str": 0.5, "spi": 0.3 },
+      "poiseRatio": { "str": 0.11, "spi": 0.07 },
       "knockback": 60,
       "moveMul": 0.6,
       "recover": 0.15
@@ -33,7 +34,8 @@
       "distance": 90,
       "time": 0.14,
       "hitPad": 10,
-      "damage": { "base": 10.4, "str": 1, "dex": 0.6 },
+      "damage": { "base": 10.4, "str": 0.8, "dex": 0.5, "vit": 0.3 },
+      "poiseRatio": { "str": 0.3, "dex": 0.19, "vit": 0.11 },
       "knockback": 200,
       "wallStun": 0.25,
       "comboLinkWindow": 0.3
@@ -48,6 +50,7 @@
       "fuse": 0.5,
       "radius": 36,
       "damage": { "base": 19.8, "dex": 1.4, "spi": 1.4 },
+      "poiseRatio": { "dex": 0.45, "spi": 0.45 },
       "knockback": 240,
       "selfDamageFraction": 0.1,
       "spread": 14,
@@ -59,7 +62,8 @@
       "minInterval": 0.8,
       "poise": 25,
       "aim": 0.35,
-      "damage": { "base": 23.0, "dex": 2, "spi": 1.2 },
+      "damage": { "base": 23, "dex": 1.2, "mnd": 1.2, "spi": 0.8 },
+      "poiseRatio": { "dex": 0.28, "mnd": 0.28, "spi": 0.19 },
       "knockback": 180,
       "recoil": 120,
       "stepPx": 2,
@@ -78,11 +82,12 @@
       "failLock": 0.45,
       "successRefund": 0.5,
       "radius": 40,
-      "damage": { "base": 6, "str": 0.6, "spi": 0.6 },
+      "damage": { "base": 6, "vit": 0.4, "mnd": 0.6, "spi": 0.2 },
+      "poiseRatio": { "vit": 0.4, "mnd": 0.6, "spi": 0.2 },
       "knockback": 260,
       "catchPad": 4
     },
-    "bloodPact": { "cooldown": 12, "minInterval": 0.3, "hpFraction": 0.12, "duration": 4, "speedMul": 1.35, "lifesteal": 0.08 },
+    "bloodPact": { "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）", "cooldown": 12, "minInterval": 0.3, "hpFraction": 0.12, "duration": 4, "speedMul": 1.35, "lifesteal": 0.08, "buff": { "base": 0.9, "vit": 0.01, "spi": 0.01 } },
     "quake": {
       "_note": "cost: 24→20.4（-15%）。damage.base: 11→12.7（+15%）",
       "cost": 20.4,
@@ -92,7 +97,8 @@
       "recover": 0.2,
       "radius": 56,
       "halfAngle": 0.6,
-      "damage": { "base": 12.7, "str": 1.6, "spi": 0.8 },
+      "damage": { "base": 12.7, "str": 1.4, "vit": 0.6, "mnd": 0.4 },
+      "poiseRatio": { "str": 0.79, "vit": 0.34, "mnd": 0.23 },
       "knockback": 220
     },
     "thunder": {
@@ -103,12 +109,14 @@
       "maxRange": 140,
       "delay": 0.5,
       "radius": 22,
-      "damage": { "base": 12.7, "dex": 1.2, "spi": 1.6 },
+      "damage": { "base": 12.7, "mnd": 1.2, "spi": 1.6 },
+      "poiseRatio": { "mnd": 0.19, "spi": 0.26 },
       "shockMul": 0.5,
       "extraGap": 0.12,
       "extraOffset": 22,
       "shockStacks": 2,
-      "shockPotency": 3
+      "shockPotency": 3,
+      "shockPotencyRatio": { "spi": 0.06, "mnd": 0.03 }
     },
     "gravityWell": {
       "_note": "cost: 30→25.5（-15%）。tickDamage.base 1.1→1.3、burstDamage.base 8.8→10.1（各+15%）。poise は破裂の怯み値（tick は 0）。silenceTime は tick ごとに付け直す沈黙の秒（tick 間隔より少し長く、引いている間は切れない）",
@@ -122,7 +130,8 @@
       "core": 6,
       "tickEvery": 0.5,
       "tickDamage": { "base": 1.3, "spi": 0.4 },
-      "burstDamage": { "base": 10.1, "spi": 2 },
+      "poiseRatio": { "spi": 0.6 },
+      "burstDamage": { "base": 10.1, "mnd": 0.6, "spi": 1.4 },
       "burstKnockback": 80,
       "silenceTime": 0.6
     },
@@ -136,10 +145,10 @@
       "maxAlive": 3,
       "trigger": 10,
       "radius": 30,
-      "damage": { "base": 10.1, "dex": 1.2, "spi": 1.2 },
+      "damage": { "base": 22.1 },
       "knockback": 160
     },
-    "haste": { "cooldown": 11, "minInterval": 0.3, "duration": 3, "moveBonus": 0.3, "exhaust": 1.5 },
+    "haste": { "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）", "cooldown": 11, "minInterval": 0.3, "duration": 3, "moveBonus": 0.3, "exhaust": 1.5, "buff": { "base": 0.9, "dex": 0.02 } },
     "chainHook": {
       "_note": "cost: 14→11.9、damage.base: 6.6→7.6（各+15%）。bleedPotency は出血の 10px あたりダメージ（状態異常の potency）",
       "cost": 11.9,
@@ -149,12 +158,14 @@
       "extendTime": 0.18,
       "recover": 0.25,
       "hitPad": 3,
-      "damage": { "base": 7.6, "str": 1, "dex": 0.6 },
+      "damage": { "base": 7.6, "str": 0.8, "dex": 0.8 },
+      "poiseRatio": { "str": 0.22, "dex": 0.22 },
       "knockback": 40,
       "landGap": 2,
       "bleedStacks": 1,
       "bleedTime": 4,
-      "bleedPotency": 1
+      "bleedPotency": 1,
+      "bleedPotencyRatio": { "dex": 0.03 }
     },
     "spiral": {
       "_note": "cost: 28→23.8、damage.base: 2.2→2.5（各+15%）",
@@ -182,7 +193,7 @@
       "duration": 3,
       "radius": 40,
       "tickEvery": 0.5,
-      "tickDamage": { "base": 1.3, "spi": 0.6 },
+      "tickDamage": { "base": 1.3, "mnd": 0.2, "spi": 0.4 },
       "slow": 0.5,
       "maxSlow": 0.8,
       "chillTime": 0.6,
@@ -226,28 +237,28 @@
     "unravel": {
       "_note": "綻び: 命中した敵の状態異常を全部消費し、種類数に比例した威力。poiseEmpty は 0 種のときの怯み値、comboRadius は伝染→綻びの連携で命中点から広げる半径",
       "cost": 16, "minInterval": 0.6, "poise": 8, "poiseEmpty": 4, "speed": 230, "life": 0.7, "radius": 4,
-      "damage": { "base": 6, "spi": 1.2 }, "perKind": { "base": 5, "spi": 1 }, "knockback": 60, "comboRadius": 56
+      "damage": { "base": 6, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.08, "spi": 0.16 }, "perKind": { "base": 5, "mnd": 0.4, "spi": 0.6 }, "knockback": 60, "comboRadius": 56
     },
     "kindle": {
       "_note": "燃え種爆ぜ: 半径内の燃焼を消費し、残りの燃焼ダメージを爆発として撒く。burnRatio は燃焼の残りダメージのうち爆発に回す割合",
       "cost": 14, "minInterval": 0.6, "poise": 10, "maxRange": 140, "radius": 52, "burstRadius": 30, "burnRatio": 0.8, "poisePerBurn": 0.5, "maxPoise": 40,
-      "damage": { "base": 4, "spi": 0.6 }, "knockback": 120
+      "damage": { "base": 4, "spi": 0.6 }, "poiseRatio": { "spi": 0.3 }, "knockback": 120
     },
     "prismShard": {
       "_note": "五彩の礫: 支配共鳴の色で性質が変わる礫3個。azureSpeedMul=蒼(弾速)、jadeHeal=翠(命中回復)、goldPierce=金(貫通加算)",
       "cost": 12, "minInterval": 0.5, "poise": 8, "count": 3, "spreadRad": 0.16, "speed": 210, "life": 0.6, "radius": 3,
-      "damage": { "base": 5, "dex": 0.6, "spi": 0.6 }, "knockback": 50,
+      "damage": { "base": 5, "str": 0.24, "dex": 0.24, "vit": 0.24, "mnd": 0.24, "spi": 0.24 }, "poiseRatio": { "str": 0.05, "dex": 0.05, "vit": 0.05, "mnd": 0.05, "spi": 0.05 }, "knockback": 50,
       "azureSpeedMul": 1.3, "jadeHeal": 1, "goldPierce": 1, "bleedTime": 4, "bleedPotency": 1, "shockPotency": 2, "vulnerableTime": 2
     },
     "fullMoon": {
       "_note": "満月の砲: マナ満タンでだけ撃てる。cost / refMana は MANA.baseMax（実際に払うのは発動時の最大マナ全量。system/skills.ts の manaRuleCost）。widthPerMana は払ったマナ 1 あたりの太さの加算。fullEpsilon は満タン判定の浮動小数誤差の許容",
-      "cost": 80, "minInterval": 1, "poise": 40, "damage": { "base": 30, "mnd": 2, "spi": 2 }, "refMana": 80,
+      "cost": 80, "minInterval": 1, "poise": 40, "damage": { "base": 30, "mnd": 2.4, "spi": 1.6 }, "poiseRatio": { "mnd": 0.72, "spi": 0.48 }, "refMana": 80,
       "halfWidth": 3, "widthPerMana": 0.08, "maxLength": 400, "stepPx": 2, "knockback": 220, "vulnerableTime": 2, "fullEpsilon": 0.01
     },
     "dregsBlade": {
       "_note": "枯渇の刃: マナが最大の lowRatio 未満のときだけ撃てる、コスト 0 の 3 連斬",
       "cost": 0, "minInterval": 0.6, "poise": 8, "lowRatio": 0.2, "hits": 3, "duration": 0.3, "radius": 30, "halfAngle": 0.9,
-      "damage": { "base": 5, "str": 0.8, "spi": 0.4 }, "knockback": 60, "recover": 0.12
+      "damage": { "base": 5, "dex": 0.6, "spi": 0.6 }, "poiseRatio": { "dex": 0.12, "spi": 0.12 }, "knockback": 60, "recover": 0.12
     },
     "shadowStep": {
       "_note": "影渡り: カーソル近くの敵の背後へ瞬間移動。直後の近接1回が背面ヒット。gap は背後へ出る距離の余白、backstabPoise は背面ヒットの怯み値の上乗せ（近接1回ぶん）",
@@ -256,75 +267,78 @@
     "powderKeg": {
       "_note": "爆薬樽: 近接で叩くと転がり、射撃・敵弾で撃つとその場で爆発。meleeReach / meleeHalfAngle は叩ける距離と角度（近接の当たり箱のおおよそ）",
       "cost": 12, "minInterval": 0.4, "poise": 35, "maxRange": 100, "maxAlive": 2, "life": 14, "size": 5, "meleeReach": 28, "meleeHalfAngle": 1.1,
-      "rollSpeed": 190, "rollTime": 0.7, "radius": 40, "damage": { "base": 14, "dex": 1.2, "spi": 1.2 }, "knockback": 220, "burnTime": 3, "burnPotency": 3
+      "rollSpeed": 190, "rollTime": 0.7, "radius": 40, "damage": { "base": 26 }, "knockback": 220, "burnTime": 3, "burnPotency": 3
     },
     "swordGrave": {
       "_note": "剣の墓標: 刺した剣が、自分の近接3段目の命中に合わせて回転斬り。spinGap は1振りで何度も回らないための間隔",
       "cost": 16, "minInterval": 0.5, "poise": 12, "maxRange": 120, "maxAlive": 3, "life": 10, "radius": 28,
-      "damage": { "base": 5, "str": 0.8, "spi": 0.6 }, "knockback": 90, "spinGap": 0.2, "spinShow": 0.25
+      "damage": { "base": 5, "str": 0.6, "spi": 0.8 }, "poiseRatio": { "str": 0.15, "spi": 0.21 }, "knockback": 90, "spinGap": 0.2, "spinShow": 0.25
     },
     "iceBreaker": {
       "_note": "砕氷槌: 前方を叩く。凍結を砕くと破片が周りへ冷気。comboChill / comboAreaMul は氷結地帯→砕氷槌の連携の上乗せ",
       "cost": 16, "minInterval": 0.6, "poise": 35, "radius": 38, "halfAngle": 0.7, "damage": { "base": 10, "str": 1.4, "spi": 0.4 },
+      "poiseRatio": { "str": 0.82, "spi": 0.23 },
       "knockback": 160, "chillStacks": 2, "shardRadius": 44, "shardDamage": { "base": 3, "str": 0.4 }, "comboChill": 2, "comboAreaMul": 1.3
     },
     "bloodlet": {
       "_note": "血抜き: 周囲の出血を全部消費して回復。healPerStack は出血1スタック×potencyあたりの回復、healCapRatio は1回の回復の上限（最大HPの割合）",
-      "cost": 12, "minInterval": 0.6, "poise": 5, "radius": 60, "damage": { "base": 4, "str": 0.5, "spi": 0.5 }, "knockback": 40, "healPerStack": 3, "healCapRatio": 0.15
+      "cost": 12, "minInterval": 0.6, "poise": 5, "radius": 60, "damage": { "base": 4, "vit": 0.5, "spi": 0.5 }, "poiseRatio": { "vit": 0.08, "spi": 0.08 }, "knockback": 40, "healPerStack": 3, "healCapRatio": 0.15
     },
     "harvest": {
       "_note": "毒の収穫: 命中した敵の毒を消費し、残り時間ぶんのダメージを即時に",
-      "cost": 14, "minInterval": 0.5, "poise": 6, "speed": 240, "life": 0.7, "radius": 3, "damage": { "base": 4, "dex": 0.6, "spi": 0.6 }, "knockback": 40, "bossMul": 0.5
+      "cost": 14, "minInterval": 0.5, "poise": 6, "speed": 240, "life": 0.7, "radius": 3, "damage": { "base": 4, "mnd": 0.6, "spi": 0.6 }, "poiseRatio": { "mnd": 0.09, "spi": 0.09 }, "knockback": 40, "bossMul": 0.5
     },
     "discharge": {
       "_note": "放電: 近くの感電中の敵すべてから自分へ雷が戻る。戻り道の敵にもダメージ。perStack は感電1スタックあたりの威力上乗せ、lineMul / lineHalfWidth は戻り道の線上の敵への威力倍率と線の太さ",
-      "cost": 18, "minInterval": 0.8, "poise": 15, "range": 200, "damage": { "base": 8, "dex": 0.8, "spi": 1.2 }, "perStack": 0.25, "lineMul": 0.5, "lineHalfWidth": 6, "knockback": 0
+      "cost": 18, "minInterval": 0.8, "poise": 15, "range": 200, "damage": { "base": 8, "vit": 0.8, "spi": 1.2 }, "poiseRatio": { "vit": 0.18, "spi": 0.27 }, "perStack": 0.25, "lineMul": 0.5, "lineHalfWidth": 6, "knockback": 0
     },
     "rout": {
       "_note": "追い討ち: 短刀3本。恐怖中の敵は恐怖を消費して怯み値x3",
       "cost": 10, "minInterval": 0.4, "poise": 6, "count": 3, "spreadRad": 0.12, "speed": 270, "life": 0.5, "radius": 3,
-      "damage": { "base": 4, "dex": 0.8 }, "knockback": 40, "fearPoiseMul": 3, "fearDamageMul": 1.5
+      "damage": { "base": 4, "str": 0.2, "dex": 0.6 }, "poiseRatio": { "str": 0.05, "dex": 0.13 }, "knockback": 40, "fearPoiseMul": 3, "fearDamageMul": 1.5
     },
     "verdict": {
       "_note": "処断: 沈黙中の敵に大ダメージ（沈黙を消費）。沈黙が無ければ沈黙を付けるだけ。unsilencedMul / unsilencedPoise は沈黙していない敵への威力倍率と怯み値",
-      "cost": 18, "minInterval": 0.7, "poise": 35, "radius": 36, "halfAngle": 0.55, "damage": { "base": 18, "str": 2, "spi": 1.2 },
+      "cost": 18, "minInterval": 0.7, "poise": 35, "radius": 36, "halfAngle": 0.55, "damage": { "base": 18, "str": 1.2, "mnd": 1.2, "spi": 0.8 },
+      "poiseRatio": { "str": 0.39, "mnd": 0.39, "spi": 0.26 },
       "unsilencedMul": 0.3, "unsilencedPoise": 10, "silenceTime": 1.2, "knockback": 120
     },
     "exploit": {
       "_note": "刺し穿ち: 短い突き。脆弱を消費して会心確定+怯みx2",
-      "cost": 12, "minInterval": 0.5, "poise": 20, "length": 38, "halfWidth": 7, "damage": { "base": 9, "dex": 1, "str": 0.6 }, "knockback": 100, "poiseMul": 2
+      "cost": 12, "minInterval": 0.5, "poise": 20, "length": 38, "halfWidth": 7, "damage": { "base": 9, "dex": 1, "mnd": 0.6 }, "poiseRatio": { "dex": 0.38, "mnd": 0.22 }, "knockback": 100, "poiseMul": 2
     },
     "strip": {
       "_note": "剥奪: 弱体を消費し、消費した秒数だけ自分の与ダメが上がる",
-      "cost": 12, "minInterval": 0.5, "poise": 6, "speed": 240, "life": 0.7, "radius": 3, "damage": { "base": 5, "spi": 1 }, "knockback": 40, "buffMul": 1.2, "maxBuffTime": 5
+      "cost": 12, "minInterval": 0.5, "poise": 6, "speed": 240, "life": 0.7, "radius": 3, "damage": { "base": 5, "spi": 1 }, "poiseRatio": { "spi": 0.18 }, "knockback": 40, "buffMul": 1.2, "maxBuffTime": 5
     },
     "lastStand": {
       "_note": "背水の一閃: 失ったHPの割合で威力が伸びる突き。fullAt / maxBonus は HP 割合の閾値と最大倍率（HP30%以下でx2.5）。heavyCostAt 以上ではコスト倍率が掛かる",
-      "cost": 16, "minInterval": 0.7, "poise": 30, "length": 46, "halfWidth": 9, "damage": { "base": 10, "str": 1.6 },
+      "cost": 16, "minInterval": 0.7, "poise": 30, "length": 46, "halfWidth": 9, "damage": { "base": 10, "str": 0.6, "vit": 1 },
+      "poiseRatio": { "str": 0.34, "vit": 0.56 },
       "knockback": 180, "fullAt": 0.7, "maxBonus": 1.5, "heavyCostAt": 0.7, "heavyCostMul": 1.5
     },
     "comboChain": {
       "_note": "連環撃: コンボ10ごとに段数+1の多段突き。1段でも外すとコンボが途切れる",
       "cost": 14, "minInterval": 0.6, "poise": 6, "comboPerStage": 10, "maxStages": 6, "gap": 0.07, "length": 40, "halfWidth": 7,
-      "damage": { "base": 4, "dex": 0.6, "str": 0.4 }, "knockback": 30
+      "damage": { "base": 4, "str": 0.2, "dex": 0.8 }, "poiseRatio": { "str": 0.04, "dex": 0.14 }, "knockback": 30
     },
     "grudge": {
       "_note": "恨み返し: 直近に受けたダメージの合計x2を前方扇へ返す。poisePerHurt / maxPoise は受けたダメージ1あたりの怯み値の上乗せと上限",
       "cost": 16, "minInterval": 0.7, "poise": 5, "window": 3, "hurtMul": 2, "poisePerHurt": 0.5, "maxPoise": 45, "radius": 50, "halfAngle": 0.8,
-      "damage": { "base": 4, "vit": 0.8, "str": 0.6 }, "knockback": 140
+      "damage": { "base": 4, "str": 0.4, "vit": 1 }, "poiseRatio": { "str": 0.04, "vit": 0.11 }, "knockback": 140
     },
     "guillotine": {
       "_note": "断頭振り: 溜めて縦に振り下ろす。sweetFrom より先（刃先）が sweetMul 倍強い",
       "cost": 18, "minInterval": 0.7, "poise": 35, "windup": 0.3, "recover": 0.2, "length": 48, "halfWidth": 8,
-      "sweetFrom": 36, "sweetMul": 2, "damage": { "base": 10, "str": 1.8 }, "knockback": 200
+      "sweetFrom": 36, "sweetMul": 2, "damage": { "base": 10, "str": 1.4, "mnd": 0.4 }, "poiseRatio": { "str": 0.82, "mnd": 0.23 }, "knockback": 200
     },
     "ricochet": {
       "_note": "跳弾: 壁で跳ねるたびに威力が伸びる弾",
-      "cost": 12, "minInterval": 0.5, "poise": 10, "speed": 220, "life": 1.3, "radius": 3, "bounces": 3, "bounceBonus": 0.3, "damage": { "base": 7, "dex": 1 }, "knockback": 60
+      "cost": 12, "minInterval": 0.5, "poise": 10, "speed": 220, "life": 1.3, "radius": 3, "bounces": 3, "bounceBonus": 0.3, "damage": { "base": 7, "dex": 1 }, "poiseRatio": { "dex": 0.3 }, "knockback": 60
     },
     "galeSlash": {
       "_note": "風切り: 前方へ飛ぶ斬撃。敵弾を相殺し、相殺するたびに射程が伸びる（rangePerCut）",
-      "cost": 12, "minInterval": 0.5, "poise": 12, "speed": 200, "range": 90, "radius": 8, "rangePerCut": 20, "damage": { "base": 7, "str": 0.8, "dex": 0.6 }, "knockback": 90
+      "cost": 12, "minInterval": 0.5, "poise": 12, "speed": 200, "range": 90, "radius": 8, "rangePerCut": 20, "damage": { "base": 7, "str": 0.6, "dex": 0.8 }, "poiseRatio": { "str": 0.15, "dex": 0.21 }, "knockback": 90
     },
     "scatterSigil": {
       "_note": "散弾符: 前方へ7発の扇。1体にfocusHits発以上当てるとfocusPoiseMul倍の怯み値を上乗せ",
@@ -333,22 +347,22 @@
     },
     "stomp": {
       "_note": "震脚: 足元に衝撃。周囲に高い怯み値、足元の敵弾を消す。自分は少し動けない（root）。comboPoiseMul / comboAreaMul は手繰り糸→震脚の連携の倍率",
-      "cost": 14, "minInterval": 0.8, "poise": 40, "radius": 40, "damage": { "base": 3, "str": 0.5, "vit": 0.5 }, "knockback": 160, "root": 0.3,
+      "cost": 14, "minInterval": 0.8, "poise": 40, "radius": 40, "damage": { "base": 3, "str": 0.5, "vit": 0.5 }, "poiseRatio": { "str": 0.6, "vit": 0.6 }, "knockback": 160, "root": 0.3,
       "comboPoiseMul": 1.5, "comboAreaMul": 1.3
     },
     "threadReel": {
       "_note": "手繰り糸: カーソルから自分へ糸を張り、少し後に巻き取って糸に触れた敵を手前へ引く",
       "cost": 14, "minInterval": 0.7, "poise": 8, "maxRange": 130, "delay": 0.3, "halfWidth": 6, "gap": 3, "recover": 0.15,
-      "damage": { "base": 4, "str": 0.5, "dex": 0.5 }, "weakenTime": 3
+      "damage": { "base": 4, "str": 0.5, "dex": 0.5 }, "poiseRatio": { "str": 0.12, "dex": 0.12 }, "weakenTime": 3
     },
     "meteorDive": {
       "_note": "墜星: 跳び上がり、少し後にカーソル地点へ落下して範囲攻撃",
-      "cost": 22, "minInterval": 1, "poise": 45, "maxRange": 130, "air": 0.4, "radius": 40, "damage": { "base": 16, "str": 1.6, "spi": 1.2 }, "knockback": 220
+      "cost": 22, "minInterval": 1, "poise": 45, "maxRange": 130, "air": 0.4, "radius": 40, "damage": { "base": 16, "str": 1.2, "vit": 0.8, "spi": 0.8 }, "poiseRatio": { "str": 0.58, "vit": 0.39, "spi": 0.39 }, "knockback": 220
     },
     "swallowFlip": {
       "_note": "燕返し（CD型）: カーソル方向へ跳び、着地の瞬間に元の位置へ斬撃が戻る",
       "cooldown": 5, "minInterval": 0.3, "poise": 15, "distance": 70, "time": 0.12, "hitPad": 8, "halfWidth": 8,
-      "damage": { "base": 6, "str": 0.8, "dex": 0.8 }, "knockback": 120
+      "damage": { "base": 6, "str": 0.6, "dex": 1 }, "poiseRatio": { "str": 0.17, "dex": 0.28 }, "knockback": 120
     },
     "boneRing": {
       "_note": "骨片の輪（CD型）: 自分の周りを骨片が回り、敵弾を1発ずつ止める",
@@ -357,11 +371,11 @@
     "backflow": {
       "_note": "巻き戻し（CD型）: 少し前にいた位置へ戻り、その間に受けたダメージの一部を取り戻す",
       "cooldown": 12, "minInterval": 0.3, "poise": 5, "rewind": 1.5, "record": 0.1, "healRatio": 0.4, "halfWidth": 8,
-      "damage": { "base": 4, "dex": 0.6, "vit": 0.6 }, "knockback": 60, "invuln": 0.15
+      "damage": { "base": 4, "dex": 0.6, "vit": 0.6 }, "poiseRatio": { "dex": 0.08, "vit": 0.08 }, "knockback": 60, "invuln": 0.15
     },
     "scarRoar": {
       "_note": "傷返し（CD型）: 自分の状態異常をすべて剥がし、周囲の敵へ付け、種類ごとに衝撃。poise は1種あたりの怯み値（0種でも1種ぶん）、minDurationは敵へ写す持続の下限",
-      "cooldown": 10, "minInterval": 0.3, "poise": 10, "radius": 56, "damage": { "base": 4, "vit": 0.6, "spi": 0.6 }, "knockback": 140, "minDuration": 2
+      "cooldown": 10, "minInterval": 0.3, "poise": 10, "radius": 56, "damage": { "base": 4, "vit": 0.6, "spi": 0.6 }, "poiseRatio": { "vit": 0.15, "spi": 0.15 }, "knockback": 140, "minDuration": 2
     },
     "manaSpring": {
       "_note": "湧き石（CD型）: 足元の石の半径内で、近接の命中ごとにマナが余分に戻る（manaGainMulはgainManaが掛ける）",
@@ -370,7 +384,7 @@
     "turret": {
       "_note": "砲台: 自分が射撃するたび、砲台もカーソル方向へ1発撃つ。aimReach は照準の遠さ（自分の向きのこの先を狙う）",
       "cost": 18, "minInterval": 0.6, "poise": 3, "maxRange": 100, "maxAlive": 2, "life": 8, "speed": 240, "shotLife": 0.8, "radius": 2.5,
-      "damage": { "base": 3, "dex": 0.6, "spi": 0.4 }, "knockback": 30, "aimReach": 200
+      "damage": { "base": 8 }, "knockback": 30, "aimReach": 200
     }
   },
   "EXTRA_MODIFIER_TUNING": {
@@ -432,7 +446,7 @@
     "waterJar": {
       "_note": "水瓶: カーソル地点で割れて水たまり+濡れ。炎の床は水で消える",
       "cost": 14, "minInterval": 0.5, "poise": 5, "maxRange": 120, "radius": 32, "terrainRadius": 24, "terrainTime": 8,
-      "damage": { "base": 3, "spi": 0.6, "mnd": 0.4 }, "knockback": 40, "wetStacks": 2
+      "damage": { "base": 3, "mnd": 0.4, "spi": 0.6 }, "poiseRatio": { "mnd": 0.06, "spi": 0.09 }, "knockback": 40, "wetStacks": 2
     },
     "oilPot": {
       "_note": "油流し: カーソル地点に油を流し、敵に油膜。火が入ると燃え広がる",
@@ -442,98 +456,98 @@
     "scorchLine": {
       "_note": "焼き払い: 前方へ炎の帯。通り道の床を炎にする（油・草は燃え広がる）。fireStart は自分の足元を燃やさないための距離",
       "cost": 19, "minInterval": 0.7, "poise": 10, "length": 90, "halfWidth": 8, "fireStart": 16, "fireStep": 12, "fireRadius": 6, "fireTime": 3,
-      "damage": { "base": 6, "spi": 1.2, "mnd": 0.6 }, "knockback": 60, "burnPotency": 3
+      "damage": { "base": 6, "mnd": 0.6, "spi": 1.2 }, "poiseRatio": { "mnd": 0.1, "spi": 0.2 }, "knockback": 60, "burnPotency": 3, "burnPotencyRatio": { "spi": 0.09 }
     },
     "iceSlide": {
       "_note": "凍て道（CD型）: カーソル方向へ滑り、通った床を氷床にする",
       "cooldown": 7, "minInterval": 0.3, "poise": 12, "distance": 80, "time": 0.22, "hitPad": 6, "iceRadius": 8, "iceTime": 4, "iceStep": 10,
-      "damage": { "base": 4, "str": 0.6, "dex": 0.6 }, "knockback": 90
+      "damage": { "base": 4, "dex": 0.8, "vit": 0.4 }, "poiseRatio": { "dex": 0.24, "vit": 0.12 }, "knockback": 90
     },
     "levelGround": {
       "_note": "地均し: 前方の床の地形を砕いて消し、砕いた数だけ強く打つ（溶岩は砕けない）。probeStep / clearRadius は地形を探る間隔と1か所で消す半径。perCell / maxBonus は砕いた1マスごとの威力上乗せと上限",
       "cost": 19, "minInterval": 0.7, "poise": 30, "length": 100, "halfWidth": 9, "probeStep": 8, "clearRadius": 6, "perCell": 0.08, "maxBonus": 0.8,
-      "damage": { "base": 6, "str": 1.2, "vit": 0.8 }, "knockback": 160
+      "damage": { "base": 6, "str": 1.2, "vit": 0.8 }, "poiseRatio": { "str": 0.54, "vit": 0.36 }, "knockback": 160
     },
     "emberDraw": {
       "_note": "火吸い: 周りの炎の床と自分の燃焼を吸い込み、吸った数だけ大きな火球を撃つ。selfBurnCells は自分の燃焼を吸ったとき何マスぶんに数えるか",
       "cost": 15, "minInterval": 0.5, "poise": 8, "drawRadius": 48, "perCell": 0.15, "maxBonus": 2, "selfBurnCells": 2,
-      "speed": 200, "life": 0.8, "radius": 4, "radiusPerCell": 0.5, "maxRadius": 10, "damage": { "base": 4, "spi": 1, "mnd": 0.5 }, "knockback": 80, "burnPotency": 3
+      "speed": 200, "life": 0.8, "radius": 4, "radiusPerCell": 0.5, "maxRadius": 10, "damage": { "base": 4, "vit": 0.5, "spi": 1 }, "poiseRatio": { "vit": 0.08, "spi": 0.16 }, "knockback": 80, "burnPotency": 3
     },
     "bogCall": {
       "_note": "沼呼び: カーソル地点に毒沼を湧かせる",
-      "cost": 20, "minInterval": 0.8, "poise": 0, "maxRange": 120, "radius": 32, "terrainRadius": 32, "terrainTime": 6, "damage": { "base": 2, "spi": 0.6, "mnd": 0.3 }, "knockback": 0
+      "cost": 20, "minInterval": 0.8, "poise": 0, "maxRange": 120, "radius": 32, "terrainRadius": 32, "terrainTime": 6, "damage": { "base": 2, "mnd": 0.3, "spi": 0.6 }, "knockback": 0
     },
     "brandSear": {
       "_note": "焼き印: 前方を焼きつけて烙印2",
-      "cost": 14, "minInterval": 0.5, "poise": 10, "radius": 32, "halfAngle": 0.7, "damage": { "base": 5, "str": 0.8, "spi": 0.5 }, "knockback": 60, "brandStacks": 2
+      "cost": 14, "minInterval": 0.5, "poise": 10, "radius": 32, "halfAngle": 0.7, "damage": { "base": 5, "str": 0.8, "spi": 0.5 }, "poiseRatio": { "str": 0.18, "spi": 0.12 }, "knockback": 60, "brandStacks": 2
     },
     "brandBlast": {
       "_note": "烙火: 照準の周りの烙印を倍にしてから起爆する。plainMul は烙印の無い敵への威力倍率、comboStacks は焼き印→烙火の連携で足す烙印",
-      "cost": 18, "minInterval": 0.6, "poise": 10, "maxRange": 140, "radius": 48, "damage": { "base": 4, "spi": 0.8, "mnd": 0.4 }, "plainMul": 0.4, "knockback": 80, "comboStacks": 2
+      "cost": 18, "minInterval": 0.6, "poise": 10, "maxRange": 140, "radius": 48, "damage": { "base": 4, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.1, "spi": 0.2 }, "plainMul": 0.4, "knockback": 80, "comboStacks": 2
     },
     "breakKick": {
       "_note": "崩し蹴り: 怯み値の高い蹴りで崩勢。崩勢中の敵は壁まで吹き飛ぶ",
-      "cost": 13, "minInterval": 0.5, "poise": 28, "length": 30, "halfWidth": 9, "damage": { "base": 5, "str": 0.8, "dex": 0.4 }, "knockback": 220
+      "cost": 13, "minInterval": 0.5, "poise": 28, "length": 30, "halfWidth": 9, "damage": { "base": 5, "str": 0.6, "vit": 0.6 }, "poiseRatio": { "str": 0.42, "vit": 0.42 }, "knockback": 220
     },
     "collapseHammer": {
       "_note": "崩落槌: 崩勢中の敵を即座に怯ませる（崩勢の効果で長く、解けても堅守が付かない）",
-      "cost": 19, "minInterval": 0.7, "poise": 35, "radius": 38, "halfAngle": 0.8, "damage": { "base": 9, "str": 1.5, "vit": 0.5 }, "brokenMul": 1.3, "knockback": 140
+      "cost": 19, "minInterval": 0.7, "poise": 35, "radius": 38, "halfAngle": 0.8, "damage": { "base": 9, "str": 1.5, "vit": 0.5 }, "poiseRatio": { "str": 0.79, "vit": 0.26 }, "brokenMul": 1.3, "knockback": 140
     },
     "tideSlash": {
       "_note": "水刃: 前方へ飛ぶ水の斬撃。濡れ2",
-      "cost": 14, "minInterval": 0.5, "poise": 10, "speed": 200, "life": 0.5, "radius": 6, "pierce": 1, "damage": { "base": 5, "dex": 0.8, "str": 0.4 }, "knockback": 70, "wetStacks": 2
+      "cost": 14, "minInterval": 0.5, "poise": 10, "speed": 200, "life": 0.5, "radius": 6, "pierce": 1, "damage": { "base": 5, "str": 0.4, "dex": 0.8 }, "poiseRatio": { "str": 0.1, "dex": 0.2 }, "knockback": 70, "wetStacks": 2
     },
     "flashFreeze": {
       "_note": "瞬凍: 周りの濡れた敵を凍らせ、水たまりを氷床に変える。凍結の秒 = freezeBase + 濡れ1スタックごとにfreezePerStack。comboAreaMul / comboFreezeMul は水瓶→瞬凍の連携倍率",
-      "cost": 19, "minInterval": 0.7, "poise": 15, "radius": 56, "damage": { "base": 4, "spi": 0.8, "mnd": 0.5 }, "knockback": 40,
+      "cost": 19, "minInterval": 0.7, "poise": 15, "radius": 56, "damage": { "base": 4, "mnd": 0.5, "spi": 0.8 }, "poiseRatio": { "mnd": 0.17, "spi": 0.28 }, "knockback": 40,
       "freezeBase": 0.8, "freezePerStack": 0.3, "probeStep": 8, "iceTime": 6, "comboAreaMul": 1.4, "comboFreezeMul": 1.5
     },
     "hueEtch": {
       "_note": "彩刻: 前方を斬り、装備の共鳴の色の彩痕を刻む",
-      "cost": 15, "minInterval": 0.5, "poise": 8, "radius": 34, "halfAngle": 0.8, "damage": { "base": 5, "str": 0.6, "spi": 0.6 }, "knockback": 60
+      "cost": 15, "minInterval": 0.5, "poise": 8, "radius": 34, "halfAngle": 0.8, "damage": { "base": 5, "str": 0.6, "spi": 0.6 }, "poiseRatio": { "str": 0.12, "spi": 0.12 }, "knockback": 60
     },
     "hueRelease": {
       "_note": "色解き: 照準の周りの彩痕を、色に対応する状態異常で弾けさせる（色爆）。comboAreaMul は彩刻→色解きの連携の範囲倍率",
-      "cost": 18, "minInterval": 0.6, "poise": 12, "maxRange": 140, "radius": 50, "damage": { "base": 4, "spi": 0.8, "mnd": 0.4 }, "hueMul": 1.5,
+      "cost": 18, "minInterval": 0.6, "poise": 12, "maxRange": 140, "radius": 50, "damage": { "base": 4, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.12, "spi": 0.24 }, "hueMul": 1.5,
       "knockback": 60, "burnPotency": 3, "shockPotency": 2, "vulnerableTime": 3, "comboAreaMul": 1.5
     },
     "siphonMark": {
       "_note": "吸魔の矢: 当てた敵に吸魔（命中でマナ、倒すと残り秒ぶんのマナ）",
-      "cost": 11, "minInterval": 0.5, "poise": 4, "speed": 230, "life": 0.7, "radius": 3, "damage": { "base": 3, "spi": 0.6, "mnd": 0.4 }, "knockback": 30
+      "cost": 11, "minInterval": 0.5, "poise": 4, "speed": 230, "life": 0.7, "radius": 3, "damage": { "base": 3, "mnd": 0.4, "spi": 0.6 }, "knockback": 30
     },
     "doomSentence": {
       "_note": "死の宣告: 照準の敵とその周りに宣告（切れたとき、付けてから減ったHPの一部をまとめて与える）",
-      "cost": 18, "minInterval": 0.8, "poise": 6, "maxRange": 150, "pickRadius": 40, "radius": 24, "damage": { "base": 4, "spi": 0.8, "mnd": 0.4 }, "knockback": 0
+      "cost": 18, "minInterval": 0.8, "poise": 6, "maxRange": 150, "pickRadius": 40, "radius": 24, "damage": { "base": 4, "spi": 1.2 }, "poiseRatio": { "spi": 0.18 }, "knockback": 0
     },
     "shiftingEdge": {
       "_note": "移ろい刃: 撃つたびに属性が炎→氷→雷→毒と巡る斬撃",
-      "cost": 15, "minInterval": 0.5, "poise": 10, "radius": 34, "halfAngle": 0.8, "damage": { "base": 6, "str": 0.8, "spi": 0.6 }, "knockback": 70, "burnPotency": 3, "shockPotency": 2
+      "cost": 15, "minInterval": 0.5, "poise": 10, "radius": 34, "halfAngle": 0.8, "damage": { "base": 6, "str": 0.8, "spi": 0.6 }, "poiseRatio": { "str": 0.17, "spi": 0.13 }, "knockback": 70, "burnPotency": 3, "shockPotency": 2
     },
     "weaponArt": {
       "_note": "極意: 装備中の武器種で形が変わる（形の数値は skills/reshapes.ts の WEAPON_ART。union文字列 shape.kind を含むためJSON化していない）",
-      "cost": 22, "minInterval": 0.8, "poise": 25, "damage": { "base": 10, "str": 1.4, "spi": 0.6 }, "knockback": 120
+      "cost": 22, "minInterval": 0.8, "poise": 25, "damage": { "base": 10, "str": 0.5, "dex": 0.5, "vit": 0.3, "mnd": 0.4, "spi": 0.3 }, "poiseRatio": { "str": 0.19, "dex": 0.19, "vit": 0.11, "mnd": 0.15, "spi": 0.11 }, "knockback": 120
     },
     "titanForm": {
       "_note": "剛の型: 大剣になる（CD型、一定秒だけ武器種が変わる）",
-      "cooldown": 18, "minInterval": 0.3, "poise": 30, "duration": 6, "radius": 44, "damage": { "base": 6, "str": 1, "vit": 0.6 }, "knockback": 200
+      "cooldown": 18, "minInterval": 0.3, "poise": 30, "duration": 6, "radius": 44, "damage": { "base": 6, "str": 1, "vit": 0.6 }, "poiseRatio": { "str": 0.56, "vit": 0.34 }, "knockback": 200
     },
     "swiftForm": {
       "_note": "迅の型: 双剣になる",
-      "cooldown": 16, "minInterval": 0.3, "poise": 12, "duration": 6, "radius": 32, "damage": { "base": 4, "dex": 0.8, "str": 0.4 }, "knockback": 90
+      "cooldown": 16, "minInterval": 0.3, "poise": 12, "duration": 6, "radius": 32, "damage": { "base": 4, "str": 0.2, "dex": 1 }, "poiseRatio": { "str": 0.06, "dex": 0.3 }, "knockback": 90
     },
     "spiritForm": {
       "_note": "霊の型: 杖になる",
-      "cooldown": 16, "minInterval": 0.3, "poise": 15, "duration": 6, "radius": 40, "damage": { "base": 4, "spi": 0.8, "mnd": 0.4 }, "knockback": 120
+      "cooldown": 16, "minInterval": 0.3, "poise": 15, "duration": 6, "radius": 40, "damage": { "base": 4, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.15, "spi": 0.3 }, "knockback": 120
     },
     "wardStake": {
       "_note": "結界杭: カーソル地点に杭（最大3）。杭同士を結ぶ線に触れた敵へ周期ダメージ、3本の内側は脆弱",
       "cost": 15, "minInterval": 0.4, "poise": 3, "maxRange": 120, "maxAlive": 3, "life": 8, "tickEvery": 0.5, "lineHalfWidth": 4,
-      "damage": { "base": 2, "dex": 0.3, "spi": 0.4 }, "knockback": 0, "vulnerableTime": 0.8
+      "damage": { "base": 2, "mnd": 0.4, "spi": 0.3 }, "knockback": 0, "vulnerableTime": 0.8
     },
     "mire": {
       "_note": "泥沼（第4弾）: カーソル地点に泥（中の敵は歩きも突進も遅い）。中にいる敵へtickEveryごとに怯み値。燃焼が入ると泥が固まって中の敵が麻痺する（system/terrain.ts の bakeMud）",
       "cost": 18, "minInterval": 0.8, "poise": 0, "maxRange": 120, "radius": 30, "terrainRadius": 30, "terrainTime": 4,
-      "damage": { "base": 1, "spi": 0.3, "vit": 0.3 }, "knockback": 0, "tickEvery": 0.5, "tickDamage": { "base": 0.5, "spi": 0.1, "vit": 0.2 }, "tickPoise": 7
+      "damage": { "base": 1, "mnd": 0.2, "spi": 0.4 }, "knockback": 0, "tickEvery": 0.5, "tickDamage": { "base": 0.5, "mnd": 0.1, "spi": 0.2 }, "tickPoise": 7
     }
   },
   "WAVE2_MODIFIER_TUNING": {
@@ -591,7 +605,7 @@
     "siegeForm": {
       "_note": "砲身化（気力型、1発ごとに払う）: 構えると移動できず、右クリックが高威力の単発砲撃になる。構えた瞬間に1発撃つ（発動のコストがその1発ぶん）。ダッシュか、もう一度撃つと構えを解く。shellIntervalは砲撃の間隔（連打の下限）、recoilは撃つたびに後ろへ押される速さ",
       "cost": 8, "minInterval": 0.3, "poise": 30, "recover": 0.5, "shellInterval": 0.45,
-      "damage": { "base": 14, "dex": 2.2, "str": 0.6 }, "speed": 300, "life": 0.9, "radius": 4, "knockback": 220, "recoil": 40
+      "damage": { "base": 14, "dex": 1.2, "vit": 1, "mnd": 0.6 }, "poiseRatio": { "dex": 0.39, "vit": 0.32, "mnd": 0.19 }, "speed": 300, "life": 0.9, "radius": 4, "knockback": 220, "recoil": 40
     },
     "ironForm": {
       "_note": "鉄塊化（CD型）: 被弾で怯まず（攻撃も止まらない）、近接が1段の重い振りになる。移動x0.7",

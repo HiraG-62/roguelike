@@ -5,7 +5,7 @@ import type { TerrainKind } from "../core/terrain";
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { FEEL, POISE, STATUS } from "../data/tuning";
 import type { Scaling } from "../loot/types";
-import { scaled } from "../system/attributes";
+import { scaled, withRatio } from "../system/attributes";
 import { onBoonSkillHit } from "../system/boons";
 import { damageEnemy, rollOutgoing } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
@@ -16,7 +16,7 @@ import { fireTrigger } from "../system/triggers";
 import { TRAIT_COLORS } from "../loot/types";
 import { SKILL, SKILL_DEFS, resolveCast, skillAttack } from "./data";
 import { stoneInSlot } from "./persistence";
-import type { CastParams } from "./types";
+import type { CastParams, SkillDef } from "./types";
 import { noteWearHit } from "./wear";
 
 /**
@@ -53,6 +53,15 @@ export interface SkillHitSpec {
   from?: Vec;
   /** 会心を確定させる（刺し穿ちの脆弱消費） */
   forceCrit?: boolean;
+}
+
+/**
+ * 怯み値の係数（SkillDef.poiseRatio）を倍率に直す。1 発ごとに怯み値を変えるスキル（spec.poise）にも
+ * 同じ割合で掛けたいので、基礎値での怯み値との比で持つ（docs/COMBAT_DESIGN.md A-10）
+ */
+export function poiseRatioScale(state: GameState, def: Readonly<SkillDef>): number {
+  if (def.poiseRatio === undefined || def.poise <= 0) return 1;
+  return withRatio(state.stats, def.poise, def.poiseRatio) / def.poise;
 }
 
 /** スキルの威力 = scaled(ステータス, 係数表) × damageMul（docs/COMBAT_DESIGN.md A-6 の 1） */
@@ -120,7 +129,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   if (params.repel) e.wallSplat = true;
   params.hitLog.add(e.id);
   const killed = damageEnemy(state, e, amount, knock.dir, knock.force * state.stats.knockbackMul, {
-    poise: (spec.poise ?? def.poise) * state.stats.poiseDamageMul * params.poiseMul * place.poise,
+    poise: (spec.poise ?? def.poise) * poiseRatioScale(state, def) * state.stats.poiseDamageMul * params.poiseMul * place.poise,
     hitstopSteps: spec.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight,
     buildsEnergy: melee,
     kind: spec.kind,

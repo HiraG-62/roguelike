@@ -109,7 +109,7 @@ src/
 5. テスト: `system/enemies.test.ts` に「windup → strike で当たる」「予告中は無害」など
 
 ### 武器種（近接の型）/ 射撃の型
-- `src/data/weapons.ts`: 近接は `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（3 段コンボ各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値 / 当たり判定の形 `HitShape` / 手触りの任意項目）、射撃は `SHOT_KEYS` に key を足し `SHOT_TYPES` に `ShotDef`。数値は tuning の `WEAPON`
+- `src/data/weapons.ts`: 近接は `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（3 段コンボ各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値と `poiseRatio` / 当たり判定の形 `HitShape` / 手触りの任意項目）、射撃は `SHOT_KEYS` に key を足し `SHOT_TYPES` に `ShotDef`。数値は tuning の `WEAPON`
 - ベースへの紐付け: `src/loot/bases.ts` の `BASES` で武器スロットのベースに `moveset`、銃スロットのベースに `shot` を指定（`PlayerStats.moveset` / `shot` へ流れる）
 - 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.shot` で `SHOT_TYPES` を引いて発動処理を分岐
 - テスト: `data/weapons.test.ts`
@@ -124,7 +124,8 @@ src/
 ### スキル / 刻印符
 - スキル石: `skills/types.ts` の `SKILL_KEYS` → `skills/data.ts` の `SKILL_DEFS`（大拡張分は `skills/defs.ts` に書いて `SKILL_DEFS` に混ぜる）
   - `resource: "mana" | "cooldown"` を選ぶ。気力型は `manaCost` を消費（`cooldown` は 0、チャージは常に 1）、再使用型は `manaCost` 0 で既存の `cooldown` / `charges` を使う。どちらも `minInterval`（スロットごとの連打下限）がかかる。全スロット共通の待ち（旧 GCD）は無く、同じステップに押した複数スロットは 1→4 の順にすべて発動する。本動作（`active`）を持つ近接・移動系は `exclusiveGroup: "body"` で互いに排他、それ以外（設置・強化・射撃の一部）は本動作中でも並行して撃てる
-  - 威力は `Scaling`（`{ base, str?, dex?, vit?, mnd?, spi? }`）で書く。`base` はステータス基礎値（各 5）のとき現行の威力と一致するよう逆算する（`docs/COMBAT_DESIGN.md` A-6）。呼び出し側で `system/attributes.ts` の `scaled(stats, scaling)` を通す
+  - 威力は `Scaling`（`{ base, str?, dex?, vit?, mnd?, spi? }`）で書く。参照するステータスは行動ごとに自由（1 種・複数・全部・0 種 = 基礎値だけ。ジャンルで縛らない）。`base` はステータス基礎値（各 5）のとき狙いの威力になるよう逆算する（`docs/COMBAT_DESIGN.md` A-6 / A-10）。呼び出し側で `system/attributes.ts` の `scaled(stats, scaling)` を通す
+  - 怯み値・状態異常の効果量も係数を持てる（数値ブロックの `poiseRatio`、`StatusApply.ratio`。基礎値での値 + 係数 × (実効値 − 5)、`withRatio`）。ステータスそのものが行動を伸ばす固定の派生は作らない（A-10）
   - `poise`（1 ヒットの基礎怯み値。最終値は × `poiseDamageMul`）を必ず入れる。状態異常を付けるなら `applies?: readonly StatusApply[]`（下記「状態異常」）
   - `SKILL` 定数（共通パラメータ）→ `system/skills.ts` の `castSlot` に発動処理（設置物なら `skills/placed.ts`）。発動処理の実体は近接型 `skills/actions.ts` / 弾型 `skills/shots.ts` / 設置・召喚型 `skills/summons.ts`、当たり判定の幾何は `skills/geom.ts`。数値は `skills/tuning.ts` に置き `SKILL.<key>` 経由で読む → `render/skillHud.ts` / `render/manaHud.ts` / `renderer.ts` の表現
   - 直前に撃った別のスキルを受けて効果が変わる「連携」を足すなら `skills/combos.ts` の `COMBOS`（発動元 → 受け側のキーで引く。受付秒は `SkillRunState.lastCast`）
@@ -132,7 +133,7 @@ src/
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
 
 ### 攻撃ジャンル・属性
-- ジャンル（範囲軸 × 質軸）は `core/element.ts` の `ATTACK_RANGES` / `ATTACK_QUALITIES` に型がある。新しい攻撃を追加するときは既存の 3×3 から選び、`AttackProfile`（`{ genre, element }`）を武器種（`data/weapons.ts` の `MOVESETS` / `SHOT_TYPES`）かスキル（`skills/data.ts` の `SKILL_ATTACK`）に渡す。参照ステータスの既定表は `system/attributes.ts` の `GENRE_ATTRS`
+- ジャンル（範囲軸 × 質軸）は `core/element.ts` の `ATTACK_RANGES` / `ATTACK_QUALITIES` に型がある。新しい攻撃を追加するときは既存の 3×3 から選び、`AttackProfile`（`{ genre, element }`）を武器種（`data/weapons.ts` の `MOVESETS` / `SHOT_TYPES`）かスキル（`skills/data.ts` の `SKILL_ATTACK`）に渡す。ジャンルは敵の防御 / 魔防のどちらで受けるかだけを決め、参照ステータスは縛らない（`docs/COMBAT_DESIGN.md` A-10）
 - 属性を増やすなら `core/element.ts` の `ELEMENTS` に足し、`ELEMENT_LABEL` に日本語名、`data/tuning.ts` の `ELEMENT`（弱点 / 耐性の倍率・関連する状態異常）、`data/enemyDefense.ts` の各敵に耐性値を追加（`Record` なので漏れは型エラー）。プレイヤー側は `loot/affixes.ts` に属性の変換（`cv_infuse*`）・耐性（`res_*`）の性質を足す
 - 敵の防御・魔防・耐性・弱点は `data/enemyDefense.ts` の `ENEMY_DEFENSE`（`d(body, resist, attack, stages?)`。ボスは `stages` で段階ごとに上書き）。計算は `system/elementCombat.ts`、表示は `render/elementUi.ts`（弱点の頭上の印は倒すまで「？」）
 - テスト: `system/elementCombat.test.ts` / `data/genre.test.ts`
