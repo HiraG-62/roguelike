@@ -235,9 +235,9 @@ function depthIf(ok: boolean, depth: number): number {
 export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   burnout: { name: "燃え尽き", desc: "燃焼中の敵を 50 体倒す。", goal: 50, measure: (s) => s.burnKills, reward: { kind: "title", title: "灰を撒く者" } },
   steamHand: { name: "蒸気の手", desc: "蒸発（燃焼 + 冷気）を 10 回起こす。", goal: 10, measure: (s) => s.vaporizes, reward: { kind: "page", page: "link" } },
-  shaker: { name: "揺るがす者", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "unshakenScale" } },
+  shaker: { name: "揺さぶり", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "unshakenScale" } },
   oathless: {
-    name: "誓約なき者",
+    name: "誓約を持たずに",
     desc: "誓約を一度も持たずに地下 5 階へ着く。",
     goal: 5,
     measure: (s) => depthIf(s.keystones === 0, s.depth),
@@ -254,7 +254,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "contagionFang" } },
   cursedDepth: {
     name: "呪いを抱く",
-    desc: "呪い付きの祝福を 2 つ抱えて地下 4 階へ着く。",
+    desc: "呪い付きの祝福を 2 つ持ったまま地下 4 階へ着く。",
     goal: 4,
     measure: (s) => depthIf(s.cursedBoons >= 2, s.depth),
     reward: { kind: "origin", origin: "cursedOne" },
@@ -268,7 +268,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   },
   reaperDance: { name: "死神と踊る", desc: "死神が出ている間に階段を降りる。", goal: 1, measure: (s) => s.reaperEscapes, reward: { kind: "origin", origin: "reaperFriend" } },
   chainWeaver: { name: "連鎖の糸", desc: "連鎖を 20 回つなぐ。", goal: 20, measure: (s) => s.chains, reward: { kind: "job", job: "invoker" } },
-  deepChain: { name: "三段の連鎖", desc: "3 語の連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "job", job: "alchemist" } },
+  deepChain: { name: "三段の連鎖", desc: "キーワード 3 つの連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "job", job: "alchemist" } },
   frostbite: { name: "凍てつく刃", desc: "冷気か凍結の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.chillKills, reward: { kind: "title", title: "霜の手" } },
   venomGarden: { name: "毒の庭", desc: "毒の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.poisonKills, reward: { kind: "page", page: "relic" } },
   bloodPath: { name: "血の道", desc: "出血中の敵を 30 体倒す。", goal: 30, measure: (s) => s.bleedKills, reward: { kind: "job", job: "hexer" } },
@@ -278,7 +278,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   trialWalker: { name: "試練を越えて", desc: "試練の部屋を 2 つ制圧する。", goal: 2, measure: (s) => s.challengesCleared, reward: { kind: "page", page: "boon" } },
   lairHunter: { name: "部屋主狩り", desc: "部屋主を 3 体倒す。", goal: 3, measure: (s) => s.lairKills, reward: { kind: "title", title: "主狩り" } },
   thunderRing: { name: "雷の狩り", desc: "感電中の敵を 30 体倒す。", goal: 30, measure: (s) => s.shockKills, reward: { kind: "title", title: "雷を纏う者" } },
-  burstMaster: { name: "解き放つ者", desc: "バーストを 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" } },
+  burstMaster: { name: "全力解放", desc: "バーストを 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" } },
   // ---- 発見の依頼（docs/ideas/synergy-web.md 5-e）。図鑑の既知はラン開始時の写し ----
   pathfinder: { name: "未踏の連携", desc: "図鑑に無い連携を 2 種見つける。", goal: 2, measure: (s) => s.newLinks, reward: { kind: "title", title: "未踏を拓く者" } },
   newReaction: { name: "新しい反応", desc: "図鑑に無い反応を 1 種起こす。", goal: 1, measure: (s) => s.newReactions, reward: { kind: "title", title: "錬金の徒" } },

@@ -317,7 +317,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     key: "parry",
     name: "パリィ",
     icon: "P",
-    verb: "構える。防いだ一撃は見切り扱いになり、再使用時間が戻る",
+    verb: "構える。受け止めた攻撃は見切りになり、再使用時間が戻る",
     tags: ["defense", "melee"],
     keywords: kw(["just", "counter"], ["hurt"]),
     damageKind: "melee",

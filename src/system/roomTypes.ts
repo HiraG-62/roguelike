@@ -317,7 +317,7 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
   addFloatingText(state, textPos(state), BLESS_TEXT, ROOM_KIND.shrineColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
   const below = { x: p.body.pos.x, y: p.body.pos.y + CURSE_TEXT_DELAY_LIFT };
   addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE);
-  pushLog(state, "泉があなたを癒した…次の部屋は荒れ模様だ。", ROOM_KIND.cursedColor);
+  pushLog(state, "泉で生命が全回復した。代わりに次の部屋が呪われる。", ROOM_KIND.cursedColor);
   pushSfx(state, "heal");
   pushSfx(state, "fountainHeal");
 }

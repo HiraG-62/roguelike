@@ -82,7 +82,7 @@ export type FilterKey = (typeof FILTER_KEYS)[number];
 /** 印（持っている来歴・性質の種類） */
 const MARKS: Readonly<Record<string, { label: string; has: (item: Item) => boolean }>> = {
   bud: { label: "芽あり", has: (item) => item.budOffer !== undefined && item.budOffer !== null },
-  named: { label: "名のある", has: (item) => item.namedKey !== undefined },
+  named: { label: "名のある遺物", has: (item) => item.namedKey !== undefined },
   keystone: { label: "誓約", has: (item) => item.affixes.some((r) => isKeystoneKey(r.key)) },
   inscription: { label: "銘", has: (item) => item.inscription !== undefined && item.inscription.length > 0 },
   margin: { label: "余白あり", has: (item) => (item.margin ?? 0) > 0 },

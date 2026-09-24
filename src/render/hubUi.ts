@@ -121,7 +121,7 @@ function drawPrompt(ctx: CanvasRenderingContext2D, view: HubView): void {
 /** 出撃ゲージの上に、試している武器と借り物を出す（借り物はランが終わると消えることを出撃前に読めるように） */
 function drawRackStatus(ctx: CanvasRenderingContext2D, view: HubView): void {
   const parts: string[] = [];
-  if (view.trialWeapon) parts.push(`試し中: ${view.trialWeapon}`);
+  if (view.trialWeapon) parts.push(`試用中: ${view.trialWeapon}`);
   if (view.loaned) parts.push(`借り物: ${view.loaned}`);
   if (parts.length === 0) return;
   const m = TEXT.SMALL;
@@ -144,7 +144,7 @@ function drawDepartGauge(ctx: CanvasRenderingContext2D, view: HubView): void {
 function drawTrialKeystone(ctx: CanvasRenderingContext2D, view: HubView): void {
   if (view.trialKeystone === null) return;
   const name = KEYSTONE_NAME[view.trialKeystone] ?? view.trialKeystone;
-  drawTextShadow(ctx, `試している誓約「${name}」`, VIEW_W / 2, TRIAL_TOP, TEXT.BODY, COLOR_SELECTED, SHADOW, "center");
+  drawTextShadow(ctx, `試用中の誓約「${name}」`, VIEW_W / 2, TRIAL_TOP, TEXT.BODY, COLOR_SELECTED, SHADOW, "center");
 }
 
 function drawBanner(ctx: CanvasRenderingContext2D, view: HubView): void {

@@ -288,11 +288,11 @@ describe("余り・飢え・相性", () => {
     expect(p.produces.includes("chill"), "畳み込み後の冷気は読まない").toBe(false);
   });
 
-  it("affinity は飢えを埋める語と余りを食う語を返す", () => {
+  it("affinity は不足を補うキーワードと余りを活かすキーワードを返す", () => {
     const build = kw(["burn"], ["kill"]);
     const a = affinity(kw(["kill"], ["burn"]), build);
     expect(a.fills, "撃破の飢えを埋める").toEqual(["kill"]);
-    expect(a.feeds, "燃焼の余りを食う").toEqual(["burn"]);
+    expect(a.feeds, "燃焼の余りを活かす").toEqual(["burn"]);
     expect(affinity(kw(["chill"]), build), "関係なし").toEqual({ fills: [], feeds: [] });
   });
 

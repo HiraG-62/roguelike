@@ -184,7 +184,7 @@ describe("describeItem / describeResonance", () => {
     expect(inverted?.text.startsWith("反転")).toBe(true);
     expect(inverted?.fluxLevel).toBe(3);
     expect(desc.colorBar.reduce((s, seg) => s + seg.ratio, 0)).toBeCloseTo(1);
-    expect(desc.provenanceLines[0]).toBe("深さ 18 で拾った");
+    expect(desc.provenanceLines[0]).toBe("地下 18 階で入手");
     expect(desc.provenanceLines.some((l) => l.startsWith("撃破 12（スライム 10"))).toBe(true);
     expect(desc.summary.length).toBeGreaterThan(0);
   });

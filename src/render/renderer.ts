@@ -2582,7 +2582,7 @@ export class Renderer {
       .flat()
       .filter((d) => !state.stats.keystones.includes(d.key))
       .map((d) => d.name);
-    this.hudConflictText = inactive.length > 0 ? `排他グループが競合: ${inactive.join("、")} は無効` : "";
+    this.hudConflictText = inactive.length > 0 ? `誓約が競合: ${inactive.join("、")} は無効` : "";
   }
 
   /** リゲイン（取り戻せる HP）を現在 HP の右に薄いオレンジで。消える直前は点滅 */

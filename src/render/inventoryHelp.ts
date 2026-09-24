@@ -66,7 +66,7 @@ export function helpLines(tab: InventoryTab): TipLine[] {
     case "echo":
       return [head("残響"), ...ECHO_HELP.map(body)];
     case "web":
-      return [head("網"), ...WEB_HELP.map((l) => ({ ...l }))];
+      return [head("シナジー"), ...WEB_HELP.map((l) => ({ ...l }))];
   }
 }
 

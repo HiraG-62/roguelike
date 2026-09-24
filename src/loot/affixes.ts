@@ -601,7 +601,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "thorns",
-    label: "攻撃者に{v}ダメージを反射",
+    label: "攻撃者に {v} ダメージを反射",
     tags: ["defense", "damage"],
     slots: ["armor", "boots"],
     curve: curveFor("thorns"),
@@ -1122,7 +1122,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "procPoison",
     color: "umbra",
-    label: "命中時 {v}% で毒を与え、じわじわと削る",
+    label: "命中時 {v}% で毒にする",
     tags: ["status", "damage"],
     slots: ATTACK_SLOTS,
     curve: curveFor("procPoison"),
@@ -1167,7 +1167,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "procFear",
     color: "gold",
-    label: "会心時 {v}% で恐怖させる（敵が逃げ惑い、攻撃をやめる）",
+    label: "会心時 {v}% で恐怖させる（敵が逃げて攻撃しなくなる）",
     tags: ["status", "critical"],
     slots: OFFENSE_SLOTS,
     curve: curveFor("procFear"),
@@ -1180,7 +1180,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "bulletCut",
     color: "azure",
-    label: "近接攻撃で敵弾を斬り消す（リーチ -{v}%）",
+    label: "近接攻撃で敵弾を消せる（リーチ -{v}%）",
     tags: ["melee", "defense"],
     slots: ["mainHand"],
     curve: curveFor("bulletCut"),
@@ -1365,7 +1365,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaOverflow",
-    label: "溢れ: 気力が満タンで溢れた回収の {v}% を必殺ゲージに移す、最大気力 -{v2}",
+    label: "溢れ: 気力が満タンのとき、あふれた気力回収の {v}% を必殺ゲージに回す、最大気力 -{v2}",
     tags: ["mana", "burst", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: curveFor("manaOverflow"),
@@ -1520,7 +1520,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "hurtCleanse",
     color: "jade",
-    label: "払い清め: 自分が状態異常中に被弾すると 1 つ払う、受ける状態異常の持続 -{v}%",
+    label: "払い清め: 自分が状態異常中に被弾すると 1 つ解除する、受ける状態異常の持続 -{v}%",
     tags: ["status", "defense"],
     slots: ["armor", "boots"],
     curve: curveFor("hurtCleanse"),
@@ -1852,7 +1852,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "veteran",
-    label: "歴戦: この遺物での撃破 100 ごとに近接・射撃ダメージ +{v}%（8 段まで）",
+    label: "歴戦: この遺物での撃破 100 回ごとに近接・射撃ダメージ +{v}%（8 段まで）",
     tags: ["damage"],
     slots: ["mainHand"],
     curve: curveFor("veteran"),
@@ -1874,7 +1874,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "kingslayerMark",
     color: "umbra",
-    label: "王殺しの印: この遺物でのボス撃破 1 ごとにボスへの与ダメージ +{v}%（5 段まで）",
+    label: "王殺しの印: この遺物でのボス撃破 1 回ごとにボスへの与ダメージ +{v}%（5 段まで）",
     tags: ["damage"],
     slots: JEWELRY_SLOTS,
     curve: curveFor("kingslayerMark"),
@@ -1884,7 +1884,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "keenMemory",
-    label: "見切りの記憶: この遺物での見切り 25 ごとに、見切り後 {v2} 秒間のダメージ +{v}%（4 段まで）",
+    label: "見切りの記憶: この遺物での見切り 25 回ごとに、見切り後 {v2} 秒間のダメージ +{v}%（4 段まで）",
     tags: ["combo", "damage"],
     slots: ["boots", "ring"],
     curve: curveFor("keenMemory"),
@@ -1913,7 +1913,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "inheritance",
     color: "umbra",
-    label: "形見: 状態異常の敵を倒すと、その 1 種を次の {v} 回の命中に乗せる、状態異常の効果量 -{v2}%",
+    label: "形見: 状態異常の敵を倒すと、その状態異常を次の {v} 回の命中で付ける、状態異常の効果量 -{v2}%",
     tags: ["status", "tradeoff"],
     slots: ["mainHand"],
     curve: curveFor("inheritance"),
@@ -1926,7 +1926,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "stake",
     family: "gun",
     color: "gold",
-    label: "撃ち込み杭: 射撃が敵に刺さって残り、次の近接命中で 1 本につき {v} ダメージで爆ぜる、射撃ダメージ -{v2}%",
+    label: "撃ち込み杭: 射撃が敵に刺さって残り、次の近接命中で 1 本につき {v} ダメージで爆発する、射撃ダメージ -{v2}%",
     tags: ["ranged", "melee", "tradeoff"],
     slots: ["mainHand"],
     curve: curveFor("stake"),
@@ -1940,7 +1940,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "placedInfuse",
     color: "jade",
-    label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接がその状態異常を {v} 秒乗せる、最大生命 -{v2}",
+    label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接命中でその状態異常を {v} 秒付ける、最大生命 -{v2}",
     tags: ["status", "melee", "tradeoff"],
     slots: ["mainHand", "ring"],
     curve: curveFor("placedInfuse"),
@@ -1966,7 +1966,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "bloodSignature",
     color: "umbra",
-    label: "血の署名: 生命が半分を切っている間、スキルの再使用時間と最低間隔が {v}% 速く明ける、最大生命 -{v2}",
+    label: "血の署名: 生命が半分を切っている間、スキルの再使用時間と最低間隔の進みが {v}% 速くなる、最大生命 -{v2}",
     tags: ["skill", "tradeoff"],
     slots: ["armor", "amulet"],
     curve: curveFor("bloodSignature"),
@@ -1995,7 +1995,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "kickback",
     color: "crimson",
     awakening: true,
-    label: "蹴り返し: 予備動作中の敵を殴ると、その場で爆発を返す（{v} ダメージ）",
+    label: "蹴り返し: 予備動作中の敵を殴ると、その場で爆発が起きる（{v} ダメージ）",
     tags: ["melee", "damage"],
     slots: ALL_SLOTS,
     curve: curveFor("kickback"),
@@ -2096,7 +2096,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "conductor",
     color: "gold",
-    label: "通電: 濡れ・浸水の敵への与ダメージ +{v}%（雷属性の割合だけさらに伸びる）",
+    label: "通電: 濡れ・浸水の敵への与ダメージ +{v}%（雷属性の割合に応じてさらに上がる）",
     tags: ["damage", "elemental"],
     slots: OFFENSE_SLOTS,
     curve: curveFor("conductor"),
@@ -2107,7 +2107,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "igniter",
     color: "crimson",
-    label: "引火: 油膜の敵への与ダメージ +{v}%（炎属性の割合だけさらに伸びる）",
+    label: "引火: 油膜の敵への与ダメージ +{v}%（炎属性の割合に応じてさらに上がる）",
     tags: ["damage", "elemental"],
     slots: OFFENSE_SLOTS,
     curve: curveFor("igniter"),
@@ -2378,7 +2378,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "groundMend",
     color: "jade",
-    label: "土の息: 地形の上に立つ間、毎秒生命 +{v}（戦闘中も。回復の上限は受ける）、最大生命 -{v2}",
+    label: "土の息: 地形の上に立つ間、毎秒生命 +{v}（戦闘中も有効。戦闘中の回復の上限あり）、最大生命 -{v2}",
     tags: ["life", "tradeoff"],
     slots: ["armor", "boots", "amulet"],
     curve: curveFor("groundMend"),
@@ -2861,7 +2861,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_chargesToDistance",
-    label: "ダッシュ回数を1残して消費: 消費1回につきダッシュ距離 +{v}%",
+    label: "ダッシュ回数を距離に変換: 回数は 1 になり、元の回数 1 につきダッシュ距離 +{v}%",
     tags: ["conversion", "mobility"],
     slots: ["boots"],
     curve: curveFor("cv_chargesToDistance"),
@@ -3374,7 +3374,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_berserker",
     name: "狂戦士",
-    description: "生命が減るほど最大+100%のダメージ。生命自然回復が無効になり、回復量が半減する。",
+    description: "生命が減るほど与ダメージが上がる（最大 +100%）。生命自然回復が無効になり、回復量が半減する。",
     exclusiveGroup: "tempo",
     apply: noNumericEffect,
   },
@@ -3419,7 +3419,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_bladeOath",
     name: "剣の誓い",
-    description: "射撃も、弾を出す武器の固有技もできなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
+    description: "射撃も、弾を撃つ武器の固有技も使えなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
     exclusiveGroup: "style",
     apply: (s) => {
       s.meleeDamageMul += 1;
@@ -3669,7 +3669,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_earthOath",
     name: "土の誓い",
-    description: `生命が自然回復しなくなる。代わりに地形の上に立つ間は、戦闘中でも毎秒生命 +${KEYSTONE.earthRegenPerSec}（回復の上限は受ける）。`,
+    description: `生命が自然回復しなくなる。代わりに地形の上に立つ間は、戦闘中でも毎秒生命 +${KEYSTONE.earthRegenPerSec}（戦闘中の回復の上限あり）。`,
     exclusiveGroup: "terrain",
     apply: (s) => {
       s.hpRegen = 0;
@@ -4151,7 +4151,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.spiked",
-    label: "攻撃者に{v}ダメージを反射、被ダメージ +5%",
+    label: "攻撃者に {v} ダメージを反射、被ダメージ +5%",
     range: { min: 6, max: 10 },
     apply: (s, v) => {
       s.thorns += v;
@@ -4549,7 +4549,7 @@ function resolveTrigger(roll: AffixRoll): ResolvedAffix | undefined {
     },
     format: (r) => {
       const decoded = decodeTriggerRoll(r);
-      return decoded === null ? `不明な特性（${r.key}）` : formatTrigger(decoded);
+      return decoded === null ? `不明な性質（${r.key}）` : formatTrigger(decoded);
     },
   };
 }
@@ -4586,6 +4586,6 @@ export function applyRoll(stats: PlayerStats, roll: AffixRoll): boolean {
 /** 表示文字列。implicit / 誓約 / trigger にも使える */
 export function formatAffix(roll: AffixRoll): string {
   const resolved = affixDefForRoll(roll);
-  if (resolved === undefined) return `不明な特性（${roll.key}）`;
+  if (resolved === undefined) return `不明な性質（${roll.key}）`;
   return resolved.format(roll);
 }

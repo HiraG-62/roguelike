@@ -132,6 +132,6 @@ describe("実績: 連携の発見", () => {
     expect(unlocked, "連携はまだ").not.toContain("comboAll");
     for (const key of Object.keys(COMBOS)) ctx.codex.combos[key] = 1;
     expect(evaluateAchievements(ctx, save, 2), "連携をすべて + 30 種を越えた").toEqual(expect.arrayContaining(["comboAll", "link30"]));
-    expect(availableTitles(save, ctx.quests).some((t) => t.label === "網の読み手"), "称号として名乗れる").toBe(true);
+    expect(availableTitles(save, ctx.quests).some((t) => t.label === "連携の読み手"), "称号として名乗れる").toBe(true);
   });
 });

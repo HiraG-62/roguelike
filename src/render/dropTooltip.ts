@@ -78,7 +78,7 @@ function statText(key: NumericStatKey, value: number): string | undefined {
 
 function diffLine(key: NumericStatKey, before: number, after: number): TipLine | null {
   const shown = statText(key, after);
-  const text = shown ?? (statText(key, before) === undefined ? undefined : `${statText(key, before)} がなくなる`);
+  const text = shown ?? (statText(key, before) === undefined ? undefined : `${statText(key, before)} → なし`);
   if (text === undefined) return null;
   const rises = after > before;
   const better = LOWER_IS_BETTER.has(key) ? !rises : rises;
@@ -93,14 +93,14 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   const equipment = state.profile.equipment;
   const worn = equipment[item.slot];
   const head: TipLine = worn
-    ? { text: `装備中の「${worn.name}」と入れ替えると`, color: COLOR_DIM }
-    : { text: `${SLOT_LABEL[item.slot]}は空き。装備すると`, color: COLOR_DIM };
+    ? { text: `装備中の「${worn.name}」との比較`, color: COLOR_DIM }
+    : { text: `${SLOT_LABEL[item.slot]}: 空き（装備した場合）`, color: COLOR_DIM };
   const before = computeStats(equipment);
   const after = computeStats({ ...equipment, [item.slot]: item });
   const diffs = NUMERIC_STAT_KEYS.filter((key) => Math.abs(after[key] - before[key]) > EPSILON)
     .map((key) => diffLine(key, before[key], after[key]))
     .filter((line): line is TipLine => line !== null);
-  if (diffs.length === 0) return [head, { text: "能力値は変わらない", color: COLOR_DIM }];
+  if (diffs.length === 0) return [head, { text: "能力値の変化なし", color: COLOR_DIM }];
   const shown = diffs.slice(0, DIFF_LINES_MAX);
   const rest = diffs.length - shown.length;
   if (rest > 0) shown.push({ text: `ほか ${rest} 件`, color: COLOR_DIM });

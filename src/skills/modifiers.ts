@@ -221,8 +221,8 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   lastGasp: {
     key: "lastGasp",
     name: "散り際",
-    verb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、再使用時間 x${M.lastGasp.burdenMul}`,
-    manaVerb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、コスト x${M.lastGasp.burdenMul}`,
+    verb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力で同じスキルが発動する（1回の発動で最大${M.lastGasp.maxPerCast}回）、再使用時間 x${M.lastGasp.burdenMul}`,
+    manaVerb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力で同じスキルが発動する（1回の発動で最大${M.lastGasp.maxPerCast}回）、コスト x${M.lastGasp.burdenMul}`,
     color: "#ff70a0",
     keywords: kw(["area"], ["kill"]),
     excludesTags: ["buff", "defense", "movement"],
@@ -267,7 +267,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   attune: {
     key: "attune",
     name: "同調",
-    verb: `装備の支配共鳴の色がスキルの向きと合えば x${M.attune.matchMul}（紅 近接 / 蒼 射撃・移動 / 翠 防御・強化 / 金 会心の一撃 / 冥 状態異常付き）。合わなければ x${M.attune.missMul}`,
+    verb: `装備の支配共鳴の色がスキルの種類と合えば x${M.attune.matchMul}（紅 近接 / 蒼 射撃・移動 / 翠 防御・強化 / 金 会心の一撃 / 冥 状態異常付き）。合わなければ x${M.attune.missMul}`,
     color: "#f0d0ff",
     keywords: kw([], ["crimson", "azure", "jade", "gold", "umbra"]),
     excludesTags: [],

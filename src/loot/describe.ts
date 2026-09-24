@@ -88,11 +88,11 @@ function fluxLevelOf(roll: AffixRoll): FluxLevel {
 
 /** ステータスが何を伸ばすかの一言（動詞）。装備の性質の行と装備画面のステータス表示で共有する */
 export const ATTRIBUTE_HINT: Readonly<Record<AttrKey, string>> = {
-  str: "斬る技と、敵を怯ませる力が伸びる",
-  dex: "撃つ技と、身のこなしが伸びる",
-  vit: "生命が増え、状態異常から早く立ち直る",
-  mnd: "気力が増えて早く戻り、会心が冴える",
-  spi: "スキルが深まり、状態異常が重くなる",
+  str: "近接の威力・怯み値・吹き飛ばしが上がる",
+  dex: "射撃の威力・移動速度・連射が上がる",
+  vit: "最大生命が増え、受ける状態異常が短くなる",
+  mnd: "最大気力・気力回復・会心率が上がる",
+  spi: "スキルの威力と状態異常の効果が上がる",
 };
 
 export interface AttributeDescription {
@@ -209,21 +209,23 @@ export function itemColorBar(affixes: readonly AffixRoll[]): ColorBarSegment[] {
   return TRAIT_COLORS.filter((c) => weights[c] > 0).map((c) => ({ color: c, ratio: weights[c] / total }));
 }
 
-/** 色ごとの「振る舞い」。一言の要約に使う */
+/** 色ごとの得意分野（名詞）。一言の要約に使う */
 const COLOR_VERB: Readonly<Record<TraitColor, string>> = {
-  crimson: "斬り伏せる",
-  azure: "撃ち抜き駆け抜ける",
-  jade: "耐えて癒える",
-  gold: "閃いて連ねる",
-  umbra: "代償を背負う",
+  crimson: "近接",
+  azure: "射撃・機動",
+  jade: "守り・回復",
+  gold: "会心・連撃",
+  umbra: "代償",
 };
-const EMPTY_SUMMARY = "まだ何も語らない";
+const EMPTY_SUMMARY = "特色なし";
+/** 色 2 つの区切り。色の中の「・」と見分けるため別の記号にする */
+const SUMMARY_JOINER = " / ";
 
-/** 多い色 2 つの振る舞いを並べた一言（例「斬り伏せる・耐えて癒える」） */
+/** 多い色 2 つの得意分野を並べた一言（例「近接 / 守り・回復」） */
 export function itemSummary(affixes: readonly AffixRoll[]): string {
   const bar = [...itemColorBar(affixes)].sort((a, b) => b.ratio - a.ratio);
   const verbs = bar.slice(0, 2).map((s) => COLOR_VERB[s.color]);
-  return verbs.length === 0 ? EMPTY_SUMMARY : verbs.join("・");
+  return verbs.length === 0 ? EMPTY_SUMMARY : verbs.join(SUMMARY_JOINER);
 }
 
 function enemyName(key: string): string {
@@ -232,7 +234,7 @@ function enemyName(key: string): string {
 
 /** 来歴の年表（UI にそのまま出す） */
 export function provenanceLines(item: Item): string[] {
-  const lines = [`深さ ${item.foundDepth} で拾った`];
+  const lines = [`地下 ${item.foundDepth} 階で入手`];
   const p: Provenance | undefined = item.provenance;
   if (p !== undefined) {
     if (p.kills > 0) {
@@ -255,16 +257,16 @@ export function provenanceLines(item: Item): string[] {
   }
   if (item.budOffer !== null && item.budOffer !== undefined) {
     const label = milestoneDef(item.budOffer.milestone)?.label ?? item.budOffer.milestone;
-    lines.push(`${label} で芽が出ている（選ぶと育つ）`);
+    lines.push(`${label}: 芽あり（未選択）`);
   }
   return lines;
 }
 
 function marginText(item: Item): string {
   const margin = item.margin ?? 0;
-  if (item.inscription !== undefined && margin <= 0) return `銘 ${item.inscription}（育ち切った）`;
-  if (margin <= 0) return "余白なし（これ以上は芽吹かない）";
-  return `余白 ${margin}（あと ${margin} 回芽吹ける）`;
+  if (item.inscription !== undefined && margin <= 0) return `銘 ${item.inscription}（成長完了）`;
+  if (margin <= 0) return "余白なし（これ以上育たない）";
+  return `余白 ${margin}（あと ${margin} 回育つ）`;
 }
 
 /** アイテム 1 つの表示情報 */
@@ -273,7 +275,7 @@ export function describeItem(item: Item): ItemDescription {
   const hueText = dominant === undefined ? "" : `・${TRAIT_COLOR_LABEL[dominant]}`;
   const desc: ItemDescription = {
     name: item.loaned === true ? `${item.name}（借り物）` : item.name,
-    subtitle: `${baseName(item.baseKey)}・${RARITY_LABEL[item.rarity]}${hueText}・深さ ${item.foundDepth}`,
+    subtitle: `${baseName(item.baseKey)}・${RARITY_LABEL[item.rarity]}${hueText}・地下 ${item.foundDepth} 階`,
     summary: itemSummary(item.affixes),
     colorBar: itemColorBar(item.affixes),
     lines: item.affixes.map(describeTrait),

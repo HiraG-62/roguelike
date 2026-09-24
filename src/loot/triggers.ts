@@ -87,7 +87,7 @@ export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
   onJustDodge: { text: () => "見切り時", chance: { min: 0.4, max: 0.6 } },
   onDash: { text: () => "ダッシュ時", chance: { min: 0.25, max: 0.4 } },
   onHurt: { text: () => "被弾時", chance: { min: 0.3, max: 0.5 } },
-  onRoomClear: { text: () => "部屋クリア時", chance: { min: 0.4, max: 0.6 } },
+  onRoomClear: { text: () => "部屋制圧時", chance: { min: 0.4, max: 0.6 } },
   everyNthMeleeHit: {
     text: (every) => `${every ?? 0}回に1回の近接攻撃時`,
     chance: { min: 0.4, max: 0.6 },
@@ -172,7 +172,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 60,
     duration: { min: 3, max: 5 },
-    text: (m, _c, d) => `${d ?? "0"} 秒間ダメージ +${m}%を得る`,
+    text: (m, _c, d) => `${d ?? "0"} 秒間ダメージ +${m}%`,
   },
   speedBuff: {
     base: 15,
@@ -180,7 +180,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     decimals: 0,
     cap: 40,
     duration: { min: 2, max: 4 },
-    text: (m, _c, d) => `${d ?? "0"} 秒間移動速度 +${m}%を得る`,
+    text: (m, _c, d) => `${d ?? "0"} 秒間移動速度 +${m}%`,
   },
   energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `必殺ゲージを${m}獲得する` },
   invuln: {
@@ -200,7 +200,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     cap: 5,
     text: (m, _c, _d, status) => `相手を${status}にする（${m} 秒）`,
   },
-  cleanse: { base: 1, perLevel: 0, decimals: 0, cap: 1, text: () => "自分の状態異常を 1 つ払う" },
+  cleanse: { base: 1, perLevel: 0, decimals: 0, cap: 1, text: () => "自分の状態異常を 1 つ解除する" },
   extendStatus: { base: 1, perLevel: 0.02, decimals: 1, cap: 3, text: (m) => `相手の状態異常を${m}秒延ばす` },
   skillHaste: {
     base: 0.5,

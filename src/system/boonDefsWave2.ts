@@ -204,7 +204,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   oilSpill: {
     key: "oilSpill",
     name: "油撒き",
-    desc: `終撃が当たると敵の足元に油が広がる（${BOON.oilSpillTime}秒）。油の上の者は燃えやすい。`,
+    desc: `終撃が当たると敵の足元に油が広がる（${BOON.oilSpillTime}秒）。油の上にいると燃えやすい。`,
     icon: "油",
     rarity: "rare",
     tags: ["melee", "terrain", "burn"],
@@ -247,7 +247,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   bladeHum: {
     key: "bladeHum",
     name: "刃鳴",
-    desc: `コンボ派生の振りが当たると気力+${BOON.bladeHumMana}。`,
+    desc: `コンボ派生の攻撃が当たると気力+${BOON.bladeHumMana}。`,
     icon: "鳴",
     rarity: "common",
     tags: ["melee", "mana", "combo"],
@@ -260,7 +260,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   layeredEdge: {
     key: "layeredEdge",
     name: "重ね刃",
-    desc: `武器の${BOON.layeredEdgeStep + 1}段目以降が当たると衝撃波が出る。連撃の長い武器ほど鳴る。`,
+    desc: `武器の${BOON.layeredEdgeStep + 1}段目以降が当たると衝撃波が出る。段数の多い武器ほど多く出る。`,
     icon: "層",
     rarity: "rare",
     tags: ["melee", "combo"],
@@ -297,7 +297,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   hundredBlades: {
     key: "hundredBlades",
     name: "百刃",
-    desc: `終撃が当たると照準方向へ貫く刃の波が飛ぶ。得意な武器なら必殺ゲージ+${BOON.hundredBladesEnergy}。`,
+    desc: `終撃が当たると照準方向へ貫通する刃の波が飛ぶ。得意な武器なら必殺ゲージ+${BOON.hundredBladesEnergy}。`,
     icon: "百",
     rarity: "epic",
     tags: ["melee", "combo", "energy"],
@@ -357,7 +357,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   spearPierce: {
     key: "spearPierce",
     name: "穂先貫き",
-    desc: "槍の終撃が当たると、突きの先へ貫く衝撃が伸びる。",
+    desc: "槍の終撃が当たると、突きの先へ貫通する衝撃波が伸びる。",
     icon: "穂",
     rarity: "common",
     tags: ["melee"],
@@ -522,7 +522,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   pebbleRain: {
     key: "pebbleRain",
     name: "礫雨",
-    desc: `散弾の1粒ごとに怯み値+${BOON.pebbleRainPoise}。至近で浴びせるほど崩れる。`,
+    desc: `散弾の1粒ごとに怯み値+${BOON.pebbleRainPoise}。近くで当てるほど怯ませやすい。`,
     icon: "礫",
     rarity: "common",
     tags: ["ranged", "stagger"],
@@ -566,7 +566,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   resistBreak: {
     key: "resistBreak",
     name: "耐性崩し",
-    desc: `近接の属性に耐性を持つ敵に反応を起こすと、${BOON.resistBreakVulnerable}秒脆弱にする。耐性を反応で打ち消す。`,
+    desc: `近接の属性に耐性を持つ敵に反応を起こすと、${BOON.resistBreakVulnerable}秒脆弱にする。`,
     icon: "崩",
     rarity: "rare",
     tags: ["element", "vulnerable"],
@@ -599,7 +599,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   elementTorrent: {
     key: "elementTorrent",
     name: "属性の奔流",
-    desc: `無属性でない近接の間、反応を起こすたび必殺ゲージ+${BOON.elementTorrentEnergy}。`,
+    desc: `近接に属性が付いている間、反応を起こすたび必殺ゲージ+${BOON.elementTorrentEnergy}。`,
     icon: "奔",
     rarity: "common",
     tags: ["element", "energy"],
@@ -618,7 +618,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   darkFeast: {
     key: "darkFeast",
     name: "闇喰らい",
-    desc: `闇属性の近接の間、倒すたび生命+${BOON.darkFeastHeal}。`,
+    desc: `近接が闇属性の間、倒すたび生命+${BOON.darkFeastHeal}。`,
     icon: "闇",
     rarity: "common",
     tags: ["element", "hp"],
@@ -631,7 +631,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   lightPierce: {
     key: "lightPierce",
     name: "光刺し",
-    desc: `光属性の近接の間、会心が出た敵を${BOON.lightPierceVulnerable}秒脆弱にする。`,
+    desc: `近接が光属性の間、会心が出た敵を${BOON.lightPierceVulnerable}秒脆弱にする。`,
     icon: "光",
     rarity: "common",
     tags: ["element", "crit", "vulnerable"],
@@ -701,7 +701,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   waterRunner: {
     key: "waterRunner",
     name: "水走り",
-    desc: `水たまりに踏み込むと帯電${BOON.waterRunnerStacks}（次の近接が放電する）。`,
+    desc: `水たまりに踏み込むと帯電+${BOON.waterRunnerStacks}（次の近接で放電する）。`,
     icon: "走",
     rarity: "common",
     tags: ["shock", "terrain", "melee"],
@@ -774,7 +774,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   otherStyle: {
     key: "otherStyle",
     name: "他流",
-    desc: `ジョブの得意でない武器で近接が当たると気力+${BOON.otherStyleMana}。`,
+    desc: `ジョブが得意としない武器で近接が当たると気力+${BOON.otherStyleMana}。`,
     icon: "流",
     rarity: "common",
     tags: ["melee", "mana"],
@@ -916,7 +916,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   weave: {
     key: "weave",
     name: "織り交ぜ",
-    desc: `直前と違うスロットのスキルは気力${Math.round((1 - BOON.weaveOtherMul) * 100)}%減、同じスロットの連打は${Math.round((BOON.weaveSameMul - 1) * 100)}%増。`,
+    desc: `直前と違うスロットのスキルは気力コスト${Math.round((1 - BOON.weaveOtherMul) * 100)}%減、同じスロットの連打は${Math.round((BOON.weaveSameMul - 1) * 100)}%増。`,
     icon: "織",
     rarity: "rare",
     tags: ["mana", "skill"],
@@ -926,7 +926,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   overflowCup: {
     key: "overflowCup",
     name: "満ち溢れ",
-    desc: `気力が満ちている間の近接で溢れた気力を溜め（最大気力の${Math.round(BOON.overflowCapRatio * 100)}%まで）、次のスキルで払った分を返す。`,
+    desc: `気力が満タンの間、近接で溢れた気力を溜めておく（最大気力の${Math.round(BOON.overflowCapRatio * 100)}%まで）。次のスキルで払った気力を、溜めた分から取り戻す。`,
     icon: "溢",
     rarity: "rare",
     tags: ["mana", "skill", "melee"],
@@ -958,7 +958,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   singleMind: {
     key: "singleMind",
     name: "一念",
-    desc: `スロット1のスキルは気力が${Math.round((1 - BOON.singleMindMainMul) * 100)}%減。その代わり、スロット2〜4は気力${BOON.singleMindOtherMul}倍。`,
+    desc: `スロット1のスキルは気力コストが${Math.round((1 - BOON.singleMindMainMul) * 100)}%減。その代わり、スロット2〜4は気力コスト${BOON.singleMindOtherMul}倍。`,
     icon: "一",
     rarity: "rare",
     tags: ["skill", "mana"],
@@ -987,7 +987,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   madBloom: {
     key: "madBloom",
     name: "狂い咲き",
-    desc: `反応を起こすたびその場で衝撃波。その代わり、そのたび${BOON.madBloomWeaken}秒弱体する。`,
+    desc: `反応を起こすたびその場で衝撃波。その代わり、そのたび自分が${BOON.madBloomWeaken}秒弱体する。`,
     icon: "咲",
     rarity: "rare",
     tags: ["element", "stagger"],
@@ -1001,7 +1001,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   strayBounty: {
     key: "strayBounty",
     name: "野良の賞金",
-    desc: `徘徊の敵を倒すと必殺ゲージが満ちる。その代わり、交戦していない間に被弾すると${BOON.strayBountyWeaken}秒弱体する。`,
+    desc: `徘徊の敵を倒すと必殺ゲージが満ちる。その代わり、交戦していない間に被弾すると自分が${BOON.strayBountyWeaken}秒弱体する。`,
     icon: "賞",
     rarity: "rare",
     tags: ["room", "energy"],
@@ -1021,7 +1021,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   heavyOath: {
     key: "heavyOath",
     name: "重き誓い",
-    desc: `大剣の溜め斬りは怯み値+${BOON.heavyOathPoise}。その代わり、溜めずに当てると${BOON.heavyOathWeaken}秒弱体する。`,
+    desc: `大剣の溜め斬りは怯み値+${BOON.heavyOathPoise}。その代わり、溜めずに当てると自分が${BOON.heavyOathWeaken}秒弱体する。`,
     icon: "誓",
     rarity: "rare",
     tags: ["melee", "stagger"],
@@ -1042,7 +1042,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   drenched: {
     key: "drenched",
     name: "濡れ鼠",
-    desc: `水たまりに踏み込むと気力が満ちる（${BOON.drenchedIcd}秒に1回）。その代わり、自分がずぶ濡れになる。`,
+    desc: `水たまりに踏み込むと気力が満ちる（${BOON.drenchedIcd}秒に1回）。その代わり、自分に濡れが${BOON.drenchedWetStacks}つ付く。`,
     icon: "鼠",
     rarity: "common",
     tags: ["mana", "terrain"],
@@ -1066,7 +1066,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   oilBlast: {
     key: "oilBlast",
     name: "油火爆",
-    desc: "油膜の敵が燃えて炎上すると、その場で爆発する。",
+    desc: "油膜の敵が炎上すると、その場で爆発する。",
     icon: "爆",
     rarity: "epic",
     tags: ["burn", "explode", "terrain"],
@@ -1163,7 +1163,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   weakChain: {
     key: "weakChain",
     name: "弱点連鎖",
-    desc: "近接の弱点を持つ敵に反応が起きると、その敵から雷が連鎖する。",
+    desc: "近接の属性が弱点の敵に反応が起きると、その敵から雷が連鎖する。",
     icon: "連",
     rarity: "epic",
     tags: ["element", "shock"],

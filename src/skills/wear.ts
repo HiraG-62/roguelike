@@ -72,7 +72,7 @@ export function wearSummary(stone: Readonly<SkillStone>): string {
   const wear = stone.wear ?? { casts: 0, hits: 0, buds: [] };
   const buds = budText(stone);
   const next = W.milestones[wear.buds.length];
-  const tail = next === undefined ? "芽は出尽くした" : `次の芽まで ${Math.max(0, next - wear.casts)} 回`;
+  const tail = next === undefined ? "これ以上の芽なし" : `次の芽まで ${Math.max(0, next - wear.casts)} 回`;
   return `使い込み 発動 ${wear.casts} / 命中 ${wear.hits}${buds ? `  ${buds}` : ""}  ${tail}`;
 }
 

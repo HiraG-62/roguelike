@@ -255,7 +255,7 @@ function pickUpStone(state: GameState, stone: SkillStone, pos: Vec): boolean {
 function pickUp(state: GameState, item: Item, pos: Vec): boolean {
   if (!addToStash(state.profile, item)) {
     addFloatingText(state, pos, "倉庫が満杯", STASH_FULL_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
-    pushLog(state, "倉庫が満杯だ。先に何かを分解するか装備すること。", STASH_FULL_COLOR);
+    pushLog(state, "倉庫が満杯です。分解か装備で空きを作ってください。", STASH_FULL_COLOR);
     return false;
   }
   saveProfile(state.profile);

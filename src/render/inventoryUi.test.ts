@@ -140,15 +140,15 @@ describe("装備画面の描画", () => {
   });
 });
 
-describe("遺物の「ここに噛む」行", () => {
+describe("遺物の「相性」行", () => {
   it("語が無ければ行を出さず、相手や穴があれば 2 行", async () => {
     const { synergyTipLines } = await import("./inventoryUi");
     const none = { produces: [], consumes: [], fills: [], feeds: [], partners: [] };
     expect(synergyTipLines(none), "語なし").toHaveLength(0);
     const alone = { produces: ["burn" as const], consumes: [], fills: [], feeds: [], partners: [] };
-    expect(synergyTipLines(alone), "語はあるが噛む相手なし").toHaveLength(1);
+    expect(synergyTipLines(alone), "キーワードはあるが相性の相手なし").toHaveLength(1);
     const meshed = { produces: ["burn" as const], consumes: [], fills: ["burn" as const], feeds: [], partners: ["野火"] };
-    expect(synergyTipLines(meshed), "噛む相手と穴").toHaveLength(2);
+    expect(synergyTipLines(meshed), "相性の相手と不足").toHaveLength(2);
   });
 });
 

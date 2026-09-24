@@ -565,7 +565,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   twinBlades: defineMoveset({
     key: "twinBlades",
     name: "双剣",
-    desc: "軽い 5 連撃（3 段目は 2 回斬る）。右の影踏みで踏み込む。手数でトリガーと状態異常を回す",
+    desc: "軽い 5 連撃（3 段目は 2 回斬る）。右の影踏みで踏み込む。手数が多く、トリガーや状態異常を起こしやすい",
     steps: reviveSteps(W.twinBlades.steps),
     dashAttack: reviveStep(W.twinBlades.dashAttack),
     attackMoveMul: W.twinBlades.attackMoveMul,
@@ -605,7 +605,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   fists: defineMoveset({
     key: "fists",
     name: "拳",
-    desc: "至近の速い連打。殴りながら歩け、右とダッシュ攻撃で背後へ投げる",
+    desc: "至近の速い連打。殴りながら歩ける。右とダッシュ攻撃で敵を背後へ投げる",
     steps: reviveSteps(W.fists.steps),
     dashAttack: reviveStep(W.fists.dashAttack),
     attackMoveMul: W.fists.attackMoveMul,
@@ -618,7 +618,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   whip: defineMoveset({
     key: "whip",
     name: "鞭",
-    desc: "細く長い一撃。先端でだけ満額が入り、根元は弱い。右の巻き付けで引き寄せて怯えさせる",
+    desc: "細く長い一撃。先端で当てると最大威力で、根元は弱い。右の巻き付けで引き寄せて恐怖を付ける",
     steps: reviveSteps(W.whip.steps),
     dashAttack: reviveStep(W.whip.dashAttack),
     tip: W.whip.tip,
@@ -824,7 +824,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   cannon: defineMoveset({
     key: "cannon",
     name: "砲",
-    desc: "左で撃つ最も重い筒。右の零距離砲は周りを吹き飛ばして自分も跳び、床の設置弾をすべて起爆する",
+    desc: "左で撃つ最も重い銃。右の零距離砲は周りを吹き飛ばして自分も跳び、床の設置弾をすべて起爆する",
     steps: [],
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,

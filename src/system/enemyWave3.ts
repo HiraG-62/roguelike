@@ -156,7 +156,7 @@ export function strikeBell(state: GameState, e: Enemy): void {
   const b = ENEMY_AI.bellImp;
   const count = rallyAround(state, e, "hastened", b.radius, b.rallyTime);
   spawnRing(state, e.body.pos, b.radius, b.color, 0.4);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, `急かし ${count}`, b.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, `攻撃加速 ${count} 体`, b.color, TEXT_SCALE, TEXT_LIFE);
   pushSfx(state, "enemyWindup");
 }
 

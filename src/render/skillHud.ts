@@ -184,7 +184,7 @@ const SHAPE_TINT_ALPHA = 0.28;
 const SHAPE_TINT_PULSE = 0.1;
 const SHAPE_PULSE_SPEED = 8;
 const SHAPE_RING_PAD = 3;
-/** スキル枠の上に出す「変身名 残り秒」「変身の待ち」の行の、枠からの高さ（文字の基準線まで） */
+/** スキル枠の上に出す「変身名 残り秒」「変身待ち」の行の、枠からの高さ（文字の基準線まで） */
 const FORM_BANNER_GAP = 4;
 const SECONDS_DIGITS = 1;
 const COLOR_FORM_WAIT = "#a080a0";
@@ -908,7 +908,7 @@ function formBannerText(state: GameState): string | null {
     return remain === null ? `${name} 維持中` : `${name} ${remain.toFixed(SECONDS_DIGITS)}秒`;
   }
   if (rs.form) return `${SKILL_DEFS[rs.form.skillKey].name} ${Math.max(0, rs.form.timer).toFixed(SECONDS_DIGITS)}秒`;
-  if (rs.formWait > 0 && hasFormStone(state)) return `変身の待ち ${rs.formWait.toFixed(SECONDS_DIGITS)}秒`;
+  if (rs.formWait > 0 && hasFormStone(state)) return `変身待ち ${rs.formWait.toFixed(SECONDS_DIGITS)}秒`;
   return null;
 }
 

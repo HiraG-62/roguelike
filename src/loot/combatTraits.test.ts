@@ -242,7 +242,7 @@ describe("弾斬り", () => {
     if (def === undefined) throw new Error("bulletCut が無い");
     expect(def.slots).toEqual(["mainHand"]);
     expect(affixColor(def)).toBe("azure");
-    expect(formatAffix(roll("bulletCut", 10))).toBe("近接攻撃で敵弾を斬り消す（リーチ -10%）");
+    expect(formatAffix(roll("bulletCut", 10))).toBe("近接攻撃で敵弾を消せる（リーチ -10%）");
   });
 });
 

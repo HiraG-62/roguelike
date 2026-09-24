@@ -188,7 +188,7 @@ function drawDetail(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi,
     drawText(ctx, "性質なし", x, rect.y + lineH * 3, m, COLOR_DIM);
   }
   if (ui.op === "recall" && (target.buds ?? []).length === 0) {
-    drawText(ctx, "芽吹いた記録がない", x, rect.y + lineH * 3, m, COLOR_DIM);
+    drawText(ctx, "芽吹いた記録なし", x, rect.y + lineH * 3, m, COLOR_DIM);
   }
   for (const row of layout.traitRows) drawTraitRow(ctx, ui, target, row.index, row.rect);
   for (const row of layout.budRows) drawBudRow(ctx, ui, target, row.index, row.rect);

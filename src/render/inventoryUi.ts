@@ -92,7 +92,7 @@ const COLOR_BANNER_BG = "rgba(157,255,176,0.14)";
 const COLOR_TILE_ACTIVE_BG = "rgba(255,215,95,0.10)";
 const COLOR_SKILL = SKILL.drop.stoneColor;
 
-const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響", web: "網" };
+const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", skills: "スキル", echo: "残響", web: "シナジー" };
 const TAB_UNDERLINE_H = 1;
 const HELP_GLYPH = "？";
 /** 部位の枠・スキルのスロットの 1 行目と 2 行目のベースライン（枠の上端から） */
@@ -265,7 +265,7 @@ function drawBudBanner(ctx: CanvasRenderingContext2D, state: GameState, r: Rect)
   strokeRectPx(ctx, r, COLOR_GROWN);
   const m = TEXT.SMALL;
   const name = state.profile.equipment[pending.slot]?.name ?? "";
-  const text = `${GROWN_MARK} 芽が出ています: ${name}（${pending.milestoneLabel}）クリックで選ぶ`;
+  const text = `${GROWN_MARK} 芽あり: ${name}（${pending.milestoneLabel}）クリックで選ぶ`;
   drawText(ctx, truncateText(text, r.w - TEXT_PAD_X * 2, m), r.x + TEXT_PAD_X, r.y + r.h - 2, m, COLOR_GROWN);
 }
 
@@ -365,13 +365,13 @@ export function synergyTipLines(d: SynergyDescription): TipLine[] {
   if (d.produces.length + d.consumes.length === 0) return [];
   const meshes = d.fills.length + d.feeds.length + d.partners.length > 0;
   const head: string[] = [];
-  if (d.produces.length > 0) head.push(`出す ${glyphs(d.produces)}`);
-  if (d.consumes.length > 0) head.push(`食う ${glyphs(d.consumes)}`);
-  const lines: TipLine[] = [{ text: `語: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
+  if (d.produces.length > 0) head.push(`生む ${glyphs(d.produces)}`);
+  if (d.consumes.length > 0) head.push(`活かす ${glyphs(d.consumes)}`);
+  const lines: TipLine[] = [{ text: `キーワード: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
   const detail: string[] = [];
-  if (d.partners.length > 0) detail.push(`噛む: ${d.partners.join(WORD_SEP)}`);
-  if (d.fills.length > 0) detail.push(`穴を埋める: ${labels(d.fills)}`);
-  if (d.feeds.length > 0) detail.push(`余りを食う: ${labels(d.feeds)}`);
+  if (d.partners.length > 0) detail.push(`相性: ${d.partners.join(WORD_SEP)}`);
+  if (d.fills.length > 0) detail.push(`不足を補う: ${labels(d.fills)}`);
+  if (d.feeds.length > 0) detail.push(`余りを活かす: ${labels(d.feeds)}`);
   if (detail.length > 0) lines.push({ text: detail.join("  "), color: COLOR_SYNERGY });
   return lines;
 }
@@ -383,13 +383,13 @@ function stoneSynergyLines(state: GameState, stone: SkillStone, slot: number, mo
   const aff = affinity(skillKeywords(def, modifiers), build.profile);
   const words = [...aff.fills, ...aff.feeds];
   const lines: TipLine[] = [];
-  if (words.length > 0) lines.push({ text: `${GROWN_MARK} 今のビルドと噛む（${labels(words)}）`, color: COLOR_SYNERGY });
+  if (words.length > 0) lines.push({ text: `${GROWN_MARK} 今のビルドと相性がよい（${labels(words)}）`, color: COLOR_SYNERGY });
   for (const key of def.combos ?? []) {
     const combo = COMBOS[key];
     // 先のスキルが複数ある連携（変身 → 奥義）は、装着済みの最初の 1 つを出す
     const after = comboAfter(combo).find((k) => partnerEquipped(state, k, slot));
     if (after === undefined) continue;
-    lines.push({ text: `連携「${combo.name}」: ${SKILL_DEFS[after].name} → これ`, color: COLOR_SYNERGY });
+    lines.push({ text: `連携「${combo.name}」: ${SKILL_DEFS[after].name} の直後に使う`, color: COLOR_SYNERGY });
   }
   return lines;
 }
@@ -517,7 +517,7 @@ function skillDetail(state: GameState, ui: InventoryUi, skills: SkillsLayout): D
   const stone = hoveredStone ?? stoneInSlot(state.skills.profile, ui.skillSlot);
   if (!stone) {
     return {
-      lines: [{ text: `スキル ${ui.skillSlot + 1} は空`, color: COLOR_DIM }],
+      lines: [{ text: `スキル ${ui.skillSlot + 1}: 空き`, color: COLOR_DIM }],
       actions: ["スキル石をクリックで装着"],
     };
   }

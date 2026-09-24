@@ -164,7 +164,7 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
     untimed: true,
     window: C2.wellFrag.window,
     name: "渦爆",
-    verb: "引力球の中へ投げたグレネードは球の中心へ吸われ、広く爆ぜる",
+    verb: "引力球の中へ投げたグレネードは球の中心へ吸われ、広く爆発する",
     requiresAt: insideWell,
   },
   frostThunder: {

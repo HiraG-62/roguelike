@@ -281,7 +281,7 @@ export function layoutEcho(state: GameState, ui: EchoUi): EchoLayout {
 // 状態機械
 // ---------------------------------------------------------------------------
 
-const LOANED_MESSAGE = "借り物は砕けない";
+const LOANED_MESSAGE = "借り物は砕けません";
 
 function stashItem(state: GameState, id: string | null): Item | null {
   if (id === null) return null;

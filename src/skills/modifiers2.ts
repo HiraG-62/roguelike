@@ -151,7 +151,7 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
   weaponBond: {
     key: "weaponBond",
     name: "武器写し",
-    verb: `属性を近接の武器に揃える。武器が無属性なら素の冴えでダメージ x${M.weaponBond.plainMul}`,
+    verb: `属性を近接武器と同じにする。武器が無属性ならダメージ x${M.weaponBond.plainMul}`,
     color: "#d0d0d0",
     keywords: kw([], [], ["melee"]),
     excludesTags: [],
@@ -191,8 +191,8 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
   // ---- 型替え符（リンク 2 本・1 スロットに 1 枚） ----
   toNova: {
     key: "toNova",
-    name: "自己中心化",
-    verb: `【型替え】カーソル地点ではなく自分の足元で起きる。範囲 x${M.toNova.areaMul}`,
+    name: "足元発動",
+    verb: `【型替え】カーソル地点ではなく自分の足元で発動する。範囲 x${M.toNova.areaMul}`,
     color: "#fff0c0",
     keywords: kw(["area"], [], ["placed"]),
     excludesTags: ["movement"],

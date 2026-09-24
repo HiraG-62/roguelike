@@ -58,7 +58,7 @@ describe("拠点の台から開く画面", () => {
 });
 
 describe("祭壇の一覧", () => {
-  it("祭壇の一覧は全誓約を並べ、試している誓約に印を付ける", () => {
+  it("祭壇の一覧は全誓約を並べ、試用中の誓約に印を付ける", () => {
     const keys = trialKeystoneKeys();
     const target = keys[0];
     if (target === undefined) throw new Error("誓約が 1 つも無い");
@@ -66,7 +66,7 @@ describe("祭壇の一覧", () => {
     const listed = entries.map((e) => e.key).filter((k) => k !== NO_TRIAL_KEY);
     expect(listed, "全誓約が並ぶ").toEqual(keys);
     const marked = entries.filter((e) => e.marked).map((e) => e.key);
-    expect(marked, "試している誓約だけに印").toEqual([target]);
+    expect(marked, "試用中の誓約だけに印").toEqual([target]);
   });
 
   it("何も試していなければ「誓約を外す」行に印が付く", () => {
@@ -138,12 +138,12 @@ describe("武器掛けの一覧", () => {
     expect(hubOpenFor("rack"), "武器掛け → 一覧").toEqual({ kind: "rack" });
   });
 
-  it("武器掛けの一覧は全武器種（銃の家系を含む）を並べ、試しているものに印を付ける", () => {
+  it("武器掛けの一覧は全武器種（銃の家系を含む）を並べ、試用中のものに印を付ける", () => {
     const [movesets] = rackTabs("greatsword");
     if (!movesets) throw new Error("タブが無い");
     const movesetKeys = movesets.entries.map((e) => rackEntryOf(e.key)).filter((r) => r?.key !== null);
     expect(movesetKeys.map((r) => r?.key), "全武器種").toEqual([...MOVESET_KEYS]);
-    expect(movesets.entries.filter((e) => e.marked).map((e) => e.key), "試している武器種だけに印").toEqual(["moveset:greatsword"]);
+    expect(movesets.entries.filter((e) => e.marked).map((e) => e.key), "試用中の武器種だけに印").toEqual(["moveset:greatsword"]);
     const [clear] = rackTabs(null)[0]?.entries ?? [];
     expect(clear?.marked, "何も試していなければ「装備のまま」に印").toBe(true);
   });

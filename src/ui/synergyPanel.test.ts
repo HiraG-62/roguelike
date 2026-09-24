@@ -67,13 +67,13 @@ describe("網タブ: レイアウトと当たり判定", () => {
   });
 });
 
-describe("網タブ: 語ごとの出す / 食う要素", () => {
+describe("シナジータブ: キーワードごとの生む側 / 活かす側", () => {
   it("語の並びは KEYWORDS 順で固定", () => {
     const words = synergyWords(buildOf([]));
     expect(words.map((w) => w.key)).toEqual([...KEYWORDS]);
   });
 
-  it("余り / 飢え / つながり / 無関係 を区別し、出す / 食う要素を列挙する", () => {
+  it("余り / 不足 / つながり / 無関係 を区別し、生む側 / 活かす側を列挙する", () => {
     const build = buildOf([
       { kind: "boon", name: "燃やす", keywords: kw(["burn", "dash"]) },
       { kind: "skill", name: "燃焼を食う", keywords: kw([], ["burn", "chill"]) },

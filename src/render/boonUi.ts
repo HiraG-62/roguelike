@@ -55,17 +55,17 @@ const CURSE_TEXT_Y = 10;
 /** 語の行（カード下部、タグ行の上）。噛み合わない語は暗くする */
 const WORD_ROW_GAP = 2;
 const COLOR_WORD_IDLE = "#5a5a66";
-const WORD_HEAD_PRODUCES = "出";
-const WORD_HEAD_CONSUMES = "食";
+const WORD_HEAD_PRODUCES = "生";
+const WORD_HEAD_CONSUMES = "活";
 const WORD_GROUP_GAP = 5;
 const WORD_HEAD_GAP = 2;
 /** 祝福カードの印（docs/ideas/synergy-web.md 4-c）。優劣ではなく「今のビルドとどう噛むか」の種類 */
 export const BOON_MARKS = ["fill", "feed", "fresh"] as const;
 export type BoonMark = (typeof BOON_MARKS)[number];
 export const BOON_MARK_LABEL: Readonly<Record<BoonMark, string>> = {
-  fill: "穴を埋める",
-  feed: "流れを太くする",
-  fresh: "新しい流れ",
+  fill: "不足を補う",
+  feed: "余りを活かす",
+  fresh: "新しい方向",
 };
 const BOON_MARK_COLOR: Readonly<Record<BoonMark, string>> = {
   fill: "#80e0ff",
@@ -172,7 +172,7 @@ function drawCurseOffer(ctx: CanvasRenderingContext2D, state: GameState): void {
   const cx = r.x + r.w / 2;
   if (c.curse) {
     const def = boonDef(c.curse);
-    drawText(ctx, `呪いを受けた: ${def.name}`, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
+    drawText(ctx, `受けた呪い: ${def.name}`, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
     return;
   }
   if (!canTakeCurse(state)) return;
