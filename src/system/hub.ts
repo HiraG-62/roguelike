@@ -12,7 +12,7 @@ import { bulletOfBase } from "../loot/bullets";
 import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
-import { addToStash } from "../loot/profile";
+import { addToStash, chooseUltimate, ultimateChoice } from "../loot/profile";
 import { findPendingBud } from "../loot/provenance";
 import { computeStats } from "../loot/stats";
 import { type Item, type Profile, type Slot, uniformAttributes } from "../loot/types";
@@ -365,6 +365,20 @@ export function borrowRackEntry(session: HubSession, entry: RackEntry, now: numb
   if (item === null) return null;
   setTrialWeapon(session, null);
   return item;
+}
+
+/**
+ * 武器掛けで武器種の奥義を選ぶ（profile.ultimates に書く。拠点を出ても残るので、保存は呼び出し側の saveProfile）。
+ * ラン中は変えない（拠点でだけ呼ぶ）。その武器種の奥義でなければ何もせず false
+ */
+export function chooseRackUltimate(session: HubSession, moveset: MovesetKey, key: string): boolean {
+  return chooseUltimate(session.state.profile, moveset, key);
+}
+
+/** 試している武器種で選んでいる奥義の名前（拠点の重ね描き用）。試していなければ null */
+export function trialUltimateName(session: HubSession): string | null {
+  const moveset = session.hub.trialMoveset;
+  return moveset === null ? null : ultimateChoice(session.state.profile, moveset).name;
 }
 
 /** 表示名（「大剣」「散弾銃」） */

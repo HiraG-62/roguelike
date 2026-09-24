@@ -7,7 +7,7 @@ import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/t
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 
 /**
- * 武器種（通常攻撃の型・右クリックの固有技）と弾（BulletDef）の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
+ * 武器種（通常攻撃の型・左右のアクションの連撃と派生）と弾（BulletDef）の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
  * 右手のベースが moveset を決め、銃の家系（GUN_MOVESETS）のベースは自分の弾も持つ（src/loot/bullets.ts）。
  * 数値は src/data/tuning.ts の WEAPON。ここは形の型・表示名・語（kw）をまとめる
  */
@@ -114,7 +114,7 @@ export interface MeleeStepDef {
   readonly invuln?: number;
 }
 
-/** 左クリック（攻撃キー）= primary、右クリック（固有技のキー）= secondary */
+/** 左クリック（攻撃 1）= primary、右クリック（攻撃 2）= secondary。docs/ideas/ougi-and-dual-actions.md 4 章 */
 export type ButtonKey = "primary" | "secondary";
 
 /**
@@ -123,22 +123,16 @@ export type ButtonKey = "primary" | "secondary";
  */
 export type PrimaryKind = "melee" | "charge" | "shot";
 
-/**
- * 旧: 右クリックの固有技の種類。右レーン（steps2）へ移した後も qa/bot.ts だけが読むので、MovesetDef.art（互換）の型として残す。
- * Lane A（docs/ideas/ougi-and-dual-actions.md 6 章）で bot.ts を steps2 に読み替えたら消す
- */
-export type WeaponArtKind = "strike" | "charge" | "hold" | "throw" | "recall";
-
 interface ArtBase {
-  /** "parry" など。名前は ART_NAMES（BRANCH_NAMES と同じ流儀） */
+  /** "parry" など。名前は STEP2_NAMES（BRANCH_NAMES と同じ流儀）。再使用はこの key ごとに数える */
   readonly key: string;
   readonly name: string;
   readonly desc: string;
-  /** 再使用までの秒。0 なら連撃と同じで制限なし（strike / charge は 0 が基本） */
+  /** 再使用までの秒。0 なら連撃と同じで制限なし */
   readonly cooldown: number;
 }
 
-/** 1 振りの技の付随効果（砲の零距離砲） */
+/** 振りの付随効果（砲の零距離砲・仕掛けの起爆・派生の反動） */
 export interface StrikeExtras {
   /** 振り始めに自分を後ろへ押す速さ（px/秒。ノックバックと同じ経路で減衰する） */
   readonly selfKnock?: number;
@@ -154,22 +148,13 @@ export interface AimArtDef {
   readonly pierceBonus: number;
 }
 
-/** @deprecated 右レーンの段は ActionStepDef。MovesetDef.art（互換。qa/bot.ts だけが読む）の型 */
-export type WeaponArtDef =
-  | (ArtBase & { readonly kind: "strike"; readonly step: MeleeStepDef; readonly next?: number; readonly extras?: StrikeExtras })
-  | (ArtBase & { readonly kind: "charge"; readonly charge: MeleeChargeDef; readonly aim?: undefined })
-  | (ArtBase & { readonly kind: "charge"; readonly aim: AimArtDef; readonly charge?: undefined })
-  | (ArtBase & { readonly kind: "hold"; readonly hold: HoldArtDef })
-  | (ArtBase & { readonly kind: "throw"; readonly throw: ThrowArtDef })
-  | (ArtBase & { readonly kind: "recall"; readonly recall: RecallArtDef });
-
 /** 右レーン（アクション 2）の段の種類。docs/ideas/ougi-and-dual-actions.md 4.1 */
 export const ACTION_STEP_KINDS = ["swing", "hold", "volley", "charge", "aim", "recall"] as const;
 export type ActionStepKind = (typeof ACTION_STEP_KINDS)[number];
 
 /**
- * 右レーンの振りの段。key / name / desc / cooldown は名前付きの技（右 1 段目の旧固有技）だけが持つ。
- * next / extras は右 1 段目の旧 strike の技（右単独の派生として branches にも入る）の続きの段と付随効果
+ * 右レーンの振りの段。key / name は段の名前（HUD の「右: 返し斬り」）、cooldown は再使用のある技（銃剣突きなど）だけが持つ。
+ * desc は右 1 段目の技だけが持つ（無い段は空）
  */
 export interface SwingActionStep {
   readonly kind: "swing";
@@ -178,11 +163,13 @@ export interface SwingActionStep {
   readonly name?: string;
   readonly desc?: string;
   readonly cooldown?: number;
-  readonly next?: number;
   readonly extras?: StrikeExtras;
 }
 
-/** 右レーンの段。振り以外の段は押した瞬間に完結し、段カウンタだけ進む（Lane A で配線） */
+/**
+ * 右レーンの段。振り以外の段（構え・弾・溜め・狙い・手元返し）は押した瞬間に始まり、段カウンタ（AttackState.step）だけ進める。
+ * 段カウンタは左右で共有する（3 段目に右を押せば steps2[2]）
+ */
 export type ActionStepDef =
   | SwingActionStep
   | (ArtBase & { readonly kind: "hold"; readonly hold: HoldArtDef })
@@ -201,7 +188,7 @@ export interface HoldArtDef {
   readonly maxSec: number;
   /** 受け流し: 押してから windowSec の間の被弾を無効化し、相手に怯み値 staggerPoise を入れてカウンター扱い（onCounter を発火）。失敗時は recoverSec の硬直 */
   readonly parry?: { readonly windowSec: number; readonly recoverSec: number; readonly staggerPoise: number };
-  /** 構え: 向きから arcDeg の被弾を damageMul 倍にし、受けるたびに必殺ゲージ energyGain */
+  /** 構え: 向きから arcDeg の被弾を damageMul 倍にし、受けるたびに奥義ゲージ energyGain */
   readonly guard?: { readonly arcDeg: number; readonly damageMul: number; readonly energyGain: number };
   /** 離した瞬間に出す振り（盾押し）。内部では `${key}.release` の派生として branches に入れる */
   readonly release?: MeleeStepDef;
@@ -228,8 +215,20 @@ export interface RecallArtDef {
   readonly speedMul: number;
 }
 
-/** 固有技から作った派生の印。strike = 右単独の技、release = 構えを離した振り（押した瞬間には照合しない） */
-export type BranchArtRole = "strike" | "release";
+/** 右 1 段目の構えから作った派生の印。release = 構えを離した振り（押した瞬間には照合しない） */
+export type BranchArtRole = "release";
+
+/**
+ * 派生の振り始めに出す弾。from が "lane" なら右レーンの最初の弾の段の弾（杖の魔弾・斧の投擲）、省略は装備の銃の弾（銃の家系）。
+ * damageMul は 1 発の威力の倍率、pierceBonus は貫通の追加
+ */
+export interface BranchShots {
+  readonly from?: "lane";
+  readonly count: number;
+  readonly damageMul: number;
+  readonly spreadDeg?: number;
+  readonly pierceBonus?: number;
+}
 
 /** コンボ派生: 入力列の末尾が sequence と一致したら、次の振りを step に差し替える */
 export interface BranchDef {
@@ -238,11 +237,13 @@ export interface BranchDef {
   readonly name: string;
   readonly sequence: readonly ButtonKey[];
   readonly step: MeleeStepDef;
-  /** 派生の後に連撃を続ける段（0 始まり）。省略はフィニッシュ（連撃がここで終わる） */
+  /** 派生の後に連撃を続ける段（0 始まり。左右共有の段カウンタ）。次にどちらのボタンを押したかで steps / steps2 のどちらを振るかが決まる。省略はフィニッシュ */
   readonly next?: number;
-  /** next の段をどちらのレーンで数えるか。省略は sequence の末尾のボタン（Lane A で配線） */
-  readonly nextLane?: ButtonKey;
-  /** 固有技から作った派生（defineMoveset が付ける） */
+  /** 振り始めに出す弾（銃の家系の二連・杖の光条など） */
+  readonly shots?: BranchShots;
+  /** 振り始めの付随効果（至近撃ちの反動・蹴り起爆） */
+  readonly extras?: StrikeExtras;
+  /** 構えから作った派生（defineMoveset が付ける） */
   readonly art?: BranchArtRole;
 }
 
@@ -280,15 +281,10 @@ export interface MovesetDef {
   readonly primary: PrimaryKind;
   /**
    * 右クリック（アクション 2）の段。段カウンタ（AttackState.step）は左右で共有する（docs/ideas/ougi-and-dual-actions.md 4 章）。
-   * 今は旧固有技を 1 段目に置いた 1 段だけ（Lane A が近接は steps と同じ長さ、銃は 3 段に伸ばす）
+   * 近接は steps と同じ段数、銃の家系は 3 段
    */
   readonly steps2: ActionLane;
-  /**
-   * @deprecated 旧固有技。defineMoveset が steps2[0] から作る互換の写し。qa/bot.ts（祝福レーン所有）だけが読む。
-   * 新しいコードは steps2 を読む。Lane A で bot.ts を読み替えたら消す
-   */
-  readonly art: WeaponArtDef;
-  /** コンボ派生（入力列の長いものから照合する）。右 1 段目の振りの技と hold の release は defineMoveset が ["secondary"] の派生として混ぜる */
+  /** コンボ派生（3 入力以上。入力列の長いものから照合する）。構えの release は defineMoveset が ["secondary"] の派生として混ぜる */
   readonly branches: readonly BranchDef[];
   /** 出す / 食う / 強める語 */
   readonly keywords: KeywordProfile;
@@ -318,8 +314,8 @@ export interface MineDef {
 }
 
 /**
- * 1 つの武器が撃つ弾（銃のベースごと、または弾を出す固有技ごと）。数値は src/data/balance/weapons.json の
- * WEAPON.bullets.<ベースの key>（技は movesets.<武器種>.art.throw.bullet）。挙動のブロック（sway / homing / … / lob）を
+ * 1 つの武器が撃つ弾（銃のベースごと、または右レーンの弾の段ごと）。数値は src/data/balance/weapons.json の
+ * WEAPON.bullets.<ベースの key>（右レーンの段は movesets.<武器種>.steps2[n].throw.bullet）。挙動のブロック（sway / homing / … / lob）を
  * 持つかどうかがそのまま弾の性質になる（bulletFeatures）
  */
 export interface BulletDef {
@@ -463,7 +459,7 @@ function buttonKey(raw: unknown): ButtonKey {
   throw new Error(`未知の ButtonKey: ${String(raw)}`);
 }
 
-/** JSON の段（steps / dashAttack / branches[].step / art.step など）を MeleeStepDef に絞る。jobs.ts の jobBranches も使う */
+/** JSON の段（steps / dashAttack / branches[].step / steps2[].step など）を MeleeStepDef に絞る。jobs.ts の jobBranches も使う */
 export function reviveStep(raw: unknown): MeleeStepDef {
   const r = raw as Record<string, unknown>;
   const rawApplies = r.applies as readonly unknown[] | undefined;
@@ -475,23 +471,52 @@ function reviveSteps(raw: unknown): MeleeStepDef[] {
   return (raw as readonly unknown[]).map(reviveStep);
 }
 
-function reviveBranches(raw: unknown): BranchTable {
-  const out: Record<string, { sequence: readonly ButtonKey[]; step: MeleeStepDef; next?: number }> = {};
+function optionalNumber(v: unknown): number | undefined {
+  return typeof v === "number" ? v : undefined;
+}
+
+/** JSON の selfKnock / detonateMines（段・派生の直下）を付随効果にまとめる。どちらも無ければ undefined */
+function reviveExtras(r: Record<string, unknown>): StrikeExtras | undefined {
+  const selfKnock = optionalNumber(r.selfKnock);
+  const detonateMines = r.detonateMines === true ? true : undefined;
+  if (selfKnock === undefined && detonateMines === undefined) return undefined;
+  return { selfKnock, detonateMines };
+}
+
+function reviveShots(raw: unknown): BranchShots | undefined {
+  if (raw === undefined) return undefined;
+  if (!isRecord(raw) || typeof raw.count !== "number" || typeof raw.damageMul !== "number") throw new Error(`不正な shots: ${JSON.stringify(raw)}`);
+  if (raw.from !== undefined && raw.from !== "lane") throw new Error(`未知の shots.from: ${String(raw.from)}`);
+  return {
+    from: raw.from === "lane" ? "lane" : undefined,
+    count: raw.count,
+    damageMul: raw.damageMul,
+    spreadDeg: optionalNumber(raw.spreadDeg),
+    pierceBonus: optionalNumber(raw.pierceBonus),
+  };
+}
+
+/** tuning の派生表を BranchDef の配列にする。照合は長い列から（同じ長さは JSON の並び順） */
+function reviveBranches(raw: unknown): BranchDef[] {
+  const out: BranchDef[] = [];
   for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
-    const b = v as { readonly sequence: readonly unknown[]; readonly step: unknown; readonly next?: number };
-    out[key] = { sequence: b.sequence.map(buttonKey), step: reviveStep(b.step), next: b.next };
+    if (!isRecord(v) || !Array.isArray(v.sequence)) throw new Error(`不正な派生: ${key}`);
+    out.push({
+      key,
+      name: BRANCH_NAMES[key] ?? key,
+      sequence: v.sequence.map(buttonKey),
+      step: reviveStep(v.step),
+      next: optionalNumber(v.next),
+      shots: reviveShots(v.shots),
+      extras: reviveExtras(v),
+    });
   }
-  return out;
+  return out.sort((a, b) => b.sequence.length - a.sequence.length);
 }
 
 function reviveCharge(raw: unknown): MeleeChargeDef {
   const r = raw as { readonly moveMul: number; readonly step: unknown; readonly levels: readonly ChargeLevelDef[] };
   return { moveMul: r.moveMul, step: reviveStep(r.step), levels: r.levels };
-}
-
-function reviveStrikeTuning(raw: unknown): StrikeTuning {
-  const r = raw as { readonly cooldown: number; readonly next?: number; readonly step: unknown; readonly selfKnock?: number; readonly detonateMines?: boolean };
-  return { cooldown: r.cooldown, next: r.next, step: reviveStep(r.step), selfKnock: r.selfKnock, detonateMines: r.detonateMines };
 }
 
 /** 押している間の構え（HoldArtDef）。release（離した振り）が無ければそのまま */
@@ -500,169 +525,292 @@ function reviveHold(raw: unknown): HoldArtDef {
   return { ...(r as unknown as HoldArtDef), release: r.release !== undefined ? reviveStep(r.release) : undefined };
 }
 
-/** 弾を出す技（ThrowTuning）。弾の数値（throw.bullet）は throwArt が技の名前と素性を足して BulletDef にする */
-function reviveThrowTuning(raw: unknown): ThrowTuning {
-  const r = raw as { readonly cooldown: number; readonly throw: ThrowTuning["throw"] };
-  return { cooldown: r.cooldown, throw: r.throw };
+/** 弾を出す段。弾の数値（throw.bullet）に段の名前と素性を足して BulletDef にする（弾の key は `art.<段の key>`） */
+function reviveThrow(raw: unknown, key: string, name: string): ThrowArtDef {
+  if (!isRecord(raw)) throw new Error(`不正な throw: ${key}`);
+  const look = STEP2_VOLLEY[key] ?? { attack: GUN_ATTACK };
+  const bullet = reviveBullet(raw.bullet, `art.${key}`, name, ART_BULLET_KEYWORDS, look.attack);
+  const t = raw as unknown as Omit<ThrowArtDef, "bullet" | "attack" | "sprite">;
+  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite };
+}
+
+/** JSON の右レーンの 1 段（kind は union 文字列なので照合して絞る。未知の kind は読み込み時に落とす） */
+function reviveActionStep(raw: unknown): ActionStepDef {
+  if (!isRecord(raw) || typeof raw.kind !== "string") throw new Error(`不正な右レーンの段: ${JSON.stringify(raw)}`);
+  const key = typeof raw.key === "string" ? raw.key : "";
+  const name = STEP2_NAMES[key] ?? key;
+  const desc = STEP2_DESC[key] ?? "";
+  const cooldown = optionalNumber(raw.cooldown) ?? 0;
+  switch (raw.kind) {
+    case "swing":
+      return { kind: "swing", step: reviveStep(raw.step), key: key || undefined, name: key ? name : undefined, desc: desc || undefined, cooldown, extras: reviveExtras(raw) };
+    case "hold":
+      return { kind: "hold", key, name, desc, cooldown, hold: reviveHold(raw.hold) };
+    case "volley":
+      return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name) };
+    case "charge":
+      return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge) };
+    case "aim":
+      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef };
+    case "recall":
+      return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef };
+    default:
+      throw new Error(`未知の右レーンの段の kind: ${raw.kind}`);
+  }
+}
+
+/** JSON の steps2 を右レーンにする（空はデータの誤りなので読み込み時に落とす） */
+function reviveLane(raw: unknown): ActionLane {
+  if (!Array.isArray(raw)) throw new Error("右レーン（steps2）が配列でない");
+  return actionLane(raw.map(reviveActionStep));
 }
 
 const W = WEAPON.movesets;
+const GUN_ATTACK = attack("ranged", "physical");
 
 /** 派生の表示名（数値は tuning の WEAPON.movesets[].branches） */
 const BRANCH_NAMES: Readonly<Record<string, string>> = {
   crossCut: "十字断ち",
   steppingCut: "踏み込み斬り",
+  tomoe: "巴",
+  reverseKesa: "逆袈裟",
   helmSplitter: "兜割り",
+  gsHorizon: "横一文字",
+  gsWheel: "車輪斬り",
+  gsBreak: "突き崩し",
   flurry: "乱れ斬り",
   crossing: "交差斬り",
+  shadowSplit: "影分かれ",
+  crossForm: "十字架",
+  shadowRend: "影裂き",
   spearSweep: "石突き回し",
+  linkedThrusts: "連ね突き",
+  kickUp: "蹴り上げ",
+  deepThrust: "深突き",
   reaping: "刈り取り",
+  deathDance: "死の舞",
+  neckReap: "首刈り",
+  dragDown: "引き倒し",
   uppercut: "昇り拳",
   hundredFists: "百裂拳",
+  breakThrust: "崩し突き",
+  doubleKick: "二段蹴り",
+  chainFists: "連ね打ち",
   whirl: "巻き打ち",
+  snakeLash: "蛇打ち",
+  coilUp: "巻き上げ",
+  rend: "引き裂き",
   slamDown: "叩き落とし",
+  bloodSpray: "血飛沫",
+  pressCut: "押し斬り",
+  boneBreak: "骨断ち",
   tempest: "旋風",
+  windmill: "風車",
+  doubleSweep: "二段払い",
+  pinDown: "打ち据え",
   arcaneStrike: "魔力撃",
   staffSweep: "杖払い",
+  lightRay: "光条",
+  arcaneBurst: "魔力破",
   tsubame: "燕返し",
   quickDraw: "抜き打ち",
+  kasumi: "霞",
+  mineUchi: "峰打ち",
   axeSpin: "回転斬り",
   cleave: "断ち割り",
+  neckChop: "首斬り",
+  twinThrow: "二丁投げ",
   shieldDrop: "盾落とし",
+  rampart: "城壁",
+  shieldPunch: "盾殴り",
+  shieldRush: "突進盾",
   reelIn: "巻き取り",
+  kamaitachi: "鎌鼬",
+  pullCut: "引き斬り",
+  chainBind: "鎖縛り",
   groundBreaker: "地砕き",
+  hammerWheel: "鎚車",
+  launcher: "打ち上げ",
+  ironHammer: "鉄槌",
+  twinShot: "二連",
+  quickFire: "早抜き撃ち",
+  kickShot: "蹴り撃ち",
+  rollShot: "側転撃ち",
+  tripleShot: "三連射",
+  pointShot: "至近撃ち",
+  kickAway: "蹴り離し",
+  doubleTap: "二度撃ち",
+  bayonetFlurry: "銃剣連突き",
+  stockBash: "銃床殴打",
+  pierceShot: "貫き撃ち",
+  thrustShot: "突き撃ち",
+  loadedShot: "装填撃ち",
+  barrelSwing: "砲身振り",
+  contactShot: "密着砲",
+  shoveOff: "突き飛ばし",
+  tripleThrow: "三本投げ",
+  spinThrow: "回し投げ",
+  grabToss: "掴み投げ",
+  drawCut: "返し斬り",
+  twinShell: "二連弾",
+  footShot: "足元撃ち",
+  kickShell: "蹴り撃ち",
+  thrustSweep: "突き払い",
+  doublePlace: "連置き",
+  trapCircle: "罠陣",
+  kickDetonate: "蹴り起爆",
+  trapToss: "罠投げ",
+  tripleRing: "三輪",
+  ringSpin: "輪回し",
+  ringSlash: "輪斬り",
+  returnRing: "戻り輪",
 };
 
-/** 固有技の表示名（数値は tuning の WEAPON.movesets[].art）。構えの離した振りは `${key}.release` */
-export const ART_NAMES: Readonly<Record<string, string>> = {
+/** 右レーンの段の表示名（数値は tuning の WEAPON.movesets[].steps2）。構えの離した振りは `${key}.release` */
+export const STEP2_NAMES: Readonly<Record<string, string>> = {
   parry: "受け流し",
+  returnCut: "返し斬り",
+  risingCut: "斬り上げ",
   sweep: "薙ぎ払い",
+  gsUpswing: "振り上げ",
+  gsWhirl: "回り斬り",
+  gsSlam: "叩き伏せ",
   shadowStep: "影踏み",
+  crossThrust: "交差突き",
+  danceCut: "舞い斬り",
+  backhandCut: "逆手斬り",
+  shadowPin: "影止め",
   chargeThrust: "突進突き",
+  buttStrike: "石突き",
+  spearArc: "払い",
+  greatThrust: "大突き",
   hookPull: "鎌引き",
+  scytheWrap: "巻き込み",
+  reverseSpin: "逆手回し",
+  scytheSever: "断ち",
   grabThrow: "掴み投げ",
+  elbow: "肘打ち",
+  knee: "膝蹴り",
+  roundKick: "回し蹴り",
+  straightPunch: "正拳",
   entangle: "巻き付け",
+  whipSweep: "打ち払い",
+  groundLash: "地打ち",
+  whipCrack: "鞭鳴らし",
   shoulderCharge: "肩当て",
+  verticalSplit: "縦割り",
+  cleaverSweep: "横薙ぎ",
+  greatDrop: "大鉈落とし",
   upswing: "払い上げ",
+  staffButt: "石突き",
+  spinStrike: "回し打ち",
+  skyThrust: "天突き",
   arcaneBolt: "魔弾",
+  arcaneBolt2: "魔弾",
+  greatBolt: "大魔弾",
+  wandThrust: "杖突き",
   iai: "居合",
+  kaeshi: "返し",
+  sakakaze: "逆風",
+  ichimonji: "一文字",
   axeThrow: "投擲",
+  axeChop: "打ち割り",
+  axeWhirl: "回し斬り",
+  greatSplit: "大割り",
   guard: "構え",
   "guard.release": "盾押し",
+  shieldThrust: "盾突き",
+  shieldBash: "盾叩き",
+  crush: "押し潰し",
   chainWeight: "分銅",
+  sickleReturn: "鎌返し",
+  chainSpin: "鎖回し",
+  chainCinch: "鎖締め",
   hammerSweep: "大薙ぎ",
-  aimedShot: "狙い撃ち",
-  bayonet: "銃剣突き",
-  pointBlank: "零距離砲",
-  recall: "手元返し",
+  hammerDown: "振り下ろし",
+  hammerSide: "横殴り",
+  earthSlam: "大地叩き",
   barrage: "乱れ撃ち",
+  gunnerButt: "銃把打ち",
+  spinShot: "回転撃ち",
+  aimedShot: "狙い撃ち",
+  sidearmButt: "銃把打ち",
+  muzzleSweep: "銃口払い",
+  bayonet: "銃剣突き",
+  stockStrike: "銃床打ち",
+  bayonetSweep: "銃剣払い",
+  pointBlank: "零距離砲",
+  barrelBash: "筒殴り",
+  buttSwing: "尻叩き",
+  recall: "手元返し",
+  throughThrow: "投げ抜け",
+  thrownKick: "蹴り",
   tubeBash: "筒払い",
+  tubeThrust: "筒突き",
+  kickAway: "蹴り飛ばし",
   scatterMines: "撒き散らし",
+  trapKick: "罠蹴り",
+  detonate: "起爆",
   ringSweep: "輪払い",
+  ringThrow: "輪投げ",
+  twinRings: "二輪",
 };
 
-type BranchTable = Readonly<Record<string, { readonly sequence: readonly ButtonKey[]; readonly step: MeleeStepDef; readonly next?: number }>>;
+/** 右 1 段目の技の説明（「何ができるか」。2 段目以降の振りは HUD に名前だけ出すので持たない） */
+const STEP2_DESC: Readonly<Record<string, string>> = {
+  parry: "押した直後の被弾を無効にし、相手を大きく怯ませる。外すと一瞬硬直する",
+  sweep: "広く薙ぎ払う",
+  shadowStep: "踏み込んで突く。踏み込みの間は無敵",
+  chargeThrust: "大きく踏み込んで突き、壁に叩きつける",
+  hookPull: "鎌を突き出して引き寄せる",
+  grabThrow: "掴んで背後へ放り、壁に叩きつける",
+  entangle: "巻き付けて手前へ引き、恐怖を付ける",
+  shoulderCharge: "肩から踏み込んで押し飛ばす",
+  upswing: "払い上げて大きく押し返す",
+  arcaneBolt: "光の魔弾を 1 発撃つ（射撃として当たる）",
+  iai: "押して溜め、離して一閃。溜めずに離すと左の段を振る",
+  axeThrow: "斧を投げる。行って戻り、行きと帰りで斬る（射撃として当たる）",
+  guard: "押している間、前からの被弾を大きく減らし奥義ゲージを溜める。離すと盾押し",
+  chainWeight: "分銅を投げて引き寄せ、崩勢にする",
+  hammerSweep: "大きく薙ぎ払う",
+  aimedShot: "足を止めて狙い、離すと強く貫く 1 発を撃つ",
+  bayonet: "銃剣で踏み込んで突き、押し返す",
+  pointBlank: "至近を吹き飛ばして後ろへ跳ぶ。床の自分の設置弾をすべて起爆する",
+  recall: "飛んでいる自分の弾をすべて手元へ向け直す",
+  barrage: "全方位へ弾をばら撒く",
+  tubeBash: "筒で殴って敵を押し返し、自分も後ろへ下がる",
+  scatterMines: "前方へ設置弾を扇に 3 つ撒く",
+  ringSweep: "手元の輪で周りを広く斬る",
+};
 
-/** tuning の派生表を BranchDef の配列にする。照合は長い列から（「左左右」を「左右」より先に見る） */
-function branchesOf(table: BranchTable): BranchDef[] {
-  return Object.entries(table)
-    .map(([key, b]) => ({ key, name: BRANCH_NAMES[key] ?? key, sequence: b.sequence, step: b.step, next: b.next }))
-    .sort((a, b) => b.sequence.length - a.sequence.length);
-}
-
-/** 固有技を派生として出すときの入力列（右 1 手） */
-const ART_SEQUENCE: readonly ButtonKey[] = ["secondary"];
-
-function artName(key: string): string {
-  return ART_NAMES[key] ?? key;
-}
-
-interface StrikeTuning {
-  readonly cooldown: number;
-  readonly next?: number;
-  readonly step: MeleeStepDef;
-  readonly selfKnock?: number;
-  readonly detonateMines?: boolean;
-}
-
-/** 1 振りの技（右 1 段目の振り。右単独の派生として branches にも入る） */
-function strikeArt(key: string, desc: string, t: StrikeTuning): SwingActionStep {
-  const hasExtras = t.selfKnock !== undefined || t.detonateMines === true;
-  const extras: StrikeExtras | undefined = hasExtras ? { selfKnock: t.selfKnock, detonateMines: t.detonateMines } : undefined;
-  return { kind: "swing", key, name: artName(key), desc, cooldown: t.cooldown, step: t.step, next: t.next, extras };
-}
-
-interface ThrowTuning {
-  readonly cooldown: number;
-  readonly throw: {
-    readonly bullet: unknown;
-    readonly scaling: Scaling;
-    readonly poise: number;
-    readonly poiseRatio?: AttrRatio;
-    readonly count: number;
-    readonly spreadDeg: number;
-  };
-}
-
-/** 弾を出す技。素性（ジャンル・属性）は技ごとに決める */
-function throwArt(key: string, desc: string, t: ThrowTuning, profile: AttackProfile, sprite?: string): ActionStepDef {
-  const name = artName(key);
-  const bullet = reviveBullet(t.throw.bullet, `art.${key}`, name, ART_BULLET_KEYWORDS, profile);
-  return { kind: "volley", key, name, desc, cooldown: t.cooldown, throw: { ...t.throw, bullet, attack: profile, sprite } };
-}
+/** 弾を出す段の素性（ジャンル・属性）と弾の絵。無ければ射撃・物理で点の弾 */
+const STEP2_VOLLEY: Readonly<Record<string, { readonly attack: AttackProfile; readonly sprite?: string }>> = {
+  arcaneBolt: { attack: attack("ranged", "arcane", "light") },
+  arcaneBolt2: { attack: attack("ranged", "arcane", "light") },
+  greatBolt: { attack: attack("ranged", "arcane", "light") },
+  axeThrow: { attack: GUN_ATTACK, sprite: "weapon.axe" },
+  scatterMines: { attack: attack("ranged", "physical", "fire") },
+};
 
 /** 技の弾の語（技そのものの語は武器種の keywords が持つので、弾は射撃であることだけ） */
 const ART_BULLET_KEYWORDS: KeywordProfile = kw(["ranged"]);
 
-/** 右 1 段目から派生を作る。振りは右単独の派生、hold の release は構えを離したときだけ出す派生（押した瞬間には照合しない） */
-function artBranches(first: ActionStepDef): BranchDef[] {
-  if (first.kind === "swing") {
-    const key = first.key ?? "";
-    return [{ key, name: first.name ?? artName(key), sequence: ART_SEQUENCE, step: first.step, next: first.next, art: "strike" }];
-  }
+/** 右 1 段目の構えの release を、構えを離したときだけ出す派生にする（押した瞬間には照合しない） */
+function releaseBranches(first: ActionStepDef): BranchDef[] {
   if (first.kind !== "hold" || !first.hold.release) return [];
   const key = `${first.key}.release`;
-  return [{ key, name: artName(key), sequence: ART_SEQUENCE, step: first.hold.release, next: first.hold.releaseNext, art: "release" }];
+  return [{ key, name: STEP2_NAMES[key] ?? key, sequence: ["secondary"], step: first.hold.release, next: first.hold.releaseNext, art: "release" }];
 }
-
-/** 右の段の名前と説明（名前の無い振りの段は空。表示側が「n 段目」にする） */
-function actionLabel(s: ActionStepDef): ArtBase {
-  if (s.kind !== "swing") return { key: s.key, name: s.name, desc: s.desc, cooldown: s.cooldown };
-  return { key: s.key ?? "", name: s.name ?? "", desc: s.desc ?? "", cooldown: s.cooldown ?? 0 };
-}
-
-/** 右 1 段目 → 旧固有技（互換の MovesetDef.art。qa/bot.ts だけが読む） */
-function legacyArt(first: ActionStepDef): WeaponArtDef {
-  const base = actionLabel(first);
-  switch (first.kind) {
-    case "swing":
-      return { ...base, kind: "strike", step: first.step, next: first.next, extras: first.extras };
-    case "hold":
-      return { ...base, kind: "hold", hold: first.hold };
-    case "volley":
-      return { ...base, kind: "throw", throw: first.throw };
-    case "charge":
-      return { ...base, kind: "charge", charge: first.charge };
-    case "aim":
-      return { ...base, kind: "charge", aim: first.aim };
-    case "recall":
-      return { ...base, kind: "recall", recall: first.recall };
-  }
-}
-
-/** defineMoveset に渡す形（互換の art は defineMoveset が作る） */
-export type MovesetSpec = Omit<MovesetDef, "art">;
 
 /**
- * 武器種の定義を仕上げる。右 1 段目の振りの技と hold の release を ["secondary"] の派生として branches に混ぜ、
- * branchesOf と同じ並び（長い列が先。同じ長さは元の順）にする。既存の matchBranch / 来歴の branchHits がそのまま効く
+ * 武器種の定義を仕上げる。右 1 段目の構えの release を派生として branches に混ぜ、
+ * 長い列が先（同じ長さは元の順）に並べる。既存の matchBranch / 来歴の branchHits がそのまま効く
  */
-export function defineMoveset(spec: MovesetSpec): MovesetDef {
-  const def: MovesetDef = { ...spec, art: legacyArt(spec.steps2[0]) };
-  const extra = artBranches(spec.steps2[0]);
-  if (extra.length === 0) return def;
-  const branches = [...def.branches, ...extra].sort((a, b) => b.sequence.length - a.sequence.length);
-  return { ...def, branches };
+export function defineMoveset(spec: MovesetDef): MovesetDef {
+  const extra = releaseBranches(spec.steps2[0]);
+  if (extra.length === 0) return spec;
+  const branches = [...spec.branches, ...extra].sort((a, b) => b.sequence.length - a.sequence.length);
+  return { ...spec, branches };
 }
 
 /** 空でない右レーンに絞る（JSON から段を並べたときの入口。空はデータの誤りなので読み込み時に落とす） */
@@ -690,33 +838,31 @@ function movesetRule(key: MovesetKey, index: number, spec: MovesetRuleSpec): Rul
   return { id: ruleId(owner, index), when: spec.when, if: spec.if ?? [], then: spec.then, chance: ALWAYS, icd: spec.icd ?? NO_ICD, scope: SCOPE_ANY, owner };
 }
 
-const GUN_ATTACK = attack("ranged", "physical");
-
 export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   sword: defineMoveset({
     key: "sword",
     name: "剣",
-    desc: "3 段の素直な斬撃。右で受け流し、左左右で十字断ち、受け流してすぐ斬ると踏み込み斬り",
+    desc: "3 段の素直な斬撃。右の 1 段目は受け流し、右右で受け流しから返し斬り。左左右で十字断ち、右左左で踏み込み斬り",
     steps: swordSteps(),
     dashAttack: { ...ACTION.dashAttack, shape: BOX, mana: MANA.onDashAttack },
     attackMoveMul: W.sword.attackMoveMul,
     primary: "melee",
-    steps2: [{ kind: "hold", key: "parry", name: artName("parry"), desc: "押した直後の被弾を無効にし、相手を大きく怯ませる。外すと一瞬硬直する", cooldown: W.sword.art.cooldown, hold: reviveHold(W.sword.art.hold) }],
-    branches: branchesOf(reviveBranches(W.sword.branches)),
+    steps2: reviveLane(W.sword.steps2),
+    branches: reviveBranches(W.sword.branches),
     keywords: kw(["melee", "combo", "finisher"], [], ["counter"]),
     attack: attack("melee", "physical"),
   }),
   greatsword: defineMoveset({
     key: "greatsword",
     name: "大剣",
-    desc: "広い弧の大振り 4 段。長押しで 3 段階まで溜める。右クリックは薙ぎ払い",
+    desc: "広い弧の大振り 4 段。長押しで 3 段階まで溜める。右の連撃は薙ぎ払いから始まる",
     steps: reviveSteps(W.greatsword.steps),
     dashAttack: reviveStep(W.greatsword.dashAttack),
     charge: reviveCharge(W.greatsword.charge),
     attackMoveMul: W.greatsword.attackMoveMul,
     primary: "charge",
-    steps2: [strikeArt("sweep", "広く薙ぎ払う。続けて左で 3 段目へ", reviveStrikeTuning(W.greatsword.art))],
-    branches: branchesOf(reviveBranches(W.greatsword.branches)),
+    steps2: reviveLane(W.greatsword.steps2),
+    branches: reviveBranches(W.greatsword.branches),
     keywords: kw(["melee", "stagger", "finisher", "wall", "area"], ["still"], ["elite"]),
     attack: attack("melee", "physical"),
   }),
@@ -728,8 +874,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.twinBlades.dashAttack),
     attackMoveMul: W.twinBlades.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("shadowStep", "踏み込んで突く。踏み込みの間は無敵。続けて左で 2 段目へ", reviveStrikeTuning(W.twinBlades.art))],
-    branches: branchesOf(reviveBranches(W.twinBlades.branches)),
+    steps2: reviveLane(W.twinBlades.steps2),
+    branches: reviveBranches(W.twinBlades.branches),
     keywords: kw(["melee", "combo"], [], ["crit", "bleed"]),
     attack: attack("melee", "physical"),
   }),
@@ -742,8 +888,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     tip: W.spear.tip,
     attackMoveMul: W.spear.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("chargeThrust", "大きく踏み込んで突き、壁に叩きつける。続けて左で 2 段目へ", reviveStrikeTuning(W.spear.art))],
-    branches: branchesOf(reviveBranches(W.spear.branches)),
+    steps2: reviveLane(W.spear.steps2),
+    branches: reviveBranches(W.spear.branches),
     keywords: kw(["melee", "stagger", "wall"], [], ["crit", "counter"]),
     attack: attack("melee", "physical"),
   }),
@@ -755,8 +901,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.scythe.dashAttack),
     attackMoveMul: W.scythe.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("hookPull", "鎌を突き出して引き寄せる。続けて左で 2 段目へ", reviveStrikeTuning(W.scythe.art))],
-    branches: branchesOf(reviveBranches(W.scythe.branches)),
+    steps2: reviveLane(W.scythe.steps2),
+    branches: reviveBranches(W.scythe.branches),
     keywords: kw(["melee", "area"], ["poison", "bleed"], ["kill", "area"]),
     attack: attack("melee", "hybrid", "dark"),
   }),
@@ -768,8 +914,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.fists.dashAttack),
     attackMoveMul: W.fists.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("grabThrow", "掴んで背後へ放り、壁に叩きつける", reviveStrikeTuning(W.fists.art))],
-    branches: branchesOf(reviveBranches(W.fists.branches)),
+    steps2: reviveLane(W.fists.steps2),
+    branches: reviveBranches(W.fists.branches),
     keywords: kw(["melee", "combo", "wall", "mana"], ["hurt"], ["heal"]),
     attack: attack("melee", "physical"),
   }),
@@ -782,8 +928,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     tip: W.whip.tip,
     attackMoveMul: W.whip.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("entangle", "巻き付けて手前へ引き、恐怖を付ける。続けて左で 2 段目へ", reviveStrikeTuning(W.whip.art))],
-    branches: branchesOf(reviveBranches(W.whip.branches)),
+    steps2: reviveLane(W.whip.steps2),
+    branches: reviveBranches(W.whip.branches),
     keywords: kw(["melee", "area"], [], ["crit", "fear", "shock"]),
     attack: attack("melee", "physical", "lightning"),
   }),
@@ -795,8 +941,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.cleaver.dashAttack),
     attackMoveMul: W.cleaver.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("shoulderCharge", "肩から踏み込んで押し飛ばす。続けて左で 2 段目へ", reviveStrikeTuning(W.cleaver.art))],
-    branches: branchesOf(reviveBranches(W.cleaver.branches)),
+    steps2: reviveLane(W.cleaver.steps2),
+    branches: reviveBranches(W.cleaver.branches),
     keywords: kw(["melee", "wall", "stagger"], [], ["burn", "bleed"]),
     attack: attack("melee", "physical"),
   }),
@@ -808,8 +954,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.staff.dashAttack),
     attackMoveMul: W.staff.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("upswing", "払い上げて大きく押し返す。続けて左で 2 段目へ", reviveStrikeTuning(W.staff.art))],
-    branches: branchesOf(reviveBranches(W.staff.branches)),
+    steps2: reviveLane(W.staff.steps2),
+    branches: reviveBranches(W.staff.branches),
     keywords: kw(["melee", "area", "stagger", "mana"], [], ["mana"]),
     attack: attack("melee", "physical"),
   }),
@@ -821,21 +967,21 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.wand.dashAttack),
     attackMoveMul: W.wand.attackMoveMul,
     primary: "melee",
-    steps2: [throwArt("arcaneBolt", "光の魔弾を 1 発撃つ（射撃として当たる）", reviveThrowTuning(W.wand.art), attack("ranged", "arcane", "light"))],
-    branches: branchesOf(reviveBranches(W.wand.branches)),
+    steps2: reviveLane(W.wand.steps2),
+    branches: reviveBranches(W.wand.branches),
     keywords: kw(["melee", "ranged", "mana"], ["mana"], ["bullet"]),
     attack: attack("melee", "arcane", "light"),
   }),
   katana: defineMoveset({
     key: "katana",
     name: "刀",
-    desc: "速い 3 段の斬りと突き。右の長押しで居合、カウンターで当てると勢いづく",
+    desc: "速い 4 段の斬りと突き。右の 1 段目は長押しで居合、カウンターで当てると勢いづく",
     steps: reviveSteps(W.katana.steps),
     dashAttack: reviveStep(W.katana.dashAttack),
     attackMoveMul: W.katana.attackMoveMul,
     primary: "melee",
-    steps2: [{ kind: "charge", key: "iai", name: artName("iai"), desc: "押して溜め、離して一閃。溜めずに離すと抜き打ちに繋がる", cooldown: 0, charge: reviveCharge(W.katana.charge) }],
-    branches: branchesOf(reviveBranches(W.katana.branches)),
+    steps2: reviveLane(W.katana.steps2),
+    branches: reviveBranches(W.katana.branches),
     keywords: kw(["melee", "counter", "finisher"], ["still"], ["counter"]),
     attack: attack("melee", "physical"),
     rules: [
@@ -853,8 +999,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.axe.dashAttack),
     attackMoveMul: W.axe.attackMoveMul,
     primary: "melee",
-    steps2: [throwArt("axeThrow", "斧を投げる。行って戻り、行きと帰りで斬る（射撃として当たる）", reviveThrowTuning(W.axe.art), GUN_ATTACK, "weapon.axe")],
-    branches: branchesOf(reviveBranches(W.axe.branches)),
+    steps2: reviveLane(W.axe.steps2),
+    branches: reviveBranches(W.axe.branches),
     keywords: kw(["melee", "bleed", "stagger"], ["bleed"], ["area"]),
     attack: attack("melee", "physical"),
     rules: [
@@ -874,8 +1020,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.shield.dashAttack),
     attackMoveMul: W.shield.attackMoveMul,
     primary: "melee",
-    steps2: [{ kind: "hold", key: "guard", name: artName("guard"), desc: "押している間、前からの被弾を大きく減らし必殺ゲージを溜める。離すと盾押し", cooldown: W.shield.art.cooldown, hold: reviveHold(W.shield.art.hold) }],
-    branches: branchesOf(reviveBranches(W.shield.branches)),
+    steps2: reviveLane(W.shield.steps2),
+    branches: reviveBranches(W.shield.branches),
     keywords: kw(["melee", "ward", "wall", "stagger"], [], ["counter"]),
     attack: attack("melee", "physical"),
     rules: [
@@ -894,14 +1040,14 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.chainSickle.dashAttack),
     attackMoveMul: W.chainSickle.attackMoveMul,
     primary: "melee",
-    steps2: [strikeArt("chainWeight", "分銅を投げて引き寄せ、崩勢にする。続けて左で 2 段目へ", reviveStrikeTuning(W.chainSickle.art))],
-    branches: branchesOf(reviveBranches(W.chainSickle.branches)),
+    steps2: reviveLane(W.chainSickle.steps2),
+    branches: reviveBranches(W.chainSickle.branches),
     keywords: kw(["melee", "combo", "stagger"], [], ["crit"]),
     attack: attack("melee", "physical"),
     rules: [
       movesetRule("chainSickle", 0, {
         when: "onMeleeHit",
-        if: [{ kind: "not", condition: { kind: "branchSwing" } }, { kind: "targetHas", status: "broken" }],
+        if: [{ kind: "lane", lane: "primary" }, { kind: "targetHas", status: "broken" }],
         then: { kind: "addPoise", magnitude: R.chainBrokenPoise },
       }),
     ],
@@ -915,8 +1061,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     charge: reviveCharge(W.hammer.charge),
     attackMoveMul: W.hammer.attackMoveMul,
     primary: "charge",
-    steps2: [strikeArt("hammerSweep", "大きく薙ぎ払う。続けて左で 3 段目へ", reviveStrikeTuning(W.hammer.art))],
-    branches: branchesOf(reviveBranches(W.hammer.branches)),
+    steps2: reviveLane(W.hammer.steps2),
+    branches: reviveBranches(W.hammer.branches),
     keywords: kw(["melee", "stagger", "area", "finisher"], ["still"], ["elite"]),
     attack: attack("melee", "physical"),
     rules: [
@@ -936,13 +1082,13 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   gunner: defineMoveset({
     key: "gunner",
     name: "二丁拳銃",
-    desc: "左で撃ち、左右の銃口を交互に使う。右の乱れ撃ちで周りを撃ち払う。近接はダッシュの終わりの反転撃ちだけ",
+    desc: "左で撃ち、左右の銃口を交互に使う。右の連撃は乱れ撃ち・銃把打ち・回転撃ち。ダッシュの終わりに反転撃ち",
     steps: [],
     dashAttack: reviveStep(W.gunner.dashAttack),
     attackMoveMul: W.gunner.attackMoveMul,
     primary: "shot",
-    steps2: [throwArt("barrage", "全方位へ弾をばら撒く", reviveThrowTuning(W.gunner.art), GUN_ATTACK)],
-    branches: [],
+    steps2: reviveLane(W.gunner.steps2),
+    branches: reviveBranches(W.gunner.branches),
     keywords: kw(["ranged", "bullet", "combo"], [], ["energy", "dash"]),
     attack: attack("ranged", "physical"),
     rules: [
@@ -956,26 +1102,26 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   sidearm: defineMoveset({
     key: "sidearm",
     name: "短銃",
-    desc: "左で撃ちながら軽く動ける。右の長押しで狙い撃ち（強い 1 発）",
+    desc: "左で撃ちながら軽く動ける。右の 1 段目は長押しで狙い撃ち（強い 1 発）",
     steps: [],
     dashAttack: reviveStep(W.sidearm.dashAttack),
     attackMoveMul: W.sidearm.attackMoveMul,
     primary: "shot",
-    steps2: [{ kind: "aim", key: "aimedShot", name: artName("aimedShot"), desc: "足を止めて狙い、離すと強く貫く 1 発を撃つ", cooldown: W.sidearm.art.cooldown, aim: W.sidearm.art.aim }],
-    branches: [],
+    steps2: reviveLane(W.sidearm.steps2),
+    branches: reviveBranches(W.sidearm.branches),
     keywords: kw(["ranged", "bullet"], ["still"], ["crit"]),
     attack: attack("ranged", "physical"),
   }),
   longarm: defineMoveset({
     key: "longarm",
     name: "長銃",
-    desc: "左で撃つ重い銃。右の銃剣突きで張り付いた敵を剥がす",
+    desc: "左で撃つ重い銃。右の銃剣の連撃で張り付いた敵を剥がす",
     steps: [],
     dashAttack: reviveStep(W.longarm.dashAttack),
     attackMoveMul: W.longarm.attackMoveMul,
     primary: "shot",
-    steps2: [strikeArt("bayonet", "銃剣で踏み込んで突き、押し返す", reviveStrikeTuning(W.longarm.art))],
-    branches: [],
+    steps2: reviveLane(W.longarm.steps2),
+    branches: reviveBranches(W.longarm.branches),
     keywords: kw(["ranged", "bullet", "stagger"], [], ["wall"]),
     attack: attack("ranged", "physical"),
   }),
@@ -987,21 +1133,21 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,
     primary: "shot",
-    steps2: [strikeArt("pointBlank", "至近を吹き飛ばして後ろへ跳ぶ。床の自分の設置弾をすべて起爆する", reviveStrikeTuning(W.cannon.art))],
-    branches: [],
+    steps2: reviveLane(W.cannon.steps2),
+    branches: reviveBranches(W.cannon.branches),
     keywords: kw(["ranged", "explode", "area"], ["placed"], ["stagger"]),
     attack: attack("ranged", "physical"),
   }),
   thrown: defineMoveset({
     key: "thrown",
     name: "投擲",
-    desc: "左で投げる。右の手元返しで飛んでいる弾を呼び戻し、帰りの弾は強く当たる",
+    desc: "左で投げる。右の 1 段目の手元返しで飛んでいる弾を呼び戻し、帰りの弾は強く当たる",
     steps: [],
     dashAttack: reviveStep(W.thrown.dashAttack),
     attackMoveMul: W.thrown.attackMoveMul,
     primary: "shot",
-    steps2: [{ kind: "recall", key: "recall", name: artName("recall"), desc: "飛んでいる自分の弾をすべて手元へ向け直す", cooldown: W.thrown.art.cooldown, recall: W.thrown.art.recall }],
-    branches: [],
+    steps2: reviveLane(W.thrown.steps2),
+    branches: reviveBranches(W.thrown.branches),
     keywords: kw(["ranged", "bullet"], [], ["dash"]),
     attack: attack("ranged", "physical"),
   }),
@@ -1013,34 +1159,34 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.grenade.dashAttack),
     attackMoveMul: W.grenade.attackMoveMul,
     primary: "shot",
-    steps2: [strikeArt("tubeBash", "筒で殴って敵を押し返し、自分も後ろへ下がる", reviveStrikeTuning(W.grenade.art))],
-    branches: [],
+    steps2: reviveLane(W.grenade.steps2),
+    branches: reviveBranches(W.grenade.branches),
     keywords: kw(["ranged", "explode", "area"], ["still"], ["stagger"]),
     attack: attack("ranged", "physical"),
   }),
   trapper: defineMoveset({
     key: "trapper",
     name: "仕掛け",
-    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らす",
+    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らし、3 段目で起爆する",
     steps: [],
     dashAttack: reviveStep(W.trapper.dashAttack),
     attackMoveMul: W.trapper.attackMoveMul,
     primary: "shot",
-    steps2: [throwArt("scatterMines", "前方へ設置弾を扇に 3 つ撒く", reviveThrowTuning(W.trapper.art), attack("ranged", "physical", "fire"))],
-    branches: [],
+    steps2: reviveLane(W.trapper.steps2),
+    branches: reviveBranches(W.trapper.branches),
     keywords: kw(["ranged", "placed", "explode", "area"], [], ["dash"]),
     attack: attack("ranged", "physical"),
   }),
   warRing: defineMoveset({
     key: "warRing",
     name: "戦輪",
-    desc: "左で刃の輪を投げる。右の輪払いで手に持った輪を振り、張り付いた敵を広く斬る",
+    desc: "左で刃の輪を投げる。右の輪払いで手に持った輪を振り、続けて右で輪を投げる",
     steps: [],
     dashAttack: reviveStep(W.warRing.dashAttack),
     attackMoveMul: W.warRing.attackMoveMul,
     primary: "shot",
-    steps2: [strikeArt("ringSweep", "手元の輪で周りを広く斬る", reviveStrikeTuning(W.warRing.art))],
-    branches: [],
+    steps2: reviveLane(W.warRing.steps2),
+    branches: reviveBranches(W.warRing.branches),
     keywords: kw(["ranged", "bullet", "area"], [], ["melee"]),
     attack: attack("ranged", "physical"),
   }),
@@ -1089,14 +1235,14 @@ export function actionStepName(s: ActionStepDef, index: number): string {
   return s.name ?? `${index + 1} 段目`;
 }
 
-/** 右の段の再使用の秒（振りは名前付きの技だけが持つ。無ければ 0） */
+/** 右の段の再使用の秒（再使用の無い段は 0） */
 export function actionCooldown(s: ActionStepDef): number {
   return s.cooldown ?? 0;
 }
 
 /**
  * 武器種に派生を 1 本足した型（ジョブ固有の派生）。同じ入力列の派生を武器種が既に持つなら足さない（武器種が優先）。
- * 照合は長い列から（branchesOf と同じ並び）
+ * 照合は長い列から（reviveBranches と同じ並び）
  */
 export function withExtraBranch(moveset: MovesetDef, extra: BranchDef): MovesetDef {
   const seq = extra.sequence.join(",");
@@ -1105,17 +1251,27 @@ export function withExtraBranch(moveset: MovesetDef, extra: BranchDef): MovesetD
   return { ...moveset, branches };
 }
 
-/** 溜めの役割を持つボタン（大剣・戦鎚は左、刀の居合・短銃の狙い撃ちは右）。溜めを持たない武器種は undefined */
+/**
+ * 近接の溜めの役割を持つボタン（刀の居合は右、大剣・戦鎚は左）。溜めを持たない武器種は undefined。
+ * 短銃の狙い撃ちは右レーンの構えの経路（weaponArts.ts）で溜めるので含めない
+ */
 export function chargeButton(moveset: MovesetDef): ButtonKey | undefined {
-  if (moveset.primary === "charge") return "primary";
-  return moveset.steps2.some((s) => s.kind === "charge" || s.kind === "aim") ? "secondary" : undefined;
+  if (moveset.steps2.some((s) => s.kind === "charge")) return "secondary";
+  return moveset.primary === "charge" ? "primary" : undefined;
 }
 
-/** 近接の溜めの定義（左の溜め、または右の居合の段）。短銃の狙い撃ちは近接の溜めではないので含めない */
+/** 近接の溜めの定義（右レーンの居合の段、または左の溜め）。短銃の狙い撃ちは近接の溜めではないので含めない */
 export function meleeChargeOf(moveset: MovesetDef): MeleeChargeDef | undefined {
-  if (moveset.primary === "charge") return moveset.charge;
   for (const s of moveset.steps2) {
     if (s.kind === "charge") return s.charge;
+  }
+  return moveset.primary === "charge" ? moveset.charge : undefined;
+}
+
+/** 右レーンの最初の弾の段の弾（派生の shots.from が "lane" のときに使う）。無ければ undefined */
+export function laneVolley(moveset: MovesetDef): ThrowArtDef | undefined {
+  for (const s of moveset.steps2) {
+    if (s.kind === "volley") return s.throw;
   }
   return undefined;
 }
@@ -1162,14 +1318,14 @@ export function branchHints(moveset: MovesetDef, inputs: readonly ButtonKey[]): 
   return hints;
 }
 
-/** need が空なら常に一致（1 手だけの派生はいつでも「次に押すと」に出る） */
+/** 入力列の末尾が need と一致するか（need が空なら常に一致） */
 function tailMatches(inputs: readonly ButtonKey[], need: readonly ButtonKey[]): boolean {
   if (need.length > inputs.length) return false;
   const offset = inputs.length - need.length;
   return need.every((k, i) => inputs[offset + i] === k);
 }
 
-/** 必殺（バースト）の素性。威力は精神 + 霊力（PLAYER.special）なので範囲・魔法（docs/COMBAT_DESIGN.md A-8） */
+/** 奥義の円月の素性。威力は精神 + 霊力なので範囲・魔法（docs/COMBAT_DESIGN.md A-8） */
 export const BURST_ATTACK: AttackProfile = attack("area", "arcane");
 
 export const DEFAULT_MOVESET: MovesetKey = "sword";

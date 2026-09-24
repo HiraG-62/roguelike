@@ -27,6 +27,7 @@ import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
+import { sustainRules } from "../data/ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
@@ -105,6 +106,8 @@ export function collectRules(state: GameState): Rule[] {
   out.push(...jobRules(state.job));
   // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
   out.push(...movesetRules(state.stats.moveset));
+  // 持続中の奥義の固有効果（data/ultimates.ts の SustainDef.rules）。持続中だけ集める
+  out.push(...sustainRules(state.player.ultimate.active));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
   const rs = state.skills;
   for (let slot = 0; slot < rs.slots.length; slot++) {

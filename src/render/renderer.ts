@@ -67,7 +67,7 @@ import {
   type SwingPhase,
   type WeaponPose,
   WEAPON_TRAIL_WIDTH,
-  artHoldPose,
+  laneHoldPose,
   offhandOffset,
   phaseProgress,
   playerBodyPose,
@@ -115,6 +115,8 @@ const COLOR_HP_BG = "#3a1010";
 const COLOR_ENERGY = "#f8d848";
 const COLOR_ENERGY_BG = "#3a3010";
 const COLOR_ENERGY_READY = "#ffffff";
+/** 持続の奥義でゲージが減っている間の色（満タン待ちの黄と見分ける） */
+const COLOR_ENERGY_SUSTAIN = "#ff8a3c";
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
 const COLOR_TELEGRAPH = "#ff4040";
@@ -1937,7 +1939,7 @@ export class Renderer {
       facingRight: p.facing.x >= 0,
       aimHeld: moveset.primary === "shot",
       edge: WEAPON_EDGE[moveset.key],
-      hold: artHoldPose(moveset.steps2[0], p.art.holding),
+      hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
     });
   }
 
@@ -2290,14 +2292,16 @@ export class Renderer {
     // 未振りの点はマナバーの横（HP の数値の右）に。振るのは装備画面（Tab）
     drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
 
-    const ready = p.energy >= p.maxEnergy;
+    const sustaining = p.ultimate.active !== null;
+    const ready = !sustaining && p.energy >= p.maxEnergy;
     const blinkOn = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2;
-    const energyColor = ready && blinkOn ? COLOR_ENERGY_READY : COLOR_ENERGY;
+    const energyColor = sustaining ? COLOR_ENERGY_SUSTAIN : ready && blinkOn ? COLOR_ENERGY_READY : COLOR_ENERGY;
     this.drawBar(HUD_BAR_X, HUD_ENERGY_Y, HUD_BAR_W, HUD_ENERGY_H, p.energy / p.maxEnergy, energyColor, COLOR_ENERGY_BG);
+    if (sustaining) drawText(ctx, "F: 奥義を終える", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     if (ready) {
       ctx.strokeStyle = blinkOn ? COLOR_ENERGY : COLOR_ENERGY_READY;
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
-      drawText(ctx, "F: バースト", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
+      drawText(ctx, "F: 奥義", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     }
     this.drawDashPips(state);
     this.drawKeystoneHud(state);

@@ -1,11 +1,13 @@
 # レシピ: 武器種 / 銃の弾
 
-- `src/data/weapons.ts`: `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（3 段コンボ各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値と `poiseRatio` / 当たり判定の形 `HitShape` / 手触りの任意項目）。左で撃つ銃の家系は `primary: "shot"` にして `GUN_MOVESETS` に足す。数値は tuning の `WEAPON`
-- **射撃の型（共有の弾の表）は無い。弾は銃のベースごとに持つ**: 数値は `src/data/balance/weapons.json` の `WEAPON.bullets.<ベースの key>`（`BulletDef` の数値。sway / homing / bounce / charge / mine / burst / boomerang / lob の挙動ブロックを持てばその挙動になる）、語と素性は `src/loot/bullets.ts` の `BULLET_PROFILES`。銃のベースを足したら両方に 1 件ずつ足す（`balance.test.ts` がキー集合を検査）。弾を出す固有技は `art.throw.bullet` に自分の弾を持つ
+- `src/data/weapons.ts`: `MOVESET_KEYS` に key を足し `MOVESETS` に `MovesetDef`（左の連撃 `steps` 各段の `MeleeStepDef`: windup / active / recover / `Scaling` / 怯み値と `poiseRatio` / 当たり判定の形 `HitShape` / 手触りの任意項目、右の連撃 `steps2`、派生 `branches`）。左で撃つ銃の家系は `primary: "shot"` にして `GUN_MOVESETS` に足す。数値は tuning の `WEAPON`
+- **射撃の型（共有の弾の表）は無い。弾は銃のベースごとに持つ**: 数値は `src/data/balance/weapons.json` の `WEAPON.bullets.<ベースの key>`（`BulletDef` の数値。sway / homing / bounce / charge / mine / burst / boomerang / lob の挙動ブロックを持てばその挙動になる）、語と素性は `src/loot/bullets.ts` の `BULLET_PROFILES`。銃のベースを足したら両方に 1 件ずつ足す（`balance.test.ts` がキー集合を検査）。右レーンの弾の段は `steps2[n].throw.bullet` に自分の弾を持つ（弾の key は `art.<段の key>`）
+- **右レーン（アクション 2）の段の足し方**（`docs/ideas/ougi-and-dual-actions.md` 4 章）: `weapons.json` の `movesets.<key>.steps2` に段を並べる（近接は `steps` と同じ段数、銃の家系は 3 段。段カウンタは左右で共有）。段は `{"kind":"swing","key":…,"step":{…}}`（振り。`cooldown` / `selfKnock` / `detonateMines` は任意）/ `hold`（`hold.parry` か `hold.guard`、`release` で離した振り）/ `volley`（`throw` に弾と威力）/ `charge`（居合）/ `aim`（狙い撃ち）/ `recall`（手元返し）。`kind` は union 文字列なので `reviveActionStep` が照合する。key ごとに `STEP2_NAMES`（表示名）、1 段目だけ `STEP2_DESC`（説明）、弾の段は `STEP2_VOLLEY`（素性・絵。無ければ射撃・物理）に 1 行。数値の目安は「左の同じ段番号と同じ秒間威力、右は重い・広い寄りで recover ×1.2」。振り以外の段の挙動を足すなら `system/weaponArts.ts` の `startLaneArt`
+- **派生の足し方**: `movesets.<key>.branches.<派生の key>` に `sequence`（3 入力以上。左右を混ぜる）・`step`・任意の `next`（続きの段）/ `shots`（弾。`from: "lane"` で右レーンの弾）/ `selfKnock` / `detonateMines`。表示名は `BRANCH_NAMES`。武器種ごとに名前付き 4 本以上（`data/weapons.test.ts`）。名前は `docs/GLOSSARY.md`・祝福・スキル・奥義と重ねない
 - 祝福・統一ルール・性質が「設置弾を撃つとき」のように弾で絞るときは、弾の性質（`BulletFeature`。数値から `bulletFeatures` が読む）で書く（`BoonLoadout.bullets` / 条件 `{ kind: "bullet", has }` / `statsBulletHas`）。ベースの key で分岐しない
 - 各段・弾の参照ステータスは `docs/STATS_AND_SCALING.md` に従う（効果から見て納得できるもの。怯み値の `poiseRatio` も付ける）
 - ベースへの紐付け: `src/loot/bases.ts` の `BASES` で右手のベースに `moveset` を指定（`PlayerStats.moveset` へ流れる）。銃の家系のベースは `PlayerStats.bullet` に自分の key が入る
 - 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.bullet` で `loot/bullets.ts` の `BULLETS` を引いて発動処理を分岐
-- テスト: `data/weapons.test.ts` / `loot/bullets.test.ts`
+- テスト: `data/weapons.test.ts` / `loot/bullets.test.ts` / `system/weaponArts.test.ts`（右レーンの段）/ `system/player.test.ts`（左右の共有の段カウンタ・派生）。右レーンと派生の係数表は `data/scalingVariety.test.ts` の `LANE_TABLE` が受ける
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

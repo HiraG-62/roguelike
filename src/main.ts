@@ -114,13 +114,13 @@ import { type ListAction, type ListScreen, type ListTab, createListScreen, listC
 import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
-import { type HubSession, borrowRackEntry, createHub, rackEntryName, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
+import { type HubSession, borrowRackEntry, chooseRackUltimate, createHub, trialUltimateName, rackEntryName, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
 import { HUB } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
 import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
 import { drawHubOverlay, hubScreenOffset } from "./render/hubUi";
-import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, rackEntryOf, rackTabs, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
+import { type RackRow, altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, rackEntryOf, rackTabs, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
 
 const canvasEl = document.getElementById("game");
@@ -684,7 +684,7 @@ function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolea
 }
 
 const RACK_TITLE = "武器掛け";
-const RACK_HINT = "←→ タブ　↑↓ 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　Esc 拠点へ";
+const RACK_HINT = "←→ タブ　↑↓ 選ぶ　Enter / クリック 試す・奥義を選ぶ　Enter 長押し 借りる　Esc 拠点へ";
 /** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
 let rackHold = 0;
 const rackLatch = createHoldLatch();
@@ -692,7 +692,7 @@ const rackLatch = createHoldLatch();
 function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): void {
   screen = "rack";
   listUi = createListScreen();
-  listTabs = rackTabs(session.hub.trialMoveset);
+  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
   rackHold = 0;
   resetHoldLatch(rackLatch);
   menuNav.prevX = frameMoveX;
@@ -710,27 +710,33 @@ function updateRackFrame(session: HubSession, frame: FrameInput, escape: boolean
   const activated = stepListInput(frame, arrowX, arrowY) === "activate";
   const row = rackEntryOf(listCursorEntry(listUi, listTabs)?.key ?? "");
   if (row === null) return;
-  if (activated) {
-    setTrialWeapon(session, row.key);
-    sfx.play("uiClick");
-    listTabs = rackTabs(session.hub.trialMoveset);
-  }
+  if (activated) activateRackRow(session, row);
   rackHold = latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
   if (rackHold < HUB.rackBorrowHold) return;
   rackHold = 0;
   resetHoldLatch(rackLatch);
-  const borrowed = row.key === null ? null : borrowRackEntry(session, { kind: "moveset", key: row.key }, Date.now());
+  // 奥義の行の長押しは、その奥義の武器種を借りる
+  const target = row.kind === "moveset" ? row.key : row.moveset;
+  const borrowed = target === null ? null : borrowRackEntry(session, { kind: "moveset", key: target }, Date.now());
   sfx.play(borrowed ? "uiClick" : "uiClose");
-  listTabs = rackTabs(session.hub.trialMoveset);
+  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+}
+
+/** 武器種の行は試し、奥義の行はその武器種の奥義に選んで保存する（拠点を出ても残る） */
+function activateRackRow(session: HubSession, row: RackRow): void {
+  if (row.kind === "moveset") setTrialWeapon(session, row.key);
+  else if (chooseRackUltimate(session, row.moveset, row.key)) saveProfile(session.state.profile);
+  sfx.play("uiClick");
+  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
 }
 
 /** 拠点の重ね描きに出す、試している武器と借り物の名前 */
-function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: string | null } {
+function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: string | null; trialUltimate: string | null } {
   const h = session.hub;
   const trialWeapon = h.trialMoveset === null ? null : rackEntryName({ kind: "moveset", key: h.trialMoveset });
   const eq = session.state.profile.equipment;
   const loaned = eq.mainHand?.loaned === true ? [eq.mainHand.name] : [];
-  return { trialWeapon, loaned: loaned.length > 0 ? loaned.join(" / ") : null };
+  return { trialWeapon, loaned: loaned.length > 0 ? loaned.join(" / ") : null, trialUltimate: trialUltimateName(session) };
 }
 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {

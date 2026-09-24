@@ -1,7 +1,7 @@
 import { STATUS_LABEL } from "../core/status";
 import { PLAYER } from "../data/tuning";
 import { DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun } from "../data/weapons";
-import { defaultUltimate } from "../data/ultimates";
+import { type UltimateAct, type UltimateDef, defaultUltimate } from "../data/ultimates";
 import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { ATTR_LABEL } from "../loot/resonance";
@@ -232,7 +232,6 @@ export function mainReferenceChunks(formulas: readonly ScalingFormula[]): Formul
 
 const POWER_LABEL = "威力";
 const POISE_LABEL = "怯み値";
-const SPECIAL_NAME = "バースト";
 const DASH_ATTACK_NAME = "ダッシュ攻撃";
 const CHARGE_NAME = "溜め";
 const SHOT_PREFIX = "射撃";
@@ -262,20 +261,75 @@ export function shotFormulas(stats: Readonly<PlayerStats>, key: string, name: st
   };
 }
 
-/**
- * 奥義（F）の周囲攻撃の式。今は武器種の 1 本目（円月）の nova を出す。
- * 選んだ奥義の名前と行為ごとの式にするのは Lane C（docs/ideas/ougi-and-dual-actions.md 5 章）
- */
-export function specialFormulas(stats: Readonly<PlayerStats>): ActionFormulas {
-  const def = defaultUltimate(MOVESETS[stats.moveset] ? stats.moveset : DEFAULT_MOVESET);
-  const nova = def.kind === "instant" ? def.acts.find((a) => a.kind === "nova") : undefined;
-  if (nova?.kind !== "nova") return { name: SPECIAL_NAME, formulas: [] };
-  return {
-    name: SPECIAL_NAME,
-    formulas: [scalingFormula(stats, "power", POWER_LABEL, nova.scaling), ratioFormula(stats, "poise", POISE_LABEL, nova.poise, nova.poiseRatio)],
-  };
+/** 奥義の行為の見出しの頭（行為が 2 つ以上あるときだけ「周囲の威力」のように付ける） */
+const ULTIMATE_ACT_LABEL: Readonly<Record<UltimateAct["kind"] | "aura", string>> = {
+  nova: "周囲",
+  swing: "振り",
+  volley: "弾",
+  lunge: "踏み込み",
+  pull: "引き寄せ",
+  buff: "強化",
+  detonate: "起爆",
+  aura: "まとい",
+};
+
+/** 威力を持つ奥義の行為の係数（見出しの頭・係数・怯み値）。威力を持たない行為（引き寄せ・強化・起爆）は出さない */
+interface UltimateSource {
+  label: string;
+  scaling: Scaling;
+  poise: number;
+  poiseRatio?: AttrRatio;
 }
 
+function actSource(act: UltimateAct): UltimateSource | null {
+  const label = ULTIMATE_ACT_LABEL[act.kind];
+  switch (act.kind) {
+    case "nova":
+      return { label, scaling: act.scaling, poise: act.poise, poiseRatio: act.poiseRatio };
+    case "swing":
+    case "lunge":
+      return { label, scaling: act.step.scaling, poise: act.step.poise, poiseRatio: act.step.poiseRatio };
+    case "volley":
+      return { label, scaling: act.throw.scaling, poise: act.throw.poise, poiseRatio: act.throw.poiseRatio };
+    case "pull":
+    case "buff":
+    case "detonate":
+      return null;
+  }
+}
+
+/** 奥義が持つ威力の源。一撃は行為の列、持続はまとい（aura）と終わりの行為 */
+function ultimateSources(def: UltimateDef): UltimateSource[] {
+  const acts = def.kind === "instant" ? def.acts : (def.sustain.onEnd ?? []);
+  const out = acts.map(actSource).filter((x): x is UltimateSource => x !== null);
+  if (def.kind === "sustain" && def.sustain.aura !== undefined) {
+    const a = def.sustain.aura;
+    out.unshift({ label: ULTIMATE_ACT_LABEL.aura, scaling: a.scaling, poise: a.poise });
+  }
+  return out;
+}
+
+/**
+ * 奥義（F）の式。名前は選んでいる奥義（省略は武器種の 1 本目）、式は威力を持つ行為ごと（同じ式は 1 回だけ）。
+ * 持続の奥義の倍率は通常攻撃に掛かる倍率なので式には出さない（係数を持つのはまといと終わりの行為だけ）
+ */
+export function specialFormulas(stats: Readonly<PlayerStats>, ultimate?: UltimateDef): ActionFormulas {
+  const def = ultimate ?? defaultUltimate(MOVESETS[stats.moveset] ? stats.moveset : DEFAULT_MOVESET);
+  const sources = ultimateSources(def);
+  const prefixed = sources.length > 1;
+  const formulas: ScalingFormula[] = [];
+  const seen = new Set<string>();
+  for (const src of sources) {
+    const head = prefixed ? `${src.label}の` : "";
+    for (const f of [scalingFormula(stats, "power", `${head}${POWER_LABEL}`, src.scaling), ratioFormula(stats, "poise", `${head}${POISE_LABEL}`, src.poise, src.poiseRatio)]) {
+      const text = formulaText(f);
+      if (seen.has(text)) continue;
+      seen.add(text);
+      formulas.push(f);
+    }
+  }
+  return { name: def.name, formulas };
+}
 
 function stepName(index: number): string {
   return `${index + 1} 段目`;
@@ -480,7 +534,7 @@ export function skillFormulas(stats: Readonly<PlayerStats>, key: SkillKey): Scal
 
 export interface AttributeReference {
   attr: AttrKey;
-  /** その参照先を持つ行動の名前（今の武器種・射撃・スキル石・バーストの順） */
+  /** その参照先を持つ行動の名前（今の武器種・射撃・スキル石・奥義の順） */
   names: string[];
 }
 
@@ -488,6 +542,8 @@ export interface LoadoutSources {
   moveset: MovesetDef;
   bullet: string;
   skills: readonly SkillKey[];
+  /** 選んでいる奥義（省略は武器種の 1 本目） */
+  ultimate?: UltimateDef;
 }
 
 function referencesAttr(formulas: readonly ScalingFormula[], attr: AttrKey): boolean {
@@ -514,7 +570,7 @@ function movesetReferenceNames(moveset: Readonly<MovesetDef>, actions: readonly 
  */
 export function attributeReferences(stats: Readonly<PlayerStats>, src: Readonly<LoadoutSources>): AttributeReference[] {
   const { actions, steps } = movesetActions(stats, src.moveset, src.bullet);
-  const special = specialFormulas(stats);
+  const special = specialFormulas(stats, src.ultimate);
   const skillActions = src.skills.map((k): ActionFormulas => ({ name: SKILL_DEFS[k].name, formulas: skillFormulas(stats, k) }));
   return ATTR_KEYS.map((attr) => {
     const names = movesetReferenceNames(src.moveset, actions, attr, steps);

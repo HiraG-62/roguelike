@@ -30,28 +30,35 @@ describe("formatBranchHints", () => {
   });
 });
 
-describe("controlHint（右の固有技と押し方の案内）", () => {
+describe("controlHint（左右の次の段と押し方の案内）", () => {
   it("剣は右で受け流し、刀は右の長押しで居合、大剣は左の長押しで溜め", () => {
-    expect(controlHint(MOVESETS.sword, bulletDef("pistol"))).toBe("右: 受け流し");
-    expect(controlHint(MOVESETS.katana, bulletDef("pistol"))).toBe("右 長押し: 居合");
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"))).toBe("左: 1 段目 / 右: 受け流し");
+    expect(controlHint(MOVESETS.katana, bulletDef("pistol"))).toBe("左: 1 段目 / 右 長押し: 居合");
     expect(controlHint(MOVESETS.greatsword, bulletDef("pistol"))).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
   });
 
-  it("技の再使用中は残り秒を添える", () => {
-    expect(controlHint(MOVESETS.axe, bulletDef("pistol"), 0.84)).toBe("右: 投擲（あと 0.8 秒）");
+  it("段カウンタの次の段を左右それぞれ出す（剣の 2 段目: 左は 2 段目、右は返し斬り）", () => {
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"), 1)).toBe("左: 2 段目 / 右: 返し斬り");
+    expect(controlHint(MOVESETS.wand, bulletDef("pistol"), 2)).toBe("左: 3 段目 / 右: 大魔弾");
+    expect(controlHint(MOVESETS.sidearm, bulletDef("pistol"), 9), "右レーンを超えたら 1 段目").toBe("左: 射撃 / 右 長押し: 狙い撃ち");
+  });
+
+  it("右の段の再使用中は残り秒を添える", () => {
+    expect(controlHint(MOVESETS.axe, bulletDef("pistol"), 0, 0.84)).toBe("左: 1 段目 / 右: 投擲（あと 0.8 秒）");
   });
 
   it("溜めて撃つ弾の型は銃の家系のときだけ左の長押しを案内する", () => {
     expect(controlHint(MOVESETS.longarm, bulletDef("matchlock"))).toBe("左 長押し: 溜め撃ち / 右: 銃剣突き");
-    expect(controlHint(MOVESETS.sword, bulletDef("matchlock")), "剣は撃たない").toBe("右: 受け流し");
+    expect(controlHint(MOVESETS.sword, bulletDef("matchlock")), "剣は撃たない").toBe("左: 1 段目 / 右: 受け流し");
   });
 });
 
 describe("hudHintText（案内の 1 行）", () => {
-  it("技ではない派生があればそれを、無ければ固有技を出す（右単独の技は二重に出さない）", () => {
-    expect(hudHintText(MOVESETS.sword, ["primary", "primary"], bulletDef("pistol"), 0)).toBe("右: 十字断ち");
-    expect(hudHintText(MOVESETS.sword, [], bulletDef("pistol"), 0)).toBe("右: 受け流し");
-    expect(hudHintText(MOVESETS.greatsword, [], bulletDef("pistol"), 0)).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
+  it("成立しそうな派生があればそれを、無ければ左右の次の段を出す", () => {
+    expect(hudHintText(MOVESETS.sword, ["primary", "primary"], bulletDef("pistol"), 2, 0)).toBe("右: 十字断ち");
+    expect(hudHintText(MOVESETS.sword, ["secondary", "primary"], bulletDef("pistol"), 2, 0)).toBe("左: 踏み込み斬り");
+    expect(hudHintText(MOVESETS.sword, [], bulletDef("pistol"), 0, 0)).toBe("左: 1 段目 / 右: 受け流し");
+    expect(hudHintText(MOVESETS.greatsword, [], bulletDef("pistol"), 0, 0)).toBe("左 長押し: 溜め / 右: 薙ぎ払い");
   });
 });
 

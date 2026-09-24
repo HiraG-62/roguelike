@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type WeaponPoseInput,
-  artHoldPose,
+  laneHoldPose,
   edgeNormal,
   edgeView,
   offhandOffset,
@@ -533,12 +533,14 @@ describe("固有技の構え（docs/ideas/weapon-redesign.md 3 章）", () => {
     }
   });
 
-  it("artHoldPose は押している最中の構えの種類を選ぶ", () => {
-    expect(artHoldPose(MOVESETS.sword.steps2[0], true)).toBe("parry");
-    expect(artHoldPose(MOVESETS.shield.steps2[0], true)).toBe("guard");
-    expect(artHoldPose(MOVESETS.sidearm.steps2[0], true)).toBe("aim");
-    expect(artHoldPose(MOVESETS.katana.steps2[0], true), "居合は溜めの経路").toBeUndefined();
-    expect(artHoldPose(MOVESETS.sword.steps2[0], false), "押していなければ構えない").toBeUndefined();
+  it("laneHoldPose は押している最中の構えの種類を選ぶ", () => {
+    expect(laneHoldPose(MOVESETS.sword.steps2[0], true)).toBe("parry");
+    expect(laneHoldPose(MOVESETS.shield.steps2[0], true)).toBe("guard");
+    expect(laneHoldPose(MOVESETS.sidearm.steps2[0], true)).toBe("aim");
+    expect(laneHoldPose(MOVESETS.katana.steps2[0], true), "居合は溜めの経路").toBeUndefined();
+    expect(laneHoldPose(MOVESETS.sword.steps2[0], false), "押していなければ構えない").toBeUndefined();
+    expect(laneHoldPose(MOVESETS.sword.steps2[1], true), "振りの段は構えない").toBeUndefined();
+    expect(laneHoldPose(undefined, true), "段が無ければ構えない").toBeUndefined();
   });
 });
 

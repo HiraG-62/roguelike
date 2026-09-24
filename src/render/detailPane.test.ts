@@ -6,6 +6,8 @@ import { SKILL_KEYS, type SkillStone } from "../skills/types";
 import { detailRect } from "../ui/inventoryLayout";
 import { MOVESET_KEYS, MOVESETS } from "../data/weapons";
 import { chunksText, formulaChunks, movesetFormulas, skillFormulas } from "../ui/scalingText";
+import { ULTIMATES, defaultUltimate } from "../data/ultimates";
+import { ultimateTipLine } from "./detailPane";
 
 /**
  * 詳細欄の計算式の頁が欄に収まるか。文字幅は pixelText の未ロード時の推定（半角 8 / 全角 16 ドット）で測る。
@@ -139,5 +141,18 @@ describe("詳細欄の計算式の頁", () => {
     const rect = detailRect();
     const content = { lines: [{ text: "要点", color: "#fff" }], more: [{ text: "詳しく", color: "#fff" }] };
     expect(detailPaneFits(rect, content, "formula").rows).toBe(detailPaneFits(rect, content, "full").rows);
+  });
+});
+
+describe("右手の要点の奥義の行", () => {
+  it("武器種を持つ武器は、その武器種で選んでいる奥義の名前を出し、武器でなければ出さない", () => {
+    const weapon = BASES.find((b) => b.moveset === "greatsword");
+    const other = BASES.find((b) => b.moveset === undefined);
+    if (!weapon || !other) throw new Error("ベースが無い");
+    const set = ULTIMATES.greatsword;
+    const pick = set[set.length - 1] ?? set[0];
+    expect(ultimateTipLine({}, weaponItem(weapon.key))?.text, "選んでいなければ 1 本目").toContain(defaultUltimate("greatsword").name);
+    expect(ultimateTipLine({ ultimates: { greatsword: pick.key } }, weaponItem(weapon.key))?.text, "選んだ奥義").toContain(pick.name);
+    expect(ultimateTipLine({}, { ...weaponItem(other.key), slot: other.slot }), "武器でなければ行を出さない").toBeNull();
   });
 });

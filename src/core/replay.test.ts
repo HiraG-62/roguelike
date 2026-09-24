@@ -36,6 +36,9 @@ import { descend } from "../system/floor";
 import { allocateAttribute } from "../ui/attributeAlloc";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
+import { ULTIMATES } from "../data/ultimates";
+import { DEFAULT_MOVESET, MOVESET_KEYS } from "../data/weapons";
+import { chosenUltimate } from "../system/ultimates";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -596,5 +599,33 @@ describe("再生中の保存ガード", () => {
     } finally {
       setSaveStorage(null);
     }
+  });
+});
+
+describe("奥義の選択の記録", () => {
+  it("リプレイのスナップショットに奥義の選択が入り、再生側で同じ奥義が出る", () => {
+    const set = ULTIMATES[DEFAULT_MOVESET];
+    const pick = set[set.length - 1] ?? set[0];
+    const other = MOVESET_KEYS.find((k) => k !== DEFAULT_MOVESET) ?? DEFAULT_MOVESET;
+    const profile = createEmptyProfile();
+    profile.ultimates = { [DEFAULT_MOVESET]: pick.key, [other]: ULTIMATES[other][0].key };
+    const { data, state } = recordRun("replay-ultimate", profile, randomInputs(5, 60));
+    expect(data.snapshot.ultimates, "スナップショットに写る").toEqual(profile.ultimates);
+    expect(chosenUltimate(state).key, "記録側の奥義").toBe(pick.key);
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    if (!loaded) throw new Error("sanitize failed");
+    const session = createReplaySession(loaded);
+    expect(session.profile.ultimates, "再生用のプロフィールに入る").toEqual(profile.ultimates);
+    expect(chosenUltimate(session.state).key, "再生側でも同じ奥義").toBe(pick.key);
+  });
+
+  it("壊れた奥義の選択は再生側で捨て、選ばなければ欄を書かない", () => {
+    const { data } = recordRun("replay-ultimate-none", createEmptyProfile(), randomInputs(6, 30));
+    expect(data.snapshot.ultimates, "選んでいなければ書かない").toBeUndefined();
+    const broken = JSON.parse(JSON.stringify(data)) as { snapshot: Record<string, unknown> };
+    broken.snapshot.ultimates = { [DEFAULT_MOVESET]: "no-such-ultimate" };
+    const loaded = sanitizeReplay(broken);
+    if (!loaded) throw new Error("sanitize failed");
+    expect(loaded.snapshot.ultimates, "知らない key は捨てる").toBeUndefined();
   });
 });

@@ -30,6 +30,8 @@ export interface HubView {
   trialWeapon?: string | null;
   /** 借りている素の器の名前。無ければ null */
   loaned?: string | null;
+  /** 試している武器種で選んでいる奥義の名前。無ければ null */
+  trialUltimate?: string | null;
 }
 
 /** 台ごとの操作の言葉（「E: 〜」の〜） */
@@ -43,7 +45,7 @@ const SPOT_ACTION: Readonly<Record<HubSpotKey, string>> = {
   history: "探索履歴を開く",
   codex: "図鑑を開く",
   achievements: "実績を開く",
-  rack: "武器を試す",
+  rack: "武器を試す・奥義を選ぶ",
 };
 
 /** 記録室の 3 台は設備名だけだと区別できないので台の名前を出す */
@@ -121,7 +123,7 @@ function drawPrompt(ctx: CanvasRenderingContext2D, view: HubView): void {
 /** 出撃ゲージの上に、試している武器と借り物を出す（借り物はランが終わると消えることを出撃前に読めるように） */
 function drawRackStatus(ctx: CanvasRenderingContext2D, view: HubView): void {
   const parts: string[] = [];
-  if (view.trialWeapon) parts.push(`試用中: ${view.trialWeapon}`);
+  if (view.trialWeapon) parts.push(view.trialUltimate ? `試用中: ${view.trialWeapon}（奥義: ${view.trialUltimate}）` : `試用中: ${view.trialWeapon}`);
   if (view.loaned) parts.push(`借り物: ${view.loaned}`);
   if (parts.length === 0) return;
   const m = TEXT.SMALL;

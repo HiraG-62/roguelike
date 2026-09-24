@@ -59,8 +59,8 @@ export interface AttackState {
   /** 多段ヒットの今の区切り（0 始まり） */
   hitTick: number;
   /**
-   * 今の振りのレーン（左 = primary の steps / 右 = secondary の steps2）。step は左右で共有する
-   * （docs/ideas/ougi-and-dual-actions.md 4.2。配線は Lane A。今は常に primary）
+   * 今の振りのレーン（左 = primary の steps / 右 = secondary の steps2。派生は最後に押したボタン）。step は左右で共有する
+   * （docs/ideas/ougi-and-dual-actions.md 4.2）。振っていないときの step は次に出す段で、入力の窓が切れると 0 に戻る
    */
   lane: ButtonKey;
   /** 先行入力（buffered）がどちらのボタンか */
@@ -145,9 +145,9 @@ export interface Player {
   /** 近接命中の直後、攻撃方向へ一瞬伸びる残り秒（FEEL.swingImpact。docs/ideas/combat-feel-design.md D-5） */
   swingImpact: number;
   /**
-   * 右クリックの固有技（docs/ideas/weapon-redesign.md 3 章。src/system/weaponArts.ts）。
-   * cooldown = 再使用の残り秒、holding / holdTime = 構え・受け流し・狙い撃ちを押している最中とその秒、recover = 受け流しを外した硬直の残り秒。
-   * cooldowns = 右レーンの段（ActionStepDef.key）ごとの再使用の残り秒（Lane A で配線。今は cooldown だけが効く）
+   * 右レーン（アクション 2）の振り以外の段（src/system/weaponArts.ts）。
+   * cooldown = 弾・手元返しの段を出した後の共有の間（WEAPON.artDefaults.laneGap）の残り秒、holding / holdTime = 構え・受け流し・狙い撃ちを押している最中とその秒、
+   * recover = 受け流しを外した硬直の残り秒、cooldowns = 右レーンの段（ActionStepDef.key）ごとの再使用の残り秒
    */
   art: { cooldown: number; holding: boolean; holdTime: number; recover: number; cooldowns: Map<string, number> };
   /** 奥義（F）の作業領域 */

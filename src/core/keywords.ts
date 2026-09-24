@@ -75,7 +75,7 @@ export const KEYWORD_DEFS: Readonly<Record<Keyword, KeywordDef>> = {
   counter: { label: "カウンター", glyph: "返", color: "#ff9060" },
   still: { label: "静止", glyph: "静", color: "#9090c0" },
   mana: { label: "気力", glyph: "気", color: "#6080ff" },
-  energy: { label: "必殺ゲージ", glyph: "必", color: "#ffe040" },
+  energy: { label: "奥義ゲージ", glyph: "奥", color: "#ffe040" },
   lowHp: { label: "瀕死", glyph: "瀕", color: "#c03030" },
   heal: { label: "回復", glyph: "癒", color: "#60ff80" },
   hurt: { label: "被弾", glyph: "傷", color: "#ff6060" },

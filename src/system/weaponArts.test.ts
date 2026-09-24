@@ -4,24 +4,25 @@ import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { WEAPON } from "../data/tuning";
-import { GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
+import { type ActionStepDef, type MovesetKey, GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
 import { botInput, createBotState } from "../qa/bot";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { damagePlayer } from "./combat";
-import { playerMoveset, shotDamage, updatePlayer } from "./player";
+import { nextLaneIndex, playerMoveset, shotDamage, updatePlayer } from "./player";
 import { createSkillRunState, updateSkills } from "./skills";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { actionCooldownLeft } from "./weaponArts";
 import { bulletDef } from "../loot/bullets";
 
 /**
- * 右クリックの固有技（docs/ideas/weapon-redesign.md 3 章 / system/weaponArts.ts）と銃の家系。
- * 実際の入力（step）を通して、技の種類ごとの出方・再使用・被弾への効き方を状態と数値で確かめる
+ * 右クリック = アクション 2（右レーン。docs/ideas/ougi-and-dual-actions.md 4 章 / system/weaponArts.ts）と銃の家系。
+ * 実際の入力（step）を通して、段の種類ごとの出方・段カウンタ・再使用・被弾への効き方を状態と数値で確かめる
  */
 
 const TOUGH_HP = 99999;
 const NO_ATTACK_COOLDOWN = 99;
-/** 振り・技を終えるまで待つ上限のステップ */
+/** 振り・段を終えるまで待つ上限のステップ */
 const SETTLE_STEPS = 90;
 const HIT = 10;
 
@@ -39,6 +40,8 @@ function play(state: GameState, frames: readonly Partial<FrameInput>[]): void {
 const idle = (n: number): Partial<FrameInput>[] => Array.from({ length: n }, () => ({}));
 const holdRight = (n: number): Partial<FrameInput>[] => Array.from({ length: n }, () => ({ shootHeld: true }));
 const stepsFor = (sec: number): number => Math.ceil(sec / FIXED_DT);
+/** 入力の窓（段カウンタ）が確実に切れるまでの空フレーム */
+const chainReset = (): Partial<FrameInput>[] => idle(stepsFor(WEAPON.chainWindow) + 2);
 
 function playerShots(state: GameState): Projectile[] {
   return state.projectiles.filter((pr) => pr.owner === "player");
@@ -54,8 +57,21 @@ function branchKey(state: GameState): string | undefined {
   return playerMoveset(state).branches[state.player.attack.branch]?.key;
 }
 
-describe("右クリックの固有技", () => {
-  it("右クリックは武器種の固有技を出す（剣は受け流し、大剣は薙ぎ払い）", () => {
+/** 今振っている右レーンの段の key（右の振りでなければ undefined） */
+function laneKey(state: GameState): string | undefined {
+  const a = state.player.attack;
+  if (a.lane !== "secondary" || a.branch >= 0 || a.phase === "none") return undefined;
+  return playerMoveset(state).steps2[a.step]?.key;
+}
+
+function laneStepOf<K extends ActionStepDef["kind"]>(key: MovesetKey, index: number, kind: K): Extract<ActionStepDef, { kind: K }> {
+  const s = MOVESETS[key].steps2[index];
+  if (s?.kind !== kind) throw new Error(`${key} の右 ${index + 1} 段目は ${kind} ではない`);
+  return s as Extract<ActionStepDef, { kind: K }>;
+}
+
+describe("右レーンの 1 段目（旧固有技）", () => {
+  it("右の 1 段目は武器種の技を出す（剣は受け流し、大剣は薙ぎ払い）", () => {
     const sword = arena(5);
     play(sword, [{ shootHeld: true }]);
     expect(sword.player.art.holding, "剣は受け流しの構え").toBe(true);
@@ -64,10 +80,11 @@ describe("右クリックの固有技", () => {
 
     const gs = arena(5, { moveset: "greatsword" });
     play(gs, [{ shootHeld: true }]);
-    expect(branchKey(gs), "大剣は薙ぎ払い").toBe("sweep");
+    expect(laneKey(gs), "大剣は薙ぎ払い").toBe("sweep");
+    expect(gs.player.attack.branch, "派生ではなく右レーンの段").toBe(-1);
   });
 
-  it("strike の技は派生として branches に混ざり、長い列の派生が優先される（左左右 → 兜割り）", () => {
+  it("名前付きの派生は右レーンの段より優先される（左左右 → 兜割り）", () => {
     const state = arena(5, { moveset: "greatsword" });
     play(state, [{ attackPressed: true }, ...idle(3), { attackPressed: true }, ...idle(3), { shootHeld: true }]);
     for (let i = 0; i < SETTLE_STEPS && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
@@ -88,18 +105,37 @@ describe("右クリックの固有技", () => {
     expect(state.events.some((ev) => ev.kind === "onCounter"), "カウンター扱い").toBe(true);
     expect(state.player.invulnTimer, "受け流した直後は無敵").toBeGreaterThan(0);
     expect(state.player.art.recover, "成功なら硬直しない").toBe(0);
+    expect(state.player.attack.step, "受け流しが決まると段が進む").toBe(1);
   });
 
   it("受け流しの窓を過ぎた被弾は通り、外した硬直が付く", () => {
     const state = arena(5);
     const e = tough(placeEnemy(state, "boar", 14));
-    const parry = WEAPON.movesets.sword.art.hold.parry;
+    const parry = laneStepOf("sword", 0, "hold").hold.parry;
+    if (!parry) throw new Error("剣の右 1 段目は受け流し");
     play(state, holdRight(stepsFor(parry.windowSec) + 1));
     expect(state.player.art.holding, "窓が閉じた").toBe(false);
     expect(state.player.art.recover, "外した硬直").toBeGreaterThan(0);
     const hp = state.player.hp;
     expect(damagePlayer(state, HIT, e.body.pos, e)).toBe("hit");
     expect(state.player.hp, "生命が減る").toBeLessThan(hp);
+  });
+
+  it("受け流しは右 1 段目で、離す・窓が閉じると段が進む（右右 = 受け流し → 返し斬り）", () => {
+    const state = arena(5);
+    play(state, [{ shootHeld: true }, {}]);
+    expect(state.player.art.holding, "受け流しの窓").toBe(true);
+    expect(state.player.attack.step, "受け流しは 1 段目").toBe(0);
+    play(state, [{ shootHeld: true }]);
+    expect(state.player.art.holding, "次の右で受け流しを解く").toBe(false);
+    expect(laneKey(state), "2 段目は返し斬り").toBe("returnCut");
+    expect(state.player.attack.step).toBe(1);
+
+    const closed = arena(5);
+    const parry = laneStepOf("sword", 0, "hold").hold.parry;
+    play(closed, [{ shootHeld: true }, ...idle(stepsFor(parry?.windowSec ?? 0) + 1)]);
+    expect(closed.player.art.holding, "窓が閉じた").toBe(false);
+    expect(closed.player.attack.step, "窓が閉じても段が進む").toBe(1);
   });
 
   it("盾の構えは前方の被ダメを減らし、後ろからは減らさない", () => {
@@ -119,23 +155,26 @@ describe("右クリックの固有技", () => {
     expect(lossFrom(-20, true), "後ろからは減らない").toBe(lossFrom(-20, false));
   });
 
-  it("構えを離すと盾押しが出る", () => {
+  it("構えを離した盾押しは今までどおり派生として出る", () => {
     const state = arena(5, { moveset: "shield" });
     play(state, [...holdRight(10), {}]);
     expect(state.player.art.holding, "離した").toBe(false);
     expect(branchKey(state), "盾押し").toBe("guard.release");
     expect(state.player.attack.phase).not.toBe("none");
+    expect(actionCooldownLeft(state, MOVESETS.shield.steps2[0]), "構えの再使用は離したときに立つ").toBeGreaterThan(0);
   });
 
-  it("斧の投擲は戻る弾を出し、再使用が明ける前は出ない", () => {
+  it("斧の投擲は戻る弾を出して段を進め、再使用が明ける前は出ない", () => {
     const state = arena(5, { moveset: "axe" });
     play(state, [{ shootHeld: true }, {}]);
     const first = playerShots(state);
     expect(first, "1 本投げた").toHaveLength(1);
     expect(featuresOf(first[0]), "行って戻る弾").toEqual(["boomerang"]);
     expect(first[0]?.kind, "射撃扱い").toBe("ranged");
-    expect(first[0]?.attack, "弾の素性は技のもの").toEqual(MOVESETS.axe.steps2[0].kind === "volley" ? MOVESETS.axe.steps2[0].throw.attack : undefined);
-    expect(state.player.art.cooldown, "再使用が立った").toBeGreaterThan(0);
+    expect(first[0]?.attack, "弾の素性は段のもの").toEqual(laneStepOf("axe", 0, "volley").throw.attack);
+    expect(actionCooldownLeft(state, MOVESETS.axe.steps2[0]), "再使用が立った").toBeGreaterThan(0);
+    expect(state.player.attack.step, "投げたら段だけ進む").toBe(1);
+    play(state, chainReset());
     const before = state.projectiles.length;
     play(state, [{ shootHeld: true }, {}]);
     expect(state.projectiles.length, "再使用中は投げない").toBeLessThanOrEqual(before);
@@ -150,23 +189,55 @@ describe("右クリックの固有技", () => {
     const damage = shot.damage;
     play(state, [{ shootHeld: true }]);
     expect(shot.vel.x, "手元へ向いた").toBeLessThan(0);
-    expect(shot.damage).toBeCloseTo(damage * WEAPON.movesets.thrown.art.recall.returnDamageMul);
+    expect(shot.damage).toBeCloseTo(damage * laneStepOf("thrown", 0, "recall").recall.returnDamageMul);
   });
 
-  it("技の再使用中は右を押しても何も起きず、入力列にも積まない", () => {
+  it("再使用中の右段は入力列に積まない", () => {
     const state = arena(5, { moveset: "axe" });
-    play(state, [{ shootHeld: true }, {}]);
+    play(state, [{ shootHeld: true }, {}, ...chainReset()]);
+    expect(state.player.attack.step, "窓が切れて 1 段目に戻った").toBe(0);
     const inputs = [...state.player.attack.inputs];
     const count = state.projectiles.length;
     play(state, [{ shootHeld: true }]);
     expect(state.player.attack.inputs, "入力列は変わらない").toEqual(inputs);
     expect(state.projectiles.length, "投げない").toBeLessThanOrEqual(count);
+    expect(state.player.attack.phase, "振りもしない").toBe("none");
+  });
+
+  it("弾を出す右段は押した瞬間に出て段だけ進む（杖の右右右 = 魔弾・魔弾・大魔弾）", () => {
+    const state = arena(5, { moveset: "wand" });
+    const gap = stepsFor(WEAPON.artDefaults.laneGap) + 1;
+    // 魔弾は寿命が短いので、出た弾を id で数える
+    const fired = new Map<number, number>();
+    const record = (): number => {
+      for (const pr of playerShots(state)) if (!fired.has(pr.id)) fired.set(pr.id, pr.damage);
+      return fired.size;
+    };
+    play(state, [{ shootHeld: true }]);
+    expect(record(), "1 発目の魔弾").toBe(1);
+    expect(state.player.attack.phase, "振らない").toBe("none");
+    expect(state.player.attack.step, "段が進む").toBe(1);
+    play(state, [...idle(gap), { shootHeld: true }]);
+    expect(record(), "2 発目の魔弾").toBe(2);
+    expect(state.player.attack.step).toBe(2);
+    play(state, [...idle(gap), { shootHeld: true }]);
+    expect(record(), "3 発目の大魔弾").toBe(3);
+    const [bolt, , great] = [...fired.values()];
+    expect(great ?? 0, "大魔弾は魔弾より強い").toBeGreaterThan(bolt ?? 0);
+    expect(state.player.attack.step, "4 段目（杖突き）へ").toBe(3);
+  });
+
+  it("弾・手元返しの段の直後は共有の間（laneGap）が明けるまで次の弾の段を押せない", () => {
+    const state = arena(5, { moveset: "wand" });
+    play(state, [{ shootHeld: true }, {}, { shootHeld: true }]);
+    expect(playerShots(state), "間の中の右は出ない").toHaveLength(1);
+    expect(state.player.attack.step, "段も進まない").toBe(1);
   });
 
   it("双剣の影踏みは踏み込みの間だけ無敵", () => {
     const state = arena(5, { moveset: "twinBlades" });
     play(state, [{ shootHeld: true }]);
-    expect(branchKey(state)).toBe("shadowStep");
+    expect(laneKey(state)).toBe("shadowStep");
     expect(state.player.invulnTimer, "踏み込み中は無敵").toBeGreaterThan(0);
   });
 
@@ -177,18 +248,19 @@ describe("右クリックの固有技", () => {
     if (!mine) throw new Error("設置弾が出ていない");
     state.player.facing = { x: 1, y: 0 };
     play(state, [{ shootHeld: true }]);
-    expect(branchKey(state)).toBe("pointBlank");
+    expect(laneKey(state)).toBe("pointBlank");
     expect(state.player.knock.x, "後ろへ押された").toBeLessThan(0);
     play(state, idle(2));
     expect(mine.shot?.detonated, "設置弾が炸裂した").toBe(true);
   });
 
   it("短銃の狙い撃ち: 溜めて離すと強く貫く 1 発、溜めずに離すと普通の 1 発", () => {
-    const aim = WEAPON.movesets.sidearm.art.aim;
+    const aim = laneStepOf("sidearm", 0, "aim").aim;
     const tap = arena(5, { moveset: "sidearm" });
     play(tap, [{ shootHeld: true }, {}]);
     const weak = playerShots(tap);
     expect(weak, "1 発").toHaveLength(1);
+    expect(tap.player.attack.step, "離したら段が進む").toBe(1);
 
     const charged = arena(5, { moveset: "sidearm" });
     play(charged, [...holdRight(stepsFor(aim.time) + 2), {}]);
@@ -198,7 +270,7 @@ describe("右クリックの固有技", () => {
     expect(strong[0]?.pierceLeft, "貫通が増える").toBe((weak[0]?.pierceLeft ?? 0) + aim.pierceBonus);
   });
 
-  it("変身中の右クリックは変身が引き受ける（遠吠え）", () => {
+  it("変身中の右は変身が引き受ける（遠吠え）", () => {
     const state = arena(5);
     const stone = { ...stoneFromSeed(901, { foundDepth: 1, now: 0, skillKey: "wolfForm" }), variants: [], links: 0 };
     state.skills = createSkillRunState({ version: 1, loadout: [stone.id], stones: [stone] });
@@ -211,6 +283,7 @@ describe("右クリックの固有技", () => {
     updatePlayer(state, withInput({ shootHeld: true }), FIXED_DT);
     expect(near.status.effects.some((s) => s.kind === "fear"), "遠吠えで恐怖").toBe(true);
     expect(state.player.art.holding, "剣の受け流しは出ない").toBe(false);
+    expect(state.player.attack.inputs, "右レーンの入力列にも積まない").toEqual([]);
     expect(SKILL.wolfForm.howlRadius).toBeGreaterThan(30);
   });
 });
@@ -227,6 +300,17 @@ describe("銃の家系", () => {
       play(gun, [{ attackPressed: true, attackHeld: true }]);
       expect(playerShots(gun).length, `${key} は左で撃つ`).toBeGreaterThan(0);
       expect(gun.player.attack.phase, `${key} は振らない`).toBe("none");
+    }
+  });
+
+  it("銃の家系は左で撃ち右で 3 段の連撃を出す", () => {
+    for (const key of GUN_MOVESETS) {
+      const state = arena(5, { moveset: key, bullet: "pistol" });
+      tough(placeEnemy(state, "golem", 200));
+      const lane = MOVESETS[key].steps2;
+      expect(lane, `${key} の右は 3 段`).toHaveLength(3);
+      const last = lane[2]?.key ?? "";
+      expect(driveRight(state, last), `${key} は右だけで 3 段目（${last}）まで進む`).toBe(true);
     }
   });
 
@@ -254,7 +338,7 @@ describe("銃の家系", () => {
     const state = arena(5, { moveset: "grenade", bullet: "mortar" });
     const e = tough(placeEnemy(state, "boar", 20));
     play(state, [{ shootHeld: true }]);
-    expect(branchKey(state)).toBe("tubeBash");
+    expect(laneKey(state)).toBe("tubeBash");
     expect(state.player.knock.x, "後ろへ下がった").toBeLessThan(0);
     play(state, idle(20));
     expect(e.hp, "筒払いが当たった").toBeLessThan(TOUGH_HP);
@@ -265,13 +349,28 @@ describe("銃の家系", () => {
     const state = arena(5, { moveset: "trapper", bullet: "mineLauncher" });
     play(state, [{ shootHeld: true }, {}]);
     const mines = playerShots(state);
-    expect(mines, "3 つ撒いた").toHaveLength(WEAPON.movesets.trapper.art.throw.count);
+    expect(mines, "3 つ撒いた").toHaveLength(laneStepOf("trapper", 0, "volley").throw.count);
     for (const m of mines) expect(featuresOf(m), "設置弾").toEqual(["mine"]);
     const angles = new Set(mines.map((m) => Math.round(Math.atan2(m.vel.y, m.vel.x) * 100)));
     expect(angles.size, "扇に散る").toBe(mines.length);
-    expect(state.player.art.cooldown, "再使用が立った").toBeGreaterThan(0);
-    play(state, [{ shootHeld: true }, {}]);
+    expect(actionCooldownLeft(state, MOVESETS.trapper.steps2[0]), "再使用が立った").toBeGreaterThan(0);
+    play(state, [...chainReset(), { shootHeld: true }, {}]);
     expect(playerShots(state).length, "再使用中は撒かない").toBe(mines.length);
+  });
+
+  it("仕掛けの右 3 段目の起爆は床の自分の設置弾をすべて起爆する", () => {
+    const state = arena(5, { moveset: "trapper", bullet: "mineLauncher" });
+    const gap = stepsFor(WEAPON.artDefaults.laneGap) + 1;
+    play(state, [{ shootHeld: true }, ...idle(gap), { shootHeld: true }]);
+    expect(laneKey(state), "2 段目は罠蹴り").toBe("trapKick");
+    const mine = playerShots(state)[0];
+    if (!mine) throw new Error("設置弾が出ていない");
+    for (let i = 0; i < SETTLE_STEPS && state.player.attack.phase !== "recover"; i++) step(state, withInput({}), FIXED_DT);
+    play(state, [{ shootHeld: true }]);
+    for (let i = 0; i < SETTLE_STEPS && laneKey(state) !== "detonate"; i++) step(state, withInput({}), FIXED_DT);
+    expect(laneKey(state), "3 段目は起爆").toBe("detonate");
+    play(state, idle(2));
+    expect(mine.shot?.detonated, "設置弾が炸裂した").toBe(true);
   });
 
   it("戦輪は左で回転刃を投げ、右の輪払いは背中側の敵にも近接で当たる", () => {
@@ -286,10 +385,42 @@ describe("銃の家系", () => {
     expect(state.player.meleeHitCount, "輪払いが当たった").toBeGreaterThan(0);
     expect(side.hp).toBeLessThan(TOUGH_HP);
   });
+
+  it("銃の家系の派生は装備の弾を出す（二丁拳銃の左左右 = 二連）", () => {
+    const state = arena(5, { moveset: "gunner", bullet: "pistol" });
+    const cooldown = stepsFor(0.6);
+    play(state, [{ attackPressed: true }, {}, { attackPressed: true }, {}, { shootHeld: true }]);
+    for (let i = 0; i < SETTLE_STEPS && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
+    expect(branchKey(state)).toBe("twinShot");
+    const shots = playerShots(state).filter((pr) => pr.shot === undefined);
+    expect(shots.length, "装備の弾（短銃の弾）を 2 発").toBe(2);
+    play(state, idle(cooldown));
+  });
 });
 
-describe("QA bot と固有技", () => {
-  function botArena(moveset: "sidearm" | "greatsword", dx: number): GameState {
+/**
+ * 右だけを押して右レーンを進める（再使用・共有の間が明けるのを待ち、振りの最中は先行入力で繋ぐ）。
+ * key の段（振りなら振り始め、弾なら弾が出た）に届いたら true
+ */
+function driveRight(state: GameState, key: string): boolean {
+  let pressed = false;
+  for (let i = 0; i < SETTLE_STEPS * 3; i++) {
+    const p = state.player;
+    const a = p.attack;
+    const moveset = playerMoveset(state);
+    const index = nextLaneIndex(state, moveset);
+    const next = index === undefined ? undefined : moveset.steps2[index];
+    const ready = next !== undefined && actionCooldownLeft(state, next) === 0 && !p.art.holding && !a.buffered && a.phase !== "windup";
+    const press: boolean = !pressed && ready;
+    step(state, withInput({ shootHeld: press }), FIXED_DT);
+    pressed = press;
+    if (laneKey(state) === key || playerShots(state).some((pr) => pr.shot?.key === `art.${key}`)) return true;
+  }
+  return false;
+}
+
+describe("QA bot と右レーン", () => {
+  function botArena(moveset: "sidearm" | "greatsword" | "sword", dx: number): GameState {
     const state = arena(5, { moveset });
     state.skills = createSkillRunState({ version: 1, loadout: [], stones: [] });
     // 攻撃間隔の長い敵（先読みの回避を評価しない）
@@ -298,17 +429,22 @@ describe("QA bot と固有技", () => {
     return state;
   }
 
-  it("bot は銃なら左を押し、近接なら右の技を周期的に使う", () => {
+  it("bot は銃なら左を押し続ける", () => {
     const gun = botArena("sidearm", 60);
     const gunInput = botInput(gun, createBotState(1), FIXED_DT);
     expect(gunInput.attackHeld, "銃は左を押す").toBe(true);
+  });
 
-    const melee = botArena("greatsword", 16);
-    const bot = createBotState(1);
-    const first = botInput(melee, bot, FIXED_DT);
-    expect(first.shootHeld, "射程内で右の技を押す").toBe(true);
-    const second = botInput(melee, bot, FIXED_DT);
-    expect(second.shootHeld, "続けては押さない").toBe(false);
-    expect(second.attackPressed, "間は左で振る").toBe(true);
+  it("bot は近接の射程内で左右を混ぜて振る", () => {
+    const state = botArena("sword", 16);
+    const bot = createBotState(3);
+    const lanes = new Set<string>();
+    for (let i = 0; i < 600; i++) {
+      step(state, botInput(state, bot, FIXED_DT), FIXED_DT);
+      state.enemies[0]!.body.pos = { x: state.player.body.pos.x + 16, y: state.player.body.pos.y };
+      const a = state.player.attack;
+      if (a.phase !== "none" && a.branch < 0) lanes.add(a.lane);
+    }
+    expect([...lanes].sort(), "左右の両方の段を振った").toEqual(["primary", "secondary"]);
   });
 });

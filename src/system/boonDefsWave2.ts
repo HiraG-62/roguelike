@@ -226,7 +226,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   earthWrath: {
     key: "earthWrath",
     name: "大地の怒り",
-    desc: "地形の上の敵を倒すと、その地形が周りへ広がる。バーストで周囲の油と草に火がつく。",
+    desc: "地形の上の敵を倒すと、その地形が周りへ広がる。奥義で周囲の油と草に火がつく。",
     icon: "怒",
     rarity: "epic",
     tags: ["melee", "terrain", "burn"],
@@ -298,7 +298,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   hundredBlades: {
     key: "hundredBlades",
     name: "百刃",
-    desc: `終撃が当たると照準方向へ貫通する刃の波が飛ぶ。得意な武器なら必殺ゲージ+${BOON.hundredBladesEnergy}。`,
+    desc: `終撃が当たると照準方向へ貫通する刃の波が飛ぶ。得意な武器なら奥義ゲージ+${BOON.hundredBladesEnergy}。`,
     icon: "百",
     rarity: "epic",
     tags: ["melee", "combo", "energy"],
@@ -388,7 +388,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   fistsHeat: {
     key: "fistsHeat",
     name: "連打の熱",
-    desc: `拳でコンボ${BOON.fistsHeatCombo}以上の間、当たるたび必殺ゲージ+${BOON.fistsHeatEnergy}。`,
+    desc: `拳でコンボ${BOON.fistsHeatCombo}以上の間、当たるたび奥義ゲージ+${BOON.fistsHeatEnergy}。`,
     icon: "拳",
     rarity: "common",
     tags: ["melee", "combo", "energy"],
@@ -600,7 +600,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   elementTorrent: {
     key: "elementTorrent",
     name: "属性の奔流",
-    desc: `近接に属性が付いている間、反応を起こすたび必殺ゲージ+${BOON.elementTorrentEnergy}。`,
+    desc: `近接に属性が付いている間、反応を起こすたび奥義ゲージ+${BOON.elementTorrentEnergy}。`,
     icon: "奔",
     rarity: "common",
     tags: ["element", "energy"],
@@ -744,7 +744,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   favoredPride: {
     key: "favoredPride",
     name: "得物の誉れ",
-    desc: `ジョブの得意な武器の終撃が当たると必殺ゲージ+${BOON.favoredPrideEnergy}。`,
+    desc: `ジョブの得意な武器の終撃が当たると奥義ゲージ+${BOON.favoredPrideEnergy}。`,
     icon: "誉",
     rarity: "common",
     tags: ["melee", "energy"],
@@ -759,7 +759,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   namelessPride: {
     key: "namelessPride",
     name: "無名の誇り",
-    desc: `見習いの間、倒すたび気力+${BOON.namelessMana}・必殺ゲージ+${BOON.namelessEnergy}。`,
+    desc: `見習いの間、倒すたび気力+${BOON.namelessMana}・奥義ゲージ+${BOON.namelessEnergy}。`,
     icon: "名",
     rarity: "common",
     tags: ["mana", "energy"],
@@ -799,7 +799,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   hordeLord: {
     key: "hordeLord",
     name: "巣窟の主",
-    desc: `巣窟・試練・闘技場の波が始まるたび、必殺ゲージ+${BOON.hordeLordEnergy}・気力+${BOON.hordeLordMana}。`,
+    desc: `巣窟・試練・闘技場の波が始まるたび、奥義ゲージ+${BOON.hordeLordEnergy}・気力+${BOON.hordeLordMana}。`,
     icon: "巣",
     rarity: "rare",
     tags: ["room", "energy", "mana"],
@@ -810,7 +810,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   hordeEater: {
     key: "hordeEater",
     name: "群れ喰らい",
-    desc: `巣窟で戦う間、倒すたび生命+${BOON.hordeEaterHeal}・必殺ゲージ+${BOON.hordeEaterEnergy}。`,
+    desc: `巣窟で戦う間、倒すたび生命+${BOON.hordeEaterHeal}・奥義ゲージ+${BOON.hordeEaterEnergy}。`,
     icon: "群",
     rarity: "common",
     tags: ["room", "hp", "energy"],
@@ -824,7 +824,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   roamHunt: {
     key: "roamHunt",
     name: "徘徊狩り",
-    desc: `徘徊の敵を倒すと気力+${BOON.roamHuntMana}・必殺ゲージ+${BOON.roamHuntEnergy}。`,
+    desc: `徘徊の敵を倒すと気力+${BOON.roamHuntMana}・奥義ゲージ+${BOON.roamHuntEnergy}。`,
     icon: "徊",
     rarity: "common",
     tags: ["room", "mana", "energy"],
@@ -854,7 +854,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   wayfarer: {
     key: "wayfarer",
     name: "旅慣れ",
-    desc: `バイオームの階では、地形に踏み込むたび必殺ゲージ+${BOON.wayfarerEnergy}、制圧で気力+${BOON.wayfarerClearMana}。`,
+    desc: `バイオームの階では、地形に踏み込むたび奥義ゲージ+${BOON.wayfarerEnergy}、制圧で気力+${BOON.wayfarerClearMana}。`,
     icon: "旅",
     rarity: "common",
     tags: ["room", "terrain", "energy"],
@@ -941,7 +941,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   bloodSoil: {
     key: "bloodSoil",
     name: "血染めの地",
-    desc: `地形に踏み込むたび必殺ゲージ+${BOON.bloodSoilEnergy}。その代わり、そのたび自分が出血する。`,
+    desc: `地形に踏み込むたび奥義ゲージ+${BOON.bloodSoilEnergy}。その代わり、そのたび自分が出血する。`,
     icon: "染",
     rarity: "rare",
     tags: ["energy", "terrain", "bleed"],
@@ -1002,7 +1002,7 @@ export const BOONS_WAVE2: Readonly<Record<BoonKeyWave2, BoonDef>> = {
   strayBounty: {
     key: "strayBounty",
     name: "野良の賞金",
-    desc: `徘徊の敵を倒すと必殺ゲージが満ちる。その代わり、交戦していない間に被弾すると自分が${BOON.strayBountyWeaken}秒弱体する。`,
+    desc: `徘徊の敵を倒すと奥義ゲージが満ちる。その代わり、交戦していない間に被弾すると自分が${BOON.strayBountyWeaken}秒弱体する。`,
     icon: "賞",
     rarity: "rare",
     tags: ["room", "energy"],

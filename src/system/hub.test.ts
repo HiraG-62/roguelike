@@ -6,7 +6,9 @@ import { HUB, STASH_CAPACITY } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import { ensureGrowthFields } from "../loot/migrate";
 import { recordProvenance } from "../loot/provenance";
-import { returnLoaned } from "../loot/profile";
+import { loadProfile, returnLoaned, saveProfile, ultimateChoice } from "../loot/profile";
+import { ULTIMATES, defaultUltimate } from "../data/ultimates";
+import { MemoryStorage } from "../meta/testStorage";
 import { computeStats } from "../loot/stats";
 import { createEmptyProfile } from "../loot/types";
 import { TILE_SIZE, Tile, getTile } from "../map/grid";
@@ -16,7 +18,7 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
 import { damageEnemy, damagePlayer, recordRunOnce } from "./combat";
-import { type HubSession, borrowRackEntry, borrowWeapon, createHub, setTrialKeystone, setTrialWeapon, stepHub, trialKeystoneKeys } from "./hub";
+import { type HubSession, borrowRackEntry, borrowWeapon, chooseRackUltimate, createHub, setTrialKeystone, setTrialWeapon, stepHub, trialKeystoneKeys } from "./hub";
 import { DUMMY_KEY } from "./specialRooms";
 import { applyStats } from "./player";
 import { withInput } from "./testHelpers";
@@ -302,5 +304,28 @@ describe("武器掛け", () => {
       const p = layout.spots[key];
       expect(Math.hypot(p.x - rack.x, p.y - rack.y), `${key} と離れている`).toBeGreaterThan(HUB.interactRadius * 2);
     }
+  });
+});
+
+describe("武器掛けの奥義", () => {
+  it("武器掛けで奥義を選ぶと profile.ultimates に保存され、読み直しても残る", () => {
+    const session = hub();
+    const set = ULTIMATES.greatsword;
+    const pick = set[set.length - 1] ?? set[0];
+    expect(chooseRackUltimate(session, "greatsword", pick.key), "選べた").toBe(true);
+    expect(session.state.profile.ultimates?.greatsword, "profile に書かれる").toBe(pick.key);
+    const storage = new MemoryStorage();
+    saveProfile(session.state.profile, storage);
+    const loaded = loadProfile(storage);
+    expect(loaded.ultimates?.greatsword, "読み直しても残る").toBe(pick.key);
+    expect(ultimateChoice(loaded, "greatsword").key, "選んだ奥義が引ける").toBe(pick.key);
+  });
+
+  it("武器種の違う奥義は選べず、選択は変わらない", () => {
+    const session = hub();
+    const swordKey = defaultUltimate("sword").key;
+    expect(chooseRackUltimate(session, "greatsword", swordKey), "剣の奥義を大剣に付けない").toBe(false);
+    expect(chooseRackUltimate(session, "greatsword", "no-such-ultimate"), "知らない key").toBe(false);
+    expect(session.state.profile.ultimates, "何も書かない").toBeUndefined();
   });
 });

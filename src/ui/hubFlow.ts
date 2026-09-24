@@ -3,8 +3,10 @@
  * 設備は既存の画面を開く近道で、閉じたら拠点へ戻る（docs/ideas/hub-design.md 4 章 レーン C）
  */
 import type { GameState } from "../core/state";
+import { ULTIMATES, type UltimateDef, type UltimateKind, ultimateDef } from "../data/ultimates";
 import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { KEYSTONES } from "../loot/affixes";
+import { ultimateChoice } from "../loot/profile";
 import type { Item, Profile } from "../loot/types";
 import type { HubSpotKey } from "../map/hubMap";
 import type { AchievementSave } from "../meta/achievements";
@@ -84,12 +86,14 @@ export function trialKeyOfEntry(key: string): string | null {
 }
 
 /**
- * 武器掛けの行が指すもの。key が null の行は「装備のものに戻す」。
- * 銃の家系（GUN_MOVESETS）も武器種の列に並ぶ（docs/ideas/weapon-redesign.md 5.4）
+ * 武器掛けの行が指すもの。moveset: key が null の行は「装備のものに戻す」。
+ * 銃の家系（GUN_MOVESETS）も武器種の列に並ぶ（docs/ideas/weapon-redesign.md 5.4）。
+ * ultimate: 武器種の行の下に並ぶ奥義の行（選ぶと profile.ultimates に残る。docs/ideas/ougi-and-dual-actions.md 5 章）
  */
-export type RackRow = { kind: "moveset"; key: MovesetKey | null };
+export type RackRow = { kind: "moveset"; key: MovesetKey | null } | { kind: "ultimate"; moveset: MovesetKey; key: string };
 
 const RACK_MOVESET = "moveset";
+const RACK_ULTIMATE = "ultimate";
 const RACK_SEP = ":";
 const RACK_HINT = "決定で試す。長押しで性質なしの武器を借りて出撃できる（探索が終わると消える）。";
 
@@ -115,20 +119,58 @@ function movesetDetail(key: MovesetKey): string {
   return `${def.desc}。${branchText} ${RACK_HINT}`;
 }
 
-/**
- * 武器掛けの一覧。武器種のタブに全種（銃の家系を含む）を並べ、試しているものに marked を付ける。
- * 行の key は moveset:<key>（rackEntryOf で戻す）
- */
-export function rackTabs(trialMoveset: MovesetKey | null): ListTab[] {
-  const movesets: ListEntry[] = MOVESET_KEYS.map((k) => ({
+/** 奥義の行の頭（武器種の行の下に字下げして並べる） */
+const ULTIMATE_ROW_HEAD = "　奥義: ";
+const ULTIMATE_CHOSEN_INFO = "選択中";
+const ULTIMATE_KIND_LABEL: Readonly<Record<UltimateKind, string>> = { instant: "一撃", sustain: "持続" };
+const ULTIMATE_KIND_DETAIL: Readonly<Record<UltimateKind, string>> = {
+  instant: "一撃の奥義（奥義ゲージを使い切って出す）。",
+  sustain: "持続の奥義（奥義ゲージが減る間続く。もう一度 F で終える）。",
+};
+const ULTIMATE_HINT = "決定でこの武器種の奥義にする（拠点を出ても残る）。";
+const SENTENCE_END = "。";
+
+function ultimateRowKey(key: string): string {
+  return `${RACK_ULTIMATE}${RACK_SEP}${key}`;
+}
+
+function sentence(text: string): string {
+  return text.endsWith(SENTENCE_END) ? text : `${text}${SENTENCE_END}`;
+}
+
+function ultimateEntry(def: UltimateDef, chosen: boolean): ListEntry {
+  return {
+    key: ultimateRowKey(def.key),
+    known: true,
+    name: `${ULTIMATE_ROW_HEAD}${def.name}`,
+    info: chosen ? ULTIMATE_CHOSEN_INFO : ULTIMATE_KIND_LABEL[def.kind],
+    detail: `${sentence(def.desc)} ${ULTIMATE_KIND_DETAIL[def.kind]} ${ULTIMATE_HINT}`,
+    marked: chosen,
+  };
+}
+
+/** 武器種の行と、その下に選べる奥義の行（本数は data/ultimates.ts の定義のまま） */
+function movesetRows(k: MovesetKey, trialMoveset: MovesetKey | null, ultimates: Readonly<Pick<Profile, "ultimates">>): ListEntry[] {
+  const chosen = ultimateChoice(ultimates, k).key;
+  const moveset: ListEntry = {
     key: rackKey(k),
     known: true,
     name: MOVESETS[k].name,
     info: trialMoveset === k ? "試用中" : "",
     detail: movesetDetail(k),
     marked: trialMoveset === k,
-  }));
-  return [{ label: `武器種 ${MOVESET_KEYS.length}`, entries: [rackClearEntry(trialMoveset), ...movesets] }];
+  };
+  return [moveset, ...ULTIMATES[k].map((def) => ultimateEntry(def, def.key === chosen))];
+}
+
+/**
+ * 武器掛けの一覧。武器種のタブに全種（銃の家系を含む）を並べ、試しているものに marked を付ける。
+ * 各武器種の行の下に奥義の行を並べ、選んでいる奥義に marked を付ける。
+ * 行の key は moveset:<key> / ultimate:<奥義の key>（rackEntryOf で戻す）
+ */
+export function rackTabs(trialMoveset: MovesetKey | null, ultimates: Readonly<Pick<Profile, "ultimates">> = {}): ListTab[] {
+  const rows = MOVESET_KEYS.flatMap((k) => movesetRows(k, trialMoveset, ultimates));
+  return [{ label: `武器種 ${MOVESET_KEYS.length}`, entries: [rackClearEntry(trialMoveset), ...rows] }];
 }
 
 function isMovesetKey(v: string): v is MovesetKey {
@@ -141,6 +183,10 @@ export function rackEntryOf(key: string): RackRow | null {
   if (sep < 0) return null;
   const kind = key.slice(0, sep);
   const rest = key.slice(sep + 1);
+  if (kind === RACK_ULTIMATE) {
+    const def = ultimateDef(rest);
+    return def === undefined ? null : { kind: "ultimate", moveset: def.moveset, key: def.key };
+  }
   if (kind !== RACK_MOVESET) return null;
   const clear = rest === NO_TRIAL_KEY;
   return clear ? { kind: "moveset", key: null } : isMovesetKey(rest) ? { kind: "moveset", key: rest } : null;

@@ -80,9 +80,9 @@ const ACTION_LABEL: Record<RebindableAction, string> = {
   left: "左",
   right: "右",
   dash: "ダッシュ",
-  attack: "攻撃",
-  shoot: "固有技",
-  special: "バースト",
+  attack: "攻撃 1（左）",
+  shoot: "攻撃 2（右）",
+  special: "奥義",
   inventory: "装備画面",
   skill1: "スキル 1",
   skill2: "スキル 2",
@@ -317,7 +317,7 @@ export function drawTitle(
     "N: シード編集   H: 履歴   O: 設定",
     "C: 図鑑   Q: 依頼   A: 実績",
     "WASD / 矢印キー: 移動、Space: ダッシュ",
-    "E / 左クリック: 攻撃（銃は射撃）、Q / 右クリック: 固有技、F: バースト",
+    "E / 左クリック: 攻撃 1（銃は射撃）、Q / 右クリック: 攻撃 2、F: 奥義",
   ];
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
   // 右下の隅にバージョン表示、その上に操作一覧

@@ -544,11 +544,11 @@ describe("系譜（前段を持つと次段が出る）", () => {
     expect(w).toBeCloseTo(BOON.rarityWeight[BOONS.wildfire.rarity] * BOON.lineageWeightMul);
   });
 
-  it("奥義（4 段目）は 3 段目に加えて装備のタグを要求する", () => {
+  it("真髄（4 段目）は 3 段目に加えて装備のタグを要求する", () => {
     const owned: BoonKey[] = ["emberSeed", "wildfire", "ashBed"];
     expect(boonWeight(BOONS.scorchedEarth, none, owned), "装備に燃焼が無い").toBe(0);
     expect(boonWeight(BOONS.scorchedEarth, burn, owned)).toBeGreaterThan(0);
-    // 祝福が出す燃焼は requires を満たさない（奥義は装備で選ぶ）
+    // 祝福が出す燃焼は requires を満たさない（真髄は装備で選ぶ）
     expect(boonWeight(BOONS.scorchedEarth, none, owned, new Set<BoonTag>(["burn"]))).toBe(0);
   });
 

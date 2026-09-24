@@ -11,8 +11,12 @@ import {
   returnLoaned,
   salvageItem,
   saveProfile,
+  sanitizeUltimateChoices,
+  ultimateChoice,
   unequipItem,
 } from "./profile";
+import { ULTIMATES, defaultUltimate } from "../data/ultimates";
+import { MOVESET_KEYS } from "../data/weapons";
 import { migrateItem } from "./migrate";
 import { createEmptyProfile } from "./types";
 import type { Item, RunHistoryEntry } from "./types";
@@ -373,5 +377,41 @@ describe("借り物（武器掛け）", () => {
     expect(profile.equipment.mainHand, "装備から消える").toBeNull();
     expect(profile.stash.map((it) => it.id), "自分の品は残る").toEqual(["own"]);
     expect(returnLoaned(profile), "2 回目は何もしない").toBe(false);
+  });
+});
+
+describe("奥義の選択（Profile.ultimates）", () => {
+  /** 武器種の最後の奥義（本数に依存しない。1 本しか無ければ既定と同じ） */
+  function lastUltimateKey(moveset: (typeof MOVESET_KEYS)[number]): string {
+    const set = ULTIMATES[moveset];
+    return (set[set.length - 1] ?? set[0]).key;
+  }
+
+  it("不正な奥義の key や武器種違いの組は捨てて既定へ落ちる", () => {
+    const storage = new MemoryStorage();
+    const profile = createEmptyProfile();
+    const good = lastUltimateKey("sword");
+    const other = lastUltimateKey("greatsword");
+    const raw = {
+      ...profile,
+      ultimates: { sword: good, greatsword: "no-such-ultimate", spear: other, notAMoveset: good, whip: 42 },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(raw));
+    const loaded = loadProfile(storage);
+    expect(loaded.ultimates, "正しい組だけ残る").toEqual({ sword: good });
+    expect(ultimateChoice(loaded, "greatsword").key, "知らない key は既定").toBe(defaultUltimate("greatsword").key);
+    expect(ultimateChoice(loaded, "spear").key, "武器種違いは既定").toBe(defaultUltimate("spear").key);
+    expect(sanitizeUltimateChoices("壊れた値"), "オブジェクトでなければ欄ごと捨てる").toBeUndefined();
+    expect(sanitizeUltimateChoices({ spear: other }), "1 組も残らなければ欄ごと捨てる").toBeUndefined();
+  });
+
+  it("奥義を選んでいない武器種は 1 本目が既定", () => {
+    const profile = createEmptyProfile();
+    for (const k of MOVESET_KEYS) {
+      expect(ultimateChoice(profile, k).key, `${k} は 1 本目`).toBe(ULTIMATES[k][0].key);
+    }
+    const storage = new MemoryStorage();
+    saveProfile(profile, storage);
+    expect(loadProfile(storage).ultimates, "選んでいなければ欄は書かれない").toBeUndefined();
   });
 });

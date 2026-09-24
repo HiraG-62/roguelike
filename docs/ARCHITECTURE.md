@@ -144,7 +144,7 @@ GameState
 
 | キー | 中身 | 読み書き |
 | --- | --- | --- |
-| `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件） | `loot/profile.ts` |
+| `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件）・武器掛けで選ぶ奥義 `ultimates`（sanitize は `sanitizeUltimateChoices`） | `loot/profile.ts` |
 | `roguelike.skills.v1` | スキル石とスロット | `skills/persistence.ts` |
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
 | `roguelike.settings.v1` | ミュート・音量・音楽の音量・画面揺れ | `ui/settings.ts` |

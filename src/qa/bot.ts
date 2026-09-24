@@ -9,8 +9,9 @@ import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { isSolidTile, overlapsWall } from "../system/physics";
-import { playerMoveset } from "../system/player";
-import { type MovesetDef, isGun } from "../data/weapons";
+import { nextLaneIndex, playerMoveset } from "../system/player";
+import { actionCooldownLeft } from "../system/weaponArts";
+import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
@@ -62,10 +63,21 @@ const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parr
 const MELEE_CHARGE_HOLD = 0.85;
 const SHOT_CHARGE_HOLD = 0.75;
 /**
- * 右クリックの固有技（docs/ideas/weapon-redesign.md 6 章）: strike / throw は射程内でこの秒ごとに右を 1 フレーム押す。
- * parry は敵の予備動作を見て PARRY_HOLD 秒押す。guard / charge / recall は使わない（QA の穴として report に注記）
+ * 右クリック（アクション 2。docs/ideas/ougi-and-dual-actions.md 4.4）: 近接は射程内で左右を混ぜた列（LANE_PATTERNS）を 1 押しずつ出す。
+ * 銃の家系と射程外の弾・手元返しの右段は、連撃の始めだけこの秒ごとに右を 1 フレーム押し、連撃の途中は続けて押す。
+ * 受け流しは敵の予備動作を見て PARRY_HOLD 秒押す。居合は MELEE_CHARGE_HOLD 秒溜める。盾の構え・狙い撃ちは 1 フレームだけ押す（溜めない。QA の穴として report に注記）
  */
 const ART_PERIOD = 1.0;
+const P: ButtonKey = "primary";
+const S: ButtonKey = "secondary";
+/** 近接の射程内で出す左右の列（左左左 / 左左右 / 右左左 / 左右左 / 右右右）。bot.rng で 1 列選び、出し終えたら次を選ぶ */
+const LANE_PATTERNS: readonly (readonly ButtonKey[])[] = [
+  [P, P, P],
+  [P, P, S],
+  [S, P, P],
+  [P, S, P],
+  [S, S, S],
+];
 const PARRY_HOLD = 0.2;
 /** 予備動作を見たとき、回避より受け流しを選ぶ確率（両方の経路を踏ませる） */
 const PARRY_CHANCE = 0.5;
@@ -140,8 +152,10 @@ export interface BotState {
   skillCastAttempts: number;
   /** 拾おうとしたドロップ品の id。倉庫が満杯で拾えなかったものを毎フレーム押し続けないため */
   triedDropIds: Set<number>;
-  /** 次に固有技（strike / throw）を押せるまでの秒 */
+  /** 次に右の連撃を始められるまでの秒（銃の家系・射程外の弾の段） */
   artTimer: number;
+  /** 近接の射程内で出し残っている左右の列（先頭から 1 押しずつ） */
+  laneQueue: ButtonKey[];
   /** 受け流しの右を押し続ける残り秒 */
   parryTimer: number;
 }
@@ -164,6 +178,7 @@ export function createBotState(seed: number): BotState {
     skillCastAttempts: 0,
     triedDropIds: new Set(),
     artTimer: 0,
+    laneQueue: [],
     parryTimer: 0,
   };
 }
@@ -616,19 +631,29 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     return input;
   }
 
-  // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃・固有技でマナを貯める
+  // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃・右の連撃でマナを貯める
   const moveset = playerMoveset(state);
-  if (pressArtInput(state, bot, moveset, d, input)) return input;
-  // 射撃は銃の家系だけ。近接の武器種は近づいて振る（docs/ideas/weapon-redesign.md 0 章）
+  // 射撃は銃の家系だけ。近接の武器種は近づいて左右を混ぜて振る（docs/ideas/weapon-redesign.md 0 章）
+  if (!isGun(moveset) && d < MELEE_RANGE) {
+    pressMixedLane(state, bot, moveset, input);
+    return input;
+  }
+  // 銃は左で撃ち続けながら、射程内なら右の連撃も押す
   if (isGun(moveset)) input.attackHeld = shootHeldFor(state);
-  else if (d < MELEE_RANGE) pressAttack(state, input);
+  pressRightLane(state, bot, moveset, d, input);
   return input;
 }
 
-/** 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに右を押し続ける。押したら true */
+/** 次に右を押すと出る右レーンの段（連撃が続かなければ undefined） */
+function nextRightStep(state: GameState, moveset: MovesetDef): ActionStepDef | undefined {
+  const index = nextLaneIndex(state, moveset);
+  return index === undefined ? undefined : moveset.steps2[index];
+}
+
+/** 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに右を押し続ける（次の右段が受け流しのときだけ）。押したら true */
 function tryParryInput(state: GameState, bot: BotState, enemy: Enemy, d: number, input: FrameInput): boolean {
-  const art = playerMoveset(state).art;
-  if (art.kind !== "hold" || !art.hold.parry || state.player.art.cooldown > 0) return false;
+  const s = nextRightStep(state, playerMoveset(state));
+  if (s?.kind !== "hold" || !s.hold.parry || actionCooldownLeft(state, s) > 0 || state.player.attack.phase !== "none") return false;
   if (enemy.phase !== "windup" || d >= DANGER_RANGE || !bot.rng.chance(PARRY_CHANCE)) return false;
   bot.parryTimer = PARRY_HOLD;
   input.shootHeld = true;
@@ -636,23 +661,59 @@ function tryParryInput(state: GameState, bot: BotState, enemy: Enemy, d: number,
 }
 
 /**
- * 固有技（strike / throw）を射程内で ART_PERIOD 秒ごとに 1 フレームだけ押す。押したら true。
- * 前のフレームも右を押していると「押した瞬間」にならないので、押しっぱなしにはしない
+ * 近接の射程内: 左右を混ぜた列を 1 押しずつ出す（振りの予備動作中・先行入力済み・派生の予約中は待つ）。
+ * 右が再使用中なら左に替える。溜めている間は溜めの役割のボタンを押し続けて MELEE_CHARGE_HOLD 秒で離す
  */
-function pressArtInput(state: GameState, bot: BotState, moveset: MovesetDef, d: number, input: FrameInput): boolean {
-  if (bot.artTimer > 0 || state.player.art.cooldown > 0 || state.player.secondaryWasHeld) return false;
-  const range = artRange(moveset);
+function pressMixedLane(state: GameState, bot: BotState, moveset: MovesetDef, input: FrameInput): void {
+  const p = state.player;
+  const a = p.attack;
+  if (a.charging) {
+    const release = a.chargeTime >= MELEE_CHARGE_HOLD;
+    if (chargeButton(moveset) === "secondary") input.shootHeld = !release;
+    else input.attackHeld = !release;
+    return;
+  }
+  if (a.buffered || a.pendingBranch >= 0 || a.phase === "windup" || p.art.holding) return;
+  if (bot.laneQueue.length === 0) bot.laneQueue = [...bot.rng.pick(LANE_PATTERNS)];
+  const button = bot.laneQueue[0];
+  if (button === S && p.secondaryWasHeld) return;
+  bot.laneQueue.shift();
+  const s = button === S ? nextRightStep(state, moveset) : undefined;
+  if (button === S && (s === undefined || actionCooldownLeft(state, s) === 0)) {
+    input.shootHeld = true;
+    return;
+  }
+  pressAttack(state, input);
+}
+
+/**
+ * 銃の家系と、近接の射程外で次の右段が弾・手元返しのとき: 右段の射程内なら右を 1 フレーム押す。
+ * 連撃の始め（1 段目）は ART_PERIOD 秒ごと、連撃の途中は振りが先行入力を受ける時点で続けて押す。押したら true
+ */
+function pressRightLane(state: GameState, bot: BotState, moveset: MovesetDef, d: number, input: FrameInput): boolean {
+  const p = state.player;
+  const a = p.attack;
+  if (p.secondaryWasHeld || a.buffered || a.pendingBranch >= 0 || a.phase === "windup" || p.art.holding) return false;
+  const index = nextLaneIndex(state, moveset);
+  const s = index === undefined ? undefined : moveset.steps2[index];
+  if (index === undefined || s === undefined || actionCooldownLeft(state, s) > 0) return false;
+  const range = laneRange(s);
   if (range === undefined || d > range) return false;
+  if (index === 0 && bot.artTimer > 0) return false;
+  if (!isGun(moveset) && !isRangedStep(s)) return false;
   bot.artTimer = ART_PERIOD;
   input.shootHeld = true;
   return true;
 }
 
-/** bot が使う技の射程。構え・溜め・手元返しは使わない（undefined） */
-function artRange(moveset: MovesetDef): number | undefined {
-  const art = moveset.art;
-  if (art.kind === "throw") return ART_THROW_RANGE;
-  if (art.kind === "strike") return art.step.reach + art.step.size / 2 + ART_STRIKE_MARGIN;
+function isRangedStep(s: ActionStepDef): boolean {
+  return s.kind === "volley" || s.kind === "recall";
+}
+
+/** bot が右段を押す射程。狙い撃ちは溜めずに離す（普通の 1 発）。構え・溜めは射程外からは押さない（undefined） */
+function laneRange(s: ActionStepDef): number | undefined {
+  if (isRangedStep(s) || s.kind === "aim") return ART_THROW_RANGE;
+  if (s.kind === "swing") return s.step.reach + s.step.size / 2 + ART_STRIKE_MARGIN;
   return undefined;
 }
 

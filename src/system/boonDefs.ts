@@ -353,7 +353,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reflect: {
     key: "reflect",
     name: "弾返し",
-    desc: "近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージが3倍増える。",
+    desc: "近接攻撃で敵弾を撃ち返す。撃ち返すと奥義ゲージが3倍増える。",
     icon: "P",
     rarity: "common",
     tags: ["melee", "energy"],
@@ -574,7 +574,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   comboClock: {
     key: "comboClock",
     name: "刻限コンボ",
-    desc: "コンボ受付時間が半分になる代わりに、10コンボごとに必殺ゲージが満タンになる。",
+    desc: "コンボ受付時間が半分になる代わりに、10コンボごとに奥義ゲージが満タンになる。",
     icon: "@",
     rarity: "rare",
     tags: ["combo", "energy"],
@@ -592,7 +592,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   overcharge: {
     key: "overcharge",
     name: "過充填",
-    desc: "必殺ゲージが満タンの間、斬撃が爆発する。",
+    desc: "奥義ゲージが満タンの間、斬撃が爆発する。",
     icon: "O",
     rarity: "rare",
     tags: ["energy", "melee", "explode"],
@@ -606,7 +606,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   burstRefund: {
     key: "burstRefund",
     name: "残響爆発",
-    desc: "バーストでの撃破ごとにゲージが25%還元される。",
+    desc: "奥義での撃破ごとにゲージが25%還元される。",
     icon: "E",
     rarity: "common",
     tags: ["energy"],
@@ -939,7 +939,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   scorchedEarth: {
     key: "scorchedEarth",
     name: "焦土",
-    desc: "バーストが周囲の燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。",
+    desc: "奥義が周囲の燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。",
     icon: "焦",
     rarity: "epic",
     tags: ["burn", "energy", "element"],
@@ -1108,7 +1108,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   highTide: {
     key: "highTide",
     name: "満ち潮",
-    desc: "気力が満タンの間、通常攻撃の命中で必殺ゲージが余分に溜まる。",
+    desc: "気力が満タンの間、通常攻撃の命中で奥義ゲージが余分に溜まる。",
     icon: "潮",
     rarity: "rare",
     tags: ["mana", "energy"],
@@ -1516,7 +1516,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   regroupHunt: {
     key: "regroupHunt",
     name: "立て直し狩り",
-    desc: "堅守中の敵を倒すと必殺ゲージが30%溜まる。",
+    desc: "堅守中の敵を倒すと奥義ゲージが30%溜まる。",
     icon: "堅",
     rarity: "common",
     tags: ["guarded", "energy"],
@@ -1540,7 +1540,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   cashOut: {
     key: "cashOut",
     name: "換金",
-    desc: "バーストを撃つとコンボを0にして、コンボ数の2倍の気力を得る。",
+    desc: "奥義を撃つとコンボを0にして、コンボ数の2倍の気力を得る。",
     icon: "換",
     rarity: "common",
     tags: ["combo", "mana", "energy"],
@@ -1580,7 +1580,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reaperShadow: {
     key: "reaperShadow",
     name: "死神の影",
-    desc: "死神の警告中と出現中は、撃破するたび気力+10・必殺ゲージ+10。",
+    desc: "死神の警告中と出現中は、撃破するたび気力+10・奥義ゲージ+10。",
     icon: "影",
     rarity: "common",
     tags: ["reaper", "mana", "energy"],
@@ -1847,7 +1847,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   criticalMass: {
     key: "criticalMass",
     name: "臨界",
-    desc: "バーストの後3秒間は、必殺ゲージが空でも斬撃が爆発する。",
+    desc: "奥義の後3秒間は、奥義ゲージが空でも斬撃が爆発する。",
     icon: "臨",
     rarity: "epic",
     tags: ["energy", "explode"],

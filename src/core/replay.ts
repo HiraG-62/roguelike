@@ -22,7 +22,7 @@ import type { GameState } from "./state";
 import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
 import { ATTR_KEYS, SLOTS, createEmptyProfile, type Attributes, type Equipment, type Item, type Profile, uniformAttributes } from "../loot/types";
-import { PROFILE_KEY } from "../loot/profile";
+import { PROFILE_KEY, sanitizeUltimateChoices } from "../loot/profile";
 import { guardSaveWrites } from "../save/backend";
 import { SKILL_PROFILE_KEY, ownedRunes, stoneInSlot } from "../skills/persistence";
 import { MODIFIER_KEYS, SKILL_KEYS, type RuneItem, type SkillProfile, type SkillStone } from "../skills/types";
@@ -67,7 +67,7 @@ export interface ReplayLoadout {
   runeCount?: number;
   /**
    * 武器種ごとに選んだ奥義の key（Profile.ultimates の写し。REPLAY_VERSION 9 から）。
-   * 無い武器種はその武器種の 1 本目。写し・適用は captureLoadout / applyLoadout（Lane C）
+   * 無い武器種はその武器種の 1 本目。写し・適用は captureLoadout / applyLoadout
    */
   ultimates?: Partial<Record<MovesetKey, string>>;
 }
@@ -381,7 +381,14 @@ export function captureLoadout(profile: Profile, skillProfile: SkillProfile): Re
     stashCount: profile.stash.length,
     stoneCount: skillProfile.stones.length,
     runeCount: ownedRunes(skillProfile).length,
+    ...ultimatesField(profile.ultimates),
   };
+}
+
+/** 奥義の選択の写し（選んでいなければ欄ごと書かない = 旧記録と同じ形） */
+function ultimatesField(ultimates: Profile["ultimates"]): Pick<ReplayLoadout, "ultimates"> {
+  if (ultimates === undefined || Object.keys(ultimates).length === 0) return {};
+  return { ultimates: { ...ultimates } };
 }
 
 function equipmentSignature(equipment: Equipment): string {
@@ -389,7 +396,7 @@ function equipmentSignature(equipment: Equipment): string {
 }
 
 function loadoutSignature(l: ReplayLoadout): string {
-  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.runeCount ?? 0]);
+  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.runeCount ?? 0, l.ultimates ?? {}]);
 }
 
 function allocSignature(alloc: Attributes): string {
@@ -450,6 +457,9 @@ function applyLoadout(profile: Profile, skillProfile: SkillProfile, loadout: Rep
   skillProfile.stones = stones;
   skillProfile.loadout = equipped.map((s) => (s ? s.id : null));
   resizeWith(ownedRunes(skillProfile), loadout.runeCount ?? 0, placeholderRune);
+  // 記録に無い武器種は既定（1 本目）で出るので、選択は丸ごと置き換える
+  if (loadout.ultimates === undefined) delete profile.ultimates;
+  else profile.ultimates = { ...loadout.ultimates };
 }
 
 /**
@@ -774,6 +784,7 @@ function sanitizeLoadout(v: unknown): ReplayLoadout | null {
     stashCount: Math.max(0, Math.floor(v.stashCount)),
     stoneCount: Math.max(0, Math.floor(v.stoneCount)),
     runeCount: isFiniteNumber(v.runeCount) ? Math.max(0, Math.floor(v.runeCount)) : 0,
+    ...ultimatesField(sanitizeUltimateChoices(v.ultimates)),
   };
 }
 

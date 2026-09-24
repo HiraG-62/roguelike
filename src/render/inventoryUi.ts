@@ -47,7 +47,8 @@ import {
 } from "../ui/inventory";
 import { drawBudModal } from "./budUi";
 import { drawAttributePanel, drawSummaryHead } from "./attributeUi";
-import { DETAIL_GAP_LINE, type DetailContent, type DetailLine, drawDetailPane } from "./detailPane";
+import { DETAIL_GAP_LINE, type DetailContent, type DetailLine, drawDetailPane, ultimateTipLine } from "./detailPane";
+import { chosenUltimate } from "../system/ultimates";
 import { MOVESETS } from "../data/weapons";
 import {
   type ActionFormulas,
@@ -190,7 +191,7 @@ function loadoutSources(state: GameState): LoadoutSources {
     const stone = stoneInSlot(state.skills.profile, i);
     if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
   }
-  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills };
+  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills, ultimate: chosenUltimate(state) };
 }
 
 /** ステータスごとに参照している行動の行（「筋力: 大剣の連撃・地裂き」） */
@@ -369,6 +370,8 @@ function itemDetailLines(state: GameState, item: Item): { lines: TipLine[]; more
   const lines: TipLine[] = [{ text: d.name, color: itemColor(item) }];
   if (d.inscription !== undefined && d.inscription !== d.name) lines.push({ text: `銘「${d.inscription}」`, color: COLOR_INSCRIPTION });
   lines.push({ text: d.subtitle, color: COLOR_DIM });
+  const ult = ultimateTipLine(state.profile, item);
+  if (ult) lines.push(ult);
   lines.push(DETAIL_GAP_LINE);
   for (const line of d.lines) lines.push(traitTipLine(line));
   for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });

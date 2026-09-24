@@ -24,6 +24,7 @@ import { boonForcesCrit, boonPoise } from "./boonRules";
 import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
+import { noteUltimateKill, ultimateBlocksEnergy, ultimateCritBonus, ultimateIncomingMul, ultimateOutgoingMul } from "./ultimates";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -130,6 +131,8 @@ export function rollOutgoing(
   if (opts.skill) amount *= s.skillDamageMul;
   if (hasStatus(p.status, "weaken")) amount *= 1 - STATUS.weaken.mul;
   amount *= playerStatusOutgoingMul(state);
+  // 持続の奥義の倍率（通常攻撃だけ。奥義の行為は proc なので掛からない）
+  if (kind === "melee" || kind === "ranged") amount *= ultimateOutgoingMul(state, enemy);
   // 霊体化（skills/forms.ts）はすり抜ける代わりに与ダメが落ちる。forms.ts を import すると循環の評価順が崩れるので state を直に見る
   if (state.skills.shape?.key === "wraithForm") amount *= WAVE3_SKILL_TUNING.wraithForm.outgoingMul;
 
@@ -139,7 +142,7 @@ export function rollOutgoing(
     amount *= comboDamageMul(state);
     if (p.justTimer > 0) amount *= s.justDodgeDamageMul;
     if (p.buffs.damage.time > 0) amount *= p.buffs.damage.mul;
-    crit = state.rng.chance(s.critChance) || boonForcesCrit(state, enemy, kind);
+    crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || boonForcesCrit(state, enemy, kind);
     if (crit) amount *= s.critMul;
   }
   amount *= berserkerMul(state);
@@ -276,6 +279,8 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
 /** 必殺ゲージを増やす（energyGainMul 込み） */
 export function gainEnergy(state: GameState, amount: number): void {
   const p = state.player;
+  // 持続の奥義の最中は貯めない（殴り続けて終わらなくなるのを防ぐ）
+  if (ultimateBlocksEnergy(state)) return;
   p.energy = Math.min(p.maxEnergy, p.energy + amount * state.stats.energyGainMul);
 }
 
@@ -284,6 +289,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   // 鐘の蘇生体は撃破数・ドロップ・来歴の撃破に数えない（蘇生と撃破を繰り返して稼がせない）
   const counted = enemy.revived !== true;
   if (counted) state.kills += 1;
+  noteUltimateKill(state);
   const gained = Math.round(def.score * comboMultiplier(state.combo.count));
   state.score += gained;
   spawnBurst(state, enemy.body.pos, def.color, 18, 160, 0.5, 2.5);
@@ -469,7 +475,7 @@ export function damagePlayer(
   // 右クリックの固有技: 受け流しの窓は無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
   if (tryParry(state, attacker)) return "ignored";
 
-  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker) * guardDamageMul(state, fromPos);
+  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker) * guardDamageMul(state, fromPos) * ultimateIncomingMul(state, fromPos);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);

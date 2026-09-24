@@ -460,16 +460,16 @@ export interface WeaponPoseInput {
   readonly aimHeld: boolean;
   /** 片刃・片頭の武器の刃の側（sprites/weapons.ts の WEAPON_EDGE）。無ければ刃の向きを選ばない */
   readonly edge?: WeaponEdge;
-  /** 右クリックの固有技を押している最中の構え（phase が none のときだけ効く） */
+  /** 右レーンの構え・狙いの段を押している最中の構え（phase が none のときだけ効く） */
   readonly hold?: HoldPose;
 }
 
-/** 固有技の構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
+/** 右レーンの構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
 export type HoldPose = "parry" | "guard" | "aim";
 
-/** 右レーンの段と押している最中かから、構えの姿勢を選ぶ（構えの無い段・押していないなら undefined） */
-export function artHoldPose(step: ActionStepDef, holding: boolean): HoldPose | undefined {
-  if (!holding) return undefined;
+/** 右レーンの段と押している最中かから、構えの姿勢を選ぶ（構えの無い段・段が無い・押していないなら undefined） */
+export function laneHoldPose(step: ActionStepDef | undefined, holding: boolean): HoldPose | undefined {
+  if (!holding || step === undefined) return undefined;
   if (step.kind === "hold") return step.hold.parry ? "parry" : "guard";
   if (step.kind === "aim") return "aim";
   return undefined;
@@ -601,7 +601,7 @@ const AIM_PUSH = 2;
 const QUARTER_TURN = Math.PI / 2;
 
 /**
- * 固有技の構え。受け流しは照準の先に拳を出して刃を上へ立て（剣を横に寝かせた受けの形）、
+ * 右レーンの構え。受け流しは照準の先に拳を出して刃を上へ立て（剣を横に寝かせた受けの形）、
  * 盾は照準へ突き出し、狙い撃ちは照準へ腕を伸ばす
  */
 function holdPose(input: WeaponPoseInput): WeaponPose {

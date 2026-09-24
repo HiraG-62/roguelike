@@ -103,7 +103,7 @@ export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   belowHalfHp: "（生命 50% 未満）",
   comboAbove10: "（10 コンボ以上）",
   roomLocked: "（部屋で交戦中）",
-  fullEnergy: "（必殺ゲージ満タン）",
+  fullEnergy: "（奥義ゲージ満タン）",
   manaFull: "（気力満タン）",
   manaLow: "（気力残りわずか）",
   selfAfflicted: "（自分が状態異常中）",
@@ -182,7 +182,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     duration: { min: 2, max: 4 },
     text: (m, _c, d) => `${d ?? "0"} 秒間移動速度 +${m}%`,
   },
-  energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `必殺ゲージを${m}獲得する` },
+  energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `奥義ゲージを${m}獲得する` },
   invuln: {
     // 上限は TRIGGER.invulnMax（docs/COMBAT_DESIGN.md C-1 の 13）。揺らぎの上振れは decode 側でも切る
     base: 0.35,

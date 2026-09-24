@@ -1,5 +1,7 @@
 import { saveStorage } from "../save/backend";
 import { STASH_CAPACITY } from "../data/tuning";
+import { type UltimateDef, defaultUltimate, isUltimateKey, ultimateDef } from "../data/ultimates";
+import { MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { migrateItem } from "./migrate";
 import {
   type AffixRoll,
@@ -273,6 +275,42 @@ function sanitizeMeta(v: unknown): ProfileMeta {
   return { runs, bestDepth, totalKills, bestScore, history };
 }
 
+function isMovesetKey(v: string): v is MovesetKey {
+  return (MOVESET_KEYS as readonly string[]).includes(v);
+}
+
+/**
+ * 武器種ごとの奥義の選択を検証する。武器種の key・定義済みの奥義の key・その奥義がその武器種のもの、の
+ * 3 つが揃う組だけを通す（壊れた組は黙って捨て、その武器種は既定 = 1 本目に落ちる）。1 組も無ければ undefined。
+ * リプレイの sanitizeLoadout も同じ規則で通す
+ */
+export function sanitizeUltimateChoices(v: unknown): Partial<Record<MovesetKey, string>> | undefined {
+  if (!isRecord(v)) return undefined;
+  const out: Partial<Record<MovesetKey, string>> = {};
+  let count = 0;
+  for (const [moveset, key] of Object.entries(v)) {
+    if (!isMovesetKey(moveset) || !isUltimateKey(key)) continue;
+    if (ultimateDef(key)?.moveset !== moveset) continue;
+    out[moveset] = key;
+    count += 1;
+  }
+  return count > 0 ? out : undefined;
+}
+
+/** 武器種で選んでいる奥義（選んでいない・壊れているなら 1 本目）。拠点の武器掛け・装備画面の表示用 */
+export function ultimateChoice(profile: Readonly<Pick<Profile, "ultimates">>, moveset: MovesetKey): UltimateDef {
+  const key = profile.ultimates?.[moveset];
+  const def = key === undefined ? undefined : ultimateDef(key);
+  return def !== undefined && def.moveset === moveset ? def : defaultUltimate(moveset);
+}
+
+/** 武器種の奥義を選ぶ（保存は呼び出し側が saveProfile）。その武器種の奥義でない key なら何もせず false */
+export function chooseUltimate(profile: Profile, moveset: MovesetKey, key: string): boolean {
+  if (ultimateDef(key)?.moveset !== moveset) return false;
+  profile.ultimates = { ...profile.ultimates, [moveset]: key };
+  return true;
+}
+
 /** 保存されたプロフィールを読み込む。無い/壊れている/version 不一致なら空プロフィール */
 export function loadProfile(storage?: Storage): Profile {
   const target = storage ?? saveStorage();
@@ -296,7 +334,10 @@ export function loadProfile(storage?: Storage): Profile {
 
   const stash = sanitizeStash(parsed.stash);
   const equipment = sanitizeEquipment(parsed.equipment, stash);
-  return { version: CURRENT_VERSION, equipment, stash, meta: sanitizeMeta(parsed.meta) };
+  const profile: Profile = { version: CURRENT_VERSION, equipment, stash, meta: sanitizeMeta(parsed.meta) };
+  const ultimates = sanitizeUltimateChoices(parsed.ultimates);
+  if (ultimates !== undefined) profile.ultimates = ultimates;
+  return profile;
 }
 
 function isLoaned(item: Item | null | undefined): boolean {

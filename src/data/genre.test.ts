@@ -51,7 +51,7 @@ describe("武器種・銃の弾・必殺の係数", () => {
   });
 
   it("弾と必殺の係数表が正しい形", () => {
-    expectSane([PLAYER.shoot.scaling, ULTIMATE.defs.fullMoon.nova.scaling], "射撃・必殺");
+    expectSane([PLAYER.shoot.scaling, ULTIMATE.defs.sword.fullMoon.nova.scaling], "射撃・必殺");
     for (const s of Object.values(BULLETS)) if (s.scaling) expectSane([s.scaling], s.key);
   });
 

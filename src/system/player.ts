@@ -17,6 +17,8 @@ import {
   bulletFeatures,
   chargeLevelAt,
   isGun,
+  laneLength,
+  laneSwing,
   matchBranch,
   meleeChargeOf,
   withExtraBranch,
@@ -68,8 +70,19 @@ import {
 } from "./boons";
 import { boonCounterable, onBoonShootInput } from "./boonRules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
-import { artInputBlocked, artLocksActions, artMoveMul, endArtHold, onArtStrike, startArt, updateArt } from "./weaponArts";
-import { createUltimateState, tryUltimate, ultimateMoveset, updateUltimate } from "./ultimates";
+import {
+  actionCooldownLeft,
+  artLocksActions,
+  artMoveMul,
+  endArtHold,
+  finishArtHold,
+  isInstantStep,
+  onBranchStart,
+  onLaneSwingStart,
+  startLaneArt,
+  updateArt,
+} from "./weaponArts";
+import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate } from "./ultimates";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -233,7 +246,8 @@ export function currentMoveset(stats: Readonly<PlayerStats>): MovesetDef {
  * 持続の奥義の差し替え（system/ultimates.ts）→ ジョブ固有の派生の順に重ねた型
  */
 export function playerMoveset(state: GameState): MovesetDef {
-  return shapeMoveset(state) ?? withJobBranch(ultimateMoveset(state, currentMoveset(state.stats)), state.job);
+  // 奥義の差し替えはジョブ派生の後に畳む（ジョブの合成の cache は武器種の key で引くので、差し替えた型を渡すと古い型が返る）
+  return shapeMoveset(state) ?? ultimateMoveset(state, withJobBranch(currentMoveset(state.stats), state.job));
 }
 
 /** ジョブ × 武器種ごとの合成済みの型。毎ステップ新しいオブジェクトを作らない（中身は定義から決まるので決定性に影響しない） */
@@ -256,26 +270,29 @@ export function currentShot(stats: Readonly<PlayerStats>): BulletDef {
   return currentBullet(stats);
 }
 
-/** 武器種の段 → 祝福・スキルに渡す combo（1 段目 0 / 途中 1 / 最終段 2）。段数が違っても最終段の祝福が最終段で出る */
-export function hookCombo(moveset: MovesetDef, step: number): number {
-  // 銃の家系の反転撃ちは連撃ではないので最終段として渡さない
-  if (isGun(moveset)) return 0;
-  if (step >= moveset.steps.length - 1) return FINISHER_COMBO;
+/**
+ * 武器種の段 → 祝福・スキルに渡す combo（1 段目 0 / 途中 1 / 最終段 2）。段数が違っても最終段の祝福が最終段で出る。
+ * lane は振ったレーン（右レーンの最終段も終撃）。段の無いレーン（銃の家系の左 = 反転撃ち）は連撃ではないので 0
+ */
+export function hookCombo(moveset: MovesetDef, step: number, lane: ButtonKey = "primary"): number {
+  const length = laneLength(moveset, lane);
+  if (length === 0) return 0;
+  if (step >= length - 1) return FINISHER_COMBO;
   return Math.min(step, FINISHER_COMBO - 1);
 }
 
-function stepDef(moveset: MovesetDef, step: number, dashStrike: boolean, chargeLevel: number, branch: number): MeleeStepDef | undefined {
+function stepDef(moveset: MovesetDef, step: number, dashStrike: boolean, chargeLevel: number, branch: number, lane: ButtonKey): MeleeStepDef | undefined {
   if (dashStrike) return moveset.dashAttack;
   if (branch >= 0) return moveset.branches[branch]?.step;
   const charge = meleeChargeOf(moveset);
   if (chargeLevel > 0 && charge) return charge.step;
-  return moveset.steps[step];
+  return laneSwing(moveset, lane, step);
 }
 
 /**
  * 武器種の段に stats（ステータス・攻撃速度・リーチ・ノックバック）を掛けたもの。
  * dashStrike ならダッシュ攻撃、chargeLevel > 0 なら溜め攻撃（段の倍率を掛ける）。
- * moveset は変身で差し替えた型（省略時は装備の武器種）
+ * moveset は変身で差し替えた型（省略時は装備の武器種）、lane は左（steps）/ 右（steps2 の振りの段）
  */
 export function meleeStep(
   stats: Readonly<PlayerStats>,
@@ -284,8 +301,9 @@ export function meleeStep(
   chargeLevel = 0,
   branch = -1,
   moveset: MovesetDef = currentMoveset(stats),
+  lane: ButtonKey = "primary",
 ): MeleeStep | undefined {
-  const base = stepDef(moveset, step, dashStrike, chargeLevel, branch);
+  const base = stepDef(moveset, step, dashStrike, chargeLevel, branch, lane);
   if (!base) return undefined;
   const level = chargeLevel > 0 ? meleeChargeOf(moveset)?.levels[chargeLevel - 1] : undefined;
   const speed = stats.attackSpeedMul;
@@ -320,7 +338,7 @@ export function meleeStep(
 export function currentMeleeStep(state: GameState): MeleeStep | undefined {
   const p = state.player;
   if (!isAttacking(p)) return undefined;
-  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state));
+  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state), p.attack.lane);
 }
 
 /** 射撃 1 発の基礎威力（今の銃の弾の係数を評価した値。銃の弾の damageMul は含まない） */
@@ -338,7 +356,7 @@ function shotPoise(stats: Readonly<PlayerStats>, shot: Readonly<BulletDef>, pois
   return withRatio(stats, PLAYER.shoot.poise * poiseMul, shot.poiseRatio);
 }
 
-/** 怯み（被弾硬直）中か。移動が遅くなり、攻撃・射撃・ダッシュ・バースト・スキルが出せない（docs/COMBAT_DESIGN.md D-5） */
+/** 怯み（被弾硬直）中か。移動が遅くなり、攻撃・射撃・ダッシュ・奥義・スキルが出せない（docs/COMBAT_DESIGN.md D-5） */
 export function isPlayerStaggered(p: Player): boolean {
   return hasStatus(p.status, "stagger");
 }
@@ -385,15 +403,18 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   trackDamageDealt(state);
 }
 
-/** ダッシュ・近接・バーストの入力を読む（怯み中は呼ばない） */
+/** ダッシュ・近接・奥義の入力を読む（怯み中は呼ばない） */
 function readActions(state: GameState, input: FrameInput): void {
   if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
   if (!skillLocksAttack(state) && !artLocksActions(state)) readAttackButtons(state, input);
-  // バーストは常にスキルをキャンセルできる
+  // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
 }
 
-/** 左右のボタンの押した瞬間。左は武器種の役割（連撃 / 溜め / 射撃）、右は固有技。派生の入力列が先 */
+/**
+ * 左右のボタンの押した瞬間。左はアクション 1（武器種の役割: 連撃 / 溜め / 射撃）、右はアクション 2（右レーンの連撃）。
+ * 段カウンタは左右で共有し、派生の入力列が先（docs/ideas/ougi-and-dual-actions.md 4.2）
+ */
 function readAttackButtons(state: GameState, input: FrameInput): void {
   if (input.attackPressed) onButtonPress(state, "primary");
   if (input.shootHeld && !state.player.secondaryWasHeld) onButtonPress(state, "secondary");
@@ -405,16 +426,42 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
   const p = state.player;
   const moveset = playerMoveset(state);
   logButton(p, button);
-  // 技の再使用中の右は何も起こさず、入力列にも残さない（派生の列が再使用中の右で崩れないように）
-  if (button === "secondary" && artInputBlocked(state, moveset)) {
+  // 再使用中の右段は何も起こさず、入力列にも残さない（派生の列が再使用中の右で崩れないように）
+  if (button === "secondary" && laneStepBlocked(state, moveset)) {
     p.attack.inputs.pop();
     return;
   }
-  // 構え中の左は構えを解いてから通常の流れへ（受け流し → 斬りの追い打ちもここを通る）
-  if (button === "primary" && p.art.holding) endArtHold(state);
+  // 構え中の押下は構えを解いて段を進めてから通常の流れへ（受け流し → 返し斬り / 受け流し → 左の 2 段目）
+  if (p.art.holding) finishArtHold(state);
   if (tryBranch(state, moveset)) return;
+  pressLane(state, moveset, button);
+}
+
+/**
+ * 次に押すと出る段の添字（左右共有の段カウンタ）。構え中は構えの次の段、振っていなければ今の段、
+ * 振っている最中は先行入力で出る段（lane のレーンで数える。続かなければ undefined）。HUD の案内も読む
+ */
+export function nextLaneIndex(state: GameState, moveset: MovesetDef = playerMoveset(state), lane: ButtonKey = "secondary"): number | undefined {
+  const p = state.player;
+  const a = p.attack;
+  if (p.art.holding) return a.step + 1;
+  if (a.phase === "none") return a.step;
+  return nextStepAfter(moveset, a, p.dashStrike, lane);
+}
+
+/** 押した右が出す右レーンの段が再使用中か。派生に当たる右（左左右の十字断ちなど）は妨げない */
+function laneStepBlocked(state: GameState, moveset: MovesetDef): boolean {
+  if (matchBranch(moveset, state.player.attack.inputs) !== undefined) return false;
+  const index = nextLaneIndex(state, moveset);
+  const s = index === undefined ? undefined : moveset.steps2[index];
+  return s !== undefined && actionCooldownLeft(state, s) > 0;
+}
+
+/** 派生に当たらなかった押下。左は武器種の役割、右は右レーンの段 */
+function pressLane(state: GameState, moveset: MovesetDef, button: ButtonKey): void {
+  const p = state.player;
   if (button === "secondary") {
-    pressArt(state, moveset);
+    pressSecondary(state, moveset);
     return;
   }
   if (!isGun(moveset)) {
@@ -425,14 +472,47 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
   if (isDashing(p)) p.dashAttackQueued = true;
 }
 
-/** 右の固有技。居合（近接の溜め）は溜めの経路、それ以外（strike は派生で出るので除く）は weaponArts.ts */
-function pressArt(state: GameState, moveset: MovesetDef): void {
-  const art = moveset.steps2[0];
-  if (art.kind === "charge") {
-    tryAttack(state, true);
+/**
+ * 右の押下。振っていなければ今の段を出し、振っている最中は先行入力にする。
+ * 次の段が弾・手元返しなら recover 中は振りを打ち切ってすぐ出す（先行入力と同じ手触り）
+ */
+function pressSecondary(state: GameState, moveset: MovesetDef): void {
+  const p = state.player;
+  const a = p.attack;
+  if (isDashing(p)) return;
+  if (a.phase === "none") {
+    startLaneStep(state, moveset, a.step);
     return;
   }
-  startArt(state);
+  const next = nextStepAfter(moveset, a, p.dashStrike, "secondary");
+  const s = next === undefined ? undefined : moveset.steps2[next];
+  if (next !== undefined && s !== undefined && isInstantStep(s) && a.phase === "recover") {
+    cancelAttack(state);
+    resetSwing(state);
+    startLaneStep(state, moveset, next);
+    return;
+  }
+  if (a.phase !== "recover" && a.phase !== "active") return;
+  a.buffered = true;
+  a.bufferedLane = "secondary";
+}
+
+/** 右レーンの index 段目を出す（振っていないとき）。振りは連撃の経路、居合は溜めの経路、それ以外は weaponArts.ts */
+function startLaneStep(state: GameState, moveset: MovesetDef, index: number): void {
+  const s = moveset.steps2[index];
+  if (!s) return;
+  const p = state.player;
+  switch (s.kind) {
+    case "swing":
+      startSwing(state, index, false, 0, "secondary");
+      return;
+    case "charge":
+      p.attack.step = index;
+      if (!p.attack.charging) beginCharge(p);
+      return;
+    default:
+      startLaneArt(state, s, index);
+  }
 }
 
 function buttonHeld(input: FrameInput, button: ButtonKey | undefined): boolean {
@@ -455,11 +535,13 @@ function logButton(p: Player, button: ButtonKey): void {
   a.inputTimer = WEAPON.chainWindow;
 }
 
-/** 入力列が途切れた（窓が切れて振っていない）ら捨てる */
+/** 入力列が途切れた（窓が切れて振っていない）ら捨て、段カウンタも 1 段目へ戻す（構え中は構えの段を保つ） */
 function tickButtonChain(p: Player, dt: number): void {
   const a = p.attack;
   a.inputTimer = Math.max(0, a.inputTimer - dt);
-  if (a.inputTimer === 0 && a.phase === "none" && !a.charging) a.inputs.length = 0;
+  if (a.inputTimer > 0 || a.phase !== "none" || a.charging) return;
+  a.inputs.length = 0;
+  if (!p.art.holding) a.step = 0;
 }
 
 /** 近接を出せない状態（ダッシュ中） */
@@ -624,6 +706,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       (isAttacking(p) ? moveset.attackMoveMul : 1) *
       chargeMul *
       artMoveMul(state) *
+      ultimateMoveMul(state) *
       skillMoveMul(state) *
       boonMoveMul(state) *
       staggerMul *
@@ -674,7 +757,9 @@ function tryAttack(state: GameState, charge = false): void {
     return;
   }
   // recover / active 中なら先行入力として次段を予約
-  if (a.phase === "recover" || a.phase === "active") a.buffered = true;
+  if (a.phase !== "recover" && a.phase !== "active") return;
+  a.buffered = true;
+  a.bufferedLane = "primary";
 }
 
 /** 次の段を振る。突進斬り直後は 2 段目から */
@@ -715,7 +800,7 @@ function updateCharge(state: GameState, input: FrameInput, dt: number): void {
   const level = chargeLevelAt(charge.levels, a.chargeTime);
   cancelCharge(p);
   if (level === 0) startNextSwing(state);
-  else startSwing(state, 0, false, level);
+  else startSwing(state, 0, false, level, chargeButton(playerMoveset(state)) ?? "primary");
 }
 
 /** 溜めの段が上がった合図（音と色の粒）。離すタイミングを目と耳で計れるように */
@@ -743,16 +828,22 @@ export function shotChargeLevel(state: GameState): number {
 }
 
 /**
- * 振り始め。requested は武器種の段。祝福には段数を丸めた combo（hookCombo）を渡し、
- * 「常に最終段から」の祝福が最終段を返したら武器種の最終段を振る
+ * 振り始め。requested は lane のレーンの段。祝福には段数を丸めた combo（hookCombo）を渡し、
+ * 「常に最終段から」の祝福が最終段を返したらそのレーンの最終段を振る
  */
-function startSwing(state: GameState, requested: number, dashStrike = false, chargeLevel = 0): void {
+function startSwing(state: GameState, requested: number, dashStrike = false, chargeLevel = 0, lane: ButtonKey = "primary"): void {
   const moveset = playerMoveset(state);
-  const requestedCombo = chargeLevel > 0 ? FINISHER_COMBO : hookCombo(moveset, requested);
+  const requestedCombo = chargeLevel > 0 ? FINISHER_COMBO : hookCombo(moveset, requested, lane);
   const combo = boonSwingCombo(state, requestedCombo, dashStrike);
   const finisherForced = !dashStrike && chargeLevel === 0 && combo === FINISHER_COMBO;
-  const stepIndex = finisherForced ? moveset.steps.length - 1 : requested;
-  beginSwing(state, { step: stepIndex, dashStrike, chargeLevel, branch: -1, combo });
+  const stepIndex = finisherForced ? finisherIndex(moveset, lane, requested) : requested;
+  beginSwing(state, { step: stepIndex, dashStrike, chargeLevel, branch: -1, combo, lane });
+}
+
+/** レーンの最終段（振りでない右の最終段・段の無いレーンなら requested のまま） */
+function finisherIndex(moveset: MovesetDef, lane: ButtonKey, requested: number): number {
+  const last = laneLength(moveset, lane) - 1;
+  return laneSwing(moveset, lane, last) ? last : requested;
 }
 
 /**
@@ -763,15 +854,17 @@ function startBranch(state: GameState, index: number): void {
   const branch = playerMoveset(state).branches[index];
   if (!branch) return;
   const combo = branch.next === undefined ? FINISHER_COMBO : 0;
-  beginSwing(state, { step: state.player.attack.step, dashStrike: false, chargeLevel: 0, branch: index, combo });
-  // 1 振りの固有技は振り始めに再使用を立てる（予約のまま捨てられた技では立てない）
-  if (branch.art === "strike") onArtStrike(state);
+  // 派生のレーンは最後に押したボタン（Rule の lane 条件・終撃の判定が読む）
+  const lane = branch.sequence[branch.sequence.length - 1] ?? "primary";
+  beginSwing(state, { step: state.player.attack.step, dashStrike: false, chargeLevel: 0, branch: index, combo, lane });
+  // 弾・付随効果は振り始めに出す（予約のまま捨てられた派生では出さない）
+  onBranchStart(state, branch);
   // 派生成立の合図（docs/ideas/combat-feel-design.md D-1）
   addFloatingText(state, state.player.body.pos, branch.name, FEEL.branchTextColor, FEEL.branchTextScale, FEEL.branchTextLife);
   pushSfx(state, "branch");
 }
 
-/** 固有技から派生を振る（盾の構えを離した盾押し。weaponArts.ts から）。振っている最中なら今の振りの後に予約する */
+/** 構えから派生を振る（盾の構えを離した盾押し。weaponArts.ts から）。振っている最中なら今の振りの後に予約する */
 export function startArtBranch(state: GameState, index: number): void {
   const p = state.player;
   if (p.attack.phase === "none") startBranch(state, index);
@@ -784,22 +877,29 @@ interface SwingSpec {
   chargeLevel: number;
   branch: number;
   combo: number;
+  lane: ButtonKey;
 }
 
 function beginSwing(state: GameState, spec: SwingSpec): void {
   const p = state.player;
-  const step = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, playerMoveset(state));
+  const moveset = playerMoveset(state);
+  const step = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane);
   if (!step) return;
   const a = p.attack;
   p.dashStrike = spec.dashStrike;
   a.combo = spec.combo;
   a.step = spec.step;
+  a.lane = spec.lane;
   a.chargeLevel = spec.chargeLevel;
   a.branch = spec.branch;
   a.pendingBranch = -1;
   a.phase = "windup";
   a.timer = step.windup;
   a.buffered = false;
+  a.bufferedLane = "primary";
+  // 右レーンの振りの段は振り始めに再使用と付随効果（零距離砲の反動・起爆）を立てる
+  const laneDef = spec.lane === "secondary" && spec.branch < 0 && spec.chargeLevel === 0 && !spec.dashStrike ? moveset.steps2[spec.step] : undefined;
+  if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef);
   a.hitIds.clear();
   a.hitTick = 0;
   a.dir = { ...p.facing };
@@ -816,7 +916,7 @@ function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state));
+  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state), a.lane);
   if (!step) {
     cancelAttack(state);
     return;
@@ -862,7 +962,7 @@ function shouldCancelRecover(moveset: MovesetDef, step: Readonly<MeleeStep>, a: 
   if (a.timer > threshold) return false;
   if (a.pendingBranch >= 0) return true;
   if (!a.buffered) return false;
-  return nextStepAfter(moveset, a, dashStrike) !== undefined;
+  return nextStepAfter(moveset, a, dashStrike, a.bufferedLane) !== undefined;
 }
 
 /** recover の終わり: 予約した派生 → 先行入力の次段 → 連撃の終わり の順に決める */
@@ -874,30 +974,53 @@ function endSwing(state: GameState): void {
     startBranch(state, a.pendingBranch);
     return;
   }
-  const next = nextStepAfter(moveset, a, p.dashStrike);
+  const next = nextStepAfter(moveset, a, p.dashStrike, a.bufferedLane);
+  const lane = a.bufferedLane;
+  const chainEnds = nextStepAfter(moveset, a, p.dashStrike, a.lane) === undefined;
   if (a.buffered && next !== undefined) {
-    startSwing(state, next);
+    continueLane(state, moveset, lane, next);
     return;
   }
-  a.phase = "none";
-  a.combo = 0;
-  a.step = 0;
-  a.chargeLevel = 0;
-  a.branch = -1;
-  a.buffered = false;
-  p.dashStrike = false;
-  if (next !== undefined) return;
-  // 最終段・フィニッシュの後は少し間を置く。効くのは銃の家系（strike の技で撃てる）だけ
+  resetSwing(state);
+  if (!chainEnds) return;
+  // 最終段・フィニッシュの後は少し間を置く。効くのは銃の家系（右レーンの振りの後に撃てる）だけ
   if (isGun(moveset)) p.shootCooldown = Math.max(p.shootCooldown, PLAYER.comboLockout);
   a.inputs.length = 0;
 }
 
-/** 今の振りの後に続けられる段。フィニッシュ・溜め攻撃・最終段なら undefined */
-function nextStepAfter(moveset: MovesetDef, a: Player["attack"], dashStrike: boolean): number | undefined {
+/** 振りを終えて待機に戻す（段カウンタは 0 から） */
+function resetSwing(state: GameState): void {
+  const p = state.player;
+  const a = p.attack;
+  a.phase = "none";
+  a.combo = 0;
+  a.step = 0;
+  a.lane = "primary";
+  a.chargeLevel = 0;
+  a.branch = -1;
+  a.buffered = false;
+  a.bufferedLane = "primary";
+  p.dashStrike = false;
+}
+
+/** 先行入力の段を出す。右の振り以外の段（弾・構えなど）は振りを終えてから段の添字を渡す */
+function continueLane(state: GameState, moveset: MovesetDef, lane: ButtonKey, next: number): void {
+  const s = lane === "secondary" ? moveset.steps2[next] : undefined;
+  if (s === undefined || s.kind === "swing") {
+    startSwing(state, next, false, 0, lane);
+    return;
+  }
+  resetSwing(state);
+  state.player.attack.step = next;
+  startLaneStep(state, moveset, next);
+}
+
+/** 今の振りの後に lane のボタンで続けられる段。フィニッシュ・溜め攻撃・そのレーンの最終段なら undefined */
+function nextStepAfter(moveset: MovesetDef, a: Player["attack"], dashStrike: boolean, lane: ButtonKey): number | undefined {
   if (a.chargeLevel > 0) return undefined;
-  if (a.branch >= 0 && !dashStrike) return moveset.branches[a.branch]?.next;
-  const next = a.step + 1;
-  return next < moveset.steps.length ? next : undefined;
+  const next = a.branch >= 0 && !dashStrike ? moveset.branches[a.branch]?.next : a.step + 1;
+  if (next === undefined) return undefined;
+  return next < laneLength(moveset, lane) ? next : undefined;
 }
 
 /** 踏み込み: windup + active の間に lunge だけ前へ進む（壁の手前で止まる） */
@@ -1177,7 +1300,7 @@ function justCounterStrike(state: GameState, target: Enemy): void {
   startSwing(state, lastStep);
   p.attack.dir = { ...dir };
   p.attack.hitIds.add(target.id);
-  const step = meleeStep(actionStats(state), lastStep, false, 0, -1, playerMoveset(state));
+  const step = meleeStep(actionStats(state), lastStep, false, 0, -1, playerMoveset(state), "primary");
   if (!step) return;
   const out = rollOutgoing(state, target, step.damage, "melee");
   const hitPos = { ...target.body.pos };
@@ -1323,7 +1446,7 @@ interface VolleySpec {
 }
 
 /**
- * 今の銃の弾とは別に弾を出す経路（固有技の投擲・魔弾・乱れ撃ち、短銃の狙い撃ち）が差し替える値。
+ * 今の銃の弾とは別に弾を出す経路（右レーンの投擲・魔弾・乱れ撃ち、短銃の狙い撃ち、派生の弾）が差し替える値。
  * damage / poise は最終値（省略は銃の弾の値）、damageMul / pierceBonus は銃の弾の値に掛ける・足す
  */
 export interface VolleyOverride {
@@ -1385,8 +1508,8 @@ function shotRuntime(shot: BulletDef, life: number): ShotRuntime | undefined {
 function fireVolley(state: GameState, level: number, aim?: number): void {
   const p = state.player;
   const s = state.stats;
-  const shot = currentShot(s);
-  p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state));
+  const shot = ultimateShot(state, currentShot(s));
+  p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
   emitVolley(state, shot, level, aim);
   if (!shot.burst) return;
   p.shotBurst.left = shot.burst.count - 1;
@@ -1403,7 +1526,7 @@ function muzzleAt(state: GameState, dir: Vec): Vec {
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
 
-/** 弾を出す（再使用時間は触らない。三点の続きの弾・固有技の弾もここを通る）。出したら true */
+/** 弾を出す（再使用時間は触らない。三点の続きの弾・右レーンと派生の弾もここを通る）。出したら true */
 export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   const p = state.player;
   const dir = { ...p.facing };
@@ -1427,7 +1550,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       pierceLeft: spec.pierce,
       poise: spec.poise,
       ...(runtime ? { shot: runtime } : {}),
-      // 固有技の弾（魔弾の光など）は技の素性を持つ。無ければ elementCombat が stats.bullet から引く
+      // 右レーンの弾（魔弾の光など）は段の素性を持つ。無ければ elementCombat が stats.bullet から引く
       ...(override.attack ? { attack: override.attack } : {}),
       ...(override.sprite ? { sprite: override.sprite } : {}),
     });
@@ -1436,7 +1559,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   spawnBurst(state, muzzle, spec.color, 3, 60, 0.12, 1.5);
   shake(state, 1);
-  // 固有技の弾も弾の性質で音を選ぶ（docs/ideas/weapon-redesign.md 6 章）
+  // 右レーンの弾も弾の性質で音を選ぶ（docs/ideas/weapon-redesign.md 6 章）
   pushSfx(state, shotSfxName(shot));
   payOverclockShoot(state);
   fireTrigger(state, "onShoot", { pos: muzzle });

@@ -25,7 +25,9 @@ import {
   skillBlock,
   skillFormulas,
   skillScalingKeys,
+  specialFormulas,
 } from "./scalingText";
+import { ULTIMATES, defaultUltimate } from "../data/ultimates";
 
 /** 実効値を直接与えた stats（逓減を通さず、式の数だけを見る） */
 function statsWith(eff: Partial<Attributes>): PlayerStats {
@@ -203,10 +205,44 @@ describe("ステータスごとの参照している行動", () => {
       const all = [...movesetFormulas(BASE_STATS, moveset, "pistol").flatMap((a) => a.formulas), ...skills.flatMap((k) => skillFormulas(BASE_STATS, k))];
       for (const r of refs) {
         const referenced = all.some((f) => f.terms.some((t) => t.attr === r.attr));
-        // バーストの参照は武器・スキルと別に数える
+        // 奥義の参照は武器・スキルと別に数える
         if (referenced) expect(r.names.length, `${key} ${r.attr}`).toBeGreaterThan(0);
         expect(new Set(r.names).size, `${key} ${r.attr} の名前が重なる`).toBe(r.names.length);
       }
+    }
+  });
+});
+
+describe("奥義の式", () => {
+  it("奥義の式は選んでいる奥義の名前で出し、省略すると武器種の 1 本目", () => {
+    for (const key of MOVESET_KEYS) {
+      const stats = { ...BASE_STATS, moveset: key };
+      expect(specialFormulas(stats).name, `${key} の既定`).toBe(defaultUltimate(key).name);
+      for (const def of ULTIMATES[key]) expect(specialFormulas(stats, def).name, `${def.key}`).toBe(def.name);
+    }
+  });
+
+  it("威力を持つ奥義は威力の式を出し、同じ式は重ねない", () => {
+    for (const key of MOVESET_KEYS) {
+      for (const def of ULTIMATES[key]) {
+        const { formulas } = specialFormulas({ ...BASE_STATS, moveset: key }, def);
+        const texts = formulas.map((f) => formulaText(f));
+        expect(new Set(texts).size, `${def.key} の式が重なる`).toBe(texts.length);
+        if (def.kind === "instant" && def.acts.some((a) => a.kind === "nova")) {
+          expect(formulas.some((f) => f.kind === "power"), `${def.key} の周囲攻撃の威力`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("ステータスの参照先には選んでいる奥義の名前が出る", () => {
+    const set = ULTIMATES.sword;
+    const pick = set[set.length - 1] ?? set[0];
+    const refs = attributeReferences(BASE_STATS, { moveset: MOVESETS.sword, bullet: "pistol", skills: [], ultimate: pick });
+    const formulas = specialFormulas(BASE_STATS, pick).formulas;
+    for (const r of refs) {
+      const referenced = formulas.some((f) => f.terms.some((t) => t.attr === r.attr));
+      expect(r.names.includes(pick.name), `${r.attr} の参照に奥義`).toBe(referenced);
     }
   });
 });

@@ -34,7 +34,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `core/rules.ts` 統一ルール文法の `Rule` 型 / `core/events.ts` ゲームイベント（各 system は `pushEvent` で積むだけ。`system/rules.ts` が照合）/ `core/keywords.ts` 共通語彙「語」の型（推論・集計は `system/keywords.ts`）/ `core/element.ts` 属性とジャンル / `core/terrain.ts` 地形の層の型 / `core/vec.ts` ベクトル / `core/units.ts` 表示単位（`formatMeters`）
 
 ## system（`step` の呼び出し順: loot.updateDropInteract〔拾得、ヒットストップ中も効く〕→ mana.tickMana → player → boons → statusEffects → terrain → enemies → projectiles → hazards → floor(updateRooms) → runEvents.updateRunEvents → reaper → combo → rules.resolveRules → effects → camera）
-- `player.ts` 移動・ダッシュ・3 段コンボ・射撃・バースト・見切り・ダッシュ攻撃。`applyStats` で stats を反映（ステータスの派生・祝福の畳み込みもここ）/ `ultimates.ts` 奥義（F。`tryUltimate` / `updateUltimate` / 持続中の型差し替え `ultimateMoveset`。設計は `docs/ideas/ougi-and-dual-actions.md`）/ `weaponArts.ts` 右クリックの固有技（受け流し・構え・弾を出す・弾を戻す・狙い撃ち。派生の技は `player.ts` の `tryBranch`）
+- `player.ts` 移動・ダッシュ・左右の連撃・射撃・見切り・ダッシュ攻撃。`applyStats` で stats を反映（ステータスの派生・祝福の畳み込みもここ）/ `ultimates.ts` 奥義（F。`tryUltimate` / `updateUltimate` / 持続中の型差し替え `ultimateMoveset`。設計は `docs/ideas/ougi-and-dual-actions.md`）/ `weaponArts.ts` 右レーンの構え・弾・溜め・手元返しの段（受け流し・構え・弾を出す・弾を戻す・狙い撃ち。派生の技は `player.ts` の `tryBranch`）
 - `combat.ts` 与ダメ / 被ダメの唯一の入口（`damageEnemy` / `damagePlayer` / `healPlayer`）、コンボ倍率、armor 逓減、リゲイン、怯み値の加算呼び出し
 - `attributes.ts` ステータスの実効値（`effectiveAttr`）・威力計算（`scaled`）・ラン内振り分けの畳み込み（`addRunAttributes` / `deriveAttributes`）
 - `mana.ts` 気力の増減（`refillMana` / `tickMana` / `canAfford` / `spendMana`）。`core/game.ts` の `step` から直接呼ぶ

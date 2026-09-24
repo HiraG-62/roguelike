@@ -8,7 +8,8 @@ import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
-import { MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { type ButtonKey, MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { grantBoon } from "./boons";
 import type { FrameInput } from "../core/input";
 import {
   type MeleeStep,
@@ -246,7 +247,7 @@ describe("射撃・バーストの威力と怯み値", () => {
 
   it("バーストは burstDamageMul を掛け、無敵は 0.15 秒", () => {
     const state = arena(5, { burstDamageMul: 2 });
-    const scaling = ULTIMATE.defs.fullMoon.nova.scaling;
+    const scaling = ULTIMATE.defs.sword.fullMoon.nova.scaling;
     expect(ultimateDamage(state.stats, scaling), "バースト威力 × burstDamageMul").toBeCloseTo(ultimateDamage({ ...state.stats, burstDamageMul: 1 }, scaling) * 2);
     state.player.energy = ULTIMATE.common.cost;
     step(state, withInput({ specialPressed: true }), FIXED_DT);
@@ -317,6 +318,38 @@ function runCombo(state: GameState, e: Enemy): number {
   }
   return maxStep;
 }
+
+/**
+ * 右だけを 1 フレームおきに押し続けて右レーンを最終段まで進める（右の「押した瞬間」は前フレームとの差で取るため）。
+ * 右レーンで振った・出した段の最大の添字を返す
+ */
+function runRightLane(state: GameState, e: Enemy): number {
+  const last = MOVESETS[state.stats.moveset].steps2.length - 1;
+  let maxStep = 0;
+  for (let i = 0; i < COMBO_MAX_STEPS; i++) {
+    const p = state.player.body.pos;
+    e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
+    e.knock = { x: 0, y: 0 };
+    step(state, withInput({ shootHeld: i % 2 === 0 }), FIXED_DT);
+    const a = state.player.attack;
+    if (a.phase !== "none" && a.lane === "secondary" && a.branch < 0) maxStep = Math.max(maxStep, a.step);
+    if (maxStep === last && a.phase === "none") break;
+  }
+  return maxStep;
+}
+
+describe("武器種: 右レーン（アクション 2）の各段", () => {
+  for (const key of MOVESET_KEYS) {
+    if (isGun(MOVESETS[key])) continue;
+    it(`${MOVESETS[key].name}（${key}）: 右を押し続けると右レーンの最終段まで振り、正面の敵に当たる`, () => {
+      const state = arena(5, { moveset: key });
+      const e = tough(placeEnemy(state, "boar", FRONT_DIST));
+      const maxStep = runRightLane(state, e);
+      expect(maxStep, "右レーンの最終段まで進んだ").toBe(MOVESETS[key].steps2.length - 1);
+      expect(state.player.meleeHitCount, "右の振りが当たった").toBeGreaterThan(0);
+    });
+  }
+});
 
 describe("武器種: 各段が当たる", () => {
   for (const key of MOVESET_KEYS) {
@@ -498,6 +531,9 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
   const idle = (n: number): Partial<FrameInput>[] => Array.from({ length: n }, () => ({}));
   const branchKey = (state: GameState): string | undefined =>
     MOVESETS[state.stats.moveset].branches[state.player.attack.branch]?.key;
+  /** 今振っている右レーンの段の key（右の振りでなければ undefined） */
+  const laneKey = (state: GameState): string | undefined =>
+    state.player.attack.lane === "secondary" && state.player.attack.branch < 0 ? playerMoveset(state).steps2[state.player.attack.step]?.key : undefined;
 
   /** 派生が出るまで（最大 n フレーム）空の入力で進める */
   function untilBranch(state: GameState, n = 60): void {
@@ -512,36 +548,40 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     expect(state.player.attack.combo, "フィニッシュは combo 2").toBe(2);
   });
 
-  it("剣: 右（受け流し）のすぐ後の左で踏み込み斬りになり、前へ踏み込む", () => {
+  it("剣: 右（受け流し）・左・左で踏み込み斬りになり、前へ踏み込む", () => {
     const state = arena(5);
     const x0 = state.player.body.pos.x;
-    play(state, [{ shootHeld: true }, {}, { attackPressed: true }]);
+    play(state, [{ shootHeld: true }, {}, { attackPressed: true }, ...idle(5), { attackPressed: true }]);
+    untilBranch(state);
     expect(branchKey(state)).toBe("steppingCut");
     play(state, idle(20));
     expect(state.player.body.pos.x - x0, "踏み込んだ").toBeGreaterThan(10);
   });
 
-  it("剣: 受け流してから入力の窓が切れた後の左は普通の 1 段目", () => {
+  it("剣: 受け流しの窓が閉じてから入力の窓も切れた後の左は普通の 1 段目", () => {
     const state = arena(5);
-    const windowSteps = Math.ceil(WEAPON.chainWindow / FIXED_DT) + 2;
-    play(state, [{ shootHeld: true }, ...idle(windowSteps), { attackPressed: true }]);
+    const parry = MOVESETS.sword.steps2[0];
+    const windowSec = parry.kind === "hold" ? (parry.hold.parry?.windowSec ?? 0) : 0;
+    const waitSteps = Math.ceil((windowSec + WEAPON.chainWindow) / FIXED_DT) + 2;
+    play(state, [{ shootHeld: true }, ...idle(waitSteps), { attackPressed: true }]);
     expect(state.player.attack.branch, "派生にならない").toBe(-1);
     expect(state.player.attack.step).toBe(0);
+    expect(state.player.attack.lane).toBe("primary");
   });
 
-  it("大剣: 右クリックは射撃ではなく薙ぎ払い", () => {
+  it("大剣: 右クリックは射撃ではなく右レーンの薙ぎ払い", () => {
     const state = arena(5, { moveset: "greatsword" });
     play(state, [{ shootHeld: true }, { shootHeld: true }]);
-    expect(branchKey(state)).toBe("sweep");
+    expect(laneKey(state)).toBe("sweep");
     expect(state.projectiles.filter((pr) => pr.owner === "player").length, "撃たない").toBe(0);
   });
 
-  it("杖: 左で杖打ち、右で魔弾。打ってから右で魔力撃", () => {
+  it("杖: 左で杖打ち、右で魔弾。左左右で魔力撃", () => {
     const state = arena(5, { moveset: "wand" });
     play(state, [{ attackPressed: true, attackHeld: true }]);
     expect(state.player.attack.phase, "左で振った").toBe("windup");
     expect(state.projectiles.filter((pr) => pr.owner === "player").length, "左では撃たない").toBe(0);
-    play(state, [{ shootHeld: true }]);
+    play(state, [...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
     untilBranch(state);
     expect(branchKey(state)).toBe("arcaneStrike");
 
@@ -554,8 +594,114 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
   it("続く派生（踏み込み斬り）の後は指定の段から連撃が続く", () => {
     const state = arena(5);
     play(state, [{ shootHeld: true }, {}, { attackPressed: true }, ...idle(5), { attackPressed: true }]);
+    untilBranch(state);
+    expect(branchKey(state)).toBe("steppingCut");
+    for (let i = 0; i < 60 && state.player.attack.phase !== "recover"; i++) step(state, withInput({}), FIXED_DT);
+    play(state, [{ attackPressed: true }]);
     for (let i = 0; i < 60 && state.player.attack.branch >= 0; i++) step(state, withInput({}), FIXED_DT);
-    expect(state.player.attack.step, "2 段目へ続いた").toBe(MOVESETS.sword.branches.find((b) => b.key === "steppingCut")?.next);
+    expect(state.player.attack.step, "3 段目へ続いた").toBe(MOVESETS.sword.branches.find((b) => b.key === "steppingCut")?.next);
+  });
+});
+
+describe("左右アクションの共有の段カウンタ（docs/ideas/ougi-and-dual-actions.md 4.2）", () => {
+  /**
+   * presses を 1 つずつ、押せる時点（振っていない・構えている・振りの active / recover で先行入力が空）で押し、
+   * 振り始め（windup）に入った段を（段の添字, レーン, 派生）で記録する
+   */
+  function swingLog(state: GameState, presses: readonly ButtonKey[]): { step: number; lane: ButtonKey; branch: number }[] {
+    const log: { step: number; lane: ButtonKey; branch: number }[] = [];
+    const queue = [...presses];
+    let last = "";
+    let pressedLast = false;
+    for (let i = 0; i < COMBO_MAX_STEPS; i++) {
+      const a = state.player.attack;
+      const swinging = (a.phase === "active" || a.phase === "recover") && !a.buffered && a.pendingBranch < 0;
+      const ready: boolean = !pressedLast && !a.charging && (a.phase === "none" || swinging);
+      const next: ButtonKey | undefined = ready ? queue.shift() : undefined;
+      pressedLast = next !== undefined;
+      step(state, withInput(next === undefined ? {} : next === "primary" ? { attackPressed: true } : { shootHeld: true }), FIXED_DT);
+      if (a.phase === "windup") {
+        const sig = `${a.step}:${a.lane}:${a.branch}`;
+        if (sig !== last) log.push({ step: a.step, lane: a.lane, branch: a.branch });
+        last = sig;
+      } else if (a.phase === "none") last = "";
+      if (queue.length === 0 && a.phase === "none" && !state.player.art.holding) break;
+    }
+    return log;
+  }
+
+  it("右を押すと右レーンの段が出て、段カウンタは左右で共有される（左右左 = 1・2・3 段目）", () => {
+    // 大剣は左右左を名前付き派生にしていない（左は tap で振る）
+    const log = swingLog(arena(5, { moveset: "greatsword" }), ["primary", "secondary", "primary"]);
+    expect(log.map((l) => [l.step, l.lane])).toEqual([
+      [0, "primary"],
+      [1, "secondary"],
+      [2, "primary"],
+    ]);
+    expect(log.every((l) => l.branch < 0), "左右左は名前付き派生ではない").toBe(true);
+  });
+
+  it("同じ段で左と右は別の振りになる（剣の 3 段目: 左は斬り、右は斬り上げ）", () => {
+    const left = arena(5);
+    const right = arena(5);
+    const lLog = swingLog(left, ["primary", "primary", "primary"]);
+    const rLog = swingLog(right, ["primary", "primary", "secondary"]);
+    expect(lLog[2], "左左左の 3 段目").toEqual({ step: 2, lane: "primary", branch: -1 });
+    // 左左右は名前付き派生（十字断ち）なので、右の 3 段目は右右右で見る
+    const rr = arena(5);
+    const rrLog = swingLog(rr, ["secondary", "secondary", "secondary"]);
+    expect(rrLog.map((l) => [l.step, l.lane]), "右右右 = 受け流し・返し斬り・斬り上げ").toEqual([
+      [1, "secondary"],
+      [2, "secondary"],
+    ]);
+    const leftStep = meleeStep(left.stats, 2, false, 0, -1, MOVESETS.sword, "primary");
+    const rightStep = meleeStep(right.stats, 2, false, 0, -1, MOVESETS.sword, "secondary");
+    expect(leftStep?.shape.kind, "左の 3 段目は箱の斬り").toBe("box");
+    expect(rightStep?.shape.kind, "右の 3 段目は扇の斬り上げ").toBe("arc");
+    expect(rLog.some((l) => l.branch >= 0), "左左右は十字断ち").toBe(true);
+  });
+
+  it("名前付き派生は 3 入力以上で、長い列が先に一致する（右左左 → 踏み込み斬り）", () => {
+    const state = arena(5);
+    const log = swingLog(state, ["secondary", "primary", "primary"]);
+    const moveset = playerMoveset(state);
+    const names = log.map((l) => (l.branch >= 0 ? moveset.branches[l.branch]?.key : `${l.lane}:${l.step}`));
+    expect(names, "右（受け流し）→ 左の 2 段目 → 踏み込み斬り").toEqual(["primary:1", "steppingCut"]);
+  });
+
+  it("右レーンの最終段は終撃として扱われる（得物の誉れが乗る）", () => {
+    const energyAfterRightFinisher = (withBoon: boolean): number => {
+      const state = arena(5);
+      state.job = "swordsman";
+      if (withBoon) grantBoon(state, "favoredPride");
+      const e = tough(placeEnemy(state, "boar", FRONT_DIST));
+      const log = swingLog(state, ["secondary", "secondary", "secondary"]);
+      expect(log.at(-1), "右の 3 段目（斬り上げ）まで振った").toEqual({ step: 2, lane: "secondary", branch: -1 });
+      expect(e.hp, "当たった").toBeLessThan(TOUGH_HP);
+      return state.player.energy;
+    };
+    const state = arena(5);
+    expect(hookCombo(MOVESETS.sword, 2, "secondary"), "右の最終段は combo 2").toBe(2);
+    expect(hookCombo(MOVESETS.sidearm, 2, "secondary"), "銃の右レーンの最終段も終撃").toBe(2);
+    expect(hookCombo(MOVESETS.sidearm, 0, "primary"), "銃の左（反転撃ち）は連撃ではない").toBe(0);
+    expect(state.player.energy).toBe(0);
+    expect(energyAfterRightFinisher(true), "得物の誉れで奥義ゲージが増える").toBeGreaterThan(energyAfterRightFinisher(false));
+  });
+
+  it("ジョブ派生 左左左右 は右レーンの 4 段目を上書きする", () => {
+    const state = arena(5, { moveset: "spear" });
+    state.job = "lancer";
+    const log = swingLog(state, ["primary", "primary", "primary", "secondary"]);
+    const moveset = playerMoveset(state);
+    const last = log.at(-1);
+    expect(last?.branch ?? -1, "4 手目は派生").toBeGreaterThanOrEqual(0);
+    expect(moveset.branches[last?.branch ?? -1]?.key, "槍の右 4 段目（大突き）ではなくジョブの派生").toBe("job.lancer");
+    const plain = arena(5, { moveset: "spear" });
+    const plainLog = swingLog(plain, ["primary", "primary", "primary", "secondary"]);
+    const plainLast = plainLog.at(-1);
+    // 見習いでは末尾の左左右（石突き回し）が一致する。どちらでも 4 手目が右レーンの 4 段目（大突き）にはならない
+    expect(MOVESETS.spear.branches[plainLast?.branch ?? -1]?.key, "見習いは末尾の左左右").toBe("spearSweep");
+    expect(log.some((l) => l.lane === "secondary" && l.step === 3 && l.branch < 0), "右の 4 段目は振らない").toBe(false);
   });
 });
 
@@ -607,7 +753,8 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     const state = arena(5, { moveset: "chainSickle" });
     const e = tough(placeEnemy(state, "boar", 50));
     step(state, withInput({ shootHeld: true }), FIXED_DT);
-    expect(branchKeyOf(state)).toBe("chainWeight");
+    expect(state.player.attack.lane, "右レーンの 1 段目").toBe("secondary");
+    expect(playerMoveset(state).steps2[state.player.attack.step]?.key).toBe("chainWeight");
     for (let i = 0; i < 30 && state.player.meleeHitCount === 0; i++) step(state, withInput({}), FIXED_DT);
     expect(state.player.meleeHitCount, "50 先の敵に届いた").toBe(1);
     expect(e.knock.x, "自分の方（-x）へ引いた").toBeLessThan(0);
