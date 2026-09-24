@@ -10,10 +10,10 @@
 実装は `src/loot/**`（性質・誓約・変換・ベース・遺物・来歴・残響・共鳴）と `src/system/traitHooks.ts`（戦闘側の読み取り口。combat / player / mana から 1 行ずつ呼ぶ）・`src/system/triggers.ts`（文法の発火）。数値は `data/tuning.ts` の `TRIGGER.trait` / `KEYSTONE`。
 
 - **1 性質**: ✅ P1 撒き足 `dashVolley` / P12 溢れ `manaOverflow` / P13 底打ち `lowTide`（改: マナが 25% 未満の間の回収倍率）/ P14 満ち潮 `fullTide` / P15 引き潮 `ebbTide` / P17 汲み上げ `manaOnStagger` / P23 多彩 `kaleidoscope`（改: 代償は効果量 −）/ P29 追い討ち `fearPoise` / P30 沈黙の報い `silencedKillMana` / P31 弱体の盾 `weakenedGuard` / P37 病み上がり `fever` / P40 楔 `wedge` / P41 剥がし撃ち `guardPiercer` / P43 崩れの反響 `staggerQuake`（改: 基本の「怯みの伝播」より広い 72px）/ P44 怯み吸い `staggerLeech` / P48 橋渡し `bridge` / P50 裏の糧 `invertedFeast` / P52 古傷 `oldScars` / P53 歴戦 `veteran` / P55 旅の垢 `wayfarer` / P56 王殺しの印 `kingslayerMark` / P57 若木 `sapling` / P58 銘の重み `inscribedWeight` / P59 異郷の響き `foreignEcho` / P71 身代わり `manaShield`
-  - 改: P32 → 脆弱の楔 `vulnPoise`（脆弱の敵への怯み値）/ P36 → 耐性の布 `statusWard` / P42 → ダウン狩り `downHunter`（ボスへの与ダメージ）/ P54 → 見切りの記憶 `keenMemory`（ジャスト回避後のダメージと猶予）/ P66 夜目 `nightEyes`（射撃ダメージ）/ P68 死神の影 `reaperShadow`（代償は最大 HP）/ P70 殲滅の余韻 `lastKillMana`（最大の割合）/ P73 痛覚遮断 `painToMana`（代償は被ダメージ）/ P90 渦の芯 `vortexCore`（沈黙のみ）
-  - 表に無い追加: 構えの呼吸 `counterMana` / 見切りの息吹 `justBreath` / 詠唱の集中 `arcaneFocus` / 疫病の種 `plagueSeed` / 払い手 `hurtWeaken` / 麻痺の付与 `procParalyze` / 腐れ落ち `rotBurst` / 毒気 `virulent` / 払い清め `hurtCleanse` / 重い手 `heavyHand` / 崩れ雷 `staggerSpark` / 崩れの充填 `staggerCharge` / 崩れの刻印 `staggerMark` / 先読み `readAhead` / 崩し打ち `windupCrack` / 返し波 `counterWave` / 堅守崩し `guardedBane` / 満ちた器 `brimShock` / 封鎖の熱 `lockdownFury`
+  - 改: P32 → 脆弱の楔 `vulnPoise`（脆弱の敵への怯み値）/ P36 → 耐性の布 `statusWard` / P42 → ダウン狩り `downHunter`（ボスへの与ダメージ）/ P54 → 見切りの記憶 `keenMemory`（ジャスト回避後のダメージと猶予）/ P66 夜目 `nightEyes`（射撃ダメージ）/ P68 死神の影 `reaperShadow`（代償は最大 HP）/ P70 殲滅の余韻 `lastKillMana`（最大の割合）/ P73 痛覚遮断 `painToMana`（代償は被ダメージ）/ P90 静寂崩し `vortexCore`（沈黙のみ）
+  - 表に無い追加: 構えの呼吸 `counterMana` / 見切りの息吹 `justBreath` / 詠唱の集中 `arcaneFocus` / 疫病の種 `plagueSeed` / 払い手 `hurtWeaken` / 麻痺の付与 `procParalyze` / 腐爆 `rotBurst` / 毒気 `virulent` / 払い清め `hurtCleanse` / 重い手 `heavyHand` / 崩れ雷 `staggerSpark` / 崩れの充填 `staggerCharge` / 崩れの刻印 `staggerMark` / 先読み `readAhead` / 崩し打ち `windupCrack` / 返し波 `counterWave` / 堅守崩し `guardedBane` / 満ちた器 `brimShock` / 封鎖の熱 `lockdownFury`
   - ✅（作業領域 `Player.loot` / `Enemy.stuckShots` を使う）: P6 撃ち込み杭 `stake` / P9 余韻斬り `echoSlash` / P35 形見 `inheritance`（次の命中の回数。近接・射撃どちらでも）
-  - ✅ ハブ性質: P87 置き土産 `placedInfuse`（雷撃 = 感電・引力球 = 沈黙・氷結地帯 = 冷気。代償は最大 HP）/ P89 杭打ち `placedAnchor`（改: 怯ませると近くの設置物の残り時間 +秒、代償は最大マナ）/ P91 血の署名 `bloodSignature`（改: 設置物に限らず全スキル）/ P93 祝福の響き `boonEcho_<色>`（色ごとに 5 つ）。P90 渦の芯は上記
+  - ✅ ハブ性質: P87 置き土産 `placedInfuse`（雷撃 = 感電・引力球 = 沈黙・氷結地帯 = 冷気。代償は最大 HP）/ P89 杭打ち `placedAnchor`（改: 怯ませると近くの設置物の残り時間 +秒、代償は最大マナ）/ P91 血の署名 `bloodSignature`（改: 設置物に限らず全スキル）/ P93 祝福の響き `boonEcho_<色>`（色ごとに 5 つ）。P90 静寂崩しは上記
   - — P88 起爆手・P94 刻印符の共振（`skills/**` の変更が要る）/ P92 走り書き・P22 連唱（`system/skills.ts` の発動処理に差し込みが要る）/ その他の P は system 側の大きな変更が要るので次回
 - **2 誓約**: ✅ V1 病み `ks_contagion` / V4 楔 `ks_wedgeOath`（改: 怯んでいない敵へは −40%）/ V5 揺るがぬ `ks_unshaken` / V7 読み勝ち `ks_readOath`（怯み値 ×10）/ V8 単色 `ks_monochrome` / V9 無色 `ks_colorless` / V10 鏡 `ks_mirror` / V11 修行 `ks_discipline` / V12 忘却 `ks_oblivion` / V15 詠唱 `ks_chant`
   - 改: V2 蝕み `ks_blight`（代償は受ける持続 ×2）/ V3 無垢 `ks_pure`（スキル石の付与は残る）/ V6 締め上げ `ks_chokehold`（代償は怯み値 −30%）/ V17 背水 `ks_backwater`（封鎖中の与ダメージ +15% を追加）/ V19 死神 `ks_reaperOath`（死神の時計が 2 倍速）
@@ -222,7 +222,7 @@
 | P87 | 置き土産 | 翠 | 武 / 指 | 自分の設置物の範囲内では、近接がその設置物の状態異常を乗せる（氷結地帯なら冷気、雷撃なら感電） | 設置物の持続 -{v2}% | 設置物の中で殴る | M | ★5 | skills/placed.ts, system/combat.ts / 要追加: PlayerStats.placedInfuse |
 | P88 | 起爆手 | 紅 | 武 / 銃 | 自分の設置物を近接か射撃で叩くと即座に起爆し、威力 +{v}% | 自然起爆の威力 -{v2}% | 地雷・グレネードの手動起爆 | M | ★5 | skills/placed.ts / 要追加: PlayerStats.manualDetonate |
 | P89 | 杭打ち | 金 | 首 | 怯み中の敵の近くに置いた設置物は持続 ×{v} | 設置物のコスト +{v2}% | 怯み → 設置物 | S | ★3 | skills/placed.ts / 要追加: PlayerStats.placedOnStaggerMul |
-| P90 | 渦の芯 | 冥 | 指 / 首 | 引き寄せ・沈黙中の敵への怯み値 +{v}% | 射撃ダメージ -{v2}% | 引力球 → 近接 | S | ★4 | system/poise.ts / 要追加: PlayerStats.pulledPoiseMul |
+| P90 | 静寂崩し | 冥 | 指 / 首 | 引き寄せ・沈黙中の敵への怯み値 +{v}% | 射撃ダメージ -{v2}% | 引力球 → 近接 | S | ★4 | system/poise.ts / 要追加: PlayerStats.pulledPoiseMul |
 | P91 | 血の署名 | 冥 | 鎧 / 首 | HP 50% 未満の間、設置物の最低間隔 -{v}% | 最大 HP -{v2} | 低 HP の設置物 | S | ★3 | system/skills.ts / 要追加: PlayerStats.lowHpPlacedHaste |
 | P92 | 走り書き | 蒼 | 靴 | 移動スキル（突進斬り・加速）の後、次の射撃 1 発が脆弱を付ける | ダッシュ回数 -1（下限 1） | 移動スキル → 射撃 | S | ★3 | system/skills.ts, system/combat.ts / 要追加: PlayerState.markedShot |
 | P93 | 祝福の響き | 性質の色 | 指 / 首 | 取った祝福のうち、この性質の色に対応するタグ（紅 = melee・burn、蒼 = ranged・dash・mana、翠 = hp・room、金 = combo・crit・energy・shock、冥 = 呪い付き）1 つにつき与ダメージ +{v}% | 対応しない祝福 1 つにつき -2% | 祝福の色を揃える | S | ★5 | system/boons.ts, loot/stats.ts |
@@ -796,8 +796,8 @@
     - 核: 紅の支配（灼極）が 2 倍になり、紅のタグを持つ祝福の数だけ与ダメージが伸びる
     - 伸ばし方: 装備のタグで祝福の候補の重みが変わる既存の仕組みにより、紅に寄せるほど紅の祝福が来やすい
     - 弱点: 3 択に紅が来ない階層で伸びが止まる。紅以外の性質は 50% に落ちる
-15. **設置物で固める**（装備 P89 杭打ち + P90 渦の芯 / スキル 引力球・氷結地帯・地裂き / 祝福 崩し・凍て刺し）
-    - 核: 引力球で集めて沈黙させ、渦の芯で怯みやすくして地裂きで怯ませる。怯みの近くに置いた氷結地帯は長く残る
+15. **設置物で固める**（装備 P89 杭打ち + P90 静寂崩し / スキル 引力球・氷結地帯・地裂き / 祝福 崩し・凍て刺し）
+    - 核: 引力球で集めて沈黙させ、静寂崩しで怯みやすくして地裂きで怯ませる。怯みの近くに置いた氷結地帯は長く残る
     - 伸ばし方: P43 崩れの反響で怯みを連鎖させ、三和音「沼」で冷気の減速を強める
     - 弱点: 準備の手数が多くマナを食う。設置が終わる前に殴られると崩れる
 

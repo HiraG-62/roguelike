@@ -214,7 +214,7 @@ docs/ideas/loot-identity.md の推奨案「響き・揺らぎ・来歴」に置�
 
 - **件数**: 性質 159 → 210（うち目覚め 5 → 21）/ 変換 33 → 41 / 誓約 28 → 37（新グループ element / weapon / terrain）/ 名のある遺物 50 → 74 / ベース 61 → 77 / 残響の操作 7 → 12 / 節目 22 → 31
 - 戦闘側の読み取りは `system/traitHooks.ts` に集約（与ダメージ `traitOutgoingMul`、属性 `traitElementMul`〔`combat.ts` の `genreAndElement` から 1 行〕、怯み値、被ダメージ、命中・撃破・怯ませた・毎ステップ）。足元は `system/terrain.ts` の `terrainAt`、得意武器は `system/jobs.ts` の `isFavoredWeapon`
-- 作業領域 `LootRuntime` に 直前の攻撃手段（`lastMode`）/ 天秤の重なり（`alternateStacks` / `alternateTimer`）/ 地の爆ぜの内部クールダウンを追加
+- 作業領域 `LootRuntime` に 直前の攻撃手段（`lastMode`）/ 天秤の重なり（`alternateStacks` / `alternateTimer`）/ 地脈の炸裂の内部クールダウンを追加
 - 数値は `data/tuning.ts` の `TRIGGER.trait`（間合い・半径・秒）/ `KEYSTONE`（第 2 弾の誓約）/ `RESONANCE`（陰画・拮抗・星座）
 
 ### 性質（35）
@@ -245,7 +245,7 @@ docs/ideas/loot-identity.md の推奨案「響き・揺らぎ・来歴」に置�
 | slickFooting | 滑り足 | 水たまり・氷床の上で与ダメージ + |
 | mireGuard | 泥除け | 地形の上で被ダメージ − |
 | terrainHunter | 足場狩り | 地形の上の敵へ + |
-| terrainBurst | 地の爆ぜ | 地形の上の敵を倒すと衝撃波 + 地形の状態異常 |
+| terrainBurst | 地脈の炸裂 | 地形の上の敵を倒すと衝撃波 + 地形の状態異常 |
 | emberTrail | 残り火 | 燃えている敵を倒すと炎の地形を置く（炎耐性 −） |
 | frostTrail | 霜の轍 | ダッシュの軌跡に氷床（ダッシュ距離 −） |
 | groundMend | 土の息 | 地形の上で毎秒回復（最大生命 −） |

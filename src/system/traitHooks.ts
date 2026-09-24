@@ -94,7 +94,7 @@ const SLICK_GROUND: ReadonlySet<TerrainKind> = new Set<TerrainKind>(["water", "i
 const BURNING_GROUND: ReadonlySet<TerrainKind> = new Set<TerrainKind>(["fire", "lava", "oil"]);
 /** 「燃えている」とみなす状態異常 */
 const BURNING_STATUS: readonly StatusKind[] = ["burn", "blaze", "scorch"];
-/** 地の爆ぜ: 地形ごとに周囲へ付ける状態異常 */
+/** 地脈の炸裂: 地形ごとに周囲へ付ける状態異常 */
 const GROUND_BLAST_STATUS: Readonly<Record<Exclude<TerrainKind, "none">, StatusKind>> = {
   water: "chill",
   ice: "chill",
@@ -534,7 +534,7 @@ export function onTraitKill(state: GameState, enemy: Enemy): void {
   if (isLastKillInEngagedRoom(state, enemy)) onLastKill(state);
 }
 
-/** 第 2 弾の撃破（流派の糧・宣告の鐘・封鎖の火花・地の爆ぜ・残り火・来歴） */
+/** 第 2 弾の撃破（流派の糧・宣告の鐘・封鎖の火花・地脈の炸裂・残り火・来歴） */
 function onWave2Kill(state: GameState, enemy: Enemy): void {
   const t = state.stats.traits;
   if (holdsFavored(state)) {
@@ -554,7 +554,7 @@ function onWave2Kill(state: GameState, enemy: Enemy): void {
   }
 }
 
-/** 地の爆ぜ: 衝撃波と、地形に応じた状態異常。連鎖で爆ぜ続けないよう内部クールダウンを持つ */
+/** 地脈の炸裂: 衝撃波と、地形に応じた状態異常。連鎖で爆ぜ続けないよう内部クールダウンを持つ */
 function groundBlast(state: GameState, pos: Vec, ground: Exclude<TerrainKind, "none">, damage: number): void {
   const loot = state.player.loot;
   if (loot.terrainBlastIcd > 0) return;
@@ -647,7 +647,7 @@ export function tickTraitClocks(state: GameState, dt: number): void {
   tickIceTrail(state);
 }
 
-/** 天秤の重なりの残り秒と、地の爆ぜの内部クールダウン */
+/** 天秤の重なりの残り秒と、地脈の炸裂の内部クールダウン */
 function tickLootTimers(state: GameState, dt: number): void {
   const loot = state.player.loot;
   loot.terrainBlastIcd = Math.max(0, loot.terrainBlastIcd - dt);

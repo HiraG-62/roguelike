@@ -1488,7 +1488,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "rotBurst",
     color: "umbra",
-    label: "腐れ落ち: 状態異常が 2 種以上の敵への近接命中で爆発する（{v} ダメージ）、近接ダメージ -{v2}%",
+    label: "腐爆: 状態異常が 2 種以上の敵への近接命中で爆発する（{v} ダメージ）、近接ダメージ -{v2}%",
     tags: ["status", "melee", "damage", "tradeoff"],
     slots: ["mainHand"],
     curve: curveFor("rotBurst"),
@@ -1595,7 +1595,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "vortexCore",
     color: "umbra",
-    label: "渦の芯: 沈黙中の敵への怯み値 +{v}%、射撃ダメージ -{v2}%",
+    label: "静寂崩し: 沈黙中の敵への怯み値 +{v}%、射撃ダメージ -{v2}%",
     tags: ["status", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: curveFor("vortexCore"),
@@ -2344,7 +2344,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "terrainBurst",
     color: "crimson",
-    label: "地の爆ぜ: 地形の上にいる敵を倒すと、衝撃波を放つ（{v} ダメージ。炎・油・溶岩は燃焼、水・氷は冷気、毒沼・草は毒）",
+    label: "地脈の炸裂: 地形の上にいる敵を倒すと、衝撃波を放つ（{v} ダメージ。炎・油・溶岩は燃焼、水・氷は冷気、毒沼・草は毒）",
     tags: ["damage", "elemental"],
     slots: ["mainHand", "amulet"],
     curve: curveFor("terrainBurst"),
