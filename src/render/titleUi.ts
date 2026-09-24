@@ -303,7 +303,7 @@ export function drawTitle(
   // URL の ?seed= は常に同期しているので、アドレスバーをコピーすればシードを共有できる
   const seedLabel = seedInput.active
     ? `シード: ${seedInput.text}_`
-    : `シード: ${seedInput.text}  (N: 編集 / URL を共有できます)`;
+    : `シード: ${seedInput.text}  (N: 編集 / URL で共有)`;
   drawText(ctx, seedLabel, VIEW_W / 2, 132, TEXT.SMALL, seedColor, "center");
   if (meta.title !== null) drawText(ctx, `称号「${meta.title}」`, VIEW_W / 2, TITLE_LABEL_Y, TEXT.SMALL, COLOR_TITLE, "center");
   drawTitleMenu(ctx, meta.hovered);

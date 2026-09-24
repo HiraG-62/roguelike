@@ -408,7 +408,7 @@ function chainEntries(save: CodexSave): CodexEntry[] {
     .map(([key, count]) => {
       const id = linkId("chain", key);
       const words = key.split(CHAIN_SEPARATOR).length;
-      const detail = `${chainLabel(key)}（${words} 語の連鎖）。${count} 回つないだ。${firstSeenText(save, id)}`;
+      const detail = `${chainLabel(key)}（${words} 段の連鎖）。${count} 回つないだ。${firstSeenText(save, id)}`;
       return { key: id, known: true, name: linkName(id), info: `${LINK_KIND_LABEL.chain} ${count} 回`, detail };
     });
 }
@@ -425,7 +425,7 @@ function placeEntries(save: CodexSave, page: boolean): CodexEntry[] {
     const known = floors.has(kind);
     const label = floorKindLabel(kind);
     const name = known ? label : page ? `（未踏）${label}` : UNKNOWN_NAME;
-    return { key: `floor:${kind}`, known, name, info: "階の種類", detail: known ? `${label}の階を歩いた。` : "まだ歩いていない階。" };
+    return { key: `floor:${kind}`, known, name, info: "階の種類", detail: known ? `${label}の階を訪れた。` : "まだ訪れていない階。" };
   });
   const roomEntries = codexRoomKinds().map((kind): CodexEntry => {
     const known = rooms.has(kind);

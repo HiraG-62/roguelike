@@ -28,10 +28,10 @@ const STATE_BG: Readonly<Record<SynergyWordState, string | null>> = {
   none: null,
 };
 const STATE_TEXT: Readonly<Record<SynergyWordState, string>> = {
-  surplus: "余り: 出しているのに誰も食わない",
-  hunger: "飢え: 食うのに誰も出さない",
-  linked: "出す要素と食う要素がつながっている",
-  none: "今のビルドは関わっていない",
+  surplus: "溢れ（糧なし）",
+  hunger: "枯れ（源なし）",
+  linked: "源と糧あり",
+  none: "関連なし",
 };
 const STATE_COLOR: Readonly<Record<SynergyWordState, string>> = {
   surplus: "#ffa050",
@@ -56,10 +56,10 @@ const LABEL_GAP = 3;
 const COUNT_PAD = 2;
 /** ？ のヘルプに出す凡例と操作（画面には常時出さない） */
 export const WEB_HELP: readonly { text: string; color: string }[] = [
-  { text: "方向キー / スティック / マウス: 語を選ぶ", color: COLOR_TEXT },
-  { text: "暖色 = 余り（出しているのに誰も食わない）", color: STATE_COLOR.surplus },
-  { text: "寒色の点滅 = 飢え（食うのに誰も出さない）", color: STATE_COLOR.hunger },
-  { text: "右下の数 = 出す要素 / 食う要素", color: COLOR_DIM },
+  { text: "方向キー / スティック / マウス: 流れを選ぶ", color: COLOR_TEXT },
+  { text: "暖色 = 溢れ（源だけで糧がない）", color: STATE_COLOR.surplus },
+  { text: "寒色の点滅 = 枯れ（糧だけで源がない）", color: STATE_COLOR.hunger },
+  { text: "右下の数 = 源の数 / 糧の数", color: COLOR_DIM },
   { text: "名前の色: 遺物 / 共鳴 / スキル石 / 祝福", color: COLOR_DIM },
 ];
 
@@ -114,8 +114,8 @@ function drawDetail(ctx: CanvasRenderingContext2D, w: SynergyWordView): void {
   y += lineH + 1;
   drawText(ctx, truncateText(STATE_TEXT[w.state], maxWidth, m), x, y, m, STATE_COLOR[w.state]);
   y += lineH + 2;
-  y = drawElementList(ctx, "出す", w.producers, x, y, maxWidth, bottom);
-  drawElementList(ctx, "食う", w.consumers, x, y + 2, maxWidth, bottom);
+  y = drawElementList(ctx, "源", w.producers, x, y, maxWidth, bottom);
+  drawElementList(ctx, "糧", w.consumers, x, y + 2, maxWidth, bottom);
 }
 
 /** 見出し + 要素名の列。入らない分は「ほか n」にまとめる。次の y を返す */

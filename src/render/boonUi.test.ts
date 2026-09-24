@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { BOON_MARKS, BOON_MARK_LABEL, boonMark } from "./boonUi";
 
 describe("祝福カードの印", () => {
-  it("飢えを埋めるなら「穴を埋める」、余りを食うなら「流れを太くする」、どちらでもなければ「新しい流れ」", () => {
-    expect(boonMark({ fills: ["burn"], feeds: [] }), "穴を埋める").toBe("fill");
-    expect(boonMark({ fills: [], feeds: ["kill"] }), "流れを太くする").toBe("feed");
-    expect(boonMark({ fills: [], feeds: [] }), "新しい流れ").toBe("fresh");
+  it("枯れを満たすなら「潤い」、溢れを使うなら「受け皿」、どちらでもなければ「新たな流れ」", () => {
+    expect(boonMark({ fills: ["burn"], feeds: [] }), "潤い").toBe("fill");
+    expect(boonMark({ fills: [], feeds: ["kill"] }), "受け皿").toBe("feed");
+    expect(boonMark({ fills: [], feeds: [] }), "新たな流れ").toBe("fresh");
     expect(boonMark({ fills: ["burn"], feeds: ["kill"] }), "両方なら穴を先に").toBe("fill");
   });
 

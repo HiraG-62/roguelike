@@ -99,7 +99,7 @@ describe("怯み値の性質", () => {
     expect(traitPoiseMul(state, e, "melee", false)).toBeCloseTo(1.6);
   });
 
-  it("追い討ち・渦の芯・脆弱の楔: その状態異常の敵にだけ", () => {
+  it("追い討ち・静寂崩し・脆弱の楔: その状態異常の敵にだけ", () => {
     const state = withTraits({ fearPoiseMul: 1, silencedPoiseMul: 0.5 });
     const e = placeEnemy(state, "slime", FAR);
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "silence", stacks: 1, duration: 3, potency: 0 }, "player");

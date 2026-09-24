@@ -729,7 +729,7 @@ function checkAffordable(state: GameState, index: number, r: ResolvedSlot): bool
     return false;
   }
   if ((state.skills.slots[index]?.chargesLeft ?? 0) > 0) return true;
-  notReady(state, "冷却中");
+  notReady(state, "再使用待ち");
   return false;
 }
 
@@ -750,9 +750,9 @@ function manaAffordable(state: GameState, index: number, r: ResolvedSlot): boole
 
 /** マナ不足以外の理由で撃てないときの浮き文字（満月の砲・枯渇の刃・後払いの返済待ち）。マナ不足なら null */
 function manaRuleReason(state: GameState, index: number, r: ResolvedSlot): string | null {
-  if (r.def.manaRule === "full") return "満タンでない";
-  if (r.def.manaRule === "low") return "気力が多い";
-  if (r.params.deferredMul > 0 && state.skills.debtOwed > 0) return "返済残あり";
+  if (r.def.manaRule === "full") return "満タン時のみ";
+  if (r.def.manaRule === "low") return "気力が少ない時のみ";
+  if (r.params.deferredMul > 0 && state.skills.debtOwed > 0) return "未払いあり";
   if (r.params.deferredMul > 0 && state.skills.debts.some((d) => d.slot === index)) return "返済待ち";
   return null;
 }

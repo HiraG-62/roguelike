@@ -496,14 +496,14 @@ describe("血の契約", () => {
 });
 
 describe("チャージと CD（CD 型）", () => {
-  it("CD 中は発動できず（冷却中）、CD 経過で回復する", () => {
+  it("CD 中は発動できず（再使用待ち）、CD 経過で回復する", () => {
     const state = skillArena([{ key: "haste" }]);
     press(state, 0);
     expect(state.skills.slots[0]?.chargesLeft).toBe(0);
     waitInterval(state, 0);
     state.skills.haste.time = 0;
     press(state, 0);
-    expect(state.skills.haste.time, "冷却中は発動しない").toBe(0);
+    expect(state.skills.haste.time, "再使用待ちの間は発動しない").toBe(0);
     const cd = resolveSlot(state, 0)?.cooldown ?? 0;
     expect(cd).toBeCloseTo(SKILL.haste.cooldown);
     run(state, cd);

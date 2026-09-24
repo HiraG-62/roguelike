@@ -99,7 +99,7 @@ export function extraCastBlock(state: GameState, key: ExtraSkillKey, target: Vec
     case "discharge":
       return shockedInRange(state, state.player.body.pos, params).length > 0 ? null : "感電なし";
     case "backflow":
-      return rewindEntry(state) ? null : "戻れない";
+      return rewindEntry(state) ? null : "戻り先なし";
     default:
       return null;
   }

@@ -29,8 +29,8 @@ export function drawQuestChoice(ctx: CanvasRenderingContext2D, ui: Readonly<Ques
   ctx.fillStyle = COLOR_BG;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   const L = QUEST_CHOICE_LAYOUT;
-  drawText(ctx, "依頼を受ける", VIEW_W / 2, L.titleY, TEXT.TITLE, COLOR_TITLE, "center");
-  drawText(ctx, "1 つ受けて潜る。達成すると次の探索から選択肢が増える（強さは増えない）。", VIEW_W / 2, L.subtitleY, TEXT.SMALL, COLOR_DIM, "center");
+  drawText(ctx, "依頼を選ぶ", VIEW_W / 2, L.titleY, TEXT.TITLE, COLOR_TITLE, "center");
+  drawText(ctx, "1 つ選んで出発します。達成すると次の探索から選べるものが増えます", VIEW_W / 2, L.subtitleY, TEXT.SMALL, COLOR_DIM, "center");
   const rects = questCardRects(ui.offers.length);
   ui.offers.forEach((key, i) => {
     const rect = rects[i];
@@ -76,7 +76,7 @@ function drawCard(ctx: CanvasRenderingContext2D, key: QuestKey, r: Rect, active:
   y = drawLines(ctx, def.desc, x, y, width, DESC_MAX_LINES, COLOR_TEXT) + SECTION_GAP;
   drawText(ctx, `目標: ${def.goal}`, x, y, TEXT.SMALL, COLOR_GOAL);
   y += line + SECTION_GAP;
-  const reward = done ? "達成済み（報酬はもう無い）" : `報酬: ${questRewardLabel(def.reward)}`;
+  const reward = done ? "達成済み（報酬なし）" : `報酬: ${questRewardLabel(def.reward)}`;
   drawLines(ctx, reward, x, y, width, REWARD_MAX_LINES, done ? COLOR_DONE : COLOR_REWARD);
 }
 

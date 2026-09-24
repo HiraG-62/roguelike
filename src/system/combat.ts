@@ -526,7 +526,7 @@ function killPlayer(state: GameState): void {
   spawnBurst(state, p.body.pos, "#ffffff", 40, 220, 0.9, 3);
   state.slowmo = DEATH_SLOWMO;
   pushSfx(state, "death");
-  pushLog(state, `あなたは倒れた（地下${state.depth}階）。`, COLOR_HURT);
+  pushLog(state, `力尽きた（地下${state.depth}階）。`, COLOR_HURT);
   recordRunOnce(state);
 }
 

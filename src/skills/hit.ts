@@ -291,7 +291,7 @@ export function refundMana(state: GameState, amount: number, pos: Vec, pool: { l
   const p = state.player;
   const before = p.mana;
   p.mana = Math.min(state.stats.maxMana, p.mana + refund);
-  if (showText) addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
+  if (showText) addFloatingText(state, pos, "払い戻し", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
   return p.mana - before;
 }
 
@@ -313,7 +313,7 @@ export function refundCharge(state: GameState, slotIndex: number, pos: Vec): voi
   if (slot.chargesLeft >= max) return;
   slot.chargesLeft += 1;
   if (slot.chargesLeft >= max) slot.cooldownLeft = 0;
-  addFloatingText(state, pos, "返却", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
+  addFloatingText(state, pos, "チャージ回復", COLOR_RESET, RESET_TEXT_SCALE, RESET_TEXT_LIFE);
 }
 
 /** 呪い・追撃の印の時間経過。切れたもの・いなくなった敵は消す */

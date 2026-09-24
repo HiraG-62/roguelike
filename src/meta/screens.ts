@@ -35,7 +35,7 @@ export function linkMilestoneEntry(save: CodexSave): ListEntry {
   const all = linkMilestones()
     .map((m) => `${m.count} 種: ${milestoneRewardLabel(m)}${count >= m.count ? "（済）" : ""}`)
     .join(" / ");
-  const name = next === null ? `発見 ${count} 種（節目はすべて越えた）` : `発見 ${count} 種 ・ 次の節目 ${next.count} 種`;
+  const name = next === null ? `発見 ${count} 種（節目をすべて達成）` : `発見 ${count} 種 ・ 次の節目 ${next.count} 種`;
   const info = next === null ? "" : milestoneRewardLabel(next);
   return { key: LINK_MILESTONE_KEY, known: true, name, info, detail: `スキルの連携・反応・連鎖を初めて起こすと数える。${all}` };
 }
@@ -73,8 +73,8 @@ export function questBoardTabs(save: QuestSave): ListTab[] {
   const open = QUEST_KEYS.filter((k) => !isQuestCompleted(save, k));
   const done = QUEST_KEYS.filter((k) => isQuestCompleted(save, k));
   return [
-    { label: `未達成 ${open.length}`, entries: open.map((k) => questEntry(k, false)), empty: "すべての依頼を達成した。" },
-    { label: `達成済み ${done.length}`, entries: done.map((k) => questEntry(k, true)), empty: "まだ達成した依頼はない。探索の開始時に 1 つ受けられる。" },
+    { label: `未達成 ${open.length}`, entries: open.map((k) => questEntry(k, false)), empty: "すべての依頼を達成しました。" },
+    { label: `達成済み ${done.length}`, entries: done.map((k) => questEntry(k, true)), empty: "達成した依頼はまだありません。探索の開始時に 1 つ受けられます。" },
   ];
 }
 

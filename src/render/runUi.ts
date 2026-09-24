@@ -455,7 +455,7 @@ function lingerLine(state: GameState): HudLine | null {
     if (left > LINGER.warnMargin) return null;
     return { text: `長居の代償「${LINGER_LABEL[linger.kind]}」まで ${Math.ceil(left)} 秒`, color: RUN_EVENT.warnColor, blink: true };
   }
-  const text = linger.kind === "tide" && tideFull(state) ? "満潮: 水の上で溺れる" : LINGER_ACTIVE_TEXT[linger.kind];
+  const text = linger.kind === "tide" && tideFull(state) ? "満潮: 水上にいると溺れる" : LINGER_ACTIVE_TEXT[linger.kind];
   return { text, color: RUN_EVENT.activeColor, blink: false };
 }
 

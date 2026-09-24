@@ -501,24 +501,24 @@ export type EchoResult =
   | { ok: false; op: EchoOp; reason: EchoRejectReason; message: string };
 
 const INVALID_MESSAGE: Readonly<Record<EchoOp, string>> = {
-  shatter: "砕けるものがない",
-  dye: "その性質はすでにその色か、置き換えられる性質がない",
-  calm: "鎮める揺らぎがないか、余白が足りない",
-  stir: "煽れる性質がない（誓約は揺らがない）",
-  pare: "削ぐ性質がない",
-  transfer: "移せない（同じ部位の別の遺物へ、銘は無銘へ、芽は余白のある遺物へ）",
-  modulate: "転調できる性質がない（反転した性質と誓約は色を変えられない）",
-  bleach: "脱色できる性質がない（反転・誓約・無色のものは脱色できない）",
-  recall: "呼び戻せない（1 つの遺物に 1 回だけ。選んだ芽が残っていて、選ばなかった方が重ならないこと）",
-  pour: "注げない（来歴のある遺物から、同じ部位の別の遺物へ）",
-  reforge: "鍛え直せない（来歴の最深が期待値を上げるほど深くないか、余白の上限が足りない）",
-  tension: "張れる性質がない（代償付きの性質に 1 回だけ）",
+  shatter: "砕ける遺物がありません",
+  dye: "その性質はすでにその色か、置き換え先の性質がありません",
+  calm: "鎮める揺らぎがないか、余白が足りません",
+  stir: "煽れる性質がありません（誓約は対象外）",
+  pare: "削げる性質がありません",
+  transfer: "移せません（同じ部位の別の遺物へ。銘は無銘の遺物へ、芽は余白のある遺物へ）",
+  modulate: "転調できる性質がありません（反転した性質と誓約は対象外）",
+  bleach: "脱色できる性質がありません（反転・誓約・無色の性質は対象外）",
+  recall: "呼び戻せません（1 つの遺物に 1 回だけ。選んだ芽が残っていて、選ばなかった方が重ならない場合のみ）",
+  pour: "注げません（来歴のある遺物から、同じ部位の別の遺物へ）",
+  reforge: "鍛え直せません（来歴の最深が浅く期待値が上がらないか、余白の上限が足りません）",
+  tension: "張れる性質がありません（代償付きの性質に 1 回だけ）",
 };
 
 export function echoBlockMessage(reason: EchoRejectReason, req: EchoRequest): string {
   if (reason === "invalid") return INVALID_MESSAGE[req.op];
   const cost = echoCost(req);
-  return cost === null ? INVALID_MESSAGE[req.op] : `${ECHO_LABEL[cost.color]}が${cost.amount}必要`;
+  return cost === null ? INVALID_MESSAGE[req.op] : `${ECHO_LABEL[cost.color]}が ${cost.amount} 必要です`;
 }
 
 function runEchoOp(req: EchoRequest, rng: Rng): Item | null {

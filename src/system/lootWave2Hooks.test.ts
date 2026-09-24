@@ -213,7 +213,7 @@ describe("地形（足元・敵の足元）", () => {
     expect(traitOutgoingMul(state, e, "melee", false)).toBeCloseTo(KEYSTONE.emberOnMul);
   });
 
-  it("地の爆ぜ: 地形の上の敵を倒すと周囲に地形の状態異常（内部クールダウンで連鎖しない）", () => {
+  it("地脈の炸裂: 地形の上の敵を倒すと周囲に地形の状態異常（内部クールダウンで連鎖しない）", () => {
     const state = withTraits({ terrainKillBlast: 5 });
     const victim = placeEnemy(state, "slime", ROOM_SPOT);
     const other = placeEnemy(state, "slime", ROOM_SPOT + 16);

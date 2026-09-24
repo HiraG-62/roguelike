@@ -356,7 +356,7 @@ function frac(v: number): number {
 export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
   crimson: {
     name: "灼極",
-    lines: ["3 回に 1 回の近接攻撃で、周囲の敵を燃やす", "近接の一撃が少し重くなる"],
+    lines: ["3 回に 1 回の近接攻撃で、周囲の敵を燃やす", "近接ダメージが少し上がる"],
     apply: both(
       trigger({ trigger: "everyNthMeleeHit", every: 3, condition: "always", effect: "burnNearby", magnitude: amt(6), duration: 3, chance: 1 }),
       (s) => {
@@ -366,7 +366,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
   },
   azure: {
     name: "氷極",
-    lines: ["射撃のたびに 25% の確率で、周囲の敵を凍らせる", "弾が速く飛ぶ"],
+    lines: ["射撃のたびに 25% の確率で、周囲の敵を凍らせる", "弾速が上がる"],
     apply: both(
       trigger({ trigger: "onShoot", condition: "always", effect: "freezeNearby", magnitude: amt(40), duration: 2, chance: 0.25 }),
       (s) => {
@@ -376,14 +376,14 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
   },
   jade: {
     name: "森極",
-    lines: [`被弾すると 50% の確率で生命を ${amt(8)} 回復する`, "敵が近くにいない間、傷が少しずつ塞がる"],
+    lines: [`被弾すると 50% の確率で生命を ${amt(8)} 回復する`, "敵が近くにいない間、生命が少しずつ回復する"],
     apply: both(trigger({ trigger: "onHurt", condition: "always", effect: "heal", magnitude: amt(8), chance: 0.5 }), (s) => {
       s.hpRegen += frac(0.5);
     }),
   },
   gold: {
     name: "雷極",
-    lines: ["10 コンボ以上の近接命中で、30% の確率で連鎖雷を呼ぶ", "会心が出やすくなる"],
+    lines: ["10 コンボ以上の近接命中で、30% の確率で連鎖雷を呼ぶ", "会心率が上がる"],
     apply: both(
       trigger({ trigger: "onMeleeHit", condition: "comboAbove10", effect: "chainLightning", magnitude: amt(14), chance: 0.3 }),
       (s) => {
@@ -397,7 +397,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
     // 大半のランでは「反転を正として扱う」効果が一切働かず、damageTakenMul の代償だけが残って
     // 純粋な弱化になっていた。深度に関係なく効く energyGainMul を足して、
     // 反転に出会う前でも選ぶ理由を持たせる（虚 = 何もない代わりに力を吸い出す、の方向）
-    lines: ["反転した性質の負の値を、正の値として扱う", "受けた傷から力を吸い、必殺ゲージが少し貯まりやすくなる", "代わりに受ける傷が少し深くなる"],
+    lines: ["反転した性質の負の値を、正の値として扱う", "必殺ゲージが少し溜まりやすくなる", "代わりに被ダメージが少し増える"],
     apply: (s) => {
       s.energyGainMul += frac(0.15);
       s.damageTakenMul += 0.1;
@@ -409,7 +409,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
 export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   "crimson+azure": {
     name: "蒸気",
-    lines: ["射撃時に 20% の確率で、周囲の敵を燃やす", "攻撃に冷気が混じり、敵を凍らせやすくなる"],
+    lines: ["射撃時に 20% の確率で、周囲の敵を燃やす", "攻撃で敵を冷気にしやすくなる"],
     apply: both(
       trigger({ trigger: "onShoot", condition: "always", effect: "burnNearby", magnitude: amt(5), duration: 3, chance: 0.2 }),
       (s) => {
@@ -419,7 +419,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+jade": {
     name: "血潮",
-    lines: [`命中のたびに与ダメの ${frac(1)}% を吸う`, `撃破時に 30% の確率で、4 秒間ダメージ +${amt(20)}%`],
+    lines: [`命中のたびに与ダメの ${frac(1)}% を回復する`, `撃破時に 30% の確率で、4 秒間ダメージ +${amt(20)}%`],
     apply: both(
       trigger({ trigger: "onKill", condition: "always", effect: "damageBuff", magnitude: amt(20), duration: 4, chance: 0.3 }),
       (s) => {
@@ -429,7 +429,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+gold": {
     name: "閃火",
-    lines: ["会心の一撃がさらに深く入る", "攻撃が燃え移りやすくなる"],
+    lines: ["会心倍率が上がる", "攻撃で敵を燃焼させやすくなる"],
     apply: (s) => {
       s.critMul += frac(0.25);
       s.burnChance += frac(0.1);
@@ -447,7 +447,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+jade": {
     name: "潮流",
-    lines: [`ダッシュ時に 50% の確率で生命を ${amt(3)} 回復する`, "足取りが軽くなる"],
+    lines: [`ダッシュ時に 50% の確率で生命を ${amt(3)} 回復する`, "移動速度が少し上がる"],
     apply: both(trigger({ trigger: "onDash", condition: "always", effect: "heal", magnitude: amt(3), chance: 0.5 }), (s) => {
       s.moveSpeedMul += frac(0.08);
     }),
@@ -457,7 +457,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
     // 元は chillChance/shockChance を足すだけの数値効果だったが、QA での指摘（二重の固有効果に
     // 「遊び方が変わる」ものを最低 1 つ）を受けて、JUST 回避を避けるだけの防御行動から
     // 攻めにも使える行動に変える。数値ボーナスは半分にして帳尻を合わせる
-    lines: ["見切りの瞬間、周囲へ凍雷の弾をばら撒く", "攻撃が敵を凍らせ・感電させやすくなる"],
+    lines: ["見切りの瞬間、50% の確率で周囲へ凍雷の弾をばら撒く", "攻撃で敵を冷気・感電にしやすくなる"],
     apply: both(
       trigger({ trigger: "onJustDodge", condition: "always", effect: "spawnBullets", magnitude: amt(8), count: 6, chance: 0.5 }),
       (s) => {
@@ -468,7 +468,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+umbra": {
     name: "影弾",
-    lines: ["弾が敵を 1 体多く貫く", "代わりに受ける傷が少し深くなる"],
+    lines: ["弾の貫通 +1", "代わりに被ダメージが少し増える"],
     apply: (s) => {
       s.pierce += 1;
       s.damageTakenMul += 0.1;
@@ -493,7 +493,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "gold+umbra": {
     name: "賭け",
-    lines: ["会心が出やすく、深く入るようになる", "代わりに受ける傷が深くなる"],
+    lines: ["会心率と会心倍率が上がる", "代わりに被ダメージが増える"],
     apply: (s) => {
       s.critChance += frac(0.1);
       s.critMul += frac(0.5);
@@ -513,7 +513,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
 export const SCATTER_EFFECT: ResonanceEffect = {
   name: "虹",
   lines: [
-    "近接・射撃・攻撃速度・連射・移動が少しずつ伸びる",
+    "近接・射撃・攻撃速度・連射速度・移動速度が少し上がる",
     "必殺ゲージが少し溜まりやすくなる",
     "反転した性質の代償を打ち消す（正の効果には転じない）",
   ],
@@ -541,7 +541,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+azure+gold": {
     name: "雷雨",
-    lines: ["状態異常が 2 種以上の敵を殴ると、35% の確率で連鎖雷を呼ぶ", "攻撃が感電させやすくなる"],
+    lines: ["状態異常が 2 種以上の敵に近接を当てると、35% の確率で連鎖雷を呼ぶ", "攻撃で敵を感電させやすくなる"],
     apply: both(
       trigger({ trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "chainLightning", magnitude: amt(12), chance: 0.35 }),
       (s) => {
@@ -551,7 +551,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+azure+umbra": {
     name: "煤",
-    lines: ["状態異常が 2 種以上の敵を殴ると、50% の確率で脆弱にする", "炎上が少し熱くなる"],
+    lines: ["状態異常が 2 種以上の敵に近接を当てると、50% の確率で脆弱にする", "燃焼ダメージが少し上がる"],
     apply: both(
       trigger({ trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "inflict", status: "vulnerable", magnitude: 3, chance: 0.5 }),
       (s) => {
@@ -569,14 +569,14 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+jade+umbra": {
     name: "血肉",
-    lines: [`命中のたびに与ダメの ${frac(1)}% を吸う`, `生命が半分を切っている間の撃破で生命を ${amt(6)} 回復する`],
+    lines: [`命中のたびに与ダメの ${frac(1)}% を回復する`, `生命が半分を切っている間の撃破で生命を ${amt(6)} 回復する`],
     apply: both(trigger({ trigger: "onKill", condition: "belowHalfHp", effect: "heal", magnitude: amt(6), chance: 1 }), (s) => {
       s.lifeOnHit += frac(1);
     }),
   },
   "crimson+gold+umbra": {
     name: "賭場",
-    lines: ["敵を怯ませると、50% の確率でその場が爆発する", "会心が少し出やすくなる"],
+    lines: ["敵を怯ませると、50% の確率でその場が爆発する", "会心率が少し上がる"],
     apply: both(
       trigger({ trigger: "onStagger", condition: "always", effect: "explode", magnitude: amt(20), chance: 0.5 }),
       (s) => {
@@ -586,14 +586,14 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+jade+gold": {
     name: "凪",
-    lines: [`気力が満タンの間の撃破で必殺ゲージを ${amt(10)} 得る`, "敵が近くにいない間、傷が少しずつ塞がる"],
+    lines: [`気力が満タンの間の撃破で必殺ゲージを ${amt(10)} 得る`, "敵が近くにいない間、生命が少しずつ回復する"],
     apply: both(trigger({ trigger: "onKill", condition: "manaFull", effect: "energy", magnitude: amt(10), chance: 1 }), (s) => {
       s.hpRegen += frac(0.3);
     }),
   },
   "azure+jade+umbra": {
     name: "沼",
-    lines: ["射撃のたびに 20% の確率で、近くの敵を毒にする", "冷気の遅さが少し深くなる"],
+    lines: ["射撃のたびに 20% の確率で、近くの敵を毒にする", "冷気の減速が少し強くなる"],
     apply: both(
       trigger({ trigger: "onShoot", condition: "always", effect: "inflict", status: "poison", magnitude: 3, chance: 0.2 }),
       (s) => {
@@ -625,7 +625,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
 export const NEGATIVE_EFFECTS: Readonly<Record<Exclude<TraitColor, "umbra">, ResonanceEffect>> = {
   crimson: {
     name: "冷たい炎",
-    lines: ["燃焼の確率が、すべて冷気の確率に変わる", "近接の一撃の重さが、射撃へ移る"],
+    lines: ["燃焼の確率が、すべて冷気の確率に変わる", "射撃ダメージが少し上がる"],
     apply: (s) => {
       s.chillChance += Math.max(0, s.burnChance);
       s.burnChance = 0;
@@ -664,7 +664,7 @@ export const NEGATIVE_EFFECTS: Readonly<Record<Exclude<TraitColor, "umbra">, Res
   },
   gold: {
     name: "暗雷",
-    lines: ["会心が出なくなる", `攻撃が感電させやすくなり、近接で ${Math.round(RESONANCE.darkThunderChance * PERCENT)}% の確率で連鎖雷を呼ぶ`],
+    lines: ["会心が出なくなる", `攻撃で敵を感電させやすくなり、近接で ${Math.round(RESONANCE.darkThunderChance * PERCENT)}% の確率で連鎖雷を呼ぶ`],
     apply: both(
       (s) => {
         s.critChance = 0;
@@ -860,7 +860,7 @@ function describeColorResonance(resonance: Resonance): string[] {
   const attrLine = resonanceAttributeLine(resonance);
   if (attrLine !== undefined) lines.push(attrLine);
   if (resonance.kind === "dominant") {
-    lines.push(`支配していない色の性質は ${Math.round(OFF_COLOR_DAMPING * PERCENT_SCALE)}% に弱まる`);
+    lines.push(`ほかの色の性質は効果が ${Math.round(OFF_COLOR_DAMPING * PERCENT_SCALE)}% に下がる`);
   }
   return lines;
 }
@@ -963,7 +963,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
     name: "双子",
     pattern: "武器と銃が同じ主色",
     lines: [
-      `近接と射撃の上乗せのうち ${pctText(RESONANCE.twinsShare)}% が、もう片方にも効く`,
+      `近接と射撃のダメージ上昇の ${pctText(RESONANCE.twinsShare)}% が、もう片方にも乗る`,
       `代償: 攻撃速度・連射速度 -${pctText(RESONANCE.twinsTempoLoss)}%`,
     ],
     apply: (s) => {
@@ -998,7 +998,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
   },
   ring: {
     name: "環",
-    pattern: "6 部位の主色に 5 色すべてが出る",
+    pattern: "6 部位の主色に 5 色すべてがそろう",
     lines: [`全ステータス +${RESONANCE.ringAttr}`, `代償: 最大気力 -${RESONANCE.ringManaLoss}`],
     apply: (s) => {
       for (const k of ATTR_KEYS) s.attributes[k] += RESONANCE.ringAttr;
@@ -1008,7 +1008,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
   mirror: {
     name: "鏡像",
     pattern: "輪で向かい合う 3 組（武器と鎧・銃と靴・首飾りと指輪）が同じ主色",
-    lines: [`装備のトリガーの内部クールダウン -${pctText(RESONANCE.mirrorIcdCut)}%`, `代償: 最大生命 -${RESONANCE.mirrorHpLoss}`],
+    lines: [`装備のトリガーの発動間隔 -${pctText(RESONANCE.mirrorIcdCut)}%`, `代償: 最大生命 -${RESONANCE.mirrorHpLoss}`],
     apply: (s) => {
       s.traits.triggerIcdCut = Math.max(s.traits.triggerIcdCut, RESONANCE.mirrorIcdCut);
       s.maxHp -= RESONANCE.mirrorHpLoss;

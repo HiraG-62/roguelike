@@ -39,7 +39,7 @@ export const REAPER_VARIANT_LABEL: Readonly<Record<ReaperVariant, string>> = {
 const VARIANT_LOG: Readonly<Record<ReaperVariant, string>> = {
   default: "長居しすぎた。死神が来る。",
   chain: "長居しすぎた。鎖の死神が来る。予告線を見て鎖を避けろ。",
-  collector: "取り立て屋が来た。輪の中に留まれば、命の一部と引き換えに去る。",
+  collector: "取り立て屋が来た。輪の中に留まれば、生命の一部と引き換えに去る。",
   twin: "長居しすぎた。死神が二手に分かれて来る。",
   shadow: "闇から影の群れが湧く。倒しても湧き直す。",
   silent: "静かな死神がついてくる。動いている間だけ近づく。",
@@ -189,7 +189,7 @@ function collectToll(state: GameState, r: Reaper): void {
   r.departed = true;
   spawnBurst(state, r.pos, c.color, 24, 120, 0.6, 2.5);
   addFloatingText(state, { x: p.body.pos.x, y: p.body.pos.y - 16 }, `取り立て -${toll}`, c.color, 1.3, 1.4);
-  pushLog(state, "取り立て屋は命の一部を受け取り、去っていった。", c.color);
+  pushLog(state, "取り立て屋は生命の一部を受け取り、去っていった。", c.color);
   pushSfx(state, "reaperAppear");
 }
 

@@ -125,7 +125,7 @@ export function createGame(
   buildFloor(state);
   // ジョブの初期スキル石（未所持のときだけ倉庫へ。見習いは何もしない）
   startJob(state);
-  pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");
+  pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 近接攻撃 / 右クリック 射撃 / F バースト", "#ffd75f");
   return state;
 }
 

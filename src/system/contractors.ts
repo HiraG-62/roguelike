@@ -143,7 +143,7 @@ export const CONTRACTORS: Readonly<Record<ContractorKey, ContractorDef>> = {
   bard: { name: "語り部", line: "その遺物の話を聞かせておくれ", color: "#ffb0c0" },
   smith: { name: "鍛冶", line: "刃に属性を焼き付けてやろう", color: "#ff9040" },
   guide: { name: "案内人", line: "道はひとつじゃない", color: "#90e0ff" },
-  ferryman: { name: "渡し守", line: "死神の舟は待たせられる", color: "#8080c0" },
+  ferryman: { name: "渡し守", line: "死神なら、しばらく待たせられる", color: "#8080c0" },
 };
 
 export interface PactDef {
@@ -330,21 +330,21 @@ const OFFER_NAME: Readonly<Record<OfferKind, string>> = {
   buyItem: "遺物",
   buyEchoes: "残響",
   buyRune: "刻印符",
-  stitch: "傷を縫う",
-  uncurse: "呪いを解く",
-  cleanse: "清め",
-  foretell: "次の階を読む",
-  ward: "凶兆を払う",
-  farsight: "この階を見通す",
+  stitch: "傷の手当て",
+  uncurse: "解呪",
+  cleanse: "浄化",
+  foretell: "次の階の占い",
+  ward: "厄払い",
+  farsight: "この階の地図",
   betShards: "欠片を賭ける",
   betLife: "生命を賭ける",
-  tale: "来歴を語る",
-  witness: "見届けてもらう",
+  tale: "来歴を刻む",
+  witness: "立ち会い",
   infuse: "焼き付け",
-  fork: "分かれ道を増やす",
-  reveal: "階段を教わる",
-  ferryLife: "生命で時を買う",
-  ferryShards: "欠片で時を買う",
+  fork: "階段を増やす",
+  reveal: "階段の場所",
+  ferryLife: "死神の足止め（生命）",
+  ferryShards: "死神の足止め",
 };
 
 /** 台座の上に出す名前（代価つき） */
@@ -371,9 +371,9 @@ function pactProgress(state: GameState, pact: ActivePact): string {
     case "slayer":
       return `${Math.min(CONTRACT.pactSlayerKills, state.kills - pact.killsAt)}/${CONTRACT.pactSlayerKills}`;
     case "unscathed":
-      return "被弾するな";
+      return "被弾なし";
     case "silent":
-      return "スキルを使うな";
+      return "スキル禁止";
     default:
       return "";
   }
@@ -454,7 +454,7 @@ function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void
 function offerBlocked(state: GameState, offer: ContractOffer): string | null {
   switch (offer.kind) {
     case "uncurse":
-      return cursedBoons(state).length === 0 ? "呪いを抱えていない" : null;
+      return cursedBoons(state).length === 0 ? "呪いがない" : null;
     case "betLife":
       return canPayLife(state, CONTRACT.bookieLifeCost) ? null : "生命が足りない";
     case "ferryLife":
@@ -463,7 +463,7 @@ function offerBlocked(state: GameState, offer: ContractOffer): string | null {
     case "ferryShards":
       return state.contracts.ferried >= CONTRACT.ferryMaxUses ? "舟はもう出ない" : null;
     case "fork":
-      return addForkStair(state, true) ? null : "これ以上の道はない";
+      return addForkStair(state, true) ? null : "これ以上は増やせない";
     default:
       return null;
   }
@@ -512,7 +512,7 @@ function applyOffer(state: GameState, offer: ContractOffer, color: string): void
       return;
     case "farsight":
       revealWholeFloor(state);
-      sayAt(state, "階が見通せた", color);
+      sayAt(state, "階の地図が分かった", color);
       return;
     case "betShards":
       betShards(state, color);
@@ -522,19 +522,19 @@ function applyOffer(state: GameState, offer: ContractOffer, color: string): void
       return;
     case "tale":
       for (let i = 0; i < CONTRACT.bardTales; i++) recordProvenance(state, { kind: "roomClear" });
-      sayAt(state, "来歴が語られた", color);
+      sayAt(state, "来歴が刻まれた", color);
       return;
     case "witness":
       state.contracts.witness = CONTRACT.bardWitnessTime;
-      sayAt(state, "語り部が見届けている", color);
-      pushLog(state, `語り部が見ている（${CONTRACT.bardWitnessTime} 秒、制圧が来歴に 2 回刻まれる）。`, color);
+      sayAt(state, "語り部が立ち会う", color);
+      pushLog(state, `語り部が立ち会う（${CONTRACT.bardWitnessTime} 秒間、制圧が来歴に 2 回刻まれる）。`, color);
       return;
     case "infuse":
       setSmith(state, offer.key as Element, color);
       return;
     case "fork":
       addForkStair(state, false);
-      sayAt(state, "新しい道が開いた", color);
+      sayAt(state, "新しい階段が現れた", color);
       return;
     case "reveal":
       revealRoomTiles(state, state.rooms.length - 1);

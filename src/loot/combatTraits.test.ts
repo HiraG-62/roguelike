@@ -214,8 +214,8 @@ describe("状態異常を付ける性質（statusProcs）", () => {
     expect(s.statusProcs).toHaveLength(0);
   });
 
-  it("表示は動詞で語る", () => {
-    expect(formatAffix(roll("procBleed", 12, 1.5))).toBe("近接命中時 12% で出血させる（10px 動くごとに 1.5 ダメージ）");
+  it("表示は効果を文で書く", () => {
+    expect(formatAffix(roll("procBleed", 12, 1.5))).toBe("近接命中時 12% で出血させる（1m 動くごとに 1.5 ダメージ）");
     for (const key of STATUS_TRAIT_KEYS) {
       expect(formatAffix(roll(key, 10, 1)), key).toMatch(/(させる|にする|与え)/);
     }
@@ -242,7 +242,7 @@ describe("弾斬り", () => {
     if (def === undefined) throw new Error("bulletCut が無い");
     expect(def.slots).toEqual(["mainHand"]);
     expect(affixColor(def)).toBe("azure");
-    expect(formatAffix(roll("bulletCut", 10))).toBe("近接攻撃で敵弾を斬り消す（リーチ -10%）");
+    expect(formatAffix(roll("bulletCut", 10))).toBe("近接攻撃で敵弾を消せる（リーチ -10%）");
   });
 });
 

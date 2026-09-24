@@ -169,7 +169,7 @@ export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext
       return;
     case "damageBuff":
       applyTimedMul(p.buffs.damage, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "パワー", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingText(state, p.body.pos, "強化", TEXT_COLOR_BUFF, 1, 0.6);
       return;
     case "speedBuff":
       applyTimedMul(p.buffs.speed, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
@@ -266,7 +266,7 @@ function cleanseOne(state: GameState): void {
   const kind = afflictionList(state.player.status)[0];
   if (kind === undefined) return;
   removeStatus(state, { kind: "player" }, kind);
-  addFloatingText(state, state.player.body.pos, "払い", TEXT_COLOR_BUFF, 0.8, 0.5);
+  addFloatingText(state, state.player.body.pos, "解除", TEXT_COLOR_BUFF, 0.8, 0.5);
 }
 
 /** 敵の状態異常の残り秒を延ばす（行動停止と怯み値の系統は除く。上限 TRIGGER.extendMax） */

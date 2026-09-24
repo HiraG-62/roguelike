@@ -554,7 +554,7 @@ function useInverter(state: GameState, room: RoomState, prop: RoomProp): void {
     turned++;
   }
   spawnBurst(state, prop.pos, ROOM_KIND.invertHallColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
-  sayAt(state, turned > 0 ? "遺物が裏返った" : "何も変わらなかった", ROOM_KIND.invertHallColor);
+  sayAt(state, turned > 0 ? "遺物が反転した" : "何も変わらなかった", ROOM_KIND.invertHallColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -614,7 +614,7 @@ function takeKeystone(state: GameState, room: RoomState, prop: RoomProp): void {
   const name = keystoneDef(prop.key)?.name ?? prop.key;
   spawnBurst(state, prop.pos, ROOM_KIND.altarColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `誓約: ${name}`, ROOM_KIND.altarColor);
-  pushLog(state, `祭壇で誓約「${name}」を背負った（この探索の間）。`, ROOM_KIND.altarColor);
+  pushLog(state, `祭壇で誓約「${name}」を立てた（この探索の間）。`, ROOM_KIND.altarColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -689,7 +689,7 @@ function applyGamble(state: GameState, index: number, pos: Vec, outcome: GambleO
       return;
     case "curse":
       state.cursed = true;
-      pushLog(state, "賭けに負けた…次の部屋は荒れ模様だ。", ROOM_KIND.cursedColor);
+      pushLog(state, "賭けに負けた。次の部屋が呪われる。", ROOM_KIND.cursedColor);
       return;
     default:
       return;
@@ -723,7 +723,7 @@ function useAnvil(state: GameState, prop: RoomProp): void {
   applyStatus(state, { kind: "player" }, { kind: "burn", stacks: 1, duration: ROOM_KIND.forgeBurnDuration, potency: ROOM_KIND.forgeBurnDps }, "env");
   spawnBurst(state, prop.pos, ROOM_KIND.forgeColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `残響 +${ROOM_KIND.forgeEchoes}`, ROOM_KIND.forgeColor);
-  pushLog(state, "金床を打った。炉の熱が身を焦がす。", ROOM_KIND.forgeColor);
+  pushLog(state, "金床を打った。炉の熱で燃焼が付いた。", ROOM_KIND.forgeColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -763,7 +763,7 @@ function useCurseShrine(state: GameState, prop: RoomProp): void {
   const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k) && !BOONS[k].after && !BOONS[k].duo);
   if (pool.length > 0) grantBoon(state, state.rng.pick(pool));
   spawnBurst(state, prop.pos, ROOM_KIND.curseShrineColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
-  pushLog(state, "呪いを受け入れた。祠が祝福を差し出す。", ROOM_KIND.curseShrineColor);
+  pushLog(state, "呪いを受けた。代わりに祝福を 1 つ選べる。", ROOM_KIND.curseShrineColor);
   offerBoons(state);
 }
 
@@ -803,7 +803,7 @@ function ringBell(state: GameState, prop: RoomProp): void {
   state.floorTime += ROOM_KIND.watchtowerReaperCost;
   shake(state, PROP_CLEARANCE);
   sayAt(state, "鐘が鳴り響く", ROOM_KIND.watchtowerColor);
-  pushLog(state, "見張り台の鐘が階を照らした。死神が音を聞きつけた。", ROOM_KIND.watchtowerColor);
+  pushLog(state, "見張り台の鐘でこの階の地図が分かった。死神が音を聞きつけた。", ROOM_KIND.watchtowerColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -944,7 +944,7 @@ function spawnMirror(state: GameState, index: number): void {
   // 修飾子は 1 体に 1 つしか持てないので、2 つ目以降は HP の上乗せで表す
   const elite = elites > 0 ? pickElite(state, def) : null;
   if (elite) makeElite(e, elite);
-  sayAt(state, "鏡に映った己が立ち上がる", ROOM_KIND.mirrorColor);
+  sayAt(state, "鏡から自分の写しが現れた", ROOM_KIND.mirrorColor);
   pushSfx(state, "ambush");
 }
 
@@ -968,7 +968,7 @@ export function clearSpecialRoom(state: GameState, room: RoomState, center: Vec)
     case "mirror":
       dropRareItem(state, center);
       offerBoons(state);
-      pushLog(state, "己の写しを越えた。", ROOM_KIND.mirrorColor);
+      pushLog(state, "自分の写しを倒した。", ROOM_KIND.mirrorColor);
       return;
     case "fogRoom":
       dropRareItem(state, center);

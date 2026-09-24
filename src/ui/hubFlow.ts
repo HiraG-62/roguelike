@@ -64,14 +64,14 @@ export function altarTabs(current: string | null): ListTab[] {
     known: true,
     name: "誓約を外す",
     info: "",
-    detail: "試している誓約を外す。",
+    detail: "試用中の誓約を外す。",
     marked: current === null,
   };
   const entries: ListEntry[] = KEYSTONES.map((d) => ({
     key: d.key,
     known: true,
     name: d.name,
-    info: current === d.key ? "試している" : "",
+    info: current === d.key ? "試用中" : "",
     detail: `${d.description} 決定で試す（拠点を出ると消える）。`,
     marked: current === d.key,
   }));
@@ -91,7 +91,7 @@ export type RackRow = { kind: "moveset"; key: MovesetKey | null };
 
 const RACK_MOVESET = "moveset";
 const RACK_SEP = ":";
-const RACK_HINT = "決定で試す。長押しで素の器を借りて出撃できる（ランが終わると消える）。";
+const RACK_HINT = "決定で試す。長押しで性質なしの武器を借りて出撃できる（探索が終わると消える）。";
 
 function rackKey(key: string): string {
   return `${RACK_MOVESET}${RACK_SEP}${key}`;
@@ -103,7 +103,7 @@ function rackClearEntry(current: string | null): ListEntry {
     known: true,
     name: "装備のまま",
     info: "",
-    detail: "試している武器種を外し、装備の右手に戻す。",
+    detail: "試用中の武器種を外し、装備中の右手の武器に戻す。",
     marked: current === null,
   };
 }
@@ -124,7 +124,7 @@ export function rackTabs(trialMoveset: MovesetKey | null): ListTab[] {
     key: rackKey(k),
     known: true,
     name: MOVESETS[k].name,
-    info: trialMoveset === k ? "試している" : "",
+    info: trialMoveset === k ? "試用中" : "",
     detail: movesetDetail(k),
     marked: trialMoveset === k,
   }));

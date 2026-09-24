@@ -1,4 +1,5 @@
 import { kw } from "../core/keywords";
+import { formatMeters } from "../core/units";
 import { EXTRA_MODIFIER_TUNING as M } from "./tuning";
 import type { ExtraModifierKey, ModifierDef, ModifierKey, SkillKey } from "./types";
 
@@ -221,8 +222,8 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   lastGasp: {
     key: "lastGasp",
     name: "散り際",
-    verb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、再使用時間 x${M.lastGasp.burdenMul}`,
-    manaVerb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、コスト x${M.lastGasp.burdenMul}`,
+    verb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力で同じスキルが発動する（1回の発動で最大${M.lastGasp.maxPerCast}回）、再使用時間 x${M.lastGasp.burdenMul}`,
+    manaVerb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力で同じスキルが発動する（1回の発動で最大${M.lastGasp.maxPerCast}回）、コスト x${M.lastGasp.burdenMul}`,
     color: "#ff70a0",
     keywords: kw(["area"], ["kill"]),
     excludesTags: ["buff", "defense", "movement"],
@@ -267,7 +268,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   attune: {
     key: "attune",
     name: "同調",
-    verb: `装備の支配共鳴の色がスキルの向きと合えば x${M.attune.matchMul}（紅 近接 / 蒼 射撃・移動 / 翠 防御・強化 / 金 会心の一撃 / 冥 状態異常付き）。合わなければ x${M.attune.missMul}`,
+    verb: `装備の支配共鳴の色がスキルの種類と合えば x${M.attune.matchMul}（紅 近接 / 蒼 射撃・移動 / 翠 防御・強化 / 金 会心の一撃 / 冥 状態異常付き）。合わなければ x${M.attune.missMul}`,
     color: "#f0d0ff",
     keywords: kw([], ["crimson", "azure", "jade", "gold", "umbra"]),
     excludesTags: [],
@@ -296,7 +297,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   pointBlank: {
     key: "pointBlank",
     name: "至近",
-    verb: `撃った位置から${M.pointBlank.range}px以内の敵に x${M.pointBlank.nearMul}（遠い敵には x${M.pointBlank.farMul}）`,
+    verb: `撃った位置から${formatMeters(M.pointBlank.range)}以内の敵に x${M.pointBlank.nearMul}（遠い敵には x${M.pointBlank.farMul}）`,
     color: "#ffb0b0",
     keywords: kw([], [], ["ranged"]),
     excludesTags: ["placed"],
@@ -307,7 +308,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   longshot: {
     key: "longshot",
     name: "遠当て",
-    verb: `遠い敵ほど強い（${M.longshot.range}pxで x${M.longshot.farMul}、至近は x${M.longshot.nearMul}）`,
+    verb: `遠い敵ほど強い（${formatMeters(M.longshot.range)}で x${M.longshot.farMul}、至近は x${M.longshot.nearMul}）`,
     color: "#b0b0ff",
     keywords: kw([], [], ["ranged"]),
     excludesTags: ["placed"],

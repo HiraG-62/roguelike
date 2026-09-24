@@ -135,7 +135,7 @@ export function shapeCastBlock(state: GameState, def: Readonly<SkillDef>, slot: 
   if (isFormSkill(def)) {
     if (shape && isToggleOff(state, def.key, slot)) return null;
     if (inAnyForm(state)) return "変身中";
-    return rs.formWait > 0 ? "変身の待ち" : null;
+    return rs.formWait > 0 ? "変身待ち" : null;
   }
   if (!shape) return null;
   if (SEALING_SHAPES.has(shape.key)) return "変身中";

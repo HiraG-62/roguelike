@@ -419,7 +419,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
       {
         when: "onKill",
         if: [TARGET_ELITE],
-        then: { kind: "reserveVault", magnitude: NO_AMOUNT, text: "次階に宝物庫", color: BOON.rarityColor.rare },
+        then: { kind: "reserveVault", magnitude: NO_AMOUNT, text: "次の階に宝物庫", color: BOON.rarityColor.rare },
       },
     ]),
   },
@@ -1156,7 +1156,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   glare: {
     key: "glare",
     name: "睨み",
-    desc: "見切った攻撃の主を4秒間弱体にする。",
+    desc: "見切った攻撃を放った敵を4秒間弱体にする。",
     icon: "睨",
     rarity: "common",
     tags: ["weaken", "just"],
@@ -1538,7 +1538,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   woundMemory: {
     key: "woundMemory",
     name: "傷の記憶",
-    desc: "被弾すると、その攻撃の主を4秒間脆弱にする。",
+    desc: "被弾すると、攻撃してきた敵を4秒間脆弱にする。",
     icon: "傷",
     rarity: "common",
     tags: ["hp", "vulnerable"],
@@ -1729,7 +1729,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   swallowReturn: {
     key: "swallowReturn",
     name: "燕渡り",
-    desc: "見切りで消した敵弾の数だけ、近い敵を最大5体まで斬り渡る。",
+    desc: "見切りで消した敵弾の数だけ、近い敵を最大5体まで次々に斬る。",
     icon: "燕",
     rarity: "epic",
     tags: ["just", "melee"],
@@ -1872,7 +1872,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   stillDash: {
     key: "stillDash",
     name: "瞬停",
-    desc: "ダッシュの終わり際に撃った弾も静止狙撃の扱いになる。",
+    desc: "ダッシュの終わり際に撃った弾にも静止狙撃が効く。",
     icon: "停",
     rarity: "epic",
     tags: ["ranged", "dash"],

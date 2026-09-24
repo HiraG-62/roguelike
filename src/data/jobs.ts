@@ -92,7 +92,7 @@ function jobRule(job: JobKey, index: number, text: string, spec: RuleSpec): JobR
 export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   none: {
     name: "見習い",
-    desc: "ジョブを持たずに潜る。何も足さず、何も引かない。",
+    desc: "ジョブなし。ステータスの増減も固有のルールもない。",
     attributes: {},
     favored: [],
     rules: [],
@@ -124,7 +124,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   hunter: {
     name: "狩人",
-    desc: "予備動作を射抜いて止め、精鋭に弱みを刻む。",
+    desc: "予備動作中の敵を射撃で怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
     favored: ["longarm", "thrown", "whip"],
     rules: [
@@ -147,7 +147,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   brawler: {
     name: "拳闘士",
-    desc: "殴り続けるほど衝撃波が出る。殴られると燃え上がる。",
+    desc: "殴り続けると衝撃波を放ち、被弾すると攻撃が強まる。",
     attributes: JOB_ATTRIBUTES.brawler,
     favored: ["fists", "cleaver", "staff"],
     rules: [
@@ -168,7 +168,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   shieldBearer: {
     name: "盾持ち",
-    desc: "被弾の直後に身を固め、カウンターで押し返す。",
+    desc: "被弾の直後は無敵になり、カウンターで衝撃波を放つ。",
     attributes: JOB_ATTRIBUTES.shieldBearer,
     favored: ["sword", "cleaver", "staff"],
     rules: [
@@ -189,7 +189,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   hexer: {
     name: "呪術師",
-    desc: "状態異常を付けるたびに気力が満ち、毒を死体から広げる。",
+    desc: "状態異常を付けるたびに気力が戻り、倒した敵から毒を広げる。",
     attributes: JOB_ATTRIBUTES.hexer,
     favored: ["scythe", "wand"],
     rules: [
@@ -213,7 +213,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   lancer: {
     name: "槍兵",
-    desc: "堅守を突き崩し、怯ませるたびに必殺ゲージを溜める。",
+    desc: "堅守中の敵を崩しやすく、怯ませるたびに必殺ゲージが溜まる。",
     attributes: JOB_ATTRIBUTES.lancer,
     favored: ["spear", "scythe"],
     rules: [
@@ -235,7 +235,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   invoker: {
     name: "術士",
-    desc: "スキルを撃つと続く攻撃が強まり、枯れた気力を撃破で取り戻す。",
+    desc: "スキルを使うと攻撃が強まり、気力が少ないときは撃破で気力を取り戻す。",
     attributes: JOB_ATTRIBUTES.invoker,
     favored: ["wand", "whip"],
     rules: [
@@ -257,7 +257,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   shadow: {
     name: "影",
-    desc: "ダッシュで回り込んだ直後の一撃が急所を突く。見切りで駆け抜ける。",
+    desc: "ダッシュ直後の近接で敵を脆弱にし、見切りで移動が速くなる。",
     attributes: JOB_ATTRIBUTES.shadow,
     favored: ["twinBlades", "fists"],
     rules: [
@@ -280,7 +280,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   alchemist: {
     name: "錬金術師",
-    desc: "反応を起こすたびに必殺ゲージが溜まり、状態異常の重なった敵は倒すと爆ぜる。",
+    desc: "反応を起こすたびに必殺ゲージが溜まり、状態異常が 2 種以上付いた敵は倒すと爆発する。",
     attributes: JOB_ATTRIBUTES.alchemist,
     favored: ["staff", "cleaver"],
     rules: [
@@ -289,7 +289,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         if: [{ kind: "actor", actor: "player" }],
         then: { kind: "energy", magnitude: JOB.alchemistReactionEnergy },
       }),
-      jobRule("alchemist", 1, "状態異常を 2 種以上抱えた敵を倒すと爆発する。", {
+      jobRule("alchemist", 1, "状態異常が 2 種以上付いた敵を倒すと爆発する。", {
         when: "onKill",
         if: [{ kind: "trigger", condition: "targetMultiStatus" }],
         then: { kind: "explode", magnitude: JOB.alchemistBlastRatio, scaleBy: "slashBase" },

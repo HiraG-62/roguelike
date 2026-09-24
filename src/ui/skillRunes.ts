@@ -102,13 +102,13 @@ export function toggleRune(profile: SkillProfile, stone: SkillStone | null, entr
 
 /** 付けられない理由の表示文（docs/GLOSSARY.md「刻印符」） */
 export const RUNE_BLOCK_TEXT: Readonly<Record<RuneAttachBlock | "noStone" | "missing", string>> = {
-  notFit: "このスキルには付けられない",
-  duplicate: "同じ刻印符が付いている",
-  noLinks: "リンクの空きが無い",
-  reshape: "型替え符は 1 枚まで",
-  clash: "付いている刻印符と排他",
-  noStone: "スロットにスキル石が無い",
-  missing: "刻印符が見つからない",
+  notFit: "このスキルには付けられません",
+  duplicate: "同じ刻印符が付いています",
+  noLinks: "リンクの空きがありません",
+  reshape: "型替え符は 1 枚までです",
+  clash: "付いている刻印符と同時に付けられません",
+  noStone: "スロットにスキル石がありません",
+  missing: "刻印符が見つかりません",
 };
 
 /** 選択中の石に付けられない理由（付けられる / 付いている符なら null）。ツールチップ用 */

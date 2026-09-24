@@ -80,9 +80,9 @@ export function runeTooltipLines(state: GameState, ui: InventoryUi, list: RuneLi
   const lines: TipLine[] = [{ text: `刻印符「${def.name}」`, color: def.color }];
   if (stone) lines.push({ text: modifierVerb(entry.rune.modifier, SKILL_DEFS[stone.skillKey]), color: COLOR_TEXT });
   else lines.push({ text: def.verb, color: COLOR_TEXT });
-  lines.push({ text: `リンク ${modifierLinkCost(entry.rune.modifier)} 本を使う`, color: COLOR_DIM });
+  lines.push({ text: `必要なリンク ${modifierLinkCost(entry.rune.modifier)} 本`, color: COLOR_DIM });
   const block = entryBlock(stone, entry);
-  if (entry.attached) lines.push({ text: `スキル ${ui.skillSlot + 1} に付いている（決定で外す）`, color: COLOR_SELECTED });
+  if (entry.attached) lines.push({ text: `スキル ${ui.skillSlot + 1} に装着中（決定で外す）`, color: COLOR_SELECTED });
   else if (block) lines.push({ text: RUNE_BLOCK_TEXT[block], color: COLOR_WARN });
   else lines.push({ text: `決定でスキル ${ui.skillSlot + 1} に付ける`, color: COLOR_SELECTED });
   return lines;

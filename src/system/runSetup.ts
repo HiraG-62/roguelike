@@ -41,12 +41,12 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   wanderer: { name: "放浪者", desc: "何も変えずに出発する。", keystones: [] },
   swordPilgrim: {
     name: "剣の巡礼者",
-    desc: "誓約「剣の誓い」を背負い、近接の祝福を 1 つ持って出発する。",
+    desc: "誓約「剣の誓い」を立て、近接の祝福を 1 つ持って出発する。",
     keystones: ["ks_bladeOath"],
   },
   cursedOne: {
     name: "呪われた者",
-    desc: "呪い付きの祝福を 2 つ抱えて出発する。代わりにステータスの振り分け点を 4 得る。",
+    desc: "呪い付きの祝福を 2 つ持って出発する。代わりにステータスの振り分け点を 4 得る。",
     keystones: [],
     unlockedBy: "cursedDepth",
   },
@@ -57,13 +57,13 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   chanter: {
     name: "詠み手",
-    desc: "刻印符を 2 つ差して出発する。最大生命が 2 割減る。",
+    desc: "刻印符を 2 つ付けて出発する。最大生命が 2 割減る。",
     keystones: [],
     unlockedBy: "alchemist",
   },
   gambler: {
     name: "賭博師",
-    desc: "誓約「賭博師」を背負う。賭博の部屋が毎階に出る。",
+    desc: "誓約「賭博師」を立てる。賭博の部屋が毎階に出る。",
     keystones: ["ks_gambler"],
     unlockedBy: "highStakes",
   },
@@ -114,7 +114,7 @@ export const RUN_MODS: Readonly<Record<RunModKey, RunModDef>> = {
   eternalNight: { name: "常夜", desc: "すべての階が暗闇になる。", points: 2 },
   endlessReinforce: { name: "絶えぬ増援", desc: "封鎖するたびに増援が来る。", points: 2 },
   roughLand: { name: "荒れた大地", desc: "バイオームの地形が 2 倍になる。", points: 1 },
-  doubleLinger: { name: "長居の二重苦", desc: "長居の代償が浅い階から、早く来る。", points: 3 },
+  doubleLinger: { name: "長居の二重苦", desc: "長居の代償が浅い階から早めに来る。", points: 3 },
   hourglass: { name: "部屋の砂時計", desc: "封鎖が長引くと増援が来る。", points: 2 },
   glassBody: { name: "薄氷", desc: "最大生命が 3 割減る。", points: 2 },
 };

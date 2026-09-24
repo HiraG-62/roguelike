@@ -29,7 +29,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "greatsword",
     minLevel: 14,
     keystone: "ks_berserker",
-    flavor: "生命が減るほど、その一振りは大きくなる。",
+    flavor: "命が削れるほど、その一振りは重くなる。",
     affixes: [
       { key: "meleeDamagePct" },
       { key: "critMultiplier" },
@@ -58,7 +58,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "plate",
     minLevel: 18,
     keystone: "ks_juggernaut",
-    flavor: "これほど鈍重なものが、これほど重い一撃を放つはずがない。",
+    flavor: "鈍く、重い。その重さが、そのまま力になる。",
     affixes: [
       { key: "maxLife" },
       { key: "maxLifePct" },
@@ -87,7 +87,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "lapisAmulet",
     minLevel: 12,
     keystone: "ks_gambler",
-    flavor: "全ての必殺は賭け。部屋はその賭けに耐えられない。",
+    flavor: "必殺はいつも賭けだ。当たれば、部屋ごと吹き飛ぶ。",
     affixes: [
       { key: "burstDamage" },
       { key: "burstRadius" },
@@ -104,7 +104,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "dagger",
     minLevel: 4,
     keystone: "ks_glassCannon",
-    flavor: "二閃、そして炎が仕事を終わらせる。",
+    flavor: "二度斬れば、あとは炎が片付ける。",
     affixes: [
       { key: "attackSpeed" },
       { key: "burn" },
@@ -117,7 +117,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "shortsword",
     minLevel: 8,
     keystone: "ks_vampire",
-    flavor: "お前を独りで失血死させはしない。",
+    flavor: "血を流すのは、お前だけではない。",
     affixes: [
       { key: "lifeOnHit" },
       { key: "attackSpeed" },
@@ -130,7 +130,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "rifle",
     minLevel: 9,
     keystone: "ks_pacifist",
-    flavor: "それは一度だけ、遥か遠くから語る。",
+    flavor: "近づきはしない。遥か遠くから、一度で終わらせる。",
     affixes: [
       { key: "rangedDamagePct" },
       { key: "pierce" },
@@ -143,7 +143,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "shotgun",
     minLevel: 15,
     keystone: "ks_overclock",
-    flavor: "弾は一発ごとに、至近距離で施される。",
+    flavor: "最後の祈りは、至近距離で撃ち込む。",
     affixes: [
       { key: "projectiles" },
       { key: "explodeOnKill" },
@@ -156,7 +156,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "plate",
     minLevel: 20,
     keystone: "ks_juggernaut",
-    flavor: "一度たりとも退くことを考えたことがない。",
+    flavor: "退くことなど、考えたこともない。",
     affixes: [
       { key: "armorFlat" },
       { key: "maxLifePct" },
@@ -182,7 +182,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "greaves",
     minLevel: 13,
     keystone: "ks_windWalker",
-    flavor: "地面が追いつく前に、全てのチャージを使い切れ。",
+    flavor: "足が地に着く前に、ダッシュを使い切れ。",
     affixes: [
       { key: "dashDistance" },
       { key: "moveSpeed" },
@@ -270,7 +270,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "底なし",
     baseKey: "jadeAmulet",
     minLevel: 7,
-    flavor: "空と満ちの間に、底はない。",
+    flavor: "空になっても、満ちていても、底は見えない。",
     affixes: [{ key: "lowTide" }, { key: "manaOverflow" }],
   },
   {
@@ -475,7 +475,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "scale",
     minLevel: 14,
     keystone: "ks_unshaken",
-    flavor: "倒れないものは、倒さない。",
+    flavor: "揺るがぬ者は、敵も揺るがさない。",
     affixes: [{ key: "heavyHand" }, { key: "armorFlat" }],
   },
   {
@@ -525,7 +525,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     name: "置き土産の輪",
     baseKey: "ironRing",
     minLevel: 8,
-    flavor: "去った後に、罠だけが喋る。",
+    flavor: "立ち去った後に、罠が牙をむく。",
     affixes: [{ key: "placedInfuse" }, { key: "placedAnchor" }, { key: "bloodSignature" }],
   },
   // ---- 2026-09 第 2 弾: 属性・武器種・射撃の型・ジョブ・地形ごとに 1〜2 個 ----
@@ -587,7 +587,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "goldRing",
     minLevel: 10,
     keystone: "ks_oneElement",
-    flavor: "一つの色に染まれば、どんな壁も透ける。",
+    flavor: "一つの属性を極めれば、どんな守りも貫ける。",
     affixes: [{ key: "resistBreaker" }, { key: "conductor" }],
   },
   {
