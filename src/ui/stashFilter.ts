@@ -1,197 +1,148 @@
 import type { FrameInput } from "../core/input";
-import { isKeystoneKey } from "../loot/affixes";
-import { itemColorBar } from "../loot/describe";
-import { dominantColor } from "../loot/names";
-import {
-  RARITIES,
-  RARITY_LABEL,
-  LOOT_SLOTS,
-  SLOTS,
-  TRAIT_COLORS,
-  TRAIT_COLOR_LABEL,
-  type Item,
-  type Rarity,
-  type Slot,
-  type TraitColor,
-} from "../loot/types";
+import { LOOT_SLOTS, SLOTS, type Item, type Slot } from "../loot/types";
 import { type Point, type Rect, SLOT_LABEL, pointInRect } from "./inventoryLayout";
+import { FILTERS, FILTER_KEYS, SORTS, SORT_KEYS, type FilterKey, type SortKey } from "./stashFacets";
+
+export { FILTERS, FILTER_KEYS, SORTS, SORT_KEYS, weaponKindOf, type FilterKey, type SortKey } from "./stashFacets";
 
 /**
- * 倉庫一覧の部位分け・並べ替え・絞り込み。装備タブと残響タブの倉庫で共有する。
- * DOM 非依存の純関数と小さな状態だけを持ち、描画は render/stashToolbarUi.ts が行う。
- * 並べ替えの軸は「何を持っているか」で選ぶためのもので、強さの単一指標は作らない（docs/DESIGN_PRINCIPLES.md）
+ * 倉庫一覧の部位分け・並べ替え・絞り込みの仕組み。装備タブと残響タブの倉庫で共有する。
+ * 軸の中身（何で並べ・何で絞るか）は ui/stashFacets.ts の表にあり、ここは表から状態・ボタン・順序を作るだけ。
+ * 部位タブは LOOT_SLOTS と倉庫に実際にある部位から作るので、部位が増えても手を入れなくてよい。
+ * ボタンは幅に収まらなければ折り返し、帯の高さ（StashToolbarLayout.h）を呼び出し側が一覧の開始位置に使う。
+ * DOM 非依存。描画は render/stashToolbarUi.ts
  */
 
-/** 部位タブ。all は全部位を部位ごとにまとめて並べる。タブはドロップのある部位だけ（左手は今はベースが無い） */
+/** 部位タブ。all は全部位を部位ごとにまとめて並べる */
 export type SlotFilter = Slot | "all";
-export const SLOT_FILTERS: readonly SlotFilter[] = ["all", ...LOOT_SLOTS];
-
-/** 並べ替えの軸 */
-export const SORT_KEYS = ["found", "depth", "flux", "color", "name", "margin", "traits"] as const;
-export type SortKey = (typeof SORT_KEYS)[number];
-
-/** 印（持っている来歴・性質の種類）での絞り込み */
-export const MARK_FILTERS = ["bud", "named", "keystone", "inscription", "margin"] as const;
-export type MarkFilter = (typeof MARK_FILTERS)[number];
 
 export interface StashView {
   slot: SlotFilter;
   sort: SortKey;
   /** 並びの向きを既定から反転する */
   reverse: boolean;
-  /** 指定した色の性質を 1 つ以上持つものだけ（null = すべて） */
-  color: TraitColor | null;
-  rarity: Rarity | null;
-  mark: MarkFilter | null;
+  /** 軸ごとの絞り込みの値（無い軸は「すべて」） */
+  filters: Partial<Record<FilterKey, string>>;
   /** マウスが乗っている操作（描画の強調用） */
   hover: StashControl | null;
 }
 
-export type StashControl =
-  | { kind: "slot"; slot: SlotFilter }
-  | { kind: "sort" }
-  | { kind: "color" }
-  | { kind: "rarity" }
-  | { kind: "mark" };
+export type StashControl = { kind: "slot"; slot: SlotFilter } | { kind: "sort" } | { kind: "filter"; filter: FilterKey };
 
 export interface StashControlLayout {
   control: StashControl;
   rect: Rect;
 }
 
+export interface StashToolbarLayout {
+  controls: StashControlLayout[];
+  /** ボタンの帯の高さ（折り返した段数 × 段の高さ） */
+  h: number;
+}
+
+export type SlotCounts = Partial<Record<SlotFilter, number>>;
+
 export function createStashView(): StashView {
-  return { slot: "all", sort: "found", reverse: false, color: null, rarity: null, mark: null, hover: null };
+  return { slot: "all", sort: "found", reverse: false, filters: {}, hover: null };
+}
+
+// ---------------------------------------------------------------------------
+// 部位タブ
+// ---------------------------------------------------------------------------
+
+export const SLOT_FILTER_LABEL: Readonly<Record<SlotFilter, string>> = { all: "全部位", ...SLOT_LABEL };
+
+/** 部位タブの並び。ドロップのある部位は常に、それ以外の部位（今は左手）は倉庫にあるときだけ出す。順は SLOTS */
+export function slotFilters(stash: readonly Item[]): SlotFilter[] {
+  const present = new Set(stash.map((it) => it.slot));
+  return ["all", ...SLOTS.filter((s) => LOOT_SLOTS.includes(s) || present.has(s))];
 }
 
 // ---------------------------------------------------------------------------
 // 表示名
 // ---------------------------------------------------------------------------
 
-export const SLOT_FILTER_LABEL: Readonly<Record<SlotFilter, string>> = { all: "全部位", ...SLOT_LABEL };
-
-export const SORT_LABEL: Readonly<Record<SortKey, string>> = {
-  found: "拾った順",
-  depth: "深度",
-  flux: "揺らぎ",
-  color: "色",
-  name: "名前",
-  margin: "余白",
-  traits: "性質の数",
-};
-
-export const MARK_LABEL: Readonly<Record<MarkFilter, string>> = {
-  bud: "芽あり",
-  named: "名のある",
-  keystone: "誓約",
-  inscription: "銘",
-  margin: "余白あり",
-};
-
 const ALL_LABEL = "すべて";
-/** 既定の向き（反転なし）で大きい / 新しいものが上に来る軸。それ以外は小さい順（あいうえお順・色の並び順） */
-const DESCENDING_BY_DEFAULT: ReadonlySet<SortKey> = new Set<SortKey>(["found", "depth", "flux", "margin", "traits"]);
 const ARROW_DOWN = "↓";
 const ARROW_UP = "↑";
 
+function isDescending(view: Pick<StashView, "sort" | "reverse">): boolean {
+  return SORTS[view.sort].descending !== view.reverse;
+}
+
 /** 並びの矢印。上から下へ値が小さくなるなら ↓ */
 export function sortArrow(view: Pick<StashView, "sort" | "reverse">): string {
-  return DESCENDING_BY_DEFAULT.has(view.sort) !== view.reverse ? ARROW_DOWN : ARROW_UP;
+  return isDescending(view) ? ARROW_DOWN : ARROW_UP;
 }
 
 /** ボタンの文字。部位タブは件数を添える */
-export function stashControlLabel(view: StashView, control: StashControl, counts?: Readonly<Record<SlotFilter, number>>): string {
+export function stashControlLabel(view: StashView, control: StashControl, counts?: Readonly<SlotCounts>): string {
   switch (control.kind) {
     case "slot": {
       const count = counts?.[control.slot];
       return count === undefined ? SLOT_FILTER_LABEL[control.slot] : `${SLOT_FILTER_LABEL[control.slot]} ${count}`;
     }
     case "sort":
-      return `並び:${SORT_LABEL[view.sort]}${sortArrow(view)}`;
-    case "color":
-      return `色:${view.color === null ? ALL_LABEL : TRAIT_COLOR_LABEL[view.color]}`;
-    case "rarity":
-      return `揺らぎ:${view.rarity === null ? ALL_LABEL : RARITY_LABEL[view.rarity]}`;
-    case "mark":
-      return `印:${view.mark === null ? ALL_LABEL : MARK_LABEL[view.mark]}`;
+      return `並び:${SORTS[view.sort].label}${sortArrow(view)}`;
+    case "filter": {
+      const def = FILTERS[control.filter];
+      const value = view.filters[control.filter];
+      return `${def.label}:${value === undefined ? ALL_LABEL : def.optionLabel(value)}`;
+    }
   }
 }
 
-/** 部位以外の絞り込みが掛かっているか（描画で「絞り込み中」を示す） */
+/** 部位以外の絞り込みが掛かっているか */
 export function isFiltering(view: StashView): boolean {
-  return view.color !== null || view.rarity !== null || view.mark !== null;
+  return FILTER_KEYS.some((k) => view.filters[k] !== undefined);
+}
+
+/** 操作が既定から変わっているか（描画で強調する） */
+export function isControlActive(view: StashView, control: StashControl): boolean {
+  switch (control.kind) {
+    case "slot":
+      return view.slot === control.slot;
+    case "sort":
+      return view.sort !== SORT_KEYS[0] || view.reverse;
+    case "filter":
+      return view.filters[control.filter] !== undefined;
+  }
+}
+
+/** 絞り込み中の値に固有の色があればその色（色・揺らぎなど）。無ければ undefined */
+export function controlValueColor(view: StashView, control: StashControl): string | undefined {
+  if (control.kind !== "filter") return undefined;
+  const value = view.filters[control.filter];
+  return value === undefined ? undefined : FILTERS[control.filter].valueColor?.(value);
 }
 
 // ---------------------------------------------------------------------------
 // 絞り込み・並べ替え
 // ---------------------------------------------------------------------------
 
-export function hasMark(item: Item, mark: MarkFilter): boolean {
-  switch (mark) {
-    case "bud":
-      return item.budOffer !== undefined && item.budOffer !== null;
-    case "named":
-      return item.namedKey !== undefined;
-    case "keystone":
-      return item.affixes.some((r) => isKeystoneKey(r.key));
-    case "inscription":
-      return item.inscription !== undefined && item.inscription.length > 0;
-    case "margin":
-      return (item.margin ?? 0) > 0;
-  }
-}
-
-export function hasTraitColor(item: Item, color: TraitColor): boolean {
-  return itemColorBar(item.affixes).some((seg) => seg.color === color);
-}
-
-/** 部位以外の条件（色・揺らぎ・印）に合うか */
-function matchesTraits(item: Item, view: StashView): boolean {
-  if (view.color !== null && !hasTraitColor(item, view.color)) return false;
-  if (view.rarity !== null && item.rarity !== view.rarity) return false;
-  if (view.mark !== null && !hasMark(item, view.mark)) return false;
-  return true;
+/** 部位以外の条件（表の絞り込みすべて）に合うか */
+function matchesFilters(item: Item, view: StashView): boolean {
+  return FILTER_KEYS.every((k) => {
+    const value = view.filters[k];
+    return value === undefined || FILTERS[k].matches(item, value);
+  });
 }
 
 export function matchesView(item: Item, view: StashView): boolean {
   if (view.slot !== "all" && item.slot !== view.slot) return false;
-  return matchesTraits(item, view);
+  return matchesFilters(item, view);
 }
 
-/** 部位タブに添える件数（色・揺らぎ・印の絞り込み後） */
-export function slotCounts(stash: readonly Item[], view: StashView): Record<SlotFilter, number> {
-  const counts = Object.fromEntries((["all", ...SLOTS] as const).map((s) => [s, 0])) as Record<SlotFilter, number>;
+/** 部位タブに添える件数（部位以外の絞り込み後）。無い部位は undefined ではなく 0 として読む */
+export function slotCounts(stash: readonly Item[], view: StashView): SlotCounts {
+  const counts: SlotCounts = { all: 0 };
+  for (const s of SLOTS) counts[s] = 0;
   for (const item of stash) {
-    if (!matchesTraits(item, view)) continue;
-    counts.all += 1;
-    counts[item.slot] += 1;
+    if (!matchesFilters(item, view)) continue;
+    counts.all = (counts.all ?? 0) + 1;
+    counts[item.slot] = (counts[item.slot] ?? 0) + 1;
   }
   return counts;
-}
-
-/** 色で並べるときの位置。性質が無い（無色）ものは最後 */
-function colorRank(item: Item): number {
-  const hue = dominantColor(item.affixes);
-  return hue === undefined ? TRAIT_COLORS.length : TRAIT_COLORS.indexOf(hue);
-}
-
-/** 軸ごとの比較（小さい順）。同値は 0 */
-function compareBy(key: SortKey, a: Item, b: Item): number {
-  switch (key) {
-    case "found":
-      return a.foundAt - b.foundAt;
-    case "depth":
-      return a.itemLevel - b.itemLevel;
-    case "flux":
-      return RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity);
-    case "color":
-      return colorRank(a) - colorRank(b);
-    case "name":
-      return a.name.localeCompare(b.name, "ja");
-    case "margin":
-      return (a.margin ?? 0) - (b.margin ?? 0);
-    case "traits":
-      return a.affixes.length - b.affixes.length;
-  }
 }
 
 /**
@@ -203,9 +154,8 @@ export function compareItems(view: Pick<StashView, "slot" | "sort" | "reverse">,
     const bySlot = SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot);
     if (bySlot !== 0) return bySlot;
   }
-  const descending = DESCENDING_BY_DEFAULT.has(view.sort) !== view.reverse;
-  const primary = compareBy(view.sort, a, b);
-  if (primary !== 0) return descending ? -primary : primary;
+  const primary = SORTS[view.sort].compare(a, b);
+  if (primary !== 0) return isDescending(view) ? -primary : primary;
   const newer = b.foundAt - a.foundAt;
   if (newer !== 0) return newer;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
@@ -225,112 +175,132 @@ export function startsSlotGroup(order: readonly Item[], index: number): boolean 
 }
 
 // ---------------------------------------------------------------------------
-// ボタン列のレイアウトと入力
+// ボタンの配置（折り返し）
 // ---------------------------------------------------------------------------
 
-/** 1 段の高さ。1 段目 = 部位タブ、2 段目 = 並び・色・揺らぎ・印 */
 export const STASH_TOOLBAR_ROW_H = 11;
-export const STASH_TOOLBAR_ROWS = 2;
-export const STASH_TOOLBAR_H = STASH_TOOLBAR_ROW_H * STASH_TOOLBAR_ROWS;
 const CONTROL_GAP = 2;
-/** 2 段目のボタン幅の比。文字の長さ（「揺らぎ:反転あり」など）に合わせる */
-const SECOND_ROW: readonly { kind: "sort" | "color" | "rarity" | "mark"; weight: number }[] = [
-  { kind: "sort", weight: 5 },
-  { kind: "color", weight: 3 },
-  { kind: "rarity", weight: 4 },
-  { kind: "mark", weight: 4 },
-];
 /** ボタンの上下の余白（段と段の間を空ける） */
 const CONTROL_INSET_Y = 1;
+/** 部位タブの最小幅（「首飾り 99」が入る） */
+const SLOT_TAB_MIN_W = 44;
+/** 並びボタンの最小幅（「並び:性質の数↓」が入る） */
+const SORT_MIN_W = 100;
 
-/** rect を横に weights の比で分ける。端数は最後に寄せて右端を揃える */
-function splitRow(rect: Rect, weights: readonly number[]): Rect[] {
-  const total = weights.reduce((sum, w) => sum + w, 0);
-  const usable = rect.w - CONTROL_GAP * (weights.length - 1);
-  const rects: Rect[] = [];
-  let x = rect.x;
-  weights.forEach((weight, i) => {
-    const last = i === weights.length - 1;
-    const w = last ? rect.x + rect.w - x : Math.floor((usable * weight) / total);
-    rects.push({ x, y: rect.y + CONTROL_INSET_Y, w, h: rect.h - CONTROL_INSET_Y * 2 });
-    x += w + CONTROL_GAP;
-  });
-  return rects;
+interface FlowItem {
+  control: StashControl;
+  minWidth: number;
 }
 
-/** area の上端から STASH_TOOLBAR_H の帯にボタンを並べる */
-export function layoutStashToolbar(area: Rect): StashControlLayout[] {
-  const first: Rect = { x: area.x, y: area.y, w: area.w, h: STASH_TOOLBAR_ROW_H };
-  const second: Rect = { x: area.x, y: area.y + STASH_TOOLBAR_ROW_H, w: area.w, h: STASH_TOOLBAR_ROW_H };
-  const slotRects = splitRow(first, SLOT_FILTERS.map(() => 1));
-  const slots = SLOT_FILTERS.map((slot, i): StashControlLayout | null => {
-    const rect = slotRects[i];
-    return rect ? { control: { kind: "slot", slot }, rect } : null;
-  });
-  const secondRects = splitRow(second, SECOND_ROW.map((c) => c.weight));
-  const rest = SECOND_ROW.map((c, i): StashControlLayout | null => {
-    const rect = secondRects[i];
-    return rect ? { control: { kind: c.kind }, rect } : null;
-  });
-  return [...slots, ...rest].filter((c): c is StashControlLayout => c !== null);
+/** items を幅 w の段へ詰める（1 つも入らない幅でも 1 段に 1 つは置く） */
+function packRows(items: readonly FlowItem[], w: number): FlowItem[][] {
+  const rows: FlowItem[][] = [];
+  let row: FlowItem[] = [];
+  let used = 0;
+  for (const item of items) {
+    const need = row.length === 0 ? item.minWidth : CONTROL_GAP + item.minWidth;
+    if (row.length > 0 && used + need > w) {
+      rows.push(row);
+      row = [];
+      used = item.minWidth;
+    } else {
+      used += need;
+    }
+    row.push(item);
+  }
+  if (row.length > 0) rows.push(row);
+  return rows;
 }
+
+/** 1 段を最小幅の比で広げて横幅いっぱいに置く。端数は最後に寄せて右端を揃える */
+function placeRow(row: readonly FlowItem[], x: number, y: number, w: number): StashControlLayout[] {
+  const total = row.reduce((sum, it) => sum + it.minWidth, 0);
+  const usable = w - CONTROL_GAP * (row.length - 1);
+  let cx = x;
+  return row.map((it, i) => {
+    const last = i === row.length - 1;
+    const cw = last ? x + w - cx : Math.floor((usable * it.minWidth) / total);
+    const rect = { x: cx, y: y + CONTROL_INSET_Y, w: cw, h: STASH_TOOLBAR_ROW_H - CONTROL_INSET_Y * 2 };
+    cx += cw + CONTROL_GAP;
+    return { control: it.control, rect };
+  });
+}
+
+/**
+ * area の上端からボタンを並べる。1 群目 = 部位タブ、2 群目 = 並びと絞り込み（表の順）。
+ * 群ごとに段を改め、幅に収まらなければ折り返す
+ */
+export function layoutStashToolbar(area: Pick<Rect, "x" | "y" | "w">, stash: readonly Item[]): StashToolbarLayout {
+  const slotGroup = slotFilters(stash).map((slot): FlowItem => ({ control: { kind: "slot", slot }, minWidth: SLOT_TAB_MIN_W }));
+  const optionGroup: FlowItem[] = [
+    { control: { kind: "sort" }, minWidth: SORT_MIN_W },
+    ...FILTER_KEYS.map((filter): FlowItem => ({ control: { kind: "filter", filter }, minWidth: FILTERS[filter].minWidth })),
+  ];
+  const rows = [...packRows(slotGroup, area.w), ...packRows(optionGroup, area.w)];
+  const controls = rows.flatMap((row, r) => placeRow(row, area.x, area.y + r * STASH_TOOLBAR_ROW_H, area.w));
+  return { controls, h: rows.length * STASH_TOOLBAR_ROW_H };
+}
+
+// ---------------------------------------------------------------------------
+// 入力
+// ---------------------------------------------------------------------------
 
 export function sameControl(a: StashControl | null, b: StashControl): boolean {
-  if (a === null || a.kind !== b.kind) return false;
-  return a.kind !== "slot" || (b.kind === "slot" && a.slot === b.slot);
+  if (a === null) return false;
+  if (a.kind === "slot") return b.kind === "slot" && a.slot === b.slot;
+  if (a.kind === "filter") return b.kind === "filter" && a.filter === b.filter;
+  return b.kind === a.kind;
 }
 
-/** options に null（すべて）を先頭に足した輪で step 進める */
-function cycleNullable<T>(options: readonly T[], current: T | null, step: number): T | null {
-  const ring: (T | null)[] = [null, ...options];
-  const i = ring.indexOf(current);
-  const next = (Math.max(0, i) + step + ring.length) % ring.length;
-  return ring[next] ?? null;
+/** 「すべて」(undefined) を先頭に足した輪で step 進める。今の値が候補に無ければ先頭から数える */
+function cycleOption(options: readonly string[], current: string | undefined, step: number): string | undefined {
+  const ring: (string | undefined)[] = [undefined, ...options];
+  const i = Math.max(0, ring.indexOf(current));
+  return ring[(i + step + ring.length) % ring.length];
 }
 
-function cycleSort(current: SortKey, step: number): SortKey {
+function cycleSort(current: SortKey): SortKey {
   const i = SORT_KEYS.indexOf(current);
-  return SORT_KEYS[(i + step + SORT_KEYS.length) % SORT_KEYS.length] ?? current;
+  return SORT_KEYS[(i + 1) % SORT_KEYS.length] ?? current;
 }
 
 /**
  * 操作を 1 つ実行する。部位タブは選択、並びはクリックで次の軸・Shift+クリックで向きを反転、
- * 色・揺らぎ・印はクリックで次・Shift+クリックで前（先頭が「すべて」）
+ * 絞り込みはクリックで次・Shift+クリックで前（先頭が「すべて」）。候補は表の options（stash を見る軸もある）
  */
-export function applyStashControl(view: StashView, control: StashControl, shift: boolean): void {
-  const step = shift ? -1 : 1;
+export function applyStashControl(view: StashView, control: StashControl, shift: boolean, stash: readonly Item[]): void {
   switch (control.kind) {
     case "slot":
       view.slot = control.slot;
       return;
     case "sort":
       if (shift) view.reverse = !view.reverse;
-      else view.sort = cycleSort(view.sort, 1);
+      else view.sort = cycleSort(view.sort);
       return;
-    case "color":
-      view.color = cycleNullable(TRAIT_COLORS, view.color, step);
+    case "filter": {
+      const next = cycleOption(FILTERS[control.filter].options(stash), view.filters[control.filter], shift ? -1 : 1);
+      if (next === undefined) delete view.filters[control.filter];
+      else view.filters[control.filter] = next;
       return;
-    case "rarity":
-      view.rarity = cycleNullable(RARITIES, view.rarity, step);
-      return;
-    case "mark":
-      view.mark = cycleNullable(MARK_FILTERS, view.mark, step);
-      return;
+    }
   }
 }
 
-export function findStashControl(layout: readonly StashControlLayout[], p: Point | null): StashControlLayout | null {
+export function findStashControl(controls: readonly StashControlLayout[], p: Point | null): StashControlLayout | null {
   if (p === null) return null;
-  return layout.find((c) => pointInRect(p, c.rect)) ?? null;
+  return controls.find((c) => pointInRect(p, c.rect)) ?? null;
 }
 
-/**
- * ボタン列の 1 フレーム分の入力。hover を更新し、クリックで操作したら true（呼び出し側はスクロールを先頭へ戻す）
- */
-export function updateStashToolbar(view: StashView, layout: readonly StashControlLayout[], input: FrameInput): boolean {
-  const hit = findStashControl(layout, input.aimScreen);
+/** ボタンの帯の 1 フレーム分の入力。hover を更新し、クリックで操作したら true（呼び出し側はスクロールを先頭へ戻す） */
+export function updateStashToolbar(
+  view: StashView,
+  controls: readonly StashControlLayout[],
+  input: FrameInput,
+  stash: readonly Item[],
+): boolean {
+  const hit = findStashControl(controls, input.aimScreen);
   view.hover = hit ? hit.control : null;
   if (!input.clickPressed || hit === null) return false;
-  applyStashControl(view, hit.control, input.shiftHeld);
+  applyStashControl(view, hit.control, input.shiftHeld, stash);
   return true;
 }

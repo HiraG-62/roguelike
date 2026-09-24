@@ -274,7 +274,7 @@ describe("updateInventoryUi: 装備タブ", () => {
     const ui = openUi(state);
     state.profile.stash = [];
     for (let i = 0; i < 30; i++) addToStash(state.profile, makeItem({ id: `sword-${i}`, foundAt: i }));
-    addToStash(state.profile, makeItem({ id: "ring-1", slot: "ring", baseKey: "ring", foundAt: 100 }));
+    addToStash(state.profile, makeItem({ id: "ring-1", slot: "ring", baseKey: "ironRing", foundAt: 100 }));
     ui.scroll = 5;
     const ringTab = layoutInventory(state, ui).stashToolbar.find((c) => c.control.kind === "slot" && c.control.slot === "ring");
     if (!ringTab) throw new Error("指輪タブが無い");

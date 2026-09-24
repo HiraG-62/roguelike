@@ -1,10 +1,12 @@
-import { RARITY_COLOR, TRAIT_COLOR_HEX, type Item } from "../loot/types";
+import type { Item } from "../loot/types";
 import type { StashRowLayout } from "../ui/inventoryLayout";
 import {
-  type SlotFilter,
+  type SlotCounts,
   type StashControl,
   type StashControlLayout,
   type StashView,
+  controlValueColor,
+  isControlActive,
   isFiltering,
   sameControl,
   stashControlLabel,
@@ -14,7 +16,7 @@ import { COLOR_BORDER, COLOR_DIM, COLOR_HOVER_BG, COLOR_SELECTED, COLOR_TEXT, fi
 import { TEXT, drawText, truncateText } from "./pixelText";
 
 /**
- * 倉庫の上のボタン列（部位タブ・並び・色・揺らぎ・印）と、全部位表示のときの部位の区切り線。
+ * 倉庫の上のボタンの帯（部位タブ・並び・絞り込み。中身は ui/stashFacets.ts の表）と、全部位表示のときの部位の区切り線。
  * 装備タブと残響タブで共有する。state は読むだけ
  */
 
@@ -23,38 +25,20 @@ const COLOR_GROUP_LINE = "rgba(255,255,255,0.22)";
 const LABEL_PAD_X = 2;
 const LABEL_BASELINE_INSET = 2;
 
-/** 既定から変わっている（何かで絞っている）操作か */
-function isActive(view: StashView, control: StashControl): boolean {
-  switch (control.kind) {
-    case "slot":
-      return view.slot === control.slot;
-    case "sort":
-      return view.sort !== "found" || view.reverse;
-    case "color":
-      return view.color !== null;
-    case "rarity":
-      return view.rarity !== null;
-    case "mark":
-      return view.mark !== null;
-  }
-}
-
-/** 絞り込み中の色・揺らぎは、その色で文字を塗って何で絞っているかを見せる */
+/** 絞り込み中の値に固有の色（色・揺らぎなど）があればその色で文字を塗って、何で絞っているかを見せる */
 function labelColor(view: StashView, control: StashControl, active: boolean): string {
-  if (control.kind === "color" && view.color !== null) return TRAIT_COLOR_HEX[view.color];
-  if (control.kind === "rarity" && view.rarity !== null) return RARITY_COLOR[view.rarity];
-  return active ? COLOR_TEXT : COLOR_DIM;
+  return controlValueColor(view, control) ?? (active ? COLOR_TEXT : COLOR_DIM);
 }
 
 export function drawStashToolbar(
   ctx: CanvasRenderingContext2D,
   controls: readonly StashControlLayout[],
   view: StashView,
-  counts: Readonly<Record<SlotFilter, number>>,
+  counts: Readonly<SlotCounts>,
 ): void {
   const m = TEXT.SMALL;
   for (const { control, rect } of controls) {
-    const active = isActive(view, control);
+    const active = isControlActive(view, control);
     if (active) fillRectPx(ctx, rect, COLOR_ACTIVE_BG);
     if (sameControl(view.hover, control)) fillRectPx(ctx, rect, COLOR_HOVER_BG);
     strokeRectPx(ctx, rect, active ? COLOR_SELECTED : COLOR_BORDER);

@@ -49,8 +49,7 @@ import {
   pointInRect,
 } from "./inventoryLayout";
 import {
-  STASH_TOOLBAR_H,
-  type SlotFilter,
+  type SlotCounts,
   type StashControlLayout,
   type StashView,
   applyStashView,
@@ -124,7 +123,7 @@ export interface InventoryLayout {
   /** 倉庫の上の部位タブと並べ替え・絞り込みのボタン */
   stashToolbar: StashControlLayout[];
   /** 部位タブに添える件数 */
-  stashCounts: Record<SlotFilter, number>;
+  stashCounts: SlotCounts;
   /** 左下: ツールチップの基準（下端を揃えて上へ伸ばす） */
   tooltipRect: Rect;
   /** 右下: 共鳴パネル */
@@ -223,9 +222,9 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
   }));
   const stashHeader: Rect = { x: RIGHT_X, y: CONTENT_Y, w: RIGHT_W, h: STASH_HEADER_H };
   const toolbarY = CONTENT_Y + STASH_HEADER_H;
-  const stashToolbar = layoutStashToolbar({ x: RIGHT_X, y: toolbarY, w: RIGHT_W, h: STASH_TOOLBAR_H });
+  const toolbar = layoutStashToolbar({ x: RIGHT_X, y: toolbarY, w: RIGHT_W }, state.profile.stash);
   const stashOrder = applyStashView(state.profile.stash, ui.stashView);
-  const listY = toolbarY + STASH_TOOLBAR_H;
+  const listY = toolbarY + toolbar.h;
   const area: Rect = { x: RIGHT_X, y: listY, w: RIGHT_W, h: CONTENT_Y + CONTENT_H - listY };
   const list = layoutStashList(stashOrder, ui.scroll, area);
   const bottomY = CONTENT_Y + CONTENT_H;
@@ -236,7 +235,7 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
     stashRows: list.rows,
     stashOrder,
     stashTotal: state.profile.stash.length,
-    stashToolbar,
+    stashToolbar: toolbar.controls,
     stashCounts: slotCounts(state.profile.stash, ui.stashView),
     tooltipRect: { x: PANEL_X, y: bottomY, w: LEFT_W, h: TOOLTIP_H },
     resonanceRect: { x: RIGHT_X, y: bottomY, w: RIGHT_W, h: TOOLTIP_H },
@@ -512,7 +511,7 @@ function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput
   ui.hoverAlloc = alloc.hover;
   if (alloc.used) return;
   const layout = layoutInventory(state, ui);
-  if (updateStashToolbar(ui.stashView, layout.stashToolbar, input)) {
+  if (updateStashToolbar(ui.stashView, layout.stashToolbar, input, state.profile.stash)) {
     // 条件が変わったら一覧の先頭から見せる
     ui.scroll = 0;
     pushSfx(state, "uiClick");

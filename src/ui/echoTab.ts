@@ -31,8 +31,7 @@ import {
   pointInRect,
 } from "./inventoryLayout";
 import {
-  STASH_TOOLBAR_H,
-  type SlotFilter,
+  type SlotCounts,
   type StashControlLayout,
   type StashView,
   applyStashView,
@@ -62,7 +61,10 @@ const ECHO_EXECUTE_GAP = 4;
 const ECHO_STATUS_GAP = 4;
 
 /** 右列: 倉庫（見出し + 行）→ 対象の詳細（名前・副題 → 性質の行 → 銘 → 色） */
-export const ECHO_STASH_ROWS = 6;
+/** 倉庫のボタンの帯と一覧を合わせた高さ（行数換算）。帯が折り返して高くなった分だけ一覧の行が減り、下の詳細欄の位置は変わらない */
+export const ECHO_STASH_BLOCK_ROWS = 8;
+/** 帯がどれだけ高くなっても一覧に残す行数 */
+const ECHO_STASH_MIN_ROWS = 3;
 const DETAIL_GAP = 3;
 export const DETAIL_HEADER_H = 22;
 export const TRAIT_ROW_H = 10;
@@ -179,7 +181,7 @@ export interface EchoLayout {
   stashHeader: Rect;
   /** 部位タブと並べ替え・絞り込みのボタン */
   stashToolbar: StashControlLayout[];
-  stashCounts: Record<SlotFilter, number>;
+  stashCounts: SlotCounts;
   stash: StashListLayout;
   stashOrder: Item[];
   /** 倉庫の総数（絞り込み前） */
@@ -253,8 +255,10 @@ function layoutDetailRows(
 export function layoutEcho(state: GameState, ui: EchoUi): EchoLayout {
   const stashHeader = { x: RIGHT_X, y: CONTENT_Y, w: RIGHT_W, h: STASH_HEADER_H };
   const toolbarY = CONTENT_Y + STASH_HEADER_H;
-  const stashToolbar = layoutStashToolbar({ x: RIGHT_X, y: toolbarY, w: RIGHT_W, h: STASH_TOOLBAR_H });
-  const stashArea = { x: RIGHT_X, y: toolbarY + STASH_TOOLBAR_H, w: RIGHT_W, h: ECHO_STASH_ROWS * STASH_ROW_H };
+  const toolbar = layoutStashToolbar({ x: RIGHT_X, y: toolbarY, w: RIGHT_W }, state.profile.stash);
+  const blockH = ECHO_STASH_BLOCK_ROWS * STASH_ROW_H;
+  const rows = Math.max(ECHO_STASH_MIN_ROWS, Math.floor((blockH - toolbar.h) / STASH_ROW_H));
+  const stashArea = { x: RIGHT_X, y: toolbarY + toolbar.h, w: RIGHT_W, h: rows * STASH_ROW_H };
   const stashOrder = applyStashView(state.profile.stash, ui.view);
   const stash = layoutStashList(stashOrder, ui.scroll, stashArea);
   const detailY = stashArea.y + stashArea.h + DETAIL_GAP;
@@ -263,7 +267,7 @@ export function layoutEcho(state: GameState, ui: EchoUi): EchoLayout {
   return {
     ...layoutLeftColumn(),
     stashHeader,
-    stashToolbar,
+    stashToolbar: toolbar.controls,
     stashCounts: slotCounts(state.profile.stash, ui.view),
     stash,
     stashOrder,
@@ -481,7 +485,7 @@ function clickDetail(ui: EchoUi, layout: EchoLayout, aim: Point): boolean {
 /** 残響タブの 1 フレーム分の入力処理 */
 export function updateEchoTab(state: GameState, ui: EchoUi, input: FrameInput): void {
   const layout = layoutEcho(state, ui);
-  if (updateStashToolbar(ui.view, layout.stashToolbar, input)) {
+  if (updateStashToolbar(ui.view, layout.stashToolbar, input, state.profile.stash)) {
     ui.scroll = 0;
     pushSfx(state, "uiClick");
     return;
