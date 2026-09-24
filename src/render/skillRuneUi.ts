@@ -28,7 +28,7 @@ const MARK_ATTACHED = "付";
 const COLOR_HEADER_LINE = "#404040";
 
 export function drawRuneColumn(ctx: CanvasRenderingContext2D, state: GameState, list: RuneListLayout, ui: InventoryUi): void {
-  drawRuneHeader(ctx, state, list, ui);
+  drawRuneHeader(ctx, state, list);
   if (list.entries.length === 0) {
     const m = TEXT.SMALL;
     drawText(ctx, "刻印符がありません", list.header.x + TEXT_PAD_X, list.header.y + list.header.h + bodyLineH(), m, COLOR_DIM);
@@ -37,13 +37,14 @@ export function drawRuneColumn(ctx: CanvasRenderingContext2D, state: GameState, 
   for (const row of list.rows) drawRuneRow(ctx, state, row, ui);
 }
 
-function drawRuneHeader(ctx: CanvasRenderingContext2D, state: GameState, list: RuneListLayout, ui: InventoryUi): void {
+function drawRuneHeader(ctx: CanvasRenderingContext2D, state: GameState, list: RuneListLayout): void {
   const { header } = list;
   const m = TEXT.SMALL;
   const baseline = header.y + header.h / 2 + ROW_BASELINE_OFFSET;
-  const count = `所持 ${ownedRunes(state.skills.profile).length}/${SKILL.runeCapacity}`;
+  const count = `${ownedRunes(state.skills.profile).length}/${SKILL.runeCapacity}`;
   drawText(ctx, count, header.x + header.w - TEXT_PAD_X, baseline, m, COLOR_DIM, "right");
-  const label = `刻印符 → スキル ${ui.skillSlot + 1}`;
+  // 付け先は黄色の枠のスロットで分かるので見出しには出さない
+  const label = "刻印符";
   const maxWidth = header.w - textWidth(count, m) - TEXT_PAD_X * 3;
   drawText(ctx, truncateText(label, maxWidth, m), header.x + TEXT_PAD_X, baseline, m, COLOR_RUNE);
   fillRectPx(ctx, { x: header.x, y: header.y + header.h - 1, w: header.w, h: 1 }, COLOR_HEADER_LINE);

@@ -102,7 +102,13 @@ describe("装備画面の描画", () => {
     ui.hoverItemId = "a";
     drawInventoryUi(ctx, state, ui);
     ui.hoverItemId = "worn";
-    ui.hoverSlot = "mainHand";
+    ui.hoverTile = "mainHand";
+    drawInventoryUi(ctx, state, ui);
+    ui.detailFull = true;
+    drawInventoryUi(ctx, state, ui);
+    ui.helpOpen = true;
+    drawInventoryUi(ctx, state, ui);
+    ui.helpOpen = false;
     drawInventoryUi(ctx, state, ui);
     ui.bud.open = true;
     drawInventoryUi(ctx, state, ui);

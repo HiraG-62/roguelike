@@ -1,7 +1,7 @@
-import { itemColorBar, type ColorBarSegment, type FluxLevel, type TraitLine } from "../loot/describe";
+import { type ColorBarSegment, type FluxLevel, type TraitLine } from "../loot/describe";
 import { RARITY_COLOR, RARITY_LABEL, TRAIT_COLORS, TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
 import { itemColor } from "../system/loot";
-import { SLOT_LABEL, type Rect, type StashRowLayout } from "../ui/inventoryLayout";
+import type { Rect, StashRowLayout } from "../ui/inventoryLayout";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
 
 /**
@@ -36,9 +36,6 @@ const MARK_GAP = 2;
 export const HUE_STRIP_W = 2;
 export const META_GAP = 4;
 export const ROW_BASELINE_OFFSET = 3;
-/** 倉庫行の色の配合バー */
-const ROW_BAR_W = 28;
-const ROW_BAR_H = 3;
 
 export function bodyLineH(): number {
   return Math.max(LINE_H, textLineHeight(TEXT.SMALL));
@@ -137,8 +134,8 @@ export function drawTipLine(ctx: CanvasRenderingContext2D, line: TipLine, x: num
 }
 
 /**
- * 倉庫の 1 行: 左端の帯・名前（主な色）・右に色の配合バー・部位・揺らぎの分類。
- * 残響タブでも使う
+ * 倉庫の 1 行: 左端の帯・名前（主な色）・右端に揺らぎの分類。
+ * 部位は全部位表示の区切り線と部位の枠が示すので行には出さない（文字を減らす）。残響タブでも使う
  */
 export function drawItemRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, hover: boolean): void {
   const { rect, item } = row;
@@ -148,18 +145,13 @@ export function drawItemRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, 
   const right = rect.x + rect.w - TEXT_PAD_X;
   const rarity = RARITY_LABEL[item.rarity];
   drawText(ctx, rarity, right, baseline, m, RARITY_COLOR[item.rarity], "right");
-  const slotRight = right - textWidth(rarity, m) - META_GAP;
-  const slot = SLOT_LABEL[item.slot];
-  drawText(ctx, slot, slotRight, baseline, m, COLOR_DIM, "right");
-  const barRight = slotRight - textWidth(slot, m) - META_GAP;
-  const bar = { x: barRight - ROW_BAR_W, y: rect.y + Math.round((rect.h - ROW_BAR_H) / 2), w: ROW_BAR_W, h: ROW_BAR_H };
-  drawColorBar(ctx, itemColorBar(item.affixes), bar);
 
   const color = itemColor(item);
   fillRectPx(ctx, { x: Math.round(rect.x), y: Math.round(rect.y) + 1, w: HUE_STRIP_W, h: rect.h - 2 }, color);
   const nameX = rect.x + TEXT_PAD_X + HUE_STRIP_W;
   const mark = item.budOffer ? `${GROWN_MARK} ` : "";
-  drawText(ctx, truncateText(`${mark}${item.name}`, bar.x - META_GAP - nameX, m), nameX, baseline, m, color);
+  const nameRight = right - textWidth(rarity, m) - META_GAP;
+  drawText(ctx, truncateText(`${mark}${item.name}`, nameRight - nameX, m), nameX, baseline, m, color);
 }
 
 export function drawHint(ctx: CanvasRenderingContext2D, hintRect: Rect, text: string): void {

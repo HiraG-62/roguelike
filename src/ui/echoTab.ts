@@ -62,7 +62,7 @@ const ECHO_STATUS_GAP = 4;
 
 /** 右列: 倉庫（見出し + 行）→ 対象の詳細（名前・副題 → 性質の行 → 銘 → 色） */
 /** 倉庫のボタンの帯と一覧を合わせた高さ（行数換算）。帯が折り返して高くなった分だけ一覧の行が減り、下の詳細欄の位置は変わらない */
-export const ECHO_STASH_BLOCK_ROWS = 8;
+export const ECHO_STASH_BLOCK_ROWS = 9;
 /** 帯がどれだけ高くなっても一覧に残す行数 */
 const ECHO_STASH_MIN_ROWS = 3;
 const DETAIL_GAP = 3;

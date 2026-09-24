@@ -42,7 +42,6 @@ import {
   COLOR_WARN,
   TEXT_PAD_X,
   bodyLineH,
-  drawHint,
   drawItemRow,
   drawTipLine,
   fillRectPx,
@@ -58,7 +57,12 @@ import { drawSlotGroupLines, drawStashToolbar, stashEmptyText, stashEmptyY } fro
  * 右列: 倉庫（対象 / 移し先・注ぎ先の選択）→ 対象の詳細（性質の行をクリックで選ぶ、染めは色も選ぶ。呼び戻しは過去の芽の行）
  */
 
-const HINT_ECHO = "倉庫で対象 → 操作 → 性質・芽（→ 色 / 受け取る遺物）→ 実行  装備中の遺物は対象外  Tab: 閉じる";
+/** ？ のヘルプに出す手順（画面には常時出さない） */
+export const ECHO_HELP: readonly string[] = [
+  "倉庫で対象を選ぶ → 操作 → 性質・芽（→ 色 / 受け取る遺物）→ 実行",
+  "装備中の遺物は対象にできない",
+  "砕くと性質の色の残響を得る。残響を払って性質を作り替える",
+];
 const COLOR_BUTTON_BG = "rgba(255,255,255,0.08)";
 const COLOR_DISABLED_BG = "rgba(255,255,255,0.03)";
 const COLOR_PICK_BG = "rgba(255,215,95,0.14)";
@@ -70,7 +74,7 @@ const WALLET_BASELINE_INSET = 2;
 /** 操作ボタンの文字の左右の余白（3 列にしたので、長い名前は切り詰める） */
 const BUTTON_TEXT_PAD = 4;
 
-export function drawEchoTab(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi, hintRect: Rect): void {
+export function drawEchoTab(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi): void {
   const layout = layoutEcho(state, ui);
   drawWallet(ctx, ui, layout);
   for (const b of layout.buttons) drawOpButton(ctx, ui, b.op, b.rect);
@@ -78,7 +82,6 @@ export function drawEchoTab(ctx: CanvasRenderingContext2D, state: GameState, ui:
   drawStatus(ctx, state, ui, layout.status);
   drawEchoStash(ctx, state, ui, layout);
   drawDetail(ctx, state, ui, layout);
-  drawHint(ctx, hintRect, HINT_ECHO);
 }
 
 function drawWallet(ctx: CanvasRenderingContext2D, ui: EchoUi, layout: EchoLayout): void {
@@ -175,7 +178,7 @@ function drawDetail(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi,
   const maxWidth = rect.w - TEXT_PAD_X * 2;
   const target = echoTarget(state, ui);
   if (target === null) {
-    drawText(ctx, ECHO_STEP_PROMPT.target, x, rect.y + lineH, m, COLOR_DIM);
+    // 手順は左の状態欄が出すので、ここには何も出さない（同じ文を 2 か所に並べない）
     return;
   }
   const d = describeItem(target);

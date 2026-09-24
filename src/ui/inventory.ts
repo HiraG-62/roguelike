@@ -5,13 +5,22 @@ import { equipItem, saveProfile, unequipItem } from "../loot/profile";
 import { computeStats } from "../loot/stats";
 import { refreshPendingBud } from "../system/loot";
 import { applyStats } from "../system/player";
-import { SLOTS, type Item, type Slot } from "../loot/types";
+import type { Item } from "../loot/types";
 import { SKILL } from "../skills/data";
 import { equipStone, saveSkillProfile, salvageStone, stoneInSlot, unequipSlot } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
 import { updateAllocButtons } from "./attributeAlloc";
 import { type BudUi, closeBudModal, createBudUi, tryOpenBudModal, updateBudModal } from "./bud";
 import { type EchoUi, createEchoUi, shatterStashItem, tickEchoUi, updateEchoTab } from "./echoTab";
+import {
+  type SlotTileLayout,
+  TILE_FILTERS,
+  TOOLBAR_Y,
+  attributePanelRect,
+  budBannerRect,
+  slotTileRects,
+  stashListArea,
+} from "./equipmentLayout";
 import { type SynergyPanelUi, createSynergyPanelUi, updateSynergyPanel } from "./synergyPanel";
 import {
   RUNE_BLOCK_TEXT,
@@ -28,28 +37,26 @@ import {
 import {
   COLUMN_GAP,
   CONTENT_BOTTOM,
-  CONTENT_H,
   CONTENT_Y,
-  HINT_H,
-  LEFT_W,
+  LIST_W,
+  LIST_X,
   PANEL_H,
   PANEL_W,
   PANEL_X,
   PANEL_Y,
-  RIGHT_W,
-  RIGHT_X,
   STASH_HEADER_H,
   STASH_ROW_H,
-  TOOLTIP_H,
   type Rect,
   type StashRowLayout,
   clamp,
+  detailRect,
   findRowAt,
   layoutStashList,
   pointInRect,
 } from "./inventoryLayout";
 import {
   type SlotCounts,
+  type SlotFilter,
   type StashControlLayout,
   type StashView,
   applyStashView,
@@ -64,9 +71,13 @@ export {
   CONTENT_BOTTOM,
   CONTENT_H,
   CONTENT_Y,
+  DETAIL_W,
+  DETAIL_X,
+  FRAME_PAD,
   HEADER_H,
-  HINT_H,
   LEFT_W,
+  LIST_W,
+  LIST_X,
   PANEL_H,
   PANEL_MARGIN,
   PANEL_W,
@@ -77,58 +88,52 @@ export {
   SLOT_LABEL,
   STASH_HEADER_H,
   STASH_ROW_H,
-  TOOLTIP_H,
+  detailRect,
   type Rect,
   type StashRowLayout,
 } from "./inventoryLayout";
+export { attributePanelRect, type SlotTileLayout } from "./equipmentLayout";
 
-export const SLOT_H = 18;
-export const SLOT_GAP = 4;
-
-/** ヘッダーのタブ（クリック or Tab 連打で切替） */
-export const TAB_Y = PANEL_Y + 1;
-export const TAB_H = 9;
-export const TAB_GAP = 4;
+/** 見出しのタブ（クリック or Tab 連打で切替） */
+export const TAB_Y = PANEL_Y + 2;
+export const TAB_H = 10;
+export const TAB_GAP = 2;
 export type InventoryTab = "equipment" | "skills" | "echo" | "web";
-export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 58, skills: 38, echo: 34, web: 22 };
+export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 34, skills: 40, echo: 34, web: 26 };
 export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "echo", "web"];
 
-/** スキルタブ: 左にスロット、右に石の一覧と刻印符の一覧を左右に並べる */
-export const SKILL_SLOT_H = 30;
-export const SKILL_SLOT_GAP = 4;
-export const STONE_COL_W = Math.floor((RIGHT_W - COLUMN_GAP) / 2);
-export const RUNE_COL_X = RIGHT_X + STONE_COL_W + COLUMN_GAP;
-export const RUNE_COL_W = RIGHT_W - STONE_COL_W - COLUMN_GAP;
+/** 見出し右端の ？（そのタブの操作と仕組みの説明を開く） */
+const HELP_BUTTON_W = 14;
+
+/** スキルタブ: 一覧の上端にスロット 4 枠、その下に石の一覧と刻印符の一覧を左右に並べる */
+export const SKILL_SLOT_H = 28;
+export const SKILL_SLOT_GAP = 3;
+const SKILL_LIST_Y = CONTENT_Y + SKILL_SLOT_H + SKILL_SLOT_GAP;
+export const STONE_COL_W = Math.floor((LIST_W - COLUMN_GAP) / 2);
+export const RUNE_COL_X = LIST_X + STONE_COL_W + COLUMN_GAP;
+export const RUNE_COL_W = LIST_X + LIST_W - RUNE_COL_X;
 
 /** メッセージ（「装備した: xxx」等）の表示秒数 */
 const MESSAGE_DURATION = 1.5;
 
-export interface SlotLayout {
-  slot: Slot;
-  rect: Rect;
-  item: Item | null;
-}
-
 export interface InventoryLayout {
   panel: Rect;
-  slots: SlotLayout[];
-  /** 倉庫の見出し行（芽があればバナー） */
-  stashHeader: Rect;
+  /** 部位の枠（全部位 + 各部位）。装備中の遺物を見せ、クリックで一覧をその部位に絞る */
+  tiles: SlotTileLayout[];
+  /** 並び・絞り込みのボタン */
+  stashToolbar: StashControlLayout[];
+  /** 芽が出ていればバナー */
+  budBanner: Rect | null;
   /** 現在スクロール位置で画面に見えている行のみ */
   stashRows: StashRowLayout[];
   /** 部位・並べ替え・絞り込みを通した後の表示順 */
   stashOrder: Item[];
   /** 倉庫の総数（絞り込み前） */
   stashTotal: number;
-  /** 倉庫の上の部位タブと並べ替え・絞り込みのボタン */
-  stashToolbar: StashControlLayout[];
-  /** 部位タブに添える件数 */
+  /** 部位の枠に添える件数 */
   stashCounts: SlotCounts;
-  /** 左下: ツールチップの基準（下端を揃えて上へ伸ばす） */
-  tooltipRect: Rect;
-  /** 右下: 共鳴パネル */
-  resonanceRect: Rect;
-  hintRect: Rect;
+  /** 右の詳細欄 */
+  detail: Rect;
   visibleRowCount: number;
   maxScroll: number;
 }
@@ -153,11 +158,14 @@ export interface StoneRowLayout {
 
 export interface SkillsLayout {
   slots: SkillSlotLayout[];
+  /** 石の一覧の見出し */
+  stoneHeader: Rect;
   rows: StoneRowLayout[];
   stoneOrder: SkillStone[];
   maxScroll: number;
   /** 刻印符の列（選択中スロットの石に付いた符 → 所持品） */
   runeList: RuneListLayout;
+  detail: Rect;
 }
 
 export interface InventoryUi {
@@ -172,7 +180,8 @@ export interface InventoryUi {
   skillScroll: number;
   scroll: number;
   hoverItemId: string | null;
-  hoverSlot: Slot | null;
+  /** 装備タブで乗せている部位の枠 */
+  hoverTile: SlotFilter | null;
   message: string;
   messageTimer: number;
   /** 芽の 2 択モーダル */
@@ -185,6 +194,11 @@ export interface InventoryUi {
   hoverAlloc: number;
   /** 装備タブの倉庫の部位分け・並べ替え・絞り込み（開き直しても保つ） */
   stashView: StashView;
+  /** 詳細欄に来歴・語などまで出すか（既定は要点だけ）。拾うキーで切り替え、開き直しても保つ */
+  detailFull: boolean;
+  /** ？ のヘルプを開いている */
+  helpOpen: boolean;
+  hoverHelp: boolean;
 }
 
 export function createInventoryUi(): InventoryUi {
@@ -198,7 +212,7 @@ export function createInventoryUi(): InventoryUi {
     skillScroll: 0,
     scroll: 0,
     hoverItemId: null,
-    hoverSlot: null,
+    hoverTile: null,
     message: "",
     messageTimer: 0,
     bud: createBudUi(),
@@ -206,6 +220,9 @@ export function createInventoryUi(): InventoryUi {
     web: createSynergyPanelUi(),
     hoverAlloc: -1,
     stashView: createStashView(),
+    detailFull: false,
+    helpOpen: false,
+    hoverHelp: false,
   };
 }
 
@@ -215,45 +232,30 @@ export function createInventoryUi(): InventoryUi {
  */
 export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLayout {
   const panel: Rect = { x: PANEL_X, y: PANEL_Y, w: PANEL_W, h: PANEL_H };
-  const slots: SlotLayout[] = SLOTS.map((slot, i) => ({
-    slot,
-    rect: { x: PANEL_X, y: CONTENT_Y + i * (SLOT_H + SLOT_GAP), w: LEFT_W, h: SLOT_H },
-    item: state.profile.equipment[slot],
-  }));
-  const stashHeader: Rect = { x: RIGHT_X, y: CONTENT_Y, w: RIGHT_W, h: STASH_HEADER_H };
-  const toolbarY = CONTENT_Y + STASH_HEADER_H;
-  const toolbar = layoutStashToolbar({ x: RIGHT_X, y: toolbarY, w: RIGHT_W }, state.profile.stash);
+  const tileRects = slotTileRects();
+  const tiles = TILE_FILTERS.map((filter, i): SlotTileLayout | null => {
+    const rect = tileRects[i];
+    if (!rect) return null;
+    const slot = filter === "all" ? null : filter;
+    return { filter, slot, item: slot === null ? null : state.profile.equipment[slot], rect };
+  }).filter((t): t is SlotTileLayout => t !== null);
+  const toolbar = layoutStashToolbar({ x: LIST_X, y: TOOLBAR_Y, w: LIST_W }, state.profile.stash, { slotTabs: false });
+  const hasBud = state.pendingBud !== null;
   const stashOrder = applyStashView(state.profile.stash, ui.stashView);
-  const listY = toolbarY + toolbar.h;
-  const area: Rect = { x: RIGHT_X, y: listY, w: RIGHT_W, h: CONTENT_Y + CONTENT_H - listY };
-  const list = layoutStashList(stashOrder, ui.scroll, area);
-  const bottomY = CONTENT_Y + CONTENT_H;
+  const list = layoutStashList(stashOrder, ui.scroll, stashListArea(hasBud));
   return {
     panel,
-    slots,
-    stashHeader,
+    tiles,
+    stashToolbar: toolbar.controls,
+    budBanner: hasBud ? budBannerRect() : null,
     stashRows: list.rows,
     stashOrder,
     stashTotal: state.profile.stash.length,
-    stashToolbar: toolbar.controls,
     stashCounts: slotCounts(state.profile.stash, ui.stashView),
-    tooltipRect: { x: PANEL_X, y: bottomY, w: LEFT_W, h: TOOLTIP_H },
-    resonanceRect: { x: RIGHT_X, y: bottomY, w: RIGHT_W, h: TOOLTIP_H },
-    hintRect: { x: PANEL_X, y: CONTENT_BOTTOM, w: PANEL_W, h: HINT_H },
+    detail: detailRect(),
     visibleRowCount: list.visibleRowCount,
     maxScroll: list.maxScroll,
   };
-}
-
-/** 装備タブの左列、スロットの下からツールチップの上までの空き（ステータス一覧と振り分けの「+」） */
-export function attributePanelRect(): Rect {
-  const y = CONTENT_Y + SLOTS.length * (SLOT_H + SLOT_GAP);
-  const bottom = CONTENT_Y + CONTENT_H - SLOT_GAP;
-  return { x: PANEL_X, y, w: LEFT_W, h: Math.max(0, bottom - y) };
-}
-
-function findHoveredSlot(layout: InventoryLayout, p: { x: number; y: number }): SlotLayout | null {
-  return layout.slots.find((s) => pointInRect(p, s.rect)) ?? null;
 }
 
 /** 装備変更後の反映: stats 再計算・HP 割合維持・芽の提示の付け直し・保存 */
@@ -269,7 +271,7 @@ function showMessage(ui: InventoryUi, text: string): void {
 }
 
 export function tabRects(): TabLayout[] {
-  let x = PANEL_X + 1;
+  let x = PANEL_X + 2;
   return TAB_ORDER.map((tab) => {
     const rect = { x, y: TAB_Y, w: TAB_WIDTHS[tab], h: TAB_H };
     x += TAB_WIDTHS[tab] + TAB_GAP;
@@ -277,9 +279,13 @@ export function tabRects(): TabLayout[] {
   });
 }
 
+export function helpButtonRect(): Rect {
+  return { x: PANEL_X + PANEL_W - 2 - HELP_BUTTON_W, y: TAB_Y, w: HELP_BUTTON_W, h: TAB_H };
+}
+
 function clearHover(ui: InventoryUi): void {
   ui.hoverItemId = null;
-  ui.hoverSlot = null;
+  ui.hoverTile = null;
   ui.hoverStoneId = null;
   ui.hoverSkillSlot = null;
   ui.runes.focusId = null;
@@ -287,10 +293,12 @@ function clearHover(ui: InventoryUi): void {
   ui.echo.hoverId = null;
   ui.hoverAlloc = -1;
   ui.stashView.hover = null;
+  ui.hoverHelp = false;
 }
 
 function switchTab(ui: InventoryUi, tab: InventoryTab): void {
   ui.tab = tab;
+  ui.helpOpen = false;
   closeBudModal(ui.bud);
   clearHover(ui);
 }
@@ -307,6 +315,7 @@ function cycleTab(state: GameState, ui: InventoryUi): void {
   }
   state.paused = ui.open;
   if (ui.open) return;
+  ui.helpOpen = false;
   closeBudModal(ui.bud);
   clearHover(ui);
 }
@@ -322,15 +331,23 @@ function stoneOrder(state: GameState): SkillStone[] {
   return [...profile.stones].sort((a, b) => rank(a) - rank(b) || b.foundAt - a.foundAt);
 }
 
+function skillSlotRects(): Rect[] {
+  const n = SKILL.slots;
+  const w = Math.floor((LIST_W - SKILL_SLOT_GAP * (n - 1)) / n);
+  return Array.from({ length: n }, (_, i) => {
+    const x = LIST_X + i * (w + SKILL_SLOT_GAP);
+    return { x, y: CONTENT_Y, w: i === n - 1 ? LIST_X + LIST_W - x : w, h: SKILL_SLOT_H };
+  });
+}
+
 export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
   const profile = state.skills.profile;
-  const slots: SkillSlotLayout[] = Array.from({ length: SKILL.slots }, (_, index) => ({
-    index,
-    rect: { x: PANEL_X, y: CONTENT_Y + index * (SKILL_SLOT_H + SKILL_SLOT_GAP), w: LEFT_W, h: SKILL_SLOT_H },
-    stone: stoneInSlot(profile, index),
-  }));
+  const slotRects = skillSlotRects();
+  const slots: SkillSlotLayout[] = slotRects.map((rect, index) => ({ index, rect, stone: stoneInSlot(profile, index) }));
   const order = stoneOrder(state);
-  const visible = Math.max(0, Math.floor(CONTENT_H / STASH_ROW_H));
+  const stoneHeader: Rect = { x: LIST_X, y: SKILL_LIST_Y, w: STONE_COL_W, h: STASH_HEADER_H };
+  const rowsTop = SKILL_LIST_Y + STASH_HEADER_H;
+  const visible = Math.max(0, Math.floor((CONTENT_BOTTOM - rowsTop) / STASH_ROW_H));
   const maxScroll = Math.max(0, order.length - visible);
   const scroll = clamp(ui.skillScroll, 0, maxScroll);
   const rows: StoneRowLayout[] = [];
@@ -340,12 +357,12 @@ export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
     rows.push({
       stone,
       equippedSlot: profile.loadout.indexOf(stone.id),
-      rect: { x: RIGHT_X, y: CONTENT_Y + row * STASH_ROW_H, w: STONE_COL_W, h: STASH_ROW_H },
+      rect: { x: LIST_X, y: rowsTop + row * STASH_ROW_H, w: STONE_COL_W, h: STASH_ROW_H },
     });
   }
-  const runeArea: Rect = { x: RUNE_COL_X, y: CONTENT_Y, w: RUNE_COL_W, h: CONTENT_H };
+  const runeArea: Rect = { x: RUNE_COL_X, y: SKILL_LIST_Y, w: RUNE_COL_W, h: CONTENT_BOTTOM - SKILL_LIST_Y };
   const runeList = layoutRuneList(profile, stoneInSlot(profile, ui.skillSlot), ui.runes, runeArea);
-  return { slots, rows, stoneOrder: order, maxScroll, runeList };
+  return { slots, stoneHeader, rows, stoneOrder: order, maxScroll, runeList, detail: detailRect() };
 }
 
 /**
@@ -356,7 +373,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   selectSlotByKeys(ui, input);
   const layout = layoutSkills(state, ui);
   const aim = input.aimScreen;
-  const inRunes = aim !== null && aim.x >= RUNE_COL_X;
+  const inRunes = aim !== null && aim.x >= RUNE_COL_X && aim.y >= SKILL_LIST_Y;
   if (inRunes) ui.runes.scroll = clamp(ui.runes.scroll + input.wheel, 0, layout.runeList.maxScroll);
   else ui.skillScroll = clamp(ui.skillScroll + input.wheel, 0, layout.maxScroll);
   const slot = aim ? (layout.slots.find((s) => pointInRect(aim, s.rect)) ?? null) : null;
@@ -458,11 +475,32 @@ function tickMessage(ui: InventoryUi, dt: number): void {
   if (ui.messageTimer === 0) ui.message = "";
 }
 
+/**
+ * ？ のヘルプ。ボタンのクリックで開閉し、開いている間は他の操作を受け付けない（どこかをクリックすると閉じる）。
+ * 入力を使ったら true
+ */
+function updateHelp(ui: InventoryUi, input: FrameInput): boolean {
+  const aim = input.aimScreen;
+  ui.hoverHelp = aim !== null && pointInRect(aim, helpButtonRect());
+  if (ui.helpOpen) {
+    if (input.clickPressed || input.confirmPressed) ui.helpOpen = false;
+    return true;
+  }
+  if (!input.clickPressed || !ui.hoverHelp) return false;
+  ui.helpOpen = true;
+  clearHover(ui);
+  ui.hoverHelp = true;
+  return true;
+}
+
 export function updateInventoryUi(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
   if (input.inventoryPressed) cycleTab(state, ui);
   tickMessage(ui, dt);
   tickEchoUi(ui.echo, dt);
   if (!ui.open) return;
+  if (updateHelp(ui, input)) return;
+  // 拾うキーで詳細欄の「要点 / 詳しく」を切り替える（装備画面を開いている間はゲームが止まっていて拾わない）
+  if (input.interactPressed) ui.detailFull = !ui.detailFull;
 
   const aim = input.aimScreen;
   const tab = input.clickPressed && aim ? tabRects().find((t) => pointInRect(aim, t.rect)) : undefined;
@@ -503,7 +541,7 @@ function updateBudFlow(state: GameState, ui: InventoryUi, input: FrameInput): bo
 function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput): void {
   if (updateBudFlow(state, ui, input)) {
     ui.hoverItemId = null;
-    ui.hoverSlot = null;
+    ui.hoverTile = null;
     ui.hoverAlloc = -1;
     return;
   }
@@ -519,23 +557,34 @@ function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput
   }
   ui.scroll = clamp(ui.scroll + input.wheel, 0, layout.maxScroll);
 
-  const hoveredSlot = input.aimScreen ? findHoveredSlot(layout, input.aimScreen) : null;
-  const hoveredRow = findRowAt(layout.stashRows, input.aimScreen);
-  ui.hoverSlot = hoveredSlot ? hoveredSlot.slot : null;
-  ui.hoverItemId = hoveredRow ? hoveredRow.item.id : (hoveredSlot?.item?.id ?? null);
+  const aim = input.aimScreen;
+  const tile = aim ? (layout.tiles.find((t) => pointInRect(aim, t.rect)) ?? null) : null;
+  const hoveredRow = findRowAt(layout.stashRows, aim);
+  ui.hoverTile = tile ? tile.filter : null;
+  ui.hoverItemId = hoveredRow ? hoveredRow.item.id : (tile?.item?.id ?? null);
   if (!input.clickPressed) return;
 
   if (hoveredRow) {
     clickStashRow(state, ui, hoveredRow.item, input.shiftHeld);
     return;
   }
-  if (hoveredSlot?.item) {
-    const name = hoveredSlot.item.name;
-    unequipItem(state.profile, hoveredSlot.slot);
-    applyEquipmentChange(state);
-    showMessage(ui, `外した: ${name}`);
-    pushSfx(state, "equipOff");
+  if (tile) clickSlotTile(state, ui, tile, input.shiftHeld);
+}
+
+/** 部位の枠: クリックで一覧をその部位に絞る、Shift+クリックで装備中の遺物を外す */
+function clickSlotTile(state: GameState, ui: InventoryUi, tile: SlotTileLayout, shift: boolean): void {
+  if (!shift) {
+    ui.stashView.slot = tile.filter;
+    ui.scroll = 0;
+    pushSfx(state, "uiClick");
+    return;
   }
+  if (tile.slot === null || tile.item === null) return;
+  const name = tile.item.name;
+  unequipItem(state.profile, tile.slot);
+  applyEquipmentChange(state);
+  showMessage(ui, `外した: ${name}`);
+  pushSfx(state, "equipOff");
 }
 
 /** クリックで装備、Shift+クリックで砕く（残響を得る） */

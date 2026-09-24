@@ -50,7 +50,8 @@ export function createStashView(): StashView {
 // 部位タブ
 // ---------------------------------------------------------------------------
 
-export const SLOT_FILTER_LABEL: Readonly<Record<SlotFilter, string>> = { all: "全部位", ...SLOT_LABEL };
+/** 部位タブの名前。全部位は件数を添えても幅に収まるよう 1 文字にする */
+export const SLOT_FILTER_LABEL: Readonly<Record<SlotFilter, string>> = { all: "全", ...SLOT_LABEL };
 
 /** 部位タブの並び。ドロップのある部位は常に、それ以外の部位（今は左手）は倉庫にあるときだけ出す。順は SLOTS */
 export function slotFilters(stash: readonly Item[]): SlotFilter[] {
@@ -62,7 +63,6 @@ export function slotFilters(stash: readonly Item[]): SlotFilter[] {
 // 表示名
 // ---------------------------------------------------------------------------
 
-const ALL_LABEL = "すべて";
 const ARROW_DOWN = "↓";
 const ARROW_UP = "↑";
 
@@ -83,11 +83,13 @@ export function stashControlLabel(view: StashView, control: StashControl, counts
       return count === undefined ? SLOT_FILTER_LABEL[control.slot] : `${SLOT_FILTER_LABEL[control.slot]} ${count}`;
     }
     case "sort":
-      return `並び:${SORTS[view.sort].label}${sortArrow(view)}`;
+      // 矢印で並びのボタンと分かるので「並び:」は付けない（帯の幅を空ける）
+      return `${SORTS[view.sort].label}${sortArrow(view)}`;
     case "filter": {
+      // 絞っていない軸は名前だけ（「すべて」を並べると帯が文字で埋まる）
       const def = FILTERS[control.filter];
       const value = view.filters[control.filter];
-      return `${def.label}:${value === undefined ? ALL_LABEL : def.optionLabel(value)}`;
+      return value === undefined ? def.label : `${def.label}:${def.optionLabel(value)}`;
     }
   }
 }
@@ -183,9 +185,9 @@ const CONTROL_GAP = 2;
 /** ボタンの上下の余白（段と段の間を空ける） */
 const CONTROL_INSET_Y = 1;
 /** 部位タブの最小幅（「首飾り 99」が入る） */
-const SLOT_TAB_MIN_W = 44;
-/** 並びボタンの最小幅（「並び:性質の数↓」が入る） */
-const SORT_MIN_W = 100;
+const SLOT_TAB_MIN_W = 48;
+/** 並びボタンの最小幅（「性質の数↓」が入る） */
+const SORT_MIN_W = 72;
 
 interface FlowItem {
   control: StashControl;
@@ -226,12 +228,22 @@ function placeRow(row: readonly FlowItem[], x: number, y: number, w: number): St
   });
 }
 
+export interface StashToolbarOptions {
+  /** 部位タブの群を出すか（装備タブは装備中の部位の枠が部位タブを兼ねるので出さない） */
+  slotTabs: boolean;
+}
+
 /**
  * area の上端からボタンを並べる。1 群目 = 部位タブ、2 群目 = 並びと絞り込み（表の順）。
  * 群ごとに段を改め、幅に収まらなければ折り返す
  */
-export function layoutStashToolbar(area: Pick<Rect, "x" | "y" | "w">, stash: readonly Item[]): StashToolbarLayout {
-  const slotGroup = slotFilters(stash).map((slot): FlowItem => ({ control: { kind: "slot", slot }, minWidth: SLOT_TAB_MIN_W }));
+export function layoutStashToolbar(
+  area: Pick<Rect, "x" | "y" | "w">,
+  stash: readonly Item[],
+  options: StashToolbarOptions = { slotTabs: true },
+): StashToolbarLayout {
+  const slots = options.slotTabs ? slotFilters(stash) : [];
+  const slotGroup = slots.map((slot): FlowItem => ({ control: { kind: "slot", slot }, minWidth: SLOT_TAB_MIN_W }));
   const optionGroup: FlowItem[] = [
     { control: { kind: "sort" }, minWidth: SORT_MIN_W },
     ...FILTER_KEYS.map((filter): FlowItem => ({ control: { kind: "filter", filter }, minWidth: FILTERS[filter].minWidth })),

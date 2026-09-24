@@ -14,7 +14,8 @@ import { computeStats } from "../loot/stats";
 import { refreshPendingBud } from "../system/loot";
 import { budBannerRect, layoutBudModal } from "./bud";
 import { createEchoUi } from "./echoTab";
-import { createInventoryUi, layoutInventory, layoutSkills, tabRects, updateInventoryUi, type InventoryUi } from "./inventory";
+import { createInventoryUi, helpButtonRect, layoutInventory, layoutSkills, tabRects, updateInventoryUi, type InventoryUi } from "./inventory";
+import type { SlotFilter } from "./stashFilter";
 import type { Rect } from "./inventoryLayout";
 
 type State = ReturnType<typeof createGame>;
@@ -70,6 +71,12 @@ function openUi(state: State): InventoryUi {
   ui.echo = createEchoUi(createCraftSave());
   updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
   return ui;
+}
+
+function tileRect(state: State, ui: InventoryUi, filter: SlotFilter): Rect {
+  const tile = layoutInventory(state, ui).tiles.find((t) => t.filter === filter);
+  if (!tile) throw new Error(`tile ${filter} missing`);
+  return tile.rect;
 }
 
 function stashRowRect(state: State, ui: InventoryUi, id: string): Rect {
@@ -269,17 +276,17 @@ describe("updateInventoryUi: 装備タブ", () => {
     expect(ui.scroll).toBe(0);
   });
 
-  it("倉庫の部位タブをクリックするとその部位だけが並び、スクロールは先頭へ戻る", () => {
+  it("部位の枠をクリックするとその部位だけが並び、スクロールは先頭へ戻る（装備は外さない）", () => {
     const state = createGame(1);
     const ui = openUi(state);
     state.profile.stash = [];
     for (let i = 0; i < 30; i++) addToStash(state.profile, makeItem({ id: `sword-${i}`, foundAt: i }));
     addToStash(state.profile, makeItem({ id: "ring-1", slot: "ring", baseKey: "ironRing", foundAt: 100 }));
+    const equippedRing = state.profile.equipment.ring;
     ui.scroll = 5;
-    const ringTab = layoutInventory(state, ui).stashToolbar.find((c) => c.control.kind === "slot" && c.control.slot === "ring");
-    if (!ringTab) throw new Error("指輪タブが無い");
+    const ringTab = tileRect(state, ui, "ring");
 
-    clickAt(state, ui, ringTab.rect);
+    clickAt(state, ui, ringTab);
 
     expect(ui.stashView.slot).toBe("ring");
     expect(ui.scroll, "先頭へ戻る").toBe(0);
@@ -287,6 +294,47 @@ describe("updateInventoryUi: 装備タブ", () => {
     expect(layout.stashOrder.map((it) => it.id)).toEqual(["ring-1"]);
     expect(layout.stashTotal, "総数は倉庫全体").toBe(31);
     expect(layout.stashCounts.mainHand, "他の部位の件数も数える").toBe(30);
+    expect(state.profile.equipment.ring, "クリックだけでは外さない").toBe(equippedRing);
+  });
+
+  it("並び・絞り込みの帯は 1 段で、部位タブは部位の枠が兼ねる", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    const { stashToolbar } = layoutInventory(state, ui);
+    expect(stashToolbar.some((c) => c.control.kind === "slot"), "帯に部位タブは無い").toBe(false);
+    expect(new Set(stashToolbar.map((c) => c.rect.y)).size, "1 段").toBe(1);
+  });
+
+  it("倉庫の行と詳細欄は重ならない（浮くツールチップを使わない）", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    for (let i = 0; i < 30; i++) addToStash(state.profile, makeItem({ id: `sword-${i}`, foundAt: i }));
+    const layout = layoutInventory(state, ui);
+    for (const row of layout.stashRows) expect(row.rect.x + row.rect.w, "行は詳細欄の左で終わる").toBeLessThan(layout.detail.x);
+    for (const tile of layout.tiles) expect(tile.rect.x + tile.rect.w, "枠は詳細欄の左で終わる").toBeLessThan(layout.detail.x);
+  });
+});
+
+describe("装備画面の ？ と詳細欄の切り替え", () => {
+  it("？ をクリックするとヘルプが開き、開いている間は他の操作を受けず、どこかをクリックで閉じる", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    addToStash(state.profile, makeItem({ id: "sword-1" }));
+    clickAt(state, ui, helpButtonRect());
+    expect(ui.helpOpen, "開く").toBe(true);
+    clickAt(state, ui, stashRowRect(state, ui, "sword-1"));
+    expect(ui.helpOpen, "クリックで閉じる").toBe(false);
+    expect(state.profile.stash.some((it) => it.id === "sword-1"), "閉じるクリックでは装備しない").toBe(true);
+  });
+
+  it("拾うキーで詳細欄の 要点 / 詳しく を切り替え、閉じても保つ", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    expect(ui.detailFull, "既定は要点だけ").toBe(false);
+    updateInventoryUi(state, ui, withInput({ interactPressed: true }), 0);
+    expect(ui.detailFull).toBe(true);
+    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
+    expect(ui.detailFull, "タブを移っても保つ").toBe(true);
   });
 });
 
@@ -301,10 +349,8 @@ describe("芽: 装備と 2 択", () => {
     clickAt(state, ui, stashRowRect(state, ui, "bud-1"));
     expect(pendingItemId(state), "装備で芽が載る").toBe("bud-1");
 
-    const slot = layoutInventory(state, ui).slots.find((s) => s.slot === "mainHand");
-    if (!slot) throw new Error("weapon slot missing");
-    clickAt(state, ui, slot.rect);
-    expect(state.pendingBud, "外すと消える").toBeNull();
+    clickAt(state, ui, tileRect(state, ui, "mainHand"), { shiftHeld: true });
+    expect(state.pendingBud, "Shift+クリックで外すと消える").toBeNull();
   });
 
   it("バナー → カードのクリックで chooseBud され、pendingBud が消える", () => {

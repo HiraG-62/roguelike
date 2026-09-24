@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ATTR_KEYS, SLOTS } from "../loot/types";
+import { ATTR_KEYS } from "../loot/types";
 import { ALLOC_ORDER, allocButtonAt, allocButtonRect } from "../ui/attributeAlloc";
-import { CONTENT_H, CONTENT_Y } from "../ui/inventoryLayout";
-import { SLOT_GAP, SLOT_H } from "../ui/inventory";
+import { CONTENT_BOTTOM, CONTENT_Y, detailRect } from "../ui/inventoryLayout";
 import { ATTR_HINT, attributePanelRect, attributeValueText, unspentHudText } from "./attributeUi";
 import { manaRatio } from "./manaHud";
 
@@ -13,11 +12,13 @@ describe("装備画面のステータス一覧", () => {
     expect(attributeValueText("vit", 41, 30.25)).toBe("体力 41（実効 30.25）");
   });
 
-  it("スロットの下、ツールチップの上に収まる", () => {
+  it("右の詳細欄の中、見出しの下に収まる", () => {
     const r = attributePanelRect();
-    const slotsBottom = CONTENT_Y + SLOTS.length * (SLOT_H + SLOT_GAP) - SLOT_GAP;
-    expect(r.y, "スロットに重ならない").toBeGreaterThanOrEqual(slotsBottom);
-    expect(r.y + r.h, "ツールチップ（下段）に重ならない").toBeLessThanOrEqual(CONTENT_Y + CONTENT_H);
+    const detail = detailRect();
+    expect(r.x, "詳細欄の左端から").toBeGreaterThanOrEqual(detail.x);
+    expect(r.x + r.w, "詳細欄の右端まで").toBeLessThanOrEqual(detail.x + detail.w);
+    expect(r.y, "見出しの下").toBeGreaterThan(CONTENT_Y);
+    expect(r.y + r.h, "本文の下端を越えない").toBeLessThanOrEqual(CONTENT_BOTTOM);
     expect(r.h, "高さがある").toBeGreaterThan(0);
   });
 
