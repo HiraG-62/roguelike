@@ -264,10 +264,10 @@ describe("装備の語の推論", () => {
   });
 });
 
-describe("余り・飢え・相性", () => {
-  it("出すだけの語は余り、食うだけの語は飢え", () => {
+describe("溢れ・枯れ・相性", () => {
+  it("源だけの流れは溢れ、糧だけの流れは枯れ", () => {
     const gaps = profileGaps(kw(["burn", "mana"], ["mana", "kill"]));
-    expect(gaps.surplus, "余り").toEqual(["burn"]);
+    expect(gaps.surplus, "溢れ").toEqual(["burn"]);
     expect(gaps.hunger, "飢え").toEqual(["kill"]);
   });
 
@@ -288,11 +288,11 @@ describe("余り・飢え・相性", () => {
     expect(p.produces.includes("chill"), "畳み込み後の冷気は読まない").toBe(false);
   });
 
-  it("affinity は不足を補うキーワードと余りを活かすキーワードを返す", () => {
+  it("affinity は枯れを潤す流れと溢れを受ける流れを返す", () => {
     const build = kw(["burn"], ["kill"]);
     const a = affinity(kw(["kill"], ["burn"]), build);
     expect(a.fills, "撃破の飢えを埋める").toEqual(["kill"]);
-    expect(a.feeds, "燃焼の余りを活かす").toEqual(["burn"]);
+    expect(a.feeds, "燃焼の溢れを受ける").toEqual(["burn"]);
     expect(affinity(kw(["chill"]), build), "関係なし").toEqual({ fills: [], feeds: [] });
   });
 

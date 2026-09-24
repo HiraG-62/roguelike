@@ -95,15 +95,15 @@ describe("describeSynergy: 遺物とビルドの相性", () => {
     const d = describeSynergy(synergyItem([burnRoll]), build);
     expect(d.produces, "燃焼の性質は燃焼を出す").toContain("burn");
     expect(d.fills, "飢えている燃焼を埋める").toEqual(["burn"]);
-    expect(d.partners, "燃焼を活かす祝福と相性がよい").toEqual(["燃やし食い"]);
+    expect(d.partners, "燃焼を糧にする祝福と相性がよい").toEqual(["燃やし食い"]);
   });
 
-  it("遺物が活かすキーワードのうち、ビルドの余りを feeds に返す", () => {
+  it("遺物の糧のうち、ビルドの溢れを feeds に返す", () => {
     const build = buildOf([{ kind: "skill", name: "撃破を出す石", keywords: kw(["kill"]) }]);
     const d = describeSynergy(synergyItem([lifeOnKillRoll]), build);
     expect(d.consumes, "撃破時回復は撃破を食う").toContain("kill");
     expect(d.feeds, "余っている撃破を食う").toEqual(["kill"]);
-    expect(d.partners, "撃破を生むスキル石と相性がよい").toEqual(["撃破を出す石"]);
+    expect(d.partners, "撃破が源のスキル石と相性がよい").toEqual(["撃破を出す石"]);
   });
 
   it("相手はスキル石と祝福だけ、最大 SYNERGY_PARTNER_MAX まで、要素の並び順", () => {
@@ -118,7 +118,7 @@ describe("describeSynergy: 遺物とビルドの相性", () => {
     const build = buildOf([{ kind: "boon", name: "無関係", keywords: kw(["dash"], ["just"]) }]);
     const d = describeSynergy(synergyItem([burnRoll]), build);
     expect(d.fills, "埋める穴なし").toEqual([]);
-    expect(d.feeds, "食う余りなし").toEqual([]);
+    expect(d.feeds, "受け皿なし").toEqual([]);
     expect(d.partners, "相手なし").toEqual([]);
   });
 });

@@ -105,7 +105,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "vaporize100", name: "蒸気の主", desc: "蒸発を通算 100 回起こす。", check: (c) => (c.codex.reactions.vaporize ?? 0) >= 100 },
   { key: "chain1", name: "縁をつなぐ", desc: "連鎖を初めてつなぐ。", check: (c) => Object.keys(c.codex.chains).length >= 1 },
   { key: "chain10", name: "連鎖の編み手", desc: "連鎖を 10 種類つなぐ。", check: (c) => Object.keys(c.codex.chains).length >= 10 },
-  { key: "chain3", name: "三段の糸", desc: "キーワード 3 つ以上の連鎖をつなぐ。", check: (c) => longestChain(c) >= 3 },
+  { key: "chain3", name: "三段の糸", desc: "3 段以上の連鎖をつなぐ。", check: (c) => longestChain(c) >= 3 },
   // ---- 発見の節目（docs/ideas/synergy-web.md 5-b / 5-f。src/meta/links.ts の linkMilestones が key を参照する）----
   { key: "link5", name: "連携の芽生え", desc: `連携（スキルの連携・反応・連鎖）を ${DISCOVERY.milestonePage} 種発見する。`, check: (c) => discoveryCount(c.codex) >= DISCOVERY.milestonePage },
   { key: "link15", name: "連携の読み手", desc: `連携を ${DISCOVERY.milestoneTitle} 種発見する。`, check: (c) => discoveryCount(c.codex) >= DISCOVERY.milestoneTitle },

@@ -55,17 +55,17 @@ const CURSE_TEXT_Y = 10;
 /** 語の行（カード下部、タグ行の上）。噛み合わない語は暗くする */
 const WORD_ROW_GAP = 2;
 const COLOR_WORD_IDLE = "#5a5a66";
-const WORD_HEAD_PRODUCES = "生";
-const WORD_HEAD_CONSUMES = "活";
+const WORD_HEAD_PRODUCES = "源";
+const WORD_HEAD_CONSUMES = "糧";
 const WORD_GROUP_GAP = 5;
 const WORD_HEAD_GAP = 2;
 /** 祝福カードの印（docs/ideas/synergy-web.md 4-c）。優劣ではなく「今のビルドとどう噛むか」の種類 */
 export const BOON_MARKS = ["fill", "feed", "fresh"] as const;
 export type BoonMark = (typeof BOON_MARKS)[number];
 export const BOON_MARK_LABEL: Readonly<Record<BoonMark, string>> = {
-  fill: "不足を補う",
-  feed: "余りを活かす",
-  fresh: "新しい方向",
+  fill: "潤い",
+  feed: "受け皿",
+  fresh: "新たな流れ",
 };
 const BOON_MARK_COLOR: Readonly<Record<BoonMark, string>> = {
   fill: "#80e0ff",

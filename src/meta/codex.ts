@@ -408,7 +408,7 @@ function chainEntries(save: CodexSave): CodexEntry[] {
     .map(([key, count]) => {
       const id = linkId("chain", key);
       const words = key.split(CHAIN_SEPARATOR).length;
-      const detail = `${chainLabel(key)}（キーワード ${words} つの連鎖）。${count} 回つないだ。${firstSeenText(save, id)}`;
+      const detail = `${chainLabel(key)}（${words} 段の連鎖）。${count} 回つないだ。${firstSeenText(save, id)}`;
       return { key: id, known: true, name: linkName(id), info: `${LINK_KIND_LABEL.chain} ${count} 回`, detail };
     });
 }

@@ -365,13 +365,13 @@ export function synergyTipLines(d: SynergyDescription): TipLine[] {
   if (d.produces.length + d.consumes.length === 0) return [];
   const meshes = d.fills.length + d.feeds.length + d.partners.length > 0;
   const head: string[] = [];
-  if (d.produces.length > 0) head.push(`生む ${glyphs(d.produces)}`);
-  if (d.consumes.length > 0) head.push(`活かす ${glyphs(d.consumes)}`);
-  const lines: TipLine[] = [{ text: `キーワード: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
+  if (d.produces.length > 0) head.push(`源 ${glyphs(d.produces)}`);
+  if (d.consumes.length > 0) head.push(`糧 ${glyphs(d.consumes)}`);
+  const lines: TipLine[] = [{ text: `流れ: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
   const detail: string[] = [];
   if (d.partners.length > 0) detail.push(`相性: ${d.partners.join(WORD_SEP)}`);
-  if (d.fills.length > 0) detail.push(`不足を補う: ${labels(d.fills)}`);
-  if (d.feeds.length > 0) detail.push(`余りを活かす: ${labels(d.feeds)}`);
+  if (d.fills.length > 0) detail.push(`潤い: ${labels(d.fills)}`);
+  if (d.feeds.length > 0) detail.push(`受け皿: ${labels(d.feeds)}`);
   if (detail.length > 0) lines.push({ text: detail.join("  "), color: COLOR_SYNERGY });
   return lines;
 }

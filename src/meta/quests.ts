@@ -268,7 +268,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   },
   reaperDance: { name: "死神と踊る", desc: "死神が出ている間に階段を降りる。", goal: 1, measure: (s) => s.reaperEscapes, reward: { kind: "origin", origin: "reaperFriend" } },
   chainWeaver: { name: "連鎖の糸", desc: "連鎖を 20 回つなぐ。", goal: 20, measure: (s) => s.chains, reward: { kind: "job", job: "invoker" } },
-  deepChain: { name: "三段の連鎖", desc: "キーワード 3 つの連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "job", job: "alchemist" } },
+  deepChain: { name: "三段の連鎖", desc: "3 段の連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "job", job: "alchemist" } },
   frostbite: { name: "凍てつく刃", desc: "冷気か凍結の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.chillKills, reward: { kind: "title", title: "霜の手" } },
   venomGarden: { name: "毒の庭", desc: "毒の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.poisonKills, reward: { kind: "page", page: "relic" } },
   bloodPath: { name: "血の道", desc: "出血中の敵を 30 体倒す。", goal: 30, measure: (s) => s.bleedKills, reward: { kind: "job", job: "hexer" } },
