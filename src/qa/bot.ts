@@ -13,7 +13,7 @@ import { currentMoveset } from "../system/player";
 import { meleeButton, shotButton } from "../data/weapons";
 import { BOONS, type BoonKey } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
-import { resolveSlot, slotBodyBlocked, type ResolvedSlot } from "../system/skills";
+import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
 import { allocateAttribute } from "../ui/attributeAlloc";
 import { SKILL } from "../skills/data";
@@ -330,7 +330,8 @@ function skillEngageRange(resolved: ResolvedSlot): number {
  */
 function canCastSlotNow(state: GameState, index: number, distanceToTarget: number): boolean {
   const rs = state.skills;
-  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || slotBodyBlocked(state, index)) return false;
+  // 砲身化・業火の化身の最中に同じ石を押すと自分で解いてしまうので押さない
+  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || slotBodyBlocked(state, index) || slotTogglesForm(state, index)) return false;
   const slot = rs.slots[index];
   if (!slot || slot.intervalLeft > 0) return false;
   const resolved = resolveSlot(state, index);
@@ -689,6 +690,8 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     if (heart) return moveOnlyInput(steerToward(state, bot, heart, dt));
   }
 
+  // 砲身化の構え中は動けない。bot は砲撃を狙わず、ダッシュで構えを解いて立ち往生しない
+  if (state.skills.shape?.key === "siegeForm") return { ...freshInput(), dashPressed: true };
   const enemy = nearestEngagedEnemy(state);
   if (enemy) return combatInput(state, bot, enemy, dt);
 

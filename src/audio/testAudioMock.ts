@@ -33,33 +33,54 @@ function param(initial: number): AudioParamMock {
   return p;
 }
 
-function node(): { connect: (d: unknown) => unknown; disconnect: () => void } {
-  return {
+/** ノードの種類（後始末の検査で数える） */
+export type MockNodeKind = "gain" | "filter" | "delay" | "other";
+
+export interface MockNode {
+  kind: MockNodeKind;
+  /** disconnect() が呼ばれた回数 */
+  disconnects: number;
+  connect: (d: unknown) => unknown;
+  disconnect: () => void;
+}
+
+function node(kind: MockNodeKind = "other", created?: MockNode[]): MockNode {
+  const n: MockNode = {
+    kind,
+    disconnects: 0,
     connect: (d: unknown) => d,
-    disconnect: () => undefined,
+    disconnect: () => {
+      n.disconnects += 1;
+    },
   };
+  created?.push(n);
+  return n;
 }
 
 export interface MockAudio {
   ctx: BaseAudioContext;
   /** 作った発音源（オシレーター・ノイズ）の数 */
   sources(): number;
+  /** 作ったノード（発音源を除く）を種類で絞って返す。作った順 */
+  nodes(kind: MockNodeKind): MockNode[];
   setTime(t: number): void;
 }
 
 export function createMockAudio(): MockAudio {
   let sources = 0;
+  const created: MockNode[] = [];
   const raw = {
     currentTime: 0,
     sampleRate: 8000,
     destination: node(),
-    createGain: () => ({ ...node(), gain: param(1) }),
+    // スプレッドで写すと disconnect が元のノードの回数を数えるので、ノード本体に直接フィールドを足す
+    createGain: () => Object.assign(node("gain", created), { gain: param(1) }),
     createOscillator: () => {
       sources += 1;
       return { ...node(), type: "sine", frequency: param(440), start: () => undefined, stop: () => undefined };
     },
-    createBiquadFilter: () => ({ ...node(), type: "lowpass", frequency: param(350), Q: param(1) }),
-    createDelay: () => ({ ...node(), delayTime: param(0) }),
+    createBiquadFilter: () => Object.assign(node("filter", created), { type: "lowpass", frequency: param(350), Q: param(1) }),
+    createDelay: () => Object.assign(node("delay", created), { delayTime: param(0) }),
     createBuffer: (_ch: number, length: number) => {
       const data = new Float32Array(length);
       return { getChannelData: () => data };
@@ -72,6 +93,7 @@ export function createMockAudio(): MockAudio {
   return {
     ctx: raw as unknown as BaseAudioContext,
     sources: () => sources,
+    nodes: (kind: MockNodeKind) => created.filter((n) => n.kind === kind),
     setTime: (t: number) => {
       raw.currentTime = t;
     },

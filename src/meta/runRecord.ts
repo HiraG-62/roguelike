@@ -5,7 +5,10 @@ import { ENEMIES, type EnemyDef } from "../data/enemies";
 import { META } from "../data/tuning";
 import { insideRoom } from "../system/floor";
 import { hasStatus } from "../system/statusEffects";
-import { CONSTANT_REACTIONS, noteChainStep, noteEnemyKilled, noteEnemySeen, noteReaction } from "./codex";
+import type { ComboKey } from "../skills/types";
+import { CHAIN_SEPARATOR, CONSTANT_REACTIONS, noteChainStep, noteCombo, noteEnemyKilled, noteEnemySeen, noteReaction } from "./codex";
+import { updateLinkHint } from "./linkHint";
+import { inferCombo, isLinkId, linkId, noteLink } from "./links";
 import type { QuestCounterKey } from "./quests";
 
 /**
@@ -32,9 +35,22 @@ const ROOM_CLEAR_COUNTERS: Readonly<Partial<Record<string, QuestCounterKey>>> = 
 };
 
 export function noteRunEvents(state: GameState, batch: readonly GameEvent[]): void {
+  resolvePendingCombo(state);
   noteFloor(state);
   noteRoom(state);
   for (const ev of batch) noteEvent(state, ev);
+  updateLinkHint(state);
+}
+
+/**
+ * 連携（3 系統）の成立を図鑑・依頼へ記録する。初めての連携（図鑑に無かった）は依頼の「新しい連携」にも数える。
+ * 図鑑の既知はラン開始時の写しなので、ゲームの状態・乱数には触れない
+ */
+export function noteLinkFound(state: GameState, id: string): void {
+  if (!isLinkId(id)) return;
+  const q = state.questRun;
+  q.linkKinds.add(id);
+  if (noteLink(state.codexRun.links, id, state.depth, state.time)) q.newLinks.add(id);
 }
 
 /** 連鎖の 1 段（system/rules.ts の recordChain から）。2 語目がつながった瞬間を 1 回の連鎖として数える */
@@ -44,11 +60,41 @@ export function noteChainRecord(state: GameState, keyword: string, depth: number
   const c = state.questRun.counters;
   if (length === 2) c.chains += 1;
   c.maxChainLen = Math.max(c.maxChainLen, length);
+  const words = state.codexRun.seq?.words;
+  if (words !== undefined) noteLinkFound(state, linkId("chain", words.join(CHAIN_SEPARATOR)));
 }
 
-/** スキルの連携が成立した（system/skills.ts の announceCombo から） */
-export function noteSkillCombo(state: GameState): void {
+/**
+ * スキルの連携が成立した（system/skills.ts の announceCombo から）。key を渡されればそのまま記録する。
+ * 渡されない（今の呼び出し）ときは、この時点の「直前の発動」を控え、今撃った石が lastCast に入った後
+ * （同じステップの noteRunEvents か、同じステップの次の連携の通知）で連携を引き直す
+ */
+export function noteSkillCombo(state: GameState, key?: ComboKey): void {
   state.questRun.counters.skillCombos += 1;
+  resolvePendingCombo(state);
+  if (key !== undefined) {
+    recordCombo(state, key);
+    return;
+  }
+  const last = state.skills.lastCast;
+  state.codexRun.links.pendingCombo = { after: last?.skillKey ?? null, afterAt: last?.at ?? null, clock: state.skills.clock };
+}
+
+function recordCombo(state: GameState, key: ComboKey): void {
+  noteCombo(state.codexRun, key);
+  noteLinkFound(state, linkId("combo", key));
+}
+
+/** 控えた連携を、今撃った石（lastCast）から引き直して記録する */
+function resolvePendingCombo(state: GameState): void {
+  const links = state.codexRun.links;
+  const pending = links.pendingCombo;
+  if (pending === null) return;
+  links.pendingCombo = null;
+  const cast = state.skills.lastCast;
+  if (cast === null) return;
+  const key = inferCombo(state, pending, cast.skillKey, cast.pos);
+  if (key !== null) recordCombo(state, key);
 }
 
 /** 階の変化（降りた瞬間の無傷・死神）とバイオーム。depth の差分で拾うので floor.ts に手を入れない */
@@ -159,6 +205,7 @@ function noteKill(state: GameState, ev: GameEvent): void {
 function noteReactionEvent(state: GameState, tag: string | undefined, byPlayer: boolean): void {
   if (tag === undefined) return;
   noteReaction(state.codexRun, tag);
+  noteLinkFound(state, linkId("reaction", tag));
   if (!byPlayer) return;
   const c = state.questRun.counters;
   state.questRun.reactionKinds.add(tag);
@@ -175,6 +222,7 @@ function noteStatusApplied(state: GameState, ev: GameEvent): void {
     if (ev.tag !== r.a && ev.tag !== r.b) continue;
     if (!hasStatus(bag, r.a) || !hasStatus(bag, r.b)) continue;
     noteReaction(state.codexRun, r.key);
+    noteLinkFound(state, linkId("reaction", r.key));
     state.questRun.reactionKinds.add(r.key);
   }
 }

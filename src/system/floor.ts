@@ -27,7 +27,7 @@ import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
-import { finalizeLinks, rollElite } from "./elites";
+import { dropGreedyLootAtPlayer, finalizeLinks, rollElite, takeGreedyLoot } from "./elites";
 import {
   applyBoonFloorRules,
   boonHeartsAllowed,
@@ -94,6 +94,8 @@ const DEPTH_COLOR = "#ffd75f";
 /** 新しいフロアを生成してプレイヤーを配置する。kind は分岐路で選んだ行き先（省略時は深度の規則で抽選） */
 export function buildFloor(state: GameState, kind?: FloorKind): void {
   installRoomHooks();
+  // 強欲のが抱えていた物は敵ごと消さず、新しい階のプレイヤーの足元へ届ける（system/elites.ts）
+  const stolen = takeGreedyLoot(state);
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind));
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
@@ -122,6 +124,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
     if (status.bleedFrom) status.bleedFrom = { ...state.player.body.pos };
   }
   snapCamera(state);
+  dropGreedyLootAtPlayer(state, stolen);
 
   const bossRoom = bossRoomIndex(state);
   const last = state.rooms.length - 1;

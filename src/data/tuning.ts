@@ -542,7 +542,9 @@ export const TERRAIN = {
     spreadGrass: 0.8,
   },
   /** placeTerrain で置いた地形の既定の持続（秒）。0 は消えない */
-  placedDuration: { none: 0, water: 8, oil: 10, lava: 6, bog: 6, ice: 6, grass: 0, fire: 3 },
+  placedDuration: { none: 0, water: 8, oil: 10, lava: 6, bog: 6, ice: 6, grass: 0, fire: 3,
+    /** 泥は泥人形の倒れた跡の 4 秒、煙は煤ゴブリンの爆発の跡の 3 秒（docs/ideas/enemies.md E2 / V10） */
+    mud: 4, smoke: 3 },
   /** マップ生成時の配置 */
   gen: {
     patchesBase: 1,
@@ -555,6 +557,67 @@ export const TERRAIN = {
     minDepth: { water: 1, grass: 1, oil: 2, ice: 3, bog: 3, lava: 5 },
     weight: { water: 3, grass: 3, oil: 2, ice: 2, bog: 2, lava: 1 },
   },
+} as const;
+
+/**
+ * 地形の層「泥」「煙」（docs/ideas/enemies.md E2 / V10）。src/system/terrain.ts・src/map/generator.ts の planTerrain が読む。
+ * 既存の TERRAIN と分けて置く（並列作業で TERRAIN の行を取り合わないため）
+ */
+export const TERRAIN_MUD_SMOKE = {
+  mud: {
+    /** 泥の中の移動速度の倍率（プレイヤーの歩き・敵の歩きと突進）。ダッシュは落ちない */
+    moveMul: 0.6,
+    /** 燃焼が入って固まったとき、中の敵に付く麻痺の秒 */
+    bakeParalyze: 0.6,
+    bakeColor: "#c8a070",
+    bakeParticles: 6,
+    /** 自然配置（TERRAIN.gen と同じ意味）。沼っぽさを浅い階から少しだけ */
+    genMinDepth: 2,
+    genWeight: 1,
+  },
+  smoke: {
+    /** 弾が煙に呑まれたときの煙の粒 */
+    puffColor: "#9a9aa4",
+    puffParticles: 3,
+  },
+} as const;
+
+/** 精鋭修飾子「強欲の」（docs/ideas/enemies.md M12）。src/system/elites.ts が読む */
+export const ELITE_GREEDY = {
+  /** 床の遺物・スキル石に気付く距離（px） */
+  seekRadius: 160,
+  /** この距離まで寄ったら拾う（px） */
+  grabRadius: 10,
+  /** 1 体が抱えられる数 */
+  carryMax: 2,
+  /** 拾いに行く・逃げる足の倍率（素の速さに掛ける。冷気・泥・迅速のはそのまま効く） */
+  runMul: 1.3,
+  /** プレイヤーがこの距離より近いと逃げる（px） */
+  fleeRadius: 150,
+  /** 逃げる向きに 1 ステップで進めた距離がこの割合を下回ったら追い詰められたとみなす */
+  stuckRatio: 0.3,
+  /** 追い詰められて戦う秒（この間は通常の敵と同じく攻撃してくる） */
+  cornerFightTime: 2.5,
+  /** 拾った物があれば倒したときに追加で落とす遺物の数 */
+  bonusDrops: 1,
+  /** 落とす物を並べる半径（px。乱数を使わず円周に並べる） */
+  dropSpread: 10,
+  color: "#ffc040",
+} as const;
+
+/** 二度突きの猪（docs/ideas/enemies.md E6）。src/system/enemyBehaviors.ts が読む */
+export const DOUBLE_CHARGE = {
+  /** 1 本目はプレイヤーの位置をこの距離だけ越えた所で曲がる（px） */
+  overshoot: 24,
+  leg1Min: 60,
+  leg1Max: 170,
+  /** 2 本目の長さ（px） */
+  leg2Len: 120,
+  /** 2 本目が 1 本目から曲がる角度（度）。左右は抽選 */
+  turnDeg: 75,
+  /** 予告線の不透明度（1 本目 / 2 本目。2 本目は薄い） */
+  lineAlpha: 0.35,
+  secondAlpha: 0.16,
 } as const;
 
 /** トリガー効果 */
@@ -809,7 +872,14 @@ export const LOOT_DROP = {
    * エリート・ボス・巣窟の主（dropChance 1）には掛けない（memo 2026-09-24: 「たくさん倒しても出ない、強敵を倒すと出る」）
    */
   /** [0.1..0.2] → [0.18..0.35]（QA 0.0.8α: 拾得数が 0.0.7α 比 31〜46% と目標 60〜70% より絞りすぎ） */
-  mobDropMulByDepth: [0.25, 0.3, 0.35, 0.45],
+  /**
+   * QA 2026-09-24（0.0.10α）: depth3=0.35→0.24、depth4以降=0.45→0.30。
+   * 0.0.7α 比 88.7%（目標 60〜70%）まで増えたため、序盤（depth1-2）は据え置きで深度 3 以降を優先して絞る。
+   * 増加の主因は `LOOT_DROP` 自体の変更ではなく、0.0.9α→今回の間に契約・流れ星まわりの乱数消費順が変わった
+   * ことによる seed ごとの抽選結果の振れ（system/contractors.ts の boonsOwed 遅延、system/floor.ts の
+   * fresh 判定追加）と見られる。経路の重複は見つからなかった
+   */
+  mobDropMulByDepth: [0.25, 0.3, 0.24, 0.3],
   /**
    * 徘徊・増援（roomIndex = ROAMING_ROOM。開放型フロアの時間湧き）の通常敵に、さらに掛ける倍率。
    * 増援は時間とともに湧き続けるので、倒した数でドロップの母数が膨らまないよう絞る（エリートは掛けない）
@@ -825,7 +895,8 @@ export const LOOT_DROP = {
    * 部屋制圧の報酬が出る確率（添字 0 = 深度 1、表より深ければ最後の値。旧: 常に 1 個）。
    * 開放型フロアは塊が多く制圧の回数が増えたので [0.35, 0.45, 0.55, 0.7] から下げた（QA 0.0.7α: 拾得数が前回比 1.5〜2.6 倍）
    */
-  roomClearChanceByDepth: [0.3, 0.35, 0.4, 0.5],
+  /** QA 2026-09-24（0.0.10α）: depth3=0.4→0.3、depth4以降=0.5→0.36。ドロップ率超過（88.7%）是正のため深度3以降を優先して絞る */
+  roomClearChanceByDepth: [0.3, 0.35, 0.3, 0.36],
   /** 階層到達の報酬が出る確率（旧: 常に 1 個。同上の理由で絞る） */
   depthArrivalChance: 0.8,
   /** itemLevel = depth + rng(0..spread) */
@@ -2986,4 +3057,54 @@ export const MUSIC = {
   bossDownTempoMul: 1.2,
   /** 曲の途中から予約が遅れたときに打ち直す猶予（タブが裏にあった等） */
   resyncGap: 0.5,
+} as const;
+
+/**
+ * 演出の第 3 弾（docs/ideas/meta-and-weapons.md 7-10 / 7-14 / 7-15 / 7-19 / 7-20 と 8-14 の鼓動）。
+ * 見た目と音だけで、ロジックの結果に影響しない
+ */
+export const FX_WAVE3 = {
+  /** 7-10 カウンターの白黒: 成立からの秒（ゲーム時間。ヒットストップ中は止まるので止め絵が白黒になる）と最大の濃さ */
+  counterMono: { time: 0.1, strength: 0.85 },
+  /** 7-19 ダメージ文字の種類ごとの色と大きさの倍率 */
+  damageText: {
+    weak: { color: "#ffd040", scale: 1.2 },
+    resist: { color: "#8898b0", scale: 0.8 },
+    /** 反応のダメージ: 反応が起きてから ticks ステップ以内の素性なしの一撃（on-hit 中の反応は次のステップで与えるため 1） */
+    reaction: { color: "#ffe8a0", scale: 1.1, ticks: 1 },
+    /** 状態異常の継続: 小さく上へ漂う。interval 秒ぶんを敵ごとに束ねて 1 つの数字にする */
+    dot: { scale: 0.7, life: 0.9, rise: 16, interval: 0.5, maxTallies: 24, burn: "#ff9040", poison: "#90e050", bleed: "#e04050", other: "#c0a0ff" },
+  },
+  /** 7-14 共鳴のまとい: 足元の楕円と、その縁を回る光の粒（色ごとに motes 個） */
+  mantle: { rx: 9, ry: 3, footY: 7, alpha: 0.22, pulseSpeed: 2.2, motes: 2, moteSpeed: 1.4, moteAlpha: 0.7, constellationColor: "#e0e8ff" },
+  /** 7-20 誓約のオーラ: プレイヤーを囲む細い輪。誓約の系統ごとの色で弧を分け、gap（ラジアン）ずつ隙間を空ける */
+  keystoneAura: { radius: 12, alpha: 0.45, spin: 0.8, gap: 0.35 },
+  /** 7-15 芽吹き: 双葉の粒と短い光柱 */
+  budBloom: { life: 0.8, height: 40, width: 4, particles: 10, speed: 70, color: "#b0ff90", leafColor: "#60d050", leafSize: 3 },
+  /** 8-9 銘が刻まれた瞬間の金の輪 */
+  inscribe: { life: 0.7, radius: 26, particles: 12, color: "#ffd870" },
+  /** 8-14 死神の鼓動: 近さ（0..1）で間隔を slow → fast に縮める。警告中は warnMin〜warnMax、出現後は距離 far → near で chaseMin〜1 */
+  heartbeat: { slow: 1.6, fast: 0.42, warnMin: 0.05, warnMax: 0.5, chaseMin: 0.5, near: 40, far: 280 },
+} as const;
+
+/** 音の第 3 弾（docs/ideas/meta-and-weapons.md 8-15）。周波数は Hz、時間は秒 */
+export const SFX_WAVE3 = {
+  /** スロー中に音楽へ掛ける低域通過: 閉じたときの上限・開いたときの上限・閉じる / 開く時定数 */
+  muffle: { cutoff: 520, open: 20000, closeTime: 0.05, openTime: 0.3 },
+} as const;
+
+/** 連携の発見（src/meta/links.ts / linkHint.ts。docs/ideas/synergy-web.md 5 章）。数値の強さは配らない */
+export const DISCOVERY = {
+  /** 節目: 発見数がこれに届くと図鑑の頁「連携」が開く */
+  milestonePage: 5,
+  /** 節目: 称号（実績「網の読み手」） */
+  milestoneTitle: 15,
+  /** 節目: 称号（実績「連携の賢者」） */
+  milestoneGrand: 30,
+  /** 手がかり枠の候補を見直す間隔（ステップ）。毎ステップ語の推論を回さないため */
+  hintRefreshTicks: 30,
+  /** 手がかりが変わった（階に着いた・ビルドが変わった）ときに HUD へ出しておく秒 */
+  hintShowSeconds: 6,
+  /** 初めての連携を HUD に出しておく秒 */
+  freshShowSeconds: 3,
 } as const;

@@ -349,8 +349,11 @@ export const WAVE2_MODIFIER_TUNING = {
   jobMastery: { favoredMul: 1.3, otherMul: 0.85 },
   /** 武器写し: 属性を近接の武器に揃える。武器が無属性なら素の冴えで威力が伸びる */
   weaponBond: { plainMul: 1.15 },
-  /** 化身: 変身中は強い */
-  formSurge: { formMul: 1.35, otherMul: 0.9 },
+  /**
+   * 化身: 変身中は強い。1.35 → 1.3（2026-09-24 第 3 弾の変身と合わせた見直し）: 武器写し（無属性 x1.15）と積むと
+   * 1.35 × 1.15 ≈ 1.55 で 1.5 を超えていたので、積んでも 1.5 以内（1.3 × 1.15 ≈ 1.50）に収める
+   */
+  formSurge: { formMul: 1.3, otherMul: 0.9 },
   /** 深化: 変身の持続と、切れた後の反動がどちらも伸びる */
   formLinger: { durationMul: 1.5, recoverMul: 1.5, burdenMul: 1.2 },
   /** 自己中心化（型替え）: 照準地点ではなく自分の足元で起きる */

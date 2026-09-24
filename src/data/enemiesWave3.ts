@@ -27,7 +27,7 @@ export const WAVE3_ENEMIES: readonly EnemyDef[] = [
     radius: 7, hp: 44, speed: 30, behavior: "chaser", contactDamage: 14,
     windup: 0.6, strikeTime: 0.25, recover: 0.7, engageRange: 40, attackInterval: 0.9,
     score: 28, minDepth: 2, weight: 2.5, color: "#8a6a40", dropChance: 0.12,
-    deathTerrain: { kind: "water", radius: 22 },
+    deathTerrain: { kind: "mud", radius: 22 },
   },
   {
     key: "toad", name: "毒吐き蛙", sprite: "toad",
@@ -155,7 +155,7 @@ export const WAVE3_ENEMIES: readonly EnemyDef[] = [
     radius: 6, hp: 28, speed: 48, behavior: "bomber", contactDamage: 0,
     windup: 0.45, strikeTime: 0.1, recover: 0.45, engageRange: 110, attackInterval: 2.1,
     score: 28, minDepth: 4, weight: 2, color: "#3a3a48", dropChance: 0.12,
-    bombTerrain: { kind: "oil", radius: 20 },
+    bombTerrain: { kind: "smoke", radius: 20 },
   },
   {
     key: "mossGolem", name: "苔ゴーレム", sprite: "mossGolem", recolor: { base: "golem", swap: { z: "V", Z: "v", d: "G" } },

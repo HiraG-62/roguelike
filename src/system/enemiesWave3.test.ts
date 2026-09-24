@@ -16,7 +16,8 @@ import { gainAttackMana } from "./mana";
 import { isStaggered } from "./poise";
 import { updateProjectiles } from "./projectiles";
 import { applyStatus, hasStatus, updateStatusEffects } from "./statusEffects";
-import { placeTerrain, terrainAt } from "./terrain";
+import { placeTerrain, smokeAt, terrainAt } from "./terrain";
+import type { TerrainKind } from "../core/terrain";
 import { arena, placeEnemy } from "./testHelpers";
 
 /** 敵まわりの更新を n ステップ（状態異常 → 敵 → 弾 → 地面の攻撃） */
@@ -111,15 +112,17 @@ describe("Wave 3 の敵: 全体", () => {
 });
 
 describe("地形を作る敵（敵の地形は敵にも効く）", () => {
-  it("泥人形は倒れると影の予告の後に水たまりを残す", () => {
+  it("泥人形は倒れると影の予告の後に地形（deathTerrain）を残す", () => {
     const state = arena();
     const m = placeEnemy(state, "mudman", 40);
+    const kind = enemyDef("mudman").deathTerrain?.kind ?? "none";
+    expect(kind, "倒れた跡に地形を残す").not.toBe("none");
     const pos = { ...m.body.pos };
     kill(state, m);
     expect(state.hazards.some((h) => h.kind === "landing"), "予告の影").toBe(true);
-    expect(terrainAt(state, pos.x, pos.y), "予告中はまだ無い").toBe("none");
+    expect(hasGround(state, pos, kind), "予告中はまだ無い").toBe(false);
     tickEnemies(state, secs(ENEMY_AI.terrainSeed.delay));
-    expect(terrainAt(state, pos.x, pos.y)).toBe("water");
+    expect(hasGround(state, pos, kind)).toBe(true);
   });
 
   it("毒吐き蛙は着弾点に影を出し、炸裂で毒沼を残す。炸裂は近くの敵にも当たる", () => {
@@ -186,8 +189,10 @@ describe("地形を作る敵（敵の地形は敵にも効く）", () => {
     expect(terrainAt(state, start.x, start.y)).toBe("ice");
   });
 
-  it("煤ゴブリンの爆弾は爆ぜた後に油を残す", () => {
+  it("煤ゴブリンの爆弾は爆ぜた後に地形（bombTerrain）を残す", () => {
     const state = arena();
+    const kind = enemyDef("sootBomber").bombTerrain?.kind ?? "none";
+    expect(kind, "爆弾の跡に地形を残す").not.toBe("none");
     const s = readyEnemy(state, "sootBomber", 60);
     tickEnemies(state);
     runWindup(state, s);
@@ -196,7 +201,7 @@ describe("地形を作る敵（敵の地形は敵にも効く）", () => {
     if (!bomb) return;
     const pos = { ...bomb.pos };
     tickEnemies(state, secs(ENEMY_AI.bomber.fuse));
-    expect(terrainAt(state, pos.x, pos.y)).toBe("oil");
+    expect(hasGround(state, pos, kind)).toBe(true);
   });
 
   it("苔ゴーレムは被弾すると足元に胞子（毒沼）を出す。間隔の内は出さない", () => {
@@ -584,3 +589,9 @@ describe("シナジーの穴 H6 / H8 / H10", () => {
     expect(victim.hp).toBeLessThan(victim.maxHp);
   });
 });
+
+/** その地形が (pos) にあるか。煙は床の地形と重なる層なので smokeAt で見る（泥人形 = 泥・煤ゴブリン = 煙の切り替え前後で通る） */
+function hasGround(state: GameState, pos: { x: number; y: number }, kind: TerrainKind): boolean {
+  if (kind === "smoke") return smokeAt(state, pos.x, pos.y);
+  return terrainAt(state, pos.x, pos.y) === kind;
+}

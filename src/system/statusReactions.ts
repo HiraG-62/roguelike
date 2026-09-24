@@ -4,7 +4,7 @@ import { REACTION_LABEL, type ReactionKey, type StatusBag, type StatusEffect, ty
 import { STATUS } from "../data/tuning";
 import { TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { healPlayer } from "./combat";
-import { addFloatingText, spawnBurst, spawnRing } from "./effects";
+import { addFloatingText, reactionSfxName, spawnBurst, spawnRing } from "./effects";
 import { gainMana } from "./mana";
 import {
   type OnHitContext,
@@ -97,6 +97,7 @@ function fire(state: GameState, target: StatusTarget, key: ReactionKey, showText
   }
   bag.lastReaction = { key, tick: state.tick };
   pushReactionEvent(state, enemyOf(target), key);
+  pushSfx(state, reactionSfxName(key));
   if (showText) addFloatingText(state, targetPos(state, target), REACTION_LABEL[key], REACTION_TEXT_COLOR, REACTION_TEXT_SCALE, REACTION_TEXT_LIFE);
   return true;
 }

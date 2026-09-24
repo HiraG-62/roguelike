@@ -1,7 +1,7 @@
 import type { FrameInput } from "../core/input";
 import type { KeywordProfile } from "../core/keywords";
 import { type Enemy, type GameState, type Projectile, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
-import { type Vec, fromAngle, length, scale } from "../core/vec";
+import { type Vec, length, scale } from "../core/vec";
 import { VIEW_W } from "../core/view";
 import { BOON, FEEL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { ATTR_KEYS, type AttrKey, type Attributes, type PlayerStats } from "../loot/types";
@@ -34,11 +34,10 @@ import {
   onBoonWaveStart,
   resetBoonRulesForFloor,
   slashBase,
-  spawnBoonWave,
   tightropePenalty,
   updateBoonRules,
 } from "./boonRules";
-import { cancelAttack, healPlayer, healSustained } from "./combat";
+import { cancelAttack, healSustained } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { isEngaged } from "./engagement";
 import { STATUS_BOON_TAGS, affinity, buildProfile, statsBoonTags } from "./keywords";
@@ -46,7 +45,6 @@ import { dropItem } from "./loot";
 import { gainMana } from "./mana";
 import { applyStats, dashTime } from "./player";
 import {
-  applyBurn,
   applyChill,
   applyStatus,
   chainLightning,
@@ -601,7 +599,6 @@ function spreadCollapse(state: GameState, source: Enemy): void {
 // -----------------------------------------------------------------------------
 
 const LAST_COMBO = PLAYER.melee.length - 1;
-const FULL_CIRCLE = Math.PI * 2;
 const TEXT_SCALE = 1.1;
 const TEXT_LIFE = 0.6;
 
@@ -611,13 +608,9 @@ export function boonSwingCombo(state: GameState, combo: number, dashStrike: bool
   return LAST_COMBO;
 }
 
-/** 振り始め: 3 段目 / コンボ 20 以上なら貫通する衝撃波 */
-export function onBoonSwing(state: GameState, combo: number, dashStrike: boolean, baseDamage: number): void {
+/** 振り始め: 片翼。断裂波・連撃波は BoonDef.rules（onSwing）へ移した */
+export function onBoonSwing(state: GameState, combo: number, dashStrike: boolean): void {
   onBoonSwingRules(state, combo, dashStrike);
-  const finisher = !dashStrike && combo === LAST_COMBO && hasBoon(state, "finisherWave");
-  const comboWave = hasBoon(state, "comboWave") && state.combo.count >= BOON.comboWaveThreshold;
-  if (!finisher && !comboWave) return;
-  spawnBoonWave(state, state.player.attack.dir, baseDamage * BOON.waveDamageRatio);
 }
 
 /** triggerHappy: 近接できない */
@@ -670,16 +663,14 @@ export function tryDashGuard(state: GameState): boolean {
   return true;
 }
 
-/** ダッシュ開始: glassJust の JUST 窓延長、dashShock の連鎖雷 */
+/** ダッシュ開始: glassJust の JUST 窓延長（帯電疾走の連鎖雷は BoonDef.rules の onDash） */
 export function onBoonDash(state: GameState): void {
   const p = state.player;
   onBoonDashRules(state);
-  if (hasBoon(state, "glassJust")) {
-    const extended = dashTime(state.stats) * BOON.glassJustMul;
-    state.boonRun.justExtendTimer = extended;
-    p.invulnTimer = Math.max(p.invulnTimer, extended);
-  }
-  if (hasBoon(state, "dashShock")) chainLightning(state, p.body.pos, slashBase(state) * BOON.dashShockRatio);
+  if (!hasBoon(state, "glassJust")) return;
+  const extended = dashTime(state.stats) * BOON.glassJustMul;
+  state.boonRun.justExtendTimer = extended;
+  p.invulnTimer = Math.max(p.invulnTimer, extended);
 }
 
 /** ダッシュ終了（時間切れ / 壁）: dashBlast */
@@ -790,7 +781,10 @@ export function onBoonCrit(state: GameState, enemy: Enemy, amount: number): void
   chainLightning(state, enemy.body.pos, amount * BOON.critChainRatio, enemy.id);
 }
 
-/** 撃破時: eliteVault / burnSpread / chillShatter / bloodFeast / eliteMagnet */
+/**
+ * 撃破時: eliteVault / eliteMagnet / bloodMist と拡張の祝福。
+ * 野火・氷砕・血の饗宴・疫病・屠りの盃は BoonDef.rules（onKill）へ移した（撃破回復は rules でも HEAL.sustainCapRatio の下）
+ */
 export function onBoonKill(state: GameState, enemy: Enemy): void {
   onBoonKillRules(state, enemy);
   if (enemy.elite && hasBoon(state, "eliteVault") && !state.boonRun.vaultNext) {
@@ -798,33 +792,7 @@ export function onBoonKill(state: GameState, enemy: Enemy): void {
     addFloatingText(state, enemy.body.pos, "次階に宝物庫", BOON.rarityColor.rare, TEXT_SCALE, 1);
   }
   if (enemy.elite && hasBoon(state, "eliteMagnet")) dropItem(state, enemy.body.pos);
-  // 撃破回復は戦闘中の回復の共通上限（HEAL.sustainCapRatio）の下に置く
-  if (hasBoon(state, "bloodFeast")) healSustained(state, BOON.feastHeal, { silent: true });
-  // 燃焼の強さ（dps）は status の potency。広げた先にも同じ強さで付ける
-  const burn = findStatus(enemy.status, "burn");
-  if (burn && hasBoon(state, "burnSpread")) {
-    for (const e of enemiesInRadius(state, enemy.body.pos, BOON.burnSpreadRadius)) {
-      if (e.id !== enemy.id) applyBurn(state, e, burn.potency, STATUS.burnDuration);
-    }
-    spawnRing(state, enemy.body.pos, BOON.burnSpreadRadius, STATUS.burnColor, STATUS.fxLife);
-  }
-  if (hasStatus(enemy.status, "chill") && hasBoon(state, "chillShatter")) shatter(state, enemy.body.pos);
-  if (hasBoon(state, "plague")) spreadPlague(state, enemy);
   if (hasBoon(state, "bloodMist")) bloodMist(state, enemy);
-  if (hasBoon(state, "reaperCup")) gainMana(state, BOON.reaperCupKillMana);
-}
-
-/** plague: 毒のスタックと強さをそのまま周囲の敵へ引き継ぐ */
-function spreadPlague(state: GameState, enemy: Enemy): void {
-  const poison = findStatus(enemy.status, "poison");
-  if (!poison) return;
-  // potency は付与時に霊力の倍率が掛かっている。applyStatus が player 由来に再度掛けないよう割り戻す
-  const potency = poison.potency / Math.max(Number.EPSILON, state.stats.statusPotencyMul);
-  const apply = { kind: "poison" as const, stacks: poison.stacks, duration: STATUS.poison.duration, potency };
-  for (const e of enemiesInRadius(state, enemy.body.pos, BOON.plagueRadius)) {
-    if (e.id !== enemy.id) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
-  }
-  spawnRing(state, enemy.body.pos, BOON.plagueRadius, BOON.plagueColor, STATUS.fxLife);
 }
 
 /** bloodMist: 出血の敵を倒すと、自分の出血を消して回復 */
@@ -847,25 +815,6 @@ export function onBoonShatter(state: GameState, enemy: Enemy): void {
     if (e.id !== enemy.id) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
   }
   spawnRing(state, enemy.body.pos, BOON.frostPierceRadius, STATUS.chillColor, STATUS.fxLife);
-}
-
-function shatter(state: GameState, pos: Vec): void {
-  for (let i = 0; i < BOON.shatterShards; i++) {
-    state.projectiles.push({
-      id: allocId(state),
-      owner: "player",
-      pos: { ...pos },
-      vel: scale(fromAngle((FULL_CIRCLE * i) / BOON.shatterShards), BOON.shatterSpeed),
-      radius: 2,
-      damage: BOON.shatterDamage,
-      life: BOON.shatterLife,
-      color: BOON.shatterColor,
-      kind: "proc",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    });
-  }
-  spawnBurst(state, pos, BOON.shatterColor, 8, 90, 0.3, 1.5);
 }
 
 /** 無敵中に JUST 回避になる追加条件（ガード中 / glassJust の延長窓） */
@@ -898,10 +847,12 @@ export function tryRevive(state: GameState): boolean {
   return true;
 }
 
-/** JUST 回避時: keenBreath / glassJust / 奪弾 → justWipe → 拡張の祝福。attacker は回避した攻撃の主 */
-export function onBoonJust(state: GameState, attacker?: Enemy): void {
+/**
+ * JUST 回避時: glassJust / 奪弾 → justWipe → 拡張の祝福。
+ * 見切りの息・睨み・見切り返し・乾坤は BoonDef.rules（onJustDodge。回避した攻撃の主はイベントの sourceId）へ移した
+ */
+export function onBoonJust(state: GameState): void {
   const p = state.player;
-  if (hasBoon(state, "keenBreath")) gainMana(state, BOON.keenBreathJustMana);
   if (hasBoon(state, "glassJust")) {
     p.justTimer *= BOON.glassJustMul;
     p.justCounterTimer *= BOON.glassJustMul;
@@ -909,7 +860,7 @@ export function onBoonJust(state: GameState, attacker?: Enemy): void {
   // 奪弾は一掃より先（奪った弾は自分の弾なので一掃で消えない）
   onBoonJustSteal(state);
   const wiped = hasBoon(state, "justWipe") ? wipeEnemyBullets(state) : 0;
-  onBoonJustRules(state, attacker, wiped);
+  onBoonJustRules(state, wiped);
 }
 
 /** justWipe: 敵弾を全て消す。消した数を返す（燕渡りが読む） */
@@ -991,20 +942,17 @@ export function onBoonRoomLock(state: GameState, index: number): void {
   }
 }
 
-/** 部屋クリア: clearShield / clearHeal / springWell と拡張の祝福（room は制圧した部屋。試練・伏兵の判定に使う） */
+/**
+ * 部屋クリア: springWell と拡張の祝福（room は制圧した部屋。試練・伏兵の判定に使う）。
+ * 勝利の帳・血の代償は BoonDef.rules（onRoomClear）へ移した
+ */
 export function onBoonRoomClear(state: GameState, room?: RoomState): void {
   onBoonRoomClearRules(state, room);
   const p = state.player;
   // 回収ではなく補充なので manaGainMul を通さず上限へ直接揃える
-  if (hasBoon(state, "springWell")) {
-    p.mana = state.stats.maxMana;
-    addFloatingText(state, p.body.pos, "湧水", BOON.springWellColor, TEXT_SCALE, TEXT_LIFE);
-  }
-  if (hasBoon(state, "clearShield")) {
-    p.buffs.invuln = Math.max(p.buffs.invuln, BOON.clearInvulnTime);
-    addFloatingText(state, p.body.pos, "結界", BOON.guardColor, TEXT_SCALE, TEXT_LIFE);
-  }
-  if (hasBoon(state, "clearHeal")) healPlayer(state, p.maxHp * BOON.clearHealRatio);
+  if (!hasBoon(state, "springWell")) return;
+  p.mana = state.stats.maxMana;
+  addFloatingText(state, p.body.pos, "湧水", BOON.springWellColor, TEXT_SCALE, TEXT_LIFE);
 }
 
 export function boonHeartsAllowed(state: GameState): boolean {

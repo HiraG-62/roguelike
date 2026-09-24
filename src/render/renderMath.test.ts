@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createMap, setTile, Tile } from "../map/grid";
-import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
-import { RARITIES } from "../loot/types";
+import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
+import { RARITIES, TRAIT_COLOR_HEX, createEmptyResonance, type Resonance } from "../loot/types";
 import {
+  KEYSTONE_GROUP_COLOR,
   LOOT_PILLAR_HEIGHTS,
+  auraArcs,
+  counterMonoAlpha,
+  keystoneAuraColors,
+  resonanceMantleColors,
   bombBlinkFrameTime,
   bombStyle,
   bossIntroPhase,
@@ -242,5 +247,69 @@ describe("演出の位置計算", () => {
     const { MOVESET_KEYS } = await import("../data/weapons");
     for (const key of MOVESET_KEYS) expect(WEAPON_TRAIL_WIDTH[key], key).toBeGreaterThan(0);
     expect(WEAPON_TRAIL_WIDTH.greatsword).toBeGreaterThan(WEAPON_TRAIL_WIDTH.sword);
+  });
+});
+
+describe("ダメージ文字の種類の縁取り（7-19）", () => {
+  it("種類 crit は色に関係なく会心。種類が無ければ従来どおり色で判定する", () => {
+    expect(damageTextStyle("12", "#ffd040", 1, "crit").crit).toBe(true);
+    expect(damageTextStyle("12", PLAYER.critColor, 1, "normal").crit, "種類が通常なら会心の色でも会心にしない").toBe(false);
+    expect(damageTextStyle("12", PLAYER.critColor, 1).crit, "種類なしは色で判定").toBe(true);
+  });
+
+  it("弱点・耐性・反応・継続は通常と別の縁取り", () => {
+    const normal = damageTextStyle("12", "#ffffff", 1, "normal").outline;
+    for (const kind of ["weak", "resist", "reaction", "dot"] as const) {
+      expect(damageTextStyle("12", "#ffffff", 1, kind).outline, kind).not.toBe(normal);
+    }
+    expect(damageTextStyle("12", "#ffffff", 0.7, "dot").numeric, "継続も数字").toBe(true);
+  });
+});
+
+describe("カウンターの白黒の濃さ（7-10）", () => {
+  it("始まりで最大、残りに比例して薄れ、終われば 0", () => {
+    expect(counterMonoAlpha(0.1, 0.1, 0.8)).toBeCloseTo(0.8);
+    expect(counterMonoAlpha(0.05, 0.1, 0.8)).toBeCloseTo(0.4);
+    expect(counterMonoAlpha(0, 0.1, 0.8)).toBe(0);
+  });
+});
+
+describe("共鳴のまとい（7-14）", () => {
+  function res(partial: Partial<Resonance>): Resonance {
+    return { ...createEmptyResonance(), ...partial };
+  }
+
+  it("共鳴が無ければ描かない。散りも描かない", () => {
+    expect(resonanceMantleColors(createEmptyResonance())).toEqual([]);
+    expect(resonanceMantleColors(res({ kind: "scatter" }))).toEqual([]);
+  });
+
+  it("単色・三和音は配合の色", () => {
+    expect(resonanceMantleColors(res({ kind: "dominant", colors: ["crimson"] }))).toEqual([TRAIT_COLOR_HEX.crimson]);
+    expect(resonanceMantleColors(res({ kind: "triad", colors: ["crimson", "azure", "jade"] })).length, "三和音は 3 色").toBe(3);
+  });
+
+  it("陰画は冥を重ね、星座は星の色を足す", () => {
+    expect(resonanceMantleColors(res({ kind: "dominant", colors: ["gold"], form: "negative" }))).toEqual([TRAIT_COLOR_HEX.gold, TRAIT_COLOR_HEX.umbra]);
+    expect(resonanceMantleColors(res({ kind: "none", constellation: "twins" })), "星座だけでも描く").toEqual([FX_WAVE3.mantle.constellationColor]);
+  });
+});
+
+describe("誓約のオーラ（7-20）", () => {
+  it("誓約が無ければ描かない", () => {
+    expect(keystoneAuraColors([])).toEqual([]);
+  });
+
+  it("同じ系統の誓約は 1 色、系統が違えば色が増える。知らない key は無視する", () => {
+    expect(keystoneAuraColors(["ks_glassCannon", "ks_juggernaut"]), "どちらも body").toEqual([KEYSTONE_GROUP_COLOR.body]);
+    expect(keystoneAuraColors(["ks_glassCannon", "ks_berserker", "ks_unknown"])).toEqual([KEYSTONE_GROUP_COLOR.body, KEYSTONE_GROUP_COLOR.tempo]);
+  });
+
+  it("輪を系統の数の弧に分け、隙間を空けて回す", () => {
+    const arcs = auraArcs(3, 0, 1, 0.3);
+    expect(arcs.length).toBe(3);
+    for (const a of arcs) expect(a.end - a.start, "隙間ぶん短い").toBeCloseTo((Math.PI * 2) / 3 - 0.3);
+    expect(auraArcs(3, 1, 1, 0.3)[0]?.start, "時間で回る").toBeCloseTo((arcs[0]?.start ?? 0) + 1);
+    expect(auraArcs(0, 0, 1, 0.3)).toEqual([]);
   });
 });

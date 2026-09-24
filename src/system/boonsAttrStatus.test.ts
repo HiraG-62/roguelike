@@ -20,6 +20,7 @@ import {
 } from "./boons";
 import { damageEnemy } from "./combat";
 import { applyStagger } from "./poise";
+import { resolveRules } from "./rules";
 import { applyStatus, findStatus, hasStatus, statusStacks } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
@@ -100,6 +101,8 @@ describe("祝福（状態異常）: 疫病 plague", () => {
     if (withBoon) state.boons.push("plague");
     applyStatus(state, { kind: "enemy", enemy: dying }, { kind: "poison", stacks: 3, duration: STATUS.poison.duration, potency: 0 }, "player");
     damageEnemy(state, dying, HUGE, { x: 1, y: 0 }, 0);
+    // 疫病は BoonDef.rules（撃破のイベント）。step と同じくステップ末の照合で起きる
+    resolveRules(state, 0);
     return { state, near, far };
   }
 

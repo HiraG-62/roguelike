@@ -5,7 +5,7 @@ import type { Attributes, FloorItem, LootRuntime, PendingBud, PlayerStats, Profi
 import type { StatusBag } from "./status";
 import type { TerrainKind, TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
-import type { SkillRunState } from "../skills/types";
+import type { FloorStone, SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
 import type { ChainRecord, EventKind, GameEvent, RecentEvent, RuleRunState } from "./events";
 import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
@@ -192,6 +192,13 @@ export interface Enemy {
   rally?: EnemyRally;
   /** 潜行中（土潜り・天井吊り・影踏み）。描かれず、攻撃も当たらない */
   hidden?: boolean;
+  /**
+   * 二度突きの猪の突進の折れ線（src/system/enemyBehaviors.ts）。予備動作の始まりに決まり、予告線もこれを描く。
+   * turn = 1 本目の終点（ここで曲がる）、end = 2 本目の終点、leg = 今走っている線
+   */
+  doubleCharge?: { turn: Vec; end: Vec; leg: 1 | 2 };
+  /** 強欲のが拾った床の遺物・スキル石（src/system/elites.ts）。倒すと落とし、階を移るときはプレイヤーの足元へ落とす */
+  carried?: { items: FloorItem[]; stones: FloorStone[] };
 }
 
 /** 支援役の敵が周りの敵に掛ける一時的な強化（docs/ideas/enemies.md 0 章「鼓舞」） */
@@ -224,7 +231,9 @@ export type EliteKind =
   | "hexing"
   | "commanding"
   | "evasive"
-  | "chaining";
+  | "chaining"
+  // ---- 敵の未実装分（docs/ideas/enemies.md M12）----
+  | "greedy";
 
 /** エリート修飾子ごとの状態（刻限の時計・報復の遅延・残響の残り回数など） */
 export interface EliteWork {
@@ -400,7 +409,12 @@ export interface FloatingText {
   life: number;
   maxLife: number;
   scale: number;
+  /** 浮き文字の種類（docs/ideas/meta-and-weapons.md 7-19。描画が縁取りと揺れを変える）。省略は normal */
+  kind?: FloatTextKind;
 }
+
+/** ダメージ文字の種類: 通常 / 会心 / 弱点 / 耐性 / 状態異常の継続 / 反応 */
+export type FloatTextKind = "normal" | "crit" | "weak" | "resist" | "dot" | "reaction";
 
 /** 撃破の演出の種類（src/system/effects.ts が最後の一撃と状態異常から決める）。burst は従来の飛び散りだけ */
 export type DeathFxKind = "burst" | "ash" | "shatter" | "discharge" | "melt" | "blood" | "sever" | "void" | "holy";
@@ -429,7 +443,9 @@ export type FxMarkKind =
   | "doorSlam"
   | "chargeUp"
   | "dropBeam"
-  | "dashGhost";
+  | "dashGhost"
+  | "budBloom"
+  | "inscribe";
 
 export interface FxMark {
   kind: FxMarkKind;
@@ -455,6 +471,33 @@ export interface EffectsState {
   ghostTimer: number;
   /** 処刑された敵の id（死に方を両断にする）。無ければ -1 */
   executedId: number;
+  // ---- 演出と音の第 3 弾（docs/ideas/meta-and-weapons.md 7・8 章）----
+  /** カウンター成立の白黒の残り秒（7-10） */
+  counterMono: number;
+  /** 白黒を出し終えた onCounter の state.time */
+  lastCounterTime: number;
+  /** 継続ダメージの浮き文字を束ねる途中の合計（7-19。毎 tick 数字を出すと画面が埋まる） */
+  dots: DotTally[];
+  /** 芽吹きを出し終えた芽（itemId|節目）。提示が無ければ空文字（7-15） */
+  lastBudKey: string;
+  /** 前ステップで気力が満タンだったか（8-8 の満ちた瞬間の検出） */
+  manaFull: boolean;
+  /** 死神の出現までの残り秒（警告中だけ。reaper.ts が書く）。警告していなければ null */
+  reaperWarnLeft: number | null;
+  /** 死神の近さ 0..1（8-14 の鼓動の間隔）。0 は鳴らさない */
+  reaperThreat: number;
+  /** 次の鼓動までの残り秒 */
+  heartbeatTimer: number;
+}
+
+/** 継続ダメージの浮き文字の束（敵 1 体ぶん） */
+export interface DotTally {
+  enemyId: number;
+  pos: Vec;
+  amount: number;
+  color: string;
+  /** 束ね始めてからの秒 */
+  age: number;
 }
 
 export type PickupKind = "heart";

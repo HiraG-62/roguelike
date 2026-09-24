@@ -1,6 +1,6 @@
-import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
+import type { Keyword } from "../core/keywords";
 import type { FloorKind, GameState, RoomKind } from "../core/state";
-import { REACTION_KEYS, REACTION_LABEL, type ReactionKey, STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
+import { REACTION_KEYS, type ReactionKey, type StatusKind } from "../core/status";
 import { ENEMIES, type EnemyDef } from "../data/enemies";
 import { baseDef } from "../loot/bases";
 import { UNIQUES, type UniqueDef } from "../loot/named";
@@ -9,7 +9,22 @@ import { FLOOR_KINDS, floorKindLabel } from "../system/biomes";
 import { BOONS, BOON_KEYS, type BoonDef } from "../system/boonDefs";
 import { STATUS_KEYWORDS } from "../system/keywords";
 import { ROOM_KIND_LABEL } from "../system/specialRooms";
+import { COMBOS } from "../skills/combos";
 import { SLOT_LABEL } from "../ui/inventoryLayout";
+import { CHAIN_SEPARATOR, REACTION_PARTS, chainLabel, isChainKey, isKeyword, isStatusKind, reactionHint } from "./linkParts";
+import {
+  LINK_KIND_LABEL,
+  type LinkRun,
+  comboPartLabels,
+  createLinkRun,
+  isComboKey,
+  isLinkId,
+  linkId,
+  linkName,
+} from "./links";
+
+// 連鎖・反応の構成は src/meta/linkParts.ts へ移した（連携の 3 系統をまとめるため）。既存の import 先を保つ
+export { CHAIN_SEPARATOR, REACTION_PARTS, type ReactionParts, chainLabel, isChainKey, reactionHint } from "./linkParts";
 
 /**
  * 図鑑（docs/ideas/meta-and-weapons.md 4-2〜4-5、docs/ideas/synergy-web.md 5-a）。
@@ -17,24 +32,20 @@ import { SLOT_LABEL } from "../ui/inventoryLayout";
  * ラン終了時に main.ts が recordCodex で保存データへ畳む。未発見は「？」と片側だけのヒントで見せ、シナジー探しを促す
  */
 
-export const CODEX_TABS = ["enemy", "relic", "boon", "reaction", "chain", "place"] as const;
+export const CODEX_TABS = ["enemy", "relic", "boon", "link", "place"] as const;
 export type CodexTab = (typeof CODEX_TABS)[number];
 
 export const CODEX_TAB_LABEL: Readonly<Record<CodexTab, string>> = {
   enemy: "敵",
   relic: "遺物",
   boon: "祝福",
-  reaction: "反応",
-  chain: "連鎖",
+  link: "連携",
   place: "場所",
 };
 
 /** 未発見の表示 */
 export const UNKNOWN_NAME = "？？？";
 const UNKNOWN_PART = "？";
-/** 連鎖の保存 key の区切り（語の key は英字だけなので衝突しない） */
-export const CHAIN_SEPARATOR = ">";
-const CHAIN_ARROW = "→";
 
 // -----------------------------------------------------------------------------
 // ラン中の記録（state.codexRun）
@@ -49,6 +60,10 @@ export interface CodexRun {
   reactions: Map<string, number>;
   /** 成立した連鎖（語の並びの key）→ 回数 */
   chains: Map<string, number>;
+  /** 成立したスキルの連携 → 回数 */
+  combos: Map<string, number>;
+  /** 連携の発見（3 系統の初成立の階・手がかり枠。src/meta/links.ts） */
+  links: LinkRun;
   floorKinds: Set<string>;
   roomKinds: Set<string>;
   /** 組み立て中の連鎖（src/render/chainUi.ts の toSequences と同じ区切り: 深さが増える間は 1 本） */
@@ -61,6 +76,8 @@ export function createCodexRun(): CodexRun {
     killed: new Map(),
     reactions: new Map(),
     chains: new Map(),
+    combos: new Map(),
+    links: createLinkRun(),
     floorKinds: new Set(),
     roomKinds: new Set(),
     seq: null,
@@ -84,14 +101,8 @@ export function noteReaction(run: CodexRun, key: string): void {
   bump(run.reactions, key);
 }
 
-const STATUS_SET: ReadonlySet<string> = new Set(STATUS_KINDS);
-
-function isKeyword(key: string): key is Keyword {
-  return Object.hasOwn(KEYWORD_DEFS, key);
-}
-
-function isStatusKind(key: string): key is StatusKind {
-  return STATUS_SET.has(key);
+export function noteCombo(run: CodexRun, key: string): void {
+  bump(run.combos, key);
 }
 
 /** 連鎖の記録の key（語・状態異常・効果の種類）を語へ寄せる。語にならない効果は null（render/chainUi.ts の chainWord と同じ規則） */
@@ -120,51 +131,8 @@ export function noteChainStep(run: CodexRun, keyword: string, depth: number): nu
 }
 
 // -----------------------------------------------------------------------------
-// 反応の構成（未発見のヒント「燃焼 + ？」と、常時の反応の検出に使う）
+// 常時の反応（イベントを出さない反応の検出）
 // -----------------------------------------------------------------------------
-
-/** 状態異常以外の反応の材料 */
-type ReactionExtraPart = "hit" | "hueMatch";
-type ReactionPart = StatusKind | ReactionExtraPart;
-
-const EXTRA_PART_LABEL: Readonly<Record<ReactionExtraPart, string>> = {
-  hit: "射撃・スキルの命中",
-  hueMatch: "色の合う状態異常",
-};
-
-export interface ReactionParts {
-  /** [出す側, 食う側]（src/system/statusReactions.ts のコメントと同じ並び）。ヒントは 1 つ目だけ見せる */
-  parts: readonly [ReactionPart, ReactionPart];
-  /** 常時の反応（イベントを出さない）。両方が同時に付いたら起きたとみなす */
-  constant?: boolean;
-}
-
-export const REACTION_PARTS: Readonly<Record<ReactionKey, ReactionParts>> = {
-  vaporize: { parts: ["burn", "chill"] },
-  steam: { parts: ["wet", "burn"] },
-  quench: { parts: ["wet", "chill"] },
-  conduct: { parts: ["wet", "shock"] },
-  ignite: { parts: ["oiled", "burn"] },
-  kindle: { parts: ["oiled", "shock"] },
-  miasma: { parts: ["poison", "burn"] },
-  shatterBleed: { parts: ["bleed", "freeze"] },
-  cauterize: { parts: ["bleed", "burn"] },
-  dissolve: { parts: ["corrode", "poison"], constant: true },
-  lacerate: { parts: ["corrode", "bleed"], constant: true },
-  collapse: { parts: ["broken", "stagger"], constant: true },
-  exposeDoom: { parts: ["doom", "vulnerable"] },
-  wither: { parts: ["weaken", "vulnerable"], constant: true },
-  frostPoison: { parts: ["chill", "poison"], constant: true },
-  panic: { parts: ["fear", "bleed"], constant: true },
-  brandBurst: { parts: ["brand", "hit"] },
-  thaw: { parts: ["encase", "burn"] },
-  rage: { parts: ["stagger", "wrath"] },
-  discharge: { parts: ["wet", "charged"] },
-  iceArmor: { parts: ["harden", "chill"], constant: true },
-  hueBurst: { parts: ["hue", "hueMatch"] },
-  manaCut: { parts: ["siphon", "silence"], constant: true },
-  rally: { parts: ["chill", "haste"] },
-};
 
 export interface ConstantReaction {
   key: ReactionKey;
@@ -180,19 +148,6 @@ export const CONSTANT_REACTIONS: readonly ConstantReaction[] = REACTION_KEYS.fla
   return [{ key, a, b }];
 });
 
-function partLabel(part: ReactionPart): string {
-  if (isStatusKind(part)) return STATUS_LABEL[part];
-  return EXTRA_PART_LABEL[part];
-}
-
-/** 反応のヒント。page（反応の頁）があれば両側を見せる */
-export function reactionHint(key: ReactionKey, known: boolean, page: boolean): string {
-  const [a, b] = REACTION_PARTS[key].parts;
-  if (known) return `${partLabel(a)} + ${partLabel(b)} = ${REACTION_LABEL[key]}`;
-  if (page) return `${partLabel(a)} + ${partLabel(b)} = ${UNKNOWN_PART}`;
-  return `${partLabel(a)} + ${UNKNOWN_PART}`;
-}
-
 // -----------------------------------------------------------------------------
 // 保存データ（src/meta/codexStore.ts が読み書き）
 // -----------------------------------------------------------------------------
@@ -205,12 +160,33 @@ export interface CodexSave {
   boons: string[];
   reactions: Record<string, number>;
   chains: Record<string, number>;
+  /** スキルの連携 → 回数（2026-09-24 追加。旧データには無く、読むときに {} で補う） */
+  combos: Record<string, number>;
+  /** 連携の id（src/meta/links.ts）→ 初めて成立したラン（階とシード）。旧データには無く {} で補う */
+  firstSeen: Record<string, LinkFirstSeen>;
   floorKinds: string[];
   roomKinds: string[];
 }
 
+export interface LinkFirstSeen {
+  depth: number;
+  seed: string;
+}
+
 export function createCodexSave(): CodexSave {
-  return { version: 1, enemiesSeen: [], enemyKills: {}, relics: [], boons: [], reactions: {}, chains: {}, floorKinds: [], roomKinds: [] };
+  return {
+    version: 1,
+    enemiesSeen: [],
+    enemyKills: {},
+    relics: [],
+    boons: [],
+    reactions: {},
+    chains: {},
+    combos: {},
+    firstSeen: {},
+    floorKinds: [],
+    roomKinds: [],
+  };
 }
 
 /** 図鑑に載せない敵（設置物・動かない氷柱。図鑑を埋め切れるように） */
@@ -219,7 +195,10 @@ export const CODEX_ENEMIES: readonly EnemyDef[] = ENEMIES.filter((d) => !HIDDEN_
   (a, b) => a.minDepth - b.minDepth,
 );
 
-export const ROOM_KINDS: readonly RoomKind[] = Object.keys(ROOM_KIND_LABEL).filter((k): k is RoomKind => Object.hasOwn(ROOM_KIND_LABEL, k));
+/** 図鑑に載せる部屋の種類。specialRooms が循環 import の途中で読まれても空にならないよう、呼び出し時に作る */
+export function codexRoomKinds(): RoomKind[] {
+  return Object.keys(ROOM_KIND_LABEL).filter((k): k is RoomKind => Object.hasOwn(ROOM_KIND_LABEL, k));
+}
 
 const ENEMY_KEYS: ReadonlySet<string> = new Set(ENEMIES.map((d) => d.key));
 const RELIC_KEYS: ReadonlySet<string> = new Set(UNIQUES.map((u) => u.key));
@@ -234,7 +213,7 @@ function floorKinds(): ReadonlySet<string> {
   return floorKindSet;
 }
 function roomKinds(): ReadonlySet<string> {
-  if (roomKindSet === null || roomKindSet.size === 0) roomKindSet = new Set(ROOM_KINDS);
+  if (roomKindSet === null || roomKindSet.size === 0) roomKindSet = new Set(codexRoomKinds());
   return roomKindSet;
 }
 
@@ -242,14 +221,9 @@ export const isEnemyKey = (k: string): boolean => ENEMY_KEYS.has(k);
 export const isRelicKey = (k: string): boolean => RELIC_KEYS.has(k);
 export const isBoonKeyString = (k: string): boolean => BOON_KEY_SET.has(k);
 export const isReactionKeyString = (k: string): boolean => REACTION_KEY_SET.has(k);
+export const isComboKeyString = (k: string): boolean => isComboKey(k);
 export const isFloorKindString = (k: string): boolean => floorKinds().has(k);
 export const isRoomKindString = (k: string): boolean => roomKinds().has(k);
-
-/** 連鎖の key として成り立つか（既知の語が 2 つ以上） */
-export function isChainKey(k: string): boolean {
-  const words = k.split(CHAIN_SEPARATOR);
-  return words.length >= 2 && words.every(isKeyword);
-}
 
 function addAll(list: string[], keys: Iterable<string>): number {
   const have = new Set(list);
@@ -286,8 +260,22 @@ export function ownedRelicKeys(profile: Pick<Profile, "stash" | "equipment">): s
   return keys;
 }
 
-/** 記録の元（GameState の一部。テストで組み立てやすいように） */
-export type CodexSource = Pick<GameState, "codexRun" | "boons" | "profile">;
+/** 記録の元（GameState の一部。テストで組み立てやすいように）。seedText は連携の初発見の記録に使う */
+export type CodexSource = Pick<GameState, "codexRun" | "boons" | "profile"> & Partial<Pick<GameState, "seedText">>;
+
+/** 初発見の記録に残すシードの長さの上限（壊れたデータで保存が膨らまないように） */
+export const FIRST_SEEN_SEED_MAX = 64;
+
+/** 連携の初成立を保存データへ（既に記録があれば上書きしない）。戻り値は新しく載った数 */
+function addFirstSeen(save: CodexSave, firstDepth: ReadonlyMap<string, number>, seed: string): number {
+  let added = 0;
+  for (const [id, depth] of firstDepth) {
+    if (save.firstSeen[id] !== undefined || !isLinkId(id)) continue;
+    save.firstSeen[id] = { depth, seed: seed.slice(0, FIRST_SEEN_SEED_MAX) };
+    added += 1;
+  }
+  return added;
+}
 
 /**
  * ラン 1 回ぶんの記録を保存データへ畳む（保存データを書き換える）。戻り値は初めて載った項目の数。
@@ -302,6 +290,9 @@ export function recordCodex(source: CodexSource, save: CodexSave): number {
   added += addAll(save.boons, source.boons.filter(isBoonKeyString));
   added += addCounts(save.reactions, filteredEntries(run.reactions, isReactionKeyString));
   added += addCounts(save.chains, filteredEntries(run.chains, isChainKey));
+  added += addCounts(save.combos, filteredEntries(run.combos, isComboKeyString));
+  // 初発見の階は件数に数えない（反応・連鎖・連携の回数の側で既に 1 件と数えている）
+  addFirstSeen(save, run.links.firstDepth, source.seedText ?? "");
   added += addAll(save.floorKinds, [...run.floorKinds].filter(isFloorKindString));
   added += addAll(save.roomKinds, [...run.roomKinds].filter(isRoomKindString));
   return added;
@@ -375,22 +366,38 @@ function boonEntries(save: CodexSave, page: boolean): CodexEntry[] {
   });
 }
 
-function reactionEntries(save: CodexSave, page: boolean): CodexEntry[] {
-  return REACTION_KEYS.map((key) => {
-    const count = save.reactions[key] ?? 0;
+function firstSeenText(save: CodexSave, id: string): string {
+  const first = save.firstSeen[id];
+  return first === undefined ? "" : ` 初めて見たのは地下 ${first.depth} 階。`;
+}
+
+function comboEntries(save: CodexSave, page: boolean): CodexEntry[] {
+  const keys = Object.keys(COMBOS).filter(isComboKey);
+  return keys.map((key) => {
+    const id = linkId("combo", key);
+    const count = save.combos[key] ?? 0;
     const known = count > 0;
-    const name = known ? REACTION_LABEL[key] : UNKNOWN_NAME;
-    const info = known ? `${count} 回` : "";
-    return { key, known, name, info, detail: reactionHint(key, known, page) };
+    const [after, target] = comboPartLabels(key);
+    const kindLabel = LINK_KIND_LABEL.combo;
+    if (known) {
+      const detail = `${after} → ${target}: ${COMBOS[key].verb}。${firstSeenText(save, id)}`;
+      return { key: id, known, name: COMBOS[key].name, info: `${kindLabel} ${count} 回`, detail };
+    }
+    const hint = page ? `${after} → ${target} = ${UNKNOWN_PART}` : `${after} の後に ${UNKNOWN_PART}`;
+    return { key: id, known, name: UNKNOWN_NAME, info: kindLabel, detail: hint };
   });
 }
 
-/** 連鎖の並びの表示（語の名前を矢印でつなぐ） */
-export function chainLabel(chainKey: string): string {
-  return chainKey
-    .split(CHAIN_SEPARATOR)
-    .map((w) => (isKeyword(w) ? KEYWORD_DEFS[w].label : w))
-    .join(CHAIN_ARROW);
+function reactionEntries(save: CodexSave, page: boolean): CodexEntry[] {
+  return REACTION_KEYS.map((key) => {
+    const id = linkId("reaction", key);
+    const count = save.reactions[key] ?? 0;
+    const known = count > 0;
+    const kindLabel = LINK_KIND_LABEL.reaction;
+    const info = known ? `${kindLabel} ${count} 回` : kindLabel;
+    const detail = `${reactionHint(key, known, page)}${known ? `。${firstSeenText(save, id)}` : ""}`;
+    return { key: id, known, name: known ? linkName(id) : UNKNOWN_NAME, info, detail };
+  });
 }
 
 /** 連鎖は組み合わせが開いているので、見つけたものだけを回数の多い順に並べる */
@@ -399,9 +406,16 @@ function chainEntries(save: CodexSave): CodexEntry[] {
     .filter(([key]) => isChainKey(key))
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([key, count]) => {
+      const id = linkId("chain", key);
       const words = key.split(CHAIN_SEPARATOR).length;
-      return { key, known: true, name: chainLabel(key), info: `${count} 回`, detail: `${words} 語の連鎖。${count} 回つないだ。` };
+      const detail = `${chainLabel(key)}（${words} 語の連鎖）。${count} 回つないだ。${firstSeenText(save, id)}`;
+      return { key: id, known: true, name: linkName(id), info: `${LINK_KIND_LABEL.chain} ${count} 回`, detail };
     });
+}
+
+/** 連携の頁: スキルの連携・反応（未発見は「？」）→ 見つけた連鎖 */
+function linkEntries(save: CodexSave, page: boolean): CodexEntry[] {
+  return [...comboEntries(save, page), ...reactionEntries(save, page), ...chainEntries(save)];
 }
 
 function placeEntries(save: CodexSave, page: boolean): CodexEntry[] {
@@ -413,7 +427,7 @@ function placeEntries(save: CodexSave, page: boolean): CodexEntry[] {
     const name = known ? label : page ? `（未踏）${label}` : UNKNOWN_NAME;
     return { key: `floor:${kind}`, known, name, info: "階の種類", detail: known ? `${label}の階を歩いた。` : "まだ歩いていない階。" };
   });
-  const roomEntries = ROOM_KINDS.map((kind): CodexEntry => {
+  const roomEntries = codexRoomKinds().map((kind): CodexEntry => {
     const known = rooms.has(kind);
     const label = ROOM_KIND_LABEL[kind];
     const name = known ? label : page ? `（未踏）${label}` : UNKNOWN_NAME;
@@ -431,18 +445,16 @@ export function codexEntries(save: CodexSave, tab: CodexTab, pages: CodexPages =
       return relicEntries(save, page);
     case "boon":
       return boonEntries(save, page);
-    case "reaction":
-      return reactionEntries(save, page);
-    case "chain":
-      return chainEntries(save);
+    case "link":
+      return linkEntries(save, page);
     case "place":
       return placeEntries(save, page);
   }
 }
 
-/** タブの見出しの「発見数 / 総数」。連鎖は総数が無いので null */
+/** タブの見出しの「発見数 / 総数」。連携は連鎖の組み合わせが開いているので総数が無く null */
 export function codexTabCount(save: CodexSave, tab: CodexTab): { known: number; total: number | null } {
   const entries = codexEntries(save, tab);
   const known = entries.filter((e) => e.known).length;
-  return { known, total: tab === "chain" ? null : entries.length };
+  return { known, total: tab === "link" ? null : entries.length };
 }

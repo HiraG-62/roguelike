@@ -5,7 +5,7 @@ import { ACTION, FEEL, HEAL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../d
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
-import { comboDamageText, justFx, onHitFx, spawnDeathFx } from "./effects";
+import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
 import { roomInCombat } from "./engagement";
 import { KS, berserkerMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
@@ -17,8 +17,9 @@ import { fireTrigger } from "./triggers";
 import { pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent } from "../core/events";
 import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
 import { interceptEnemyDamage } from "./elites";
+import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
-import { boonForcesCrit, boonPoise, onBoonHurt } from "./boonRules";
+import { boonForcesCrit, boonPoise } from "./boonRules";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
 
@@ -121,6 +122,8 @@ export function rollOutgoing(
   if (opts.skill) amount *= s.skillDamageMul;
   if (hasStatus(p.status, "weaken")) amount *= 1 - STATUS.weaken.mul;
   amount *= playerStatusOutgoingMul(state);
+  // 霊体化（skills/forms.ts）はすり抜ける代わりに与ダメが落ちる。forms.ts を import すると循環の評価順が崩れるので state を直に見る
+  if (state.skills.shape?.key === "wraithForm") amount *= WAVE3_SKILL_TUNING.wraithForm.outgoingMul;
 
   let crit = false;
   if (kind !== "proc") {
@@ -185,6 +188,7 @@ export function damageEnemy(
     showHit(state, enemy, amount, dir, def.color, opts, heavy);
     onHitFx(state, enemy, opts);
   }
+  if (opts.silent) noteDotDamage(state, enemy, amount);
 
   if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
   if (kind === "melee") pushSfx(state, heavy ? "hitHeavy" : "hit");
@@ -229,7 +233,9 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   const textScale = opts.crit ? Math.max(baseScale, PLAYER.critTextScale) : baseScale;
   const textColor = opts.crit ? PLAYER.critColor : COLOR_DAMAGE;
   const comboText = comboDamageText(state.combo.count, textColor, textScale, opts.crit === true);
-  addFloatingText(state, enemy.body.pos, String(amount), comboText.color, comboText.scale);
+  const textKind = damageTextKind(state, enemy, opts);
+  const look = damageTextLook(textKind, comboText);
+  addFloatingText(state, enemy.body.pos, String(amount), look.color, look.scale, undefined, textKind);
   spawnDirectional(state, enemy.body.pos, dir, color, heavy ? HEAVY_PARTICLES : LIGHT_PARTICLES, 140);
   const base = opts.hitstopSteps ?? FEEL.hitstopLight;
   const steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
@@ -437,8 +443,10 @@ export function damagePlayer(
   p.invulnTimer = PLAYER.hurtInvuln;
   p.hitFlash = PLAYER_HIT_FLASH;
   const away = normalize(sub(p.body.pos, fromPos));
-  if (!hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
-  cancelAttack(state);
+  // 鉄塊化（skills/forms.ts）は押されず、振りも止まらない
+  const braced = state.skills.shape?.key === "ironForm";
+  if (!braced && !hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
+  if (!braced) cancelAttack(state);
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
 
@@ -456,7 +464,6 @@ export function damagePlayer(
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
   pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" } });
-  onBoonHurt(state, attacker);
   return "hit";
 }
 
@@ -526,7 +533,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   justFx(state);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");
-  onBoonJust(state, attacker);
+  onBoonJust(state);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
   pushPlayerEvent(state, "onJustDodge", "just", { sourceId: attacker?.id });
   recordProvenance(state, { kind: "just" });

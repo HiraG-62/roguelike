@@ -5,7 +5,10 @@ import type { ProfileMeta } from "../loot/types";
 import { BOONS, type BoonKey } from "../system/boonDefs";
 import { FLOOR_KINDS } from "../system/biomes";
 import { ORIGIN_KEYS } from "../system/runSetup";
+import { DISCOVERY } from "../data/tuning";
+import { COMBOS } from "../skills/combos";
 import { CHAIN_SEPARATOR, CODEX_ENEMIES, type CodexSave } from "./codex";
+import { discoveryCount, discoveryCountOf } from "./links";
 import { QUEST_KEYS, type QuestKey, type QuestSave, completedQuestCount, isOriginUnlocked, isQuestKey, questTitles } from "./quests";
 import { isRecord, readJson, sanitizeCount, writeJson } from "./storage";
 
@@ -65,6 +68,12 @@ function longestChain(ctx: AchievementContext): number {
   return Object.keys(ctx.codex.chains).reduce((max, k) => Math.max(max, k.split(CHAIN_SEPARATOR).length), 0);
 }
 
+/** すべてのスキルの連携を決めたか（連携の定義が増えたら条件も伸びる） */
+function allCombosFound(ctx: AchievementContext): boolean {
+  const total = Object.keys(COMBOS).length;
+  return total > 0 && discoveryCountOf(ctx.codex, "combo") >= total;
+}
+
 function history(ctx: AchievementContext): NonNullable<ProfileMeta["history"]> {
   return ctx.meta.history ?? [];
 }
@@ -97,6 +106,11 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "chain1", name: "縁をつなぐ", desc: "連鎖を初めてつなぐ。", check: (c) => Object.keys(c.codex.chains).length >= 1 },
   { key: "chain10", name: "網を編む者", desc: "連鎖を 10 種類つなぐ。", check: (c) => Object.keys(c.codex.chains).length >= 10 },
   { key: "chain3", name: "三段の糸", desc: "3 語以上の連鎖をつなぐ。", check: (c) => longestChain(c) >= 3 },
+  // ---- 発見の節目（docs/ideas/synergy-web.md 5-b / 5-f。src/meta/links.ts の linkMilestones が key を参照する）----
+  { key: "link5", name: "連携の芽生え", desc: `連携（スキルの連携・反応・連鎖）を ${DISCOVERY.milestonePage} 種発見する。`, check: (c) => discoveryCount(c.codex) >= DISCOVERY.milestonePage },
+  { key: "link15", name: "網の読み手", desc: `連携を ${DISCOVERY.milestoneTitle} 種発見する。`, check: (c) => discoveryCount(c.codex) >= DISCOVERY.milestoneTitle },
+  { key: "link30", name: "連携の賢者", desc: `連携を ${DISCOVERY.milestoneGrand} 種発見する。`, check: (c) => discoveryCount(c.codex) >= DISCOVERY.milestoneGrand },
+  { key: "comboAll", name: "型の極み", desc: "スキルの連携をすべて決める。", check: allCombosFound },
   { key: "biomeAll", name: "旅人", desc: "すべての種類の階を歩く。", check: (c) => FLOOR_KINDS.every((k) => c.codex.floorKinds.includes(k)) },
   { key: "rooms10", name: "部屋巡り", desc: "部屋を 10 種類巡る。", check: (c) => c.codex.roomKinds.length >= 10 },
   { key: "quest1", name: "依頼人", desc: "依頼を 1 つ達成する。", check: (c) => completedQuestCount(c.quests) >= 1 },

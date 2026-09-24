@@ -90,6 +90,7 @@ export const ENEMY_DEFENSE: Readonly<Record<string, EnemyDefenseDef>> = {
   fireSlime: d(SOFT, BIOME_FORGE, blast("fire")),
   goldSlime: d(SOFT, { light: MILD, lightning: WEAK }, CONTACT),
   boneBoar: d(BEAST, BIOME_OSSUARY, CONTACT),
+  boarDouble: d(BEAST, BIOME_MEADOW, CONTACT),
   curseEye: d(CASTER, BIOME_OSSUARY, bolt("dark")),
   frostEye: d(CASTER, BIOME_GLACIER, bolt("ice")),
   blackKnight: d(ARMORED, { dark: MILD, lightning: WEAK }, CONTACT),

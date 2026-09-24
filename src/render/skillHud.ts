@@ -16,6 +16,7 @@ import {
 } from "../skills/placed";
 import { meteorRadius, stompRadius } from "../skills/actions";
 import { shiftElement, stakeSegments } from "../skills/actions2";
+import { SHAPE_COLOR, shapeName, shapeRemaining } from "../skills/forms";
 import { ELEMENT_COLOR, type Element } from "../core/element";
 import { COMBO_TUNING } from "../skills/tuning";
 import {
@@ -177,6 +178,17 @@ const FORM_SEGMENTS = 3;
 const FORM_SEGMENT_SPAN = 1.2;
 const ELEMENT_MARK = 2;
 
+// ---- 第 3 弾の変身（左右クリックの差し替え） ----
+/** 変身中の体の色かぶせ（見た目だけ。点滅は時刻から決める） */
+const SHAPE_TINT_ALPHA = 0.28;
+const SHAPE_TINT_PULSE = 0.1;
+const SHAPE_PULSE_SPEED = 8;
+const SHAPE_RING_PAD = 3;
+/** スキル枠の上に出す「変身名 残り秒」「変身の待ち」の行の、枠からの高さ（文字の基準線まで） */
+const FORM_BANNER_GAP = 4;
+const SECONDS_DIGITS = 1;
+const COLOR_FORM_WAIT = "#a080a0";
+
 export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): void {
   const cam = state.camera;
   const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
@@ -204,10 +216,12 @@ export function drawSkillHud(ctx: CanvasRenderingContext2D, state: GameState): v
   drawCurses(ctx, state);
   for (const g of state.skills.ghosts) drawGhost(ctx, state, g);
   drawForm(ctx, state);
+  drawShape(ctx, state);
   drawActive(ctx, state);
   ctx.restore();
   ctx.globalAlpha = 1;
   if (state.status === "playing") drawSlots(ctx, state);
+  if (state.status === "playing") drawFormBanner(ctx, state);
 }
 
 // ---------------------------------------------------------------------------
@@ -601,6 +615,26 @@ function drawForm(ctx: CanvasRenderingContext2D, state: GameState): void {
   ctx.globalAlpha = 1;
 }
 
+/** 第 3 弾の変身中: 体に変身の色をかぶせ、輪郭の輪を出す（時間の変身は輪の欠けが残り時間） */
+function drawShape(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const shape = state.skills.shape;
+  if (!shape) return;
+  const p = state.player.body;
+  const color = SHAPE_COLOR[shape.key];
+  const remain = shapeRemaining(state);
+  const ratio = remain === null || shape.total <= 0 ? 1 : remain / shape.total;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = SHAPE_TINT_ALPHA + SHAPE_TINT_PULSE * Math.sin(state.time * SHAPE_PULSE_SPEED);
+  circlePath(ctx, p.pos.x, p.pos.y, p.radius);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = AIM_ALPHA;
+  ctx.beginPath();
+  ctx.arc(p.pos.x, p.pos.y, p.radius + SHAPE_RING_PAD, -Math.PI / 2, -Math.PI / 2 + FULL_CIRCLE * ratio);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
 /** 湧き石: 青い円（この中で近接を当てるとマナが多く戻る） */
 function drawSprings(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.springs) {
@@ -848,6 +882,43 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   drawChargeGauge(ctx, state, index, x, y);
   drawComboMark(ctx, state, index, x, y);
   if (stone?.skillKey === "shiftingEdge" && slot) drawElementMark(ctx, shiftElement(slot.elementStep), x, y);
+}
+
+/**
+ * スキル枠の上に変身の種類と残り秒（時間で切れない変身は「維持中」）。変身していなければ共有の待ちの残り秒。
+ * 第 2 弾の変身（剛 / 迅 / 霊の型）も同じ行に出す
+ */
+function drawFormBanner(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const text = formBannerText(state);
+  if (!text) return;
+  const y = VIEW_H - HUD_BOTTOM - HUD_SIZE - FORM_BANNER_GAP;
+  const color = state.skills.shape ? SHAPE_COLOR[state.skills.shape.key] : inForm(state) ? COLOR_FORM : COLOR_FORM_WAIT;
+  drawTextShadow(ctx, text, VIEW_W / 2, y, TEXT.SMALL, color, COLOR_BLACK, "center");
+}
+
+function inForm(state: GameState): boolean {
+  return state.skills.form !== null;
+}
+
+function formBannerText(state: GameState): string | null {
+  const rs = state.skills;
+  if (rs.shape) {
+    const remain = shapeRemaining(state);
+    const name = shapeName(rs.shape.key);
+    return remain === null ? `${name} 維持中` : `${name} ${remain.toFixed(SECONDS_DIGITS)}秒`;
+  }
+  if (rs.form) return `${SKILL_DEFS[rs.form.skillKey].name} ${Math.max(0, rs.form.timer).toFixed(SECONDS_DIGITS)}秒`;
+  if (rs.formWait > 0 && hasFormStone(state)) return `変身の待ち ${rs.formWait.toFixed(SECONDS_DIGITS)}秒`;
+  return null;
+}
+
+/** 変身の石を 1 つでも付けているか（付けていなければ待ちを出さない） */
+function hasFormStone(state: GameState): boolean {
+  for (let i = 0; i < SKILL.slots; i++) {
+    const stone = stoneInSlot(state.skills.profile, i);
+    if (stone && SKILL_DEFS[stone.skillKey].tags.includes("form")) return true;
+  }
+  return false;
 }
 
 /** 移ろい刃: 次に撃つ属性の色を枠の右上に小さく出す */

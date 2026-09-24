@@ -11,7 +11,7 @@ import {
   toIndex,
 } from "./grid";
 import { terrainCode } from "../core/terrain";
-import { TERRAIN } from "../data/tuning";
+import { TERRAIN, TERRAIN_MUD_SMOKE } from "../data/tuning";
 import { type CaveShapeOptions, DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
 
 export interface GeneratorOptions {
@@ -154,18 +154,26 @@ export function generateMap(shape: MapShape, rng: Rng, options: GeneratorOptions
 // 地形の配置（docs/ideas/status-and-terrain.md 3 章）
 // -----------------------------------------------------------------------------
 
-/** 深度で出始める地形の候補（配置の重みは TERRAIN.gen） */
-type PlacedTerrain = keyof typeof TERRAIN.gen.weight;
-const PLACED_TERRAIN: readonly PlacedTerrain[] = ["water", "grass", "oil", "ice", "bog", "lava"];
+/** 深度で出始める地形の候補（配置の重みは TERRAIN.gen、泥は TERRAIN_MUD_SMOKE.mud） */
+type PlacedTerrain = keyof typeof TERRAIN.gen.weight | "mud";
+const PLACED_TERRAIN: readonly PlacedTerrain[] = ["water", "grass", "oil", "ice", "bog", "lava", "mud"];
+
+function placedMinDepth(kind: PlacedTerrain): number {
+  return kind === "mud" ? TERRAIN_MUD_SMOKE.mud.genMinDepth : TERRAIN.gen.minDepth[kind];
+}
+
+function placedWeight(kind: PlacedTerrain): number {
+  return kind === "mud" ? TERRAIN_MUD_SMOKE.mud.genWeight : TERRAIN.gen.weight[kind];
+}
 
 /** この深度で出せる地形を重みつきで 1 つ選ぶ */
 function pickTerrain(rng: Rng, depth: number): PlacedTerrain | null {
-  const pool = PLACED_TERRAIN.filter((k) => depth >= TERRAIN.gen.minDepth[k]);
-  const total = pool.reduce((sum, k) => sum + TERRAIN.gen.weight[k], 0);
+  const pool = PLACED_TERRAIN.filter((k) => depth >= placedMinDepth(k));
+  const total = pool.reduce((sum, k) => sum + placedWeight(k), 0);
   if (total <= 0) return null;
   let roll = rng.next() * total;
   for (const k of pool) {
-    roll -= TERRAIN.gen.weight[k];
+    roll -= placedWeight(k);
     if (roll < 0) return k;
   }
   return pool[pool.length - 1] ?? null;

@@ -1,5 +1,7 @@
 import { SfxPlayer } from "./audio/sfx";
 import { MusicPlayer, musicCue } from "./audio/music";
+import { RisingEdge } from "./audio/cues";
+import { questProgress, questSnapshot } from "./meta/quests";
 import { isEngaged } from "./system/engagement";
 import { bossEnemy } from "./system/boss";
 import { isStaggered } from "./system/poise";
@@ -98,6 +100,7 @@ import { saveCraft } from "./loot/craftingStore";
 import { TRAIT_COLORS } from "./loot/types";
 import { recordCodex } from "./meta/codex";
 import { loadCodex, saveCodex } from "./meta/codexStore";
+import { seedKnownLinks } from "./meta/links";
 import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
@@ -350,6 +353,8 @@ function beginRun(seedText: string): void {
   );
   // 受けた依頼（やり直し・同じシードでの再挑戦は起点画面を通らないので、保存の active を引き継ぐ）
   state.questRun.key = isQuestKey(questSave.active) ? questSave.active : null;
+  // 連携の発見: 図鑑の既知を写す（初発見の表示・手がかり枠・発見の依頼が読む。ゲーム進行には効かない）
+  seedKnownLinks(state.codexRun.links, codexSave);
   deathMetaLines = [];
   committedSeedText = seedText;
   seedInput.text = seedText;
@@ -637,6 +642,13 @@ function titleMetaView(): { title: string | null; hovered: TitleMenuItem | null 
   return { title: currentTitleLabel(achievementSave, questSave), hovered: aim ? titleMenuItemAt(aim.x, aim.y) : null };
 }
 
+/** 依頼の達成音（8-10）はラン中に達成へ届いた瞬間に 1 回だけ。判定は meta/quests.ts を読むだけ */
+const questCheer = new RisingEdge();
+function questDoneInRun(s: GameState): boolean {
+  const key = s.questRun.key;
+  return key !== null && questProgress(key, questSnapshot(s)).done;
+}
+
 /**
  * 音楽の切り替え（src/audio/music.ts）。state は音楽を知らないので、ここで state を読んで曲を選ぶ。
  * ラン中の画面（プレイ・一時停止・設定・装備画面）は鳴らし続け、タイトル系・死亡後は止める
@@ -660,8 +672,10 @@ function updateMusic(): void {
       bossDown: bossFoe !== undefined && isStaggered(bossFoe),
       seed: s.seed,
       depth: s.depth,
+      slowmo: s.slowmo > 0,
     }),
   );
+  if (questCheer.update(s, questDoneInRun(s))) sfx.play("questComplete");
 }
 
 function drainSfx(s: GameState | null = state): void {

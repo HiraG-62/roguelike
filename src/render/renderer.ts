@@ -51,7 +51,7 @@ import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
-import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawScreenMarks } from "./effectsUi";
+import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
 import { EFFECTS } from "../data/tuning";
 import { MOVESETS, SHOT_TYPES } from "../data/weapons";
@@ -60,7 +60,8 @@ import { WEAPON_TRAIL_WIDTH } from "./renderMath";
 import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
-import { drawTerrainLayer } from "./terrainUi";
+import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
+import { drawDoubleChargeLine } from "./chargeLineUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
@@ -670,8 +671,10 @@ export class Renderer {
     this.drawBossDeath(state);
     this.drawProjectiles(state);
     this.drawLasers(state);
+    drawPlayerAuras(ctx, state);
     this.drawPlayer(state);
     this.drawReaper(state);
+    drawSmokeLayer(ctx, state, -ox, -oy);
     this.drawShapes(state);
     drawAirMarks(ctx, state, this.fxSprites);
     this.drawParticles(state);
@@ -1113,7 +1116,7 @@ export class Renderer {
       const t = state.texts[i];
       if (!t) continue;
       const fade = Math.min(1, (t.life / t.maxLife) * 2);
-      const style = damageTextStyle(t.text, t.color, t.scale);
+      const style = damageTextStyle(t.text, t.color, t.scale, t.kind);
       const age = t.maxLife - t.life;
       let scale = t.scale;
       let x = Math.round(t.pos.x);
@@ -1236,6 +1239,7 @@ export class Renderer {
       this.drawWave3Telegraph(e, tele, CONE_WINDUP_ALPHA);
     }
     this.drawWave3Telegraph(e, enemyActiveArea(e, def), CONE_ACTIVE_ALPHA);
+    drawDoubleChargeLine(ctx, e);
     if (staggered) {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }

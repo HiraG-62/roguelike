@@ -3,10 +3,12 @@
  * - 曲はバイオーム（フロア種別）ごとの基調 + ボス曲。交戦中は打楽器の層が入り、交戦が終わると解決の和音に着地する
  * - ゲームの state は音楽を知らない。main.ts が state を読んで musicCue を作り、MusicPlayer.update に渡す
  * - 曲の揺らぎ（移調・分散和音の起点）はラン seed と深度のハッシュで決まるので、リプレイでも同じ曲になる
+ * - スロー中（8-15）は曲全体に低域通過を掛けてこもらせ、戻る瞬間に開く
+ * - 切り替えでフェードし終えた曲は、残響の輪（ディレイ ↔ フィードバック）も含めて全ノードを外す
  * - Math.random は使わない（打楽器のノイズバッファだけ synth.ts が作る）
  */
 import type { FloorKind } from "../core/state";
-import { MUSIC } from "../data/tuning";
+import { MUSIC, SFX_WAVE3 } from "../data/tuning";
 import { applyEnvelope, createFilter, createGainNode, createNoiseSource, createOsc, pitchSweep, safeStopTime } from "./synth";
 
 export type TrackKey = FloorKind | "boss";
@@ -147,6 +149,8 @@ export interface MusicInput {
   bossDown: boolean;
   seed: number;
   depth: number;
+  /** スローモーション中（ラストキル・見切り）。音楽に低域通過を掛けてこもらせる（8-15）。省略は false */
+  slowmo?: boolean;
 }
 
 export interface MusicCue {
@@ -157,6 +161,8 @@ export interface MusicCue {
   transpose: number;
   /** 分散和音の起点のずれ（同じバイオームでもランごとに少し違う） */
   arpShift: number;
+  /** 低域通過でこもらせる（スロー中） */
+  muffle: boolean;
 }
 
 /** 32bit の整数ハッシュ（seed と深度を混ぜる） */
@@ -179,12 +185,12 @@ export function trackVariant(seed: number, depth: number): { transpose: number; 
 }
 
 export function musicCue(input: Readonly<MusicInput>): MusicCue {
-  if (!input.inRun) return { track: null, combat: false, tempoMul: 1, transpose: 0, arpShift: 0 };
+  if (!input.inRun) return { track: null, combat: false, tempoMul: 1, transpose: 0, arpShift: 0, muffle: false };
   const choice = pickTrack(input.floorKind, input.engaged, input.boss);
   // ボス曲は移調しない（固定の旋律として覚えさせる）。バイオーム曲だけ seed で揺らす
   const variant = choice.track === "boss" ? { transpose: 0, arpShift: 0 } : trackVariant(input.seed, input.depth);
   const tempoMul = input.boss && input.bossDown ? MUSIC.bossDownTempoMul : 1;
-  return { track: choice.track, combat: choice.combat, tempoMul, ...variant };
+  return { track: choice.track, combat: choice.combat, tempoMul, ...variant, muffle: input.slowmo === true };
 }
 
 // -----------------------------------------------------------------------------
@@ -318,6 +324,11 @@ class TrackVoice {
   readonly out: GainNode;
   private readonly music: BiquadFilterNode;
   private readonly perc: GainNode;
+  /**
+   * この曲が作った常駐ノード（出力・フィルタ・打楽器の層・残響のディレイ / フィードバック / 戻り）。
+   * ディレイとフィードバックは互いに繋がった輪なので、出力だけ外しても輪が残る。切り替え後に全部外して参照を捨てる
+   */
+  private nodes: AudioNode[] = [];
   private step = 0;
   private nextTime: number;
   private combat = false;
@@ -337,6 +348,7 @@ class TrackVoice {
     this.out.gain.linearRampToValueAtTime(1, now + MUSIC.crossfade);
     this.music = createFilter(ctx, this.out, "lowpass", def.cutoff);
     this.perc = createGainNode(ctx, this.out);
+    this.nodes.push(this.out, this.music, this.perc);
     this.connectEcho(def.echo);
     this.nextTime = now + MUSIC.percFade / 2;
   }
@@ -355,6 +367,13 @@ class TrackVoice {
     wet.gain.setValueAtTime(amount, this.ctx.currentTime);
     delay.connect(wet);
     wet.connect(this.out);
+    this.nodes.push(delay, feedback, wet);
+  }
+
+  /** フェードし終えた曲のノードをすべて外す（2 回呼んでも安全） */
+  dispose(): void {
+    for (const node of this.nodes) node.disconnect();
+    this.nodes = [];
   }
 
   setCue(cue: MusicCue): void {
@@ -414,6 +433,9 @@ class TrackVoice {
  */
 export class MusicPlayer {
   private master: GainNode | null = null;
+  /** 曲全体のこもり（8-15）。master → muffle → 出力 */
+  private muffle: BiquadFilterNode | null = null;
+  private muffled = false;
   private masterCtx: BaseAudioContext | null = null;
   private current: TrackVoice | null = null;
   private fading: TrackVoice[] = [];
@@ -446,16 +468,36 @@ export class MusicPlayer {
 
   private ensureMaster(ctx: BaseAudioContext): GainNode {
     if (this.master && this.masterCtx === ctx) return this.master;
-    this.master = createGainNode(ctx, ctx.destination);
+    this.muffle = createFilter(ctx, ctx.destination, "lowpass", SFX_WAVE3.muffle.open);
+    this.muffled = false;
+    this.master = createGainNode(ctx, this.muffle);
     this.masterCtx = ctx;
     this.applyGain();
     return this.master;
+  }
+
+  /** こもりの今の上限周波数（テスト・デバッグ用）。AudioContext が無ければ null */
+  muffleCutoff(): number | null {
+    return this.muffle?.frequency.value ?? null;
+  }
+
+  /** スロー中は素早く閉じ、戻る瞬間はゆっくり開く（開く方を遅くして「戻った」手応えを出す） */
+  private applyMuffle(ctx: BaseAudioContext, muffle: boolean): void {
+    if (!this.muffle || muffle === this.muffled) return;
+    this.muffled = muffle;
+    const c = SFX_WAVE3.muffle;
+    const f = this.muffle.frequency;
+    const now = ctx.currentTime;
+    f.cancelScheduledValues(now);
+    f.setValueAtTime(Math.max(c.cutoff, f.value), now);
+    f.exponentialRampToValueAtTime(muffle ? c.cutoff : c.open, now + (muffle ? c.closeTime : c.openTime));
   }
 
   update(cue: MusicCue): void {
     const ctx = this.getContext();
     if (!ctx) return;
     const master = this.ensureMaster(ctx);
+    this.applyMuffle(ctx, cue.muffle);
     this.dropFaded(ctx.currentTime);
     // ミュート中・ラン外は予約を止める（ミュート解除で頭から鳴り直す）
     if (this.muted || cue.track === null || this.volume <= 0) {
@@ -482,7 +524,7 @@ export class MusicPlayer {
   private dropFaded(now: number): void {
     this.fading = this.fading.filter((v) => {
       if (v.endAt === null || v.endAt > now) return true;
-      v.out.disconnect();
+      v.dispose();
       return false;
     });
   }

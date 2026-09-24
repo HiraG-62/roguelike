@@ -1,25 +1,27 @@
-import { type EventActor, type GameEvent, type StatusSnap, happenedWithin } from "../core/events";
+import { type EventActor, type EventSource, type GameEvent, type StatusSnap, happenedWithin } from "../core/events";
 import type { Element } from "../core/element";
 import { type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, effectKeyword } from "../core/rules";
-import type { Enemy, GameState } from "../core/state";
+import { type Enemy, type GameState, allocId } from "../core/state";
 import type { StatusKind } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
-import { type Vec, normalize, sub } from "../core/vec";
+import { type Vec, fromAngle, normalize, scale, sub } from "../core/vec";
 import { enemyCombat } from "../data/enemyCombat";
 import { BOON, PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
 import { isRoamerTarget, slashBase, spawnBoonWave } from "./boonRules";
-import { damageEnemy, rollOutgoing } from "./combat";
+import { damageEnemy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
 import { engagedRoomIndex } from "./engagement";
 import { isFavoredWeapon, jobRules } from "./jobs";
-import { addFloatingText, spawnRing } from "./effects";
+import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 import { spawnBomb } from "./hazards";
-import { applyStatus, enemiesInRadius, findStatus, hasStatus } from "./statusEffects";
+import { applyStatus, enemiesInRadius, explodeAt, findStatus, hasStatus } from "./statusEffects";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
+import { gainMana } from "./mana";
+import type { TriggerEffectKind } from "../loot/types";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
 
 /**
@@ -28,6 +30,7 @@ import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
  * - 効果が起こしたイベントは深さ +1 で次ステップへ（pushEvent が pendingEvents へ積む）。同ステップで再帰しない
  * - 深さ SYNERGY.maxDepth 以上は照合しない。効果量は深さごとに × SYNERGY.chainDecay
  * - ICD は 3 層: Rule ごと（ruleIcd）・語ごとの回数上限（keywordBudget）・敵ごと（StatusBag.procIcd）
+ * - direct の Rule（旧フックから移した祝福）は連鎖に数えない: 深さを進めず、減衰・語の上限・深さの上限・連鎖の記録から外す
  * 装備の tr: は fireTrigger がその場で同じ文法（ruleFromTrigger）を照合するので、ここでは集めない（二重発火を防ぐ）
  */
 
@@ -38,7 +41,16 @@ export interface ConditionSubject {
   targetStatus?: readonly StatusSnap[];
   tag?: string;
   actor?: EventActor;
+  source?: EventSource;
 }
+
+const FULL_CIRCLE = Math.PI * 2;
+/** 氷の破片の弾と粒子（旧フック boons.ts の shatter と同じ見た目） */
+const SHARD_RADIUS = 2;
+const SHARD_PARTICLES = 8;
+const SHARD_PARTICLE_SPEED = 90;
+const SHARD_PARTICLE_LIFE = 0.3;
+const SHARD_PARTICLE_SIZE = 1.5;
 
 /** 敵ごとの procIcd を使う効果（対象の敵へ状態異常を入れるもの） */
 const PROC_ICD_EFFECTS: ReadonlySet<RuleEffect["kind"]> = new Set<RuleEffect["kind"]>(["inflict", "extendStatus"]);
@@ -52,10 +64,12 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
   noteRunEvents(state, batch);
   if (batch.length === 0 || state.status !== "playing") return;
   const list = rules ?? collectRules(state);
+  // 同じイベントで起きた group（1 イベントにつき 1 回）。イベントごとに空にする
+  const fired = new Set<string>();
   for (const ev of batch) {
-    if (ev.depth >= SYNERGY.maxDepth) continue;
-    for (const rule of list) tryRule(state, rule, ev);
-    for (const rule of enemyRulesOf(ev)) tryRule(state, rule, ev);
+    fired.clear();
+    for (const rule of list) tryRule(state, rule, ev, fired);
+    for (const rule of enemyRulesOf(ev)) tryRule(state, rule, ev, fired);
   }
 }
 
@@ -102,8 +116,14 @@ function scopeMatches(rule: Readonly<Rule>, ev: GameEvent): boolean {
   }
 }
 
-function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
+function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
   if (rule.when !== ev.kind || !scopeMatches(rule, ev)) return;
+  if (rule.direct === true) {
+    tryDirectRule(state, rule, ev, fired);
+    return;
+  }
+  if (ev.depth >= SYNERGY.maxDepth) return;
+  if (rule.group !== undefined && fired.has(rule.group)) return;
   if ((state.ruleIcd.get(rule.id) ?? 0) > 0) return;
   if (!ruleConditionsMet(state, rule.if, ev)) return;
   const keyword = effectKeyword(rule);
@@ -114,10 +134,33 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
   // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）
   if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
   if (rule.icd > 0) state.ruleIcd.set(rule.id, rule.icd);
+  if (rule.group !== undefined) fired.add(rule.group);
   state.ruleRun.keywordUse.set(keyword, used + 1);
   if (procTarget !== undefined) procTarget.status.procIcd = STATUS.onHitIcd;
   runRule(state, rule, ev);
   recordChain(state, keyword, ev.depth);
+}
+
+/**
+ * 直接の効果（旧フックから移した祝福）。フックはどの深さの出来事でも等倍で起き、語の上限も procIcd も持たなかったので、
+ * それと同じに照合する（ICD・確率・group は通常どおり見る）
+ */
+function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
+  if (rule.group !== undefined && fired.has(rule.group)) return;
+  if ((state.ruleIcd.get(rule.id) ?? 0) > 0) return;
+  if (!ruleConditionsMet(state, rule.if, ev)) return;
+  if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
+  if (rule.icd > 0) state.ruleIcd.set(rule.id, rule.icd);
+  if (rule.group !== undefined) fired.add(rule.group);
+  const run = state.ruleRun;
+  const prevDepth = run.depth;
+  // 深さはイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い。減衰は掛けない）
+  run.depth = ev.depth;
+  try {
+    applyRuleEffect(state, rule.then, ev, 1);
+  } finally {
+    run.depth = prevDepth;
+  }
 }
 
 /** 効果を実行する。この間に積まれたイベントは深さ +1・持ち主の出どころで持ち越される */
@@ -136,13 +179,25 @@ function runRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
 }
 
 function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, decay: number): void {
-  const magnitude = baseMagnitude(state, effect) * decay;
+  const magnitude = baseMagnitude(state, effect, ev) * decay;
+  applyEffectBody(state, effect, ev, magnitude);
+  if (effect.text !== undefined) ruleText(state, effect.text, effect.color);
+}
+
+function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
+  if (applyVitalEffect(state, effect, magnitude)) return;
   switch (effect.kind) {
     case "spreadStatus":
       spreadStatus(state, effect, ev, magnitude);
       return;
     case "hazardBomb":
       spawnBomb(state, { ...ev.pos }, magnitude, ev.targetId, effect.duration, effect.radius);
+      return;
+    case "shards":
+      spawnShards(state, ev.pos, effect.count ?? BOON.shatterShards, magnitude);
+      return;
+    case "afflict":
+      afflict(state, effect, ev, magnitude);
       return;
     case "placeTerrain":
     case "igniteTerrain":
@@ -155,13 +210,96 @@ function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
     case "refillDash":
       applyPlayerSideEffect(state, effect, ev, magnitude);
       return;
+    case "explode":
+      // 半径を持つ爆発（爆走）。半径が無ければ装備トリガーと同じ STATUS.explodeRadius
+      if (effect.radius !== undefined) {
+        explodeAt(state, ev.pos, effect.radius, magnitude);
+        return;
+      }
+      runTriggerEffect(state, effect.kind, effect, ev, magnitude);
+      return;
+    case "healDirect":
+    case "ward":
+      // applyVitalEffect が扱い済み
+      return;
     default:
-      runEffect(
-        state,
-        { effect: effect.kind, magnitude, duration: effect.duration, count: effect.count, status: effect.status },
-        { pos: ev.pos, targetId: ev.targetId },
-      );
+      runTriggerEffect(state, effect.kind, effect, ev, magnitude);
   }
+}
+
+/** 装備トリガーと同じ効果（src/system/triggers.ts の runEffect） */
+function runTriggerEffect(state: GameState, kind: TriggerEffectKind, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
+  runEffect(
+    state,
+    { effect: kind, magnitude, duration: effect.duration, count: effect.count, status: effect.status },
+    { pos: ev.pos, targetId: ev.targetId },
+  );
+}
+
+/**
+ * 生命・気力・無敵の効果のうち、装備トリガー（runEffect）と見た目や上限が違うもの。扱ったら true。
+ * quiet = 浮き文字を出さない、fill = 上限まで満たす（旧フックの祝福の見た目と量を保つ）
+ */
+function applyVitalEffect(state: GameState, effect: Readonly<RuleEffect>, magnitude: number): boolean {
+  const p = state.player;
+  switch (effect.kind) {
+    case "restoreMana":
+      if (effect.fill === true) {
+        // 回収ではなく補充なので manaGainMul を通さず上限へ直接揃える
+        p.mana = state.stats.maxMana;
+        return true;
+      }
+      if (effect.quiet !== true) return false;
+      gainMana(state, magnitude);
+      return true;
+    case "heal":
+      if (effect.quiet !== true) return false;
+      healSustained(state, magnitude, { silent: true });
+      return true;
+    case "healDirect":
+      healPlayer(state, magnitude, { silent: effect.quiet === true });
+      return true;
+    case "ward":
+      p.buffs.invuln = Math.max(p.buffs.invuln, effect.duration ?? magnitude);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** 対象（または起こした敵）へ状態異常をそのまま付ける。生きていなければ何もしない */
+function afflict(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
+  if (effect.status === undefined) return;
+  const target = liveTarget(state, effect.on === "source" ? ev.sourceId : ev.targetId);
+  if (target === undefined) return;
+  const apply = { kind: effect.status, stacks: effect.count ?? 1, duration: effect.duration ?? TRIGGER.defaultDuration, potency: magnitude };
+  applyStatus(state, { kind: "enemy", enemy: target }, apply, "player");
+}
+
+/** 効果の浮き文字（旧フックの「湧水」「結界」など）。自分の頭上に出す */
+function ruleText(state: GameState, text: string, color: string | undefined): void {
+  addFloatingText(state, state.player.body.pos, text, color ?? BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+}
+
+/** 氷の破片: pos から全方位へ count 発（祝福の氷砕。素性なしの proc 弾） */
+function spawnShards(state: GameState, pos: Vec, count: number, damage: number): void {
+  const n = Math.max(1, Math.round(count));
+  for (let i = 0; i < n; i++) {
+    state.projectiles.push({
+      id: allocId(state),
+      owner: "player",
+      pos: { ...pos },
+      vel: scale(fromAngle((FULL_CIRCLE * i) / n), BOON.shatterSpeed),
+      radius: SHARD_RADIUS,
+      damage,
+      life: BOON.shatterLife,
+      color: BOON.shatterColor,
+      kind: "proc",
+      hitIds: new Set(),
+      pierceLeft: 0,
+    });
+  }
+  spawnBurst(state, pos, BOON.shatterColor, SHARD_PARTICLES, SHARD_PARTICLE_SPEED, SHARD_PARTICLE_LIFE, SHARD_PARTICLE_SIZE);
 }
 
 /** 地形の効果（置く・火をつける・広げる）。半径の既定は BOON.ruleTerrainRadius */
@@ -196,10 +334,12 @@ function applyPlayerSideEffect(state: GameState, effect: Readonly<RuleEffect>, e
     case "wave":
       spawnBoonWave(state, waveDir(state), magnitude);
       return;
-    case "refillDash":
-      p.dashChargesLeft = Math.min(state.stats.dashCharges, p.dashChargesLeft + Math.max(1, effect.count ?? 1));
-      addFloatingText(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+    case "refillDash": {
+      const max = state.stats.dashCharges;
+      p.dashChargesLeft = effect.fill === true ? max : Math.min(max, p.dashChargesLeft + Math.max(1, effect.count ?? 1));
+      if (effect.quiet !== true) addFloatingText(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
       return;
+    }
     default:
       return;
   }
@@ -220,26 +360,38 @@ function strikeTarget(state: GameState, ev: GameEvent, magnitude: number): void 
   damageEnemy(state, target, out.amount, sub(target.body.pos, state.player.body.pos), 0, { hitstopSteps: 0 });
 }
 
-function baseMagnitude(state: GameState, effect: Readonly<RuleEffect>): number {
-  if (effect.scaleBy === "slashBase") return slashBase(state) * effect.magnitude;
-  return effect.magnitude;
+function baseMagnitude(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): number {
+  switch (effect.scaleBy) {
+    case "slashBase":
+      return slashBase(state) * effect.magnitude;
+    case "maxHp":
+      return state.player.maxHp * effect.magnitude;
+    case "eventAmount":
+      return (ev.amount ?? 0) * effect.magnitude;
+    default:
+      return effect.magnitude;
+  }
 }
 
 /**
  * 対象が持っていた状態異常を周囲の敵へ広げる（野火・疫病の形）。強さは元の potency × magnitude。
- * 付与元は player（祝福の野火と同じ扱い。applyStatus が霊力の倍率を掛ける）
+ * 付与元は player（祝福の野火と同じ扱い。applyStatus が霊力の倍率を掛ける）。
+ * inherit なら元のスタック数を引き継ぎ、強さは霊力の倍率を割り戻してから渡す（付け直しで倍率が二重に掛からない）
  */
 function spreadStatus(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
   const kind = effect.status;
   if (kind === undefined) return;
-  const potency = sourcePotency(state, ev, kind);
-  if (potency === undefined) return;
+  const source = sourceStatus(state, ev, kind);
+  if (source === undefined) return;
+  const inherit = effect.inherit === true;
+  const potency = (inherit ? source.potency / Math.max(Number.EPSILON, state.stats.statusPotencyMul) : source.potency) * magnitude;
   const radius = effect.radius ?? TRIGGER.nearbyRadius;
-  const apply = { kind, stacks: 1, duration: effect.duration ?? TRIGGER.defaultDuration, potency: potency * magnitude };
+  const stacks = inherit ? source.stacks : 1;
+  const apply = { kind, stacks, duration: effect.duration ?? TRIGGER.defaultDuration, potency };
   for (const e of enemiesInRadius(state, ev.pos, radius)) {
     if (e.id !== ev.targetId) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
   }
-  spawnRing(state, ev.pos, radius, spreadColor(kind), STATUS.fxLife);
+  if (effect.quiet !== true) spawnRing(state, ev.pos, radius, effect.color ?? spreadColor(kind), STATUS.fxLife);
 }
 
 function spreadColor(kind: StatusKind): string {
@@ -248,11 +400,12 @@ function spreadColor(kind: StatusKind): string {
   return TRIGGER.shockwaveColor;
 }
 
-/** 対象の状態異常の強さ。撃破の写しがあればそれ、無ければ生きている対象から読む。持っていなければ undefined */
-function sourcePotency(state: GameState, ev: GameEvent, kind: StatusKind): number | undefined {
-  if (ev.targetStatus !== undefined) return ev.targetStatus.find((s) => s.kind === kind)?.potency;
+/** 対象の状態異常（強さ・スタック）。撃破の写しがあればそれ、無ければ生きている対象から読む。持っていなければ undefined */
+function sourceStatus(state: GameState, ev: GameEvent, kind: StatusKind): StatusSnap | undefined {
+  if (ev.targetStatus !== undefined) return ev.targetStatus.find((s) => s.kind === kind);
   const target = liveTarget(state, ev.targetId);
-  return target === undefined ? undefined : findStatus(target.status, kind)?.potency;
+  const found = target === undefined ? undefined : findStatus(target.status, kind);
+  return found === undefined ? undefined : { kind, stacks: found.stacks, potency: found.potency };
 }
 
 function liveTarget(state: GameState, id: number | undefined): Enemy | undefined {
@@ -341,6 +494,8 @@ function extendedConditionHolds(state: GameState, c: RuleCondition, subject: Con
       return targetRoamer(state, subject);
     case "floorKind":
       return c.kinds.includes(state.floorKind);
+    case "from":
+      return subject.source?.kind === c.source;
     default:
       return false;
   }

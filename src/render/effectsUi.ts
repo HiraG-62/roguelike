@@ -5,20 +5,25 @@
  */
 import type { DeathFx, FxMark, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { EFFECTS } from "../data/tuning";
+import { EFFECTS, FX_WAVE3 } from "../data/tuning";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE, Tile, getTile } from "../map/grid";
 import { deathColor } from "../system/effects";
 import { TEXT, drawTextShadow } from "./pixelText";
 import {
   ashCrumble,
+  auraArcs,
   clamp01,
   clearWaveAlpha,
+  counterMonoAlpha,
   easeOutCubic,
   floorCardAlpha,
   hash01,
+  keystoneAuraColors,
   meltScale,
+  pulse,
   rayAngles,
+  resonanceMantleColors,
   severGap,
   shardOffset,
 } from "./renderMath";
@@ -397,6 +402,27 @@ function drawDashGhost(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSpri
   drawFoot(ctx, img, m.pos.x, m.pos.y + img.height / 2, 1, 1, m.value === 1);
 }
 
+/** 芽吹き（7-15）: 足元から双葉が開き、短い光柱が立つ */
+const LEAF_FOOT = 6;
+const LEAF_TILT = 0.5;
+const BLOOM_GLOW_R = 12;
+function drawBudBloom(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSprites): void {
+  const c = FX_WAVE3.budBloom;
+  const t = markT(m);
+  const reach = c.height * easeOutCubic(Math.min(1, t * 3));
+  ctx.globalAlpha = 1 - t;
+  ctx.fillStyle = m.color;
+  ctx.fillRect(Math.round(m.pos.x - c.width / 2), Math.round(m.pos.y + LEAF_FOOT - reach), c.width, Math.round(reach));
+  const open = easeOutCubic(Math.min(1, t * 2)) * c.leafSize;
+  ctx.fillStyle = c.leafColor;
+  for (const side of [-1, 1] as const) {
+    ctx.beginPath();
+    ctx.ellipse(m.pos.x + side * open, m.pos.y + LEAF_FOOT - 1, c.leafSize, c.leafSize / 2, side * -LEAF_TILT, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  sprites.glow(m.pos.x, m.pos.y, m.color, BLOOM_GLOW_R, 0.6 * (1 - t));
+}
+
 function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMark, sprites: FxSprites): void {
   const t = markT(m);
   switch (m.kind) {
@@ -428,6 +454,13 @@ function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMar
       return;
     case "dashGhost":
       drawDashGhost(ctx, m, sprites);
+      return;
+    case "budBloom":
+      drawBudBloom(ctx, m, sprites);
+      return;
+    case "inscribe":
+      drawRing(ctx, m.pos.x, m.pos.y, FX_WAVE3.inscribe.radius * easeOutCubic(t), m.color, 1 - t, 2);
+      sprites.glow(m.pos.x, m.pos.y, m.color, FX_WAVE3.inscribe.radius / 2, 0.7 * (1 - t));
       return;
     case "bossLight":
     case "critFlash":
@@ -469,10 +502,29 @@ export function critFlashActive(state: GameState, enemyId: number): boolean {
 const RAY_SPEED = 0.6;
 const RAY_LENGTH = Math.hypot(VIEW_W, VIEW_H);
 
-/** ボス撃破の光条と画面全体の光、精鋭撃破の短い色づき。ox / oy はワールド → 画面のずらし */
+const MONO_GRAY = "#808080";
+
+/**
+ * カウンター成立の白黒（7-10）。彩度の合成で画面全体の色を抜く（全画面を 1 回塗るだけなので重くない）。
+ * HUD より先に描くので、HUD の色は残る
+ */
+function drawCounterMono(ctx: CanvasRenderingContext2D, left: number): void {
+  const c = FX_WAVE3.counterMono;
+  const alpha = counterMonoAlpha(left, c.time, c.strength);
+  if (alpha <= 0) return;
+  ctx.globalCompositeOperation = "saturation";
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = MONO_GRAY;
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+}
+
+/** ボス撃破の光条と画面全体の光、精鋭撃破の短い色づき、カウンターの白黒。ox / oy はワールド → 画面のずらし */
 export function drawScreenMarks(ctx: CanvasRenderingContext2D, state: GameState, ox: number, oy: number): void {
   const fx = state.effects;
   if (!fx) return;
+  drawCounterMono(ctx, fx.counterMono);
   for (const m of fx.marks) {
     const t = markT(m);
     if (m.kind === "eliteBurst") {
@@ -523,4 +575,51 @@ export function drawFloorCard(ctx: CanvasRenderingContext2D, title: string, sub:
   ctx.fillRect(Math.round(cx - w / 2), FLOOR_CARD_Y + 4, w, 1);
   drawTextShadow(ctx, sub, cx, FLOOR_CARD_Y + FLOOR_CARD_SUB_GAP, TEXT.BODY, FLOOR_CARD_SUB_COLOR, COLOR_BLACK, "center");
   ctx.globalAlpha = 1;
+}
+
+// -----------------------------------------------------------------------------
+// プレイヤーのまといとオーラ（7-14 共鳴 / 7-20 誓約）。プレイヤーより先に描く
+// -----------------------------------------------------------------------------
+
+/** 共鳴のまとい: 足元の薄い楕円（最初の色）と、その縁を回る色の粒 */
+function drawResonanceMantle(ctx: CanvasRenderingContext2D, x: number, y: number, colors: readonly string[], time: number): void {
+  const first = colors[0];
+  if (first === undefined) return;
+  const c = FX_WAVE3.mantle;
+  const cy = y + c.footY;
+  ctx.globalAlpha = c.alpha * pulse(time, c.pulseSpeed, 0.6, 1);
+  ctx.fillStyle = first;
+  ctx.beginPath();
+  ctx.ellipse(x, cy, c.rx, c.ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = c.moteAlpha;
+  const total = colors.length * c.motes;
+  for (let i = 0; i < total; i++) {
+    const a = time * c.moteSpeed + (i / total) * Math.PI * 2;
+    ctx.fillStyle = colors[i % colors.length] ?? first;
+    ctx.fillRect(Math.round(x + Math.cos(a) * c.rx), Math.round(cy + Math.sin(a) * c.ry), 1, 1);
+  }
+}
+
+/** 誓約のオーラ: 細い輪を系統の数だけの弧に分けてゆっくり回す */
+function drawKeystoneAura(ctx: CanvasRenderingContext2D, x: number, y: number, colors: readonly string[], time: number): void {
+  if (colors.length === 0) return;
+  const c = FX_WAVE3.keystoneAura;
+  ctx.globalAlpha = c.alpha;
+  ctx.lineWidth = 1;
+  auraArcs(colors.length, time, c.spin, c.gap).forEach((arc, i) => {
+    ctx.strokeStyle = colors[i] ?? COLOR_WHITE;
+    ctx.beginPath();
+    ctx.arc(x, y, c.radius, arc.start, arc.end);
+    ctx.stroke();
+  });
+}
+
+export function drawPlayerAuras(ctx: CanvasRenderingContext2D, state: GameState): void {
+  if (state.status === "dead") return;
+  const p = state.player.body.pos;
+  drawResonanceMantle(ctx, p.x, p.y, resonanceMantleColors(state.stats.resonance), state.time);
+  drawKeystoneAura(ctx, p.x, p.y, keystoneAuraColors(state.stats.keystones), state.time);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 1;
 }

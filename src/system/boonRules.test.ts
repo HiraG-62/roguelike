@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { enemyTarget, pushEvent, pushKillEvents, pushPlayerEvent, pushSwingEvent } from "../core/events";
+import type { Rule, RuleCondition } from "../core/rules";
 import { type Enemy, type GameState, type Projectile, allocId } from "../core/state";
 import { ACTION, BOON, FEEL, PLAYER } from "../data/tuning";
 import { DEFAULT_STATS } from "../loot/types";
@@ -42,7 +44,6 @@ import {
   boonSkipsGuarded,
   boonWindupMul,
   equippedSlotCount,
-  onBoonHurt,
   onBoonProjectileHit,
   onBoonProjectileWall,
   onBoonReaperDodged,
@@ -55,6 +56,7 @@ import {
 } from "./boonRules";
 import { damageEnemy, registerComboHit } from "./combat";
 import { reaperAppearAfter } from "./reaper";
+import { resolveRules } from "./rules";
 import { applyBurn, applyStatus, findStatus, hasStatus, removeStatus, statusStacks } from "./statusEffects";
 import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
 
@@ -105,6 +107,56 @@ function swing(state: GameState, combo: number, hit?: Enemy): void {
   a.hitIds.clear();
   if (hit) a.hitIds.add(hit.id);
   state.player.dashStrike = false;
+}
+
+// -----------------------------------------------------------------------------
+// 起点の再現: 本体（combat.ts / player.ts / poise.ts / floor.ts）と同じく、残ったフックを呼んでイベントを積み、
+// ステップ末の照合（resolveRules。BoonDef.rules）まで通す。createGame の床組みで積まれたイベントは先に捨てる
+// -----------------------------------------------------------------------------
+
+function dropEvents(state: GameState): void {
+  state.events = [];
+  state.pendingEvents = [];
+}
+
+/** 撃破（killEnemy と同じ: 撃破のイベント + onBoonKill） */
+function killed(state: GameState, e: Enemy): void {
+  dropEvents(state);
+  pushKillEvents(state, e);
+  onBoonKill(state, e);
+  resolveRules(state, 0);
+}
+
+/** 回避の見切り（justDodge と同じ: onBoonJust + 見切りのイベント。回避した攻撃の主は sourceId） */
+function justDodged(state: GameState, attacker?: Enemy): void {
+  dropEvents(state);
+  onBoonJust(state);
+  pushPlayerEvent(state, "onJustDodge", "just", { sourceId: attacker?.id });
+  resolveRules(state, 0);
+}
+
+/** 怯み（applyStagger と同じ: onBoonStagger + 怯みのイベント） */
+function staggered(state: GameState, e: Enemy): void {
+  dropEvents(state);
+  onBoonStagger(state, e);
+  pushEvent(state, { kind: "onStagger", actor: "player", source: { kind: "player", key: "stagger" }, ...enemyTarget(e) });
+  resolveRules(state, 0);
+}
+
+/** 被弾して生き残った（damagePlayer と同じ: 攻撃の主は targetId / sourceId） */
+function hurtBy(state: GameState, attacker: Enemy): void {
+  dropEvents(state);
+  const pos = { ...state.player.body.pos };
+  pushEvent(state, { kind: "onHurt", actor: "enemy", pos, targetId: attacker.id, sourceId: attacker.id, source: { kind: "enemy", key: attacker.defKey } });
+  resolveRules(state, 0);
+}
+
+/** 振り始め（beginSwing と同じ: onBoonSwing + 振りのイベント） */
+function swung(state: GameState, combo: number, dashStrike: boolean, damage: number): void {
+  dropEvents(state);
+  onBoonSwing(state, combo, dashStrike);
+  pushSwingEvent(state, combo, dashStrike, damage);
+  resolveRules(state, 0);
 }
 
 describe("祝福の定義（拡張）", () => {
@@ -177,7 +229,7 @@ describe("系譜: 灰燼", () => {
     give(state, "ashBed");
     const dead = dummy(state, 30);
     applyBurn(state, dead, 5, 3);
-    onBoonKill(state, dead);
+    killed(state, dead);
     expect(state.boonRun.rules.ashes).toHaveLength(1);
     state.player.body.pos = { ...dead.body.pos };
     updateBoonRules(state, DT);
@@ -237,7 +289,7 @@ describe("系譜: 霜枷", () => {
     const state = arena();
     give(state, "eternalWinter");
     const e = dummy(state, 30);
-    onBoonJust(state);
+    justDodged(state);
     expect(hasStatus(e.status, "freeze")).toBe(true);
   });
 });
@@ -383,7 +435,7 @@ describe("単体の祝福（ジャスト回避・カウンター）", () => {
     give(state, "bulletSteal");
     const pr = bullet(state, { owner: "enemy", kind: "proc", pos: { x: state.player.body.pos.x + 20, y: state.player.body.pos.y } });
     state.projectiles.push(pr);
-    onBoonJust(state);
+    justDodged(state);
     expect(pr.owner).toBe("player");
     expect(pr.kind).toBe("ranged");
   });
@@ -392,7 +444,7 @@ describe("単体の祝福（ジャスト回避・カウンター）", () => {
     const state = arena();
     give(state, "glare");
     const e = dummy(state);
-    onBoonJust(state, e);
+    justDodged(state, e);
     expect(hasStatus(e.status, "weaken")).toBe(true);
   });
 
@@ -400,7 +452,7 @@ describe("単体の祝福（ジャスト回避・カウンター）", () => {
     const state = arena();
     give(state, "justReturn");
     state.player.dashChargesLeft = 0;
-    onBoonJust(state);
+    justDodged(state);
     expect(state.player.dashChargesLeft).toBe(1);
   });
 
@@ -467,7 +519,7 @@ describe("単体の祝福（近接・射撃・ダッシュ）", () => {
     const dead = dummy(state);
     const near = dummy(state, 40);
     swing(state, LAST, dead);
-    onBoonKill(state, dead);
+    killed(state, dead);
     expect(hasStatus(near.status, "fear")).toBe(true);
   });
 
@@ -528,7 +580,7 @@ describe("単体の祝福（近接・射撃・ダッシュ）", () => {
     give(state, "oneWing");
     expect(boonBlocksShoot(state)).toBe(true);
     state.player.attack.dir = { x: 1, y: 0 };
-    onBoonSwing(state, LAST, false, 10);
+    onBoonSwing(state, LAST, false);
     const shots = state.projectiles.filter((p) => p.owner === "player" && p.kind === "ranged");
     expect(shots.length).toBeGreaterThanOrEqual(BOON.oneWingMinShots);
   });
@@ -660,7 +712,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const e = dummy(state);
     put(state, e, "bleed", 3, 1, 1);
     state.player.dashChargesLeft = 0;
-    onBoonKill(state, e);
+    killed(state, e);
     expect(state.player.dashChargesLeft).toBe(state.stats.dashCharges);
   });
 
@@ -682,7 +734,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const dead = dummy(state);
     const near = dummy(state, 50);
     put(state, dead, "vulnerable", 3);
-    onBoonKill(state, dead);
+    killed(state, dead);
     expect(hasStatus(near.status, "vulnerable")).toBe(true);
   });
 
@@ -690,7 +742,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const state = arena();
     give(state, "keenEye");
     state.player.mana = 0;
-    onBoonStagger(state, dummy(state));
+    staggered(state, dummy(state));
     expect(state.player.mana).toBeCloseTo(BOON.keenEyeMana * state.stats.manaGainMul);
   });
 
@@ -701,7 +753,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const b = dummy(state, 40);
     b.roomIndex = a.roomIndex;
     b.poise.damage = 1;
-    onBoonStagger(state, a);
+    staggered(state, a);
     expect(b.poise.damage).toBeGreaterThan(1);
   });
 
@@ -711,7 +763,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const e = dummy(state);
     put(state, e, "guarded", 2);
     state.player.energy = 0;
-    onBoonKill(state, e);
+    killed(state, e);
     expect(state.player.energy).toBeCloseTo(state.player.maxEnergy * BOON.regroupEnergyRatio);
   });
 
@@ -721,7 +773,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const dead = dummy(state);
     const e = dummy(state, 40);
     put(state, dead, "weaken", 3);
-    onBoonKill(state, dead);
+    killed(state, dead);
     expect(boonPoise(state, e, "melee", 10)).toBe(10 * BOON.usurpPoiseMul);
     expect(boonPoise(state, e, "melee", 10), "1 回で消費").toBe(10);
   });
@@ -741,7 +793,7 @@ describe("単体の祝福（状態異常・怯み）", () => {
     const state = arena();
     give(state, "woundMemory");
     const e = dummy(state);
-    onBoonHurt(state, e);
+    hurtBy(state, e);
     expect(hasStatus(e.status, "vulnerable")).toBe(true);
   });
 });
@@ -820,7 +872,7 @@ describe("単体の祝福（HP・部屋・死神・コンボ）", () => {
     p.hp = p.maxHp - 30;
     p.regainTimer = 1;
     p.regainPool = 20;
-    onBoonKill(state, dummy(state));
+    killed(state, dummy(state));
     expect(p.hp).toBeCloseTo(p.maxHp - 10);
     expect(p.regainPool).toBe(0);
   });
@@ -830,10 +882,10 @@ describe("単体の祝福（HP・部屋・死神・コンボ）", () => {
     give(state, "reaperShadow");
     state.player.mana = 0;
     state.player.energy = 0;
-    onBoonKill(state, dummy(state));
+    killed(state, dummy(state));
     expect(state.player.energy, "死神がいなければ何もない").toBe(0);
     state.reaper = { pos: { x: 0, y: 0 }, radius: 8, animTime: 0 };
-    onBoonKill(state, dummy(state));
+    killed(state, dummy(state));
     expect(state.player.energy).toBe(BOON.reaperShadowEnergy);
     expect(state.player.mana).toBeGreaterThan(0);
   });
@@ -907,7 +959,7 @@ describe("呪い付き（拡張）", () => {
     const state = arena();
     give(state, "deathRush");
     state.player.invulnTimer = 0;
-    onBoonKill(state, dummy(state));
+    killed(state, dummy(state));
     expect(state.player.invulnTimer).toBeCloseTo(BOON.deathRushInvuln);
   });
 
@@ -935,10 +987,10 @@ describe("呪い付き（拡張）", () => {
     give(state, "heavenEarth");
     expect(boonAttackManaMul(state)).toBe(0);
     state.player.mana = 0;
-    onBoonJust(state);
+    justDodged(state);
     expect(state.player.mana).toBe(state.stats.maxMana);
     state.player.mana = 0;
-    onBoonKill(state, dummy(state));
+    killed(state, dummy(state));
     expect(state.player.mana).toBe(state.stats.maxMana);
   });
 });
@@ -950,7 +1002,7 @@ describe("結び祝福", () => {
     const a = dummy(state, 30);
     const b = dummy(state, 60);
     for (let i = 0; i < 2; i++) state.projectiles.push(bullet(state, { owner: "enemy", kind: "proc" }));
-    onBoonJust(state);
+    justDodged(state);
     expect(a.hp).toBeLessThan(BIG_HP);
     expect(b.hp).toBeLessThan(BIG_HP);
   });
@@ -962,7 +1014,7 @@ describe("結び祝福", () => {
     const near = dummy(state, 30);
     put(state, dead, "poison", 3, 1, 0);
     put(state, dead, "bleed", 3, 2, 1);
-    onBoonKill(state, dead);
+    killed(state, dead);
     expect(hasStatus(near.status, "bleed")).toBe(true);
     expect(hasStatus(near.status, "poison")).toBe(true);
   });
@@ -992,7 +1044,7 @@ describe("結び祝福", () => {
       give(state, "bloodFeast", "reaperCup");
       if (cup) give(state, "feastCup");
       state.player.mana = 0;
-      onBoonKill(state, dummy(state));
+      killed(state, dummy(state));
       return state.player.mana;
     };
     expect(withCup(true) - withCup(false)).toBeCloseTo(BOON.reaperCupKillMana);
@@ -1046,7 +1098,7 @@ describe("結び祝福", () => {
   it("明鏡: ジャスト回避の直後に撃ったスキル 1 回は払ったマナが戻る", () => {
     const state = arena();
     give(state, "keenBreath", "justReturn", "clearMirror");
-    onBoonJust(state);
+    justDodged(state);
     state.player.mana = 5;
     onBoonSkillCast(state, 0, "mana", 10);
     expect(state.player.mana).toBe(15);
@@ -1067,7 +1119,7 @@ describe("結び祝福", () => {
     give(state, "comboWave", "finisherWave", "waveReturn");
     state.player.body.pos = { x: TILE_SIZE / 2, y: TILE_SIZE / 2 };
     state.player.attack.dir = { x: 1, y: 0 };
-    onBoonSwing(state, LAST, false, 10);
+    swung(state, LAST, false, 10);
     const wave = state.projectiles.find((p) => p.kind === "melee");
     if (!wave) throw new Error("衝撃波が出ていない");
     expect(onBoonProjectileWall(state, wave, DT)).toBe(true);
@@ -1081,4 +1133,188 @@ describe("祝福の威力は装備に比例する", () => {
     const strong = arena(5, { meleeDamageMul: 2 });
     expect(slashBase(strong)).toBeGreaterThan(slashBase(plain));
   });
+});
+
+describe("旧フックから移した祝福（BoonDef.rules）: イベント 1 回で効果 1 回、条件を欠けば 0 回", () => {
+  /**
+   * フックから rules へ移した祝福（フック側の実装は消した）。ここに足した key は rules を持ち、すべて direct であること。
+   * 数値の畳み込みやフックに残る部分を持つもの（血の代償の最大生命・乾坤の自然回復など）も、移した「〜時: 〜」の部分をここで見る
+   */
+  const MIGRATED: readonly BoonKey[] = [
+    "comboWave",
+    "finisherWave",
+    "clearShield",
+    "clearHeal",
+    "burnSpread",
+    "chillShatter",
+    "dashShock",
+    "bloodFeast",
+    "plague",
+    "reaperCup",
+    "keenBreath",
+    "glare",
+    "justReturn",
+    "bloodReturn",
+    "keenEye",
+    "woundMemory",
+    "heavenEarth",
+    "plagueBlood",
+  ];
+  const LOW_HP = 10;
+  const DASH_CHARGES = 3;
+  const SWING_DAMAGE = 10;
+  /** 状態異常のスタックを強さ・残り秒と混ぜずに数えるための重み */
+  const STACK_WEIGHT = 1000;
+  const NEIGHBOR = { dx: 30, dy: 20 };
+
+  interface Scene {
+    state: GameState;
+    target: Enemy;
+  }
+
+  /** 効果の副作用（気力・生命・ダッシュ・無敵・弾の数・生きた敵の生命の和・敵の状態異常の和） */
+  function effectVector(state: GameState): number[] {
+    const p = state.player;
+    const hpSum = state.enemies.filter((e) => e.hp > 0).reduce((sum, e) => sum + e.hp, 0);
+    const statusSum = state.enemies.reduce(
+      (sum, e) => sum + e.status.effects.filter((x) => x.time > 0).reduce((t, x) => t + x.stacks * STACK_WEIGHT + x.potency + x.time, 0),
+      0,
+    );
+    return [p.mana, p.hp, p.dashChargesLeft, p.buffs.invuln, state.projectiles.length, hpSum, statusSum];
+  }
+
+  function delta(before: readonly number[], after: readonly number[]): number[] {
+    return after.map((v, i) => v - (before[i] ?? 0));
+  }
+
+  /** 条件を満たす（met）/ 満たさないように場を整える。見切りの出どころと振りの段は起点の側で決める */
+  function prepare(scene: Scene, c: RuleCondition, met: boolean): void {
+    switch (c.kind) {
+      case "targetHas":
+        if (met) put(scene.state, scene.target, c.status, 3, 2, 2);
+        return;
+      case "comboAbove":
+        scene.state.combo.count = met ? c.count : 0;
+        scene.state.combo.timer = 1;
+        return;
+      case "from":
+      case "eventTag":
+        return;
+      default:
+        throw new Error(`テストが未対応の条件: ${c.kind}`);
+    }
+  }
+
+  /** 生命・気力・ダッシュを減らし、対象と隣の敵を置いた場。unmet = 満たさない条件の添字（-1 = すべて満たす） */
+  function makeScene(key: BoonKey, rule: Rule, unmet: number): Scene {
+    const state = arena(5, { dashCharges: DASH_CHARGES });
+    give(state, key);
+    const p = state.player;
+    p.hp = LOW_HP;
+    p.mana = 0;
+    p.dashChargesLeft = 0;
+    p.attack.dir = { x: 1, y: 0 };
+    const target = dummy(state);
+    dummy(state, NEIGHBOR.dx, NEIGHBOR.dy);
+    const scene = { state, target };
+    rule.if.forEach((c, i) => prepare(scene, c, i !== unmet));
+    // 撃破は倒れた後の照合（対象はもう生きていない）
+    if (rule.when === "onKill") target.hp = 0;
+    dropEvents(state);
+    return scene;
+  }
+
+  function conditionMetIn(rule: Rule, unmet: number, kind: RuleCondition["kind"]): boolean {
+    const index = rule.if.findIndex((c) => c.kind === kind);
+    return index < 0 || index !== unmet;
+  }
+
+  /** 起点を 1 回起こす。withHook = 本体と同じく残ったフックも呼ぶ（呼ばなければ Rule だけの効果） */
+  function fire(scene: Scene, rule: Rule, unmet: number, withHook: boolean): void {
+    const { state, target } = scene;
+    const pos = { ...state.player.body.pos };
+    switch (rule.when) {
+      case "onKill":
+        pushKillEvents(state, target);
+        if (withHook) onBoonKill(state, target);
+        return;
+      case "onDash":
+        if (withHook) onBoonDash(state);
+        pushPlayerEvent(state, "onDash", "dash");
+        return;
+      case "onJustDodge": {
+        // 条件 from を欠く = 受け流しのスキルが積む見切り（フック onBoonJust は回避の見切りでしか呼ばれない）
+        const dodged = conditionMetIn(rule, unmet, "from");
+        if (withHook && dodged) onBoonJust(state);
+        const source = dodged ? { kind: "player" as const, key: "just" } : { kind: "skill" as const, key: "parry" };
+        pushPlayerEvent(state, "onJustDodge", "just", { sourceId: target.id, source });
+        return;
+      }
+      case "onStagger":
+        if (withHook) onBoonStagger(state, target);
+        pushEvent(state, { kind: "onStagger", actor: "player", source: { kind: "player", key: "stagger" }, ...enemyTarget(target) });
+        return;
+      case "onHurt":
+        pushEvent(state, { kind: "onHurt", actor: "enemy", pos, targetId: target.id, sourceId: target.id, source: { kind: "enemy", key: target.defKey } });
+        return;
+      case "onRoomClear": {
+        const room = state.rooms[0];
+        if (withHook) onBoonRoomClear(state, room);
+        pushPlayerEvent(state, "onRoomClear", "room", { tag: room?.kind, source: { kind: "room", key: room?.kind ?? "" } });
+        return;
+      }
+      case "onSwing": {
+        const combo = conditionMetIn(rule, unmet, "eventTag") ? LAST : 0;
+        if (withHook) onBoonSwing(state, combo, false);
+        pushSwingEvent(state, combo, false, SWING_DAMAGE);
+        return;
+      }
+      default:
+        throw new Error(`テストが未対応の起点: ${rule.when}`);
+    }
+  }
+
+  /** 起点 1 回の効果（照合前後の差）。withHook なら本体と同じ経路、そうでなければこの Rule だけを照合する */
+  function effectOf(key: BoonKey, rule: Rule, unmet: number, withHook: boolean): number[] {
+    const scene = makeScene(key, rule, unmet);
+    const before = effectVector(scene.state);
+    fire(scene, rule, unmet, withHook);
+    resolveRules(scene.state, 0, withHook ? undefined : [rule]);
+    return delta(before, effectVector(scene.state));
+  }
+
+  const cases = MIGRATED.flatMap((key) => (BOONS[key].rules ?? []).map((rule) => ({ key, rule })));
+
+  it("移した祝福はすべて rules を持ち、direct（連鎖に数えない）で組まれている", () => {
+    for (const key of MIGRATED) {
+      const rules = BOONS[key].rules ?? [];
+      expect(rules.length, `${key} は rules を持つ`).toBeGreaterThan(0);
+      for (const r of rules) {
+        expect(r.direct, `${key} の ${r.id} は direct`).toBe(true);
+        expect(r.chance, `${key} の ${r.id} は確定`).toBe(1);
+        expect(r.icd, `${key} の ${r.id} は ICD なし（フックと同じ回数）`).toBe(0);
+        expect(r.owner, `${key} の ${r.id} の持ち主`).toEqual({ kind: "boon", key });
+      }
+    }
+  });
+
+  it.each(cases.map((c) => [`${c.key}（${c.rule.id} / ${c.rule.when}）`, c] as const))(
+    "%s: 本体の経路でイベント 1 回 → Rule 1 回ぶんの効果（フックと二重に起きない）",
+    (_name, { key, rule }) => {
+      const once = effectOf(key, rule, -1, false);
+      const viaGame = effectOf(key, rule, -1, true);
+      expect(once.some((v) => v !== 0), `${key}: Rule が何か効果を起こす`).toBe(true);
+      expect(viaGame, `${key}: フックを通しても効果は 1 回ぶん`).toEqual(once);
+    },
+  );
+
+  it.each(cases.filter((c) => c.rule.if.length > 0).map((c) => [`${c.key}（${c.rule.id}）`, c] as const))(
+    "%s: 条件を 1 つでも欠くと効果は 0 回",
+    (_name, { key, rule }) => {
+      rule.if.forEach((c, unmet) => {
+        const effect = effectOf(key, rule, unmet, true);
+        expect(effect.every((v) => v === 0), `${key}: 条件 ${c.kind} を欠くと起きない`).toBe(true);
+      });
+    },
+  );
 });

@@ -2,7 +2,7 @@ import { type GameState, type RoomKind, pushSfx } from "../core/state";
 import { type Vec, fromAngle } from "../core/vec";
 import { ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
-import { addFloatingText, shake, spawnBurst } from "./effects";
+import { addFloatingText, noteReaperWarning, shake, spawnBurst } from "./effects";
 import { boonReaperDelay } from "./boonRules";
 import { initReaperVariant, reaperBodyVisible, tickReaper } from "./reaperVariants";
 import { hasMod } from "./runSetup";
@@ -19,8 +19,6 @@ const FULL_CIRCLE = Math.PI * 2;
 const WARN_TEXT = "死神が来る";
 const SPAWN_PARTICLES = 30;
 const TRAIL_INTERVAL = 5;
-/** 警告中のパルス音の間隔（tick）。60fps 想定でおよそ 1.5 秒ごと */
-const WARN_PULSE_INTERVAL_TICKS = 90;
 
 /** 出現猶予の計算から除外する部屋種別（探索コストが低い部屋。台座だけの部屋も含む） */
 const GRACE_EXCLUDED_KINDS = new Set<RoomKind>(["treasure", "shrine"]);
@@ -59,7 +57,8 @@ export function updateReaper(state: GameState, dt: number): void {
   if (state.status !== "playing") return;
   state.floorTime += dt;
   if (!state.reaper) {
-    if (reaperWarning(state) && state.tick % WARN_PULSE_INTERVAL_TICKS === 0) pushSfx(state, "reaperWarnPulse");
+    // 警告の鼓動（8-14）は近さで間隔が縮むので、残り秒だけ渡して effects.ts が鳴らす
+    noteReaperWarning(state, reaperWarning(state) ? reaperTimeLeft(state) : null);
     if (reaperFromStart(state) || state.floorTime >= reaperAppearAfter(state)) spawnReaper(state);
     return;
   }

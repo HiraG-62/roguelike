@@ -71,7 +71,10 @@ export type RuleCondition =
   /** 対象の敵が徘徊（どの部屋にも属さない）。撃破は倒れた瞬間の所属で見る */
   | { kind: "targetRoamer" }
   /** 今の階の種類（分岐路で選んだバイオーム）がどれか */
-  | { kind: "floorKind"; kinds: readonly FloorKind[] };
+  | { kind: "floorKind"; kinds: readonly FloorKind[] }
+  // ---- 2026-09-24 追加（既存の祝福のルール文法移行） ----
+  /** イベントの出どころの種類（見切りのうち、受け流しのスキル〔skill〕ではなく回避で取ったもの = player） */
+  | { kind: "from"; source: EventSource["kind"] };
 
 /** 属性・弱点の条件がどの攻撃の素性を見るか */
 export type RuleAttackVia = "melee" | "ranged";
@@ -98,11 +101,26 @@ export type RuleEffectKind =
   | "strike"
   /** 照準方向へ貫通する衝撃波（祝福の断裂波と同じ弾。magnitude = ダメージ） */
   | "wave"
-  /** ダッシュの回数を count だけ戻す */
-  | "refillDash";
+  /** ダッシュの回数を count だけ戻す（fill なら全部） */
+  | "refillDash"
+  // ---- 2026-09-24 追加（既存の祝福のルール文法移行） ----
+  /** 戦闘中の回復の上限（HEAL.sustainCapRatio）を通さない回復（制圧の報酬など。heal は上限つき） */
+  | "healDirect"
+  /** 上限なしの無敵（duration 秒。invuln は TRIGGER.invulnMax で切る。制圧の報酬など長い加護用） */
+  | "ward"
+  /** イベントの位置から全方位へ氷の破片（count 発、magnitude = ダメージ。速さ・寿命・色は BOON.shatter*） */
+  | "shards"
+  /**
+   * 対象の敵（生きていれば）へ状態異常をそのまま付ける（status / duration / count = スタック / magnitude = 強さ）。
+   * inflict と違い、対象がいなくても周囲へは付けず、持続を切り詰めず、敵ごとの procIcd も見ない（旧フックの付け方）
+   */
+  | "afflict";
 
-/** 効果量の基準。flat = magnitude そのまま / slashBase = 近接 1 段目の威力 × magnitude */
-export type RuleMagnitudeBase = "flat" | "slashBase";
+/**
+ * 効果量の基準。flat = magnitude そのまま / slashBase = 近接 1 段目の威力 × magnitude /
+ * maxHp = 最大生命 × magnitude / eventAmount = イベントの量（振りの威力など GameEvent.amount）× magnitude
+ */
+export type RuleMagnitudeBase = "flat" | "slashBase" | "maxHp" | "eventAmount";
 
 export interface RuleEffect {
   kind: RuleEffectKind;
@@ -116,6 +134,18 @@ export interface RuleEffect {
   radius?: number;
   /** placeTerrain の地形 */
   terrain?: TerrainKind;
+  /** 効果の浮き文字・輪を出さない（旧フックが黙って回復・回収していた祝福の見た目を保つ） */
+  quiet?: boolean;
+  /** restoreMana / refillDash: 量ではなく上限まで満たす（気力は回収量の倍率 manaGainMul を通さない補充） */
+  fill?: boolean;
+  /** spreadStatus: 元のスタック数と付与前の強さ（霊力の倍率を割り戻した値）をそのまま引き継ぐ（疫病の形） */
+  inherit?: boolean;
+  /** 効果の後に自分の頭上へ出す浮き文字（旧フックの「湧水」「結界」など） */
+  text?: string;
+  /** text の色 / spreadStatus の輪の色（省略時は効果の既定） */
+  color?: string;
+  /** afflict の相手。target = イベントの対象（既定）/ source = イベントを起こした敵（見切った攻撃の主） */
+  on?: "target" | "source";
 }
 
 /** 敵の Rule が持てる効果（予告付きハザードのみ） */
@@ -146,6 +176,14 @@ export interface Rule {
   owner: EventSource;
   /** 語ごとの回数上限に数える語。省略時は効果の種類から決める（effectKeyword） */
   keyword?: string;
+  /**
+   * 直接の効果（旧フックから移した祝福）。フックだった頃は system が直接起こした出来事と同じ扱いだったので、
+   * 移しても数値・回数を変えないよう連鎖に数えない: 深さを進めない・減衰なし・語の回数上限に数えない・
+   * 深さの上限に達したイベントでも照合する・連鎖の記録（state.chains）に残さない
+   */
+  direct?: boolean;
+  /** 同じ group の Rule は 1 つのイベントにつき 1 回だけ起きる（断裂波と連撃波を同じ振りで 2 本出さない） */
+  group?: string;
 }
 
 /** 敵の Rule（src/data/enemyCombat.ts）。効果は予告付きハザードに限る */
@@ -178,12 +216,15 @@ const EFFECT_KEYWORD: Readonly<Partial<Record<RuleEffectKind, string>>> = {
   strike: "melee",
   wave: "area",
   refillDash: "dash",
+  healDirect: "heal",
+  ward: "ward",
+  shards: "bullet",
 };
 
 export function effectKeyword(rule: Readonly<Rule>): string {
   if (rule.keyword !== undefined) return rule.keyword;
   const { kind, status } = rule.then;
-  if ((kind === "inflict" || kind === "spreadStatus" || kind === "selfStatus") && status !== undefined) return status;
+  if ((kind === "inflict" || kind === "spreadStatus" || kind === "selfStatus" || kind === "afflict") && status !== undefined) return status;
   return EFFECT_KEYWORD[kind] ?? kind;
 }
 

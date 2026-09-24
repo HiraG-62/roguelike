@@ -83,6 +83,17 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     keywords: kw(["hurt", "wall"], ["counter"]),
     inflicts: [{ on: "contact", kind: "stagger", stacks: 1, duration: 0.35, potency: 0 }],
   },
+  // 二度突きの猪: 猪と同じく出血 2 と接触の怯み。壁に激突すれば自傷の怯み（system/enemies.ts の猪の仕組み）
+  boarDouble: {
+    poise: 60,
+    staggerTime: 0.6,
+    superArmorMul: 0.25,
+    keywords: kw(["hurt", "wall"], ["counter", "wall"]),
+    inflicts: [
+      { on: "contact", kind: "bleed", stacks: 2, duration: 4, potency: BLEED_POTENCY },
+      { on: "contact", kind: "stagger", stacks: 1, duration: 0.35, potency: 0 },
+    ],
+  },
   curseEye: {
     poise: 20,
     staggerTime: 0.6,

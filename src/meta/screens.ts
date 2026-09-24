@@ -1,5 +1,6 @@
-import { ACHIEVEMENTS, type AchievementSave, availableTitles, isAchievementUnlocked } from "./achievements";
-import { CODEX_TABS, CODEX_TAB_LABEL, type CodexPages, type CodexSave, codexEntries } from "./codex";
+import { ACHIEVEMENTS, type AchievementSave, achievementDef, availableTitles, isAchievementUnlocked } from "./achievements";
+import { CODEX_TABS, CODEX_TAB_LABEL, type CodexPages, type CodexSave, type CodexTab, codexEntries } from "./codex";
+import { type LinkMilestone, discoveryCount, hasLinkPage, linkMilestones, nextLinkMilestone } from "./links";
 import type { ListEntry, ListTab } from "./listScreen";
 import {
   QUESTS,
@@ -18,13 +19,41 @@ import {
 
 const NO_TITLE_KEY = "none";
 
+/** 連携の頁の先頭に置く節目の行の key（図鑑の項目とは別） */
+export const LINK_MILESTONE_KEY = "linkMilestone";
+
+function milestoneRewardLabel(m: LinkMilestone): string {
+  if (m.reward.kind === "page") return `図鑑の頁「${CODEX_TAB_LABEL.link}」`;
+  const name = achievementDef(m.reward.achievement)?.name ?? m.reward.achievement;
+  return `称号「${name}」`;
+}
+
+/** 連携の頁の先頭の行: 発見数と次の節目（何が開くか）。数値の強さは配らないので報酬は頁と称号だけ */
+export function linkMilestoneEntry(save: CodexSave): ListEntry {
+  const count = discoveryCount(save);
+  const next = nextLinkMilestone(count);
+  const all = linkMilestones()
+    .map((m) => `${m.count} 種: ${milestoneRewardLabel(m)}${count >= m.count ? "（済）" : ""}`)
+    .join(" / ");
+  const name = next === null ? `発見 ${count} 種（節目はすべて越えた）` : `発見 ${count} 種 ・ 次の節目 ${next.count} 種`;
+  const info = next === null ? "" : milestoneRewardLabel(next);
+  return { key: LINK_MILESTONE_KEY, known: true, name, info, detail: `スキルの連携・反応・連鎖を初めて起こすと数える。${all}` };
+}
+
+/** 図鑑の頁（依頼の報酬 + 発見数の節目） */
+export function codexPagesWithMilestones(save: CodexSave, pages: CodexPages): Set<CodexTab> {
+  const out = new Set<CodexTab>(pages);
+  if (hasLinkPage(save)) out.add("link");
+  return out;
+}
+
 export function codexListTabs(save: CodexSave, pages: CodexPages): ListTab[] {
+  const allPages = codexPagesWithMilestones(save, pages);
   return CODEX_TABS.map((tab) => {
-    const entries = codexEntries(save, tab, pages);
+    const entries = codexEntries(save, tab, allPages);
+    if (tab === "link") return { label: `${CODEX_TAB_LABEL[tab]} ${discoveryCount(save)}`, entries: [linkMilestoneEntry(save), ...entries] };
     const known = entries.filter((e) => e.known).length;
-    const count = tab === "chain" ? `${known}` : `${known}/${entries.length}`;
-    const empty = tab === "chain" ? "まだ連鎖をつないでいない。祝福やスキルの効果が次の効果を呼ぶと記録される。" : undefined;
-    return { label: `${CODEX_TAB_LABEL[tab]} ${count}`, entries, empty };
+    return { label: `${CODEX_TAB_LABEL[tab]} ${known}/${entries.length}`, entries };
   });
 }
 

@@ -1,13 +1,13 @@
 import type { Element } from "../core/element";
-import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FxMarkKind, type GameState, pushSfx } from "../core/state";
-import type { StatusKind } from "../core/status";
+import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, pushSfx } from "../core/state";
+import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
-import { EFFECTS } from "../data/tuning";
+import { EFFECTS, FX_WAVE3, REAPER } from "../data/tuning";
 import type { MovesetKey, ShotKey } from "../data/weapons";
 import type { SfxName } from "../audio/sfxNames";
 import { TRAIT_COLORS, type Item, type TraitColor } from "../loot/types";
 import { colorWeights } from "../loot/resonance";
-import { dominantElement, elementShares, outgoingElement, resolveAttack } from "./elementCombat";
+import { type ElementAffinity, dominantElement, elementShares, outgoingElement, resolveAttack } from "./elementCombat";
 import { ELITE_COLOR } from "./elites";
 
 /**
@@ -23,13 +23,33 @@ import { ELITE_COLOR } from "./elites";
 /** 演出の乱数の初期値を seed から離す（ゲームの rng と同じ列にしない） */
 const FX_SEED_SALT = 0x9e3779b9;
 
-function createEffectsState(seed: number): EffectsState {
-  return { seed: (seed ^ FX_SEED_SALT) >>> 0, deaths: [], marks: [], lastDropId: -1, lastChainTime: -1, ghostTimer: 0, executedId: -1 };
+/**
+ * 作った時点の出来事（芽の提示・満タンの気力・過去のカウンター）は「今起きた」ことにしない。
+ * 遅延で作るので、作る前から続いている状態で演出や音を出さないため
+ */
+function createEffectsState(state: GameState): EffectsState {
+  return {
+    seed: (state.seed ^ FX_SEED_SALT) >>> 0,
+    deaths: [],
+    marks: [],
+    lastDropId: -1,
+    lastChainTime: -1,
+    ghostTimer: 0,
+    executedId: -1,
+    counterMono: 0,
+    lastCounterTime: state.recent.onCounter?.lastTime ?? -1,
+    dots: [],
+    lastBudKey: budKey(state),
+    manaFull: manaIsFull(state),
+    reaperWarnLeft: null,
+    reaperThreat: 0,
+    heartbeatTimer: 0,
+  };
 }
 
 /** 演出の状態（無ければ作る。createGame を触らずに済むよう遅延で作る） */
 export function fxState(state: GameState): EffectsState {
-  if (!state.effects) state.effects = createEffectsState(state.seed);
+  if (!state.effects) state.effects = createEffectsState(state);
   return state.effects;
 }
 
@@ -105,6 +125,7 @@ export function spawnDirectional(
   capList(state.particles, EFFECTS.maxParticles);
 }
 
+/** kind はダメージ文字の種類（7-19）。ダメージ以外の文字は省略する */
 export function addFloatingText(
   state: GameState,
   pos: Vec,
@@ -112,6 +133,7 @@ export function addFloatingText(
   color: string,
   scale = 1,
   life = 0.6,
+  kind?: FloatTextKind,
 ): void {
   state.texts.push({
     pos: { x: pos.x + (fxRandom(state) - 0.5) * 6, y: pos.y - 8 },
@@ -121,6 +143,7 @@ export function addFloatingText(
     life,
     maxLife: life,
     scale,
+    ...(kind ? { kind } : {}),
   });
   capList(state.texts, EFFECTS.maxTexts);
 }
@@ -311,10 +334,15 @@ export function hitElement(state: GameState, kind: DamageKind, skill: boolean): 
   return dominantElement(elementShares(state.stats, atk, skill))?.element ?? "none";
 }
 
-function isWeakHit(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean): boolean {
+/** 属性の弱点 / 耐性に当たったか（素性なしは neutral）。outgoingElement は乱数を使わないので演出から読んでよい */
+function hitAffinity(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean): ElementAffinity {
   const atk = resolveAttack(state.stats, kind, skill);
-  if (!atk) return false;
-  return outgoingElement(state.stats, enemy, atk, skill).affinity === "weak";
+  if (!atk) return "neutral";
+  return outgoingElement(state.stats, enemy, atk, skill).affinity;
+}
+
+function isWeakHit(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean): boolean {
+  return hitAffinity(state, enemy, kind, skill) === "weak";
 }
 
 /** コンボ数の段（EFFECTS.comboTiers の最後に満たした段）。無ければ undefined */
@@ -572,9 +600,10 @@ export function justFx(state: GameState): void {
   addMark(state, "justRing", state.player.body.pos, c.life, c.color);
 }
 
-/** 溜めの段が上がった（player.ts の onChargeLevelUp から 1 行で呼ぶ） */
+/** 溜めの段が上がった（player.ts の onChargeLevelUp から 1 行で呼ぶ）。段の音程の 1 音（8-7）もここで積む */
 export function chargeUpFx(state: GameState, level: number, color: string): void {
   addMark(state, "chargeUp", state.player.body.pos, EFFECTS.chargeUp.life, color, level);
+  pushSfx(state, chargeStepSfxName(level));
 }
 
 /** 部屋の封鎖（floor.ts の lockRoom から 1 行で呼ぶ）: 扉に格子が落ちる。巣窟は色と音を変える */
@@ -657,7 +686,8 @@ export function updateEffects(state: GameState, dt: number): void {
     t.life -= dt;
     t.pos.x += t.vel.x * dt;
     t.pos.y += t.vel.y * dt;
-    t.vel.y *= 0.92;
+    // 継続ダメージの数字は減速させず、小さく上へ漂わせる（7-19）
+    if (t.kind !== "dot") t.vel.y *= 0.92;
   }
   state.texts = state.texts.filter((t) => t.life > 0);
 
@@ -668,6 +698,7 @@ export function updateEffects(state: GameState, dt: number): void {
   watchDrops(state, fx);
   watchChains(state, fx);
   placeDashGhosts(state, fx, dt);
+  updateWave3Effects(state, fx, dt);
 }
 
 /** 階が変わったら演出を捨てる（前の階の座標の死骸や波を持ち越さない） */
@@ -675,4 +706,280 @@ export function resetFloorEffects(state: GameState): void {
   const fx = fxState(state);
   fx.deaths = [];
   fx.marks = [];
+  fx.dots = [];
+}
+
+// -----------------------------------------------------------------------------
+// 演出と音の第 3 弾（docs/ideas/meta-and-weapons.md 7-10 / 7-15 / 7-19 / 8-4 / 8-7〜8-9 / 8-14）
+// -----------------------------------------------------------------------------
+
+function clampUnit(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+// ---- 7-19 ダメージ文字の種類 ----
+
+/** 反応のダメージか: 素性なし（proc）の一撃で、直前に同じ敵で反応が起きている（反応のダメージは hurtEnemy が proc で与える） */
+function isReactionHit(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean): boolean {
+  if (kind !== "proc" || skill) return false;
+  const last = enemy.status.lastReaction;
+  return last !== undefined && state.tick - last.tick <= FX_WAVE3.damageText.reaction.ticks;
+}
+
+/** ダメージ文字の種類。会心 > 反応 > 弱点 > 耐性 の順に 1 つ選ぶ（combat.ts の showHit が浮き文字に渡す） */
+export function damageTextKind(state: GameState, enemy: Enemy, info: Readonly<HitFxInfo>): FloatTextKind {
+  const kind = info.kind ?? "proc";
+  const skill = info.skill === true;
+  if (info.crit) return "crit";
+  if (isReactionHit(state, enemy, kind, skill)) return "reaction";
+  const affinity = hitAffinity(state, enemy, kind, skill);
+  if (affinity === "weak") return "weak";
+  if (affinity === "resist") return "resist";
+  return "normal";
+}
+
+export interface TextLook {
+  color: string;
+  scale: number;
+}
+
+/** 種類ごとの字色と大きさ。会心・通常は base（コンボの色と大きさを畳んだもの）をそのまま使う */
+export function damageTextLook(kind: FloatTextKind, base: Readonly<TextLook>): TextLook {
+  const c = FX_WAVE3.damageText;
+  switch (kind) {
+    case "weak":
+      return { color: c.weak.color, scale: base.scale * c.weak.scale };
+    case "resist":
+      return { color: c.resist.color, scale: base.scale * c.resist.scale };
+    case "reaction":
+      return { color: c.reaction.color, scale: base.scale * c.reaction.scale };
+    case "dot":
+      return { color: base.color, scale: c.dot.scale };
+    case "crit":
+    case "normal":
+      return { color: base.color, scale: base.scale };
+  }
+}
+
+/** 継続ダメージの字色を決める状態異常（先に書いたものほど優先） */
+const DOT_COLOR_OF: readonly (readonly [StatusKind, string])[] = [
+  ["blaze", FX_WAVE3.damageText.dot.burn],
+  ["scorch", FX_WAVE3.damageText.dot.burn],
+  ["burn", FX_WAVE3.damageText.dot.burn],
+  ["venom", FX_WAVE3.damageText.dot.poison],
+  ["poison", FX_WAVE3.damageText.dot.poison],
+  ["corrode", FX_WAVE3.damageText.dot.poison],
+  ["hemorrhage", FX_WAVE3.damageText.dot.bleed],
+  ["bleed", FX_WAVE3.damageText.dot.bleed],
+];
+
+export function dotTextColor(statuses: ReadonlySet<StatusKind>): string {
+  return DOT_COLOR_OF.find(([kind]) => statuses.has(kind))?.[1] ?? FX_WAVE3.damageText.dot.other;
+}
+
+/**
+ * 継続ダメージ（combat.ts の damageEnemy の silent）を敵ごとに束ねる。燃焼・毒は 1 ダメージずつ毎 tick 入るので、
+ * そのまま数字を出すと画面が埋まる。dot.interval 秒ごとに合計を 1 つの小さな数字にする
+ */
+export function noteDotDamage(state: GameState, enemy: Enemy, amount: number): void {
+  if (amount <= 0) return;
+  const fx = fxState(state);
+  const tally = fx.dots.find((d) => d.enemyId === enemy.id);
+  if (tally) {
+    tally.amount += amount;
+    tally.pos = { ...enemy.body.pos };
+    return;
+  }
+  const color = dotTextColor(new Set(enemy.status.effects.map((e) => e.kind)));
+  fx.dots.push({ enemyId: enemy.id, pos: { ...enemy.body.pos }, amount, color, age: 0 });
+  capList(fx.dots, FX_WAVE3.damageText.dot.maxTallies);
+}
+
+function addDotText(state: GameState, amount: number, pos: Vec, color: string): void {
+  const c = FX_WAVE3.damageText.dot;
+  state.texts.push({
+    pos: { x: pos.x + (fxRandom(state) - 0.5) * 4, y: pos.y - 10 },
+    vel: { x: 0, y: -c.rise },
+    text: String(Math.round(amount)),
+    color,
+    life: c.life,
+    maxLife: c.life,
+    scale: c.scale,
+    kind: "dot",
+  });
+  capList(state.texts, EFFECTS.maxTexts);
+}
+
+function flushDots(state: GameState, fx: EffectsState, dt: number): void {
+  if (fx.dots.length === 0) return;
+  const interval = FX_WAVE3.damageText.dot.interval;
+  for (const d of fx.dots) d.age += dt;
+  const ready = fx.dots.filter((d) => d.age >= interval);
+  if (ready.length === 0) return;
+  fx.dots = fx.dots.filter((d) => d.age < interval);
+  for (const d of ready) addDotText(state, d.amount, d.pos, d.color);
+}
+
+// ---- 8-4 反応の音 ----
+
+/** 反応の系統ごとの音（水と熱 = 蒸気、氷 = 砕け、炎 = 燃え上がり、雷 = 火花、腐り・崩れ = 濁り、心 = 高ぶり） */
+const REACTION_SFX: Readonly<Record<ReactionKey, SfxName>> = {
+  vaporize: "reactionSteam",
+  steam: "reactionSteam",
+  quench: "reactionSteam",
+  thaw: "reactionSteam",
+  shatterBleed: "reactionShatter",
+  iceArmor: "reactionShatter",
+  frostPoison: "reactionShatter",
+  ignite: "reactionBlaze",
+  kindle: "reactionBlaze",
+  cauterize: "reactionBlaze",
+  brandBurst: "reactionBlaze",
+  hueBurst: "reactionBlaze",
+  conduct: "reactionSpark",
+  discharge: "reactionSpark",
+  manaCut: "reactionSpark",
+  miasma: "reactionBlight",
+  dissolve: "reactionBlight",
+  lacerate: "reactionBlight",
+  collapse: "reactionBlight",
+  exposeDoom: "reactionBlight",
+  wither: "reactionBlight",
+  panic: "reactionSurge",
+  rage: "reactionSurge",
+  rally: "reactionSurge",
+};
+
+export function reactionSfxName(key: ReactionKey): SfxName {
+  return REACTION_SFX[key];
+}
+
+// ---- 8-7 溜めの段の音程 ----
+
+const CHARGE_STEP_SFX: readonly SfxName[] = ["chargeStep1", "chargeStep2", "chargeStep3"];
+
+/** 段（1 始まり）→ 音。段が足りなければ最後の音 */
+export function chargeStepSfxName(level: number): SfxName {
+  const index = Math.min(CHARGE_STEP_SFX.length, Math.max(1, Math.floor(level))) - 1;
+  return CHARGE_STEP_SFX[index] ?? "chargeStep1";
+}
+
+// ---- 7-10 カウンターの白黒 ----
+
+/** onCounter（player.ts が積む）が新しく起きたら白黒を始める。player.ts を触らずに成立を拾うため直近の記録を読む */
+function watchCounter(state: GameState, fx: EffectsState, dt: number): void {
+  fx.counterMono = Math.max(0, fx.counterMono - dt);
+  const last = state.recent.onCounter;
+  if (!last || last.lastTime <= fx.lastCounterTime) return;
+  fx.lastCounterTime = last.lastTime;
+  fx.counterMono = FX_WAVE3.counterMono.time;
+}
+
+// ---- 7-15 芽吹き / 8-9 芽と銘 ----
+
+function budKey(state: GameState): string {
+  const b = state.pendingBud;
+  return b ? `${b.itemId}|${b.milestone}` : "";
+}
+
+/** 芽が出た瞬間（pendingBud が新しい芽に変わった）: 双葉の粒と短い光柱、上昇の分散和音 */
+export function budBloomFx(state: GameState): void {
+  const c = FX_WAVE3.budBloom;
+  const pos = state.player.body.pos;
+  addMark(state, "budBloom", pos, c.life, c.color);
+  spawnDirectional(state, pos, { x: 0, y: -1 }, c.leafColor, c.particles, c.speed, 0.9, c.life * 0.6);
+  pushSfx(state, "budSprout");
+}
+
+function watchBud(state: GameState, fx: EffectsState): void {
+  const key = budKey(state);
+  if (key === fx.lastBudKey) return;
+  fx.lastBudKey = key;
+  if (key !== "") budBloomFx(state);
+}
+
+/** 銘が刻まれた瞬間（system/loot.ts の chooseBud から 1 行で呼ぶ）: 金の輪と鐘 */
+export function inscribeFx(state: GameState): void {
+  const c = FX_WAVE3.inscribe;
+  const pos = state.player.body.pos;
+  addMark(state, "inscribe", pos, c.life, c.color);
+  spawnBurst(state, pos, c.color, c.particles, 90, 0.5, 1.5);
+  pushSfx(state, "inscribe");
+}
+
+// ---- 8-8 気力満タン ----
+
+function manaIsFull(state: GameState): boolean {
+  const max = state.stats.maxMana;
+  return max > 0 && state.player.mana >= max;
+}
+
+/** 満タンに達した瞬間だけ鈴を鳴らす（mana.ts の増やし口が複数あるので、結果の状態の変わり目で拾う） */
+function watchManaFull(state: GameState, fx: EffectsState): void {
+  const full = manaIsFull(state);
+  if (full && !fx.manaFull) pushSfx(state, "manaFull");
+  fx.manaFull = full;
+}
+
+// ---- 8-14 死神の接近の鼓動 ----
+
+/** reaper.ts が毎ステップ書く: 警告中なら出現までの残り秒、警告していなければ null */
+export function noteReaperWarning(state: GameState, left: number | null): void {
+  fxState(state).reaperWarnLeft = left;
+}
+
+/**
+ * 死神の近さ 0..1（0 は鳴らさない）。出現後は距離（far 以遠で chaseMin、near で 1）、
+ * 警告中は残り時間（警告の始まりで warnMin、出現の直前で warnMax）
+ */
+export function reaperThreat(warnLeft: number | null, reaperDist: number | null): number {
+  const c = FX_WAVE3.heartbeat;
+  if (reaperDist !== null) return c.chaseMin + (1 - c.chaseMin) * clampUnit((c.far - reaperDist) / (c.far - c.near));
+  if (warnLeft === null) return 0;
+  return c.warnMin + (c.warnMax - c.warnMin) * (1 - clampUnit(warnLeft / REAPER.warnMargin));
+}
+
+/** 鼓動の間隔（秒）。近いほど短い */
+export function heartbeatInterval(threat: number): number {
+  const c = FX_WAVE3.heartbeat;
+  return c.slow + (c.fast - c.slow) * clampUnit(threat);
+}
+
+/** 追ってくる死神までの距離（双子は近い方）。去った取り立て屋・不在は null */
+function reaperDistance(state: GameState): number | null {
+  const r = state.reaper;
+  if (!r || r.departed) return null;
+  const p = state.player.body.pos;
+  const d = Math.hypot(r.pos.x - p.x, r.pos.y - p.y);
+  return r.twin ? Math.min(d, Math.hypot(r.twin.x - p.x, r.twin.y - p.y)) : d;
+}
+
+function currentThreat(state: GameState, fx: EffectsState): number {
+  if (state.status !== "playing") return 0;
+  if (state.reaper) {
+    const dist = reaperDistance(state);
+    return dist === null ? 0 : reaperThreat(null, dist);
+  }
+  return reaperThreat(fx.reaperWarnLeft, null);
+}
+
+/** 近さを state に持ち、間隔が来たら鼓動を積む。ゲーム時間で数えるのでスロー中は鼓動もゆっくりになる */
+function updateHeartbeat(state: GameState, fx: EffectsState, dt: number): void {
+  fx.reaperThreat = currentThreat(state, fx);
+  if (fx.reaperThreat <= 0) {
+    fx.heartbeatTimer = 0;
+    return;
+  }
+  fx.heartbeatTimer -= dt;
+  if (fx.heartbeatTimer > 0) return;
+  fx.heartbeatTimer = heartbeatInterval(fx.reaperThreat);
+  pushSfx(state, "reaperHeartbeat");
+}
+
+function updateWave3Effects(state: GameState, fx: EffectsState, dt: number): void {
+  watchCounter(state, fx, dt);
+  flushDots(state, fx, dt);
+  watchBud(state, fx);
+  watchManaFull(state, fx);
+  updateHeartbeat(state, fx, dt);
 }

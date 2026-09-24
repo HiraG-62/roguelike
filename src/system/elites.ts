@@ -2,19 +2,23 @@ import { type EliteKind, type EliteWork, type Enemy, type GameState, type Projec
 import type { StatusKind } from "../core/status";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
-import { ELITE, ENEMY_AI, POISE } from "../data/tuning";
+import { ELITE, ELITE_GREEDY, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
 import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
 import { segmentCircleHit, spawnBomb, spawnShockwave } from "./hazards";
 import { dropItem, enemyDropChance } from "./loot";
 import { applyOnHitStatus, applyStatus, findStatus } from "./statusEffects";
-import { createEnemy } from "./enemies";
+import { createEnemy, moveEnemy } from "./enemies";
 import { consumeCorpse, nearestCorpse, spawnSpot } from "./enemyTraits";
 import { bossArmorBlocks, bossReflects, bossTakenMul } from "./boss";
 import { rallyTakenMul, seedTerrain } from "./enemyTerrain";
 import { placeTerrain } from "./terrain";
 import { manaRegenAllowed } from "./keystones";
+import { chaseHeading, lineOfSight } from "../map/pathing";
+import { overlapsWall } from "./physics";
+import type { FloorItem } from "../loot/types";
+import type { FloorStone } from "../skills/types";
 
 /** エリート修飾子と、盾・反射など「被弾の前に割り込む」処理 */
 
@@ -39,6 +43,7 @@ export const ELITE_KINDS: readonly EliteKind[] = [
   "commanding",
   "evasive",
   "chaining",
+  "greedy",
 ];
 
 export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
@@ -62,6 +67,7 @@ export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
   commanding: "#ffd040",
   evasive: "#80ffe0",
   chaining: "#a0e0ff",
+  greedy: ELITE_GREEDY.color,
 };
 
 export const ELITE_PREFIX: Readonly<Record<EliteKind, string>> = {
@@ -85,6 +91,7 @@ export const ELITE_PREFIX: Readonly<Record<EliteKind, string>> = {
   commanding: "号令の",
   evasive: "見切りの",
   chaining: "鎖縛の",
+  greedy: "強欲の",
 };
 
 /**
@@ -161,9 +168,13 @@ export function makeElitePair(e: Enemy, main: EliteKind, extra: EliteKind): void
 /** 群長のが複製すると報酬が増えすぎる敵（部屋主・金色スライムはドロップ確定） */
 const NO_PACKED_CLONE: readonly EliteKind[] = ELITE_KINDS.filter((k) => k !== "packed");
 
-/** その敵に付けられる修飾子。確定ドロップの敵は群長の（同じ敵を連れて湧く）を外す */
+/**
+ * その敵に付けられる修飾子。確定ドロップの敵は群長の（同じ敵を連れて湧く）を外す。
+ * 動けない敵（砲台・鐘など）は拾いにも逃げにも行けないので強欲のを外す
+ */
 export function eliteKindsFor(def: EnemyDef): readonly EliteKind[] {
-  return def.lairMaster || def.timid ? NO_PACKED_CLONE : ELITE_KINDS;
+  const kinds = def.lairMaster || def.timid ? NO_PACKED_CLONE : ELITE_KINDS;
+  return def.speed > 0 ? kinds : kinds.filter((k) => k !== "greedy");
 }
 
 function createWork(): EliteWork {
@@ -271,7 +282,9 @@ export function eliteDisplayName(e: Enemy): string {
   // 刻限の は残り秒を名前に添える（時計が頭上に見える）
   const timer = e.elite === "timed" && !timedOut(e) ? ` ${Math.ceil(e.eliteWork?.timer ?? 0)}` : "";
   const extra = e.eliteExtra ? ELITE_PREFIX[e.eliteExtra] : "";
-  return `${ELITE_PREFIX[e.elite]}${extra}${name}${timer}`;
+  // 強欲のは抱えている数を添える（追いかける価値が頭上に見える）
+  const loot = carriedCount(e) > 0 ? `（${carriedCount(e)}）` : "";
+  return `${ELITE_PREFIX[e.elite]}${extra}${name}${timer}${loot}`;
 }
 
 /** 毎ステップ、敵の行動より前に呼ぶ: シールド破壊と Linked の HP 共有、追加の修飾子の時間経過 */
@@ -659,8 +672,12 @@ export function deflectProjectile(state: GameState, pr: Projectile, e: Enemy): b
   return true;
 }
 
-/** エリート撃破時: スコア上乗せ・追加ドロップ・死に際の修飾子（爆裂・伝染・寄生）。消えた（自爆）なら何もしない */
+/**
+ * エリート撃破時: スコア上乗せ・追加ドロップ・死に際の修飾子（爆裂・伝染・寄生）。消えた（自爆）なら何もしない。
+ * 強欲のが抱えていた物だけは、消えた場合でも必ず落とす（永続の装備を敵に持ち去らせない）
+ */
 export function onEliteDeath(state: GameState, e: Enemy): void {
+  dropCarried(state, e);
   if (!e.elite || e.vanished) return;
   const def = enemyDef(e.defKey);
   const bonus = Math.round(def.score * (ELITE.scoreMul - 1) * comboMultiplier(state.combo.count));
@@ -712,5 +729,167 @@ function releaseParasites(state: GameState, e: Enemy): void {
     parasite.hp = ELITE.parasiteHp;
     parasite.lastHp = parasite.hp;
     state.enemies.push(parasite);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 強欲の（docs/ideas/enemies.md M12）: 床の遺物・スキル石を拾って逃げる。倒すと拾った物 + 1 つを落とす
+// -----------------------------------------------------------------------------
+
+const SNATCH_TEXT = "奪った";
+const FLOAT_TEXT_SCALE = 1;
+const FLOAT_TEXT_LIFE = 0.8;
+const SNATCH_PARTICLES = 6;
+/** 落とす物の置き場所が壁に掛からないかを見る半径（loot.ts の床アイテムの半径と同じ） */
+const DROP_ITEM_RADIUS = 2;
+
+type LootTarget = { kind: "item"; entry: FloorItem } | { kind: "stone"; entry: FloorStone };
+
+/** 強欲のが抱えている数 */
+export function carriedCount(e: Enemy): number {
+  const c = e.carried;
+  return c ? c.items.length + c.stones.length : 0;
+}
+
+/**
+ * 強欲のの行動。enemies.ts が追跡・攻撃の状態機械の前に呼ぶ（冷気で遅い分は dt に、泥・迅速のは speed に入っている）。
+ * 拾える物があれば拾いに行き、抱えていればプレイヤーから逃げる。行動を引き受けたら true。
+ * 逃げ道が壁で塞がったら ELITE_GREEDY.cornerFightTime 秒は普通の敵として戦う（false を返して状態機械に任せる）
+ */
+export function updateGreedy(state: GameState, e: Enemy, def: EnemyDef, dt: number, speed: number): boolean {
+  // 動けない敵（砲台・鐘など）は拾いにも逃げにも行けないので、普通の敵として振る舞う
+  if (!hasElite(e, "greedy") || speed <= 0) return false;
+  if (e.phase !== "idle" && e.phase !== "chase") return false;
+  const w = workOf(e);
+  if (w.timer > 0) {
+    w.timer = Math.max(0, w.timer - dt);
+    return false;
+  }
+  const run = speed * ELITE_GREEDY.runMul;
+  const target = carriedCount(e) < ELITE_GREEDY.carryMax ? nearestLoot(state, e) : null;
+  if (target) {
+    runToLoot(state, e, def, target, run, dt);
+    return true;
+  }
+  if (carriedCount(e) === 0) return false;
+  return fleeWithLoot(state, e, def, w, run, dt);
+}
+
+/** 見えている範囲で一番近い床の遺物・スキル石（遺物が先、各配列は落ちた順なので決定的） */
+function nearestLoot(state: GameState, e: Enemy): LootTarget | null {
+  const candidates: LootTarget[] = [
+    ...state.floorItems.map((entry): LootTarget => ({ kind: "item", entry })),
+    ...state.skills.floorStones.map((entry): LootTarget => ({ kind: "stone", entry })),
+  ];
+  let best: LootTarget | null = null;
+  let bestD: number = ELITE_GREEDY.seekRadius;
+  for (const t of candidates) {
+    const d = dist(t.entry.pos, e.body.pos);
+    if (d >= bestD || !lineOfSight(state.map, e.body.pos, t.entry.pos)) continue;
+    best = t;
+    bestD = d;
+  }
+  return best;
+}
+
+function runToLoot(state: GameState, e: Enemy, def: EnemyDef, target: LootTarget, speed: number, dt: number): void {
+  const pos = target.entry.pos;
+  if (dist(pos, e.body.pos) <= ELITE_GREEDY.grabRadius) {
+    snatch(state, e, target);
+    return;
+  }
+  const dir = normalize(sub(pos, e.body.pos));
+  const heading = chaseHeading(state.map, e.body.pos, pos, dir);
+  if (heading.x !== 0) e.facing = heading;
+  moveEnemy(state, e, def, heading.x * speed * dt, heading.y * speed * dt);
+}
+
+/** 床から取り上げて抱える */
+function snatch(state: GameState, e: Enemy, target: LootTarget): void {
+  const carried = e.carried ?? { items: [], stones: [] };
+  e.carried = carried;
+  if (target.kind === "item") {
+    state.floorItems = state.floorItems.filter((fi) => fi !== target.entry);
+    carried.items.push(target.entry);
+  } else {
+    state.skills.floorStones = state.skills.floorStones.filter((fs) => fs !== target.entry);
+    carried.stones.push(target.entry);
+  }
+  addFloatingText(state, e.body.pos, SNATCH_TEXT, ELITE_GREEDY.color, FLOAT_TEXT_SCALE, FLOAT_TEXT_LIFE);
+  spawnBurst(state, e.body.pos, ELITE_GREEDY.color, SNATCH_PARTICLES, 60, 0.3, 1.5);
+  pushSfx(state, "greedySnatch");
+}
+
+/** プレイヤーから離れる。近くにいなければその場で待つ。壁で止まったら戦う（false） */
+function fleeWithLoot(state: GameState, e: Enemy, def: EnemyDef, w: EliteWork, speed: number, dt: number): boolean {
+  const g = ELITE_GREEDY;
+  const player = state.player.body.pos;
+  if (dist(player, e.body.pos) > g.fleeRadius) return true;
+  const away = normalize(sub(e.body.pos, player), { x: -e.facing.x, y: -e.facing.y });
+  e.facing = scale(away, -1);
+  const before = { ...e.body.pos };
+  const want = speed * dt;
+  moveEnemy(state, e, def, away.x * want, away.y * want);
+  if (want <= 0 || dist(before, e.body.pos) >= want * g.stuckRatio) return true;
+  // 追い詰められた: しばらく普通に戦う
+  w.timer = g.cornerFightTime;
+  if (e.phase === "idle") e.phase = "chase";
+  return false;
+}
+
+/** 抱えていた物を倒れた場所の周りに並べて落とす（乱数を使わず円周に置く）。撃破なら + ELITE_GREEDY.bonusDrops 個 */
+function dropCarried(state: GameState, e: Enemy): void {
+  const carried = e.carried;
+  if (!carried || carriedCount(e) === 0) return;
+  const total = carriedCount(e);
+  let slot = 0;
+  for (const fi of carried.items) {
+    fi.pos = dropSpot(state, e.body.pos, slot++, total, e.id);
+    state.floorItems.push(fi);
+  }
+  for (const fs of carried.stones) {
+    fs.pos = dropSpot(state, e.body.pos, slot++, total, e.id);
+    state.skills.floorStones.push(fs);
+  }
+  e.carried = { items: [], stones: [] };
+  pushSfx(state, "lootDrop");
+  if (e.vanished) return;
+  for (let i = 0; i < ELITE_GREEDY.bonusDrops; i++) dropItem(state, e.body.pos);
+}
+
+/** 円周上の index 番目の置き場所。壁に掛かるなら中心 */
+function dropSpot(state: GameState, center: Vec, index: number, total: number, phase: number): Vec {
+  const q = add(center, scale(fromAngle((index / Math.max(1, total)) * FULL_CIRCLE + phase), ELITE_GREEDY.dropSpread));
+  return overlapsWall(state, q.x, q.y, DROP_ITEM_RADIUS) ? { ...center } : q;
+}
+
+/** 階を移る直前に呼ぶ: 生きている強欲のが抱えている物をすべて取り上げる（buildFloor が敵ごと消す前に） */
+export function takeGreedyLoot(state: GameState): { items: FloorItem[]; stones: FloorStone[] } {
+  const loot: { items: FloorItem[]; stones: FloorStone[] } = { items: [], stones: [] };
+  for (const e of state.enemies) {
+    if (!e.carried) continue;
+    loot.items.push(...e.carried.items);
+    loot.stones.push(...e.carried.stones);
+    e.carried = { items: [], stones: [] };
+  }
+  return loot;
+}
+
+/**
+ * 階を移った直後に呼ぶ: takeGreedyLoot で取り上げた物を新しい階のプレイヤーの足元に落とす。
+ * 前の階の床に落としても階と一緒に失われるので、持ち去られた遺物だけは次の階へ届ける（永続の装備を失わせない）
+ */
+export function dropGreedyLootAtPlayer(state: GameState, loot: { items: FloorItem[]; stones: FloorStone[] }): void {
+  const total = loot.items.length + loot.stones.length;
+  if (total === 0) return;
+  const center = state.player.body.pos;
+  let slot = 0;
+  for (const fi of loot.items) {
+    fi.pos = dropSpot(state, center, slot++, total, 0);
+    state.floorItems.push(fi);
+  }
+  for (const fs of loot.stones) {
+    fs.pos = dropSpot(state, center, slot++, total, 0);
+    state.skills.floorStones.push(fs);
   }
 }

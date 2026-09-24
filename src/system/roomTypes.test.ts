@@ -121,6 +121,8 @@ describe("フロア種別", () => {
     expect(room?.tiles).toBeDefined();
     if (!room?.tiles) return;
     room.kind = "horde";
+    // 隣の部屋の敵に気付かれて既に「交戦中」だと入室処理を通らないので、入る前に交戦を解いておく
+    room.engaged = false;
     enterRoom(state, index);
     expect(room.locked).toBe(true);
     // 部屋内の任意のタイルから、ロックされていない床だけを辿っても部屋の外に出られない

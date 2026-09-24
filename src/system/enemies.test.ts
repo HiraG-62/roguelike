@@ -17,6 +17,9 @@ import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { isStaggered } from "./poise";
 import { applyStatus, hasStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { DOUBLE_CHARGE, TERRAIN_MUD_SMOKE } from "../data/tuning";
+import { add, scale, sub, normalize } from "../core/vec";
+import { placeTerrain } from "./terrain";
 
 const STEPS = 500;
 const HUGE_HP = 1_000_000;
@@ -740,5 +743,92 @@ describe("同時攻撃の上限（ENEMY_AI.maxSimultaneousStrikers）", () => {
     tickEnemies(state);
     expect(a.phase).toBe("strike");
     expect(b.phase).toBe("strike");
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 二度突きの猪（docs/ideas/enemies.md E6）と泥の中の突進
+// -----------------------------------------------------------------------------
+
+describe("二度突きの猪", () => {
+  it("猪の再配色種で、深度 5 以上に出る。予告は折れ線（enemyTelegraph は直線を出さない）", () => {
+    const def = enemyDef("boarDouble");
+    expect(def.behavior).toBe("charger");
+    expect(def.recolor?.base).toBe("boar");
+    expect(def.minDepth).toBeGreaterThanOrEqual(5);
+    const state = arena();
+    const b = placeEnemy(state, "boarDouble", 60);
+    expect(enemyTelegraph(b, def)).toBeNull();
+  });
+
+  it("予備動作で折れ線が決まり予告中は無害、1 本目の横へ逃げても 2 本目が当たる", () => {
+    const state = arena();
+    state.depth = 5;
+    const b = readyEnemy(state, "boarDouble", 60);
+    b.hp = HUGE_HP;
+    tickEnemies(state);
+    expect(b.phase).toBe("windup");
+    const path = b.doubleCharge;
+    if (!path) throw new Error("折れ線が決まっていない");
+    expect(path.leg).toBe(1);
+    // 2 本目は 1 本目から turnDeg 曲がり、長さは leg2Len
+    const leg1 = normalize(sub(path.turn, b.body.pos));
+    const leg2 = normalize(sub(path.end, path.turn));
+    const cos = leg1.x * leg2.x + leg1.y * leg2.y;
+    expect(cos, "曲がる角度").toBeCloseTo(Math.cos((DOUBLE_CHARGE.turnDeg * Math.PI) / 180), 3);
+    expect(dist(path.turn, path.end)).toBeCloseTo(DOUBLE_CHARGE.leg2Len, 3);
+    // 1 本目の横（2 本目の途中）へ逃げる
+    const hideAt = add(path.turn, scale(leg2, DOUBLE_CHARGE.leg2Len * 0.4));
+    expect(overlapsWall(state, hideAt.x, hideAt.y, state.player.body.radius), "逃げた先は床").toBe(false);
+    state.player.body.pos = { ...hideAt };
+    const hp = state.player.hp;
+    let turned = false;
+    for (let i = 0; i < 600 && state.player.hp === hp; i++) {
+      if (b.phase === "windup") expect(state.player.hp, "予告中は無害").toBe(hp);
+      if (b.doubleCharge?.leg === 2) turned = true;
+      tickEnemies(state);
+    }
+    expect(turned, "1 本目の終点で 2 本目へ曲がる").toBe(true);
+    expect(state.player.hp, "2 本目が当たる").toBeLessThan(hp);
+    expect(hasStatus(state.player.status, "bleed"), "猪と同じく出血").toBe(true);
+  });
+
+  it("2 本目の先の壁に激突すると猪と同じく自傷の怯み", () => {
+    const state = arena();
+    state.depth = 5;
+    const b = placeEnemy(state, "boarDouble", 0, 0);
+    b.hp = HUGE_HP;
+    // プレイヤーは遠くへ。猪はプレイヤーの位置から出発し、少し下で右へ曲がって壁へ
+    state.player.body.pos = { x: state.player.body.pos.x - 2000, y: state.player.body.pos.y - 2000 };
+    const start = { ...b.body.pos };
+    b.phase = "strike";
+    b.phaseTimer = enemyDef("boarDouble").strikeTime;
+    b.strikeDir = { x: 0, y: 1 };
+    b.doubleCharge = { turn: { x: start.x, y: start.y + 2 }, end: { x: start.x + 4000, y: start.y + 2 }, leg: 1 };
+    for (let i = 0; i < 200 && !isStaggered(b); i++) tickEnemies(state);
+    expect(b.doubleCharge.leg).toBe(2);
+    expect(isStaggered(b), "壁に激突して怯む").toBe(true);
+  });
+});
+
+describe("泥の中の突進", () => {
+  it("泥の中では突進の移動距離が縮む（strike の速さに moveMul が掛かる）", () => {
+    const run = (mud: boolean): number => {
+      const state = arena();
+      const b = placeEnemy(state, "boar", 0, 0);
+      b.hp = HUGE_HP;
+      state.player.body.pos = { x: state.player.body.pos.x - 2000, y: state.player.body.pos.y - 2000 };
+      const start = { ...b.body.pos };
+      if (mud) placeTerrain(state, start.x, start.y, "mud", 400, 0);
+      b.phase = "strike";
+      b.phaseTimer = 0.1;
+      b.strikeDir = { x: 1, y: 0 };
+      updateEnemies(state, 0.05);
+      return dist(start, b.body.pos);
+    };
+    const dry = run(false);
+    const wet = run(true);
+    expect(dry).toBeGreaterThan(0);
+    expect(wet / dry).toBeCloseTo(TERRAIN_MUD_SMOKE.mud.moveMul, 2);
   });
 });

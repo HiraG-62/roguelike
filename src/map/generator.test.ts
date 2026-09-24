@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "./generator";
+import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors, planTerrain } from "./generator";
+import { terrainCode } from "../core/terrain";
+import { TERRAIN_MUD_SMOKE } from "../data/tuning";
 import { type GameMap, type Point, Tile, getTile, isWalkable, rectCenter, toIndex } from "./grid";
 
 const SEED_SAMPLES = 50;
@@ -70,5 +72,28 @@ describe("generateRoomsAndCorridors", () => {
       if (!first) continue;
       expect(canReachStairs(map, rectCenter(first)), `seed=${seed}`).toBe(true);
     }
+  });
+});
+
+describe("planTerrain の泥と煙", () => {
+  const map = generateRoomsAndCorridors(createRng(3), DEFAULT_GENERATOR_OPTIONS);
+  const mud = terrainCode("mud");
+  const smoke = terrainCode("smoke");
+
+  it("泥は genMinDepth より浅い階には置かれない", () => {
+    for (let seed = 0; seed < SEED_SAMPLES; seed++) {
+      const kinds = planTerrain(createRng(seed), map, TERRAIN_MUD_SMOKE.mud.genMinDepth - 1, new Set([0]));
+      expect(kinds.includes(mud), `seed ${seed}`).toBe(false);
+    }
+  });
+
+  it("深い階では泥も自然に置かれうる（煙は自然配置しない）", () => {
+    let mudSeen = false;
+    for (let seed = 0; seed < SEED_SAMPLES; seed++) {
+      const kinds = planTerrain(createRng(seed), map, 8, new Set([0]));
+      if (kinds.includes(mud)) mudSeen = true;
+      expect(kinds.includes(smoke), `seed ${seed} に煙`).toBe(false);
+    }
+    expect(mudSeen, "50 seed のどこかで泥が出る").toBe(true);
   });
 });

@@ -4,7 +4,7 @@ import type { Rule } from "../core/rules";
 import type { TimedMul } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
-import type { MovesetKey } from "../data/weapons";
+import type { MovesetDef, MovesetKey } from "../data/weapons";
 
 /**
  * スキルシステムの共有型。docs/ideas/skills.md「6-1」「7. 最小実装の仕様」。
@@ -119,8 +119,15 @@ export type Wave2SkillKey = (typeof WAVE2_SKILL_KEYS)[number];
 /** 変身スキル（SkillRunState.form を立てる） */
 export type FormSkillKey = "titanForm" | "swiftForm" | "spiritForm";
 
-/** 追加はここへ（BASE / EXTRA / WAVE2 のどれかに足す） */
-export const SKILL_KEYS = [...BASE_SKILL_KEYS, ...EXTRA_SKILL_KEYS, ...WAVE2_SKILL_KEYS] as const;
+/**
+ * 第 3 弾: 左右クリックの動作そのものを差し替える変身（SkillRunState.shape を立てる）。
+ * 定義は skills/defs3.ts、状態遷移と左右クリックの差し替えは skills/forms.ts
+ */
+export const WAVE3_SKILL_KEYS = ["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"] as const;
+export type Wave3SkillKey = (typeof WAVE3_SKILL_KEYS)[number];
+
+/** 追加はここへ（BASE / EXTRA / WAVE2 / WAVE3 のどれかに足す） */
+export const SKILL_KEYS = [...BASE_SKILL_KEYS, ...EXTRA_SKILL_KEYS, ...WAVE2_SKILL_KEYS, ...WAVE3_SKILL_KEYS] as const;
 export type SkillKey = (typeof SKILL_KEYS)[number];
 
 /** 最小実装の 4 + 追加の 7 */
@@ -739,6 +746,29 @@ export interface FormState {
   recover: number;
 }
 
+/**
+ * 第 3 弾の変身中（skills/forms.ts）。武器種は差し替えず、左右クリックの動作を forms.ts が差し替える。
+ * total が 0 の変身（砲身化・業火の化身）は時間では切れない（ダッシュ・気力切れ・もう一度撃つと解ける）
+ */
+export interface ShapeFormState {
+  key: Wave3SkillKey;
+  slot: number;
+  /** 変身してからの秒 */
+  elapsed: number;
+  /** 持続の秒（0 なら時間で切れない） */
+  total: number;
+  /** 解けた後の反動の秒（深化で伸びる） */
+  recover: number;
+  /** 発動時の最終パラメータ（噛みつき・砲撃・出血の強さはここから読む） */
+  params: CastParams;
+  /** 変身中だけの動作（遠吠え・砲撃）の再使用の残り秒 */
+  actionLeft: number;
+  /** 霊体化: すり抜けた敵 id */
+  passed: Set<number>;
+  /** 狼化・鉄塊化: 差し替えた近接の型（発動時の威力・怯み値の倍率を畳んである）。無ければ装備の武器種のまま */
+  moveset: MovesetDef | null;
+}
+
 /** 結界杭 */
 export interface WardStake {
   id: number;
@@ -887,6 +917,14 @@ export interface SkillRunState {
   form: FormState | null;
   /** 変身が切れた後の反動（移動が遅い）の残り秒 */
   formRecover: number;
+  // ---- 第 3 弾（skills/forms.ts） ----
+  /** 左右クリックを差し替える変身中（無ければ null）。form とは同時に立たない */
+  shape: ShapeFormState | null;
+  /** 変身 8 種の共有の待ちの残り秒（0 より大きい間はどの変身も撃てない）と、HUD 用の長さ */
+  formWait: number;
+  formWaitTotal: number;
+  /** いまの変身（form / shape のどちらか）が始まった clock。変身していなければ null */
+  formSince: number | null;
   stakes: WardStake[];
   stakeTick: number;
   traps: SkillTrap[];

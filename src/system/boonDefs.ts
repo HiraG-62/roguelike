@@ -1,11 +1,16 @@
 /**
  * 祝福の定義表（データのみ）。ロジックは system/boons.ts（抽選・選択・既存のフック）と
  * system/boonRules.ts（拡張で足したルール）。docs/ideas/boons-expansion.md
+ * 「〜時: 〜」で書ける効果は rules（統一ルール文法。旧フックから移したものは directRules）に置き、
+ * src/system/rules.ts の resolveRules がステップ末に照合する
  */
 
+import { type EventKind, type EventSource, SWING_TAG } from "../core/events";
 import { type KeywordProfile, kw } from "../core/keywords";
-import type { Rule } from "../core/rules";
+import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import type { StatusKind } from "../core/status";
 import type { JobKey } from "../data/jobs";
+import { BOON, STATUS } from "../data/tuning";
 import type { MovesetKey, ShotKey } from "../data/weapons";
 import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
 
@@ -229,6 +234,54 @@ export interface BoonDef {
   keywords: KeywordProfile;
 }
 
+// -----------------------------------------------------------------------------
+// 旧フックから移した祝福の Rule（docs/ideas/synergy-web.md 3-c）。
+// フック（boons.ts / boonRules.ts）に直書きしていた「〜時: 〜」の効果を統一ルール文法で書いたもの。
+// 数値・発火条件・回数をフックと同じにするため、確率 1・ICD 0・direct（連鎖に数えない）で組む
+// -----------------------------------------------------------------------------
+
+interface DirectSpec {
+  when: EventKind;
+  if?: readonly RuleCondition[];
+  then: RuleEffect;
+  /** 同じイベントで 1 回だけ（断裂波と連撃波） */
+  group?: string;
+}
+
+const ALWAYS = 1;
+const NO_ICD = 0;
+/** 野火・疫病は元の強さをそのまま広げる（spreadStatus の倍率） */
+const SAME_POTENCY = 1;
+/** 量を持たない効果（上限まで満たす・状態異常の強さ 0 など）の magnitude */
+const NO_AMOUNT = 0;
+/** 断裂波と連撃波は同じ振りで 1 本だけ出る（フックでも 1 本だった） */
+const WAVE_GROUP = "boonWave";
+
+function directRules(key: BoonKey, specs: readonly DirectSpec[]): Rule[] {
+  const owner: EventSource = { kind: "boon", key };
+  return specs.map((s, i) => ({
+    id: ruleId(owner, i),
+    when: s.when,
+    if: s.if ?? [],
+    then: s.then,
+    chance: ALWAYS,
+    icd: NO_ICD,
+    scope: SCOPE_ANY,
+    owner,
+    direct: true,
+    ...(s.group === undefined ? {} : { group: s.group }),
+  }));
+}
+
+function targetHas(status: StatusKind): RuleCondition {
+  return { kind: "targetHas", status };
+}
+
+/** 回避で取った見切り（受け流しのスキルが積む見切りは出どころが skill なので外す。フックは回避の見切りだけだった） */
+const DODGED: RuleCondition = { kind: "from", source: "player" };
+/** 最終段の振り（ダッシュ攻撃は除く） */
+const FINISHER_SWING: RuleCondition = { kind: "eventTag", tag: SWING_TAG.finisher };
+
 export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   finisherOnly: {
     key: "finisherOnly",
@@ -300,6 +353,14 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["melee", "combo"],
     keywords: kw(["area"], ["combo"]),
     cursed: false,
+    rules: directRules("comboWave", [
+      {
+        when: "onSwing",
+        if: [{ kind: "comboAbove", count: BOON.comboWaveThreshold }],
+        then: { kind: "wave", magnitude: BOON.waveDamageRatio, scaleBy: "eventAmount" },
+        group: WAVE_GROUP,
+      },
+    ]),
   },
   heartBurn: {
     key: "heartBurn",
@@ -372,6 +433,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["room"],
     keywords: kw(["ward"], ["clear"]),
     cursed: false,
+    rules: directRules("clearShield", [
+      { when: "onRoomClear", then: { kind: "ward", magnitude: NO_AMOUNT, duration: BOON.clearInvulnTime, text: "結界", color: BOON.guardColor } },
+    ]),
   },
   clearHeal: {
     key: "clearHeal",
@@ -382,6 +446,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["room", "hp"],
     keywords: kw(["heal", "lowHp"], ["clear"]),
     cursed: true,
+    rules: directRules("clearHeal", [{ when: "onRoomClear", then: { kind: "healDirect", magnitude: BOON.clearHealRatio, scaleBy: "maxHp" } }]),
   },
   finisherWave: {
     key: "finisherWave",
@@ -392,6 +457,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["melee"],
     keywords: kw(["area", "wall"], ["finisher"]),
     cursed: false,
+    rules: directRules("finisherWave", [
+      { when: "onSwing", if: [FINISHER_SWING], then: { kind: "wave", magnitude: BOON.waveDamageRatio, scaleBy: "eventAmount" }, group: WAVE_GROUP },
+    ]),
   },
   rearGuard: {
     key: "rearGuard",
@@ -486,6 +554,13 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     gives: ["burn"],
     cursed: false,
     requires: "burn",
+    rules: directRules("burnSpread", [
+      {
+        when: "onKill",
+        if: [targetHas("burn")],
+        then: { kind: "spreadStatus", status: "burn", magnitude: SAME_POTENCY, radius: BOON.burnSpreadRadius, duration: STATUS.burnDuration },
+      },
+    ]),
   },
   chillShatter: {
     key: "chillShatter",
@@ -498,6 +573,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     gives: ["chill"],
     cursed: false,
     requires: "chill",
+    rules: directRules("chillShatter", [
+      { when: "onKill", if: [targetHas("chill")], then: { kind: "shards", magnitude: BOON.shatterDamage, count: BOON.shatterShards } },
+    ]),
   },
   dashShock: {
     key: "dashShock",
@@ -509,6 +587,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["shock"], ["dash"]),
     gives: ["shock"],
     cursed: false,
+    rules: directRules("dashShock", [{ when: "onDash", then: { kind: "chainLightning", magnitude: BOON.dashShockRatio, scaleBy: "slashBase" } }]),
   },
   critChain: {
     key: "critChain",
@@ -530,6 +609,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["hp"],
     keywords: kw(["heal"], ["kill"]),
     cursed: true,
+    rules: directRules("bloodFeast", [{ when: "onKill", then: { kind: "heal", magnitude: BOON.feastHeal, quiet: true } }]),
   },
   eliteMagnet: {
     key: "eliteMagnet",
@@ -594,6 +674,21 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     gives: ["poison"],
     cursed: false,
     requires: "poison",
+    rules: directRules("plague", [
+      {
+        when: "onKill",
+        if: [targetHas("poison")],
+        then: {
+          kind: "spreadStatus",
+          status: "poison",
+          magnitude: SAME_POTENCY,
+          inherit: true,
+          radius: BOON.plagueRadius,
+          duration: STATUS.poison.duration,
+          color: BOON.plagueColor,
+        },
+      },
+    ]),
   },
   bloodMist: {
     key: "bloodMist",
@@ -659,6 +754,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["mana"],
     keywords: kw(["mana"], ["kill"]),
     cursed: false,
+    rules: directRules("reaperCup", [{ when: "onKill", then: { kind: "restoreMana", magnitude: BOON.reaperCupKillMana, quiet: true } }]),
   },
   keenBreath: {
     key: "keenBreath",
@@ -670,6 +766,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["mana"], ["just"]),
     gives: ["mana"],
     cursed: false,
+    rules: directRules("keenBreath", [
+      { when: "onJustDodge", if: [DODGED], then: { kind: "restoreMana", magnitude: BOON.keenBreathJustMana, quiet: true } },
+    ]),
   },
   circulation: {
     key: "circulation",
@@ -939,6 +1038,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["weaken"], ["just"]),
     gives: ["weaken"],
     cursed: false,
+    rules: directRules("glare", [
+      { when: "onJustDodge", if: [DODGED], then: { kind: "afflict", status: "weaken", magnitude: NO_AMOUNT, duration: BOON.glareTime, on: "source" } },
+    ]),
   },
   intimidate: {
     key: "intimidate",
@@ -1083,6 +1185,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["dash", "just"],
     keywords: kw(["dash"], ["just"]),
     cursed: false,
+    rules: directRules("justReturn", [
+      { when: "onJustDodge", if: [DODGED], then: { kind: "refillDash", magnitude: NO_AMOUNT, count: 1, quiet: true } },
+    ]),
   },
   passCut: {
     key: "passCut",
@@ -1155,6 +1260,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["bleed", "dash"],
     keywords: kw(["dash"], ["bleed", "kill"]),
     cursed: false,
+    rules: directRules("bloodReturn", [
+      { when: "onKill", if: [targetHas("bleed")], then: { kind: "refillDash", magnitude: NO_AMOUNT, fill: true, quiet: true } },
+    ]),
   },
   laceration: {
     key: "laceration",
@@ -1208,6 +1316,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["mana"], ["stagger"]),
     gives: ["mana"],
     cursed: false,
+    rules: directRules("keenEye", [{ when: "onStagger", then: { kind: "restoreMana", magnitude: BOON.keenEyeMana, quiet: true } }]),
   },
   collapseChain: {
     key: "collapseChain",
@@ -1272,6 +1381,9 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     keywords: kw(["vulnerable"], ["hurt"]),
     gives: ["vulnerable"],
     cursed: false,
+    rules: directRules("woundMemory", [
+      { when: "onHurt", then: { kind: "afflict", status: "vulnerable", magnitude: NO_AMOUNT, duration: BOON.woundTime } },
+    ]),
   },
   reaperShadow: {
     key: "reaperShadow",
@@ -1332,6 +1444,10 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     tags: ["mana", "just"],
     keywords: kw(["mana"], ["just", "kill"]),
     cursed: true,
+    rules: directRules("heavenEarth", [
+      { when: "onJustDodge", if: [DODGED], then: { kind: "restoreMana", magnitude: NO_AMOUNT, fill: true } },
+      { when: "onKill", then: { kind: "restoreMana", magnitude: NO_AMOUNT, fill: true } },
+    ]),
   },
   afterglow: {
     key: "afterglow",
@@ -1462,6 +1578,21 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     gives: ["poison", "bleed"],
     cursed: false,
     duo: ["plague", "bloodMist"],
+    rules: directRules("plagueBlood", [
+      {
+        when: "onKill",
+        if: [targetHas("bleed"), targetHas("poison")],
+        then: {
+          kind: "spreadStatus",
+          status: "bleed",
+          magnitude: SAME_POTENCY,
+          inherit: true,
+          radius: BOON.plagueRadius,
+          duration: STATUS.bleed.duration,
+          quiet: true,
+        },
+      },
+    ]),
   },
   thunderBlast: {
     key: "thunderBlast",

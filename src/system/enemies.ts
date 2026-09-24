@@ -5,7 +5,7 @@ import { type EnemyBehavior, type EnemyDef, depthDamageBonus, depthHpScale, enem
 import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
-import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites } from "./elites";
+import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites, updateGreedy } from "./elites";
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
@@ -16,7 +16,7 @@ import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./bos
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
-import { placeTerrain } from "./terrain";
+import { placeTerrain, terrainMoveMul } from "./terrain";
 import {
   BASILISK_BITE,
   BASILISK_GAZE,
@@ -87,6 +87,7 @@ import {
   frostCrusherReady,
   isMimicTongue,
   nextMimicMove,
+  planDoubleCharge,
   rallyFollowers,
   recordTrail,
   ringBell,
@@ -94,6 +95,7 @@ import {
   strikeEcho,
   strikeShockRing,
   strikeSilence,
+  steerDoubleCharge,
   telegraphEcho,
   telegraphKamikaze,
   telegraphSilence,
@@ -352,6 +354,7 @@ export function updateEnemies(state: GameState, dt: number): void {
       continue;
     }
     if (updateTimid(state, e, def, edt)) continue;
+    if (updateGreedy(state, e, def, edt, enemySpeed(state, e, def))) continue;
     if (transformIfBroken(state, e, def)) continue;
     beforeAct(state, e, def, edt);
 
@@ -486,7 +489,9 @@ function toChase(e: Enemy, def: EnemyDef): void {
 }
 
 function enemySpeed(state: GameState, e: Enemy, def: EnemyDef): number {
-  return def.speed * eliteSpeedMul(e) * frenzyMul(state, def) * terrainSpeedMul(state, e, def) * wave3SpeedMul(state, e, def);
+  const base = def.speed * eliteSpeedMul(e) * frenzyMul(state, def) * terrainSpeedMul(state, e, def) * wave3SpeedMul(state, e, def);
+  // 泥の中は歩きも突進も遅い（system/terrain.ts）
+  return base * terrainMoveMul(state, e.body.pos);
 }
 
 /** Wave 3 の足の倍率: 虚ろは照準を向けられると止まる、潜った土潜りは速い */
@@ -669,6 +674,9 @@ function telegraphWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): v
     case "silencer":
       telegraphSilence(state, e);
       return;
+    case "charger":
+      if (def.doubleCharge) planDoubleCharge(state, e, dir);
+      return;
     default:
       telegraphWave3(state, e, def, dir);
       return;
@@ -762,6 +770,9 @@ function aimFixedAtWindup(e: Enemy, def: EnemyDef): boolean {
       return true;
     case "mimic":
       return isMimicTongue(e);
+    case "charger":
+      // 二度突きの猪は予告した折れ線をそのまま走る
+      return def.doubleCharge === true;
     default:
       return false;
   }
@@ -985,6 +996,10 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
       endStrike(state, e, def, true);
       return;
     }
+    if (def.doubleCharge && steerDoubleCharge(state, e)) {
+      endStrike(state, e, def);
+      return;
+    }
     const damage = contactDamageOf(e, def);
     if (damage > 0) {
       const result = touchPlayer(state, e, damage);
@@ -1008,6 +1023,8 @@ function strikeSpeedMul(e: Enemy, def: EnemyDef): number {
 
 /** 接触していればダメージ（当たれば ENEMY_COMBAT の接触の状態異常も付く）。接触していなければ null */
 function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResult | null {
+  // 霊体化（skills/forms.ts）は敵の体と近接をすり抜ける
+  if (state.skills.shape?.key === "wraithForm") return null;
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return null;
   const result = damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e);
@@ -1175,7 +1192,8 @@ export type EnemyTelegraph =
 export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
   switch (def.behavior) {
     case "charger":
-      return { kind: "line" };
+      // 二度突きの猪の折れ線は render/chargeLineUi.ts が e.doubleCharge を読んで描く
+      return def.doubleCharge ? null : { kind: "line" };
     case "laser":
       return { kind: "laser" };
     case "mimic":

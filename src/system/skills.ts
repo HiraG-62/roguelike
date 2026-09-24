@@ -25,6 +25,20 @@ import {
 } from "../skills/actions2";
 import { type ComboDef, findCombo } from "../skills/combos";
 import {
+  castShape,
+  inAnyForm,
+  isFormSkill,
+  isShapeKey,
+  isToggleOff,
+  noteFormStart,
+  settleFormEnd,
+  shapeCastBlock,
+  shapeMoveMul,
+  tickFormWait,
+  toggleOffShape,
+  updateShape,
+} from "../skills/forms";
+import {
   MODIFIERS,
   SKILL,
   SKILL_DEFS,
@@ -82,6 +96,7 @@ import {
   type SkillStone,
   WAVE2_SKILL_KEYS,
   type Wave2SkillKey,
+  type Wave3SkillKey,
 } from "../skills/types";
 import type { Element } from "../core/element";
 import { JOBS } from "../data/jobs";
@@ -243,6 +258,10 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     lastHp: null,
     form: null,
     formRecover: 0,
+    shape: null,
+    formWait: 0,
+    formWaitTotal: 0,
+    formSince: null,
     stakes: [],
     stakeTick: 0,
     traps: [],
@@ -409,7 +428,7 @@ export function skillMoveMul(state: GameState): number {
   if (rs.parryFailTimer > 0 || rs.stunTimer > 0) return 0;
   const haste = rs.haste.time > 0 ? rs.haste.mul : 1;
   const frost = playerInFrost(state) ? SKILL.frostField.selfMoveMul : 1;
-  return activeMoveMul(rs.active) * haste * frost * chargingMoveMul(state) * formRecoverMoveMul(state);
+  return activeMoveMul(rs.active) * haste * frost * chargingMoveMul(state) * formRecoverMoveMul(state) * shapeMoveMul(state);
 }
 
 /** 溜め中の移動倍率（段階溜めは溜め符より重い） */
@@ -497,6 +516,9 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   updateDebts(state, dt);
   // 変身の武器種は発動・近接より先に確かめる（装備を替えて stats が作り直されていても差し直す）
   updateForm(state, dt);
+  // 左右クリックを差し替える変身（第 3 弾）。解けていたら共有の待ちを伸ばす（どう積んでも稼働率が上限を超えない）
+  updateShape(state, dt);
+  settleFormEnd(state);
 
   // ダッシュは発動中のスキルをキャンセルする（CD は消費済み）
   if (rs.active && state.player.dashTimer > 0) cancelActive(state, true);
@@ -605,6 +627,7 @@ function tickTimers(state: GameState, dt: number): void {
   if (rs.pendingTimer === 0) rs.pendingSlot = -1;
   rs.manaFlash = Math.max(0, rs.manaFlash - dt);
   rs.backstabTimer = Math.max(0, rs.backstabTimer - dt);
+  tickFormWait(state, dt);
   for (const slot of rs.slots) {
     slot.heatTimer = Math.max(0, slot.heatTimer - dt);
     if (slot.heatTimer === 0) slot.heat = 0;
@@ -669,9 +692,24 @@ function bodyBlocked(state: GameState, index: number): boolean {
   return stone !== null && SKILL_DEFS[stone.skillKey].exclusiveGroup === "body";
 }
 
-/** HUD 用: いま押せば本動作の排他で弾かれるか */
+/**
+ * HUD 用: いま押せば本動作の排他か変身の規則（変身中・共有の待ち・構え中。skills/forms.ts）で弾かれるか。
+ * QA bot もこれで撃てないスロットを飛ばす
+ */
 export function slotBodyBlocked(state: GameState, index: number): boolean {
-  return bodyBlocked(state, index);
+  return bodyBlocked(state, index) || slotFormBlock(state, index) !== null;
+}
+
+/** 変身の規則でこのスロットが撃てない理由（撃てるなら null） */
+function slotFormBlock(state: GameState, index: number): string | null {
+  const stone = stoneInSlot(state.skills.profile, index);
+  return stone ? shapeCastBlock(state, SKILL_DEFS[stone.skillKey], index) : null;
+}
+
+/** いま押すと砲身化・業火の化身を自分で解く操作になるスロットか（QA bot が解かないよう飛ばす） */
+export function slotTogglesForm(state: GameState, index: number): boolean {
+  const stone = stoneInSlot(state.skills.profile, index);
+  return stone !== null && isToggleOff(state, stone.skillKey, index);
 }
 
 /** 行動不能（パリィ失敗・壁激突）か本動作の排他で、このスロットの入力を受け付けないか */
@@ -910,6 +948,19 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   // 怯み・沈黙中はスキル不可（docs/COMBAT_DESIGN.md D-5 / E-2）
   if (!playerCanCast(state)) return false;
   if (intervalBlocked(state, index) || bodyBlocked(state, index)) return false;
+  // 砲身化・業火の化身の最中にもう一度撃つと、払わずに解く
+  if (isToggleOff(state, r.def.key, index)) {
+    toggleOffShape(state);
+    slot.intervalLeft = r.interval;
+    return true;
+  }
+  // 変身は同時に 1 つ・共有の待ち、狼化などの間はほかの石も撃てない（払う前に弾く）
+  const formBlocked = shapeCastBlock(state, r.def, index);
+  if (formBlocked) {
+    notReady(state, formBlocked);
+    rs.pendingSlot = -1;
+    return false;
+  }
   const p = state.player;
   const dir = { ...p.facing };
   const origin = { ...p.body.pos };
@@ -977,6 +1028,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
     scheduleEcho(state, { ...remote, params });
   }
 
+  if (isFormSkill(r.def) && inAnyForm(state)) noteFormStart(state, r.def, params);
   recordCast(state, index, key, target, params);
   noteWearCast(state, index);
   applyRecoil(state, dir, params);
@@ -994,6 +1046,10 @@ function castNow(state: GameState, index: number, key: SkillKey, params: CastPar
   }
   if (isWave2Key(key)) {
     WAVE2_CAST[key](state, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
+    return;
+  }
+  if (isShapeKey(key)) {
+    castShape(state, key, { slot: index, params, origin: { ...state.player.body.pos }, dir, remote: false });
     return;
   }
   CAST[key](state, index, params, dir, target);
@@ -1015,7 +1071,7 @@ function wave2CastState(state: GameState, params: Readonly<CastParams>): { mul: 
   let mul = 1;
   let element = params.element;
   if (params.jobMastery) mul *= JOBS[state.job].favored.includes(state.stats.moveset) ? m.jobMastery.favoredMul : m.jobMastery.otherMul;
-  if (params.formSurge) mul *= state.skills.form ? m.formSurge.formMul : m.formSurge.otherMul;
+  if (params.formSurge) mul *= inAnyForm(state) ? m.formSurge.formMul : m.formSurge.otherMul;
   if (params.weaponBond) {
     const weapon = (MOVESETS[state.stats.moveset] ?? MOVESETS.sword).attack.element;
     if (weapon === "none") mul *= m.weaponBond.plainMul;
@@ -1028,7 +1084,7 @@ function wave2CastState(state: GameState, params: Readonly<CastParams>): { mul: 
 function announceCombo(state: GameState, combo: ComboDef): void {
   addFloatingText(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, LABEL_SCALE, PARRY_TEXT_LIFE);
   pushSfx(state, "synergy");
-  noteSkillCombo(state);
+  noteSkillCombo(state, combo.key);
 }
 
 /** 連携の「直前の発動」と巡りの履歴を残す。パリィは成功した瞬間に残す（構えただけでは連携しない） */
@@ -1167,7 +1223,7 @@ function startActive(state: GameState, slot: number, key: ActiveCast["skillKey"]
   };
 }
 
-type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey | Wave2SkillKey>;
+type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey | Wave2SkillKey | Wave3SkillKey>;
 
 const CAST: Record<BaseSkillKey, CastFn> = {
   whirl: (state, slot, params, dir) => startActive(state, slot, "whirl", params, dir, SKILL.whirl.duration * params.timeMul),
@@ -1857,6 +1913,10 @@ function executeRemote(state: GameState, e: EchoCast): void {
   }
   if (isWave2Key(key)) {
     WAVE2_CAST[key](state, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, target: e.target, remote: true });
+    return;
+  }
+  if (isShapeKey(key)) {
+    castShape(state, key, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, remote: true });
     return;
   }
   switch (key) {

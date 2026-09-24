@@ -312,10 +312,11 @@ describe("マナと最低間隔", () => {
     const params = resolveSlot(state, 0)?.params;
     if (!params) throw new Error("params");
     // frag.damage.base は QA 2026-09-23 でマナ型スキル一律 +10%（12 → 13.2）、同日 2 巡目でさらに +15%
-    // （13.2 → 15.2、通算 +26%）。基礎値（各 5）での威力は 15.2 + 1.4*5 + 1.4*5 = 29.2
-    expect(skillPower(state, SKILL.frag.damage, params)).toBeCloseTo(29.2);
+    // （13.2 → 15.2、通算 +26%）。QA 2026-09-24 でさらに +30%（15.2 → 19.8。スキル由来与ダメ比率 48% → 目標 55〜65%）。
+    // 基礎値（各 5）での威力は 19.8 + 1.4*5 + 1.4*5 = 33.8
+    expect(skillPower(state, SKILL.frag.damage, params)).toBeCloseTo(33.8);
     state.stats = { ...state.stats, attributesEff: { ...state.stats.attributesEff, dex: 15 } };
-    expect(skillPower(state, SKILL.frag.damage, params), "技巧 +10 で 1.4 × 10 伸びる").toBeCloseTo(43.2);
+    expect(skillPower(state, SKILL.frag.damage, params), "技巧 +10 で 1.4 × 10 伸びる").toBeCloseTo(47.8);
   });
 });
 

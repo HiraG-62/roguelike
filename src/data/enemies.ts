@@ -211,6 +211,8 @@ export interface EnemyDef {
   rout?: boolean;
   /** 突進の終わりに残すもの（骨の壁 / 落石）。ice は突進の跡そのものが氷床になる（氷猪） */
   chargeTrail?: "boneWall" | "rockfall" | "ice";
+  /** 突進が折れ線の 2 本になる（二度突きの猪。数値は tuning の DOUBLE_CHARGE、処理は src/system/enemyBehaviors.ts） */
+  doubleCharge?: boolean;
   /** 攻撃せずに逃げ回り、lifetime 秒で消える（金色スライム） */
   timid?: { lifetime: number };
   /** プレイヤーがこの状態異常のとき足が速くなる（腐肉蝿） */
@@ -236,11 +238,11 @@ export interface EnemyDef {
   /** バイオームごとの出現の重みの倍率（省略時は src/system/biomes.ts のファミリー表で決まる） */
   biomeWeight?: Partial<Record<FloorKind, number>>;
   // ---- Wave 3 の性質（src/system/enemyTerrain.ts / enemyWave3.ts）----
-  /** 倒れた跡に地形を残す（予告の影の後に置く。泥人形の水たまり・油壺運びの油） */
+  /** 倒れた跡に地形を残す（予告の影の後に置く。泥人形の泥・油壺運びの油） */
   deathTerrain?: EnemyTerrainDrop;
   /** 山なりに吐く玉（lobber） */
   lob?: EnemyLob;
-  /** 投げた爆弾の跡に地形を残す（煤ゴブリンの油） */
+  /** 投げた爆弾の跡に地形を残す（煤ゴブリンの煙） */
   bombTerrain?: EnemyTerrainDrop;
   /** 倒れたとき周りの敵に掛ける鼓舞（雷鬼火の帯電） */
   deathRally?: { kind: RallyKind; radius: number; time: number };
@@ -292,6 +294,14 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     windup: 0.6, strikeTime: 0.7, recover: 0.54, engageRange: 130, attackInterval: 0.9,
     score: 50, minDepth: 5, weight: 2, color: "#e0d8c0", dropChance: 0.25,
     chargeTrail: "boneWall",
+  },
+  {
+    // 2 本の予告線を読むぶん予備動作は猪より長い。strikeTime は 2 本を走り切るまでの上限（泥で遅れたら途中で止まる）
+    key: "boarDouble", name: "二度突きの猪", sprite: "boarDouble", recolor: { base: "boar", swap: { o: "r", O: "R", r: "y" } },
+    radius: 7, hp: 70, speed: 38, behavior: "charger", contactDamage: 20,
+    windup: 0.8, strikeTime: 1.3, recover: 0.7, engageRange: 130, attackInterval: 1.1,
+    score: 55, minDepth: 5, weight: 1.5, color: "#d04040", dropChance: 0.25,
+    doubleCharge: true,
   },
   {
     key: "curseEye", name: "呪い眼", sprite: "curseEye", recolor: { base: "eye", swap: { p: "r", P: "R", e: "q" } },

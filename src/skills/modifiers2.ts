@@ -167,6 +167,8 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
     keywords: kw([], [], ["melee"]),
     excludesTags: [],
     requiresTags: ["form"],
+    // 砲身化・業火の化身は時間で切れないので、持続を伸ばす意味が無い
+    excludesSkills: ["siegeForm", "pyreForm"],
     apply: (p) => ({
       ...p,
       formDurationMul: p.formDurationMul * M.formLinger.durationMul,

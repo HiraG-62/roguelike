@@ -10,10 +10,10 @@ import { BOON, STATUS, SYNERGY } from "../data/tuning";
 import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggeredEffect } from "../loot/types";
 import { BOONS, type BoonDef } from "./boonDefs";
-import { BOON_RULE_EXAMPLES, updateBoonRules } from "./boonRules";
-import { onBoonDash, onBoonKill } from "./boons";
+import { slashBase, updateBoonRules } from "./boonRules";
+import { onBoonKill } from "./boons";
 import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
-import { applyBurn, findStatus, hasStatus } from "./statusEffects";
+import { applyBurn, chainLightning, findStatus, hasStatus } from "./statusEffects";
 import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
 import { placeTerrain, terrainAt } from "./terrain";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
@@ -163,6 +163,8 @@ describe("照合順", () => {
   it("祝福の Rule は取得順に照合される（BoonDef.rules）", () => {
     const first = BOONS.reaperCup as BoonDef;
     const second = BOONS.burnSpread as BoonDef;
+    // 定義に置いた本物の rules は検査の後で戻す
+    const saved = [first.rules, second.rules] as const;
     first.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "first" }, "boon:reaperCup:0")];
     second.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "second" }, "boon:burnSpread:0")];
     try {
@@ -173,13 +175,14 @@ describe("照合順", () => {
       resolveRules(state, 0);
       expect(state.chains.map((c) => c.keyword), "照合も取得順").toEqual(["second", "first"]);
     } finally {
-      delete first.rules;
-      delete second.rules;
+      first.rules = saved[0];
+      second.rules = saved[1];
     }
   });
 
   it("step の中で祝福の Rule が照合される", () => {
     const def = BOONS.reaperCup as BoonDef;
+    const saved = def.rules;
     def.rules = [makeRule({ when: "onDash", then: { kind: "heal", magnitude: HEAL } }, "boon:reaperCup:0")];
     try {
       const state = cleanArena();
@@ -189,7 +192,7 @@ describe("照合順", () => {
       step(state, EMPTY_INPUT, FIXED_DT);
       expect(state.player.hp, "step の resolveRules で回復").toBeGreaterThanOrEqual(LOW_HP + HEAL);
     } finally {
-      delete def.rules;
+      def.rules = saved;
     }
   });
 
@@ -286,60 +289,86 @@ describe("装備トリガーとの等価", () => {
   });
 });
 
-describe("祝福の Rule 化の見本（今のフックと同じ結果）", () => {
-  it("野火: 燃えている敵の撃破で周囲へ同じ強さの燃焼", () => {
-    const setup = (): { state: GameState; dying: ReturnType<typeof placeEnemy>; near: ReturnType<typeof placeEnemy> } => {
-      const state = cleanArena();
-      const dying = placeEnemy(state, "slime", NEAR);
-      const near = placeEnemy(state, "slime", MID);
-      applyBurn(state, dying, 4, STATUS.burnDuration);
-      dying.hp = 0;
-      return { state, dying, near };
-    };
-    const hook = setup();
-    hook.state.boons = ["burnSpread"];
-    onBoonKill(hook.state, hook.dying);
-    const rule = setup();
-    pushEvent(rule.state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(rule.dying, true) });
-    resolveRules(rule.state, 0, BOON_RULE_EXAMPLES.burnSpread);
-    const a = findStatus(hook.near.status, "burn");
-    const b = findStatus(rule.near.status, "burn");
-    expect(a, "フックで燃える").toBeDefined();
-    expect(b?.potency, "強さが同じ").toBeCloseTo(a?.potency ?? -1);
-    expect(b?.time, "持続が同じ").toBeCloseTo(a?.time ?? -1);
+describe("祝福の Rule 化（旧フックと同じ結果。BoonDef.rules）", () => {
+  /** 祝福の定義に置いた Rule（無ければテストを失敗させる） */
+  function rulesOf(key: keyof typeof BOONS): readonly Rule[] {
+    const rules = BOONS[key].rules;
+    if (rules === undefined) throw new Error(`${key} に rules が無い`);
+    return rules;
+  }
+
+  it("野火: 燃えている敵の撃破で周囲へ同じ強さ・同じ持続の燃焼", () => {
+    const state = cleanArena();
+    const dying = placeEnemy(state, "slime", NEAR);
+    const near = placeEnemy(state, "slime", MID);
+    applyBurn(state, dying, 4, STATUS.burnDuration);
+    const potency = findStatus(dying.status, "burn")?.potency ?? -1;
+    dying.hp = 0;
+    pushEvent(state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(dying, true) });
+    resolveRules(state, 0, rulesOf("burnSpread"));
+    const b = findStatus(near.status, "burn");
+    // 旧フックは付与済みの強さを applyBurn へそのまま渡していた（霊力の倍率が掛かる）
+    expect(b?.potency, "強さが同じ").toBeCloseTo(potency * state.stats.statusPotencyMul);
+    expect(b?.time, "持続が同じ").toBeCloseTo(STATUS.burnDuration);
   });
 
-  it("帯電疾走: ダッシュ開始で同じ連鎖雷", () => {
+  it("帯電疾走: ダッシュ開始で旧フックと同じ連鎖雷（近接 1 段目 × dashShockRatio）", () => {
     const setup = (): { state: GameState; e: ReturnType<typeof placeEnemy> } => {
       const state = cleanArena();
       return { state, e: placeEnemy(state, "golem", NEAR) };
     };
     const hook = setup();
-    hook.state.boons = ["dashShock"];
-    onBoonDash(hook.state);
+    chainLightning(hook.state, hook.state.player.body.pos, slashBase(hook.state) * BOON.dashShockRatio);
     const rule = setup();
     pushPlayerEvent(rule.state, "onDash", "dash");
-    resolveRules(rule.state, 0, BOON_RULE_EXAMPLES.dashShock);
-    expect(hook.e.hp, "フックで削れる").toBeLessThan(hook.e.maxHp);
+    resolveRules(rule.state, 0, rulesOf("dashShock"));
+    expect(hook.e.hp, "旧フックの式で削れる").toBeLessThan(hook.e.maxHp);
     expect(rule.e.hp, "同じだけ削れる").toBe(hook.e.hp);
   });
 
-  it("屠りの盃: 撃破で同じだけマナが戻る", () => {
-    const setup = (): { state: GameState; e: ReturnType<typeof placeEnemy> } => {
-      const state = cleanArena();
-      state.player.mana = 0;
-      const e = placeEnemy(state, "slime", NEAR);
-      e.hp = 0;
-      return { state, e };
-    };
-    const hook = setup();
-    hook.state.boons = ["reaperCup"];
-    onBoonKill(hook.state, hook.e);
-    const rule = setup();
-    pushEvent(rule.state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(rule.e, true) });
-    resolveRules(rule.state, 0, BOON_RULE_EXAMPLES.reaperCup);
-    expect(hook.state.player.mana, "フックで戻る").toBeGreaterThan(0);
-    expect(rule.state.player.mana, "同じだけ戻る").toBeCloseTo(hook.state.player.mana);
+  it("屠りの盃: 撃破で reaperCupKillMana（回収の倍率込み）だけ気力が戻る", () => {
+    const state = cleanArena();
+    state.player.mana = 0;
+    const e = placeEnemy(state, "slime", NEAR);
+    e.hp = 0;
+    pushEvent(state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(e, true) });
+    resolveRules(state, 0, rulesOf("reaperCup"));
+    expect(state.player.mana, "同じだけ戻る").toBeCloseTo(BOON.reaperCupKillMana * state.stats.manaGainMul);
+  });
+
+  it("direct の Rule は深さ・減衰・語の上限・深さの上限の外で、連鎖に記録しない", () => {
+    const state = cleanArena();
+    state.player.mana = 0;
+    const rule = makeRule({ when: "onDash", then: { kind: "restoreMana", magnitude: 1, quiet: true }, direct: true });
+    for (let i = 0; i < SYNERGY.keywordBudget + 2; i++) state.pendingEvents.push(rawEvent(state, "onDash", SYNERGY.maxDepth));
+    resolveRules(state, 0, [rule]);
+    const expected = (SYNERGY.keywordBudget + 2) * state.stats.manaGainMul;
+    expect(state.player.mana, "深さの上限でも等倍で上限なしに起きる").toBeCloseTo(expected);
+    expect(state.chains, "連鎖に記録しない").toHaveLength(0);
+  });
+
+  it("direct の効果が起こしたイベントは深さを進めない（フックが起こした出来事と同じ）", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    e.hp = 1;
+    const rule = makeRule({ when: "onMeleeHit", then: { kind: "strike", magnitude: 5 }, direct: true });
+    pushEvent(state, { kind: "onMeleeHit", actor: "player", source: { kind: "player", key: "melee" }, ...enemyTarget(e) });
+    resolveRules(state, 0, [rule]);
+    const kill = state.events.find((ev) => ev.kind === "onKill");
+    expect(kill, "追撃で倒れて撃破が積まれる").toBeDefined();
+    expect(kill?.depth, "深さ 0 のまま次ステップへ").toBe(0);
+    expect(kill?.source.kind, "出どころは上書きしない").toBe("player");
+    expect(state.pendingEvents, "持ち越しにならない").toHaveLength(0);
+  });
+
+  it("group: 同じイベントで同じ group の Rule は 1 つだけ起きる", () => {
+    const state = cleanArena();
+    const a = makeRule({ when: "onDash", then: { kind: "wave", magnitude: 5 }, group: "g", direct: true }, "test:g:0");
+    const b = makeRule({ when: "onDash", then: { kind: "wave", magnitude: 5 }, group: "g", direct: true }, "test:g:1");
+    const before = state.projectiles.length;
+    pushPlayerEvent(state, "onDash", "dash");
+    resolveRules(state, 0, [a, b]);
+    expect(state.projectiles.length - before, "1 本だけ").toBe(1);
   });
 });
 
