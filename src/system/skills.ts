@@ -2013,9 +2013,9 @@ function syncTracking(state: GameState): void {
     t.depth = state.depth;
     t.cleared = state.rooms.map((r) => r.cleared);
     if (first) return;
-    // 前の階に残したものは失われる
+    // 前の階に残したものは失われる。床のスキル石は floor.ts の buildFloor が捨てる
+    // （ここで捨てると、強欲のが抱えたまま階を移った石〔新しい階の足元へ届く〕まで消える）
     rs.runes = [];
-    rs.floorStones = [];
     rs.grenades = [];
     rs.echoes = [];
     rs.ghosts = [];

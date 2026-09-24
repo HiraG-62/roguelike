@@ -1,4 +1,4 @@
-import { type EliteKind, type EliteWork, type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
+import { type EliteKind, type EliteWork, type Enemy, type GameState, type Projectile, type RoomState, pushSfx } from "../core/state";
 import type { StatusKind } from "../core/status";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
@@ -16,6 +16,9 @@ import { rallyTakenMul, seedTerrain } from "./enemyTerrain";
 import { placeTerrain } from "./terrain";
 import { manaRegenAllowed } from "./keystones";
 import { chaseHeading, lineOfSight } from "../map/pathing";
+import { TILE_SIZE, inBounds, toIndex } from "../map/grid";
+import { roomLocks } from "./roomTypes";
+import { ROAMING_ROOM } from "./spawner";
 import { overlapsWall } from "./physics";
 import type { FloorItem } from "../loot/types";
 import type { FloorStone } from "../skills/types";
@@ -775,21 +778,37 @@ export function updateGreedy(state: GameState, e: Enemy, def: EnemyDef, dt: numb
   return fleeWithLoot(state, e, def, w, run, dt);
 }
 
-/** 見えている範囲で一番近い床の遺物・スキル石（遺物が先、各配列は落ちた順なので決定的） */
+/**
+ * 見えている範囲で一番近い床の遺物・スキル石（遺物が先、各配列は落ちた順なので決定的）。
+ * 封鎖する部屋の強欲のは自室の中の物だけを探す: 封鎖の前に外へ拾いに出ると、封鎖した部屋から倒せない敵になり
+ * 制圧できなくなる。封鎖の後も、lineOfSight は閉じた扉を壁と見ないので扉越しの物を狙わせない
+ */
 function nearestLoot(state: GameState, e: Enemy): LootTarget | null {
   const candidates: LootTarget[] = [
     ...state.floorItems.map((entry): LootTarget => ({ kind: "item", entry })),
     ...state.skills.floorStones.map((entry): LootTarget => ({ kind: "stone", entry })),
   ];
+  const home = e.roomIndex !== ROAMING_ROOM && roomLocks(state, e.roomIndex) ? state.rooms[e.roomIndex] : undefined;
   let best: LootTarget | null = null;
   let bestD: number = ELITE_GREEDY.seekRadius;
   for (const t of candidates) {
     const d = dist(t.entry.pos, e.body.pos);
     if (d >= bestD || !lineOfSight(state.map, e.body.pos, t.entry.pos)) continue;
+    if (home && !pxInRoom(state, home, t.entry.pos)) continue;
     best = t;
     bestD = d;
   }
   return best;
+}
+
+/** ピクセル座標が部屋のタイル（塊の部屋は tiles、矩形の部屋は rect）の上か */
+function pxInRoom(state: GameState, room: RoomState, pos: Vec): boolean {
+  const tx = Math.floor(pos.x / TILE_SIZE);
+  const ty = Math.floor(pos.y / TILE_SIZE);
+  if (!inBounds(state.map, tx, ty)) return false;
+  if (room.tiles) return room.tiles.has(toIndex(state.map, tx, ty));
+  const r = room.rect;
+  return tx >= r.x && ty >= r.y && tx < r.x + r.w && ty < r.y + r.h;
 }
 
 function runToLoot(state: GameState, e: Enemy, def: EnemyDef, target: LootTarget, speed: number, dt: number): void {
@@ -865,14 +884,26 @@ function dropSpot(state: GameState, center: Vec, index: number, total: number, p
 
 /** 階を移る直前に呼ぶ: 生きている強欲のが抱えている物をすべて取り上げる（buildFloor が敵ごと消す前に） */
 export function takeGreedyLoot(state: GameState): { items: FloorItem[]; stones: FloorStone[] } {
+  return takeCarriedFrom(state.enemies);
+}
+
+function takeCarriedFrom(enemies: Iterable<Enemy>): { items: FloorItem[]; stones: FloorStone[] } {
   const loot: { items: FloorItem[]; stones: FloorStone[] } = { items: [], stones: [] };
-  for (const e of state.enemies) {
+  for (const e of enemies) {
     if (!e.carried) continue;
     loot.items.push(...e.carried.items);
     loot.stones.push(...e.carried.stones);
     e.carried = { items: [], stones: [] };
   }
   return loot;
+}
+
+/**
+ * 撃破の経路（handleDeaths → onEliteDeath）を通らずに配列から取り除く敵が抱えていた物を取り上げる（おまけの遺物は無い）。
+ * floor.ts の pushEnemiesOffDoorTiles（扉に埋まった敵を静かに取り除く）が除く直前に呼び、dropGreedyLootAtPlayer で足元へ落とす
+ */
+export function rescueCarried(enemies: Iterable<Enemy>): { items: FloorItem[]; stones: FloorStone[] } {
+  return takeCarriedFrom(enemies);
 }
 
 /**

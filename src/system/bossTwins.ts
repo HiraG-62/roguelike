@@ -154,6 +154,8 @@ function tickStrike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void
 
 /** 突進が触れたら当てる。当たったか（無敵で無視されたかも含む）を返す */
 function touch(state: GameState, e: Enemy, def: EnemyDef): boolean {
+  // 霊体化（skills/forms.ts）はボスの体もすり抜ける（循環 import を避けて state を直に見る）
+  if (state.skills.shape?.key === "wraithForm") return false;
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return false;
   const result = damagePlayer(state, def.contactDamage + depthDamageBonus(state.depth), e.body.pos, e);

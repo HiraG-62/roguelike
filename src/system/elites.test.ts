@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FIXED_DT } from "../core/loop";
-import type { Enemy, EnemyPhase, GameState } from "../core/state";
+import type { Enemy, EnemyPhase, GameState, RoomKind, RoomState } from "../core/state";
 import { createRng } from "../core/rng";
 import { type Vec, dist } from "../core/vec";
 import { generateItem } from "../loot/generator";
@@ -29,11 +29,11 @@ import {
 } from "./elites";
 import { applyStagger, isStaggered } from "./poise";
 import { applyStatus, findStatus, hasStatus } from "./statusEffects";
-import { updateEnemies } from "./enemies";
+import { createEnemy, updateEnemies } from "./enemies";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
 import { overlapsWall } from "./physics";
-import { TILE_SIZE } from "../map/grid";
+import { TILE_SIZE, Tile, createMap } from "../map/grid";
 // floor は他の system を束ねるので最後に読む（先に読むと循環 import の初期化順が崩れる）
 import { descend } from "./floor";
 
@@ -428,6 +428,9 @@ function floorItemAt(state: GameState, pos: Vec, id: number): FloorItem {
   return fi;
 }
 
+/** 強欲のの部屋のテストに使う全面床のマップの一辺（タイル） */
+const ROOM_MAP_SIZE = 20;
+
 function greedyAt(state: GameState, dx: number, dy = 0): Enemy {
   const e = placeEnemy(state, "slime", dx, dy);
   makeElite(e, "greedy");
@@ -533,6 +536,39 @@ describe("強欲の", () => {
     expect(updateGreedy(state, e, def, FIXED_DT, def.speed), "追い詰められたら状態機械に任せる").toBe(false);
     expect(e.eliteWork?.timer).toBeCloseTo(ELITE_GREEDY.cornerFightTime);
     expect(updateGreedy(state, e, def, FIXED_DT, def.speed), "戦う間は逃げない").toBe(false);
+  });
+
+  it("封鎖する部屋の強欲のは部屋の外の遺物には向かわず、部屋の中の遺物だけを拾う", () => {
+    /** 全面が床の最小マップに矩形の部屋 1 つ。部屋の中に強欲の、部屋の外（視線は通る）に遺物を置く */
+    const scene = (kind: RoomKind): { state: GameState; e: Enemy; outside: FloorItem } => {
+      const state = arena();
+      const map = createMap(ROOM_MAP_SIZE, ROOM_MAP_SIZE);
+      map.tiles.fill(Tile.Floor);
+      state.map = map;
+      const room: RoomState = { rect: { x: 5, y: 5, w: 4, h: 4 }, cleared: false, locked: false, doorTiles: [], kind, wave: 0, used: false };
+      state.rooms = [room];
+      state.lockedTiles = new Set();
+      // プレイヤーは遠くに置く（逃げる判定に入らないように）
+      state.player.body.pos = { x: (ROOM_MAP_SIZE - 1.5) * TILE_SIZE, y: (ROOM_MAP_SIZE - 1.5) * TILE_SIZE };
+      const e = createEnemy(state, enemyDef("slime"), { x: 7 * TILE_SIZE, y: 7 * TILE_SIZE }, 0, false);
+      makeElite(e, "greedy");
+      e.hp = 99_999;
+      state.enemies.push(e);
+      const outside = floorItemAt(state, { x: 13.5 * TILE_SIZE, y: 7 * TILE_SIZE }, 801);
+      return { state, e, outside };
+    };
+
+    const locked = scene("ambush");
+    tick(locked.state, 120);
+    expect(carriedCount(locked.e), "封鎖する部屋: 外の遺物は拾わない").toBe(0);
+    expect(locked.e.body.pos.x, "部屋の外へ出ていかない").toBeLessThan(9 * TILE_SIZE);
+    const inside = floorItemAt(locked.state, { x: 6 * TILE_SIZE, y: 6.5 * TILE_SIZE }, 802);
+    for (let i = 0; i < 300 && carriedCount(locked.e) === 0; i++) tick(locked.state, 1);
+    expect(locked.e.carried?.items, "部屋の中の遺物は拾う").toContain(inside);
+
+    const open = scene("normal");
+    for (let i = 0; i < 300 && carriedCount(open.e) === 0; i++) tick(open.state, 1);
+    expect(open.e.carried?.items, "封鎖しない部屋なら外の遺物も拾いに行く").toContain(open.outside);
   });
 
   it("階を移るとき抱えていた物は次の階のプレイヤーの足元に落ちる", () => {

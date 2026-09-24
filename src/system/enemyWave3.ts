@@ -569,6 +569,8 @@ export function strikeHook(state: GameState, e: Enemy, pull: number, damage: num
   const p = state.player;
   spawnLine(state, e.body.pos, ai.target, ENEMY_AI.chainWarden.color, 0.25);
   pushSfx(state, "chainThrow");
+  // 霊体化（skills/forms.ts）は鎖もすり抜ける（投げる見た目と音は残す）
+  if (state.skills.shape?.key === "wraithForm") return false;
   if (!segmentCircleHit(e.body.pos, ai.target, 3, p.body.pos, p.body.radius)) return false;
   if (damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e) !== "hit") return false;
   p.knock = scale(normalize(sub(e.body.pos, p.body.pos)), pull);

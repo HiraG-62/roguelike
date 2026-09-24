@@ -530,6 +530,8 @@ function startReplay(data: ReplayData): void {
     historyMessage = BROKEN_REPLAY_MESSAGE;
     return;
   }
+  // 連携の発見の表示（初発見・手がかり枠）を本番のランと揃える（beginRun と同じ。ゲーム進行には効かない）
+  seedKnownLinks(session.state.codexRun.links, codexSave);
   replay = { session, speed: REPLAY_START_SPEED, releaseGuard: guardStorageWrites(), clock: 0 };
   screen = "replay";
 }

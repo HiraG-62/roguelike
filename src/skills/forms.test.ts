@@ -4,7 +4,9 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import type { StatusKind } from "../core/status";
 import { damagePlayer, rollOutgoing } from "../system/combat";
-import { updateEnemies } from "../system/enemies";
+import { ENEMIES } from "../data/enemies";
+import { bossTouch } from "../system/bossKit";
+import { createEnemy, updateEnemies } from "../system/enemies";
 import { currentMeleeStep, isPlayerStaggered, playerMoveset, updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { createSkillRunState, resolveSlot, skillMoveMul, slotBodyBlocked, updateSkills } from "../system/skills";
@@ -212,6 +214,23 @@ describe("霊体化", () => {
         state.player.invulnTimer = 0;
         updateEnemies(state, FIXED_DT);
       }
+      return hp - state.player.hp;
+    };
+    expect(hurt(false), "変身していなければ当たる").toBeGreaterThan(0);
+    expect(hurt(true), "霊体化中は当たらない").toBe(0);
+  });
+
+  it("ボスの体当たり（bossTouch）もすり抜ける。変身していなければ当たる", () => {
+    const hurt = (wraith: boolean): number => {
+      const state = skillArena([{ key: "wraithForm" }]);
+      if (wraith) cast(state);
+      const boss = ENEMIES.find((d) => d.boss && d.contactDamage > 0);
+      if (!boss) throw new Error("体当たりのあるボスが要る");
+      const e = createEnemy(state, boss, { ...state.player.body.pos }, 0, false);
+      state.enemies.push(e);
+      state.player.invulnTimer = 0;
+      const hp = state.player.hp;
+      bossTouch(state, e, boss);
       return hp - state.player.hp;
     };
     expect(hurt(false), "変身していなければ当たる").toBeGreaterThan(0);

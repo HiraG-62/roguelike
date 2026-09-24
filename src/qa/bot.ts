@@ -9,7 +9,7 @@ import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { isSolidTile, overlapsWall } from "../system/physics";
-import { currentMoveset } from "../system/player";
+import { playerMoveset } from "../system/player";
 import { meleeButton, shotButton } from "../data/weapons";
 import { BOONS, type BoonKey } from "../system/boons";
 import { canAffordSkill } from "../system/keystones";
@@ -586,11 +586,11 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
 }
 
 /**
- * 射撃の役割を持つボタンを押しっぱなしにする（剣は右、杖は左）。
+ * 射撃の役割を持つボタンを押しっぱなしにする（剣は右、杖は左。狼化・鉄塊化の最中は変身の型のボタンで見る）。
  * どちらも近接の武器種（大剣）は撃てないので、近づきながら振る
  */
 function holdShot(state: GameState, input: FrameInput): void {
-  const button = shotButton(currentMoveset(state.stats));
+  const button = shotButton(playerMoveset(state));
   if (button === undefined) {
     pressAttack(state, input);
     return;
@@ -603,7 +603,7 @@ function holdShot(state: GameState, input: FrameInput): void {
 /** 近接の入力。溜めのある武器種は MELEE_CHARGE_HOLD 秒まで押しっぱなしにして離す */
 function pressAttack(state: GameState, input: FrameInput): void {
   // 右が近接の武器種（杖）は、押しっぱなしでは「押した瞬間」が 1 回しか出ないので 1 フレームおきに押し直す
-  if (meleeButton(currentMoveset(state.stats)) === "secondary") {
+  if (meleeButton(playerMoveset(state)) === "secondary") {
     input.shootHeld = state.tick % MELEE_REPRESS_PERIOD === 0;
     return;
   }

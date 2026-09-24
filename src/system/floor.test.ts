@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createGame } from "../core/game";
+import { createGame, step } from "../core/game";
+import { EMPTY_INPUT } from "../core/input";
+import { createRng } from "../core/rng";
+import { generateItem } from "../loot/generator";
+import { generateSkillStone } from "../skills/generator";
 import { FIXED_DT } from "../core/loop";
 import { enemiesForDepth, enemyDef } from "../data/enemies";
-import type { GameState, RoomState } from "../core/state";
+import type { Enemy, GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
-import { eliteChance } from "./elites";
+import { eliteChance, makeElite } from "./elites";
 import { createEnemy } from "./enemies";
 import { ascend, buildFloor, descend, enemyCount, maxEnemiesFor, updateRooms } from "./floor";
 import { dropItem } from "./loot";
@@ -220,6 +224,68 @@ describe("扉タイル上の敵とロック", () => {
     updateRooms(state, FIXED_DT);
 
     expect(room.locked).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 強欲のが抱えた物を失わない経路（system/elites.ts）
+// -----------------------------------------------------------------------------
+
+/** 強欲のに遺物 1 つとスキル石 1 つを抱えさせる。id は他と重ならない大きな値 */
+function greedyCarrying(state: GameState, pos: { x: number; y: number }, roomIndex: number): { e: Enemy; itemId: number; stoneId: number } {
+  const e = createEnemy(state, enemyDef("slime"), pos, roomIndex, false);
+  makeElite(e, "greedy");
+  const itemId = 90_001;
+  const stoneId = 90_002;
+  const item = generateItem(createRng(itemId), { itemLevel: 3, foundDepth: 3, now: 0 });
+  const stone = generateSkillStone(createRng(stoneId), { foundDepth: 3, now: 0 });
+  e.carried = {
+    items: [{ id: itemId, item, pos: { ...pos }, bobTime: 0 }],
+    stones: [{ id: stoneId, stone, pos: { ...pos }, bobTime: 0, warned: false }],
+  };
+  state.enemies.push(e);
+  return { e, itemId, stoneId };
+}
+
+describe("強欲のが抱えた物は消えない", () => {
+  it("抱えたまま階を移ると、遺物もスキル石も次の階の足元に残る（次のステップの片付けで石が消えない）", () => {
+    const state = createGame(3);
+    // skills.ts の syncTracking は最初のステップで今の階を覚えるだけなので、降りる前に 1 ステップ進めておく
+    step(state, EMPTY_INPUT, FIXED_DT);
+    const { itemId, stoneId } = greedyCarrying(state, { ...state.player.body.pos }, 0);
+    descend(state);
+    for (let i = 0; i < 3; i++) step(state, EMPTY_INPUT, FIXED_DT);
+    expect(state.floorItems.map((f) => f.id), "遺物が届く").toContain(itemId);
+    expect(state.skills.floorStones.map((f) => f.id), "スキル石も届いて残る").toContain(stoneId);
+  });
+
+  it("前の階の床に残したスキル石は階を移ると失われる", () => {
+    const state = createGame(3);
+    step(state, EMPTY_INPUT, FIXED_DT);
+    const stone = generateSkillStone(createRng(7), { foundDepth: 1, now: 0 });
+    state.skills.floorStones.push({ id: 90_010, stone, pos: { ...state.player.body.pos }, bobTime: 0, warned: false });
+    descend(state);
+    expect(state.skills.floorStones.some((f) => f.id === 90_010), "降りた時点で消える").toBe(false);
+  });
+
+  it("扉に埋まって取り除かれる強欲のが抱えていた物は、扉が閉じた後にプレイヤーの足元へ落ちる", () => {
+    const { state, room } = corridorRoomState();
+    const map = state.map;
+    // 通路と部屋の中を塞ぎ、扉の上の敵をどちらへも押し出せないようにする
+    for (let x = DOOR_TX + 1; x <= CORRIDOR_END_TX; x++) map.tiles[toIndex(map, x, DOOR_TY)] = Tile.Wall;
+    for (let y = 5; y <= 8; y++) for (let x = 5; x <= 8; x++) map.tiles[toIndex(map, x, y)] = Tile.Wall;
+    const { e, itemId, stoneId } = greedyCarrying(state, doorCenter(), OTHER_ROOM);
+    state.player.body.pos = rectCenterPx(room.rect);
+    updateRooms(state, FIXED_DT);
+    expect(room.locked, "部屋がロックされる").toBe(true);
+    expect(state.enemies.includes(e), "押し出せない敵は取り除かれる").toBe(false);
+    expect(state.floorItems.map((f) => f.id), "遺物は床に残る").toContain(itemId);
+    expect(state.skills.floorStones.map((f) => f.id), "スキル石も床に残る").toContain(stoneId);
+    const door = room.doorTiles[0]!;
+    for (const pos of [...state.floorItems.map((f) => f.pos), ...state.skills.floorStones.map((f) => f.pos)]) {
+      const tile = toIndex(map, Math.floor(pos.x / TILE_SIZE), Math.floor(pos.y / TILE_SIZE));
+      expect(tile, "閉じた扉の上には落とさない").not.toBe(door);
+    }
   });
 });
 
