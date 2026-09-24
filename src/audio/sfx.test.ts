@@ -101,6 +101,9 @@ function createMockAudioContext() {
         },
       };
     },
+    createWaveShaper() {
+      return { ...createNodeMock(), curve: null as Float32Array | null, oversample: "none" as OverSampleType };
+    },
     createDynamicsCompressor() {
       return {
         ...createNodeMock(),
@@ -167,14 +170,14 @@ describe("SfxPlayer", () => {
     expect(player.getActiveVoiceCount()).toBe(1);
   });
 
-  it("同時発音数は16に制限される", () => {
+  it("同時発音数は24に制限される", () => {
     const player = new SfxPlayer();
     player.unlock();
-    const names = SFX_NAMES.slice(0, 20) as readonly SfxName[];
+    const names = SFX_NAMES.slice(0, 30) as readonly SfxName[];
     for (const name of names) {
       player.play(name);
     }
-    expect(player.getActiveVoiceCount()).toBe(16);
+    expect(player.getActiveVoiceCount()).toBe(24);
   });
 
   it("setMasterVolume は 0..1 にクランプされる", () => {

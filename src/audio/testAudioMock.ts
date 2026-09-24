@@ -80,6 +80,15 @@ export function createMockAudio(): MockAudio {
       return { ...node(), type: "sine", frequency: param(440), start: () => undefined, stop: () => undefined };
     },
     createBiquadFilter: () => Object.assign(node("filter", created), { type: "lowpass", frequency: param(350), Q: param(1) }),
+    createWaveShaper: () => Object.assign(node("other", created), { curve: null, oversample: "none" }),
+    createDynamicsCompressor: () =>
+      Object.assign(node("other", created), {
+        threshold: param(-24),
+        knee: param(30),
+        ratio: param(12),
+        attack: param(0.003),
+        release: param(0.25),
+      }),
     createDelay: () => Object.assign(node("delay", created), { delayTime: param(0) }),
     createBuffer: (_ch: number, length: number) => {
       const data = new Float32Array(length);

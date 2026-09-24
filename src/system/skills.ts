@@ -1,4 +1,5 @@
 import type { FrameInput } from "../core/input";
+import { castSfxName } from "../audio/sfxNames";
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
@@ -48,6 +49,7 @@ import {
   castInterval,
   modifierLinkCost,
   resolveCast,
+  skillAttack,
   wearBudCount,
 } from "../skills/data";
 import { type RuneDropSource, makeRuneItem, rollRuneDrop, rollRuneModifier } from "../skills/generator";
@@ -1036,6 +1038,8 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   if (r.def.damageKind === "ranged") fireTrigger(state, "onShoot", { pos: origin });
   if (r.def.damageKind === "ranged") pushPlayerEvent(state, "onShoot", key, { pos: { ...origin }, slot: index, source: { kind: "skill", key } });
   pushSfx(state, "skillCast");
+  const castSfx = castSfxName(params.element ?? skillAttack(key)?.element ?? "none");
+  if (castSfx) pushSfx(state, castSfx);
   return true;
 }
 

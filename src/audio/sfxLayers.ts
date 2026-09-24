@@ -16,168 +16,443 @@ const CHARGE_ROOT = 659.25;
 /** 鐘らしさを出す非整数倍音の比（金属の円板の第 2 倍音に近い） */
 const BELL_PARTIAL = 2.76;
 
+/**
+ * 金属・刃・結晶の非整数倍の部分音の比（metal 層）。整数倍だと「ピー」という電子音になるので、ずらした比で鳴らす
+ * - BLADE_RING: 薄い刃の「シャリン」、CLANG: 厚い金属のぶつかり、CRYSTAL: 氷・ガラスのきらめき、CHAIN: 鎖・小さな金具
+ */
+const BLADE_RING = [1, 1.47, 2.09] as const;
+const CLANG = [1, 1.34, 2.19, 2.83] as const;
+const CRYSTAL = [1, 1.53, 2.37, 3.1] as const;
+const CHAIN = [1, 1.37, 1.93, 2.61] as const;
+/** 鐘（FM）の変調比。整数でない比が鐘らしい濁った倍音を作る */
+const BELL_FM_RATIO = 1.4;
+
 export const LAYERED_SFX = {
-  // ---- 武器種の振り音（8-1）: 重い武器ほど低く長い。段の slash1〜3 に重なるので控えめの音量 ----
+  // ==== 近接の段の斬撃音（player.ts が段 1〜3 で積む。スキルが単独でも使う）====
+  // クリック（刃が空気を切る瞬間）+ 帯域ノイズの高 → 低の掃引（シュッ）+ かすかな刃鳴り。段が進むほど低く長く重い
+  slash1: [
+    { k: "click", freq: 6000, peak: 0.28 },
+    { k: "noise", filter: "bandpass", from: 7500, to: 2200, dur: 0.09, q: 2.2, attack: 0.012, peak: 0.5 },
+    { k: "metal", freq: 3100, ratios: BLADE_RING, dur: 0.07, peak: 0.045, at: 0.01 },
+  ],
+  slash2: [
+    { k: "click", freq: 5000, peak: 0.3 },
+    { k: "noise", filter: "bandpass", from: 6500, to: 1600, dur: 0.11, q: 2, attack: 0.015, peak: 0.55 },
+    { k: "noise", filter: "lowpass", from: 1800, to: 400, dur: 0.08, attack: 0.01, peak: 0.18 },
+    { k: "metal", freq: 2700, ratios: BLADE_RING, dur: 0.08, peak: 0.045, at: 0.012 },
+  ],
+  slash3: [
+    { k: "click", freq: 4000, peak: 0.34 },
+    { k: "noise", filter: "bandpass", from: 5500, to: 900, dur: 0.15, q: 1.6, attack: 0.02, peak: 0.6 },
+    { k: "kick", from: 160, to: 55, drop: 0.08, dur: 0.18, peak: 0.42, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 1200, to: 150, dur: 0.2, peak: 0.22, at: 0.02 },
+  ],
+
+  // ---- 武器種の振り音（8-1）: 段の slash1〜3 に重ねる。軽い武器ほど高く鋭く短く、重い武器ほど低く、立ち上がりを遅らせて「ブンッ」と膨らませる ----
   swingSword: [
-    { k: "noise", filter: "bandpass", from: 5200, to: 1800, dur: 0.08, q: 2, peak: 0.22 },
-    { k: "tone", type: "sine", freq: 1900, dur: 0.06, peak: 0.06 },
+    { k: "noise", filter: "bandpass", from: 6000, to: 1800, dur: 0.09, q: 2.5, attack: 0.02, peak: 0.34 },
+    { k: "metal", freq: 3400, ratios: BLADE_RING, dur: 0.09, peak: 0.05, at: 0.015 },
   ],
   swingGreatsword: [
-    { k: "noise", filter: "lowpass", from: 1400, to: 180, dur: 0.24, peak: 0.38 },
-    { k: "tone", type: "sine", freq: 70, dur: 0.28, peak: 0.26 },
+    { k: "noise", filter: "lowpass", from: 1800, to: 180, dur: 0.28, attack: 0.09, peak: 0.55 },
+    { k: "noise", filter: "bandpass", from: 1400, to: 400, dur: 0.22, q: 1.2, attack: 0.07, peak: 0.24 },
+    { k: "kick", from: 90, to: 40, drop: 0.15, dur: 0.3, peak: 0.34 },
   ],
   swingTwinBlades: [
-    { k: "noise", filter: "bandpass", from: 6500, to: 2600, dur: 0.045, q: 2, peak: 0.22 },
-    { k: "noise", filter: "bandpass", from: 7200, to: 3000, dur: 0.045, q: 2, peak: 0.21, at: 0.06 },
+    { k: "noise", filter: "bandpass", from: 8000, to: 3000, dur: 0.05, q: 3, attack: 0.006, peak: 0.3 },
+    { k: "noise", filter: "bandpass", from: 9000, to: 3400, dur: 0.05, q: 3, attack: 0.006, peak: 0.3, at: 0.055 },
+    { k: "metal", freq: 4000, ratios: BLADE_RING, dur: 0.05, peak: 0.035, at: 0.055 },
   ],
+  // 突き: 帯域を低 → 高へ上げて「ヒュッ」と前へ出る感じ、穂先が止まる所にクリック
   swingSpear: [
-    { k: "noise", filter: "highpass", from: 2800, to: 6500, dur: 0.07, peak: 0.22 },
-    { k: "sweep", type: "triangle", from: 900, to: 1500, dur: 0.06, peak: 0.08 },
+    { k: "noise", filter: "bandpass", from: 1500, to: 5500, dur: 0.08, q: 2, attack: 0.03, peak: 0.32 },
+    { k: "click", freq: 4500, peak: 0.2, at: 0.07 },
   ],
   swingScythe: [
-    { k: "noise", filter: "bandpass", from: 1800, to: 650, dur: 0.22, q: 3, peak: 0.3 },
-    { k: "sweep", type: "sine", from: 420, to: 200, dur: 0.2, peak: 0.09 },
+    { k: "noise", filter: "bandpass", from: 2400, to: 700, dur: 0.24, q: 3, attack: 0.08, peak: 0.4 },
+    { k: "metal", freq: 1900, ratios: BLADE_RING, dur: 0.2, peak: 0.04, at: 0.06 },
   ],
   swingFists: [
-    { k: "noise", filter: "lowpass", from: 900, to: 280, dur: 0.05, peak: 0.34 },
-    { k: "tone", type: "square", freq: 140, dur: 0.04, peak: 0.14 },
+    { k: "noise", filter: "lowpass", from: 1500, to: 300, dur: 0.06, attack: 0.004, peak: 0.4 },
+    { k: "kick", from: 200, to: 90, drop: 0.03, dur: 0.06, peak: 0.22 },
   ],
+  // 鞭: 振りのうなり → 先端が音速を超える「パァン」（クリック + 高域ノイズ）
   swingWhip: [
-    { k: "noise", filter: "bandpass", from: 1200, to: 3200, dur: 0.08, q: 1.5, peak: 0.17 },
-    { k: "noise", filter: "highpass", from: 8000, to: 3000, dur: 0.035, peak: 0.41, at: 0.08 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 3200, dur: 0.09, q: 1.5, attack: 0.04, peak: 0.22 },
+    { k: "click", freq: 5000, peak: 0.55, at: 0.085 },
+    { k: "noise", filter: "highpass", from: 9000, to: 3500, dur: 0.04, peak: 0.38, drive: 2, at: 0.085 },
   ],
   swingCleaver: [
-    { k: "noise", filter: "bandpass", from: 2500, to: 600, dur: 0.12, q: 1.2, peak: 0.32 },
-    { k: "tone", type: "triangle", freq: 180, dur: 0.1, peak: 0.17 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 700, dur: 0.13, q: 1.4, attack: 0.02, peak: 0.42 },
+    { k: "kick", from: 150, to: 70, drop: 0.05, dur: 0.1, peak: 0.2 },
   ],
   swingStaff: [
-    { k: "noise", filter: "lowpass", from: 2200, to: 480, dur: 0.15, peak: 0.26 },
-    { k: "tone", type: "sine", freq: 110, dur: 0.12, peak: 0.17 },
+    { k: "noise", filter: "lowpass", from: 2600, to: 500, dur: 0.16, attack: 0.05, peak: 0.38 },
+    { k: "kick", from: 120, to: 70, drop: 0.08, dur: 0.12, peak: 0.15 },
   ],
   swingWand: [
-    { k: "arp", type: "sine", freqs: [1760, 2349], note: 0.04, gap: 0.01, peak: 0.12 },
-    { k: "noise", filter: "highpass", from: 7000, to: 4000, dur: 0.06, peak: 0.09 },
+    { k: "noise", filter: "highpass", from: 7000, to: 4000, dur: 0.08, attack: 0.02, peak: 0.15 },
+    { k: "fm", freq: 1760, ratio: 2.01, index: 1.5, dur: 0.12, peak: 0.08 },
   ],
-  // 2026-09-24 レーン B の武器種
+  // 刀: いちばん鋭い。狭い帯域の高い掃引 + 長めの刃鳴り
   swingKatana: [
-    { k: "noise", filter: "bandpass", from: 7000, to: 2400, dur: 0.06, q: 3, peak: 0.24 },
-    { k: "tone", type: "sine", freq: 2600, dur: 0.05, peak: 0.07 },
+    { k: "click", freq: 7000, peak: 0.25 },
+    { k: "noise", filter: "bandpass", from: 9000, to: 2800, dur: 0.07, q: 3.5, attack: 0.01, peak: 0.38 },
+    { k: "metal", freq: 4200, ratios: BLADE_RING, dur: 0.14, peak: 0.06, at: 0.01 },
   ],
   swingAxe: [
-    { k: "noise", filter: "bandpass", from: 2000, to: 500, dur: 0.14, q: 1.4, peak: 0.32 },
-    { k: "tone", type: "triangle", freq: 130, dur: 0.12, peak: 0.18 },
+    { k: "noise", filter: "bandpass", from: 2200, to: 450, dur: 0.16, q: 1.4, attack: 0.04, peak: 0.45 },
+    { k: "kick", from: 130, to: 55, drop: 0.06, dur: 0.14, peak: 0.24, drive: 1.5 },
   ],
   swingShield: [
-    { k: "noise", filter: "lowpass", from: 700, to: 160, dur: 0.12, peak: 0.36 },
-    { k: "tone", type: "square", freq: 95, dur: 0.08, peak: 0.12 },
+    { k: "noise", filter: "lowpass", from: 900, to: 160, dur: 0.13, attack: 0.03, peak: 0.45 },
+    { k: "kick", from: 110, to: 55, drop: 0.05, dur: 0.1, peak: 0.24 },
+    { k: "metal", freq: 620, ratios: CLANG, dur: 0.1, peak: 0.05 },
   ],
   swingChainSickle: [
-    { k: "noise", filter: "highpass", from: 5000, to: 2600, dur: 0.05, peak: 0.2 },
-    { k: "tone", type: "triangle", freq: 3400, dur: 0.03, peak: 0.08, at: 0.03 },
+    { k: "noise", filter: "highpass", from: 6000, to: 2600, dur: 0.06, attack: 0.01, peak: 0.26 },
+    { k: "metal", freq: 3400, ratios: CHAIN, dur: 0.06, peak: 0.05, at: 0.02 },
   ],
+  // 戦鎚: いちばん重い。遅い立ち上がりの低い風切り + 深いサブ
   swingHammer: [
-    { k: "noise", filter: "lowpass", from: 1000, to: 120, dur: 0.3, peak: 0.4 },
-    { k: "tone", type: "sine", freq: 55, dur: 0.32, peak: 0.3 },
+    { k: "noise", filter: "lowpass", from: 1200, to: 120, dur: 0.32, attack: 0.11, peak: 0.6 },
+    { k: "kick", from: 70, to: 35, drop: 0.2, dur: 0.34, peak: 0.42, drive: 2 },
   ],
   swingGunner: [
-    { k: "noise", filter: "bandpass", from: 3000, to: 1200, dur: 0.05, q: 1.5, peak: 0.2 },
-    { k: "tone", type: "square", freq: 620, dur: 0.03, peak: 0.1 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 1200, dur: 0.06, q: 1.5, attack: 0.01, peak: 0.3 },
+    { k: "metal", freq: 1400, ratios: [1, 1.6], dur: 0.05, peak: 0.04 },
   ],
-  // 銃の家系: 軽い銃ほど高く短く、砲は低く重く
+  // 銃の家系のダッシュ攻撃・固有技: 軽い銃ほど高く短く、砲は低く重く
   swingSidearm: [
-    { k: "noise", filter: "bandpass", from: 3400, to: 1400, dur: 0.04, q: 1.5, peak: 0.18 },
-    { k: "tone", type: "square", freq: 720, dur: 0.025, peak: 0.08 },
+    { k: "noise", filter: "bandpass", from: 3600, to: 1500, dur: 0.05, q: 1.5, attack: 0.008, peak: 0.28 },
+    { k: "click", freq: 5000, peak: 0.2 },
   ],
   swingLongarm: [
-    { k: "noise", filter: "bandpass", from: 2200, to: 700, dur: 0.08, q: 1.2, peak: 0.22 },
-    { k: "tone", type: "triangle", freq: 330, dur: 0.05, peak: 0.1 },
+    { k: "noise", filter: "bandpass", from: 2400, to: 700, dur: 0.09, q: 1.2, attack: 0.02, peak: 0.32 },
+    { k: "metal", freq: 900, ratios: [1, 1.52], dur: 0.06, peak: 0.04 },
   ],
   swingCannon: [
-    { k: "noise", filter: "lowpass", from: 1400, to: 200, dur: 0.12, peak: 0.3 },
-    { k: "tone", type: "sine", freq: 110, dur: 0.08, peak: 0.2 },
+    { k: "noise", filter: "lowpass", from: 1500, to: 200, dur: 0.14, attack: 0.03, peak: 0.45 },
+    { k: "kick", from: 100, to: 50, drop: 0.06, dur: 0.12, peak: 0.24 },
   ],
-  swingThrown: [
-    { k: "noise", filter: "bandpass", from: 4200, to: 1800, dur: 0.06, q: 2, peak: 0.16 },
-  ],
+  swingThrown: [{ k: "noise", filter: "bandpass", from: 5000, to: 2000, dur: 0.07, q: 2.5, attack: 0.015, peak: 0.3 }],
   // 擲弾: 筒の鈍い打撃（砲より高く短い）
   swingGrenade: [
-    { k: "noise", filter: "lowpass", from: 1800, to: 300, dur: 0.09, peak: 0.26 },
-    { k: "tone", type: "sine", freq: 160, dur: 0.06, peak: 0.16 },
+    { k: "noise", filter: "lowpass", from: 2000, to: 300, dur: 0.1, attack: 0.02, peak: 0.38 },
+    { k: "kick", from: 150, to: 80, drop: 0.04, dur: 0.08, peak: 0.2 },
   ],
   // 仕掛け: 金具の軽い擦れ
   swingTrapper: [
-    { k: "noise", filter: "bandpass", from: 3000, to: 1200, dur: 0.05, q: 1.5, peak: 0.16 },
-    { k: "tone", type: "square", freq: 520, dur: 0.03, peak: 0.06 },
+    { k: "noise", filter: "bandpass", from: 3200, to: 1300, dur: 0.05, q: 1.5, attack: 0.01, peak: 0.25 },
+    { k: "metal", freq: 1800, ratios: [1, 1.43], dur: 0.04, peak: 0.04 },
   ],
-  // 戦輪: 刃の輪が風を切る高い音
+  // 戦輪: 刃の輪が風を切って回る（うなる FM）
   swingWarRing: [
-    { k: "sweep", type: "triangle", from: 1800, to: 900, dur: 0.08, peak: 0.12 },
-    { k: "noise", filter: "bandpass", from: 5200, to: 2600, dur: 0.07, q: 2.5, peak: 0.12 },
+    { k: "noise", filter: "bandpass", from: 6000, to: 2800, dur: 0.12, q: 3, attack: 0.03, peak: 0.3 },
+    { k: "fm", freq: 1600, ratio: 1.41, index: 2, dur: 0.12, peak: 0.06, to: 900 },
   ],
 
-  // ---- 銃の弾の発射音（8-2）----
-  shotRapid: [{ k: "sweep", type: "square", from: 1400, to: 500, dur: 0.04, peak: 0.25 }],
-  shotSpread: [
-    { k: "noise", filter: "lowpass", from: 2600, to: 150, dur: 0.18, peak: 0.65 },
-    { k: "tone", type: "sine", freq: 90, dur: 0.12, peak: 0.35 },
+  // ==== 近接の命中（combat.ts: 軽撃は hit + hitThump、重撃は hitHeavy）====
+  // トランジェント（click）+ 肉を斬るボディ（歪ませた帯域ノイズ）+ 刃の縁（高域）+ 湿ったテール
+  hit: [
+    { k: "click", freq: 3000, peak: 0.5 },
+    { k: "noise", filter: "bandpass", from: 1800, to: 450, dur: 0.07, q: 1.2, peak: 0.55, drive: 2 },
+    { k: "noise", filter: "highpass", from: 5000, to: 2500, dur: 0.03, peak: 0.22 },
+    { k: "noise", filter: "lowpass", from: 800, to: 200, dur: 0.1, peak: 0.18, at: 0.01 },
   ],
+  /** 近接命中の低域のドン。hit と一緒に積む（重撃は hitHeavy が自分で低域を持つ） */
+  hitThump: [{ k: "kick", from: 150, to: 50, drop: 0.05, dur: 0.1, peak: 0.5, drive: 1.5 }],
+  hitHeavy: [
+    { k: "click", freq: 2000, peak: 0.6 },
+    { k: "kick", from: 120, to: 38, drop: 0.09, dur: 0.26, peak: 0.7, drive: 2.5 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 250, dur: 0.14, q: 1, peak: 0.6, drive: 2.5 },
+    { k: "noise", filter: "lowpass", from: 600, to: 80, dur: 0.3, peak: 0.28, at: 0.02 },
+  ],
+  /** 武器種の最終段・フィニッシュ派生の命中: 深い衝撃 + 高い刃音 + 金属の余韻 */
+  finisherHit: [
+    { k: "kick", from: 90, to: 32, drop: 0.12, dur: 0.35, peak: 0.6, drive: 3 },
+    { k: "noise", filter: "highpass", from: 9000, to: 3000, dur: 0.1, peak: 0.35 },
+    { k: "metal", freq: 2200, ratios: CLANG, dur: 0.3, peak: 0.07, at: 0.005 },
+    { k: "noise", filter: "lowpass", from: 900, to: 90, dur: 0.4, peak: 0.28, at: 0.03 },
+  ],
+  /** 会心: 高い金属のきらめき（命中音の上に乗る） */
+  crit: [
+    { k: "click", freq: 8000, peak: 0.4 },
+    { k: "metal", freq: 3100, ratios: [1, 1.47, 2.09, 2.76], dur: 0.28, peak: 0.09 },
+    { k: "fm", freq: 4200, ratio: 1.414, index: 3, dur: 0.15, peak: 0.05 },
+  ],
+  /** 弱点: 上がる 2 音のきらめき（会心の金属音とは聞き分けられるよう音程で鳴らす） */
+  weakHit: [
+    { k: "arp", type: "sine", freqs: [1318.5, 1760], note: 0.04, gap: 0, peak: 0.12 },
+    { k: "metal", freq: 3520, ratios: [1, 1.34], dur: 0.15, peak: 0.05, at: 0.04 },
+  ],
+  /** 耐性: こもった鈍い当たり */
+  resistHit: [
+    { k: "kick", from: 200, to: 120, drop: 0.04, dur: 0.06, peak: 0.2 },
+    { k: "noise", filter: "lowpass", from: 600, to: 200, dur: 0.05, peak: 0.2 },
+  ],
+  /** 撃破: 弾ける破裂 + 低い落ち + 小さなご褒美のきらめき */
+  kill: [
+    { k: "kick", from: 110, to: 40, drop: 0.06, dur: 0.16, peak: 0.5, drive: 2 },
+    { k: "noise", filter: "bandpass", from: 2200, to: 300, dur: 0.18, q: 0.9, peak: 0.5, drive: 1.5 },
+    { k: "noise", filter: "lowpass", from: 1200, to: 100, dur: 0.3, peak: 0.22, at: 0.03 },
+    { k: "arp", type: "sine", freqs: [880, 1320], note: 0.04, gap: 0, peak: 0.08, at: 0.02 },
+  ],
+
+  // ==== 射撃（8-2）: 銃声 = クリック + 歪ませた破裂ノイズ + 短いキック + 尾。弾の性質ごとに太さと尾を変える ====
+  shoot: [
+    { k: "click", freq: 3000, peak: 0.5 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 700, dur: 0.08, q: 0.9, peak: 0.5, drive: 2.5 },
+    { k: "kick", from: 220, to: 80, drop: 0.03, dur: 0.07, peak: 0.3 },
+    { k: "noise", filter: "lowpass", from: 1400, to: 200, dur: 0.15, peak: 0.14, at: 0.01 },
+  ],
+  // 連射: 短く乾いた破裂音（尾を持たない）
+  shotRapid: [
+    { k: "click", freq: 4000, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 4000, to: 1400, dur: 0.04, q: 1, peak: 0.42, drive: 3 },
+    { k: "kick", from: 300, to: 140, drop: 0.02, dur: 0.035, peak: 0.18 },
+  ],
+  // 散弾: 太い。深いキックと広い帯域の破裂 + 長めの尾
+  shotSpread: [
+    { k: "click", freq: 2000, peak: 0.6 },
+    { k: "kick", from: 140, to: 45, drop: 0.06, dur: 0.2, peak: 0.6, drive: 3 },
+    { k: "noise", filter: "lowpass", from: 3500, to: 200, dur: 0.22, peak: 0.6, drive: 2 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 300, dur: 0.35, peak: 0.18, at: 0.02 },
+  ],
+  // 貫通（長銃）: 鋭い高音の割れ + 遠くへ抜ける尾
   shotPierce: [
-    { k: "sweep", type: "sawtooth", from: 2200, to: 300, dur: 0.12, peak: 0.28 },
-    { k: "noise", filter: "highpass", from: 6000, to: 2000, dur: 0.08, peak: 0.18 },
+    { k: "click", freq: 6000, peak: 0.5 },
+    { k: "noise", filter: "highpass", from: 7000, to: 2500, dur: 0.06, peak: 0.4, drive: 2 },
+    { k: "kick", from: 180, to: 60, drop: 0.05, dur: 0.12, peak: 0.34, drive: 2 },
+    { k: "noise", filter: "bandpass", from: 2500, to: 600, dur: 0.4, q: 1.5, peak: 0.16, at: 0.03 },
+    { k: "noise", filter: "bandpass", from: 1800, to: 500, dur: 0.3, q: 1.5, peak: 0.07, at: 0.16 },
   ],
   shotHoming: [
-    { k: "sweep", type: "sine", from: 600, to: 1400, dur: 0.12, peak: 0.3 },
-    { k: "tone", type: "triangle", freq: 1800, dur: 0.05, peak: 0.12, at: 0.08 },
+    { k: "click", freq: 4000, peak: 0.25 },
+    { k: "sweep", type: "sine", from: 600, to: 1400, dur: 0.12, peak: 0.2 },
+    { k: "noise", filter: "bandpass", from: 2500, to: 5000, dur: 0.1, q: 2, attack: 0.03, peak: 0.15 },
   ],
   shotRicochet: [
-    { k: "tone", type: "triangle", freq: 3200, dur: 0.05, peak: 0.25 },
-    { k: "sweep", type: "square", from: 2600, to: 1200, dur: 0.06, peak: 0.15 },
+    { k: "click", freq: 4000, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 3500, to: 1500, dur: 0.05, peak: 0.35, drive: 2 },
+    { k: "metal", freq: 3200, ratios: [1, 1.43, 2.1], dur: 0.12, peak: 0.08 },
   ],
+  // 溜め撃ち（砲）: 解放の唸り → 低いドン + 崩れる尾
   shotCharge: [
-    { k: "sweep", type: "sawtooth", from: 300, to: 2400, dur: 0.1, peak: 0.25 },
-    { k: "noise", filter: "lowpass", from: 3000, to: 100, dur: 0.3, peak: 0.65, at: 0.08 },
-    { k: "tone", type: "sine", freq: 60, dur: 0.3, peak: 0.4, at: 0.08 },
+    { k: "sweep", type: "sawtooth", from: 300, to: 2400, dur: 0.1, peak: 0.12 },
+    { k: "click", freq: 1500, peak: 0.6, at: 0.06 },
+    { k: "kick", from: 90, to: 32, drop: 0.12, dur: 0.35, peak: 0.6, drive: 3, at: 0.06 },
+    { k: "noise", filter: "lowpass", from: 3000, to: 100, dur: 0.35, peak: 0.5, drive: 1.5, at: 0.06 },
   ],
   shotMine: [
-    { k: "tone", type: "square", freq: 440, dur: 0.03, peak: 0.22 },
-    { k: "tone", type: "square", freq: 660, dur: 0.03, peak: 0.22, at: 0.05 },
+    { k: "click", freq: 3000, peak: 0.3 },
+    { k: "metal", freq: 880, ratios: [1, 1.5], dur: 0.08, peak: 0.1 },
     { k: "noise", filter: "lowpass", from: 600, to: 200, dur: 0.06, peak: 0.3 },
   ],
-  // 2026-09-24 レーン B の銃の弾（三点は 1 発ごとに鳴る）
-  shotBurst: [{ k: "sweep", type: "square", from: 1700, to: 700, dur: 0.035, peak: 0.22 }],
-  shotBoomerang: [
-    { k: "sweep", type: "triangle", from: 900, to: 1600, dur: 0.1, peak: 0.2 },
-    { k: "noise", filter: "bandpass", from: 3000, to: 5000, dur: 0.1, q: 2, peak: 0.12 },
+  // 三点（1 発ごとに鳴る）: 連射より少し高く短い
+  shotBurst: [
+    { k: "click", freq: 4500, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 4500, to: 1600, dur: 0.035, q: 1, peak: 0.4, drive: 3 },
+    { k: "kick", from: 320, to: 150, drop: 0.02, dur: 0.03, peak: 0.16 },
   ],
+  shotBoomerang: [
+    { k: "noise", filter: "bandpass", from: 3000, to: 5000, dur: 0.12, q: 2, attack: 0.04, peak: 0.3 },
+    { k: "fm", freq: 900, ratio: 1.5, index: 1, dur: 0.1, peak: 0.08, to: 1600 },
+  ],
+  // 曲射（砲・擲弾）: 筒の低い「ドン」
   shotLob: [
-    { k: "tone", type: "sine", freq: 120, dur: 0.1, peak: 0.35 },
-    { k: "noise", filter: "lowpass", from: 1400, to: 200, dur: 0.12, peak: 0.3 },
+    { k: "click", freq: 1500, peak: 0.3 },
+    { k: "kick", from: 90, to: 40, drop: 0.08, dur: 0.22, peak: 0.55, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 1400, to: 150, dur: 0.18, peak: 0.35 },
+  ],
+  /** 弾の命中: 小さな破裂 */
+  bulletHit: [
+    { k: "click", freq: 2500, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 2000, to: 500, dur: 0.05, q: 1, peak: 0.4, drive: 1.5 },
+    { k: "kick", from: 180, to: 80, drop: 0.03, dur: 0.05, peak: 0.2 },
+  ],
+  /** 敵の射撃: 自分の銃声より軽く、聞き分けられる「ポン」 */
+  enemyShoot: [
+    { k: "noise", filter: "bandpass", from: 2000, to: 800, dur: 0.06, q: 1.2, peak: 0.25 },
+    { k: "sweep", type: "triangle", from: 700, to: 260, dur: 0.08, peak: 0.15 },
+  ],
+  wallHit: [
+    { k: "click", freq: 1500, peak: 0.2 },
+    { k: "kick", from: 160, to: 60, drop: 0.03, dur: 0.06, peak: 0.3 },
+    { k: "noise", filter: "lowpass", from: 600, to: 150, dur: 0.05, peak: 0.3 },
   ],
 
-  // ---- 属性の命中音 ----
-  hitFire: [{ k: "noise", filter: "bandpass", from: 2500, to: 700, dur: 0.15, peak: 0.35 }],
+  // ==== 爆発: ドン（歪ませたキック）+ 崩れるノイズ + 低音の尾 ====
+  explode: [
+    { k: "click", freq: 1000, peak: 0.6 },
+    { k: "kick", from: 80, to: 28, drop: 0.15, dur: 0.6, peak: 0.8, drive: 3 },
+    { k: "noise", filter: "lowpass", from: 4000, to: 120, dur: 0.7, peak: 0.72, drive: 2 },
+    { k: "noise", filter: "bandpass", from: 900, to: 150, dur: 1, q: 0.7, peak: 0.28, at: 0.05 },
+    { k: "crackle", freq: 1800, count: 5, gap: 0.06, peak: 0.18, at: 0.08 },
+    { k: "noise", filter: "lowpass", from: 300, to: 40, dur: 1.2, peak: 0.3, at: 0.1 },
+  ],
+  /** 大技（バースト）: 力が溜まって放たれる。上がる唸り + 深いドン + 吹き抜ける風 */
+  burst: [
+    { k: "fm", freq: 220, ratio: 2, index: 2, dur: 0.15, peak: 0.1, to: 880 },
+    { k: "kick", from: 70, to: 30, drop: 0.18, dur: 0.6, peak: 0.75, drive: 2.5, at: 0.08 },
+    { k: "noise", filter: "lowpass", from: 2500, to: 100, dur: 0.5, peak: 0.6, at: 0.08 },
+    { k: "noise", filter: "highpass", from: 3000, to: 8000, dur: 0.25, attack: 0.05, peak: 0.15, at: 0.08 },
+  ],
+
+  // ==== 動き・見切り・反撃・処刑 ====
+  dash: [
+    { k: "noise", filter: "bandpass", from: 3000, to: 900, dur: 0.16, q: 1.5, attack: 0.04, peak: 0.45 },
+    { k: "noise", filter: "highpass", from: 6000, to: 2500, dur: 0.06, peak: 0.14 },
+  ],
+  /** 見切り: 時間が止まるような高い金属のきらめき + 吸い込む風 */
+  just: [
+    { k: "noise", filter: "highpass", from: 8000, to: 4000, dur: 0.12, attack: 0.02, peak: 0.2 },
+    { k: "metal", freq: 2637, ratios: [1, 1.5, 2.76], dur: 0.35, peak: 0.1 },
+    { k: "fm", freq: 1760, ratio: 3.01, index: 2, dur: 0.25, peak: 0.08, at: 0.02 },
+  ],
+  /** 反撃: 金属の打ち合い + 深い衝撃 */
+  counter: [
+    { k: "click", freq: 3000, peak: 0.6 },
+    { k: "kick", from: 110, to: 35, drop: 0.08, dur: 0.26, peak: 0.7, drive: 3 },
+    { k: "noise", filter: "bandpass", from: 3200, to: 400, dur: 0.16, q: 1, peak: 0.5, drive: 2 },
+    { k: "metal", freq: 2400, ratios: CLANG, dur: 0.3, peak: 0.1 },
+  ],
+  parry: [
+    { k: "click", freq: 5000, peak: 0.6 },
+    { k: "noise", filter: "highpass", from: 6000, to: 1800, dur: 0.08, peak: 0.5 },
+    { k: "metal", freq: 1800, ratios: CLANG, dur: 0.45, peak: 0.14 },
+    { k: "fm", freq: 1800, ratio: 1.41, index: 3, dur: 0.2, peak: 0.07 },
+  ],
+  execute: [
+    { k: "noise", filter: "highpass", from: 9000, to: 2500, dur: 0.12, peak: 0.55 },
+    { k: "kick", from: 90, to: 30, drop: 0.12, dur: 0.4, peak: 0.7, drive: 3 },
+    { k: "metal", freq: 1500, ratios: [1, 1.47, 2.09, 2.76], dur: 0.5, peak: 0.08, at: 0.02 },
+    { k: "noise", filter: "lowpass", from: 1000, to: 60, dur: 0.5, peak: 0.3, at: 0.03 },
+  ],
+  /** 部屋の最後の 1 体: 大きなドン + 余韻の鐘 */
+  lastKill: [
+    { k: "kick", from: 60, to: 25, drop: 0.2, dur: 0.8, peak: 0.8, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 2400, to: 100, dur: 0.6, peak: 0.6 },
+    { k: "metal", freq: 1600, ratios: [1, 1.5, 2.76], dur: 0.6, peak: 0.1 },
+    { k: "noise", filter: "bandpass", from: 800, to: 100, dur: 1, peak: 0.2, at: 0.1 },
+  ],
+  guardBreak: [
+    { k: "click", freq: 4000, peak: 0.5 },
+    { k: "noise", filter: "highpass", from: 8000, to: 2000, dur: 0.18, peak: 0.7, drive: 1.5 },
+    { k: "metal", freq: 3200, ratios: [1, 1.31, 1.72, 2.35], dur: 0.25, peak: 0.1 },
+    { k: "kick", from: 140, to: 60, drop: 0.05, dur: 0.12, peak: 0.4 },
+  ],
+  eliteKill: [
+    { k: "kick", from: 80, to: 30, drop: 0.12, dur: 0.35, peak: 0.6, drive: 2.5 },
+    { k: "noise", filter: "lowpass", from: 3500, to: 150, dur: 0.3, peak: 0.6, drive: 1.5 },
+    { k: "arp", type: "sine", freqs: [440, 660, 880, 1108.73], note: 0.06, gap: 0.02, peak: 0.14, at: 0.04 },
+    { k: "metal", freq: 2200, ratios: BLADE_RING, dur: 0.4, peak: 0.06, at: 0.3 },
+  ],
+  /** 被弾: 歪んだ重い衝撃 + うなる低音（攻撃の音と取り違えない暗い音色） */
+  hurt: [
+    { k: "click", freq: 1500, peak: 0.4 },
+    { k: "kick", from: 180, to: 60, drop: 0.06, dur: 0.2, peak: 0.6, drive: 3 },
+    { k: "noise", filter: "bandpass", from: 1500, to: 300, dur: 0.15, q: 0.8, peak: 0.45, drive: 3 },
+    { k: "sweep", type: "sawtooth", from: 240, to: 90, dur: 0.2, peak: 0.12 },
+  ],
+
+  // ==== スキルの発動と属性（炎 = ゴォッ、氷 = 結晶のきらめき、雷 = バチッ、毒 = 泡、闇 = 低いうねり、光 = 鐘）====
+  /** 発動の共通音: 魔力が集まって放たれる風 */
+  skillCast: [
+    { k: "click", freq: 5000, peak: 0.25 },
+    { k: "noise", filter: "bandpass", from: 1500, to: 4000, dur: 0.15, q: 1.5, attack: 0.04, peak: 0.35 },
+    { k: "fm", freq: 440, ratio: 2, index: 1.5, dur: 0.15, peak: 0.08, to: 880 },
+  ],
+  railshot: [
+    { k: "click", freq: 5000, peak: 0.5 },
+    { k: "noise", filter: "highpass", from: 8000, to: 3000, dur: 0.08, peak: 0.5, drive: 2 },
+    { k: "fm", freq: 1400, ratio: 0.5, index: 3, dur: 0.3, peak: 0.14, to: 120 },
+    { k: "kick", from: 120, to: 40, drop: 0.08, dur: 0.2, peak: 0.45, drive: 2 },
+  ],
+  burn: [
+    { k: "noise", filter: "lowpass", from: 3000, to: 300, dur: 0.4, attack: 0.06, peak: 0.55, drive: 2.5 },
+    { k: "kick", from: 90, to: 50, drop: 0.1, dur: 0.2, peak: 0.28 },
+    { k: "crackle", freq: 3200, count: 5, gap: 0.05, peak: 0.3, at: 0.04 },
+  ],
+  freeze: [
+    { k: "click", freq: 7000, peak: 0.3 },
+    { k: "fm", freq: 2093, ratio: 3.53, index: 2.5, dur: 0.5, peak: 0.08 },
+    { k: "metal", freq: 3136, ratios: CRYSTAL, dur: 0.4, peak: 0.08, at: 0.03 },
+    { k: "noise", filter: "highpass", from: 6000, to: 9000, dur: 0.3, attack: 0.05, peak: 0.15 },
+  ],
+  shock: [
+    { k: "click", freq: 4000, peak: 0.6 },
+    { k: "noise", filter: "bandpass", from: 4000, to: 1500, dur: 0.12, q: 0.8, peak: 0.5, drive: 5 },
+    { k: "crackle", freq: 5000, count: 6, gap: 0.025, peak: 0.3 },
+    { k: "kick", from: 150, to: 60, drop: 0.05, dur: 0.1, peak: 0.28 },
+  ],
+  hitFire: [
+    { k: "noise", filter: "lowpass", from: 2500, to: 600, dur: 0.2, attack: 0.03, peak: 0.42, drive: 2 },
+    { k: "crackle", freq: 3000, count: 3, gap: 0.04, peak: 0.22 },
+  ],
   hitIce: [
-    { k: "tone", type: "triangle", freq: 2600, dur: 0.08, peak: 0.22 },
-    { k: "tone", type: "triangle", freq: 3900, dur: 0.08, peak: 0.15, at: 0.02 },
+    { k: "click", freq: 7000, peak: 0.35 },
+    { k: "metal", freq: 2600, ratios: CRYSTAL, dur: 0.25, peak: 0.1 },
+    { k: "noise", filter: "highpass", from: 7000, to: 4000, dur: 0.06, peak: 0.22 },
   ],
   hitLightning: [
-    { k: "sweep", type: "sawtooth", from: 3000, to: 600, dur: 0.07, peak: 0.2 },
-    { k: "noise", filter: "highpass", from: 5000, to: 2000, dur: 0.05, peak: 0.28 },
+    { k: "click", freq: 4000, peak: 0.6 },
+    { k: "noise", filter: "highpass", from: 5000, to: 2000, dur: 0.05, peak: 0.42, drive: 4 },
+    { k: "crackle", freq: 5000, count: 3, gap: 0.02, peak: 0.28 },
   ],
-  hitPoison: [{ k: "sweep", type: "sine", from: 300, to: 700, dur: 0.08, peak: 0.28 }],
+  hitPoison: [
+    { k: "blips", type: "sine", from: 300, to: 750, count: 3, note: 0.03, gap: 0.015, peak: 0.16 },
+    { k: "noise", filter: "bandpass", from: 800, to: 400, dur: 0.08, q: 2, peak: 0.2 },
+  ],
   hitDark: [
-    { k: "sweep", type: "triangle", from: 500, to: 120, dur: 0.14, peak: 0.28 },
-    { k: "noise", filter: "lowpass", from: 800, to: 150, dur: 0.12, peak: 0.28 },
+    { k: "fm", freq: 110, ratio: 1.5, index: 2, dur: 0.25, peak: 0.2, to: 70 },
+    { k: "noise", filter: "lowpass", from: 700, to: 120, dur: 0.18, peak: 0.34, drive: 1.5 },
+    { k: "kick", from: 90, to: 40, drop: 0.06, dur: 0.12, peak: 0.24 },
   ],
-  hitLight: [{ k: "arp", type: "sine", freqs: [1568, 2093], note: 0.05, gap: 0, peak: 0.22 }],
+  hitLight: [
+    { k: "click", freq: 6000, peak: 0.3 },
+    { k: "fm", freq: 1568, ratio: BELL_FM_RATIO, index: 3, dur: 0.5, peak: 0.12 },
+    { k: "tone", type: "sine", freq: 3136, dur: 0.2, peak: 0.05 },
+  ],
+  castFire: [
+    { k: "noise", filter: "bandpass", from: 400, to: 1600, dur: 0.3, q: 0.8, attack: 0.08, peak: 0.45, drive: 2.5 },
+    { k: "crackle", freq: 2800, count: 4, gap: 0.05, peak: 0.2, at: 0.05 },
+  ],
+  castIce: [
+    { k: "metal", freq: 3520, ratios: CRYSTAL, dur: 0.35, peak: 0.08 },
+    { k: "blips", type: "sine", from: 2600, to: 3400, count: 3, note: 0.03, gap: 0.02, peak: 0.05, at: 0.03 },
+  ],
+  castLightning: [
+    { k: "crackle", freq: 5500, count: 5, gap: 0.018, peak: 0.26 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 6000, dur: 0.1, q: 1, peak: 0.25, drive: 4 },
+  ],
+  castPoison: [
+    { k: "blips", type: "sine", from: 220, to: 600, count: 4, note: 0.035, gap: 0.02, peak: 0.16 },
+    { k: "noise", filter: "lowpass", from: 900, to: 300, dur: 0.15, peak: 0.18 },
+  ],
+  castDark: [
+    { k: "fm", freq: 80, ratio: 1.5, index: 3, dur: 0.45, peak: 0.24, to: 55 },
+    { k: "noise", filter: "lowpass", from: 500, to: 120, dur: 0.35, attack: 0.08, peak: 0.25 },
+  ],
+  castLight: [
+    { k: "fm", freq: 1046.5, ratio: BELL_FM_RATIO, index: 3, dur: 0.7, peak: 0.12 },
+    { k: "fm", freq: 1568, ratio: BELL_FM_RATIO, index: 2, dur: 0.5, peak: 0.06, at: 0.04 },
+  ],
+
 
   // ---- 状態異常の付与音（8-3）と怯み（8-6）----
-  statusPoison: [{ k: "arp", type: "sine", freqs: [260, 340, 300], note: 0.04, gap: 0.02, peak: 0.28 }],
+  statusPoison: [
+    { k: "blips", type: "sine", from: 260, to: 520, count: 3, note: 0.04, gap: 0.02, peak: 0.24 },
+    { k: "noise", filter: "bandpass", from: 700, to: 350, dur: 0.1, q: 2, peak: 0.16 },
+  ],
   statusBleed: [
     { k: "noise", filter: "lowpass", from: 1200, to: 300, dur: 0.08, peak: 0.38 },
     { k: "tone", type: "sine", freq: 180, dur: 0.05, peak: 0.18 },
   ],
-  statusParalyze: [{ k: "arp", type: "square", freqs: [1000, 1000, 1000], note: 0.025, gap: 0.03, peak: 0.18 }],
+  statusParalyze: [
+    { k: "crackle", freq: 4500, count: 6, gap: 0.03, peak: 0.26 },
+    { k: "noise", filter: "bandpass", from: 2500, to: 1200, dur: 0.18, q: 3, peak: 0.14, drive: 4 },
+  ],
   statusFear: [{ k: "arp", type: "triangle", freqs: [523.25, 415.3, 311.13], note: 0.07, gap: 0.005, peak: 0.24 }],
   statusCurse: [
     { k: "sweep", type: "sawtooth", from: 400, to: 180, dur: 0.18, peak: 0.16 },
@@ -219,20 +494,11 @@ export const LAYERED_SFX = {
   dropUmbra: [{ k: "chord", type: "sawtooth", freqs: [DROP_ROOT / 2, semitone(6) / 2, DROP_ROOT], dur: 0.45, peak: 0.1 }],
 
   // ---- 演出に合わせた音 ----
-  crit: [
-    { k: "tone", type: "square", freq: 2400, dur: 0.04, peak: 0.2 },
-    { k: "noise", filter: "highpass", from: 7000, to: 3000, dur: 0.05, peak: 0.28 },
-  ],
   comboMilestone: [{ k: "arp", type: "square", freqs: [784, 987.77, 1174.66, 1568], note: 0.045, gap: 0.01, peak: 0.22 }],
   hordeSeal: [
     { k: "tone", type: "sawtooth", freq: 60, dur: 0.5, peak: 0.3 },
     { k: "noise", filter: "lowpass", from: 1500, to: 80, dur: 0.5, peak: 0.55 },
     { k: "tone", type: "square", freq: 1900, dur: 0.25, peak: 0.12, at: 0.05 },
-  ],
-  execute: [
-    { k: "noise", filter: "highpass", from: 9000, to: 2500, dur: 0.12, peak: 0.55 },
-    { k: "tone", type: "sine", freq: 80, dur: 0.3, peak: 0.45 },
-    { k: "sweep", type: "sawtooth", from: 2600, to: 400, dur: 0.15, peak: 0.18 },
   ],
   // ---- 泥が火で固まる（乾いた割れ）/ 強欲のが床の物をひったくる（短い上昇音）----
   mudHarden: [
@@ -321,13 +587,6 @@ export const LAYERED_SFX = {
   // ---- コンボの可視化と爽快感パッケージ（docs/ideas/combat-feel-design.md D-1 / D-5）----
   /** 派生成立: 短い上昇の 2 音 */
   branch: [{ k: "arp", type: "triangle", freqs: [880, 1318.5], note: 0.05, gap: 0.01, peak: 0.2 }],
-  /** 武器種の最終段・フィニッシュ派生の命中: 低い衝撃 + 高い刃音 */
-  finisherHit: [
-    { k: "tone", type: "sine", freq: 55, dur: 0.16, peak: 0.4 },
-    { k: "noise", filter: "highpass", from: 8000, to: 3000, dur: 0.08, peak: 0.3 },
-  ],
-  /** 近接命中の低域のドン。hit と一緒に積む */
-  hitThump: [{ k: "tone", type: "sine", freq: 70, dur: 0.07, peak: 0.3 }],
 } as const satisfies Partial<Record<SfxName, readonly Layer[]>>;
 
 export type LayeredSfxName = keyof typeof LAYERED_SFX;

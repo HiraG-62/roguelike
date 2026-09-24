@@ -38,13 +38,24 @@ interface SfxDefOpts {
 /** 効果音1つ分の合成処理。呼び出し元に音の長さ（秒）を返す。 */
 type SfxDefinition = (ctx: BaseAudioContext, dest: AudioNode, opts: SfxDefOpts) => number;
 
-const MAX_POLYPHONY = 16;
+/** 同時発音の上限。近接の命中は hit + hitThump + 会心 + 属性 + 弱点で 1 撃 5 音まで積むので、乱戦で重要な音が落ちない幅にする */
+const MAX_POLYPHONY = 24;
 const RETRIGGER_SUPPRESS_SECONDS = 0.03;
 const DEFAULT_MASTER_VOLUME = 0.5;
-const COMPRESSOR_THRESHOLD_DB = -18;
-const COMPRESSOR_RATIO = 6;
-const COMPRESSOR_ATTACK_SECONDS = 0.003;
-const COMPRESSOR_RELEASE_SECONDS = 0.15;
+/**
+ * マスターの 2 段のダイナミクス。1 段目（まとめ）は立ち上がりを 6ms 通してから抑え、打撃のアタックを潰さずに音量を揃える。
+ * 2 段目（リミッター）は同時に重なったときの音割れだけを止める
+ */
+const COMPRESSOR_THRESHOLD_DB = -16;
+const COMPRESSOR_KNEE_DB = 8;
+const COMPRESSOR_RATIO = 4;
+const COMPRESSOR_ATTACK_SECONDS = 0.006;
+const COMPRESSOR_RELEASE_SECONDS = 0.12;
+const LIMITER_THRESHOLD_DB = -2;
+const LIMITER_KNEE_DB = 0;
+const LIMITER_RATIO = 20;
+const LIMITER_ATTACK_SECONDS = 0.001;
+const LIMITER_RELEASE_SECONDS = 0.08;
 
 const MIN_SWEEP_FREQ = 20;
 const TAIL_MARGIN_SECONDS = 0.1;
@@ -166,24 +177,7 @@ function arpeggio(
 // ---- チューニング表（周波数・長さなどの手触り定数） ----------------------
 
 const TUNING = {
-  slash: {
-    // 段が進むほど低く重くなる
-    freqFrom: [4200, 3400, 2600] as const,
-    freqTo: [1400, 900, 500] as const,
-    duration: [0.09, 0.11, 0.14] as const,
-    heavyThumpFreq: 110,
-    heavyThumpDuration: 0.16,
-  },
-  hit: { pulseFreq: 220, pulseDuration: 0.05, noiseFreqFrom: 2200, noiseFreqTo: 600, noiseDuration: 0.05 },
-  hitHeavy: { pulseFreq: 85, pulseDuration: 0.24, noiseFreqFrom: 900, noiseFreqTo: 200, noiseDuration: 0.12 },
-  kill: { arpeggio: [440, 660, 880] as const, noteDuration: 0.05, gap: 0.02, noiseFreqFrom: 3000, noiseFreqTo: 500, noiseDuration: 0.1 },
-  shoot: { freqFrom: 950, freqTo: 200, duration: 0.09 },
-  bulletHit: { freqFrom: 1400, freqTo: 350, duration: 0.05 },
-  dash: { freqFrom: 6500, freqTo: 900, duration: 0.18 },
-  just: { tones: [1500, 2200] as const, noteDuration: 0.05, gap: 0.02 },
-  hurt: { lowFreq: 110, detuneFreq: 118, duration: 0.22, noiseFreqFrom: 800, noiseFreqTo: 200, noiseDuration: 0.15 },
   death: { freqFrom: 320, freqTo: 35, duration: 0.9 },
-  burst: { noiseFreqFrom: 1800, noiseFreqTo: 100, noiseDuration: 0.45, lowFreq: 65, lowDuration: 0.55 },
   roomLock: { freqA: 95, freqB: 101, duration: 0.5, metallicFreq: 1900, metallicDuration: 0.3 },
   roomClear: { tones: [523.25, 659.25, 783.99] as const, noteDuration: 0.13, gap: 0.05 },
   pickup: { freqFrom: 500, freqTo: 950, duration: 0.08 },
@@ -195,23 +189,12 @@ const TUNING = {
   uiClose: { freqFrom: 950, freqTo: 500, duration: 0.05 },
   uiClick: { freq: 1200, duration: 0.02 },
   enemyWindup: { freqFrom: 280, freqTo: 520, duration: 0.35 },
-  enemyShoot: { freqFrom: 750, freqTo: 260, duration: 0.08 },
-  wallHit: { freq: 150, duration: 0.05, noiseDuration: 0.04 },
-  burn: { crackleFreqFrom: 3500, crackleFreqTo: 1500, crackleDuration: 0.03, crackleGap: 0.05, crackleCount: 4 },
-  shock: { freqFrom: 3200, freqTo: 900, duration: 0.12 },
-  freeze: { freqFrom: 2600, freqTo: 1100, duration: 0.28 },
-  explode: { noiseFreqFrom: 1600, noiseFreqTo: 80, noiseDuration: 0.6, lowFreq: 55, lowDuration: 0.7 },
   heal: { tones: [660, 880, 1100] as const, noteDuration: 0.08, gap: 0.02 },
-  skillCast: { noiseFreqFrom: 2400, noiseFreqTo: 600, noiseDuration: 0.12, freqFrom: 300, freqTo: 700, duration: 0.1 },
   skillReady: { tones: [880, 1320] as const, noteDuration: 0.04, gap: 0.01 },
-  parry: { freq: 1800, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 1500, noiseDuration: 0.08 },
-  railshot: { freqFrom: 1400, freqTo: 120, duration: 0.25, noiseFreqFrom: 4000, noiseFreqTo: 300, noiseDuration: 0.2 },
   runeAttach: { tones: [440, 660, 990] as const, noteDuration: 0.06, gap: 0.02 },
   synergy: { tones: [784, 1175, 1568] as const, noteDuration: 0.05, gap: 0.015 },
   manaEmpty: { freqFrom: 260, freqTo: 140, duration: 0.09 },
-  counter: { freq: 95, duration: 0.18, noiseFreqFrom: 3200, noiseFreqTo: 400, noiseDuration: 0.16, ringFreq: 2400, ringDuration: 0.1 },
   reflect: { freqFrom: 900, freqTo: 2600, duration: 0.09, noiseFreqFrom: 6000, noiseFreqTo: 2500, noiseDuration: 0.06 },
-  lastKill: { lowFreq: 60, lowDuration: 0.6, noiseFreqFrom: 2400, noiseFreqTo: 120, noiseDuration: 0.5, ringFreq: 1600, ringDuration: 0.4 },
   bossAppear: { lowFreq: 50, lowDuration: 0.7, riseFreqFrom: 100, riseFreqTo: 800, riseDuration: 0.6 },
   bossDefeat: {
     tones: [523.25, 659.25, 783.99, 1046.5, 1318.5] as const,
@@ -234,14 +217,6 @@ const TUNING = {
   boonOffer: { tones: [440, 554.37, 659.25] as const, noteDuration: 0.18, gap: 0.02 },
   boonSelect: { tones: [784, 987.77, 1174.66] as const, noteDuration: 0.05, gap: 0.015 },
   boonSelectCursed: { freqFrom: 400, freqTo: 90, duration: 0.35, noiseFreqFrom: 1200, noiseFreqTo: 200, noiseDuration: 0.3 },
-  guardBreak: {
-    noiseFreqFrom: 8000,
-    noiseFreqTo: 2000,
-    noiseDuration: 0.18,
-    tones: [3200, 4200, 5200] as const,
-    noteDuration: 0.03,
-    gap: 0.01,
-  },
   reaperWarnPulse: { freq: 70, duration: 0.25, detuneFreq: 74, noiseFreqFrom: 500, noiseFreqTo: 150, noiseDuration: 0.2 },
   reaperAppear: { noiseFreqFrom: 700, noiseFreqTo: 60, noiseDuration: 0.8, lowFreqFrom: 140, lowFreqTo: 40, lowDuration: 0.9 },
   treasureOpen: { tones: [1046.5, 1318.5, 1568, 1864.66, 2093] as const, noteDuration: 0.05, gap: 0.015 },
@@ -259,16 +234,6 @@ const TUNING = {
   runEventWarn: { freqFrom: 880, freqTo: 440, duration: 0.35, pulseFreq: 220, pulseDuration: 0.12 },
   runEventStart: { noiseFreqFrom: 2500, noiseFreqTo: 200, noiseDuration: 0.3, lowFreq: 110, lowDuration: 0.3 },
   lingerWarn: { freq: 55, duration: 0.5, detuneFreq: 58 },
-  eliteKill: {
-    tones: [440, 660, 880, 1108.73] as const,
-    noteDuration: 0.06,
-    gap: 0.02,
-    noiseFreqFrom: 3500,
-    noiseFreqTo: 150,
-    noiseDuration: 0.3,
-    lowFreq: 70,
-    lowDuration: 0.35,
-  },
   bombFuse: { noiseFreqFrom: 5000, noiseFreqTo: 2500, noiseDuration: 0.08 },
   laserCharge: { freqFrom: 200, freqTo: 1400, duration: 0.35 },
   laserFire: { freqFrom: 1800, freqTo: 200, duration: 0.18, noiseFreqFrom: 6000, noiseFreqTo: 1000, noiseDuration: 0.12 },
@@ -286,37 +251,9 @@ const TUNING = {
   chainThrow: { freqFrom: 1200, freqTo: 500, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 2500, noiseDuration: 0.1 },
   menuMove: { freq: 900, duration: 0.015 },
   chargeLevel: { tones: [660, 990] as const, noteDuration: 0.035, gap: 0.01 },
-  weakHit: { tones: [1320, 1760] as const, noteDuration: 0.03, gap: 0.005 },
-  resistHit: { freqFrom: 300, freqTo: 160, duration: 0.07 },
 } as const;
 
 // ---- 各効果音の定義 -------------------------------------------------------
-
-function makeSlash(stage: 0 | 1 | 2): SfxDefinition {
-  return (ctx, dest, opts) => {
-    const freqFrom = TUNING.slash.freqFrom[stage];
-    const freqTo = TUNING.slash.freqTo[stage];
-    const duration = TUNING.slash.duration[stage];
-    const swishDuration = noiseBurst(ctx, dest, opts, {
-      filterType: "bandpass",
-      freqFrom,
-      freqTo,
-      duration,
-      q: 1.4,
-      peak: 0.85,
-    });
-    if (stage === 2) {
-      const thumpDuration = tone(ctx, dest, opts, {
-        type: "sine",
-        freq: TUNING.slash.heavyThumpFreq,
-        duration: TUNING.slash.heavyThumpDuration,
-        peak: 0.6,
-      });
-      return Math.max(swishDuration, thumpDuration);
-    }
-    return swishDuration;
-  };
-}
 
 /** sfxLayers.ts の表から層で組む効果音の定義を作る */
 function layeredDefinitions(): Record<LayeredSfxName, SfxDefinition> {
@@ -330,125 +267,6 @@ function layeredDefinitions(): Record<LayeredSfxName, SfxDefinition> {
 
 const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
   ...layeredDefinitions(),
-  slash1: makeSlash(0),
-  slash2: makeSlash(1),
-  slash3: makeSlash(2),
-
-  hit: (ctx, dest, opts) => {
-    const pulse = tone(ctx, dest, opts, {
-      type: "square",
-      freq: TUNING.hit.pulseFreq,
-      duration: TUNING.hit.pulseDuration,
-      peak: 0.7,
-    });
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "highpass",
-      freqFrom: TUNING.hit.noiseFreqFrom,
-      freqTo: TUNING.hit.noiseFreqTo,
-      duration: TUNING.hit.noiseDuration,
-      peak: 0.5,
-    });
-    return Math.max(pulse, noise);
-  },
-
-  hitHeavy: (ctx, dest, opts) => {
-    const pulse = tone(ctx, dest, opts, {
-      type: "square",
-      freq: TUNING.hitHeavy.pulseFreq,
-      duration: TUNING.hitHeavy.pulseDuration,
-      peak: 0.85,
-    });
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.hitHeavy.noiseFreqFrom,
-      freqTo: TUNING.hitHeavy.noiseFreqTo,
-      duration: TUNING.hitHeavy.noiseDuration,
-      peak: 0.6,
-    });
-    return Math.max(pulse, noise);
-  },
-
-  kill: (ctx, dest, opts) => {
-    const arp = arpeggio(ctx, dest, opts, {
-      type: "square",
-      freqs: TUNING.kill.arpeggio,
-      noteDuration: TUNING.kill.noteDuration,
-      gap: TUNING.kill.gap,
-      peak: 0.65,
-    });
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "highpass",
-      freqFrom: TUNING.kill.noiseFreqFrom,
-      freqTo: TUNING.kill.noiseFreqTo,
-      duration: TUNING.kill.noiseDuration,
-      peak: 0.4,
-    });
-    return Math.max(arp, noise);
-  },
-
-  shoot: (ctx, dest, opts) =>
-    toneSweep(ctx, dest, opts, {
-      type: "square",
-      freqFrom: TUNING.shoot.freqFrom,
-      freqTo: TUNING.shoot.freqTo,
-      duration: TUNING.shoot.duration,
-      peak: 0.6,
-    }),
-
-  bulletHit: (ctx, dest, opts) =>
-    toneSweep(ctx, dest, opts, {
-      type: "triangle",
-      freqFrom: TUNING.bulletHit.freqFrom,
-      freqTo: TUNING.bulletHit.freqTo,
-      duration: TUNING.bulletHit.duration,
-      peak: 0.55,
-    }),
-
-  dash: (ctx, dest, opts) =>
-    noiseBurst(ctx, dest, opts, {
-      filterType: "bandpass",
-      freqFrom: TUNING.dash.freqFrom,
-      freqTo: TUNING.dash.freqTo,
-      duration: TUNING.dash.duration,
-      q: 0.8,
-      peak: 0.6,
-    }),
-
-  just: (ctx, dest, opts) =>
-    arpeggio(ctx, dest, opts, {
-      type: "triangle",
-      freqs: TUNING.just.tones,
-      noteDuration: TUNING.just.noteDuration,
-      gap: TUNING.just.gap,
-      peak: 0.75,
-    }),
-
-  hurt: (ctx, dest, opts) => {
-    const now = ctx.currentTime;
-    const low = tone(ctx, dest, opts, {
-      type: "square",
-      freq: TUNING.hurt.lowFreq,
-      duration: TUNING.hurt.duration,
-      peak: 0.7,
-    });
-    // わずかにデチューンした2音目を重ねてビート（うなり）を作り歪んだ質感にする
-    const detuned = tone(ctx, dest, opts, {
-      type: "sawtooth",
-      freq: TUNING.hurt.detuneFreq,
-      duration: TUNING.hurt.duration,
-      peak: 0.4,
-      startAt: now,
-    });
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.hurt.noiseFreqFrom,
-      freqTo: TUNING.hurt.noiseFreqTo,
-      duration: TUNING.hurt.noiseDuration,
-      peak: 0.4,
-    });
-    return Math.max(low, detuned, noise);
-  },
-
   death: (ctx, dest, opts) =>
     toneSweep(ctx, dest, opts, {
       type: "sawtooth",
@@ -457,23 +275,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       duration: TUNING.death.duration,
       peak: 0.7,
     }),
-
-  burst: (ctx, dest, opts) => {
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.burst.noiseFreqFrom,
-      freqTo: TUNING.burst.noiseFreqTo,
-      duration: TUNING.burst.noiseDuration,
-      peak: 0.9,
-    });
-    const low = tone(ctx, dest, opts, {
-      type: "sine",
-      freq: TUNING.burst.lowFreq,
-      duration: TUNING.burst.lowDuration,
-      peak: 0.7,
-    });
-    return Math.max(noise, low);
-  },
 
   roomLock: (ctx, dest, opts) => {
     const now = ctx.currentTime;
@@ -579,86 +380,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       peak: 0.45,
     }),
 
-  enemyShoot: (ctx, dest, opts) =>
-    toneSweep(ctx, dest, opts, {
-      type: "sawtooth",
-      freqFrom: TUNING.enemyShoot.freqFrom,
-      freqTo: TUNING.enemyShoot.freqTo,
-      duration: TUNING.enemyShoot.duration,
-      peak: 0.5,
-    }),
-
-  wallHit: (ctx, dest, opts) => {
-    const thud = tone(ctx, dest, opts, { type: "sine", freq: TUNING.wallHit.freq, duration: TUNING.wallHit.duration, peak: 0.5 });
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: 500,
-      freqTo: 150,
-      duration: TUNING.wallHit.noiseDuration,
-      peak: 0.3,
-    });
-    return Math.max(thud, noise);
-  },
-
-  burn: (ctx, dest, opts) => {
-    const now = ctx.currentTime;
-    let total = 0;
-    for (let i = 0; i < TUNING.burn.crackleCount; i++) {
-      const startAt = now + i * TUNING.burn.crackleGap;
-      const gain = createGainNode(ctx, dest);
-      const from = applyPitch(TUNING.burn.crackleFreqFrom, opts);
-      const to = Math.max(applyPitch(TUNING.burn.crackleFreqTo, opts), MIN_SWEEP_FREQ);
-      const filter = createFilter(ctx, gain, "bandpass", from, 2);
-      filter.frequency.exponentialRampToValueAtTime(to, startAt + TUNING.burn.crackleDuration);
-      const noise = createNoiseSource(ctx, filter);
-      applyEnvelope(gain, ctx, startAt, 0, {
-        attack: 0.001,
-        decay: TUNING.burn.crackleDuration * 0.7,
-        release: TUNING.burn.crackleDuration * 0.3,
-        peak: 0.4,
-      });
-      noise.start(startAt);
-      noise.stop(safeStopTime(startAt, TUNING.burn.crackleDuration));
-      total = i * TUNING.burn.crackleGap + TUNING.burn.crackleDuration + TAIL_MARGIN_SECONDS;
-    }
-    return total;
-  },
-
-  shock: (ctx, dest, opts) =>
-    toneSweep(ctx, dest, opts, {
-      type: "square",
-      freqFrom: TUNING.shock.freqFrom,
-      freqTo: TUNING.shock.freqTo,
-      duration: TUNING.shock.duration,
-      peak: 0.5,
-    }),
-
-  freeze: (ctx, dest, opts) =>
-    toneSweep(ctx, dest, opts, {
-      type: "triangle",
-      freqFrom: TUNING.freeze.freqFrom,
-      freqTo: TUNING.freeze.freqTo,
-      duration: TUNING.freeze.duration,
-      peak: 0.5,
-    }),
-
-  explode: (ctx, dest, opts) => {
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.explode.noiseFreqFrom,
-      freqTo: TUNING.explode.noiseFreqTo,
-      duration: TUNING.explode.noiseDuration,
-      peak: 1,
-    });
-    const low = tone(ctx, dest, opts, {
-      type: "sine",
-      freq: TUNING.explode.lowFreq,
-      duration: TUNING.explode.lowDuration,
-      peak: 0.8,
-    });
-    return Math.max(noise, low);
-  },
-
   heal: (ctx, dest, opts) =>
     arpeggio(ctx, dest, opts, {
       type: "sine",
@@ -667,24 +388,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       gap: TUNING.heal.gap,
       peak: 0.55,
     }),
-
-  skillCast: (ctx, dest, opts) => {
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "bandpass",
-      freqFrom: TUNING.skillCast.noiseFreqFrom,
-      freqTo: TUNING.skillCast.noiseFreqTo,
-      duration: TUNING.skillCast.noiseDuration,
-      peak: 0.5,
-    });
-    const sweep = toneSweep(ctx, dest, opts, {
-      type: "triangle",
-      freqFrom: TUNING.skillCast.freqFrom,
-      freqTo: TUNING.skillCast.freqTo,
-      duration: TUNING.skillCast.duration,
-      peak: 0.45,
-    });
-    return Math.max(noise, sweep);
-  },
 
   skillReady: (ctx, dest, opts) =>
     arpeggio(ctx, dest, opts, {
@@ -705,41 +408,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       peak: 0.4,
     }),
 
-  parry: (ctx, dest, opts) => {
-    const ring = tone(ctx, dest, opts, {
-      type: "square",
-      freq: TUNING.parry.freq,
-      duration: TUNING.parry.duration,
-      peak: 0.5,
-    });
-    const clang = noiseBurst(ctx, dest, opts, {
-      filterType: "highpass",
-      freqFrom: TUNING.parry.noiseFreqFrom,
-      freqTo: TUNING.parry.noiseFreqTo,
-      duration: TUNING.parry.noiseDuration,
-      peak: 0.7,
-    });
-    return Math.max(ring, clang);
-  },
-
-  railshot: (ctx, dest, opts) => {
-    const zap = toneSweep(ctx, dest, opts, {
-      type: "sawtooth",
-      freqFrom: TUNING.railshot.freqFrom,
-      freqTo: TUNING.railshot.freqTo,
-      duration: TUNING.railshot.duration,
-      peak: 0.6,
-    });
-    const hiss = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.railshot.noiseFreqFrom,
-      freqTo: TUNING.railshot.noiseFreqTo,
-      duration: TUNING.railshot.noiseDuration,
-      peak: 0.6,
-    });
-    return Math.max(zap, hiss);
-  },
-
   runeAttach: (ctx, dest, opts) =>
     arpeggio(ctx, dest, opts, {
       type: "triangle",
@@ -759,29 +427,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       peak: 0.25,
     }),
 
-  counter: (ctx, dest, opts) => {
-    const thump = tone(ctx, dest, opts, {
-      type: "sine",
-      freq: TUNING.counter.freq,
-      duration: TUNING.counter.duration,
-      peak: 0.8,
-    });
-    const crack = noiseBurst(ctx, dest, opts, {
-      filterType: "bandpass",
-      freqFrom: TUNING.counter.noiseFreqFrom,
-      freqTo: TUNING.counter.noiseFreqTo,
-      duration: TUNING.counter.noiseDuration,
-      peak: 0.8,
-    });
-    const ring = tone(ctx, dest, opts, {
-      type: "square",
-      freq: TUNING.counter.ringFreq,
-      duration: TUNING.counter.ringDuration,
-      peak: 0.25,
-    });
-    return Math.max(thump, crack, ring);
-  },
-
   reflect: (ctx, dest, opts) => {
     const ping = toneSweep(ctx, dest, opts, {
       type: "triangle",
@@ -798,29 +443,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       peak: 0.5,
     });
     return Math.max(ping, tick);
-  },
-
-  lastKill: (ctx, dest, opts) => {
-    const boom = tone(ctx, dest, opts, {
-      type: "sine",
-      freq: TUNING.lastKill.lowFreq,
-      duration: TUNING.lastKill.lowDuration,
-      peak: 0.9,
-    });
-    const wash = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.lastKill.noiseFreqFrom,
-      freqTo: TUNING.lastKill.noiseFreqTo,
-      duration: TUNING.lastKill.noiseDuration,
-      peak: 0.7,
-    });
-    const ring = tone(ctx, dest, opts, {
-      type: "triangle",
-      freq: TUNING.lastKill.ringFreq,
-      duration: TUNING.lastKill.ringDuration,
-      peak: 0.3,
-    });
-    return Math.max(boom, wash, ring);
   },
 
   bossAppear: (ctx, dest, opts) => {
@@ -906,24 +528,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       peak: 0.4,
     });
     return Math.max(sweep, noise);
-  },
-
-  guardBreak: (ctx, dest, opts) => {
-    const crack = noiseBurst(ctx, dest, opts, {
-      filterType: "highpass",
-      freqFrom: TUNING.guardBreak.noiseFreqFrom,
-      freqTo: TUNING.guardBreak.noiseFreqTo,
-      duration: TUNING.guardBreak.noiseDuration,
-      peak: 0.85,
-    });
-    const shards = arpeggio(ctx, dest, opts, {
-      type: "triangle",
-      freqs: TUNING.guardBreak.tones,
-      noteDuration: TUNING.guardBreak.noteDuration,
-      gap: TUNING.guardBreak.gap,
-      peak: 0.3,
-    });
-    return Math.max(crack, shards);
   },
 
   reaperWarnPulse: (ctx, dest, opts) => {
@@ -1061,25 +665,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
     const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.lingerWarn.freq, duration: TUNING.lingerWarn.duration, peak: 0.55 });
     const beat = tone(ctx, dest, opts, { type: "sawtooth", freq: TUNING.lingerWarn.detuneFreq, duration: TUNING.lingerWarn.duration, peak: 0.2 });
     return Math.max(low, beat);
-  },
-
-  eliteKill: (ctx, dest, opts) => {
-    const arp = arpeggio(ctx, dest, opts, {
-      type: "square",
-      freqs: TUNING.eliteKill.tones,
-      noteDuration: TUNING.eliteKill.noteDuration,
-      gap: TUNING.eliteKill.gap,
-      peak: 0.6,
-    });
-    const noise = noiseBurst(ctx, dest, opts, {
-      filterType: "lowpass",
-      freqFrom: TUNING.eliteKill.noiseFreqFrom,
-      freqTo: TUNING.eliteKill.noiseFreqTo,
-      duration: TUNING.eliteKill.noiseDuration,
-      peak: 0.7,
-    });
-    const low = tone(ctx, dest, opts, { type: "sine", freq: TUNING.eliteKill.lowFreq, duration: TUNING.eliteKill.lowDuration, peak: 0.6 });
-    return Math.max(arp, noise, low);
   },
 
   bombFuse: (ctx, dest, opts) =>
@@ -1298,22 +883,6 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       gap: TUNING.chargeLevel.gap,
       peak: 0.3,
     }),
-  weakHit: (ctx, dest, opts) =>
-    arpeggio(ctx, dest, opts, {
-      type: "triangle",
-      freqs: TUNING.weakHit.tones,
-      noteDuration: TUNING.weakHit.noteDuration,
-      gap: TUNING.weakHit.gap,
-      peak: 0.25,
-    }),
-  resistHit: (ctx, dest, opts) =>
-    toneSweep(ctx, dest, opts, {
-      type: "square",
-      freqFrom: TUNING.resistHit.freqFrom,
-      freqTo: TUNING.resistHit.freqTo,
-      duration: TUNING.resistHit.duration,
-      peak: 0.2,
-    }),
 };
 
 // SFX_NAMES 全件に定義があることを型レベルで保証（Record が満たされていないとコンパイルエラーになる）
@@ -1321,6 +890,27 @@ const _exhaustiveCheck: readonly SfxName[] = SFX_NAMES;
 void _exhaustiveCheck;
 
 // ---- SfxPlayer -------------------------------------------------------------
+
+interface DynamicsSettings {
+  threshold: number;
+  knee: number;
+  ratio: number;
+  attack: number;
+  release: number;
+}
+
+/** DynamicsCompressor を作って destination へ繋ぐ */
+function createDynamics(ctx: BaseAudioContext, destination: AudioNode, d: DynamicsSettings): DynamicsCompressorNode {
+  const node = ctx.createDynamicsCompressor();
+  const t = ctx.currentTime;
+  node.threshold.setValueAtTime(d.threshold, t);
+  node.knee.setValueAtTime(d.knee, t);
+  node.ratio.setValueAtTime(d.ratio, t);
+  node.attack.setValueAtTime(d.attack, t);
+  node.release.setValueAtTime(d.release, t);
+  node.connect(destination);
+  return node;
+}
 
 export class SfxPlayer {
   private ctx: AudioContext | null = null;
@@ -1340,12 +930,20 @@ export class SfxPlayer {
       if (typeof AudioContextCtor !== "function") return;
       const ctx = new AudioContextCtor();
 
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(COMPRESSOR_THRESHOLD_DB, ctx.currentTime);
-      compressor.ratio.setValueAtTime(COMPRESSOR_RATIO, ctx.currentTime);
-      compressor.attack.setValueAtTime(COMPRESSOR_ATTACK_SECONDS, ctx.currentTime);
-      compressor.release.setValueAtTime(COMPRESSOR_RELEASE_SECONDS, ctx.currentTime);
-      compressor.connect(ctx.destination);
+      const limiter = createDynamics(ctx, ctx.destination, {
+        threshold: LIMITER_THRESHOLD_DB,
+        knee: LIMITER_KNEE_DB,
+        ratio: LIMITER_RATIO,
+        attack: LIMITER_ATTACK_SECONDS,
+        release: LIMITER_RELEASE_SECONDS,
+      });
+      const compressor = createDynamics(ctx, limiter, {
+        threshold: COMPRESSOR_THRESHOLD_DB,
+        knee: COMPRESSOR_KNEE_DB,
+        ratio: COMPRESSOR_RATIO,
+        attack: COMPRESSOR_ATTACK_SECONDS,
+        release: COMPRESSOR_RELEASE_SECONDS,
+      });
 
       const masterGain = ctx.createGain();
       masterGain.gain.setValueAtTime(this.muted ? 0 : this.masterVolume, ctx.currentTime);
