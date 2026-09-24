@@ -684,6 +684,23 @@ describe("ドロップ", () => {
     expect(state.skills.profile.stones.length).toBe(before + 1);
     expect(state.skills.floorStones).toHaveLength(0);
   });
+
+  it("上り階段で戻った階・降り直した階では、階層到達のスキル石が落ちない", () => {
+    const state = skillArena([{ key: "whirl", links: 1 }]);
+    state.rng = { ...state.rng, chance: () => true };
+    updateSkills(state, withInput({}), FIXED_DT);
+    state.depth -= 1;
+    state.runEvents.strata.fresh = false;
+    updateSkills(state, withInput({}), FIXED_DT);
+    expect(state.skills.floorStones, "戻った階").toHaveLength(0);
+    state.depth += 1;
+    updateSkills(state, withInput({}), FIXED_DT);
+    expect(state.skills.floorStones, "降り直した階").toHaveLength(0);
+    state.depth += 1;
+    state.runEvents.strata.fresh = true;
+    updateSkills(state, withInput({}), FIXED_DT);
+    expect(state.skills.floorStones, "初めての階").toHaveLength(1);
+  });
 });
 
 describe("決定性", () => {

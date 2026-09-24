@@ -27,6 +27,7 @@ import { buildFloor, descend } from "./floor";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { isBossDepth } from "./boss";
 import { applyBoonsToStats } from "./boons";
+import { endForm, updateForm } from "../skills/actions2";
 
 /** 1 ステップ */
 const DT = FIXED_DT;
@@ -274,6 +275,28 @@ describe("契約者: 取引", () => {
     expect(state.player.hp, "生命").toBeCloseTo(hp - state.player.maxHp * CONTRACT.bookieLifeCost, 5);
   });
 
+  it("生命で払う取引は、払った後に CONTRACT.lifeFloor を割るなら払えない（取引で死なない）", () => {
+    for (const [key, kind, ratio] of [
+      ["bookie", "betLife", CONTRACT.bookieLifeCost],
+      ["ferryman", "ferryLife", CONTRACT.ferryLifeCost],
+    ] as const) {
+      const state = withContractor(key);
+      const p = state.player;
+      // 払うと残りが下限をわずかに割る
+      p.hp = p.maxHp * ratio + CONTRACT.lifeFloor / 2;
+      const hp = p.hp;
+      const offer = offerOf(state, kind);
+      touch(state, offer);
+      expect(offer.used, `${kind} は払えない`).toBe(false);
+      expect(p.hp, `${kind} の生命は減らない`).toBe(hp);
+      // ちょうど下限が残るなら払える
+      p.hp = p.maxHp * ratio + CONTRACT.lifeFloor;
+      touch(state, offer);
+      expect(offer.used, `${kind} は払える`).toBe(true);
+      expect(p.hp, `${kind} の後も生命が残る`).toBeGreaterThanOrEqual(CONTRACT.lifeFloor - 1e-9);
+    }
+  });
+
   it("語り部: 見届けてもらうと目撃の時間が始まり、時間で減る", () => {
     const state = withContractor("bard");
     touch(state, offerOf(state, "witness"));
@@ -366,7 +389,22 @@ describe("灰の公証人: 契約", () => {
     const shards = state.shards;
     onContractsFloorReached(state);
     expect(state.shards, "欠片").toBe(shards + CONTRACT.pactUnscathedShards);
+    updateContractors(state, DT);
     expect(state.boonChoice, "祝福の 3 択").not.toBeNull();
+  });
+
+  it("無傷の契約の 3 択は、階段の 3 択に上書きされず閉じた後に開く", () => {
+    const state = withContractor("notary");
+    state.contracts.pacts = [{ key: "unscathed", signedAt: state.time, killsAt: 0, depth: state.depth, failed: false }];
+    onContractsFloorReached(state);
+    // 階段で降りたときの 3 択が同じステップで開いている
+    state.boonChoice = { options: [BOON_KEYS[0]!], hover: -1, curseHover: false, timer: 0, curseTaken: false, curse: null };
+    updateContractors(state, DT);
+    expect(state.contracts.boonsOwed, "開いている間は待つ").toBe(1);
+    state.boonChoice = null;
+    updateContractors(state, DT);
+    expect(state.boonChoice, "閉じた後に契約の 3 択").not.toBeNull();
+    expect(state.contracts.boonsOwed).toBe(0);
   });
 
   it("狩りの契約: 数が足りずに次の階へ着くと呪い、足りれば遺物", () => {
@@ -403,5 +441,27 @@ describe("灰の公証人: 契約", () => {
     state.recent.onSkillCast = { lastTime: state.time, count: 1 };
     updateContractors(state, DT);
     expect(state.shards).toBe(5 - CONTRACT.pactSilentPenaltyShards);
+  });
+});
+
+describe("契約者: 属性の上乗せと変身", () => {
+  it("変身で武器種だけ差し替えても、鍛冶の属性が二重に乗らない", () => {
+    const state = withContractor("smith");
+    const before = state.stats.infuse.fire;
+    state.contracts.smith = { element: "fire", share: CONTRACT.smithShare };
+    ensureContractStats(state);
+    const base = state.stats.moveset;
+    const moveset = base === "greatsword" ? "spear" : "greatsword";
+    state.skills.form = { skillKey: "titanForm", moveset, base, timer: 10, total: 10, recover: 0 };
+    for (let i = 0; i < 3; i++) {
+      updateForm(state, DT);
+      ensureContractStats(state);
+    }
+    expect(state.stats.moveset, "変身の武器種").toBe(moveset);
+    expect(state.stats.infuse.fire, "変身中も 1 回分").toBeCloseTo(before + CONTRACT.smithShare, 5);
+    endForm(state);
+    ensureContractStats(state);
+    expect(state.stats.moveset, "戻る").toBe(base);
+    expect(state.stats.infuse.fire, "解けた後も 1 回分").toBeCloseTo(before + CONTRACT.smithShare, 5);
   });
 });

@@ -1978,7 +1978,8 @@ function syncTracking(state: GameState): void {
     rs.marks.clear();
     rs.gasps = [];
     rs.history = [];
-    if (state.rng.chance(SKILL.drop.stoneOnDepth)) {
+    // 階層到達のスキル石は初めて着いた階だけ（上り階段の往復で抽選を稼がせない）
+    if (state.runEvents.strata.fresh && state.rng.chance(SKILL.drop.stoneOnDepth)) {
       const p = state.player.body.pos;
       dropSkillStone(state, { x: p.x, y: p.y + SKILL.drop.depthOffsetY });
     }

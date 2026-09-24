@@ -3,7 +3,7 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
 import { ELEMENT_LABEL } from "../core/element";
-import { CONTRACT, FLOOR_KIND, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { CONTRACT, FLOOR_KIND, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
@@ -601,6 +601,18 @@ describe("ランイベント第 2 弾の効果", () => {
     expect(state.boons.includes(plain), "手放した").toBe(false);
     expect(state.boonChoice, "3 択").not.toBeNull();
   });
+
+  it("流れ星: 3 択が開けない深度では祝福を手放さない", () => {
+    const { state, room, index } = setup(7, 1);
+    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    if (!plain) throw new Error("祝福");
+    grantBoon(state, plain);
+    lock(state, room);
+    scheduleRunEvent(state, "boonReroll", index);
+    for (let i = 0; i < START_LIMIT && state.runEvents.room; i++) step(state, IDLE, FIXED_DT);
+    expect(state.boonChoice, "深度 1 では 3 択が開かない").toBeNull();
+    expect(state.boons.includes(plain), "手放さない").toBe(true);
+  });
 });
 
 describe("無限の深み（変異）", () => {
@@ -623,5 +635,22 @@ describe("無限の深み（変異）", () => {
   it("深みでは敵の HP の伸びが寝る", () => {
     expect(deepHpMul(FLOOR_KIND.deepDepth)).toBe(1);
     expect(deepHpMul(FLOOR_KIND.deepDepth + 20)).toBeLessThan(1);
+  });
+});
+
+describe("生命の逆流: 回復の上限", () => {
+  it("気力の増えから流れる生命は、戦闘中の回復の共通上限を超えない", () => {
+    const { state } = setup();
+    start(state, "lifeFlow", -1);
+    const p = state.player;
+    p.hp = p.maxHp / 2;
+    p.mana = 0;
+    run(state, 1);
+    const hp = p.hp;
+    // 1 ステップで気力が大きく増えた（命中時の気力などを想定）
+    p.lifeOnHitWindow = { timer: 0, healed: 0 };
+    p.mana += p.maxHp;
+    run(state, 1);
+    expect(p.hp - hp, "上限まで").toBeLessThanOrEqual(p.maxHp * HEAL.sustainCapRatio + 1e-6);
   });
 });

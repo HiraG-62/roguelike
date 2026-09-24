@@ -8,8 +8,8 @@ import { type EchoWallet, createEchoWallet } from "../loot/crafting";
 import { inversionChance } from "../loot/flux";
 import { TILE_SIZE, inBounds, rectCenterPx, rectContainsPx, toIndex } from "../map/grid";
 import { biomeShape, isInvertedDepth } from "./biomes";
-import { BOONS, offerBoons } from "./boons";
-import { damageEnemy, damagePlayer, healPlayer } from "./combat";
+import { BOONS, applyBoonsToStats, offerBoons } from "./boons";
+import { damageEnemy, damagePlayer, healPlayer, healSustained } from "./combat";
 import { type Infusion, gainShards, grantCurse, removeBoon } from "./contractors";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { engagedRoomIndex } from "./engagement";
@@ -147,6 +147,8 @@ export interface StrataState {
   returns: number;
   /** 今の階は戻って来た階か（敵が半分・死神が早い） */
   revisit: boolean;
+  /** 今の階に初めて着いたか（戻った階・降り直した階は false。階層到達の報酬を二重に出さないために他の system が読む） */
+  fresh: boolean;
   /** 反転層の遺物の反転抽選を済ませた床アイテムの id の最大値 */
   lastItemId: number;
 }
@@ -193,7 +195,7 @@ export function createRunEventState(): RunEventState {
     mutations: [],
     mutationElement: null,
     surgeIcd: 0,
-    strata: { deepest: 1, returns: 0, revisit: false, lastItemId: 0 },
+    strata: { deepest: 1, returns: 0, revisit: false, fresh: true, lastItemId: 0 },
   };
 }
 
@@ -1068,7 +1070,10 @@ function finishReaperPass(state: GameState): void {
   addFloatingText(state, { ...state.player.body.pos }, `冥の残響 +${RUN_EVENT.reaperPass.echoes}`, RUN_EVENT.activeColor, 1, 1.2);
 }
 
-/** 生命の逆流: 前ステップからの回復を気力へ、気力の増えを生命へ流す */
+/**
+ * 生命の逆流: 前ステップからの回復を気力へ、気力の増えを生命へ流す。
+ * 気力 → 生命は戦闘中の回復の共通上限（healSustained）を通す（命中時の気力で回復し放題にしない）
+ */
 function tickLifeFlow(state: GameState, current: ActiveRunEvent): void {
   const p = state.player;
   const ratio = RUN_EVENT.lifeFlow.ratio;
@@ -1080,7 +1085,7 @@ function tickLifeFlow(state: GameState, current: ActiveRunEvent): void {
   }
   if (manaGain > 0) {
     p.mana -= manaGain;
-    p.hp = Math.min(p.maxHp, p.hp + manaGain * ratio);
+    healSustained(state, manaGain * ratio, { silent: true });
   }
   current.prevHp = p.hp;
   current.prevMana = p.mana;
@@ -1093,11 +1098,20 @@ function releaseBats(state: GameState, index: number): void {
   for (let i = 0; i < RUN_EVENT.bats.count; i++) roomHooks.spawnEnemyAt(state, def, index);
 }
 
-/** 流れ星: 呪いでない祝福を 1 つ手放して、祝福の 3 択を開く */
+/**
+ * 流れ星: 呪いでない祝福を 1 つ手放して、祝福の 3 択を開く。
+ * 3 択が開かなかった（深度 1・候補切れ）ときは手放した祝福を元の位置へ戻す（引き直しにならず失うだけになるのを防ぐ）
+ */
 function rerollBoon(state: GameState): void {
   const pool = state.boons.filter((k) => !BOONS[k].cursed);
-  if (pool.length > 0) removeBoon(state, state.rng.pick(pool));
+  const before = state.boonChoice;
+  const key = pool.length > 0 ? state.rng.pick(pool) : null;
+  const at = key ? state.boons.indexOf(key) : -1;
+  if (key) removeBoon(state, key);
   offerBoons(state);
+  if (!key || (state.boonChoice && state.boonChoice !== before)) return;
+  state.boons.splice(at, 0, key);
+  applyBoonsToStats(state);
 }
 
 /** プレイヤーが立っている部屋（通路なら -1） */

@@ -22,6 +22,7 @@ import { resonanceHueIndex, skillHit, skillPower } from "./hit";
 import { spawnFan, spawnShot } from "./shots";
 import { FORM_TUNING as F, WAVE2_COMBO_TUNING as C2, WEAPON_ART, WEAPON_ART_BLEED } from "./tuning2";
 import type { ActiveCast, CastParams, FormSkillKey, Wave2SkillKey, WardStake } from "./types";
+import { carryContractPatch } from "../system/contractors";
 
 /**
  * スキル第 2 弾の発動（地形・新しい状態異常・属性・武器種・変身・空間。docs/ideas/skills-expansion.md）。
@@ -729,7 +730,10 @@ export function startForm(state: GameState, key: FormSkillKey, params: Readonly<
 /** stats の武器種だけを差し替える（ほかの値は装備のまま。装備を替えると applyStats が作り直すので毎ステップ確かめる） */
 function setMoveset(state: GameState, moveset: MovesetKey): void {
   if (state.stats.moveset === moveset) return;
-  state.stats = { ...state.stats, moveset };
+  const prev = state.stats;
+  state.stats = { ...prev, moveset };
+  // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
+  carryContractPatch(prev, state.stats);
 }
 
 /**

@@ -759,3 +759,59 @@ describe("戻る（上り階段）", () => {
     expect(state.depth, "戻った").toBe(4);
   });
 });
+
+describe("戻る（上り階段）: 降り直しの 3 択", () => {
+  /** 開始部屋の中心を階段にして立たせ、階段の判定を 1 回通す（ボス階でも階段を用意する） */
+  function stepOnStairs(state: GameState): void {
+    const r = state.rooms[0]?.rect;
+    if (!r) throw new Error("部屋が無い");
+    const c = { x: Math.floor(r.x + r.w / 2), y: Math.floor(r.y + r.h / 2) };
+    state.map.tiles[toIndex(state.map, c.x, c.y)] = Tile.StairsDown;
+    state.player.body.pos = { x: (c.x + 0.5) * TILE_SIZE, y: (c.y + 0.5) * TILE_SIZE };
+    state.enemies = [];
+    updateRooms(state, FIXED_DT);
+  }
+
+  it("戻ってから階段で降り直しても祝福の 3 択は出ず、初めての階へ降りると出る", () => {
+    const state = createGame(5);
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    stepOnStairs(state);
+    expect(state.depth, "降り直した").toBe(6);
+    expect(state.boonChoice, "降り直しでは 3 択なし").toBeNull();
+    stepOnStairs(state);
+    expect(state.depth, "初めての階").toBe(7);
+    expect(state.boonChoice, "初めての階では 3 択").not.toBeNull();
+  });
+});
+
+describe("戻る（上り階段）: 階層到達の報酬", () => {
+  it("初めての階だけ strata.fresh が立ち、戻った階・降り直した階では立たない", () => {
+    const state = createGame(5);
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    expect(state.runEvents.strata.fresh, "戻った階").toBe(false);
+    descend(state, "rooms");
+    expect(state.runEvents.strata.fresh, "降り直した階").toBe(false);
+    descend(state, "rooms");
+    expect(state.runEvents.strata.fresh, "初めての階").toBe(true);
+  });
+
+  it("起点「死神の友」の振り分け点は降り直しでは入らない", () => {
+    const state = createGame(5);
+    state.origin = "reaperFriend";
+    state.depth = 6;
+    state.runEvents.strata.deepest = 6;
+    buildFloor(state, "rooms");
+    ascend(state);
+    const points = state.runAttributes.unspent;
+    descend(state, "rooms");
+    expect(state.runAttributes.unspent, "降り直し").toBe(points);
+    descend(state, "rooms");
+    expect(state.runAttributes.unspent, "初めての階では入る").toBeGreaterThan(points);
+  });
+});

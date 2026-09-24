@@ -76,7 +76,7 @@ import {
   updateSpecialRooms,
 } from "./specialRooms";
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
-import { hasMod, onOriginDescend, tierScoreMul } from "./runSetup";
+import { hasMod, onOriginDescend, refreshRunStats, tierScoreMul } from "./runSetup";
 import { gainShards, onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
 import { CONTRACT, FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
@@ -694,9 +694,11 @@ function checkStairs(state: GameState): void {
   const tx = Math.floor(p.x / TILE_SIZE);
   const ty = Math.floor(p.y / TILE_SIZE);
   if (getTile(state.map, tx, ty) !== Tile.StairsDown) return;
+  // 上り階段で戻ってから降り直した階では 3 択を出さない（戻る → 降りるの往復で祝福を稼がせない）
+  const fresh = state.depth + 1 > state.runEvents.strata.deepest;
   descend(state, stairsChoiceAt(state, toIndex(state.map, tx, ty)));
   // 祝福 3 択は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）
-  offerBoons(state);
+  if (fresh) offerBoons(state);
 }
 
 /** 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選） */
@@ -708,13 +710,16 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
   if (fresh) grantAttributePoints(state, floorAttributePoints(state));
   state.depth += 1;
   strata.revisit = false;
+  strata.fresh = fresh;
   if (fresh) {
     strata.deepest = state.depth;
     recordProvenance(state, { kind: "floorClear" });
     state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
   }
   buildFloor(state, nextKind);
-  onOriginDescend(state);
+  // 起点の階ごとの報酬（死神の友の振り分け点）も初めての階だけ。降り直しでは stats の封印・解除だけ合わせ直す
+  if (fresh) onOriginDescend(state);
+  else refreshRunStats(state);
   descendMana(state);
   onContractsFloorReached(state);
   state.flash = 1;
@@ -743,6 +748,7 @@ export function ascend(state: GameState): void {
   if (state.depth <= 1) return;
   strata.returns += 1;
   strata.revisit = true;
+  strata.fresh = false;
   state.depth -= 1;
   buildFloor(state);
   thinRevisitedFloor(state);

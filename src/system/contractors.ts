@@ -116,10 +116,15 @@ export interface ContractState {
   ferried: number;
   /** 疾走の契約に破れた: 次の階の死神の猶予を先に進める秒 */
   reaperPenalty: number;
+  /**
+   * 契約の報酬でまだ開いていない祝福の 3 択の数。契約の判定は階段の 3 択と同じステップに起きるので、
+   * その場で開くと階段の 3 択に上書きされて消える。3 択が閉じてから updateContractors が 1 つずつ開く
+   */
+  boonsOwed: number;
 }
 
 export function createContractState(): ContractState {
-  return { contractor: null, pacts: [], smith: null, altar: null, foretold: null, witness: 0, ferried: 0, reaperPenalty: 0 };
+  return { contractor: null, pacts: [], smith: null, altar: null, foretold: null, witness: 0, ferried: 0, reaperPenalty: 0, boonsOwed: 0 };
 }
 
 export interface ContractorDef {
@@ -382,6 +387,7 @@ function pactProgress(state: GameState, pact: ActivePact): string {
 export function updateContractors(state: GameState, dt: number): void {
   const c = state.contracts;
   c.witness = Math.max(0, c.witness - dt);
+  payOwedBoons(state);
   tickPacts(state);
   ensureContractStats(state);
   const who = c.contractor;
@@ -399,6 +405,14 @@ export function updateContractors(state: GameState, dt: number): void {
     offer.armed = false;
     useOffer(state, who, offer);
   }
+}
+
+/** 契約の報酬の 3 択を、ほかの 3 択が開いていないときに 1 つ開く（開けなくても 1 つ減らす） */
+function payOwedBoons(state: GameState): void {
+  const c = state.contracts;
+  if (c.boonsOwed <= 0 || state.boonChoice) return;
+  c.boonsOwed -= 1;
+  offerBoons(state);
 }
 
 /** 台座に触れたと判定する半径（px）。部屋の台座と同じ */
@@ -438,15 +452,14 @@ function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void
 
 /** 使えない理由（使えるなら null） */
 function offerBlocked(state: GameState, offer: ContractOffer): string | null {
-  const p = state.player;
   switch (offer.kind) {
     case "uncurse":
       return cursedBoons(state).length === 0 ? "呪いを抱えていない" : null;
     case "betLife":
-      return p.hp <= p.maxHp * CONTRACT.bookieLifeCost ? "生命が足りない" : null;
+      return canPayLife(state, CONTRACT.bookieLifeCost) ? null : "生命が足りない";
     case "ferryLife":
       if (state.contracts.ferried >= CONTRACT.ferryMaxUses) return "舟はもう出ない";
-      return p.hp <= p.maxHp * CONTRACT.ferryLifeCost ? "生命が足りない" : null;
+      return canPayLife(state, CONTRACT.ferryLifeCost) ? null : "生命が足りない";
     case "ferryShards":
       return state.contracts.ferried >= CONTRACT.ferryMaxUses ? "舟はもう出ない" : null;
     case "fork":
@@ -454,6 +467,12 @@ function offerBlocked(state: GameState, offer: ContractOffer): string | null {
     default:
       return null;
   }
+}
+
+/** 最大生命の ratio を払っても CONTRACT.lifeFloor 以上が残るか（取引で死なせない。QA bot の通りすがりでも） */
+function canPayLife(state: GameState, ratio: number): boolean {
+  const p = state.player;
+  return p.hp - p.maxHp * ratio >= CONTRACT.lifeFloor;
 }
 
 function applyOffer(state: GameState, offer: ContractOffer, color: string): void {
@@ -686,7 +705,7 @@ function fulfilPact(state: GameState, pact: ActivePact): void {
   switch (pact.key) {
     case "unscathed":
       gainShards(state, CONTRACT.pactUnscathedShards);
-      offerBoons(state);
+      state.contracts.boonsOwed += 1;
       return;
     case "swift":
       grantAttributePoints(state, CONTRACT.pactSwiftPoints);
@@ -762,6 +781,15 @@ function infusionSignature(list: readonly Infusion[]): string {
 
 /** 上乗せを済ませた stats と、そのときの上乗せの中身。オブジェクトの同一性だけを見るので決定性に影響しない */
 const PATCHED = new WeakMap<PlayerStats, string>();
+
+/**
+ * stats を一部だけ差し替えた写し（変身の武器種など）に、上乗せ済みの印を引き継ぐ。
+ * 写しは上乗せをすでに含むので、印が無いと ensureContractStats がもう一度足してしまう
+ */
+export function carryContractPatch(from: PlayerStats, to: PlayerStats): void {
+  const sig = PATCHED.get(from);
+  if (sig !== undefined) PATCHED.set(to, sig);
+}
 
 /**
  * 装備・祝福から畳んだ stats（applyStats が作る）に、属性の上乗せを足す。
