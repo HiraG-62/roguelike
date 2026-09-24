@@ -270,16 +270,13 @@
     }
   },
   "ATTR": {
-    "_note": "ステータス（docs/COMBAT_DESIGN.md A）。base は基礎値、knee/slope は逓減、他は 1 点あたりの割合・数値",
+    "_note": "ステータス（docs/COMBAT_DESIGN.md A）。base は基礎値、knee/slope は逓減、他は 1 点あたりの割合・数値。行動の強さはステータスではなく行動ごとの係数で伸ばす（A-10）ので、ここには体の性能（移動・ダッシュ・生命・状態異常への抵抗・気力）だけを置く",
     "base": 5,
     "knee1": 20,
     "slope1": 0.5,
     "knee2": 40,
     "slope2": 0.25,
-    "strPoise": 0.03,
-    "strKnockback": 0.02,
     "dexMove": 0.005,
-    "dexFireRate": 0.01,
     "dexDashCooldown": 0.01,
     "dexDashCooldownMin": 0.7,
     "vitMaxHp": 4,
@@ -287,10 +284,7 @@
     "vitStatusTakenBase": 100,
     "vitStatusTakenMin": 0.5,
     "mndMaxMana": 5,
-    "mndManaRegen": 0.12,
-    "mndCrit": 0.004,
-    "spiStatusPotency": 0.03,
-    "spiBuffPotency": 0.02
+    "mndManaRegen": 0.12
   },
   "ATTR_GAIN": {
     "_note": "共鳴とラン内振り分けの入手量（docs/COMBAT_DESIGN.md A-3）",
@@ -327,8 +321,7 @@
     "spreadPoise": 15
   },
   "GENRE": {
-    "_note": "攻撃ジャンルの係数（system/attributes.ts）。比率は 0..1、範囲は %",
-    "secondaryRatio": 0.5,
+    "_note": "攻撃ジャンルの係数（system/elementCombat.ts）。比率は 0..1、範囲は %。ジャンルは敵の防御 / 魔防のどちらで受けるかだけを決め、参照ステータスは縛らない（A-10）",
     "hybridMix": 0.5,
     "enemyDefenseMin": -50,
     "enemyDefenseMax": 75
@@ -491,6 +484,7 @@
       "cost": 100,
       "scaling": { "base": 24, "mnd": 1, "spi": 1 },
       "poise": 60,
+      "poiseRatio": { "mnd": 1.2, "vit": 0.6 },
       "radius": 64,
       "knockback": 380,
       "invuln": 0.15

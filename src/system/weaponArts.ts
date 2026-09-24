@@ -14,7 +14,7 @@ import {
   matchBranch,
   releaseBranchIndex,
 } from "../data/weapons";
-import { scaled } from "./attributes";
+import { scaled, withRatio } from "./attributes";
 import { boonBlocksShoot } from "./boonRules";
 import { cancelAttack, gainEnergy } from "./combat";
 import { addFloatingText, spawnBurst } from "./effects";
@@ -255,7 +255,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef): boolean {
   if (boonBlocksShoot(state)) return false;
   return emitVolley(state, SHOT_TYPES[t.shot], 0, undefined, {
     damage: scaled(state.stats, t.scaling),
-    poise: t.poise * state.stats.poiseDamageMul,
+    poise: withRatio(state.stats, t.poise, t.poiseRatio) * state.stats.poiseDamageMul,
     count: t.count,
     spreadDeg: t.spreadDeg,
     attack: t.attack,

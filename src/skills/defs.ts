@@ -3,36 +3,13 @@ import { STATUS } from "../data/tuning";
 import type { StatusApply } from "../core/status";
 import { EXTRA_SKILL_TUNING as T } from "./tuning";
 import type { ExtraSkillKey, SkillDef } from "./types";
+import { cooldownSkill, manaSkill } from "./resource";
 
 /**
  * 大拡張のスキル石の定義（docs/ideas/skills-expansion.md 1 章）。data.ts の SKILL_DEFS に展開する。
  * 発動処理は skills/actions.ts（近接・範囲・移動）/ shots.ts（射撃弾）/ summons.ts（設置物・連動体）。
  * 新しい状態異常・地形を前提にするもの（泥沼・落石・雷針など）は別レーンの担当なので入れていない。
  */
-
-/** マナ型の共通項（data.ts の manaSkill と同じ形。循環 import を避けるためここにも置く） */
-function manaSkill(block: { cost: number; minInterval: number; poise: number }) {
-  return {
-    resource: "mana",
-    cooldown: 0,
-    charges: 1,
-    manaCost: block.cost,
-    minInterval: block.minInterval,
-    poise: block.poise,
-  } as const;
-}
-
-/** CD 型の共通項 */
-function cooldownSkill(block: { cooldown: number; minInterval: number }, poise: number) {
-  return {
-    resource: "cooldown",
-    cooldown: block.cooldown,
-    charges: 1,
-    manaCost: 0,
-    minInterval: block.minInterval,
-    poise,
-  } as const;
-}
 
 /** 命中した敵に付ける状態異常 */
 const APPLIES = {

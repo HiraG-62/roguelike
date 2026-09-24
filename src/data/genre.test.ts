@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import "../core/game";
-import type { AttackGenre } from "../core/element";
 import type { Scaling } from "../loot/types";
 import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { EXTRA_SKILL_TUNING } from "../skills/tuning";
-import { scaledAtBase, scalingFitsGenre } from "../system/attributes";
+import { scaledAtBase } from "../system/attributes";
 import { PLAYER } from "./tuning";
 import { BURST_ATTACK, MOVESETS, SHOT_TYPES } from "./weapons";
 
 /**
- * 攻撃ジャンルと参照ステータスの揃え（docs/COMBAT_DESIGN.md A-8）。
- * 「ジャンルごとに参照ステータスをある程度揃える」を、全攻撃の Scaling がジャンルの主か副を含むことで固定する
+ * 攻撃ジャンルと係数表（docs/COMBAT_DESIGN.md A-8 / A-10）。
+ * 参照ステータスはジャンルで縛らない（行動ごとに自由）。ここでは係数表の形と素性の有無だけを検査する
  */
 
 const ATTR_FIELDS = new Set(["base", "str", "dex", "vit", "mnd", "spi"]);
@@ -31,24 +30,32 @@ function collectScalings(v: unknown, out: Scaling[] = []): Scaling[] {
   return out;
 }
 
-function expectFits(scalings: readonly Scaling[], genre: AttackGenre, label: string): void {
-  for (const s of scalings) expect(scalingFitsGenre(s, genre), `${label}: ${JSON.stringify(s)} が ${genre.range}・${genre.quality} の参照ステータスを含まない`).toBe(true);
+/** 係数は有限・非負で、ステータスが基礎値のときの威力は負にならない */
+function expectSane(scalings: readonly Scaling[], label: string): void {
+  for (const s of scalings) {
+    for (const [k, v] of Object.entries(s)) {
+      expect(Number.isFinite(v), `${label}: ${k} が有限でない`).toBe(true);
+      if (k !== "base") expect(v, `${label}: ${k} の係数が負`).toBeGreaterThanOrEqual(0);
+    }
+    expect(scaledAtBase(s), `${label}: 基礎値での威力が負 ${JSON.stringify(s)}`).toBeGreaterThanOrEqual(0);
+  }
 }
 
-describe("武器種・射撃の型・必殺のジャンル", () => {
-  it("武器種の全段・ダッシュ攻撃・派生・溜めがジャンルの参照ステータスで伸びる", () => {
+describe("武器種・射撃の型・必殺の係数", () => {
+  it("武器種の全段・ダッシュ攻撃・派生・溜めの係数表が正しい形", () => {
     for (const m of Object.values(MOVESETS)) {
       const steps = [...m.steps, m.dashAttack, ...m.branches.map((b) => b.step), ...(m.charge ? [m.charge.step] : [])];
-      expectFits(steps.map((s) => s.scaling), m.attack.genre, m.key);
+      expectSane(steps.map((s) => s.scaling), m.key);
     }
   });
 
-  it("射撃の型はすべて射撃の Scaling（技巧）と揃う", () => {
-    for (const s of Object.values(SHOT_TYPES)) expectFits([PLAYER.shoot.scaling], s.attack.genre, s.key);
+  it("射撃の型と必殺の係数表が正しい形", () => {
+    expectSane([PLAYER.shoot.scaling, PLAYER.special.scaling], "射撃・必殺");
+    for (const s of Object.values(SHOT_TYPES)) if (s.scaling) expectSane([s.scaling], s.key);
   });
 
-  it("必殺は範囲・魔法（精神 + 霊力）", () => {
-    expectFits([PLAYER.special.scaling], BURST_ATTACK.genre, "必殺");
+  it("必殺の素性は範囲・魔法", () => {
+    expect(BURST_ATTACK.genre).toEqual({ range: "area", quality: "arcane" });
   });
 });
 
@@ -61,14 +68,14 @@ describe("スキルのジャンル", () => {
     }
   });
 
-  it("スキルの Scaling はすべて素性のジャンルの参照ステータスを含む", () => {
+  it("与ダメを持つスキルは係数表を持ち、形が正しい（参照ステータスはジャンルで縛らない。A-10）", () => {
     const blocks: Readonly<Record<string, unknown>> = { ...SKILL, ...EXTRA_SKILL_TUNING };
     for (const def of Object.values(SKILL_DEFS)) {
       const atk = SKILL_ATTACK[def.key];
       if (!atk) continue;
       const scalings = collectScalings(blocks[def.key]);
       expect(scalings.length, `${def.key} の Scaling が見つからない`).toBeGreaterThan(0);
-      expectFits(scalings, atk.genre, def.key);
+      expectSane(scalings, def.key);
     }
   });
 

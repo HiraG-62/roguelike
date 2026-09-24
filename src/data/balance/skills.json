@@ -82,7 +82,7 @@
       "knockback": 260,
       "catchPad": 4
     },
-    "bloodPact": { "cooldown": 12, "minInterval": 0.3, "hpFraction": 0.12, "duration": 4, "speedMul": 1.35, "lifesteal": 0.08 },
+    "bloodPact": { "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）", "cooldown": 12, "minInterval": 0.3, "hpFraction": 0.12, "duration": 4, "speedMul": 1.35, "lifesteal": 0.08, "buff": { "base": 0.9, "spi": 0.02 } },
     "quake": {
       "_note": "cost: 24→20.4（-15%）。damage.base: 11→12.7（+15%）",
       "cost": 20.4,
@@ -139,7 +139,7 @@
       "damage": { "base": 10.1, "dex": 1.2, "spi": 1.2 },
       "knockback": 160
     },
-    "haste": { "cooldown": 11, "minInterval": 0.3, "duration": 3, "moveBonus": 0.3, "exhaust": 1.5 },
+    "haste": { "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）", "cooldown": 11, "minInterval": 0.3, "duration": 3, "moveBonus": 0.3, "exhaust": 1.5, "buff": { "base": 0.9, "spi": 0.02 } },
     "chainHook": {
       "_note": "cost: 14→11.9、damage.base: 6.6→7.6（各+15%）。bleedPotency は出血の 10px あたりダメージ（状態異常の potency）",
       "cost": 11.9,

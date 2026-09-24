@@ -55,6 +55,8 @@
 
 ### A-1. 5 種と伸びるもの
 
+> 2026-09-24: 下表の「係数で伸びる技」と、筋力・霊力の派生・技巧の連射・精神の会心率は A-10 で廃止した（行動ごとの係数へ移行）。残る派生は A-10 を参照。
+
 基礎値は全員 **各 5**（`ATTR.base`）。以下の「派生」は **基礎値からの差分** で既存の `PlayerStats` に畳み込む（基礎値なら何も変わらない）。`e` は実効値。
 
 | ステータス | 色 | 係数で伸びる技 | 派生（差分 d = e − 5） |
@@ -271,7 +273,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 - 質軸 `AttackQuality`: 物理 physical / 魔法 arcane / 混成 hybrid。敵の防御と魔防のどちらで受けるかを決める
 - 属性 `Element`: 無 none / 炎 fire / 氷 ice / 雷 lightning / 毒 poison / 闇 dark / 光 light
 
-**ジャンルごとの参照ステータスの既定表**（`system/attributes.ts` の `GENRE_ATTRS`。主 / 副）:
+**ジャンルごとの参照ステータスの既定表**（2026-09-24 に A-10 で廃止。以下は経緯として残す）:
 
 | | 物理 | 魔法 | 混成 |
 | --- | --- | --- | --- |
@@ -359,6 +361,30 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 - リプレイ: `ReplayData.job`（見習いは書かない。版はそのまま）。QA bot は見習いのまま
 
 **見送り**: 拳闘士の「投げで壁叩きつけ」（投げのイベントが無く、player.ts を触れないため N 回目の衝撃波にした）、盾持ちの「防御 ×2」（時限の防御バフの効果種が無いため短い無敵で代用）、影の「背面扱い」（背面判定は player.ts 側なので脆弱で代用）、狩人の「会心で弾が戻る」（近接と射撃の会心をイベントで区別できないため）、詠み手の「次の通常攻撃だけ強化」（時限のダメージ強化で代用）、得意な武器種ごとの段ごとの追加効果（今は一律の倍率）、QA の `PROFILE_KINDS` へのジョブ違いの追加。
+
+
+### A-10. 行動ごとの係数（2026-09-24。A-1 の派生と A-8 の既定表を置き換える）
+
+**狙い**: ステータスが決まった行動に縛られない（「筋力 = 近接と怯み」をやめる）。行動（武器種の各段・ダッシュ攻撃・固有技・派生・溜め・射撃の型・必殺・スキル）ごとに「基礎値 + Σ(ステータス × 係数)」を持たせ、LoL のレシオのように参照先を行動ごとに決める。1 種だけ・複数・全部・0 種（基礎値だけ）のどれでもよい。同じ近接でも武器種で参照先が違ってよい。
+
+**係数を持てる量**:
+
+| 量 | 型 | 最終値 |
+| --- | --- | --- |
+| 威力 | `Scaling`（`{ base, str?, dex?, vit?, mnd?, spi? }`。base はステータス 0 のときの値） | `scaled(stats, s)` |
+| 怯み値 | `poise`（ステータス基礎値での値）+ `poiseRatio?: AttrRatio` | `withRatio(stats, poise, poiseRatio) × poiseDamageMul` |
+| 状態異常の効果量 | `StatusApply.potency`（基礎値での値）+ `StatusApply.ratio?: AttrRatio` | `withRatio(...) × statusPotencyMul`（プレイヤーが付けるときだけ） |
+| 強化系スキルの効果量 | `SkillDef.buffScaling?: Scaling`（基礎値で 1） | `buffMul(stats, s)` |
+
+- `AttrRatio` は「実効値 1 点あたりの増分」。`withRatio` = 基礎値での値 + Σ 係数 × (実効値 − 5)。ステータスが各 5 なら元の値のままなので、係数を足してもバランスの基準点は動かない
+- 表示は威力と揃えて「ステータス 0 のときの値 + 係数」に直す（`ratioToScaling`）
+- 係数を持てる場所: `MeleeStepDef.scaling / poiseRatio`（全段・ダッシュ攻撃・固有技・派生・溜め）、`ThrowArtDef.scaling / poiseRatio`、`ShotDef.scaling / poiseRatio`（省略は `PLAYER.shoot.scaling`）、`PLAYER.special.scaling / poiseRatio`、スキルの数値ブロックの `damage` などの Scaling と `poiseRatio`（`skills/resource.ts` の `manaSkill` / `cooldownSkill` が通す）、`StatusApply.ratio`、`buffScaling`
+
+**ステータスそのものの効果（残すもの = 体の性能）**: 技巧 → 移動速度・ダッシュの再使用時間、体力 → 最大生命・受ける状態異常の持続、精神 → 最大気力・気力の自然回復。筋力と霊力は体の性能を持たず、行動の係数でだけ効く。
+
+**外したもの**: 筋力 → 怯み値倍率・吹き飛ばし、技巧 → 連射、精神 → 会心率、霊力 → 状態異常の効果量・強化系スキルの効果量（`ATTR.strPoise` など 6 定数と `buffPotencyMul`）。怯み値・状態異常の効果量・強化の効果量は上表の係数へ移した。A-8 の「ジャンルごとの参照ステータスの既定表」（`GENRE_ATTRS` / `genreScaling` / `scalingFitsGenre` / `GENRE.secondaryRatio`）も廃止した。ジャンルは敵の防御 / 魔防のどちらで受けるかだけを決める。
+
+**表示**: 武器・スキル石の詳細に、行動ごとの計算式（例「威力 18 = 10 + 筋力×1.3 + 技巧×0.2」）と、今のステータスでの値を出す。どのステータスがどれだけ効くかを明示する。
 
 ---
 

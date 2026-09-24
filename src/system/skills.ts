@@ -101,7 +101,7 @@ import {
 import type { Element } from "../core/element";
 import { JOBS } from "../data/jobs";
 import { MOVESETS } from "../data/weapons";
-import { buffPotencyMul } from "./attributes";
+import { buffMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
@@ -1249,7 +1249,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     const b = SKILL.bloodPact;
     p.hp = Math.max(1, p.hp - p.maxHp * b.hpFraction);
     const time = b.duration * params.durationMul;
-    const potency = params.potencyMul * buffPotencyMul(state.stats);
+    const potency = params.potencyMul * buffMul(state.stats, SKILL_DEFS.bloodPact.buffScaling);
     state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * potency };
     state.skills.lifesteal = { time, mul: b.lifesteal * potency };
     addFloatingText(state, p.body.pos, "血の契約", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
@@ -1263,7 +1263,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
   haste: (state, _slot, params) => {
     const h = SKILL.haste;
     const p = state.player;
-    const potency = params.potencyMul * buffPotencyMul(state.stats);
+    const potency = params.potencyMul * buffMul(state.stats, SKILL_DEFS.haste.buffScaling);
     state.skills.haste = { time: h.duration * params.durationMul, mul: 1 + h.moveBonus * potency };
     state.skills.exhaustTimer = 0;
     addFloatingText(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, LABEL_SCALE, PARRY_TEXT_LIFE);

@@ -3,6 +3,7 @@
  * プレイヤーと敵で共通の入れ物を使う。ロジックは src/system/statusEffects.ts（付与・時間経過）と
  * src/system/statusReactions.ts（反応・昇華）に置く
  */
+import type { AttrRatio } from "../loot/types";
 
 export const STATUS_KINDS = [
   "burn",
@@ -209,7 +210,10 @@ export interface StatusApply {
   kind: StatusKind;
   stacks: number;
   duration: number;
+  /** 効果量（プレイヤーが付けるときはステータスが基礎値のときの値） */
   potency: number;
+  /** 効果量のステータス係数（docs/COMBAT_DESIGN.md A-10）。プレイヤーが付けるときだけ読む。省略はステータスで伸びない */
+  ratio?: AttrRatio;
 }
 
 /** 装備の性質が持つ on-hit 付与（docs/COMBAT_DESIGN.md E-5） */

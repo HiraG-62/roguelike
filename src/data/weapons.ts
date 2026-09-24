@@ -3,7 +3,7 @@ import { type KeywordProfile, kw } from "../core/keywords";
 import type { EventKind } from "../core/events";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
-import type { Scaling } from "../loot/types";
+import type { AttrRatio, Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 
 /**
@@ -69,10 +69,12 @@ export interface MeleeStepDef {
   readonly windup: number;
   readonly active: number;
   readonly recover: number;
-  /** 威力の係数（docs/COMBAT_DESIGN.md A-6）。呼び出し側で scaled を通す */
+  /** 威力の係数（docs/COMBAT_DESIGN.md A-6 / A-10）。呼び出し側で scaled を通す */
   readonly scaling: Scaling;
-  /** 1 ヒットの基礎怯み値 */
+  /** 1 ヒットの怯み値（ステータスが基礎値のとき） */
   readonly poise: number;
+  /** 怯み値のステータス係数（A-10）。省略はステータスで伸びない */
+  readonly poiseRatio?: AttrRatio;
   readonly reach: number;
   readonly size: number;
   readonly knockback: number;
@@ -169,6 +171,7 @@ export interface ThrowArtDef {
   readonly shot: ShotKey;
   readonly scaling: Scaling;
   readonly poise: number;
+  readonly poiseRatio?: AttrRatio;
   readonly count: number;
   readonly spreadDeg: number;
   readonly attack: AttackProfile;
@@ -289,8 +292,12 @@ export interface ShotDef {
   readonly boomerang?: { readonly returnAt: number; readonly catchRadius: number };
   /** 曲射: 照準の距離（minRange〜射程）で炸裂する。peak は描画の山の高さ（px） */
   readonly lob?: { readonly blastRadius: number; readonly minRange: number; readonly peak: number; readonly color: string };
+  /** 1 発の威力の係数（A-10）。省略は PLAYER.shoot.scaling。damageMul はこの後に掛かる */
+  readonly scaling?: Scaling;
+  /** 怯み値のステータス係数（A-10）。PLAYER.shoot.poise × poiseMul に上乗せする。省略はステータスで伸びない */
+  readonly poiseRatio?: AttrRatio;
   readonly keywords: KeywordProfile;
-  /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。威力は PLAYER.shoot の Scaling（技巧）なので遠距離・物理に揃える */
+  /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。敵の防御 / 魔防のどちらで受けるかを決める */
   readonly attack: AttackProfile;
 }
 
@@ -487,7 +494,14 @@ function strikeArt(key: string, desc: string, t: StrikeTuning): WeaponArtDef {
 
 interface ThrowTuning {
   readonly cooldown: number;
-  readonly throw: { readonly shot: ShotKey; readonly scaling: Scaling; readonly poise: number; readonly count: number; readonly spreadDeg: number };
+  readonly throw: {
+    readonly shot: ShotKey;
+    readonly scaling: Scaling;
+    readonly poise: number;
+    readonly poiseRatio?: AttrRatio;
+    readonly count: number;
+    readonly spreadDeg: number;
+  };
 }
 
 /** 弾を出す技。素性（ジャンル・属性）は技ごとに決める */

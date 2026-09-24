@@ -24,7 +24,7 @@ import {
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
-import { DEFAULT_STATS, createLootRuntime, type PlayerStats } from "../loot/types";
+import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
@@ -32,7 +32,7 @@ import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclo
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { applyStatus, explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { terrainSlide } from "./terrain";
-import { addRunAttributes, deriveAttributes, scaled } from "./attributes";
+import { addRunAttributes, deriveAttributes, scaled, withRatio } from "./attributes";
 import { applyRunStats } from "./runSetup";
 import { gainAttackMana } from "./mana";
 import { type StatusApply, createStatusBag } from "../core/status";
@@ -293,7 +293,7 @@ export function meleeStep(
     active: base.active / speed,
     recover: base.recover / speed,
     damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1),
-    poise: base.poise * stats.poiseDamageMul * (level?.poiseMul ?? 1),
+    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1),
     reach: base.reach * reachMul,
     size: base.size * reachMul,
     knockback: base.knockback * stats.knockbackMul,
@@ -321,9 +321,19 @@ export function currentMeleeStep(state: GameState): MeleeStep | undefined {
   return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state));
 }
 
-/** 射撃 1 発の基礎威力（ステータスの係数を評価した値。射撃の型の倍率は含まない） */
+/** 射撃 1 発の基礎威力（今の射撃の型の係数を評価した値。射撃の型の damageMul は含まない） */
 export function shotDamage(stats: Readonly<PlayerStats>): number {
-  return scaled(stats, PLAYER.shoot.scaling);
+  return scaled(stats, shotScaling(stats));
+}
+
+/** 今の射撃の型の係数表（型が持たなければ共通の PLAYER.shoot.scaling） */
+export function shotScaling(stats: Readonly<PlayerStats>): Scaling {
+  return (SHOT_TYPES[stats.shot] ?? SHOT_TYPES.single).scaling ?? PLAYER.shoot.scaling;
+}
+
+/** 射撃 1 発の怯み値（ステータスが基礎値のときの値に型の係数を足す。poiseDamageMul は含まない） */
+function shotPoise(stats: Readonly<PlayerStats>, shot: Readonly<ShotDef>, poiseMul: number): number {
+  return withRatio(stats, PLAYER.shoot.poise * poiseMul, shot.poiseRatio);
 }
 
 /** バーストの威力（ステータスの係数 × burstDamageMul） */
@@ -1356,7 +1366,7 @@ function volleySpec(state: GameState, shot: ShotDef, level: number, aim?: number
   const speed = PLAYER.shoot.speed * shot.speedMul * s.projectileSpeedMul;
   return {
     damage: override.damage ?? shotDamage(s) * damageMul + boonNormalAttackBonus(state),
-    poise: override.poise ?? PLAYER.shoot.poise * (charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
+    poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
     radius: charged?.radius ?? shot.radius,
     pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0) + (override.pierceBonus ?? 0),
     speed,
@@ -1469,7 +1479,7 @@ function trySpecial(state: GameState): boolean {
   const s = state.stats;
   const radius = PLAYER.special.radius * s.burstRadiusMul;
   const damage = burstDamage(s);
-  const poise = PLAYER.special.poise * s.poiseDamageMul;
+  const poise = withRatio(s, PLAYER.special.poise, PLAYER.special.poiseRatio) * s.poiseDamageMul;
   const knockback = PLAYER.special.knockback * s.knockbackMul;
   let kills = 0;
   for (const e of state.enemies) {

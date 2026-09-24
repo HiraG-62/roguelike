@@ -22,6 +22,7 @@ import type {
   VariantAxis,
   VariantRoll,
 } from "./types";
+import { cooldownSkill, manaSkill } from "./resource";
 
 type BaseSkillKey = (typeof BASE_SKILL_KEYS)[number];
 type BaseModifierKey = (typeof BASE_MODIFIER_KEYS)[number];
@@ -230,30 +231,6 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   pyreForm: 3,
 };
 
-/** マナ型の共通項: CD とチャージは使わない（docs/COMBAT_DESIGN.md B-4） */
-function manaSkill(block: { cost: number; minInterval: number; poise: number }) {
-  return {
-    resource: "mana",
-    cooldown: 0,
-    charges: 1,
-    manaCost: block.cost,
-    minInterval: block.minInterval,
-    poise: block.poise,
-  } as const;
-}
-
-/** CD 型の共通項: コスト 0、既存の CD とチャージ制 */
-function cooldownSkill(block: { cooldown: number; minInterval: number }, poise: number) {
-  return {
-    resource: "cooldown",
-    cooldown: block.cooldown,
-    charges: 1,
-    manaCost: 0,
-    minInterval: block.minInterval,
-    poise,
-  } as const;
-}
-
 /** 命中した敵に付ける状態異常（docs/COMBAT_DESIGN.md B-4 の「付与」列） */
 const APPLIES = {
   railshot: [{ kind: "vulnerable", stacks: 1, duration: SKILL.railshot.vulnerableTime, potency: 0 }],
@@ -334,6 +311,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     damageKind: "none",
     axes: ["durationVsPotency"],
     ...cooldownSkill(SKILL.bloodPact, 0),
+    buffScaling: SKILL.bloodPact.buff,
   },
   quake: {
     key: "quake",
@@ -393,6 +371,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     damageKind: "none",
     axes: ["durationVsPotency", "cooldownVsPotency"],
     ...cooldownSkill(SKILL.haste, 0),
+    buffScaling: SKILL.haste.buff,
   },
   chainHook: {
     key: "chainHook",

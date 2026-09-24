@@ -1,6 +1,7 @@
 import { kw } from "../core/keywords";
 import { WAVE3_SKILL_TUNING as T } from "./tuning3";
 import type { SkillDef, Wave3SkillKey } from "./types";
+import { cooldownSkill, manaSkill } from "./resource";
 
 /**
  * スキル第 3 弾: 左右クリックの動作そのものを差し替える変身 5 種（docs/ideas/skills-expansion.md 1-H #56〜#60）。
@@ -9,30 +10,6 @@ import type { SkillDef, Wave3SkillKey } from "./types";
  * 狼化・霊体化・鉄塊化・業火の化身は「自分を強める」変身なので buff を付ける（反響・遅延・当て方の刻印符が付かない）。
  * 砲身化は撃つ変身なので projectile（重撃・遠当てが付く）と、構えの維持を表す channel（溜め・段階溜めが付かない）を付ける
  */
-
-/** 気力型の共通項（defs2.ts と同じ形。循環 import を避けるためここにも置く） */
-function manaSkill(block: { cost: number; minInterval: number; poise: number }) {
-  return {
-    resource: "mana",
-    cooldown: 0,
-    charges: 1,
-    manaCost: block.cost,
-    minInterval: block.minInterval,
-    poise: block.poise,
-  } as const;
-}
-
-/** 再使用型の共通項 */
-function cooldownSkill(block: { cooldown: number; minInterval: number; poise: number }) {
-  return {
-    resource: "cooldown",
-    cooldown: block.cooldown,
-    charges: 1,
-    manaCost: 0,
-    minInterval: block.minInterval,
-    poise: block.poise,
-  } as const;
-}
 
 export const WAVE3_SKILL_DEFS: Record<Wave3SkillKey, SkillDef> = {
   wolfForm: {

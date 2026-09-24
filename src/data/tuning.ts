@@ -184,7 +184,7 @@ export const BOON = BALANCE.boons.BOON;
 export const WEAPON = BALANCE.weapons.WEAPON;
 
 /**
- * 攻撃ジャンル（docs/COMBAT_DESIGN.md A-8）。範囲軸 × 質軸。参照ステータスの既定表は system/attributes.ts の GENRE_ATTRS
+ * 攻撃ジャンル（docs/COMBAT_DESIGN.md A-8）。範囲軸 × 質軸。参照ステータスは縛らない（A-10。係数は技ごとに自由）
  */
 export const GENRE = BALANCE.combat.GENRE;
 

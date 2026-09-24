@@ -5,7 +5,7 @@ import type { StatusProc } from "../core/status";
 import { type Vec, add, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, defineMoveset } from "../data/weapons";
-import { ATTR_KEYS, type Scaling } from "../loot/types";
+import { ATTR_KEYS, type AttrRatio, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
 import { addFloatingText, shake, spawnBurst, spawnRing } from "../system/effects";
@@ -536,8 +536,19 @@ function scaleScaling(s: Readonly<Scaling>, mul: number): Scaling {
   return out;
 }
 
+/** 怯み値の係数を倍にする（怯み値の倍率を段に畳むため） */
+function scaleRatio(r: Readonly<AttrRatio>, mul: number): AttrRatio {
+  const out: AttrRatio = {};
+  for (const k of ATTR_KEYS) {
+    const v = r[k];
+    if (v !== undefined) out[k] = v * mul;
+  }
+  return out;
+}
+
 function tunedStep(step: MeleeStepDef, params: Readonly<CastParams>): MeleeStepDef {
-  return { ...step, scaling: scaleScaling(step.scaling, params.damageMul * params.potencyMul), poise: step.poise * params.poiseMul };
+  const poiseRatio = step.poiseRatio === undefined ? undefined : scaleRatio(step.poiseRatio, params.poiseMul);
+  return { ...step, scaling: scaleScaling(step.scaling, params.damageMul * params.potencyMul), poise: step.poise * params.poiseMul, poiseRatio };
 }
 
 /**

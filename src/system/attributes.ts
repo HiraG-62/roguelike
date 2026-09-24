@@ -1,9 +1,10 @@
-import type { AttackGenre, AttackQuality, AttackRange } from "../core/element";
-import { ATTR, GENRE } from "../data/tuning";
-import { ATTR_KEYS, type AttrKey, type Attributes, type PlayerStats, type Scaling } from "../loot/types";
+import { ATTR } from "../data/tuning";
+import { ATTR_KEYS, type AttrRatio, type Attributes, type PlayerStats, type Scaling } from "../loot/types";
 
 /**
  * ステータス（筋力 / 技巧 / 体力 / 精神 / 霊力）の実効値と派生。docs/COMBAT_DESIGN.md A。
+ * 行動の強さ（威力・怯み値・状態異常の効果量・強化の効果量）は行動ごとの係数だけで決まり、
+ * ステータスそのものが決まった行動を伸ばすことはしない（A-10）。ここで畳み込む派生は体の性能（生命・気力・移動）だけ。
  * 派生は「実効値 − 基礎値」の差分で既存の PlayerStats に畳み込むので、基礎値なら何も変わらない
  */
 
@@ -29,61 +30,34 @@ export function scaled(stats: Readonly<PlayerStats>, s: Readonly<Scaling>): numb
   return v;
 }
 
-// ---------------------------------------------------------------------------
-// 攻撃ジャンルの参照ステータス（docs/COMBAT_DESIGN.md A-8）
-// ---------------------------------------------------------------------------
-
-export interface GenreAttrs {
-  /** 主に伸ばすステータス。そのジャンルの攻撃は主か副の係数を持つ（data 側のテストで検査する） */
-  readonly primary: AttrKey;
-  /** 副に伸ばすステータス */
-  readonly secondary: AttrKey;
+/**
+ * 「基礎値での値」に係数ぶんの上乗せを足す（怯み値・状態異常の効果量・強化の効果量）。
+ * ステータスを下げても負にはしない
+ */
+export function withRatio(stats: Readonly<PlayerStats>, atBase: number, ratio: Readonly<AttrRatio> | undefined): number {
+  if (ratio === undefined) return atBase;
+  let v = atBase;
+  for (const k of ATTR_KEYS) v += (ratio[k] ?? 0) * (stats.attributesEff[k] - ATTR.base);
+  return Math.max(0, v);
 }
 
-/**
- * ジャンルごとの参照ステータスの既定表。筋力 = 物理の力、技巧 = 物理の狙い、霊力 = 魔法、精神 = 魔法の広がり、
- * 体力 = 地を揺らす範囲の物理。混成は物理と魔法の主を 1 つずつ。
- * 盾・体当たり・自傷など体力で伸ばしたい攻撃は、個々の Scaling で上書きする（既定表はあくまで揃えの目安）
- */
-export const GENRE_ATTRS: Readonly<Record<AttackRange, Readonly<Record<AttackQuality, GenreAttrs>>>> = {
-  melee: {
-    physical: { primary: "str", secondary: "dex" },
-    arcane: { primary: "spi", secondary: "str" },
-    hybrid: { primary: "str", secondary: "spi" },
-  },
-  ranged: {
-    physical: { primary: "dex", secondary: "str" },
-    arcane: { primary: "spi", secondary: "mnd" },
-    hybrid: { primary: "dex", secondary: "spi" },
-  },
-  area: {
-    physical: { primary: "str", secondary: "vit" },
-    arcane: { primary: "spi", secondary: "mnd" },
-    hybrid: { primary: "str", secondary: "spi" },
-  },
-};
-
-export function genreAttrs(genre: AttackGenre): GenreAttrs {
-  return GENRE_ATTRS[genre.range][genre.quality];
+/** 「基礎値での値 + 係数」を Scaling（ステータス 0 のときの値 + 係数）に直す。計算式の表示を威力と揃えるため */
+export function ratioToScaling(atBase: number, ratio: Readonly<AttrRatio> | undefined): Scaling {
+  const out: Scaling = { base: atBase };
+  if (ratio === undefined) return out;
+  for (const k of ATTR_KEYS) {
+    const r = ratio[k];
+    if (r === undefined || r === 0) continue;
+    out[k] = r;
+    out.base -= r * ATTR.base;
+  }
+  return out;
 }
 
-/**
- * ジャンルの既定表から Scaling を作る。atBase = ステータスが基礎値（各 5）のときの威力、primaryCoef = 主の係数。
- * 副の係数は主 × GENRE.secondaryRatio。base は atBase に一致するよう逆算する（既存の数値を壊さない）
- */
-export function genreScaling(genre: AttackGenre, atBase: number, primaryCoef: number): Scaling {
-  const { primary, secondary } = genreAttrs(genre);
-  const secondaryCoef = primaryCoef * GENRE.secondaryRatio;
-  return { base: atBase - ATTR.base * (primaryCoef + secondaryCoef), [primary]: primaryCoef, [secondary]: secondaryCoef };
-}
-
-/**
- * Scaling がジャンルの主か副のステータスを参照しているか（「ジャンルごとに参照ステータスをある程度揃える」の検査）。
- * 双剣（技巧）のように副だけで伸びる攻撃も揃っているとみなす。体力参照など表の外は呼び出し側で上書きを宣言する
- */
-export function scalingFitsGenre(s: Readonly<Scaling>, genre: AttackGenre): boolean {
-  const { primary, secondary } = genreAttrs(genre);
-  return (s[primary] ?? 0) > 0 || (s[secondary] ?? 0) > 0;
+/** 強化系スキルの効果量の倍率。係数表が無ければ 1（ステータスで伸びない） */
+export function buffMul(stats: Readonly<PlayerStats>, s: Readonly<Scaling> | undefined): number {
+  if (s === undefined) return 1;
+  return Math.max(0, scaled(stats, s));
 }
 
 /** ステータスが基礎値（各 5）のときの威力 */
@@ -107,17 +81,11 @@ export function addRunAttributes(stats: Readonly<PlayerStats>, alloc: Readonly<A
 export function deriveAttributes(stats: Readonly<PlayerStats>): PlayerStats {
   const eff = effectiveAttributes(stats.attributes);
   const out: PlayerStats = { ...stats, attributes: { ...stats.attributes }, attributesEff: eff };
-  deriveStr(out, eff.str - ATTR.base);
+  // 筋力・霊力は体の性能を持たない（行動ごとの係数でだけ効く）
   deriveDex(out, eff.dex - ATTR.base);
   deriveVit(out, eff.vit - ATTR.base);
   deriveMnd(out, eff.mnd - ATTR.base);
-  deriveSpi(out, eff.spi - ATTR.base);
   return out;
-}
-
-/** buff 系スキル（血の契約・加速）の効果量倍率。霊力で伸びる（docs/COMBAT_DESIGN.md B-4） */
-export function buffPotencyMul(stats: Readonly<PlayerStats>): number {
-  return Math.max(0, 1 + ATTR.spiBuffPotency * (stats.attributesEff.spi - ATTR.base));
 }
 
 function effectiveAttributes(raw: Readonly<Attributes>): Attributes {
@@ -135,14 +103,8 @@ function perPointMul(perPoint: number, d: number): number {
   return Math.max(0, 1 + perPoint * d);
 }
 
-function deriveStr(out: PlayerStats, d: number): void {
-  out.poiseDamageMul *= perPointMul(ATTR.strPoise, d);
-  out.knockbackMul *= perPointMul(ATTR.strKnockback, d);
-}
-
 function deriveDex(out: PlayerStats, d: number): void {
   out.moveSpeedMul *= perPointMul(ATTR.dexMove, d);
-  out.fireRateMul *= perPointMul(ATTR.dexFireRate, d);
   out.dashCooldownMul *= Math.max(ATTR.dexDashCooldownMin, 1 - ATTR.dexDashCooldown * d);
 }
 
@@ -156,9 +118,4 @@ function deriveVit(out: PlayerStats, d: number): void {
 function deriveMnd(out: PlayerStats, d: number): void {
   out.maxMana = Math.max(0, out.maxMana + ATTR.mndMaxMana * d);
   out.manaRegen = Math.max(0, out.manaRegen + ATTR.mndManaRegen * d);
-  out.critChance = Math.min(1, Math.max(0, out.critChance + ATTR.mndCrit * d));
-}
-
-function deriveSpi(out: PlayerStats, d: number): void {
-  out.statusPotencyMul *= perPointMul(ATTR.spiStatusPotency, d);
 }

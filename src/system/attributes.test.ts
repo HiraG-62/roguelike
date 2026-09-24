@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ATTACK_QUALITIES, ATTACK_RANGES } from "../core/element";
-import { GENRE_ATTRS, genreAttrs, genreScaling, scaledAtBase, scalingFitsGenre } from "./attributes";
+import { ratioToScaling, scaledAtBase, withRatio } from "./attributes";
 import { createGame } from "../core/game";
 import { ACTION, ATTR, PLAYER } from "../data/tuning";
 import { SKILL } from "../skills/data";
@@ -14,7 +13,7 @@ import {
   type PlayerStats,
   type Scaling,
 } from "../loot/types";
-import { addRunAttributes, buffPotencyMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
+import { addRunAttributes, buffMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
 import { applyStats } from "./player";
 
 /** 素の stats（装備なし）の生ステータスを 1 つだけ変えたもの */
@@ -78,16 +77,28 @@ describe("deriveAttributes（派生）", () => {
     expect(out.attributes.dex, "生の値は残す").toBe(40);
   });
 
-  it("筋力: 怯み値倍率 +3% / ノックバック +2%（1 点あたり）", () => {
-    const out = deriveAttributes(statsWith("str", RAW_PLUS_10));
-    expect(out.poiseDamageMul).toBeCloseTo(1.3, FLOAT_DIGITS);
-    expect(out.knockbackMul).toBeCloseTo(1.2, FLOAT_DIGITS);
+  it("筋力・霊力は体の性能を持たない（行動の強さは行動ごとの係数でだけ伸びる。A-10）", () => {
+    const base = computeStats(createEmptyEquipment());
+    for (const key of ["str", "spi"] as const) {
+      const out = deriveAttributes(statsWith(key, RAW_PLUS_10));
+      expect({ ...out, attributes: base.attributes, attributesEff: base.attributesEff }, `${key} で派生が動いた`).toEqual(base);
+    }
   });
 
-  it("技巧: 移動 +0.5% / 連射 +1% / ダッシュ CD −1%（下限 ×0.7）", () => {
+  it("行動に縛られる派生（怯み値・吹き飛ばし・連射・会心・状態異常の効果量）はステータスで動かない", () => {
+    for (const key of ATTR_KEYS) {
+      const out = deriveAttributes(statsWith(key, RAW_PLUS_10));
+      expect(out.poiseDamageMul, `${key} → 怯み値`).toBe(1);
+      expect(out.knockbackMul, `${key} → 吹き飛ばし`).toBe(1);
+      expect(out.fireRateMul, `${key} → 連射`).toBe(1);
+      expect(out.critChance, `${key} → 会心率`).toBe(DEFAULT_STATS.critChance);
+      expect(out.statusPotencyMul, `${key} → 状態異常の効果量`).toBe(1);
+    }
+  });
+
+  it("技巧: 移動 +0.5% / ダッシュ再使用時間 −1%（下限 ×0.7）", () => {
     const out = deriveAttributes(statsWith("dex", RAW_PLUS_10));
     expect(out.moveSpeedMul).toBeCloseTo(1.05, FLOAT_DIGITS);
-    expect(out.fireRateMul).toBeCloseTo(1.1, FLOAT_DIGITS);
     expect(out.dashCooldownMul).toBeCloseTo(0.9, FLOAT_DIGITS);
     const huge = deriveAttributes(statsWith("dex", 200));
     expect(huge.dashCooldownMul, "ダッシュ CD の短縮は ×0.7 で止まる").toBeCloseTo(ATTR.dexDashCooldownMin, FLOAT_DIGITS);
@@ -108,20 +119,12 @@ describe("deriveAttributes（派生）", () => {
     expect(glass.maxHp).toBe(1);
   });
 
-  it("精神: 最大マナ・自然回復・会心率が 1 点ごとに ATTR の係数ぶん伸びる", () => {
+  it("精神: 最大気力・自然回復が 1 点ごとに ATTR の係数ぶん伸びる", () => {
     const out = deriveAttributes(statsWith("mnd", RAW_PLUS_10));
     const d = RAW_PLUS_10 - ATTR.base;
     // 係数は 2026-09-24 のマナ経済の締め直しで変わる前提なので ATTR から読む（src/data/tuning.ts ATTR 参照）
     expect(out.maxMana).toBeCloseTo(DEFAULT_STATS.maxMana + ATTR.mndMaxMana * d, FLOAT_DIGITS);
     expect(out.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen + ATTR.mndManaRegen * d, FLOAT_DIGITS);
-    expect(out.critChance).toBeCloseTo(DEFAULT_STATS.critChance + 0.04, FLOAT_DIGITS);
-  });
-
-  it("霊力: 状態異常の効果量 +3% / buff の効果量 +2%", () => {
-    const out = deriveAttributes(statsWith("spi", RAW_PLUS_10));
-    expect(out.statusPotencyMul).toBeCloseTo(1.3, FLOAT_DIGITS);
-    expect(buffPotencyMul(out)).toBeCloseTo(1.2, FLOAT_DIGITS);
-    expect(buffPotencyMul(deriveAttributes(computeStats(createEmptyEquipment()))), "基礎値では 1").toBe(1);
   });
 });
 
@@ -144,13 +147,15 @@ describe("applyStats への組み込み", () => {
 
   it("振り分けが派生に反映され、何度呼んでも二重に掛からない", () => {
     const state = createGame(1);
-    state.runAttributes.alloc.str = 10;
+    state.runAttributes.alloc.vit = 10;
     const equip = computeStats(state.profile.equipment);
     applyStats(state, equip);
+    const once = state.stats.maxHp;
     applyStats(state, equip);
-    expect(state.stats.attributes.str).toBe(15);
-    expect(state.stats.poiseDamageMul).toBeCloseTo(1.3, FLOAT_DIGITS);
-    expect(state.boonRun.baseStats?.attributes.str, "祝福の基準 stats は振り分け前").toBe(ATTR.base);
+    expect(state.stats.attributes.vit).toBe(15);
+    expect(state.stats.maxHp, "二重に掛かった").toBe(once);
+    expect(state.stats.maxHp, "体力 +10 で最大生命 +40").toBe(computeStats(state.profile.equipment).maxHp + ATTR.vitMaxHp * 10);
+    expect(state.boonRun.baseStats?.attributes.vit, "祝福の基準 stats は振り分け前").toBe(ATTR.base);
   });
 });
 
@@ -221,33 +226,31 @@ describe("基礎値のステータスで全攻撃・全スキルの威力が QA 
   });
 });
 
-describe("攻撃ジャンルの参照ステータス（A-8）", () => {
-  it("範囲軸 × 質軸の 9 通りすべてに主と副があり、主と副は別のステータス", () => {
-    for (const range of ATTACK_RANGES) {
-      for (const quality of ATTACK_QUALITIES) {
-        const a = GENRE_ATTRS[range][quality];
-        expect(a.primary, `${range}・${quality}`).not.toBe(a.secondary);
-      }
-    }
+describe("行動ごとの係数（A-10）", () => {
+  const base = deriveAttributes(computeStats(createEmptyEquipment()));
+
+  it("withRatio: 基礎値では元の値のまま、係数ぶん 1 点ごとに上乗せする", () => {
+    expect(withRatio(base, 20, { str: 0.6, vit: 0.3 }), "基礎値").toBe(20);
+    const strong = deriveAttributes(statsWith("str", RAW_PLUS_10));
+    expect(withRatio(strong, 20, { str: 0.6, vit: 0.3 })).toBeCloseTo(26, FLOAT_DIGITS);
+    expect(withRatio(strong, 20, undefined), "係数なしはステータスで伸びない").toBe(20);
   });
 
-  it("物理は筋力 / 技巧、魔法は霊力、混成は筋力か技巧と霊力を参照する", () => {
-    expect(genreAttrs({ range: "melee", quality: "physical" }).primary).toBe("str");
-    expect(genreAttrs({ range: "ranged", quality: "physical" }).primary).toBe("dex");
-    for (const range of ATTACK_RANGES) expect(genreAttrs({ range, quality: "arcane" }).primary, range).toBe("spi");
-    for (const range of ATTACK_RANGES) expect(genreAttrs({ range, quality: "hybrid" }).secondary, range).toBe("spi");
+  it("withRatio: ステータスを下げても負にはならない", () => {
+    const weak = deriveAttributes(statsWith("mnd", 0));
+    expect(withRatio(weak, 1, { mnd: 1 })).toBe(0);
   });
 
-  it("genreScaling は基礎値（各 5）で指定の威力に一致するよう base を逆算する", () => {
-    const s = genreScaling({ range: "area", quality: "arcane" }, 20, 1.2);
-    expect(scaledAtBase(s)).toBeCloseTo(20);
-    expect(s.spi).toBeCloseTo(1.2);
-    expect(s.mnd).toBeCloseTo(0.6);
+  it("ratioToScaling: 表示用に「ステータス 0 のときの値 + 係数」へ直し、基礎値で元の値に戻る", () => {
+    const s = ratioToScaling(20, { str: 0.6, dex: 0, spi: 0.4 });
+    expect(s).toEqual({ base: 15, str: 0.6, spi: 0.4 });
+    expect(scaledAtBase(s)).toBeCloseTo(20, FLOAT_DIGITS);
   });
 
-  it("scalingFitsGenre は主か副を含めば揃っている、どちらも無ければ揃っていない", () => {
-    const melee = { range: "melee", quality: "physical" } as const;
-    expect(scalingFitsGenre({ base: 1, dex: 0.5 }, melee), "双剣（技巧だけ）").toBe(true);
-    expect(scalingFitsGenre({ base: 1, spi: 0.5 }, melee), "霊力だけ").toBe(false);
+  it("buffMul: 係数表が無ければ 1、あれば評価した値（負にしない）", () => {
+    expect(buffMul(base, undefined)).toBe(1);
+    expect(buffMul(base, { base: 0.9, spi: 0.02 })).toBeCloseTo(1, FLOAT_DIGITS);
+    expect(buffMul(deriveAttributes(statsWith("spi", RAW_PLUS_10)), { base: 0.9, spi: 0.02 })).toBeCloseTo(1.2, FLOAT_DIGITS);
+    expect(buffMul(base, { base: -5 })).toBe(0);
   });
 });
