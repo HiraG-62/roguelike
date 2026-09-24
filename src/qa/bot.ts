@@ -18,6 +18,7 @@ import { isInPickupReach } from "../system/loot";
 import { allocateAttribute } from "../ui/attributeAlloc";
 import { SKILL } from "../skills/data";
 import type { SkillKey } from "../skills/types";
+import { statsBulletHas } from "../loot/bullets";
 
 /**
  * ヘッドレス自動プレイ用のヒューリスティック bot。
@@ -55,7 +56,7 @@ const PREEMPTIVE_DODGE_CHANCE = 0.5;
  */
 const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parry", "lunge"]);
 /**
- * 溜めのある武器種・射撃の型（src/data/weapons.ts）: 押しっぱなしのままだと撃たない / 振らないので、
+ * 溜めのある武器種・銃の弾（src/data/weapons.ts）: 押しっぱなしのままだと撃たない / 振らないので、
  * この秒数だけ溜めたら離す（大剣は 2 段目、チャージ射撃は 2 段目に届く長さ）
  */
 const MELEE_CHARGE_HOLD = 0.85;
@@ -646,9 +647,9 @@ function pressAttack(state: GameState, input: FrameInput): void {
   input.attackHeld = !(a.charging && a.chargeTime >= MELEE_CHARGE_HOLD);
 }
 
-/** 射撃の押しっぱなし。チャージの型は SHOT_CHARGE_HOLD 秒溜めたら 1 フレーム離して撃つ */
+/** 射撃の押しっぱなし。溜め撃ちの弾は SHOT_CHARGE_HOLD 秒溜めたら 1 フレーム離して撃つ */
 function shootHeldFor(state: GameState): boolean {
-  if (state.stats.shot !== "charge") return true;
+  if (!statsBulletHas(state.stats, "charge")) return true;
   const p = state.player;
   return !(p.shotCharging && p.shotChargeTime >= SHOT_CHARGE_HOLD);
 }

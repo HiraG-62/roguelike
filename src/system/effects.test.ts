@@ -4,7 +4,8 @@ import { createRng } from "../core/rng";
 import { REACTION_KEYS, STATUS_KINDS, type StatusKind } from "../core/status";
 import { SFX_NAMES } from "../audio/sfxNames";
 import { EFFECTS, FX_WAVE3, REAPER } from "../data/tuning";
-import { MOVESET_KEYS, SHOT_KEYS } from "../data/weapons";
+import { MOVESET_KEYS } from "../data/weapons";
+import { BULLETS, bulletDef } from "../loot/bullets";
 import { generateItem } from "../loot/generator";
 import { DEFAULT_STATS, TRAIT_COLORS } from "../loot/types";
 import { damageEnemy } from "./combat";
@@ -161,9 +162,11 @@ describe("コンボの浮き文字", () => {
 describe("効果音の名前", () => {
   const names: ReadonlySet<string> = new Set(SFX_NAMES);
 
-  it("武器種 10 種・射撃の型ごとの音が SFX_NAMES にある", () => {
+  it("武器種ごとの振り音・弾ごとの発射音が SFX_NAMES にある", () => {
     for (const key of MOVESET_KEYS) expect(names.has(swingSfxName(key)), `振り音 ${key}`).toBe(true);
-    for (const key of SHOT_KEYS) expect(names.has(shotSfxName(key)), `発射音 ${key}`).toBe(true);
+    for (const b of Object.values(BULLETS)) expect(names.has(shotSfxName(b)), `発射音 ${b.key}`).toBe(true);
+    expect(shotSfxName(bulletDef("pistol")), "性質の無い弾は shoot").toBe("shoot");
+    expect(shotSfxName(bulletDef("mortar")), "曲射筒は曲射の音").toBe("shotLob");
     expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音").toBe(MOVESET_KEYS.length);
   });
 

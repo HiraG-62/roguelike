@@ -2,7 +2,7 @@ import { type ElementTable, uniformElements } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
 import { ATTR, MANA } from "../data/tuning";
-import type { MovesetKey, ShotKey } from "../data/weapons";
+import type { MovesetKey } from "../data/weapons";
 
 /**
  * 装備システム（響き・揺らぎ・来歴）の共有型。docs/LOOT_DESIGN.md を参照。
@@ -428,9 +428,9 @@ export interface PlayerStats {
   statusProcs: StatusProc[];
   /** 性質のルール変更（docs/ideas/loot-expansion.md）。戦闘側は system/traitHooks.ts が読む */
   traits: TraitStats;
-  /** 武器種（武器スロットのベースが決める。src/data/weapons.ts） / 射撃の型（銃スロットのベース） */
+  /** 武器種（右手のベースが決める。src/data/weapons.ts） / 撃つ弾（銃のベースの key。src/loot/bullets.ts） */
   moveset: MovesetKey;
-  shot: ShotKey;
+  bullet: string;
   /** 属性の変換: 近接・射撃（通常攻撃）の威力のうちその属性へ移す割合 0..1（none は使わない。合計は 1 で頭打ち） */
   infuse: ElementTable;
   /** スキルの属性のうち無属性へ戻す割合 0..1（無の刻印） */
@@ -539,7 +539,7 @@ export interface TraitStats {
   wetConductMul: number;
   /** 油膜の敵への与ダメージ（炎の割合が大きいほど伸びる） */
   oiledIgniteMul: number;
-  // ---- 武器種・射撃の型・ジョブ ----
+  // ---- 武器種・銃の弾・ジョブ ----
   /** 溜めの段 1 つにつきの近接の与ダメージ / 溜めを持つ武器で溜めずに振った近接の減少 */
   chargedMeleeMul: number;
   unchargedPenalty: number;
@@ -947,7 +947,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   statusProcs: [],
   traits: DEFAULT_TRAIT_STATS,
   moveset: "sword",
-  shot: "single",
+  bullet: "pistol",
   infuse: uniformElements(0),
   skillNeutral: 0,
 };

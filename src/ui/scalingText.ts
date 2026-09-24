@@ -1,6 +1,7 @@
 import { STATUS_LABEL } from "../core/status";
 import { PLAYER } from "../data/tuning";
-import { MOVESETS, type MeleeStepDef, type MovesetDef, SHOT_TYPES, type ShotKey, isGun } from "../data/weapons";
+import { MOVESETS, type MeleeStepDef, type MovesetDef, isGun } from "../data/weapons";
+import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { ATTR_LABEL } from "../loot/resonance";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Item, type PlayerStats, type Scaling } from "../loot/types";
@@ -34,7 +35,7 @@ export interface ScalingFormula {
   /** ステータス 0 のときの値（mul を掛ける前） */
   base: number;
   terms: ScalingTerm[];
-  /** 係数の後に掛かる型の倍率（射撃の型の damageMul など）。1 なら式に出さない */
+  /** 係数の後に掛かる型の倍率（銃の弾の damageMul など）。1 なら式に出さない */
   mul: number;
 }
 
@@ -225,7 +226,7 @@ export function mainReferenceChunks(formulas: readonly ScalingFormula[]): Formul
 }
 
 // ---------------------------------------------------------------------------
-// 武器種・射撃の型
+// 武器種・銃の弾
 // ---------------------------------------------------------------------------
 
 const POWER_LABEL = "威力";
@@ -243,14 +244,14 @@ export function stepFormulas(stats: Readonly<PlayerStats>, name: string, step: R
   };
 }
 
-/** 射撃の型の係数（型が持たなければ共通の PLAYER.shoot.scaling）。system/player.ts の shotScaling と同じ引き方 */
-function shotScalingOf(key: ShotKey): Scaling {
-  return SHOT_TYPES[key].scaling ?? PLAYER.shoot.scaling;
+/** 弾の係数（弾が持たなければ共通の PLAYER.shoot.scaling）。system/player.ts の shotScaling と同じ引き方 */
+function shotScalingOf(key: string): Scaling {
+  return bulletDef(key).scaling ?? PLAYER.shoot.scaling;
 }
 
-/** 射撃 1 発の威力（型の damageMul は係数の後に掛かる）と怯み値。damageMul は狙い撃ちなどの上乗せ */
-export function shotFormulas(stats: Readonly<PlayerStats>, key: ShotKey, name: string, damageMul = 1): ActionFormulas {
-  const shot = SHOT_TYPES[key];
+/** 射撃 1 発の威力（弾の damageMul は係数の後に掛かる）と怯み値。key は弾（銃のベースの key）。damageMul は狙い撃ちなどの上乗せ */
+export function shotFormulas(stats: Readonly<PlayerStats>, key: string, name: string, damageMul = 1): ActionFormulas {
+  const shot = bulletDef(key);
   return {
     name,
     formulas: [
@@ -303,7 +304,7 @@ function comboStepFormulas(stats: Readonly<PlayerStats>, steps: readonly MeleeSt
 }
 
 /** 固有技（右クリック）。構えの受け流し・手元返しは威力を持たないので出さない */
-function artFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, shot: ShotKey): ActionFormulas[] {
+function artFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
   const art = moveset.art;
   switch (art.kind) {
     case "strike":
@@ -320,7 +321,7 @@ function artFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>
     }
     case "charge":
       if (art.charge !== undefined) return [stepFormulas(stats, art.name, art.charge.step)];
-      return [shotFormulas(stats, shot, art.name, art.aim.damageMul)];
+      return [shotFormulas(stats, bullet, art.name, art.aim.damageMul)];
     case "recall":
       return [];
   }
@@ -332,14 +333,14 @@ interface MovesetActions {
   steps: ActionFormulas[];
 }
 
-function movesetActions(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, shot: ShotKey): MovesetActions {
+function movesetActions(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): MovesetActions {
   const steps = comboStepFormulas(stats, moveset.steps);
   const actions: ActionFormulas[] = [];
-  if (isGun(moveset)) actions.push(shotFormulas(stats, shot, `${SHOT_PREFIX}（${SHOT_TYPES[shot].name}）`));
+  if (isGun(moveset)) actions.push(shotFormulas(stats, bullet, SHOT_PREFIX));
   actions.push(...steps);
   if (moveset.charge !== undefined) actions.push(stepFormulas(stats, CHARGE_NAME, moveset.charge.step));
   actions.push(stepFormulas(stats, DASH_ATTACK_NAME, moveset.dashAttack));
-  actions.push(...artFormulas(stats, moveset, shot));
+  actions.push(...artFormulas(stats, moveset, bullet));
   for (const b of moveset.branches) {
     if (b.art !== undefined) continue;
     actions.push(stepFormulas(stats, b.name, b.step));
@@ -351,24 +352,21 @@ function movesetActions(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetD
  * 武器種の行動ごとの式。並びは 射撃（銃の家系）→ 連撃の段 → 溜め → ダッシュ攻撃 → 固有技 → 派生。
  * 固有技から作った派生（strike / release）は固有技として 1 回だけ出す
  */
-export function movesetFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, shot: ShotKey): ActionFormulas[] {
-  return movesetActions(stats, moveset, shot).actions;
+export function movesetFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
+  return movesetActions(stats, moveset, bullet).actions;
 }
 
-/** 武器（右手）なら武器種と射撃の型。武器種を持たないベースは null */
-export function itemMoveset(item: Readonly<Item>): { moveset: MovesetDef; shot: ShotKey } | null {
+/** 武器（右手）なら武器種と弾（銃でなければ既定の弾）。武器種を持たないベースは null */
+export function itemMoveset(item: Readonly<Item>): { moveset: MovesetDef; bullet: string } | null {
   const base = baseDef(item.baseKey);
   if (base?.moveset === undefined) return null;
-  return { moveset: MOVESETS[base.moveset], shot: base.shot ?? DEFAULT_SHOT };
+  return { moveset: MOVESETS[base.moveset], bullet: bulletOfBase(base.key) };
 }
-
-/** 射撃の型を持たない銃（二丁拳銃）は単発で撃つ（PlayerStats の既定と同じ） */
-const DEFAULT_SHOT: ShotKey = "single";
 
 /** 武器の行動ごとの式。武器でなければ空 */
 export function itemFormulas(stats: Readonly<PlayerStats>, item: Readonly<Item>): ActionFormulas[] {
   const m = itemMoveset(item);
-  return m === null ? [] : movesetFormulas(stats, m.moveset, m.shot);
+  return m === null ? [] : movesetFormulas(stats, m.moveset, m.bullet);
 }
 
 // ---------------------------------------------------------------------------
@@ -481,7 +479,7 @@ export interface AttributeReference {
 
 export interface LoadoutSources {
   moveset: MovesetDef;
-  shot: ShotKey;
+  bullet: string;
   skills: readonly SkillKey[];
 }
 
@@ -508,7 +506,7 @@ function movesetReferenceNames(moveset: Readonly<MovesetDef>, actions: readonly 
  * 強さの指標にはしない（名前を並べるだけ）
  */
 export function attributeReferences(stats: Readonly<PlayerStats>, src: Readonly<LoadoutSources>): AttributeReference[] {
-  const { actions, steps } = movesetActions(stats, src.moveset, src.shot);
+  const { actions, steps } = movesetActions(stats, src.moveset, src.bullet);
   const special = specialFormulas(stats);
   const skillActions = src.skills.map((k): ActionFormulas => ({ name: SKILL_DEFS[k].name, formulas: skillFormulas(stats, k) }));
   return ATTR_KEYS.map((attr) => {

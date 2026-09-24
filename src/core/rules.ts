@@ -4,7 +4,7 @@ import type { FloorKind, RoomKind } from "./state";
 import type { StatusKind } from "./status";
 import type { TerrainKind } from "./terrain";
 import type { JobKey } from "../data/jobs";
-import type { MovesetKey, ShotKey } from "../data/weapons";
+import type { BulletFeature, MovesetKey } from "../data/weapons";
 import type { TriggerCondition, TriggerEffectKind } from "../loot/types";
 import type { SkillKey } from "../skills/types";
 
@@ -40,13 +40,13 @@ export type RuleCondition =
   | { kind: "eventTag"; tag: string }
   /** イベントを起こした側が一致 */
   | { kind: "actor"; actor: EventActor }
-  // ---- 2026-09-24 追加（祝福 第 2 弾: 武器種・射撃の型・ジョブ・地形・属性・部屋） ----
+  // ---- 2026-09-24 追加（祝福 第 2 弾: 武器種・銃の弾・ジョブ・地形・属性・部屋） ----
   /** 中の条件を満たさない */
   | { kind: "not"; condition: RuleCondition }
   /** 今の武器種がどれか */
   | { kind: "moveset"; movesets: readonly MovesetKey[] }
-  /** 今の射撃の型がどれか */
-  | { kind: "shot"; shots: readonly ShotKey[] }
+  /** 今の弾がどれかの性質を持つ（設置弾・溜め撃ちなど。弾は銃のベースが持つ） */
+  | { kind: "bullet"; has: readonly BulletFeature[] }
   /** 今の振りが武器種の段 atLeast 以上（0 始まり。双剣の 5 段目 = 4）。AttackState.step */
   | { kind: "swingStep"; atLeast: number }
   /** 今の振りの溜めの段が atLeast 以上（0 = 溜めなし） */
@@ -62,7 +62,7 @@ export type RuleCondition =
   | { kind: "selfOnTerrain"; terrain: TerrainKind | "any" }
   /** イベントの位置（対象の敵の足元）の地形。撃破でも倒れた位置で見る */
   | { kind: "targetOnTerrain"; terrain: TerrainKind | "any" }
-  /** 対象の敵が、via の攻撃（近接 = 武器種 / 射撃 = 射撃の型、属性の変換込み）を弱点 / 耐性で受ける */
+  /** 対象の敵が、via の攻撃（近接 = 武器種 / 射撃 = 銃の弾、属性の変換込み）を弱点 / 耐性で受ける */
   | { kind: "targetAffinity"; affinity: "weak" | "resist"; via: RuleAttackVia }
   /** via の攻撃の主な属性（変換の割合が最も大きいもの） */
   | { kind: "attackElement"; element: Element; via: RuleAttackVia }

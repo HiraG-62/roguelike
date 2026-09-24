@@ -1,5 +1,5 @@
 import { BALANCE } from "../data/balance";
-import { GUN_MOVESETS, type MovesetKey, type ShotKey } from "../data/weapons";
+import { GUN_MOVESETS, type MovesetKey } from "../data/weapons";
 import type { Slot } from "./types";
 
 /** ベースごとの minLevel / marginBonus（数値のみ）。src/data/balance/loot.json の "bases" */
@@ -19,10 +19,8 @@ export interface BaseItemDef {
   implicitKey?: string;
   /** 余白の上乗せ（襤褸）。器の容量（generator.ts の VESSEL_CAPACITY）は超えない */
   marginBonus?: number;
-  /** 武器ベースの武器種（src/data/weapons.ts）。武器なしは剣 */
+  /** 武器ベースの武器種（src/data/weapons.ts）。武器なしは剣。銃の家系のベースは自分の弾を持つ（src/loot/bullets.ts） */
   moveset?: MovesetKey;
-  /** 銃ベースの射撃の型。銃なしは単発 */
-  shot?: ShotKey;
 }
 
 export const BASES: readonly BaseItemDef[] = [
@@ -69,32 +67,32 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "broadCleaver", name: "大鉈", slot: "mainHand", minLevel: B.broadCleaver.minLevel, moveset: "cleaver" },
 
   // gun: 連射 / 弾数 / 貫通
-  { key: "pistol", name: "拳銃", slot: "mainHand", minLevel: B.pistol.minLevel, implicitKey: "implicit.pistol", moveset: "sidearm", shot: "single" },
-  { key: "smg", name: "短機関銃", slot: "mainHand", minLevel: B.smg.minLevel, implicitKey: "implicit.smg", moveset: "sidearm", shot: "rapid" },
-  { key: "rifle", name: "小銃", slot: "mainHand", minLevel: B.rifle.minLevel, implicitKey: "implicit.rifle", moveset: "longarm", shot: "pierce" },
-  { key: "shotgun", name: "散弾銃", slot: "mainHand", minLevel: B.shotgun.minLevel, implicitKey: "implicit.shotgun", moveset: "cannon", shot: "spread" },
-  { key: "revolver", name: "回転式拳銃", slot: "mainHand", minLevel: B.revolver.minLevel, implicitKey: "implicit.revolver", moveset: "sidearm", shot: "single" },
-  { key: "railgun", name: "電磁砲", slot: "mainHand", minLevel: B.railgun.minLevel, implicitKey: "implicit.railgun", moveset: "longarm", shot: "pierce" },
-  { key: "throwingKnives", name: "投げ短剣", slot: "mainHand", minLevel: B.throwingKnives.minLevel, implicitKey: "implicit.throwingKnives", moveset: "thrown", shot: "rapid" },
-  { key: "blowgun", name: "吹き矢", slot: "mainHand", minLevel: B.blowgun.minLevel, implicitKey: "implicit.blowgun", moveset: "thrown", shot: "homing" },
-  { key: "matchlock", name: "火縄銃", slot: "mainHand", minLevel: B.matchlock.minLevel, implicitKey: "implicit.matchlock", moveset: "longarm", shot: "charge" },
-  // 射撃の型の器（implicit なし）
-  { key: "ricochetGun", name: "跳ね銃", slot: "mainHand", minLevel: B.ricochetGun.minLevel, moveset: "thrown", shot: "ricochet" },
-  { key: "mineLauncher", name: "置き撃ち筒", slot: "mainHand", minLevel: B.mineLauncher.minLevel, moveset: "trapper", shot: "mine" },
-  // 2026-09 第 2 弾: 射撃の型ごとに器を選べるように
-  { key: "blunderbuss", name: "喇叭銃", slot: "mainHand", minLevel: B.blunderbuss.minLevel, implicitKey: "implicit.blunderbuss", moveset: "cannon", shot: "spread" },
-  { key: "crossbow", name: "弩", slot: "mainHand", minLevel: B.crossbow.minLevel, implicitKey: "implicit.crossbow", moveset: "longarm", shot: "pierce" },
-  { key: "chakram", name: "円月輪", slot: "mainHand", minLevel: B.chakram.minLevel, implicitKey: "implicit.chakram", moveset: "warRing", shot: "ricochet" },
-  { key: "handCannon", name: "手砲", slot: "mainHand", minLevel: B.handCannon.minLevel, implicitKey: "implicit.handCannon", moveset: "longarm", shot: "charge" },
-  { key: "caltrops", name: "撒き菱筒", slot: "mainHand", minLevel: B.caltrops.minLevel, implicitKey: "implicit.caltrops", moveset: "trapper", shot: "mine" },
-  { key: "seekerOrb", name: "導きの珠", slot: "mainHand", minLevel: B.seekerOrb.minLevel, implicitKey: "implicit.seekerOrb", moveset: "thrown", shot: "homing" },
-  // 2026-09-24 レーン B: 新しい射撃の型の器
-  { key: "burstRifle", name: "三連銃", slot: "mainHand", minLevel: B.burstRifle.minLevel, moveset: "sidearm", shot: "burst" },
-  { key: "tripleCrossbow", name: "三連弩", slot: "mainHand", minLevel: B.tripleCrossbow.minLevel, moveset: "longarm", shot: "burst" },
-  { key: "returnChakram", name: "返し輪", slot: "mainHand", minLevel: B.returnChakram.minLevel, moveset: "warRing", shot: "boomerang" },
-  { key: "flyingBlade", name: "飛刃", slot: "mainHand", minLevel: B.flyingBlade.minLevel, moveset: "warRing", shot: "boomerang" },
-  { key: "mortar", name: "曲射筒", slot: "mainHand", minLevel: B.mortar.minLevel, moveset: "grenade", shot: "lob" },
-  { key: "grenadeLauncher", name: "擲弾筒", slot: "mainHand", minLevel: B.grenadeLauncher.minLevel, moveset: "grenade", shot: "lob" },
+  { key: "pistol", name: "拳銃", slot: "mainHand", minLevel: B.pistol.minLevel, implicitKey: "implicit.pistol", moveset: "sidearm" },
+  { key: "smg", name: "短機関銃", slot: "mainHand", minLevel: B.smg.minLevel, implicitKey: "implicit.smg", moveset: "sidearm" },
+  { key: "rifle", name: "小銃", slot: "mainHand", minLevel: B.rifle.minLevel, implicitKey: "implicit.rifle", moveset: "longarm" },
+  { key: "shotgun", name: "散弾銃", slot: "mainHand", minLevel: B.shotgun.minLevel, implicitKey: "implicit.shotgun", moveset: "cannon" },
+  { key: "revolver", name: "回転式拳銃", slot: "mainHand", minLevel: B.revolver.minLevel, implicitKey: "implicit.revolver", moveset: "sidearm" },
+  { key: "railgun", name: "電磁砲", slot: "mainHand", minLevel: B.railgun.minLevel, implicitKey: "implicit.railgun", moveset: "longarm" },
+  { key: "throwingKnives", name: "投げ短剣", slot: "mainHand", minLevel: B.throwingKnives.minLevel, implicitKey: "implicit.throwingKnives", moveset: "thrown" },
+  { key: "blowgun", name: "吹き矢", slot: "mainHand", minLevel: B.blowgun.minLevel, implicitKey: "implicit.blowgun", moveset: "thrown" },
+  { key: "matchlock", name: "火縄銃", slot: "mainHand", minLevel: B.matchlock.minLevel, implicitKey: "implicit.matchlock", moveset: "longarm" },
+  // 銃の器（implicit なし）
+  { key: "ricochetGun", name: "跳ね銃", slot: "mainHand", minLevel: B.ricochetGun.minLevel, moveset: "thrown" },
+  { key: "mineLauncher", name: "置き撃ち筒", slot: "mainHand", minLevel: B.mineLauncher.minLevel, moveset: "trapper" },
+  // 2026-09 第 2 弾: 弾の挙動ごとに器を選べるように
+  { key: "blunderbuss", name: "喇叭銃", slot: "mainHand", minLevel: B.blunderbuss.minLevel, implicitKey: "implicit.blunderbuss", moveset: "cannon" },
+  { key: "crossbow", name: "弩", slot: "mainHand", minLevel: B.crossbow.minLevel, implicitKey: "implicit.crossbow", moveset: "longarm" },
+  { key: "chakram", name: "円月輪", slot: "mainHand", minLevel: B.chakram.minLevel, implicitKey: "implicit.chakram", moveset: "warRing" },
+  { key: "handCannon", name: "手砲", slot: "mainHand", minLevel: B.handCannon.minLevel, implicitKey: "implicit.handCannon", moveset: "longarm" },
+  { key: "caltrops", name: "撒き菱筒", slot: "mainHand", minLevel: B.caltrops.minLevel, implicitKey: "implicit.caltrops", moveset: "trapper" },
+  { key: "seekerOrb", name: "導きの珠", slot: "mainHand", minLevel: B.seekerOrb.minLevel, implicitKey: "implicit.seekerOrb", moveset: "thrown" },
+  // 2026-09-24 レーン B: 新しい弾の挙動の器
+  { key: "burstRifle", name: "三連銃", slot: "mainHand", minLevel: B.burstRifle.minLevel, moveset: "sidearm" },
+  { key: "tripleCrossbow", name: "三連弩", slot: "mainHand", minLevel: B.tripleCrossbow.minLevel, moveset: "longarm" },
+  { key: "returnChakram", name: "返し輪", slot: "mainHand", minLevel: B.returnChakram.minLevel, moveset: "warRing" },
+  { key: "flyingBlade", name: "飛刃", slot: "mainHand", minLevel: B.flyingBlade.minLevel, moveset: "warRing" },
+  { key: "mortar", name: "曲射筒", slot: "mainHand", minLevel: B.mortar.minLevel, moveset: "grenade" },
+  { key: "grenadeLauncher", name: "擲弾筒", slot: "mainHand", minLevel: B.grenadeLauncher.minLevel, moveset: "grenade" },
 
   // armor: HP / armor
   { key: "cloth", name: "布の服", slot: "armor", minLevel: B.cloth.minLevel, implicitKey: "implicit.cloth" },

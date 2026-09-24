@@ -183,7 +183,7 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   rosary: "azure",
   fangNecklace: "crimson",
   bell: "umbra",
-  // 武器種・射撃の型の器（src/data/weapons.ts）
+  // 武器種・銃の弾の器（src/data/weapons.ts）
   gauntlets: "crimson",
   whip: "gold",
   wand: "azure",
@@ -206,7 +206,7 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   caltrops: "jade",
   seekerOrb: "umbra",
   mino: "jade",
-  // 2026-09-24 レーン B（新しい武器種・射撃の型の器）
+  // 2026-09-24 レーン B（新しい武器種・銃の弾の器）
   wakizashi: "gold",
   tachi: "crimson",
   handAxe: "crimson",

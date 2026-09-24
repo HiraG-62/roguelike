@@ -7,7 +7,8 @@ import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { FEEL, HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { MOVESETS, type MovesetKey } from "../data/weapons";
+import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
+import { bulletOfBase } from "../loot/bullets";
 import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -296,7 +297,7 @@ export type RackEntry = { kind: "moveset"; key: MovesetKey };
 
 /**
  * 試す武器種を差し替える（拠点を出ると state ごと捨てるので残らない）。null で装備のものに戻す。
- * 差し替えは変身と同じく stats の写しの moveset だけを替える（shot は装備のベースのまま）
+ * 差し替えは変身と同じく stats の写しの moveset と bullet だけを替える（銃は家系の一番早い器の弾。近接なら装備のまま）
  */
 export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null): void {
   const { state, hub } = session;
@@ -310,15 +311,18 @@ export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null):
 /** 装備画面などで applyStats が stats を作り直しても、試している型へ差し直す（stepHub が毎ステップ呼ぶ） */
 function enforceTrialWeapon(session: HubSession): void {
   const { state, hub } = session;
-  const moveset = hub.trialMoveset ?? state.stats.moveset;
-  if (state.stats.moveset === moveset) return;
+  const moveset = hub.trialMoveset;
+  if (moveset === null) return;
+  // 銃の家系は借りるときと同じ器（一番早く出るベース）の弾で撃つ（装備の武器の弾のままにしない）
+  const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
+  if (state.stats.moveset === moveset && state.stats.bullet === bullet) return;
   const prev = state.stats;
-  state.stats = { ...prev, moveset };
+  state.stats = { ...prev, moveset, bullet };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }
 
-/** その武器種 / 射撃の型の器のうち、一番早く出る（minLevel が最小の）もの */
+/** その武器種 / 銃の弾の器のうち、一番早く出る（minLevel が最小の）もの */
 function earliestBase(slot: Slot, match: (b: BaseItemDef) => boolean): BaseItemDef | undefined {
   let best: BaseItemDef | undefined;
   for (const b of BASES) {

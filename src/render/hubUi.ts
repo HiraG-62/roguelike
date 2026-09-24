@@ -26,7 +26,7 @@ export interface HubView {
   trialKeystone: string | null;
   decor: readonly HubDecor[];
   banner: string | null;
-  /** 武器掛けで試している武器種・射撃の型（「大剣 / 散弾」）。無ければ null */
+  /** 武器掛けで試している武器種・銃の弾（「大剣 / 散弾」）。無ければ null */
   trialWeapon?: string | null;
   /** 借りている素の器の名前。無ければ null */
   loaned?: string | null;

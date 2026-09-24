@@ -10,8 +10,6 @@ import {
   GUN_MOVESETS,
   MOVESETS,
   MOVESET_KEYS,
-  SHOT_KEYS,
-  SHOT_TYPES,
   ART_NAMES,
   branchHints,
   chargeButton,
@@ -28,6 +26,7 @@ import {
   withExtraBranch,
 } from "./weapons";
 import { JOB_BRANCHES, JOB_BRANCH_SEQUENCE } from "./jobs";
+import { bulletDef } from "../loot/bullets";
 
 /** 剣以外の武器種の段数（ユーザーメモ: 3 段固定ではなく 4〜5 段）。剣は QA で調整済みの基準線として 3 段のまま */
 const MIN_STEPS = 4;
@@ -199,39 +198,6 @@ describe("武器種の定義", () => {
   });
 });
 
-describe("射撃の型の定義", () => {
-  it("6 種以上あり、すべてが表示名・説明・語を持つ", () => {
-    expect(SHOT_KEYS.length).toBeGreaterThanOrEqual(6);
-    for (const key of SHOT_KEYS) {
-      const def = SHOT_TYPES[key];
-      expect(def.key).toBe(key);
-      expect(def.name.length, `${key} の表示名`).toBeGreaterThan(0);
-      expect(profileKeywords(def.keywords).length, `${key} が語を持つ`).toBeGreaterThan(0);
-      expect(def.cooldownMul, `${key} の間隔`).toBeGreaterThan(0);
-      expect(def.damageMul, `${key} の威力`).toBeGreaterThan(0);
-    }
-  });
-
-  it("単発は現行の射撃と同じ（倍率がすべて等倍）", () => {
-    const single = SHOT_TYPES.single;
-    expect(single.cooldownMul).toBe(1);
-    expect(single.damageMul).toBe(1);
-    expect(single.speedMul).toBe(1);
-    expect(single.radius).toBe(PLAYER.shoot.radius);
-    expect(single.spreadDeg).toBe(PLAYER.projectileSpreadDeg);
-    expect(single.pellets).toBe(0);
-  });
-
-  it("チャージの段は時間・威力が単調に増える", () => {
-    const levels = SHOT_TYPES.charge.charge?.levels ?? [];
-    expect(levels.length).toBe(3);
-    for (let i = 1; i < levels.length; i++) {
-      expect(levels[i]!.time).toBeGreaterThan(levels[i - 1]!.time);
-      expect(levels[i]!.damageMul).toBeGreaterThan(levels[i - 1]!.damageMul);
-    }
-  });
-});
-
 describe("chargeLevelAt", () => {
   const levels = [{ time: 0.4 }, { time: 0.8 }, { time: 1.2 }];
   it("溜めた秒数から段を返す（届かなければ 0、上限で止まる）", () => {
@@ -244,22 +210,9 @@ describe("chargeLevelAt", () => {
 });
 
 describe("ベースとの結び付き", () => {
-  it("すべての武器種・射撃の型に対応するベースがある", () => {
+  it("すべての武器種に対応するベースがある", () => {
     for (const key of MOVESET_KEYS) {
       expect(BASES.some((b) => b.moveset === key), `武器種 ${key} のベース`).toBe(true);
-    }
-    for (const key of SHOT_KEYS) {
-      expect(BASES.some((b) => b.shot === key), `射撃の型 ${key} のベース`).toBe(true);
-    }
-  });
-
-  it("射撃の型は銃の家系のベースにだけ付き、銃の家系のベースは弾の型を持つ", () => {
-    for (const base of BASES) {
-      if (!base.moveset) continue;
-      const gun = GUN_MOVESETS.includes(base.moveset);
-      // 二丁拳銃は省略で単発（docs/ideas/weapon-redesign.md 4 章）
-      if (gun && base.moveset !== "gunner") expect(base.shot, `${base.key} は弾の型を持つ`).toBeDefined();
-      if (!gun) expect(base.shot, `${base.key} は近接なので弾の型を持たない`).toBeUndefined();
     }
   });
 });
@@ -281,23 +234,18 @@ describe("branchHints（docs/ideas/combat-feel-design.md D-1）", () => {
   });
 });
 
-describe("武器種・射撃の型の拡張（docs/ideas/combat-feel-design.md レーン B）", () => {
+describe("武器種の拡張（docs/ideas/combat-feel-design.md レーン B）", () => {
   const NEW_MOVESETS = ["katana", "axe", "shield", "chainSickle", "hammer", "gunner"] as const;
-  const NEW_SHOTS = ["burst", "boomerang", "lob"] as const;
   /** 序盤（itemLevel 3）で拾える器があること */
   const EARLY_LEVEL = 3;
 
-  it("新しい武器種 6 種・射撃の型 3 種が登録されている", () => {
+  it("新しい武器種 6 種が登録されている", () => {
     for (const key of NEW_MOVESETS) expect(MOVESET_KEYS, key).toContain(key);
-    for (const key of NEW_SHOTS) expect(SHOT_KEYS, key).toContain(key);
   });
 
-  it("新しい武器種・射撃の型のそれぞれに itemLevel 3 以下の器がある", () => {
+  it("新しい武器種のそれぞれに itemLevel 3 以下の器がある", () => {
     for (const key of NEW_MOVESETS) {
       expect(BASES.some((b) => b.moveset === key && b.minLevel <= EARLY_LEVEL), `武器種 ${key} の序盤の器`).toBe(true);
-    }
-    for (const key of NEW_SHOTS) {
-      expect(BASES.some((b) => b.shot === key && b.minLevel <= EARLY_LEVEL), `射撃の型 ${key} の序盤の器`).toBe(true);
     }
   });
 
@@ -336,11 +284,11 @@ describe("武器種・射撃の型の拡張（docs/ideas/combat-feel-design.md �
     expect(weight?.step.pull, "分銅は引き寄せる").toBe(true);
   });
 
-  it("射撃の型: 三点は 3 発、回転刃は折り返す、曲射は炸裂の半径を持つ", () => {
-    expect(SHOT_TYPES.burst.burst?.count).toBe(3);
-    expect(SHOT_TYPES.boomerang.boomerang?.returnAt ?? 0).toBeGreaterThan(0);
-    expect(SHOT_TYPES.boomerang.boomerang?.returnAt ?? 1).toBeLessThan(1);
-    expect(SHOT_TYPES.lob.lob?.blastRadius ?? 0).toBeGreaterThan(0);
+  it("弾: 三点は 3 発、回転刃は折り返す、曲射は炸裂の半径を持つ", () => {
+    expect(bulletDef("burstRifle").burst?.count).toBe(3);
+    expect(bulletDef("returnChakram").boomerang?.returnAt ?? 0).toBeGreaterThan(0);
+    expect(bulletDef("returnChakram").boomerang?.returnAt ?? 1).toBeLessThan(1);
+    expect(bulletDef("mortar").lob?.blastRadius ?? 0).toBeGreaterThan(0);
   });
 });
 

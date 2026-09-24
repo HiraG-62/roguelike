@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MOVESET_KEYS, MOVESETS, SHOT_KEYS, SHOT_TYPES } from "../data/weapons";
+import { MOVESET_KEYS, MOVESETS } from "../data/weapons";
+import { BULLETS, bulletDef } from "../loot/bullets";
 import { ATTR_KEYS, DEFAULT_STATS, type Attributes, type PlayerStats } from "../loot/types";
 import { SKILL, SKILL_DEFS } from "../skills/data";
 import { SKILL_KEYS } from "../skills/types";
@@ -119,11 +120,11 @@ describe("武器種の計算式", () => {
     }
   });
 
-  it("射撃の型の威力は system の shotScaling × 型の倍率と一致する", () => {
+  it("弾の威力は system の shotScaling × 弾の倍率と一致する", () => {
     const stats = statsWith({ dex: 12, str: 3 });
-    for (const key of SHOT_KEYS) {
+    for (const key of Object.keys(BULLETS)) {
       const f = shotFormulas(stats, key, "射撃").formulas[0];
-      const expected = scaled(stats, shotScaling({ ...stats, shot: key })) * SHOT_TYPES[key].damageMul;
+      const expected = scaled(stats, shotScaling({ ...stats, bullet: key })) * bulletDef(key).damageMul;
       expect(f?.value, key).toBeCloseTo(expected);
     }
   });
@@ -197,9 +198,9 @@ describe("ステータスごとの参照している行動", () => {
     const skills = SKILL_KEYS.slice(0, 4);
     for (const key of MOVESET_KEYS) {
       const moveset = MOVESETS[key];
-      const refs = attributeReferences(BASE_STATS, { moveset, shot: "single", skills });
+      const refs = attributeReferences(BASE_STATS, { moveset, bullet: "pistol", skills });
       expect(refs.map((r) => r.attr), "全ステータスを順に").toEqual([...ATTR_KEYS]);
-      const all = [...movesetFormulas(BASE_STATS, moveset, "single").flatMap((a) => a.formulas), ...skills.flatMap((k) => skillFormulas(BASE_STATS, k))];
+      const all = [...movesetFormulas(BASE_STATS, moveset, "pistol").flatMap((a) => a.formulas), ...skills.flatMap((k) => skillFormulas(BASE_STATS, k))];
       for (const r of refs) {
         const referenced = all.some((f) => f.terms.some((t) => t.attr === r.attr));
         // バーストの参照は武器・スキルと別に数える

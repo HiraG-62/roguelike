@@ -4,7 +4,8 @@ import type { StatusKind } from "../core/status";
 import { enemyGuard } from "../data/enemyCombat";
 import { clampEnemyDefense, enemyResistTable } from "../data/enemyDefense";
 import { ARMOR_K, ARMOR_MAX_REDUCTION, ELEMENT, GENRE } from "../data/tuning";
-import { MOVESETS, SHOT_TYPES } from "../data/weapons";
+import { MOVESETS } from "../data/weapons";
+import { currentBullet } from "../loot/bullets";
 import type { PlayerStats } from "../loot/types";
 import { addFloatingText } from "./effects";
 import { applyStatus } from "./statusEffects";
@@ -42,12 +43,12 @@ const ELEMENT_STATUS: Readonly<Partial<Record<Element, keyof typeof ELEMENT.affi
 // 攻撃の素性
 // -----------------------------------------------------------------------------
 
-/** 近接は武器種、射撃は射撃の型の素性。スキル由来で素性の指定が無いものは範囲軸だけ合わせた無属性の物理 */
+/** 近接は武器種、射撃は銃の弾の素性。スキル由来で素性の指定が無いものは範囲軸だけ合わせた無属性の物理 */
 export function resolveAttack(stats: Readonly<PlayerStats>, kind: DamageKind, skill: boolean, explicit?: AttackProfile | null): AttackProfile | null {
   if (explicit !== undefined) return explicit;
   if (kind === "proc") return null;
   if (skill) return attack(kind === "melee" ? "melee" : "ranged", "physical");
-  return kind === "melee" ? MOVESETS[stats.moveset].attack : SHOT_TYPES[stats.shot].attack;
+  return kind === "melee" ? MOVESETS[stats.moveset].attack : currentBullet(stats).attack;
 }
 
 /**

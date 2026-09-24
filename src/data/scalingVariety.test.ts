@@ -7,7 +7,8 @@ import combatJson from "./balance/combat.json";
 import skillsJson from "./balance/skills.json";
 import weaponsJson from "./balance/weapons.json";
 import { PLAYER } from "./tuning";
-import { MOVESETS, SHOT_TYPES } from "./weapons";
+import { BULLETS } from "../loot/bullets";
+import { MOVESETS } from "./weapons";
 
 /**
  * 行動ごとの係数の振り直し（docs/COMBAT_DESIGN.md A-10、2026-09-24）。
@@ -27,13 +28,15 @@ const SHOT_AT_BASE = 4.3;
 
 /**
  * ステータスを参照しない（基礎値だけの）行動。道具・仕掛け・固定の爆発に限る
- * （JSON のパス。振り直し前の表に無い射撃の型は shots.* で書く）
+ * （JSON のパス。振り直し前の表に無い弾は bullets.<ベース>.* / art.throw.bullet.* で書く）
  */
 const FIXED_ACTIONS: readonly string[] = [
   "skills.SKILL.mines.damage",
   "skills.EXTRA_SKILL_TUNING.powderKeg.damage",
   "skills.EXTRA_SKILL_TUNING.turret.damage",
-  "weapons.WEAPON.shots.mine.scaling",
+  "weapons.WEAPON.bullets.mineLauncher.scaling",
+  "weapons.WEAPON.bullets.caltrops.scaling",
+  "weapons.WEAPON.movesets.trapper.art.throw.bullet.scaling",
   // 仕掛けの撒き散らしは設置弾（仕掛け）なので固定値
   "weapons.WEAPON.movesets.trapper.art.throw.scaling",
 ];
@@ -338,7 +341,7 @@ const SKILL_SCALINGS: readonly { key: string; scaling: Scaling }[] = Object.valu
   .filter((d) => SKILL_ATTACK[d.key] !== null)
   .flatMap((d) => collectScalings(SKILL_BLOCKS[d.key]).map((scaling) => ({ key: d.key, scaling })));
 
-const SHOT_SCALINGS: readonly Scaling[] = Object.values(SHOT_TYPES).map((s) => s.scaling ?? PLAYER.shoot.scaling);
+const SHOT_SCALINGS: readonly Scaling[] = Object.values(BULLETS).map((s) => s.scaling ?? PLAYER.shoot.scaling);
 
 const ALL_SCALINGS: readonly Scaling[] = [...WEAPON_ACTIONS.map((a) => a.scaling), ...SKILL_SCALINGS.map((s) => s.scaling), ...SHOT_SCALINGS];
 
@@ -364,16 +367,16 @@ describe("振り直しで基礎値の値は変わらない", () => {
     }
   });
 
-  it("振り直し前に無かった係数表は射撃の型だけで、基礎値で 1 発 4.3", () => {
+  it("振り直し前に無かった係数表は弾だけで、基礎値で 1 発 4.3", () => {
     for (const [path, s] of CURRENT) {
       if (path in PINNED) continue;
-      expect(path, "新しい係数表は射撃の型だけ").toMatch(/^weapons\.WEAPON\.shots\.\w+\.scaling$/);
+      expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.art\.throw\.bullet)\.scaling$/);
       expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE, FLOAT_DIGITS);
     }
   });
 
-  it("射撃の型はどれも基礎値で 1 発の威力が共通の係数表と同じ", () => {
-    for (const s of Object.values(SHOT_TYPES)) {
+  it("弾はどれも基礎値で 1 発の威力が共通の係数表と同じ", () => {
+    for (const s of Object.values(BULLETS)) {
       expect(scaledAtBase(s.scaling ?? PLAYER.shoot.scaling), s.key).toBeCloseTo(scaledAtBase(PLAYER.shoot.scaling), FLOAT_DIGITS);
     }
   });
@@ -411,11 +414,12 @@ describe("参照ステータスが行動ごとに違う", () => {
     expect(ALL_SCALINGS.some((s) => refs(s).length === ATTR_KEYS.length), "5 種すべてを参照する行動").toBe(true);
   });
 
-  it("ステータスを参照しない行動は数個（3〜6）だけで、表に挙げたもの", () => {
+  it("ステータスを参照しない行動は数個（3〜8）だけで、表に挙げたもの", () => {
     const fixed = [...CURRENT].filter(([, s]) => coefSum(s) === 0).map(([p]) => p);
     expect(fixed.sort()).toEqual([...FIXED_ACTIONS].sort());
     expect(fixed.length).toBeGreaterThanOrEqual(3);
-    expect(fixed.length).toBeLessThanOrEqual(6);
+    // 設置弾は器ごとに弾を持つので、置き撃ち筒・撒き菱筒・撒き散らしの 3 つに分かれる
+    expect(fixed.length).toBeLessThanOrEqual(8);
   });
 });
 

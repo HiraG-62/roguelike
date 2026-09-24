@@ -183,14 +183,14 @@ const FORMULA_CAPTION = "計算式（今のステータスでの基礎の値）"
 const REFERENCE_CAPTION = "ステータスを参照している行動（今の装備・スキル）";
 const NO_FORMULA_TEXT = "ステータスで変わらない";
 
-/** 今の武器種・射撃の型・装着中のスキル石 */
+/** 今の武器種・銃の弾・装着中のスキル石 */
 function loadoutSources(state: GameState): LoadoutSources {
   const skills: SkillKey[] = [];
   for (let i = 0; i < SKILL.slots; i++) {
     const stone = stoneInSlot(state.skills.profile, i);
     if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
   }
-  return { moveset: MOVESETS[state.stats.moveset], shot: state.stats.shot, skills };
+  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills };
 }
 
 /** ステータスごとに参照している行動の行（「筋力: 大剣の連撃・地裂き」） */

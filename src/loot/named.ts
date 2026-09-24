@@ -528,7 +528,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     flavor: "立ち去った後に、罠が牙をむく。",
     affixes: [{ key: "placedInfuse" }, { key: "placedAnchor" }, { key: "bloodSignature" }],
   },
-  // ---- 2026-09 第 2 弾: 属性・武器種・射撃の型・ジョブ・地形ごとに 1〜2 個 ----
+  // ---- 2026-09 第 2 弾: 属性・武器種・銃の弾・ジョブ・地形ごとに 1〜2 個 ----
   // 属性
   {
     key: "emberHeart",
@@ -667,7 +667,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     flavor: "錆びた鎧ほど、よく割れる。",
     affixes: [{ key: "brokenHunter" }, { key: "corrodeClaw" }],
   },
-  // 射撃の型
+  // 銃の弾
   {
     key: "thunderTrumpet",
     name: "雷鳴の喇叭銃",
