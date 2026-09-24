@@ -74,11 +74,6 @@ export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-/** 倉庫の表示順: 新しい順（foundAt 降順） */
-export function sortStash(stash: readonly Item[]): Item[] {
-  return [...stash].sort((a, b) => b.foundAt - a.foundAt);
-}
-
 /** area に収まる行だけを、scroll 位置から並べる */
 export function layoutStashList(order: readonly Item[], scroll: number, area: Rect): StashListLayout {
   const visibleRowCount = Math.max(0, Math.floor(area.h / STASH_ROW_H));

@@ -50,6 +50,7 @@ import {
   traitTipLine,
 } from "./lootUiParts";
 import { TEXT, drawText, truncateText, wrapText } from "./pixelText";
+import { drawSlotGroupLines, drawStashToolbar, stashEmptyText, stashEmptyY } from "./stashToolbarUi";
 
 /**
  * 残響タブの描画（ui/echoTab.ts の layoutEcho と当たり判定を共有）。state と ui を読むだけ。
@@ -146,10 +147,12 @@ function drawEchoStash(ctx: CanvasRenderingContext2D, state: GameState, ui: Echo
   const destination = choosingDestination(state, ui);
   const title = destination ? `倉庫: ${ui.op === "pour" ? "注ぎ先" : "移し先"}を選ぶ（同じ部位）` : "倉庫: 対象を選ぶ";
   drawText(ctx, title, header.x + TEXT_PAD_X, header.y + header.h - 2, m, destination ? COLOR_GROWN : COLOR_DIM);
+  drawStashToolbar(ctx, layout.stashToolbar, ui.view, layout.stashCounts);
   if (layout.stashOrder.length === 0) {
-    drawText(ctx, "倉庫は空です", header.x + TEXT_PAD_X, header.y + header.h + bodyLineH(), m, COLOR_DIM);
+    drawText(ctx, stashEmptyText(layout.stashTotal), header.x + TEXT_PAD_X, stashEmptyY(layout.stashToolbar, bodyLineH()), m, COLOR_DIM);
     return;
   }
+  drawSlotGroupLines(ctx, layout.stash.rows, layout.stashOrder, ui.view);
   const target = echoTarget(state, ui);
   for (const row of layout.stash.rows) {
     drawItemRow(ctx, row, ui.hoverId === row.item.id);

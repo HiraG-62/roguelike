@@ -80,6 +80,7 @@ import {
   wrapTipLines,
 } from "./lootUiParts";
 import { fitTooltip } from "./renderMath";
+import { drawSlotGroupLines, drawStashToolbar, stashCountText, stashEmptyText, stashEmptyY } from "./stashToolbarUi";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixelText";
 
 /**
@@ -123,7 +124,7 @@ const SKILL_LINE1_Y = 10;
 const SKILL_LINE2_Y = 19;
 const SKILL_LINE3_Y = 27;
 const PERCENT = 100;
-const HINT_EQUIPMENT = "クリック: 装備/解除  Shift+クリック: 砕く（残響を得る）  Tab: スキルへ";
+const HINT_EQUIPMENT = "クリック: 装備/解除  Shift+クリック: 砕く / 並びの向き・絞り込みを戻す  Tab: スキルへ";
 /** 未振り点があるときだけ出す（ステータス行の「+」とキー 1〜4・E） */
 const HINT_ALLOC = "+ / 1〜4・E: ステータスを振る";
 const HINT_SEP = "  ";
@@ -202,7 +203,8 @@ export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState,
 
 function drawEquipmentTab(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
   for (const s of layout.slots) drawSlotRow(ctx, s, ui);
-  drawStashHeader(ctx, state, layout);
+  drawStashHeader(ctx, state, layout, ui);
+  drawStashToolbar(ctx, layout.stashToolbar, ui.stashView, layout.stashCounts);
   drawStash(ctx, layout, ui);
   drawResonancePanel(ctx, state, layout.resonanceRect);
   // スロットの下の空きにステータス（生値と実効値）。ツールチップはこの後に描くので上に重なる
@@ -278,13 +280,13 @@ function drawSlotFrame(ctx: CanvasRenderingContext2D, rect: Rect, item: Item | n
 }
 
 /** 倉庫の見出し。芽が出ていればクリックできるバナーにする（ui/bud.ts の budBannerRect と同じ位置） */
-function drawStashHeader(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout): void {
+function drawStashHeader(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
   const r = layout.stashHeader;
   const m = TEXT.SMALL;
   const baseline = r.y + r.h - 2;
   const pending = state.pendingBud;
   if (pending === null) {
-    drawText(ctx, `倉庫 ${layout.stashOrder.length}`, r.x + TEXT_PAD_X, baseline, m, COLOR_DIM);
+    drawText(ctx, stashCountText(layout.stashOrder.length, layout.stashTotal, ui.stashView), r.x + TEXT_PAD_X, baseline, m, COLOR_DIM);
     return;
   }
   fillRectPx(ctx, r, COLOR_BANNER_BG);
@@ -296,10 +298,12 @@ function drawStashHeader(ctx: CanvasRenderingContext2D, state: GameState, layout
 
 function drawStash(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: InventoryUi): void {
   if (layout.stashOrder.length === 0) {
-    drawText(ctx, "倉庫は空です", RIGHT_X + TEXT_PAD_X, CONTENT_Y + layout.stashHeader.h + bodyLineH(), TEXT.SMALL, COLOR_DIM);
+    const y = stashEmptyY(layout.stashToolbar, bodyLineH());
+    drawText(ctx, stashEmptyText(layout.stashTotal), RIGHT_X + TEXT_PAD_X, y, TEXT.SMALL, COLOR_DIM);
     return;
   }
   for (const row of layout.stashRows) drawItemRow(ctx, row, ui.hoverItemId === row.item.id);
+  drawSlotGroupLines(ctx, layout.stashRows, layout.stashOrder, ui.stashView);
 }
 
 // ---------------------------------------------------------------------------
