@@ -90,7 +90,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
     stats.projectileCount > d.projectileCount ||
     stats.pierce > d.pierce ||
     triggers.has("onShoot") ||
-    ks.has(KS.pacifist)
+    ks.has(KS.bladeOath)
   ) {
     tags.add("ranged");
   }
@@ -122,7 +122,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   }
   if (triggers.has("onRoomClear") || conditions.has("roomLocked")) tags.add("room");
   if (ATTR_KEYS.some((k) => stats.attributes[k] > ATTR.base)) tags.add("attr");
-  if (stats.attributes.str > ATTR.base || stats.poiseDamageMul > DEFAULT_STATS.poiseDamageMul) tags.add("stagger");
+  if (stats.attributes.str > ATTR.base || stats.poiseDamageMul > DEFAULT_STATS.poiseDamageMul || ks.has(KS.pacifist)) tags.add("stagger");
   for (const proc of stats.statusProcs) for (const tag of LEGACY_STATUS_TAGS[proc.kind] ?? []) tags.add(tag);
   for (const t of stats.triggers) {
     if (t.effect !== "inflict" || t.status === undefined) continue;

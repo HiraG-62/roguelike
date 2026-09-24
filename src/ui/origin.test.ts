@@ -140,7 +140,7 @@ describe("起点の適用", () => {
     expect(a.runKeystones).toEqual([]);
   });
 
-  it("剣の巡礼者: 剣の誓いを背負い、近接の祝福を 1 つ持って始まる", () => {
+  it("剣の巡礼者: 近間の誓いを背負い、近接の祝福を 1 つ持って始まる", () => {
     const s = game({ origin: "swordPilgrim", modifiers: [] });
     expect(s.stats.keystones).toContain("ks_bladeOath");
     expect(s.boons.length).toBe(1);

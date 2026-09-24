@@ -3328,6 +3328,11 @@ const SILENT_VOW_REGEN_MUL = 3;
 const SILENT_VOW_SKILL_BONUS = 0.3;
 /** ks_thirst（渇きの誓約）の自然回復。攻撃の回収 ×3 は src/system/keystones.ts の attackManaMul */
 const THIRST_MANA_REGEN = 0;
+/** ks_bladeOath（近間の誓い）: 距離の境目の表示（m）。判定は src/system/combat.ts bladeOathMul */
+const BLADE_OATH_RANGE = formatMeters(KEYSTONE.bladeOathRangePx);
+const BLADE_OATH_FAR_PCT = Math.round((1 - KEYSTONE.bladeOathFarMul) * 100);
+const BLADE_OATH_NEAR_PCT = Math.round((KEYSTONE.bladeOathNearMul - 1) * 100);
+const BLADE_OATH_SPEED_PCT = Math.round(KEYSTONE.bladeOathAttackSpeedBonus * 100);
 
 export interface KeystoneDef {
   key: string;
@@ -3421,21 +3426,19 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_pacifist",
     name: "不殺",
-    description: "近接攻撃ができなくなる。射撃ダメージが3倍になり、弾数 +1。",
+    description: "怯んでいない敵の生命を1未満にできず、倒しきれない。怯み中の敵はそのまま倒せる。怯み値 +100%。",
     exclusiveGroup: "style",
     apply: (s) => {
-      s.rangedDamageMul += 2;
-      s.projectileCount += 1;
+      s.poiseDamageMul *= KEYSTONE.pacifistPoiseMul;
     },
   },
   {
     key: "ks_bladeOath",
-    name: "剣の誓い",
-    description: "射撃も、弾を撃つ武器の固有技も使えなくなる。近接ダメージが2倍になり、攻撃速度 +20%。",
+    name: "近間の誓い",
+    description: `${BLADE_OATH_RANGE}より遠い敵への与ダメージ -${BLADE_OATH_FAR_PCT}%、${BLADE_OATH_RANGE}以内の敵への与ダメージ +${BLADE_OATH_NEAR_PCT}%。攻撃速度 +${BLADE_OATH_SPEED_PCT}%。`,
     exclusiveGroup: "style",
     apply: (s) => {
-      s.meleeDamageMul += 1;
-      s.attackSpeedMul += 0.2;
+      s.attackSpeedMul += KEYSTONE.bladeOathAttackSpeedBonus;
     },
   },
   {

@@ -15,7 +15,6 @@ import {
   releaseBranchIndex,
 } from "../data/weapons";
 import { scaled, withRatio } from "./attributes";
-import { boonBlocksShoot } from "./boonRules";
 import { cancelAttack, gainEnergy } from "./combat";
 import { addFloatingText, spawnBurst } from "./effects";
 import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, playerMoveset, startArtBranch } from "./player";
@@ -180,7 +179,6 @@ function updateAim(state: GameState, aim: AimArtDef, held: boolean, dt: number):
   }
   const ready = a.holdTime >= aim.time;
   endArtHold(state);
-  if (boonBlocksShoot(state)) return;
   const fired = emitVolley(state, currentShot(state.stats), 0, undefined, ready ? { count: 1, damageMul: aim.damageMul, pierceBonus: aim.pierceBonus } : { count: 1 });
   if (fired) a.cooldown = playerMoveset(state).art.cooldown;
 }
@@ -249,10 +247,9 @@ function inFront(origin: Vec, facing: Vec, from: Vec, arcDeg: number): boolean {
 
 /**
  * 弾を出す技（斧の投擲・杖の魔弾・乱れ撃ち）。弾の挙動は射撃の型を借り、威力・怯み値・弾数は技のもの。
- * 射撃扱い（射撃の性質・onRangedHit が乗る）。射撃を禁じる祝福・剣の誓いでは出ない。出したら true
+ * 射撃扱い（射撃の性質・onRangedHit が乗る）
  */
 export function emitArtVolley(state: GameState, t: ThrowArtDef): boolean {
-  if (boonBlocksShoot(state)) return false;
   return emitVolley(state, SHOT_TYPES[t.shot], 0, undefined, {
     damage: scaled(state.stats, t.scaling),
     poise: withRatio(state.stats, t.poise, t.poiseRatio) * state.stats.poiseDamageMul,

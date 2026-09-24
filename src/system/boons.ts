@@ -18,6 +18,7 @@ import {
   createBoonRuleState,
   onBoonComboHitRules,
   onBoonCritRules,
+  onBoonDashEndRules,
   onBoonDashRules,
   onBoonJustRules,
   onBoonJustSteal,
@@ -473,7 +474,11 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   if (boons.includes("clearHeal")) out.maxHp = Math.round(out.maxHp * BOON.clearHealMaxHpMul);
   if (boons.includes("deathRush")) out.maxHp = Math.max(1, Math.round(out.maxHp * BOON.deathRushMaxHpMul));
   if (boons.includes("glassJust")) out.maxHp = BOON.glassJustMaxHp;
-  if (boons.includes("triggerHappy")) out.fireRateMul *= BOON.triggerHappyFireMul;
+  if (boons.includes("triggerHappy")) {
+    out.fireRateMul *= BOON.triggerHappyFireMul;
+    out.rangedDamageMul *= BOON.triggerHappyDamageMul;
+  }
+  if (boons.includes("oneWing")) out.dashCooldownMul += BOON.oneWingDashCooldownMul;
   if (boons.includes("comboClock")) out.comboWindowBonus -= FEEL.comboWindow * BOON.comboClockWindowMul;
   if (boons.includes("reaperCup")) out.manaRegen *= BOON.reaperCupRegenMul;
   if (boons.includes("heavenEarth")) out.manaRegen = 0;
@@ -596,11 +601,6 @@ export function onBoonSwing(state: GameState, combo: number, dashStrike: boolean
   onBoonSwingRules(state, combo, dashStrike);
 }
 
-/** triggerHappy: 近接できない */
-export function boonBlocksMelee(state: GameState): boolean {
-  return hasBoon(state, "triggerHappy");
-}
-
 export function canShootWhileDashing(state: GameState): boolean {
   return hasBoon(state, "dashGun");
 }
@@ -657,10 +657,12 @@ export function onBoonDash(state: GameState): void {
 }
 
 /**
- * ダッシュ終了（時間切れ / 壁）。爆走・雷爆走は BoonDef.rules（onDashEnd）へ移したので、今は割り込む祝福が無い。
- * 呼び出し（player.ts）は、ダッシュ終了の瞬間に割り込む祝福を足すときの置き場として残す
+ * ダッシュ終了（時間切れ / 壁）。爆走・雷爆走は BoonDef.rules（onDashEnd）へ移した。
+ * 片翼（近接の代わりにダッシュの終わりで射撃の弾を扇状に出す）だけがここに残る
  */
-export function onBoonDashEnd(_state: GameState): void {}
+export function onBoonDashEnd(state: GameState): void {
+  onBoonDashEndRules(state);
+}
 
 /**
  * spiritBlade: 通常攻撃（近接 3 段・ダッシュ攻撃・射撃 1 発）の威力に足す値（霊力の実効値 × 係数）。

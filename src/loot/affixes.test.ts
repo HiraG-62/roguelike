@@ -18,6 +18,7 @@ import {
 import { affixColor } from "./colors";
 import { BASES, baseDef, basesForSlot } from "./bases";
 import { KS } from "../system/keystones";
+import { KEYSTONE } from "../data/tuning";
 import { DEFAULT_STATS, LOOT_SLOTS, TRAIT_COLORS, type PlayerStats } from "./types";
 
 const MIN_AFFIX_COUNT = 60;
@@ -159,8 +160,7 @@ describe("キーストーン", () => {
     const stats = { ...DEFAULT_STATS, keystones: [], triggers: [] };
     applyRoll(stats, { key: "ks_pacifist", kind: "suffix", tier: 1, value: 0 });
     expect(stats.keystones).toEqual(["ks_pacifist"]);
-    expect(stats.rangedDamageMul).toBeCloseTo(3);
-    expect(stats.projectileCount).toBe(2);
+    expect(stats.poiseDamageMul).toBeCloseTo(DEFAULT_STATS.poiseDamageMul * KEYSTONE.pacifistPoiseMul);
   });
 
   it("resolveKeystones は同グループ後勝ち・重複と未知 key を除去（勝者の出現順）", () => {

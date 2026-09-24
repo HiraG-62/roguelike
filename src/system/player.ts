@@ -28,7 +28,7 @@ import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnLine } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
-import { KEYSTONE_NAME, KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from "./keystones";
+import { KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { applyStatus, explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { terrainSlide } from "./terrain";
@@ -53,7 +53,6 @@ import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent, pushSwingHitEv
 import { onTraitCounter } from "./traitHooks";
 import {
   boonAttackManaMul,
-  boonBlocksMelee,
   boonMoveMul,
   boonNormalAttackBonus,
   boonSwingCombo,
@@ -68,7 +67,7 @@ import {
   onBoonSwing,
   tryDashGuard,
 } from "./boons";
-import { boonBlocksShoot, boonCounterable, onBoonShootInput } from "./boonRules";
+import { boonCounterable, onBoonShootInput } from "./boonRules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
 import { artInputBlocked, artLocksActions, artMoveMul, endArtHold, onArtStrike, startArt, updateArt } from "./weaponArts";
 
@@ -77,9 +76,6 @@ const KNOCK_MIN = 2;
 const BULLET_COLOR = "#a0e0ff";
 const DEG_TO_RAD = Math.PI / 180;
 const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
-const PACIFIST_COLOR = "#a0a0a0";
-/** ks_bladeOath の「撃てない」表示の間隔（秒）。押しっぱなしで連打表示しない */
-const BLADE_OATH_TEXT_INTERVAL = 0.6;
 /** 装備変更で HP 割合を維持するときの生存中の下限 */
 const MIN_ALIVE_HP = 1;
 /** 突進斬りから繋がる近接の段（0 始まり） */
@@ -123,7 +119,6 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
       hitTick: 0,
     },
     shootCooldown: 0,
-    bladeOathTextTimer: 0,
     energy: 0,
     maxEnergy: PLAYER.maxEnergy,
     walkTime: 0,
@@ -425,7 +420,7 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
     return;
   }
   // 銃の家系はダッシュ中の押下を反転撃ち（ダッシュ攻撃）として予約する
-  if (isDashing(p) && !boonBlocksMelee(state)) p.dashAttackQueued = true;
+  if (isDashing(p)) p.dashAttackQueued = true;
 }
 
 /** 右の固有技。居合（近接の溜め）は溜めの経路、それ以外（strike は派生で出るので除く）は weaponArts.ts */
@@ -465,9 +460,9 @@ function tickButtonChain(p: Player, dt: number): void {
   if (a.inputTimer === 0 && a.phase === "none" && !a.charging) a.inputs.length = 0;
 }
 
-/** 近接を出せない状態（不殺・祝福の制限・ダッシュ中） */
+/** 近接を出せない状態（ダッシュ中） */
 function meleeBlocked(state: GameState): boolean {
-  return hasKeystone(state, KS.pacifist) || boonBlocksMelee(state) || isDashing(state.player);
+  return isDashing(state.player);
 }
 
 /**
@@ -525,7 +520,6 @@ function tickTimers(state: GameState, dt: number): void {
   p.hitFlash = Math.max(0, p.hitFlash - dt);
   p.swingImpact = Math.max(0, p.swingImpact - dt);
   p.shootCooldown = Math.max(0, p.shootCooldown - dt);
-  p.bladeOathTextTimer = Math.max(0, p.bladeOathTextTimer - dt);
   p.justTimer = Math.max(0, p.justTimer - dt);
   p.buffs.damage.time = Math.max(0, p.buffs.damage.time - dt);
   p.buffs.speed.time = Math.max(0, p.buffs.speed.time - dt);
@@ -659,11 +653,6 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
 
 /** 近接の連撃ボタン。charge は押したボタンが「溜め」の役割か */
 function tryAttack(state: GameState, charge = false): void {
-  if (hasKeystone(state, KS.pacifist)) {
-    addFloatingText(state, state.player.body.pos, KEYSTONE_NAME[KS.pacifist] ?? KS.pacifist, PACIFIST_COLOR, 0.9, 0.4);
-    return;
-  }
-  if (boonBlocksMelee(state)) return;
   if (tryJustCounter(state)) return;
   const p = state.player;
   // ダッシュ中の攻撃はダッシュ終了と同時のダッシュ攻撃として予約する
@@ -783,7 +772,6 @@ function startBranch(state: GameState, index: number): void {
 /** 固有技から派生を振る（盾の構えを離した盾押し。weaponArts.ts から）。振っている最中なら今の振りの後に予約する */
 export function startArtBranch(state: GameState, index: number): void {
   const p = state.player;
-  if (hasKeystone(state, KS.pacifist) || boonBlocksMelee(state)) return;
   if (p.attack.phase === "none") startBranch(state, index);
   else p.attack.pendingBranch = index;
 }
@@ -1215,7 +1203,7 @@ function releaseDashAttack(state: GameState): void {
   const p = state.player;
   if (!p.dashAttackQueued || isDashing(p)) return;
   p.dashAttackQueued = false;
-  if (hasKeystone(state, KS.pacifist) || skillLocksAttack(state) || isPlayerStaggered(p)) return;
+  if (skillLocksAttack(state) || isPlayerStaggered(p)) return;
   cancelAttack(state);
   startSwing(state, 0, true);
 }
@@ -1269,7 +1257,7 @@ function updateBurst(state: GameState, shot: ShotDef, dt: number): void {
 
 function canContinueBurst(state: GameState): boolean {
   const p = state.player;
-  if (isAttacking(p) || isPlayerStaggered(p) || boonBlocksShoot(state)) return false;
+  if (isAttacking(p) || isPlayerStaggered(p)) return false;
   return !isDashing(p) || canShootWhileDashing(state);
 }
 
@@ -1289,7 +1277,7 @@ function updateShotCharge(state: GameState, shot: ShotDef, held: boolean, dt: nu
   const levels = shot.charge?.levels ?? [];
   if (held) {
     if (!p.shotCharging) {
-      if (!canShootNow(state) || blockedByBladeOath(state)) return;
+      if (!canShootNow(state)) return;
       p.shotCharging = true;
       p.shotChargeTime = 0;
       return;
@@ -1308,23 +1296,11 @@ function updateShotCharge(state: GameState, shot: ShotDef, held: boolean, dt: nu
   fireVolley(state, level, aim);
 }
 
-/** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中・祝福の制限） */
+/** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中） */
 function canShootNow(state: GameState): boolean {
   const p = state.player;
   if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging) return false;
-  if (isDashing(p) && !canShootWhileDashing(state)) return false;
-  return !boonBlocksShoot(state);
-}
-
-/** ks_bladeOath: 撃てないことを浮き文字で伝える（押しっぱなしで連打表示しない）。撃てなければ true */
-function blockedByBladeOath(state: GameState): boolean {
-  if (!hasKeystone(state, KS.bladeOath)) return false;
-  const p = state.player;
-  if (p.bladeOathTextTimer <= 0) {
-    addFloatingText(state, p.body.pos, KEYSTONE_NAME[KS.bladeOath] ?? KS.bladeOath, PACIFIST_COLOR, 0.9, 0.4);
-    p.bladeOathTextTimer = BLADE_OATH_TEXT_INTERVAL;
-  }
-  return true;
+  return !isDashing(p) || canShootWhileDashing(state);
 }
 
 function tryShoot(state: GameState, aim?: number): void {
@@ -1425,12 +1401,8 @@ function muzzleAt(state: GameState, dir: Vec): Vec {
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
 
-/**
- * 弾を出す（再使用時間は触らない。三点の続きの弾・固有技の弾もここを通る）。出したら true。
- * 剣の誓い（ks_bladeOath）は射撃も弾を出す固有技も封じるので入口で見る
- */
+/** 弾を出す（再使用時間は触らない。三点の続きの弾・固有技の弾もここを通る）。出したら true */
 export function emitVolley(state: GameState, shot: ShotDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
-  if (blockedByBladeOath(state)) return false;
   const p = state.player;
   const dir = { ...p.facing };
   const muzzle = muzzleAt(state, dir);

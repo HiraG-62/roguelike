@@ -44,7 +44,6 @@ import {
   updateBoons,
 } from "./boons";
 import {
-  boonBlocksShoot,
   boonChainExtension,
   boonCounterable,
   boonForcesCrit,
@@ -644,12 +643,11 @@ describe("単体の祝福（近接・射撃・ダッシュ）", () => {
     expect(burn.time).toBeCloseTo(burn.maxTime);
   });
 
-  it("片翼: 射撃できない代わりに 3 段目で弾が扇状に出る", () => {
+  it("片翼: ダッシュの終わりに弾が扇状に出る（固有技・射撃は封じない）", () => {
     const state = arena();
     give(state, "oneWing");
-    expect(boonBlocksShoot(state)).toBe(true);
-    state.player.attack.dir = { x: 1, y: 0 };
-    onBoonSwing(state, LAST, false);
+    state.player.facing = { x: 1, y: 0 };
+    onBoonDashEnd(state);
     const shots = state.projectiles.filter((p) => p.owner === "player" && p.kind === "ranged");
     expect(shots.length).toBeGreaterThanOrEqual(BOON.oneWingMinShots);
   });

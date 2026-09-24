@@ -8,7 +8,7 @@
     "swordsmanFinisherPoise": 14,
     "swordsmanJustBuffPct": 25,
     "swordsmanJustBuffSec": 3,
-    "swordsmanRangedMul": 0.8,
+    "swordsmanSkillMul": 0.85,
     "hunterWindupPoise": 10,
     "hunterVulnerableSec": 2.5,
     "hunterEliteIcd": 1,
@@ -17,7 +17,7 @@
     "brawlerShockwaveRatio": 0.8,
     "brawlerHurtBuffPct": 30,
     "brawlerHurtBuffSec": 3,
-    "brawlerRangedMul": 0.7,
+    "brawlerDamageTakenMul": 1.1,
     "shieldHurtInvulnSec": 0.4,
     "shieldHurtIcd": 6,
     "shieldCounterRatio": 1,
@@ -104,13 +104,13 @@
   },
   "weakness": {
     "swordsman": {
-      "rangedDamageMul": 0.8
+      "skillDamageMul": 0.85
     },
     "hunter": {
       "maxHp": 0.85
     },
     "brawler": {
-      "rangedDamageMul": 0.7
+      "damageTakenMul": 1.1
     },
     "shieldBearer": {
       "moveSpeedMul": 0.92

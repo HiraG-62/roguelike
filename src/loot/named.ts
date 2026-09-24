@@ -130,9 +130,9 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "rifle",
     minLevel: 9,
     keystone: "ks_pacifist",
-    flavor: "近づきはしない。遥か遠くから、一度で終わらせる。",
+    flavor: "膝をつかせるまでは、殺しはしない。",
     affixes: [
-      { key: "rangedDamagePct" },
+      { key: "heavyHand" },
       { key: "pierce" },
       { key: "critChance" },
     ],

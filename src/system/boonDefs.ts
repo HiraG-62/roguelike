@@ -535,7 +535,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   triggerHappy: {
     key: "triggerHappy",
     name: "連射狂い",
-    desc: "連射速度が2倍になる代わりに、近接攻撃ができなくなる。",
+    desc: "連射速度が2倍になる代わりに、1発の威力が35%落ちる。",
     icon: "!",
     rarity: "rare",
     tags: ["ranged"],
@@ -1325,11 +1325,11 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   oneWing: {
     key: "oneWing",
     name: "片翼",
-    desc: "射撃できなくなる代わりに、近接の3段目で射撃の弾が扇状に出る。",
+    desc: "ダッシュ再使用時間 +40% の代わりに、ダッシュの終わりに射撃の弾が扇状に出る。",
     icon: "翼",
     rarity: "rare",
-    tags: ["melee", "ranged"],
-    keywords: kw(["bullet"], ["finisher"]),
+    tags: ["dash", "ranged"],
+    keywords: kw(["bullet"], ["dash"]),
     cursed: true,
   },
   justReturn: {

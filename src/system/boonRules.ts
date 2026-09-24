@@ -15,7 +15,7 @@ import { ACTION, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource } from "../skills/types";
 import { boonNormalAttackBonus, hasBoon } from "./boons";
-import { damageEnemy, gainEnergy, healSustained, rollOutgoing } from "./combat";
+import { damageEnemy, gainEnergy, healSustained, pacifistMercyClamp, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { engagedRoomIndex } from "./engagement";
 import { scaled } from "./attributes";
@@ -512,18 +512,21 @@ export function resetBoonRulesForFloor(state: GameState): void {
 // 既存フックの拡張（boons.ts から）
 // -----------------------------------------------------------------------------
 
-/** 振り始め: 片翼 */
-export function onBoonSwingRules(state: GameState, combo: number, dashStrike: boolean): void {
-  if (dashStrike || combo !== LAST_COMBO || !hasBoon(state, "oneWing")) return;
+/** 振り始め（旧フック）。片翼はダッシュ終わり（onBoonDashEndRules）へ移した。今は何もしない */
+export function onBoonSwingRules(_state: GameState, _combo: number, _dashStrike: boolean): void {}
+
+/** ダッシュ終わり: 片翼 */
+export function onBoonDashEndRules(state: GameState): void {
+  if (!hasBoon(state, "oneWing")) return;
   oneWingVolley(state);
 }
 
-/** 片翼: 射撃の弾（弾数・威力・貫通は装備のまま）を 3 段目で扇状に出す */
+/** 片翼: 射撃の弾（弾数・威力・貫通は装備のまま）をダッシュの終わりに扇状に出す */
 function oneWingVolley(state: GameState): void {
   const s = state.stats;
   const p = state.player;
   const count = Math.max(BOON.oneWingMinShots, s.projectileCount);
-  const base = angle(p.attack.dir);
+  const base = angle(p.facing);
   const damage = shotDamage(s) + boonNormalAttackBonus(state);
   const speed = PLAYER.shoot.speed * s.projectileSpeedMul;
   const center = (count - 1) / 2;
@@ -654,8 +657,10 @@ export function onBoonCritRules(state: GameState, enemy: Enemy): void {
   if (!hasBoon(state, "laceration") || enemy.hp <= 0) return;
   const bleed = findStatus(enemy.status, "bleed");
   if (!bleed || bleed.stacks < BOON.lacerationStacks) return;
-  const amount = Math.round(bleed.stacks * bleed.potency * BOON.lacerationUnits);
+  const raw = Math.round(bleed.stacks * bleed.potency * BOON.lacerationUnits);
   removeStatus(state, { kind: "enemy", enemy }, "bleed");
+  if (raw <= 0) return;
+  const amount = pacifistMercyClamp(state, enemy, raw);
   if (amount <= 0) return;
   enemy.hp -= amount;
   addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, `血裂き ${amount}`, BOON.bloodMistColor, TEXT_SCALE, TEXT_LIFE);
@@ -1071,11 +1076,6 @@ export function onBoonShootInput(state: GameState, held: boolean): void {
   if (recalled === 0) return;
   r.recallCd = BOON.recallIcd;
   pushSfx(state, "reflect");
-}
-
-/** player.ts tryShoot: 射撃できないか（片翼） */
-export function boonBlocksShoot(state: GameState): boolean {
-  return hasBoon(state, "oneWing");
 }
 
 /** enemies.ts startWindup: 予備動作の長さの倍率（凍て足 / 冬籠り）。伸ばすだけで縮めない */

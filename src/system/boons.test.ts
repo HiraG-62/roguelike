@@ -325,12 +325,13 @@ describe("ルール変更の実効", () => {
     expect(mob.maxHp).toBe(Math.max(1, Math.round(mobHp * BOON.mobHpMul)));
   });
 
-  it("triggerHappy: 近接できない代わりに連射 2 倍", () => {
+  it("triggerHappy: 連射 2 倍・1 発の威力が落ちる代わりに近接は使える", () => {
     const state = arena();
     grantBoon(state, "triggerHappy");
     expect(state.stats.fireRateMul).toBe(DEFAULT_STATS.fireRateMul * BOON.triggerHappyFireMul);
+    expect(state.stats.rangedDamageMul).toBeCloseTo(DEFAULT_STATS.rangedDamageMul * BOON.triggerHappyDamageMul);
     step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.player.attack.phase).toBe("none");
+    expect(state.player.attack.phase).not.toBe("none");
   });
 });
 
