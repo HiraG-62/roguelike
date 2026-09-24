@@ -13,7 +13,8 @@
     "check": "node scripts/check.mjs",
     "qa:full": "node scripts/qa-full.mjs",
     "electron:dev": "node scripts/electron-dev.mjs",
-    "electron:build": "node scripts/electron-build.mjs"
+    "electron:build": "node scripts/electron-build.mjs",
+    "sync:claude": "node scripts/sync-claude-global.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

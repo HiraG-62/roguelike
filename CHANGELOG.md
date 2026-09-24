@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### 整備
+- **クラウドセッション向けにグローバル設定を同梱**: ローカルの `~/.claude/CLAUDE.md`（共通ルール）・毎プロンプトの注意文・自動メモリを `.claude/global/` に写し、`CLAUDE.md` から @import する。`npm run sync:claude` で写し直す（`--check` で差分確認）。プロジェクトの `.claude/settings.json` に言語・agent teams の env・`.env` の読み取り拒否を追加
+
+## [0.0.15α] - 2026-09-24
+
 ### 変更
 - **バランス数値の JSON 化（段 2〜5）**: 武器（`weapons.json`、武器種ごとに 1 段 1 行）・ジョブ（`jobs.json`）・スキル（`skills.json`）・祝福（`boons.json`）・装備（`loot.json`、性質の期待値曲線 251 本とベース 96 個）・世界（`world.json`）・手触りと演出（`feel.json`）・戦闘の残り（`combat.json`）。数値は 1 つも変えていない。置き場所と変え方は `docs/BALANCE.md`
 - 斧の投擲で斧の絵が回って飛ぶ
