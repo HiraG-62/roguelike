@@ -95,6 +95,9 @@ export const SFX_NAMES = [
   "menuMove",
   /** 溜め攻撃・チャージ射撃の段が上がった（src/data/weapons.ts） */
   "chargeLevel",
+  /** 属性の弱点 / 耐性に当たった（docs/COMBAT_DESIGN.md A-8） */
+  "weakHit",
+  "resistHit",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

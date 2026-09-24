@@ -17,6 +17,7 @@ import { stairsTilesValid } from "./specialRooms";
 import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
+import { VIEW_H, VIEW_W } from "../core/view";
 
 describe("depth 2 の難度調整", () => {
   it("湧き数は base 3 + floor(depth * 1.0)（depth1:4, depth2:5, depth5:8）。ROOM.baseEnemies は QA 2026-09-23 で 2 → 3、enemiesPerDepth は同日 2 巡目で 0.8 → 1.0", () => {
@@ -410,7 +411,9 @@ describe("交戦中（isEngaged）: 封鎖中 または 開放型の交戦中", 
     state.enemies.find((e) => e.roomIndex === index)!.phase = "chase";
     updateRooms(state, FIXED_DT);
     expect(room.engaged, "気付かれて交戦が始まる").toBe(true);
-    expect(isEngaged(state), "部屋の外にいる間は交戦中でない").toBe(false);
+    // 部屋の敵から離れた所へ置く（気付いた敵が近くにいれば部屋の外でも交戦中になるため）
+    for (const e of state.enemies) if (e.roomIndex === index) e.body.pos = { x: -10_000, y: -10_000 };
+    expect(isEngaged(state), "部屋の外で、気付いた敵も近くにいなければ交戦中でない").toBe(false);
     state.player.body.pos = roomTilePx(state, room);
     expect(isEngaged(state), "交戦の始まった部屋に入ると交戦中").toBe(true);
     expect(engagedRoomIndex(state), "今いる交戦中の部屋").toBe(index);
@@ -419,6 +422,37 @@ describe("交戦中（isEngaged）: 封鎖中 または 開放型の交戦中", 
     updateRooms(state, FIXED_DT);
     expect(room.cleared, "全滅で制圧").toBe(true);
     expect(isEngaged(state), "制圧後").toBe(false);
+  });
+
+  it("部屋の外（通路）でも、その部屋の気付いた敵が近くで生きている間は交戦中。離れるか倒すと解ける", () => {
+    const state = createGame(4);
+    const index = openRoomWithEnemies(state);
+    const room = state.rooms[index]!;
+    state.player.invulnTimer = 999;
+    const chaser = state.enemies.find((e) => e.roomIndex === index)!;
+    chaser.phase = "chase";
+    updateRooms(state, FIXED_DT);
+    expect(room.engaged).toBe(true);
+    for (const e of state.enemies) if (e.roomIndex === index) e.body.pos = { x: -10_000, y: -10_000 };
+    const p = state.player.body.pos;
+    expect(isEngaged(state), "部屋の外で敵が遠い").toBe(false);
+    chaser.body.pos = { x: p.x + ROAM.engageLeash - 1, y: p.y };
+    expect(engagedRoomIndex(state), "追ってきた敵が近くにいれば、その部屋で交戦中").toBe(index);
+    chaser.body.pos = { x: p.x + ROAM.engageLeash + 1, y: p.y };
+    expect(isEngaged(state), "引き離すと交戦中でない").toBe(false);
+    chaser.body.pos = { x: p.x + 1, y: p.y };
+    chaser.hp = 0;
+    expect(isEngaged(state), "倒すと交戦中でない").toBe(false);
+  });
+
+  it("徘徊の敵（どの部屋にも属さない）が近くにいても交戦中にはならない", () => {
+    const state = createGame(4);
+    const index = openRoomWithEnemies(state);
+    const e = state.enemies.find((x) => x.roomIndex === index)!;
+    e.roomIndex = ROAMING_ROOM;
+    e.phase = "chase";
+    e.body.pos = { x: state.player.body.pos.x + 1, y: state.player.body.pos.y };
+    expect(isEngaged(state)).toBe(false);
   });
 
   it("封鎖中の部屋は敵がいない波の合間でも交戦中", () => {
@@ -463,8 +497,8 @@ describe("開放型フロア: 徘徊", () => {
         roamers++;
         const roam = e.ai?.roam;
         expect(roam, "徘徊の目的地").toBeDefined();
-        const centers = state.rooms.filter((r) => !ROOM_KIND.locks[r.kind]).map((r) => rectCenterPx(r.rect));
-        expect(centers.some((c) => c.x === roam!.x && c.y === roam!.y), "目的地は部屋の中心").toBe(true);
+        const centers = state.rooms.filter((r, i) => i !== 0 && !ROOM_KIND.locks[r.kind]).map((r) => rectCenterPx(r.rect));
+        expect(centers.some((c) => c.x === roam!.x && c.y === roam!.y), "目的地は開始以外の封鎖しない部屋の中心").toBe(true);
       }
       // 徘徊を抜いても、敵を置いた部屋には 1 体以上残る
       state.rooms.forEach((room, i) => {
@@ -536,7 +570,10 @@ describe("開放型フロア: 時間経過の増援", () => {
     const p = state.player.body.pos;
     for (const e of state.enemies.filter((x) => x.roomIndex === ROAMING_ROOM)) {
       expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), "壁に埋まらない").toBe(false);
-      expect(Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y), "画面外").toBeGreaterThanOrEqual(ROAM.minSpawnDist);
+      expect(Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y), "プレイヤーから離れる").toBeGreaterThanOrEqual(ROAM.minSpawnDist);
+      const c = state.camera.pos;
+      const inView = Math.abs(e.body.pos.x - c.x) < VIEW_W / 2 && Math.abs(e.body.pos.y - c.y) < VIEW_H / 2;
+      expect(inView, "カメラの表示範囲の外（画面の角にも湧かない）").toBe(false);
       expect(e.ai?.roam, "徘徊の目的地").toBeDefined();
     }
   });

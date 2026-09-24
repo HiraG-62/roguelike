@@ -76,6 +76,7 @@ describe("起点の解放", () => {
     const locked = lockedOrigins(createQuestSave());
     const ui = createOriginScreen(undefined, locked);
     const row = ORIGIN_ROWS.indexOf("chanter");
+    ui.stage = "origin";
     ui.originCursor = row;
     expect(activateOriginCursor(ui), "決定しても変わらない").toBe("none");
     expect(ui.origin, "放浪者のまま").toBe("wanderer");

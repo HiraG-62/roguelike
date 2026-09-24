@@ -1,5 +1,6 @@
 import { isDailySeedText } from "../core/replay";
 import { ENEMIES } from "../data/enemies";
+import { JOB_KEYS, type JobKey, isJobKey } from "../data/jobs";
 import type { ProfileMeta } from "../loot/types";
 import { BOONS, type BoonKey } from "../system/boonDefs";
 import { FLOOR_KINDS } from "../system/biomes";
@@ -20,6 +21,8 @@ export interface AchievementContext {
   codex: Readonly<CodexSave>;
   quests: Readonly<QuestSave>;
   meta: Readonly<ProfileMeta>;
+  /** 探索を終えたことのあるジョブ（AchievementSave.jobsPlayed。noteJobPlayed で積む）。省略は無し */
+  jobsPlayed?: readonly string[];
 }
 
 export interface AchievementDef {
@@ -32,6 +35,9 @@ export interface AchievementDef {
 
 /** 実績「長い夜」の 1 ランの長さ（秒） */
 const LONG_RUN_SECONDS = 20 * 60;
+
+/** 実績「百芸の旅人」の対象（見習いは数えない） */
+const PLAYABLE_JOBS: readonly JobKey[] = JOB_KEYS.filter((j) => j !== "none");
 
 const BOSS_KEYS: readonly string[] = ENEMIES.filter((d) => d.boss === true).map((d) => d.key);
 
@@ -64,9 +70,9 @@ function history(ctx: AchievementContext): NonNullable<ProfileMeta["history"]> {
 }
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
-  { key: "firstRun", name: "初めの一歩", desc: "ランを 1 回終える。", check: (c) => c.meta.runs >= 1 },
-  { key: "tenRuns", name: "常連", desc: "ランを 10 回終える。", check: (c) => c.meta.runs >= 10 },
-  { key: "fiftyRuns", name: "潜り慣れた者", desc: "ランを 50 回終える。", check: (c) => c.meta.runs >= 50 },
+  { key: "firstRun", name: "初めの一歩", desc: "探索を 1 回終える。", check: (c) => c.meta.runs >= 1 },
+  { key: "tenRuns", name: "常連", desc: "探索を 10 回終える。", check: (c) => c.meta.runs >= 10 },
+  { key: "fiftyRuns", name: "潜り慣れた者", desc: "探索を 50 回終える。", check: (c) => c.meta.runs >= 50 },
   { key: "depth3", name: "地下の住人", desc: "地下 3 階へ着く。", check: (c) => c.meta.bestDepth >= 3 },
   { key: "depth6", name: "深層の歩き手", desc: "地下 6 階へ着く。", check: (c) => c.meta.bestDepth >= 6 },
   { key: "depth10", name: "奈落の縁", desc: "地下 10 階へ着く。", check: (c) => c.meta.bestDepth >= 10 },
@@ -97,9 +103,10 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "quest10", name: "請負人", desc: "依頼を 10 達成する。", check: (c) => completedQuestCount(c.quests) >= 10 },
   { key: "questAll", name: "何でも屋", desc: "すべての依頼を達成する。", check: (c) => completedQuestCount(c.quests) >= QUEST_KEYS.length },
   { key: "originsAll", name: "百の出自", desc: "すべての起点を解放する。", check: (c) => ORIGIN_KEYS.every((o) => isOriginUnlocked(c.quests, o)) },
+  { key: "jobsAll", name: "百芸の旅人", desc: "見習い以外のすべてのジョブで探索を終える。", check: (c) => PLAYABLE_JOBS.every((j) => c.jobsPlayed?.includes(j) === true) },
   { key: "daily", name: "日課", desc: "デイリーシードに挑む。", check: (c) => history(c).some((h) => isDailySeedText(h.seedText)) },
-  { key: "combo50", name: "途切れぬ手", desc: "1 ランで 50 コンボをつなぐ。", check: (c) => history(c).some((h) => h.bestCombo >= 50) },
-  { key: "longRun", name: "長い夜", desc: "1 ランを 20 分以上続ける。", check: (c) => history(c).some((h) => h.durationSec >= LONG_RUN_SECONDS) },
+  { key: "combo50", name: "途切れぬ手", desc: "1 回の探索で 50 コンボをつなぐ。", check: (c) => history(c).some((h) => h.bestCombo >= 50) },
+  { key: "longRun", name: "長い夜", desc: "1 回の探索を 20 分以上続ける。", check: (c) => history(c).some((h) => h.durationSec >= LONG_RUN_SECONDS) },
 ];
 
 const ACHIEVEMENT_KEYS: ReadonlySet<string> = new Set(ACHIEVEMENTS.map((a) => a.key));
@@ -118,10 +125,18 @@ export interface AchievementSave {
   unlocked: Record<string, number>;
   /** 名乗っている称号（titleId の形）。無ければ null */
   title: string | null;
+  /** 探索を終えたことのあるジョブ（実績「百芸の旅人」。旧データには無く、読むときに [] で補う） */
+  jobsPlayed: JobKey[];
 }
 
 export function createAchievementSave(): AchievementSave {
-  return { version: 1, unlocked: {}, title: null };
+  return { version: 1, unlocked: {}, title: null, jobsPlayed: [] };
+}
+
+/** ラン終了時に、そのランのジョブを記録する（保存データを書き換える）。戻り値は記録後の一覧 */
+export function noteJobPlayed(save: AchievementSave, job: JobKey): readonly JobKey[] {
+  if (!save.jobsPlayed.includes(job)) save.jobsPlayed.push(job);
+  return save.jobsPlayed;
 }
 
 export function parseAchievementSave(parsed: unknown): AchievementSave | null {
@@ -132,6 +147,7 @@ export function parseAchievementSave(parsed: unknown): AchievementSave | null {
     if (ACHIEVEMENT_KEYS.has(key)) save.unlocked[key] = sanitizeCount(at);
   }
   save.title = typeof parsed.title === "string" && parseTitleId(parsed.title) !== null ? parsed.title : null;
+  save.jobsPlayed = Array.isArray(parsed.jobsPlayed) ? [...new Set(parsed.jobsPlayed.filter(isJobKey))] : [];
   return save;
 }
 

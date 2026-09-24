@@ -479,7 +479,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
     pack: { minion: "wolf", count: 3 },
   },
   {
-    key: "manaLeech", name: "マナ喰い", sprite: "leech",
+    key: "manaLeech", name: "気力喰い", sprite: "leech",
     radius: 6, hp: 30, speed: 58, behavior: "manaLeech", contactDamage: 8,
     windup: 0.5, strikeTime: 0.25, recover: 0.6, engageRange: 40, attackInterval: 0.9,
     score: 30, minDepth: 4, weight: 2, color: "#3c7ad8", dropChance: 0.12,
@@ -606,7 +606,8 @@ export const ENEMIES: readonly EnemyDef[] = [
     speed: 42,
     behavior: "shooter",
     contactDamage: 0,
-    windup: 0.4,
+    /** 0.4 → 0.5（QA 2026-09-24: 1 対 1 被弾の主因が浮遊眼の弾。予告を読める長さに） */
+    windup: 0.5,
     strikeTime: 0.05,
     recover: 0.32,
     engageRange: 150,

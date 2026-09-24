@@ -1,5 +1,6 @@
 import { createRng } from "../core/rng";
 import type { GameState } from "../core/state";
+import { JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
 import { META } from "../data/tuning";
 import { uniqueDef } from "../loot/named";
 import { BOONS } from "../system/boonDefs";
@@ -9,7 +10,7 @@ import { CODEX_TAB_LABEL, type CodexTab } from "./codex";
 /**
  * 依頼（docs/ideas/meta-and-weapons.md 5 章）。ラン開始時に 3 択で 1 つ受け、ラン中の出来事を state.questRun に数える
  * （src/meta/runRecord.ts。ゲーム進行には効かない）。ラン終了時に main.ts が recordQuest で達成を判定して保存する。
- * 報酬は強さではなく選択肢と表現（起点の解放・名のある遺物の抽選・図鑑の頁・称号）
+ * 報酬は強さではなく選択肢と表現（起点・ジョブの解放・名のある遺物の抽選・図鑑の頁・称号）
  */
 
 // -----------------------------------------------------------------------------
@@ -181,6 +182,7 @@ export type QuestKey = (typeof QUEST_KEYS)[number];
 
 export type QuestReward =
   | { kind: "origin"; origin: OriginKey }
+  | { kind: "job"; job: JobKey }
   | { kind: "relic"; relic: string }
   | { kind: "page"; page: CodexTab }
   | { kind: "title"; title: string };
@@ -217,7 +219,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "kingslayerCollar" } },
   bladeOnly: { name: "刃のみ", desc: "射撃を 1 度も撃たずにボスを倒す。", goal: 1, measure: (s) => s.bossNoShot, reward: { kind: "title", title: "刃一筋" } },
   untouched: { name: "無傷の階", desc: "1 度も被弾せずに階段を降りる。", goal: 1, measure: (s) => s.floorsNoHurt, reward: { kind: "page", page: "enemy" } },
-  justDancer: { name: "見切りの舞", desc: "ジャスト回避を 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "title", title: "見切り手" } },
+  justDancer: { name: "見切りの舞", desc: "見切りを 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "job", job: "shadow" } },
   counterman: { name: "返し手", desc: "カウンターを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "returningSwallow" } },
   plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "contagionFang" } },
   cursedDepth: {
@@ -235,12 +237,12 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
     reward: { kind: "origin", origin: "gambler" },
   },
   reaperDance: { name: "死神と踊る", desc: "死神が出ている間に階段を降りる。", goal: 1, measure: (s) => s.reaperEscapes, reward: { kind: "origin", origin: "reaperFriend" } },
-  chainWeaver: { name: "連鎖の糸", desc: "連鎖を 20 回つなぐ。", goal: 20, measure: (s) => s.chains, reward: { kind: "title", title: "糸繰り" } },
-  deepChain: { name: "三段の連鎖", desc: "3 語の連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "title", title: "連鎖術師" } },
+  chainWeaver: { name: "連鎖の糸", desc: "連鎖を 20 回つなぐ。", goal: 20, measure: (s) => s.chains, reward: { kind: "job", job: "invoker" } },
+  deepChain: { name: "三段の連鎖", desc: "3 語の連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "job", job: "alchemist" } },
   frostbite: { name: "凍てつく刃", desc: "冷気か凍結の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.chillKills, reward: { kind: "title", title: "霜の手" } },
   venomGarden: { name: "毒の庭", desc: "毒の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.poisonKills, reward: { kind: "page", page: "relic" } },
-  bloodPath: { name: "血の道", desc: "出血中の敵を 30 体倒す。", goal: 30, measure: (s) => s.bleedKills, reward: { kind: "title", title: "血の道を行く者" } },
-  critStorm: { name: "急所読み", desc: "会心を 150 回出す。", goal: 150, measure: (s) => s.crits, reward: { kind: "title", title: "急所読み" } },
+  bloodPath: { name: "血の道", desc: "出血中の敵を 30 体倒す。", goal: 30, measure: (s) => s.bleedKills, reward: { kind: "job", job: "hexer" } },
+  critStorm: { name: "急所読み", desc: "会心を 150 回出す。", goal: 150, measure: (s) => s.crits, reward: { kind: "job", job: "lancer" } },
   spellweaver: { name: "詠唱の道", desc: "スキルを 60 回使う。", goal: 60, measure: (s) => s.skillCasts, reward: { kind: "page", page: "place" } },
   deepDiver: { name: "深みへ", desc: "地下 8 階へ着く。", goal: 8, measure: (s) => s.depth, reward: { kind: "title", title: "深淵を覗く者" } },
   trialWalker: { name: "試練を越えて", desc: "試練の部屋を 2 つ制圧する。", goal: 2, measure: (s) => s.challengesCleared, reward: { kind: "page", page: "boon" } },
@@ -265,6 +267,8 @@ export function questRewardLabel(reward: QuestReward): string {
   switch (reward.kind) {
     case "origin":
       return `起点「${ORIGINS[reward.origin].name}」を解放`;
+    case "job":
+      return `ジョブ「${JOBS[reward.job].name}」を解放`;
     case "relic":
       return `名のある遺物「${uniqueDef(reward.relic)?.name ?? reward.relic}」が抽選に加わる`;
     case "page":
@@ -306,6 +310,16 @@ export function isOriginUnlocked(save: Readonly<QuestSave>, origin: OriginKey): 
 
 export function lockedOrigins(save: Readonly<QuestSave>): Set<OriginKey> {
   return new Set(ORIGIN_KEYS.filter((o) => !isOriginUnlocked(save, o)));
+}
+
+/** ジョブが解放済みか。unlockedBy の無いジョブは最初から使える */
+export function isJobUnlocked(save: Readonly<QuestSave>, job: JobKey): boolean {
+  const by = JOBS[job].unlockedBy;
+  return by === undefined || isQuestCompleted(save, by);
+}
+
+export function lockedJobs(save: Readonly<QuestSave>): Set<JobKey> {
+  return new Set(JOB_KEYS.filter((j) => !isJobUnlocked(save, j)));
 }
 
 /** 達成済みの依頼が与えた図鑑の頁 */

@@ -26,6 +26,8 @@ export type RuleCondition =
   /** HP が SYNERGY.lowHpRatio 以下 */
   | { kind: "lowHp" }
   | { kind: "comboAbove"; count: number }
+  /** 今の近接の振りが連撃の最終段（終撃）。ジョブ「剣士」が使う */
+  | { kind: "finisher" }
   /** 今いる部屋が交戦中（封鎖中を含む。system/engagement.ts の isEngaged）。key は旧名のまま */
   | { kind: "roomLocked" }
   | { kind: "depthAtLeast"; depth: number }

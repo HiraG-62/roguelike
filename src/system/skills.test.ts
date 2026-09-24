@@ -27,6 +27,7 @@ import {
   skillLocksAttack,
   skillLocksDash,
   skillMoveMul,
+  slotModifierView,
   trackDamageDealt,
   updateSkills,
 } from "./skills";
@@ -177,7 +178,7 @@ describe("マナと最低間隔", () => {
     expect(state.skills.manaFlash, "マナバーの点滅").toBeGreaterThan(0);
     expect(state.sfx, "不発の効果音").toContain("manaEmpty");
     expect(state.skills.pendingSlot, "先行入力は破棄").toBe(-1);
-    expect(state.texts.some((t) => t.text === "マナ不足")).toBe(true);
+    expect(state.texts.some((t) => t.text === "気力不足")).toBe(true);
     run(state, SKILL.manaFlashTime + FIXED_DT);
     expect(state.skills.manaFlash, "点滅は時間で消える").toBe(0);
   });
@@ -606,6 +607,19 @@ describe("刻印符", () => {
     expect(state.skills.slots[0]?.modifiers, "付けた直後はまだ効かない（リプレイの装備変更と同じ時点に揃える）").toEqual(["bloodPrice"]);
     run(state, FIXED_DT);
     expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
+  });
+
+  it("同じ種類の符が石とラン内の両方にあっても 1 枚として効く（二重に掛からない）", () => {
+    const state = skillArena([{ key: "frag", links: 3, modifiers: ["echo", "bloodPrice"] }]);
+    const stone = state.skills.profile.stones[0];
+    if (!stone) throw new Error("stone");
+    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
+    run(state, FIXED_DT);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
+    expect(slotModifierView(state, 0).map((v) => [v.key, v.run]), "石の符として 1 回だけ並ぶ").toEqual([
+      ["echo", false],
+      ["bloodPrice", true],
+    ]);
   });
 
   it("ラン内の自動装着は石に付けた符を押し出さない", () => {

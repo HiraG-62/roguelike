@@ -222,12 +222,14 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
 
 /**
  * スロットの実効の刻印符 = スロットの石に付けた所持刻印符（古い順）+ ラン内の刻印符（古い順）。
- * 石の符を先に置くので、リンクが足りないときは自分で選んだ符が優先して効く
+ * 石の符を先に置くので、リンクが足りないときは自分で選んだ符が優先して効く。
+ * 同じ種類が石とラン内の両方にあれば 1 枚として数える（activeModifiers は重複を弾かないので、ここで除かないと二重に効く）
  */
 export function effectiveSlotModifiers(rs: Readonly<SkillRunState>, slot: number): ModifierKey[] {
   const stone = stoneInSlot(rs.profile, slot);
   const own = stone ? stoneModifierKeys(stone) : [];
-  return [...own, ...(rs.slots[slot]?.runModifiers ?? [])];
+  const run = (rs.slots[slot]?.runModifiers ?? []).filter((k) => !own.includes(k));
+  return [...own, ...run];
 }
 
 /**
@@ -601,7 +603,7 @@ function notReady(state: GameState, text: string): void {
 /** マナ不足の不発（docs/COMBAT_DESIGN.md B-2 の 4）。何も消費しない。先行入力は破棄 */
 function misfire(state: GameState): void {
   const rs = state.skills;
-  notReady(state, "マナ不足");
+  notReady(state, "気力不足");
   pushSfx(state, "manaEmpty");
   rs.manaFlash = SKILL.manaFlashTime;
   rs.pendingSlot = -1;
@@ -666,7 +668,7 @@ function manaAffordable(state: GameState, index: number, r: ResolvedSlot): boole
 /** マナ不足以外の理由で撃てないときの浮き文字（満月の砲・枯渇の刃・後払いの返済待ち）。マナ不足なら null */
 function manaRuleReason(state: GameState, index: number, r: ResolvedSlot): string | null {
   if (r.def.manaRule === "full") return "満タンでない";
-  if (r.def.manaRule === "low") return "マナが多い";
+  if (r.def.manaRule === "low") return "気力が多い";
   if (r.params.deferredMul > 0 && state.skills.debtOwed > 0) return "返済残あり";
   if (r.params.deferredMul > 0 && state.skills.debts.some((d) => d.slot === index)) return "返済待ち";
   return null;

@@ -1,3 +1,4 @@
+import { enemyDefenseMul } from "./elementCombat";
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
@@ -260,7 +261,9 @@ describe("相互作用（E-3）", () => {
     const out = rollOutgoing(state, e, 10, "melee");
     const before = e.hp;
     damageEnemy(state, e, out.amount, { x: 1, y: 0 }, 0, { kind: "melee" });
-    expect(before - e.hp).toBe(Math.round(10 * 2 * STATUS.vulnerable.mul));
+    // ゴーレムは鎧の体つきで物理を軽減する（docs/COMBAT_DESIGN.md A-8）
+    const armor = enemyDefenseMul(e, "physical");
+    expect(before - e.hp).toBe(Math.round(Math.round(10 * 2 * armor) * STATUS.vulnerable.mul));
   });
 
   it("恐怖中に怯み: 怯みが優先し、恐怖の残り時間は止まる", () => {
@@ -393,7 +396,7 @@ describe("敵 → プレイヤー（E-4）", () => {
     const state = arena();
     const e = sturdy(state, "golem");
     applyStatus(state, PLAYER, apply("weaken", 3), "enemy");
-    expect(rollOutgoing(state, e, 20, "melee").amount).toBe(15);
+    expect(rollOutgoing(state, e, 20, "melee").amount, "ゴーレムの物理防御も掛かる（A-8）").toBe(Math.round(15 * enemyDefenseMul(e, "physical")));
     applyStatus(state, PLAYER, apply("silence", 1), "enemy");
     expect(playerCanCast(state)).toBe(false);
   });

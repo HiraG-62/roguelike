@@ -45,7 +45,7 @@ export function questBoardTabs(save: QuestSave): ListTab[] {
   const done = QUEST_KEYS.filter((k) => isQuestCompleted(save, k));
   return [
     { label: `未達成 ${open.length}`, entries: open.map((k) => questEntry(k, false)), empty: "すべての依頼を達成した。" },
-    { label: `達成済み ${done.length}`, entries: done.map((k) => questEntry(k, true)), empty: "まだ達成した依頼はない。ラン開始時に 1 つ受けられる。" },
+    { label: `達成済み ${done.length}`, entries: done.map((k) => questEntry(k, true)), empty: "まだ達成した依頼はない。探索の開始時に 1 つ受けられる。" },
   ];
 }
 
@@ -90,7 +90,7 @@ export function metaSummaryLines(outcome: QuestOutcome | null, discovered: numbe
     const def = QUESTS[outcome.key];
     const head = `依頼「${def.name}」 ${outcome.value}/${outcome.goal}`;
     if (outcome.newlyCompleted) lines.push(`${head} 達成！ ${questRewardLabel(def.reward)}`);
-    else lines.push(outcome.done ? `${head} 達成（報酬は受け取り済み）` : `${head} 未達成（次のランへ引き継ぐ）`);
+    else lines.push(outcome.done ? `${head} 達成（報酬は受け取り済み）` : `${head} 未達成（次の探索へ引き継ぐ）`);
   }
   const names = unlocked.map((k) => ACHIEVEMENTS.find((a) => a.key === k)?.name ?? k);
   const extra: string[] = [];

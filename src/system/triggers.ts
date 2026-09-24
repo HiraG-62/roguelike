@@ -193,7 +193,7 @@ function runExtendedEffect(state: GameState, t: EffectParams, ctx: TriggerContex
   switch (t.effect) {
     case "restoreMana":
       gainMana(state, t.magnitude);
-      addFloatingText(state, p.body.pos, "マナ", TEXT_COLOR_MANA, 0.8, 0.5);
+      addFloatingText(state, p.body.pos, "気力", TEXT_COLOR_MANA, 0.8, 0.5);
       return;
     case "addPoise":
       for (const e of effectTargets(state, ctx)) addPoise(state, e, t.magnitude);

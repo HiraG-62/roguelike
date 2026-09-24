@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { JOB_KEYS } from "../data/jobs";
 import { createEmptyProfile } from "../loot/types";
 import {
   ACHIEVEMENTS,
@@ -9,6 +10,7 @@ import {
   currentTitleLabel,
   evaluateAchievements,
   loadAchievements,
+  noteJobPlayed,
   parseAchievementSave,
   saveAchievements,
   selectTitle,
@@ -89,5 +91,27 @@ describe("実績: 永続化", () => {
     const parsed = parseAchievementSave({ version: 1, unlocked: { firstRun: 1, nope: 2 }, title: "x:bad" });
     expect(parsed?.unlocked, "未知の実績は捨てる").toEqual({ firstRun: 1 });
     expect(parsed?.title, "形の悪い称号は外す").toBeNull();
+  });
+});
+
+describe("実績: ジョブ", () => {
+  it("見習い以外のすべてのジョブで探索を終えると「百芸の旅人」が解除され、記録は保存を往復する", () => {
+    const storage = new MemoryStorage();
+    const save = createAchievementSave();
+    const playable = JOB_KEYS.filter((j) => j !== "none");
+    for (const job of playable.slice(1)) noteJobPlayed(save, job);
+    noteJobPlayed(save, "none");
+    expect(evaluateAchievements({ ...context(), jobsPlayed: save.jobsPlayed }, save, 1), "1 つ足りない").not.toContain("jobsAll");
+    const first = playable[0];
+    if (first === undefined) throw new Error("ジョブが無い");
+    const played = noteJobPlayed(save, first);
+    expect(noteJobPlayed(save, first).length, "重複して積まない").toBe(played.length);
+    expect(evaluateAchievements({ ...context(), jobsPlayed: played }, save, 2), "全ジョブ").toContain("jobsAll");
+    saveAchievements(save, storage);
+    expect(loadAchievements(storage).jobsPlayed, "往復").toEqual(save.jobsPlayed);
+    const legacy = parseAchievementSave({ version: 1, unlocked: {}, title: null });
+    expect(legacy?.jobsPlayed, "旧データは空").toEqual([]);
+    const broken = parseAchievementSave({ version: 1, unlocked: {}, title: null, jobsPlayed: ["shadow", "nope", 3, "shadow"] });
+    expect(broken?.jobsPlayed, "未知と重複は捨てる").toEqual(["shadow"]);
   });
 });

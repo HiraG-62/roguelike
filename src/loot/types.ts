@@ -1,3 +1,4 @@
+import { type ElementTable, uniformElements } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
 import { ATTR, MANA } from "../data/tuning";
@@ -281,7 +282,12 @@ export interface PlayerStats {
   lifeOnHit: number;
   /** 撃破時の回復量。コンボ HEAL.killHealMinCombo 以上でだけ発動し、共通上限を受ける */
   lifeOnKill: number;
+  /** 防御（物理の軽減。逓減式は system/combat.ts の armorReduction）。docs/COMBAT_DESIGN.md A-8 */
   armor: number;
+  /** 魔防（魔法の軽減。armor と同じ逓減式）。混成の攻撃は防御と魔防の平均で受ける */
+  warding: number;
+  /** 属性耐性（%、−100〜75 のソフトキャップは system/combat.ts の effectiveResist） */
+  resist: ElementTable;
   damageTakenMul: number;
   thorns: number;
 
@@ -364,6 +370,10 @@ export interface PlayerStats {
   /** 武器種（武器スロットのベースが決める。src/data/weapons.ts） / 射撃の型（銃スロットのベース） */
   moveset: MovesetKey;
   shot: ShotKey;
+  /** 属性の変換: 近接・射撃（通常攻撃）の威力のうちその属性へ移す割合 0..1（none は使わない。合計は 1 で頭打ち） */
+  infuse: ElementTable;
+  /** スキルの属性のうち無属性へ戻す割合 0..1（無の刻印） */
+  skillNeutral: number;
 }
 
 /**
@@ -635,6 +645,8 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   lifeOnHit: 0,
   lifeOnKill: 0,
   armor: 0,
+  warding: 0,
+  resist: uniformElements(0),
   damageTakenMul: 1,
   thorns: 0,
 
@@ -699,4 +711,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   traits: DEFAULT_TRAIT_STATS,
   moveset: "sword",
   shot: "single",
+  infuse: uniformElements(0),
+  skillNeutral: 0,
 };

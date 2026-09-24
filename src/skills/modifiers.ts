@@ -28,7 +28,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   deferred: {
     key: "deferred",
     name: "後払い",
-    verb: `撃つときは払わず、${M.deferred.delay}秒後にコスト x${M.deferred.costMul}を払う（足りない分はHP）`,
+    verb: `撃つときは払わず、${M.deferred.delay}秒後にコスト x${M.deferred.costMul}を払う（足りない分は生命）`,
     color: "#e0a040",
     keywords: kw(["lowHp"]),
     excludesTags: [],
@@ -50,7 +50,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   bloodTithe: {
     key: "bloodTithe",
     name: "血の肩代わり",
-    verb: `マナが足りなくても撃てる（不足分はHPで払う）、コスト x${M.bloodTithe.costMul}`,
+    verb: `気力が足りなくても撃てる（不足分は生命で払う）、コスト x${M.bloodTithe.costMul}`,
     color: "#c03050",
     keywords: kw(["lowHp"], ["mana"]),
     excludesTags: [],
@@ -61,7 +61,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   spillover: {
     key: "spillover",
     name: "溢れ",
-    verb: `マナ満タンで撃つとダメージ x${M.spillover.fullMul}（満タンでなければ x${M.spillover.otherMul}）`,
+    verb: `気力満タンで撃つとダメージ x${M.spillover.fullMul}（満タンでなければ x${M.spillover.otherMul}）`,
     color: "#80c0ff",
     keywords: kw([], ["mana"]),
     excludesTags: ["buff"],
@@ -72,7 +72,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   dryFire: {
     key: "dryFire",
     name: "渇き撃ち",
-    verb: `マナが最大の${pct(M.dryFire.lowRatio)}%未満ならダメージ x${M.dryFire.damageMul}（それ以上ならコスト x${M.dryFire.costMul}）`,
+    verb: `気力が最大の${pct(M.dryFire.lowRatio)}%未満ならダメージ x${M.dryFire.damageMul}（それ以上ならコスト x${M.dryFire.costMul}）`,
     color: "#a08060",
     keywords: kw([], ["mana"]),
     excludesTags: ["buff"],
@@ -94,7 +94,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   timeLock: {
     key: "timeLock",
     name: "定刻",
-    verb: `マナを使わずCDで撃つ（CD = コスト x${M.timeLock.cooldownPerCost}秒）、連打間隔 x${M.timeLock.intervalMul}`,
+    verb: `気力を使わず再使用時間で撃つ（再使用時間 = コスト x${M.timeLock.cooldownPerCost}秒）、連打間隔 x${M.timeLock.intervalMul}`,
     color: "#a0a0ff",
     keywords: kw([], [], ["mana"]),
     excludesTags: [],
@@ -113,7 +113,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   fuelize: {
     key: "fuelize",
     name: "燃料化",
-    verb: `CDを使わずマナで撃つ（コスト = CD x${M.fuelize.costPerCooldown}）、チャージは1`,
+    verb: `再使用時間を使わず気力で撃つ（コスト = 再使用時間 x${M.fuelize.costPerCooldown}）、チャージは1`,
     color: "#40a0ff",
     keywords: kw([], ["mana"]),
     excludesTags: [],
@@ -159,7 +159,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   feather: {
     key: "feather",
     name: "軽打",
-    verb: `CD x${M.feather.burdenMul}、怯み値 0`,
+    verb: `再使用時間 x${M.feather.burdenMul}、怯み値 0`,
     manaVerb: `コスト x${M.feather.burdenMul}、怯み値 0`,
     color: "#e0f0ff",
     keywords: kw([], [], ["mana"]),
@@ -220,7 +220,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   lastGasp: {
     key: "lastGasp",
     name: "散り際",
-    verb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、CD x${M.lastGasp.burdenMul}`,
+    verb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、再使用時間 x${M.lastGasp.burdenMul}`,
     manaVerb: `このスキルで倒した敵の位置で、${pct(M.lastGasp.damageMul)}%の威力の同じスキルが起きる（1回の発動で最大${M.lastGasp.maxPerCast}回）、コスト x${M.lastGasp.burdenMul}`,
     color: "#ff70a0",
     keywords: kw(["area"], ["kill"]),
@@ -242,7 +242,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   landing: {
     key: "landing",
     name: "着地衝撃",
-    verb: `移動の終わりに小さな衝撃波（怯み値${M.landing.poise}）、CD x${M.landing.burdenMul}`,
+    verb: `移動の終わりに小さな衝撃波（怯み値${M.landing.poise}）、再使用時間 x${M.landing.burdenMul}`,
     manaVerb: `移動の終わりに小さな衝撃波（怯み値${M.landing.poise}）、コスト x${M.landing.burdenMul}`,
     color: "#d0b070",
     keywords: kw(["stagger", "area"], ["dash"]),
@@ -254,7 +254,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   desperate: {
     key: "desperate",
     name: "背水",
-    verb: `HP${pct(M.desperate.hpRatio)}%未満の間はダメージ x${M.desperate.lowMul}（それ以上なら x${M.desperate.highMul}）`,
+    verb: `生命${pct(M.desperate.hpRatio)}%未満の間はダメージ x${M.desperate.lowMul}（それ以上なら x${M.desperate.highMul}）`,
     color: "#ff5050",
     keywords: kw([], ["lowHp"]),
     excludesTags: ["buff"],
@@ -274,7 +274,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
   cycle: {
     key: "cycle",
     name: "巡り",
-    verb: `直前に他のスキルを2回撃っていればCD x${M.cycle.freshMul}（直前も同じスキルなら x${M.cycle.repeatMul}）`,
+    verb: `直前に他のスキルを2回撃っていれば再使用時間 x${M.cycle.freshMul}（直前も同じスキルなら x${M.cycle.repeatMul}）`,
     manaVerb: `直前に他のスキルを2回撃っていればコスト x${M.cycle.freshMul}（直前も同じスキルなら x${M.cycle.repeatMul}）`,
     color: "#c0ffc0",
     keywords: kw([], [], ["mana"]),

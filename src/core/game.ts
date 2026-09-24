@@ -29,6 +29,7 @@ import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boo
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { type RunSetup, defaultRunSetup, originKeystones, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
+import { startJob } from "../system/jobs";
 import { createRuleRunState } from "./events";
 import { createCodexRun } from "../meta/codex";
 import { createQuestRun } from "../meta/quests";
@@ -100,6 +101,7 @@ export function createGame(
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
     origin: setup.origin,
+    job: setup.job ?? "none",
     lockedRelics: [...(setup.lockedRelics ?? [])],
     stairs: [],
     events: [],
@@ -117,6 +119,8 @@ export function createGame(
   // 起点の初期効果（祝福・刻印符・振り分け点）。放浪者は何もしない（乱数も消費しない）
   startOrigin(state);
   buildFloor(state);
+  // ジョブの初期スキル石（未所持のときだけ倉庫へ。見習いは何もしない）
+  startJob(state);
   pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 斬撃 / 右クリック 射撃 / F バースト", "#ffd75f");
   return state;
 }

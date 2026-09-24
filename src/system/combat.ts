@@ -1,7 +1,7 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
-import { ACTION, ARMOR_K, ARMOR_MAX_REDUCTION, FEEL, HEAL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
+import { ACTION, FEEL, HEAL, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
@@ -18,6 +18,8 @@ import { onTraitHit, onTraitKill, onTraitStagger, traitIncomingMul, traitOutgoin
 import { interceptEnemyDamage } from "./elites";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
 import { boonForcesCrit, boonPoise, onBoonHurt } from "./boonRules";
+import type { AttackProfile } from "../core/element";
+import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -66,11 +68,18 @@ export interface HitOptions {
 /** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
 export interface OutgoingOptions {
   skill?: boolean;
+  /**
+   * 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。省略時は近接 = 武器種、射撃 = 射撃の型、スキル = 無属性の物理、
+   * proc = 素性なし（防御・耐性を掛けない）。null を渡すと素性なし
+   */
+  attack?: AttackProfile | null;
 }
 
 export interface OutgoingHit {
   amount: number;
   crit: boolean;
+  /** 属性の弱点 / 耐性に当たったか（素性なし・敵なしは neutral） */
+  affinity: ElementAffinity;
 }
 
 /** コンボ数からスコア倍率。5 ヒットごとに +0.5 */
@@ -124,7 +133,20 @@ export function rollOutgoing(
   amount *= berserkerMul(state);
   amount *= gamblerMul(state);
   amount *= traitOutgoingMul(state, enemy, kind, opts.skill === true);
-  return { amount: Math.max(MIN_DAMAGE, Math.round(amount)), crit };
+  const element = enemy ? genreAndElement(state, enemy, kind, opts) : null;
+  if (element) amount *= element.mul;
+  return { amount: Math.max(MIN_DAMAGE, Math.round(amount)), crit, affinity: element?.affinity ?? "neutral" };
+}
+
+/** A-8: 敵の防御（質軸）と属性耐性の倍率。弱点 / 耐性の表示と、属性が呼ぶ状態異常の抽選もここで起こす */
+function genreAndElement(state: GameState, enemy: Enemy, kind: DamageKind, opts: OutgoingOptions): OutgoingElement | null {
+  const skill = opts.skill === true;
+  const atk = resolveAttack(state.stats, kind, skill, opts.attack);
+  if (!atk) return null;
+  const out = outgoingElement(state.stats, enemy, atk, skill);
+  showAffinity(state, enemy, out.affinity);
+  rollElementAffinity(state, enemy, out.shares);
+  return out;
 }
 
 /** 敵にダメージ。倒したら true。配列からの除去は enemies 側で行う */
@@ -373,14 +395,13 @@ export interface DamagePlayerOptions {
 
 /** armor の被ダメ軽減率（PoE 風の逓減式）。0..ARMOR_MAX_REDUCTION */
 export function armorReduction(armor: number): number {
-  if (armor <= 0) return 0;
-  return Math.min(ARMOR_MAX_REDUCTION, armor / (armor + ARMOR_K));
+  return defenseReduction(armor);
 }
 
-/** 被ダメ計算: armor で軽減してから damageTakenMul。最低 1 */
-export function mitigate(state: GameState, amount: number): number {
+/** 被ダメ計算: 攻撃の質で防御 / 魔防を選び、属性耐性を掛けてから damageTakenMul。最低 1（docs/COMBAT_DESIGN.md A-8） */
+export function mitigate(state: GameState, amount: number, attack: AttackProfile | null = null): number {
   const s = state.stats;
-  const reduced = amount * (1 - armorReduction(s.armor));
+  const reduced = amount * playerMitigationMul(s, attack);
   return Math.max(MIN_PLAYER_DAMAGE, Math.round(reduced * s.damageTakenMul));
 }
 
@@ -402,7 +423,8 @@ export function damagePlayer(
     return "ignored";
   }
 
-  const taken = mitigate(state, amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker));
+  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker);
+  const taken = mitigate(state, raw, enemyAttackOf(attacker));
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);
   onPlayerHurtStatus(state);
@@ -494,7 +516,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
   gainMana(state, MANA.onJust);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "ジャスト！", COLOR_JUST, 1.5, 0.7);
+  addFloatingText(state, p.body.pos, "見切り！", COLOR_JUST, 1.5, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");

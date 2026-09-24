@@ -257,7 +257,7 @@ describe("statsSummary", () => {
       comboWindowBonus: 0.5,
     });
     expect(summary).toEqual([
-      "最大HP 140",
+      "最大生命 140",
       "近接ダメージ +25%",
       "会心率 12%",
       "コンボ猶予 +0.5秒",
@@ -280,7 +280,7 @@ describe("computeStats: マナの性質と渇きの誓約", () => {
     equipment.boots = makeItem("boots", { affixes: [{ key: "manaOnKillFlat", value: 4 }] });
     const stats = computeStats(equipment);
     expect(stats.manaOnKill).toBe(4);
-    expect(statsSummary(stats)).toContain("撃破時マナ回収 4");
+    expect(statsSummary(stats)).toContain("撃破時気力回収 4");
   });
 
   it("最大マナ −の性質を重ねても最大マナは 0 未満にならない", () => {

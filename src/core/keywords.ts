@@ -45,6 +45,14 @@ export const KEYWORDS = [
   "gold",
   "umbra",
   "inverted",
+  // 属性（docs/COMBAT_DESIGN.md A-8）。状態異常の語（燃焼・冷気…）とは別。出す = その属性で攻撃する / 食う = その属性が弱点
+  "elNone",
+  "elFire",
+  "elIce",
+  "elLightning",
+  "elPoison",
+  "elDark",
+  "elLight",
 ] as const;
 
 export type Keyword = (typeof KEYWORDS)[number];
@@ -61,14 +69,14 @@ export const KEYWORD_DEFS: Readonly<Record<Keyword, KeywordDef>> = {
   melee: { label: "近接", glyph: "剣", color: "#e0e0e0" },
   ranged: { label: "射撃", glyph: "射", color: "#a0d8ff" },
   dash: { label: "ダッシュ", glyph: "駆", color: "#80ffd0" },
-  just: { label: "ジャスト", glyph: "見", color: "#ffffff" },
+  just: { label: "見切り", glyph: "見", color: "#ffffff" },
   combo: { label: "コンボ", glyph: "連", color: "#ffd75f" },
   finisher: { label: "終撃", glyph: "終", color: "#ffb040" },
   counter: { label: "カウンター", glyph: "返", color: "#ff9060" },
   still: { label: "静止", glyph: "静", color: "#9090c0" },
-  mana: { label: "マナ", glyph: "魔", color: "#6080ff" },
+  mana: { label: "気力", glyph: "気", color: "#6080ff" },
   energy: { label: "必殺ゲージ", glyph: "必", color: "#ffe040" },
-  lowHp: { label: "低HP", glyph: "瀕", color: "#c03030" },
+  lowHp: { label: "瀕死", glyph: "瀕", color: "#c03030" },
   heal: { label: "回復", glyph: "癒", color: "#60ff80" },
   hurt: { label: "被弾", glyph: "傷", color: "#ff6060" },
   ward: { label: "障壁", glyph: "護", color: "#c0e0ff" },
@@ -98,6 +106,13 @@ export const KEYWORD_DEFS: Readonly<Record<Keyword, KeywordDef>> = {
   gold: { label: "金", glyph: "金", color: "#e0c048" },
   umbra: { label: "冥", glyph: "冥", color: "#9058c0" },
   inverted: { label: "反転", glyph: "逆", color: "#c0c0c0" },
+  elNone: { label: "無属性", glyph: "無", color: "#c8c8c8" },
+  elFire: { label: "炎属性", glyph: "焔", color: "#ff6a30" },
+  elIce: { label: "氷属性", glyph: "凍", color: "#70c8ff" },
+  elLightning: { label: "雷属性", glyph: "轟", color: "#ffe050" },
+  elPoison: { label: "毒属性", glyph: "瘴", color: "#80e040" },
+  elDark: { label: "闇属性", glyph: "闇", color: "#a060e0" },
+  elLight: { label: "光属性", glyph: "光", color: "#fff4c0" },
 };
 
 /** 語への関わり方の 3 動詞。produces = 出す / consumes = 食う / amplifies = 強める */

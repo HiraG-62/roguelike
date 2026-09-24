@@ -687,3 +687,42 @@ describe("シナジーの穴: 沈黙で詠唱が止まる（H4）", () => {
     expect(state.hazards.some((h) => h.kind === "laser")).toBe(false);
   });
 });
+
+describe("同時攻撃の上限（ENEMY_AI.maxSimultaneousStrikers）", () => {
+  /** 予備動作が次のステップで終わる状態にして置く */
+  function aboutToStrike(state: GameState, dx: number, dy: number): Enemy {
+    const e = placeEnemy(state, "slime", dx, dy);
+    e.phase = "windup";
+    e.phaseTimer = FIXED_DT / 2;
+    return e;
+  }
+
+  it("上限を超えた 3 体目は予備動作のまま待ち、枠が空いてから攻撃する", () => {
+    expect(ENEMY_AI.maxSimultaneousStrikers, "既定の上限は 2").toBe(2);
+    const state = arena();
+    state.player.maxHp = HUGE_HP;
+    state.player.hp = HUGE_HP;
+    const a = aboutToStrike(state, 30, 0);
+    const b = aboutToStrike(state, -30, 0);
+    const c = aboutToStrike(state, 0, 30);
+    tickEnemies(state);
+    expect(a.phase, "id の若い 1 体目は攻撃に入る").toBe("strike");
+    expect(b.phase, "2 体目も攻撃に入る").toBe("strike");
+    expect(c.phase, "3 体目は予備動作のまま待つ").toBe("windup");
+    for (let i = 0; i < 600 && c.phase === "windup"; i++) {
+      tickEnemies(state);
+      const striking = state.enemies.filter((e) => e.phase === "strike").length;
+      expect(striking, "攻撃中の敵は常に上限以下").toBeLessThanOrEqual(ENEMY_AI.maxSimultaneousStrikers);
+    }
+    expect(c.phase, "枠が空けば 3 体目も攻撃する").toBe("strike");
+  });
+
+  it("上限未満なら待たずに攻撃へ移る", () => {
+    const state = arena();
+    const a = aboutToStrike(state, 30, 0);
+    const b = aboutToStrike(state, -30, 0);
+    tickEnemies(state);
+    expect(a.phase).toBe("strike");
+    expect(b.phase).toBe("strike");
+  });
+});

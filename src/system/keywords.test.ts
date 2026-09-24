@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { KEYWORDS, type Keyword, emptyProfile, kw, mergeProfiles, profileKeywords } from "../core/keywords";
+import { ELEMENTS } from "../core/element";
+import { KEYWORDS, KEYWORD_DEFS, type Keyword, emptyProfile, kw, mergeProfiles, profileKeywords } from "../core/keywords";
 import { createRng } from "../core/rng";
 import { STATUS_KINDS, type StatusKind } from "../core/status";
 import { ENEMY_COMBAT } from "../data/enemyCombat";
@@ -24,11 +25,13 @@ import { BOONS, BOON_KEYS, type BoonTag } from "./boonDefs";
 import { boonAffinityMul, equipmentTags } from "./boons";
 import { KEYSTONE_NAME, KS } from "./keystones";
 import {
+  ELEMENT_KEYWORD,
   type KeywordHolder,
   STATUS_KEYWORDS,
   affinity,
   buildGaps,
   buildProfile,
+  enemyKeywords,
   keywordCoverage,
   keywordSources,
   profileGaps,
@@ -65,6 +68,8 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   const ks = new Set(stats.keystones);
   const d = DEFAULT_STATS;
   if (stats.burnChance > 0 || effects.has("burnNearby")) tags.add("burn");
+  // 属性の変換（docs/COMBAT_DESIGN.md A-8 で追加。旧実装には無かった事実なのでここに足した）
+  if (Object.values(stats.infuse).some((v) => v > 0)) tags.add("element");
   if (stats.chillChance > 0 || effects.has("freezeNearby")) tags.add("chill");
   if (stats.shockChance > 0 || effects.has("chainLightning")) tags.add("shock");
   if (stats.explodeOnKillChance > 0 || effects.has("explode") || ks.has(KS.blink)) tags.add("explode");
@@ -162,9 +167,21 @@ function holder(stats: PlayerStats, boons: KeywordHolder["boons"] = []): Keyword
 // -----------------------------------------------------------------------------
 
 describe("語の型", () => {
-  it("40 語で、重複しない", () => {
-    expect(KEYWORDS.length, "語の数").toBe(40);
+  it("47 語（属性 7 語を含む）で、重複しない。字形も重ならない", () => {
+    expect(KEYWORDS.length, "語の数").toBe(47);
     expect(new Set(KEYWORDS).size, "重複").toBe(KEYWORDS.length);
+    expect(new Set(KEYWORDS.map((k) => KEYWORD_DEFS[k].glyph)).size, "字形の重複").toBe(KEYWORDS.length);
+  });
+
+  it("属性 7 種すべてに語があり、敵の弱点は「食う」、攻撃の属性は「出す」に写る", () => {
+    for (const e of ELEMENTS) expect(KEYWORDS, `属性 ${e}`).toContain(ELEMENT_KEYWORD[e]);
+    const golemDef = ENEMY_COMBAT.frostGolem;
+    if (!golemDef) throw new Error("frostGolem が無い");
+    const frostGolem = enemyKeywords(golemDef);
+    expect(frostGolem.consumes, "霜ゴーレムは炎が弱点").toContain("elFire");
+    expect(frostGolem.produces, "霜ゴーレムは氷属性で攻撃する").toContain("elIce");
+    expect(skillKeywords(SKILL_DEFS.thunder).produces, "雷撃は雷属性").toContain("elLightning");
+    expect(statsKeywords({ ...DEFAULT_STATS, infuse: { ...DEFAULT_STATS.infuse, fire: 0.4 } }).produces, "炎の変換").toContain("elFire");
   });
 
   it("kw / mergeProfiles は重複を除き KEYWORDS の順に並べる（決定性）", () => {
@@ -202,7 +219,7 @@ describe("全要素が語を持つ", () => {
     for (const [key, p] of Object.entries(FLOOR_KEYWORDS)) expect(profileKeywords(p).length, `フロア ${key}`).toBeGreaterThan(0);
   });
 
-  it("40 語すべてに「出す」要素と「食う」要素が 1 つ以上ある（無い語は網の行き止まり）", () => {
+  it("全語に「出す」要素と「食う」要素が 1 つ以上ある（無い語は網の行き止まり）", () => {
     const coverage = keywordCoverage(keywordSources());
     const noProducer = coverage.filter((c) => c.produces === 0).map((c) => c.key);
     const noConsumer = coverage.filter((c) => c.consumes === 0).map((c) => c.key);

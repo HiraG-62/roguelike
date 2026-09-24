@@ -1,3 +1,4 @@
+import { type AttackProfile, attack } from "../core/element";
 import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
@@ -481,7 +482,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     key: "parry",
     name: "パリィ",
     icon: "P",
-    verb: "構える。防いだ一撃はJUST扱いになり、CDが戻る",
+    verb: "構える。防いだ一撃は見切り扱いになり、再使用時間が戻る",
     tags: ["defense", "melee"],
     keywords: kw(["just", "counter"], ["hurt"]),
     damageKind: "melee",
@@ -492,7 +493,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     key: "bloodPact",
     name: "血の契約",
     icon: "B",
-    verb: "HPを払って攻撃速度と吸血を得る",
+    verb: "生命を払って攻撃速度と吸血を得る",
     tags: ["buff"],
     keywords: kw(["lowHp", "heal"], [], ["melee"]),
     damageKind: "none",
@@ -551,7 +552,7 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     key: "haste",
     name: "加速",
     icon: "H",
-    verb: "ダッシュがCD無しになり移動速度が上がる。切れた後はダッシュ不可",
+    verb: "ダッシュの再使用時間が無くなり移動速度が上がる。切れた後はダッシュ不可",
     tags: ["buff", "movement"],
     keywords: kw(["dash"], [], ["dash"]),
     damageKind: "none",
@@ -632,7 +633,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   multiCharge: {
     key: "multiCharge",
     name: "多重",
-    verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、CD x${M.multiCharge.burdenMul}`,
+    verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、再使用時間 x${M.multiCharge.burdenMul}`,
     manaVerb: `コスト x${M.multiCharge.manaBurdenMul}、連打間隔 x${M.multiCharge.intervalMul}、ダメージ x${M.multiCharge.damageMul}`,
     color: "#ffffff",
     keywords: kw([], [], ["mana"]),
@@ -655,8 +656,8 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   bloodPrice: {
     key: "bloodPrice",
     name: "血の代償",
-    verb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費`,
-    manaVerb: `ダメージ x${M.bloodPrice.damageMul}、最大HPの${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費してコスト x${M.bloodPrice.manaBurdenMul}`,
+    verb: `ダメージ x${M.bloodPrice.damageMul}、最大生命の${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費`,
+    manaVerb: `ダメージ x${M.bloodPrice.damageMul}、最大生命の${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費してコスト x${M.bloodPrice.manaBurdenMul}`,
     color: "#ff4040",
     keywords: kw(["lowHp"]),
     excludesTags: [],
@@ -684,7 +685,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   echo: {
     key: "echo",
     name: "反響",
-    verb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、CD x${M.echo.burdenMul}`,
+    verb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、再使用時間 x${M.echo.burdenMul}`,
     manaVerb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、コスト x${M.echo.burdenMul}`,
     color: "#c080ff",
     keywords: kw([], [], ["area"]),
@@ -722,7 +723,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   chainReset: {
     key: "chainReset",
     name: "連鎖",
-    verb: `このスキルでの撃破でチャージが1回復、CD x${M.chainReset.burdenMul}`,
+    verb: `このスキルでの撃破でチャージが1回復、再使用時間 x${M.chainReset.burdenMul}`,
     manaVerb: `このスキルでの撃破でコストの${M.chainReset.manaRefund * PERCENT_UNIT}%を返す、コスト x${M.chainReset.manaBurdenMul}`,
     color: "#ffff80",
     keywords: kw(["mana"], ["kill"]),
@@ -757,7 +758,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
   expand: {
     key: "expand",
     name: "拡大",
-    verb: `範囲 x${M.expand.areaMul}、CD x${M.expand.burdenMul}`,
+    verb: `範囲 x${M.expand.areaMul}、再使用時間 x${M.expand.burdenMul}`,
     manaVerb: `範囲 x${M.expand.areaMul}、コスト x${M.expand.burdenMul}`,
     color: "#60a0ff",
     keywords: kw([], [], ["area"]),
@@ -941,15 +942,15 @@ export function modifierVerb(key: ModifierKey, def: Readonly<SkillDef>, resource
 }
 
 /** 負担の軸（cooldownVs*）の表示名。マナ型は「コスト」、CD 型は「CD」 */
-export const BURDEN_LABEL: Record<SkillResource, string> = { mana: "コスト", cooldown: "CD" };
+export const BURDEN_LABEL: Record<SkillResource, string> = { mana: "コスト", cooldown: "再使用" };
 
 const AXIS_LABEL: Record<VariantAxis, readonly [string, string]> = {
   areaVsDamage: ["範囲", "ダメージ"],
-  cooldownVsDamage: ["CD", "ダメージ"],
+  cooldownVsDamage: ["再使用", "ダメージ"],
   speedVsDamage: ["速度", "ダメージ"],
   countVsDamage: ["回数", "ダメージ"],
   durationVsPotency: ["持続", "効果量"],
-  cooldownVsPotency: ["CD", "効果量"],
+  cooldownVsPotency: ["再使用", "効果量"],
 };
 
 const PERCENT = PERCENT_UNIT;
@@ -980,4 +981,68 @@ export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>, resour
 /** 石の表示名: スキル名 + リンク記号 */
 export function stoneLabel(stone: SkillStone): string {
   return `${SKILL_DEFS[stone.skillKey].name} ${"◆".repeat(stone.links)}${"◇".repeat(SKILL.maxLinks - stone.links)}`;
+}
+
+// ---------------------------------------------------------------------------
+// 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）
+// ---------------------------------------------------------------------------
+
+/**
+ * スキルごとの攻撃の素性。null は与ダメを持たないスキル（強化・移動・設置の補助）。
+ * ジャンルは Scaling の参照ステータスと揃える（主か副を必ず含む。skills/skills.test.ts が検査する）。
+ * 体力で伸びる震脚・恨み返し・巻き戻し・傷返しは「体を張る」系で、既定表の副（範囲・物理 = 体力）か筋力で揃えている
+ */
+export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
+  whirl: attack("melee", "hybrid"),
+  lunge: attack("melee", "physical"),
+  frag: attack("area", "hybrid", "fire"),
+  railshot: attack("ranged", "hybrid", "light"),
+  parry: attack("melee", "hybrid"),
+  bloodPact: null,
+  quake: attack("area", "physical"),
+  thunder: attack("area", "arcane", "lightning"),
+  gravityWell: attack("area", "arcane", "dark"),
+  mines: attack("area", "hybrid", "fire"),
+  haste: null,
+  chainHook: attack("melee", "physical"),
+  spiral: attack("ranged", "hybrid"),
+  frostField: attack("area", "arcane", "ice"),
+  contagion: null,
+  unravel: attack("ranged", "arcane"),
+  kindle: attack("area", "arcane", "fire"),
+  prismShard: attack("ranged", "hybrid"),
+  fullMoon: attack("ranged", "arcane", "light"),
+  dregsBlade: attack("melee", "hybrid"),
+  shadowStep: null,
+  powderKeg: attack("area", "hybrid", "fire"),
+  swordGrave: attack("melee", "hybrid"),
+  iceBreaker: attack("melee", "physical", "ice"),
+  bloodlet: attack("melee", "hybrid", "dark"),
+  harvest: attack("ranged", "hybrid", "poison"),
+  discharge: attack("area", "arcane", "lightning"),
+  rout: attack("ranged", "physical"),
+  verdict: attack("melee", "hybrid", "light"),
+  exploit: attack("melee", "physical"),
+  strip: attack("ranged", "arcane", "dark"),
+  lastStand: attack("melee", "physical"),
+  comboChain: attack("melee", "physical"),
+  grudge: attack("melee", "physical"),
+  guillotine: attack("melee", "physical"),
+  ricochet: attack("ranged", "physical"),
+  galeSlash: attack("ranged", "physical"),
+  scatterSigil: attack("ranged", "physical"),
+  stomp: attack("area", "physical"),
+  threadReel: attack("ranged", "physical"),
+  meteorDive: attack("area", "hybrid", "fire"),
+  swallowFlip: attack("melee", "physical"),
+  boneRing: null,
+  backflow: attack("melee", "physical"),
+  scarRoar: attack("area", "arcane"),
+  manaSpring: null,
+  turret: attack("ranged", "physical"),
+};
+
+/** スキルの攻撃の素性（与ダメを持たないスキルは null） */
+export function skillAttack(key: SkillKey): AttackProfile | null {
+  return SKILL_ATTACK[key];
 }

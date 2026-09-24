@@ -319,20 +319,20 @@ describe("resolveCast", () => {
     const p = resolveCast(SKILL_DEFS.haste, stone("haste", 0, { variants: [{ axis: "cooldownVsPotency", value: 1 }] }), []);
     expect(p.burdenMul).toBeCloseTo(0.7);
     expect(p.potencyMul).toBeCloseTo(0.75);
-    expect(formatVariant({ axis: "cooldownVsPotency", value: 1 }, SKILL_DEFS.haste)).toBe("CD -30% / 効果量 -25%");
+    expect(formatVariant({ axis: "cooldownVsPotency", value: 1 }, SKILL_DEFS.haste)).toBe("再使用 -30% / 効果量 -25%");
   });
 
   it("負担の変異軸の表示はマナ型で「コスト」、CD 型で「CD」", () => {
     const roll = { axis: "cooldownVsDamage", value: 1 } as const;
     expect(formatVariant(roll, SKILL_DEFS.whirl)).toBe("コスト -30% / ダメージ -25%");
-    expect(formatVariant(roll, SKILL_DEFS.lunge)).toBe("CD -30% / ダメージ -25%");
+    expect(formatVariant(roll, SKILL_DEFS.lunge)).toBe("再使用 -30% / ダメージ -25%");
   });
 
   it("定刻・燃料化で資源が差し替わると、表示も差し替え後の資源で出す", () => {
     const roll = { axis: "cooldownVsDamage", value: 1 } as const;
     const timeLocked = resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["timeLock"]);
     expect(timeLocked.resource, "定刻でマナ型が CD 型になる").toBe("cooldown");
-    expect(formatVariant(roll, SKILL_DEFS.whirl, timeLocked.resource)).toBe("CD -30% / ダメージ -25%");
+    expect(formatVariant(roll, SKILL_DEFS.whirl, timeLocked.resource)).toBe("再使用 -30% / ダメージ -25%");
     expect(modifierVerb("multiCharge", SKILL_DEFS.whirl, timeLocked.resource)).toBe(MODIFIERS.multiCharge.verb);
     const fueled = resolveCast(SKILL_DEFS.lunge, stone("lunge", 1), ["fuelize"]);
     expect(fueled.resource, "燃料化で CD 型がマナ型になる").toBe("mana");
@@ -464,7 +464,7 @@ describe("大拡張の刻印符（resolveCast）", () => {
 
   it("新しい刻印符の説明はマナ型で読み替える（軽打・散り際・着地衝撃・巡り）", () => {
     expect(modifierVerb("feather", SKILL_DEFS.whirl)).toContain("コスト");
-    expect(modifierVerb("feather", SKILL_DEFS.lunge)).toContain("CD");
+    expect(modifierVerb("feather", SKILL_DEFS.lunge)).toContain("再使用時間");
   });
 });
 

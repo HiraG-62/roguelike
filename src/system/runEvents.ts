@@ -59,14 +59,14 @@ export const RUN_EVENTS: Readonly<Record<RunEventKey, RunEventDef>> = {
   blackout: { name: "停電", warn: "明かりがちらつく", active: "停電: 燃える敵が灯りになる", scope: "room" },
   quake: { name: "地震", warn: "地鳴りがする", active: "地震: 落石に注意（敵にも当たる）", scope: "room" },
   treasureRain: { name: "宝の雨", warn: "天井がきしむ", active: "宝の雨！", scope: "room" },
-  manaDrought: { name: "マナ枯渇", warn: "空気が乾いていく", active: "マナ枯渇: 制圧でマナが満ちる", scope: "room" },
+  manaDrought: { name: "気力枯渇", warn: "空気が乾いていく", active: "気力枯渇: 制圧で気力が満ちる", scope: "room" },
   timeRift: { name: "刻の裂け目", warn: "空間が軋む", active: "刻の裂け目: 触れると敵が止まる", scope: "room" },
   fog: { name: "霧", warn: "霧が立ち込める", active: "霧: 視界が狭い", scope: "floor" },
-  curseWind: { name: "呪いの風", warn: "生ぬるい風が吹く", active: "呪いの風: 次の部屋のエリート x2", scope: "room" },
+  curseWind: { name: "呪いの風", warn: "生ぬるい風が吹く", active: "呪いの風: 次の部屋の精鋭 x2", scope: "room" },
   bloodMoon: { name: "血の月", warn: "月が赤く染まる", active: "血の月: 撃破で回復・敵が硬い", scope: "floor" },
   frenzyMoon: { name: "狂乱の月", warn: "月が揺らめく", active: "狂乱の月: 敵が迅速・報酬増", scope: "floor" },
   meteor: { name: "流星群", warn: "空が裂ける", active: "流星群: 着弾円に注意（敵にも当たる）", scope: "room" },
-  shrink: { name: "縮みの呪い", warn: "敵の影が揺らぐ", active: "縮みの呪い: 敵が倍に・HP は半分", scope: "room" },
+  shrink: { name: "縮みの呪い", warn: "敵の影が揺らぐ", active: "縮みの呪い: 敵が倍に・生命は半分", scope: "room" },
   momentum: { name: "勢いの風", warn: "背中を風が押す", active: "勢いの風: すぐ次の部屋へ", scope: "room" },
 };
 

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ATTACK_QUALITIES, ATTACK_RANGES } from "../core/element";
+import { GENRE_ATTRS, genreAttrs, genreScaling, scaledAtBase, scalingFitsGenre } from "./attributes";
 import { createGame } from "../core/game";
 import { ACTION, ATTR, PLAYER } from "../data/tuning";
 import { SKILL } from "../skills/data";
@@ -216,5 +218,36 @@ describe("基礎値のステータスで全攻撃・全スキルの威力が QA 
 
   it.each(BASELINE)("$label: 係数表を基礎値で評価すると段階 0 前の値になる", (row) => {
     expect(scaled(baseStats, row.scaling), `${row.label} の係数表がずれている`).toBeCloseTo(row.pinned, FLOAT_DIGITS);
+  });
+});
+
+describe("攻撃ジャンルの参照ステータス（A-8）", () => {
+  it("範囲軸 × 質軸の 9 通りすべてに主と副があり、主と副は別のステータス", () => {
+    for (const range of ATTACK_RANGES) {
+      for (const quality of ATTACK_QUALITIES) {
+        const a = GENRE_ATTRS[range][quality];
+        expect(a.primary, `${range}・${quality}`).not.toBe(a.secondary);
+      }
+    }
+  });
+
+  it("物理は筋力 / 技巧、魔法は霊力、混成は筋力か技巧と霊力を参照する", () => {
+    expect(genreAttrs({ range: "melee", quality: "physical" }).primary).toBe("str");
+    expect(genreAttrs({ range: "ranged", quality: "physical" }).primary).toBe("dex");
+    for (const range of ATTACK_RANGES) expect(genreAttrs({ range, quality: "arcane" }).primary, range).toBe("spi");
+    for (const range of ATTACK_RANGES) expect(genreAttrs({ range, quality: "hybrid" }).secondary, range).toBe("spi");
+  });
+
+  it("genreScaling は基礎値（各 5）で指定の威力に一致するよう base を逆算する", () => {
+    const s = genreScaling({ range: "area", quality: "arcane" }, 20, 1.2);
+    expect(scaledAtBase(s)).toBeCloseTo(20);
+    expect(s.spi).toBeCloseTo(1.2);
+    expect(s.mnd).toBeCloseTo(0.6);
+  });
+
+  it("scalingFitsGenre は主か副を含めば揃っている、どちらも無ければ揃っていない", () => {
+    const melee = { range: "melee", quality: "physical" } as const;
+    expect(scalingFitsGenre({ base: 1, dex: 0.5 }, melee), "双剣（技巧だけ）").toBe(true);
+    expect(scalingFitsGenre({ base: 1, spi: 0.5 }, melee), "霊力だけ").toBe(false);
   });
 });

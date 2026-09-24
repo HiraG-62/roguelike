@@ -362,7 +362,7 @@ function historyDateLabel(date: number): string {
 export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistoryScreenView): void {
   const { history, cursor } = view;
   fillBg(ctx);
-  drawText(ctx, "ラン履歴", VIEW_W / 2, 18, TEXT.TITLE, COLOR_TITLE, "center");
+  drawText(ctx, "探索履歴", VIEW_W / 2, 18, TEXT.TITLE, COLOR_TITLE, "center");
 
   const m = TEXT.SMALL;
   if (history.length === 0) {

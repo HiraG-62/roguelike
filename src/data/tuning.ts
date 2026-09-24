@@ -708,9 +708,25 @@ export const LOOT_DROP = {
    * 通常敵のドロップ確率に掛ける倍率。添字 0 = 深度 1、表より深ければ最後の値。
    * エリート・ボス・巣窟の主（dropChance 1）には掛けない（memo 2026-09-24: 「たくさん倒しても出ない、強敵を倒すと出る」）
    */
-  mobDropMulByDepth: [0.4, 0.45, 0.5, 0.55],
-  /** 部屋制圧の報酬が出る確率（添字 0 = 深度 1、表より深ければ最後の値。旧: 常に 1 個） */
-  roomClearChanceByDepth: [0.35, 0.45, 0.55, 0.7],
+  mobDropMulByDepth: [0.1, 0.12, 0.15, 0.2],
+  /**
+   * 徘徊・増援（roomIndex = ROAMING_ROOM。開放型フロアの時間湧き）の通常敵に、さらに掛ける倍率。
+   * 増援は時間とともに湧き続けるので、倒した数でドロップの母数が膨らまないよう絞る（エリートは掛けない）
+   */
+  roamingDropMul: 0.5,
+  /**
+   * エリートのドロップ確率に掛ける倍率（elites.ts の追加抽選も enemyDropChance を通るので両方に効く）。
+   * エリートは深度 1 でも約 1 割が混ざり、撃破起因のドロップの大半を占めていた（QA 0.0.7α）。
+   * 通常敵よりは十分高いまま（×0.1〜0.2 に対して ×0.35）残す。ボス・巣窟の主（確定）には掛けない
+   */
+  eliteDropMul: 0.35,
+  /**
+   * 部屋制圧の報酬が出る確率（添字 0 = 深度 1、表より深ければ最後の値。旧: 常に 1 個）。
+   * 開放型フロアは塊が多く制圧の回数が増えたので [0.35, 0.45, 0.55, 0.7] から下げた（QA 0.0.7α: 拾得数が前回比 1.5〜2.6 倍）
+   */
+  roomClearChanceByDepth: [0.1, 0.12, 0.15, 0.2],
+  /** 階層到達の報酬が出る確率（旧: 常に 1 個。同上の理由で絞る） */
+  depthArrivalChance: 0.35,
   /** itemLevel = depth + rng(0..spread) */
   itemLevelSpread: 2,
   rarityBoostPerDepth: 0.02,
@@ -772,6 +788,12 @@ export const ROOM = {
 
 /** 追加敵の行動パラメータ */
 export const ENEMY_AI = {
+  /**
+   * 同時に攻撃の出だし（strike）に入れる敵の数。超えた敵は予備動作のまま strikerHoldTime ずつ待つ（予告は出たまま）。
+   * QA 0.0.7α: 1 対 1 被弾 9.74 回/60 秒。囲まれたときに予告の重なりで避けられない瞬間を作らない（テレグラフ原則）
+   */
+  maxSimultaneousStrikers: 2,
+  strikerHoldTime: 0.1,
   knight: {
     /** 盾で防ぐ正面の角度（度） */
     blockArcDeg: 120,
@@ -1082,12 +1104,15 @@ export const BOSS = {
   kingSlime: {
     jumpTime: 0.9,
     shockRadius: 60,
-    shockDamage: 22,
+    /** 22 → 17: QA 0.0.7α で死因単独 2 位（18 件）。被ダメの 7 割が着地の衝撃波で、
+     * 深度 3 で他ボスの約 2 倍の速さでプレイヤーを倒していたため（頻度・範囲は変えず 1 回の重さを下げる） */
+    shockDamage: 17,
     phase2Ratio: 0.5,
-    splitCount: 4,
+    /** 4 → 3: 第 2 段階の囲まれ方を和らげる（分裂の意味は残す） */
+    splitCount: 3,
     phase2SpeedMul: 1.6,
-    /** 着地までの空中時間の最小（フェーズ 2） */
-    phase2JumpTime: 0.65,
+    /** 着地までの空中時間の最小（フェーズ 2）。0.65 → 0.8: 影を見てから走って抜けられる長さにする（テレグラフ原則） */
+    phase2JumpTime: 0.8,
   },
   boneLord: {
     bulletSpeed: 110,
@@ -1509,6 +1534,10 @@ export const ROAM = {
   minSpawnDist: 260,
   /** 増援の位置を探す回数 */
   spawnAttempts: 24,
+  /** 増援はカメラの表示範囲（480x270）からさらにこの px 外に出す（画面の角に湧かせない） */
+  offscreenMargin: 24,
+  /** 開放型: 部屋の外でも、その部屋の気付いた敵がこの距離（px）以内にいれば交戦中（system/engagement.ts） */
+  engageLeash: 160,
 } as const;
 
 /** ランイベント（src/system/runEvents.ts。docs/ideas/run-expansion.md 3 章）。すべて予告してから始まる */
@@ -1622,6 +1651,63 @@ export const ORIGIN = {
   reaperFriendPoints: 1,
 } as const;
 
+/** ジョブ（src/data/jobs.ts / src/system/jobs.ts。docs/COMBAT_DESIGN.md A-9） */
+export const JOB = {
+  /** 得意な武器種を持っている間の近接の威力・攻撃速度の倍率 */
+  favoredMeleeMul: 1.1,
+  favoredAttackSpeedMul: 1.08,
+  /** 初期スキル石の刻印符の枠 */
+  starterStoneLinks: 1,
+  // ---- 剣士 ----
+  swordsmanFinisherPoise: 14,
+  swordsmanJustBuffPct: 25,
+  swordsmanJustBuffSec: 3,
+  swordsmanRangedMul: 0.8,
+  // ---- 狩人 ----
+  hunterWindupPoise: 10,
+  hunterVulnerableSec: 2.5,
+  hunterEliteIcd: 1,
+  hunterHpMul: 0.85,
+  // ---- 拳闘士 ----
+  brawlerEveryHits: 6,
+  brawlerShockwaveRatio: 0.8,
+  brawlerHurtBuffPct: 30,
+  brawlerHurtBuffSec: 3,
+  brawlerRangedMul: 0.7,
+  // ---- 盾持ち ----
+  shieldHurtInvulnSec: 0.4,
+  shieldHurtIcd: 6,
+  shieldCounterRatio: 1,
+  shieldMoveMul: 0.92,
+  // ---- 呪術師 ----
+  hexerStatusMana: 2,
+  hexerStatusIcd: 0.3,
+  hexerSpreadRadius: 56,
+  hexerSpreadSec: 4,
+  hexerMeleeMul: 0.85,
+  // ---- 槍兵 ----
+  lancerGuardPoise: 16,
+  lancerStaggerEnergy: 8,
+  lancerDashCdMul: 1.15,
+  // ---- 術士 ----
+  invokerCastBuffPct: 15,
+  invokerCastBuffSec: 2,
+  invokerLowManaKill: 6,
+  invokerHpMul: 0.85,
+  // ---- 影 ----
+  shadowAfterDashSec: 0.5,
+  shadowVulnerableSec: 2,
+  shadowVulnerableIcd: 0.5,
+  shadowJustSpeedPct: 30,
+  shadowJustSpeedSec: 2,
+  shadowHpMul: 0.8,
+  // ---- 錬金術師 ----
+  alchemistReactionEnergy: 6,
+  alchemistBlastRatio: 0.6,
+  alchemistBlastIcd: 1,
+  alchemistAttackSpeedMul: 0.9,
+} as const;
+
 /** メタ進行（図鑑・依頼・実績。src/meta/）。ゲーム進行には効かない */
 export const META = {
   /** ラン開始時に並べる依頼の数 */
@@ -1705,7 +1791,7 @@ export const ACTION = {
     /** 敵の縁からこの距離だけ手前で止まる（px） */
     gap: 2,
     hitstopBonus: 3,
-    text: "ジャストカウンター",
+    text: "見切り斬り！",
     color: "#60e0ff",
     textScale: 1.7,
     textLife: 0.8,
@@ -2338,5 +2424,56 @@ export const WEAPON = {
       pierceBonus: 0,
       mine: { fuse: 3, drag: 6, blastRadius: 30, triggerRadius: 10, color: "#ffb040" },
     },
+  },
+} as const;
+
+/**
+ * 攻撃ジャンル（docs/COMBAT_DESIGN.md A-8）。範囲軸 × 質軸。参照ステータスの既定表は system/attributes.ts の GENRE_ATTRS
+ */
+export const GENRE = {
+  /** genreScaling: 副ステータスの係数 = 主の係数 × この比 */
+  secondaryRatio: 0.5,
+  /** 混成（hybrid）の防御: 防御と魔防をこの比で混ぜる（0.5 = 平均） */
+  hybridMix: 0.5,
+  /** 敵の防御 / 魔防（%）の範囲。負は「柔らかい」（被ダメ増） */
+  enemyDefenseMin: -50,
+  enemyDefenseMax: 75,
+} as const;
+
+/**
+ * 属性（docs/COMBAT_DESIGN.md A-8）。耐性は %、正で軽減・負で弱点。
+ * プレイヤーの耐性は resistKnee を超えた分を resistSlope で鈍らせ、resistMax で止める（ソフトキャップ）
+ */
+export const ELEMENT = {
+  resistMin: -100,
+  resistMax: 75,
+  resistKnee: 50,
+  resistSlope: 0.5,
+  /** 敵の耐性の範囲（ソフトキャップは掛けない。表の値そのまま） */
+  enemyResistMin: -100,
+  enemyResistMax: 75,
+  /** 弱点 / 耐性の浮き文字 */
+  weakText: "弱点",
+  resistText: "耐性",
+  weakColor: "#ffb040",
+  resistColor: "#9098a8",
+  textScale: 0.9,
+  textLife: 0.5,
+  /** 同じ敵の近くに同じ浮き文字が残っている間は重ねない（多段ヒットで埋め尽くさない） */
+  textDedupeRadius: 18,
+  /** 属性の攻撃が関係の深い状態異常を付けることがある（同一視はしない。確率は低め） */
+  affinity: {
+    chance: 0.1,
+    duration: 2,
+    /** 属性の割合がこれ以上のときだけ（変換で一部だけ炎にした攻撃は燃やさない） */
+    minShare: 0.5,
+    potency: { burn: 3, chill: 0, shock: 4, poison: 0, weaken: 0, vulnerable: 0 },
+  },
+  /** 敵の頭上の弱点の印 */
+  mark: {
+    offsetY: 6,
+    size: 5,
+    unknownGlyph: "？",
+    unknownColor: "#a0a0a0",
   },
 } as const;

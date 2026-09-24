@@ -23,6 +23,7 @@ import { generateItem, makeItemId, MAX_FOUND_TRAITS, rollBase, rollImplicit, rol
 import { fluxClassOf } from "../loot/flux";
 import { nameItem } from "../loot/names";
 import { chooseBud } from "../system/loot";
+import { ROAMING_ROOM } from "../system/spawner";
 import * as combat from "../system/combat";
 import * as statusEffectsModule from "../system/statusEffects";
 import { stoneFromSeed } from "../skills/generator";
@@ -243,14 +244,29 @@ function countEngagedEnemies(state: GameState): number {
 
 /** 計測中のラン 1 本ぶんの集計先。runOnce がループの間だけ差し替える（null なら計測しない） */
 let activeSkillMetrics: SkillMetrics | null = null;
+
+interface DropMetrics {
+  /** 撃破した damageEnemy の呼び出しの中で床に増えた遺物の数（エリートの追加抽選・祝福の上乗せを含む） */
+  killDrops: number;
+  /** 徘徊・増援（roomIndex = ROAMING_ROOM）を倒した回数 */
+  roamingKills: number;
+}
+
+/** 上と同じく runOnce がループの間だけ差し替える */
+let activeDropMetrics: DropMetrics | null = null;
 /** 直近の step() 呼び出し時点で交戦中だった敵の数。damagePlayer のスパイが読む */
 let engagedEnemyCountThisStep = 0;
 
 const originalDamageEnemy = combat.damageEnemy;
 vi.spyOn(combat, "damageEnemy").mockImplementation((...args: Parameters<typeof originalDamageEnemy>) => {
-  const [, enemy, , , , opts] = args;
+  const [state, enemy, , , , opts] = args;
   const before = Math.max(0, enemy.hp);
+  const itemsBefore = state.floorItems.length;
   const killed = originalDamageEnemy(...args);
+  if (killed && activeDropMetrics) {
+    activeDropMetrics.killDrops += Math.max(0, state.floorItems.length - itemsBefore);
+    if (enemy.roomIndex === ROAMING_ROOM) activeDropMetrics.roamingKills++;
+  }
   const dealt = before - Math.max(0, enemy.hp);
   if (dealt > 0 && activeSkillMetrics) {
     activeSkillMetrics.totalDamageDealt += dealt;
@@ -326,6 +342,8 @@ interface RunMetrics {
   budsChosen: number;
   /** スキル由来与ダメ比率・1 対 1 被弾・怯み・状態異常付与・マナ不足不発（L6） */
   skill: SkillMetrics;
+  /** ドロップの内訳（撃破あたりのドロップ率と、徘徊・増援が母数を増やしているかの確認） */
+  drop: DropMetrics;
 }
 
 function emptyRarityCounts(): Record<Rarity, number> {
@@ -433,6 +451,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     totalTraitCount: 0,
     budsChosen: 0,
     skill: emptySkillMetrics(),
+    drop: { killDrops: 0, roamingKills: 0 },
   };
 
   let depthEnterTime = state.time;
@@ -446,6 +465,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   // このランの間だけ、上のスパイが metrics.skill に書き込むようにする（他ランと混ざらないよう
   // 抜けたら必ず null に戻す。runOnce は例外を catch して抜けるだけで投げ直さないので try/finally は不要）
   activeSkillMetrics = metrics.skill;
+  activeDropMetrics = metrics.drop;
 
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
@@ -545,6 +565,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   metrics.resonanceColors = [...state.stats.resonance.colors];
 
   activeSkillMetrics = null;
+  activeDropMetrics = null;
   return metrics;
 }
 
@@ -700,6 +721,22 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
         `${average(group.map((m) => m.kills)).toFixed(1)} | ${average(group.map((m) => m.bestCombo)).toFixed(1)} | ` +
         `${average(group.map((m) => m.itemsPicked)).toFixed(1)} | ${average(group.map((m) => m.reaperSpawns)).toFixed(2)} | ` +
         `${percent(bossWon, bossSeen)} | ${average(group.map((m) => m.avgStepMs)).toFixed(3)} |`,
+    );
+  }
+  lines.push("");
+
+  lines.push("## ドロップの内訳（装備パターン別。撃破起因 = 倒した一撃の中で床に増えた遺物）");
+  lines.push("");
+  lines.push("| 装備 | 平均拾得数 | 平均kills | 撃破起因の落下/run | 撃破あたりの落下 | 徘徊・増援の撃破割合 |");
+  lines.push("| --- | --- | --- | --- | --- | --- |");
+  for (const kind of PROFILE_KINDS) {
+    const group = allMetrics.filter((m) => m.profileKind === kind);
+    const kills = group.reduce((s, m) => s + m.kills, 0);
+    const killDrops = group.reduce((s, m) => s + m.drop.killDrops, 0);
+    const roaming = group.reduce((s, m) => s + m.drop.roamingKills, 0);
+    lines.push(
+      `| ${kind} | ${average(group.map((m) => m.itemsPicked)).toFixed(1)} | ${average(group.map((m) => m.kills)).toFixed(1)} | ` +
+        `${average(group.map((m) => m.drop.killDrops)).toFixed(1)} | ${percent(killDrops, kills)} | ${percent(roaming, kills)} |`,
     );
   }
   lines.push("");

@@ -1,4 +1,5 @@
 import type { GameState, RoomState } from "../core/state";
+import { ROAM } from "../data/tuning";
 import { TILE_SIZE, inBounds, rectContainsPx, toIndex } from "../map/grid";
 
 /**
@@ -31,14 +32,32 @@ function playerInRoom(state: GameState, room: RoomState): boolean {
 }
 
 /**
+ * 部屋の敵のうち、気付いて（idle / spawning 以外）生きていて、プレイヤーの近く（ROAM.engageLeash 以内）にいるものがいるか。
+ * 開放型では部屋から通路へ敵を引き出して戦えるので、部屋の外でも「追ってきた敵」と戦っている間は交戦中にする
+ */
+function roomChasing(state: GameState, index: number): boolean {
+  const p = state.player.body.pos;
+  const leash2 = ROAM.engageLeash * ROAM.engageLeash;
+  return state.enemies.some((e) => {
+    if (e.roomIndex !== index || e.hp <= 0 || e.phase === "idle" || e.phase === "spawning") return false;
+    const dx = e.body.pos.x - p.x;
+    const dy = e.body.pos.y - p.y;
+    return dx * dx + dy * dy <= leash2;
+  });
+}
+
+/**
  * 今いる交戦中の部屋の index（無ければ -1）。
  * 封鎖中の部屋は波の合間でも交戦中（プレイヤーは必ずその中にいる）。
- * 封鎖しない部屋は、交戦が始まっていて生きた敵が残り、プレイヤーがその中にいるときだけ
+ * 封鎖しない部屋は、交戦が始まっていて生きた敵が残り、プレイヤーがその中にいるとき。
+ * 部屋の外でも、その部屋の気付いた敵が近くで生きている間は交戦中（部屋の中にいる方を優先する）
  */
 export function engagedRoomIndex(state: GameState): number {
   const locked = state.rooms.findIndex((r) => r.locked);
   if (locked >= 0) return locked;
-  return state.rooms.findIndex((r, i) => roomInCombat(r) && roomHasLiving(state, i) && playerInRoom(state, r));
+  const inside = state.rooms.findIndex((r, i) => roomInCombat(r) && roomHasLiving(state, i) && playerInRoom(state, r));
+  if (inside >= 0) return inside;
+  return state.rooms.findIndex((r, i) => roomInCombat(r) && roomChasing(state, i));
 }
 
 /** 今いる部屋が交戦中か（「封鎖中」を条件にしていた要素はすべてこれを見る） */

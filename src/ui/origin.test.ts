@@ -10,9 +10,15 @@ import { reaperAppearAfter } from "../system/reaper";
 import { isDark } from "../system/roomTypes";
 import { ORIGIN_KEYS, RUN_MODS, RUN_MOD_KEYS, type RunSetup, runTier, sanitizeRunSetup } from "../system/runSetup";
 import { withInput } from "../system/testHelpers";
+import { JOBS, type JobKey } from "../data/jobs";
 import {
+  JOB_ROWS,
+  LOCKED_ORIGIN_NAME,
   ORIGIN_ROWS,
   activateOriginCursor,
+  backOriginStage,
+  jobCursorDetail,
+  pointOriginRow,
   createOriginScreen,
   cursorDescription,
   moveOriginCursor,
@@ -29,15 +35,54 @@ function game(setup: RunSetup, seed = 21) {
 }
 
 describe("起点画面の操作", () => {
-  it("開くとカーソルは「出発」にあり、決定でそのまま始められる", () => {
+  it("ジョブの段から開き、決定で起点の段の「出発」へ進み、もう一度の決定で始められる", () => {
     const ui = createOriginScreen();
+    expect(ui.stage, "ジョブの段から").toBe("job");
+    expect(JOB_ROWS[ui.jobCursor], "前回が無ければ見習い").toBe("none");
+    expect(activateOriginCursor(ui), "ジョブを決める").toBe("changed");
+    expect(ui.stage, "起点の段へ進む").toBe("origin");
     expect(ORIGIN_ROWS[ui.originCursor]).toBe("start");
     expect(activateOriginCursor(ui)).toBe("start");
-    expect(originSetup(ui)).toEqual({ origin: "wanderer", modifiers: [] });
+    expect(originSetup(ui)).toEqual({ origin: "wanderer", modifiers: [], job: "none" });
+  });
+
+  it("ジョブの段で選んだジョブが出発の設定に入り、Esc で 1 段戻れる", () => {
+    const ui = createOriginScreen();
+    moveOriginCursor(ui, 0, 1);
+    expect(moveOriginCursor(ui, 1, 0), "ジョブの段に列は無い").toBe(false);
+    activateOriginCursor(ui);
+    expect(ui.job, "2 行目のジョブ").toBe(JOB_ROWS[1]);
+    expect(cursorDescription(ui).desc, "出発の説明にジョブ名").toContain(JOBS[JOB_ROWS[1] ?? "none"].name);
+    expect(backOriginStage(ui), "起点の段から戻る").toBe(true);
+    expect(ui.stage).toBe("job");
+    expect(JOB_ROWS[ui.jobCursor], "カーソルは選んだジョブ").toBe(JOB_ROWS[1]);
+    expect(backOriginStage(ui), "ジョブの段ではタイトルへ（false）").toBe(false);
+    expect(originSetup(ui).job).toBe(JOB_ROWS[1]);
+  });
+
+  it("未解放のジョブは選べず、前回のジョブが未解放なら見習いで開く", () => {
+    const locked = new Set<JobKey>(["shadow"]);
+    const ui = createOriginScreen({ origin: "wanderer", modifiers: [], job: "shadow" }, new Set(), locked);
+    expect(ui.job, "見習いへ戻る").toBe("none");
+    ui.jobCursor = JOB_ROWS.indexOf("shadow");
+    expect(activateOriginCursor(ui), "選べない").toBe("none");
+    expect(ui.stage).toBe("job");
+    expect(cursorDescription(ui).name, "？？？で出る").toBe(LOCKED_ORIGIN_NAME);
+    expect(jobCursorDetail(ui), "詳細は出さない").toEqual([]);
+  });
+
+  it("ジョブの段のマウスの当たり判定は左の一覧だけ", () => {
+    const top = originRowTop(3, ROW_GAP);
+    expect(originItemAt(40, top + 1, ROW_GAP, "job")).toEqual({ column: "job", row: 3 });
+    expect(originItemAt(300, top + 1, ROW_GAP, "job"), "詳細欄は行ではない").toBeNull();
+    const ui = createOriginScreen();
+    expect(pointOriginRow(ui, { column: "job", row: 3 })).toBe(true);
+    expect(ui.jobCursor).toBe(3);
   });
 
   it("起点の行で決定すると起点が変わり、右の列で縛りを積み外しできる", () => {
     const ui = createOriginScreen();
+    activateOriginCursor(ui);
     moveOriginCursor(ui, 0, 1);
     expect(ORIGIN_ROWS[ui.originCursor]).toBe(ORIGIN_KEYS[0]);
     moveOriginCursor(ui, 0, 1);
@@ -61,9 +106,11 @@ describe("起点画面の操作", () => {
   });
 
   it("前回の選択を引き継いで開く", () => {
-    const ui = createOriginScreen({ origin: "chanter", modifiers: ["roughLand"] });
+    const ui = createOriginScreen({ origin: "chanter", modifiers: ["roughLand"], job: "hunter" });
     expect(ui.origin).toBe("chanter");
     expect(ui.modifiers).toEqual(["roughLand"]);
+    expect(ui.job).toBe("hunter");
+    activateOriginCursor(ui);
     expect(cursorDescription(ui).desc).toContain("詠み手");
   });
 

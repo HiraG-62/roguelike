@@ -111,7 +111,7 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   ctx.fillStyle = COLOR_DIM_BG;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   drawText(ctx, `地下 ${state.depth} 階 - 祝福を選べ`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
-  drawText(ctx, "このランのみ有効", VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
+  drawText(ctx, "この探索のみ有効", VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
 
   // 装備・スキル石のタグと、取得済み祝福が出すタグのどちらかに一致すれば強調（なぜ出やすいかが分かる）
   const t = buildTags(state);

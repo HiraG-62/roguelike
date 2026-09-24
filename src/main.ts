@@ -81,6 +81,7 @@ import {
   activateOriginCursor,
   createOriginScreen,
   moveOriginCursor,
+  backOriginStage,
   originItemAt,
   originRowGap,
   originSetup,
@@ -92,9 +93,9 @@ import { saveCraft } from "./loot/craftingStore";
 import { TRAIT_COLORS } from "./loot/types";
 import { recordCodex } from "./meta/codex";
 import { loadCodex, saveCodex } from "./meta/codexStore";
-import { carriedQuest, codexPages, isQuestKey, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
+import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
 import { loadQuests, saveQuests } from "./meta/questStore";
-import { currentTitleLabel, evaluateAchievements, loadAchievements, saveAchievements, selectTitle } from "./meta/achievements";
+import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
 import { type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
@@ -141,7 +142,7 @@ type Screen =
 type ListScreenKind = "codex" | "questBoard" | "achievements";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
-const NO_REPLAY_MESSAGE = "このランのリプレイは保存されていません";
+const NO_REPLAY_MESSAGE = "この探索のリプレイは保存されていません";
 const BROKEN_REPLAY_MESSAGE = "リプレイデータが壊れています";
 const OLD_REPLAY_MESSAGE = "このリプレイは旧バージョンのため再生できません";
 /** 旧バージョン通知の表示秒数 */
@@ -270,13 +271,13 @@ let replay: ReplayPlayback | null = null;
 
 /** 直近に選んだ起点と縛り。リスタート・同じシードでの再挑戦にも使う */
 let runSetup: RunSetup = defaultRunSetup();
-let originUi: OriginScreen = createOriginScreen(runSetup, lockedOrigins(questSave));
+let originUi: OriginScreen = createOriginScreen(runSetup, lockedOrigins(questSave), lockedJobs(questSave));
 /** 起点画面を抜けたら始めるシード */
 let pendingSeedText = "";
 
 function openOrigin(seedText: string, frameMoveX: number, frameMoveY: number): void {
   pendingSeedText = seedText;
-  originUi = createOriginScreen(runSetup, lockedOrigins(questSave));
+  originUi = createOriginScreen(runSetup, lockedOrigins(questSave), lockedJobs(questSave));
   screen = "origin";
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
@@ -286,14 +287,15 @@ function openOrigin(seedText: string, frameMoveX: number, frameMoveY: number): v
 function updateOriginScreen(frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
   if (escape) {
     sfx.play("uiClose");
-    screen = "title";
+    // 起点の段ならジョブの段へ 1 段戻る。ジョブの段ならタイトルへ
+    if (!backOriginStage(originUi)) screen = "title";
     return;
   }
   const rowGap = originRowGap(textLineHeight(TEXT.SMALL));
   const aim = frame.aimScreen;
   // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
   const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
-  const hovered = aim ? originItemAt(aim.x, aim.y, rowGap) : null;
+  const hovered = aim ? originItemAt(aim.x, aim.y, rowGap, originUi.stage) : null;
   if (aimMoved && hovered && pointOriginRow(originUi, hovered)) sfx.play("menuMove");
   menuAimPrev = aim;
 
@@ -380,7 +382,8 @@ function recordMeta(s: GameState, now: number): string[] {
   saveCodex(codexSave);
   const outcome = recordQuest(s, questSave, now);
   saveQuests(questSave);
-  const unlocked = evaluateAchievements({ codex: codexSave, quests: questSave, meta: s.profile.meta }, achievementSave, now);
+  const jobsPlayed = noteJobPlayed(achievementSave, s.job);
+  const unlocked = evaluateAchievements({ codex: codexSave, quests: questSave, meta: s.profile.meta, jobsPlayed }, achievementSave, now);
   saveAchievements(achievementSave);
   return metaSummaryLines(outcome, discovered, unlocked);
 }
@@ -441,7 +444,7 @@ const LIST_SCREEN_TITLE: Readonly<Record<ListScreenKind, string>> = {
 
 const LIST_SCREEN_HINT: Readonly<Record<ListScreenKind, string>> = {
   codex: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える）",
-  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（依頼はラン開始時に 3 択から 1 つ受ける）",
+  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（依頼は探索の開始時に 3 択から 1 つ受ける）",
   achievements: "←→ タブ　↑↓ / ホイール 選ぶ　Enter / クリック 称号を名乗る　Esc 戻る",
 };
 

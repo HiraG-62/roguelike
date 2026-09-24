@@ -1,4 +1,5 @@
 import type { GameState } from "../core/state";
+import type { JobKey } from "../data/jobs";
 import type { QuestKey } from "../meta/quests";
 import { ORIGIN, RUN_MOD } from "../data/tuning";
 import { KEYSTONES, keystoneDef } from "../loot/affixes";
@@ -11,6 +12,7 @@ import type { SkillKey } from "../skills/types";
 import { grantAttributePoints } from "../ui/attributeAlloc";
 import { BOONS, BOON_KEYS, type BoonKey, grantBoon, hasBoon } from "./boons";
 import { applyStats } from "./player";
+import { applyJobStats, jobChangesStats } from "./jobs";
 import { attachRune } from "./skills";
 
 /**
@@ -55,7 +57,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   chanter: {
     name: "詠み手",
-    desc: "刻印符を 2 つ差して出発する。最大 HP が 2 割減る。",
+    desc: "刻印符を 2 つ差して出発する。最大生命が 2 割減る。",
     keystones: [],
     unlockedBy: "alchemist",
   },
@@ -104,9 +106,9 @@ export interface RunModDef {
 }
 
 export const RUN_MODS: Readonly<Record<RunModKey, RunModDef>> = {
-  thickHide: { name: "厚い皮", desc: "敵の HP が 3 割増える。", points: 1 },
+  thickHide: { name: "厚い皮", desc: "敵の生命が 3 割増える。", points: 1 },
   quickHands: { name: "早い手", desc: "敵の予備動作が 1 割縮む。", points: 2 },
-  eliteSwarm: { name: "精鋭", desc: "エリートの抽選が 2 回になる。", points: 1 },
+  eliteSwarm: { name: "精鋭", desc: "精鋭の抽選が 2 回になる。", points: 1 },
   dryFountain: { name: "乾いた泉", desc: "泉が湧かず、ハートが落ちない。", points: 2 },
   hastyReaper: { name: "急かす死神", desc: "死神の猶予が 3 割縮む。", points: 2 },
   eternalNight: { name: "常夜", desc: "すべての階が暗闇になる。", points: 2 },
@@ -114,7 +116,7 @@ export const RUN_MODS: Readonly<Record<RunModKey, RunModDef>> = {
   roughLand: { name: "荒れた大地", desc: "バイオームの地形が 2 倍になる。", points: 1 },
   doubleLinger: { name: "長居の二重苦", desc: "長居の代償が浅い階から、早く来る。", points: 3 },
   hourglass: { name: "部屋の砂時計", desc: "封鎖が長引くと増援が来る。", points: 2 },
-  glassBody: { name: "薄氷", desc: "最大 HP が 3 割減る。", points: 2 },
+  glassBody: { name: "薄氷", desc: "最大生命が 3 割減る。", points: 2 },
 };
 
 export function isRunModKey(v: unknown): v is RunModKey {
@@ -137,6 +139,8 @@ export function hasMod(state: Pick<GameState, "modifiers">, key: RunModKey): boo
 export interface RunSetup {
   origin: OriginKey;
   modifiers: RunModKey[];
+  /** ジョブ（src/data/jobs.ts）。省略は見習い（旧データ・QA bot の既定） */
+  job?: JobKey;
   /**
    * このランで抽選に出ない名のある遺物（依頼の報酬で未達成のもの。src/meta/quests.ts の lockedRelicKeys）。
    * ラン開始時に確定させ、ラン中に依頼を達成しても変えない（決定性）。省略は []
@@ -181,15 +185,18 @@ function maxHpMul(state: GameState): number {
 }
 
 /**
- * 装備の stats に、起点・縛り・祭壇の誓約を畳み込む。何も無ければ同じオブジェクトを返す（従来と完全に同じ結果）。
+ * 装備の stats に、起点・ジョブ・縛り・祭壇の誓約を畳み込む。何も無ければ同じオブジェクトを返す（従来と完全に同じ結果）。
  * 誓約は装備の誓約と排他グループがぶつかるなら足さない（装備側が勝つ。祭壇は候補の時点で除いている）
  */
 export function applyRunStats(state: GameState, equipStats: PlayerStats): PlayerStats {
   const sealed = equipmentSealed(state);
   const hpMul = maxHpMul(state);
-  if (!sealed && hpMul === 1 && state.runKeystones.length === 0) return equipStats;
+  const job = jobChangesStats(state.job);
+  if (!sealed && hpMul === 1 && state.runKeystones.length === 0 && !job) return equipStats;
   const stats = structuredClone(sealed ? computeStats(createEmptyEquipment()) : equipStats);
   for (const key of state.runKeystones) addRunKeystone(stats, key);
+  // ジョブの偏りは生値に足す（逓減は applyStats の deriveAttributes がまとめて掛ける）。倍率は誓約の後に掛ける
+  if (job) applyJobStats(stats, state.job);
   stats.maxHp = Math.max(1, stats.maxHp * hpMul);
   return stats;
 }

@@ -51,6 +51,7 @@ import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawPlayerStatusRow, drawPoiseGauge } from "./statusUi";
+import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
 import { drawTerrainLayer } from "./terrainUi";
@@ -1184,6 +1185,8 @@ export class Renderer {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
     drawEnemyStatus(ctx, e, cx, e.elite ? top - ELITE_NAME_OFFSET : top);
+    // 属性の弱点の印（docs/COMBAT_DESIGN.md A-8）
+    drawWeaknessMark(ctx, state, e, cx + sprite.w / 2, top);
     // ボスの座にいる敵（双子の妹が兄から継いだ後も）は上部バーだけで見せる
     if (showsBossBar(state, e)) return;
     const barY = cy + sprite.h / 2 - 2;
@@ -1982,7 +1985,7 @@ export class Renderer {
     this.shadowText(scoreText, rightX, rightY + line, COLOR_HUD_SCORE, m, "right");
     this.shadowText(seedText, rightX, rightY + line * 2, COLOR_HUD_SEED, m, "right");
     if (state.cursed) {
-      this.shadowText("呪い: 次の部屋のエリート x2", rightX, rightY + line * HUD_CURSED_LINE, ROOM_KIND.cursedColor, m, "right");
+      this.shadowText("呪い: 次の部屋の精鋭 x2", rightX, rightY + line * HUD_CURSED_LINE, ROOM_KIND.cursedColor, m, "right");
     }
     if (state.stats.resonance.kind !== "none") {
       this.shadowText(describeResonance(state.stats.resonance)[0] ?? "", rightX, rightY + line * HUD_RESONANCE_LINE, COLOR_TEXT, m, "right");

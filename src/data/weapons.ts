@@ -1,3 +1,4 @@
+import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import type { Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
@@ -127,6 +128,8 @@ export interface MovesetDef {
   readonly branches: readonly BranchDef[];
   /** 出す / 食う / 強める語 */
   readonly keywords: KeywordProfile;
+  /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。近接の段・ダッシュ攻撃・派生すべてに掛かる */
+  readonly attack: AttackProfile;
 }
 
 export interface ShotChargeLevelDef {
@@ -171,6 +174,8 @@ export interface ShotDef {
   readonly charge?: { readonly levels: readonly ShotChargeLevelDef[] };
   readonly mine?: MineDef;
   readonly keywords: KeywordProfile;
+  /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。威力は PLAYER.shoot の Scaling（技巧）なので遠距離・物理に揃える */
+  readonly attack: AttackProfile;
 }
 
 /** 弾ごとの型の作業領域（Projectile.shot）。projectiles.ts が読む */
@@ -240,6 +245,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.sword.branches),
     keywords: kw(["melee", "combo", "finisher"], [], ["counter"]),
+    attack: attack("melee", "physical"),
   },
   greatsword: {
     key: "greatsword",
@@ -253,6 +259,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     secondary: "melee",
     branches: branchesOf(W.greatsword.branches),
     keywords: kw(["melee", "stagger", "finisher", "wall", "area"], ["still"], ["elite"]),
+    attack: attack("melee", "physical"),
   },
   twinBlades: {
     key: "twinBlades",
@@ -264,6 +271,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.twinBlades.branches),
     keywords: kw(["melee", "combo"], [], ["crit", "bleed"]),
+    attack: attack("melee", "physical"),
   },
   spear: {
     key: "spear",
@@ -276,6 +284,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.spear.branches),
     keywords: kw(["melee", "stagger", "wall"], [], ["crit", "counter"]),
+    attack: attack("melee", "physical"),
   },
   scythe: {
     key: "scythe",
@@ -287,6 +296,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.scythe.branches),
     keywords: kw(["melee", "area"], ["poison", "bleed"], ["kill", "area"]),
+    attack: attack("melee", "hybrid", "dark"),
   },
   fists: {
     key: "fists",
@@ -298,6 +308,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.fists.branches),
     keywords: kw(["melee", "combo", "wall", "mana"], ["hurt"], ["heal"]),
+    attack: attack("melee", "physical"),
   },
   whip: {
     key: "whip",
@@ -310,6 +321,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.whip.branches),
     keywords: kw(["melee", "area"], [], ["crit", "fear", "shock"]),
+    attack: attack("melee", "physical", "lightning"),
   },
   cleaver: {
     key: "cleaver",
@@ -321,17 +333,19 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     ...MELEE_SHOT,
     branches: branchesOf(W.cleaver.branches),
     keywords: kw(["melee", "wall", "stagger"], [], ["burn", "bleed"]),
+    attack: attack("melee", "physical"),
   },
   staff: {
     key: "staff",
     name: "棍",
-    desc: "広く薙いで周りを打つ。威力は低いがマナがよく戻る",
+    desc: "広く薙いで周りを打つ。威力は低いが気力がよく戻る",
     steps: W.staff.steps,
     dashAttack: W.staff.dashAttack,
     attackMoveMul: W.staff.attackMoveMul,
     ...MELEE_SHOT,
     branches: branchesOf(W.staff.branches),
     keywords: kw(["melee", "area", "stagger", "mana"], [], ["mana"]),
+    attack: attack("melee", "physical"),
   },
   wand: {
     key: "wand",
@@ -344,6 +358,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     secondary: "melee",
     branches: branchesOf(W.wand.branches),
     keywords: kw(["melee", "ranged", "mana"], ["mana"], ["bullet"]),
+    attack: attack("melee", "arcane", "light"),
   },
 };
 
@@ -376,21 +391,24 @@ function endsWith(inputs: readonly ButtonKey[], tail: readonly ButtonKey[]): boo
 const S = WEAPON.shots;
 
 export const SHOT_TYPES: Readonly<Record<ShotKey, ShotDef>> = {
-  single: { key: "single", name: "単発", desc: "まっすぐ飛ぶ 1 発", ...S.single, keywords: kw(["ranged", "bullet"]) },
-  rapid: { key: "rapid", name: "連射", desc: "間隔が短く軽い弾。弾筋が揺れる", ...S.rapid, keywords: kw(["ranged", "bullet", "combo"], [], ["crit"]) },
+  single: { key: "single", name: "単発", desc: "まっすぐ飛ぶ 1 発", ...S.single, keywords: kw(["ranged", "bullet"]), attack: attack("ranged", "physical") },
+  rapid: { key: "rapid", name: "連射", desc: "間隔が短く軽い弾。弾筋が揺れる", ...S.rapid, keywords: kw(["ranged", "bullet", "combo"], [], ["crit"]), attack: attack("ranged", "physical") },
   spread: {
     key: "spread",
     name: "散弾",
     desc: "近距離に弾をばら撒き、反動で後ろへ跳ねる",
     ...S.spread,
-    keywords: kw(["ranged", "bullet", "stagger"], [], ["melee", "dash"]),
+    keywords: kw(["ranged", "bullet", "stagger"], [], ["melee", "dash"]), attack: attack("ranged", "physical"),
   },
-  pierce: { key: "pierce", name: "貫通", desc: "重い弾が敵を 2 体抜ける", ...S.pierce, keywords: kw(["ranged", "bullet", "stagger"], [], ["area"]) },
-  homing: { key: "homing", name: "追尾", desc: "遅い弾が近くの敵へ曲がる", ...S.homing, keywords: kw(["ranged", "bullet"], [], ["dash"]) },
-  ricochet: { key: "ricochet", name: "跳弾", desc: "壁で 2 回跳ね、跳ねるたびに強くなる", ...S.ricochet, keywords: kw(["ranged", "bullet", "wall"]) },
-  charge: { key: "charge", name: "チャージ", desc: "押して溜め、離して撃つ。溜めるほど大きく貫く", ...S.charge, keywords: kw(["ranged", "bullet", "stagger"], ["still"]) },
-  mine: { key: "mine", name: "設置弾", desc: "床で止まり、近づいた敵を巻き込んで炸裂する", ...S.mine, keywords: kw(["ranged", "placed", "explode", "area"]) },
+  pierce: { key: "pierce", name: "貫通", desc: "重い弾が敵を 2 体抜ける", ...S.pierce, keywords: kw(["ranged", "bullet", "stagger"], [], ["area"]), attack: attack("ranged", "physical") },
+  homing: { key: "homing", name: "追尾", desc: "遅い弾が近くの敵へ曲がる", ...S.homing, keywords: kw(["ranged", "bullet"], [], ["dash"]), attack: attack("ranged", "physical", "poison") },
+  ricochet: { key: "ricochet", name: "跳弾", desc: "壁で 2 回跳ね、跳ねるたびに強くなる", ...S.ricochet, keywords: kw(["ranged", "bullet", "wall"]), attack: attack("ranged", "physical") },
+  charge: { key: "charge", name: "チャージ", desc: "押して溜め、離して撃つ。溜めるほど大きく貫く", ...S.charge, keywords: kw(["ranged", "bullet", "stagger"], ["still"]), attack: attack("ranged", "physical", "fire") },
+  mine: { key: "mine", name: "設置弾", desc: "床で止まり、近づいた敵を巻き込んで炸裂する", ...S.mine, keywords: kw(["ranged", "placed", "explode", "area"]), attack: attack("ranged", "physical", "fire") },
 };
+
+/** 必殺（バースト）の素性。威力は精神 + 霊力（PLAYER.special）なので範囲・魔法（docs/COMBAT_DESIGN.md A-8） */
+export const BURST_ATTACK: AttackProfile = attack("area", "arcane");
 
 export const DEFAULT_MOVESET: MovesetKey = "sword";
 export const DEFAULT_SHOT: ShotKey = "single";

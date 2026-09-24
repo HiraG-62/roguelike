@@ -4,11 +4,12 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusKind } from "../core/status";
 import type { Vec } from "../core/vec";
 import { enemyCombat } from "../data/enemyCombat";
-import { STATUS, SYNERGY, TRIGGER } from "../data/tuning";
+import { PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
 import { slashBase } from "./boonRules";
+import { jobRules } from "./jobs";
 import { spawnRing } from "./effects";
 import { spawnBomb } from "./hazards";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus } from "./statusEffects";
@@ -54,12 +55,13 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
 
 /**
  * 今のビルドが持つ Rule を固定順で集める（決定性: 同じ状態なら同じ順）。
- * 装備スロット → 共鳴 → 誓約 → 祝福の取得順 → スキルスロット順 → 部屋 → 敵 id 順。
+ * 装備スロット → 共鳴 → 誓約 → ジョブ → 祝福の取得順 → スキルスロット順 → 部屋 → 敵 id 順。
  * 装備（tr:）は fireTrigger が即時に照合する。共鳴・誓約・部屋の Rule はまだ無い（置き場ができたらここへ足す）。
  * 敵の Rule はイベントの対象ごとに enemyRulesOf が引く
  */
 export function collectRules(state: GameState): Rule[] {
   const out: Rule[] = [];
+  out.push(...jobRules(state.job));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
   const rs = state.skills;
   for (let slot = 0; slot < rs.slots.length; slot++) {
@@ -215,6 +217,8 @@ function conditionHolds(state: GameState, c: RuleCondition, subject: ConditionSu
       return p.hp <= p.maxHp * SYNERGY.lowHpRatio;
     case "comboAbove":
       return state.combo.count >= c.count;
+    case "finisher":
+      return p.attack.combo >= PLAYER.melee.length - 1;
     case "roomLocked":
       return conditionMet(state, "roomLocked");
     case "depthAtLeast":

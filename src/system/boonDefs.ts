@@ -170,7 +170,9 @@ export type BoonTag =
   | "counter"
   | "skill"
   | "placed"
-  | "reaper";
+  | "reaper"
+  /** 属性（docs/COMBAT_DESIGN.md A-8）。属性の変換を持つ装備と、燃焼・冷気・感電の系譜・属性の轍を結ぶ */
+  | "element";
 
 /** 系譜（同じ主から出る 4 段の祝福）。前段を持っていると次段が抽選に出る */
 export type LineageKey = "ash" | "frost" | "thunder" | "moon";
@@ -243,7 +245,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   justSlash: {
     key: "justSlash",
     name: "見切り斬り",
-    desc: "ジャスト回避の直後に攻撃すると、回避した敵の目の前へ瞬間移動して斬る。",
+    desc: "見切りの直後に攻撃すると、回避した敵の目の前へ瞬間移動して斬る。",
     icon: "/",
     rarity: "rare",
     tags: ["just", "melee"],
@@ -264,7 +266,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   glassJust: {
     key: "glassJust",
     name: "硝子の見切り",
-    desc: "最大HPが1になる代わりに、ジャスト回避の受付時間が2倍になる。",
+    desc: "最大生命が1になる代わりに、見切りの受付時間が2倍になる。",
     icon: "G",
     rarity: "epic",
     tags: ["just", "dash"],
@@ -295,7 +297,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   eliteVault: {
     key: "eliteVault",
     name: "宝物の鍵",
-    desc: "エリートを倒すと、次の階に宝物庫が確定で出現する。",
+    desc: "精鋭を倒すと、次の階に宝物庫が確定で出現する。",
     icon: "K",
     rarity: "rare",
     tags: ["loot"],
@@ -305,7 +307,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   secondWind: {
     key: "secondWind",
     name: "再起",
-    desc: "ラン中1回だけ、力尽きる代わりにHP30%で復活する。",
+    desc: "探索中1回だけ、力尽きる代わりに生命30%で復活する。",
     icon: "R",
     rarity: "epic",
     tags: ["hp"],
@@ -315,7 +317,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   giantSlayer: {
     key: "giantSlayer",
     name: "巨人殺し",
-    desc: "ボスのHPが-25%になる代わりに、通常の敵のHPが+25%になる。",
+    desc: "ボスの生命が-25%になる代わりに、通常の敵の生命が+25%になる。",
     icon: "B",
     rarity: "common",
     tags: ["boss"],
@@ -336,7 +338,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   justWipe: {
     key: "justWipe",
     name: "回避一掃",
-    desc: "ジャスト回避で敵弾を全て消し去る。",
+    desc: "見切りで敵弾を全て消し去る。",
     icon: "J",
     rarity: "rare",
     tags: ["just"],
@@ -356,7 +358,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   clearHeal: {
     key: "clearHeal",
     name: "血の代償",
-    desc: "部屋を制圧するとHPが最大の60%回復する代わりに、最大HPが-30%になる。",
+    desc: "部屋を制圧すると生命が最大の60%回復する代わりに、最大生命が-30%になる。",
     icon: "T",
     rarity: "rare",
     tags: ["room", "hp"],
@@ -406,7 +408,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   dashGuard: {
     key: "dashGuard",
     name: "鉄壁の構え",
-    desc: "ダッシュがその場の防御になり、防御中の被弾はJUST扱いになる。",
+    desc: "ダッシュがその場の防御になり、防御中の被弾は見切り扱いになる。",
     icon: "I",
     rarity: "rare",
     tags: ["just", "dash"],
@@ -504,7 +506,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   bloodFeast: {
     key: "bloodFeast",
     name: "血の饗宴",
-    desc: "ハートが出なくなる代わりに、撃破するたびHP2回復する（戦闘中の回復の上限あり）。",
+    desc: "ハートが出なくなる代わりに、撃破するたび生命が2回復する（戦闘中の回復の上限あり）。",
     icon: "+",
     rarity: "rare",
     tags: ["hp"],
@@ -513,8 +515,8 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   eliteMagnet: {
     key: "eliteMagnet",
-    name: "エリート誘引",
-    desc: "エリートの出現率が大きく上がる代わりに、エリートは必ずアイテムを落とす。",
+    name: "精鋭誘引",
+    desc: "精鋭の出現率が大きく上がる代わりに、精鋭は必ずアイテムを落とす。",
     icon: "M",
     rarity: "rare",
     tags: ["loot"],
@@ -556,7 +558,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   spiritBlade: {
     key: "spiritBlade",
     name: "霊刃",
-    desc: "通常攻撃が霊力でも伸びる代わりに、通常攻撃で戻るマナが半分になる。",
+    desc: "通常攻撃が霊力でも伸びる代わりに、通常攻撃で戻る気力が半分になる。",
     icon: "&",
     rarity: "rare",
     tags: ["attr", "melee", "ranged"],
@@ -578,7 +580,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   bloodMist: {
     key: "bloodMist",
     name: "血煙",
-    desc: "出血の敵を倒すと、自分の出血が消えてHP2回復する。",
+    desc: "出血の敵を倒すと、自分の出血が消えて生命が2回復する。",
     icon: "D",
     rarity: "common",
     tags: ["bleed", "hp"],
@@ -612,7 +614,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   springWell: {
     key: "springWell",
     name: "湧水",
-    desc: "部屋を制圧するとマナが満タンになる。",
+    desc: "部屋を制圧すると気力が満タンになる。",
     icon: "U",
     rarity: "rare",
     tags: ["mana", "room"],
@@ -623,7 +625,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   bloodMana: {
     key: "bloodMana",
     name: "血の対価",
-    desc: "HPが50%以下の間、スキルのマナコストが-40%になる。",
+    desc: "生命が50%以下の間、スキルの気力コストが-40%になる。",
     icon: "$",
     rarity: "common",
     tags: ["mana", "hp"],
@@ -633,7 +635,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reaperCup: {
     key: "reaperCup",
     name: "屠りの盃",
-    desc: "撃破するたびマナが10回復する代わりに、マナの自然回復が半分になる。",
+    desc: "撃破するたび気力が10回復する代わりに、気力の自然回復が半分になる。",
     icon: "=",
     rarity: "common",
     tags: ["mana"],
@@ -643,7 +645,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   keenBreath: {
     key: "keenBreath",
     name: "見切りの息",
-    desc: "ジャスト回避でマナが25回復する。",
+    desc: "見切りで気力が25回復する。",
     icon: "'",
     rarity: "common",
     tags: ["mana", "just"],
@@ -654,7 +656,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   circulation: {
     key: "circulation",
     name: "循環",
-    desc: "スキルが命中するたびマナが2回復する。1回の発動で8まで。",
+    desc: "スキルが命中するたび気力が2回復する。1回の発動で8まで。",
     icon: "o",
     rarity: "rare",
     tags: ["mana"],
@@ -664,7 +666,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   hollowVessel: {
     key: "hollowVessel",
     name: "虚ろの器",
-    desc: "スキルのマナコストが-35%になる代わりに、最大マナが-40%、通常攻撃で戻るマナが半分になる。",
+    desc: "スキルの気力コストが-35%になる代わりに、最大気力が-40%、通常攻撃で戻る気力が半分になる。",
     icon: "0",
     rarity: "rare",
     tags: ["mana"],
@@ -680,7 +682,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "近接の3段目は必ず燃焼を付ける。",
     icon: "火",
     rarity: "common",
-    tags: ["burn", "melee"],
+    tags: ["burn", "melee", "element"],
     keywords: kw(["burn"], ["finisher"]),
     gives: ["burn"],
     cursed: false,
@@ -692,7 +694,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "燃焼中の敵に攻撃を当てると、周囲の敵にも燃焼が移る。",
     icon: "延",
     rarity: "rare",
-    tags: ["burn"],
+    tags: ["burn", "element"],
     keywords: kw(["burn"], ["burn"]),
     gives: ["burn"],
     cursed: false,
@@ -705,7 +707,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "燃焼中の敵を倒すと灰が残る。灰を踏むと、次の近接1回が2倍の燃焼を付ける。",
     icon: "灰",
     rarity: "rare",
-    tags: ["burn", "melee"],
+    tags: ["burn", "melee", "element"],
     keywords: kw(["burn"], ["burn", "kill"]),
     gives: ["burn"],
     cursed: false,
@@ -718,7 +720,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "バーストが周囲の燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。",
     icon: "焦",
     rarity: "epic",
-    tags: ["burn", "energy"],
+    tags: ["burn", "energy", "element"],
     keywords: kw(["explode"], ["burn", "energy"]),
     cursed: false,
     requires: "burn",
@@ -734,7 +736,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "射撃の命中で冷気を付ける。",
     icon: "霜",
     rarity: "common",
-    tags: ["chill", "ranged"],
+    tags: ["chill", "ranged", "element"],
     keywords: kw(["chill"], ["ranged"]),
     gives: ["chill"],
     cursed: false,
@@ -746,7 +748,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "冷気3以上の敵は予備動作が40%長くなる。",
     icon: "凍",
     rarity: "rare",
-    tags: ["chill", "counter"],
+    tags: ["chill", "counter", "element"],
     keywords: kw(["counter"], ["chill"]),
     gives: ["counter"],
     cursed: false,
@@ -759,7 +761,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "砕きが起きると、近くの凍結中の敵も連鎖して砕ける。",
     icon: "鐘",
     rarity: "rare",
-    tags: ["chill", "freeze"],
+    tags: ["chill", "freeze", "element"],
     keywords: kw(["reaction"], ["reaction", "chill"]),
     cursed: false,
     lineage: "frost",
@@ -768,10 +770,10 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   eternalWinter: {
     key: "eternalWinter",
     name: "永冬",
-    desc: "ジャスト回避で周囲の敵を凍結させる（ボスを除く）。",
+    desc: "見切りで周囲の敵を凍結させる（ボスを除く）。",
     icon: "冬",
     rarity: "epic",
-    tags: ["chill", "freeze", "just"],
+    tags: ["chill", "freeze", "just", "element"],
     keywords: kw(["chill"], ["just"]),
     gives: ["freeze"],
     cursed: false,
@@ -788,7 +790,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "ダッシュですり抜けた敵に感電を付ける。",
     icon: "静",
     rarity: "common",
-    tags: ["shock", "dash"],
+    tags: ["shock", "dash", "element"],
     keywords: kw(["shock"], ["dash"]),
     gives: ["shock"],
     cursed: false,
@@ -800,7 +802,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "感電中の敵を近接で殴ると、その敵から連鎖する雷が走る。",
     icon: "刃",
     rarity: "rare",
-    tags: ["shock", "melee"],
+    tags: ["shock", "melee", "element"],
     keywords: kw(["shock"], ["shock", "melee"]),
     gives: ["shock"],
     cursed: false,
@@ -813,7 +815,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "麻痺した敵の足元に予告の円が出て、1秒後に雷が落ちる。",
     icon: "落",
     rarity: "rare",
-    tags: ["shock", "paralyze"],
+    tags: ["shock", "paralyze", "element"],
     keywords: kw(["shock", "area"], ["shock"]),
     cursed: false,
     lineage: "thunder",
@@ -825,7 +827,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "コンボ10ごとに、周囲の感電中の敵すべてから雷が連鎖する。",
     icon: "鼓",
     rarity: "epic",
-    tags: ["shock", "combo"],
+    tags: ["shock", "combo", "element"],
     keywords: kw(["shock"], ["combo", "shock"]),
     cursed: false,
     requires: "shock",
@@ -838,7 +840,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   moonRead: {
     key: "moonRead",
     name: "月読",
-    desc: "マナを使うスキルが命中した敵を短く沈黙させる。",
+    desc: "気力を使うスキルが命中した敵を短く沈黙させる。",
     icon: "月",
     rarity: "common",
     tags: ["mana", "skill", "silence"],
@@ -850,7 +852,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   highTide: {
     key: "highTide",
     name: "満ち潮",
-    desc: "マナが満タンの間、通常攻撃の命中で必殺ゲージが余分に溜まる。",
+    desc: "気力が満タンの間、通常攻撃の命中で必殺ゲージが余分に溜まる。",
     icon: "潮",
     rarity: "rare",
     tags: ["mana", "energy"],
@@ -863,7 +865,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   newMoon: {
     key: "newMoon",
     name: "新月",
-    desc: "マナが0になってから2秒以内に撃ったスキル1回は、払ったマナが戻る。",
+    desc: "気力が0になってから2秒以内に撃ったスキル1回は、払った気力が戻る。",
     icon: "朔",
     rarity: "rare",
     tags: ["mana", "skill"],
@@ -875,7 +877,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   eclipse: {
     key: "eclipse",
     name: "月蝕",
-    desc: "装着中のスキルを重複なく続けて全て撃つと、2秒間スキルで払ったマナが戻る。",
+    desc: "装着中のスキルを重複なく続けて全て撃つと、2秒間スキルで払った気力が戻る。",
     icon: "蝕",
     rarity: "epic",
     tags: ["mana", "skill"],
@@ -891,7 +893,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   bulletSteal: {
     key: "bulletSteal",
     name: "奪弾",
-    desc: "ジャスト回避の瞬間、周囲の敵弾を自分の弾に変えて照準の方向へ撃ち出す。",
+    desc: "見切りの瞬間、周囲の敵弾を自分の弾に変えて照準の方向へ撃ち出す。",
     icon: "奪",
     rarity: "rare",
     tags: ["ranged", "just"],
@@ -912,7 +914,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   glare: {
     key: "glare",
     name: "睨み",
-    desc: "ジャスト回避した攻撃の主を4秒間弱体にする。",
+    desc: "見切った攻撃の主を4秒間弱体にする。",
     icon: "睨",
     rarity: "common",
     tags: ["weaken", "just"],
@@ -934,7 +936,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reaperPlay: {
     key: "reaperPlay",
     name: "死神遊び",
-    desc: "死神の攻撃にもジャスト回避が成立し、成立するたび死神が3秒止まる。",
+    desc: "死神の攻撃にも見切りが成立し、成立するたび死神が3秒止まる。",
     icon: "遊",
     rarity: "epic",
     tags: ["reaper", "just"],
@@ -958,7 +960,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     desc: "ダッシュの軌跡に帯が残る。帯は装備で最も強い元素（燃焼・冷気・感電）を付ける。",
     icon: "轍",
     rarity: "rare",
-    tags: ["dash", "burn", "chill", "shock"],
+    tags: ["dash", "burn", "chill", "shock", "element"],
     keywords: kw(["burn", "chill", "shock"], ["dash"]),
     cursed: false,
   },
@@ -1017,7 +1019,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   twinWheels: {
     key: "twinWheels",
     name: "両輪",
-    desc: "マナのスキルが当たると他のスキルのクールダウンが1秒縮み、クールダウンのスキルが当たると次のマナのスキルのコストが半分になる。",
+    desc: "気力型のスキルが当たると他のスキルの再使用時間が1秒縮み、再使用型のスキルが当たると次の気力型のスキルのコストが半分になる。",
     icon: "輪",
     rarity: "rare",
     tags: ["mana", "skill"],
@@ -1057,7 +1059,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   justReturn: {
     key: "justReturn",
     name: "見切り返し",
-    desc: "ジャスト回避でダッシュの回数が1戻る。",
+    desc: "見切りでダッシュの回数が1戻る。",
     icon: "還",
     rarity: "common",
     tags: ["dash", "just"],
@@ -1171,7 +1173,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   quietHall: {
     key: "quietHall",
     name: "静寂の間",
-    desc: "沈黙中の敵が近くにいる間、スキルのマナコストが-30%になる。",
+    desc: "沈黙中の敵が近くにいる間、スキルの気力コストが-30%になる。",
     icon: "寂",
     rarity: "common",
     tags: ["silence", "mana"],
@@ -1181,7 +1183,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   keenEye: {
     key: "keenEye",
     name: "見逃さぬ",
-    desc: "敵を怯ませるたびマナが8回復する。",
+    desc: "敵を怯ませるたび気力が8回復する。",
     icon: "逃",
     rarity: "common",
     tags: ["stagger", "mana"],
@@ -1224,7 +1226,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   cashOut: {
     key: "cashOut",
     name: "換金",
-    desc: "バーストを撃つとコンボを0にして、コンボ数の2倍のマナを得る。",
+    desc: "バーストを撃つとコンボを0にして、コンボ数の2倍の気力を得る。",
     icon: "換",
     rarity: "common",
     tags: ["combo", "mana", "energy"],
@@ -1256,7 +1258,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reaperShadow: {
     key: "reaperShadow",
     name: "死神の影",
-    desc: "死神の警告中と出現中は、撃破するたびマナ+10・必殺ゲージ+10。",
+    desc: "死神の警告中と出現中は、撃破するたび気力+10・必殺ゲージ+10。",
     icon: "影",
     rarity: "common",
     tags: ["reaper", "mana", "energy"],
@@ -1276,7 +1278,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   deathRush: {
     key: "deathRush",
     name: "死に急ぎ",
-    desc: "最大HPが-50%になる代わりに、撃破するたび0.5秒無敵になる。",
+    desc: "最大生命が-50%になる代わりに、撃破するたび0.5秒無敵になる。",
     icon: "急",
     rarity: "rare",
     tags: ["hp"],
@@ -1306,7 +1308,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   heavenEarth: {
     key: "heavenEarth",
     name: "乾坤",
-    desc: "マナの自然回復と通常攻撃のマナ回収が0になる代わりに、ジャスト回避と撃破でマナが満タンになる。",
+    desc: "気力の自然回復と通常攻撃の気力回収が0になる代わりに、見切りと撃破で気力が満タンになる。",
     icon: "乾",
     rarity: "rare",
     tags: ["mana", "just"],
@@ -1316,7 +1318,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   afterglow: {
     key: "afterglow",
     name: "余韻",
-    desc: "スキル発動後0.6秒、通常攻撃の命中で戻るマナが2倍になる。",
+    desc: "スキル発動後0.6秒、通常攻撃の命中で戻る気力が2倍になる。",
     icon: "韻",
     rarity: "common",
     tags: ["mana", "skill"],
@@ -1377,7 +1379,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   chantReturn: {
     key: "chantReturn",
     name: "詠唱返し",
-    desc: "自分が沈黙している間、通常攻撃で戻るマナが3倍になる。",
+    desc: "自分が沈黙している間、通常攻撃で戻る気力が3倍になる。",
     icon: "詠",
     rarity: "common",
     tags: ["silence", "mana"],
@@ -1387,7 +1389,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   fullMoonShot: {
     key: "fullMoonShot",
     name: "満月撃ち",
-    desc: "マナが満タンで撃ったスキルは、命中した敵を脆弱にする。",
+    desc: "気力が満タンで撃ったスキルは、命中した敵を脆弱にする。",
     icon: "満",
     rarity: "common",
     tags: ["mana", "skill", "vulnerable"],
@@ -1423,7 +1425,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   swallowReturn: {
     key: "swallowReturn",
     name: "燕渡り",
-    desc: "ジャスト回避で消した敵弾の数だけ、近い敵を最大5体まで斬り渡る。",
+    desc: "見切りで消した敵弾の数だけ、近い敵を最大5体まで斬り渡る。",
     icon: "燕",
     rarity: "epic",
     tags: ["just", "melee"],
@@ -1470,7 +1472,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   feastCup: {
     key: "feastCup",
     name: "饗宴の盃",
-    desc: "撃破時、HPが満タンなら戻るマナが増え、マナが満タンなら回復が増える。",
+    desc: "撃破時、生命が満タンなら戻る気力が増え、気力が満タンなら回復が増える。",
     icon: "盃",
     rarity: "epic",
     tags: ["hp", "mana"],
@@ -1492,7 +1494,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   hollowBlade: {
     key: "hollowBlade",
     name: "虚刃",
-    desc: "マナが0の間、通常攻撃に乗る霊力が2倍になる。",
+    desc: "気力が0の間、通常攻撃に乗る霊力が2倍になる。",
     icon: "虚",
     rarity: "epic",
     tags: ["mana", "attr"],
@@ -1515,7 +1517,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   clearMirror: {
     key: "clearMirror",
     name: "明鏡",
-    desc: "ジャスト回避から1.5秒以内に撃ったスキル1回は、払ったマナが戻る。",
+    desc: "見切りから1.5秒以内に撃ったスキル1回は、払った気力が戻る。",
     icon: "鏡",
     rarity: "epic",
     tags: ["just", "mana"],

@@ -284,6 +284,8 @@ const TUNING = {
   chainThrow: { freqFrom: 1200, freqTo: 500, duration: 0.12, noiseFreqFrom: 5000, noiseFreqTo: 2500, noiseDuration: 0.1 },
   menuMove: { freq: 900, duration: 0.015 },
   chargeLevel: { tones: [660, 990] as const, noteDuration: 0.035, gap: 0.01 },
+  weakHit: { tones: [1320, 1760] as const, noteDuration: 0.03, gap: 0.005 },
+  resistHit: { freqFrom: 300, freqTo: 160, duration: 0.07 },
 } as const;
 
 // ---- 各効果音の定義 -------------------------------------------------------
@@ -1282,6 +1284,22 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
       noteDuration: TUNING.chargeLevel.noteDuration,
       gap: TUNING.chargeLevel.gap,
       peak: 0.3,
+    }),
+  weakHit: (ctx, dest, opts) =>
+    arpeggio(ctx, dest, opts, {
+      type: "triangle",
+      freqs: TUNING.weakHit.tones,
+      noteDuration: TUNING.weakHit.noteDuration,
+      gap: TUNING.weakHit.gap,
+      peak: 0.25,
+    }),
+  resistHit: (ctx, dest, opts) =>
+    toneSweep(ctx, dest, opts, {
+      type: "square",
+      freqFrom: TUNING.resistHit.freqFrom,
+      freqTo: TUNING.resistHit.freqTo,
+      duration: TUNING.resistHit.duration,
+      peak: 0.2,
     }),
 };
 

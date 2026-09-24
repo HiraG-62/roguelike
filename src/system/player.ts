@@ -13,6 +13,7 @@ import {
   type ShotDef,
   type ShotRuntime,
   type TipDef,
+  BURST_ATTACK,
   MOVESETS,
   SHOT_TYPES,
   chargeLevelAt,
@@ -1249,7 +1250,7 @@ function trySpecial(state: GameState): boolean {
   for (const e of state.enemies) {
     if (!circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     const dir = normalize(sub(e.body.pos, p.body.pos));
-    const out = rollOutgoing(state, e, damage, "proc");
+    const out = rollOutgoing(state, e, damage, "proc", { attack: BURST_ATTACK });
     if (damageEnemy(state, e, out.amount, dir, knockback, { poise, hitstopSteps: FEEL.hitstopHeavy })) kills += 1;
   }
   for (const pr of state.projectiles) {

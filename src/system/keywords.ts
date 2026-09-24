@@ -6,9 +6,11 @@ import {
   kw,
   mergeProfiles,
 } from "../core/keywords";
+import { ELEMENTS, type Element } from "../core/element";
 import type { FloorKind, RoomKind } from "../core/state";
 import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMY_COMBAT, type EnemyCombatDef } from "../data/enemyCombat";
+import { enemyDefense, enemyWeaknesses } from "../data/enemyDefense";
 import { ATTR } from "../data/tuning";
 import {
   ATTR_KEYS,
@@ -22,7 +24,7 @@ import {
   type TriggerKind,
   type TriggeredEffect,
 } from "../loot/types";
-import { MODIFIERS, SKILL_DEFS } from "../skills/data";
+import { MODIFIERS, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { ModifierKey, SkillDef, SkillProfile } from "../skills/types";
 import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonTag } from "./boonDefs";
@@ -39,6 +41,17 @@ import { FLOOR_KEYWORDS, ROOM_KEYWORDS } from "./roomTypes";
 // -----------------------------------------------------------------------------
 // 状態異常 → 語
 // -----------------------------------------------------------------------------
+
+/** 属性 → 語（docs/COMBAT_DESIGN.md A-8） */
+export const ELEMENT_KEYWORD: Readonly<Record<Element, Keyword>> = {
+  none: "elNone",
+  fire: "elFire",
+  ice: "elIce",
+  lightning: "elLightning",
+  poison: "elPoison",
+  dark: "elDark",
+  light: "elLight",
+};
 
 /** 状態異常の種類 → 語。昇華は元の状態の語、良い状態は近い動詞の語へ寄せる */
 export const STATUS_KEYWORDS: Readonly<Record<StatusKind, readonly Keyword[]>> = {
@@ -233,6 +246,11 @@ const STAT_RULES: readonly StatRule[] = [
   trait("boonEchoGold", kw([], ["gold"])),
   trait("boonEchoUmbra", kw([], ["umbra"])),
   trait("gearInverted", kw(["inverted"])),
+  // ---- 属性（docs/COMBAT_DESIGN.md A-8）。変換で通常攻撃がその属性を帯びる / 無の刻印でスキルが無属性に戻る ----
+  ...ELEMENTS.filter((e) => e !== "none").map(
+    (e): StatRule => ({ id: `infuse.${e}`, tags: ["element"], keywords: kw([ELEMENT_KEYWORD[e]]), test: (s) => s.infuse[e] > 0 }),
+  ),
+  { id: "skillNeutral", tags: [], keywords: kw(["elNone"]), test: (s) => s.skillNeutral > 0 },
 ];
 
 /** トリガーの起点 → 食う語。祝福タグは旧 equipmentTags が見ていたものだけ */
@@ -410,6 +428,9 @@ export function skillKeywords(def: Readonly<SkillDef>, modifiers: readonly Modif
   const parts: KeywordProfile[] = [def.keywords];
   for (const a of def.applies ?? []) parts.push(statusProduces(a.kind));
   if (def.resource === "mana") parts.push(MANA_SPENDER);
+  const atk = SKILL_ATTACK[def.key];
+  // 無属性は大多数なので語にしない（無属性の語は無の刻印が出す）
+  if (atk && atk.element !== "none") parts.push(kw([ELEMENT_KEYWORD[atk.element]]));
   for (const m of modifiers) parts.push(MODIFIERS[m].keywords);
   return mergeProfiles(...parts);
 }
@@ -418,9 +439,17 @@ export function boonKeywords(def: Readonly<BoonDef>): KeywordProfile {
   return def.keywords;
 }
 
-/** 敵の語。明示の語 + 使ってくる状態異常 */
+/** 敵の語。明示の語 + 使ってくる状態異常 + 攻撃の属性（出す）と弱点（食う。ボスはどの段階の弱点も） */
 export function enemyKeywords(def: Readonly<EnemyCombatDef>): KeywordProfile {
-  return mergeProfiles(def.keywords, ...def.inflicts.map((i) => statusProduces(i.kind)));
+  return mergeProfiles(def.keywords, ...def.inflicts.map((i) => statusProduces(i.kind)), enemyElementKeywords(def));
+}
+
+function enemyElementKeywords(def: Readonly<EnemyCombatDef>): KeywordProfile {
+  const guard = def.guard ?? enemyDefense("");
+  const produces: Keyword[] = guard.attack.element === "none" ? [] : [ELEMENT_KEYWORD[guard.attack.element]];
+  const stages = [0, ...(guard.stages ?? []).map((_, i) => i + 1)];
+  const weak = stages.flatMap((stage) => enemyWeaknesses(guard, stage));
+  return kw(produces, weak.map((e) => ELEMENT_KEYWORD[e]));
 }
 
 export function roomKeywords(kind: RoomKind): KeywordProfile {

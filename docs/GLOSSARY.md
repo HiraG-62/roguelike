@@ -3,29 +3,53 @@
 表示文字列はこの表記に揃える。内部 key（英語の識別子）は変えない。表の「出典」は現在その表記を持っているコード。
 新しい用語を足したら、この表にも 1 行足す。
 
+## 世界観語の対応表（2026-09-24。世界観語はこの表を正とする）
+
+表示（HUD・装備画面・祝福カード・スキル・ツールチップ・タイトル・設定・図鑑・依頼・死亡画面・ログ・浮き文字）に英字略語（HP / MP / CD / GCD / DPS / JUST）を出さない。内部 key・変数名・型名（`mana` / `hp` / `cooldown` / `elite` / `just` …）は変えない。設計文書では「ラン」「深度」「ドロップ」を開発用の語として使ってよい（表示には出さない）。
+
+| 旧 | 新（表示） | 理由 |
+| --- | --- | --- |
+| マナ | 気力 | 「気力不足」「気力が満ちる」が日本語として自然に読め、資源だと初見で分かる。気力を伸ばすステータス「精神」とも意味がつながる。「霊気」は霊力、「精」は精神と紛れるので避けた |
+| HP / 最大 HP | 生命 / 最大生命 | 「体力」はステータス（vit）と衝突、「命」は「最大命」が不自然。敵にも使える（「敵の生命が 3 割増える」） |
+| CD / クールダウン | 再使用時間（短いラベルは「再使用」）。スキルの資源の型は 気力型 / 再使用型 | 既に「ダッシュ再使用時間」「スキルの再使用時間」で使っていた語に揃えた |
+| ジャスト / ジャスト回避 / JUST / ジャスト！ | 見切り / 見切った / 見切り！ | 見切り斬り・見切りの息・見切りの息吹・見切りの記憶・見切り返しなど、派生の名前が既に「見切り」で揃っていた |
+| ジャストカウンター（浮き文字） | 見切り斬り！ | 祝福名「見切り斬り」と揃えた。GLOSSARY では改名済みだったのに浮き文字だけ旧称が残っていた |
+| エリート | 精鋭 | 縛り「精鋭」（精鋭の抽選が 2 回）と同じ語になり、説明が一続きで読める |
+| エネルギー | 必殺ゲージ | 既存の正表記「必殺ゲージ」に揃えた（揺れの解消） |
+| ラン（表示） | 探索（「1 ランで」→「1 回の探索で」、ラン履歴 → 探索履歴） | 「ラン」はローグライクの業界語で初見に通じない。「潜行」は敵の状態で使用済み |
+| 低HP（語） | 瀕死 | 語の字形が既に「瀕」 |
+| 語「マナ」の字形 魔 | 気 | 表示名の気力に合わせた |
+
+比較した 3 案（採用は A）:
+- A: 気力 / 生命 / 見切り / 精鋭 / 再使用時間 / 探索。日常語で意味が取れ、既存の世界観語（見切り斬り・縛り「精鋭」）と噛み合う
+- B: 霊気 / 命 / 見極め / 強者 / 巡り。霊気がステータス「霊力」と、巡りが刻印符「巡り」と衝突する
+- C: 灯 / 血 / 刹那 / 異形 / 冷え / 潜り。雰囲気は強いが「最大灯」「血が足りない（出血と紛れる）」など直感性が落ちる
+
+変えずに残した語: ボス / 死神（既に日本語、または誰にでも通じる）、ダッシュ / コンボ / バースト / スキル / スキル石 / スロット / アーマー / リゲイン（カタカナのままの方が直感的。固有名詞を増やしすぎない）、起点 / 縛り / 位階 / 図鑑 / 依頼 / 実績 / 称号（既に日本語の世界観語）、地下 n 階（表示は既に階）。キー名・ボタン名（WASD / Space / Esc / LB / A X Y B）と URL は操作の案内なので英字のまま。
+
 ## 戦闘・操作
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| ジャスト（ジャスト！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間。スロー + ゲージ増 + マナ回収 | `system/combat.ts` |
-| ジャスト回避 | onJustDodge | 上の行為。説明文での名前 | `system/boons.ts`、`loot/affixes.ts`、`loot/stats.ts`、`loot/triggers.ts` |
-| 見切り斬り（祝福） | justSlash（祝福 key）/ `ACTION.justCounter`（旧称「ジャストカウンター」、内部名は変えていない） | ジャスト回避直後の攻撃で敵の目の前へ瞬間移動して斬る。祝福を取らないと出ない | `system/boons.ts`、`data/tuning.ts` ACTION.justCounter |
+| 見切り（見切り！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間（旧表記「ジャスト」「JUST」）。スロー + ゲージ増 + 気力回収 | `system/combat.ts` |
+| 見切り / 見切った | onJustDodge | 上の行為。説明文での名前（旧表記「ジャスト回避」）。「見切りの息吹」「見切りの記憶」など既存の名前と同じ語で揃う | `system/boons.ts`、`loot/affixes.ts`、`loot/stats.ts`、`loot/triggers.ts` |
+| 見切り斬り（祝福） | justSlash（祝福 key）/ `ACTION.justCounter`（旧称「ジャストカウンター」、内部名は変えていない） | 見切り直後の攻撃で敵の目の前へ瞬間移動して斬る。祝福を取らないと出ない。浮き文字は「見切り斬り！」（祝福名と同じ文字列だと取得時の表示と区別できないため）| `system/boons.ts`、`data/tuning.ts` ACTION.justCounter |
 | カウンター（カウンター！） | counter | 敵の予備動作中に近接を当てる。ダメージ ×1.5 + 怯み値 ×2（`ACTION.counter.poiseMul`。確定の怯みではなく、敵の強靭〔攻撃中 ×0.5〕と相殺して等倍になる値） | `data/tuning.ts` ACTION.counter |
 | ガードブレイク | guard break | 盾騎士の正面ブロックをカウンターで割る | `system/elites.ts` GUARD_BREAK_TEXT |
 | ブロック | block | 盾騎士の正面で攻撃が弾かれた。ブロック時も怯み値の 50% は溜まる | `system/elites.ts` BLOCK_TEXT |
-| パリィ | parry | スキル。CD 型、近接の衝撃波 | `skills/data.ts` |
+| パリィ | parry | スキル。再使用型、近接の衝撃波 | `skills/data.ts` |
 | 弾返し（祝福） | reflect（祝福 key） | 近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージ ×3。祝福を取らないと出ない | `system/boons.ts` |
 | 殲滅 | lastKill | 交戦中の部屋の最後の 1 体を倒した瞬間のスロー演出 | tuning ACTION.lastKill |
 | 壁叩きつけ | wallSplat | 吹き飛んだ敵が壁に激突して追加ダメージ + 怯み値（強靭を無視） | `system/enemies.ts`、tuning ACTION.wallSplat |
-| リゲイン | regain | 被弾後しばらく、近接ヒットで HP を取り戻せる | `system/combat.ts` |
-| 与ダメの n% を回復 | lifeOnHit | 命中時の回復。与えたダメージの n%（旧表記「命中時HP回復 +n」は固定値だった）。ステータス一覧では「与ダメからのHP回復(%)」 | `loot/affixes.ts`、`loot/stats.ts` |
-| 撃破時HP回復（n コンボ以上） | lifeOnKill | コンボが `HEAL.killHealMinCombo` 以上の撃破でだけ回復する | `system/combat.ts` |
-| HP自然回復（敵が近くにいない間） | hpRegen | 戦闘中（封鎖中・近くに敵）は止まる毎秒の回復 | `system/combat.ts` |
-| 戦闘中の回復の上限 | `HEAL.sustainCapRatio` | 命中時・撃破時・祝福の撃破回復を合わせて 1 秒に最大 HP の 4% まで。説明文では「戦闘中の回復の上限あり」 | `system/combat.ts` healSustained |
+| リゲイン | regain | 被弾後しばらく、近接ヒットで生命を取り戻せる | `system/combat.ts` |
+| 与ダメの n% を回復 | lifeOnHit | 命中時の回復。与えたダメージの n%（旧表記「命中時HP回復 +n」は固定値だった）。ステータス一覧では「与ダメからの生命回復(%)」 | `loot/affixes.ts`、`loot/stats.ts` |
+| 撃破時の生命回復（n コンボ以上） | lifeOnKill | コンボが `HEAL.killHealMinCombo` 以上の撃破でだけ回復する | `system/combat.ts` |
+| 生命自然回復（敵が近くにいない間） | hpRegen | 戦闘中（封鎖中・近くに敵）は止まる毎秒の回復 | `system/combat.ts` |
+| 戦闘中の回復の上限 | `HEAL.sustainCapRatio` | 命中時・撃破時・祝福の撃破回復を合わせて 1 秒に最大生命の 4% まで。説明文では「戦闘中の回復の上限あり」 | `system/combat.ts` healSustained |
 | ダッシュ攻撃 | dashAttack | ダッシュ中に押した攻撃が終了時に出る突き | tuning ACTION |
 | コンボ | combo | 連続ヒット数。時間切れか被弾で途切れる | HUD |
 | バースト | special | 必殺ゲージ満タンで出す周囲攻撃 | HUD |
-| 必殺ゲージ | energy | バーストのゲージ | 祝福の説明文 |
+| 必殺ゲージ | energy | バーストのゲージ。旧表記「エネルギー」（性質の「エネルギー獲得」）も「必殺ゲージ獲得」に揃えた | 祝福の説明文 |
 | 怯み | stagger（状態異常 kind） | 攻撃の怯み値が敵の怯み耐性を超えると付く行動停止の状態異常。旧表記「スタガー」を置き換えた | `core/status.ts`、`system/poise.ts` |
 | 堅守 | guarded（状態異常 kind） | 怯みが解けた直後に付く状態異常。受ける怯み値が半減（ボスは 1/4） | `core/status.ts`、`system/poise.ts` |
 | ダウン | ボスの `stagger` | ボスの怯み。通常より長く（2.0 秒）、被ダメが増える（`POISE.bossDownDamageMul`） | `data/enemyCombat.ts`、`system/poise.ts` |
@@ -41,26 +65,26 @@
 | 拾う | interact / interactPressed | 注目中の遺物・スキル石を倉庫へ入れる操作（既定 G、パッドは右スティック押し込み）。手の届く距離（`PICKUP.reach`）にあるものだけ。ハート・刻印符などは従来どおり触れて拾う。キー案内は「G: 拾う」、遠いときは「近づいて拾う」 | `system/loot.ts` updateDropInteract、`core/input.ts` |
 | 注目 | focusedDrop | カーソル（パッドは照準スティックの先、中立なら手の届く最寄り）の近くにある床の遺物・スキル石。環とキー案内が付き、性能のポップアップが出る。state には持たず毎フレーム求める | `system/loot.ts` focusedDrop、`render/dropTooltip.ts` |
 
-## ステータス・マナ・状態異常（`docs/COMBAT_DESIGN.md`）
+## ステータス・気力・状態異常（`docs/COMBAT_DESIGN.md`）
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | ステータス | Attributes / AttrKey | プレイヤーの 5 つの素質値。基礎値は各 5 | `loot/types.ts`、`system/attributes.ts` |
 | 筋力 | str | 近接系の威力・怯み値・ノックバックが伸びる | `loot/resonance.ts` ATTR_LABEL |
-| 技巧 | dex | 射撃系の威力・移動速度・連射・ダッシュ CD が伸びる | 同上 |
-| 体力 | vit | 最大 HP が伸び、被る状態異常の持続が縮む | 同上 |
-| 精神 | mnd | 最大マナ・マナ自然回復・会心率が伸びる | 同上 |
+| 技巧 | dex | 射撃系の威力・移動速度・連射・ダッシュ再使用時間が伸びる | 同上 |
+| 体力 | vit | 最大生命が伸び、被る状態異常の持続が縮む | 同上 |
+| 精神 | mnd | 最大気力・気力自然回復・会心率が伸びる | 同上 |
 | 霊力 | spi | スキルの第 2 係数・状態異常の効果量が伸びる | 同上 |
 | 実効値 | effectiveAttr / attributesEff | ステータスに逓減を掛けた計算用の値 | `system/attributes.ts` |
-| マナ | mana | スキルの資源。通常攻撃の命中・ジャスト回避・撃破で溜まり、スキルで減る | `system/mana.ts` |
-| ~~共通最低間隔~~ | ~~GCD（`SKILL.gcd`）~~ | 2026-09-24 に廃止。スキルの待ちはスロットごとの最低間隔と CD だけ（`docs/COMBAT_DESIGN.md` B-9） | - |
+| 気力 | mana | スキルの資源。通常攻撃の命中・見切り・撃破で溜まり、スキルで減る | `system/mana.ts` |
+| ~~共通最低間隔~~ | ~~GCD（`SKILL.gcd`）~~ | 2026-09-24 に廃止。スキルの待ちはスロットごとの最低間隔と再使用時間だけ（`docs/COMBAT_DESIGN.md` B-9） | - |
 | 状態異常 | StatusEffect / StatusBag | プレイヤーと敵に共通の状態異常の入れ物。34 種（昇華・良い状態を含む） | `core/status.ts`、`system/statusEffects.ts` |
 | 燃焼 | burn | 継続ダメージ | `core/status.ts`、`render/statusUi.ts` |
 | 冷気 | chill | 移動と行動が遅くなる。重ねると凍結へ | 同上 |
 | 凍結 | freeze | 行動停止。次の被弾で「砕き」（ダメージ増 + 怯み値） | 同上 |
 | 感電 | shock | 周期ごとに周囲の別の敵へ連鎖ダメージ。重ねると麻痺へ | 同上 |
 | 麻痺 | paralyze | 短い行動停止 | 同上 |
-| 毒 | poison | 最大 HP 割合の継続ダメージ | 同上 |
+| 毒 | poison | 最大生命割合の継続ダメージ | 同上 |
 | 出血 | bleed | 移動距離に応じたダメージ | 同上 |
 | 脆弱 | vulnerable | 受けるダメージ増 | 同上 |
 | 弱体 | weaken | 与えるダメージ減 | 同上 |
@@ -72,7 +96,7 @@
 | 烙印 | brand | 近接で刻み、射撃・スキルの命中で起爆 | 同上 |
 | 崩勢 | broken | 怯みやすく、堅守を消す。崩勢中の怯みは長く、堅守が付かない | 同上 |
 | 宣告 | doom | 付いている間に受けたダメージの一部を、切れた瞬間にまとめて受ける | 同上 |
-| 吸魔 | siphon | この敵への命中でマナが戻る | 同上 |
+| 吸魔 | siphon | この敵への命中で気力が戻る | 同上 |
 | 彩痕 | hue | 5 色の印。共鳴と同じ色なら被ダメ増、対応する状態異常で色爆 | 同上 |
 | 灼熱 / 炎上 / 猛毒 / 大出血 / 氷棺 / 露呈 / 無力 / 浸水 | scorch / blaze / venom / hemorrhage / encase / exposed / enfeeble / soaked | 昇華: 状態異常を積み切ったときに上乗せされる上位の状態 | 同上 |
 | 加速 / 硬化 / 怒気 / 激昂 / 帯電 | haste / harden / wrath / fury / charged | 良い状態（プレイヤーのバフ）。HUD は緑の枠 | 同上 |
@@ -80,7 +104,7 @@
 | 昇華 | - | 同じ状態異常を積み切ると上位の状態に変わる・上乗せされること | 同上 |
 | 異常数 / 総スタック | statusCount / totalStacks | 付いている悪い状態異常の種類数 / スタック合計 | `system/statusEffects.ts` |
 | 地形 | TerrainLayer / TerrainKind | 床に重ねる層（水たまり・油・溶岩・毒沼・氷床・草むら・炎）。プレイヤーと敵の両方に効く | `core/terrain.ts`、`system/terrain.ts` |
-| 処刑 | - | 怯み中で HP の少ない敵を重い一撃で即死させる | `system/poise.ts` |
+| 処刑 | - | 怯み中で生命の少ない敵を重い一撃で即死させる | `system/poise.ts` |
 | 背面の一撃 | - | 攻撃中の敵を背後から殴ると堅守を無視する | 同上 |
 
 ## 部屋・フロア
@@ -89,7 +113,7 @@
 | --- | --- | --- | --- |
 | 封鎖（封鎖中） | locked / lockRoom | 部屋に入ると扉が閉じる状態。「部屋ロック」とも書かれているが表示は「封鎖」に寄せる。開放型フロア（2026-09-24）では試練・闘技場・巣・巣窟・伏兵・護衛・鏡とボス部屋だけ（`ROOM_KIND.locks`） | `system/floor.ts`、`render/renderer.ts` |
 | 交戦 | engaged | 封鎖しない部屋に入る、または部屋の敵が気付いた状態。封鎖と同じフック（祝福・ランイベント・呪い）が 1 回起きる | `system/floor.ts` |
-| 交戦中 | isEngaged / roomLocked | 今いる部屋が封鎖中、または交戦が始まっていて敵が残っている状態。旧「封鎖中」を条件にしていた祝福・誓約・性質・トリガー条件・殲滅・縛りはこれを見る。回復・マナの「戦闘中」（近くに敵）とは別 | `system/engagement.ts` |
+| 交戦中 | isEngaged / roomLocked | 今いる部屋が封鎖中、または交戦が始まっていて敵が残っている状態。旧「封鎖中」を条件にしていた祝福・誓約・性質・トリガー条件・殲滅・縛りはこれを見る。回復・気力の「戦闘中」（近くに敵）とは別 | `system/engagement.ts` |
 | 制圧 | cleared | 部屋の敵を全滅させた（封鎖した部屋は波も全て）。1 部屋 1 回 | `system/floor.ts`、祝福の説明文 |
 | 巣窟 | horde | モンスターハウス。広い塊に深度 2 から 0〜2 個。入ると封鎖され 3 波で大量に湧き、制圧で rare 以上が確定で落ちる | `system/roomTypes.ts`、`system/specialRooms.ts` |
 | 徘徊 | roam / ROAMING_ROOM | どの部屋にも属さず塊の間を歩き回る敵。気付くと追ってくる。時間経過で画面外に少しずつ増える（増援） | `system/spawner.ts` |
@@ -103,7 +127,7 @@
 | 祭壇 / 図書館 / 闘技場 / 賭博 / 鍛冶場 / 交換所 / 呪いの祠 / 共鳴炉 / 護衛 / 逃走 / 死神の巣 / 巣 / 鏡 / 見張り台 | altar / library / arena / gamble / forge / exchange / curseShrine / resonance / escort / escape / reaperNest / nest / mirror / watchtower | 追加の部屋種類。台座の部屋は触れて選ぶ（誓約・刻印符・賭け台・金床・交換台・鐘・宝箱） | `system/specialRooms.ts` ROOM_KIND_LABEL / PROP_LABEL |
 | 賭け台 / 金床 / 交換台 / 鐘 / 捕らわれ人 | lever / anvil / exchange / bell / captive | 特別な部屋の触れる物。捕らわれ人は護衛の部屋で守る対象 | 同上 |
 | 鏡像 | mirrorSelf | 鏡の部屋で湧く、今のビルドを写した敵 | `data/enemies.ts` |
-| ランイベント | runEvent | 予告（HUD の 1 行 + 効果音）の後に始まる一時的なルール変更。増援 / 賞金首 / 停電 / 地震 / 宝の雨 / マナ枯渇 / 刻の裂け目 / 霧 / 呪いの風 / 血の月 / 狂乱の月 / 流星群 / 縮みの呪い / 勢いの風 | `system/runEvents.ts` RUN_EVENTS |
+| ランイベント | runEvent | 予告（HUD の 1 行 + 効果音）の後に始まる一時的なルール変更。増援 / 賞金首 / 停電 / 地震 / 宝の雨 / 気力枯渇 / 刻の裂け目 / 霧 / 呪いの風 / 血の月 / 狂乱の月 / 流星群 / 縮みの呪い / 勢いの風 | `system/runEvents.ts` RUN_EVENTS |
 | 予告 | warn | ランイベント・長居の代償が始まる前の知らせ。HUD の「予告: …」 | 同上 |
 | 長居の代償 | linger | 死神以外の、同じ階にいるほど悪化する仕組み。影の自分 / 天井の崩落 / 潮（満潮） | `system/linger.ts` LINGER_LABEL |
 | 起点 | origin | ラン開始時に選ぶ出発条件。放浪者 / 剣の巡礼者 / 呪われた者 / 素手 / 詠み手 / 賭博師 / 死神の友 | `system/runSetup.ts` ORIGINS |
@@ -112,7 +136,7 @@
 | 地下 n 階 | depth | 階層 | HUD |
 | 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper。バリアントは 鎖の死神 / 取り立て屋 / 双子の死神 / 影の死神（付き物は 死神の影）/ 静かな死神 | `system/reaper.ts`、`system/reaperVariants.ts` |
 | ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士） | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
-| エリート | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
+| 精鋭 | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
 | 部屋主 | lairMaster | 巣の主。通常の抽選にも低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長 / 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み） | `data/enemies.ts` |
 | 再配色種 | recolor | 元の敵の絵の色を差し替え、挙動を 1 つ足した派生 | `data/enemies.ts` recolor |
 | 死骸 | corpse | 倒れた敵の跡。骨拾い・墓守の鐘・貪食の が使う | `system/enemyTraits.ts` |
@@ -126,7 +150,7 @@
 量産した敵名（`data/enemies.ts`）:
 - 再配色種: 毒スライム / 氷スライム / 炎スライム / 金色スライム / 骨猪 / 呪い眼 / 氷眼 / 黒鉄騎士 / 溶岩ゴーレム / 霜ゴーレム / 結晶ゴーレム / 氷鬼火 / 紫光線眼 / 飛ぶ本 / 灰蝙蝠
 - 既存の動きの流用: 若苗スライム / 棘鼠 / 双眼 / 三叉光線眼 / 影蝙蝠 / 狼 / 連投ゴブリン / 槍兵 / 角甲虫 / 投網兵 / 腐肉蝿 / 雷鬼火 / 骸骨兵
-- 新しい動き: 導火鼠 / 結晶ダニ / 残像打ち / 群れの長 / マナ喰い / 骨拾い / 墓守の鐘 / 沈黙の修道士 / 霜砕き / 双子の影
+- 新しい動き: 導火鼠 / 結晶ダニ / 残像打ち / 群れの長 / 気力喰い / 骨拾い / 墓守の鐘 / 沈黙の修道士 / 霜砕き / 双子の影
 - 部屋主: 喰らう宝箱 / 鎧の中身（割れると 鎧の中身・亡霊）/ 骨の楽団長
 - ボスと付き物: 双子の騎士（双子の騎士・兄 / 双子の騎士・妹）/ 霜の巨人（氷柱）
 
@@ -158,17 +182,17 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 芽 | budOffer / buds | 節目で出る 2 択の成長。選ばなかった方は消える | `loot/provenance.ts` |
 | 銘 | inscription | 余白を使い切った遺物に来歴から刻まれる名前 | `loot/names.ts` engraveName |
 | 誓約 | keystone（`ks_`）。表示は「誓約」に統一 | 遊び方を変える大型改造。排他グループあり | `system/keystones.ts` |
-| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow` / 渇きの誓約 `ks_thirst`（後 3 つはマナ関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
+| 誓約名 | - | 硝子の砲 / 狂戦士 / 瞬歩 / 不殺 / 不動 / 賭博師 / 吸血 / 過駆動 / 剣の誓い / 風走り / 過負荷 `ks_overdraw` / 静寂の誓い `ks_silentVow` / 渇きの誓約 `ks_thirst`（後 3 つは気力関連、排他グループ） | `system/keystones.ts` KEYSTONE_NAME |
 | 誓約名（2026-09 追加） | - | 無垢の誓い / 蝕みの誓約 / 病みの誓い（status）/ 楔の誓い / 揺るがぬ誓い / 締め上げの誓い（poise）/ 読み勝ちの誓い（tempo）/ 背水の誓い / 死神の誓い（room）/ 詠唱の誓い（mana）/ 単色の誓い / 無色の誓い / 鏡の誓い（hue）/ 修行の誓い / 忘却の誓い（chronicle） | `system/keystones.ts` KEYSTONE_NAME |
 | 性質名（2026-09 追加） | `loot/affixes.ts` | 「名前: 効果」で表示する。汲み上げ / 底打ち / 満ち潮 / 引き潮 / 身代わり / 痛覚遮断 / 沈黙の報い / 殲滅の余韻 / 溢れ / 構えの呼吸 / 見切りの息吹 / 詠唱の集中 / 多彩 / 病み上がり / 弱体の盾 / 疫病の種 / 払い手 / 腐れ落ち / 毒気 / 耐性の布 / 払い清め / 楔 / 剥がし撃ち / 崩れの反響 / 怯み吸い / 追い討ち / 渦の芯 / 脆弱の楔 / 重い手 / 崩れ雷 / 崩れの充填 / 崩れの刻印 / 先読み / 崩し打ち / 返し波 / 堅守崩し / ダウン狩り / 撒き足 / 満ちた器 / 夜目 / 封鎖の熱 / 死神の影 / 若木 / 銘の重み / 裏の糧 / 異郷の響き / 橋渡し / 古傷 / 歴戦 / 旅の垢 / 王殺しの印 / 見切りの記憶 / 余韻斬り / 形見 / 撃ち込み杭 / 置き土産 / 杭打ち / 血の署名 / 祝福の響き | `loot/affixes.ts` |
 | 目覚め | `AffixDef.awakening` | 芽専用の性質。ドロップ・染めでは出ず、特定の節目の芽の片方にだけ出る（盾割り / 蹴り返し / 剥ぎ取り / 先の先 / 幕引き） | `loot/provenance.ts` MILESTONES |
-| 殲滅 / 怯ませた / カウンター / スキル発動 / エリート撃破（節目） | lastKills / staggers / counters / skillCasts / eliteKills | 来歴の節目。銘の名詞は 幕引き / 崩し / 先読み / 詠み手 / 剥ぎ取り | `loot/provenance.ts`、`loot/names.ts` |
+| 殲滅 / 怯ませた / カウンター / スキル発動 / 精鋭撃破（節目） | lastKills / staggers / counters / skillCasts / eliteKills | 来歴の節目。銘の名詞は 幕引き / 崩し / 先読み / 詠み手 / 剥ぎ取り | `loot/provenance.ts`、`loot/names.ts` |
 | 異色 | isOffColor | 既定と別の色で生まれた性質（生成時 10%）。異郷の響きが数える | `loot/traitContext.ts` |
 | トリガー | trigger（`tr:`） | 「〜時: 〜」の条件付き効果（trigger × condition × effect） | `loot/triggers.ts` |
 | 変換 | conversion（`cv_`） | ある軸の盛りを別の軸へ移す | `loot/affixes.ts` |
 | 名のある遺物 | namedKey（旧 unique） | 性質が固定の遺物（値は小さく揺らぐ） | `loot/named.ts` |
-| マナの性質 | maxManaFlat / manaRegenFlat / manaGainPct / manaCostPct / manaOnKillFlat / manaDrought | 最大マナ / マナ自然回復 / マナ回収 / スキルのコスト（代償: スキル威力）/ 撃破でマナ / 撃破でマナ・最大マナ −。tag `mana`、色は蒼 | `loot/affixes.ts` |
-| 涸れ井戸の指輪 | driedWell | マナをテーマにした名のある遺物 | `loot/named.ts` |
+| 気力の性質 | maxManaFlat / manaRegenFlat / manaGainPct / manaCostPct / manaOnKillFlat / manaDrought | 最大気力 / 気力自然回復 / 気力回収 / スキルのコスト（代償: スキル威力）/ 撃破で気力 / 撃破で気力・最大気力 −。tag `mana`、色は蒼 | `loot/affixes.ts` |
+| 涸れ井戸の指輪 | driedWell | 気力をテーマにした名のある遺物 | `loot/named.ts` |
 | 残響 | EchoWallet | 分解で得る色ごとの素材。紅響 / 蒼響 / 翠響 / 金響 / 冥響 | `loot/crafting.ts` ECHO_LABEL |
 | 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し / 転調 | shatter / dye / calm / stir / pare / transfer / modulate | 残響タブの 7 操作。転調は性質の色だけを反対色へ変える | `loot/crafting.ts` ECHO_OP_LABEL |
 | 残響（タブ名） | echo | 装備画面のタブ名（旧「鍛冶」から変更） | `render/inventoryUi.ts` TAB_LABEL |
@@ -182,7 +206,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
-| 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・マナ回収の傾向 | `data/weapons.ts` MOVESETS |
+| 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向 | `data/weapons.ts` MOVESETS |
 | 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand | 武器種の表示名。ベース名（短剣・刺突剣・戦鎚など）とは別 | `data/weapons.ts` MOVESETS[].name |
 | 射撃の型 | shot（`ShotKey`） | 銃スロットのベースが決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
 | 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 | single / rapid / spread / pierce / homing / ricochet / charge / mine | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
@@ -195,6 +219,36 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |
 | 引き寄せ / 投げ | pull / throw | 大鎌の手前へのノックバック / 拳のダッシュ攻撃の背後へのノックバック | `system/player.ts` knockDirection |
 | 手甲 / 鞭 / 杖 / 跳ね銃 / 置き撃ち筒 | gauntlets / whip / wand / ricochetGun / mineLauncher | 武器種・射撃の型の器になるベース（implicit なし） | `loot/bases.ts` |
+
+## ジョブ（`docs/COMBAT_DESIGN.md` A-9）
+
+| 表記 | 内部名 | 意味 | 出典 |
+| --- | --- | --- | --- |
+| ジョブ | job（`JobKey`） | ラン開始時に起点とは別に選ぶ戦い方。ステータスの偏り・得意な武器・固有のルール 2 つ・初期スキル石・弱点を持つ | `data/jobs.ts` JOBS |
+| 見習い / 剣士 / 狩人 / 拳闘士 / 盾持ち / 呪術師 / 槍兵 / 術士 / 影 / 錬金術師 | none / swordsman / hunter / brawler / shieldBearer / hexer / lancer / invoker / shadow / alchemist | ジョブの表示名。見習い = ジョブなし（既定）。起点「放浪者」「詠み手」と紛れないよう、ジョブ側は 見習い / 術士 にした | `data/jobs.ts` JOBS[].name |
+| 得意な武器 | favored | ジョブごとの武器種 2〜3。持っている間は近接の威力と攻撃速度が上がる | `system/jobs.ts` applyJobStats |
+| 弱点 | weakness | ジョブのトレードオフ（最大生命・射撃の威力・移動速度などが下がる） | `data/jobs.ts` |
+| 初期スキル石 | starterSkill | ジョブの石。そのスキルの石をまだ持っていなければ、ラン開始時に倉庫へ加わる | `system/jobs.ts` startJob |
+| ジョブを選ぶ | `OriginStage` の job | 起点画面の 1 段目。決定で「起点を選ぶ」段へ進み、Esc で戻る | `ui/origin.ts` |
+| ジョブの解放 | `QuestReward` の job | 依頼の報酬。呪術師（血の道）/ 槍兵（急所読み）/ 術士（連鎖の糸）/ 影（見切りの舞）/ 錬金術師（三段の連鎖） | `meta/quests.ts` |
+| 百芸の旅人 | jobsAll | 見習い以外のすべてのジョブで探索を終える実績 | `meta/achievements.ts` |
+
+## 攻撃ジャンル・属性・防御（`docs/COMBAT_DESIGN.md` A-8）
+
+| 表記 | 内部名 | 意味 | 出典 |
+| --- | --- | --- | --- |
+| 攻撃ジャンル | `AttackGenre`（range × quality） | 範囲軸と質軸の組み合わせ。表示は「近接・物理」 | `core/element.ts` genreLabel |
+| 近接 / 遠距離 / 範囲 | `AttackRange`: melee / ranged / area | 範囲軸。射撃の型・遠距離のスキルは「遠距離」（ボタンの役割の「射撃」とは別） | `core/element.ts` RANGE_LABEL |
+| 物理 / 魔法 / 混成 | `AttackQuality`: physical / arcane / hybrid | 質軸。物理はアーマー（敵は防御）、魔法は魔防、混成は両方の平均で受ける | `core/element.ts` QUALITY_LABEL |
+| 属性 / 無属性 / 炎属性 / 氷属性 / 雷属性 / 毒属性 / 闇属性 / 光属性 | `Element`: none / fire / ice / lightning / poison / dark / light | 攻撃の属性。状態異常（燃焼・冷気…）とは別。表示は「炎属性」、耐性は「炎耐性」 | `core/element.ts` ELEMENT_LABEL |
+| 魔防 | `PlayerStats.warding` / 敵の `EnemyDefenseDef.warding` | 魔法の軽減。アーマーと同じ逓減式 | `loot/stats.ts`、`data/enemyDefense.ts` |
+| 防御（敵） | `EnemyDefenseDef.defense` | 敵の物理の軽減 %。プレイヤー側は「アーマー」 | `data/enemyDefense.ts` |
+| 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く | `loot/affixes.ts` res_* |
+| 弱点 / 耐性（浮き文字） | `ELEMENT.weakText` / `resistText` | 敵の耐性が負 / 正の属性で当てたとき | `system/elementCombat.ts` |
+| 弱点の印 / ？ | `weaknessMark` | 敵の頭上の弱点の色。このランでその種類を倒すまでは「？」 | `render/elementUi.ts` |
+| 属性の変換（近接・射撃の n% を炎属性に変換） | `cv_infuse*` / `PlayerStats.infuse` | 通常攻撃の一部を属性として扱う変換 | `loot/affixes.ts` |
+| 無の刻印 | `cv_infuseNone` / `skillNeutral` | スキルの属性の n% を無属性に変換する | `loot/affixes.ts` |
+| 堅牢 | `sturdy` | アーマーと魔防 + / 移動速度 − の性質 | `loot/affixes.ts` |
 
 ## スキル・ラン内
 
@@ -209,7 +263,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 溜め | charge | 長押しで威力を上げる刻印符 | 同上 |
 | 祝福 | boon | 階層到達時の 3 択。ルール変更が中心 | `system/boons.ts` |
 | 呪い付き | cursed | 強い効果 + 代償の祝福 | 同上 |
-| マナ系の祝福 | springWell / bloodMana / reaperCup / keenBreath / circulation / hollowVessel | 湧水 / 血の対価 / 屠りの盃 / 見切りの息 / 循環 / 虚ろの器。マナの回復・軽減のルールを変える（tag `mana`）。「血の代償」は祝福 clearHeal と刻印符で既に使っているので bloodMana は「血の対価」 | `system/boons.ts` |
+| 気力系の祝福 | springWell / bloodMana / reaperCup / keenBreath / circulation / hollowVessel | 湧水 / 血の対価 / 屠りの盃 / 見切りの息 / 循環 / 虚ろの器。気力の回復・軽減のルールを変える（tag `mana`）。「血の代償」は祝福 clearHeal と刻印符で既に使っているので bloodMana は「血の対価」 | `system/boons.ts` |
 | 祝福のレア度 | common / rare / epic | 通常 / 希少 / 極稀 | `render/boonUi.ts` |
 | 系譜 | `BoonDef.lineage` / `after` | 同じ主から出る 4 段の祝福。前段を持つと次段が 3 択に出る。1 回の 3 択に同じ系譜は 1 枚まで。カードに「灰燼 2段」のように出す | `system/boonDefs.ts`、`render/boonUi.ts` |
 | 系譜名 | ash / frost / thunder / moon | 灰燼 / 霜枷 / 雷鳴 / 月蝕（`LINEAGE_LABEL`） | `system/boonDefs.ts` |
@@ -220,21 +274,21 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 系譜の祝福名 | emberSeed … eclipse | 灰燼: 火種 / 延焼 / 灰積もり / 焦土。霜枷: 霜息 / 凍て足 / 砕氷の鐘 / 永冬。雷鳴: 静電気 / 帯電の刃 / 落雷予告 / 雷神の鼓。月蝕: 月読 / 満ち潮 / 新月 / 月蝕 | `system/boonDefs.ts` |
 | 結びの祝福名 | swallowReturn … waveReturn | 燕渡り / 疫血 / 雷爆走 / 総崩れ / 饗宴の盃 / 臨界 / 虚刃 / 冬籠り / 明鏡 / 瞬停 / 波返し | 同上 |
 | 拡張の祝福名 | bulletSteal … fireWalk | 奪弾 / 口封じ / 睨み / 威圧 / 死神遊び / 起き上がり狙い / 属性の轍 / 呼び戻し / 狩り立て / 霜読み / 毒崩し / 看破 / 両輪 / 氷伝い / 試練の徒 / 片翼 / 見切り返し / 抜き胴 / 跳ね弾 / 炸裂弾頭 / 狙い目 / 燠火 / 神経断ち / 返り血 / 血裂き / 綻び広げ / 背討ち / 静寂の間 / 見逃さぬ / 崩し連鎖 / 立て直し狩り / 際打ち / 換金 / 取り返し / 傷の記憶 / 死神の影 / 時間稼ぎ / 死に急ぎ / 重荷 / 業の火 / 乾坤 / 余韻 / 伏兵返し / 見定め / 力の簒奪 / 綱渡り / 飛燕 / 詠唱返し / 満月撃ち / 持ち越し / 火渡り。状態異常「腐食」・スキル「跳弾」「燕返し」・状態異常「裂傷」と重ならないよう、祝福は 毒崩し / 跳ね弾 / 燕渡り / 血裂き にした | 同上 |
-| 足止め / 還流 / 雷鼓 / 奪弾 / 灰 | - | 祝福の浮き文字（死神遊び / 払ったマナが戻る / 雷神の鼓 / 奪弾 / 灰を拾った） | `system/boonRules.ts` |
+| 足止め / 還流 / 雷鼓 / 奪弾 / 灰 | - | 祝福の浮き文字（死神遊び / 払った気力が戻る / 雷神の鼓 / 奪弾 / 灰を拾った） | `system/boonRules.ts` |
 | 返却 | refundCharge | 刻印符「連鎖」でキルした時にチャージを 1 戻す時のフローティングテキスト | `skills/hit.ts` |
 | 型替え符 | `ModifierDef.reshape` | 発動の「型」（近接 / 射撃 / 設置 / 溜め）を変える刻印符。リンクを 2 本使い、1 スロットに 1 枚まで | `skills/modifiers.ts` |
 | 連携 | `ComboKey` / `SkillRunState.lastCast` | スキル A の直後にスキル B を手動で撃つと B が変化すること。成立すると「連携: 渦雷」のように浮き文字が出る。HUD の枠の左上の点滅する菱形が「連携可」 | `skills/combos.ts`、`render/skillHud.ts` |
 | 連携名 | wellThunder … reelStomp | 渦雷（引力球 → 雷撃）/ 引き回し（鎖鎌 → 旋風斬り）/ 返し撃ち（パリィ成功 → 撃ち抜き）/ 落地裂（墜星 → 地裂き）/ 総解き（伝染 → 綻び）/ 血風（血の契約 → 旋風斬り）/ 氷砕き（氷結地帯 → 砕氷槌）/ 影刺し（影渡り → 刺し穿ち）/ 疾風弾幕（加速 → 回転弾幕）/ 手繰り踏み（手繰り糸 → 震脚） | `skills/combos.ts` COMBOS |
 | 連動体 | `SkillTag` の `summon` | 召喚スキルが出す味方の物体。自分では攻撃せず、近接 3 段目（剣の墓標）・射撃（砲台）に合わせてだけ動く | `skills/summons.ts` |
 | 対象なし / 燃焼なし / 出血なし / 感電なし / 戻れない | - | 撃つ前に弾かれたときの浮き文字（何も払わない）。影渡り・伝染 / 燃え種爆ぜ / 血抜き / 放電 / 巻き戻し | `skills/actions.ts` extraCastBlock |
-| 満タンでない / マナが多い / 返済待ち | - | マナ不足以外で撃てないときの浮き文字（満月の砲 / 枯渇の刃 / 刻印符「後払い」の返済前） | `system/skills.ts` |
+| 満タンでない / 気力が多い / 返済待ち | - | 気力不足以外で撃てないときの浮き文字（満月の砲 / 枯渇の刃 / 刻印符「後払い」の返済前） | `system/skills.ts` |
 | 綻び n / 収穫 / 剥奪 / 処断 / 刃先 / 背面 / 傷返し n | - | スキルの浮き文字（消した状態異常の種類数 / 毒の収穫 / 弱体を奪った / 沈黙を消費 / 断頭振りの刃先 / 影渡りの背面ヒット / 剥がした種類数） | `skills/shots.ts`、`skills/actions.ts`、`system/skills.ts` |
 
 スキル名: 旋風斬り / 突進斬り / グレネード / 撃ち抜き / パリィ / 血の契約 / 地裂き / 雷撃 / 引力球 / 地雷 / 加速 / 鎖鎌 / 回転弾幕 / 氷結地帯。刻印符名: 多重 / 血の代償 / コンボ燃料 / 反響 / 貫通 / 反動 / 連鎖 / 呪い / 遅延 / 拡大 / 溜め（`skills/data.ts`）。
 
 大拡張のスキル名（`skills/defs.ts`）: 伝染 / 綻び / 燃え種爆ぜ / 五彩の礫 / 満月の砲 / 枯渇の刃 / 影渡り / 爆薬樽 / 剣の墓標 / 砕氷槌 / 血抜き / 毒の収穫 / 放電 / 追い討ち / 処断 / 刺し穿ち / 剥奪 / 背水の一閃 / 連環撃 / 恨み返し / 断頭振り / 跳弾 / 風切り / 散弾符 / 震脚 / 手繰り糸 / 墜星 / 燕返し / 骨片の輪 / 巻き戻し / 傷返し / 湧き石 / 砲台。
 
-大拡張の刻印符名（`skills/modifiers.ts`）: 後払い / 返金 / 血の肩代わり / 溢れ / 渇き撃ち / 刃の給油 / 定刻（マナ型を CD 型に。「刻限」はエリート修飾子と祝福で使っているので避けた）/ 燃料化 / 過熱 / 重撃 / 軽打 / 突き放し / 手繰り / 延命 / 伝播 / 追撃 / 散り際 / 延長 / 着地衝撃 / 背水 / 同調 / 巡り / 背面 / 至近 / 遠当て。型替え符名: 投げ刃 / 投げ込み / 段階溜め。
+大拡張の刻印符名（`skills/modifiers.ts`）: 後払い / 返金 / 血の肩代わり / 溢れ / 渇き撃ち / 刃の給油 / 定刻（気力型を再使用型に。「刻限」は精鋭修飾子と祝福で使っているので避けた）/ 燃料化 / 過熱 / 重撃 / 軽打 / 突き放し / 手繰り / 延命 / 伝播 / 追撃 / 散り際 / 延長 / 着地衝撃 / 背水 / 同調 / 巡り / 背面 / 至近 / 遠当て。型替え符名: 投げ刃 / 投げ込み / 段階溜め。
 
 ## メタ進行（図鑑・依頼・実績。`src/meta/`）
 

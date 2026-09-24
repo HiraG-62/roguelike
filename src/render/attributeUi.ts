@@ -1,4 +1,5 @@
 import type { GameState } from "../core/state";
+import { JOBS } from "../data/jobs";
 import { ATTR_LABEL, COLOR_ATTR } from "../loot/resonance";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX, type AttrKey, type TraitColor } from "../loot/types";
 import { ALLOC_BUTTON, ALLOC_ORDER, allocButtonRect } from "../ui/attributeAlloc";
@@ -16,8 +17,8 @@ export { attributePanelRect };
 export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
   str: "近接・怯み",
   dex: "射撃・移動",
-  vit: "最大HP・耐性",
-  mnd: "マナ・会心",
+  vit: "最大生命・耐性",
+  mnd: "気力・会心",
   spi: "スキル・状態異常",
 };
 
@@ -77,6 +78,16 @@ export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameSta
     if (hintW > 0) drawText(ctx, truncateText(ATTR_HINT[key], hintW, m), right, baseline, m, COLOR_SUB, "right");
     drawAllocButton(ctx, button, canAlloc, canAlloc && hover === i);
   });
+  drawJobLine(ctx, state, rect);
+}
+
+/**
+ * ステータスの行の下にジョブ名。枠の下はツールチップの基準の空き（ツールチップは後から描くので上に重なる）
+ */
+function drawJobLine(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect): void {
+  const baseline = rect.y + (ALLOC_ORDER.length + 1) * ALLOC_BUTTON.rowH - ROW_BASELINE_UP;
+  const width = rect.w - ALLOC_BUTTON.pad * HALF;
+  drawText(ctx, truncateText(`ジョブ: ${JOBS[state.job].name}`, width, TEXT.SMALL), rect.x + ALLOC_BUTTON.pad, baseline, TEXT.SMALL, COLOR_SUB);
 }
 
 /** 未振り点が 0 なら灰色（押しても何も起きない） */

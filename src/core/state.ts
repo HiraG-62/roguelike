@@ -12,6 +12,7 @@ import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
 import type { RunEventState } from "../system/runEvents";
 import type { OriginKey, RunModKey } from "../system/runSetup";
 import type { ButtonKey, ShotRuntime } from "../data/weapons";
+import type { JobKey } from "../data/jobs";
 import type { CodexRun } from "../meta/codex";
 import type { QuestRun } from "../meta/quests";
 
@@ -569,6 +570,8 @@ export interface GameState {
   modifiers: RunModKey[];
   /** ラン開始時に選んだ起点 */
   origin: OriginKey;
+  /** ラン開始時に選んだジョブ（src/data/jobs.ts。none = 見習い） */
+  job: JobKey;
   /** このランで抽選に出ない名のある遺物（RunSetup.lockedRelics の写し） */
   lockedRelics: readonly string[];
   /** この階の階段と、降りた先のフロア種別（分岐路） */

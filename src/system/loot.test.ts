@@ -7,12 +7,14 @@ import { LOOT_DROP, PICKUP, STASH_CAPACITY } from "../data/tuning";
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
+import { AIM_STICK_DISTANCE } from "../core/gamepad";
 import { addToStash } from "../loot/profile";
 import type { Item } from "../loot/types";
 import {
   aimWorldOf,
   byDepth,
   dropBonusReward,
+  dropDepthReward,
   dropItem,
   dropRoomReward,
   dropSkillStone,
@@ -24,6 +26,7 @@ import {
 } from "./loot";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { enemyDef } from "../data/enemies";
+import { ROAMING_ROOM } from "./spawner";
 
 function makeStashFiller(id: number): Item {
   return {
@@ -135,6 +138,28 @@ describe("装備ドロップと拾得", () => {
     expect(state.floorItems).toHaveLength(1);
   });
 
+  it("照準が手の届く距離より遠く、その先に何も無ければ、照準への線の近くで手の届くものを拾う（パッドの照準点は reach より遠い）", () => {
+    const state = arena();
+    const near = placeItem(state, 20);
+    const p = state.player.body.pos;
+    const stickAim = { x: p.x + AIM_STICK_DISTANCE, y: p.y + 4 };
+    expect(focusedDrop(state, stickAim)?.id, "線の近くの手の届くもの").toBe(near.id);
+    interactAt(state, stickAim);
+    expect(state.profile.stash.map((it) => it.id)).toContain(near.item.id);
+  });
+
+  it("照準の先にあるものは、手前の線上のものより優先して注目する。照準が近ければ線はたどらない", () => {
+    const state = arena();
+    placeItem(state, 20);
+    const far = placeItem(state, AIM_STICK_DISTANCE);
+    const p = state.player.body.pos;
+    expect(focusedDrop(state, { x: p.x + AIM_STICK_DISTANCE, y: p.y })?.id, "照準の先").toBe(far.id);
+    const other = arena();
+    placeItem(other, 20, PICKUP.focusRadius + 4);
+    const q = other.player.body.pos;
+    expect(focusedDrop(other, { x: q.x + 30, y: q.y }), "照準が手の届く距離なら線をたどらない").toBeNull();
+  });
+
   it("スキル石もインタラクトでスキル倉庫に入る", () => {
     const state = arena();
     const before = state.skills.profile.stones.length;
@@ -180,12 +205,21 @@ describe("装備ドロップと拾得", () => {
     expect(state.sfx).toContain("roomClear");
   });
 
-  it("階層を降りるとボーナスが 1 個落ちる", async () => {
+  it("階層を降りると LOOT_DROP.depthArrivalChance でボーナスが落ちる", async () => {
     const { descend } = await import("./floor");
     const state = createGame(11);
     descend(state);
-    expect(state.floorItems).toHaveLength(1);
+    expect(state.floorItems.length, "多くても 1 個").toBeLessThanOrEqual(1);
     expect(state.sfx).toContain("descend");
+    const trials = arena(9);
+    let dropped = 0;
+    const TRIALS = 2000;
+    for (let i = 0; i < TRIALS; i++) {
+      trials.floorItems = [];
+      dropDepthReward(trials);
+      dropped += trials.floorItems.length;
+    }
+    expect(Math.abs(dropped / TRIALS - LOOT_DROP.depthArrivalChance), "実測の確率").toBeLessThan(0.04);
   });
 
   it("同じ seed ならドロップ内容（id / foundAt 以外）が一致する", () => {
@@ -225,11 +259,28 @@ describe("ドロップ率（深度別。通常敵は絞り、強敵は維持）"
     expect(byDepth(LOOT_DROP.mobDropMulByDepth, 1), "深度 1 が最も絞られる").toBeLessThan(byDepth(LOOT_DROP.mobDropMulByDepth, 4));
   });
 
-  it("エリートと確定ドロップの敵（巣窟の主）は絞らない", () => {
+  it("徘徊・増援の通常敵は LOOT_DROP.roamingDropMul でさらに絞られ、エリートは絞らない", () => {
+    const state = arena();
+    const placed = placeEnemy(state, "slime", 20);
+    const roamer = placeEnemy(state, "slime", 40);
+    roamer.roomIndex = ROAMING_ROOM;
+    expect(enemyDropChance(state, roamer), "徘徊").toBeCloseTo(enemyDropChance(state, placed) * LOOT_DROP.roamingDropMul);
+    expect(LOOT_DROP.roamingDropMul, "通常より低い").toBeLessThan(1);
+    const eliteRoamer = placeEnemy(state, "slime", 60);
+    eliteRoamer.roomIndex = ROAMING_ROOM;
+    eliteRoamer.elite = "hasted";
+    expect(enemyDropChance(state, eliteRoamer), "徘徊のエリートは徘徊の倍率を受けない").toBeCloseTo(
+      (enemyDef("slime").dropChance + LOOT_DROP.depthChanceBonus) * LOOT_DROP.eliteDropMul,
+    );
+  });
+
+  it("エリートは eliteDropMul（通常敵より高い）、確定ドロップの敵（巣窟の主）は絞らない", () => {
     const state = arena();
     const elite = placeEnemy(state, "slime", 20);
     elite.elite = "hasted";
-    expect(enemyDropChance(state, elite), "エリート").toBeCloseTo(enemyDef("slime").dropChance + LOOT_DROP.depthChanceBonus);
+    const base = enemyDef("slime").dropChance + LOOT_DROP.depthChanceBonus;
+    expect(enemyDropChance(state, elite), "エリート").toBeCloseTo(base * LOOT_DROP.eliteDropMul);
+    expect(LOOT_DROP.eliteDropMul, "エリートは通常敵より出やすい").toBeGreaterThan(byDepth(LOOT_DROP.mobDropMulByDepth, 1));
     const lair = placeEnemy(state, "mimic", 40);
     expect(enemyDropChance(state, lair), "巣窟の主は確定").toBeGreaterThanOrEqual(1);
   });

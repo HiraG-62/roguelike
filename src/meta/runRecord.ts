@@ -118,7 +118,8 @@ function noteEvent(state: GameState, ev: GameEvent): void {
       if (ev.source.kind === "player") c.shots += 1;
       return;
     case "onReaction":
-      noteReactionEvent(state, ev.tag);
+      // 図鑑は誰が起こした反応でも記録するが、依頼「反応の目録」は自分が起こしたものだけを数える
+      noteReactionEvent(state, ev.tag, ev.actor === "player");
       return;
     case "onStatusApplied":
       noteStatusApplied(state, ev);
@@ -155,10 +156,11 @@ function noteKill(state: GameState, ev: GameEvent): void {
   if (def?.lairMaster) c.lairKills += 1;
 }
 
-function noteReactionEvent(state: GameState, tag: string | undefined): void {
+function noteReactionEvent(state: GameState, tag: string | undefined, byPlayer: boolean): void {
   if (tag === undefined) return;
-  const c = state.questRun.counters;
   noteReaction(state.codexRun, tag);
+  if (!byPlayer) return;
+  const c = state.questRun.counters;
   state.questRun.reactionKinds.add(tag);
   c.reactions += 1;
   if (tag === "vaporize") c.vaporizes += 1;

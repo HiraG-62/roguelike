@@ -1,3 +1,4 @@
+import { ELEMENTS, ELEMENT_LABEL, type Element } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import { HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
@@ -205,9 +206,9 @@ function attributeTraits(): AffixDef[] {
 /** 祝福の響きの色ごとの対応（表示）。判定は system/traitHooks.ts の BOON_ECHO_TAGS */
 const BOON_ECHO_TEXT: Readonly<Record<TraitColor, string>> = {
   crimson: "近接・燃焼",
-  azure: "射撃・ダッシュ・マナ",
-  jade: "HP・部屋",
-  gold: "コンボ・会心・エネルギー・感電",
+  azure: "射撃・ダッシュ・気力",
+  jade: "生命・部屋",
+  gold: "コンボ・会心・必殺ゲージ・感電",
   umbra: "呪い付き",
 };
 const BOON_ECHO_FIELD = {
@@ -281,6 +282,93 @@ const TABI_BUFF_SECONDS = 1;
 // ---------------------------------------------------------------------------
 // アフィックス一覧
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 防御・属性耐性の性質（docs/COMBAT_DESIGN.md A-8）
+// ---------------------------------------------------------------------------
+
+/**
+ * 属性と色の対応（炎 = 紅 / 氷 = 蒼 / 雷 = 金 / 毒 = 翠 / 闇 = 冥）。光と無は 5 色のどれにも寄せない属性なので
+ * 耐性は生存（翠）、変換は光 = 金（会心・必殺の輝き）、無 = 冥（属性を捨てる代償）に置く
+ */
+export const ELEMENT_TRAIT_COLOR: Readonly<Record<Element, TraitColor>> = {
+  none: "umbra",
+  fire: "crimson",
+  ice: "azure",
+  lightning: "gold",
+  poison: "jade",
+  dark: "umbra",
+  light: "gold",
+};
+
+/** 属性の性質の key の接頭辞（res_fire / cv_infuseFire） */
+export const RESIST_TRAIT_PREFIX = "res_";
+export const INFUSE_KEY_PREFIX = "cv_infuse";
+
+/** 属性の耐性 1 種。深度 1 で 6〜10%、20 で 20〜26% */
+const RESIST_CURVE: readonly CurvePoint[] = [
+  { depth: 20, min: 20, max: 26 },
+  { depth: 10, min: 12, max: 18 },
+  { depth: 1, min: 6, max: 10 },
+];
+/** 全属性耐性は 1 種の半分弱 */
+const ALL_RESIST_CURVE: readonly CurvePoint[] = [
+  { depth: 22, min: 10, max: 13 },
+  { depth: 12, min: 6, max: 9 },
+  { depth: 3, min: 3, max: 5 },
+];
+const RESIST_SLOTS: readonly Slot[] = ["armor", "boots", "ring", "amulet"];
+
+/** 属性耐性 6 種（無属性は防御が受け持つので除く）+ 全属性耐性 + 魔防 + 堅牢 */
+function defenseElementTraits(): AffixDef[] {
+  const single: AffixDef[] = ELEMENTS.filter((e) => e !== "none").map((e) => ({
+    key: `${RESIST_TRAIT_PREFIX}${e}`,
+    label: `${ELEMENT_LABEL[e]}耐性 +{v}%`,
+    tags: ["defense"],
+    slots: RESIST_SLOTS,
+    curve: RESIST_CURVE,
+    color: e === "light" ? "jade" : ELEMENT_TRAIT_COLOR[e],
+    apply: (s: PlayerStats, v: number) => {
+      s.resist[e] += v;
+    },
+  }));
+  return [
+    ...single,
+    {
+      key: `${RESIST_TRAIT_PREFIX}all`,
+      label: "全属性耐性 +{v}%（無属性を除く）",
+      tags: ["defense"],
+      slots: ["armor", "amulet"],
+      curve: ALL_RESIST_CURVE,
+      apply: (s: PlayerStats, v: number) => {
+        for (const e of ELEMENTS) if (e !== "none") s.resist[e] += v;
+      },
+    },
+    {
+      key: "wardingFlat",
+      label: "魔防 +{v}",
+      tags: ["defense"],
+      slots: ["armor", "ring", "amulet"],
+      curve: [t(28, 12, 16), t(20, 8, 11), t(12, 5, 7), t(6, 3, 4), t(1, 1, 2)],
+      apply: (s: PlayerStats, v: number) => {
+        s.warding += v;
+      },
+    },
+    {
+      key: "sturdy",
+      // 代償の移動速度 −% は v2（深さで重くしない）
+      label: "堅牢: アーマーと魔防 +{v}、移動速度 -{v2}%",
+      tags: ["defense", "tradeoff"],
+      slots: ["armor", "boots"],
+      curve: [t2(20, 8, 10, 3, 5), t2(10, 4, 6, 3, 5), t2(3, 2, 3, 3, 5)],
+      apply: (s: PlayerStats, v: number, v2: number) => {
+        s.armor += v;
+        s.warding += v;
+        s.moveSpeedMul -= pct(v2);
+      },
+    },
+  ];
+}
 
 export const AFFIXES: readonly AffixDef[] = [
   // ---- 近接 ----
@@ -411,7 +499,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 生存 ----
   trait({
     key: "maxLife",
-    label: "最大HP +{v}",
+    label: "最大生命 +{v}",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
     curve: [t(32, 61, 80), t(24, 46, 60), t(16, 31, 45), t(10, 21, 30), t(5, 11, 20), t(1, 5, 10)],
@@ -421,7 +509,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "maxLifePct",
-    label: "最大HP +{v}%",
+    label: "最大生命 +{v}%",
     tags: ["life"],
     slots: ["armor", "amulet"],
     curve: [t(30, 14, 18), t(20, 10, 13), t(12, 6, 9), t(5, 3, 5)],
@@ -433,7 +521,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "hpRegen",
     // 近くに敵がいる間は止まる（system/combat.ts の hpRegenAllowed）
-    label: "HP自然回復 +{v}/秒（敵が近くにいない間）",
+    label: "生命自然回復 +{v}/秒（敵が近くにいない間）",
     tags: ["life"],
     slots: ["armor", "boots", "ring", "amulet"],
     curve: [t(28, 2.9, 4), t(20, 1.9, 2.8), t(12, 1.1, 1.8), t(6, 0.6, 1), t(1, 0.2, 0.5)],
@@ -458,7 +546,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "lifeOnKill",
     // コンボ HEAL.killHealMinCombo 以上の撃破だけ回復する（system/combat.ts の applyLifeOnKill）
-    label: `撃破時HP回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
+    label: `撃破時の生命回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
     tags: ["life"],
     slots: ["weapon", "gun", "armor", "ring", "amulet"],
     curve: [t(25, 11, 15), t(15, 7, 10), t(7, 4, 6), t(1, 1, 3)],
@@ -564,7 +652,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 必殺 ----
   trait({
     key: "energyGain",
-    label: "エネルギー獲得 +{v}%",
+    label: "必殺ゲージ獲得 +{v}%",
     tags: ["burst"],
     slots: ["weapon", "armor", "ring", "amulet"],
     curve: [t(25, 25, 35), t(15, 16, 24), t(7, 10, 15), t(1, 5, 9)],
@@ -619,7 +707,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "justDodgeDamage",
-    label: "ジャスト回避後 {v2}秒間ダメージ +{v}%",
+    label: "見切り後 {v2}秒間ダメージ +{v}%",
     tags: ["combo", "damage"],
     slots: ["boots", "ring", "amulet"],
     curve: [t2(20, 36, 55, 2, 3), t2(10, 21, 35, 1.5, 2), t2(1, 10, 20, 1, 1.5)],
@@ -692,7 +780,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "hybridDefense",
-    label: "最大HP +{v}、アーマー +{v2}",
+    label: "最大生命 +{v}、アーマー +{v2}",
     tags: ["life", "defense"],
     slots: ["armor", "boots"],
     curve: [t2(18, 16, 24, 4, 6), t2(9, 9, 15, 2, 3), t2(1, 4, 8, 1, 1)],
@@ -749,7 +837,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "reckless",
-    label: "移動速度 +{v}%、最大HP -{v2}",
+    label: "移動速度 +{v}%、最大生命 -{v2}",
     tags: ["mobility", "speed", "tradeoff"],
     slots: ["boots", "amulet"],
     curve: [t2(20, 18, 24, 15, 20), t2(10, 12, 17, 10, 15), t2(1, 7, 11, 5, 10)],
@@ -761,7 +849,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "bloodbound",
     color: "umbra",
-    label: "会心倍率 +{v}%、最大HP -{v2}",
+    label: "会心倍率 +{v}%、最大生命 -{v2}",
     tags: ["critical", "damage", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: [t2(22, 45, 60, 15, 20), t2(12, 30, 44, 10, 15), t2(3, 18, 29, 6, 10)],
@@ -909,7 +997,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "arcaneBattery",
-    label: "エネルギー獲得 +{v}%、必殺ダメージ -{v2}%",
+    label: "必殺ゲージ獲得 +{v}%、必殺ダメージ -{v2}%",
     tags: ["burst", "tradeoff"],
     slots: ["weapon", "armor", "ring", "amulet"],
     curve: [t2(20, 30, 42, 14, 18), t2(8, 18, 29, 9, 13), t2(1, 10, 17, 5, 8)],
@@ -920,7 +1008,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "gildedFang",
-    label: `会心倍率 +{v}%、撃破時HP回復 +{v2}（${HEAL.killHealMinCombo}コンボ以上）`,
+    label: `会心倍率 +{v}%、撃破時の生命回復 +{v2}（${HEAL.killHealMinCombo}コンボ以上）`,
     tags: ["critical", "life"],
     slots: JEWELRY_SLOTS,
     curve: [t2(22, 30, 42, 8, 11), t2(10, 18, 29, 5, 7), t2(1, 8, 17, 2, 4)],
@@ -944,7 +1032,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "finisherMend",
-    label: "10コンボ以上での撃破時: HP {v} 回復",
+    label: "10コンボ以上での撃破時: 生命 {v} 回復",
     tags: ["combo", "life"],
     slots: MELEE_SLOTS,
     curve: [t(24, 14, 20), t(12, 9, 13), t(1, 4, 8)],
@@ -965,7 +1053,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "roomMender",
-    label: "部屋クリア時: HP {v} 回復",
+    label: "部屋クリア時: 生命 {v} 回復",
     tags: ["life", "utility"],
     slots: ["armor", "amulet"],
     curve: [t(20, 20, 28), t(8, 12, 19), t(1, 6, 11)],
@@ -975,7 +1063,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "energyReserve",
-    label: "エネルギー満タン時に被弾: {v}秒間無敵",
+    label: "必殺ゲージ満タン時に被弾: {v}秒間無敵",
     tags: ["burst", "defense"],
     slots: ["armor", "ring", "amulet"],
     curve: [t(24, 0.35, 0.4), t(10, 0.3, 0.4), t(1, 0.2, 0.3)],
@@ -1075,7 +1163,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- マナ（docs/COMBAT_DESIGN.md B 節）。序盤は乏しいマナを装備で伸ばしていく ----
   trait({
     key: "maxManaFlat",
-    label: "最大マナ +{v}",
+    label: "最大気力 +{v}",
     tags: ["mana", "skill"],
     slots: ["amulet", "ring", "armor"],
     curve: [t(26, 27, 33), t(12, 15, 20), t(1, 6, 10)],
@@ -1085,7 +1173,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaRegenFlat",
-    label: "マナ自然回復 +{v}/秒",
+    label: "気力自然回復 +{v}/秒",
     tags: ["mana", "skill"],
     // 兜の部位は無いので鎧で代える
     slots: ["amulet", "ring", "armor"],
@@ -1097,7 +1185,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaGainPct",
-    label: "マナ回収 +{v}%",
+    label: "気力回収 +{v}%",
     tags: ["mana", "skill"],
     // 籠手の部位は無いので、通常攻撃を担う銃で代える
     slots: ["weapon", "gun", "ring"],
@@ -1120,7 +1208,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaOnKillFlat",
-    label: "撃破でマナ +{v}",
+    label: "撃破で気力 +{v}",
     tags: ["mana", "skill"],
     slots: ["weapon", "boots", "ring"],
     curve: [t(26, 7, 8), t(12, 4, 5), t(1, 2, 3)],
@@ -1130,7 +1218,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaDrought",
-    label: "撃破でマナ +{v}、最大マナ -{v2}",
+    label: "撃破で気力 +{v}、最大気力 -{v2}",
     tags: ["mana", "skill", "tradeoff"],
     slots: JEWELRY_SLOTS,
     // manaOnKillFlat より伸び幅が大きい代わりに器が縮む。名のある遺物「涸れ井戸の指輪」の核
@@ -1150,7 +1238,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- マナ経済 ----
   trait({
     key: "manaOnStagger",
-    label: "汲み上げ: 敵を怯ませるとマナ +{v}、撃破時のマナ回収 -{v2}",
+    label: "汲み上げ: 敵を怯ませると気力 +{v}、撃破時の気力回収 -{v2}",
     tags: ["mana", "skill", "tradeoff"],
     slots: ["weapon", "gun", "ring"],
     curve: [t2(22, 8, 10, 4, 4), t2(10, 5, 7, 3, 3), t2(1, 3, 4, 2, 2)],
@@ -1161,7 +1249,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "lowTide",
-    label: `底打ち: マナが ${ratioPct(TRIGGER.trait.lowManaRatio)}% 未満の間、マナ回収 +{v}%、マナ自然回復 -{v2}%`,
+    label: `底打ち: 気力が ${ratioPct(TRIGGER.trait.lowManaRatio)}% 未満の間、気力回収 +{v}%、気力自然回復 -{v2}%`,
     tags: ["mana", "skill", "tradeoff"],
     slots: ["weapon", "ring", "amulet"],
     curve: [t2(24, 100, 130, 30, 35), t2(12, 70, 90, 25, 30), t2(1, 40, 60, 20, 25)],
@@ -1173,7 +1261,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "fullTide",
-    label: "満ち潮: マナが満タンの間、スキル威力 +{v}%、マナ回収 -{v2}%",
+    label: "満ち潮: 気力が満タンの間、スキル威力 +{v}%、気力回収 -{v2}%",
     tags: ["mana", "skill", "tradeoff"],
     slots: ["armor", "amulet"],
     curve: [t2(24, 32, 42, 12, 15), t2(12, 22, 30, 10, 12), t2(1, 12, 18, 8, 10)],
@@ -1185,7 +1273,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "ebbTide",
     color: "umbra",
-    label: "引き潮: 残りマナが少ないほどスキル威力が上がる（0 で +{v}%）、最大マナ -{v2}",
+    label: "引き潮: 残り気力が少ないほどスキル威力が上がる（0 で +{v}%）、最大気力 -{v2}",
     tags: ["mana", "skill", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: [t2(24, 50, 65, 10, 12), t2(12, 35, 45, 8, 10), t2(1, 20, 30, 6, 8)],
@@ -1197,7 +1285,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "manaShield",
     color: "jade",
-    label: `身代わり: 被弾時にマナ {v} を払って被ダメージを ${ratioPct(1 - TRIGGER.trait.manaShieldMul)}% 減らす（足りなければ不発）、マナ自然回復 -{v2}%`,
+    label: `身代わり: 被弾時に気力 {v} を払って被ダメージを ${ratioPct(1 - TRIGGER.trait.manaShieldMul)}% 減らす（足りなければ不発）、気力自然回復 -{v2}%`,
     tags: ["defense", "mana", "tradeoff"],
     slots: ["armor"],
     // 値は払うマナ。深いほど安い
@@ -1211,7 +1299,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "painToMana",
     color: "umbra",
-    label: "痛覚遮断: 被弾でマナ +{v}、被ダメージ +{v2}%",
+    label: "痛覚遮断: 被弾で気力 +{v}、被ダメージ +{v2}%",
     tags: ["mana", "tradeoff"],
     slots: ["armor"],
     curve: [t2(24, 13, 16, 8, 10), t2(12, 9, 12, 6, 8), t2(1, 6, 8, 5, 6)],
@@ -1222,7 +1310,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "silencedKillMana",
-    label: "沈黙の報い: 沈黙中の敵を倒すとマナ +{v}、射撃ダメージ -{v2}%",
+    label: "沈黙の報い: 沈黙中の敵を倒すと気力 +{v}、射撃ダメージ -{v2}%",
     tags: ["mana", "ranged", "tradeoff"],
     slots: ["gun", "ring"],
     curve: [t2(24, 16, 20, 8, 10), t2(14, 12, 15, 6, 8), t2(4, 8, 10, 6, 8)],
@@ -1234,7 +1322,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "lastKillMana",
     color: "gold",
-    label: "殲滅の余韻: 殲滅でマナが最大の {v}% 戻る、最大マナ -{v2}",
+    label: "殲滅の余韻: 殲滅で気力が最大の {v}% 戻る、最大気力 -{v2}",
     tags: ["mana", "tradeoff"],
     slots: ["weapon", "gun", "amulet"],
     curve: [t2(24, 85, 100, 6, 8), t2(14, 60, 75, 5, 7), t2(3, 40, 50, 4, 6)],
@@ -1246,7 +1334,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaOverflow",
-    label: "溢れ: マナが満タンで溢れた回収の {v}% を必殺ゲージに移す、最大マナ -{v2}",
+    label: "溢れ: 気力が満タンで溢れた回収の {v}% を必殺ゲージに移す、最大気力 -{v2}",
     tags: ["mana", "burst", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: [t2(24, 130, 160, 8, 10), t2(12, 90, 120, 6, 8), t2(1, 60, 80, 4, 6)],
@@ -1258,7 +1346,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "counterMana",
     color: "gold",
-    label: "構えの呼吸: カウンターでマナ +{v}、攻撃速度 -{v2}%",
+    label: "構えの呼吸: カウンターで気力 +{v}、攻撃速度 -{v2}%",
     tags: ["mana", "melee", "tradeoff"],
     slots: ["weapon"],
     curve: [t2(24, 13, 16, 6, 8), t2(12, 9, 12, 5, 6), t2(1, 6, 8, 4, 5)],
@@ -1269,7 +1357,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "justBreath",
-    label: "見切りの息吹: ジャスト回避でマナ +{v}、ダッシュ再使用時間 +{v2}%",
+    label: "見切りの息吹: 見切りで気力 +{v}、ダッシュ再使用時間 +{v2}%",
     tags: ["mana", "mobility", "tradeoff"],
     slots: ["boots", "ring"],
     curve: [t2(24, 13, 16, 10, 12), t2(12, 9, 12, 8, 10), t2(1, 6, 8, 6, 8)],
@@ -1448,7 +1536,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "staggerLeech",
-    label: "怯み吸い: 敵を怯ませると HP +{v}、撃破時HP回復 -{v2}",
+    label: "怯み吸い: 敵を怯ませると生命 +{v}、撃破時の生命回復 -{v2}",
     tags: ["life", "tradeoff"],
     slots: ["weapon", "ring"],
     curve: [t2(24, 8, 10, 3, 3), t2(12, 5, 7, 2, 2), t2(1, 3, 4, 1, 1)],
@@ -1517,7 +1605,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "staggerCharge",
-    label: "崩れの充填: 敵を怯ませるとエネルギー +{v}、必殺ダメージ -{v2}%",
+    label: "崩れの充填: 敵を怯ませると必殺ゲージ +{v}、必殺ダメージ -{v2}%",
     tags: ["burst", "tradeoff"],
     slots: ["weapon", "amulet"],
     curve: [t2(24, 16, 20, 10, 12), t2(12, 12, 15, 8, 10), t2(1, 8, 10, 6, 8)],
@@ -1610,7 +1698,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "brimShock",
     color: "gold",
-    label: "満ちた器: マナが満タンの間、射撃で連鎖雷を呼ぶ（{v} ダメージ）",
+    label: "満ちた器: 気力が満タンの間、射撃で連鎖雷を呼ぶ（{v} ダメージ）",
     tags: ["elemental", "mana", "ranged"],
     slots: ["gun", "ring"],
     curve: [t(24, 15, 19), t(12, 10, 13), t(1, 6, 8)],
@@ -1645,7 +1733,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "reaperShadow",
     color: "umbra",
-    label: "死神の影: 死神が出ている間、与ダメージ +{v}%、最大HP -{v2}",
+    label: "死神の影: 死神が出ている間、与ダメージ +{v}%、最大生命 -{v2}",
     tags: ["damage", "tradeoff"],
     slots: ["boots", "amulet"],
     curve: [t2(24, 40, 48, 10, 12), t2(12, 30, 36, 8, 10), t2(1, 20, 25, 5, 6)],
@@ -1671,7 +1759,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "inscribedWeight",
-    label: "銘の重み: 銘を持つ装備 1 つにつき会心倍率 +{v}%、銘の無い装備 1 つにつき最大HP -{v2}",
+    label: "銘の重み: 銘を持つ装備 1 つにつき会心倍率 +{v}%、銘の無い装備 1 つにつき最大生命 -{v2}",
     tags: ["critical", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: [t2(24, 20, 26, 4, 5), t2(12, 14, 18, 3, 4), t2(1, 8, 12, 2, 3)],
@@ -1698,7 +1786,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "foreignEcho",
     color: "umbra",
-    label: "異郷の響き: 装備中の異色の性質 1 つにつき全ステータス +{v}、最大HP -{v2}",
+    label: "異郷の響き: 装備中の異色の性質 1 つにつき全ステータス +{v}、最大生命 -{v2}",
     tags: ["attribute", "tradeoff"],
     slots: ["ring"],
     curve: [t2(16, 1, 2, 6, 8), t2(4, 1, 1, 4, 6)],
@@ -1762,7 +1850,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "keenMemory",
-    label: "見切りの記憶: この遺物でのジャスト回避 25 ごとに、ジャスト回避後 {v2} 秒間のダメージ +{v}%（4 段まで）",
+    label: "見切りの記憶: この遺物での見切り 25 ごとに、見切り後 {v2} 秒間のダメージ +{v}%（4 段まで）",
     tags: ["combo", "damage"],
     slots: ["boots", "ring"],
     curve: [t2(24, 12, 15, 0.4, 0.5), t2(12, 9, 12, 0.3, 0.4), t2(1, 6, 8, 0.2, 0.3)],
@@ -1817,7 +1905,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "placedInfuse",
     color: "jade",
-    label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接がその状態異常を {v} 秒乗せる、最大HP -{v2}",
+    label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接がその状態異常を {v} 秒乗せる、最大生命 -{v2}",
     tags: ["status", "melee", "tradeoff"],
     slots: ["weapon", "ring"],
     curve: [t2(24, 3, 4, 6, 8), t2(12, 2.5, 3, 8, 10), t2(1, 2, 2.5, 10, 12)],
@@ -1830,7 +1918,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "placedAnchor",
     color: "gold",
-    label: "杭打ち: 敵を怯ませると、近くの自分の設置物（引力球・氷結地帯・地雷）が {v} 秒長く残る、最大マナ -{v2}",
+    label: "杭打ち: 敵を怯ませると、近くの自分の設置物（引力球・氷結地帯・地雷）が {v} 秒長く残る、最大気力 -{v2}",
     tags: ["utility", "tradeoff"],
     slots: ["amulet"],
     curve: [t2(24, 2, 2.5, 6, 8), t2(12, 1.5, 2, 5, 6), t2(1, 1, 1.5, 4, 5)],
@@ -1843,7 +1931,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "bloodSignature",
     color: "umbra",
-    label: "血の署名: HP が半分を切っている間、スキルの再使用時間と最低間隔が {v}% 速く明ける、最大HP -{v2}",
+    label: "血の署名: 生命が半分を切っている間、スキルの再使用時間と最低間隔が {v}% 速く明ける、最大生命 -{v2}",
     tags: ["skill", "tradeoff"],
     slots: ["armor", "amulet"],
     curve: [t2(24, 50, 60, 12, 15), t2(12, 35, 45, 10, 12), t2(1, 20, 30, 8, 10)],
@@ -1884,7 +1972,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "plunder",
     color: "crimson",
     awakening: true,
-    label: "剥ぎ取り: エリートを倒すと {v2} 秒間ダメージ +{v}%・移動速度 +{v}%",
+    label: "剥ぎ取り: 精鋭を倒すと {v2} 秒間ダメージ +{v}%・移動速度 +{v}%",
     tags: ["damage", "mobility"],
     slots: ALL_SLOTS,
     curve: [t2(15, 30, 36, 8, 10), t2(1, 20, 25, 6, 8)],
@@ -1909,7 +1997,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "curtainCall",
     color: "gold",
     awakening: true,
-    label: "幕引き: 殲滅の瞬間に敵弾をすべて消し、エネルギー +{v}",
+    label: "幕引き: 殲滅の瞬間に敵弾をすべて消し、必殺ゲージ +{v}",
     tags: ["burst"],
     slots: ALL_SLOTS,
     curve: [t(15, 30, 36), t(1, 20, 25)],
@@ -1918,6 +2006,7 @@ export const AFFIXES: readonly AffixDef[] = [
       s.traits.lastKillEnergy += v;
     },
   }),
+  ...defenseElementTraits(),
 ];
 
 // ---------------------------------------------------------------------------
@@ -2038,7 +2127,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_lifeToArmor",
-    label: "最大HPの{v}%をアーマーに変換",
+    label: "最大生命の{v}%をアーマーに変換",
     tags: ["conversion", "life", "defense"],
     slots: ["armor", "amulet"],
     curve: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
@@ -2063,7 +2152,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_leechToEnergy",
-    label: "命中時・撃破時HP回復の{v}%をエネルギー獲得に変換",
+    label: "命中時・撃破時の生命回復の{v}%を必殺ゲージ獲得に変換",
     tags: ["conversion", "life", "burst"],
     slots: ["weapon", "gun", "ring", "amulet"],
     curve: CONVERSION_CURVE,
@@ -2079,7 +2168,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_comboToJust",
-    label: "コンボダメージの{v}%をジャスト回避ダメージに変換",
+    label: "コンボダメージの{v}%を見切りダメージに変換",
     tags: ["conversion", "combo"],
     slots: ["boots", "ring", "amulet"],
     curve: CONVERSION_CURVE,
@@ -2123,7 +2212,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   // ---- 2026-09 追加（docs/ideas/loot-expansion.md 3 章）: マナ・怯み・状態異常へ移す ----
   trait({
     key: "cv_regenToGain",
-    label: "マナ自然回復の{v}%をマナ回収に変換（自然回復 1/秒につき回収 +15%）",
+    label: "気力自然回復の{v}%を気力回収に変換（自然回復 1/秒につき回収 +15%）",
     tags: ["conversion", "mana", "skill"],
     slots: ["weapon", "ring", "amulet"],
     curve: CONVERSION_CURVE,
@@ -2176,7 +2265,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_lifeToMana",
-    label: "最大HPの{v}%を最大マナに変換（HP 2 につきマナ 1）",
+    label: "最大生命の{v}%を最大気力に変換（生命 2 につき気力 1）",
     tags: ["conversion", "mana", "life"],
     slots: ["armor", "amulet"],
     curve: [t(24, 22, 26), t(12, 16, 20), t(1, 10, 14)],
@@ -2190,7 +2279,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   trait({
     key: "cv_manaToLife",
     color: "jade",
-    label: "最大マナの{v}%を最大HPに変換（マナ 1 につき HP 1.5）",
+    label: "最大気力の{v}%を最大生命に変換（気力 1 につき生命 1.5）",
     tags: ["conversion", "life", "mana"],
     slots: ["armor", "amulet"],
     curve: [t(24, 36, 45), t(12, 26, 35), t(1, 18, 25)],
@@ -2203,7 +2292,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_energyToMana",
-    label: "エネルギー獲得の上昇分の{v}%をマナ回収に変換",
+    label: "必殺ゲージ獲得の上昇分の{v}%を気力回収に変換",
     tags: ["conversion", "mana", "burst"],
     slots: JEWELRY_SLOTS,
     curve: CONVERSION_CURVE,
@@ -2275,6 +2364,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
 
   // ---- ステータスの変換（docs/COMBAT_DESIGN.md A-3）: 片方を捨てて片方を伸ばす交換 ----
   ...attributeConversions(),
+  ...infuseConversions(),
 ];
 
 /**
@@ -2298,6 +2388,39 @@ function attributeConversions(): AffixDef[] {
       s.attributes[to] += moved;
     },
   }));
+}
+
+/**
+ * 属性の変換 7 種（docs/COMBAT_DESIGN.md A-8）。近接・射撃（通常攻撃）の威力のうち v% をその属性として扱う
+ * （割合の分だけ敵の耐性・弱点で倍率が変わる。弱点を突ける相手が増える代わりに、その属性に強い土地で鈍る）。
+ * 無だけはスキル向けで、スキル固有の属性の v% を無属性に戻す（耐性の高い相手に通す代わりに弱点も突けなくなる）
+ */
+function infuseConversions(): AffixDef[] {
+  const elemental: AffixDef[] = ELEMENTS.filter((e) => e !== "none").map((e) => ({
+    key: `${INFUSE_KEY_PREFIX}${capitalize(e)}`,
+    label: `近接・射撃の{v}%を${ELEMENT_LABEL[e]}属性に変換`,
+    tags: ["conversion", "elemental"],
+    slots: ATTACK_SLOTS,
+    curve: CONVERSION_CURVE,
+    color: ELEMENT_TRAIT_COLOR[e],
+    stage: "convert",
+    apply: (s: PlayerStats, v: number) => {
+      s.infuse[e] += fraction(v);
+    },
+  }));
+  const neutral: AffixDef = {
+    key: `${INFUSE_KEY_PREFIX}None`,
+    label: "無の刻印: スキルの属性の{v}%を無属性に変換",
+    tags: ["conversion", "skill"],
+    slots: JEWELRY_SLOTS,
+    curve: CONVERSION_CURVE,
+    color: ELEMENT_TRAIT_COLOR.none,
+    stage: "convert",
+    apply: (s: PlayerStats, v: number) => {
+      s.skillNeutral += fraction(v);
+    },
+  };
+  return [...elemental, neutral];
 }
 
 export function isConversionKey(key: string): boolean {
@@ -2357,7 +2480,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_glassCannon",
     name: "硝子の砲",
-    description: "近接・射撃ダメージが2倍になる。最大HPが1/4になる。",
+    description: "近接・射撃ダメージが2倍になる。最大生命が1/4になる。",
     exclusiveGroup: "body",
     apply: (s) => {
       s.meleeDamageMul += 1;
@@ -2378,7 +2501,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_vampire",
     name: "吸血",
-    description: `与ダメの ${KEYSTONE.vampireLeechPct}% を回復。HP自然回復とハート回収が無効になり、最大HP -30%。`,
+    description: `与ダメの ${KEYSTONE.vampireLeechPct}% を回復。生命自然回復とハート回収が無効になり、最大生命 -30%。`,
     exclusiveGroup: "body",
     apply: (s) => {
       s.lifeOnHit += KEYSTONE.vampireLeechPct;
@@ -2388,7 +2511,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_berserker",
     name: "狂戦士",
-    description: "HPが減るほど最大+100%のダメージ。HP自然回復が無効になり、回復量が半減する。",
+    description: "生命が減るほど最大+100%のダメージ。生命自然回復が無効になり、回復量が半減する。",
     exclusiveGroup: "tempo",
     apply: noNumericEffect,
   },
@@ -2404,7 +2527,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_overclock",
     name: "過駆動",
-    description: "攻撃速度・連射速度 +60%。攻撃のたびにHPを1消費する。",
+    description: "攻撃速度・連射速度 +60%。攻撃のたびに生命を1消費する。",
     exclusiveGroup: "tempo",
     apply: (s) => {
       s.attackSpeedMul += 0.6;
@@ -2454,7 +2577,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_overdraw",
     name: "過負荷",
-    description: "マナが足りなくても、不足分をHPで払ってスキルを撃てる（マナ1につきHP0.5）。スキル威力 -10%。",
+    description: "気力が足りなくても、不足分を生命で払ってスキルを撃てる（気力1につき生命0.5）。スキル威力 -10%。",
     exclusiveGroup: "mana",
     apply: (s) => {
       s.skillDamageMul -= OVERDRAW_SKILL_PENALTY;
@@ -2463,7 +2586,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_silentVow",
     name: "静寂の誓い",
-    description: "通常攻撃を当ててもマナが戻らない。マナの自然回復が3倍になり、スキル威力 +30%。",
+    description: "通常攻撃を当てても気力が戻らない。気力の自然回復が3倍になり、スキル威力 +30%。",
     exclusiveGroup: "mana",
     apply: (s) => {
       s.manaRegen *= SILENT_VOW_REGEN_MUL;
@@ -2473,7 +2596,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_thirst",
     name: "渇きの誓約",
-    description: "マナが自然回復しなくなる。通常攻撃を当てて戻るマナが3倍になる。",
+    description: "気力が自然回復しなくなる。通常攻撃を当てて戻る気力が3倍になる。",
     exclusiveGroup: "mana",
     // 誓約は全性質の後（computeStats の最後）に畳むので、+自然回復の性質の順序に依らず 0 になる
     apply: (s) => {
@@ -2561,7 +2684,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_backwater",
     name: "背水の誓い",
-    description: "交戦中の部屋では回復が効かない代わりに与ダメージ +15%。部屋を制圧すると失ったHPの50%を取り戻す。",
+    description: "交戦中の部屋では回復が効かない代わりに与ダメージ +15%。部屋を制圧すると失った生命の50%を取り戻す。",
     exclusiveGroup: "room",
     apply: (s) => {
       s.triggers.push({ trigger: "onRoomClear", condition: "always", effect: "healMissing", magnitude: KEYSTONE.backwaterClearHealPct, chance: 1 });
@@ -2577,7 +2700,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_chant",
     name: "詠唱の誓い",
-    description: "近接・射撃の与ダメージが30%になる。通常攻撃の命中で戻るマナが4倍になり、スキル威力 +50%。",
+    description: "近接・射撃の与ダメージが30%になる。通常攻撃の命中で戻る気力が4倍になり、スキル威力 +50%。",
     exclusiveGroup: "mana",
     apply: (s) => {
       s.meleeDamageMul *= KEYSTONE.chantAttackDamageMul;
@@ -2805,7 +2928,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // armor
   {
     key: "implicit.cloth",
-    label: "最大HP +{v}、移動速度 +5%",
+    label: "最大生命 +{v}、移動速度 +5%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.maxHp += v;
@@ -2814,7 +2937,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.leather",
-    label: "最大HP +{v}",
+    label: "最大生命 +{v}",
     range: { min: 12, max: 20 },
     apply: (s, v) => {
       s.maxHp += v;
@@ -2822,7 +2945,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.chain",
-    label: "最大HP +{v}、アーマー +{v2}",
+    label: "最大生命 +{v}、アーマー +{v2}",
     range: { min: 20, max: 30, min2: 3, max2: 5 },
     apply: (s, v, v2) => {
       s.maxHp += v;
@@ -2831,7 +2954,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.plate",
-    label: "アーマー +{v}、最大HP +20、移動速度 -8%",
+    label: "アーマー +{v}、最大生命 +20、移動速度 -8%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.armor += v;
@@ -2895,7 +3018,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // ring
   {
     key: "implicit.ironRing",
-    label: "最大HP +{v}",
+    label: "最大生命 +{v}",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.maxHp += v;
@@ -2927,7 +3050,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.bloodRing",
-    label: `撃破時HP回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
+    label: `撃破時の生命回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）`,
     // 1〜3 → 1〜2（memo 2026-09-24: 回復系を 30〜50% 下げる。implicit は FLUX の係数を受けないので手で下げる）
     range: { min: 1, max: 2 },
     apply: (s, v) => {
@@ -2936,7 +3059,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.voidBand",
-    label: "会心倍率 +{v}%、最大HP -10",
+    label: "会心倍率 +{v}%、最大生命 -10",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.critMul += pct(v);
@@ -2946,7 +3069,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // amulet
   {
     key: "implicit.jadeAmulet",
-    label: "エネルギー獲得 +{v}%",
+    label: "必殺ゲージ獲得 +{v}%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.energyGainMul += pct(v);
@@ -2954,7 +3077,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.amberAmulet",
-    label: "HP自然回復 +{v}/秒（敵が近くにいない間）",
+    label: "生命自然回復 +{v}/秒（敵が近くにいない間）",
     // 0.2〜0.5 → 0.1〜0.3（同上）
     range: { min: 0.1, max: 0.3 },
     decimals: 1,
@@ -2988,7 +3111,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.duskAmulet",
-    label: "必殺ダメージ +{v}%、エネルギー獲得 -8%",
+    label: "必殺ダメージ +{v}%、必殺ゲージ獲得 -8%",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.burstDamageMul += pct(v);
@@ -3018,7 +3141,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.scythe",
-    label: `撃破時HP回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）、リーチ +15%、攻撃速度 -15%`,
+    label: `撃破時の生命回復 +{v}（${HEAL.killHealMinCombo}コンボ以上）、リーチ +15%、攻撃速度 -15%`,
     // 2〜4 → 1〜3（同上）
     range: { min: 1, max: 3 },
     apply: (s, v) => {
@@ -3029,7 +3152,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.staff",
-    label: "怯み値 +{v}%、マナ回収 +20%、近接ダメージ -20%",
+    label: "怯み値 +{v}%、気力回収 +20%、近接ダメージ -20%",
     range: { min: 25, max: 35 },
     apply: (s, v) => {
       s.poiseDamageMul += pct(v);
@@ -3069,7 +3192,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.robe",
-    label: "最大マナ +{v}、最大HP -15",
+    label: "最大気力 +{v}、最大生命 -15",
     range: { min: 12, max: 18 },
     apply: (s, v) => {
       s.maxMana += v;
@@ -3078,7 +3201,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.scale",
-    label: "受ける状態異常の持続 -{v}%、最大HP +10",
+    label: "受ける状態異常の持続 -{v}%、最大生命 +10",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.statusTakenMul -= pct(v);
@@ -3124,7 +3247,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.boneRing",
-    label: "撃破でマナ +{v}",
+    label: "撃破で気力 +{v}",
     range: { min: 1, max: 3 },
     apply: (s, v) => {
       s.manaOnKill += v;
@@ -3147,7 +3270,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.signet",
-    label: "この遺物の来歴が 2 倍の早さで積もる、最大HP -{v}",
+    label: "この遺物の来歴が 2 倍の早さで積もる、最大生命 -{v}",
     range: { min: 4, max: 8 },
     // 来歴の倍速は provenance.ts の progressFor
     apply: (s, v) => {
@@ -3156,7 +3279,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.rosary",
-    label: "マナ自然回復 +{v}/秒、近接ダメージ -10%",
+    label: "気力自然回復 +{v}/秒、近接ダメージ -10%",
     range: { min: 0.3, max: 0.5 },
     decimals: 1,
     apply: (s, v) => {

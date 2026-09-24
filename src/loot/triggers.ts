@@ -84,7 +84,7 @@ export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
   onMeleeHit: { text: () => "近接命中時", chance: { min: 0.15, max: 0.25 } },
   onShoot: { text: () => "射撃時", chance: { min: 0.15, max: 0.2 } },
   onKill: { text: () => "撃破時", chance: { min: 0.3, max: 0.5 } },
-  onJustDodge: { text: () => "ジャスト回避時", chance: { min: 0.4, max: 0.6 } },
+  onJustDodge: { text: () => "見切り時", chance: { min: 0.4, max: 0.6 } },
   onDash: { text: () => "ダッシュ時", chance: { min: 0.25, max: 0.4 } },
   onHurt: { text: () => "被弾時", chance: { min: 0.3, max: 0.5 } },
   onRoomClear: { text: () => "部屋クリア時", chance: { min: 0.4, max: 0.6 } },
@@ -99,18 +99,18 @@ export const TRIGGER_SPECS: Readonly<Record<TriggerKind, TriggerSpec>> = {
 
 export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   always: "",
-  aboveHalfHp: "（HP 50% 以上）",
-  belowHalfHp: "（HP 50% 未満）",
+  aboveHalfHp: "（生命 50% 以上）",
+  belowHalfHp: "（生命 50% 未満）",
   comboAbove10: "（10 コンボ以上）",
   roomLocked: "（部屋で交戦中）",
-  fullEnergy: "（エネルギー満タン）",
-  manaFull: "（マナ満タン）",
-  manaLow: "（マナ残りわずか）",
+  fullEnergy: "（必殺ゲージ満タン）",
+  manaFull: "（気力満タン）",
+  manaLow: "（気力残りわずか）",
   selfAfflicted: "（自分が状態異常中）",
   targetInWindup: "（相手が予備動作中）",
   targetGuarded: "（相手が堅守中）",
   targetMultiStatus: "（相手の状態異常が 2 種以上）",
-  targetElite: "（相手がエリート）",
+  targetElite: "（相手が精鋭）",
 };
 
 export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
@@ -164,7 +164,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     perLevel: 0.05,
     decimals: 0,
     cap: PLAYER.maxHp * HEAL_EFFECT_CAP_RATIO,
-    text: (m) => `HPを${m}回復する`,
+    text: (m) => `生命を${m}回復する`,
   },
   damageBuff: {
     base: 15,
@@ -182,7 +182,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     duration: { min: 2, max: 4 },
     text: (m, _c, d) => `${d ?? "0"} 秒間移動速度 +${m}%を得る`,
   },
-  energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `エネルギーを${m}獲得する` },
+  energy: { base: 8, perLevel: 0.04, decimals: 0, text: (m) => `必殺ゲージを${m}獲得する` },
   invuln: {
     // 上限は TRIGGER.invulnMax（docs/COMBAT_DESIGN.md C-1 の 13）。揺らぎの上振れは decode 側でも切る
     base: 0.35,
@@ -191,7 +191,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     cap: TRIGGER.invulnMax,
     text: (m) => `${m} 秒間無敵になる`,
   },
-  restoreMana: { base: 4, perLevel: 0.04, decimals: 0, cap: 16, text: (m) => `マナを${m}回収する` },
+  restoreMana: { base: 4, perLevel: 0.04, decimals: 0, cap: 16, text: (m) => `気力を${m}回収する` },
   addPoise: { base: 12, perLevel: 0.05, decimals: 0, cap: 48, text: (m) => `相手に怯み値${m}を与える` },
   inflict: {
     base: 2.5,
@@ -217,7 +217,7 @@ export const EFFECT_SPECS: Readonly<Record<TriggerEffectKind, EffectSpec>> = {
     count: { min: 1, max: 2 },
     text: (m, c) => `照準の方向へ弾を${c ?? 1}発撃つ（射撃の${m}%）`,
   },
-  healMissing: { base: 30, perLevel: 0, decimals: 0, cap: 100, text: (m) => `失った HP の${m}%を回復する` },
+  healMissing: { base: 30, perLevel: 0, decimals: 0, cap: 100, text: (m) => `失った生命の${m}%を回復する` },
 };
 
 /** 文法（ドロップ・芽・染め）から出さない効果。誓約・固定の性質が直接使う */

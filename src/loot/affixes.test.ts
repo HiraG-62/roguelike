@@ -104,7 +104,7 @@ describe("アフィックス定義", () => {
       "12%の確率で炎上（9ダメージ/秒）",
     );
     expect(formatAffix({ key: "hpRegen", kind: "suffix", tier: 3, value: 1.5 })).toBe(
-      "HP自然回復 +1.5/秒（敵が近くにいない間）",
+      "生命自然回復 +1.5/秒（敵が近くにいない間）",
     );
     expect(formatAffix({ key: "implicit.shortsword", kind: "prefix", tier: 1, value: 10 })).toBe(
       "近接ダメージ +10%",
@@ -201,7 +201,7 @@ describe("affixDefForRoll（動的アフィックス）", () => {
   it("固定テーブルに無いトリガー key を復元・整形できる", () => {
     const roll = { key: "tr:onJustDodge:always:shockwave", kind: "prefix" as const, tier: 1, value: 25, value2: 400 };
     expect(affixDefForRoll(roll)?.source).toBe("trigger");
-    expect(formatAffix(roll)).toBe("ジャスト回避時: 40% で衝撃波を放つ（25 ダメージ）");
+    expect(formatAffix(roll)).toBe("見切り時: 40% で衝撃波を放つ（25 ダメージ）");
   });
 
   it("不正な key は undefined", () => {
@@ -255,8 +255,8 @@ describe("マナの性質", () => {
     expect(formatAffix({ key: "manaCostPct", value: 20, value2: 10 })).toBe("スキルのコスト -20%、スキル威力 -10%");
   });
 
-  it("マナ自然回復は小数 1 桁で表示する", () => {
-    expect(formatAffix({ key: "manaRegenFlat", value: 0.3 })).toBe("マナ自然回復 +0.3/秒");
+  it("気力自然回復は小数 1 桁で表示する", () => {
+    expect(formatAffix({ key: "manaRegenFlat", value: 0.3 })).toBe("気力自然回復 +0.3/秒");
   });
 
   it("mana タグの性質は蒼、代償付きでも蒼", () => {

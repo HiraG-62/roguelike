@@ -1,5 +1,6 @@
-import { ATTR } from "../data/tuning";
-import { ATTR_KEYS, type Attributes, type PlayerStats, type Scaling } from "../loot/types";
+import type { AttackGenre, AttackQuality, AttackRange } from "../core/element";
+import { ATTR, GENRE } from "../data/tuning";
+import { ATTR_KEYS, type AttrKey, type Attributes, type PlayerStats, type Scaling } from "../loot/types";
 
 /**
  * ステータス（筋力 / 技巧 / 体力 / 精神 / 霊力）の実効値と派生。docs/COMBAT_DESIGN.md A。
@@ -25,6 +26,70 @@ export function effectiveAttr(a: number): number {
 export function scaled(stats: Readonly<PlayerStats>, s: Readonly<Scaling>): number {
   let v = s.base;
   for (const k of ATTR_KEYS) v += (s[k] ?? 0) * stats.attributesEff[k];
+  return v;
+}
+
+// ---------------------------------------------------------------------------
+// 攻撃ジャンルの参照ステータス（docs/COMBAT_DESIGN.md A-8）
+// ---------------------------------------------------------------------------
+
+export interface GenreAttrs {
+  /** 主に伸ばすステータス。そのジャンルの攻撃は主か副の係数を持つ（data 側のテストで検査する） */
+  readonly primary: AttrKey;
+  /** 副に伸ばすステータス */
+  readonly secondary: AttrKey;
+}
+
+/**
+ * ジャンルごとの参照ステータスの既定表。筋力 = 物理の力、技巧 = 物理の狙い、霊力 = 魔法、精神 = 魔法の広がり、
+ * 体力 = 地を揺らす範囲の物理。混成は物理と魔法の主を 1 つずつ。
+ * 盾・体当たり・自傷など体力で伸ばしたい攻撃は、個々の Scaling で上書きする（既定表はあくまで揃えの目安）
+ */
+export const GENRE_ATTRS: Readonly<Record<AttackRange, Readonly<Record<AttackQuality, GenreAttrs>>>> = {
+  melee: {
+    physical: { primary: "str", secondary: "dex" },
+    arcane: { primary: "spi", secondary: "str" },
+    hybrid: { primary: "str", secondary: "spi" },
+  },
+  ranged: {
+    physical: { primary: "dex", secondary: "str" },
+    arcane: { primary: "spi", secondary: "mnd" },
+    hybrid: { primary: "dex", secondary: "spi" },
+  },
+  area: {
+    physical: { primary: "str", secondary: "vit" },
+    arcane: { primary: "spi", secondary: "mnd" },
+    hybrid: { primary: "str", secondary: "spi" },
+  },
+};
+
+export function genreAttrs(genre: AttackGenre): GenreAttrs {
+  return GENRE_ATTRS[genre.range][genre.quality];
+}
+
+/**
+ * ジャンルの既定表から Scaling を作る。atBase = ステータスが基礎値（各 5）のときの威力、primaryCoef = 主の係数。
+ * 副の係数は主 × GENRE.secondaryRatio。base は atBase に一致するよう逆算する（既存の数値を壊さない）
+ */
+export function genreScaling(genre: AttackGenre, atBase: number, primaryCoef: number): Scaling {
+  const { primary, secondary } = genreAttrs(genre);
+  const secondaryCoef = primaryCoef * GENRE.secondaryRatio;
+  return { base: atBase - ATTR.base * (primaryCoef + secondaryCoef), [primary]: primaryCoef, [secondary]: secondaryCoef };
+}
+
+/**
+ * Scaling がジャンルの主か副のステータスを参照しているか（「ジャンルごとに参照ステータスをある程度揃える」の検査）。
+ * 双剣（技巧）のように副だけで伸びる攻撃も揃っているとみなす。体力参照など表の外は呼び出し側で上書きを宣言する
+ */
+export function scalingFitsGenre(s: Readonly<Scaling>, genre: AttackGenre): boolean {
+  const { primary, secondary } = genreAttrs(genre);
+  return (s[primary] ?? 0) > 0 || (s[secondary] ?? 0) > 0;
+}
+
+/** ステータスが基礎値（各 5）のときの威力 */
+export function scaledAtBase(s: Readonly<Scaling>): number {
+  let v = s.base;
+  for (const k of ATTR_KEYS) v += (s[k] ?? 0) * ATTR.base;
   return v;
 }
 

@@ -310,7 +310,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
   },
   jade: {
     name: "森極",
-    lines: [`被弾すると 50% の確率で HP を ${amt(8)} 回復する`, "敵が近くにいない間、傷が少しずつ塞がる"],
+    lines: [`被弾すると 50% の確率で生命を ${amt(8)} 回復する`, "敵が近くにいない間、傷が少しずつ塞がる"],
     apply: both(trigger({ trigger: "onHurt", condition: "always", effect: "heal", magnitude: amt(8), chance: 0.5 }), (s) => {
       s.hpRegen += frac(0.5);
     }),
@@ -331,7 +331,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
     // 大半のランでは「反転を正として扱う」効果が一切働かず、damageTakenMul の代償だけが残って
     // 純粋な弱化になっていた。深度に関係なく効く energyGainMul を足して、
     // 反転に出会う前でも選ぶ理由を持たせる（虚 = 何もない代わりに力を吸い出す、の方向）
-    lines: ["反転した性質の負の値を、正の値として扱う", "受けた傷から力を吸い、エネルギーが少し貯まりやすくなる", "代わりに受ける傷が少し深くなる"],
+    lines: ["反転した性質の負の値を、正の値として扱う", "受けた傷から力を吸い、必殺ゲージが少し貯まりやすくなる", "代わりに受ける傷が少し深くなる"],
     apply: (s) => {
       s.energyGainMul += frac(0.15);
       s.damageTakenMul += 0.1;
@@ -371,7 +371,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+umbra": {
     name: "焦身",
-    lines: [`被弾すると 50% の確率で、3 秒間ダメージ +${amt(40)}%`, "最大 HP が 10 減る"],
+    lines: [`被弾すると 50% の確率で、3 秒間ダメージ +${amt(40)}%`, "最大生命が 10 減る"],
     apply: both(
       trigger({ trigger: "onHurt", condition: "always", effect: "damageBuff", magnitude: amt(40), duration: 3, chance: 0.5 }),
       (s) => {
@@ -381,7 +381,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+jade": {
     name: "潮流",
-    lines: [`ダッシュ時に 50% の確率で HP を ${amt(3)} 回復する`, "足取りが軽くなる"],
+    lines: [`ダッシュ時に 50% の確率で生命を ${amt(3)} 回復する`, "足取りが軽くなる"],
     apply: both(trigger({ trigger: "onDash", condition: "always", effect: "heal", magnitude: amt(3), chance: 0.5 }), (s) => {
       s.moveSpeedMul += frac(0.08);
     }),
@@ -391,7 +391,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
     // 元は chillChance/shockChance を足すだけの数値効果だったが、QA での指摘（二重の固有効果に
     // 「遊び方が変わる」ものを最低 1 つ）を受けて、JUST 回避を避けるだけの防御行動から
     // 攻めにも使える行動に変える。数値ボーナスは半分にして帳尻を合わせる
-    lines: ["ジャスト回避の瞬間、周囲へ凍雷の弾をばら撒く", "攻撃が敵を凍らせ・感電させやすくなる"],
+    lines: ["見切りの瞬間、周囲へ凍雷の弾をばら撒く", "攻撃が敵を凍らせ・感電させやすくなる"],
     apply: both(
       trigger({ trigger: "onJustDodge", condition: "always", effect: "spawnBullets", magnitude: amt(8), count: 6, chance: 0.5 }),
       (s) => {
@@ -410,7 +410,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "jade+gold": {
     name: "活脈",
-    lines: [`ジャスト回避で 60% の確率で、エネルギーを ${amt(15)} 得る`, "コンボが途切れにくくなる"],
+    lines: [`見切りで 60% の確率で、必殺ゲージを ${amt(15)} 得る`, "コンボが途切れにくくなる"],
     apply: both(
       trigger({ trigger: "onJustDodge", condition: "always", effect: "energy", magnitude: amt(15), chance: 0.6 }),
       (s) => {
@@ -420,7 +420,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "jade+umbra": {
     name: "澱",
-    lines: [`被弾すると 60% の確率で、エネルギーを ${amt(12)} 得る`, `最大 HP が ${amt(20)} 増える`],
+    lines: [`被弾すると 60% の確率で、必殺ゲージを ${amt(12)} 得る`, `最大生命が ${amt(20)} 増える`],
     apply: both(trigger({ trigger: "onHurt", condition: "always", effect: "energy", magnitude: amt(12), chance: 0.6 }), (s) => {
       s.maxHp += amt(20);
     }),
@@ -448,7 +448,7 @@ export const SCATTER_EFFECT: ResonanceEffect = {
   name: "虹",
   lines: [
     "近接・射撃・攻撃速度・連射・移動が少しずつ伸びる",
-    "エネルギーが少し溜まりやすくなる",
+    "必殺ゲージが少し溜まりやすくなる",
     "反転した性質の代償を打ち消す（正の効果には転じない）",
   ],
   apply: (s) => {
@@ -466,7 +466,7 @@ export const SCATTER_EFFECT: ResonanceEffect = {
 export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   "crimson+azure+jade": {
     name: "四季",
-    lines: ["3 回に 1 回の近接で周囲を燃やす", "ダッシュ時に 50% の確率で周囲を凍らせる", `部屋を制圧すると HP を ${amt(8)} 回復する`],
+    lines: ["3 回に 1 回の近接で周囲を燃やす", "ダッシュ時に 50% の確率で周囲を凍らせる", `部屋を制圧すると生命を ${amt(8)} 回復する`],
     apply: both(
       trigger({ trigger: "everyNthMeleeHit", every: 3, condition: "always", effect: "burnNearby", magnitude: amt(5), duration: 3, chance: 1 }),
       trigger({ trigger: "onDash", condition: "always", effect: "freezeNearby", magnitude: amt(30), duration: 2, chance: 0.5 }),
@@ -495,7 +495,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+jade+gold": {
     name: "祭",
-    lines: [`10 回に 1 回の近接で HP を ${amt(5)} 回復し、エネルギーを ${amt(8)} 得る`],
+    lines: [`10 回に 1 回の近接で生命を ${amt(5)} 回復し、必殺ゲージを ${amt(8)} 得る`],
     apply: both(
       trigger({ trigger: "everyNthMeleeHit", every: 10, condition: "always", effect: "heal", magnitude: amt(5), chance: 1 }),
       trigger({ trigger: "everyNthMeleeHit", every: 10, condition: "always", effect: "energy", magnitude: amt(8), chance: 1 }),
@@ -503,7 +503,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+jade+umbra": {
     name: "血肉",
-    lines: [`命中のたびに与ダメの ${frac(1)}% を吸う`, `HP が半分を切っている間の撃破で HP を ${amt(6)} 回復する`],
+    lines: [`命中のたびに与ダメの ${frac(1)}% を吸う`, `生命が半分を切っている間の撃破で生命を ${amt(6)} 回復する`],
     apply: both(trigger({ trigger: "onKill", condition: "belowHalfHp", effect: "heal", magnitude: amt(6), chance: 1 }), (s) => {
       s.lifeOnHit += frac(1);
     }),
@@ -520,7 +520,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+jade+gold": {
     name: "凪",
-    lines: [`マナが満タンの間の撃破でエネルギーを ${amt(10)} 得る`, "敵が近くにいない間、傷が少しずつ塞がる"],
+    lines: [`気力が満タンの間の撃破で必殺ゲージを ${amt(10)} 得る`, "敵が近くにいない間、傷が少しずつ塞がる"],
     apply: both(trigger({ trigger: "onKill", condition: "manaFull", effect: "energy", magnitude: amt(10), chance: 1 }), (s) => {
       s.hpRegen += frac(0.3);
     }),
@@ -537,7 +537,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+gold+umbra": {
     name: "流星",
-    lines: [`ジャスト回避でマナを ${amt(8)} 回収する`, "ジャスト回避の瞬間、50% の確率で弾をばら撒く"],
+    lines: [`見切りで気力を ${amt(8)} 回収する`, "見切りの瞬間、50% の確率で弾をばら撒く"],
     apply: both(
       trigger({ trigger: "onJustDodge", condition: "always", effect: "restoreMana", magnitude: amt(8), chance: 1 }),
       trigger({ trigger: "onJustDodge", condition: "always", effect: "spawnBullets", magnitude: amt(6), count: 5, chance: 0.5 }),

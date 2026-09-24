@@ -729,7 +729,24 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
     const speed = enemySpeed(state, e, def) * mul;
     moveEnemy(state, e, def, dir.x * speed * dt, dir.y * speed * dt);
   }
-  if (e.phaseTimer <= 0) beginStrike(state, e, def, toPlayer);
+  if (e.phaseTimer > 0) return;
+  if (strikeSlotsFull(state, e)) {
+    e.phaseTimer = ENEMY_AI.strikerHoldTime;
+    return;
+  }
+  beginStrike(state, e, def, toPlayer);
+}
+
+/**
+ * 同時攻撃の上限: すでに strike の敵が上限に達していれば待たせる。
+ * 敵は配列順（id 順）に更新されるので、同じステップで予備動作が終わった敵は id の若い方が先に枠を取る（決定的）
+ */
+function strikeSlotsFull(state: GameState, e: Enemy): boolean {
+  let striking = 0;
+  for (const o of state.enemies) {
+    if (o !== e && o.hp > 0 && o.phase === "strike") striking++;
+  }
+  return striking >= ENEMY_AI.maxSimultaneousStrikers;
 }
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */

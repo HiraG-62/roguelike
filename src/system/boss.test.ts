@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { createRng } from "../core/rng";
-import { BOSS, REAPER, STATUS } from "../data/tuning";
+import { BOSS, PLAYER, REAPER, STATUS } from "../data/tuning";
 import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors } from "../map/generator";
 import { TILE_SIZE, Tile, getTile, rectCenter } from "../map/grid";
 import { bossEnemy, bossKeyForDepth, isBossDepth, showsBossBar } from "./boss";
@@ -87,7 +87,7 @@ describe("ボス階", () => {
     expect(state.enemies.length).toBe(count);
   });
 
-  it("King Slime は HP 50% 以下で小スライム 4 体に分裂し高速化する", () => {
+  it("King Slime は HP 50% 以下で小スライム splitCount 体に分裂し高速化する", () => {
     const state = bossFloor(3);
     const boss = bossEnemy(state);
     if (!boss) throw new Error("no boss");
@@ -98,6 +98,25 @@ describe("ボス階", () => {
     const after = state.enemies.filter((e) => e.defKey === "slime" && e.roomIndex === boss.roomIndex).length;
     expect(after - slimes).toBe(BOSS.kingSlime.splitCount);
     expect(boss.ai?.stage).toBe(2);
+  });
+
+  it("King Slime の第 2 段階の跳躍は、影が出てから素の移動速度で衝撃波の半径の外へ走り出せる長さがある", () => {
+    const ks = BOSS.kingSlime;
+    expect(ks.phase2JumpTime * PLAYER.speed, "空中時間 × 移動速度 ≥ 衝撃波の半径（ダッシュ無しでも読める）").toBeGreaterThanOrEqual(ks.shockRadius);
+  });
+
+  it("King Slime の第 2 段階の跳躍は phase2JumpTime だけ影（着地予告）を出す", () => {
+    const state = bossFloor(3);
+    const boss = bossEnemy(state);
+    if (!boss?.ai) throw new Error("no boss");
+    boss.phase = "chase";
+    boss.ai.stage = 2;
+    boss.attackCooldown = 0;
+    const phaseOf = (): EnemyPhase => boss.phase;
+    for (let i = 0; i < 600 && phaseOf() !== "strike"; i++) updateEnemies(state, FIXED_DT);
+    expect(phaseOf()).toBe("strike");
+    const shadow = state.hazards.find((h) => h.kind === "landing");
+    expect(shadow?.time, "影の長さは第 2 段階の空中時間").toBeCloseTo(BOSS.kingSlime.phase2JumpTime, 5);
   });
 
   it("Bone Lord は HP 30% 以下でテレポートを繰り返す", () => {

@@ -119,8 +119,10 @@ describe("網タブ: 入力", () => {
 
   it("端では反対側へ回り込む", () => {
     expect(moveCursor(0, -1, 0), "左端から右端へ").toBe(SYNERGY_COLS - 1);
-    expect(moveCursor(0, 0, -1), "上端から最下行へ").toBe(KEYWORDS.length - SYNERGY_COLS);
-    expect(moveCursor(KEYWORDS.length - 1, 1, 1), "右下から左上へ").toBe(0);
+    // 語の数が列数で割り切れないとき最下行は欠ける。同じ列の最下行へ回る
+    expect(moveCursor(0, 0, -1), "上端から最下行へ").toBe(Math.floor((KEYWORDS.length - 1) / SYNERGY_COLS) * SYNERGY_COLS);
+    const last = KEYWORDS.length - 1;
+    expect(moveCursor(last, 1, 1), "最後の語から右下へ: 次の列の最上行へ").toBe(((last % SYNERGY_COLS) + 1) % SYNERGY_COLS);
   });
 
   it("マウスは動いたときだけホバーの語を選ぶ（止まったマウスが方向入力を上書きしない）", () => {

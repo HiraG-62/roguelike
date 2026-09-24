@@ -1,3 +1,4 @@
+import { ELEMENTS, ELEMENT_LABEL } from "../core/element";
 import { HEAL, MANA, STATUS } from "../data/tuning";
 import { DEFAULT_MOVESET, DEFAULT_SHOT } from "../data/weapons";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
@@ -120,6 +121,8 @@ function createBaseStats(): PlayerStats {
     attributesEff: { ...DEFAULT_STATS.attributesEff },
     statusProcs: [...DEFAULT_STATS.statusProcs],
     traits: { ...DEFAULT_STATS.traits },
+    resist: { ...DEFAULT_STATS.resist },
+    infuse: { ...DEFAULT_STATS.infuse },
   };
 }
 
@@ -170,7 +173,22 @@ function finalize(stats: PlayerStats): PlayerStats {
   stats.manaRegen = Math.max(0, stats.manaRegen);
   // 支配の減衰（× 0.75）で端数が出る。UI は整数で見せるので集計の時点で揃える（逓減は deriveAttributes）
   for (const key of ATTR_KEYS) stats.attributes[key] = Math.max(0, Math.round(stats.attributes[key]));
+  finalizeElements(stats);
   return stats;
+}
+
+/**
+ * 防御・属性（docs/COMBAT_DESIGN.md A-8）。魔防は負にしない。変換の割合は 0..1 に収め、合計が 1 を超えたら按分で 1 に縮める
+ * （耐性のソフトキャップは被弾時に system/combat.ts の effectiveResist が掛ける。表示は生の合計を見せる）
+ */
+function finalizeElements(stats: PlayerStats): void {
+  stats.warding = Math.max(0, stats.warding);
+  stats.skillNeutral = clamp(stats.skillNeutral, 0, 1);
+  stats.infuse.none = 0;
+  for (const e of ELEMENTS) stats.infuse[e] = Math.max(0, stats.infuse[e]);
+  const total = ELEMENTS.reduce((sum, e) => sum + stats.infuse[e], 0);
+  if (total <= 1) return;
+  for (const e of ELEMENTS) stats.infuse[e] /= total;
 }
 
 /**
@@ -241,12 +259,13 @@ interface StatFormat {
 }
 
 const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
-  maxHp: { label: "最大HP", style: "flat" },
-  hpRegen: { label: "HP自然回復（敵が近くにいない間）", style: "flat" },
+  maxHp: { label: "最大生命", style: "flat" },
+  hpRegen: { label: "生命自然回復（敵が近くにいない間）", style: "flat" },
   // lifeOnHit は与ダメに対する %（値 3 = 3%）なので flat のまま単位をラベルで示す
-  lifeOnHit: { label: "与ダメからのHP回復(%)", style: "flat" },
-  lifeOnKill: { label: `撃破時HP回復（${HEAL.killHealMinCombo}コンボ以上）`, style: "flat" },
+  lifeOnHit: { label: "与ダメからの生命回復(%)", style: "flat" },
+  lifeOnKill: { label: `撃破時の生命回復（${HEAL.killHealMinCombo}コンボ以上）`, style: "flat" },
   armor: { label: "アーマー", style: "flat" },
+  warding: { label: "魔防", style: "flat" },
   damageTakenMul: { label: "被ダメージ", style: "mul" },
   thorns: { label: "反射ダメージ", style: "flat" },
 
@@ -272,15 +291,15 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   critChance: { label: "会心率", style: "percent" },
   critMul: { label: "会心倍率", style: "percent" },
 
-  energyGainMul: { label: "エネルギー獲得", style: "mul" },
+  energyGainMul: { label: "必殺ゲージ獲得", style: "mul" },
   burstDamageMul: { label: "必殺ダメージ", style: "mul" },
   burstRadiusMul: { label: "必殺範囲", style: "mul" },
 
   comboWindowBonus: { label: "コンボ猶予", style: "seconds" },
   comboDamagePerStack: { label: "コンボ1段階ごとのダメージ", style: "percent" },
   comboDamageCap: { label: "コンボダメージ上限", style: "percent" },
-  justDodgeDamageMul: { label: "ジャスト回避ダメージ", style: "mul" },
-  justDodgeWindow: { label: "ジャスト回避猶予", style: "seconds" },
+  justDodgeDamageMul: { label: "見切りダメージ", style: "mul" },
+  justDodgeWindow: { label: "見切り猶予", style: "seconds" },
 
   burnChance: { label: "炎上確率", style: "percent" },
   burnDps: { label: "炎上ダメージ/秒", style: "flat" },
@@ -290,16 +309,17 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   shockDamage: { label: "感電ダメージ", style: "flat" },
   explodeOnKillChance: { label: "撃破時爆発確率", style: "percent" },
   explodeDamage: { label: "爆発ダメージ", style: "flat" },
-  maxMana: { label: "最大マナ", style: "flat" },
-  manaRegen: { label: "マナ自然回復", style: "flat" },
-  manaGainMul: { label: "マナ回収", style: "mul" },
+  maxMana: { label: "最大気力", style: "flat" },
+  manaRegen: { label: "気力自然回復", style: "flat" },
+  manaGainMul: { label: "気力回収", style: "mul" },
   manaCostMul: { label: "スキルのコスト", style: "mul" },
-  manaOnKill: { label: "撃破時マナ回収", style: "flat" },
+  manaOnKill: { label: "撃破時気力回収", style: "flat" },
   skillDamageMul: { label: "スキル威力", style: "mul" },
   poiseDamageMul: { label: "怯み値", style: "mul" },
   statusPotencyMul: { label: "状態異常の効果量", style: "mul" },
   statusTakenMul: { label: "受ける状態異常の持続", style: "mul" },
   bulletCut: { label: "弾斬り", style: "flat" },
+  skillNeutral: { label: "スキルの無属性化", style: "percent" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */
@@ -327,7 +347,20 @@ function formatStat(format: StatFormat, value: number): string {
 /** DEFAULT_STATS と異なる数値項目だけを表示用文字列で列挙する（keystones / triggers は対象外） */
 export function statsSummary(stats: PlayerStats): string[] {
   const keys = Object.keys(STAT_FORMATS) as StatKey[];
-  return keys
+  const lines = keys
     .filter((key) => Math.abs(stats[key] - DEFAULT_STATS[key]) > EPSILON)
     .map((key) => formatStat(STAT_FORMATS[key], stats[key]));
+  return [...lines, ...elementSummary(stats)];
+}
+
+/** 属性耐性（「炎耐性 +20%」）と属性の変換（「近接・射撃の炎属性 40%」）。0 の行は出さない */
+export function elementSummary(stats: PlayerStats): string[] {
+  const lines: string[] = [];
+  for (const e of ELEMENTS) {
+    if (Math.abs(stats.resist[e]) > EPSILON) lines.push(`${ELEMENT_LABEL[e]}耐性 ${signed(stats.resist[e])}%`);
+  }
+  for (const e of ELEMENTS) {
+    if (stats.infuse[e] > EPSILON) lines.push(`近接・射撃の${ELEMENT_LABEL[e]}属性 ${num(stats.infuse[e] * PERCENT_SCALE)}%`);
+  }
+  return lines;
 }

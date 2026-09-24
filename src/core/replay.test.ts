@@ -21,7 +21,9 @@ import {
   type ReplayData,
 } from "./replay";
 import { createEmptyProfile, type Item, type Profile } from "../loot/types";
-import { createDefaultSkillProfile } from "../skills/persistence";
+import { createDefaultSkillProfile, ownedRunes } from "../skills/persistence";
+import { SKILL } from "../skills/data";
+import { dropRune } from "../system/skills";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
@@ -288,6 +290,23 @@ describe("記録 → 再生", () => {
     expect(session.profile).not.toBe(profile);
   });
 
+  it("所持刻印符の件数もスナップショットされ、満杯なら再生でも床の刻印符を拾わない", () => {
+    const skillProfile = createDefaultSkillProfile();
+    skillProfile.runes = Array.from({ length: SKILL.runeCapacity }, (_, i) => ({ id: `full${i}`, modifier: "echo" as const, foundAt: 0 }));
+    const recorder = new ReplayRecorder({ seedText: "runes", startedAt: 1, daily: false }, createEmptyProfile(), skillProfile);
+    const data = recorder.finish({ depth: 1, kills: 0, score: 0 }, 2);
+    expect(data.snapshot.runeCount).toBe(SKILL.runeCapacity);
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    if (!loaded) throw new Error("sanitize failed");
+    const session = createReplaySession(loaded);
+    expect(ownedRunes(session.skillProfile), "ダミーで件数を合わせる").toHaveLength(SKILL.runeCapacity);
+    dropRune(session.state, session.state.player.body.pos, "pierce");
+    for (let t = 0; t <= SKILL.drop.pickupDelay + FIXED_DT; t += FIXED_DT) step(session.state, withInput({}), FIXED_DT);
+    expect(session.state.skills.runes, "記録時と同じく床に残る").toHaveLength(1);
+    const legacy = sanitizeReplay({ ...JSON.parse(JSON.stringify(data)), snapshot: { ...data.snapshot, runeCount: undefined } });
+    expect(legacy?.snapshot.runeCount, "欄の無い記録は 0").toBe(0);
+  });
+
   it("フレーム数が合わないデータは再生を拒否する", () => {
     const { data } = recordRun("bad", createEmptyProfile(), randomInputs(4, 10));
     expect(() => createReplaySession({ ...data, frameCount: 11 })).toThrow();
@@ -303,6 +322,21 @@ describe("記録 → 再生", () => {
     expect(replayed.origin, "起点が再生側にも入る").toBe("cursedOne");
     expect(replayed.modifiers).toEqual(setup.modifiers);
     expect(fingerprint(replayed)).toBe(fingerprint(state));
+  });
+
+  it("ジョブを記録し、再生でも同じジョブで始まる。見習いは書かず、未知の値は見習いに戻る", () => {
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], job: "brawler" };
+    const { data, state } = recordRun("job-replay", createEmptyProfile(), randomInputs(12, 1500), undefined, setup);
+    expect(data.job, "ジョブが記録される").toBe("brawler");
+    const replayed = playBack(data);
+    expect(replayed.job, "ジョブが再生側にも入る").toBe("brawler");
+    expect(fingerprint(replayed)).toBe(fingerprint(state));
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    expect(loaded?.job, "往復で残る").toBe("brawler");
+    const plain = recordRun("job-none", createEmptyProfile(), randomInputs(3, 10)).data;
+    expect("job" in plain, "見習いは書かない（旧データと同じ形）").toBe(false);
+    expect(sanitizeReplay(JSON.parse(JSON.stringify({ ...data, job: "nope" })))?.job, "未知は見習い").toBeUndefined();
+    expect(createReplaySession({ ...data, job: undefined }).state.job, "欄の無い記録は見習い").toBe("none");
   });
 
   it("起点・縛りの未知の key は sanitize で捨てる（起点は放浪者に戻る）", () => {

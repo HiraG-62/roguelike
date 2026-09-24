@@ -393,7 +393,7 @@ function takeKeystone(state: GameState, room: RoomState, prop: RoomProp): void {
   const name = keystoneDef(prop.key)?.name ?? prop.key;
   spawnBurst(state, prop.pos, ROOM_KIND.altarColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `誓約: ${name}`, ROOM_KIND.altarColor);
-  pushLog(state, `祭壇で誓約「${name}」を背負った（このランの間）。`, ROOM_KIND.altarColor);
+  pushLog(state, `祭壇で誓約「${name}」を背負った（この探索の間）。`, ROOM_KIND.altarColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -431,7 +431,7 @@ function pullLever(state: GameState, room: RoomState, index: number, prop: RoomP
   const p = state.player;
   const cost = p.maxHp * ROOM_KIND.gambleHpCost;
   if (p.hp <= cost) {
-    sayAt(state, "HP が足りない", ROOM_KIND.gambleColor);
+    sayAt(state, "生命が足りない", ROOM_KIND.gambleColor);
     return;
   }
   p.hp -= cost;

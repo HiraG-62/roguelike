@@ -2,6 +2,7 @@ import type { Enemy, GameState } from "../core/state";
 import { type Vec, dist, normalize, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, enemyDef } from "../data/enemies";
 import { ROAM } from "../data/tuning";
+import { VIEW_H, VIEW_W } from "../core/view";
 import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { nextWaypoint } from "../map/pathing";
 import { moveEnemy } from "./enemies";
@@ -40,11 +41,14 @@ export function roamerCount(state: GameState): number {
 // 目的地
 // -----------------------------------------------------------------------------
 
-/** 徘徊の行き先にできる塊（封鎖しない種類。ボス部屋は除く） */
+/** 開始の塊（floor.ts の START_ROOM）。プレイヤーが降り立つ所なので徘徊の行き先にしない（開始直後に歩いてこないように） */
+const START_ROOM = 0;
+
+/** 徘徊の行き先にできる塊（封鎖しない種類。開始の塊・ボス部屋は除く） */
 function roamableRooms(state: GameState): number[] {
   return state.rooms.map((_, i) => i).filter((i) => {
     const room = state.rooms[i];
-    return room !== undefined && !ROOM_LOCKS[room.kind] && state.boss?.roomIndex !== i;
+    return room !== undefined && i !== START_ROOM && !ROOM_LOCKS[room.kind] && state.boss?.roomIndex !== i;
   });
 }
 
@@ -152,7 +156,16 @@ function inLockingRoom(state: GameState, tx: number, ty: number): boolean {
 }
 
 /**
- * 増援の位置。プレイヤーから minSpawnDist 以上離れた（画面の外の）床から選び、壁は spawnSpot で避ける。
+ * カメラの表示範囲（+ offscreenMargin）の内側か。カメラはマップ端で止まり、プレイヤーが画面の中心から外れるので、
+ * プレイヤーからの距離だけでは画面の角に湧いてしまう。camera.pos は step が決定的に動かす（揺れの offset は見ない）
+ */
+function onScreen(state: GameState, pos: Vec): boolean {
+  const c = state.camera.pos;
+  return Math.abs(pos.x - c.x) < VIEW_W / 2 + ROAM.offscreenMargin && Math.abs(pos.y - c.y) < VIEW_H / 2 + ROAM.offscreenMargin;
+}
+
+/**
+ * 増援の位置。プレイヤーから minSpawnDist 以上離れ、画面の外の床から選び、壁は spawnSpot で避ける。
  * 見つからなければ null
  */
 export function roamSpawnPoint(state: GameState, radius: number): Vec | null {
@@ -166,7 +179,7 @@ export function roamSpawnPoint(state: GameState, radius: number): Vec | null {
     if (inLockingRoom(state, tx, ty)) continue;
     const want = { x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE };
     const pos = spawnSpot(state, want, want, radius);
-    if (overlapsWall(state, pos.x, pos.y, radius) || dist(pos, p) < ROAM.minSpawnDist) continue;
+    if (overlapsWall(state, pos.x, pos.y, radius) || dist(pos, p) < ROAM.minSpawnDist || onScreen(state, pos)) continue;
     return pos;
   }
   return null;

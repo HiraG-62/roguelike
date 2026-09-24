@@ -10,7 +10,7 @@ import { addFloatingText, spawnBurst } from "../system/effects";
 import { isStaggered } from "../system/poise";
 import { applyStatus } from "../system/statusEffects";
 import { fireTrigger } from "../system/triggers";
-import { SKILL, SKILL_DEFS, resolveCast } from "./data";
+import { SKILL, SKILL_DEFS, resolveCast, skillAttack } from "./data";
 import { stoneInSlot } from "./persistence";
 import type { CastParams } from "./types";
 
@@ -90,7 +90,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   const def = SKILL_DEFS[params.skillKey];
   const from = spec.from ?? state.player.body.pos;
   const pos = { ...e.body.pos };
-  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true });
+  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true, attack: skillAttack(params.skillKey) });
   const crit = out.crit || spec.forceCrit === true;
   const critMul = crit && !out.crit ? state.stats.critMul : 1;
   const attune = crit && params.attuneCrit ? SKILL.modifier.attune.matchMul : 1;

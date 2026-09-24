@@ -1,6 +1,7 @@
 import { type KeywordProfile, kw } from "../core/keywords";
 import type { EnemyRule } from "../core/rules";
 import type { StatusApply, StatusKind } from "../core/status";
+import { type EnemyDefenseDef, enemyDefense } from "./enemyDefense";
 import { WAVE3_COMBAT } from "./enemyCombatWave3";
 
 /**
@@ -33,6 +34,11 @@ export interface EnemyCombatDef {
   rules?: readonly EnemyRule[];
   /** 共通語彙。出す = 使ってくる攻撃・場の変化、食う = 弱点（付与する状態異常は system/keywords.ts が足す） */
   keywords: KeywordProfile;
+  /**
+   * 防御・魔防・属性耐性と攻撃の素性（docs/COMBAT_DESIGN.md A-8）。省略時は data/enemyDefense.ts の表から
+   * ENEMY_COMBAT の組み立てで埋める（個別に上書きしたい敵だけここに書く）
+   */
+  guard?: EnemyDefenseDef;
 }
 
 const BOSS_IMMUNE: readonly StatusKind[] = ["freeze", "fear"];
@@ -330,7 +336,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   mirrorSelf: { poise: 70, staggerTime: 0.8, superArmorMul: 0.5, inflicts: [], keywords: kw(["elite", "dash"], ["just", "counter"]) },
 };
 
-export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
+const RAW_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   slime: {
     poise: 25,
     staggerTime: 0.5,
@@ -418,9 +424,19 @@ export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   ...WAVE3_COMBAT,
 };
 
+/** 防御・耐性（enemyDefense.ts）を畳み込んだ戦闘パラメータ。キーの順は RAW_COMBAT のまま（反復の決定性） */
+export const ENEMY_COMBAT: Readonly<Record<string, EnemyCombatDef>> = Object.fromEntries(
+  Object.entries(RAW_COMBAT).map(([key, def]) => [key, { ...def, guard: def.guard ?? enemyDefense(key) }]),
+);
+
 /** 表に無い敵は怯まず、何も付与しない（新しい敵を足したときに落ちないように） */
 const FALLBACK: EnemyCombatDef = { staggerTime: 0, superArmorMul: 1, inflicts: [], keywords: kw(["hurt"]) };
 
 export function enemyCombat(key: string): EnemyCombatDef {
   return ENEMY_COMBAT[key] ?? FALLBACK;
+}
+
+/** 敵の防御・耐性・攻撃の素性。戦闘表に無い敵も enemyDefense の既定に落とす */
+export function enemyGuard(key: string): EnemyDefenseDef {
+  return enemyCombat(key).guard ?? enemyDefense(key);
 }

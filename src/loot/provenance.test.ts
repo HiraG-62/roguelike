@@ -168,7 +168,7 @@ describe("芽", () => {
     offerNextBud(item);
     const pending = findPendingBud(profileWith(item));
     expect(pending?.itemId).toBe(item.id);
-    expect(pending?.milestoneLabel).toBe("ジャスト回避 20");
+    expect(pending?.milestoneLabel).toBe("見切り 20");
   });
 });
 

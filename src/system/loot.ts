@@ -17,6 +17,7 @@ import { RARITY_COLOR, TRAIT_COLOR_HEX, type AffixRoll, type Item, type Rarity }
 import { addFloatingText } from "./effects";
 import { overlapsWall } from "./physics";
 import { applyStats } from "./player";
+import { ROAMING_ROOM } from "./spawner";
 import { rollEnemyRuneDrop } from "./skills";
 
 /**
@@ -65,20 +66,23 @@ export function byDepth(table: readonly number[], depth: number): number {
   return table[index] ?? 1;
 }
 
-/** 強敵（エリート・ボス級・確定ドロップの巣窟の主）。通常敵の絞りを掛けない */
-function isStrongDropSource(enemy: Enemy): boolean {
+/** 確定ドロップの強敵（ボス級・巣窟の主）。絞りを掛けない */
+function isGuaranteedDropSource(enemy: Enemy): boolean {
   const def = enemyDef(enemy.defKey);
-  return enemy.elite !== undefined || def.dropChance >= 1 || def.boss === true || def.lairMaster === true;
+  return def.dropChance >= 1 || def.boss === true || def.lairMaster === true;
 }
 
 /**
- * 撃破時のドロップ確率。通常敵は深度別の倍率（LOOT_DROP.mobDropMulByDepth）で絞り、
- * 強敵はそのまま（「たくさん倒しても出ない、強敵を倒すと出る」）。エリートの追加抽選（elites.ts）もこれを使う
+ * 撃破時のドロップ確率。通常敵は深度別の倍率（LOOT_DROP.mobDropMulByDepth）と徘徊・増援の倍率で絞る。
+ * エリートは LOOT_DROP.eliteDropMul（通常敵より高い）、ボス・巣窟の主はそのまま
+ * （「たくさん倒しても出ない、強敵を倒すと出る」）。エリートの追加抽選（elites.ts）もこれを使う
  */
 export function enemyDropChance(state: GameState, enemy: Enemy): number {
   const base = enemyDef(enemy.defKey).dropChance + state.depth * LOOT_DROP.depthChanceBonus;
-  if (isStrongDropSource(enemy)) return base;
-  return base * byDepth(LOOT_DROP.mobDropMulByDepth, state.depth);
+  if (isGuaranteedDropSource(enemy)) return base;
+  if (enemy.elite !== undefined) return base * LOOT_DROP.eliteDropMul;
+  const roaming = enemy.roomIndex === ROAMING_ROOM ? LOOT_DROP.roamingDropMul : 1;
+  return base * byDepth(LOOT_DROP.mobDropMulByDepth, state.depth) * roaming;
 }
 
 /** 撃破時の確率ドロップ */
@@ -113,8 +117,9 @@ export function dropBonusReward(state: GameState, pos: Vec): void {
   dropItem(state, pos, LOOT_DROP.roomClearRarityBoost);
 }
 
-/** 階層到達ボーナス: プレイヤーの少し前に 1 個 */
+/** 階層到達ボーナス: LOOT_DROP.depthArrivalChance でプレイヤーの少し前に 1 個 */
 export function dropDepthReward(state: GameState): void {
+  if (!state.rng.chance(LOOT_DROP.depthArrivalChance)) return;
   const p = state.player.body.pos;
   const pos = { x: p.x + LOOT_DROP.arrivalOffset, y: p.y };
   dropItem(state, overlapsWall(state, pos.x, pos.y, ITEM_RADIUS) ? p : pos, LOOT_DROP.depthArrivalRarityBoost);
@@ -170,8 +175,39 @@ function nearestTo(candidates: readonly DropCandidate[], origin: Vec, radius: nu
   return best;
 }
 
+/** 点 q から線分 a-b への距離 */
+function distToSegment(q: Vec, a: Vec, b: Vec): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((q.x - a.x) * abx + (q.y - a.y) * aby) / len2)) : 0;
+  return Math.hypot(q.x - (a.x + abx * t), q.y - (a.y + aby * t));
+}
+
+/**
+ * 照準が手の届く距離より遠く、その先に何も無いとき: プレイヤーから照準への線の近く（focusRadius 以内）で
+ * 手の届くものを、プレイヤーに近い順に注目する。パッドの照準点は画面中心から AIM_STICK_DISTANCE（reach より遠い）
+ * 先にあり、スティックを倒したまま R3 を押すと手の届く範囲を注目できなかったため
+ */
+function alongAim(state: GameState, candidates: readonly DropCandidate[], aimWorld: Vec): DropCandidate | null {
+  const p = state.player.body.pos;
+  if (dist(p, aimWorld) <= PICKUP.reach) return null;
+  let best: DropCandidate | null = null;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    if (!isInPickupReach(state, c.pos) || distToSegment(c.pos, p, aimWorld) > PICKUP.focusRadius) continue;
+    const d = dist(c.pos, p);
+    // 同距離なら先の候補（順序が決まっているので決定的）
+    if (d >= bestDist) continue;
+    best = c;
+    bestDist = d;
+  }
+  return best;
+}
+
 /**
  * 注目中のドロップ品。照準から PICKUP.focusRadius 以内で最も近いもの（遠くても注目はする。拾えるかは inReach）。
+ * 照準の先に何も無く、照準が手の届く距離より遠ければ、照準への線の近くで手の届くもの（alongAim）。
  * 照準が無いとき（パッドで右スティック中立）はプレイヤーの手の届く範囲で最も近いものを注目する
  */
 export function focusedDrop(state: GameState, aimWorld: Vec | null): FocusedDrop | null {
@@ -179,7 +215,7 @@ export function focusedDrop(state: GameState, aimWorld: Vec | null): FocusedDrop
   const hit =
     aimWorld === null
       ? nearestTo(candidates, state.player.body.pos, PICKUP.reach)
-      : nearestTo(candidates, aimWorld, PICKUP.focusRadius);
+      : (nearestTo(candidates, aimWorld, PICKUP.focusRadius) ?? alongAim(state, candidates, aimWorld));
   if (hit === null) return null;
   return { ...hit, inReach: isInPickupReach(state, hit.pos) };
 }

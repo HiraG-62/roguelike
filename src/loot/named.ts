@@ -29,7 +29,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "greatsword",
     minLevel: 14,
     keystone: "ks_berserker",
-    flavor: "HPが減るほど、その一振りは大きくなる。",
+    flavor: "生命が減るほど、その一振りは大きくなる。",
     affixes: [
       { key: "meleeDamagePct" },
       { key: "critMultiplier" },

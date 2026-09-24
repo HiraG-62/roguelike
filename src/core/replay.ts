@@ -22,11 +22,12 @@ import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
 import { ATTR_KEYS, SLOTS, createEmptyProfile, type Attributes, type Equipment, type Item, type Profile, uniformAttributes } from "../loot/types";
 import { PROFILE_KEY } from "../loot/profile";
-import { SKILL_PROFILE_KEY, stoneInSlot } from "../skills/persistence";
-import { SKILL_KEYS, type SkillProfile, type SkillStone } from "../skills/types";
+import { SKILL_PROFILE_KEY, ownedRunes, stoneInSlot } from "../skills/persistence";
+import { MODIFIER_KEYS, SKILL_KEYS, type RuneItem, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
 import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
 import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeLockedRelics, sanitizeRunSetup } from "../system/runSetup";
+import { type JobKey, sanitizeJob } from "../data/jobs";
 
 /**
  * 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った。
@@ -48,6 +49,11 @@ export interface ReplayLoadout {
   stashCount: number;
   /** スキル石 stash の件数 */
   stoneCount: number;
+  /**
+   * 所持刻印符（石に付けていないもの）の件数。満杯だと床の刻印符を拾えない挙動を再現する。
+   * 無い（この欄を足す前の記録）なら 0 として読む
+   */
+  runeCount?: number;
 }
 
 /** 装備画面での付け替え・ステータス振り分け。frame 番目の step の直前に適用する */
@@ -81,6 +87,8 @@ export interface ReplayData {
   origin?: OriginKey;
   /** ラン修飾子（REPLAY_VERSION 5 から。無ければ縛りなし） */
   modifiers?: RunModKey[];
+  /** ジョブ（無ければ見習い。見習いのときは書かない） */
+  job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
   snapshot: ReplayLoadout;
@@ -343,6 +351,7 @@ export function captureLoadout(profile: Profile, skillProfile: SkillProfile): Re
     }),
     stashCount: profile.stash.length,
     stoneCount: skillProfile.stones.length,
+    runeCount: ownedRunes(skillProfile).length,
   };
 }
 
@@ -351,7 +360,7 @@ function equipmentSignature(equipment: Equipment): string {
 }
 
 function loadoutSignature(l: ReplayLoadout): string {
-  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount]);
+  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.runeCount ?? 0]);
 }
 
 function allocSignature(alloc: Attributes): string {
@@ -360,6 +369,7 @@ function allocSignature(alloc: Attributes): string {
 
 const PLACEHOLDER_ID_PREFIX = "replay-placeholder-";
 const PLACEHOLDER_SKILL_KEY = SKILL_KEYS[0];
+const PLACEHOLDER_MODIFIER = MODIFIER_KEYS[0];
 
 /** stash 件数を合わせるためだけのダミー。シミュレーションは stash の件数しか見ない */
 function placeholderItem(index: number): Item {
@@ -376,6 +386,10 @@ function placeholderItem(index: number): Item {
     foundDepth: 0,
     foundAt: 0,
   };
+}
+
+function placeholderRune(index: number): RuneItem {
+  return { id: `${PLACEHOLDER_ID_PREFIX}${index}`, modifier: PLACEHOLDER_MODIFIER, foundAt: 0 };
 }
 
 function placeholderStone(index: number): SkillStone {
@@ -406,6 +420,7 @@ function applyLoadout(profile: Profile, skillProfile: SkillProfile, loadout: Rep
   resizeWith(stones, Math.max(loadout.stoneCount, stones.length), placeholderStone);
   skillProfile.stones = stones;
   skillProfile.loadout = equipped.map((s) => (s ? s.id : null));
+  resizeWith(ownedRunes(skillProfile), loadout.runeCount ?? 0, placeholderRune);
 }
 
 export function createReplayProfiles(snapshot: ReplayLoadout): { profile: Profile; skillProfile: SkillProfile } {
@@ -489,6 +504,7 @@ export class ReplayRecorder {
       origin: (this.options.setup ?? defaultRunSetup()).origin,
       modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
       ...lockedRelicsField(this.options.setup?.lockedRelics),
+      ...jobField(this.options.setup?.job),
       snapshot: structuredClone(this.snapshot),
       events: structuredClone(this.events),
       inputs: this.encoder.toString(),
@@ -535,7 +551,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
     throw new Error(`replay: frame count mismatch (${inputs.length} vs ${data.frameCount})`);
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
-  const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
+  const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), job: sanitizeJob(data.job), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
   const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
@@ -696,6 +712,7 @@ function sanitizeLoadout(v: unknown): ReplayLoadout | null {
     skillStones,
     stashCount: Math.max(0, Math.floor(v.stashCount)),
     stoneCount: Math.max(0, Math.floor(v.stoneCount)),
+    runeCount: isFiniteNumber(v.runeCount) ? Math.max(0, Math.floor(v.runeCount)) : 0,
   };
 }
 
@@ -731,14 +748,20 @@ function sanitizeEvent(v: unknown): ReplayEvent | null {
   return { frame: v.frame, loadout, player, alloc };
 }
 
-/**
- * 保存データを検証して ReplayData にする。壊れていれば null。
- * version が現行と違っても構造が正しければ一覧に残すため null にはしない（再生可否は isPlayable で見る）
- */
 /** 除外遺物があるときだけ書く（旧データ・依頼を持たないランの形を変えない） */
 function lockedRelicsField(keys: readonly string[] | undefined): Pick<ReplayData, "lockedRelics"> {
   return keys !== undefined && keys.length > 0 ? { lockedRelics: [...keys] } : {};
 }
+
+/** 見習い（既定）は書かない。旧データと同じ形を保つ */
+function jobField(job: JobKey | undefined): Pick<ReplayData, "job"> {
+  return job !== undefined && job !== "none" ? { job } : {};
+}
+
+/**
+ * 保存データを検証して ReplayData にする。壊れていれば null。
+ * version が現行と違っても構造が正しければ一覧に残すため null にはしない（再生可否は isPlayable で見る）
+ */
 
 export function sanitizeReplay(v: unknown): ReplayData | null {
   if (!isRecord(v) || !isFiniteNumber(v.version)) return null;
@@ -766,6 +789,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     origin: setup.origin,
     modifiers: setup.modifiers,
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
+    ...jobField(sanitizeJob(v.job)),
     snapshot,
     events,
     inputs,

@@ -87,8 +87,8 @@ function fluxLevelOf(roll: AffixRoll): FluxLevel {
 export const ATTRIBUTE_HINT: Readonly<Record<AttrKey, string>> = {
   str: "斬る技と、敵を怯ませる力が伸びる",
   dex: "撃つ技と、身のこなしが伸びる",
-  vit: "HPが増え、状態異常から早く立ち直る",
-  mnd: "マナが増えて早く戻り、会心が冴える",
+  vit: "生命が増え、状態異常から早く立ち直る",
+  mnd: "気力が増えて早く戻り、会心が冴える",
   spi: "スキルが深まり、状態異常が重くなる",
 };
 
@@ -239,7 +239,7 @@ export function provenanceLines(item: Item): string[] {
       lines.push(`撃破 ${p.kills}（${top.join("・")}）`);
     }
     if (p.bosses > 0) lines.push(`ボス撃破 ${p.bosses}`);
-    if (p.justDodges > 0) lines.push(`ジャスト回避 ${p.justDodges}`);
+    if (p.justDodges > 0) lines.push(`見切り ${p.justDodges}`);
     if (p.hurtTaken > 0) lines.push(`被弾 ${p.hurtTaken}`);
     if (p.roomsCleared > 0) lines.push(`部屋制圧 ${p.roomsCleared}`);
     if (p.floorsCleared > 0) lines.push(`階層踏破 ${p.floorsCleared}（最深 ${p.deepest}）`);

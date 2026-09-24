@@ -33,6 +33,7 @@ import {
 } from "../ui/inventory";
 import { drawBudModal } from "./budUi";
 import { drawAttributePanel } from "./attributeUi";
+import { itemAttackLine, loadoutAttackLines, skillAttackLine } from "./elementUi";
 import { drawEchoTab } from "./echoTabUi";
 import { drawSynergyTab } from "./synergyUi";
 import { drawRuneColumn, runeTooltipLines } from "./skillRuneUi";
@@ -297,6 +298,8 @@ export function itemTipLines(state: GameState, item: Item): TipLine[] {
   const lines: TipLine[] = [{ text: d.name, color: itemColor(item) }];
   if (d.inscription !== undefined && d.inscription !== d.name) lines.push({ text: `銘「${d.inscription}」`, color: COLOR_INSCRIPTION });
   lines.push({ text: d.subtitle, color: COLOR_DIM });
+  const attackLine = itemAttackLine(item);
+  if (attackLine !== null) lines.push({ text: attackLine, color: COLOR_DIM });
   lines.push({ text: d.summary, color: COLOR_TEXT });
   if (d.implicit !== undefined) lines.push({ text: `固有: ${d.implicit}`, color: COLOR_DIM });
   for (const line of d.lines) lines.push(traitTipLine(line));
@@ -384,7 +387,8 @@ function drawStatsBox(ctx: CanvasRenderingContext2D, state: GameState, rect: Rec
   const lineH = bodyLineH();
   const maxWidth = rect.w - TEXT_PAD_X * 2;
   const lines = statsSummary(state.stats);
-  const shown = lines.length === 0 ? ["遺物にカーソルを合わせる"] : lines;
+  // 先頭にいまの近接・射撃の素性（ジャンルと属性。docs/COMBAT_DESIGN.md A-8）
+  const shown = [...loadoutAttackLines(state.stats), ...(lines.length === 0 ? ["遺物にカーソルを合わせる"] : lines)];
   let y = rect.y + lineH;
   for (const line of shown) {
     if (y > rect.y + rect.h - 2) break;
@@ -508,7 +512,7 @@ function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams
   const interval = formatCooldown(castInterval(def, params));
   const burden = castBurden(def, params);
   // 定刻・燃料化で資源が差し替わるので def.resource ではなく params.resource で出し分ける
-  if (params.resource !== "mana") return `CD ${formatCooldown(burden.cooldown)}`;
+  if (params.resource !== "mana") return `再使用 ${formatCooldown(burden.cooldown)}`;
   const capped = effectiveManaCost(state, burden.cost);
   const note = capped.clamped && !def.manaRule ? COST_CLAMPED_NOTE : "";
   return `コスト ${Math.round(manaRuleCost(state, def, capped.cost))}${note}  間隔 ${interval}`;
@@ -523,9 +527,11 @@ function stoneTooltipLines(state: GameState, stone: SkillStone): TipLine[] {
   const params = resolveCast(def, stone, modifiers);
   const linkPenalty = Math.round(stone.links * SKILL.linkBurdenPenalty * PERCENT);
   const burdenName = BURDEN_LABEL[params.resource];
+  const attackLine = skillAttackLine(def.key);
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },
     { text: def.verb, color: COLOR_TEXT },
+    ...(attackLine === null ? [] : [{ text: attackLine, color: COLOR_DIM }]),
     { text: `${def.tags.join(" / ")}  ${burdenText(state, def, params)}`, color: COLOR_DIM },
     { text: `リンク ${stone.links}（基本${burdenName} +${linkPenalty}%）`, color: COLOR_TEXT },
   ];
@@ -573,7 +579,7 @@ function drawSkillNotes(ctx: CanvasRenderingContext2D, layout: InventoryLayout):
   const lines = [
     "刻印符は拾うと所持品に入る。選んだスロットの石に",
     "付け外しでき、石と一緒に持ち越す。",
-    "リンク数が多いほど負担（コスト / CD）が重くなる。",
+    "リンク数が多いほど負担（コスト / 再使用時間）が重くなる。",
     "キー: 1〜4 / C V X Z / マウス戻る・進む",
     "パッド: LB を押しながら A X Y B",
   ];
