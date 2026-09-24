@@ -85,7 +85,7 @@ export function trialKeyOfEntry(key: string): string | null {
 
 /**
  * 武器掛けの行が指すもの。key が null の行は「装備のものに戻す」。
- * 銃の家系（sidearm / longarm / cannon / thrown / gunner）も武器種の列に並ぶ（docs/ideas/weapon-redesign.md 5.4）
+ * 銃の家系（GUN_MOVESETS）も武器種の列に並ぶ（docs/ideas/weapon-redesign.md 5.4）
  */
 export type RackRow = { kind: "moveset"; key: MovesetKey | null };
 

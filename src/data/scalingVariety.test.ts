@@ -34,6 +34,8 @@ const FIXED_ACTIONS: readonly string[] = [
   "skills.EXTRA_SKILL_TUNING.powderKeg.damage",
   "skills.EXTRA_SKILL_TUNING.turret.damage",
   "weapons.WEAPON.shots.mine.scaling",
+  // 仕掛けの撒き散らしは設置弾（仕掛け）なので固定値
+  "weapons.WEAPON.movesets.trapper.art.throw.scaling",
 ];
 
 /**
@@ -158,6 +160,13 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.cannon.dashAttack.scaling": [10, 0.8],
   "weapons.WEAPON.movesets.cannon.art.step.scaling": [13, 1],
   "weapons.WEAPON.movesets.thrown.dashAttack.scaling": [7.5, 0.6],
+  // 振り直しの後に足した銃の家系（値は足した時点のもの）
+  "weapons.WEAPON.movesets.grenade.dashAttack.scaling": [8.5, 0.7],
+  "weapons.WEAPON.movesets.grenade.art.step.scaling": [9, 0.8],
+  "weapons.WEAPON.movesets.trapper.dashAttack.scaling": [7.5, 0.7],
+  "weapons.WEAPON.movesets.trapper.art.throw.scaling": [10, 0],
+  "weapons.WEAPON.movesets.warRing.dashAttack.scaling": [7.5, 0.6],
+  "weapons.WEAPON.movesets.warRing.art.step.scaling": [7, 0.8],
   "weapons.WEAPON.jobBranches.swordsman.scaling": [11.5, 1.1],
   "weapons.WEAPON.jobBranches.hunter.scaling": [10, 1],
   "weapons.WEAPON.jobBranches.brawler.scaling": [4.1, 0.5],

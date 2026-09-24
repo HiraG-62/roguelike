@@ -99,6 +99,21 @@ export const LAYERED_SFX = {
   swingThrown: [
     { k: "noise", filter: "bandpass", from: 4200, to: 1800, dur: 0.06, q: 2, peak: 0.16 },
   ],
+  // 擲弾: 筒の鈍い打撃（砲より高く短い）
+  swingGrenade: [
+    { k: "noise", filter: "lowpass", from: 1800, to: 300, dur: 0.09, peak: 0.26 },
+    { k: "tone", type: "sine", freq: 160, dur: 0.06, peak: 0.16 },
+  ],
+  // 仕掛け: 金具の軽い擦れ
+  swingTrapper: [
+    { k: "noise", filter: "bandpass", from: 3000, to: 1200, dur: 0.05, q: 1.5, peak: 0.16 },
+    { k: "tone", type: "square", freq: 520, dur: 0.03, peak: 0.06 },
+  ],
+  // 戦輪: 刃の輪が風を切る高い音
+  swingWarRing: [
+    { k: "sweep", type: "triangle", from: 1800, to: 900, dur: 0.08, peak: 0.12 },
+    { k: "noise", filter: "bandpass", from: 5200, to: 2600, dur: 0.07, q: 2.5, peak: 0.12 },
+  ],
 
   // ---- 射撃の型の発射音（8-2）----
   shotRapid: [{ k: "sweep", type: "square", from: 1400, to: 500, dur: 0.04, peak: 0.25 }],

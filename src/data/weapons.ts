@@ -35,6 +35,10 @@ export const MOVESET_KEYS = [
   "longarm",
   "cannon",
   "thrown",
+  // 砲・投擲に埋もれていた射撃の型（曲射・設置弾・回転刃）を独立させた銃の家系
+  "grenade",
+  "trapper",
+  "warRing",
 ] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
@@ -472,6 +476,9 @@ export const ART_NAMES: Readonly<Record<string, string>> = {
   pointBlank: "零距離砲",
   recall: "手元返し",
   barrage: "乱れ撃ち",
+  tubeBash: "筒払い",
+  scatterMines: "撒き散らし",
+  ringSweep: "輪払い",
 };
 
 type BranchTable = Readonly<Record<string, { readonly sequence: readonly ButtonKey[]; readonly step: MeleeStepDef; readonly next?: number }>>;
@@ -874,10 +881,49 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     keywords: kw(["ranged", "bullet"], [], ["dash"]),
     attack: attack("ranged", "physical"),
   }),
+  grenade: defineMoveset({
+    key: "grenade",
+    name: "擲弾",
+    desc: "左で照準の地点へ砲弾を山なりに撃ち込む。至近には落とせないので、右の筒払いで押し返して間合いを作る",
+    steps: [],
+    dashAttack: reviveStep(W.grenade.dashAttack),
+    attackMoveMul: W.grenade.attackMoveMul,
+    primary: "shot",
+    art: strikeArt("tubeBash", "筒で殴って敵を押し返し、自分も後ろへ下がる", reviveStrikeTuning(W.grenade.art)),
+    branches: [],
+    keywords: kw(["ranged", "explode", "area"], ["still"], ["stagger"]),
+    attack: attack("ranged", "physical"),
+  }),
+  trapper: defineMoveset({
+    key: "trapper",
+    name: "仕掛け",
+    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らす",
+    steps: [],
+    dashAttack: reviveStep(W.trapper.dashAttack),
+    attackMoveMul: W.trapper.attackMoveMul,
+    primary: "shot",
+    art: throwArt("scatterMines", "前方へ設置弾を扇に 3 つ撒く", reviveThrowTuning(W.trapper.art), attack("ranged", "physical", "fire")),
+    branches: [],
+    keywords: kw(["ranged", "placed", "explode", "area"], [], ["dash"]),
+    attack: attack("ranged", "physical"),
+  }),
+  warRing: defineMoveset({
+    key: "warRing",
+    name: "戦輪",
+    desc: "左で刃の輪を投げる。右の輪払いで手に持った輪を振り、張り付いた敵を広く斬る",
+    steps: [],
+    dashAttack: reviveStep(W.warRing.dashAttack),
+    attackMoveMul: W.warRing.attackMoveMul,
+    primary: "shot",
+    art: strikeArt("ringSweep", "手元の輪で周りを広く斬る", reviveStrikeTuning(W.warRing.art)),
+    branches: [],
+    keywords: kw(["ranged", "bullet", "area"], [], ["melee"]),
+    attack: attack("ranged", "physical"),
+  }),
 };
 
 /** 銃の家系（左で撃つ武器種）。祝福の loadout・性質の家系条件が読む */
-export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner"];
+export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner", "grenade", "trapper", "warRing"];
 
 /** 武器種の固有効果の Rule（今の武器種のものだけ。定義が無ければ空） */
 export function movesetRules(key: MovesetKey): readonly Rule[] {

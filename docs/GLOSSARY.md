@@ -249,6 +249,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | --- | --- | --- | --- |
 | 武器種 | moveset（`MovesetKey`） | 武器スロットのベースが決める通常攻撃の型。段数・当たり判定の形・ダッシュ攻撃・溜め・気力回収の傾向 | `data/weapons.ts` MOVESETS |
 | 剣 / 大剣 / 双剣 / 槍 / 大鎌 / 拳 / 鞭 / 鉈 / 棍 / 杖 / 刀 / 斧 / 大盾 / 鎖鎌 / 戦鎚 / 二丁拳銃 | sword / greatsword / twinBlades / spear / scythe / fists / whip / cleaver / staff / wand / katana / axe / shield / chainSickle / hammer / gunner | 武器種の表示名。ベース名（短剣・刺突剣・打刀など）とは別。大盾・鎖鎌・二丁拳銃・戦鎚はベース名と武器種名が同じ | `data/weapons.ts` MOVESETS[].name |
+| 短銃 / 長銃 / 砲 / 投擲 / 擲弾 / 仕掛け / 戦輪 | sidearm / longarm / cannon / thrown / grenade / trapper / warRing | 銃の家系（左で撃つ武器種）の表示名。撃つ弾の型はベースが決める（擲弾 = 曲射、仕掛け = 設置弾、戦輪 = 回転刃・跳弾） | `data/weapons.ts` MOVESETS[].name |
 | 射撃の型 | shot（`ShotKey`） | 銃スロットのベースが決める射撃の型 | `data/weapons.ts` SHOT_TYPES |
 | 単発 / 連射 / 散弾 / 貫通 / 追尾 / 跳弾 / チャージ / 設置弾 / 三点 / 回転刃 / 曲射 | single / rapid / spread / pierce / homing / ricochet / charge / mine / burst / boomerang / lob | 射撃の型の表示名 | `data/weapons.ts` SHOT_TYPES[].name |
 | 溜め攻撃 | attack.charging / chargeLevel | 溜めの役割のボタンの長押しで段を溜めて離す近接（大剣・戦鎚は左、刀は右）。刻印符の「溜め」（スキル用）とは別 |

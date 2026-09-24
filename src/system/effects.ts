@@ -225,6 +225,9 @@ const SWING_SFX: Readonly<Record<MovesetKey, SfxName>> = {
   longarm: "swingLongarm",
   cannon: "swingCannon",
   thrown: "swingThrown",
+  grenade: "swingGrenade",
+  trapper: "swingTrapper",
+  warRing: "swingWarRing",
 };
 
 export function swingSfxName(moveset: MovesetKey): SfxName {
