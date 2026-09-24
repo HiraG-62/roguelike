@@ -38,7 +38,7 @@
 - **新しい敵・修飾子・部屋を足すと seed 依存のテストが落ちる**（抽選がずれる）。今回は runEvents / roomTypes / specialRooms の 4 件を「敵の生命を十分にする」「交戦フラグを解く」「台座から最も遠い隅へ離れる」の形で堅牢化した。seed を変えるより、テストの意図を守る形で直す
 - QA は必ず **隔離 worktree**（`git worktree add <scratchpad>/wt-qa <commit>` → `node_modules` は前回の worktree からコピー → `npm run qa:full`）。本体で回すと他レーンの未コミット変更が混ざる。生成された report.md は統合役が本体へコピーする
 - 統合役は `git add -A -- . ':!.gitignore'` でコミット。1 バッチ 1 コミットで CHANGELOG の `[Unreleased]` に要点を書く。docs の更新は別コミット
-- コミット: `git -c user.name="Horry" -c user.email="hira6291gi@gmail.com" commit -m "<type>: <日本語>"` + `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`。push は `git push -u origin claude/hopeful-ride-nd4l34`。**タグの push はこの環境では 403 で拒否される**（remote に過去のタグも無い）。タグはローカルだけに残し、ブランチだけ push する
+- コミット: `git -c user.name="Horry" -c user.email="hira6291gi@gmail.com" commit -m "<type>: <日本語>"` + `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`。push はそのセッションの作業ブランチへ `git push -u origin <branch>`。**タグの push はこの環境では 403 で拒否される**（remote に過去のタグも無い）。タグはローカルだけに残し、ブランチだけ push する
 - **クラウドセッション**: ユーザーの共通ルールと自動メモリは `.claude/global/`（`CLAUDE.md` が @import）。ローカルで memory を変えたら `npm run sync:claude` で写してコミットする。クラウド側で覚えるべきことが出たらこの HANDOFF に書く（memory は編集しない）
 - 事故と対処: node_modules が無ければ `npm install`。エージェントの一時ファイルが `src/` に残ったら `git status --short` で見つけて消す。`src/qa/simulation.test.ts` の差分は目視する
 
@@ -58,9 +58,8 @@
    - 継続ダメージの浮き文字は `opts.silent` で判定している（継続以外の silent な一撃も同じ見た目）
    - 強欲のの詰み: 封鎖する部屋の強欲のは自室の中の遺物・石しか拾わないが、抱えた後にプレイヤーが部屋の外から近づくと逃げる向きに部屋の制限が無く、部屋の外へ出た後に封鎖されると制圧できない（`roomAlive` は `roomIndex` だけで判定）。頻度は低い。直すなら「封鎖時に部屋の外にいる自室の敵を中へ寄せる」（雑魚が追跡で外へ出る既存リスクも同時に潰せる）
 3. **統一ルール文法への移行の続き**: 第 1 弾の残り約 100 種は「常時の倍率・可否」「祝福内部の状態を持つ」「起点がイベントに無い（コンボ加算・砕き・通常の振りの命中）」「文法に無い効果（3 択の提示・刻印符の落下・部屋の敵すべて）」に分類済み（`5559d2d` のレーン B 報告。`src/system/boonRules.test.ts` の自動テストが移行済みの一覧）。起点と効果を足せば移せるものから続ける。スキル・敵にも `rules` を置ける
-4. **ブレストの未実装分**: `docs/ideas/README.md` のチェックリスト。残りは主に 盗賊王（逃げるボス。B3）、盗賊の追跡イベント、泥沼スキル（`mire`。泥の地形が入ったので作れる）、地裂きの崩れる床、拠点（ハブ）、来歴の「帰還」の節目、変身の連携「変身中の極意」を新 5 種にも
-5. **拠点（ハブ）**: `docs/ideas/meta-and-weapons.md` 3 章。未着手
-6. **ドット絵**: `docs/ASSETS.md` の推奨 5 件から選んで PNG アトラス読み込みを足す（ユーザーの判断待ち。CC-BY は `CREDITS.md` に帰属表示）
+4. **ブレストの未実装分**: `docs/ideas/README.md` のチェックリスト（盗賊王と拠点は実装済み: `system/bossThiefKing.ts`、`map/hubMap.ts` / `ui/hubFlow.ts`）。残りは主に 盗賊の追跡イベント、泥沼スキル（`mire`。泥の地形が入ったので作れる）、地裂きの崩れる床、来歴の「帰還」の節目、変身の連携「変身中の極意」を新 5 種にも
+5. **ドット絵**: `docs/ASSETS.md` の推奨 5 件から選んで PNG アトラス読み込みを足す（ユーザーの判断待ち。CC-BY は `CREDITS.md` に帰属表示）
 
 ## 5. 起きたユーザーに聞くこと
 
