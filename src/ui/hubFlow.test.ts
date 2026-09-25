@@ -150,32 +150,13 @@ describe("武器掛けの一覧", () => {
     expect(clear?.marked, "何も試していなければ「装備のまま」に印").toBe(true);
   });
 
-  it("各武器種の行の下にその武器種の奥義が並び、選んでいる奥義に印が付く", () => {
-    const set = ULTIMATES.spear;
-    const pick = set[set.length - 1] ?? set[0];
-    const [tab] = rackTabs(null, { ultimates: { spear: pick.key } });
+  it("武器掛けの行に奥義が無い", () => {
+    const [tab] = rackTabs(null);
     if (!tab) throw new Error("タブが無い");
-    const rows = tab.entries.map((e) => ({ entry: e, row: rackEntryOf(e.key) }));
-    const at = rows.findIndex((r) => r.row?.kind === "moveset" && r.row.key === "spear");
-    const below = rows.slice(at + 1, at + 1 + set.length);
-    expect(
-      below.map((r) => (r.row?.kind === "ultimate" ? r.row.key : null)),
-      "武器種の行の直後に、その武器種の奥義が定義の順に並ぶ",
-    ).toEqual(set.map((d) => d.key));
-    expect(below.every((r) => r.row?.kind === "ultimate" && r.row.moveset === "spear"), "奥義の行は武器種を指す").toBe(true);
-    expect(below.filter((r) => r.entry.marked).map((r) => r.row?.kind === "ultimate" && r.row.key), "選んだ奥義だけに印").toEqual([pick.key]);
-    const ultimateRows = rows.filter((r) => r.row?.kind === "ultimate");
-    const total = MOVESET_KEYS.reduce((n, k) => n + ULTIMATES[k].length, 0);
-    expect(ultimateRows, "全武器種の奥義が並ぶ").toHaveLength(total);
-    const [def] = rackTabs(null)[0]?.entries.filter((e) => rackEntryOf(e.key)?.kind === "ultimate" && e.marked) ?? [];
-    expect(rackEntryOf(def?.key ?? "")?.kind === "ultimate", "選んでいなければ 1 本目に印").toBe(true);
-    expect(rackEntryOf(def?.key ?? ""), "1 本目").toEqual({ kind: "ultimate", moveset: MOVESET_KEYS[0], key: ULTIMATES[MOVESET_KEYS[0]][0].key });
-  });
-
-  it("rackEntryOf は奥義の行を読み、知らない奥義の key は null", () => {
+    expect(tab.entries, "「装備のまま」+ 武器種だけ").toHaveLength(MOVESET_KEYS.length + 1);
+    expect(tab.entries.every((e) => rackEntryOf(e.key)?.kind === "moveset"), "全行が武器種").toBe(true);
     const def = ULTIMATES.whip[0];
-    expect(rackEntryOf(`ultimate:${def.key}`), "奥義").toEqual({ kind: "ultimate", moveset: "whip", key: def.key });
-    expect(rackEntryOf("ultimate:no-such"), "知らない奥義").toBeNull();
+    expect(rackEntryOf(`ultimate:${def.key}`), "奥義の行 key は読まない").toBeNull();
   });
 
   it("rackEntryOf は moveset の行を読む", () => {

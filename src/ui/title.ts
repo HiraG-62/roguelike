@@ -308,9 +308,41 @@ export function settingsItemAt(x: number, y: number, rowGap: number): number | n
   return found === -1 ? null : found;
 }
 
-/** 行内クリック位置が左右どちらか（スライダー系項目の増減方向に使う）。パネルは常に画面中央なので VIEW_W/2 で判定できる */
+/** 行内クリック位置が左右どちらか（ゲージの外をクリックしたときの増減方向に使う）。パネルは常に画面中央なので VIEW_W/2 で判定できる */
 export function settingsRowSide(x: number): -1 | 1 {
   return x < VIEW_W / 2 ? -1 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// 設定画面のゲージ（音量・画面揺れ・ヒットストップ）。描画（render/titleUi.ts）と
+// クリック/ドラッグの当たり判定（main.ts）が同じ矩形を見るよう、ここへ集約する
+// ---------------------------------------------------------------------------
+
+/** ゲージで値を表す項目（0..1 の Settings フィールドを持つもの） */
+export const SETTINGS_GAUGE_ITEMS = ["volume", "musicVolume", "screenShake", "hitstopScale"] as const;
+export type SettingsGaugeItem = (typeof SETTINGS_GAUGE_ITEMS)[number];
+
+export function isSettingsGaugeItem(item: SettingsItem): item is SettingsGaugeItem {
+  return (SETTINGS_GAUGE_ITEMS as readonly SettingsItem[]).includes(item);
+}
+
+/** パネル左端からゲージ左端までの距離 */
+const GAUGE_X = 96;
+const GAUGE_W = 76;
+const GAUGE_H = 8;
+
+/** ゲージの矩形。対象外の項目・見えていない行なら null */
+export function settingsGaugeRect(item: SettingsItem, rowGap: number): Rect | null {
+  if (!isSettingsGaugeItem(item)) return null;
+  const { panel, rows } = settingsLayout(rowGap);
+  const row = rows[SETTINGS_ITEMS.indexOf(item)];
+  if (!row) return null;
+  return { x: panel.x + GAUGE_X, y: row.y + row.h / 2 - GAUGE_H / 2, w: GAUGE_W, h: GAUGE_H };
+}
+
+/** ゲージ内の x 座標を 0..1 の値にする（外側は端にクランプ） */
+export function settingsGaugeValueAt(x: number, gauge: Rect): number {
+  return Math.max(0, Math.min(1, (x - gauge.x) / gauge.w));
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +412,11 @@ export function keybindsScrollFor(cursor: number, scroll: number, rowGap: number
   if (cursor < next) next = cursor;
   if (cursor >= next + visible) next = cursor - visible + 1;
   return Math.max(0, Math.min(maxKeybindsScroll(rowGap), next));
+}
+
+/** ホイールなど、カーソルと独立にスクロール量だけを動かす（範囲内に収める） */
+export function clampKeybindsScroll(scroll: number, rowGap: number): number {
+  return Math.max(0, Math.min(maxKeybindsScroll(rowGap), scroll));
 }
 
 export function keybindsLayout(rowGap: number, scroll = 0): KeybindsLayout {

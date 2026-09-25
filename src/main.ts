@@ -59,11 +59,15 @@ import {
   edgeDir,
   isActionRow,
   keybindsItemAt,
+  clampKeybindsScroll,
   keybindsScrollFor,
   moveHistoryCursor,
   pauseMenuItemAt,
   processMenuKeys,
   replayAvailability,
+  isSettingsGaugeItem,
+  settingsGaugeRect,
+  settingsGaugeValueAt,
   settingsItemAt,
   settingsRowSide,
   shiftReplaySpeed,
@@ -71,6 +75,7 @@ import {
   summarizeRunItems,
   type PauseMenuItem,
   type ReplaySpeed,
+  type SettingsGaugeItem,
   type SettingsItem,
 } from "./ui/title";
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
@@ -82,6 +87,10 @@ import {
   loadSettings,
   resetKeybinds,
   saveSettings,
+  setHitstopScale,
+  setMusicVolume,
+  setScreenShake,
+  setVolume,
   toggleDropTooltip,
   toggleMute,
   type Settings,
@@ -114,13 +123,16 @@ import { type ListAction, type ListScreen, type ListTab, createListScreen, listC
 import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
-import { type HubSession, borrowRackEntry, chooseRackUltimate, createHub, trialUltimateName, rackEntryName, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
+import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
 import { HUB } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
 import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
-import { drawHubOverlay, hubScreenOffset } from "./render/hubUi";
-import { type RackRow, altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, rackEntryOf, rackTabs, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
+import { drawHubOverlay } from "./render/hubUi";
+import { drawRackScreen } from "./render/rackUi";
+import type { MovesetKey } from "./data/weapons";
+import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
+import { type RackAction, type RackCard, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
 import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
 
 const canvasEl = document.getElementById("game");
@@ -684,15 +696,24 @@ function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolea
 }
 
 const RACK_TITLE = "武器掛け";
-const RACK_HINT = "←→ タブ　↑↓ 選ぶ　Enter / クリック 試す・奥義を選ぶ　Enter 長押し 借りる　Esc 拠点へ";
+const RACK_HINT = "矢印 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　↓で調整欄（←→ 増減）　Esc 拠点へ";
 /** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
 let rackHold = 0;
 const rackLatch = createHoldLatch();
+let rackUi: RackUi = createRackUi();
+let rackCardList: RackCard[] = [];
+/** 「装備のまま」のカードに出す武器種（開いたときと借りたときだけ数え直す） */
+let rackEquipped: MovesetKey | null = null;
+
+function refreshRackCards(session: HubSession): void {
+  rackCardList = rackCards(session.hub.trialMoveset);
+  rackEquipped = equippedMoveset(session.state.profile);
+}
 
 function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): void {
   screen = "rack";
-  listUi = createListScreen();
-  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+  rackUi = createRackUi();
+  refreshRackCards(session);
   rackHold = 0;
   resetHoldLatch(rackLatch);
   menuNav.prevX = frameMoveX;
@@ -700,34 +721,66 @@ function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): 
   menuAimPrev = null;
 }
 
-/** 短押し（決定）で試し、長押しで借りる。試す行は押した瞬間に替わるので、借りる前に振り心地が変わって見える */
+function stepRackInput(frame: FrameInput, arrowX: number, arrowY: number): RackAction {
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  menuAimPrev = aim;
+  const navX = arrowX !== 0 ? arrowX : edgeDir(menuNav.prevX, frame.move.x);
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  const input = { navX, navY, wheel: frame.wheel, aim, aimMoved, click: frame.clickPressed, confirm: frame.confirmPressed };
+  return stepRack(rackUi, rackCardList, input);
+}
+
+/** 短押し（決定）で試し、長押しで借りる。試すカードは押した瞬間に替わるので、借りる前に振り心地が変わって見える */
 function updateRackFrame(session: HubSession, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
   if (escape) {
     sfx.play("uiClose");
     returnToHub();
     return;
   }
-  const activated = stepListInput(frame, arrowX, arrowY) === "activate";
-  const row = rackEntryOf(listCursorEntry(listUi, listTabs)?.key ?? "");
-  if (row === null) return;
-  if (activated) activateRackRow(session, row);
-  rackHold = latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
-  if (rackHold < HUB.rackBorrowHold) return;
+  applyRackAction(session, stepRackInput(frame, arrowX, arrowY));
+  const target = rackCursorCard(rackUi, rackCardList)?.moveset ?? null;
+  rackHold = target !== null && latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
+  if (target === null || rackHold < HUB.rackBorrowHold) return;
   rackHold = 0;
   resetHoldLatch(rackLatch);
-  // 奥義の行の長押しは、その奥義の武器種を借りる
-  const target = row.kind === "moveset" ? row.key : row.moveset;
-  const borrowed = target === null ? null : borrowRackEntry(session, { kind: "moveset", key: target }, Date.now());
+  const borrowed = borrowRackEntry(session, { kind: "moveset", key: target }, Date.now());
   sfx.play(borrowed ? "uiClick" : "uiClose");
-  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+  refreshRackCards(session);
 }
 
-/** 武器種の行は試し、奥義の行はその武器種の奥義に選んで保存する（拠点を出ても残る） */
-function activateRackRow(session: HubSession, row: RackRow): void {
-  if (row.kind === "moveset") setTrialWeapon(session, row.key);
-  else if (chooseRackUltimate(session, row.moveset, row.key)) saveProfile(session.state.profile);
+/** カードは試し、調整欄は拠点の資源を書き換える（拠点の state はリプレイにも保存にも載らない） */
+function applyRackAction(session: HubSession, action: RackAction): void {
+  if (action.kind === "none") return;
+  if (action.kind === "moved") {
+    sfx.play("menuMove");
+    return;
+  }
+  if (action.kind === "try") {
+    setTrialWeapon(session, action.moveset);
+    refreshRackCards(session);
+  } else if (action.kind === "adjust") {
+    setHubResource(session, action.resource, hubResourceRatio(session, action.resource) + action.delta);
+  } else {
+    fillHubResources(session);
+  }
   sfx.play("uiClick");
-  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+}
+
+function drawRackFrame(ctx: CanvasRenderingContext2D, session: HubSession): void {
+  const resources = { hp: hubResourceRatio(session, "hp"), mana: hubResourceRatio(session, "mana"), energy: hubResourceRatio(session, "energy") };
+  drawRackScreen(ctx, {
+    title: RACK_TITLE,
+    hint: RACK_HINT,
+    ui: rackUi,
+    cards: rackCardList,
+    resources,
+    equipped: rackEquipped,
+    borrowHold: rackHold / HUB.rackBorrowHold,
+    lookup: (key) => renderer.atlasSprite(key),
+  });
 }
 
 /** 拠点の重ね描きに出す、試している武器と借り物の名前 */
@@ -741,17 +794,13 @@ function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: 
 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
   const s = session.state;
-  renderGame(s, inventoryUi.open ? null : lastAim);
-  const { ox, oy } = hubScreenOffset(s);
   const h = session.hub;
-  drawHubOverlay(
-    ctx,
-    s,
-    { spots: h.layout.spots, available: h.available, near: h.near, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) },
-    ox,
-    oy,
-    (key) => renderer.atlasSprite(key),
-  );
+  const spots = { spots: h.layout.spots, available: h.available, near: h.near };
+  // 台はマップの物なので world 層で描く（HUD や装備画面より下）。拠点以外の描画に残らないよう描いたら外す
+  renderer.setHubView(spots);
+  renderGame(s, inventoryUi.open ? null : lastAim);
+  renderer.setHubView(null);
+  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) });
   if (!inventoryUi.open) drawBudUi(ctx, s);
   if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
 }
@@ -1204,6 +1253,23 @@ startLoop(
           }
         };
 
+        // ゲージのドラッグ/クリック: 0..1 の値を位置から直接決める（← → の刻みとは別経路）
+        const applyGaugeValue = (item: SettingsGaugeItem, value01: number): void => {
+          if (item === "volume") {
+            setVolume(settings, value01);
+            applySettings();
+          } else if (item === "musicVolume") {
+            setMusicVolume(settings, value01);
+            applySettings();
+          } else if (item === "screenShake") {
+            setScreenShake(settings, value01);
+            saveSettings(settings);
+          } else {
+            setHitstopScale(settings, value01);
+            saveSettings(settings);
+          }
+        };
+
         const rowGap = Math.max(18, textLineHeight(TEXT.SMALL));
         const aim = frame.aimScreen;
         // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
@@ -1249,10 +1315,27 @@ startLoop(
           }
         }
 
+        // ゲージのドラッグ: 左ボタンを押している間、ゲージの上ならその位置の値を直接設定する
+        // （クリックの瞬間だけでなく、押しっぱなしで動かしている間も毎フレーム追従する）
+        if (frame.clickHeld && aim) {
+          const held = settingsItemAt(aim.x, aim.y, rowGap);
+          const heldItem = held !== null ? SETTINGS_ITEMS[held] : undefined;
+          if (held !== null && heldItem && isSettingsGaugeItem(heldItem)) {
+            const gauge = settingsGaugeRect(heldItem, rowGap);
+            if (gauge && aim.x >= gauge.x && aim.x <= gauge.x + gauge.w) {
+              settingsCursor = held;
+              applyGaugeValue(heldItem, settingsGaugeValueAt(aim.x, gauge));
+              if (frame.clickPressed) sfx.play("uiClick");
+            }
+          }
+        }
+
         if (frame.clickPressed && aim) {
           const clicked = settingsItemAt(aim.x, aim.y, rowGap);
           const item = clicked !== null ? SETTINGS_ITEMS[clicked] : undefined;
-          if (clicked !== null && item) {
+          const clickedGauge = item && isSettingsGaugeItem(item) ? settingsGaugeRect(item, rowGap) : null;
+          const clickedInsideGauge = clickedGauge !== null && aim.x >= clickedGauge.x && aim.x <= clickedGauge.x + clickedGauge.w;
+          if (clicked !== null && item && !clickedInsideGauge) {
             settingsCursor = clicked;
             if (item === "close") {
               screen = returnScreen;
@@ -1294,7 +1377,7 @@ startLoop(
 
         // 移動キーを割り当て直しても迷子にならないよう、矢印キーは束縛と無関係に常に効かせる
         const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
-        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
+        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : keyNavY;
         if (navY !== 0) {
           keybindsCursor = cycleIndex(keybindsCursor, navY, KEYBINDS_ROWS.length);
           sfx.play("menuMove");
@@ -1306,6 +1389,8 @@ startLoop(
           sfx.play("menuMove");
         }
         keybindsScroll = keybindsScrollFor(keybindsCursor, keybindsScroll, rowGap);
+        // ホイールは表示だけを送る（カーソルは動かさない）
+        if (frame.wheel !== 0) keybindsScroll = clampKeybindsScroll(keybindsScroll + Math.sign(frame.wheel), rowGap);
         menuNav.prevX = frame.move.x;
         menuNav.prevY = frame.move.y;
         menuAimPrev = aim;
@@ -1471,8 +1556,8 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
-    if (screen === "rack") {
-      drawListScreen(ctx, { title: RACK_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: RACK_HINT });
+    if (screen === "rack" && hub) {
+      drawRackFrame(ctx, hub);
       drawGamepadConnectedHint(ctx);
       return;
     }

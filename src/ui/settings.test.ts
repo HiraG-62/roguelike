@@ -14,6 +14,10 @@ import {
   loadSettings,
   resetKeybinds,
   saveSettings,
+  setHitstopScale,
+  setMusicVolume,
+  setScreenShake,
+  setVolume,
   toggleDropTooltip,
   toggleMute,
 } from "./settings";
@@ -174,6 +178,33 @@ describe("settings mutation", () => {
     s.screenShake = 1;
     adjustScreenShake(s, 5);
     expect(s.screenShake).toBe(1);
+  });
+
+  it("ゲージの setVolume/setMusicVolume/setScreenShake は 0..1 を 1% 刻みに丸め、範囲外はクランプする", () => {
+    const s = defaultSettings();
+    setVolume(s, 0.5);
+    expect(s.volume, "左端で 0、右端で 1、中央で 0.5").toBe(0.5);
+    setVolume(s, -1);
+    expect(s.volume).toBe(0);
+    setVolume(s, 2);
+    expect(s.volume).toBe(1);
+    setVolume(s, 0.333);
+    expect(s.volume, "1% 刻みに丸まる").toBe(0.33);
+
+    setMusicVolume(s, 0.678);
+    expect(s.musicVolume).toBe(0.68);
+    setScreenShake(s, 0.001);
+    expect(s.screenShake).toBe(0);
+  });
+
+  it("ゲージの setHitstopScale は 0.25 刻みへ寄せる", () => {
+    const s = defaultSettings();
+    setHitstopScale(s, 0.6);
+    expect(s.hitstopScale, "0.6 は 0.5 刻みに丸まる").toBe(0.5);
+    setHitstopScale(s, -1);
+    expect(s.hitstopScale).toBe(0);
+    setHitstopScale(s, 2);
+    expect(s.hitstopScale).toBe(1);
   });
 });
 

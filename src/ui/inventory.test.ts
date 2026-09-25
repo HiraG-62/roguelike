@@ -219,6 +219,20 @@ describe("updateInventoryUi: スキルタブの刻印符", () => {
     clickAt(state, ui, runeRowRect(state, ui, "rb"), { shiftHeld: true });
     expect(state.skills.profile.runes?.map((r) => r.id)).toEqual(["ra"]);
   });
+
+  it("ホイールで列をスクロールしてもカーソル行へ戻らない（マウスが動いていない間）", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    ui.tab = "skills";
+    const profile = state.skills.profile;
+    profile.runes = Array.from({ length: 20 }, (_, i) => ({ id: `r${i}`, modifier: "echo" as const, foundAt: i }));
+    // 一覧の見出し帯（どの行にも乗らない位置）にマウスを置いたまま、ホイールだけを回す
+    const list = layoutSkills(state, ui).runeList;
+    const aimScreen = { x: list.header.x + 2, y: list.header.y + 1 };
+    for (let i = 0; i < 10; i++) updateInventoryUi(state, ui, withInput({ wheel: 1, aimScreen }), 0);
+    expect(ui.runes.scroll, "スクロールは進む").toBeGreaterThan(0);
+    expect(ui.runes.cursor, "カーソルは先頭のまま").toBe(0);
+  });
 });
 
 describe("updateInventoryUi: 装備タブ", () => {

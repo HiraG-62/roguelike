@@ -88,6 +88,7 @@ import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
 import { trailFade } from "./fxMath";
+import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
@@ -627,6 +628,8 @@ export class Renderer {
   private readonly darkness = new DarknessLayer(VIEW_W, VIEW_H);
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
+  /** 拠点の台（setHubView）。拠点以外では null */
+  private hubView: HubSpotsView | null = null;
 
   /** 論理 1px あたりの実ピクセル数。fitToWindow で更新する */
   private pixelRatio = 1;
@@ -734,6 +737,7 @@ export class Renderer {
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
+    if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
@@ -870,6 +874,14 @@ export class Renderer {
 
   private sprite(key: string): Sprite {
     return getSprite(this.atlas, key);
+  }
+
+  /**
+   * 拠点の台を world 層で描くための表示用の値（main.ts が拠点を描く間だけ渡し、描いたら null に戻す）。
+   * 台は GameState に無いので、state を読むだけの原則を崩さずに渡す窓口
+   */
+  setHubView(view: HubSpotsView | null): void {
+    this.hubView = view;
   }
 
   /** 外から描く UI（拠点の設備など）が PNG 素材を引くための公開。無ければ undefined（呼び出し側がフォールバック） */

@@ -1,5 +1,6 @@
 import { type GameState, pushSfx } from "../core/state";
 import type { FrameInput } from "../core/input";
+import type { Vec } from "../core/vec";
 import { describeTrait } from "../loot/describe";
 import { equipItem, saveProfile, unequipItem } from "../loot/profile";
 import { computeStats } from "../loot/stats";
@@ -27,6 +28,7 @@ import {
   type RuneListLayout,
   type RuneToggleResult,
   type RuneUi,
+  clampRuneCursor,
   createRuneUi,
   hoveredRuneRow,
   layoutRuneList,
@@ -203,6 +205,8 @@ export interface InventoryUi {
   /** ？ のヘルプを開いている */
   helpOpen: boolean;
   hoverHelp: boolean;
+  /** 前フレームのマウス照準（動いたときだけホバーでカーソルを奪うための比較用） */
+  aimPrev: Vec | null;
 }
 
 export function createInventoryUi(): InventoryUi {
@@ -228,6 +232,7 @@ export function createInventoryUi(): InventoryUi {
     detailFormula: false,
     helpOpen: false,
     hoverHelp: false,
+    aimPrev: null,
   };
 }
 
@@ -374,8 +379,8 @@ export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
  * スキルタブの入力。石の一覧クリック: 空きスロット（無ければ選択中スロット）へ装着、Shift+クリックで分解。
  * スロットクリック: 選択（Shift+クリックで解除）。刻印符は updateRuneColumn
  */
-function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): void {
-  selectSlotByKeys(ui, input);
+function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput, aimMoved: boolean): void {
+  const keyDy = selectSlotByKeys(ui, input);
   const layout = layoutSkills(state, ui);
   const aim = input.aimScreen;
   const inRunes = aim !== null && aim.x >= RUNE_COL_X && aim.y >= SKILL_LIST_Y;
@@ -385,7 +390,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   const row = aim ? (layout.rows.find((r) => pointInRect(aim, r.rect)) ?? null) : null;
   ui.hoverSkillSlot = slot ? slot.index : null;
   ui.hoverStoneId = row ? row.stone.id : (slot?.stone?.id ?? null);
-  if (updateRuneColumn(state, ui, input, layout.runeList)) return;
+  if (updateRuneColumn(state, ui, input, layout.runeList, aimMoved, keyDy !== 0)) return;
   if (!input.clickPressed) return;
 
   const profile = state.skills.profile;
@@ -402,14 +407,15 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput): 
   pushSfx(state, "equipOff");
 }
 
-/** スキルキー（1〜4 / パッドの LB+ボタン）と左右の移動で選択中スロットを変える */
-function selectSlotByKeys(ui: InventoryUi, input: FrameInput): void {
+/** スキルキー（1〜4 / パッドの LB+ボタン）と左右の移動で選択中スロットを変える。戻り値は刻印符カーソルへ与えた dy（キー操作か） */
+function selectSlotByKeys(ui: InventoryUi, input: FrameInput): number {
   const keys = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
   const pressed = keys.findIndex((on) => on);
   if (pressed >= 0) ui.skillSlot = pressed;
   const nav = readNav(ui.runes, input);
   if (nav.dx !== 0) ui.skillSlot = clamp(ui.skillSlot + nav.dx, 0, SKILL.slots - 1);
   ui.runes.cursor += nav.dy;
+  return nav.dy;
 }
 
 /** 石の一覧のクリック: 装着（空きスロット優先）/ Shift で分解（付いていた刻印符は所持品へ戻る） */
@@ -433,14 +439,23 @@ function clickStoneRow(state: GameState, ui: InventoryUi, stoneId: string, shift
 
 /**
  * 刻印符の列: マウスの乗った行かカーソルの行を、決定（クリック / Enter / パッド A）で付け外しする。
- * Shift+クリックは所持品の符を捨てる。操作を消費したら true
+ * Shift+クリックは所持品の符を捨てる。操作を消費したら true。
+ * ホバーでのカーソル奪取はマウスが実際に動いた時だけ、スクロールの追随はキー操作でカーソルが動いた時だけ
+ * （ホイールで一覧をスクロールしただけでカーソル行へ戻らないようにする）
  */
-function updateRuneColumn(state: GameState, ui: InventoryUi, input: FrameInput, list: RuneListLayout): boolean {
+function updateRuneColumn(
+  state: GameState,
+  ui: InventoryUi,
+  input: FrameInput,
+  list: RuneListLayout,
+  aimMoved: boolean,
+  keyNavigated: boolean,
+): boolean {
   const r = ui.runes;
   const hovered = hoveredRuneRow(list, input.aimScreen);
-  if (hovered) r.cursor = hovered.index;
-  // selectSlotByKeys が足した分をここで範囲に収め、見える位置へスクロールする
-  moveRuneCursor(r, list, 0);
+  if (aimMoved && hovered) r.cursor = hovered.index;
+  if (keyNavigated) moveRuneCursor(r, list, 0);
+  else clampRuneCursor(r, list.entries.length);
   const entry = list.entries[r.cursor];
   r.focusId = hovered ? hovered.rune.id : input.aimScreen ? null : (entry?.rune.id ?? null);
   const clicked = input.clickPressed && hovered !== null;
@@ -521,6 +536,9 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
   if (input.interactPressed) advanceDetailPage(ui);
 
   const aim = input.aimScreen;
+  // マウスが実際に動いた時だけホバーでカーソルを奪う（ホイールでのスクロールを上書きしないため）
+  const aimMoved = aim !== null && (ui.aimPrev === null || ui.aimPrev.x !== aim.x || ui.aimPrev.y !== aim.y);
+  ui.aimPrev = aim;
   const tab = input.clickPressed && aim ? tabRects().find((t) => pointInRect(aim, t.rect)) : undefined;
   if (tab) {
     switchTab(ui, tab.tab);
@@ -528,7 +546,7 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
   }
   switch (ui.tab) {
     case "skills":
-      updateSkillsTab(state, ui, input);
+      updateSkillsTab(state, ui, input, aimMoved);
       return;
     case "echo":
       updateEchoTab(state, ui.echo, input);

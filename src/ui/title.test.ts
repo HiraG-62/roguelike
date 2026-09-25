@@ -5,11 +5,14 @@ import { KEYBIND_SLOTS, REBINDABLE_ACTIONS } from "../core/input";
 import {
   type RawKeyEvent,
   KEYBINDS_ROWS,
+  clampKeybindsScroll,
   isActionRow,
   keybindsItemAt,
   keybindsLayout,
   keybindsScrollFor,
   keybindsVisibleCount,
+  settingsGaugeRect,
+  settingsGaugeValueAt,
   appendSeedChar,
   backspaceSeedChar,
   buildHistoryEntry,
@@ -383,6 +386,24 @@ describe("設定画面のレイアウトと当たり判定", () => {
     expect(settingsRowSide(centerX - 1)).toBe(-1);
     expect(settingsRowSide(centerX + 1)).toBe(1);
   });
+
+  it("ゲージの左端で 0、右端で 1、中央で 0.5", () => {
+    const gauge = settingsGaugeRect("volume", ROW_GAP);
+    if (!gauge) throw new Error("音量のゲージが無い");
+    expect(settingsGaugeValueAt(gauge.x, gauge)).toBe(0);
+    expect(settingsGaugeValueAt(gauge.x + gauge.w, gauge)).toBe(1);
+    expect(settingsGaugeValueAt(gauge.x + gauge.w / 2, gauge)).toBeCloseTo(0.5);
+    expect(settingsGaugeValueAt(gauge.x - 100, gauge), "外側は端にクランプ").toBe(0);
+    expect(settingsGaugeValueAt(gauge.x + gauge.w + 100, gauge), "外側は端にクランプ").toBe(1);
+  });
+
+  it("ゲージを持つのは音量・音楽の音量・画面揺れ・ヒットストップだけ", () => {
+    for (const item of SETTINGS_ITEMS) {
+      const gauge = settingsGaugeRect(item, ROW_GAP);
+      const expected = item === "volume" || item === "musicVolume" || item === "screenShake" || item === "hitstopScale";
+      expect(gauge !== null, item).toBe(expected);
+    }
+  });
 });
 
 describe("Delete / Backspace のホットキー", () => {
@@ -494,5 +515,13 @@ describe("キー設定画面のレイアウトと当たり判定", () => {
 
   it("小さい文字の行間なら全行が 1 画面に収まる", () => {
     expect(keybindsVisibleCount(ROW_GAP)).toBe(KEYBINDS_ROWS.length);
+  });
+
+  it("ホイールはカーソルと無関係にスクロール量だけを範囲内で動かす", () => {
+    const visible = keybindsVisibleCount(WIDE_GAP);
+    const max = KEYBINDS_ROWS.length - visible;
+    expect(clampKeybindsScroll(-1, WIDE_GAP), "下端未満は 0").toBe(0);
+    expect(clampKeybindsScroll(max + 5, WIDE_GAP), "上限を超えない").toBe(max);
+    expect(clampKeybindsScroll(2, WIDE_GAP), "範囲内はそのまま").toBe(2);
   });
 });

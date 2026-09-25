@@ -4,7 +4,7 @@
  */
 import { VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
-import type { ReplayAvailability, RunItemSummary, SeedInputState, SettingsItem, TitleStats } from "../ui/title";
+import type { ReplayAvailability, RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import {
   KEYBINDS_ROWS,
   PAUSE_MENU_ITEMS,
@@ -12,14 +12,17 @@ import {
   dailyBestIndices,
   isActionRow,
   isDailyEntry,
+  isSettingsGaugeItem,
   keybindsLayout,
   TITLE_MENU_ITEMS,
   titleMenuRects,
   type TitleMenuItem,
   pauseMenuLayout,
+  settingsGaugeRect,
   settingsLayout,
   type KeybindsLayout,
   type KeybindsRow,
+  type SettingsGaugeItem,
 } from "../ui/title";
 import type { Settings } from "../ui/settings";
 import { actionKeyLabel, formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
@@ -473,9 +476,14 @@ function drawVersion(ctx: CanvasRenderingContext2D, x: number, y: number, align:
   drawText(ctx, APP_VERSION, x, y, TEXT.SMALL, COLOR_VERSION, align);
 }
 
-function barText(value: number): string {
-  const filled = Math.round(value * 10);
-  return "#".repeat(filled) + "-".repeat(10 - filled);
+/** ゲージ本体（枠 + 塗り）。矩形は ui/title.ts の settingsGaugeRect と同じものを渡す */
+function drawGauge(ctx: CanvasRenderingContext2D, rect: { x: number; y: number; w: number; h: number }, value01: number, color: string): void {
+  ctx.strokeStyle = color;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  const fillW = Math.round((rect.w - 2) * Math.max(0, Math.min(1, value01)));
+  if (fillW <= 0) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(rect.x + 1, rect.y + 1, fillW, rect.h - 2);
 }
 
 /** overlay: true なら現在の画面(ゲーム/タイトル)の上に半透明で重ねる */
@@ -497,13 +505,15 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
 
   drawText(ctx, "設定", VIEW_W / 2, panel.y + 16, TEXT.BODY, COLOR_TITLE, "center");
 
-  const valueOf: Record<Exclude<SettingsItem, "close" | "keybinds">, string> = {
+  const toggleValue: Record<"mute" | "dropTooltip", string> = {
     mute: settings.muted ? "オン" : "オフ",
-    volume: barText(settings.volume),
-    musicVolume: barText(settings.musicVolume),
-    screenShake: barText(settings.screenShake),
-    hitstopScale: barText(settings.hitstopScale),
     dropTooltip: settings.dropTooltip ? "オン" : "オフ",
+  };
+  const gaugeValue: Record<SettingsGaugeItem, number> = {
+    volume: settings.volume,
+    musicVolume: settings.musicVolume,
+    screenShake: settings.screenShake,
+    hitstopScale: settings.hitstopScale,
   };
   SETTINGS_ITEMS.forEach((item, i) => {
     const active = i === cursor;
@@ -522,10 +532,16 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
     }
     const label = active ? `> ${SETTINGS_LABEL[item]}` : SETTINGS_LABEL[item];
     drawText(ctx, label, panel.x + 12, textY, m, color);
-    drawText(ctx, valueOf[item], panel.x + panel.w - 12, textY, m, color, "right");
+    if (isSettingsGaugeItem(item)) {
+      const gauge = settingsGaugeRect(item, rowGap);
+      if (gauge) drawGauge(ctx, gauge, gaugeValue[item], color);
+      drawText(ctx, String(Math.round(gaugeValue[item] * 100)), panel.x + panel.w - 12, textY, m, color, "right");
+      return;
+    }
+    drawText(ctx, toggleValue[item], panel.x + panel.w - 12, textY, m, color, "right");
   });
 
-  const footer = truncateText("← →: 調整  Enter: 決定  Esc: 戻る", panel.w - 8, m);
+  const footer = truncateText("← →: 調整  ドラッグ: 直接指定  Enter: 決定  Esc: 戻る", panel.w - 8, m);
   drawText(ctx, footer, VIEW_W / 2, panel.y + panel.h - 8, m, COLOR_DIM, "center");
 }
 

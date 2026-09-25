@@ -381,7 +381,61 @@ export function trialUltimateName(session: HubSession): string | null {
   return moveset === null ? null : ultimateChoice(session.state.profile, moveset).name;
 }
 
+/** 装備中の右手の武器種（武器掛けの「装備のまま」のカードの絵。試している型ではなく装備から数え直す） */
+export function equippedMoveset(profile: Profile): MovesetKey {
+  return computeStats(profile.equipment).moveset;
+}
+
 /** 表示名（「大剣」「散弾銃」） */
 export function rackEntryName(entry: RackEntry): string {
   return MOVESETS[entry.key].name;
+}
+
+// -----------------------------------------------------------------------------
+// 試し打ちの資源の調整（拠点の state はリプレイにも永続化にも載らないので直接書いてよい）
+// -----------------------------------------------------------------------------
+
+/** 武器掛けで調整できる資源（生命・気力・奥義ゲージ） */
+export type HubResource = "hp" | "mana" | "energy";
+
+export const HUB_RESOURCES: readonly HubResource[] = ["hp", "mana", "energy"];
+
+/** 生命は 0 にすると拠点で倒れるので、最低でもこれだけ残す */
+const MIN_HUB_HP = 1;
+
+function resourceMax(state: GameState, kind: HubResource): number {
+  if (kind === "hp") return state.player.maxHp;
+  if (kind === "mana") return state.stats.maxMana;
+  return state.player.maxEnergy;
+}
+
+function resourceNow(state: GameState, kind: HubResource): number {
+  if (kind === "hp") return state.player.hp;
+  if (kind === "mana") return state.player.mana;
+  return state.player.energy;
+}
+
+/** 資源の今の割合（0..1）。上限が 0 なら 0 */
+export function hubResourceRatio(session: HubSession, kind: HubResource): number {
+  const max = resourceMax(session.state, kind);
+  if (max <= 0) return 0;
+  return Math.min(1, Math.max(0, resourceNow(session.state, kind) / max));
+}
+
+/**
+ * 資源を上限 × ratio（0..1 に丸める）にする。持続の奥義の最中に奥義ゲージを 0 にしたら、
+ * updateUltimate が次のステップで「尽きた」として終える（最短の持続秒は守る）ので、ここでは終了処理を呼ばない
+ */
+export function setHubResource(session: HubSession, kind: HubResource, ratio: number): void {
+  const state = session.state;
+  const r = Math.min(1, Math.max(0, ratio));
+  const value = resourceMax(state, kind) * r;
+  if (kind === "hp") state.player.hp = Math.max(MIN_HUB_HP, value);
+  else if (kind === "mana") state.player.mana = value;
+  else state.player.energy = value;
+}
+
+/** 生命・気力・奥義ゲージをすべて上限にする */
+export function fillHubResources(session: HubSession): void {
+  for (const kind of HUB_RESOURCES) setHubResource(session, kind, 1);
 }

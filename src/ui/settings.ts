@@ -130,6 +130,29 @@ export function adjustHitstopScale(settings: Settings, dir: number): void {
   settings.hitstopScale = clampHitstopScale(settings.hitstopScale + Math.sign(dir) * HITSTOP_SCALE_STEP);
 }
 
+/** ゲージのドラッグ/クリックで直接値を決める。1% 刻み（0..1 を 0..100 の整数として扱う） */
+const GAUGE_STEP = 0.01;
+function roundToGaugeStep(value01: number): number {
+  return Math.round(clamp01(value01) / GAUGE_STEP) * GAUGE_STEP;
+}
+
+export function setVolume(settings: Settings, value01: number): void {
+  settings.volume = roundToGaugeStep(value01);
+}
+
+export function setMusicVolume(settings: Settings, value01: number): void {
+  settings.musicVolume = roundToGaugeStep(value01);
+}
+
+export function setScreenShake(settings: Settings, value01: number): void {
+  settings.screenShake = roundToGaugeStep(value01);
+}
+
+/** ヒットストップは値域が 0.25 刻みの離散値なので、ゲージもその刻みに合わせる */
+export function setHitstopScale(settings: Settings, value01: number): void {
+  settings.hitstopScale = clampHitstopScale(value01);
+}
+
 export function toggleDropTooltip(settings: Settings): void {
   settings.dropTooltip = !settings.dropTooltip;
 }

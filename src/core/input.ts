@@ -344,6 +344,8 @@ export interface FrameInput {
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
   clickPressed: boolean;
+  /** 左クリックの押しっぱなし（UI のドラッグ操作用。設定画面のゲージなど） */
+  clickHeld: boolean;
   shiftHeld: boolean;
 }
 
@@ -371,6 +373,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   toggleDropInfoPressed: false,
   wheel: 0,
   clickPressed: false,
+  clickHeld: false,
   shiftHeld: false,
 };
 
@@ -544,6 +547,7 @@ export class PlayerInput {
       toggleDropInfoPressed: this.wasPressed("toggleDropInfo"),
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has(UI_CLICK_CODE),
+      clickHeld: this.down.has(UI_CLICK_CODE),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),
     };
     // Set は挿入順を保つので、押した順のまま写す

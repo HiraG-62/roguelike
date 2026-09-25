@@ -1,5 +1,5 @@
 /**
- * 拠点の重ね描き（設備名・近い台の操作案内・出撃ゲージ・試している誓約・「建った」バナー・飾り）。
+ * 拠点の重ね描き（近い台の操作案内・出撃ゲージ・試している誓約・「建った」バナー・飾り）。
  * state は読むだけ。rng は使わない。訓練場は単一指標を出さない方針なので数値を描かない（docs/DESIGN_PRINCIPLES.md）
  */
 import { actionKeyLabel } from "../core/input";
@@ -18,10 +18,14 @@ import { TILE_SIZE } from "../map/grid";
 /** 拠点の設備の PNG 素材を引く（Renderer.atlasSprite）。無ければ絵を出さずラベルだけにする */
 export type HubSpriteLookup = (key: string) => Sprite | undefined;
 
-export interface HubView {
+/** 台の描画に要るもの（renderer.setHubView で渡す） */
+export interface HubSpotsView {
   spots: Readonly<Record<HubSpotKey, Vec>>;
   available: ReadonlySet<HubSpotKey>;
   near: HubSpotKey | null;
+}
+
+export interface HubView extends HubSpotsView {
   departHold: number;
   trialKeystone: string | null;
   decor: readonly HubDecor[];
@@ -45,7 +49,7 @@ const SPOT_ACTION: Readonly<Record<HubSpotKey, string>> = {
   history: "探索履歴を開く",
   codex: "図鑑を開く",
   achievements: "実績を開く",
-  rack: "武器を試す・奥義を選ぶ",
+  rack: "武器を試す",
 };
 
 /** 記録室の 3 台は設備名だけだと区別できないので台の名前を出す */
@@ -74,15 +78,6 @@ const DECOR_TOP = 22;
 const DECOR_W = 130;
 const DECOR_MAX_LINES = 6;
 
-/** renderer.ts の render と同じ式で、ワールド座標 → 画面座標のずれを求める（main.ts から渡すため） */
-export function hubScreenOffset(state: GameState): { ox: number; oy: number } {
-  const cam = state.camera;
-  return {
-    ox: Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x),
-    oy: Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y),
-  };
-}
-
 function spotLabel(spot: HubSpotKey): string {
   return SPOT_LABEL_OVERRIDE[spot] ?? FACILITY_NAME[FACILITY_OF_SPOT[spot]];
 }
@@ -105,7 +100,11 @@ function drawSpotSprite(ctx: CanvasRenderingContext2D, sprite: Sprite | undefine
   return Math.max(0, img.height - TILE_SIZE);
 }
 
-function drawSpots(ctx: CanvasRenderingContext2D, view: HubView, ox: number, oy: number, lookup: HubSpriteLookup | undefined): void {
+/**
+ * 台の絵と名前。マップの物なので renderer の world 層（drawRunWorld の直後）で描き、HUD や一覧より下に置く。
+ * world 層はカメラで平行移動した座標系なので、renderer からは ox = oy = 0 で呼ぶ
+ */
+export function drawHubSpots(ctx: CanvasRenderingContext2D, view: HubSpotsView, ox: number, oy: number, lookup: HubSpriteLookup | undefined): void {
   for (const spot of view.available) {
     const pos = view.spots[spot];
     const rise = drawSpotSprite(ctx, lookup?.(hubSpriteKey(spot)), pos, ox, oy);
@@ -171,17 +170,9 @@ function drawDecor(ctx: CanvasRenderingContext2D, view: HubView): void {
   });
 }
 
-export function drawHubOverlay(
-  ctx: CanvasRenderingContext2D,
-  state: GameState,
-  view: HubView,
-  ox: number,
-  oy: number,
-  lookup?: HubSpriteLookup,
-): void {
+export function drawHubOverlay(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
   // 装備画面などを開いている間（paused）は、上に重なる画面の邪魔をしないよう出さない
   if (state.paused) return;
-  drawSpots(ctx, view, ox, oy, lookup);
   drawDecor(ctx, view);
   drawTrialKeystone(ctx, view);
   drawBanner(ctx, view);
