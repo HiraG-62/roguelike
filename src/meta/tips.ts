@@ -1,8 +1,10 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padSkillKeysLabel } from "../core/padBinds";
+import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL } from "../loot/resonance";
 import type { AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
+import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
 /**
  * Tips ノート: 用語とシステムの説明の置き場。UI（ツールチップ・ヘルプ・ログ・一覧の案内）には説明を書かず、
@@ -10,12 +12,13 @@ import type { ListEntry, ListTab } from "./listScreen";
  * 操作の項目はキー設定どおりの表記にするため、本文を束縛表から組む
  */
 
-export const TIP_CATEGORIES = ["controls", "combat", "growth", "relic", "skill", "run", "hub"] as const;
+export const TIP_CATEGORIES = ["controls", "combat", "weapon", "growth", "relic", "skill", "run", "hub"] as const;
 export type TipCategory = (typeof TIP_CATEGORIES)[number];
 
 export const TIP_CATEGORY_LABEL: Readonly<Record<TipCategory, string>> = {
   controls: "操作",
   combat: "戦い",
+  weapon: "武器種",
   growth: "育成",
   relic: "遺物",
   skill: "スキル",
@@ -179,7 +182,18 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "loaned", term: "借り物", category: "hub", body: "武器掛けで借りた素の器。保存されず、探索が終わると消える。残響で育てたり砕いたりできない。" },
 ];
 
-const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
+/**
+ * 武器種タブ: 全武器種（素手も含む「拳」）を 1 項目ずつ。手書きはしない。
+ * 本文は data/weapons.ts の武器の定義（moveset の段・派生・右の段・奥義の名前）から weaponTipBody が組み立てる
+ */
+const WEAPON_TIPS: readonly TipDef[] = WEAPON_TIP_KEYS.map((key) => ({
+  key: `weapon_${key}`,
+  term: MOVESETS[key].name,
+  category: "weapon",
+  body: (b: Keybinds | undefined) => weaponTipBody(key, b),
+}));
+
+const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...WEAPON_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
 
 /** 全項目。binds を省くと現在のキー設定で操作の本文を組む */
 export function tipEntries(binds?: Keybinds): TipEntry[] {

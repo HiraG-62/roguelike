@@ -659,8 +659,9 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
 }
 
 function updateOpenTabs(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
-  // 拾うキーで詳細欄の「要点 → 詳しく → 計算式」を回す（装備画面を開いている間はゲームが止まっていて拾わない）
-  if (input.interactPressed) advanceDetailPage(ui);
+  // 拾うキーで詳細欄の「要点 → 詳しく → 計算式」を回す（装備画面を開いている間はゲームが止まっていて拾わない）。
+  // ステータスタブでは同じキーを効果の頁の切り替えに使う（updateStatusTab）ので、詳細欄を持つタブでだけ回す
+  if (input.interactPressed && hasDetailPager(ui.tab)) advanceDetailPage(ui);
 
   const aim = input.aimScreen;
   // マウスが実際に動いた時だけホバーでカーソルを奪う（ホイールでのスクロールを上書きしないため）

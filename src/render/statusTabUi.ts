@@ -1,6 +1,7 @@
 import type { GameState } from "../core/state";
 import { MOVESETS } from "../data/weapons";
 import { ultimateChoice } from "../loot/profile";
+import type { EffectRow } from "../ui/effectsList";
 import type { Rect } from "../ui/inventoryLayout";
 import {
   type StatusCardLayout,
@@ -9,7 +10,12 @@ import {
   ULTIMATE_KIND_LABEL,
   canChooseUltimate,
   derivedStatRows,
+  effectsMaxScroll,
+  effectsPanelRect,
+  effectsRowRect,
+  effectsVisibleRows,
   layoutStatusTab,
+  statusTabEffectRows,
   ultimateCostOf,
 } from "../ui/statusTab";
 import { attrColor, drawAttributePanel, drawSummaryHead } from "./attributeUi";
@@ -44,6 +50,10 @@ const OVERFLOW_MARK = "…";
 export function drawStatusTab(ctx: CanvasRenderingContext2D, state: GameState, ui: StatusTabUi): void {
   const layout = layoutStatusTab(state, ui);
   drawSummaryHead(ctx, state, layout.head);
+  if (ui.effectsPage) {
+    drawEffectsPage(ctx, state, ui);
+    return;
+  }
   drawAttributePanel(ctx, state, ui.hoverAlloc, layout.attrPanel);
   drawDerived(ctx, state, layout);
   const sep = layout.right.x - 2;
@@ -51,6 +61,59 @@ export function drawStatusTab(ctx: CanvasRenderingContext2D, state: GameState, u
   drawUltimateHead(ctx, state, ui, layout);
   const chosen = ultimateChoice(state.profile, layout.moveset).key;
   for (const card of layout.cards) drawCard(ctx, card, { state, ui, chosen: card.def.key === chosen });
+}
+
+// ---------------------------------------------------------------------------
+// 効果の頁（状態異常・祝福・芯・一時強化）
+// ---------------------------------------------------------------------------
+
+const EFFECTS_EMPTY_HUB = "拠点では意味を持たない（探索中に見られる）";
+const EFFECTS_EMPTY_RUN = "今は何も掛かっていない";
+const EFFECTS_ROW_PAD = 3;
+const EFFECTS_NAME_RATIO = 0.6;
+
+function drawEffectsEmpty(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect): void {
+  const m = TEXT.SMALL;
+  const text = state.sandbox === true ? EFFECTS_EMPTY_HUB : EFFECTS_EMPTY_RUN;
+  drawText(ctx, truncateText(text, rect.w - EFFECTS_ROW_PAD * 2, m), rect.x + rect.w / 2, rect.y + EFFECTS_ROW_PAD, m, COLOR_DIM, "center", "top");
+}
+
+function drawEffectRow(ctx: CanvasRenderingContext2D, row: EffectRow, r: Rect): void {
+  const m = TEXT.SMALL;
+  const line = Math.max(9, textLineHeight(m));
+  const nameW = Math.floor(r.w * EFFECTS_NAME_RATIO);
+  const infoW = r.w - nameW - EFFECTS_ROW_PAD * 2;
+  const y0 = r.y + EFFECTS_ROW_PAD;
+  drawText(ctx, truncateText(row.name, nameW - EFFECTS_ROW_PAD, m), r.x + EFFECTS_ROW_PAD, y0, m, COLOR_TEXT, "left", "top");
+  if (row.info) drawText(ctx, truncateText(row.info, infoW, m), r.x + r.w - EFFECTS_ROW_PAD, y0, m, COLOR_SELECTED, "right", "top");
+  if (!row.detail) return;
+  const detailW = r.w - EFFECTS_ROW_PAD * 2;
+  const lines = wrapText(row.detail, detailW, m);
+  const first = lines[0];
+  if (!first) return;
+  const overflow = lines.length > 1 ? "…" : "";
+  drawText(ctx, truncateText(`${first}${overflow}`, detailW, m), r.x + EFFECTS_ROW_PAD, y0 + line, m, COLOR_DIM, "left", "top");
+}
+
+/** 効果の頁: かかっている状態異常・持っている祝福（名前/格/効果）・芯・一時強化を一覧する。多ければホイール/↑↓ で送る */
+function drawEffectsPage(ctx: CanvasRenderingContext2D, state: GameState, ui: StatusTabUi): void {
+  const rect = effectsPanelRect();
+  const rows = statusTabEffectRows(state);
+  if (rows.length === 0) {
+    drawEffectsEmpty(ctx, state, rect);
+    return;
+  }
+  const visible = effectsVisibleRows(rect);
+  const maxScroll = effectsMaxScroll(rows.length, rect);
+  const scroll = Math.min(ui.effectsScroll, maxScroll);
+  for (let i = 0; i < visible; i++) {
+    const row = rows[scroll + i];
+    if (!row) break;
+    drawEffectRow(ctx, row, effectsRowRect(rect, i));
+  }
+  const m = TEXT.SMALL;
+  if (scroll > 0) drawText(ctx, "↑", rect.x + rect.w, rect.y, m, COLOR_DIM, "right", "top");
+  if (scroll + visible < rows.length) drawText(ctx, "↓", rect.x + rect.w, rect.y + rect.h, m, COLOR_DIM, "right", "bottom");
 }
 
 function rowBaseline(r: Rect): number {

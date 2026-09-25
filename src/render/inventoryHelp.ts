@@ -78,6 +78,7 @@ function statusHelp(): TipLine[] {
     allocLine(),
     body("奥義のカード クリック / ↑↓+決定: 選ぶ（拠点のみ）"),
     body("< > / ←→: 武器種を送る（拠点のみ）"),
+    body(`${keyLabel("interact")}: 効果（状態異常・祝福・芯）の頁と切り替える`),
     dim(TIPS_POINTER),
   ];
 }

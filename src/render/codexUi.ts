@@ -19,6 +19,7 @@ const COLOR_CURSOR_BG = "rgba(106,140,255,0.22)";
 const COLOR_DETAIL_BG = "#101018";
 const COLOR_MARK = "#80ff80";
 const MARK = "▶";
+const OVERFLOW_MARK = "…";
 const ROW_PAD = 6;
 /** 一覧の名前の列に使う幅の割合（残りが右寄せの情報） */
 const NAME_RATIO = 0.62;
@@ -144,7 +145,11 @@ function drawSideDetail(ctx: CanvasRenderingContext2D, view: ListScreenView, tab
   const width = w - DETAIL_PAD * 2;
   drawText(ctx, truncateText(entry.name, width, m), x, top + DETAIL_PAD, m, COLOR_TITLE, "left", "top");
   const capacity = Math.max(1, Math.floor((h - DETAIL_PAD * 2) / line) - 1);
-  wrapText(entry.detail, width, m)
-    .slice(0, capacity)
-    .forEach((t, i) => drawText(ctx, t, x, top + DETAIL_PAD + line * (i + 1), m, COLOR_TEXT, "left", "top"));
+  const lines = wrapText(entry.detail, width, m);
+  lines.slice(0, capacity).forEach((t, i) => {
+    // 本文が枠に収まりきらないときは最後の行を … で切り、黙って消さない
+    const overflow = i === capacity - 1 && lines.length > capacity;
+    const shown = overflow ? truncateText(`${t}${OVERFLOW_MARK}`, width, m) : t;
+    drawText(ctx, shown, x, top + DETAIL_PAD + line * (i + 1), m, COLOR_TEXT, "left", "top");
+  });
 }
