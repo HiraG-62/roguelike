@@ -1,0 +1,49 @@
+{
+  "_note": "チャクラムの武器技（skills/arts/heavy.ts）。速く広い斬りと周回",
+  "ringBladesThrow": {
+    "cost": 18, "minInterval": 0.5, "poise": 12,
+    "throw": { "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.7, "bulletRadius": 8, "pierce": 2, "damage": { "base": 11, "dex": 1.0 }, "knockback": 90 }
+  },
+  "ringBladesOrbit": {
+    "cost": 19, "minInterval": 0.55, "poise": 8,
+    "orbit": { "radius": 32, "hits": 3, "damage": { "base": 4.6, "dex": 0.5 }, "knockback": 40 }
+  },
+  "ringBladesDance": {
+    "cost": 19, "minInterval": 0.55, "poise": 10,
+    "dance": { "reach": 32, "deg": 180, "damage": { "base": 6, "dex": 0.6 }, "knockback": 60 }
+  },
+  "ringBladesCross": {
+    "cost": 18, "minInterval": 0.55, "poise": 14,
+    "x1": { "angleDeg": -15, "reach": 32, "deg": 70, "damage": { "base": 6.5, "dex": 0.7 }, "knockback": 50 },
+    "x2": { "delay": 0.12, "angleDeg": 15, "reach": 34, "deg": 70, "damage": { "base": 6.5, "dex": 0.7 }, "knockback": 50 }
+  },
+  "ringBladesSaw": {
+    "cost": 20, "minInterval": 0.6, "poise": 12,
+    "saw": { "length": 36, "width": 16, "hits": 3, "damage": { "base": 4, "dex": 0.5 }, "knockback": 50, "bleed": { "stacks": 1, "duration": 4, "potency": 1 } }
+  },
+  "ringBladesStorm": {
+    "cost": 20, "minInterval": 0.6, "poise": 14,
+    "storm": { "radius": 34, "damage": { "base": 9, "dex": 0.7 }, "knockback": 90 }
+  },
+  "ringBladesDoubleSlash": {
+    "cost": 19, "minInterval": 0.55, "poise": 10,
+    "r1": { "radius": 30, "damage": { "base": 5, "dex": 0.5 }, "knockback": 40 },
+    "r2": { "delay": 0.15, "radius": 32, "damage": { "base": 6, "dex": 0.6 }, "knockback": 60 }
+  },
+  "ringBladesRebound": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "rebound": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.6, "bulletRadius": 7, "damage": { "base": 10, "dex": 0.9 }, "knockback": 70 }
+  },
+  "ringBladesShield": {
+    "cooldown": 10, "minInterval": 0.4, "poise": 6,
+    "guard": { "radius": 32, "damage": { "base": 4, "dex": 0.3 }, "knockback": 30 }
+  },
+  "ringBladesReap": {
+    "cost": 19, "minInterval": 0.55, "poise": 16,
+    "reap": { "reach": 34, "deg": 120, "damage": { "base": 9, "dex": 0.8 }, "knockback": 80, "bleed": { "stacks": 2, "duration": 5, "potency": 1 } }
+  },
+  "ringBladesVortex": {
+    "cost": 22, "minInterval": 0.65, "poise": 8, "range": 130,
+    "vortex": { "radius": 45, "toDistance": 30, "damage": { "base": 8, "dex": 0.6 }, "knockback": 0 }
+  }
+}

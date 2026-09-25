@@ -17,6 +17,8 @@
 
 ## 2. 次の候補
 
+- **技（共通技 24・武器技 298。`claude/weapon-skills-system-hn8sm0`）の積み残し**: 数値は目安（気力 1 あたり約 2〜2.5）で置いただけで QA 未実施（balance-tuner で技の威力と抽選の重み `skills/ART/_index.json` の `weights` を見る）。QA の bot は技を撃ち分けない。連携（`skills/combos.ts`）は技に未対応。攻撃の行為に自己強化（`self`）を同時に乗せられない
+
 - **2026-09-25-2 分の積み残し**（優先）
   - QA の到達深度の低下: 近接 ×0.6 とマップ拡大の複合。ユーザーの実プレイの感想を待ってから、`meleeDamageScale`（0.6→0.7 など）・`MAP_SIZE.roomsPerArea`・`REAPER` を balance-tuner で。bot の性能で判断しない
   - 濡れ・浸水・油膜の付与の急増の切り分け（扇子の `spreadTerrain`〔当てた敵の足元の水たまり・油を広げる〕が怪しい）

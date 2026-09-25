@@ -1,0 +1,52 @@
+{
+  "_note": "戦輪の武器技（skills/arts/throwing.ts）。近接と遠距離を行き来する。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "warRingSpin": {
+    "cost": 20, "minInterval": 0.6, "poise": 8,
+    "spin": { "radius": 34, "hits": 3, "damage": { "base": 4.6, "str": 0.4, "dex": 0.4 }, "knockback": 60 }
+  },
+  "warRingThrow": {
+    "cost": 18, "minInterval": 0.5, "poise": 10,
+    "throw": { "count": 1, "spreadDeg": 0, "speed": 220, "life": 0.6, "bulletRadius": 6, "pierce": 1, "damage": { "base": 12.5, "str": 0.7, "dex": 0.9 }, "knockback": 70 }
+  },
+  "warRingRicochet": {
+    "cost": 19, "minInterval": 0.5, "poise": 8,
+    "ring": { "count": 1, "spreadDeg": 0, "speed": 210, "life": 1, "bulletRadius": 6, "bounces": 3, "damage": { "base": 7.5, "dex": 0.9 }, "knockback": 30 }
+  },
+  "warRingFan": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "fan": { "count": 3, "spreadDeg": 22, "speed": 210, "life": 0.5, "bulletRadius": 5, "damage": { "base": 6.2, "dex": 0.6 }, "knockback": 30 }
+  },
+  "warRingGuard": {
+    "cooldown": 8, "minInterval": 0.3, "poise": 0,
+    "guard": { "radius": 30 }
+  },
+  "warRingStorm": {
+    "cost": 28, "minInterval": 0.8, "poise": 8, "range": 130,
+    "s1": { "radius": 28, "damage": { "base": 5, "dex": 0.5 }, "knockback": 20 },
+    "s2": { "delay": 0.2, "radius": 28, "damage": { "base": 5, "dex": 0.5 }, "knockback": 20 },
+    "s3": { "delay": 0.4, "radius": 28, "damage": { "base": 5, "dex": 0.5 }, "knockback": 20 },
+    "s4": { "delay": 0.6, "radius": 32, "damage": { "base": 6.2, "dex": 0.7 }, "knockback": 110 }
+  },
+  "warRingDash": {
+    "cooldown": 6, "minInterval": 0.4, "poise": 12,
+    "dash": { "distance": 74, "width": 18, "invuln": 0.2, "damage": { "base": 8.8, "dex": 1.1 }, "knockback": 40 }
+  },
+  "warRingSever": {
+    "cost": 20, "minInterval": 0.55, "poise": 10,
+    "sever": { "length": 60, "width": 14, "damage": { "base": 8.8, "dex": 0.8 }, "knockback": 40, "bleed": { "stacks": 2, "duration": 4, "potency": 1 } }
+  },
+  "warRingEcho": {
+    "cost": 19, "minInterval": 0.55, "poise": 6,
+    "s1": { "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 4, "damage": { "base": 4.6, "dex": 0.5 }, "knockback": 20 },
+    "s2": { "delay": 0.12, "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 4, "damage": { "base": 4.6, "dex": 0.5 }, "knockback": 20 },
+    "s3": { "delay": 0.24, "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 4, "damage": { "base": 5.8, "dex": 0.6 }, "knockback": 40 }
+  },
+  "warRingSlash": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "sweep": { "reach": 36, "deg": 120, "damage": { "base": 8, "str": 0.6, "dex": 0.6 }, "knockback": 60 }
+  },
+  "warRingCyclone": {
+    "cost": 24, "minInterval": 0.7, "poise": 34,
+    "cyclone": { "radius": 40, "damage": { "base": 14, "str": 0.8, "dex": 0.6 }, "knockback": 160, "heavy": true }
+  }
+}

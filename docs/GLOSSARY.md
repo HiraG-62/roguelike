@@ -324,6 +324,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | スキル石 | SkillStone | 永続のアクティブスキル。変異軸とリンク数だけがロールされる | `skills/` |
+| 技 / 共通技 / 武器技 | ArtSkillKey（`common*` / `<武器種>*`） | 行為の列で書くスキル石。共通技はどの武器種でも撃てる。武器技はその武器種を装備しているときだけ撃て、石に「剣専用」のように出す（違う武器種では浮き文字も「剣専用」）。行為の名前（扇・円・帯・踏み込み・跳躍・弾・連鎖・引き寄せ・強化・起爆）は内部の語で、UI には出さない | `skills/arts/`、`docs/ideas/weapon-skills.md` |
 | 刻印符 | rune / modifier | スキルのリンクに刺す修飾子。拾うと所持品に入り、装備画面で石に付け外しする（石と一緒に持ち越す） | `skills/data.ts` MODIFIERS、`skills/persistence.ts` |
 | 所持（刻印符） | `SkillProfile.runes` / RuneItem | 石に付けていない刻印符。スキルタブの刻印符の列に「所持 n/60」と出す。上限を超えると拾えず床に残る（浮き文字「刻印符が満杯」） | `skills/persistence.ts`、`render/skillRuneUi.ts` |
 | 付ける / 外す / 捨てる（刻印符） | attachRuneToStone / detachRuneFromStone / discardRune | 選択中スロットの石に所持刻印符を付ける・石から所持品へ戻す・所持品から捨てる。石に付いた符は列で「付」と出す。付けられない理由の表示は「このスキルには付けられない」「リンクの空きが無い」「同じ刻印符が付いている」「型替え符は 1 枚まで」「付いている刻印符と排他」「スロットにスキル石が無い」 | `ui/skillRunes.ts` |

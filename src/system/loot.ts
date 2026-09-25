@@ -97,7 +97,7 @@ export function rollEnemyDrop(state: GameState, enemy: Enemy): void {
 /** スキル石を床に 1 個落とす（拾うとスキル stash へ）。docs/ideas/skills.md「7-7」 */
 export function dropSkillStone(state: GameState, pos: Vec): SkillStone {
   // now は決定性に影響しない（id と foundAt の表示用）
-  const stone = generateSkillStone(state.rng, { foundDepth: state.depth, now: Date.now() });
+  const stone = generateSkillStone(state.rng, { foundDepth: state.depth, now: Date.now(), moveset: state.stats.moveset });
   state.skills.floorStones.push({ id: allocId(state), stone, pos: scatterPos(state, pos), bobTime: 0, warned: false });
   pushSfx(state, "lootRare");
   return stone;

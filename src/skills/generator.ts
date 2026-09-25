@@ -1,4 +1,6 @@
 import { type Rng, createRng } from "../core/rng";
+import type { MovesetKey } from "../data/weapons";
+import { artWeightFor } from "./arts";
 import { MODIFIERS, SKILL, SKILL_DEFS, SKILL_MIN_DEPTH, SKILL_WEIGHTS, canAttach } from "./data";
 import { modifierWeight } from "./modifiers";
 import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type RuneItem, type SkillKey, type SkillStone, type VariantRoll } from "./types";
@@ -14,6 +16,8 @@ export interface StoneOptions {
   now: number;
   /** 指定すれば種類を固定する */
   skillKey?: SkillKey;
+  /** 装備中の武器種。その武器種の武器技を出やすくする（省略はどの武器技も同じ薄さ） */
+  moveset?: MovesetKey;
 }
 
 const SEED_MAX = 0x7fffffff;
@@ -50,12 +54,17 @@ function rollVariants(rng: Rng, skillKey: SkillKey): VariantRoll[] {
   return out;
 }
 
+/** 抽選の重み。武器技は装備中の武器種なら厚く、違う武器種なら薄く（skills/arts/index.ts の artWeightFor） */
+export function skillWeight(key: SkillKey, moveset: MovesetKey | undefined): number {
+  return artWeightFor(key, moveset) ?? SKILL_WEIGHTS[key];
+}
+
 /** SKILL_WEIGHTS に従ってスキルの種類を選ぶ。拾った深度より深い層から出るスキル（SKILL_MIN_DEPTH）は除く */
-function rollSkillKey(rng: Rng, depth: number): SkillKey {
+function rollSkillKey(rng: Rng, depth: number, moveset: MovesetKey | undefined): SkillKey {
   const pool = SKILL_KEYS.filter((k) => SKILL_MIN_DEPTH[k] <= Math.max(1, depth));
   const idx = weightedIndex(
     rng,
-    pool.map((k) => SKILL_WEIGHTS[k]),
+    pool.map((k) => skillWeight(k, moveset)),
   );
   return pool[idx] ?? SKILL_KEYS[0];
 }
@@ -63,7 +72,7 @@ function rollSkillKey(rng: Rng, depth: number): SkillKey {
 /** seed から石を作る（同じ seed なら id / foundAt 以外は同じ） */
 export function stoneFromSeed(seed: number, opts: StoneOptions): SkillStone {
   const rng = createRng(seed);
-  const skillKey = opts.skillKey ?? rollSkillKey(rng, opts.foundDepth);
+  const skillKey = opts.skillKey ?? rollSkillKey(rng, opts.foundDepth, opts.moveset);
   const links = weightedIndex(rng, SKILL.linkWeights);
   const variants = rollVariants(rng, skillKey);
   return {

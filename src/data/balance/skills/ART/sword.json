@@ -1,0 +1,54 @@
+{
+  "_note": "剣の武器技（skills/arts/blades.ts）。素直で扱いやすい代わりに尖りは控えめ。単体の威力はステータス基礎値で気力 1 あたり約 2.3",
+  "swordCrossCut": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "side": { "reach": 34, "deg": 110, "damage": { "base": 7.5, "str": 0.6, "dex": 0.6 }, "knockback": 50 },
+    "down": { "delay": 0.14, "length": 40, "width": 16, "damage": { "base": 7.5, "str": 0.6, "dex": 0.6 }, "knockback": 80 }
+  },
+  "swordRisingSlash": {
+    "cost": 18, "minInterval": 0.55, "poise": 34,
+    "rise": { "reach": 32, "deg": 90, "damage": { "base": 12.5, "str": 1.2, "dex": 0.4 }, "knockback": 200, "heavy": true }
+  },
+  "swordFlashStep": {
+    "cooldown": 6, "minInterval": 0.4, "poise": 14,
+    "flash": { "distance": 72, "width": 18, "invuln": 0.25, "damage": { "base": 8, "dex": 1.2 }, "knockback": 40 }
+  },
+  "swordWhirlwind": {
+    "cost": 20, "minInterval": 0.6, "poise": 7,
+    "spin": { "radius": 32, "hits": 3, "damage": { "base": 4.4, "str": 0.4, "dex": 0.4 }, "knockback": 60 }
+  },
+  "swordSonicEdge": {
+    "cost": 16, "minInterval": 0.45, "poise": 10,
+    "wave": { "count": 1, "spreadDeg": 0, "speed": 220, "life": 0.5, "bulletRadius": 7, "pierce": 3, "damage": { "base": 7.5, "dex": 0.8, "mnd": 0.4 }, "knockback": 60 }
+  },
+  "swordRiposte": {
+    "cooldown": 7, "minInterval": 0.4, "poise": 26,
+    "guard": { "duration": 0, "invuln": 0.35 },
+    "counter": { "delay": 0.3, "reach": 36, "deg": 140, "damage": { "base": 10, "str": 0.8, "dex": 0.8 }, "knockback": 120 }
+  },
+  "swordTripleThrust": {
+    "cost": 18, "minInterval": 0.55, "poise": 8,
+    "t1": { "length": 44, "width": 10, "damage": { "base": 5, "dex": 0.6 }, "knockback": 30 },
+    "t2": { "delay": 0.1, "length": 44, "width": 10, "damage": { "base": 5, "dex": 0.6 }, "knockback": 30 },
+    "t3": { "delay": 0.2, "length": 50, "width": 12, "damage": { "base": 6.2, "dex": 0.8 }, "knockback": 90 }
+  },
+  "swordHeavenSplit": {
+    "cost": 23, "minInterval": 0.7, "poise": 36,
+    "split": { "length": 64, "width": 20, "damage": { "base": 16.2, "str": 1.4, "dex": 0.4 }, "knockback": 160, "heavy": true, "vsMul": 1.6 }
+  },
+  "swordBladeStorm": {
+    "cost": 29, "minInterval": 0.8, "poise": 8, "range": 120,
+    "s1": { "radius": 30, "damage": { "base": 5, "dex": 0.5, "spi": 0.3 }, "knockback": 20 },
+    "s2": { "delay": 0.2, "radius": 30, "damage": { "base": 5, "dex": 0.5, "spi": 0.3 }, "knockback": 20 },
+    "s3": { "delay": 0.4, "radius": 30, "damage": { "base": 5, "dex": 0.5, "spi": 0.3 }, "knockback": 20 },
+    "s4": { "delay": 0.6, "radius": 34, "damage": { "base": 6.2, "dex": 0.6, "spi": 0.4 }, "knockback": 120 }
+  },
+  "swordValor": {
+    "cooldown": 15, "minInterval": 0.3, "poise": 0,
+    "valor": { "duration": 5, "damageMul": 1.2, "self": { "harden": { "stacks": 1, "duration": 5, "potency": 0 } } }
+  },
+  "swordFinisher": {
+    "cost": 20, "minInterval": 0.6, "poise": 18,
+    "end": { "reach": 34, "deg": 100, "damage": { "base": 11.2, "str": 0.8, "dex": 0.8 }, "knockback": 90, "execute": 0.18 }
+  }
+}

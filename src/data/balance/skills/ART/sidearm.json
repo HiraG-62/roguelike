@@ -1,0 +1,50 @@
+{
+  "_note": "短銃の武器技（skills/arts/guns.ts）。片手の速さで状態異常の弾を撃ち分ける。参照は技巧+精神（狙い、docs/STATS_AND_SCALING.md 3 章）",
+  "sidearmSnipe": {
+    "cost": 20, "minInterval": 0.55, "poise": 14,
+    "snipe": { "count": 1, "spreadDeg": 0, "speed": 320, "life": 0.7, "bulletRadius": 4, "pierce": 1, "damage": { "base": 16, "dex": 1, "mnd": 0.8 }, "knockback": 60 }
+  },
+  "sidearmQuickdraw": {
+    "cost": 19, "minInterval": 0.5, "poise": 8,
+    "s1": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.5, "bulletRadius": 3, "damage": { "base": 5.5, "dex": 0.5, "mnd": 0.3 }, "knockback": 20 },
+    "s2": { "delay": 0.1, "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.5, "bulletRadius": 3, "damage": { "base": 5.5, "dex": 0.5, "mnd": 0.3 }, "knockback": 20 },
+    "s3": { "delay": 0.2, "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.5, "bulletRadius": 3, "damage": { "base": 5.5, "dex": 0.5, "mnd": 0.3 }, "knockback": 20 }
+  },
+  "sidearmFlash": {
+    "cooldown": 10, "minInterval": 0.4, "poise": 0, "range": 110,
+    "flash": { "radius": 36, "silence": { "stacks": 1, "duration": 2, "potency": 0 }, "fear": { "stacks": 1, "duration": 1.5, "potency": 0 } }
+  },
+  "sidearmRoll": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "roll": { "distance": 64, "width": 16, "invuln": 0.3 },
+    "shot": { "delay": 0.15, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 3, "damage": { "base": 8, "dex": 0.7, "mnd": 0.5 }, "knockback": 30 }
+  },
+  "sidearmPiercer": {
+    "cost": 18, "minInterval": 0.5, "poise": 10,
+    "pierce": { "count": 1, "spreadDeg": 0, "speed": 280, "life": 0.6, "bulletRadius": 4, "pierce": 4, "damage": { "base": 10, "dex": 0.8, "mnd": 0.5 }, "knockback": 30 }
+  },
+  "sidearmIncendiary": {
+    "cost": 17, "minInterval": 0.45, "poise": 8,
+    "incend": { "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 4, "damage": { "base": 8, "dex": 0.6, "mnd": 0.4 }, "knockback": 30, "burn": { "stacks": 1, "duration": 3, "potency": 3 } }
+  },
+  "sidearmFreeze": {
+    "cost": 17, "minInterval": 0.45, "poise": 8,
+    "freeze": { "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 4, "damage": { "base": 7.5, "dex": 0.6, "mnd": 0.4 }, "knockback": 30, "chill": { "stacks": 2, "duration": 2, "potency": 0 } }
+  },
+  "sidearmShock": {
+    "cost": 17, "minInterval": 0.45, "poise": 8,
+    "shock": { "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 4, "damage": { "base": 7.5, "dex": 0.6, "mnd": 0.4 }, "knockback": 30, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+  },
+  "sidearmMark": {
+    "cost": 16, "minInterval": 0.4, "poise": 6,
+    "mark": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.6, "bulletRadius": 3, "damage": { "base": 6, "dex": 0.5, "mnd": 0.3 }, "knockback": 20, "vulnerable": { "stacks": 1, "duration": 4, "potency": 0 } }
+  },
+  "sidearmSteady": {
+    "cooldown": 14, "minInterval": 0.3, "poise": 0,
+    "hold": { "duration": 5, "damageMul": 1.3, "self": { "harden": { "stacks": 1, "duration": 5, "potency": 0 } } }
+  },
+  "sidearmScatter": {
+    "cost": 19, "minInterval": 0.55, "poise": 8,
+    "scatter": { "count": 6, "spreadDeg": 10, "speed": 200, "life": 0.3, "bulletRadius": 4, "damage": { "base": 4, "dex": 0.4, "mnd": 0.3 }, "knockback": 25 }
+  }
+}

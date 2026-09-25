@@ -22,6 +22,7 @@ import { WEAR_TUNING } from "../skills/tuning2";
 import { wearSummary } from "../skills/wear";
 import { COMBOS, comboAfter } from "../skills/combos";
 import { findStone, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
+import { weaponArtLabel } from "../skills/arts";
 import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
 import { affinity, skillKeywords } from "../system/keywords";
@@ -116,6 +117,9 @@ const COLOR_HEADER_RULE = "#303038";
 const COLOR_BANNER_BG = "rgba(157,255,176,0.14)";
 const COLOR_TILE_ACTIVE_BG = "rgba(255,215,95,0.10)";
 const COLOR_SKILL = SKILL.drop.stoneColor;
+/** 武器技の「〇〇専用」（今の武器種で撃てる / 撃てない） */
+const COLOR_WEAPON_ART = "#ffd080";
+const COLOR_WEAPON_ART_OFF = "#ff7060";
 
 const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", status: "ステータス", skills: "スキル", echo: "残響", web: "流れ" };
 const TAB_UNDERLINE_H = 1;
@@ -655,6 +659,14 @@ function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams
   return `コスト ${Math.round(manaRuleCost(state, def, capped.cost))}${note}  間隔 ${interval}`;
 }
 
+/** 武器技なら「〇〇専用」。今の武器種と違えば撃てないことを赤で出す */
+function weaponArtLines(state: GameState, def: Readonly<SkillDef>): TipLine[] {
+  if (def.moveset === undefined) return [];
+  const label = weaponArtLabel(def.moveset);
+  if (def.moveset === state.stats.moveset) return [{ text: label, color: COLOR_WEAPON_ART }];
+  return [{ text: `${label}（今の武器種では撃てない）`, color: COLOR_WEAPON_ART_OFF }];
+}
+
 /** 石の要点: 名前・動詞・負担・変異・付いている刻印符。詳しく: 攻撃の素性・リンク・使い込み・噛む */
 function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine[]; more: TipLine[] } {
   const def = SKILL_DEFS[stone.skillKey];
@@ -664,6 +676,7 @@ function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine
   const params = resolveCast(def, stone, modifiers);
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },
+    ...weaponArtLines(state, def),
     { text: burdenText(state, def, params), color: COLOR_DIM },
     DETAIL_GAP_LINE,
     { text: def.verb, color: COLOR_TEXT },

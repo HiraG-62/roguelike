@@ -1,0 +1,55 @@
+{
+  "_note": "刀の武器技（skills/arts/blades.ts）。速い斬りと居合・見切り。技巧と精神を主に参照する",
+  "katanaIai": {
+    "cost": 19, "minInterval": 0.55, "poise": 28,
+    "draw": { "length": 56, "width": 16, "damage": { "base": 16, "mnd": 1.8, "dex": 0.6 }, "knockback": 110, "heavy": true }
+  },
+  "katanaFlash": {
+    "cooldown": 6, "minInterval": 0.4, "poise": 14,
+    "flash": { "distance": 80, "width": 16, "invuln": 0.2, "damage": { "base": 9, "dex": 1.4 }, "knockback": 40 }
+  },
+  "katanaCrescent": {
+    "cost": 21, "minInterval": 0.65, "poise": 14,
+    "moon": { "reach": 38, "deg": 180, "damage": { "base": 12, "dex": 1.6 }, "knockback": 80 }
+  },
+  "katanaTripleIai": {
+    "cost": 23, "minInterval": 0.7, "poise": 8,
+    "t1": { "length": 44, "width": 12, "damage": { "base": 6, "dex": 0.8 }, "knockback": 30 },
+    "t2": { "delay": 0.12, "length": 44, "width": 12, "damage": { "base": 6, "dex": 0.8 }, "knockback": 30 },
+    "t3": { "delay": 0.24, "length": 50, "width": 14, "damage": { "base": 9, "dex": 1.2 }, "knockback": 100 }
+  },
+  "katanaCounter": {
+    "cooldown": 8, "minInterval": 0.4, "poise": 30,
+    "guard": { "duration": 0, "invuln": 0.3 },
+    "counter": { "delay": 0.32, "reach": 34, "deg": 130, "damage": { "base": 13, "dex": 1.2, "mnd": 0.8 }, "knockback": 130 }
+  },
+  "katanaWindSlash": {
+    "cost": 18, "minInterval": 0.5, "poise": 10,
+    "wind": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.45, "bulletRadius": 6, "pierce": 4, "damage": { "base": 11, "dex": 1.4 }, "knockback": 50 }
+  },
+  "katanaBlossom": {
+    "cost": 17, "minInterval": 0.5, "poise": 12,
+    "sakura": { "reach": 30, "deg": 100, "damage": { "base": 9, "dex": 1.0 }, "knockback": 60, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } }
+  },
+  "katanaDrawCircle": {
+    "cost": 20, "minInterval": 0.6, "poise": 16,
+    "circle": { "radius": 34, "damage": { "base": 14, "dex": 1.2, "mnd": 0.6 }, "knockback": 90 }
+  },
+  "katanaThousandCuts": {
+    "cost": 27, "minInterval": 0.85, "poise": 4, "range": 130,
+    "c1": { "radius": 24, "damage": { "base": 2.6, "dex": 0.3 }, "knockback": 10 },
+    "c2": { "delay": 0.1, "radius": 24, "damage": { "base": 2.6, "dex": 0.3 }, "knockback": 10 },
+    "c3": { "delay": 0.2, "radius": 24, "damage": { "base": 2.6, "dex": 0.3 }, "knockback": 10 },
+    "c4": { "delay": 0.3, "radius": 24, "damage": { "base": 2.6, "dex": 0.3 }, "knockback": 10 },
+    "c5": { "delay": 0.4, "radius": 24, "damage": { "base": 2.6, "dex": 0.3 }, "knockback": 10 },
+    "c6": { "delay": 0.5, "radius": 30, "damage": { "base": 4, "dex": 0.5 }, "knockback": 80 }
+  },
+  "katanaClearMind": {
+    "cooldown": 16, "minInterval": 0.3, "poise": 0,
+    "mind": { "duration": 5, "damageMul": 1.25, "self": { "haste": { "stacks": 1, "duration": 5, "potency": 0 } } }
+  },
+  "katanaSever": {
+    "cost": 24, "minInterval": 0.7, "poise": 26,
+    "cut": { "length": 60, "width": 20, "damage": { "base": 20, "dex": 1.6, "mnd": 1.0 }, "knockback": 120, "heavy": true, "execute": 0.2 }
+  }
+}

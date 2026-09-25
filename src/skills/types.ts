@@ -7,6 +7,8 @@ import type { Vec } from "../core/vec";
 import type { GameMap } from "../map/grid";
 import type { MovesetDef, MovesetKey } from "../data/weapons";
 import type { AttrRatio, Scaling } from "../loot/types";
+import { ART_SKILL_KEYS } from "./arts/keys";
+import type { ArtPending } from "./arts/types";
 
 /**
  * スキルシステムの共有型。docs/ideas/skills.md「6-1」「7. 最小実装の仕様」。
@@ -130,8 +132,12 @@ export type FormSkillKey = "titanForm" | "swiftForm" | "spiritForm";
 export const WAVE3_SKILL_KEYS = ["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"] as const;
 export type Wave3SkillKey = (typeof WAVE3_SKILL_KEYS)[number];
 
-/** 追加はここへ（BASE / EXTRA / WAVE2 / WAVE3 のどれかに足す） */
-export const SKILL_KEYS = [...BASE_SKILL_KEYS, ...EXTRA_SKILL_KEYS, ...WAVE2_SKILL_KEYS, ...WAVE3_SKILL_KEYS] as const;
+/** 行為の列で書くスキル（技）より前のスキル。定義を個別に手で書いた石（相性表のテストはこの範囲を固定する） */
+export const LEGACY_SKILL_KEYS = [...BASE_SKILL_KEYS, ...EXTRA_SKILL_KEYS, ...WAVE2_SKILL_KEYS, ...WAVE3_SKILL_KEYS] as const;
+export type LegacySkillKey = (typeof LEGACY_SKILL_KEYS)[number];
+
+/** 追加はここへ（BASE / EXTRA / WAVE2 / WAVE3 のどれか、行為の列で書けるものは skills/arts/keys.ts） */
+export const SKILL_KEYS = [...LEGACY_SKILL_KEYS, ...ART_SKILL_KEYS] as const;
 export type SkillKey = (typeof SKILL_KEYS)[number];
 
 /** 最小実装の 4 + 追加の 7 */
@@ -296,6 +302,8 @@ export interface SkillDef {
    * 省略したスキル（設置・射撃・強化）は本動作の最中でも並行して撃てる
    */
   exclusiveGroup?: SkillExclusiveGroup;
+  /** 武器技: この武器種を装備しているときだけ撃てる（docs/ideas/weapon-skills.md）。省略はどの武器種でも撃てる */
+  moveset?: MovesetKey;
 }
 
 /** 同時発動の排他グループ。今は本動作（body）の 1 種だけ */
@@ -954,4 +962,6 @@ export interface SkillRunState {
   stakes: WardStake[];
   stakeTick: number;
   traps: SkillTrap[];
+  /** 技の遅れて出る行為（skills/arts/engine.ts）。後から足したので省略可（最初に積んだときに作る） */
+  artQueue?: ArtPending[];
 }

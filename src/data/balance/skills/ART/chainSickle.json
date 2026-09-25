@@ -1,0 +1,50 @@
+{
+  "_note": "鎖鎌の武器技（skills/arts/polearms.ts）。短い間合いを鎖で伸ばし、引き寄せて崩す。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "chainSickleHook": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "hook": { "radius": 90, "toDistance": 24, "damage": { "base": 8, "dex": 0.9 }, "knockback": 0 }
+  },
+  "chainSickleWhirl": {
+    "cost": 21, "minInterval": 0.6, "poise": 7,
+    "spin": { "radius": 30, "hits": 4, "damage": { "base": 4, "dex": 0.5 }, "knockback": 30 }
+  },
+  "chainSickleBind": {
+    "cost": 18, "minInterval": 0.5, "poise": 14,
+    "line": { "length": 50, "width": 10, "damage": { "base": 8, "dex": 0.8 }, "knockback": 20, "paralyze": { "stacks": 1, "duration": 1.3, "potency": 0 } }
+  },
+  "chainSickleReap": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "cut": { "reach": 28, "deg": 110, "damage": { "base": 6.5, "dex": 0.8 }, "knockback": 40, "bleed": { "stacks": 1, "duration": 4, "potency": 1 } }
+  },
+  "chainSickleSwing": {
+    "cooldown": 8, "minInterval": 0.4, "poise": 14, "range": 100,
+    "leap": { "invuln": 0.18 },
+    "cut": { "radius": 26, "damage": { "base": 9, "dex": 0.9 }, "knockback": 100 }
+  },
+  "chainSickleFlurry": {
+    "cost": 22, "minInterval": 0.6, "poise": 6,
+    "swing": { "reach": 26, "deg": 100, "hits": 4, "damage": { "base": 3.6, "dex": 0.5 }, "knockback": 20 }
+  },
+  "chainSickleChainThrow": {
+    "cost": 18, "minInterval": 0.5, "poise": 8,
+    "chain": { "length": 90, "width": 10, "damage": { "base": 10, "dex": 1.0 }, "knockback": 60 }
+  },
+  "chainSickleWeight": {
+    "cost": 19, "minInterval": 0.5, "poise": 16,
+    "ball": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.6, "bulletRadius": 6, "damage": { "base": 12, "str": 0.5, "dex": 0.7 }, "knockback": 140, "heavy": true }
+  },
+  "chainSickleTopple": {
+    "cost": 20, "minInterval": 0.55, "poise": 24,
+    "drag": { "radius": 60, "toDistance": 16, "damage": { "base": 9, "dex": 0.8 }, "knockback": 40, "heavy": true }
+  },
+  "chainSickleShadowStitch": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "stitch": { "length": 56, "width": 10, "damage": { "base": 7.5, "dex": 0.8 }, "knockback": 20, "silence": { "stacks": 1, "duration": 3, "potency": 0 } }
+  },
+  "chainSickleSpiral": {
+    "cost": 23, "minInterval": 0.65, "poise": 8, "range": 120,
+    "s1": { "radius": 24, "damage": { "base": 6, "dex": 0.6 }, "knockback": 30 },
+    "s2": { "delay": 0.16, "radius": 26, "damage": { "base": 6.5, "dex": 0.6 }, "knockback": 40 },
+    "s3": { "delay": 0.32, "radius": 28, "damage": { "base": 7.5, "dex": 0.7 }, "knockback": 80 }
+  }
+}

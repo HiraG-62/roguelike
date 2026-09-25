@@ -1,0 +1,47 @@
+{
+  "_note": "仕掛けの武器技（skills/arts/throwing.ts）。足元・前方に罠を仕込む。地形と設置弾の起爆を伸ばす。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "trapperDetonate": {
+    "cost": 20, "minInterval": 0.5, "poise": 14,
+    "blast": { "radius": 36, "damage": { "base": 9.5, "str": 0.6, "spi": 0.4 }, "knockback": 100 }
+  },
+  "trapperSpike": {
+    "cost": 19, "minInterval": 0.55, "poise": 10,
+    "spike": { "delay": 0.5, "radius": 28, "damage": { "base": 9.5, "dex": 0.7 }, "knockback": 40, "bleed": { "stacks": 2, "duration": 4, "potency": 1 } }
+  },
+  "trapperNet": {
+    "cost": 18, "minInterval": 0.55, "poise": 6, "range": 130,
+    "net": { "radius": 30, "damage": { "base": 5, "spi": 0.5 }, "knockback": 0, "chill": { "stacks": 4, "duration": 2.5, "potency": 0 } }
+  },
+  "trapperTripwire": {
+    "cost": 19, "minInterval": 0.55, "poise": 10,
+    "wire": { "length": 70, "width": 14, "damage": { "base": 6.2, "dex": 0.6 }, "knockback": 10, "paralyze": { "stacks": 1, "duration": 1.2, "potency": 0 } }
+  },
+  "trapperBearTrap": {
+    "cost": 24, "minInterval": 0.7, "poise": 30, "range": 130,
+    "trap": { "delay": 0.6, "radius": 26, "damage": { "base": 19, "str": 0.8, "dex": 0.6 }, "knockback": 60, "heavy": true }
+  },
+  "trapperLure": {
+    "cooldown": 9, "minInterval": 0.3, "poise": 16, "range": 130,
+    "lure": { "radius": 70, "toDistance": 14 }
+  },
+  "trapperOil": {
+    "cooldown": 8, "minInterval": 0.3, "poise": 0,
+    "oil": { "radius": 30, "terrainRadius": 30, "terrainTime": 5, "oiled": { "stacks": 1, "duration": 5, "potency": 0 } }
+  },
+  "trapperFire": {
+    "cost": 20, "minInterval": 0.6, "poise": 10,
+    "fire": { "length": 60, "width": 18, "damage": { "base": 9.5, "spi": 0.8 }, "knockback": 30, "burn": { "stacks": 2, "duration": 3, "potency": 3 }, "terrainRadius": 20, "terrainTime": 4 }
+  },
+  "trapperSmoke": {
+    "cooldown": 10, "minInterval": 0.3, "poise": 0,
+    "smoke": { "radius": 10, "terrainRadius": 32, "terrainTime": 4 }
+  },
+  "trapperShrapnel": {
+    "cost": 20, "minInterval": 0.6, "poise": 10,
+    "shrapnel": { "radius": 38, "damage": { "base": 8.8, "dex": 0.6 }, "knockback": 50 }
+  },
+  "trapperCaltrops": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "caltrops": { "radius": 34, "damage": { "base": 5, "dex": 0.5 }, "knockback": 10, "terrainRadius": 30, "terrainTime": 5 }
+  }
+}

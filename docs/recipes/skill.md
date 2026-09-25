@@ -12,3 +12,14 @@
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+
+## 技（共通技・武器技）
+
+行為の列（扇・円・帯・踏み込み・跳躍・弾・連鎖・引き寄せ・強化・起爆）で書けるスキルは、発動処理を書かずに `skills/arts/` へ足す（`docs/ideas/weapon-skills.md` 1 章に行為と数値の目安）。
+
+1. `skills/arts/keys.ts` の `COMMON_ART_KEYS`（共通技）か `WEAPON_ART_KEYS.<武器種>`（武器技。key は武器種の key で始める）の末尾に key を足す
+2. 群のファイル（`common.ts` / `blades.ts` など）に `ArtSpec`（名前・1 文字アイコン・動詞・タグ・素性・行為の列）を足す
+3. `data/balance/skills/ART/<武器種 | common>.json` に数値ブロック（`cost` か `cooldown`・`minInterval`・`poise`・照準を使うなら `range`、行為ごとのブロック）を足す。新しい項目名を使ったら `data/balance/skills/ART/_index.json` の `_fields` に 1 行
+4. `npx vitest run src/skills/arts`（全技を 1 回ずつ撃つ検査がある）→ `npm run check`
+
+行為の種類を足すときは `types.ts` の `ART_ACT_KINDS`・`build.ts` の必須項目 / 項目名・`engine.ts` の `runAct` の 3 か所。

@@ -136,6 +136,8 @@ const RELIC_TIPS: readonly TipDef[] = [
 
 const SKILL_TIPS: readonly TipDef[] = [
   { key: "stone", term: "スキル石", category: "skill", body: "スロット 1〜4 に装着して撃つスキル。拾った石は倉庫に入り、探索を越えて持ち越す。" },
+  { key: "commonArt", term: "共通技", category: "skill", body: "どの武器種でも撃てるスキル石。火球・瞬身・応急手当のような道具・魔法・体術。" },
+  { key: "weaponArt", term: "武器技", category: "skill", body: "その武器種を装備しているときだけ撃てるスキル石（石に「剣専用」のように出る）。違う武器種では枠が暗くなり、撃っても気力を払わない。装備中の武器種の武器技ほど拾いやすく、ほかの武器種のものも稀に出るので、持ち替えに備えて集められる。" },
   { key: "manaType", term: "気力型", category: "skill", body: "撃つたびに気力を払うスキル。" },
   { key: "cooldownType", term: "再使用型", category: "skill", body: "撃つと再使用時間が経つまで撃てないスキル。" },
   { key: "rune", term: "刻印符", category: "skill", body: "スキル石のリンクに付ける修飾。拾うと所持品に入り、装備画面で石に付け外しする。石と一緒に持ち越す。" },

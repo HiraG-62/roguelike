@@ -1,0 +1,49 @@
+{
+  "_note": "チェーンアレイの武器技（skills/arts/polearms.ts）。鎖の鉄球で広く重く打ち、勢いで崩す。単体の威力はステータス基礎値で気力 1 あたり約 2.3",
+  "flailSpin": {
+    "cost": 23, "minInterval": 0.65, "poise": 12,
+    "spin": { "radius": 36, "hits": 3, "damage": { "base": 7, "str": 0.6, "vit": 0.4 }, "knockback": 90 }
+  },
+  "flailSmash": {
+    "cost": 21, "minInterval": 0.6, "poise": 34,
+    "smash": { "length": 44, "width": 20, "damage": { "base": 15.5, "str": 1.2, "vit": 0.4 }, "knockback": 180, "heavy": true }
+  },
+  "flailSweep": {
+    "cost": 18, "minInterval": 0.55, "poise": 14,
+    "wide": { "reach": 34, "deg": 190, "damage": { "base": 7.5, "str": 0.6, "vit": 0.5 }, "knockback": 100 }
+  },
+  "flailHurl": {
+    "cost": 19, "minInterval": 0.55, "poise": 10,
+    "ball": { "count": 1, "spreadDeg": 0, "speed": 180, "life": 0.7, "bulletRadius": 8, "pierce": 3, "damage": { "base": 13, "str": 1.0 }, "knockback": 140 }
+  },
+  "flailWreck": {
+    "cooldown": 11, "minInterval": 0.4, "poise": 28,
+    "rush": { "distance": 80, "width": 24, "invuln": 0.2, "damage": { "base": 12, "str": 1.1 }, "knockback": 200, "heavy": true }
+  },
+  "flailChainPull": {
+    "cost": 19, "minInterval": 0.55, "poise": 16,
+    "drag": { "radius": 65, "toDistance": 18, "damage": { "base": 8.5, "str": 0.6 }, "knockback": 20 }
+  },
+  "flailDrop": {
+    "cost": 24, "minInterval": 0.7, "poise": 18, "range": 130,
+    "fall": { "delay": 0.6, "radius": 36, "damage": { "base": 17, "str": 1.0, "vit": 0.4 }, "knockback": 160, "heavy": true }
+  },
+  "flailCrush": {
+    "cost": 21, "minInterval": 0.6, "poise": 30,
+    "hit": { "length": 50, "width": 18, "damage": { "base": 12.5, "str": 1.0 }, "knockback": 120, "vsMul": 1.6 }
+  },
+  "flailOrbit": {
+    "cooldown": 10, "minInterval": 0.4, "poise": 6,
+    "guard": { "radius": 30, "hits": 5, "damage": { "base": 3, "str": 0.4 }, "knockback": 30 }
+  },
+  "flailPound": {
+    "cost": 22, "minInterval": 0.6, "poise": 10, "range": 120,
+    "s1": { "radius": 26, "damage": { "base": 7, "str": 0.6 }, "knockback": 60 },
+    "s2": { "delay": 0.18, "radius": 28, "damage": { "base": 7.5, "str": 0.6 }, "knockback": 70 },
+    "s3": { "delay": 0.36, "radius": 30, "damage": { "base": 8.5, "str": 0.7 }, "knockback": 130 }
+  },
+  "flailStun": {
+    "cost": 20, "minInterval": 0.55, "poise": 24,
+    "down": { "reach": 30, "deg": 100, "damage": { "base": 11, "str": 0.9 }, "knockback": 60, "paralyze": { "stacks": 1, "duration": 1.4, "potency": 0 } }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "_note": "投擲の武器技（skills/arts/throwing.ts）。手数と状態異常で搦め手を作る。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "thrownFan": {
+    "cost": 16, "minInterval": 0.4, "poise": 5,
+    "fan": { "count": 5, "spreadDeg": 14, "speed": 220, "life": 0.45, "bulletRadius": 3, "damage": { "base": 3.8, "dex": 0.6 }, "knockback": 20 }
+  },
+  "thrownPoison": {
+    "cost": 18, "minInterval": 0.45, "poise": 8,
+    "blade": { "count": 1, "spreadDeg": 0, "speed": 210, "life": 0.6, "bulletRadius": 5, "damage": { "base": 9.5, "dex": 1, "spi": 0.4 }, "knockback": 20, "poison": { "stacks": 2, "duration": 5, "potency": 0 } }
+  },
+  "thrownRain": {
+    "cost": 26, "minInterval": 0.7, "poise": 6, "range": 130,
+    "r1": { "radius": 22, "damage": { "base": 6.2, "dex": 0.6 }, "knockback": 20 },
+    "r2": { "delay": 0.15, "radius": 22, "damage": { "base": 6.2, "dex": 0.6 }, "knockback": 20 },
+    "r3": { "delay": 0.3, "radius": 22, "damage": { "base": 6.2, "dex": 0.6 }, "knockback": 20 },
+    "r4": { "delay": 0.45, "radius": 24, "damage": { "base": 7.5, "dex": 0.8 }, "knockback": 60 }
+  },
+  "thrownRicochet": {
+    "cost": 19, "minInterval": 0.5, "poise": 8,
+    "blade": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.9, "bulletRadius": 5, "bounces": 3, "damage": { "base": 7.5, "dex": 0.9 }, "knockback": 30 }
+  },
+  "thrownVolley": {
+    "cost": 18, "minInterval": 0.5, "poise": 4,
+    "s1": { "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.4, "dex": 0.5 }, "knockback": 15 },
+    "s2": { "delay": 0.1, "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.4, "dex": 0.5 }, "knockback": 15 },
+    "s3": { "delay": 0.2, "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.4, "dex": 0.5 }, "knockback": 15 },
+    "s4": { "delay": 0.3, "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.4, "dex": 0.5 }, "knockback": 15 }
+  },
+  "thrownPin": {
+    "cost": 20, "minInterval": 0.5, "poise": 10,
+    "pin": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.6, "bulletRadius": 5, "damage": { "base": 8.8, "dex": 1 }, "knockback": 10, "paralyze": { "stacks": 1, "duration": 1.2, "potency": 0 } }
+  },
+  "thrownSmoke": {
+    "cooldown": 9, "minInterval": 0.3, "poise": 0,
+    "smoke": { "radius": 10, "terrainRadius": 32, "terrainTime": 4 }
+  },
+  "thrownBomb": {
+    "cost": 22, "minInterval": 0.6, "poise": 18, "range": 130,
+    "blast": { "radius": 32, "damage": { "base": 13.8, "str": 0.6, "dex": 0.8 }, "knockback": 140 }
+  },
+  "thrownBola": {
+    "cost": 17, "minInterval": 0.45, "poise": 6,
+    "bola": { "count": 1, "spreadDeg": 0, "speed": 190, "life": 0.65, "bulletRadius": 5, "damage": { "base": 6.2, "dex": 0.6 }, "knockback": 10, "chill": { "stacks": 4, "duration": 2.5, "potency": 0 } }
+  },
+  "thrownCaltrops": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "spikes": { "radius": 34, "damage": { "base": 5, "dex": 0.5 }, "knockback": 10, "bleed": { "stacks": 1, "duration": 4, "potency": 1 }, "terrainRadius": 30, "terrainTime": 5 }
+  },
+  "thrownDagger": {
+    "cost": 16, "minInterval": 0.4, "poise": 8,
+    "dagger": { "count": 1, "spreadDeg": 0, "speed": 320, "life": 0.4, "bulletRadius": 4, "damage": { "base": 12.5, "dex": 1.4 }, "knockback": 60 }
+  }
+}

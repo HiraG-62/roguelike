@@ -4,6 +4,7 @@ import { BULLETS, bulletDef } from "../loot/bullets";
 import { ATTR_KEYS, DEFAULT_STATS, type Attributes, type PlayerStats } from "../loot/types";
 import { SKILL, SKILL_DEFS } from "../skills/data";
 import { SKILL_KEYS } from "../skills/types";
+import { ART_DEFS, isArtKey } from "../skills/arts";
 import { deriveAttributes, scaled, withRatio } from "../system/attributes";
 import { shotScaling } from "../system/player";
 import {
@@ -211,7 +212,9 @@ describe("スキルの計算式", () => {
       const block = skillBlock(key);
       const { scalings, steps } = block === undefined ? { scalings: [], steps: [] } : skillScalingKeys(block);
       const fromBlock = formulas.filter((f) => f.kind === "power" || f.kind === "buff").length;
-      const expected = scalings.length + steps.length + (SKILL_DEFS[key].buffScaling !== undefined && !scalings.includes("buff") ? 1 : 0);
+      // 技（skills/arts/）は与ダメを持つ行為ごとに 1 本
+      const artPowers = isArtKey(key) ? ART_DEFS[key].acts.filter((a) => a.damage !== undefined).length : 0;
+      const expected = scalings.length + steps.length + artPowers + (SKILL_DEFS[key].buffScaling !== undefined && !scalings.includes("buff") ? 1 : 0);
       expect(fromBlock, `${key} の威力・強化の式の数`).toBe(expected);
     }
   });

@@ -1,0 +1,52 @@
+{
+  "_note": "鞭の武器技（skills/arts/polearms.ts）。細く長い間合いと感電で崩す。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "whipLash": {
+    "cost": 18, "minInterval": 0.5, "poise": 10,
+    "lash": { "length": 90, "width": 8, "damage": { "base": 12, "dex": 1.0, "spi": 0.4 }, "knockback": 80, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+  },
+  "whipCrack": {
+    "cost": 16, "minInterval": 0.45, "poise": 8, "range": 100,
+    "burst": { "radius": 22, "damage": { "base": 8.5, "dex": 0.7, "spi": 0.5 }, "knockback": 100 }
+  },
+  "whipSnare": {
+    "cost": 17, "minInterval": 0.5, "poise": 6,
+    "coil": { "radius": 70, "toDistance": 20, "damage": { "base": 6, "dex": 0.6 }, "knockback": 0, "paralyze": { "stacks": 1, "duration": 1.2, "potency": 0 } }
+  },
+  "whipCircle": {
+    "cost": 20, "minInterval": 0.6, "poise": 7,
+    "spin": { "radius": 34, "hits": 3, "damage": { "base": 4.6, "dex": 0.5 }, "knockback": 50 }
+  },
+  "whipChainLightning": {
+    "cost": 19, "minInterval": 0.55, "poise": 6,
+    "arc": { "range": 40, "jumps": 3, "jumpRange": 70, "damage": { "base": 7.5, "dex": 0.5, "spi": 0.8 }, "knockback": 20, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+  },
+  "whipDoubleLash": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "t1": { "length": 70, "width": 8, "damage": { "base": 8, "dex": 0.8 }, "knockback": 40 },
+    "t2": { "delay": 0.14, "length": 80, "width": 8, "damage": { "base": 9.5, "dex": 0.9 }, "knockback": 70 }
+  },
+  "whipTame": {
+    "cost": 18, "minInterval": 0.5, "poise": 10,
+    "crack": { "length": 60, "width": 10, "damage": { "base": 6.5, "dex": 0.6 }, "knockback": 40, "fear": { "stacks": 1, "duration": 2, "potency": 0 }, "weaken": { "stacks": 1, "duration": 3, "potency": 0 } }
+  },
+  "whipStorm": {
+    "cost": 26, "minInterval": 0.7, "poise": 8, "range": 120,
+    "s1": { "radius": 24, "damage": { "base": 5.5, "dex": 0.5 }, "knockback": 30 },
+    "s2": { "delay": 0.15, "radius": 24, "damage": { "base": 5.5, "dex": 0.5 }, "knockback": 30 },
+    "s3": { "delay": 0.3, "radius": 26, "damage": { "base": 6, "dex": 0.5 }, "knockback": 40 },
+    "s4": { "delay": 0.45, "radius": 28, "damage": { "base": 7, "dex": 0.6 }, "knockback": 100 }
+  },
+  "whipSwingAway": {
+    "cooldown": 8, "minInterval": 0.4, "poise": 10,
+    "hit": { "length": 60, "width": 10, "damage": { "base": 8, "dex": 0.7 }, "knockback": 60 },
+    "back": { "delay": 0.1, "distance": -70, "width": 16, "invuln": 0.2 }
+  },
+  "whipDisarm": {
+    "cost": 18, "minInterval": 0.5, "poise": 12,
+    "snap": { "length": 64, "width": 10, "damage": { "base": 7.5, "dex": 0.7 }, "knockback": 30, "weaken": { "stacks": 1, "duration": 3, "potency": 0 }, "silence": { "stacks": 1, "duration": 2.5, "potency": 0 } }
+  },
+  "whipSpark": {
+    "cost": 15, "minInterval": 0.4, "poise": 6,
+    "fan": { "reach": 26, "deg": 80, "damage": { "base": 6, "dex": 0.6 }, "knockback": 40 }
+  }
+}

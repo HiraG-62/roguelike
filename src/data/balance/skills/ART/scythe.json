@@ -1,0 +1,49 @@
+{
+  "_note": "大鎌の武器技（skills/arts/polearms.ts）。広い弧で引き寄せて刈り、闇と状態異常で削る。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "scytheReap": {
+    "cost": 20, "minInterval": 0.55, "poise": 10,
+    "sweep": { "reach": 40, "deg": 260, "damage": { "base": 9, "str": 0.6, "spi": 0.6 }, "knockback": 60 }
+  },
+  "scytheSoulHarvest": {
+    "cost": 21, "minInterval": 0.6, "poise": 8,
+    "cut": { "reach": 36, "deg": 140, "damage": { "base": 11, "str": 0.6, "spi": 0.8 }, "knockback": 50 },
+    "drain": { "duration": 0, "heal": 0.05 }
+  },
+  "scytheDeathSpin": {
+    "cost": 22, "minInterval": 0.6, "poise": 7,
+    "spin": { "radius": 32, "hits": 4, "damage": { "base": 4.4, "str": 0.4, "spi": 0.4 }, "knockback": 30 }
+  },
+  "scytheGrimPull": {
+    "cost": 19, "minInterval": 0.55, "poise": 12, "range": 120,
+    "pull": { "radius": 60, "toDistance": 14, "damage": { "base": 9, "spi": 0.8 }, "knockback": 0 }
+  },
+  "scytheCurse": {
+    "cost": 16, "minInterval": 0.45, "poise": 6,
+    "bolt": { "count": 1, "spreadDeg": 0, "speed": 190, "life": 0.8, "bulletRadius": 5, "damage": { "base": 8, "spi": 1.0 }, "knockback": 20, "weaken": { "stacks": 1, "duration": 4, "potency": 0 }, "doom": { "stacks": 1, "duration": 4, "potency": 0 } }
+  },
+  "scytheHarvestMoon": {
+    "cost": 18, "minInterval": 0.5, "poise": 8,
+    "moon": { "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.55, "bulletRadius": 6, "pierce": 3, "damage": { "base": 10.5, "str": 0.5, "spi": 0.7 }, "knockback": 60 }
+  },
+  "scytheBeheader": {
+    "cost": 20, "minInterval": 0.6, "poise": 16,
+    "cut": { "reach": 34, "deg": 110, "damage": { "base": 11.5, "str": 0.7, "spi": 0.6 }, "knockback": 80, "execute": 0.18 }
+  },
+  "scytheShadowStep": {
+    "cooldown": 9, "minInterval": 0.4, "poise": 12, "range": 110,
+    "step": { "invuln": 0.2 },
+    "burst": { "radius": 26, "damage": { "base": 8, "spi": 0.8 }, "knockback": 90 }
+  },
+  "scytheWither": {
+    "cost": 19, "minInterval": 0.55, "poise": 6,
+    "rot": { "radius": 34, "damage": { "base": 5.5, "spi": 0.6 }, "knockback": 20, "corrode": { "stacks": 1, "duration": 4, "potency": 0 }, "poison": { "stacks": 2, "duration": 4, "potency": 0 } }
+  },
+  "scytheTerror": {
+    "cooldown": 13, "minInterval": 0.3, "poise": 0,
+    "dread": { "radius": 50, "fear": { "stacks": 1, "duration": 2, "potency": 0 } }
+  },
+  "scytheBloodMoon": {
+    "cost": 23, "minInterval": 0.65, "poise": 14,
+    "cut": { "reach": 38, "deg": 160, "damage": { "base": 11, "str": 0.6, "spi": 0.6 }, "knockback": 70, "vsMul": 1.7 }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "_note": "爪の武器技（skills/arts/blades.ts）。最速の連撃と出血。技巧を主に参照する",
+  "clawsRend": {
+    "cost": 18, "minInterval": 0.55, "poise": 6,
+    "r1": { "reach": 26, "deg": 80, "damage": { "base": 5, "dex": 0.6 }, "knockback": 20, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } },
+    "r2": { "delay": 0.12, "reach": 26, "deg": 80, "damage": { "base": 5, "dex": 0.6 }, "knockback": 20, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } },
+    "r3": { "delay": 0.24, "reach": 28, "deg": 90, "damage": { "base": 6, "dex": 0.8 }, "knockback": 40, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } }
+  },
+  "clawsPounce": {
+    "cooldown": 6, "minInterval": 0.4, "poise": 14,
+    "pounce": { "distance": 75, "width": 18, "invuln": 0.15, "damage": { "base": 8, "dex": 1.2 }, "knockback": 40 }
+  },
+  "clawsFrenzy": {
+    "cost": 21, "minInterval": 0.65, "poise": 3,
+    "frenzy": { "reach": 26, "deg": 70, "hits": 6, "damage": { "base": 2.2, "dex": 0.4 }, "knockback": 10 }
+  },
+  "clawsSpin": {
+    "cost": 19, "minInterval": 0.6, "poise": 6,
+    "spin": { "radius": 28, "hits": 3, "damage": { "base": 4, "dex": 0.5 }, "knockback": 30 }
+  },
+  "clawsHemorrhage": {
+    "cost": 20, "minInterval": 0.6, "poise": 16,
+    "tear": { "reach": 28, "deg": 90, "damage": { "base": 9, "dex": 1.0 }, "knockback": 60, "vsMul": 1.9, "hemorrhage": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } }
+  },
+  "clawsLeapBack": {
+    "cooldown": 7, "minInterval": 0.5, "poise": 10,
+    "slash": { "reach": 26, "deg": 80, "damage": { "base": 8, "dex": 1.0 }, "knockback": 50 },
+    "leap": { "delay": 0.1, "distance": -70, "width": 16, "invuln": 0.2 }
+  },
+  "clawsShred": {
+    "cost": 17, "minInterval": 0.55, "poise": 12,
+    "shred": { "length": 38, "width": 14, "damage": { "base": 8, "dex": 0.8 }, "knockback": 50, "bleed": { "stacks": 2, "duration": 6, "potency": 1, "ratio": { "dex": 0.03 } } }
+  },
+  "clawsBeast": {
+    "cooldown": 15, "minInterval": 0.3, "poise": 0,
+    "beast": { "duration": 5, "damageMul": 1.2, "self": { "haste": { "stacks": 1, "duration": 5, "potency": 0 } } }
+  },
+  "clawsSlashWave": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "wave": { "count": 3, "spreadDeg": 30, "speed": 220, "life": 0.5, "bulletRadius": 5, "damage": { "base": 7, "dex": 0.8 }, "knockback": 40 }
+  },
+  "clawsDive": {
+    "cooldown": 9, "minInterval": 0.5, "poise": 20,
+    "jump": { "distance": 50, "width": 16, "invuln": 0.25 },
+    "land": { "delay": 0.2, "radius": 32, "damage": { "base": 12, "dex": 1.4 }, "knockback": 120, "heavy": true }
+  },
+  "clawsVenom": {
+    "cost": 18, "minInterval": 0.55, "poise": 10,
+    "venom": { "reach": 28, "deg": 85, "damage": { "base": 8, "dex": 0.8, "spi": 0.6 }, "knockback": 50, "poison": { "stacks": 2, "duration": 5, "potency": 1.3, "ratio": { "spi": 0.04 } } }
+  }
+}

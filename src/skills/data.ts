@@ -3,6 +3,7 @@ import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { BALANCE } from "../data/balance";
 import { STATUS } from "../data/tuning";
+import { ART_ATTACK, ART_MIN_DEPTH, ART_SKILL_DEFS, ART_WEIGHTS } from "./arts";
 import { EXTRA_SKILL_DEFS } from "./defs";
 import { WAVE2_SKILL_DEFS } from "./defs2";
 import { WAVE3_SKILL_DEFS } from "./defs3";
@@ -145,6 +146,8 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   siegeForm: 3,
   ironForm: 3,
   pyreForm: 3,
+  // 技（skills/arts/）: 名目の重み。装備中の武器種の武器技は抽選時に差し替える（generator.ts）
+  ...ART_WEIGHTS,
 };
 
 /**
@@ -229,6 +232,7 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   siegeForm: 3,
   ironForm: 3,
   pyreForm: 3,
+  ...ART_MIN_DEPTH,
 };
 
 /** 命中した敵に付ける状態異常（docs/COMBAT_DESIGN.md B-4 の「付与」列） */
@@ -440,7 +444,13 @@ function withExclusiveGroups(defs: Record<SkillKey, SkillDef>): Record<SkillKey,
   return out;
 }
 
-export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({ ...BASE_SKILL_DEFS, ...EXTRA_SKILL_DEFS, ...WAVE2_SKILL_DEFS, ...WAVE3_SKILL_DEFS });
+export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({
+  ...BASE_SKILL_DEFS,
+  ...EXTRA_SKILL_DEFS,
+  ...WAVE2_SKILL_DEFS,
+  ...WAVE3_SKILL_DEFS,
+  ...ART_SKILL_DEFS,
+});
 
 const M = SKILL.modifier;
 
@@ -936,6 +946,8 @@ export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
   siegeForm: attack("ranged", "physical"),
   ironForm: null,
   pyreForm: null,
+  // 技（skills/arts/ の各定義の attack）
+  ...ART_ATTACK,
 };
 
 /** スキルの攻撃の素性（与ダメを持たないスキルは null） */

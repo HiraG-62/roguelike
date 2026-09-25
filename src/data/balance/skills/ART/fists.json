@@ -1,0 +1,48 @@
+{
+  "_note": "拳の武器技（skills/arts/heavy.ts）。至近の連打・投げ。手数が多く隙が少ない",
+  "fistsRapidPunch": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "punch": { "reach": 30, "deg": 70, "hits": 4, "damage": { "base": 3.2, "dex": 0.8, "vit": 0.2 }, "knockback": 30 }
+  },
+  "fistsUppercut": {
+    "cost": 19, "minInterval": 0.55, "poise": 32,
+    "up": { "reach": 32, "deg": 80, "damage": { "base": 13, "str": 0.6, "dex": 0.6 }, "knockback": 200, "heavy": true }
+  },
+  "fistsDashStraight": {
+    "cost": 18, "minInterval": 0.5, "poise": 18,
+    "straight": { "distance": 55, "width": 16, "invuln": 0.15, "damage": { "base": 11, "dex": 1.1 }, "knockback": 100 }
+  },
+  "fistsGroundPound": {
+    "cost": 20, "minInterval": 0.6, "poise": 24,
+    "pound": { "radius": 30, "damage": { "base": 10, "str": 0.9, "vit": 0.3 }, "knockback": 140, "heavy": true, "terrainRadius": 26 }
+  },
+  "fistsKiBlast": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "blast": { "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.55, "bulletRadius": 7, "damage": { "base": 9, "dex": 0.5, "spi": 0.7 }, "knockback": 80 }
+  },
+  "fistsCounterStance": {
+    "cost": 23, "minInterval": 0.65, "poise": 26,
+    "stance": { "duration": 0, "invuln": 0.3 },
+    "counter": { "delay": 0.3, "radius": 32, "damage": { "base": 12, "dex": 0.9, "vit": 0.5 }, "knockback": 150, "heavy": true }
+  },
+  "fistsSpinKick": {
+    "cost": 19, "minInterval": 0.55, "poise": 10,
+    "spin": { "radius": 30, "hits": 3, "damage": { "base": 4.8, "dex": 0.6 }, "knockback": 70 }
+  },
+  "fistsPalm": {
+    "cost": 21, "minInterval": 0.6, "poise": 22,
+    "palm": { "length": 36, "width": 18, "damage": { "base": 14, "str": 0.5, "spi": 1.0 }, "knockback": 320, "heavy": true }
+  },
+  "fistsFocus": {
+    "cooldown": 14, "minInterval": 0.3, "poise": 0,
+    "focus": { "duration": 6, "damageMul": 1.2, "mana": 8 }
+  },
+  "fistsFlyingKnee": {
+    "cost": 20, "minInterval": 0.6, "poise": 26,
+    "knee": { "distance": 50, "width": 18, "invuln": 0.2, "damage": { "base": 12, "dex": 0.8, "str": 0.4 }, "knockback": 150, "heavy": true }
+  },
+  "fistsHundredFist": {
+    "cost": 26, "minInterval": 0.9, "poise": 10,
+    "barrage": { "length": 34, "width": 20, "hits": 8, "damage": { "base": 2.4, "dex": 0.5 }, "knockback": 20 }
+  }
+}

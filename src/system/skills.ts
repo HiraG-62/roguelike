@@ -102,7 +102,6 @@ import {
 } from "../skills/types";
 import type { Element } from "../core/element";
 import { JOBS } from "../data/jobs";
-import { MOVESETS } from "../data/weapons";
 import { buffMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
@@ -116,6 +115,10 @@ import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { pushPlayerEvent } from "../core/events";
 import { noteSkillCombo } from "../meta/runRecord";
+import { ART_CAST_RANGE, isArtKey, weaponArtLabel } from "../skills/arts";
+import { MOVESETS } from "../data/weapons";
+import type { ArtSkillKey } from "../skills/arts/keys";
+import { castArt, updateArtQueue } from "../skills/arts/engine";
 
 /**
  * アクティブスキルの発動・更新・ドロップ・刻印符。docs/ideas/skills.md「7-4」〜「7-7」。
@@ -172,6 +175,7 @@ const CAST_RANGE: Partial<Record<SkillKey, number>> = {
   frostField: SKILL.frostField.maxRange,
   ...EXTRA_CAST_RANGE,
   ...WAVE2_CAST_RANGE,
+  ...ART_CAST_RANGE,
 };
 
 function isExtraKey(key: SkillKey): key is ExtraSkillKey {
@@ -539,6 +543,7 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   updateGrenades(state, dt);
   updateTraps(state, dt);
   updateEchoes(state, dt);
+  updateArtQueue(state, dt);
   updateGasps(state);
   updateGhosts(state, dt);
   updatePlacedSkills(state, dt);
@@ -963,6 +968,13 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
     rs.pendingSlot = -1;
     return false;
   }
+  // 武器技は装備中の武器種でだけ撃てる（払う前に弾く）
+  const weaponBlocked = weaponArtBlock(state, r.def);
+  if (weaponBlocked) {
+    notReady(state, weaponBlocked);
+    rs.pendingSlot = -1;
+    return false;
+  }
   const p = state.player;
   const dir = { ...p.facing };
   const origin = { ...p.body.pos };
@@ -1042,8 +1054,18 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   return true;
 }
 
-/** 手動の本発動（大拡張のスキルは skills/actions.ts、第 2 弾は skills/actions2.ts へ） */
+/** 武器技が今の武器種で撃てないなら理由（撃てるなら null）。docs/ideas/weapon-skills.md */
+export function weaponArtBlock(state: GameState, def: Readonly<SkillDef>): string | null {
+  if (def.moveset === undefined || def.moveset === state.stats.moveset) return null;
+  return weaponArtLabel(def.moveset);
+}
+
+/** 手動の本発動（大拡張のスキルは skills/actions.ts、第 2 弾は skills/actions2.ts、技は skills/arts/engine.ts へ） */
 function castNow(state: GameState, index: number, key: SkillKey, params: CastParams, dir: Vec, target: Vec): void {
+  if (isArtKey(key)) {
+    castArt(state, key, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
+    return;
+  }
   if (isExtraKey(key)) {
     EXTRA_CAST[key](state, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
     return;
@@ -1227,7 +1249,7 @@ function startActive(state: GameState, slot: number, key: ActiveCast["skillKey"]
   };
 }
 
-type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey | Wave2SkillKey | Wave3SkillKey>;
+type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey | Wave2SkillKey | Wave3SkillKey | ArtSkillKey>;
 
 const CAST: Record<BaseSkillKey, CastFn> = {
   whirl: (state, slot, params, dir) => startActive(state, slot, "whirl", params, dir, SKILL.whirl.duration * params.timeMul),
@@ -1914,6 +1936,10 @@ const GHOST_TIME: Record<Ghost["skillKey"], (p: CastParams) => number> = {
 /** 反響・遅延・投げ刃・散り際の発動。プレイヤーは動かさず、発動地点・向き・照準地点で起こす */
 function executeRemote(state: GameState, e: EchoCast): void {
   const key = e.skillKey;
+  if (isArtKey(key)) {
+    castArt(state, key, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, target: e.target, remote: true });
+    return;
+  }
   if (isExtraKey(key)) {
     EXTRA_CAST[key](state, { slot: e.params.slot, params: e.params, origin: e.origin, dir: e.dir, target: e.target, remote: true });
     return;
@@ -2040,6 +2066,7 @@ function syncTracking(state: GameState): void {
     rs.springs = [];
     rs.stakes = [];
     rs.traps = [];
+    rs.artQueue = [];
     // 石の使い込み（発動・命中の数）は階層ごとに保存する（芽が出たときは wear.ts がその場で保存する）
     saveSkillProfile(rs.profile);
     rs.marks.clear();
