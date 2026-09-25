@@ -41,21 +41,7 @@ function arcSlash(frame, f, spec) {
   const T = spec.T * (f < A ? 0.7 + 0.3 * ((f + 1) / A) : 1 - 0.5 * (fade / (spec.frames - A)));
   const ox = spec.ox ?? 0;
   crescent(frame, { ox, R: spec.R, T, head, tail, erosion, bright, seed: spec.seed, streak: spec.streak ?? 0.35 });
-  if (spec.echo) {
-    // 内側の残響の弧（終撃）: 一拍遅れて、細く暗く
-    const lag = spec.echo.lag * sweep;
-    crescent(frame, {
-      ox,
-      R: spec.R * spec.echo.ratio,
-      T: T * spec.echo.thick,
-      head: head - lag,
-      tail: Math.min(head - lag - 0.05, tail),
-      erosion: Math.min(0.95, erosion + 0.12),
-      bright: bright * spec.echo.bright,
-      seed: spec.seed + 11,
-    });
-  }
-  drawArcLines(frame, f, spec, head, tail, T);
+  drawArcLines(frame, f, spec, head, tail);
   if (f >= A - 1) drawArcShards(frame, f - (A - 1), spec, from, sweep);
   if (f === A - 1 || f === A) {
     const tipR = spec.R - T * 0.35;
@@ -63,19 +49,19 @@ function arcSlash(frame, f, spec) {
   }
 }
 
-/** 速度線: 外縁の外と内側に、先端の後ろへ伸びる 1px の弧。崩れの間は外へずれて短くなる */
-function drawArcLines(frame, f, spec, head, tail, T) {
+/** 速度線: 外縁のすぐ外に、先端の後ろへ伸びる 1px の弧。崩れの間は外へずれて短くなる */
+function drawArcLines(frame, f, spec, head, tail) {
   const A = spec.active;
   const k = f < A ? 0 : (f - A + 1) / (spec.frames - A + 1);
   const span = head - tail;
   for (let i = 0; i < spec.lines; i++) {
     const r0 = hash1(i, spec.seed + 40);
-    const outer = i % 2 === 0;
-    const radius = outer ? spec.R + 2 + i * 1.5 + k * 6 : spec.R - T * (1.05 + 0.25 * r0) - k * 4;
+    // 速度線は刃の外側にだけ沿わせる（内側に離して引くと、弧がもう 1 本あるように見える）
+    const radius = spec.R + 2 + i * 1.5 + k * 6;
     const len = span * (0.35 + 0.45 * hash1(i, spec.seed + 41)) * (1 - k * 0.8);
     const end = head - span * (0.06 + 0.12 * r0) + k * span * 0.25;
     if (len <= 0.02 || k >= 0.95) continue;
-    arcLine(frame, { ox: spec.ox ?? 0, radius, from: end - len, to: end, bright: (outer ? 0.62 : 0.45) * (1 - k * 0.6) });
+    arcLine(frame, { ox: spec.ox ?? 0, radius, from: end - len, to: end, bright: (0.62 - i * 0.04) * (1 - k * 0.6) });
   }
 }
 
@@ -101,10 +87,10 @@ function drawArcShards(frame, age, spec, from, sweep) {
 const L1 = { R: 56, T: 20, sweep: 130, tilt: 0, frames: 8, active: 4, tailLen: 0.8, overshoot: 0.06, erodeFrom: 0.04, lines: 3, shards: 5, shardSpeed: 4, glint: 3, seed: 101 };
 /** 左 2 段: 返しの振り（描画側が上下反転で逆回りにする）。少し大きく、尾が長い */
 const L2 = { R: 60, T: 21, sweep: 140, tilt: 6, frames: 8, active: 4, tailLen: 0.9, overshoot: 0.07, erodeFrom: 0.04, lines: 4, shards: 6, shardSpeed: 4.5, glint: 3, seed: 202 };
-/** 左 3 段（終撃）: box reach 22 / size 38。太い三日月 + 内側の残響 + 多めの刃片 */
+/** 左 3 段（終撃）: box reach 22 / size 38。1 本の太い三日月 + 多めの刃片（2 本目の弧は重ねない。二重に見えて読みにくい） */
 const L3 = {
   R: 80,
-  T: 34,
+  T: 40,
   sweep: 150,
   tilt: 0,
   frames: 9,
@@ -118,12 +104,11 @@ const L3 = {
   glint: 4,
   seed: 303,
   streak: 0.45,
-  echo: { ratio: 0.7, thick: 0.5, lag: 0.12, bright: 0.7 },
 };
 /** 右: 斬り上げ（arc 150° reach 26）。大きく跳ね上がる三日月 */
 const RISING = {
   R: 54,
-  T: 30,
+  T: 34,
   sweep: 175,
   tilt: -8,
   frames: 9,
@@ -137,7 +122,6 @@ const RISING = {
   glint: 4,
   seed: 404,
   streak: 0.4,
-  echo: { ratio: 0.66, thick: 0.45, lag: 0.1, bright: 0.6 },
 };
 
 /** 作業面の大きさ（原点が中心。切り詰めるので余白は気にしない） */
