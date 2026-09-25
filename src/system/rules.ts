@@ -28,6 +28,7 @@ import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
 import { sustainRules } from "../data/ultimates";
+import { ultimateBlocksEnergy } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
@@ -472,6 +473,8 @@ function applyVitalEffect(state: GameState, effect: Readonly<RuleEffect>, magnit
       healSustained(state, magnitude, { silent: true });
       return true;
     case "energy":
+      // 持続の奥義の最中は gainEnergy と同じく貯めない（満タン補充で持続が終わらなくなるのを防ぐ）
+      if (ultimateBlocksEnergy(state)) return effect.fill === true || effect.raw === true;
       if (effect.fill === true) {
         p.energy = p.maxEnergy;
         return true;

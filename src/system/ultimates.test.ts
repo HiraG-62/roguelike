@@ -7,7 +7,9 @@ import { ULTIMATES, type UltimateDef, defaultUltimate, ultimateDef } from "../da
 import { MOVESET_KEYS } from "../data/weapons";
 import type { PlayerStats } from "../loot/types";
 import { stoneFromSeed } from "../skills/generator";
-import { collectRules, ruleConditionsMet } from "./rules";
+import { pushPlayerEvent } from "../core/events";
+import { type Rule, SCOPE_ANY, ruleId } from "../core/rules";
+import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
 import { createSkillRunState, updateSkills } from "./skills";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import {
@@ -250,6 +252,23 @@ describe("持続の奥義", () => {
     const e = dummy(state, NEAR);
     damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { buildsEnergy: true, kind: "melee" });
     expect(state.player.energy, "命中でも増えない").toBe(before);
+  });
+
+  it("持続中は Rule の満タン補充・直接加算（刻限コンボ・残響爆発など）でもゲージが増えない", () => {
+    const state = ready("sword.swordAura");
+    tryUltimate(state);
+    updateUltimate(state, FIXED_DT);
+    const before = state.player.energy;
+    const owner = { kind: "boon" as const, key: "comboClock" };
+    const fill: Rule = { id: ruleId(owner, 0), when: "onSwing", if: [], then: { kind: "energy", magnitude: 0, fill: true }, chance: 1, icd: 0, scope: SCOPE_ANY, owner };
+    const raw: Rule = { id: ruleId(owner, 1), when: "onSwing", if: [], then: { kind: "energy", magnitude: 50, raw: true }, chance: 1, icd: 0, scope: SCOPE_ANY, owner };
+    pushPlayerEvent(state, "onSwing", "swing");
+    resolveRules(state, 0, [fill, raw]);
+    expect(state.player.energy, "持続中は補充されない").toBe(before);
+    endUltimate(state, "manual");
+    pushPlayerEvent(state, "onSwing", "swing");
+    resolveRules(state, 0, [fill]);
+    expect(state.player.energy, "終われば満タン補充が効く").toBe(state.player.maxEnergy);
   });
 
   it("持続中は段が差し替わり、終わると装備の型に戻って振りが止まる（剣気解放）", () => {
