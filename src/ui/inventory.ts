@@ -10,18 +10,17 @@ import type { Item } from "../loot/types";
 import { SKILL } from "../skills/data";
 import { equipStone, saveSkillProfile, salvageStone, stoneInSlot, unequipSlot } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
-import { updateAllocButtons } from "./attributeAlloc";
 import { type BudUi, closeBudModal, createBudUi, tryOpenBudModal, updateBudModal } from "./bud";
 import { type EchoUi, createEchoUi, shatterStashItem, tickEchoUi, updateEchoTab } from "./echoTab";
 import {
   type SlotTileLayout,
   TILE_FILTERS,
   TOOLBAR_Y,
-  attributePanelRect,
   budBannerRect,
   slotTileRects,
   stashListArea,
 } from "./equipmentLayout";
+import { type StatusTabUi, clearStatusHover, createStatusTabUi, updateStatusTab } from "./statusTab";
 import { type SynergyPanelUi, createSynergyPanelUi, updateSynergyPanel } from "./synergyPanel";
 import {
   RUNE_BLOCK_TEXT,
@@ -48,11 +47,13 @@ import {
   PANEL_Y,
   STASH_HEADER_H,
   STASH_ROW_H,
+  DETAIL_PAGES,
   type DetailPage,
   type Rect,
   type StashRowLayout,
   clamp,
-  detailRect,
+  detailBodyRect,
+  detailPagerRects,
   findRowAt,
   layoutStashList,
   pointInRect,
@@ -91,23 +92,25 @@ export {
   SLOT_LABEL,
   STASH_HEADER_H,
   STASH_ROW_H,
+  detailBodyRect,
+  detailPagerRects,
   detailRect,
   type DetailPage,
   type Rect,
   type StashRowLayout,
 } from "./inventoryLayout";
-export { attributePanelRect, type SlotTileLayout } from "./equipmentLayout";
+export { type SlotTileLayout } from "./equipmentLayout";
 
 /** 見出しのタブ（クリック or Tab 連打で切替） */
 export const TAB_Y = PANEL_Y + 2;
 export const TAB_H = 10;
 export const TAB_GAP = 2;
-export type InventoryTab = "equipment" | "skills" | "echo" | "web";
-export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 34, skills: 40, echo: 34, web: 34 };
-export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "skills", "echo", "web"];
+export type InventoryTab = "equipment" | "status" | "skills" | "echo" | "web";
+export const TAB_WIDTHS: Readonly<Record<InventoryTab, number>> = { equipment: 34, status: 54, skills: 40, echo: 34, web: 34 };
+export const TAB_ORDER: readonly InventoryTab[] = ["equipment", "status", "skills", "echo", "web"];
 
-/** 見出し右端の ？（そのタブの操作と仕組みの説明を開く） */
-const HELP_BUTTON_W = 14;
+/** 見出し右端の ？（そのタブの操作と仕組みの説明を開く）。小さな「？」だけでは見落とすので名前を添えて幅を取る */
+const HELP_BUTTON_W = 46;
 
 /** スキルタブ: 一覧の上端にスロット 4 枠、その下に石の一覧と刻印符の一覧を左右に並べる */
 export const SKILL_SLOT_H = 28;
@@ -119,6 +122,17 @@ export const RUNE_COL_W = LIST_X + LIST_W - RUNE_COL_X;
 
 /** メッセージ（「装備した: xxx」等）の表示秒数 */
 const MESSAGE_DURATION = 1.5;
+/** 取り返しの付かない操作（砕く・分解・捨てる）の 1 回目の印が残る秒数。この間に同じ対象をもう一度 Shift+クリックで確定 */
+export const DESTROY_CONFIRM_SECONDS = 2.5;
+
+/** スキルタブの列（今フォーカスしている列に枠を出す） */
+export type SkillColumn = "slots" | "stones" | "runes";
+
+/** 取り返しの付かない操作の 1 回目の印。key は「shatter:<遺物 id>」「salvage:<石 id>」「discard:<符 id>」 */
+export interface PendingDestroy {
+  key: string;
+  timer: number;
+}
 
 export interface InventoryLayout {
   panel: Rect;
@@ -194,8 +208,14 @@ export interface InventoryUi {
   echo: EchoUi;
   /** 網タブ（語の一覧） */
   web: SynergyPanelUi;
-  /** 装備タブのステータス振り分け「+」でマウスが乗っている行（-1 = なし） */
-  hoverAlloc: number;
+  /** ステータスタブ（振り分けと奥義） */
+  status: StatusTabUi;
+  /** スキルタブで今操作している列（マウスの乗った列 / キーで動かした列） */
+  skillFocus: SkillColumn;
+  /** 砕く・分解・捨てるの 1 回目（2 回目で確定） */
+  pendingDestroy: PendingDestroy | null;
+  /** 詳細欄の頁送りでマウスが乗っているボタン（-1 = 前 / 1 = 次 / 0 = なし） */
+  hoverPager: number;
   /** 装備タブの倉庫の部位分け・並べ替え・絞り込み（開き直しても保つ） */
   stashView: StashView;
   /** 詳細欄に来歴・語などまで出すか（既定は要点だけ）。拾うキーで切り替え、開き直しても保つ */
@@ -226,7 +246,10 @@ export function createInventoryUi(): InventoryUi {
     bud: createBudUi(),
     echo: createEchoUi(),
     web: createSynergyPanelUi(),
-    hoverAlloc: -1,
+    status: createStatusTabUi(),
+    skillFocus: "stones",
+    pendingDestroy: null,
+    hoverPager: 0,
     stashView: createStashView(),
     detailFull: false,
     detailFormula: false,
@@ -262,7 +285,7 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
     stashOrder,
     stashTotal: state.profile.stash.length,
     stashCounts: slotCounts(state.profile.stash, ui.stashView),
-    detail: detailRect(),
+    detail: detailBodyRect(),
     visibleRowCount: list.visibleRowCount,
     maxScroll: list.maxScroll,
   };
@@ -301,7 +324,8 @@ function clearHover(ui: InventoryUi): void {
   ui.runes.focusId = null;
   ui.echo.hoverOp = null;
   ui.echo.hoverId = null;
-  ui.hoverAlloc = -1;
+  clearStatusHover(ui.status);
+  ui.hoverPager = 0;
   ui.stashView.hover = null;
   ui.hoverHelp = false;
 }
@@ -309,11 +333,14 @@ function clearHover(ui: InventoryUi): void {
 function switchTab(ui: InventoryUi, tab: InventoryTab): void {
   ui.tab = tab;
   ui.helpOpen = false;
+  ui.pendingDestroy = null;
+  // 入り直したら奥義の欄は今の右手の武器種から見せる
+  if (tab === "status") ui.status.moveset = null;
   closeBudModal(ui.bud);
   clearHover(ui);
 }
 
-/** Tab キー: 閉 → 装備 → スキル → 残響 → 網 → 閉 */
+/** Tab キー: 閉 → 装備 → ステータス → スキル → 残響 → 網 → 閉 */
 function cycleTab(state: GameState, ui: InventoryUi): void {
   if (!ui.open) {
     ui.open = true;
@@ -350,6 +377,23 @@ function skillSlotRects(): Rect[] {
   });
 }
 
+/** スキルタブの列の枠（フォーカスの枠とマウスの列判定に使う） */
+export function skillColumnRects(): Record<SkillColumn, Rect> {
+  const listH = CONTENT_BOTTOM - SKILL_LIST_Y;
+  return {
+    slots: { x: LIST_X, y: CONTENT_Y, w: LIST_W, h: SKILL_SLOT_H },
+    stones: { x: LIST_X, y: SKILL_LIST_Y, w: STONE_COL_W, h: listH },
+    runes: { x: RUNE_COL_X, y: SKILL_LIST_Y, w: RUNE_COL_W, h: listH },
+  };
+}
+
+function skillColumnAt(p: Vec | null): SkillColumn | null {
+  if (p === null) return null;
+  const cols = skillColumnRects();
+  const hit = (Object.keys(cols) as SkillColumn[]).find((k) => pointInRect(p, cols[k]));
+  return hit ?? null;
+}
+
 export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
   const profile = state.skills.profile;
   const slotRects = skillSlotRects();
@@ -372,7 +416,7 @@ export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
   }
   const runeArea: Rect = { x: RUNE_COL_X, y: SKILL_LIST_Y, w: RUNE_COL_W, h: CONTENT_BOTTOM - SKILL_LIST_Y };
   const runeList = layoutRuneList(profile, stoneInSlot(profile, ui.skillSlot), ui.runes, runeArea);
-  return { slots, stoneHeader, rows, stoneOrder: order, maxScroll, runeList, detail: detailRect() };
+  return { slots, stoneHeader, rows, stoneOrder: order, maxScroll, runeList, detail: detailBodyRect() };
 }
 
 /**
@@ -380,9 +424,14 @@ export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
  * スロットクリック: 選択（Shift+クリックで解除）。刻印符は updateRuneColumn
  */
 function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput, aimMoved: boolean): void {
-  const keyDy = selectSlotByKeys(ui, input);
+  const keys = selectSlotByKeys(ui, input);
+  const keyDy = keys.dy;
+  if (keys.slotChanged) ui.skillFocus = "slots";
+  if (keyDy !== 0) ui.skillFocus = "runes";
   const layout = layoutSkills(state, ui);
   const aim = input.aimScreen;
+  const column = aimMoved ? skillColumnAt(aim) : null;
+  if (column !== null) ui.skillFocus = column;
   const inRunes = aim !== null && aim.x >= RUNE_COL_X && aim.y >= SKILL_LIST_Y;
   if (inRunes) ui.runes.scroll = clamp(ui.runes.scroll + input.wheel, 0, layout.runeList.maxScroll);
   else ui.skillScroll = clamp(ui.skillScroll + input.wheel, 0, layout.maxScroll);
@@ -400,6 +449,7 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput, a
   }
   if (!slot) return;
   ui.skillSlot = slot.index;
+  ui.skillFocus = "slots";
   if (!slot.stone || !input.shiftHeld) return;
   unequipSlot(profile, slot.index);
   saveSkillProfile(profile);
@@ -407,21 +457,25 @@ function updateSkillsTab(state: GameState, ui: InventoryUi, input: FrameInput, a
   pushSfx(state, "equipOff");
 }
 
-/** スキルキー（1〜4 / パッドの LB+ボタン）と左右の移動で選択中スロットを変える。戻り値は刻印符カーソルへ与えた dy（キー操作か） */
-function selectSlotByKeys(ui: InventoryUi, input: FrameInput): number {
+/**
+ * スキルキー（1〜4 / パッドの LB+ボタン）と左右の移動で選択中スロットを変える。
+ * 戻り値: 刻印符カーソルへ与えた dy（キー操作か）と、キーでスロットを選んだか（フォーカスの枠を動かす）
+ */
+function selectSlotByKeys(ui: InventoryUi, input: FrameInput): { dy: number; slotChanged: boolean } {
   const keys = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
   const pressed = keys.findIndex((on) => on);
   if (pressed >= 0) ui.skillSlot = pressed;
   const nav = readNav(ui.runes, input);
   if (nav.dx !== 0) ui.skillSlot = clamp(ui.skillSlot + nav.dx, 0, SKILL.slots - 1);
   ui.runes.cursor += nav.dy;
-  return nav.dy;
+  return { dy: nav.dy, slotChanged: pressed >= 0 || nav.dx !== 0 };
 }
 
 /** 石の一覧のクリック: 装着（空きスロット優先）/ Shift で分解（付いていた刻印符は所持品へ戻る） */
 function clickStoneRow(state: GameState, ui: InventoryUi, stoneId: string, shift: boolean): void {
   const profile = state.skills.profile;
   if (shift) {
+    if (!confirmDestroy(ui, salvageKey(stoneId), "分解")) return;
     if (salvageStone(profile, stoneId)) {
       showMessage(ui, "スキル石を分解した");
       pushSfx(state, "dismantle");
@@ -462,8 +516,11 @@ function updateRuneColumn(
   if (!clicked && !input.confirmPressed) return false;
   const target = clicked ? hovered : entry;
   if (!target) return clicked;
+  const discard = clicked && input.shiftHeld;
+  // 捨てるのは所持品の符だけ（付いている符は捨てない）。取り返しが付かないので 2 回目で確定
+  if (discard && !target.attached && !confirmDestroy(ui, `discard:${target.rune.id}`, "捨てる")) return true;
   const profile = state.skills.profile;
-  const result = toggleRune(profile, stoneInSlot(profile, ui.skillSlot), target, clicked && input.shiftHeld);
+  const result = toggleRune(profile, stoneInSlot(profile, ui.skillSlot), target, discard);
   reportRuneToggle(state, ui, result);
   if (result.kind !== "blocked") saveSkillProfile(profile);
   return true;
@@ -487,6 +544,41 @@ function reportRuneToggle(state: GameState, ui: InventoryUi, result: RuneToggleR
       showMessage(ui, RUNE_BLOCK_TEXT[result.reason]);
       return;
   }
+}
+
+/**
+ * 取り返しの付かない操作の確認。1 回目は印を付けて false、印の残っている間に同じ対象でもう一度呼ぶと true。
+ * 別の対象・別の操作をすると印は消える（updateInventoryUi）
+ */
+function confirmDestroy(ui: InventoryUi, key: string, label: string): boolean {
+  if (ui.pendingDestroy?.key === key) {
+    ui.pendingDestroy = null;
+    return true;
+  }
+  ui.pendingDestroy = { key, timer: DESTROY_CONFIRM_SECONDS };
+  showMessage(ui, `もう一度 Shift+クリック: ${label}`);
+  ui.messageTimer = DESTROY_CONFIRM_SECONDS;
+  return false;
+}
+
+export function shatterKey(itemId: string): string {
+  return `shatter:${itemId}`;
+}
+
+export function salvageKey(stoneId: string): string {
+  return `salvage:${stoneId}`;
+}
+
+/** 今その対象が 1 回目の印を付けられているか（描画で行を赤くする） */
+export function isDestroyPending(ui: Readonly<InventoryUi>, key: string): boolean {
+  return ui.pendingDestroy?.key === key;
+}
+
+function tickPendingDestroy(ui: InventoryUi, dt: number): void {
+  const pending = ui.pendingDestroy;
+  if (pending === null) return;
+  pending.timer -= dt;
+  if (pending.timer <= 0) ui.pendingDestroy = null;
 }
 
 function tickMessage(ui: InventoryUi, dt: number): void {
@@ -519,19 +611,54 @@ export function detailPageOf(ui: Readonly<InventoryUi>): DetailPage {
   return ui.detailFull ? "full" : "brief";
 }
 
+function setDetailPage(ui: InventoryUi, page: DetailPage): void {
+  ui.detailFull = page === "full";
+  ui.detailFormula = page === "formula";
+}
+
 /** 要点 → 詳しく → 計算式 → 要点 */
 export function advanceDetailPage(ui: InventoryUi): void {
-  const page = detailPageOf(ui);
-  ui.detailFull = page === "brief";
-  ui.detailFormula = page === "full";
+  stepDetailPage(ui, 1);
+}
+
+/** 頁を dir だけ送る（端は反対側へ回る） */
+export function stepDetailPage(ui: InventoryUi, dir: number): void {
+  const n = DETAIL_PAGES.length;
+  const next = DETAIL_PAGES[(DETAIL_PAGES.indexOf(detailPageOf(ui)) + dir + n) % n];
+  if (next !== undefined) setDetailPage(ui, next);
+}
+
+/** 詳細欄（と頁送り）を持つタブ */
+export function hasDetailPager(tab: InventoryTab): boolean {
+  return tab === "equipment" || tab === "skills";
+}
+
+/** 詳細欄の頁送り: 左のボタンで前、それ以外（右のボタン・頁の名前）で次。クリックを使ったら true */
+function updateDetailPager(ui: InventoryUi, input: FrameInput): boolean {
+  const aim = input.aimScreen;
+  const pager = detailPagerRects();
+  ui.hoverPager = 0;
+  if (!hasDetailPager(ui.tab) || aim === null || !pointInRect(aim, pager.bar)) return false;
+  ui.hoverPager = pointInRect(aim, pager.prev) ? -1 : 1;
+  if (!input.clickPressed) return false;
+  stepDetailPage(ui, ui.hoverPager);
+  return true;
 }
 
 export function updateInventoryUi(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
   if (input.inventoryPressed) cycleTab(state, ui);
   tickMessage(ui, dt);
+  tickPendingDestroy(ui, dt);
   tickEchoUi(ui.echo, dt);
   if (!ui.open) return;
   if (updateHelp(ui, input)) return;
+  const pendingBefore = ui.pendingDestroy;
+  updateOpenTabs(state, ui, input, dt);
+  // 1 回目の印を付けたクリック以外のクリックで印を消す（別の行を Shift+クリックしても確定しない）
+  if (input.clickPressed && ui.pendingDestroy === pendingBefore) ui.pendingDestroy = null;
+}
+
+function updateOpenTabs(state: GameState, ui: InventoryUi, input: FrameInput, dt: number): void {
   // 拾うキーで詳細欄の「要点 → 詳しく → 計算式」を回す（装備画面を開いている間はゲームが止まっていて拾わない）
   if (input.interactPressed) advanceDetailPage(ui);
 
@@ -544,7 +671,16 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
     switchTab(ui, tab.tab);
     return;
   }
+  if (updateDetailPager(ui, input)) {
+    pushSfx(state, "uiClick");
+    return;
+  }
   switch (ui.tab) {
+    case "status": {
+      const message = updateStatusTab(state, ui.status, input, aimMoved);
+      if (message !== null) showMessage(ui, message);
+      return;
+    }
     case "skills":
       updateSkillsTab(state, ui, input, aimMoved);
       return;
@@ -578,12 +714,8 @@ function updateEquipmentTab(state: GameState, ui: InventoryUi, input: FrameInput
   if (updateBudFlow(state, ui, input)) {
     ui.hoverItemId = null;
     ui.hoverTile = null;
-    ui.hoverAlloc = -1;
     return;
   }
-  const alloc = updateAllocButtons(state, input, attributePanelRect());
-  ui.hoverAlloc = alloc.hover;
-  if (alloc.used) return;
   const layout = layoutInventory(state, ui);
   if (updateStashToolbar(ui.stashView, layout.stashToolbar, input, state.profile.stash)) {
     // 条件が変わったら一覧の先頭から見せる
@@ -623,9 +755,10 @@ function clickSlotTile(state: GameState, ui: InventoryUi, tile: SlotTileLayout, 
   pushSfx(state, "equipOff");
 }
 
-/** クリックで装備、Shift+クリックで砕く（残響を得る） */
+/** クリックで装備、Shift+クリックを 2 回で砕く（残響を得る） */
 function clickStashRow(state: GameState, ui: InventoryUi, item: Item, shift: boolean): void {
   if (shift) {
+    if (!confirmDestroy(ui, shatterKey(item.id), "砕く")) return;
     const result = shatterStashItem(state, ui.echo, item);
     showMessage(ui, result.message);
     return;

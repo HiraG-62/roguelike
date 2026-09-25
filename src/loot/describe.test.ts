@@ -7,9 +7,11 @@ import {
   type SynergyBuild,
   type SynergyElement,
   describeAttribute,
+  describeItem,
   describeStatusProc,
   describeSynergy,
   describeTrait,
+  itemKindName,
 } from "./describe";
 import { ATTR_KEYS, TRAIT_COLOR_HEX, createEmptyProvenance, type AffixRoll, type Item } from "./types";
 
@@ -120,5 +122,42 @@ describe("describeSynergy: 遺物とビルドの相性", () => {
     expect(d.fills, "埋める穴なし").toEqual([]);
     expect(d.feeds, "受け皿なし").toEqual([]);
     expect(d.partners, "相手なし").toEqual([]);
+  });
+});
+
+function kindItem(baseKey: string, slot: Item["slot"]): Item {
+  return {
+    id: `k-${baseKey}`,
+    seed: 1,
+    baseKey,
+    slot,
+    rarity: "normal",
+    itemLevel: 1,
+    name: "種類を見る遺物",
+    implicit: null,
+    affixes: [],
+    foundDepth: 3,
+    foundAt: 0,
+    provenance: createEmptyProvenance(),
+  };
+}
+
+describe("装備名の下の種類の行", () => {
+  it("刀のベースの装備名の下の行は武器種名『刀』で始まる", () => {
+    const d = describeItem(kindItem("katana", "mainHand"));
+    expect(d.subtitle.startsWith("刀・"), `ベース名ではなく武器種名: ${d.subtitle}`).toBe(true);
+    expect(d.baseName, "ベース名は別に残る").toBe("打刀");
+    expect(itemKindName({ baseKey: "katana" })).toBe("刀");
+  });
+
+  it("同じ武器種ならベースが違っても種類の名前は同じ", () => {
+    expect(itemKindName({ baseKey: "zanbato" }), "斬馬刀は大剣").toBe(itemKindName({ baseKey: "greatsword" }));
+    expect(itemKindName({ baseKey: "rapier" }), "刺突剣は槍").toBe("槍");
+  });
+
+  it("鎧の行はベース名のまま", () => {
+    const d = describeItem(kindItem("leather", "armor"));
+    expect(d.subtitle.startsWith("革鎧・"), d.subtitle).toBe(true);
+    expect(itemKindName({ baseKey: "leather" })).toBe("革鎧");
   });
 });

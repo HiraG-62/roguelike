@@ -175,7 +175,8 @@ describe("describeItem / describeResonance", () => {
     item.provenance = { ...createEmptyProvenance(), kills: 12, killsByEnemy: { slime: 10, bat: 2 }, justDodges: 3 };
     const desc = describeItem(item);
     expect(desc.name).toBe("嵐の牙");
-    expect(desc.subtitle).toContain("長剣");
+    expect(desc.subtitle.startsWith("剣・"), "種類の行は武器種名で始まる").toBe(true);
+    expect(desc.baseName, "ベース名は別に持つ").toBe("長剣");
     expect(desc.subtitle).toContain("反転あり");
     expect(desc.inscription).toBe("嵐の牙");
     expect(desc.implicit).toBeDefined();

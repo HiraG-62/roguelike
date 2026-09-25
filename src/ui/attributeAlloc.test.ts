@@ -9,7 +9,8 @@ import { createEmptyProfile, uniformAttributes, type AffixRoll, type Item, type 
 import { grantBoon } from "../system/boons";
 import { descend, floorAttributePoints } from "../system/floor";
 import { ALLOC_ORDER, allocButtonRect, allocKeyIndex, allocateAttribute } from "./attributeAlloc";
-import { attributePanelRect, createInventoryUi, updateInventoryUi, type InventoryUi } from "./inventory";
+import { createInventoryUi, updateInventoryUi, type InventoryUi } from "./inventory";
+import { statusAttrPanelRect } from "./statusTab";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -22,15 +23,16 @@ function arrived(seed = 3): GameState {
   return state;
 }
 
-/** 装備画面（装備タブ）を開いた状態 */
+/** 装備画面をステータスタブ（Tab 2 回: 装備 → ステータス）で開いた状態 */
 function openInventory(state: GameState): InventoryUi {
   const ui = createInventoryUi();
+  updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
   updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
   return ui;
 }
 
 function buttonCenter(index: number): { x: number; y: number } {
-  const r = allocButtonRect(attributePanelRect(), index);
+  const r = allocButtonRect(statusAttrPanelRect(), index);
   return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }
 
@@ -93,13 +95,18 @@ describe("装備画面での振り分け", () => {
     expect(state.runAttributes.unspent).toBe(1);
   });
 
-  it("装備タブ以外では振らない", () => {
+  it("ステータスタブ以外では振らない", () => {
     const state = arrived();
     const ui = openInventory(state);
+    expect(ui.tab).toBe("status");
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
     expect(ui.tab).toBe("skills");
     updateInventoryUi(state, ui, withInput({ skill1Pressed: true }), 0);
-    expect(state.runAttributes.unspent).toBe(1);
+    expect(state.runAttributes.unspent, "スキルタブ").toBe(1);
+    ui.tab = "equipment";
+    updateInventoryUi(state, ui, withInput({ skill1Pressed: true }), 0);
+    updateInventoryUi(state, ui, withInput({ aimScreen: buttonCenter(0), clickPressed: true }), 0);
+    expect(state.runAttributes.unspent, "装備タブ").toBe(1);
   });
 
   it("点が無ければ押しても振れない", () => {

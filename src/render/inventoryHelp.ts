@@ -67,10 +67,23 @@ function skillsHelp(): TipLine[] {
   ];
 }
 
+function statusHelp(): TipLine[] {
+  return [
+    head("操作"),
+    body("+ / 1〜4・攻撃キー: ステータスを 1 点振る（ラン中の未振り点）"),
+    body("奥義のカード クリック / ↑↓+決定: 選ぶ（拠点のみ）"),
+    body("< > / ←→: 武器種を送る（拠点のみ）"),
+    head("ステータス"),
+    ...ATTR_KEYS.map((k) => ({ text: `${ATTR_LABEL[k]}: ${ATTR_HINT[k]}`, color: COLOR_DIM })),
+  ];
+}
+
 export function helpLines(tab: InventoryTab): TipLine[] {
   switch (tab) {
     case "equipment":
       return equipmentHelp();
+    case "status":
+      return statusHelp();
     case "skills":
       return skillsHelp();
     case "echo":

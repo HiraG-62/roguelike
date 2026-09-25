@@ -64,10 +64,12 @@
 | 戦闘中の回復の上限 | `HEAL.sustainCapRatio` | 命中時・撃破時・祝福の撃破回復を合わせて 1 秒に最大生命の 4% まで。説明文では「戦闘中の回復の上限あり」 | `system/combat.ts` healSustained |
 | ダッシュ攻撃 | dashAttack | ダッシュ中に押した攻撃が終了時に出る突き | tuning ACTION |
 | コンボ | combo | 連続ヒット数。時間切れか被弾で途切れる | HUD |
-| 奥義 | `special`（入力）/ `UltimateDef`（定義）/ `Player.ultimate`（作業領域） | 奥義ゲージ満タンで F。武器種ごとに 3 本から拠点の武器掛けで 1 本選ぶ（`Profile.ultimates`）。一撃（instant）と、ゲージが減る間の強化（持続 / sustain）がある。旧表記「バースト」 | `data/ultimates.ts`、`system/ultimates.ts` |
+| 奥義 | `special`（入力）/ `UltimateDef`（定義）/ `Player.ultimate`（作業領域） | 奥義ゲージ満タンで F。武器種ごとに 3 本から装備画面のステータスタブで 1 本選ぶ（拠点のみ。ラン中は変えられない）（`Profile.ultimates`）。一撃（instant）と、ゲージが減る間の強化（持続 / sustain）がある。旧表記「バースト」 | `data/ultimates.ts`、`system/ultimates.ts` |
 | 奥義ゲージ | `energy` / `maxEnergy` | 奥義の資源。旧表記「必殺ゲージ」「エネルギー」。持続の奥義の間は HUD のゲージの色が変わる | HUD、祝福の説明文 |
 | 奥義の威力 / 奥義の範囲 / 奥義ゲージ獲得 | `burstDamageMul` / `burstRadiusMul` / `energyGainMul` | 性質の表示名。旧「必殺ダメージ / 必殺範囲 / 必殺ゲージ獲得」 | `loot/stats.ts` |
-| 一撃 / 持続（奥義の種類） | `UltimateKind`: instant / sustain | 拠点の武器掛けの奥義の行に出す種類の名前 | `ui/hubFlow.ts` |
+| 一撃 / 持続（奥義の種類） | `UltimateKind`: instant / sustain | ステータスタブの奥義カードに出す種類の名前 | `ui/statusTab.ts` ULTIMATE_KIND_LABEL |
+| ステータス（装備画面のタブ） | `InventoryTab` "status" | ステータス 5 種・振り分けの「+」・体の性能・奥義のカード 3 枚を並べる装備画面のタブ | `ui/statusTab.ts`、`render/statusTabUi.ts` |
+| 体の性能 | `derivedStatRows` | ステータスタブの派生値（最大生命・最大気力・移動速度など）の見出し | `ui/statusTab.ts` |
 | 奥義の名前 | `UltimateDef.name` | 武器種ごとの 3 本。下の「奥義の名前の一覧」 | `data/ultimates.ts` |
 | 奥義が終わった / 未充填 | `END_TEXT` / `NOT_READY_TEXT` | 持続の奥義が終わったとき / ゲージが満タンでないのに F を押したときの浮き文字 | `system/ultimates.ts` |
 | アクション 1 / アクション 2 | `primary` / `secondary`（`ButtonKey`） | 左クリック / 右クリックの連撃。HUD の表示は「左」「右」のまま | `data/weapons.ts` |

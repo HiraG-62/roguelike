@@ -1,9 +1,11 @@
 import type { Keyword, KeywordProfile } from "../core/keywords";
 import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMIES } from "../data/enemies";
+import { MOVESETS } from "../data/weapons";
 import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
 import { traitColorOf } from "./colors";
 import { CALM_FLUX_LIMIT, WAVER_FLUX_LIMIT, fluxMagnitude } from "./flux";
+import { baseDef } from "./bases";
 import { milestoneDef } from "./provenance";
 import { baseName, dominantColor } from "./names";
 import { ATTR_LABEL, colorWeights } from "./resonance";
@@ -52,8 +54,10 @@ export interface ColorBarSegment {
 
 export interface ItemDescription {
   name: string;
-  /** ベース名・揺らぎの分類・発見深度 */
+  /** 種類（武器は武器種名、それ以外はベース名）・揺らぎの分類・発見深度 */
   subtitle: string;
+  /** ベースの表示名（「打刀」）。武器は種類の名前が武器種名になるので、詳しくの頁でだけ出す */
+  baseName: string;
   /** 性質の組み合わせから作る一言（動詞） */
   summary: string;
   /** implicit の説明（無ければ undefined） */
@@ -273,13 +277,23 @@ function marginText(item: Item): string {
   return `余白 ${margin}（あと ${margin} 回育つ）`;
 }
 
+/**
+ * 遺物の種類の名前。武器（武器種を持つベース）は武器種名（「刀」）、それ以外の部位はベース名（「革鎧」）。
+ * 同じ武器種でもベース名が違う（打刀・太刀）ので、何ができるかが分かる武器種の側に揃える
+ */
+export function itemKindName(item: Pick<Item, "baseKey">): string {
+  const moveset = baseDef(item.baseKey)?.moveset;
+  return moveset === undefined ? baseName(item.baseKey) : MOVESETS[moveset].name;
+}
+
 /** アイテム 1 つの表示情報 */
 export function describeItem(item: Item): ItemDescription {
   const dominant = dominantColor(item.affixes);
   const hueText = dominant === undefined ? "" : `・${TRAIT_COLOR_LABEL[dominant]}`;
   const desc: ItemDescription = {
     name: item.loaned === true ? `${item.name}（借り物）` : item.name,
-    subtitle: `${baseName(item.baseKey)}・${RARITY_LABEL[item.rarity]}${hueText}・地下 ${item.foundDepth} 階`,
+    subtitle: `${itemKindName(item)}・${RARITY_LABEL[item.rarity]}${hueText}・地下 ${item.foundDepth} 階`,
+    baseName: baseName(item.baseKey),
     summary: itemSummary(item.affixes),
     colorBar: itemColorBar(item.affixes),
     lines: item.affixes.map(describeTrait),

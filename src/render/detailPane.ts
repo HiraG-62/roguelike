@@ -22,9 +22,10 @@ import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixel
 
 /**
  * 装備画面の右の固定の詳細欄。浮くツールチップの代わりに、乗せた物の説明を常に同じ場所へ出す。
+ * 頁は欄の下端の頁送り（render/inventoryUi.ts の drawDetailPager）か拾うキーで回す。
  * - lines: 要点（いつも出す）
- * - more: 詳しく（来歴・語・噛む など。拾うキーで切り替えたときだけ出す）
- * - formulas: 計算式（行動ごとの係数。拾うキーでもう一度切り替えたときに出す。無ければ詳しくと同じ）
+ * - more: 詳しく（来歴・語・噛む など。2 頁目）
+ * - formulas: 計算式（行動ごとの係数。3 頁目。無ければ詳しくと同じ）
  * - actions: 下端にいまできる操作だけを小さく出す
  * 入りきらなければ行間を詰め、それでも溢れた分は切る（最後の行に … を出す）
  */
@@ -68,15 +69,14 @@ function isChunkRow(line: WrappedLine): line is ChunkRow {
   return "segments" in line;
 }
 
-/** 右手の武器の要点に出す、その武器種で選んでいる奥義（選び直す場所も添える） */
+/** 右手の武器の要点に出す、その武器種で選んでいる奥義（選ぶのは装備画面のステータスタブ） */
 const ULTIMATE_LINE_HEAD = "奥義: ";
-const ULTIMATE_LINE_TAIL = "（拠点の武器掛けで変更）";
 
-/** 武器種を持つ武器なら「奥義: 円月（拠点の武器掛けで変更）」の行。武器でなければ null */
+/** 武器種を持つ武器なら「奥義: 円月」の行。武器でなければ null */
 export function ultimateTipLine(profile: Readonly<Pick<Profile, "ultimates">>, item: Readonly<Item>): TipLine | null {
   const moveset = baseDef(item.baseKey)?.moveset;
   if (moveset === undefined) return null;
-  return { text: `${ULTIMATE_LINE_HEAD}${ultimateChoice(profile, moveset).name}${ULTIMATE_LINE_TAIL}`, color: COLOR_DIM };
+  return { text: `${ULTIMATE_LINE_HEAD}${ultimateChoice(profile, moveset).name}`, color: COLOR_DIM };
 }
 
 /** 要点と詳しくの区切り（空の行）。wrapTipLines を通さず半行ぶん空ける */

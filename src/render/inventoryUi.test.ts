@@ -80,7 +80,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
 }
 
 describe("装備画面の描画", () => {
-  it("3 タブ・ツールチップ・芽のモーダル・戦闘中の芽を例外なく描き、fillText を直接使わない", async () => {
+  it("全タブ・ツールチップ・芽のモーダル・戦闘中の芽を例外なく描き、fillText を直接使わない", async () => {
     const { drawInventoryUi } = await import("./inventoryUi");
     const { drawBudUi } = await import("./budUi");
     const state = createGame(1);
@@ -131,6 +131,25 @@ describe("装備画面の描画", () => {
     ui.tab = "skills";
     ui.hoverStoneId = state.skills.profile.loadout.find((id) => id !== null) ?? null;
     drawInventoryUi(ctx, state, ui);
+    ui.pendingDestroy = { key: `salvage:${ui.hoverStoneId ?? ""}`, timer: 1 };
+    ui.skillFocus = "runes";
+    drawInventoryUi(ctx, state, ui);
+    ui.tab = "equipment";
+    ui.pendingDestroy = { key: "shatter:a", timer: 1 };
+    ui.hoverPager = 1;
+    drawInventoryUi(ctx, state, ui);
+    ui.tab = "status";
+    state.runAttributes.unspent = 2;
+    state.runAttributes.alloc.str = 1;
+    ui.status.hoverAlloc = 0;
+    drawInventoryUi(ctx, state, ui);
+    state.sandbox = true;
+    ui.status.hoverCard = 1;
+    ui.status.hoverArrow = 1;
+    drawInventoryUi(ctx, state, ui);
+    ui.helpOpen = true;
+    drawInventoryUi(ctx, state, ui);
+    ui.helpOpen = false;
 
     state.paused = false;
     drawBudUi(ctx, state);

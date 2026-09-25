@@ -3,15 +3,14 @@ import { JOBS } from "../data/jobs";
 import { ATTR_LABEL, COLOR_ATTR } from "../loot/resonance";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX, type AttrKey, type TraitColor } from "../loot/types";
 import { ALLOC_BUTTON, ALLOC_ORDER, allocButtonRect } from "../ui/attributeAlloc";
-import { type Rect, attributePanelRect } from "../ui/inventory";
+import type { Rect } from "../ui/inventoryLayout";
+import { statusAttrPanelRect } from "../ui/statusTab";
 import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
 
 /**
- * ステータスの描画。装備画面の「生値と実効値」の一覧と振り分けの「+」、HUD の未振り点の表示。
+ * ステータスの描画。装備画面（ステータスタブ）の「生値と実効値」の一覧と振り分けの「+」、HUD の未振り点の表示。
  * 当たり判定は ui/attributeAlloc.ts の allocButtonRect と共有する
  */
-
-export { attributePanelRect };
 
 /**
  * 体の性能として何が伸びるかの一言（docs/COMBAT_DESIGN.md A-10。単一の強さの指標は出さない）。装備タブの ？ のヘルプに出す。
@@ -38,13 +37,13 @@ const BUTTON_GLYPH = "+";
 const BUTTON_BASELINE_UP = 1;
 
 /** ステータスの色（共鳴の色の対応を逆引き） */
-function attrColor(key: AttrKey): string {
+export function attrColor(key: AttrKey): string {
   const color = TRAIT_COLORS.find((c: TraitColor) => COLOR_ATTR[c] === key);
   return color === undefined ? COLOR_TEXT : TRAIT_COLOR_HEX[color];
 }
 
 // ---------------------------------------------------------------------------
-// 装備画面の一覧（スロットの下）
+// ステータスタブの一覧
 // ---------------------------------------------------------------------------
 
 /** 「筋力 26（実効 23）」。逓減が掛かっていなければ生値だけ */
@@ -62,11 +61,19 @@ function formatEff(eff: number): string {
   return String(Number(eff.toFixed(EFF_DIGITS)));
 }
 
+/** このランで振った点（「振り +2」）。振っていなければ空 */
+export function allocatedText(points: number): string {
+  return points > 0 ? `振り +${points}` : "";
+}
+
+/** 行の中央に文字を置くベースライン（行の上端から）。行高が文字より広いので中央に寄せる */
+const ROW_TEXT_BASELINE = 3;
+
 /**
- * 行の並びは ALLOC_BUTTON.rowH 間隔（「+」の当たり判定と揃える）。hover は ui.hoverAlloc。
+ * 行の並びは ALLOC_BUTTON.rowH 間隔（「+」の当たり判定と揃える）。hover は ui.status.hoverAlloc。
  * 「+」は振れる点があるときだけ出す（無いときに灰色のボタンを並べると文字が増えるだけなので）
  */
-export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameState, hover = -1, rect: Rect = attributePanelRect()): void {
+export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameState, hover = -1, rect: Rect = statusAttrPanelRect()): void {
   const m = TEXT.SMALL;
   const x = rect.x + ALLOC_BUTTON.pad;
   const bottom = rect.y + rect.h;
@@ -74,15 +81,18 @@ export function drawAttributePanel(ctx: CanvasRenderingContext2D, state: GameSta
   ALLOC_ORDER.forEach((key, i) => {
     const button = allocButtonRect(rect, i);
     if (button.y + button.h > bottom) return;
-    const baseline = rect.y + (i + 1) * ALLOC_BUTTON.rowH - ROW_BASELINE_UP;
+    const baseline = rect.y + i * ALLOC_BUTTON.rowH + ALLOC_BUTTON.rowH / HALF + ROW_TEXT_BASELINE;
     const right = button.x - ALLOC_BUTTON.pad;
+    const spent = allocatedText(state.runAttributes.alloc[key]);
+    if (spent) drawText(ctx, spent, right, baseline, m, COLOR_SUB, "right");
+    const room = right - x - (spent ? textWidth(spent, m) + ALLOC_BUTTON.pad : 0);
     const text = attributeValueText(key, state.stats.attributes[key], state.stats.attributesEff[key]);
-    drawText(ctx, truncateText(text, right - x, m), x, baseline, m, attrColor(key));
+    drawText(ctx, truncateText(text, room, m), x, baseline, m, attrColor(key));
     if (canAlloc) drawAllocButton(ctx, button, hover === i);
   });
 }
 
-/** 詳細欄の要約の見出し: ジョブ名と未振り点 */
+/** ジョブ名と未振り点の行（装備タブの要約の見出し・ステータスタブの先頭） */
 export function drawSummaryHead(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect): void {
   const m = TEXT.SMALL;
   const baseline = rect.y + rect.h - ROW_BASELINE_UP - 1;

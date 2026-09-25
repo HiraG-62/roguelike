@@ -3,7 +3,7 @@ import { createGame } from "../core/game";
 import { BASES } from "../loot/bases";
 import { createEmptyProvenance, type Item } from "../loot/types";
 import { SKILL_KEYS, type SkillStone } from "../skills/types";
-import { detailRect } from "../ui/inventoryLayout";
+import { detailBodyRect, detailRect } from "../ui/inventoryLayout";
 import { MOVESET_KEYS, MOVESETS } from "../data/weapons";
 import { chunksText, formulaChunks, movesetFormulas, skillFormulas } from "../ui/scalingText";
 import { ULTIMATES, defaultUltimate } from "../data/ultimates";
@@ -88,13 +88,13 @@ describe("詳細欄の計算式の頁", () => {
     const { detailPaneFits } = await import("./detailPane");
     const { itemFormulaLines } = await import("./inventoryUi");
     const game = createGame(1);
-    const rect = detailRect();
+    const rect = detailBodyRect();
     const weapons = BASES.filter((b) => b.moveset !== undefined);
     expect(weapons.length, "武器のベースがある").toBeGreaterThan(0);
     for (const scale of SCALES) {
       await withScale(scale);
       for (const base of weapons) {
-        const content = { lines: [], formulas: itemFormulaLines(game, weaponItem(base.key)), actions: ["クリック: 装備", "Shift+クリック: 砕く", "E: 要点だけ"] };
+        const content = { lines: [], formulas: itemFormulaLines(game, weaponItem(base.key)), actions: ["クリック: 装備", "Shift+クリック 2 回: 砕く"] };
         const r = detailPaneFits(rect, content, "formula");
         expect(r.fits, `倍率 ${scale} ${base.name}（${r.rows} 行）が欄からはみ出す`).toBe(true);
       }
@@ -105,22 +105,22 @@ describe("詳細欄の計算式の頁", () => {
     const { detailPaneFits } = await import("./detailPane");
     const { stoneFormulaLines } = await import("./inventoryUi");
     const game = createGame(1);
-    const rect = detailRect();
+    const rect = detailBodyRect();
     for (const scale of SCALES) {
       await withScale(scale);
       for (const key of SKILL_KEYS) {
-        const content = { lines: [], formulas: stoneFormulaLines(stoneOf(key), skillFormulas(game.stats, key)), actions: ["クリック: 装着", "Shift+クリック: 分解", "E: 要点だけ"] };
+        const content = { lines: [], formulas: stoneFormulaLines(stoneOf(key), skillFormulas(game.stats, key)), actions: ["クリック: 装着", "Shift+クリック 2 回: 分解"] };
         const r = detailPaneFits(rect, content, "formula");
         expect(r.fits, `倍率 ${scale} ${key}（${r.rows} 行）が欄からはみ出す`).toBe(true);
       }
     }
   });
 
-  it("何も乗せていないときの参照一覧が、ステータス一覧の下の欄に収まる（行動の多い武器種 + スキル 4 つ）", async () => {
+  it("何も乗せていないときの参照一覧が、要約の見出しの下の欄に収まる（行動の多い武器種 + スキル 4 つ）", async () => {
     const { detailPaneFits } = await import("./detailPane");
     const { summaryBelowRect, summaryFormulaLines } = await import("./inventoryUi");
     const game = createGame(1);
-    const rect = summaryBelowRect(detailRect());
+    const rect = summaryBelowRect(detailBodyRect());
     // 名前の多いスキル（式の数が多い順）を 4 つ装着した想定
     const skills = [...SKILL_KEYS].sort((a, b) => skillFormulas(game.stats, b).length - skillFormulas(game.stats, a).length).slice(0, 4);
     game.skills.profile.stones = skills.map(stoneOf);
@@ -129,7 +129,7 @@ describe("詳細欄の計算式の頁", () => {
       await withScale(scale);
       for (const key of MOVESET_KEYS) {
         game.stats = { ...game.stats, moveset: key };
-        const r = detailPaneFits(rect, { lines: [], formulas: summaryFormulaLines(game), actions: ["E: 要点だけ"] }, "formula");
+        const r = detailPaneFits(rect, { lines: [], formulas: summaryFormulaLines(game), actions: [] }, "formula");
         expect(r.fits, `倍率 ${scale} ${MOVESETS[key].name}（${r.rows} 行）が欄からはみ出す`).toBe(true);
       }
     }

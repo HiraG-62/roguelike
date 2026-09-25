@@ -55,11 +55,44 @@ export const DETAIL_X = PANEL_X + PANEL_W - FRAME_PAD - DETAIL_W;
 export const LIST_X = PANEL_X + FRAME_PAD;
 export const LIST_W = DETAIL_X - COLUMN_GAP - LIST_X;
 
-/** 詳細欄の頁。要点 → 詳しく → 計算式 の順に拾うキーで回す（render/detailPane.ts） */
+/** 本文の右端（詳細欄の右端と同じ） */
+export const CONTENT_RIGHT = DETAIL_X + DETAIL_W;
+
+/** 詳細欄の頁。要点 → 詳しく → 計算式 の順に、下端の頁送りか拾うキーで回す（render/detailPane.ts） */
 export type DetailPage = "brief" | "full" | "formula";
+export const DETAIL_PAGES: readonly DetailPage[] = ["brief", "full", "formula"];
 
 export function detailRect(): Rect {
   return { x: DETAIL_X, y: CONTENT_Y, w: DETAIL_W, h: CONTENT_H };
+}
+
+/**
+ * 詳細欄の下端の頁送り（「< 要点 1/3 >」）。拾うキーだけでは頁があることに気付けないので、見える場所に置いてクリックでも送る
+ */
+export const DETAIL_PAGER_H = 12;
+const PAGER_BUTTON_W = 18;
+const PAGER_GAP = 1;
+
+export interface DetailPagerLayout {
+  bar: Rect;
+  prev: Rect;
+  next: Rect;
+}
+
+export function detailPagerRects(): DetailPagerLayout {
+  const d = detailRect();
+  const bar: Rect = { x: d.x, y: d.y + d.h - DETAIL_PAGER_H, w: d.w, h: DETAIL_PAGER_H };
+  return {
+    bar,
+    prev: { x: bar.x, y: bar.y, w: PAGER_BUTTON_W, h: bar.h },
+    next: { x: bar.x + bar.w - PAGER_BUTTON_W, y: bar.y, w: PAGER_BUTTON_W, h: bar.h },
+  };
+}
+
+/** 詳細欄の本文（頁送りの上まで） */
+export function detailBodyRect(): Rect {
+  const d = detailRect();
+  return { ...d, h: d.h - DETAIL_PAGER_H - PAGER_GAP };
 }
 
 /** 残響タブの左右の列（左: 残響と操作、右: 倉庫と対象） */
