@@ -370,7 +370,7 @@ const FISTS: readonly ArtSpec[] = [
   {
     key: "fistsRapidPunch",
     moveset: "fists",
-    name: "連打",
+    name: "乱撃拳",
     icon: "連",
     verb: "至近を素早く 4 回連打する",
     tags: ["melee"],
@@ -509,7 +509,7 @@ const RING_BLADES: readonly ArtSpec[] = [
   {
     key: "ringBladesDance",
     moveset: "ringBlades",
-    name: "輪舞",
+    name: "双輪舞",
     icon: "舞",
     verb: "大きく舞って周りを薙ぐ",
     tags: ["melee"],
@@ -566,7 +566,7 @@ const RING_BLADES: readonly ArtSpec[] = [
   {
     key: "ringBladesRebound",
     moveset: "ringBlades",
-    name: "跳ね刃",
+    name: "返し刃",
     icon: "跳",
     verb: "輪を投げる。壁で跳ね返って戻ってくる",
     tags: ["projectile"],

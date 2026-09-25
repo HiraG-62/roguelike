@@ -38,7 +38,8 @@
   },
   "whipSwingAway": {
     "cooldown": 8, "minInterval": 0.4, "poise": 10,
-    "back": { "distance": -70, "width": 16, "invuln": 0.2, "damage": { "base": 8, "dex": 0.7 }, "knockback": 60 }
+    "hit": { "length": 60, "width": 10, "damage": { "base": 8, "dex": 0.7 }, "knockback": 60 },
+    "back": { "delay": 0.1, "distance": -70, "width": 16, "invuln": 0.2 }
   },
   "whipDisarm": {
     "cost": 18, "minInterval": 0.5, "poise": 12,
