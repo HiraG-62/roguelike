@@ -255,7 +255,7 @@ const GRENADE: readonly ArtSpec[] = [
   {
     key: "grenadeBounce",
     moveset: "grenade",
-    name: "跳ね弾",
+    name: "弾み弾",
     icon: "跳",
     verb: "榴弾を放ち、跳ね返りながら当たった敵を巻き込んで弾ける",
     tags: ["projectile"],
@@ -333,7 +333,7 @@ const TRAPPER: readonly ArtSpec[] = [
   {
     key: "trapperOil",
     moveset: "trapper",
-    name: "油撒き",
+    name: "油の罠",
     icon: "油",
     verb: "足元に油を撒き、踏んだ敵を滑らせる",
     tags: ["area"],
@@ -387,7 +387,7 @@ const WAR_RING: readonly ArtSpec[] = [
   {
     key: "warRingSpin",
     moveset: "warRing",
-    name: "輪舞",
+    name: "輪の円舞",
     icon: "舞",
     verb: "輪を回しながらその場で回転し、周りを 3 度斬る",
     tags: ["melee", "area"],
@@ -453,7 +453,7 @@ const WAR_RING: readonly ArtSpec[] = [
   {
     key: "warRingDash",
     moveset: "warRing",
-    name: "輪駆け",
+    name: "輪走り",
     icon: "駆",
     verb: "輪を構えて照準の方向へ駆け抜け、通り道の敵を斬る",
     tags: ["melee", "movement"],
@@ -487,7 +487,7 @@ const WAR_RING: readonly ArtSpec[] = [
   {
     key: "warRingSlash",
     moveset: "warRing",
-    name: "輪払い",
+    name: "輪裂き",
     icon: "払",
     verb: "輪を大きく振り払い、前方を薙ぐ",
     tags: ["melee"],

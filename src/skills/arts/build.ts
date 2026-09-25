@@ -223,9 +223,11 @@ function checkBlockKeys(spec: ArtSpec, block: Raw): void {
   }
 }
 
-function actBlock(spec: ArtSpec, block: Raw, n: string): Raw {
-  const r = block[n];
-  if (!isRaw(r)) fail(spec.key, `行為 ${n} の数値ブロックが無い`);
+/** 行為の数値ブロック。必須の数値を持たない行為（blink / detonate）は省略できる（空オブジェクトは JSON の検査が禁じる） */
+function actBlock(spec: ArtSpec, block: Raw, act: ArtActSpec): Raw {
+  const r = block[act.n];
+  if (r === undefined && REQUIRED[act.kind].length === 0) return {};
+  if (!isRaw(r)) fail(spec.key, `行為 ${act.n} の数値ブロックが無い`);
   return r;
 }
 
@@ -237,7 +239,7 @@ function needsRange(acts: readonly ArtAct[]): boolean {
 export function buildArtDef(spec: ArtSpec): ArtDef {
   const block = artBlock(spec);
   checkBlockKeys(spec, block);
-  const acts = spec.acts.map((a) => buildAct(a, actBlock(spec, block, a.n), `${spec.key}.${a.n}`));
+  const acts = spec.acts.map((a) => buildAct(a, actBlock(spec, block, a), `${spec.key}.${a.n}`));
   if (acts.length === 0) fail(spec.key, "行為が 1 つも無い");
   const range = optNum(block, "range");
   if (needsRange(acts) && range === undefined) fail(spec.key, "照準地点を使う行為には range が要る");

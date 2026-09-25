@@ -357,7 +357,7 @@ const TWIN_BLADES: readonly ArtSpec[] = [
   {
     key: "twinBladesAfterimage",
     moveset: "twinBlades",
-    name: "残影",
+    name: "残り影",
     icon: "残",
     verb: "飛び退いて残像を残し、しばらく足が速くなる",
     tags: ["movement", "buff"],
@@ -370,7 +370,7 @@ const TWIN_BLADES: readonly ArtSpec[] = [
   {
     key: "twinBladesReap",
     moveset: "twinBlades",
-    name: "刈り取り",
+    name: "双刈り",
     icon: "刈",
     verb: "出血した傷を裂いて大きく斬る",
     tags: ["melee"],
@@ -398,7 +398,7 @@ const KATANA: readonly ArtSpec[] = [
   {
     key: "katanaIai",
     moveset: "katana",
-    name: "居合",
+    name: "居合抜き",
     icon: "居",
     verb: "速く重い抜刀を帯状に放つ",
     tags: ["melee"],
@@ -408,7 +408,7 @@ const KATANA: readonly ArtSpec[] = [
   {
     key: "katanaFlash",
     moveset: "katana",
-    name: "瞬閃",
+    name: "迅閃",
     icon: "閃",
     verb: "瞬時に踏み込んで一閃する",
     tags: ["melee", "movement"],
@@ -512,7 +512,7 @@ const KATANA: readonly ArtSpec[] = [
   {
     key: "katanaSever",
     moveset: "katana",
-    name: "一刀両断",
+    name: "両断",
     icon: "両",
     verb: "渾身の一太刀で、弱った敵を両断する",
     tags: ["melee"],
@@ -526,7 +526,7 @@ const CLEAVER: readonly ArtSpec[] = [
   {
     key: "cleaverChop",
     moveset: "cleaver",
-    name: "叩き割り",
+    name: "鉈割り",
     icon: "叩",
     verb: "重く振り下ろして叩き割る",
     tags: ["melee"],
@@ -631,7 +631,7 @@ const CLEAVER: readonly ArtSpec[] = [
   {
     key: "cleaverRend",
     moveset: "cleaver",
-    name: "引き裂き",
+    name: "鉈裂き",
     icon: "裂",
     verb: "深く斬りつけ、大きく出血させる",
     tags: ["melee"],
@@ -689,7 +689,7 @@ const CLAWS: readonly ArtSpec[] = [
   {
     key: "clawsHemorrhage",
     moveset: "claws",
-    name: "血裂き",
+    name: "血裂爪",
     icon: "血",
     verb: "出血した傷を裂き、大きく出血させる（出血を消費）",
     tags: ["melee"],
@@ -699,7 +699,7 @@ const CLAWS: readonly ArtSpec[] = [
   {
     key: "clawsLeapBack",
     moveset: "claws",
-    name: "跳び退き",
+    name: "裂き退き",
     icon: "退",
     verb: "斬りつけてから大きく跳び退く",
     tags: ["melee", "movement"],

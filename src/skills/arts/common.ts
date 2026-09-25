@@ -95,7 +95,7 @@ export const COMMON_ART_SPECS: readonly ArtSpec[] = [
   {
     key: "commonIceLance",
     moveset: null,
-    name: "氷槍",
+    name: "氷の投げ槍",
     icon: "槍",
     verb: "敵を貫く氷の槍を撃ち、冷気を付ける",
     tags: ["projectile", "cold"],

@@ -17,7 +17,7 @@ const AXE: readonly ArtSpec[] = [
   {
     key: "axeCleave",
     moveset: "axe",
-    name: "大割り",
+    name: "斧割り",
     icon: "大",
     verb: "前方を大きく振り下ろし、出血させる",
     tags: ["melee"],
@@ -156,7 +156,7 @@ const HAMMER: readonly ArtSpec[] = [
   {
     key: "hammerMeteor",
     moveset: "hammer",
-    name: "天墜",
+    name: "墜鎚",
     icon: "天",
     verb: "跳び上がり、落下の勢いで叩きつける",
     tags: ["melee", "movement"],
@@ -206,7 +206,7 @@ const HAMMER: readonly ArtSpec[] = [
   {
     key: "hammerFissure",
     moveset: "hammer",
-    name: "地割り",
+    name: "鎚割り",
     icon: "裂",
     verb: "前方の地面を割って進み、瓦礫を残す",
     tags: ["melee", "area"],
@@ -272,7 +272,7 @@ const SHIELD: readonly ArtSpec[] = [
   {
     key: "shieldFortress",
     moveset: "shield",
-    name: "鉄壁",
+    name: "不落",
     icon: "鉄",
     verb: "盾を構え、しばらく攻撃を受けず身を固める",
     tags: ["buff", "defense"],
@@ -282,7 +282,7 @@ const SHIELD: readonly ArtSpec[] = [
   {
     key: "shieldSlam",
     moveset: "shield",
-    name: "盾落とし",
+    name: "盾の鉄槌",
     icon: "落",
     verb: "盾を高く掲げ、大きく打ち下ろす",
     tags: ["melee"],
@@ -343,7 +343,7 @@ const SHIELD: readonly ArtSpec[] = [
   {
     key: "shieldBulwark",
     moveset: "shield",
-    name: "城壁",
+    name: "堅城",
     icon: "城",
     verb: "身を固めて生命を少し取り戻す",
     tags: ["buff", "defense"],
@@ -400,7 +400,7 @@ const FISTS: readonly ArtSpec[] = [
   {
     key: "fistsGroundPound",
     moveset: "fists",
-    name: "地砕き",
+    name: "地割り拳",
     icon: "砕",
     verb: "拳で地面を砕き、瓦礫を残す",
     tags: ["melee", "area"],
@@ -444,7 +444,7 @@ const FISTS: readonly ArtSpec[] = [
   {
     key: "fistsPalm",
     moveset: "fists",
-    name: "発勁",
+    name: "掌打",
     icon: "発",
     verb: "気をため、前方へ大きく打ち出して吹き飛ばす",
     tags: ["melee"],
@@ -611,7 +611,7 @@ const FAN: readonly ArtSpec[] = [
   {
     key: "fanGust",
     moveset: "fan",
-    name: "突風",
+    name: "扇の突風",
     icon: "突",
     verb: "扇で突風を起こし、押し返して敵弾を消す",
     tags: ["melee", "defense"],
@@ -621,7 +621,7 @@ const FAN: readonly ArtSpec[] = [
   {
     key: "fanTornado",
     moveset: "fan",
-    name: "竜巻",
+    name: "扇の竜巻",
     icon: "竜",
     verb: "カーソル地点に竜巻を起こし、引き寄せて 4 度斬る",
     tags: ["area"],
@@ -637,7 +637,7 @@ const FAN: readonly ArtSpec[] = [
   {
     key: "fanPetals",
     moveset: "fan",
-    name: "花吹雪",
+    name: "花散らし",
     icon: "花",
     verb: "花びらを 7 枚まとめて散らす",
     tags: ["projectile"],
@@ -710,7 +710,7 @@ const FAN: readonly ArtSpec[] = [
   {
     key: "fanRazorWind",
     moveset: "fan",
-    name: "鎌鼬",
+    name: "風の刃",
     icon: "鎌",
     verb: "鎌鼬の刃風を放ち、貫いて出血させる",
     tags: ["projectile"],

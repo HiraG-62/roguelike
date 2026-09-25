@@ -68,7 +68,7 @@ const GUNNER: readonly ArtSpec[] = [
   {
     key: "gunnerRicochet",
     moveset: "gunner",
-    name: "跳弾",
+    name: "跳ね撃ち",
     icon: "跳",
     verb: "壁で跳ね返りながら進む弾を放つ",
     tags: ["projectile"],
@@ -95,7 +95,7 @@ const GUNNER: readonly ArtSpec[] = [
   {
     key: "gunnerPistolWhip",
     moveset: "gunner",
-    name: "銃把打ち",
+    name: "銃把殴り",
     icon: "把",
     verb: "銃把で前方を強く打ちつけ、大きく怯ませる",
     tags: ["melee"],
@@ -199,7 +199,7 @@ const SIDEARM: readonly ArtSpec[] = [
   {
     key: "sidearmPiercer",
     moveset: "sidearm",
-    name: "徹甲弾",
+    name: "貫通弾",
     icon: "徹",
     verb: "敵を貫通する徹甲弾を撃つ",
     tags: ["projectile"],
@@ -209,7 +209,7 @@ const SIDEARM: readonly ArtSpec[] = [
   {
     key: "sidearmIncendiary",
     moveset: "sidearm",
-    name: "焼夷弾",
+    name: "火炎弾頭",
     icon: "焼",
     verb: "燃える弾を撃ち、当てた敵を燃やす",
     tags: ["projectile", "fire"],
@@ -344,7 +344,7 @@ const LONGARM: readonly ArtSpec[] = [
   {
     key: "longarmButtStroke",
     moveset: "longarm",
-    name: "銃床打ち",
+    name: "床尾打ち",
     icon: "床",
     verb: "銃床で殴りつけ、大きく怯ませる",
     tags: ["melee"],
@@ -381,7 +381,7 @@ const LONGARM: readonly ArtSpec[] = [
   {
     key: "longarmAim",
     moveset: "longarm",
-    name: "集中",
+    name: "照準合わせ",
     icon: "集",
     verb: "呼吸を整えて集中し、しばらく与ダメが上がる",
     tags: ["buff"],
@@ -507,7 +507,7 @@ const CANNON: readonly ArtSpec[] = [
   {
     key: "cannonDetonate",
     moveset: "cannon",
-    name: "起爆",
+    name: "誘爆",
     icon: "起",
     verb: "床に置いた設置弾をまとめて起爆し、自分の周りも吹き飛ばす",
     tags: ["area"],
@@ -594,7 +594,7 @@ const WAND: readonly ArtSpec[] = [
   {
     key: "wandBlizzard",
     moveset: "wand",
-    name: "吹雪",
+    name: "氷嵐",
     icon: "吹",
     verb: "照準地点に吹雪を起こし、しばらく冷気を浴びせ続ける",
     tags: ["area", "cold"],

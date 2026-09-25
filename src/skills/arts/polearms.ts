@@ -159,7 +159,7 @@ const SCYTHE: readonly ArtSpec[] = [
   {
     key: "scytheSoulHarvest",
     moveset: "scythe",
-    name: "魂刈り",
+    name: "魂喰らい",
     icon: "魂",
     verb: "刈った魂で生命を少し取り戻す",
     tags: ["melee", "buff"],
@@ -213,7 +213,7 @@ const SCYTHE: readonly ArtSpec[] = [
   {
     key: "scytheBeheader",
     moveset: "scythe",
-    name: "首刈り",
+    name: "斬首刈り",
     icon: "首",
     verb: "首筋を狙って刈り、弱った敵（ボスを除く）は仕留める",
     tags: ["melee"],
@@ -246,7 +246,7 @@ const SCYTHE: readonly ArtSpec[] = [
   {
     key: "scytheTerror",
     moveset: "scythe",
-    name: "死神の影",
+    name: "冥府の影",
     icon: "怖",
     verb: "死神の影を見せ、周りの敵を怯えさせる",
     tags: ["area"],
@@ -271,7 +271,7 @@ const STAFF: readonly ArtSpec[] = [
   {
     key: "staffSweep",
     moveset: "staff",
-    name: "薙ぎ払い",
+    name: "棍払い",
     icon: "薙",
     verb: "広く薙いで周りを打つ",
     tags: ["melee", "area"],
@@ -304,7 +304,7 @@ const STAFF: readonly ArtSpec[] = [
   {
     key: "staffWindmill",
     moveset: "staff",
-    name: "風車",
+    name: "大風車",
     icon: "車",
     verb: "棍を風車のように回し、周りを 4 度打つ",
     tags: ["melee", "area"],
@@ -358,7 +358,7 @@ const STAFF: readonly ArtSpec[] = [
   {
     key: "staffSlam",
     moveset: "staff",
-    name: "振り下ろし",
+    name: "棍落とし",
     icon: "打",
     verb: "棍を大きく振り下ろし、手前を強く打つ",
     tags: ["melee"],
@@ -406,7 +406,7 @@ const CHAIN_SICKLE: readonly ArtSpec[] = [
   {
     key: "chainSickleWhirl",
     moveset: "chainSickle",
-    name: "分銅回し",
+    name: "分銅旋回",
     icon: "錘",
     verb: "分銅を回し続け、周りを 4 度打つ",
     tags: ["melee", "area"],
@@ -416,7 +416,7 @@ const CHAIN_SICKLE: readonly ArtSpec[] = [
   {
     key: "chainSickleBind",
     moveset: "chainSickle",
-    name: "鎖縛り",
+    name: "鎖絡め",
     icon: "縛",
     verb: "鎖を打ち込み、敵の動きを縛る",
     tags: ["melee"],
@@ -521,7 +521,7 @@ const WHIP: readonly ArtSpec[] = [
   {
     key: "whipLash",
     moveset: "whip",
-    name: "雷鞭",
+    name: "雷鳴鞭",
     icon: "鞭",
     verb: "長く伸ばした鞭で先端を叩き込み、感電させる",
     tags: ["melee", "lightning"],
@@ -707,7 +707,7 @@ const FLAIL: readonly ArtSpec[] = [
   {
     key: "flailDrop",
     moveset: "flail",
-    name: "鉄球落とし",
+    name: "鉄球墜とし",
     icon: "落",
     verb: "カーソル地点へ少し遅れて鉄球が落ちる",
     tags: ["area"],
@@ -728,7 +728,7 @@ const FLAIL: readonly ArtSpec[] = [
   {
     key: "flailOrbit",
     moveset: "flail",
-    name: "周回",
+    name: "鉄球周回",
     icon: "周",
     verb: "鉄球を周回させ、敵の弾を払いながら 5 度打つ",
     tags: ["melee", "defense"],

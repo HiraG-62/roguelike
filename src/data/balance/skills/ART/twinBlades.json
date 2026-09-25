@@ -28,7 +28,6 @@
   },
   "twinBladesBackstab": {
     "cooldown": 8, "minInterval": 0.5, "poise": 20, "range": 130,
-    "jump": {},
     "stab": { "delay": 0.12, "reach": 30, "deg": 100, "damage": { "base": 14, "dex": 1.8 }, "knockback": 90 }
   },
   "twinBladesWhirlDash": {

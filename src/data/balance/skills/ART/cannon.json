@@ -46,7 +46,6 @@
   },
   "cannonDetonate": {
     "cost": 21, "minInterval": 0.6, "poise": 14,
-    "det": {},
     "blast": { "radius": 40, "damage": { "base": 9, "mnd": 0.5, "spi": 0.5 }, "knockback": 160 }
   }
 }
