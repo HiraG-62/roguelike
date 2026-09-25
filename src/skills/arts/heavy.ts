@@ -489,7 +489,7 @@ const RING_BLADES: readonly ArtSpec[] = [
   {
     key: "ringBladesThrow",
     moveset: "ringBlades",
-    name: "大投げ",
+    name: "双輪投げ",
     icon: "大",
     verb: "輪を大きく投げ、貫いて壁で跳ね返る",
     tags: ["projectile"],

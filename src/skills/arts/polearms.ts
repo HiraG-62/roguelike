@@ -612,10 +612,13 @@ const WHIP: readonly ArtSpec[] = [
     moveset: "whip",
     name: "飛び退き打ち",
     icon: "退",
-    verb: "後ろへ跳びながら鞭を打つ。跳ぶ間は攻撃を受けない",
+    verb: "鞭を前へ打ってから後ろへ跳び退く。跳ぶ間は攻撃を受けない",
     tags: ["melee", "movement"],
     attack: MELEE_LIGHTNING,
-    acts: [{ kind: "dash", n: "back" }],
+    acts: [
+      { kind: "line", n: "hit" },
+      { kind: "dash", n: "back" },
+    ],
   },
   {
     key: "whipDisarm",
@@ -644,7 +647,7 @@ const FLAIL: readonly ArtSpec[] = [
   {
     key: "flailSpin",
     moveset: "flail",
-    name: "大回転",
+    name: "鎖大回転",
     icon: "回",
     verb: "鉄球を大きく回し、周りを 3 度打つ",
     tags: ["melee", "area"],
@@ -735,7 +738,7 @@ const FLAIL: readonly ArtSpec[] = [
   {
     key: "flailPound",
     moveset: "flail",
-    name: "連打",
+    name: "鉄球連打",
     icon: "連",
     verb: "カーソル地点を鉄球で 3 度連打する",
     tags: ["area"],
