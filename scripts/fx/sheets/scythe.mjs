@@ -618,7 +618,8 @@ const FX = {
     "l:2": { sheet: "scythe.l3", pivot: "self", base: 32, measure: "reach" },
     "l:3": { sheet: "scythe.l4", pivot: "self", base: 34, measure: "reach" },
     dash: { sheet: "scythe.dash", pivot: "self", base: 30, measure: "reach" },
-    "r:hookPull": { sheet: "scythe.hookPull", pivot: "self", base: 44, measure: "reach" },
+    // 突きの鉤は、手に持つ鎌の刃の側（向いている左右で入れ替わる）に合わせる。絵は左向きの鎌に合わせて描いてある
+    "r:hookPull": { sheet: "scythe.hookPull", pivot: "self", base: 44, measure: "reach", mirror: "faceRight" },
     "r:scytheWrap": { sheet: "scythe.wrap", pivot: "self", base: 30, measure: "reach" },
     "r:reverseSpin": { sheet: "scythe.reverseSpin", pivot: "self", base: 64, measure: "size" },
     "r:scytheSever": { sheet: "scythe.sever", pivot: "self", base: 38, measure: "reach" },

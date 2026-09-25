@@ -11,12 +11,28 @@ import type { FxRampKey } from "./fxSprites";
 /** 原点: self = 自分の中心、anchor = 当たり判定の中心（meleeAnchor） */
 export type FxPivot = "self" | "anchor";
 
+/**
+ * 絵を上下反転する条件。swing = 反時計回りの段（renderMath の swingSign が負）。
+ * faceLeft / faceRight = 左 / 右を向いて出したとき（突きのように、手に持つ武器の絵の刃・鉤の側が
+ * 向いている左右で入れ替わるモーション。絵の非対称な形を武器の向きに合わせる）
+ */
+export type FxMirror = "swing" | "faceLeft" | "faceRight";
+
 export interface FxMotion {
   sheet: FxSheetKey;
   pivot: FxPivot;
   /** 絵を描いたときの当たり判定の大きさ（論理 px）。measure で今の段のどの値と比べるか */
   base: number;
   measure: "reach" | "size";
+  mirror: FxMirror;
+  /** キャラより下（地面の層）に描く絵（地割れ・地面の輪・砂煙など）。sheet と同じフレームで流す */
+  ground?: FxSheetKey;
+}
+
+/** 押している間に回し続ける絵（チェーンアレイの溜め中の回しなど）。charged は溜めの段が 1 以上のとき */
+export interface FxHold {
+  sheet: FxSheetKey;
+  charged?: FxSheetKey;
 }
 
 export interface MovesetFx {
@@ -25,6 +41,8 @@ export interface MovesetFx {
   hit: FxSheetKey;
   hitHeavy: FxSheetKey;
   parry?: FxSheetKey;
+  /** 右の段の key（溜めの段など）→ 押している間の絵 */
+  holds: Readonly<Record<string, FxHold>>;
 }
 
 /** JSON 由来の表（文字列のまま）。FX_MOVESET_RAW の各要素はこの形に収まる */
@@ -33,6 +51,13 @@ interface RawMotion {
   readonly pivot: string;
   readonly base: number;
   readonly measure: string;
+  readonly mirror?: string;
+  readonly ground?: string;
+}
+
+interface RawHold {
+  readonly sheet: string;
+  readonly charged?: string;
 }
 
 interface RawMovesetFx {
@@ -41,6 +66,7 @@ interface RawMovesetFx {
   readonly hit: string;
   readonly hitHeavy: string;
   readonly parry?: string;
+  readonly holds?: Readonly<Record<string, RawHold>>;
 }
 
 function isSheetKey(key: string | undefined): key is FxSheetKey {
@@ -51,11 +77,27 @@ function isMovesetKey(key: string): key is MovesetKey {
   return Object.hasOwn(MOVESETS, key);
 }
 
+function toMirror(raw: string | undefined): FxMirror | undefined {
+  if (raw === undefined) return "swing";
+  return raw === "swing" || raw === "faceLeft" || raw === "faceRight" ? raw : undefined;
+}
+
 function toMotion(raw: RawMotion): FxMotion | undefined {
   if (!isSheetKey(raw.sheet)) return undefined;
   if (raw.pivot !== "self" && raw.pivot !== "anchor") return undefined;
   if (raw.measure !== "reach" && raw.measure !== "size") return undefined;
-  return { sheet: raw.sheet, pivot: raw.pivot, base: raw.base, measure: raw.measure };
+  const mirror = toMirror(raw.mirror);
+  if (!mirror) return undefined;
+  if (raw.ground !== undefined && !isSheetKey(raw.ground)) return undefined;
+  const motion: FxMotion = { sheet: raw.sheet, pivot: raw.pivot, base: raw.base, measure: raw.measure, mirror };
+  if (raw.ground !== undefined) motion.ground = raw.ground;
+  return motion;
+}
+
+function toHold(raw: RawHold): FxHold | undefined {
+  if (!isSheetKey(raw.sheet)) return undefined;
+  if (raw.charged !== undefined && !isSheetKey(raw.charged)) return undefined;
+  return raw.charged !== undefined ? { sheet: raw.sheet, charged: raw.charged } : { sheet: raw.sheet };
 }
 
 /** 表を検査して型を付ける。壊れた行（無いシート・知らない原点）は読み飛ばす（テストが件数で落とす） */
@@ -68,7 +110,12 @@ export function buildMovesetFx(raws: readonly (RawMovesetFx | null)[]): Partial<
       const motion = toMotion(m);
       if (motion) motions[key] = motion;
     }
-    out[raw.moveset] = { motions, hit: raw.hit, hitHeavy: raw.hitHeavy, parry: isSheetKey(raw.parry) ? raw.parry : undefined };
+    const holds: Record<string, FxHold> = {};
+    for (const [key, h] of Object.entries(raw.holds ?? {})) {
+      const hold = toHold(h);
+      if (hold) holds[key] = hold;
+    }
+    out[raw.moveset] = { motions, hit: raw.hit, hitHeavy: raw.hitHeavy, parry: isSheetKey(raw.parry) ? raw.parry : undefined, holds };
   }
   return out;
 }
@@ -115,6 +162,20 @@ export function swingMotionKeys(moveset: Readonly<MovesetDef>): string[] {
   for (const b of moveset.branches) if (!b.step.cast) keys.push(`branch:${b.key}`);
   if (meleeChargeOf(moveset)) keys.push("charge");
   return keys;
+}
+
+/**
+ * 絵を上下反転するか。ccw は反時計回りの段か、facingLeft は左を向いて出したか（攻撃の向きの x が負）
+ */
+export function mirrorFlip(mirror: FxMirror, ccw: boolean, facingLeft: boolean): boolean {
+  switch (mirror) {
+    case "swing":
+      return ccw;
+    case "faceLeft":
+      return facingLeft;
+    case "faceRight":
+      return !facingLeft;
+  }
 }
 
 /** 属性 → 配色。属性が無ければ鋼 */

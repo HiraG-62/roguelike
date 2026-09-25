@@ -1131,7 +1131,7 @@ function spawnTrail(state: GameState, step: Readonly<MeleeStep>): void {
   const len = step.shape.kind === "box" || step.shape.kind === "circle" ? step.reach + step.size / 2 : step.reach;
   const half = step.shape.kind === "arc" ? (step.shape.deg * DEG_TO_RAD) / 2 : 0;
   const angles = half > 0 ? [base - half, base, base + half] : [base];
-  for (const a of angles) spawnLine(state, origin, add(origin, scale(fromAngle(a), len)), step.trail, WEAPON.trailLife);
+  for (const a of angles) spawnLine(state, origin, add(origin, scale(fromAngle(a), len)), step.trail, WEAPON.trailLife, true);
 }
 
 export function meleeBox(p: Player, reach: number, size: number): Box {

@@ -430,6 +430,8 @@ export interface Projectile {
 /** リング（衝撃波）と線（連鎖雷）の演出 */
 export interface ShapeFx {
   kind: "ring" | "line";
+  /** 振りの残像の線（player.ts の spawnTrail）。武器種の専用スプライトがあるときは描画側が描かない */
+  swingTrail?: true;
   pos: Vec;
   /** line の終点 */
   to: Vec;

@@ -61,7 +61,7 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
 import { EFFECTS, FX_ATTACK } from "../data/tuning";
-import { type HitShape, MOVESETS, lobHeight } from "../data/weapons";
+import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
@@ -89,8 +89,8 @@ import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
-import { FxSpriteBank, fitScale, rampColors, sheetDef, swingFrame } from "./fxSprites";
-import { motionFx, movesetAtlas, rampOfElement } from "./fxMotions";
+import { type FxDrawOpts, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, swingFrame } from "./fxSprites";
+import { type FxMotion, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -505,6 +505,20 @@ const CHARGE_WEAPON_TINT = 0.55;
 const SLASH_TINT = 0.7;
 /** 属性も段の残像色も無い斬撃の色 */
 const SLASH_DEFAULT_COLOR = "#8ce0f0";
+
+/** 今の振りの専用スプライトの描き方（Renderer.swingPlan）。frame が null は流し切った */
+interface SwingPlan {
+  motion: FxMotion;
+  frame: number | null;
+  active: boolean;
+  /** active の進み 0..1 */
+  progress: number;
+  /** 当たり判定の中心 */
+  anchor: { x: number; y: number };
+  origin: { x: number; y: number };
+  angle: number;
+  opts: FxDrawOpts;
+}
 /** 近接の段を持たない武器種が持つ形（待機の姿勢にしか使わない） */
 const SHAPE_ARC: HitShape = { kind: "arc", deg: 120 };
 /** 二丁拳銃の左右 */
@@ -1183,7 +1197,9 @@ export class Renderer {
   /** 衝撃波リングと連鎖雷 */
   /** 輪・線・爆発の段階（fxAttack.ts） */
   private drawShapes(state: GameState): void {
-    drawShapeFx(this.ctx, state.shapes, this.fxSprites.glow);
+    // 専用スプライトが読めている武器種は、振りの残像の線をスプライトに任せる
+    const atlas = movesetAtlas(playerMoveset(state).key);
+    drawShapeFx(this.ctx, state.shapes, this.fxSprites.glow, atlas !== undefined && this.fxBank.ready(atlas));
   }
 
   /** 命中の斬り裂き線・銃口の閃光・着弾（fxAttack.ts）の上に、属性ごとの形の粒 */
@@ -1572,6 +1588,7 @@ export class Renderer {
   private drawGroundHazards(state: GameState): void {
     // 爆発の焦げ跡（fxAttack.ts）は予告円の下の地面に
     drawAttackGround(this.ctx, state);
+    this.drawSwingGround(state);
     for (const h of state.hazards) {
       switch (h.kind) {
         case "bomb":
@@ -1933,6 +1950,7 @@ export class Renderer {
 
     // 振り終わり（recover）の頭でも軌跡の尾だけ数フレーム残す（drawSlash が分ける）
     if (isAttacking(p) && (p.attack.phase === "active" || p.attack.phase === "recover")) this.drawSlash(state, p);
+    else this.drawHoldSprite(state, p);
     this.drawChargeRing(state, p);
   }
 
@@ -2114,26 +2132,79 @@ export class Renderer {
    * active の進みで前半のフレーム、recover の経過で崩れのフレームを流す。色は属性の配色
    */
   private drawSwingSprite(state: GameState, p: Player, step: MeleeStep): boolean {
+    const plan = this.swingPlan(state, p, step);
+    if (!plan) return false;
+    if (plan.frame === null) return true;
+    const c = FX_ATTACK.sprite;
+    this.fxBank.draw(this.ctx, plan.motion.sheet, plan.frame, plan.origin.x, plan.origin.y, plan.angle, plan.opts);
+    // 当たりの中心に淡い加算の光（ドット絵の上に空気の明るさを足す。形は絵が担う）
+    if (plan.active) {
+      this.drawGlow(plan.anchor.x, plan.anchor.y, rampColors(plan.opts.ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
+    }
+    return true;
+  }
+
+  /**
+   * 地面の層に描く振りの絵（戦鎚の地割れ・地面の輪など。FxMotion.ground）。キャラより先に描き、
+   * 空中の絵（drawSwingSprite）と同じフレーム・原点・反転で流す
+   */
+  private drawSwingGround(state: GameState): void {
+    const p = state.player;
+    if (!isAttacking(p) || (p.attack.phase !== "active" && p.attack.phase !== "recover")) return;
+    const step = currentMeleeStep(state);
+    if (!step) return;
+    const plan = this.swingPlan(state, p, step);
+    if (!plan?.motion.ground || plan.frame === null || !this.fxBank.has(plan.motion.ground)) return;
+    this.fxBank.draw(this.ctx, plan.motion.ground, plan.frame, plan.origin.x, plan.origin.y, plan.angle, plan.opts);
+  }
+
+  /**
+   * 今の振りの専用スプライトの描き方（シート・フレーム・原点・反転・配色・拡縮）。
+   * 表に無い・未読み込みなら null（手続きの描画）。frame が null は流し切った（何も描かない）
+   */
+  private swingPlan(state: GameState, p: Player, step: MeleeStep): SwingPlan | null {
     const ref = { lane: p.attack.lane, step: p.attack.step, branch: p.attack.branch, dashStrike: p.dashStrike, chargeLevel: p.attack.chargeLevel };
     const motion = motionFx(playerMoveset(state), ref);
-    if (!motion || !this.fxBank.has(motion.sheet)) return false;
+    if (!motion || !this.fxBank.has(motion.sheet)) return null;
     const c = FX_ATTACK.sprite;
     const active = p.attack.phase === "active";
     const progress = step.active > 0 ? 1 - p.attack.timer / step.active : 1;
     const frame = swingFrame(sheetDef(motion.sheet), active ? "active" : "recover", progress, step.recover - p.attack.timer, c.swingFade);
-    if (frame === null) return true;
-    const anchor = meleeAnchor(p, step);
-    const origin = motion.pivot === "self" ? p.body.pos : anchor.pos;
-    const ramp = rampOfElement(hitElement(state, "melee", false));
+    const anchor = meleeAnchor(p, step).pos;
     const actual = motion.measure === "reach" ? step.reach : step.size;
-    this.fxBank.draw(this.ctx, motion.sheet, frame, origin.x, origin.y, Math.atan2(p.attack.dir.y, p.attack.dir.x), {
-      ramp,
-      ccw: swingSign(p.attack.step) < 0,
-      scale: fitScale(actual, motion.base, c.scaleTolerance),
-    });
-    // 当たりの中心に淡い加算の光（ドット絵の上に空気の明るさを足す。形は絵が担う）
-    if (active) this.drawGlow(anchor.pos.x, anchor.pos.y, rampColors(ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * progress);
-    return true;
+    return {
+      motion,
+      frame,
+      active,
+      progress,
+      anchor,
+      origin: motion.pivot === "self" ? p.body.pos : anchor,
+      angle: Math.atan2(p.attack.dir.y, p.attack.dir.x),
+      opts: {
+        ramp: rampOfElement(hitElement(state, "melee", false)),
+        ccw: mirrorFlip(motion.mirror, swingSign(p.attack.step) < 0, p.attack.dir.x < 0),
+        scale: fitScale(actual, motion.base, c.scaleTolerance),
+      },
+    };
+  }
+
+  /**
+   * 押している間の回しの絵（チェーンアレイの溜め中の回し。MovesetFx.holds）。
+   * 回しの区切り（spinning.interval）で 1 周するようにフレームを回し、溜めの段が 1 以上なら charged の絵にする
+   */
+  private drawHoldSprite(state: GameState, p: Player): void {
+    if (!p.attack.charging || isAttacking(p)) return;
+    const moveset = playerMoveset(state);
+    const lane = moveset.steps2[p.attack.step];
+    const spin = meleeChargeOf(moveset)?.spinning;
+    if (!lane || lane.kind !== "charge" || !spin || !lane.key) return;
+    const hold = MOVESET_FX[moveset.key]?.holds[lane.key];
+    if (!hold) return;
+    const sheet = hold.charged && meleeChargeLevel(state) > 0 ? hold.charged : hold.sheet;
+    if (!this.fxBank.has(sheet)) return;
+    const frames = sheetDef(sheet).frames;
+    const frame = loopFrame(frames, p.attack.chargeTime, spin.interval);
+    this.fxBank.draw(this.ctx, sheet, frame, p.body.pos.x, p.body.pos.y, 0, { ramp: rampOfElement(hitElement(state, "melee", false)) });
   }
 
   /** 斬撃と軌跡の色: 属性が乗っていれば属性色、無ければ段の残像色、どちらも無ければ既定 */
