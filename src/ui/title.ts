@@ -7,6 +7,7 @@ import type { Item, Profile, Rarity, RunHistoryEntry } from "../loot/types";
 import { RARITIES } from "../loot/types";
 import { isDailySeedText, isPlayable, type ReplayData } from "../core/replay";
 import { KEYBIND_SLOTS, REBINDABLE_ACTIONS, type RebindableAction } from "../core/input";
+import { PAD_ACTIONS, type PadAction } from "../core/padBinds";
 import { VIEW_H, VIEW_W } from "../core/view";
 
 // ---------------------------------------------------------------------------
@@ -218,7 +219,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
-export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "close"] as const;
+export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "padBinds", "close"] as const;
 export type SettingsItem = (typeof SETTINGS_ITEMS)[number];
 
 /** move 系の値が 0 → 非0 に変わった瞬間だけ、その符号を返す（連射防止のエッジ検出） */
@@ -286,8 +287,8 @@ export function pauseMenuItemAt(x: number, y: number, itemGap: number): number |
 }
 
 export const SETTINGS_PANEL_W = 220;
-/** 8 項目 + 見出し + 下の案内が収まる高さ（ヒットストップ・アイテム情報表示の行を足して 160 → 196） */
-export const SETTINGS_PANEL_H = 196;
+/** 9 項目 + 見出し + 下の案内が収まる高さ（ヒットストップ・アイテム情報表示の行を足して 160 → 196、パッド設定で 214） */
+export const SETTINGS_PANEL_H = 214;
 const SETTINGS_ROW_TOP = 40;
 
 export interface SettingsLayout {
@@ -354,9 +355,29 @@ export function settingsGaugeValueAt(x: number, gauge: Rect): number {
 
 export const KEYBINDS_ROWS = [...REBINDABLE_ACTIONS, "reset", "close"] as const;
 export type KeybindsRow = RebindableAction | "reset" | "close";
+/** パッド設定の行。画面・レイアウトはキー設定と共用し、行だけ差し替える */
+export const PADBINDS_ROWS = [...PAD_ACTIONS, "reset", "close"] as const;
+export type PadBindsRow = PadAction | "reset" | "close";
+/** 割り当て画面が編集している表 */
+export type BindsMode = "key" | "pad";
 
 export function isActionRow(row: KeybindsRow): row is RebindableAction {
   return row !== "reset" && row !== "close";
+}
+
+export function isPadActionRow(row: PadBindsRow): row is PadAction {
+  return row !== "reset" && row !== "close";
+}
+
+/** 表ごとの行数（レイアウト・スクロール・カーソルの循環に使う） */
+export function bindsRowCount(mode: BindsMode): number {
+  return mode === "pad" ? PADBINDS_ROWS.length : KEYBINDS_ROWS.length;
+}
+
+/** 行 index が「既定に戻す」「閉じる」ならその種類、アクション行なら null */
+export function bindsExtraRow(mode: BindsMode, index: number): "reset" | "close" | null {
+  const row = mode === "pad" ? PADBINDS_ROWS[index] : KEYBINDS_ROWS[index];
+  return row === "reset" || row === "close" ? row : null;
 }
 
 // 「アイテム情報」を足して 18 行になったので、パネルを画面いっぱい（y0）にし上下の余白をさらに詰めて
@@ -395,35 +416,35 @@ export interface KeybindsLayout {
   nameX: number;
 }
 
-export function keybindsVisibleCount(rowGap: number): number {
+export function keybindsVisibleCount(rowGap: number, mode: BindsMode = "key"): number {
   const listTop = KEYBINDS_PANEL.y + KEYBINDS_FIRST_ROW_TOP - rowGap / 2;
   const listBottom = KEYBINDS_PANEL.y + KEYBINDS_PANEL.h - KEYBINDS_LIST_BOTTOM;
-  return Math.max(1, Math.min(KEYBINDS_ROWS.length, Math.floor((listBottom - listTop) / rowGap)));
+  return Math.max(1, Math.min(bindsRowCount(mode), Math.floor((listBottom - listTop) / rowGap)));
 }
 
 /** スクロール量の上限（全行が収まるなら 0） */
-function maxKeybindsScroll(rowGap: number): number {
-  return KEYBINDS_ROWS.length - keybindsVisibleCount(rowGap);
+function maxKeybindsScroll(rowGap: number, mode: BindsMode): number {
+  return bindsRowCount(mode) - keybindsVisibleCount(rowGap, mode);
 }
 
 /** カーソル行が見えるようにスクロール量を合わせる（見えていれば据え置き） */
-export function keybindsScrollFor(cursor: number, scroll: number, rowGap: number): number {
-  const visible = keybindsVisibleCount(rowGap);
+export function keybindsScrollFor(cursor: number, scroll: number, rowGap: number, mode: BindsMode = "key"): number {
+  const visible = keybindsVisibleCount(rowGap, mode);
   let next = scroll;
   if (cursor < next) next = cursor;
   if (cursor >= next + visible) next = cursor - visible + 1;
-  return Math.max(0, Math.min(maxKeybindsScroll(rowGap), next));
+  return Math.max(0, Math.min(maxKeybindsScroll(rowGap, mode), next));
 }
 
 /** ホイールなど、カーソルと独立にスクロール量だけを動かす（範囲内に収める） */
-export function clampKeybindsScroll(scroll: number, rowGap: number): number {
-  return Math.max(0, Math.min(maxKeybindsScroll(rowGap), scroll));
+export function clampKeybindsScroll(scroll: number, rowGap: number, mode: BindsMode = "key"): number {
+  return Math.max(0, Math.min(maxKeybindsScroll(rowGap, mode), scroll));
 }
 
-export function keybindsLayout(rowGap: number, scroll = 0): KeybindsLayout {
+export function keybindsLayout(rowGap: number, scroll = 0, mode: BindsMode = "key"): KeybindsLayout {
   const panel = KEYBINDS_PANEL;
-  const visibleCount = keybindsVisibleCount(rowGap);
-  const start = Math.max(0, Math.min(maxKeybindsScroll(rowGap), scroll));
+  const visibleCount = keybindsVisibleCount(rowGap, mode);
+  const start = Math.max(0, Math.min(maxKeybindsScroll(rowGap, mode), scroll));
   const firstY = panel.y + KEYBINDS_FIRST_ROW_TOP;
   const rects = rowRects(visibleCount, panel.x, firstY, panel.w, rowGap);
   const rows = rects.map((rect, i) => ({ index: start + i, rect }));
@@ -454,12 +475,11 @@ export interface KeybindsHit {
 }
 
 /** 座標に対応する行と列。どの行にも乗っていなければ null */
-export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0): KeybindsHit | null {
-  const layout = keybindsLayout(rowGap, scroll);
+export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0, mode: BindsMode = "key"): KeybindsHit | null {
+  const layout = keybindsLayout(rowGap, scroll, mode);
   const hit = layout.rows.find((r) => pointInRect(x, y, r.rect));
   if (!hit) return null;
-  const row = KEYBINDS_ROWS[hit.index];
-  if (row === undefined || !isActionRow(row)) return { row: hit.index, slot: null };
+  if (hit.index >= bindsRowCount(mode) || bindsExtraRow(mode, hit.index) !== null) return { row: hit.index, slot: null };
   const slot = layout.slots.findIndex((s) => x >= s.x && x < s.x + s.w);
   return { row: hit.index, slot: slot === -1 ? null : slot };
 }

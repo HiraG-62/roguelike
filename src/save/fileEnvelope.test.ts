@@ -7,7 +7,7 @@ import { HUB_KEY } from "../meta/hubStore";
 import { QUEST_KEY } from "../meta/questStore";
 import { SKILL_PROFILE_KEY } from "../skills/persistence";
 import { REPLAY_STORE_KEY } from "../ui/replayStore";
-import { KEYBINDS_KEY, SETTINGS_KEY } from "../ui/settings";
+import { KEYBINDS_KEY, PADBINDS_KEY, SETTINGS_KEY } from "../ui/settings";
 import { SAVE_FILES, SAVE_FILE_FORMAT, decodeEnvelope, encodeEnvelope, fileForKey } from "./fileEnvelope";
 
 const KEY = "roguelike.profile.v1";
@@ -46,6 +46,7 @@ describe("セーブファイルの封筒", () => {
       CRAFT_KEY,
       SETTINGS_KEY,
       KEYBINDS_KEY,
+      PADBINDS_KEY,
       REPLAY_STORE_KEY,
       CODEX_KEY,
       QUEST_KEY,

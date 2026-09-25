@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AIM_STICK_DISTANCE, GamepadInput, STICK_DEADZONE } from "./gamepad";
+import { AIM_STICK_DISTANCE, GamepadInput, STICK_DEADZONE, resolvePadActions } from "./gamepad";
+import { defaultPadBinds } from "./padBinds";
 
 /** addEventListener を素朴に記録するだけの偽 EventTarget。jsdom なしでも attach() をテストできる */
 class FakeEventTarget {
@@ -315,5 +316,41 @@ describe("GamepadInput 拾う（右スティック押し込み）", () => {
     stubPads({ index: 0, buttons: makeButtons([BTN_RSTICK]), axes: [0, 0, 0, 0] });
     expect(input.read().interactPressed).toBe(true);
     expect(input.read().interactPressed).toBe(false);
+  });
+});
+
+describe("ボタン設定での解決（resolvePadActions）", () => {
+  const down = (pressed: readonly number[]): boolean[] => Array.from({ length: 16 }, (_, i) => pressed.includes(i));
+
+  it("組み合わせの押さえる側を押している間、押す側の単独の割り当ては出ない", () => {
+    const binds = defaultPadBinds();
+    const { actions, consumed } = resolvePadActions(binds, down([4, 0]), down([0]));
+    expect(actions.skill1.pressed).toBe(true);
+    expect(actions.attack.pressed, "LB+A で攻撃は出ない").toBe(false);
+    expect(consumed(0)).toBe(true);
+    expect(consumed(7), "組み合わせに無いボタンは使える").toBe(false);
+  });
+
+  it("割り当て直した表で読む", () => {
+    const binds = { ...defaultPadBinds(), dash: ["Pad5+Pad7"], attack: ["Pad0"] };
+    const plain = resolvePadActions(binds, down([7]), down([7]));
+    expect(plain.actions.dash.pressed).toBe(false);
+    const chord = resolvePadActions(binds, down([5, 7]), down([7]));
+    expect(chord.actions.dash.pressed).toBe(true);
+    expect(chord.actions.attack.pressed).toBe(false);
+  });
+
+  it("GamepadInput.setBinds で差し替えた表が read() に効く", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    input.setBinds({ ...defaultPadBinds(), special: ["Pad11"], interact: [] });
+    stubPads({ index: 0, buttons: makeButtons([11]), axes: [0, 0, 0, 0] });
+    const frame = input.read();
+    expect(frame.specialPressed).toBe(true);
+    expect(frame.interactPressed).toBe(false);
+    expect(frame.active).toBe(true);
+    expect(input.buttonsJustPressed()[11]).toBe(true);
   });
 });

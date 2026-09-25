@@ -377,10 +377,10 @@ export interface FrameInput {
   /** スキルスロット 1 / 2 */
   skill1Pressed: boolean;
   skill2Pressed: boolean;
-  /** スキルスロット 1 / 2 の押しっぱなし（Charge 刻印符の溜め入力）。パッドは LB を押しながらの A / X */
+  /** スキルスロット 1 / 2 の押しっぱなし（Charge 刻印符の溜め入力）。パッドは既定で LB を押しながらの A / X（core/padBinds.ts） */
   skill1Held: boolean;
   skill2Held: boolean;
-  /** スキルスロット 3 / 4（docs/COMBAT_DESIGN.md B-3）。パッドは LB を押しながらの Y / B */
+  /** スキルスロット 3 / 4（docs/COMBAT_DESIGN.md B-3）。パッドは既定で LB を押しながらの Y / B */
   skill3Pressed: boolean;
   skill4Pressed: boolean;
   skill3Held: boolean;
@@ -442,6 +442,13 @@ export class PlayerInput {
   private gamepad: GamepadInput | null = null;
   /** 直近の snapshot() で読んだパッド入力。メニューの戻る/ポーズ判定に main.ts から参照される */
   private lastGamepadFrame: GamepadFrame = EMPTY_GAMEPAD_FRAME;
+  /**
+   * 照準の入力元。最後に触ったのがパッドなら、右スティックを離してもマウスカーソルの位置へ引っ張らない
+   * （aimScreen を null にし、向きは移動方向に任せる）。マウスを動かす・押すとマウスへ戻る
+   */
+  private aimDevice: "mouse" | "pad" = "mouse";
+  /** 前回の snapshot() からマウスを動かした・押した */
+  private mouseTouched = false;
 
   /** ゲームパッドを紐付ける。以後 snapshot() が毎フレーム読み取ってマージする */
   attachGamepad(gamepad: GamepadInput): void {
@@ -465,6 +472,11 @@ export class PlayerInput {
    */
   takeAnyPressedCode(): BindingCode | null {
     return this.framePressed.shift() ?? null;
+  }
+
+  /** 照準の入力元がパッドか（直近 snapshot() の時点） */
+  aimingWithPad(): boolean {
+    return this.aimDevice === "pad";
   }
 
   /** 直近フレームでパッドの「戻る/ポーズ」（B or Start）が今押されたか。main.ts がメニュー hotkeys にマージする */
@@ -504,8 +516,10 @@ export class PlayerInput {
         x: ((ev.clientX - rect.left) / rect.width) * VIEW_W,
         y: ((ev.clientY - rect.top) / rect.height) * VIEW_H,
       };
+      this.mouseTouched = true;
     });
     canvas.addEventListener("mousedown", (ev) => {
+      this.mouseTouched = true;
       const code = MOUSE_CODE[ev.button];
       if (!code) return;
       this.down.add(code);
@@ -556,6 +570,10 @@ export class PlayerInput {
   snapshot(cameraOffset: Vec = ZERO): FrameInput {
     const pad = this.gamepad?.read() ?? EMPTY_GAMEPAD_FRAME;
     this.lastGamepadFrame = pad;
+    // マウスを触ったフレームはマウスを優先する（パッドを握ったままマウスへ持ち替えたとき）
+    if (this.mouseTouched) this.aimDevice = "mouse";
+    else if (pad.active) this.aimDevice = "pad";
+    this.mouseTouched = false;
 
     const raw = {
       x: (this.isDown("right") ? 1 : 0) - (this.isDown("left") ? 1 : 0),
@@ -565,13 +583,14 @@ export class PlayerInput {
     // move はキーボード/パッドのうち、大きい方（アナログの踏み込みを活かす）
     const move = length(pad.move) > length(kbMove) ? pad.move : kbMove;
 
-    // 右スティックが中立ならマウス/キーボード照準を優先。入力があれば画面中心からの方向で上書きする
+    // 右スティックに入力があれば画面中心からの方向。中立なら、パッドで操作中は照準なし（向きは移動方向）、
+    // マウスで操作中はカーソルの位置
     const aimScreen = pad.aimDir
       ? {
           x: VIEW_W / 2 + cameraOffset.x + pad.aimDir.x * AIM_STICK_DISTANCE,
           y: VIEW_H / 2 + cameraOffset.y + pad.aimDir.y * AIM_STICK_DISTANCE,
         }
-      : this.mouseScreen
+      : this.aimDevice === "mouse" && this.mouseScreen
         ? { ...this.mouseScreen }
         : null;
 
@@ -596,7 +615,7 @@ export class PlayerInput {
       skill3Held: this.isDown("skill3") || pad.skill3Held,
       skill4Held: this.isDown("skill4") || pad.skill4Held,
       interactPressed: this.wasPressed("interact") || pad.interactPressed,
-      toggleDropInfoPressed: this.wasPressed("toggleDropInfo"),
+      toggleDropInfoPressed: this.wasPressed("toggleDropInfo") || pad.toggleDropInfoPressed,
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has(UI_CLICK_CODE),
       clickHeld: this.down.has(UI_CLICK_CODE),

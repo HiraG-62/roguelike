@@ -7,10 +7,12 @@ import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
 import type { ReplayAvailability, RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import {
   KEYBINDS_ROWS,
+  PADBINDS_ROWS,
   PAUSE_MENU_ITEMS,
   SETTINGS_ITEMS,
   dailyBestIndices,
-  isActionRow,
+  bindsExtraRow,
+  bindsRowCount,
   isDailyEntry,
   isSettingsGaugeItem,
   keybindsLayout,
@@ -21,11 +23,13 @@ import {
   settingsGaugeRect,
   settingsLayout,
   type KeybindsLayout,
+  type BindsMode,
   type KeybindsRow,
   type SettingsGaugeItem,
 } from "../ui/title";
 import { HITSTOP_SCALE_MAX, type Settings } from "../ui/settings";
 import { actionKeyLabel, formatBindingCode, keyLabel, moveKeyLabel, type Keybinds, type RebindableAction } from "../core/input";
+import { PAD_ACTIONS, formatPadCode, type PadAction, type PadBinds } from "../core/padBinds";
 import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
 import { APP_VERSION } from "../version";
 
@@ -74,6 +78,7 @@ const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
   hitstopScale: "ヒットストップ",
   dropTooltip: "アイテム情報",
   keybinds: "キー設定",
+  padBinds: "パッド設定",
   close: "閉じる",
 };
 
@@ -106,6 +111,7 @@ const KEYBINDS_EXTRA_LABEL: Record<Exclude<KeybindsRow, RebindableAction>, strin
 const KEYBIND_SLOT_LABEL: readonly string[] = ["主", "副", "予備"];
 const KEYBIND_EMPTY = "-";
 const KEYBIND_CAPTURE_TEXT = "キーを押してください…（Esc で取り消し）";
+const PADBIND_CAPTURE_TEXT = "ボタンを押してください…（Start で取り消し）";
 const COLOR_CAPTURE = "#ffd75f";
 /** 列のセル内の左右余白 */
 const KEYBIND_CELL_PAD = 3;
@@ -528,7 +534,7 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
       drawText(ctx, label, VIEW_W / 2, textY, m, color, "center");
       return;
     }
-    if (item === "keybinds") {
+    if (item === "keybinds" || item === "padBinds") {
       drawText(ctx, active ? `> ${SETTINGS_LABEL[item]}` : SETTINGS_LABEL[item], panel.x + 12, textY, m, color);
       return;
     }
@@ -551,7 +557,10 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
 }
 
 export interface KeybindsScreenView {
+  /** 編集している表。"pad" なら padBinds を PADBINDS_ROWS の行で出す */
+  mode: BindsMode;
   binds: Keybinds;
+  padBinds: PadBinds;
   /** KEYBINDS_ROWS の index */
   cursor: number;
   /** 選択中の列（主 / 副 / 予備） */
@@ -559,6 +568,10 @@ export interface KeybindsScreenView {
   scroll: number;
   /** 取得モード中（次の押下を待っている） */
   capturing: boolean;
+}
+
+function isPadAction(action: RebindableAction): action is PadAction {
+  return (PAD_ACTIONS as readonly string[]).includes(action);
 }
 
 /** キー設定の行間。描画と main.ts の当たり判定が同じ値を使う */
@@ -573,12 +586,13 @@ function drawKeybindCells(
   codes: readonly string[],
   y: number,
   selectedSlot: number | null,
+  format: (code: string) => string,
 ): void {
   const m = TEXT.SMALL;
   layout.slots.forEach((col, i) => {
     const code = codes[i];
     const selected = i === selectedSlot;
-    const text = code === undefined ? KEYBIND_EMPTY : formatBindingCode(code);
+    const text = code === undefined ? KEYBIND_EMPTY : format(code);
     const color = selected ? COLOR_CURSOR : code === undefined ? COLOR_BORDER : COLOR_TEXT;
     const shown = truncateText(text, col.w - KEYBIND_CELL_PAD * 2, m);
     drawText(ctx, shown, col.x + col.w / 2, y, m, color, "center", "middle");
@@ -593,6 +607,7 @@ function drawKeybindActionRow(
   rowRect: { y: number; h: number },
   active: boolean,
 ): void {
+  const pad = view.mode === "pad" && isPadAction(action);
   const m = TEXT.SMALL;
   const y = rowRect.y + rowRect.h / 2;
   const nameColor = active ? COLOR_CURSOR : COLOR_DIM;
@@ -601,7 +616,7 @@ function drawKeybindActionRow(
   const last = layout.slots[layout.slots.length - 1];
   if (active && view.capturing && first && last) {
     const areaW = last.x + last.w - first.x;
-    const text = truncateText(KEYBIND_CAPTURE_TEXT, areaW, m);
+    const text = truncateText(pad ? PADBIND_CAPTURE_TEXT : KEYBIND_CAPTURE_TEXT, areaW, m);
     drawText(ctx, text, first.x + areaW / 2, y, m, COLOR_CAPTURE, "center", "middle");
     return;
   }
@@ -610,7 +625,8 @@ function drawKeybindActionRow(
     ctx.fillStyle = COLOR_CURSOR_BG;
     ctx.fillRect(selectedCol.x, rowRect.y, selectedCol.w, rowRect.h);
   }
-  drawKeybindCells(ctx, layout, view.binds[action], y, active ? view.slot : null);
+  const codes = pad ? view.padBinds[action] : view.binds[action];
+  drawKeybindCells(ctx, layout, codes, y, active ? view.slot : null, pad ? formatPadCode : formatBindingCode);
 }
 
 /** キー設定画面。overlay の意味は drawSettingsScreen と同じ */
@@ -622,48 +638,57 @@ export function drawKeybindsScreen(ctx: CanvasRenderingContext2D, view: Keybinds
     fillBg(ctx);
   }
   const m = TEXT.SMALL;
-  const layout = keybindsLayout(keybindsRowGap(), view.scroll);
+  const layout = keybindsLayout(keybindsRowGap(), view.scroll, view.mode);
   const { panel } = layout;
+  const pad = view.mode === "pad";
   ctx.fillStyle = COLOR_PANEL_BG;
   ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
   ctx.strokeStyle = COLOR_BORDER;
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
 
-  drawText(ctx, "キー設定", VIEW_W / 2, layout.titleY, TEXT.BODY, COLOR_TITLE, "center", "middle");
+  drawText(ctx, pad ? "パッド設定" : "キー設定", VIEW_W / 2, layout.titleY, TEXT.BODY, COLOR_TITLE, "center", "middle");
   layout.slots.forEach((col, i) => {
     drawText(ctx, KEYBIND_SLOT_LABEL[i] ?? "", col.x + col.w / 2, layout.headerY, m, COLOR_DIM, "center", "middle");
   });
 
   for (const { index, rect } of layout.rows) {
-    const row = KEYBINDS_ROWS[index];
+    const row = pad ? PADBINDS_ROWS[index] : KEYBINDS_ROWS[index];
     if (row === undefined) continue;
     const active = index === view.cursor;
-    if (isActionRow(row)) {
-      drawKeybindActionRow(ctx, layout, view, row, rect, active);
+    const extra = bindsExtraRow(view.mode, index);
+    if (extra === null) {
+      drawKeybindActionRow(ctx, layout, view, row as RebindableAction, rect, active);
       continue;
     }
-    const label = KEYBINDS_EXTRA_LABEL[row];
+    const label = KEYBINDS_EXTRA_LABEL[extra];
     const y = rect.y + rect.h / 2;
     drawText(ctx, active ? `> ${label} <` : label, VIEW_W / 2, y, m, active ? COLOR_CURSOR : COLOR_DIM, "center", "middle");
   }
 
-  drawKeybindScrollMarks(ctx, layout, view.scroll);
+  drawKeybindScrollMarks(ctx, layout, view.scroll, bindsRowCount(view.mode));
 
-  const footer = view.capturing
-    ? "キーかマウスボタンを押す   Esc: 取り消し"
-    : "↑↓: 行  ←→: 列  Enter/クリック: 変更  Delete: 空にする  Esc: 戻る";
+  const footer = keybindsFooter(pad, view.capturing);
   drawText(ctx, truncateText(footer, panel.w - 8, m), VIEW_W / 2, layout.footerY, m, COLOR_DIM, "center", "middle");
 }
 
+function keybindsFooter(pad: boolean, capturing: boolean): string {
+  if (pad) {
+    return capturing
+      ? "ボタンを押して離す / 押さえたまま別のボタンで組み合わせ   Start: 取り消し"
+      : "↑↓: 行  ←→: 列  A/Enter: 変更  Y/Delete: 空にする  B/Esc: 戻る";
+  }
+  return capturing ? "キーかマウスボタンを押す   Esc: 取り消し" : "↑↓: 行  ←→: 列  Enter/クリック: 変更  Delete: 空にする  Esc: 戻る";
+}
+
 /** 上下に隠れた行があることを示す */
-function drawKeybindScrollMarks(ctx: CanvasRenderingContext2D, layout: KeybindsLayout, scroll: number): void {
+function drawKeybindScrollMarks(ctx: CanvasRenderingContext2D, layout: KeybindsLayout, scroll: number, rowCount: number): void {
   const x = layout.panel.x + layout.panel.w - KEYBIND_SCROLL_MARK_INSET;
   const first = layout.rows[0];
   const last = layout.rows[layout.rows.length - 1];
   if (first && scroll > 0) {
     drawText(ctx, "↑", x, first.rect.y + first.rect.h / 2, TEXT.SMALL, COLOR_DIM, "right", "middle");
   }
-  if (last && last.index < KEYBINDS_ROWS.length - 1) {
+  if (last && last.index < rowCount - 1) {
     drawText(ctx, "↓", x, last.rect.y + last.rect.h / 2, TEXT.SMALL, COLOR_DIM, "right", "middle");
   }
 }

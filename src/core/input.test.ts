@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACTION_NAMES,
   DEFAULT_KEYBINDS,
@@ -520,5 +520,67 @@ describe("keyLabel", () => {
     const next = assignBinding(binds, "up", 0, "KeyO");
     if (!next) throw new Error("割り当てできない");
     expect(moveKeyLabel(next), "上を O に").toBe("OASD / 矢印キー");
+  });
+});
+
+describe("照準の入力元（パッド操作中はマウスカーソルへ引っ張らない）", () => {
+  /** getBoundingClientRect を持つ偽 canvas。内部解像度と同じ大きさにして座標をそのまま写す */
+  class FakeCanvas extends FakeEventTarget {
+    getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
+      return { left: 0, top: 0, width: VIEW_W, height: VIEW_H };
+    }
+  }
+
+  function setup(): { input: PlayerInput; canvas: FakeCanvas; pad: StubGamepad } {
+    vi.stubGlobal("window", new FakeEventTarget());
+    const input = new PlayerInput();
+    const canvas = new FakeCanvas();
+    input.attachMouse(canvas as unknown as HTMLCanvasElement);
+    const pad = new StubGamepad(gamepadFrame({}));
+    input.attachGamepad(pad as never);
+    return { input, canvas, pad };
+  }
+
+  function setPad(pad: StubGamepad, frame: Partial<GamepadFrame>): void {
+    (pad as unknown as { frame: GamepadFrame }).frame = gamepadFrame(frame);
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("マウスで操作中は右スティックが中立ならカーソルの位置", () => {
+    const { input, canvas } = setup();
+    canvas.dispatch("mousemove", { clientX: 100, clientY: 50 });
+    expect(input.snapshot().aimScreen).toEqual({ x: 100, y: 50 });
+    expect(input.aimingWithPad()).toBe(false);
+  });
+
+  it("パッドを触ったら、右スティックを離しても照準はカーソルへ戻らず null", () => {
+    const { input, canvas, pad } = setup();
+    canvas.dispatch("mousemove", { clientX: 100, clientY: 50 });
+    input.snapshot();
+    setPad(pad, { move: { x: 1, y: 0 }, active: true });
+    expect(input.snapshot().aimScreen, "左スティックだけでもパッドへ切り替わる").toBeNull();
+    setPad(pad, { aimDir: { x: 1, y: 0 }, active: true });
+    expect(input.snapshot().aimScreen).not.toBeNull();
+    setPad(pad, {});
+    expect(input.snapshot().aimScreen, "離したあともカーソルへ引っ張らない").toBeNull();
+    expect(input.aimingWithPad()).toBe(true);
+  });
+
+  it("マウスを動かすかクリックするとマウスの照準へ戻る", () => {
+    const { input, canvas, pad } = setup();
+    setPad(pad, { active: true });
+    input.snapshot();
+    setPad(pad, {});
+    canvas.dispatch("mousemove", { clientX: 30, clientY: 40 });
+    expect(input.snapshot().aimScreen).toEqual({ x: 30, y: 40 });
+
+    setPad(pad, { active: true });
+    input.snapshot();
+    setPad(pad, {});
+    canvas.dispatch("mousedown", { button: 0, preventDefault: () => undefined });
+    expect(input.snapshot().aimScreen).toEqual({ x: 30, y: 40 });
   });
 });

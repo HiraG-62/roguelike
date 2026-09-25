@@ -29,7 +29,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - 固定 60Hz（`core/loop.ts` の `FIXED_DT`）。ロジックは `FrameInput` と `dt` だけを見る
 - 乱数は `state.rng`（mulberry32、`core/rng.ts`）だけ。`Math.random` は `audio/synth.ts` の音の揺らぎ以外で禁止
 - `Date.now()` はアイテム / スキル石の `id` と `foundAt` を作る `now` 引数にだけ使う（ゲーム進行に影響させない）。`main.ts` の計時は別
-- `core/replay.ts`: seed + FrameInput 列 + 装備スナップショット + 装備変更イベントで再現。`core/input.ts` / `gamepad.ts` が入力、`view.ts` が 480x270
+- `core/replay.ts`: seed + FrameInput 列 + 装備スナップショット + 装備変更イベントで再現。`core/input.ts` / `gamepad.ts` が入力（パッドのボタン設定は `padBinds.ts`）、`view.ts` が 480x270
 - `core/status.ts`: 状態異常の型（`StatusKind` / `StatusEffect` / `StatusBag` / `StatusApply` / `StatusProc`）と一覧。ロジックは持たない（`system/statusEffects.ts` が読む）
 - `core/rules.ts` 統一ルール文法の `Rule` 型 / `core/events.ts` ゲームイベント（各 system は `pushEvent` で積むだけ。`system/rules.ts` が照合）/ `core/keywords.ts` 共通語彙「語」の型（推論・集計は `system/keywords.ts`）/ `core/element.ts` 属性とジャンル / `core/terrain.ts` 地形の層の型 / `core/vec.ts` ベクトル / `core/units.ts` 表示単位（`formatMeters`）
 
