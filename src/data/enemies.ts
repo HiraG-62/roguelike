@@ -176,7 +176,7 @@ export interface EnemyDef {
   recover: number;
   /** 攻撃を始める距離（px） */
   engageRange: number;
-  /** 攻撃間隔（秒）。数値は src/data/balance/enemies.json の "stats"（変更したい場合はそこを編集する） */
+  /** 攻撃間隔（秒）。数値は src/data/balance/enemies/ の "stats"（変更したい場合はそこを編集する） */
   attackInterval: number;
   score: number;
   minDepth: number;
@@ -255,7 +255,7 @@ export interface EnemyDef {
 
 /**
  * 敵ごとの数値本体（radius/hp/speed/windup など + swarm/volley/explode などの数値だけの構造）。
- * src/data/balance/enemies.json の "stats"。値を変えたいときはここではなく JSON を編集する
+ * src/data/balance/enemies/ の "stats"。値を変えたいときはここではなく JSON を編集する
  * (docs/ideas/data-externalization.md 2 章)
  */
 const N = BALANCE.enemies.stats;

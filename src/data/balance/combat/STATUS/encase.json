@@ -1,0 +1,8 @@
+{
+  "threshold": 3,
+  "shardRadius": 50,
+  "shardHpRatio": 0.15,
+  "shardMax": 60,
+  "shardPoise": 15,
+  "thawRadius": 20
+}

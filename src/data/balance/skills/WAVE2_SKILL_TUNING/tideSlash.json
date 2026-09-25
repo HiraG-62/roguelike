@@ -1,0 +1,4 @@
+{
+  "_note": "水刃: 前方へ飛ぶ水の斬撃。濡れ2",
+  "cost": 14, "minInterval": 0.5, "poise": 10, "speed": 200, "life": 0.5, "radius": 6, "pierce": 1, "damage": { "base": 5, "str": 0.4, "dex": 0.8 }, "poiseRatio": { "str": 0.1, "dex": 0.2 }, "knockback": 70, "wetStacks": 2
+}

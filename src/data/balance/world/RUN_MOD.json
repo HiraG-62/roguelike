@@ -1,0 +1,16 @@
+{
+  "_fields": {
+    "thickHideHpMul": "縛り「厚い皮」: 敵の生命の倍率。説明文（src/system/runSetup.ts の RUN_MODS）の「3 割」も合わせて直す",
+    "quickHandsCut": "縛り「早い手」: 敵の予備動作を縮める割合（0..1。0.1 で 1 割短い）。説明文も合わせて直す",
+    "hastyReaperMul": "縛り「急かす死神」: 死神の猶予秒の倍率。説明文も合わせて直す",
+    "hourglassTime": "縛り「部屋の砂時計」: 交戦がこの秒続くたびに増援が来る",
+    "glassBodyHpMul": "縛り「薄氷」: 最大生命の倍率。説明文も合わせて直す",
+    "scorePerTier": "位階 1 点あたり、階段で得る得点に足す倍率（0.1 で 1 点ごとに +10%）"
+  },
+  "thickHideHpMul": 1.3,
+  "quickHandsCut": 0.1,
+  "hastyReaperMul": 0.7,
+  "hourglassTime": 25,
+  "glassBodyHpMul": 0.7,
+  "scorePerTier": 0.1
+}

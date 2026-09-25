@@ -1,0 +1,4 @@
+{
+  "_note": "伝染: カーソル近くの敵の状態異常を、半径内の他の敵へ持続を減らして写す（消費しない）",
+  "cost": 14, "minInterval": 0.6, "poise": 0, "maxRange": 140, "radius": 56, "pickRadius": 36, "durationMul": 0.5, "minDuration": 1
+}

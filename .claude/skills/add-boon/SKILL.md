@@ -19,7 +19,7 @@ description: ラン内の祝福（3 択）を追加する。ルール変更型�
 - src/system/boonRules.ts（フックが要る場合の実装）
 - src/system/boons.test.ts、src/system/boonRules.test.ts
 ## 最小 Edit のみ許可
-- src/data/balance/boons.json: BOON に <key> 用の数値を追加（tuning.ts の BOON 経由で読む）
+- src/data/balance/boons/BOON.json に <key> 用の数値を追加（tuning.ts の BOON 経由で読む）
 - src/system/<呼び出し側>.ts: hasBoon 分岐かフック呼び出しの追加（既存フックで足りない場合のみ）
 ## 先に読む
 - CLAUDE.md（不変条件）、docs/recipes/boon.md、docs/ideas/run-structure.md 5 章、docs/ideas/boons-expansion.md、src/system/boonDefs.ts の既存祝福 <近い例>

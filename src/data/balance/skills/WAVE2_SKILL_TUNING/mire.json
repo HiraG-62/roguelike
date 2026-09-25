@@ -1,0 +1,5 @@
+{
+  "_note": "泥沼（第4弾）: カーソル地点に泥（中の敵は歩きも突進も遅い）。中にいる敵へtickEveryごとに怯み値。燃焼が入ると泥が固まって中の敵が麻痺する（system/terrain.ts の bakeMud）",
+  "cost": 18, "minInterval": 0.8, "poise": 0, "maxRange": 120, "radius": 30, "terrainRadius": 30, "terrainTime": 4,
+  "damage": { "base": 1, "mnd": 0.2, "spi": 0.4 }, "knockback": 0, "tickEvery": 0.5, "tickDamage": { "base": 0.5, "mnd": 0.1, "spi": 0.2 }, "tickPoise": 7
+}

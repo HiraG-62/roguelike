@@ -1,0 +1,16 @@
+{
+  "_note": "QA 2026-09-24: 1 対 1 被弾の主因が浮遊眼の弾だったため、windup を 0.4 → 0.5 にして予告を読める長さにした",
+  "radius": 6,
+  "hp": 14,
+  "speed": 42,
+  "contactDamage": 0,
+  "windup": 0.5,
+  "strikeTime": 0.05,
+  "recover": 0.32,
+  "engageRange": 150,
+  "attackInterval": 1.26,
+  "score": 15,
+  "minDepth": 1,
+  "weight": 6,
+  "dropChance": 0.08
+}

@@ -1,0 +1,7 @@
+{
+  "_note": "装備系の数値。LOOT_DROP はドロップ確率・itemLevel、KEYSTONE/TRIGGER/SYNERGY/RESONANCE はルール文法の効果量、affixCurves は性質の期待値曲線（depth/min/max、%は表示単位）、bases はベースの minLevel（itemLevel）とmarginBonus（余白）",
+  "STASH_CAPACITY": 400,
+  "ARMOR_K": 50,
+  "ARMOR_MAX_REDUCTION": 0.75,
+  "_order": ["LOOT_DROP", "PICKUP", "RESONANCE", "KEYSTONE", "TRIGGER", "SYNERGY", "STASH_CAPACITY", "ARMOR_K", "ARMOR_MAX_REDUCTION", "affixCurves", "bases"]
+}

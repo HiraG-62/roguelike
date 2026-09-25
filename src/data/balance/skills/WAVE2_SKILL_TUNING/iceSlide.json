@@ -1,0 +1,5 @@
+{
+  "_note": "凍て道（CD型）: カーソル方向へ滑り、通った床を氷床にする",
+  "cooldown": 7, "minInterval": 0.3, "poise": 12, "distance": 80, "time": 0.22, "hitPad": 6, "iceRadius": 8, "iceTime": 4, "iceStep": 10,
+  "damage": { "base": 4, "dex": 0.8, "vit": 0.4 }, "poiseRatio": { "dex": 0.24, "vit": 0.12 }, "knockback": 90
+}

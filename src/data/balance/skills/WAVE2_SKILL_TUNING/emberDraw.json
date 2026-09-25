@@ -1,0 +1,5 @@
+{
+  "_note": "火吸い: 周りの炎の床と自分の燃焼を吸い込み、吸った数だけ大きな火球を撃つ。selfBurnCells は自分の燃焼を吸ったとき何マスぶんに数えるか",
+  "cost": 15, "minInterval": 0.5, "poise": 8, "drawRadius": 48, "perCell": 0.15, "maxBonus": 2, "selfBurnCells": 2,
+  "speed": 200, "life": 0.8, "radius": 4, "radiusPerCell": 0.5, "maxRadius": 10, "damage": { "base": 4, "vit": 0.5, "spi": 1 }, "poiseRatio": { "vit": 0.08, "spi": 0.16 }, "knockback": 80, "burnPotency": 3
+}

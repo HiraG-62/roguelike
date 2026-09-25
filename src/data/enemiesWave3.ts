@@ -21,7 +21,7 @@ const DARK_ONLY: Partial<Record<FloorKind, number>> = {
   meadow: 0,
 };
 
-/** 敵ごとの数値本体。src/data/balance/enemies.json の "stats"（変更したい場合はそこを編集する） */
+/** 敵ごとの数値本体。src/data/balance/enemies/ の "stats"（変更したい場合はそこを編集する） */
 const N = BALANCE.enemies.stats;
 
 export const WAVE3_ENEMIES: readonly EnemyDef[] = [

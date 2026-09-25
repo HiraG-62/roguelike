@@ -1,0 +1,18 @@
+{
+  "_fields": {
+    "body": "体つきの型（bodies の key）。防御・魔防はこの型から決まる",
+    "biome": "土地の属性（biomes の key）。属性耐性の既定をここから写す。省略可",
+    "resist": "この敵だけの属性耐性の上書き（biome の値に重ねる）。書かない属性は biome の値か 0",
+    "stages": "ボスの段階ごとの属性耐性の上書き。1 つ目が段階 1。表より先の段階は最後の表を使う",
+    "defense": "物理の攻撃の軽減 %。負は柔らかい（-10 なら 1.1 倍のダメージ）。-50〜75 に収める（combat.json の GENRE.enemyDefenseMin / Max）",
+    "warding": "魔法の攻撃の軽減 %（魔防）。範囲は防御と同じ。混成の攻撃は防御と魔防を半々で混ぜて受ける",
+    "none": "無属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+    "fire": "炎属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+    "ice": "氷属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+    "lightning": "雷属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+    "poison": "毒属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+    "dark": "闇属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+    "light": "光属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）"
+  },
+  "_order": ["bodies", "biomes", "enemies"]
+}

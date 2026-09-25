@@ -1,0 +1,4 @@
+{
+  "_note": "奥義（F で奥義ゲージを使って出す。docs/ideas/ougi-and-dual-actions.md 3 章）。common は全奥義に共通の値、defs.<武器種>.<奥義の名前> は奥義ごとの数値で、src/data/ultimates.ts が UltimateDef に組み立てる（状態異常・形・弾の種類など union 文字列は TS 側）。旧 combat.json の PLAYER.special（旧バースト）を値を変えずに common と defs.sword.fullMoon（円月）へ移した（2026-09-25 Lane 0）。係数は docs/STATS_AND_SCALING.md 2 章（奥義は 3 種以上の係数を許す例外）。基準: 基礎値で周囲攻撃 34 前後（円月）、単体の大技 55〜75、多段は合計 50〜70、持続は 8 秒前後（drain 12.5/秒）で倍率 1.2〜1.5。円月は溜めた気力を練って放つ魔法の一撃なので威力・怯み値とも精神 + 霊力（poiseRatio は怯み値 60 × 3% = 1.8 を 1 点ぶんとして等分。2026-09-24、A-10）。69 本の初期値は 2026-09-25 Lane B（QA 前の目安。統合後に balance-tuner が詰める）",
+  "_order": ["ULTIMATE"]
+}

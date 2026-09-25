@@ -1,0 +1,30 @@
+{
+  "_fields": {
+    "fraction": "フロア生成時に、部屋に置いた敵を徘徊にする確率（各部屋に 1 体は残す）。割合（0..1）",
+    "speedMul": "徘徊中（気付く前）の歩きの速さ。敵の speed に掛ける倍率",
+    "reach": "徘徊の目的地にこの距離まで近づいたら次の目的地を選ぶ。px",
+    "stuckTime": "進めない状態がこの秒続いたら目的地を選び直す",
+    "reinforceDelay": "階に入ってから徘徊の増援が始まるまでの秒",
+    "reinforceInterval": "徘徊の増援が来る間隔の秒。ボス階は来ない",
+    "capBase": "徘徊の数の上限の基本。上限 = capBase + 切り捨て（深度 × capPerDepth）、最大 capMax",
+    "capPerDepth": "深度 1 つごとに増える徘徊の上限",
+    "capMax": "徘徊の数の上限の最大",
+    "minSpawnDist": "増援をプレイヤーからこの距離以上離して湧かせる。px",
+    "spawnAttempts": "増援の湧く場所を探す試行回数。見つからなければその回は湧かない",
+    "offscreenMargin": "画面の外とみなす余白。px。画面の端からこの距離の内側には増援を湧かせない",
+    "engageLeash": "部屋から追ってきた敵がこの距離以内にいる間は交戦中とみなす。px"
+  },
+  "fraction": 0.25,
+  "speedMul": 0.4,
+  "reach": 12,
+  "stuckTime": 2.5,
+  "reinforceDelay": 30,
+  "reinforceInterval": 18,
+  "capBase": 3,
+  "capPerDepth": 0.5,
+  "capMax": 8,
+  "minSpawnDist": 260,
+  "spawnAttempts": 24,
+  "offscreenMargin": 24,
+  "engageLeash": 160
+}

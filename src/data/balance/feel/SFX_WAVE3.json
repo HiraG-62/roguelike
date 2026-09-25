@@ -1,0 +1,8 @@
+{
+  "muffle": {
+    "cutoff": 520,
+    "open": 20000,
+    "closeTime": 0.05,
+    "openTime": 0.3
+  }
+}

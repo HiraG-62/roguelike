@@ -1,0 +1,5 @@
+{
+  "_note": "綻び: 命中した敵の状態異常を全部消費し、種類数に比例した威力。poiseEmpty は 0 種のときの怯み値、comboRadius は伝染→綻びの連携で命中点から広げる半径",
+  "cost": 16, "minInterval": 0.6, "poise": 8, "poiseEmpty": 4, "speed": 230, "life": 0.7, "radius": 4,
+  "damage": { "base": 6, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.08, "spi": 0.16 }, "perKind": { "base": 5, "mnd": 0.4, "spi": 0.6 }, "knockback": 60, "comboRadius": 56
+}

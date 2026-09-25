@@ -1,0 +1,15 @@
+{
+  "bulletSpeed": 110,
+  "bulletDamage": 10,
+  "bulletDirs": 8,
+  "volleys": 5,
+  "volleyInterval": 0.22,
+  "volleySpin": 0.2,
+  "wallDuration": 4,
+  "wallLength": 5,
+  "wallHp": 30,
+  "wallBlastRadius": 30,
+  "teleportRatio": 0.3,
+  "teleportInterval": 1.8,
+  "color": "#c0ffb0"
+}

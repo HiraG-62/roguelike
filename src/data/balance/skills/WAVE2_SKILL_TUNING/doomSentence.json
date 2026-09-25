@@ -1,0 +1,4 @@
+{
+  "_note": "死の宣告: 照準の敵とその周りに宣告（切れたとき、付けてから減ったHPの一部をまとめて与える）",
+  "cost": 18, "minInterval": 0.8, "poise": 6, "maxRange": 150, "pickRadius": 40, "radius": 24, "damage": { "base": 4, "spi": 1.2 }, "poiseRatio": { "spi": 0.18 }, "knockback": 0
+}

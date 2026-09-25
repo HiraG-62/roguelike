@@ -1,0 +1,5 @@
+{
+  "_note": "燃え種爆ぜ: 半径内の燃焼を消費し、残りの燃焼ダメージを爆発として撒く。burnRatio は燃焼の残りダメージのうち爆発に回す割合",
+  "cost": 14, "minInterval": 0.6, "poise": 10, "maxRange": 140, "radius": 52, "burstRadius": 30, "burnRatio": 0.8, "poisePerBurn": 0.5, "maxPoise": 40,
+  "damage": { "base": 4, "spi": 0.6 }, "poiseRatio": { "spi": 0.3 }, "knockback": 120
+}

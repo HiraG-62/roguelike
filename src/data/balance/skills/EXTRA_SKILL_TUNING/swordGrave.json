@@ -1,0 +1,5 @@
+{
+  "_note": "剣の墓標: 刺した剣が、自分の近接3段目の命中に合わせて回転斬り。spinGap は1振りで何度も回らないための間隔",
+  "cost": 16, "minInterval": 0.5, "poise": 12, "maxRange": 120, "maxAlive": 3, "life": 10, "radius": 28,
+  "damage": { "base": 5, "str": 0.6, "spi": 0.8 }, "poiseRatio": { "str": 0.15, "spi": 0.21 }, "knockback": 90, "spinGap": 0.2, "spinShow": 0.25
+}

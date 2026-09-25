@@ -1,0 +1,19 @@
+{
+  "hitstopLight": 3,
+  "hitstopHeavy": 7,
+  "hitstopKill": 6,
+  "hitstopFinisher": 9,
+  "shakeLight": 2.5,
+  "shakeHeavy": 6,
+  "shakeHurt": 7,
+  "shakeSpecial": 10,
+  "kickHeavy": 4,
+  "kickDecay": 30,
+  "justDodgeSlowmo": 0.35,
+  "slowmoScale": 0.3,
+  "comboWindow": 2.2,
+  "branchTextScale": 1.2,
+  "branchTextLife": 0.6,
+  "branchTextColor": "#c0e8ff",
+  "swingImpact": 0.08
+}

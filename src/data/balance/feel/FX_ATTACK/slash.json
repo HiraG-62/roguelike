@@ -1,0 +1,16 @@
+{
+  "_note": "斬撃の軌跡（三日月）。thickness は基本の厚み px、武器種の軌跡の太さ（WEAPON_TRAIL_WIDTH）を widthMul 倍して足す。heavyMul は重い段・終撃・溜めの倍率",
+  "thickness": 4,
+  "widthMul": 1.5,
+  "heavyMul": 1.6,
+  "tailRatio": 1,
+  "segments": 10,
+  "alpha": 0.7,
+  "glowAlpha": 0.55,
+  "coreAlpha": 0.95,
+  "coreFrom": 0.45,
+  "fadeTime": 0.1,
+  "tipGlow": 7,
+  "heavyTipGlow": 11,
+  "thrustWidth": 3
+}

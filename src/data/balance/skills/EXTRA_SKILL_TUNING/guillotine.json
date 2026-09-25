@@ -1,0 +1,5 @@
+{
+  "_note": "断頭振り: 溜めて縦に振り下ろす。sweetFrom より先（刃先）が sweetMul 倍強い",
+  "cost": 18, "minInterval": 0.7, "poise": 35, "windup": 0.3, "recover": 0.2, "length": 48, "halfWidth": 8,
+  "sweetFrom": 36, "sweetMul": 2, "damage": { "base": 10, "str": 1.4, "mnd": 0.4 }, "poiseRatio": { "str": 0.82, "mnd": 0.23 }, "knockback": 200
+}

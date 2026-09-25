@@ -12,10 +12,12 @@
  * 5. .claude/skills / .claude/agents / docs/recipes が CLAUDE.md に登録され、frontmatter が形式どおり
  * 6. 用語集で置き換えた旧用語が「旧〜」の形以外で残っていない
  * 7. CLAUDE.md が行数の上限を超えていない（詳細は docs/ 側へ分けて参照させる）
+ * 8. バランス数値の組み立て（src/data/balance/assembled.gen.ts）が JSON のディレクトリと食い違っていない（`npm run balance:gen`）
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkBalanceAssembly } from "./balance-assemble.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -233,6 +235,11 @@ function checkStaleTerms({ rel, text }) {
   }
 }
 
+// ---------- 8. バランス数値の組み立て ----------
+function checkBalanceAssemblyUpToDate() {
+  for (const p of checkBalanceAssembly()) note("src/data/balance", p);
+}
+
 for (const doc of docs) {
   checkPaths(doc);
   checkIdentifiers(doc);
@@ -242,6 +249,7 @@ checkMapCoverage();
 checkCounts();
 checkRegistrations();
 checkClaudeLength();
+checkBalanceAssemblyUpToDate();
 
 if (problems.length === 0) {
   console.log(`[audit:docs] OK（資料 ${docs.length} 件、src の本体ファイルは CODE_MAP に網羅、CLAUDE.md ${claudeMd.split("\n").length} 行）`);

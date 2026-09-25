@@ -1,0 +1,8 @@
+{
+  "body": "elite",
+  "resist": {
+    "light": 50,
+    "dark": 50,
+    "none": -25
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "_note": "攻撃エフェクト（src/render/fxAttack.ts / fxMath.ts・system/effects.ts の spawnBlast）。見た目だけでロジックに影響しない。秒・px・倍率",
+  "maxEvents": 96,
+  "_order": ["maxEvents", "slash", "hitSpark", "impact", "muzzle", "bullet", "blast", "ring", "bolt", "particle"]
+}

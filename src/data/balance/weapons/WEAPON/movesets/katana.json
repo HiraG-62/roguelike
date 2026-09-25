@@ -1,0 +1,22 @@
+{
+  "attackMoveMul": 0.4,
+  "steps": [
+    {"windup":0.03,"active":0.07,"recover":0.1,"scaling":{"base":3.6,"str":0.3,"dex":0.4},"poiseRatio":{"dex":0.11,"mnd":0.11},"poise":7,"reach":16,"size":24,"knockback":130,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":2,"lunge":6,"trail":"#e8f0ff"},
+    {"windup":0.03,"active":0.07,"recover":0.1,"scaling":{"base":3.6,"str":0.3,"dex":0.4},"poiseRatio":{"dex":0.11,"mnd":0.11},"poise":7,"reach":17,"size":26,"knockback":130,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":2,"lunge":6,"trail":"#e8f0ff"},
+    {"windup":0.04,"active":0.07,"recover":0.11,"scaling":{"base":3.6,"str":0.3,"dex":0.4},"poiseRatio":{"dex":0.12,"mnd":0.12},"poise":8,"reach":18,"size":28,"knockback":150,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":2,"lunge":10,"trail":"#e8f0ff"},
+    {"windup":0.06,"active":0.09,"recover":0.24,"scaling":{"base":8,"str":0.4,"dex":0.6,"mnd":0.3},"poiseRatio":{"dex":0.27,"mnd":0.27},"poise":18,"reach":34,"size":10,"knockback":300,"heavy":true,"mana":5,"shape":{"kind":"thrust"},"hitstop":5,"shake":2.5,"lunge":10,"trail":"#ffffff"}
+  ],
+  "dashAttack": {"windup":0.02,"active":0.09,"recover":0.14,"scaling":{"base":6,"str":0.4,"dex":0.6},"poiseRatio":{"dex":0.18,"mnd":0.18},"poise":12,"reach":36,"size":12,"knockback":200,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"hitstop":3,"trail":"#e8f0ff"},
+  "steps2": [
+    {"kind":"charge","key":"iai","charge":{"moveMul":0.3,"step":{"windup":0.04,"active":0.08,"recover":0.34,"scaling":{"base":7,"dex":0.6,"mnd":0.7},"poiseRatio":{"dex":0.21,"mnd":0.21},"poise":14,"reach":60,"size":14,"knockback":260,"heavy":true,"mana":5,"shape":{"kind":"thrust"},"hitstop":6,"shake":3,"lunge":12,"trail":"#c0e0ff"},"levels":[{"time":0.35,"damageMul":1.6,"poiseMul":2,"reachMul":1},{"time":0.7,"damageMul":2.6,"poiseMul":3,"reachMul":1.1}]}},
+    {"kind":"swing","key":"kaeshi","step":{"windup":0.03,"active":0.07,"recover":0.12,"scaling":{"base":4,"str":0.35,"dex":0.45},"poiseRatio":{"dex":0.12,"mnd":0.12},"poise":8,"reach":30,"size":12,"knockback":130,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"hitstop":2,"lunge":6,"trail":"#e8f0ff"}},
+    {"kind":"swing","key":"sakakaze","step":{"windup":0.04,"active":0.07,"recover":0.132,"scaling":{"base":4,"str":0.35,"dex":0.45},"poiseRatio":{"dex":0.14,"mnd":0.14},"poise":9,"reach":24,"size":24,"knockback":150,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":180},"hitstop":2,"lunge":10,"trail":"#e8f0ff"}},
+    {"kind":"swing","key":"ichimonji","step":{"windup":0.06,"active":0.09,"recover":0.288,"scaling":{"base":9,"str":0.45,"dex":0.65,"mnd":0.35},"poiseRatio":{"dex":0.3,"mnd":0.3},"poise":20,"reach":20,"size":40,"knockback":300,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":5,"shake":2.5,"lunge":10,"trail":"#ffffff"}}
+  ],
+  "branches": {
+    "tsubame": {"sequence":["primary","primary","secondary"],"step":{"windup":0.04,"active":0.12,"recover":0.21,"scaling":{"base":5,"dex":0.6,"mnd":0.3},"poiseRatio":{"dex":0.18,"mnd":0.18},"poise":12,"reach":18,"size":30,"knockback":280,"heavy":true,"mana":4,"shape":{"kind":"box"},"hits":2,"hitstop":5,"shake":2.5,"lunge":8,"trail":"#ffffff"}},
+    "quickDraw": {"sequence":["secondary","primary","primary"],"next":2,"step":{"windup":0.02,"active":0.07,"recover":0.11,"scaling":{"base":5,"dex":0.5,"mnd":0.5},"poiseRatio":{"dex":0.15,"mnd":0.15},"poise":10,"reach":28,"size":14,"knockback":200,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"lunge":20,"trail":"#c0e0ff"}},
+    "kasumi": {"sequence":["primary","secondary","primary"],"step":{"windup":0.04,"active":0.07,"recover":0.11,"scaling":{"base":2.1,"str":0.15,"dex":0.25},"poiseRatio":{"dex":0.08,"mnd":0.08},"poise":5,"reach":18,"size":28,"knockback":150,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":2,"hitstop":2,"lunge":10,"trail":"#e8f0ff","invuln":0.05}},
+    "mineUchi": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.04,"active":0.07,"recover":0.11,"scaling":{"base":2.2,"str":0.2,"dex":0.25},"poiseRatio":{"dex":0.21,"mnd":0.21},"poise":14,"reach":18,"size":28,"knockback":150,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":5,"shake":2,"lunge":10,"trail":"#e8f0ff"}}
+  }
+}

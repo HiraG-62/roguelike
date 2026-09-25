@@ -1,0 +1,20 @@
+{
+  "radius": 6,
+  "hp": 30,
+  "speed": 28,
+  "contactDamage": 0,
+  "windup": 1.2,
+  "strikeTime": 0.3,
+  "recover": 0.7,
+  "engageRange": 170,
+  "attackInterval": 2.6,
+  "score": 45,
+  "minDepth": 7,
+  "weight": 2,
+  "dropChance": 0.18,
+  "laserBeams": {
+    "count": 3,
+    "spreadDeg": 22,
+    "followWindup": 0.45
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "range": 130,
+  "arcDeg": 60,
+  "stillSpeed": 12,
+  "chillEvery": 0.3,
+  "biteTime": 0.35,
+  "color": "#a0e0a0"
+}

@@ -1,0 +1,25 @@
+{
+  "radius": 5,
+  "hp": 8,
+  "speed": 60,
+  "contactDamage": 0,
+  "windup": 0.6,
+  "strikeTime": 0.05,
+  "recover": 0.3,
+  "engageRange": 22,
+  "attackInterval": 0.3,
+  "score": 8,
+  "minDepth": 3,
+  "weight": 2,
+  "dropChance": 0.03,
+  "swarm": {
+    "min": 3,
+    "max": 5
+  },
+  "explode": {
+    "radius": 24,
+    "damage": 12,
+    "color": "#60e0f0"
+  },
+  "deathMana": 5
+}

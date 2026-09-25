@@ -1,0 +1,7 @@
+{
+  "radius": 100,
+  "rallyTime": 6,
+  "hasteMul": 2,
+  "keepAway": 100,
+  "color": "#f8d848"
+}

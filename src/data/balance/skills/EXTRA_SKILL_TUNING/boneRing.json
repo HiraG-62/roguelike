@@ -1,0 +1,4 @@
+{
+  "_note": "骨片の輪（CD型）: 自分の周りを骨片が回り、敵弾を1発ずつ止める",
+  "cooldown": 10, "minInterval": 0.3, "bones": 3, "duration": 6, "orbit": 16, "spin": 3, "catchRadius": 4
+}

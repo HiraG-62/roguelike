@@ -1,0 +1,22 @@
+{
+  "jarCount": 3,
+  "jarSpread": 50,
+  "jarRadius": 24,
+  "jarBlast": 18,
+  "jarDamage": 10,
+  "jarFall": 1,
+  "chargeSpeedMul": 5.5,
+  "chargeTime": 0.7,
+  "wallStagger": 1.2,
+  "fireBombRadius": 34,
+  "fireBombDamage": 16,
+  "trailInterval": 0.2,
+  "trailRadius": 10,
+  "slamRadius": 70,
+  "slamDamage": 20,
+  "igniteStagger": 2,
+  "igniteCooldown": 8,
+  "phase2Ratio": 0.6,
+  "phase3Ratio": 0.3,
+  "color": "#c09050"
+}

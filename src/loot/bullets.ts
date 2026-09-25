@@ -7,7 +7,7 @@ import type { PlayerStats } from "./types";
 
 /**
  * 銃のベースが撃つ弾（射撃の型の共有表は廃止し、弾は武器そのものが持つ）。
- * 数値は src/data/balance/weapons.json の WEAPON.bullets.<ベースの key>、語と素性（union 文字列）はここの表。
+ * 数値は src/data/balance/weapons/ の WEAPON.bullets.<ベースの key>、語と素性（union 文字列）はここの表。
  * 弾を出す固有技（斧の投擲・魔弾・乱れ撃ち・撒き散らし）の弾は技の定義が持ち、ここで同じ表に並べて key で引けるようにする
  */
 

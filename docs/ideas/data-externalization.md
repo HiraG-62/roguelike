@@ -218,6 +218,8 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 
 ### 6.0 抽出スクリプト `scripts/extract-balance.mjs`
 
+> 2026-09-25 追記: 移行が終わったので抽出スクリプトは削除した。JSON は 1 ファイルずつではなく `src/data/balance/<ファイル>/` のディレクトリに分け、`scripts/balance-assemble.mjs`（`npm run balance:gen`）が元の形に組み立てる（配置の決まりは `docs/BALANCE.md`「ファイルの配置」）。以下は当時の記録。
+
 - Vite の JS API で TS を評価して値を取り出す（依存追加なし。`scripts/electron-dev.mjs:8,16` が既に `createServer` を使っている）:
   ```js
   const server = await createServer({ root: ROOT, server: { middlewareMode: true }, logLevel: "error" });

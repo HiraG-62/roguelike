@@ -1,0 +1,22 @@
+{
+  "attackMoveMul": 0.25,
+  "steps": [
+    {"windup":0.1,"active":0.1,"recover":0.26,"scaling":{"base":6.5,"str":0.9},"poiseRatio":{"str":0.36},"poise":12,"reach":18,"size":28,"knockback":260,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2,"lunge":5,"trail":"#ff9070"},
+    {"windup":0.1,"active":0.1,"recover":0.26,"scaling":{"base":6.5,"str":0.9},"poiseRatio":{"str":0.36},"poise":12,"reach":18,"size":28,"knockback":260,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2,"lunge":5,"trail":"#ff9070"},
+    {"windup":0.12,"active":0.1,"recover":0.3,"scaling":{"base":7,"str":0.8,"vit":0.2},"poiseRatio":{"str":0.42},"poise":14,"reach":20,"size":30,"knockback":280,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070"},
+    {"windup":0.16,"active":0.12,"recover":0.42,"scaling":{"base":13,"str":1.2,"vit":0.4},"poiseRatio":{"str":0.78},"poise":26,"reach":22,"size":34,"knockback":420,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":7,"shake":4,"lunge":8,"trail":"#ffffff"}
+  ],
+  "dashAttack": {"windup":0.04,"active":0.1,"recover":0.24,"scaling":{"base":8,"str":1},"poiseRatio":{"str":0.42},"poise":14,"reach":24,"size":30,"knockback":320,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":5,"shake":3,"trail":"#ff9070"},
+  "steps2": [
+    {"kind":"swing","key":"shoulderCharge","step":{"windup":0.05,"active":0.1,"recover":0.2,"scaling":{"base":6,"str":0.2,"vit":0.6},"poiseRatio":{"str":0.48},"poise":16,"reach":12,"size":24,"knockback":360,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":5,"shake":3,"lunge":22}},
+    {"kind":"swing","key":"verticalSplit","step":{"windup":0.1,"active":0.1,"recover":0.312,"scaling":{"base":7.2,"str":1},"poiseRatio":{"str":0.39},"poise":13,"reach":20,"size":22,"knockback":260,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2,"lunge":5,"trail":"#ff9070"}},
+    {"kind":"swing","key":"cleaverSweep","step":{"windup":0.12,"active":0.1,"recover":0.36,"scaling":{"base":7.8,"str":0.9,"vit":0.2},"poiseRatio":{"str":0.48},"poise":16,"reach":28,"size":28,"knockback":280,"heavy":true,"mana":3,"shape":{"kind":"arc","deg":160},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070"}},
+    {"kind":"swing","key":"greatDrop","step":{"windup":0.16,"active":0.12,"recover":0.504,"scaling":{"base":15.3,"str":1.4,"vit":0.45},"poiseRatio":{"str":0.93},"poise":31,"reach":22,"size":34,"knockback":420,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":7,"shake":4,"lunge":8,"trail":"#ffffff"}}
+  ],
+  "branches": {
+    "slamDown": {"sequence":["primary","primary","secondary"],"step":{"windup":0.2,"active":0.12,"recover":0.5,"scaling":{"base":15,"str":1.4,"vit":0.4},"poiseRatio":{"str":0.9},"poise":30,"reach":20,"size":40,"knockback":460,"heavy":true,"mana":5,"shape":{"kind":"circle"},"hitstop":8,"shake":5,"trail":"#ffffff"}},
+    "bloodSpray": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.12,"active":0.1,"recover":0.3,"scaling":{"base":8,"str":0.9,"vit":0.25},"poiseRatio":{"str":0.48},"poise":16,"reach":20,"size":30,"knockback":280,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070","applies":[{"kind":"bleed","stacks":2,"duration":4,"potency":1.5,"ratio":{"str":0.045}}]}},
+    "pressCut": {"sequence":["primary","secondary","primary"],"step":{"windup":0.12,"active":0.1,"recover":0.3,"scaling":{"base":8,"str":0.9,"vit":0.25},"poiseRatio":{"str":0.48},"poise":16,"reach":20,"size":30,"knockback":280,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":20,"trail":"#ff9070"}},
+    "boneBreak": {"sequence":["secondary","primary","primary"],"step":{"windup":0.12,"active":0.1,"recover":0.3,"scaling":{"base":8,"str":0.9,"vit":0.25},"poiseRatio":{"str":0.48},"poise":16,"reach":20,"size":30,"knockback":280,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070","applies":[{"kind":"broken","stacks":1,"duration":1.5,"potency":0}]}}
+  }
+}

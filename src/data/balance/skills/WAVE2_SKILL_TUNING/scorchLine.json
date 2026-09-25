@@ -1,0 +1,5 @@
+{
+  "_note": "焼き払い: 前方へ炎の帯。通り道の床を炎にする（油・草は燃え広がる）。fireStart は自分の足元を燃やさないための距離",
+  "cost": 19, "minInterval": 0.7, "poise": 10, "length": 90, "halfWidth": 8, "fireStart": 16, "fireStep": 12, "fireRadius": 6, "fireTime": 3,
+  "damage": { "base": 6, "mnd": 0.6, "spi": 1.2 }, "poiseRatio": { "mnd": 0.1, "spi": 0.2 }, "knockback": 60, "burnPotency": 3, "burnPotencyRatio": { "spi": 0.09 }
+}

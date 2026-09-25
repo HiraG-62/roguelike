@@ -1,0 +1,14 @@
+{
+  "attackMoveMul": 0.35,
+  "steps2": [
+    {"kind":"hold","key":"parry","cooldown":0.6,"hold":{"moveMul":0.5,"maxSec":0.25,"parry":{"windowSec":0.25,"recoverSec":0.2,"staggerPoise":40}}},
+    {"kind":"swing","key":"returnCut","step":{"windup":0.035,"active":0.08,"recover":0.12,"scaling":{"base":5.2,"str":0.4,"dex":0.25},"poiseRatio":{"str":0.16,"dex":0.11},"poise":9,"reach":30,"size":12,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"lunge":10,"trail":"#c0e0ff"}},
+    {"kind":"swing","key":"risingCut","step":{"windup":0.06,"active":0.1,"recover":0.24,"scaling":{"base":10.7,"str":0.9,"dex":0.45},"poiseRatio":{"str":0.44,"dex":0.28},"poise":24,"reach":26,"size":26,"knockback":300,"heavy":true,"mana":5,"shape":{"kind":"arc","deg":150},"lunge":8,"trail":"#ffffff"}}
+  ],
+  "branches": {
+    "crossCut": {"sequence":["primary","primary","secondary"],"step":{"windup":0.045,"active":0.1,"recover":0.21,"scaling":{"base":10,"str":0.8,"dex":0.5},"poiseRatio":{"str":0.43,"dex":0.29},"poise":24,"reach":22,"size":40,"knockback":340,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":6,"shake":3,"lunge":8,"trail":"#ffffff"}},
+    "steppingCut": {"sequence":["secondary","primary","primary"],"next":2,"step":{"windup":0.03,"active":0.08,"recover":0.11,"scaling":{"base":5.5,"dex":0.5,"mnd":0.4},"poiseRatio":{"str":0.18,"dex":0.12},"poise":10,"reach":30,"size":16,"knockback":200,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"lunge":24,"trail":"#c0e0ff"}},
+    "tomoe": {"sequence":["primary","secondary","primary"],"step":{"windup":0.06,"active":0.1,"recover":0.2,"scaling":{"base":5.5,"str":0.45,"dex":0.25},"poiseRatio":{"str":0.24,"dex":0.15},"poise":13,"reach":0,"size":44,"knockback":320,"heavy":true,"mana":5,"shape":{"kind":"circle"},"hits":2,"lunge":8,"trail":"#c0e0ff"}},
+    "reverseKesa": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.06,"active":0.1,"recover":0.2,"scaling":{"base":12,"str":1,"dex":0.5},"poiseRatio":{"str":0.51,"dex":0.33},"poise":28,"reach":22,"size":40,"knockback":360,"heavy":true,"mana":5,"shape":{"kind":"box"},"lunge":8}}
+  }
+}

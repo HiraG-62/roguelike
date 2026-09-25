@@ -1,0 +1,13 @@
+{
+  "deathRondo": {
+    "volley": { "count": 16, "spreadDeg": 22.5, "speedMul": 1, "lifeMul": 1, "bulletRadius": 3, "pierceBonus": 1, "scaling": { "base": 10, "dex": 1 }, "poise": 10, "poiseRatio": { "dex": 0.3 } }
+  },
+  "godspeed": {
+    "volley": { "count": 6, "spreadDeg": 4, "speedMul": 1.5, "lifeMul": 1, "bulletRadius": 3, "pierceBonus": 0, "scaling": { "base": 10, "dex": 1.2 }, "poise": 10, "poiseRatio": { "dex": 0.3 } }
+  },
+  "barrage": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "fireRate": 1.5 },
+    "shot": { "pelletsAdd": 1, "recoilMul": 0 }
+  }
+}

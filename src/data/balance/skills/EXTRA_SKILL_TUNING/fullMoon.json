@@ -1,0 +1,5 @@
+{
+  "_note": "満月の砲: マナ満タンでだけ撃てる。cost / refMana は MANA.baseMax（実際に払うのは発動時の最大マナ全量。system/skills.ts の manaRuleCost）。widthPerMana は払ったマナ 1 あたりの太さの加算。fullEpsilon は満タン判定の浮動小数誤差の許容",
+  "cost": 80, "minInterval": 1, "poise": 40, "damage": { "base": 30, "mnd": 2.4, "spi": 1.6 }, "poiseRatio": { "mnd": 0.72, "spi": 0.48 }, "refMana": 80,
+  "halfWidth": 3, "widthPerMana": 0.08, "maxLength": 400, "stepPx": 2, "knockback": 220, "vulnerableTime": 2, "fullEpsilon": 0.01
+}

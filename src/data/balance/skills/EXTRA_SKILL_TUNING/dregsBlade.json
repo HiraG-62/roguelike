@@ -1,0 +1,5 @@
+{
+  "_note": "枯渇の刃: マナが最大の lowRatio 未満のときだけ撃てる、コスト 0 の 3 連斬",
+  "cost": 0, "minInterval": 0.6, "poise": 8, "lowRatio": 0.2, "hits": 3, "duration": 0.3, "radius": 30, "halfAngle": 0.9,
+  "damage": { "base": 5, "dex": 0.6, "spi": 0.6 }, "poiseRatio": { "dex": 0.12, "spi": 0.12 }, "knockback": 60, "recover": 0.12
+}

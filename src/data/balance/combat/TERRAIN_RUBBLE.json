@@ -1,0 +1,11 @@
+{
+  "_note": "地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2）",
+  "duration": 5,
+  "fallDelay": 1,
+  "fallDamage": 14,
+  "perDepth": 0.08,
+  "fallStagger": 1.2,
+  "bossPoise": 60,
+  "color": "#8a7a60",
+  "particles": 10
+}

@@ -1,0 +1,8 @@
+{
+  "delay": 1.5,
+  "sampleInterval": 0.1,
+  "radius": 26,
+  "damage": 16,
+  "keepAway": 110,
+  "color": "#b090ff"
+}

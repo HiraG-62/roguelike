@@ -1,0 +1,4 @@
+{
+  "_note": "風切り: 前方へ飛ぶ斬撃。敵弾を相殺し、相殺するたびに射程が伸びる（rangePerCut）",
+  "cost": 12, "minInterval": 0.5, "poise": 12, "speed": 200, "range": 90, "radius": 8, "rangePerCut": 20, "damage": { "base": 7, "str": 0.6, "dex": 0.8 }, "poiseRatio": { "str": 0.15, "dex": 0.21 }, "knockback": 90
+}

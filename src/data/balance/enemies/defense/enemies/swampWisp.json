@@ -1,0 +1,7 @@
+{
+  "body": "spirit",
+  "resist": {
+    "poison": 75,
+    "lightning": -50
+  }
+}

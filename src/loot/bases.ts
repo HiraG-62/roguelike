@@ -2,7 +2,7 @@ import { BALANCE } from "../data/balance";
 import { GUN_MOVESETS, type MovesetKey } from "../data/weapons";
 import type { Slot } from "./types";
 
-/** ベースごとの minLevel / marginBonus（数値のみ）。src/data/balance/loot.json の "bases" */
+/** ベースごとの minLevel / marginBonus（数値のみ）。src/data/balance/loot/ の "bases" */
 const B = BALANCE.loot.bases;
 
 /**

@@ -1,0 +1,7 @@
+{
+  "_note": "広がる輪（衝撃波・範囲）の見た目。flashTime 秒だけ中を薄く光らせる",
+  "flashTime": 0.08,
+  "flashAlpha": 0.3,
+  "glowWidth": 4,
+  "glowAlpha": 0.3
+}

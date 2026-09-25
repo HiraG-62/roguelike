@@ -19,7 +19,7 @@ import {
 
 /**
  * 奥義（F で奥義ゲージを使って出す技）の型と定義。docs/ideas/ougi-and-dual-actions.md 3 章。
- * 武器種ごとに 3 本（拠点の武器掛けで 1 本選ぶ。0 番目が既定）。数値は src/data/balance/ultimates.json の
+ * 武器種ごとに 3 本（拠点の武器掛けで 1 本選ぶ。0 番目が既定）。数値は src/data/balance/ultimates/ の
  * ULTIMATE.defs.<武器種>.<名前>、形・状態異常・弾の種類など union 文字列はここ。動きは system/ultimates.ts
  */
 

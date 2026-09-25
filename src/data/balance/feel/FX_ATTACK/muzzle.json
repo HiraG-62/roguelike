@@ -1,0 +1,10 @@
+{
+  "_note": "銃口の閃光。life は数フレーム（秒）、length / width は前方の炎の長さと幅 px",
+  "life": 0.07,
+  "length": 9,
+  "width": 4,
+  "glow": 9,
+  "spreadWidthMul": 1.8,
+  "chargeMul": 1.6,
+  "pierceLengthMul": 1.6
+}

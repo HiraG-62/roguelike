@@ -1,0 +1,7 @@
+{
+  "body": "spirit",
+  "resist": {
+    "dark": 50,
+    "light": -50
+  }
+}

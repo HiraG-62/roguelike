@@ -1,0 +1,20 @@
+{
+  "radius": 6,
+  "hp": 28,
+  "speed": 48,
+  "contactDamage": 0,
+  "windup": 0.5,
+  "strikeTime": 0.1,
+  "recover": 0.5,
+  "engageRange": 110,
+  "attackInterval": 2.3,
+  "score": 30,
+  "minDepth": 4,
+  "weight": 2,
+  "dropChance": 0.12,
+  "volley": {
+    "count": 3,
+    "spreadDeg": 50,
+    "damageMul": 0.6
+  }
+}

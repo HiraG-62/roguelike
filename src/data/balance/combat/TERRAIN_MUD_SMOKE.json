@@ -1,0 +1,15 @@
+{
+  "_note": "地形「泥」「煙」（docs/ideas/enemies.md E2 / V10）",
+  "mud": {
+    "moveMul": 0.6,
+    "bakeParalyze": 0.6,
+    "bakeColor": "#c8a070",
+    "bakeParticles": 6,
+    "genMinDepth": 2,
+    "genWeight": 1
+  },
+  "smoke": {
+    "puffColor": "#9a9aa4",
+    "puffParticles": 3
+  }
+}

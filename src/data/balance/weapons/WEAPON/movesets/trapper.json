@@ -1,0 +1,15 @@
+{
+  "attackMoveMul": 0.7,
+  "dashAttack": {"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4,"dex":0.4,"vit":0.3},"poiseRatio":{"dex":0.24},"poise":8,"reach":0,"size":32,"knockback":200,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#ffb040"},
+  "steps2": [
+    {"kind":"volley","key":"scatterMines","cooldown":4,"throw":{"bullet":{"scaling":{"base":4.3},"cooldownMul":2.8,"damageMul":3,"speedMul":0.6,"lifeMul":1,"radius":3,"poiseMul":4,"recoilMul":0.5,"pellets":0,"spreadDeg":12,"pierceBonus":0,"mine":{"fuse":3,"drag":6,"blastRadius":30,"triggerRadius":10,"color":"#ffb040"}},"scaling":{"base":10},"poise":12,"count":3,"spreadDeg":40}},
+    {"kind":"swing","key":"trapKick","step":{"windup":0.03,"active":0.1,"recover":0.24,"scaling":{"base":4.5,"dex":0.45,"vit":0.35},"poiseRatio":{"dex":0.27},"poise":9,"reach":12,"size":20,"knockback":200,"heavy":false,"mana":2,"shape":{"kind":"box"},"hitstop":2,"trail":"#ffb040"}},
+    {"kind":"swing","key":"detonate","cooldown":1,"detonateMines":true,"step":{"windup":0.03,"active":0.1,"recover":0.24,"scaling":{"base":4.5,"dex":0.45,"vit":0.35},"poiseRatio":{"dex":0.27},"poise":9,"reach":0,"size":24,"knockback":200,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#ffb040"}}
+  ],
+  "branches": {
+    "doublePlace": {"sequence":["primary","primary","secondary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":2,"dex":0.2,"vit":0.15},"poiseRatio":{"dex":0.12},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#ffb040"},"shots":{"count":2,"damageMul":1,"spreadDeg":20}},
+    "trapCircle": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":2,"dex":0.2,"vit":0.15},"poiseRatio":{"dex":0.12},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#ffb040"},"shots":{"count":5,"damageMul":0.8,"spreadDeg":72}},
+    "kickDetonate": {"sequence":["primary","secondary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4.6,"dex":0.45,"vit":0.35},"poiseRatio":{"dex":0.27},"poise":9,"reach":12,"size":20,"knockback":200,"heavy":false,"mana":2,"shape":{"kind":"box"},"hitstop":2,"trail":"#ffb040"},"detonateMines":true},
+    "trapToss": {"sequence":["secondary","primary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":2,"dex":0.2,"vit":0.15},"poiseRatio":{"dex":0.12},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#ffb040"},"shots":{"count":1,"damageMul":1.2}}
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "body": "fixture",
+  "resist": {
+    "poison": 25,
+    "fire": -50
+  }
+}

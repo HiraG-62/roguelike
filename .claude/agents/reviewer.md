@@ -17,7 +17,7 @@ model: fable
 - **決定性**: `state.rng` 以外の乱数、描画側での rng 消費、実時間依存、リプレイ（`src/core/replay.ts`）で再現できない入力経路
 - **状態のリセット漏れ**: フロア遷移（`descend`）・ラン開始（`createGame`）・死亡・ポーズで初期化されるべきフィールド
 - **性能**: 毎フレームの配列生成・filter/map の連鎖・文字列生成・Canvas の save/restore やフォント指定の過剰、キャッシュの無制限成長
-- **整合**: 型の Record 漏れ、`noUncheckedIndexedAccess` の undefined 握りつぶし、数値の直書き（`src/data/balance/*.json` に無い）、`ctx.fillText` / `measureText` の直接使用、表示文字列の用語揺れ（`docs/GLOSSARY.md`）
+- **整合**: 型の Record 漏れ、`noUncheckedIndexedAccess` の undefined 握りつぶし、数値の直書き（`src/data/balance/**/*.json` に無い）、`ctx.fillText` / `measureText` の直接使用、表示文字列の用語揺れ（`docs/GLOSSARY.md`）
 - **バランス**: 無限ループ（トリガーの自己連鎖、ICD 無し）、上限の無いスタック、0 除算、負の倍率、無敵化
 - **入力**: パッドとキーボードの両方、メニューと戦闘で同じボタンを兼ねる場合の誤発動
 - **QA bot**: 新しいモーダル状態で `src/qa/bot.ts` が止まらないか

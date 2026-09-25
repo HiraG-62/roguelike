@@ -1,0 +1,4 @@
+{
+  "_note": "影渡り: カーソル近くの敵の背後へ瞬間移動。直後の近接1回が背面ヒット。gap は背後へ出る距離の余白、backstabPoise は背面ヒットの怯み値の上乗せ（近接1回ぶん）",
+  "cost": 10, "minInterval": 0.5, "poise": 0, "maxRange": 170, "pickRadius": 44, "gap": 3, "backstabTime": 0.6, "backstabPoise": 18, "invuln": 0.08
+}

@@ -1,0 +1,38 @@
+{
+  "soft": {
+    "defense": 0,
+    "warding": 0
+  },
+  "beast": {
+    "defense": 0,
+    "warding": 0
+  },
+  "guard": {
+    "defense": 20,
+    "warding": -10
+  },
+  "armored": {
+    "defense": 30,
+    "warding": -15
+  },
+  "spirit": {
+    "defense": 35,
+    "warding": -20
+  },
+  "caster": {
+    "defense": -10,
+    "warding": 20
+  },
+  "fixture": {
+    "defense": 20,
+    "warding": 20
+  },
+  "elite": {
+    "defense": 20,
+    "warding": 10
+  },
+  "boss": {
+    "defense": 15,
+    "warding": 15
+  }
+}

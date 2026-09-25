@@ -1,0 +1,14 @@
+{
+  "slots": 4,
+  "manaFlashTime": 0.3,
+  "linkBurdenPenalty": 0.15,
+  "maxLinks": 3,
+  "linkWeights": [30, 45, 20, 5],
+  "variantCountWeights": [35, 45, 20],
+  "variantPrecision": 100,
+  "inputBuffer": 0.25,
+  "notReadyTextInterval": 0.6,
+  "stashCapacity": 60,
+  "runeCapacity": 60,
+  "_order": ["slots", "manaFlashTime", "linkBurdenPenalty", "maxLinks", "linkWeights", "variantCountWeights", "variantPrecision", "inputBuffer", "notReadyTextInterval", "stashCapacity", "runeCapacity", "whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "modifier", "drop"]
+}

@@ -1,0 +1,14 @@
+{
+  "tornado": {
+    "nova": { "radius": 56, "hits": 4, "scaling": { "base": 7, "dex": 0.6, "str": 0.6 }, "poise": 14, "poiseRatio": { "dex": 0.3 }, "knockback": 160 },
+    "buff": { "mana": 30, "duration": 0 }
+  },
+  "thousandThrusts": {
+    "swing": { "reach": 60, "size": 20, "hits": 5, "scaling": { "base": 6, "dex": 0.8, "str": 0.4 }, "poise": 10, "poiseRatio": { "dex": 0.3 }, "knockback": 200 }
+  },
+  "flowBreath": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "hitMana": { "magnitude": 2, "icd": 0 },
+    "hitHaste": { "magnitude": 0.15, "icd": 0 }
+  }
+}

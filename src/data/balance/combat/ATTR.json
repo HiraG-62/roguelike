@@ -1,0 +1,17 @@
+{
+  "_note": "ステータス（docs/COMBAT_DESIGN.md A）。base は基礎値、knee/slope は逓減、他は 1 点あたりの割合・数値。行動の強さはステータスではなく行動ごとの係数で伸ばす（A-10）ので、ここには体の性能（移動・ダッシュ・生命・状態異常への抵抗・気力）だけを置く",
+  "base": 5,
+  "knee1": 20,
+  "slope1": 0.5,
+  "knee2": 40,
+  "slope2": 0.25,
+  "dexMove": 0.005,
+  "dexDashCooldown": 0.01,
+  "dexDashCooldownMin": 0.7,
+  "vitMaxHp": 4,
+  "vitStatusTaken": 3,
+  "vitStatusTakenBase": 100,
+  "vitStatusTakenMin": 0.5,
+  "mndMaxMana": 5,
+  "mndManaRegen": 0.12
+}

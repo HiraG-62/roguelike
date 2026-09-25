@@ -1,0 +1,25 @@
+{
+  "attackMoveMul": 1,
+  "steps": [
+    {"windup":0.02,"active":0.05,"recover":0.06,"scaling":{"base":2.2,"str":0.2,"dex":0.2,"vit":0.2},"poiseRatio":{"str":0.09,"vit":0.09},"poise":6,"reach":10,"size":18,"knockback":60,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"lunge":4},
+    {"windup":0.02,"active":0.05,"recover":0.06,"scaling":{"base":2.2,"str":0.2,"dex":0.2,"vit":0.2},"poiseRatio":{"str":0.09,"vit":0.09},"poise":6,"reach":10,"size":18,"knockback":60,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"lunge":4},
+    {"windup":0.02,"active":0.05,"recover":0.06,"scaling":{"base":2.2,"str":0.2,"dex":0.2,"vit":0.2},"poiseRatio":{"str":0.09,"vit":0.09},"poise":6,"reach":10,"size":18,"knockback":60,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"lunge":4},
+    {"windup":0.03,"active":0.13,"recover":0.1,"scaling":{"base":1.4,"str":0.1,"dex":0.2,"vit":0.1},"poise":4,"reach":10,"size":18,"knockback":30,"heavy":false,"mana":1.5,"shape":{"kind":"box"},"hits":3,"hitstop":1},
+    {"windup":0.04,"active":0.07,"recover":0.16,"scaling":{"base":5,"str":0.5,"dex":0.2,"vit":0.5},"poiseRatio":{"str":0.24,"vit":0.24},"poise":16,"reach":12,"size":20,"knockback":260,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":5,"shake":3,"lunge":8,"trail":"#ffb080"}
+  ],
+  "dashAttack": {"windup":0.02,"active":0.07,"recover":0.16,"scaling":{"base":6,"str":0.6,"dex":0.2,"vit":0.4},"poiseRatio":{"str":0.3,"vit":0.3},"poise":20,"reach":12,"size":20,"knockback":380,"heavy":true,"mana":3,"shape":{"kind":"box"},"throw":true,"hitstop":5,"shake":3},
+  "steps2": [
+    {"kind":"swing","key":"grabThrow","step":{"windup":0.03,"active":0.08,"recover":0.18,"scaling":{"base":5,"str":0.6,"vit":0.4},"poiseRatio":{"str":0.27,"vit":0.27},"poise":18,"reach":10,"size":20,"knockback":360,"heavy":true,"mana":3,"shape":{"kind":"box"},"throw":true,"hitstop":5,"shake":3,"lunge":6}},
+    {"kind":"swing","key":"elbow","step":{"windup":0.02,"active":0.05,"recover":0.072,"scaling":{"base":2.4,"str":0.2,"dex":0.2,"vit":0.2},"poiseRatio":{"str":0.14,"vit":0.14},"poise":9,"reach":8,"size":18,"knockback":60,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":5,"shake":2,"lunge":4}},
+    {"kind":"swing","key":"knee","step":{"windup":0.02,"active":0.05,"recover":0.072,"scaling":{"base":2.4,"str":0.2,"dex":0.2,"vit":0.2},"poiseRatio":{"str":0.11,"vit":0.11},"poise":7,"reach":8,"size":18,"knockback":300,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"lunge":4}},
+    {"kind":"swing","key":"roundKick","step":{"windup":0.03,"active":0.13,"recover":0.12,"scaling":{"base":4.5,"str":0.3,"dex":0.65,"vit":0.3},"poise":13,"reach":22,"size":22,"knockback":30,"heavy":false,"mana":1.5,"shape":{"kind":"arc","deg":180},"hitstop":1}},
+    {"kind":"swing","key":"straightPunch","step":{"windup":0.04,"active":0.07,"recover":0.192,"scaling":{"base":5.6,"str":0.55,"dex":0.2,"vit":0.55},"poiseRatio":{"str":0.27,"vit":0.27},"poise":18,"reach":14,"size":20,"knockback":260,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":5,"shake":3,"lunge":8,"trail":"#ffb080"}}
+  ],
+  "branches": {
+    "uppercut": {"sequence":["primary","primary","secondary"],"step":{"windup":0.03,"active":0.07,"recover":0.18,"scaling":{"base":6,"str":0.7,"dex":0.2,"vit":0.3},"poiseRatio":{"str":0.39,"vit":0.39},"poise":26,"reach":12,"size":20,"knockback":300,"heavy":true,"mana":5,"shape":{"kind":"box"},"hitstop":6,"shake":3,"trail":"#ffb080"}},
+    "hundredFists": {"sequence":["primary","primary","primary","primary","secondary"],"step":{"windup":0.03,"active":0.26,"recover":0.21,"scaling":{"base":1.6,"str":0.1,"dex":0.2,"vit":0.1},"poise":4,"reach":12,"size":22,"knockback":40,"heavy":false,"mana":1,"shape":{"kind":"box"},"hits":6,"hitstop":1,"shake":1}},
+    "breakThrust": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.02,"active":0.05,"recover":0.06,"scaling":{"base":2.5,"str":0.25,"dex":0.25,"vit":0.25},"poiseRatio":{"str":0.11,"vit":0.11},"poise":7,"reach":10,"size":18,"knockback":60,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"lunge":4,"applies":[{"kind":"broken","stacks":1,"duration":1.5,"potency":0}]}},
+    "doubleKick": {"sequence":["primary","secondary","primary"],"step":{"windup":0.02,"active":0.05,"recover":0.06,"scaling":{"base":1.3,"str":0.1,"dex":0.1,"vit":0.1},"poiseRatio":{"str":0.05,"vit":0.05},"poise":3,"reach":20,"size":20,"knockback":60,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":150},"hits":2,"hitstop":1,"lunge":4}},
+    "chainFists": {"sequence":["secondary","primary","primary"],"step":{"windup":0.02,"active":0.14,"recover":0.06,"scaling":{"base":1.1,"str":0.1,"dex":0.1,"vit":0.1},"poiseRatio":{"str":0.05,"vit":0.05},"poise":3,"reach":10,"size":18,"knockback":60,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":4,"hitstop":1,"lunge":4}}
+  }
+}

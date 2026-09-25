@@ -44,7 +44,7 @@ src/map/     グリッド・生成器・拠点の部屋・視線と距離場（�
 src/render/  Canvas 描画（state を読むだけ）
 src/ui/      画面ロジック（DOM 非依存）
 src/audio/   Web Audio 合成の効果音と音楽
-src/data/    balance/*.json（数値）、敵・武器・ジョブの定義、スプライト
+src/data/    balance/<ファイル>/**/*.json（数値。`npm run balance:gen` で組み立て）、敵・武器・ジョブの定義、スプライト
 src/meta/    図鑑・依頼・実績・連携の発見・拠点の永続化（ゲーム進行には効かない）
 src/save/    保存先の唯一の入口（ブラウザ localStorage / Electron ファイル）
 src/qa/      ヘッドレス bot とシミュレーション、report.md
@@ -56,7 +56,7 @@ electron/    Electron 版の main / preload / IPC
 1. **ロジックと描画の分離**: system は state を読み書きし、render は読むだけ。描画から state を書き換えない
 2. **描画で `state.rng` を消費しない**。見た目のばらつきは `renderMath.ts` の座標ハッシュ
 3. **決定性**: 同じ seed + 同じ FrameInput 列 → 同じ結果。`Math.random`（`audio/synth.ts` の揺らぎ以外）と実時間に依存しない。`Date.now()` は id / `foundAt` の `now` 引数だけ。`core/replay.test.ts` を壊さない
-4. **バランス数値は `src/data/balance/*.json`**（ブロック名 + `_note`）。ロジックは `data/tuning.ts` / `skills/data.ts` の再 export 経由で読み、直書きしない。union 文字列・key・表示名・関数は TS。置き場所と境界は `docs/BALANCE.md`。項目の意味は `_fields`（親に 1 回、行は引き継ぐ。新しい数値には 1 行足す）
+4. **バランス数値は `src/data/balance/**/*.json`**（ブロック名 + `_note`）。ロジックは `data/tuning.ts` / `skills/data.ts` の再 export 経由で読み、直書きしない。union 文字列・key・表示名・関数は TS。置き場所と境界は `docs/BALANCE.md`。項目の意味は `_fields`（親に 1 回、行は引き継ぐ。新しい数値には 1 行足す）
 5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`。`ctx.fillText` / `measureText` / `ctx.font` と等幅前提の文字数計算は禁止。行高は `Math.max(定数, textLineHeight())`
 6. **座標は 480x270 の論理座標**（`core/view.ts`）。距離の表示は `core/units.ts` の `formatMeters`（10px = 1m）
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts

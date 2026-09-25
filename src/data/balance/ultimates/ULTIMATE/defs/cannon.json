@@ -1,0 +1,14 @@
+{
+  "grandShell": {
+    "blast": { "distance": 110, "radius": 60, "scaling": { "base": 40, "str": 2, "mnd": 2 }, "poise": 80, "poiseRatio": { "str": 1, "mnd": 1 }, "knockback": 450, "heavy": true }
+  },
+  "fullSalvo": {
+    "detonate": { "damageMul": 1.5 },
+    "volley": { "count": 5, "spreadDeg": 12, "speedMul": 1, "lifeMul": 1, "bulletRadius": 4, "pierceBonus": 0, "scaling": { "base": 16, "str": 1, "mnd": 1 }, "poise": 30, "poiseRatio": { "str": 0.6 } }
+  },
+  "powderKeg": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "fireRate": 1.2 },
+    "shot": { "damageMul": 1.3, "fuseMul": 0.2 }
+  }
+}

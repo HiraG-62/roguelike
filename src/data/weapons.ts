@@ -314,7 +314,7 @@ export interface MineDef {
 }
 
 /**
- * 1 つの武器が撃つ弾（銃のベースごと、または右レーンの弾の段ごと）。数値は src/data/balance/weapons.json の
+ * 1 つの武器が撃つ弾（銃のベースごと、または右レーンの弾の段ごと）。数値は src/data/balance/weapons/ の
  * WEAPON.bullets.<ベースの key>（右レーンの段は movesets.<武器種>.steps2[n].throw.bullet）。挙動のブロック（sway / homing / … / lob）を
  * 持つかどうかがそのまま弾の性質になる（bulletFeatures）
  */
@@ -415,7 +415,7 @@ function swordSteps(): MeleeStepDef[] {
 }
 
 /**
- * WEAPON（src/data/balance/weapons.json）は union 文字列（shape.kind / applies[].kind / sequence の要素 / art.throw.shot）を
+ * WEAPON（src/data/balance/weapons/）は union 文字列（shape.kind / applies[].kind / sequence の要素 / art.throw.shot）を
  * ただの string として読む（docs/ideas/data-externalization.md 1.3）。ここで一覧と照合し、未知の値は throw で絞る
  * （6.6「union 文字列は TS に残すか hitShape(json.shape) で受ける」）。数値・色などそれ以外のフィールドはそのまま通す
  */

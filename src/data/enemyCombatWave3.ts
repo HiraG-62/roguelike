@@ -13,7 +13,7 @@ const BOSS_IMMUNE: readonly StatusKind[] = ["freeze", "fear"];
 const FIXTURE_IMMUNE: readonly StatusKind[] = ["stagger", "freeze", "paralyze", "fear"];
 const BLEED_POTENCY = 0.2;
 
-/** poise/staggerTime/superArmorMul/strikeSuperArmorMul。src/data/balance/enemies.json の "combat" */
+/** poise/staggerTime/superArmorMul/strikeSuperArmorMul。src/data/balance/enemies/ の "combat" */
 const C = BALANCE.enemies.combat;
 
 export const WAVE3_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {

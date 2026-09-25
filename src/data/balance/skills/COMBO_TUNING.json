@@ -1,0 +1,16 @@
+{
+  "_note": "連携（docs/ideas/skills-expansion.md 4章）の受付秒（window）と効果",
+  "wellThunder": { "window": 2.5, "shockBonus": 1 },
+  "hookWhirl": { "window": 0.8, "areaMul": 1.2 },
+  "parryRail": { "window": 1, "damageMul": 1.5, "aimMul": 0 },
+  "diveQuake": { "window": 0.6, "windupMul": 0.05, "areaMul": 1.2 },
+  "contagionUnravel": { "window": 1.5 },
+  "pactWhirl": { "window": 4, "bleedStacks": 1, "bleedTime": 4, "bleedPotency": 1 },
+  "frostBreaker": { "window": 3 },
+  "shadowExploit": { "window": 0.8 },
+  "hasteSpiral": { "window": 3 },
+  "reelStomp": { "window": 1 },
+  "color": "#ffe070",
+  "textScale": 1,
+  "textLife": 0.7
+}

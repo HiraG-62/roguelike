@@ -1,0 +1,15 @@
+{
+  "radius": 7,
+  "hp": 70,
+  "speed": 32,
+  "contactDamage": 0,
+  "windup": 0.8,
+  "strikeTime": 0.2,
+  "recover": 0.8,
+  "engageRange": 130,
+  "attackInterval": 2.2,
+  "score": 55,
+  "minDepth": 7,
+  "weight": 1.5,
+  "dropChance": 0.2
+}

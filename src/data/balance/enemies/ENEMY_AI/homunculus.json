@@ -1,0 +1,9 @@
+{
+  "blasts": 3,
+  "spread": 36,
+  "radius": 18,
+  "damage": 10,
+  "fallbackDuration": 2.5,
+  "keepAway": 100,
+  "color": "#e080c0"
+}

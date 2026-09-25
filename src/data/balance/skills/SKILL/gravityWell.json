@@ -1,0 +1,17 @@
+{
+  "_note": "cost: 30→25.5（-15%）。tickDamage.base 1.1→1.3、burstDamage.base 8.8→10.1（各+15%）。poise は破裂の怯み値（tick は 0）。silenceTime は tick ごとに付け直す沈黙の秒（tick 間隔より少し長く、引いている間は切れない）",
+  "cost": 25.5,
+  "minInterval": 1,
+  "poise": 20,
+  "maxRange": 120,
+  "duration": 2,
+  "radius": 50,
+  "pull": 70,
+  "core": 6,
+  "tickEvery": 0.5,
+  "tickDamage": { "base": 1.3, "spi": 0.4 },
+  "poiseRatio": { "spi": 0.6 },
+  "burstDamage": { "base": 10.1, "mnd": 0.6, "spi": 1.4 },
+  "burstKnockback": 80,
+  "silenceTime": 0.6
+}

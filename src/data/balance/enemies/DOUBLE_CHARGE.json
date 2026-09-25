@@ -1,0 +1,10 @@
+{
+  "_note": "二度突きの猪(docs/ideas/enemies.md E6)。src/system/enemyBehaviors.ts が読む",
+  "overshoot": 24,
+  "leg1Min": 60,
+  "leg1Max": 170,
+  "leg2Len": 120,
+  "turnDeg": 75,
+  "lineAlpha": 0.35,
+  "secondAlpha": 0.16
+}

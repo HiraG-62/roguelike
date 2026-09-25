@@ -1,0 +1,17 @@
+{
+  "_note": "cost: 20→17（-15%）。damage.base: 11→12.7（+15%）。shockPotency は感電の連鎖 1 回のダメージ（状態異常の potency）",
+  "cost": 17,
+  "minInterval": 0.5,
+  "poise": 15,
+  "maxRange": 140,
+  "delay": 0.5,
+  "radius": 22,
+  "damage": { "base": 12.7, "mnd": 1.2, "spi": 1.6 },
+  "poiseRatio": { "mnd": 0.19, "spi": 0.26 },
+  "shockMul": 0.5,
+  "extraGap": 0.12,
+  "extraOffset": 22,
+  "shockStacks": 2,
+  "shockPotency": 3,
+  "shockPotencyRatio": { "spi": 0.06, "mnd": 0.03 }
+}

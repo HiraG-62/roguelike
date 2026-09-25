@@ -1,0 +1,21 @@
+{
+  "radius": 10,
+  "hp": 150,
+  "speed": 22,
+  "contactDamage": 22,
+  "windup": 1,
+  "strikeTime": 0.6,
+  "recover": 1.08,
+  "engageRange": 60,
+  "attackInterval": 1.44,
+  "score": 80,
+  "minDepth": 8,
+  "weight": 1.5,
+  "dropChance": 0.3,
+  "deathBurst": {
+    "count": 8,
+    "speed": 110,
+    "damage": 8,
+    "color": "#8fd0ff"
+  }
+}

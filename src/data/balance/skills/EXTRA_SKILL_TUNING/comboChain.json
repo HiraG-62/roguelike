@@ -1,0 +1,5 @@
+{
+  "_note": "連環撃: コンボ10ごとに段数+1の多段突き。1段でも外すとコンボが途切れる",
+  "cost": 14, "minInterval": 0.6, "poise": 6, "comboPerStage": 10, "maxStages": 6, "gap": 0.07, "length": 40, "halfWidth": 7,
+  "damage": { "base": 4, "str": 0.2, "dex": 0.8 }, "poiseRatio": { "str": 0.04, "dex": 0.14 }, "knockback": 30
+}

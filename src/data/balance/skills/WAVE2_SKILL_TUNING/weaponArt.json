@@ -1,0 +1,4 @@
+{
+  "_note": "極意: 装備中の武器種で形が変わる（形の数値は skills/reshapes.ts の WEAPON_ART。union文字列 shape.kind を含むためJSON化していない）",
+  "cost": 22, "minInterval": 0.8, "poise": 25, "damage": { "base": 10, "str": 0.5, "dex": 0.5, "vit": 0.3, "mnd": 0.4, "spi": 0.3 }, "poiseRatio": { "str": 0.19, "dex": 0.19, "vit": 0.11, "mnd": 0.15, "spi": 0.11 }, "knockback": 120
+}

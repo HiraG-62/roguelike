@@ -1,0 +1,4 @@
+{
+  "_note": "彩刻: 前方を斬り、装備の共鳴の色の彩痕を刻む",
+  "cost": 15, "minInterval": 0.5, "poise": 8, "radius": 34, "halfAngle": 0.8, "damage": { "base": 5, "str": 0.6, "spi": 0.6 }, "poiseRatio": { "str": 0.12, "spi": 0.12 }, "knockback": 60
+}

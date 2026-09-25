@@ -1,0 +1,15 @@
+{
+  "serpentBind": {
+    "pull": { "radius": 70, "toDistance": 24 },
+    "fear": { "stacks": 1, "duration": 2, "potency": 0 },
+    "nova": { "radius": 34, "scaling": { "base": 14, "dex": 1, "spi": 1 }, "poise": 20, "poiseRatio": { "dex": 0.6 }, "knockback": 80 }
+  },
+  "hundredCracks": {
+    "nova": { "radius": 64, "hits": 6, "scaling": { "base": 4, "dex": 0.5, "spi": 0.3 }, "poise": 8, "poiseRatio": { "dex": 0.24 }, "knockback": 80 }
+  },
+  "thunderWhip": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "shock": { "stacks": 1, "duration": 3, "potency": 3 },
+    "aura": { "radius": 36, "interval": 0.5, "scaling": { "base": 4, "spi": 0.6 }, "poise": 4 }
+  }
+}

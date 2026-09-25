@@ -1,0 +1,7 @@
+{
+  "_note": "粒の描き方。速い粒は速度の向きに streakTime 秒ぶん尾を引く。炎の粒は熱い色 → 元の色 → 冷めた色",
+  "streakTime": 0.022,
+  "streakMinSpeed": 55,
+  "emberHot": "#fff0a0",
+  "emberCool": "#8a2810"
+}

@@ -1,0 +1,9 @@
+{
+  "jumpTime": 0.9,
+  "shockRadius": 60,
+  "shockDamage": 17,
+  "phase2Ratio": 0.5,
+  "splitCount": 3,
+  "phase2SpeedMul": 1.6,
+  "phase2JumpTime": 0.8
+}

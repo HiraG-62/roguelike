@@ -1,0 +1,291 @@
+{
+  "dagger": {
+    "minLevel": 1
+  },
+  "shortsword": {
+    "minLevel": 1
+  },
+  "longsword": {
+    "minLevel": 5
+  },
+  "spear": {
+    "minLevel": 7
+  },
+  "greatsword": {
+    "minLevel": 3
+  },
+  "twinblades": {
+    "minLevel": 6
+  },
+  "warpick": {
+    "minLevel": 3
+  },
+  "machete": {
+    "minLevel": 2
+  },
+  "rapier": {
+    "minLevel": 3
+  },
+  "staff": {
+    "minLevel": 2
+  },
+  "scythe": {
+    "minLevel": 11
+  },
+  "gauntlets": {
+    "minLevel": 1
+  },
+  "whip": {
+    "minLevel": 3
+  },
+  "wand": {
+    "minLevel": 3
+  },
+  "katana": {
+    "minLevel": 3
+  },
+  "zanbato": {
+    "minLevel": 12
+  },
+  "twinDaggers": {
+    "minLevel": 2
+  },
+  "halberd": {
+    "minLevel": 11
+  },
+  "sickle": {
+    "minLevel": 3
+  },
+  "cestus": {
+    "minLevel": 8
+  },
+  "chainWhip": {
+    "minLevel": 10
+  },
+  "shakujo": {
+    "minLevel": 9
+  },
+  "crystalWand": {
+    "minLevel": 11
+  },
+  "wakizashi": {
+    "minLevel": 3
+  },
+  "tachi": {
+    "minLevel": 8
+  },
+  "handAxe": {
+    "minLevel": 2
+  },
+  "battleAxe": {
+    "minLevel": 9
+  },
+  "towerShield": {
+    "minLevel": 3
+  },
+  "kiteShield": {
+    "minLevel": 10
+  },
+  "kusarigama": {
+    "minLevel": 3
+  },
+  "weightedChain": {
+    "minLevel": 9
+  },
+  "mallet": {
+    "minLevel": 3
+  },
+  "maul": {
+    "minLevel": 12
+  },
+  "twinPistols": {
+    "minLevel": 3
+  },
+  "twinRevolvers": {
+    "minLevel": 11
+  },
+  "broadCleaver": {
+    "minLevel": 9
+  },
+  "pistol": {
+    "minLevel": 1
+  },
+  "smg": {
+    "minLevel": 4
+  },
+  "rifle": {
+    "minLevel": 8
+  },
+  "shotgun": {
+    "minLevel": 12
+  },
+  "revolver": {
+    "minLevel": 7
+  },
+  "railgun": {
+    "minLevel": 16
+  },
+  "throwingKnives": {
+    "minLevel": 2
+  },
+  "blowgun": {
+    "minLevel": 3
+  },
+  "matchlock": {
+    "minLevel": 4
+  },
+  "ricochetGun": {
+    "minLevel": 3
+  },
+  "mineLauncher": {
+    "minLevel": 10
+  },
+  "blunderbuss": {
+    "minLevel": 3
+  },
+  "crossbow": {
+    "minLevel": 4
+  },
+  "chakram": {
+    "minLevel": 9
+  },
+  "handCannon": {
+    "minLevel": 13
+  },
+  "caltrops": {
+    "minLevel": 4
+  },
+  "seekerOrb": {
+    "minLevel": 8
+  },
+  "burstRifle": {
+    "minLevel": 3
+  },
+  "tripleCrossbow": {
+    "minLevel": 10
+  },
+  "returnChakram": {
+    "minLevel": 3
+  },
+  "flyingBlade": {
+    "minLevel": 11
+  },
+  "mortar": {
+    "minLevel": 3
+  },
+  "grenadeLauncher": {
+    "minLevel": 11
+  },
+  "cloth": {
+    "minLevel": 1
+  },
+  "leather": {
+    "minLevel": 3
+  },
+  "chain": {
+    "minLevel": 8
+  },
+  "plate": {
+    "minLevel": 14
+  },
+  "berserkerHide": {
+    "minLevel": 6
+  },
+  "rags": {
+    "minLevel": 1,
+    "marginBonus": 1
+  },
+  "robe": {
+    "minLevel": 5
+  },
+  "scale": {
+    "minLevel": 9
+  },
+  "spiked": {
+    "minLevel": 11
+  },
+  "mino": {
+    "minLevel": 4
+  },
+  "sandals": {
+    "minLevel": 1
+  },
+  "boots": {
+    "minLevel": 4
+  },
+  "greaves": {
+    "minLevel": 10
+  },
+  "wingedBoots": {
+    "minLevel": 16
+  },
+  "lungingBoots": {
+    "minLevel": 7
+  },
+  "tabi": {
+    "minLevel": 5
+  },
+  "ironGeta": {
+    "minLevel": 6
+  },
+  "snowBoots": {
+    "minLevel": 8
+  },
+  "ironRing": {
+    "minLevel": 1
+  },
+  "rubyRing": {
+    "minLevel": 3
+  },
+  "sapphireRing": {
+    "minLevel": 3
+  },
+  "goldRing": {
+    "minLevel": 6
+  },
+  "bloodRing": {
+    "minLevel": 10
+  },
+  "voidBand": {
+    "minLevel": 13
+  },
+  "boneRing": {
+    "minLevel": 4
+  },
+  "signet": {
+    "minLevel": 5
+  },
+  "twinRing": {
+    "minLevel": 8
+  },
+  "blackIronRing": {
+    "minLevel": 13
+  },
+  "jadeAmulet": {
+    "minLevel": 1
+  },
+  "amberAmulet": {
+    "minLevel": 1
+  },
+  "onyxAmulet": {
+    "minLevel": 5
+  },
+  "lapisAmulet": {
+    "minLevel": 8
+  },
+  "coralAmulet": {
+    "minLevel": 12
+  },
+  "duskAmulet": {
+    "minLevel": 9
+  },
+  "rosary": {
+    "minLevel": 3
+  },
+  "fangNecklace": {
+    "minLevel": 6
+  },
+  "bell": {
+    "minLevel": 7
+  }
+}

@@ -70,7 +70,7 @@ export interface CurvePoint extends RollRange {
   depth: number;
 }
 
-/** 期待値曲線の実体（数値だけの点列）。src/data/balance/loot.json の "affixCurves" */
+/** 期待値曲線の実体（数値だけの点列）。src/data/balance/loot/ の "affixCurves" */
 const CURVES = BALANCE.loot.affixCurves;
 
 /** 性質の key で期待値曲線を引く。JSON にキーが無ければ tsc がここで落ちる（キーは AffixDef.key と同じ） */

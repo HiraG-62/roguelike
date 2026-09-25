@@ -1,0 +1,10 @@
+{
+  "seekRadius": 180,
+  "eatRange": 10,
+  "eatTime": 1,
+  "maxGrowth": 3,
+  "hpPerGrowth": 0.35,
+  "damagePerGrowth": 0.3,
+  "radiusPerGrowth": 1,
+  "color": "#b0f0a0"
+}

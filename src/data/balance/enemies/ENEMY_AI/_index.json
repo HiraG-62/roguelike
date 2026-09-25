@@ -1,0 +1,9 @@
+{
+  "_note": "追加敵の行動パラメータ。maxSimultaneousStrikers: QA 0.0.7α で 1 対 1 被弾 9.74 回/60 秒。囲まれたときに予告の重なりで避けられない瞬間を作らないためのテレグラフ原則の上限。knockDecay は docs/ideas/combat-feel-design.md D-2(system/enemies.ts の局所定数をここへ移した)",
+  "maxSimultaneousStrikers": 2,
+  "strikerHoldTime": 0.1,
+  "knockDecay": 9,
+  "friendlyBlastMul": 1,
+  "silencedAttackManaMul": 1.5,
+  "_order": ["maxSimultaneousStrikers", "strikerHoldTime", "knockDecay", "knight", "bomber", "laser", "golem", "bat", "wisp", "volley", "flank", "timid", "deathBurst", "rockfall", "kamikaze", "echoStriker", "packLeader", "conductor", "manaLeech", "corpse", "scavenger", "graveBell", "silencer", "frostCrusher", "twinShade", "mimic", "hollowArmor", "terrainSeed", "friendlyBlastMul", "silencedAttackManaMul", "lobber", "oiler", "bellImp", "banner", "charged", "burrower", "dropper", "absorber", "homunculus", "scribeImp", "crossGolem", "windSprite", "mineLayer", "mine", "chainWarden", "hollow", "flameEater", "spore", "swampWisp", "iceTrail", "giantToad", "forgeMaster", "turretMaster", "turret", "basilisk", "shadowStalker"]
+}

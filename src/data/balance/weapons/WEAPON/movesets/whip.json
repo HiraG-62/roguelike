@@ -1,0 +1,23 @@
+{
+  "attackMoveMul": 0.5,
+  "tip": {"ratio":0.25,"damageMul":1,"poiseMul":1.5,"manaMul":1,"offDamageMul":0.5,"offManaMul":0},
+  "steps": [
+    {"windup":0.07,"active":0.08,"recover":0.15,"scaling":{"base":5,"dex":0.5,"spi":0.3},"poiseRatio":{"dex":0.18},"poise":6,"reach":56,"size":6,"knockback":100,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"hitstop":2,"trail":"#d0a060"},
+    {"windup":0.06,"active":0.1,"recover":0.14,"scaling":{"base":3.5,"dex":0.4,"spi":0.2},"poiseRatio":{"dex":0.15},"poise":5,"reach":44,"size":44,"knockback":90,"heavy":false,"mana":2,"shape":{"kind":"arc","deg":120},"hitstop":1,"trail":"#d0a060"},
+    {"windup":0.06,"active":0.16,"recover":0.16,"scaling":{"base":2.5,"dex":0.3,"spi":0.2},"poise":4,"reach":48,"size":48,"knockback":70,"heavy":false,"mana":1.5,"shape":{"kind":"arc","deg":180},"hits":2,"hitstop":1,"trail":"#d0a060"},
+    {"windup":0.1,"active":0.1,"recover":0.26,"scaling":{"base":8,"dex":0.7,"mnd":0.3,"spi":0.3},"poiseRatio":{"dex":0.42},"poise":14,"reach":60,"size":6,"knockback":200,"heavy":false,"mana":4,"shape":{"kind":"thrust"},"hitstop":4,"shake":2,"trail":"#ffffff"}
+  ],
+  "dashAttack": {"windup":0.02,"active":0.11,"recover":0.14,"scaling":{"base":5,"dex":0.6,"spi":0.2},"poiseRatio":{"dex":0.18},"poise":6,"reach":0,"size":70,"knockback":150,"heavy":false,"mana":2,"shape":{"kind":"circle"},"trail":"#d0a060"},
+  "steps2": [
+    {"kind":"swing","key":"entangle","step":{"windup":0.07,"active":0.09,"recover":0.17,"scaling":{"base":7,"dex":0.5,"spi":0.6},"poiseRatio":{"dex":0.36},"poise":12,"reach":64,"size":8,"knockback":220,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"pull":true,"hitstop":3,"shake":1.5,"trail":"#ffffff","applies":[{"kind":"fear","stacks":1,"duration":1,"potency":0}]}},
+    {"kind":"swing","key":"whipSweep","step":{"windup":0.06,"active":0.1,"recover":0.168,"scaling":{"base":3.8,"dex":0.45,"spi":0.2},"poiseRatio":{"dex":0.15},"poise":5,"reach":44,"size":44,"knockback":90,"heavy":false,"mana":2,"shape":{"kind":"arc","deg":180},"hitstop":1,"trail":"#d0a060"}},
+    {"kind":"swing","key":"groundLash","step":{"windup":0.06,"active":0.16,"recover":0.192,"scaling":{"base":2.7,"dex":0.35,"spi":0.2},"poise":4,"reach":0,"size":48,"knockback":70,"heavy":false,"mana":1.5,"shape":{"kind":"circle"},"hits":2,"hitstop":1,"trail":"#d0a060"}},
+    {"kind":"swing","key":"whipCrack","step":{"windup":0.1,"active":0.1,"recover":0.312,"scaling":{"base":8.9,"dex":0.8,"mnd":0.35,"spi":0.35},"poiseRatio":{"dex":0.48},"poise":16,"reach":64,"size":6,"knockback":200,"heavy":false,"mana":4,"shape":{"kind":"thrust"},"hitstop":4,"shake":2,"trail":"#ffffff","applies":[{"kind":"fear","stacks":1,"duration":1,"potency":0}]}}
+  ],
+  "branches": {
+    "whirl": {"sequence":["primary","primary","secondary"],"step":{"windup":0.05,"active":0.27,"recover":0.21,"scaling":{"base":2.5,"str":0.2,"dex":0.3},"poise":4,"reach":0,"size":80,"knockback":120,"heavy":false,"mana":1,"shape":{"kind":"circle"},"hits":3,"hitstop":1,"shake":1,"trail":"#d0a060"}},
+    "snakeLash": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.07,"active":0.08,"recover":0.15,"scaling":{"base":2.9,"dex":0.3,"spi":0.15},"poiseRatio":{"dex":0.09},"poise":3,"reach":60,"size":6,"knockback":100,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"hits":2,"hitstop":2,"trail":"#d0a060"}},
+    "coilUp": {"sequence":["primary","secondary","primary"],"step":{"windup":0.07,"active":0.08,"recover":0.15,"scaling":{"base":5.8,"dex":0.6,"spi":0.35},"poiseRatio":{"dex":0.21},"poise":7,"reach":56,"size":8,"knockback":300,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"pull":true,"hitstop":2,"trail":"#d0a060"}},
+    "rend": {"sequence":["secondary","primary","primary"],"step":{"windup":0.07,"active":0.08,"recover":0.15,"scaling":{"base":5.8,"dex":0.6,"spi":0.35},"poiseRatio":{"dex":0.21},"poise":7,"reach":56,"size":6,"knockback":100,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"hitstop":2,"trail":"#d0a060","applies":[{"kind":"bleed","stacks":2,"duration":4,"potency":1.5,"ratio":{"dex":0.045}}]}}
+  }
+}

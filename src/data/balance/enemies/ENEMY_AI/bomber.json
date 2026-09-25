@@ -1,0 +1,9 @@
+{
+  "keepAway": 60,
+  "fuse": 2,
+  "radius": 36,
+  "damage": 18,
+  "throwDist": 40,
+  "color": "#ff4040",
+  "deathFuse": 0.5
+}

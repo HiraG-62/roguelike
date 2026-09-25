@@ -1,0 +1,4 @@
+{
+  "_note": "湧き石（CD型）: 足元の石の半径内で、近接の命中ごとにマナが余分に戻る（manaGainMulはgainManaが掛ける）",
+  "cooldown": 14, "minInterval": 0.3, "duration": 6, "radius": 40, "manaPerHit": 2
+}

@@ -1,0 +1,19 @@
+{
+  "radius": 5,
+  "hp": 8,
+  "speed": 62,
+  "contactDamage": 5,
+  "windup": 0.3,
+  "strikeTime": 0.2,
+  "recover": 0.4,
+  "engageRange": 40,
+  "attackInterval": 0.3,
+  "score": 5,
+  "minDepth": 1,
+  "weight": 1.5,
+  "dropChance": 0.03,
+  "swarm": {
+    "min": 3,
+    "max": 5
+  }
+}

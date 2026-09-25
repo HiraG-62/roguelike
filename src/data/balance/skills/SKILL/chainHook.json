@@ -1,0 +1,18 @@
+{
+  "_note": "cost: 14→11.9、damage.base: 6.6→7.6（各+15%）。bleedPotency は出血の 10px あたりダメージ（状態異常の potency）",
+  "cost": 11.9,
+  "minInterval": 0.5,
+  "poise": 15,
+  "range": 110,
+  "extendTime": 0.18,
+  "recover": 0.25,
+  "hitPad": 3,
+  "damage": { "base": 7.6, "str": 0.8, "dex": 0.8 },
+  "poiseRatio": { "str": 0.22, "dex": 0.22 },
+  "knockback": 40,
+  "landGap": 2,
+  "bleedStacks": 1,
+  "bleedTime": 4,
+  "bleedPotency": 1,
+  "bleedPotencyRatio": { "dex": 0.03 }
+}

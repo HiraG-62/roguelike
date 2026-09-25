@@ -1,0 +1,7 @@
+{
+  "slowPerStack": 0.12,
+  "maxStacks": 5,
+  "playerMaxStacks": 3,
+  "duration": 2,
+  "bossMaxSlow": 0.4
+}

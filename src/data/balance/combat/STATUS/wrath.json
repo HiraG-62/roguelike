@@ -1,0 +1,7 @@
+{
+  "maxStacks": 5,
+  "duration": 6,
+  "poisePerStack": 0.1,
+  "onHurt": 1,
+  "onStagger": 2
+}

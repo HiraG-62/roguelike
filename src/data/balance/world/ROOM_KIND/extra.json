@@ -1,0 +1,82 @@
+{
+  "altar": {
+    "chance": 0.18,
+    "minDepth": 3
+  },
+  "library": {
+    "chance": 0.22,
+    "minDepth": 2
+  },
+  "arena": {
+    "chance": 0.15,
+    "minDepth": 4
+  },
+  "gamble": {
+    "chance": 0.2,
+    "minDepth": 2
+  },
+  "forge": {
+    "chance": 0.15,
+    "minDepth": 2
+  },
+  "exchange": {
+    "chance": 0.15,
+    "minDepth": 2
+  },
+  "curseShrine": {
+    "chance": 0.15,
+    "minDepth": 3
+  },
+  "resonance": {
+    "chance": 0.2,
+    "minDepth": 2
+  },
+  "escort": {
+    "chance": 0.15,
+    "minDepth": 3
+  },
+  "escape": {
+    "chance": 0.12,
+    "minDepth": 3
+  },
+  "reaperNest": {
+    "chance": 0.1,
+    "minDepth": 4
+  },
+  "nest": {
+    "chance": 0.15,
+    "minDepth": 4
+  },
+  "mirror": {
+    "chance": 0.08,
+    "minDepth": 5
+  },
+  "watchtower": {
+    "chance": 0.15,
+    "minDepth": 2
+  },
+  "vault": {
+    "chance": 0.12,
+    "minDepth": 3
+  },
+  "elementAltar": {
+    "chance": 0.15,
+    "minDepth": 2
+  },
+  "dummyHall": {
+    "chance": 0.1,
+    "minDepth": 2
+  },
+  "fogRoom": {
+    "chance": 0.12,
+    "minDepth": 2
+  },
+  "tideRoom": {
+    "chance": 0.12,
+    "minDepth": 3
+  },
+  "invertHall": {
+    "chance": 0.08,
+    "minDepth": 4
+  }
+}

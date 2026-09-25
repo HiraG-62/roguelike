@@ -1,0 +1,4 @@
+{
+  "_note": "霊の型: 杖になる",
+  "cooldown": 16, "minInterval": 0.3, "poise": 15, "duration": 6, "radius": 40, "damage": { "base": 4, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.15, "spi": 0.3 }, "knockback": 120
+}

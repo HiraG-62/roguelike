@@ -1,0 +1,5 @@
+{
+  "_note": "爆薬樽: 近接で叩くと転がり、射撃・敵弾で撃つとその場で爆発。meleeReach / meleeHalfAngle は叩ける距離と角度（近接の当たり箱のおおよそ）",
+  "cost": 12, "minInterval": 0.4, "poise": 35, "maxRange": 100, "maxAlive": 2, "life": 14, "size": 5, "meleeReach": 28, "meleeHalfAngle": 1.1,
+  "rollSpeed": 190, "rollTime": 0.7, "radius": 40, "damage": { "base": 26 }, "knockback": 220, "burnTime": 3, "burnPotency": 3
+}

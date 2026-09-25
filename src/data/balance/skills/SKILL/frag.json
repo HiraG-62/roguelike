@@ -1,0 +1,16 @@
+{
+  "_note": "cost: 22→18.7→15.9（-15%）。damage.base: 13.2→15.2→19.8（+30%、理由は旋風斬りと同じ）",
+  "cost": 15.9,
+  "minInterval": 0.5,
+  "poise": 30,
+  "maxRange": 120,
+  "flight": 0.35,
+  "fuse": 0.5,
+  "radius": 36,
+  "damage": { "base": 19.8, "dex": 1.4, "spi": 1.4 },
+  "poiseRatio": { "dex": 0.45, "spi": 0.45 },
+  "knockback": 240,
+  "selfDamageFraction": 0.1,
+  "spread": 14,
+  "wallProbe": 2
+}

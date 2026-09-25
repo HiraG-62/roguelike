@@ -1,0 +1,8 @@
+{
+  "duration": 6,
+  "interval": 0.45,
+  "telegraph": 0.9,
+  "radius": 14,
+  "damage": 8,
+  "spread": 90
+}

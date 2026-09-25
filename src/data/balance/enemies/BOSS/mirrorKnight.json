@@ -1,0 +1,18 @@
+{
+  "lungeSpeedMul": 6,
+  "lungeTime": 0.45,
+  "wallStagger": 1.5,
+  "waveCount": 3,
+  "waveSpread": 30,
+  "waveSpeed": 140,
+  "waveDamage": 10,
+  "reflectDamage": 10,
+  "procDuration": 3,
+  "procMax": 2,
+  "images": 2,
+  "imageHpRatio": 0.08,
+  "imageGuardMul": 0.5,
+  "phase2Ratio": 0.6,
+  "phase3Ratio": 0.3,
+  "color": "#c0e0ff"
+}

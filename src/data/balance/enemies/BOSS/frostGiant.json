@@ -1,0 +1,16 @@
+{
+  "slamRadius": 80,
+  "slamDamage": 22,
+  "slamCoreRatio": 0.35,
+  "phase2Ratio": 0.6,
+  "phase3Ratio": 0.25,
+  "icicleCount": 6,
+  "icicleRadius": 18,
+  "icicleDamage": 14,
+  "icicleFall": 1.1,
+  "icicleSpread": 70,
+  "pillarCount": 4,
+  "pillarDistance": 64,
+  "armorBreakDown": 3,
+  "color": "#8fd0ff"
+}

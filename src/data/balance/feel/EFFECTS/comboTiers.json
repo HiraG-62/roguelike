@@ -1,0 +1,22 @@
+[
+  {
+    "min": 10,
+    "scale": 1.1,
+    "color": "#fff0a0"
+  },
+  {
+    "min": 25,
+    "scale": 1.2,
+    "color": "#ffd060"
+  },
+  {
+    "min": 50,
+    "scale": 1.3,
+    "color": "#ff9040"
+  },
+  {
+    "min": 100,
+    "scale": 1.45,
+    "color": "#ff5080"
+  }
+]

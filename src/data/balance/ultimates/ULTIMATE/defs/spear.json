@@ -1,0 +1,13 @@
+{
+  "dragonPierce": {
+    "swing": { "reach": 90, "size": 18, "scaling": { "base": 30, "str": 2, "dex": 3 }, "poise": 60, "poiseRatio": { "dex": 1.2, "str": 0.6 }, "knockback": 360, "heavy": true }
+  },
+  "meteorThrust": {
+    "lunge": { "distance": 120, "width": 22, "invuln": 0.3, "hits": 3, "scaling": { "base": 10, "dex": 1, "str": 1 }, "poise": 20, "poiseRatio": { "dex": 0.6 }, "knockback": 260, "heavy": true }
+  },
+  "formation": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "vsWindup": 1.3,
+    "patch": { "reachMul": 1.3 }
+  }
+}

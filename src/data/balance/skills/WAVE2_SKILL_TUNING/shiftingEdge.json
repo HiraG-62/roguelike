@@ -1,0 +1,4 @@
+{
+  "_note": "移ろい刃: 撃つたびに属性が炎→氷→雷→毒と巡る斬撃",
+  "cost": 15, "minInterval": 0.5, "poise": 10, "radius": 34, "halfAngle": 0.8, "damage": { "base": 6, "str": 0.8, "spi": 0.6 }, "poiseRatio": { "str": 0.17, "spi": 0.13 }, "knockback": 70, "burnPotency": 3, "shockPotency": 2
+}

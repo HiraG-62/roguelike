@@ -1,0 +1,16 @@
+{
+  "fireInfuse": { "_note": "属性の刻印符: 属性を差し替え、命中で状態異常を1つ付ける。威力は少し下がる", "damageMul": 0.9, "burnPotency": 2, "burnTime": 3 },
+  "iceInfuse": { "damageMul": 0.9, "chillStacks": 1 },
+  "stormInfuse": { "damageMul": 0.9, "shockPotency": 2 },
+  "venomInfuse": { "damageMul": 0.9, "poisonStacks": 1 },
+  "breakInfuse": { "_note": "揺さぶり: 命中で崩勢", "damageMul": 0.85 },
+  "hueInfuse": { "_note": "彩り: 命中で共鳴の色の彩痕", "damageMul": 0.9 },
+  "crumble": { "_note": "地崩れ（地裂き専用）: 命中した敵までの線（+extend px先まで）に崩れる床をtime秒", "burdenMul": 1.2, "time": 5, "extend": 16, "step": 8 },
+  "leyline": { "_note": "地染め: 命中した位置に属性の地形（1回の発動でmaxPerCastか所まで）", "burdenMul": 1.15, "radius": 10, "time": 4, "maxPerCast": 3 },
+  "jobMastery": { "_note": "心得: ジョブの得意な武器種を持っていれば強い", "favoredMul": 1.3, "otherMul": 0.85 },
+  "weaponBond": { "_note": "武器写し: 属性を近接の武器に揃える。武器が無属性なら素の冴えで威力が伸びる", "plainMul": 1.15 },
+  "formSurge": { "_note": "化身: 変身中は強い。1.35→1.3（2026-09-24 第3弾の変身と合わせた見直し: 武器写し(無属性x1.15)と積むと1.35×1.15≈1.55で1.5を超えていたので、積んでも1.5以内(1.3×1.15≈1.50)に収める）", "formMul": 1.3, "otherMul": 0.9 },
+  "formLinger": { "_note": "深化: 変身の持続と、切れた後の反動がどちらも伸びる", "durationMul": 1.5, "recoverMul": 1.5, "burdenMul": 1.2 },
+  "toNova": { "_note": "自己中心化（型替え）: 照準地点ではなく自分の足元で起きる", "areaMul": 1.3 },
+  "toTrap": { "_note": "罠化（型替え）: カーソル地点に罠。敵が踏むと罠の位置から最寄りの敵へ向けて発動", "arm": 0.5, "life": 12, "trigger": 18, "maxAlive": 3, "damageMul": 1.1 }
+}

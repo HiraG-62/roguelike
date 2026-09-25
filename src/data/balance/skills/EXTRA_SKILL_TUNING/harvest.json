@@ -1,0 +1,4 @@
+{
+  "_note": "毒の収穫: 命中した敵の毒を消費し、残り時間ぶんのダメージを即時に",
+  "cost": 14, "minInterval": 0.5, "poise": 6, "speed": 240, "life": 0.7, "radius": 3, "damage": { "base": 4, "mnd": 0.6, "spi": 0.6 }, "poiseRatio": { "mnd": 0.09, "spi": 0.09 }, "knockback": 40, "bossMul": 0.5
+}

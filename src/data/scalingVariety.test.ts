@@ -3,10 +3,7 @@ import "../core/game";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
 import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { scaledAtBase } from "../system/attributes";
-import combatJson from "./balance/combat.json";
-import skillsJson from "./balance/skills.json";
-import ultimatesJson from "./balance/ultimates.json";
-import weaponsJson from "./balance/weapons.json";
+import { combat as combatJson, skills as skillsJson, ultimates as ultimatesJson, weapons as weaponsJson } from "./balance/assembled.gen";
 import { PLAYER } from "./tuning";
 import { BULLETS } from "../loot/bullets";
 import { MOVESETS } from "./weapons";
@@ -385,7 +382,7 @@ describe("振り直しで基礎値の値は変わらない", () => {
   it("振り直し前に無かった係数表は弾だけで、基礎値で 1 発 4.3", () => {
     for (const [path, s] of CURRENT) {
       if (path in PINNED) continue;
-      // 奥義（円月以外の 68 本）は振り直しの後に足した行動なので対象外（基準は ultimates.json の _note）
+      // 奥義（円月以外の 68 本）は振り直しの後に足した行動なので対象外（基準は ultimates（balance/ultimates/）の _note）
       if (path.startsWith(ULTIMATE_DEFS_PATH)) continue;
       // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
       if (LANE_TABLE.test(path)) continue;

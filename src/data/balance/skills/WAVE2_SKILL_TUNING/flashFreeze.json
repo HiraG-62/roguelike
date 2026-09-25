@@ -1,0 +1,5 @@
+{
+  "_note": "瞬凍: 周りの濡れた敵を凍らせ、水たまりを氷床に変える。凍結の秒 = freezeBase + 濡れ1スタックごとにfreezePerStack。comboAreaMul / comboFreezeMul は水瓶→瞬凍の連携倍率",
+  "cost": 19, "minInterval": 0.7, "poise": 15, "radius": 56, "damage": { "base": 4, "mnd": 0.5, "spi": 0.8 }, "poiseRatio": { "mnd": 0.17, "spi": 0.28 }, "knockback": 40,
+  "freezeBase": 0.8, "freezePerStack": 0.3, "probeStep": 8, "iceTime": 6, "comboAreaMul": 1.4, "comboFreezeMul": 1.5
+}

@@ -1,0 +1,5 @@
+{
+  "_note": "結界杭: カーソル地点に杭（最大3）。杭同士を結ぶ線に触れた敵へ周期ダメージ、3本の内側は脆弱",
+  "cost": 15, "minInterval": 0.4, "poise": 3, "maxRange": 120, "maxAlive": 3, "life": 8, "tickEvery": 0.5, "lineHalfWidth": 4,
+  "damage": { "base": 2, "mnd": 0.4, "spi": 0.3 }, "knockback": 0, "vulnerableTime": 0.8
+}

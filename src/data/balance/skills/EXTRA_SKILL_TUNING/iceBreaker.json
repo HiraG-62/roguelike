@@ -1,0 +1,6 @@
+{
+  "_note": "砕氷槌: 前方を叩く。凍結を砕くと破片が周りへ冷気。comboChill / comboAreaMul は氷結地帯→砕氷槌の連携の上乗せ",
+  "cost": 16, "minInterval": 0.6, "poise": 35, "radius": 38, "halfAngle": 0.7, "damage": { "base": 10, "str": 1.4, "spi": 0.4 },
+  "poiseRatio": { "str": 0.82, "spi": 0.23 },
+  "knockback": 160, "chillStacks": 2, "shardRadius": 44, "shardDamage": { "base": 3, "str": 0.4 }, "comboChill": 2, "comboAreaMul": 1.3
+}

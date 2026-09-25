@@ -1,7 +1,7 @@
 /**
  * スキルの数値のうち union 文字列（HitShape の kind など）を含む表。TS に残す
  * （docs/ideas/data-externalization.md 2 章の境界規則: union 文字列を 1 つでも含む構造は丸ごと TS）。
- * 数値だけの残りは data/balance/skills.json から読む（data.ts が SKILL に合流させる）。
+ * 数値だけの残りは data/balance/skills/ から読む（data.ts が SKILL に合流させる）。
  */
 import { STATUS } from "../data/tuning";
 import type { MeleeStepDef } from "../data/weapons";
