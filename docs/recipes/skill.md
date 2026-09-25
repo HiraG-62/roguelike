@@ -23,3 +23,4 @@
 4. `npx vitest run src/skills/arts`（全技を 1 回ずつ撃つ検査がある）→ `npm run check`
 
 行為の種類を足すときは `types.ts` の `ART_ACT_KINDS`・`build.ts` の必須項目 / 項目名・`engine.ts` の `runAct` の 3 か所。
+- 説明に「投げる」とある技・スキル石を足したら `render/thrownLook.ts` の表に載せる（飛ぶ武器の絵）。載せないなら `render/thrownLook.test.ts` の `EXCLUDED` に理由を書く

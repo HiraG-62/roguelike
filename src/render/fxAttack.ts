@@ -18,6 +18,7 @@ import type { FxSheetKey } from "../data/fxSheets.gen";
 import { type FxRampKey, type FxSpriteBank, lifeFrame, sheetDef } from "./fxSprites";
 import { type BulletFx, MOVESET_FX, rampOfElement } from "./fxMotions";
 import { shotFx, shotRamp } from "./fxShots";
+import { projectileLook } from "./thrownLook";
 import { clamp01, easeOutCubic, hash01, swingSign } from "./renderMath";
 import {
   type Point,
@@ -296,6 +297,8 @@ function syncEnemies(state: GameState, layer: Layer, emit: boolean): void {
 
 function onShotBorn(state: GameState, layer: Layer, pr: Projectile, style: BulletStyle, merged: Point[], seen: ShotSeen): void {
   if (pr.owner !== "player") return;
+  // 投げた武器（thrownLook.ts）は火薬で撃つ弾ではないので、銃口の閃光を出さない
+  if (projectileLook(pr)) return;
   if (merged.some((m) => Math.abs(m.x - pr.pos.x) <= MUZZLE_MERGE_PX && Math.abs(m.y - pr.pos.y) <= MUZZLE_MERGE_PX)) return;
   merged.push({ x: pr.pos.x, y: pr.pos.y });
   const ev = baseEvent("muzzle", pr.pos.x, pr.pos.y, state.time, FX_ATTACK.muzzle.life);

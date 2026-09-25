@@ -14,3 +14,4 @@
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 - **近接の威力の係数**: 近接の段の `scaling` は復元時に `WEAPON.meleeDamageScale`（0.6）を掛ける（`data/weapons.ts` の `meleeScaling`）。JSON は掛ける前の値。弾（`throw.scaling`・銃の弾）・スキル・奥義には掛けない。右手が空なら拳の型で `stats.unarmed`（表示名「素手」、威力 × `WEAPON.unarmed.damageMul`）
 - **武器 Wave 4 の共通の仕組み**（`docs/ideas/weapons-wave4.md` 1 章。テストは `system/weaponMechanics.test.ts`）: 振りが弾を出す `cast`（弾の key `cast.<key>`、名前は `CAST_NAMES`、素性は `CAST_VOLLEY`）、弾の状態異常 `throw.applies`、弾の見た目 `bullet.look`、消えた位置に地形を残す `bullet.leaves`、周回 `bullet.orbit`、振りで敵弾を消す段の `cutsBullets`、溜め中の周期ヒット `charge.spinning`
+- 説明に「投げる」とある弾・技を足したら `render/thrownLook.ts` の表に載せる（飛ぶ武器の絵）。載せないなら `render/thrownLook.test.ts` の `EXCLUDED` に理由を書く（テストが検出する）

@@ -47,6 +47,7 @@ import {
 } from "../system/skills";
 import { TEXT, drawText, drawTextShadow, truncateText } from "./pixelText";
 import { type HudLayout, SKILL_SLOT } from "./renderMath";
+import { GRENADE_ARC_H, THROWN_ARC_H, skillShotLook } from "./thrownLook";
 
 /**
  * スキルの描画。renderer.ts が層の順（render/layers.ts）に合わせて呼ぶ。
@@ -100,7 +101,6 @@ const ARC_SPAN = 1.2;
 const WHIRL_SPIN = 18;
 const AIM_BLINK = 30;
 const AIM_ALPHA = 0.7;
-const GRENADE_ARC_H = 18;
 const FUSE_BLINK_MIN = 8;
 const FUSE_BLINK_MAX = 30;
 const FUSE_FILL_ALPHA = 0.15;
@@ -143,7 +143,6 @@ const COLOR_COMBO = COMBO_TUNING.color;
 const COMBO_MARK_SIZE = 2;
 const COMBO_MARK_BLINK = 12;
 const COLOR_THROWN = MODIFIERS.toThrown.color;
-const THROWN_ARC_H = 14;
 const THROWN_SIZE = 2;
 const SHOT_SIZE = 2;
 const KEG_W = 5;
@@ -469,6 +468,8 @@ function drawThrownBlade(ctx: CanvasRenderingContext2D, e: EchoCast, from: { x: 
 /** 大拡張の射撃弾（綻び・跳弾・風切り …）。風切りは大きめの円 */
 function drawShots(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.shots) {
+    // 武器の絵で描く弾は thrownLook が重ねるので、点は描かない（輪の絵の真ん中に点が見えるため）
+    if (skillShotLook(s.params.skillKey, state.stats.moveset)) continue;
     ctx.fillStyle = s.color;
     if (s.effect === "gale") {
       ctx.globalAlpha = AIM_ALPHA;

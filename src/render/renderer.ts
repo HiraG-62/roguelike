@@ -89,6 +89,7 @@ import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
+import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, swingFrame } from "./fxSprites";
@@ -772,6 +773,7 @@ export class Renderer {
     this.drawPlayer(state);
     this.drawReaper(state);
     drawSkillAir(ctx, state);
+    drawThrownSkillAir(ctx, state, this.atlas);
     drawSmokeLayer(ctx, state, -ox, -oy);
     this.drawShapes(state);
     drawAirMarks(ctx, state, this.fxSprites);
@@ -1871,10 +1873,13 @@ export class Renderer {
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
       const py = pr.pos.y - lift;
+      // 投げた武器（斧・短刀・輪 …。thrownLook.ts）は弾の専用スプライトより武器の絵を優先する
+      const thrown = projectileLook(pr) !== undefined;
       // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があればそれだけを描く（尾も絵が持つ）
-      if (drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow)) continue;
+      if (!thrown && drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow)) continue;
       // 位置履歴が無いので速度の逆方向に細る尾と光を置く（fxAttack.ts。弾の性質で長さ・太さが変わる）
       drawBulletTrail(ctx, pr, pr.pos.x, py, dx, dy, isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL, this.fxSprites.glow);
+      if (thrown && drawThrownProjectile(ctx, state, this.atlas, pr, pr.pos.x, py)) continue;
 
       // 武器の絵を持つ弾（斧の投擲など。ThrowArtDef.sprite）はその武器を回しながら飛ばす
       const weaponFrame = pr.sprite ? this.atlas[pr.sprite]?.frames[0] : undefined;
