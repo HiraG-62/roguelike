@@ -317,6 +317,7 @@ const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./
 
 /** 奥義の定義の係数表のパスの頭 */
 const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
+const ART_PATH = "skills.ART.";
 
 const CURRENT = new Map<string, Scaling>();
 collectPaths(weaponsJson, "weapons", CURRENT);
@@ -392,6 +393,8 @@ describe("振り直しで基礎値の値は変わらない", () => {
       // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
       if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
       if (WAVE4_TABLE.test(path)) continue;
+      // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
+      if (path.startsWith(ART_PATH)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);
       expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE, FLOAT_DIGITS);
     }

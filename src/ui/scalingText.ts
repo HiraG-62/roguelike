@@ -7,6 +7,8 @@ import { baseDef } from "../loot/bases";
 import { ATTR_LABEL } from "../loot/resonance";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Item, type PlayerStats, type Scaling } from "../loot/types";
 import { SKILL, SKILL_DEFS } from "../skills/data";
+import { ART_DEFS, isArtKey } from "../skills/arts";
+import type { ArtSkillKey } from "../skills/arts/keys";
 import type { SkillKey } from "../skills/types";
 import { ratioToScaling, scaled, withRatio } from "../system/attributes";
 
@@ -607,6 +609,12 @@ function appliesFormulas(stats: Readonly<PlayerStats>, key: SkillKey): ScalingFo
   return out;
 }
 
+/** 技（skills/arts/）の威力: 与ダメを持つ行為ごと。2 つ以上なら「n 手目の威力」 */
+function artFormulas(stats: Readonly<PlayerStats>, key: ArtSkillKey): ScalingFormula[] {
+  const acts = ART_DEFS[key].acts.filter((a) => a.damage !== undefined);
+  return acts.flatMap((a, i) => (a.damage ? [scalingFormula(stats, "power", acts.length > 1 ? `${i + 1} 手目の${POWER_LABEL}` : POWER_LABEL, a.damage)] : []));
+}
+
 /**
  * スキルの計算式: 数値ブロックの威力（と変身の振り）→ 怯み値 → 状態異常の効果量 → 強化の効果量。
  * 怯み値が 0 で係数も無いスキル（強化・移動）は怯み値を出さない
@@ -614,7 +622,7 @@ function appliesFormulas(stats: Readonly<PlayerStats>, key: SkillKey): ScalingFo
 export function skillFormulas(stats: Readonly<PlayerStats>, key: SkillKey): ScalingFormula[] {
   const def = SKILL_DEFS[key];
   const block = skillBlock(key);
-  const out = block === undefined ? [] : blockFormulas(stats, block);
+  const out = isArtKey(key) ? artFormulas(stats, key) : block === undefined ? [] : blockFormulas(stats, block);
   if (def.poise > 0 || def.poiseRatio !== undefined) out.push(ratioFormula(stats, "poise", POISE_LABEL, def.poise, def.poiseRatio));
   out.push(...appliesFormulas(stats, key));
   const hasBuff = out.some((f) => f.kind === "buff");

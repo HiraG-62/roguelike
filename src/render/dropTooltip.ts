@@ -6,6 +6,7 @@ import { computeStats, statsSummary } from "../loot/stats";
 import { DEFAULT_STATS, type Item, type PlayerStats } from "../loot/types";
 import { SKILL_DEFS, formatVariant, stoneLabel } from "../skills/data";
 import type { SkillStone } from "../skills/types";
+import { weaponArtLabel } from "../skills/arts";
 import { type FocusedDrop, aimWorldOf, focusedDrop } from "../system/loot";
 import { type Rect, SLOT_LABEL } from "../ui/inventory";
 import { itemTipLines } from "./inventoryUi";
@@ -48,6 +49,8 @@ const COLOR_HINT_SHADOW = "#000000";
 const COLOR_BETTER = "#7fe07f";
 const COLOR_WORSE = COLOR_WARN;
 const COLOR_STONE = "#b080ff";
+/** 武器技の「〇〇専用」 */
+const COLOR_WEAPON_ART = "#ffd080";
 export const MARK_UP = "▲";
 export const MARK_DOWN = "▼";
 const EPSILON = 1e-6;
@@ -112,6 +115,7 @@ export function stoneLines(stone: SkillStone): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_STONE },
+    ...(def.moveset === undefined ? [] : [{ text: weaponArtLabel(def.moveset), color: COLOR_WEAPON_ART }]),
     { text: def.verb, color: COLOR_TEXT },
     { text: def.tags.join(" / "), color: COLOR_DIM },
   ];

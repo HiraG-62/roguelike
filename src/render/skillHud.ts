@@ -43,6 +43,7 @@ import {
   slotBodyBlocked,
   slotComboReady,
   slotModifierView,
+  weaponArtBlock,
 } from "../system/skills";
 import { TEXT, drawText, drawTextShadow, truncateText } from "./pixelText";
 import { type HudLayout, SKILL_SLOT } from "./renderMath";
@@ -875,7 +876,8 @@ function drawSlot(ctx: CanvasRenderingContext2D, state: GameState, index: number
   drawText(ctx, icon, x + HUD_SIZE / 2, y + HUD_SIZE / 2, TEXT.BODY, stone ? COLOR_STONE : COLOR_EMPTY, "center", "middle");
 
   if (slot && r) drawReadyMask(ctx, slot, r, ready, x, y);
-  const bodyBlocked = slotBodyBlocked(state, index);
+  // 武器技を違う武器種で付けている枠も、本動作中と同じ暗さで「今は撃てない」を出す
+  const bodyBlocked = slotBodyBlocked(state, index) || (!!r && weaponArtBlock(state, r.def) !== null);
   if (bodyBlocked) drawBodyMask(ctx, x, y);
   if (slot && r) drawIntervalBar(ctx, slot.intervalLeft, r.interval, x, y);
   ctx.strokeStyle = frameColor(state, index, ready && !!stone && !bodyBlocked);

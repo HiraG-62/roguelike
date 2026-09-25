@@ -155,7 +155,9 @@ describe("スキル・祝福のキー集合(段 3)", () => {
     const extraKeys = withoutNote(Object.keys(skillsJson.EXTRA_SKILL_TUNING));
     const wave2Keys = withoutNote(Object.keys(skillsJson.WAVE2_SKILL_TUNING));
     const wave3Keys = withoutNote(Object.keys(skillsJson.WAVE3_SKILL_TUNING));
-    const allKeys = [...baseKeys, ...extraKeys, ...wave2Keys, ...wave3Keys];
+    // 技（skills/arts/）は ART.<武器種 | common>.<key>
+    const artKeys = Object.entries(skillsJson.ART).flatMap(([group, table]) => (group === "weights" || group.startsWith("_") ? [] : withoutNote(Object.keys(table))));
+    const allKeys = [...baseKeys, ...extraKeys, ...wave2Keys, ...wave3Keys, ...artKeys];
     expect(diffKeySets("skills(base+extra+wave2+wave3)", allKeys, SKILL_KEYS)).toEqual([]);
   });
 

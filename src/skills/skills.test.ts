@@ -17,7 +17,7 @@ import {
   modifierVerb,
   resolveCast,
 } from "./data";
-import { generateSkillStone, makeRuneItem, rollRuneDrop, rollRuneModifier, runeDropChance, stoneFromSeed } from "./generator";
+import { generateSkillStone, makeRuneItem, skillWeight, rollRuneDrop, rollRuneModifier, runeDropChance, stoneFromSeed } from "./generator";
 import {
   SKILL_PROFILE_KEY,
   addStone,
@@ -27,7 +27,7 @@ import {
   salvageStone,
   saveSkillProfile,
 } from "./persistence";
-import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillResource, type SkillStone } from "./types";
+import { LEGACY_SKILL_KEYS, MODIFIER_KEYS, SKILL_KEYS, type LegacySkillKey, type ModifierKey, type SkillKey, type SkillResource, type SkillStone } from "./types";
 
 /** テスト用の最小 Storage */
 class MemoryStorage implements Storage {
@@ -98,7 +98,7 @@ describe("スキル石の生成", () => {
  * docs/COMBAT_DESIGN.md B-4 の表: 型・コスト（CD 型は CD）・最低間隔・怯み値。
  * マナ型のコストは QA 2026-09-23 の 2 巡目調整で一律 -15%（src/skills/data.ts SKILL 冒頭のコメント参照）
  */
-const B4_TABLE: Record<SkillKey, { resource: SkillResource; cost: number; cooldown: number; interval: number; poise: number }> = {
+const B4_TABLE: Record<LegacySkillKey, { resource: SkillResource; cost: number; cooldown: number; interval: number; poise: number }> = {
   whirl: { resource: "mana", cost: 13.0, cooldown: 0, interval: 0.6, poise: 6 },
   lunge: { resource: "cooldown", cost: 0, cooldown: 3, interval: 0.3, poise: 20 },
   frag: { resource: "mana", cost: 15.9, cooldown: 0, interval: 0.5, poise: 30 },
@@ -182,12 +182,12 @@ const B4_TABLE: Record<SkillKey, { resource: SkillResource; cost: number; cooldo
 
 describe("スキルの分類（マナ型 / CD 型）", () => {
   it("マナ型 60 / CD 型 16（大拡張でマナ型 +28・CD 型 +5、第 2 弾でマナ型 +19・CD 型 +4、第 3 弾の変身でマナ型 +2・CD 型 +3、第 4 弾の泥沼でマナ型 +1）", () => {
-    const mana = SKILL_KEYS.filter((k) => SKILL_DEFS[k].resource === "mana");
+    const mana = LEGACY_SKILL_KEYS.filter((k) => SKILL_DEFS[k].resource === "mana");
     expect(mana, "マナ型の数").toHaveLength(60);
-    expect(SKILL_KEYS.length - mana.length, "CD 型の数").toBe(16);
+    expect(LEGACY_SKILL_KEYS.length - mana.length, "CD 型の数").toBe(16);
   });
 
-  it.each(SKILL_KEYS)("%s: 型・コスト・CD・最低間隔・怯み値が B-4 の表どおり", (key) => {
+  it.each(LEGACY_SKILL_KEYS)("%s: 型・コスト・CD・最低間隔・怯み値が B-4 の表どおり", (key) => {
     const def = SKILL_DEFS[key];
     const row = B4_TABLE[key];
     const burden = castBurden(def, resolveCast(def, stone(key, 0), []));
@@ -223,7 +223,7 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
       siphonMark: ["siphon:1"],
       doomSentence: ["doom:1"],
     };
-    for (const key of SKILL_KEYS) {
+    for (const key of LEGACY_SKILL_KEYS) {
       const want = table[key];
       if (want) expect(kinds(key), key).toEqual(want);
       else expect(SKILL_DEFS[key].applies, `${key} に付与がある`).toBeUndefined();
@@ -231,7 +231,7 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
   });
 
   it("アイコンは 1 文字で重複しない", () => {
-    const icons = SKILL_KEYS.map((k) => SKILL_DEFS[k].icon);
+    const icons = LEGACY_SKILL_KEYS.map((k) => SKILL_DEFS[k].icon);
     for (const icon of icons) expect([...icon], icon).toHaveLength(1);
     expect(new Set(icons).size).toBe(icons.length);
   });
@@ -339,8 +339,8 @@ describe("resolveCast", () => {
   });
 
   it("全スキル・全修飾子に定義がある", () => {
-    for (const key of SKILL_KEYS) expect(SKILL_DEFS[key].key).toBe(key);
-    expect(SKILL_KEYS).toHaveLength(76);
+    for (const key of LEGACY_SKILL_KEYS) expect(SKILL_DEFS[key].key).toBe(key);
+    expect(LEGACY_SKILL_KEYS).toHaveLength(76);
     expect(Object.keys(MODIFIERS)).toEqual([...MODIFIER_KEYS]);
     expect(MODIFIER_KEYS).toHaveLength(53);
     for (const key of MODIFIER_KEYS) expect(MODIFIERS[key].key).toBe(key);
@@ -515,7 +515,7 @@ describe("相性表", () => {
    * 付けられない組み合わせ（これ以外はすべて付く）。
    * マナ化（docs/COMBAT_DESIGN.md B-5）では効果を読み替えるだけで、付けられる組み合わせは変えていない
    */
-  const FORBIDDEN: Record<ModifierKey, readonly SkillKey[]> = {
+  const FORBIDDEN: Record<ModifierKey, readonly LegacySkillKey[]> = {
     multiCharge: [],
     bloodPrice: [],
     comboFuel: [],
@@ -567,21 +567,21 @@ describe("相性表", () => {
     formSurge: ["titanForm", "swiftForm", "spiritForm", "wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"],
     formLinger: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "emberDraw", "bogCall", "mire", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "wardStake", "siegeForm", "pyreForm"],
     // 地崩れは地裂き専用
-    crumble: SKILL_KEYS.filter((k) => k !== "quake"),
+    crumble: LEGACY_SKILL_KEYS.filter((k) => k !== "quake"),
     toNova: ["whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "mines", "haste", "chainHook", "spiral", "contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "scorchLine", "iceSlide", "levelGround", "emberDraw", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"],
     toTrap: ["lunge", "frag", "parry", "bloodPact", "thunder", "gravityWell", "mines", "haste", "spiral", "frostField", "contagion", "kindle", "shadowStep", "powderKeg", "swordGrave", "bloodlet", "discharge", "grudge", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret", "waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "bogCall", "mire", "brandBlast", "flashFreeze", "hueRelease", "doomSentence", "titanForm", "swiftForm", "spiritForm", "wardStake", "wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"],
   };
 
   it("全スキル x 全刻印符が表どおり", () => {
     for (const mod of MODIFIER_KEYS) {
-      for (const key of SKILL_KEYS) {
+      for (const key of LEGACY_SKILL_KEYS) {
         expect({ mod, key, ok: canAttach(SKILL_DEFS[key], mod) }).toEqual({ mod, key, ok: !FORBIDDEN[mod].includes(key) });
       }
     }
   });
 
   it("どのスキルにも付く刻印符が 3 つ以上ある（拾っても死に札になりにくい）", () => {
-    for (const key of SKILL_KEYS) {
+    for (const key of LEGACY_SKILL_KEYS) {
       expect(MODIFIER_KEYS.filter((m) => canAttach(SKILL_DEFS[key], m)).length).toBeGreaterThanOrEqual(3);
     }
   });
@@ -599,7 +599,7 @@ describe("同時発動の排他グループ", () => {
   });
 
   it("body は BODY_SKILL_KEYS のスキルだけに付き、ほかは省略（並行して撃てる）", () => {
-    for (const key of SKILL_KEYS) {
+    for (const key of LEGACY_SKILL_KEYS) {
       const expected = BODY_SKILL_KEYS.includes(key) ? "body" : undefined;
       expect(SKILL_DEFS[key].exclusiveGroup, key).toBe(expected);
     }
@@ -659,9 +659,9 @@ describe("生成の重み", () => {
       const s = generateSkillStone(rng, { foundDepth: 5, now: 0 });
       counts.set(s.skillKey, (counts.get(s.skillKey) ?? 0) + 1);
     }
-    for (const key of SKILL_KEYS) expect(counts.get(key) ?? 0).toBeGreaterThan(0);
-    const total = SKILL_KEYS.reduce((sum, k) => sum + SKILL_WEIGHTS[k], 0);
-    for (const key of SKILL_KEYS) {
+    for (const key of LEGACY_SKILL_KEYS) expect(counts.get(key) ?? 0).toBeGreaterThan(0);
+    const total = SKILL_KEYS.reduce((sum, k) => sum + skillWeight(k, undefined), 0);
+    for (const key of LEGACY_SKILL_KEYS) {
       const expected = (SKILL_WEIGHTS[key] / total) * n;
       expect(Math.abs((counts.get(key) ?? 0) - expected)).toBeLessThan(expected * 0.25);
     }

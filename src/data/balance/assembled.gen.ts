@@ -825,6 +825,9 @@ import j_skills_WEAR_TUNING from "./skills/WEAR_TUNING.json";
 import j_skills_FORM_TUNING from "./skills/FORM_TUNING.json";
 import j_skills_WAVE3_SKILL_TUNING from "./skills/WAVE3_SKILL_TUNING.json";
 import j_skills_SHAPE_TUNING from "./skills/SHAPE_TUNING.json";
+import j_skills_ART__index from "./skills/ART/_index.json";
+import j_skills_ART_common from "./skills/ART/common.json";
+import j_skills_ART_sword from "./skills/ART/sword.json";
 import j_ultimates__index from "./ultimates/_index.json";
 import j_ultimates_ULTIMATE__index from "./ultimates/ULTIMATE/_index.json";
 import j_ultimates_ULTIMATE_common from "./ultimates/ULTIMATE/common.json";
@@ -1859,6 +1862,13 @@ export const skills = {
   "FORM_TUNING": j_skills_FORM_TUNING,
   "WAVE3_SKILL_TUNING": j_skills_WAVE3_SKILL_TUNING,
   "SHAPE_TUNING": j_skills_SHAPE_TUNING,
+  "ART": {
+    "_note": j_skills_ART__index["_note"],
+    "_fields": j_skills_ART__index["_fields"],
+    "weights": j_skills_ART__index["weights"],
+    "common": j_skills_ART_common,
+    "sword": j_skills_ART_sword,
+  },
 };
 
 export const ultimates = {
@@ -2858,6 +2868,9 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/wedge.json",
   "loot/affixCurves/windupCrack.json",
   "loot/bases.json",
+  "skills/ART/_index.json",
+  "skills/ART/common.json",
+  "skills/ART/sword.json",
   "skills/COMBO_TUNING.json",
   "skills/EXTRA_MODIFIER_TUNING.json",
   "skills/EXTRA_SKILL_TUNING/_index.json",

@@ -7,6 +7,7 @@ import { scaledAtBase } from "../system/attributes";
 import { PLAYER, ULTIMATE } from "./tuning";
 import { BURST_ATTACK, MOVESETS } from "./weapons";
 import { BULLETS } from "../loot/bullets";
+import { BALANCE } from "./balance";
 
 /**
  * 攻撃ジャンルと係数表（docs/COMBAT_DESIGN.md A-8 / A-10）。
@@ -60,6 +61,12 @@ describe("武器種・銃の弾・必殺の係数", () => {
   });
 });
 
+/** スキルの数値ブロック（key → ブロック）。技（skills/arts/）の数値は ART.<武器種 | common>.<key> */
+function skillBlocks(): Readonly<Record<string, unknown>> {
+  const artBlocks = Object.entries(BALANCE.skills.ART).flatMap(([group, table]) => (group === "weights" ? [] : Object.entries(table)));
+  return { ...SKILL, ...EXTRA_SKILL_TUNING, ...Object.fromEntries(artBlocks) };
+}
+
 describe("スキルのジャンル", () => {
   it("与ダメを持つスキルは素性を持ち、持たないスキルは null", () => {
     for (const def of Object.values(SKILL_DEFS)) {
@@ -70,7 +77,7 @@ describe("スキルのジャンル", () => {
   });
 
   it("与ダメを持つスキルは係数表を持ち、形が正しい（参照ステータスはジャンルで縛らない。A-10）", () => {
-    const blocks: Readonly<Record<string, unknown>> = { ...SKILL, ...EXTRA_SKILL_TUNING };
+    const blocks = skillBlocks();
     for (const def of Object.values(SKILL_DEFS)) {
       const atk = SKILL_ATTACK[def.key];
       if (!atk) continue;
@@ -81,7 +88,7 @@ describe("スキルのジャンル", () => {
   });
 
   it("霊力以外（筋力・技巧・体力）を参照するスキルもある", () => {
-    const blocks: Readonly<Record<string, unknown>> = { ...SKILL, ...EXTRA_SKILL_TUNING };
+    const blocks = skillBlocks();
     const all = Object.values(SKILL_DEFS).flatMap((d) => collectScalings(blocks[d.key]));
     for (const attr of ["str", "dex", "vit"] as const) {
       expect(all.some((s) => (s[attr] ?? 0) > 0), `${attr} を参照するスキル`).toBe(true);
