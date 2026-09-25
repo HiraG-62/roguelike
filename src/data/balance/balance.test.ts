@@ -24,7 +24,8 @@ import { BALANCE, BALANCE_HASH } from "./index";
 import jobsJson from "./jobs.json";
 import lootJson from "./loot.json";
 import skillsJson from "./skills.json";
-import { diffKeySets, validateBalanceShape } from "./validate";
+import ultimatesJson from "./ultimates.json";
+import { diffKeySets, undocumentedLeaves, validateBalanceShape, validateFieldDocs } from "./validate";
 import weaponsJson from "./weapons.json";
 import worldJson from "./world.json";
 
@@ -56,7 +57,13 @@ const JSON_FILES: readonly [string, unknown][] = [
   ["loot.json", lootJson],
   ["world.json", worldJson],
   ["feel.json", feelJson],
+  ["ultimates.json", ultimatesJson],
 ];
+
+/** 表の行の key（_note / _fields は行ではない） */
+function rowKeys(table: object): string[] {
+  return Object.keys(table).filter((k) => !k.startsWith("_"));
+}
 
 describe("各 JSON の形", () => {
   it.each(JSON_FILES)("%s が汎用検査を通る(有限数・null 無し・_note は文字列)", (file, json) => {
@@ -68,8 +75,8 @@ describe("敵のキー集合(段 1)", () => {
   const enemyKeys = ENEMIES.map((e) => e.key);
 
   it("enemies.json の stats / combat / defense.enemies のキー集合が ENEMIES の key と一致する", () => {
-    expect(diffKeySets("enemies.stats", Object.keys(enemiesJson.stats), enemyKeys)).toEqual([]);
-    expect(diffKeySets("enemies.combat", Object.keys(enemiesJson.combat), enemyKeys)).toEqual([]);
+    expect(diffKeySets("enemies.stats", rowKeys(enemiesJson.stats), enemyKeys)).toEqual([]);
+    expect(diffKeySets("enemies.combat", rowKeys(enemiesJson.combat), enemyKeys)).toEqual([]);
     expect(diffKeySets("enemies.defense.enemies", Object.keys(enemiesJson.defense.enemies), enemyKeys)).toEqual([]);
   });
 
@@ -90,8 +97,8 @@ describe("ジョブのキー集合(段 2)", () => {
   const nonNoneKeys = JOB_KEYS.filter((k) => k !== "none");
 
   it("jobs.json の attributes / weakness のキー集合が「見習い」を除いた JOB_KEYS と一致する", () => {
-    expect(diffKeySets("jobs.attributes", Object.keys(jobsJson.attributes), nonNoneKeys)).toEqual([]);
-    expect(diffKeySets("jobs.weakness", Object.keys(jobsJson.weakness), nonNoneKeys)).toEqual([]);
+    expect(diffKeySets("jobs.attributes", rowKeys(jobsJson.attributes), nonNoneKeys)).toEqual([]);
+    expect(diffKeySets("jobs.weakness", rowKeys(jobsJson.weakness), nonNoneKeys)).toEqual([]);
   });
 });
 
@@ -171,5 +178,41 @@ describe("装備のキー集合(段 4)", () => {
   it("loot.json の bases のキー集合が BASES の key と一致する", () => {
     const baseKeys = BASES.map((b) => b.key);
     expect(diffKeySets("loot.bases", Object.keys(lootJson.bases), baseKeys)).toEqual([]);
+  });
+});
+
+/**
+ * 説明の無い数値・真偽の葉の数の基準値（docs/ideas/oop-migration.md 3.2）。
+ * 書き足したら実測まで下げる。上げてはいけない（新しい項目を足したら _fields にも 1 行書く）
+ */
+const UNDOCUMENTED_BASELINE: Readonly<Record<string, number>> = {
+  "combat.json": 370,
+  "enemies.json": 451,
+  "skills.json": 1250,
+  "boons.json": 382,
+  "jobs.json": 0,
+  "weapons.json": 168,
+  "loot.json": 3155,
+  "world.json": 309,
+  "feel.json": 215,
+  "ultimates.json": 0,
+};
+
+describe("項目の説明（_fields）", () => {
+  it.each(JSON_FILES)("各 JSON の _fields に stale な項目が無い（%s）", (file, json) => {
+    expect(validateFieldDocs(json, file)).toEqual([]);
+  });
+
+  it.each(JSON_FILES)("説明の無い数値の葉の数がファイルごとの基準値以下（%s）", (file, json) => {
+    const baseline = UNDOCUMENTED_BASELINE[file];
+    expect(baseline, `${file} の基準値`).toBeDefined();
+    const missing = undocumentedLeaves(json, file);
+    expect(missing.length, `${file} の説明の無い葉: ${missing.slice(0, 5).join(", ")} …`).toBeLessThanOrEqual(baseline ?? 0);
+  });
+
+  it("enemies.json の stats / combat / defense はすべての項目に説明がある", () => {
+    const blocks = ["stats", "combat", "defense"].map((b) => `enemies.json.${b}`);
+    const missing = undocumentedLeaves(enemiesJson, "enemies.json").filter((p) => blocks.some((b) => p.startsWith(`${b}.`)));
+    expect(missing, "説明の無い項目").toEqual([]);
   });
 });

@@ -22,6 +22,7 @@ const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
  */
 const PROJECTILE_LOADOUT: BoonLoadout = { movesets: [...GUN_MOVESETS, "wand", "axe"] };
 import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
+import { BOONS_WAVE3, BOON_KEYS_WAVE3 } from "./boonDefsWave3";
 
 export const BOON_KEYS = [
   "finisherOnly",
@@ -154,6 +155,8 @@ export const BOON_KEYS = [
   "waveReturn",
   // ---- 第 2 弾（src/system/boonDefsWave2.ts） ----
   ...BOON_KEYS_WAVE2,
+  // ---- 第 3 弾: 芯と格を活かす祝福（src/system/boonDefsWave3.ts） ----
+  ...BOON_KEYS_WAVE3,
 ] as const;
 
 export type BoonKey = (typeof BOON_KEYS)[number];
@@ -242,6 +245,10 @@ export interface BoonDef {
   rules?: readonly Rule[];
   /** 共通語彙（docs/ideas/synergy-web.md 1 章）。tags / gives より細かい「出す・食う・強める」 */
   keywords: KeywordProfile;
+  /** 芯（1 ランに 1 つ、深度 BOON.coreDepth の最初の提示だけに出る。通常の 3 択には出ない） */
+  core?: true;
+  /** 格の対象を明示する（省略時は boonGrade.ts の isGraded が Rule の効果量から自動で決める。フック型は true で opt-in） */
+  graded?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -346,7 +353,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reflect: {
     key: "reflect",
     name: "弾返し",
-    desc: "近接攻撃で敵弾を撃ち返す。撃ち返すと必殺ゲージが3倍増える。",
+    desc: "近接攻撃で敵弾を撃ち返す。撃ち返すと奥義ゲージが3倍増える。",
     icon: "P",
     rarity: "common",
     tags: ["melee", "energy"],
@@ -567,7 +574,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   comboClock: {
     key: "comboClock",
     name: "刻限コンボ",
-    desc: "コンボ受付時間が半分になる代わりに、10コンボごとに必殺ゲージが満タンになる。",
+    desc: "コンボ受付時間が半分になる代わりに、10コンボごとに奥義ゲージが満タンになる。",
     icon: "@",
     rarity: "rare",
     tags: ["combo", "energy"],
@@ -585,7 +592,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   overcharge: {
     key: "overcharge",
     name: "過充填",
-    desc: "必殺ゲージが満タンの間、斬撃が爆発する。",
+    desc: "奥義ゲージが満タンの間、斬撃が爆発する。",
     icon: "O",
     rarity: "rare",
     tags: ["energy", "melee", "explode"],
@@ -599,7 +606,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   burstRefund: {
     key: "burstRefund",
     name: "残響爆発",
-    desc: "バーストでの撃破ごとにゲージが25%還元される。",
+    desc: "奥義での撃破ごとにゲージが25%還元される。",
     icon: "E",
     rarity: "common",
     tags: ["energy"],
@@ -932,7 +939,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   scorchedEarth: {
     key: "scorchedEarth",
     name: "焦土",
-    desc: "バーストが周囲の燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。",
+    desc: "奥義が周囲の燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。",
     icon: "焦",
     rarity: "epic",
     tags: ["burn", "energy", "element"],
@@ -1059,6 +1066,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   thunderMark: {
     key: "thunderMark",
+    graded: true,
     name: "落雷予告",
     desc: "麻痺した敵の足元に予告の円が出て、1秒後に雷が落ちる。",
     icon: "落",
@@ -1100,7 +1108,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   highTide: {
     key: "highTide",
     name: "満ち潮",
-    desc: "気力が満タンの間、通常攻撃の命中で必殺ゲージが余分に溜まる。",
+    desc: "気力が満タンの間、通常攻撃の命中で奥義ゲージが余分に溜まる。",
     icon: "潮",
     rarity: "rare",
     tags: ["mana", "energy"],
@@ -1141,6 +1149,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   // ---------------------------------------------------------------------------
   bulletSteal: {
     key: "bulletSteal",
+    graded: true,
     name: "奪弾",
     desc: "見切りの瞬間、周囲の敵弾を自分の弾に変えて照準の方向へ撃ち出す。",
     icon: "奪",
@@ -1178,6 +1187,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   intimidate: {
     key: "intimidate",
+    graded: true,
     name: "威圧",
     desc: "近接の3段目で敵を倒すと、周囲の敵を恐怖させる。",
     icon: "威",
@@ -1224,6 +1234,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   elementTrail: {
     key: "elementTrail",
+    graded: true,
     name: "属性の轍",
     desc: "ダッシュの軌跡に帯が残る。帯は装備で最も強い元素（燃焼・冷気・感電）を付ける。",
     icon: "轍",
@@ -1315,7 +1326,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   trialSeeker: {
     key: "trialSeeker",
     name: "試練の徒",
-    desc: "試練の部屋を制圧すると、祝福の3択がもう1回出る。",
+    desc: "試練の部屋を制圧したときの祝福の3択は、格がもう1段上がる。",
     icon: "試",
     rarity: "rare",
     tags: ["room"],
@@ -1348,6 +1359,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   passCut: {
     key: "passCut",
+    graded: true,
     name: "抜き胴",
     desc: "ダッシュですり抜けた敵すべてを斬る。",
     icon: "胴",
@@ -1358,6 +1370,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   ricochet: {
     key: "ricochet",
+    graded: true,
     name: "跳ね弾",
     desc: "自分の弾が壁で1回跳ね返る。跳ねた弾は威力+30%。",
     icon: "跳",
@@ -1468,6 +1481,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   },
   quietHall: {
     key: "quietHall",
+    graded: true,
     name: "静寂の間",
     desc: "沈黙中の敵が近くにいる間、スキルの気力コストが-30%になる。",
     icon: "寂",
@@ -1502,7 +1516,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   regroupHunt: {
     key: "regroupHunt",
     name: "立て直し狩り",
-    desc: "堅守中の敵を倒すと必殺ゲージが30%溜まる。",
+    desc: "堅守中の敵を倒すと奥義ゲージが30%溜まる。",
     icon: "堅",
     rarity: "common",
     tags: ["guarded", "energy"],
@@ -1526,7 +1540,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   cashOut: {
     key: "cashOut",
     name: "換金",
-    desc: "バーストを撃つとコンボを0にして、コンボ数の2倍の気力を得る。",
+    desc: "奥義を撃つとコンボを0にして、コンボ数の2倍の気力を得る。",
     icon: "換",
     rarity: "common",
     tags: ["combo", "mana", "energy"],
@@ -1566,7 +1580,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   reaperShadow: {
     key: "reaperShadow",
     name: "死神の影",
-    desc: "死神の警告中と出現中は、撃破するたび気力+10・必殺ゲージ+10。",
+    desc: "死神の警告中と出現中は、撃破するたび気力+10・奥義ゲージ+10。",
     icon: "影",
     rarity: "common",
     tags: ["reaper", "mana", "energy"],
@@ -1743,6 +1757,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   // ---------------------------------------------------------------------------
   swallowReturn: {
     key: "swallowReturn",
+    graded: true,
     name: "燕渡り",
     desc: "見切りで消した敵弾の数だけ、近い敵を最大5体まで次々に斬る。",
     icon: "燕",
@@ -1832,7 +1847,7 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   criticalMass: {
     key: "criticalMass",
     name: "臨界",
-    desc: "バーストの後3秒間は、必殺ゲージが空でも斬撃が爆発する。",
+    desc: "奥義の後3秒間は、奥義ゲージが空でも斬撃が爆発する。",
     icon: "臨",
     rarity: "epic",
     tags: ["energy", "explode"],
@@ -1908,4 +1923,5 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
     duo: ["comboWave", "finisherWave"],
   },
   ...BOONS_WAVE2,
+  ...BOONS_WAVE3,
 };

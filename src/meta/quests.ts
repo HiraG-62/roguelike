@@ -270,7 +270,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   trialWalker: { name: "試練を越えて", desc: "試練の部屋を 2 つ制圧する。", goal: 2, measure: (s) => s.challengesCleared, reward: { kind: "page", page: "boon" } },
   lairHunter: { name: "部屋主狩り", desc: "部屋主を 3 体倒す。", goal: 3, measure: (s) => s.lairKills, reward: { kind: "title", title: "主狩り" } },
   thunderRing: { name: "雷の狩り", desc: "感電中の敵を 30 体倒す。", goal: 30, measure: (s) => s.shockKills, reward: { kind: "title", title: "雷を纏う者" } },
-  burstMaster: { name: "全力解放", desc: "バーストを 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" } },
+  burstMaster: { name: "全力解放", desc: "奥義を 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" } },
   // ---- 発見の依頼（docs/ideas/synergy-web.md 5-e）。図鑑の既知はラン開始時の写し ----
   pathfinder: { name: "未踏の連携", desc: "図鑑に無い連携を 2 種見つける。", goal: 2, measure: (s) => s.newLinks, reward: { kind: "title", title: "未踏を拓く者" } },
   newReaction: { name: "新しい反応", desc: "図鑑に無い反応を 1 種起こす。", goal: 1, measure: (s) => s.newReactions, reward: { kind: "title", title: "錬金の徒" } },

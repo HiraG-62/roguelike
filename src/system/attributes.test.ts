@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ratioToScaling, scaledAtBase, withRatio } from "./attributes";
 import { createGame } from "../core/game";
-import { ACTION, ATTR, PLAYER } from "../data/tuning";
+import { ACTION, ATTR, PLAYER, ULTIMATE } from "../data/tuning";
 import { SKILL } from "../skills/data";
 import { computeStats } from "../loot/stats";
 import {
@@ -193,7 +193,7 @@ const BASELINE: readonly BaselineRow[] = [
   { label: "近接 3 段", pinned: 15.6, scaling: { base: 9.6, str: 1.2 }, current: () => atBase(PLAYER.melee[2]!.scaling) },
   { label: "ダッシュ攻撃", pinned: 11.2, scaling: { base: 7.2, str: 0.8 }, current: () => atBase(ACTION.dashAttack.scaling) },
   { label: "射撃（1 発）", pinned: 4.3, scaling: { base: 2.8, dex: 0.3 }, current: () => atBase(PLAYER.shoot.scaling) },
-  { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(PLAYER.special.scaling) },
+  { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(ULTIMATE.defs.sword.fullMoon.nova.scaling) },
   { label: "壁叩きつけ", pinned: 10, scaling: { base: 7, str: 0.6 }, current: () => ACTION.wallSplat.damage },
   { label: "旋風斬り（1 回転）", pinned: 8.9, scaling: { base: 4.9, str: 0.4, spi: 0.4 }, current: () => atBase(SKILL.whirl.damage) },
   { label: "突進斬り", pinned: 18.4, scaling: { base: 10.4, str: 1, dex: 0.6 }, current: () => atBase(SKILL.lunge.damage) },

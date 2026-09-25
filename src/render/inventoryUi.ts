@@ -47,13 +47,15 @@ import {
 } from "../ui/inventory";
 import { drawBudModal } from "./budUi";
 import { drawAttributePanel, drawSummaryHead } from "./attributeUi";
-import { DETAIL_GAP_LINE, type DetailContent, type DetailLine, drawDetailPane } from "./detailPane";
+import { DETAIL_GAP_LINE, type DetailContent, type DetailLine, drawDetailPane, ultimateTipLine } from "./detailPane";
+import { chosenUltimate } from "../system/ultimates";
 import { MOVESETS } from "../data/weapons";
 import {
   type ActionFormulas,
   type LoadoutSources,
   type ScalingFormula,
-  actionChunks,
+  actionListRows,
+  allFormulas,
   attributeReferences,
   formulaChunks,
   itemFormulas,
@@ -190,7 +192,7 @@ function loadoutSources(state: GameState): LoadoutSources {
     const stone = stoneInSlot(state.skills.profile, i);
     if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
   }
-  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills };
+  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills, ultimate: chosenUltimate(state) };
 }
 
 /** ステータスごとに参照している行動の行（「筋力: 大剣の連撃・地裂き」） */
@@ -198,9 +200,9 @@ function referenceLines(state: GameState): DetailLine[] {
   return attributeReferences(state.stats, loadoutSources(state)).map((ref) => ({ chunks: referenceChunks(ref) }));
 }
 
-/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける */
+/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける。値だけの派生は 1 段落にまとめる */
 function actionFormulaLines(actions: readonly ActionFormulas[]): DetailLine[] {
-  return actions.flatMap((a) => a.formulas.map((f, i): DetailLine => ({ chunks: i === 0 ? actionChunks(a, f) : formulaChunks(f) })));
+  return actionListRows(actions).map((chunks): DetailLine => ({ chunks }));
 }
 
 function captionLine(text: string): TipLine {
@@ -219,7 +221,7 @@ export function itemFormulaLines(state: GameState, item: Item): DetailLine[] {
 function itemReferenceLine(state: GameState, item: Item): DetailLine | null {
   const actions = itemFormulas(state.stats, item);
   if (actions.length === 0) return null;
-  return { chunks: mainReferenceChunks(actions.flatMap((a) => a.formulas)) };
+  return { chunks: mainReferenceChunks(actions.flatMap((a) => allFormulas(a))) };
 }
 
 /** 要点の行の区切り（空の行）の手前に 1 行差し込む */
@@ -369,6 +371,8 @@ function itemDetailLines(state: GameState, item: Item): { lines: TipLine[]; more
   const lines: TipLine[] = [{ text: d.name, color: itemColor(item) }];
   if (d.inscription !== undefined && d.inscription !== d.name) lines.push({ text: `銘「${d.inscription}」`, color: COLOR_INSCRIPTION });
   lines.push({ text: d.subtitle, color: COLOR_DIM });
+  const ult = ultimateTipLine(state.profile, item);
+  if (ult) lines.push(ult);
   lines.push(DETAIL_GAP_LINE);
   for (const line of d.lines) lines.push(traitTipLine(line));
   for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });

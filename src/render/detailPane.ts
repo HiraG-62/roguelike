@@ -1,6 +1,8 @@
 import type { ColorBarSegment } from "../loot/describe";
 import { ATTR_COLOR } from "../loot/affixes";
-import { TRAIT_COLOR_HEX } from "../loot/types";
+import { baseDef } from "../loot/bases";
+import { ultimateChoice } from "../loot/profile";
+import { type Item, type Profile, TRAIT_COLOR_HEX } from "../loot/types";
 import type { DetailPage, Rect } from "../ui/inventoryLayout";
 import { type FormulaChunk, type FormulaPiece, chunkText } from "../ui/scalingText";
 import {
@@ -64,6 +66,17 @@ type WrappedLine = TipLine | DetailBar | ChunkRow;
 
 function isChunkRow(line: WrappedLine): line is ChunkRow {
   return "segments" in line;
+}
+
+/** 右手の武器の要点に出す、その武器種で選んでいる奥義（選び直す場所も添える） */
+const ULTIMATE_LINE_HEAD = "奥義: ";
+const ULTIMATE_LINE_TAIL = "（拠点の武器掛けで変更）";
+
+/** 武器種を持つ武器なら「奥義: 円月（拠点の武器掛けで変更）」の行。武器でなければ null */
+export function ultimateTipLine(profile: Readonly<Pick<Profile, "ultimates">>, item: Readonly<Item>): TipLine | null {
+  const moveset = baseDef(item.baseKey)?.moveset;
+  if (moveset === undefined) return null;
+  return { text: `${ULTIMATE_LINE_HEAD}${ultimateChoice(profile, moveset).name}${ULTIMATE_LINE_TAIL}`, color: COLOR_DIM };
 }
 
 /** 要点と詳しくの区切り（空の行）。wrapTipLines を通さず半行ぶん空ける */

@@ -2,6 +2,8 @@
  * 効果音の名前。ゲームロジックは state.sfx にこの名前を push するだけで、
  * 実際の再生は main.ts が audio/sfx.ts を通して行う（ロジックと音を分離）。
  */
+import type { Element } from "../core/element";
+
 export const SFX_NAMES = [
   "slash1",
   "slash2",
@@ -201,6 +203,28 @@ export const SFX_NAMES = [
   "finisherHit",
   /** 近接命中の低域のドン（hit と一緒に積む） */
   "hitThump",
+  // ---- スキルの属性ごとの発動音（skillCast に重ねる。system/skills.ts が castSfxName で選ぶ）----
+  "castFire",
+  "castIce",
+  "castLightning",
+  "castPoison",
+  "castDark",
+  "castLight",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];
+
+/** スキルの属性ごとの発動音。無属性は共通の skillCast だけ（重ねる音なし） */
+const CAST_SFX: Readonly<Record<Element, SfxName | null>> = {
+  none: null,
+  fire: "castFire",
+  ice: "castIce",
+  lightning: "castLightning",
+  poison: "castPoison",
+  dark: "castDark",
+  light: "castLight",
+};
+
+export function castSfxName(element: Element): SfxName | null {
+  return CAST_SFX[element];
+}

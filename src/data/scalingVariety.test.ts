@@ -5,6 +5,7 @@ import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { scaledAtBase } from "../system/attributes";
 import combatJson from "./balance/combat.json";
 import skillsJson from "./balance/skills.json";
+import ultimatesJson from "./balance/ultimates.json";
 import weaponsJson from "./balance/weapons.json";
 import { PLAYER } from "./tuning";
 import { BULLETS } from "../loot/bullets";
@@ -28,7 +29,7 @@ const SHOT_AT_BASE = 4.3;
 
 /**
  * ステータスを参照しない（基礎値だけの）行動。道具・仕掛け・固定の爆発に限る
- * （JSON のパス。振り直し前の表に無い弾は bullets.<ベース>.* / art.throw.bullet.* で書く）
+ * （JSON のパス。振り直し前の表に無い弾は bullets.<ベース>.* / steps2[n].throw.bullet.* で書く）
  */
 const FIXED_ACTIONS: readonly string[] = [
   "skills.SKILL.mines.damage",
@@ -36,9 +37,9 @@ const FIXED_ACTIONS: readonly string[] = [
   "skills.EXTRA_SKILL_TUNING.turret.damage",
   "weapons.WEAPON.bullets.mineLauncher.scaling",
   "weapons.WEAPON.bullets.caltrops.scaling",
-  "weapons.WEAPON.movesets.trapper.art.throw.bullet.scaling",
+  "weapons.WEAPON.movesets.trapper.steps2[0].throw.bullet.scaling",
   // 仕掛けの撒き散らしは設置弾（仕掛け）なので固定値
-  "weapons.WEAPON.movesets.trapper.art.throw.scaling",
+  "weapons.WEAPON.movesets.trapper.steps2[0].throw.scaling",
 ];
 
 /**
@@ -54,7 +55,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.greatsword.steps[3].scaling": [25, 2.2],
   "weapons.WEAPON.movesets.greatsword.dashAttack.scaling": [13, 1],
   "weapons.WEAPON.movesets.greatsword.charge.step.scaling": [18, 1.6],
-  "weapons.WEAPON.movesets.greatsword.art.step.scaling": [16, 1.4],
+  "weapons.WEAPON.movesets.greatsword.steps2[0].step.scaling": [16, 1.4],
   "weapons.WEAPON.movesets.greatsword.branches.helmSplitter.step.scaling": [29, 2.6],
   "weapons.WEAPON.movesets.twinBlades.steps[0].scaling": [4.65, 0.45],
   "weapons.WEAPON.movesets.twinBlades.steps[1].scaling": [4.65, 0.45],
@@ -62,7 +63,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.twinBlades.steps[3].scaling": [4.65, 0.45],
   "weapons.WEAPON.movesets.twinBlades.steps[4].scaling": [9.5, 0.9],
   "weapons.WEAPON.movesets.twinBlades.dashAttack.scaling": [9, 0.8],
-  "weapons.WEAPON.movesets.twinBlades.art.step.scaling": [7.5, 0.7],
+  "weapons.WEAPON.movesets.twinBlades.steps2[0].step.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.twinBlades.branches.flurry.step.scaling": [4, 0.4],
   "weapons.WEAPON.movesets.twinBlades.branches.crossing.step.scaling": [8, 0.8],
   "weapons.WEAPON.movesets.spear.steps[0].scaling": [7.5, 0.7],
@@ -70,7 +71,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.spear.steps[2].scaling": [5.5, 0.5],
   "weapons.WEAPON.movesets.spear.steps[3].scaling": [14.5, 1.3],
   "weapons.WEAPON.movesets.spear.dashAttack.scaling": [11.5, 1],
-  "weapons.WEAPON.movesets.spear.art.step.scaling": [10.5, 0.9],
+  "weapons.WEAPON.movesets.spear.steps2[0].step.scaling": [10.5, 0.9],
   "weapons.WEAPON.movesets.spear.branches.spearSweep.step.scaling": [9.5, 0.9],
   "weapons.WEAPON.movesets.scythe.steps[0].scaling": [8.5, 0.8],
   "weapons.WEAPON.movesets.scythe.steps[1].scaling": [8.5, 0.8],
@@ -78,14 +79,14 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.scythe.steps[3].scaling": [16.5, 1.5],
   "weapons.WEAPON.movesets.scythe.dashAttack.scaling": [11, 1],
   "weapons.WEAPON.movesets.scythe.branches.reaping.step.scaling": [18, 1.6],
-  "weapons.WEAPON.movesets.scythe.art.step.scaling": [8, 0.6],
+  "weapons.WEAPON.movesets.scythe.steps2[0].step.scaling": [8, 0.6],
   "weapons.WEAPON.movesets.fists.steps[0].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[1].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[2].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[3].scaling": [3.4, 0.4],
   "weapons.WEAPON.movesets.fists.steps[4].scaling": [11, 1.2],
   "weapons.WEAPON.movesets.fists.dashAttack.scaling": [12, 1.2],
-  "weapons.WEAPON.movesets.fists.art.step.scaling": [10, 1],
+  "weapons.WEAPON.movesets.fists.steps2[0].step.scaling": [10, 1],
   "weapons.WEAPON.movesets.fists.branches.uppercut.step.scaling": [12, 1.2],
   "weapons.WEAPON.movesets.fists.branches.hundredFists.step.scaling": [3.6, 0.4],
   "weapons.WEAPON.movesets.whip.steps[0].scaling": [9, 0.8],
@@ -93,7 +94,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.whip.steps[2].scaling": [5, 0.5],
   "weapons.WEAPON.movesets.whip.steps[3].scaling": [14.5, 1.3],
   "weapons.WEAPON.movesets.whip.dashAttack.scaling": [9, 0.8],
-  "weapons.WEAPON.movesets.whip.art.step.scaling": [12.5, 1.1],
+  "weapons.WEAPON.movesets.whip.steps2[0].step.scaling": [12.5, 1.1],
   "weapons.WEAPON.movesets.whip.branches.whirl.step.scaling": [5, 0.5],
   "weapons.WEAPON.movesets.cleaver.steps[0].scaling": [11, 0.9],
   "weapons.WEAPON.movesets.cleaver.steps[1].scaling": [11, 0.9],
@@ -101,20 +102,20 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.cleaver.steps[3].scaling": [21, 1.6],
   "weapons.WEAPON.movesets.cleaver.dashAttack.scaling": [13, 1],
   "weapons.WEAPON.movesets.cleaver.branches.slamDown.step.scaling": [24, 1.8],
-  "weapons.WEAPON.movesets.cleaver.art.step.scaling": [10, 0.8],
+  "weapons.WEAPON.movesets.cleaver.steps2[0].step.scaling": [10, 0.8],
   "weapons.WEAPON.movesets.staff.steps[0].scaling": [6.5, 0.6],
   "weapons.WEAPON.movesets.staff.steps[1].scaling": [6.5, 0.6],
   "weapons.WEAPON.movesets.staff.steps[2].scaling": [6.5, 0.6],
   "weapons.WEAPON.movesets.staff.steps[3].scaling": [11, 1],
   "weapons.WEAPON.movesets.staff.dashAttack.scaling": [8, 0.7],
-  "weapons.WEAPON.movesets.staff.art.step.scaling": [7.5, 0.7],
+  "weapons.WEAPON.movesets.staff.steps2[0].step.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.staff.branches.tempest.step.scaling": [4.5, 0.4],
   "weapons.WEAPON.movesets.wand.steps[0].scaling": [6.5, 0.7],
   "weapons.WEAPON.movesets.wand.steps[1].scaling": [6.5, 0.7],
   "weapons.WEAPON.movesets.wand.steps[2].scaling": [7.5, 0.8],
   "weapons.WEAPON.movesets.wand.steps[3].scaling": [10, 1],
   "weapons.WEAPON.movesets.wand.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.wand.art.throw.scaling": [6, 0.5],
+  "weapons.WEAPON.movesets.wand.steps2[0].throw.scaling": [6, 0.5],
   "weapons.WEAPON.movesets.wand.branches.arcaneStrike.step.scaling": [12.5, 1.3],
   "weapons.WEAPON.movesets.wand.branches.staffSweep.step.scaling": [8, 0.8],
   "weapons.WEAPON.movesets.katana.steps[0].scaling": [7.1, 0.7],
@@ -122,7 +123,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.katana.steps[2].scaling": [7.1, 0.7],
   "weapons.WEAPON.movesets.katana.steps[3].scaling": [14.5, 1.3],
   "weapons.WEAPON.movesets.katana.dashAttack.scaling": [11, 1],
-  "weapons.WEAPON.movesets.katana.charge.step.scaling": [13.5, 1.3],
+  "weapons.WEAPON.movesets.katana.steps2[0].charge.step.scaling": [13.5, 1.3],
   "weapons.WEAPON.movesets.katana.branches.tsubame.step.scaling": [9.5, 0.9],
   "weapons.WEAPON.movesets.katana.branches.quickDraw.step.scaling": [10, 1],
   "weapons.WEAPON.movesets.axe.steps[0].scaling": [9.5, 0.9],
@@ -130,7 +131,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.axe.steps[2].scaling": [10, 0.9],
   "weapons.WEAPON.movesets.axe.steps[3].scaling": [18, 1.6],
   "weapons.WEAPON.movesets.axe.dashAttack.scaling": [11.5, 0.9],
-  "weapons.WEAPON.movesets.axe.art.throw.scaling": [13, 1],
+  "weapons.WEAPON.movesets.axe.steps2[0].throw.scaling": [13, 1],
   "weapons.WEAPON.movesets.axe.branches.axeSpin.step.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.axe.branches.cleave.step.scaling": [21, 1.8],
   "weapons.WEAPON.movesets.shield.steps[0].scaling": [6.5, 0.7],
@@ -138,14 +139,14 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.shield.steps[2].scaling": [6.5, 0.7],
   "weapons.WEAPON.movesets.shield.steps[3].scaling": [12, 1.2],
   "weapons.WEAPON.movesets.shield.dashAttack.scaling": [9.5, 0.9],
-  "weapons.WEAPON.movesets.shield.art.hold.release.scaling": [8, 0.8],
+  "weapons.WEAPON.movesets.shield.steps2[0].hold.release.scaling": [8, 0.8],
   "weapons.WEAPON.movesets.shield.branches.shieldDrop.step.scaling": [14, 1.4],
   "weapons.WEAPON.movesets.chainSickle.steps[0].scaling": [5.6, 0.6],
   "weapons.WEAPON.movesets.chainSickle.steps[1].scaling": [5.6, 0.6],
   "weapons.WEAPON.movesets.chainSickle.steps[2].scaling": [5.6, 0.6],
   "weapons.WEAPON.movesets.chainSickle.steps[3].scaling": [11, 1.2],
   "weapons.WEAPON.movesets.chainSickle.dashAttack.scaling": [8.5, 0.9],
-  "weapons.WEAPON.movesets.chainSickle.art.step.scaling": [6, 0.6],
+  "weapons.WEAPON.movesets.chainSickle.steps2[0].step.scaling": [6, 0.6],
   "weapons.WEAPON.movesets.chainSickle.branches.reelIn.step.scaling": [6.5, 0.7],
   "weapons.WEAPON.movesets.hammer.steps[0].scaling": [13, 1.2],
   "weapons.WEAPON.movesets.hammer.steps[1].scaling": [13, 1.2],
@@ -153,23 +154,23 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.hammer.steps[3].scaling": [25.5, 2.3],
   "weapons.WEAPON.movesets.hammer.dashAttack.scaling": [13, 1],
   "weapons.WEAPON.movesets.hammer.charge.step.scaling": [21.5, 1.9],
-  "weapons.WEAPON.movesets.hammer.art.step.scaling": [14.5, 1.3],
+  "weapons.WEAPON.movesets.hammer.steps2[0].step.scaling": [14.5, 1.3],
   "weapons.WEAPON.movesets.hammer.branches.groundBreaker.step.scaling": [29, 2.6],
   "weapons.WEAPON.movesets.gunner.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.gunner.art.throw.scaling": [3.9, 0.3],
+  "weapons.WEAPON.movesets.gunner.steps2[0].throw.scaling": [3.9, 0.3],
   "weapons.WEAPON.movesets.sidearm.dashAttack.scaling": [8, 0.8],
   "weapons.WEAPON.movesets.longarm.dashAttack.scaling": [9, 0.8],
-  "weapons.WEAPON.movesets.longarm.art.step.scaling": [9, 0.8],
+  "weapons.WEAPON.movesets.longarm.steps2[0].step.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.cannon.dashAttack.scaling": [10, 0.8],
-  "weapons.WEAPON.movesets.cannon.art.step.scaling": [13, 1],
+  "weapons.WEAPON.movesets.cannon.steps2[0].step.scaling": [13, 1],
   "weapons.WEAPON.movesets.thrown.dashAttack.scaling": [7.5, 0.6],
   // 振り直しの後に足した銃の家系（値は足した時点のもの）
   "weapons.WEAPON.movesets.grenade.dashAttack.scaling": [8.5, 0.7],
-  "weapons.WEAPON.movesets.grenade.art.step.scaling": [9, 0.8],
+  "weapons.WEAPON.movesets.grenade.steps2[0].step.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.trapper.dashAttack.scaling": [7.5, 0.7],
-  "weapons.WEAPON.movesets.trapper.art.throw.scaling": [10, 0],
+  "weapons.WEAPON.movesets.trapper.steps2[0].throw.scaling": [10, 0],
   "weapons.WEAPON.movesets.warRing.dashAttack.scaling": [7.5, 0.6],
-  "weapons.WEAPON.movesets.warRing.art.step.scaling": [7, 0.8],
+  "weapons.WEAPON.movesets.warRing.steps2[0].step.scaling": [7, 0.8],
   "weapons.WEAPON.jobBranches.swordsman.scaling": [11.5, 1.1],
   "weapons.WEAPON.jobBranches.hunter.scaling": [10, 1],
   "weapons.WEAPON.jobBranches.brawler.scaling": [4.1, 0.5],
@@ -257,7 +258,8 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "skills.WAVE2_SKILL_TUNING.mire.tickDamage": [2, 0.3],
   "skills.WAVE3_SKILL_TUNING.siegeForm.damage": [28, 2.8],
   "combat.PLAYER.shoot.scaling": [4.3, 0.3],
-  "combat.PLAYER.special.scaling": [34, 2],
+  // 旧 combat.PLAYER.special（バースト）。2026-09-25 に奥義の円月へ値を変えずに移した
+  "ultimates.ULTIMATE.defs.sword.fullMoon.nova.scaling": [34, 2],
 };
 
 const ATTR_FIELDS = new Set(["base", ...ATTR_KEYS]);
@@ -308,10 +310,17 @@ function mainAttrs(s: Readonly<AttrRatio>): AttrKey[] {
   return ATTR_KEYS.filter((k) => (s[k] ?? 0) === max);
 }
 
+/** 右レーンの段・派生の係数表（docs/ideas/ougi-and-dual-actions.md 4.3。2026-09-25 に足した行動） */
+const LANE_TABLE = /^weapons\.WEAPON\.movesets\.\w+\.(steps2\[\d+\]\.(step|throw)|branches\.\w+\.step)\.scaling$/;
+
+/** 奥義の定義の係数表のパスの頭 */
+const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
+
 const CURRENT = new Map<string, Scaling>();
 collectPaths(weaponsJson, "weapons", CURRENT);
 collectPaths(skillsJson, "skills", CURRENT);
 collectPaths(combatJson, "combat", CURRENT);
+collectPaths(ultimatesJson, "ultimates", CURRENT);
 
 interface Action {
   readonly label: string;
@@ -320,7 +329,7 @@ interface Action {
   readonly poiseRatio?: AttrRatio;
 }
 
-/** 武器種ごとの全行動（3 段・ダッシュ攻撃・派生（固有技の振りを含む）・溜め・投げる技） */
+/** 武器種ごとの全行動（左の段・ダッシュ攻撃・派生・溜め・右レーンの段） */
 function movesetActions(key: keyof typeof MOVESETS): Action[] {
   const m = MOVESETS[key];
   const out: Action[] = [];
@@ -328,7 +337,13 @@ function movesetActions(key: keyof typeof MOVESETS): Action[] {
   out.push({ label: `${key}.ダッシュ攻撃`, ...m.dashAttack });
   for (const b of m.branches) out.push({ label: `${key}.${b.name}`, ...b.step });
   if (m.charge) out.push({ label: `${key}.溜め`, ...m.charge.step });
-  if (m.art.kind === "throw") out.push({ label: `${key}.${m.art.name}`, ...m.art.throw });
+  // 右レーン（アクション 2）の振り・弾・溜めの段
+  m.steps2.forEach((s, i) => {
+    const label = `${key}.右 ${i + 1} 段`;
+    if (s.kind === "swing") out.push({ label, ...s.step });
+    if (s.kind === "volley") out.push({ label, ...s.throw });
+    if (s.kind === "charge") out.push({ label, ...s.charge.step });
+  });
   return out;
 }
 
@@ -370,7 +385,11 @@ describe("振り直しで基礎値の値は変わらない", () => {
   it("振り直し前に無かった係数表は弾だけで、基礎値で 1 発 4.3", () => {
     for (const [path, s] of CURRENT) {
       if (path in PINNED) continue;
-      expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.art\.throw\.bullet)\.scaling$/);
+      // 奥義（円月以外の 68 本）は振り直しの後に足した行動なので対象外（基準は ultimates.json の _note）
+      if (path.startsWith(ULTIMATE_DEFS_PATH)) continue;
+      // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
+      if (LANE_TABLE.test(path)) continue;
+      expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);
       expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE, FLOAT_DIGITS);
     }
   });

@@ -666,6 +666,44 @@
     }
   },
   "stats": {
+    "_fields": {
+      "radius": "体の当たり判定の半径。px（10px = 1m）。プレイヤーは 5。目安: 小型 4〜6、大型 8〜10、ボス 12〜14",
+      "hp": "生命。出現時に深度で 1 + 0.18 ×（深度 − 1）倍になる（深度 6 で 1.9 倍）。目安: 雑魚 14〜60、部屋主 160〜260、ボス 450〜1100",
+      "speed": "追う・逃げるときの移動速度。px/秒。プレイヤーの歩きは 120。0 はその場から動かない（設置物）。目安 25〜95",
+      "contactDamage": "攻撃中（strike）に体が触れたときのダメージ。深度 2 つごとに +2 される。0 は触れても痛くない（射撃型など）。目安 5〜30",
+      "windup": "攻撃の予備動作（予告）の秒。長いほど避けやすい（テレグラフ原則）。深度 1 つごとに 1.5% 短くなり、最短でこの値の 0.75 倍（ENEMY_TEMPO）。目安 0.35〜0.9",
+      "strikeTime": "攻撃そのものが続く秒（突進の長さ・光線の照射時間など）。目安 0.05〜1.5",
+      "recover": "攻撃後の硬直の秒。この間が反撃の隙になる。目安 0.3〜1.0",
+      "engageRange": "プレイヤーがこの距離より近いと攻撃を始める。px。射撃型（浮遊眼・光線眼）はこの距離の半分〜この距離を保って動く。0 は攻撃しない、9999 は距離を問わない。目安 40〜250",
+      "attackInterval": "攻撃を終えて追跡に戻ってから、次の攻撃を始められるまでの秒。出現直後だけ 0.5〜1.5 倍にばらつく。99 は実質攻撃しない。目安 0.2〜2.5",
+      "score": "撃破で入る得点（コンボの倍率が掛かる）。目安: 雑魚 10〜60、部屋主 300〜、ボス 1000〜",
+      "minDepth": "通常の抽選に出始める深度。99 は抽選に出さない（ボス・召喚物・設置物）",
+      "weight": "出現抽選の重み。同じ深度で出られる敵どうしの比で、そのバイオームの顔ぶれ（ファミリー）なら world.json の FLOOR_KIND.familyMul 倍。0 は抽選に出ない。目安 0.3〜10",
+      "dropChance": "撃破時に装備を落とす基本の確率。割合（0..1）。深度 1 つごとに loot.json の LOOT_DROP.depthChanceBonus が足され、通常の敵は深度別の倍率で絞られる。1 は確定ドロップ（ボス・部屋主も確定）",
+      "deathMana": "倒されたときにプレイヤーへ返す気力。省略すると返さない",
+      "flank": "追う途中で横へ回り込む強さ。0..1（狼 0.8）。プレイヤーとの距離が ENEMY_AI.flank.minDist より遠い間だけ効く",
+      "swarm.min": "群れで湧く数の下限。抽選 1 回で min〜max（両端を含む）の数だけ出る",
+      "swarm.max": "群れで湧く数の上限",
+      "volley.count": "射撃・爆弾を扇に並べる数。1 なら正面に 1 つ",
+      "volley.spreadDeg": "扇の全体の開き。度（端から端まで）",
+      "volley.speedMul": "弾速の倍率（基準 135 px/秒）。省略時 1",
+      "volley.damageMul": "ダメージの倍率（弾の基準 8、爆弾は ENEMY_AI.bomber.damage）。省略時 1",
+      "volley.radius": "弾の半径。px。省略時は ENEMY_AI.volley.bulletRadius",
+      "laserBeams.count": "続けて撃つ光線の本数（中央 → 左 → 右の順）",
+      "laserBeams.spreadDeg": "2 本目以降を中央からずらす角度。度",
+      "laserBeams.followWindup": "2 本目以降の予備動作の秒（深度で短くなる前の値）",
+      "explode.radius": "自爆の範囲の半径。px（予備動作中に同じ大きさの影で予告する）",
+      "explode.damage": "自爆のダメージ。深度 2 つごとに +2。周りの敵にも当たる",
+      "explode.color": "自爆の爆発の色",
+      "deathBurst.count": "倒れたときに全周へ撒く弾の数",
+      "deathBurst.speed": "その弾の速さ。px/秒",
+      "deathBurst.damage": "その弾のダメージ。深度 2 つごとに +2",
+      "deathBurst.color": "その弾の色",
+      "deathBomb.radius": "倒れた場所に残す時限爆発の範囲の半径。px",
+      "deathBomb.damage": "時限爆発のダメージ。深度 2 つごとに +2",
+      "deathBomb.fuse": "時限爆発が爆ぜるまでの秒（予告の長さ）",
+      "timid.lifetime": "攻撃せずに逃げ回り、見つかってからこの秒で消える（金色スライム）"
+    },
     "slime": {
       "radius": 6,
       "hp": 20,
@@ -2338,6 +2376,12 @@
     }
   },
   "combat": {
+    "_fields": {
+      "poise": "怯み耐性。攻撃の怯み値の蓄積がこれを超えると怯む（ボスはダウン）。深度 1 つごとに combat.json の POISE.depthScale（8%）ずつ伸びる。省略すると怯まない。目安: 低 5〜15、中 25〜50、高 60〜120、ボス 140〜320",
+      "staggerTime": "怯みの秒（ボスはダウンの秒）。怯まない敵は 0。目安 0.3〜0.8、ボス 1.2〜2",
+      "superArmorMul": "強靭。予備動作・攻撃中に受ける怯み値の倍率（1 = 等倍、低いほど攻撃中に怯みにくい）。目安 0.25〜1（1.5 は攻撃中ほど崩れやすい）",
+      "strikeSuperArmorMul": "攻撃中（strike）だけ強靭を上書きする倍率。省略すると superArmorMul と同じ。0 はその間怯み値が溜まらない（スライム王の空中）"
+    },
     "slime": {
       "poise": 25,
       "staggerTime": 0.5,
@@ -2850,6 +2894,21 @@
     }
   },
   "defense": {
+    "_fields": {
+      "body": "体つきの型（bodies の key）。防御・魔防はこの型から決まる",
+      "biome": "土地の属性（biomes の key）。属性耐性の既定をここから写す。省略可",
+      "resist": "この敵だけの属性耐性の上書き（biome の値に重ねる）。書かない属性は biome の値か 0",
+      "stages": "ボスの段階ごとの属性耐性の上書き。1 つ目が段階 1。表より先の段階は最後の表を使う",
+      "defense": "物理の攻撃の軽減 %。負は柔らかい（-10 なら 1.1 倍のダメージ）。-50〜75 に収める（combat.json の GENRE.enemyDefenseMin / Max）",
+      "warding": "魔法の攻撃の軽減 %（魔防）。範囲は防御と同じ。混成の攻撃は防御と魔防を半々で混ぜて受ける",
+      "none": "無属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+      "fire": "炎属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+      "ice": "氷属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+      "lightning": "雷属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+      "poison": "毒属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+      "dark": "闇属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）",
+      "light": "光属性の耐性 %。正で軽減、負で弱点（-50 なら 1.5 倍のダメージ）。-100〜75 に収める（combat.json の ELEMENT.enemyResistMin / Max）"
+    },
     "bodies": {
       "soft": {
         "defense": 0,

@@ -11,7 +11,8 @@ import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
 import { isRoamerTarget, isRoamingEnemy, slashBase, spawnBoonWave } from "./boonRules";
-import { offerBoons } from "./boons";
+import { offerBoonsFromRule } from "./boons";
+import { gradeMagnitudeMul, gradedEffect, gradedIcd, ruleOwnerGrade } from "./boonGrade";
 import { damageEnemy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
 import { engagedRoomIndex } from "./engagement";
@@ -26,6 +27,8 @@ import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
+import { sustainRules } from "../data/ultimates";
+import { ultimateBlocksEnergy } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
@@ -104,6 +107,8 @@ export function collectRules(state: GameState): Rule[] {
   out.push(...jobRules(state.job));
   // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
   out.push(...movesetRules(state.stats.moveset));
+  // 持続中の奥義の固有効果（data/ultimates.ts の SustainDef.rules）。持続中だけ集める
+  out.push(...sustainRules(state.player.ultimate.active));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
   const rs = state.skills;
   for (let slot = 0; slot < rs.slots.length; slot++) {
@@ -155,7 +160,8 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   if (procTarget !== undefined && procTarget.status.procIcd > 0) return;
   // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）
   if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
-  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), rule.icd);
+  // 祝福の格（神威）は ICD を縮める。direct（旧フックの回数と揃えたもの）には掛けない
+  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), gradedIcd(rule.icd, ruleOwnerGrade(state, rule.owner)));
   if (rule.group !== undefined) fired.add(rule.group);
   state.ruleRun.keywordUse.set(keyword, used + 1);
   if (procTarget !== undefined) procTarget.status.procIcd = STATUS.onHitIcd;
@@ -179,7 +185,8 @@ function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fi
   // 深さはイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い。減衰は掛けない）
   run.depth = ev.depth;
   try {
-    applyRuleEffect(state, rule.then, ev, 1);
+    const grade = ruleOwnerGrade(state, rule.owner);
+    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
   } finally {
     run.depth = prevDepth;
   }
@@ -198,7 +205,9 @@ function runRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
   run.depth = ev.depth + 1;
   run.owner = rule.owner;
   try {
-    applyRuleEffect(state, rule.then, ev, SYNERGY.chainDecay ** ev.depth);
+    // 祝福の格は効果量・半径に掛かる（呪い付き・祝福以外の Rule は並 = ×1）
+    const grade = ruleOwnerGrade(state, rule.owner);
+    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, SYNERGY.chainDecay ** ev.depth * gradeMagnitudeMul(grade));
   } finally {
     run.depth = prevDepth;
     run.owner = prevOwner;
@@ -285,7 +294,7 @@ function applyMigratedEffect(state: GameState, effect: Readonly<RuleEffect>, ev:
       dropItem(state, ev.pos);
       return true;
     case "offerBoons":
-      offerBoons(state);
+      offerBoonsFromRule(state);
       return true;
     case "roomEnemies":
       for (const e of roomEnemiesOf(state, effect, ev)) hitEnemyWith(state, e, effect, magnitude, "poise", ev.pos);
@@ -464,6 +473,8 @@ function applyVitalEffect(state: GameState, effect: Readonly<RuleEffect>, magnit
       healSustained(state, magnitude, { silent: true });
       return true;
     case "energy":
+      // 持続の奥義の最中は gainEnergy と同じく貯めない（満タン補充で持続が終わらなくなるのを防ぐ）
+      if (ultimateBlocksEnergy(state)) return effect.fill === true || effect.raw === true;
       if (effect.fill === true) {
         p.energy = p.maxEnergy;
         return true;
@@ -750,6 +761,10 @@ function migratedConditionHolds(state: GameState, c: RuleCondition, subject: Con
     }
     case "targetElite":
       return targetElite(state, subject);
+    case "ultimateActive":
+      return p.ultimate.active !== null;
+    case "lane":
+      return p.attack.lane === c.lane;
     default:
       return false;
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChainRecord } from "../core/events";
 import { boonHudTop } from "./boonUi";
+import { hudLayout } from "./renderMath";
 import { DISCOVERY } from "../data/tuning";
 import { createLinkRun } from "../meta/links";
 import { CHAIN_MAX_LINES, CHAIN_SHOW_SECONDS, chainAlpha, chainBaselines, chainLines, chainWord, discoveryNotes } from "./chainUi";
@@ -40,18 +41,19 @@ describe("連鎖の表示: 行の組み立て", () => {
 });
 
 describe("連鎖の表示: 位置と薄れ方", () => {
-  it("新しい行ほど下、最下行は祝福アイコン列の上", () => {
-    const ys = chainBaselines([10, 12, 10], 5);
+  it("新しい行ほど下、最下行は渡した基準線", () => {
+    const ys = chainBaselines([10, 12, 10], 200);
     const [a, b, c] = ys;
-    expect(c, "最下行").toBeLessThan(boonHudTop(5));
+    expect(c, "最下行").toBe(200);
     expect(b, "2 行目").toBe((c ?? 0) - 10);
     expect(a, "1 行目").toBe((b ?? 0) - 12);
   });
 
-  it("祝福が増えて段が増えると連鎖の表示も上がる", () => {
-    const few = chainBaselines([10], 1)[0] ?? 0;
-    const many = chainBaselines([10], 40)[0] ?? 0;
-    expect(many, "段が増えた分だけ上").toBeLessThan(few);
+  it("祝福が増えて段が増えると連鎖の表示も上がり、スキル枠の上に収まる", () => {
+    const few = hudLayout(boonHudTop(1), 10, 4);
+    const many = hudLayout(boonHudTop(40), 10, 4);
+    expect(many.chainBottom, "段が増えた分だけ上").toBeLessThan(few.chainBottom);
+    expect(few.chainBottom, "スキル枠より上").toBeLessThan(few.skills.y);
   });
 
   it("消える直前に薄くなり、表示時間を過ぎたら 0", () => {

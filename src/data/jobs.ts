@@ -226,7 +226,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   lancer: {
     name: "槍兵",
-    desc: "堅守中の敵を崩しやすく、怯ませるたびに必殺ゲージが溜まる。",
+    desc: "堅守中の敵を崩しやすく、怯ませるたびに奥義ゲージが溜まる。",
     attributes: JOB_ATTRIBUTES.lancer,
     favored: ["spear", "scythe"],
     rules: [
@@ -235,7 +235,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         if: [{ kind: "trigger", condition: "targetGuarded" }],
         then: { kind: "addPoise", magnitude: JOB.lancerGuardPoise },
       }),
-      jobRule("lancer", 1, `敵を怯ませると必殺ゲージ +${JOB.lancerStaggerEnergy}。`, {
+      jobRule("lancer", 1, `敵を怯ませると奥義ゲージ +${JOB.lancerStaggerEnergy}。`, {
         when: "onStagger",
         then: { kind: "energy", magnitude: JOB.lancerStaggerEnergy },
       }),
@@ -293,11 +293,11 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   },
   alchemist: {
     name: "錬金術師",
-    desc: "反応を起こすたびに必殺ゲージが溜まり、状態異常が 2 種以上付いた敵は倒すと爆発する。",
+    desc: "反応を起こすたびに奥義ゲージが溜まり、状態異常が 2 種以上付いた敵は倒すと爆発する。",
     attributes: JOB_ATTRIBUTES.alchemist,
     favored: ["staff", "cleaver"],
     rules: [
-      jobRule("alchemist", 0, `状態異常の反応を起こすと必殺ゲージ +${JOB.alchemistReactionEnergy}。`, {
+      jobRule("alchemist", 0, `状態異常の反応を起こすと奥義ゲージ +${JOB.alchemistReactionEnergy}。`, {
         when: "onReaction",
         if: [{ kind: "actor", actor: "player" }],
         then: { kind: "energy", magnitude: JOB.alchemistReactionEnergy },

@@ -4,13 +4,14 @@ import { FEEL, MANA } from "../data/tuning";
 import type { BulletDef } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
-import { spawnBurst, spawnRing } from "./effects";
+import { hitstop, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { boonAttackManaMul } from "./boons";
 import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
 import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
+import { blastMulAt } from "./blast";
 import { inflictOnPlayer } from "./statusEffects";
 import { swallowedBySmoke } from "./terrain";
 
@@ -205,16 +206,17 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.hidden) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, blastRadius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
-    const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack });
+    const mul = blastMulAt(pr.pos, blastRadius, e.body.pos, e.body.radius);
+    const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
     gainShotMana(state, pr);
-    damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul, {
+    damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul * mul, {
       hitstopSteps: MINE_HITSTOP,
       kind: pr.kind,
       crit: out.crit,
-      poise: pr.poise ?? 0,
+      poise: (pr.poise ?? 0) * mul,
     });
   }
-  spawnRing(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
+  spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
   spawnBurst(state, pr.pos, pr.color, MINE_PARTICLES, 120, 0.3, 2);
   pushSfx(state, "explode");
 }
@@ -280,5 +282,5 @@ function hitPlayer(state: GameState, pr: Projectile): void {
   if (result === "ignored") return;
   pr.life = 0;
   spawnBurst(state, pr.pos, pr.color, 6, 90, 0.25, 1.5);
-  if (result === "dodged") state.hitstop = Math.max(state.hitstop, FEEL.hitstopLight);
+  if (result === "dodged") hitstop(state, FEEL.hitstopLight);
 }

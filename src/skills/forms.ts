@@ -12,6 +12,7 @@ import { addFloatingText, shake, spawnBurst, spawnRing } from "../system/effects
 import { canAffordSkill, paySkillCost } from "../system/keystones";
 import { circlesOverlap } from "../system/physics";
 import { applyStatus, enemiesInRadius, hasStatus, removeStatus } from "../system/statusEffects";
+import { endUltimate } from "../system/ultimates";
 import { SKILL } from "./data";
 import { skillPower } from "./hit";
 import { spawnShot } from "./shots";
@@ -197,6 +198,8 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
   const rs = state.skills;
   const p = state.player;
   if (p.attack.phase !== "none") cancelAttack(state);
+  // 持続の奥義とは同時に立てない（型の差し替えが重なる）
+  endUltimate(state, "form");
   rs.formRecover = 0;
   rs.shape = {
     key,
@@ -559,7 +562,7 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
   if (key === "wolfForm") {
     const w = SKILL.wolfForm;
     const bite = tunedStep(w.bite, params);
-    // 右クリックは shapeButtonPress が遠吠えとして先に取るので、技の噛みつきは出ない（型を揃えるための置き場）
+    // 右クリックは shapeButtonPress が遠吠えとして先に取るので、右レーンの段は出ない（型を揃える置き場。HUD の案内は遠吠えと読める名前にする）
     return defineMoveset({
       key: equipped,
       name: SKILL_NAME.wolfForm,
@@ -568,7 +571,7 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       dashAttack: bite,
       attackMoveMul: w.attackMoveMul,
       primary: "melee",
-      art: { kind: "strike", key: "wolfBite", name: "噛みつき", desc: "噛みついて出血させる", cooldown: 0, step: bite },
+      steps2: [{ kind: "swing", key: "wolfHowl", name: "遠吠え", desc: "周りの敵に恐怖を付ける", cooldown: 0, step: bite }],
       branches: [],
       keywords: kw(["melee", "bleed"]),
       attack: attack("melee", "physical"),
@@ -585,7 +588,7 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       dashAttack: swing,
       attackMoveMul: f.attackMoveMul,
       primary: "melee",
-      art: { kind: "strike", key: "ironSwing", name: "鉄塊の振り", desc: "重い振りで大きく怯ませる", cooldown: 0, step: swing },
+      steps2: [{ kind: "swing", key: "ironSwing", name: "鉄塊の振り", desc: "重い振りで大きく怯ませる", cooldown: 0, step: swing }],
       branches: [],
       keywords: kw(["melee", "stagger", "wall"]),
       attack: attack("melee", "physical"),

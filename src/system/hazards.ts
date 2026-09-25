@@ -3,8 +3,9 @@ import { type Vec, dist, sub } from "../core/vec";
 import { BOSS, ENEMY_AI, STATUS } from "../data/tuning";
 import { TILE_SIZE, toIndex } from "../map/grid";
 import { damageEnemy, damagePlayer } from "./combat";
-import { shake, spawnBurst, spawnRing } from "./effects";
+import { shake, spawnBlast, spawnBurst } from "./effects";
 import { overlapsWall } from "./physics";
+import { blastMulAt } from "./blast";
 import type { EnemyAttackKind } from "../data/enemyCombat";
 import { type InflictSource, enemyDamageMul, inflictOnPlayer } from "./statusEffects";
 
@@ -140,7 +141,8 @@ export function blastEnemies(state: GameState, pos: Vec, radius: number, damage:
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.id === excludeId || e.phase === "spawning" || e.hidden) continue;
     if (dist(e.body.pos, pos) >= radius + e.body.radius) continue;
-    damageEnemy(state, e, amount, sub(e.body.pos, pos), FRIENDLY_BLAST_KNOCK, { hitstopSteps: 0 });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    damageEnemy(state, e, Math.max(1, Math.round(amount * mul)), sub(e.body.pos, pos), FRIENDLY_BLAST_KNOCK * mul, { hitstopSteps: 0 });
   }
   damageBoneWalls(state, pos, radius, amount);
 }
@@ -192,13 +194,14 @@ export function explodeHostile(
   color: string,
   source?: InflictSource,
 ): void {
-  spawnRing(state, pos, radius, color, STATUS.fxLife);
+  spawnBlast(state, pos, radius, color, STATUS.fxLife);
   spawnBurst(state, pos, color, EXPLODE_PARTICLES, EXPLODE_SPEED, 0.4, 2.5);
   shake(state, EXPLODE_SHAKE);
   pushSfx(state, "explode");
   const p = state.player.body;
   if (dist(p.pos, pos) >= radius + p.radius) return;
-  if (damagePlayer(state, damage, pos) === "hit") inflictOnPlayer(state, source, "bomb");
+  const mul = blastMulAt(pos, radius, p.pos, p.radius);
+  if (damagePlayer(state, damage * mul, pos) === "hit") inflictOnPlayer(state, source, "bomb");
 }
 
 /** 線分 a-b（太さ halfWidth*2）と円の当たり判定 */

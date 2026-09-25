@@ -239,6 +239,15 @@ describe("既定のキー設定", () => {
     expect(DEFAULT_KEYBINDS.skill2).toContain("Mouse4");
   });
 
+  it("アイテム情報表示の切替（toggleDropInfo）は既定で T、他のアクションと衝突しない", () => {
+    expect(DEFAULT_KEYBINDS.toggleDropInfo).toEqual(["KeyT"]);
+    expect((REBINDABLE_ACTIONS as readonly string[]).includes("toggleDropInfo"), "変更可能").toBe(true);
+    const owners = (Object.keys(DEFAULT_KEYBINDS) as (keyof typeof DEFAULT_KEYBINDS)[]).filter((action) =>
+      DEFAULT_KEYBINDS[action].includes("KeyT"),
+    );
+    expect(owners, "KeyT を持つのは toggleDropInfo だけ").toEqual(["toggleDropInfo"]);
+  });
+
   it("拾う（interact）は既定で G、キー設定画面で変更できる", () => {
     expect(DEFAULT_KEYBINDS.interact).toEqual(["KeyG"]);
     expect((REBINDABLE_ACTIONS as readonly string[]).includes("interact"), "変更可能").toBe(true);

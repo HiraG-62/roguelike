@@ -23,6 +23,7 @@ import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spa
 import { createEnemy } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { heartsAllowed } from "./keystones";
+import { coreBlocksHearts } from "./boonCores";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
@@ -34,6 +35,7 @@ import {
   boonHeartsAllowed,
   extraEliteRoll,
   offerBoons,
+  stairsGradeBoost,
   onBoonEnemySpawned,
   onBoonHeartPickup,
   onBoonRoomClear,
@@ -767,7 +769,7 @@ function updatePickups(state: GameState, dt: number): void {
   for (const pk of state.pickups) {
     pk.bobTime += dt;
     // ks_vampire: ハートは触れても消えない
-    if (!heartsAllowed(state)) continue;
+    if (!heartsAllowed(state) || coreBlocksHearts(state)) continue;
     if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, p.pos.x, p.pos.y, p.radius)) continue;
     healPlayer(state, ROOM.heartHeal);
     onBoonHeartPickup(state);
@@ -786,7 +788,8 @@ function checkStairs(state: GameState): void {
   const fresh = state.depth + 1 > state.runEvents.strata.deepest;
   descend(state, stairsChoiceAt(state, toIndex(state.map, tx, ty)));
   // 祝福 3 択は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）
-  if (fresh) offerBoons(state);
+  // ボス階を抜けた直後の提示は格が 1 段上がる
+  if (fresh) offerBoons(state, stairsGradeBoost(isBossDepth(state.depth - 1)));
 }
 
 /** 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選） */

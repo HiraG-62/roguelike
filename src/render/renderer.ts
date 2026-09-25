@@ -42,6 +42,7 @@ import {
   spriteFeetY,
   wallMask,
   wallStyle,
+  type HudLayout,
 } from "./renderMath";
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, enemySpriteKey, getSprite, mergeAtlas, spriteFrame } from "./sprites";
@@ -58,7 +59,7 @@ import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
-import { EFFECTS } from "../data/tuning";
+import { EFFECTS, FX_ATTACK } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
@@ -66,13 +67,12 @@ import {
   type SwingPhase,
   type WeaponPose,
   WEAPON_TRAIL_WIDTH,
-  artHoldPose,
+  laneHoldPose,
   offhandOffset,
   phaseProgress,
   playerBodyPose,
   slashVisual,
   slashWeight,
-  swingSign,
   weaponGrip,
   weaponPose,
 } from "./renderMath";
@@ -82,8 +82,12 @@ import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
+import { drawInLayerOrder, hudLayoutFor } from "./layers";
+import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
+import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
+import { trailFade } from "./fxMath";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
@@ -111,6 +115,8 @@ const COLOR_HP_BG = "#3a1010";
 const COLOR_ENERGY = "#f8d848";
 const COLOR_ENERGY_BG = "#3a3010";
 const COLOR_ENERGY_READY = "#ffffff";
+/** 持続の奥義でゲージが減っている間の色（満タン待ちの黄と見分ける） */
+const COLOR_ENERGY_SUSTAIN = "#ff8a3c";
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
 const COLOR_TELEGRAPH = "#ff4040";
@@ -358,10 +364,8 @@ const STATUS_TINT_SPEED = 6;
 /** 溜めの段の目盛り（プレイヤーの頭上の点） */
 const CHARGE_PIP_GAP = 4;
 const CHARGE_PIP_Y = 16;
-/** 振りの軌跡の半径（リーチに対する割合）、鎌の内側の弧、鞭のしなり */
+/** 振りの軌跡の半径（リーチに対する割合） */
 const TRAIL_REACH_RATIO = 0.85;
-const SCYTHE_INNER_RATIO = 0.8;
-const WHIP_BEND = 10;
 const SQUASH_X = 1.15;
 const SQUASH_Y = 0.85;
 const DASH_STRETCH_X = 1.2;
@@ -392,11 +396,10 @@ const CHARGE_RING_SPEED = 10;
 const CHARGE_RING_MIN = 0.45;
 const CHARGE_RING_MAX = 0.9;
 const SLASH_AFTERIMAGE_ALPHA = 0.6;
+/** 重い段・終撃の斬撃の絵に重ねる加算の強さ */
+const SLASH_HEAVY_GLOW = 0.55;
 
 /** 弾 */
-const TRAIL_POINTS = 3;
-const TRAIL_SPACING = 3;
-const TRAIL_ALPHA = 0.5;
 const BULLET_TINT_STRENGTH = 0.5;
 const COLOR_PLAYER_BULLET_DEFAULT = "#a0e0ff";
 /** enemyBullet スプライトの色に揃える */
@@ -680,7 +683,7 @@ export class Renderer {
     return this.ctx;
   }
 
-  render(state: GameState, aimScreen: { x: number; y: number } | null = null): void {
+  render(state: GameState, aimScreen: { x: number; y: number } | null = null, dropTooltip = true): void {
     const { ctx } = this;
     this.beginFrame();
     ctx.fillStyle = COLOR_BG;
@@ -691,7 +694,33 @@ export class Renderer {
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
     const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
+    const hud = hudLayoutFor(state);
 
+    // 重なり順は layers.ts の RENDER_LAYERS（マップ → 画面効果 → HUD → 知らせ → 階層移動 → ポップアップ → 照準）
+    drawInLayerOrder({
+      world: () => this.drawWorldLayer(state, ox, oy),
+      worldOverlay: () => this.drawWorldOverlayLayer(state, ox, oy),
+      hud: () => {
+        this.drawHud(state, hud);
+        drawSkillSlots(ctx, state, hud);
+      },
+      hudOverlay: () => drawChainHud(ctx, state, hud),
+      transition: () => this.drawTransitionLayer(state),
+      popup: () => {
+        drawBoonHud(ctx, state, aimScreen);
+        drawDropFocus(ctx, state, aimScreen, ox, oy, dropTooltip);
+        drawBoonChoice(ctx, state);
+        if (state.status === "dead") this.drawDeath(state);
+      },
+      cursor: () => {
+        if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
+      },
+    });
+  }
+
+  /** world 層: カメラの座標系でマップと中の物を描く */
+  private drawWorldLayer(state: GameState, ox: number, oy: number): void {
+    const { ctx } = this;
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
@@ -701,6 +730,7 @@ export class Renderer {
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
+    drawSkillGround(ctx, state);
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
@@ -712,28 +742,30 @@ export class Renderer {
     drawPlayerAuras(ctx, state);
     this.drawPlayer(state);
     this.drawReaper(state);
+    drawSkillAir(ctx, state);
     drawSmokeLayer(ctx, state, -ox, -oy);
     this.drawShapes(state);
     drawAirMarks(ctx, state, this.fxSprites);
     this.drawParticles(state);
     this.drawTexts(state);
     ctx.restore();
+  }
 
+  /** worldOverlay 層: ワールドにだけ掛ける画面効果（HUD は覆わない） */
+  private drawWorldOverlayLayer(state: GameState, ox: number, oy: number): void {
+    const { ctx } = this;
     if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
     drawRunOverlay(ctx, state, ox, oy);
     this.drawOverlays(state);
     drawScreenMarks(ctx, state, ox, oy);
     this.drawBossLetterbox(state);
-    this.drawHud(state);
+  }
+
+  /** transition 層: 階層移動の黒帯と階層の名札（HUD ごと覆い、祝福 3 択はこの上に出す） */
+  private drawTransitionLayer(state: GameState): void {
     this.drawFloorWipe(state);
     // 拠点（sandbox）は階層ではないのでフロアカードを出さない
-    if (state.status === "playing" && !state.sandbox) drawFloorCard(ctx, `地下 ${state.depth} 階`, FLOOR_KIND_LABEL_JA[state.floorKind], state.time - this.floorCardAt);
-    drawBoonHud(ctx, state, aimScreen);
-    drawChainHud(ctx, state);
-    drawDropFocus(ctx, state, aimScreen, ox, oy);
-    drawBoonChoice(ctx, state);
-    if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
-    if (state.status === "dead") this.drawDeath(state);
+    if (state.status === "playing" && !state.sandbox) drawFloorCard(this.ctx, `地下 ${state.depth} 階`, FLOOR_KIND_LABEL_JA[state.floorKind], state.time - this.floorCardAt);
   }
 
   // ---------------------------------------------------------------------------
@@ -1129,42 +1161,15 @@ export class Renderer {
   // ---------------------------------------------------------------------------
 
   /** 衝撃波リングと連鎖雷 */
+  /** 輪・線・爆発の段階（fxAttack.ts） */
   private drawShapes(state: GameState): void {
-    const { ctx } = this;
-    for (const s of state.shapes) {
-      const t = Math.max(0, s.life / s.maxLife);
-      ctx.globalAlpha = t;
-      ctx.strokeStyle = s.color;
-      if (s.kind === "ring") {
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(s.pos.x, s.pos.y, s.radius * (1 - t * 0.6), 0, Math.PI * 2);
-        ctx.stroke();
-      } else {
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(s.pos.x, s.pos.y);
-        // 中間点を少しずらしてギザギザに
-        const mx = (s.pos.x + s.to.x) / 2 + Math.sin(s.life * 90) * 4;
-        const my = (s.pos.y + s.to.y) / 2 + Math.cos(s.life * 90) * 4;
-        ctx.lineTo(mx, my);
-        ctx.lineTo(s.to.x, s.to.y);
-        ctx.stroke();
-      }
-    }
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 1;
+    drawShapeFx(this.ctx, state.shapes, this.fxSprites.glow);
   }
 
+  /** 命中の斬り裂き線・銃口の閃光・着弾（fxAttack.ts）の上に、属性ごとの形の粒 */
   private drawParticles(state: GameState): void {
-    const { ctx } = this;
-    for (const p of state.particles) {
-      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
-      ctx.fillStyle = p.color;
-      const s = p.size;
-      ctx.fillRect(Math.round(p.pos.x - s / 2), Math.round(p.pos.y - s / 2), Math.ceil(s), Math.ceil(s));
-    }
-    ctx.globalAlpha = 1;
+    drawAttackAir(this.ctx, state, this.fxSprites.glow);
+    drawParticleFx(this.ctx, state.particles, state.time);
   }
 
   /**
@@ -1544,6 +1549,8 @@ export class Renderer {
   // ---------------------------------------------------------------------------
 
   private drawGroundHazards(state: GameState): void {
+    // 爆発の焦げ跡（fxAttack.ts）は予告円の下の地面に
+    drawAttackGround(this.ctx, state);
     for (const h of state.hazards) {
       switch (h.kind) {
         case "bomb":
@@ -1814,16 +1821,8 @@ export class Renderer {
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
       const py = pr.pos.y - lift;
-      // 位置履歴が無いので速度の逆方向に残像を置く
-      ctx.fillStyle = isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL;
-      for (let i = 1; i <= TRAIL_POINTS; i++) {
-        const size = Math.max(1, Math.round(pr.radius * 2 * (1 - i / (TRAIL_POINTS + 1))));
-        ctx.globalAlpha = TRAIL_ALPHA * (1 - i / (TRAIL_POINTS + 1));
-        const tx = pr.pos.x - dx * TRAIL_SPACING * i;
-        const ty = py - dy * TRAIL_SPACING * i;
-        ctx.fillRect(Math.round(tx - size / 2), Math.round(ty - size / 2), size, size);
-      }
-      ctx.globalAlpha = 1;
+      // 位置履歴が無いので速度の逆方向に細る尾と光を置く（fxAttack.ts。弾の性質で長さ・太さが変わる）
+      drawBulletTrail(ctx, pr, pr.pos.x, py, dx, dy, isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL, this.fxSprites.glow);
 
       // 武器の絵を持つ弾（斧の投擲など。ThrowArtDef.sprite）はその武器を回しながら飛ばす
       const weaponFrame = pr.sprite ? this.atlas[pr.sprite]?.frames[0] : undefined;
@@ -1911,7 +1910,8 @@ export class Renderer {
     }
     if (!blink && !held.behind) this.drawHeldWeapon(state, held);
 
-    if (isAttacking(p) && p.attack.phase === "active") this.drawSlash(state, p);
+    // 振り終わり（recover）の頭でも軌跡の尾だけ数フレーム残す（drawSlash が分ける）
+    if (isAttacking(p) && (p.attack.phase === "active" || p.attack.phase === "recover")) this.drawSlash(state, p);
     this.drawChargeRing(state, p);
   }
 
@@ -1939,7 +1939,7 @@ export class Renderer {
       facingRight: p.facing.x >= 0,
       aimHeld: moveset.primary === "shot",
       edge: WEAPON_EDGE[moveset.key],
-      hold: artHoldPose(moveset.art, p.art.holding),
+      hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
     });
   }
 
@@ -2060,17 +2060,30 @@ export class Renderer {
     // 突きは長さを届く距離に、太さを当たり判定の幅に合わせる。他は一辺を当たり判定に合わせる
     const sx = anchor.size / sprite.w;
     const sy = (step.shape.kind === "thrust" ? step.size / sprite.h : sx) * (visual.flipY ? -1 : 1);
+    if (p.attack.phase === "recover") {
+      // 振り終わった直後は軌跡の尾だけを FX_ATTACK.slash.fadeTime 秒で消す
+      this.drawSwingTrail(state, p, step, 0, finisher, trailFade(step.recover - p.attack.timer, FX_ATTACK.slash.fadeTime));
+      return;
+    }
     const t = step.active > 0 ? Math.min(1, Math.max(0, p.attack.timer / step.active)) : 0;
     const { ctx } = this;
     this.drawMeleeShape(p, step, t);
-    this.drawSwingTrail(state, p, step, t);
+    this.drawSwingTrail(state, p, step, t, finisher, 1);
 
     if (finisher && t > SLASH_AFTERIMAGE_T) {
       ctx.globalAlpha = SLASH_AFTERIMAGE_ALPHA;
       this.drawRotatedScaled(sprite.white[visual.frame], cx, cy, angle + SLASH_AFTERIMAGE_ROT * Math.sign(sy), sx, sy);
     }
     ctx.globalAlpha = SLASH_MIN_ALPHA + (1 - SLASH_MIN_ALPHA) * t;
-    this.drawRotatedScaled(this.tinted(visual.key, color, SLASH_TINT)[visual.frame], cx, cy, angle, sx, sy);
+    const tinted = this.tinted(visual.key, color, SLASH_TINT)[visual.frame];
+    this.drawRotatedScaled(tinted, cx, cy, angle, sx, sy);
+    if (finisher) {
+      // 重い段・終撃は斬撃の絵を加算でもう一度重ねて明るく光らせる
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = SLASH_HEAVY_GLOW * t;
+      this.drawRotatedScaled(tinted, cx, cy, angle, sx, sy);
+      ctx.globalCompositeOperation = "source-over";
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -2129,43 +2142,32 @@ export class Renderer {
 
   /**
    * 武器種ごとの振りの軌跡（docs/ideas/meta-and-weapons.md 7-1）。太さは武器種、色は近接の属性（無ければ段の残像色）。
-   * 大剣 = 太い弧、槍 = 細い突きの線、鞭 = しなる曲線、鎌 = 三日月（弧を 2 重）
+   * 大剣 = 太い弧、槍 = 細い突きの光、鞭 = しなる帯、鎌 = 三日月を 2 重。形と尾の消え方は fxAttack.ts の drawSlashTrail
    */
-  private drawSwingTrail(state: GameState, p: Player, step: MeleeStep, t: number): void {
-    const { ctx } = this;
+  private drawSwingTrail(state: GameState, p: Player, step: MeleeStep, t: number, heavy: boolean, fade: number): void {
     const moveset = state.stats.moveset;
-    const progress = 1 - t;
-    const o = p.body.pos;
-    const d = p.attack.dir;
-    ctx.strokeStyle = this.slashColor(state, step);
-    ctx.lineWidth = WEAPON_TRAIL_WIDTH[moveset];
-    ctx.globalAlpha = EFFECTS.trailAlpha * (0.4 + 0.6 * t);
-    ctx.beginPath();
-    if (moveset === "whip") {
-      const ex = o.x + d.x * step.reach;
-      const ey = o.y + d.y * step.reach;
-      const bend = Math.sin(progress * Math.PI) * WHIP_BEND;
-      ctx.moveTo(o.x, o.y);
-      ctx.quadraticCurveTo((o.x + ex) / 2 - d.y * bend, (o.y + ey) / 2 + d.x * bend, ex, ey);
-    } else if (step.shape.kind === "thrust") {
-      ctx.moveTo(o.x, o.y);
-      ctx.lineTo(o.x + d.x * step.reach * progress, o.y + d.y * step.reach * progress);
-    } else if (step.shape.kind === "arc") {
-      const dir = Math.atan2(d.y, d.x);
-      const half = (step.shape.deg * Math.PI) / 360;
-      // 段ごとに振る向きを変える（左右の往復に見せる。手に持つ武器の振りと同じ規則）
-      const sign = swingSign(p.attack.step);
-      const from = dir - sign * half;
-      const to = from + sign * 2 * half * progress;
-      const r = step.reach * TRAIL_REACH_RATIO;
-      ctx.arc(o.x, o.y, r, Math.min(from, to), Math.max(from, to));
-      if (moveset === "scythe") ctx.arc(o.x, o.y, r * SCYTHE_INNER_RATIO, Math.max(from, to), Math.min(from, to), true);
-    } else {
-      ctx.arc(o.x + d.x * step.reach, o.y + d.y * step.reach, (step.size / 2) * (0.6 + 0.4 * progress), 0, Math.PI * 2);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 1;
+    drawSlashTrail(
+      this.ctx,
+      {
+        ox: p.body.pos.x,
+        oy: p.body.pos.y,
+        dx: p.attack.dir.x,
+        dy: p.attack.dir.y,
+        shape: step.shape,
+        reach: step.reach,
+        size: step.size,
+        radius: step.reach * TRAIL_REACH_RATIO,
+        step: p.attack.step,
+        progress: 1 - t,
+        fade,
+        heavy,
+        trailWidth: WEAPON_TRAIL_WIDTH[moveset],
+        whip: moveset === "whip",
+        doubleArc: moveset === "scythe",
+        color: this.slashColor(state, step),
+      },
+      this.fxSprites.glow,
+    );
   }
 
   /** 溜めの段の目盛り: 頭上に段の数だけ点を並べ、届いた段を塗る */
@@ -2275,7 +2277,7 @@ export class Renderer {
   // HUD
   // ---------------------------------------------------------------------------
 
-  private drawHud(state: GameState): void {
+  private drawHud(state: GameState, hud: HudLayout): void {
     const { ctx } = this;
     const p = state.player;
 
@@ -2290,14 +2292,16 @@ export class Renderer {
     // 未振りの点はマナバーの横（HP の数値の右）に。振るのは装備画面（Tab）
     drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
 
-    const ready = p.energy >= p.maxEnergy;
+    const sustaining = p.ultimate.active !== null;
+    const ready = !sustaining && p.energy >= p.maxEnergy;
     const blinkOn = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2;
-    const energyColor = ready && blinkOn ? COLOR_ENERGY_READY : COLOR_ENERGY;
+    const energyColor = sustaining ? COLOR_ENERGY_SUSTAIN : ready && blinkOn ? COLOR_ENERGY_READY : COLOR_ENERGY;
     this.drawBar(HUD_BAR_X, HUD_ENERGY_Y, HUD_BAR_W, HUD_ENERGY_H, p.energy / p.maxEnergy, energyColor, COLOR_ENERGY_BG);
+    if (sustaining) drawText(ctx, "F: 奥義を終える", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     if (ready) {
       ctx.strokeStyle = blinkOn ? COLOR_ENERGY : COLOR_ENERGY_READY;
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
-      drawText(ctx, "F: バースト", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
+      drawText(ctx, "F: 奥義", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     }
     this.drawDashPips(state);
     this.drawKeystoneHud(state);
@@ -2323,7 +2327,7 @@ export class Renderer {
     this.drawReaperHud(state);
     drawRunHud(ctx, state);
     drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
-    drawComboHud(ctx, state);
+    drawComboHud(ctx, state, hud);
 
     if (state.rooms.some((r) => r.locked)) {
       drawText(ctx, "― 封鎖中 ―", VIEW_W / 2, VIEW_H - 8, TEXT.SMALL, COLOR_LOCK, "center");

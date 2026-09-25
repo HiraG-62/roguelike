@@ -310,9 +310,9 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   critChance: { label: "会心率", style: "percent" },
   critMul: { label: "会心倍率", style: "percent" },
 
-  energyGainMul: { label: "必殺ゲージ獲得", style: "mul" },
-  burstDamageMul: { label: "必殺ダメージ", style: "mul" },
-  burstRadiusMul: { label: "必殺範囲", style: "mul" },
+  energyGainMul: { label: "奥義ゲージ獲得", style: "mul" },
+  burstDamageMul: { label: "奥義の威力", style: "mul" },
+  burstRadiusMul: { label: "奥義の範囲", style: "mul" },
 
   comboWindowBonus: { label: "コンボ猶予", style: "seconds" },
   comboDamagePerStack: { label: "コンボ1段階ごとのダメージ", style: "percent" },

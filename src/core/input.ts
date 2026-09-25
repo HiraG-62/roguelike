@@ -19,6 +19,8 @@ export const ACTION_NAMES = [
   "skill3",
   "skill4",
   "interact",
+  /** 床のアイテム情報ポップアップの表示 ON/OFF（表示だけの設定。FrameInput は積むが replay には記録しない） */
+  "toggleDropInfo",
 ] as const;
 export type ActionName = (typeof ACTION_NAMES)[number];
 
@@ -46,6 +48,7 @@ export const REBINDABLE_ACTIONS = [
   "skill3",
   "skill4",
   "interact",
+  "toggleDropInfo",
   "restart",
 ] as const satisfies readonly ActionName[];
 export type RebindableAction = (typeof REBINDABLE_ACTIONS)[number];
@@ -79,6 +82,8 @@ export const DEFAULT_KEYBINDS: Readonly<Keybinds> = {
   skill4: ["Digit4", "KeyZ"],
   // 床の遺物・スキル石を拾う。WASD の右隣で、移動しながら左手で押せる
   interact: ["KeyG"],
+  // 床のアイテム情報ポップアップの表示切替。左手側の未使用キー
+  toggleDropInfo: ["KeyT"],
 };
 
 /**
@@ -330,6 +335,11 @@ export interface FrameInput {
   skill4Held: boolean;
   /** カーソル（パッドは照準スティックの先）で注目した床の遺物・スキル石を拾う。system/loot.ts */
   interactPressed: boolean;
+  /**
+   * 床のアイテム情報ポップアップの表示 ON/OFF（表示だけの設定切り替え。main.ts が settings.dropTooltip を反転する）。
+   * シミュレーションには効かないので replay.ts の BUTTON_BITS には含めない（再生では常に false）
+   */
+  toggleDropInfoPressed: boolean;
   /** 今フレームのホイール移動量（正 = 下）。UI のスクロール用 */
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
@@ -358,6 +368,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   skill3Held: false,
   skill4Held: false,
   interactPressed: false,
+  toggleDropInfoPressed: false,
   wheel: 0,
   clickPressed: false,
   shiftHeld: false,
@@ -530,6 +541,7 @@ export class PlayerInput {
       skill3Held: this.isDown("skill3") || pad.skill3Held,
       skill4Held: this.isDown("skill4") || pad.skill4Held,
       interactPressed: this.wasPressed("interact") || pad.interactPressed,
+      toggleDropInfoPressed: this.wasPressed("toggleDropInfo"),
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has(UI_CLICK_CODE),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),

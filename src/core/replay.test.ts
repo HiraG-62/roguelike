@@ -36,6 +36,9 @@ import { descend } from "../system/floor";
 import { allocateAttribute } from "../ui/attributeAlloc";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
+import { ULTIMATES } from "../data/ultimates";
+import { DEFAULT_MOVESET, MOVESET_KEYS } from "../data/weapons";
+import { chosenUltimate } from "../system/ultimates";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -227,11 +230,12 @@ function recordRun(
   inputs: readonly FrameInput[],
   onFrame?: (state: GameState, frame: number) => boolean,
   setup?: RunSetup,
+  hitstopScale?: number,
 ): { data: ReplayData; state: GameState } {
   const skillProfile = createDefaultSkillProfile();
   // main.ts と同じく createGame の後にスナップショットを取る
-  const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, setup);
-  const recorder = ReplayRecorder.fromStartedGame({ seedText, startedAt: 1, daily: false, setup }, state);
+  const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, setup, hitstopScale);
+  const recorder = ReplayRecorder.fromStartedGame({ seedText, startedAt: 1, daily: false, setup, hitstopScale }, state);
   inputs.forEach((input, i) => {
     if (onFrame?.(state, i)) recorder.noteLoadout(state);
     step(state, recorder.record(input), FIXED_DT);
@@ -359,6 +363,24 @@ describe("記録 → 再生", () => {
     const old: ReplayData = { ...data, version: REPLAY_VERSION - 1 };
     expect(isPlayable(old)).toBe(false);
     expect(() => createReplaySession(old)).toThrow();
+  });
+
+  it("ヒットストップの強度（hitstopScale）を記録し、再生でも同じ値で結果が一致する。既定 1 は書かない", () => {
+    const { data, state } = recordRun("hitstop-replay", createEmptyProfile(), randomInputs(13, 1500), undefined, undefined, 0.5);
+    expect(data.hitstopScale).toBe(0.5);
+    const replayed = playBack(data);
+    expect(replayed.hitstopScale, "再生側も同じ強度で作られる").toBe(0.5);
+    expect(fingerprint(replayed)).toBe(fingerprint(state));
+
+    const plain = recordRun("hitstop-default", createEmptyProfile(), randomInputs(3, 10)).data;
+    expect("hitstopScale" in plain, "既定の 1 は書かない（旧データと同じ形）").toBe(false);
+  });
+
+  it("hitstopScale の無い旧記録は 1 として読む", () => {
+    const { data } = recordRun("hitstop-legacy", createEmptyProfile(), randomInputs(2, 10));
+    expect(createReplaySession({ ...data, hitstopScale: undefined }).state.hitstopScale).toBe(1);
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, hitstopScale: undefined })));
+    expect(loaded?.hitstopScale, "sanitize でも欄が無ければ書かない").toBeUndefined();
   });
 });
 
@@ -577,5 +599,33 @@ describe("再生中の保存ガード", () => {
     } finally {
       setSaveStorage(null);
     }
+  });
+});
+
+describe("奥義の選択の記録", () => {
+  it("リプレイのスナップショットに奥義の選択が入り、再生側で同じ奥義が出る", () => {
+    const set = ULTIMATES[DEFAULT_MOVESET];
+    const pick = set[set.length - 1] ?? set[0];
+    const other = MOVESET_KEYS.find((k) => k !== DEFAULT_MOVESET) ?? DEFAULT_MOVESET;
+    const profile = createEmptyProfile();
+    profile.ultimates = { [DEFAULT_MOVESET]: pick.key, [other]: ULTIMATES[other][0].key };
+    const { data, state } = recordRun("replay-ultimate", profile, randomInputs(5, 60));
+    expect(data.snapshot.ultimates, "スナップショットに写る").toEqual(profile.ultimates);
+    expect(chosenUltimate(state).key, "記録側の奥義").toBe(pick.key);
+    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
+    if (!loaded) throw new Error("sanitize failed");
+    const session = createReplaySession(loaded);
+    expect(session.profile.ultimates, "再生用のプロフィールに入る").toEqual(profile.ultimates);
+    expect(chosenUltimate(session.state).key, "再生側でも同じ奥義").toBe(pick.key);
+  });
+
+  it("壊れた奥義の選択は再生側で捨て、選ばなければ欄を書かない", () => {
+    const { data } = recordRun("replay-ultimate-none", createEmptyProfile(), randomInputs(6, 30));
+    expect(data.snapshot.ultimates, "選んでいなければ書かない").toBeUndefined();
+    const broken = JSON.parse(JSON.stringify(data)) as { snapshot: Record<string, unknown> };
+    broken.snapshot.ultimates = { [DEFAULT_MOVESET]: "no-such-ultimate" };
+    const loaded = sanitizeReplay(broken);
+    if (!loaded) throw new Error("sanitize failed");
+    expect(loaded.snapshot.ultimates, "知らない key は捨てる").toBeUndefined();
   });
 });

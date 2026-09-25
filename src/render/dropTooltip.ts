@@ -171,15 +171,23 @@ export function maxTipLines(lineH: number): number {
 
 /**
  * 注目中のドロップ品に環とキー案内を描き、カーソル横に性能を出す。
- * ox / oy は renderer のワールド → 画面の平行移動（ここは translate の外で呼ぶ）
+ * ox / oy は renderer のワールド → 画面の平行移動（ここは translate の外で呼ぶ）。
+ * showTooltip: false（設定 dropTooltip オフ）のときは性能ポップアップだけ省く。環とキー案内は残す
  */
-export function drawDropFocus(ctx: CanvasRenderingContext2D, state: GameState, aimScreen: Vec | null, ox: number, oy: number): void {
+export function drawDropFocus(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  aimScreen: Vec | null,
+  ox: number,
+  oy: number,
+  showTooltip = true,
+): void {
   if (state.status !== "playing" || state.boonChoice) return;
   const drop = focusedDrop(state, aimWorldOf(state, aimScreen));
   if (drop === null) return;
   const screen = { x: Math.round(drop.pos.x + ox), y: Math.round(drop.pos.y + oy) };
   drawFocusRing(ctx, screen, drop.inReach);
-  drawTooltip(ctx, dropTipContent(state, drop), aimScreen ?? screen);
+  if (showTooltip) drawTooltip(ctx, dropTipContent(state, drop), aimScreen ?? screen);
 }
 
 function drawFocusRing(ctx: CanvasRenderingContext2D, at: Vec, inReach: boolean): void {

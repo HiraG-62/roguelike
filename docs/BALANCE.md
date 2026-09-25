@@ -4,7 +4,7 @@
 
 | ファイル | 中身 |
 | --- | --- |
-| `weapons.json` | 武器種 23 種の段ごとの振りの速さ（windup / active / recover 秒）・威力・怯み値、右クリックの固有技、銃のベースごとの弾（`bullets.<ベースの key>`）、剣の基本 3 段、ダッシュ攻撃 |
+| `weapons.json` | 武器種 23 種の段ごとの振りの速さ（windup / active / recover 秒）・威力・怯み値。左の連撃 `steps`、右の連撃 `steps2`（アクション 2。段の種類 `kind` と段の key を持つ配列）、派生 `branches.<派生の key>`、銃のベースごとの弾（`bullets.<ベースの key>`）、剣の基本 3 段、ダッシュ攻撃 |
 | `jobs.json` | ジョブの共通数値、ジョブごとのステータスの偏りと弱点 |
 | `enemies.json` | 敵 104 体の HP・速度・予告・怯み耐性・防御・耐性、精鋭・ボス・死神 |
 | `skills.json` | スキルのコスト・威力・再使用時間、刻印符、連携、変身、使い込み |
@@ -12,9 +12,31 @@
 | `loot.json` | ドロップ率、共鳴、誓約、トリガー、性質の期待値曲線、ベースの出現深度 |
 | `combat.json` | 気力、回復、状態異常、ステータス、怯み、攻撃ジャンル、属性、地形、プレイヤーの移動・ダッシュ・生命・射撃の共通値（`PLAYER`。近接 3 段は `weapons.json`）、アクション手触り（`ACTION`。浮き文字の文言は `src/data/actionText.ts`） |
 | `world.json` | フロア、部屋、洞窟、徘徊、ランイベント、起点、契約者、縛り、拠点 |
-| `feel.json` | ヒットストップ・揺れなどの手触り、演出、ミニマップ、音楽、効果音 |
+| `ultimates.json` | 奥義の共通値 `ULTIMATE.common`（ゲージ消費・無敵・浮き文字の色）と、奥義ごとの数値 `ULTIMATE.defs.<武器種>.<名前>`（一撃は行為ごとのブロック `nova` / `swing` / `lunge` / `volley` など、持続は `drainPerSec`・`minSec`・倍率・`patch`） |
+| `feel.json` | ヒットストップ・揺れなどの手触り、演出（攻撃エフェクトの見た目は `FX_ATTACK`）、ミニマップ、音楽、効果音 |
 
 各ブロックの `_note` に「なぜこの値か」と単位が書いてある。設計の詳細は `docs/ideas/data-externalization.md`。
+
+## 項目の意味を読む / 書く
+
+**読む**: 項目の意味は、同じブロックの先頭にある `_fields` に「項目名 → 説明（意味。単位。目安）」で書いてある。敵のように同じ形の行が並ぶ表では、表の先頭に 1 回だけ書き、行（`slime` など）はそれを引き継ぐ。行の中に `_fields` があれば、その行だけの説明が優先。`swarm.min` のようなドット表記は、行の中の `swarm` の中の `min` を指す。`resist` のようにオブジェクト名だけの説明は、その中の項目全部に効く。
+
+例: スライムの `windup`（`enemies.json` の `stats.slime.windup`）の意味は、`stats` の先頭の `_fields.windup` にある。
+
+```json
+"stats": {
+  "_fields": {
+    "windup": "攻撃の予備動作（予告）の秒。長いほど避けやすい（テレグラフ原則）。深度 1 つごとに 1.5% 短くなり、…。目安 0.35〜0.9",
+    …
+  },
+  "slime": { "radius": 6, "hp": 20, "speed": 55, "contactDamage": 10, "windup": 0.35, … }
+```
+
+**書く**: 新しい数値の項目を足したら、そのブロック（表なら表の先頭）の `_fields` にも 1 行足す。説明は「意味。単位（秒 / px / 倍率〔1 = 等倍〕/ 割合〔0..1〕/ %〔表示単位〕）。目安 / 範囲」の順で、用語は `docs/GLOSSARY.md`。推測で書かず、その数値を読む system のコードで効き方を確かめる。「なぜこの値か（QA の履歴）」は `_fields` ではなく `_note` に書く。
+
+- 検査（`src/data/balance/balance.test.ts`）: `_fields` にある項目が JSON に無ければ（名前の打ち間違い・項目を消した）落ちる。説明の無い数値の数はファイルごとに基準値（`UNDOCUMENTED_BASELINE`）以下でなければ落ちる。説明を書き足したら基準値を実測まで下げる（上げない）。`enemies.json` の `stats` / `combat` / `defense` と `jobs.json` は説明の無い項目 0
+- 雛形: `node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef` のように TS の型名を渡すと、JSDoc から `_fields` の雛形を出す。単位と目安を足してから貼る
+- `_fields` は `_note` と同じく読み込み時に剥がされるので、足しても数値の版（`BALANCE_HASH`）は変わらない
 
 ## 数値の変え方
 
@@ -29,7 +51,8 @@
 - 同じ `steps[i]` の `"scaling"`（`{ "base": 8, "str": 0.9 }` の形）。`base` はステータスが 0 のときの威力、`str` などはステータス 1 あたりの伸び。ステータスが各 5 のときの威力は `base + 5 × 係数の合計`。`base` だけ上げると素の威力が、`str` を上げるとそのステータスを伸ばしたときの伸びしろが変わる。係数を別のステータスへ付け替えるときは係数の合計を保てば基礎値での威力は変わらない
 - 怯み値は `"poise"`（ステータス各 5 のときの値）と `"poiseRatio"`（`{ "str": 0.6 }` の形。1 点あたりの上乗せ）。状態異常の効果量は `"applies"` の各要素の `"ratio"`
 - どのステータスを参照させるかの決め方は `docs/STATS_AND_SCALING.md`（効果から見て納得できる参照先にする）
-- 固有技（右クリック）は `WEAPON.movesets.<武器種>.art` の中（`strike` 技なら `.step.scaling`、`throw` 技なら `.throw.scaling`）
+- 右の連撃（右クリック。アクション 2）は `WEAPON.movesets.<武器種>.steps2` の配列（1 段 1 要素。段カウンタは左と共有なので、3 段目に右を押すと `steps2[2]`）。振りの段（`"kind": "swing"`）は `.step.scaling`、弾の段（`"volley"`）は `.throw.scaling`、構え（`"hold"`）の離した振りは `.hold.release.scaling`。派生は `branches.<派生の key>.step.scaling`
+- 奥義は `src/data/balance/ultimates.json` の `ULTIMATE.defs.<武器種>.<名前>`（例: `defs.sword.fullMoon.nova.scaling`）。威力には性質の「奥義の威力」（`burstDamageMul`）が掛かる。持続の奥義の減る速さは `drainPerSec`（ゲージ/秒）
 
 **ジョブのステータスの偏りを変える**:
 1. `src/data/balance/jobs.json` の `attributes.<ジョブ名>` を開く（例: `attributes.swordsman`）

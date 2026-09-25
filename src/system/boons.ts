@@ -12,6 +12,8 @@ import type { JobKey } from "../data/jobs";
 import { type BulletFeature, MOVESETS, type MovesetKey, bulletFeatures, usesProjectiles } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
 import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag } from "./boonDefs";
+import { BOON_GRADE_LABEL, type BoonGrade, clampGrade, isGraded, rollGrade } from "./boonGrade";
+import { coreCursedForced, coreGradeShift, foldCoreStats } from "./boonCores";
 import {
   type BoonRuleState,
   boonRuleAttackManaMul,
@@ -82,6 +84,19 @@ export interface BoonChoice {
   curseTaken: boolean;
   /** 受けた呪い付き祝福（表示用）。受けていなければ null */
   curse: BoonKey | null;
+  /**
+   * 札ごとの格（options と同じ長さ。格なしの札は 1）。省略は並だけの提示（テストの直書き）。読むときは choiceGrade を通す
+   */
+  grades?: BoonGrade[];
+  /** 芯の提示か（呪いの札を出さない） */
+  core?: boolean;
+  /** この提示の格の下駄（呪いを受けて足す 4 枚目がさらに gradeBoostCurseCard を足す） */
+  boost?: number;
+}
+
+/** index 番目の札の格（grades の無い提示・範囲外は並） */
+export function choiceGrade(choice: Readonly<BoonChoice>, index: number): BoonGrade {
+  return choice.grades?.[index] ?? 1;
 }
 
 /** 祝福のラン内の作業領域 */
@@ -102,6 +117,10 @@ export interface BoonRunState {
   circulationGained: number;
   /** 拡張の祝福（system/boonRules.ts）の作業領域 */
   rules: BoonRuleState;
+  /** 取得した祝福の格（並・格なしは持たない）。state.boons は変えず別に持つ。ランの途中は保存しないので永続化しない */
+  grades: Partial<Record<BoonKey, BoonGrade>>;
+  /** 次の提示で 1 回だけ使う格の下駄（試練の徒が 3 択の開いていないときに積む） */
+  gradeBoost: number;
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -115,6 +134,8 @@ export function createBoonRunState(): BoonRunState {
     crumbled: [],
     circulationGained: 0,
     rules: createBoonRuleState(),
+    grades: {},
+    gradeBoost: 0,
   };
 }
 
@@ -232,7 +253,29 @@ export function boonWeight(
   let weight = BOON.rarityWeight[def.rarity] * (1 + BOON.tagBonus * matches + BOON.givesTagBonus * fed);
   if (def.after) weight *= BOON.lineageWeightMul;
   if (def.duo) weight *= BOON.duoWeightMul;
+  if (sharesCoreTag(def, owned)) weight *= BOON.coreTagBonus;
   return weight;
+}
+
+/** 持っている芯（1 ランに 1 つ）。無ければ null */
+export function ownedCoreDef(owned: readonly BoonKey[]): BoonDef | null {
+  for (const key of owned) {
+    const def = BOONS[key];
+    if (def.core === true) return def;
+  }
+  return null;
+}
+
+/** 芯のタグと 1 つでも重なる通常の祝福か（芯で方向性を決めたら、その系統を寄せる） */
+function sharesCoreTag(def: BoonDef, owned: readonly BoonKey[]): boolean {
+  if (def.core === true) return false;
+  const core = ownedCoreDef(owned);
+  return core !== null && def.tags.some((t) => core.tags.includes(t));
+}
+
+/** 芯の候補（core: true）。通常の 3 択・4 枚目からは除く */
+function coreDefs(): BoonDef[] {
+  return BOON_KEYS.map(boonDef).filter((d) => d.core === true);
 }
 
 /**
@@ -275,7 +318,7 @@ function dropSiblings(pool: BoonDef[], picked: BoonDef): void {
 export function rollBoonOptions(state: GameState): BoonKey[] {
   const tags = buildTags(state);
   const build = buildProfile(state);
-  const all = BOON_KEYS.map(boonDef);
+  const all = BOON_KEYS.map(boonDef).filter((d) => d.core !== true);
   const normal = all.filter((d) => !d.cursed);
   const cursed = all.filter((d) => d.cursed);
   const picks: BoonDef[] = [];
@@ -287,7 +330,7 @@ export function rollBoonOptions(state: GameState): BoonKey[] {
     picks.push(picked);
     return picked;
   };
-  const wantCursed = state.rng.chance(BOON.cursedChance);
+  const wantCursed = state.rng.chance(BOON.cursedChance) || coreCursedForced(state);
   if (wantCursed) take(cursed);
   while (picks.length < BOON.choiceCount) {
     if (!take(normal) && !take(cursed)) break;
@@ -300,14 +343,85 @@ export function rollBoonOptions(state: GameState): BoonKey[] {
   return picks.map((d) => d.key);
 }
 
-/** 3 択を提示する（階段で降りた直後。depth 2 以降） */
-export function offerBoons(state: GameState): void {
+/** 芯だけの 3 択（呪い枠なし、coreChoiceCount 枚。重みは boonWeight と同じ） */
+export function rollCoreOptions(state: GameState): BoonKey[] {
+  const tags = buildTags(state);
+  const build = buildProfile(state);
+  const pool = coreDefs();
+  const picks: BoonKey[] = [];
+  while (picks.length < BOON.coreChoiceCount) {
+    const picked = takeWeighted(state, pool, tags, build);
+    if (!picked) break;
+    dropSiblings(pool, picked);
+    picks.push(picked.key);
+  }
+  return picks;
+}
+
+/** 芯を出す提示か（深度 coreDepth で、まだ芯を持っていない） */
+function wantsCore(state: GameState): boolean {
+  return state.depth === BOON.coreDepth && ownedCoreDef(state.boons) === null;
+}
+
+/** 格の確率への加算（芯の呪い喰い。boonCores.ts） */
+function gradeShift(state: GameState): number {
+  return coreGradeShift(state);
+}
+
+/** 札 1 枚の格。格の対象でない札（呪い付き・効果量を持たない祝福・芯）は並 */
+function rollCardGrade(state: GameState, key: BoonKey, boost: number): BoonGrade {
+  const def = boonDef(key);
+  if (def.core === true || !isGraded(def)) return 1;
+  return rollGrade(state.rng, state.depth, boost, gradeShift(state));
+}
+
+/** 階段で降りた提示の格の下駄（ボス階の直後だけ）。floor.ts が isBossDepth(depth - 1) を渡す */
+export function stairsGradeBoost(afterBoss: boolean): number {
+  return afterBoss ? BOON.gradeBoostAfterBoss : 0;
+}
+
+/**
+ * 3 択を提示する（階段で降りた直後。depth 2 以降）。深度 coreDepth の最初の提示は芯だけの 3 択。
+ * boost は格の下駄（試練の制圧・ボス階の直後）。boonRun.gradeBoost もここで 1 回だけ使う（芯の提示では使わない）
+ */
+export function offerBoons(state: GameState, boost = 0): void {
   if (state.depth < 2) return;
+  if (wantsCore(state)) {
+    const cores = rollCoreOptions(state);
+    if (cores.length > 0) {
+      openChoice(state, cores, cores.map((): BoonGrade => 1), true, 0);
+      return;
+    }
+  }
   const options = rollBoonOptions(state);
   if (options.length === 0) return;
-  state.boonChoice = { options, hover: -1, curseHover: false, timer: 0, curseTaken: false, curse: null };
+  const total = boost + state.boonRun.gradeBoost;
+  state.boonRun.gradeBoost = 0;
+  openChoice(state, options, options.map((k) => rollCardGrade(state, k, total)), false, total);
+}
+
+function openChoice(state: GameState, options: BoonKey[], grades: BoonGrade[], core: boolean, boost: number): void {
+  state.boonChoice = { options, hover: -1, curseHover: false, timer: 0, curseTaken: false, curse: null, grades, core, boost };
   pushSfx(state, "lootRare");
   pushSfx(state, "boonOffer");
+}
+
+/**
+ * Rule の offerBoons（試練の徒）。試練の制圧で 3 択が既に開いていれば、その格の対象の札を gradeBoostTrialSeeker 段上げる。
+ * 開いていなければ下駄を積んで提示する
+ */
+export function offerBoonsFromRule(state: GameState): void {
+  const c = state.boonChoice;
+  if (!c) {
+    state.boonRun.gradeBoost += BOON.gradeBoostTrialSeeker;
+    offerBoons(state);
+    return;
+  }
+  if (c.core === true) return;
+  c.grades = c.options.map((key, i) => {
+    const grade = choiceGrade(c, i);
+    return isGraded(boonDef(key)) ? clampGrade(grade + BOON.gradeBoostTrialSeeker) : grade;
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -318,14 +432,14 @@ export function offerBoons(state: GameState): void {
 function extraPool(shown: readonly BoonKey[]): BoonDef[] {
   const shownDefs = shown.map(boonDef);
   return BOON_KEYS.map(boonDef).filter(
-    (d) => !d.cursed && !shown.includes(d.key) && !shownDefs.some((s) => isSiblingBoon(d, s)),
+    (d) => !d.cursed && d.core !== true && !shown.includes(d.key) && !shownDefs.some((s) => isSiblingBoon(d, s)),
   );
 }
 
 /** いま呪いを受けて 4 択にできるか（未使用・受けられる呪いと 4 枚目の候補がある） */
 export function canTakeCurse(state: GameState): boolean {
   const c = state.boonChoice;
-  if (!c || c.curseTaken || c.options.length >= BOON.choiceCountWithCurse) return false;
+  if (!c || c.core === true || c.curseTaken || c.options.length >= BOON.choiceCountWithCurse) return false;
   const tags = buildTags(state);
   const owned = [...state.boons, ...c.options];
   const hasCurse = BOON_KEYS.some((k) => BOONS[k].cursed && boonWeight(BOONS[k], tags.owned, owned, tags.gives, tags.loadout) > 0);
@@ -347,7 +461,11 @@ export function takeCurse(state: GameState): boolean {
   c.curseTaken = true;
   c.curse = curse.key;
   const extra = takeWeighted(state, extraPool(c.options), buildTags(state), buildProfile(state));
-  if (extra) c.options.push(extra.key);
+  if (!extra) return true;
+  // 呪いで買った 4 枚目は格が 1 段上がる（grades は options と同じ長さに揃えてから足す）
+  const grades = c.options.map((_, i) => choiceGrade(c, i));
+  c.options.push(extra.key);
+  c.grades = [...grades, rollCardGrade(state, extra.key, (c.boost ?? 0) + BOON.gradeBoostCurseCard)];
   return true;
 }
 
@@ -444,25 +562,41 @@ export function updateBoonChoice(state: GameState, input: FrameInput, dt: number
 }
 
 export function chooseBoon(state: GameState, index: number): void {
-  const key = state.boonChoice?.options[index];
+  const c = state.boonChoice;
+  const key = c?.options[index];
+  const grade = c ? choiceGrade(c, index) : 1;
   state.boonChoice = null;
   if (!key) return;
-  grantBoon(state, key);
+  grantBoon(state, key, grade);
 }
 
-/** 祝福を得る（テストからも直接使う） */
-export function grantBoon(state: GameState, key: BoonKey): void {
+/** 祝福を得る（テストからも直接使う）。grade は格（呪いの祠・契約など格を持たない入手は並） */
+export function grantBoon(state: GameState, key: BoonKey, grade: BoonGrade = 1): void {
   if (hasBoon(state, key)) return;
+  const def = boonDef(key);
+  const kept = isGraded(def) ? grade : 1;
+  // 手放して取り直した祝福に前の格を残さない
+  if (kept > 1) state.boonRun.grades[key] = kept;
+  else delete state.boonRun.grades[key];
   state.boons.push(key);
   applyBoonsToStats(state);
   // 祝福は階に着いた後で選ぶので、この階に配置済みの敵（ボス含む）にも遡って掛ける
   if (key === "giantSlayer") applyGiantSlayerToExisting(state);
-  const def = boonDef(key);
-  const color = def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
-  addFloatingText(state, state.player.body.pos, def.name, color, 1.4, 1.2);
-  pushLog(state, `祝福: ${def.name} - ${def.desc}`, color);
+  const color = grantColor(def, kept);
+  const label = BOON_GRADE_LABEL[kept];
+  const name = label === "" ? def.name : `${label} ${def.name}`;
+  addFloatingText(state, state.player.body.pos, name, color, 1.4, 1.2);
+  pushLog(state, `祝福: ${name} - ${def.desc}`, color);
   pushSfx(state, "lootRare");
   pushSfx(state, def.cursed ? "boonSelectCursed" : "boonSelect");
+}
+
+/** 取得時の文字の色: 呪い付き → 格（大祝福・神威）→ 希少度 */
+function grantColor(def: BoonDef, grade: BoonGrade): string {
+  if (def.cursed) return BOON.cursedColor;
+  if (grade === 3) return BOON.gradeColor.divine;
+  if (grade === 2) return BOON.gradeColor.grand;
+  return BOON.rarityColor[def.rarity];
 }
 
 // -----------------------------------------------------------------------------
@@ -494,6 +628,7 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   }
   // 係数（実効値）を組み替える。派生（HP・移動など）は元のステータスで決まっているので触らない
   if (boons.includes("swapHands") || boons.includes("lopsided")) out.attributesEff = foldAttributeBoons(out.attributesEff, boons);
+  Object.assign(out, foldCoreStats(out, boons));
   // 最終段で下限を掛ける。0 だと capManaCost がコストを 0 に切り詰めて撃ち放題になる
   out.maxMana = Math.max(MANA.maxMin, out.maxMana);
   return out;

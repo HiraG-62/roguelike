@@ -18,9 +18,10 @@ import { type EnemyAttackKind, enemyCombat } from "../data/enemyCombat";
 import { STATUS } from "../data/tuning";
 import { damageEnemy, damagePlayerDot, rollOutgoing } from "./combat";
 import { dotResistMul } from "./elementCombat";
-import { onStatusAppliedFx, shake, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { onStatusAppliedFx, shake, spawnBurst, spawnBlast, spawnLine } from "./effects";
 import { withRatio } from "./attributes";
 import { circlesOverlap } from "./physics";
+import { blastMulAt } from "./blast";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { boonChainExtension } from "./boonRules";
 import {
@@ -742,14 +743,15 @@ export function enemiesInRadius(state: GameState, pos: Vec, radius: number): Ene
 
 /** 範囲爆発。excludeId の敵は巻き込まない */
 export function explodeAt(state: GameState, pos: Vec, radius: number, damage: number, excludeId?: number): void {
-  spawnRing(state, pos, radius, STATUS.explodeColor, STATUS.fxLife);
+  spawnBlast(state, pos, radius, STATUS.explodeColor, STATUS.fxLife);
   spawnBurst(state, pos, STATUS.explodeColor, EXPLODE_PARTICLES, EXPLODE_SPEED, 0.4, 2.5);
   shake(state, 3);
   pushSfx(state, "explode");
   for (const e of enemiesInRadius(state, pos, radius)) {
     if (e.id === excludeId) continue;
-    const out = rollOutgoing(state, e, damage, "proc");
-    damageEnemy(state, e, out.amount, sub(e.body.pos, pos), STATUS.explodeKnockback, { hitstopSteps: 0 });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    const out = rollOutgoing(state, e, damage * mul, "proc");
+    damageEnemy(state, e, out.amount, sub(e.body.pos, pos), STATUS.explodeKnockback * mul, { hitstopSteps: 0 });
   }
 }
 

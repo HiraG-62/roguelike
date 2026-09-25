@@ -397,7 +397,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
     // 大半のランでは「反転を正として扱う」効果が一切働かず、damageTakenMul の代償だけが残って
     // 純粋な弱化になっていた。深度に関係なく効く energyGainMul を足して、
     // 反転に出会う前でも選ぶ理由を持たせる（虚 = 何もない代わりに力を吸い出す、の方向）
-    lines: ["反転した性質の負の値を、正の値として扱う", "必殺ゲージが少し溜まりやすくなる", "代わりに被ダメージが少し増える"],
+    lines: ["反転した性質の負の値を、正の値として扱う", "奥義ゲージが少し溜まりやすくなる", "代わりに被ダメージが少し増える"],
     apply: (s) => {
       s.energyGainMul += frac(0.15);
       s.damageTakenMul += 0.1;
@@ -476,7 +476,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "jade+gold": {
     name: "活脈",
-    lines: [`見切りで 60% の確率で、必殺ゲージを ${amt(15)} 得る`, "コンボが途切れにくくなる"],
+    lines: [`見切りで 60% の確率で、奥義ゲージを ${amt(15)} 得る`, "コンボが途切れにくくなる"],
     apply: both(
       trigger({ trigger: "onJustDodge", condition: "always", effect: "energy", magnitude: amt(15), chance: 0.6 }),
       (s) => {
@@ -486,7 +486,7 @@ export const DUAL_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "jade+umbra": {
     name: "澱",
-    lines: [`被弾すると 60% の確率で、必殺ゲージを ${amt(12)} 得る`, `最大生命が ${amt(20)} 増える`],
+    lines: [`被弾すると 60% の確率で、奥義ゲージを ${amt(12)} 得る`, `最大生命が ${amt(20)} 増える`],
     apply: both(trigger({ trigger: "onHurt", condition: "always", effect: "energy", magnitude: amt(12), chance: 0.6 }), (s) => {
       s.maxHp += amt(20);
     }),
@@ -514,7 +514,7 @@ export const SCATTER_EFFECT: ResonanceEffect = {
   name: "虹",
   lines: [
     "近接・射撃・攻撃速度・連射速度・移動速度が少し上がる",
-    "必殺ゲージが少し溜まりやすくなる",
+    "奥義ゲージが少し溜まりやすくなる",
     "反転した性質の代償を打ち消す（正の効果には転じない）",
   ],
   apply: (s) => {
@@ -561,7 +561,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "crimson+jade+gold": {
     name: "祭",
-    lines: [`10 回に 1 回の近接で生命を ${amt(5)} 回復し、必殺ゲージを ${amt(8)} 得る`],
+    lines: [`10 回に 1 回の近接で生命を ${amt(5)} 回復し、奥義ゲージを ${amt(8)} 得る`],
     apply: both(
       trigger({ trigger: "everyNthMeleeHit", every: 10, condition: "always", effect: "heal", magnitude: amt(5), chance: 1 }),
       trigger({ trigger: "everyNthMeleeHit", every: 10, condition: "always", effect: "energy", magnitude: amt(8), chance: 1 }),
@@ -586,7 +586,7 @@ export const TRIAD_EFFECTS: Readonly<Record<string, ResonanceEffect>> = {
   },
   "azure+jade+gold": {
     name: "凪",
-    lines: [`気力が満タンの間の撃破で必殺ゲージを ${amt(10)} 得る`, "敵が近くにいない間、生命が少しずつ回復する"],
+    lines: [`気力が満タンの間の撃破で奥義ゲージを ${amt(10)} 得る`, "敵が近くにいない間、生命が少しずつ回復する"],
     apply: both(trigger({ trigger: "onKill", condition: "manaFull", effect: "energy", magnitude: amt(10), chance: 1 }), (s) => {
       s.hpRegen += frac(0.3);
     }),

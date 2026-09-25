@@ -22,7 +22,7 @@ import type { GameState } from "./state";
 import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
 import { ATTR_KEYS, SLOTS, createEmptyProfile, type Attributes, type Equipment, type Item, type Profile, uniformAttributes } from "../loot/types";
-import { PROFILE_KEY } from "../loot/profile";
+import { PROFILE_KEY, sanitizeUltimateChoices } from "../loot/profile";
 import { guardSaveWrites } from "../save/backend";
 import { SKILL_PROFILE_KEY, ownedRunes, stoneInSlot } from "../skills/persistence";
 import { MODIFIER_KEYS, SKILL_KEYS, type RuneItem, type SkillProfile, type SkillStone } from "../skills/types";
@@ -30,6 +30,7 @@ import { applyStats } from "../system/player";
 import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
 import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeLockedRelics, sanitizeRunSetup } from "../system/runSetup";
 import { type JobKey, sanitizeJob } from "../data/jobs";
+import type { MovesetKey } from "../data/weapons";
 
 /**
  * 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った。
@@ -38,11 +39,13 @@ import { type JobKey, sanitizeJob } from "../data/jobs";
  * 7: 契約者の配置・演出の乱数分離・部屋の追加・ジョブ・属性で乱数の消費順が変わった（0.0.9α）
  * 8: 装備欄を近接 / 銃から右手 / 左手へ統合し、右クリックの意味が武器種の固有技に変わった
  *    （docs/ideas/weapon-redesign.md）
+ * 9: 右クリックが右レーンの連撃（段カウンタを左右で共有）になり、F が武器種ごとに選ぶ奥義になった
+ *    （docs/ideas/ougi-and-dual-actions.md）
  *
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
-export const REPLAY_VERSION = 8;
+export const REPLAY_VERSION = 9;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -62,6 +65,11 @@ export interface ReplayLoadout {
    * 無い（この欄を足す前の記録）なら 0 として読む
    */
   runeCount?: number;
+  /**
+   * 武器種ごとに選んだ奥義の key（Profile.ultimates の写し。REPLAY_VERSION 9 から）。
+   * 無い武器種はその武器種の 1 本目。写し・適用は captureLoadout / applyLoadout
+   */
+  ultimates?: Partial<Record<MovesetKey, string>>;
 }
 
 /** 装備画面での付け替え・ステータス振り分け。frame 番目の step の直前に適用する */
@@ -99,6 +107,8 @@ export interface ReplayData {
   job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
+  /** ヒットストップの強度（0..1）。無ければ 1（既定）として読む。ステップ数に効くため決定性を保つには記録が要る */
+  hitstopScale?: number;
   /**
    * 記録時の数値の版（BALANCE_HASH）。無ければ数値外出し前の記録。再生時に今の BALANCE_HASH と食い違えば
    * 結果がずれ得ることを再生画面が注記する（balanceMismatch。docs/ideas/data-externalization.md 5.3）
@@ -371,7 +381,14 @@ export function captureLoadout(profile: Profile, skillProfile: SkillProfile): Re
     stashCount: profile.stash.length,
     stoneCount: skillProfile.stones.length,
     runeCount: ownedRunes(skillProfile).length,
+    ...ultimatesField(profile.ultimates),
   };
+}
+
+/** 奥義の選択の写し（選んでいなければ欄ごと書かない = 旧記録と同じ形） */
+function ultimatesField(ultimates: Profile["ultimates"]): Pick<ReplayLoadout, "ultimates"> {
+  if (ultimates === undefined || Object.keys(ultimates).length === 0) return {};
+  return { ultimates: { ...ultimates } };
 }
 
 function equipmentSignature(equipment: Equipment): string {
@@ -379,7 +396,7 @@ function equipmentSignature(equipment: Equipment): string {
 }
 
 function loadoutSignature(l: ReplayLoadout): string {
-  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.runeCount ?? 0]);
+  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.runeCount ?? 0, l.ultimates ?? {}]);
 }
 
 function allocSignature(alloc: Attributes): string {
@@ -440,6 +457,9 @@ function applyLoadout(profile: Profile, skillProfile: SkillProfile, loadout: Rep
   skillProfile.stones = stones;
   skillProfile.loadout = equipped.map((s) => (s ? s.id : null));
   resizeWith(ownedRunes(skillProfile), loadout.runeCount ?? 0, placeholderRune);
+  // 記録に無い武器種は既定（1 本目）で出るので、選択は丸ごと置き換える
+  if (loadout.ultimates === undefined) delete profile.ultimates;
+  else profile.ultimates = { ...loadout.ultimates };
 }
 
 /**
@@ -471,6 +491,8 @@ export interface RecorderOptions {
   daily: boolean;
   /** 起点と縛り。省略時は放浪者・縛りなし */
   setup?: RunSetup;
+  /** ヒットストップの強度（0..1）。省略時は 1 */
+  hitstopScale?: number;
 }
 
 export class ReplayRecorder {
@@ -552,6 +574,7 @@ export class ReplayRecorder {
       modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
       ...lockedRelicsField(this.options.setup?.lockedRelics),
       ...jobField(this.options.setup?.job),
+      ...hitstopScaleField(this.options.hitstopScale),
       ...snapshotAfterStartField(this.snapshotAfterStart),
       balance: BALANCE_HASH,
       snapshot: structuredClone(this.snapshot),
@@ -609,7 +632,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
   const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), job: sanitizeJob(data.job), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
-  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup);
+  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup, clampHitstopScale(data.hitstopScale));
   if (data.snapshotAfterStart === true) syncLoadoutCounts(profile, skillProfile, data.snapshot);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
@@ -761,6 +784,7 @@ function sanitizeLoadout(v: unknown): ReplayLoadout | null {
     stashCount: Math.max(0, Math.floor(v.stashCount)),
     stoneCount: Math.max(0, Math.floor(v.stoneCount)),
     runeCount: isFiniteNumber(v.runeCount) ? Math.max(0, Math.floor(v.runeCount)) : 0,
+    ...ultimatesField(sanitizeUltimateChoices(v.ultimates)),
   };
 }
 
@@ -806,6 +830,16 @@ function jobField(job: JobKey | undefined): Pick<ReplayData, "job"> {
   return job !== undefined && job !== "none" ? { job } : {};
 }
 
+/** 既定の 1 は書かない。旧データと同じ形を保つ */
+function hitstopScaleField(scale: number | undefined): Pick<ReplayData, "hitstopScale"> {
+  return scale !== undefined && scale !== 1 ? { hitstopScale: clampHitstopScale(scale) } : {};
+}
+
+/** 0..1 にクランプする。壊れた値・欄無しは 1（既定） */
+function clampHitstopScale(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
+
 /** 数値外出し前の記録には無い欄。無ければ書かない */
 function balanceField(hash: string | undefined): Pick<ReplayData, "balance"> {
   return typeof hash === "string" && hash.length > 0 ? { balance: hash } : {};
@@ -848,6 +882,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     modifiers: setup.modifiers,
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     ...jobField(sanitizeJob(v.job)),
+    ...hitstopScaleField(typeof v.hitstopScale === "number" ? v.hitstopScale : undefined),
     ...snapshotAfterStartField(v.snapshotAfterStart === true),
     ...balanceField(typeof v.balance === "string" ? v.balance : undefined),
     snapshot,

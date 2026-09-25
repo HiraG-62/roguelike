@@ -4,8 +4,9 @@ import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec"
 import { STATUS } from "../data/tuning";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
 import { healPlayer } from "../system/combat";
-import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { moveBody, overlapsWall } from "../system/physics";
+import { blastMulAt } from "../system/blast";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
 import { SKILL } from "./data";
 import { distToSegment, enemiesInCone, enemiesOnSegment, enemyNear, rayEnd } from "./geom";
@@ -294,14 +295,15 @@ function castKindle(state: GameState, ctx: CastCtx): void {
 function kindleBurst(state: GameState, at: Vec, remaining: number, params: CastParams): void {
   const k = SKILL.kindle;
   const radius = k.burstRadius * params.areaMul;
-  spawnRing(state, at, radius, COLOR_KINDLE, RING_LIFE * 2);
+  spawnBlast(state, at, radius, COLOR_KINDLE, RING_LIFE * 2);
   spawnBurst(state, at, COLOR_KINDLE, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_LIGHT);
   pushSfx(state, "explode");
   const power = skillPower(state, k.damage, params) + remaining * k.burnRatio * params.damageMul;
   const poise = Math.min(k.maxPoise, k.poise + remaining * k.poisePerBurn);
   for (const e of enemiesInRadius(state, at, radius)) {
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, at), knockback: k.knockback, stagger: true, poise, from: at });
+    const mul = blastMulAt(at, radius, e.body.pos, e.body.radius);
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, at), knockback: k.knockback * mul, stagger: true, poise: poise * mul, from: at });
   }
 }
 

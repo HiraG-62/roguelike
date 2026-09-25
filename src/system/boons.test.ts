@@ -22,6 +22,8 @@ import {
   boonWeight,
   buildTags,
   canTakeCurse,
+  choiceGrade,
+  chooseBoon,
   equipmentTags,
   grantBoon,
   hasBoon,
@@ -38,6 +40,20 @@ import { damageEnemy, damagePlayer } from "./combat";
 import { buildFloor } from "./floor";
 import { applyStats } from "./player";
 import { resolveRules } from "./rules";
+import { createRng } from "../core/rng";
+import { pushPlayerEvent } from "../core/events";
+import {
+  type BoonGrade,
+  boonGradeOf,
+  clampGrade,
+  gradeChances,
+  gradeIcdMul,
+  gradeMagnitudeMul,
+  gradedIcd,
+  isGraded,
+  rollGrade,
+} from "./boonGrade";
+import { clearSpecialRoom } from "./specialRooms";
 import { castSlot, effectiveManaCost } from "./skills";
 import { arena, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
 
@@ -528,11 +544,11 @@ describe("系譜（前段を持つと次段が出る）", () => {
     expect(w).toBeCloseTo(BOON.rarityWeight[BOONS.wildfire.rarity] * BOON.lineageWeightMul);
   });
 
-  it("奥義（4 段目）は 3 段目に加えて装備のタグを要求する", () => {
+  it("真髄（4 段目）は 3 段目に加えて装備のタグを要求する", () => {
     const owned: BoonKey[] = ["emberSeed", "wildfire", "ashBed"];
     expect(boonWeight(BOONS.scorchedEarth, none, owned), "装備に燃焼が無い").toBe(0);
     expect(boonWeight(BOONS.scorchedEarth, burn, owned)).toBeGreaterThan(0);
-    // 祝福が出す燃焼は requires を満たさない（奥義は装備で選ぶ）
+    // 祝福が出す燃焼は requires を満たさない（真髄は装備で選ぶ）
     expect(boonWeight(BOONS.scorchedEarth, none, owned, new Set<BoonTag>(["burn"]))).toBe(0);
   });
 
@@ -694,7 +710,8 @@ describe("射撃の祝福の loadout（銃の家系だけに出す。docs/ideas/
 describe("呪いを受けて 4 択", () => {
   function offered(seed = 41): GameState {
     const state = arena(seed);
-    state.depth = 2;
+    // 深度 coreDepth の最初の提示は芯だけ（呪いの札なし）なので、その次の深度で見る
+    state.depth = BOON.coreDepth + 1;
     offerBoons(state);
     const c = state.boonChoice;
     if (!c) throw new Error("3 択が出ていない");
@@ -740,9 +757,271 @@ describe("呪いを受けて 4 択", () => {
 
   it("提示直後（inputDelay 前）は呪いの札も押せない", () => {
     const state = arena(44);
-    state.depth = 2;
+    state.depth = BOON.coreDepth + 1;
     offerBoons(state);
     updateBoonChoice(state, withInput({ skill3Pressed: true }), 1 / 60);
     expect(state.boonChoice?.curseTaken).toBe(false);
+  });
+});
+
+describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
+  const ROLLS = 1000;
+  const DEEP = 10;
+  const MID_DEPTH = 5;
+  const BIG_HP = 100000;
+  const SEEDS = 30;
+  const STRONG_MELEE = 50;
+  /** 芯の見本にする件数（coreChoiceCount より多く） */
+  const TEMP_CORE_COUNT = BOON.coreChoiceCount + 1;
+
+  /** 格の分布（添字 = 格 − 1） */
+  function gradeHistogram(depth: number, seed: number): number[] {
+    const rng = createRng(seed);
+    const counts = [0, 0, 0];
+    for (let i = 0; i < ROLLS; i++) {
+      const g = rollGrade(rng, depth);
+      counts[g - 1] = (counts[g - 1] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /** 芯の候補にできる素直な祝福（呪いなし・前段や条件なし） */
+  function plainKeys(): BoonKey[] {
+    return BOON_KEYS.filter((k) => {
+      const d = BOONS[k];
+      return !d.cursed && d.core !== true && !d.after && !d.duo && !d.requires && !d.loadout && !d.lineage;
+    });
+  }
+
+  /** 既存の祝福を一時的に芯として扱う（Lane B の芯 8 種が入る前でも芯の抽選を検証する） */
+  function withTempCores<T>(keys: readonly BoonKey[], body: () => T): T {
+    const mutable = keys.map((k) => BOONS[k]).filter((d) => d.core !== true);
+    for (const d of mutable) d.core = true;
+    try {
+      return body();
+    } finally {
+      for (const d of mutable) delete d.core;
+    }
+  }
+
+  function gradedCards(state: GameState): BoonGrade[] {
+    const c = state.boonChoice;
+    if (!c) throw new Error("3 択が出ていない");
+    return c.options.flatMap((k, i) => (isGraded(BOONS[k]) ? [choiceGrade(c, i)] : []));
+  }
+
+  it("格は深いほど高いものが出やすい（深度 2 と深度 10 で 1000 回引いた分布）", () => {
+    const shallow = gradeHistogram(BOON.coreDepth, 1);
+    const deep = gradeHistogram(DEEP, 1);
+    const high = (h: number[]): number => (h[1] ?? 0) + (h[2] ?? 0);
+    expect(high(deep), "大祝福 + 神威").toBeGreaterThan(high(shallow));
+    expect(deep[2] ?? 0, "神威").toBeGreaterThan(shallow[2] ?? 0);
+    const expected = gradeChances(DEEP);
+    expect((deep[2] ?? 0) / ROLLS, "神威の率").toBeCloseTo(expected.divine, 1);
+    expect((deep[1] ?? 0) / ROLLS, "大祝福の率").toBeCloseTo(expected.grand, 1);
+    expect(clampGrade(3 + BOON.gradeBoostChallenge), "下駄を足しても 3 で止まる").toBe(3);
+  });
+
+  it("呪い付きの札は格を持たない", () => {
+    for (const k of BOON_KEYS) {
+      if (BOONS[k].cursed) expect(isGraded(BOONS[k]), k).toBe(false);
+    }
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = arena(seed);
+      state.depth = DEEP;
+      offerBoons(state, BOON.gradeBoostChallenge + BOON.gradeBoostAfterBoss);
+      const c = state.boonChoice;
+      if (!c) throw new Error("3 択が出ていない");
+      c.options.forEach((k, i) => {
+        if (BOONS[k].cursed) expect(choiceGrade(c, i), `${k} の格`).toBe(1);
+      });
+    }
+    const state = arena(3);
+    const cursed = BOON_KEYS.find((k) => BOONS[k].cursed);
+    if (!cursed) throw new Error("呪い付きが無い");
+    grantBoon(state, cursed, 3);
+    expect(boonGradeOf(state, cursed), "神威で渡しても並").toBe(1);
+  });
+
+  it("Rule の効果量は格で ×1.5 / ×2.2 になる（爆走の爆発ダメージで確認）", () => {
+    const blastDamage = (grade: BoonGrade): number => {
+      // 威力を大きくして整数の丸めを比に効かせない
+      const state = arena(5, { meleeDamageMul: STRONG_MELEE });
+      state.boonRun.baseStats = state.stats;
+      grantBoon(state, "dashBlast", grade);
+      const e = placeEnemy(state, "golem", 10);
+      e.hp = BIG_HP;
+      e.maxHp = BIG_HP;
+      e.phase = "idle";
+      state.events = [];
+      state.pendingEvents = [];
+      pushPlayerEvent(state, "onDashEnd", "dash");
+      resolveRules(state, 0);
+      return BIG_HP - e.hp;
+    };
+    const base = blastDamage(1);
+    expect(base, "並でも爆発が当たる").toBeGreaterThan(0);
+    const tolerance = 0.1;
+    expect(blastDamage(2) / base).toBeGreaterThan(gradeMagnitudeMul(2) - tolerance);
+    expect(blastDamage(2) / base).toBeLessThan(gradeMagnitudeMul(2) + tolerance);
+    expect(blastDamage(3) / base).toBeGreaterThan(gradeMagnitudeMul(3) - tolerance);
+    expect(blastDamage(3) / base).toBeLessThan(gradeMagnitudeMul(3) + tolerance);
+  });
+
+  it("神威の Rule は ICD が短くなるが ruleMinIcd を下回らない", () => {
+    const icdAfter = (grade: BoonGrade): number | undefined => {
+      const state = arena(5);
+      grantBoon(state, "leyLine", grade);
+      state.events = [];
+      state.pendingEvents = [];
+      pushPlayerEvent(state, "onTerrainEnter", "terrain");
+      resolveRules(state, 0);
+      return state.ruleIcd.get("boon:leyLine:0");
+    };
+    expect(icdAfter(1)).toBeCloseTo(BOON.leyLineIcd);
+    expect(icdAfter(2), "大祝福は ICD を変えない").toBeCloseTo(BOON.leyLineIcd * gradeIcdMul(2));
+    expect(icdAfter(3)).toBeCloseTo(BOON.leyLineIcd * gradeIcdMul(3));
+    expect(icdAfter(3) ?? 0).toBeLessThan(BOON.leyLineIcd);
+    const short = BOON.ruleMinIcd * 1.2;
+    expect(gradedIcd(short, 3), "下限").toBe(BOON.ruleMinIcd);
+    expect(gradedIcd(0, 3), "ICD 0 は 0 のまま").toBe(0);
+  });
+
+  it("試練の部屋の制圧で 3 択が開き、格の下駄が 1 回だけ効く", () => {
+    let laterPlain = 0;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = arena(seed);
+      state.depth = MID_DEPTH;
+      const room = state.rooms[0];
+      if (!room) throw new Error("部屋が無い");
+      room.kind = "challenge";
+      clearSpecialRoom(state, room, { ...state.player.body.pos });
+      expect(state.boonChoice, "試練の制圧で 3 択").not.toBeNull();
+      for (const g of gradedCards(state)) expect(g, "試練の札は大祝福以上").toBeGreaterThanOrEqual(2);
+      chooseBoon(state, 0);
+      expect(state.boonRun.gradeBoost, "下駄は残らない").toBe(0);
+      offerBoons(state);
+      laterPlain += gradedCards(state).filter((g) => g === 1).length;
+    }
+    expect(laterPlain, "次の提示には下駄が乗らない（並が出る）").toBeGreaterThan(0);
+  });
+
+  it("試練の徒は試練の 3 択の格をもう 1 段上げる", () => {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = arena(seed);
+      state.depth = BOON.coreDepth + 1;
+      grantBoon(state, "trialSeeker");
+      const room = state.rooms[0];
+      if (!room) throw new Error("部屋が無い");
+      room.kind = "challenge";
+      clearSpecialRoom(state, room, { ...state.player.body.pos });
+      // 実際の制圧と同じく、制圧のイベントは同じステップの resolveRules で食われる
+      state.events = [];
+      state.pendingEvents = [];
+      pushPlayerEvent(state, "onRoomClear", "room", { tag: "challenge", source: { kind: "room", key: "challenge" } });
+      resolveRules(state, 0);
+      const expected = clampGrade(1 + BOON.gradeBoostChallenge + BOON.gradeBoostTrialSeeker);
+      for (const g of gradedCards(state)) expect(g).toBeGreaterThanOrEqual(expected);
+    }
+  });
+
+  it("ボス階の直後の提示は格の下駄が乗る", () => {
+    const arrive = (fromDepth: number, seed: number): GameState => {
+      const state = createGame(seed);
+      state.enemies = [];
+      state.player.invulnTimer = 999;
+      state.depth = fromDepth;
+      state.player.body.pos = stairsPos(state);
+      step(state, withInput({}), FIXED_DT);
+      expect(state.depth).toBe(fromDepth + 1);
+      return state;
+    };
+    let normalPlain = 0;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const afterBoss = arrive(BOSS.interval, seed);
+      for (const g of gradedCards(afterBoss)) expect(g, "ボス階の直後は大祝福以上").toBeGreaterThanOrEqual(2);
+      const plain = arrive(BOSS.interval + 1, seed);
+      normalPlain += gradedCards(plain).filter((g) => g === 1).length;
+    }
+    expect(normalPlain, "ボス階の直後でなければ並も出る").toBeGreaterThan(0);
+  });
+
+  it("呪いを受けて足した 4 枚目は格の下駄が乗る", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = arena(seed);
+      state.depth = BOON.coreDepth + 1;
+      offerBoons(state);
+      if (!takeCurse(state)) continue;
+      const c = state.boonChoice;
+      if (!c) throw new Error("3 択が閉じた");
+      expect(c.grades, "格は札と同じ枚数").toHaveLength(c.options.length);
+      const fourth = c.options[BOON.choiceCountWithCurse - 1];
+      if (!fourth || !isGraded(BOONS[fourth])) continue;
+      expect(choiceGrade(c, BOON.choiceCountWithCurse - 1)).toBeGreaterThanOrEqual(clampGrade(1 + BOON.gradeBoostCurseCard));
+      checked++;
+    }
+    expect(checked, "格の対象の 4 枚目を確かめた").toBeGreaterThan(0);
+  });
+
+  it("深度 2 の最初の提示は芯だけの 3 択で呪いの札が出ない", () => {
+    withTempCores(plainKeys().slice(0, TEMP_CORE_COUNT), () => {
+      const state = arrivedAtDepth2();
+      expect(state.depth).toBe(BOON.coreDepth);
+      const c = state.boonChoice;
+      if (!c) throw new Error("3 択が出ていない");
+      expect(c.core, "芯の提示").toBe(true);
+      expect(c.options).toHaveLength(BOON.coreChoiceCount);
+      for (const k of c.options) expect(BOONS[k].core, `${k} は芯`).toBe(true);
+      expect(canTakeCurse(state), "呪いの札なし").toBe(false);
+      expect(takeCurse(state)).toBe(false);
+      chooseBoon(state, 0);
+      offerBoons(state);
+      expect(state.boonChoice?.core, "芯を持てば同じ深度でも通常の 3 択").toBe(false);
+    });
+  });
+
+  it("芯を持つと同じタグの祝福の重みが coreTagBonus 倍になる", () => {
+    const keys = plainKeys();
+    const coreKey = keys[0];
+    if (!coreKey) throw new Error("候補が無い");
+    const coreTags = BOONS[coreKey].tags;
+    const partner = keys.find((k) => k !== coreKey && BOONS[k].tags.some((t) => coreTags.includes(t)));
+    const stranger = keys.find((k) => k !== coreKey && !BOONS[k].tags.some((t) => coreTags.includes(t)));
+    if (!partner || !stranger) throw new Error("比べる祝福が無い");
+    withTempCores([coreKey], () => {
+      const tags = new Set<BoonTag>();
+      const withCore = boonWeight(BOONS[partner], tags, [coreKey]);
+      const without = boonWeight(BOONS[partner], tags, []);
+      expect(withCore / without).toBeCloseTo(BOON.coreTagBonus);
+      expect(boonWeight(BOONS[stranger], tags, [coreKey]), "タグが重ならなければ等倍").toBeCloseTo(boonWeight(BOONS[stranger], tags, []));
+    });
+  });
+
+  it("芯を持っていれば通常の 3 択に芯は出ない", () => {
+    const cores = plainKeys().slice(0, TEMP_CORE_COUNT);
+    const [owned] = cores;
+    if (!owned) throw new Error("候補が無い");
+    withTempCores(cores, () => {
+      const state = arena(21);
+      state.depth = BOON.coreDepth + 1;
+      grantBoon(state, owned);
+      for (let i = 0; i < 200; i++) {
+        for (const k of rollBoonOptions(state)) expect(BOONS[k].core, `${k} は芯ではない`).not.toBe(true);
+      }
+      offerBoons(state);
+      expect(state.boonChoice?.core).toBe(false);
+    });
+  });
+
+  it("同じ seed なら格の列も同じ（決定性）", () => {
+    const grades = (seed: number): BoonGrade[] | undefined => {
+      const state = arena(seed);
+      state.depth = DEEP;
+      offerBoons(state);
+      return state.boonChoice?.grades;
+    };
+    for (let seed = 1; seed <= SEEDS; seed++) expect(grades(seed)).toEqual(grades(seed));
+    expect(gradeHistogram(DEEP, 7)).toEqual(gradeHistogram(DEEP, 7));
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
+import { ULTIMATES } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
 import { generateItem } from "../loot/generator";
 import { createEmptyProfile } from "../loot/types";
@@ -141,11 +142,40 @@ describe("武器掛けの一覧", () => {
   it("武器掛けの一覧は全武器種（銃の家系を含む）を並べ、試用中のものに印を付ける", () => {
     const [movesets] = rackTabs("greatsword");
     if (!movesets) throw new Error("タブが無い");
-    const movesetKeys = movesets.entries.map((e) => rackEntryOf(e.key)).filter((r) => r?.key !== null);
-    expect(movesetKeys.map((r) => r?.key), "全武器種").toEqual([...MOVESET_KEYS]);
-    expect(movesets.entries.filter((e) => e.marked).map((e) => e.key), "試用中の武器種だけに印").toEqual(["moveset:greatsword"]);
+    const movesetRows = movesets.entries.filter((e) => rackEntryOf(e.key)?.kind === "moveset");
+    const movesetKeys = movesetRows.map((e) => rackEntryOf(e.key)).filter((r) => r?.kind === "moveset" && r.key !== null);
+    expect(movesetKeys.map((r) => (r?.kind === "moveset" ? r.key : null)), "全武器種").toEqual([...MOVESET_KEYS]);
+    expect(movesetRows.filter((e) => e.marked).map((e) => e.key), "試用中の武器種だけに印").toEqual(["moveset:greatsword"]);
     const [clear] = rackTabs(null)[0]?.entries ?? [];
     expect(clear?.marked, "何も試していなければ「装備のまま」に印").toBe(true);
+  });
+
+  it("各武器種の行の下にその武器種の奥義が並び、選んでいる奥義に印が付く", () => {
+    const set = ULTIMATES.spear;
+    const pick = set[set.length - 1] ?? set[0];
+    const [tab] = rackTabs(null, { ultimates: { spear: pick.key } });
+    if (!tab) throw new Error("タブが無い");
+    const rows = tab.entries.map((e) => ({ entry: e, row: rackEntryOf(e.key) }));
+    const at = rows.findIndex((r) => r.row?.kind === "moveset" && r.row.key === "spear");
+    const below = rows.slice(at + 1, at + 1 + set.length);
+    expect(
+      below.map((r) => (r.row?.kind === "ultimate" ? r.row.key : null)),
+      "武器種の行の直後に、その武器種の奥義が定義の順に並ぶ",
+    ).toEqual(set.map((d) => d.key));
+    expect(below.every((r) => r.row?.kind === "ultimate" && r.row.moveset === "spear"), "奥義の行は武器種を指す").toBe(true);
+    expect(below.filter((r) => r.entry.marked).map((r) => r.row?.kind === "ultimate" && r.row.key), "選んだ奥義だけに印").toEqual([pick.key]);
+    const ultimateRows = rows.filter((r) => r.row?.kind === "ultimate");
+    const total = MOVESET_KEYS.reduce((n, k) => n + ULTIMATES[k].length, 0);
+    expect(ultimateRows, "全武器種の奥義が並ぶ").toHaveLength(total);
+    const [def] = rackTabs(null)[0]?.entries.filter((e) => rackEntryOf(e.key)?.kind === "ultimate" && e.marked) ?? [];
+    expect(rackEntryOf(def?.key ?? "")?.kind === "ultimate", "選んでいなければ 1 本目に印").toBe(true);
+    expect(rackEntryOf(def?.key ?? ""), "1 本目").toEqual({ kind: "ultimate", moveset: MOVESET_KEYS[0], key: ULTIMATES[MOVESET_KEYS[0]][0].key });
+  });
+
+  it("rackEntryOf は奥義の行を読み、知らない奥義の key は null", () => {
+    const def = ULTIMATES.whip[0];
+    expect(rackEntryOf(`ultimate:${def.key}`), "奥義").toEqual({ kind: "ultimate", moveset: "whip", key: def.key });
+    expect(rackEntryOf("ultimate:no-such"), "知らない奥義").toBeNull();
   });
 
   it("rackEntryOf は moveset の行を読む", () => {

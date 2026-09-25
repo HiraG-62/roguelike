@@ -1,6 +1,17 @@
 {
   "_note": "フロア・部屋・地形イベント・拠点の数値。秒・px・確率（0..1）・重みが中心",
   "ROOM": {
+    "_fields": {
+      "enterMargin": "部屋に入ったとみなすのに要る、部屋の縁からの食い込み。px。大きいほど奥まで入らないと封鎖しない",
+      "baseEnemies": "部屋に置く敵の抽選回数の基本。抽選回数 = baseEnemies + 切り捨て（深度 × enemiesPerDepth）。群れる敵は 1 回で複数体",
+      "enemiesPerDepth": "深度 1 つごとに増える抽選回数",
+      "maxEnemies": "部屋の敵の抽選回数と、増援で湧く実体数の上限。深度 FLOOR_KIND.deepDepth 以降は deepMaxEnemiesBonus を足す",
+      "reinforcementRatio": "封鎖したときに湧く増援の数。部屋の抽選回数に掛ける割合（0.5 で半分）",
+      "spawnTelegraph": "増援・波の敵が湧く前の予告（出現中）の秒",
+      "heartDropChance": "部屋を制圧したときにハートを落とす確率。割合（0..1）。試練の部屋は確定",
+      "heartHeal": "ハートを拾ったときに回復する生命",
+      "clearBonus": "部屋を制圧したときの得点。階段を初めて降りたときも clearBonus × 深度 × 位階の倍率が入る"
+    },
     "enterMargin": 10,
     "baseEnemies": 3,
     "enemiesPerDepth": 1,
@@ -225,6 +236,35 @@
     }
   },
   "FLOOR_KIND": {
+    "_fields": {
+      "darkLightRadius": "暗闇の階でプレイヤーの周りが見える半径。px",
+      "darkFeather": "暗闇の明かりの縁のぼかしの幅。明かりの半径に対する割合（0..1）",
+      "darkAlpha": "暗闇の濃さ。不透明度（0..1。1 で真っ暗）",
+      "weight": "フロア種別ごとの抽選の重み（key はフロア種別）。反転層では並びを逆にした相手の重みを使う",
+      "biomeMinDepth": "フロア種別ごとの解禁深度（key はフロア種別）。この深度から抽選に入る。ボス階は常に rooms",
+      "patchesPerRoom": "バイオームの地形（泥・溶岩など）を部屋ごとに置く数。縛り「荒れた大地」で 2 倍",
+      "patchRadiusMin": "バイオームの地形の半径の下限。px",
+      "patchRadiusMax": "バイオームの地形の半径の上限。px",
+      "lavaRadiusMul": "溶岩だけ半径に掛ける倍率（踏むと痛いので小さめ）",
+      "familyMul": "そのバイオームの顔ぶれ（ファミリー）の敵の出現の重みに掛ける倍率",
+      "ossuaryCorpses": "骨の墓所で部屋ごとに最初から転がしておく死骸の数",
+      "ossuaryCorpseTime": "その死骸が残る秒",
+      "tintAlpha": "バイオームの床の色味の濃さ。不透明度（0..1）",
+      "forkMin": "最後の部屋に置く分かれ道の階段の数の下限（次の階の候補が少なければその数まで）",
+      "forkMax": "分かれ道の階段の数の上限",
+      "forkOffset": "分かれ道の階段を中心の階段から離す距離。タイル",
+      "invertedDepth": "反転層が始まる深度。この深度から敵が精鋭になりやすく、遺物が反転しやすい",
+      "invertedColor": "反転層の表示の色",
+      "deepDepth": "無限の深みが始まる深度。ここから敵の生命の伸びが寝て、部屋の敵数の上限が上がり、変異が積まれる",
+      "deepHpSlope": "無限の深みでの敵の生命の伸び。深度 1 つごとに生命の倍率へ足す量（浅い階の伸びは 0.18）",
+      "deepMaxEnemiesBonus": "無限の深みで ROOM.maxEnemies に足す数",
+      "mutationEvery": "無限の深みで、この階数ごとに変異が 1 つ増える",
+      "ascendMinDepth": "上り階段（浅い階へ戻る）を置き始める深度",
+      "ascendMaxReturns": "1 ランで上り階段を使える回数",
+      "ascendHold": "上り階段に触れ続けて戻るまでの秒",
+      "revisitReaperHeadStart": "戻った階では死神の猶予がこの秒だけ進んだ状態で始まる",
+      "ascendColor": "上り階段・帰還の表示の色"
+    },
     "darkLightRadius": 90,
     "darkFeather": 0.35,
     "darkAlpha": 0.94,
@@ -274,6 +314,20 @@
     "ascendColor": "#90e0ff"
   },
   "CAVE": {
+    "_fields": {
+      "base": "洞窟の生成の既定値。biome に書いた項目だけバイオームごとに上書きする",
+      "biome": "バイオームごとの洞窟の形の上書き（key はフロア種別。書かない項目は base の値）",
+      "fillChance": "初期状態で壁にする確率。割合（0..1）。低いほど開けて、高いほど細い道が増える。目安 0.42〜0.47",
+      "smoothSteps": "セルオートマトンでならす回数。多いほど壁が滑らか",
+      "wallBirth": "周囲 8 マスの壁がこの数以上なら床が壁になる",
+      "wallSurvive": "壁は周囲 8 マスの壁がこの数以上なら壁のまま",
+      "openDist": "壁からこのマス数以上離れた床を「開けた領域」（部屋の芯）とみなす",
+      "minRoomTiles": "部屋として採用する開けた領域の最小タイル数",
+      "roomGrow": "開けた領域から部屋を膨らませるマス数。膨らませきれない細い所が通路になる",
+      "maxRooms": "部屋の数の上限（大きい領域から採る）",
+      "minRooms": "部屋の数の下限。足りなければ作り直す",
+      "widen": "幅 1 の通路を 1 マスずつ太らせる回数。0 なら細い道がそのまま残る"
+    },
     "base": {
       "fillChance": 0.45,
       "smoothSteps": 5,
@@ -317,6 +371,21 @@
     }
   },
   "ROAM": {
+    "_fields": {
+      "fraction": "フロア生成時に、部屋に置いた敵を徘徊にする確率（各部屋に 1 体は残す）。割合（0..1）",
+      "speedMul": "徘徊中（気付く前）の歩きの速さ。敵の speed に掛ける倍率",
+      "reach": "徘徊の目的地にこの距離まで近づいたら次の目的地を選ぶ。px",
+      "stuckTime": "進めない状態がこの秒続いたら目的地を選び直す",
+      "reinforceDelay": "階に入ってから徘徊の増援が始まるまでの秒",
+      "reinforceInterval": "徘徊の増援が来る間隔の秒。ボス階は来ない",
+      "capBase": "徘徊の数の上限の基本。上限 = capBase + 切り捨て（深度 × capPerDepth）、最大 capMax",
+      "capPerDepth": "深度 1 つごとに増える徘徊の上限",
+      "capMax": "徘徊の数の上限の最大",
+      "minSpawnDist": "増援をプレイヤーからこの距離以上離して湧かせる。px",
+      "spawnAttempts": "増援の湧く場所を探す試行回数。見つからなければその回は湧かない",
+      "offscreenMargin": "画面の外とみなす余白。px。画面の端からこの距離の内側には増援を湧かせない",
+      "engageLeash": "部屋から追ってきた敵がこの距離以内にいる間は交戦中とみなす。px"
+    },
     "fraction": 0.25,
     "speedMul": 0.4,
     "reach": 12,
@@ -485,6 +554,31 @@
     }
   },
   "LINGER": {
+    "_fields": {
+      "minDepth": "長居の代償が起こり始める深度（縛り「長居の二重苦」なら浅い階から）",
+      "startRatio": "長居の代償が始まる時刻。死神の猶予秒に掛ける割合（0..1）",
+      "doubleRatio": "縛り「長居の二重苦」のときの startRatio",
+      "warnMargin": "始まるこの秒前から HUD と効果音で予告する",
+      "shadowDelay": "影の自分: 1 体目がなぞる、自分の何秒前の軌跡か",
+      "shadowGap": "影の自分: 2 体目以降は 1 体ごとにこの秒だけさらに遅れる",
+      "shadowInterval": "影の自分: 影が 1 体増える間隔の秒",
+      "shadowMax": "影の自分: 影の数の上限",
+      "trailStep": "影の自分: 自分の位置を記録する間隔の秒",
+      "shadowRadius": "影の自分: 影の当たり判定の半径。px",
+      "shadowDamage": "影の自分: 触れたときのダメージ（見切りにならない）",
+      "shadowColor": "影の自分の色（長居の代償のログの色も兼ねる）",
+      "collapseInterval": "天井の崩落: 落石の最初の間隔の秒",
+      "collapseMinInterval": "天井の崩落: 間隔の下限の秒",
+      "collapseAccel": "天井の崩落: 1 秒ごとに間隔が縮む秒",
+      "collapseTelegraph": "天井の崩落: 落石の予告の影が出てから落ちるまでの秒",
+      "collapseRadius": "天井の崩落: 落石の範囲の半径。px（敵にも当たる）",
+      "collapseDamage": "天井の崩落: 落石のダメージ",
+      "collapseSpread": "天井の崩落: 落石をプレイヤーの足元からずらす最大の距離。px",
+      "tideSpeed": "潮: 水が開始部屋から広がる速さ。px/秒",
+      "tideInterval": "潮: 水を広げ、溺れのダメージを入れる間隔の秒",
+      "tideFullAfter": "潮: 始まってからこの秒で満潮になり、水の上で溺れる",
+      "tideDrownDps": "潮: 満潮の水の上で受けるダメージ。毎秒"
+    },
     "minDepth": 3,
     "startRatio": 0.6,
     "doubleRatio": 0.35,
@@ -510,6 +604,16 @@
     "tideDrownDps": 3
   },
   "ORIGIN": {
+    "_fields": {
+      "cursedBoons": "起点「呪われた者」: 開始時に得る呪いの祝福の数",
+      "cursedPoints": "起点「呪われた者」: 開始時に得るステータスの振り分け点",
+      "unarmedUnsealDepth": "起点「素手」: 装備の封印が解ける深度",
+      "unarmedPoints": "起点「素手」: 開始時に得るステータスの振り分け点",
+      "chanterRunes": "起点「詠み手」: 開始時に付く刻印符の数",
+      "chanterHpMul": "起点「詠み手」: 最大生命の倍率（1 = 等倍）",
+      "reaperFriendSpeedMul": "起点「死神の友」: 階に入った直後から出ている死神の速さの倍率",
+      "reaperFriendPoints": "起点「死神の友」: 初めての階へ降りるたびに得るステータスの振り分け点"
+    },
     "cursedBoons": 2,
     "cursedPoints": 4,
     "unarmedUnsealDepth": 3,
@@ -584,6 +688,14 @@
     "lifeFloor": 1
   },
   "RUN_MOD": {
+    "_fields": {
+      "thickHideHpMul": "縛り「厚い皮」: 敵の生命の倍率。説明文（src/system/runSetup.ts の RUN_MODS）の「3 割」も合わせて直す",
+      "quickHandsCut": "縛り「早い手」: 敵の予備動作を縮める割合（0..1。0.1 で 1 割短い）。説明文も合わせて直す",
+      "hastyReaperMul": "縛り「急かす死神」: 死神の猶予秒の倍率。説明文も合わせて直す",
+      "hourglassTime": "縛り「部屋の砂時計」: 交戦がこの秒続くたびに増援が来る",
+      "glassBodyHpMul": "縛り「薄氷」: 最大生命の倍率。説明文も合わせて直す",
+      "scorePerTier": "位階 1 点あたり、階段で得る得点に足す倍率（0.1 で 1 点ごとに +10%）"
+    },
     "thickHideHpMul": 1.3,
     "quickHandsCut": 0.1,
     "hastyReaperMul": 0.7,
@@ -592,6 +704,16 @@
     "scorePerTier": 0.1
   },
   "HUB": {
+    "_fields": {
+      "interactRadius": "拠点で台を使える距離。px。台どうしはこの 2 倍より離して置く",
+      "departHold": "出発の決定を押し続ける秒",
+      "dummyRespawn": "倒れた木人が立ち直るまでの秒",
+      "dummyCount": "拠点の木人の数（配置は src/map/hubMap.ts の配置図。この値はテストが配置図と照合する）",
+      "trainingRuns": "このラン数に達すると訓練場が建つ（試し場を見つけても建つ）",
+      "seed": "拠点の乱数の種。拠点と借り物の武器を毎回同じにする",
+      "bannerSeconds": "設備が建ったときの知らせを出す秒",
+      "rackBorrowHold": "武器掛けで決定を押し続けて借りるまでの秒"
+    },
     "interactRadius": 20,
     "departHold": 0.8,
     "dummyRespawn": 1.5,
@@ -602,13 +724,28 @@
     "rackBorrowHold": 0.6
   },
   "HUB_DECOR": {
+    "_fields": {
+      "shelfMax": "拠点の本棚の段の最大数。図鑑の埋まった割合でこの数まで増える"
+    },
     "shelfMax": 5
   },
   "META": {
+    "_fields": {
+      "questOffers": "依頼の候補として並べる数",
+      "roomSampleTicks": "図鑑に今いる部屋の種類を記録する間隔。ステップ（60Hz）"
+    },
     "questOffers": 3,
     "roomSampleTicks": 15
   },
   "DISCOVERY": {
+    "_fields": {
+      "milestonePage": "連携をこの種数発見すると図鑑の頁「連携」が開く（実績「連携の芽生え」）",
+      "milestoneTitle": "連携をこの種数発見すると称号（実績「連携の読み手」）",
+      "milestoneGrand": "連携をこの種数発見すると称号（実績「連携の賢者」）",
+      "hintRefreshTicks": "連携の手がかりを見直す間隔。ステップ（60Hz）。階が変わったときも見直す",
+      "hintShowSeconds": "連携の手がかりを表示する秒",
+      "freshShowSeconds": "新しい連携を見つけた知らせを表示する秒"
+    },
     "milestonePage": 5,
     "milestoneTitle": 15,
     "milestoneGrand": 30,

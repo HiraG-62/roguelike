@@ -1,10 +1,11 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEffects";
-import { shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
+import { blastMulAt } from "../system/blast";
 import { STATUS } from "../data/tuning";
-import { SKILL } from "./data";
+import { SKILL, SKILL_DEFS } from "./data";
 import { COMBO_TUNING } from "./tuning";
 import { skillHit, skillPower } from "./hit";
 import { terrainAt } from "../system/terrain";
@@ -278,13 +279,15 @@ function updateMines(state: GameState, dt: number): void {
 function explodeMine(state: GameState, pos: Vec, params: CastParams): void {
   const m = SKILL.mines;
   const radius = mineRadius(params);
-  spawnRing(state, pos, radius, COLOR_MINE, RING_LIFE * 2);
+  spawnBlast(state, pos, radius, COLOR_MINE, RING_LIFE * 2);
   spawnBurst(state, pos, COLOR_MINE, MINE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
   const power = skillPower(state, m.damage, params);
+  const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback, stagger: true });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback * mul, stagger: true, poise: poise * mul });
   }
 }
 

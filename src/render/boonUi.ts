@@ -13,7 +13,18 @@ import {
   boonDef,
   buildTags,
   canTakeCurse,
+  choiceGrade,
 } from "../system/boons";
+import type { BoonKey } from "../system/boonDefs";
+import {
+  BOON_GRADE_LABEL,
+  type BoonGrade,
+  boonGradeOf,
+  gradeIcdMul,
+  gradeMagnitudeMul,
+  gradeRadiusMul,
+  isGraded,
+} from "../system/boonGrade";
 import { linkHintText } from "../meta/linkHint";
 import { type KeywordAffinity, affinity, buildProfile } from "../system/keywords";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
@@ -37,6 +48,13 @@ const COLOR_CURSE_BG_HOVER = "rgba(80,20,24,0.98)";
 /** 系譜・結びの注記の色 */
 const COLOR_LINEAGE = "#ffb060";
 const COLOR_DUO = "#80e0c0";
+/** 芯の注記・枠の色（芯は格を持たないので格の色と分ける） */
+const COLOR_CORE = "#c0a0ff";
+/** 芯のカードの内側の 2 本目の枠の間隔 */
+const CORE_FRAME_INSET = 3;
+const CORE_SUBTITLE = "芯 ・ 探索に 1 つ";
+const CORE_TITLE = "探索の芯を選ぶ";
+const SUBTITLE_SEP = " ・ ";
 
 const TITLE_Y = 44;
 const HINT_Y = 52;
@@ -91,16 +109,15 @@ const HUD_PER_ROW = 16;
 /** ツールチップの説明の折り返し幅 */
 const TIP_MAX_W = 220;
 
-function boonColor(def: BoonDef): string {
-  return def.cursed ? BOON.cursedColor : BOON.rarityColor[def.rarity];
+/**
+ * 札・アイコンの色。大祝福・神威は格の色（強さは格が語る）。並は希少度の色のまま（希少度は抽選の重みで、語としては出さない）
+ */
+export function boonCardColor(def: BoonDef, grade: BoonGrade = 1): string {
+  if (def.cursed) return BOON.cursedColor;
+  if (grade >= 3) return BOON.gradeColor.divine;
+  if (grade === 2) return BOON.gradeColor.grand;
+  return BOON.rarityColor[def.rarity];
 }
-
-/** 表示専用。system/boons.ts の BoonRarity は英語のキーのまま（ロジック側は別エージェントが管轄） */
-const BOON_RARITY_LABEL: Readonly<Record<BoonDef["rarity"], string>> = {
-  common: "通常",
-  rare: "希少",
-  epic: "極稀",
-};
 
 /** 系譜の何段目か（1 始まり） */
 function lineageStage(def: BoonDef): number {
@@ -123,13 +140,61 @@ export function boonMark(aff: Readonly<KeywordAffinity>): BoonMark {
   return "fresh";
 }
 
-/** カードの 3 行目（希少度・呪い・系譜・結び） */
-function cardSubtitle(def: BoonDef): { text: string; color: string | null } {
-  const rarity = BOON_RARITY_LABEL[def.rarity];
-  if (def.cursed) return { text: `${rarity} ・ 呪い付き`, color: null };
-  if (def.lineage) return { text: `${rarity} ・ ${LINEAGE_LABEL[def.lineage]} ${lineageStage(def)}段`, color: COLOR_LINEAGE };
-  if (def.duo) return { text: `${rarity} ・ 結び`, color: COLOR_DUO };
-  return { text: rarity, color: null };
+/** 呪い・系譜・結びの注記（並の副題はこれだけ） */
+function cardNote(def: BoonDef): { text: string; color: string | null } | null {
+  if (def.cursed) return { text: "呪い付き", color: null };
+  if (def.lineage) return { text: `${LINEAGE_LABEL[def.lineage]} ${lineageStage(def)}段`, color: COLOR_LINEAGE };
+  if (def.duo) return { text: "結び", color: COLOR_DUO };
+  return null;
+}
+
+/**
+ * カードの 3 行目。芯は「芯」の注記、大祝福・神威は格の語を先頭に付けて格の色、並は注記だけ（無ければ空）。
+ * color が null なら札の色で描く
+ */
+export function boonCardSubtitle(def: BoonDef, grade: BoonGrade = 1): { text: string; color: string | null } {
+  if (def.core === true) return { text: CORE_SUBTITLE, color: COLOR_CORE };
+  const note = cardNote(def);
+  if (grade < 2) return note ?? { text: "", color: null };
+  const label = BOON_GRADE_LABEL[grade];
+  const text = note ? `${label}${SUBTITLE_SEP}${note.text}` : label;
+  return { text, color: boonCardColor(def, grade) };
+}
+
+/** 呪いの札の出し方: 受けた後は受けた呪いの名前、受けられるなら札、芯の提示・受けられないなら出さない */
+export type CurseOfferView = "taken" | "offer" | "none";
+
+export function curseOfferView(state: GameState): CurseOfferView {
+  const c = state.boonChoice;
+  if (!c || c.core === true) return "none";
+  if (c.curse) return "taken";
+  return canTakeCurse(state) ? "offer" : "none";
+}
+
+/** 格の定数の倍率を「×1.5」の形に（小数第 2 位で丸める） */
+function mulText(value: number): string {
+  return `×${Math.round(value * 100) / 100}`;
+}
+
+/**
+ * ツールチップの格の行（「大祝福: 効果量 ×1.5、範囲 ×1.2」）。何が増えるかを語る。並・格の対象外は null。
+ * 範囲・間隔は Rule を持つ祝福のうち、その要素を持つものにだけ効くので、持つときだけ書く
+ */
+export function boonGradeTipLine(def: BoonDef, grade: BoonGrade): string | null {
+  if (grade < 2 || def.core === true || !isGraded(def)) return null;
+  const parts = [`効果量 ${mulText(gradeMagnitudeMul(grade))}`];
+  const rules = def.rules ?? [];
+  const radiusMul = gradeRadiusMul(grade);
+  if (radiusMul !== 1 && rules.some((r) => r.then.radius !== undefined)) parts.push(`範囲 ${mulText(radiusMul)}`);
+  const icdMul = gradeIcdMul(grade);
+  if (icdMul !== 1 && rules.some((r) => r.icd > 0 && r.direct !== true)) parts.push(`再発動の間隔 ${mulText(icdMul)}`);
+  return `${BOON_GRADE_LABEL[grade]}: ${parts.join("、")}`;
+}
+
+/** HUD に並べる順（芯を先頭に固定し、残りは取得順） */
+export function boonHudOrder(boons: readonly BoonKey[]): BoonKey[] {
+  const cores = boons.filter((k) => boonDef(k).core === true);
+  return [...cores, ...boons.filter((k) => boonDef(k).core !== true)];
 }
 
 export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState): void {
@@ -137,7 +202,8 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   if (!c) return;
   ctx.fillStyle = COLOR_DIM_BG;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  drawText(ctx, `地下 ${state.depth} 階 - 祝福を選べ`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
+  const title = c.core === true ? CORE_TITLE : "祝福を選べ";
+  drawText(ctx, `地下 ${state.depth} 階 - ${title}`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
   drawText(ctx, "この探索のみ有効", VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
 
   // 装備・スキル石のタグと、取得済み祝福が出すタグのどちらかに一致すれば強調（なぜ出やすいかが分かる）
@@ -147,7 +213,7 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   const build = buildProfile(state);
   c.options.forEach((key, i) => {
     const def = boonDef(key);
-    drawCard(ctx, def, i, c.options.length, i === c.hover, tags, affinity(def.keywords, build));
+    drawCard(ctx, def, choiceGrade(c, i), i, c.options.length, i === c.hover, tags, affinity(def.keywords, build));
   });
   drawCurseOffer(ctx, state);
   drawLinkHint(ctx, state);
@@ -167,15 +233,15 @@ function drawLinkHint(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 「呪いを受けて 4 択」の札。受けた後は受けた呪いの名前を出す */
 function drawCurseOffer(ctx: CanvasRenderingContext2D, state: GameState): void {
   const c = state.boonChoice;
-  if (!c) return;
+  const view = curseOfferView(state);
+  if (!c || view === "none") return;
   const r = boonCurseRect();
   const cx = r.x + r.w / 2;
-  if (c.curse) {
+  if (view === "taken" && c.curse) {
     const def = boonDef(c.curse);
     drawText(ctx, `受けた呪い: ${def.name}`, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
     return;
   }
-  if (!canTakeCurse(state)) return;
   ctx.fillStyle = c.curseHover ? COLOR_CURSE_BG_HOVER : COLOR_CURSE_BG;
   ctx.fillRect(r.x, r.y, r.w, r.h);
   ctx.strokeStyle = BOON.cursedColor;
@@ -187,6 +253,7 @@ function drawCurseOffer(ctx: CanvasRenderingContext2D, state: GameState): void {
 function drawCard(
   ctx: CanvasRenderingContext2D,
   def: BoonDef,
+  grade: BoonGrade,
   index: number,
   count: number,
   hover: boolean,
@@ -195,7 +262,7 @@ function drawCard(
 ): void {
   const r = boonCardRect(index, count);
   const y = hover ? r.y - BOON_CARD.hoverLift : r.y;
-  const color = boonColor(def);
+  const color = boonCardColor(def, grade);
   const cx = r.x + r.w / 2;
 
   ctx.fillStyle = hover ? COLOR_CARD_HOVER : COLOR_CARD;
@@ -204,12 +271,18 @@ function drawCard(
   ctx.lineWidth = hover ? 2 : 1;
   ctx.strokeRect(r.x + 0.5, y + 0.5, r.w - 1, r.h - 1);
   ctx.lineWidth = 1;
+  // 芯は 1 ランに 1 つの大きな選択なので、内側にもう 1 本の枠を引いて通常の札と見分ける
+  if (def.core === true) {
+    ctx.strokeStyle = COLOR_CORE;
+    const inset = CORE_FRAME_INSET;
+    ctx.strokeRect(r.x + inset + 0.5, y + inset + 0.5, r.w - inset * 2 - 1, r.h - inset * 2 - 1);
+  }
 
   const maxWidth = r.w - CARD_PAD * 2;
   drawText(ctx, def.icon, cx, y + ICON_Y, TEXT.BIG, color, "center");
   drawText(ctx, truncateText(def.name, maxWidth, TEXT.SMALL), cx, y + NAME_Y, TEXT.SMALL, color, "center");
-  const sub = cardSubtitle(def);
-  drawText(ctx, truncateText(sub.text, maxWidth, TEXT.SMALL), cx, y + RARITY_Y, TEXT.SMALL, sub.color ?? color, "center");
+  const sub = boonCardSubtitle(def, grade);
+  if (sub.text !== "") drawText(ctx, truncateText(sub.text, maxWidth, TEXT.SMALL), cx, y + RARITY_Y, TEXT.SMALL, sub.color ?? color, "center");
 
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
   const tagY = y + r.h - KEY_Y_FROM_BOTTOM - TAGS_BOTTOM;
@@ -287,12 +360,13 @@ export function boonHudTop(count: number): number {
 /** 取得済み祝福のアイコン列。aimScreen がアイコン上なら名前と説明を出す */
 export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aimScreen: Vec | null): void {
   if (state.boons.length === 0) return;
-  let hovered: BoonDef | null = null;
-  state.boons.forEach((key, i) => {
+  let hovered: { def: BoonDef; grade: BoonGrade } | null = null;
+  boonHudOrder(state.boons).forEach((key, i) => {
     const def = boonDef(key);
+    const grade = boonGradeOf(state, key);
     const pos = hudIconPos(i);
     const used = key === "secondWind" && state.boonRun.reviveUsed;
-    const color = used ? COLOR_USED : boonColor(def);
+    const color = used ? COLOR_USED : boonCardColor(def, grade);
     ctx.fillStyle = COLOR_ICON_BG;
     ctx.fillRect(pos.x, pos.y, HUD_ICON, HUD_ICON);
     ctx.strokeStyle = color;
@@ -301,16 +375,19 @@ export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aim
     if (!aimScreen) return;
     const inside =
       aimScreen.x >= pos.x && aimScreen.x < pos.x + HUD_ICON && aimScreen.y >= pos.y && aimScreen.y < pos.y + HUD_ICON;
-    if (inside) hovered = def;
+    if (inside) hovered = { def, grade };
   });
   const rows = Math.ceil(state.boons.length / HUD_PER_ROW);
-  if (hovered) drawTooltip(ctx, hovered, rows);
+  // forEach の中の代入は TS の絞り込みから外れるので、型を明示して読み直す
+  const tip = hovered as { def: BoonDef; grade: BoonGrade } | null;
+  if (tip) drawTooltip(ctx, tip.def, tip.grade, rows);
 }
 
-/** 名前 + 説明（TIP_MAX_W で折り返す）。アイコン列の上に出す */
-function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef, rows: number): void {
+/** 名前 + 説明（TIP_MAX_W で折り返す）+ 格の行。アイコン列の上に出す */
+function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef, grade: BoonGrade, rows: number): void {
   const m = TEXT.SMALL;
-  const lines = wrapText(def.desc, TIP_MAX_W, m);
+  const gradeLine = boonGradeTipLine(def, grade);
+  const lines = [...wrapText(def.desc, TIP_MAX_W, m), ...(gradeLine ? wrapText(gradeLine, TIP_MAX_W, m) : [])];
   const widest = Math.max(textWidth(def.name, m), ...lines.map((l) => textWidth(l, m)));
   const width = Math.min(VIEW_W, Math.ceil(widest) + TIP_PAD * 2);
   const lineH = Math.max(LINE_H, textLineHeight(m));
@@ -320,8 +397,9 @@ function drawTooltip(ctx: CanvasRenderingContext2D, def: BoonDef, rows: number):
   const y = Math.max(0, VIEW_H - HUD_BOTTOM - rows * (HUD_ICON + HUD_GAP) - TIP_GAP - tipH);
   ctx.fillStyle = COLOR_ICON_BG;
   ctx.fillRect(x, y, width, tipH);
-  ctx.strokeStyle = boonColor(def);
+  const color = boonCardColor(def, grade);
+  ctx.strokeStyle = color;
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, tipH - 1);
-  drawText(ctx, def.name, x + TIP_PAD, y + lineH, m, boonColor(def));
+  drawText(ctx, def.name, x + TIP_PAD, y + lineH, m, color);
   lines.forEach((line, i) => drawText(ctx, line, x + TIP_PAD, y + lineH * (2 + i), m, COLOR_TEXT));
 }

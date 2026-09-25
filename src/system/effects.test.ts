@@ -40,6 +40,7 @@ import {
   statusSfxName,
   swingSfxName,
   updateEffects,
+  hitstop,
 } from "./effects";
 import { applyStatus } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
@@ -49,6 +50,33 @@ const DEFAULT_INFUSE = DEFAULT_STATS.infuse;
 function cause(partial: Partial<DeathCause>): DeathCause {
   return { statuses: new Set<StatusKind>(), element: "none", executed: false, silent: false, kind: "melee", crit: false, ...partial };
 }
+
+describe("ヒットストップの強度（hitstopScale）", () => {
+  it("既定（1）ではそのままのステップ数が積まれる", () => {
+    const state = createGame(1);
+    hitstop(state, 6);
+    expect(state.hitstop).toBe(6);
+  });
+
+  it("0 では積まれない", () => {
+    const state = createGame(1, "seed", undefined, undefined, undefined, 0);
+    hitstop(state, 6);
+    expect(state.hitstop, "hitstopScale 0 は無効化される").toBe(0);
+  });
+
+  it("0.5 では四捨五入で半分になる", () => {
+    const state = createGame(1, "seed", undefined, undefined, undefined, 0.5);
+    hitstop(state, 7);
+    expect(state.hitstop, "7 * 0.5 = 3.5 → 4").toBe(4);
+  });
+
+  it("範囲外の値は createGame で 0..1 にクランプされる", () => {
+    const over = createGame(1, "seed", undefined, undefined, undefined, 5);
+    expect(over.hitstopScale).toBe(1);
+    const under = createGame(1, "seed", undefined, undefined, undefined, -5);
+    expect(under.hitstopScale).toBe(0);
+  });
+});
 
 describe("演出の上限", () => {
   it("粒は EFFECTS.maxParticles を超えない（古いものから消える）", () => {

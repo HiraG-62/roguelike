@@ -186,6 +186,20 @@ describe("注目の描画", () => {
     expect(stone.calls.get("arc") ?? 0, "スキル石にも環を描く").toBeGreaterThan(0);
   });
 
+  it("showTooltip: false では環だけ描き、性能ポップアップ（fillRect）は描かない", async () => {
+    const { drawDropFocus } = await import("./dropTooltip");
+    const { dropItem } = await import("../system/loot");
+    const state = createGame(1);
+    const p = state.player.body.pos;
+    dropItem(state, p);
+    const fi = state.floorItems[state.floorItems.length - 1]!;
+    fi.pos = { x: p.x + 10, y: p.y };
+    const { ctx, calls } = fakeContext();
+    drawDropFocus(ctx, state, null, 0, 0, false);
+    expect(calls.get("arc") ?? 0, "環は描く").toBeGreaterThan(0);
+    expect(calls.get("fillRect") ?? 0, "ポップアップの矩形は描かない").toBe(0);
+  });
+
   it("注目するものが無ければ何も描かない", async () => {
     const { drawDropFocus } = await import("./dropTooltip");
     const state = createGame(1);

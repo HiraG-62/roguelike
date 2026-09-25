@@ -19,10 +19,10 @@ describe("攻撃ジャンル・属性の表示（A-8）", () => {
     expect(skillAttackLine("haste")).toBeNull();
   });
 
-  it("ステータスの箱の先頭はいまの近接の素性。弾を出せない武器種では射撃の代わりに固有技の名前を出す", () => {
+  it("ステータスの箱の先頭はいまの近接の素性。弾を出せない武器種では射撃の代わりに右の 1 段目の名前を出す", () => {
     const state = arena();
     state.stats.moveset = "sword";
-    expect(loadoutAttackLines(state.stats), "剣は撃てないので射撃の代わりに固有技").toEqual(["剣: 近接・物理 / 無属性", "受け流し: 固有技"]);
+    expect(loadoutAttackLines(state.stats), "剣は撃てないので射撃の代わりに右の技").toEqual(["剣: 近接・物理 / 無属性", "受け流し: 右の技"]);
   });
 
   it("銃の家系ではこれまで通り射撃の素性を出す", () => {
@@ -31,7 +31,7 @@ describe("攻撃ジャンル・属性の表示（A-8）", () => {
     expect(loadoutAttackLines(state.stats)).toEqual(["二丁拳銃: 遠距離・物理 / 無属性", "射撃: 遠距離・物理 / 無属性"]);
   });
 
-  it("銃以外でも固有技が弾を出す型（斧の投擲）なら射撃扱いの素性を出す", () => {
+  it("銃以外でも右の 1 段目が弾を出す型（斧の投擲）なら射撃扱いの素性を出す", () => {
     const state = arena();
     state.stats.moveset = "axe";
     expect(loadoutAttackLines(state.stats)).toEqual(["斧: 近接・物理 / 無属性", "投擲: 遠距離・物理 / 無属性"]);

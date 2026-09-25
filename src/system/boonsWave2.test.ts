@@ -84,14 +84,14 @@ describe("祝福 第 2 弾の定義", () => {
     expect(BOON_KEYS.length, "全体の数").toBe(new Set(BOON_KEYS).size);
   });
 
-  it("系譜「大地」と「刃鳴」は 4 段で、4 段目（奥義）は装備のタグを要求する", () => {
+  it("系譜「大地」と「刃鳴」は 4 段で、4 段目（真髄）は装備のタグを要求する", () => {
     for (const lineage of ["earth", "blade"] as const) {
       const steps = wave2.filter((d) => d.lineage === lineage);
       expect(steps.length, `${lineage} は 4 段`).toBe(4);
       const first = steps.filter((d) => d.after === undefined);
       expect(first.length, `${lineage} の 1 段目は 1 つ`).toBe(1);
       const last = steps.find((d) => !steps.some((o) => o.after === d.key));
-      expect(last?.requires, `${lineage} の奥義は requires を持つ`).toBeDefined();
+      expect(last?.requires, `${lineage} の真髄は requires を持つ`).toBeDefined();
     }
   });
 

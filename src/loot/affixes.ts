@@ -215,7 +215,7 @@ const BOON_ECHO_TEXT: Readonly<Record<TraitColor, string>> = {
   crimson: "近接・燃焼",
   azure: "射撃・ダッシュ・気力",
   jade: "生命・部屋",
-  gold: "コンボ・会心・必殺ゲージ・感電",
+  gold: "コンボ・会心・奥義ゲージ・感電",
   umbra: "呪い付き",
 };
 const BOON_ECHO_FIELD = {
@@ -680,7 +680,7 @@ export const AFFIXES: readonly AffixDef[] = [
   // ---- 必殺 ----
   trait({
     key: "energyGain",
-    label: "必殺ゲージ獲得 +{v}%",
+    label: "奥義ゲージ獲得 +{v}%",
     tags: ["burst"],
     slots: ["mainHand", "armor", "ring", "amulet"],
     curve: curveFor("energyGain"),
@@ -690,7 +690,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "burstDamage",
-    label: "必殺ダメージ +{v}%",
+    label: "奥義の威力 +{v}%",
     tags: ["burst", "damage"],
     slots: ["mainHand", "amulet"],
     curve: curveFor("burstDamage"),
@@ -700,7 +700,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "burstRadius",
-    label: "必殺範囲 +{v}%",
+    label: "奥義の範囲 +{v}%",
     tags: ["burst"],
     slots: ["armor", "amulet"],
     curve: curveFor("burstRadius"),
@@ -1032,7 +1032,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "arcaneBattery",
-    label: "必殺ゲージ獲得 +{v}%、必殺ダメージ -{v2}%",
+    label: "奥義ゲージ獲得 +{v}%、奥義の威力 -{v2}%",
     tags: ["burst", "tradeoff"],
     slots: ["mainHand", "armor", "ring", "amulet"],
     curve: curveFor("arcaneBattery"),
@@ -1098,7 +1098,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "energyReserve",
-    label: "必殺ゲージ満タン時に被弾: {v}秒間無敵",
+    label: "奥義ゲージ満タン時に被弾: {v}秒間無敵",
     tags: ["burst", "defense"],
     slots: ["armor", "ring", "amulet"],
     curve: curveFor("energyReserve"),
@@ -1372,7 +1372,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "manaOverflow",
-    label: "溢れ: 気力が満タンのとき、あふれた気力回収の {v}% を必殺ゲージに回す、最大気力 -{v2}",
+    label: "溢れ: 気力が満タンのとき、あふれた気力回収の {v}% を奥義ゲージに回す、最大気力 -{v2}",
     tags: ["mana", "burst", "tradeoff"],
     slots: JEWELRY_SLOTS,
     curve: curveFor("manaOverflow"),
@@ -1647,7 +1647,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "staggerCharge",
-    label: "崩れの充填: 敵を怯ませると必殺ゲージ +{v}、必殺ダメージ -{v2}%",
+    label: "崩れの充填: 敵を怯ませると奥義ゲージ +{v}、奥義の威力 -{v2}%",
     tags: ["burst", "tradeoff"],
     slots: ["mainHand", "amulet"],
     curve: curveFor("staggerCharge"),
@@ -2044,7 +2044,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "curtainCall",
     color: "gold",
     awakening: true,
-    label: "幕引き: 殲滅の瞬間に敵弾をすべて消し、必殺ゲージ +{v}",
+    label: "幕引き: 殲滅の瞬間に敵弾をすべて消し、奥義ゲージ +{v}",
     tags: ["burst"],
     slots: ALL_SLOTS,
     curve: curveFor("curtainCall"),
@@ -2168,7 +2168,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "chargeQuake",
     color: "gold",
-    label: "溜め崩し: 溜めの段 1 つにつき、近接の怯み値 +{v}%・命中で必殺ゲージ +{v2}",
+    label: "溜め崩し: 溜めの段 1 つにつき、近接の怯み値 +{v}%・命中で奥義ゲージ +{v2}",
     tags: ["melee", "burst"],
     slots: ["mainHand"],
     curve: curveFor("chargeQuake"),
@@ -2452,7 +2452,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "siegeSpark",
     color: "gold",
-    label: "封鎖の火花: 交戦中の部屋での撃破で必殺ゲージ +{v}",
+    label: "封鎖の火花: 交戦中の部屋での撃破で奥義ゲージ +{v}",
     tags: ["burst"],
     slots: ["mainHand", "amulet"],
     curve: curveFor("siegeSpark"),
@@ -2558,7 +2558,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "schoolMastery",
     color: "crimson",
     awakening: true,
-    label: "奥義: ジョブの得意武器を持つ間、与ダメージ +{v}%・撃破で気力 +{v2}",
+    label: "免許皆伝: ジョブの得意武器を持つ間、与ダメージ +{v}%・撃破で気力 +{v2}",
     tags: ["damage", "mana"],
     slots: ALL_SLOTS,
     curve: curveFor("schoolMastery"),
@@ -2584,7 +2584,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "fullCharge",
     color: "crimson",
     awakening: true,
-    label: "満ち溜め: 溜めの段 1 つにつき近接ダメージ +{v}%・命中で必殺ゲージ +{v2}",
+    label: "満ち溜め: 溜めの段 1 つにつき近接ダメージ +{v}%・命中で奥義ゲージ +{v2}",
     tags: ["melee", "burst"],
     slots: ALL_SLOTS,
     curve: curveFor("fullCharge"),
@@ -2664,7 +2664,7 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "siegeHeart",
     color: "jade",
     awakening: true,
-    label: "籠城の心: 交戦中の部屋で被ダメージ -{v}%、撃破で必殺ゲージ +{v2}",
+    label: "籠城の心: 交戦中の部屋で被ダメージ -{v}%、撃破で奥義ゲージ +{v2}",
     tags: ["defense", "burst"],
     slots: ALL_SLOTS,
     curve: curveFor("siegeHeart"),
@@ -2885,7 +2885,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_leechToEnergy",
-    label: "命中時・撃破時の生命回復の{v}%を必殺ゲージ獲得に変換",
+    label: "命中時・撃破時の生命回復の{v}%を奥義ゲージ獲得に変換",
     tags: ["conversion", "life", "burst"],
     slots: ["mainHand", "ring", "amulet"],
     curve: curveFor("cv_leechToEnergy"),
@@ -3026,7 +3026,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_energyToMana",
-    label: "必殺ゲージ獲得の上昇分の{v}%を気力回収に変換",
+    label: "奥義ゲージ獲得の上昇分の{v}%を気力回収に変換",
     tags: ["conversion", "mana", "burst"],
     slots: JEWELRY_SLOTS,
     curve: curveFor("cv_energyToMana"),
@@ -3040,7 +3040,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   trait({
     key: "cv_burstToSkill",
     color: "gold",
-    label: "必殺ダメージの上昇分の{v}%をスキル威力に変換（半分の率で）",
+    label: "奥義の威力の上昇分の{v}%をスキル威力に変換（半分の率で）",
     tags: ["conversion", "burst", "skill"],
     slots: ["mainHand", "amulet"],
     curve: curveFor("cv_burstToSkill"),
@@ -4025,7 +4025,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   // amulet
   {
     key: "implicit.jadeAmulet",
-    label: "必殺ゲージ獲得 +{v}%",
+    label: "奥義ゲージ獲得 +{v}%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
       s.energyGainMul += pct(v);
@@ -4051,7 +4051,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.lapisAmulet",
-    label: "必殺範囲 +{v}%",
+    label: "奥義の範囲 +{v}%",
     range: { min: 10, max: 15 },
     apply: (s, v) => {
       s.burstRadiusMul += pct(v);
@@ -4067,7 +4067,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.duskAmulet",
-    label: "必殺ダメージ +{v}%、必殺ゲージ獲得 -8%",
+    label: "奥義の威力 +{v}%、奥義ゲージ獲得 -8%",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
       s.burstDamageMul += pct(v);

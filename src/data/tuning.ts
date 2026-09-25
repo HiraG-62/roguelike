@@ -18,6 +18,9 @@ export const PLAYER = {
  */
 export const HEAL = BALANCE.combat.HEAL;
 
+/** 爆発の距離減衰（src/system/blast.ts）。爆心の近くほど重く、縁ほど軽い */
+export const BLAST_FALLOFF = BALANCE.combat.BLAST_FALLOFF;
+
 /** armor の被ダメ軽減（PoE 風の逓減式）。reduction = armor / (armor + ARMOR_K)、上限 ARMOR_MAX_REDUCTION */
 export const ARMOR_K = BALANCE.loot.ARMOR_K;
 export const ARMOR_MAX_REDUCTION = BALANCE.loot.ARMOR_MAX_REDUCTION;
@@ -184,6 +187,12 @@ export const BOON = BALANCE.boons.BOON;
 export const WEAPON = BALANCE.weapons.WEAPON;
 
 /**
+ * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3 章）の共通値と奥義ごとの行為の数値。
+ * 定義元は src/data/balance/ultimates.json の ULTIMATE。組み立ては src/data/ultimates.ts
+ */
+export const ULTIMATE = BALANCE.ultimates.ULTIMATE;
+
+/**
  * 攻撃ジャンル（docs/COMBAT_DESIGN.md A-8）。範囲軸 × 質軸。参照ステータスは縛らない（A-10。係数は技ごとに自由）
  */
 export const GENRE = BALANCE.combat.GENRE;
@@ -209,6 +218,12 @@ export const ELEMENT = {
  * 粒は演出専用の乱数を使うので、ここの数を変えてもゲームの乱数列は変わらない
  */
 export const EFFECTS = BALANCE.feel.EFFECTS;
+
+/**
+ * 攻撃エフェクト（src/render/fxAttack.ts / fxMath.ts・system/effects.ts の spawnBlast）。
+ * 見た目だけで、ロジックの結果に影響しない
+ */
+export const FX_ATTACK = BALANCE.feel.FX_ATTACK;
 
 /** 音楽（src/audio/music.ts）。曲の中身（音階・旋律）は music.ts の表、ここは混ぜ方と時間 */
 export const MUSIC = BALANCE.feel.MUSIC;

@@ -14,6 +14,7 @@ import { type EnemyBehavior, enemyDef } from "../data/enemies";
 import { ACTION, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource } from "../skills/types";
+import { boonGradeMul } from "./boonGrade";
 import { boonNormalAttackBonus, hasBoon } from "./boons";
 import { damageEnemy, gainEnergy, healSustained, pacifistMercyClamp, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
@@ -35,6 +36,7 @@ import {
   hasStatus,
   isFeared,
   removeStatus,
+  statusCount,
   statusStacks,
 } from "./statusEffects";
 
@@ -321,7 +323,7 @@ function updateDashThrough(state: GameState): void {
     if (!circlesOverlap(p.body.pos.x, p.body.pos.y, reach, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     r.dashHits.push(e.id);
     if (zap) inflict(state, e, "shock", STATUS.shock.duration, 1, shockPotency(state));
-    if (pass) hitProc(state, e, slashBase(state) * BOON.passCutRatio, p.body.pos, BOON.passCutPoise);
+    if (pass) hitProc(state, e, slashBase(state) * BOON.passCutRatio * boonGradeMul(state, "passCut"), p.body.pos, BOON.passCutPoise);
   }
 }
 
@@ -376,7 +378,7 @@ function applyTrail(state: GameState): void {
 
 function applyElement(state: GameState, e: Enemy, kind: Element): void {
   const s = state.stats;
-  if (kind === "burn") applyBurn(state, e, Math.max(s.burnDps, BOON.trailBurnDps), STATUS.burnDuration);
+  if (kind === "burn") applyBurn(state, e, Math.max(s.burnDps, BOON.trailBurnDps * boonGradeMul(state, "elementTrail")), STATUS.burnDuration);
   if (kind === "chill") applyChill(state, e, Math.max(s.chillSlow, BOON.trailChillSlow), STATUS.chillDuration);
   if (kind === "shock") inflict(state, e, "shock", STATUS.shock.duration, 1, shockPotency(state));
 }
@@ -458,7 +460,7 @@ function strikeMark(state: GameState, pos: Vec): void {
   spawnBurst(state, pos, STATUS.shockColor, 10, 90, 0.3, 2);
   pushSfx(state, "shock");
   for (const e of enemiesInRadius(state, pos, BOON.markRadius)) {
-    hitProc(state, e, slashBase(state) * BOON.markRatio, pos, BOON.markPoise);
+    hitProc(state, e, slashBase(state) * BOON.markRatio * boonGradeMul(state, "thunderMark"), pos, BOON.markPoise);
   }
 }
 
@@ -679,7 +681,7 @@ export function onBoonJustSteal(state: GameState): void {
     const speed = Math.max(length(pr.vel), BOON.stealMinSpeed);
     pr.owner = "player";
     pr.vel = scale(p.facing, speed);
-    pr.damage *= BOON.stealDamageMul;
+    pr.damage *= BOON.stealDamageMul * boonGradeMul(state, "bulletSteal");
     pr.kind = "ranged";
     pr.color = BOON.stealColor;
     pr.hitIds.clear();
@@ -709,7 +711,7 @@ function swallowReturn(state: GameState, wiped: number): void {
   const j = ACTION.justCounter;
   for (const e of nearestEnemies(state, p.body.pos, BOON.swallowRange, count)) {
     spawnLine(state, from, e.body.pos, j.color, j.lineLife);
-    hitProc(state, e, slashBase(state) * BOON.swallowRatio, from, BOON.swallowPoise);
+    hitProc(state, e, slashBase(state) * BOON.swallowRatio * boonGradeMul(state, "swallowReturn"), from, BOON.swallowPoise);
     from = { ...e.body.pos };
   }
   pushSfx(state, "counter");
@@ -831,8 +833,13 @@ export function onBoonSkillHitRules(state: GameState, e: Enemy | undefined): voi
 export function boonRuleCostMul(state: GameState, slot = -1): number {
   let mul = 1;
   if (hasBoon(state, "twinWheels") && rules(state).twinDiscount) mul *= BOON.twinCostMul;
-  if (hasBoon(state, "quietHall") && silencedNearby(state)) mul *= BOON.quietHallCostMul;
+  if (hasBoon(state, "quietHall") && silencedNearby(state)) mul *= quietHallCostMul(state);
   return mul * slotCostMul(state, slot);
+}
+
+/** 静寂の間の倍率。格は「下げる幅」に掛ける（0.7 → 大祝福 0.55）。0 未満にはしない */
+function quietHallCostMul(state: GameState): number {
+  return Math.max(0, 1 - (1 - BOON.quietHallCostMul) * boonGradeMul(state, "quietHall"));
 }
 
 /** スロット別のコスト倍率（織り交ぜ: 直前と同じか / 一念: スロット 1 か） */
@@ -900,10 +907,12 @@ export function tightropePenalty(state: GameState): void {
 // 新しいフック（各 system から 1〜2 行で呼ぶ）
 // -----------------------------------------------------------------------------
 
-/** combat.ts rollOutgoing: 乱数の会心に外れたとき、祝福で会心にするか（背討ち / 見定め） */
+/** combat.ts rollOutgoing: 乱数の会心に外れたとき、祝福で会心にするか（背討ち / 見定め / 病み喰い） */
 export function boonForcesCrit(state: GameState, enemy: Enemy | null, kind: DamageKind): boolean {
   if (!enemy || kind === "proc") return false;
   if (hasBoon(state, "backstab") && isFeared(enemy)) return true;
+  // 病み喰い（芯）: 悪い状態異常を plagueEaterStatuses 種以上持つ敵には必ず会心
+  if (hasBoon(state, "corePlagueEater") && statusCount(enemy.status) >= BOON.plagueEaterStatuses) return true;
   if (!hasBoon(state, "appraise") || kind !== "melee") return false;
   const p = state.player;
   const a = rules(state).appraise;
@@ -1033,7 +1042,7 @@ export function onBoonProjectileWall(state: GameState, pr: Projectile, dt: numbe
   if (pr.kind !== "ranged") return false;
   if (!bounced && hasBoon(state, "ricochet")) {
     bounceProjectile(state, pr, dt);
-    pr.damage *= BOON.ricochetDamageMul;
+    pr.damage *= BOON.ricochetDamageMul * boonGradeMul(state, "ricochet");
     pr.hitIds.clear();
     return true;
   }

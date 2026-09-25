@@ -33,7 +33,7 @@ const MAP_EXEMPT = new Set([]);
 /** 大文字の識別子だがコードではない語 */
 const IDENT_ALLOW = new Set(["DEPTHBREAKER", "APPDATA", "SIM_FULL", "YYYYMMDD"]);
 /** GLOSSARY で置き換えた旧用語。「旧アフィックス」のように 旧 を前置した説明だけ許す */
-const STALE_TERMS = ["アフィックス", "ユニーク", "キーストーン", "エリート", "ジャスト回避", "マナ", "スタガー"];
+const STALE_TERMS = ["アフィックス", "ユニーク", "キーストーン", "エリート", "ジャスト回避", "マナ", "スタガー", "バースト", "必殺ゲージ", "固有技"];
 /** プレースホルダを含む参照は検査しない */
 const PLACEHOLDER = /xxx|foo|<|\*|…/i;
 /** agents の model に許す値 */

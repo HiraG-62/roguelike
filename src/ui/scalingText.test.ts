@@ -7,7 +7,10 @@ import { SKILL_KEYS } from "../skills/types";
 import { deriveAttributes, scaled, withRatio } from "../system/attributes";
 import { shotScaling } from "../system/player";
 import {
+  FOLDED_GROUP_HEAD,
   NO_SCALING_NOTE,
+  actionListRows,
+  allFormulas,
   SKILL_SCALING_LABEL,
   SKILL_STEP_LABEL,
   attributeReferences,
@@ -25,7 +28,9 @@ import {
   skillBlock,
   skillFormulas,
   skillScalingKeys,
+  specialFormulas,
 } from "./scalingText";
+import { ULTIMATES, defaultUltimate } from "../data/ultimates";
 
 /** 実効値を直接与えた stats（逓減を通さず、式の数だけを見る） */
 function statsWith(eff: Partial<Attributes>): PlayerStats {
@@ -94,15 +99,15 @@ describe("計算式の組み立て", () => {
 });
 
 describe("武器種の計算式", () => {
-  it("全武器種で行動が 1 つ以上あり、各行動は威力と怯み値の式を持ち、名前が重ならない", () => {
+  it("全武器種で行動が 1 つ以上あり、各行動は威力と怯み値（畳んだ値を含む）を持ち、名前が重ならない", () => {
     for (const key of MOVESET_KEYS) {
       const actions = movesetFormulas(BASE_STATS, MOVESETS[key], "single");
       expect(actions.length, key).toBeGreaterThan(0);
       const names = actions.map((a) => a.name);
       expect(new Set(names).size, `${key} の行動名が重なる`).toBe(names.length);
       for (const a of actions) {
-        expect(a.formulas.map((f) => f.kind), `${key} ${a.name}`).toEqual(["power", "poise"]);
-        for (const f of a.formulas) expect(Number.isFinite(f.value), `${key} ${a.name} ${f.label}`).toBe(true);
+        expect(allFormulas(a).map((f) => f.kind), `${key} ${a.name}`).toEqual(["power", "poise"]);
+        for (const f of allFormulas(a)) expect(Number.isFinite(f.value), `${key} ${a.name} ${f.label}`).toBe(true);
       }
     }
   });
@@ -114,9 +119,38 @@ describe("武器種の計算式", () => {
       m.steps.forEach((step, i) => {
         const action = actions.find((a) => a.name === `${i + 1} 段目` || inRange(a.name, i + 1));
         expect(action, `${key} ${i + 1} 段目が見つからない`).toBeDefined();
-        expect(action?.formulas[0]?.value, `${key} ${i + 1} 段目の威力`).toBeCloseTo(scaled(BASE_STATS, step.scaling));
-        expect(action?.formulas[1]?.value, `${key} ${i + 1} 段目の怯み値`).toBeCloseTo(withRatio(BASE_STATS, step.poise, step.poiseRatio));
+        const formulas = action === undefined ? [] : allFormulas(action);
+        expect(formulas[0]?.value, `${key} ${i + 1} 段目の威力`).toBeCloseTo(scaled(BASE_STATS, step.scaling));
+        expect(formulas[1]?.value, `${key} ${i + 1} 段目の怯み値`).toBeCloseTo(withRatio(BASE_STATS, step.poise, step.poiseRatio));
       });
+    }
+  });
+
+  it("怯み値の式は左の 1 段目だけに出し、右の 2 段目以降は威力の式を出して怯み値を値だけに畳む", () => {
+    for (const key of MOVESET_KEYS) {
+      const m = MOVESETS[key];
+      const actions = movesetFormulas(BASE_STATS, m, "single");
+      const poiseFormulas = actions.filter((a) => a.formulas.some((f) => f.kind === "poise")).map((a) => a.name);
+      expect(poiseFormulas.length, `${key} 怯み値の式を持つ行動 ${poiseFormulas.join(",")}`).toBeLessThanOrEqual(2);
+      const lane = m.steps2.slice(1).filter((s) => s.kind === "swing");
+      for (const s of lane) {
+        const action = actions.find((a) => a.name === s.name);
+        if (action === undefined) continue;
+        expect(action.formulas.map((f) => f.kind), `${key} ${action.name} の威力の式`).toEqual(["power"]);
+      }
+    }
+  });
+
+  it("派生は値だけの 1 段落にまとまり、派生の名前がすべて入る", () => {
+    for (const key of MOVESET_KEYS) {
+      const m = MOVESETS[key];
+      const actions = movesetFormulas(BASE_STATS, m, "single");
+      const rows = actionListRows(actions);
+      const groups = rows.filter((r) => r[0]?.pieces[0]?.text === FOLDED_GROUP_HEAD);
+      const named = m.branches.filter((b) => b.art === undefined);
+      expect(groups.length, `${key} 派生の段落の数`).toBe(named.length > 0 ? 1 : 0);
+      const text = groups.map((g) => chunksText(g)).join("");
+      for (const b of named) expect(text.includes(b.name), `${key} ${b.name} が派生の段落に無い`).toBe(true);
     }
   });
 
@@ -203,10 +237,44 @@ describe("ステータスごとの参照している行動", () => {
       const all = [...movesetFormulas(BASE_STATS, moveset, "pistol").flatMap((a) => a.formulas), ...skills.flatMap((k) => skillFormulas(BASE_STATS, k))];
       for (const r of refs) {
         const referenced = all.some((f) => f.terms.some((t) => t.attr === r.attr));
-        // バーストの参照は武器・スキルと別に数える
+        // 奥義の参照は武器・スキルと別に数える
         if (referenced) expect(r.names.length, `${key} ${r.attr}`).toBeGreaterThan(0);
         expect(new Set(r.names).size, `${key} ${r.attr} の名前が重なる`).toBe(r.names.length);
       }
+    }
+  });
+});
+
+describe("奥義の式", () => {
+  it("奥義の式は選んでいる奥義の名前で出し、省略すると武器種の 1 本目", () => {
+    for (const key of MOVESET_KEYS) {
+      const stats = { ...BASE_STATS, moveset: key };
+      expect(specialFormulas(stats).name, `${key} の既定`).toBe(defaultUltimate(key).name);
+      for (const def of ULTIMATES[key]) expect(specialFormulas(stats, def).name, `${def.key}`).toBe(def.name);
+    }
+  });
+
+  it("威力を持つ奥義は威力の式を出し、同じ式は重ねない", () => {
+    for (const key of MOVESET_KEYS) {
+      for (const def of ULTIMATES[key]) {
+        const { formulas } = specialFormulas({ ...BASE_STATS, moveset: key }, def);
+        const texts = formulas.map((f) => formulaText(f));
+        expect(new Set(texts).size, `${def.key} の式が重なる`).toBe(texts.length);
+        if (def.kind === "instant" && def.acts.some((a) => a.kind === "nova")) {
+          expect(formulas.some((f) => f.kind === "power"), `${def.key} の周囲攻撃の威力`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("ステータスの参照先には選んでいる奥義の名前が出る", () => {
+    const set = ULTIMATES.sword;
+    const pick = set[set.length - 1] ?? set[0];
+    const refs = attributeReferences(BASE_STATS, { moveset: MOVESETS.sword, bullet: "pistol", skills: [], ultimate: pick });
+    const formulas = specialFormulas(BASE_STATS, pick).formulas;
+    for (const r of refs) {
+      const referenced = formulas.some((f) => f.terms.some((t) => t.attr === r.attr));
+      expect(r.names.includes(pick.name), `${r.attr} の参照に奥義`).toBe(referenced);
     }
   });
 });

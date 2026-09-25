@@ -165,3 +165,64 @@ export function jitterPitch(baseRatio = 1): number {
 export function safeStopTime(startAt: number, duration: number): number {
   return startAt + Math.max(duration, 0.02);
 }
+
+/** 長さの揺らぎ（±5%）。同じ音の連打で耳が疲れないよう、音程と一緒に長さもわずかに変える */
+export const DURATION_JITTER_RATIO = 0.05;
+/** 音量の揺らぎ（±8%） */
+export const LEVEL_JITTER_RATIO = 0.08;
+
+/** 1 ± ratio の範囲の揺らぎ倍率。音の揺らぎ専用（ゲームロジックの決定性には関与しない） */
+export function jitterRatio(ratio: number): number {
+  return 1 + (Math.random() * 2 - 1) * ratio;
+}
+
+/** 打撃系の減衰の終点（ピーク比）。-40dB まで指数で落としてから 0 へ閉じる */
+const PERC_FLOOR_RATIO = 0.01;
+/** 減衰の終点から無音へ閉じる時間（プチノイズを出さないため） */
+const PERC_CLOSE_SECONDS = 0.008;
+
+/**
+ * 打撃・斬撃向けの音量エンベロープ。attack で直線に立ち上がり、残りを指数で -40dB まで落とす。
+ * ADSR の直線の減衰より「叩いた」感じが出る。無音へ閉じる時刻を返す
+ */
+export function percEnvelope(gain: GainNode, startAt: number, attack: number, duration: number, peak: number): number {
+  const g = gain.gain;
+  const a = Math.max(attack, 0.0005);
+  const end = startAt + Math.max(duration, a + 0.002);
+  g.cancelScheduledValues(startAt);
+  g.setValueAtTime(MIN_RAMP_VALUE, startAt);
+  g.linearRampToValueAtTime(Math.max(peak, MIN_RAMP_VALUE), startAt + a);
+  g.exponentialRampToValueAtTime(Math.max(peak * PERC_FLOOR_RATIO, MIN_RAMP_VALUE), end);
+  g.linearRampToValueAtTime(0, end + PERC_CLOSE_SECONDS);
+  return end + PERC_CLOSE_SECONDS;
+}
+
+/** 歪みの曲線の解像度 */
+const DRIVE_CURVE_SAMPLES = 1024;
+const driveCurves = new Map<number, Float32Array<ArrayBuffer>>();
+
+/** tanh のソフトクリップ曲線（amount が大きいほど潰れて太くなる）。量ごとにキャッシュ */
+function driveCurve(amount: number): Float32Array<ArrayBuffer> {
+  const cached = driveCurves.get(amount);
+  if (cached) return cached;
+  const curve = new Float32Array(DRIVE_CURVE_SAMPLES);
+  const norm = Math.tanh(amount);
+  for (let i = 0; i < DRIVE_CURVE_SAMPLES; i++) {
+    const x = (i / (DRIVE_CURVE_SAMPLES - 1)) * 2 - 1;
+    curve[i] = Math.tanh(amount * x) / norm;
+  }
+  driveCurves.set(amount, curve);
+  return curve;
+}
+
+/**
+ * 軽いサチュレーション（WaveShaper）を作って destination へ繋ぐ。
+ * 打撃のボディ・爆発・銃声を「ビープ」でなく太い音にするため
+ */
+export function createDrive(ctx: BaseAudioContext, destination: AudioNode, amount: number): WaveShaperNode {
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = driveCurve(amount);
+  shaper.oversample = "2x";
+  shaper.connect(destination);
+  return shaper;
+}

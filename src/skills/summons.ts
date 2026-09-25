@@ -1,10 +1,11 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { shake, spawnBurst, spawnRing } from "../system/effects";
+import { shake, spawnBlast, spawnBurst, spawnRing } from "../system/effects";
 import { gainMana } from "../system/mana";
 import { circlesOverlap, overlapsWall } from "../system/physics";
+import { blastMulAt } from "../system/blast";
 import { enemiesInRadius } from "../system/statusEffects";
-import { SKILL } from "./data";
+import { SKILL, SKILL_DEFS } from "./data";
 import { angleDiff } from "./geom";
 import { skillHit, skillPower } from "./hit";
 import { spawnShot } from "./shots";
@@ -141,13 +142,15 @@ function detonate(state: GameState, k: PowderKeg, blown: Set<number>): void {
 export function explodeKeg(state: GameState, pos: Vec, params: CastParams): void {
   const kp = SKILL.powderKeg;
   const radius = kegRadius(params);
-  spawnRing(state, pos, radius, COLOR_KEG, RING_LIFE * 2);
+  spawnBlast(state, pos, radius, COLOR_KEG, RING_LIFE * 2);
   spawnBurst(state, pos, "#ffb060", BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_KEG);
   pushSfx(state, "explode");
   const power = skillPower(state, kp.damage, params);
+  const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: kp.knockback, stagger: true, from: pos });
+    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: kp.knockback * mul, stagger: true, poise: poise * mul, from: pos });
   }
 }
 
