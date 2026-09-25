@@ -1,0 +1,54 @@
+{
+  "_note": "杖の武器技（skills/arts/guns.ts）。6 属性の魔法を撃ち分ける。参照は精神+霊力（術理、docs/STATS_AND_SCALING.md 3 章）",
+  "wandFlare": {
+    "cost": 16, "minInterval": 0.4, "poise": 8,
+    "ball": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.7, "bulletRadius": 5, "damage": { "base": 10, "mnd": 0.5, "spi": 1 }, "knockback": 50, "burn": { "stacks": 1, "duration": 3, "potency": 3 } }
+  },
+  "wandFrostBolt": {
+    "cost": 17, "minInterval": 0.45, "poise": 8,
+    "bolt": { "count": 1, "spreadDeg": 0, "speed": 220, "life": 0.6, "bulletRadius": 5, "pierce": 1, "damage": { "base": 9, "mnd": 0.5, "spi": 0.9 }, "knockback": 40, "chill": { "stacks": 2, "duration": 2, "potency": 0 } }
+  },
+  "wandLightning": {
+    "cost": 20, "minInterval": 0.55, "poise": 14, "range": 120,
+    "bolt": { "radius": 30, "damage": { "base": 12, "mnd": 0.6, "spi": 1 }, "knockback": 50, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+  },
+  "wandVenom": {
+    "cost": 18, "minInterval": 0.55, "poise": 6, "range": 120,
+    "ball": { "radius": 30, "damage": { "base": 7, "spi": 1 }, "knockback": 20, "poison": { "stacks": 2, "duration": 5, "potency": 0 }, "terrainRadius": 22, "terrainTime": 5 }
+  },
+  "wandVortex": {
+    "cost": 22, "minInterval": 0.7, "poise": 18, "range": 120,
+    "gather": { "radius": 64, "toDistance": 14, "damage": { "base": 8, "mnd": 0.4, "spi": 0.8 }, "knockback": 0 }
+  },
+  "wandHolyRay": {
+    "cost": 19, "minInterval": 0.5, "poise": 10,
+    "ray": { "length": 90, "width": 14, "damage": { "base": 13, "mnd": 0.6, "spi": 0.8 }, "knockback": 50 }
+  },
+  "wandDarkOrb": {
+    "cost": 16, "minInterval": 0.45, "poise": 8,
+    "orb": { "count": 1, "spreadDeg": 0, "speed": 140, "life": 1, "bulletRadius": 6, "damage": { "base": 9, "mnd": 0.4, "spi": 1 }, "knockback": 20, "weaken": { "stacks": 1, "duration": 4, "potency": 0 } }
+  },
+  "wandBlizzard": {
+    "cost": 27, "minInterval": 0.8, "poise": 8, "range": 130,
+    "s1": { "radius": 28, "damage": { "base": 5.5, "spi": 0.7 }, "knockback": 30, "chill": { "stacks": 1, "duration": 1.5, "potency": 0 } },
+    "s2": { "delay": 0.2, "radius": 28, "damage": { "base": 5.5, "spi": 0.7 }, "knockback": 30, "chill": { "stacks": 1, "duration": 1.5, "potency": 0 } },
+    "s3": { "delay": 0.4, "radius": 28, "damage": { "base": 5.5, "spi": 0.7 }, "knockback": 30, "chill": { "stacks": 1, "duration": 1.5, "potency": 0 } },
+    "s4": { "delay": 0.6, "radius": 32, "damage": { "base": 6.5, "spi": 0.9 }, "knockback": 70, "chill": { "stacks": 2, "duration": 2, "potency": 0 } }
+  },
+  "wandFireWall": {
+    "cost": 21, "minInterval": 0.6, "poise": 10,
+    "wall": { "length": 70, "width": 20, "damage": { "base": 9, "mnd": 0.4, "spi": 0.8 }, "knockback": 40, "terrainRadius": 20, "terrainTime": 4 }
+  },
+  "wandArcaneMissile": {
+    "cost": 18, "minInterval": 0.5, "poise": 5,
+    "missiles": { "count": 5, "spreadDeg": 10, "speed": 230, "life": 0.5, "bulletRadius": 3, "damage": { "base": 4.4, "mnd": 0.4, "spi": 0.4 }, "knockback": 20 }
+  },
+  "wandMeteor": {
+    "cost": 31, "minInterval": 0.8, "poise": 40, "range": 140,
+    "fall": { "delay": 0.7, "radius": 44, "damage": { "base": 27, "mnd": 0.8, "spi": 1.6 }, "knockback": 240, "heavy": true, "burn": { "stacks": 2, "duration": 3, "potency": 3 }, "terrainRadius": 30, "terrainTime": 3 }
+  },
+  "wandChain": {
+    "cost": 18, "minInterval": 0.45, "poise": 8, "range": 130,
+    "arc": { "range": 36, "jumps": 3, "jumpRange": 60, "damage": { "base": 7.5, "mnd": 0.4, "spi": 1 }, "knockback": 20, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "_note": "砲の武器技（skills/arts/guns.ts）。最も重い一撃と爆発・地形・設置弾との連動。参照は精神+霊力（手砲、docs/STATS_AND_SCALING.md 3 章）",
+  "cannonBlast": {
+    "cost": 22, "minInterval": 0.6, "poise": 16,
+    "blast": { "count": 1, "spreadDeg": 0, "speed": 210, "life": 0.7, "bulletRadius": 6, "damage": { "base": 14, "mnd": 0.6, "spi": 0.6 }, "knockback": 90, "heavy": true }
+  },
+  "cannonGrapeshot": {
+    "cost": 23, "minInterval": 0.65, "poise": 8,
+    "grape": { "count": 9, "spreadDeg": 8, "speed": 180, "life": 0.35, "bulletRadius": 5, "damage": { "base": 4.2, "mnd": 0.3, "spi": 0.3 }, "knockback": 30 }
+  },
+  "cannonRecoil": {
+    "cost": 19, "minInterval": 0.5, "poise": 8,
+    "recoil": { "distance": -60, "invuln": 0.25 },
+    "shot": { "delay": 0.12, "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.6, "bulletRadius": 5, "damage": { "base": 10, "mnd": 0.6, "spi": 0.5 }, "knockback": 60 }
+  },
+  "cannonBarrage": {
+    "cost": 26, "minInterval": 0.8, "poise": 8, "range": 130,
+    "s1": { "radius": 30, "damage": { "base": 8, "mnd": 0.5, "spi": 0.5 }, "knockback": 60 },
+    "s2": { "delay": 0.25, "radius": 30, "damage": { "base": 8, "mnd": 0.5, "spi": 0.5 }, "knockback": 60 },
+    "s3": { "delay": 0.5, "radius": 34, "damage": { "base": 9, "mnd": 0.5, "spi": 0.5 }, "knockback": 100 }
+  },
+  "cannonShockwave": {
+    "cost": 20, "minInterval": 0.6, "poise": 14,
+    "push": { "length": 60, "width": 30, "damage": { "base": 10, "mnd": 0.5, "spi": 0.4 }, "knockback": 260 }
+  },
+  "cannonNapalm": {
+    "cost": 21, "minInterval": 0.6, "poise": 8, "range": 110,
+    "napalm": { "radius": 34, "damage": { "base": 9, "spi": 0.8 }, "knockback": 50, "burn": { "stacks": 2, "duration": 3, "potency": 3 }, "terrainRadius": 28, "terrainTime": 4 }
+  },
+  "cannonChainShot": {
+    "cost": 19, "minInterval": 0.55, "poise": 8,
+    "chain": { "count": 1, "spreadDeg": 0, "speed": 220, "life": 0.8, "bulletRadius": 5, "bounces": 3, "damage": { "base": 10, "mnd": 0.6, "spi": 0.5 }, "knockback": 50 }
+  },
+  "cannonPointBlank": {
+    "cost": 22, "minInterval": 0.6, "poise": 12,
+    "blast": { "radius": 40, "damage": { "base": 10, "mnd": 0.5, "spi": 0.5 }, "knockback": 160 },
+    "jump": { "delay": 0.05, "distance": -56, "invuln": 0.25 }
+  },
+  "cannonMortar": {
+    "cost": 28, "minInterval": 0.8, "poise": 38, "range": 140,
+    "fall": { "delay": 0.7, "radius": 42, "damage": { "base": 22, "mnd": 0.8, "spi": 1 }, "knockback": 220, "heavy": true }
+  },
+  "cannonFrost": {
+    "cost": 20, "minInterval": 0.6, "poise": 8, "range": 110,
+    "frost": { "radius": 36, "damage": { "base": 7, "mnd": 0.5, "spi": 0.5 }, "knockback": 60, "chill": { "stacks": 3, "duration": 2, "potency": 0 }, "terrainRadius": 26, "terrainTime": 4 }
+  },
+  "cannonDetonate": {
+    "cost": 21, "minInterval": 0.6, "poise": 14,
+    "det": {},
+    "blast": { "radius": 40, "damage": { "base": 9, "mnd": 0.5, "spi": 0.5 }, "knockback": 160 }
+  }
+}

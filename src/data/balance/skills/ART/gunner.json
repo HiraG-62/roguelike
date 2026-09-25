@@ -1,0 +1,55 @@
+{
+  "_note": "二丁拳銃の武器技（skills/arts/guns.ts）。手数と持ち替えの速さで稼ぐ。参照は技巧+精神（狙い、docs/STATS_AND_SCALING.md 3 章）",
+  "gunnerFanFire": {
+    "cost": 18, "minInterval": 0.45, "poise": 8,
+    "fan": { "count": 5, "spreadDeg": 14, "speed": 260, "life": 0.4, "bulletRadius": 3, "damage": { "base": 7.5, "dex": 0.6, "mnd": 0.4 }, "knockback": 40 }
+  },
+  "gunnerBulletDance": {
+    "cost": 20, "minInterval": 0.6, "poise": 6,
+    "dance": { "count": 8, "spreadDeg": 45, "speed": 200, "life": 0.5, "bulletRadius": 4, "damage": { "base": 4.4, "dex": 0.4, "mnd": 0.3 }, "knockback": 20 }
+  },
+  "gunnerDiveShot": {
+    "cost": 19, "minInterval": 0.5, "poise": 10,
+    "dive": { "distance": 70, "width": 18, "invuln": 0.25 },
+    "shot": { "delay": 0.12, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 4, "damage": { "base": 9, "dex": 0.7, "mnd": 0.5 }, "knockback": 50 }
+  },
+  "gunnerDoubleTap": {
+    "cost": 20, "minInterval": 0.55, "poise": 10,
+    "t1": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.5, "bulletRadius": 4, "damage": { "base": 12, "dex": 1, "mnd": 0.6 }, "knockback": 40 },
+    "t2": { "delay": 0.12, "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.5, "bulletRadius": 4, "damage": { "base": 12, "dex": 1, "mnd": 0.6 }, "knockback": 40 }
+  },
+  "gunnerRicochet": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "bounce": { "count": 1, "spreadDeg": 0, "speed": 220, "life": 0.9, "bulletRadius": 4, "bounces": 3, "pierce": 1, "damage": { "base": 9, "dex": 0.8, "mnd": 0.5 }, "knockback": 40 }
+  },
+  "gunnerBarrage": {
+    "cost": 22, "minInterval": 0.6, "poise": 3,
+    "s1": { "count": 1, "spreadDeg": 0, "speed": 250, "life": 0.4, "bulletRadius": 3, "damage": { "base": 4, "dex": 0.4, "mnd": 0.2 }, "knockback": 15 },
+    "s2": { "delay": 0.08, "count": 1, "spreadDeg": 0, "speed": 250, "life": 0.4, "bulletRadius": 3, "damage": { "base": 4, "dex": 0.4, "mnd": 0.2 }, "knockback": 15 },
+    "s3": { "delay": 0.16, "count": 1, "spreadDeg": 0, "speed": 250, "life": 0.4, "bulletRadius": 3, "damage": { "base": 4, "dex": 0.4, "mnd": 0.2 }, "knockback": 15 },
+    "s4": { "delay": 0.24, "count": 1, "spreadDeg": 0, "speed": 250, "life": 0.4, "bulletRadius": 3, "damage": { "base": 4, "dex": 0.4, "mnd": 0.2 }, "knockback": 15 },
+    "s5": { "delay": 0.32, "count": 1, "spreadDeg": 0, "speed": 250, "life": 0.4, "bulletRadius": 3, "damage": { "base": 4, "dex": 0.4, "mnd": 0.2 }, "knockback": 15 },
+    "s6": { "delay": 0.4, "count": 1, "spreadDeg": 0, "speed": 250, "life": 0.4, "bulletRadius": 3, "damage": { "base": 4, "dex": 0.4, "mnd": 0.2 }, "knockback": 15 }
+  },
+  "gunnerPistolWhip": {
+    "cost": 17, "minInterval": 0.5, "poise": 34,
+    "whip": { "reach": 28, "deg": 100, "damage": { "base": 14, "str": 0.8, "dex": 0.8 }, "knockback": 170, "heavy": true }
+  },
+  "gunnerBlast": {
+    "cost": 22, "minInterval": 0.6, "poise": 10, "range": 110,
+    "blast": { "radius": 34, "damage": { "base": 11, "mnd": 0.6, "spi": 0.4 }, "knockback": 120 }
+  },
+  "gunnerBackflip": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "flip": { "distance": -60, "invuln": 0.3 },
+    "shot": { "delay": 0.12, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 4, "damage": { "base": 9, "dex": 0.8, "mnd": 0.5 }, "knockback": 40 }
+  },
+  "gunnerTrickShot": {
+    "cost": 19, "minInterval": 0.5, "poise": 8, "range": 130,
+    "curve": { "range": 40, "jumps": 3, "jumpRange": 70, "damage": { "base": 7, "dex": 0.5, "mnd": 0.6 }, "knockback": 20 }
+  },
+  "gunnerQuickDraw": {
+    "cooldown": 12, "minInterval": 0.3, "poise": 0,
+    "draw": { "duration": 5, "damageMul": 1.25, "self": { "haste": { "stacks": 1, "duration": 5, "potency": 0 } } }
+  }
+}
