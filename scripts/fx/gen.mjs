@@ -5,7 +5,7 @@
 //
 //   node scripts/fx/gen.mjs                         全アトラスを描いて書き出す
 //   node scripts/fx/gen.mjs --atlas greatsword,axe  指定したアトラスだけ描き直す（他の生成物はそのまま。並列作業で互いを上書きしない）
-//   node scripts/fx/gen.mjs --only <key> --preview <dir> [--dirs 0,3] [--scale 4]
+//   node scripts/fx/gen.mjs --only <key> --preview <dir> [--dirs 0,3] [--scale 4] [--ramps brass,fire]
 //                                                   シートの key の前方一致で、配色済みの確認用 PNG だけ描く（生成物は書かない）
 //   node scripts/fx/gen.mjs --check [--atlas …]     書き出さずに、今のファイルと一致するかだけ見る（一致しなければ非 0）
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
@@ -174,7 +174,7 @@ function writePreview(dir, a) {
     const pick = dirsArg
       ? dirsArg.split(",").map((v) => Number(v) % sheet.dirs)
       : [...new Set([0, sheet.dirs / 8, (sheet.dirs * 3) / 8, (sheet.dirs * 6) / 8].map((v) => Math.round(v) % sheet.dirs))];
-    const ramps = ["steel", "fire"];
+    const ramps = argValue("--ramps")?.split(",") ?? ["steel", "fire"];
     const rows = pick.length * ramps.length;
     const cw = sheet.size * SCALE;
     const w = cw * sheet.frames;

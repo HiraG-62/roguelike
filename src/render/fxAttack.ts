@@ -16,7 +16,8 @@ import type { GameMap } from "../map/grid";
 import { critFlashActive } from "./effectsUi";
 import type { FxSheetKey } from "../data/fxSheets.gen";
 import { type FxRampKey, type FxSpriteBank, lifeFrame, sheetDef } from "./fxSprites";
-import { MOVESET_FX, rampOfElement } from "./fxMotions";
+import { type BulletFx, MOVESET_FX, rampOfElement } from "./fxMotions";
+import { shotFx, shotRamp } from "./fxShots";
 import { clamp01, easeOutCubic, hash01, swingSign } from "./renderMath";
 import {
   type Point,
@@ -52,6 +53,8 @@ const MELEE_REACH_PAD = 12;
 /** 弱点の割れの印を「今の命中」とみなす経過秒と距離 */
 const WEAK_MARK_AGE = 0.05;
 const WEAK_MARK_DIST = 2;
+/** 弾の命中とみなす距離の余裕（弾が 1 tick に進む距離の倍数。速い弾が敵の手前で消えても拾う） */
+const SHOT_HIT_TICKS = 1.5;
 /** 1 tick に同じ場所から出た弾の銃口の閃光は 1 つにまとめる（散弾・二丁拳銃） */
 const MUZZLE_MERGE_PX = 3;
 /** 弾が消えた位置は最後に見た位置から 1 tick ぶん進めた所（壁・敵の手前で止まって見えないように） */
@@ -94,10 +97,14 @@ interface ShotSeen {
   y: number;
   vx: number;
   vy: number;
+  radius: number;
   life: number;
   color: string;
   owner: Projectile["owner"];
   style: BulletStyle;
+  /** 弾の専用スプライトと配色（撃った瞬間に決める） */
+  fx?: BulletFx;
+  ramp?: FxRampKey;
 }
 
 /** 弾の見た目の系統（弾の性質から 1 つ） */
@@ -110,6 +117,8 @@ interface Layer {
   flashes: Map<number, number>;
   enemies: Map<number, { x: number; y: number }>;
   shots: Map<number, ShotSeen>;
+  /** この tick に敵への命中の絵を出した弾（消えたときに着弾の絵を重ねない） */
+  struck: Set<number>;
   blasts: WeakSet<ShapeFx>;
   events: FxEvent[];
   scorches: Scorch[];
@@ -127,6 +136,7 @@ function layerOf(state: GameState): Layer {
     flashes: new Map(),
     enemies: new Map(),
     shots: new Map(),
+    struck: new Set(),
     blasts: new WeakSet(),
     events: [],
     scorches: [],
@@ -219,7 +229,34 @@ function onEnemyHit(state: GameState, layer: Layer, e: Enemy): void {
   ev.color = crit ? c.critColor : hitColor(state, false);
   ev.crit = crit || weak;
   ev.seed += e.id * 7;
+  attachShotHit(layer, ev, e);
   pushEvent(layer, ev);
+}
+
+/**
+ * 弾の命中: 前の tick にその敵の近くにいた自分の弾を当てた弾とみなし、弾の命中の絵を付ける。
+ * 当てた弾は struck に入れ、同じ tick に消えても着弾の絵を重ねない
+ */
+function attachShotHit(layer: Layer, ev: FxEvent, e: Enemy): void {
+  let best: [number, ShotSeen] | undefined;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const entry of layer.shots) {
+    const s = entry[1];
+    if (s.owner !== "player" || !s.fx) continue;
+    const reach = e.body.radius + s.radius + Math.hypot(s.vx, s.vy) * SIXTY * SHOT_HIT_TICKS;
+    const d = Math.hypot(e.body.pos.x - s.x, e.body.pos.y - s.y);
+    if (d > reach || d >= bestDist) continue;
+    best = entry;
+    bestDist = d;
+  }
+  if (!best) return;
+  const [id, s] = best;
+  if (!s.fx) return;
+  layer.struck.add(id);
+  ev.sheet = s.fx.hit ?? s.fx.impact;
+  ev.life = FX_ATTACK.sprite.impactLife;
+  ev.ramp = ev.crit ? "light" : s.ramp;
+  ev.angle = Math.atan2(s.vy, s.vx);
 }
 
 /** 武器種に命中のスプライトがあれば、重さでシートを選び、寿命をスプライトの時間に合わせる。会心は金の配色 */
@@ -257,7 +294,7 @@ function syncEnemies(state: GameState, layer: Layer, emit: boolean): void {
   }
 }
 
-function onShotBorn(state: GameState, layer: Layer, pr: Projectile, style: BulletStyle, merged: Point[]): void {
+function onShotBorn(state: GameState, layer: Layer, pr: Projectile, style: BulletStyle, merged: Point[], seen: ShotSeen): void {
   if (pr.owner !== "player") return;
   if (merged.some((m) => Math.abs(m.x - pr.pos.x) <= MUZZLE_MERGE_PX && Math.abs(m.y - pr.pos.y) <= MUZZLE_MERGE_PX)) return;
   merged.push({ x: pr.pos.x, y: pr.pos.y });
@@ -265,12 +302,18 @@ function onShotBorn(state: GameState, layer: Layer, pr: Projectile, style: Bulle
   ev.angle = Math.atan2(pr.vel.y, pr.vel.x);
   ev.color = pr.color;
   ev.style = style;
+  if (seen.fx?.muzzle) {
+    ev.sheet = seen.fx.muzzle;
+    ev.life = FX_ATTACK.sprite.muzzleLife;
+    ev.ramp = seen.ramp;
+  }
   pushEvent(layer, ev);
 }
 
-function onShotGone(state: GameState, layer: Layer, s: ShotSeen, dt: number): void {
-  // 爆発する弾は spawnBlast の輪が描く
+function onShotGone(state: GameState, layer: Layer, s: ShotSeen, dt: number, struck: boolean): void {
+  // 爆発する弾は spawnBlast の輪が描く。敵に当てて消えた弾は命中の絵を出したので重ねない
   if (s.style === "mine" || s.style === "lob") return;
+  if (struck && s.fx) return;
   const lead = dt * VANISH_LEAD;
   const x = s.x + s.vx * lead;
   const y = s.y + s.vy * lead;
@@ -282,6 +325,11 @@ function onShotGone(state: GameState, layer: Layer, s: ShotSeen, dt: number): vo
   ev.color = s.owner === "enemy" ? FX_ATTACK.bullet.enemyColor : s.color;
   ev.style = s.style;
   ev.scale = s.style === "charge" ? FX_ATTACK.muzzle.chargeMul : s.style === "spread" ? 0.7 : 1;
+  if (s.fx) {
+    ev.sheet = fizzle ? (s.fx.fizzle ?? s.fx.impact) : s.fx.impact;
+    ev.life = fizzle ? FX_ATTACK.sprite.fizzleLife : FX_ATTACK.sprite.impactLife;
+    ev.ramp = s.ramp;
+  }
   pushEvent(layer, ev);
 }
 
@@ -292,14 +340,18 @@ function syncShots(state: GameState, layer: Layer, emit: boolean, dt: number): v
     seen.add(pr.id);
     const known = layer.shots.get(pr.id);
     const style = known?.style ?? projectileStyle(pr);
-    if (!known && emit) onShotBorn(state, layer, pr, style, merged);
-    layer.shots.set(pr.id, { x: pr.pos.x, y: pr.pos.y, vx: pr.vel.x, vy: pr.vel.y, life: pr.life, color: pr.color, owner: pr.owner, style });
+    const fx = known ? known.fx : shotFx(pr);
+    const ramp = known ? known.ramp : fx ? shotRamp(state, pr, fx) : undefined;
+    const now: ShotSeen = { x: pr.pos.x, y: pr.pos.y, vx: pr.vel.x, vy: pr.vel.y, radius: pr.radius, life: pr.life, color: pr.color, owner: pr.owner, style, fx, ramp };
+    if (!known && emit) onShotBorn(state, layer, pr, style, merged, now);
+    layer.shots.set(pr.id, now);
   }
   for (const [id, s] of layer.shots) {
     if (seen.has(id)) continue;
-    if (emit) onShotGone(state, layer, s, dt);
+    if (emit) onShotGone(state, layer, s, dt, layer.struck.has(id));
     layer.shots.delete(id);
   }
+  layer.struck.clear();
 }
 
 function syncBlasts(state: GameState, layer: Layer): void {
@@ -532,13 +584,13 @@ export function drawAttackAir(ctx: CanvasRenderingContext2D, state: GameState, g
         if (!drawEventSprite(ctx, ev, age, bank)) drawSlashSpark(ctx, ev, age, glow);
         break;
       case "impact":
-        drawImpact(ctx, ev, age, glow);
+        if (!drawEventSprite(ctx, ev, age, bank)) drawImpact(ctx, ev, age, glow);
         break;
       case "muzzle":
-        drawMuzzle(ctx, ev, age, glow);
+        if (!drawEventSprite(ctx, ev, age, bank)) drawMuzzle(ctx, ev, age, glow);
         break;
       case "fizzle":
-        drawFizzle(ctx, ev, age);
+        if (!drawEventSprite(ctx, ev, age, bank)) drawFizzle(ctx, ev, age);
         break;
     }
   }
@@ -991,9 +1043,13 @@ function drawLine(ctx: CanvasRenderingContext2D, s: ShapeFx): void {
  * state.shapes（輪・線・爆発）を描く。skipSwingTrail が true なら振りの残像の線（ShapeFx.swingTrail）を描かない
  * （武器種の専用スプライトが振りを描くので、手続きの線が重なって二重に見えるのを避ける）
  */
-export function drawShapeFx(ctx: CanvasRenderingContext2D, shapes: readonly ShapeFx[], glow: GlowFn, skipSwingTrail = false): void {
+/**
+ * 輪・線・爆発を描く。override が true を返した図形は描かない（スプライトで描いた・スプライトに任せて省く。
+ * 振りの残像の線・奥義の輪・弾の炸裂）
+ */
+export function drawShapeFx(ctx: CanvasRenderingContext2D, shapes: readonly ShapeFx[], glow: GlowFn, override?: (s: ShapeFx) => boolean): void {
   for (const s of shapes) {
-    if (skipSwingTrail && s.swingTrail) continue;
+    if (override?.(s)) continue;
     if (s.kind === "ring") {
       if (isBlastShape(s)) drawBlast(ctx, s, glow);
       else drawRing(ctx, s);
@@ -1131,8 +1187,8 @@ function drawOneParticle(ctx: CanvasRenderingContext2D, p: Particle, time: numbe
 }
 
 /** state.particles を属性ごとの形で描く。速い粒は速度の向きに短い尾を引く */
-export function drawParticleFx(ctx: CanvasRenderingContext2D, particles: readonly Particle[], time: number): void {
-  for (const p of particles) drawOneParticle(ctx, p, time);
+export function drawParticleFx(ctx: CanvasRenderingContext2D, particles: readonly Particle[], time: number, skip?: (p: Particle) => boolean): void {
+  for (const p of particles) if (!skip?.(p)) drawOneParticle(ctx, p, time);
   ctx.globalAlpha = 1;
   ctx.lineWidth = 1;
 }

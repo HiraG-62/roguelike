@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, loopFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
-import { MOVESET_FX, mirrorFlip, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
+import { BULLET_FX, MOVESET_FX, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
+import { ultPiece } from "./fxUltimate";
+import { BULLETS } from "../loot/bullets";
+import { BASES, baseFamily } from "../loot/bases";
+import { movesetCasts } from "../data/weapons";
+import { ultimateDef } from "../data/ultimates";
 import { ELEMENTS } from "../core/element";
 
 const SHEET_KEYS = Object.keys(FX_SHEETS) as FxSheetKey[];
@@ -178,5 +183,63 @@ describe("fxMotions: 武器種のモーションの表", () => {
       }
     }
     expect(MOVESET_FX.flail?.holds.flailWhirl).toBeDefined();
+  });
+});
+
+/** 武器種が撃つ弾の key（銃のベースの弾・右の弾の段・振りの cast） */
+function movesetBulletKeys(moveset: MovesetKey): string[] {
+  const def = MOVESETS[moveset];
+  const bases = BASES.filter((b) => b.moveset === moveset && baseFamily(b) === "gun").map((b) => b.key);
+  const volleys = def.steps2.flatMap((s) => (s.kind === "volley" ? [s.throw.bullet.key] : []));
+  const casts = movesetCasts(def).map((c) => c.throw.bullet.key);
+  return [...new Set([...bases, ...volleys, ...casts])];
+}
+
+describe("fxMotions: 弾の絵の表", () => {
+  it("表の弾の key は実在し、壊れた行が無い", () => {
+    for (const raw of FX_MOVESET_RAW) {
+      const bullets = raw && "bullets" in raw ? (raw.bullets as Record<string, unknown>) : {};
+      for (const key of Object.keys(bullets)) {
+        expect(BULLETS[key], `${raw?.moveset} の弾 ${key}`).toBeDefined();
+        expect(BULLET_FX.get(key), `${raw?.moveset} の弾 ${key} の行`).toBeDefined();
+      }
+    }
+  });
+
+  it("弾の表を持つ武器種は、撃つ弾（ベース・右の弾の段・cast）をすべて持つ", () => {
+    for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
+      if (!fx || Object.keys(fx.bullets).length === 0) continue;
+      for (const key of movesetBulletKeys(moveset as MovesetKey)) expect(fx.bullets[key], `${moveset} の弾 ${key}`).toBeDefined();
+    }
+  });
+});
+
+describe("fxMotions: 奥義の絵の表", () => {
+  it("表の奥義は実在し、アトラスは奥義の武器種の `<武器種>Ult`", () => {
+    for (const [key, fx] of Object.entries(ULTIMATE_FX)) {
+      const def = ultimateDef(key);
+      expect(def, key).toBeDefined();
+      const sheets = [fx.cast, ...fx.acts, fx.target, ...fx.ends, fx.aura, fx.quake, fx.sustain].flatMap((p) => (p ? [p.sheet] : []));
+      expect(sheets.length, `${key} に絵がある`).toBeGreaterThan(0);
+      for (const sheet of sheets) expect(FX_SHEETS[sheet].atlas, `${key} ${sheet}`).toBe(`${def?.moveset}${ULT_ATLAS_SUFFIX}`);
+    }
+  });
+
+  it("絵の出来事は奥義の定義に合う（行為の番号・引き寄せ・纏い・衝撃波・持続・弾）", () => {
+    for (const [key, fx] of Object.entries(ULTIMATE_FX)) {
+      const def = ultimateDef(key);
+      if (!def) continue;
+      const acts = def.kind === "instant" ? def.acts : [];
+      const ends = def.kind === "sustain" ? (def.sustain.onEnd ?? []) : [];
+      expect(fx.acts.length, `${key} acts`).toBeLessThanOrEqual(acts.length);
+      expect(fx.ends.length, `${key} ends`).toBeLessThanOrEqual(ends.length);
+      if (fx.target) expect([...acts, ...ends].some((a) => a.kind === "pull"), `${key} target は引き寄せだけ`).toBe(true);
+      if (fx.aura) expect(def.kind === "sustain" && def.sustain.aura, `${key} aura`).toBeTruthy();
+      if (fx.quake) expect(def.kind === "sustain" && def.sustain.hitQuake, `${key} quake`).toBeTruthy();
+      if (fx.sustain) expect(def.kind, `${key} sustain`).toBe("sustain");
+      for (const i of Object.keys(fx.shots)) expect(acts[Number(i)]?.kind, `${key} の弾 ${i}`).toBe("volley");
+      // 絵の表の行は壊れていない（載せた番号の絵が引ける）
+      fx.acts.forEach((p, i) => p && expect(ultPiece(fx, { part: "act", index: i }), `${key} act ${i}`).toBe(p));
+    }
   });
 });

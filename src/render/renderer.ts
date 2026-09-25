@@ -15,7 +15,7 @@ import { describeResonance } from "../loot/describe";
 import { RARITY_COLOR, SLOTS, type Rarity } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
-import { ultimateCost } from "../system/ultimates";
+import { chosenUltimate, ultimateCost } from "../system/ultimates";
 import {
   type MeleeStep,
   currentMeleeStep,
@@ -59,7 +59,7 @@ import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
-import { ELEMENT_FX_COLOR, hitElement, itemTraitColor } from "../system/effects";
+import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
 import { EFFECTS, FX_ATTACK } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
@@ -88,9 +88,11 @@ import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
+import { drawBlastSprite, drawShotSprite } from "./fxShots";
+import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
 import { type FxDrawOpts, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, swingFrame } from "./fxSprites";
-import { type FxMotion, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement } from "./fxMotions";
+import { type FxMotion, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -714,7 +716,8 @@ export class Renderer {
 
     if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
     // 装備中の武器種のエフェクトのアトラスだけを持つ（持ち替えたら前の武器種の分を捨てて読み直す）
-    this.fxBank.focus(movesetAtlas(playerMoveset(state).key));
+    const moveset = playerMoveset(state).key;
+    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset)]);
     this.track(state);
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
@@ -1197,16 +1200,24 @@ export class Renderer {
   /** 衝撃波リングと連鎖雷 */
   /** 輪・線・爆発の段階（fxAttack.ts） */
   private drawShapes(state: GameState): void {
-    // 専用スプライトが読めている武器種は、振りの残像の線をスプライトに任せる
+    // 専用スプライトが読めている武器種は、振りの残像の線をスプライトに任せる。奥義の輪・線は奥義の絵に、弾の炸裂は弾の絵に任せる
     const atlas = movesetAtlas(playerMoveset(state).key);
-    drawShapeFx(this.ctx, state.shapes, this.fxSprites.glow, atlas !== undefined && this.fxBank.ready(atlas));
+    const skipTrail = atlas !== undefined && this.fxBank.ready(atlas);
+    const skipUlt = ultimateSpritesReady(chosenUltimate(state).key, this.fxBank);
+    drawShapeFx(this.ctx, state.shapes, this.fxSprites.glow, (s) => {
+      if (skipTrail && s.swingTrail) return true;
+      if (skipUlt && isUltimateFx(s)) return true;
+      return isBlastShape(s) && drawBlastSprite(this.ctx, state, s, this.fxBank);
+    });
   }
 
-  /** 命中の斬り裂き線・銃口の閃光・着弾（fxAttack.ts）の上に、属性ごとの形の粒 */
+  /** 命中の斬り裂き線・銃口の閃光・着弾（fxAttack.ts）と奥義の絵の上に、属性ごとの形の粒 */
   private drawParticles(state: GameState): void {
     drawAttackAir(this.ctx, state, this.fxSprites.glow, this.fxBank);
     drawParryMarks(this.ctx, state, this.fxBank);
-    drawParticleFx(this.ctx, state.particles, state.time);
+    drawUltimateAir(this.ctx, state, this.fxBank);
+    const skipUlt = ultimateSpritesReady(chosenUltimate(state).key, this.fxBank);
+    drawParticleFx(this.ctx, state.particles, state.time, skipUlt ? isUltimateFx : undefined);
   }
 
   /**
@@ -1588,6 +1599,7 @@ export class Renderer {
   private drawGroundHazards(state: GameState): void {
     // 爆発の焦げ跡（fxAttack.ts）は予告円の下の地面に
     drawAttackGround(this.ctx, state);
+    drawUltimateGround(this.ctx, state, this.fxBank);
     this.drawSwingGround(state);
     for (const h of state.hazards) {
       switch (h.kind) {
@@ -1859,6 +1871,8 @@ export class Renderer {
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
       const py = pr.pos.y - lift;
+      // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があればそれだけを描く（尾も絵が持つ）
+      if (drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow)) continue;
       // 位置履歴が無いので速度の逆方向に細る尾と光を置く（fxAttack.ts。弾の性質で長さ・太さが変わる）
       drawBulletTrail(ctx, pr, pr.pos.x, py, dx, dy, isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL, this.fxSprites.glow);
 

@@ -1,5 +1,5 @@
 import type { Element } from "../core/element";
-import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type ShapeFx, pushSfx } from "../core/state";
+import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type Particle, type Projectile, type ShapeFx, type UltFx, type UltFxPart, pushSfx } from "../core/state";
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
 import { EFFECTS, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
@@ -32,6 +32,7 @@ function createEffectsState(state: GameState): EffectsState {
     seed: (state.seed ^ FX_SEED_SALT) >>> 0,
     deaths: [],
     marks: [],
+    ults: [],
     lastDropId: -1,
     lastChainTime: -1,
     ghostTimer: 0,
@@ -185,7 +186,7 @@ export function isBlastShape(shape: ShapeFx): boolean {
  * 爆発（spawnRing の代わりに 1 行で呼ぶ）。輪は段階を見せるため FX_ATTACK.blast.life 以上に延ばし、
  * 火の粉を少し上へ散らす。粒は演出専用の乱数なのでゲームの乱数列は変わらない
  */
-export function spawnBlast(state: GameState, pos: Vec, radius: number, color: string, life = FX_ATTACK.blast.life): void {
+export function spawnBlast(state: GameState, pos: Vec, radius: number, color: string, life = FX_ATTACK.blast.life): ShapeFx {
   const c = FX_ATTACK.blast;
   const span = Math.max(life, c.life);
   const shape: ShapeFx = { kind: "ring", pos: { ...pos }, to: { ...pos }, radius, life: span, maxLife: span, color };
@@ -193,6 +194,76 @@ export function spawnBlast(state: GameState, pos: Vec, radius: number, color: st
   blastShapes.add(shape);
   capList(state.shapes, EFFECTS.maxShapes);
   spawnDirectional(state, pos, { x: 0, y: -1 }, color, c.embers, c.emberSpeed, 1.2, span);
+  return shape;
+}
+
+// -----------------------------------------------------------------------------
+// スプライトの描き分けのための目印（docs/ideas/fx-sprites.md 9 章）。
+// state の型は増やさず、演出のオブジェクトそのものに弱参照で印を付ける（消えたものは残らない。ロジックは読まない）
+// -----------------------------------------------------------------------------
+
+/** 爆発の輪 → 炸裂した弾（弾の専用スプライトの爆発で描く） */
+const blastShots = new WeakMap<ShapeFx, Projectile>();
+
+/** 弾の炸裂の輪に、炸裂した弾を結ぶ */
+export function markBlastShot(shape: ShapeFx, pr: Projectile): void {
+  blastShots.set(shape, pr);
+}
+
+export function blastShotOf(shape: ShapeFx): Projectile | undefined {
+  return blastShots.get(shape);
+}
+
+/** 奥義の行為が出した弾の、奥義と行為 */
+export interface UltimateShot {
+  readonly key: string;
+  readonly index: number;
+}
+
+const ultimateShapes = new WeakSet<ShapeFx | Particle>();
+const ultimateShots = new WeakMap<Projectile, UltimateShot>();
+
+/** 奥義が出した輪・線・粒か（奥義の専用スプライトがあるとき、描画側が手続きの描画を省く） */
+export function isUltimateFx(obj: ShapeFx | Particle): boolean {
+  return ultimateShapes.has(obj);
+}
+
+export function ultimateShotOf(pr: Projectile): UltimateShot | undefined {
+  return ultimateShots.get(pr);
+}
+
+/**
+ * 奥義の 1 行為（か発動の合図）を出す間に増えた輪・線・弾に印を付ける。particles なら粒にも付ける
+ * （行為の間は命中・撃破の粒も出るので、奥義そのものの演出だけを囲んだときに限る）。
+ * 出す側の関数（spawnRing・emitVolley など）は共通なので、前後の差で拾う（奥義は稀なので数百件の走査で足りる）
+ */
+export function withUltimateFx<T>(state: GameState, key: string, index: number, run: () => T, particles = false): T {
+  const shapes = new Set<object>(state.shapes);
+  const before = new Set<object>(particles ? state.particles : []);
+  const shots = new Set<object>(state.projectiles);
+  const out = run();
+  for (const s of state.shapes) if (!shapes.has(s)) ultimateShapes.add(s);
+  if (particles) for (const p of state.particles) if (!before.has(p)) ultimateShapes.add(p);
+  for (const pr of state.projectiles) if (!shots.has(pr) && pr.owner === "player") ultimateShots.set(pr, { key, index });
+  return out;
+}
+
+/** 奥義の見た目の出来事を積む（寿命は FX_ATTACK.sprite.ultEventLife。描く長さは絵ごとの life で決まる） */
+export function addUltFx(state: GameState, key: string, part: UltFxPart, index: number, pos: Vec, opts: { to?: Vec; angle?: number; size?: number } = {}): void {
+  const fx = fxState(state);
+  const ev: UltFx = {
+    key,
+    part,
+    index,
+    pos: { ...pos },
+    to: { ...(opts.to ?? pos) },
+    angle: opts.angle ?? 0,
+    size: opts.size ?? 0,
+    age: 0,
+    life: FX_ATTACK.sprite.ultEventLife,
+  };
+  fx.ults.push(ev);
+  capList(fx.ults, FX_ATTACK.sprite.maxUltEvents);
 }
 
 /** 時間で消える演出の印を置く */
@@ -766,6 +837,8 @@ function ageEffects(fx: EffectsState, dt: number): void {
   fx.marks = fx.marks.filter((m) => m.age < m.life);
   for (const d of fx.deaths) d.age += dt;
   fx.deaths = fx.deaths.filter((d) => d.age < d.life);
+  for (const u of fx.ults) u.age += dt;
+  fx.ults = fx.ults.filter((u) => u.age < u.life);
 }
 
 export function updateEffects(state: GameState, dt: number): void {
@@ -805,6 +878,7 @@ export function resetFloorEffects(state: GameState): void {
   const fx = fxState(state);
   fx.deaths = [];
   fx.marks = [];
+  fx.ults = [];
   fx.dots = [];
 }
 

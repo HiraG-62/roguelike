@@ -23,7 +23,7 @@ const RECT_STRIDE = 6;
 
 export type FxRampKey = Exclude<keyof typeof RAMPS, "_note">;
 
-export const FX_RAMP_KEYS: readonly FxRampKey[] = ["steel", "fire", "ice", "lightning", "poison", "dark", "light"];
+export const FX_RAMP_KEYS: readonly FxRampKey[] = ["steel", "brass", "fire", "ice", "lightning", "poison", "dark", "light"];
 
 /** 配色の 7 段（暗 → 明） */
 export function rampColors(key: FxRampKey): readonly string[] {
@@ -129,22 +129,27 @@ export class FxSpriteBank {
   private readonly requested = new Set<string>();
   private readonly cells = new Map<string, HTMLCanvasElement | null>();
   private readonly ramps = new Map<FxRampKey, [number, number, number][]>();
-  private current: string | undefined;
+  /** 今の武器種・奥義のアトラス（focus の並びを連結した key。同じなら何もしない） */
+  private current = "";
+  private focused = new Set<string>();
 
   /** baseUrl は public/ の置き場所（ページからの相対。main.ts の他の PNG と同じ流儀で空文字） */
   constructor(private readonly baseUrl = "") {}
 
   /**
-   * 今の武器種のアトラスを読み始め、それ以外のアトラスと配色のキャッシュを捨てる。
+   * 今の武器種（と奥義）のアトラスを読み始め、それ以外のアトラスと配色のキャッシュを捨てる。
    * 1 アトラスは展開すると数十 MB あるので、装備中の武器種の分だけを持つ（docs/ideas/fx-sprites.md 7 章）
    */
-  focus(atlas: string | undefined): void {
-    if (atlas === this.current) return;
-    this.current = atlas;
-    for (const key of [...this.images.keys()]) if (key !== atlas) this.images.delete(key);
-    for (const key of [...this.requested]) if (key !== atlas) this.requested.delete(key);
+  focus(atlases: readonly (string | undefined)[]): void {
+    const keep = atlases.filter((a): a is string => a !== undefined);
+    const id = keep.join("|");
+    if (id === this.current) return;
+    this.current = id;
+    this.focused = new Set(keep);
+    for (const key of [...this.images.keys()]) if (!this.focused.has(key)) this.images.delete(key);
+    for (const key of [...this.requested]) if (!this.focused.has(key)) this.requested.delete(key);
     this.cells.clear();
-    if (atlas) this.request(atlas);
+    for (const atlas of keep) this.request(atlas);
   }
 
   /** アトラスが読み込み済みか（読み始めはしない） */
@@ -152,11 +157,14 @@ export class FxSpriteBank {
     return this.images.has(atlas);
   }
 
-  /** 読み込み済みか。まだなら読み始めて false（読めるまで呼び出し側は手続きの描画） */
+  /**
+   * 読み込み済みか。まだなら読み始めて false（読めるまで呼び出し側は手続きの描画）。
+   * 今の武器種のものでないアトラス（持ち替える前に撃った弾など）は読まない（読んでは捨てるのを繰り返さない）
+   */
   has(key: FxSheetKey): boolean {
     const atlas = FX_SHEETS[key].atlas;
     if (this.images.has(atlas)) return true;
-    this.request(atlas);
+    if (this.focused.has(atlas)) this.request(atlas);
     return false;
   }
 

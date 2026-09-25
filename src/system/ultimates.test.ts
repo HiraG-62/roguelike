@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { ENERGY, ULTIMATE, WEAPON } from "../data/tuning";
+import { ENERGY, FX_ATTACK, ULTIMATE, WEAPON } from "../data/tuning";
+import { isUltimateFx, ultimateShotOf, updateEffects } from "./effects";
 import type { FrameInput } from "../core/input";
 import { ULTIMATES, type UltimateDef, defaultUltimate, ultimateDef } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
@@ -536,5 +537,51 @@ describe("持続の奥義の必要量", () => {
     tryUltimate(state);
     expect(state.player.ultimate.active, "持続が始まる").not.toBeNull();
     expect(state.player.energy, "残りは必要量まで").toBeLessThanOrEqual(cost);
+  });
+});
+
+describe("奥義の見た目の出来事（スプライトの描き分け）", () => {
+  it("一撃の奥義は発動と行為の出来事を積み、行為の輪に奥義の印を付ける", () => {
+    const state = ready("sword.fullMoon");
+    tryUltimate(state);
+    const ults = state.effects?.ults ?? [];
+    expect(ults.map((u) => u.part), "発動と行為").toEqual(expect.arrayContaining(["cast", "act"]));
+    const act = ults.find((u) => u.part === "act");
+    expect(act?.key, "奥義の key").toBe("sword.fullMoon");
+    expect(act?.index, "行為の番号").toBe(0);
+    expect(act?.size, "周囲攻撃の半径").toBeCloseTo(ULTIMATE.defs.sword.fullMoon.nova.radius * state.stats.burstRadiusMul, 5);
+    expect(state.shapes.some((s) => isUltimateFx(s)), "奥義の輪に印").toBe(true);
+  });
+
+  it("突進は始点と終点を持つ", () => {
+    const state = ready("sword.flashCut");
+    const start = { ...state.player.body.pos };
+    tryUltimate(state);
+    const act = state.effects?.ults.find((u) => u.part === "act");
+    expect(act?.pos, "始点").toEqual(start);
+    expect(act?.to.x, "終点は進んだ先").toBeCloseTo(state.player.body.pos.x, 5);
+  });
+
+  it("弾の奥義が出した弾は、奥義と行為の番号で引ける", () => {
+    const state = ready("gunner.deathRondo");
+    tryUltimate(state);
+    const shot = state.projectiles.find((p) => p.owner === "player");
+    expect(shot && ultimateShotOf(shot), "奥義の弾").toEqual({ key: "gunner.deathRondo", index: 0 });
+  });
+
+  it("引き寄せは掴んだ敵ごとに target の出来事を積む", () => {
+    const state = ready("scythe.soulReap");
+    dummy(state, ULTIMATE.defs.scythe.soulReap.pull.radius - 5);
+    tryUltimate(state);
+    expect(state.effects?.ults.filter((u) => u.part === "target"), "掴んだ敵").toHaveLength(1);
+  });
+
+  it("持続の奥義は発動の出来事を積み、奥義の出来事は寿命で消える", () => {
+    const state = ready("sword.swordAura");
+    tryUltimate(state);
+    expect(state.effects?.ults.some((u) => u.part === "cast" && u.key === "sword.swordAura"), "発動").toBe(true);
+    const n = Math.ceil(FX_ATTACK.sprite.ultEventLife / FIXED_DT) + 1;
+    for (let i = 0; i < n; i++) updateEffects(state, FIXED_DT);
+    expect(state.effects?.ults, "寿命で消える").toHaveLength(0);
   });
 });
