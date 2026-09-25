@@ -347,8 +347,9 @@ function spinOrbit(frame, f, s) {
  * 押している間ずっと繰り返すので、frames 枚で 1 周して最後と最初が継ぎ目なくつながる（崩れは無い）。
  * charged は溜めの段が 1 以上: 球が大きく、残像と風圧が増え、明るい
  */
-const WHIRL_HOLD = { Ro: 70, ball: 10, spikes: 6, frames: 8, ghosts: 7, ghostStep: 24, winds: 3, bright: 0.85, seed: 2601 };
-const WHIRL_HOLD_CHARGED = { Ro: 74, ball: 12, spikes: 8, frames: 8, ghosts: 10, ghostStep: 22, winds: 5, bright: 1.05, seed: 2602 };
+// 回しの当たり判定は半径 20（論理 px。2m）。鉄球の中心がその縁を回るように半径 40 ドット
+const WHIRL_HOLD = { Ro: 40, ball: 8, spikes: 6, frames: 8, ghosts: 6, ghostStep: 32, winds: 3, bright: 0.85, seed: 2601 };
+const WHIRL_HOLD_CHARGED = { Ro: 42, ball: 9, spikes: 8, frames: 8, ghosts: 8, ghostStep: 30, winds: 4, bright: 1.05, seed: 2602 };
 
 function whirlHold(frame, f, s) {
   const head = -Math.PI / 2 + (TAU * f) / s.frames;
