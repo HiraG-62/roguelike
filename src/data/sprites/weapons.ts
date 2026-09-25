@@ -796,6 +796,130 @@ const WAR_RING_DIAG: Frame = [
   ".kk.........",
 ];
 
+// ---- Wave 4（docs/ideas/weapons-wave4.md 7 章 Lane B）。MovesetKey が入ったら HELD に 1 行ずつ登録する ----
+
+// ---- 爪: 手甲から先が鉤に曲がった 3 本の爪（両刃扱い）。拳の手甲（fists）と違い、爪が拳より前へ伸びる ----
+export const CLAWS_SIDE: Frame = [
+  "............",
+  "............",
+  "............",
+  "..kkk.......",
+  "..k1skkkkk..",
+  ".kk1s1111sk.",
+  "kttsskkkkkSk",
+  "kTTsS11sssk.",
+  ".kksSkkkkkSk",
+  "..kSSsssSSk.",
+  "..kkkkkkkkSk",
+  "..........k.",
+];
+// 斜めは 3 本を柄の線に沿って平行に並べる（鉤を曲げると隣の爪とつながるので真っ直ぐ）
+export const CLAWS_DIAG: Frame = [
+  "............",
+  ".........k..",
+  "......k.ksk.",
+  ".....ksk1k..",
+  "....k1k1kSk.",
+  "...k1k1ksk..",
+  "..ksksksk...",
+  "..k1sksk....",
+  ".kksSSk.....",
+  "kttkkk......",
+  "kTTk........",
+  ".kk.........",
+];
+
+// ---- チェーンアレイ: 短い木の柄と真鍮の口金、鎖の先に棘のある鉄球（球なので刃の向きは無い） ----
+export const FLAIL_SIDE: Frame = [
+  "............",
+  "............",
+  "............",
+  "............",
+  "............",
+  ".kkkkk......",
+  "kttUUyk..k..",
+  "kTTXXYk.ksk.",
+  ".kkkkkSk1ssk",
+  ".......SssSs",
+  ".......ksSSk",
+  "........kSk.",
+];
+export const FLAIL_DIAG: Frame = [
+  "........ksk.",
+  ".......k1ssk",
+  "......kssSSs",
+  ".......ksSSk",
+  ".......Sksk.",
+  "....kkS..k..",
+  "...kyYk.....",
+  "..kUXk......",
+  ".kkXk.......",
+  "kttk........",
+  "kTTk........",
+  ".kk.........",
+];
+
+// ---- チャクラム: 革を巻いた握りを持つ鋼の輪。外周に渦の向きへ反った刃が 3 つ（戦輪の真鍮の内輪・歯と見分ける） ----
+export const RING_BLADES_SIDE: Frame = [
+  ".........k..",
+  "........k1k.",
+  ".....kk11k..",
+  "....k111sk..",
+  "...k1ssssSk.",
+  ".kkW1skkssSk",
+  "kttWsk..ksSk",
+  "kTTwsk..kSSk",
+  ".kkwsSkkSSSS",
+  "...ksSSSSSkS",
+  "....kSSSSk.k",
+  "...kSSkkk...",
+];
+export const RING_BLADES_DIAG: Frame = [
+  "......kk1k..",
+  "....kk11k...",
+  "...k1111k...",
+  "..k1ssssSk..",
+  ".k1sskkssSk.",
+  ".k1sk..ksSk.",
+  ".kssk..kSSSk",
+  ".kWWskkSSSSk",
+  ".kkwwSSSSkk.",
+  "kttkSSSSSk..",
+  "kTTkkkkkkSk.",
+  ".kk......k..",
+];
+
+// ---- 扇子: 要（真鍮の留め具）を拳の側に置いた開いた扇。紙は明暗の 3 面で折り目を見せ、縁は朱（片側だけに開くので up） ----
+export const FAN_SIDE: Frame = [
+  "..krrrrk....",
+  "..k111rrk...",
+  "..k111ssrk..",
+  "..k11ssssrk.",
+  "..k11ssssrrk",
+  ".kk1sss111rk",
+  "kttUU11111rk",
+  "kTTyX11111rk",
+  ".kkkkkkkkkk.",
+  "............",
+  "............",
+  "............",
+];
+// 斜めは柄の線（右上）から左上へ開く。左端で切れないよう開きを横より少し狭くした
+export const FAN_DIAG: Frame = [
+  "..kkkk......",
+  ".krrrrkk....",
+  "kr1ssrrrk...",
+  "k11sss11rk..",
+  "k11sss111k..",
+  "k11ss111k...",
+  ".k1ss11k....",
+  "..kUU1k.....",
+  ".kkyXk......",
+  "kttkk.......",
+  "kTTk........",
+  ".kk.........",
+];
+
 /** 武器種ごとの持ち手（`weapon.<MovesetKey>`）。Record なので武器種を足すと型エラーで気付ける */
 const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   sword: held(SWORD_SIDE, SWORD_DIAG),
