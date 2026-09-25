@@ -82,7 +82,7 @@ import {
   startLaneArt,
   updateArt,
 } from "./weaponArts";
-import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate } from "./ultimates";
+import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -179,7 +179,10 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   // 派生 → 祝福の順: 祝福の固定値（硝子の見切りの最大 HP 1 など）を体力の加算で崩さない
   const derived = deriveAttributes(addRunAttributes(base, state.runAttributes.alloc));
   const stats = foldBoonStats(derived, state.boons, state.boonRun);
+  // 武器種が変わったら持続の奥義を終える（別の武器種の型に同じ差し替えを畳まない）
+  const movesetChanged = state.stats.moveset !== stats.moveset;
   state.stats = stats;
+  if (movesetChanged) endUltimate(state, "manual");
   p.maxHp = stats.maxHp;
   // 精神が下がって上限が縮んだときだけ切り詰める（増えたぶんは自然回復で埋める）
   p.mana = Math.min(p.mana, stats.maxMana);

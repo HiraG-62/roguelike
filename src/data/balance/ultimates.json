@@ -2,6 +2,8 @@
   "_note": "奥義（F で奥義ゲージを使って出す。docs/ideas/ougi-and-dual-actions.md 3 章）。common は全奥義に共通の値、defs.<武器種>.<奥義の名前> は奥義ごとの数値で、src/data/ultimates.ts が UltimateDef に組み立てる（状態異常・形・弾の種類など union 文字列は TS 側）。旧 combat.json の PLAYER.special（旧バースト）を値を変えずに common と defs.sword.fullMoon（円月）へ移した（2026-09-25 Lane 0）。係数は docs/STATS_AND_SCALING.md 2 章（奥義は 3 種以上の係数を許す例外）。基準: 基礎値で周囲攻撃 34 前後（円月）、単体の大技 55〜75、多段は合計 50〜70、持続は 8 秒前後（drain 12.5/秒）で倍率 1.2〜1.5。円月は溜めた気力を練って放つ魔法の一撃なので威力・怯み値とも精神 + 霊力（poiseRatio は怯み値 60 × 3% = 1.8 を 1 点ぶんとして等分。2026-09-24、A-10）。69 本の初期値は 2026-09-25 Lane B（QA 前の目安。統合後に balance-tuner が詰める）",
   "ULTIMATE": {
     "_fields": {
+      "autoAimDeg": "着弾の奥義（大砲撃・焼夷弾など）の自動照準。照準方向からこの角度（度）以内の最も近い敵へ着弾点を寄せる。0 で寄せない。目安 20〜45",
+      "autoAimRangeMul": "自動照準で拾う敵の距離の上限（着弾距離に対する倍率）。目安 1〜2",
       "cost": "奥義 1 回に要る奥義ゲージ。PLAYER.maxEnergy と同じにすると満タンでだけ撃てる。目安 100",
       "invuln": "出した後（突進は踏み込みの間）の無敵の秒。目安 0.1〜0.5",
       "radius": "周囲攻撃（nova）・着弾の爆発（blast）・引き寄せ（pull）・纏い（aura）の半径（px。10px = 1m）。nova / pull / aura には burstRadiusMul が掛かる。目安 30〜80",
@@ -56,7 +58,9 @@
       "cost": 100,
       "invuln": 0.15,
       "textColor": "#ffd75f",
-      "endTextColor": "#c0b080"
+      "endTextColor": "#c0b080",
+      "autoAimDeg": 35,
+      "autoAimRangeMul": 1.5
     },
     "defs": {
       "sword": {

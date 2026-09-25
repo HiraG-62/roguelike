@@ -73,9 +73,6 @@ const AURA_LIFE = 0.2;
 const LUNGE_GHOSTS = 6;
 const GHOST_LIFE = 0.25;
 const GHOST_SIZE = 4;
-/** 着弾の自動照準: 照準方向からこの角度以内の最も近い敵へ寄せる */
-const AUTO_AIM_DEG = 35;
-const AUTO_AIM_RANGE_MUL = 1.5;
 const DEG_TO_RAD = Math.PI / 180;
 const STILL_SPEED = 1;
 const DEFAULT_HITS = 1;
@@ -295,8 +292,8 @@ function autoAim(state: GameState, distance: number): Vec | undefined {
     if (e.hp <= 0 || e.hidden) continue;
     const rel = sub(e.body.pos, p.body.pos);
     const d = length(rel);
-    if (d > distance * AUTO_AIM_RANGE_MUL || d >= bestDist) continue;
-    if (Math.abs(angleDiff(angle(rel), facing)) > AUTO_AIM_DEG * DEG_TO_RAD) continue;
+    if (d > distance * ULTIMATE.common.autoAimRangeMul || d >= bestDist) continue;
+    if (Math.abs(angleDiff(angle(rel), facing)) > ULTIMATE.common.autoAimDeg * DEG_TO_RAD) continue;
     best = { ...e.body.pos };
     bestDist = d;
   }

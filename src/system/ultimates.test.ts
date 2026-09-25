@@ -23,7 +23,7 @@ import {
   ultimateShot,
   updateUltimate,
 } from "./ultimates";
-import { currentShot, playerMoveset, updatePlayer } from "./player";
+import { applyStats, currentShot, playerMoveset, updatePlayer } from "./player";
 import { damageEnemy, rollOutgoing } from "./combat";
 import { applyStatus } from "./statusEffects";
 
@@ -242,6 +242,16 @@ describe("持続の奥義", () => {
     expect(state.player.ultimate.active, "終わる").toBeNull();
     expect(state.player.energy, "残りを保つ").toBe(left);
     expect(left, "満タンより少ない").toBeLessThan(ULTIMATE.common.cost);
+  });
+
+  it("持続中に武器種を持ち替えると持続の奥義が終わる", () => {
+    const state = ready("sword.swordAura");
+    tryUltimate(state);
+    expect(state.player.ultimate.active, "持続が始まる").not.toBeNull();
+    applyStats(state, { ...state.stats, moveset: "sword" });
+    expect(state.player.ultimate.active, "同じ武器種なら続く").not.toBeNull();
+    applyStats(state, { ...state.stats, moveset: "spear" });
+    expect(state.player.ultimate.active, "持ち替えで終わる").toBeNull();
   });
 
   it("持続中は奥義ゲージが貯まらない", () => {
