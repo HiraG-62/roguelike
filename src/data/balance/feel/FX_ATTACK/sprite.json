@@ -8,7 +8,14 @@
     "scaleTolerance": "当たり判定の大きさと絵の基準の大きさの差がこの割合以内なら拡縮しない（ドットを崩さない）。割合 0..1",
     "tipGlow": "振りの当たりの中心に重ねる加算の光の濃さ。割合 0..1",
     "glowR": "その光の半径。px",
-    "heavyGlowR": "重い段の光の半径。px"
+    "heavyGlowR": "重い段の光の半径。px",
+    "muzzleLife": "弾の専用スプライトの銃口・詠唱の絵を流し切る時間。秒",
+    "impactLife": "弾の着弾（壁・敵）の絵を流し切る時間。秒",
+    "fizzleLife": "弾が射程で尽きたときの絵を流し切る時間。秒",
+    "bulletGlow": "飛んでいる弾の絵に重ねる加算の光の濃さ。割合 0..1",
+    "bulletGlowR": "その光の半径（弾の半径に足す）。px",
+    "ultEventLife": "奥義の見た目の出来事を残す秒（絵ごとの長さの上限。これより長い絵は途中で切れる）",
+    "maxUltEvents": "奥義の見た目の出来事を同時に持つ上限。件"
   },
   "swingFade": 0.2,
   "hitLife": 0.18,
@@ -17,5 +24,12 @@
   "scaleTolerance": 0.15,
   "tipGlow": 0.35,
   "glowR": 10,
-  "heavyGlowR": 16
+  "heavyGlowR": 16,
+  "muzzleLife": 0.12,
+  "impactLife": 0.2,
+  "fizzleLife": 0.24,
+  "bulletGlow": 0.3,
+  "bulletGlowR": 6,
+  "ultEventLife": 2,
+  "maxUltEvents": 24
 }

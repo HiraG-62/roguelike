@@ -1,4 +1,4 @@
-import { type Enemy, type GameState, type UltimateState, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type UltFxPart, type UltimateState, pushSfx } from "../core/state";
 import type { StatusApply } from "../core/status";
 import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { pushPlayerEvent } from "../core/events";
@@ -23,7 +23,7 @@ import type { AttrRatio, PlayerStats, Scaling } from "../loot/types";
 import { scaled, withRatio } from "./attributes";
 import { onBoonBurstKills } from "./boons";
 import { cancelAttack, damageEnemy, healPlayer, rollOutgoing } from "./combat";
-import { addFloatingText, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { addFloatingText, addUltFx, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withUltimateFx } from "./effects";
 import { gainMana } from "./mana";
 import { boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { emitVolley, spreadOffsets } from "./player";
@@ -81,6 +81,8 @@ const DEG_TO_RAD = Math.PI / 180;
 const STILL_SPEED = 1;
 const DEFAULT_HITS = 1;
 const NO_ENEMY_DISTANCE = Number.POSITIVE_INFINITY;
+/** 行為の並びに属さない見た目の出来事（発動・纏い・衝撃波）の番号 */
+const CAST_INDEX = -1;
 
 export function createUltimateState(): UltimateState {
   return { active: null, elapsed: 0, kills: 0, auraTick: 0, quakeCooldown: 0 };
@@ -155,9 +157,11 @@ function castInstant(state: GameState, def: UltimateDef & { kind: "instant" }): 
   p.energy = Math.max(0, p.energy - def.cost);
   cancelAttack(state);
   let kills = 0;
-  for (const act of def.acts) kills += runAct(state, def, act);
+  def.acts.forEach((act, i) => {
+    kills += withUltimateFx(state, def.key, i, () => runAct(state, def, act, { part: "act", index: i }));
+  });
   if (def.healPerKill !== undefined && kills > 0) healPlayer(state, p.maxHp * def.healPerKill * kills);
-  castFx(state, def.name);
+  castFx(state, def);
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeSpecial);
   state.flash = Math.max(state.flash, SCREEN_FLASH);
@@ -167,34 +171,47 @@ function castInstant(state: GameState, def: UltimateDef & { kind: "instant" }): 
   pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
 }
 
-/** 発動の合図（奥義名の浮き文字と金の粒） */
-function castFx(state: GameState, name: string): void {
+/** 発動の合図（奥義名の浮き文字と金の粒）。奥義の専用スプライトの発動の絵も積む */
+function castFx(state: GameState, def: UltimateDef): void {
   const pos = state.player.body.pos;
   const color = ULTIMATE.common.textColor;
-  spawnBurst(state, pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
-  spawnBurst(state, pos, FLASH_WHITE, FLASH_PARTICLES, FLASH_SPEED, FLASH_LIFE, FLASH_SIZE);
-  addFloatingText(state, pos, name, color, CAST_TEXT_SCALE, CAST_TEXT_LIFE);
+  withUltimateFx(state, def.key, CAST_INDEX, () => {
+    spawnBurst(state, pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+    spawnBurst(state, pos, FLASH_WHITE, FLASH_PARTICLES, FLASH_SPEED, FLASH_LIFE, FLASH_SIZE);
+  }, true);
+  addUltFx(state, def.key, "cast", CAST_INDEX, pos, { angle: angle(state.player.facing) });
+  addFloatingText(state, pos, def.name, color, CAST_TEXT_SCALE, CAST_TEXT_LIFE);
+}
+
+/** 行為の見た目の出来事の出どころ（一撃の行為の並び・持続の終わりの行為の並びの番号） */
+interface ActSlot {
+  readonly part: UltFxPart;
+  readonly index: number;
 }
 
 /** 行為を 1 つ出す。倒した数を返す */
-function runAct(state: GameState, def: UltimateDef, act: UltimateAct): number {
+function runAct(state: GameState, def: UltimateDef, act: UltimateAct, slot: ActSlot): number {
+  const p = state.player;
   switch (act.kind) {
     case "nova":
-      return runNova(state, def, act);
+      return runNova(state, def, act, slot);
     case "swing":
-      return runSwing(state, def, act.step);
+      return runSwing(state, def, act.step, slot);
     case "lunge":
-      return runLunge(state, def, act);
+      return runLunge(state, def, act, slot);
     case "volley":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
       runVolley(state, act.throw);
       return 0;
     case "pull":
-      runPull(state, act);
+      runPull(state, def, act, slot);
       return 0;
     case "buff":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
       runBuff(state, act);
       return 0;
     case "detonate":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
       runDetonate(state, act.damageMul ?? 1);
       return 0;
   }
@@ -265,7 +282,7 @@ function tryExecute(state: GameState, e: Enemy, ratio: number, dir: Vec): boolea
  * 周囲攻撃（円月など）。半径に burstRadiusMul、威力に burstDamageMul。distance があれば照準の先（近くの敵へ寄せる）に
  * count 個の爆発として出す。clearsBullets なら範囲内の敵弾を消す
  */
-function runNova(state: GameState, def: UltimateDef, act: NovaAct): number {
+function runNova(state: GameState, def: UltimateDef, act: NovaAct, slot: ActSlot): number {
   const s = state.stats;
   const radius = act.radius * s.burstRadiusMul;
   const spec = hitSpec(state, act);
@@ -274,6 +291,8 @@ function runNova(state: GameState, def: UltimateDef, act: NovaAct): number {
   let kills = 0;
   for (const c of centers) {
     novaFx(state, act, c, radius);
+    const aim = act.distance === undefined ? angle(state.player.facing) : angle(sub(c, state.player.body.pos));
+    addUltFx(state, def.key, slot.part, slot.index, c, { angle: aim, size: radius });
     for (const e of state.enemies) {
       if (e.hp <= 0 || struck.has(e.id) || !circlesOverlap(c.x, c.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
       struck.add(e.id);
@@ -338,7 +357,7 @@ function clearEnemyBullets(state: GameState, c: Vec, radius: number): void {
 }
 
 /** 一瞬の振り（形は step の shape）。照準方向へ出し切る */
-function runSwing(state: GameState, def: UltimateDef, step: MeleeStepDef): number {
+function runSwing(state: GameState, def: UltimateDef, step: MeleeStepDef, slot: ActSlot): number {
   const p = state.player;
   const origin = { ...p.body.pos };
   const dir = { ...p.facing };
@@ -349,6 +368,7 @@ function runSwing(state: GameState, def: UltimateDef, step: MeleeStepDef): numbe
     if (strikeEnemy(state, def, e, spec, origin)) kills += 1;
   }
   swingFx(state, origin, dir, step);
+  addUltFx(state, def.key, slot.part, slot.index, origin, { angle: angle(dir), size: step.reach });
   return kills;
 }
 
@@ -400,7 +420,7 @@ function swingFx(state: GameState, origin: Vec, dir: Vec, step: MeleeStepDef): v
 }
 
 /** 突進: 照準方向へ distance 進み（壁の手前で止まる）、通り道の帯にいる敵を斬る。踏み込みの間は無敵 */
-function runLunge(state: GameState, def: UltimateDef, act: LungeAct): number {
+function runLunge(state: GameState, def: UltimateDef, act: LungeAct, slot: ActSlot): number {
   const p = state.player;
   const start = { ...p.body.pos };
   const dir = { ...p.facing };
@@ -413,7 +433,8 @@ function runLunge(state: GameState, def: UltimateDef, act: LungeAct): number {
     if (e.hp <= 0 || !inBand(start, dir, travelled, act.step.size, e.body.pos, e.body.radius)) continue;
     if (strikeEnemy(state, def, e, spec, start)) kills += 1;
   }
-  lungeFx(state, start, p.body.pos, act.step.trail ?? ULTIMATE.common.textColor);
+  withUltimateFx(state, def.key, slot.index, () => lungeFx(state, start, p.body.pos, act.step.trail ?? ULTIMATE.common.textColor), true);
+  addUltFx(state, def.key, slot.part, slot.index, start, { to: p.body.pos, angle: angle(dir), size: travelled });
   return kills;
 }
 
@@ -444,9 +465,10 @@ function runVolley(state: GameState, t: ThrowArtDef): void {
 }
 
 /** 引き寄せ: 半径（burstRadiusMul）内の敵を toDistance まで寄せる（壁の手前で止まる）。single なら最も近い 1 体 */
-function runPull(state: GameState, act: PullAct): void {
+function runPull(state: GameState, def: UltimateDef, act: PullAct, slot: ActSlot): void {
   const p = state.player;
   const radius = act.radius * state.stats.burstRadiusMul;
+  addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing), size: radius });
   const inRange = state.enemies.filter(
     (e) => e.hp > 0 && !e.hidden && circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius),
   );
@@ -460,6 +482,7 @@ function runPull(state: GameState, act: PullAct): void {
       moveBody(state, e.body, move.x, move.y);
     }
     spawnLine(state, from, e.body.pos, ULTIMATE.common.textColor, LINE_LIFE);
+    addUltFx(state, def.key, "target", slot.index, p.body.pos, { to: e.body.pos, angle: angle(sub(e.body.pos, p.body.pos)) });
     for (const apply of act.applies ?? []) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
   }
 }
@@ -512,8 +535,8 @@ function startSustain(state: GameState, def: SustainUltimate): void {
   u.auraTick = 0;
   u.quakeCooldown = 0;
   const pos = state.player.body.pos;
-  castFx(state, def.name);
-  spawnRing(state, pos, state.player.body.radius * SUSTAIN_RING_MUL, ULTIMATE.common.textColor, RING_LIFE);
+  castFx(state, def);
+  withUltimateFx(state, def.key, CAST_INDEX, () => spawnRing(state, pos, state.player.body.radius * SUSTAIN_RING_MUL, ULTIMATE.common.textColor, RING_LIFE));
   hitstop(state, SUSTAIN_HITSTOP);
   shake(state, FEEL.shakeHeavy);
   state.flash = Math.max(state.flash, SUSTAIN_FLASH);
@@ -535,7 +558,7 @@ export function endUltimate(state: GameState, _reason: UltimateEndReason): void 
   u.auraTick = 0;
   u.quakeCooldown = 0;
   if (def) {
-    for (const act of def.sustain.onEnd ?? []) runAct(state, def, act);
+    (def.sustain.onEnd ?? []).forEach((act, i) => withUltimateFx(state, def.key, i, () => runAct(state, def, act, { part: "end", index: i })));
     // 差し替えた段は装備の型では引けないので、振りの途中なら止める（変身の endShape と同じ）
     if (changesMoveset(def.sustain) && state.player.attack.phase !== "none") cancelAttack(state);
     addFloatingText(state, state.player.body.pos, END_TEXT, ULTIMATE.common.endTextColor, END_TEXT_SCALE, END_TEXT_LIFE);
@@ -578,7 +601,8 @@ function tickAura(state: GameState, def: SustainUltimate, dt: number): void {
   const pos = state.player.body.pos;
   const radius = aura.radius * state.stats.burstRadiusMul;
   const spec = hitSpec(state, { scaling: aura.scaling, poise: aura.poise, knockback: 0 });
-  spawnRing(state, pos, radius, AURA_COLOR, AURA_LIFE);
+  withUltimateFx(state, def.key, CAST_INDEX, () => spawnRing(state, pos, radius, AURA_COLOR, AURA_LIFE));
+  addUltFx(state, def.key, "aura", CAST_INDEX, pos, { size: radius });
   for (const e of state.enemies) {
     if (e.hp <= 0 || !circlesOverlap(pos.x, pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     strikeEnemy(state, def, e, spec, pos);
@@ -613,9 +637,12 @@ export function ultimateOnSwingHit(state: GameState, target: Enemy): void {
   const c = { ...target.body.pos };
   const radius = quake.radius * state.stats.burstRadiusMul;
   const spec = hitSpec(state, { scaling: quake.scaling, poise: quake.poise, poiseRatio: quake.poiseRatio, knockback: quake.knockback });
-  spawnRing(state, c, radius, QUAKE_COLOR, RING_LIFE);
-  spawnBlast(state, c, radius, QUAKE_COLOR);
-  spawnBurst(state, c, QUAKE_COLOR, QUAKE_PARTICLES, QUAKE_PARTICLE_SPEED, BURST_LIFE, BURST_SIZE);
+  withUltimateFx(state, def.key, CAST_INDEX, () => {
+    spawnRing(state, c, radius, QUAKE_COLOR, RING_LIFE);
+    spawnBlast(state, c, radius, QUAKE_COLOR);
+    spawnBurst(state, c, QUAKE_COLOR, QUAKE_PARTICLES, QUAKE_PARTICLE_SPEED, BURST_LIFE, BURST_SIZE);
+  }, true);
+  addUltFx(state, def.key, "quake", CAST_INDEX, c, { angle: angle(sub(c, state.player.body.pos)), size: radius });
   hitstop(state, quake.hitstop);
   shake(state, quake.shake);
   pushSfx(state, "explode");

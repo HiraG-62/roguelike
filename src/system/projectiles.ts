@@ -4,7 +4,7 @@ import { FEEL, MANA } from "../data/tuning";
 import type { BulletDef, OrbitDef, RecallHomingDef, ShotRuntime } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
-import { hitstop, spawnBlast, spawnBurst } from "./effects";
+import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { boonAttackManaMul } from "./boons";
 import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
@@ -311,7 +311,8 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
     });
     applyShotStatus(state, pr, e);
   }
-  spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
+  // 弾の専用スプライトの爆発で描けるよう、輪に炸裂した弾を結ぶ
+  markBlastShot(spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE), pr);
   spawnBurst(state, pr.pos, pr.color, MINE_PARTICLES, 120, 0.3, 2);
   pushSfx(state, "explode");
 }

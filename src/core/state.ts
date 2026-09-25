@@ -482,6 +482,30 @@ export interface DeathFx {
   life: number;
 }
 
+/**
+ * 奥義の見た目の出来事（system/ultimates.ts が積み、render/fxUltimate.ts が奥義ごとのスプライトで描く）。
+ * cast = 発動、act = 一撃の行為（index は行為の並びの番号）、target = 行為が掴んだ敵（引き寄せ）、
+ * aura = 持続の纏いの 1 回、quake = 持続の命中の衝撃波、end = 持続の終わりの行為（index は onEnd の番号）
+ */
+export type UltFxPart = "cast" | "act" | "target" | "aura" | "quake" | "end";
+
+export interface UltFx {
+  /** 奥義の key（`<武器種>.<名前>`） */
+  key: string;
+  part: UltFxPart;
+  index: number;
+  /** 原点（発動した位置・周囲攻撃の中心・突進の始点） */
+  pos: Vec;
+  /** 終点（突進の終点・引き寄せた敵の位置）。無ければ pos と同じ */
+  to: Vec;
+  /** 向き（ラジアン。照準の方向） */
+  angle: number;
+  /** 大きさ（周囲攻撃の半径・振りの届き。px。無ければ 0） */
+  size: number;
+  age: number;
+  life: number;
+}
+
 /** 時間で消える演出の印（src/render/effectsUi.ts が種類ごとに描く） */
 export type FxMarkKind =
   | "clearWave"
@@ -516,6 +540,8 @@ export interface EffectsState {
   seed: number;
   deaths: DeathFx[];
   marks: FxMark[];
+  /** 奥義の見た目の出来事 */
+  ults: UltFx[];
   /** 色ごとのドロップ音を鳴らし終えた floorItems の id の最大値 */
   lastDropId: number;
   /** 連携の残光を出し終えた chains の最新時刻 */
