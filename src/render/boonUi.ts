@@ -1,3 +1,4 @@
+import { type ActionName, keyLabel } from "../core/input";
 import { KEYWORD_DEFS, type Keyword, type KeywordProfile } from "../core/keywords";
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
@@ -65,9 +66,15 @@ const RARITY_Y = 52;
 const DESC_Y = 64;
 const LINE_H = 9;
 const TAGS_BOTTOM = 8;
-const KEY_HINTS = ["1 / C", "2 / V", "E", "4 / Z"] as const;
+/**
+ * 札ごとの選ぶキー（system/boons.ts の selectedIndex と同じ並び: スキル 1・スキル 2・攻撃 1・スキル 4）。
+ * 札の下は狭く、キーで押す前提の案内なのでマウスは載せない
+ */
+const CARD_KEY_ACTIONS: readonly ActionName[] = ["skill1", "skill2", "attack", "skill4"];
 const KEY_Y_FROM_BOTTOM = 18;
-const CURSE_KEY = "3 / X";
+/** 呪いの札を受けるキー（system/boons.ts の curseRequested） */
+const CURSE_KEY_ACTION: ActionName = "skill3";
+const CURSE_OFFER_LABEL = "呪いを受けて 4 択";
 /** 呪いの札の文字のベースライン（札の上端から） */
 const CURSE_TEXT_Y = 10;
 /** 語の行（カード下部、タグ行の上）。噛み合わない語は暗くする */
@@ -191,6 +198,10 @@ export function boonGradeTipLine(def: BoonDef, grade: BoonGrade): string | null 
   return `${BOON_GRADE_LABEL[grade]}: ${parts.join("、")}`;
 }
 
+function cardKeyHint(action: ActionName): string {
+  return keyLabel(action, { keyboardOnly: true });
+}
+
 /** HUD に並べる順（芯を先頭に固定し、残りは取得順） */
 export function boonHudOrder(boons: readonly BoonKey[]): BoonKey[] {
   const cores = boons.filter((k) => boonDef(k).core === true);
@@ -246,7 +257,7 @@ function drawCurseOffer(ctx: CanvasRenderingContext2D, state: GameState): void {
   ctx.fillRect(r.x, r.y, r.w, r.h);
   ctx.strokeStyle = BOON.cursedColor;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
-  const label = truncateText(`${CURSE_KEY}  呪いを1つ受けて4択にする`, r.w - CARD_PAD * 2, TEXT.SMALL);
+  const label = truncateText(`${cardKeyHint(CURSE_KEY_ACTION)}  ${CURSE_OFFER_LABEL}`, r.w - CARD_PAD * 2, TEXT.SMALL);
   drawText(ctx, label, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
 }
 
@@ -299,7 +310,8 @@ function drawCard(
   const tagColor = def.tags.some((t) => tags.has(t)) ? COLOR_TAG_MATCH : COLOR_SUB;
   drawText(ctx, truncateText(tagText, maxWidth, TEXT.SMALL), cx, tagY, TEXT.SMALL, tagColor, "center");
   // 最下段: 左にキー、右に印（並びは抽選順のまま。印は優劣ではなく噛み方の種類）
-  const keyHint = KEY_HINTS[index] ?? "";
+  const action = CARD_KEY_ACTIONS[index];
+  const keyHint = action === undefined ? "" : cardKeyHint(action);
   const bottom = y + r.h - TAGS_BOTTOM;
   drawText(ctx, keyHint, r.x + CARD_PAD, bottom, TEXT.SMALL, COLOR_SUB);
   const mark = boonMark(aff);

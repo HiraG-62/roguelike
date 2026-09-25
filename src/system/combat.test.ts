@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import { HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
+import { ENERGY, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
+import { MOVESETS, type MovesetKey } from "../data/weapons";
+import { currentBullet } from "../loot/bullets";
 import type { TriggeredEffect } from "../loot/types";
-import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, rollOutgoing, tickHpRegen } from "./combat";
+import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
 import { applyStats, dashTime, meleeStep } from "./player";
@@ -33,8 +35,10 @@ describe("stats → 近接", () => {
     const doubled = meleeDamageWith(2);
     // 実ダメージは Math.round 後の整数（combat.ts）。QA 2026-09-23 の近接基礎値調整で
     // scaled 値が端数（7.8）になったため、生の scaled 値ではなく丸め後の値と比較する
-    expect(base).toBe(Math.round(meleeStep(arena().stats, 0)?.damage ?? 0));
-    expect(doubled).toBe(base * 2);
+    const raw = meleeStep(arena().stats, 0)?.damage ?? 0;
+    expect(base).toBe(Math.round(raw));
+    // 丸めは倍率を掛けた後の 1 回だけなので、丸め後の値の 2 倍ではなく生の値の 2 倍を丸めたもの
+    expect(doubled).toBe(Math.round(raw * 2));
   });
 
   it("近接の各段で slash / hit の効果音が push される", () => {
@@ -47,7 +51,26 @@ describe("stats → 近接", () => {
       step(state, withInput({}), FIXED_DT);
       for (const s of state.sfx) heard.add(s);
     }
-    expect(heard.has("hit")).toBe(true);
+    expect(heard.has("hitSlashLight")).toBe(true);
+  });
+
+  it("impact を渡すと系統と重さに応じた命中音の名前が積まれる", () => {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 999);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", impact: { family: "blunt", weight: "heavy" } });
+    expect(state.sfx).toContain("hitBluntHeavy");
+    expect(state.sfx).not.toContain("hit");
+    expect(state.sfx).not.toContain("hitHeavy");
+  });
+
+  it("怯まない近接ヒットには低域の hitThump が足される（重撃は hitHeavy 自身が低域を持つため足さない）", () => {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 999);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(state.sfx).toContain("hitThump");
+    state.sfx.length = 0;
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", poise: e.poise.max * 10 });
+    expect(state.sfx).not.toContain("hitThump");
   });
 });
 
@@ -508,5 +531,65 @@ describe("applyStats", () => {
     applyStats(state, { ...state.stats, maxHp: 150 });
     expect(state.player.hp).toBe(0);
     expect(state.player.maxHp).toBe(150);
+  });
+});
+
+describe("奥義ゲージの溜まり方（ENERGY）", () => {
+  /** 型の 1 段目〜最終段を 1 巡振り続けたとき、1 秒あたりに 1 体へ当てて溜まる量（攻撃速度の倍率は掛けない基礎秒） */
+  function energyPerSecond(key: MovesetKey): number {
+    const steps = MOVESETS[key].steps;
+    let sec = 0;
+    let gain = 0;
+    for (const s of steps) {
+      const t = s.windup + s.active + s.recover;
+      const hits = Math.max(1, s.hits ?? 1);
+      sec += t;
+      gain += meleeHitEnergy(t, hits) * hits;
+    }
+    return gain / sec;
+  }
+
+  it("同じ 1 秒殴り続けたとき双剣と大剣の獲得量が ±20% に収まる", () => {
+    const twin = energyPerSecond("twinBlades");
+    const great = energyPerSecond("greatsword");
+    expect(twin / great, `双剣 ${twin.toFixed(1)} / 大剣 ${great.toFixed(1)}`).toBeGreaterThan(0.8);
+    expect(twin / great, `双剣 ${twin.toFixed(1)} / 大剣 ${great.toFixed(1)}`).toBeLessThan(1.2);
+  });
+
+  it("速い段ほど 1 命中の獲得量が小さく、下限と上限で切られる", () => {
+    expect(meleeHitEnergy(0.2, 1), "速い段").toBeLessThan(meleeHitEnergy(0.6, 1));
+    expect(meleeHitEnergy(0.001, 1), "下限").toBe(ENERGY.minPerHit);
+    expect(meleeHitEnergy(10, 1), "上限").toBe(ENERGY.maxPerHit);
+    expect(meleeHitEnergy(0.4, 2), "多段は 1 命中ぶんに割る").toBeCloseTo(meleeHitEnergy(0.2, 1), 5);
+  });
+
+  it("近接の命中で段の基礎秒に応じたゲージが溜まり、攻撃速度を上げても 1 命中の量は変わらない", () => {
+    const gains = [1, 2].map((attackSpeedMul) => {
+      const state = arena(5, { moveset: "greatsword", attackSpeedMul });
+      const e = placeEnemy(state, "boar", 14);
+      e.hp = 5000;
+      step(state, withInput({ attackPressed: true }), FIXED_DT);
+      for (let i = 0; i < 40 && state.player.energy === 0; i++) step(state, withInput({}), FIXED_DT);
+      return state.player.energy;
+    });
+    const s0 = MOVESETS.greatsword.steps[0];
+    const expected = s0 ? meleeHitEnergy(s0.windup + s0.active + s0.recover, Math.max(1, s0.hits ?? 1)) : 0;
+    expect(gains[0], "大剣 1 段目の 1 命中").toBeCloseTo(expected, 5);
+    expect(gains[1], "攻撃速度 2 倍でも 1 命中の量は同じ").toBeCloseTo(expected, 5);
+  });
+
+  it("射撃の命中で奥義ゲージが溜まる", () => {
+    const state = arena(5, { moveset: "sidearm" });
+    const e = placeEnemy(state, "boar", 30);
+    e.hp = 5000;
+    step(state, withInput({ attackHeld: true }), FIXED_DT);
+    const shot = state.projectiles.find((pr) => pr.owner === "player");
+    const bullet = currentBullet(state.stats);
+    const expected = shotHitEnergy(PLAYER.shoot.cooldown * bullet.cooldownMul, state.stats.projectileCount + bullet.pellets);
+    expect(shot?.energy, "弾が溜める量を持つ").toBeCloseTo(expected, 5);
+    for (let i = 0; i < 30 && state.player.energy === 0; i++) updateProjectiles(state, FIXED_DT);
+    expect(e.hp, "当たっている").toBeLessThan(5000);
+    expect(state.player.energy, "射撃の命中で溜まる").toBeCloseTo(expected, 5);
+    expect(expected, "近接より低い割合").toBeLessThan(meleeHitEnergy(PLAYER.shoot.cooldown * bullet.cooldownMul, 1) + 1e-9);
   });
 });

@@ -1,0 +1,7 @@
+{
+  "body": "soft",
+  "resist": {
+    "light": 25,
+    "lightning": -50
+  }
+}

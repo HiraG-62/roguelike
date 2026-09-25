@@ -1,0 +1,18 @@
+{
+  "eggCount": 3,
+  "eggHatch": 4,
+  "eggSpread": 70,
+  "layTime": 1.2,
+  "biteSpeedMul": 5,
+  "biteTime": 0.45,
+  "jumpTime": 0.9,
+  "landRadius": 50,
+  "landDamage": 18,
+  "acidRadius": 24,
+  "swarmInterval": 6,
+  "swarmCount": 3,
+  "eggBreakPoise": 60,
+  "phase2Ratio": 0.6,
+  "phase3Ratio": 0.25,
+  "color": "#a0c040"
+}

@@ -26,7 +26,7 @@ import { fluxClassOf } from "../loot/flux";
 import { nameItem } from "../loot/names";
 import { chooseBud } from "../system/loot";
 import { isBossDriven } from "../system/boss";
-import { createEnemy } from "../system/enemies";
+import { createEnemy, isAsleep } from "../system/enemies";
 import { ROAMING_ROOM } from "../system/spawner";
 import { ELITE_KINDS, ELITE_PREFIX } from "../system/elites";
 import * as combat from "../system/combat";
@@ -623,9 +623,13 @@ function hasNaN(state: GameState): boolean {
  * 以前ここで実際の壁タイルだけを見る overlapsRealWall に緩めていた判定を overlapsWall に戻して
  * 検証する（report.md 付録「ドアタイル上でロックされた敵」参照）。
  * wisp (data/enemies.ts の phasing: true) は仕様として壁をすり抜けて移動するので対象外にする。
+ * 眠っている敵（system/enemies.ts の isAsleep）は自分では動かず、押し合いは壁で止まるので毎ステップは見ない
+ * （広いマップで敵が多く、この検査がシミュレーションの時間を食うため。埋まったまま起きれば起きた後に捕まる）。
  */
 function anyEnemyInWall(state: GameState): boolean {
-  return state.enemies.some((e) => !enemyDef(e.defKey).phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius));
+  return state.enemies.some(
+    (e) => !isAsleep(state, e) && !enemyDef(e.defKey).phasing && overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius),
+  );
 }
 
 /** 壁にめり込んだ敵を 1 行ずつ出す（QA_DEBUG=1 のときだけ呼ぶ） */
@@ -1551,6 +1555,12 @@ describe("QA 計測: 祝福の芯・格・取得機会", () => {
 const REPORT_START = "<<<QA_REPORT_START>>>";
 const REPORT_END = "<<<QA_REPORT_END>>>";
 
+/**
+ * フル版の制限時間（ms）。マップ拡大（MAP_SIZE の面積 3.5〜5 倍）で 1 ランの階が広く敵も多くなり、
+ * 1 ステップ約 1.15 倍・ランの長さも伸びて、基準 約 570 秒の実行が約 920 秒（2026-09-25 実測）になったため 600 秒から 2 倍に広げる
+ */
+const FULL_TIMEOUT_MS = 1_200_000;
+
 describe("QA simulation (フル版, SIM_FULL=1)", () => {
   it.runIf(FULL)(
     `${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップを実行する`,
@@ -1575,6 +1585,6 @@ describe("QA simulation (フル版, SIM_FULL=1)", () => {
       const totalExceptions = allMetrics.reduce((s, m) => s + m.exceptions.length, 0);
       expect(totalExceptions, `フル run で例外が ${totalExceptions} 件発生した。上の出力を参照`).toBe(0);
     },
-    600_000,
+    FULL_TIMEOUT_MS,
   );
 });

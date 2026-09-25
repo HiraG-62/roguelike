@@ -1,0 +1,19 @@
+{
+  "life": {
+    "burst": 0,
+    "ash": 0.9,
+    "shatter": 0.5,
+    "discharge": 0.6,
+    "melt": 0.9,
+    "blood": 0.6,
+    "sever": 0.7,
+    "void": 0.6,
+    "holy": 0.9
+  },
+  "particles": 10,
+  "shardSpeed": 170,
+  "ashRise": 18,
+  "severGap": 10,
+  "dischargeHop": 6,
+  "bloodSpeed": 150
+}

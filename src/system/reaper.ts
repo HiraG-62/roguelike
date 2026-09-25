@@ -1,6 +1,6 @@
 import { type GameState, type RoomKind, pushSfx } from "../core/state";
 import { type Vec, fromAngle } from "../core/vec";
-import { ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
+import { MAP_SIZE, ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { addFloatingText, noteReaperWarning, shake, spawnBurst } from "./effects";
 import { boonReaperDelay } from "./boonRules";
@@ -10,7 +10,7 @@ import { isPropRoom } from "./specialRooms";
 
 /**
  * 追跡者: 同じフロアに一定秒いると湧く、無敵で壁をすり抜ける死神。
- * 猶予秒数は REAPER.appearAfter に部屋数（treasure/shrine/台座の部屋を除く）* REAPER.appearPerRoom を足したもの。
+ * 猶予秒数は REAPER.appearAfter × 面積の倍率 ^ MAP_SIZE.graceAreaExp に部屋数（treasure/shrine/台座の部屋を除く）* REAPER.appearPerRoom を足したもの。
  * 洞窟では塊が部屋なので塊の数で数える（開放型でも探索すべき塊の数に比例させる）。
  * 階段を降りる（buildFloor で消える）まで追ってくる
  */
@@ -27,10 +27,12 @@ function excludedFromGrace(kind: RoomKind): boolean {
   return GRACE_EXCLUDED_KINDS.has(kind) || isPropRoom(kind);
 }
 
-/** このフロアで Reaper が出現するまでの猶予秒（部屋数ボーナス込み。縛り「急かす死神」で縮む） */
+/** このフロアで Reaper が出現するまでの猶予秒（広さ・部屋数ボーナス込み。縛り「急かす死神」で縮む） */
 export function reaperAppearAfter(state: GameState): number {
   const rooms = state.rooms.filter((r) => !excludedFromGrace(r.kind)).length;
-  const base = REAPER.appearAfter + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
+  // 広い階は部屋の間の道のりも伸びるので、基本の猶予も広さで伸ばす（部屋数の分は部屋の数で伸びる）
+  const areaGrace = REAPER.appearAfter * (state.floorAreaMul ?? 1) ** MAP_SIZE.graceAreaExp;
+  const base = areaGrace + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
   return hasMod(state, "hastyReaper") ? base * RUN_MOD.hastyReaperMul : base;
 }
 

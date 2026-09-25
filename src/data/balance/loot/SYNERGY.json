@@ -1,0 +1,12 @@
+{
+  "maxDepth": 3,
+  "chainDecay": 0.5,
+  "recentWindow": 3,
+  "keywordBudget": 6,
+  "keywordWindow": 1,
+  "defaultIcd": 0.4,
+  "lowHpRatio": 0.5,
+  "chainLog": 8,
+  "maxEventsPerStep": 256,
+  "maxPendingEvents": 64
+}

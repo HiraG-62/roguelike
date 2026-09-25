@@ -25,7 +25,7 @@
 ## ファイル所有の決め方
 
 - 新規ファイルはそれを作る Agent の所有
-- 共有ファイル: `src/core/state.ts`（型フィールドの追加）、`src/core/game.ts`（初期値と step の呼び出し）、`src/data/balance/*.json` と `src/data/tuning.ts`（ブロックの追加）、`src/render/renderer.ts`、`src/main.ts`、`src/system/combat.ts`、`src/audio/sfxNames.ts` / `sfxLayers.ts`
+- 共有ファイル: `src/core/state.ts`（型フィールドの追加）、`src/core/game.ts`（初期値と step の呼び出し）、`src/data/balance/**/*.json` と `src/data/tuning.ts`（ブロックの追加）、`src/render/renderer.ts`、`src/main.ts`、`src/system/combat.ts`、`src/audio/sfxNames.ts` / `sfxLayers.ts`
   - 許すのは「自分の追加分だけの小さな Edit」。既存行の書き換えは所有者か統合役が行う
   - 数値は JSON に機能ごとのブロック（`XXX`）を分けて置き、tuning.ts はそれを再 export する（同じブロックを 2 Agent が触らない）
 - テストファイルは対象ファイルの所有者のもの
@@ -42,7 +42,7 @@
 
 ## 最小 Edit のみ許可（全文 Write 禁止。自分の追加分だけ）
 - src/core/state.ts: <追加するフィールド>
-- src/data/balance/<file>.json + src/data/tuning.ts: <追加するブロック名>
+- src/data/balance/<file>/<ブロック>.json + src/data/tuning.ts: <追加するブロック名>
 
 ## 編集禁止（読むのは OK）
 - 上記以外すべて。特に <並行作業中の Agent の所有ファイル>
@@ -52,7 +52,7 @@
 - <関連する設計文書と既存コード>
 
 ## 仕様
-- <箇条書き。数値は src/data/balance/*.json に置く前提で書く>
+- <箇条書き。数値は src/data/balance/**/*.json に置く前提で書く>
 
 ## 完了条件
 - npm run check が通る（他 Agent 起因の失敗はその旨を報告）
@@ -76,7 +76,7 @@
 | テストの英語アサーション | 日本語化でテストが英語の表示文字列に依存して壊れる / 方針違反 | it 名・メッセージは日本語。表示文字列ではなく key や数値で検証する |
 | `git add -A` | 他 Agent の作業途中の変更まで混ざる | 所有ファイルを列挙して add |
 | 描画での rng 消費 | リプレイと QA の再現性が崩れる | 描画のばらつきは座標ハッシュ。レビューで `state.rng` の出現箇所を確認 |
-| 数値の直書き | 調整箇所が散らばる。ユーザーが JSON で調整できない | `src/data/balance/*.json` にブロック。レビューで指摘 |
+| 数値の直書き | 調整箇所が散らばる。ユーザーが JSON で調整できない | `src/data/balance/**/*.json` にブロック。レビューで指摘 |
 | 等幅前提の文字幅 | 日本語でレイアウトが崩れる | `pixelText.ts` の `textWidth` / `wrapText` / `truncateText`（`measureText` 禁止） |
 | seed 依存のテストが落ちる | 敵・修飾子・部屋を足すと抽選がずれる | seed を変えず、テストの意図を守る形で堅牢化（敵の生命を十分に、交戦フラグを解く、など） |
 | 並列の負荷でタイムアウト | 6 本並列で `replay.test.ts` / `qa/simulation.test.ts` が見かけ上失敗 | レーンには「報告だけ」と伝え、統合役が負荷の下がった後に `npm run check` |

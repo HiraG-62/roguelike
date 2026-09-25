@@ -1,11 +1,12 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
-import { ACTION, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
+import { ACTION, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
+import { type HitFamily, type HitWeight, hitSfxName } from "./effects";
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
 import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
@@ -40,8 +41,6 @@ const MIN_DAMAGE = 1;
 const MIN_PLAYER_DAMAGE = 1;
 const PLAYER_HIT_FLASH = 0.12;
 const DEATH_SLOWMO = 1.2;
-/** JUST 回避で得るゲージ（近接ヒット何回ぶんか） */
-const JUST_ENERGY_HITS = 2;
 /** 怯ませた一撃の演出（数字の大きさ・粒子数） */
 const HEAVY_TEXT_SCALE = 1.4;
 const HEAVY_PARTICLES = 10;
@@ -62,8 +61,8 @@ export interface HitOptions {
   /** スキル由来の命中（性質の on-hit 付与で on: "skill" を判定する） */
   skill?: boolean;
   hitstopSteps?: number;
-  /** 必殺ゲージを貯めるか（近接のみ true） */
-  buildsEnergy?: boolean;
+  /** この命中で溜まる奥義ゲージ（近接は meleeHitEnergy、射撃は弾の Projectile.energy。省略は溜めない） */
+  energy?: number;
   /** 既定は proc（on-hit 効果なし） */
   kind?: DamageKind;
   crit?: boolean;
@@ -73,6 +72,11 @@ export interface HitOptions {
   guardBreak?: boolean;
   /** 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-2）。showHit のヒットストップに反映 */
   finisher?: boolean;
+  /**
+   * 命中音の質感（system/effects.ts の hitSfxName）。近接は武器種の系統 × 段の重さ、未指定は従来の hit / hitHeavy。
+   * 射撃は weight: "heavy" のときだけ bulletHitHeavy に差し替える（family は使わない）
+   */
+  impact?: { family: HitFamily; weight: HitWeight };
 }
 
 /** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
@@ -204,13 +208,13 @@ export function damageEnemy(
   }
   if (opts.silent) noteDotDamage(state, enemy, amount);
 
-  if (opts.buildsEnergy) gainEnergy(state, PLAYER.energyPerHit);
+  if (opts.energy !== undefined && opts.energy > 0) gainEnergy(state, opts.energy);
   if (kind === "melee") {
-    pushSfx(state, heavy ? "hitHeavy" : "hit");
-    // 命中の低域のドン（docs/ideas/combat-feel-design.md D-5）。重撃は hitHeavy が既に低域を持つ
+    pushSfx(state, opts.impact ? hitSfxName(opts.impact.family, opts.impact.weight) : heavy ? "hitHeavy" : "hit");
+    // 命中の低域のドン（docs/ideas/combat-feel-design.md D-5）。重撃は hitHeavy / 重い impact が既に低域を持つ
     if (!heavy) pushSfx(state, "hitThump");
   }
-  if (kind === "ranged") pushSfx(state, "bulletHit");
+  if (kind === "ranged") pushSfx(state, opts.impact?.weight === "heavy" ? "bulletHitHeavy" : "bulletHit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state, amount);
@@ -274,6 +278,23 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
   // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）
   if (heavy) cameraKick(state, dir, FEEL.kickHeavy);
+}
+
+/**
+ * 近接 1 命中で溜まる奥義ゲージ。「1 秒ぶんの振りで ENERGY.perSwingSec」を段の基礎秒（攻撃速度の倍率を掛ける前）と
+ * 多段数で割り振る。速い武器ほど 1 命中が小さくなり、同じ時間殴れば武器種によらずほぼ同じだけ溜まる
+ */
+export function meleeHitEnergy(baseSec: number, hits: number): number {
+  return clampEnergy((ENERGY.perSwingSec * baseSec) / Math.max(1, hits));
+}
+
+/** 射撃の弾 1 発が命中で溜める奥義ゲージ。射撃間隔の基礎秒を 1 回に出る弾数で割り、近接より rangedRatio だけ低くする */
+export function shotHitEnergy(intervalSec: number, bullets: number): number {
+  return clampEnergy((ENERGY.perSwingSec * ENERGY.rangedRatio * intervalSec) / Math.max(1, bullets));
+}
+
+function clampEnergy(v: number): number {
+  return Math.min(ENERGY.maxPerHit, Math.max(ENERGY.minPerHit, v));
 }
 
 /** 必殺ゲージを増やす（energyGainMul 込み） */
@@ -571,7 +592,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   p.justCounterTimer = ACTION.justCounter.window;
   p.justCounterTargetId = attacker && attacker.hp > 0 ? attacker.id : null;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
-  gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
+  gainEnergy(state, ENERGY.just);
   gainMana(state, MANA.onJust);
   registerComboHit(state);
   addFloatingText(state, p.body.pos, "見切り！", COLOR_JUST, 1.5, 0.7);

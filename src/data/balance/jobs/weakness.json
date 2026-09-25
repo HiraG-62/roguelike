@@ -1,0 +1,38 @@
+{
+  "_fields": {
+    "maxHp": "最大生命の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+    "skillDamageMul": "スキルの威力の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+    "meleeDamageMul": "近接の威力の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+    "moveSpeedMul": "移動速度の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+    "attackSpeedMul": "攻撃速度の倍率（1 = 等倍）。JOB の同じ弱点の値（表示の % の元）と揃える",
+    "dashCooldownMul": "ダッシュの再使用時間の倍率（1 = 等倍。1 より大きいと延びる）。JOB の同じ弱点の値（表示の % の元）と揃える",
+    "damageTakenMul": "受けるダメージの倍率（1 = 等倍。1 より大きいと増える）。JOB の同じ弱点の値（表示の % の元）と揃える"
+  },
+  "swordsman": {
+    "skillDamageMul": 0.85
+  },
+  "hunter": {
+    "maxHp": 0.85
+  },
+  "brawler": {
+    "damageTakenMul": 1.1
+  },
+  "shieldBearer": {
+    "moveSpeedMul": 0.92
+  },
+  "hexer": {
+    "meleeDamageMul": 0.85
+  },
+  "lancer": {
+    "dashCooldownMul": 1.15
+  },
+  "invoker": {
+    "maxHp": 0.85
+  },
+  "shadow": {
+    "maxHp": 0.8
+  },
+  "alchemist": {
+    "attackSpeedMul": 0.9
+  }
+}

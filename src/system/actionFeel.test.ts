@@ -81,7 +81,8 @@ describe("カウンターヒット", () => {
     e.phaseTimer = LONG_WINDUP;
     const before = e.hp;
     const heard = runCollectSfx(state, SWING_STEPS, true);
-    expect(before - e.hp, "カウンターの威力").toBe(Math.round(slashDamage(state, 0) * ACTION.counter.damageMul));
+    // rollOutgoing が先に丸め、カウンターの倍率を掛けてからもう一度丸める（player.ts の meleeHitEnemy）
+    expect(before - e.hp, "カウンターの威力").toBe(Math.round(Math.round(slashDamage(state, 0)) * ACTION.counter.damageMul));
     expect(hasText(state, ACTION.counter.text)).toBe(true);
     expect(heard.has("counter")).toBe(true);
   });
@@ -251,6 +252,8 @@ describe("見切り斬り（祝福 justSlash）", () => {
 
   it("JUST 回避直後の攻撃で敵の手前へ瞬間移動して重い一撃", () => {
     const state = arena();
+    // 祝福は装備の stats から畳み直す。空の装備は素手（拳）になるので、arena の剣の stats を装備の stats として使わせる
+    state.boonRun.baseStats = state.stats;
     grantBoon(state, "justSlash");
     const e = passive(placeEnemy(state, "boar", ENEMY_DIST));
     e.hp = 1000;

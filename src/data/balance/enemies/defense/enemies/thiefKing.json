@@ -1,0 +1,17 @@
+{
+  "body": "boss",
+  "resist": {
+    "dark": 25
+  },
+  "stages": [
+    {
+      "ice": -50
+    },
+    {
+      "lightning": -50
+    },
+    {
+      "light": -50
+    }
+  ]
+}

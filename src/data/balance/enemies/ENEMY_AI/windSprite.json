@@ -1,0 +1,9 @@
+{
+  "range": 120,
+  "arcDeg": 50,
+  "push": 520,
+  "maxPush": 170,
+  "bulletPush": 260,
+  "keepAway": 90,
+  "color": "#d0f0ff"
+}

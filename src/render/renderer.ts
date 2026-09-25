@@ -15,6 +15,7 @@ import { describeResonance } from "../loot/describe";
 import { RARITY_COLOR, SLOTS, type Rarity } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
+import { ultimateCost } from "../system/ultimates";
 import {
   type MeleeStep,
   currentMeleeStep,
@@ -88,6 +89,7 @@ import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
 import { trailFade } from "./fxMath";
+import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
@@ -627,6 +629,8 @@ export class Renderer {
   private readonly darkness = new DarknessLayer(VIEW_W, VIEW_H);
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
+  /** 拠点の台（setHubView）。拠点以外では null */
+  private hubView: HubSpotsView | null = null;
 
   /** 論理 1px あたりの実ピクセル数。fitToWindow で更新する */
   private pixelRatio = 1;
@@ -734,6 +738,7 @@ export class Renderer {
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
+    if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
@@ -870,6 +875,14 @@ export class Renderer {
 
   private sprite(key: string): Sprite {
     return getSprite(this.atlas, key);
+  }
+
+  /**
+   * 拠点の台を world 層で描くための表示用の値（main.ts が拠点を描く間だけ渡し、描いたら null に戻す）。
+   * 台は GameState に無いので、state を読むだけの原則を崩さずに渡す窓口
+   */
+  setHubView(view: HubSpotsView | null): void {
+    this.hubView = view;
   }
 
   /** 外から描く UI（拠点の設備など）が PNG 素材を引くための公開。無ければ undefined（呼び出し側がフォールバック） */
@@ -2293,15 +2306,15 @@ export class Renderer {
     drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
 
     const sustaining = p.ultimate.active !== null;
-    const ready = !sustaining && p.energy >= p.maxEnergy;
+    // 満タンの見た目は選んでいる奥義の cost 基準（持続中は上限に対する残り）
+    const cost = ultimateCost(state);
+    const ready = !sustaining && p.energy >= cost;
     const blinkOn = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2;
     const energyColor = sustaining ? COLOR_ENERGY_SUSTAIN : ready && blinkOn ? COLOR_ENERGY_READY : COLOR_ENERGY;
-    this.drawBar(HUD_BAR_X, HUD_ENERGY_Y, HUD_BAR_W, HUD_ENERGY_H, p.energy / p.maxEnergy, energyColor, COLOR_ENERGY_BG);
-    if (sustaining) drawText(ctx, "F: 奥義を終える", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
+    this.drawBar(HUD_BAR_X, HUD_ENERGY_Y, HUD_BAR_W, HUD_ENERGY_H, Math.min(1, p.energy / (sustaining ? p.maxEnergy : cost)), energyColor, COLOR_ENERGY_BG);
     if (ready) {
       ctx.strokeStyle = blinkOn ? COLOR_ENERGY : COLOR_ENERGY_READY;
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
-      drawText(ctx, "F: 奥義", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     }
     this.drawDashPips(state);
     this.drawKeystoneHud(state);

@@ -1,0 +1,5 @@
+{
+  "_note": "地均し: 前方の床の地形を砕いて消し、砕いた数だけ強く打つ（溶岩は砕けない）。probeStep / clearRadius は地形を探る間隔と1か所で消す半径。perCell / maxBonus は砕いた1マスごとの威力上乗せと上限",
+  "cost": 19, "minInterval": 0.7, "poise": 30, "length": 100, "halfWidth": 9, "probeStep": 8, "clearRadius": 6, "perCell": 0.08, "maxBonus": 0.8,
+  "damage": { "base": 6, "str": 1.2, "vit": 0.8 }, "poiseRatio": { "str": 0.54, "vit": 0.36 }, "knockback": 160
+}

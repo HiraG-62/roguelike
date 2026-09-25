@@ -14,7 +14,20 @@ import { computeStats } from "../loot/stats";
 import { refreshPendingBud } from "../system/loot";
 import { budBannerRect, layoutBudModal } from "./bud";
 import { createEchoUi } from "./echoTab";
-import { createInventoryUi, helpButtonRect, layoutInventory, layoutSkills, tabRects, updateInventoryUi, type InventoryUi } from "./inventory";
+import {
+  DESTROY_CONFIRM_SECONDS,
+  TAB_ORDER,
+  createInventoryUi,
+  detailPageOf,
+  helpButtonRect,
+  layoutInventory,
+  layoutSkills,
+  skillColumnRects,
+  tabRects,
+  updateInventoryUi,
+  type InventoryUi,
+} from "./inventory";
+import { detailPagerRects } from "./inventoryLayout";
 import type { SlotFilter } from "./stashFilter";
 import type { Rect } from "./inventoryLayout";
 
@@ -91,11 +104,16 @@ beforeEach(() => {
 });
 
 describe("updateInventoryUi: タブ", () => {
-  it("Tab は 閉 → 装備 → スキル → 残響 → 網 → 閉 のサイクルで、state.paused が連動する", () => {
+  it("タブの順に status がある（装備の次）", () => {
+    expect(TAB_ORDER.indexOf("status"), "装備の次").toBe(TAB_ORDER.indexOf("equipment") + 1);
+  });
+
+  it("Tab は 閉 → 装備 → ステータス → スキル → 残響 → 網 → 閉 のサイクルで、state.paused が連動する", () => {
     const state = createGame(1);
     const ui = createInventoryUi();
     const expected = [
       { open: true, tab: "equipment" },
+      { open: true, tab: "status" },
       { open: true, tab: "skills" },
       { open: true, tab: "echo" },
       { open: true, tab: "web" },
@@ -107,7 +125,7 @@ describe("updateInventoryUi: タブ", () => {
       expect(state.paused, "開いている間は止まる").toBe(true);
     }
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
-    expect(ui.open, "5 回目で閉じる").toBe(false);
+    expect(ui.open, "6 回目で閉じる").toBe(false);
     expect(state.paused, "閉じたら再開").toBe(false);
 
     updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
@@ -117,7 +135,7 @@ describe("updateInventoryUi: タブ", () => {
   it("画面上のタブをクリックで切り替えられる", () => {
     const state = createGame(1);
     const ui = openUi(state);
-    for (const tab of ["skills", "echo", "web", "equipment"] as const) {
+    for (const tab of ["status", "skills", "echo", "web", "equipment"] as const) {
       const rect = tabRects().find((t) => t.tab === tab)?.rect;
       if (!rect) throw new Error(`${tab} tab missing`);
       clickAt(state, ui, rect);
@@ -214,10 +232,26 @@ describe("updateInventoryUi: スキルタブの刻印符", () => {
     expect(state.skills.profile.runes, "所持品のまま").toHaveLength(2);
   });
 
-  it("Shift+クリックで所持刻印符を捨てる", () => {
+  it("Shift+クリックを 2 回で所持刻印符を捨てる", () => {
     const { state, ui } = runeSetup();
     clickAt(state, ui, runeRowRect(state, ui, "rb"), { shiftHeld: true });
+    expect(state.skills.profile.runes, "1 回目では捨てない").toHaveLength(2);
+    clickAt(state, ui, runeRowRect(state, ui, "rb"), { shiftHeld: true });
     expect(state.skills.profile.runes?.map((r) => r.id)).toEqual(["ra"]);
+  });
+
+  it("ホイールで列をスクロールしてもカーソル行へ戻らない（マウスが動いていない間）", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    ui.tab = "skills";
+    const profile = state.skills.profile;
+    profile.runes = Array.from({ length: 20 }, (_, i) => ({ id: `r${i}`, modifier: "echo" as const, foundAt: i }));
+    // 一覧の見出し帯（どの行にも乗らない位置）にマウスを置いたまま、ホイールだけを回す
+    const list = layoutSkills(state, ui).runeList;
+    const aimScreen = { x: list.header.x + 2, y: list.header.y + 1 };
+    for (let i = 0; i < 10; i++) updateInventoryUi(state, ui, withInput({ wheel: 1, aimScreen }), 0);
+    expect(ui.runes.scroll, "スクロールは進む").toBeGreaterThan(0);
+    expect(ui.runes.cursor, "カーソルは先頭のまま").toBe(0);
   });
 });
 
@@ -250,12 +284,14 @@ describe("updateInventoryUi: 装備タブ", () => {
     expect(state.player.hp, "50% を維持").toBe(5);
   });
 
-  it("Shift+クリックで砕き、性質の色の残響を得る（装備はしない）", () => {
+  it("Shift+クリックを 2 回で砕き、性質の色の残響を得る（装備はしない）", () => {
     const state = createGame(1);
     const ui = openUi(state);
     const equippedBefore = state.profile.equipment.mainHand;
     addToStash(state.profile, makeItem({ id: "junk-1", affixes: [melee, life] }));
 
+    clickAt(state, ui, stashRowRect(state, ui, "junk-1"), { shiftHeld: true });
+    expect(state.profile.stash.some((it) => it.id === "junk-1"), "1 回目では砕かない").toBe(true);
     clickAt(state, ui, stashRowRect(state, ui, "junk-1"), { shiftHeld: true });
 
     expect(state.profile.stash.some((it) => it.id === "junk-1"), "倉庫から消える").toBe(false);
@@ -412,5 +448,92 @@ describe("芽: 装備と 2 択", () => {
     updateInventoryUi(state, ui, withInput({ skill1Pressed: true }), 0);
     expect(state.profile.equipment.mainHand?.affixes.at(-1)?.key, "1 つ目の候補").toBe(life.key);
     expect(state.pendingBud).toBeNull();
+  });
+});
+
+describe("破壊操作の確認", () => {
+  it("破壊操作は 2 回目で確定する（別の行を挟む・時間切れでは確定しない）", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    addToStash(state.profile, makeItem({ id: "a", foundAt: 2 }));
+    addToStash(state.profile, makeItem({ id: "b", foundAt: 1 }));
+    const has = (id: string): boolean => state.profile.stash.some((it) => it.id === id);
+
+    clickAt(state, ui, stashRowRect(state, ui, "a"), { shiftHeld: true });
+    expect(ui.pendingDestroy?.key, "1 回目は印だけ").toBe("shatter:a");
+    clickAt(state, ui, stashRowRect(state, ui, "b"), { shiftHeld: true });
+    expect(has("a"), "別の行へ移ると a は残る").toBe(true);
+    expect(has("b"), "b も 1 回目").toBe(true);
+
+    updateInventoryUi(state, ui, withInput({}), DESTROY_CONFIRM_SECONDS + 0.1);
+    expect(ui.pendingDestroy, "時間切れで印が消える").toBeNull();
+    clickAt(state, ui, stashRowRect(state, ui, "b"), { shiftHeld: true });
+    expect(has("b"), "時間切れの後はまた 1 回目").toBe(true);
+    clickAt(state, ui, stashRowRect(state, ui, "b"), { shiftHeld: true });
+    expect(has("b"), "2 回目で砕く").toBe(false);
+  });
+
+  it("スキル石の分解も 2 回目で確定し、普通のクリックを挟むと取り消す", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    ui.tab = "skills";
+    const profile = state.skills.profile;
+    const stone = profile.stones[0];
+    if (!stone) throw new Error("石が無い");
+    const rowRect = (): Rect => {
+      const row = layoutSkills(state, ui).rows.find((r) => r.stone.id === stone.id);
+      if (!row) throw new Error("row missing");
+      return row.rect;
+    };
+    clickAt(state, ui, rowRect(), { shiftHeld: true });
+    expect(ui.pendingDestroy, "印が付く").not.toBeNull();
+    clickAt(state, ui, skillColumnRects().slots);
+    expect(ui.pendingDestroy, "別のクリックで取り消す").toBeNull();
+    clickAt(state, ui, rowRect(), { shiftHeld: true });
+    clickAt(state, ui, rowRect(), { shiftHeld: true });
+    expect(profile.stones.some((s) => s.id === stone.id), "2 回目で分解").toBe(false);
+  });
+});
+
+describe("詳細欄の頁送り", () => {
+  it("頁送りの右をクリックで次、左で前へ回る", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    const pager = detailPagerRects();
+    expect(detailPageOf(ui)).toBe("brief");
+    clickAt(state, ui, pager.next);
+    expect(detailPageOf(ui), "次").toBe("full");
+    clickAt(state, ui, pager.next);
+    expect(detailPageOf(ui), "その次").toBe("formula");
+    clickAt(state, ui, pager.prev);
+    expect(detailPageOf(ui), "前").toBe("full");
+    clickAt(state, ui, pager.prev);
+    clickAt(state, ui, pager.prev);
+    expect(detailPageOf(ui), "先頭の前は末尾").toBe("formula");
+  });
+
+  it("頁送りは詳細欄の下端にあり、倉庫の一覧と重ならない", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    const { bar } = detailPagerRects();
+    const layout = layoutInventory(state, ui);
+    expect(bar.y, "本文の下").toBeGreaterThanOrEqual(layout.detail.y + layout.detail.h);
+    expect(bar.x, "一覧より右").toBeGreaterThanOrEqual(layout.stashRows[0]?.rect.x ?? 0);
+  });
+});
+
+describe("スキルタブのフォーカス", () => {
+  it("マウスが動いた列にフォーカスが移り、1〜4 キーでスロットの列へ戻る", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    ui.tab = "skills";
+    const cols = skillColumnRects();
+    updateInventoryUi(state, ui, withInput({ aimScreen: { x: cols.runes.x + 2, y: cols.runes.y + 2 } }), 0);
+    expect(ui.skillFocus, "刻印符の列").toBe("runes");
+    updateInventoryUi(state, ui, withInput({ aimScreen: { x: cols.stones.x + 2, y: cols.stones.y + 2 } }), 0);
+    expect(ui.skillFocus, "石の列").toBe("stones");
+    updateInventoryUi(state, ui, withInput({ aimScreen: { x: cols.stones.x + 2, y: cols.stones.y + 2 }, skill2Pressed: true }), 0);
+    expect(ui.skillFocus, "キーでスロット").toBe("slots");
+    expect(ui.skillSlot).toBe(1);
   });
 });

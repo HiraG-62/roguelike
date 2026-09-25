@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ATTR_KEYS } from "../loot/types";
 import { ALLOC_ORDER, allocButtonAt, allocButtonRect } from "../ui/attributeAlloc";
-import { CONTENT_BOTTOM, CONTENT_Y, detailRect } from "../ui/inventoryLayout";
-import { ATTR_HINT, attributePanelRect, attributeValueText, unspentHudText } from "./attributeUi";
+import { CONTENT_BOTTOM, CONTENT_RIGHT, CONTENT_Y, LIST_X } from "../ui/inventoryLayout";
+import { statusAttrPanelRect as attributePanelRect } from "../ui/statusTab";
+import { allocatedText, attributeValueText, unspentHudText } from "./attributeUi";
 import { manaRatio } from "./manaHud";
 
 describe("装備画面のステータス一覧", () => {
@@ -12,18 +12,18 @@ describe("装備画面のステータス一覧", () => {
     expect(attributeValueText("vit", 41, 30.25)).toBe("体力 41（実効 30.25）");
   });
 
-  it("右の詳細欄の中、見出しの下に収まる", () => {
+  it("このランで振った点は振ったときだけ出す", () => {
+    expect(allocatedText(0)).toBe("");
+    expect(allocatedText(2)).toBe("振り +2");
+  });
+
+  it("ステータスタブの本文の中、見出しの下に収まる", () => {
     const r = attributePanelRect();
-    const detail = detailRect();
-    expect(r.x, "詳細欄の左端から").toBeGreaterThanOrEqual(detail.x);
-    expect(r.x + r.w, "詳細欄の右端まで").toBeLessThanOrEqual(detail.x + detail.w);
+    expect(r.x, "本文の左端から").toBeGreaterThanOrEqual(LIST_X);
+    expect(r.x + r.w, "本文の右端まで").toBeLessThanOrEqual(CONTENT_RIGHT);
     expect(r.y, "見出しの下").toBeGreaterThan(CONTENT_Y);
     expect(r.y + r.h, "本文の下端を越えない").toBeLessThanOrEqual(CONTENT_BOTTOM);
     expect(r.h, "高さがある").toBeGreaterThan(0);
-  });
-
-  it("全ステータスに一言がある", () => {
-    for (const k of ATTR_KEYS) expect(ATTR_HINT[k].length, k).toBeGreaterThan(0);
   });
 });
 

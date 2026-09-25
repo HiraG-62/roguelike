@@ -1,0 +1,15 @@
+{
+  "attackMoveMul": 0.4,
+  "dashAttack": {"windup":0.04,"active":0.1,"recover":0.26,"scaling":{"base":6,"str":0.3,"vit":0.5},"poiseRatio":{"vit":0.48},"poise":16,"reach":0,"size":44,"knockback":300,"heavy":true,"mana":3,"shape":{"kind":"circle"},"hitstop":5,"shake":3,"trail":"#ffc070"},
+  "steps2": [
+    {"kind":"swing","key":"pointBlank","cooldown":0.8,"selfKnock":560,"detonateMines":true,"step":{"windup":0.05,"active":0.1,"recover":0.24,"scaling":{"base":8,"str":0.4,"vit":0.6},"poiseRatio":{"vit":0.72},"poise":24,"reach":0,"size":44,"knockback":360,"heavy":true,"mana":3,"shape":{"kind":"circle"},"hitstop":6,"shake":4,"trail":"#ffc070"}},
+    {"kind":"swing","key":"barrelBash","step":{"windup":0.05,"active":0.1,"recover":0.288,"scaling":{"base":9,"str":0.45,"vit":0.65},"poiseRatio":{"vit":0.81},"poise":27,"reach":16,"size":28,"knockback":360,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":6,"shake":4,"trail":"#ffc070"}},
+    {"kind":"swing","key":"buttSwing","selfKnock":300,"step":{"windup":0.05,"active":0.1,"recover":0.288,"scaling":{"base":9,"str":0.45,"vit":0.65},"poiseRatio":{"vit":0.81},"poise":27,"reach":26,"size":26,"knockback":360,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":180},"hitstop":6,"shake":4,"trail":"#ffc070"}}
+  ],
+  "branches": {
+    "loadedShot": {"sequence":["primary","primary","secondary"],"step":{"windup":0.05,"active":0.1,"recover":0.24,"scaling":{"base":4,"str":0.2,"vit":0.3},"poiseRatio":{"vit":0.36},"poise":12,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hitstop":6,"shake":4,"trail":"#ffc070"},"shots":{"count":1,"damageMul":1.5}},
+    "barrelSwing": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.05,"active":0.1,"recover":0.24,"scaling":{"base":9.2,"str":0.45,"vit":0.7},"poiseRatio":{"vit":0.84},"poise":28,"reach":0,"size":50,"knockback":360,"heavy":true,"mana":3,"shape":{"kind":"circle"},"hitstop":6,"shake":4,"trail":"#ffc070"}},
+    "contactShot": {"sequence":["primary","secondary","primary"],"step":{"windup":0.05,"active":0.1,"recover":0.24,"scaling":{"base":9.2,"str":0.45,"vit":0.7},"poiseRatio":{"vit":0.84},"poise":28,"reach":12,"size":24,"knockback":360,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":6,"shake":4,"trail":"#ffc070"},"shots":{"count":1,"damageMul":1},"detonateMines":true},
+    "shoveOff": {"sequence":["secondary","primary","primary"],"step":{"windup":0.05,"active":0.1,"recover":0.24,"scaling":{"base":9.2,"str":0.45,"vit":0.7},"poiseRatio":{"vit":0.84},"poise":28,"reach":12,"size":24,"knockback":500,"heavy":true,"mana":3,"shape":{"kind":"box"},"hitstop":6,"shake":4,"lunge":20,"trail":"#ffc070"}}
+  }
+}

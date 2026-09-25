@@ -59,11 +59,15 @@ import {
   edgeDir,
   isActionRow,
   keybindsItemAt,
+  clampKeybindsScroll,
   keybindsScrollFor,
   moveHistoryCursor,
   pauseMenuItemAt,
   processMenuKeys,
   replayAvailability,
+  isSettingsGaugeItem,
+  settingsGaugeRect,
+  settingsGaugeValueAt,
   settingsItemAt,
   settingsRowSide,
   shiftReplaySpeed,
@@ -71,6 +75,7 @@ import {
   summarizeRunItems,
   type PauseMenuItem,
   type ReplaySpeed,
+  type SettingsGaugeItem,
   type SettingsItem,
 } from "./ui/title";
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
@@ -82,6 +87,10 @@ import {
   loadSettings,
   resetKeybinds,
   saveSettings,
+  setHitstopScale,
+  setMusicVolume,
+  setScreenShake,
+  setVolume,
   toggleDropTooltip,
   toggleMute,
   type Settings,
@@ -110,17 +119,21 @@ import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, locked
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
+import { tipsListTabs } from "./meta/tips";
 import { type ListAction, type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
-import { type HubSession, borrowRackEntry, chooseRackUltimate, createHub, trialUltimateName, rackEntryName, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
+import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
 import { HUB } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
 import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
-import { drawHubOverlay, hubScreenOffset } from "./render/hubUi";
-import { type RackRow, altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, rackEntryOf, rackTabs, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
+import { drawHubOverlay } from "./render/hubUi";
+import { drawRackScreen } from "./render/rackUi";
+import type { MovesetKey } from "./data/weapons";
+import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
+import { type RackAction, type RackCard, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
 import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
 
 const canvasEl = document.getElementById("game");
@@ -151,6 +164,7 @@ type Screen =
   | "codex"
   | "questBoard"
   | "achievements"
+  | "tips"
   | "playing"
   | "paused"
   | "history"
@@ -161,8 +175,8 @@ type Screen =
   | "altar"
   | "rack";
 
-/** タイトルのメニューから開く一覧画面 */
-type ListScreenKind = "codex" | "questBoard" | "achievements";
+/** タイトルのメニューから開く一覧画面（Tips ノートはポーズからも開く） */
+type ListScreenKind = "codex" | "questBoard" | "achievements" | "tips";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
 const NO_REPLAY_MESSAGE = "この探索のリプレイは保存されていません";
@@ -246,6 +260,20 @@ function applySettings(): void {
   saveSettings(settings);
 }
 applySettings();
+
+/**
+ * ヒットストップの強さ設定を、今動いているラン/拠点の state へ即座に書き戻す。
+ * これをしないと（保存はされても）今のプレイに効かず「変えても変わらない」ように見える。
+ * ラン中の変更は記録中のリプレイにもイベントとして積み、再生で同じ強さを再現する
+ */
+function applyHitstopScale(): void {
+  if (state) {
+    state.hitstopScale = settings.hitstopScale;
+    recorder?.noteHitstopScale(state, settings.hitstopScale);
+  }
+  if (hub) hub.state.hitstopScale = settings.hitstopScale;
+  saveSettings(settings);
+}
 
 // ---------------------------------------------------------------------------
 // 画面状態
@@ -468,6 +496,7 @@ function updateQuestChoice(frame: FrameInput, escape: boolean, arrowX: number, a
 function listTabsFor(kind: ListScreenKind): ListTab[] {
   if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave));
   if (kind === "questBoard") return questBoardTabs(questSave);
+  if (kind === "tips") return tipsListTabs();
   return achievementTabs(achievementSave, questSave);
 }
 
@@ -475,18 +504,21 @@ const TITLE_MENU_SCREEN: Readonly<Record<TitleMenuItem, ListScreenKind>> = {
   codex: "codex",
   quests: "questBoard",
   achievements: "achievements",
+  tips: "tips",
 };
 
 const LIST_SCREEN_TITLE: Readonly<Record<ListScreenKind, string>> = {
   codex: "図鑑",
   questBoard: "依頼",
   achievements: "実績",
+  tips: "Tips ノート",
 };
 
 const LIST_SCREEN_HINT: Readonly<Record<ListScreenKind, string>> = {
-  codex: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える）",
-  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（依頼は探索の開始時に 3 択から 1 つ受ける）",
+  codex: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る",
+  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る",
   achievements: "←→ タブ　↑↓ / ホイール 選ぶ　Enter / クリック 称号を名乗る　Esc 戻る",
+  tips: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る",
 };
 
 function openListScreen(next: ListScreenKind, frameMoveX: number, frameMoveY: number): void {
@@ -533,7 +565,7 @@ function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: 
 // ---------------------------------------------------------------------------
 
 const ALTAR_TITLE = "祭壇";
-const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す　Esc 拠点へ（拠点を出ると消える）";
+const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す　Esc 拠点へ";
 /**
  * 拠点の state。リプレイに記録しないので `state` とは別に持つ
  * （`state` に入れると、ループ先頭の死亡判定や endRun が拠点を 1 ランとして記録してしまう）
@@ -542,8 +574,8 @@ let hub: HubSession | null = null;
 let hubDecor: HubDecor[] = [];
 let hubBanner: string | null = null;
 let hubBannerTimer = 0;
-/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル */
-let menuReturn: "title" | "hub" = "title";
+/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル、ポーズから開いたらポーズ */
+let menuReturn: "title" | "hub" | "paused" = "title";
 const departLatch = createHoldLatch();
 
 function hubSource(): ReturnType<typeof hubProgressSource> {
@@ -558,7 +590,7 @@ function openHub(): void {
   hubBanner = facilityBuiltBanner(newlyBuilt(built, hubSave));
   hubBannerTimer = hubBanner === null ? 0 : HUB.bannerSeconds;
   saveHub(markFacilitiesSeen(hubSave, built));
-  hub = createHub(profile, skillProfile, availableSpots(built));
+  hub = createHub(profile, skillProfile, availableSpots(built), settings.hitstopScale);
   inventoryUi.open = false;
   returnToHub();
 }
@@ -588,6 +620,13 @@ function returnToHub(): void {
 function leaveMenu(): void {
   if (menuReturn === "hub") {
     returnToHub();
+    return;
+  }
+  if (menuReturn === "paused" && state) {
+    // ポーズの一覧から戻るだけ。以後の既定の戻り先はタイトルに戻す
+    menuReturn = "title";
+    // menuNav は一覧の入力が毎フレーム更新しているので、画面を戻すだけでよい
+    screen = "paused";
     return;
   }
   screen = "title";
@@ -684,15 +723,24 @@ function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolea
 }
 
 const RACK_TITLE = "武器掛け";
-const RACK_HINT = "←→ タブ　↑↓ 選ぶ　Enter / クリック 試す・奥義を選ぶ　Enter 長押し 借りる　Esc 拠点へ";
+const RACK_HINT = "矢印 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　↓で調整欄（←→ 増減）　Esc 拠点へ";
 /** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
 let rackHold = 0;
 const rackLatch = createHoldLatch();
+let rackUi: RackUi = createRackUi();
+let rackCardList: RackCard[] = [];
+/** 「装備のまま」のカードに出す武器種（開いたときと借りたときだけ数え直す） */
+let rackEquipped: MovesetKey | null = null;
+
+function refreshRackCards(session: HubSession): void {
+  rackCardList = rackCards(session.hub.trialMoveset);
+  rackEquipped = equippedMoveset(session.state.profile);
+}
 
 function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): void {
   screen = "rack";
-  listUi = createListScreen();
-  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+  rackUi = createRackUi();
+  refreshRackCards(session);
   rackHold = 0;
   resetHoldLatch(rackLatch);
   menuNav.prevX = frameMoveX;
@@ -700,34 +748,66 @@ function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): 
   menuAimPrev = null;
 }
 
-/** 短押し（決定）で試し、長押しで借りる。試す行は押した瞬間に替わるので、借りる前に振り心地が変わって見える */
+function stepRackInput(frame: FrameInput, arrowX: number, arrowY: number): RackAction {
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  menuAimPrev = aim;
+  const navX = arrowX !== 0 ? arrowX : edgeDir(menuNav.prevX, frame.move.x);
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  const input = { navX, navY, wheel: frame.wheel, aim, aimMoved, click: frame.clickPressed, confirm: frame.confirmPressed };
+  return stepRack(rackUi, rackCardList, input);
+}
+
+/** 短押し（決定）で試し、長押しで借りる。試すカードは押した瞬間に替わるので、借りる前に振り心地が変わって見える */
 function updateRackFrame(session: HubSession, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
   if (escape) {
     sfx.play("uiClose");
     returnToHub();
     return;
   }
-  const activated = stepListInput(frame, arrowX, arrowY) === "activate";
-  const row = rackEntryOf(listCursorEntry(listUi, listTabs)?.key ?? "");
-  if (row === null) return;
-  if (activated) activateRackRow(session, row);
-  rackHold = latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
-  if (rackHold < HUB.rackBorrowHold) return;
+  applyRackAction(session, stepRackInput(frame, arrowX, arrowY));
+  const target = rackCursorCard(rackUi, rackCardList)?.moveset ?? null;
+  rackHold = target !== null && latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
+  if (target === null || rackHold < HUB.rackBorrowHold) return;
   rackHold = 0;
   resetHoldLatch(rackLatch);
-  // 奥義の行の長押しは、その奥義の武器種を借りる
-  const target = row.kind === "moveset" ? row.key : row.moveset;
-  const borrowed = target === null ? null : borrowRackEntry(session, { kind: "moveset", key: target }, Date.now());
+  const borrowed = borrowRackEntry(session, { kind: "moveset", key: target }, Date.now());
   sfx.play(borrowed ? "uiClick" : "uiClose");
-  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+  refreshRackCards(session);
 }
 
-/** 武器種の行は試し、奥義の行はその武器種の奥義に選んで保存する（拠点を出ても残る） */
-function activateRackRow(session: HubSession, row: RackRow): void {
-  if (row.kind === "moveset") setTrialWeapon(session, row.key);
-  else if (chooseRackUltimate(session, row.moveset, row.key)) saveProfile(session.state.profile);
+/** カードは試し、調整欄は拠点の資源を書き換える（拠点の state はリプレイにも保存にも載らない） */
+function applyRackAction(session: HubSession, action: RackAction): void {
+  if (action.kind === "none") return;
+  if (action.kind === "moved") {
+    sfx.play("menuMove");
+    return;
+  }
+  if (action.kind === "try") {
+    setTrialWeapon(session, action.moveset);
+    refreshRackCards(session);
+  } else if (action.kind === "adjust") {
+    setHubResource(session, action.resource, hubResourceRatio(session, action.resource) + action.delta);
+  } else {
+    fillHubResources(session);
+  }
   sfx.play("uiClick");
-  listTabs = rackTabs(session.hub.trialMoveset, session.state.profile);
+}
+
+function drawRackFrame(ctx: CanvasRenderingContext2D, session: HubSession): void {
+  const resources = { hp: hubResourceRatio(session, "hp"), mana: hubResourceRatio(session, "mana"), energy: hubResourceRatio(session, "energy") };
+  drawRackScreen(ctx, {
+    title: RACK_TITLE,
+    hint: RACK_HINT,
+    ui: rackUi,
+    cards: rackCardList,
+    resources,
+    equipped: rackEquipped,
+    borrowHold: rackHold / HUB.rackBorrowHold,
+    lookup: (key) => renderer.atlasSprite(key),
+  });
 }
 
 /** 拠点の重ね描きに出す、試している武器と借り物の名前 */
@@ -741,17 +821,13 @@ function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: 
 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
   const s = session.state;
-  renderGame(s, inventoryUi.open ? null : lastAim);
-  const { ox, oy } = hubScreenOffset(s);
   const h = session.hub;
-  drawHubOverlay(
-    ctx,
-    s,
-    { spots: h.layout.spots, available: h.available, near: h.near, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) },
-    ox,
-    oy,
-    (key) => renderer.atlasSprite(key),
-  );
+  const spots = { spots: h.layout.spots, available: h.available, near: h.near };
+  // 台はマップの物なので world 層で描く（HUD や装備画面より下）。拠点以外の描画に残らないよう描いたら外す
+  renderer.setHubView(spots);
+  renderGame(s, inventoryUi.open ? null : lastAim);
+  renderer.setHubView(null);
+  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) });
   if (!inventoryUi.open) drawBudUi(ctx, s);
   if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
 }
@@ -1109,7 +1185,8 @@ startLoop(
 
       case "codex":
       case "questBoard":
-      case "achievements": {
+      case "achievements":
+      case "tips": {
         updateListScreenFrame(screen, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
         break;
       }
@@ -1124,7 +1201,8 @@ startLoop(
           break;
         }
         const history = profile.meta.history ?? [];
-        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : Math.sign(frame.wheel);
+        // ホイールは一覧の表示だけを送る対象（このスクロール窓は別レーンの担当）。カーソルは矢印キーでのみ動かす
+        const navY = hotkeys.arrowY;
         if (navY !== 0) {
           historyCursor = moveHistoryCursor(historyCursor, navY, history.length);
           historyMessage = "";
@@ -1197,10 +1275,27 @@ startLoop(
             saveSettings(settings);
           } else if (item === "hitstopScale") {
             adjustHitstopScale(settings, dir);
-            saveSettings(settings);
+            applyHitstopScale();
           } else if (item === "dropTooltip") {
             toggleDropTooltip(settings);
             saveSettings(settings);
+          }
+        };
+
+        // ゲージのドラッグ/クリック: 0..1 の値を位置から直接決める（← → の刻みとは別経路）
+        const applyGaugeValue = (item: SettingsGaugeItem, value01: number): void => {
+          if (item === "volume") {
+            setVolume(settings, value01);
+            applySettings();
+          } else if (item === "musicVolume") {
+            setMusicVolume(settings, value01);
+            applySettings();
+          } else if (item === "screenShake") {
+            setScreenShake(settings, value01);
+            saveSettings(settings);
+          } else {
+            setHitstopScale(settings, value01);
+            applyHitstopScale();
           }
         };
 
@@ -1249,10 +1344,27 @@ startLoop(
           }
         }
 
+        // ゲージのドラッグ: 左ボタンを押している間、ゲージの上ならその位置の値を直接設定する
+        // （クリックの瞬間だけでなく、押しっぱなしで動かしている間も毎フレーム追従する）
+        if (frame.clickHeld && aim) {
+          const held = settingsItemAt(aim.x, aim.y, rowGap);
+          const heldItem = held !== null ? SETTINGS_ITEMS[held] : undefined;
+          if (held !== null && heldItem && isSettingsGaugeItem(heldItem)) {
+            const gauge = settingsGaugeRect(heldItem, rowGap);
+            if (gauge && aim.x >= gauge.x && aim.x <= gauge.x + gauge.w) {
+              settingsCursor = held;
+              applyGaugeValue(heldItem, settingsGaugeValueAt(aim.x, gauge));
+              if (frame.clickPressed) sfx.play("uiClick");
+            }
+          }
+        }
+
         if (frame.clickPressed && aim) {
           const clicked = settingsItemAt(aim.x, aim.y, rowGap);
           const item = clicked !== null ? SETTINGS_ITEMS[clicked] : undefined;
-          if (clicked !== null && item) {
+          const clickedGauge = item && isSettingsGaugeItem(item) ? settingsGaugeRect(item, rowGap) : null;
+          const clickedInsideGauge = clickedGauge !== null && aim.x >= clickedGauge.x && aim.x <= clickedGauge.x + clickedGauge.w;
+          if (clicked !== null && item && !clickedInsideGauge) {
             settingsCursor = clicked;
             if (item === "close") {
               screen = returnScreen;
@@ -1294,7 +1406,7 @@ startLoop(
 
         // 移動キーを割り当て直しても迷子にならないよう、矢印キーは束縛と無関係に常に効かせる
         const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
-        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
+        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : keyNavY;
         if (navY !== 0) {
           keybindsCursor = cycleIndex(keybindsCursor, navY, KEYBINDS_ROWS.length);
           sfx.play("menuMove");
@@ -1306,6 +1418,8 @@ startLoop(
           sfx.play("menuMove");
         }
         keybindsScroll = keybindsScrollFor(keybindsCursor, keybindsScroll, rowGap);
+        // ホイールは表示だけを送る（カーソルは動かさない）
+        if (frame.wheel !== 0) keybindsScroll = clampKeybindsScroll(keybindsScroll + Math.sign(frame.wheel), rowGap);
         menuNav.prevX = frame.move.x;
         menuNav.prevY = frame.move.y;
         menuAimPrev = aim;
@@ -1347,6 +1461,9 @@ startLoop(
             returnScreen = "paused";
             settingsCursor = 0;
             enterMenu("settings", frame.move.x, frame.move.y);
+          } else if (item === "tips") {
+            menuReturn = "paused";
+            openListScreen("tips", frame.move.x, frame.move.y);
           } else if (item === "restart") {
             endRun(cur);
             beginRun(randomSeedText());
@@ -1471,8 +1588,8 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
-    if (screen === "rack") {
-      drawListScreen(ctx, { title: RACK_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: RACK_HINT });
+    if (screen === "rack" && hub) {
+      drawRackFrame(ctx, hub);
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -1486,13 +1603,14 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
-    if (screen === "codex" || screen === "questBoard" || screen === "achievements") {
+    if (screen === "codex" || screen === "questBoard" || screen === "achievements" || screen === "tips") {
       drawListScreen(ctx, {
         title: LIST_SCREEN_TITLE[screen],
         tabs: listTabs,
         ui: listUi,
         rowGap: listRowGap(textLineHeight(TEXT.SMALL)),
         hint: LIST_SCREEN_HINT[screen],
+        detailSide: screen === "tips",
       });
       drawGamepadConnectedHint(ctx);
       return;

@@ -1,0 +1,17 @@
+{
+  "_note": "cost: 25→21.3→18.1（-15%）。damage.base: 15.4→17.7→23.0（+30%、理由は旋風斬りと同じ）。cancelRefund は照準中のダッシュキャンセルで払った気力を返す割合。vulnerableTime は命中した敵を脆弱にする秒",
+  "cost": 18.1,
+  "minInterval": 0.8,
+  "poise": 25,
+  "aim": 0.35,
+  "damage": { "base": 23, "dex": 1.2, "mnd": 1.2, "spi": 0.8 },
+  "poiseRatio": { "dex": 0.28, "mnd": 0.28, "spi": 0.19 },
+  "knockback": 180,
+  "recoil": 120,
+  "stepPx": 2,
+  "maxLength": 400,
+  "halfWidth": 3,
+  "cancelRefund": 0.5,
+  "spreadRad": 0.1,
+  "vulnerableTime": 3
+}

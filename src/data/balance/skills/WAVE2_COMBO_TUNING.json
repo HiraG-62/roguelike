@@ -1,0 +1,11 @@
+{
+  "waterFreeze": { "window": 2.5 },
+  "oilScorch": { "window": 3, "lengthMul": 1.5, "damageMul": 1.2 },
+  "brandChain": { "window": 2 },
+  "breakCollapse": { "window": 1.5, "areaMul": 1.3, "poiseMul": 1.5 },
+  "hueBloom": { "window": 2 },
+  "wellFrag": { "_note": "空間: 引力球の中へ投げたグレネードは球の中心で、範囲xareaMulで爆ぜる", "window": 6, "areaMul": 1.3 },
+  "frostThunder": { "_note": "空間: 氷結地帯の中へ落とした雷撃は、地帯の中の敵すべてへ落ちる", "window": 6 },
+  "formArt": { "_note": "変身中の極意（時間は見ない）", "window": 0, "damageMul": 1.4 },
+  "levelMeteor": { "window": 2, "areaMul": 1.3 }
+}

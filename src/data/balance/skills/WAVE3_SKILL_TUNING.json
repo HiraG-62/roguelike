@@ -1,0 +1,26 @@
+{
+  "_note": "スキル第3弾（変身5種）。噛みつき・重い振りは近接の段（HitShapeのkind union）を含むため skills/reshapes.ts の WOLF_BITE_STEP / IRON_SWING_STEP に TS で残し、data.ts が wolfForm.bite / ironForm.swing として合流させる",
+  "wolfForm": {
+    "_note": "狼化（CD型）: 左クリックが噛みつき突進（短く踏み込んで1段、出血）、右クリックが遠吠え（周りに恐怖）。変身中はほかのスキル石を使えない。fearDuration は STATUS.fear.duration の値",
+    "cooldown": 18, "minInterval": 0.3, "poise": 15, "duration": 6, "recover": 1,
+    "attackMoveMul": 0.5, "bleedStacks": 1, "bleedPotency": 1, "howlRadius": 56, "howlCooldown": 2.5, "fearDuration": 2
+  },
+  "wraithForm": {
+    "_note": "霊体化（CD型）: 敵と敵弾をすり抜ける代わりに与ダメx0.3。解けたとき、すり抜けた敵全員に出血。passPadは重なったとみなす距離の余白",
+    "cooldown": 15, "minInterval": 0.3, "poise": 0, "duration": 4, "recover": 1, "outgoingMul": 0.3, "passPad": 2, "bleedStacks": 3, "bleedPotency": 1
+  },
+  "siegeForm": {
+    "_note": "砲身化（気力型、1発ごとに払う）: 構えると移動できず、右クリックが高威力の単発砲撃になる。構えた瞬間に1発撃つ（発動のコストがその1発ぶん）。ダッシュか、もう一度撃つと構えを解く。shellIntervalは砲撃の間隔（連打の下限）、recoilは撃つたびに後ろへ押される速さ",
+    "cost": 8, "minInterval": 0.3, "poise": 30, "recover": 0.5, "shellInterval": 0.45,
+    "damage": { "base": 14, "dex": 1.2, "vit": 1, "mnd": 0.6 }, "poiseRatio": { "dex": 0.39, "vit": 0.32, "mnd": 0.19 }, "speed": 300, "life": 0.9, "radius": 4, "knockback": 220, "recoil": 40
+  },
+  "ironForm": {
+    "_note": "鉄塊化（CD型）: 被弾で怯まず（攻撃も止まらない）、近接が1段の重い振りになる。移動x0.7",
+    "cooldown": 16, "minInterval": 0.3, "poise": 40, "duration": 5, "recover": 1, "moveMul": 0.7, "attackMoveMul": 0.3
+  },
+  "pyreForm": {
+    "_note": "業火の化身（気力型、維持に毎秒払う）: 維持中は近接・射撃が燃焼を付ける。気力が尽きると自分に燃焼して解ける。もう一度撃つと自分で解ける（自傷なし）。drainPerSecは維持の毎秒の気力。burnDuration / selfBurnDuration は STATUS.burnDuration の値",
+    "cost": 6, "minInterval": 0.3, "poise": 0, "recover": 0.5, "drainPerSec": 6,
+    "burnPotency": 3, "burnDuration": 3, "selfBurnPotency": 3, "selfBurnDuration": 3
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "_note": "砲台: 自分が射撃するたび、砲台もカーソル方向へ1発撃つ。aimReach は照準の遠さ（自分の向きのこの先を狙う）",
+  "cost": 18, "minInterval": 0.6, "poise": 3, "maxRange": 100, "maxAlive": 2, "life": 8, "speed": 240, "shotLife": 0.8, "radius": 2.5,
+  "damage": { "base": 8 }, "knockback": 30, "aimReach": 200
+}

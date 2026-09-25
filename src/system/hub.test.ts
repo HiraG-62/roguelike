@@ -18,14 +18,30 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
 import { damageEnemy, damagePlayer, recordRunOnce } from "./combat";
-import { type HubSession, borrowRackEntry, borrowWeapon, chooseRackUltimate, createHub, setTrialKeystone, setTrialWeapon, stepHub, trialKeystoneKeys } from "./hub";
+import {
+  HUB_RESOURCES,
+  type HubSession,
+  borrowRackEntry,
+  borrowWeapon,
+  chooseRackUltimate,
+  createHub,
+  fillHubResources,
+  hubResourceRatio,
+  setHubResource,
+  setTrialKeystone,
+  setTrialWeapon,
+  stepHub,
+  trialKeystoneKeys,
+} from "./hub";
 import { DUMMY_KEY } from "./specialRooms";
 import { applyStats } from "./player";
 import { withInput } from "./testHelpers";
-import { bulletFeatures } from "../data/weapons";
+import { MOVESET_KEYS, bulletFeatures } from "../data/weapons";
 import { DEFAULT_BULLET, currentBullet } from "../loot/bullets";
 
 const ALL: ReadonlySet<HubSpotKey> = new Set(HUB_SPOT_KEYS);
+/** 持続の奥義の始めのヒットストップを越えるための余りのフレーム */
+const HITSTOP_ALLOWANCE = 30;
 
 function hub(available: ReadonlySet<HubSpotKey> = ALL, skillProfile: SkillProfile = createDefaultSkillProfile()): HubSession {
   return createHub(createEmptyProfile(), skillProfile, available);
@@ -200,11 +216,11 @@ describe("武器掛け", () => {
   it("setTrialWeapon で stats.moveset が差し替わり、null で装備のものに戻る", () => {
     const session = hub();
     const { state } = session;
-    expect(state.stats.moveset, "武器なしは剣").toBe("sword");
+    expect(state.stats.moveset, "武器なしは拳の型（素手）").toBe("fists");
     setTrialWeapon(session, "greatsword");
     expect(state.stats.moveset, "大剣を試す").toBe("greatsword");
     setTrialWeapon(session, null);
-    expect(state.stats.moveset, "装備の剣に戻る").toBe("sword");
+    expect(state.stats.moveset, "装備（空）の拳に戻る").toBe("fists");
   });
 
   it("銃の家系を試すと、借りるときと同じ器の弾で撃ち、外すと装備の弾に戻る", () => {
@@ -231,7 +247,7 @@ describe("武器掛け", () => {
     setTrialWeapon(session, "whip");
     // 装備画面で付け替えると applyStats が装備から作り直す
     applyStats(state, computeStats(state.profile.equipment));
-    expect(state.stats.moveset, "作り直した直後は装備の型").toBe("sword");
+    expect(state.stats.moveset, "作り直した直後は装備の型（空なので素手の拳）").toBe("fists");
     idle(session, 1);
     expect(state.stats.moveset, "次のステップで試し中の型へ戻る").toBe("whip");
   });
@@ -327,5 +343,53 @@ describe("武器掛けの奥義", () => {
     expect(chooseRackUltimate(session, "greatsword", swordKey), "剣の奥義を大剣に付けない").toBe(false);
     expect(chooseRackUltimate(session, "greatsword", "no-such-ultimate"), "知らない key").toBe(false);
     expect(session.state.profile.ultimates, "何も書かない").toBeUndefined();
+  });
+});
+
+describe("試し打ちの資源の調整", () => {
+  it("setHubResource は上限で止まり、割合を上限に掛けて書く", () => {
+    const session = hub();
+    const p = session.state.player;
+    setHubResource(session, "hp", 0.5);
+    expect(p.hp, "生命の半分").toBeCloseTo(p.maxHp * 0.5);
+    setHubResource(session, "hp", 3);
+    expect(p.hp, "上限で止まる").toBe(p.maxHp);
+    setHubResource(session, "energy", 2);
+    expect(p.energy, "奥義ゲージも上限で止まる").toBe(p.maxEnergy);
+    setHubResource(session, "mana", -1);
+    expect(p.mana, "気力は 0 で止まる").toBe(0);
+    expect(hubResourceRatio(session, "energy"), "割合で読める").toBe(1);
+  });
+
+  it("生命は 0 にしても 1 残して倒れない", () => {
+    const session = hub();
+    setHubResource(session, "hp", 0);
+    expect(session.state.player.hp, "1 残る").toBe(1);
+    idle(session, 2);
+    expect(session.state.status, "倒れない").toBe("playing");
+  });
+
+  it("fillHubResources は生命・気力・奥義ゲージをすべて満たす", () => {
+    const session = hub();
+    for (const kind of HUB_RESOURCES) setHubResource(session, kind, 0);
+    fillHubResources(session);
+    for (const kind of HUB_RESOURCES) expect(hubResourceRatio(session, kind), kind).toBe(1);
+  });
+
+  it("持続の奥義の最中に奥義ゲージを 0 にすると、最短の持続秒の後に尽きて終わる", () => {
+    const moveset = MOVESET_KEYS.find((k) => ULTIMATES[k].some((d) => d.kind === "sustain"));
+    const def = moveset === undefined ? undefined : ULTIMATES[moveset].find((d) => d.kind === "sustain");
+    if (moveset === undefined || def === undefined || def.kind !== "sustain") throw new Error("持続の奥義が無い");
+    const session = hub();
+    setTrialWeapon(session, moveset);
+    expect(chooseRackUltimate(session, moveset, def.key), "持続の奥義を選ぶ").toBe(true);
+    fillHubResources(session);
+    stepHub(session, withInput({ specialPressed: true }), FIXED_DT);
+    expect(session.state.player.ultimate.active, "持続が始まる").toBe(def.key);
+    setHubResource(session, "energy", 0);
+    // 始めの溜め（ヒットストップ）の間は時間が進まないので、その分を足して回す
+    const frames = Math.ceil(def.sustain.minSec / FIXED_DT) + HITSTOP_ALLOWANCE;
+    idle(session, frames);
+    expect(session.state.player.ultimate.active, "尽きて終わる").toBeNull();
   });
 });

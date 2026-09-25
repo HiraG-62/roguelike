@@ -1,0 +1,4 @@
+{
+  "_note": "墜星: 跳び上がり、少し後にカーソル地点へ落下して範囲攻撃",
+  "cost": 22, "minInterval": 1, "poise": 45, "maxRange": 130, "air": 0.4, "radius": 40, "damage": { "base": 16, "str": 1.2, "vit": 0.8, "spi": 0.8 }, "poiseRatio": { "str": 0.58, "vit": 0.39, "spi": 0.39 }, "knockback": 220
+}

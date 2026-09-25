@@ -1,5 +1,5 @@
 import { ELEMENTS, ELEMENT_LABEL } from "../core/element";
-import { HEAL, MANA, STATUS } from "../data/tuning";
+import { HEAL, MANA, STATUS, WEAPON } from "../data/tuning";
 import { DEFAULT_MOVESET } from "../data/weapons";
 import { bulletOfBase } from "./bullets";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
@@ -258,6 +258,10 @@ function applyWeaponForms(stats: PlayerStats, equipment: Equipment): void {
   const base = equipment.mainHand ? baseDef(equipment.mainHand.baseKey) : undefined;
   stats.moveset = base?.moveset ?? DEFAULT_MOVESET;
   stats.bullet = bulletOfBase(base?.key);
+  // 素手は拳と同じ動きができるが、武器を持つ意味を残すため威力を下げる。
+  // 右手に物があれば素手ではない（未知のベースは壊れたデータなので型だけ既定へ落とし、威力は削らない）
+  stats.unarmed = !equipment.mainHand;
+  if (stats.unarmed) stats.meleeDamageMul *= WEAPON.unarmed.damageMul;
 }
 
 // ---------------------------------------------------------------------------

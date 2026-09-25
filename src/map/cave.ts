@@ -1,5 +1,5 @@
 import type { Rng } from "../core/rng";
-import { CAVE } from "../data/tuning";
+import { CAVE, MAP_SIZE } from "../data/tuning";
 import { type GameMap, type Rect, Tile, createMap } from "./grid";
 
 /**
@@ -35,8 +35,8 @@ export interface CaveOptions {
 export type CaveShapeOptions = Omit<CaveOptions, "width" | "height">;
 
 export const DEFAULT_CAVE_OPTIONS: CaveOptions = {
-  width: 96,
-  height: 56,
+  width: MAP_SIZE.baseWidth,
+  height: MAP_SIZE.baseHeight,
   ...CAVE.base,
 };
 
@@ -87,7 +87,8 @@ export function generateCave(rng: Rng, options: CaveOptions = DEFAULT_CAVE_OPTIO
   const map = createMap(grid.w, grid.h);
   for (let i = 0; i < grid.cells.length; i++) map.tiles[i] = grid.cells[i] === FLOOR ? Tile.Floor : Tile.Wall;
 
-  const rooms = regions.map((region, id) => buildRoom(map, region, dist, owners, id));
+  const tilesByOwner = tilesOfOwners(owners, regions.length);
+  const rooms = regions.map((region, id) => buildRoom(map, region, dist, tilesByOwner[id] ?? []));
   const ordered = orderFromStart(grid, rooms);
   map.rooms = ordered.map((r) => r.rect);
   map.roomTiles = ordered.map((r) => r.tiles);
@@ -111,22 +112,30 @@ function isBorder(g: Grid, x: number, y: number): boolean {
   return x <= 0 || y <= 0 || x >= g.w - 1 || y >= g.h - 1;
 }
 
-function wallCount(g: Grid, x: number, y: number): number {
-  let n = 0;
-  for (const [dx, dy] of NEIGHBORS_8) {
-    const nx = x + dx;
-    const ny = y + dy;
-    if (nx < 0 || ny < 0 || nx >= g.w || ny >= g.h || g.cells[ny * g.w + nx] === WALL) n++;
-  }
-  return n;
+/**
+ * 内側（外周でない）タイルの周囲 8 マスの壁の数。外周は常に壁なので内側の 8 近傍は必ずマップ内にある。
+ * 広いマップで smooth が生成時間の大半を占めるので、近傍の配列を回さず添字を直接足す（WALL = 1, FLOOR = 0）
+ */
+function innerWallCount(cells: Uint8Array, w: number, i: number): number {
+  const up = i - w;
+  const down = i + w;
+  return (
+    (cells[up - 1] ?? WALL) +
+    (cells[up] ?? WALL) +
+    (cells[up + 1] ?? WALL) +
+    (cells[i - 1] ?? WALL) +
+    (cells[i + 1] ?? WALL) +
+    (cells[down - 1] ?? WALL) +
+    (cells[down] ?? WALL) +
+    (cells[down + 1] ?? WALL)
+  );
 }
 
 function smooth(g: Grid, options: CaveOptions): Uint8Array {
   const next = new Uint8Array(g.cells.length).fill(WALL);
-  for (let y = 0; y < g.h; y++) {
-    for (let x = 0; x < g.w; x++) {
-      if (isBorder(g, x, y)) continue;
-      const n = wallCount(g, x, y);
+  for (let y = 1; y < g.h - 1; y++) {
+    for (let x = 1; x < g.w - 1; x++) {
+      const n = innerWallCount(g.cells, g.w, y * g.w + x);
       const wall = g.cells[y * g.w + x] === WALL;
       const becomesWall = n >= options.wallBirth || (wall && n >= options.wallSurvive);
       next[y * g.w + x] = becomesWall ? WALL : FLOOR;
@@ -287,11 +296,19 @@ interface CaveRoom {
   core: number;
 }
 
-function buildRoom(map: GameMap, region: number[], dist: Int16Array, owners: Int16Array, id: number): CaveRoom {
+/** 部屋ごとの所属タイル（昇順）。部屋ごとにマップ全体を走査すると広いマップで部屋数 × 面積になるので 1 回で振り分ける */
+function tilesOfOwners(owners: Int16Array, count: number): number[][] {
+  const out: number[][] = Array.from({ length: count }, () => []);
+  for (let i = 0; i < owners.length; i++) {
+    const o = owners[i] ?? NO_OWNER;
+    if (o >= 0) out[o]?.push(i);
+  }
+  return out;
+}
+
+function buildRoom(map: GameMap, region: number[], dist: Int16Array, tiles: number[]): CaveRoom {
   let core = region[0] ?? 0;
   for (const i of region) if ((dist[i] ?? 0) > (dist[core] ?? 0)) core = i;
-  const tiles: number[] = [];
-  for (let i = 0; i < owners.length; i++) if (owners[i] === id) tiles.push(i);
   // 核から dist-1 マス以内は全て床（チェビシェフ距離の定義から）
   const half = Math.max(0, (dist[core] ?? 1) - 1);
   const cx = core % map.width;

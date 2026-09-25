@@ -1,0 +1,13 @@
+{
+  "_note": "命中の斬り裂き線（近接）と火花。length は光の線の半分の長さ px",
+  "life": 0.16,
+  "length": 13,
+  "width": 2,
+  "critMul": 1.7,
+  "weakMul": 1.4,
+  "heavyMul": 1.3,
+  "sparks": 5,
+  "sparkSpeed": 170,
+  "glow": 10,
+  "critColor": "#ffe060"
+}

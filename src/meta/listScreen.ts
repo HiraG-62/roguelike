@@ -139,7 +139,15 @@ function wrap(index: number, delta: number, length: number): number {
   return (((index + delta) % length) + length) % length;
 }
 
-/** 入力 1 フレームぶん。タブは端で巡回、行は端で止める */
+/** 一覧のスクロールだけを動かす（カーソルは動かさない）。端で止める */
+function scrollListByWheel(ui: ListScreen, entryCount: number, rowGap: number, wheel: number): void {
+  if (wheel === 0) return;
+  const visible = listVisibleRows(rowGap);
+  const maxScroll = Math.max(0, entryCount - visible);
+  ui.scroll = Math.max(0, Math.min(maxScroll, ui.scroll + Math.sign(wheel)));
+}
+
+/** 入力 1 フレームぶん。タブは端で巡回、行は端で止める。ホイールは表示だけを送り、カーソルは矢印キー/クリック/ホバーでのみ動く */
 export function stepListScreen(ui: ListScreen, tabs: readonly ListTab[], input: ListInput, rowGap: number): ListAction {
   if (tabs.length === 0) return "none";
   if (input.navX !== 0) {
@@ -147,6 +155,7 @@ export function stepListScreen(ui: ListScreen, tabs: readonly ListTab[], input: 
     return "tab";
   }
   const count = tabs[ui.tab]?.entries.length ?? 0;
+  scrollListByWheel(ui, count, rowGap, input.wheel);
   const hit = input.aim ? listHitAt(input.aim.x, input.aim.y, tabs.length, count, rowGap, ui.scroll) : null;
   if (input.click && hit?.kind === "tab") {
     if (hit.index === ui.tab) return "none";
@@ -158,9 +167,8 @@ export function stepListScreen(ui: ListScreen, tabs: readonly ListTab[], input: 
     return "activate";
   }
   if (input.confirm && count > 0) return "activate";
-  const dy = input.navY !== 0 ? input.navY : Math.sign(input.wheel);
-  if (dy !== 0 && count > 0) {
-    const next = Math.max(0, Math.min(count - 1, ui.cursor + dy));
+  if (input.navY !== 0 && count > 0) {
+    const next = Math.max(0, Math.min(count - 1, ui.cursor + input.navY));
     const moved = next !== ui.cursor;
     ui.cursor = next;
     clampListScroll(ui, count, rowGap);

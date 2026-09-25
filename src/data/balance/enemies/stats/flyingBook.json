@@ -1,0 +1,25 @@
+{
+  "radius": 4,
+  "hp": 8,
+  "speed": 85,
+  "contactDamage": 6,
+  "windup": 0.25,
+  "strikeTime": 0.25,
+  "recover": 0.45,
+  "engageRange": 36,
+  "attackInterval": 0.6,
+  "score": 8,
+  "minDepth": 4,
+  "weight": 2,
+  "dropChance": 0.04,
+  "swarm": {
+    "min": 2,
+    "max": 3
+  },
+  "deathBurst": {
+    "count": 3,
+    "speed": 90,
+    "damage": 6,
+    "color": "#f0f0f0"
+  }
+}

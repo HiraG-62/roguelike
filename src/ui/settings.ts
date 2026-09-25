@@ -15,8 +15,9 @@ export interface Settings {
   /** 0..1。1 で通常の揺れ、0 で無効 */
   screenShake: number;
   /**
-   * ヒットストップの強度（0..1、0.25 刻み）。既定 1、0 で無効。core/game.ts の createGame へ渡り、
-   * state.hitstopScale としてシミュレーションに効くため決定性を保つ（core/replay.ts が記録する）
+   * ヒットストップの強度（0..HITSTOP_SCALE_MAX、0.25 刻み）。既定 1（標準）、0 で無効、最大で通常の 2 倍長く止まる。
+   * core/game.ts の createGame へ渡り、state.hitstopScale としてシミュレーションに効くため決定性を保つ
+   * （core/replay.ts が記録する。ラン中に変えたときは main.ts が state へも書き戻してリプレイイベントを積む）
    */
   hitstopScale: number;
   /** 床のアイテムの性能ポップアップ（render/dropTooltip.ts）を表示するか。既定 true。表示だけの設定 */
@@ -38,14 +39,20 @@ export const DEFAULT_DROP_TOOLTIP = true;
 export const VOLUME_STEP = 0.1;
 export const SCREEN_SHAKE_STEP = 0.1;
 export const HITSTOP_SCALE_STEP = 0.25;
+/** ヒットストップの強度の上限。1 が標準（旧仕様の最大値）、2 で標準の倍まで止まる */
+export const HITSTOP_SCALE_MAX = 2;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** 0..1 を HITSTOP_SCALE_STEP 刻みに丸める */
-function clampHitstopScale(value: number): number {
-  return Math.round(clamp01(value) / HITSTOP_SCALE_STEP) * HITSTOP_SCALE_STEP;
+function clamp(value: number, max: number): number {
+  return Math.min(max, Math.max(0, value));
+}
+
+/** 0..HITSTOP_SCALE_MAX を HITSTOP_SCALE_STEP 刻みに丸める */
+export function clampHitstopScale(value: number): number {
+  return Math.round(clamp(value, HITSTOP_SCALE_MAX) / HITSTOP_SCALE_STEP) * HITSTOP_SCALE_STEP;
 }
 
 export function defaultSettings(): Settings {
@@ -128,6 +135,32 @@ export function adjustScreenShake(settings: Settings, dir: number): void {
 
 export function adjustHitstopScale(settings: Settings, dir: number): void {
   settings.hitstopScale = clampHitstopScale(settings.hitstopScale + Math.sign(dir) * HITSTOP_SCALE_STEP);
+}
+
+/** ゲージのドラッグ/クリックで直接値を決める。1% 刻み（0..1 を 0..100 の整数として扱う） */
+const GAUGE_STEP = 0.01;
+function roundToGaugeStep(value01: number): number {
+  return Math.round(clamp01(value01) / GAUGE_STEP) * GAUGE_STEP;
+}
+
+export function setVolume(settings: Settings, value01: number): void {
+  settings.volume = roundToGaugeStep(value01);
+}
+
+export function setMusicVolume(settings: Settings, value01: number): void {
+  settings.musicVolume = roundToGaugeStep(value01);
+}
+
+export function setScreenShake(settings: Settings, value01: number): void {
+  settings.screenShake = roundToGaugeStep(value01);
+}
+
+/**
+ * ゲージ上の位置（0..1）を実際の強度（0..HITSTOP_SCALE_MAX）へ写し、0.25 刻みに丸める。
+ * 他のゲージと違い値域が 0..1 でないため、ここだけ HITSTOP_SCALE_MAX を掛ける
+ */
+export function setHitstopScale(settings: Settings, value01: number): void {
+  settings.hitstopScale = clampHitstopScale(roundToGaugeStep(value01) * HITSTOP_SCALE_MAX);
 }
 
 export function toggleDropTooltip(settings: Settings): void {

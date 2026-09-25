@@ -44,6 +44,15 @@ describe("描画の層の順", () => {
     expect(layerOf("drawBoonChoice"), "祝福 3 択").toBeGreaterThan(layerOf("drawFloorWipe"));
     expect(layerOf("drawSkillGround"), "スキルの設置物はワールド").toBe(layerIndex("world"));
   });
+
+  it("拠点の台は world 層で描く（HUD より下、敵・自分より下）", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawHubSpots");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "ランの床の物の後").toBeGreaterThan(world.indexOf("drawRunWorld"));
+    expect(at, "敵より前（下）").toBeLessThan(world.indexOf("drawEnemies"));
+    expect(at, "自分より前（下）").toBeLessThan(world.indexOf("drawPlayer"));
+  });
 });
 
 /** 祝福アイコン列（最大の 16 個分の幅で見る） */

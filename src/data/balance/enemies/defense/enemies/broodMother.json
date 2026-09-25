@@ -1,0 +1,14 @@
+{
+  "body": "boss",
+  "resist": {
+    "poison": 50
+  },
+  "stages": [
+    {
+      "fire": -50
+    },
+    {
+      "ice": -50
+    }
+  ]
+}

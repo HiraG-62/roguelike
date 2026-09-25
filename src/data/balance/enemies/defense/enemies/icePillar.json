@@ -1,0 +1,7 @@
+{
+  "body": "fixture",
+  "resist": {
+    "ice": 75,
+    "fire": -50
+  }
+}

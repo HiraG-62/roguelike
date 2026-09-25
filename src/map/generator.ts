@@ -11,7 +11,8 @@ import {
   toIndex,
 } from "./grid";
 import { terrainCode } from "../core/terrain";
-import { TERRAIN, TERRAIN_MUD_SMOKE } from "../data/tuning";
+import { UNREACHABLE, distanceField } from "./pathing";
+import { MAP_SIZE, TERRAIN, TERRAIN_MUD_SMOKE } from "../data/tuning";
 import { type CaveShapeOptions, DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
 
 export interface GeneratorOptions {
@@ -26,14 +27,22 @@ export interface GeneratorOptions {
   lastRoomMin?: { w: number; h: number };
   /** 洞窟の形の上書き（バイオームごと。tuning の CAVE.biome） */
   cave?: Partial<CaveShapeOptions>;
+  /** 部屋を置く試行回数（省略時は PLACEMENT_ATTEMPTS）。広いマップほど部屋が多いので伸ばす */
+  placementAttempts?: number;
+  /**
+   * 新しい部屋を直前の部屋ではなく中心が最も近い部屋へ繋ぎ、最後に開始部屋から最も遠い部屋を最後（階段）へ回す。
+   * 広いマップで L 字通路がマップを横断して長くなりすぎないように。省略時は直前の部屋へ繋ぐ（基準の大きさの形を変えない）
+   */
+  connectNearest?: boolean;
 }
 
 /** lastRoomMin の部屋を最小サイズからどれだけ大きくしてよいか */
 const LAST_ROOM_EXTRA = 2;
 
+/** 基準の大きさ（面積の倍率 1）。階ごとの大きさは scaleGeneratorOptions で伸ばす */
 export const DEFAULT_GENERATOR_OPTIONS: GeneratorOptions = {
-  width: 96,
-  height: 56,
+  width: MAP_SIZE.baseWidth,
+  height: MAP_SIZE.baseHeight,
   maxRooms: 9,
   roomMinSize: 9,
   roomMaxSize: 16,
@@ -43,6 +52,40 @@ export const DEFAULT_GENERATOR_OPTIONS: GeneratorOptions = {
 const PLACEMENT_ATTEMPTS = 300;
 /** 部屋同士の最小間隔（タイル）。通路と部屋がくっつかないよう広めに取る */
 const ROOM_MARGIN = 3;
+/** 並べ替えてよい最初の部屋（0 = 開始、1 = 最初に繋がる部屋。floor.ts が 1 を戦闘部屋に固定する） */
+const FIRST_MOVABLE_ROOM = 2;
+
+/**
+ * 面積を areaMul 倍にした生成の設定（純関数）。幅と高さは √areaMul 倍、配置の試行回数は areaMul 倍。
+ * 広さは部屋の数（areaMul × MAP_SIZE.roomsPerArea）と部屋の大きさ（寸法 × areaMul ^ MAP_SIZE.roomSizeExp）の両方で出す。
+ * 部屋の数だけで広げると敵の総数が面積に比例して重くなり、広間も生まれず「広大」に感じないため。通路の太さは変えない。
+ * areaMul = 1 なら base と同じ生成になる（ボス階・既存の seed の形を変えない）
+ */
+export function scaleGeneratorOptions(base: GeneratorOptions, areaMul: number): GeneratorOptions {
+  if (areaMul === 1) return base;
+  const side = Math.sqrt(areaMul);
+  const roomMul = areaMul * MAP_SIZE.roomsPerArea;
+  const sizeMul = areaMul ** MAP_SIZE.roomSizeExp;
+  const cave = { ...DEFAULT_CAVE_OPTIONS, ...base.cave };
+  return {
+    ...base,
+    width: Math.round(base.width * side),
+    height: Math.round(base.height * side),
+    maxRooms: Math.max(1, Math.round(base.maxRooms * roomMul)),
+    roomMinSize: Math.round(base.roomMinSize * sizeMul),
+    roomMaxSize: Math.round(base.roomMaxSize * sizeMul),
+    placementAttempts: Math.round((base.placementAttempts ?? PLACEMENT_ATTEMPTS) * areaMul),
+    connectNearest: true,
+    cave: {
+      ...base.cave,
+      maxRooms: Math.max(1, Math.round(cave.maxRooms * roomMul)),
+      minRooms: Math.max(1, Math.round(cave.minRooms * areaMul * MAP_SIZE.caveMinRoomsPerArea)),
+      // 洞窟の部屋は開けた領域を膨らませた塊なので、膨らませる幅と採用する最小の塊を部屋の寸法と同じ比率で広げる
+      roomGrow: Math.round(cave.roomGrow * sizeMul),
+      minRoomTiles: Math.round(cave.minRoomTiles * sizeMul * sizeMul),
+    },
+  };
+}
 
 /**
  * 部屋をランダム配置して L 字通路でつなぐ、最も単純な生成。
@@ -55,7 +98,8 @@ export function generateRoomsAndCorridors(rng: Rng, options: GeneratorOptions): 
   const reserved = options.lastRoomMin ? reserveRoom(rng, options, options.lastRoomMin) : null;
   const normalRooms = reserved ? options.maxRooms - 1 : options.maxRooms;
 
-  for (let i = 0; i < PLACEMENT_ATTEMPTS && map.rooms.length < normalRooms; i++) {
+  const attempts = options.placementAttempts ?? PLACEMENT_ATTEMPTS;
+  for (let i = 0; i < attempts && map.rooms.length < normalRooms; i++) {
     const w = rng.int(options.roomMinSize, options.roomMaxSize);
     const h = rng.int(options.roomMinSize, Math.min(options.roomMaxSize, options.height - 6));
     const room: Rect = {
@@ -66,9 +110,10 @@ export function generateRoomsAndCorridors(rng: Rng, options: GeneratorOptions): 
     };
     if (map.rooms.some((other) => rectsIntersect(room, other, ROOM_MARGIN))) continue;
     if (reserved && rectsIntersect(room, reserved, ROOM_MARGIN)) continue;
-    addRoom(rng, map, room, cw);
+    addRoom(rng, map, room, cw, options.connectNearest === true);
   }
-  if (reserved) addRoom(rng, map, reserved, cw);
+  if (reserved) addRoom(rng, map, reserved, cw, false);
+  else if (options.connectNearest) moveFarthestLast(map);
 
   // 階段は最後の部屋の中心（最初の部屋がスタートなので最も遠くなりやすい）
   const last = map.rooms[map.rooms.length - 1];
@@ -79,10 +124,10 @@ export function generateRoomsAndCorridors(rng: Rng, options: GeneratorOptions): 
   return map;
 }
 
-/** 部屋を掘って直前の部屋と L 字通路で繋ぐ */
-function addRoom(rng: Rng, map: GameMap, room: Rect, cw: number): void {
+/** 部屋を掘って直前の部屋（nearest なら中心が最も近い部屋）と L 字通路で繋ぐ */
+function addRoom(rng: Rng, map: GameMap, room: Rect, cw: number, nearest: boolean): void {
   carveRect(map, room);
-  const prev = map.rooms[map.rooms.length - 1];
+  const prev = nearest ? nearestRoom(map.rooms, room) : map.rooms[map.rooms.length - 1];
   if (prev) {
     const a = rectCenter(prev);
     const b = rectCenter(room);
@@ -96,6 +141,41 @@ function addRoom(rng: Rng, map: GameMap, room: Rect, cw: number): void {
     }
   }
   map.rooms.push(room);
+}
+
+function nearestRoom(rooms: readonly Rect[], room: Rect): Rect | undefined {
+  const c = rectCenter(room);
+  let best: Rect | undefined;
+  let bestDist = Infinity;
+  for (const other of rooms) {
+    const o = rectCenter(other);
+    const d = Math.abs(o.x - c.x) + Math.abs(o.y - c.y);
+    if (d >= bestDist) continue;
+    best = other;
+    bestDist = d;
+  }
+  return best;
+}
+
+/** 最初に繋がる部屋（index 1）より後で、開始部屋から歩いて最も遠い部屋を最後へ回す（階段 = 最後の部屋）。乱数は使わない */
+function moveFarthestLast(map: GameMap): void {
+  const start = map.rooms[0];
+  if (!start || map.rooms.length <= FIRST_MOVABLE_ROOM + 1) return;
+  const s = rectCenter(start);
+  const field = distanceField(map, toIndex(map, s.x, s.y));
+  let far = map.rooms.length - 1;
+  let farDist = -1;
+  for (let i = FIRST_MOVABLE_ROOM; i < map.rooms.length; i++) {
+    const r = map.rooms[i];
+    if (!r) continue;
+    const c = rectCenter(r);
+    const d = field[toIndex(map, c.x, c.y)] ?? UNREACHABLE;
+    if (d <= farDist) continue;
+    far = i;
+    farDist = d;
+  }
+  const [moved] = map.rooms.splice(far, 1);
+  if (moved) map.rooms.push(moved);
 }
 
 function reserveRoom(rng: Rng, options: GeneratorOptions, min: { w: number; h: number }): Rect {

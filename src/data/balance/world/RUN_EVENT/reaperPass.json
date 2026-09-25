@@ -1,0 +1,8 @@
+{
+  "minRatio": 0.5,
+  "speed": 240,
+  "span": 300,
+  "radius": 12,
+  "damage": 30,
+  "echoes": 2
+}

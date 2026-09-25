@@ -1,0 +1,22 @@
+{
+  "attackMoveMul": 0.3,
+  "steps": [
+    {"windup":0.1,"active":0.12,"recover":0.24,"scaling":{"base":4.5,"str":0.2,"dex":0.2,"spi":0.4},"poiseRatio":{"str":0.12,"spi":0.12},"poise":8,"reach":30,"size":30,"knockback":120,"heavy":false,"mana":2,"shape":{"kind":"arc","deg":160},"pull":true,"hitstop":2,"trail":"#b080ff"},
+    {"windup":0.1,"active":0.12,"recover":0.24,"scaling":{"base":4.5,"str":0.2,"dex":0.2,"spi":0.4},"poiseRatio":{"str":0.12,"spi":0.12},"poise":8,"reach":30,"size":30,"knockback":120,"heavy":false,"mana":2,"shape":{"kind":"arc","deg":160},"pull":true,"hitstop":2,"trail":"#b080ff"},
+    {"windup":0.1,"active":0.16,"recover":0.26,"scaling":{"base":3,"dex":0.25,"spi":0.3},"poiseRatio":{"str":0.08,"spi":0.08},"poise":5,"reach":32,"size":32,"knockback":90,"heavy":false,"mana":1.5,"shape":{"kind":"arc","deg":200},"pull":true,"hits":2,"hitstop":1,"trail":"#b080ff"},
+    {"windup":0.14,"active":0.14,"recover":0.36,"scaling":{"base":9,"str":0.5,"dex":0.2,"spi":0.8},"poiseRatio":{"str":0.27,"spi":0.27},"poise":18,"reach":34,"size":34,"knockback":260,"heavy":true,"mana":5,"shape":{"kind":"arc","deg":270},"hitstop":5,"shake":3,"trail":"#e0c0ff"}
+  ],
+  "dashAttack": {"windup":0.03,"active":0.12,"recover":0.2,"scaling":{"base":6,"dex":0.5,"spi":0.5},"poiseRatio":{"str":0.15,"spi":0.15},"poise":10,"reach":30,"size":30,"knockback":150,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":220},"pull":true,"trail":"#b080ff"},
+  "steps2": [
+    {"kind":"swing","key":"hookPull","step":{"windup":0.06,"active":0.1,"recover":0.2,"scaling":{"base":5,"str":0.3,"spi":0.3},"poiseRatio":{"str":0.12,"spi":0.12},"poise":8,"reach":44,"size":16,"knockback":200,"heavy":false,"mana":2,"shape":{"kind":"thrust"},"pull":true,"hitstop":2,"trail":"#b080ff"}},
+    {"kind":"swing","key":"scytheWrap","step":{"windup":0.1,"active":0.12,"recover":0.288,"scaling":{"base":5,"str":0.2,"dex":0.2,"spi":0.45},"poiseRatio":{"str":0.14,"spi":0.14},"poise":9,"reach":30,"size":30,"knockback":120,"heavy":false,"mana":2,"shape":{"kind":"arc","deg":200},"pull":true,"hitstop":2,"trail":"#b080ff"}},
+    {"kind":"swing","key":"reverseSpin","step":{"windup":0.1,"active":0.16,"recover":0.312,"scaling":{"base":6.6,"dex":0.55,"spi":0.65},"poiseRatio":{"str":0.16,"spi":0.16},"poise":11,"reach":0,"size":64,"knockback":90,"heavy":false,"mana":1.5,"shape":{"kind":"circle"},"hitstop":1,"trail":"#b080ff"}},
+    {"kind":"swing","key":"scytheSever","step":{"windup":0.14,"active":0.14,"recover":0.432,"scaling":{"base":10,"str":0.55,"dex":0.2,"spi":0.9},"poiseRatio":{"str":0.3,"spi":0.3},"poise":20,"reach":38,"size":34,"knockback":260,"heavy":true,"mana":5,"shape":{"kind":"arc","deg":120},"hitstop":5,"shake":3,"trail":"#e0c0ff"}}
+  ],
+  "branches": {
+    "reaping": {"sequence":["primary","primary","secondary"],"step":{"windup":0.14,"active":0.16,"recover":0.4,"scaling":{"base":10,"str":0.5,"dex":0.2,"spi":0.9},"poiseRatio":{"str":0.27,"spi":0.27},"poise":18,"reach":36,"size":36,"knockback":280,"heavy":true,"mana":5,"shape":{"kind":"arc","deg":360},"hitstop":5,"shake":3,"trail":"#e0c0ff"}},
+    "deathDance": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.1,"active":0.16,"recover":0.26,"scaling":{"base":2.3,"dex":0.2,"spi":0.25},"poiseRatio":{"str":0.06,"spi":0.06},"poise":4,"reach":0,"size":64,"knockback":90,"heavy":false,"mana":1.5,"shape":{"kind":"circle"},"pull":true,"hits":3,"hitstop":1,"trail":"#b080ff"}},
+    "neckReap": {"sequence":["primary","secondary","primary"],"step":{"windup":0.1,"active":0.16,"recover":0.26,"scaling":{"base":6.9,"dex":0.6,"spi":0.7},"poiseRatio":{"str":0.22,"spi":0.22},"poise":15,"reach":24,"size":30,"knockback":90,"heavy":true,"mana":1.5,"shape":{"kind":"box"},"hitstop":5,"shake":2,"trail":"#b080ff"}},
+    "dragDown": {"sequence":["secondary","primary","primary"],"step":{"windup":0.1,"active":0.16,"recover":0.26,"scaling":{"base":6.9,"dex":0.6,"spi":0.7},"poiseRatio":{"str":0.18,"spi":0.18},"poise":12,"reach":44,"size":16,"knockback":90,"heavy":false,"mana":1.5,"shape":{"kind":"thrust"},"pull":true,"hitstop":1,"trail":"#b080ff","applies":[{"kind":"broken","stacks":1,"duration":1.5,"potency":0}]}}
+  }
+}

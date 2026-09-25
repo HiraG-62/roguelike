@@ -1,0 +1,7 @@
+{
+  "body": "beast",
+  "resist": {
+    "dark": 25,
+    "light": -50
+  }
+}

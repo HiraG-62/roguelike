@@ -1,0 +1,4 @@
+{
+  "_note": "血抜き: 周囲の出血を全部消費して回復。healPerStack は出血1スタック×potencyあたりの回復、healCapRatio は1回の回復の上限（最大HPの割合）",
+  "cost": 12, "minInterval": 0.6, "poise": 5, "radius": 60, "damage": { "base": 4, "vit": 0.5, "spi": 0.5 }, "poiseRatio": { "vit": 0.08, "spi": 0.08 }, "knockback": 40, "healPerStack": 3, "healCapRatio": 0.15
+}

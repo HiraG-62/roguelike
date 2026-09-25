@@ -1,0 +1,15 @@
+{
+  "reinforce": 0.1,
+  "blackout": 0.06,
+  "meteor": 0.05,
+  "manaDrought": 0.06,
+  "shrink": 0.04,
+  "timeRift": 0.05,
+  "curseVoice": 0.08,
+  "duel": 0.06,
+  "sluggish": 0.04,
+  "flood": 0.04,
+  "silence": 0.04,
+  "reactionSurge": 0.04,
+  "thunderstorm": 0.04
+}

@@ -1,0 +1,8 @@
+{
+  "hpRatioPerSec": 0.01,
+  "bossHpRatioPerSec": 0.003,
+  "playerHpRatioPerSec": 0.005,
+  "maxStacks": 5,
+  "playerMaxStacks": 3,
+  "duration": 5
+}

@@ -1,0 +1,5 @@
+[
+  {"windup":0.035,"active":0.08,"recover":0.1,"scaling":{"base":4.8,"str":0.35,"dex":0.25},"poiseRatio":{"str":0.14,"dex":0.1},"poise":8,"reach":16,"size":26,"knockback":140,"heavy":false,"lunge":4},
+  {"windup":0.035,"active":0.08,"recover":0.1,"scaling":{"base":4.8,"str":0.35,"dex":0.25},"poiseRatio":{"str":0.14,"dex":0.1},"poise":8,"reach":18,"size":28,"knockback":160,"heavy":false,"lunge":4},
+  {"windup":0.06,"active":0.1,"recover":0.2,"scaling":{"base":9.6,"str":0.8,"dex":0.4},"poiseRatio":{"str":0.4,"dex":0.26},"poise":22,"reach":22,"size":38,"knockback":320,"heavy":true,"lunge":8}
+]

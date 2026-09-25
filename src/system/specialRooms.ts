@@ -534,7 +534,7 @@ function takeElement(state: GameState, room: RoomState, prop: RoomProp): void {
   ensureContractStats(state);
   spawnBurst(state, prop.pos, ROOM_KIND.elementAltarColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `${ELEMENT_LABEL[element]}の加護`, ROOM_KIND.elementAltarColor);
-  pushLog(state, `属性の祭壇: この階の間、通常攻撃の一部が${ELEMENT_LABEL[element]}属性になる。`, ROOM_KIND.elementAltarColor);
+  pushLog(state, `属性の祭壇で${ELEMENT_LABEL[element]}の加護を得た（この階の間）。`, ROOM_KIND.elementAltarColor);
   pushSfx(state, "pedestalUse");
 }
 
@@ -629,7 +629,7 @@ function takeRune(state: GameState, room: RoomState, prop: RoomProp): void {
   const name = MODIFIERS[key].name;
   spawnBurst(state, prop.pos, ROOM_KIND.libraryColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `刻印符: ${name}`, ROOM_KIND.libraryColor);
-  pushLog(state, `図書館で刻印符「${name}」を手に入れた。装備画面で付けられる。`, ROOM_KIND.libraryColor);
+  pushLog(state, `図書館で刻印符「${name}」を手に入れた。`, ROOM_KIND.libraryColor);
   pushSfx(state, "pedestalUse");
 }
 

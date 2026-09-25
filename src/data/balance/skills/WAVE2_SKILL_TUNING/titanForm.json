@@ -1,0 +1,4 @@
+{
+  "_note": "剛の型: 大剣になる（CD型、一定秒だけ武器種が変わる）",
+  "cooldown": 18, "minInterval": 0.3, "poise": 30, "duration": 6, "radius": 44, "damage": { "base": 6, "str": 1, "vit": 0.6 }, "poiseRatio": { "str": 0.56, "vit": 0.34 }, "knockback": 200
+}

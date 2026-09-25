@@ -1,3 +1,4 @@
+import { keyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { describeTrait } from "../loot/describe";
@@ -91,7 +92,7 @@ function drawMiniCards(ctx: CanvasRenderingContext2D, pending: PendingBud, botto
   const totalW = MINI_CARD_W * pending.options.length + MINI_CARD_GAP * (pending.options.length - 1);
   const left = VIEW_W - HUD_RIGHT - totalW;
   const m = TEXT.SMALL;
-  const head = `芽が出た（${pending.milestoneLabel}）　Tab: 選ぶ`;
+  const head = `芽が出た（${pending.milestoneLabel}）　${keyLabel("inventory", { first: true })}: 選ぶ`;
   drawText(ctx, truncateText(head, totalW, m), VIEW_W - HUD_RIGHT, top - MINI_HEAD_GAP, m, COLOR_GROWN, "right");
   pending.options.forEach((roll, i) => {
     const r = { x: left + i * (MINI_CARD_W + MINI_CARD_GAP), y: top, w: MINI_CARD_W, h: MINI_CARD_H };
@@ -119,6 +120,12 @@ function drawTraitCard(ctx: CanvasRenderingContext2D, r: Rect, roll: AffixRoll, 
   rows.forEach((text, i) => drawText(ctx, truncateText(text, maxWidth, m), x, r.y + lineH * (i + 2), m, COLOR_TEXT));
 }
 
+/** 2 択を選ぶキー（スキル 1 / 2 の主キー。ui/bud.ts の pressedIndex と同じ入力） */
+const BUD_PICK_ACTIONS = ["skill1", "skill2"] as const;
+function budPickKeys(): string {
+  return BUD_PICK_ACTIONS.map((a) => keyLabel(a, { keyboardOnly: true, first: true })).join(" / ");
+}
+
 /** 装備画面の 2 択モーダル */
 export function drawBudModal(ctx: CanvasRenderingContext2D, state: GameState, bud: BudUi): void {
   const pending = state.pendingBud;
@@ -132,12 +139,12 @@ export function drawBudModal(ctx: CanvasRenderingContext2D, state: GameState, bu
   const maxWidth = frame.w - TEXT_PAD_X * 2;
   const itemName = state.profile.equipment[pending.slot]?.name ?? "";
   drawText(ctx, truncateText(`${GROWN_MARK} 芽吹き: ${itemName}`, maxWidth, m), cx, frame.y + MODAL_TITLE_Y, TEXT.BODY, COLOR_GROWN, "center");
-  const sub = `${pending.milestoneLabel}で芽が出た。選ばなかった方は失われる`;
+  const sub = `${pending.milestoneLabel}で芽が出た`;
   drawText(ctx, truncateText(sub, maxWidth, m), cx, frame.y + MODAL_SUB_Y, m, COLOR_DIM, "center");
   pending.options.forEach((roll, i) => {
     const r = cards[i];
     if (r) drawTraitCard(ctx, r, roll, i, bud.hover === i);
   });
-  const hint = "1 / 2 かクリックで選ぶ　枠の外をクリックで閉じる";
+  const hint = `${budPickKeys()} / クリック: 選ぶ　枠の外をクリック: 閉じる`;
   drawText(ctx, truncateText(hint, maxWidth, m), cx, frame.y + frame.h - MODAL_HINT_FROM_BOTTOM, m, COLOR_DIM, "center");
 }

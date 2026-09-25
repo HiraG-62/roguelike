@@ -1,0 +1,10 @@
+{
+  "gain": 0.32,
+  "defaultVolume": 0.5,
+  "lookahead": 0.3,
+  "crossfade": 1.2,
+  "percFade": 0.35,
+  "resolveTime": 1.8,
+  "bossDownTempoMul": 1.2,
+  "resyncGap": 0.5
+}

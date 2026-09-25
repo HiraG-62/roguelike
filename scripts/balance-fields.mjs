@@ -5,7 +5,7 @@
  * JSDoc の無い項目は空文字で出す（空のまま貼ると balance.test.ts の validateFieldDocs が落とす）。
  *
  * 使い方: node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef
- * `_fields` の全ファイル化（docs/ideas/oop-migration.md 4.5）が終わったら extract-balance.mjs と一緒に削除してよい
+ * `_fields` の全ファイル化（docs/ideas/oop-migration.md 4.5）が終わったら削除してよい
  */
 import { readFileSync } from "node:fs";
 

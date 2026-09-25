@@ -1,0 +1,15 @@
+{
+  "_note": "runeOnKill は撃破時の刻印符ドロップ率（rollRuneDrop）。刻印符は所持品として残るので部屋クリアの 0.3 より薄く、エリート・ボス・図書館・巣窟の敵は厚くする（docs/COMBAT_DESIGN.md B-10）。runeOnKillPerDepth は深度 1 ごとの加算（通常の敵だけ、上限 runeOnKillDepthCap）",
+  "stoneOnKill": 0.03,
+  "stoneOnDepth": 0.2,
+  "runeOnRoomClear": 0.3,
+  "stoneColor": "#b080ff",
+  "runeColor": "#ffb040",
+  "runeOffsetX": 14,
+  "depthOffsetY": 14,
+  "pickupRadius": 8,
+  "pickupDelay": 0.3,
+  "runeOnKill": { "normal": 0.01, "elite": 0.12, "boss": 0.6, "library": 0.05, "nest": 0.04 },
+  "runeOnKillPerDepth": 0.001,
+  "runeOnKillDepthCap": 0.02
+}

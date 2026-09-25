@@ -4,7 +4,7 @@ import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "
 import { pushPlayerEvent } from "../core/events";
 import { enemyDef } from "../data/enemies";
 import { FEEL, ULTIMATE } from "../data/tuning";
-import type { LungeAct, NovaAct, PullAct, BuffAct, SustainDef, UltimateAct, UltimateDef } from "../data/ultimates";
+import type { LungeAct, NovaAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
 import { ultimateDef } from "../data/ultimates";
 import {
   type ActionStepDef,
@@ -68,6 +68,10 @@ const RING_LIFE = 0.45;
 const LINE_LIFE = 0.3;
 const BLAST_COLOR = "#ffb040";
 const AURA_COLOR = "#fff080";
+/** 命中の衝撃波（鉄槌の律）の色と粒 */
+const QUAKE_COLOR = "#ffc070";
+const QUAKE_PARTICLES = 16;
+const QUAKE_PARTICLE_SPEED = 180;
 const AURA_LIFE = 0.2;
 /** 突進の残像の粒（通り道に等間隔に置く） */
 const LUNGE_GHOSTS = 6;
@@ -79,7 +83,7 @@ const DEFAULT_HITS = 1;
 const NO_ENEMY_DISTANCE = Number.POSITIVE_INFINITY;
 
 export function createUltimateState(): UltimateState {
-  return { active: null, elapsed: 0, kills: 0, auraTick: 0 };
+  return { active: null, elapsed: 0, kills: 0, auraTick: 0, quakeCooldown: 0 };
 }
 
 /** 装備の武器種（変身中も変身前の武器種。武器なし・旧形式は既定） */
@@ -94,6 +98,16 @@ export function chosenUltimate(state: GameState): UltimateDef {
 }
 
 type SustainUltimate = UltimateDef & { kind: "sustain" };
+
+/** 今選んでいる奥義を出すのに要る奥義ゲージ（奥義ごとの cost） */
+export function ultimateCost(state: GameState): number {
+  return chosenUltimate(state).cost;
+}
+
+/** 奥義ゲージが今選んでいる奥義の cost に届いているか（HUD の満タン表示・「ゲージ満タン」の条件もこれ） */
+export function ultimateReady(state: GameState): boolean {
+  return state.player.energy >= ultimateCost(state);
+}
 
 /** 持続中の奥義（無ければ undefined） */
 function activeSustain(state: GameState): SustainUltimate | undefined {
@@ -118,11 +132,11 @@ export function tryUltimate(state: GameState): boolean {
     endUltimate(state, "manual");
     return true;
   }
-  if (p.energy < ULTIMATE.common.cost) {
+  const def = chosenUltimate(state);
+  if (p.energy < def.cost) {
     addFloatingText(state, p.body.pos, NOT_READY_TEXT, NOT_READY_COLOR, NOT_READY_SCALE, NOT_READY_LIFE);
     return false;
   }
-  const def = chosenUltimate(state);
   if (def.kind === "sustain") {
     startSustain(state, def);
     return true;
@@ -135,10 +149,10 @@ export function tryUltimate(state: GameState): boolean {
 // 一撃（instant）
 // ---------------------------------------------------------------------------
 
-/** 一撃の奥義: ゲージを 0 にし、振りを止めて行為の列を出す。発動時に onBurst（量 = 倒した数） */
+/** 一撃の奥義: ゲージを cost だけ払い、振りを止めて行為の列を出す。発動時に onBurst（量 = 倒した数） */
 function castInstant(state: GameState, def: UltimateDef & { kind: "instant" }): void {
   const p = state.player;
-  p.energy = 0;
+  p.energy = Math.max(0, p.energy - def.cost);
   cancelAttack(state);
   let kills = 0;
   for (const act of def.acts) kills += runAct(state, def, act);
@@ -490,10 +504,13 @@ function runDetonate(state: GameState, damageMul: number): void {
 function startSustain(state: GameState, def: SustainUltimate): void {
   if (state.skills.shape) endShape(state, "manual");
   const u = state.player.ultimate;
+  // 持続は必要量（cost）ぶんのゲージを使い切るまで続く。cost の低い持続が満タンから出して長く続かないように
+  state.player.energy = Math.min(state.player.energy, def.cost);
   u.active = def.key;
   u.elapsed = 0;
   u.kills = 0;
   u.auraTick = 0;
+  u.quakeCooldown = 0;
   const pos = state.player.body.pos;
   castFx(state, def.name);
   spawnRing(state, pos, state.player.body.radius * SUSTAIN_RING_MUL, ULTIMATE.common.textColor, RING_LIFE);
@@ -516,6 +533,7 @@ export function endUltimate(state: GameState, _reason: UltimateEndReason): void 
   u.elapsed = 0;
   u.kills = 0;
   u.auraTick = 0;
+  u.quakeCooldown = 0;
   if (def) {
     for (const act of def.sustain.onEnd ?? []) runAct(state, def, act);
     // 差し替えた段は装備の型では引けないので、振りの途中なら止める（変身の endShape と同じ）
@@ -535,6 +553,7 @@ export function updateUltimate(state: GameState, dt: number): void {
   const before = p.ultimate.elapsed;
   p.ultimate.elapsed += dt;
   p.energy = Math.max(0, p.energy - def.sustain.drainPerSec * dt);
+  p.ultimate.quakeCooldown = Math.max(0, p.ultimate.quakeCooldown - dt);
   tickAura(state, def, dt);
   const recall = def.sustain.recall;
   if (recall && crossed(before, p.ultimate.elapsed, recall.interval)) recallShots(state, recall);
@@ -563,6 +582,46 @@ function tickAura(state: GameState, def: SustainUltimate, dt: number): void {
   for (const e of state.enemies) {
     if (e.hp <= 0 || !circlesOverlap(pos.x, pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     strikeEnemy(state, def, e, spec, pos);
+  }
+}
+
+/**
+ * 振り始め（player.ts の beginSwing から）。持続の swingVolley があれば、左の振りのたびに体の前（銃口の位置）から照準方向へ撃つ。
+ * Rule の onSwing → volley は体の中心から撃つ拳銃の弾で、近接の間合いの敵に当たってすぐ消えて見えなかった
+ */
+export function ultimateOnSwing(state: GameState): void {
+  const t = activeSustain(state)?.sustain.swingVolley;
+  if (!t || state.player.attack.lane !== "primary") return;
+  const s = state.stats;
+  emitVolley(state, t.bullet, 0, undefined, {
+    damage: scaled(s, t.scaling),
+    poise: withRatio(s, t.poise, t.poiseRatio) * s.poiseDamageMul,
+    count: t.count,
+    spreadDeg: t.spreadDeg,
+    attack: t.attack,
+    recoil: false,
+  });
+}
+
+/** 近接の命中（player.ts の meleeHitEnemy から）。持続の hitQuake があれば、当てた敵の位置で衝撃波を起こす（icd 秒に 1 回） */
+export function ultimateOnSwingHit(state: GameState, target: Enemy): void {
+  const def = activeSustain(state);
+  const quake = def?.sustain.hitQuake;
+  const u = state.player.ultimate;
+  if (!def || !quake || u.quakeCooldown > 0) return;
+  u.quakeCooldown = quake.icd;
+  const c = { ...target.body.pos };
+  const radius = quake.radius * state.stats.burstRadiusMul;
+  const spec = hitSpec(state, { scaling: quake.scaling, poise: quake.poise, poiseRatio: quake.poiseRatio, knockback: quake.knockback });
+  spawnRing(state, c, radius, QUAKE_COLOR, RING_LIFE);
+  spawnBlast(state, c, radius, QUAKE_COLOR);
+  spawnBurst(state, c, QUAKE_COLOR, QUAKE_PARTICLES, QUAKE_PARTICLE_SPEED, BURST_LIFE, BURST_SIZE);
+  hitstop(state, quake.hitstop);
+  shake(state, quake.shake);
+  pushSfx(state, "explode");
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || !circlesOverlap(c.x, c.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
+    strikeEnemy(state, def, e, spec, c);
   }
 }
 
@@ -622,6 +681,7 @@ function patchMoveset(base: MovesetDef, s: SustainDef): MovesetDef {
   const action = (a: ActionStepDef): ActionStepDef => {
     if (a.kind === "swing") return { ...a, step: step(a.step) };
     if (a.kind === "charge") return { ...a, charge: charge(a.charge) };
+    if (a.kind === "volley") return { ...a, throw: moreCasts(a.throw, p) };
     return a;
   };
   const [first, ...rest] = base.steps2;
@@ -656,7 +716,15 @@ function patchStep(st: MeleeStepDef, s: SustainDef): MeleeStepDef {
     pull: p.pull ?? st.pull,
     trail: p.trail ?? st.trail,
     applies: extra.length > 0 ? [...(st.applies ?? []), ...extra] : st.applies,
+    cast: st.cast ? { ...st.cast, throw: moreCasts(st.cast.throw, p) } : st.cast,
   };
+}
+
+/** 詠唱: 弾数を castCountAdd 足し、扇を castSpreadDeg 以上に開く（1 発撃ちの魔法が同じ線に重ならない） */
+function moreCasts(t: ThrowArtDef, p: SustainPatch): ThrowArtDef {
+  const add = p.castCountAdd ?? 0;
+  if (add <= 0) return t;
+  return { ...t, count: t.count + add, spreadDeg: Math.max(t.spreadDeg, p.castSpreadDeg ?? 0) };
 }
 
 function scaleRatio(r: AttrRatio | undefined, mul: number): AttrRatio | undefined {
@@ -666,7 +734,7 @@ function scaleRatio(r: AttrRatio | undefined, mul: number): AttrRatio | undefine
   return out;
 }
 
-/** 持続中の射撃の弾（key はそのまま。弾の挙動は変えず数だけ差し替える）。player.ts の fireVolley から */
+/** 持続中の射撃の弾（key はそのまま。周回（円環の理）のほかは弾の挙動は変えず数だけ差し替える）。player.ts の fireVolley から */
 export function ultimateShot(state: GameState, shot: BulletDef): BulletDef {
   const mod = activeSustain(state)?.sustain.shot;
   if (!mod) return shot;
@@ -679,6 +747,7 @@ export function ultimateShot(state: GameState, shot: BulletDef): BulletDef {
     recoilMul: shot.recoilMul * (mod.recoilMul ?? 1),
     mine: shot.mine ? { ...shot.mine, fuse: shot.mine.fuse * (mod.fuseMul ?? 1) } : undefined,
     bounce: shot.bounce ? { ...shot.bounce, count: shot.bounce.count + (mod.bounceAdd ?? 0) } : undefined,
+    orbit: mod.orbit ?? shot.orbit,
   };
 }
 
@@ -700,7 +769,16 @@ export function ultimateOutgoingMul(state: GameState, enemy: Enemy | null): numb
   let mul = s.mul.damage ?? 1;
   if (enemy && s.vsWindup !== undefined && enemy.phase === "windup") mul *= s.vsWindup;
   if (enemy && s.vsStatus && hasStatus(enemy.status, s.vsStatus.status)) mul *= s.vsStatus.mul;
+  if (enemy && s.pointBlank) mul *= pointBlankMul(state, enemy, s.pointBlank);
   return mul;
+}
+
+/** 零距離の倍率: 敵の縁までの距離 0 で mul、range で 1 へ直線に下がる */
+function pointBlankMul(state: GameState, enemy: Enemy, pb: NonNullable<SustainDef["pointBlank"]>): number {
+  if (pb.range <= 0) return 1;
+  const gap = Math.max(0, length(sub(enemy.body.pos, state.player.body.pos)) - enemy.body.radius);
+  const t = Math.max(0, 1 - gap / pb.range);
+  return 1 + (pb.mul - 1) * t;
 }
 
 /** 持続中の会心率の上乗せ（無ければ 0）。combat.ts の rollOutgoing から */

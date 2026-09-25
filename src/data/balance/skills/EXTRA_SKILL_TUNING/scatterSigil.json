@@ -1,0 +1,5 @@
+{
+  "_note": "散弾符: 前方へ7発の扇。1体にfocusHits発以上当てるとfocusPoiseMul倍の怯み値を上乗せ",
+  "cost": 14, "minInterval": 0.6, "poise": 4, "count": 7, "fanRad": 0.7, "speed": 240, "life": 0.35, "radius": 2.5,
+  "damage": { "base": 2.5, "dex": 0.5 }, "knockback": 30, "focusHits": 5, "focusPoiseMul": 5
+}

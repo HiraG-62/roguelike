@@ -1,0 +1,20 @@
+{
+  "radius": 6,
+  "hp": 22,
+  "speed": 60,
+  "contactDamage": 10,
+  "windup": 0.35,
+  "strikeTime": 0.22,
+  "recover": 0.4,
+  "engageRange": 44,
+  "attackInterval": 0.18,
+  "score": 16,
+  "minDepth": 4,
+  "weight": 3,
+  "dropChance": 0.09,
+  "deathBomb": {
+    "radius": 26,
+    "damage": 10,
+    "fuse": 0.6
+  }
+}

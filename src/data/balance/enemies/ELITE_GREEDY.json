@@ -1,0 +1,13 @@
+{
+  "_note": "精鋭修飾子「強欲の」(docs/ideas/enemies.md M12)。src/system/elites.ts が読む",
+  "seekRadius": 160,
+  "grabRadius": 10,
+  "carryMax": 2,
+  "runMul": 1.3,
+  "fleeRadius": 150,
+  "stuckRatio": 0.3,
+  "cornerFightTime": 2.5,
+  "bonusDrops": 1,
+  "dropSpread": 10,
+  "color": "#ffc040"
+}

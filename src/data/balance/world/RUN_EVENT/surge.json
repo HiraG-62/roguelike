@@ -1,0 +1,7 @@
+{
+  "radius": 40,
+  "damage": 10,
+  "perDepth": 0.1,
+  "icd": 0.25,
+  "color": "#ffe060"
+}

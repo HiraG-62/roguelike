@@ -1,0 +1,20 @@
+{
+  "_fields": {
+    "cursedBoons": "起点「呪われた者」: 開始時に得る呪いの祝福の数",
+    "cursedPoints": "起点「呪われた者」: 開始時に得るステータスの振り分け点",
+    "unarmedUnsealDepth": "起点「素手」: 装備の封印が解ける深度",
+    "unarmedPoints": "起点「素手」: 開始時に得るステータスの振り分け点",
+    "chanterRunes": "起点「詠み手」: 開始時に付く刻印符の数",
+    "chanterHpMul": "起点「詠み手」: 最大生命の倍率（1 = 等倍）",
+    "reaperFriendSpeedMul": "起点「死神の友」: 階に入った直後から出ている死神の速さの倍率",
+    "reaperFriendPoints": "起点「死神の友」: 初めての階へ降りるたびに得るステータスの振り分け点"
+  },
+  "cursedBoons": 2,
+  "cursedPoints": 4,
+  "unarmedUnsealDepth": 3,
+  "unarmedPoints": 3,
+  "chanterRunes": 2,
+  "chanterHpMul": 0.8,
+  "reaperFriendSpeedMul": 0.5,
+  "reaperFriendPoints": 1
+}

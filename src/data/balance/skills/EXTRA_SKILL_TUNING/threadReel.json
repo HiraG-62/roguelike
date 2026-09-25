@@ -1,0 +1,5 @@
+{
+  "_note": "手繰り糸: カーソルから自分へ糸を張り、少し後に巻き取って糸に触れた敵を手前へ引く",
+  "cost": 14, "minInterval": 0.7, "poise": 8, "maxRange": 130, "delay": 0.3, "halfWidth": 6, "gap": 3, "recover": 0.15,
+  "damage": { "base": 4, "str": 0.5, "dex": 0.5 }, "poiseRatio": { "str": 0.12, "dex": 0.12 }, "weakenTime": 3
+}

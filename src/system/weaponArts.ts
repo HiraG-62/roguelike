@@ -1,5 +1,5 @@
 import type { FrameInput } from "../core/input";
-import { type Enemy, type GameState, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
 import { enemyTarget, pushEvent } from "../core/events";
 import { WEAPON } from "../data/tuning";
@@ -21,7 +21,7 @@ import {
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
 import { addFloatingText, spawnBurst } from "./effects";
-import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, playerMoveset, startArtBranch } from "./player";
+import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
 import { addPoise } from "./poise";
 import { onTraitCounter } from "./traitHooks";
 import { BULLETS } from "../loot/bullets";
@@ -140,18 +140,22 @@ export function startLaneArt(state: GameState, s: ActionStepDef, index: number):
   switch (s.kind) {
     case "hold":
       beginHold(state);
+      logButton(p, "secondary");
       // 受け流しは押した瞬間に再使用を立てる（連打で窓を繋げない）。構えは離したときに立てる
       if (s.hold.parry) startCooldown(state, s);
       return true;
     case "aim":
       beginHold(state);
+      logButton(p, "secondary");
       return true;
     case "volley":
       if (!emitArtVolley(state, s.throw)) return false;
+      logButton(p, "secondary");
       finishInstant(state, s, index);
       return true;
     case "recall":
       recallShots(state, s.recall);
+      logButton(p, "secondary");
       finishInstant(state, s, index);
       return true;
   }
@@ -245,7 +249,7 @@ function updateAim(state: GameState, aim: AimArtDef, held: boolean, dt: number):
   const ready = a.holdTime >= aim.time;
   const s = currentHoldStep(state);
   finishArtHold(state);
-  const fired = emitVolley(state, currentShot(state.stats), 0, undefined, ready ? { count: 1, damageMul: aim.damageMul, pierceBonus: aim.pierceBonus } : { count: 1 });
+  const fired = emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, ready ? { count: 1, damageMul: aim.damageMul, pierceBonus: aim.pierceBonus } : { count: 1 });
   if (fired && s) startCooldown(state, s);
 }
 
@@ -324,7 +328,7 @@ export interface ArtVolleyOverride {
  * 射撃扱い（射撃の性質・onRangedHit が乗る）。出したら true
  */
 export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyOverride = {}): boolean {
-  return emitVolley(state, t.bullet, 0, undefined, {
+  return emitVolley(state, t.bullet, 0, state.player.aimDistance, {
     damage: scaled(state.stats, t.scaling) * (over.damageMul ?? 1),
     poise: withRatio(state.stats, t.poise, t.poiseRatio) * state.stats.poiseDamageMul,
     count: over.count ?? t.count,
@@ -333,6 +337,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     attack: t.attack,
     recoil: false,
     sprite: t.sprite,
+    applies: t.applies,
   });
 }
 
@@ -354,11 +359,22 @@ export function recallShots(state: GameState, recall: RecallArtDef): number {
     pr.hitIds.clear();
     // 手元に届くまでは消えない。回転刃は戻りの扱いにして手元で収める
     pr.life = Math.max(pr.life, d / speed);
-    if (pr.shot) pr.shot.returning = true;
+    markRecalled(pr, recall);
     count += 1;
   }
   if (count > 0) pushSfx(state, "reflect");
   return count;
+}
+
+/**
+ * 戻りの印を付ける。追尾のある手元返しは作業領域に旋回を写す（projectiles.ts の steerShot が近くの敵へ曲げる）。
+ * 挙動の性質を持たない弾は作業領域が無いので、key 空の作業領域を足して旋回だけ持たせる
+ */
+function markRecalled(pr: Projectile, recall: RecallArtDef): void {
+  if (!pr.shot && !recall.homing) return;
+  pr.shot ??= { key: "" };
+  pr.shot.returning = true;
+  if (recall.homing) pr.shot.recallHoming = { ...recall.homing };
 }
 
 function isGrounded(key: string | undefined): boolean {
@@ -383,7 +399,7 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
 function emitBranchShots(state: GameState, shots: BranchShots): void {
   const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul };
   if (shots.from !== "lane") {
-    emitVolley(state, currentShot(state.stats), 0, undefined, over);
+    emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, over);
     return;
   }
   const t = laneVolley(playerMoveset(state));

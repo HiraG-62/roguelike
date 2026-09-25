@@ -34,7 +34,7 @@ const NEIGHBORS_4 = [
 ] as const;
 export const UNREACHABLE = -1;
 /** マップ 1 枚あたりに覚えておく距離場の数（プレイヤーのタイルは動くので古いものから捨てる） */
-const FIELD_CACHE_MAX = 48;
+const FIELD_CACHE_MAX = 128;
 
 /**
  * 目的地タイルからの 4 近傍の歩数。マップだけから決まる派生データなので state に置かずマップごとに覚える
@@ -59,26 +59,43 @@ export function distanceField(map: GameMap, goal: number): Int32Array {
   return field;
 }
 
+/** buildField の幅優先の待ち行列。マップの大きさまで伸ばして使い回す（広いマップで毎回確保しないように） */
+let fieldQueue = new Int32Array(0);
+
+/**
+ * 幅優先で歩数を埋める。広いマップ（MAP_SIZE）ではプレイヤーのタイルが変わるたびに走るので、
+ * 近傍の配列と inBounds の呼び出しを使わず添字で直接たどる（外周の判定は x / y の範囲で行う）
+ */
 function buildField(map: GameMap, goal: number): Int32Array {
   const field = new Int32Array(map.tiles.length).fill(UNREACHABLE);
   if (goal < 0 || goal >= map.tiles.length) return field;
-  const queue = [goal];
+  if (fieldQueue.length < map.tiles.length) fieldQueue = new Int32Array(map.tiles.length);
+  const queue = fieldQueue;
+  const tiles = map.tiles;
+  const w = map.width;
+  const lastRow = map.tiles.length - w;
+  let tail = 0;
+  queue[tail++] = goal;
   field[goal] = 0;
-  for (let head = 0; head < queue.length; head++) {
+  for (let head = 0; head < tail; head++) {
     const i = queue[head] ?? 0;
-    const x = i % map.width;
-    const y = Math.floor(i / map.width);
-    for (const [dx, dy] of NEIGHBORS_4) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (!inBounds(map, nx, ny)) continue;
-      const ni = toIndex(map, nx, ny);
-      if (field[ni] !== UNREACHABLE || map.tiles[ni] === Tile.Wall) continue;
-      field[ni] = (field[i] ?? 0) + 1;
-      queue.push(ni);
-    }
+    const next = (field[i] ?? 0) + 1;
+    const x = i % w;
+    // NEIGHBORS_4 と同じ順（右・左・下・上）で積む（同じ歩数の埋まり方を変えない）
+    if (x + 1 < w) tail = visit(field, tiles, queue, tail, i + 1, next);
+    if (x > 0) tail = visit(field, tiles, queue, tail, i - 1, next);
+    if (i < lastRow) tail = visit(field, tiles, queue, tail, i + w, next);
+    if (i >= w) tail = visit(field, tiles, queue, tail, i - w, next);
   }
   return field;
+}
+
+/** 未訪問の歩ける隣を歩数 d で埋めて待ち行列に積み、新しい末尾を返す */
+function visit(field: Int32Array, tiles: GameMap["tiles"], queue: Int32Array, tail: number, ni: number, d: number): number {
+  if (field[ni] !== UNREACHABLE || tiles[ni] === Tile.Wall) return tail;
+  field[ni] = d;
+  queue[tail] = ni;
+  return tail + 1;
 }
 
 export function tileOf(map: GameMap, p: Point): number {

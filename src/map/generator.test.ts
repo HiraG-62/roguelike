@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { DEFAULT_GENERATOR_OPTIONS, generateRoomsAndCorridors, planTerrain } from "./generator";
+import { DEFAULT_GENERATOR_OPTIONS, generateMap, generateRoomsAndCorridors, planTerrain, scaleGeneratorOptions } from "./generator";
 import { terrainCode } from "../core/terrain";
-import { TERRAIN_MUD_SMOKE } from "../data/tuning";
+import { MAP_SIZE, TERRAIN_MUD_SMOKE } from "../data/tuning";
 import { type GameMap, type Point, Tile, getTile, isWalkable, rectCenter, toIndex } from "./grid";
+import { distanceField } from "./pathing";
 
 const SEED_SAMPLES = 50;
 const CARDINALS = [
@@ -71,6 +72,111 @@ describe("generateRoomsAndCorridors", () => {
       expect(first).toBeDefined();
       if (!first) continue;
       expect(canReachStairs(map, rectCenter(first)), `seed=${seed}`).toBe(true);
+    }
+  });
+});
+
+/** 4 近傍 BFS で start から歩ける床の印 */
+function reachable(map: GameMap, start: Point): Uint8Array {
+  const seen = new Uint8Array(map.tiles.length);
+  const queue: Point[] = [start];
+  seen[toIndex(map, start.x, start.y)] = 1;
+  for (let head = 0; head < queue.length; head++) {
+    const p = queue[head];
+    if (!p) break;
+    for (const [dx, dy] of CARDINALS) {
+      const nx = p.x + dx;
+      const ny = p.y + dy;
+      if (!isWalkable(map, nx, ny)) continue;
+      const idx = toIndex(map, nx, ny);
+      if (seen[idx]) continue;
+      seen[idx] = 1;
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return seen;
+}
+
+const AREA_MUL = 4;
+const WIDE_SEEDS = 10;
+/** 部屋を置く試行が尽きて上限に届かないことがあるので、上限の 9 割以上あればよい */
+const ROOM_FILL_RATIO = 0.9;
+/** 洞窟の部屋の床の合計が基準の何倍以上あればよいか（部屋を大きく・数を控えめにして広さを出すので、面積の倍率より少し下） */
+const CAVE_ROOM_TILES_RATIO = 3;
+
+describe("広いマップ（scaleGeneratorOptions）", () => {
+  it("面積の倍率 1 なら基準の設定のまま（ボス階・既存の形を変えない）", () => {
+    expect(scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, 1)).toBe(DEFAULT_GENERATOR_OPTIONS);
+    expect(DEFAULT_GENERATOR_OPTIONS.width).toBe(MAP_SIZE.baseWidth);
+    expect(DEFAULT_GENERATOR_OPTIONS.height).toBe(MAP_SIZE.baseHeight);
+  });
+
+  it("面積の倍率 4 で幅と高さが 2 倍、部屋の上限は 倍率 × roomsPerArea 倍、部屋の寸法は 倍率 ^ roomSizeExp 倍", () => {
+    const wide = scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, AREA_MUL);
+    const sizeMul = AREA_MUL ** MAP_SIZE.roomSizeExp;
+    expect(wide.width).toBe(DEFAULT_GENERATOR_OPTIONS.width * 2);
+    expect(wide.height).toBe(DEFAULT_GENERATOR_OPTIONS.height * 2);
+    expect(wide.maxRooms).toBe(Math.round(DEFAULT_GENERATOR_OPTIONS.maxRooms * AREA_MUL * MAP_SIZE.roomsPerArea));
+    expect(wide.roomMinSize).toBe(Math.round(DEFAULT_GENERATOR_OPTIONS.roomMinSize * sizeMul));
+    expect(wide.roomMaxSize).toBe(Math.round(DEFAULT_GENERATOR_OPTIONS.roomMaxSize * sizeMul));
+    expect(wide.roomMaxSize, "広い階は部屋も広い（広間）").toBeGreaterThanOrEqual(DEFAULT_GENERATOR_OPTIONS.roomMaxSize);
+  });
+
+  it("部屋型: 部屋数が上限の 9 割以上、階段が 1 つ、すべての部屋へ開始部屋から歩いて行ける", () => {
+    const wide = scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, AREA_MUL);
+    for (let seed = 0; seed < WIDE_SEEDS; seed++) {
+      const map = generateMap("rooms", createRng(seed), wide);
+      expect(map.width, `seed=${seed}`).toBe(wide.width);
+      expect(map.rooms.length, `seed=${seed} 部屋数`).toBeGreaterThanOrEqual(Math.floor(wide.maxRooms * ROOM_FILL_RATIO));
+      expect(Array.from(map.tiles).filter((t) => t === Tile.StairsDown).length, `seed=${seed} 階段`).toBe(1);
+      const first = map.rooms[0];
+      if (!first) throw new Error("開始部屋が無い");
+      const seen = reachable(map, rectCenter(first));
+      map.rooms.forEach((r, i) => {
+        const c = rectCenter(r);
+        expect(seen[toIndex(map, c.x, c.y)], `seed=${seed} 部屋 ${i}`).toBe(1);
+      });
+      const last = map.rooms[map.rooms.length - 1];
+      if (!last) throw new Error("最後の部屋が無い");
+      expect(getTile(map, rectCenter(last).x, rectCenter(last).y), `seed=${seed} 階段は最後の部屋`).toBe(Tile.StairsDown);
+    }
+  });
+
+  it("部屋型: 広いマップでは階段の部屋が開始部屋から歩いて最も遠い（最初に繋がる部屋を除く）", () => {
+    const wide = scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, AREA_MUL);
+    expect(wide.connectNearest).toBe(true);
+    for (let seed = 0; seed < WIDE_SEEDS; seed++) {
+      const map = generateMap("rooms", createRng(seed), wide);
+      const first = map.rooms[0];
+      if (!first) throw new Error("開始部屋が無い");
+      const s0 = rectCenter(first);
+      const field = distanceField(map, toIndex(map, s0.x, s0.y));
+      const walk = (i: number): number => {
+        const r = map.rooms[i];
+        if (!r) return -1;
+        const c = rectCenter(r);
+        return field[toIndex(map, c.x, c.y)] ?? -1;
+      };
+      const stairs = walk(map.rooms.length - 1);
+      for (let i = 2; i < map.rooms.length; i++) expect(walk(i), `seed=${seed} 部屋 ${i}`).toBeLessThanOrEqual(stairs);
+    }
+  });
+
+  it("洞窟: 面積の倍率 4 で部屋の数が基準より多く、部屋の床の合計が基準の CAVE_ROOM_TILES_RATIO 倍以上、すべての部屋へ歩いて行ける", () => {
+    const wide = scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, AREA_MUL);
+    const roomTiles = (m: GameMap): number => (m.roomTiles ?? []).reduce((sum, list) => sum + list.length, 0);
+    for (let seed = 0; seed < WIDE_SEEDS; seed++) {
+      const map = generateMap("cave", createRng(seed), wide);
+      expect(map.roomTiles, `seed=${seed} 洞窟になる`).toBeDefined();
+      const base = generateMap("cave", createRng(seed), DEFAULT_GENERATOR_OPTIONS);
+      expect(map.rooms.length, `seed=${seed} 部屋数`).toBeGreaterThan(base.rooms.length);
+      expect(roomTiles(map), `seed=${seed} 部屋の床`).toBeGreaterThanOrEqual(roomTiles(base) * CAVE_ROOM_TILES_RATIO);
+      const tiles = map.roomTiles ?? [];
+      const start = tiles[0]?.[0];
+      if (start === undefined) throw new Error("開始部屋が無い");
+      const seen = reachable(map, { x: start % map.width, y: Math.floor(start / map.width) });
+      tiles.forEach((list, i) => expect(list.every((t) => seen[t] === 1), `seed=${seed} 部屋 ${i}`).toBe(true));
+      expect(Array.from(map.tiles).filter((t) => t === Tile.StairsDown).length, `seed=${seed} 階段`).toBe(1);
     }
   });
 });

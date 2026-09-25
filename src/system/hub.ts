@@ -5,7 +5,7 @@ import type { GameState, RoomState } from "../core/state";
 import { createTerrainLayer } from "../core/terrain";
 import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { FEEL, HUB } from "../data/tuning";
+import { FEEL, HUB, WEAPON } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
 import { bulletOfBase } from "../loot/bullets";
@@ -71,9 +71,15 @@ const HUB_ROOM = 0;
  * 拠点の state を作る。createGame と同じ形だが、sandbox 印を付け、ラン数を数えず、
  * フロア生成・起点・ジョブの初期化を通さない（拠点での行動を永続データとランに持ち込まない）
  */
-export function createHub(profile: Profile, skillProfile: SkillProfile, available: ReadonlySet<HubSpotKey>): HubSession {
+export function createHub(
+  profile: Profile,
+  skillProfile: SkillProfile,
+  available: ReadonlySet<HubSpotKey>,
+  /** ヒットストップの強度（settings.hitstopScale）。省略時は標準の 1（拠点は乱数消費が無いため決定性の記録は不要） */
+  hitstopScale = 1,
+): HubSession {
   const layout = buildHubMap();
-  const state = createHubState(profile, skillProfile, layout);
+  const state = createHubState(profile, skillProfile, layout, hitstopScale);
   const hub: HubRun = {
     layout,
     near: null,
@@ -87,7 +93,7 @@ export function createHub(profile: Profile, skillProfile: SkillProfile, availabl
   return { state, hub };
 }
 
-function createHubState(profile: Profile, skillProfile: SkillProfile, layout: HubLayout): GameState {
+function createHubState(profile: Profile, skillProfile: SkillProfile, layout: HubLayout, hitstopScale: number): GameState {
   const setup = defaultRunSetup();
   const stats = computeStats(profile.equipment);
   const state: GameState = {
@@ -109,7 +115,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     pickups: [],
     camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
     hitstop: 0,
-    hitstopScale: 1,
+    hitstopScale,
     slowmo: 0,
     flash: 0,
     combo: { count: 0, timer: 0, best: 0, popTimer: 0 },
@@ -316,9 +322,11 @@ function enforceTrialWeapon(session: HubSession): void {
   if (moveset === null) return;
   // 銃の家系は借りるときと同じ器（一番早く出るベース）の弾で撃つ（装備の武器の弾のままにしない）
   const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
-  if (state.stats.moveset === moveset && state.stats.bullet === bullet) return;
+  if (state.stats.moveset === moveset && state.stats.bullet === bullet && !state.stats.unarmed) return;
   const prev = state.stats;
-  state.stats = { ...prev, moveset, bullet };
+  // 素手の威力の倍率は試す武器種には掛けない（素手のまま武器掛けで試したとき）
+  const unarmedMul = prev.unarmed ? WEAPON.unarmed.damageMul : 1;
+  state.stats = { ...prev, moveset, bullet, unarmed: false, meleeDamageMul: prev.meleeDamageMul / unarmedMul };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }
@@ -381,7 +389,61 @@ export function trialUltimateName(session: HubSession): string | null {
   return moveset === null ? null : ultimateChoice(session.state.profile, moveset).name;
 }
 
+/** 装備中の右手の武器種（武器掛けの「装備のまま」のカードの絵。試している型ではなく装備から数え直す） */
+export function equippedMoveset(profile: Profile): MovesetKey {
+  return computeStats(profile.equipment).moveset;
+}
+
 /** 表示名（「大剣」「散弾銃」） */
 export function rackEntryName(entry: RackEntry): string {
   return MOVESETS[entry.key].name;
+}
+
+// -----------------------------------------------------------------------------
+// 試し打ちの資源の調整（拠点の state はリプレイにも永続化にも載らないので直接書いてよい）
+// -----------------------------------------------------------------------------
+
+/** 武器掛けで調整できる資源（生命・気力・奥義ゲージ） */
+export type HubResource = "hp" | "mana" | "energy";
+
+export const HUB_RESOURCES: readonly HubResource[] = ["hp", "mana", "energy"];
+
+/** 生命は 0 にすると拠点で倒れるので、最低でもこれだけ残す */
+const MIN_HUB_HP = 1;
+
+function resourceMax(state: GameState, kind: HubResource): number {
+  if (kind === "hp") return state.player.maxHp;
+  if (kind === "mana") return state.stats.maxMana;
+  return state.player.maxEnergy;
+}
+
+function resourceNow(state: GameState, kind: HubResource): number {
+  if (kind === "hp") return state.player.hp;
+  if (kind === "mana") return state.player.mana;
+  return state.player.energy;
+}
+
+/** 資源の今の割合（0..1）。上限が 0 なら 0 */
+export function hubResourceRatio(session: HubSession, kind: HubResource): number {
+  const max = resourceMax(session.state, kind);
+  if (max <= 0) return 0;
+  return Math.min(1, Math.max(0, resourceNow(session.state, kind) / max));
+}
+
+/**
+ * 資源を上限 × ratio（0..1 に丸める）にする。持続の奥義の最中に奥義ゲージを 0 にしたら、
+ * updateUltimate が次のステップで「尽きた」として終える（最短の持続秒は守る）ので、ここでは終了処理を呼ばない
+ */
+export function setHubResource(session: HubSession, kind: HubResource, ratio: number): void {
+  const state = session.state;
+  const r = Math.min(1, Math.max(0, ratio));
+  const value = resourceMax(state, kind) * r;
+  if (kind === "hp") state.player.hp = Math.max(MIN_HUB_HP, value);
+  else if (kind === "mana") state.player.mana = value;
+  else state.player.energy = value;
+}
+
+/** 生命・気力・奥義ゲージをすべて上限にする */
+export function fillHubResources(session: HubSession): void {
+  for (const kind of HUB_RESOURCES) setHubResource(session, kind, 1);
 }

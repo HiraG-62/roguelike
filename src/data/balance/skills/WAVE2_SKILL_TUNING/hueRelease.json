@@ -1,0 +1,5 @@
+{
+  "_note": "色解き: 照準の周りの彩痕を、色に対応する状態異常で弾けさせる（色爆）。comboAreaMul は彩刻→色解きの連携の範囲倍率",
+  "cost": 18, "minInterval": 0.6, "poise": 12, "maxRange": 140, "radius": 50, "damage": { "base": 4, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.12, "spi": 0.24 }, "hueMul": 1.5,
+  "knockback": 60, "burnPotency": 3, "shockPotency": 2, "vulnerableTime": 3, "comboAreaMul": 1.5
+}

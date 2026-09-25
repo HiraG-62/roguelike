@@ -1,0 +1,14 @@
+{
+  "keepAway": 120,
+  "bulletCount": 5,
+  "spreadDeg": 50,
+  "bulletSpeed": 115,
+  "bulletDamage": 7,
+  "ringRadius": 50,
+  "ringDamage": 12,
+  "blastCount": 3,
+  "blastSpread": 40,
+  "blastRadius": 20,
+  "blastDamage": 10,
+  "color": "#e0d8c0"
+}

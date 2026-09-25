@@ -10,7 +10,7 @@ import { ELEMENT, GENRE } from "./tuning";
  * - ボスは段階（ai.stage）ごとに弱点を変えてよい（stages）
  * - attack はこの敵の攻撃の質（プレイヤーの防御 / 魔防のどちらで受けるか）と属性（プレイヤーの耐性）
  *
- * 体つき・土地の属性・敵ごとの body/biome/resist/stages は src/data/balance/enemies.json の "defense"
+ * 体つき・土地の属性・敵ごとの body/biome/resist/stages は src/data/balance/enemies/ の "defense"
  * （数値だけなので変更したい場合はそこを編集する）。attack は union 文字列を含むため TS 側（ENEMY_ATTACK）に残す
  */
 

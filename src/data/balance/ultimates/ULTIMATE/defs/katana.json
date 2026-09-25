@@ -1,0 +1,14 @@
+{
+  "ittou": {
+    "lunge": { "distance": 84, "width": 26, "invuln": 0.3, "scaling": { "base": 40, "dex": 2.5, "mnd": 2.5 }, "poise": 70, "poiseRatio": { "dex": 0.9, "mnd": 0.9 }, "knockback": 320, "heavy": true }
+  },
+  "swallowDance": {
+    "swing": { "reach": 0, "size": 72, "hits": 3, "scaling": { "base": 10, "dex": 1, "mnd": 0.6 }, "poise": 20, "poiseRatio": { "dex": 0.5 }, "knockback": 180, "heavy": true }
+  },
+  "mushin": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "moveSpeed": 1.1 },
+    "vsWindup": 1.5,
+    "patch": { "chargeTimeMul": 0.5 }
+  }
+}

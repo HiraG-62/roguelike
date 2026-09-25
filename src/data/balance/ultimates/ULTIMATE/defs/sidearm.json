@@ -1,0 +1,15 @@
+{
+  "sixShooter": {
+    "volley": { "count": 6, "spreadDeg": 3, "speedMul": 1.3, "lifeMul": 1, "bulletRadius": 3, "pierceBonus": 1, "scaling": { "base": 12, "dex": 1.2, "mnd": 0.4 }, "poise": 12, "poiseRatio": { "dex": 0.3 } }
+  },
+  "pointBlank": {
+    "volley": { "count": 8, "spreadDeg": 45, "speedMul": 1.1, "lifeMul": 0.6, "bulletRadius": 3, "pierceBonus": 0, "selfKnock": 400, "scaling": { "base": 12, "dex": 1, "vit": 0.6 }, "poise": 14, "poiseRatio": { "vit": 0.3 } }
+  },
+  "focus": {
+    "cost": 85,
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "moveSpeed": 1.2 },
+    "critAdd": 0.2,
+    "shot": { "pierceAdd": 1 }
+  }
+}

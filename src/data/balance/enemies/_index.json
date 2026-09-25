@@ -1,0 +1,4 @@
+{
+  "_note": "単位: hp は生命、speed/contactDamage/radius/engageRangeはpx系、windup/strikeTime/recover/attackIntervalは秒、weightは出現の重み、dropChanceは0..1。combat の poise は怯み耐性(未指定=怯まない)、staggerTimeは怯みの秒、superArmorMul/strikeSuperArmorMulは怯み値の倍率。defense の defense/wardingは%の軽減、resistは属性耐性%(正で軽減、負で弱点)",
+  "_order": ["ENEMY_AI", "ENEMY_TEMPO", "ELITE", "ELITE_GREEDY", "DOUBLE_CHARGE", "BOSS", "REAPER", "stats", "combat", "defense", "ENEMY_SCALE"]
+}

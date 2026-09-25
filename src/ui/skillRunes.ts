@@ -135,6 +135,15 @@ function axisDir(v: number): number {
   return 0;
 }
 
+/** カーソルを列の範囲に収めるだけ（スクロールは動かさない）。ホイールでスクロールした後の範囲外参照を防ぐ */
+export function clampRuneCursor(ui: RuneUi, entryCount: number): void {
+  if (entryCount === 0) {
+    ui.cursor = 0;
+    return;
+  }
+  ui.cursor = clamp(ui.cursor, 0, entryCount - 1);
+}
+
 /** カーソルを動かし、見える範囲に収まるようスクロールを合わせる */
 export function moveRuneCursor(ui: RuneUi, layout: RuneListLayout, dy: number): void {
   const count = layout.entries.length;

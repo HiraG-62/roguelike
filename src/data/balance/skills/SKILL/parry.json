@@ -1,0 +1,14 @@
+{
+  "_note": "successRefund は成功時に戻す再使用時間の割合（docs/COMBAT_DESIGN.md C-1 の 7）",
+  "cooldown": 3.5,
+  "minInterval": 0.3,
+  "poise": 40,
+  "window": 0.16,
+  "failLock": 0.45,
+  "successRefund": 0.5,
+  "radius": 40,
+  "damage": { "base": 6, "vit": 0.4, "mnd": 0.6, "spi": 0.2 },
+  "poiseRatio": { "vit": 0.4, "mnd": 0.6, "spi": 0.2 },
+  "knockback": 260,
+  "catchPad": 4
+}

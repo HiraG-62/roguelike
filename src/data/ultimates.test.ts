@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { BULLETS } from "../loot/bullets";
+import { BASES } from "../loot/bases";
+import { BULLETS, bulletDef, bulletOfBase } from "../loot/bullets";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { WEAPON_ART } from "../skills/reshapes";
 import { BOONS } from "../system/boonDefs";
 import { JOB_BRANCHES } from "./jobs";
-import { ULTIMATE } from "./tuning";
-import { ULTIMATES, type UltimateAct, type UltimateDef, defaultUltimate, isUltimateKey, sustainRules, ultimateDef } from "./ultimates";
-import { MOVESETS, MOVESET_KEYS } from "./weapons";
+import { PLAYER, ULTIMATE } from "./tuning";
+import { ULTIMATES, type SustainShot, type UltimateAct, type UltimateDef, defaultUltimate, isUltimateKey, sustainRules, ultimateDef } from "./ultimates";
+import { type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature } from "./weapons";
 
 /** 奥義の定義（docs/ideas/ougi-and-dual-actions.md 3.3）: 本数・名前・行為の並び・数値の対応 */
 
@@ -102,5 +103,76 @@ describe("奥義の定義", () => {
       const ids = ULTIMATES[k].map((u) => u.key.slice(k.length + 1));
       expect(Object.keys(defs[k] ?? {}).sort(), `${k} の名前`).toEqual([...ids].sort());
     }
+  });
+});
+
+describe("奥義ごとの必要ゲージ（cost）", () => {
+  /** JSON の defs.<武器種>.<名前>.cost（書いていなければ undefined） */
+  function jsonCost(moveset: string, id: string): number | undefined {
+    const byMoveset: Readonly<Record<string, unknown>> = ULTIMATE.defs;
+    const set = byMoveset[moveset];
+    if (typeof set !== "object" || set === null) return undefined;
+    const block: unknown = (set as Readonly<Record<string, unknown>>)[id];
+    if (typeof block !== "object" || block === null) return undefined;
+    const cost: unknown = (block as Readonly<Record<string, unknown>>).cost;
+    return typeof cost === "number" ? cost : undefined;
+  }
+
+  it("奥義ごとの cost が JSON の値", () => {
+    for (const u of ALL) {
+      const id = u.key.slice(u.moveset.length + 1);
+      const expected = jsonCost(u.moveset, id) ?? ULTIMATE.common.cost;
+      expect(u.cost, u.key).toBe(expected);
+    }
+  });
+
+  it("cost は奥義ゲージの上限以下で正", () => {
+    for (const u of ALL) {
+      expect(u.cost, u.key).toBeGreaterThan(0);
+      expect(u.cost, u.key).toBeLessThanOrEqual(PLAYER.maxEnergy);
+    }
+  });
+});
+
+describe("持続の射撃の差し替え", () => {
+  /** 差し替えの項目 → それが効くために弾が持っていなければならない性質（持たない弾では何も起きない） */
+  const NEEDS: ReadonlyArray<readonly [keyof SustainShot, BulletFeature]> = [
+    ["fuseMul", "mine"],
+    ["bounceAdd", "ricochet"],
+  ];
+
+  it("持続の shot の差し替えは、その武器種の全ベースの弾が持つ性質だけを触る", () => {
+    for (const u of ALL) {
+      if (u.kind !== "sustain" || !u.sustain.shot) continue;
+      const shot = u.sustain.shot;
+      const bases = BASES.filter((b) => b.moveset === u.moveset);
+      expect(bases.length, `${u.key} の武器種のベース`).toBeGreaterThan(0);
+      for (const [field, feature] of NEEDS) {
+        if (shot[field] === undefined) continue;
+        for (const b of bases) {
+          expect(hasBulletFeature(bulletDef(bulletOfBase(b.key)), feature), `${u.key}.${field} は ${b.key} の弾に効かない`).toBe(true);
+        }
+      }
+      // 周回（orbit）は弾の性質を足す差し替えなので、どのベースの弾にも効く
+    }
+  });
+});
+
+describe("武器 Wave 4 の奥義", () => {
+  it("爪・チェーンアレイ・チャクラム・扇子が 3 本ずつ持ち、既定はどれも一撃", () => {
+    for (const k of ["claws", "flail", "ringBlades", "fan"] as const) {
+      expect(ULTIMATES[k], k).toHaveLength(PER_MOVESET);
+      expect(defaultUltimate(k).kind, `${k} の既定`).toBe("instant");
+    }
+  });
+
+  it("環の陣は周回する弾を 4 枚出し、大旋風は敵弾を消す", () => {
+    const ring = ultimateDef("ringBlades.ringFormation");
+    const act = ring?.kind === "instant" ? ring.acts[0] : undefined;
+    expect(act?.kind === "volley" ? act.throw.count : 0, "4 枚").toBe(4);
+    expect(act?.kind === "volley" ? act.throw.bullet.orbit : undefined, "周回").toBeDefined();
+    const gale = ultimateDef("fan.greatGale");
+    const nova = gale?.kind === "instant" ? gale.acts[0] : undefined;
+    expect(nova?.kind === "nova" ? nova.clearsBullets : false, "大旋風は敵弾を消す").toBe(true);
   });
 });

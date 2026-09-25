@@ -1,13 +1,13 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import { WEAPON } from "../data/tuning";
-import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature, reviveBullet } from "../data/weapons";
+import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature, movesetCasts, reviveBullet } from "../data/weapons";
 import { BASES, baseDef, baseFamily } from "./bases";
 import type { PlayerStats } from "./types";
 
 /**
  * 銃のベースが撃つ弾（射撃の型の共有表は廃止し、弾は武器そのものが持つ）。
- * 数値は src/data/balance/weapons.json の WEAPON.bullets.<ベースの key>、語と素性（union 文字列）はここの表。
+ * 数値は src/data/balance/weapons/ の WEAPON.bullets.<ベースの key>、語と素性（union 文字列）はここの表。
  * 弾を出す固有技（斧の投擲・魔弾・乱れ撃ち・撒き散らし）の弾は技の定義が持ち、ここで同じ表に並べて key で引けるようにする
  */
 
@@ -73,12 +73,14 @@ function baseBullets(): BulletDef[] {
   return out;
 }
 
+/** 固有技の弾: 右レーンの弾の段（`art.<段の key>`）と、振りが撃つ cast（`cast.<cast の key>`） */
 function artBullets(): BulletDef[] {
   const out: BulletDef[] = [];
   for (const key of MOVESET_KEYS) {
     for (const s of MOVESETS[key].steps2) {
       if (s.kind === "volley") out.push(s.throw.bullet);
     }
+    for (const c of movesetCasts(MOVESETS[key])) out.push(c.throw.bullet);
   }
   return out;
 }

@@ -1,0 +1,7 @@
+{
+  "duration": 3,
+  "moveMul": 1.2,
+  "extendOnHit": 0.5,
+  "maxTime": 6,
+  "chillExtend": 1
+}

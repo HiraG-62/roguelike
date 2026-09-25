@@ -1,0 +1,11 @@
+{
+  "keepAway": 100,
+  "bladeCount": 3,
+  "spreadDeg": 40,
+  "bladeSpeed": 130,
+  "bladeDamage": 12,
+  "fireRadius": 30,
+  "enrageMul": 0.6,
+  "anvilBreakStagger": 2,
+  "color": "#ff8030"
+}

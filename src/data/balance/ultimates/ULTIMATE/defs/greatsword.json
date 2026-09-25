@@ -1,0 +1,13 @@
+{
+  "judgment": {
+    "swing": { "deg": 240, "reach": 60, "size": 60, "scaling": { "base": 32, "str": 3, "vit": 2 }, "poise": 90, "poiseRatio": { "str": 1.5, "vit": 1 }, "knockback": 450, "heavy": true }
+  },
+  "titanMight": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "poise": 1.5 },
+    "patch": { "chargeTimeMul": 0.5, "attackMoveMul": 2 }
+  },
+  "earthSplit": {
+    "volley": { "count": 3, "spreadDeg": 18, "speedMul": 0.6, "lifeMul": 1.2, "bulletRadius": 9, "pierceBonus": 99, "scaling": { "base": 22, "str": 2 }, "poise": 30, "poiseRatio": { "str": 0.9 } }
+  }
+}

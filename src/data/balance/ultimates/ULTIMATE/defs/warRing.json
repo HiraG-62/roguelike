@@ -1,0 +1,12 @@
+{
+  "ringDance": {
+    "volley": { "count": 4, "spreadDeg": 90, "speedMul": 1, "lifeMul": 1, "bulletRadius": 4, "pierceBonus": 99, "scaling": { "base": 14, "dex": 1, "str": 0.6 }, "poise": 16, "poiseRatio": { "dex": 0.4 } }
+  },
+  "headsman": {
+    "volley": { "count": 1, "spreadDeg": 0, "speedMul": 0.5, "lifeMul": 1.6, "bulletRadius": 10, "pierceBonus": 99, "scaling": { "base": 40, "str": 2, "dex": 2 }, "poise": 50, "poiseRatio": { "str": 0.8 } }
+  },
+  "circleLaw": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "shot": { "orbit": { "radius": 40, "turnRate": 6, "laps": 3 } }
+  }
+}

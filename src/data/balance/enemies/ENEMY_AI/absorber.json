@@ -1,0 +1,8 @@
+{
+  "radius": 44,
+  "maxShots": 8,
+  "spreadDeg": 70,
+  "bulletSpeed": 120,
+  "bulletDamage": 8,
+  "color": "#c0a0ff"
+}

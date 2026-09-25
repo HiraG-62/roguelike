@@ -1,0 +1,10 @@
+{
+  "_note": "アクション手触り（docs/ideas/action-feel.md「まず入れるべき5つ」+ 壁叩きつけ・ダッシュ攻撃）。dashAttack は src/data/balance/weapons.json の ACTION_DASH_ATTACK。表示文言（浮き文字の text）は src/data/actionText.ts に分離し、data/tuning.ts の ACTION が数値と合流する。counter は敵の windup 中に近接を当てるカウンターヒット（poiseMul は敵の強靭〔攻撃中×0.5〕と相殺して等倍になる値）。lastKill はロック中の部屋で最後の敵を倒した瞬間のスローモーション。regain は被弾後しばらく近接ヒットでHPを取り戻す猶予（perHitRatio は0.15→0.1、poolRatioはC-1で0.6→0.5、memo 2026-09-24で0.5→0.3）。justCounter は祝福 justSlash の見切り斬り（JUST回避直後に攻撃で回避した敵へ瞬間移動斬り）。reflect は祝福 reflect の弾返し。wallSplat は近接3段目などで吹き飛んだ敵が壁に激突（poise は強靭を無視する）。bulletCut は性質 bulletCut で敵弾を消したときの見た目のみ",
+  "counter": { "damageMul": 1.5, "poiseMul": 2, "hitstopBonus": 2, "color": "#ff9040", "textScale": 1.6, "textLife": 0.7, "particles": 12 },
+  "lastKill": { "slowmo": 0.5, "flash": 0.85, "color": "#ffffff", "textScale": 2.6, "textLife": 1.2, "textOffsetY": 14, "ringRadius": 60, "ringLife": 0.45, "particles": 30 },
+  "regain": { "window": 3, "perHitRatio": 0.1, "poolRatio": 0.3, "color": "#b0ffb0", "particles": 4 },
+  "justCounter": { "window": 0.4, "damageMul": 1.5, "poise": 60, "maxRange": 160, "gap": 2, "hitstopBonus": 3, "color": "#60e0ff", "textScale": 1.7, "textLife": 0.8, "lineLife": 0.2, "particles": 16 },
+  "reflect": { "speedMul": 1.3, "damageMul": 2, "energy": 8, "pierce": 2, "minLife": 1, "color": "#ffe080", "textScale": 1.2, "textLife": 0.5, "particles": 8 },
+  "wallSplat": { "damage": 10, "poise": 20, "color": "#c0c0c0", "particles": 12, "hitstop": 3 },
+  "bulletCut": { "color": "#c0e0ff", "particles": 4 }
+}

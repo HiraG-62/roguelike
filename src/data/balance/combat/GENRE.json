@@ -1,0 +1,6 @@
+{
+  "_note": "攻撃ジャンルの係数（system/elementCombat.ts）。比率は 0..1、範囲は %。ジャンルは敵の防御 / 魔防のどちらで受けるかだけを決め、参照ステータスは縛らない（A-10）",
+  "hybridMix": 0.5,
+  "enemyDefenseMin": -50,
+  "enemyDefenseMax": 75
+}

@@ -1,0 +1,6 @@
+{
+  "_note": "変身の共通: 変身先の武器種がジョブの得意なら持続を伸ばす / 切れた後の移動倍率と秒",
+  "favoredDurationMul": 1.3,
+  "recoverTime": 1,
+  "recoverMoveMul": 0.7
+}

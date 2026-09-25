@@ -4,7 +4,7 @@
  */
 import { VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
-import type { ReplayAvailability, RunItemSummary, SeedInputState, SettingsItem, TitleStats } from "../ui/title";
+import type { ReplayAvailability, RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
 import {
   KEYBINDS_ROWS,
   PAUSE_MENU_ITEMS,
@@ -12,17 +12,20 @@ import {
   dailyBestIndices,
   isActionRow,
   isDailyEntry,
+  isSettingsGaugeItem,
   keybindsLayout,
   TITLE_MENU_ITEMS,
   titleMenuRects,
   type TitleMenuItem,
   pauseMenuLayout,
+  settingsGaugeRect,
   settingsLayout,
   type KeybindsLayout,
   type KeybindsRow,
+  type SettingsGaugeItem,
 } from "../ui/title";
-import type { Settings } from "../ui/settings";
-import { actionKeyLabel, formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
+import { HITSTOP_SCALE_MAX, type Settings } from "../ui/settings";
+import { actionKeyLabel, formatBindingCode, keyLabel, moveKeyLabel, type Keybinds, type RebindableAction } from "../core/input";
 import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
 import { APP_VERSION } from "../version";
 
@@ -59,6 +62,7 @@ const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
   resume: "再開",
   settings: "設定",
   restart: "やり直す",
+  tips: "Tips ノート",
   title: "拠点へ",
 };
 
@@ -269,6 +273,7 @@ const TITLE_MENU_LABEL: Readonly<Record<TitleMenuItem, string>> = {
   codex: "C 図鑑",
   quests: "Q 依頼",
   achievements: "A 実績",
+  tips: "T Tips",
 };
 
 /** 図鑑・依頼・実績のボタン（当たり判定は ui/title.ts の titleMenuRects と同じ矩形） */
@@ -315,9 +320,9 @@ export function drawTitle(
   const controls = [
     "Enter / クリック: 拠点へ   D: デイリーシード",
     "N: シード編集   H: 履歴   O: 設定",
-    "C: 図鑑   Q: 依頼   A: 実績",
-    "WASD / 矢印キー: 移動、Space: ダッシュ",
-    "E / 左クリック: 攻撃 1（銃は射撃）、Q / 右クリック: 攻撃 2、F: 奥義",
+    "C: 図鑑   Q: 依頼   A: 実績   T: Tips ノート",
+    `${moveKeyLabel()}: 移動、${keyLabel("dash", { first: true })}: ダッシュ`,
+    `${keyLabel("attack")}: 攻撃 1、${keyLabel("shoot")}: 攻撃 2、${keyLabel("special")}: 奥義`,
   ];
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
   // 右下の隅にバージョン表示、その上に操作一覧
@@ -473,9 +478,14 @@ function drawVersion(ctx: CanvasRenderingContext2D, x: number, y: number, align:
   drawText(ctx, APP_VERSION, x, y, TEXT.SMALL, COLOR_VERSION, align);
 }
 
-function barText(value: number): string {
-  const filled = Math.round(value * 10);
-  return "#".repeat(filled) + "-".repeat(10 - filled);
+/** ゲージ本体（枠 + 塗り）。矩形は ui/title.ts の settingsGaugeRect と同じものを渡す */
+function drawGauge(ctx: CanvasRenderingContext2D, rect: { x: number; y: number; w: number; h: number }, value01: number, color: string): void {
+  ctx.strokeStyle = color;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  const fillW = Math.round((rect.w - 2) * Math.max(0, Math.min(1, value01)));
+  if (fillW <= 0) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(rect.x + 1, rect.y + 1, fillW, rect.h - 2);
 }
 
 /** overlay: true なら現在の画面(ゲーム/タイトル)の上に半透明で重ねる */
@@ -497,13 +507,15 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
 
   drawText(ctx, "設定", VIEW_W / 2, panel.y + 16, TEXT.BODY, COLOR_TITLE, "center");
 
-  const valueOf: Record<Exclude<SettingsItem, "close" | "keybinds">, string> = {
+  const toggleValue: Record<"mute" | "dropTooltip", string> = {
     mute: settings.muted ? "オン" : "オフ",
-    volume: barText(settings.volume),
-    musicVolume: barText(settings.musicVolume),
-    screenShake: barText(settings.screenShake),
-    hitstopScale: barText(settings.hitstopScale),
     dropTooltip: settings.dropTooltip ? "オン" : "オフ",
+  };
+  const gaugeValue: Record<SettingsGaugeItem, number> = {
+    volume: settings.volume,
+    musicVolume: settings.musicVolume,
+    screenShake: settings.screenShake,
+    hitstopScale: settings.hitstopScale,
   };
   SETTINGS_ITEMS.forEach((item, i) => {
     const active = i === cursor;
@@ -522,10 +534,19 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
     }
     const label = active ? `> ${SETTINGS_LABEL[item]}` : SETTINGS_LABEL[item];
     drawText(ctx, label, panel.x + 12, textY, m, color);
-    drawText(ctx, valueOf[item], panel.x + panel.w - 12, textY, m, color, "right");
+    if (isSettingsGaugeItem(item)) {
+      const raw = gaugeValue[item];
+      // ヒットストップだけ値域が 0..HITSTOP_SCALE_MAX なので、ゲージの塗りは最大値で割った割合にする（数字は生の値の 100 倍のまま = 100 が標準）
+      const fraction = item === "hitstopScale" ? raw / HITSTOP_SCALE_MAX : raw;
+      const gauge = settingsGaugeRect(item, rowGap);
+      if (gauge) drawGauge(ctx, gauge, fraction, color);
+      drawText(ctx, String(Math.round(raw * 100)), panel.x + panel.w - 12, textY, m, color, "right");
+      return;
+    }
+    drawText(ctx, toggleValue[item], panel.x + panel.w - 12, textY, m, color, "right");
   });
 
-  const footer = truncateText("← →: 調整  Enter: 決定  Esc: 戻る", panel.w - 8, m);
+  const footer = truncateText("← →: 調整  ドラッグ: 直接指定  Enter: 決定  Esc: 戻る", panel.w - 8, m);
   drawText(ctx, footer, VIEW_W / 2, panel.y + panel.h - 8, m, COLOR_DIM, "center");
 }
 

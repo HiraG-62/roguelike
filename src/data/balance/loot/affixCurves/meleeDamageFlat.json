@@ -1,0 +1,32 @@
+[
+  {
+    "depth": 26,
+    "min": 8,
+    "max": 11
+  },
+  {
+    "depth": 19,
+    "min": 6,
+    "max": 8
+  },
+  {
+    "depth": 13,
+    "min": 4,
+    "max": 5
+  },
+  {
+    "depth": 8,
+    "min": 3,
+    "max": 4
+  },
+  {
+    "depth": 4,
+    "min": 2,
+    "max": 2
+  },
+  {
+    "depth": 1,
+    "min": 1,
+    "max": 1
+  }
+]

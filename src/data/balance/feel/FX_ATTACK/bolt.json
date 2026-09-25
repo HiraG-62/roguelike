@@ -1,0 +1,10 @@
+{
+  "_note": "稲妻の線。segments で折り、jitter px ずらす。枝は雷の色の線だけ",
+  "segments": 6,
+  "jitter": 5,
+  "branches": 2,
+  "branchRatio": 0.3,
+  "glowWidth": 3,
+  "glowAlpha": 0.35,
+  "flicker": 30
+}

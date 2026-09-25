@@ -9,7 +9,7 @@ import type { Rect } from "./inventoryLayout";
 
 /**
  * ラン内のステータス振り分け（docs/COMBAT_DESIGN.md A-3）。
- * 階層到達・ボス撃破で得た点（runAttributes.unspent）を、装備画面（装備タブ）のステータス行の「+」で 1 点ずつ振る。
+ * 階層到達・ボス撃破で得た点（runAttributes.unspent）を、装備画面（ステータスタブ）のステータス行の「+」で 1 点ずつ振る。
  * 装備画面はゲームを止めるので、探索中・戦闘中の攻撃やスキルのキーを奪わない。
  * 装備画面での操作は step の外なので、リプレイは装備変更と同じイベント（core/replay.ts）で再現する
  */
@@ -17,18 +17,18 @@ import type { Rect } from "./inventoryLayout";
 /** 行の並び。キーはスキル 1〜4 + 攻撃の順 */
 export const ALLOC_ORDER: readonly AttrKey[] = ATTR_KEYS;
 
-/** 装備タブのステータス行と「+」ボタン。描画（render/attributeUi.ts）と当たり判定で共有する */
+/** ステータスタブのステータス行と「+」ボタン。描画（render/attributeUi.ts）と当たり判定で共有する */
 export const ALLOC_BUTTON = {
-  /** 行の間隔（ボタンの当たり判定と揃えるため、描画もこの間隔で並べる） */
-  rowH: 9,
-  w: 9,
+  /** 行の間隔（ボタンの当たり判定と揃えるため、描画もこの間隔で並べる）。押しやすいよう文字の行より広く取る */
+  rowH: 12,
+  w: 11,
   /** 行の上端からボタンまで */
   inset: 1,
   /** パネルの左右の余白 */
   pad: 4,
 } as const;
 
-/** index 行目の「+」ボタン（画面座標）。panel は装備タブのステータス一覧の枠 */
+/** index 行目の「+」ボタン（画面座標）。panel はステータスタブのステータス一覧の枠 */
 export function allocButtonRect(panel: Rect, index: number): Rect {
   const h = ALLOC_BUTTON.rowH - ALLOC_BUTTON.inset;
   return {
@@ -99,7 +99,7 @@ export interface AllocUiResult {
 }
 
 /**
- * 装備タブで毎フレーム呼ぶ。「+」のクリックかキーで 1 点振る。
+ * ステータスタブで毎フレーム呼ぶ。「+」のクリックかキーで 1 点振る。
  * 点が無ければ押しても何もしない（入力は使ったことにしてクリックを他へ流さない）
  */
 export function updateAllocButtons(state: GameState, input: FrameInput, panel: Rect): AllocUiResult {

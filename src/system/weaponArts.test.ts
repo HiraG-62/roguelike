@@ -3,7 +3,9 @@ import { step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { WEAPON } from "../data/tuning";
+import { PLAYER, WEAPON } from "../data/tuning";
+import type { Vec } from "../core/vec";
+import { VIEW_H, VIEW_W } from "../core/view";
 import { type ActionStepDef, type MovesetKey, GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
 import { botInput, createBotState } from "../qa/bot";
 import { SKILL } from "../skills/data";
@@ -12,7 +14,7 @@ import { damagePlayer } from "./combat";
 import { nextLaneIndex, playerMoveset, shotDamage, updatePlayer } from "./player";
 import { createSkillRunState, updateSkills } from "./skills";
 import { arena, placeEnemy, withInput } from "./testHelpers";
-import { actionCooldownLeft } from "./weaponArts";
+import { actionCooldownLeft, onBranchStart } from "./weaponArts";
 import { bulletDef } from "../loot/bullets";
 
 /**
@@ -42,6 +44,23 @@ const holdRight = (n: number): Partial<FrameInput>[] => Array.from({ length: n }
 const stepsFor = (sec: number): number => Math.ceil(sec / FIXED_DT);
 /** 入力の窓（段カウンタ）が確実に切れるまでの空フレーム */
 const chainReset = (): Partial<FrameInput>[] => idle(stepsFor(WEAPON.chainWindow) + 2);
+
+/** ワールド座標 → 画面内部座標（core/view.ts の screenToWorld の逆） */
+function toScreen(state: GameState, world: Vec): Vec {
+  const cam = state.camera;
+  const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
+  const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
+  return { x: world.x + ox, y: world.y + oy };
+}
+
+/** 振りが先行入力を受ける（active / recover で予約が無い）まで空の入力で進める */
+function untilActive(state: GameState): void {
+  for (let i = 0; i < SETTLE_STEPS; i++) {
+    const a = state.player.attack;
+    if ((a.phase === "active" || a.phase === "recover") && !a.buffered) return;
+    step(state, withInput({}), FIXED_DT);
+  }
+}
 
 function playerShots(state: GameState): Projectile[] {
   return state.projectiles.filter((pr) => pr.owner === "player");
@@ -86,7 +105,12 @@ describe("右レーンの 1 段目（旧固有技）", () => {
 
   it("名前付きの派生は右レーンの段より優先される（左左右 → 兜割り）", () => {
     const state = arena(5, { moveset: "greatsword" });
-    play(state, [{ attackPressed: true }, ...idle(3), { attackPressed: true }, ...idle(3), { shootHeld: true }]);
+    // 派生は実際に出た段の列で照合するので、2 段目が振りを受け付ける（active）まで待ってから押す
+    play(state, [{ attackPressed: true }]);
+    untilActive(state);
+    play(state, [{ attackPressed: true }]);
+    untilActive(state);
+    play(state, [{ shootHeld: true }]);
     for (let i = 0; i < SETTLE_STEPS && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
     expect(branchKey(state)).toBe("helmSplitter");
   });
@@ -164,6 +188,19 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     expect(actionCooldownLeft(state, MOVESETS.shield.steps2[0]), "構えの再使用は離したときに立つ").toBeGreaterThan(0);
   });
 
+  it("構えを離した盾押しの後も、構えの右は派生の列に残る（右右左の城壁が出る）", () => {
+    const state = arena(5, { moveset: "shield" });
+    play(state, [...holdRight(10), {}]);
+    expect(branchKey(state), "盾押し").toBe("guard.release");
+    expect(state.player.attack.inputs, "構えの右は出た段として残る").toEqual(["secondary"]);
+    untilActive(state);
+    play(state, [{ shootHeld: true }]);
+    untilActive(state);
+    play(state, [{ attackPressed: true }]);
+    for (let i = 0; i < SETTLE_STEPS && branchKey(state) !== "rampart"; i++) step(state, withInput({}), FIXED_DT);
+    expect(branchKey(state), "右（構え）・右・左で城壁").toBe("rampart");
+  });
+
   it("斧の投擲は戻る弾を出して段を進め、再使用が明ける前は出ない", () => {
     const state = arena(5, { moveset: "axe" });
     play(state, [{ shootHeld: true }, {}]);
@@ -190,6 +227,67 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     play(state, [{ shootHeld: true }]);
     expect(shot.vel.x, "手元へ向いた").toBeLessThan(0);
     expect(shot.damage).toBeCloseTo(damage * laneStepOf("thrown", 0, "recall").recall.returnDamageMul);
+  });
+
+  it("呼び戻した弾は近くの敵へ曲がる", () => {
+    const state = arena(5, { moveset: "thrown", bullet: "pistol" });
+    play(state, [{ attackHeld: true }, ...idle(5)]);
+    const shot = playerShots(state)[0];
+    if (!shot) throw new Error("弾が出ていない");
+    const recall = laneStepOf("thrown", 0, "recall").recall;
+    if (!recall.homing) throw new Error("投擲の手元返しに追尾が無い");
+    // 弾と手元の間の真横（手元へ戻る直線から外れた所）に敵を置く
+    const p = state.player.body.pos;
+    const e = tough(placeEnemy(state, "golem", 0));
+    e.body.pos = { x: (shot.pos.x + p.x) / 2, y: p.y + recall.homing.range / 3 };
+    play(state, [{ shootHeld: true }]);
+    expect(shot.shot?.recallHoming, "戻りの弾に追尾が写った").toEqual(recall.homing);
+    const toEnemy = e.body.pos.y - shot.pos.y;
+    const vy0 = shot.vel.y;
+    play(state, idle(10));
+    expect(Math.sign(shot.vel.y), "敵のいる側へ曲がった").toBe(Math.sign(toEnemy));
+    expect(Math.abs(shot.vel.y), "向きが変わった").toBeGreaterThan(Math.abs(vy0));
+  });
+
+  it("擲弾の派生の曲射はカーソルの距離で落ちる", () => {
+    const state = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
+    const aimAt = 60;
+    const frame = (f: Partial<FrameInput>): Partial<FrameInput> => {
+      const p = state.player.body.pos;
+      return { ...f, aimScreen: toScreen(state, { x: p.x + aimAt, y: p.y }) };
+    };
+    // 左左右 = 双発（twinShell）。左の射撃も段として積まれる
+    step(state, withInput(frame({ attackPressed: true, attackHeld: true })), FIXED_DT);
+    step(state, withInput(frame({ attackPressed: true, attackHeld: true })), FIXED_DT);
+    const before = playerShots(state).length;
+    step(state, withInput(frame({ shootHeld: true })), FIXED_DT);
+    expect(branchKey(state), "左左右の派生が出た").toBe("twinShell");
+    const shells = playerShots(state).slice(before);
+    expect(shells.length, "派生の弾が出た").toBeGreaterThan(0);
+    for (const pr of shells) {
+      const range = (pr.life + FIXED_DT) * Math.hypot(pr.vel.x, pr.vel.y);
+      expect(range, "カーソルの距離で落ちる").toBeCloseTo(aimAt, 0);
+    }
+  });
+
+  it("照準が無ければ最大射程", () => {
+    const state = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
+    const branch = MOVESETS.grenade.branches.find((b) => b.key === "twinShell");
+    if (!branch) throw new Error("双発が無い");
+    state.player.aimDistance = undefined;
+    onBranchStart(state, branch);
+    const shell = playerShots(state)[0];
+    if (!shell) throw new Error("弾が出ていない");
+    const def = bulletDef("grenadeLauncher");
+    const speed = Math.hypot(shell.vel.x, shell.vel.y);
+    expect(shell.life * speed, "射程いっぱい").toBeCloseTo(PLAYER.shoot.life * def.lifeMul * speed, 3);
+
+    const aimed = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
+    aimed.player.aimDistance = 50;
+    onBranchStart(aimed, branch);
+    const near = playerShots(aimed)[0];
+    if (!near) throw new Error("弾が出ていない");
+    expect(near.life * Math.hypot(near.vel.x, near.vel.y), "照準があればその距離").toBeCloseTo(50, 3);
   });
 
   it("再使用中の右段は入力列に積まない", () => {

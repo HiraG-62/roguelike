@@ -1,0 +1,5 @@
+{
+  "_note": "恨み返し: 直近に受けたダメージの合計x2を前方扇へ返す。poisePerHurt / maxPoise は受けたダメージ1あたりの怯み値の上乗せと上限",
+  "cost": 16, "minInterval": 0.7, "poise": 5, "window": 3, "hurtMul": 2, "poisePerHurt": 0.5, "maxPoise": 45, "radius": 50, "halfAngle": 0.8,
+  "damage": { "base": 4, "str": 0.4, "vit": 1 }, "poiseRatio": { "str": 0.04, "vit": 0.11 }, "knockback": 140
+}

@@ -1,0 +1,6 @@
+{
+  "deathExplodeRadius": 26,
+  "deathExplodeDamage": 10,
+  "deathExplodeFuse": 0.35,
+  "color": "#60c0ff"
+}

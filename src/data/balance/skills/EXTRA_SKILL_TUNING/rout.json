@@ -1,0 +1,5 @@
+{
+  "_note": "追い討ち: 短刀3本。恐怖中の敵は恐怖を消費して怯み値x3",
+  "cost": 10, "minInterval": 0.4, "poise": 6, "count": 3, "spreadRad": 0.12, "speed": 270, "life": 0.5, "radius": 3,
+  "damage": { "base": 4, "str": 0.2, "dex": 0.6 }, "poiseRatio": { "str": 0.05, "dex": 0.13 }, "knockback": 40, "fearPoiseMul": 3, "fearDamageMul": 1.5
+}

@@ -1,0 +1,13 @@
+{
+  "skyfall": {
+    "nova": { "radius": 60, "scaling": { "base": 30, "str": 2, "vit": 1.5, "mnd": 1 }, "poise": 100, "poiseRatio": { "str": 1.5, "vit": 1 }, "knockback": 500, "heavy": true }
+  },
+  "groundSmash": {
+    "volley": { "count": 3, "spreadDeg": 12, "speedMul": 0.7, "lifeMul": 1.2, "bulletRadius": 8, "pierceBonus": 99, "scaling": { "base": 20, "str": 2 }, "poise": 40, "poiseRatio": { "str": 1 } }
+  },
+  "ironLaw": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "poise": 1.5 },
+    "hitQuake": { "radius": 44, "scaling": { "base": 6, "str": 0.5, "vit": 0.3 }, "poise": 20, "poiseRatio": { "str": 0.3 }, "knockback": 220, "hitstop": 5, "shake": 4, "icd": 0.3 }
+  }
+}

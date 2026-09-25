@@ -1,0 +1,1 @@
+{ "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）", "cooldown": 12, "minInterval": 0.3, "hpFraction": 0.12, "duration": 4, "speedMul": 1.35, "lifesteal": 0.08, "buff": { "base": 0.9, "vit": 0.01, "spi": 0.01 } }

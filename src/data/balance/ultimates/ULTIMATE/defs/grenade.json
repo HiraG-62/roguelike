@@ -1,0 +1,13 @@
+{
+  "ironRain": {
+    "volley": { "count": 5, "spreadDeg": 10, "speedMul": 1, "lifeMul": 1, "bulletRadius": 3, "pierceBonus": 0, "scaling": { "base": 16, "str": 1, "mnd": 1 }, "poise": 30, "poiseRatio": { "str": 0.6 } }
+  },
+  "incendiary": {
+    "blast": { "distance": 90, "radius": 30, "count": 3, "spreadDeg": 20, "terrainDuration": 5, "scaling": { "base": 14, "spi": 1, "mnd": 1 }, "poise": 24, "poiseRatio": { "spi": 0.6 }, "knockback": 200 },
+    "burn": { "stacks": 2, "duration": 3, "potency": 3 }
+  },
+  "shellFeast": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "shot": { "pelletsAdd": 1, "damageMul": 1.2 }
+  }
+}

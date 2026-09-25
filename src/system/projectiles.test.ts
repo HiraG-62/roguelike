@@ -5,8 +5,9 @@ import type { Enemy, GameState, Projectile } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { PLAYER } from "../data/tuning";
 import { bulletDef } from "../loot/bullets";
+import type { OrbitDef } from "../data/weapons";
 import { overlapsWall } from "./physics";
-import { shotChargeLevel, shotDamage } from "./player";
+import { emitVolley, shotChargeLevel, shotDamage } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
@@ -247,5 +248,104 @@ describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-des
     expect(onPath.hp, "通り道の敵には当たらない").toBe(TOUGH_HP);
     expect(atTarget.hp, "着弾点の敵に爆風が当たった").toBeLessThan(TOUGH_HP);
     expect(state.sfx).toContain("explode");
+  });
+});
+
+describe("弾の挙動: 周回（円環の理）", () => {
+  const ORBIT: OrbitDef = { radius: 40, turnRate: 6, laps: 3 };
+  const LAP_SEC = (Math.PI * 2) / ORBIT.turnRate;
+  /** 周回の半径に乗るまでの秒（半径へ滑らかに寄せるので少し待つ） */
+  const SETTLE_SEC = 1;
+
+  function orbitShooter(): GameState {
+    const state = arena(5, { bullet: "chakram", moveset: "warRing" });
+    state.player.facing = { x: 1, y: 0 };
+    return state;
+  }
+
+  function fireOrbit(state: GameState): Projectile {
+    const before = state.projectiles.length;
+    emitVolley(state, { ...bulletDef("chakram"), orbit: ORBIT }, 0, undefined, { count: 1 });
+    const pr = state.projectiles[before];
+    if (!pr) throw new Error("弾が出ていない");
+    return pr;
+  }
+
+  function advance(state: GameState, sec: number, each?: () => void): void {
+    for (let i = 0; i < Math.ceil(sec / FIXED_DT); i++) {
+      updateProjectiles(state, FIXED_DT);
+      each?.();
+    }
+  }
+
+  const distToPlayer = (state: GameState, pr: Projectile): number => Math.hypot(pr.pos.x - state.player.body.pos.x, pr.pos.y - state.player.body.pos.y);
+
+  it("orbit の弾は自分から radius の距離を回る", () => {
+    const state = orbitShooter();
+    const pr = fireOrbit(state);
+    const start = distToPlayer(state, pr);
+    expect(start, "撃った直後は手元（周回の半径へ跳ばない）").toBeLessThan(ORBIT.radius / 2);
+    advance(state, SETTLE_SEC);
+    expect(distToPlayer(state, pr), "周回の半径に乗った").toBeCloseTo(ORBIT.radius, 0);
+    const a0 = Math.atan2(pr.pos.y - state.player.body.pos.y, pr.pos.x - state.player.body.pos.x);
+    advance(state, LAP_SEC / 4);
+    const a1 = Math.atan2(pr.pos.y - state.player.body.pos.y, pr.pos.x - state.player.body.pos.x);
+    expect(distToPlayer(state, pr), "回っても半径は保つ").toBeCloseTo(ORBIT.radius, 0);
+    expect(Math.abs(a1 - a0), "角度が進んだ").toBeGreaterThan(0.5);
+    expect(pr.life, "laps 周を回り切る寿命").toBeGreaterThan(0);
+  });
+
+  it("orbit の弾は laps 周で消え、続けて撃つと位相がずれる", () => {
+    const state = orbitShooter();
+    const a = fireOrbit(state);
+    const b = fireOrbit(state);
+    expect(a.life, "寿命は laps 周ぶん").toBeCloseTo(ORBIT.laps * LAP_SEC, 5);
+    advance(state, SETTLE_SEC);
+    expect(Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y), "同じ角度に重ならない").toBeGreaterThan(ORBIT.radius / 2);
+    advance(state, ORBIT.laps * LAP_SEC);
+    expect(playerShots(state), "回り切って消えた").toHaveLength(0);
+  });
+
+  it("持続の円環の理で撃った弾は周回する", () => {
+    const state = orbitShooter();
+    state.player.ultimate.active = "warRing.circleLaw";
+    state.player.energy = state.player.maxEnergy;
+    const shots = fireOnce(state);
+    expect(shots.length, "撃った").toBeGreaterThan(0);
+    expect(shots[0]?.shot?.orbit, "周回を持つ").toBeDefined();
+  });
+
+  it("1 周ごとに同じ敵へもう一度当たる", () => {
+    const state = orbitShooter();
+    const e = tough(placeEnemy(state, "golem", ORBIT.radius));
+    const pin = { x: state.player.body.pos.x, y: state.player.body.pos.y - ORBIT.radius };
+    e.body.pos = { ...pin };
+    const pr = fireOrbit(state);
+    let hits = 0;
+    let hp = e.hp;
+    advance(state, SETTLE_SEC + LAP_SEC * 2, () => {
+      if (e.hp < hp) hits += 1;
+      hp = e.hp;
+      e.body.pos = { ...pin };
+    });
+    expect(pr.life, "当てても消えない").toBeGreaterThan(0);
+    expect(hits, "周ごとに当たり直す").toBeGreaterThanOrEqual(2);
+    expect(hits, "1 周に 1 回まで").toBeLessThanOrEqual(Math.ceil((SETTLE_SEC + LAP_SEC * 2) / LAP_SEC));
+  });
+
+  it("壁に重なっても orbit の弾は消えない", () => {
+    const state = orbitShooter();
+    const p = state.player.body.pos;
+    let x = p.x;
+    while (!overlapsWall(state, x, p.y, 2) && x < p.x + WALL_SEARCH) x += 1;
+    // 周回の輪が壁にかかる所に立つ
+    state.player.body.pos = { x: x - ORBIT.radius / 2, y: p.y };
+    const pr = fireOrbit(state);
+    let touchedWall = false;
+    advance(state, SETTLE_SEC + LAP_SEC, () => {
+      touchedWall ||= overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius);
+    });
+    expect(touchedWall, "輪が壁に重なった").toBe(true);
+    expect(pr.life, "壁で消えない").toBeGreaterThan(0);
   });
 });

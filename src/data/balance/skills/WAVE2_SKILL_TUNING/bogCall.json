@@ -1,0 +1,4 @@
+{
+  "_note": "沼呼び: カーソル地点に毒沼を湧かせる",
+  "cost": 20, "minInterval": 0.8, "poise": 0, "maxRange": 120, "radius": 32, "terrainRadius": 32, "terrainTime": 6, "damage": { "base": 2, "mnd": 0.3, "spi": 0.6 }, "knockback": 0
+}

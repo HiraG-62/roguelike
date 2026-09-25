@@ -1,0 +1,4 @@
+{
+  "_note": "焼き印: 前方を焼きつけて烙印2",
+  "cost": 14, "minInterval": 0.5, "poise": 10, "radius": 32, "halfAngle": 0.7, "damage": { "base": 5, "str": 0.8, "spi": 0.5 }, "poiseRatio": { "str": 0.18, "spi": 0.12 }, "knockback": 60, "brandStacks": 2
+}

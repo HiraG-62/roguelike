@@ -23,14 +23,14 @@ description: スキル石または刻印符を追加する。相性表の更新�
 - src/skills/combos.ts（連携を足す場合）
 - src/skills/skills.test.ts、src/system/skills.test.ts
 ## 最小 Edit のみ許可
-- src/data/balance/skills.json: 数値（SKILL 経由で読む。union 文字列を含む表だけ src/skills/reshapes.ts）
+- src/data/balance/skills/: 数値（スキルごとのファイルを足したら `npm run balance:gen`。SKILL 経由で読む。union 文字列を含む表だけ src/skills/reshapes.ts）
 - src/render/skillHud.ts / src/render/renderer.ts: 表示の追加分のみ
 - src/audio/sfxNames.ts / src/audio/sfxLayers.ts: 新しい効果音が要る場合のみ
 ## 先に読む
 - CLAUDE.md（不変条件）、docs/recipes/skill.md、docs/STATS_AND_SCALING.md、docs/ideas/skills.md（6 章・7 章）、近い既存スキル <例>
 ## 仕様
 - 挙動: <…>（手動で撃つ。オートにしない）
-- 数値: src/data/balance/skills.json に <…>
+- 数値: src/data/balance/skills/ に <…>
 - 係数: 威力の Scaling・怯み値の poiseRatio・状態異常の ratio は docs/STATS_AND_SCALING.md に従う（参照ステータス = <…>、理由 = <…>）
 - 相性: 付かない刻印符 / スキル = <…>
 ## 完了条件

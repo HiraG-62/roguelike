@@ -1,0 +1,9 @@
+{
+  "_note": "射撃・スキルの命中と弾の消滅の火花。rays は放射の本数、ring は広がる輪の最終半径 px",
+  "life": 0.13,
+  "rays": 5,
+  "length": 7,
+  "ring": 7,
+  "killMul": 1.5,
+  "fizzleLife": 0.1
+}

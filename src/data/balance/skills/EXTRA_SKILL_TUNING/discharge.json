@@ -1,0 +1,4 @@
+{
+  "_note": "放電: 近くの感電中の敵すべてから自分へ雷が戻る。戻り道の敵にもダメージ。perStack は感電1スタックあたりの威力上乗せ、lineMul / lineHalfWidth は戻り道の線上の敵への威力倍率と線の太さ",
+  "cost": 18, "minInterval": 0.8, "poise": 15, "range": 200, "damage": { "base": 8, "vit": 0.8, "spi": 1.2 }, "poiseRatio": { "vit": 0.18, "spi": 0.27 }, "perStack": 0.25, "lineMul": 0.5, "lineHalfWidth": 6, "knockback": 0
+}

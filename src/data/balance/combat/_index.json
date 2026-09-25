@@ -1,0 +1,4 @@
+{
+  "_note": "単位の凡例: 秒 / px / 倍率(1=等倍) / 割合(0..1) / %(表示単位。+25%は25) / ステップ(60Hz。ヒットストップだけ)。個別の「なぜ」は各ブロックの _note に書く",
+  "_order": ["MANA", "HEAL", "BLAST_FALLOFF", "STATUS", "ATTR", "ATTR_GAIN", "POISE", "GENRE", "ELEMENT", "TERRAIN", "TERRAIN_MUD_SMOKE", "TERRAIN_RUBBLE", "PLAYER", "ACTION", "ENERGY"]
+}

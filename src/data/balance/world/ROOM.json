@@ -1,0 +1,22 @@
+{
+  "_fields": {
+    "enterMargin": "部屋に入ったとみなすのに要る、部屋の縁からの食い込み。px。大きいほど奥まで入らないと封鎖しない",
+    "baseEnemies": "部屋に置く敵の抽選回数の基本。抽選回数 = baseEnemies + 切り捨て（深度 × enemiesPerDepth）。群れる敵は 1 回で複数体",
+    "enemiesPerDepth": "深度 1 つごとに増える抽選回数",
+    "maxEnemies": "部屋の敵の抽選回数と、増援で湧く実体数の上限。深度 FLOOR_KIND.deepDepth 以降は deepMaxEnemiesBonus を足す",
+    "reinforcementRatio": "封鎖したときに湧く増援の数。部屋の抽選回数に掛ける割合（0.5 で半分）",
+    "spawnTelegraph": "増援・波の敵が湧く前の予告（出現中）の秒",
+    "heartDropChance": "部屋を制圧したときにハートを落とす確率。割合（0..1）。試練の部屋は確定",
+    "heartHeal": "ハートを拾ったときに回復する生命",
+    "clearBonus": "部屋を制圧したときの得点。階段を初めて降りたときも clearBonus × 深度 × 位階の倍率が入る"
+  },
+  "enterMargin": 10,
+  "baseEnemies": 3,
+  "enemiesPerDepth": 1,
+  "maxEnemies": 12,
+  "reinforcementRatio": 0.5,
+  "spawnTelegraph": 0.7,
+  "heartDropChance": 0.2,
+  "heartHeal": 18,
+  "clearBonus": 50
+}

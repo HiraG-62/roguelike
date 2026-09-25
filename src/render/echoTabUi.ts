@@ -57,12 +57,8 @@ import { drawSlotGroupLines, drawStashToolbar, stashEmptyText, stashEmptyY } fro
  * 右列: 倉庫（対象 / 移し先・注ぎ先の選択）→ 対象の詳細（性質の行をクリックで選ぶ、染めは色も選ぶ。呼び戻しは過去の芽の行）
  */
 
-/** ？ のヘルプに出す手順（画面には常時出さない） */
-export const ECHO_HELP: readonly string[] = [
-  "倉庫で対象を選ぶ → 操作 → 性質・芽（→ 色 / 受け取る遺物）→ 実行",
-  "装備中の遺物は対象にできない",
-  "砕くと性質の色の残響を得る。残響を払って性質を作り替える",
-];
+/** ？ のヘルプに出す手順（画面には常時出さない。仕組みの説明は meta/tips.ts の Tips ノート） */
+export const ECHO_HELP: readonly string[] = ["倉庫で対象を選ぶ → 操作 → 性質・芽（→ 色 / 受け取る遺物）→ 実行"];
 const COLOR_BUTTON_BG = "rgba(255,255,255,0.08)";
 const COLOR_DISABLED_BG = "rgba(255,255,255,0.03)";
 const COLOR_PICK_BG = "rgba(255,215,95,0.14)";

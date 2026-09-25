@@ -1,0 +1,1 @@
+{ "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）", "cooldown": 11, "minInterval": 0.3, "duration": 3, "moveBonus": 0.3, "exhaust": 1.5, "buff": { "base": 0.9, "dex": 0.02 } }

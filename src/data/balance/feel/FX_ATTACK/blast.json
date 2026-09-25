@@ -1,0 +1,18 @@
+{
+  "_note": "爆発の段階（閃光 → 火球 → 煙の輪 → 破片）と焦げ跡。flashEnd / fireEnd は寿命のうち閃光・火球が終わる割合",
+  "life": 0.55,
+  "flashEnd": 0.14,
+  "fireEnd": 0.45,
+  "fireCore": "#fff4c0",
+  "smokeColor": "#6a605a",
+  "smokeAlpha": 0.6,
+  "debris": 10,
+  "debrisColor": "#5a3a24",
+  "debrisReach": 1.25,
+  "scorchLife": 1.6,
+  "scorchAlpha": 0.4,
+  "scorchColor": "#120a06",
+  "scorchRatio": 0.55,
+  "embers": 6,
+  "emberSpeed": 70
+}

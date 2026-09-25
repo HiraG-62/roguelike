@@ -7,19 +7,21 @@ import { ENEMIES } from "../data/enemies";
 import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
-import { buildFloor, descend, enemyCount, insideRoom } from "./floor";
+import { buildFloor, descend, enemyCount, insideRoom, withBaseAreaMul } from "./floor";
 import { ROOM_LOCKS, applyCurse, chooseFloorKind, fountainPx, hordeMax, isDark, roomLocks } from "./roomTypes";
 import { MAP_SHAPE, floorKindCandidates } from "./biomes";
 import { placeEnemy, withInput } from "./testHelpers";
 
 const SEARCH_SEEDS = 300;
 const NON_BOSS_DEPTH = 7;
+/** 部屋の種類の割り当てを確かめる seed の数（広い階を深度 3 つぶん作るので控えめに） */
+const ROOM_KIND_SEEDS = 30;
 const IDLE = withInput({});
 
 /** 指定 depth で kind の部屋が出るフロアを seed 総当たりで探す */
 function floorWith(kind: RoomKind, depth: number): { state: GameState; index: number } {
   for (let seed = 0; seed < SEARCH_SEEDS; seed++) {
-    const state = createGame(seed);
+    const state = withBaseAreaMul(() => createGame(seed));
     state.depth = depth;
     buildFloor(state);
     const index = state.rooms.findIndex((r) => r.kind === kind);
@@ -212,9 +214,11 @@ describe("洞窟フロアの湧きとロック", () => {
 
 describe("部屋の種類", () => {
   it("開始部屋・最初の部屋・最後の部屋は normal。特別な部屋は各 0〜1 個で深さ制限を守る", () => {
-    for (let seed = 0; seed < 60; seed++) {
+    // 広い階は 1 枚に部屋が多いので、seed の数を減らしても割り当ての組み合わせは十分に試せる
+    for (let seed = 0; seed < ROOM_KIND_SEEDS; seed++) {
       for (const depth of [1, 2, 5]) {
-        const state = createGame(seed);
+        // 検証するのは buildFloor で作り直す階なので、最初の階は基準の大きさで軽く作る
+        const state = withBaseAreaMul(() => createGame(seed));
         state.depth = depth;
         buildFloor(state);
         const kinds = state.rooms.map((r) => r.kind);

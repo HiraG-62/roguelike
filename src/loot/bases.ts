@@ -2,7 +2,7 @@ import { BALANCE } from "../data/balance";
 import { GUN_MOVESETS, type MovesetKey } from "../data/weapons";
 import type { Slot } from "./types";
 
-/** ベースごとの minLevel / marginBonus（数値のみ）。src/data/balance/loot.json の "bases" */
+/** ベースごとの minLevel / marginBonus（数値のみ）。src/data/balance/loot/ の "bases" */
 const B = BALANCE.loot.bases;
 
 /**
@@ -65,6 +65,18 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "twinRevolvers", name: "双回転式", slot: "mainHand", minLevel: B.twinRevolvers.minLevel, implicitKey: "implicit.twinRevolvers", moveset: "gunner" },
   // 戦鎚（warpick）を戦鎚の型へ移したので、鉈の型の器を 1 つ補う
   { key: "broadCleaver", name: "大鉈", slot: "mainHand", minLevel: B.broadCleaver.minLevel, moveset: "cleaver" },
+  // 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章）: 序盤の器は implicit なし、後半の器は implicit で個性を付ける
+  { key: "hookClaws", name: "鉤爪", slot: "mainHand", minLevel: B.hookClaws.minLevel, moveset: "claws" },
+  { key: "ironClaws", name: "鉄爪", slot: "mainHand", minLevel: B.ironClaws.minLevel, implicitKey: "implicit.ironClaws", moveset: "claws" },
+  { key: "beastClaws", name: "獣爪", slot: "mainHand", minLevel: B.beastClaws.minLevel, implicitKey: "implicit.beastClaws", moveset: "claws" },
+  { key: "flail", name: "鎖鉄球", slot: "mainHand", minLevel: B.flail.minLevel, moveset: "flail" },
+  { key: "morningStar", name: "星球", slot: "mainHand", minLevel: B.morningStar.minLevel, implicitKey: "implicit.morningStar", moveset: "flail" },
+  { key: "greatFlail", name: "大鎖球", slot: "mainHand", minLevel: B.greatFlail.minLevel, implicitKey: "implicit.greatFlail", moveset: "flail" },
+  { key: "ringBlades", name: "輪刃", slot: "mainHand", minLevel: B.ringBlades.minLevel, moveset: "ringBlades" },
+  { key: "fangRings", name: "牙輪", slot: "mainHand", minLevel: B.fangRings.minLevel, implicitKey: "implicit.fangRings", moveset: "ringBlades" },
+  { key: "ironFan", name: "鉄扇", slot: "mainHand", minLevel: B.ironFan.minLevel, moveset: "fan" },
+  { key: "danceFan", name: "舞扇", slot: "mainHand", minLevel: B.danceFan.minLevel, implicitKey: "implicit.danceFan", moveset: "fan" },
+  { key: "warFan", name: "軍扇", slot: "mainHand", minLevel: B.warFan.minLevel, implicitKey: "implicit.warFan", moveset: "fan" },
 
   // gun: 連射 / 弾数 / 貫通
   { key: "pistol", name: "拳銃", slot: "mainHand", minLevel: B.pistol.minLevel, implicitKey: "implicit.pistol", moveset: "sidearm" },

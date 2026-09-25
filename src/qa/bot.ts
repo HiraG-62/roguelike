@@ -1,4 +1,5 @@
 import type { FrameInput } from "../core/input";
+import { ultimateReady } from "../system/ultimates";
 import { EMPTY_INPUT } from "../core/input";
 import { createRng, type Rng } from "../core/rng";
 import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
@@ -8,7 +9,9 @@ import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
-import { lineOfSight } from "../map/pathing";
+import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
+import { PLAYER } from "../data/tuning";
+import { reaperTimeLeft } from "../system/reaper";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
@@ -71,13 +74,16 @@ const SHOT_CHARGE_HOLD = 0.75;
 const ART_PERIOD = 1.0;
 const P: ButtonKey = "primary";
 const S: ButtonKey = "secondary";
-/** 近接の射程内で出す左右の列（左左左 / 左左右 / 右左左 / 左右左 / 右右右）。bot.rng で 1 列選び、出し終えたら次を選ぶ */
+/** 近接の射程内で出す左右の列（3 入力の 8 通りすべて。杖の派生 6 本を含め、どの組み合わせも踏む）。bot.rng で 1 列選び、出し終えたら次を選ぶ */
 const LANE_PATTERNS: readonly (readonly ButtonKey[])[] = [
   [P, P, P],
   [P, P, S],
   [S, P, P],
   [P, S, P],
   [S, S, S],
+  [S, S, P],
+  [P, S, S],
+  [S, P, S],
 ];
 const PARRY_HOLD = 0.2;
 /** 予備動作を見たとき、回避より受け流しを選ぶ確率（両方の経路を踏ませる） */
@@ -87,7 +93,7 @@ const ART_THROW_RANGE = 160;
 /** 1 振りの技の射程に足す接近余地（px） */
 const ART_STRIKE_MARGIN = 6;
 /**
- * 奥義（F）: ゲージが満タン（energy >= maxEnergy）で、敵がこの距離（px）以内なら押す。
+ * 奥義（F）: ゲージが選んでいる奥義の cost に届いていて、敵がこの距離（px）以内なら押す。
  * 持続型は押し直すと終わるので、持続中は押さずにゲージが減りきるまで放置する（手動終了の経路は踏まない。report に注記）
  */
 const ULTIMATE_RANGE = 8 * PX_PER_METER;
@@ -108,6 +114,12 @@ const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawnin
 const ENGAGE_RANGE = 240;
 /** 部屋の目標地点にこの距離まで来ても制圧できていなければ、その部屋の残りの敵を探しに行く（px） */
 const ROOM_ARRIVE_DIST = TILE_SIZE * 2;
+/**
+ * 死神の残り秒が「階段までの歩きの秒 × WALK_SAFETY + STAIRS_RESERVE」を切ったら、部屋を残していても階段へ向かう。
+ * 広い階（BALANCE.world.MAP_SIZE）では全部屋を回りきる前に死神が来るので、到達を優先させる
+ */
+const WALK_SAFETY = 1.5;
+const STAIRS_RESERVE = 20;
 /** 経路のウェイポイントに到達したとみなす距離（px） */
 const WAYPOINT_REACH = TILE_SIZE * 0.6;
 /** 目標地点がこの距離以上ずれたら経路を引き直す */
@@ -261,20 +273,32 @@ function findStairsPos(state: GameState): Vec | null {
  */
 function roomTargetPoint(state: GameState, room: RoomState): Vec {
   if (!room.tiles || room.tiles.size === 0) return rectCenterPx(room.rect);
+  // 塊のタイルは階の間変わらないので、部屋ごとに 1 回だけ数える（広いマップの大きな塊で毎ステップ数えると重い）
+  const cached = roomTargetCache.get(room);
+  if (cached) return cached;
+  const point = blobTargetPoint(state, room.tiles);
+  roomTargetCache.set(room, point);
+  return point;
+}
+
+/** roomTargetPoint の覚え。部屋の state は階ごとに作り直されるので WeakMap で捨てられる */
+const roomTargetCache = new WeakMap<RoomState, Vec>();
+
+function blobTargetPoint(state: GameState, tiles: ReadonlySet<number>): Vec {
   let sx = 0;
   let sy = 0;
-  for (const idx of room.tiles) {
+  for (const idx of tiles) {
     const p = tileCenterPx(state.map, idx);
     sx += p.x;
     sy += p.y;
   }
-  const centroid = { x: sx / room.tiles.size, y: sy / room.tiles.size };
+  const centroid = { x: sx / tiles.size, y: sy / tiles.size };
   const tx = Math.floor(centroid.x / TILE_SIZE);
   const ty = Math.floor(centroid.y / TILE_SIZE);
-  if (room.tiles.has(toIndex(state.map, tx, ty))) return centroid;
+  if (tiles.has(toIndex(state.map, tx, ty))) return centroid;
   let best = centroid;
   let bestDist = Infinity;
-  for (const idx of room.tiles) {
+  for (const idx of tiles) {
     const p = tileCenterPx(state.map, idx);
     const d = dist(p, centroid);
     if (d < bestDist) {
@@ -290,6 +314,10 @@ function roomTargetPoint(state: GameState, room: RoomState): Vec {
  * （毎ティック最寄りを選び直すと、僅差の 2 部屋の間で目標が振動して経路が安定しない）
  */
 function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
+  if (shouldRushStairs(state, bot)) {
+    bot.targetRoomIndex = null;
+    return null;
+  }
   const current = bot.targetRoomIndex;
   if (current !== null) {
     const room = state.rooms[current];
@@ -308,6 +336,24 @@ function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
   });
   bot.targetRoomIndex = best >= 0 ? best : null;
   return bot.targetRoomIndex;
+}
+
+/** 階段までの歩きの秒（経路の歩数 × タイル ÷ 歩きの速さ）。階段が無い・届かなければ null */
+function walkSecondsToStairs(state: GameState, bot: BotState): number | null {
+  if (!bot.stairsPos) bot.stairsPos = findStairsPos(state);
+  if (!bot.stairsPos) return null;
+  const field = distanceField(state.map, tileOf(state.map, bot.stairsPos));
+  const steps = field[tileOf(state.map, state.player.body.pos)] ?? UNREACHABLE;
+  if (steps === UNREACHABLE) return null;
+  const speed = PLAYER.speed * state.stats.moveSpeedMul;
+  return speed > 0 ? (steps * TILE_SIZE) / speed : null;
+}
+
+/** 死神が来る前に階段へ着けなくなりそうなら、残りの部屋を諦めて階段へ向かう */
+function shouldRushStairs(state: GameState, bot: BotState): boolean {
+  const walk = walkSecondsToStairs(state, bot);
+  if (walk === null) return false;
+  return reaperTimeLeft(state) <= walk * WALK_SAFETY + STAIRS_RESERVE;
 }
 
 /**
@@ -658,7 +704,7 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
 export function shouldPressUltimate(state: GameState, distanceToEnemy: number): boolean {
   const p = state.player;
   if (p.ultimate.active !== null) return false;
-  return p.energy >= p.maxEnergy && distanceToEnemy <= ULTIMATE_RANGE;
+  return ultimateReady(state) && distanceToEnemy <= ULTIMATE_RANGE;
 }
 
 /** 次に右を押すと出る右レーンの段（連撃が続かなければ undefined） */

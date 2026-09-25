@@ -1,0 +1,15 @@
+{
+  "soulReap": {
+    "pull": { "radius": 60, "toDistance": 22 },
+    "swing": { "reach": 0, "size": 84, "scaling": { "base": 26, "str": 1.5, "spi": 2 }, "poise": 40, "poiseRatio": { "spi": 1 }, "knockback": 200 },
+    "healPerKill": 0.03
+  },
+  "netherVortex": {
+    "swing": { "reach": 0, "size": 90, "hits": 3, "scaling": { "base": 10, "spi": 1, "str": 0.6 }, "poise": 14, "poiseRatio": { "spi": 0.5 }, "knockback": 120 }
+  },
+  "reaperReach": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "patch": { "reachMul": 1.3, "sizeMul": 1.3 },
+    "killMana": { "magnitude": 8, "icd": 0 }
+  }
+}

@@ -210,3 +210,16 @@ describe("注目の描画", () => {
     expect(calls.size).toBe(0);
   });
 });
+
+describe("床のツールチップの種類の行", () => {
+  it("刀のベースは名前の下の行が武器種名『刀』で始まり、ベース名は詳しくの行に残る", async () => {
+    const { dropTipContent } = await import("./dropTooltip");
+    const state = createGame(1);
+    const item = makeItem({ baseKey: "katana", slot: "mainHand" });
+    const { body } = dropTipContent(state, { kind: "item", id: 1, item, pos: { x: 0, y: 0 }, inReach: true });
+    const texts = body.map((l) => l.text);
+    expect(texts.some((t) => t.startsWith("刀・")), texts.join(" / ")).toBe(true);
+    expect(texts.some((t) => t.startsWith("打刀・")), "ベース名の種類の行は出さない").toBe(false);
+    expect(texts, "ベース名").toContain("ベース: 打刀");
+  });
+});

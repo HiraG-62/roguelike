@@ -1,5 +1,6 @@
 import type { GameState, RoomKind } from "../core/state";
-import { REAPER, RUN_EVENT } from "../data/tuning";
+import type { Vec } from "../core/vec";
+import { MINIMAP, REAPER, RUN_EVENT } from "../data/tuning";
 import { type GameMap, TILE_SIZE, Tile, rectCenter, toIndex } from "../map/grid";
 import { bountyTargetId } from "../system/runEvents";
 import { ROOM_KIND_COLOR } from "../system/specialRooms";
@@ -103,9 +104,32 @@ const COLOR_MARK_DEFAULT = "#ffffff";
 const OPAQUE = 255;
 const RGBA = 4;
 
+/** ミニマップの縮尺と画面上の大きさ（px）。縮尺は 1 タイル = scale px */
+export interface MinimapSize {
+  scale: number;
+  w: number;
+  h: number;
+}
+
 /**
- * exploredLog の from 番目以降のタイルを data（RGBA、1 タイル = 1px）に塗る。塗り終えた位置を返す。
- * DOM に依存しない純粋な処理（テスト用に切り出し）
+ * 広いマップでも画面を塞がないよう、MINIMAP.maxWidth / maxHeight に収まるまで縮める（拡大はしない）。
+ * DOM に依存しない純粋な処理
+ */
+export function minimapSize(map: Pick<GameMap, "width" | "height">): MinimapSize {
+  const scale = Math.min(1, MINIMAP.maxWidth / map.width, MINIMAP.maxHeight / map.height);
+  return { scale, w: Math.max(1, Math.ceil(map.width * scale)), h: Math.max(1, Math.ceil(map.height * scale)) };
+}
+
+/** タイル index → ミニマップの画素 index（縮めたときは複数のタイルが 1 画素に重なり、後から塗った色が残る） */
+function pixelOf(map: GameMap, size: MinimapSize, tile: number): number {
+  const x = Math.floor((tile % map.width) * size.scale);
+  const y = Math.floor(Math.floor(tile / map.width) * size.scale);
+  return y * size.w + x;
+}
+
+/**
+ * exploredLog の from 番目以降のタイルを data（RGBA、大きさは minimapSize。縮尺 1 なら 1 タイル = 1px）に塗る。
+ * 塗り終えた位置を返す。DOM に依存しない純粋な処理（テスト用に切り出し）
  */
 export function paintExplored(
   data: Uint8ClampedArray,
@@ -115,10 +139,11 @@ export function paintExplored(
   from: number,
 ): number {
   const log = state.exploredLog;
+  const size = minimapSize(state.map);
   for (let n = from; n < log.length; n++) {
     const tile = log[n] ?? 0;
     const [r, g, b] = tileColor(state, lookup, bossRoom, tile);
-    const o = tile * RGBA;
+    const o = pixelOf(state.map, size, tile) * RGBA;
     data[o] = r;
     data[o + 1] = g;
     data[o + 2] = b;
@@ -148,7 +173,7 @@ const DOT_HALF = DOT / 2;
 const STAIRS_HALF = Math.floor(STAIRS_DOT / 2);
 
 /**
- * 1 タイル = 1px のミニマップ。探索済みタイルだけを事前生成の ImageData に塗り、
+ * 1 タイル = 1px（広いマップは minimapSize の縮尺）のミニマップ。探索済みタイルだけを事前生成の ImageData に塗り、
  * state.exploredLog の差分（前フレームから増えた分）だけ書き換える
  */
 export class Minimap {
@@ -170,58 +195,64 @@ export class Minimap {
 
   /** 画面右上に占める高さ（HUD の文字をこの下に置く） */
   static bottom(state: GameState): number {
-    return MARGIN + state.map.height + BG_PAD;
+    return MARGIN + minimapSize(state.map).h + BG_PAD;
   }
 
   draw(target: CanvasRenderingContext2D, state: GameState, lookup: RoomLookup, viewW: number): void {
     this.sync(state, lookup);
     const { map } = state;
-    const x0 = viewW - MARGIN - map.width;
+    const size = minimapSize(map);
+    const x0 = viewW - MARGIN - size.w;
     const y0 = MARGIN;
     target.globalAlpha = BG_ALPHA;
     target.fillStyle = COLOR_BG;
-    target.fillRect(x0 - BG_PAD, y0 - BG_PAD, map.width + BG_PAD * 2, map.height + BG_PAD * 2);
+    target.fillRect(x0 - BG_PAD, y0 - BG_PAD, size.w + BG_PAD * 2, size.h + BG_PAD * 2);
     target.globalAlpha = 1;
     target.strokeStyle = COLOR_FRAME;
     target.lineWidth = 1;
-    target.strokeRect(x0 - BG_PAD - 0.5, y0 - BG_PAD - 0.5, map.width + BG_PAD * 2 + 1, map.height + BG_PAD * 2 + 1);
+    target.strokeRect(x0 - BG_PAD - 0.5, y0 - BG_PAD - 0.5, size.w + BG_PAD * 2 + 1, size.h + BG_PAD * 2 + 1);
     target.drawImage(this.canvas, x0, y0);
 
+    // 点と記号は縮めても大きさを変えない（位置だけ縮尺に合わせる）
     target.fillStyle = COLOR_STAIRS;
     for (const i of this.stairs) {
       if (!state.explored[i]) continue;
-      const sx = i % map.width;
-      const sy = Math.floor(i / map.width);
+      const sx = Math.floor((i % map.width) * size.scale);
+      const sy = Math.floor(Math.floor(i / map.width) * size.scale);
       target.fillRect(x0 + sx - STAIRS_HALF, y0 + sy - STAIRS_HALF, STAIRS_DOT, STAIRS_DOT);
     }
-    this.drawRoomMarks(target, state, x0, y0);
-    this.dot(target, x0, y0, state.player.body.pos.x, state.player.body.pos.y, COLOR_PLAYER);
-    if (state.reaper) this.dot(target, x0, y0, state.reaper.pos.x, state.reaper.pos.y, REAPER.color);
+    this.drawRoomMarks(target, state, x0, y0, size.scale);
+    this.dot(target, x0, y0, size.scale, state.player.body.pos, COLOR_PLAYER);
+    if (state.reaper) this.dot(target, x0, y0, size.scale, state.reaper.pos, REAPER.color);
     const bounty = state.enemies.find((e) => e.id === bountyTargetId(state));
-    if (bounty) this.dot(target, x0, y0, bounty.body.pos.x, bounty.body.pos.y, RUN_EVENT.activeColor);
+    if (bounty) this.dot(target, x0, y0, size.scale, bounty.body.pos, RUN_EVENT.activeColor);
   }
 
   /** 探索済みの特別な部屋の中央に種類の記号を打つ */
-  private drawRoomMarks(target: CanvasRenderingContext2D, state: GameState, x0: number, y0: number): void {
+  private drawRoomMarks(target: CanvasRenderingContext2D, state: GameState, x0: number, y0: number, scale: number): void {
     for (const room of state.rooms) {
       const mark = ROOM_MARK[room.kind];
       if (!mark) continue;
       const c = rectCenter(room.rect);
       if (!state.explored[toIndex(state.map, c.x, c.y)]) continue;
+      const mx = x0 + Math.floor(c.x * scale);
+      const my = y0 + Math.floor(c.y * scale);
       target.fillStyle = ROOM_KIND_COLOR[room.kind] ?? COLOR_MARK_DEFAULT;
       for (let row = 0; row < MARK_SIZE; row++) {
         const bits = mark[row] ?? 0;
         for (let col = 0; col < MARK_SIZE; col++) {
           if (!(bits & (MARK_BITS_TOP >> col))) continue;
-          target.fillRect(x0 + c.x - 1 + col, y0 + c.y - 1 + row, 1, 1);
+          target.fillRect(mx - 1 + col, my - 1 + row, 1, 1);
         }
       }
     }
   }
 
-  private dot(target: CanvasRenderingContext2D, x0: number, y0: number, px: number, py: number, color: string): void {
+  private dot(target: CanvasRenderingContext2D, x0: number, y0: number, scale: number, pos: Vec, color: string): void {
     target.fillStyle = color;
-    target.fillRect(Math.round(x0 + px / TILE_SIZE - DOT_HALF), Math.round(y0 + py / TILE_SIZE - DOT_HALF), DOT, DOT);
+    const x = Math.round(x0 + (pos.x / TILE_SIZE) * scale - DOT_HALF);
+    const y = Math.round(y0 + (pos.y / TILE_SIZE) * scale - DOT_HALF);
+    target.fillRect(x, y, DOT, DOT);
   }
 
   /** フロアが変わっていれば作り直し、探索ログの差分だけ塗る */
@@ -237,14 +268,15 @@ export class Minimap {
 
   private reset(state: GameState): void {
     const { map } = state;
+    const size = minimapSize(map);
     this.map = map;
-    this.canvas.width = map.width;
-    this.canvas.height = map.height;
-    this.image = this.ctx.createImageData(map.width, map.height);
+    this.canvas.width = size.w;
+    this.canvas.height = size.h;
+    this.image = this.ctx.createImageData(size.w, size.h);
     this.cursor = 0;
     this.bossRoom = state.boss?.roomIndex ?? NO_ROOM;
     this.stairsKey = "";
-    this.ctx.clearRect(0, 0, map.width, map.height);
+    this.ctx.clearRect(0, 0, size.w, size.h);
   }
 
   /** 階段はボス撃破で後から出るので、ボスの状態が変わったときだけ探し直す */

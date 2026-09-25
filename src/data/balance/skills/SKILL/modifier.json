@@ -1,0 +1,13 @@
+{
+  "multiCharge": { "_note": "CD 型: チャージ+2・負担x1.3。マナ型: コストx0.6・最低間隔x0.5。どちらも威力x0.7", "extraCharges": 2, "damageMul": 0.7, "burdenMul": 1.3, "manaBurdenMul": 0.6, "intervalMul": 0.5 },
+  "bloodPrice": { "_note": "マナ型は血でマナを肩代わりしてコストx0.5", "hpFraction": 0.06, "damageMul": 1.6, "potencyMul": 1.6, "manaBurdenMul": 0.5 },
+  "comboFuel": { "perStack": 0.04, "cap": 1.2, "emptyMul": 0.8 },
+  "echo": { "delay": 0.8, "damageMul": 0.5, "burdenMul": 1.25 },
+  "pierce": { "count": 3, "areaMul": 0.8 },
+  "recoil": { "speed": 220, "invuln": 0.1, "damageMul": 0.85 },
+  "chainReset": { "_note": "CD 型: 撃破でチャージ+1・負担x1.35。マナ型: 撃破でコストの manaRefund を返す・負担x1.2", "burdenMul": 1.35, "manaBurdenMul": 1.2, "manaRefund": 0.5 },
+  "curse": { "duration": 4, "bonus": 0.35, "damageMul": 0.85 },
+  "delay": { "time": 0.8, "damageMul": 1.8 },
+  "expand": { "areaMul": 1.5, "burdenMul": 1.4 },
+  "charge": { "_note": "溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる", "maxTime": 1.2, "minTime": 0.15, "maxDamageMul": 2.2, "maxAreaMul": 1.5, "moveMul": 0.6 }
+}

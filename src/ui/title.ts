@@ -215,7 +215,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 // メニューのカーソル移動（ポーズ / 設定 共通）
 // ---------------------------------------------------------------------------
 
-export const PAUSE_MENU_ITEMS = ["resume", "settings", "restart", "title"] as const;
+export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
 export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "close"] as const;
@@ -260,7 +260,8 @@ function rowRects(count: number, panelX: number, firstY: number, panelW: number,
 }
 
 export const PAUSE_PANEL_W = 160;
-export const PAUSE_PANEL_H = 96;
+/** 見出し + 5 項目（Tips ノートの行を足して 96 → 120。行間が 18 まで広がっても収まる） */
+export const PAUSE_PANEL_H = 120;
 /** パネル上端から最初の項目のテキスト基準線までの距離 */
 const PAUSE_ITEM_TOP = 36;
 
@@ -308,9 +309,41 @@ export function settingsItemAt(x: number, y: number, rowGap: number): number | n
   return found === -1 ? null : found;
 }
 
-/** 行内クリック位置が左右どちらか（スライダー系項目の増減方向に使う）。パネルは常に画面中央なので VIEW_W/2 で判定できる */
+/** 行内クリック位置が左右どちらか（ゲージの外をクリックしたときの増減方向に使う）。パネルは常に画面中央なので VIEW_W/2 で判定できる */
 export function settingsRowSide(x: number): -1 | 1 {
   return x < VIEW_W / 2 ? -1 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// 設定画面のゲージ（音量・画面揺れ・ヒットストップ）。描画（render/titleUi.ts）と
+// クリック/ドラッグの当たり判定（main.ts）が同じ矩形を見るよう、ここへ集約する
+// ---------------------------------------------------------------------------
+
+/** ゲージで値を表す項目（0..1 の Settings フィールドを持つもの） */
+export const SETTINGS_GAUGE_ITEMS = ["volume", "musicVolume", "screenShake", "hitstopScale"] as const;
+export type SettingsGaugeItem = (typeof SETTINGS_GAUGE_ITEMS)[number];
+
+export function isSettingsGaugeItem(item: SettingsItem): item is SettingsGaugeItem {
+  return (SETTINGS_GAUGE_ITEMS as readonly SettingsItem[]).includes(item);
+}
+
+/** パネル左端からゲージ左端までの距離 */
+const GAUGE_X = 96;
+const GAUGE_W = 76;
+const GAUGE_H = 8;
+
+/** ゲージの矩形。対象外の項目・見えていない行なら null */
+export function settingsGaugeRect(item: SettingsItem, rowGap: number): Rect | null {
+  if (!isSettingsGaugeItem(item)) return null;
+  const { panel, rows } = settingsLayout(rowGap);
+  const row = rows[SETTINGS_ITEMS.indexOf(item)];
+  if (!row) return null;
+  return { x: panel.x + GAUGE_X, y: row.y + row.h / 2 - GAUGE_H / 2, w: GAUGE_W, h: GAUGE_H };
+}
+
+/** ゲージ内の x 座標を 0..1 の値にする（外側は端にクランプ） */
+export function settingsGaugeValueAt(x: number, gauge: Rect): number {
+  return Math.max(0, Math.min(1, (x - gauge.x) / gauge.w));
 }
 
 // ---------------------------------------------------------------------------
@@ -382,6 +415,11 @@ export function keybindsScrollFor(cursor: number, scroll: number, rowGap: number
   return Math.max(0, Math.min(maxKeybindsScroll(rowGap), next));
 }
 
+/** ホイールなど、カーソルと独立にスクロール量だけを動かす（範囲内に収める） */
+export function clampKeybindsScroll(scroll: number, rowGap: number): number {
+  return Math.max(0, Math.min(maxKeybindsScroll(rowGap), scroll));
+}
+
 export function keybindsLayout(rowGap: number, scroll = 0): KeybindsLayout {
   const panel = KEYBINDS_PANEL;
   const visibleCount = keybindsVisibleCount(rowGap);
@@ -427,10 +465,10 @@ export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0)
 }
 
 // ---------------------------------------------------------------------------
-// タイトルのメニュー（図鑑・依頼・実績）。ボタンの外をクリックしたら従来どおり拠点へ入る
+// タイトルのメニュー（図鑑・依頼・実績・Tips ノート）。ボタンの外をクリックしたら従来どおり拠点へ入る
 // ---------------------------------------------------------------------------
 
-export const TITLE_MENU_ITEMS = ["codex", "quests", "achievements"] as const;
+export const TITLE_MENU_ITEMS = ["codex", "quests", "achievements", "tips"] as const;
 export type TitleMenuItem = (typeof TITLE_MENU_ITEMS)[number];
 
 const TITLE_MENU_Y = 146;
@@ -451,11 +489,12 @@ export function titleMenuItemAt(x: number, y: number): TitleMenuItem | null {
   return TITLE_MENU_ITEMS[index] ?? null;
 }
 
-/** ホットキー（C / Q / A）で開くメニュー項目 */
-export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a">): TitleMenuItem | null {
+/** ホットキー（C / Q / A / T）で開くメニュー項目 */
+export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a" | "t">): TitleMenuItem | null {
   if (hotkeys.c) return "codex";
   if (hotkeys.q) return "quests";
   if (hotkeys.a) return "achievements";
+  if (hotkeys.t) return "tips";
   return null;
 }
 

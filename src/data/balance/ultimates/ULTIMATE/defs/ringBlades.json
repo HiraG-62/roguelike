@@ -1,0 +1,14 @@
+{
+  "ringFormation": {
+    "volley": { "count": 4, "spreadDeg": 90, "speedMul": 0.6, "lifeMul": 2, "bulletRadius": 3, "pierceBonus": 99, "scaling": { "base": 6, "dex": 0.8 }, "poise": 8, "poiseRatio": { "dex": 0.24 }, "orbit": { "radius": 40, "turnRate": 7.5, "laps": 6 } }
+  },
+  "wildRings": {
+    "nova": { "radius": 44, "hits": 6, "scaling": { "base": 5, "dex": 0.6 }, "poise": 6, "poiseRatio": { "dex": 0.18 }, "knockback": 80 }
+  },
+  "ringWaltz": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "attackSpeed": 1.15 },
+    "critAdd": 0.1,
+    "patch": { "hitsAdd": 1, "sizeMul": 1.2 }
+  }
+}

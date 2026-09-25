@@ -1,0 +1,13 @@
+{
+  "fullMoon": {
+    "nova": { "radius": 64, "scaling": { "base": 24, "mnd": 1, "spi": 1 }, "poise": 60, "poiseRatio": { "mnd": 0.9, "spi": 0.9 }, "knockback": 380 }
+  },
+  "flashCut": {
+    "lunge": { "distance": 120, "width": 28, "invuln": 0.4, "scaling": { "base": 30, "str": 2, "dex": 2, "mnd": 2 }, "poise": 70, "poiseRatio": { "str": 1, "dex": 1 }, "knockback": 300, "heavy": true }
+  },
+  "swordAura": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "patch": { "reachMul": 1.5, "sizeMul": 1.5 },
+    "wave": { "magnitude": 0.6, "icd": 0 }
+  }
+}

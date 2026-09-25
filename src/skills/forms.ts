@@ -566,7 +566,7 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
     return defineMoveset({
       key: equipped,
       name: SKILL_NAME.wolfForm,
-      desc: "噛みつき突進（出血）。右クリックは遠吠え",
+      desc: "噛みつき突進（出血）。攻撃 2 は遠吠え",
       steps: [bite],
       dashAttack: bite,
       attackMoveMul: w.attackMoveMul,
@@ -583,7 +583,7 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
     return defineMoveset({
       key: equipped,
       name: SKILL_NAME.ironForm,
-      desc: "1 段の重い振り（大きく怯ませる）。右クリックも同じ振り",
+      desc: "1 段の重い振り（大きく怯ませる）。攻撃 2 も同じ振り",
       steps: [swing],
       dashAttack: swing,
       attackMoveMul: f.attackMoveMul,

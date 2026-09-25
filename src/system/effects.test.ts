@@ -30,6 +30,8 @@ import {
   deathKindOf,
   dropSfxName,
   fxState,
+  hitFamily,
+  hitSfxName,
   itemTraitColor,
   markExecuted,
   roomClearFx,
@@ -64,15 +66,31 @@ describe("ヒットストップの強度（hitstopScale）", () => {
     expect(state.hitstop, "hitstopScale 0 は無効化される").toBe(0);
   });
 
+  it("強さ 0 ではどの命中でもヒットストップが 0", () => {
+    const state = createGame(1, "seed", undefined, undefined, undefined, 0);
+    for (const steps of [1, 3, 6, 7, 20]) {
+      state.hitstop = 0;
+      hitstop(state, steps);
+      expect(state.hitstop, `steps=${steps}`).toBe(0);
+    }
+  });
+
   it("0.5 では四捨五入で半分になる", () => {
     const state = createGame(1, "seed", undefined, undefined, undefined, 0.5);
     hitstop(state, 7);
     expect(state.hitstop, "7 * 0.5 = 3.5 → 4").toBe(4);
   });
 
-  it("範囲外の値は createGame で 0..1 にクランプされる", () => {
+  it("ヒットストップの強さは 2.0 まで上げられる", () => {
+    const state = createGame(1, "seed", undefined, undefined, undefined, 2);
+    expect(state.hitstopScale).toBe(2);
+    hitstop(state, 6);
+    expect(state.hitstop, "6 * 2.0 = 12").toBe(12);
+  });
+
+  it("範囲外の値は createGame で 0..HITSTOP_SCALE_MAX にクランプされる", () => {
     const over = createGame(1, "seed", undefined, undefined, undefined, 5);
-    expect(over.hitstopScale).toBe(1);
+    expect(over.hitstopScale).toBe(2);
     const under = createGame(1, "seed", undefined, undefined, undefined, -5);
     expect(under.hitstopScale).toBe(0);
   });
@@ -195,7 +213,31 @@ describe("効果音の名前", () => {
     for (const b of Object.values(BULLETS)) expect(names.has(shotSfxName(b)), `発射音 ${b.key}`).toBe(true);
     expect(shotSfxName(bulletDef("pistol")), "性質の無い弾は shoot").toBe("shoot");
     expect(shotSfxName(bulletDef("mortar")), "曲射筒は曲射の音").toBe("shotLob");
-    expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音").toBe(MOVESET_KEYS.length);
+    // 武器 Wave 4 の 4 種（爪・チェーンアレイ・チャクラム・扇子）は既存の振り音を流用する（docs/ideas/weapons-wave4.md 8 章 9）
+    const sharedSwing = 4;
+    expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音（流用の 4 種を除く）").toBe(MOVESET_KEYS.length - sharedSwing);
+  });
+
+  it("27 武器種すべてに命中音の系統がある", () => {
+    for (const key of MOVESET_KEYS) {
+      const family = hitFamily(key);
+      expect(["slash", "blunt", "pierce"], `${key} の系統`).toContain(family);
+    }
+    expect(MOVESET_KEYS.length, "武器種は 27 種").toBe(27);
+  });
+
+  it("命中音は系統と重さで名前が決まり、SFX_NAMES にすべて登録されている", () => {
+    const families = ["slash", "blunt", "pierce"] as const;
+    const weights = ["light", "mid", "heavy"] as const;
+    const found = new Set<string>();
+    for (const family of families) {
+      for (const weight of weights) {
+        const name = hitSfxName(family, weight);
+        expect(names.has(name), `命中音 ${family}/${weight}`).toBe(true);
+        found.add(name);
+      }
+    }
+    expect(found.size, "系統 × 重さごとに別の音").toBe(families.length * weights.length);
   });
 
   it("響きの 5 色は別々のドロップ音", () => {

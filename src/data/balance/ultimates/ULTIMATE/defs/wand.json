@@ -1,0 +1,15 @@
+{
+  "arcaneCannon": {
+    "volley": { "count": 1, "spreadDeg": 0, "speedMul": 1.4, "lifeMul": 1.5, "bulletRadius": 8, "pierceBonus": 99, "scaling": { "base": 40, "mnd": 2, "spi": 3 }, "poise": 60, "poiseRatio": { "mnd": 0.9, "spi": 0.9 } }
+  },
+  "magicCircle": {
+    "cost": 90,
+    "nova": { "radius": 64, "scaling": { "base": 22, "mnd": 1.2, "spi": 1.2 }, "poise": 50, "poiseRatio": { "mnd": 0.8, "spi": 0.8 }, "knockback": 340 },
+    "buff": { "mana": 999, "duration": 0 }
+  },
+  "incantation": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "damage": 1.1, "attackSpeed": 1.25, "moveSpeed": 0.85 },
+    "patch": { "castCountAdd": 1, "castSpreadDeg": 9 }
+  }
+}

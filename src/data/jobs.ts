@@ -9,7 +9,7 @@ import { JOB, WEAPON } from "./tuning";
 import { reviveStep } from "./weapons";
 import type { BranchDef, ButtonKey, MovesetKey } from "./weapons";
 
-/** 数値は src/data/balance/jobs.json の attributes / weakness（見習いは数値を持たないのでここで空を渡す） */
+/** 数値は src/data/balance/jobs/ の attributes / weakness（見習いは数値を持たないのでここで空を渡す） */
 const JOB_ATTRIBUTES = BALANCE.jobs.attributes;
 const JOB_WEAKNESS = BALANCE.jobs.weakness;
 

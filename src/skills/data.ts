@@ -32,11 +32,11 @@ const PERCENT_UNIT = 100;
 
 const B = BALANCE.skills;
 
-/** 使い込み（skills/wear.ts）の芽の数値。docs/ideas/skills-expansion.md 5 章。数値は data/balance/skills.json の WEAR_TUNING */
+/** 使い込み（skills/wear.ts）の芽の数値。docs/ideas/skills-expansion.md 5 章。数値は data/balance/skills/ の WEAR_TUNING */
 const WEAR_TUNING = B.WEAR_TUNING;
 
 /**
- * スキルの数値。数値本体は data/balance/skills.json（docs/ideas/skills.md「7-5」、docs/COMBAT_DESIGN.md B-2 / B-4 の解説や
+ * スキルの数値。数値本体は data/balance/skills/（docs/ideas/skills.md「7-5」、docs/COMBAT_DESIGN.md B-2 / B-4 の解説や
  * QA での調整履歴は各エントリの _note に転記済み）。damage は Scaling（base + 係数 × ステータス実効値）。
  * ステータスが基礎値（各 5）のとき旧来の固定値と一致する。
  * wolfForm.bite / ironForm.swing だけは union 文字列（HitShape の kind）を含むため skills/reshapes.ts の TS 定数から合流させる

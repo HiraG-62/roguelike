@@ -1,0 +1,16 @@
+{
+  "_fields": {
+    "milestonePage": "連携をこの種数発見すると図鑑の頁「連携」が開く（実績「連携の芽生え」）",
+    "milestoneTitle": "連携をこの種数発見すると称号（実績「連携の読み手」）",
+    "milestoneGrand": "連携をこの種数発見すると称号（実績「連携の賢者」）",
+    "hintRefreshTicks": "連携の手がかりを見直す間隔。ステップ（60Hz）。階が変わったときも見直す",
+    "hintShowSeconds": "連携の手がかりを表示する秒",
+    "freshShowSeconds": "新しい連携を見つけた知らせを表示する秒"
+  },
+  "milestonePage": 5,
+  "milestoneTitle": 15,
+  "milestoneGrand": 30,
+  "hintRefreshTicks": 30,
+  "hintShowSeconds": 6,
+  "freshShowSeconds": 3
+}

@@ -1,0 +1,8 @@
+{
+  "cost": 100,
+  "invuln": 0.15,
+  "textColor": "#ffd75f",
+  "endTextColor": "#c0b080",
+  "autoAimDeg": 35,
+  "autoAimRangeMul": 1.5
+}

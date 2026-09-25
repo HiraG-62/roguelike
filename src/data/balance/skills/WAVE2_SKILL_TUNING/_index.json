@@ -1,0 +1,4 @@
+{
+  "_note": "スキル第2弾（地形・新しい状態異常・属性・武器種・ジョブ・変身・空間）。マナ型コスト11〜22（平均を既存水準16〜17に保ち満タンから3〜4発）、状態異常や地形を「出す」技は素の威力を低く、「食う」技（烙火・瞬凍・色解き・崩落槌）が伸びる形に揃える",
+  "_order": ["waterJar", "oilPot", "scorchLine", "iceSlide", "levelGround", "emberDraw", "bogCall", "brandSear", "brandBlast", "breakKick", "collapseHammer", "tideSlash", "flashFreeze", "hueEtch", "hueRelease", "siphonMark", "doomSentence", "shiftingEdge", "weaponArt", "titanForm", "swiftForm", "spiritForm", "wardStake", "mire"]
+}

@@ -11,6 +11,14 @@ import { W3_BACK_KEYS } from "../data/sprites/w3back";
 import { W3_FRONT_KEYS, W3_FRONT_STILL_KEYS } from "../data/sprites/w3front";
 import { SHALLOWS_KEYS } from "../data/sprites/shallows";
 import {
+  CLAWS_DIAG,
+  CLAWS_SIDE,
+  FAN_DIAG,
+  FAN_SIDE,
+  FLAIL_DIAG,
+  FLAIL_SIDE,
+  RING_BLADES_DIAG,
+  RING_BLADES_SIDE,
   SLASH_SPRITE,
   WEAPON_CANVAS,
   WEAPON_EDGE,
@@ -432,3 +440,49 @@ describe("斬撃の絵（docs/ideas/combat-feel-design.md C-3）", () => {
     }
   });
 });
+
+describe("Wave 4 の持ち手の絵（HELD 登録前。docs/ideas/weapons-wave4.md 7 章 Lane B）", () => {
+  const WAVE4 = {
+    claws: [CLAWS_SIDE, CLAWS_DIAG],
+    flail: [FLAIL_SIDE, FLAIL_DIAG],
+    ringBlades: [RING_BLADES_SIDE, RING_BLADES_DIAG],
+    fan: [FAN_SIDE, FAN_DIAG],
+  } as const;
+  const entries = Object.entries(WAVE4);
+
+  it.each(entries)("%s の横・斜めが 12x12 でパレットの文字だけを使う", (_key, frames) => {
+    for (const frame of frames) {
+      expect(frame.length).toBe(WEAPON_CANVAS);
+      for (const row of frame) {
+        expect(row.length).toBe(WEAPON_CANVAS);
+        for (const ch of row) expect(ch === TRANSPARENT || ch in PALETTE, `未知の文字 ${ch}`).toBe(true);
+      }
+    }
+  });
+
+  it.each(entries)("%s の拳の中心（横 (2,7) / 斜め (2,10)）に肌がある", (key, [side, diag]) => {
+    const at = (frame: readonly string[], f: WeaponFrame) => frame[WEAPON_GRIPS[f].y - 1]?.[WEAPON_GRIPS[f].x - 1];
+    expect(at(side, WEAPON_FRAME.side), `${key} 横`).toBe("t");
+    expect(at(diag, WEAPON_FRAME.diagonal), `${key} 斜め`).toBe("t");
+  });
+
+  it("扇子の斜めの絵は扇面（金属の 3 段）が柄の線の左上側にある（WEAPON_EDGE を up で登録できる）", () => {
+    const sides = sidesOfShaftOf(FAN_DIAG);
+    expect(sides.ul).toBeGreaterThan(sides.dr * 3);
+  });
+});
+
+/** 斜めの絵で、柄の線（x + y = 11）の左上側と右下側にある金属の 3 段の画素の数 */
+function sidesOfShaftOf(frame: readonly string[]): { ul: number; dr: number } {
+  const metal = new Set(["1", "s", "S"]);
+  let ul = 0;
+  let dr = 0;
+  frame.forEach((row, y) =>
+    [...row].forEach((c, x) => {
+      if (!metal.has(c)) return;
+      if (x + y < WEAPON_CANVAS - 1) ul++;
+      else if (x + y > WEAPON_CANVAS - 1) dr++;
+    }),
+  );
+  return { ul, dr };
+}

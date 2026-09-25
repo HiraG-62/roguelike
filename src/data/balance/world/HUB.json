@@ -1,0 +1,20 @@
+{
+  "_fields": {
+    "interactRadius": "拠点で台を使える距離。px。台どうしはこの 2 倍より離して置く",
+    "departHold": "出発の決定を押し続ける秒",
+    "dummyRespawn": "倒れた木人が立ち直るまでの秒",
+    "dummyCount": "拠点の木人の数（配置は src/map/hubMap.ts の配置図。この値はテストが配置図と照合する）",
+    "trainingRuns": "このラン数に達すると訓練場が建つ（試し場を見つけても建つ）",
+    "seed": "拠点の乱数の種。拠点と借り物の武器を毎回同じにする",
+    "bannerSeconds": "設備が建ったときの知らせを出す秒",
+    "rackBorrowHold": "武器掛けで決定を押し続けて借りるまでの秒"
+  },
+  "interactRadius": 20,
+  "departHold": 0.8,
+  "dummyRespawn": 1.5,
+  "dummyCount": 3,
+  "trainingRuns": 3,
+  "seed": 1213547009,
+  "bannerSeconds": 3,
+  "rackBorrowHold": 0.6
+}

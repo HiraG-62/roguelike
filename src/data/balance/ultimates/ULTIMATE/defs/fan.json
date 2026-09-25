@@ -1,0 +1,15 @@
+{
+  "greatGale": {
+    "nova": { "radius": 60, "hits": 3, "scaling": { "base": 8, "mnd": 0.6, "dex": 0.6 }, "poise": 12, "poiseRatio": { "mnd": 0.18, "dex": 0.18 }, "knockback": 500 }
+  },
+  "butterflyStep": {
+    "buff": { "duration": 3, "speedMul": 1.4, "invuln": 1 },
+    "nova": { "radius": 40, "scaling": { "base": 10, "mnd": 0.8, "dex": 0.6 }, "poise": 10, "knockback": 300 }
+  },
+  "windVeil": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "moveSpeed": 1.2 },
+    "guardArcDeg": 360, "guardMul": 0.7,
+    "patch": { "reachMul": 1.2, "sizeMul": 1.3 }
+  }
+}

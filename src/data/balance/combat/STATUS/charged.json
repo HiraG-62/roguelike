@@ -1,0 +1,7 @@
+{
+  "maxStacks": 6,
+  "duration": 5,
+  "damage": 6,
+  "wetRadiusMul": 2,
+  "wetSelfDamage": 1
+}

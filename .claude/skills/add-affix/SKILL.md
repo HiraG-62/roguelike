@@ -16,13 +16,13 @@ description: 装備の性質（旧アフィックス）・名のある遺物・�
 
 ## 所有ファイル
 - src/loot/affixes.ts（AFFIXES / CONVERSION_AFFIXES / KEYSTONES / IMPLICITS のうち該当）
-- src/loot/named.ts（名のある遺物の場合: UNIQUES）/ src/loot/bases.ts（ベースの場合。銃なら src/loot/bullets.ts と src/data/balance/weapons.json の bullets も）
+- src/loot/named.ts（名のある遺物の場合: UNIQUES）/ src/loot/bases.ts（ベースの場合。銃なら src/loot/bullets.ts と src/data/balance/weapons/WEAPON/bullets.json も）
 - src/loot/affixes.test.ts、src/loot/stats.test.ts、src/loot/generator.test.ts
 ## 最小 Edit のみ許可
 - src/loot/types.ts: PlayerStats と DEFAULT_STATS に <フィールド> を追加（新 stat の場合のみ）
 - src/system/<読む側>.ts: <フィールド> を読む箇所（新 stat の場合のみ）
 - src/system/keystones.ts: KS と KEYSTONE_NAME（誓約の場合のみ）
-- src/data/balance/loot.json: 期待値曲線（affixCurves）など数値が要る場合のみ
+- src/data/balance/loot/: 期待値曲線（affixCurves/<key>.json。足したら `npm run balance:gen`）など数値が要る場合のみ
 ## 先に読む
 - CLAUDE.md（不変条件）、docs/recipes/affix.md、docs/LOOT_DESIGN.md、docs/GLOSSARY.md、近い既存定義 <例>
 ## 仕様

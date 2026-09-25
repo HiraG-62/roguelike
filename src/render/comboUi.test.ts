@@ -39,7 +39,7 @@ describe("controlHint（左右の次の段と押し方の案内）", () => {
 
   it("段カウンタの次の段を左右それぞれ出す（剣の 2 段目: 左は 2 段目、右は返し斬り）", () => {
     expect(controlHint(MOVESETS.sword, bulletDef("pistol"), 1)).toBe("左: 2 段目 / 右: 返し斬り");
-    expect(controlHint(MOVESETS.wand, bulletDef("pistol"), 2)).toBe("左: 3 段目 / 右: 大魔弾");
+    expect(controlHint(MOVESETS.wand, bulletDef("pistol"), 2)).toBe("左: 二連火矢 / 右: 長氷槍");
     expect(controlHint(MOVESETS.sidearm, bulletDef("pistol"), 9), "右レーンを超えたら 1 段目").toBe("左: 射撃 / 右 長押し: 狙い撃ち");
   });
 

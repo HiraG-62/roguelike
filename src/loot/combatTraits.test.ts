@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { STATUS, TRIGGER } from "../data/tuning";
+import { STATUS, TRIGGER, WEAPON } from "../data/tuning";
 import {
   ATTR_COLOR,
   ATTR_TRAIT_PREFIX,
@@ -98,7 +98,8 @@ describe("ステータスの性質（attr_*）", () => {
     expect(s.attributes.str).toBe(BASE + 4);
     expect(s.attributes.spi).toBe(BASE + 3);
     expect(s.attributes.dex).toBe(BASE);
-    expect(s.meleeDamageMul).toBe(DEFAULT_STATS.meleeDamageMul);
+    // 右手が空なので素手の倍率だけが掛かる
+    expect(s.meleeDamageMul).toBe(DEFAULT_STATS.meleeDamageMul * WEAPON.unarmed.damageMul);
   });
 
   it("複数の部位の同じステータスは合算される", () => {

@@ -28,14 +28,39 @@ describe("一覧画面: 操作", () => {
     expect(ui.cursor, "カーソルは先頭へ").toBe(0);
   });
 
-  it("↑↓・ホイールで行を送り、端で止まり、スクロールが追う", () => {
+  it("↑↓で行を送り、端で止まり、スクロールが追う", () => {
     const ui = createListScreen();
     const tabs = tabsOf([50]);
     expect(stepListScreen(ui, tabs, { ...NO_INPUT, navY: -1 }, ROW_GAP), "上端で止まる").toBe("none");
     const visible = listVisibleRows(ROW_GAP);
-    for (let i = 0; i < visible + 2; i++) stepListScreen(ui, tabs, { ...NO_INPUT, wheel: 1 }, ROW_GAP);
+    for (let i = 0; i < visible + 2; i++) stepListScreen(ui, tabs, { ...NO_INPUT, navY: 1 }, ROW_GAP);
     expect(ui.cursor, "送った分だけ進む").toBe(visible + 2);
     expect(ui.scroll, "カーソルが見える位置までスクロール").toBe(3);
+  });
+
+  it("ホイールは表示だけを送り、カーソルは動かない", () => {
+    const ui = createListScreen();
+    const tabs = tabsOf([50]);
+    const visible = listVisibleRows(ROW_GAP);
+    stepListScreen(ui, tabs, { ...NO_INPUT, wheel: 1 }, ROW_GAP);
+    expect(ui.cursor, "カーソルは先頭のまま").toBe(0);
+    expect(ui.scroll, "1 行分だけ表示が送られる").toBe(1);
+    for (let i = 0; i < 50; i++) stepListScreen(ui, tabs, { ...NO_INPUT, wheel: 1 }, ROW_GAP);
+    expect(ui.cursor, "ホイールだけではカーソルは動かない").toBe(0);
+    expect(ui.scroll, "末尾で止まる").toBe(50 - visible);
+  });
+
+  it("ホイールで隠れたカーソル行は、マウスが動くまで奪われない", () => {
+    const ui = createListScreen();
+    const tabs = tabsOf([50]);
+    stepListScreen(ui, tabs, { ...NO_INPUT, navY: 1 }, ROW_GAP);
+    expect(ui.cursor, "1 行目へ").toBe(1);
+    // ホイールでカーソル行が画面外へ出るが、マウスは動いていない（aimMoved: false）ので奪われない
+    const visible = listVisibleRows(ROW_GAP);
+    for (let i = 0; i < visible; i++) {
+      stepListScreen(ui, tabs, { ...NO_INPUT, wheel: 1, aim: { x: 20, y: 45 }, aimMoved: false }, ROW_GAP);
+    }
+    expect(ui.cursor, "マウスが止まっていればカーソルは動かない").toBe(1);
   });
 
   it("タブ・行のクリックと当たり判定", () => {

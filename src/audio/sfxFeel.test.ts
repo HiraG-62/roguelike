@@ -64,6 +64,33 @@ describe("攻撃の効果音の構成", () => {
     expect(longestDur(LAYERED_SFX.shotRapid), "連射は短い").toBeLessThan(longestDur(LAYERED_SFX.shotSpread));
     expect(lowestFreq(LAYERED_SFX.shotSpread), "散弾は太い").toBeLessThan(lowestFreq(LAYERED_SFX.shotRapid));
   });
+
+  it("新しい命中音の名前はすべて LAYERED_SFX に層があり、トランジェントを持つ", () => {
+    const names: readonly LayeredSfxName[] = [
+      "hitSlashLight",
+      "hitSlashMid",
+      "hitSlashHeavy",
+      "hitBluntLight",
+      "hitBluntMid",
+      "hitBluntHeavy",
+      "hitPierceLight",
+      "hitPierceMid",
+      "hitPierceHeavy",
+      "bulletHitHeavy",
+    ];
+    for (const name of names) {
+      expect(LAYERED_SFX[name].length, `${name} は 1 層以上`).toBeGreaterThan(0);
+      expect(has(name, "click") || has(name, "kick"), `${name} のトランジェント`).toBe(true);
+    }
+  });
+
+  it("重い命中音は軽い命中音より低く長い（系統ごと）", () => {
+    for (const family of ["Slash", "Blunt", "Pierce"] as const) {
+      const light = LAYERED_SFX[`hit${family}Light`];
+      const heavy = LAYERED_SFX[`hit${family}Heavy`];
+      expect(longestDur(heavy), `${family} 重い方が長い`).toBeGreaterThan(longestDur(light));
+    }
+  });
 });
 
 describe("スキルの属性ごとの発動音（castSfxName）", () => {

@@ -1,0 +1,13 @@
+{
+  "_note": "cost: 24→20.4（-15%）。damage.base: 11→12.7（+15%）",
+  "cost": 20.4,
+  "minInterval": 0.6,
+  "poise": 45,
+  "windup": 0.35,
+  "recover": 0.2,
+  "radius": 56,
+  "halfAngle": 0.6,
+  "damage": { "base": 12.7, "str": 1.4, "vit": 0.6, "mnd": 0.4 },
+  "poiseRatio": { "str": 0.79, "vit": 0.34, "mnd": 0.23 },
+  "knockback": 220
+}

@@ -4,6 +4,7 @@ import {
   DEFAULT_DROP_TOOLTIP,
   DEFAULT_HITSTOP_SCALE,
   DEFAULT_MUSIC_VOLUME,
+  HITSTOP_SCALE_MAX,
   KEYBINDS_KEY,
   SETTINGS_KEY,
   adjustHitstopScale,
@@ -14,6 +15,10 @@ import {
   loadSettings,
   resetKeybinds,
   saveSettings,
+  setHitstopScale,
+  setMusicVolume,
+  setScreenShake,
+  setVolume,
   toggleDropTooltip,
   toggleMute,
 } from "./settings";
@@ -101,10 +106,16 @@ describe("ヒットストップ強度 / アイテム情報表示の設定", () =
     expect(loaded.dropTooltip).toBe(DEFAULT_DROP_TOOLTIP);
   });
 
-  it("hitstopScale は範囲外を 0..1 に丸め、0.25 刻みへ寄せる", () => {
+  it("ヒットストップの強さは 2.0 まで上げられる", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1, hitstopScale: HITSTOP_SCALE_MAX }));
+    expect(loadSettings(storage).hitstopScale).toBe(2);
+  });
+
+  it("hitstopScale は範囲外を 0..HITSTOP_SCALE_MAX に丸め、0.25 刻みへ寄せる", () => {
     const storage = new MemoryStorage();
     storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1, hitstopScale: 5 }));
-    expect(loadSettings(storage).hitstopScale).toBe(1);
+    expect(loadSettings(storage).hitstopScale).toBe(HITSTOP_SCALE_MAX);
 
     storage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: false, volume: 0.3, screenShake: 1, hitstopScale: -2 }));
     expect(loadSettings(storage).hitstopScale).toBe(0);
@@ -124,16 +135,16 @@ describe("ヒットストップ強度 / アイテム情報表示の設定", () =
     expect(loaded.dropTooltip).toBe(false);
   });
 
-  it("adjustHitstopScale は 0.25 刻みで動き 0..1 でクランプする", () => {
+  it("adjustHitstopScale は 0.25 刻みで動き 0..HITSTOP_SCALE_MAX でクランプする", () => {
     const s = defaultSettings();
     adjustHitstopScale(s, -1);
     expect(s.hitstopScale).toBe(0.75);
     s.hitstopScale = 0;
     adjustHitstopScale(s, -5);
     expect(s.hitstopScale, "0 未満にはならない").toBe(0);
-    s.hitstopScale = 1;
+    s.hitstopScale = HITSTOP_SCALE_MAX;
     adjustHitstopScale(s, 5);
-    expect(s.hitstopScale, "1 を超えない").toBe(1);
+    expect(s.hitstopScale, "上限を超えない").toBe(HITSTOP_SCALE_MAX);
   });
 
   it("toggleDropTooltip は反転する", () => {
@@ -174,6 +185,35 @@ describe("settings mutation", () => {
     s.screenShake = 1;
     adjustScreenShake(s, 5);
     expect(s.screenShake).toBe(1);
+  });
+
+  it("ゲージの setVolume/setMusicVolume/setScreenShake は 0..1 を 1% 刻みに丸め、範囲外はクランプする", () => {
+    const s = defaultSettings();
+    setVolume(s, 0.5);
+    expect(s.volume, "左端で 0、右端で 1、中央で 0.5").toBe(0.5);
+    setVolume(s, -1);
+    expect(s.volume).toBe(0);
+    setVolume(s, 2);
+    expect(s.volume).toBe(1);
+    setVolume(s, 0.333);
+    expect(s.volume, "1% 刻みに丸まる").toBe(0.33);
+
+    setMusicVolume(s, 0.678);
+    expect(s.musicVolume).toBe(0.68);
+    setScreenShake(s, 0.001);
+    expect(s.screenShake).toBe(0);
+  });
+
+  it("ゲージの setHitstopScale は 0..1 の位置を 0..HITSTOP_SCALE_MAX へ写し 0.25 刻みへ寄せる", () => {
+    const s = defaultSettings();
+    setHitstopScale(s, 0.5);
+    expect(s.hitstopScale, "ゲージ中央が標準の強さ 1.0").toBe(1);
+    setHitstopScale(s, -1);
+    expect(s.hitstopScale, "左端未満は 0").toBe(0);
+    setHitstopScale(s, 2);
+    expect(s.hitstopScale, "右端超えは上限").toBe(HITSTOP_SCALE_MAX);
+    setHitstopScale(s, 1);
+    expect(s.hitstopScale, "右端で最大の 2.0 まで上げられる").toBe(HITSTOP_SCALE_MAX);
   });
 });
 

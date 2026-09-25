@@ -285,10 +285,62 @@ export function skillKeyLabel(slot: number): string {
 export function skillKeyLabelFor(slot: number, binds: Keybinds): string {
   const action = SKILL_ACTIONS[slot];
   if (!action) return "";
-  const codes = binds[action];
+  return keyLabel(action, { binds, keyboardOnly: true });
+}
+
+export interface KeyLabelOptions {
+  /** 省略時は現在の表（PlayerInput.setKeybinds が更新する） */
+  binds?: Keybinds;
+  /** キーボードのコードがあればマウスを載せない（祝福の札の「E」のように、キーで押す前提の案内） */
+  keyboardOnly?: boolean;
+  /** 先頭の 1 つだけ（HUD の隅など狭い場所の案内） */
+  first?: boolean;
+}
+
+/** サイドボタン。付いていない環境が多いので、ほかに手段があれば案内に載せない */
+const SIDE_BUTTON_CODES: ReadonlySet<BindingCode> = new Set([MOUSE_CODE[MOUSE_BACK], MOUSE_CODE[MOUSE_FORWARD]].filter((c): c is BindingCode => c !== undefined));
+
+function shownCodes(codes: readonly BindingCode[], keyboardOnly: boolean): BindingCode[] {
   const keyboard = codes.filter((code) => !isMouseCode(code));
-  const shown = keyboard.length > 0 ? keyboard : codes;
-  return shown.map(formatBindingCode).join(" / ");
+  if (keyboard.length === 0) return [...codes];
+  if (keyboardOnly) return keyboard;
+  return codes.filter((code) => !SIDE_BUTTON_CODES.has(code));
+}
+
+/**
+ * 表示文字列に埋め込むキー表記（例: "E / 左クリック"、keyboardOnly なら "E"）。
+ * 画面の案内・説明文のキー名はすべてこれを通し、キー設定を変えたら表記も変わるようにする
+ */
+export function keyLabel(action: ActionName, opts: KeyLabelOptions = {}): string {
+  const codes = shownCodes((opts.binds ?? activeKeybinds)[action], opts.keyboardOnly === true);
+  const picked = opts.first === true ? codes.slice(0, 1) : codes;
+  return picked.map(formatBindingCode).join(" / ");
+}
+
+const MOVE_ACTIONS: readonly ActionName[] = ["up", "left", "down", "right"];
+const ARROW_CODES: readonly BindingCode[] = ["ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"];
+const MOVE_ARROWS_LABEL = "矢印キー";
+
+/** 列 slot の上左下右を 1 語に（"WASD"・"矢印キー"）。4 つ揃わない列は null */
+function moveColumnLabel(binds: Keybinds, slot: number): string | null {
+  const codes = MOVE_ACTIONS.map((a) => binds[a][slot]);
+  if (codes.some((c) => c === undefined)) return null;
+  if (codes.every((c, i) => c === ARROW_CODES[i])) return MOVE_ARROWS_LABEL;
+  const labels = codes.map((c) => formatBindingCode(c ?? ""));
+  // 1 文字のキーは "WASD" のように詰め、それ以外は区切る
+  return labels.every((l) => l.length === 1) ? labels.join("") : labels.join("・");
+}
+
+/** 移動の 4 キーの表記（既定は "WASD / 矢印キー"） */
+export function moveKeyLabel(binds: Keybinds = activeKeybinds): string {
+  const columns: string[] = [];
+  for (let slot = 0; slot < KEYBIND_SLOTS; slot++) {
+    const label = moveColumnLabel(binds, slot);
+    if (label !== null) columns.push(label);
+  }
+  if (columns.length > 0) return columns.join(" / ");
+  // 列が揃っていない表でも 4 方向は必ず読めるよう、各方向の先頭を並べる
+  return MOVE_ACTIONS.map((a) => keyLabel(a, { binds, first: true })).join("・");
 }
 
 /** アクションの現在のキー表記（例: "R"、"E / 左クリック"）。死亡画面などのキー案内用 */
@@ -344,6 +396,8 @@ export interface FrameInput {
   wheel: number;
   /** 今フレームに左クリックが押されたか（UI 用。attackPressed と同じ元だが意味を分ける） */
   clickPressed: boolean;
+  /** 左クリックの押しっぱなし（UI のドラッグ操作用。設定画面のゲージなど） */
+  clickHeld: boolean;
   shiftHeld: boolean;
 }
 
@@ -371,6 +425,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   toggleDropInfoPressed: false,
   wheel: 0,
   clickPressed: false,
+  clickHeld: false,
   shiftHeld: false,
 };
 
@@ -544,6 +599,7 @@ export class PlayerInput {
       toggleDropInfoPressed: this.wasPressed("toggleDropInfo"),
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has(UI_CLICK_CODE),
+      clickHeld: this.down.has(UI_CLICK_CODE),
       shiftHeld: this.down.has("ShiftLeft") || this.down.has("ShiftRight"),
     };
     // Set は挿入順を保つので、押した順のまま写す

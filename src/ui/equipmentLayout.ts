@@ -1,6 +1,5 @@
 import { SLOTS, type Item, type Slot } from "../loot/types";
-import { ALLOC_BUTTON, ALLOC_ORDER } from "./attributeAlloc";
-import { CONTENT_BOTTOM, CONTENT_Y, DETAIL_W, DETAIL_X, LIST_W, LIST_X, type Rect, STASH_HEADER_H } from "./inventoryLayout";
+import { CONTENT_BOTTOM, CONTENT_Y, LIST_W, LIST_X, type Rect, STASH_HEADER_H } from "./inventoryLayout";
 import { type SlotFilter, layoutStashToolbar } from "./stashFilter";
 
 /**
@@ -54,9 +53,5 @@ export function stashListArea(hasBud: boolean): Rect {
 // 詳細欄（何も乗せていないときのビルドの要約）
 // ---------------------------------------------------------------------------
 
-/** 要約の見出し行（ジョブ・未振り点） */
+/** 要約の見出し行（ジョブ・未振り点）。ステータスの一覧と振り分けはステータスタブ（ui/statusTab.ts） */
 export const SUMMARY_HEAD_H = 12;
-/** 詳細欄のステータスの一覧（行高は振り分けの「+」の当たり判定と同じ ALLOC_BUTTON.rowH。「+」はこの枠の右端） */
-export function attributePanelRect(): Rect {
-  return { x: DETAIL_X, y: CONTENT_Y + SUMMARY_HEAD_H, w: DETAIL_W, h: ALLOC_ORDER.length * ALLOC_BUTTON.rowH };
-}

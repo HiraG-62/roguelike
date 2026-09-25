@@ -38,7 +38,8 @@ export function jobChangesStats(job: JobKey): boolean {
 
 /** 今の武器種がこのジョブの得意か */
 export function isFavoredWeapon(stats: Readonly<PlayerStats>, job: JobKey): boolean {
-  return JOBS[job].favored.includes(stats.moveset);
+  // 素手は型が拳でも武器を持っていないので、拳を得意とするジョブでも補正を取らない
+  return !stats.unarmed && JOBS[job].favored.includes(stats.moveset);
 }
 
 /**
@@ -146,11 +147,11 @@ export function jobDetailLines(job: JobKey): string[] {
   const lines: string[] = [];
   const attrs = jobAttributeText(job);
   if (attrs !== "") lines.push(`ステータス: ${attrs}`);
-  if (def.favored.length > 0) lines.push(`得意な武器: ${jobFavoredText(job)}（その武器の攻撃が強く速くなる）`);
+  if (def.favored.length > 0) lines.push(`得意な武器: ${jobFavoredText(job)}`);
   for (const r of def.rules) lines.push(`・${r.text}`);
   const weapon = def.starterWeapon === null ? undefined : baseDef(def.starterWeapon);
-  if (weapon) lines.push(`初期武器: ${weapon.name}（持っていなければ渡される）`);
-  if (def.starterSkill !== null) lines.push(`初期スキル石: ${SKILL_DEFS[def.starterSkill].name}（持っていなければ倉庫に入る）`);
+  if (weapon) lines.push(`初期武器: ${weapon.name}`);
+  if (def.starterSkill !== null) lines.push(`初期スキル石: ${SKILL_DEFS[def.starterSkill].name}`);
   if (def.weakness) lines.push(`弱点: ${def.weakness.text}`);
   return lines;
 }

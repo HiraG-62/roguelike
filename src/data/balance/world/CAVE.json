@@ -1,0 +1,57 @@
+{
+  "_fields": {
+    "base": "洞窟の生成の既定値。biome に書いた項目だけバイオームごとに上書きする",
+    "biome": "バイオームごとの洞窟の形の上書き（key はフロア種別。書かない項目は base の値）",
+    "fillChance": "初期状態で壁にする確率。割合（0..1）。低いほど開けて、高いほど細い道が増える。目安 0.42〜0.47",
+    "smoothSteps": "セルオートマトンでならす回数。多いほど壁が滑らか",
+    "wallBirth": "周囲 8 マスの壁がこの数以上なら床が壁になる",
+    "wallSurvive": "壁は周囲 8 マスの壁がこの数以上なら壁のまま",
+    "openDist": "壁からこのマス数以上離れた床を「開けた領域」（部屋の芯）とみなす",
+    "minRoomTiles": "部屋として採用する開けた領域の最小タイル数",
+    "roomGrow": "開けた領域から部屋を膨らませるマス数。膨らませきれない細い所が通路になる",
+    "maxRooms": "部屋の数の上限（大きい領域から採る）",
+    "minRooms": "部屋の数の下限。足りなければ作り直す",
+    "widen": "幅 1 の通路を 1 マスずつ太らせる回数。0 なら細い道がそのまま残る"
+  },
+  "base": {
+    "fillChance": 0.45,
+    "smoothSteps": 5,
+    "wallBirth": 5,
+    "wallSurvive": 4,
+    "openDist": 3,
+    "minRoomTiles": 12,
+    "roomGrow": 3,
+    "maxRooms": 9,
+    "minRooms": 3,
+    "widen": 0
+  },
+  "biome": {
+    "swamp": {
+      "fillChance": 0.44,
+      "minRoomTiles": 10,
+      "maxRooms": 11
+    },
+    "glacier": {
+      "fillChance": 0.43,
+      "openDist": 4,
+      "minRoomTiles": 16,
+      "roomGrow": 4,
+      "maxRooms": 7,
+      "widen": 1
+    },
+    "meadow": {
+      "fillChance": 0.42,
+      "openDist": 4,
+      "maxRooms": 8
+    },
+    "forge": {
+      "fillChance": 0.47,
+      "minRoomTiles": 10,
+      "maxRooms": 10
+    },
+    "dark": {
+      "fillChance": 0.46,
+      "maxRooms": 10
+    }
+  }
+}

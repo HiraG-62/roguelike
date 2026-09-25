@@ -1,0 +1,7 @@
+{
+  "turrets": 4,
+  "turretBreakStagger": 1,
+  "orbSpeed": 90,
+  "orbDamage": 10,
+  "color": "#c0c0c0"
+}

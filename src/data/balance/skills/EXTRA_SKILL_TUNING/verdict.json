@@ -1,0 +1,6 @@
+{
+  "_note": "処断: 沈黙中の敵に大ダメージ（沈黙を消費）。沈黙が無ければ沈黙を付けるだけ。unsilencedMul / unsilencedPoise は沈黙していない敵への威力倍率と怯み値",
+  "cost": 18, "minInterval": 0.7, "poise": 35, "radius": 36, "halfAngle": 0.55, "damage": { "base": 18, "str": 1.2, "mnd": 1.2, "spi": 0.8 },
+  "poiseRatio": { "str": 0.39, "mnd": 0.39, "spi": 0.26 },
+  "unsilencedMul": 0.3, "unsilencedPoise": 10, "silenceTime": 1.2, "knockback": 120
+}

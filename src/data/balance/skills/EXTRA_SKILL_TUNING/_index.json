@@ -1,0 +1,4 @@
+{
+  "_note": "大拡張（docs/ideas/skills-expansion.md）。マナ型コストは一律x0.85後の水準10〜25、威力は基礎値(各5)評価で単発主力25〜30・多段1ヒット6〜10",
+  "_order": ["contagion", "unravel", "kindle", "prismShard", "fullMoon", "dregsBlade", "shadowStep", "powderKeg", "swordGrave", "iceBreaker", "bloodlet", "harvest", "discharge", "rout", "verdict", "exploit", "strip", "lastStand", "comboChain", "grudge", "guillotine", "ricochet", "galeSlash", "scatterSigil", "stomp", "threadReel", "meteorDive", "swallowFlip", "boneRing", "backflow", "scarRoar", "manaSpring", "turret"]
+}

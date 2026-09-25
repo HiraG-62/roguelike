@@ -1,0 +1,4 @@
+{
+  "_note": "烙火: 照準の周りの烙印を倍にしてから起爆する。plainMul は烙印の無い敵への威力倍率、comboStacks は焼き印→烙火の連携で足す烙印",
+  "cost": 18, "minInterval": 0.6, "poise": 10, "maxRange": 140, "radius": 48, "damage": { "base": 4, "mnd": 0.4, "spi": 0.8 }, "poiseRatio": { "mnd": 0.1, "spi": 0.2 }, "plainMul": 0.4, "knockback": 80, "comboStacks": 2
+}

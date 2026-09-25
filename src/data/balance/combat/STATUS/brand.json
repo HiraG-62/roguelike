@@ -1,0 +1,7 @@
+{
+  "maxStacks": 5,
+  "duration": 4,
+  "damagePerStack": 6,
+  "poisePerStack": 6,
+  "staggeredMul": 1.5
+}

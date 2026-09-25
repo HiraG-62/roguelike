@@ -1,0 +1,13 @@
+{
+  "_note": "弾の尾。長さは速さ × trailTime（maxTrail で頭打ち）。pierce は長く細く、charge は太く光る",
+  "trailTime": 0.05,
+  "maxTrail": 22,
+  "glow": 5,
+  "glowAlpha": 0.4,
+  "coreAlpha": 0.9,
+  "trailAlpha": 0.6,
+  "pierceTrailMul": 1.8,
+  "chargeGlowMul": 1.8,
+  "enemyGlowAlpha": 0.3,
+  "enemyColor": "#ff5040"
+}

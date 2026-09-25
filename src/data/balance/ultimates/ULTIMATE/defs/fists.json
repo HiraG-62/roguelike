@@ -1,0 +1,14 @@
+{
+  "hakkei": {
+    "nova": { "radius": 44, "scaling": { "base": 20, "vit": 1.5, "str": 1.5 }, "poise": 80, "poiseRatio": { "vit": 1.2, "str": 1.2 }, "knockback": 420 },
+    "broken": { "stacks": 1, "duration": 1.5, "potency": 0 }
+  },
+  "collapseFist": {
+    "lunge": { "distance": 48, "width": 30, "invuln": 0.25, "scaling": { "base": 40, "str": 2, "vit": 2 }, "poise": 80, "poiseRatio": { "str": 1.2, "vit": 1.2 }, "knockback": 600, "heavy": true }
+  },
+  "fightingSpirit": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "incoming": 0.7 },
+    "patch": { "hitsAdd": 1 }
+  }
+}

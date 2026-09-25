@@ -1,0 +1,6 @@
+{
+  "_note": "五彩の礫: 支配共鳴の色で性質が変わる礫3個。azureSpeedMul=蒼(弾速)、jadeHeal=翠(命中回復)、goldPierce=金(貫通加算)",
+  "cost": 12, "minInterval": 0.5, "poise": 8, "count": 3, "spreadRad": 0.16, "speed": 210, "life": 0.6, "radius": 3,
+  "damage": { "base": 5, "str": 0.24, "dex": 0.24, "vit": 0.24, "mnd": 0.24, "spi": 0.24 }, "poiseRatio": { "str": 0.05, "dex": 0.05, "vit": 0.05, "mnd": 0.05, "spi": 0.05 }, "knockback": 50,
+  "azureSpeedMul": 1.3, "jadeHeal": 1, "goldPierce": 1, "bleedTime": 4, "bleedPotency": 1, "shockPotency": 2, "vulnerableTime": 2
+}

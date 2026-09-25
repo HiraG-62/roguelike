@@ -51,7 +51,7 @@ const FIXTURE_IMMUNE: readonly StatusKind[] = ["stagger", "freeze", "paralyze", 
 
 /**
  * 怯み耐性・怯みの秒・強靭の倍率（poise/staggerTime/superArmorMul/strikeSuperArmorMul）。
- * src/data/balance/enemies.json の "combat"。inflicts / keywords / immune など状態異常や語彙は
+ * src/data/balance/enemies/ の "combat"。inflicts / keywords / immune など状態異常や語彙は
  * union 文字列を含むため TS 側に残す（変更したい場合は数値だけ JSON を編集する）
  */
 const C = BALANCE.enemies.combat;

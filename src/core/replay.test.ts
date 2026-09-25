@@ -382,6 +382,37 @@ describe("記録 → 再生", () => {
     const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, hitstopScale: undefined })));
     expect(loaded?.hitstopScale, "sanitize でも欄が無ければ書かない").toBeUndefined();
   });
+
+  it("ラン中の強さの変更イベントが再生で再現される", () => {
+    const seedText = "hitstop-midrun";
+    const profile = createEmptyProfile();
+    const skillProfile = createDefaultSkillProfile();
+    const inputs = randomInputs(14, 1200);
+    const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, undefined, 1);
+    const recorder = ReplayRecorder.fromStartedGame({ seedText, startedAt: 1, daily: false, hitstopScale: 1 }, state);
+    inputs.forEach((input, i) => {
+      if (i === 400) recorder.noteHitstopScale(state, 2);
+      if (i === 800) recorder.noteHitstopScale(state, 0);
+      if (i === 400 || i === 800) state.hitstopScale = state.hitstopScale === 1 ? 2 : 0;
+      step(state, recorder.record(input), FIXED_DT);
+    });
+    const data = recorder.finish({ depth: state.depth, kills: state.kills, score: state.score }, 2);
+    expect(data.events.map((e) => e.hitstopScale), "強さの変化だけを積む").toEqual([2, 0]);
+    const replayed = playBack(data);
+    expect(replayed.hitstopScale, "最後に適用した強さのまま").toBe(0);
+    expect(fingerprint(replayed)).toBe(fingerprint(state));
+  });
+
+  it("強さが変わらないときはイベントを積まない", () => {
+    const seedText = "hitstop-nochange";
+    const profile = createEmptyProfile();
+    const skillProfile = createDefaultSkillProfile();
+    const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, undefined, 1);
+    const recorder = ReplayRecorder.fromStartedGame({ seedText, startedAt: 1, daily: false, hitstopScale: 1 }, state);
+    recorder.noteHitstopScale(state, 1);
+    const data = recorder.finish({ depth: 1, kills: 0, score: 0 }, 2);
+    expect(data.events).toHaveLength(0);
+  });
 });
 
 describe("装備画面でのステータス振り分けの記録 → 再生", () => {

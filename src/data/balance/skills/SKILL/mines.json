@@ -1,0 +1,13 @@
+{
+  "_note": "cost: 12→10.2、damage.base: 8.8→10.1（各+15%）",
+  "cost": 10.2,
+  "minInterval": 0.3,
+  "poise": 25,
+  "arm": 0.4,
+  "life": 20,
+  "maxAlive": 3,
+  "trigger": 10,
+  "radius": 30,
+  "damage": { "base": 22.1 },
+  "knockback": 160
+}

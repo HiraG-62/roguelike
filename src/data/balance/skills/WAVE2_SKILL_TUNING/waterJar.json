@@ -1,0 +1,5 @@
+{
+  "_note": "水瓶: カーソル地点で割れて水たまり+濡れ。炎の床は水で消える",
+  "cost": 14, "minInterval": 0.5, "poise": 5, "maxRange": 120, "radius": 32, "terrainRadius": 24, "terrainTime": 8,
+  "damage": { "base": 3, "mnd": 0.4, "spi": 0.6 }, "poiseRatio": { "mnd": 0.06, "spi": 0.09 }, "knockback": 40, "wetStacks": 2
+}

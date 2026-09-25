@@ -11,10 +11,12 @@ import {
   isGun,
   laneLength,
   meleeChargeOf,
+  movesetLabel,
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
-import { currentShot, isAttacking, nextLaneIndex, playerMoveset } from "../system/player";
+import { currentShot, isAttacking, nextLaneIndex, plannedInputs, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
+import { shapeMoveset } from "../skills/forms";
 import { hudLayoutFor } from "./layers";
 import { TEXT, drawText, textLineHeight, truncateText } from "./pixelText";
 import type { HudLayout } from "./renderMath";
@@ -64,7 +66,9 @@ function primaryHint(moveset: MovesetDef, shot: BulletDef, index: number): strin
   if (moveset.primary === "charge") return `${BUTTON_LABEL.primary} 長押し: 溜め`;
   if (isGun(moveset)) return shot.charge ? `${BUTTON_LABEL.primary} 長押し: 溜め撃ち` : `${BUTTON_LABEL.primary}: 射撃`;
   const step = Math.min(index, laneLength(moveset, "primary") - 1);
-  return `${BUTTON_LABEL.primary}: ${step + 1} 段目`;
+  // 弾を撃つ段（杖の詠唱）は段の番号ではなく魔法の名前を出す
+  const cast = moveset.steps[step]?.cast;
+  return cast ? `${BUTTON_LABEL.primary}: ${cast.name}` : `${BUTTON_LABEL.primary}: ${step + 1} 段目`;
 }
 
 /**
@@ -129,14 +133,16 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, la
     return;
   }
 
-  drawText(ctx, truncateText(moveset.name, maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
+  // 素手の名前は装備の型のときだけ（変身中は変身の名前。変身の型の key は装備の武器種のままなので key では区別できない）
+  const unarmed = state.stats.unarmed && shapeMoveset(state) === null;
+  drawText(ctx, truncateText(movesetLabel(moveset, unarmed), maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
   const gauge = activeChargeGauge(state, moveset);
   if (gauge) drawGauge(ctx, cx, bottom - line, gauge);
   else drawPips(ctx, cx, bottom - line, comboPips(pipCount(moveset), p.attack.step, isAttacking(p) || p.attack.step > 0));
   const index = nextLaneIndex(state, moveset) ?? 0;
   const next = moveset.steps2[index];
   const wait = next ? actionCooldownLeft(state, next) : 0;
-  const hint = hudHintText(moveset, p.attack.inputs, currentShot(state.stats), index, wait);
+  const hint = hudHintText(moveset, plannedInputs(state), currentShot(state.stats), index, wait);
   drawText(ctx, truncateText(hint, maxW, TEXT.SMALL), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
 }
 

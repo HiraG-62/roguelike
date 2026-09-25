@@ -1,0 +1,8 @@
+{
+  "bulletCount": 5,
+  "spreadDeg": 60,
+  "bulletSpeed": 105,
+  "bulletDamage": 8,
+  "keepAway": 110,
+  "color": "#c060e0"
+}

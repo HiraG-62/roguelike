@@ -1,19 +1,11 @@
 /**
  * バランス数値(JSON)の読み込み・_note の剥ぎ取り・ハッシュ化。
+ * JSON は src/data/balance/<ファイル>/ のディレクトリに分かれ、assembled.gen.ts(npm run balance:gen)が元の 1 ファイルの形に組み立てる。
  * data/tuning.ts などはここから `BALANCE.<file>.<ブロック名>` を再 export するだけで、
  * 既存の参照経路(`PLAYER.dash.speed` など)は変えない。設計は docs/ideas/data-externalization.md
  */
 import { hashSeed } from "../../core/rng";
-import boonsJson from "./boons.json";
-import combatJson from "./combat.json";
-import enemiesJson from "./enemies.json";
-import skillsJson from "./skills.json";
-import feelJson from "./feel.json";
-import lootJson from "./loot.json";
-import worldJson from "./world.json";
-import jobsJson from "./jobs.json";
-import ultimatesJson from "./ultimates.json";
-import weaponsJson from "./weapons.json";
+import * as raw from "./assembled.gen";
 
 /** `_` で始まるキー(_note)を型から消し、全体を readonly にする */
 export type Clean<T> = T extends readonly (infer U)[]
@@ -41,16 +33,16 @@ export function stripNotes<T>(value: T): Clean<T> {
 }
 
 export const BALANCE = {
-  combat: stripNotes(combatJson),
-  enemies: stripNotes(enemiesJson),
-  jobs: stripNotes(jobsJson),
-  weapons: stripNotes(weaponsJson),
-  skills: stripNotes(skillsJson),
-  boons: stripNotes(boonsJson),
-  loot: stripNotes(lootJson),
-  world: stripNotes(worldJson),
-  feel: stripNotes(feelJson),
-  ultimates: stripNotes(ultimatesJson),
+  combat: stripNotes(raw.combat),
+  enemies: stripNotes(raw.enemies),
+  jobs: stripNotes(raw.jobs),
+  weapons: stripNotes(raw.weapons),
+  skills: stripNotes(raw.skills),
+  boons: stripNotes(raw.boons),
+  loot: stripNotes(raw.loot),
+  world: stripNotes(raw.world),
+  feel: stripNotes(raw.feel),
+  ultimates: stripNotes(raw.ultimates),
 } as const;
 
 const HASH_RADIX = 16;

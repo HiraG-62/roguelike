@@ -1,0 +1,9 @@
+{
+  "seekRadius": 160,
+  "eatRadius": 12,
+  "eatCooldown": 0.6,
+  "heal": 0.15,
+  "radiusPerGrowth": 1,
+  "maxGrowth": 3,
+  "color": "#ff9040"
+}

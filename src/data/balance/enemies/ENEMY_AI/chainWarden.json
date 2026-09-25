@@ -1,0 +1,9 @@
+{
+  "length": 140,
+  "pull": 380,
+  "pullDamage": 6,
+  "slamWindup": 0.5,
+  "slamRadius": 40,
+  "slamDamage": 18,
+  "color": "#a0a0b0"
+}

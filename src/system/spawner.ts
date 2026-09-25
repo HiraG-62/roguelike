@@ -1,11 +1,11 @@
 import type { Enemy, GameState } from "../core/state";
 import { type Vec, dist, normalize, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, enemyDef } from "../data/enemies";
-import { ROAM } from "../data/tuning";
+import { MAP_SIZE, ROAM } from "../data/tuning";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { nextWaypoint } from "../map/pathing";
-import { moveEnemy } from "./enemies";
+import { farFromPlayer, moveEnemy } from "./enemies";
 import { spawnSpot } from "./enemyTraits";
 import { overlapsWall } from "./physics";
 import { ROOM_LOCKS } from "./roomTypes";
@@ -28,9 +28,10 @@ function canRoam(def: EnemyDef): boolean {
   return !def.boss && !def.timid && !NO_ROAM_BEHAVIORS.has(def.behavior);
 }
 
-/** 深度で決まる徘徊の上限 */
-export function roamCap(depth: number): number {
-  return Math.min(ROAM.capMax, ROAM.capBase + Math.floor(depth * ROAM.capPerDepth));
+/** 深度と階の広さで決まる徘徊の上限（広い階は 面積の倍率 ^ MAP_SIZE.roamCapExp 倍。密度が薄くなりすぎないように） */
+export function roamCap(depth: number, areaMul = 1): number {
+  const base = Math.min(ROAM.capMax, ROAM.capBase + Math.floor(depth * ROAM.capPerDepth));
+  return Math.round(base * areaMul ** MAP_SIZE.roamCapExp);
 }
 
 export function roamerCount(state: GameState): number {
@@ -94,11 +95,21 @@ export function assignRoamers(state: GameState, skip: ReadonlySet<number>): void
 /** 1 ステップで期待する移動量のこの割合より進めていなければ詰まりとみなす */
 const STUCK_PROGRESS_RATIO = 0.3;
 
-/** 毎ステップ: idle の徘徊を目的地へ歩かせる。気付いて chase になった敵は enemies.ts に任せる */
+/**
+ * 毎ステップ: idle の徘徊を目的地へ歩かせる。気付いて chase になった敵は enemies.ts に任せる。
+ * プレイヤーから遠い（enemies.ts の眠りの距離）徘徊は ROAM.sleepRoamEvery ステップに 1 回、その分の dt でまとめて歩かせる
+ * （止めると遠くの徘徊が寄ってこなくなる。間引く番は tick と id で決まるので決定的）
+ */
 export function updateRoamers(state: GameState, dt: number): void {
+  const every = Math.max(1, ROAM.sleepRoamEvery);
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase !== "idle" || !e.ai?.roam || isHalted(e)) continue;
-    stepRoamer(state, e, dt);
+    if (!farFromPlayer(state, e)) {
+      stepRoamer(state, e, dt);
+      continue;
+    }
+    if ((state.tick + e.id) % every !== 0) continue;
+    stepRoamer(state, e, dt * every);
   }
 }
 

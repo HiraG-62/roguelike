@@ -1,7 +1,7 @@
 /**
  * スキルの数値のうち union 文字列（HitShape の kind など）を含む表。TS に残す
  * （docs/ideas/data-externalization.md 2 章の境界規則: union 文字列を 1 つでも含む構造は丸ごと TS）。
- * 数値だけの残りは data/balance/skills.json から読む（data.ts が SKILL に合流させる）。
+ * 数値だけの残りは data/balance/skills/ から読む（data.ts が SKILL に合流させる）。
  */
 import { STATUS } from "../data/tuning";
 import type { MeleeStepDef } from "../data/weapons";
@@ -33,6 +33,11 @@ export const WEAPON_ART = {
   grenade: { kind: "circle", name: "砲弾の雨", radius: 52, hits: 1, mul: 1.3, knockbackMul: 1.5 },
   trapper: { kind: "circle", name: "一斉起爆", radius: 50, hits: 1, mul: 1.2 },
   warRing: { kind: "shots", name: "乱れ輪", count: 5, spreadRad: 0.3, speed: 240, life: 0.6, radius: 3, mul: 0.35 },
+  // 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章）
+  claws: { kind: "thrust", name: "八つ裂き", length: 30, halfWidth: 8, hits: 5, mul: 0.3 },
+  flail: { kind: "circle", name: "鉄球旋風", radius: 52, hits: 1, mul: 1.3, knockbackMul: 1.6 },
+  ringBlades: { kind: "circle", name: "輪乱舞", radius: 42, hits: 2, mul: 0.7 },
+  fan: { kind: "cone", name: "扇薙ぎ", radius: 44, halfAngle: 1.1, hits: 1, mul: 0.8 },
 } as const;
 
 /** 極意の出血（鉈）の持続と 10px あたりダメージ */

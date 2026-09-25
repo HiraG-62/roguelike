@@ -1,0 +1,7 @@
+{
+  "body": "armored",
+  "resist": {
+    "dark": 25,
+    "light": -50
+  }
+}

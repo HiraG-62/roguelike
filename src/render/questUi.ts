@@ -30,7 +30,6 @@ export function drawQuestChoice(ctx: CanvasRenderingContext2D, ui: Readonly<Ques
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   const L = QUEST_CHOICE_LAYOUT;
   drawText(ctx, "依頼を選ぶ", VIEW_W / 2, L.titleY, TEXT.TITLE, COLOR_TITLE, "center");
-  drawText(ctx, "1 つ選んで出発します。達成すると次の探索から選べるものが増えます", VIEW_W / 2, L.subtitleY, TEXT.SMALL, COLOR_DIM, "center");
   const rects = questCardRects(ui.offers.length);
   ui.offers.forEach((key, i) => {
     const rect = rects[i];

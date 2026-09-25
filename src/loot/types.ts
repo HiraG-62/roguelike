@@ -435,6 +435,8 @@ export interface PlayerStats {
   traits: TraitStats;
   /** 武器種（右手のベースが決める。src/data/weapons.ts） / 撃つ弾（銃のベースの key。src/loot/bullets.ts） */
   moveset: MovesetKey;
+  /** 右手が空（素手）。型は拳（DEFAULT_MOVESET）のまま威力に WEAPON.unarmed.damageMul が掛かり、表示名は「素手」 */
+  unarmed: boolean;
   bullet: string;
   /** 属性の変換: 近接・射撃（通常攻撃）の威力のうちその属性へ移す割合 0..1（none は使わない。合計は 1 で頭打ち） */
   infuse: ElementTable;
@@ -952,6 +954,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   statusProcs: [],
   traits: DEFAULT_TRAIT_STATS,
   moveset: "sword",
+  unarmed: false,
   bullet: "pistol",
   infuse: uniformElements(0),
   skillNeutral: 0,

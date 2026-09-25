@@ -1,0 +1,8 @@
+{
+  "duration": 6,
+  "takenMul": 1.15,
+  "burstBurnRatio": 1,
+  "burstChill": 2,
+  "burstHeal": 3,
+  "burstDoomDuration": 4
+}

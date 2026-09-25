@@ -1,0 +1,13 @@
+{
+  "lungeSpeedMul": 6,
+  "arrowSpeed": 160,
+  "arrowDamage": 10,
+  "arrowCount": 3,
+  "arrowSpreadDeg": 24,
+  "rageArrowCount": 5,
+  "keepAway": 120,
+  "bereavedWindupMul": 1.2,
+  "rageRatio": 0.35,
+  "rageIntervalMul": 0.7,
+  "color": "#e0e0ff"
+}

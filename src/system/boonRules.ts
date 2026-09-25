@@ -12,6 +12,7 @@ import {
 import { type Vec, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyBehavior, enemyDef } from "../data/enemies";
 import { ACTION, BOON, FEEL, PLAYER, STATUS } from "../data/tuning";
+import { meleeScaling } from "../data/weapons";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillResource } from "../skills/types";
 import { boonGradeMul } from "./boonGrade";
@@ -198,7 +199,7 @@ function rules(state: GameState): BoonRuleState {
 /** 近接 1 段目の装備・ステータス込みダメージ（祝福の威力は装備 stat に比例させる） */
 export function slashBase(state: GameState): number {
   const s = state.stats;
-  const base = scaled(s, PLAYER.melee[0]!.scaling);
+  const base = scaled(s, meleeScaling(PLAYER.melee[0]!.scaling));
   return Math.round((base + s.meleeDamageFlat) * s.meleeDamageMul);
 }
 

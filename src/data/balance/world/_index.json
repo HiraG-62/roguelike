@@ -1,0 +1,4 @@
+{
+  "_note": "フロア・部屋・地形イベント・拠点の数値。秒・px・確率（0..1）・重みが中心",
+  "_order": ["ROOM", "ROOM_KIND", "FLOOR_KIND", "CAVE", "ROAM", "RUN_EVENT", "LINGER", "ORIGIN", "CONTRACT", "RUN_MOD", "HUB", "HUB_DECOR", "META", "DISCOVERY", "MAP_SIZE"]
+}

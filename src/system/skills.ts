@@ -4,7 +4,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, add, dist, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
-import { FEEL, MANA, PLAYER } from "../data/tuning";
+import { ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { rectCenterPx } from "../map/grid";
 import {
@@ -136,7 +136,6 @@ const LABEL_SCALE = 1;
 const LABEL_LIFE = 1.4;
 const RING_LIFE = 0.15;
 const BEAM_LIFE = 0.2;
-const JUST_ENERGY_HITS = 2;
 const PARRY_TEXT_SCALE = 1.5;
 const PARRY_TEXT_LIFE = 0.7;
 /** パリィ成功直後、同じ攻撃の続きで被弾しないための無敵 */
@@ -1702,7 +1701,7 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
   // 既存の JUST 回避と同じご褒美
   p.justTimer = state.stats.justDodgeWindow;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
-  gainEnergy(state, PLAYER.energyPerHit * JUST_ENERGY_HITS);
+  gainEnergy(state, ENERGY.just);
   registerComboHit(state);
   addFloatingText(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);

@@ -1,0 +1,5 @@
+{
+  "_note": "震脚: 足元に衝撃。周囲に高い怯み値、足元の敵弾を消す。自分は少し動けない（root）。comboPoiseMul / comboAreaMul は手繰り糸→震脚の連携の倍率",
+  "cost": 14, "minInterval": 0.8, "poise": 40, "radius": 40, "damage": { "base": 3, "str": 0.5, "vit": 0.5 }, "poiseRatio": { "str": 0.6, "vit": 0.6 }, "knockback": 160, "root": 0.3,
+  "comboPoiseMul": 1.5, "comboAreaMul": 1.3
+}

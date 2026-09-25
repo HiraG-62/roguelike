@@ -2,11 +2,11 @@ import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../c
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE } from "../data/tuning";
+import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE, ROAM } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
-import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, onEliteDeath, takeEliteEcho, updateElites, updateGreedy } from "./elites";
+import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, hasElite, onEliteDeath, takeEliteEcho, updateElites, updateGreedy } from "./elites";
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
@@ -185,10 +185,11 @@ export function updateEnemies(state: GameState, dt: number): void {
   const player = state.player;
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
+    e.hitFlash = Math.max(0, e.hitFlash - dt);
+    if (isAsleep(state, e)) continue;
     const def = enemyDef(e.defKey);
     // chill 中は移動も攻撃の進行も遅くなる
     const edt = dt * chillFactor(e);
-    e.hitFlash = Math.max(0, e.hitFlash - dt);
     applyKnock(state, e, def, dt);
     // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
     if (isHalted(e)) continue;
@@ -238,6 +239,27 @@ export function updateEnemies(state: GameState, dt: number): void {
   separate(state, dt);
   handleDeaths(state);
   state.enemies = state.enemies.filter((e) => e.hp > 0);
+}
+
+/**
+ * 眠り: プレイヤーから ROAM.sleepDist 以上離れた、まだ気付いていない（idle）敵は AI を回さない。
+ * 広いマップ（MAP_SIZE）では敵が多く、画面の外の遠い敵まで毎ステップ動かすと重いため。
+ * 起きる条件はプレイヤーとの距離だけ（決定的）。眠っている間は乱数を引かず、時計（攻撃間隔・アニメ）も止まる。
+ * 吹き飛び中・封鎖中の部屋・ボス・強欲（遠くの落とし物を拾いに行く）は眠らせない。徘徊の歩きは spawner.ts が間引いて続ける
+ */
+export function isAsleep(state: GameState, e: Enemy): boolean {
+  // 眠れる敵の大半は遠い idle なので、安い判定から先に見る
+  if (e.phase !== "idle" || !farFromPlayer(state, e)) return false;
+  if (e.knock.x !== 0 || e.knock.y !== 0) return false;
+  if (state.rooms[e.roomIndex]?.locked || hasElite(e, "greedy")) return false;
+  return !isBossDriven(enemyDef(e.defKey));
+}
+
+/** プレイヤーから ROAM.sleepDist 以上離れているか（平方で比べる） */
+export function farFromPlayer(state: GameState, e: Enemy): boolean {
+  const dx = e.body.pos.x - state.player.body.pos.x;
+  const dy = e.body.pos.y - state.player.body.pos.y;
+  return dx * dx + dy * dy >= ROAM.sleepDist * ROAM.sleepDist;
 }
 
 /** 状態機械の前に毎ステップ行う behavior 固有の下準備（取り巻きを呼ぶ・位置を記録する・蘇生の時計） */
@@ -969,23 +991,87 @@ function fireAtPlayer(state: GameState, e: Enemy): void {
   pushSfx(state, "enemyShoot");
 }
 
-/** 敵同士が重ならないよう軽く押し合う */
+/** 押し合いの格子の升の最小の辺（px）。升は最大の直径以上にするので、重なりうる組は隣り合う 3x3 の升に必ず入る */
+const SEPARATION_CELL_MIN = 16;
+const NO_ENEMY = -1;
+
+/** 押し合いの升目の作業領域（state ではなく使い回しの計算用。中身は毎回作り直すので決定性に影響しない） */
+const separationGrid = { heads: new Int32Array(0), next: new Int32Array(0), cells: new Int32Array(0) };
+
+/**
+ * 敵同士が重ならないよう軽く押し合う。広いマップでは敵が多く総当たりが重いので、升目に分けて近い組だけを調べる。
+ * 組を調べる順は総当たり（i < j の昇順）と同じにそろえる（押す順で位置の丸めが変わらないように）。
+ * 升は押し合いの前の位置で決める（1 ステップの押しは升の辺より十分小さく、取りこぼした組は次のステップで押す）
+ */
 function separate(state: GameState, dt: number): void {
   const list = state.enemies;
+  const cell = separationCell(list);
+  const gw = Math.ceil((state.map.width * TILE_SIZE) / cell) + 1;
+  const gh = Math.ceil((state.map.height * TILE_SIZE) / cell) + 1;
+  const { heads, next, cells } = fillSeparationGrid(list, cell, gw, gh);
+  const partners: number[] = [];
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
-    if (!a || a.hp <= 0) continue;
-    for (let j = i + 1; j < list.length; j++) {
+    const c = cells[i] ?? NO_ENEMY;
+    if (!a || c === NO_ENEMY) continue;
+    partners.length = 0;
+    const cx = c % gw;
+    const cy = (c - cx) / gw;
+    for (let y = Math.max(0, cy - 1); y <= Math.min(gh - 1, cy + 1); y++) {
+      for (let x = Math.max(0, cx - 1); x <= Math.min(gw - 1, cx + 1); x++) {
+        for (let j = heads[y * gw + x] ?? NO_ENEMY; j !== NO_ENEMY; j = next[j] ?? NO_ENEMY) if (j > i) partners.push(j);
+      }
+    }
+    if (partners.length > 1) partners.sort((p, q) => p - q);
+    for (const j of partners) {
       const b = list[j];
-      if (!b || b.hp <= 0) continue;
-      const d = dist(a.body.pos, b.body.pos);
-      const minD = a.body.radius + b.body.radius;
-      if (d >= minD || d === 0) continue;
-      const push = scale(normalize(sub(a.body.pos, b.body.pos)), SEPARATION_FORCE * dt);
-      pushApart(state, a, push);
-      pushApart(state, b, scale(push, -1));
+      if (b && b.hp > 0) separatePair(state, a, b, dt);
     }
   }
+}
+
+/** 生きている敵を升ごとの連結リストへ入れる（後ろから入れて、各升のリストを添字の昇順にする） */
+function fillSeparationGrid(list: readonly Enemy[], cell: number, gw: number, gh: number): typeof separationGrid {
+  const g = separationGrid;
+  if (g.heads.length < gw * gh) g.heads = new Int32Array(gw * gh);
+  if (g.next.length < list.length) {
+    g.next = new Int32Array(list.length);
+    g.cells = new Int32Array(list.length);
+  }
+  g.heads.fill(NO_ENEMY, 0, gw * gh);
+  for (let i = list.length - 1; i >= 0; i--) {
+    const e = list[i];
+    if (!e || e.hp <= 0) {
+      g.cells[i] = NO_ENEMY;
+      continue;
+    }
+    // マップの外へはみ出した敵は端の升に入れる（隣の升として調べられる）
+    const cx = Math.min(gw - 1, Math.max(0, Math.floor(e.body.pos.x / cell)));
+    const cy = Math.min(gh - 1, Math.max(0, Math.floor(e.body.pos.y / cell)));
+    const c = cy * gw + cx;
+    g.cells[i] = c;
+    g.next[i] = g.heads[c] ?? NO_ENEMY;
+    g.heads[c] = i;
+  }
+  return g;
+}
+
+/** 升の辺 = 生きている敵の最大の直径（最小 SEPARATION_CELL_MIN） */
+function separationCell(list: readonly Enemy[]): number {
+  let maxR = 0;
+  for (const e of list) if (e.hp > 0) maxR = Math.max(maxR, e.body.radius);
+  return Math.max(SEPARATION_CELL_MIN, maxR * 2);
+}
+
+function separatePair(state: GameState, a: Enemy, b: Enemy, dt: number): void {
+  const minD = a.body.radius + b.body.radius;
+  // 軸ごとの差で先に弾く（弾いた組は必ず d >= minD なので結果は同じ）
+  if (Math.abs(a.body.pos.x - b.body.pos.x) >= minD || Math.abs(a.body.pos.y - b.body.pos.y) >= minD) return;
+  const d = dist(a.body.pos, b.body.pos);
+  if (d >= minD || d === 0) return;
+  const push = scale(normalize(sub(a.body.pos, b.body.pos)), SEPARATION_FORCE * dt);
+  pushApart(state, a, push);
+  pushApart(state, b, scale(push, -1));
 }
 
 /** 動かない敵（鐘・氷柱）は押されない */

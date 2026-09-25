@@ -1,0 +1,17 @@
+{
+  "siegeBreaker": {
+    "swing": { "deg": 120, "reach": 40, "size": 40, "scaling": { "base": 30, "vit": 2, "str": 1 }, "poise": 70, "poiseRatio": { "vit": 1.2 }, "knockback": 600, "heavy": true }
+  },
+  "beacon": {
+    "cost": 90,
+    "nova": { "radius": 50, "scaling": { "base": 14, "vit": 1.5, "mnd": 0.5 }, "poise": 40, "poiseRatio": { "vit": 0.9 }, "knockback": 500 },
+    "buff": { "heal": 0.15, "invuln": 1, "duration": 0 }
+  },
+  "ironWall": {
+    "cost": 90,
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "poise": 1.5 },
+    "guardArcDeg": 120,
+    "guardMul": 0.3
+  }
+}

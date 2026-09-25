@@ -1,0 +1,6 @@
+{
+  "maxStacks": 5,
+  "duration": 6,
+  "poisePerStack": 0.08,
+  "playerTakenPerStack": 0.03
+}

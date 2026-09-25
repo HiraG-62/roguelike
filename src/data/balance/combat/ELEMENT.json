@@ -1,0 +1,32 @@
+{
+  "_note": "属性（docs/COMBAT_DESIGN.md A-8）。耐性は %。表示文字列（弱点/耐性の浮き文字・？印）は data/tuning.ts に残す",
+  "resistMin": -100,
+  "resistMax": 75,
+  "resistKnee": 50,
+  "resistSlope": 0.5,
+  "enemyResistMin": -100,
+  "enemyResistMax": 75,
+  "weakColor": "#ffb040",
+  "resistColor": "#9098a8",
+  "textScale": 0.9,
+  "textLife": 0.5,
+  "textDedupeRadius": 18,
+  "affinity": {
+    "chance": 0.1,
+    "duration": 2,
+    "minShare": 0.5,
+    "potency": {
+      "burn": 3,
+      "chill": 0,
+      "shock": 4,
+      "poison": 0,
+      "weaken": 0,
+      "vulnerable": 0
+    }
+  },
+  "mark": {
+    "offsetY": 6,
+    "size": 5,
+    "unknownColor": "#a0a0a0"
+  }
+}

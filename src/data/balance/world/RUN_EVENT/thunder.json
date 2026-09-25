@@ -1,0 +1,11 @@
+{
+  "duration": 10,
+  "interval": 0.8,
+  "telegraph": 1,
+  "radius": 18,
+  "damage": 6,
+  "spread": 100,
+  "shockStacks": 1,
+  "shockDuration": 3,
+  "color": "#c0e0ff"
+}

@@ -1,0 +1,31 @@
+{
+  "forge": {
+    "fire": 50,
+    "ice": -50
+  },
+  "glacier": {
+    "ice": 50,
+    "fire": -50
+  },
+  "swamp": {
+    "poison": 50,
+    "lightning": -50
+  },
+  "ossuary": {
+    "dark": 50,
+    "light": -50
+  },
+  "dark": {
+    "dark": 50,
+    "none": 25,
+    "light": -50
+  },
+  "mine": {
+    "lightning": 25,
+    "fire": -50
+  },
+  "meadow": {
+    "poison": 25,
+    "ice": -50
+  }
+}

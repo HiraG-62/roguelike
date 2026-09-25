@@ -1,0 +1,5 @@
+{
+  "_note": "巻き戻し（CD型）: 少し前にいた位置へ戻り、その間に受けたダメージの一部を取り戻す",
+  "cooldown": 12, "minInterval": 0.3, "poise": 5, "rewind": 1.5, "record": 0.1, "healRatio": 0.4, "halfWidth": 8,
+  "damage": { "base": 4, "dex": 0.6, "vit": 0.6 }, "poiseRatio": { "dex": 0.08, "vit": 0.08 }, "knockback": 60, "invuln": 0.15
+}

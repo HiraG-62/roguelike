@@ -1,0 +1,7 @@
+{
+  "duration": 10,
+  "interval": 1,
+  "growth": 9,
+  "maxRadius": 72,
+  "terrainTime": 20
+}

@@ -1,0 +1,17 @@
+{
+  "_note": "cost: 28→23.8、damage.base: 2.2→2.5（各+15%）",
+  "cost": 23.8,
+  "minInterval": 1.1,
+  "poise": 2,
+  "duration": 1,
+  "bullets": 24,
+  "bulletsPerCount": 4,
+  "arms": 2,
+  "turns": 2,
+  "speed": 160,
+  "life": 0.6,
+  "radius": 2.5,
+  "damage": { "base": 2.5, "dex": 0.3, "spi": 0.3 },
+  "knockback": 30,
+  "moveMul": 0.4
+}

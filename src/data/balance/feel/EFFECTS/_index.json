@@ -1,0 +1,14 @@
+{
+  "maxParticles": 500,
+  "maxTexts": 80,
+  "maxShapes": 120,
+  "maxDeaths": 32,
+  "maxMarks": 64,
+  "statusKindsPerEnemy": 2,
+  "statusParticlesPerKind": 2,
+  "statusTintAlpha": 0.4,
+  "comboMilestoneScale": 1.7,
+  "comboMilestoneLife": 1,
+  "comboMilestoneRise": 18,
+  "_order": ["maxParticles", "maxTexts", "maxShapes", "maxDeaths", "maxMarks", "statusKindsPerEnemy", "statusParticlesPerKind", "statusTintAlpha", "death", "hitSpark", "comboTiers", "comboMilestones", "comboMilestoneScale", "comboMilestoneLife", "comboMilestoneRise", "clearWave", "eliteBurst", "bossLight", "justRing", "synergyGlow", "weakCrack", "critFlash", "doorSlam", "chargeUp", "dropBeam", "dashGhost", "floorCard"]
+}

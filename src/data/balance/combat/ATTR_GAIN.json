@@ -1,0 +1,8 @@
+{
+  "_note": "共鳴とラン内振り分けの入手量（docs/COMBAT_DESIGN.md A-3）",
+  "resonanceDominant": 3,
+  "resonanceDual": 2,
+  "resonanceScatter": 1,
+  "perFloor": 1,
+  "perBoss": 2
+}

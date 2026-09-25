@@ -1,0 +1,8 @@
+{
+  "_fields": {
+    "questOffers": "依頼の候補として並べる数",
+    "roomSampleTicks": "図鑑に今いる部屋の種類を記録する間隔。ステップ（60Hz）"
+  },
+  "questOffers": 3,
+  "roomSampleTicks": 15
+}

@@ -1,0 +1,5 @@
+{
+  "_note": "油流し: カーソル地点に油を流し、敵に油膜。火が入ると燃え広がる",
+  "cost": 13, "minInterval": 0.5, "poise": 4, "maxRange": 120, "radius": 32, "terrainRadius": 28, "terrainTime": 10,
+  "damage": { "base": 2, "str": 0.3, "spi": 0.3 }, "knockback": 20
+}

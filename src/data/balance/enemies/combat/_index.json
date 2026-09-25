@@ -1,0 +1,9 @@
+{
+  "_fields": {
+    "poise": "怯み耐性。攻撃の怯み値の蓄積がこれを超えると怯む（ボスはダウン）。深度 1 つごとに combat.json の POISE.depthScale（8%）ずつ伸びる。省略すると怯まない。目安: 低 5〜15、中 25〜50、高 60〜120、ボス 140〜320",
+    "staggerTime": "怯みの秒（ボスはダウンの秒）。怯まない敵は 0。目安 0.3〜0.8、ボス 1.2〜2",
+    "superArmorMul": "強靭。予備動作・攻撃中に受ける怯み値の倍率（1 = 等倍、低いほど攻撃中に怯みにくい）。目安 0.25〜1（1.5 は攻撃中ほど崩れやすい）",
+    "strikeSuperArmorMul": "攻撃中（strike）だけ強靭を上書きする倍率。省略すると superArmorMul と同じ。0 はその間怯み値が溜まらない（スライム王の空中）"
+  },
+  "_order": ["slime", "eye", "boar", "knight", "bomber", "laserEye", "golem", "bat", "wisp", "kingSlime", "boneLord", "poisonSlime", "iceSlime", "fireSlime", "goldSlime", "boneBoar", "boarDouble", "curseEye", "frostEye", "blackKnight", "lavaGolem", "frostGolem", "crystalGolem", "frostWisp", "purpleLaser", "flyingBook", "ashBat", "sproutSlime", "spikeRat", "twinEye", "triLaser", "shadowBat", "wolf", "multiBomber", "spearman", "hornBeetle", "netter", "carrionFly", "thunderWisp", "skeleton", "fuseRat", "crystalMite", "echoStriker", "packLeader", "manaLeech", "scavenger", "graveBell", "silencer", "frostCrusher", "twinShade", "mimic", "hollowArmor", "hollowWraith", "boneConductor", "twinBrother", "twinSister", "frostGiant", "icePillar", "trainingDummy", "mirrorSelf", "mudman", "toad", "oiler", "flameEater", "windSprite", "mineLayer", "enemyMine", "bellImp", "bannerBearer", "banner", "burrower", "dropper", "absorber", "homunculus", "scribeImp", "crossGolem", "chainWarden", "hollow", "lurker", "iceBoar", "sootBomber", "mossGolem", "swampWisp", "frostToad", "magmaToad", "oilSlime", "stormEye", "emberRat", "giantToad", "forgeMaster", "anvil", "turretMaster", "turret", "basilisk", "shadowStalker", "oilKing", "broodMother", "broodEgg", "librarian", "mirrorKnight", "thiefKing", "thief", "mirrorImage", "reaperShade"]
+}

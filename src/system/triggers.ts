@@ -5,6 +5,7 @@ import { PLAYER, STATUS, SYNERGY, TRIGGER } from "../data/tuning";
 import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggerCondition, TriggeredEffect, TriggerKind } from "../loot/types";
 import { ruleConditionsMet } from "./rules";
+import { ultimateReady } from "./ultimates";
 import { scaled } from "./attributes";
 import { damageEnemy, gainEnergy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
@@ -94,7 +95,8 @@ export function conditionMet(state: GameState, condition: TriggerCondition, ctx?
     case "roomLocked":
       return isEngaged(state);
     case "fullEnergy":
-      return p.energy >= p.maxEnergy;
+      // 満タン = 選んでいる奥義を出せる量（奥義ごとの cost）
+      return ultimateReady(state);
     case "manaFull":
       return state.stats.maxMana > 0 && p.mana >= state.stats.maxMana;
     case "manaLow":

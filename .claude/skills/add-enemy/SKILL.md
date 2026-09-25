@@ -22,7 +22,7 @@ description: 新しい敵を docs/recipes/enemy.md のレシピに沿って追�
 - src/system/behaviors/families.ts（家族を継いだクラス）・src/system/behaviors/registry.ts（BEHAVIORS に登録。漏れは型エラー）、src/system/enemies.ts（段の中身の behavior の分岐）、src/system/enemyBehaviors.ts（behavior の実装。1 behavior 1 関数）
 - src/system/enemies.test.ts
 ## 最小 Edit のみ許可
-- src/data/balance/enemies.json: stats / combat / defense.enemies に <key> を追加（無いと tsc が落ちる）。AI の数値は ENEMY_AI
+- src/data/balance/enemies/: stats/<key>.json / combat/<key>.json / defense/enemies/<key>.json を追加して `npm run balance:gen`（無いと tsc が落ちる）。AI の数値は ENEMY_AI/
 - src/render/renderer.ts: 予告表現が要る場合のみ、該当 behavior の分岐を追加
 - src/audio/sfxNames.ts / src/audio/sfxLayers.ts: 新しい効果音が要る場合のみ（層で作れないときだけ sfx.ts）
 ## 編集禁止

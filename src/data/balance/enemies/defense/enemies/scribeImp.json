@@ -1,0 +1,7 @@
+{
+  "body": "caster",
+  "resist": {
+    "dark": 25,
+    "fire": -50
+  }
+}

@@ -2,9 +2,9 @@ import { ACTION_TEXT } from "./actionText";
 import { BALANCE } from "./balance";
 
 /**
- * プレイヤーの手触りに関わる定数。数値は src/data/balance/combat.json の "PLAYER"
+ * プレイヤーの手触りに関わる定数。数値は src/data/balance/combat/ の "PLAYER"
  * （変更したい場合はそこを編集する。_note に調整の経緯）。
- * melee（近接 3 段）は src/data/balance/weapons.json の PLAYER_MELEE をここで合流する
+ * melee（近接 3 段）は src/data/balance/weapons/ の PLAYER_MELEE をここで合流する
  * （速さは docs/ideas/weapon-redesign.md 8 章）
  */
 export const PLAYER = {
@@ -42,9 +42,12 @@ export const ATTR_GAIN = BALANCE.combat.ATTR_GAIN;
 
 /**
  * マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源。
- * 数値は src/data/balance/combat.json の "MANA"（変更したい場合はそこを編集する。_note に調整の経緯）
+ * 数値は src/data/balance/combat/ の "MANA"（変更したい場合はそこを編集する。_note に調整の経緯）
  */
 export const MANA = BALANCE.combat.MANA;
+
+/** 奥義ゲージの溜まり方（1 秒ぶんの振りで溜まる量・射撃の割合・見切り）。src/system/combat.ts の meleeHitEnergy / shotHitEnergy が読む */
+export const ENERGY = BALANCE.combat.ENERGY;
 
 /** 怯み（docs/COMBAT_DESIGN.md D-1）。段階 1 の L3 が読む */
 export const POISE = BALANCE.combat.POISE;
@@ -65,7 +68,7 @@ export const TERRAIN_MUD_SMOKE = BALANCE.combat.TERRAIN_MUD_SMOKE;
 export const TERRAIN_RUBBLE = BALANCE.combat.TERRAIN_RUBBLE;
 
 /**
- * 精鋭修飾子「強欲の」/ 二度突きの猪。数値は src/data/balance/enemies.json の同名ブロック
+ * 精鋭修飾子「強欲の」/ 二度突きの猪。数値は src/data/balance/enemies/ の同名ブロック
  * (src/system/elites.ts / enemyBehaviors.ts が読む)
  */
 export const ELITE_GREEDY = BALANCE.enemies.ELITE_GREEDY;
@@ -103,18 +106,21 @@ export const FEEL = BALANCE.feel.FEEL;
 export const ROOM = BALANCE.world.ROOM;
 
 /**
- * 追加敵の行動パラメータ・敵の攻撃テンポ・エリート修飾子。数値は src/data/balance/enemies.json の同名ブロック
+ * 追加敵の行動パラメータ・敵の攻撃テンポ・エリート修飾子。数値は src/data/balance/enemies/ の同名ブロック
  * (system/enemies.ts / elites.ts / enemyBehaviors.ts / enemyTerrain.ts / enemyWave3.ts が読む)
  */
 export const ENEMY_AI = BALANCE.enemies.ENEMY_AI;
 export const ENEMY_TEMPO = BALANCE.enemies.ENEMY_TEMPO;
 export const ELITE = BALANCE.enemies.ELITE;
 
-/** ボス共通 + 個体別パラメータ。数値は src/data/balance/enemies.json の "BOSS"（各 src/system/boss<Name>.ts が読む） */
+/** ボス共通 + 個体別パラメータ。数値は src/data/balance/enemies/ の "BOSS"（各 src/system/boss<Name>.ts が読む） */
 export const BOSS = BALANCE.enemies.BOSS;
 
-/** 追跡者（Reaper）。数値は src/data/balance/enemies.json の "REAPER"（src/system/reaper.ts / reaperVariants.ts が読む） */
+/** 追跡者（Reaper）。数値は src/data/balance/enemies/ の "REAPER"（src/system/reaper.ts / reaperVariants.ts が読む） */
 export const REAPER = BALANCE.enemies.REAPER;
+
+/** 深度による敵の HP の伸び（src/data/enemies.ts の depthHpScale）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
+export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
 
 /** 部屋の種類（src/system/roomTypes.ts） */
 export const ROOM_KIND = BALANCE.world.ROOM_KIND;
@@ -128,6 +134,8 @@ export const FLOOR_KIND = BALANCE.world.FLOOR_KIND;
  * fillChance が低いほど開けて、高いほど細い道が増える
  */
 export const CAVE = BALANCE.world.CAVE;
+/** マップの大きさ（面積の倍率の抽選。src/map/generator.ts の scaleGeneratorOptions） */
+export const MAP_SIZE = BALANCE.world.MAP_SIZE;
 
 /** 開放型フロアの徘徊と増援（src/system/spawner.ts）。塊に置いた敵の一部が塊の間を歩き回り、時間で少しずつ増える */
 export const ROAM = BALANCE.world.ROAM;
@@ -142,7 +150,7 @@ export const LINGER = BALANCE.world.LINGER;
 export const ORIGIN = BALANCE.world.ORIGIN;
 
 /** ジョブ（src/data/jobs.ts / src/system/jobs.ts。docs/COMBAT_DESIGN.md A-9） */
-/** ジョブ固有の数値（docs/COMBAT_DESIGN.md A-9）。定義元は src/data/balance/jobs.json の JOB */
+/** ジョブ固有の数値（docs/COMBAT_DESIGN.md A-9）。定義元は src/data/balance/jobs/ の JOB */
 export const JOB = BALANCE.jobs.JOB;
 
 /** メタ進行（図鑑・依頼・実績。src/meta/）。ゲーム進行には効かない */
@@ -159,8 +167,8 @@ export const MINIMAP = BALANCE.feel.MINIMAP;
 
 /**
  * アクション手触り（docs/ideas/action-feel.md「まず入れるべき 5 つ」+ 壁叩きつけ・ダッシュ攻撃）。
- * 数値・色は src/data/balance/combat.json の "ACTION"、表示文言（浮き文字）は src/data/actionText.ts。
- * dashAttack（ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃）は balance/weapons.json の ACTION_DASH_ATTACK
+ * 数値・色は src/data/balance/combat/ の "ACTION"、表示文言（浮き文字）は src/data/actionText.ts。
+ * dashAttack（ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃）は balance/weapons/ の ACTION_DASH_ATTACK
  */
 export const ACTION = {
   counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
@@ -181,14 +189,14 @@ export const BOON = BALANCE.boons.BOON;
  * 剣（sword）と単発（single）の威力・形は PLAYER.melee / ACTION.dashAttack / PLAYER.shoot をそのまま使う。
  * 威力の scaling は基礎値（各 5）で剣の秒間期待値から大きく離れないよう揃え、
  * 差は「形・リーチ・怯み値・マナ回収・移動」で付ける（単一最強を作らない）。
- * 定義元は src/data/balance/weapons.json の WEAPON（shape.kind / art.throw.shot は union 文字列なので
+ * 定義元は src/data/balance/weapons/ の WEAPON（shape.kind / art.throw.shot は union 文字列なので
  * src/data/weapons.ts の hitShape() / shotKeyOf() で絞る。docs/ideas/data-externalization.md 6.6）
  */
 export const WEAPON = BALANCE.weapons.WEAPON;
 
 /**
  * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3 章）の共通値と奥義ごとの行為の数値。
- * 定義元は src/data/balance/ultimates.json の ULTIMATE。組み立ては src/data/ultimates.ts
+ * 定義元は src/data/balance/ultimates/ の ULTIMATE。組み立ては src/data/ultimates.ts
  */
 export const ULTIMATE = BALANCE.ultimates.ULTIMATE;
 
@@ -200,7 +208,7 @@ export const GENRE = BALANCE.combat.GENRE;
 /**
  * 属性（docs/COMBAT_DESIGN.md A-8）。耐性は %、正で軽減・負で弱点。
  * プレイヤーの耐性は resistKnee を超えた分を resistSlope で鈍らせ、resistMax で止める（ソフトキャップ）。
- * 数値・色は src/data/balance/combat.json の "ELEMENT"。表示文字列（localizer の領分）だけ TS に残す
+ * 数値・色は src/data/balance/combat/ の "ELEMENT"。表示文字列（localizer の領分）だけ TS に残す
  */
 export const ELEMENT = {
   ...BALANCE.combat.ELEMENT,
