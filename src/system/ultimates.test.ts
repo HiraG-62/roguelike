@@ -526,3 +526,15 @@ describe("持続の奥義の手応え", () => {
     expect(mNear, "密着で pointBlank.mul に近い").toBeGreaterThan(1 + (pb.mul - 1) * 0.8);
   });
 });
+
+describe("持続の奥義の必要量", () => {
+  it("必要量の低い持続は、満タンから出しても必要量ぶんのゲージで続く", () => {
+    const state = ready("cleaver.asura");
+    const cost = def("cleaver.asura").cost;
+    expect(cost, "必要量が上限より低い奥義で確かめる").toBeLessThan(state.player.maxEnergy);
+    state.player.energy = state.player.maxEnergy;
+    tryUltimate(state);
+    expect(state.player.ultimate.active, "持続が始まる").not.toBeNull();
+    expect(state.player.energy, "残りは必要量まで").toBeLessThanOrEqual(cost);
+  });
+});

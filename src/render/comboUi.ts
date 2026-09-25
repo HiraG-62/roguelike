@@ -16,6 +16,7 @@ import {
 import { FEEL, WEAPON } from "../data/tuning";
 import { currentShot, isAttacking, nextLaneIndex, plannedInputs, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
+import { shapeMoveset } from "../skills/forms";
 import { hudLayoutFor } from "./layers";
 import { TEXT, drawText, textLineHeight, truncateText } from "./pixelText";
 import type { HudLayout } from "./renderMath";
@@ -132,7 +133,9 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, la
     return;
   }
 
-  drawText(ctx, truncateText(movesetLabel(moveset, state.stats.unarmed), maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
+  // 素手の名前は装備の型のときだけ（変身中は変身の名前。変身の型の key は装備の武器種のままなので key では区別できない）
+  const unarmed = state.stats.unarmed && shapeMoveset(state) === null;
+  drawText(ctx, truncateText(movesetLabel(moveset, unarmed), maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
   const gauge = activeChargeGauge(state, moveset);
   if (gauge) drawGauge(ctx, cx, bottom - line, gauge);
   else drawPips(ctx, cx, bottom - line, comboPips(pipCount(moveset), p.attack.step, isAttacking(p) || p.attack.step > 0));

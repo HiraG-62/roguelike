@@ -504,6 +504,8 @@ function runDetonate(state: GameState, damageMul: number): void {
 function startSustain(state: GameState, def: SustainUltimate): void {
   if (state.skills.shape) endShape(state, "manual");
   const u = state.player.ultimate;
+  // 持続は必要量（cost）ぶんのゲージを使い切るまで続く。cost の低い持続が満タンから出して長く続かないように
+  state.player.energy = Math.min(state.player.energy, def.cost);
   u.active = def.key;
   u.elapsed = 0;
   u.kills = 0;

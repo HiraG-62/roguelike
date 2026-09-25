@@ -916,8 +916,9 @@ function startBranch(state: GameState, index: number): void {
   // 派生のレーンは最後に押したボタン（Rule の lane 条件・終撃の判定が読む）
   const lane = branch.sequence[branch.sequence.length - 1] ?? "primary";
   beginSwing(state, { step: state.player.attack.step, dashStrike: false, chargeLevel: 0, branch: index, combo, lane });
-  // 派生が出たら列を捨てる（次の派生は派生の後に実際に出た段から数え直す）
-  state.player.attack.inputs.length = 0;
+  // 派生が出たら列を捨てる（次の派生は派生の後に実際に出た段から数え直す）。
+  // 構えを離した振り（art: release）は構えの右（beginHold で積んだ段）の続きなので捨てない（右右左の派生が構えから繋がる）
+  if (branch.art !== "release") state.player.attack.inputs.length = 0;
   // 弾・付随効果は振り始めに出す（予約のまま捨てられた派生では出さない）
   onBranchStart(state, branch);
   // 派生成立の合図（docs/ideas/combat-feel-design.md D-1）
@@ -1677,7 +1678,8 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       // 右レーンの弾（魔弾の光など）は段の素性を持つ。無ければ elementCombat が stats.bullet から引く
       ...(override.attack ? { attack: override.attack } : {}),
       ...(override.sprite ? { sprite: override.sprite } : {}),
-      ...(override.energy !== undefined ? { energy: override.energy } : {}),
+      // 周回する弾は 1 周ごとに当て直すので、持続の奥義が終わった後に奥義ゲージを溜め直させない
+      ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
     });
   }

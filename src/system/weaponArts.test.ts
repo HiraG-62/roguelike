@@ -188,6 +188,19 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     expect(actionCooldownLeft(state, MOVESETS.shield.steps2[0]), "構えの再使用は離したときに立つ").toBeGreaterThan(0);
   });
 
+  it("構えを離した盾押しの後も、構えの右は派生の列に残る（右右左の城壁が出る）", () => {
+    const state = arena(5, { moveset: "shield" });
+    play(state, [...holdRight(10), {}]);
+    expect(branchKey(state), "盾押し").toBe("guard.release");
+    expect(state.player.attack.inputs, "構えの右は出た段として残る").toEqual(["secondary"]);
+    untilActive(state);
+    play(state, [{ shootHeld: true }]);
+    untilActive(state);
+    play(state, [{ attackPressed: true }]);
+    for (let i = 0; i < SETTLE_STEPS && branchKey(state) !== "rampart"; i++) step(state, withInput({}), FIXED_DT);
+    expect(branchKey(state), "右（構え）・右・左で城壁").toBe("rampart");
+  });
+
   it("斧の投擲は戻る弾を出して段を進め、再使用が明ける前は出ない", () => {
     const state = arena(5, { moveset: "axe" });
     play(state, [{ shootHeld: true }, {}]);
