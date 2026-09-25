@@ -1,0 +1,53 @@
+{
+  "_note": "双剣の武器技（skills/arts/blades.ts）。手数と出血で崩す。技巧を主に参照する",
+  "twinBladesBladeDance": {
+    "cost": 21, "minInterval": 0.6, "poise": 5,
+    "dance": { "radius": 30, "hits": 5, "damage": { "base": 3.6, "dex": 0.5 }, "knockback": 20 }
+  },
+  "twinBladesShadowRush": {
+    "cooldown": 7, "minInterval": 0.5, "poise": 16,
+    "rush": { "distance": 60, "width": 16, "invuln": 0.2, "damage": { "base": 6, "dex": 0.8 }, "knockback": 20 },
+    "back": { "delay": 0.15, "reach": 28, "deg": 120, "damage": { "base": 10, "dex": 1.4 }, "knockback": 80 }
+  },
+  "twinBladesCrossThrow": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "t1": { "count": 1, "spreadDeg": -15, "speed": 200, "life": 0.6, "bulletRadius": 5, "bounces": 2, "damage": { "base": 8, "dex": 1.0 }, "knockback": 40 },
+    "t2": { "count": 1, "spreadDeg": 15, "speed": 200, "life": 0.6, "bulletRadius": 5, "bounces": 2, "damage": { "base": 8, "dex": 1.0 }, "knockback": 40 }
+  },
+  "twinBladesFlurry": {
+    "cost": 20, "minInterval": 0.6, "poise": 4,
+    "flurry": { "reach": 30, "deg": 70, "hits": 6, "damage": { "base": 2.4, "dex": 0.4 }, "knockback": 15 }
+  },
+  "twinBladesBleedEdge": {
+    "cost": 16, "minInterval": 0.5, "poise": 12,
+    "edge": { "reach": 30, "deg": 90, "damage": { "base": 9, "dex": 1.0 }, "knockback": 50, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } }
+  },
+  "twinBladesVenomKiss": {
+    "cost": 17, "minInterval": 0.55, "poise": 10,
+    "kiss": { "length": 40, "width": 14, "damage": { "base": 8, "dex": 0.6, "spi": 0.6 }, "knockback": 40, "poison": { "stacks": 2, "duration": 5, "potency": 1.4, "ratio": { "spi": 0.04 } } }
+  },
+  "twinBladesBackstab": {
+    "cooldown": 8, "minInterval": 0.5, "poise": 20, "range": 130,
+    "jump": {},
+    "stab": { "delay": 0.12, "reach": 30, "deg": 100, "damage": { "base": 14, "dex": 1.8 }, "knockback": 90 }
+  },
+  "twinBladesWhirlDash": {
+    "cooldown": 7, "minInterval": 0.5, "poise": 14,
+    "whirl": { "distance": 90, "width": 24, "damage": { "base": 9, "dex": 1.2 }, "knockback": 50, "invuln": 0.15 }
+  },
+  "twinBladesAfterimage": {
+    "cooldown": 12, "minInterval": 0.4, "poise": 0,
+    "leap": { "distance": -70, "width": 16, "invuln": 0.25 },
+    "after": { "duration": 4, "self": { "haste": { "stacks": 1, "duration": 4, "potency": 0 } } }
+  },
+  "twinBladesReap": {
+    "cost": 22, "minInterval": 0.6, "poise": 22,
+    "reap": { "reach": 34, "deg": 110, "damage": { "base": 14, "dex": 1.6 }, "knockback": 100, "vsMul": 1.8 }
+  },
+  "twinBladesTempest": {
+    "cost": 24, "minInterval": 0.7, "poise": 8, "range": 120,
+    "s1": { "radius": 28, "damage": { "base": 6, "dex": 0.6 }, "knockback": 20 },
+    "s2": { "delay": 0.2, "radius": 28, "damage": { "base": 6, "dex": 0.6 }, "knockback": 20 },
+    "s3": { "delay": 0.4, "radius": 32, "damage": { "base": 8, "dex": 0.8 }, "knockback": 100 }
+  }
+}

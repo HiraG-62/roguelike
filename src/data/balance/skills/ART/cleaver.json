@@ -1,0 +1,50 @@
+{
+  "_note": "鉈の武器技（skills/arts/blades.ts）。重く叩きつけ、壁と崩勢を絡める。筋力を主に参照する",
+  "cleaverChop": {
+    "cost": 19, "minInterval": 0.6, "poise": 34,
+    "chop": { "length": 46, "width": 20, "damage": { "base": 17, "str": 2.2 }, "knockback": 150, "heavy": true }
+  },
+  "cleaverHack": {
+    "cost": 24, "minInterval": 0.75, "poise": 10,
+    "h1": { "reach": 32, "deg": 90, "damage": { "base": 5, "str": 0.6 }, "knockback": 40 },
+    "h2": { "delay": 0.15, "reach": 32, "deg": 90, "damage": { "base": 5, "str": 0.6 }, "knockback": 40 },
+    "h3": { "delay": 0.3, "reach": 32, "deg": 90, "damage": { "base": 5, "str": 0.6 }, "knockback": 40 },
+    "h4": { "delay": 0.45, "reach": 36, "deg": 100, "damage": { "base": 8, "str": 1.0 }, "knockback": 110, "heavy": true }
+  },
+  "cleaverThrow": {
+    "cost": 17, "minInterval": 0.5, "poise": 12,
+    "toss": { "count": 1, "spreadDeg": 0, "speed": 190, "life": 0.8, "bulletRadius": 8, "bounces": 3, "damage": { "base": 10, "str": 1.2 }, "knockback": 70 }
+  },
+  "cleaverButcher": {
+    "cost": 20, "minInterval": 0.6, "poise": 22,
+    "cut": { "length": 44, "width": 18, "damage": { "base": 13, "str": 1.6 }, "knockback": 90, "vsMul": 1.7, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "str": 0.03 } } }
+  },
+  "cleaverShoulder": {
+    "cooldown": 10, "minInterval": 0.5, "poise": 28,
+    "charge": { "distance": 95, "width": 24, "damage": { "base": 16, "str": 2.0 }, "knockback": 200, "heavy": true, "invuln": 0.2 }
+  },
+  "cleaverQuake": {
+    "cost": 22, "minInterval": 0.65, "poise": 18,
+    "quake": { "radius": 38, "damage": { "base": 12, "str": 1.4 }, "knockback": 120, "terrainRadius": 26 }
+  },
+  "cleaverBerserk": {
+    "cooldown": 17, "minInterval": 0.3, "poise": 0,
+    "rage": { "duration": 6, "damageMul": 1.3, "self": { "wrath": { "stacks": 1, "duration": 6, "potency": 0 } } }
+  },
+  "cleaverSever": {
+    "cost": 21, "minInterval": 0.65, "poise": 24,
+    "end": { "length": 52, "width": 20, "damage": { "base": 15, "str": 1.8 }, "knockback": 110, "execute": 0.2 }
+  },
+  "cleaverWhirl": {
+    "cost": 23, "minInterval": 0.7, "poise": 10,
+    "whirl": { "radius": 36, "hits": 3, "damage": { "base": 6, "str": 0.8 }, "knockback": 60 }
+  },
+  "cleaverBoneCrush": {
+    "cost": 20, "minInterval": 0.6, "poise": 36,
+    "crush": { "length": 44, "width": 22, "damage": { "base": 14, "str": 1.6 }, "knockback": 160, "heavy": true, "broken": { "stacks": 1, "duration": 6, "potency": 0 } }
+  },
+  "cleaverRend": {
+    "cost": 18, "minInterval": 0.55, "poise": 16,
+    "rend": { "reach": 32, "deg": 95, "damage": { "base": 9, "str": 1.0 }, "knockback": 60, "bleed": { "stacks": 2, "duration": 6, "potency": 1, "ratio": { "str": 0.03 } } }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "_note": "大剣の武器技（skills/arts/blades.ts）。広く重い一撃で崩す。筋力を主に参照する",
+  "greatswordEarthCleave": {
+    "cost": 20, "minInterval": 0.6, "poise": 30,
+    "cleave": { "length": 72, "width": 24, "damage": { "base": 20, "str": 3.4 }, "knockback": 130, "heavy": true, "terrainRadius": 22 }
+  },
+  "greatswordGiantSwing": {
+    "cost": 22, "minInterval": 0.65, "poise": 12,
+    "spin": { "radius": 40, "hits": 2, "damage": { "base": 9, "str": 1.2 }, "knockback": 80 }
+  },
+  "greatswordLeapSlam": {
+    "cooldown": 9, "minInterval": 0.5, "poise": 26,
+    "leap": { "distance": 70, "width": 20, "damage": { "base": 10, "str": 1.0 }, "knockback": 40, "invuln": 0.2 },
+    "slam": { "delay": 0.15, "radius": 36, "damage": { "base": 14, "str": 1.8 }, "knockback": 150, "heavy": true }
+  },
+  "greatswordCrescent": {
+    "cost": 24, "minInterval": 0.7, "poise": 20,
+    "cres": { "reach": 42, "deg": 220, "damage": { "base": 15, "str": 2.0 }, "knockback": 100 }
+  },
+  "greatswordGuardBreak": {
+    "cost": 19, "minInterval": 0.6, "poise": 32,
+    "break": { "length": 50, "width": 20, "damage": { "base": 22, "str": 2.6 }, "knockback": 140, "heavy": true, "broken": { "stacks": 1, "duration": 6, "potency": 0 } }
+  },
+  "greatswordWindCutter": {
+    "cost": 21, "minInterval": 0.6, "poise": 14,
+    "wave": { "count": 1, "spreadDeg": 0, "speed": 150, "life": 0.9, "bulletRadius": 12, "pierce": 6, "damage": { "base": 24, "str": 2.2 }, "knockback": 90 }
+  },
+  "greatswordRampage": {
+    "cost": 26, "minInterval": 0.8, "poise": 10,
+    "r1": { "reach": 36, "deg": 100, "damage": { "base": 9, "str": 1.0 }, "knockback": 60 },
+    "r2": { "delay": 0.28, "reach": 36, "deg": 100, "damage": { "base": 9, "str": 1.0 }, "knockback": 60 },
+    "r3": { "delay": 0.56, "reach": 40, "deg": 110, "damage": { "base": 12, "str": 1.4 }, "knockback": 140, "heavy": true }
+  },
+  "greatswordIronWill": {
+    "cooldown": 16, "minInterval": 0.3, "poise": 0,
+    "stand": { "duration": 6, "self": { "harden": { "stacks": 1, "duration": 6, "potency": 0 } } }
+  },
+  "greatswordBeheader": {
+    "cost": 22, "minInterval": 0.65, "poise": 24,
+    "head": { "reach": 38, "deg": 110, "damage": { "base": 18, "str": 2.0 }, "knockback": 110, "execute": 0.2 }
+  },
+  "greatswordSwordPressure": {
+    "cost": 18, "minInterval": 0.55, "poise": 16,
+    "burst": { "delay": 0.3, "ahead": 60, "radius": 30, "damage": { "base": 11, "str": 1.2 }, "knockback": 100 }
+  },
+  "greatswordBoarRush": {
+    "cooldown": 11, "minInterval": 0.5, "poise": 30,
+    "rush": { "distance": 110, "width": 26, "damage": { "base": 20, "str": 2.4 }, "knockback": 220, "heavy": true, "invuln": 0.2 }
+  }
+}
