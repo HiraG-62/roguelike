@@ -7,13 +7,16 @@
  */
 import type { Enemy, GameState, Particle, Projectile, ShapeFx } from "../core/state";
 import { ELEMENT_FX_COLOR, deathColor, hitElement, isBlastShape } from "../system/effects";
-import { currentMeleeStep, isAttacking } from "../system/player";
+import { currentMeleeStep, isAttacking, playerMoveset } from "../system/player";
 import { FX_ATTACK, STATUS } from "../data/tuning";
 import { type BulletFeature, type HitShape, bulletFeatures } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { COLOR_THUNDER } from "../skills/placed";
 import type { GameMap } from "../map/grid";
 import { critFlashActive } from "./effectsUi";
+import type { FxSheetKey } from "../data/fxSheets.gen";
+import { type FxRampKey, type FxSpriteBank, lifeFrame, sheetDef } from "./fxSprites";
+import { MOVESET_FX, rampOfElement } from "./fxMotions";
 import { clamp01, easeOutCubic, hash01, swingSign } from "./renderMath";
 import {
   type Point,
@@ -73,6 +76,9 @@ interface FxEvent {
   seed: number;
   crit: boolean;
   style: BulletStyle;
+  /** 武器種の専用スプライト（命中）。無ければ手続きの描画 */
+  sheet?: FxSheetKey;
+  ramp?: FxRampKey;
 }
 
 interface Scorch {
@@ -204,6 +210,7 @@ function onEnemyHit(state: GameState, layer: Layer, e: Enemy): void {
     ev.color = crit ? c.critColor : hitColor(state, true);
     ev.crit = crit || weak;
     ev.seed += e.id * 7;
+    attachHitSprite(state, ev, melee.heavy || crit || weak, crit);
     pushEvent(layer, ev);
     return;
   }
@@ -213,6 +220,16 @@ function onEnemyHit(state: GameState, layer: Layer, e: Enemy): void {
   ev.crit = crit || weak;
   ev.seed += e.id * 7;
   pushEvent(layer, ev);
+}
+
+/** 武器種に命中のスプライトがあれば、重さでシートを選び、寿命をスプライトの時間に合わせる。会心は金の配色 */
+function attachHitSprite(state: GameState, ev: FxEvent, heavy: boolean, crit: boolean): void {
+  const fx = MOVESET_FX[playerMoveset(state).key];
+  if (!fx) return;
+  const s = FX_ATTACK.sprite;
+  ev.sheet = heavy ? fx.hitHeavy : fx.hit;
+  ev.life = heavy ? s.hitHeavyLife : s.hitLife;
+  ev.ramp = crit ? "light" : rampOfElement(hitElement(state, "melee", false));
 }
 
 function onEnemyGone(state: GameState, layer: Layer, id: number, pos: { x: number; y: number }): void {
@@ -505,14 +522,14 @@ function drawMuzzle(ctx: CanvasRenderingContext2D, ev: FxEvent, age: number, glo
 }
 
 /** 命中の斬り裂き線・着弾・銃口の閃光。粒・文字より先、形（輪・線）の後に描く */
-export function drawAttackAir(ctx: CanvasRenderingContext2D, state: GameState, glow: GlowFn): void {
+export function drawAttackAir(ctx: CanvasRenderingContext2D, state: GameState, glow: GlowFn, bank?: FxSpriteBank): void {
   const layer = syncLayer(state);
   for (const ev of layer.events) {
     const age = state.time - ev.born;
     if (age < 0 || age >= ev.life) continue;
     switch (ev.kind) {
       case "slashSpark":
-        drawSlashSpark(ctx, ev, age, glow);
+        if (!drawEventSprite(ctx, ev, age, bank)) drawSlashSpark(ctx, ev, age, glow);
         break;
       case "impact":
         drawImpact(ctx, ev, age, glow);
@@ -528,6 +545,26 @@ export function drawAttackAir(ctx: CanvasRenderingContext2D, state: GameState, g
   ctx.globalAlpha = 1;
   ctx.lineWidth = 1;
   ctx.globalCompositeOperation = SOURCE_OVER;
+}
+
+/** 命中のスプライト（読み込み済みで、武器種に専用の絵があるときだけ）。描けたら true */
+function drawEventSprite(ctx: CanvasRenderingContext2D, ev: FxEvent, age: number, bank: FxSpriteBank | undefined): boolean {
+  if (!bank || !ev.sheet || !bank.has(ev.sheet)) return false;
+  const frame = lifeFrame(sheetDef(ev.sheet).frames, age, ev.life);
+  if (frame === null) return true;
+  return bank.draw(ctx, ev.sheet, frame, ev.x, ev.y, ev.angle, { ramp: ev.ramp ?? "steel" });
+}
+
+/** 受け流しの成功の印（system/weaponArts.ts の tryParry が置く）を、武器種の専用スプライトで描く */
+export function drawParryMarks(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank): void {
+  const sheet = MOVESET_FX[playerMoveset(state).key]?.parry;
+  const marks = state.effects?.marks;
+  if (!sheet || !marks || !bank.has(sheet)) return;
+  for (const m of marks) {
+    if (m.kind !== "parry") continue;
+    const frame = lifeFrame(sheetDef(sheet).frames, m.age, m.life);
+    if (frame !== null) bank.draw(ctx, sheet, frame, m.pos.x, m.pos.y, 0, { ramp: "steel" });
+  }
 }
 
 // -----------------------------------------------------------------------------

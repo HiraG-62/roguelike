@@ -474,6 +474,7 @@ import j_feel_FX_ATTACK_blast from "./feel/FX_ATTACK/blast.json";
 import j_feel_FX_ATTACK_ring from "./feel/FX_ATTACK/ring.json";
 import j_feel_FX_ATTACK_bolt from "./feel/FX_ATTACK/bolt.json";
 import j_feel_FX_ATTACK_particle from "./feel/FX_ATTACK/particle.json";
+import j_feel_FX_ATTACK_sprite from "./feel/FX_ATTACK/sprite.json";
 import j_feel_MUSIC from "./feel/MUSIC.json";
 import j_feel_FX_WAVE3 from "./feel/FX_WAVE3.json";
 import j_feel_SFX_WAVE3 from "./feel/SFX_WAVE3.json";
@@ -1505,6 +1506,7 @@ export const feel = {
     "ring": j_feel_FX_ATTACK_ring,
     "bolt": j_feel_FX_ATTACK_bolt,
     "particle": j_feel_FX_ATTACK_particle,
+    "sprite": j_feel_FX_ATTACK_sprite,
   },
   "MUSIC": j_feel_MUSIC,
   "FX_WAVE3": j_feel_FX_WAVE3,
@@ -2651,6 +2653,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/FX_ATTACK/particle.json",
   "feel/FX_ATTACK/ring.json",
   "feel/FX_ATTACK/slash.json",
+  "feel/FX_ATTACK/sprite.json",
   "feel/FX_WAVE3.json",
   "feel/MINIMAP.json",
   "feel/MUSIC.json",

@@ -240,6 +240,8 @@ let dropInfoHintTimer = 0;
 const renderer = new Renderer(canvas);
 // PNG 取り込み（未ロード中はピクセルマップのまま。フォントの読み込みと同じ流儀でループを待たない）
 void loadImageAtlas(TILE_SPRITES, SHEETS).then((atlas) => renderer.setAtlas(atlas));
+// エフェクトのスプライト（docs/ideas/fx-sprites.md）。読めるまでは手続きの描画
+void renderer.loadFxSprites();
 const inventoryUi = createInventoryUi();
 const sfx = new SfxPlayer();
 let lastAim: { x: number; y: number } | null = null;

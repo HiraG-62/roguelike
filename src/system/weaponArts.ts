@@ -2,7 +2,7 @@ import type { FrameInput } from "../core/input";
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
 import { enemyTarget, pushEvent } from "../core/events";
-import { WEAPON } from "../data/tuning";
+import { FX_ATTACK, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
   type AimArtDef,
@@ -20,7 +20,7 @@ import {
 } from "../data/weapons";
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
-import { addFloatingText, spawnBurst } from "./effects";
+import { addFloatingText, addMark, spawnBurst } from "./effects";
 import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
 import { addPoise } from "./poise";
 import { onTraitCounter } from "./traitHooks";
@@ -280,6 +280,7 @@ export function tryParry(state: GameState, attacker?: Enemy): boolean {
   p.invulnTimer = Math.max(p.invulnTimer, A.parryInvuln);
   addFloatingText(state, p.body.pos, A.parryText, A.parryColor, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, A.parryColor, A.parryParticles, FX_SPEED, FX_LIFE, FX_SIZE);
+  addMark(state, "parry", p.body.pos, FX_ATTACK.sprite.parryLife, A.parryColor);
   pushSfx(state, "counter");
   if (attacker && attacker.hp > 0) counterAttacker(state, attacker, parry.staggerPoise);
   return true;

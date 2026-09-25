@@ -1,0 +1,10 @@
+{
+  "_note": "エフェクトのスプライトの配色（docs/ideas/fx-sprites.md 3.1）。段 1〜7（暗 → 明）の色。PNG は段の番号だけを持ち、実行時にこの表で色へ写す。steel は属性の無い物理、他は属性（core/element.ts の Element）",
+  "steel": ["#161c38", "#243a6a", "#34609c", "#4c92c8", "#7cc6ea", "#bdeefc", "#ffffff"],
+  "fire": ["#3a0c10", "#7c1812", "#c4351a", "#ec661c", "#ffa134", "#ffdf78", "#fffbe0"],
+  "ice": ["#10204a", "#1c4488", "#2c78c2", "#52aee8", "#98deff", "#d4f6ff", "#ffffff"],
+  "lightning": ["#241c4c", "#44369a", "#7466dc", "#b4a4ff", "#fff070", "#fffab4", "#ffffff"],
+  "poison": ["#14260c", "#2a4e12", "#48881a", "#70be2e", "#a4e650", "#dafe9e", "#f8fff0"],
+  "dark": ["#10061c", "#280e42", "#4a1c78", "#7838b6", "#ae6efe", "#dcb0ff", "#fff0ff"],
+  "light": ["#48320e", "#88621e", "#c69836", "#eec65e", "#ffe898", "#fff8d0", "#ffffff"]
+}
