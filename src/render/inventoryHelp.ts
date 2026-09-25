@@ -1,4 +1,5 @@
 import { SKILL_ACTIONS, actionKeyLabel, keyLabel } from "../core/input";
+import { padSkillKeysLabel } from "../core/padBinds";
 import { VIEW_H, VIEW_W } from "../core/view";
 import type { InventoryTab } from "../ui/inventory";
 import { ECHO_HELP } from "./echoTabUi";
@@ -66,7 +67,7 @@ function skillsHelp(): TipLine[] {
     body("刻印符 クリック / ↑↓+決定: 選択中のスロットの石に付け外し  Shift+クリック: 捨てる"),
     detailPageLine(),
     head("スキルのキー"),
-    dim(`${slotKeys}  パッド: LB を押しながら A X Y B`),
+    dim(`${slotKeys}  パッド: ${padSkillKeysLabel()}`),
     dim(TIPS_POINTER),
   ];
 }

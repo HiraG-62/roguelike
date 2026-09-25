@@ -83,6 +83,8 @@
 | 音量 / 音楽の音量 / 画面揺れ / ミュート | volume / musicVolume / screenShake / muted | 設定画面の項目。音楽の実際の大きさは 音量 × 音楽の音量。ミュートは効果音と音楽の両方を止める | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` SETTINGS_LABEL、`ui/settings.ts` |
 | ヒットストップ / アイテム情報 | hitstopScale / dropTooltip | 設定画面の項目。ヒットストップは打撃が止まる強さ（0..1、0.25 刻み、0 で無効）。アイテム情報は床のアイテムの性能ポップアップの表示 ON/OFF（キー設定の `toggleDropInfo`、既定 T） | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` SETTINGS_LABEL、`ui/settings.ts`、`core/input.ts` |
 | キー設定 | keybinds | 設定画面の項目とサブ画面。アクションごとのキー / マウスボタンの割り当て | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` |
+| パッド設定 | padBinds | 設定画面の項目とサブ画面（キー設定の画面を共用）。アクションごとのパッドのボタン / 組み合わせ（"LB+A"）の割り当て | `core/padBinds.ts`、`ui/title.ts` PADBINDS_ROWS、`render/titleUi.ts` |
+| パッドの照準 | aimDevice（`PlayerInput`） | パッドで操作中は右スティックの向き、離すと移動の向き。マウスを触るとカーソルの照準へ戻る | `core/input.ts` |
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
 | やり直す | restart | 探索を新しいシードでやり直す操作（キー設定の行名は「やり直す（新シード）」、ポーズの項目も「やり直す」） | `render/titleUi.ts` ACTION_LABEL / PAUSE_LABEL |
 | キー表記 | `keyLabel` / `moveKeyLabel` | 表示文字列にキー名を直書きしない。案内のキーは現在のキー設定から組む（`core/input.ts`）。説明文（スキル・祝福など）ではキー名ではなくアクション名（攻撃 1 / 攻撃 2 / 奥義 / ダッシュ）で書く。検査は `ui/keyLabels.test.ts` | `core/input.ts` |

@@ -12,6 +12,7 @@ export const SAVE_FILES: Readonly<Record<string, string>> = {
   "roguelike.craft.v1": "craft.json",
   "roguelike.settings.v1": "settings.json",
   "roguelike.keybinds.v1": "keybinds.json",
+  "roguelike.padbinds.v1": "padbinds.json",
   "roguelike.replays.v1": "replays.json",
   "roguelike.codex.v1": "codex.json",
   "roguelike.quests.v1": "quests.json",

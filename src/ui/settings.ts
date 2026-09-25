@@ -1,8 +1,9 @@
 import { saveStorage } from "../save/backend";
 import { defaultKeybinds, sanitizeKeybinds, type Keybinds } from "../core/input";
+import { defaultPadBinds, sanitizePadBinds, type PadBinds } from "../core/padBinds";
 
 /**
- * 設定（mute / volume / 音楽の音量 / screen shake / キー設定）。save/backend.ts の保存先に永続化する（キー設定だけは別キー）。
+ * 設定（mute / volume / 音楽の音量 / screen shake / キー設定 / パッド設定）。save/backend.ts の保存先に永続化する（キー設定とパッド設定は別キー）。
  * profile.ts の loadProfile / saveProfile と同じパターン: 壊れたデータは黙ってデフォルトへ落とす。
  */
 
@@ -24,11 +25,15 @@ export interface Settings {
   dropTooltip: boolean;
   /** キー設定。KEYBINDS_KEY に別保存する。どちらにも無ければ既定 */
   keybinds: Keybinds;
+  /** パッドのボタン設定。PADBINDS_KEY に別保存する。無ければ既定 */
+  padBinds: PadBinds;
 }
 
 export const SETTINGS_KEY = "roguelike.settings.v1";
 /** キー設定は単独のファイル（Electron 版の keybinds.json）にするため settings から分離した別キー */
 export const KEYBINDS_KEY = "roguelike.keybinds.v1";
+/** パッドのボタン設定もキー設定と同じ理由で別キー（Electron 版の padbinds.json） */
+export const PADBINDS_KEY = "roguelike.padbinds.v1";
 
 const CURRENT_VERSION = 1;
 export const DEFAULT_VOLUME = 0.5;
@@ -64,6 +69,7 @@ export function defaultSettings(): Settings {
     hitstopScale: DEFAULT_HITSTOP_SCALE,
     dropTooltip: DEFAULT_DROP_TOOLTIP,
     keybinds: defaultKeybinds(),
+    padBinds: defaultPadBinds(),
   };
 }
 
@@ -93,7 +99,8 @@ export function loadSettings(storage?: Storage): Settings {
   // キー設定は別キー。まだ分離前の保存なら旧 settings に埋め込まれた分を読む（次の保存で分離される）
   const keybindsSave = readVersioned(target, KEYBINDS_KEY);
   const keybinds = sanitizeKeybinds(keybindsSave ? keybindsSave.keybinds : parsed?.keybinds);
-  if (!parsed) return { ...defaultSettings(), keybinds };
+  const padBinds = sanitizePadBinds(readVersioned(target, PADBINDS_KEY)?.padBinds);
+  if (!parsed) return { ...defaultSettings(), keybinds, padBinds };
 
   const muted = typeof parsed.muted === "boolean" ? parsed.muted : false;
   const volume = typeof parsed.volume === "number" ? clamp01(parsed.volume) : DEFAULT_VOLUME;
@@ -101,16 +108,17 @@ export function loadSettings(storage?: Storage): Settings {
   const screenShake = typeof parsed.screenShake === "number" ? clamp01(parsed.screenShake) : DEFAULT_SCREEN_SHAKE;
   const hitstopScale = typeof parsed.hitstopScale === "number" ? clampHitstopScale(parsed.hitstopScale) : DEFAULT_HITSTOP_SCALE;
   const dropTooltip = typeof parsed.dropTooltip === "boolean" ? parsed.dropTooltip : DEFAULT_DROP_TOOLTIP;
-  return { muted, volume, musicVolume, screenShake, hitstopScale, dropTooltip, keybinds };
+  return { muted, volume, musicVolume, screenShake, hitstopScale, dropTooltip, keybinds, padBinds };
 }
 
 export function saveSettings(settings: Settings, storage?: Storage): void {
   const target = storage ?? saveStorage();
   if (!target) return;
-  const { keybinds, ...rest } = settings;
+  const { keybinds, padBinds, ...rest } = settings;
   try {
     target.setItem(SETTINGS_KEY, JSON.stringify({ version: CURRENT_VERSION, ...rest }));
     target.setItem(KEYBINDS_KEY, JSON.stringify({ version: CURRENT_VERSION, keybinds }));
+    target.setItem(PADBINDS_KEY, JSON.stringify({ version: CURRENT_VERSION, padBinds }));
   } catch (err) {
     console.warn("saveSettings failed", err);
   }
@@ -170,4 +178,9 @@ export function toggleDropTooltip(settings: Settings): void {
 /** キー設定だけを既定に戻す（音量などは残す） */
 export function resetKeybinds(settings: Settings): void {
   settings.keybinds = defaultKeybinds();
+}
+
+/** パッドのボタン設定だけを既定に戻す */
+export function resetPadBinds(settings: Settings): void {
+  settings.padBinds = defaultPadBinds();
 }

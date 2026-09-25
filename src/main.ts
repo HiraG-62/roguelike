@@ -9,6 +9,7 @@ import { bossEnemy } from "./system/boss";
 import { isStaggered } from "./system/poise";
 import { createGame, step } from "./core/game";
 import { GamepadInput } from "./core/gamepad";
+import { PAD_Y, PadCapture, assignPadBinding, clearPadBinding } from "./core/padBinds";
 import { KEYBIND_SLOTS, PlayerInput, assignBinding, clearBinding, isAssignableCode, type FrameInput } from "./core/input";
 import { startLoop } from "./core/loop";
 import {
@@ -47,6 +48,11 @@ import { loadSkillProfile, saveSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
 import {
   KEYBINDS_ROWS,
+  PADBINDS_ROWS,
+  bindsExtraRow,
+  bindsRowCount,
+  isPadActionRow,
+  type BindsMode,
   MenuKeyCapture,
   PAUSE_MENU_ITEMS,
   SETTINGS_ITEMS,
@@ -86,6 +92,7 @@ import {
   adjustVolume,
   loadSettings,
   resetKeybinds,
+  resetPadBinds,
   saveSettings,
   setHitstopScale,
   setMusicVolume,
@@ -225,6 +232,7 @@ input.attachKeyboard(window);
 input.attachMouse(canvas);
 const gamepad = new GamepadInput();
 gamepad.attach(window);
+gamepad.setBinds(settings.padBinds);
 input.attachGamepad(gamepad);
 const menuKeys = new MenuKeyCapture();
 menuKeys.attach(window);
@@ -295,6 +303,11 @@ let keybindsCursor = 0;
 let keybindsSlot = 0;
 let keybindsScroll = 0;
 let keybindsCapturing = false;
+/** 割り当て画面が編集している表（キーボード / パッド） */
+let keybindsMode: BindsMode = "key";
+const padCapture = new PadCapture();
+/** 今フレームの Escape がキーボード由来か。パッド設定の取得中は B を割り当てたいので、取り消しは Esc と Start だけにする */
+let keyboardEscape = false;
 /** 設定/ポーズメニューのカーソル移動をエッジ検出するための直前フレームの move 値 */
 const menuNav = { prevX: 0, prevY: 0 };
 /** ポーズ/設定メニューでマウスが動いたかを判定するための直前フレームの aimScreen（動いた時だけホバーでカーソルを奪う） */
@@ -886,13 +899,15 @@ function enterMenu(next: "paused" | "settings", frameMoveX: number, frameMoveY: 
   menuNav.prevY = frameMoveY;
 }
 
-/** キー設定を入力と HUD 表記へ反映して保存する */
+/** キー設定・パッド設定を入力と HUD 表記へ反映して保存する */
 function applyKeybinds(): void {
   input.setKeybinds(settings.keybinds);
+  gamepad.setBinds(settings.padBinds);
   saveSettings(settings);
 }
 
-function openKeybinds(frameMoveX: number, frameMoveY: number): void {
+function openKeybinds(mode: BindsMode, frameMoveX: number, frameMoveY: number): void {
+  keybindsMode = mode;
   keybindsCursor = 0;
   keybindsSlot = 0;
   keybindsScroll = 0;
@@ -904,11 +919,37 @@ function openKeybinds(frameMoveX: number, frameMoveY: number): void {
 
 function setKeybindsCapturing(on: boolean): void {
   keybindsCapturing = on;
-  input.setCapturing(on);
+  input.setCapturing(on && keybindsMode === "key");
+  if (on && keybindsMode === "pad") padCapture.start(gamepad.buttonsDown());
+}
+
+/** パッド設定の取得モード: ボタン（組み合わせ）が確定したら選択中の列に入れる。Esc / Start で取り消し */
+function updatePadBindCapture(): void {
+  if (keyboardEscape || gamepad.pausePressed()) {
+    setKeybindsCapturing(false);
+    sfx.play("uiClose");
+    return;
+  }
+  const code = padCapture.step(gamepad.buttonsDown(), gamepad.buttonsJustPressed());
+  if (code === null) return;
+  const row = PADBINDS_ROWS[keybindsCursor];
+  const next = row !== undefined && isPadActionRow(row) ? assignPadBinding(settings.padBinds, row, keybindsSlot, code) : null;
+  setKeybindsCapturing(false);
+  if (!next) {
+    sfx.play("uiClose");
+    return;
+  }
+  settings.padBinds = next;
+  applyKeybinds();
+  sfx.play("uiClick");
 }
 
 /** 取得モード: 直前フレームに押されたコードを順に見て、最初の割り当て可能なものを選択中の列に入れる */
 function updateKeybindCapture(escape: boolean): void {
+  if (keybindsMode === "pad") {
+    updatePadBindCapture();
+    return;
+  }
   for (let code = input.takeAnyPressedCode(); code !== null; code = input.takeAnyPressedCode()) {
     if (code === "Escape") break;
     if (!isAssignableCode(code)) continue;
@@ -932,13 +973,14 @@ function updateKeybindCapture(escape: boolean): void {
 
 /** キー設定の行を決定する。アクション行は取得モードへ、既定に戻す / 閉じる はその場で実行 */
 function activateKeybindsRow(frameMoveX: number, frameMoveY: number): void {
-  const row = KEYBINDS_ROWS[keybindsCursor];
-  if (row === undefined) return;
+  if (keybindsCursor >= bindsRowCount(keybindsMode)) return;
+  const row = bindsExtraRow(keybindsMode, keybindsCursor);
   sfx.play("uiClick");
-  if (isActionRow(row)) {
+  if (row === null) {
     setKeybindsCapturing(true);
   } else if (row === "reset") {
-    resetKeybinds(settings);
+    if (keybindsMode === "pad") resetPadBinds(settings);
+    else resetKeybinds(settings);
     applyKeybinds();
   } else {
     enterMenu("settings", frameMoveX, frameMoveY);
@@ -947,6 +989,10 @@ function activateKeybindsRow(frameMoveX: number, frameMoveY: number): void {
 
 /** Delete / Backspace: 選択中の列を空にする（最後の 1 つは消せない） */
 function clearSelectedKeybind(): void {
+  if (keybindsMode === "pad") {
+    clearSelectedPadBind();
+    return;
+  }
   const row = KEYBINDS_ROWS[keybindsCursor];
   if (row === undefined || !isActionRow(row)) return;
   const next = clearBinding(settings.keybinds, row, keybindsSlot);
@@ -959,11 +1005,27 @@ function clearSelectedKeybind(): void {
   sfx.play("uiClick");
 }
 
+/** パッド設定の選択中の列を空にする（パッドはキーボードが残るので最後の 1 つも消せる） */
+function clearSelectedPadBind(): void {
+  const row = PADBINDS_ROWS[keybindsCursor];
+  if (row === undefined || !isPadActionRow(row)) return;
+  const next = clearPadBinding(settings.padBinds, row, keybindsSlot);
+  if (!next) {
+    sfx.play("uiClose");
+    return;
+  }
+  settings.padBinds = next;
+  applyKeybinds();
+  sfx.play("uiClick");
+}
+
 function drawKeybindsOverlay(ctx: CanvasRenderingContext2D): void {
   drawKeybindsScreen(
     ctx,
     {
+      mode: keybindsMode,
       binds: settings.keybinds,
+      padBinds: settings.padBinds,
       cursor: keybindsCursor,
       slot: keybindsSlot,
       scroll: keybindsScroll,
@@ -1080,6 +1142,7 @@ startLoop(
   (dt) => {
     const frame = input.snapshot((state ?? hub?.state)?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
+    keyboardEscape = hotkeys.escape;
     // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する。
     // ただしプレイ中（装備画面を閉じている間）は B がダッシュと共用なので、ポーズは Start だけで開く
     const padInGame = (screen === "playing" || screen === "hub") && !inventoryUi.open;
@@ -1332,9 +1395,9 @@ startLoop(
         // 決定（Enter / パッド A）はキー設定を開く・閉じるだけ。値の調整は ← → とクリック
         if (frame.confirmPressed) {
           const current = SETTINGS_ITEMS[settingsCursor];
-          if (current === "keybinds") {
+          if (current === "keybinds" || current === "padBinds") {
             sfx.play("uiClick");
-            openKeybinds(frame.move.x, frame.move.y);
+            openKeybinds(current === "padBinds" ? "pad" : "key", frame.move.x, frame.move.y);
             break;
           }
           if (current === "close") {
@@ -1368,8 +1431,8 @@ startLoop(
             settingsCursor = clicked;
             if (item === "close") {
               screen = returnScreen;
-            } else if (item === "keybinds") {
-              openKeybinds(frame.move.x, frame.move.y);
+            } else if (item === "keybinds" || item === "padBinds") {
+              openKeybinds(item === "padBinds" ? "pad" : "key", frame.move.x, frame.move.y);
             } else {
               applySettingsAdjust(item, item === "mute" || item === "dropTooltip" ? 1 : settingsRowSide(aim.x));
             }
@@ -1396,7 +1459,7 @@ startLoop(
         // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
         const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
         if (aimMoved) {
-          const hovered = keybindsItemAt(aim.x, aim.y, rowGap, keybindsScroll);
+          const hovered = keybindsItemAt(aim.x, aim.y, rowGap, keybindsScroll, keybindsMode);
           if (hovered && (hovered.row !== keybindsCursor || (hovered.slot !== null && hovered.slot !== keybindsSlot))) {
             keybindsCursor = hovered.row;
             if (hovered.slot !== null) keybindsSlot = hovered.slot;
@@ -1408,7 +1471,7 @@ startLoop(
         const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
         const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : keyNavY;
         if (navY !== 0) {
-          keybindsCursor = cycleIndex(keybindsCursor, navY, KEYBINDS_ROWS.length);
+          keybindsCursor = cycleIndex(keybindsCursor, navY, bindsRowCount(keybindsMode));
           sfx.play("menuMove");
         }
         const keyNavX = edgeDir(menuNav.prevX, frame.move.x);
@@ -1417,21 +1480,23 @@ startLoop(
           keybindsSlot = cycleIndex(keybindsSlot, navX, KEYBIND_SLOTS);
           sfx.play("menuMove");
         }
-        keybindsScroll = keybindsScrollFor(keybindsCursor, keybindsScroll, rowGap);
+        keybindsScroll = keybindsScrollFor(keybindsCursor, keybindsScroll, rowGap, keybindsMode);
         // ホイールは表示だけを送る（カーソルは動かさない）
-        if (frame.wheel !== 0) keybindsScroll = clampKeybindsScroll(keybindsScroll + Math.sign(frame.wheel), rowGap);
+        if (frame.wheel !== 0) keybindsScroll = clampKeybindsScroll(keybindsScroll + Math.sign(frame.wheel), rowGap, keybindsMode);
         menuNav.prevX = frame.move.x;
         menuNav.prevY = frame.move.y;
         menuAimPrev = aim;
 
-        if (hotkeys.clear) {
+        // パッド設定ではパッドの Y でも空にできる（パッドだけで設定を終えられるように）
+        const padClear = keybindsMode === "pad" && (gamepad.buttonsJustPressed()[PAD_Y] ?? false);
+        if (hotkeys.clear || padClear) {
           clearSelectedKeybind();
           break;
         }
         if (frame.confirmPressed) {
           activateKeybindsRow(frame.move.x, frame.move.y);
         } else if (frame.clickPressed && aim) {
-          const clicked = keybindsItemAt(aim.x, aim.y, rowGap, keybindsScroll);
+          const clicked = keybindsItemAt(aim.x, aim.y, rowGap, keybindsScroll, keybindsMode);
           if (clicked) {
             keybindsCursor = clicked.row;
             if (clicked.slot !== null) keybindsSlot = clicked.slot;

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_KEYBINDS, assignBinding, defaultKeybinds } from "../core/input";
+import { assignPadBinding, defaultPadBinds, padChordCode } from "../core/padBinds";
 import {
   DEFAULT_DROP_TOOLTIP,
   DEFAULT_HITSTOP_SCALE,
   DEFAULT_MUSIC_VOLUME,
   HITSTOP_SCALE_MAX,
   KEYBINDS_KEY,
+  PADBINDS_KEY,
   SETTINGS_KEY,
   adjustHitstopScale,
   adjustMusicVolume,
@@ -14,6 +16,7 @@ import {
   defaultSettings,
   loadSettings,
   resetKeybinds,
+  resetPadBinds,
   saveSettings,
   setHitstopScale,
   setMusicVolume,
@@ -60,7 +63,7 @@ describe("settings persistence", () => {
 
   it("保存した内容がそのまま読み戻る（round trip）", () => {
     const storage = new MemoryStorage();
-    const settings = { muted: true, volume: 0.3, musicVolume: 0.8, screenShake: 0.7, hitstopScale: 0.5, dropTooltip: false, keybinds: defaultKeybinds() };
+    const settings = { muted: true, volume: 0.3, musicVolume: 0.8, screenShake: 0.7, hitstopScale: 0.5, dropTooltip: false, keybinds: defaultKeybinds(), padBinds: defaultPadBinds() };
     saveSettings(settings, storage);
     expect(loadSettings(storage)).toEqual(settings);
   });
@@ -85,6 +88,7 @@ describe("settings persistence", () => {
       hitstopScale: DEFAULT_HITSTOP_SCALE,
       dropTooltip: DEFAULT_DROP_TOOLTIP,
       keybinds: defaultKeybinds(),
+      padBinds: defaultPadBinds(),
     });
   });
 
@@ -290,5 +294,35 @@ describe("キー設定の別キー保存", () => {
     const storage = new MemoryStorage();
     storage.setItem(KEYBINDS_KEY, JSON.stringify({ version: 1, keybinds: changed }));
     expect(loadSettings(storage)).toEqual({ ...defaultSettings(), keybinds: changed });
+  });
+});
+
+describe("パッド設定の保存", () => {
+  it("パッド設定は roguelike.padbinds.v1 に別保存され、読み戻せる", () => {
+    const storage = new MemoryStorage();
+    const settings = defaultSettings();
+    const changed = assignPadBinding(settings.padBinds, "dash", 0, padChordCode(5, 0));
+    expect(changed, "割り当てできる").not.toBeNull();
+    if (changed) settings.padBinds = changed;
+    saveSettings(settings, storage);
+    expect(PADBINDS_KEY).toBe("roguelike.padbinds.v1");
+    const rawSettings = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<string, unknown>;
+    expect("padBinds" in rawSettings, "settings 側に含めない").toBe(false);
+    expect(loadSettings(storage).padBinds).toEqual(settings.padBinds);
+  });
+
+  it("壊れたパッド設定は既定に落ちる", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(PADBINDS_KEY, JSON.stringify({ version: 1, padBinds: { dash: ["Pad99"], attack: "x" } }));
+    expect(loadSettings(storage).padBinds).toEqual(defaultPadBinds());
+  });
+
+  it("resetPadBinds はパッド設定だけを既定に戻す", () => {
+    const settings = defaultSettings();
+    settings.volume = 0.2;
+    settings.padBinds = { ...settings.padBinds, dash: [] };
+    resetPadBinds(settings);
+    expect(settings.padBinds).toEqual(defaultPadBinds());
+    expect(settings.volume).toBe(0.2);
   });
 });
