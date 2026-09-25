@@ -352,8 +352,8 @@ export function swingSfxName(moveset: MovesetKey): SfxName {
   return SWING_SFX[moveset];
 }
 
-/** 命中音の質感（刃・打撃・刺突）。銃の家系は近接（ダッシュ攻撃・固有技）でこの系統を使う */
-export type HitFamily = "slash" | "blunt" | "pierce";
+/** 命中音の質感（刃・打撃・刺突・鞭打）。銃の家系は近接（ダッシュ攻撃・固有技）でこの系統を使う */
+export type HitFamily = "slash" | "blunt" | "pierce" | "lash";
 /** 命中音の重さ。段が進む / 怯ませる / 終撃・溜め・重い派生ほど重い */
 export type HitWeight = "light" | "mid" | "heavy";
 
@@ -364,7 +364,7 @@ const HIT_FAMILY: Readonly<Record<MovesetKey, HitFamily>> = {
   spear: "pierce",
   scythe: "slash",
   fists: "blunt",
-  whip: "blunt",
+  whip: "lash",
   cleaver: "slash",
   staff: "blunt",
   wand: "pierce",
@@ -395,6 +395,7 @@ const HIT_SFX: Readonly<Record<HitFamily, Readonly<Record<HitWeight, SfxName>>>>
   slash: { light: "hitSlashLight", mid: "hitSlashMid", heavy: "hitSlashHeavy" },
   blunt: { light: "hitBluntLight", mid: "hitBluntMid", heavy: "hitBluntHeavy" },
   pierce: { light: "hitPierceLight", mid: "hitPierceMid", heavy: "hitPierceHeavy" },
+  lash: { light: "hitLashLight", mid: "hitLashMid", heavy: "hitLashHeavy" },
 };
 
 /** 近接命中の音。武器種の系統（刃・打撃・刺突）× 重さで選ぶ（docs/recipes/audio.md） */

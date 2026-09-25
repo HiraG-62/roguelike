@@ -221,13 +221,13 @@ describe("効果音の名前", () => {
   it("27 武器種すべてに命中音の系統がある", () => {
     for (const key of MOVESET_KEYS) {
       const family = hitFamily(key);
-      expect(["slash", "blunt", "pierce"], `${key} の系統`).toContain(family);
+      expect(["slash", "blunt", "pierce", "lash"], `${key} の系統`).toContain(family);
     }
     expect(MOVESET_KEYS.length, "武器種は 27 種").toBe(27);
   });
 
   it("命中音は系統と重さで名前が決まり、SFX_NAMES にすべて登録されている", () => {
-    const families = ["slash", "blunt", "pierce"] as const;
+    const families = ["slash", "blunt", "pierce", "lash"] as const;
     const weights = ["light", "mid", "heavy"] as const;
     const found = new Set<string>();
     for (const family of families) {

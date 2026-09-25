@@ -76,6 +76,9 @@ describe("攻撃の効果音の構成", () => {
       "hitPierceLight",
       "hitPierceMid",
       "hitPierceHeavy",
+      "hitLashLight",
+      "hitLashMid",
+      "hitLashHeavy",
       "bulletHitHeavy",
     ];
     for (const name of names) {
@@ -85,13 +88,64 @@ describe("攻撃の効果音の構成", () => {
   });
 
   it("重い命中音は軽い命中音より低く長い（系統ごと）", () => {
-    for (const family of ["Slash", "Blunt", "Pierce"] as const) {
+    for (const family of ["Slash", "Blunt", "Pierce", "Lash"] as const) {
       const light = LAYERED_SFX[`hit${family}Light`];
       const heavy = LAYERED_SFX[`hit${family}Heavy`];
       expect(longestDur(heavy), `${family} 重い方が長い`).toBeGreaterThan(longestDur(light));
     }
   });
+
+  it("斬撃の命中は「ザ」（歪ませた広い帯域）・遅れて抜ける「シュッ」・湿った中低域を持ち、刃鳴りは控えめ", () => {
+    for (const name of ["hitSlashLight", "hitSlashMid", "hitSlashHeavy"] as const) {
+      const layers = LAYERED_SFX[name] as readonly Layer[];
+      const noises = layers.filter((l): l is Extract<Layer, { k: "noise" }> => l.k === "noise");
+      const za = noises.some((l) => (l.drive ?? 0) > 0 && l.from >= 3000 && (l.at ?? 0) === 0);
+      const shu = noises.some((l) => (l.at ?? 0) > 0 && l.from > l.to && l.from >= 5000);
+      const wet = noises.some((l) => (l.drive ?? 0) > 0 && l.from <= 1200);
+      expect(za, `${name} のザ`).toBe(true);
+      expect(shu, `${name} のシュッ`).toBe(true);
+      expect(wet, `${name} の湿った肉`).toBe(true);
+      const ring = layers.filter((l) => l.k === "metal").reduce((m, l) => Math.max(m, l.peak), 0);
+      expect(ring, `${name} の刃鳴りは小さい`).toBeLessThanOrEqual(MAX_RING_PEAK);
+    }
+  });
+
+  it("剣の振りは膨らむ上昇 → 頂点から抜ける下降の風切りで、トランジェントを押した瞬間に置かない", () => {
+    for (const name of ["slash1", "slash2", "slash3"] as const) {
+      const layers = LAYERED_SFX[name] as readonly Layer[];
+      const rise = layers.find((l) => l.k === "noise" && l.to > l.from);
+      const fall = layers.find((l) => l.k === "noise" && l.from > l.to && (l.at ?? 0) > 0);
+      expect(rise, `${name} の上昇`).toBeDefined();
+      expect(fall, `${name} の下降`).toBeDefined();
+      const clickAt = layers.filter((l) => l.k === "click").map((l) => l.at ?? 0);
+      expect(clickAt.every((at) => at > 0), `${name} のクリックは頂点へ遅らせる`).toBe(true);
+    }
+  });
+
+  it("鞭の振りはうなりが上昇して膨らみ、頂点で鋭いクラック（クリック + 歪んだ短いノイズ）が鳴る", () => {
+    const layers = LAYERED_SFX.swingWhip as readonly Layer[];
+    const swell = layers.find((l): l is Extract<Layer, { k: "noise" }> => l.k === "noise" && l.to > l.from && (l.at ?? 0) === 0);
+    expect(swell, "上昇するうなり").toBeDefined();
+    if (!swell) return;
+    expect(swell.attack ?? 0, "うなりは長さの半分以上かけて膨らむ").toBeGreaterThan(swell.dur / 2);
+    const crackAt = layers.find((l) => l.k === "click")?.at ?? 0;
+    expect(crackAt, "クラックはうなりの頂点").toBeGreaterThanOrEqual(swell.attack ?? 0);
+    const crack = layers.find((l) => l.k === "noise" && (l.drive ?? 0) > 0 && (l.at ?? 0) === crackAt);
+    expect(crack && "dur" in crack ? crack.dur : Infinity, "クラックの本体は 30ms 未満").toBeLessThan(MAX_CRACK_SECONDS);
+  });
+
+  it("鞭打の命中は打撃より短く軽い（深いキックは重い段だけ）", () => {
+    expect(has("hitLashLight", "kick"), "軽い鞭打にキックなし").toBe(false);
+    expect(has("hitLashMid", "kick"), "中の鞭打にキックなし").toBe(false);
+    expect(longestDur(LAYERED_SFX.hitLashLight), "軽い鞭打は軽い打撃より短い").toBeLessThan(longestDur(LAYERED_SFX.hitBluntLight));
+    expect(lowestFreq(LAYERED_SFX.hitLashLight), "軽い鞭打は軽い打撃より高い").toBeGreaterThan(lowestFreq(LAYERED_SFX.hitBluntLight));
+  });
 });
+
+/** 斬撃の命中で刃鳴り（metal）が主張しすぎない上限。金属どうしの「キーン」でなく肉を断つ音にするため */
+const MAX_RING_PEAK = 0.04;
+/** 鞭のクラック本体の長さの上限（秒）。これより長いと「パン」でなく「バフッ」になる */
+const MAX_CRACK_SECONDS = 0.03;
 
 describe("スキルの属性ごとの発動音（castSfxName）", () => {
   it("無属性以外はすべて SFX_NAMES の名前を返し、無属性は null", () => {
