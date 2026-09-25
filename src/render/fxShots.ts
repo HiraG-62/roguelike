@@ -4,7 +4,7 @@
  * state は読むだけ。読み込み前・表の無い弾は false を返し、呼び出し側が今までの手続きの描画を使う
  */
 import type { GameState, Projectile, ShapeFx } from "../core/state";
-import { blastShotOf, hitElement, ultimateShotOf } from "../system/effects";
+import { blastShotOf, hitElement, shotBulletOf, ultimateShotOf } from "../system/effects";
 import { ultimateDef } from "../data/ultimates";
 import { FX_ATTACK } from "../data/tuning";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, rampColors, sheetDef } from "./fxSprites";
@@ -22,7 +22,7 @@ export function shotFx(pr: Projectile): BulletFx | undefined {
     const own = ULTIMATE_FX[ult.key]?.shots[ult.index];
     if (own) return own;
   }
-  const key = pr.shot?.key;
+  const key = shotBulletOf(pr);
   return key === undefined ? undefined : BULLET_FX.get(key);
 }
 

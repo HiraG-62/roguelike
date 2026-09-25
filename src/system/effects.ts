@@ -214,6 +214,21 @@ export function blastShotOf(shape: ShapeFx): Projectile | undefined {
   return blastShots.get(shape);
 }
 
+/**
+ * 撃った弾 → 弾の key。性質の無い弾（拳銃など）は作業領域（Projectile.shot）を持たず key が引けないので、
+ * 描画が弾の専用スプライトを選べるよう撃った所で結ぶ
+ */
+const shotBullets = new WeakMap<Projectile, string>();
+
+export function markShotBullet(pr: Projectile, key: string): void {
+  shotBullets.set(pr, key);
+}
+
+/** 弾の key（作業領域の key、無ければ撃った所で結んだ key） */
+export function shotBulletOf(pr: Projectile): string | undefined {
+  return pr.shot?.key || shotBullets.get(pr);
+}
+
 /** 奥義の行為が出した弾の、奥義と行為 */
 export interface UltimateShot {
   readonly key: string;

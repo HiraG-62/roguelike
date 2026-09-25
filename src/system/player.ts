@@ -29,7 +29,7 @@ import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen, tickRegain } from "./combat";
-import { addFloatingText, shake, spawnBurst, spawnLine } from "./effects";
+import { addFloatingText, markShotBullet, shake, spawnBurst, spawnLine } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
 import { type HitWeight, hitFamily } from "./effects";
 import { currentBullet } from "../loot/bullets";
@@ -1683,7 +1683,9 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
     });
   }
-  onBoonShoot(state, state.projectiles.slice(firstShot));
+  const fired = state.projectiles.slice(firstShot);
+  for (const pr of fired) markShotBullet(pr, shot.key);
+  onBoonShoot(state, fired);
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   spawnBurst(state, muzzle, spec.color, shot.look?.particles ?? MUZZLE_PARTICLES, 60, 0.12, 1.5);
   shake(state, 1);
