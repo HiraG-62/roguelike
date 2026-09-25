@@ -1,6 +1,6 @@
 import { STATUS_LABEL } from "../core/status";
 import { PLAYER } from "../data/tuning";
-import { DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun } from "../data/weapons";
+import { type ActionStepDef, DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun } from "../data/weapons";
 import { type UltimateAct, type UltimateDef, defaultUltimate } from "../data/ultimates";
 import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
@@ -44,6 +44,11 @@ export interface ScalingFormula {
 export interface ActionFormulas {
   name: string;
   formulas: ScalingFormula[];
+  /**
+   * 式を畳んで値だけ出す量（右の 2 段目以降・派生の怯み値）。行動が多い武器種でも計算式の頁を詳細欄 1 枚に収めるため。
+   * 係数の形は同じ武器種の左の段の怯み値と同じ流儀なので、式はそちらで読める
+   */
+  folded?: ScalingFormula[];
 }
 
 /** 表示の 1 片。attr はステータス名（色を付ける）、tone は見た目の強弱 */
@@ -192,9 +197,65 @@ export function formulaText(f: Readonly<ScalingFormula>): string {
   return chunksText(formulaChunks(f));
 }
 
-/** 行動名を先頭に付けた片の列（「1 段目 威力 12 = …」） */
+/** 畳んだ量の片（「・怯み値 22」）。値だけを控えめに出す。先頭（式が無い行動の最初の量）は「・」を付けない */
+function foldedChunk(f: Readonly<ScalingFormula>, first: boolean): FormulaChunk {
+  const text = `${first ? "" : NAME_SEP}${f.label} ${formatValue(f.value, f.kind)}`;
+  return first ? { pieces: [{ text, tone: "dim" }] } : { pieces: [{ text, tone: "dim" }], glue: true };
+}
+
+function foldedChunks(action: Readonly<ActionFormulas>, leading: boolean): FormulaChunk[] {
+  return (action.folded ?? []).map((f, i) => foldedChunk(f, leading && i === 0));
+}
+
+/** 行動名を先頭に付けた片の列（「1 段目 威力 12 = …」）。畳んだ量があれば末尾に「・怯み値 22」 */
 export function actionChunks(action: Readonly<ActionFormulas>, f: Readonly<ScalingFormula>): FormulaChunk[] {
-  return [{ pieces: [{ text: action.name, tone: "name" }] }, ...formulaChunks(f)];
+  return [{ pieces: [{ text: action.name, tone: "name" }] }, ...formulaChunks(f), ...foldedChunks(action, false)];
+}
+
+/** 行動を詳細欄の行（片の列の列）にする。1 行目は行動名 + 最初の式（畳んだ量は 1 行目の末尾）、残りの式は 1 行ずつ */
+export function actionRows(action: Readonly<ActionFormulas>): FormulaChunk[][] {
+  const [first, ...rest] = action.formulas;
+  if (first === undefined) return [[{ pieces: [{ text: action.name, tone: "name" }] }, ...foldedChunks(action, true)]];
+  return [actionChunks(action, first), ...rest.map((f) => formulaChunks(f))];
+}
+
+/** 値だけに畳んだ行動（派生）の見出し。値の並びは「威力/怯み値」 */
+export const FOLDED_GROUP_HEAD = "派生（威力/怯み値）:";
+const VALUE_PAIR_SEP = "/";
+
+/** 値だけの行動 1 つの片（「交差斬り 8/10・」）。last でなければ末尾に区切りを付け、2 つ目からは区切りの直後に詰める */
+function foldedActionChunk(action: Readonly<ActionFormulas>, index: number, last: boolean): FormulaChunk {
+  const values = (action.folded ?? []).map((f) => formatValue(f.value, f.kind)).join(VALUE_PAIR_SEP);
+  return { pieces: [{ text: action.name, tone: "name" }, { text: ` ${values}${last ? "" : NAME_SEP}` }], glue: index > 0 };
+}
+
+/**
+ * 行動の列を詳細欄の行にする。式を持たない行動（値だけに畳んだ派生）は続けて 1 つの段落に詰める。
+ * 派生は 4〜5 本あり、1 本 1 行だと行動の多い武器種（拳・双剣）が詳細欄 1 枚に収まらないため
+ */
+export function actionListRows(actions: readonly ActionFormulas[]): FormulaChunk[][] {
+  const rows: FormulaChunk[][] = [];
+  const folded: ActionFormulas[] = [];
+  const flush = (): void => {
+    if (folded.length === 0) return;
+    rows.push([{ pieces: [{ text: FOLDED_GROUP_HEAD, tone: "dim" }] }, ...folded.map((a, i) => foldedActionChunk(a, i, i === folded.length - 1))]);
+    folded.length = 0;
+  };
+  for (const a of actions) {
+    if (a.formulas.length === 0 && (a.folded ?? []).length > 0) {
+      folded.push(a);
+      continue;
+    }
+    flush();
+    rows.push(...actionRows(a));
+  }
+  flush();
+  return rows;
+}
+
+/** 行動の式すべて（畳んだ量を含む）。参照しているステータスを数えるとき用 */
+export function allFormulas(action: Readonly<ActionFormulas>): ScalingFormula[] {
+  return [...action.formulas, ...(action.folded ?? [])];
 }
 
 // ---------------------------------------------------------------------------
@@ -362,30 +423,61 @@ function comboStepFormulas(stats: Readonly<PlayerStats>, steps: readonly MeleeSt
   return out;
 }
 
-/** 固有技（右クリック）。構えの受け流し・手元返しは威力を持たないので出さない */
-function artFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
-  const art = moveset.steps2[0];
-  const name = actionStepName(art, 0);
-  switch (art.kind) {
+/** 右レーンの名前の無い段の名前（左の「2 段目」と区別する） */
+function laneStepName(step: ActionStepDef, index: number): string {
+  return step.name ?? `右 ${actionStepName(step, index)}`;
+}
+
+/**
+ * 右レーンの 1 段の式。構えの受け流し・手元返しは威力を持たないので出さない。
+ * 構えの離した振り（盾押し）は 1 段目の構えだけが持つ（defineMoveset が 1 段目からだけ派生を作る）
+ */
+function laneStepFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string, step: ActionStepDef, index: number): ActionFormulas[] {
+  const name = laneStepName(step, index);
+  switch (step.kind) {
     case "swing":
-      return [stepFormulas(stats, name, art.step)];
+      return [stepFormulas(stats, name, step.step)];
     case "hold": {
-      const release = art.hold.release;
-      if (release === undefined) return [];
+      const release = step.hold.release;
+      if (release === undefined || index > 0) return [];
       const branch = moveset.branches.find((b) => b.art === "release");
-      return [stepFormulas(stats, branch?.name ?? art.name, release)];
+      return [stepFormulas(stats, branch?.name ?? name, release)];
     }
     case "volley": {
-      const t = art.throw;
-      return [{ name: art.name, formulas: [scalingFormula(stats, "power", POWER_LABEL, t.scaling), ratioFormula(stats, "poise", POISE_LABEL, t.poise, t.poiseRatio)] }];
+      const t = step.throw;
+      return [{ name, formulas: [scalingFormula(stats, "power", POWER_LABEL, t.scaling), ratioFormula(stats, "poise", POISE_LABEL, t.poise, t.poiseRatio)] }];
     }
     case "charge":
-      return [stepFormulas(stats, art.name, art.charge.step)];
+      return [stepFormulas(stats, name, step.charge.step)];
     case "aim":
-      return [shotFormulas(stats, bullet, art.name, art.aim.damageMul)];
+      return [shotFormulas(stats, bullet, name, step.aim.damageMul)];
     case "recall":
       return [];
   }
+}
+
+/** 威力の式だけ残し、怯み値を値だけに畳む（1 段目以外の段・溜め・ダッシュ攻撃・右の段） */
+function foldPoise(action: ActionFormulas): ActionFormulas {
+  const formulas = action.formulas.filter((f) => f.kind !== "poise");
+  const folded = action.formulas.filter((f) => f.kind === "poise");
+  return { name: action.name, formulas, folded };
+}
+
+/** 式をすべて値だけに畳む（派生。係数の形は元になる段と同じ流儀なので、段の式で読める） */
+function foldAll(action: ActionFormulas): ActionFormulas {
+  return { name: action.name, formulas: [], folded: action.formulas };
+}
+
+/** 右レーンの段（怯み値は畳む）。同じ名前の段（同じ技の繰り返し）は 1 回だけ */
+function laneFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
+  const out: ActionFormulas[] = [];
+  moveset.steps2.forEach((step, i) => {
+    for (const a of laneStepFormulas(stats, moveset, bullet, step, i)) {
+      if (out.some((o) => o.name === a.name)) continue;
+      out.push(foldPoise(a));
+    }
+  });
+  return out;
 }
 
 interface MovesetActions {
@@ -395,23 +487,25 @@ interface MovesetActions {
 }
 
 function movesetActions(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): MovesetActions {
-  const steps = comboStepFormulas(stats, moveset.steps);
+  // 怯み値の式は 1 段目（銃の家系は射撃も）だけに出す。係数の形は武器種の中でほぼ同じなので、残りは値で足りる
+  const steps = comboStepFormulas(stats, moveset.steps).map((a, i) => (i === 0 ? a : foldPoise(a)));
   const actions: ActionFormulas[] = [];
   if (isGun(moveset)) actions.push(shotFormulas(stats, bullet, SHOT_PREFIX));
   actions.push(...steps);
-  if (moveset.charge !== undefined) actions.push(stepFormulas(stats, CHARGE_NAME, moveset.charge.step));
-  actions.push(stepFormulas(stats, DASH_ATTACK_NAME, moveset.dashAttack));
-  actions.push(...artFormulas(stats, moveset, bullet));
+  if (moveset.charge !== undefined) actions.push(foldPoise(stepFormulas(stats, CHARGE_NAME, moveset.charge.step)));
+  actions.push(foldPoise(stepFormulas(stats, DASH_ATTACK_NAME, moveset.dashAttack)));
+  actions.push(...laneFormulas(stats, moveset, bullet));
   for (const b of moveset.branches) {
     if (b.art !== undefined) continue;
-    actions.push(stepFormulas(stats, b.name, b.step));
+    actions.push(foldAll(stepFormulas(stats, b.name, b.step)));
   }
   return { actions, steps };
 }
 
 /**
- * 武器種の行動ごとの式。並びは 射撃（銃の家系）→ 連撃の段 → 溜め → ダッシュ攻撃 → 固有技 → 派生。
- * 固有技から作った派生（strike / release）は固有技として 1 回だけ出す
+ * 武器種の行動ごとの式。並びは 射撃（銃の家系）→ 左の連撃の段 → 溜め → ダッシュ攻撃 → 右の段 → 派生。
+ * 右 1 段目の構えから作った派生（release）は右の段として 1 回だけ出す。
+ * 怯み値の式は 1 段目（と射撃）だけ、他の行動は値だけ。派生は威力も値だけ（行動が 13 を超える武器種でも詳細欄 1 枚に収めるため）
  */
 export function movesetFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
   return movesetActions(stats, moveset, bullet).actions;
@@ -552,7 +646,7 @@ function referencesAttr(formulas: readonly ScalingFormula[], attr: AttrKey): boo
 
 /** 武器種の行動のうち attr を参照するものの名前。連撃の段がすべて参照するなら「大剣の連撃」にまとめる */
 function movesetReferenceNames(moveset: Readonly<MovesetDef>, actions: readonly ActionFormulas[], attr: AttrKey, steps: readonly ActionFormulas[]): string[] {
-  const hits = actions.filter((a) => referencesAttr(a.formulas, attr));
+  const hits = actions.filter((a) => referencesAttr(allFormulas(a), attr));
   const allSteps = steps.length > 0 && steps.every((s) => hits.includes(s));
   const names: string[] = [];
   if (allSteps) names.push(`${moveset.name}の連撃`);

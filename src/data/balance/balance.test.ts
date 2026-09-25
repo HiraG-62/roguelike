@@ -191,10 +191,10 @@ const UNDOCUMENTED_BASELINE: Readonly<Record<string, number>> = {
   "skills.json": 1250,
   "boons.json": 382,
   "jobs.json": 0,
-  "weapons.json": 2715,
+  "weapons.json": 168,
   "loot.json": 3155,
   "world.json": 309,
-  "feel.json": 216,
+  "feel.json": 215,
   "ultimates.json": 0,
 };
 

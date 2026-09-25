@@ -54,7 +54,8 @@ import {
   type ActionFormulas,
   type LoadoutSources,
   type ScalingFormula,
-  actionChunks,
+  actionListRows,
+  allFormulas,
   attributeReferences,
   formulaChunks,
   itemFormulas,
@@ -199,9 +200,9 @@ function referenceLines(state: GameState): DetailLine[] {
   return attributeReferences(state.stats, loadoutSources(state)).map((ref) => ({ chunks: referenceChunks(ref) }));
 }
 
-/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける */
+/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける。値だけの派生は 1 段落にまとめる */
 function actionFormulaLines(actions: readonly ActionFormulas[]): DetailLine[] {
-  return actions.flatMap((a) => a.formulas.map((f, i): DetailLine => ({ chunks: i === 0 ? actionChunks(a, f) : formulaChunks(f) })));
+  return actionListRows(actions).map((chunks): DetailLine => ({ chunks }));
 }
 
 function captionLine(text: string): TipLine {
@@ -220,7 +221,7 @@ export function itemFormulaLines(state: GameState, item: Item): DetailLine[] {
 function itemReferenceLine(state: GameState, item: Item): DetailLine | null {
   const actions = itemFormulas(state.stats, item);
   if (actions.length === 0) return null;
-  return { chunks: mainReferenceChunks(actions.flatMap((a) => a.formulas)) };
+  return { chunks: mainReferenceChunks(actions.flatMap((a) => allFormulas(a))) };
 }
 
 /** 要点の行の区切り（空の行）の手前に 1 行差し込む */

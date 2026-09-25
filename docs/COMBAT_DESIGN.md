@@ -64,8 +64,8 @@
 | 筋力 `str` | 紅 | 近接 3 段・ダッシュ攻撃・近接系スキル | 怯み値倍率 `poiseDamageMul` +3%×d / ノックバック `knockbackMul` +2%×d |
 | 技巧 `dex` | 蒼 | 射撃・射撃系スキル・設置系の一部 | 移動 `moveSpeedMul` +0.5%×d / 連射 `fireRateMul` +1%×d / ダッシュ再使用時間 `dashCooldownMul` −1%×d（下限 ×0.7） |
 | 体力 `vit` | 翠 | （係数なし） | 最大生命 +4×d / 被る状態異常の持続 `statusTakenMul` ×100 / (100 + 3×d)（下限 ×0.5） |
-| 精神 `mnd` | 金 | バースト | 最大気力 +5×d / 気力自然回復 +0.12×d 毎秒 / 会心率 +0.4%×d |
-| 霊力 `spi` | 冥 | 全スキルの第 2 係数・バースト | 状態異常の効果量 `statusPotencyMul` +3%×d / buff 系スキルの効果量 +2%×d |
+| 精神 `mnd` | 金 | 奥義 | 最大気力 +5×d / 気力自然回復 +0.12×d 毎秒 / 会心率 +0.4%×d |
+| 霊力 `spi` | 冥 | 全スキルの第 2 係数・奥義 | 状態異常の効果量 `statusPotencyMul` +3%×d / buff 系スキルの効果量 +2%×d |
 
 色の対応は `docs/LOOT_DESIGN.md` の 5 色の意味（紅 = 近接、蒼 = 射撃・機動、翠 = 生存、金 = 必殺・会心、冥 = 呪い）に揃えた。
 
@@ -242,7 +242,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 大盾 shield | 箱（heavy） | 怯み・ノックバック大 / 移動 ×0.45 | 筋力 + 体力 | 押して壁へ、当てて一瞬無敵 / 削れない |
 | 鎖鎌 chainSickle | 突き 40（引き寄せ） | 移動 ×0.6 | 技巧 + 筋力 | 遠くを引いて近くで刻む / 近い段が短い |
 | 戦鎚 hammer | 円（heavy） | 怯み最大 / 移動 ×0.2 | 筋力 + 体力 | 崩し担当・衝撃波 / 最も遅い |
-| 二丁拳銃 gunner | 反転撃ち（円） | 射撃の命中で必殺ゲージ | 技巧 | 左右どちらでも撃つ / 近接が無い |
+| 二丁拳銃 gunner | 反転撃ち（円） | 射撃の命中で奥義ゲージ | 技巧 | 左右どちらでも撃つ / 近接が無い |
 
 | 弾の性質 | 中身 | ベース |
 | --- | --- | --- |
@@ -260,7 +260,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 
 **文法の拡張（2026-09-24、`docs/ideas/combat-feel-design.md` レーン B）**:
 
-- `MovesetDef.rules`: 武器種の固有効果を統一ルール文法で書く。`system/rules.ts` の `collectRules` がジョブの直後に今の武器種の分だけ集める（持ち主 `player` / `moveset.<key>`）。刀 = カウンターで与ダメ +20% 2 秒 / 斧 = 出血中の敵に怯み値 +10 / 大盾 = 近接命中で 0.12 秒無敵（0.5 秒に 1 回）/ 鎖鎌 = 崩勢の敵を分銅以外で斬ると怯み値 +8 / 戦鎚 = 終撃で衝撃波・堅守中の敵に怯み値 +20 / 二丁拳銃 = 射撃の命中で必殺ゲージ +4（0.5 秒に 1 回）。数値は `WEAPON.movesetRules`
+- `MovesetDef.rules`: 武器種の固有効果を統一ルール文法で書く。`system/rules.ts` の `collectRules` がジョブの直後に今の武器種の分だけ集める（持ち主 `player` / `moveset.<key>`）。刀 = カウンターで与ダメ +20% 2 秒 / 斧 = 出血中の敵に怯み値 +10 / 大盾 = 近接命中で 0.12 秒無敵（0.5 秒に 1 回）/ 鎖鎌 = 崩勢の敵を分銅以外で斬ると怯み値 +8 / 戦鎚 = 終撃で衝撃波・堅守中の敵に怯み値 +20 / 二丁拳銃 = 射撃の命中で奥義ゲージ +4（0.5 秒に 1 回）。数値は `WEAPON.movesetRules`
 - `MeleeStepDef.applies`: 段の命中で状態異常を付ける（`SkillDef.applies` と同じ形、付与元 player）
 - `chargeButton`: 溜めのボタンは「charge の役割を持つ方」。刀は右、大剣・戦鎚は左
 - 左右とも shot（二丁拳銃）: どちらの押しっぱなしでも撃ち、銃口を撃つたびに左右 3 px 入れ替える。ダッシュ中の押下は反転撃ち（ダッシュ攻撃）
@@ -288,7 +288,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 遠距離 | 技巧 / 筋力 | 霊力 / 精神 | 技巧 / 霊力 |
 | 範囲 | 筋力 / 体力 | 霊力 / 精神 | 筋力 / 霊力 |
 
-- 全攻撃の `Scaling` はジャンルの主か副を必ず含む（`data/genre.test.ts` が武器種の全段・派生・溜め、射撃、必殺、スキル全種を検査）。副だけで伸びる攻撃（双剣 = 技巧）も揃っているとみなす
+- 全攻撃の `Scaling` はジャンルの主か副を必ず含む（`data/genre.test.ts` が武器種の全段・派生・溜め、射撃、奥義、スキル全種を検査）。副だけで伸びる攻撃（双剣 = 技巧）も揃っているとみなす
 - 体力で伸びる攻撃（盾・体当たり・自傷。震脚・恨み返し・巻き戻し・傷返し・拳）は個々の `Scaling` で体力を足す。範囲・物理の副が体力なので、地を打つ技は既定表のままでも体力で伸びる
 - 新しい攻撃は `genreScaling(genre, 基礎値での威力, 主の係数)` で作れる（副 = 主 × `GENRE.secondaryRatio`、base は逆算）
 - **既存の数値は変えていない**。スキル 41 種・武器種 10・射撃・必殺の Scaling はすべて既定表に収まっていたので、ジャンルの割り当てだけを足した。ステータスが基礎値（各 5）のときの威力は現行と一致する
@@ -308,7 +308,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
   軽減率 = armorReduction(アーマー)（物理）/ armorReduction(魔防)（魔法）/ 両者の平均（混成）
   実効耐性 = 50 までは等倍、超えた分は ×0.5、上限 75・下限 −100（ELEMENT.resistKnee / Slope / Max / Min）
 ```
-- 素性の既定: 近接 = 武器種（`MovesetDef.attack`）、射撃 = 銃の弾（`BulletDef.attack`）、スキル = `skills/data.ts` の `SKILL_ATTACK`（`skills/hit.ts` の skillHit が渡す）、必殺 = `BURST_ATTACK`（範囲・魔法）。proc（反射・爆発・継続ダメージ・トリガー）は素性を持たず、防御も耐性も掛けない
+- 素性の既定: 近接 = 武器種（`MovesetDef.attack`）、射撃 = 銃の弾（`BulletDef.attack`）、スキル = `skills/data.ts` の `SKILL_ATTACK`（`skills/hit.ts` の skillHit が渡す）、奥義 = 奥義ごとの `UltimateDef.attack`（周囲攻撃の多くは `BURST_ATTACK`〔範囲・魔法〕、振り・踏み込みは武器種の素性）。proc（反射・爆発・継続ダメージ・トリガー）は素性を持たず、防御も耐性も掛けない
 - 敵の攻撃は敵ごとの `EnemyDefenseDef.attack`（接触・弾・爆発・衝撃波で共通）。攻撃者の無い罠・地形は物理・無属性
 - 弱点に当たると浮き文字「弱点」と効果音 `weakHit`、耐性に当たると「耐性」と `resistHit`。同じ敵の近くに同じ文字が濃く残っている間は重ねない（多段ヒット対策。`state.texts` を読むだけで状態を増やさない）
 - プレイヤーの物理防御は既存の `armor`（表示「アーマー」、世界観語の表で据え置き）をそのまま使い、魔法用に `warding`（魔防）を足した。キーも式も変えないので `migrate.ts` の変換は不要
@@ -357,10 +357,10 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 拳闘士 | 筋 +2 体 +2 技 -1 霊 -3 | 拳 / 鉈 / 棍 | 近接 6 回ごとに衝撃波（1 段目 ×0.8） | 被弾で 3 秒ダメージ +30% | 地裂き | 受けるダメージ +10% | 最初から |
 | 盾持ち | 体 +3 筋 +1 技 -2 霊 -2 | 剣 / 鉈 / 棍 | 被弾で 0.4 秒無敵（ICD 6 秒） | カウンターで衝撃波（1 段目 ×1） | パリィ | 移動速度 -8% | 最初から |
 | 呪術師 | 霊 +3 精 +1 筋 -2 体 -2 | 大鎌 / 杖 | 敵に状態異常を付けるたび気力 +2（ICD 0.3 秒） | 毒の敵の撃破で周りへ同じ強さの毒 | 伝染 | 近接の威力 -15% | 依頼「血の道」 |
-| 槍兵 | 技 +2 筋 +1 精 -1 霊 -2 | 槍 / 大鎌 | 堅守の敵への近接で怯み値 +16 | 怯ませると必殺ゲージ +8 | 鎖鎌 | ダッシュの再使用時間 +15% | 依頼「急所読み」 |
+| 槍兵 | 技 +2 筋 +1 精 -1 霊 -2 | 槍 / 大鎌 | 堅守の敵への近接で怯み値 +16 | 怯ませると奥義ゲージ +8 | 鎖鎌 | ダッシュの再使用時間 +15% | 依頼「急所読み」 |
 | 術士 | 精 +2 霊 +2 筋 -2 体 -2 | 杖 / 鞭 | スキル発動で 2 秒ダメージ +15% | 気力が少ないときの撃破で気力 +6 | 雷撃 | 最大生命 -15% | 依頼「連鎖の糸」 |
 | 影 | 技 +3 霊 +1 筋 -2 体 -2 | 双剣 / 拳 | ダッシュ終了 0.5 秒以内の近接で脆弱 2 秒（背面の一撃の代わり） | 見切りで 2 秒移動速度 +30% | 影渡り | 最大生命 -20% | 依頼「見切りの舞」 |
-| 錬金術師 | 精 +2 霊 +1 体 +1 筋 -2 技 -2 | 棍 / 鉈 | 反応を起こすと必殺ゲージ +6 | 状態異常 2 種以上の敵の撃破で爆発（1 段目 ×0.6、ICD 1 秒） | 爆薬樽 | 攻撃速度 -10% | 依頼「三段の連鎖」 |
+| 錬金術師 | 精 +2 霊 +1 体 +1 筋 -2 技 -2 | 棍 / 鉈 | 反応を起こすと奥義ゲージ +6 | 状態異常 2 種以上の敵の撃破で爆発（1 段目 ×0.6、ICD 1 秒） | 爆薬樽 | 攻撃速度 -10% | 依頼「三段の連鎖」 |
 
 **仕組み**
 - 型: `JobKey` / `JobDef`（`src/data/jobs.ts`）。`RunSetup.job`（省略は見習い）→ `GameState.job`
@@ -376,7 +376,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 
 ### A-10. 行動ごとの係数（2026-09-24。A-1 の派生と A-8 の既定表を置き換える）
 
-**狙い**: ステータスが決まった行動に縛られない（「筋力 = 近接と怯み」をやめる）。行動（武器種の各段・ダッシュ攻撃・固有技・派生・溜め・射撃の型・必殺・スキル）ごとに「基礎値 + Σ(ステータス × 係数)」を持たせ、LoL のレシオのように参照先を行動ごとに決める。1 種だけ・複数・全部・0 種（基礎値だけ）のどれでもよい。同じ近接でも武器種で参照先が違ってよい。
+**狙い**: ステータスが決まった行動に縛られない（「筋力 = 近接と怯み」をやめる）。行動（武器種の左右の各段・ダッシュ攻撃・派生・溜め・射撃の型・奥義・スキル）ごとに「基礎値 + Σ(ステータス × 係数)」を持たせ、LoL のレシオのように参照先を行動ごとに決める。1 種だけ・複数・全部・0 種（基礎値だけ）のどれでもよい。同じ近接でも武器種で参照先が違ってよい。
 
 **係数を持てる量**:
 
@@ -389,7 +389,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 
 - `AttrRatio` は「実効値 1 点あたりの増分」。`withRatio` = 基礎値での値 + Σ 係数 × (実効値 − 5)。ステータスが各 5 なら元の値のままなので、係数を足してもバランスの基準点は動かない
 - 表示は威力と揃えて「ステータス 0 のときの値 + 係数」に直す（`ratioToScaling`）
-- 係数を持てる場所: `MeleeStepDef.scaling / poiseRatio`（全段・ダッシュ攻撃・固有技・派生・溜め）、`ThrowArtDef.scaling / poiseRatio`、`ShotDef.scaling / poiseRatio`（省略は `PLAYER.shoot.scaling`）、`PLAYER.special.scaling / poiseRatio`、スキルの数値ブロックの `damage` などの Scaling と `poiseRatio`（`skills/resource.ts` の `manaSkill` / `cooldownSkill` が通す）、`StatusApply.ratio`、`buffScaling`
+- 係数を持てる場所: `MeleeStepDef.scaling / poiseRatio`（左右の全段・ダッシュ攻撃・派生・溜め）、`ThrowArtDef.scaling / poiseRatio`（右の弾の段）、`ShotDef.scaling / poiseRatio`（省略は `PLAYER.shoot.scaling`）、奥義の行為の `scaling / poiseRatio`（`ULTIMATE.defs.<武器種>.<名前>`）、スキルの数値ブロックの `damage` などの Scaling と `poiseRatio`（`skills/resource.ts` の `manaSkill` / `cooldownSkill` が通す）、`StatusApply.ratio`、`buffScaling`
 
 **ステータスそのものの効果（残すもの = 体の性能）**: 技巧 → 移動速度・ダッシュの再使用時間、体力 → 最大生命・受ける状態異常の持続、精神 → 最大気力・気力の自然回復。筋力と霊力は体の性能を持たず、行動の係数でだけ効く。
 
@@ -411,7 +411,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 自然回復（戦闘中 1.2/秒、非封鎖中 ×2.5）─┘
 ```
 
-近接命中・射撃命中はどちらも左クリック（攻撃）の結果（近接武器か銃かで分かれる）。右クリック（固有技）自体は気力を回収しない
+近接命中は左右どちらの連撃の振りでも数える（右の振りの段・派生も段ごとの `mana`）。射撃命中は銃の家系の左クリックと、右の弾の段（volley。射撃扱い）。奥義の行為の命中は気力を回収しない
 
 **方針（2026-09-24 プレイ所見で締め直し）**: 序盤（装備・祝福なし）の気力は乏しい資源にする。満タン 80 から気力型スキル（平均コスト約 19）を 3〜4 発撃つとほぼ空になり、以後は通常攻撃の命中・撃破・見切りで少しずつ取り戻す。自然回復だけでは 1 発ぶんに 15 秒前後かかるので、通常攻撃を混ぜる動機が生まれる。回復・軽減の伸びしろは基礎値ではなく装備の性質と祝福（`maxMana` / `manaRegen` / `manaGainMul` / `manaCostMul`）に置き、ビルドを組むほど理想の撃ち方に近づく体験にする。旧値（100 / 4.5 / ×4 / [5,5,8] など）は「回復が早すぎてコストが機能していない」ため改めた。
 
@@ -435,7 +435,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 - 回収は `manaGainMul`（要追加: `PlayerStats.manaGainMul`、既定 1）を掛ける
 - **スキル自身の命中では気力が戻らない**（無限ループ防止）。例外は刻印符「連鎖」（B-5）
 - 1 ヒットで回収するのは近接の「命中した敵 1 体ごと」だが、1 振りあたり上限 2 体ぶん（`MANA.meleeTargetCap = 2`）
-- 必殺ゲージ（バースト）は別の資源として残す。気力と合わせない（祝福 10 種以上が必殺ゲージを参照しているため）
+- 奥義ゲージ（旧 必殺ゲージ）は別の資源として残す。気力と合わせない（祝福 10 種以上が奥義ゲージを参照しているため）
 
 ### B-2. 最低間隔と気力不足
 
@@ -464,7 +464,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 | 3 | `Digit3` / `KeyX` | - | LB 押しながら Y |
 | 4 | `Digit4` / `KeyZ` | - | LB 押しながら B |
 
-- パッドは **LB をスキル層のシフト** にする。LB を押している間、A / X / Y / B は攻撃・固有技・バースト・ダッシュではなくスキル 1〜4 になる。RT（攻撃）/ LT（固有技）/ RB（ダッシュ）は LB 中も効く。既存の RSTICK / DPAD_UP によるスキル 2 は外す
+- パッドは **LB をスキル層のシフト** にする。LB を押している間、A / X / Y / B は攻撃・右の連撃・奥義・ダッシュではなくスキル 1〜4 になる。RT（攻撃）/ LT（右の連撃）/ RB（ダッシュ）は LB 中も効く。既存の RSTICK / DPAD_UP によるスキル 2 は外す
 - `FrameInput` に `skill3Pressed` / `skill4Pressed` / `skill3Held` / `skill4Held` を足す（配列にせずフラットにする。`core/replay.ts` のビット列にそのまま並べられる）。**`REPLAY_VERSION` を 2 → 3** に上げる（旧リプレイは一覧に残るが再生不可、既存の仕組みどおり）
 - `SKILL.slots = 4`。`SkillProfile.loadout` が 2 要素の旧セーブは読み込み時に `null` で 4 要素へ埋める（キー形式は変えないので `v2` は不要）
 - 祝福の選択に使っている `skill1Pressed` / `skill2Pressed` / `attackPressed` はそのまま（`src/qa/bot.ts` もそのまま動く）

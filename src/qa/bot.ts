@@ -2,6 +2,7 @@ import type { FrameInput } from "../core/input";
 import { EMPTY_INPUT } from "../core/input";
 import { createRng, type Rng } from "../core/rng";
 import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
+import { PX_PER_METER } from "../core/units";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
@@ -85,6 +86,11 @@ const PARRY_CHANCE = 0.5;
 const ART_THROW_RANGE = 160;
 /** 1 振りの技の射程に足す接近余地（px） */
 const ART_STRIKE_MARGIN = 6;
+/**
+ * 奥義（F）: ゲージが満タン（energy >= maxEnergy）で、敵がこの距離（px）以内なら押す。
+ * 持続型は押し直すと終わるので、持続中は押さずにゲージが減りきるまで放置する（手動終了の経路は踏まない。report に注記）
+ */
+const ULTIMATE_RANGE = 8 * PX_PER_METER;
 /** この割合以下の HP でハートが見えていれば拾いに行く */
 const LOW_HP_RATIO = 0.3;
 /** 詰まり判定のチェック間隔（秒） */
@@ -616,6 +622,10 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   }
 
   input.move = steerToward(state, bot, enemy.body.pos, dt);
+  if (shouldPressUltimate(state, d)) {
+    input.specialPressed = true;
+    return input;
+  }
 
   // マナ主体（docs/COMBAT_DESIGN.md B 章）: スキルごとの実際の射程内で撃てるならスキルを優先する
   const skillIndex = chooseSkillSlot(state, d);
@@ -642,6 +652,13 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   if (isGun(moveset)) input.attackHeld = shootHeldFor(state);
   pressRightLane(state, bot, moveset, d, input);
   return input;
+}
+
+/** 奥義を押すか: 持続中でなく、ゲージが満タンで、敵が ULTIMATE_RANGE 以内 */
+export function shouldPressUltimate(state: GameState, distanceToEnemy: number): boolean {
+  const p = state.player;
+  if (p.ultimate.active !== null) return false;
+  return p.energy >= p.maxEnergy && distanceToEnemy <= ULTIMATE_RANGE;
 }
 
 /** 次に右を押すと出る右レーンの段（連撃が続かなければ undefined） */
