@@ -275,6 +275,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 派生（威力/怯み値） | `FOLDED_GROUP_HEAD` | 計算式の頁で派生を値だけ 1 段落に並べる見出し。「交差斬り 8/10」は威力 8・怯み値 10 | `ui/scalingText.ts` |
 | ジョブ固有の派生 | `JOB_BRANCHES`（`BranchDef`） | 左左左右で出るジョブごとのフィニッシュ。どの武器種にも足される（同じ入力の派生を武器種が持てば武器種が優先）。残月（剣士。刀の「燕返し」と重ならないよう）/ 射抜き / 猛連打（極意の「猛打」と別）/ 盾殴り / 呪い刃 / 穂先返し / 魔力放出 / 影縫い / 反応刃 | `data/jobs.ts` |
 | 武器種の固有効果 | `MovesetDef.rules` | 武器種を持つ間だけ効く統一ルール（刀のカウンターの勢い・大盾の身固め など） | `data/weapons.ts` |
+| 素手 | unarmed | 右手に何も持たないときの武器種の表示名。動きは拳の型と同じで、近接の威力 ×0.7（`WEAPON.unarmed.damageMul`）。ジョブの得意には数えない | `data/weapons.ts` UNARMED_NAME |
 | 反転撃ち | gunner の dashAttack | 二丁拳銃のダッシュ攻撃（ダッシュ中に撃つと、終わりに周りを撃ち払う） | `data/weapons.ts` | `data/weapons.ts` |
 | 近接 / 射撃 / 溜め（左クリックの役割） | PrimaryKind: melee / shot / charge | 武器種ごとの左クリックの役割。右クリックは全武器種共通で右の連撃（アクション 2） | `data/weapons.ts` |
 | 多段ヒット / 踏み込み / 残像 | hits / lunge / trail | 1 振りで複数回当たる / 振りながら前へ出る / 振りの線 | `data/weapons.ts` |

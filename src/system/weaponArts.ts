@@ -337,6 +337,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     attack: t.attack,
     recoil: false,
     sprite: t.sprite,
+    applies: t.applies,
   });
 }
 

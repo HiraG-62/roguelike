@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
-import { KEYSTONE } from "../data/tuning";
+import { KEYSTONE, WEAPON } from "../data/tuning";
 import {
   AFFIXES,
   CONVERSION_AFFIXES,
@@ -152,9 +152,11 @@ describe("装備全体の文脈を読む性質", () => {
     eq.ring = item("ring", [roll("sapling", 2)], { margin: 3 });
     eq.boots = item("boots", [], { margin: 2 });
     const s = computeStats(eq);
-    expect(s.meleeDamageMul).toBeCloseTo(1 + 2 * PERCENT * 5);
+    // 右手が空なので素手の倍率が掛かる
+    const unarmed = WEAPON.unarmed.damageMul;
+    expect(s.meleeDamageMul).toBeCloseTo((1 + 2 * PERCENT * 5) * unarmed);
     eq.boots = item("boots", [], { margin: 0 });
-    expect(computeStats(eq).meleeDamageMul).toBeCloseTo(1 + 2 * PERCENT * 3);
+    expect(computeStats(eq).meleeDamageMul).toBeCloseTo((1 + 2 * PERCENT * 3) * unarmed);
   });
 
   it("文脈（余白・銘・反転・異色の数）は畳み込み後の stats に残らない", () => {

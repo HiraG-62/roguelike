@@ -443,6 +443,7 @@ import j_enemies_defense_enemies_thiefKing from "./enemies/defense/enemies/thief
 import j_enemies_defense_enemies_thief from "./enemies/defense/enemies/thief.json";
 import j_enemies_defense_enemies_mirrorImage from "./enemies/defense/enemies/mirrorImage.json";
 import j_enemies_defense_enemies_reaperShade from "./enemies/defense/enemies/reaperShade.json";
+import j_enemies_ENEMY_SCALE from "./enemies/ENEMY_SCALE.json";
 import j_feel__index from "./feel/_index.json";
 import j_feel_FEEL from "./feel/FEEL.json";
 import j_feel_EFFECTS__index from "./feel/EFFECTS/_index.json";
@@ -879,6 +880,7 @@ import j_weapons_WEAPON_artDefaults from "./weapons/WEAPON/artDefaults.json";
 import j_weapons_WEAPON_movesetRules from "./weapons/WEAPON/movesetRules.json";
 import j_weapons_WEAPON_jobBranches from "./weapons/WEAPON/jobBranches.json";
 import j_weapons_WEAPON_bullets from "./weapons/WEAPON/bullets.json";
+import j_weapons_WEAPON_unarmed from "./weapons/WEAPON/unarmed.json";
 import j_weapons_PLAYER_MELEE from "./weapons/PLAYER_MELEE.json";
 import j_weapons_ACTION_DASH_ATTACK from "./weapons/ACTION_DASH_ATTACK.json";
 import j_world__index from "./world/_index.json";
@@ -1418,6 +1420,7 @@ export const enemies = {
       "reaperShade": j_enemies_defense_enemies_reaperShade,
     },
   },
+  "ENEMY_SCALE": j_enemies_ENEMY_SCALE,
 };
 
 export const feel = {
@@ -1921,6 +1924,8 @@ export const weapons = {
     "movesetRules": j_weapons_WEAPON_movesetRules,
     "jobBranches": j_weapons_WEAPON_jobBranches,
     "bullets": j_weapons_WEAPON_bullets,
+    "meleeDamageScale": j_weapons_WEAPON__index["meleeDamageScale"],
+    "unarmed": j_weapons_WEAPON_unarmed,
   },
   "PLAYER_MELEE": j_weapons_PLAYER_MELEE,
   "ACTION_DASH_ATTACK": j_weapons_ACTION_DASH_ATTACK,
@@ -2217,6 +2222,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_AI/volley.json",
   "enemies/ENEMY_AI/windSprite.json",
   "enemies/ENEMY_AI/wisp.json",
+  "enemies/ENEMY_SCALE.json",
   "enemies/ENEMY_TEMPO.json",
   "enemies/REAPER.json",
   "enemies/_index.json",
@@ -2978,6 +2984,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/movesets/wand.json",
   "weapons/WEAPON/movesets/warRing.json",
   "weapons/WEAPON/movesets/whip.json",
+  "weapons/WEAPON/unarmed.json",
   "weapons/_index.json",
   "world/CAVE.json",
   "world/CONTRACT.json",

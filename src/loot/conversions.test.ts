@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
+import { WEAPON } from "../data/tuning";
 import { CONVERSION_AFFIXES, affixDef, formatAffix, isConversionKey } from "./affixes";
 import { CONVERSION_TRAIT_CHANCE, UNIQUES, generateItem } from "./generator";
 import { computeStats } from "./stats";
@@ -64,8 +65,8 @@ describe("変換の性質", () => {
 
   it("melee → burn: 近接倍率の一部を burn に移す（scale の後に掛かる）", () => {
     const s = statsWith([roll("meleeDamagePct", 50), roll("cv_meleeToBurn", 40)], "amulet");
-    // 1.5 * 0.6 = 0.9、移した 0.6 → burn DPS 6、chance 0.4 * 0.5 = 0.2
-    expect(s.meleeDamageMul).toBeCloseTo(0.9, 5);
+    // 1.5 * 0.6 = 0.9、移した 0.6 → burn DPS 6、chance 0.4 * 0.5 = 0.2。右手が空なので最後に素手の倍率が掛かる
+    expect(s.meleeDamageMul).toBeCloseTo(0.9 * WEAPON.unarmed.damageMul, 5);
     expect(s.burnDps).toBeCloseTo(6, 5);
     expect(s.burnChance).toBeCloseTo(0.2, 5);
   });

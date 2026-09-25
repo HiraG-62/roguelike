@@ -3,7 +3,7 @@ import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
 import type { Attributes, FloorItem, LootRuntime, PendingBud, PlayerStats, Profile } from "../loot/types";
-import type { StatusBag } from "./status";
+import type { StatusApply, StatusBag } from "./status";
 import type { TerrainKind, TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
 import type { FloorStone, SkillRunState } from "../skills/types";
@@ -423,6 +423,8 @@ export interface Projectile {
   sprite?: string;
   /** 命中で溜まる奥義ゲージ（銃の射撃だけ。system/combat.ts の shotHitEnergy）。未指定は溜めない */
   energy?: number;
+  /** 命中・炸裂で敵に付ける状態異常（ThrowArtDef.applies。付与元は player）。未指定は付けない */
+  applies?: readonly StatusApply[];
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

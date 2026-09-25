@@ -11,6 +11,7 @@ import {
   isGun,
   laneLength,
   meleeChargeOf,
+  movesetLabel,
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
 import { currentShot, isAttacking, nextLaneIndex, plannedInputs, playerMoveset } from "../system/player";
@@ -64,7 +65,9 @@ function primaryHint(moveset: MovesetDef, shot: BulletDef, index: number): strin
   if (moveset.primary === "charge") return `${BUTTON_LABEL.primary} 長押し: 溜め`;
   if (isGun(moveset)) return shot.charge ? `${BUTTON_LABEL.primary} 長押し: 溜め撃ち` : `${BUTTON_LABEL.primary}: 射撃`;
   const step = Math.min(index, laneLength(moveset, "primary") - 1);
-  return `${BUTTON_LABEL.primary}: ${step + 1} 段目`;
+  // 弾を撃つ段（杖の詠唱）は段の番号ではなく魔法の名前を出す
+  const cast = moveset.steps[step]?.cast;
+  return cast ? `${BUTTON_LABEL.primary}: ${cast.name}` : `${BUTTON_LABEL.primary}: ${step + 1} 段目`;
 }
 
 /**
@@ -129,7 +132,7 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, la
     return;
   }
 
-  drawText(ctx, truncateText(moveset.name, maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
+  drawText(ctx, truncateText(movesetLabel(moveset, state.stats.unarmed), maxW, TEXT.SMALL), cx, bottom - line * 2, TEXT.SMALL, COLOR_NAME, "center");
   const gauge = activeChargeGauge(state, moveset);
   if (gauge) drawGauge(ctx, cx, bottom - line, gauge);
   else drawPips(ctx, cx, bottom - line, comboPips(pipCount(moveset), p.attack.step, isAttacking(p) || p.attack.step > 0));

@@ -216,11 +216,11 @@ describe("武器掛け", () => {
   it("setTrialWeapon で stats.moveset が差し替わり、null で装備のものに戻る", () => {
     const session = hub();
     const { state } = session;
-    expect(state.stats.moveset, "武器なしは剣").toBe("sword");
+    expect(state.stats.moveset, "武器なしは拳の型（素手）").toBe("fists");
     setTrialWeapon(session, "greatsword");
     expect(state.stats.moveset, "大剣を試す").toBe("greatsword");
     setTrialWeapon(session, null);
-    expect(state.stats.moveset, "装備の剣に戻る").toBe("sword");
+    expect(state.stats.moveset, "装備（空）の拳に戻る").toBe("fists");
   });
 
   it("銃の家系を試すと、借りるときと同じ器の弾で撃ち、外すと装備の弾に戻る", () => {
@@ -247,7 +247,7 @@ describe("武器掛け", () => {
     setTrialWeapon(session, "whip");
     // 装備画面で付け替えると applyStats が装備から作り直す
     applyStats(state, computeStats(state.profile.equipment));
-    expect(state.stats.moveset, "作り直した直後は装備の型").toBe("sword");
+    expect(state.stats.moveset, "作り直した直後は装備の型（空なので素手の拳）").toBe("fists");
     idle(session, 1);
     expect(state.stats.moveset, "次のステップで試し中の型へ戻る").toBe("whip");
   });

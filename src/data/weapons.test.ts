@@ -4,7 +4,7 @@ import { BASES } from "../loot/bases";
 import { DEFAULT_STATS } from "../loot/types";
 import { scaled } from "../system/attributes";
 import { BULLETS } from "../loot/bullets";
-import { ACTION, MANA, PLAYER } from "./tuning";
+import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 import {
   type ButtonKey,
   type MovesetKey,
@@ -41,9 +41,12 @@ const MIN_BRANCH_INPUTS = 3;
 const GUN_LANE_STEPS = 3;
 /** 左右の同じ段番号の秒間威力（基礎値）の比の許容（右は重い・広い寄りなので目安から ±40%） */
 const LANE_DPS_TOLERANCE = 0.4;
-/** 基礎値（各 5）での現行の威力（docs/COMBAT_DESIGN.md A-6。attributes.test.ts の固定値と同じ） */
-const SWORD_PINNED = [7.8, 7.8, 15.6];
-const DASH_PINNED = 11.2;
+/**
+ * 基礎値（各 5）での現行の威力（docs/COMBAT_DESIGN.md A-6。attributes.test.ts の固定値と同じ）。
+ * 近接の段は復元時に WEAPON.meleeDamageScale が掛かるので、係数表の値に同じ倍率を掛けたもの
+ */
+const SWORD_PINNED = [7.8, 7.8, 15.6].map((v) => v * WEAPON.meleeDamageScale);
+const DASH_PINNED = 11.2 * WEAPON.meleeDamageScale;
 
 const atBase = (s: Parameters<typeof scaled>[1]): number => scaled(DEFAULT_STATS, s);
 

@@ -4,6 +4,7 @@ import { EMPTY_INPUT, type FrameInput } from "./input";
 import { FIXED_DT } from "./loop";
 import { PLAYER } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
+import { MOVESETS } from "../data/weapons";
 import { createEnemy } from "../system/enemies";
 import { createEmptyProfile, type Item } from "../loot/types";
 
@@ -99,7 +100,8 @@ describe("player actions", () => {
     step(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.player.attack.phase).toBe("windup");
     expect(state.player.attack.combo).toBe(0);
-    const first = PLAYER.melee[0]!;
+    // 空の装備は素手（拳の型）なので、段の時間は今の型の 1 段目から取る
+    const first = MOVESETS[state.stats.moveset].steps[0]!;
     const total = first.windup + first.active + first.recover;
     // recover の途中で押す
     const steps = Math.ceil((first.windup + first.active + first.recover * 0.8) / FIXED_DT);

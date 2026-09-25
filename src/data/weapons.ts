@@ -3,6 +3,7 @@ import { type KeywordProfile, kw } from "../core/keywords";
 import type { EventKind } from "../core/events";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
+import { TERRAIN_KINDS, type TerrainKind } from "../core/terrain";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 
@@ -112,6 +113,17 @@ export interface MeleeStepDef {
   readonly cancel?: number;
   /** 振り始めから付く無敵（秒。双剣の影踏みの踏み込み） */
   readonly invuln?: number;
+  /** active に入った瞬間に撃つ弾（杖の詠唱。弾の key は `cast.<key>`）。当たり判定の size 0 なら純粋な詠唱 */
+  readonly cast?: CastDef;
+  /** active の間、弾返し・弾斬りが無くても敵弾を消す（扇子の払い） */
+  readonly cutsBullets?: boolean;
+}
+
+/** 左の段・派生・ダッシュ攻撃が撃つ弾。name は HUD の「左: 火矢」（CAST_NAMES） */
+export interface CastDef {
+  readonly key: string;
+  readonly name: string;
+  readonly throw: ThrowArtDef;
 }
 
 /** 左クリック（攻撃 1）= primary、右クリック（攻撃 2）= secondary。docs/ideas/ougi-and-dual-actions.md 4 章 */
@@ -207,6 +219,8 @@ export interface ThrowArtDef {
   readonly attack: AttackProfile;
   /** 弾の絵のキー（省略は BULLET の点。斧は武器の絵を回す） */
   readonly sprite?: string;
+  /** 命中・炸裂した敵に付ける状態異常（MeleeStepDef.applies と同じ形。付与元は player） */
+  readonly applies?: readonly StatusApply[];
 }
 
 /** 自分の弾を手元へ戻す。戻りの弾は威力 returnDamageMul 倍。homing があれば戻りの弾は range 内の近くの敵へ曲がる（毎秒 turnRate ラジアンまで） */
@@ -230,6 +244,24 @@ export interface OrbitDef {
   readonly radius: number;
   readonly turnRate: number;
   readonly laps: number;
+}
+
+/**
+ * 弾の見た目。color は弾と発射の粒の色（設置弾・曲射の色が優先）、trail は尾の色（省略は color）、
+ * particles は発射の粒の数（省略は既定）、glow は弾の光を大きくする
+ */
+export interface BulletLookDef {
+  readonly color: string;
+  readonly trail?: string;
+  readonly particles?: number;
+  readonly glow?: boolean;
+}
+
+/** 弾が消える位置に置く地形（system/terrain.ts の placeTerrain。radius は px、duration は秒） */
+export interface LeavesDef {
+  readonly terrain: TerrainKind;
+  readonly radius: number;
+  readonly duration: number;
 }
 
 /** 右 1 段目の構えから作った派生の印。release = 構えを離した振り（押した瞬間には照合しない） */
@@ -279,6 +311,14 @@ export interface MeleeChargeDef {
   /** 溜めて離したときに出す振り（段の倍率を掛ける） */
   readonly step: MeleeStepDef;
   readonly levels: readonly ChargeLevelDef[];
+  /** 溜めている間、interval 秒ごとに step の当たり判定を 1 回出す（チェーンアレイの回し）。無ければ普通の溜め */
+  readonly spinning?: SpinningDef;
+}
+
+/** 溜め中の周期ヒット。押し続けている間だけ（オート攻撃ではない） */
+export interface SpinningDef {
+  readonly interval: number;
+  readonly step: MeleeStepDef;
 }
 
 export interface MovesetDef {
@@ -364,8 +404,12 @@ export interface BulletDef {
   readonly boomerang?: { readonly returnAt: number; readonly catchRadius: number };
   /** 曲射: 照準の距離（minRange〜射程）で炸裂する。peak は描画の山の高さ（px） */
   readonly lob?: { readonly blastRadius: number; readonly minRange: number; readonly peak: number; readonly color: string };
-  /** 周回（持続の奥義が付ける。OrbitDef） */
+  /** 周回（持続の奥義・チャクラムの段が付ける。OrbitDef） */
   readonly orbit?: OrbitDef;
+  /** 見た目（色・尾・粒・光）。描画と発射の粒だけが読み、当たり方は変えない */
+  readonly look?: BulletLookDef;
+  /** 消える位置（命中・壁・炸裂・寿命切れ。手元に戻った弾は除く）に地形を残す */
+  readonly leaves?: LeavesDef;
   /** 1 発の威力の係数（A-10）。省略は PLAYER.shoot.scaling。damageMul はこの後に掛かる */
   readonly scaling?: Scaling;
   /** 怯み値のステータス係数（A-10）。PLAYER.shoot.poise × poiseMul に上乗せする。省略はステータスで伸びない */
@@ -399,6 +443,12 @@ export interface ShotRuntime {
   orbitTravel?: number;
   /** 周回の位相のずれの残り（ラジアン）。撃った向きから、発射順でずらした角度へ半径と一緒に滑らかに寄せる */
   orbitPhase?: number;
+  /** 消える位置に残す地形（撃った瞬間の BulletDef.leaves の写し。BULLETS に無い差し替えの弾でも効く） */
+  leaves?: LeavesDef;
+  /** 見た目（撃った瞬間の BulletDef.look の写し。描画が読む） */
+  look?: BulletLookDef;
+  /** 地形を残し終えた（二重に置かない） */
+  left?: boolean;
 }
 
 /** 弾の挙動ブロックの数値だけ（JSON の形。key・名前・語・素性は持ち主が足す） */
@@ -427,7 +477,17 @@ export function hasBulletFeature(b: Readonly<BulletNumbers>, feature: BulletFeat
 /** JSON の弾の数値に key・名前・語・素性を足して BulletDef にする（数値の中に union 文字列は無いのでそのまま通す） */
 export function reviveBullet(raw: unknown, key: string, name: string, keywords: KeywordProfile, profile: AttackProfile): BulletDef {
   if (!isRecord(raw) || typeof raw.cooldownMul !== "number") throw new Error(`不正な弾: ${key}`);
-  return { ...(raw as unknown as BulletNumbers), key, name, keywords, attack: profile };
+  const bullet: BulletDef = { ...(raw as unknown as BulletNumbers), key, name, keywords, attack: profile };
+  return raw.leaves === undefined ? bullet : { ...bullet, leaves: reviveLeaves(raw.leaves, key) };
+}
+
+/** 弾が残す地形（terrain は union 文字列なので一覧と照合する） */
+function reviveLeaves(raw: unknown, key: string): LeavesDef {
+  if (!isRecord(raw) || typeof raw.terrain !== "string" || typeof raw.radius !== "number" || typeof raw.duration !== "number") {
+    throw new Error(`不正な leaves: ${key}`);
+  }
+  if (!(TERRAIN_KINDS as readonly string[]).includes(raw.terrain) || raw.terrain === "none") throw new Error(`未知の地形: ${raw.terrain}（${key}）`);
+  return { terrain: raw.terrain as TerrainKind, radius: raw.radius, duration: raw.duration };
 }
 
 /** 曲射の弾の見かけの高さ（px。描画用）。撃った瞬間と着弾で 0、寿命の中ほどで peak */
@@ -442,7 +502,22 @@ const BOX: HitShape = { kind: "box" };
 
 /** 剣は現行の PLAYER.melee / ACTION.dashAttack / MANA.onMelee を移植する（数値の定義元は変えない） */
 function swordSteps(): MeleeStepDef[] {
-  return PLAYER.melee.map((s, i) => ({ ...s, shape: BOX, mana: MANA.onMelee[i] ?? 0 }));
+  return PLAYER.melee.map((s, i) => ({ ...s, scaling: meleeScaling(s.scaling), shape: BOX, mana: MANA.onMelee[i] ?? 0 }));
+}
+
+/**
+ * 近接の段の威力の係数表に WEAPON.meleeDamageScale を掛ける。base と係数を同率で下げるので、
+ * 基礎値での威力だけが下がり、ステータス 1 点あたりの伸び率は変わらない（ステータスを上げたとたんに跳ねない）。
+ * 銃の弾（throw.scaling・bullets）・スキル・奥義はこの経路を通らないので対象外
+ */
+export function meleeScaling(s: Readonly<Scaling>): Scaling {
+  const mul = WEAPON.meleeDamageScale;
+  const out: Scaling = { base: s.base * mul };
+  for (const k of ATTR_KEYS) {
+    const v = s[k];
+    if (v !== undefined) out[k] = v * mul;
+  }
+  return out;
 }
 
 /**
@@ -494,8 +569,17 @@ function buttonKey(raw: unknown): ButtonKey {
 export function reviveStep(raw: unknown): MeleeStepDef {
   const r = raw as Record<string, unknown>;
   const rawApplies = r.applies as readonly unknown[] | undefined;
-  const step = { ...r, shape: hitShape(r.shape) } as unknown as MeleeStepDef;
-  return rawApplies ? { ...step, applies: rawApplies.map(statusApply) } : step;
+  if (!isRecord(r.scaling) || typeof r.scaling.base !== "number") throw new Error(`段に scaling が無い: ${JSON.stringify(raw)}`);
+  const step = { ...r, shape: hitShape(r.shape), scaling: meleeScaling(r.scaling as Scaling) } as unknown as MeleeStepDef;
+  const withApplies = rawApplies ? { ...step, applies: rawApplies.map(statusApply) } : step;
+  return r.cast === undefined ? withApplies : { ...withApplies, cast: reviveCast(r.cast) };
+}
+
+/** 段の cast（{ key, throw }）。名前は CAST_NAMES、素性と絵は CAST_VOLLEY（無ければ射撃・物理）。弾の key は `cast.<key>` */
+function reviveCast(raw: unknown): CastDef {
+  if (!isRecord(raw) || typeof raw.key !== "string" || raw.key === "") throw new Error(`不正な cast: ${JSON.stringify(raw)}`);
+  const name = CAST_NAMES[raw.key] ?? raw.key;
+  return { key: raw.key, name, throw: reviveThrowAs(raw.throw, `cast.${raw.key}`, name, CAST_VOLLEY[raw.key]) };
 }
 
 function reviveSteps(raw: unknown): MeleeStepDef[] {
@@ -547,7 +631,14 @@ function reviveBranches(raw: unknown): BranchDef[] {
 
 function reviveCharge(raw: unknown): MeleeChargeDef {
   const r = raw as { readonly moveMul: number; readonly step: unknown; readonly levels: readonly ChargeLevelDef[] };
-  return { moveMul: r.moveMul, step: reviveStep(r.step), levels: r.levels };
+  const spinning = reviveSpinning((raw as Record<string, unknown>).spinning);
+  return { moveMul: r.moveMul, step: reviveStep(r.step), levels: r.levels, ...(spinning ? { spinning } : {}) };
+}
+
+function reviveSpinning(raw: unknown): SpinningDef | undefined {
+  if (raw === undefined) return undefined;
+  if (!isRecord(raw) || typeof raw.interval !== "number" || raw.interval <= 0) throw new Error(`不正な spinning: ${JSON.stringify(raw)}`);
+  return { interval: raw.interval, step: reviveStep(raw.step) };
 }
 
 /** 押している間の構え（HoldArtDef）。release（離した振り）が無ければそのまま */
@@ -558,11 +649,17 @@ function reviveHold(raw: unknown): HoldArtDef {
 
 /** 弾を出す段。弾の数値（throw.bullet）に段の名前と素性を足して BulletDef にする（弾の key は `art.<段の key>`） */
 function reviveThrow(raw: unknown, key: string, name: string): ThrowArtDef {
-  if (!isRecord(raw)) throw new Error(`不正な throw: ${key}`);
-  const look = STEP2_VOLLEY[key] ?? { attack: GUN_ATTACK };
-  const bullet = reviveBullet(raw.bullet, `art.${key}`, name, ART_BULLET_KEYWORDS, look.attack);
-  const t = raw as unknown as Omit<ThrowArtDef, "bullet" | "attack" | "sprite">;
-  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite };
+  return reviveThrowAs(raw, `art.${key}`, name, STEP2_VOLLEY[key]);
+}
+
+/** 弾を出す段・cast の共通。bulletKey は弾の key、profile は素性と絵（無ければ射撃・物理で点の弾） */
+function reviveThrowAs(raw: unknown, bulletKey: string, name: string, profile: VolleyProfile | undefined): ThrowArtDef {
+  if (!isRecord(raw)) throw new Error(`不正な throw: ${bulletKey}`);
+  const look = profile ?? { attack: GUN_ATTACK };
+  const bullet = reviveBullet(raw.bullet, bulletKey, name, ART_BULLET_KEYWORDS, look.attack);
+  const t = raw as unknown as Omit<ThrowArtDef, "bullet" | "attack" | "sprite" | "applies">;
+  const applies = Array.isArray(raw.applies) ? { applies: raw.applies.map(statusApply) } : {};
+  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies };
 }
 
 /** JSON の右レーンの 1 段（kind は union 文字列なので照合して絞る。未知の kind は読み込み時に落とす） */
@@ -814,8 +911,20 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   ringSweep: "手元の輪で周りを広く斬る",
 };
 
+/** 弾を出す段・cast の素性（ジャンル・属性）と弾の絵 */
+interface VolleyProfile {
+  readonly attack: AttackProfile;
+  readonly sprite?: string;
+}
+
+/** 左の段の cast の表示名（HUD の「左: 火矢」）。キーは cast.key。数値は movesets.<武器種>.steps[n].cast */
+export const CAST_NAMES: Readonly<Record<string, string>> = {};
+
+/** cast の弾の素性と絵（キーは cast.key）。無ければ射撃・物理で点の弾 */
+const CAST_VOLLEY: Readonly<Record<string, VolleyProfile>> = {};
+
 /** 弾を出す段の素性（ジャンル・属性）と弾の絵。無ければ射撃・物理で点の弾 */
-const STEP2_VOLLEY: Readonly<Record<string, { readonly attack: AttackProfile; readonly sprite?: string }>> = {
+const STEP2_VOLLEY: Readonly<Record<string, VolleyProfile>> = {
   arcaneBolt: { attack: attack("ranged", "arcane", "light") },
   arcaneBolt2: { attack: attack("ranged", "arcane", "light") },
   greatBolt: { attack: attack("ranged", "arcane", "light") },
@@ -875,7 +984,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     name: "剣",
     desc: "3 段の素直な斬撃。右の 1 段目は受け流し、右右で受け流しから返し斬り。左左右で十字断ち、右左左で踏み込み斬り",
     steps: swordSteps(),
-    dashAttack: { ...ACTION.dashAttack, shape: BOX, mana: MANA.onDashAttack },
+    dashAttack: { ...ACTION.dashAttack, scaling: meleeScaling(ACTION.dashAttack.scaling), shape: BOX, mana: MANA.onDashAttack },
     attackMoveMul: W.sword.attackMoveMul,
     primary: "melee",
     steps2: reviveLane(W.sword.steps2),
@@ -1236,9 +1345,9 @@ export function isGun(moveset: MovesetDef): boolean {
   return moveset.primary === "shot";
 }
 
-/** 弾を出す武器種か（銃の家系、または右レーンに弾を出す段がある）。祝福の「射撃」タグの生死判定 */
+/** 弾を出す武器種か（銃の家系、右レーンに弾を出す段がある、または振りが cast を持つ）。祝福の「射撃」タグの生死判定 */
 export function usesProjectiles(moveset: MovesetDef): boolean {
-  return isGun(moveset) || moveset.steps2.some((s) => s.kind === "volley");
+  return isGun(moveset) || moveset.steps2.some((s) => s.kind === "volley") || movesetCasts(moveset).length > 0;
 }
 
 /** レーンの段数（左 = steps、右 = steps2） */
@@ -1307,6 +1416,22 @@ export function laneVolley(moveset: MovesetDef): ThrowArtDef | undefined {
   return undefined;
 }
 
+/** 武器種のすべての振り（左の段・ダッシュ攻撃・派生・右の振り・構えの離し・溜め・回し）が持つ cast。弾の表（loot/bullets.ts）が拾う */
+export function movesetCasts(moveset: MovesetDef): CastDef[] {
+  const steps: (MeleeStepDef | undefined)[] = [...moveset.steps, moveset.dashAttack, ...moveset.branches.map((b) => b.step)];
+  for (const s of moveset.steps2) {
+    if (s.kind === "swing") steps.push(s.step);
+    if (s.kind === "hold") steps.push(s.hold.release);
+    if (s.kind === "charge") steps.push(s.charge.step, s.charge.spinning?.step);
+  }
+  steps.push(moveset.charge?.step, moveset.charge?.spinning?.step);
+  const out: CastDef[] = [];
+  for (const s of steps) {
+    if (s?.cast) out.push(s.cast);
+  }
+  return out;
+}
+
 /** 構えを離した振りの派生の添字（構えの技に release が無ければ undefined） */
 export function releaseBranchIndex(moveset: MovesetDef): number | undefined {
   const index = moveset.branches.findIndex((b) => b.art === "release");
@@ -1359,7 +1484,16 @@ function tailMatches(inputs: readonly ButtonKey[], need: readonly ButtonKey[]): 
 /** 奥義の円月の素性。威力は精神 + 霊力なので範囲・魔法（docs/COMBAT_DESIGN.md A-8） */
 export const BURST_ATTACK: AttackProfile = attack("area", "arcane");
 
-export const DEFAULT_MOVESET: MovesetKey = "sword";
+/** 右手が空のときの型。拳の型を流用し、威力は WEAPON.unarmed.damageMul（loot/stats.ts の applyWeaponForms） */
+export const DEFAULT_MOVESET: MovesetKey = "fists";
+
+/** 右手が空のときの表示名（型は拳だが、武器を持っていないことを名前で示す） */
+export const UNARMED_NAME = "素手";
+
+/** 表示用の武器種名。素手なら拳ではなく「素手」 */
+export function movesetLabel(moveset: Readonly<MovesetDef>, unarmed: boolean): string {
+  return unarmed ? UNARMED_NAME : moveset.name;
+}
 
 export function movesetDef(key: MovesetKey): MovesetDef {
   return MOVESETS[key];

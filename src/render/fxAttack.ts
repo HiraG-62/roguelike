@@ -35,6 +35,13 @@ const LIGHTER = "lighter";
 const SOURCE_OVER = "source-over";
 /** hitFlash の立ち上がりとみなす増え幅（減衰の誤差を拾わない） */
 const FLASH_RISE_EPS = 1e-4;
+/** look.glow の弾の光の半径の倍率 */
+const LOOK_GLOW_MUL = 1.6;
+/** look.trail の弾の尾に散る粒の数・濃さ・横ぶれ（px）・ちらつきの升目（px。弾がこれだけ進むと粒の並びが変わる） */
+const LOOK_SPARKS = 3;
+const LOOK_SPARK_ALPHA = 0.8;
+const LOOK_SPARK_SPREAD = 2;
+const LOOK_SPARK_CELL = 3;
 /** これ以下の残り寿命で消えた弾は「尽きた」（命中・壁ではない） */
 const FIZZLE_LIFE_LEFT = 1 / 30;
 /** 近接の命中とみなす距離の余裕（px。当たり判定の外周からのはみ出し） */
@@ -723,18 +730,22 @@ export function drawBulletTrail(
   const c = FX_ATTACK.bullet;
   const style = projectileStyle(pr);
   const player = pr.owner === "player";
+  // 弾の見た目（BulletDef.look）: 尾の色（射撃の属性の色より優先）と光の大きさ。当たり方には関わらない
+  const look = player ? pr.shot?.look : undefined;
+  const tint = look ? (look.trail ?? look.color) : color;
   const speed = Math.hypot(pr.vel.x, pr.vel.y);
   const styleLen = style === "pierce" ? c.pierceTrailMul : style === "spread" ? 0.6 : style === "lob" || style === "mine" ? 0.35 : 1;
   const len = Math.min(c.maxTrail * styleLen, speed * c.trailTime * styleLen);
   const w = Math.max(1, pr.radius * (style === "charge" ? 1.3 : style === "pierce" ? 0.7 : 1));
-  const glowR = Math.round(c.glow * (style === "charge" ? c.chargeGlowMul : 1) + pr.radius);
-  if (player) glow(hx, hy, color, glowR, c.glowAlpha);
+  const glowR = Math.round((c.glow * (style === "charge" ? c.chargeGlowMul : 1) + pr.radius) * (look?.glow ? LOOK_GLOW_MUL : 1));
+  if (player) glow(hx, hy, tint, glowR, c.glowAlpha);
   else glow(hx, hy, c.enemyColor, glowR, c.enemyGlowAlpha);
   if (len < 1) return;
   const tx = hx - dx * len;
   const ty = hy - dy * len;
+  if (look?.trail) drawLookSparks(ctx, pr, hx, hy, dx, dy, len, look.trail);
   ctx.globalAlpha = c.trailAlpha;
-  ctx.fillStyle = color;
+  ctx.fillStyle = tint;
   ctx.beginPath();
   ctx.moveTo(hx - dy * w, hy + dx * w);
   ctx.lineTo(tx, ty);
@@ -751,6 +762,25 @@ export function drawBulletTrail(
     ctx.lineTo(hx - dx * len * 0.55, hy - dy * len * 0.55);
     ctx.stroke();
     ctx.globalCompositeOperation = SOURCE_OVER;
+  }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * look.trail を持つ弾の尾に散る粒（火の粉・氷の欠片）。尾に沿った位置と横ぶれは弾の id と今の位置の座標ハッシュで決める
+ * （state.rng を使わない。弾が動くと位置が変わってちらつく）
+ */
+function drawLookSparks(ctx: CanvasRenderingContext2D, pr: Projectile, hx: number, hy: number, dx: number, dy: number, len: number, color: string): void {
+  ctx.globalAlpha = LOOK_SPARK_ALPHA;
+  ctx.fillStyle = color;
+  const cellX = Math.floor(pr.pos.x / LOOK_SPARK_CELL);
+  const cellY = Math.floor(pr.pos.y / LOOK_SPARK_CELL);
+  for (let i = 0; i < LOOK_SPARKS; i++) {
+    const along = hash01(pr.id * LOOK_SPARKS + i, cellX) * len;
+    const side = (hash01(cellY, pr.id * LOOK_SPARKS + i) - 0.5) * 2 * LOOK_SPARK_SPREAD;
+    const x = hx - dx * along - dy * side;
+    const y = hy - dy * along + dx * side;
+    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
   ctx.globalAlpha = 1;
 }

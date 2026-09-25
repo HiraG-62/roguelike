@@ -35,8 +35,10 @@ describe("stats → 近接", () => {
     const doubled = meleeDamageWith(2);
     // 実ダメージは Math.round 後の整数（combat.ts）。QA 2026-09-23 の近接基礎値調整で
     // scaled 値が端数（7.8）になったため、生の scaled 値ではなく丸め後の値と比較する
-    expect(base).toBe(Math.round(meleeStep(arena().stats, 0)?.damage ?? 0));
-    expect(doubled).toBe(base * 2);
+    const raw = meleeStep(arena().stats, 0)?.damage ?? 0;
+    expect(base).toBe(Math.round(raw));
+    // 丸めは倍率を掛けた後の 1 回だけなので、丸め後の値の 2 倍ではなく生の値の 2 倍を丸めたもの
+    expect(doubled).toBe(Math.round(raw * 2));
   });
 
   it("近接の各段で slash / hit の効果音が push される", () => {

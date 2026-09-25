@@ -1,0 +1,7 @@
+{
+  "_note": "深度による敵の強さの伸び。src/data/enemies.ts の depthHpScale が読む(HP 倍率 = 1 + hpPerDepth × (深度 - 1))。値は外部化前の直書きと同じ",
+  "_fields": {
+    "hpPerDepth": "深度 1 つごとに敵の HP へ足す倍率(深度 1 で 1 倍)。倍率。目安 0.15〜0.2"
+  },
+  "hpPerDepth": 0.18
+}

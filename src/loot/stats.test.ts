@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { STATUS } from "../data/tuning";
+import { STATUS, WEAPON } from "../data/tuning";
+import { DEFAULT_MOVESET, MOVESETS, UNARMED_NAME, movesetLabel } from "../data/weapons";
 import { scaleFlat } from "./flux";
 import { generateItem } from "./generator";
 import { computeStats, softCap, statsSummary } from "./stats";
 import { DEFAULT_STATS, LOOT_SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
 
 const NOW = 1_700_000_000_000;
+/** 右手が空の computeStats の結果（DEFAULT_STATS から型・素手・近接の倍率だけが素手のものになる） */
+const UNARMED_STATS = { ...DEFAULT_STATS, moveset: DEFAULT_MOVESET, unarmed: true, meleeDamageMul: WEAPON.unarmed.damageMul };
 
 function makeItem(slot: Slot, partial: Partial<Item>): Item {
   return {
@@ -26,8 +29,8 @@ function makeItem(slot: Slot, partial: Partial<Item>): Item {
 }
 
 describe("computeStats", () => {
-  it("空装備で DEFAULT_STATS と一致", () => {
-    expect(computeStats(createEmptyEquipment())).toEqual(DEFAULT_STATS);
+  it("空装備で DEFAULT_STATS と一致（右手が空なので型・素手・近接の倍率だけ素手のもの）", () => {
+    expect(computeStats(createEmptyEquipment())).toEqual(UNARMED_STATS);
   });
 
   it("DEFAULT_STATS の配列を共有しない", () => {
@@ -109,7 +112,7 @@ describe("computeStats", () => {
       implicit: { key: "removed.implicit", kind: "prefix", tier: 1, value: 99 },
       affixes: [{ key: "removedAffix", kind: "suffix", tier: 1, value: 99 }],
     });
-    expect(computeStats(equipment)).toEqual(DEFAULT_STATS);
+    expect(computeStats(equipment)).toEqual(UNARMED_STATS);
   });
 
   it("ランダム装備を全スロットに付けても値が健全", () => {
@@ -293,10 +296,24 @@ describe("computeStats: マナの性質と渇きの誓約", () => {
 });
 
 describe("computeStats: 武器種と弾（ベースから決まる）", () => {
-  it("空装備は剣と既定の弾", () => {
+  it("右手が空なら拳の型で unarmed、威力は ×0.7、表示名は素手", () => {
     const stats = computeStats(createEmptyEquipment());
-    expect(stats.moveset, "武器なしは剣").toBe("sword");
+    expect(stats.moveset, "武器なしは拳の型").toBe("fists");
+    expect(stats.unarmed, "武器なしは素手").toBe(true);
+    expect(stats.meleeDamageMul, "素手の威力の倍率").toBeCloseTo(WEAPON.unarmed.damageMul);
+    expect(WEAPON.unarmed.damageMul, "素手の倍率は 0.7").toBe(0.7);
+    expect(movesetLabel(MOVESETS[stats.moveset], stats.unarmed), "表示名は素手").toBe(UNARMED_NAME);
     expect(stats.bullet, "銃なしは既定の弾").toBe("pistol");
+  });
+
+  it("手甲を持てば同じ拳の型でも素手ではなく、威力は削られず表示名は拳", () => {
+    const equipment = createEmptyEquipment();
+    equipment.mainHand = makeItem("mainHand", { baseKey: "gauntlets" });
+    const stats = computeStats(equipment);
+    expect(stats.moveset).toBe("fists");
+    expect(stats.unarmed, "手甲は素手ではない").toBe(false);
+    expect(stats.meleeDamageMul, "威力は等倍").toBeCloseTo(1);
+    expect(movesetLabel(MOVESETS[stats.moveset], stats.unarmed)).toBe(MOVESETS.fists.name);
   });
 
   it("近接ベースは武器種だけを決め、弾は既定のまま", () => {
@@ -329,7 +346,8 @@ describe("computeStats: 武器種と弾（ベースから決まる）", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { baseKey: "test" });
     const stats = computeStats(equipment);
-    expect(stats.moveset).toBe("sword");
+    expect(stats.moveset).toBe(DEFAULT_MOVESET);
+    expect(stats.unarmed, "右手に物があれば素手の倍率は掛けない").toBe(false);
     expect(stats.bullet).toBe("pistol");
   });
 });

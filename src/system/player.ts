@@ -12,6 +12,8 @@ import {
   type BulletDef,
   type ShotRuntime,
   type TipDef,
+  type CastDef,
+  type MeleeChargeDef,
   MOVESETS,
   chargeButton,
   bulletFeatures,
@@ -75,6 +77,7 @@ import {
   actionCooldownLeft,
   artLocksActions,
   artMoveMul,
+  emitArtVolley,
   endArtHold,
   finishArtHold,
   isInstantStep,
@@ -89,8 +92,12 @@ import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
 const BULLET_COLOR = "#a0e0ff";
+/** 発射の粒の既定数（弾の look.particles で上書き） */
+const MUZZLE_PARTICLES = 3;
 const DEG_TO_RAD = Math.PI / 180;
 const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
+/** 溜め中の回しの 1 打ち（1 段目の振りと同じ軽い音） */
+const SPIN_SFX: SfxName = "slash1";
 /** 装備変更で HP 割合を維持するときの生存中の下限 */
 const MIN_ALIVE_HP = 1;
 /** 突進斬りから繋がる近接の段（0 始まり） */
@@ -240,6 +247,10 @@ export interface MeleeStep {
   cancel?: number;
   /** 振り始めから付く無敵（秒。0 なら無し） */
   invuln: number;
+  /** active に入った瞬間に撃つ弾（MeleeStepDef.cast） */
+  cast?: CastDef;
+  /** 弾返し・弾斬りが無くても敵弾を消す（MeleeStepDef.cutsBullets） */
+  cutsBullets: boolean;
 }
 
 /** 装備中の武器種。武器なしは剣 */
@@ -313,6 +324,11 @@ export function meleeStep(
   const base = stepDef(moveset, step, dashStrike, chargeLevel, branch, lane);
   if (!base) return undefined;
   const level = chargeLevel > 0 ? meleeChargeOf(moveset)?.levels[chargeLevel - 1] : undefined;
+  return scaleStep(stats, base, moveset, level);
+}
+
+/** 段の定義に stats と溜めの段の倍率を掛ける（meleeStep と溜め中の回しが使う） */
+function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: MovesetDef, level?: MeleeChargeDef["levels"][number]): MeleeStep {
   const speed = stats.attackSpeedMul;
   const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1);
   return {
@@ -338,6 +354,8 @@ export function meleeStep(
     applies: base.applies ?? [],
     cancel: base.cancel,
     invuln: base.invuln ?? 0,
+    cast: base.cast,
+    cutsBullets: base.cutsBullets ?? false,
   };
 }
 
@@ -814,9 +832,11 @@ function updateCharge(state: GameState, input: FrameInput, dt: number): void {
   }
   if (buttonHeld(input, chargeButton(playerMoveset(state)))) {
     const before = chargeLevelAt(charge.levels, a.chargeTime);
+    const heldBefore = a.chargeTime;
     a.chargeTime += dt;
     const after = chargeLevelAt(charge.levels, a.chargeTime);
     if (after > before) onChargeLevelUp(state, after);
+    spinWhileCharging(state, charge, heldBefore, a.chargeTime);
     return;
   }
   const level = chargeLevelAt(charge.levels, a.chargeTime);
@@ -824,6 +844,22 @@ function updateCharge(state: GameState, input: FrameInput, dt: number): void {
   // 段に届かない居合（右の溜め）は左の段を振るが、派生の列には押したボタン（右）として積む
   if (level === 0) startNextSwing(state, chargeButton(playerMoveset(state)));
   else startSwing(state, 0, false, level, chargeButton(playerMoveset(state)) ?? "primary");
+}
+
+/**
+ * 溜め中の回し（MeleeChargeDef.spinning。チェーンアレイ）: 押している秒が interval の区切りを越えるたびに回しの段の当たり判定を 1 回出す。
+ * 振りの状態（phase）は none のまま（離せば溜め段の一撃）。当てた敵の記録は区切りごとに空にする
+ */
+function spinWhileCharging(state: GameState, charge: MeleeChargeDef, before: number, after: number): void {
+  const spin = charge.spinning;
+  if (!spin || Math.floor(after / spin.interval) <= Math.floor(before / spin.interval)) return;
+  const p = state.player;
+  const step = scaleStep(actionStats(state), spin.step, playerMoveset(state));
+  p.attack.dir = { ...p.facing };
+  p.attack.hitIds.clear();
+  resolveMeleeHits(state, step);
+  spawnTrail(state, step);
+  pushSfx(state, SPIN_SFX);
 }
 
 /** 溜めの段が上がった合図（音と色の粒）。離すタイミングを目と耳で計れるように */
@@ -971,6 +1007,8 @@ function updateAttack(state: GameState, dt: number): void {
       a.phase = "active";
       a.timer = step.active;
       spawnTrail(state, step);
+      // 詠唱の弾は active の瞬間に 1 回だけ（予約のまま捨てられた振りでは出さない）
+      if (step.cast) emitArtVolley(state, step.cast.throw);
       break;
     case "active":
       a.phase = "recover";
@@ -1178,11 +1216,11 @@ function resolveMeleeHits(state: GameState, step: MeleeStep): void {
 
 /**
  * 近接の active と敵弾。デフォルトでは素通りする（docs/COMBAT_DESIGN.md C-1 の 5 / 6）。
- * 祝福「弾返し」なら撃ち返し、性質「弾斬り」なら消す。両方あれば撃ち返しを優先する
+ * 祝福「弾返し」なら撃ち返し、性質「弾斬り」か段の cutsBullets（扇子の払い）なら消す。両方あれば撃ち返しを優先する
  */
 function resolveMeleeBullets(state: GameState, step: MeleeStep): void {
   const reflect = hasBoon(state, "reflect");
-  if (!reflect && state.stats.bulletCut <= 0) return;
+  if (!reflect && state.stats.bulletCut <= 0 && !step.cutsBullets) return;
   for (const pr of state.projectiles) {
     if (pr.owner !== "enemy" || pr.life <= 0) continue;
     if (meleeContact(state.player, step, pr.pos, pr.radius) === "none") continue;
@@ -1518,6 +1556,8 @@ export interface VolleyOverride {
   sprite?: string;
   /** 弾 1 発が命中で溜める奥義ゲージ（銃の射撃だけ。省略は溜めない） */
   energy?: number;
+  /** 命中・炸裂で付ける状態異常（ThrowArtDef.applies） */
+  applies?: readonly StatusApply[];
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1533,7 +1573,7 @@ function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: numb
     speed,
     life: shotLife(shot, speed, aim),
     count: override.count ?? s.projectileCount + shot.pellets,
-    color: shot.mine?.color ?? shot.lob?.color ?? (level > 0 ? (WEAPON.chargeRingColors[level] ?? BULLET_COLOR) : BULLET_COLOR),
+    color: shot.mine?.color ?? shot.lob?.color ?? (level > 0 ? (WEAPON.chargeRingColors[level] ?? BULLET_COLOR) : (shot.look?.color ?? BULLET_COLOR)),
   };
 }
 
@@ -1557,10 +1597,11 @@ function swayOffset(state: GameState, shot: BulletDef): number {
 
 /** 弾ごとの作業領域。挙動の性質も周回も持たない弾は持たない（従来の弾と同じ形のまま）。回転刃・曲射は撃った瞬間の寿命を覚える */
 function shotRuntime(shot: BulletDef, life: number, fireAngle: number, orbitIndex: number): ShotRuntime | undefined {
-  if (bulletFeatures(shot).length === 0 && !shot.orbit) return undefined;
+  if (bulletFeatures(shot).length === 0 && !shot.orbit && !shot.look && !shot.leaves) return undefined;
   const lifeTotal = shot.boomerang || shot.lob ? { lifeTotal: life } : {};
   const orbit = shot.orbit ? { orbit: { ...shot.orbit }, orbitAngle: fireAngle, orbitPhase: orbitPhaseOf(orbitIndex), orbitTravel: 0 } : {};
-  return { key: shot.key, bouncesLeft: shot.bounce?.count, ...lifeTotal, ...orbit };
+  const extra = { ...(shot.leaves ? { leaves: shot.leaves } : {}), ...(shot.look ? { look: shot.look } : {}) };
+  return { key: shot.key, bouncesLeft: shot.bounce?.count, ...lifeTotal, ...orbit, ...extra };
 }
 
 /**
@@ -1637,11 +1678,12 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       ...(override.attack ? { attack: override.attack } : {}),
       ...(override.sprite ? { sprite: override.sprite } : {}),
       ...(override.energy !== undefined ? { energy: override.energy } : {}),
+      ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
     });
   }
   onBoonShoot(state, state.projectiles.slice(firstShot));
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
-  spawnBurst(state, muzzle, spec.color, 3, 60, 0.12, 1.5);
+  spawnBurst(state, muzzle, spec.color, shot.look?.particles ?? MUZZLE_PARTICLES, 60, 0.12, 1.5);
   shake(state, 1);
   // 右レーンの弾も弾の性質で音を選ぶ（docs/ideas/weapon-redesign.md 6 章）
   pushSfx(state, shotSfxName(shot));

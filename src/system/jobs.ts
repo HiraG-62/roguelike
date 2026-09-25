@@ -38,7 +38,8 @@ export function jobChangesStats(job: JobKey): boolean {
 
 /** 今の武器種がこのジョブの得意か */
 export function isFavoredWeapon(stats: Readonly<PlayerStats>, job: JobKey): boolean {
-  return JOBS[job].favored.includes(stats.moveset);
+  // 素手は型が拳でも武器を持っていないので、拳を得意とするジョブでも補正を取らない
+  return !stats.unarmed && JOBS[job].favored.includes(stats.moveset);
 }
 
 /**

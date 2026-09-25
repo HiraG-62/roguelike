@@ -1,4 +1,4 @@
-import { type GameState, type Projectile, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { FEEL, MANA } from "../data/tuning";
 import type { BulletDef, OrbitDef, RecallHomingDef, ShotRuntime } from "../data/weapons";
@@ -12,8 +12,8 @@ import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { blastMulAt } from "./blast";
-import { inflictOnPlayer } from "./statusEffects";
-import { swallowedBySmoke } from "./terrain";
+import { applyStatus, inflictOnPlayer } from "./statusEffects";
+import { placeTerrain, swallowedBySmoke } from "./terrain";
 
 const BULLET_KNOCKBACK = 60;
 const BULLET_HITSTOP = 1;
@@ -32,35 +32,58 @@ export function updateProjectiles(state: GameState, dt: number): void {
   groupNewVolley(state);
   for (const pr of state.projectiles) {
     if (pr.life <= 0) continue;
-    pr.life -= dt;
-    const def = shotDefOf(pr);
-    steerShot(state, pr, def, dt);
-    const prev = { ...pr.pos };
-    pr.pos.x += pr.vel.x * dt;
-    pr.pos.y += pr.vel.y * dt;
-
-    // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）
-    if (!pr.shot?.orbit && overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
-      if (onBoonProjectileWall(state, pr, dt)) continue;
-      if (def && hitWallByShot(state, pr, def, prev, dt)) continue;
-      pr.life = 0;
-      spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
-      if (pr.owner === "player") pushSfx(state, "bulletHit");
-      continue;
-    }
-    // 煙に入った弾は消える（床に据えた設置弾・山なりに越える曲射は除く）
-    if (!def?.mine && !def?.lob && swallowedBySmoke(state, pr)) continue;
-
-    if (pr.owner === "player") {
-      if (def?.mine) updateMine(state, pr, def);
-      else if (def?.lob) updateLob(state, pr, def);
-      else hitEnemies(state, pr);
-      if (def?.boomerang) catchBoomerang(state, pr, def);
-    } else {
-      hitPlayer(state, pr);
-    }
+    stepProjectile(state, pr, dt);
+    if (pr.life <= 0) leaveTerrain(state, pr);
   }
   state.projectiles = state.projectiles.filter((p) => p.life > 0);
+}
+
+/** 弾 1 発の 1 ステップ（動き・壁・煙・命中） */
+function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
+  pr.life -= dt;
+  const def = shotDefOf(pr);
+  steerShot(state, pr, def, dt);
+  const prev = { ...pr.pos };
+  pr.pos.x += pr.vel.x * dt;
+  pr.pos.y += pr.vel.y * dt;
+
+  // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）
+  if (!pr.shot?.orbit && overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
+    if (onBoonProjectileWall(state, pr, dt)) return;
+    if (def && hitWallByShot(state, pr, def, prev, dt)) return;
+    pr.life = 0;
+    spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
+    if (pr.owner === "player") pushSfx(state, "bulletHit");
+    return;
+  }
+  // 煙に入った弾は消える（床に据えた設置弾・山なりに越える曲射は除く）
+  if (!def?.mine && !def?.lob && swallowedBySmoke(state, pr)) return;
+
+  if (pr.owner === "player") {
+    if (def?.mine) updateMine(state, pr, def);
+    else if (def?.lob) updateLob(state, pr, def);
+    else hitEnemies(state, pr);
+    if (def?.boomerang) catchBoomerang(state, pr, def);
+  } else {
+    hitPlayer(state, pr);
+  }
+}
+
+/**
+ * 弾が消えた位置に地形を残す（BulletDef.leaves の写し）。命中・壁・炸裂・寿命切れのどれでも置き、
+ * 手元へ戻った弾（回転刃の帰り・手元返し）は自分の足元になるので置かない
+ */
+function leaveTerrain(state: GameState, pr: Projectile): void {
+  const rt = pr.shot;
+  if (pr.owner !== "player" || !rt?.leaves || rt.left || rt.returning) return;
+  rt.left = true;
+  placeTerrain(state, pr.pos.x, pr.pos.y, rt.leaves.terrain, rt.leaves.radius, rt.leaves.duration);
+}
+
+/** 弾の applies（魔法弾の燃焼・凍結など）を命中した敵へ付ける。倒れた敵には付けない */
+function applyShotStatus(state: GameState, pr: Projectile, e: Enemy): void {
+  if (!pr.applies || e.hp <= 0) return;
+  for (const apply of pr.applies) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
 }
 
 /** プレイヤー弾の弾の定義（src/loot/bullets.ts）。作業領域を持たない弾は undefined（まっすぐ飛ぶだけ） */
@@ -286,6 +309,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
       impact: { family: "blunt", weight: "heavy" },
       energy: pr.energy,
     });
+    applyShotStatus(state, pr, e);
   }
   spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
   spawnBurst(state, pr.pos, pr.color, MINE_PARTICLES, 120, 0.3, 2);
@@ -336,6 +360,7 @@ function hitEnemies(state: GameState, pr: Projectile): void {
       impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
       energy: pr.energy,
     });
+    applyShotStatus(state, pr, e);
     // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）
     if (pr.shot?.orbit) continue;
     if (pr.pierceLeft > 0) {

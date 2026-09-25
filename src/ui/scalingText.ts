@@ -1,6 +1,6 @@
 import { STATUS_LABEL } from "../core/status";
 import { PLAYER } from "../data/tuning";
-import { type ActionStepDef, DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun } from "../data/weapons";
+import { type ActionStepDef, DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun, movesetLabel } from "../data/weapons";
 import { type UltimateAct, type UltimateDef, defaultUltimate } from "../data/ultimates";
 import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
@@ -645,15 +645,15 @@ function referencesAttr(formulas: readonly ScalingFormula[], attr: AttrKey): boo
 }
 
 /** 武器種の行動のうち attr を参照するものの名前。連撃の段がすべて参照するなら「大剣の連撃」にまとめる */
-function movesetReferenceNames(moveset: Readonly<MovesetDef>, actions: readonly ActionFormulas[], attr: AttrKey, steps: readonly ActionFormulas[]): string[] {
+function movesetReferenceNames(movesetName: string, actions: readonly ActionFormulas[], attr: AttrKey, steps: readonly ActionFormulas[]): string[] {
   const hits = actions.filter((a) => referencesAttr(allFormulas(a), attr));
   const allSteps = steps.length > 0 && steps.every((s) => hits.includes(s));
   const names: string[] = [];
-  if (allSteps) names.push(`${moveset.name}の連撃`);
+  if (allSteps) names.push(`${movesetName}の連撃`);
   for (const a of hits) {
     const isStepAction = steps.includes(a);
     if (isStepAction && allSteps) continue;
-    names.push(isStepAction ? `${moveset.name} ${a.name}` : a.name);
+    names.push(isStepAction ? `${movesetName} ${a.name}` : a.name);
   }
   return names;
 }
@@ -666,8 +666,10 @@ export function attributeReferences(stats: Readonly<PlayerStats>, src: Readonly<
   const { actions, steps } = movesetActions(stats, src.moveset, src.bullet);
   const special = specialFormulas(stats, src.ultimate);
   const skillActions = src.skills.map((k): ActionFormulas => ({ name: SKILL_DEFS[k].name, formulas: skillFormulas(stats, k) }));
+  // 素手は型が拳でも名前は「素手」（渡された型が今の型のときだけ）
+  const movesetName = movesetLabel(src.moveset, stats.unarmed && src.moveset.key === stats.moveset);
   return ATTR_KEYS.map((attr) => {
-    const names = movesetReferenceNames(src.moveset, actions, attr, steps);
+    const names = movesetReferenceNames(movesetName, actions, attr, steps);
     for (const s of skillActions) if (referencesAttr(s.formulas, attr) && !names.includes(s.name)) names.push(s.name);
     if (referencesAttr(special.formulas, attr)) names.push(special.name);
     return { attr, names };

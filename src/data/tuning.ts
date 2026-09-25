@@ -119,6 +119,9 @@ export const BOSS = BALANCE.enemies.BOSS;
 /** 追跡者（Reaper）。数値は src/data/balance/enemies/ の "REAPER"（src/system/reaper.ts / reaperVariants.ts が読む） */
 export const REAPER = BALANCE.enemies.REAPER;
 
+/** 深度による敵の HP の伸び（src/data/enemies.ts の depthHpScale）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
+export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
+
 /** 部屋の種類（src/system/roomTypes.ts） */
 export const ROOM_KIND = BALANCE.world.ROOM_KIND;
 
@@ -131,6 +134,8 @@ export const FLOOR_KIND = BALANCE.world.FLOOR_KIND;
  * fillChance が低いほど開けて、高いほど細い道が増える
  */
 export const CAVE = BALANCE.world.CAVE;
+/** マップの大きさ（面積の倍率の抽選。src/map/generator.ts の scaleGeneratorOptions） */
+export const MAP_SIZE = BALANCE.world.MAP_SIZE;
 
 /** 開放型フロアの徘徊と増援（src/system/spawner.ts）。塊に置いた敵の一部が塊の間を歩き回り、時間で少しずつ増える */
 export const ROAM = BALANCE.world.ROAM;
@@ -248,6 +253,3 @@ export const HUB = BALANCE.world.HUB;
 
 /** 拠点の飾り（src/meta/hub.ts）。見た目だけで強さには触れない */
 export const HUB_DECOR = BALANCE.world.HUB_DECOR;
-
-/** マップの大きさ（面積の倍率の抽選。src/map/generator.ts の scaleGeneratorOptions） */
-export const MAP_SIZE = BALANCE.world.MAP_SIZE;

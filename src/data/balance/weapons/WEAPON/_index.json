@@ -55,7 +55,9 @@
     "mine": "設置弾（fuse 信管の秒 / drag 床の減衰 / blastRadius 炸裂の半径 px / triggerRadius 近づくと炸裂する距離 px）",
     "burst": "三点（count 1 押しの弾数 / interval 間隔の秒）",
     "boomerang": "回転刃（returnAt 寿命のこの割合で折り返す / catchRadius 手に収まる距離 px）",
-    "lob": "曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px）"
+    "lob": "曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px）",
+    "meleeDamageScale": "近接の段の威力の係数表（base と全係数）に復元時に掛ける。銃の弾・スキル・奥義は対象外。base と係数を同率で下げるのでステータス 1 点あたりの伸び率は変わらない。倍率（1 = 等倍）",
+    "unarmed": "素手（右手が空のときの拳の型）。damageMul は近接の威力の倍率（1 = 等倍）"
   },
   "chargeRingColors": ["#ffffff","#ffd75f","#ff9040","#ff4060"],
   "chargeRingRadius": 9,
@@ -63,5 +65,6 @@
   "chainWindow": 0.5,
   "chainMaxInputs": 5,
   "trailLife": 0.12,
-  "_order": ["chargeRingColors", "chargeRingRadius", "chargeRingStep", "chainWindow", "chainMaxInputs", "trailLife", "movesets", "artDefaults", "movesetRules", "jobBranches", "bullets"]
+  "meleeDamageScale": 0.6,
+  "_order": ["chargeRingColors", "chargeRingRadius", "chargeRingStep", "chainWindow", "chainMaxInputs", "trailLife", "movesets", "artDefaults", "movesetRules", "jobBranches", "bullets", "meleeDamageScale", "unarmed"]
 }

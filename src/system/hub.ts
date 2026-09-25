@@ -5,7 +5,7 @@ import type { GameState, RoomState } from "../core/state";
 import { createTerrainLayer } from "../core/terrain";
 import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { FEEL, HUB } from "../data/tuning";
+import { FEEL, HUB, WEAPON } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
 import { bulletOfBase } from "../loot/bullets";
@@ -322,9 +322,11 @@ function enforceTrialWeapon(session: HubSession): void {
   if (moveset === null) return;
   // 銃の家系は借りるときと同じ器（一番早く出るベース）の弾で撃つ（装備の武器の弾のままにしない）
   const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
-  if (state.stats.moveset === moveset && state.stats.bullet === bullet) return;
+  if (state.stats.moveset === moveset && state.stats.bullet === bullet && !state.stats.unarmed) return;
   const prev = state.stats;
-  state.stats = { ...prev, moveset, bullet };
+  // 素手の威力の倍率は試す武器種には掛けない（素手のまま武器掛けで試したとき）
+  const unarmedMul = prev.unarmed ? WEAPON.unarmed.damageMul : 1;
+  state.stats = { ...prev, moveset, bullet, unarmed: false, meleeDamageMul: prev.meleeDamageMul / unarmedMul };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }

@@ -1,7 +1,7 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import { WEAPON } from "../data/tuning";
-import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature, reviveBullet } from "../data/weapons";
+import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature, movesetCasts, reviveBullet } from "../data/weapons";
 import { BASES, baseDef, baseFamily } from "./bases";
 import type { PlayerStats } from "./types";
 
@@ -73,12 +73,14 @@ function baseBullets(): BulletDef[] {
   return out;
 }
 
+/** 固有技の弾: 右レーンの弾の段（`art.<段の key>`）と、振りが撃つ cast（`cast.<cast の key>`） */
 function artBullets(): BulletDef[] {
   const out: BulletDef[] = [];
   for (const key of MOVESET_KEYS) {
     for (const s of MOVESETS[key].steps2) {
       if (s.kind === "volley") out.push(s.throw.bullet);
     }
+    for (const c of movesetCasts(MOVESETS[key])) out.push(c.throw.bullet);
   }
   return out;
 }

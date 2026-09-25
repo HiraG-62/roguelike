@@ -736,6 +736,8 @@ describe("左右アクションの共有の段カウンタ（docs/ideas/ougi-and
     const energyAfterRightFinisher = (withBoon: boolean): number => {
       const state = arena(5);
       state.job = "swordsman";
+      // 祝福は装備の stats から畳み直す。空の装備は素手（拳）になるので、arena の剣の stats を装備の stats として使わせる
+      state.boonRun.baseStats = state.stats;
       if (withBoon) grantBoon(state, "favoredPride");
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
       const log = swingLog(state, ["secondary", "secondary", "secondary"]);

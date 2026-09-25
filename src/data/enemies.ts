@@ -2,6 +2,7 @@ import type { StatusKind } from "../core/status";
 import type { FloorKind, RallyKind } from "../core/state";
 import type { TerrainKind } from "../core/terrain";
 import { BALANCE } from "./balance";
+import { ENEMY_SCALE } from "./tuning";
 import { WAVE3_ENEMIES } from "./enemiesWave3";
 
 export type EnemyBehavior =
@@ -369,7 +370,7 @@ export function enemiesForDepth(depth: number): EnemyDef[] {
 
 /** 深さによるステータス倍率 */
 export function depthHpScale(depth: number): number {
-  return 1 + (depth - 1) * 0.18;
+  return 1 + (depth - 1) * ENEMY_SCALE.hpPerDepth;
 }
 
 export function depthDamageBonus(depth: number): number {
