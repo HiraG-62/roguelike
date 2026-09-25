@@ -120,7 +120,8 @@ describe("fxSprites: 生成物と一覧の整合", () => {
 describe("fxMotions: 武器種のモーションの表", () => {
   it("表の行は壊れていない（無いシート・知らない原点がない）", () => {
     for (const raw of FX_MOVESET_RAW) {
-      if (!raw) continue;
+      // 奥義のアトラス（`<武器種>Ult`）は motions を持たない
+      if (!raw || !("motions" in raw)) continue;
       const built = MOVESET_FX[raw.moveset as MovesetKey];
       expect(built, raw.moveset).toBeDefined();
       expect(Object.keys(built?.motions ?? {}), raw.moveset).toEqual(Object.keys(raw.motions));

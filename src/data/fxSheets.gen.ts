@@ -16,6 +16,7 @@ import fx_shield from "./fx/shield.gen.json";
 import fx_spear from "./fx/spear.gen.json";
 import fx_staff from "./fx/staff.gen.json";
 import fx_sword from "./fx/sword.gen.json";
+import fx_swordUlt from "./fx/swordUlt.gen.json";
 import fx_twinBlades from "./fx/twinBlades.gen.json";
 import fx_whip from "./fx/whip.gen.json";
 
@@ -37,6 +38,7 @@ export const FX_ATLASES = {
   spear: { url: "assets/fx/spear.png", width: fx_spear.width, height: fx_spear.height },
   staff: { url: "assets/fx/staff.png", width: fx_staff.width, height: fx_staff.height },
   sword: { url: "assets/fx/sword.png", width: fx_sword.width, height: fx_sword.height },
+  swordUlt: { url: "assets/fx/swordUlt.png", width: fx_swordUlt.width, height: fx_swordUlt.height },
   twinBlades: { url: "assets/fx/twinBlades.png", width: fx_twinBlades.width, height: fx_twinBlades.height },
   whip: { url: "assets/fx/whip.png", width: fx_whip.width, height: fx_whip.height },
 } as const;
@@ -75,6 +77,7 @@ export const FX_SHEETS = {
   ...fx_spear.sheets,
   ...fx_staff.sheets,
   ...fx_sword.sheets,
+  ...fx_swordUlt.sheets,
   ...fx_twinBlades.sheets,
   ...fx_whip.sheets,
 } satisfies Record<string, FxSheetDef>;
@@ -82,4 +85,4 @@ export const FX_SHEETS = {
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_chainSickle.fx, fx_claws.fx, fx_cleaver.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_hammer.fx, fx_katana.fx, fx_ringBlades.fx, fx_scythe.fx, fx_shield.fx, fx_spear.fx, fx_staff.fx, fx_sword.fx, fx_twinBlades.fx, fx_whip.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_chainSickle.fx, fx_claws.fx, fx_cleaver.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_hammer.fx, fx_katana.fx, fx_ringBlades.fx, fx_scythe.fx, fx_shield.fx, fx_spear.fx, fx_staff.fx, fx_sword.fx, fx_swordUlt.fx, fx_twinBlades.fx, fx_whip.fx] as const;
