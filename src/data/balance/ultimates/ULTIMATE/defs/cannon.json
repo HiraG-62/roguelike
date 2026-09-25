@@ -9,6 +9,7 @@
   "powderKeg": {
     "drainPerSec": 12.5, "minSec": 1,
     "mul": { "fireRate": 1.2 },
-    "shot": { "damageMul": 1.3, "fuseMul": 0.2 }
+    "shot": { "pelletsAdd": 1, "damageMul": 1.1 },
+    "pointBlank": { "range": 60, "mul": 1.6 }
   }
 }

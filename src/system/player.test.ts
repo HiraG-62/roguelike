@@ -34,6 +34,8 @@ import { arena, placeEnemy, withInput } from "./testHelpers";
 
 /** 敵が勝手に攻撃してこないようにする */
 const NO_ATTACK_COOLDOWN = 99;
+/** 予備動作を数フレームに伸ばす振りの速さの倍率 */
+const SLOW_SWING = 0.2;
 /** 近接 1 振りを振り切るまでのステップ数 */
 const SWING_STEPS = 20;
 /** 予備動作を十分長く保つ */
@@ -41,6 +43,19 @@ const LONG_WINDUP = 10;
 /** 1 振りで同時に当てる敵の数（回収上限を超える数） */
 const CROWD = MANA.meleeTargetCap + 1;
 const STAGGER_TIME = 1;
+
+/** 各ボタンを、前の段が出て振りが先行入力を受ける（active / recover で予約が無い）ようになってから 1 回ずつ押す */
+function pressInRhythm(state: GameState, presses: readonly ButtonKey[], maxWait = 60): void {
+  for (const button of presses) {
+    for (let i = 0; i < maxWait; i++) {
+      const a = state.player.attack;
+      const ready = a.phase === "none" || ((a.phase === "active" || a.phase === "recover") && !a.buffered && a.pendingBranch < 0);
+      if (ready) break;
+      step(state, withInput({}), FIXED_DT);
+    }
+    step(state, withInput(button === "primary" ? { attackPressed: true } : { shootHeld: true }), FIXED_DT);
+  }
+}
 
 function passive(e: Enemy): Enemy {
   e.attackCooldown = NO_ATTACK_COOLDOWN;
@@ -540,6 +555,54 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     for (let i = 0; i < n && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
   }
 
+  it("windup 中の連打では派生が出ない（振りは 1 段）", () => {
+    // 振りを遅くして予備動作を数フレームに伸ばす
+    const state = arena(5, { attackSpeedMul: SLOW_SWING });
+    play(state, [{ attackPressed: true }]);
+    expect(state.player.attack.phase, "1 段目の予備動作中").toBe("windup");
+    // 予備動作中に左 2 回と右: 押した数だけなら「左左左右」「左左右」だが、出た段は 1 つだけ
+    play(state, [{ attackPressed: true }, { attackPressed: true }]);
+    expect(state.player.attack.phase, "まだ予備動作中").toBe("windup");
+    play(state, [{ shootHeld: true }]);
+    expect(state.player.attack.inputs, "出た段は左 1 つ").toEqual(["primary"]);
+    let maxStep = 0;
+    let branched = false;
+    for (let i = 0; i < 60; i++) {
+      step(state, withInput({}), FIXED_DT);
+      maxStep = Math.max(maxStep, state.player.attack.step);
+      branched ||= state.player.attack.branch >= 0 || state.player.attack.pendingBranch >= 0;
+    }
+    expect(branched, "派生は出ない").toBe(false);
+    expect(maxStep, "振りは 1 段だけ").toBe(0);
+  });
+
+  it("L→L の 2 段が出た後の R で派生が出る", () => {
+    const state = arena(5);
+    pressInRhythm(state, ["primary", "primary"]);
+    for (let i = 0; i < 60 && state.player.attack.buffered; i++) step(state, withInput({}), FIXED_DT);
+    expect(state.player.attack.inputs, "左 2 段が出た").toEqual(["primary", "primary"]);
+    pressInRhythm(state, ["secondary"]);
+    untilBranch(state);
+    expect(branchKey(state)).toBe("crossCut");
+    expect(state.player.attack.inputs, "派生が出たら列を捨てる").toEqual([]);
+  });
+
+  it("先行入力で予約中の段は派生の列に含め、その段を出してから派生を出す", () => {
+    const state = arena(5);
+    pressInRhythm(state, ["primary", "primary"]);
+    // 2 段目の左はまだ予約（1 段目の振りの最中）
+    expect(state.player.attack.buffered, "2 段目は先行入力").toBe(true);
+    play(state, [{ shootHeld: true }]);
+    expect(state.player.attack.pendingBranch, "予約中の段を含めて左左右が成立").toBeGreaterThanOrEqual(0);
+    const steps: number[] = [];
+    for (let i = 0; i < 90 && state.player.attack.branch < 0; i++) {
+      step(state, withInput({}), FIXED_DT);
+      if (state.player.attack.phase === "windup" && state.player.attack.branch < 0) steps.push(state.player.attack.step);
+    }
+    expect(steps, "派生の前に 2 段目を振った").toContain(1);
+    expect(branchKey(state)).toBe("crossCut");
+  });
+
   it("剣: 左・左・右で十字断ち（フィニッシュとして祝福に最終段を渡す）", () => {
     const state = arena(5);
     play(state, [{ attackPressed: true }, ...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
@@ -733,13 +796,9 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
   function untilBranch(state: GameState, n = 90): void {
     for (let i = 0; i < n && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
   }
-  /** 左左左右（ジョブ固有の派生の入力）を 5 フレームおきに押す */
+  /** 左左左右（ジョブ固有の派生の入力）を、前の段が実際に出てから押す（派生は出た段の列で照合する） */
   function pressJobSequence(state: GameState): void {
-    const frames: Partial<FrameInput>[] = [];
-    for (const press of [{ attackPressed: true }, { attackPressed: true }, { attackPressed: true }, { shootHeld: true }]) {
-      frames.push(press, {}, {}, {}, {});
-    }
-    for (const f of frames) step(state, withInput(f), FIXED_DT);
+    pressInRhythm(state, ["primary", "primary", "primary", "secondary"]);
   }
 
   it("applies を持つ段の命中で状態異常が付く（斧の最終段で出血）", () => {

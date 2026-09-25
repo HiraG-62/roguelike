@@ -57,6 +57,7 @@ import j_combat_TERRAIN_MUD_SMOKE from "./combat/TERRAIN_MUD_SMOKE.json";
 import j_combat_TERRAIN_RUBBLE from "./combat/TERRAIN_RUBBLE.json";
 import j_combat_PLAYER from "./combat/PLAYER.json";
 import j_combat_ACTION from "./combat/ACTION.json";
+import j_combat_ENERGY from "./combat/ENERGY.json";
 import j_enemies__index from "./enemies/_index.json";
 import j_enemies_ENEMY_AI__index from "./enemies/ENEMY_AI/_index.json";
 import j_enemies_ENEMY_AI_knight from "./enemies/ENEMY_AI/knight.json";
@@ -1002,6 +1003,7 @@ export const combat = {
   "TERRAIN_RUBBLE": j_combat_TERRAIN_RUBBLE,
   "PLAYER": j_combat_PLAYER,
   "ACTION": j_combat_ACTION,
+  "ENERGY": j_combat_ENERGY,
 };
 
 export const enemies = {
@@ -2097,6 +2099,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "combat/ATTR_GAIN.json",
   "combat/BLAST_FALLOFF.json",
   "combat/ELEMENT.json",
+  "combat/ENERGY.json",
   "combat/GENRE.json",
   "combat/HEAL.json",
   "combat/MANA.json",

@@ -46,6 +46,9 @@ export const ATTR_GAIN = BALANCE.combat.ATTR_GAIN;
  */
 export const MANA = BALANCE.combat.MANA;
 
+/** 奥義ゲージの溜まり方（1 秒ぶんの振りで溜まる量・射撃の割合・見切り）。src/system/combat.ts の meleeHitEnergy / shotHitEnergy が読む */
+export const ENERGY = BALANCE.combat.ENERGY;
+
 /** 怯み（docs/COMBAT_DESIGN.md D-1）。段階 1 の L3 が読む */
 export const POISE = BALANCE.combat.POISE;
 

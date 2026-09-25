@@ -259,6 +259,20 @@ function applySettings(): void {
 }
 applySettings();
 
+/**
+ * ヒットストップの強さ設定を、今動いているラン/拠点の state へ即座に書き戻す。
+ * これをしないと（保存はされても）今のプレイに効かず「変えても変わらない」ように見える。
+ * ラン中の変更は記録中のリプレイにもイベントとして積み、再生で同じ強さを再現する
+ */
+function applyHitstopScale(): void {
+  if (state) {
+    state.hitstopScale = settings.hitstopScale;
+    recorder?.noteHitstopScale(state, settings.hitstopScale);
+  }
+  if (hub) hub.state.hitstopScale = settings.hitstopScale;
+  saveSettings(settings);
+}
+
 // ---------------------------------------------------------------------------
 // 画面状態
 // ---------------------------------------------------------------------------
@@ -570,7 +584,7 @@ function openHub(): void {
   hubBanner = facilityBuiltBanner(newlyBuilt(built, hubSave));
   hubBannerTimer = hubBanner === null ? 0 : HUB.bannerSeconds;
   saveHub(markFacilitiesSeen(hubSave, built));
-  hub = createHub(profile, skillProfile, availableSpots(built));
+  hub = createHub(profile, skillProfile, availableSpots(built), settings.hitstopScale);
   inventoryUi.open = false;
   returnToHub();
 }
@@ -1173,7 +1187,8 @@ startLoop(
           break;
         }
         const history = profile.meta.history ?? [];
-        const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : Math.sign(frame.wheel);
+        // ホイールは一覧の表示だけを送る対象（このスクロール窓は別レーンの担当）。カーソルは矢印キーでのみ動かす
+        const navY = hotkeys.arrowY;
         if (navY !== 0) {
           historyCursor = moveHistoryCursor(historyCursor, navY, history.length);
           historyMessage = "";
@@ -1246,7 +1261,7 @@ startLoop(
             saveSettings(settings);
           } else if (item === "hitstopScale") {
             adjustHitstopScale(settings, dir);
-            saveSettings(settings);
+            applyHitstopScale();
           } else if (item === "dropTooltip") {
             toggleDropTooltip(settings);
             saveSettings(settings);
@@ -1266,7 +1281,7 @@ startLoop(
             saveSettings(settings);
           } else {
             setHitstopScale(settings, value01);
-            saveSettings(settings);
+            applyHitstopScale();
           }
         };
 

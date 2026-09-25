@@ -3,7 +3,7 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
-import { FEEL, POISE, STATUS } from "../data/tuning";
+import { ENERGY, FEEL, POISE, STATUS } from "../data/tuning";
 import type { Scaling } from "../loot/types";
 import { scaled, withRatio } from "../system/attributes";
 import { onBoonSkillHit } from "../system/boons";
@@ -131,7 +131,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   const killed = damageEnemy(state, e, amount, knock.dir, knock.force * state.stats.knockbackMul, {
     poise: (spec.poise ?? def.poise) * poiseRatioScale(state, def) * state.stats.poiseDamageMul * params.poiseMul * place.poise,
     hitstopSteps: spec.stagger ? FEEL.hitstopHeavy : FEEL.hitstopLight,
-    buildsEnergy: melee,
+    energy: melee ? ENERGY.skillMeleeHit : undefined,
     kind: spec.kind,
     crit,
     // 性質の statusProcs（on: "skill"）を判定させる

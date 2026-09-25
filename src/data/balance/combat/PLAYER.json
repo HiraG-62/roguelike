@@ -26,7 +26,6 @@
     "recoil": 30
   },
   "maxEnergy": 100,
-  "energyPerHit": 12,
   "projectileSpreadDeg": 8,
   "critHitstopBonus": 1,
   "critTextScale": 1.6,

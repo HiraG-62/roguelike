@@ -11,6 +11,8 @@ import {
   type HitShape,
   type MeleeStepDef,
   type MovesetKey,
+  type OrbitDef,
+  type RecallHomingDef,
   type ThrowArtDef,
   BURST_ATTACK,
   MOVESETS,
@@ -126,6 +128,21 @@ export interface SustainShot {
   /** 設置弾の信管の秒の倍率 */
   readonly fuseMul?: number;
   readonly bounceAdd?: number;
+  /** 撃った弾が自分の周りを回り続ける（円環の理） */
+  readonly orbit?: OrbitDef;
+}
+
+/** 命中の衝撃波（鉄槌の律）。半径に burstRadiusMul、威力に burstDamageMul が掛かる */
+export interface HitQuakeDef {
+  readonly radius: number;
+  readonly scaling: Scaling;
+  readonly poise: number;
+  readonly poiseRatio?: AttrRatio;
+  readonly knockback: number;
+  /** ヒットストップ（ステップ） */
+  readonly hitstop: number;
+  readonly shake: number;
+  readonly icd: number;
 }
 
 /** 持続（sustain）の奥義: ゲージが減る間の倍率・段の差し替え・弾の差し替え・命中付与・Rule の束 */
@@ -159,9 +176,15 @@ export interface SustainDef {
   /** 自分の周りに毎 interval 秒ダメージ（radius は burstRadiusMul が掛かる） */
   readonly aura?: { readonly radius: number; readonly interval: number; readonly scaling: Scaling; readonly poise: number };
   /** interval 秒ごとに飛んでいる自分の弾を手元へ戻す */
-  readonly recall?: { readonly interval: number; readonly returnDamageMul: number; readonly speedMul: number };
+  readonly recall?: { readonly interval: number; readonly returnDamageMul: number; readonly speedMul: number; readonly homing?: RecallHomingDef };
   /** 床の自分の設置弾が近くの敵を引き寄せる */
   readonly minePull?: { readonly radius: number; readonly speed: number };
+  /** 左の振りを始めるたびに体の前から照準方向へ撃つ弾（射撃扱い。威力は係数表そのまま、burstDamageMul は掛けない） */
+  readonly swingVolley?: ThrowArtDef;
+  /** 近接の振りが当たるたびに当てた敵の位置で起こす衝撃波（icd 秒に 1 回） */
+  readonly hitQuake?: HitQuakeDef;
+  /** 近い敵ほど与ダメが上がる（零距離）。敵の縁までの距離 0 で mul、range 以上で 1 */
+  readonly pointBlank?: { readonly range: number; readonly mul: number };
   /** 持続中だけ効く Rule（system/rules.ts の collectRules が Player.ultimate.active のとき集める） */
   readonly rules?: readonly Rule[];
   /** 終わりに出す行為 */
@@ -176,6 +199,8 @@ interface UltimateBase {
   readonly moveset: MovesetKey;
   /** 素性（ジャンル・属性）。行為の威力はこれで受けさせる */
   readonly attack: AttackProfile;
+  /** 出すのに要る奥義ゲージ（ULTIMATE.defs の cost、省略は ULTIMATE.common.cost。PLAYER.maxEnergy 以下） */
+  readonly cost: number;
 }
 
 export type UltimateDef =
@@ -336,8 +361,15 @@ function lunge(r: Raw, extra: StrikeExtra = {}): LungeAct {
 
 /** 弾の種類（銃のベースの弾の key）。挙動（設置・曲射・回転刃・追尾）は弾のものを借り、数だけ差し替える */
 const PLAIN_BULLET = "pistol";
+/** 少し追尾する弾（導きの珠）。詠唱の魔弾が近接の間合いの外の敵へ届くように借りる */
+const SEEKER_BULLET = "seekerOrb";
 
 function volley(r: Raw, profile: AttackProfile, bullet: string = PLAIN_BULLET, sprite?: string): UltimateAct {
+  return { kind: "volley", throw: throwOf(r, profile, bullet, sprite) };
+}
+
+/** 弾を出す段の中身（奥義の volley と、持続の swingVolley が共有する） */
+function throwOf(r: Raw, profile: AttackProfile, bullet: string, sprite?: string): ThrowArtDef {
   const base: BulletDef = bulletDef(bullet);
   const shot: BulletDef = {
     ...base,
@@ -347,10 +379,7 @@ function volley(r: Raw, profile: AttackProfile, bullet: string = PLAIN_BULLET, s
     pierceBonus: num(r, "pierceBonus"),
   };
   const count = num(r, "count");
-  return {
-    kind: "volley",
-    throw: { bullet: shot, scaling: scalingOf(r), poise: num(r, "poise"), poiseRatio: ratioOf(r), count, spreadDeg: num(r, "spreadDeg"), attack: profile, sprite },
-  };
+  return { bullet: shot, scaling: scalingOf(r), poise: num(r, "poise"), poiseRatio: ratioOf(r), count, spreadDeg: num(r, "spreadDeg"), attack: profile, sprite };
 }
 
 function pull(r: Raw, extra: { readonly applies?: readonly StatusApply[]; readonly single?: boolean } = {}): PullAct {
@@ -426,12 +455,38 @@ function shotOf(r: Raw): SustainShot {
     recoilMul: optNum(s, "recoilMul"),
     fuseMul: optNum(s, "fuseMul"),
     bounceAdd: optNum(s, "bounceAdd"),
+    orbit: orbitOf(s),
   };
+}
+
+function orbitOf(r: Raw): OrbitDef | undefined {
+  const o = optSub(r, "orbit");
+  return o === undefined ? undefined : { radius: num(o, "radius"), turnRate: num(o, "turnRate"), laps: num(o, "laps") };
 }
 
 function recallOf(r: Raw): SustainDef["recall"] {
   const s = sub(r, "recall");
-  return { interval: num(s, "interval"), returnDamageMul: num(s, "returnDamageMul"), speedMul: num(s, "speedMul") };
+  const h = optSub(s, "homing");
+  const homing = h === undefined ? {} : { homing: { turnRate: num(h, "turnRate"), range: num(h, "range") } };
+  return { interval: num(s, "interval"), returnDamageMul: num(s, "returnDamageMul"), speedMul: num(s, "speedMul"), ...homing };
+}
+
+function quakeOf(r: Raw): HitQuakeDef {
+  return {
+    radius: num(r, "radius"),
+    scaling: scalingOf(r),
+    poise: num(r, "poise"),
+    poiseRatio: ratioOf(r),
+    knockback: num(r, "knockback"),
+    hitstop: num(r, "hitstop"),
+    shake: num(r, "shake"),
+    icd: num(r, "icd"),
+  };
+}
+
+function pointBlankOf(r: Raw): SustainDef["pointBlank"] {
+  const s = sub(r, "pointBlank");
+  return { range: num(s, "range"), mul: num(s, "mul") };
 }
 
 function auraOf(r: Raw): SustainDef["aura"] {
@@ -470,6 +525,7 @@ function instantDef(
     desc,
     moveset,
     attack: profile,
+    cost: costOf(n),
     kind: "instant",
     acts: acts(n),
     invuln: optNum(n, "invuln") ?? ULTIMATE.common.invuln,
@@ -480,7 +536,12 @@ function instantDef(
 function sustainDef(moveset: MovesetKey, id: string, name: string, desc: string, build: (n: Raw, key: string) => SustainDef): UltimateDef {
   const n = block(moveset, id);
   const key = `${moveset}.${id}`;
-  return { key, name, desc, moveset, attack: MOVESETS[moveset].attack, kind: "sustain", sustain: build(n, key) };
+  return { key, name, desc, moveset, attack: MOVESETS[moveset].attack, cost: costOf(n), kind: "sustain", sustain: build(n, key) };
+}
+
+/** 奥義ごとの必要ゲージ（省略は共通の ULTIMATE.common.cost） */
+function costOf(n: Raw): number {
+  return optNum(n, "cost") ?? ULTIMATE.common.cost;
 }
 
 const AREA = attack("area", "physical");
@@ -623,17 +684,9 @@ function wandSet(): UltimateSet {
       nova(sub(n, "nova"), { clearsBullets: true }),
       buff(sub(n, "buff")),
     ]),
-    sustainDef(m, "incantation", "詠唱", "持続。振るたびに魔弾が 3 発飛び、威力が上がるが足は遅くなる", (n, key) => ({
+    sustainDef(m, "incantation", "詠唱", "持続。振るたびに体の前から敵を追う魔弾が 3 発飛び、威力が上がるが足は遅くなる", (n) => ({
       ...sustainCore(n),
-      rules: [
-        sustainRule(
-          key,
-          0,
-          "onSwing",
-          { kind: "volley", magnitude: num(sub(n, "swingVolley"), "magnitude"), count: num(sub(n, "swingVolley"), "count") },
-          num(sub(n, "swingVolley"), "icd"),
-        ),
-      ],
+      swingVolley: throwOf(sub(n, "swingVolley"), ARCANE_LIGHT, SEEKER_BULLET),
     })),
   ];
 }
@@ -693,17 +746,9 @@ function hammerSet(): UltimateSet {
   return [
     instantDef(m, "skyfall", "天墜", "跳び上がって地へ叩きつけ、周囲を大きく怯ませて壁へ叩きつける", AREA, (n) => [nova(sub(n, "nova"))]),
     instantDef(m, "groundSmash", "砕地", "前方へ地を砕く衝撃波を 3 本放つ。すべて貫く", AREA, (n) => [volley(sub(n, "volley"), AREA)]),
-    sustainDef(m, "ironLaw", "鉄槌の律", "持続。振りを当てるたびに衝撃波が起き、怯み値が増える", (n, key) => ({
+    sustainDef(m, "ironLaw", "鉄槌の律", "持続。振りを当てるたびに当てた所で衝撃波が起きて周りの敵も打ち、怯み値が増える", (n) => ({
       ...sustainCore(n),
-      rules: [
-        sustainRule(
-          key,
-          0,
-          "onSwingHit",
-          { kind: "shockwave", magnitude: num(sub(n, "hitShockwave"), "magnitude"), scaleBy: "slashBase" },
-          num(sub(n, "hitShockwave"), "icd"),
-        ),
-      ],
+      hitQuake: quakeOf(sub(n, "hitQuake")),
     })),
   ];
 }
@@ -743,7 +788,11 @@ function cannonSet(): UltimateSet {
       detonate(sub(n, "detonate")),
       volley(sub(n, "volley"), FIRE_RANGED, "mortar"),
     ]),
-    sustainDef(m, "powderKeg", "火薬庫", "持続。弾の威力が上がって速く撃て、設置弾がすぐ起爆する", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
+    sustainDef(m, "powderKeg", "火薬庫", "持続。散弾が 1 発増えて速く撃て、近い敵ほど大きな傷を与える", (n) => ({
+      ...sustainCore(n),
+      shot: shotOf(n),
+      pointBlank: pointBlankOf(n),
+    })),
   ];
 }
 
@@ -752,7 +801,7 @@ function thrownSet(): UltimateSet {
   return [
     instantDef(m, "thousandHands", "千手", "前方の広い扇へ 12 本を投げ放つ", RANGED, (n) => [volley(sub(n, "volley"), RANGED)]),
     instantDef(m, "pinpoint", "一点集中", "敵を追う刃を 8 本投げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "seekerOrb")]),
-    sustainDef(m, "returnArt", "手返しの理", "持続。飛んでいる投げ物が一定の間隔で手元へ戻り、戻りの威力が上がる", (n) => ({ ...sustainCore(n), recall: recallOf(n) })),
+    sustainDef(m, "returnArt", "手返しの理", "持続。飛んでいる投げ物が一定の間隔で近くの敵へ曲がりながら手元へ戻り、戻りの威力が上がる", (n) => ({ ...sustainCore(n), recall: recallOf(n) })),
   ];
 }
 
@@ -784,7 +833,7 @@ function warRingSet(): UltimateSet {
   return [
     instantDef(m, "ringDance", "輪舞", "全周へ輪を 4 本投げる。行って戻り、行きと帰りで当たる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "returnChakram")]),
     instantDef(m, "headsman", "断頭輪", "巨大な輪を 1 本ゆっくり投げる。すべて貫き、戻りでも当たる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "returnChakram")]),
-    sustainDef(m, "circleLaw", "円環の理", "持続。輪がよく跳ね、1 体多く貫き、一定の間隔で手元へ戻る", (n) => ({ ...sustainCore(n), shot: shotOf(n), recall: recallOf(n) })),
+    sustainDef(m, "circleLaw", "円環の理", "持続。撃った輪が自分の周りを回り続け、1 周ごとに同じ敵へもう一度当たる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
   ];
 }
 

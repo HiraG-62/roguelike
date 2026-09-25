@@ -7,6 +7,7 @@
     "swing": { "reach": 60, "size": 20, "hits": 5, "scaling": { "base": 6, "dex": 0.8, "str": 0.4 }, "poise": 10, "poiseRatio": { "dex": 0.3 }, "knockback": 200 }
   },
   "flowBreath": {
+    "cost": 85,
     "drainPerSec": 12.5, "minSec": 1,
     "hitMana": { "magnitude": 2, "icd": 0 },
     "hitHaste": { "magnitude": 0.15, "icd": 0 }

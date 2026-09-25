@@ -7,7 +7,6 @@
   },
   "circleLaw": {
     "drainPerSec": 12.5, "minSec": 1,
-    "shot": { "bounceAdd": 2, "pierceAdd": 1 },
-    "recall": { "interval": 0.6, "returnDamageMul": 1.2, "speedMul": 1 }
+    "shot": { "orbit": { "radius": 40, "turnRate": 6, "laps": 3 } }
   }
 }

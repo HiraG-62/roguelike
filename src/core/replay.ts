@@ -31,6 +31,7 @@ import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
 import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeLockedRelics, sanitizeRunSetup } from "../system/runSetup";
 import { type JobKey, sanitizeJob } from "../data/jobs";
 import type { MovesetKey } from "../data/weapons";
+import { clampHitstopScale } from "../ui/settings";
 
 /**
  * 4: ステータス振り分けが step 内のキー入力から装備画面のイベントに移った。
@@ -41,11 +42,12 @@ import type { MovesetKey } from "../data/weapons";
  *    （docs/ideas/weapon-redesign.md）
  * 9: 右クリックが右レーンの連撃（段カウンタを左右で共有）になり、F が武器種ごとに選ぶ奥義になった
  *    （docs/ideas/ougi-and-dual-actions.md）
+ * 10: コンボ派生の入力列が「実際に出た段」になり、曲射の派生・右レーンの弾がカーソル距離で落ちるようになった
  *
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
-export const REPLAY_VERSION = 9;
+export const REPLAY_VERSION = 10;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -83,6 +85,11 @@ export interface ReplayEvent {
   player: { hp: number; dashChargesLeft: number; mana?: number } | null;
   /** 振り分けが変わった場合のみ: 操作直後の runAttributes.alloc（差分を allocateAttribute で振り直す） */
   alloc: Attributes | null;
+  /**
+   * ラン中に設定画面でヒットストップの強さを変えた場合のみ、その新しい値。無ければ変更なし。
+   * hitstop() が消費するステップ数に直接効くため、記録しないと再生がずれる
+   */
+  hitstopScale?: number;
 }
 
 export interface ReplayResult {
@@ -107,7 +114,7 @@ export interface ReplayData {
   job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
-  /** ヒットストップの強度（0..1）。無ければ 1（既定）として読む。ステップ数に効くため決定性を保つには記録が要る */
+  /** ラン開始時点のヒットストップの強度（0..HITSTOP_SCALE_MAX）。無ければ 1（既定）として読む。ステップ数に効くため決定性を保つには記録が要る。ラン中の変更は events の hitstopScale で記録する */
   hitstopScale?: number;
   /**
    * 記録時の数値の版（BALANCE_HASH）。無ければ数値外出し前の記録。再生時に今の BALANCE_HASH と食い違えば
@@ -491,7 +498,7 @@ export interface RecorderOptions {
   daily: boolean;
   /** 起点と縛り。省略時は放浪者・縛りなし */
   setup?: RunSetup;
-  /** ヒットストップの強度（0..1）。省略時は 1 */
+  /** ヒットストップの強度（0..HITSTOP_SCALE_MAX）。省略時は 1 */
   hitstopScale?: number;
 }
 
@@ -503,6 +510,8 @@ export class ReplayRecorder {
   private lastEquipmentSignature: string;
   /** ラン開始時は振り分け 0（createGame が作る） */
   private lastAllocSignature = allocSignature(uniformAttributes(0));
+  /** 直近に記録したヒットストップの強さ（未変更なら noteHitstopScale はイベントを積まない） */
+  private lastHitstopScale: number;
 
   /**
    * createGame の前のプロフィールから記録を始める（旧来の形。snapshotAfterStart を書かない）。
@@ -517,6 +526,7 @@ export class ReplayRecorder {
     this.snapshot = captureLoadout(profile, skillProfile);
     this.lastSignature = loadoutSignature(this.snapshot);
     this.lastEquipmentSignature = equipmentSignature(this.snapshot.equipment);
+    this.lastHitstopScale = options.hitstopScale ?? 1;
   }
 
   /**
@@ -549,6 +559,17 @@ export class ReplayRecorder {
     const player = equipmentChanged || allocChanged ? { hp: p.hp, dashChargesLeft: p.dashChargesLeft, mana: p.mana } : null;
     const alloc = allocChanged ? { ...state.runAttributes.alloc } : null;
     this.events.push({ frame: this.encoder.frameCount, loadout, player, alloc });
+  }
+
+  /**
+   * ラン中に設定画面でヒットストップの強さを変えた後に呼ぶ。前回の記録値と同じなら何もしない。
+   * loadout は現在の持ち物をそのまま積む（イベント適用は付け替えと同じ経路を通るため、変化なしの形にする）
+   */
+  noteHitstopScale(state: GameState, scale: number): void {
+    if (scale === this.lastHitstopScale) return;
+    this.lastHitstopScale = scale;
+    const loadout = captureLoadout(state.profile, state.skills.profile);
+    this.events.push({ frame: this.encoder.frameCount, loadout, player: null, alloc: null, hitstopScale: scale });
   }
 
   /** step に渡す直前に呼ぶ。量子化済みの入力を返すので、それをそのまま step に渡すこと */
@@ -632,7 +653,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
   const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), job: sanitizeJob(data.job), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
-  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup, clampHitstopScale(data.hitstopScale));
+  const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup, sanitizeHitstopScale(data.hitstopScale));
   if (data.snapshotAfterStart === true) syncLoadoutCounts(profile, skillProfile, data.snapshot);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
 }
@@ -662,6 +683,7 @@ function applyEvent(session: ReplaySession, ev: ReplayEvent): void {
   applyLoadout(session.profile, session.skillProfile, ev.loadout);
   if (equipmentChanged) applyStats(state, computeStats(session.profile.equipment));
   if (ev.alloc) replayAllocation(state, ev.alloc);
+  if (ev.hitstopScale !== undefined) state.hitstopScale = ev.hitstopScale;
   if (!ev.player) return;
   state.player.hp = ev.player.hp;
   state.player.dashChargesLeft = ev.player.dashChargesLeft;
@@ -817,7 +839,8 @@ function sanitizeEvent(v: unknown): ReplayEvent | null {
   const player = sanitizePlayer(v.player);
   const alloc = sanitizeAlloc(v.alloc);
   if (player === undefined || alloc === undefined) return null;
-  return { frame: v.frame, loadout, player, alloc };
+  const hitstopScale = typeof v.hitstopScale === "number" && Number.isFinite(v.hitstopScale) ? clampHitstopScale(v.hitstopScale) : undefined;
+  return { frame: v.frame, loadout, player, alloc, ...(hitstopScale !== undefined ? { hitstopScale } : {}) };
 }
 
 /** 除外遺物があるときだけ書く（旧データ・依頼を持たないランの形を変えない） */
@@ -835,9 +858,9 @@ function hitstopScaleField(scale: number | undefined): Pick<ReplayData, "hitstop
   return scale !== undefined && scale !== 1 ? { hitstopScale: clampHitstopScale(scale) } : {};
 }
 
-/** 0..1 にクランプする。壊れた値・欄無しは 1（既定） */
-function clampHitstopScale(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+/** 0..HITSTOP_SCALE_MAX にクランプする（ui/settings.ts の clampHitstopScale）。壊れた値・欄無しは 1（既定） */
+function sanitizeHitstopScale(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? clampHitstopScale(v) : 1;
 }
 
 /** 数値外出し前の記録には無い欄。無ければ書かない */

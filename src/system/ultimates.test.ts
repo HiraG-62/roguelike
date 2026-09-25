@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { ULTIMATE } from "../data/tuning";
+import { ENERGY, ULTIMATE } from "../data/tuning";
 import { ULTIMATES, type UltimateDef, defaultUltimate, ultimateDef } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
 import type { PlayerStats } from "../loot/types";
@@ -20,11 +20,13 @@ import {
   ultimateIncomingMul,
   ultimateMoveset,
   ultimateOutgoingMul,
+  ultimateReady,
   ultimateShot,
   updateUltimate,
 } from "./ultimates";
 import { applyStats, currentShot, playerMoveset, updatePlayer } from "./player";
 import { damageEnemy, rollOutgoing } from "./combat";
+import { updateProjectiles } from "./projectiles";
 import { applyStatus } from "./statusEffects";
 
 /**
@@ -260,7 +262,7 @@ describe("持続の奥義", () => {
     updateUltimate(state, FIXED_DT);
     const before = state.player.energy;
     const e = dummy(state, NEAR);
-    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { buildsEnergy: true, kind: "melee" });
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { energy: ENERGY.maxPerHit, kind: "melee" });
     expect(state.player.energy, "命中でも増えない").toBe(before);
   });
 
@@ -415,5 +417,106 @@ describe("奥義の Rule 条件", () => {
     expect(ultimateMoveset(state, base), "型はそのまま").toBe(base);
     noteUltimateKill(state);
     expect(state.player.ultimate.kills, "持続中でなければ数えない").toBe(0);
+  });
+});
+
+describe("奥義ごとの必要ゲージ", () => {
+  it("cost に届かなければ奥義を出せない", () => {
+    const d = def("cleaver.asura");
+    expect(d.cost, "JSON で上書きした cost").toBe(ULTIMATE.defs.cleaver.asura.cost);
+    const state = ready(d.key);
+    state.player.energy = d.cost - 1;
+    expect(tryUltimate(state), "届かなければ出ない").toBe(false);
+    expect(state.player.ultimate.active, "持続も始まらない").toBeNull();
+    state.player.energy = d.cost;
+    expect(tryUltimate(state), "cost ちょうどで出る").toBe(true);
+    expect(state.player.ultimate.active, "持続が始まる").toBe(d.key);
+  });
+
+  it("一撃の奥義は cost だけ払い、残りは保つ", () => {
+    const d = def("wand.magicCircle");
+    const state = ready(d.key);
+    state.player.energy = state.player.maxEnergy;
+    expect(tryUltimate(state), "出る").toBe(true);
+    expect(state.player.energy, "上限 − cost が残る").toBeCloseTo(state.player.maxEnergy - d.cost, 5);
+  });
+
+  it("ゲージ満タンの条件は選んでいる奥義の cost で判定する", () => {
+    const d = def("cleaver.asura");
+    const state = ready(d.key);
+    state.player.energy = d.cost;
+    expect(ultimateReady(state), "cost に届けば満タン扱い").toBe(true);
+    expect(ruleConditionsMet(state, [{ kind: "energyFull" }], { pos: state.player.body.pos }), "Rule の energyFull").toBe(true);
+    state.player.energy = d.cost - 1;
+    expect(ultimateReady(state), "届かなければ満タンでない").toBe(false);
+  });
+});
+
+describe("持続の奥義の手応え", () => {
+  it("詠唱の持続中は振るたびに魔弾が体の前から飛ぶ", () => {
+    const state = ready("wand.incantation");
+    const e = dummy(state, NEAR);
+    tryUltimate(state);
+    const px = state.player.body.pos.x;
+    updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    const bolts = state.projectiles.filter((pr) => pr.owner === "player");
+    expect(bolts.length, "振り 1 回で swingVolley.count 発").toBe(ULTIMATE.defs.wand.incantation.swingVolley.count);
+    for (const b of bolts) expect(b.pos.x, "体の前から出る").toBeGreaterThan(px + state.player.body.radius);
+    for (const b of bolts) expect(b.radius, "見える大きさ").toBe(ULTIMATE.defs.wand.incantation.swingVolley.bulletRadius);
+    for (let i = 0; i < 10; i++) updateProjectiles(state, FIXED_DT);
+    expect(e.hp, "目の前の敵に当たる").toBeLessThan(BIG_HP);
+    expect(
+      state.projectiles.some((pr) => pr.owner === "player" && pr.life > 0 && pr.pos.x > e.body.pos.x),
+      "貫いて敵の向こうまで飛び続ける",
+    ).toBe(true);
+    // 次の振りでもまた出る
+    const before = state.projectiles.length;
+    runPlayer(state, 1);
+    updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    expect(state.projectiles.length, "次の振りでも飛ぶ").toBeGreaterThan(before);
+  });
+
+  it("鉄槌の律の持続中は命中で衝撃波が出る", () => {
+    const state = ready("hammer.ironLaw");
+    const target = dummy(state, 14);
+    const behind = dummy(state, 60);
+    tryUltimate(state);
+    const q = ULTIMATE.defs.hammer.ironLaw.hitQuake;
+    updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    for (let i = 0; i < 30 && target.hp === BIG_HP; i++) updatePlayer(state, withInput({}), FIXED_DT);
+    expect(target.hp, "振りが当たる").toBeLessThan(BIG_HP);
+    expect(behind.hp, "振りの届かない後ろの敵も衝撃波で打つ").toBeLessThan(BIG_HP);
+    expect(state.player.ultimate.quakeCooldown, "再使用が立つ").toBeGreaterThan(0);
+    expect(state.hitstop, "ヒットストップが乗る").toBeGreaterThan(0);
+    expect(
+      state.shapes.some((s) => s.kind === "ring" && Math.abs(s.radius - q.radius * state.stats.burstRadiusMul) < 1e-6),
+      "衝撃波の輪が見える",
+    ).toBe(true);
+  });
+
+  it("鉄槌の律でなければ命中で衝撃波は出ない", () => {
+    const state = arena(5, { moveset: "hammer" });
+    const target = dummy(state, 14);
+    const behind = dummy(state, 60);
+    updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    for (let i = 0; i < 30 && target.hp === BIG_HP; i++) updatePlayer(state, withInput({}), FIXED_DT);
+    expect(target.hp, "振りが当たる").toBeLessThan(BIG_HP);
+    expect(behind.hp, "後ろの敵には当たらない").toBe(BIG_HP);
+  });
+
+  it("火薬庫の持続中は近い敵ほど与ダメが上がる", () => {
+    const state = ready("cannon.powderKeg");
+    const pb = ULTIMATE.defs.cannon.powderKeg.pointBlank;
+    const near = dummy(state, state.player.body.radius + 6);
+    const mid = dummy(state, 6 + pb.range / 2, 30);
+    const far = dummy(state, 6 + pb.range * 2, -30);
+    tryUltimate(state);
+    const mNear = ultimateOutgoingMul(state, near);
+    const mMid = ultimateOutgoingMul(state, mid);
+    const mFar = ultimateOutgoingMul(state, far);
+    expect(mNear, "近いほど強い").toBeGreaterThan(mMid);
+    expect(mMid, "間は間").toBeGreaterThan(mFar);
+    expect(mFar, "range の外は等倍").toBe(1);
+    expect(mNear, "密着で pointBlank.mul に近い").toBeGreaterThan(1 + (pb.mul - 1) * 0.8);
   });
 });

@@ -24,7 +24,7 @@ import {
   type KeybindsRow,
   type SettingsGaugeItem,
 } from "../ui/title";
-import type { Settings } from "../ui/settings";
+import { HITSTOP_SCALE_MAX, type Settings } from "../ui/settings";
 import { actionKeyLabel, formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
 import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
 import { APP_VERSION } from "../version";
@@ -533,9 +533,12 @@ export function drawSettingsScreen(ctx: CanvasRenderingContext2D, settings: Sett
     const label = active ? `> ${SETTINGS_LABEL[item]}` : SETTINGS_LABEL[item];
     drawText(ctx, label, panel.x + 12, textY, m, color);
     if (isSettingsGaugeItem(item)) {
+      const raw = gaugeValue[item];
+      // ヒットストップだけ値域が 0..HITSTOP_SCALE_MAX なので、ゲージの塗りは最大値で割った割合にする（数字は生の値の 100 倍のまま = 100 が標準）
+      const fraction = item === "hitstopScale" ? raw / HITSTOP_SCALE_MAX : raw;
       const gauge = settingsGaugeRect(item, rowGap);
-      if (gauge) drawGauge(ctx, gauge, gaugeValue[item], color);
-      drawText(ctx, String(Math.round(gaugeValue[item] * 100)), panel.x + panel.w - 12, textY, m, color, "right");
+      if (gauge) drawGauge(ctx, gauge, fraction, color);
+      drawText(ctx, String(Math.round(raw * 100)), panel.x + panel.w - 12, textY, m, color, "right");
       return;
     }
     drawText(ctx, toggleValue[item], panel.x + panel.w - 12, textY, m, color, "right");

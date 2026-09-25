@@ -1,4 +1,5 @@
 import type { FrameInput } from "../core/input";
+import { ultimateReady } from "../system/ultimates";
 import { EMPTY_INPUT } from "../core/input";
 import { createRng, type Rng } from "../core/rng";
 import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
@@ -87,7 +88,7 @@ const ART_THROW_RANGE = 160;
 /** 1 振りの技の射程に足す接近余地（px） */
 const ART_STRIKE_MARGIN = 6;
 /**
- * 奥義（F）: ゲージが満タン（energy >= maxEnergy）で、敵がこの距離（px）以内なら押す。
+ * 奥義（F）: ゲージが選んでいる奥義の cost に届いていて、敵がこの距離（px）以内なら押す。
  * 持続型は押し直すと終わるので、持続中は押さずにゲージが減りきるまで放置する（手動終了の経路は踏まない。report に注記）
  */
 const ULTIMATE_RANGE = 8 * PX_PER_METER;
@@ -658,7 +659,7 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
 export function shouldPressUltimate(state: GameState, distanceToEnemy: number): boolean {
   const p = state.player;
   if (p.ultimate.active !== null) return false;
-  return p.energy >= p.maxEnergy && distanceToEnemy <= ULTIMATE_RANGE;
+  return ultimateReady(state) && distanceToEnemy <= ULTIMATE_RANGE;
 }
 
 /** 次に右を押すと出る右レーンの段（連撃が続かなければ undefined） */

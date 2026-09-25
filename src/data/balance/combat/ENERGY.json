@@ -1,0 +1,17 @@
+{
+  "_note": "奥義ゲージの溜まり方（system/combat.ts の meleeHitEnergy / shotHitEnergy）。2026-09-25: 近接 1 命中 = 定数 12 だと攻撃速度の速い武器ほど簡単に溜まるので、「1 秒ぶんの振りで perSwingSec 溜まる」に揃えた。1 命中 = clamp(perSwingSec × 段の基礎秒 ÷ 多段数, minPerHit, maxPerHit)。段の基礎秒は攻撃速度の倍率を掛ける前（攻撃速度の性質は今までどおり得になる）。射撃は弾ごとに perSwingSec × rangedRatio × 射撃間隔の基礎秒 ÷ 1 回に出る弾数",
+  "_fields": {
+    "perSwingSec": "1 秒ぶんの振り（予備動作 + 攻撃判定 + 戻り の基礎秒の合計）で溜まる奥義ゲージ。目安 35〜55",
+    "minPerHit": "1 命中で溜まる量の下限（速い多段の段でも 0 に近づけない）",
+    "maxPerHit": "1 命中で溜まる量の上限（重い一振りを 1 体に当てただけで溜まりきらないように）",
+    "rangedRatio": "射撃の溜まり方の、近接に対する割合（0..1）。離れて安全に当てられるぶん低い。目安 0.6〜0.9",
+    "just": "見切り（JUST 回避）・パリィ 1 回で溜まる量",
+    "skillMeleeHit": "スキルの近接の命中 1 回で溜まる量（スキルの段は振りの秒を持たないので定数）"
+  },
+  "perSwingSec": 45,
+  "minPerHit": 3,
+  "maxPerHit": 30,
+  "rangedRatio": 0.75,
+  "just": 24,
+  "skillMeleeHit": 12
+}

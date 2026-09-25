@@ -70,13 +70,15 @@ export interface AttackState {
 /**
  * 奥義の作業領域（docs/ideas/ougi-and-dual-actions.md 3.2。src/system/ultimates.ts）。
  * active = 持続（sustain）の奥義の key（一撃の奥義は state に残らない）、elapsed = 持続の経過秒、
- * kills = 持続中に倒した数（終了時の onBurst の量）、auraTick = 周囲ダメージの次の刻みまでの秒
+ * kills = 持続中に倒した数（終了時の onBurst の量）、auraTick = 周囲ダメージの次の刻みまでの秒、
+ * quakeCooldown = 命中の衝撃波（SustainDef.hitQuake）の次に出せるまでの秒
  */
 export interface UltimateState {
   active: string | null;
   elapsed: number;
   kills: number;
   auraTick: number;
+  quakeCooldown: number;
 }
 
 export interface Player {
@@ -137,6 +139,8 @@ export interface Player {
   shotChargeTime: number;
   /** 前フレームに右クリック（固有技のキー）を押していたか。右の押した瞬間を取るため */
   secondaryWasHeld: boolean;
+  /** 照準（カーソル）までの距離 px。曲射の落下点に使う。マウス照準が無ければ undefined（射程いっぱい）。applyAim が毎ステップ更新 */
+  aimDistance?: number;
   /**
    * 三点撃ち（burst を持つ弾）の残り弾数と次の弾までの秒、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
    * docs/ideas/combat-feel-design.md B-1 / B-2
@@ -417,6 +421,8 @@ export interface Projectile {
   attack?: AttackProfile;
   /** 弾の代わりに武器の絵を回して描く（斧の投擲など。ThrowArtDef.sprite）。未指定は既定の弾の絵 */
   sprite?: string;
+  /** 命中で溜まる奥義ゲージ（銃の射撃だけ。system/combat.ts の shotHitEnergy）。未指定は溜めない */
+  energy?: number;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */
@@ -652,7 +658,10 @@ export interface GameState {
   camera: Camera;
   /** 残りヒットストップ（ステップ数） */
   hitstop: number;
-  /** ヒットストップの強度（0..1）。設定画面で変えられる。0 でヒットストップ無効。system/effects.ts の hitstop() が掛ける */
+  /**
+   * ヒットストップの強度（0..ui/settings.ts の HITSTOP_SCALE_MAX、既定 1）。設定画面で変えられ、
+   * ラン中の変更も main.ts が即座にここへ書き戻す。0 でヒットストップ無効。system/effects.ts の hitstop() が掛ける
+   */
   hitstopScale: number;
   /** 残りスローモーション（実時間秒） */
   slowmo: number;
@@ -697,6 +706,8 @@ export interface GameState {
   floorTime: number;
   reaper: Reaper | null;
   floorKind: FloorKind;
+  /** このフロアの面積の倍率（基準の大きさ = 1。省略時は 1。buildFloor が BALANCE.world.MAP_SIZE の範囲で抽選。system/floor.ts） */
+  floorAreaMul?: number;
   /** shrine の泉を使った代償。次にロックする部屋のエリート率が上がる */
   cursed: boolean;
   /** 探索済みタイル（ミニマップ用）。1 = 探索済み */

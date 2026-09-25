@@ -436,6 +436,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 - **スキル自身の命中では気力が戻らない**（無限ループ防止）。例外は刻印符「連鎖」（B-5）
 - 1 ヒットで回収するのは近接の「命中した敵 1 体ごと」だが、1 振りあたり上限 2 体ぶん（`MANA.meleeTargetCap = 2`）
 - 奥義ゲージ（旧 必殺ゲージ）は別の資源として残す。気力と合わせない（祝福 10 種以上が奥義ゲージを参照しているため）
+- 奥義ゲージの溜まり方（2026-09-25）: 近接 1 命中 = clamp(`ENERGY.perSwingSec` × 段の基礎秒〔windup+active+recover、攻撃速度を掛ける前〕÷ 多段数, `minPerHit`, `maxPerHit`)。武器種によらず「1 秒振り続けて溜まる量」がほぼ同じになる（速い武器ほど溜まる偏りを解消）。射撃は弾ごとに `perSwingSec × rangedRatio × 射撃間隔の基礎秒 ÷ 弾数`。見切り・受け流しは `ENERGY.just`。必要量は奥義ごとの `cost`（`ULTIMATE.defs.<武器種>.<名前>.cost`、省略時 `common.cost`）で、一撃は cost だけ払う（`system/combat.ts` の `meleeHitEnergy` / `shotHitEnergy`、`system/ultimates.ts` の `ultimateCost` / `ultimateReady`）
 
 ### B-2. 最低間隔と気力不足
 

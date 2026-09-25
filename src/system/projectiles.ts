@@ -1,7 +1,7 @@
 import { type GameState, type Projectile, pushSfx } from "../core/state";
-import { type Vec, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { FEEL, MANA } from "../data/tuning";
-import type { BulletDef } from "../data/weapons";
+import type { BulletDef, OrbitDef, RecallHomingDef, ShotRuntime } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { hitstop, spawnBlast, spawnBurst } from "./effects";
@@ -25,6 +25,8 @@ const MINE_FX_LIFE = 0.25;
 /** 床で止まったとみなす速さ（これ未満は 0 にする） */
 const MINE_REST_SPEED = 2;
 const FULL_TURN = Math.PI * 2;
+/** 周回の弾が撃った位置から周回の半径・位相へ寄る速さ（毎秒の指数。大きいほど早く輪に乗る） */
+const ORBIT_EASE = 8;
 
 export function updateProjectiles(state: GameState, dt: number): void {
   groupNewVolley(state);
@@ -32,12 +34,13 @@ export function updateProjectiles(state: GameState, dt: number): void {
     if (pr.life <= 0) continue;
     pr.life -= dt;
     const def = shotDefOf(pr);
-    if (def) steerShot(state, pr, def, dt);
+    steerShot(state, pr, def, dt);
     const prev = { ...pr.pos };
     pr.pos.x += pr.vel.x * dt;
     pr.pos.y += pr.vel.y * dt;
 
-    if (overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
+    // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）
+    if (!pr.shot?.orbit && overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
       if (onBoonProjectileWall(state, pr, dt)) continue;
       if (def && hitWallByShot(state, pr, def, prev, dt)) continue;
       pr.life = 0;
@@ -66,11 +69,72 @@ function shotDefOf(pr: Projectile): BulletDef | undefined {
   return BULLETS[pr.shot.key];
 }
 
-/** 飛んでいる間の型ごとの動き（追尾の旋回・設置弾の減速・回転刃の折り返し） */
-function steerShot(state: GameState, pr: Projectile, def: BulletDef, dt: number): void {
+/**
+ * 飛んでいる間の型ごとの動き。周回（持続の奥義）と手元返しの戻りの追尾は作業領域が持つので弾の定義より先に見る。
+ * それ以外は弾の定義（追尾の旋回・設置弾の減速・回転刃の折り返し）
+ */
+function steerShot(state: GameState, pr: Projectile, def: BulletDef | undefined, dt: number): void {
+  if (pr.owner !== "player") return;
+  if (pr.shot?.orbit) {
+    steerOrbit(state, pr, pr.shot, pr.shot.orbit, dt);
+    return;
+  }
+  if (pr.shot?.recallHoming) {
+    steerRecall(state, pr, pr.shot.recallHoming, dt);
+    return;
+  }
+  if (!def) return;
   if (def.homing) steerHoming(state, pr, def.homing.turnRate, def.homing.range, dt);
   if (def.mine) slowMine(pr, def.mine.drag, dt);
   if (def.boomerang) steerBoomerang(state, pr, def.boomerang.returnAt);
+}
+
+/**
+ * 周回: 自分を中心に turnRate で回る。半径と位相のずれは撃った位置から ORBIT_EASE で滑らかに寄せる（撃った直後に跳ばない）。
+ * 次のステップの位置へ届く速度を置き、位置の更新は updateProjectiles に任せる。1 周ごとに当てた敵を忘れる
+ */
+function steerOrbit(state: GameState, pr: Projectile, rt: ShotRuntime, orbit: OrbitDef, dt: number): void {
+  if (dt <= 0) return;
+  const center = state.player.body.pos;
+  const rel = sub(pr.pos, center);
+  const ease = 1 - Math.exp(-ORBIT_EASE * dt);
+  const phaseStep = (rt.orbitPhase ?? 0) * ease;
+  const turn = orbit.turnRate * dt;
+  const radius0 = rt.orbitRadius ?? length(rel);
+  const radius = radius0 + (orbit.radius - radius0) * ease;
+  const next = (rt.orbitAngle ?? angle(rel)) + turn + phaseStep;
+  rt.orbitPhase = (rt.orbitPhase ?? 0) - phaseStep;
+  rt.orbitRadius = radius;
+  rt.orbitAngle = next;
+  const target = add(center, scale(fromAngle(next), radius));
+  pr.vel = scale(sub(target, pr.pos), 1 / dt);
+  countLap(pr, rt, turn);
+}
+
+/** 周回の角度を足し、1 周を越えたら当てた敵を忘れる（同じ敵へ 1 周に 1 回当たる） */
+function countLap(pr: Projectile, rt: ShotRuntime, turn: number): void {
+  const before = rt.orbitTravel ?? 0;
+  const after = before + Math.abs(turn);
+  rt.orbitTravel = after;
+  if (Math.floor(after / FULL_TURN) > Math.floor(before / FULL_TURN)) pr.hitIds.clear();
+}
+
+/**
+ * 手元返しの戻りの追尾: range 内の近くの敵（まだ当てていない）へ曲がり、いなければ手元へ曲がって手元で収まる。
+ * 速さは変えない
+ */
+function steerRecall(state: GameState, pr: Projectile, homing: RecallHomingDef, dt: number): void {
+  const enemy = nearestEnemy(state, pr.pos, homing.range, pr.hitIds);
+  if (enemy) {
+    turnToward(pr, enemy, homing.turnRate, dt);
+    return;
+  }
+  const hand = state.player.body;
+  if (circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, hand.pos.x, hand.pos.y, hand.radius)) {
+    pr.life = 0;
+    return;
+  }
+  turnToward(pr, hand.pos, homing.turnRate, dt);
 }
 
 /**
@@ -110,7 +174,11 @@ function updateLob(state: GameState, pr: Projectile, def: BulletDef): void {
 /** 追尾: range 内で最も近い敵へ、毎秒 turnRate ラジアンまで向きを変える（速さは変えない） */
 function steerHoming(state: GameState, pr: Projectile, turnRate: number, range: number, dt: number): void {
   const target = nearestEnemy(state, pr.pos, range, pr.hitIds);
-  if (!target) return;
+  if (target) turnToward(pr, target, turnRate, dt);
+}
+
+/** target へ毎秒 turnRate ラジアンまで向きを変える（速さは変えない） */
+function turnToward(pr: Projectile, target: Vec, turnRate: number, dt: number): void {
   const speed = length(pr.vel);
   const current = angle(pr.vel);
   const wanted = angle(sub(target, pr.pos));
@@ -216,6 +284,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
       crit: out.crit,
       poise: (pr.poise ?? 0) * mul,
       impact: { family: "blunt", weight: "heavy" },
+      energy: pr.energy,
     });
   }
   spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
@@ -265,7 +334,10 @@ function hitEnemies(state: GameState, pr: Projectile): void {
       crit: out.crit,
       poise: pr.poise ?? 0,
       impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
+      energy: pr.energy,
     });
+    // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）
+    if (pr.shot?.orbit) continue;
     if (pr.pierceLeft > 0) {
       pr.pierceLeft -= 1;
       continue;

@@ -8,6 +8,6 @@
   "ironLaw": {
     "drainPerSec": 12.5, "minSec": 1,
     "mul": { "poise": 1.5 },
-    "hitShockwave": { "magnitude": 0.5, "icd": 0.3 }
+    "hitQuake": { "radius": 44, "scaling": { "base": 6, "str": 0.5, "vit": 0.3 }, "poise": 20, "poiseRatio": { "str": 0.3 }, "knockback": 220, "hitstop": 5, "shake": 4, "icd": 0.3 }
   }
 }

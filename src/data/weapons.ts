@@ -209,10 +209,27 @@ export interface ThrowArtDef {
   readonly sprite?: string;
 }
 
-/** 自分の弾を手元へ戻す。戻りの弾は威力 returnDamageMul 倍 */
+/** 自分の弾を手元へ戻す。戻りの弾は威力 returnDamageMul 倍。homing があれば戻りの弾は range 内の近くの敵へ曲がる（毎秒 turnRate ラジアンまで） */
 export interface RecallArtDef {
   readonly returnDamageMul: number;
   readonly speedMul: number;
+  readonly homing?: RecallHomingDef;
+}
+
+/** 手元返しの戻りの追尾（投擲・手返しの理）。敵がいなければ手元へ戻る */
+export interface RecallHomingDef {
+  readonly turnRate: number;
+  readonly range: number;
+}
+
+/**
+ * 周回: 撃った弾が自分の周りを半径 radius で回り続ける（円環の理）。turnRate は毎秒の回転（ラジアン）、laps 周で消える。
+ * 1 周ごとに当てた敵を忘れてもう一度当たる。基礎の弾の性質ではなく持続の奥義が付ける挙動なので BULLET_FEATURES には入れない
+ */
+export interface OrbitDef {
+  readonly radius: number;
+  readonly turnRate: number;
+  readonly laps: number;
 }
 
 /** 右 1 段目の構えから作った派生の印。release = 構えを離した振り（押した瞬間には照合しない） */
@@ -347,6 +364,8 @@ export interface BulletDef {
   readonly boomerang?: { readonly returnAt: number; readonly catchRadius: number };
   /** 曲射: 照準の距離（minRange〜射程）で炸裂する。peak は描画の山の高さ（px） */
   readonly lob?: { readonly blastRadius: number; readonly minRange: number; readonly peak: number; readonly color: string };
+  /** 周回（持続の奥義が付ける。OrbitDef） */
+  readonly orbit?: OrbitDef;
   /** 1 発の威力の係数（A-10）。省略は PLAYER.shoot.scaling。damageMul はこの後に掛かる */
   readonly scaling?: Scaling;
   /** 怯み値のステータス係数（A-10）。PLAYER.shoot.poise × poiseMul に上乗せする。省略はステータスで伸びない */
@@ -366,8 +385,20 @@ export interface ShotRuntime {
   detonated?: boolean;
   /** 撃った瞬間の寿命（回転刃の反転・曲射の山の高さの基準） */
   lifeTotal?: number;
-  /** 回転刃が手元へ戻っている最中 */
+  /** 回転刃が手元へ戻っている最中（手元返しで戻した弾も立つ） */
   returning?: boolean;
+  /** 手元返しの戻りの追尾（RecallArtDef.homing の写し） */
+  recallHoming?: RecallHomingDef;
+  /** 周回の定義（撃った瞬間の BulletDef.orbit の写し。持続が終わっても回り切る） */
+  orbit?: OrbitDef;
+  /** 周回の今の角度（自分から見た弾の向き、ラジアン） */
+  orbitAngle?: number;
+  /** 周回の今の半径 px（撃った位置から radius へ滑らかに広がる） */
+  orbitRadius?: number;
+  /** 周回で回った角度の合計（ラジアン）。1 周ごとの当て直しと laps の判定に使う */
+  orbitTravel?: number;
+  /** 周回の位相のずれの残り（ラジアン）。撃った向きから、発射順でずらした角度へ半径と一緒に滑らかに寄せる */
+  orbitPhase?: number;
 }
 
 /** 弾の挙動ブロックの数値だけ（JSON の形。key・名前・語・素性は持ち主が足す） */

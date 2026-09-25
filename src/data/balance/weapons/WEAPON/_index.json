@@ -29,7 +29,7 @@
     "throw": "近接の段では敵を背後へ放る（真偽）。右レーンの弾の段では出す弾（bullet は弾の数値、scaling / poise / poiseRatio は技の威力と怯み値、count は弾数、spreadDeg は扇の間隔（度））",
     "hold": "押している間の構え。moveMul は移動の倍率、maxSec は自動で解く秒、parry は受け流し（windowSec 窓の秒 / recoverSec 外した硬直 / staggerPoise 相手に入れる怯み値）、guard は盾の構え（arcDeg 前方の角度 / damageMul 被ダメ倍率 / energyGain 受けるたびの奥義ゲージ）、release は離した振り、releaseNext はその後の段",
     "aim": "狙い撃ち。moveMul は移動の倍率、time は狙いが定まる秒、damageMul / pierceBonus は定まった 1 発の威力の倍率と貫通の追加",
-    "recall": "手元返し。returnDamageMul は戻りの弾の威力の倍率、speedMul は戻る速さの倍率",
+    "recall": "手元返し。returnDamageMul は戻りの弾の威力の倍率、speedMul は戻る速さの倍率（今の速さ・recallMinSpeed の大きい方に掛ける）、homing は戻りの弾が近くの敵へ曲がる追尾（turnRate 毎秒の旋回 rad / range 敵を探す距離 px。敵がいなければ手元へ戻る）",
     "charge": "溜め。moveMul は溜め中の移動の倍率、step は離して出す振り、levels は段（time 秒で届き、damageMul / poiseMul / reachMul 倍）",
     "tip": "先端判定。ratio は先端の割合（0..1）、damageMul / poiseMul / manaMul は先端の倍率、offDamageMul / offManaMul は根元の倍率",
     "dashAttack": "ダッシュ攻撃の振り（項目は段と同じ）",

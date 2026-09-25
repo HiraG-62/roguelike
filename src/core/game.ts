@@ -35,6 +35,7 @@ import { startJob } from "../system/jobs";
 import { createRuleRunState } from "./events";
 import { createCodexRun } from "../meta/codex";
 import { createQuestRun } from "../meta/quests";
+import { HITSTOP_SCALE_MAX } from "../ui/settings";
 
 /**
  * 新しいランを始める。profile.equipment から stats を畳み込んでプレイヤーに反映し、
@@ -46,7 +47,7 @@ export function createGame(
   profile: Profile = createEmptyProfile(),
   skillProfile: SkillProfile = createDefaultSkillProfile(),
   setup: RunSetup = defaultRunSetup(),
-  /** ヒットストップの強度（0..1）。settings.hitstopScale / リプレイの記録値を渡す。既定 1 */
+  /** ヒットストップの強度（0..HITSTOP_SCALE_MAX）。settings.hitstopScale / リプレイの記録値を渡す。既定 1 */
   hitstopScale = 1,
 ): GameState {
   const stats = computeStats(profile.equipment);
@@ -70,7 +71,7 @@ export function createGame(
     pickups: [],
     camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
     hitstop: 0,
-    hitstopScale: Math.min(1, Math.max(0, hitstopScale)),
+    hitstopScale: Math.min(HITSTOP_SCALE_MAX, Math.max(0, hitstopScale)),
     slowmo: 0,
     flash: 0,
     combo: { count: 0, timer: 0, best: 0, popTimer: 0 },
@@ -94,6 +95,7 @@ export function createGame(
     floorTime: 0,
     reaper: null,
     floorKind: "rooms",
+    floorAreaMul: 1,
     cursed: false,
     explored: new Uint8Array(0),
     exploredLog: [],

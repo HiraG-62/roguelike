@@ -13,7 +13,7 @@ import {
   meleeChargeOf,
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
-import { currentShot, isAttacking, nextLaneIndex, playerMoveset } from "../system/player";
+import { currentShot, isAttacking, nextLaneIndex, plannedInputs, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { hudLayoutFor } from "./layers";
 import { TEXT, drawText, textLineHeight, truncateText } from "./pixelText";
@@ -136,7 +136,7 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, la
   const index = nextLaneIndex(state, moveset) ?? 0;
   const next = moveset.steps2[index];
   const wait = next ? actionCooldownLeft(state, next) : 0;
-  const hint = hudHintText(moveset, p.attack.inputs, currentShot(state.stats), index, wait);
+  const hint = hudHintText(moveset, plannedInputs(state), currentShot(state.stats), index, wait);
   drawText(ctx, truncateText(hint, maxW, TEXT.SMALL), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
 }
 

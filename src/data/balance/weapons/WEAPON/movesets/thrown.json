@@ -2,7 +2,7 @@
   "attackMoveMul": 0.7,
   "dashAttack": {"windup":0.02,"active":0.1,"recover":0.16,"scaling":{"base":4.5,"dex":0.6},"poise":8,"reach":40,"size":12,"knockback":150,"heavy":false,"mana":2,"shape":{"kind":"thrust"},"lunge":16,"trail":"#c0e0ff"},
   "steps2": [
-    {"kind":"recall","key":"recall","cooldown":0.8,"recall":{"returnDamageMul":1.3,"speedMul":1.2}},
+    {"kind":"recall","key":"recall","cooldown":0.8,"recall":{"returnDamageMul":1.3,"speedMul":0.75,"homing":{"turnRate":5,"range":120}}},
     {"kind":"swing","key":"throughThrow","step":{"windup":0.02,"active":0.1,"recover":0.192,"scaling":{"base":5,"dex":0.65},"poise":9,"reach":36,"size":12,"knockback":150,"heavy":false,"mana":2,"shape":{"kind":"thrust"},"lunge":16,"trail":"#c0e0ff"}},
     {"kind":"swing","key":"thrownKick","step":{"windup":0.02,"active":0.1,"recover":0.192,"scaling":{"base":5,"dex":0.65},"poise":9,"reach":12,"size":20,"knockback":300,"heavy":false,"mana":2,"shape":{"kind":"box"},"trail":"#c0e0ff"}}
   ],

@@ -28,7 +28,7 @@ import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
 import { sustainRules } from "../data/ultimates";
-import { ultimateBlocksEnergy } from "./ultimates";
+import { ultimateBlocksEnergy, ultimateReady } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import type { TriggerEffectKind } from "../loot/types";
@@ -752,7 +752,8 @@ function migratedConditionHolds(state: GameState, c: RuleCondition, subject: Con
     case "eventTagIn":
       return subject.tag !== undefined && c.tags.includes(subject.tag);
     case "energyFull":
-      return p.energy >= p.maxEnergy;
+      // 満タン = 選んでいる奥義を出せる量（奥義ごとの cost。上限 maxEnergy より少ないことがある）
+      return ultimateReady(state);
     case "reaperNear":
       return state.reaper !== null || reaperWarning(state);
     case "swingStruck": {

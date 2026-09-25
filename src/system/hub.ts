@@ -71,9 +71,15 @@ const HUB_ROOM = 0;
  * 拠点の state を作る。createGame と同じ形だが、sandbox 印を付け、ラン数を数えず、
  * フロア生成・起点・ジョブの初期化を通さない（拠点での行動を永続データとランに持ち込まない）
  */
-export function createHub(profile: Profile, skillProfile: SkillProfile, available: ReadonlySet<HubSpotKey>): HubSession {
+export function createHub(
+  profile: Profile,
+  skillProfile: SkillProfile,
+  available: ReadonlySet<HubSpotKey>,
+  /** ヒットストップの強度（settings.hitstopScale）。省略時は標準の 1（拠点は乱数消費が無いため決定性の記録は不要） */
+  hitstopScale = 1,
+): HubSession {
   const layout = buildHubMap();
-  const state = createHubState(profile, skillProfile, layout);
+  const state = createHubState(profile, skillProfile, layout, hitstopScale);
   const hub: HubRun = {
     layout,
     near: null,
@@ -87,7 +93,7 @@ export function createHub(profile: Profile, skillProfile: SkillProfile, availabl
   return { state, hub };
 }
 
-function createHubState(profile: Profile, skillProfile: SkillProfile, layout: HubLayout): GameState {
+function createHubState(profile: Profile, skillProfile: SkillProfile, layout: HubLayout, hitstopScale: number): GameState {
   const setup = defaultRunSetup();
   const stats = computeStats(profile.equipment);
   const state: GameState = {
@@ -109,7 +115,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     pickups: [],
     camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
     hitstop: 0,
-    hitstopScale: 1,
+    hitstopScale,
     slowmo: 0,
     flash: 0,
     combo: { count: 0, timer: 0, best: 0, popTimer: 0 },

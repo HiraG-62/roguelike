@@ -66,15 +66,31 @@ describe("ヒットストップの強度（hitstopScale）", () => {
     expect(state.hitstop, "hitstopScale 0 は無効化される").toBe(0);
   });
 
+  it("強さ 0 ではどの命中でもヒットストップが 0", () => {
+    const state = createGame(1, "seed", undefined, undefined, undefined, 0);
+    for (const steps of [1, 3, 6, 7, 20]) {
+      state.hitstop = 0;
+      hitstop(state, steps);
+      expect(state.hitstop, `steps=${steps}`).toBe(0);
+    }
+  });
+
   it("0.5 では四捨五入で半分になる", () => {
     const state = createGame(1, "seed", undefined, undefined, undefined, 0.5);
     hitstop(state, 7);
     expect(state.hitstop, "7 * 0.5 = 3.5 → 4").toBe(4);
   });
 
-  it("範囲外の値は createGame で 0..1 にクランプされる", () => {
+  it("ヒットストップの強さは 2.0 まで上げられる", () => {
+    const state = createGame(1, "seed", undefined, undefined, undefined, 2);
+    expect(state.hitstopScale).toBe(2);
+    hitstop(state, 6);
+    expect(state.hitstop, "6 * 2.0 = 12").toBe(12);
+  });
+
+  it("範囲外の値は createGame で 0..HITSTOP_SCALE_MAX にクランプされる", () => {
     const over = createGame(1, "seed", undefined, undefined, undefined, 5);
-    expect(over.hitstopScale).toBe(1);
+    expect(over.hitstopScale).toBe(2);
     const under = createGame(1, "seed", undefined, undefined, undefined, -5);
     expect(under.hitstopScale).toBe(0);
   });
