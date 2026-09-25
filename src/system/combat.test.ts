@@ -47,7 +47,26 @@ describe("stats → 近接", () => {
       step(state, withInput({}), FIXED_DT);
       for (const s of state.sfx) heard.add(s);
     }
-    expect(heard.has("hit")).toBe(true);
+    expect(heard.has("hitSlashLight")).toBe(true);
+  });
+
+  it("impact を渡すと系統と重さに応じた命中音の名前が積まれる", () => {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 999);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", impact: { family: "blunt", weight: "heavy" } });
+    expect(state.sfx).toContain("hitBluntHeavy");
+    expect(state.sfx).not.toContain("hit");
+    expect(state.sfx).not.toContain("hitHeavy");
+  });
+
+  it("怯まない近接ヒットには低域の hitThump が足される（重撃は hitHeavy 自身が低域を持つため足さない）", () => {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 999);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(state.sfx).toContain("hitThump");
+    state.sfx.length = 0;
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", poise: e.poise.max * 10 });
+    expect(state.sfx).not.toContain("hitThump");
   });
 });
 

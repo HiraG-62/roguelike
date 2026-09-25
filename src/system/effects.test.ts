@@ -30,6 +30,8 @@ import {
   deathKindOf,
   dropSfxName,
   fxState,
+  hitFamily,
+  hitSfxName,
   itemTraitColor,
   markExecuted,
   roomClearFx,
@@ -196,6 +198,28 @@ describe("効果音の名前", () => {
     expect(shotSfxName(bulletDef("pistol")), "性質の無い弾は shoot").toBe("shoot");
     expect(shotSfxName(bulletDef("mortar")), "曲射筒は曲射の音").toBe("shotLob");
     expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音").toBe(MOVESET_KEYS.length);
+  });
+
+  it("23 武器種すべてに命中音の系統がある", () => {
+    for (const key of MOVESET_KEYS) {
+      const family = hitFamily(key);
+      expect(["slash", "blunt", "pierce"], `${key} の系統`).toContain(family);
+    }
+    expect(MOVESET_KEYS.length, "武器種は 23 種").toBe(23);
+  });
+
+  it("命中音は系統と重さで名前が決まり、SFX_NAMES にすべて登録されている", () => {
+    const families = ["slash", "blunt", "pierce"] as const;
+    const weights = ["light", "mid", "heavy"] as const;
+    const found = new Set<string>();
+    for (const family of families) {
+      for (const weight of weights) {
+        const name = hitSfxName(family, weight);
+        expect(names.has(name), `命中音 ${family}/${weight}`).toBe(true);
+        found.add(name);
+      }
+    }
+    expect(found.size, "系統 × 重さごとに別の音").toBe(families.length * weights.length);
   });
 
   it("響きの 5 色は別々のドロップ音", () => {

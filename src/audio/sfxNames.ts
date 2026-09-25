@@ -203,6 +203,18 @@ export const SFX_NAMES = [
   "finisherHit",
   /** 近接命中の低域のドン（hit と一緒に積む） */
   "hitThump",
+  // ---- 命中音の系統（刃・打撃・刺突）× 重さ（docs/recipes/audio.md）。武器種ごとの impact が選ぶ ----
+  "hitSlashLight",
+  "hitSlashMid",
+  "hitSlashHeavy",
+  "hitBluntLight",
+  "hitBluntMid",
+  "hitBluntHeavy",
+  "hitPierceLight",
+  "hitPierceMid",
+  "hitPierceHeavy",
+  /** 弾の命中（砲・溜め弾・擲弾の直撃） */
+  "bulletHitHeavy",
   // ---- スキルの属性ごとの発動音（skillCast に重ねる。system/skills.ts が castSfxName で選ぶ）----
   "castFire",
   "castIce",

@@ -209,11 +209,13 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
     const mul = blastMulAt(pr.pos, blastRadius, e.body.pos, e.body.radius);
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
     gainShotMana(state, pr);
+    // 設置弾・曲射の炸裂は直撃（擲弾）扱いで bulletHitHeavy
     damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul * mul, {
       hitstopSteps: MINE_HITSTOP,
       kind: pr.kind,
       crit: out.crit,
       poise: (pr.poise ?? 0) * mul,
+      impact: { family: "blunt", weight: "heavy" },
     });
   }
   spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE);
@@ -255,11 +257,14 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     if (deflectProjectile(state, pr, e)) return;
     const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind, { attack: pr.attack });
     gainShotMana(state, pr);
+    // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
+    const heavy = shotDefOf(pr)?.charge !== undefined;
     damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: BULLET_HITSTOP,
       kind: pr.kind,
       crit: out.crit,
       poise: pr.poise ?? 0,
+      impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
     });
     if (pr.pierceLeft > 0) {
       pr.pierceLeft -= 1;

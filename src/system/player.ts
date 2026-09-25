@@ -29,6 +29,7 @@ import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from
 import { cancelAttack, damageEnemy, gainEnergy, rollOutgoing, tickHpRegen, tickRegain } from "./combat";
 import { addFloatingText, shake, spawnBurst, spawnLine } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
+import { type HitWeight, hitFamily } from "./effects";
 import { currentBullet } from "../loot/bullets";
 import { KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from "./keystones";
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
@@ -1155,6 +1156,12 @@ function resolveMeleeBullets(state: GameState, step: MeleeStep): void {
   }
 }
 
+/** 命中音の重さ: 終撃・重い段は heavy、1 段目は light、それ以外は mid（docs/recipes/audio.md） */
+function meleeHitWeight(step: Readonly<MeleeStep>, combo: number): HitWeight {
+  if (step.heavy || combo === FINISHER_COMBO) return "heavy";
+  return combo === 0 ? "light" : "mid";
+}
+
 /** 近接 1 ヒット。敵の windup 中ならカウンターヒット。tip は突きの先端に当たった */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false): void {
   const p = state.player;
@@ -1179,6 +1186,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
     crit: out.crit,
     guardBreak: counter,
     finisher,
+    impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo) },
   });
   if (counter) showCounter(state, pos);
   if (counter) onTraitCounter(state, e);
@@ -1315,6 +1323,7 @@ function justCounterStrike(state: GameState, target: Enemy): void {
     kind: "melee",
     crit: out.crit,
     guardBreak: true,
+    impact: { family: hitFamily(playerMoveset(state).key), weight: "heavy" },
   });
   gainMeleeMana(state, step.mana, false);
   p.meleeHitCount += 1;

@@ -168,6 +168,73 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "bandpass", from: 1200, to: 250, dur: 0.14, q: 1, peak: 0.6, drive: 2.5 },
     { k: "noise", filter: "lowpass", from: 600, to: 80, dur: 0.3, peak: 0.28, at: 0.02 },
   ],
+  // ---- 命中音の系統（刃・打撃・刺突）× 重さ（system/effects.ts の hitSfxName が選ぶ）----
+  // 斬撃「シャキーン」: クリック + 擦過（高→低の帯域ノイズ）+ 刃鳴りの余韻 + 湿った肉の低域
+  hitSlashLight: [
+    { k: "click", freq: 6000, peak: 0.3 },
+    { k: "noise", filter: "highpass", from: 9500, to: 4500, dur: 0.035, peak: 0.35 },
+    { k: "metal", freq: 4200, ratios: BLADE_RING, dur: 0.16, peak: 0.07, at: 0.006 },
+    { k: "noise", filter: "lowpass", from: 1000, to: 300, dur: 0.04, peak: 0.12 },
+  ],
+  hitSlashMid: [
+    { k: "click", freq: 5000, peak: 0.35 },
+    { k: "noise", filter: "highpass", from: 9000, to: 4000, dur: 0.05, peak: 0.4 },
+    { k: "metal", freq: 3600, ratios: BLADE_RING, dur: 0.28, peak: 0.09, at: 0.008 },
+    { k: "noise", filter: "lowpass", from: 900, to: 250, dur: 0.06, peak: 0.15 },
+  ],
+  hitSlashHeavy: [
+    { k: "click", freq: 4000, peak: 0.4 },
+    { k: "noise", filter: "highpass", from: 7500, to: 3000, dur: 0.07, peak: 0.45 },
+    { k: "metal", freq: 2600, ratios: CLANG, dur: 0.4, peak: 0.1, at: 0.01 },
+    { k: "kick", from: 110, to: 45, drop: 0.08, dur: 0.22, peak: 0.5, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 700, to: 200, dur: 0.12, peak: 0.2, at: 0.02 },
+  ],
+  // 打撃「バシッ」: クリック + 歪ませた帯域ノイズ + 深いキック
+  hitBluntLight: [
+    { k: "click", freq: 2800, peak: 0.5 },
+    { k: "noise", filter: "bandpass", from: 1800, to: 500, dur: 0.035, q: 0.9, peak: 0.55, drive: 2 },
+    { k: "kick", from: 220, to: 90, drop: 0.03, dur: 0.06, peak: 0.4, drive: 1.5 },
+  ],
+  hitBluntMid: [
+    { k: "click", freq: 2200, peak: 0.6 },
+    { k: "noise", filter: "bandpass", from: 1400, to: 300, dur: 0.05, q: 0.8, peak: 0.7, drive: 3 },
+    { k: "kick", from: 170, to: 55, drop: 0.04, dur: 0.09, peak: 0.55, drive: 2 },
+  ],
+  hitBluntHeavy: [
+    { k: "click", freq: 1800, peak: 0.65 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 250, dur: 0.06, q: 0.8, peak: 0.65, drive: 3 },
+    { k: "kick", from: 100, to: 35, drop: 0.1, dur: 0.3, peak: 0.75, drive: 3 },
+    { k: "noise", filter: "lowpass", from: 500, to: 80, dur: 0.25, peak: 0.3, at: 0.03 },
+  ],
+  // 刺突: クリック + 低→高の狭い帯域ノイズ（突き刺す）+ 抜けの低域 + 刃鳴り
+  hitPierceLight: [
+    { k: "click", freq: 7200, peak: 0.25 },
+    { k: "noise", filter: "bandpass", from: 3400, to: 7500, dur: 0.035, q: 3.2, peak: 0.3 },
+    { k: "noise", filter: "lowpass", from: 800, to: 250, dur: 0.05, peak: 0.22, drive: 1.5 },
+    { k: "metal", freq: 4600, ratios: BLADE_RING, dur: 0.08, peak: 0.035, at: 0.015 },
+  ],
+  hitPierceMid: [
+    { k: "click", freq: 6500, peak: 0.3 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 7000, dur: 0.05, q: 3, peak: 0.35 },
+    { k: "noise", filter: "lowpass", from: 700, to: 200, dur: 0.08, peak: 0.3, drive: 2 },
+    { k: "metal", freq: 4200, ratios: BLADE_RING, dur: 0.12, peak: 0.04, at: 0.02 },
+  ],
+  hitPierceHeavy: [
+    { k: "click", freq: 5500, peak: 0.35 },
+    { k: "noise", filter: "bandpass", from: 2800, to: 6500, dur: 0.06, q: 2.5, peak: 0.4 },
+    { k: "noise", filter: "lowpass", from: 650, to: 180, dur: 0.1, peak: 0.32, drive: 2 },
+    { k: "metal", freq: 3800, ratios: BLADE_RING, dur: 0.15, peak: 0.05, at: 0.02 },
+    { k: "kick", from: 130, to: 50, drop: 0.06, dur: 0.15, peak: 0.4 },
+  ],
+  /** 弾の命中（砲・溜め弾・擲弾の直撃）: bulletHit に低域の衝撃を足す */
+  bulletHitHeavy: [
+    { k: "click", freq: 2500, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 2000, to: 500, dur: 0.05, q: 1, peak: 0.4, drive: 1.5 },
+    { k: "kick", from: 180, to: 80, drop: 0.03, dur: 0.05, peak: 0.2 },
+    { k: "noise", filter: "lowpass", from: 600, to: 100, dur: 0.2, peak: 0.3 },
+    { k: "kick", from: 90, to: 35, drop: 0.08, dur: 0.22, peak: 0.5 },
+  ],
+
   /** 武器種の最終段・フィニッシュ派生の命中: 深い衝撃 + 高い刃音 + 金属の余韻 */
   finisherHit: [
     { k: "kick", from: 90, to: 32, drop: 0.12, dur: 0.35, peak: 0.6, drive: 3 },
