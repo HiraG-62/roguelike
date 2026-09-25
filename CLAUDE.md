@@ -23,7 +23,7 @@
 | `npm run check` | audit:docs → tsc → vitest → vite build。1 つでも失敗で非 0。**作業完了の判定はこれ** |
 | `npm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
 | `npm run audit:docs` | エージェント資料とコードのずれを検査（`check` の最初の段でも走る） |
-| `npm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、約 30 秒）。`-- --only <key> --preview <dir>` で確認用 PNG だけ |
+| `npm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、1 武器種 約 30 秒）。`-- --atlas <武器種>` でその武器種だけ、`-- --only <key> --preview <dir>` で確認用 PNG だけ |
 | `npm run qa:full` | `SIM_FULL=1` でフル QA（数分）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
 | `npm run sync:claude` | ローカルの `~/.claude` を `.claude/global/` へ写す。`-- --check` で差分だけ確認 |

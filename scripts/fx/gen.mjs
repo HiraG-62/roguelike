@@ -1,37 +1,61 @@
 // エフェクトのスプライトを生成する（npm run fx:gen）。docs/ideas/fx-sprites.md
 //
-//   node scripts/fx/gen.mjs                   全シートを描いて public/assets/fx/*.png と src/data/fxSheets.gen.ts を書き直す
-//   node scripts/fx/gen.mjs --preview <dir>   配色済みの確認用 PNG（方向 × フレームの一覧）も <dir> に書く
-//   node scripts/fx/gen.mjs --check           書き出さずに、今のファイルと一致するかだけ見る（一致しなければ非 0）
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+// scripts/fx/sheets/<アトラス>.mjs を自動で集める（登録は要らない）。各ファイルは `export const ATLAS = { key, sheets, fx }` を持つ。
+// アトラスごとに public/assets/fx/<key>.png と src/data/fx/<key>.gen.json を書き、全アトラスを束ねる src/data/fxSheets.gen.ts を書き直す
+//
+//   node scripts/fx/gen.mjs                         全アトラスを描いて書き出す
+//   node scripts/fx/gen.mjs --atlas greatsword,axe  指定したアトラスだけ描き直す（他の生成物はそのまま。並列作業で互いを上書きしない）
+//   node scripts/fx/gen.mjs --only <key> --preview <dir> [--dirs 0,3] [--scale 4]
+//                                                   シートの key の前方一致で、配色済みの確認用 PNG だけ描く（生成物は書かない）
+//   node scripts/fx/gen.mjs --check [--atlas …]     書き出さずに、今のファイルと一致するかだけ見る（一致しなければ非 0）
+import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { encodePng } from "./png.mjs";
 import { shelfPack } from "./pack.mjs";
 import { Frame, cleanup, trimBox } from "./raster.mjs";
-import { SWORD_ATLAS } from "./sheets/sword.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, "../..");
+const SHEETS_DIR = join(HERE, "sheets");
 const OUT_DIR = join(ROOT, "public/assets/fx");
-const MANIFEST = join(ROOT, "src/data/fxSheets.gen.ts");
+const JSON_DIR = join(ROOT, "src/data/fx");
+const INDEX = join(ROOT, "src/data/fxSheets.gen.ts");
 const RAMPS = JSON.parse(readFileSync(join(ROOT, "src/data/fxRamps.json"), "utf8"));
 /** PNG に書く段の灰色（段 × LEVEL_GRAY）。実行時の fxSprites.ts と同じ値 */
 const LEVEL_GRAY = 32;
+const KEY_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
-/** 生成するアトラス（武器・スキルの単位で 1 枚） */
-const ATLASES = [SWORD_ATLAS];
+/**
+ * sheets/ のアトラス（ファイル名の順。決定的）。ファイル名 = アトラスの key。
+ * keys を渡すとそのファイルだけを読む（並列作業中の他人の書きかけのファイルで止まらない）
+ */
+async function discoverAtlases(keys) {
+  const all = readdirSync(SHEETS_DIR).filter((f) => f.endsWith(".mjs")).sort();
+  const files = keys ? all.filter((f) => keys.includes(f.replace(/\.mjs$/, ""))) : all;
+  const atlases = [];
+  for (const file of files) {
+    const mod = await import(pathToFileURL(join(SHEETS_DIR, file)).href);
+    const atlas = mod.ATLAS;
+    if (!atlas || !KEY_RE.test(atlas.key ?? "")) throw new Error(`fx: ${file} に ATLAS（key は英数字）が無い`);
+    if (`${atlas.key}.mjs` !== file) throw new Error(`fx: ${file} の ATLAS.key はファイル名と同じにする（${atlas.key}）`);
+    for (const sheet of atlas.sheets) {
+      if (!sheet.key.startsWith(`${atlas.key}.`)) throw new Error(`fx: ${file} のシート ${sheet.key} は "${atlas.key}." で始める`);
+    }
+    atlases.push(atlas);
+  }
+  return atlases;
+}
 
 const args = process.argv.slice(2);
 function argValue(name) {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 }
-const previewIdx = args.indexOf("--preview");
-const previewDir = previewIdx >= 0 ? args[previewIdx + 1] : undefined;
+const previewDir = argValue("--preview");
 const checkOnly = args.includes("--check");
-const onlyIdx = args.indexOf("--only");
-/** --only <シートの key の前方一致>: 確認用だけ描く（生成物は書かない） */
-const only = onlyIdx >= 0 ? args[onlyIdx + 1] : undefined;
+const only = argValue("--only");
+const atlasFilter = argValue("--atlas")?.split(",");
 
 /** 1 シートの全フレーム（方向 × フレーム）を描いて切り詰める */
 function renderSheet(sheet) {
@@ -81,16 +105,30 @@ function buildAtlas(atlas) {
     }
     return { key: sheet.key, frames: sheet.frames, dirs: sheet.dirs, active: sheet.active, rects };
   });
-  return { key: atlas.key, png: encodePng(packed.width, packed.height, rgba), width: packed.width, height: packed.height, entries, sheets };
+  const json = {
+    width: packed.width,
+    height: packed.height,
+    sheets: Object.fromEntries(entries.map((e) => [e.key, { atlas: atlas.key, frames: e.frames, dirs: e.dirs, active: e.active, rects: e.rects }])),
+    fx: atlas.fx ?? null,
+  };
+  return { key: atlas.key, png: encodePng(packed.width, packed.height, rgba), width: packed.width, height: packed.height, entries, sheets, json: `${JSON.stringify(json)}\n` };
 }
 
-function manifestSource(built) {
-  const lines = [
+/** アトラスの名前を import の識別子に（予約語や数字始まりを避ける） */
+function ident(key) {
+  return `fx_${key}`;
+}
+
+/** 全アトラスの JSON を束ねる index（描かずに作れる。アトラスの一覧だけで決まる） */
+function indexSource(keys) {
+  return [
     "// 生成物: npm run fx:gen（scripts/fx/gen.mjs）。手で直さない。docs/ideas/fx-sprites.md",
+    "// アトラスごとの中身は src/data/fx/<key>.gen.json（寸法・シートの矩形・武器種のモーションの表）",
+    ...keys.map((k) => `import ${ident(k)} from "./fx/${k}.gen.json";`),
     "",
     "/** アトラス（public/ からの相対パスと寸法） */",
     "export const FX_ATLASES = {",
-    ...built.map((a) => `  ${a.key}: { url: "assets/fx/${a.key}.png", width: ${a.width}, height: ${a.height} },`),
+    ...keys.map((k) => `  ${k}: { url: "assets/fx/${k}.png", width: ${ident(k)}.width, height: ${ident(k)}.height },`),
     "} as const;",
     "",
     "export type FxAtlasKey = keyof typeof FX_ATLASES;",
@@ -100,7 +138,8 @@ function manifestSource(built) {
     " * (ox, oy) は矩形の左上から原点（振りの中心など）までのずれ（絵のドット）。空のフレームは w = h = 0",
     " */",
     "export interface FxSheetDef {",
-    "  readonly atlas: FxAtlasKey;",
+    "  /** 載っているアトラス（FxAtlasKey。JSON 由来なので string で持ち、引くときに確かめる） */",
+    "  readonly atlas: string;",
     "  readonly frames: number;",
     "  /** 事前に描いた方向の数（1 は向きなし）。方向 i の角は i / dirs * 2π */",
     "  readonly dirs: number;",
@@ -110,14 +149,15 @@ function manifestSource(built) {
     "}",
     "",
     "export const FX_SHEETS = {",
-  ];
-  for (const a of built) {
-    for (const e of a.entries) {
-      lines.push(`  "${e.key}": { atlas: "${a.key}", frames: ${e.frames}, dirs: ${e.dirs}, active: ${e.active}, rects: [${e.rects.join(",")}] },`);
-    }
-  }
-  lines.push("} as const satisfies Record<string, FxSheetDef>;", "", "export type FxSheetKey = keyof typeof FX_SHEETS;", "");
-  return lines.join("\n");
+    ...keys.map((k) => `  ...${ident(k)}.sheets,`),
+    "} satisfies Record<string, FxSheetDef>;",
+    "",
+    "export type FxSheetKey = keyof typeof FX_SHEETS;",
+    "",
+    "/** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */",
+    `export const FX_MOVESET_RAW = [${keys.map((k) => `${ident(k)}.fx`).join(", ")}] as const;`,
+    "",
+  ].join("\n");
 }
 
 function hexRgb(hex) {
@@ -167,32 +207,44 @@ function writePreview(dir, a) {
   }
 }
 
+const onlyAtlas = only?.split(".")[0];
+const atlases = await discoverAtlases(onlyAtlas ? [onlyAtlas] : atlasFilter);
 if (only) {
-  mkdirSync(previewDir ?? "fx-preview", { recursive: true });
-  for (const atlas of ATLASES) {
+  const dir = previewDir ?? "fx-preview";
+  mkdirSync(dir, { recursive: true });
+  for (const atlas of atlases) {
     const sheets = atlas.sheets.filter((s) => s.key.startsWith(only));
-    if (sheets.length) writePreview(previewDir ?? "fx-preview", { sheets: sheets.map((sheet) => ({ sheet, cells: renderSheet(sheet) })) });
+    if (sheets.length) writePreview(dir, { sheets: sheets.map((sheet) => ({ sheet, cells: renderSheet(sheet) })) });
   }
   process.exit(0);
 }
-const built = ATLASES.map(buildAtlas);
-const manifest = manifestSource(built);
+const unknown = (atlasFilter ?? []).filter((k) => !atlases.some((a) => a.key === k));
+if (unknown.length) throw new Error(`fx: アトラスが無い: ${unknown.join(", ")}`);
+const targets = atlasFilter ? atlases.filter((a) => atlasFilter.includes(a.key)) : atlases;
+const built = targets.map(buildAtlas);
+// まだ描いていないアトラスがあると index の import が壊れるので、JSON の揃ったもの（と今回描いたもの）だけを束ねる
+const onDisk = existsSync(JSON_DIR) ? readdirSync(JSON_DIR).filter((f) => f.endsWith(".gen.json")).map((f) => f.replace(/\.gen\.json$/, "")) : [];
+const ready = [...new Set([...onDisk, ...built.map((b) => b.key)])].sort();
+const index = indexSource(ready);
 if (checkOnly) {
-  let same = existsSync(MANIFEST) && readFileSync(MANIFEST, "utf8") === manifest;
+  let same = existsSync(INDEX) && readFileSync(INDEX, "utf8") === index;
   for (const a of built) {
-    const file = join(OUT_DIR, `${a.key}.png`);
-    same = same && existsSync(file) && readFileSync(file).equals(a.png);
+    const png = join(OUT_DIR, `${a.key}.png`);
+    const json = join(JSON_DIR, `${a.key}.gen.json`);
+    same = same && existsSync(png) && readFileSync(png).equals(a.png) && existsSync(json) && readFileSync(json, "utf8") === a.json;
   }
   console.log(same ? "fx: 生成物は最新" : "fx: 生成物が古い（npm run fx:gen）");
   process.exit(same ? 0 : 1);
 }
 mkdirSync(OUT_DIR, { recursive: true });
+mkdirSync(JSON_DIR, { recursive: true });
 for (const a of built) {
   writeFileSync(join(OUT_DIR, `${a.key}.png`), a.png);
+  writeFileSync(join(JSON_DIR, `${a.key}.gen.json`), a.json);
   const cells = a.entries.reduce((n, e) => n + e.frames * e.dirs, 0);
   console.log(`fx: ${a.key}.png ${a.width}x${a.height}（シート ${a.entries.length}、フレーム ${cells}）`);
 }
-writeFileSync(MANIFEST, manifest);
+writeFileSync(INDEX, index);
 if (previewDir) {
   mkdirSync(previewDir, { recursive: true });
   for (const a of built) writePreview(previewDir, a);

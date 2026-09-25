@@ -90,7 +90,7 @@ import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
 import { FxSpriteBank, fitScale, rampColors, sheetDef, swingFrame } from "./fxSprites";
-import { motionFx, rampOfElement } from "./fxMotions";
+import { motionFx, movesetAtlas, rampOfElement } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -699,6 +699,8 @@ export class Renderer {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
     if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
+    // 装備中の武器種のエフェクトのアトラスだけを持つ（持ち替えたら前の武器種の分を捨てて読み直す）
+    this.fxBank.focus(movesetAtlas(playerMoveset(state).key));
     this.track(state);
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
@@ -899,11 +901,6 @@ export class Renderer {
    * PNG から作ったアトラスを合流させる（読み込み完了後に main.ts が呼ぶ）。
    * ピクセルマップの上から同名キーだけ上書きするので、未ロード中はここまでの見た目のまま
    */
-  /** エフェクトのスプライトを読み込む（main.ts。待たずにループを回し、読めた時点から使う） */
-  loadFxSprites(): Promise<void> {
-    return this.fxBank.load("");
-  }
-
   setAtlas(over: SpriteAtlas): void {
     this.atlas = mergeAtlas(buildAtlas(), expandTileAtlas(over));
     this.tints.clear();
@@ -2117,7 +2114,7 @@ export class Renderer {
    * active の進みで前半のフレーム、recover の経過で崩れのフレームを流す。色は属性の配色
    */
   private drawSwingSprite(state: GameState, p: Player, step: MeleeStep): boolean {
-    const ref = { lane: p.attack.lane, step: p.attack.step, branch: p.attack.branch, dashStrike: p.dashStrike };
+    const ref = { lane: p.attack.lane, step: p.attack.step, branch: p.attack.branch, dashStrike: p.dashStrike, chargeLevel: p.attack.chargeLevel };
     const motion = motionFx(playerMoveset(state), ref);
     if (!motion || !this.fxBank.has(motion.sheet)) return false;
     const c = FX_ATTACK.sprite;

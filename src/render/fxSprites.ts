@@ -8,6 +8,10 @@
  * - 読み込み前・失敗時は ready が false のまま。呼び出し側は今までの手続きの描画にフォールバックする
  */
 import { FX_ATLASES, FX_SHEETS, type FxAtlasKey, type FxSheetDef, type FxSheetKey } from "../data/fxSheets.gen";
+
+function isAtlasKey(key: string): key is FxAtlasKey {
+  return Object.hasOwn(FX_ATLASES, key);
+}
 import RAMPS from "../data/fxRamps.json";
 
 /** 絵のドット / 論理 px */
@@ -113,29 +117,51 @@ export interface FxDrawOpts {
 
 /** アトラスの読み込みと、配色したフレームのキャッシュ */
 export class FxSpriteBank {
-  private readonly images = new Map<FxAtlasKey, HTMLImageElement>();
+  private readonly images = new Map<string, HTMLImageElement>();
+  /** 読み込み中・読み込み済み・失敗したアトラス（同じアトラスを二度読まない） */
+  private readonly requested = new Set<string>();
   private readonly cells = new Map<string, HTMLCanvasElement | null>();
   private readonly ramps = new Map<FxRampKey, [number, number, number][]>();
+  private current: string | undefined;
 
-  /** すべてのアトラスを読む。失敗したアトラスのシートは描かない（has が false） */
-  async load(baseUrl: string): Promise<void> {
-    const keys = Object.keys(FX_ATLASES) as FxAtlasKey[];
-    await Promise.all(
-      keys.map(async (key) => {
-        try {
-          const img = new Image();
-          img.src = `${baseUrl}${FX_ATLASES[key].url}`;
-          await img.decode();
-          this.images.set(key, img);
-        } catch {
-          // 読めなければ手続きの描画のまま
-        }
-      }),
-    );
+  /** baseUrl は public/ の置き場所（ページからの相対。main.ts の他の PNG と同じ流儀で空文字） */
+  constructor(private readonly baseUrl = "") {}
+
+  /**
+   * 今の武器種のアトラスを読み始め、それ以外のアトラスと配色のキャッシュを捨てる。
+   * 1 アトラスは展開すると数十 MB あるので、装備中の武器種の分だけを持つ（docs/ideas/fx-sprites.md 7 章）
+   */
+  focus(atlas: string | undefined): void {
+    if (atlas === this.current) return;
+    this.current = atlas;
+    for (const key of [...this.images.keys()]) if (key !== atlas) this.images.delete(key);
+    for (const key of [...this.requested]) if (key !== atlas) this.requested.delete(key);
+    this.cells.clear();
+    if (atlas) this.request(atlas);
   }
 
+  /** 読み込み済みか。まだなら読み始めて false（読めるまで呼び出し側は手続きの描画） */
   has(key: FxSheetKey): boolean {
-    return this.images.has(FX_SHEETS[key].atlas);
+    const atlas = FX_SHEETS[key].atlas;
+    if (this.images.has(atlas)) return true;
+    this.request(atlas);
+    return false;
+  }
+
+  private request(atlas: string): void {
+    if (this.requested.has(atlas) || !isAtlasKey(atlas)) return;
+    this.requested.add(atlas);
+    const img = new Image();
+    img.src = `${this.baseUrl}${FX_ATLASES[atlas].url}`;
+    img
+      .decode()
+      .then(() => {
+        // 読み込み中に武器を持ち替えていたら捨てる
+        if (this.requested.has(atlas)) this.images.set(atlas, img);
+      })
+      .catch(() => {
+        // 読めなければ手続きの描画のまま（requested に残して読み直さない）
+      });
   }
 
   /**
