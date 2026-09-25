@@ -1,10 +1,10 @@
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { FX_ATLASES, FX_SHEETS, type FxAtlasKey, type FxSheetKey } from "../data/fxSheets.gen";
-import { MOVESETS } from "../data/weapons";
+import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
+import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
-import { MOVESET_FX, motionKey, rampOfElement } from "./fxMotions";
+import { MOVESET_FX, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
 import { ELEMENTS } from "../core/element";
 
 const SHEET_KEYS = Object.keys(FX_SHEETS) as FxSheetKey[];
@@ -71,8 +71,7 @@ describe("fxSprites: 時間の割り付け", () => {
 
 describe("fxSprites: 生成物と一覧の整合", () => {
   it("一覧のアトラスの寸法が PNG と一致する", () => {
-    for (const key of Object.keys(FX_ATLASES) as FxAtlasKey[]) {
-      const atlas = FX_ATLASES[key];
+    for (const [key, atlas] of Object.entries(FX_ATLASES)) {
       expect(pngSize(`public/${atlas.url}`), key).toEqual({ width: atlas.width, height: atlas.height });
     }
   });
@@ -80,7 +79,9 @@ describe("fxSprites: 生成物と一覧の整合", () => {
   it("すべてのフレームの矩形がアトラスに収まり、方向ごとに描かれたフレームがある", () => {
     for (const key of SHEET_KEYS) {
       const sheet = FX_SHEETS[key];
-      const atlas = FX_ATLASES[sheet.atlas];
+      const atlas = Object.entries(FX_ATLASES).find(([k]) => k === sheet.atlas)?.[1];
+      expect(atlas, `${key} のアトラス ${sheet.atlas}`).toBeDefined();
+      if (!atlas) continue;
       expect(sheet.rects.length, key).toBe(sheet.dirs * sheet.frames * RECT_STRIDE);
       expect(sheet.active, key).toBeLessThanOrEqual(sheet.frames);
       for (let d = 0; d < sheet.dirs; d++) {
@@ -104,24 +105,38 @@ describe("fxSprites: 生成物と一覧の整合", () => {
 });
 
 describe("fxMotions: 武器種のモーションの表", () => {
-  it("剣の全モーション（左の段・ダッシュ・右の振り・派生）に専用のシートがある", () => {
-    const sword = MOVESETS.sword;
-    const fx = MOVESET_FX.sword;
-    expect(fx).toBeDefined();
-    const keys = [
-      ...sword.steps.map((_, i) => motionKey(sword, { lane: "primary", step: i, branch: -1, dashStrike: false })),
-      motionKey(sword, { lane: "primary", step: 0, branch: -1, dashStrike: true }),
-      ...sword.steps2.flatMap((s, i) => (s.kind === "swing" ? [motionKey(sword, { lane: "secondary", step: i, branch: -1, dashStrike: false })] : [])),
-      ...sword.branches.map((_, i) => motionKey(sword, { lane: "primary", step: 0, branch: i, dashStrike: false })),
-    ];
-    for (const key of keys) expect(fx?.motions[key], key).toBeDefined();
+  it("表の行は壊れていない（無いシート・知らない原点がない）", () => {
+    for (const raw of FX_MOVESET_RAW) {
+      if (!raw) continue;
+      const built = MOVESET_FX[raw.moveset as MovesetKey];
+      expect(built, raw.moveset).toBeDefined();
+      expect(Object.keys(built?.motions ?? {}), raw.moveset).toEqual(Object.keys(raw.motions));
+    }
+  });
+
+  it("表のある武器種は、振りのモーション（左の段・ダッシュ・右の振り・派生・溜め）をすべて持つ", () => {
+    for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
+      const def = MOVESETS[moveset as MovesetKey];
+      for (const key of swingMotionKeys(def)) expect(fx?.motions[key], `${moveset} ${key}`).toBeDefined();
+    }
   });
 
   it("表のモーションの key は武器種の定義に実在する", () => {
     for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
-      const def = MOVESETS[moveset as keyof typeof MOVESETS];
-      const real = new Set<string>(["dash", ...def.steps.map((_, i) => `l:${i}`), ...def.steps2.map((s, i) => `r:${s.key ?? i}`), ...def.branches.map((b) => `branch:${b.key}`)]);
+      const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
       for (const key of Object.keys(fx?.motions ?? {})) expect(real.has(key), `${moveset} ${key}`).toBe(true);
     }
+  });
+
+  it("モーションの key は段・右・派生・ダッシュ・溜めを見分ける", () => {
+    const sword = MOVESETS.sword;
+    const ref = { lane: "primary" as const, step: 1, branch: -1, dashStrike: false, chargeLevel: 0 };
+    expect(motionKey(sword, ref)).toBe("l:1");
+    expect(motionKey(sword, { ...ref, dashStrike: true })).toBe("dash");
+    expect(motionKey(sword, { ...ref, lane: "secondary" })).toBe("r:returnCut");
+    expect(motionKey(sword, { ...ref, branch: 0 })).toBe(`branch:${sword.branches[0]?.key}`);
+    expect(motionKey(MOVESETS.greatsword, { ...ref, chargeLevel: 1 })).toBe("charge");
+    // 溜めを持たない武器種は溜めの段でも通常の段
+    expect(motionKey(sword, { ...ref, chargeLevel: 1 })).toBe("l:1");
   });
 });
