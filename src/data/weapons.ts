@@ -147,6 +147,11 @@ interface ArtBase {
   readonly desc: string;
   /** 再使用までの秒。0 なら連撃と同じで制限なし */
   readonly cooldown: number;
+  /**
+   * この段を出した後に次の段を受け付ける秒（入力の窓）。省略は WEAPON.chainWindow。
+   * 再使用・共有の間（laneGap）が窓を食う段（杖の氷の連射）で、間が明けてから押す猶予を残すために延ばす
+   */
+  readonly chainWindow?: number;
 }
 
 /** 振りの付随効果（砲の零距離砲・仕掛けの起爆・派生の反動） */
@@ -235,7 +240,7 @@ export interface RecallArtDef {
   readonly homing?: RecallHomingDef;
 }
 
-/** 手元返しの戻りの追尾（投擲・手返しの理）。敵がいなければ手元へ戻る */
+/** 手元返しの戻りの追尾（投擲の右の呼び戻し）。敵がいなければ手元へ戻る */
 export interface RecallHomingDef {
   readonly turnRate: number;
   readonly range: number;
@@ -674,19 +679,21 @@ function reviveActionStep(raw: unknown): ActionStepDef {
   const name = STEP2_NAMES[key] ?? key;
   const desc = STEP2_DESC[key] ?? "";
   const cooldown = optionalNumber(raw.cooldown) ?? 0;
+  const chainWindow = optionalNumber(raw.chainWindow);
+  const window = chainWindow === undefined ? {} : { chainWindow };
   switch (raw.kind) {
     case "swing":
       return { kind: "swing", step: reviveStep(raw.step), key: key || undefined, name: key ? name : undefined, desc: desc || undefined, cooldown, extras: reviveExtras(raw) };
     case "hold":
-      return { kind: "hold", key, name, desc, cooldown, hold: reviveHold(raw.hold) };
+      return { kind: "hold", key, name, desc, cooldown, hold: reviveHold(raw.hold), ...window };
     case "volley":
-      return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name) };
+      return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name), ...window };
     case "charge":
-      return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge) };
+      return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge), ...window };
     case "aim":
-      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef };
+      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef, ...window };
     case "recall":
-      return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef };
+      return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef, ...window };
     default:
       throw new Error(`未知の右レーンの段の kind: ${raw.kind}`);
   }
@@ -1538,6 +1545,12 @@ export function actionStepName(s: ActionStepDef, index: number): string {
 /** 右の段の再使用の秒（再使用の無い段は 0） */
 export function actionCooldown(s: ActionStepDef): number {
   return s.cooldown ?? 0;
+}
+
+/** 右レーンの段を出した後の入力の窓（秒）。段の上書きが無ければ全武器共通の WEAPON.chainWindow */
+export function laneChainWindow(s: ActionStepDef | undefined): number {
+  if (s === undefined || s.kind === "swing") return WEAPON.chainWindow;
+  return s.chainWindow ?? WEAPON.chainWindow;
 }
 
 /**

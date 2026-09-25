@@ -468,13 +468,6 @@ function orbitOf(r: Raw): OrbitDef | undefined {
   return o === undefined ? undefined : { radius: num(o, "radius"), turnRate: num(o, "turnRate"), laps: num(o, "laps") };
 }
 
-function recallOf(r: Raw): SustainDef["recall"] {
-  const s = sub(r, "recall");
-  const h = optSub(s, "homing");
-  const homing = h === undefined ? {} : { homing: { turnRate: num(h, "turnRate"), range: num(h, "range") } };
-  return { interval: num(s, "interval"), returnDamageMul: num(s, "returnDamageMul"), speedMul: num(s, "speedMul"), ...homing };
-}
-
 function quakeOf(r: Raw): HitQuakeDef {
   return {
     radius: num(r, "radius"),
@@ -805,7 +798,8 @@ function thrownSet(): UltimateSet {
   return [
     instantDef(m, "thousandHands", "千手", "前方の広い扇へ 12 本を投げ放つ", RANGED, (n) => [volley(sub(n, "volley"), RANGED)]),
     instantDef(m, "pinpoint", "一点集中", "敵を追う刃を 8 本投げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "seekerOrb")]),
-    sustainDef(m, "returnArt", "手返しの理", "持続。飛んでいる投げ物が一定の間隔で近くの敵へ曲がりながら手元へ戻り、戻りの威力が上がる", (n) => ({ ...sustainCore(n), recall: recallOf(n) })),
+    // 旧「手返しの理」（一定間隔で飛んでいる弾を呼び戻す）は弾の向きが読めなかったので、投げる手数と弾筋で強くなる持続に差し替えた
+    sustainDef(m, "swiftToss", "早業", "持続。投げ物が 1 本増えて速く投げられ、まっすぐ速く飛んで 1 体多く貫く", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
   ];
 }
 
