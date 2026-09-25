@@ -19,6 +19,7 @@ import fx_staff from "./fx/staff.gen.json";
 import fx_sword from "./fx/sword.gen.json";
 import fx_swordUlt from "./fx/swordUlt.gen.json";
 import fx_twinBlades from "./fx/twinBlades.gen.json";
+import fx_wand from "./fx/wand.gen.json";
 import fx_whip from "./fx/whip.gen.json";
 
 /** アトラス（public/ からの相対パスと寸法） */
@@ -42,6 +43,7 @@ export const FX_ATLASES = {
   sword: { url: "assets/fx/sword.png", width: fx_sword.width, height: fx_sword.height },
   swordUlt: { url: "assets/fx/swordUlt.png", width: fx_swordUlt.width, height: fx_swordUlt.height },
   twinBlades: { url: "assets/fx/twinBlades.png", width: fx_twinBlades.width, height: fx_twinBlades.height },
+  wand: { url: "assets/fx/wand.png", width: fx_wand.width, height: fx_wand.height },
   whip: { url: "assets/fx/whip.png", width: fx_whip.width, height: fx_whip.height },
 } as const;
 
@@ -82,10 +84,11 @@ export const FX_SHEETS = {
   ...fx_sword.sheets,
   ...fx_swordUlt.sheets,
   ...fx_twinBlades.sheets,
+  ...fx_wand.sheets,
   ...fx_whip.sheets,
 } satisfies Record<string, FxSheetDef>;
 
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_chainSickle.fx, fx_claws.fx, fx_cleaver.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_hammer.fx, fx_katana.fx, fx_ringBlades.fx, fx_scythe.fx, fx_shield.fx, fx_sidearm.fx, fx_spear.fx, fx_staff.fx, fx_sword.fx, fx_swordUlt.fx, fx_twinBlades.fx, fx_whip.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_chainSickle.fx, fx_claws.fx, fx_cleaver.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_hammer.fx, fx_katana.fx, fx_ringBlades.fx, fx_scythe.fx, fx_shield.fx, fx_sidearm.fx, fx_spear.fx, fx_staff.fx, fx_sword.fx, fx_swordUlt.fx, fx_twinBlades.fx, fx_wand.fx, fx_whip.fx] as const;

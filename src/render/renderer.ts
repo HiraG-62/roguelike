@@ -91,7 +91,7 @@ import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
-import { type FxDrawOpts, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, swingFrame } from "./fxSprites";
+import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, swingFrame } from "./fxSprites";
 import { type FxMotion, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -2195,7 +2195,7 @@ export class Renderer {
       origin: motion.pivot === "self" ? p.body.pos : anchor,
       angle: Math.atan2(p.attack.dir.y, p.attack.dir.x),
       opts: {
-        ramp: rampOfElement(hitElement(state, "melee", false)),
+        ramp: swingRamp(state, step),
         ccw: mirrorFlip(motion.mirror, swingSign(p.attack.step) < 0, p.attack.dir.x < 0),
         scale: fitScale(actual, motion.base, c.scaleTolerance),
       },
@@ -2766,4 +2766,10 @@ export class Renderer {
     drawText(ctx, `スコア ${state.score}`, cx, cy + statLine, TEXT.BODY, COLOR_TEXT, "center");
     drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード`, cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
   }
+}
+
+/** 振りの絵の配色: 魔法を撃つ振り（杖の詠唱）はその魔法の属性、それ以外は近接の属性 */
+function swingRamp(state: GameState, step: MeleeStep): FxRampKey {
+  const cast = step.cast?.throw.attack?.element ?? "none";
+  return rampOfElement(cast !== "none" ? cast : hitElement(state, "melee", false));
 }
