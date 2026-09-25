@@ -119,6 +119,7 @@ import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, locked
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
+import { tipsListTabs } from "./meta/tips";
 import { type ListAction, type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
@@ -163,6 +164,7 @@ type Screen =
   | "codex"
   | "questBoard"
   | "achievements"
+  | "tips"
   | "playing"
   | "paused"
   | "history"
@@ -173,8 +175,8 @@ type Screen =
   | "altar"
   | "rack";
 
-/** タイトルのメニューから開く一覧画面 */
-type ListScreenKind = "codex" | "questBoard" | "achievements";
+/** タイトルのメニューから開く一覧画面（Tips ノートはポーズからも開く） */
+type ListScreenKind = "codex" | "questBoard" | "achievements" | "tips";
 
 const REPLAY_START_SPEED: ReplaySpeed = 1;
 const NO_REPLAY_MESSAGE = "この探索のリプレイは保存されていません";
@@ -494,6 +496,7 @@ function updateQuestChoice(frame: FrameInput, escape: boolean, arrowX: number, a
 function listTabsFor(kind: ListScreenKind): ListTab[] {
   if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave));
   if (kind === "questBoard") return questBoardTabs(questSave);
+  if (kind === "tips") return tipsListTabs();
   return achievementTabs(achievementSave, questSave);
 }
 
@@ -501,18 +504,21 @@ const TITLE_MENU_SCREEN: Readonly<Record<TitleMenuItem, ListScreenKind>> = {
   codex: "codex",
   quests: "questBoard",
   achievements: "achievements",
+  tips: "tips",
 };
 
 const LIST_SCREEN_TITLE: Readonly<Record<ListScreenKind, string>> = {
   codex: "図鑑",
   questBoard: "依頼",
   achievements: "実績",
+  tips: "Tips ノート",
 };
 
 const LIST_SCREEN_HINT: Readonly<Record<ListScreenKind, string>> = {
-  codex: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える）",
-  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る（依頼は探索の開始時に 3 択から 1 つ受ける）",
+  codex: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る",
+  questBoard: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る",
   achievements: "←→ タブ　↑↓ / ホイール 選ぶ　Enter / クリック 称号を名乗る　Esc 戻る",
+  tips: "←→ タブ　↑↓ / ホイール 選ぶ　Esc 戻る",
 };
 
 function openListScreen(next: ListScreenKind, frameMoveX: number, frameMoveY: number): void {
@@ -559,7 +565,7 @@ function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: 
 // ---------------------------------------------------------------------------
 
 const ALTAR_TITLE = "祭壇";
-const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す　Esc 拠点へ（拠点を出ると消える）";
+const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す　Esc 拠点へ";
 /**
  * 拠点の state。リプレイに記録しないので `state` とは別に持つ
  * （`state` に入れると、ループ先頭の死亡判定や endRun が拠点を 1 ランとして記録してしまう）
@@ -568,8 +574,8 @@ let hub: HubSession | null = null;
 let hubDecor: HubDecor[] = [];
 let hubBanner: string | null = null;
 let hubBannerTimer = 0;
-/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル */
-let menuReturn: "title" | "hub" = "title";
+/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル、ポーズから開いたらポーズ */
+let menuReturn: "title" | "hub" | "paused" = "title";
 const departLatch = createHoldLatch();
 
 function hubSource(): ReturnType<typeof hubProgressSource> {
@@ -614,6 +620,13 @@ function returnToHub(): void {
 function leaveMenu(): void {
   if (menuReturn === "hub") {
     returnToHub();
+    return;
+  }
+  if (menuReturn === "paused" && state) {
+    // ポーズの一覧から戻るだけ。以後の既定の戻り先はタイトルに戻す
+    menuReturn = "title";
+    // menuNav は一覧の入力が毎フレーム更新しているので、画面を戻すだけでよい
+    screen = "paused";
     return;
   }
   screen = "title";
@@ -1172,7 +1185,8 @@ startLoop(
 
       case "codex":
       case "questBoard":
-      case "achievements": {
+      case "achievements":
+      case "tips": {
         updateListScreenFrame(screen, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
         break;
       }
@@ -1447,6 +1461,9 @@ startLoop(
             returnScreen = "paused";
             settingsCursor = 0;
             enterMenu("settings", frame.move.x, frame.move.y);
+          } else if (item === "tips") {
+            menuReturn = "paused";
+            openListScreen("tips", frame.move.x, frame.move.y);
           } else if (item === "restart") {
             endRun(cur);
             beginRun(randomSeedText());
@@ -1586,13 +1603,14 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
-    if (screen === "codex" || screen === "questBoard" || screen === "achievements") {
+    if (screen === "codex" || screen === "questBoard" || screen === "achievements" || screen === "tips") {
       drawListScreen(ctx, {
         title: LIST_SCREEN_TITLE[screen],
         tabs: listTabs,
         ui: listUi,
         rowGap: listRowGap(textLineHeight(TEXT.SMALL)),
         hint: LIST_SCREEN_HINT[screen],
+        detailSide: screen === "tips",
       });
       drawGamepadConnectedHint(ctx);
       return;

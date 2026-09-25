@@ -12,6 +12,8 @@ import {
   defaultKeybinds,
   formatBindingCode,
   isAssignableCode,
+  keyLabel,
+  moveKeyLabel,
   sanitizeKeybinds,
   skillKeyLabel,
   skillKeyLabelFor,
@@ -487,5 +489,36 @@ describe("PlayerInput の束縛差し替え", () => {
     expect(input.takeAnyPressedCode()).toBeNull();
     input.snapshot();
     expect(input.takeAnyPressedCode(), "次のフレームには持ち越さない").toBeNull();
+  });
+});
+
+describe("keyLabel", () => {
+  it("keyLabel は束縛を差し替えると表記が変わる", () => {
+    const binds = defaultKeybinds();
+    expect(keyLabel("special", { binds }), "既定の奥義").toBe("F");
+    const next = assignBinding(binds, "special", 0, "KeyH");
+    if (!next) throw new Error("割り当てできない");
+    expect(keyLabel("special", { binds: next }), "差し替え後の奥義").toBe("H");
+    const input = new PlayerInput();
+    input.setKeybinds(next);
+    expect(keyLabel("special"), "現在の表も追従する").toBe("H");
+    input.setKeybinds(defaultKeybinds());
+    expect(keyLabel("special"), "既定へ戻る").toBe("F");
+  });
+
+  it("サイドボタンはほかに手段があれば載せず、keyboardOnly はマウスを外し、first は先頭だけ", () => {
+    const binds = defaultKeybinds();
+    expect(keyLabel("attack", { binds }), "左クリックは載せる").toBe("E / 左クリック");
+    expect(keyLabel("attack", { binds, keyboardOnly: true }), "キーだけ").toBe("E");
+    expect(keyLabel("skill1", { binds }), "サイドボタンは外す").toBe("1 / C");
+    expect(keyLabel("dash", { binds, first: true }), "先頭だけ").toBe("Space");
+  });
+
+  it("移動は WASD と矢印キーをまとめ、差し替えると表記が変わる", () => {
+    const binds = defaultKeybinds();
+    expect(moveKeyLabel(binds), "既定").toBe("WASD / 矢印キー");
+    const next = assignBinding(binds, "up", 0, "KeyO");
+    if (!next) throw new Error("割り当てできない");
+    expect(moveKeyLabel(next), "上を O に").toBe("OASD / 矢印キー");
   });
 });

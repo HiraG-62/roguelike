@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ATTR_KEYS } from "../loot/types";
 import { ALLOC_ORDER, allocButtonAt, allocButtonRect } from "../ui/attributeAlloc";
 import { CONTENT_BOTTOM, CONTENT_RIGHT, CONTENT_Y, LIST_X } from "../ui/inventoryLayout";
 import { statusAttrPanelRect as attributePanelRect } from "../ui/statusTab";
-import { ATTR_HINT, allocatedText, attributeValueText, unspentHudText } from "./attributeUi";
+import { allocatedText, attributeValueText, unspentHudText } from "./attributeUi";
 import { manaRatio } from "./manaHud";
 
 describe("装備画面のステータス一覧", () => {
@@ -25,10 +24,6 @@ describe("装備画面のステータス一覧", () => {
     expect(r.y, "見出しの下").toBeGreaterThan(CONTENT_Y);
     expect(r.y + r.h, "本文の下端を越えない").toBeLessThanOrEqual(CONTENT_BOTTOM);
     expect(r.h, "高さがある").toBeGreaterThan(0);
-  });
-
-  it("全ステータスに一言がある", () => {
-    for (const k of ATTR_KEYS) expect(ATTR_HINT[k].length, k).toBeGreaterThan(0);
   });
 });
 

@@ -37,15 +37,14 @@ export function createRackUi(): RackUi {
 }
 
 export const RACK_CLEAR_NAME = "装備のまま";
-export const RACK_CLEAR_DETAIL = "試用中の武器種を外し、装備中の右手の武器に戻す。";
-const RACK_TRY_HINT = "決定で試す。長押しで性質なしの武器を借りて出撃できる（探索が終わると消える）。";
+export const RACK_CLEAR_DETAIL = "装備中の右手の武器";
 
-/** 武器種の説明（派生の名前と、試す・借りるの案内を添える） */
+/** 武器種の説明（派生の名前を添える。試す・借りるの仕組みは Tips ノート） */
 export function rackMovesetDetail(key: MovesetKey): string {
   const def = MOVESETS[key];
   const branches = def.branches.map((b) => b.name);
   const branchText = branches.length > 0 ? ` 派生: ${branches.join("・")}。` : "";
-  return `${def.desc}。${branchText} ${RACK_TRY_HINT}`;
+  return `${def.desc}。${branchText}`.trim();
 }
 
 export function rackCardDetail(card: RackCard): string {

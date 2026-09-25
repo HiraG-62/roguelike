@@ -84,6 +84,9 @@
 | ヒットストップ / アイテム情報 | hitstopScale / dropTooltip | 設定画面の項目。ヒットストップは打撃が止まる強さ（0..1、0.25 刻み、0 で無効）。アイテム情報は床のアイテムの性能ポップアップの表示 ON/OFF（キー設定の `toggleDropInfo`、既定 T） | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` SETTINGS_LABEL、`ui/settings.ts`、`core/input.ts` |
 | キー設定 | keybinds | 設定画面の項目とサブ画面。アクションごとのキー / マウスボタンの割り当て | `ui/title.ts` SETTINGS_ITEMS、`render/titleUi.ts` |
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
+| やり直す | restart | 探索を新しいシードでやり直す操作（キー設定の行名は「やり直す（新シード）」、ポーズの項目も「やり直す」） | `render/titleUi.ts` ACTION_LABEL / PAUSE_LABEL |
+| キー表記 | `keyLabel` / `moveKeyLabel` | 表示文字列にキー名を直書きしない。案内のキーは現在のキー設定から組む（`core/input.ts`）。説明文（スキル・祝福など）ではキー名ではなくアクション名（攻撃 1 / 攻撃 2 / 奥義 / ダッシュ）で書く。検査は `ui/keyLabels.test.ts` | `core/input.ts` |
+| Tips ノート | tips（`meta/tips.ts`） | 用語とシステムの説明をまとめた画面。タイトルのメニュー（T）とポーズから開く。UI の案内・ツールチップ・ログに仕組みの説明を書かず、ここへ移す | `meta/tips.ts`、`render/codexUi.ts` |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |
 | 左クリック / 右クリック / サイド1 / サイド2 | Mouse0 / Mouse2 / Mouse3 / Mouse4 | マウスボタンの表示名。サイド1 = 戻る、サイド2 = 進む | `core/input.ts` formatBindingCode |
 | 攻撃 1（左） / 攻撃 2（右） / 奥義 / 装備画面 | attack / shoot / special / inventory | キー設定画面でのアクション名。攻撃 1 は左の連撃（銃なら射撃）、攻撃 2 は右の連撃（アクション 2）。内部名は変えていない（ほかは 上 / 下 / 左 / 右 / ダッシュ / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |

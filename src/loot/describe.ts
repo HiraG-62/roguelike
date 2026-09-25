@@ -272,9 +272,9 @@ export function provenanceLines(item: Item): string[] {
 
 function marginText(item: Item): string {
   const margin = item.margin ?? 0;
-  if (item.inscription !== undefined && margin <= 0) return `銘 ${item.inscription}（成長完了）`;
-  if (margin <= 0) return "余白なし（これ以上育たない）";
-  return `余白 ${margin}（あと ${margin} 回育つ）`;
+  if (item.inscription !== undefined && margin <= 0) return `銘 ${item.inscription}`;
+  if (margin <= 0) return "余白なし";
+  return `余白 ${margin}`;
 }
 
 /**

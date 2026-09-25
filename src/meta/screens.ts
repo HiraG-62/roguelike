@@ -37,7 +37,7 @@ export function linkMilestoneEntry(save: CodexSave): ListEntry {
     .join(" / ");
   const name = next === null ? `発見 ${count} 種（節目をすべて達成）` : `発見 ${count} 種 ・ 次の節目 ${next.count} 種`;
   const info = next === null ? "" : milestoneRewardLabel(next);
-  return { key: LINK_MILESTONE_KEY, known: true, name, info, detail: `スキルの連携・反応・連鎖を初めて起こすと数える。${all}` };
+  return { key: LINK_MILESTONE_KEY, known: true, name, info, detail: all };
 }
 
 /** 図鑑の頁（依頼の報酬 + 発見数の節目） */
@@ -74,7 +74,7 @@ export function questBoardTabs(save: QuestSave): ListTab[] {
   const done = QUEST_KEYS.filter((k) => isQuestCompleted(save, k));
   return [
     { label: `未達成 ${open.length}`, entries: open.map((k) => questEntry(k, false)), empty: "すべての依頼を達成しました。" },
-    { label: `達成済み ${done.length}`, entries: done.map((k) => questEntry(k, true)), empty: "達成した依頼はまだありません。探索の開始時に 1 つ受けられます。" },
+    { label: `達成済み ${done.length}`, entries: done.map((k) => questEntry(k, true)), empty: "達成した依頼はまだありません。" },
   ];
 }
 
@@ -88,7 +88,7 @@ export function achievementTabs(ach: AchievementSave, quests: QuestSave): ListTa
   const titles = availableTitles(ach, quests);
   const titleEntries: ListEntry[] = [
     { key: NO_TITLE_KEY, known: true, name: "称号なし", info: "", detail: "称号を外す。", marked: ach.title === null },
-    ...titles.map((t) => ({ key: t.id, known: true, name: t.label, info: t.from, detail: `決定で名乗る（${t.from}で得た称号）。`, marked: ach.title === t.id })),
+    ...titles.map((t) => ({ key: t.id, known: true, name: t.label, info: t.from, detail: `${t.from}で得た称号。`, marked: ach.title === t.id })),
   ];
   return [
     { label: `実績 ${unlocked}/${ACHIEVEMENTS.length}`, entries: list },

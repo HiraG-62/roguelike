@@ -916,6 +916,7 @@ import j_world_HUB from "./world/HUB.json";
 import j_world_HUB_DECOR from "./world/HUB_DECOR.json";
 import j_world_META from "./world/META.json";
 import j_world_DISCOVERY from "./world/DISCOVERY.json";
+import j_world_MAP_SIZE from "./world/MAP_SIZE.json";
 
 export const boons = {
   "_note": j_boons__index["_note"],
@@ -2088,6 +2089,7 @@ export const world = {
   "HUB_DECOR": j_world_HUB_DECOR,
   "META": j_world_META,
   "DISCOVERY": j_world_DISCOVERY,
+  "MAP_SIZE": j_world_MAP_SIZE,
 };
 
 /** 組み立てに使った JSON（src/data/balance からの相対。_index.json を含む）。生成し忘れの検査に使う */
@@ -2984,6 +2986,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/HUB.json",
   "world/HUB_DECOR.json",
   "world/LINGER.json",
+  "world/MAP_SIZE.json",
   "world/META.json",
   "world/ORIGIN.json",
   "world/ROAM.json",

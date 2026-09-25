@@ -215,7 +215,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 // メニューのカーソル移動（ポーズ / 設定 共通）
 // ---------------------------------------------------------------------------
 
-export const PAUSE_MENU_ITEMS = ["resume", "settings", "restart", "title"] as const;
+export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
 export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "close"] as const;
@@ -260,7 +260,8 @@ function rowRects(count: number, panelX: number, firstY: number, panelW: number,
 }
 
 export const PAUSE_PANEL_W = 160;
-export const PAUSE_PANEL_H = 96;
+/** 見出し + 5 項目（Tips ノートの行を足して 96 → 120。行間が 18 まで広がっても収まる） */
+export const PAUSE_PANEL_H = 120;
 /** パネル上端から最初の項目のテキスト基準線までの距離 */
 const PAUSE_ITEM_TOP = 36;
 
@@ -464,10 +465,10 @@ export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0)
 }
 
 // ---------------------------------------------------------------------------
-// タイトルのメニュー（図鑑・依頼・実績）。ボタンの外をクリックしたら従来どおり拠点へ入る
+// タイトルのメニュー（図鑑・依頼・実績・Tips ノート）。ボタンの外をクリックしたら従来どおり拠点へ入る
 // ---------------------------------------------------------------------------
 
-export const TITLE_MENU_ITEMS = ["codex", "quests", "achievements"] as const;
+export const TITLE_MENU_ITEMS = ["codex", "quests", "achievements", "tips"] as const;
 export type TitleMenuItem = (typeof TITLE_MENU_ITEMS)[number];
 
 const TITLE_MENU_Y = 146;
@@ -488,11 +489,12 @@ export function titleMenuItemAt(x: number, y: number): TitleMenuItem | null {
   return TITLE_MENU_ITEMS[index] ?? null;
 }
 
-/** ホットキー（C / Q / A）で開くメニュー項目 */
-export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a">): TitleMenuItem | null {
+/** ホットキー（C / Q / A / T）で開くメニュー項目 */
+export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a" | "t">): TitleMenuItem | null {
   if (hotkeys.c) return "codex";
   if (hotkeys.q) return "quests";
   if (hotkeys.a) return "achievements";
+  if (hotkeys.t) return "tips";
   return null;
 }
 

@@ -65,7 +65,7 @@ export function altarTabs(current: string | null): ListTab[] {
     known: true,
     name: "誓約を外す",
     info: "",
-    detail: "試用中の誓約を外す。",
+    detail: "",
     marked: current === null,
   };
   const entries: ListEntry[] = KEYSTONES.map((d) => ({
@@ -73,7 +73,7 @@ export function altarTabs(current: string | null): ListTab[] {
     known: true,
     name: d.name,
     info: current === d.key ? "試用中" : "",
-    detail: `${d.description} 決定で試す（拠点を出ると消える）。`,
+    detail: d.description,
     marked: current === d.key,
   }));
   return [{ label: `誓約 ${KEYSTONES.length}`, entries: [clear, ...entries] }];

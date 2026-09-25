@@ -1,6 +1,6 @@
 import type { FrameInput } from "./input";
 import { createRng } from "./rng";
-import { type GameState, pushLog } from "./state";
+import type { GameState } from "./state";
 import { createMap } from "../map/grid";
 import { FEEL } from "../data/tuning";
 import { updateCamera } from "../system/camera";
@@ -130,7 +130,6 @@ export function createGame(
   buildFloor(state);
   // ジョブの初期スキル石（未所持のときだけ倉庫へ。見習いは何もしない）
   startJob(state);
-  pushLog(state, "操作: WASD 移動 / Space ダッシュ / 左クリック 攻撃 1（銃は射撃） / 右クリック 攻撃 2 / F 奥義", "#ffd75f");
   return state;
 }
 

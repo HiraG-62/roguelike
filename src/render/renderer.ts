@@ -2312,11 +2312,9 @@ export class Renderer {
     const blinkOn = state.tick % HUD_BLINK_TICKS < HUD_BLINK_TICKS / 2;
     const energyColor = sustaining ? COLOR_ENERGY_SUSTAIN : ready && blinkOn ? COLOR_ENERGY_READY : COLOR_ENERGY;
     this.drawBar(HUD_BAR_X, HUD_ENERGY_Y, HUD_BAR_W, HUD_ENERGY_H, Math.min(1, p.energy / (sustaining ? p.maxEnergy : cost)), energyColor, COLOR_ENERGY_BG);
-    if (sustaining) drawText(ctx, "F: 奥義を終える", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     if (ready) {
       ctx.strokeStyle = blinkOn ? COLOR_ENERGY : COLOR_ENERGY_READY;
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
-      drawText(ctx, "F: 奥義", HUD_TEXT_X, HUD_ENERGY_Y + HUD_ENERGY_H + 1, TEXT.SMALL, energyColor);
     }
     this.drawDashPips(state);
     this.drawKeystoneHud(state);

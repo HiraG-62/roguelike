@@ -1,3 +1,4 @@
+import { keyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { JOBS } from "../data/jobs";
 import { ATTR_LABEL, COLOR_ATTR } from "../loot/resonance";
@@ -11,18 +12,6 @@ import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
  * ステータスの描画。装備画面（ステータスタブ）の「生値と実効値」の一覧と振り分けの「+」、HUD の未振り点の表示。
  * 当たり判定は ui/attributeAlloc.ts の allocButtonRect と共有する
  */
-
-/**
- * 体の性能として何が伸びるかの一言（docs/COMBAT_DESIGN.md A-10。単一の強さの指標は出さない）。装備タブの ？ のヘルプに出す。
- * 威力・怯み値などは行動ごとの係数で決まるので、筋力・霊力は体の性能を持たない
- */
-export const ATTR_HINT: Readonly<Record<AttrKey, string>> = {
-  str: "体の性能なし（行動の係数だけ）",
-  dex: "移動速度・ダッシュの再使用時間",
-  vit: "最大生命・状態異常への抵抗",
-  mnd: "最大気力・気力の自然回復",
-  spi: "体の性能なし（行動の係数だけ）",
-};
 
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_SUB = "#a0a0a0";
@@ -125,7 +114,7 @@ const COLOR_HUD_DIM = "#a08a40";
 /** HUD の一言。未振り点が無ければ null */
 export function unspentHudText(unspent: number): string | null {
   if (unspent <= 0) return null;
-  return `未振り点 ${unspent}（Tab）`;
+  return `未振り点 ${unspent}（${keyLabel("inventory", { first: true })}）`;
 }
 
 /** 未振り点があるときだけ小さく点滅させる。描画のみ（tick を読むだけ） */

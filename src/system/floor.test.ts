@@ -10,10 +10,10 @@ import type { Enemy, GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance, makeElite } from "./elites";
 import { createEnemy } from "./enemies";
-import { ascend, buildFloor, descend, enemyCount, maxEnemiesFor, updateRooms } from "./floor";
+import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesFor, rollAreaMul, updateRooms } from "./floor";
 import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
-import { FLOOR_KIND, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { BOSS, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { grantBoon } from "./boons";
 import { resolveRules } from "./rules";
 import { ROAMING_ROOM, reinforceDue, roamCap, roamerCount, updateRoamers } from "./spawner";
@@ -25,6 +25,72 @@ import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
 import { VIEW_H, VIEW_W } from "../core/view";
+
+/** 広いマップ（面積 3.5〜5 倍）を何十枚も作るテストの制限時間（ms）。既定の 5 秒では並列実行の負荷で足りない */
+const WIDE_FLOOR_LOOP_TIMEOUT = 30_000;
+
+/** 予定の広さ（MAP_SIZE の _note）。設定値に依らずに抽選の仕組みを確かめる */
+const WIDE_RANGE: AreaMulRange = { areaMulMin: 3.5, areaMulMax: 5 };
+const ROLL_SAMPLES = 20;
+
+describe("マップの広さ（MAP_SIZE）", () => {
+  it("面積の倍率は範囲に収まり、抽選ごとに変わる", () => {
+    const rng = createRng(1);
+    const muls = new Set<number>();
+    for (let n = 0; n < ROLL_SAMPLES; n++) {
+      const mul = rollAreaMul(rng, 1, WIDE_RANGE);
+      expect(mul, "下限").toBeGreaterThanOrEqual(WIDE_RANGE.areaMulMin);
+      expect(mul, "上限").toBeLessThanOrEqual(WIDE_RANGE.areaMulMax);
+      muls.add(mul);
+    }
+    expect(muls.size, "広さが変わる").toBeGreaterThan(1);
+  });
+
+  it("ボス階と、範囲が 1 点のときは乱数を引かない", () => {
+    const rng = createRng(2);
+    expect(rollAreaMul(rng, BOSS.interval, WIDE_RANGE), "ボス階は基準の大きさ").toBe(1);
+    expect(rollAreaMul(rng, 1, { areaMulMin: 2, areaMulMax: 2 })).toBe(2);
+    expect(rng.next(), "乱数を消費しない").toBe(createRng(2).next());
+  });
+
+  it("buildFloor は抽選した倍率を state に残し、マップは √倍率 倍の大きさになる", () => {
+    for (let seed = 0; seed < 4; seed++) {
+      const state = createGame(seed);
+      const mul = state.floorAreaMul ?? 1;
+      expect(mul, `seed=${seed} 下限`).toBeGreaterThanOrEqual(MAP_SIZE.areaMulMin);
+      expect(mul, `seed=${seed} 上限`).toBeLessThanOrEqual(MAP_SIZE.areaMulMax);
+      expect(state.map.width, `seed=${seed} 幅`).toBe(Math.round(MAP_SIZE.baseWidth * Math.sqrt(mul)));
+      expect(state.map.height, `seed=${seed} 高さ`).toBe(Math.round(MAP_SIZE.baseHeight * Math.sqrt(mul)));
+    }
+  });
+
+  it("同じ seed で 2 回 buildFloor するとマップの大きさと形が一致する", () => {
+    const a = createGame(21);
+    const b = createGame(21);
+    a.depth = 2;
+    b.depth = 2;
+    buildFloor(a);
+    buildFloor(b);
+    expect(a.floorAreaMul).toBe(b.floorAreaMul);
+    expect([a.map.width, a.map.height]).toEqual([b.map.width, b.map.height]);
+    expect(Array.from(a.map.tiles)).toEqual(Array.from(b.map.tiles));
+  });
+
+  it("ボス階は基準の大きさのまま", () => {
+    const state = createGame(4);
+    state.depth = BOSS.interval;
+    buildFloor(state);
+    expect(state.floorAreaMul).toBe(1);
+    expect([state.map.width, state.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
+  });
+
+  it("徘徊の上限は広い階ほど 面積の倍率 ^ roamCapExp 倍に増える", () => {
+    const depth = 2;
+    expect(roamCap(depth, 1)).toBe(roamCap(depth));
+    expect(roamCap(depth, 4)).toBe(Math.round(roamCap(depth) * 4 ** MAP_SIZE.roamCapExp));
+    expect(roamCap(depth, 4)).toBeGreaterThan(roamCap(depth));
+  });
+});
 
 describe("depth 2 の難度調整", () => {
   it("湧き数は base 3 + floor(depth * 1.0)（depth1:4, depth2:5, depth5:8）。ROOM.baseEnemies は QA 2026-09-23 で 2 → 3、enemiesPerDepth は同日 2 巡目で 0.8 → 1.0", () => {
@@ -632,7 +698,7 @@ describe("開放型フロア: 時間経過の増援", () => {
   it("増援は画面外の壁でない床に徘徊として湧き、徘徊の上限を超えない", () => {
     const state = createGame(3);
     state.enemies = state.enemies.filter((e) => e.roomIndex !== ROAMING_ROOM);
-    const cap = roamCap(state.depth);
+    const cap = roamCap(state.depth, state.floorAreaMul);
     for (let n = 0; n < cap * 3; n++) {
       state.floorTime = ROAM.reinforceDelay + n * ROAM.reinforceInterval - FIXED_DT / 2;
       updateRooms(state, FIXED_DT);
@@ -702,7 +768,7 @@ describe("巣窟（モンスターハウス）", () => {
         for (const r of hordes) expect(r.tiles ? r.tiles.size : r.rect.w * r.rect.h).toBeGreaterThanOrEqual(ROOM_KIND.hordeMinTiles);
       }
     }
-  });
+    }, WIDE_FLOOR_LOOP_TIMEOUT);
 });
 
 // -----------------------------------------------------------------------------

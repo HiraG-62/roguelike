@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
+import type { GameState } from "../core/state";
+import { VIEW_H, VIEW_W } from "../core/view";
+import { BOSS, MINIMAP } from "../data/tuning";
 import { rectCenterPx } from "../map/grid";
+import { buildFloor } from "../system/floor";
+import { resetExplored, revealAround } from "../system/explore";
+import { createRng } from "../core/rng";
+import { DEFAULT_GENERATOR_OPTIONS, generateMap, scaleGeneratorOptions } from "../map/generator";
 import { withInput } from "../system/testHelpers";
-import { buildRoomLookup, paintExplored } from "./minimap";
+import { Minimap, buildRoomLookup, minimapSize, paintExplored } from "./minimap";
 
 const RGBA = 4;
 const ALPHA = 3;
@@ -15,9 +22,31 @@ function paintedTiles(data: Uint8ClampedArray): number[] {
   return out;
 }
 
+/** 基準の大きさ（縮尺 1 = 1 タイル 1px）の階。ボス階は面積の倍率が 1 のまま */
+function baseSizeGame(): GameState {
+  const state = createGame(11);
+  state.depth = BOSS.interval;
+  buildFloor(state);
+  return state;
+}
+
+/** 面積 4 倍のマップに差し替えた階（MAP_SIZE の設定に依らずに縮尺を確かめる） */
+const WIDE_AREA_MUL = 4;
+function wideGame(): GameState {
+  const state = createGame(11);
+  state.map = generateMap("rooms", createRng(11), scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, WIDE_AREA_MUL));
+  state.rooms = state.map.rooms.map((rect) => ({ rect, cleared: false, locked: false, doorTiles: [], kind: "normal", wave: 0, used: false, tiles: undefined }));
+  const start = state.map.rooms[0];
+  if (!start) throw new Error("開始部屋が無い");
+  state.player.body.pos = rectCenterPx(start);
+  resetExplored(state);
+  revealAround(state);
+  return state;
+}
+
 describe("ミニマップ", () => {
   it("探索済みタイルだけを塗り、2 回目以降は差分だけ塗る", () => {
-    const state = createGame(11);
+    const state = baseSizeGame();
     const lookup = buildRoomLookup(state);
     const data = new Uint8ClampedArray(state.map.tiles.length * RGBA);
     let cursor = paintExplored(data, state, lookup, NO_BOSS, 0);
@@ -39,7 +68,7 @@ describe("ミニマップ", () => {
   });
 
   it("部屋の種類とボス部屋で色が変わり、通路は部屋と違う色", () => {
-    const state = createGame(11);
+    const state = baseSizeGame();
     const lookup = buildRoomLookup(state);
     const room = state.rooms[1];
     if (!room) throw new Error("room missing");
@@ -58,5 +87,37 @@ describe("ミニマップ", () => {
     expect(px(normal, inRoom)).not.toEqual(px(normal, corridor));
     expect(px(boss, inRoom)).not.toEqual(px(normal, inRoom));
     expect(px(treasure, inRoom)).not.toEqual(px(normal, inRoom));
+  });
+
+  it("基準の大きさの階は縮めない（1 タイル = 1px）", () => {
+    const state = baseSizeGame();
+    const size = minimapSize(state.map);
+    expect(size.scale).toBe(1);
+    expect(size.w).toBe(state.map.width);
+    expect(size.h).toBe(state.map.height);
+  });
+
+  it("広い階の縮尺は上限の大きさに収まり、画面の 4 分の 1 を塞がない", () => {
+    const state = wideGame();
+    const size = minimapSize(state.map);
+    expect(state.map.width, "広い階").toBeGreaterThan(MINIMAP.maxWidth);
+    expect(size.scale).toBeLessThan(1);
+    expect(size.w).toBeLessThanOrEqual(MINIMAP.maxWidth);
+    expect(size.h).toBeLessThanOrEqual(MINIMAP.maxHeight);
+    expect(size.w * size.h, "画面の 4 分の 1 以下").toBeLessThanOrEqual((VIEW_W * VIEW_H) / 4);
+    expect(Minimap.bottom(state), "HUD の文字はミニマップの下").toBeLessThan(VIEW_H / 2);
+  });
+
+  it("縮めても探索済みタイルは縮めた画像の中に塗られる", () => {
+    const state = wideGame();
+    const size = minimapSize(state.map);
+    const lookup = buildRoomLookup(state);
+    const data = new Uint8ClampedArray(size.w * size.h * RGBA);
+    expect(state.exploredLog.length).toBeGreaterThan(0);
+    paintExplored(data, state, lookup, NO_BOSS, 0);
+    const painted = paintedTiles(data);
+    expect(painted.length, "何か塗る").toBeGreaterThan(0);
+    // 縮めたので塗った画素はタイルより少ないか同じ
+    expect(painted.length).toBeLessThanOrEqual(state.exploredLog.length);
   });
 });

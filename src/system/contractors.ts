@@ -636,7 +636,7 @@ function betLife(state: GameState, below: Vec, color: string): void {
 function setSmith(state: GameState, element: Element, color: string): void {
   state.contracts.smith = { element, share: CONTRACT.smithShare };
   sayAt(state, `${ELEMENT_LABEL[element]}を焼き付けた`, color);
-  pushLog(state, `鍛冶が刃に${ELEMENT_LABEL[element]}を焼き付けた（この探索の間、通常攻撃の一部が${ELEMENT_LABEL[element]}属性になる）。`, color);
+  pushLog(state, `鍛冶が刃に${ELEMENT_LABEL[element]}を焼き付けた（この探索の間）。`, color);
   ensureContractStats(state);
 }
 

@@ -9,7 +9,9 @@ import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
-import { lineOfSight } from "../map/pathing";
+import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
+import { PLAYER } from "../data/tuning";
+import { reaperTimeLeft } from "../system/reaper";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
@@ -109,6 +111,12 @@ const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawnin
 const ENGAGE_RANGE = 240;
 /** 部屋の目標地点にこの距離まで来ても制圧できていなければ、その部屋の残りの敵を探しに行く（px） */
 const ROOM_ARRIVE_DIST = TILE_SIZE * 2;
+/**
+ * 死神の残り秒が「階段までの歩きの秒 × WALK_SAFETY + STAIRS_RESERVE」を切ったら、部屋を残していても階段へ向かう。
+ * 広い階（BALANCE.world.MAP_SIZE）では全部屋を回りきる前に死神が来るので、到達を優先させる
+ */
+const WALK_SAFETY = 1.5;
+const STAIRS_RESERVE = 20;
 /** 経路のウェイポイントに到達したとみなす距離（px） */
 const WAYPOINT_REACH = TILE_SIZE * 0.6;
 /** 目標地点がこの距離以上ずれたら経路を引き直す */
@@ -291,6 +299,10 @@ function roomTargetPoint(state: GameState, room: RoomState): Vec {
  * （毎ティック最寄りを選び直すと、僅差の 2 部屋の間で目標が振動して経路が安定しない）
  */
 function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
+  if (shouldRushStairs(state, bot)) {
+    bot.targetRoomIndex = null;
+    return null;
+  }
   const current = bot.targetRoomIndex;
   if (current !== null) {
     const room = state.rooms[current];
@@ -309,6 +321,24 @@ function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
   });
   bot.targetRoomIndex = best >= 0 ? best : null;
   return bot.targetRoomIndex;
+}
+
+/** 階段までの歩きの秒（経路の歩数 × タイル ÷ 歩きの速さ）。階段が無い・届かなければ null */
+function walkSecondsToStairs(state: GameState, bot: BotState): number | null {
+  if (!bot.stairsPos) bot.stairsPos = findStairsPos(state);
+  if (!bot.stairsPos) return null;
+  const field = distanceField(state.map, tileOf(state.map, bot.stairsPos));
+  const steps = field[tileOf(state.map, state.player.body.pos)] ?? UNREACHABLE;
+  if (steps === UNREACHABLE) return null;
+  const speed = PLAYER.speed * state.stats.moveSpeedMul;
+  return speed > 0 ? (steps * TILE_SIZE) / speed : null;
+}
+
+/** 死神が来る前に階段へ着けなくなりそうなら、残りの部屋を諦めて階段へ向かう */
+function shouldRushStairs(state: GameState, bot: BotState): boolean {
+  const walk = walkSecondsToStairs(state, bot);
+  if (walk === null) return false;
+  return reaperTimeLeft(state) <= walk * WALK_SAFETY + STAIRS_RESERVE;
 }
 
 /**

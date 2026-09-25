@@ -3,7 +3,7 @@ import { LIST_LAYOUT, type ListScreen, type ListTab, listRowRect, listTabRects, 
 import { TEXT, drawText, textLineHeight, truncateText, wrapText } from "./pixelText";
 
 /**
- * タブ付きの一覧画面（図鑑・依頼の一覧・実績）の描画。状態と当たり判定は src/meta/listScreen.ts。読むだけ
+ * タブ付きの一覧画面（図鑑・依頼の一覧・実績・Tips ノート）の描画。状態と当たり判定は src/meta/listScreen.ts。読むだけ
  */
 
 const COLOR_BG = "#08080c";
@@ -24,6 +24,9 @@ const ROW_PAD = 6;
 const NAME_RATIO = 0.62;
 const DETAIL_PAD = 5;
 const SCROLL_MARK_INSET = 4;
+/** 説明を右に出す形（Tips ノート）: 名前の列の幅の割合と、説明欄との間 */
+const SIDE_NAME_RATIO = 0.34;
+const SIDE_GAP = 6;
 
 export interface ListScreenView {
   title: string;
@@ -31,6 +34,13 @@ export interface ListScreenView {
   ui: Readonly<ListScreen>;
   rowGap: number;
   hint: string;
+  /** 説明を一覧の右に大きく出す（本文が長い Tips ノート）。既定は一覧の下に 2 行 */
+  detailSide?: boolean;
+}
+
+/** 一覧の名前の列の幅（説明を右に出すときは狭める） */
+function rowsWidth(view: ListScreenView): number {
+  return view.detailSide === true ? Math.floor(LIST_LAYOUT.listW * SIDE_NAME_RATIO) : LIST_LAYOUT.listW;
 }
 
 export function drawListScreen(ctx: CanvasRenderingContext2D, view: ListScreenView): void {
@@ -41,7 +51,8 @@ export function drawListScreen(ctx: CanvasRenderingContext2D, view: ListScreenVi
   const tab = view.tabs[view.ui.tab];
   if (tab) {
     drawRows(ctx, view, tab);
-    drawDetail(ctx, tab, view.ui);
+    if (view.detailSide === true) drawSideDetail(ctx, view, tab);
+    else drawDetail(ctx, tab, view.ui);
   }
   drawText(ctx, truncateText(view.hint, LIST_LAYOUT.listW, TEXT.SMALL), VIEW_W / 2, LIST_LAYOUT.hintY, TEXT.SMALL, COLOR_DIM, "center");
 }
@@ -72,8 +83,9 @@ function drawRows(ctx: CanvasRenderingContext2D, view: ListScreenView, tab: List
     return;
   }
   const visible = listVisibleRows(view.rowGap);
-  const nameW = LIST_LAYOUT.listW * NAME_RATIO;
-  const infoW = LIST_LAYOUT.listW - nameW - ROW_PAD * 2;
+  const width = rowsWidth(view);
+  const nameW = view.detailSide === true ? width : LIST_LAYOUT.listW * NAME_RATIO;
+  const infoW = width - nameW - ROW_PAD * 2;
   for (let i = 0; i < visible; i++) {
     const index = view.ui.scroll + i;
     const entry = tab.entries[index];
@@ -82,19 +94,19 @@ function drawRows(ctx: CanvasRenderingContext2D, view: ListScreenView, tab: List
     const y = r.y + r.h / 2;
     if (index === view.ui.cursor) {
       ctx.fillStyle = COLOR_CURSOR_BG;
-      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.fillRect(r.x, r.y, width, r.h);
     }
     const prefix = entry.marked ? `${MARK} ` : "";
     const nameColor = entry.marked ? COLOR_MARK : entry.known ? COLOR_TEXT : COLOR_UNKNOWN;
     drawText(ctx, truncateText(`${prefix}${entry.name}`, nameW - ROW_PAD, m), r.x + ROW_PAD, y, m, nameColor, "left", "middle");
-    if (entry.info !== "") drawText(ctx, truncateText(entry.info, infoW, m), r.x + r.w - ROW_PAD, y, m, COLOR_INFO, "right", "middle");
+    if (entry.info !== "" && infoW > 0) drawText(ctx, truncateText(entry.info, infoW, m), r.x + width - ROW_PAD, y, m, COLOR_INFO, "right", "middle");
   }
   drawScrollMarks(ctx, view, tab.entries.length, visible);
 }
 
 /** 上下に隠れた行があることを示す */
 function drawScrollMarks(ctx: CanvasRenderingContext2D, view: ListScreenView, count: number, visible: number): void {
-  const x = LIST_LAYOUT.listX + LIST_LAYOUT.listW + SCROLL_MARK_INSET;
+  const x = LIST_LAYOUT.listX + rowsWidth(view) + SCROLL_MARK_INSET;
   if (view.ui.scroll > 0) drawText(ctx, "↑", x, LIST_LAYOUT.listTop, TEXT.SMALL, COLOR_DIM, "right", "top");
   if (view.ui.scroll + visible < count) drawText(ctx, "↓", x, LIST_LAYOUT.listBottom, TEXT.SMALL, COLOR_DIM, "right", "bottom");
 }
@@ -113,5 +125,26 @@ function drawDetail(ctx: CanvasRenderingContext2D, tab: ListTab, ui: Readonly<Li
   drawText(ctx, truncateText(entry.name, width, m), x, top + DETAIL_PAD, m, entry.known ? COLOR_TITLE : COLOR_UNKNOWN, "left", "top");
   wrapText(entry.detail, width, m)
     .slice(0, LIST_LAYOUT.detailLines)
+    .forEach((t, i) => drawText(ctx, t, x, top + DETAIL_PAD + line * (i + 1), m, COLOR_TEXT, "left", "top"));
+}
+
+/** 一覧の右の説明欄（Tips ノート）。見出しの下に本文を入るだけ折り返す */
+function drawSideDetail(ctx: CanvasRenderingContext2D, view: ListScreenView, tab: ListTab): void {
+  const entry = tab.entries[view.ui.cursor];
+  if (!entry) return;
+  const m = TEXT.SMALL;
+  const line = Math.max(LIST_LAYOUT.minRowGap - 1, textLineHeight(m));
+  const x0 = LIST_LAYOUT.listX + rowsWidth(view) + SIDE_GAP;
+  const top = LIST_LAYOUT.listTop;
+  const w = LIST_LAYOUT.listX + LIST_LAYOUT.listW - x0;
+  const h = LIST_LAYOUT.listBottom - top;
+  ctx.fillStyle = COLOR_DETAIL_BG;
+  ctx.fillRect(x0, top, w, h);
+  const x = x0 + DETAIL_PAD;
+  const width = w - DETAIL_PAD * 2;
+  drawText(ctx, truncateText(entry.name, width, m), x, top + DETAIL_PAD, m, COLOR_TITLE, "left", "top");
+  const capacity = Math.max(1, Math.floor((h - DETAIL_PAD * 2) / line) - 1);
+  wrapText(entry.detail, width, m)
+    .slice(0, capacity)
     .forEach((t, i) => drawText(ctx, t, x, top + DETAIL_PAD + line * (i + 1), m, COLOR_TEXT, "left", "top"));
 }

@@ -25,7 +25,7 @@ import {
   type SettingsGaugeItem,
 } from "../ui/title";
 import { HITSTOP_SCALE_MAX, type Settings } from "../ui/settings";
-import { actionKeyLabel, formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
+import { actionKeyLabel, formatBindingCode, keyLabel, moveKeyLabel, type Keybinds, type RebindableAction } from "../core/input";
 import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
 import { APP_VERSION } from "../version";
 
@@ -62,6 +62,7 @@ const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
   resume: "再開",
   settings: "設定",
   restart: "やり直す",
+  tips: "Tips ノート",
   title: "拠点へ",
 };
 
@@ -272,6 +273,7 @@ const TITLE_MENU_LABEL: Readonly<Record<TitleMenuItem, string>> = {
   codex: "C 図鑑",
   quests: "Q 依頼",
   achievements: "A 実績",
+  tips: "T Tips",
 };
 
 /** 図鑑・依頼・実績のボタン（当たり判定は ui/title.ts の titleMenuRects と同じ矩形） */
@@ -318,9 +320,9 @@ export function drawTitle(
   const controls = [
     "Enter / クリック: 拠点へ   D: デイリーシード",
     "N: シード編集   H: 履歴   O: 設定",
-    "C: 図鑑   Q: 依頼   A: 実績",
-    "WASD / 矢印キー: 移動、Space: ダッシュ",
-    "E / 左クリック: 攻撃 1（銃は射撃）、Q / 右クリック: 攻撃 2、F: 奥義",
+    "C: 図鑑   Q: 依頼   A: 実績   T: Tips ノート",
+    `${moveKeyLabel()}: 移動、${keyLabel("dash", { first: true })}: ダッシュ`,
+    `${keyLabel("attack")}: 攻撃 1、${keyLabel("shoot")}: 攻撃 2、${keyLabel("special")}: 奥義`,
   ];
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
   // 右下の隅にバージョン表示、その上に操作一覧

@@ -1,7 +1,7 @@
 import type { Enemy, GameState } from "../core/state";
 import { type Vec, dist, normalize, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, enemyDef } from "../data/enemies";
-import { ROAM } from "../data/tuning";
+import { MAP_SIZE, ROAM } from "../data/tuning";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { nextWaypoint } from "../map/pathing";
@@ -28,9 +28,10 @@ function canRoam(def: EnemyDef): boolean {
   return !def.boss && !def.timid && !NO_ROAM_BEHAVIORS.has(def.behavior);
 }
 
-/** 深度で決まる徘徊の上限 */
-export function roamCap(depth: number): number {
-  return Math.min(ROAM.capMax, ROAM.capBase + Math.floor(depth * ROAM.capPerDepth));
+/** 深度と階の広さで決まる徘徊の上限（広い階は 面積の倍率 ^ MAP_SIZE.roamCapExp 倍。密度が薄くなりすぎないように） */
+export function roamCap(depth: number, areaMul = 1): number {
+  const base = Math.min(ROAM.capMax, ROAM.capBase + Math.floor(depth * ROAM.capPerDepth));
+  return Math.round(base * areaMul ** MAP_SIZE.roamCapExp);
 }
 
 export function roamerCount(state: GameState): number {

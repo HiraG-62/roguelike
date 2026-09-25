@@ -1,10 +1,11 @@
 import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { pushPlayerEvent } from "../core/events";
+import type { Rng } from "../core/rng";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ATTR_GAIN, BOSS, CAVE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { ATTR_GAIN, BOSS, CAVE, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import type { CaveShapeOptions } from "../map/cave";
-import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap } from "../map/generator";
+import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap, scaleGeneratorOptions } from "../map/generator";
 import {
   type GameMap,
   type Rect,
@@ -100,7 +101,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   // 強欲のが抱えていた物は敵ごと消さず、新しい階のプレイヤーの足元へ届ける（system/elites.ts）
   const stolen = takeGreedyLoot(state);
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
-  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind));
+  state.floorAreaMul = rollAreaMul(state.rng, state.depth);
+  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind, state.floorAreaMul));
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
   state.lockedTiles = new Set();
   state.hazards = [];
@@ -190,9 +192,26 @@ function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] |
 /** バイオームごとの洞窟の形（tuning の CAVE.biome。無い種別は既定のまま） */
 const CAVE_BY_KIND: Readonly<Partial<Record<FloorKind, Partial<CaveShapeOptions>>>> = CAVE.biome;
 
-function generatorOptions(depth: number, kind: FloorKind): GeneratorOptions {
+/** 面積の倍率の抽選範囲（BALANCE.world.MAP_SIZE の一部。テストで範囲を差し替えられるように型を切り出す） */
+export interface AreaMulRange {
+  areaMulMin: number;
+  areaMulMax: number;
+}
+
+/**
+ * この階の面積の倍率を range の範囲で抽選する（マップ生成の直前に rng から 1 回）。
+ * ボス階は基準の大きさのまま（ボス部屋までの道のりを伸ばさず、ボス階の形を変えない）。
+ * ボス階と、範囲が 1 点（min = max）のときは乱数を引かない（既存の seed の乱数の流れを変えない）
+ */
+export function rollAreaMul(rng: Rng, depth: number, range: AreaMulRange = MAP_SIZE): number {
+  if (isBossDepth(depth)) return 1;
+  if (range.areaMulMax <= range.areaMulMin) return range.areaMulMin;
+  return range.areaMulMin + rng.next() * (range.areaMulMax - range.areaMulMin);
+}
+
+function generatorOptions(depth: number, kind: FloorKind, areaMul: number): GeneratorOptions {
   const cave = CAVE_BY_KIND[kind];
-  const base = cave ? { ...DEFAULT_GENERATOR_OPTIONS, cave } : DEFAULT_GENERATOR_OPTIONS;
+  const base = scaleGeneratorOptions(cave ? { ...DEFAULT_GENERATOR_OPTIONS, cave } : DEFAULT_GENERATOR_OPTIONS, areaMul);
   if (!isBossDepth(depth)) return base;
   return { ...base, lastRoomMin: { w: BOSS.roomMinW, h: BOSS.roomMinH } };
 }
@@ -231,10 +250,34 @@ const NEIGHBORS_8 = [
   [-1, -1],
 ] as const;
 
-/** 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ） */
+/** findBlobDoorTiles の印。マップごとに 1 枚を使い回し、呼ぶたびに印の番号を 2 つ進める（部屋 = stamp、扉 = stamp + 1） */
+interface DoorMarks {
+  mark: Uint32Array;
+  stamp: number;
+}
+const doorMarks = new WeakMap<GameMap, DoorMarks>();
+const MARKS_PER_CALL = 2;
+
+function doorMarksOf(map: GameMap): DoorMarks {
+  let marks = doorMarks.get(map);
+  if (!marks) {
+    marks = { mark: new Uint32Array(map.tiles.length), stamp: 0 };
+    doorMarks.set(map, marks);
+  }
+  marks.stamp += MARKS_PER_CALL;
+  return marks;
+}
+
+/**
+ * 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ）。
+ * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える
+ */
 function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
-  const inRoom = new Set(tiles);
-  const doors = new Set<number>();
+  const { mark, stamp } = doorMarksOf(map);
+  const roomStamp = stamp;
+  const doorStamp = stamp + 1;
+  for (const i of tiles) mark[i] = roomStamp;
+  const doors: number[] = [];
   for (const i of tiles) {
     const x = i % map.width;
     const y = Math.floor(i / map.width);
@@ -243,10 +286,12 @@ function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
       const ny = y + dy;
       if (!isWalkable(map, nx, ny)) continue;
       const ni = toIndex(map, nx, ny);
-      if (!inRoom.has(ni)) doors.add(ni);
+      if (mark[ni] === roomStamp || mark[ni] === doorStamp) continue;
+      mark[ni] = doorStamp;
+      doors.push(ni);
     }
   }
-  return [...doors].sort((a, b) => a - b);
+  return doors.sort((a, b) => a - b);
 }
 
 export function enemyCount(state: GameState): number {
@@ -886,7 +931,7 @@ export function floorAttributePoints(state: GameState): number {
  * 画面外なので予告（spawning）は付けない
  */
 function spawnRoamReinforcement(state: GameState): void {
-  const cap = roamCap(state.depth);
+  const cap = roamCap(state.depth, state.floorAreaMul ?? 1);
   if (roamerCount(state) >= cap) return;
   const def = pickEnemy(state);
   const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;

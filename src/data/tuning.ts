@@ -248,3 +248,6 @@ export const HUB = BALANCE.world.HUB;
 
 /** 拠点の飾り（src/meta/hub.ts）。見た目だけで強さには触れない */
 export const HUB_DECOR = BALANCE.world.HUB_DECOR;
+
+/** マップの大きさ（面積の倍率の抽選。src/map/generator.ts の scaleGeneratorOptions） */
+export const MAP_SIZE = BALANCE.world.MAP_SIZE;

@@ -1,3 +1,10 @@
 {
-  "revealRadius": 6
+  "_fields": {
+    "revealRadius": "プレイヤーの周りで探索済みにする半径。タイル",
+    "maxWidth": "ミニマップの幅の上限。px（論理座標 480x270）。マップがこれより大きいと縮めて表示する",
+    "maxHeight": "ミニマップの高さの上限。px。画面右上を塞がない大きさ"
+  },
+  "revealRadius": 6,
+  "maxWidth": 112,
+  "maxHeight": 64
 }
