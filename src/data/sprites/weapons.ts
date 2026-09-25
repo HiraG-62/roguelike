@@ -42,6 +42,7 @@ export const WEAPON_EDGE: Readonly<Partial<Record<MovesetKey, WeaponEdge>>> = {
   hammer: "up",
   chainSickle: "up",
   cleaver: "up",
+  fan: "up",
 };
 
 export function weaponSpriteKey(moveset: MovesetKey): string {
@@ -947,6 +948,10 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   grenade: held(GRENADE_SIDE, GRENADE_DIAG),
   trapper: held(TRAPPER_SIDE, TRAPPER_DIAG),
   warRing: held(WAR_RING_SIDE, WAR_RING_DIAG),
+  claws: held(CLAWS_SIDE, CLAWS_DIAG),
+  flail: held(FLAIL_SIDE, FLAIL_DIAG),
+  ringBlades: held(RING_BLADES_SIDE, RING_BLADES_DIAG),
+  fan: edged(FAN_SIDE, FAN_DIAG),
 };
 
 export const WEAPON_SPRITES: Record<string, SpriteFrames> = Object.fromEntries(

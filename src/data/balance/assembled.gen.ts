@@ -851,6 +851,10 @@ import j_ultimates_ULTIMATE_defs_thrown from "./ultimates/ULTIMATE/defs/thrown.j
 import j_ultimates_ULTIMATE_defs_grenade from "./ultimates/ULTIMATE/defs/grenade.json";
 import j_ultimates_ULTIMATE_defs_trapper from "./ultimates/ULTIMATE/defs/trapper.json";
 import j_ultimates_ULTIMATE_defs_warRing from "./ultimates/ULTIMATE/defs/warRing.json";
+import j_ultimates_ULTIMATE_defs_claws from "./ultimates/ULTIMATE/defs/claws.json";
+import j_ultimates_ULTIMATE_defs_flail from "./ultimates/ULTIMATE/defs/flail.json";
+import j_ultimates_ULTIMATE_defs_ringBlades from "./ultimates/ULTIMATE/defs/ringBlades.json";
+import j_ultimates_ULTIMATE_defs_fan from "./ultimates/ULTIMATE/defs/fan.json";
 import j_weapons__index from "./weapons/_index.json";
 import j_weapons_WEAPON__index from "./weapons/WEAPON/_index.json";
 import j_weapons_WEAPON_movesets_sword from "./weapons/WEAPON/movesets/sword.json";
@@ -876,6 +880,10 @@ import j_weapons_WEAPON_movesets_thrown from "./weapons/WEAPON/movesets/thrown.j
 import j_weapons_WEAPON_movesets_grenade from "./weapons/WEAPON/movesets/grenade.json";
 import j_weapons_WEAPON_movesets_trapper from "./weapons/WEAPON/movesets/trapper.json";
 import j_weapons_WEAPON_movesets_warRing from "./weapons/WEAPON/movesets/warRing.json";
+import j_weapons_WEAPON_movesets_claws from "./weapons/WEAPON/movesets/claws.json";
+import j_weapons_WEAPON_movesets_flail from "./weapons/WEAPON/movesets/flail.json";
+import j_weapons_WEAPON_movesets_ringBlades from "./weapons/WEAPON/movesets/ringBlades.json";
+import j_weapons_WEAPON_movesets_fan from "./weapons/WEAPON/movesets/fan.json";
 import j_weapons_WEAPON_artDefaults from "./weapons/WEAPON/artDefaults.json";
 import j_weapons_WEAPON_movesetRules from "./weapons/WEAPON/movesetRules.json";
 import j_weapons_WEAPON_jobBranches from "./weapons/WEAPON/jobBranches.json";
@@ -1483,6 +1491,7 @@ export const jobs = {
 
 export const loot = {
   "_note": j_loot__index["_note"],
+  "_fields": j_loot__index["_fields"],
   "LOOT_DROP": j_loot_LOOT_DROP,
   "PICKUP": j_loot_PICKUP,
   "RESONANCE": j_loot_RESONANCE,
@@ -1881,6 +1890,10 @@ export const ultimates = {
       "grenade": j_ultimates_ULTIMATE_defs_grenade,
       "trapper": j_ultimates_ULTIMATE_defs_trapper,
       "warRing": j_ultimates_ULTIMATE_defs_warRing,
+      "claws": j_ultimates_ULTIMATE_defs_claws,
+      "flail": j_ultimates_ULTIMATE_defs_flail,
+      "ringBlades": j_ultimates_ULTIMATE_defs_ringBlades,
+      "fan": j_ultimates_ULTIMATE_defs_fan,
     },
   },
 };
@@ -1919,6 +1932,10 @@ export const weapons = {
       "grenade": j_weapons_WEAPON_movesets_grenade,
       "trapper": j_weapons_WEAPON_movesets_trapper,
       "warRing": j_weapons_WEAPON_movesets_warRing,
+      "claws": j_weapons_WEAPON_movesets_claws,
+      "flail": j_weapons_WEAPON_movesets_flail,
+      "ringBlades": j_weapons_WEAPON_movesets_ringBlades,
+      "fan": j_weapons_WEAPON_movesets_fan,
     },
     "artDefaults": j_weapons_WEAPON_artDefaults,
     "movesetRules": j_weapons_WEAPON_movesetRules,
@@ -2932,14 +2949,18 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "ultimates/ULTIMATE/defs/axe.json",
   "ultimates/ULTIMATE/defs/cannon.json",
   "ultimates/ULTIMATE/defs/chainSickle.json",
+  "ultimates/ULTIMATE/defs/claws.json",
   "ultimates/ULTIMATE/defs/cleaver.json",
+  "ultimates/ULTIMATE/defs/fan.json",
   "ultimates/ULTIMATE/defs/fists.json",
+  "ultimates/ULTIMATE/defs/flail.json",
   "ultimates/ULTIMATE/defs/greatsword.json",
   "ultimates/ULTIMATE/defs/grenade.json",
   "ultimates/ULTIMATE/defs/gunner.json",
   "ultimates/ULTIMATE/defs/hammer.json",
   "ultimates/ULTIMATE/defs/katana.json",
   "ultimates/ULTIMATE/defs/longarm.json",
+  "ultimates/ULTIMATE/defs/ringBlades.json",
   "ultimates/ULTIMATE/defs/scythe.json",
   "ultimates/ULTIMATE/defs/shield.json",
   "ultimates/ULTIMATE/defs/sidearm.json",
@@ -2964,14 +2985,18 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/movesets/axe.json",
   "weapons/WEAPON/movesets/cannon.json",
   "weapons/WEAPON/movesets/chainSickle.json",
+  "weapons/WEAPON/movesets/claws.json",
   "weapons/WEAPON/movesets/cleaver.json",
+  "weapons/WEAPON/movesets/fan.json",
   "weapons/WEAPON/movesets/fists.json",
+  "weapons/WEAPON/movesets/flail.json",
   "weapons/WEAPON/movesets/greatsword.json",
   "weapons/WEAPON/movesets/grenade.json",
   "weapons/WEAPON/movesets/gunner.json",
   "weapons/WEAPON/movesets/hammer.json",
   "weapons/WEAPON/movesets/katana.json",
   "weapons/WEAPON/movesets/longarm.json",
+  "weapons/WEAPON/movesets/ringBlades.json",
   "weapons/WEAPON/movesets/scythe.json",
   "weapons/WEAPON/movesets/shield.json",
   "weapons/WEAPON/movesets/sidearm.json",

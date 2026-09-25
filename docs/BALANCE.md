@@ -4,7 +4,7 @@
 
 | ディレクトリ | 中身 | 探し方の例 |
 | --- | --- | --- |
-| `weapons/` | 武器種 23 種の段ごとの振りの速さ（windup / active / recover 秒）・威力・怯み値。左の連撃 `steps`、右の連撃 `steps2`（アクション 2。段の種類 `kind` と段の key を持つ配列）、派生 `branches.<派生の key>`、銃のベースごとの弾、剣の基本 3 段（`PLAYER_MELEE.json`）、ダッシュ攻撃（`ACTION_DASH_ATTACK.json`） | 剣 → `weapons/WEAPON/movesets/sword.json`、弾 → `weapons/WEAPON/bullets.json`、項目の意味 → `weapons/WEAPON/_index.json` |
+| `weapons/` | 武器種 27 種の段ごとの振りの速さ（windup / active / recover 秒）・威力・怯み値。左の連撃 `steps`、右の連撃 `steps2`（アクション 2。段の種類 `kind` と段の key を持つ配列）、派生 `branches.<派生の key>`、銃のベースごとの弾、剣の基本 3 段（`PLAYER_MELEE.json`）、ダッシュ攻撃（`ACTION_DASH_ATTACK.json`） | 剣 → `weapons/WEAPON/movesets/sword.json`、弾 → `weapons/WEAPON/bullets.json`、項目の意味 → `weapons/WEAPON/_index.json` |
 | `jobs/` | ジョブの共通数値（`JOB.json`）、ジョブごとのステータスの偏り（`attributes.json`）と弱点（`weakness.json`） | 剣士の偏り → `jobs/attributes.json` の `swordsman` |
 | `enemies/` | 敵 104 体の HP・速度・予告（`stats/<敵の key>.json`）、怯み耐性（`combat/<敵の key>.json`）、防御・耐性（`defense/enemies/<敵の key>.json`。体つき・土地は `defense/bodies.json` / `defense/biomes.json`）、行動（`ENEMY_AI/<行動の key>.json`）、精鋭・ボス（`BOSS/<ボスの key>.json`）・死神 | スライム → `enemies/stats/slime.json` ほか同名 3 ファイル |
 | `skills/` | スキルのコスト・威力・再使用時間（`SKILL/<key>.json`、`EXTRA_SKILL_TUNING/<key>.json`、`WAVE2_SKILL_TUNING/<key>.json`、`WAVE3_SKILL_TUNING.json`）、刻印符（`SKILL/modifier.json` と `*_MODIFIER_TUNING.json`）、連携、変身、使い込み | 伝染 → `skills/EXTRA_SKILL_TUNING/contagion.json` |

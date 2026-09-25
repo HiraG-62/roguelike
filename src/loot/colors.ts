@@ -226,6 +226,18 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   flyingBlade: "gold",
   mortar: "crimson",
   grenadeLauncher: "crimson",
+  // 武器 Wave 4（爪・チェーンアレイ・チャクラム・扇子の器）
+  hookClaws: "gold",
+  ironClaws: "umbra",
+  beastClaws: "crimson",
+  flail: "crimson",
+  morningStar: "crimson",
+  greatFlail: "jade",
+  ringBlades: "gold",
+  fangRings: "azure",
+  ironFan: "jade",
+  danceFan: "gold",
+  warFan: "crimson",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

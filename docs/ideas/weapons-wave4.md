@@ -208,7 +208,7 @@
 | LRL | `galeCut` 烈風 | 0.05/0.08/0.16、4.5 + mnd 0.4 + dex 0.35、poise 9（mnd 0.13 dex 0.13）、突き 40 / 14、kb 300、`shots: { from: "lane", count: 2, damageMul: 0.7, spreadDeg: 14 }`（風刃を 2 本） |
 | RLL | `petalStorm` 花吹雪 | 0.05/0.28/0.22、1.4 + mnd 0.15 + dex 0.15、poise 2、円 0 / 64、hits 4、kb 120 |
 
-**固有効果**: (1) `onSwing` → `spreadTerrain` radius 28（ICD 0.4 秒）「風が床の炎・煙・毒沼を広げる」（`fanSpreadRadius` / `fanSpreadIcd`）。(2) `onMeleeHit` + `{ kind: "targetOnTerrain", terrain: "fire" }` → `addPoise` 6「炎の上の敵を煽ると崩れやすい」（`fanEmberPoise`）。
+**固有効果**: (1) `onMeleeHit`（当てた敵の足元。統合時に onSwing から変更: 自分の足元だと炎で自分を焼く）→ `spreadTerrain` radius 28（ICD 0.4 秒）「風が床の炎・煙・毒沼を広げる」（`fanSpreadRadius` / `fanSpreadIcd`）。(2) `onMeleeHit` + `{ kind: "targetOnTerrain", terrain: "fire" }` → `addPoise` 6「炎の上の敵を煽ると崩れやすい」（`fanEmberPoise`）。
 
 **奥義**（`fanSet` + `defs/fan.json`）:
 

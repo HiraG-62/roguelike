@@ -4443,6 +4443,63 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       s.critChance += pct(v);
     },
+  },  // ---- 武器 Wave 4 の器（docs/ideas/weapons-wave4.md 2〜5 章）。設計の「踏み込み中の被ダメ −」「溜め中の移動 +」「弾の命中で気力 +」は
+  // 専用の数値が無いので、近い既存の数値（交戦中の被ダメ・溜めの怯み値・気力回収）で表す ----
+  {
+    key: "implicit.ironClaws",
+    label: "状態異常の効果量 +{v}%（出血が深くなる）",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.statusPotencyMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.beastClaws",
+    label: "交戦中の部屋で被ダメージ -{v}%",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.traits.engagedGuard += pct(v);
+    },
+  },
+  {
+    key: "implicit.morningStar",
+    label: "怯み値 +{v}%",
+    range: { min: 15, max: 22 },
+    apply: (s, v) => {
+      s.poiseDamageMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.greatFlail",
+    label: "溜めの段 1 つにつき近接の怯み値 +{v}%（回しが重くなる）",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.traits.chargedPoiseMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.fangRings",
+    label: "気力回収 +{v}%",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.manaGainMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.danceFan",
+    label: "移動速度 +{v}%",
+    range: { min: 4, max: 6 },
+    apply: (s, v) => {
+      s.moveSpeedMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.warFan",
+    label: "ノックバック +{v}%",
+    range: { min: 20, max: 30 },
+    apply: (s, v) => {
+      s.knockbackMul += pct(v);
+    },
   },
 ];
 

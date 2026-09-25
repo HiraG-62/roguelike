@@ -123,8 +123,10 @@ describe("武器 Wave 4: 型の復元（JSON → 型）", () => {
     expect(movesetCasts(originals.get("sword") ?? MOVESETS.sword), "既存の剣は cast を持たない").toEqual([]);
   });
 
-  it("既存の 23 武器種は cast を持たず、弾の段の弾は applies を持たない（挙動は不変）", () => {
+  it("杖以外の既存の武器種は cast を持たず、弾の段の弾は applies を持たない（挙動は不変）", () => {
     for (const m of Object.values(MOVESETS)) {
+      // 杖は魔法の武器種に作り替えた（wandMagic.test.ts）
+      if (m.key === "wand") continue;
       expect(movesetCasts(m), m.key).toEqual([]);
       for (const s of m.steps2) {
         if (s.kind === "volley") expect(s.throw.applies, `${m.key}.${s.key}`).toBeUndefined();
@@ -187,8 +189,8 @@ describe("武器 Wave 4: 弾の状態異常（applies）と見た目（look）",
 
     const plain = arena();
     const e = tough(placeEnemy(plain, "boar", 40));
-    emitArtVolley(plain, base);
-    expect(playerShots(plain)[0]?.applies, "既存の弾は付けない").toBeUndefined();
+    emitArtVolley(plain, { ...base, applies: undefined });
+    expect(playerShots(plain)[0]?.applies, "applies の無い弾は付けない").toBeUndefined();
     for (let i = 0; i < 30; i++) step(plain, withInput({}), FIXED_DT);
     expect(findStatus(e.status, "burn")).toBeUndefined();
   });

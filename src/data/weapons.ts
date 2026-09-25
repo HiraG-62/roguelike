@@ -40,6 +40,11 @@ export const MOVESET_KEYS = [
   "grenade",
   "trapper",
   "warRing",
+  // 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章）
+  "claws",
+  "flail",
+  "ringBlades",
+  "fan",
 ] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
@@ -736,10 +741,12 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   windmill: "風車",
   doubleSweep: "二段払い",
   pinDown: "打ち据え",
-  arcaneStrike: "魔力撃",
-  staffSweep: "杖払い",
-  lightRay: "光条",
-  arcaneBurst: "魔力破",
+  lightningBolt: "稲妻",
+  venomMist: "毒泡",
+  vortex: "渦巻き",
+  flash: "閃光",
+  darkHand: "闇手",
+  arcLightning: "跳ね雷",
   tsubame: "燕返し",
   quickDraw: "抜き打ち",
   kasumi: "霞",
@@ -792,6 +799,23 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   ringSpin: "輪回し",
   ringSlash: "輪斬り",
   returnRing: "戻り輪",
+  // 武器 Wave 4: 爪 / チェーンアレイ / チャクラム / 扇子
+  fangRush: "牙駆け",
+  lacerationDance: "裂傷舞",
+  crossClaw: "十字爪",
+  pounce: "跳び食らい",
+  starCrush: "星砕き",
+  swingDown: "振り落とし",
+  chainSweep: "鎖払い",
+  dragCrush: "引き砕き",
+  moonCut: "月輪斬り",
+  stackedRings: "重ね輪",
+  ringDash: "輪駆け",
+  doubleSever: "双断ち",
+  butterflyDance: "蝶舞",
+  downdraft: "颪",
+  galeCut: "烈風",
+  petalStorm: "花吹雪",
 };
 
 /** 右レーンの段の表示名（数値は tuning の WEAPON.movesets[].steps2）。構えの離した振りは `${key}.release` */
@@ -833,10 +857,10 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   staffButt: "石突き",
   spinStrike: "回し打ち",
   skyThrust: "天突き",
-  arcaneBolt: "魔弾",
-  arcaneBolt2: "魔弾",
-  greatBolt: "大魔弾",
-  wandThrust: "杖突き",
+  iceLance: "氷槍",
+  iceLance2: "氷槍",
+  iceLanceLong: "長氷槍",
+  blizzard: "吹雪",
   iai: "居合",
   kaeshi: "返し",
   sakakaze: "逆風",
@@ -882,6 +906,25 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   ringSweep: "輪払い",
   ringThrow: "輪投げ",
   twinRings: "二輪",
+  // 武器 Wave 4: 爪 / チェーンアレイ / チャクラム / 扇子
+  fangBite: "獣噛み",
+  rake: "引っ掻き",
+  leapBack: "跳び退き",
+  clawFlurry: "乱れ爪",
+  throatSlit: "喉裂き",
+  flailWhirl: "回し",
+  chainSwing: "振り回し",
+  ballDrop: "鉄球落とし",
+  chainWrap: "鎖巻き",
+  orbitRing: "周回",
+  ringCut: "輪断ち",
+  twinRingCut: "二輪断ち",
+  ringLaunch: "投輪",
+  fanning: "扇ぎ",
+  "fanning.release": "突風",
+  fanSnap: "扇打ち",
+  petalWhirl: "花舞",
+  windCutter: "風刃",
 };
 
 /** 右 1 段目の技の説明（「何ができるか」。2 段目以降の振りは HUD に名前だけ出すので持たない） */
@@ -895,7 +938,7 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   entangle: "巻き付けて手前へ引き、恐怖を付ける",
   shoulderCharge: "肩から踏み込んで押し飛ばす",
   upswing: "払い上げて大きく押し返す",
-  arcaneBolt: "光の魔弾を 1 発撃つ（射撃として当たる）",
+  iceLance: "貫く氷の槍を撃ち、当たった敵を冷やす（射撃として当たる）",
   iai: "押して溜め、離して一閃。溜めずに離すと左の段を振る",
   axeThrow: "斧を投げる。行って戻り、行きと帰りで斬る（射撃として当たる）",
   guard: "押している間、前からの被弾を大きく減らし奥義ゲージを溜める。離すと盾押し",
@@ -909,6 +952,10 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   tubeBash: "筒で殴って敵を押し返し、自分も後ろへ下がる",
   scatterMines: "前方へ設置弾を扇に 3 つ撒く",
   ringSweep: "手元の輪で周りを広く斬る",
+  fangBite: "踏み込んで噛みつき、出血させる",
+  flailWhirl: "押している間、鉄球を回して周りを打ち続ける。離すと勢いのついた一撃",
+  orbitRing: "輪を自分の周りに回らせる。回っている間、近くの敵に何度も当たる",
+  fanning: "押している間、前からの被弾を減らす。離すと突風で押し返し、敵弾を払う",
 };
 
 /** 弾を出す段・cast の素性（ジャンル・属性）と弾の絵 */
@@ -918,18 +965,42 @@ interface VolleyProfile {
 }
 
 /** 左の段の cast の表示名（HUD の「左: 火矢」）。キーは cast.key。数値は movesets.<武器種>.steps[n].cast */
-export const CAST_NAMES: Readonly<Record<string, string>> = {};
+export const CAST_NAMES: Readonly<Record<string, string>> = {
+  fireDart: "火矢",
+  fireDart2: "火矢",
+  fireDartTwin: "二連火矢",
+  blastOrb: "爆炎球",
+  lightningBolt: "稲妻",
+  venomMist: "毒泡",
+  flash: "閃光",
+  darkHand: "闇手",
+  arcLightning: "跳ね雷",
+};
 
 /** cast の弾の素性と絵（キーは cast.key）。無ければ射撃・物理で点の弾 */
-const CAST_VOLLEY: Readonly<Record<string, VolleyProfile>> = {};
+const CAST_VOLLEY: Readonly<Record<string, VolleyProfile>> = {
+  fireDart: { attack: attack("ranged", "arcane", "fire") },
+  fireDart2: { attack: attack("ranged", "arcane", "fire") },
+  fireDartTwin: { attack: attack("ranged", "arcane", "fire") },
+  blastOrb: { attack: attack("ranged", "arcane", "fire") },
+  lightningBolt: { attack: attack("ranged", "arcane", "lightning") },
+  venomMist: { attack: attack("area", "arcane", "poison") },
+  flash: { attack: attack("ranged", "arcane", "light") },
+  darkHand: { attack: attack("ranged", "arcane", "dark") },
+  arcLightning: { attack: attack("ranged", "arcane", "lightning") },
+};
 
 /** 弾を出す段の素性（ジャンル・属性）と弾の絵。無ければ射撃・物理で点の弾 */
 const STEP2_VOLLEY: Readonly<Record<string, VolleyProfile>> = {
-  arcaneBolt: { attack: attack("ranged", "arcane", "light") },
-  arcaneBolt2: { attack: attack("ranged", "arcane", "light") },
-  greatBolt: { attack: attack("ranged", "arcane", "light") },
+  iceLance: { attack: attack("ranged", "arcane", "ice") },
+  iceLance2: { attack: attack("ranged", "arcane", "ice") },
+  iceLanceLong: { attack: attack("ranged", "arcane", "ice") },
+  blizzard: { attack: attack("ranged", "arcane", "ice") },
   axeThrow: { attack: GUN_ATTACK, sprite: "weapon.axe" },
   scatterMines: { attack: attack("ranged", "physical", "fire") },
+  orbitRing: { attack: GUN_ATTACK },
+  ringLaunch: { attack: GUN_ATTACK, sprite: "weapon.ringBlades" },
+  windCutter: { attack: attack("ranged", "hybrid") },
 };
 
 /** 技の弾の語（技そのものの語は武器種の keywords が持つので、弾は射撃であることだけ） */
@@ -1102,7 +1173,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   wand: defineMoveset({
     key: "wand",
     name: "杖",
-    desc: "左で杖打ちの連撃、右で魔弾を撃つ。打ってから撃つと魔力撃",
+    desc: "左で炎、右で氷の魔法を撃つ。左右を混ぜた 3 手で雷・毒・渦・光・闇の魔法に変わる",
     steps: reviveSteps(W.wand.steps),
     dashAttack: reviveStep(W.wand.dashAttack),
     attackMoveMul: W.wand.attackMoveMul,
@@ -1329,6 +1400,95 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     branches: reviveBranches(W.warRing.branches),
     keywords: kw(["ranged", "bullet", "area"], [], ["melee"]),
     attack: attack("ranged", "physical"),
+  }),
+  // ---- 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章） ----
+  claws: defineMoveset({
+    key: "claws",
+    name: "爪",
+    desc: "最速の 5 連撃。全段が 2 回以上当たり、踏み込みながら出血を重ねる。右の跳び退きで当てて離れる。出血した敵を刻むと気力が戻る",
+    steps: reviveSteps(W.claws.steps),
+    dashAttack: reviveStep(W.claws.dashAttack),
+    attackMoveMul: W.claws.attackMoveMul,
+    primary: "melee",
+    steps2: reviveLane(W.claws.steps2),
+    branches: reviveBranches(W.claws.branches),
+    keywords: kw(["melee", "combo", "bleed"], ["bleed"], ["crit", "dash"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("claws", 0, {
+        when: "onMeleeHit",
+        if: [{ kind: "targetHas", status: "bleed" }],
+        then: { kind: "restoreMana", magnitude: R.clawsBleedMana, quiet: true },
+        icd: R.clawsBleedManaIcd,
+      }),
+    ],
+  }),
+  flail: defineMoveset({
+    key: "flail",
+    name: "チェーンアレイ",
+    desc: "鎖の先の鉄球で周りを広く打つ 4 段。右の長押しで鉄球を回し続けて周りを打ち、離すと勢いのついた一撃。3 段目以降は怯ませやすい",
+    steps: reviveSteps(W.flail.steps),
+    dashAttack: reviveStep(W.flail.dashAttack),
+    attackMoveMul: W.flail.attackMoveMul,
+    primary: "melee",
+    steps2: reviveLane(W.flail.steps2),
+    branches: reviveBranches(W.flail.branches),
+    keywords: kw(["melee", "stagger", "area", "wall"], ["still"], ["elite"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("flail", 0, {
+        when: "onMeleeHit",
+        if: [{ kind: "swingStep", atLeast: 2 }],
+        then: { kind: "addPoise", magnitude: R.flailMomentumPoise },
+      }),
+    ],
+  }),
+  ringBlades: defineMoveset({
+    key: "ringBlades",
+    name: "チャクラム",
+    desc: "両手の刃の輪で速く広く斬る 4 段。右の周回で輪を自分の周りに回らせ、4 段目で投げる（戻る）。輪が当たった直後の斬りは怯ませやすい",
+    steps: reviveSteps(W.ringBlades.steps),
+    dashAttack: reviveStep(W.ringBlades.dashAttack),
+    attackMoveMul: W.ringBlades.attackMoveMul,
+    primary: "melee",
+    steps2: reviveLane(W.ringBlades.steps2),
+    branches: reviveBranches(W.ringBlades.branches),
+    keywords: kw(["melee", "ranged", "combo", "area"], [], ["bullet", "crit"]),
+    attack: attack("melee", "physical"),
+    rules: [
+      movesetRule("ringBlades", 0, {
+        when: "onMeleeHit",
+        if: [{ kind: "recent", event: "onRangedHit", within: R.ringRecentSec }],
+        then: { kind: "addPoise", magnitude: R.ringRecentPoise },
+      }),
+    ],
+  }),
+  fan: defineMoveset({
+    key: "fan",
+    name: "扇子",
+    desc: "舞いながら振る 4 段。威力は低いが大きく押し返し、4 段目は敵弾を払う。振るたびに風が床の炎・煙・毒沼を広げる。右は構え、離すと突風",
+    steps: reviveSteps(W.fan.steps),
+    dashAttack: reviveStep(W.fan.dashAttack),
+    attackMoveMul: W.fan.attackMoveMul,
+    primary: "melee",
+    steps2: reviveLane(W.fan.steps2),
+    branches: reviveBranches(W.fan.branches),
+    keywords: kw(["melee", "area", "wall"], [], ["burn", "poison", "dash"]),
+    // 風の属性は無いので、混成で防御と魔防の平均で受けさせる
+    attack: attack("melee", "hybrid"),
+    rules: [
+      // 自分の足元で広げると炎・毒の上で自分を焼くので、当てた敵の足元で広げる
+      movesetRule("fan", 0, {
+        when: "onMeleeHit",
+        then: { kind: "spreadTerrain", magnitude: 0, radius: R.fanSpreadRadius },
+        icd: R.fanSpreadIcd,
+      }),
+      movesetRule("fan", 1, {
+        when: "onMeleeHit",
+        if: [{ kind: "targetOnTerrain", terrain: "fire" }],
+        then: { kind: "addPoise", magnitude: R.fanEmberPoise },
+      }),
+    ],
   }),
 };
 

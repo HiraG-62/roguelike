@@ -116,6 +116,10 @@ export interface SustainPatch {
   readonly chargeTimeMul?: number;
   /** 攻撃中・溜め中の移動速度の倍率 */
   readonly attackMoveMul?: number;
+  /** 振りの cast と右レーンの弾の段の弾数に足す（詠唱。魔法が 1 本増えて見える） */
+  readonly castCountAdd?: number;
+  /** 弾数を足したときの扇の間隔の下限（度）。1 発撃ちの魔法が同じ線に重ならないように開く */
+  readonly castSpreadDeg?: number;
 }
 
 /** 持続中の射撃の弾の差し替え（key はそのままなので弾の挙動は変わらない） */
@@ -361,8 +365,6 @@ function lunge(r: Raw, extra: StrikeExtra = {}): LungeAct {
 
 /** 弾の種類（銃のベースの弾の key）。挙動（設置・曲射・回転刃・追尾）は弾のものを借り、数だけ差し替える */
 const PLAIN_BULLET = "pistol";
-/** 少し追尾する弾（導きの珠）。詠唱の魔弾が近接の間合いの外の敵へ届くように借りる */
-const SEEKER_BULLET = "seekerOrb";
 
 function volley(r: Raw, profile: AttackProfile, bullet: string = PLAIN_BULLET, sprite?: string): UltimateAct {
   return { kind: "volley", throw: throwOf(r, profile, bullet, sprite) };
@@ -441,6 +443,8 @@ function patchOf(r: Raw, extra: Pick<SustainPatch, "tipAll" | "heavy" | "pull" |
     hitsAdd: optNum(p, "hitsAdd"),
     chargeTimeMul: optNum(p, "chargeTimeMul"),
     attackMoveMul: optNum(p, "attackMoveMul"),
+    castCountAdd: optNum(p, "castCountAdd"),
+    castSpreadDeg: optNum(p, "castSpreadDeg"),
     ...extra,
   };
 }
@@ -684,9 +688,9 @@ function wandSet(): UltimateSet {
       nova(sub(n, "nova"), { clearsBullets: true }),
       buff(sub(n, "buff")),
     ]),
-    sustainDef(m, "incantation", "詠唱", "持続。振るたびに体の前から敵を追う魔弾が 3 発飛び、威力が上がるが足は遅くなる", (n) => ({
+    sustainDef(m, "incantation", "詠唱", "持続。どの魔法も 1 本増えて扇に飛び、詠唱が速く威力も上がるが足は遅くなる", (n) => ({
       ...sustainCore(n),
-      swingVolley: throwOf(sub(n, "swingVolley"), ARCANE_LIGHT, SEEKER_BULLET),
+      patch: patchOf(n),
     })),
   ];
 }
@@ -837,6 +841,70 @@ function warRingSet(): UltimateSet {
   ];
 }
 
+// ---- 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章） ----
+
+function clawsSet(): UltimateSet {
+  const m = "claws";
+  return [
+    instantDef(m, "clawStorm", "爪嵐", "周囲を爪で何度も引き裂き、出血させる", AREA, (n) => [nova(sub(n, "nova"), { applies: [applyOf("bleed", sub(n, "bleed"))] })]),
+    instantDef(m, "neckLeap", "首狩り跳び", "照準の方向へ跳びかかり、通り道の敵を重く裂いて深く出血させる。跳ぶ間は無敵", melee(m), (n) => [
+      lunge(sub(n, "lunge"), { applies: [applyOf("bleed", sub(n, "bleed"))] }),
+    ]),
+    sustainDef(m, "bloodRun", "血の疾走", "持続。振りも足も速くなり、振りが出血させ、出血した敵への威力が上がる", (n) => ({
+      ...sustainCore(n),
+      patch: patchOf(n, { trail: "#ff6060" }),
+      applies: [applyOf("bleed", sub(n, "bleed"))],
+      vsStatus: { status: "bleed", mul: num(n, "vsStatus") },
+    })),
+  ];
+}
+
+function flailSet(): UltimateSet {
+  const m = "flail";
+  return [
+    instantDef(m, "meteorBall", "流星錘", "鉄球を足元へ叩きつけ、周囲を大きく怯ませて崩す", AREA, (n) => [nova(sub(n, "nova"), { applies: [applyOf("broken", sub(n, "broken"))] })]),
+    instantDef(m, "ironStorm", "鉄球嵐", "鉄球を振り回し、周りの敵に何度も当てる", AREA, (n) => [nova(sub(n, "nova"))]),
+    sustainDef(m, "centrifuge", "遠心の律", "持続。振りが遠くまで届き、回しの溜めが速くなり、怯み値が増える", (n) => ({
+      ...sustainCore(n),
+      patch: patchOf(n, { trail: "#ffd75f" }),
+    })),
+  ];
+}
+
+const RING_LOOK = { color: "#c0f0ff", trail: "#80c0ff" } as const;
+
+/** 周回の輪（弾の挙動は拳銃の素の弾を借り、周回と見た目だけ足す） */
+function orbitVolley(r: Raw, profile: AttackProfile): UltimateAct {
+  const t = throwOf(r, profile, PLAIN_BULLET);
+  return { kind: "volley", throw: { ...t, bullet: { ...t.bullet, orbit: orbitOf(r), look: RING_LOOK } } };
+}
+
+function ringBladesSet(): UltimateSet {
+  const m = "ringBlades";
+  return [
+    instantDef(m, "ringFormation", "環の陣", "刃の輪を 4 枚、自分の周りに回らせる。回っている間、近くの敵に何度も当たる", RANGED, (n) => [orbitVolley(sub(n, "volley"), RANGED)]),
+    instantDef(m, "wildRings", "乱輪", "周囲へ輪を乱れ飛ばし、近くの敵に何度も当てる", AREA, (n) => [nova(sub(n, "nova"))]),
+    sustainDef(m, "ringWaltz", "輪の舞", "持続。振りが速く広くなって 1 回多く当たり、会心しやすい", (n) => ({
+      ...sustainCore(n),
+      patch: patchOf(n, { trail: "#c0f0ff" }),
+    })),
+  ];
+}
+
+function fanSet(): UltimateSet {
+  const m = "fan";
+  const gale = attack("area", "hybrid");
+  return [
+    instantDef(m, "greatGale", "大旋風", "大きな風で周囲を吹き飛ばし、近くの敵弾を消す", gale, (n) => [nova(sub(n, "nova"), { clearsBullets: true })]),
+    instantDef(m, "butterflyStep", "胡蝶の舞", "少しの間無敵になって足が速くなり、周囲を扇いで押し返す", melee(m), (n) => [buff(sub(n, "buff")), nova(sub(n, "nova"))]),
+    sustainDef(m, "windVeil", "風纏い", "持続。風をまとって足が速くなり、どの向きからの被弾も減り、振りが広く遠くまで届く", (n) => ({
+      ...sustainCore(n),
+      guard: { arcDeg: num(n, "guardArcDeg"), mul: num(n, "guardMul") },
+      patch: patchOf(n, { trail: "#e0fff0" }),
+    })),
+  ];
+}
+
 const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   sword: swordSet,
   greatsword: greatswordSet,
@@ -861,6 +929,10 @@ const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   grenade: grenadeSet,
   trapper: trapperSet,
   warRing: warRingSet,
+  claws: clawsSet,
+  flail: flailSet,
+  ringBlades: ringBladesSet,
+  fan: fanSet,
 };
 
 export const ULTIMATES: Readonly<Record<MovesetKey, UltimateSet>> = Object.fromEntries(MOVESET_KEYS.map((k) => [k, SET_BUILDERS[k]()])) as Record<

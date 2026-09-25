@@ -1,0 +1,22 @@
+{
+  "attackMoveMul": 0.65,
+  "steps": [
+    {"windup":0.03,"active":0.07,"recover":0.1,"scaling":{"base":3.4,"dex":0.45},"poiseRatio":{"dex":0.18},"poise":6,"reach":22,"size":22,"knockback":120,"heavy":false,"mana":2.5,"shape":{"kind":"arc","deg":160},"hitstop":2,"trail":"#e0f8ff"},
+    {"windup":0.03,"active":0.07,"recover":0.1,"scaling":{"base":3.4,"dex":0.45},"poiseRatio":{"dex":0.18},"poise":6,"reach":22,"size":22,"knockback":120,"heavy":false,"mana":2.5,"shape":{"kind":"arc","deg":160},"hitstop":2,"trail":"#e0f8ff"},
+    {"windup":0.03,"active":0.09,"recover":0.1,"scaling":{"base":1.8,"dex":0.3},"poise":3,"reach":0,"size":46,"knockback":80,"heavy":false,"mana":1.5,"shape":{"kind":"circle"},"hits":2,"hitstop":1,"trail":"#e0f8ff"},
+    {"windup":0.05,"active":0.09,"recover":0.22,"scaling":{"base":7,"dex":0.7,"str":0.2},"poiseRatio":{"dex":0.45},"poise":15,"reach":26,"size":26,"knockback":240,"heavy":true,"mana":4,"shape":{"kind":"arc","deg":220},"hitstop":4,"shake":2,"lunge":8,"trail":"#ffffff"}
+  ],
+  "dashAttack": {"windup":0.02,"active":0.1,"recover":0.14,"scaling":{"base":4.5,"dex":0.6},"poiseRatio":{"dex":0.24},"poise":8,"reach":0,"size":48,"knockback":140,"heavy":false,"mana":2,"shape":{"kind":"circle"},"trail":"#e0f8ff"},
+  "steps2": [
+    {"kind":"volley","key":"orbitRing","cooldown":2,"throw":{"bullet":{"cooldownMul":1,"damageMul":1,"speedMul":0.6,"lifeMul":2,"radius":3,"poiseMul":1,"recoilMul":0,"pellets":0,"spreadDeg":0,"pierceBonus":99,"orbit":{"radius":34,"turnRate":7.5,"laps":3},"look":{"color":"#c0f0ff","trail":"#80c0ff"}},"scaling":{"base":2.2,"dex":0.3},"poise":3,"count":1,"spreadDeg":0}},
+    {"kind":"swing","key":"ringCut","step":{"windup":0.03,"active":0.07,"recover":0.12,"scaling":{"base":3.8,"dex":0.5},"poiseRatio":{"dex":0.2},"poise":7,"reach":18,"size":26,"knockback":130,"heavy":false,"mana":2.5,"shape":{"kind":"box"},"hitstop":2,"trail":"#e0f8ff"}},
+    {"kind":"swing","key":"twinRingCut","step":{"windup":0.03,"active":0.09,"recover":0.12,"scaling":{"base":2,"dex":0.32},"poise":4,"reach":0,"size":50,"knockback":90,"heavy":false,"mana":1.5,"shape":{"kind":"circle"},"hits":2,"hitstop":1,"trail":"#e0f8ff"}},
+    {"kind":"volley","key":"ringLaunch","cooldown":1.2,"throw":{"bullet":{"cooldownMul":1.6,"damageMul":0.9,"speedMul":1.1,"lifeMul":1.2,"radius":3,"poiseMul":1,"recoilMul":0.5,"pellets":0,"spreadDeg":14,"pierceBonus":99,"boomerang":{"returnAt":0.45,"catchRadius":4},"look":{"color":"#e0f8ff"}},"scaling":{"base":6,"dex":0.7},"poiseRatio":{"dex":0.36},"poise":12,"count":1,"spreadDeg":0}}
+  ],
+  "branches": {
+    "moonCut": {"sequence":["primary","primary","secondary"],"step":{"windup":0.05,"active":0.14,"recover":0.22,"scaling":{"base":3.6,"dex":0.5},"poiseRatio":{"dex":0.24},"poise":8,"reach":30,"size":30,"knockback":200,"heavy":true,"mana":3,"shape":{"kind":"arc","deg":360},"hits":2,"hitstop":3,"shake":2,"trail":"#ffffff"}},
+    "stackedRings": {"sequence":["secondary","secondary","primary"],"shots":{"from":"lane","count":1,"damageMul":1},"step":{"windup":0.03,"active":0.07,"recover":0.12,"scaling":{"base":3.9,"dex":0.55},"poiseRatio":{"dex":0.24},"poise":8,"reach":18,"size":26,"knockback":130,"heavy":false,"mana":2.5,"shape":{"kind":"box"},"hitstop":2,"trail":"#e0f8ff"}},
+    "ringDash": {"sequence":["primary","secondary","primary"],"next":3,"step":{"windup":0.02,"active":0.08,"recover":0.1,"scaling":{"base":2.2,"dex":0.35},"poise":4,"reach":30,"size":14,"knockback":90,"heavy":false,"mana":1.5,"shape":{"kind":"thrust"},"hits":2,"hitstop":1,"lunge":30,"invuln":0.06,"trail":"#e0f8ff"}},
+    "doubleSever": {"sequence":["secondary","primary","primary"],"step":{"windup":0.04,"active":0.08,"recover":0.16,"scaling":{"base":3.6,"dex":0.5},"poiseRatio":{"dex":0.24},"poise":8,"reach":20,"size":28,"knockback":220,"heavy":true,"mana":2.5,"shape":{"kind":"box"},"hits":2,"hitstop":3,"shake":1.5,"trail":"#ffffff"}}
+  }
+}

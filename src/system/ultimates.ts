@@ -4,7 +4,7 @@ import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "
 import { pushPlayerEvent } from "../core/events";
 import { enemyDef } from "../data/enemies";
 import { FEEL, ULTIMATE } from "../data/tuning";
-import type { LungeAct, NovaAct, PullAct, BuffAct, SustainDef, UltimateAct, UltimateDef } from "../data/ultimates";
+import type { LungeAct, NovaAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
 import { ultimateDef } from "../data/ultimates";
 import {
   type ActionStepDef,
@@ -679,6 +679,7 @@ function patchMoveset(base: MovesetDef, s: SustainDef): MovesetDef {
   const action = (a: ActionStepDef): ActionStepDef => {
     if (a.kind === "swing") return { ...a, step: step(a.step) };
     if (a.kind === "charge") return { ...a, charge: charge(a.charge) };
+    if (a.kind === "volley") return { ...a, throw: moreCasts(a.throw, p) };
     return a;
   };
   const [first, ...rest] = base.steps2;
@@ -713,7 +714,15 @@ function patchStep(st: MeleeStepDef, s: SustainDef): MeleeStepDef {
     pull: p.pull ?? st.pull,
     trail: p.trail ?? st.trail,
     applies: extra.length > 0 ? [...(st.applies ?? []), ...extra] : st.applies,
+    cast: st.cast ? { ...st.cast, throw: moreCasts(st.cast.throw, p) } : st.cast,
   };
+}
+
+/** 詠唱: 弾数を castCountAdd 足し、扇を castSpreadDeg 以上に開く（1 発撃ちの魔法が同じ線に重ならない） */
+function moreCasts(t: ThrowArtDef, p: SustainPatch): ThrowArtDef {
+  const add = p.castCountAdd ?? 0;
+  if (add <= 0) return t;
+  return { ...t, count: t.count + add, spreadDeg: Math.max(t.spreadDeg, p.castSpreadDeg ?? 0) };
 }
 
 function scaleRatio(r: AttrRatio | undefined, mul: number): AttrRatio | undefined {

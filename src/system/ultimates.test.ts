@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { ENERGY, ULTIMATE } from "../data/tuning";
+import { ENERGY, ULTIMATE, WEAPON } from "../data/tuning";
+import type { FrameInput } from "../core/input";
 import { ULTIMATES, type UltimateDef, defaultUltimate, ultimateDef } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
 import type { PlayerStats } from "../loot/types";
@@ -26,7 +27,6 @@ import {
 } from "./ultimates";
 import { applyStats, currentShot, playerMoveset, updatePlayer } from "./player";
 import { damageEnemy, rollOutgoing } from "./combat";
-import { updateProjectiles } from "./projectiles";
 import { applyStatus } from "./statusEffects";
 
 /**
@@ -453,27 +453,33 @@ describe("奥義ごとの必要ゲージ", () => {
 });
 
 describe("持続の奥義の手応え", () => {
-  it("詠唱の持続中は振るたびに魔弾が体の前から飛ぶ", () => {
+  it("詠唱の持続中は魔法が増え、終わると戻る", () => {
     const state = ready("wand.incantation");
-    const e = dummy(state, NEAR);
-    tryUltimate(state);
-    const px = state.player.body.pos.x;
-    updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
-    const bolts = state.projectiles.filter((pr) => pr.owner === "player");
-    expect(bolts.length, "振り 1 回で swingVolley.count 発").toBe(ULTIMATE.defs.wand.incantation.swingVolley.count);
-    for (const b of bolts) expect(b.pos.x, "体の前から出る").toBeGreaterThan(px + state.player.body.radius);
-    for (const b of bolts) expect(b.radius, "見える大きさ").toBe(ULTIMATE.defs.wand.incantation.swingVolley.bulletRadius);
-    for (let i = 0; i < 10; i++) updateProjectiles(state, FIXED_DT);
-    expect(e.hp, "目の前の敵に当たる").toBeLessThan(BIG_HP);
-    expect(
-      state.projectiles.some((pr) => pr.owner === "player" && pr.life > 0 && pr.pos.x > e.body.pos.x),
-      "貫いて敵の向こうまで飛び続ける",
-    ).toBe(true);
-    // 次の振りでもまた出る
-    const before = state.projectiles.length;
-    runPlayer(state, 1);
-    updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
-    expect(state.projectiles.length, "次の振りでも飛ぶ").toBeGreaterThan(before);
+    const add = ULTIMATE.defs.wand.incantation.patch.castCountAdd;
+    const seen = new Set<number>();
+    /** 押してから 0.3 秒のうちに出た自分の弾 */
+    const castOnce = (press: Partial<FrameInput>): Projectile[] => {
+      for (const pr of state.projectiles) seen.add(pr.id);
+      updatePlayer(state, withInput(press), FIXED_DT);
+      runPlayer(state, 0.3);
+      const fresh = state.projectiles.filter((pr) => pr.owner === "player" && !seen.has(pr.id));
+      // 次の入力が派生にならないよう、入力列の窓を切らしてから戻る
+      runPlayer(state, WEAPON.chainWindow + 0.1);
+      return fresh;
+    };
+    const left = { attackPressed: true, attackHeld: true };
+    const right = { shootHeld: true };
+    expect(castOnce(left).length, "持続の前: 火矢は 1 本").toBe(1);
+    expect(castOnce(right).length, "持続の前: 氷槍は 1 本").toBe(1);
+    expect(tryUltimate(state), "詠唱が出る").toBe(true);
+    const more = castOnce(left);
+    expect(more.length, "持続中: 左の魔法が増える").toBe(1 + add);
+    const angles = new Set(more.map((pr) => Math.round(Math.atan2(pr.vel.y, pr.vel.x) * 100)));
+    expect(angles.size, "増えた魔法は扇に開いて重ならない").toBe(more.length);
+    expect(castOnce(right).length, "持続中: 右の魔法も増える").toBe(1 + add);
+    endUltimate(state, "manual");
+    expect(castOnce(left).length, "終わると左は元の本数").toBe(1);
+    expect(castOnce(right).length, "終わると右も元の本数").toBe(1);
   });
 
   it("鉄槌の律の持続中は命中で衝撃波が出る", () => {

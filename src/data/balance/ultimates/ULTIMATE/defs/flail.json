@@ -1,0 +1,14 @@
+{
+  "meteorBall": {
+    "nova": { "radius": 60, "heavy": true, "scaling": { "base": 34, "str": 1.8, "vit": 1.2 }, "poise": 60, "poiseRatio": { "str": 1.2, "vit": 0.6 }, "knockback": 420 },
+    "broken": { "stacks": 1, "duration": 2, "potency": 0 }
+  },
+  "ironStorm": {
+    "nova": { "radius": 54, "hits": 5, "scaling": { "base": 9, "str": 0.9, "vit": 0.6 }, "poise": 12, "poiseRatio": { "str": 0.24, "vit": 0.12 }, "knockback": 200 }
+  },
+  "centrifuge": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "poise": 1.5 },
+    "patch": { "reachMul": 1.3, "chargeTimeMul": 0.6, "attackMoveMul": 0.6 }
+  }
+}

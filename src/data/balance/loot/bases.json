@@ -287,5 +287,38 @@
   },
   "bell": {
     "minLevel": 7
+  },
+  "hookClaws": {
+    "minLevel": 2
+  },
+  "ironClaws": {
+    "minLevel": 7
+  },
+  "beastClaws": {
+    "minLevel": 13
+  },
+  "flail": {
+    "minLevel": 3
+  },
+  "morningStar": {
+    "minLevel": 10
+  },
+  "greatFlail": {
+    "minLevel": 16
+  },
+  "ringBlades": {
+    "minLevel": 3
+  },
+  "fangRings": {
+    "minLevel": 12
+  },
+  "ironFan": {
+    "minLevel": 3
+  },
+  "danceFan": {
+    "minLevel": 8
+  },
+  "warFan": {
+    "minLevel": 14
   }
 }

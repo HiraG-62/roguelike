@@ -175,7 +175,7 @@ describe("武器種の定義", () => {
     expect(isGun(MOVESETS.sword), "剣は撃てない").toBe(false);
     expect(isGun(MOVESETS.greatsword), "大剣は撃てない").toBe(false);
     expect(MOVESETS.wand.primary, "杖は左で打つ").toBe("melee");
-    expect(MOVESETS.wand.steps2[0].kind, "杖の右は魔弾").toBe("volley");
+    expect(MOVESETS.wand.steps2[0].kind, "杖の右は氷槍").toBe("volley");
     for (const key of GUN_MOVESETS) expect(isGun(MOVESETS[key]), `${key} は左で撃つ`).toBe(true);
   });
 
@@ -433,6 +433,10 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     grenade: "swing",
     trapper: "volley",
     warRing: "swing",
+    claws: "swing",
+    flail: "charge",
+    ringBlades: "volley",
+    fan: "hold",
   };
 
   it("すべての武器種が右 1 段目の技を持ち、名前が登録済みで種類が設計どおり", () => {
@@ -462,19 +466,18 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     expect(branchHints(shield, []).some((h) => h.name === "盾押し"), "案内にも出さない").toBe(false);
   });
 
-  it("2 入力だった派生は 3 入力に伸ばした（踏み込み斬り・抜き打ち・回転斬りは右左左、魔力撃は左左右）", () => {
+  it("2 入力だった派生は 3 入力に伸ばした（踏み込み斬り・抜き打ち・回転斬りは右左左）", () => {
     const seqOf = (key: MovesetKey, branch: string) => MOVESETS[key].branches.find((b) => b.key === branch)?.sequence;
     expect(seqOf("sword", "steppingCut")).toEqual(["secondary", "primary", "primary"]);
     expect(seqOf("katana", "quickDraw")).toEqual(["secondary", "primary", "primary"]);
     expect(seqOf("axe", "axeSpin")).toEqual(["secondary", "primary", "primary"]);
-    expect(seqOf("wand", "arcaneStrike")).toEqual(["primary", "primary", "secondary"]);
   });
 
   it("銃の家系は 8 つで、弾を出す武器種の判定は銃と投げる技を持つ近接", () => {
     expect([...GUN_MOVESETS].sort()).toEqual(["cannon", "grenade", "gunner", "longarm", "sidearm", "thrown", "trapper", "warRing"]);
     for (const key of MOVESET_KEYS) expect(isGun(MOVESETS[key]), key).toBe(GUN_MOVESETS.includes(key));
     expect(usesProjectiles(MOVESETS.axe), "斧は投擲するので弾を出す").toBe(true);
-    expect(usesProjectiles(MOVESETS.wand), "杖は魔弾").toBe(true);
+    expect(usesProjectiles(MOVESETS.wand), "杖は魔法を撃つ").toBe(true);
     expect(usesProjectiles(MOVESETS.sword), "剣は弾を出さない").toBe(false);
     expect(usesProjectiles(MOVESETS.sidearm)).toBe(true);
   });
@@ -517,5 +520,58 @@ describe("右レーン（steps2）の補助関数（docs/ideas/ougi-and-dual-act
   it("actionLane は空の右レーンを読み込み時に落とす", () => {
     expect(() => actionLane([]), "空は誤り").toThrow();
     expect(actionLane([MOVESETS.sword.steps2[0]])[0], "1 段なら通す").toBe(MOVESETS.sword.steps2[0]);
+  });
+});
+
+describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）", () => {
+  const WAVE4 = ["claws", "flail", "ringBlades", "fan"] as const;
+
+  it("4 武器種が登録され、どれも近接で固有効果を持ち、器（ベース）が 2 つ以上ある", () => {
+    for (const key of WAVE4) {
+      expect(MOVESET_KEYS, key).toContain(key);
+      expect(isGun(MOVESETS[key]), `${key} は近接`).toBe(false);
+      expect(movesetRules(key).length, `${key} の固有効果`).toBeGreaterThan(0);
+      const bases = BASES.filter((b) => b.moveset === key);
+      expect(bases.length, `${key} の器`).toBeGreaterThanOrEqual(2);
+      for (const b of bases) expect(b.slot, `${b.key} は右手`).toBe("mainHand");
+    }
+  });
+
+  it("爪は左の全段が多段ヒットで、最終段と右の喉裂きが出血を付ける", () => {
+    const claws = MOVESETS.claws;
+    for (const s of claws.steps) expect(s.hits ?? 1, "爪の左の段は 2 回以上当たる").toBeGreaterThanOrEqual(2);
+    expect(claws.steps[claws.steps.length - 1]?.applies?.map((a) => a.kind)).toEqual(["bleed"]);
+    const last = claws.steps2[claws.steps2.length - 1];
+    expect(last?.kind === "swing" ? last.step.applies?.map((a) => a.kind) : undefined, "喉裂き").toEqual(["bleed"]);
+    const leap = claws.steps2.find((s) => s.key === "leapBack");
+    expect(leap?.kind === "swing" ? (leap.extras?.selfKnock ?? 0) : 0, "跳び退きは自分を後ろへ押す").toBeGreaterThan(0);
+  });
+
+  it("チェーンアレイの右 1 段目は溜め（回し）で、溜め中の周期ヒットを持つ", () => {
+    const flail = MOVESETS.flail;
+    expect(flail.steps2[0].kind).toBe("charge");
+    expect(chargeButton(flail), "溜めは右").toBe("secondary");
+    expect(meleeChargeOf(flail)?.spinning?.interval ?? 0, "回しの周期").toBeGreaterThan(0);
+  });
+
+  it("チャクラムの右 1 段目は周回の弾、4 段目は戻る弾、派生の重ね輪は周回の弾をもう 1 枚出す", () => {
+    const ring = MOVESETS.ringBlades;
+    const first = ring.steps2[0];
+    expect(first.kind === "volley" ? first.throw.bullet.orbit : undefined, "周回").toBeDefined();
+    const launch = ring.steps2[3];
+    expect(launch?.kind === "volley" ? launch.throw.bullet.boomerang : undefined, "投輪は戻る").toBeDefined();
+    expect(ring.branches.find((b) => b.key === "stackedRings")?.shots?.from, "重ね輪は右レーンの弾").toBe("lane");
+    expect(usesProjectiles(ring), "チャクラムは弾を出す").toBe(true);
+  });
+
+  it("扇子の右 1 段目は構えで、離した突風・左 4 段目・颪は敵弾を払う", () => {
+    const fan = MOVESETS.fan;
+    expect(fan.steps2[0].kind === "hold" ? fan.steps2[0].hold.guard : undefined, "扇ぎは構え").toBeDefined();
+    const release = releaseBranchIndex(fan);
+    expect(fan.branches[release ?? -1]?.name, "離すと突風").toBe("突風");
+    expect(fan.branches[release ?? -1]?.step.cutsBullets, "突風は敵弾を払う").toBe(true);
+    expect(fan.steps[3]?.cutsBullets, "左 4 段目").toBe(true);
+    expect(fan.branches.find((b) => b.key === "downdraft")?.step.cutsBullets, "颪").toBe(true);
+    expect(fan.attack.genre.quality, "扇子は混成").toBe("hybrid");
   });
 });

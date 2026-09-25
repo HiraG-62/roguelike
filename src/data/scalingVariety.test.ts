@@ -107,14 +107,13 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.staff.dashAttack.scaling": [8, 0.7],
   "weapons.WEAPON.movesets.staff.steps2[0].step.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.staff.branches.tempest.step.scaling": [4.5, 0.4],
-  "weapons.WEAPON.movesets.wand.steps[0].scaling": [6.5, 0.7],
-  "weapons.WEAPON.movesets.wand.steps[1].scaling": [6.5, 0.7],
-  "weapons.WEAPON.movesets.wand.steps[2].scaling": [7.5, 0.8],
-  "weapons.WEAPON.movesets.wand.steps[3].scaling": [10, 1],
+  // 杖は 2026-09-25 に魔法の武器種へ作り替えた（左の段は杖先の小さな判定。値は作り替えた時点。魔法は cast の係数表）
+  "weapons.WEAPON.movesets.wand.steps[0].scaling": [2.25, 0.15],
+  "weapons.WEAPON.movesets.wand.steps[1].scaling": [2.25, 0.15],
+  "weapons.WEAPON.movesets.wand.steps[2].scaling": [2.25, 0.15],
+  "weapons.WEAPON.movesets.wand.steps[3].scaling": [2.25, 0.15],
   "weapons.WEAPON.movesets.wand.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.wand.steps2[0].throw.scaling": [6, 0.5],
-  "weapons.WEAPON.movesets.wand.branches.arcaneStrike.step.scaling": [12.5, 1.3],
-  "weapons.WEAPON.movesets.wand.branches.staffSweep.step.scaling": [8, 0.8],
+  "weapons.WEAPON.movesets.wand.steps2[0].throw.scaling": [7, 0.6],
   "weapons.WEAPON.movesets.katana.steps[0].scaling": [7.1, 0.7],
   "weapons.WEAPON.movesets.katana.steps[1].scaling": [7.1, 0.7],
   "weapons.WEAPON.movesets.katana.steps[2].scaling": [7.1, 0.7],
@@ -310,6 +309,12 @@ function mainAttrs(s: Readonly<AttrRatio>): AttrKey[] {
 /** 右レーンの段・派生の係数表（docs/ideas/ougi-and-dual-actions.md 4.3。2026-09-25 に足した行動） */
 const LANE_TABLE = /^weapons\.WEAPON\.movesets\.\w+\.(steps2\[\d+\]\.(step|throw)|branches\.\w+\.step)\.scaling$/;
 
+/** 振りが撃つ弾（cast。2026-09-25 に足した杖の魔法）の係数表 */
+const CAST_TABLE = /\.cast\.throw\.scaling$/;
+
+/** 武器 Wave 4（2026-09-25）で足した武器種の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
+const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./;
+
 /** 奥義の定義の係数表のパスの頭 */
 const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
 
@@ -385,7 +390,8 @@ describe("振り直しで基礎値の値は変わらない", () => {
       // 奥義（円月以外の 68 本）は振り直しの後に足した行動なので対象外（基準は ultimates（balance/ultimates/）の _note）
       if (path.startsWith(ULTIMATE_DEFS_PATH)) continue;
       // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
-      if (LANE_TABLE.test(path)) continue;
+      if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
+      if (WAVE4_TABLE.test(path)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);
       expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE, FLOAT_DIGITS);
     }

@@ -355,12 +355,16 @@ function runRightLane(state: GameState, e: Enemy): number {
 
 describe("武器種: 右レーン（アクション 2）の各段", () => {
   for (const key of MOVESET_KEYS) {
-    if (isGun(MOVESETS[key])) continue;
+    // 杖の右レーンは振りの無い弾の段だけ（wandMagic.test.ts が見る）
+    if (isGun(MOVESETS[key]) || key === "wand") continue;
     it(`${MOVESETS[key].name}（${key}）: 右を押し続けると右レーンの最終段まで振り、正面の敵に当たる`, () => {
       const state = arena(5, { moveset: key });
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
       const maxStep = runRightLane(state, e);
-      expect(maxStep, "右レーンの最終段まで進んだ").toBe(MOVESETS[key].steps2.length - 1);
+      // 右の最終段が弾の段（チャクラムの投輪・扇子の風刃）なら、振りの段の最後まで進めば足りる
+      const swingIndices = MOVESETS[key].steps2.flatMap((s, i) => (s.kind === "swing" ? [i] : []));
+      const lastSwing = MOVESETS[key].steps2.at(-1)?.kind === "volley" ? (swingIndices.at(-1) ?? 0) : MOVESETS[key].steps2.length - 1;
+      expect(maxStep, "右レーンの最終段まで進んだ").toBe(lastSwing);
       expect(state.player.meleeHitCount, "右の振りが当たった").toBeGreaterThan(0);
     });
   }
@@ -639,18 +643,18 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     expect(state.projectiles.filter((pr) => pr.owner === "player").length, "撃たない").toBe(0);
   });
 
-  it("杖: 左で杖打ち、右で魔弾。左左右で魔力撃", () => {
+  it("杖: 左で火矢、右で氷槍。左左右で稲妻", () => {
     const state = arena(5, { moveset: "wand" });
     play(state, [{ attackPressed: true, attackHeld: true }]);
     expect(state.player.attack.phase, "左で振った").toBe("windup");
-    expect(state.projectiles.filter((pr) => pr.owner === "player").length, "左では撃たない").toBe(0);
+    expect(state.projectiles.filter((pr) => pr.owner === "player").length, "振り始めではまだ撃たない").toBe(0);
     play(state, [...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
     untilBranch(state);
-    expect(branchKey(state)).toBe("arcaneStrike");
+    expect(branchKey(state)).toBe("lightningBolt");
 
     const bolt = arena(5, { moveset: "wand" });
     play(bolt, [{ shootHeld: true }]);
-    expect(bolt.projectiles.filter((pr) => pr.owner === "player").length, "右だけなら魔弾を 1 発").toBe(1);
+    expect(bolt.projectiles.filter((pr) => pr.owner === "player").length, "右だけなら氷槍を 1 発").toBe(1);
     expect(bolt.player.attack.phase, "右では振らない").toBe("none");
   });
 
