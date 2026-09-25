@@ -270,20 +270,32 @@ function findStairsPos(state: GameState): Vec | null {
  */
 function roomTargetPoint(state: GameState, room: RoomState): Vec {
   if (!room.tiles || room.tiles.size === 0) return rectCenterPx(room.rect);
+  // 塊のタイルは階の間変わらないので、部屋ごとに 1 回だけ数える（広いマップの大きな塊で毎ステップ数えると重い）
+  const cached = roomTargetCache.get(room);
+  if (cached) return cached;
+  const point = blobTargetPoint(state, room.tiles);
+  roomTargetCache.set(room, point);
+  return point;
+}
+
+/** roomTargetPoint の覚え。部屋の state は階ごとに作り直されるので WeakMap で捨てられる */
+const roomTargetCache = new WeakMap<RoomState, Vec>();
+
+function blobTargetPoint(state: GameState, tiles: ReadonlySet<number>): Vec {
   let sx = 0;
   let sy = 0;
-  for (const idx of room.tiles) {
+  for (const idx of tiles) {
     const p = tileCenterPx(state.map, idx);
     sx += p.x;
     sy += p.y;
   }
-  const centroid = { x: sx / room.tiles.size, y: sy / room.tiles.size };
+  const centroid = { x: sx / tiles.size, y: sy / tiles.size };
   const tx = Math.floor(centroid.x / TILE_SIZE);
   const ty = Math.floor(centroid.y / TILE_SIZE);
-  if (room.tiles.has(toIndex(state.map, tx, ty))) return centroid;
+  if (tiles.has(toIndex(state.map, tx, ty))) return centroid;
   let best = centroid;
   let bestDist = Infinity;
-  for (const idx of room.tiles) {
+  for (const idx of tiles) {
     const p = tileCenterPx(state.map, idx);
     const d = dist(p, centroid);
     if (d < bestDist) {

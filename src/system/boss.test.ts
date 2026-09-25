@@ -362,10 +362,12 @@ describe("霜の巨人", () => {
     giant.attackCooldown = 0;
     state.player.body.pos = { x: giant.body.pos.x + 60, y: giant.body.pos.y };
     updateEnemies(state, FIXED_DT);
-    expect(state.hazards.some((h) => h.kind === "landing")).toBe(true);
+    // 巨人の影だけを見る（階の形によっては他の敵の地形の種まきの影も出るため）
+    const giantShadow = (): boolean => state.hazards.some((h) => h.kind === "landing" && h.sourceId === giant.id);
+    expect(giantShadow()).toBe(true);
     applyStagger(state, giant, 1);
     updateHazards(state, FIXED_DT);
-    expect(state.hazards.some((h) => h.kind === "landing")).toBe(false);
+    expect(giantShadow()).toBe(false);
   });
 
   it("叩きつけの予備動作は輪で予告する", () => {

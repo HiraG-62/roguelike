@@ -56,26 +56,33 @@ const ROOM_MARGIN = 3;
 const FIRST_MOVABLE_ROOM = 2;
 
 /**
- * 面積を areaMul 倍にした生成の設定（純関数）。幅と高さは √areaMul 倍、部屋の数と配置の試行回数は areaMul 倍。
- * 部屋の大きさ・通路の太さは変えない（広さは「部屋の数と道のり」で出し、1 部屋の戦闘の手触りを保つ）。
+ * 面積を areaMul 倍にした生成の設定（純関数）。幅と高さは √areaMul 倍、配置の試行回数は areaMul 倍。
+ * 広さは部屋の数（areaMul × MAP_SIZE.roomsPerArea）と部屋の大きさ（寸法 × areaMul ^ MAP_SIZE.roomSizeExp）の両方で出す。
+ * 部屋の数だけで広げると敵の総数が面積に比例して重くなり、広間も生まれず「広大」に感じないため。通路の太さは変えない。
  * areaMul = 1 なら base と同じ生成になる（ボス階・既存の seed の形を変えない）
  */
 export function scaleGeneratorOptions(base: GeneratorOptions, areaMul: number): GeneratorOptions {
   if (areaMul === 1) return base;
   const side = Math.sqrt(areaMul);
   const roomMul = areaMul * MAP_SIZE.roomsPerArea;
+  const sizeMul = areaMul ** MAP_SIZE.roomSizeExp;
   const cave = { ...DEFAULT_CAVE_OPTIONS, ...base.cave };
   return {
     ...base,
     width: Math.round(base.width * side),
     height: Math.round(base.height * side),
     maxRooms: Math.max(1, Math.round(base.maxRooms * roomMul)),
+    roomMinSize: Math.round(base.roomMinSize * sizeMul),
+    roomMaxSize: Math.round(base.roomMaxSize * sizeMul),
     placementAttempts: Math.round((base.placementAttempts ?? PLACEMENT_ATTEMPTS) * areaMul),
     connectNearest: true,
     cave: {
       ...base.cave,
       maxRooms: Math.max(1, Math.round(cave.maxRooms * roomMul)),
       minRooms: Math.max(1, Math.round(cave.minRooms * areaMul * MAP_SIZE.caveMinRoomsPerArea)),
+      // 洞窟の部屋は開けた領域を膨らませた塊なので、膨らませる幅と採用する最小の塊を部屋の寸法と同じ比率で広げる
+      roomGrow: Math.round(cave.roomGrow * sizeMul),
+      minRoomTiles: Math.round(cave.minRoomTiles * sizeMul * sizeMul),
     },
   };
 }

@@ -9,7 +9,7 @@ import { keystoneDef } from "../loot/affixes";
 import { TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, isWalkable, rectCenterPx } from "../map/grid";
 import { BOONS } from "./boons";
-import { buildFloor } from "./floor";
+import { buildFloor, withBaseAreaMul } from "./floor";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
 import {
@@ -117,7 +117,8 @@ describe("追加の部屋種類の割り当て", () => {
   it("1 フロアに ROOM_KIND.extraMax まで、出始める深度より浅い階には出ない", () => {
     for (let seed = 0; seed < 40; seed++) {
       for (const depth of [2, 3, 5, 8]) {
-        const state = createGame(seed);
+        // 検証するのは buildFloor で作り直す階なので、最初の階は基準の大きさで軽く作る
+        const state = withBaseAreaMul(() => createGame(seed));
         state.depth = depth;
         buildFloor(state, "rooms");
         const extras = state.rooms.filter((r) => r.kind in ROOM_KIND.extra);

@@ -65,6 +65,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 - 封鎖: 入ると封鎖するのは `ROOM_KIND.locks` が true の種類（試練・闘技場・巣・巣窟・伏兵・護衛・鏡）とボス部屋だけ（`roomTypes.ts` の `roomLocks`）。それ以外は入っても扉を閉じない
 - 交戦と制圧: 封鎖しない部屋は、入る・部屋の敵が気付く（idle から抜ける）のどちらかで `RoomState.engaged` になり、部屋の敵をまとめて起こし、封鎖と同じフック（`onBoonRoomLock` / イベント `onRoomLock` / `runEvents.onRoomLocked` / 呪い）を通す。部屋の敵（`roomIndex` がその部屋）が全滅したら 1 回だけ制圧（`clearRoom`: 報酬・`onRoomClear` トリガー・祝福の `onBoonRoomClear`・来歴）。報酬はプレイヤーが部屋の外なら足元に置く
 - 徘徊と増援（`system/spawner.ts`、tuning の `ROAM`）: 生成時に置いた敵の一部を徘徊（`roomIndex = ROAMING_ROOM`（-1）、`EnemyAi.roam` が目的地）にする。idle の間だけ `updateRoamers` が塊の中心への距離場（マップから作る派生データ。WeakMap に覚える）を下って歩かせ、気付いたら `enemies.ts` の chase に任せる。`floorTime` が `reinforceDelay` を過ぎると `reinforceInterval` ごとに画面外へ徘徊を 1 抽選ぶん湧かせる（上限 `roamCap`、ボス階は無し）。徘徊はどの部屋にも属さないので制圧を妨げない
+- 遠い徘徊の間引きと敵の眠り（2026-09-25、広いマップ用）: プレイヤーから `ROAM.sleepDist` 以上離れた idle の敵は `enemies.ts` の `isAsleep` で更新を飛ばし（乱数を引かず時計も進まない）、遠くの徘徊は `(tick + id) % sleepRoamEvery` の番にまとめて歩く。どちらも距離と tick だけで決まるので決定的
 - 視線と回り込み（`map/pathing.ts`、純関数 + マップごとの距離場キャッシュ）: 敵は壁越しには気付かない（`enemies.ts` の idle で `lineOfSight`）。追跡中に壁で遮られたら距離場の次の点へ向かう（`chaseHeading`）。徘徊の歩行（`nextWaypoint`）と QA bot の交戦相手の選択も同じ視線判定を使う
 - 呼び出し順: すべて `floor.ts` の `updateRooms` の中（部屋ごとの封鎖 / 交戦 / 制圧 → `updateRoamers` → 増援 → 泉 → 特別な部屋 → …）。乱数は `state.rng` だけで、この順に引く
 - 気力の自然回復（`mana.ts` の `tickMana`）は「封鎖中」ではなく「封鎖中か、`MANA.combatRadius` 内に生きた敵がいる」間を戦闘中とみなして遅くする

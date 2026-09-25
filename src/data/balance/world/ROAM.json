@@ -12,7 +12,9 @@
     "minSpawnDist": "増援をプレイヤーからこの距離以上離して湧かせる。px",
     "spawnAttempts": "増援の湧く場所を探す試行回数。見つからなければその回は湧かない",
     "offscreenMargin": "画面の外とみなす余白。px。画面の端からこの距離の内側には増援を湧かせない",
-    "engageLeash": "部屋から追ってきた敵がこの距離以内にいる間は交戦中とみなす。px"
+    "engageLeash": "部屋から追ってきた敵がこの距離以内にいる間は交戦中とみなす。px",
+    "sleepDist": "プレイヤーからこの距離以上離れた、まだ気付いていない敵は眠る（AI を回さない。system/enemies.ts の isAsleep）。px。画面の幅（480）以上にする",
+    "sleepRoamEvery": "眠りの距離より遠い徘徊を何ステップに 1 回歩かせるか（その分の dt でまとめて歩く）。1 で間引かない"
   },
   "fraction": 0.25,
   "speedMul": 0.4,
@@ -26,5 +28,7 @@
   "minSpawnDist": 260,
   "spawnAttempts": 24,
   "offscreenMargin": 24,
-  "engageLeash": 160
+  "engageLeash": 160,
+  "sleepDist": 480,
+  "sleepRoamEvery": 4
 }

@@ -1,7 +1,7 @@
 {
-  "_note": "追跡者(Reaper)。appearAfter は 90→105(QA 2026-09-24: マナ経済の締め直しで各階層の滞在が約 10 秒伸び、出現が 2 倍近くに増えたため猶予を補正)。猶予 = appearAfter × 面積の倍率 ^ MAP_SIZE.graceAreaExp + 部屋数 × appearPerRoom。マップ拡大(MAP_SIZE の面積 3.5〜5 倍)を有効にするときは appearAfter 150・appearPerRoom 3 にする(深度 1 の 4 倍面積で約 300 秒、基準の大きさのボス階で約 180 秒)。speed は出現後の追跡速度(旧 28 の 85%)",
-  "appearAfter": 105,
-  "appearPerRoom": 12,
+  "_note": "追跡者(Reaper)。appearAfter は 90→105(QA 2026-09-24: マナ経済の締め直しで各階層の滞在が約 10 秒伸び、出現が 2 倍近くに増えたため猶予を補正)。猶予 = appearAfter × 面積の倍率 ^ MAP_SIZE.graceAreaExp + 部屋数 × appearPerRoom。2026-09-25 マップ拡大(MAP_SIZE の面積 3.5〜5 倍)の有効化で appearAfter 105→170・appearPerRoom 12→4(4 倍強の面積・部屋 14 前後で約 300 秒、基準の大きさのボス階で約 205 秒。階段までの道のりは約 2.2 倍)。speed は出現後の追跡速度(旧 28 の 85%)",
+  "appearAfter": 170,
+  "appearPerRoom": 4,
   "warnMargin": 30,
   "speed": 23.8,
   "radius": 9,

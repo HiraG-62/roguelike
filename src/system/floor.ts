@@ -198,12 +198,30 @@ export interface AreaMulRange {
   areaMulMax: number;
 }
 
+/** withBaseAreaMul の間だけ使う抽選範囲（null なら MAP_SIZE） */
+let areaMulOverride: AreaMulRange | null = null;
+const BASE_AREA_MUL: AreaMulRange = { areaMulMin: 1, areaMulMax: 1 };
+
+/**
+ * fn の間だけ面積の倍率を 1（基準の大きさ・乱数を引かない）にする。テストの小さな検証場（system/testHelpers.ts の arena）が
+ * 広いマップの生成と形のばらつきに左右されないように。ゲーム本体からは呼ばない
+ */
+export function withBaseAreaMul<T>(fn: () => T): T {
+  const saved = areaMulOverride;
+  areaMulOverride = BASE_AREA_MUL;
+  try {
+    return fn();
+  } finally {
+    areaMulOverride = saved;
+  }
+}
+
 /**
  * この階の面積の倍率を range の範囲で抽選する（マップ生成の直前に rng から 1 回）。
  * ボス階は基準の大きさのまま（ボス部屋までの道のりを伸ばさず、ボス階の形を変えない）。
  * ボス階と、範囲が 1 点（min = max）のときは乱数を引かない（既存の seed の乱数の流れを変えない）
  */
-export function rollAreaMul(rng: Rng, depth: number, range: AreaMulRange = MAP_SIZE): number {
+export function rollAreaMul(rng: Rng, depth: number, range: AreaMulRange = areaMulOverride ?? MAP_SIZE): number {
   if (isBossDepth(depth)) return 1;
   if (range.areaMulMax <= range.areaMulMin) return range.areaMulMin;
   return range.areaMulMin + rng.next() * (range.areaMulMax - range.areaMulMin);
@@ -294,8 +312,12 @@ function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
   return doors.sort((a, b) => a - b);
 }
 
+/** 部屋に置く敵の抽選回数。広い階（部屋も大きい）は 面積の倍率 ^ MAP_SIZE.roomEnemiesExp 倍（倍率 1 なら基準と同じ） */
 export function enemyCount(state: GameState): number {
-  return Math.min(maxEnemiesFor(state.depth), ROOM.baseEnemies + Math.floor(state.depth * ROOM.enemiesPerDepth));
+  const base = ROOM.baseEnemies + Math.floor(state.depth * ROOM.enemiesPerDepth);
+  const areaMul = state.floorAreaMul ?? 1;
+  const scaled = areaMul === 1 ? base : Math.round(base * areaMul ** MAP_SIZE.roomEnemiesExp);
+  return Math.min(maxEnemiesFor(state.depth), scaled);
 }
 
 /** 部屋の敵数の上限。無限の深み（FLOOR_KIND.deepDepth 以降）では上限を外して数でも押す */

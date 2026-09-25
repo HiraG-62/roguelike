@@ -5,7 +5,7 @@ import { MAP_SIZE, ROAM } from "../data/tuning";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { nextWaypoint } from "../map/pathing";
-import { moveEnemy } from "./enemies";
+import { farFromPlayer, moveEnemy } from "./enemies";
 import { spawnSpot } from "./enemyTraits";
 import { overlapsWall } from "./physics";
 import { ROOM_LOCKS } from "./roomTypes";
@@ -95,11 +95,21 @@ export function assignRoamers(state: GameState, skip: ReadonlySet<number>): void
 /** 1 ステップで期待する移動量のこの割合より進めていなければ詰まりとみなす */
 const STUCK_PROGRESS_RATIO = 0.3;
 
-/** 毎ステップ: idle の徘徊を目的地へ歩かせる。気付いて chase になった敵は enemies.ts に任せる */
+/**
+ * 毎ステップ: idle の徘徊を目的地へ歩かせる。気付いて chase になった敵は enemies.ts に任せる。
+ * プレイヤーから遠い（enemies.ts の眠りの距離）徘徊は ROAM.sleepRoamEvery ステップに 1 回、その分の dt でまとめて歩かせる
+ * （止めると遠くの徘徊が寄ってこなくなる。間引く番は tick と id で決まるので決定的）
+ */
 export function updateRoamers(state: GameState, dt: number): void {
+  const every = Math.max(1, ROAM.sleepRoamEvery);
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase !== "idle" || !e.ai?.roam || isHalted(e)) continue;
-    stepRoamer(state, e, dt);
+    if (!farFromPlayer(state, e)) {
+      stepRoamer(state, e, dt);
+      continue;
+    }
+    if ((state.tick + e.id) % every !== 0) continue;
+    stepRoamer(state, e, dt * every);
   }
 }
 

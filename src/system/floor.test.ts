@@ -10,7 +10,7 @@ import type { Enemy, GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance, makeElite } from "./elites";
 import { createEnemy } from "./enemies";
-import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesFor, rollAreaMul, updateRooms } from "./floor";
+import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
 import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
 import { BOSS, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
@@ -82,6 +82,24 @@ describe("マップの広さ（MAP_SIZE）", () => {
     buildFloor(state);
     expect(state.floorAreaMul).toBe(1);
     expect([state.map.width, state.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
+  });
+
+  it("部屋の敵の抽選回数は 面積の倍率 ^ roomEnemiesExp 倍（倍率 1 は基準のまま、部屋の上限は超えない）", () => {
+    const state = createGame(3);
+    state.depth = 2;
+    state.floorAreaMul = 1;
+    const base = enemyCount(state);
+    expect(base, "倍率 1 は基準").toBe(Math.min(maxEnemiesFor(2), ROOM.baseEnemies + Math.floor(2 * ROOM.enemiesPerDepth)));
+    state.floorAreaMul = 4;
+    expect(enemyCount(state)).toBe(Math.min(maxEnemiesFor(2), Math.round(base * 4 ** MAP_SIZE.roomEnemiesExp)));
+  });
+
+  it("withBaseAreaMul の間は基準の大きさで乱数を引かず、抜けると元の抽選に戻る", () => {
+    const small = withBaseAreaMul(() => createGame(5));
+    expect(small.floorAreaMul).toBe(1);
+    expect([small.map.width, small.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
+    const wide = createGame(5);
+    expect(wide.floorAreaMul, "抜けた後は MAP_SIZE の範囲").toBeGreaterThanOrEqual(MAP_SIZE.areaMulMin);
   });
 
   it("徘徊の上限は広い階ほど 面積の倍率 ^ roamCapExp 倍に増える", () => {
@@ -655,6 +673,8 @@ describe("開放型フロア: 徘徊", () => {
     const goal = { ...roamer.ai!.roam! };
     const before = Math.hypot(roamer.body.pos.x - goal.x, roamer.body.pos.y - goal.y);
     for (let i = 0; i < 60; i++) {
+      // プレイヤーから遠い徘徊は tick で間引いて歩く（ROAM.sleepRoamEvery）ので、step と同じく tick を進める
+      state.tick += 1;
       updateRoamers(state, FIXED_DT);
       expect(overlapsWall(state, roamer.body.pos.x, roamer.body.pos.y, roamer.body.radius), "壁に埋まらない").toBe(false);
       if (roamer.ai!.roam!.x !== goal.x || roamer.ai!.roam!.y !== goal.y) break;
