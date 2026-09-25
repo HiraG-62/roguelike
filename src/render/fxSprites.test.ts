@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
-import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
-import { MOVESET_FX, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
+import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, loopFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
+import { MOVESET_FX, mirrorFlip, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
 import { ELEMENTS } from "../core/element";
 
 const SHEET_KEYS = Object.keys(FX_SHEETS) as FxSheetKey[];
@@ -55,6 +55,14 @@ describe("fxSprites: 時間の割り付け", () => {
     expect(lifeFrame(6, 0, 0.18)).toBe(0);
     expect(lifeFrame(6, 0.17, 0.18)).toBe(5);
     expect(lifeFrame(6, 0.18, 0.18)).toBeNull();
+  });
+
+  it("押している間の絵は period 秒で 1 巡して繰り返す", () => {
+    expect(loopFrame(8, 0, 0.25)).toBe(0);
+    expect(loopFrame(8, 0.125, 0.25)).toBe(4);
+    expect(loopFrame(8, 0.25, 0.25)).toBe(0);
+    expect(loopFrame(8, 0.26, 0.25)).toBe(0);
+    expect(loopFrame(8, 0.24, 0.25)).toBe(7);
   });
 
   it("大きさの差が許容内なら拡縮しない", () => {
@@ -138,5 +146,37 @@ describe("fxMotions: 武器種のモーションの表", () => {
     expect(motionKey(MOVESETS.greatsword, { ...ref, chargeLevel: 1 })).toBe("charge");
     // 溜めを持たない武器種は溜めの段でも通常の段
     expect(motionKey(sword, { ...ref, chargeLevel: 1 })).toBe("l:1");
+  });
+
+  it("反転の条件: 振りの左右か、向いている左右で絵を上下反転する", () => {
+    expect(mirrorFlip("swing", true, false)).toBe(true);
+    expect(mirrorFlip("swing", false, true)).toBe(false);
+    expect(mirrorFlip("faceLeft", false, true)).toBe(true);
+    expect(mirrorFlip("faceLeft", true, false)).toBe(false);
+    expect(mirrorFlip("faceRight", false, false)).toBe(true);
+    expect(mirrorFlip("faceRight", true, true)).toBe(false);
+  });
+
+  it("地面の層の絵は、空中の絵と同じフレーム数・方向数・active を持つ（同じ時間割で流す）", () => {
+    for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
+      for (const [key, m] of Object.entries(fx?.motions ?? {})) {
+        if (!m.ground) continue;
+        const air = FX_SHEETS[m.sheet];
+        const ground = FX_SHEETS[m.ground];
+        expect([ground.frames, ground.dirs, ground.active], `${moveset} ${key}`).toEqual([air.frames, air.dirs, air.active]);
+      }
+    }
+  });
+
+  it("押している間の絵は、その武器種の右の溜めの段（回しを持つもの）に対応する", () => {
+    for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
+      const def = MOVESETS[moveset as MovesetKey];
+      for (const key of Object.keys(fx?.holds ?? {})) {
+        const lane = def.steps2.find((s) => s.key === key);
+        expect(lane?.kind, `${moveset} ${key}`).toBe("charge");
+        expect(lane?.kind === "charge" ? lane.charge.spinning : undefined, `${moveset} ${key}`).toBeDefined();
+      }
+    }
+    expect(MOVESET_FX.flail?.holds.flailWhirl).toBeDefined();
   });
 });

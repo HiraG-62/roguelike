@@ -648,7 +648,8 @@ const FX = {
     "l:2": { sheet: "whip.sweepWide", pivot: "self", base: 48, measure: "reach" },
     "l:3": { sheet: "whip.lashHeavy", pivot: "self", base: 60, measure: "reach" },
     dash: { sheet: "whip.dash", pivot: "self", base: 70, measure: "size" },
-    "r:entangle": { sheet: "whip.entangle", pivot: "self", base: 64, measure: "reach" },
+    // 巻き付きの螺旋は、手に持つ鞭の向き（向いている左右で入れ替わる）に合わせる。絵は右向きに合わせて描いてある
+    "r:entangle": { sheet: "whip.entangle", pivot: "self", base: 64, measure: "reach", mirror: "faceLeft" },
     "r:whipSweep": { sheet: "whip.sweepLow", pivot: "self", base: 44, measure: "reach" },
     "r:groundLash": { sheet: "whip.ground", pivot: "self", base: 48, measure: "size" },
     "r:whipCrack": { sheet: "whip.crack", pivot: "self", base: 64, measure: "reach" },

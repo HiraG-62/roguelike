@@ -342,6 +342,38 @@ function spinOrbit(frame, f, s) {
   }
 }
 
+/**
+ * 右長押しの溜め中の回し（steps2 の flailWhirl。押している間 spinning.interval ごとに周りを打つ）。
+ * 押している間ずっと繰り返すので、frames 枚で 1 周して最後と最初が継ぎ目なくつながる（崩れは無い）。
+ * charged は溜めの段が 1 以上: 球が大きく、残像と風圧が増え、明るい
+ */
+const WHIRL_HOLD = { Ro: 70, ball: 10, spikes: 6, frames: 8, ghosts: 7, ghostStep: 24, winds: 3, bright: 0.85, seed: 2601 };
+const WHIRL_HOLD_CHARGED = { Ro: 74, ball: 12, spikes: 8, frames: 8, ghosts: 10, ghostStep: 22, winds: 5, bright: 1.05, seed: 2602 };
+
+function whirlHold(frame, f, s) {
+  const head = -Math.PI / 2 + (TAU * f) / s.frames;
+  const step = s.ghostStep * DEG;
+  for (let i = s.ghosts; i >= 1; i--) {
+    const a = head - i * step;
+    const age = i / (s.ghosts + 1);
+    ghostBall(frame, Math.cos(a) * s.Ro, Math.sin(a) * s.Ro, s.ball * (0.95 - 0.5 * age), (0.72 - 0.55 * age) * s.bright, age * 0.15, s.seed + i);
+  }
+  // 外周の風圧: 球の後ろを追う短い弧（等間隔に置き、フレームが一巡しても継ぎ目が出ない）
+  for (let i = 0; i < s.winds; i++) {
+    const a = head - 0.35 - i * (TAU / s.winds);
+    const radius = s.Ro + s.ball + 6 + (i % 2) * 3;
+    arcLine(frame, { radius, from: a - 0.9, to: a, width: i % 2 ? 1 : 1.4, bright: 0.5 * s.bright });
+  }
+  const bx = Math.cos(head) * s.Ro;
+  const by = Math.sin(head) * s.Ro;
+  chain(frame, Math.cos(head) * 9, Math.sin(head) * 9, Math.cos(head) * (s.Ro - s.ball - 2), Math.sin(head) * (s.Ro - s.ball - 2), { bright: 0.62 * s.bright });
+  spikedBall(frame, bx, by, { r: s.ball, spikes: s.spikes, rot: head * 2.5, lx: Math.cos(head + 0.7), ly: Math.sin(head + 0.7), bright: s.bright, seed: s.seed + 20 });
+}
+
+function whirlHoldSheet(key, s) {
+  return { key, dirs: 1, frames: s.frames, active: s.frames, size: Math.ceil(s.Ro + s.ball + 24) * 2, draw: (frame, f) => whirlHold(frame, f, s) };
+}
+
 function spinSheet(key, s, extra = 0) {
   return { key, dirs: 1, frames: s.frames, active: s.active, size: Math.ceil(s.Ro + s.ball + 24 + extra) * 2, draw: (frame, f) => spinOrbit(frame, f, s) };
 }
@@ -666,6 +698,8 @@ const FX = {
   },
   hit: "flail.hit",
   hitHeavy: "flail.hitHeavy",
+  // 右長押しの溜め中の回し（押している間ずっと回す絵）
+  holds: { flailWhirl: { sheet: "flail.whirlHold", charged: "flail.whirlHoldCharged" } },
 };
 
 export const ATLAS = {
@@ -675,6 +709,8 @@ export const ATLAS = {
     swingSheet("flail.l0", L0),
     swingSheet("flail.l1", L1),
     spinSheet("flail.spin", SPIN),
+    whirlHoldSheet("flail.whirlHold", WHIRL_HOLD),
+    whirlHoldSheet("flail.whirlHoldCharged", WHIRL_HOLD_CHARGED),
     slamSheet("flail.l3", L3, 176),
     spinSheet("flail.dash", DASH_SPIN),
     swingSheet("flail.chainSwing", CHAIN_SWING),

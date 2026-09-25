@@ -84,6 +84,13 @@ export function swingFrame(sheet: Pick<FxSheetDef, "frames" | "active">, phase: 
   return sheet.active + Math.min(rest - 1, Math.floor(k * rest));
 }
 
+/** 繰り返すフレーム（押している間の回し）。period 秒で frames 枚を 1 巡する */
+export function loopFrame(frames: number, time: number, period: number): number {
+  if (frames <= 0 || period <= 0) return 0;
+  const cycle = (((time / period) % 1) + 1) % 1;
+  return Math.min(frames - 1, Math.floor(cycle * frames));
+}
+
 /** 寿命で流すフレーム（命中・受け流し）。流し切ったら null */
 export function lifeFrame(frames: number, age: number, life: number): number | null {
   if (life <= 0 || age < 0 || age >= life) return null;
@@ -138,6 +145,11 @@ export class FxSpriteBank {
     for (const key of [...this.requested]) if (key !== atlas) this.requested.delete(key);
     this.cells.clear();
     if (atlas) this.request(atlas);
+  }
+
+  /** アトラスが読み込み済みか（読み始めはしない） */
+  ready(atlas: string): boolean {
+    return this.images.has(atlas);
   }
 
   /** 読み込み済みか。まだなら読み始めて false（読めるまで呼び出し側は手続きの描画） */

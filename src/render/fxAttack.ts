@@ -987,9 +987,13 @@ function drawLine(ctx: CanvasRenderingContext2D, s: ShapeFx): void {
   strokePolyline(ctx, pts);
 }
 
-/** state.shapes（輪・線・爆発）を描く */
-export function drawShapeFx(ctx: CanvasRenderingContext2D, shapes: readonly ShapeFx[], glow: GlowFn): void {
+/**
+ * state.shapes（輪・線・爆発）を描く。skipSwingTrail が true なら振りの残像の線（ShapeFx.swingTrail）を描かない
+ * （武器種の専用スプライトが振りを描くので、手続きの線が重なって二重に見えるのを避ける）
+ */
+export function drawShapeFx(ctx: CanvasRenderingContext2D, shapes: readonly ShapeFx[], glow: GlowFn, skipSwingTrail = false): void {
   for (const s of shapes) {
+    if (skipSwingTrail && s.swingTrail) continue;
     if (s.kind === "ring") {
       if (isBlastShape(s)) drawBlast(ctx, s, glow);
       else drawRing(ctx, s);

@@ -11,6 +11,7 @@
 - 形の部品は `shapes.mjs`（三日月・レンズ形の斬線・速度線・輪・刃片）、弧の斬撃の時間割は `motifs.mjs`、塗りの道具は `raster.mjs`。部品を土台にしつつ、その武器だけの形を必ず足す
 - 確認しながら詰める: `node scripts/fx/gen.mjs --only <シートの key> --preview <scratchpad の dir> --dirs 0,3 --scale 4` で配色済みの一覧 PNG を描いて目で見る
 - 仕上げに `node scripts/fx/gen.mjs --atlas <key>`（その武器の PNG と `src/data/fx/<key>.gen.json`、束ねる `src/data/fxSheets.gen.ts` を書き直す）。全部は `npm run fx:gen`。表の網羅（振りのモーションをすべて持つ）は `render/fxSprites.test.ts` が検査する。時間の割り付けの数値は `src/data/balance/feel/FX_ATTACK/sprite.json`
+- 表の任意の項目: `mirror`（`faceLeft` / `faceRight`: 突きの鉤など非対称な絵を手に持つ武器の向きに合わせる）、`ground`（キャラより下に描く地面の層のシート）、`holds`（右の溜めの段の回しを押している間の繰り返しの絵）。手本は `scythe.mjs` / `hammer.mjs` / `flail.mjs`
 - 見た目の決まり（剣で固まったもの）: 内側に 2 本目の弧を重ねない・速度線は刃の外側だけ・斬線の反りは前（敵の側）へふくらむ。詳しくは `docs/ideas/fx-sprites.md`
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

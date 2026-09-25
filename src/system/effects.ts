@@ -164,8 +164,10 @@ export function spawnRing(state: GameState, pos: Vec, radius: number, color: str
 }
 
 /** 2 点を結ぶ稲妻線 */
-export function spawnLine(state: GameState, from: Vec, to: Vec, color: string, life: number): void {
-  state.shapes.push({ kind: "line", pos: { ...from }, to: { ...to }, radius: 0, life, maxLife: life, color });
+export function spawnLine(state: GameState, from: Vec, to: Vec, color: string, life: number, swingTrail = false): void {
+  const shape: ShapeFx = { kind: "line", pos: { ...from }, to: { ...to }, radius: 0, life, maxLife: life, color };
+  if (swingTrail) shape.swingTrail = true;
+  state.shapes.push(shape);
   capList(state.shapes, EFFECTS.maxShapes);
 }
 

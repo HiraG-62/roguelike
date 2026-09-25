@@ -313,12 +313,23 @@ function crater(frame, r, o) {
  * 叩きつけ 1 フレーム。f = 0 で鎚が地面に当たり（星と亀裂の根元）、active の間に輪と亀裂が走り、
  * 振り終わりで輪が崩れ、亀裂が冷えて暗い溝になり、石が落ちて砂煙が残る
  */
-function slam(frame, f, S) {
+function slam(frame, f, S, layer) {
   const A = S.active;
   const N = S.frames;
   const k = f < A ? 0 : (f - A + 1) / (N - A + 1);
   const aim = frame.angle + (S.aimOffset ?? 0);
-  // 亀裂（最初に下に敷く。輪と石が上に乗る）
+  if (layer === "air") {
+    // 空中の層（キャラより上）: 跳ねる石と打撃の星
+    if (S.rocks) rocks(frame, f - 1, { ...S.rocks, aim, seed: S.seed + 4 });
+    if (S.star) {
+      if (f === 0) impactStar(frame, 0, 0, S.star * 1.1, 1);
+      if (f === 1) impactStar(frame, 0, 0, S.star * 1.4, 1);
+      if (f === 2) impactStar(frame, 0, 0, S.star * 0.8, 0.75);
+    }
+    if ((S.extraLayer ?? "ground") === "air") S.extra?.(frame, f, k, aim);
+    return;
+  }
+  // 地面の層（キャラより下）: 亀裂・くぼみ・砂煙・地面の輪
   if (S.cracks) {
     const lines = makeCracks(aim, S.cracks);
     const grow = clamp01((f + 1) / (S.cracks.growFrames ?? A));
@@ -340,17 +351,19 @@ function slam(frame, f, S) {
       seed: S.seed + 10 + i,
     });
   }
-  if (S.rocks) rocks(frame, f - 1, { ...S.rocks, aim, seed: S.seed + 4 });
-  if (S.star) {
-    if (f === 0) impactStar(frame, 0, 0, S.star * 1.1, 1);
-    if (f === 1) impactStar(frame, 0, 0, S.star * 1.4, 1);
-    if (f === 2) impactStar(frame, 0, 0, S.star * 0.8, 0.75);
-  }
-  S.extra?.(frame, f, k, aim);
+  if ((S.extraLayer ?? "ground") === "ground") S.extra?.(frame, f, k, aim);
 }
 
-function slamSheet(key, S) {
-  return { key, dirs: S.dirs ?? DIRS, frames: S.frames, active: S.active, size: S.size, draw: (frame, f) => slam(frame, f, S) };
+/**
+ * 叩きつけのシートを 2 枚に分ける: key（空中の層。石・星）と key.ground（地面の層。亀裂・くぼみ・砂煙・地面の輪）。
+ * 地面の物をキャラより下に描くため（実行時は FX の motions の ground で同じフレームを流す）
+ */
+function slamSheets(key, S) {
+  const base = { dirs: S.dirs ?? DIRS, frames: S.frames, active: S.active, size: S.size };
+  return [
+    { key, ...base, draw: (frame, f) => slam(frame, f, S, "air") },
+    { key: `${key}.ground`, ...base, draw: (frame, f) => slam(frame, f, S, "ground") },
+  ];
 }
 
 /** 左 1 段: circle reach 14 / size 36（半径 36 ドット）。軽めの叩き: 輪 1 枚・前へ短い亀裂 4 本・小石 */
@@ -537,6 +550,8 @@ const LAUNCHER = {
   rocks: { count: 16, spread: 80 * DEG, speed: 6.5, size: 3, life: 1 },
   dust: { count: 6, r0: 18, r1: 44, size: 5, spread: 120 * DEG },
   extra: launcherLines,
+  // 吹き上がる速度線は空中の層（キャラより上）
+  extraLayer: "air",
 };
 
 /** ダッシュの地面の掻き跡: 後ろ（-x）から当たりまで地面を削った 2 本の溝と、後ろへ流れる砂煙 */
@@ -833,20 +848,20 @@ function hit(frame, f, heavy) {
 const FX = {
   moveset: "hammer",
   motions: {
-    "l:0": { sheet: "hammer.l1", pivot: "anchor", base: 36, measure: "size" },
-    "l:1": { sheet: "hammer.l2", pivot: "anchor", base: 36, measure: "size" },
-    "l:2": { sheet: "hammer.l3", pivot: "anchor", base: 30, measure: "size" },
-    "l:3": { sheet: "hammer.l4", pivot: "anchor", base: 34, measure: "size" },
-    dash: { sheet: "hammer.dash", pivot: "anchor", base: 44, measure: "size" },
-    charge: { sheet: "hammer.charge", pivot: "anchor", base: 50, measure: "size" },
+    "l:0": { sheet: "hammer.l1", ground: "hammer.l1.ground", pivot: "anchor", base: 36, measure: "size" },
+    "l:1": { sheet: "hammer.l2", ground: "hammer.l2.ground", pivot: "anchor", base: 36, measure: "size" },
+    "l:2": { sheet: "hammer.l3", ground: "hammer.l3.ground", pivot: "anchor", base: 30, measure: "size" },
+    "l:3": { sheet: "hammer.l4", ground: "hammer.l4.ground", pivot: "anchor", base: 34, measure: "size" },
+    dash: { sheet: "hammer.dash", ground: "hammer.dash.ground", pivot: "anchor", base: 44, measure: "size" },
+    charge: { sheet: "hammer.charge", ground: "hammer.charge.ground", pivot: "anchor", base: 50, measure: "size" },
     "r:hammerSweep": { sheet: "hammer.sweep", pivot: "self", base: 32, measure: "reach" },
-    "r:hammerDown": { sheet: "hammer.down", pivot: "anchor", base: 30, measure: "size" },
+    "r:hammerDown": { sheet: "hammer.down", ground: "hammer.down.ground", pivot: "anchor", base: 30, measure: "size" },
     "r:hammerSide": { sheet: "hammer.side", pivot: "self", base: 30, measure: "reach" },
-    "r:earthSlam": { sheet: "hammer.earthSlam", pivot: "anchor", base: 60, measure: "size" },
-    "branch:groundBreaker": { sheet: "hammer.groundBreaker", pivot: "anchor", base: 60, measure: "size" },
+    "r:earthSlam": { sheet: "hammer.earthSlam", ground: "hammer.earthSlam.ground", pivot: "anchor", base: 60, measure: "size" },
+    "branch:groundBreaker": { sheet: "hammer.groundBreaker", ground: "hammer.groundBreaker.ground", pivot: "anchor", base: 60, measure: "size" },
     "branch:hammerWheel": { sheet: "hammer.wheel", pivot: "anchor", base: 56, measure: "size" },
-    "branch:launcher": { sheet: "hammer.launcher", pivot: "anchor", base: 30, measure: "size" },
-    "branch:ironHammer": { sheet: "hammer.ironHammer", pivot: "anchor", base: 34, measure: "size" },
+    "branch:launcher": { sheet: "hammer.launcher", ground: "hammer.launcher.ground", pivot: "anchor", base: 30, measure: "size" },
+    "branch:ironHammer": { sheet: "hammer.ironHammer", ground: "hammer.ironHammer.ground", pivot: "anchor", base: 34, measure: "size" },
   },
   hit: "hammer.hit",
   hitHeavy: "hammer.hitHeavy",
@@ -856,17 +871,17 @@ export const ATLAS = {
   key: "hammer",
   fx: FX,
   sheets: [
-    slamSheet("hammer.l1", L1),
-    slamSheet("hammer.l2", L2),
-    slamSheet("hammer.l3", L3),
-    slamSheet("hammer.l4", L4),
-    slamSheet("hammer.dash", DASH),
-    slamSheet("hammer.charge", CHARGE),
-    slamSheet("hammer.down", DOWN),
-    slamSheet("hammer.earthSlam", EARTH),
-    slamSheet("hammer.groundBreaker", BREAKER),
-    slamSheet("hammer.launcher", LAUNCHER),
-    slamSheet("hammer.ironHammer", IRON),
+    ...slamSheets("hammer.l1", L1),
+    ...slamSheets("hammer.l2", L2),
+    ...slamSheets("hammer.l3", L3),
+    ...slamSheets("hammer.l4", L4),
+    ...slamSheets("hammer.dash", DASH),
+    ...slamSheets("hammer.charge", CHARGE),
+    ...slamSheets("hammer.down", DOWN),
+    ...slamSheets("hammer.earthSlam", EARTH),
+    ...slamSheets("hammer.groundBreaker", BREAKER),
+    ...slamSheets("hammer.launcher", LAUNCHER),
+    ...slamSheets("hammer.ironHammer", IRON),
     { key: "hammer.sweep", dirs: DIRS, frames: SWEEP.frames, active: SWEEP.active, size: 176, draw: (frame, f) => heavySwing(frame, f, SWEEP) },
     { key: "hammer.side", dirs: DIRS, frames: SIDE.frames, active: SIDE.active, size: 176, draw: (frame, f) => heavySwing(frame, f, SIDE) },
     { key: "hammer.wheel", dirs: 1, frames: 10, active: 6, size: 160, draw: hammerWheel },
