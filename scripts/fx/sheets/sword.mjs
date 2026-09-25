@@ -249,9 +249,10 @@ function crossCut(frame, f) {
   const g2 = f < 2 ? 0 : Math.min(1, (f - 1) / 2);
   const T = 15 * (1 - k * 0.55);
   // 反り（bend）で線の中央が法線方向へずれるので、その分だけ戻して交点を原点に合わせる
-  const c = (BEND * Math.SQRT1_2);
-  lens(frame, { ax: -L + c, ay: -L - c, bx: L + c, by: L - c, T, bend: BEND, grow: g1, erosion: k * 0.85, seed: 631 });
-  if (g2 > 0) lens(frame, { ax: -L + c, ay: L + c, bx: L + c, by: -L + c, T, bend: -BEND, grow: g2, erosion: k * 0.85, seed: 632 });
+  // 2 本とも中央が前（+x、敵の側）へふくらむ向きに反らす。後ろへ反ると、振った刃の軌跡と逆の弓なりに見える
+  const c = BEND * Math.SQRT1_2;
+  lens(frame, { ax: -L - c, ay: -L + c, bx: L - c, by: L + c, T, bend: -BEND, grow: g1, erosion: k * 0.85, seed: 631 });
+  if (g2 > 0) lens(frame, { ax: -L - c, ay: L - c, bx: L - c, by: -L - c, T, bend: BEND, grow: g2, erosion: k * 0.85, seed: 632 });
   if (f === 4) {
     sparkle(frame, 0, 0, 4);
     ring(frame, { radius: 8, width: 3, bright: 0.9, seed: 633 });
