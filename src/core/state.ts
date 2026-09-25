@@ -494,6 +494,8 @@ export type FxMarkKind =
   | "dropBeam"
   | "dashGhost"
   | "budBloom"
+  /** 受け流しの成功（描画は render/fxAttack.ts のスプライト） */
+  | "parry"
   | "inscribe";
 
 export interface FxMark {

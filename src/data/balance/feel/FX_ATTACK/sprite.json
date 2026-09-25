@@ -1,0 +1,21 @@
+{
+  "_note": "エフェクトのスプライト（src/render/fxSprites.ts・docs/ideas/fx-sprites.md）。絵のフレームをどの時間に割り当てるか。見た目だけ",
+  "_fields": {
+    "swingFade": "振り終わり（recover）で崩れのフレームを流し切る時間。秒。0.15〜0.3",
+    "hitLife": "命中（軽）の絵を流し切る時間。秒",
+    "hitHeavyLife": "命中（重い段・会心・弱点）の絵を流し切る時間。秒",
+    "parryLife": "受け流し成功の絵を流し切る時間。秒",
+    "scaleTolerance": "当たり判定の大きさと絵の基準の大きさの差がこの割合以内なら拡縮しない（ドットを崩さない）。割合 0..1",
+    "tipGlow": "振りの当たりの中心に重ねる加算の光の濃さ。割合 0..1",
+    "glowR": "その光の半径。px",
+    "heavyGlowR": "重い段の光の半径。px"
+  },
+  "swingFade": 0.2,
+  "hitLife": 0.18,
+  "hitHeavyLife": 0.24,
+  "parryLife": 0.34,
+  "scaleTolerance": 0.15,
+  "tipGlow": 0.35,
+  "glowR": 10,
+  "heavyGlowR": 16
+}

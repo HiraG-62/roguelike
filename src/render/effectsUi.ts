@@ -464,7 +464,8 @@ function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMar
       return;
     case "bossLight":
     case "critFlash":
-      // 画面全体の光は drawScreenMarks、会心の反転は敵の描画側
+    case "parry":
+      // 画面全体の光は drawScreenMarks、会心の反転は敵の描画側、受け流しは fxAttack.ts のスプライト
       return;
   }
 }

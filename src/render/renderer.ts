@@ -74,6 +74,7 @@ import {
   playerBodyPose,
   slashVisual,
   slashWeight,
+  swingSign,
   weaponGrip,
   weaponPose,
 } from "./renderMath";
@@ -87,7 +88,9 @@ import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
-import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
+import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
+import { FxSpriteBank, fitScale, rampColors, sheetDef, swingFrame } from "./fxSprites";
+import { motionFx, rampOfElement } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -619,6 +622,8 @@ export class Renderer {
     player: (color) => this.tinted(SPR.player, color)[0],
     glow: (x, y, color, r, alpha) => this.drawGlow(x, y, color, r, alpha),
   };
+  /** 武器種・モーション専用のエフェクトのスプライト（docs/ideas/fx-sprites.md）。読み込むまでは手続きの描画 */
+  private readonly fxBank = new FxSpriteBank();
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
   /** HUD のキーストーン表示（装備が変わったときだけ作り直す） */
@@ -894,6 +899,11 @@ export class Renderer {
    * PNG から作ったアトラスを合流させる（読み込み完了後に main.ts が呼ぶ）。
    * ピクセルマップの上から同名キーだけ上書きするので、未ロード中はここまでの見た目のまま
    */
+  /** エフェクトのスプライトを読み込む（main.ts。待たずにループを回し、読めた時点から使う） */
+  loadFxSprites(): Promise<void> {
+    return this.fxBank.load("");
+  }
+
   setAtlas(over: SpriteAtlas): void {
     this.atlas = mergeAtlas(buildAtlas(), expandTileAtlas(over));
     this.tints.clear();
@@ -1181,7 +1191,8 @@ export class Renderer {
 
   /** 命中の斬り裂き線・銃口の閃光・着弾（fxAttack.ts）の上に、属性ごとの形の粒 */
   private drawParticles(state: GameState): void {
-    drawAttackAir(this.ctx, state, this.fxSprites.glow);
+    drawAttackAir(this.ctx, state, this.fxSprites.glow, this.fxBank);
+    drawParryMarks(this.ctx, state, this.fxBank);
     drawParticleFx(this.ctx, state.particles, state.time);
   }
 
@@ -2059,6 +2070,7 @@ export class Renderer {
   private drawSlash(state: GameState, p: Player): void {
     const step = currentMeleeStep(state);
     if (!step) return;
+    if (this.drawSwingSprite(state, p, step)) return;
     const moveset = playerMoveset(state);
     const anchor = meleeAnchor(p, step);
     const finalStep = p.attack.branch < 0 && !p.dashStrike && p.attack.step >= moveset.steps.length - 1;
@@ -2098,6 +2110,33 @@ export class Renderer {
       ctx.globalCompositeOperation = "source-over";
     }
     ctx.globalAlpha = 1;
+  }
+
+  /**
+   * 武器種・モーション専用の斬撃スプライト（fxMotions.ts の表にあるときだけ）。描いたら true（手続きの斬撃は描かない）。
+   * active の進みで前半のフレーム、recover の経過で崩れのフレームを流す。色は属性の配色
+   */
+  private drawSwingSprite(state: GameState, p: Player, step: MeleeStep): boolean {
+    const ref = { lane: p.attack.lane, step: p.attack.step, branch: p.attack.branch, dashStrike: p.dashStrike };
+    const motion = motionFx(playerMoveset(state), ref);
+    if (!motion || !this.fxBank.has(motion.sheet)) return false;
+    const c = FX_ATTACK.sprite;
+    const active = p.attack.phase === "active";
+    const progress = step.active > 0 ? 1 - p.attack.timer / step.active : 1;
+    const frame = swingFrame(sheetDef(motion.sheet), active ? "active" : "recover", progress, step.recover - p.attack.timer, c.swingFade);
+    if (frame === null) return true;
+    const anchor = meleeAnchor(p, step);
+    const origin = motion.pivot === "self" ? p.body.pos : anchor.pos;
+    const ramp = rampOfElement(hitElement(state, "melee", false));
+    const actual = motion.measure === "reach" ? step.reach : step.size;
+    this.fxBank.draw(this.ctx, motion.sheet, frame, origin.x, origin.y, Math.atan2(p.attack.dir.y, p.attack.dir.x), {
+      ramp,
+      ccw: swingSign(p.attack.step) < 0,
+      scale: fitScale(actual, motion.base, c.scaleTolerance),
+    });
+    // 当たりの中心に淡い加算の光（ドット絵の上に空気の明るさを足す。形は絵が担う）
+    if (active) this.drawGlow(anchor.pos.x, anchor.pos.y, rampColors(ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * progress);
+    return true;
   }
 
   /** 斬撃と軌跡の色: 属性が乗っていれば属性色、無ければ段の残像色、どちらも無ければ既定 */
