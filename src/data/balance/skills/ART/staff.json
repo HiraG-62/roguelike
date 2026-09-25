@@ -1,0 +1,51 @@
+{
+  "_note": "棍の武器技（skills/arts/polearms.ts）。広く薙いで気力に還元する。単体の威力は控えめで、気力 1 あたり約 1.9",
+  "staffSweep": {
+    "cost": 16, "minInterval": 0.5, "poise": 10,
+    "wide": { "reach": 34, "deg": 180, "damage": { "base": 7, "str": 0.5, "vit": 0.5 }, "knockback": 90 }
+  },
+  "staffPoleVault": {
+    "cooldown": 8, "minInterval": 0.4, "poise": 16,
+    "leap": { "distance": 64, "width": 18, "invuln": 0.22 },
+    "land": { "radius": 28, "damage": { "base": 8, "str": 0.6, "vit": 0.4 }, "knockback": 130, "heavy": true }
+  },
+  "staffThrust": {
+    "cost": 15, "minInterval": 0.45, "poise": 8,
+    "poke": { "length": 46, "width": 12, "damage": { "base": 7, "vit": 0.5, "str": 0.5 }, "knockback": 60 }
+  },
+  "staffWindmill": {
+    "cost": 21, "minInterval": 0.6, "poise": 7,
+    "spin": { "radius": 30, "hits": 4, "damage": { "base": 3.8, "str": 0.4, "vit": 0.4 }, "knockback": 40 }
+  },
+  "staffDeflect": {
+    "cooldown": 7, "minInterval": 0.3, "poise": 4,
+    "parry": { "radius": 26, "damage": { "base": 3, "vit": 0.4 }, "knockback": 40 }
+  },
+  "staffBreath": {
+    "cooldown": 12, "minInterval": 0.3, "poise": 0,
+    "calm": { "duration": 0, "mana": 26 }
+  },
+  "staffTrip": {
+    "cost": 16, "minInterval": 0.5, "poise": 10,
+    "sweep": { "reach": 30, "deg": 120, "damage": { "base": 6, "str": 0.4, "vit": 0.4 }, "knockback": 60, "weaken": { "stacks": 1, "duration": 3, "potency": 0 } }
+  },
+  "staffCombo": {
+    "cost": 18, "minInterval": 0.5, "poise": 6,
+    "a": { "length": 40, "width": 12, "damage": { "base": 4.8, "vit": 0.4, "str": 0.4 }, "knockback": 30 },
+    "b": { "delay": 0.12, "length": 44, "width": 12, "damage": { "base": 5.2, "vit": 0.4, "str": 0.4 }, "knockback": 40 },
+    "c": { "delay": 0.24, "length": 48, "width": 14, "damage": { "base": 6.2, "vit": 0.5, "str": 0.5 }, "knockback": 80 }
+  },
+  "staffSlam": {
+    "cost": 20, "minInterval": 0.6, "poise": 30,
+    "down": { "reach": 30, "deg": 100, "damage": { "base": 14, "str": 0.8, "vit": 0.6 }, "knockback": 150, "heavy": true }
+  },
+  "staffGuard": {
+    "cooldown": 14, "minInterval": 0.3, "poise": 10,
+    "push": { "radius": 32, "damage": { "base": 4, "vit": 0.4 }, "knockback": 160 },
+    "ward": { "duration": 4, "self": { "harden": { "stacks": 1, "duration": 4, "potency": 0 } } }
+  },
+  "staffGale": {
+    "cost": 19, "minInterval": 0.5, "poise": 6,
+    "wind": { "count": 1, "spreadDeg": 0, "speed": 210, "life": 0.5, "bulletRadius": 9, "pierce": 5, "damage": { "base": 9, "vit": 0.5, "str": 0.5 }, "knockback": 70 }
+  }
+}

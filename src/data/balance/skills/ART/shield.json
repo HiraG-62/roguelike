@@ -1,0 +1,48 @@
+{
+  "_note": "大盾の武器技（skills/arts/heavy.ts）。低威力の代わりに押し返し・守りが強い",
+  "shieldBash": {
+    "cost": 17, "minInterval": 0.5, "poise": 34,
+    "bash": { "reach": 30, "deg": 80, "damage": { "base": 8, "str": 0.7, "vit": 0.4 }, "knockback": 160, "heavy": true }
+  },
+  "shieldCharge": {
+    "cost": 20, "minInterval": 0.6, "poise": 36,
+    "rush": { "distance": 70, "width": 26, "invuln": 0.2, "damage": { "base": 10, "vit": 0.9 }, "knockback": 220, "heavy": true }
+  },
+  "shieldFortress": {
+    "cooldown": 16, "minInterval": 0.3, "poise": 0,
+    "wall": { "duration": 4, "invuln": 0.4, "self": { "harden": { "stacks": 1, "duration": 4, "potency": 0 } } }
+  },
+  "shieldSlam": {
+    "cost": 22, "minInterval": 0.65, "poise": 40,
+    "drop": { "reach": 32, "deg": 70, "damage": { "base": 16, "str": 1.0, "vit": 0.6 }, "knockback": 180, "heavy": true }
+  },
+  "shieldThrow": {
+    "cost": 18, "minInterval": 0.5, "poise": 14,
+    "toss": { "count": 1, "spreadDeg": 0, "speed": 210, "life": 0.6, "bulletRadius": 9, "damage": { "base": 12, "str": 0.5, "vit": 0.7 }, "knockback": 120 }
+  },
+  "shieldReflect": {
+    "cooldown": 11, "minInterval": 0.4, "poise": 8,
+    "guard": { "radius": 32, "damage": { "base": 4, "vit": 0.3 }, "knockback": 40 }
+  },
+  "shieldTaunt": {
+    "cooldown": 13, "minInterval": 0.3, "poise": 0,
+    "gather": { "radius": 50, "toDistance": 40, "weaken": { "stacks": 1, "duration": 4, "potency": 0 } }
+  },
+  "shieldQuake": {
+    "cost": 21, "minInterval": 0.65, "poise": 10, "range": 120,
+    "shake": { "radius": 34, "damage": { "base": 10, "vit": 0.8 }, "knockback": 160, "heavy": true }
+  },
+  "shieldShove": {
+    "cost": 19, "minInterval": 0.55, "poise": 20,
+    "push": { "length": 50, "width": 30, "damage": { "base": 9, "str": 0.4, "vit": 0.6 }, "knockback": 260 }
+  },
+  "shieldBulwark": {
+    "cooldown": 18, "minInterval": 0.3, "poise": 0,
+    "wall2": { "duration": 5, "heal": 0.15, "self": { "harden": { "stacks": 1, "duration": 5, "potency": 0 } } }
+  },
+  "shieldCounter": {
+    "cost": 22, "minInterval": 0.65, "poise": 28,
+    "guard": { "duration": 0, "invuln": 0.3 },
+    "counter": { "delay": 0.25, "reach": 32, "deg": 130, "damage": { "base": 13, "str": 0.6, "vit": 0.8 }, "knockback": 170, "heavy": true }
+  }
+}

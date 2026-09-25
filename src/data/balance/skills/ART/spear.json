@@ -1,0 +1,53 @@
+{
+  "_note": "槍の武器技（skills/arts/polearms.ts）。長い間合いの直線的な突きを活かす。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "spearPierce": {
+    "cost": 19, "minInterval": 0.5, "poise": 18,
+    "thrust": { "length": 78, "width": 12, "damage": { "base": 15, "str": 0.9, "dex": 0.9 }, "knockback": 90 }
+  },
+  "spearVault": {
+    "cooldown": 9, "minInterval": 0.4, "poise": 22,
+    "leap": { "distance": 60, "width": 20, "invuln": 0.25 },
+    "land": { "radius": 30, "damage": { "base": 10, "str": 0.9 }, "knockback": 140, "heavy": true }
+  },
+  "spearSweep": {
+    "cost": 17, "minInterval": 0.5, "poise": 10,
+    "butt": { "reach": 30, "deg": 200, "damage": { "base": 6.5, "str": 0.5, "dex": 0.5 }, "knockback": 160 }
+  },
+  "spearRain": {
+    "cost": 24, "minInterval": 0.7, "poise": 10, "range": 130,
+    "s1": { "radius": 22, "damage": { "base": 8.5, "dex": 0.6, "str": 0.4 }, "knockback": 60 },
+    "s2": { "delay": 0.18, "radius": 22, "damage": { "base": 8.5, "dex": 0.6, "str": 0.4 }, "knockback": 60 },
+    "s3": { "delay": 0.36, "radius": 24, "damage": { "base": 9.5, "dex": 0.6, "str": 0.5 }, "knockback": 90 }
+  },
+  "spearHurl": {
+    "cost": 18, "minInterval": 0.5, "poise": 8,
+    "javelin": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.6, "bulletRadius": 5, "pierce": 4, "damage": { "base": 12, "str": 0.6, "dex": 0.8 }, "knockback": 100 }
+  },
+  "spearCharge": {
+    "cooldown": 10, "minInterval": 0.4, "poise": 18,
+    "rush": { "distance": 90, "width": 20, "invuln": 0.2, "damage": { "base": 10, "str": 1.0 }, "knockback": 160, "heavy": true }
+  },
+  "spearWall": {
+    "cost": 21, "minInterval": 0.6, "poise": 12,
+    "c": { "length": 46, "width": 12, "damage": { "base": 7, "str": 0.6, "dex": 0.5 }, "knockback": 70 },
+    "l": { "angleDeg": -32, "length": 46, "width": 12, "damage": { "base": 7, "str": 0.6, "dex": 0.5 }, "knockback": 70 },
+    "r": { "angleDeg": 32, "length": 46, "width": 12, "damage": { "base": 7, "str": 0.6, "dex": 0.5 }, "knockback": 70 }
+  },
+  "spearTwinStrike": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "t1": { "length": 56, "width": 12, "damage": { "base": 8, "dex": 0.7, "str": 0.5 }, "knockback": 40 },
+    "t2": { "delay": 0.13, "length": 62, "width": 13, "damage": { "base": 9.5, "dex": 0.8, "str": 0.6 }, "knockback": 90 }
+  },
+  "spearImpale": {
+    "cost": 20, "minInterval": 0.55, "poise": 16,
+    "run": { "length": 70, "width": 12, "damage": { "base": 13, "str": 0.9, "dex": 0.6 }, "knockback": 80, "vulnerable": { "stacks": 1, "duration": 4, "potency": 0 } }
+  },
+  "spearCyclone": {
+    "cost": 22, "minInterval": 0.6, "poise": 8,
+    "spin": { "radius": 34, "hits": 3, "damage": { "base": 5.2, "str": 0.5, "dex": 0.5 }, "knockback": 50 }
+  },
+  "spearPin": {
+    "cost": 19, "minInterval": 0.55, "poise": 20,
+    "nail": { "length": 60, "width": 12, "damage": { "base": 10, "str": 0.7, "dex": 0.5 }, "knockback": 30, "paralyze": { "stacks": 1, "duration": 1.4, "potency": 0 } }
+  }
+}

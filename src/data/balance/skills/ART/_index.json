@@ -64,9 +64,5 @@
     "matched": 7,
     "other": 0.3
   },
-  "_order": [
-    "weights",
-    "common",
-    "sword"
-  ]
+  "_order": ["weights", "common", "sword", "grenade", "gunner", "sidearm", "thrown", "trapper", "warRing", "cannon", "cleaver", "greatsword", "katana", "longarm", "twinBlades", "wand", "claws", "axe", "chainSickle", "fan", "fists", "flail", "hammer", "ringBlades", "scythe", "shield", "spear", "staff", "whip"]
 }

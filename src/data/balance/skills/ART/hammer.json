@@ -1,0 +1,47 @@
+{
+  "_note": "戦鎚の武器技（skills/arts/heavy.ts）。遅く重い代わりに崩す力が強い",
+  "hammerSmash": {
+    "cost": 22, "minInterval": 0.65, "poise": 38,
+    "hit": { "length": 36, "width": 22, "damage": { "base": 18, "str": 1.5 }, "knockback": 220, "heavy": true }
+  },
+  "hammerQuake": {
+    "cost": 20, "minInterval": 0.6, "poise": 20,
+    "shake": { "radius": 38, "damage": { "base": 10, "str": 1.0 }, "knockback": 90, "terrainRadius": 34 }
+  },
+  "hammerMeteor": {
+    "cost": 25, "minInterval": 0.75, "poise": 42,
+    "fall": { "distance": 50, "width": 26, "invuln": 0.3, "damage": { "base": 20, "str": 1.6 }, "knockback": 240, "heavy": true }
+  },
+  "hammerSpin": {
+    "cost": 22, "minInterval": 0.6, "poise": 14,
+    "spin": { "radius": 34, "hits": 3, "damage": { "base": 6, "str": 0.6 }, "knockback": 80 }
+  },
+  "hammerThrow": {
+    "cost": 19, "minInterval": 0.55, "poise": 16,
+    "toss": { "count": 1, "spreadDeg": 0, "speed": 170, "life": 0.7, "bulletRadius": 9, "damage": { "base": 16, "str": 1.0 }, "knockback": 150 }
+  },
+  "hammerShatter": {
+    "cost": 21, "minInterval": 0.6, "poise": 32,
+    "break": { "length": 40, "width": 20, "damage": { "base": 14, "str": 1.2 }, "knockback": 160, "heavy": true, "vsMul": 2.0 }
+  },
+  "hammerBell": {
+    "cost": 20, "minInterval": 0.6, "poise": 26,
+    "toll": { "reach": 34, "deg": 100, "damage": { "base": 11, "str": 0.9 }, "knockback": 120, "paralyze": { "stacks": 1, "duration": 2, "potency": 0 } }
+  },
+  "hammerFissure": {
+    "cost": 20, "minInterval": 0.6, "poise": 24,
+    "split": { "length": 50, "width": 18, "damage": { "base": 13, "str": 1.1 }, "knockback": 140, "terrainRadius": 28 }
+  },
+  "hammerCharge": {
+    "cost": 22, "minInterval": 0.65, "poise": 34,
+    "charge": { "distance": 80, "width": 24, "invuln": 0.25, "damage": { "base": 15, "str": 1.3 }, "knockback": 200, "heavy": true }
+  },
+  "hammerBreak": {
+    "cost": 21, "minInterval": 0.6, "poise": 30,
+    "crush": { "reach": 32, "deg": 90, "damage": { "base": 14, "str": 1.2 }, "knockback": 150, "heavy": true, "broken": { "stacks": 1, "duration": 5, "potency": 0 } }
+  },
+  "hammerThunder": {
+    "cost": 24, "minInterval": 0.8, "poise": 10, "range": 130,
+    "bolt": { "radius": 34, "damage": { "base": 15, "str": 0.6, "spi": 0.8 }, "knockback": 100, "shock": { "stacks": 1, "duration": 3, "potency": 2 } }
+  }
+}

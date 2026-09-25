@@ -1,0 +1,51 @@
+{
+  "_note": "擲弾の武器技（skills/arts/throwing.ts）。照準地点へ撃ち込む榴弾で、地形と状態異常の種類が豊富。単体の威力はステータス基礎値で気力 1 あたり約 2.2",
+  "grenadeCluster": {
+    "cost": 24, "minInterval": 0.65, "poise": 10, "range": 130,
+    "c1": { "side": -16, "radius": 20, "damage": { "base": 8.8, "str": 0.5, "dex": 0.5 }, "knockback": 60 },
+    "c2": { "radius": 20, "damage": { "base": 8.8, "str": 0.5, "dex": 0.5 }, "knockback": 60 },
+    "c3": { "side": 16, "radius": 20, "damage": { "base": 8.8, "str": 0.5, "dex": 0.5 }, "knockback": 60 }
+  },
+  "grenadeFrag": {
+    "cost": 19, "minInterval": 0.55, "poise": 14, "range": 130,
+    "frag": { "radius": 34, "damage": { "base": 12.5, "str": 0.6, "dex": 0.8 }, "knockback": 90 }
+  },
+  "grenadeIncendiary": {
+    "cost": 20, "minInterval": 0.6, "poise": 10, "range": 130,
+    "burn": { "radius": 30, "damage": { "base": 9.5, "spi": 1 }, "knockback": 60, "burn": { "stacks": 2, "duration": 3, "potency": 3 }, "terrainRadius": 26, "terrainTime": 4 }
+  },
+  "grenadeSmoke": {
+    "cooldown": 10, "minInterval": 0.3, "poise": 0, "range": 130,
+    "smoke": { "radius": 10, "terrainRadius": 34, "terrainTime": 4 }
+  },
+  "grenadeConcussion": {
+    "cost": 21, "minInterval": 0.6, "poise": 22, "range": 130,
+    "blast": { "radius": 36, "damage": { "base": 7.5, "str": 0.6 }, "knockback": 260, "heavy": true }
+  },
+  "grenadeGas": {
+    "cost": 18, "minInterval": 0.55, "poise": 6, "range": 130,
+    "gas": { "radius": 32, "damage": { "base": 4.4, "spi": 0.6 }, "knockback": 0, "poison": { "stacks": 3, "duration": 5, "potency": 0 }, "terrainRadius": 26, "terrainTime": 5 }
+  },
+  "grenadeFlash": {
+    "cooldown": 12, "minInterval": 0.3, "poise": 0, "range": 130,
+    "flash": { "radius": 40, "silence": { "stacks": 1, "duration": 3, "potency": 0 }, "fear": { "stacks": 1, "duration": 1.5, "potency": 0 } }
+  },
+  "grenadeFreeze": {
+    "cost": 20, "minInterval": 0.6, "poise": 8, "range": 130,
+    "freeze": { "radius": 32, "damage": { "base": 6.2, "spi": 0.6 }, "knockback": 30, "chill": { "stacks": 4, "duration": 2.5, "potency": 0 }, "terrainRadius": 26, "terrainTime": 4 }
+  },
+  "grenadeBarrage": {
+    "cost": 22, "minInterval": 0.6, "poise": 12,
+    "near": { "ahead": 26, "radius": 18, "damage": { "base": 7.5, "str": 0.5, "dex": 0.5 }, "knockback": 60 },
+    "mid": { "delay": 0.15, "ahead": 56, "radius": 20, "damage": { "base": 7.5, "str": 0.5, "dex": 0.5 }, "knockback": 60 },
+    "far": { "delay": 0.3, "ahead": 86, "radius": 22, "damage": { "base": 8.8, "str": 0.6, "dex": 0.6 }, "knockback": 90 }
+  },
+  "grenadeSticky": {
+    "cost": 25, "minInterval": 0.7, "poise": 30, "range": 130,
+    "stick": { "delay": 0.8, "radius": 40, "damage": { "base": 21, "str": 0.8, "dex": 0.8 }, "knockback": 200, "heavy": true }
+  },
+  "grenadeBounce": {
+    "cost": 17, "minInterval": 0.5, "poise": 8,
+    "bounce": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.9, "bulletRadius": 5, "bounces": 2, "damage": { "base": 8.8, "str": 0.5, "dex": 0.6 }, "knockback": 60 }
+  }
+}
