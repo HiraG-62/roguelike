@@ -74,13 +74,16 @@ const SHOT_CHARGE_HOLD = 0.75;
 const ART_PERIOD = 1.0;
 const P: ButtonKey = "primary";
 const S: ButtonKey = "secondary";
-/** 近接の射程内で出す左右の列（左左左 / 左左右 / 右左左 / 左右左 / 右右右）。bot.rng で 1 列選び、出し終えたら次を選ぶ */
+/** 近接の射程内で出す左右の列（3 入力の 8 通りすべて。杖の派生 6 本を含め、どの組み合わせも踏む）。bot.rng で 1 列選び、出し終えたら次を選ぶ */
 const LANE_PATTERNS: readonly (readonly ButtonKey[])[] = [
   [P, P, P],
   [P, P, S],
   [S, P, P],
   [P, S, P],
   [S, S, S],
+  [S, S, P],
+  [P, S, S],
+  [S, P, S],
 ];
 const PARRY_HOLD = 0.2;
 /** 予備動作を見たとき、回避より受け流しを選ぶ確率（両方の経路を踏ませる） */
