@@ -21,6 +21,8 @@ const BELL_PARTIAL = 2.76;
  * - BLADE_RING: 薄い刃の「シャリン」、CLANG: 厚い金属のぶつかり、CRYSTAL: 氷・ガラスのきらめき、CHAIN: 鎖・小さな金具
  */
 const BLADE_RING = [1, 1.47, 2.09] as const;
+/** 斬撃の余韻の刃鳴り。参考音（docs/example/SE の「剣で斬る」）の余韻に残る 3.3k / 4.9k / 5.3k / 5.9k / 6.6k / 7.6k Hz の部分音の比 */
+const SLASH_RING = [1, 1.5, 1.62, 1.82, 2.03, 2.33] as const;
 const CLANG = [1, 1.34, 2.19, 2.83] as const;
 const CRYSTAL = [1, 1.53, 2.37, 3.1] as const;
 const CHAIN = [1, 1.37, 1.93, 2.61] as const;
@@ -29,29 +31,31 @@ const BELL_FM_RATIO = 1.4;
 
 export const LAYERED_SFX = {
   // ==== 近接の段の斬撃音（player.ts が段 1〜3 で積む。スキルが単独でも使う）====
-  // 風切りは「膨らむ → 頂点 → 抜ける」。低 → 高へ上がりながら膨らむ帯域ノイズ（ヒュ）と、頂点から高 → 低へ抜ける帯域ノイズ（ッ）を
-  // 繋いで刃が通り過ぎるドップラーを作る。頂点に細い刃先の笛（高 Q の帯域）と小さなクリックを置いて「鋭さ」を出す。
+  // 風切りは参考音（docs/example/SE の「剣で斬る」の当たる前の 100ms）に合わせる: 200〜1kHz が主（32〜47%）、重心 2〜3.5kHz、
+  // 50〜100ms かけて膨らむ。中低域が上がりながら膨らむ帯域ノイズ（ヒュ）→ 頂点から抜ける下降（ッ）に、頂点で 4〜6kHz の刃先を少し添える。
   // 押した瞬間にクリックを鳴らすと命中音と紛れるので、トランジェントは頂点（振りの windup が明ける頃）へ遅らせる。段が進むほど低く長く重い
   slash1: [
-    { k: "noise", filter: "bandpass", from: 3500, to: 7500, dur: 0.035, q: 1.6, attack: 0.03, peak: 0.22 },
-    { k: "noise", filter: "bandpass", from: 7500, to: 2000, dur: 0.08, q: 2, attack: 0.006, peak: 0.4, at: 0.028 },
-    { k: "noise", filter: "bandpass", from: 8500, to: 4000, dur: 0.07, q: 7, attack: 0.012, peak: 0.1, at: 0.02 },
-    { k: "click", freq: 7500, peak: 0.12, at: 0.03 },
+    { k: "noise", filter: "bandpass", from: 420, to: 950, dur: 0.07, q: 1, attack: 0.055, peak: 0.5 },
+    { k: "noise", filter: "bandpass", from: 1500, to: 650, dur: 0.07, q: 1, attack: 0.006, peak: 0.3, at: 0.05 },
+    { k: "noise", filter: "bandpass", from: 1300, to: 3200, dur: 0.06, q: 1.2, attack: 0.045, peak: 0.07, at: 0.005 },
+    { k: "noise", filter: "bandpass", from: 6000, to: 3500, dur: 0.05, q: 1.5, attack: 0.004, peak: 0.2, at: 0.048 },
+    { k: "click", freq: 3500, peak: 0.08, at: 0.05 },
   ],
   slash2: [
-    { k: "noise", filter: "bandpass", from: 3000, to: 6500, dur: 0.045, q: 1.5, attack: 0.038, peak: 0.24 },
-    { k: "noise", filter: "bandpass", from: 6500, to: 1600, dur: 0.1, q: 1.8, attack: 0.008, peak: 0.44, at: 0.036 },
-    { k: "noise", filter: "bandpass", from: 7500, to: 3500, dur: 0.085, q: 6, attack: 0.014, peak: 0.1, at: 0.025 },
-    { k: "noise", filter: "lowpass", from: 1800, to: 400, dur: 0.09, attack: 0.02, peak: 0.15, at: 0.03 },
-    { k: "click", freq: 6500, peak: 0.12, at: 0.038 },
+    { k: "noise", filter: "bandpass", from: 380, to: 870, dur: 0.0875, q: 1, attack: 0.0688, peak: 0.55 },
+    { k: "noise", filter: "bandpass", from: 1380, to: 590, dur: 0.0875, q: 1, attack: 0.006, peak: 0.33, at: 0.0625 },
+    { k: "noise", filter: "bandpass", from: 1300, to: 3200, dur: 0.075, q: 1.2, attack: 0.0562, peak: 0.07, at: 0.005 },
+    { k: "noise", filter: "bandpass", from: 6000, to: 3500, dur: 0.0625, q: 1.5, attack: 0.004, peak: 0.2, at: 0.06 },
+    { k: "click", freq: 3100, peak: 0.08, at: 0.0625 },
   ],
   slash3: [
-    { k: "noise", filter: "bandpass", from: 2400, to: 5500, dur: 0.06, q: 1.4, attack: 0.05, peak: 0.26 },
-    { k: "noise", filter: "bandpass", from: 5500, to: 900, dur: 0.15, q: 1.5, attack: 0.01, peak: 0.48, at: 0.05 },
-    { k: "noise", filter: "bandpass", from: 6500, to: 2800, dur: 0.1, q: 5, attack: 0.02, peak: 0.09, at: 0.04 },
-    { k: "kick", from: 160, to: 55, drop: 0.08, dur: 0.16, peak: 0.3, drive: 2, at: 0.05 },
-    { k: "noise", filter: "lowpass", from: 1200, to: 150, dur: 0.2, attack: 0.02, peak: 0.2, at: 0.05 },
-    { k: "click", freq: 5500, peak: 0.14, at: 0.05 },
+    { k: "noise", filter: "bandpass", from: 340, to: 790, dur: 0.105, q: 1, attack: 0.0825, peak: 0.6 },
+    { k: "noise", filter: "bandpass", from: 1260, to: 530, dur: 0.105, q: 1, attack: 0.006, peak: 0.36, at: 0.075 },
+    { k: "noise", filter: "bandpass", from: 1300, to: 3200, dur: 0.09, q: 1.2, attack: 0.0675, peak: 0.07, at: 0.005 },
+    { k: "noise", filter: "bandpass", from: 6000, to: 3500, dur: 0.075, q: 1.5, attack: 0.004, peak: 0.2, at: 0.072 },
+    { k: "click", freq: 2700, peak: 0.08, at: 0.075 },
+    { k: "kick", from: 160, to: 55, drop: 0.08, dur: 0.12, peak: 0.16, drive: 2, at: 0.075 },
+    { k: "noise", filter: "lowpass", from: 1200, to: 150, dur: 0.16, attack: 0.02, peak: 0.12, at: 0.075 },
   ],
 
   // ---- 武器種の振り音（8-1）: 段の slash1〜3 に重ねる。軽い武器ほど高く鋭く短く、重い武器ほど低く、立ち上がりを遅らせて「ブンッ」と膨らませる ----
@@ -182,32 +186,36 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "lowpass", from: 600, to: 80, dur: 0.3, peak: 0.28, at: 0.02 },
   ],
   // ---- 命中音の系統（刃・打撃・刺突・鞭打）× 重さ（system/effects.ts の hitSfxName が選ぶ）----
-  // 斬撃「ザシュッ」: 刃が入る瞬間のクリック + 歪ませた広い帯域ノイズ（ザ）+ 刃が抜けていく高 → 低の帯域ノイズ（シュッ、15ms 遅れて膨らむ）
-  // + 湿った肉の中低域（歪ませた 1k → 300Hz の帯域ノイズ）。刃鳴りは金属どうしの音に聞こえないよう短く小さく添えるだけ
+  // 斬撃「ザシュッ」: 参考音（docs/example/SE の「剣で斬る」の当たった後）の特徴量に合わせる。
+  // 4〜8kHz が主（約 47%）で 8kHz 以上 約 22%・200Hz 未満 約 15%、重心 約 5.3kHz、余韻は -20dB まで約 200ms・-40dB まで約 350ms（中の重さ）。
+  // 当たりのクリック + 低い芯（kick）+ 歪ませた「ザ」+ 6k → 4kHz の長い「シャー」の余韻 + 湿った中低域 + 余韻に残る刃鳴り（SLASH_RING）。
+  // 軽いほど短く、重いほど低く長い。低い芯を自分で持つので近接命中の hitThump は重ねない（system/effects.ts の skipsThump）
   hitSlashLight: [
-    { k: "click", freq: 6000, peak: 0.35 },
-    { k: "noise", filter: "highpass", from: 9500, to: 5000, dur: 0.04, attack: 0.001, peak: 0.32 },
-    { k: "noise", filter: "bandpass", from: 7000, to: 3000, dur: 0.05, q: 0.7, attack: 0.001, peak: 0.5, drive: 1.5 },
-    { k: "noise", filter: "bandpass", from: 8000, to: 2500, dur: 0.08, q: 1.2, attack: 0.004, peak: 0.42, at: 0.008 },
-    { k: "noise", filter: "bandpass", from: 1200, to: 400, dur: 0.06, q: 1.2, attack: 0.002, peak: 0.28, drive: 2, at: 0.004 },
-    { k: "metal", freq: 4200, ratios: BLADE_RING, dur: 0.07, peak: 0.035, at: 0.004 },
+    { k: "click", freq: 5000, peak: 0.22 },
+    { k: "kick", from: 150, to: 50, drop: 0.04, dur: 0.09, peak: 0.2, drive: 1.5 },
+    { k: "noise", filter: "bandpass", from: 5200, to: 3200, dur: 0.06, q: 0.8, attack: 0.001, peak: 0.3, drive: 1.5 },
+    { k: "noise", filter: "bandpass", from: 6200, to: 4200, dur: 0.36, q: 1.3, attack: 0.004, peak: 0.4, at: 0.006 },
+    { k: "noise", filter: "highpass", from: 9000, to: 6500, dur: 0.108, attack: 0.003, peak: 0.03, at: 0.004 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 500, dur: 0.07, q: 1.2, attack: 0.002, peak: 0.2, drive: 2, at: 0.003 },
+    { k: "metal", freq: 3273, ratios: SLASH_RING, dur: 0.468, peak: 0.07, at: 0.004 },
   ],
   hitSlashMid: [
-    { k: "click", freq: 5500, peak: 0.38 },
-    { k: "noise", filter: "highpass", from: 9000, to: 4500, dur: 0.05, attack: 0.001, peak: 0.34 },
-    { k: "noise", filter: "bandpass", from: 6500, to: 2500, dur: 0.065, q: 0.7, attack: 0.001, peak: 0.55, drive: 1.8 },
-    { k: "noise", filter: "bandpass", from: 7500, to: 2000, dur: 0.1, q: 1.1, attack: 0.005, peak: 0.45, at: 0.01 },
-    { k: "noise", filter: "bandpass", from: 1000, to: 300, dur: 0.08, q: 1.1, attack: 0.002, peak: 0.32, drive: 2, at: 0.005 },
-    { k: "metal", freq: 3600, ratios: BLADE_RING, dur: 0.09, peak: 0.035, at: 0.005 },
+    { k: "click", freq: 4400, peak: 0.26 },
+    { k: "kick", from: 130, to: 45, drop: 0.06, dur: 0.14, peak: 0.25, drive: 1.5 },
+    { k: "noise", filter: "bandpass", from: 5200, to: 3200, dur: 0.08, q: 0.8, attack: 0.001, peak: 0.3, drive: 1.5 },
+    { k: "noise", filter: "bandpass", from: 6200, to: 3900, dur: 0.44, q: 1.3, attack: 0.004, peak: 0.43, at: 0.006 },
+    { k: "noise", filter: "highpass", from: 9000, to: 6500, dur: 0.132, attack: 0.003, peak: 0.03, at: 0.004 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 500, dur: 0.09, q: 1.2, attack: 0.002, peak: 0.2, drive: 2, at: 0.003 },
+    { k: "metal", freq: 3023, ratios: SLASH_RING, dur: 0.572, peak: 0.08, at: 0.004 },
   ],
   hitSlashHeavy: [
-    { k: "click", freq: 4800, peak: 0.42 },
-    { k: "noise", filter: "highpass", from: 8500, to: 4000, dur: 0.06, attack: 0.001, peak: 0.36 },
-    { k: "noise", filter: "bandpass", from: 6000, to: 1800, dur: 0.085, q: 0.7, attack: 0.001, peak: 0.6, drive: 2.2 },
-    { k: "noise", filter: "bandpass", from: 7000, to: 1500, dur: 0.13, q: 1, attack: 0.006, peak: 0.48, at: 0.012 },
-    { k: "noise", filter: "bandpass", from: 800, to: 220, dur: 0.11, q: 1, attack: 0.002, peak: 0.34, drive: 2.2, at: 0.006 },
-    { k: "kick", from: 110, to: 45, drop: 0.07, dur: 0.16, peak: 0.32, drive: 2 },
-    { k: "metal", freq: 2600, ratios: BLADE_RING, dur: 0.14, peak: 0.04, at: 0.008 },
+    { k: "click", freq: 3800, peak: 0.3 },
+    { k: "kick", from: 110, to: 40, drop: 0.08, dur: 0.19, peak: 0.3, drive: 1.5 },
+    { k: "noise", filter: "bandpass", from: 5200, to: 3200, dur: 0.1, q: 0.8, attack: 0.001, peak: 0.3, drive: 1.5 },
+    { k: "noise", filter: "bandpass", from: 6200, to: 3600, dur: 0.55, q: 1.3, attack: 0.004, peak: 0.46, at: 0.006 },
+    { k: "noise", filter: "highpass", from: 9000, to: 6500, dur: 0.165, attack: 0.003, peak: 0.03, at: 0.004 },
+    { k: "noise", filter: "bandpass", from: 1200, to: 500, dur: 0.11, q: 1.2, attack: 0.002, peak: 0.2, drive: 2, at: 0.003 },
+    { k: "metal", freq: 2773, ratios: SLASH_RING, dur: 0.715, peak: 0.09, at: 0.004 },
   ],
   // 打撃「バシッ」: クリック + 歪ませた帯域ノイズ + 深いキック
   hitBluntLight: [

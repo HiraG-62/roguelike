@@ -95,7 +95,7 @@ describe("攻撃の効果音の構成", () => {
     }
   });
 
-  it("斬撃の命中は「ザ」（歪ませた広い帯域）・遅れて抜ける「シュッ」・湿った中低域を持ち、刃鳴りは控えめ", () => {
+  it("斬撃の命中は「ザ」（歪ませた広い帯域）・遅れて抜ける長い「シャー」・湿った中低域・低い芯・余韻の刃鳴りを持つ（参考音の特徴）", () => {
     for (const name of ["hitSlashLight", "hitSlashMid", "hitSlashHeavy"] as const) {
       const layers = LAYERED_SFX[name] as readonly Layer[];
       const noises = layers.filter((l): l is Extract<Layer, { k: "noise" }> => l.k === "noise");
@@ -105,11 +105,11 @@ describe("攻撃の効果音の構成", () => {
       expect(za, `${name} のザ`).toBe(true);
       expect(shu, `${name} のシュッ`).toBe(true);
       expect(wet, `${name} の湿った肉`).toBe(true);
-      // 高域の「ザ」が小さいと低域に埋もれて鈍い音にしか聞こえない（2026-09-26 のプレイ所見）
-      const zaPeak = noises.filter((l) => (l.drive ?? 0) > 0 && l.from >= 3000 && (l.at ?? 0) === 0).reduce((m, l) => Math.max(m, l.peak), 0);
-      expect(zaPeak, `${name} のザは十分な音量`).toBeGreaterThanOrEqual(MIN_ZA_PEAK);
-      const ring = layers.filter((l) => l.k === "metal").reduce((m, l) => Math.max(m, l.peak), 0);
-      expect(ring, `${name} の刃鳴りは小さい`).toBeLessThanOrEqual(MAX_RING_PEAK);
+      // 余韻が短いと「チッ」「ドッ」としか聞こえない（2026-09-26 のプレイ所見。参考音は当たった後 -40dB まで 350ms 以上）
+      const tail = noises.filter((l) => l.from >= 4000 && l.from > l.to).reduce((m, l) => Math.max(m, l.dur), 0);
+      expect(tail, `${name} の高域の余韻`).toBeGreaterThanOrEqual(MIN_SLASH_TAIL_SECONDS);
+      expect(has(name, "kick"), `${name} の低い芯`).toBe(true);
+      expect(has(name, "metal"), `${name} の余韻の刃鳴り`).toBe(true);
     }
   });
 
@@ -145,10 +145,8 @@ describe("攻撃の効果音の構成", () => {
   });
 });
 
-/** 斬撃の命中で刃鳴り（metal）が主張しすぎない上限。金属どうしの「キーン」でなく肉を断つ音にするため */
-const MAX_RING_PEAK = 0.04;
-/** 斬撃の命中の「ザ」の音量の下限。これより小さいと同時に鳴る低域に負けて斬った音に聞こえない */
-const MIN_ZA_PEAK = 0.45;
+/** 斬撃の命中の高域の余韻の長さの下限（秒）。参考音の余韻（-20dB まで約 200ms）より短いと斬った音に聞こえない */
+const MIN_SLASH_TAIL_SECONDS = 0.3;
 /** 鞭のクラック本体の長さの上限（秒）。これより長いと「パン」でなく「バフッ」になる */
 const MAX_CRACK_SECONDS = 0.03;
 
