@@ -2,7 +2,7 @@
  * 投げた武器の見た目。説明に「投げる」とある技の弾を、その武器の絵（data/sprites/weapons.ts の thrownWeapon.*）で飛ばす。
  * 弾の key・奥義の key・スキル（技）の key から「どの絵を、回すか / 進む向きへ向けるか」を引く表と、その描画。
  * state は読むだけ。回る角度は state.time と弾の id から決め、state.rng は使わない。
- * 弾の専用スプライト（fxShots.ts）より優先する（武器の絵が付く弾は武器の絵で描く）
+ * 武器の絵が付く弾は武器の絵が本体で、弾の専用スプライト（fxShots.ts）はその下の風切りの軌跡として重なる
  */
 import type { GameState, Projectile } from "../core/state";
 import type { Vec } from "../core/vec";

@@ -1,13 +1,17 @@
 // 生成物: npm run fx:gen（scripts/fx/gen.mjs）。手で直さない。docs/ideas/fx-sprites.md
 // アトラスごとの中身は src/data/fx/<key>.gen.json（寸法・シートの矩形・武器種のモーションの表）
 import fx_axe from "./fx/axe.gen.json";
+import fx_axeUlt from "./fx/axeUlt.gen.json";
 import fx_chainSickle from "./fx/chainSickle.gen.json";
+import fx_chainSickleUlt from "./fx/chainSickleUlt.gen.json";
 import fx_claws from "./fx/claws.gen.json";
 import fx_cleaver from "./fx/cleaver.gen.json";
+import fx_cleaverUlt from "./fx/cleaverUlt.gen.json";
 import fx_fan from "./fx/fan.gen.json";
 import fx_fists from "./fx/fists.gen.json";
 import fx_flail from "./fx/flail.gen.json";
 import fx_greatsword from "./fx/greatsword.gen.json";
+import fx_grenade from "./fx/grenade.gen.json";
 import fx_gunner from "./fx/gunner.gen.json";
 import fx_hammer from "./fx/hammer.gen.json";
 import fx_katana from "./fx/katana.gen.json";
@@ -19,6 +23,7 @@ import fx_shield from "./fx/shield.gen.json";
 import fx_shieldUlt from "./fx/shieldUlt.gen.json";
 import fx_sidearm from "./fx/sidearm.gen.json";
 import fx_spear from "./fx/spear.gen.json";
+import fx_spearUlt from "./fx/spearUlt.gen.json";
 import fx_staff from "./fx/staff.gen.json";
 import fx_staffUlt from "./fx/staffUlt.gen.json";
 import fx_sword from "./fx/sword.gen.json";
@@ -34,13 +39,17 @@ import fx_whipUlt from "./fx/whipUlt.gen.json";
 /** アトラス（public/ からの相対パスと寸法） */
 export const FX_ATLASES = {
   axe: { url: "assets/fx/axe.png", width: fx_axe.width, height: fx_axe.height },
+  axeUlt: { url: "assets/fx/axeUlt.png", width: fx_axeUlt.width, height: fx_axeUlt.height },
   chainSickle: { url: "assets/fx/chainSickle.png", width: fx_chainSickle.width, height: fx_chainSickle.height },
+  chainSickleUlt: { url: "assets/fx/chainSickleUlt.png", width: fx_chainSickleUlt.width, height: fx_chainSickleUlt.height },
   claws: { url: "assets/fx/claws.png", width: fx_claws.width, height: fx_claws.height },
   cleaver: { url: "assets/fx/cleaver.png", width: fx_cleaver.width, height: fx_cleaver.height },
+  cleaverUlt: { url: "assets/fx/cleaverUlt.png", width: fx_cleaverUlt.width, height: fx_cleaverUlt.height },
   fan: { url: "assets/fx/fan.png", width: fx_fan.width, height: fx_fan.height },
   fists: { url: "assets/fx/fists.png", width: fx_fists.width, height: fx_fists.height },
   flail: { url: "assets/fx/flail.png", width: fx_flail.width, height: fx_flail.height },
   greatsword: { url: "assets/fx/greatsword.png", width: fx_greatsword.width, height: fx_greatsword.height },
+  grenade: { url: "assets/fx/grenade.png", width: fx_grenade.width, height: fx_grenade.height },
   gunner: { url: "assets/fx/gunner.png", width: fx_gunner.width, height: fx_gunner.height },
   hammer: { url: "assets/fx/hammer.png", width: fx_hammer.width, height: fx_hammer.height },
   katana: { url: "assets/fx/katana.png", width: fx_katana.width, height: fx_katana.height },
@@ -52,6 +61,7 @@ export const FX_ATLASES = {
   shieldUlt: { url: "assets/fx/shieldUlt.png", width: fx_shieldUlt.width, height: fx_shieldUlt.height },
   sidearm: { url: "assets/fx/sidearm.png", width: fx_sidearm.width, height: fx_sidearm.height },
   spear: { url: "assets/fx/spear.png", width: fx_spear.width, height: fx_spear.height },
+  spearUlt: { url: "assets/fx/spearUlt.png", width: fx_spearUlt.width, height: fx_spearUlt.height },
   staff: { url: "assets/fx/staff.png", width: fx_staff.width, height: fx_staff.height },
   staffUlt: { url: "assets/fx/staffUlt.png", width: fx_staffUlt.width, height: fx_staffUlt.height },
   sword: { url: "assets/fx/sword.png", width: fx_sword.width, height: fx_sword.height },
@@ -84,13 +94,17 @@ export interface FxSheetDef {
 
 export const FX_SHEETS = {
   ...fx_axe.sheets,
+  ...fx_axeUlt.sheets,
   ...fx_chainSickle.sheets,
+  ...fx_chainSickleUlt.sheets,
   ...fx_claws.sheets,
   ...fx_cleaver.sheets,
+  ...fx_cleaverUlt.sheets,
   ...fx_fan.sheets,
   ...fx_fists.sheets,
   ...fx_flail.sheets,
   ...fx_greatsword.sheets,
+  ...fx_grenade.sheets,
   ...fx_gunner.sheets,
   ...fx_hammer.sheets,
   ...fx_katana.sheets,
@@ -102,6 +116,7 @@ export const FX_SHEETS = {
   ...fx_shieldUlt.sheets,
   ...fx_sidearm.sheets,
   ...fx_spear.sheets,
+  ...fx_spearUlt.sheets,
   ...fx_staff.sheets,
   ...fx_staffUlt.sheets,
   ...fx_sword.sheets,
@@ -118,4 +133,4 @@ export const FX_SHEETS = {
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_chainSickle.fx, fx_claws.fx, fx_cleaver.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_gunner.fx, fx_hammer.fx, fx_katana.fx, fx_katanaUlt.fx, fx_ringBlades.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_spear.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_trapper.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_whip.fx, fx_whipUlt.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_grenade.fx, fx_gunner.fx, fx_hammer.fx, fx_katana.fx, fx_katanaUlt.fx, fx_ringBlades.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_trapper.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_whip.fx, fx_whipUlt.fx] as const;
