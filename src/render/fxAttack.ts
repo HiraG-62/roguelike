@@ -123,6 +123,8 @@ interface Layer {
   blasts: WeakSet<ShapeFx>;
   events: FxEvent[];
   scorches: Scorch[];
+  /** 描いた銃の銃口（高精細のプレイヤーの組み立てが決める。銃口の閃光をここから出す）。無ければ弾の出た位置 */
+  muzzle: Point | null;
 }
 
 const layers = new WeakMap<GameState, Layer>();
@@ -141,6 +143,7 @@ function layerOf(state: GameState): Layer {
     blasts: new WeakSet(),
     events: [],
     scorches: [],
+    muzzle: null,
   };
   layers.set(state, made);
   return made;
@@ -295,13 +298,32 @@ function syncEnemies(state: GameState, layer: Layer, emit: boolean): void {
   }
 }
 
+/**
+ * 描いた銃の銃口（論理座標）を渡す。次に生まれた自分の弾の銃口の閃光をそこから出す（弾の当たりの位置は変えない）。
+ * 描画側が毎フレーム呼ぶ（銃を持っていなければ null）
+ */
+export function setPlayerMuzzle(state: GameState, muzzle: Point | null): void {
+  layerOf(state).muzzle = muzzle;
+}
+
+/** 弾の出た位置が自分からこれ以内なら、描いた銃口から閃光を出す（遠くで生まれる弾・奥義の弾は元の位置） */
+const MUZZLE_NEAR_PX = 16;
+
+function muzzleOf(state: GameState, layer: Layer, pr: Projectile): Point {
+  const m = layer.muzzle;
+  const me = state.player.body.pos;
+  if (!m || Math.hypot(pr.pos.x - me.x, pr.pos.y - me.y) > MUZZLE_NEAR_PX) return pr.pos;
+  return m;
+}
+
 function onShotBorn(state: GameState, layer: Layer, pr: Projectile, style: BulletStyle, merged: Point[], seen: ShotSeen): void {
   if (pr.owner !== "player") return;
   // 投げた武器（thrownLook.ts）は火薬で撃つ弾ではないので、銃口の閃光を出さない
   if (projectileLook(pr)) return;
-  if (merged.some((m) => Math.abs(m.x - pr.pos.x) <= MUZZLE_MERGE_PX && Math.abs(m.y - pr.pos.y) <= MUZZLE_MERGE_PX)) return;
-  merged.push({ x: pr.pos.x, y: pr.pos.y });
-  const ev = baseEvent("muzzle", pr.pos.x, pr.pos.y, state.time, FX_ATTACK.muzzle.life);
+  const at = muzzleOf(state, layer, pr);
+  if (merged.some((m) => Math.abs(m.x - at.x) <= MUZZLE_MERGE_PX && Math.abs(m.y - at.y) <= MUZZLE_MERGE_PX)) return;
+  merged.push({ x: at.x, y: at.y });
+  const ev = baseEvent("muzzle", at.x, at.y, state.time, FX_ATTACK.muzzle.life);
   ev.angle = Math.atan2(pr.vel.y, pr.vel.x);
   ev.color = pr.color;
   ev.style = style;

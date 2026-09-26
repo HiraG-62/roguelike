@@ -93,7 +93,7 @@ import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
-import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
+import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip } from "./actorSprites";
 import { type ArmInk, type HeldPart, type Pt, armPixels, bodyClip, elbowOf, solveRig, stanceOf } from "./playerRig";
@@ -669,6 +669,10 @@ export class Renderer {
   /** 体・腕・武器を右向きで重ねる作業面（絵のドット）と、その白い写し（被弾の閃き・ダッシュの残像） */
   private readonly rigCanvas = createRigCanvas();
   private readonly rigWhite = createRigCanvas();
+  /** 今のフレームの振りの支点（振っている腕の肩、論理座標）。斬撃の絵をここから出す。組み立てで描かなければ null */
+  private rigSwingPivot: Pt | null = null;
+  /** 描いた銃の銃口（論理座標）と自分の中心からの距離。弾は銃口を抜けるまで描かない */
+  private rigMuzzle: { x: number; y: number; dist: number } | null = null;
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
   /** HUD のキーストーン表示（装備が変わったときだけ作り直す） */
@@ -1906,6 +1910,16 @@ export class Renderer {
   // 弾
   // ---------------------------------------------------------------------------
 
+  /** 撃った直後の自分の弾が、描いた銃の銃身の中にいる（銃口を抜けるまで描かない。当たりはそのまま） */
+  private insideDrawnGun(state: GameState, pr: Projectile): boolean {
+    const m = this.rigMuzzle;
+    if (!m) return false;
+    const me = state.player.body.pos;
+    const ox = pr.pos.x - me.x;
+    const oy = pr.pos.y - me.y;
+    return Math.hypot(ox, oy) < m.dist && ox * pr.vel.x + oy * pr.vel.y > 0;
+  }
+
   private drawProjectiles(state: GameState): void {
     const { ctx } = this;
     // 射撃の属性で残像の色を変える（無属性は弾の色のまま）
@@ -1917,6 +1931,7 @@ export class Renderer {
       const dy = speed > 0 ? pr.vel.y / speed : 0;
 
       const isPlayer = pr.owner === "player";
+      if (isPlayer && this.insideDrawnGun(state, pr)) continue;
       // 曲射は山なりに持ち上げて描き、地面の位置に影を落とす（当たり判定は着弾点だけ）
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
@@ -1980,7 +1995,11 @@ export class Renderer {
     this.drawShadow(cx, bottom - 1);
     this.drawAimGuide(state);
 
-    if (this.drawRiggedPlayer(state, cx, bottom)) {
+    this.rigSwingPivot = null;
+    this.rigMuzzle = null;
+    const rigged = this.drawRiggedPlayer(state, cx, bottom);
+    setPlayerMuzzle(state, this.rigMuzzle);
+    if (rigged) {
       if (isAttacking(p) && (p.attack.phase === "active" || p.attack.phase === "recover")) this.drawSlash(state, p);
       else this.drawHoldSprite(state, p);
       this.drawChargeRing(state, p);
@@ -2089,8 +2108,9 @@ export class Renderer {
     const facingRight = p.facing.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;
+    const stance = stanceOf(moveset.key);
     const rig = solveRig({
-      stance: stanceOf(moveset.key),
+      stance,
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
       step: swing.step,
       aim: Math.atan2(p.facing.y, p.facing.x),
@@ -2100,12 +2120,14 @@ export class Renderer {
       shoulderB,
       time: state.time,
       offGrip: weaponOffGrip(weapon),
+      aimOrigin: { x: 0, y: (p.body.pos.y - bottom) * ACTOR_ART_SCALE },
+      barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
     });
 
     const rc = this.rigCanvas;
     const g = rc.ctx;
     g.clearRect(0, 0, RIG_CANVAS, RIG_CANVAS);
-    const twoHanded = rig.back.bare && stanceOf(moveset.key).grip === "two";
+    const twoHanded = rig.back.bare && stance.grip === "two";
     if (!rig.back.bare && rig.back.behind) this.rigWeapon(weapon, rig.back);
     if (!twoHanded) this.rigArm(shoulderB, rig.back, colors.sleeve, colors.hand, true);
     // 振りかぶって手が頭の後ろへ回ったら、腕も体の後ろ（顔の前を腕が横切らない）
@@ -2118,6 +2140,10 @@ export class Renderer {
     if (twoHanded) this.rigArm(shoulderB, rig.back, colors.sleeve, colors.hand, false);
     if (!frontArmBehind) this.rigArm(shoulderF, rig.front, colors.sleeve, colors.hand, false);
 
+    const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
+    if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
+    if (moveset.primary === "shot") this.rigMuzzle = this.rigMuzzleAt(weapon, rig.front, toScreen, p.body.pos);
+
     const blink = p.invulnTimer > 0 && !dashing && p.hitFlash <= 0 && state.tick % 6 < 3;
     const white = p.hitFlash > 0 || dashing ? this.rigWhiteCopy() : null;
     if (dashing && white) {
@@ -2129,6 +2155,17 @@ export class Renderer {
     if (blink) return true;
     this.blitRig(p.hitFlash > 0 && white ? white : rc.canvas, cx, bottom, !facingRight, 1);
     return true;
+  }
+
+  /** 主の武器の銃口（武器の絵の位置の印）を論理座標で。印の無い武器は null */
+  private rigMuzzleAt(weapon: string, part: HeldPart, toScreen: (pt: Pt) => Pt, center: Pt): { x: number; y: number; dist: number } | null {
+    const key = `${weapon}.held`;
+    const sheet = actorSheet(key);
+    if (!sheet) return null;
+    const a = actorAnchor(key, actorDir(part.angle, sheet.dirs), 0, "muzzle");
+    if (!a) return null;
+    const m = toScreen({ x: part.hand.x + a.x, y: part.hand.y + a.y });
+    return { ...m, dist: Math.hypot(m.x - center.x, m.y - center.y) };
   }
 
   /** 作業面の原点（足元）から (x, y) ドットの位置に、原点を合わせてセルを置く */
@@ -2385,7 +2422,8 @@ export class Renderer {
       active,
       progress,
       anchor,
-      origin: motion.pivot === "self" ? p.body.pos : anchor,
+      // 自分を中心に振る絵は、描いた腕の肩（武器の振りの支点）から出す。当たり判定の位置は変えない
+      origin: motion.pivot === "self" ? (this.rigSwingPivot ?? p.body.pos) : anchor,
       angle: Math.atan2(p.attack.dir.y, p.attack.dir.x),
       opts: {
         ramp: swingRamp(state, step),

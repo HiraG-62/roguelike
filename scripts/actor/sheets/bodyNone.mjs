@@ -1,6 +1,6 @@
 // 見習い（ジョブなし）の体: 深層へ潜る探索者。頭巾付きの短い外套、赤い襟巻き、革の胴着、長靴。
 // 世界観（深層の遺跡・修道院・死神）に合わせ、彩度は襟巻きの赤だけを立てて他は落とす
-import { capsule, ellipse, paint, polygon, px, union, clip } from "../paint.mjs";
+import { capsule, ellipse, paint, polygon, px, stamp, union } from "../paint.mjs";
 import { bodySheets, mid } from "../rig.mjs";
 
 const SKIN = ["#8a4c3c", "#c27f5f", "#dfa27c", "#f0c49e"];
@@ -129,32 +129,46 @@ function head(frame, sk) {
     HOOD,
     { group: g },
   );
-  // 顔（頭巾の開きから覗く。右寄り）
+  // 顔は画素の格子に揃えて置く（眼の形がフレームごとに崩れないように）
+  const fx = Math.round(h.x) + 2;
+  const fy = Math.round(h.y) + 1;
   const face = frame.newGroup();
-  paint(frame, clip(ellipse(h.x + 2.2, h.y + 1.2, 5.6, 6), -1, 0, -(h.x - 2.5)), SKIN, { group: face, bias: 0.1 });
-  // 前髪
-  paint(frame, union(ellipse(h.x + 1.5, h.y - 3.2, 5.5, 2.6), ellipse(h.x + 5, h.y - 2, 2.2, 2.4)), HAIR, { group: face, maxShade: 2 });
-  // 頭巾の縁（顔を囲む厚み）
-  paint(frame, clip(subtractRing(h.x + 2.2, h.y + 0.6, 7.2, 7.6, 5.8, 6.4), 0, -1, -(h.y - 7)), HOOD, { group: g, bias: 0.25 });
-  // 眼（右向き。白 + 瞳）と頬
-  const ex = h.x + 4.4;
-  const ey = h.y + 0.6;
-  px(frame, ex, ey, EYE);
-  px(frame, ex, ey + 1, EYE);
-  px(frame, ex - 1, ey + 1, EYE_WHITE);
-  px(frame, ex + 1, ey, EYE_WHITE);
-  px(frame, ex - 3.5, ey + 0.5, EYE);
-  px(frame, ex - 3.5, ey + 1.5, EYE);
-  px(frame, ex + 1.5, ey + 3.5, SKIN[0]);
+  paint(frame, faceShape(fx, fy), SKIN, { group: face });
+  // 前髪（額を斜めに覆い、横に一房）
+  paint(frame, union(ellipse(fx - 0.5, fy - 4.3, 5.6, 2.4), ellipse(fx + 3.2, fy - 3.4, 2.6, 1.8), ellipse(fx - 3.6, fy - 1.6, 1.8, 3)), HAIR, { group: face, maxShade: 2 });
+  // 頭巾の縁: 額の上と後ろ側だけ（顔の前を覆わない）
+  paint(frame, hoodRim(fx, fy - 0.5), HOOD, { group: g, bias: 0.3 });
+  // 眼: 手前の眼（大）と奥の眼（顔の縁寄り）。瞳の左上に光
+  stamp(frame, fx - 1.5, fy - 1, ["wk", "kk", "kk"], FACE_INK);
+  stamp(frame, fx + 2, fy - 1, ["wk", "kk", "kk"], FACE_INK);
+  // 口元の影
+  px(frame, fx + 1, fy + 3, SKIN[0]);
 }
 
-/** 楕円の輪（外 rx, ry、内 ix, iy） */
-function subtractRing(cx, cy, rx, ry, ix, iy) {
-  const outer = ellipse(cx, cy, rx, ry);
+const FACE_INK = { k: EYE, w: EYE_WHITE };
+
+/** 顔: 平らに塗り、左上に明部、あごの下に影（光で顔の前が暗く沈まないように法線を使わない） */
+function faceShape(cx, cy) {
+  const rx = 5.4;
+  const ry = 5.6;
   return (x, y) => {
-    const nx = (x - cx) / ix;
-    const ny = (y - cy) / iy;
+    const nx = (x - cx) / rx;
+    const ny = (y - cy) / ry;
+    if (nx * nx + ny * ny > 1 || x < cx - 4.6) return null;
+    if (ny > 0.62) return 0;
+    if (nx < -0.25 && ny < 0.15) return 2;
+    return 1;
+  };
+}
+
+/** 頭巾の縁（顔を囲む厚み）のうち、額の上と後ろ側 */
+function hoodRim(cx, cy) {
+  const outer = ellipse(cx - 0.4, cy, 7.4, 7.6);
+  return (x, y) => {
+    const nx = (x - cx) / 5.8;
+    const ny = (y - cy) / 6.2;
     if (nx * nx + ny * ny <= 1) return null;
+    if (y > cy - 3 && x > cx - 3.5) return null;
     return outer(x, y);
   };
 }

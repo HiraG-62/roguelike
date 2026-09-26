@@ -138,13 +138,16 @@ export interface RigInput {
   readonly time: number;
   /** 両手持ちの添え手の位置（握りから +x へ、ドット。武器の meta.offGrip） */
   readonly offGrip: number | null;
+  /** 弾の出る高さ（自分の中心、組み立ての空間）。銃は銃身の線がここを通るように構える */
+  readonly aimOrigin: Pt;
+  /** 銃身が握りの線からずれている量（武器の絵の銃口の印の y、ドット。上なら負） */
+  readonly barrelY: number;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
 export const ARM_REACH = 10;
-/** 銃を照準へ向けて伸ばす距離と、構える高さ（肩からドットで下へ。銃身が顔に掛からない） */
-const AIM_REACH = 9;
-const AIM_DROP = 3;
+/** 銃の握りを自分の中心から照準へ出す距離（ドット） */
+const AIM_REACH = 10;
 /** 両手持ちの振りは腰の高さで（肩から下へ。長柄が顔を横切らない） */
 const TWO_HAND_DROP = 3;
 const DEG = Math.PI / 180;
@@ -199,8 +202,11 @@ function mainPart(i: RigInput): HeldPart {
     return part(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), angle, rigSwingSign(i.step, i.facingRight) > 0);
   }
   if (i.aimHeld) {
+    // 銃身の線が弾の出る位置（自分の中心から照準の向き）を通るように、握りを銃身のずれの分だけ反対へ寄せる。
+    // 描いた銃口と弾・銃口の閃光の出る線が揃う
     const angle = toRigAngle(i.aim, i.facingRight) + sway(i.time, i.stance.swayDeg);
-    return part(at({ x: i.shoulderF.x, y: i.shoulderF.y + AIM_DROP }, angle, AIM_REACH), angle, false, false, false);
+    const grip = at(i.aimOrigin, angle, AIM_REACH);
+    return part({ x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY }, angle, false, false, false);
   }
   return restPart(i);
 }
