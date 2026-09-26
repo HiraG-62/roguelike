@@ -306,6 +306,12 @@ export function setPlayerMuzzle(state: GameState, muzzle: Point | null): void {
   layerOf(state).muzzle = muzzle;
 }
 
+/**
+ * 自分の弾を描く高さ（論理 px。地面の当たりの位置から上へ）。弾は胸の高さで構えた銃から出て飛ぶように見せる
+ * （当たり判定は地面の位置のまま。曲射・設置弾は別に持ち上げる）
+ */
+export const PLAYER_SHOT_LIFT = 5;
+
 /** 弾の出た位置が自分からこれ以内なら、描いた銃口から閃光を出す（遠くで生まれる弾・奥義の弾は元の位置） */
 const MUZZLE_NEAR_PX = 16;
 
@@ -341,7 +347,7 @@ function onShotGone(state: GameState, layer: Layer, s: ShotSeen, dt: number, str
   if (struck && s.fx) return;
   const lead = dt * VANISH_LEAD;
   const x = s.x + s.vx * lead;
-  const y = s.y + s.vy * lead;
+  const y = s.y + s.vy * lead - (s.owner === "player" ? PLAYER_SHOT_LIFT : 0);
   const fizzle = s.life <= FIZZLE_LIFE_LEFT;
   const kind: FxEventKind = fizzle ? "fizzle" : "impact";
   const life = fizzle ? FX_ATTACK.impact.fizzleLife : FX_ATTACK.impact.life;

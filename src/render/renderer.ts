@@ -93,7 +93,7 @@ import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
-import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, setPlayerMuzzle } from "./fxAttack";
+import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip } from "./actorSprites";
 import { type ArmInk, type HeldPart, type Pt, armPixels, bodyClip, elbowOf, solveRig, stanceOf } from "./playerRig";
@@ -1935,7 +1935,8 @@ export class Renderer {
       // 曲射は山なりに持ち上げて描き、地面の位置に影を落とす（当たり判定は着弾点だけ）
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
-      const py = pr.pos.y - lift;
+      // 自分の弾は胸の高さに描く（構えた銃の銃身の高さ）
+      const py = pr.pos.y - lift - (isPlayer && lift === 0 ? PLAYER_SHOT_LIFT : 0);
       // 投げた武器（斧・短刀・輪 …。thrownLook.ts）は武器の絵が本体。弾の専用スプライトはその下に風切りの軌跡として重ねる
       const thrown = projectileLook(pr) !== undefined;
       // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があれば尾も絵が持つ
@@ -2120,7 +2121,7 @@ export class Renderer {
       shoulderB,
       time: state.time,
       offGrip: weaponOffGrip(weapon),
-      aimOrigin: { x: 0, y: (p.body.pos.y - bottom) * ACTOR_ART_SCALE },
+      aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
     });
 
@@ -2165,7 +2166,7 @@ export class Renderer {
     const a = actorAnchor(key, actorDir(part.angle, sheet.dirs), 0, "muzzle");
     if (!a) return null;
     const m = toScreen({ x: part.hand.x + a.x, y: part.hand.y + a.y });
-    return { ...m, dist: Math.hypot(m.x - center.x, m.y - center.y) };
+    return { ...m, dist: Math.hypot(m.x - center.x, m.y + PLAYER_SHOT_LIFT - center.y) };
   }
 
   /** 作業面の原点（足元）から (x, y) ドットの位置に、原点を合わせてセルを置く */

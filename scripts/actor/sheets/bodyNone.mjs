@@ -11,7 +11,6 @@ const SCARF = ["#4a1820", "#7c2830", "#a63d3c", "#c9614f"];
 const PANTS = ["#1f1f2a", "#313245", "#46485e", "#5d6078"];
 const BOOTS = ["#1c1517", "#382925", "#523c34", "#6b5143"];
 const BRASS = ["#5c4726", "#8e733c", "#c2a153", "#e8d48e"];
-const EYE_WHITE = "#e8e4dc";
 const EYE = "#1a1620";
 
 /** 腕（実行時に描く）の色: 袖 3 段・手 3 段 */
@@ -138,14 +137,14 @@ function head(frame, sk) {
   paint(frame, union(ellipse(fx - 0.5, fy - 4.3, 5.6, 2.4), ellipse(fx + 3.2, fy - 3.4, 2.6, 1.8), ellipse(fx - 3.6, fy - 1.6, 1.8, 3)), HAIR, { group: face, maxShade: 2 });
   // 頭巾の縁: 額の上と後ろ側だけ（顔の前を覆わない）
   paint(frame, hoodRim(fx, fy - 0.5), HOOD, { group: g, bias: 0.3 });
-  // 眼: 手前の眼（大）と奥の眼（顔の縁寄り）。瞳の左上に光
-  stamp(frame, fx - 1.5, fy - 1, ["wk", "kk", "kk"], FACE_INK);
-  stamp(frame, fx + 2, fy - 1, ["wk", "kk", "kk"], FACE_INK);
+  // 眼: 縦長の小さな点を 2 つ（塊にすると眼鏡に見えるので、1 ドット幅で間を空ける）
+  stamp(frame, fx - 0.5, fy - 1, ["k", "k"], FACE_INK);
+  stamp(frame, fx + 2.5, fy - 1, ["k", "k"], FACE_INK);
   // 口元の影
   px(frame, fx + 1, fy + 3, SKIN[0]);
 }
 
-const FACE_INK = { k: EYE, w: EYE_WHITE };
+const FACE_INK = { k: EYE };
 
 /** 顔: 平らに塗り、左上に明部、あごの下に影（光で顔の前が暗く沈まないように法線を使わない） */
 function faceShape(cx, cy) {
