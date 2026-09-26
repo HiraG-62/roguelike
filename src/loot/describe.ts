@@ -101,6 +101,7 @@ export const ATTRIBUTE_HINT: Readonly<Record<AttrKey, string>> = {
   vit: "生命・状態異常への抵抗と参照する行動が上がる",
   mnd: "気力・気力の回復と参照する行動が上がる",
   spi: "係数で参照する行動だけが上がる",
+  def: "防御力・魔防と参照する行動が上がる",
 };
 
 export interface AttributeDescription {

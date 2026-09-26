@@ -820,13 +820,17 @@ function sanitizePlayer(v: unknown): ReplayEvent["player"] | undefined {
   return { hp: v.hp, dashChargesLeft: v.dashChargesLeft, mana: v.mana };
 }
 
-/** 振り分けは各ステータス 0 以上の整数。旧版（alloc 欠損）は null、壊れていれば undefined */
+/**
+ * 振り分けは各ステータス 0 以上の整数。旧版（alloc 欠損）は null、壊れていれば undefined。
+ * 防御 `def` を足す前の旧記録は alloc はあっても def の欄が無いので、無い項目は 0 で補う
+ */
 function sanitizeAlloc(v: unknown): Attributes | null | undefined {
   if (v === null || v === undefined) return null;
   if (!isRecord(v)) return undefined;
   const out = uniformAttributes(0);
   for (const key of ATTR_KEYS) {
     const n = v[key];
+    if (n === undefined) continue;
     if (!isFiniteNumber(n) || n < 0 || !Number.isInteger(n)) return undefined;
     out[key] = n;
   }

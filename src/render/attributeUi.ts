@@ -1,8 +1,9 @@
 import { keyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { JOBS } from "../data/jobs";
-import { ATTR_LABEL, COLOR_ATTR } from "../loot/resonance";
-import { TRAIT_COLORS, TRAIT_COLOR_HEX, type AttrKey, type TraitColor } from "../loot/types";
+import { ATTR_COLOR } from "../loot/affixes";
+import { ATTR_LABEL } from "../loot/resonance";
+import { TRAIT_COLOR_HEX, type AttrKey } from "../loot/types";
 import { ALLOC_BUTTON, ALLOC_ORDER, allocButtonRect } from "../ui/attributeAlloc";
 import type { Rect } from "../ui/inventoryLayout";
 import { statusAttrPanelRect } from "../ui/statusTab";
@@ -13,7 +14,6 @@ import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
  * 当たり判定は ui/attributeAlloc.ts の allocButtonRect と共有する
  */
 
-const COLOR_TEXT = "#e0e0e0";
 const COLOR_SUB = "#a0a0a0";
 const COLOR_READY = "#ffd75f";
 const COLOR_BUTTON_BG = "rgba(255,215,95,0.12)";
@@ -25,10 +25,9 @@ const ROW_BASELINE_UP = 1;
 const BUTTON_GLYPH = "+";
 const BUTTON_BASELINE_UP = 1;
 
-/** ステータスの色（共鳴の色の対応を逆引き） */
+/** ステータスの色（loot/affixes.ts の ATTR_COLOR。防御は色を持つ 5 種の外なので順引きで決め打つ） */
 export function attrColor(key: AttrKey): string {
-  const color = TRAIT_COLORS.find((c: TraitColor) => COLOR_ATTR[c] === key);
-  return color === undefined ? COLOR_TEXT : TRAIT_COLOR_HEX[color];
+  return TRAIT_COLOR_HEX[ATTR_COLOR[key]];
 }
 
 // ---------------------------------------------------------------------------

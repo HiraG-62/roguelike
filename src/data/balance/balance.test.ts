@@ -147,8 +147,8 @@ describe("PLAYER / ACTION（プレイヤーの移動・ダッシュ・生命・�
 });
 
 describe("スキル・祝福のキー集合(段 3)", () => {
-  // JSON 直読みなので "_note" が混ざる。診断対象のキー集合からは除く
-  const withoutNote = (keys: readonly string[]) => keys.filter((k) => k !== "_note");
+  // JSON 直読みなので "_note" / "_fields" などのメタキーが混ざる。診断対象のキー集合からは除く
+  const withoutNote = (keys: readonly string[]) => keys.filter((k) => !k.startsWith("_"));
 
   it("skills のスキルのキー集合が SKILL_KEYS と一致する", () => {
     const baseKeys = withoutNote(Object.keys(skillsJson.SKILL)).filter((k) => (BASE_SKILL_KEYS as readonly string[]).includes(k));

@@ -4,6 +4,7 @@ import { scaleFlat } from "./flux";
 import { ATTR_GAIN, KEYSTONE, RESONANCE } from "../data/tuning";
 import {
   ATTR_KEYS,
+  COMBAT_ATTR_KEYS,
   TRAIT_COLORS,
   type ConstellationKey,
   type Equipment,
@@ -782,13 +783,17 @@ export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
   vit: "体力",
   mnd: "精神",
   spi: "霊力",
+  def: "防御",
 };
 
 function zeroAttributes(): Attributes {
-  return { str: 0, dex: 0, vit: 0, mnd: 0, spi: 0 };
+  return { str: 0, dex: 0, vit: 0, mnd: 0, spi: 0, def: 0 };
 }
 
-/** 共鳴が足すステータス（逓減前の生の値）。支配: その色 / 二重: 2 色それぞれ / 散光: 全部 */
+/**
+ * 共鳴が足すステータス（逓減前の生の値）。支配: その色 / 二重: 2 色それぞれ / 散光: 5 色全部。
+ * 防御は色を持たない別軸のステータスなので、散光（全ステータス +n）にも乗らない（COMBAT_ATTR_KEYS を使う）
+ */
 export function resonanceAttributes(resonance: Resonance): Attributes {
   const out = zeroAttributes();
   switch (resonance.kind) {
@@ -802,7 +807,7 @@ export function resonanceAttributes(resonance: Resonance): Attributes {
       for (const c of resonance.colors) out[COLOR_ATTR[c]] += TRIAD_ATTR_GAIN;
       return out;
     case "scatter":
-      for (const k of ATTR_KEYS) out[k] += ATTR_GAIN.resonanceScatter;
+      for (const k of COMBAT_ATTR_KEYS) out[k] += ATTR_GAIN.resonanceScatter;
       return out;
     case "none":
       return out;

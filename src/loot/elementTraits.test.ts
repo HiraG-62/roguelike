@@ -46,7 +46,7 @@ describe("属性耐性・防御の性質", () => {
     expect(s.resist.none, "無属性は防御の受け持ち").toBe(0);
   });
 
-  it("魔防と堅牢（アーマーと魔防 + 移動速度 −）", () => {
+  it("魔防と堅牢（防御力と魔防 + 移動速度 −）", () => {
     const s = statsWith([roll("wardingFlat", 7), roll("sturdy", 4, 5)], "ring");
     expect(s.warding).toBe(11);
     expect(s.armor).toBe(4);

@@ -462,7 +462,7 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
   it("振り分けがイベントとして記録され、再生で同じ状態になる", () => {
     const { data, state } = record();
     expect(data.events, "振り分け 2 回ぶんのイベント").toHaveLength(2);
-    expect(data.events[0]?.alloc, "1 回目は振り分けだけ").toEqual({ str: 0, dex: 0, vit: 1, mnd: 1, spi: 0 });
+    expect(data.events[0]?.alloc, "1 回目は振り分けだけ").toEqual({ str: 0, dex: 0, vit: 1, mnd: 1, spi: 0, def: 0 });
     expect(data.events[1]?.alloc?.str, "2 回目は装備と同時").toBe(1);
     const played = replay(data);
     expect(played.runAttributes).toEqual(state.runAttributes);
@@ -488,6 +488,17 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
     if (!first) throw new Error("イベントが無い");
     first.alloc = { str: -1, dex: 0, vit: 0, mnd: 0, spi: 0 };
     expect(sanitizeReplay(broken)).toBeNull();
+  });
+
+  it("防御 def の欄が無い旧記録は 0 で補う（def を足す前の記録）", () => {
+    const { data } = record();
+    const stripped = JSON.parse(JSON.stringify(data)) as { events: { alloc: Record<string, number> }[] };
+    const first = stripped.events[0];
+    if (!first) throw new Error("イベントが無い");
+    delete first.alloc.def;
+    const loaded = sanitizeReplay(stripped);
+    expect(loaded?.events[0]?.alloc?.def, "def は 0 で補う").toBe(0);
+    expect(loaded?.events[0]?.alloc?.vit, "他のステータスは変わらない").toBe(1);
   });
 });
 

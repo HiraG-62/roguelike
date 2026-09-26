@@ -126,6 +126,18 @@ describe("deriveAttributes（派生）", () => {
     expect(out.maxMana).toBeCloseTo(DEFAULT_STATS.maxMana + ATTR.mndMaxMana * d, FLOAT_DIGITS);
     expect(out.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen + ATTR.mndManaRegen * d, FLOAT_DIGITS);
   });
+
+  it("防御: 実効値 +10 で防御力 +10・魔防 +5（ATTR.defArmor / defWarding）", () => {
+    const out = deriveAttributes(statsWith("def", RAW_PLUS_10));
+    expect(out.armor).toBeCloseTo(DEFAULT_STATS.armor + ATTR.defArmor * 10, FLOAT_DIGITS);
+    expect(out.warding).toBeCloseTo(DEFAULT_STATS.warding + ATTR.defWarding * 10, FLOAT_DIGITS);
+  });
+
+  it("防御が 0 でも防御力・魔防は負にならない", () => {
+    const zero = deriveAttributes(statsWith("def", 0));
+    expect(zero.armor).toBeGreaterThanOrEqual(0);
+    expect(zero.warding).toBeGreaterThanOrEqual(0);
+  });
 });
 
 describe("addRunAttributes（ラン内振り分け）", () => {
@@ -133,7 +145,7 @@ describe("addRunAttributes（ラン内振り分け）", () => {
     const base = computeStats(createEmptyEquipment());
     const alloc = { ...uniformAttributes(0), str: 3, spi: 1 };
     const out = addRunAttributes(base, alloc);
-    expect(out.attributes).toEqual({ str: 8, dex: 5, vit: 5, mnd: 5, spi: 6 });
+    expect(out.attributes).toEqual({ str: 8, dex: 5, vit: 5, mnd: 5, spi: 6, def: 5 });
     expect(base.attributes, "入力の attributes が変わった").toEqual(uniformAttributes(ATTR.base));
   });
 });

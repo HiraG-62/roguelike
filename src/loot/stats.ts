@@ -287,7 +287,7 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   // lifeOnHit は与ダメに対する %（値 3 = 3%）なので flat のまま単位をラベルで示す
   lifeOnHit: { label: "与ダメからの生命回復(%)", style: "flat" },
   lifeOnKill: { label: `撃破時の生命回復（${HEAL.killHealMinCombo}コンボ以上）`, style: "flat" },
-  armor: { label: "アーマー", style: "flat" },
+  armor: { label: "防御力", style: "flat" },
   warding: { label: "魔防", style: "flat" },
   damageTakenMul: { label: "被ダメージ", style: "mul" },
   thorns: { label: "反射ダメージ", style: "flat" },

@@ -1,3 +1,4 @@
+import type { Element } from "../core/element";
 import type { FrameInput } from "../core/input";
 import { type GameState, pushSfx } from "../core/state";
 import { formatMeters } from "../core/units";
@@ -172,9 +173,16 @@ export function derivedStatRows(stats: Readonly<PlayerStats>): DerivedStatRow[] 
     { label: "気力の自然回復", value: `${Number(stats.manaRegen.toFixed(REGEN_DIGITS))}${PER_SECOND}`, attr: "mnd" },
     { label: "移動速度", value: `${formatMeters(PLAYER.speed * stats.moveSpeedMul)}${PER_SECOND}`, attr: "dex" },
     { label: "ダッシュ再使用", value: formatCooldown(dashCooldownTime(stats)), attr: "dex" },
-    { label: "防御", value: `${Math.round(stats.armor)}`, attr: null },
+    { label: "防御力", value: `${Math.round(stats.armor)}`, attr: null },
     { label: "魔防", value: `${Math.round(stats.warding)}`, attr: null },
+    { label: "耐性 炎/氷/雷", value: resistTriple(stats, "fire", "ice", "lightning"), attr: null },
+    { label: "耐性 毒/闇/光", value: resistTriple(stats, "poison", "dark", "light"), attr: null },
   ];
+}
+
+/** 「12/-5/0%」。3 属性の耐性 %（PlayerStats.resist）をまとめて 1 行に出す */
+function resistTriple(stats: Readonly<PlayerStats>, a: Element, b: Element, c: Element): string {
+  return `${Math.round(stats.resist[a])}/${Math.round(stats.resist[b])}/${Math.round(stats.resist[c])}%`;
 }
 
 /** 奥義の種類の表示名（docs/GLOSSARY.md「一撃 / 持続」） */

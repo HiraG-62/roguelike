@@ -1,4 +1,4 @@
 {
   "_note": "傷返し（CD型）: 自分の状態異常をすべて剥がし、周囲の敵へ付け、種類ごとに衝撃。poise は1種あたりの怯み値（0種でも1種ぶん）、minDurationは敵へ写す持続の下限",
-  "cooldown": 10, "minInterval": 0.3, "poise": 10, "radius": 56, "damage": { "base": 4, "vit": 0.6, "spi": 0.6 }, "poiseRatio": { "vit": 0.15, "spi": 0.15 }, "knockback": 140, "minDuration": 2
+  "cooldown": 10, "minInterval": 0.3, "poise": 10, "radius": 56, "damage": { "base": 4, "vit": 0.4, "spi": 0.6, "def": 0.2 }, "poiseRatio": { "vit": 0.15, "spi": 0.15 }, "knockback": 140, "minDuration": 2
 }

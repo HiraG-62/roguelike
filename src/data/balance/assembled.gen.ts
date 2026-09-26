@@ -741,6 +741,7 @@ import j_loot_affixCurves_cv_infuseDark from "./loot/affixCurves/cv_infuseDark.j
 import j_loot_affixCurves_cv_infuseLight from "./loot/affixCurves/cv_infuseLight.json";
 import j_loot_affixCurves_cv_infuseNone from "./loot/affixCurves/cv_infuseNone.json";
 import j_loot_bases from "./loot/bases.json";
+import j_loot_affixCurves_attr_def from "./loot/affixCurves/attr_def.json";
 import j_skills__index from "./skills/_index.json";
 import j_skills_SKILL__index from "./skills/SKILL/_index.json";
 import j_skills_SKILL_whirl from "./skills/SKILL/whirl.json";
@@ -1786,6 +1787,7 @@ export const loot = {
     "cv_infuseNone": j_loot_affixCurves_cv_infuseNone,
   },
   "bases": j_loot_bases,
+    "attr_def": j_loot_affixCurves_attr_def,
 };
 
 export const skills = {
@@ -1823,6 +1825,7 @@ export const skills = {
     "_note": j_skills_EXTRA_SKILL_TUNING__index["_note"],
     "contagion": j_skills_EXTRA_SKILL_TUNING_contagion,
     "unravel": j_skills_EXTRA_SKILL_TUNING_unravel,
+    "_fields": j_skills_EXTRA_SKILL_TUNING__index["_fields"],
     "kindle": j_skills_EXTRA_SKILL_TUNING_kindle,
     "prismShard": j_skills_EXTRA_SKILL_TUNING_prismShard,
     "fullMoon": j_skills_EXTRA_SKILL_TUNING_fullMoon,
@@ -2678,6 +2681,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/attr_dex.json",
   "loot/affixCurves/attr_mnd.json",
   "loot/affixCurves/attr_spi.json",
+  "loot/affixCurves/attr_def.json",
   "loot/affixCurves/attr_str.json",
   "loot/affixCurves/attr_vit.json",
   "loot/affixCurves/backlash.json",

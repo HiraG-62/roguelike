@@ -82,21 +82,23 @@ const COMBAT_TIPS: readonly TipDef[] = [
   { key: "status", term: "状態異常", category: "combat", body: "敵にも自分にも付く。同じものを積み切ると上位の状態へ昇華する。体力が高いほど自分に付いたものが早く切れる。" },
   { key: "reaction", term: "反応", category: "combat", body: "2 つの状態異常（か地形）が出会ったときの追加効果。図鑑の連携の頁に記録される。" },
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
+  { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },
 ];
 
-/** ステータス 5 種の体の性能（装備画面の ？ のヘルプから移した） */
+/** ステータス 6 種の体の性能（装備画面の ？ のヘルプから移した） */
 const ATTR_TIP_BODY: Readonly<Record<AttrKey, string>> = {
   str: "体の性能は持たない。係数で参照する行動（武器種の段・スキルなど）の威力・怯み値が伸びる。",
   dex: "移動速度・ダッシュの再使用時間と、係数で参照する行動が伸びる。",
   vit: "最大生命が伸び、自分に付いた状態異常が早く切れる。係数で参照する行動も伸びる。",
   mnd: "最大気力・気力の自然回復と、係数で参照する行動が伸びる。",
   spi: "体の性能は持たない。係数で参照する行動の威力・怯み値・状態異常や強化の効果量が伸びる。",
+  def: "防御力・魔防が伸び、係数で参照する行動（盾の技・反撃系のスキルなど）も伸びる。",
 };
 
-const ATTR_ORDER: readonly AttrKey[] = ["str", "dex", "vit", "mnd", "spi"];
+const ATTR_ORDER: readonly AttrKey[] = ["str", "dex", "vit", "mnd", "spi", "def"];
 
 const GROWTH_TIPS: readonly TipDef[] = [
-  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力の 5 つ。探索中に得た点を装備画面で振り分ける（振った点はその探索の間だけ）。" },
+  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力・防御の 6 つ。探索中に得た点を装備画面で振り分ける（振った点はその探索の間だけ）。" },
   ...ATTR_ORDER.map((a): TipDef => ({ key: `attr_${a}`, term: ATTR_LABEL[a], category: "growth", body: ATTR_TIP_BODY[a] })),
   { key: "effective", term: "実効値", category: "growth", body: "ステータスに逓減を掛けた計算用の値。高く積むほど 1 点あたりの伸びが小さくなる。" },
   {

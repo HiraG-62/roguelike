@@ -314,10 +314,16 @@ export function createEmptyProfile(): Profile {
 // ステータス（素質値）。docs/COMBAT_DESIGN.md A
 // ---------------------------------------------------------------------------
 
-/** 筋力 / 技巧 / 体力 / 精神 / 霊力 */
-export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
+/** 筋力 / 技巧 / 体力 / 精神 / 霊力 / 防御 */
+export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi", "def"] as const;
 export type AttrKey = (typeof ATTR_KEYS)[number];
 export type Attributes = Record<AttrKey, number>;
+
+/**
+ * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。共鳴の色対応・散光・「5 種全部を参照する行動」の
+ * 判定はこちら。防御は色を持たない別軸のステータスなので、5 種すべてを求めるテスト・ロジックはこちらを使う
+ */
+export const COMBAT_ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
 
 /**
  * 係数表（LoL のレシオ）。技の威力 = base + Σ(係数 × 実効値)。base はステータスが 0 のときの値。
@@ -333,7 +339,7 @@ export type AttrRatio = Partial<Record<AttrKey, number>>;
 
 /** 全ステータスが同じ値の Attributes */
 export function uniformAttributes(value: number): Attributes {
-  return { str: value, dex: value, vit: value, mnd: value, spi: value };
+  return { str: value, dex: value, vit: value, mnd: value, spi: value, def: value };
 }
 
 /**
@@ -348,9 +354,9 @@ export interface PlayerStats {
   lifeOnHit: number;
   /** 撃破時の回復量。コンボ HEAL.killHealMinCombo 以上でだけ発動し、共通上限を受ける */
   lifeOnKill: number;
-  /** 防御（物理の軽減。逓減式は system/combat.ts の armorReduction）。docs/COMBAT_DESIGN.md A-8 */
+  /** 防御力（物理の軽減。逓減式は system/combat.ts の armorReduction）。docs/COMBAT_DESIGN.md A-8。ステータスの「防御」`def` はこれと魔防を底上げする */
   armor: number;
-  /** 魔防（魔法の軽減。armor と同じ逓減式）。混成の攻撃は防御と魔防の平均で受ける */
+  /** 魔防（魔法の軽減。armor と同じ逓減式）。混成の攻撃は防御力と魔防の平均で受ける */
   warding: number;
   /** 属性耐性（%、−100〜75 のソフトキャップは system/combat.ts の effectiveResist） */
   resist: ElementTable;

@@ -28,7 +28,9 @@
 - B: 霊気 / 命 / 見極め / 強者 / 巡り。霊気がステータス「霊力」と、巡りが刻印符「巡り」と衝突する
 - C: 灯 / 血 / 刹那 / 異形 / 冷え / 潜り。雰囲気は強いが「最大灯」「血が足りない（出血と紛れる）」など直感性が落ちる
 
-変えずに残した語: ボス / 死神（既に日本語、または誰にでも通じる）、ダッシュ / コンボ / スキル / スキル石 / スロット / アーマー / リゲイン（カタカナのままの方が直感的。固有名詞を増やしすぎない）、起点 / 縛り / 位階 / 図鑑 / 依頼 / 実績 / 称号（既に日本語の世界観語）、地下 n 階（表示は既に階）。キー名・ボタン名（WASD / Space / Esc / LB / A X Y B）と URL は操作の案内なので英字のまま。
+変えずに残した語: ボス / 死神（既に日本語、または誰にでも通じる）、ダッシュ / コンボ / スキル / スキル石 / スロット / リゲイン（カタカナのままの方が直感的。固有名詞を増やしすぎない）、起点 / 縛り / 位階 / 図鑑 / 依頼 / 実績 / 称号（既に日本語の世界観語）、地下 n 階（表示は既に階）。キー名・ボタン名（WASD / Space / Esc / LB / A X Y B）と URL は操作の案内なので英字のまま。
+
+「アーマー」は廃止し「防御力」に統一（2026-09-26、ステータス「防御」`def` の追加に合わせて）。`PlayerStats.armor` の表示名は常に「防御力」。
 
 ## 表示文字列の書き方（2026-09-24）
 
@@ -309,17 +311,19 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | --- | --- | --- | --- |
 | 攻撃ジャンル | `AttackGenre`（range × quality） | 範囲軸と質軸の組み合わせ。表示は「近接・物理」 | `core/element.ts` genreLabel |
 | 近接 / 遠距離 / 範囲 | `AttackRange`: melee / ranged / area | 範囲軸。銃の弾・遠距離のスキルは「遠距離」（ボタンの役割の「射撃」とは別） | `core/element.ts` RANGE_LABEL |
-| 物理 / 魔法 / 混成 | `AttackQuality`: physical / arcane / hybrid | 質軸。物理はアーマー（敵は防御）、魔法は魔防、混成は両方の平均で受ける | `core/element.ts` QUALITY_LABEL |
+| 物理 / 魔法 / 混成 | `AttackQuality`: physical / arcane / hybrid | 質軸。物理は防御力（敵は防御）、魔法は魔防、混成は両方の平均で受ける | `core/element.ts` QUALITY_LABEL |
 | 属性 / 無属性 / 炎属性 / 氷属性 / 雷属性 / 毒属性 / 闇属性 / 光属性 | `Element`: none / fire / ice / lightning / poison / dark / light | 攻撃の属性。状態異常（燃焼・冷気…）とは別。表示は「炎属性」、耐性は「炎耐性」 | `core/element.ts` ELEMENT_LABEL |
-| 魔防 | `PlayerStats.warding` / 敵の `EnemyDefenseDef.warding` | 魔法の軽減。アーマーと同じ逓減式 | `loot/stats.ts`、`data/enemyDefense.ts` |
-| 防御（敵） | `EnemyDefenseDef.defense` | 敵の物理の軽減 %。プレイヤー側は「アーマー」 | `data/enemyDefense.ts` |
-| 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く | `loot/affixes.ts` res_* |
+| 防御力 | `PlayerStats.armor` | 物理の軽減。ステータス「防御」`def` 1 点につき +1.0 | `loot/stats.ts`、`system/attributes.ts` |
+| 魔防 | `PlayerStats.warding` / 敵の `EnemyDefenseDef.warding` | 魔法の軽減。防御力と同じ逓減式。ステータス「防御」`def` 1 点につき +0.5 | `loot/stats.ts`、`data/enemyDefense.ts`、`system/attributes.ts` |
+| 防御（敵） | `EnemyDefenseDef.defense` | 敵の物理の軽減 %。プレイヤー側は「防御力」 | `data/enemyDefense.ts` |
+| 防御 | `AttrKey` の `def` | ステータスの 6 種目。防御力・魔防を底上げし、盾の技・反撃系のスキルなど係数で参照する行動も伸ばす。5 色（紅蒼翠金冥）とは対応しない別軸（`COMBAT_ATTR_KEYS` は防御を除く 5 種） | `loot/types.ts`、`docs/STATS_AND_SCALING.md` |
+| 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く。ステータスタブの「体の性能」に耐性 2 行（炎/氷/雷、毒/闇/光）で出す | `loot/affixes.ts` res_*、`ui/statusTab.ts` |
 | 弱点 / 耐性（浮き文字） | `ELEMENT.weakText` / `resistText` | 敵の耐性が負 / 正の属性で当てたとき | `system/elementCombat.ts` |
 | ダメージ数字の種類（2026-09-24 第 3 弾） | `FloatTextKind`: crit / weak / resist / dot / reaction / normal | 会心 / 弱点 / 耐性 / 継続 / 反応 / 通常の 6 種で色と大きさを変える（会心 > 反応 > 弱点 > 耐性 の優先順で 1 つ選ぶ）。継続（dot）は 0.5 秒ぶんを敵ごとに束ねて小さく表示 | `system/effects.ts` damageTextKind |
 | 弱点の印 / ？ | `weaknessMark` | 敵の頭上の弱点の色。このランでその種類を倒すまでは「？」 | `render/elementUi.ts` |
 | 属性の変換（近接・射撃の n% を炎属性に変換） | `cv_infuse*` / `PlayerStats.infuse` | 通常攻撃の一部を属性として扱う変換 | `loot/affixes.ts` |
 | 無の刻印 | `cv_infuseNone` / `skillNeutral` | スキルの属性の n% を無属性に変換する | `loot/affixes.ts` |
-| 堅牢 | `sturdy` | アーマーと魔防 + / 移動速度 − の性質 | `loot/affixes.ts` |
+| 堅牢 | `sturdy` | 防御力と魔防 + / 移動速度 − の性質 | `loot/affixes.ts` |
 
 ## スキル・ラン内
 

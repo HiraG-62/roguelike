@@ -163,27 +163,33 @@ const ATTR_NAME: Readonly<Record<AttrKey, string>> = {
   vit: "体力",
   mnd: "精神",
   spi: "霊力",
+  def: "防御",
 };
 
-/** ステータスの色（docs/COMBAT_DESIGN.md A-1）。resonance.ts の COLOR_ATTR の逆引き */
+/**
+ * ステータスの色（docs/COMBAT_DESIGN.md A-1）。resonance.ts の COLOR_ATTR の逆引きは 5 色 = 5 ステータスのまま
+ * （防御は色を持つ 5 色の外）なので、防御の表示色はここだけ翠（jade、体力と共有）に決め打つ
+ */
 export const ATTR_COLOR: Readonly<Record<AttrKey, TraitColor>> = {
   str: "crimson",
   dex: "azure",
   vit: "jade",
   mnd: "gold",
   spi: "umbra",
+  def: "jade",
 };
 
 /** ステータスの性質の key（attr_str など） */
 export const ATTR_TRAIT_PREFIX = "attr_";
 
-/** ステータスを付けられる部位。その色の性質が出やすい部位に寄せる */
+/** ステータスを付けられる部位。その色の性質が出やすい部位に寄せる（防御は右手を除く防具・装飾） */
 const ATTR_SLOTS: Readonly<Record<AttrKey, readonly Slot[]>> = {
   str: ["mainHand", "armor", "ring", "amulet"],
   dex: ["mainHand", "boots", "ring", "amulet"],
   vit: ["armor", "boots", "ring", "amulet"],
   mnd: ["mainHand", "ring", "amulet"],
   spi: ["mainHand", "armor", "ring", "amulet"],
+  def: ["armor", "boots", "ring", "amulet"],
 };
 
 /** 期待値曲線（属性ごとに同じ形。docs/COMBAT_DESIGN.md A-3）。attr_str など key ごとに JSON から引く */
@@ -193,6 +199,7 @@ const ATTR_TRAIT_CURVES: Readonly<Record<AttrKey, readonly CurvePoint[]>> = {
   vit: curveFor("attr_vit"),
   mnd: curveFor("attr_mnd"),
   spi: curveFor("attr_spi"),
+  def: curveFor("attr_def"),
 };
 
 /** ステータス 5 種の性質。flat 段階で attributes（生の値）に足す */
@@ -379,7 +386,7 @@ function defenseElementTraits(): AffixDef[] {
     {
       key: "sturdy",
       // 代償の移動速度 −% は v2（深さで重くしない）
-      label: "堅牢: アーマーと魔防 +{v}、移動速度 -{v2}%",
+      label: "堅牢: 防御力と魔防 +{v}、移動速度 -{v2}%",
       tags: ["defense", "tradeoff"],
       slots: ["armor", "boots"],
       curve: curveFor("sturdy"),
@@ -584,7 +591,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "armorFlat",
-    label: "アーマー +{v}",
+    label: "防御力 +{v}",
     tags: ["defense"],
     slots: ["armor", "boots", "ring"],
     curve: curveFor("armorFlat"),
@@ -808,7 +815,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "hybridDefense",
-    label: "最大生命 +{v}、アーマー +{v2}",
+    label: "最大生命 +{v}、防御力 +{v2}",
     tags: ["life", "defense"],
     slots: ["armor", "boots"],
     curve: curveFor("hybridDefense"),
@@ -1854,7 +1861,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "oldScars",
     color: "jade",
-    label: "古傷: この遺物で被弾 100 回ごとにアーマー +{v}（5 段まで）",
+    label: "古傷: この遺物で被弾 100 回ごとに防御力 +{v}（5 段まで）",
     tags: ["defense"],
     slots: ["armor"],
     curve: curveFor("oldScars"),
@@ -2860,7 +2867,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_lifeToArmor",
-    label: "最大生命の{v}%をアーマーに変換",
+    label: "最大生命の{v}%を防御力に変換",
     tags: ["conversion", "life", "defense"],
     slots: ["armor", "amulet"],
     curve: curveFor("cv_lifeToArmor"),
@@ -3901,7 +3908,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.chain",
-    label: "最大生命 +{v}、アーマー +{v2}",
+    label: "最大生命 +{v}、防御力 +{v2}",
     range: { min: 20, max: 30, min2: 3, max2: 5 },
     apply: (s, v, v2) => {
       s.maxHp += v;
@@ -3910,7 +3917,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.plate",
-    label: "アーマー +{v}、最大生命 +20、移動速度 -8%",
+    label: "防御力 +{v}、最大生命 +20、移動速度 -8%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.armor += v;
@@ -3946,7 +3953,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.greaves",
-    label: "ダッシュ再使用時間 -{v}%、アーマー +3",
+    label: "ダッシュ再使用時間 -{v}%、防御力 +3",
     range: { min: 10, max: 15 },
     apply: (s, v) => {
       s.dashCooldownMul -= pct(v);
@@ -4175,7 +4182,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.ironGeta",
-    label: "アーマー +{v}、怯み値 +10%、移動速度 -12%",
+    label: "防御力 +{v}、怯み値 +10%、移動速度 -12%",
     range: { min: 5, max: 8 },
     apply: (s, v) => {
       s.armor += v;

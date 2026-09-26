@@ -140,9 +140,9 @@ const SKILL_SLOT_COUNT = 4;
 const SKILL_PRESSED_KEYS = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed"] as const;
 /**
  * ラン内ステータス振り分け（`allocateAttribute`、src/ui/attributeAlloc.ts）の決定的な優先順位。
- * 「体力 → 筋力 → 技巧 → 精神 → 霊力」の順で 1 点ずつ振り、末尾まで行ったら先頭に戻る（循環）
+ * 「体力 → 筋力 → 技巧 → 精神 → 霊力 → 防御」の順で 1 点ずつ振り、末尾まで行ったら先頭に戻る（循環）
  */
-const ALLOC_PRIORITY: readonly AttrKey[] = ["vit", "str", "dex", "mnd", "spi"];
+const ALLOC_PRIORITY: readonly AttrKey[] = ["vit", "str", "dex", "mnd", "spi", "def"];
 
 /** bot が手番をまたいで保持する内部状態 */
 export interface BotState {
