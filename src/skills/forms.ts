@@ -288,7 +288,7 @@ export function endShape(state: GameState, cause: ShapeEndCause): void {
   // 差し替えた近接の型の段は装備の武器種では引けないので、振りの途中なら止める
   if (shape.moveset && state.player.attack.phase !== "none") cancelAttack(state);
   rs.formRecover = shape.recover;
-  addFloatingText(state, state.player.body.pos, "変身が解けた", SHAPE_COLOR[shape.key], NOTICE_SCALE, TEXT_LIFE / 2);
+  addFloatingText(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], NOTICE_SCALE, TEXT_LIFE / 2);
 }
 
 /** 砲身化・業火の化身をもう一度撃った: 払わずに解く（自傷なし） */
@@ -522,7 +522,7 @@ function replaceProcs(state: GameState, statusProcs: StatusProc[]): void {
 function selfBurn(state: GameState): void {
   const f = SKILL.pyreForm;
   applyStatus(state, { kind: "player" }, { kind: "burn", stacks: 1, duration: f.selfBurnDuration, potency: f.selfBurnPotency }, "self");
-  addFloatingText(state, state.player.body.pos, "気力が尽きた", COLOR_PYRE, NOTICE_SCALE, TEXT_LIFE);
+  addFloatingText(state, state.player.body.pos, "気力切れ", COLOR_PYRE, NOTICE_SCALE, TEXT_LIFE);
 }
 
 // ---------------------------------------------------------------------------

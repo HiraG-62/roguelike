@@ -774,7 +774,7 @@ export function endForm(state: GameState): void {
   if (state.player.attack.phase !== "none") cancelAttack(state);
   setMoveset(state, form.base);
   rs.formRecover = form.recover;
-  addFloatingText(state, state.player.body.pos, "変身が解けた", COLOR_FORM, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, state.player.body.pos, "変身解除", COLOR_FORM, TEXT_SCALE, TEXT_LIFE);
 }
 
 /** 変身が切れた後の反動の移動倍率 */
