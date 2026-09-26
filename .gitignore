@@ -4,3 +4,6 @@ dist
 *.local
 dist-electron
 release
+
+# 参考素材（効果音のイメージなど）。解析用でリポジトリには入れない
+docs/example/
