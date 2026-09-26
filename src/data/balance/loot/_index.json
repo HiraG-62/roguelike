@@ -1,10 +1,11 @@
 {
   "_note": "装備系の数値。LOOT_DROP はドロップ確率・itemLevel、KEYSTONE/TRIGGER/SYNERGY/RESONANCE はルール文法の効果量、affixCurves は性質の期待値曲線（depth/min/max、%は表示単位）、bases はベースの minLevel（itemLevel）とmarginBonus（余白）",
   "_fields": {
-    "bases": "ベースごとの数値。minLevel はドロップし始める itemLevel、marginBonus は余白の上乗せ（器の容量は超えない）"
+    "bases": "ベースごとの数値。minLevel はドロップし始める itemLevel、marginBonus は余白の上乗せ（器の容量は超えない）",
+    "INNATE": "地金（装備に既定で宿るステータス・防御力・耐性）の予算と配り方。項目は INNATE/_index.json の _fields"
   },
   "STASH_CAPACITY": 400,
   "ARMOR_K": 50,
   "ARMOR_MAX_REDUCTION": 0.75,
-  "_order": ["LOOT_DROP", "PICKUP", "RESONANCE", "KEYSTONE", "TRIGGER", "SYNERGY", "STASH_CAPACITY", "ARMOR_K", "ARMOR_MAX_REDUCTION", "affixCurves", "bases"]
+  "_order": ["LOOT_DROP", "PICKUP", "RESONANCE", "KEYSTONE", "TRIGGER", "SYNERGY", "STASH_CAPACITY", "ARMOR_K", "ARMOR_MAX_REDUCTION", "affixCurves", "bases", "INNATE"]
 }

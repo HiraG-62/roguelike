@@ -1,0 +1,4 @@
+{
+  "base": { "head": 2, "armor": 3, "boots": 2, "ring": 1, "amulet": 1 },
+  "perPoint": { "head": 0.8, "armor": 1.2, "boots": 0.8, "ring": 0.4, "amulet": 0.4 }
+}

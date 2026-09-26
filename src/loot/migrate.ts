@@ -127,6 +127,8 @@ export function ensureGrowthFields(item: Item): Item {
   if (item.milestones === undefined) item.milestones = [];
   if (item.buds === undefined) item.buds = [];
   if (item.budOffer === undefined) item.budOffer = null;
+  // 地金を足す前の遺物は地金なし（後から抽選し直すと手持ちの強さが勝手に変わるため）
+  if (item.innate === undefined) item.innate = [];
   return item;
 }
 
@@ -188,6 +190,7 @@ export function migrateItem(item: Item): Item {
     name: item.name,
     implicit: item.implicit === null ? null : stripLegacy(item.implicit),
     affixes,
+    innate: item.innate ?? [],
     foundDepth: item.foundDepth,
     foundAt: item.foundAt,
     provenance: createEmptyProvenance(),

@@ -13,7 +13,7 @@ import type { MovesetKey } from "../data/weapons";
  * 部位。右手 / 左手（旧「近接 / 銃」。docs/ideas/weapon-redesign.md 5 章）。
  * 左手（offHand）は共鳴の環の席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
  */
-export const SLOTS = ["mainHand", "offHand", "armor", "boots", "ring", "amulet"] as const;
+export const SLOTS = ["mainHand", "offHand", "head", "armor", "boots", "ring", "amulet"] as const;
 export type Slot = (typeof SLOTS)[number];
 
 /** ドロップ・依頼・QA の装備が対象にする部位（左手は今はベースが無い） */
@@ -79,8 +79,8 @@ export const TRAIT_COLOR_LABEL: Readonly<Record<TraitColor, string>> = {
   umbra: "冥",
 };
 
-/** 性質の出自。found = 拾った時点 / bud = 芽吹いた / named = 名のある遺物の固定 */
-export type TraitOrigin = "found" | "bud" | "named";
+/** 性質の出自。found = 拾った時点 / bud = 芽吹いた / named = 名のある遺物の固定 / innate = 地金（Item.innate） */
+export type TraitOrigin = "found" | "bud" | "named" | "innate";
 
 /** @deprecated prefix / suffix は廃止。旧セーブの読み込みとテスト用の型としてだけ残す */
 export type AffixKind = "prefix" | "suffix";
@@ -226,6 +226,11 @@ export interface Item {
   implicit: AffixRoll | null;
   /** 性質 */
   affixes: AffixRoll[];
+  /**
+   * 地金: ベースに既定で宿るステータス・防御力・耐性（loot/innate.ts）。性質とは別で、余白・色の配合・クラフトの対象外。
+   * 旧セーブ・リプレイのスナップショットには無いので、読むときは item.innate ?? []
+   */
+  innate?: AffixRoll[];
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
@@ -298,7 +303,7 @@ export interface Profile {
 }
 
 export function createEmptyEquipment(): Equipment {
-  return { mainHand: null, offHand: null, armor: null, boots: null, ring: null, amulet: null };
+  return { mainHand: null, offHand: null, head: null, armor: null, boots: null, ring: null, amulet: null };
 }
 
 export function createEmptyProfile(): Profile {

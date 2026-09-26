@@ -120,6 +120,11 @@ const COLOR_SKILL = SKILL.drop.stoneColor;
 /** 武器技の「〇〇専用」（今の武器種で撃てる / 撃てない） */
 const COLOR_WEAPON_ART = "#ffd080";
 const COLOR_WEAPON_ART_OFF = "#ff7060";
+/** 地金の行（性質の色と混ざらない地金の色） */
+export const COLOR_INNATE = "#c8b48a";
+/** 地金の行の見出しと区切り */
+export const INNATE_HEAD = "地金: ";
+const INNATE_JOINER = "、";
 
 const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", status: "ステータス", skills: "スキル", echo: "残響", web: "流れ" };
 const TAB_UNDERLINE_H = 1;
@@ -455,6 +460,8 @@ function itemDetailLines(state: GameState, item: Item): { lines: TipLine[]; more
   const ult = ultimateTipLine(state.profile, item);
   if (ult) lines.push(ult);
   lines.push(DETAIL_GAP_LINE);
+  // 地金（ベースの既定のステータス）は性質の前に 1 行へまとめる（折り返しは wrapTipLines）
+  if (d.innate.length > 0) lines.push({ text: `${INNATE_HEAD}${d.innate.join(INNATE_JOINER)}`, color: COLOR_INNATE });
   for (const line of d.lines) lines.push(traitTipLine(line));
   for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });
 

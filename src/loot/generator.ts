@@ -28,6 +28,7 @@ import {
   valueFromFlux,
   type Nominal,
 } from "./flux";
+import { rollInnate } from "./innate";
 import { uniquesFor, type UniqueDef } from "./named";
 import { nameItem } from "./names";
 import { grammarForSlot, isTriggerKey, rollTriggerEffect, triggerToRoll } from "./triggers";
@@ -38,8 +39,8 @@ import { LOOT_SLOTS, TRAIT_COLORS, createEmptyProvenance, type AffixRoll, type I
  * 受け取った rng からアイテム seed を 1 つ引き、以降の抽選はすべてその seed の RNG で行う。
  * → Item.seed と opts があれば同じアイテムを再現できる。
  *
- * 手順: スロット → ベース → implicit → 性質の数（深度の期待値 + 分散）→ 余白 → 各性質
- * （色の傾き付き抽選 → 期待値 → 揺らぎ → 反転 → 異色）→ 誓約 → 名前 → 見た目の分類
+ * 手順: スロット → ベース → 性質の数（深度の期待値 + 分散）→ 余白 → 各性質
+ * （色の傾き付き抽選 → 期待値 → 揺らぎ → 反転 → 異色）→ 誓約 → implicit → 地金（innate.ts）→ 名前 → 見た目の分類
  */
 
 export interface GenerateOptions {
@@ -548,6 +549,8 @@ export function generateItem(rng: Rng, opts: GenerateOptions): Item {
     ? rollFixedItem(r, fixedBase, opts.plain === true, traitOpts)
     : rollRandomItem(r, slot, depth, boost, traitOpts, opts.excludeNamed);
   const implicit = rollImplicit(r, rolled.base);
+  // 地金は item 専用 rng の末尾で引く（既存の抽選の並びを変えず、state.rng の消費も増やさない）
+  const innate = rollInnate(r, rolled.base, depth, boost, opts.plain === true);
   const affixes = vowsLast(rolled.affixes);
 
   const item: Item = {
@@ -560,6 +563,7 @@ export function generateItem(rng: Rng, opts: GenerateOptions): Item {
     name: "",
     implicit,
     affixes,
+    innate,
     foundDepth: opts.foundDepth,
     foundAt: opts.now,
     provenance: createEmptyProvenance(),

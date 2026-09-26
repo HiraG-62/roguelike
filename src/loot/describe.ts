@@ -62,6 +62,8 @@ export interface ItemDescription {
   summary: string;
   /** implicit の説明（無ければ undefined） */
   implicit?: string;
+  /** 地金の行（「防御力 +3」「筋力 +2」。無ければ空） */
+  innate: string[];
   colorBar: ColorBarSegment[];
   lines: TraitLine[];
   /** 余白（残りの成長枠）の説明 */
@@ -287,6 +289,11 @@ export function itemKindName(item: Pick<Item, "baseKey">): string {
   return moveset === undefined ? baseName(item.baseKey) : MOVESETS[moveset].name;
 }
 
+/** 地金の行。性質の行と違い、ステータスの一言は付けない（詳細欄の幅を性質に回す） */
+export function innateLines(item: Pick<Item, "innate">): string[] {
+  return (item.innate ?? []).map((roll) => formatAffix(roll));
+}
+
 /** アイテム 1 つの表示情報 */
 export function describeItem(item: Item): ItemDescription {
   const dominant = dominantColor(item.affixes);
@@ -298,6 +305,7 @@ export function describeItem(item: Item): ItemDescription {
     summary: itemSummary(item.affixes),
     colorBar: itemColorBar(item.affixes),
     lines: item.affixes.map(describeTrait),
+    innate: innateLines(item),
     marginText: marginText(item),
     provenanceLines: provenanceLines(item),
   };

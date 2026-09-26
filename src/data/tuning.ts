@@ -101,6 +101,9 @@ export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
  */
 export const PICKUP = BALANCE.loot.PICKUP;
 
+/** 地金（装備に既定で宿るステータス・防御力・耐性）の予算と配り方。抽選は loot/innate.ts */
+export const INNATE = BALANCE.loot.INNATE;
+
 export const FEEL = BALANCE.feel.FEEL;
 
 export const ROOM = BALANCE.world.ROOM;

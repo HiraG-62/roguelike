@@ -740,9 +740,18 @@ import j_loot_affixCurves_cv_infusePoison from "./loot/affixCurves/cv_infusePois
 import j_loot_affixCurves_cv_infuseDark from "./loot/affixCurves/cv_infuseDark.json";
 import j_loot_affixCurves_cv_infuseLight from "./loot/affixCurves/cv_infuseLight.json";
 import j_loot_affixCurves_cv_infuseNone from "./loot/affixCurves/cv_infuseNone.json";
-import j_loot_bases from "./loot/bases.json";
 import j_loot_affixCurves_attr_def from "./loot/affixCurves/attr_def.json";
 import j_skills__index from "./skills/_index.json";
+import j_loot_bases from "./loot/bases.json";
+import j_loot_INNATE__index from "./loot/INNATE/_index.json";
+import j_loot_INNATE_budget from "./loot/INNATE/budget.json";
+import j_loot_INNATE_depthScale from "./loot/INNATE/depthScale.json";
+import j_loot_INNATE_hardCap from "./loot/INNATE/hardCap.json";
+import j_loot_INNATE_maxLines from "./loot/INNATE/maxLines.json";
+import j_loot_INNATE_pointValue from "./loot/INNATE/pointValue.json";
+import j_loot_INNATE_armor from "./loot/INNATE/armor.json";
+import j_loot_INNATE_resistLines from "./loot/INNATE/resistLines.json";
+import j_loot_INNATE_slotLean from "./loot/INNATE/slotLean.json";
 import j_skills_SKILL__index from "./skills/SKILL/_index.json";
 import j_skills_SKILL_whirl from "./skills/SKILL/whirl.json";
 import j_skills_SKILL_lunge from "./skills/SKILL/lunge.json";
@@ -1788,6 +1797,23 @@ export const loot = {
   },
   "bases": j_loot_bases,
     "attr_def": j_loot_affixCurves_attr_def,
+  "INNATE": {
+    "_note": j_loot_INNATE__index["_note"],
+    "_fields": j_loot_INNATE__index["_fields"],
+    "budget": j_loot_INNATE_budget,
+    "depthScale": j_loot_INNATE_depthScale,
+    "hardCap": j_loot_INNATE_hardCap,
+    "maxLines": j_loot_INNATE_maxLines,
+    "extraLineChance": j_loot_INNATE__index["extraLineChance"],
+    "linesPerPoint": j_loot_INNATE__index["linesPerPoint"],
+    "pointValue": j_loot_INNATE_pointValue,
+    "armor": j_loot_INNATE_armor,
+    "leanWeight": j_loot_INNATE__index["leanWeight"],
+    "resistWeight": j_loot_INNATE__index["resistWeight"],
+    "resistLines": j_loot_INNATE_resistLines,
+    "slotLean": j_loot_INNATE_slotLean,
+    "weaponLeanTop": j_loot_INNATE__index["weaponLeanTop"],
+  },
 };
 
 export const skills = {
@@ -2669,6 +2695,15 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/KEYSTONE.json",
   "loot/LOOT_DROP.json",
   "loot/PICKUP.json",
+  "loot/INNATE/_index.json",
+  "loot/INNATE/armor.json",
+  "loot/INNATE/budget.json",
+  "loot/INNATE/depthScale.json",
+  "loot/INNATE/hardCap.json",
+  "loot/INNATE/maxLines.json",
+  "loot/INNATE/pointValue.json",
+  "loot/INNATE/resistLines.json",
+  "loot/INNATE/slotLean.json",
   "loot/RESONANCE.json",
   "loot/SYNERGY.json",
   "loot/TRIGGER.json",

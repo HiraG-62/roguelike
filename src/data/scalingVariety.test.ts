@@ -6,7 +6,7 @@ import { scaledAtBase } from "../system/attributes";
 import { combat as combatJson, skills as skillsJson, ultimates as ultimatesJson, weapons as weaponsJson } from "./balance/assembled.gen";
 import { PLAYER } from "./tuning";
 import { BULLETS } from "../loot/bullets";
-import { MOVESETS } from "./weapons";
+import { MOVESETS, movesetAttrTotals } from "./weapons";
 
 /**
  * 行動ごとの係数の振り直し（docs/COMBAT_DESIGN.md A-10、2026-09-24）。
@@ -412,8 +412,10 @@ describe("参照ステータスが行動ごとに違う", () => {
   it("武器種ごとの主な参照先（全行動の係数の合計が最大のステータス）が 5 ステータスすべてに散らばる", () => {
     const mains = new Set<AttrKey>();
     for (const key of MOVESET_KEYS) {
+      // 集計は本体の movesetAttrTotals（地金の武器の主参照と同じ）を使う
+      const all = movesetAttrTotals(key);
       const total: Partial<Record<AttrKey, number>> = {};
-      for (const a of movesetActions(key)) for (const k of COMBAT_ATTR_KEYS) total[k] = (total[k] ?? 0) + (a.scaling[k] ?? 0);
+      for (const k of COMBAT_ATTR_KEYS) total[k] = all[k];
       for (const k of mainAttrs(total)) mains.add(k);
     }
     expect([...mains].sort(), "武器種の主な参照先").toEqual([...COMBAT_ATTR_KEYS].sort());

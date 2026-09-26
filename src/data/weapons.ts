@@ -1680,3 +1680,37 @@ export function chargeLevelAt(levels: readonly { readonly time: number }[], held
   }
   return level;
 }
+
+/** 武器種の全行動（左の段・ダッシュ攻撃・派生・溜め・右の振り / 弾 / 溜め）の係数表 */
+export function movesetScalings(key: MovesetKey): Scaling[] {
+  const m = MOVESETS[key];
+  const out: Scaling[] = [...m.steps.map((s) => s.scaling), m.dashAttack.scaling, ...m.branches.map((b) => b.step.scaling)];
+  if (m.charge) out.push(m.charge.step.scaling);
+  for (const s of m.steps2) {
+    if (s.kind === "swing") out.push(s.step.scaling);
+    if (s.kind === "volley") out.push(s.throw.scaling);
+    if (s.kind === "charge") out.push(s.charge.step.scaling);
+  }
+  return out;
+}
+
+/** 係数表を足し合わせたステータスごとの合計（extra は銃の弾など武器種の外の係数表） */
+export function movesetAttrTotals(key: MovesetKey, extra: readonly Scaling[] = []): Record<AttrKey, number> {
+  const total = Object.fromEntries(ATTR_KEYS.map((k) => [k, 0])) as Record<AttrKey, number>;
+  for (const s of [...movesetScalings(key), ...extra]) {
+    for (const k of ATTR_KEYS) total[k] += s[k] ?? 0;
+  }
+  return total;
+}
+
+/**
+ * 武器種の主な参照ステータス: 全行動の係数の合計が大きい順に top 個（合計 0 は除く。同点は ATTR_KEYS 順）。
+ * 地金（loot/innate.ts）で武器に出やすいステータスを決める
+ */
+export function movesetMainAttrs(key: MovesetKey, top: number, extra: readonly Scaling[] = []): AttrKey[] {
+  const total = movesetAttrTotals(key, extra);
+  return [...ATTR_KEYS]
+    .filter((k) => total[k] > 0)
+    .sort((a, b) => total[b] - total[a] || ATTR_KEYS.indexOf(a) - ATTR_KEYS.indexOf(b))
+    .slice(0, Math.max(0, top));
+}
