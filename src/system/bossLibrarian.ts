@@ -40,9 +40,9 @@ const SEQUENCE: Readonly<Record<number, readonly number[]>> = {
 const READING = 1;
 const NOT_READING = 0;
 const FULL_CIRCLE = Math.PI * 2;
-const FORBIDDEN_TEXT = "禁書を開いた";
-const TOPPLE_TEXT = "本棚が揺れる";
-const DROP_TEXT = "本を落とした";
+const FORBIDDEN_TEXT = "禁書解放";
+const TOPPLE_TEXT = "本棚倒し";
+const DROP_TEXT = "読書中断";
 /** 本棚の予告の影（1 マスの半分） */
 const SHELF_MARK_RADIUS = TILE_SIZE / 2;
 /** 引き寄せの後の衝撃波の半径 */

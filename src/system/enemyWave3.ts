@@ -339,7 +339,7 @@ function stealStatus(state: GameState, e: Enemy): void {
   ai.timer = findStatus(bag, kind)?.stacks ?? 1;
   removeStatus(state, { kind: "player" }, kind);
   spawnLine(state, state.player.body.pos, e.body.pos, ENEMY_AI.homunculus.color, 0.3);
-  addFloatingText(state, state.player.body.pos, "吸われた", ENEMY_AI.homunculus.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, state.player.body.pos, "状態異常吸収", ENEMY_AI.homunculus.color, TEXT_SCALE, TEXT_LIFE);
 }
 
 export function strikeHomunculus(state: GameState, e: Enemy): void {
@@ -401,7 +401,7 @@ function copyLastSkill(state: GameState, e: Enemy): void {
   if (move === ai.move && ai.stage === PACK_DONE) return;
   ai.move = move;
   ai.stage = PACK_DONE;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, "写した", ENEMY_AI.scribeImp.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, "模倣", ENEMY_AI.scribeImp.color, TEXT_SCALE, TEXT_LIFE);
 }
 
 export function telegraphScribe(state: GameState, e: Enemy): void {
@@ -719,7 +719,7 @@ function feed(state: GameState, e: Enemy, def: EnemyDef): void {
   const f = ENEMY_AI.flameEater;
   e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * f.heal));
   e.lastHp = e.hp;
-  addFloatingText(state, e.body.pos, "食べた", f.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, e.body.pos, "捕食", f.color, TEXT_SCALE, TEXT_LIFE);
   spawnBurst(state, e.body.pos, f.color, 10, 70, 0.3, 1.5);
   if (ai.counter >= f.maxGrowth) return;
   if (growBody(state, e, def.radius + (ai.counter + 1) * f.radiusPerGrowth)) ai.counter += 1;
@@ -769,7 +769,7 @@ function watchAnvil(state: GameState, e: Enemy): void {
   if (fixturesOf(state, e, "anvil").length > 0) return;
   const f = ENEMY_AI.forgeMaster;
   ai.move = FORGE_ENRAGED;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 14 }, "金床が砕けた", f.color, 1.3, 1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 14 }, "金床破壊", f.color, 1.3, 1);
   pushSfx(state, "guardBreak");
   applyStagger(state, e, f.anvilBreakStagger, { selfInflicted: true });
 }

@@ -292,7 +292,7 @@ export function chooseBud(state: GameState, index: number): AffixRoll | null {
   applyStats(state, computeStats(state.profile.equipment));
   saveProfile(state.profile);
   state.pendingBud = findPendingBud(state.profile);
-  addFloatingText(state, state.player.body.pos, "芽吹いた", BUD_TEXT_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
+  addFloatingText(state, state.player.body.pos, "芽吹き", BUD_TEXT_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `${item.name}が芽吹いた。`, BUD_TEXT_COLOR);
   return chosen;
 }

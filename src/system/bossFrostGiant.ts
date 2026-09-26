@@ -33,7 +33,7 @@ const ICICLE_ATTEMPTS = 4;
 const PILLAR_DISTANCE_RATIOS: readonly number[] = [1, 0.75, 0.5, 0.3];
 const ICICLE_TEXT = "つららの雨";
 const ARMOR_TEXT = "氷の鎧";
-const ARMOR_BREAK_TEXT = "鎧が砕けた";
+const ARMOR_BREAK_TEXT = "鎧破壊";
 
 export function updateFrostGiant(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   const ai = e.ai;
