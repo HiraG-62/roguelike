@@ -203,7 +203,7 @@ export const SFX_NAMES = [
   "finisherHit",
   /** 近接命中の低域のドン（hit と一緒に積む） */
   "hitThump",
-  // ---- 命中音の系統（刃・打撃・刺突）× 重さ（docs/recipes/audio.md）。武器種ごとの impact が選ぶ ----
+  // ---- 命中音の系統（刃・打撃・刺突・鞭打）× 重さ（docs/recipes/audio.md）。武器種ごとの impact が選ぶ ----
   "hitSlashLight",
   "hitSlashMid",
   "hitSlashHeavy",
@@ -213,6 +213,10 @@ export const SFX_NAMES = [
   "hitPierceLight",
   "hitPierceMid",
   "hitPierceHeavy",
+  /** 鞭打（鞭の命中）の軽・中・重 */
+  "hitLashLight",
+  "hitLashMid",
+  "hitLashHeavy",
   /** 弾の命中（砲・溜め弾・擲弾の直撃） */
   "bulletHitHeavy",
   // ---- スキルの属性ごとの発動音（skillCast に重ねる。system/skills.ts が castSfxName で選ぶ）----
@@ -222,6 +226,11 @@ export const SFX_NAMES = [
   "castPoison",
   "castDark",
   "castLight",
+  // ---- 隠し部屋（system/hiddenRoom.ts）----
+  /** ひび割れた壁に近づいたときの一度きりの手がかり */
+  "hiddenHint",
+  /** 押し当てて隠し部屋が開いた */
+  "hiddenOpen",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

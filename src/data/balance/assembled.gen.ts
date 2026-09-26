@@ -125,6 +125,7 @@ import j_enemies_BOSS_broodMother from "./enemies/BOSS/broodMother.json";
 import j_enemies_BOSS_librarian from "./enemies/BOSS/librarian.json";
 import j_enemies_BOSS_mirrorKnight from "./enemies/BOSS/mirrorKnight.json";
 import j_enemies_BOSS_thiefKing from "./enemies/BOSS/thiefKing.json";
+import j_enemies_FLOOR_LORD from "./enemies/FLOOR_LORD.json";
 import j_enemies_REAPER from "./enemies/REAPER.json";
 import j_enemies_stats__index from "./enemies/stats/_index.json";
 import j_enemies_stats_slime from "./enemies/stats/slime.json";
@@ -740,7 +741,17 @@ import j_loot_affixCurves_cv_infusePoison from "./loot/affixCurves/cv_infusePois
 import j_loot_affixCurves_cv_infuseDark from "./loot/affixCurves/cv_infuseDark.json";
 import j_loot_affixCurves_cv_infuseLight from "./loot/affixCurves/cv_infuseLight.json";
 import j_loot_affixCurves_cv_infuseNone from "./loot/affixCurves/cv_infuseNone.json";
+import j_loot_affixCurves_attr_def from "./loot/affixCurves/attr_def.json";
 import j_loot_bases from "./loot/bases.json";
+import j_loot_INNATE__index from "./loot/INNATE/_index.json";
+import j_loot_INNATE_budget from "./loot/INNATE/budget.json";
+import j_loot_INNATE_depthScale from "./loot/INNATE/depthScale.json";
+import j_loot_INNATE_hardCap from "./loot/INNATE/hardCap.json";
+import j_loot_INNATE_maxLines from "./loot/INNATE/maxLines.json";
+import j_loot_INNATE_pointValue from "./loot/INNATE/pointValue.json";
+import j_loot_INNATE_armor from "./loot/INNATE/armor.json";
+import j_loot_INNATE_resistLines from "./loot/INNATE/resistLines.json";
+import j_loot_INNATE_slotLean from "./loot/INNATE/slotLean.json";
 import j_skills__index from "./skills/_index.json";
 import j_skills_SKILL__index from "./skills/SKILL/_index.json";
 import j_skills_SKILL_whirl from "./skills/SKILL/whirl.json";
@@ -957,6 +968,7 @@ import j_world_HUB_DECOR from "./world/HUB_DECOR.json";
 import j_world_META from "./world/META.json";
 import j_world_DISCOVERY from "./world/DISCOVERY.json";
 import j_world_MAP_SIZE from "./world/MAP_SIZE.json";
+import j_world_HIDDEN_ROOM from "./world/HIDDEN_ROOM.json";
 
 export const boons = {
   "_note": j_boons__index["_note"],
@@ -1132,6 +1144,7 @@ export const enemies = {
     "mirrorKnight": j_enemies_BOSS_mirrorKnight,
     "thiefKing": j_enemies_BOSS_thiefKing,
   },
+  "FLOOR_LORD": j_enemies_FLOOR_LORD,
   "REAPER": j_enemies_REAPER,
   "stats": {
     "_fields": j_enemies_stats__index["_fields"],
@@ -1784,8 +1797,26 @@ export const loot = {
     "cv_infuseDark": j_loot_affixCurves_cv_infuseDark,
     "cv_infuseLight": j_loot_affixCurves_cv_infuseLight,
     "cv_infuseNone": j_loot_affixCurves_cv_infuseNone,
+    "attr_def": j_loot_affixCurves_attr_def,
   },
   "bases": j_loot_bases,
+  "INNATE": {
+    "_note": j_loot_INNATE__index["_note"],
+    "_fields": j_loot_INNATE__index["_fields"],
+    "budget": j_loot_INNATE_budget,
+    "depthScale": j_loot_INNATE_depthScale,
+    "hardCap": j_loot_INNATE_hardCap,
+    "maxLines": j_loot_INNATE_maxLines,
+    "extraLineChance": j_loot_INNATE__index["extraLineChance"],
+    "linesPerPoint": j_loot_INNATE__index["linesPerPoint"],
+    "pointValue": j_loot_INNATE_pointValue,
+    "armor": j_loot_INNATE_armor,
+    "leanWeight": j_loot_INNATE__index["leanWeight"],
+    "resistWeight": j_loot_INNATE__index["resistWeight"],
+    "resistLines": j_loot_INNATE_resistLines,
+    "slotLean": j_loot_INNATE_slotLean,
+    "weaponLeanTop": j_loot_INNATE__index["weaponLeanTop"],
+  },
 };
 
 export const skills = {
@@ -1821,6 +1852,7 @@ export const skills = {
   },
   "EXTRA_SKILL_TUNING": {
     "_note": j_skills_EXTRA_SKILL_TUNING__index["_note"],
+    "_fields": j_skills_EXTRA_SKILL_TUNING__index["_fields"],
     "contagion": j_skills_EXTRA_SKILL_TUNING_contagion,
     "unravel": j_skills_EXTRA_SKILL_TUNING_unravel,
     "kindle": j_skills_EXTRA_SKILL_TUNING_kindle,
@@ -2176,6 +2208,7 @@ export const world = {
   "META": j_world_META,
   "DISCOVERY": j_world_DISCOVERY,
   "MAP_SIZE": j_world_MAP_SIZE,
+  "HIDDEN_ROOM": j_world_HIDDEN_ROOM,
 };
 
 /** 組み立てに使った JSON（src/data/balance からの相対。_index.json を含む）。生成し忘れの検査に使う */
@@ -2305,6 +2338,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_AI/wisp.json",
   "enemies/ENEMY_SCALE.json",
   "enemies/ENEMY_TEMPO.json",
+  "enemies/FLOOR_LORD.json",
   "enemies/REAPER.json",
   "enemies/_index.json",
   "enemies/combat/_index.json",
@@ -2663,6 +2697,15 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "jobs/_index.json",
   "jobs/attributes.json",
   "jobs/weakness.json",
+  "loot/INNATE/_index.json",
+  "loot/INNATE/armor.json",
+  "loot/INNATE/budget.json",
+  "loot/INNATE/depthScale.json",
+  "loot/INNATE/hardCap.json",
+  "loot/INNATE/maxLines.json",
+  "loot/INNATE/pointValue.json",
+  "loot/INNATE/resistLines.json",
+  "loot/INNATE/slotLean.json",
   "loot/KEYSTONE.json",
   "loot/LOOT_DROP.json",
   "loot/PICKUP.json",
@@ -2675,6 +2718,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/arcaneFocus.json",
   "loot/affixCurves/armorFlat.json",
   "loot/affixCurves/attackSpeed.json",
+  "loot/affixCurves/attr_def.json",
   "loot/affixCurves/attr_dex.json",
   "loot/affixCurves/attr_mnd.json",
   "loot/affixCurves/attr_spi.json",
@@ -3109,6 +3153,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/CONTRACT.json",
   "world/DISCOVERY.json",
   "world/FLOOR_KIND.json",
+  "world/HIDDEN_ROOM.json",
   "world/HUB.json",
   "world/HUB_DECOR.json",
   "world/LINGER.json",

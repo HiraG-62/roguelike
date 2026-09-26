@@ -55,7 +55,7 @@ import {
 } from "./boonGrade";
 import { clearSpecialRoom } from "./specialRooms";
 import { castSlot, effectiveManaCost } from "./skills";
-import { arena, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
+import { arena, engageStartRoom, placeEnemy, slayFloorLord, withInput } from "./testHelpers";
 
 const FIXED_DT = 1 / 60;
 /** 入力無視時間を確実に超えるステップ数 */
@@ -72,6 +72,8 @@ function stairsPos(state: GameState): { x: number; y: number } {
 /** 階段に乗って depth 2 へ降り、3 択が出た状態 */
 function arrivedAtDepth2(seed = 3): GameState {
   const state = createGame(seed);
+  // 毎階の最後の部屋に出る「階の主」を倒して階段を出してから、他の敵は消す
+  slayFloorLord(state);
   state.enemies = [];
   state.player.invulnTimer = 999;
   state.player.body.pos = stairsPos(state);
@@ -928,6 +930,7 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
   it("ボス階の直後の提示は格の下駄が乗る", () => {
     const arrive = (fromDepth: number, seed: number): GameState => {
       const state = createGame(seed);
+      slayFloorLord(state);
       state.enemies = [];
       state.player.invulnTimer = 999;
       state.depth = fromDepth;

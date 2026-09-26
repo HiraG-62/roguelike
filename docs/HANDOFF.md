@@ -1,8 +1,18 @@
-# 引き継ぎ（2026-09-25 時点、0.0.15α + [Unreleased]）
+# 引き継ぎ（2026-09-26 時点、0.0.15α + [Unreleased]）
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
 
 ## 1. 現在地
+
+- ブランチ `feat/memo-20260926-1`（ローカル、未 push）。`npm run check` 通過。`REPLAY_VERSION` 12。memo `memo/20260926-1.md` の全項目を実装した（2026-09-26）
+  - 装備: 部位「頭」（内部 `head`、鎧→体・靴→足は表示名だけ）、地金（`Item.innate`、`loot/innate.ts`、`INNATE/`）、ステータス「防御」`def`（防御力 +1・魔防 +0.5 / 点、盾・恨み返しなどに係数）、ステータスタブに耐性 2 行と「効果」の頁
+  - マップ: 毎階の「階の主」（`system/floorLord.ts`、`BossState.major`）、ボス階を 5 の倍数に（`BOSS.interval`）、降階で減った生命の 35% 回復、隠し部屋（`system/hiddenRoom.ts` / `map/hidden.ts`）、通路への徘徊の初期配置と敵数の増加（`populateCorridors`、深度 1 で約 180 体）
+  - 武器: 投擲の通常の投げを遅く、杖の右の氷の猶予を延長（`chainWindow`）、投擲の奥義「手返しの理」→「早業」、投げる技で武器の絵が飛ぶ（`render/thrownLook.ts`）
+  - その他: Tips ノートの武器種タブ（`meta/weaponTips.ts`）、斬撃と鞭の効果音（鞭は `hitLash*`）
+- フル QA（2026-09-26、`src/qa/report.md`）: 例外・NaN なし。1 step 0.19 → 0.22ms。深度 1 の死亡割合 45% → 58%（階の主 + 敵の増量）。隠し部屋の開放 4/51 階。拾った rare が 15% → 6.5%（到達深度の低下との相関か未確認）。フル QA は約 25 分
+- 保留（ユーザーの判断待ち）: 刻印符をランごとにリセットするか、装備が盛りやすくなったことでローグライク性が弱まる懸念への追加の抑え（今は地金の深度別の上限 `INNATE.hardCap` だけ）
+
+## 1-旧. 2026-09-25 時点の現在地
 
 - ブランチ `claude/busy-shannon-flfsgk`（push 済み、PR は未作成）。`npm run check` 通過（テスト約 4,920 件）。版はまだ上げていない（CHANGELOG の [Unreleased] に全部ある）
 - memo `memo/20260925-2.md` の全項目を実装した（2026-09-25 夜〜）

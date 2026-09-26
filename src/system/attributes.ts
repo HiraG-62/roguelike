@@ -85,6 +85,7 @@ export function deriveAttributes(stats: Readonly<PlayerStats>): PlayerStats {
   deriveDex(out, eff.dex - ATTR.base);
   deriveVit(out, eff.vit - ATTR.base);
   deriveMnd(out, eff.mnd - ATTR.base);
+  deriveDef(out, eff.def - ATTR.base);
   return out;
 }
 
@@ -95,6 +96,7 @@ function effectiveAttributes(raw: Readonly<Attributes>): Attributes {
     vit: effectiveAttr(raw.vit),
     mnd: effectiveAttr(raw.mnd),
     spi: effectiveAttr(raw.spi),
+    def: effectiveAttr(raw.def),
   };
 }
 
@@ -118,4 +120,10 @@ function deriveVit(out: PlayerStats, d: number): void {
 function deriveMnd(out: PlayerStats, d: number): void {
   out.maxMana = Math.max(0, out.maxMana + ATTR.mndMaxMana * d);
   out.manaRegen = Math.max(0, out.manaRegen + ATTR.mndManaRegen * d);
+}
+
+/** 防御は防御力・魔防の両方を底上げする（docs/STATS_AND_SCALING.md 2 章） */
+function deriveDef(out: PlayerStats, d: number): void {
+  out.armor = Math.max(0, out.armor + ATTR.defArmor * d);
+  out.warding = Math.max(0, out.warding + ATTR.defWarding * d);
 }

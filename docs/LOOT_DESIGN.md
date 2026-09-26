@@ -47,16 +47,19 @@ docs/ideas/loot-identity.md の推奨案「響き・揺らぎ・来歴」に置�
 | 名のある遺物 | `namedKey`（旧 unique） | 性質が固定の遺物（値は小さく揺らぐ） |
 | 残響 | `EchoWallet` | 分解で得る色ごとの素材（紅響 / 蒼響 / 翠響 / 金響 / 冥響） |
 
-## スロット（6）
+## スロット（右手・左手・頭・体・足・指輪・首飾り）
 
 | slot | ベース例 | 役割 |
 | --- | --- | --- |
 | weapon | dagger / shortsword / longsword / greatsword / spear | 近接の基礎ダメージ・速度・リーチ |
 | gun | pistol / smg / rifle / shotgun | 射撃の基礎ダメージ・連射・弾数・貫通 |
-| armor | cloth / leather / chain / plate | 生命・アーマー・被ダメ軽減 |
-| boots | sandals / boots / greaves | 移動速度・ダッシュ |
+| head（頭） | hood / leatherCap / ironHelm / circlet / maskedVisor ほか | 体の性質を引く（`affixes.ts` の `SLOT_ALIAS`）。星座の輪には入らない |
+| armor（体） | cloth / leather / chain / plate | 生命・防御力・被ダメ軽減 |
+| boots（足） | sandals / boots / greaves | 移動速度・ダッシュ |
 | ring | ring 系 | 何でも（クリティカル、元素、吸血…） |
 | amulet | amulet 系 | 何でも（ユーティリティ寄り） |
+
+**地金**（`Item.innate`、`loot/innate.ts`）: 性質とは別に、どの装備にも既定で宿るステータス・防御力・属性耐性の層。深度で大きくなりやすい予算（点）をランダムに決め、それを「項目数」と「値」に配るので、値も項目数も両方多い遺物は出にくい。防具は防御力が必ず付き（体は高め・指輪と首飾りは低め）、部位ごとに出やすいステータスがある（頭 = 筋力・技巧 / 体 = 体力 / 足 = 技巧・体力 / 指輪 = 精神 / 首飾り = 霊力）。武器はその武器種の主参照のステータスが出やすい。余白・色の配合・共鳴の減衰・来歴・クラフトの対象外。数値は `src/data/balance/loot/INNATE/`。借り物・初期武器（plain）と旧セーブの遺物には付かない
 
 ベースは `implicit`（固定の暗黙補正 + ロール幅）と **色の傾き**（`colors.ts` の `BASE_LEAN`。生成時にその色の性質が 2 倍選ばれやすい）を持つ。implicit は色を持たず、配合にも減衰にも関わらない。
 

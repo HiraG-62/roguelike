@@ -44,11 +44,12 @@ import { clampHitstopScale } from "../ui/settings";
  *    （docs/ideas/ougi-and-dual-actions.md）
  * 10: コンボ派生の入力列が「実際に出た段」になり、曲射の派生・右レーンの弾がカーソル距離で落ちるようになった
  * 11: スキル石の抽選に技（共通技・武器技。docs/ideas/weapon-skills.md）が加わり、装備中の武器種で重みが変わるようになった
+ * 12: ステータス「防御」・部位「頭」・装備の地金、毎階の「階の主」とボス階の周期 5、隠し部屋、通路への敵の初期配置、降階の回復
  *
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
-export const REPLAY_VERSION = 11;
+export const REPLAY_VERSION = 12;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -820,13 +821,17 @@ function sanitizePlayer(v: unknown): ReplayEvent["player"] | undefined {
   return { hp: v.hp, dashChargesLeft: v.dashChargesLeft, mana: v.mana };
 }
 
-/** 振り分けは各ステータス 0 以上の整数。旧版（alloc 欠損）は null、壊れていれば undefined */
+/**
+ * 振り分けは各ステータス 0 以上の整数。旧版（alloc 欠損）は null、壊れていれば undefined。
+ * 防御 `def` を足す前の旧記録は alloc はあっても def の欄が無いので、無い項目は 0 で補う
+ */
 function sanitizeAlloc(v: unknown): Attributes | null | undefined {
   if (v === null || v === undefined) return null;
   if (!isRecord(v)) return undefined;
   const out = uniformAttributes(0);
   for (const key of ATTR_KEYS) {
     const n = v[key];
+    if (n === undefined) continue;
     if (!isFiniteNumber(n) || n < 0 || !Number.isInteger(n)) return undefined;
     out[key] = n;
   }

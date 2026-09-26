@@ -19,9 +19,9 @@ import { updateStatusEffects } from "./statusEffects";
 import { smokeAt } from "./terrain";
 import { enemyDef } from "../data/enemies";
 
-/** 盗賊王（docs/ideas/enemies.md B3。深度 27 のボス） */
+/** 盗賊王（docs/ideas/enemies.md B3。9 体中 9 番目 = BOSS.interval × 9 のボス） */
 
-const DEPTH = 27;
+const DEPTH = BOSS.interval * 9;
 const HUGE_HP = 1_000_000;
 
 function bossFloor(seed = 21): { state: GameState; boss: Enemy } {
@@ -73,7 +73,7 @@ function thieves(state: GameState, boss: Enemy): Enemy[] {
 }
 
 describe("盗賊王: 全体", () => {
-  it("深度 27 のボス階に出て、部屋には最初から手下の盗賊がいる", () => {
+  it("BOSS.interval × 9 のボス階に出て、部屋には最初から手下の盗賊がいる", () => {
     expect(bossKeyForDepth(DEPTH)).toBe("thiefKing");
     const { state, boss } = bossFloor();
     expect(boss.defKey).toBe("thiefKing");

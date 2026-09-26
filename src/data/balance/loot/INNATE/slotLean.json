@@ -1,0 +1,7 @@
+{
+  "head": ["str", "dex"],
+  "armor": ["vit"],
+  "boots": ["dex", "vit"],
+  "ring": ["mnd"],
+  "amulet": ["spi"]
+}

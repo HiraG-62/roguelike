@@ -19,6 +19,7 @@ import {
 } from "./provenance";
 import { OPPOSITE_COLOR } from "./colors";
 import { createEmptyProfile, createEmptyProvenance, type Item, type Profile } from "./types";
+/** 200 seed ぶん生成する重いテスト。全体を並列で回すと 5 秒の既定を超えることがあるので延ばす */const HEAVY_TEST_TIMEOUT_MS = 20_000;
 
 const NOW = 1_700_000_000_000;
 const KILLS_FOR_FIRST_BUD = 50;
@@ -132,7 +133,7 @@ describe("芽", () => {
         }
       }
     }
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 
   it("chooseBud: 選んだ性質が芽として加わり、余白が 1 減り、履歴に 2 択が残る。stats も畳み込み直す", () => {
     const state = createGame(1, "1", profileWith(weapon(1, 3)));

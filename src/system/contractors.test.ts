@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
-import { CONTRACT, ROOM_KIND } from "../data/tuning";
+import { BOSS, CONTRACT, ROOM_KIND } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import {
   CONTRACTORS,
@@ -108,8 +108,8 @@ describe("契約者: 出現", () => {
     let stood = 0;
     for (const seed of SEEDS) {
       const state = createGame(seed);
-      state.depth = 4;
-      expect(isBossDepth(3), "深度 3 はボス階").toBe(true);
+      state.depth = BOSS.interval + 1;
+      expect(isBossDepth(BOSS.interval), "ボス階").toBe(true);
       buildFloor(state, "rooms");
       if (state.contracts.contractor) stood++;
     }

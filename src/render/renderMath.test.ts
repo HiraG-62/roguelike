@@ -30,6 +30,7 @@ import {
   bombStyle,
   bossIntroPhase,
   bossPhaseThreshold,
+  crackPixels,
   damageTextStyle,
   fitTooltip,
   floorVariant,
@@ -41,6 +42,7 @@ import {
   wallStyle,
   computeViewScale,
 } from "./renderMath";
+import { TILE_SIZE } from "../map/grid";
 
 describe("floorVariant", () => {
   it("決定的で範囲内", () => {
@@ -87,6 +89,32 @@ describe("wallMask", () => {
   it("周囲が全部壁なら 0", () => {
     const map = createMap(5, 5);
     expect(wallMask(map, 2, 2)).toBe(0);
+  });
+});
+
+describe("crackPixels（隠し部屋の扉のひび）", () => {
+  it("4〜6 点の折れ線で、全点がタイル内に収まる", () => {
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        const pts = crackPixels(x, y);
+        expect(pts.length).toBeGreaterThanOrEqual(4);
+        expect(pts.length).toBeLessThanOrEqual(6);
+        for (const p of pts) {
+          expect(p.x).toBeGreaterThanOrEqual(0);
+          expect(p.x).toBeLessThan(TILE_SIZE);
+          expect(p.y).toBeGreaterThanOrEqual(0);
+          expect(p.y).toBeLessThan(TILE_SIZE);
+        }
+      }
+    }
+  });
+
+  it("同じタイル座標なら毎回同じ形（state.rng を使わない純関数）", () => {
+    expect(crackPixels(7, 3)).toEqual(crackPixels(7, 3));
+  });
+
+  it("タイル座標が違えば形も変わる", () => {
+    expect(crackPixels(7, 3)).not.toEqual(crackPixels(8, 3));
   });
 });
 

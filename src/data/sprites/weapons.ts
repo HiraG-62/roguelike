@@ -954,9 +954,144 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   fan: edged(FAN_SIDE, FAN_DIAG),
 };
 
-export const WEAPON_SPRITES: Record<string, SpriteFrames> = Object.fromEntries(
-  Object.entries(HELD).map(([key, frames]) => [weaponSpriteKey(key as MovesetKey), frames]),
+// -----------------------------------------------------------------------------
+// 投げた武器（飛んでいる間の絵。render/thrownLook.ts が弾・技の key から引く）。
+// 持ち手の横の絵（右向き）から拳を外して作る（持っている武器と同じ絵が飛んでいくように）。持ち手に無い小物だけ手で描く
+// -----------------------------------------------------------------------------
+
+/** 投げた武器の絵の種類。スプライトの key は thrownSpriteKey */
+export const THROWN_SHAPES = [
+  "knife",
+  "axe",
+  "hammer",
+  "shield",
+  "spear",
+  "iceSpear",
+  "cleaver",
+  "warRing",
+  "ringBlades",
+  "weight",
+  "ironBall",
+  "bola",
+] as const;
+export type ThrownShape = (typeof THROWN_SHAPES)[number];
+
+export function thrownSpriteKey(shape: ThrownShape): string {
+  return `thrownWeapon.${shape}`;
+}
+
+const TRANSPARENT_PX = ".";
+const OUTLINE_PX = "k";
+
+/** 塗り（透明・輪郭・肌以外）の画素か */
+function isFill(c: string | undefined): boolean {
+  return c !== undefined && c !== TRANSPARENT_PX && c !== OUTLINE_PX && !SKIN.has(c);
+}
+
+function fillNear(frame: Frame, x: number, y: number): boolean {
+  return [frame[y]?.[x + 1], frame[y]?.[x - 1], frame[y + 1]?.[x], frame[y - 1]?.[x]].some(isFill);
+}
+
+/** 透明の行・列を削る（回したときに絵の真ん中が回転の中心に来るように） */
+function cropFrame(frame: Frame): Frame {
+  const rows = frame.map((row, y) => ({ row, y })).filter(({ row }) => /[^.]/.test(row));
+  const top = rows[0]?.y ?? 0;
+  const bottom = rows[rows.length - 1]?.y ?? 0;
+  const cols = frame.flatMap((row) => [...row].flatMap((c, x) => (c === TRANSPARENT_PX ? [] : [x])));
+  const left = Math.min(...cols);
+  const right = Math.max(...cols);
+  return frame.slice(top, bottom + 1).map((row) => row.slice(left, right + 1));
+}
+
+/**
+ * 持ち手の絵から拳を外す。塗りに接する肌は柄の端の輪郭に塗り替え（柄の端を閉じる）、残りの肌は透明にし、
+ * 塗りに接しなくなった輪郭（拳の縁取り）も消す
+ */
+export function unheldFrame(frame: Frame): Frame {
+  const capped = frame.map((row, y) =>
+    [...row].map((c, x) => (SKIN.has(c) ? (fillNear(frame, x, y) ? OUTLINE_PX : TRANSPARENT_PX) : c)).join(""),
+  );
+  const trimmed = capped.map((row, y) =>
+    [...row].map((c, x) => (c === OUTLINE_PX && !fillNear(capped, x, y) ? TRANSPARENT_PX : c)).join(""),
+  );
+  return cropFrame(trimmed);
+}
+
+/** 氷の投げ槍: 槍の金属と柄を氷の 3 段に塗り替える */
+const ICE_SWAP: Readonly<Record<string, string>> = { "1": "2", s: "3", S: "4", W: "3", w: "4" };
+
+function recolorFrame(frame: Frame, swap: Readonly<Record<string, string>>): Frame {
+  return frame.map((row) => [...row].map((c) => swap[c] ?? c).join(""));
+}
+
+/** 短刀（右向き）: 木の握り・金の鍔・短い刃 */
+const THROWN_KNIFE: Frame = [
+  "...k.......",
+  "kkkYkkkkkk.",
+  "kUXY11sssSk",
+  "kkkYSSSSSk.",
+  "...kkkkkk..",
+];
+
+/** 分銅（鎖鎌の先の重り）: 上に鎖を通す輪 */
+const THROWN_WEIGHT: Frame = [
+  "..kk..",
+  ".kSSk.",
+  "..kk..",
+  ".kssk.",
+  "k1ssSk",
+  "ksSSSk",
+  ".kkkk.",
+];
+
+/** 鉄球（チェーンアレイの先の棘のある球） */
+const THROWN_IRON_BALL: Frame = [
+  "...k...",
+  "..ksk..",
+  ".k1ssk.",
+  "ks1sSSk",
+  ".ksSSk.",
+  "..kSk..",
+  "...k...",
+];
+
+/** 絡み紐: 紐でつないだ 2 つの重り */
+const THROWN_BOLA: Frame = [
+  ".kk......",
+  "k1sk.....",
+  "kSSk.....",
+  ".kkW.....",
+  "....W....",
+  ".....W...",
+  "......kk.",
+  ".....k1sk",
+  ".....kSSk",
+  "......kk.",
+];
+
+const THROWN_FRAMES: Readonly<Record<ThrownShape, Frame>> = {
+  knife: THROWN_KNIFE,
+  axe: unheldFrame(AXE_SIDE),
+  hammer: unheldFrame(HAMMER_SIDE),
+  shield: unheldFrame(SHIELD_SIDE),
+  spear: unheldFrame(SPEAR_SIDE),
+  iceSpear: recolorFrame(unheldFrame(SPEAR_SIDE), ICE_SWAP),
+  cleaver: unheldFrame(CLEAVER_SIDE),
+  warRing: unheldFrame(WAR_RING_SIDE),
+  ringBlades: unheldFrame(RING_BLADES_SIDE),
+  weight: THROWN_WEIGHT,
+  ironBall: THROWN_IRON_BALL,
+  bola: THROWN_BOLA,
+};
+
+export const THROWN_SPRITES: Record<string, SpriteFrames> = Object.fromEntries(
+  THROWN_SHAPES.map((shape) => [thrownSpriteKey(shape), [THROWN_FRAMES[shape]]]),
 );
+
+export const WEAPON_SPRITES: Record<string, SpriteFrames> = {
+  ...Object.fromEntries(Object.entries(HELD).map(([key, frames]) => [weaponSpriteKey(key as MovesetKey), frames])),
+  ...THROWN_SPRITES,
+};
 
 // -----------------------------------------------------------------------------
 // 斬撃（docs/ideas/combat-feel-design.md C-3）。形ごとに別の絵、太さ 3 段 × 絵 3 種（A / B / 最終段）。

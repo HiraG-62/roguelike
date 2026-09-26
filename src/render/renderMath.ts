@@ -15,7 +15,7 @@ import {
   type WeaponFrame,
   slashFrame,
 } from "../data/sprites/weapons";
-import { type GameMap, Tile, getTile } from "../map/grid";
+import { type GameMap, TILE_SIZE, Tile, getTile } from "../map/grid";
 
 /** 座標ハッシュ（描画のばらつき用。ゲーム rng は消費しない） */
 export function tileHash(x: number, y: number): number {
@@ -41,6 +41,39 @@ export function wallStyle(map: GameMap, x: number, y: number): WallStyle {
     }
   }
   return "none";
+}
+
+export interface CrackPoint {
+  x: number;
+  y: number;
+}
+
+/** ひび割れの折れ線の点数（4〜6）とジグザグの幅・縦の刻み（タイル内ローカル px） */
+const CRACK_MIN_POINTS = 4;
+const CRACK_POINT_SPAN = 3;
+const CRACK_JITTER = 7;
+const CRACK_STEP_MIN = 2;
+const CRACK_STEP_SPAN = 3;
+const CRACK_EDGE = 1;
+
+/**
+ * 隠し部屋の扉タイル（壁）に描くひびの折れ線。タイル座標のハッシュだけで決まる純関数（state.rng を消費しない）。
+ * 戻り値はタイル左上からのローカル px（0..TILE_SIZE-1）
+ */
+export function crackPixels(x: number, y: number): CrackPoint[] {
+  const h = tileHash(x, y);
+  const count = CRACK_MIN_POINTS + (h % CRACK_POINT_SPAN);
+  const points: CrackPoint[] = [];
+  let px = CRACK_EDGE + (h % (TILE_SIZE - CRACK_EDGE * 2));
+  let py = CRACK_EDGE;
+  points.push({ x: px, y: py });
+  for (let i = 1; i < count; i++) {
+    const hh = tileHash(x * 131 + i, y * 197 + i);
+    px = Math.max(CRACK_EDGE, Math.min(TILE_SIZE - 1 - CRACK_EDGE, px + ((hh % (CRACK_JITTER * 2 + 1)) - CRACK_JITTER)));
+    py = Math.min(TILE_SIZE - 1 - CRACK_EDGE, py + CRACK_STEP_MIN + (hh % CRACK_STEP_SPAN));
+    points.push({ x: px, y: py });
+  }
+  return points;
 }
 
 /** 壁の自動接続の 4 方向ビット（N=1 / E=2 / S=4 / W=8）。「隣が床」を立てる */

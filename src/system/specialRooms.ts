@@ -1134,7 +1134,8 @@ export function escapeActive(state: GameState): boolean {
 export function planForkStairs(state: GameState): void {
   const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax);
   const kinds = pickFloorKinds(state.depth + 1, state.rng, count);
-  if (isBossDepth(state.depth)) {
+  // この階に主（ボスか階の主）がいれば、階段は撃破後に出る（tile は -1 のまま。ensureForkStairs が置く）
+  if (state.boss) {
     state.stairs = kinds.map((nextKind) => ({ tile: -1, nextKind }));
     return;
   }
@@ -1149,12 +1150,16 @@ function placeStairs(state: GameState, kinds: readonly FloorKind[]): StairsChoic
   return tiles.map((tile, i) => ({ tile, nextKind: kinds[i] ?? "rooms" }));
 }
 
-/** ボス撃破で中央に階段が出たら、残りの分岐の階段を置く */
+/**
+ * ボス撃破で中央に階段が出たら、残りの分岐の階段を置く。
+ * 既に tile が決まっている行き先（先に開いた隠し部屋の階段。system/hiddenRoom.ts）は最後の部屋へ置き直さない
+ */
 export function ensureForkStairs(state: GameState): void {
   if (!state.stairs.some((s) => s.tile < 0)) return;
   if (!state.boss?.defeated) return;
-  const kinds = state.stairs.map((s) => s.nextKind);
-  state.stairs = placeStairs(state, kinds);
+  const placed = state.stairs.filter((s) => s.tile >= 0);
+  const kinds = state.stairs.filter((s) => s.tile < 0).map((s) => s.nextKind);
+  state.stairs = [...placed, ...placeStairs(state, kinds)];
 }
 
 /** 階段タイルの行き先（分岐路に無い階段は undefined = 従来どおり抽選） */

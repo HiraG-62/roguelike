@@ -55,7 +55,7 @@ describe("共鳴のステータス加算", () => {
     expect(stats.attributes, "筋力と体力が上がる").toEqual({ ...uniformAttributes(ATTR.base), str: plus, vit: plus });
   });
 
-  it("散光: 全ステータス +1", () => {
+  it("散光: 5 色ぶんのステータス +1（防御は色を持たないので変わらない）", () => {
     const eq = createEmptyEquipment();
     eq.mainHand = makeItem("mainHand", [melee()]);
     eq.boots = makeItem("boots", [ranged()]);
@@ -63,7 +63,10 @@ describe("共鳴のステータス加算", () => {
     eq.ring = makeItem("ring", [crit()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind, "散光が成立する").toBe("scatter");
-    expect(stats.attributes, "全ステータスが上がる").toEqual(uniformAttributes(ATTR.base + ATTR_GAIN.resonanceScatter));
+    expect(stats.attributes, "5 色ぶんのステータスが上がる").toEqual({
+      ...uniformAttributes(ATTR.base + ATTR_GAIN.resonanceScatter),
+      def: ATTR.base,
+    });
   });
 
   it("共鳴なしは加算しない", () => {

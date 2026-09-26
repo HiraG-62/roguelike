@@ -5,7 +5,7 @@ import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
-import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
+import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
@@ -33,6 +33,7 @@ import {
   bossIntroPhase,
   bossPhaseThreshold,
   clamp01,
+  crackPixels,
   damageTextStyle,
   easeOutCubic,
   floorVariant,
@@ -89,6 +90,7 @@ import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
+import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, swingFrame } from "./fxSprites";
@@ -255,6 +257,7 @@ const BOSS_DEATH_RINGS = 3;
 const BOSS_DEATH_RING_R = 70;
 const BOSS_DEATH_RING_DELAY = 0.15;
 const BOSS_LABEL = "― ボス ―";
+const FLOOR_LORD_LABEL = "― 階の主 ―";
 /** 階層移動ワイプ: map が変わった瞬間の flash がこれ以上ならワイプにする */
 const WIPE_TRIGGER_FLASH = 0.7;
 const WIPE_EDGE_ALPHA = 0.6;
@@ -772,6 +775,7 @@ export class Renderer {
     this.drawPlayer(state);
     this.drawReaper(state);
     drawSkillAir(ctx, state);
+    drawThrownSkillAir(ctx, state, this.atlas);
     drawSmokeLayer(ctx, state, -ox, -oy);
     this.drawShapes(state);
     drawAirMarks(ctx, state, this.fxSprites);
@@ -1015,10 +1019,12 @@ export class Renderer {
           const masked = this.atlas[`tile.${biome}.wall.${wallMask(map, x, y)}`];
           if (masked) {
             this.blit(masked, 0, px, py);
-            continue;
+          } else if (style === "face") {
+            this.blit(wallFace, 0, px, py);
+          } else if (style === "top") {
+            this.blit(wallTop, 0, px, py);
           }
-          if (style === "face") this.blit(wallFace, 0, px, py);
-          else if (style === "top") this.blit(wallTop, 0, px, py);
+          this.drawHiddenCrack(state, x, y, px, py);
           continue;
         }
         this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
@@ -1092,6 +1098,23 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+
+  /** 隠し部屋の扉タイル（開くまで壁）にひびを重ねる */
+  private drawHiddenCrack(state: GameState, x: number, y: number, px: number, py: number): void {
+    const hr = state.hiddenRoom;
+    if (!hr || hr.opened || toIndex(state.map, x, y) !== hr.doorTile) return;
+    const { ctx } = this;
+    ctx.strokeStyle = HIDDEN_ROOM.color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    crackPixels(x, y).forEach((p, i) => {
+      const cx = px + p.x + 0.5;
+      const cy = py + p.y + 0.5;
+      if (i === 0) ctx.moveTo(cx, cy);
+      else ctx.lineTo(cx, cy);
+    });
+    ctx.stroke();
   }
 
   private drawStairsGlow(state: GameState): void {
@@ -1871,10 +1894,13 @@ export class Renderer {
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
       const py = pr.pos.y - lift;
+      // 投げた武器（斧・短刀・輪 …。thrownLook.ts）は弾の専用スプライトより武器の絵を優先する
+      const thrown = projectileLook(pr) !== undefined;
       // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があればそれだけを描く（尾も絵が持つ）
-      if (drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow)) continue;
+      if (!thrown && drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow)) continue;
       // 位置履歴が無いので速度の逆方向に細る尾と光を置く（fxAttack.ts。弾の性質で長さ・太さが変わる）
       drawBulletTrail(ctx, pr, pr.pos.x, py, dx, dy, isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL, this.fxSprites.glow);
+      if (thrown && drawThrownProjectile(ctx, state, this.atlas, pr, pr.pos.x, py)) continue;
 
       // 武器の絵を持つ弾（斧の投擲など。ThrowArtDef.sprite）はその武器を回しながら飛ばす
       const weaponFrame = pr.sprite ? this.atlas[pr.sprite]?.frames[0] : undefined;
@@ -2586,7 +2612,8 @@ export class Renderer {
     const center = VIEW_W / 2;
     const nameX = Math.round(lerp(-center, center, ph.slide));
     const labelX = Math.round(lerp(VIEW_W + center, center, ph.slide));
-    this.shadowText(BOSS_LABEL, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER, TEXT.SMALL);
+    const label = b.major ? BOSS_LABEL : FLOOR_LORD_LABEL;
+    this.shadowText(label, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER, TEXT.SMALL);
     const nameY = BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2;
     drawTextShadow(ctx, b.name, nameX, nameY, TEXT.BIG, COLOR_BOSS_NAME, COLOR_BLACK, "center", BOSS_NAME_SHADOW);
     ctx.globalAlpha = 1;

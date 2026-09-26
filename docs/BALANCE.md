@@ -9,10 +9,10 @@
 | `enemies/` | 敵 104 体の HP・速度・予告（`stats/<敵の key>.json`）、怯み耐性（`combat/<敵の key>.json`）、防御・耐性（`defense/enemies/<敵の key>.json`。体つき・土地は `defense/bodies.json` / `defense/biomes.json`）、行動（`ENEMY_AI/<行動の key>.json`）、精鋭・ボス（`BOSS/<ボスの key>.json`）・死神 | スライム → `enemies/stats/slime.json` ほか同名 3 ファイル |
 | `skills/` | スキルのコスト・威力・再使用時間（`SKILL/<key>.json`、`EXTRA_SKILL_TUNING/<key>.json`、`WAVE2_SKILL_TUNING/<key>.json`、`WAVE3_SKILL_TUNING.json`）、刻印符（`SKILL/modifier.json` と `*_MODIFIER_TUNING.json`）、連携、変身、使い込み | 伝染 → `skills/EXTRA_SKILL_TUNING/contagion.json` |
 | `boons/` | 祝福の数値（`BOON.json`） | |
-| `loot/` | ドロップ率、共鳴、誓約、トリガー、性質の期待値曲線（`affixCurves/<性質の key>.json`）、ベースの出現深度（`bases.json`） | 堅牢の曲線 → `loot/affixCurves/sturdy.json` |
+| `loot/` | ドロップ率、共鳴、誓約、トリガー、性質の期待値曲線（`affixCurves/<性質の key>.json`）、ベースの出現深度（`bases.json`）、地金の予算と配り方（`INNATE/`） | 堅牢の曲線 → `loot/affixCurves/sturdy.json` |
 | `combat/` | 気力、回復、状態異常（`STATUS/`）、ステータス、怯み、攻撃ジャンル、属性、地形、プレイヤーの移動・ダッシュ・生命・射撃の共通値（`PLAYER.json`。近接 3 段は `weapons/PLAYER_MELEE.json`）、アクション手触り（`ACTION.json`。浮き文字の文言は `src/data/actionText.ts`） | 毒 → `combat/STATUS/poison.json` |
 | `enemies/ENEMY_SCALE.json` | 深度による敵の HP の伸び（`hpPerDepth`） | |
-| `world/` | フロア、マップの広さ（`MAP_SIZE.json`: 面積の倍率の抽選・部屋数・部屋の大きさ `roomSizeExp`・部屋の敵の伸び `roomEnemiesExp`・死神の猶予と徘徊上限の伸び）、敵の眠りの距離（`ROAM.json` の `sleepDist`）、部屋（`ROOM_KIND/`）、洞窟、徘徊、ランイベント（`RUN_EVENT/`）、起点、契約者、縛り、拠点 | |
+| `world/` | フロア、マップの広さ（`MAP_SIZE.json`: 面積の倍率の抽選・部屋数・部屋の大きさ `roomSizeExp`・部屋の敵の伸び `roomEnemiesExp`・死神の猶予と徘徊上限の伸び）、敵の眠りの距離（`ROAM.json` の `sleepDist`）、部屋（`ROOM_KIND/`）、洞窟、徘徊（通路への初期配置 `ROAM.corridorPerTiles` / `corridorMax` を含む）、隠し部屋（`HIDDEN_ROOM.json`）、ランイベント（`RUN_EVENT/`）、起点、契約者、縛り、拠点 | |
 | `ultimates/` | 奥義の共通値（`ULTIMATE/common.json`。ゲージ消費・無敵・浮き文字の色）と、奥義ごとの数値（`ULTIMATE/defs/<武器種>.json` の `<名前>`。一撃は行為ごとのブロック `nova` / `swing` / `lunge` / `volley` など、持続は `drainPerSec`・`minSec`・倍率・`patch`。奥義ごとの必要な奥義ゲージは `cost`〔省略時 `common.cost`〕）。奥義ゲージの溜まり方は `combat/ENERGY.json` | 剣の奥義 → `ultimates/ULTIMATE/defs/sword.json` |
 | `feel/` | ヒットストップ・揺れなどの手触り、演出（`EFFECTS/`、攻撃エフェクトの見た目は `FX_ATTACK/`）、ミニマップ、音楽、効果音 | |
 

@@ -1,6 +1,6 @@
 import type { Rng } from "../core/rng";
 import { CAVE, MAP_SIZE } from "../data/tuning";
-import { type GameMap, type Rect, Tile, createMap } from "./grid";
+import { type GameMap, type Rect, Tile, createMap, inBounds, rectCenter, toIndex } from "./grid";
 
 /**
  * 洞窟フロア: セルオートマトンで洞窟を作り、最大連結成分だけ残す。
@@ -331,4 +331,48 @@ function orderFromStart(g: Grid, rooms: CaveRoom[]): CaveRoom[] {
     .map((room, i) => ({ room, i }))
     .sort((a, b) => (stepOf[a.room.core] ?? 0) - (stepOf[b.room.core] ?? 0) || a.i - b.i)
     .map((e) => e.room);
+}
+
+/**
+ * 洞窟の塊（system/floorLord.ts が置く最後の部屋）を、中心から radius マスの円で広げる。
+ * 他の塊のタイルと 8 近傍で接するタイルと、マップの外周 1 マスは取らない（部屋同士が扉で封鎖できる間隔を保つ）。
+ * 乱数を使わない純関数。rooms 型（roomTiles が無い）では何もしない
+ */
+export function carveArena(map: GameMap, roomIndex: number, radius: number): void {
+  const tilesByRoom = map.roomTiles;
+  const rect = map.rooms[roomIndex];
+  const ownTiles = tilesByRoom?.[roomIndex];
+  if (!tilesByRoom || !rect || !ownTiles) return;
+  const owned = new Set<number>();
+  tilesByRoom.forEach((tiles, i) => {
+    if (i !== roomIndex) for (const t of tiles) owned.add(t);
+  });
+  const center = rectCenter(rect);
+  const added: number[] = [];
+  const rr = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > rr) continue;
+      const x = center.x + dx;
+      const y = center.y + dy;
+      if (x <= 0 || y <= 0 || x >= map.width - 1 || y >= map.height - 1) continue;
+      const i = toIndex(map, x, y);
+      if (map.tiles[i] === Tile.Floor) continue;
+      if (touchesOwnedTile(map, owned, x, y)) continue;
+      map.tiles[i] = Tile.Floor;
+      added.push(i);
+    }
+  }
+  if (added.length === 0) return;
+  tilesByRoom[roomIndex] = [...ownTiles, ...added].sort((a, b) => a - b);
+}
+
+function touchesOwnedTile(map: GameMap, owned: ReadonlySet<number>, x: number, y: number): boolean {
+  for (const [dx, dy] of NEIGHBORS_8) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (!inBounds(map, nx, ny)) continue;
+    if (owned.has(toIndex(map, nx, ny))) return true;
+  }
+  return false;
 }

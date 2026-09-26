@@ -163,27 +163,33 @@ const ATTR_NAME: Readonly<Record<AttrKey, string>> = {
   vit: "体力",
   mnd: "精神",
   spi: "霊力",
+  def: "防御",
 };
 
-/** ステータスの色（docs/COMBAT_DESIGN.md A-1）。resonance.ts の COLOR_ATTR の逆引き */
+/**
+ * ステータスの色（docs/COMBAT_DESIGN.md A-1）。resonance.ts の COLOR_ATTR の逆引きは 5 色 = 5 ステータスのまま
+ * （防御は色を持つ 5 色の外）なので、防御の表示色はここだけ翠（jade、体力と共有）に決め打つ
+ */
 export const ATTR_COLOR: Readonly<Record<AttrKey, TraitColor>> = {
   str: "crimson",
   dex: "azure",
   vit: "jade",
   mnd: "gold",
   spi: "umbra",
+  def: "jade",
 };
 
 /** ステータスの性質の key（attr_str など） */
 export const ATTR_TRAIT_PREFIX = "attr_";
 
-/** ステータスを付けられる部位。その色の性質が出やすい部位に寄せる */
+/** ステータスを付けられる部位。その色の性質が出やすい部位に寄せる（防御は右手を除く防具・装飾） */
 const ATTR_SLOTS: Readonly<Record<AttrKey, readonly Slot[]>> = {
   str: ["mainHand", "armor", "ring", "amulet"],
-  dex: ["mainHand", "boots", "ring", "amulet"],
+  dex: ["mainHand", "head", "boots", "ring", "amulet"],
   vit: ["armor", "boots", "ring", "amulet"],
   mnd: ["mainHand", "ring", "amulet"],
   spi: ["mainHand", "armor", "ring", "amulet"],
+  def: ["armor", "boots", "ring", "amulet"],
 };
 
 /** 期待値曲線（属性ごとに同じ形。docs/COMBAT_DESIGN.md A-3）。attr_str など key ごとに JSON から引く */
@@ -193,6 +199,7 @@ const ATTR_TRAIT_CURVES: Readonly<Record<AttrKey, readonly CurvePoint[]>> = {
   vit: curveFor("attr_vit"),
   mnd: curveFor("attr_mnd"),
   spi: curveFor("attr_spi"),
+  def: curveFor("attr_def"),
 };
 
 /** ステータス 5 種の性質。flat 段階で attributes（生の値）に足す */
@@ -379,7 +386,7 @@ function defenseElementTraits(): AffixDef[] {
     {
       key: "sturdy",
       // 代償の移動速度 −% は v2（深さで重くしない）
-      label: "堅牢: アーマーと魔防 +{v}、移動速度 -{v2}%",
+      label: "堅牢: 防御力と魔防 +{v}、移動速度 -{v2}%",
       tags: ["defense", "tradeoff"],
       slots: ["armor", "boots"],
       curve: curveFor("sturdy"),
@@ -584,7 +591,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "armorFlat",
-    label: "アーマー +{v}",
+    label: "防御力 +{v}",
     tags: ["defense"],
     slots: ["armor", "boots", "ring"],
     curve: curveFor("armorFlat"),
@@ -808,7 +815,7 @@ export const AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "hybridDefense",
-    label: "最大生命 +{v}、アーマー +{v2}",
+    label: "最大生命 +{v}、防御力 +{v2}",
     tags: ["life", "defense"],
     slots: ["armor", "boots"],
     curve: curveFor("hybridDefense"),
@@ -1212,7 +1219,6 @@ export const AFFIXES: readonly AffixDef[] = [
     key: "manaRegenFlat",
     label: "気力自然回復 +{v}/秒",
     tags: ["mana", "skill"],
-    // 兜の部位は無いので鎧で代える
     slots: ["amulet", "ring", "armor"],
     decimals: 1,
     curve: curveFor("manaRegenFlat"),
@@ -1854,7 +1860,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "oldScars",
     color: "jade",
-    label: "古傷: この遺物で被弾 100 回ごとにアーマー +{v}（5 段まで）",
+    label: "古傷: この遺物で被弾 100 回ごとに防御力 +{v}（5 段まで）",
     tags: ["defense"],
     slots: ["armor"],
     curve: curveFor("oldScars"),
@@ -2860,7 +2866,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
   }),
   trait({
     key: "cv_lifeToArmor",
-    label: "最大生命の{v}%をアーマーに変換",
+    label: "最大生命の{v}%を防御力に変換",
     tags: ["conversion", "life", "defense"],
     slots: ["armor", "amulet"],
     curve: curveFor("cv_lifeToArmor"),
@@ -3279,8 +3285,21 @@ function familyAllowed(d: AffixDef, family: "melee" | "gun" | undefined): boolea
   return d.family === undefined || family === undefined || d.family === family;
 }
 
+/**
+ * 部位の別名。頭は体（armor）の性質をそのまま引く。250 余りの定義の slots に head を書き足すと
+ * 追加漏れが起きやすいので、頭だけに出したい性質（ATTR_SLOTS など）だけ head を明示する
+ */
+const SLOT_ALIAS: Readonly<Partial<Record<Slot, Slot>>> = { head: "armor" };
+
+/** 定義 d がその部位に付けられるか（別名の部位の性質も含む） */
+export function slotAllows(d: Pick<AffixDef, "slots">, slot: Slot): boolean {
+  if (d.slots.includes(slot)) return true;
+  const alias = SLOT_ALIAS[slot];
+  return alias !== undefined && d.slots.includes(alias);
+}
+
 export function conversionsFor(slot: Slot, depth: number, family?: "melee" | "gun"): AffixDef[] {
-  return CONVERSION_AFFIXES.filter((d) => d.slots.includes(slot) && firstDepth(d) <= depth && familyAllowed(d, family));
+  return CONVERSION_AFFIXES.filter((d) => slotAllows(d, slot) && firstDepth(d) <= depth && familyAllowed(d, family));
 }
 
 // ---------------------------------------------------------------------------
@@ -3901,7 +3920,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.chain",
-    label: "最大生命 +{v}、アーマー +{v2}",
+    label: "最大生命 +{v}、防御力 +{v2}",
     range: { min: 20, max: 30, min2: 3, max2: 5 },
     apply: (s, v, v2) => {
       s.maxHp += v;
@@ -3910,7 +3929,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.plate",
-    label: "アーマー +{v}、最大生命 +20、移動速度 -8%",
+    label: "防御力 +{v}、最大生命 +20、移動速度 -8%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.armor += v;
@@ -3946,7 +3965,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.greaves",
-    label: "ダッシュ再使用時間 -{v}%、アーマー +3",
+    label: "ダッシュ再使用時間 -{v}%、防御力 +3",
     range: { min: 10, max: 15 },
     apply: (s, v) => {
       s.dashCooldownMul -= pct(v);
@@ -4175,7 +4194,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.ironGeta",
-    label: "アーマー +{v}、怯み値 +10%、移動速度 -12%",
+    label: "防御力 +{v}、怯み値 +10%、移動速度 -12%",
     range: { min: 5, max: 8 },
     apply: (s, v) => {
       s.armor += v;
@@ -4199,6 +4218,75 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.chillChance += pct(v);
       s.chillSlow += pct(15);
       s.moveSpeedMul -= pct(5);
+    },
+  },
+  // head（2026-09-26 部位「頭」）: 軽い個性。頭は体の性質を引くので implicit は小さめ
+  {
+    key: "implicit.hood",
+    label: "移動速度 +{v}%",
+    range: { min: 3, max: 5 },
+    apply: (s, v) => {
+      s.moveSpeedMul += pct(v);
+    },
+  },
+  {
+    key: "implicit.leatherCap",
+    label: "最大生命 +{v}",
+    range: { min: 4, max: 8 },
+    apply: (s, v) => {
+      s.maxHp += v;
+    },
+  },
+  {
+    key: "implicit.ironHelm",
+    label: "防御力 +{v}、移動速度 -3%",
+    range: { min: 3, max: 5 },
+    apply: (s, v) => {
+      s.armor += v;
+      s.moveSpeedMul -= pct(3);
+    },
+  },
+  {
+    key: "implicit.circlet",
+    label: "最大気力 +{v}",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.maxMana += v;
+    },
+  },
+  {
+    key: "implicit.maskedVisor",
+    label: "受ける状態異常の持続 -{v}%、防御力 +2",
+    range: { min: 10, max: 15 },
+    apply: (s, v) => {
+      s.statusTakenMul -= pct(v);
+      s.armor += 2;
+    },
+  },
+  {
+    key: "implicit.sandogasa",
+    label: "氷耐性 +{v}%、雷耐性 +{v}%",
+    range: { min: 5, max: 8 },
+    apply: (s, v) => {
+      s.resist.ice += v;
+      s.resist.lightning += v;
+    },
+  },
+  {
+    key: "implicit.hachigane",
+    label: "ダッシュ再使用時間 -{v}%",
+    range: { min: 5, max: 8 },
+    apply: (s, v) => {
+      s.dashCooldownMul -= pct(v);
+    },
+  },
+  {
+    key: "implicit.hornedHelm",
+    label: "近接ダメージ +{v}%、被ダメージ +5%",
+    range: { min: 6, max: 10 },
+    apply: (s, v) => {
+      s.meleeDamageMul += pct(v);
+      s.damageTakenMul += pct(5);
     },
   },
   {
@@ -4529,7 +4617,7 @@ export function firstDepth(def: AffixDef): number {
 
 /** slot に付けられ、depth で曲線が始まっている通常の性質（変換・目覚めは含まない） */
 export function traitsFor(slot: Slot, depth: number, family?: "melee" | "gun"): AffixDef[] {
-  return AFFIXES.filter((d) => d.awakening !== true && d.slots.includes(slot) && firstDepth(d) <= depth && familyAllowed(d, family));
+  return AFFIXES.filter((d) => d.awakening !== true && slotAllows(d, slot) && firstDepth(d) <= depth && familyAllowed(d, family));
 }
 
 /** 目覚め（芽専用の性質）の定義 */

@@ -1,3 +1,4 @@
+import type { Element } from "../core/element";
 import type { FrameInput } from "../core/input";
 import { type GameState, pushSfx } from "../core/state";
 import { formatMeters } from "../core/units";
@@ -9,6 +10,7 @@ import type { AttrKey, PlayerStats } from "../loot/types";
 import { dashCooldownTime } from "../system/player";
 import { formatCooldown } from "../system/skills";
 import { ALLOC_BUTTON, ALLOC_ORDER, updateAllocButtons } from "./attributeAlloc";
+import { type EffectRow, runEffectRows } from "./effectsList";
 import { COLUMN_GAP, CONTENT_BOTTOM, CONTENT_RIGHT, CONTENT_Y, LIST_X, type Point, type Rect, clamp, pointInRect } from "./inventoryLayout";
 
 /**
@@ -59,6 +61,31 @@ export interface StatusTabLayout {
 /** ステータス一覧の枠（左の列、見出しの下） */
 export function statusAttrPanelRect(): Rect {
   return { x: LIST_X, y: CONTENT_Y + HEAD_H + 2, w: LEFT_W, h: ALLOC_ORDER.length * ALLOC_BUTTON.rowH };
+}
+
+// ---------------------------------------------------------------------------
+// 効果の頁（状態異常・祝福・芯・一時強化。拾うキーでステータスの頁と切り替える）
+// ---------------------------------------------------------------------------
+
+/** 効果の頁の一覧の枠（見出しの下、左右いっぱい） */
+export function effectsPanelRect(): Rect {
+  const y = CONTENT_Y + HEAD_H + 2;
+  return { x: LIST_X, y, w: CONTENT_RIGHT - LIST_X, h: CONTENT_BOTTOM - y };
+}
+
+/** 1 件の高さ（名前+情報の行 + 説明 1 行ぶん） */
+export const EFFECTS_ROW_H = 22;
+
+export function effectsVisibleRows(rect: Rect): number {
+  return Math.max(1, Math.floor(rect.h / EFFECTS_ROW_H));
+}
+
+export function effectsMaxScroll(count: number, rect: Rect): number {
+  return Math.max(0, count - effectsVisibleRows(rect));
+}
+
+export function effectsRowRect(rect: Rect, index: number): Rect {
+  return { x: rect.x, y: rect.y + index * EFFECTS_ROW_H, w: rect.w, h: EFFECTS_ROW_H };
 }
 
 /** 奥義を選べるのは拠点だけ */
@@ -146,9 +173,16 @@ export function derivedStatRows(stats: Readonly<PlayerStats>): DerivedStatRow[] 
     { label: "気力の自然回復", value: `${Number(stats.manaRegen.toFixed(REGEN_DIGITS))}${PER_SECOND}`, attr: "mnd" },
     { label: "移動速度", value: `${formatMeters(PLAYER.speed * stats.moveSpeedMul)}${PER_SECOND}`, attr: "dex" },
     { label: "ダッシュ再使用", value: formatCooldown(dashCooldownTime(stats)), attr: "dex" },
-    { label: "防御", value: `${Math.round(stats.armor)}`, attr: null },
+    { label: "防御力", value: `${Math.round(stats.armor)}`, attr: null },
     { label: "魔防", value: `${Math.round(stats.warding)}`, attr: null },
+    { label: "耐性 炎/氷/雷", value: resistTriple(stats, "fire", "ice", "lightning"), attr: null },
+    { label: "耐性 毒/闇/光", value: resistTriple(stats, "poison", "dark", "light"), attr: null },
   ];
+}
+
+/** 「12/-5/0%」。3 属性の耐性 %（PlayerStats.resist）をまとめて 1 行に出す */
+function resistTriple(stats: Readonly<PlayerStats>, a: Element, b: Element, c: Element): string {
+  return `${Math.round(stats.resist[a])}/${Math.round(stats.resist[b])}/${Math.round(stats.resist[c])}%`;
 }
 
 /** 奥義の種類の表示名（docs/GLOSSARY.md「一撃 / 持続」） */
@@ -178,16 +212,43 @@ export interface StatusTabUi {
   /** 移動入力のエッジ検出用（前フレームの向き） */
   navX: number;
   navY: number;
+  /** 効果の頁（状態異常・祝福・芯・一時強化）を見せているか。拾うキーでステータスの頁と切り替える */
+  effectsPage: boolean;
+  effectsScroll: number;
 }
 
 export function createStatusTabUi(): StatusTabUi {
-  return { moveset: null, cursor: 0, hoverCard: -1, hoverArrow: 0, hoverAlloc: -1, navX: 0, navY: 0 };
+  return { moveset: null, cursor: 0, hoverCard: -1, hoverArrow: 0, hoverAlloc: -1, navX: 0, navY: 0, effectsPage: false, effectsScroll: 0 };
 }
 
 export function clearStatusHover(ui: StatusTabUi): void {
   ui.hoverCard = -1;
   ui.hoverArrow = 0;
   ui.hoverAlloc = -1;
+}
+
+const EFFECTS_PAGE_TEXT = "効果: 状態異常・祝福・芯・一時強化（ラン中のみ）";
+const STATUS_PAGE_TEXT = "ステータス";
+
+/** 効果の頁とステータスの頁を切り替える。見出しに出すメッセージを返す */
+function toggleEffectsPage(ui: StatusTabUi): string {
+  ui.effectsPage = !ui.effectsPage;
+  ui.effectsScroll = 0;
+  return ui.effectsPage ? EFFECTS_PAGE_TEXT : STATUS_PAGE_TEXT;
+}
+
+/** 効果の頁の一覧（今の state から毎回組み立てる。読むだけ） */
+export function statusTabEffectRows(state: GameState): EffectRow[] {
+  return runEffectRows(state);
+}
+
+/** 効果の頁の入力: ホイール・↑↓ でスクロールするだけ（読むだけの一覧なのでカーソルは持たない） */
+function updateEffectsPage(state: GameState, ui: StatusTabUi, input: FrameInput): void {
+  const rect = effectsPanelRect();
+  const rows = statusTabEffectRows(state);
+  const maxScroll = effectsMaxScroll(rows.length, rect);
+  const nav = readStatusNav(ui, input);
+  ui.effectsScroll = clamp(ui.effectsScroll + input.wheel + nav.dy, 0, maxScroll);
 }
 
 const NAV_THRESHOLD = 0.5;
@@ -249,10 +310,16 @@ function arrowAt(layout: StatusTabLayout, p: Point | null): number {
 }
 
 /**
- * ステータスタブの入力。振り分け（「+」・スキル 1〜4 / 攻撃キー）→ 武器種の送り（拠点のみ）→ 奥義のカード。
+ * ステータスタブの入力。拾うキーで効果の頁と切り替え、効果の頁ではスクロールだけを受け付ける。
+ * ステータスの頁は 振り分け（「+」・スキル 1〜4 / 攻撃キー）→ 武器種の送り（拠点のみ）→ 奥義のカード。
  * 戻り値は見出しに出すメッセージ（無ければ null）
  */
 export function updateStatusTab(state: GameState, ui: StatusTabUi, input: FrameInput, aimMoved: boolean): string | null {
+  if (input.interactPressed) return toggleEffectsPage(ui);
+  if (ui.effectsPage) {
+    updateEffectsPage(state, ui, input);
+    return null;
+  }
   const layout = layoutStatusTab(state, ui);
   const alloc = updateAllocButtons(state, input, layout.attrPanel);
   ui.hoverAlloc = alloc.hover;

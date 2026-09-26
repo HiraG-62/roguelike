@@ -1,0 +1,29 @@
+{
+  "_note": "毎階の最後の部屋に出る「階の主」（system/floorLord.ts）。lairChance で部屋主（lairMaster）を優先し、外れたら通常敵を格上げする。5 の倍数の階の階層ボス（BOSS）より控えめな強さ・報酬にしてある",
+  "_fields": {
+    "lairChance": "部屋主（lairMaster）を階の主にする確率。外れると通常敵を格上げする。割合(0..1)",
+    "hpMulLair": "部屋主を階の主にしたときの HP 倍率",
+    "hpMulChampion": "通常敵を格上げしたときの HP 倍率",
+    "poiseMul": "階の主の怯み耐性の倍率（元の耐性に掛ける）",
+    "escortRatio": "部屋封鎖時に呼ぶ取り巻きの数。enemyCount() に掛ける割合",
+    "drops": "撃破時の確定ドロップ数（rare 以上を狙う）",
+    "rareDropBoost": "確定ドロップの rarityBoost",
+    "rareDropAttempts": "rare 以上が出るまで引き直す上限回数",
+    "heartChance": "撃破時にハートを落とす確率。割合(0..1)",
+    "roomMinW": "最後の部屋の最小の幅（タイル）",
+    "roomMinH": "最後の部屋の最小の高さ（タイル）",
+    "arenaRadius": "洞窟の最後の塊を広げる半径（タイル）"
+  },
+  "lairChance": 0.7,
+  "hpMulLair": 1.6,
+  "hpMulChampion": 3.0,
+  "poiseMul": 2.0,
+  "escortRatio": 0.5,
+  "drops": 1,
+  "rareDropBoost": 3,
+  "rareDropAttempts": 20,
+  "heartChance": 0.5,
+  "roomMinW": 14,
+  "roomMinH": 11,
+  "arenaRadius": 5
+}

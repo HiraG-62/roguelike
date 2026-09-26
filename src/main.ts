@@ -1066,7 +1066,8 @@ function updateMusic(): void {
     music.update(musicCue({ inRun: false, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
     return;
   }
-  const bossFoe = s.boss && !s.boss.defeated ? bossEnemy(s) : undefined;
+  // ボス曲は 5 の倍数の階の階層ボス（major）だけ。毎階の階の主では鳴らさない
+  const bossFoe = s.boss?.major === true && !s.boss.defeated ? bossEnemy(s) : undefined;
   music.update(
     musicCue({
       inRun,
@@ -1089,8 +1090,9 @@ function drainSfx(s: GameState | null = state): void {
   for (const name of names) sfx.play(name);
 }
 
+/** 死亡時サマリの「ボス撃破数」。5 の倍数の階の階層ボス（major）だけ数える（毎階の階の主は数えない） */
 function trackBoss(s: GameState): void {
-  const defeated = s.boss?.defeated ?? false;
+  const defeated = s.boss?.major === true && s.boss.defeated;
   if (defeated && !prevBossDefeated) bossesDefeated += 1;
   prevBossDefeated = defeated;
 }

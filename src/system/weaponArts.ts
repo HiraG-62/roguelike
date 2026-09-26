@@ -14,6 +14,7 @@ import {
   type SwingActionStep,
   type ThrowArtDef,
   actionCooldown,
+  laneChainWindow,
   laneLength,
   laneVolley,
   releaseBranchIndex,
@@ -110,7 +111,8 @@ function advanceLane(state: GameState, index: number): void {
     return;
   }
   a.step = next;
-  a.inputTimer = Math.max(a.inputTimer, WEAPON.chainWindow);
+  // 段ごとの窓の上書き（杖の氷の連射）。再使用・共有の間が明けてから押す猶予を残す
+  a.inputTimer = Math.max(a.inputTimer, laneChainWindow(playerMoveset(state).steps2[index]));
 }
 
 /** 受け流しを外した硬直中か（攻撃・技・射撃のボタンを受け付けない） */

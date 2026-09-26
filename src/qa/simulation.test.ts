@@ -28,6 +28,7 @@ import { chooseBud } from "../system/loot";
 import { isBossDriven } from "../system/boss";
 import { createEnemy, isAsleep } from "../system/enemies";
 import { ROAMING_ROOM } from "../system/spawner";
+import { TILE_SIZE, toIndex } from "../map/grid";
 import { ELITE_KINDS, ELITE_PREFIX } from "../system/elites";
 import * as combat from "../system/combat";
 import * as statusEffectsModule from "../system/statusEffects";
@@ -545,6 +546,10 @@ interface RunMetrics {
   reaperSpawns: number;
   bossEncounters: number;
   bossDefeats: number;
+  /** 隠し部屋（system/hiddenRoom.ts）が計画された階の数 */
+  hiddenRoomsPlanned: number;
+  /** そのうち実際に開いた（bot が押し当て続けられた）数 */
+  hiddenRoomsOpened: number;
   depthSeconds: number[];
   avgStepMs: number;
   stepsRun: number;
@@ -573,6 +578,10 @@ interface RunMetrics {
    * ENEMY_AI.maxSimultaneousStrikers の上限超過はこちらで判定する
    */
   maxConcurrentNonBossStrikers: number;
+  /** ステップごとの生存敵数（state.enemies.length）の平均。敵密度の引き上げ（3.4）の実測用 */
+  avgEnemiesAlive: number;
+  /** 通路（どの部屋の内側でもない床）に徘徊が立っていた階の数（system/spawner.ts の populateCorridors） */
+  corridorRoamerFloors: number;
   /** QA の観測の盲点（2026-09-24 追加）: 地形種別ごとにプレイヤーが踏み込んだ回数（前ステップと種類が変わった瞬間を数える） */
   terrainEnterCounts: Partial<Record<TerrainKind, number>>;
   /** 同上、煙（terrainAt とは別レイヤー）に入った回数 */
@@ -583,6 +592,24 @@ interface RunMetrics {
   synergyEventCapHits: number;
   /** 祝福の芯・格・取得機会（docs/ideas/boon-power-up.md 5 節） */
   boon: BoonMetrics;
+}
+
+/**
+ * どの部屋の内側でもない床（通路）に立つ徘徊がいるか（3.4 C-1 の QA 観測。spawner.ts の markRoomInterior と同じ考え方）。
+ * 部屋の内側は矩形なら外周 1 マスを除いた内側、塊は room.tiles
+ */
+function hasCorridorRoamer(state: GameState): boolean {
+  return state.enemies.some((e) => {
+    if (e.roomIndex !== ROAMING_ROOM) return false;
+    const tx = Math.floor(e.body.pos.x / TILE_SIZE);
+    const ty = Math.floor(e.body.pos.y / TILE_SIZE);
+    const tile = toIndex(state.map, tx, ty);
+    return !state.rooms.some((room) => {
+      if (room.tiles) return room.tiles.has(tile);
+      const r = room.rect;
+      return tx > r.x && ty > r.y && tx < r.x + r.w - 1 && ty < r.y + r.h - 1;
+    });
+  });
 }
 
 /** 同時に strike 中の敵数。total はボス込み、nonBoss は strikeSlotsFull（system/enemies.ts）と同じくボスを除く */
@@ -693,6 +720,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     reaperSpawns: 0,
     bossEncounters: 0,
     bossDefeats: 0,
+    hiddenRoomsPlanned: 0,
+    hiddenRoomsOpened: 0,
     depthSeconds: [],
     avgStepMs: 0,
     stepsRun: 0,
@@ -710,6 +739,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     genre: emptyGenreMetrics(),
     maxConcurrentStrikers: 0,
     maxConcurrentNonBossStrikers: 0,
+    avgEnemiesAlive: 0,
+    corridorRoamerFloors: 0,
     terrainEnterCounts: {},
     smokeEnterCount: 0,
     eliteSpawnCounts: {},
@@ -722,7 +753,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   let sawReaperThisFloor = false;
   let sawBossThisFloor = false;
   let sawBossDefeatThisFloor = false;
+  let sawHiddenRoomThisFloor = false;
+  let sawHiddenOpenThisFloor = false;
+  let sawCorridorRoamerThisFloor = false;
   let stepTimeTotal = 0;
+  let enemySampleSum = 0;
   let prevManaFlash = state.skills.manaFlash;
   let prevTerrain: TerrainKind = "none";
   let prevSmoke = false;
@@ -779,6 +814,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     const striking = countStrikers(state.enemies);
     metrics.maxConcurrentStrikers = Math.max(metrics.maxConcurrentStrikers, striking.total);
     metrics.maxConcurrentNonBossStrikers = Math.max(metrics.maxConcurrentNonBossStrikers, striking.nonBoss);
+    enemySampleSum += state.enemies.length;
 
     // QA の観測の盲点（2026-09-24 追加）: 地形踏み込み・煙・精鋭出現・SYNERGY イベント上限到達
     const playerPos = state.player.body.pos;
@@ -825,6 +861,18 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       metrics.bossDefeats++;
       sawBossDefeatThisFloor = true;
     }
+    if (state.hiddenRoom && !sawHiddenRoomThisFloor) {
+      metrics.hiddenRoomsPlanned++;
+      sawHiddenRoomThisFloor = true;
+    }
+    if (state.hiddenRoom?.opened && !sawHiddenOpenThisFloor) {
+      metrics.hiddenRoomsOpened++;
+      sawHiddenOpenThisFloor = true;
+    }
+    if (!sawCorridorRoamerThisFloor && hasCorridorRoamer(state)) {
+      metrics.corridorRoamerFloors++;
+      sawCorridorRoamerThisFloor = true;
+    }
 
     if (state.depth !== currentDepth) {
       metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
@@ -833,6 +881,9 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       sawReaperThisFloor = false;
       sawBossThisFloor = false;
       sawBossDefeatThisFloor = false;
+      sawHiddenRoomThisFloor = false;
+      sawHiddenOpenThisFloor = false;
+      sawCorridorRoamerThisFloor = false;
     }
 
     metrics.maxDepth = Math.max(metrics.maxDepth, state.depth);
@@ -859,6 +910,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     }
   }
   metrics.avgStepMs = metrics.stepsRun > 0 ? stepTimeTotal / metrics.stepsRun : 0;
+  metrics.avgEnemiesAlive = metrics.stepsRun > 0 ? enemySampleSum / metrics.stepsRun : 0;
   // ラン終了時点（装備は固定なので初期値と基本一致するが、念のため最新化する）
   metrics.resonanceKind = state.stats.resonance.kind;
   metrics.resonanceColors = [...state.stats.resonance.colors];
@@ -898,11 +950,13 @@ describe("QA simulation (縮小版スモーク)", () => {
         expect(metrics.wallOverlapDetected, `seed=${seed} profile=${profileKind} で敵が壁にめり込んだ`).toBe(false);
         expect(metrics.duplicateFloorItemId, `seed=${seed} profile=${profileKind} で floorItems の id が重複した`).toBe(false);
         expect(metrics.boon.takenNonCore, `seed=${seed} 芯を除く取得数は全体以下`).toBeLessThanOrEqual(metrics.boon.taken);
+        expect(metrics.hiddenRoomsOpened, `seed=${seed} 開いた隠し部屋は計画された数以下`).toBeLessThanOrEqual(metrics.hiddenRoomsPlanned);
       }
       // 祝福の計測だけを見たいとき（QA_DEBUG=1）に縮小版でも表を出す
       if (process.env.QA_DEBUG) console.log(buildBoonMetricsSection(all).join("\n"));
     },
-    30_000,
+    // 毎階の「階の主」で 1 階の戦いが重くなった分、既定の 30s から広げる
+    60_000,
   );
 });
 
@@ -941,8 +995,8 @@ function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: nu
   return fingerprintState(state);
 }
 
-/** 6 装備 × 2 回 × 4,000 step。要素が増えて 5 秒の既定を超えるようになったので余裕を持たせる */
-const DETERMINISM_TIMEOUT_MS = 30_000;
+/** 6 装備 × 2 回 × 4,000 step。毎階の「階の主」で 1 階の戦いが重くなった分、余裕を広げた */
+const DETERMINISM_TIMEOUT_MS = 60_000;
 
 describe("QA simulation (決定性)", () => {
   it("同じ seed・装備なら bot 駆動でも 2 回とも同じ結果になる", { timeout: DETERMINISM_TIMEOUT_MS }, () => {
@@ -1015,8 +1069,8 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
 
   lines.push("## 指標サマリ（装備パターン別）");
   lines.push("");
-  lines.push("| 装備 | 平均到達depth | 死亡率 | 平均kills | 平均best combo | 平均拾得数 | Reaper出現/run | ボス撃破率 | 平均step時間(ms) |");
-  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  lines.push("| 装備 | 平均到達depth | 死亡率 | 平均kills | 平均best combo | 平均拾得数 | Reaper出現/run | ボス撃破率 | 平均step時間(ms) | 平均生存敵数 |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const kind of PROFILE_KINDS) {
     const group = allMetrics.filter((m) => m.profileKind === kind);
     const died = group.filter((m) => m.died).length;
@@ -1026,9 +1080,24 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
       `| ${kind} | ${average(group.map((m) => m.maxDepth)).toFixed(2)} | ${percent(died, group.length)} | ` +
         `${average(group.map((m) => m.kills)).toFixed(1)} | ${average(group.map((m) => m.bestCombo)).toFixed(1)} | ` +
         `${average(group.map((m) => m.itemsPicked)).toFixed(1)} | ${average(group.map((m) => m.reaperSpawns)).toFixed(2)} | ` +
-        `${percent(bossWon, bossSeen)} | ${average(group.map((m) => m.avgStepMs)).toFixed(3)} |`,
+        `${percent(bossWon, bossSeen)} | ${average(group.map((m) => m.avgStepMs)).toFixed(3)} | ` +
+        `${average(group.map((m) => m.avgEnemiesAlive)).toFixed(1)} |`,
     );
   }
+  lines.push("");
+
+  const hiddenPlanned = allMetrics.reduce((s, m) => s + m.hiddenRoomsPlanned, 0);
+  const hiddenOpened = allMetrics.reduce((s, m) => s + m.hiddenRoomsOpened, 0);
+  lines.push("## 隠し部屋（system/hiddenRoom.ts）");
+  lines.push("");
+  lines.push(`計画: ${hiddenPlanned} 階 / 開放: ${hiddenOpened} 階（${percent(hiddenOpened, hiddenPlanned)}）`);
+  lines.push("");
+
+  const corridorFloors = allMetrics.reduce((s, m) => s + m.corridorRoamerFloors, 0);
+  const totalFloorsSeen = allMetrics.reduce((s, m) => s + m.depthSeconds.filter((sec) => sec > 0).length, 0);
+  lines.push("## 通路の初期配置（system/spawner.ts の populateCorridors。3.4 C-1）");
+  lines.push("");
+  lines.push(`通路に徘徊が立った階: ${corridorFloors} / 観測した階 ${totalFloorsSeen}（${percent(corridorFloors, totalFloorsSeen)}）`);
   lines.push("");
 
   lines.push("## ドロップの内訳（装備パターン別。撃破起因 = 倒した一撃の中で床に増えた遺物）");
@@ -1558,8 +1627,9 @@ const REPORT_END = "<<<QA_REPORT_END>>>";
 /**
  * フル版の制限時間（ms）。マップ拡大（MAP_SIZE の面積 3.5〜5 倍）で 1 ランの階が広く敵も多くなり、
  * 1 ステップ約 1.15 倍・ランの長さも伸びて、基準 約 570 秒の実行が約 920 秒（2026-09-25 実測）になったため 600 秒から 2 倍に広げる
+ * 2026-09-26: 毎階の主と敵の増量で約 1,520 秒になったので 2,400 秒に広げる
  */
-const FULL_TIMEOUT_MS = 1_200_000;
+const FULL_TIMEOUT_MS = 2_400_000;
 
 describe("QA simulation (フル版, SIM_FULL=1)", () => {
   it.runIf(FULL)(

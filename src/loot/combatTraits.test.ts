@@ -66,7 +66,7 @@ const STATUS_TRAIT_KEYS = ["procBleed", "procPoison", "procVulnerable", "procWea
 describe("ステータスの性質（attr_*）", () => {
   const attrDefs = ATTR_KEYS.map((k) => affixDef(`${ATTR_TRAIT_PREFIX}${k}`));
 
-  it("5 種あり、通常の抽選プール（AFFIXES）に入っている", () => {
+  it("6 種あり、通常の抽選プール（AFFIXES）に入っている", () => {
     for (const [i, def] of attrDefs.entries()) {
       expect(def, ATTR_KEYS[i]).toBeDefined();
       expect(AFFIXES, ATTR_KEYS[i]).toContain(def);
@@ -83,8 +83,8 @@ describe("ステータスの性質（attr_*）", () => {
     }
   });
 
-  it("色は 紅 = 筋力 / 蒼 = 技巧 / 翠 = 体力 / 金 = 精神 / 冥 = 霊力", () => {
-    const expected = { str: "crimson", dex: "azure", vit: "jade", mnd: "gold", spi: "umbra" } as const;
+  it("色は 紅 = 筋力 / 蒼 = 技巧 / 翠 = 体力 / 金 = 精神 / 冥 = 霊力 / 翠 = 防御", () => {
+    const expected = { str: "crimson", dex: "azure", vit: "jade", mnd: "gold", spi: "umbra", def: "jade" } as const;
     for (const k of ATTR_KEYS) {
       const def = affixDef(`${ATTR_TRAIT_PREFIX}${k}`);
       if (def === undefined) throw new Error(k);

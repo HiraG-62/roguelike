@@ -1,0 +1,5 @@
+[
+  { "depth": 1, "scale": 0.6 },
+  { "depth": 4, "scale": 0.8 },
+  { "depth": 8, "scale": 1 }
+]

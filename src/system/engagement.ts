@@ -1,4 +1,4 @@
-import type { GameState, RoomState } from "../core/state";
+import { ROAMING_ROOM, type GameState, type RoomState } from "../core/state";
 import { ROAM } from "../data/tuning";
 import { TILE_SIZE, inBounds, rectContainsPx, toIndex } from "../map/grid";
 
@@ -60,7 +60,22 @@ export function engagedRoomIndex(state: GameState): number {
   return state.rooms.findIndex((r, i) => roomInCombat(r) && roomChasing(state, i));
 }
 
-/** 今いる部屋が交戦中か（「封鎖中」を条件にしていた要素はすべてこれを見る） */
+/**
+ * 気付いた徘徊（どの部屋にも属さない。idle / spawning 以外、生きていて ROAM.engageLeash 以内）が近くにいるか。
+ * 部屋の内外の区別が薄い開放型フロアでは、通路の徘徊と戦っている最中も「交戦中」として扱う（C-3）
+ */
+function roamerEngaged(state: GameState): boolean {
+  const p = state.player.body.pos;
+  const leash2 = ROAM.engageLeash * ROAM.engageLeash;
+  return state.enemies.some((e) => {
+    if (e.roomIndex !== ROAMING_ROOM || e.hp <= 0 || e.phase === "idle" || e.phase === "spawning") return false;
+    const dx = e.body.pos.x - p.x;
+    const dy = e.body.pos.y - p.y;
+    return dx * dx + dy * dy <= leash2;
+  });
+}
+
+/** 今いる部屋が交戦中か、あるいは近くの徘徊と戦っているか（「封鎖中」を条件にしていた要素はすべてこれを見る） */
 export function isEngaged(state: GameState): boolean {
-  return engagedRoomIndex(state) >= 0;
+  return engagedRoomIndex(state) >= 0 || roamerEngaged(state);
 }

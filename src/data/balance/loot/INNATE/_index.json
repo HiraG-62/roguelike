@@ -1,0 +1,30 @@
+{
+  "_note": "地金（装備に既定で宿るステータス・防御力・耐性。性質とは別の層）。予算（点）を深度で抽選し、点を「項目数 × 値」に配る。予算が決まってから配るので、値も項目数も両方多いは起きにくい。序盤のインフレは depthScale と hardCap で抑える。抽選は src/loot/innate.ts",
+  "_fields": {
+    "budget": "予算の期待値と振れ幅。期待値 = min(base + perDepth × 深度, cap) × depthScale。抽選は三角分布（下端 = 期待値 × lowScale、頂 = 期待値、上端 = 期待値 × highScale + ドロップ元の boost × boostScale）を四捨五入した点",
+    "budget.base": "深度 0 での予算の期待値（点）",
+    "budget.perDepth": "深度 1 あたりの予算の期待値の伸び（点）",
+    "budget.cap": "予算の期待値の上限（点）",
+    "budget.lowScale": "三角分布の下端（期待値に掛ける倍率）",
+    "budget.highScale": "三角分布の上端（期待値に掛ける倍率）",
+    "budget.boostScale": "ボス・宝物庫などの boost 1 あたり、上端に足す点",
+    "depthScale": "深度ごとの予算の期待値への倍率（線形補間。範囲外は端の値）。序盤を締める",
+    "hardCap": "予算の絶対上限 = base + perDepth × 深度（点）",
+    "maxLines": "部位ごとの項目数の上限（防御力の確定行は数えない）",
+    "extraLineChance": "項目数を 1 増やす確率（割合 0..1）。予算は同じなので 1 項目の値は薄まる",
+    "linesPerPoint": "予算がこの点に達するごとに項目数の基本値が 1 増える（項目数 = 1 + floor(予算 / これ)）",
+    "pointValue": "1 点あたりの値。attr = ステータス（点）、resist = 属性耐性（%）",
+    "armor": "防具の防御力。base は予算を使わず必ず付く値、perPoint は防御力の枠に配った 1 点あたりの上乗せ（小数 1 桁）。体は高く、指輪・首飾りは低い",
+    "leanWeight": "部位の傾き（slotLean）・武器の主参照のステータスの抽選重み（ほかは 1）",
+    "resistWeight": "属性耐性 1 種あたりの抽選重み",
+    "resistLines": "部位ごとの属性耐性の項目数の上限",
+    "slotLean": "防具の部位ごとに出やすいステータス（str / dex / vit / mnd / spi / def）",
+    "weaponLeanTop": "武器は武器種の全行動の係数の合計が大きい順に、この数のステータスが出やすい"
+  },
+  "extraLineChance": 0.35,
+  "linesPerPoint": 3,
+  "leanWeight": 3,
+  "resistWeight": 0.5,
+  "weaponLeanTop": 2,
+  "_order": ["budget", "depthScale", "hardCap", "maxLines", "extraLineChance", "linesPerPoint", "pointValue", "armor", "leanWeight", "resistWeight", "resistLines", "slotLean", "weaponLeanTop"]
+}

@@ -1,8 +1,10 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padSkillKeysLabel } from "../core/padBinds";
+import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL } from "../loot/resonance";
 import type { AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
+import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
 /**
  * Tips ノート: 用語とシステムの説明の置き場。UI（ツールチップ・ヘルプ・ログ・一覧の案内）には説明を書かず、
@@ -10,12 +12,13 @@ import type { ListEntry, ListTab } from "./listScreen";
  * 操作の項目はキー設定どおりの表記にするため、本文を束縛表から組む
  */
 
-export const TIP_CATEGORIES = ["controls", "combat", "growth", "relic", "skill", "run", "hub"] as const;
+export const TIP_CATEGORIES = ["controls", "combat", "weapon", "growth", "relic", "skill", "run", "hub"] as const;
 export type TipCategory = (typeof TIP_CATEGORIES)[number];
 
 export const TIP_CATEGORY_LABEL: Readonly<Record<TipCategory, string>> = {
   controls: "操作",
   combat: "戦い",
+  weapon: "武器種",
   growth: "育成",
   relic: "遺物",
   skill: "スキル",
@@ -79,21 +82,23 @@ const COMBAT_TIPS: readonly TipDef[] = [
   { key: "status", term: "状態異常", category: "combat", body: "敵にも自分にも付く。同じものを積み切ると上位の状態へ昇華する。体力が高いほど自分に付いたものが早く切れる。" },
   { key: "reaction", term: "反応", category: "combat", body: "2 つの状態異常（か地形）が出会ったときの追加効果。図鑑の連携の頁に記録される。" },
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
+  { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },
 ];
 
-/** ステータス 5 種の体の性能（装備画面の ？ のヘルプから移した） */
+/** ステータス 6 種の体の性能（装備画面の ？ のヘルプから移した） */
 const ATTR_TIP_BODY: Readonly<Record<AttrKey, string>> = {
   str: "体の性能は持たない。係数で参照する行動（武器種の段・スキルなど）の威力・怯み値が伸びる。",
   dex: "移動速度・ダッシュの再使用時間と、係数で参照する行動が伸びる。",
   vit: "最大生命が伸び、自分に付いた状態異常が早く切れる。係数で参照する行動も伸びる。",
   mnd: "最大気力・気力の自然回復と、係数で参照する行動が伸びる。",
   spi: "体の性能は持たない。係数で参照する行動の威力・怯み値・状態異常や強化の効果量が伸びる。",
+  def: "防御力・魔防が伸び、係数で参照する行動（盾の技・反撃系のスキルなど）も伸びる。",
 };
 
-const ATTR_ORDER: readonly AttrKey[] = ["str", "dex", "vit", "mnd", "spi"];
+const ATTR_ORDER: readonly AttrKey[] = ["str", "dex", "vit", "mnd", "spi", "def"];
 
 const GROWTH_TIPS: readonly TipDef[] = [
-  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力の 5 つ。探索中に得た点を装備画面で振り分ける（振った点はその探索の間だけ）。" },
+  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力・防御の 6 つ。探索中に得た点を装備画面で振り分ける（振った点はその探索の間だけ）。" },
   ...ATTR_ORDER.map((a): TipDef => ({ key: `attr_${a}`, term: ATTR_LABEL[a], category: "growth", body: ATTR_TIP_BODY[a] })),
   { key: "effective", term: "実効値", category: "growth", body: "ステータスに逓減を掛けた計算用の値。高く積むほど 1 点あたりの伸びが小さくなる。" },
   {
@@ -165,6 +170,8 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は装備画面で石に付ける。" },
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
+  { key: "floorLord", term: "階の主", category: "run", body: "毎階の最後の部屋に出る主。倒すまで階段は出ない。5 の倍数の階はボスが代わりに出る。" },
+  { key: "hiddenRoom", term: "隠し部屋", category: "run", body: "稀に生成される、壁の中に隠れた小部屋。ひび割れた壁に近づくと風の音がする。体を押し当て続けると開き、遺物と次の階への階段が出る。ボスの出る階には無い。" },
 ];
 
 const HUB_TIPS: readonly TipDef[] = [
@@ -179,7 +186,18 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "loaned", term: "借り物", category: "hub", body: "武器掛けで借りた素の器。保存されず、探索が終わると消える。残響で育てたり砕いたりできない。" },
 ];
 
-const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
+/**
+ * 武器種タブ: 全武器種（素手も含む「拳」）を 1 項目ずつ。手書きはしない。
+ * 本文は data/weapons.ts の武器の定義（moveset の段・派生・右の段・奥義の名前）から weaponTipBody が組み立てる
+ */
+const WEAPON_TIPS: readonly TipDef[] = WEAPON_TIP_KEYS.map((key) => ({
+  key: `weapon_${key}`,
+  term: MOVESETS[key].name,
+  category: "weapon",
+  body: (b: Keybinds | undefined) => weaponTipBody(key, b),
+}));
+
+const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...WEAPON_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
 
 /** 全項目。binds を省くと現在のキー設定で操作の本文を組む */
 export function tipEntries(binds?: Keybinds): TipEntry[] {

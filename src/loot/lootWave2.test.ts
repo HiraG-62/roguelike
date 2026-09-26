@@ -606,7 +606,7 @@ describe("拮抗（反対色の均衡）", () => {
 // ---------------------------------------------------------------------------
 
 function mains(p: Partial<Record<Slot, TraitColor>>): MainColors {
-  return { mainHand: undefined, offHand: undefined, armor: undefined, boots: undefined, ring: undefined, amulet: undefined, ...p };
+  return { mainHand: undefined, offHand: undefined, head: undefined, armor: undefined, boots: undefined, ring: undefined, amulet: undefined, ...p };
 }
 
 describe("星座（6 部位の主色の並び）", () => {

@@ -101,6 +101,9 @@ export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
  */
 export const PICKUP = BALANCE.loot.PICKUP;
 
+/** 地金（装備に既定で宿るステータス・防御力・耐性）の予算と配り方。抽選は loot/innate.ts */
+export const INNATE = BALANCE.loot.INNATE;
+
 export const FEEL = BALANCE.feel.FEEL;
 
 export const ROOM = BALANCE.world.ROOM;
@@ -118,6 +121,9 @@ export const BOSS = BALANCE.enemies.BOSS;
 
 /** 追跡者（Reaper）。数値は src/data/balance/enemies/ の "REAPER"（src/system/reaper.ts / reaperVariants.ts が読む） */
 export const REAPER = BALANCE.enemies.REAPER;
+
+/** 毎階の「階の主」。数値は src/data/balance/enemies/ の "FLOOR_LORD"（src/system/floorLord.ts が読む） */
+export const FLOOR_LORD = BALANCE.enemies.FLOOR_LORD;
 
 /** 深度による敵の HP の伸び（src/data/enemies.ts の depthHpScale）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
 export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
@@ -142,6 +148,9 @@ export const ROAM = BALANCE.world.ROAM;
 
 /** ランイベント（src/system/runEvents.ts。docs/ideas/run-expansion.md 3 章）。すべて予告してから始まる */
 export const RUN_EVENT = BALANCE.world.RUN_EVENT;
+
+/** 隠し部屋（src/map/hidden.ts・src/system/hiddenRoom.ts） */
+export const HIDDEN_ROOM = BALANCE.world.HIDDEN_ROOM;
 
 /** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
 export const LINGER = BALANCE.world.LINGER;

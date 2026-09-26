@@ -32,7 +32,7 @@ export const PROFILE_KEY = "roguelike.profile.v1";
  * アイテム単位で旧形式（prefix / suffix / tier）を検出し、読み込み時に migrateItem で新形式へ変換する
  */
 const CURRENT_VERSION = 1;
-const TRAIT_ORIGINS: readonly TraitOrigin[] = ["found", "bud", "named"];
+const TRAIT_ORIGINS: readonly TraitOrigin[] = ["found", "bud", "named", "innate"];
 const BUD_OPTION_COUNT = 2;
 /** ラン履歴の保持件数（最新が先頭） */
 export const HISTORY_LIMIT = 20;
@@ -168,6 +168,12 @@ function copyGrowthFields(item: Item, v: Record<string, unknown>): void {
   if (reforged > 0) item.reforged = reforged;
 }
 
+/** 地金。無ければ undefined（migrateItem が空で補う）。壊れた行だけ捨てる（地金は抽選し直せないので遺物ごとは捨てない） */
+function sanitizeInnate(v: unknown): AffixRoll[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.map(sanitizeRoll).filter((r): r is AffixRoll => r !== null);
+}
+
 /** Item として最低限成立しているかを検証し、新形式へ移行して返す。壊れていたら null */
 function sanitizeItem(v: unknown): Item | null {
   if (!isRecord(v)) return null;
@@ -201,6 +207,8 @@ function sanitizeItem(v: unknown): Item | null {
     foundDepth,
     foundAt,
   };
+  const innate = sanitizeInnate(v.innate);
+  if (innate !== undefined) item.innate = innate;
   copyGrowthFields(item, v);
   return migrateItem(item);
 }

@@ -289,6 +289,8 @@ function isEffectKind(s: string): s is TriggerEffectKind {
 export const SLOT_TRIGGERS: Readonly<Record<Slot, readonly TriggerKind[]>> = {
   mainHand: ["onMeleeHit", "everyNthMeleeHit", "onShoot", "onKill", "onJustDodge", "onStagger", "onCounter"],
   offHand: [],
+  // 頭は体（鎧）と同じ起点（性質の別名規則 affixes.ts の SLOT_ALIAS と揃える）
+  head: ["onHurt", "onKill", "onRoomClear"],
   armor: ["onHurt", "onKill", "onRoomClear"],
   boots: ["onDash", "onJustDodge", "onRoomClear"],
   ring: TRIGGER_KINDS,

@@ -98,6 +98,14 @@ function visit(field: Int32Array, tiles: GameMap["tiles"], queue: Int32Array, ta
   return tail + 1;
 }
 
+/**
+ * マップのタイルを書き換えた後（隠し部屋を開いたときなど）、その距離場のキャッシュを捨てる。
+ * 次に distanceField / nextWaypoint / chaseHeading が呼ばれたときに新しいタイルで作り直す
+ */
+export function invalidatePathing(map: GameMap): void {
+  fieldCache.delete(map);
+}
+
 export function tileOf(map: GameMap, p: Point): number {
   return toIndex(map, Math.floor(p.x / TILE_SIZE), Math.floor(p.y / TILE_SIZE));
 }

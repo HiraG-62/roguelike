@@ -41,6 +41,8 @@ type Rgb = readonly [number, number, number];
 
 const CORRIDOR_RGB: Rgb = [84, 84, 100];
 const BOSS_RGB: Rgb = [220, 56, 56];
+/** 階の主（major でないボス）の部屋の色。ボスより控えめな橙 */
+const FLOOR_LORD_RGB: Rgb = [224, 136, 48];
 const FOUNTAIN_RGB: Rgb = [120, 200, 255];
 /** 伏兵は見た目 normal と同じ色（ミニマップでもバレない） */
 const ROOM_RGB: Readonly<Record<RoomKind, Rgb>> = {
@@ -156,7 +158,7 @@ function tileColor(state: GameState, lookup: RoomLookup, bossRoom: number, tile:
   if (state.map.tiles[tile] === Tile.Fountain) return FOUNTAIN_RGB;
   const room = lookup.roomOf[tile] ?? NO_ROOM;
   if (room === NO_ROOM) return CORRIDOR_RGB;
-  if (room === bossRoom) return BOSS_RGB;
+  if (room === bossRoom) return state.boss?.major ? BOSS_RGB : FLOOR_LORD_RGB;
   return ROOM_RGB[state.rooms[room]?.kind ?? "normal"];
 }
 
@@ -279,9 +281,9 @@ export class Minimap {
     this.ctx.clearRect(0, 0, size.w, size.h);
   }
 
-  /** 階段はボス撃破で後から出るので、ボスの状態が変わったときだけ探し直す */
+  /** 階段はボス撃破・隠し部屋が開いたときに後から出るので、そのどちらかが変わったときだけ探し直す */
   private refreshStairs(state: GameState): void {
-    const key = `${state.boss?.defeated ?? "none"}`;
+    const key = `${state.boss?.defeated ?? "none"}|${state.hiddenRoom?.opened ?? "none"}`;
     if (key === this.stairsKey) return;
     this.stairsKey = key;
     this.stairs = [];

@@ -19,12 +19,12 @@ import { applyStatus, updateStatusEffects } from "./statusEffects";
 import { placeTerrain, terrainAt } from "./terrain";
 
 const HUGE_HP = 1_000_000;
-/** 新しいボスの深度（8 体の回転の 5〜8 番目） */
+/** 新しいボスの深度（9 体の回転の 5〜8 番目。BOSS.interval の倍数） */
 const WAVE3_BOSSES: readonly (readonly [string, number])[] = [
-  ["oilKing", 15],
-  ["broodMother", 18],
-  ["librarian", 21],
-  ["mirrorKnight", 24],
+  ["oilKing", BOSS.interval * 5],
+  ["broodMother", BOSS.interval * 6],
+  ["librarian", BOSS.interval * 7],
+  ["mirrorKnight", BOSS.interval * 8],
 ];
 
 /** ボス階を作り、部屋を封鎖してプレイヤーをボスの横に置く */
@@ -96,7 +96,7 @@ describe("Wave 3 のボス: 全体", () => {
 
 describe("油壺の王", () => {
   it("ボス部屋には最初から油溜まりがある", () => {
-    const { state } = bossFloor(15);
+    const { state } = bossFloor(BOSS.interval * 5);
     tick(state);
     const room = state.rooms[state.boss?.roomIndex ?? -1];
     if (!room) throw new Error("no room");
@@ -108,7 +108,7 @@ describe("油壺の王", () => {
   });
 
   it("燃える床に立つと引火して怯む（間隔の内は繰り返さない）", () => {
-    const { state, boss } = bossFloor(15);
+    const { state, boss } = bossFloor(BOSS.interval * 5);
     boss.phase = "chase";
     boss.attackCooldown = 99;
     placeTerrain(state, boss.body.pos.x, boss.body.pos.y, "fire", 8);
@@ -120,7 +120,7 @@ describe("油壺の王", () => {
 
 describe("群れの母", () => {
   it("卵を産み、割られた卵は母に怯み値を入れ、放っておくと孵る", () => {
-    const { state, boss } = bossFloor(18);
+    const { state, boss } = bossFloor(BOSS.interval * 6);
     boss.phase = "chase";
     boss.attackCooldown = 0;
     if (boss.ai) boss.ai.move = BROOD_LAY;
@@ -143,7 +143,7 @@ describe("群れの母", () => {
 
 describe("図書館の司書", () => {
   it("禁書を読む間に沈黙させると本を落としてダウンし、雷は落ちない", () => {
-    const { state, boss } = bossFloor(21);
+    const { state, boss } = bossFloor(BOSS.interval * 7);
     boss.phase = "chase";
     boss.attackCooldown = 0;
     if (boss.ai) {
@@ -180,7 +180,7 @@ describe("鏡の騎士", () => {
   }
 
   it("正面から来た弾を跳ね返し、背後からの弾は通す", () => {
-    const { state, boss } = bossFloor(24);
+    const { state, boss } = bossFloor(BOSS.interval * 8);
     boss.facing = { x: -1, y: 0 };
     const front = shotAt(state, boss, true);
     expect(deflectProjectile(state, front, boss)).toBe(true);
@@ -190,7 +190,7 @@ describe("鏡の騎士", () => {
   });
 
   it("第 3 段階で写し身を呼び、写し身が残っている間は本体が守られる", () => {
-    const { state, boss } = bossFloor(24);
+    const { state, boss } = bossFloor(BOSS.interval * 8);
     boss.phase = "chase";
     boss.attackCooldown = 99;
     boss.hp = Math.floor(boss.maxHp * BOSS.mirrorKnight.phase2Ratio);

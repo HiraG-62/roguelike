@@ -11,8 +11,9 @@ import type { Item, Slot } from "../loot/types";
 export const SLOT_LABEL: Readonly<Record<Slot, string>> = {
   mainHand: "右手",
   offHand: "左手",
-  armor: "鎧",
-  boots: "靴",
+  head: "頭",
+  armor: "体",
+  boots: "足",
   ring: "指輪",
   amulet: "首飾り",
 };

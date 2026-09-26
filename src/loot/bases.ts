@@ -119,6 +119,16 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "spiked", name: "棘甲", slot: "armor", minLevel: B.spiked.minLevel, implicitKey: "implicit.spiked" },
   { key: "mino", name: "蓑", slot: "armor", minLevel: B.mino.minLevel, implicitKey: "implicit.mino" },
 
+  // head: 軽い個性（頭は体の性質を引く。affixes.ts の SLOT_ALIAS）
+  { key: "hood", name: "頭巾", slot: "head", minLevel: B.hood.minLevel, implicitKey: "implicit.hood" },
+  { key: "leatherCap", name: "革帽子", slot: "head", minLevel: B.leatherCap.minLevel, implicitKey: "implicit.leatherCap" },
+  { key: "ironHelm", name: "鉄兜", slot: "head", minLevel: B.ironHelm.minLevel, implicitKey: "implicit.ironHelm" },
+  { key: "circlet", name: "額冠", slot: "head", minLevel: B.circlet.minLevel, implicitKey: "implicit.circlet" },
+  { key: "maskedVisor", name: "面頬", slot: "head", minLevel: B.maskedVisor.minLevel, implicitKey: "implicit.maskedVisor" },
+  { key: "sandogasa", name: "三度笠", slot: "head", minLevel: B.sandogasa.minLevel, implicitKey: "implicit.sandogasa" },
+  { key: "hachigane", name: "鉢金", slot: "head", minLevel: B.hachigane.minLevel, implicitKey: "implicit.hachigane" },
+  { key: "hornedHelm", name: "角兜", slot: "head", minLevel: B.hornedHelm.minLevel, implicitKey: "implicit.hornedHelm" },
+
   // boots: 移動 / ダッシュ
   { key: "sandals", name: "草鞋", slot: "boots", minLevel: B.sandals.minLevel, implicitKey: "implicit.sandals" },
   { key: "boots", name: "長靴", slot: "boots", minLevel: B.boots.minLevel, implicitKey: "implicit.boots" },

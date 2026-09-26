@@ -1,10 +1,10 @@
 import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { pushPlayerEvent } from "../core/events";
 import type { Rng } from "../core/rng";
-import { normalize, sub } from "../core/vec";
+import { type Vec, normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ATTR_GAIN, BOSS, CAVE, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
-import type { CaveShapeOptions } from "../map/cave";
+import { ATTR_GAIN, BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { type CaveShapeOptions, carveArena } from "../map/cave";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap, scaleGeneratorOptions } from "../map/generator";
 import {
   type GameMap,
@@ -30,6 +30,8 @@ import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
+import { setupFloorLordRoom } from "./floorLord";
+import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
 import {
   applyBoonFloorRules,
@@ -64,7 +66,17 @@ import {
   updateShrines,
   waveMul,
 } from "./roomTypes";
-import { ROAMING_ROOM, assignRoamers, makeRoamer, reinforceDue, roamCap, roamSpawnPoint, roamerCount, updateRoamers } from "./spawner";
+import {
+  ROAMING_ROOM,
+  assignRoamers,
+  makeRoamer,
+  populateCorridors,
+  reinforceDue,
+  roamCap,
+  roamSpawnPoint,
+  roamerCount,
+  updateRoamers,
+} from "./spawner";
 import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
@@ -103,10 +115,15 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.floorAreaMul = rollAreaMul(state.rng, state.depth);
   state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind, state.floorAreaMul));
+  // 洞窟の最後の塊（階段の部屋）が狭いと階の主の戦いが窮屈になるので広げる（rooms 型・major は何もしない。乱数を使わない）
+  if (!isBossDepth(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
+    carveArena(state.map, state.map.rooms.length - 1, FLOOR_LORD.arenaRadius);
+  }
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
   state.lockedTiles = new Set();
   state.hazards = [];
   state.boss = null;
+  state.hiddenRoom = null;
   state.floorTime = 0;
   state.reaper = null;
   state.enemies = [];
@@ -142,7 +159,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
     if (i === bossRoom) {
-      setupBossRoom(state, i);
+      if (isBossDepth(state.depth)) setupBossRoom(state, i);
+      else setupFloorLordRoom(state, i);
       onBossSpawned(state);
       return;
     }
@@ -158,11 +176,14 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeOssuaryCorpses(state, ends);
   planForkStairs(state);
   assignRoamers(state, new Set([START_ROOM, bossRoom]));
+  populateCorridors(state, pickEnemy, spawnCorridorRoamer);
   clearEmptyOpenRooms(state);
   onFloorStart(state);
   // 契約者と上り階段は最後に置く（それより前の乱数消費を変えない）
   placeContractor(state);
   placeAscend(state);
+  // 隠し部屋の計画は一番最後（それより前の乱数消費を変えないため）
+  planHidden(state);
 }
 
 /**
@@ -227,18 +248,21 @@ export function rollAreaMul(rng: Rng, depth: number, range: AreaMulRange = areaM
   return range.areaMulMin + rng.next() * (range.areaMulMax - range.areaMulMin);
 }
 
+/**
+ * 毎階、最後の部屋（階段の部屋）を主の大きさ以上にする。5 の倍数の階（major）は BOSS.roomMinW/H、
+ * それ以外（階の主）は FLOOR_LORD.roomMinW/H（rooms 型だけが読む。cave 型は map/cave.ts の carveArena で広げる）
+ */
 function generatorOptions(depth: number, kind: FloorKind, areaMul: number): GeneratorOptions {
   const cave = CAVE_BY_KIND[kind];
   const base = scaleGeneratorOptions(cave ? { ...DEFAULT_GENERATOR_OPTIONS, cave } : DEFAULT_GENERATOR_OPTIONS, areaMul);
-  if (!isBossDepth(depth)) return base;
-  return { ...base, lastRoomMin: { w: BOSS.roomMinW, h: BOSS.roomMinH } };
+  const min = isBossDepth(depth) ? { w: BOSS.roomMinW, h: BOSS.roomMinH } : { w: FLOOR_LORD.roomMinW, h: FLOOR_LORD.roomMinH };
+  return { ...base, lastRoomMin: min };
 }
 
-/** ボス階なら最後の部屋（階段の部屋）。それ以外は -1 */
+/** 最後の部屋（階段の部屋。毎階、階の主かボスが出る）。部屋が 1 つしか無ければ -1 */
 function bossRoomIndex(state: GameState): number {
   const last = state.rooms.length - 1;
-  if (!isBossDepth(state.depth) || last <= START_ROOM) return -1;
-  return last;
+  return last <= START_ROOM ? -1 : last;
 }
 
 /** 部屋の外周 1 マス外側にある床 = 出入口 */
@@ -364,7 +388,7 @@ function spawnCapped(state: GameState, room: RoomState, index: number, spawning:
   }
 }
 
-function pickEnemy(state: GameState): EnemyDef {
+export function pickEnemy(state: GameState): EnemyDef {
   const pool = enemiesForDepth(state.depth);
   const weight = (d: EnemyDef): number => biomeEnemyWeight(d, state.floorKind);
   const total = pool.reduce((s, d) => s + weight(d), 0);
@@ -374,6 +398,21 @@ function pickEnemy(state: GameState): EnemyDef {
     if (roll <= 0) return def;
   }
   return pool[pool.length - 1] ?? pool[0]!;
+}
+
+/**
+ * 通路に置く徘徊（spawner.ts の populateCorridors が呼ぶ）。部屋の湧きと同じフック
+ * （祝福・ランイベント・エリート）を通してから push した敵を返す。roomIndex は
+ * ROAMING_ROOM 固定なので、この階では最初からどの部屋にも属さない
+ */
+function spawnCorridorRoamer(state: GameState, def: EnemyDef, pos: Vec): Enemy {
+  const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
+  onBoonEnemySpawned(state, e);
+  onRunEnemySpawned(state, e);
+  rollElite(state, e);
+  if (extraEliteRoll(state, e)) rollElite(state, e);
+  state.enemies.push(e);
+  return e;
 }
 
 const FREE_POINT_ATTEMPTS = 30;
@@ -474,6 +513,7 @@ export function updateRooms(state: GameState, dt: number): void {
   updateBossIntro(state, dt);
   updatePickups(state, dt);
   updateFloorItems(state, dt);
+  updateHiddenRoom(state, dt);
   checkStairs(state);
 }
 
@@ -721,6 +761,11 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   onRoomLocked(state, index);
   if (state.boss && state.boss.roomIndex === index) {
     announceBoss(state);
+    // 階の主（major でない）は取り巻きを連れる。5 の倍数の階のボスは今までどおり単騎
+    if (!state.boss.major) {
+      spawnCapped(state, room, index, true, Math.round(enemyCount(state) * FLOOR_LORD.escortRatio));
+      finalizeLinks(state, index);
+    }
     return;
   }
   if (room.kind === "challenge" || room.kind === "arena" || room.kind === "horde") {
@@ -879,6 +924,7 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
   if (fresh) onOriginDescend(state);
   else refreshRunStats(state);
   descendMana(state);
+  if (fresh) healOnDescend(state);
   onContractsFloorReached(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
@@ -889,6 +935,13 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
   }
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
   if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);
+}
+
+/** 降階の回復（初めて着いた階だけ）。失った生命（maxHp - hp）の HEAL.descendHealRatio を戻す */
+function healOnDescend(state: GameState): void {
+  const missing = state.player.maxHp - state.player.hp;
+  if (missing <= 0) return;
+  healPlayer(state, missing * HEAL.descendHealRatio);
 }
 
 /** 反転層に初めて着いた */
@@ -919,11 +972,11 @@ export function ascend(state: GameState): void {
   pushLog(state, `浅い層へ戻った（地下${state.depth}階・${label}、帰還 ${strata.returns}/${FLOOR_KIND.ascendMaxReturns}）。`, FLOOR_KIND.ascendColor);
 }
 
-/** 戻った階: ボス以外の敵を 1 体おきに除き（乱数を使わない）、死神を早める */
+/** 戻った階: ボス・階の主以外の敵を 1 体おきに除き（乱数を使わない）、死神を早める */
 function thinRevisitedFloor(state: GameState): void {
   let keep = false;
   state.enemies = state.enemies.filter((e) => {
-    if (enemyDef(e.defKey).boss) return true;
+    if (enemyDef(e.defKey).boss || state.boss?.enemyId === e.id) return true;
     keep = !keep;
     return keep;
   });
@@ -936,12 +989,14 @@ export function invertedLayer(state: GameState): boolean {
 }
 
 /**
- * 階段で得るステータスの振り分け点（docs/COMBAT_DESIGN.md A-3）。階層到達 +1、この階のボスを倒していれば +2。
- * ボス撃破の瞬間（boss.ts）ではなく降りるときにまとめて渡す（ボス部屋は撃破しないと階段に届かない）
+ * 階段で得るステータスの振り分け点（docs/COMBAT_DESIGN.md A-3）。階層到達 +1、この階の主を倒していれば
+ * major なら perBoss、階の主なら perFloorLord（既定 0）。撃破の瞬間（boss.ts）ではなく降りるときにまとめて渡す
+ * （ボス部屋は撃破しないと階段に届かない）
  */
 export function floorAttributePoints(state: GameState): number {
-  const boss = state.boss?.defeated === true ? ATTR_GAIN.perBoss : 0;
-  return ATTR_GAIN.perFloor + boss;
+  if (state.boss?.defeated !== true) return ATTR_GAIN.perFloor;
+  const bonus = state.boss.major ? ATTR_GAIN.perBoss : ATTR_GAIN.perFloorLord;
+  return ATTR_GAIN.perFloor + bonus;
 }
 
 // -----------------------------------------------------------------------------

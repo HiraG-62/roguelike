@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "../core/game";
-import type { Scaling } from "../loot/types";
+import { ATTR_KEYS, type Scaling } from "../loot/types";
 import { SKILL, SKILL_ATTACK, SKILL_DEFS } from "../skills/data";
 import { EXTRA_SKILL_TUNING } from "../skills/tuning";
 import { scaledAtBase } from "../system/attributes";
@@ -14,7 +14,7 @@ import { BALANCE } from "./balance";
  * 参照ステータスはジャンルで縛らない（行動ごとに自由）。ここでは係数表の形と素性の有無だけを検査する
  */
 
-const ATTR_FIELDS = new Set(["base", "str", "dex", "vit", "mnd", "spi"]);
+const ATTR_FIELDS = new Set(["base", ...ATTR_KEYS]);
 
 function isScaling(v: unknown): v is Scaling {
   if (!v || typeof v !== "object") return false;

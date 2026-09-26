@@ -65,12 +65,15 @@ export const WOLF_BITE_STEP = {
   trail: "#d0b090",
 } as const satisfies MeleeStepDef;
 
-/** 鉄塊化の重い振り（MeleeStepDef。基礎値で 10 + 1.4*5 + 0.8*5 = 21）。数値は WAVE3_SKILL_TUNING.ironForm.swing と同じ */
+/**
+ * 鉄塊化の重い振り（MeleeStepDef。基礎値で 10 + 1.4*5 + 0.3*5 + 0.5*5 = 21）。base と Σ係数（2.2）は
+ * WAVE3_SKILL_TUNING.ironForm.swing のまま、体力の一部（0.8 → 0.3 + 防御 0.5）を防御へ付け替えた
+ */
 export const IRON_SWING_STEP = {
   windup: 0.28,
   active: 0.14,
   recover: 0.42,
-  scaling: { base: 10, str: 1.4, vit: 0.8 },
+  scaling: { base: 10, str: 1.4, vit: 0.3, def: 0.5 },
   poise: 40,
   reach: 32,
   size: 32,

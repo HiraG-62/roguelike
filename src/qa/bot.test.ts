@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
-import type { GameState } from "../core/state";
+import type { GameState, HiddenRoom } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
 import { placeEnemy, arena } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
-import { botInput, createBotState, pickBoonIndex, shouldPressUltimate } from "./bot";
+import { HIDDEN_DOOR_GIVE_UP, botInput, createBotState, pickBoonIndex, shouldPressUltimate } from "./bot";
+import { isZero } from "../core/vec";
+import { buildFloor } from "../system/floor";
+import { planHidden } from "../system/hiddenRoom";
 
 /** bot が待ち終えた後の提示時間（BOON_CHOICE_WAIT 0.5 秒より長く） */
 const WAITED = 1;
@@ -128,5 +131,37 @@ describe("bot の左右の連撃", () => {
     }
     expect(right, "右の段を振った").toBe(true);
     expect(branch, "名前付き派生を踏んだ").toBe(true);
+  });
+});
+
+describe("bot の隠し部屋", () => {
+  /** rng.chance を強制的に true にして隠し部屋を計画させる（抽選自体は planHiddenRoom のまま） */
+  function forceHidden(state: GameState): HiddenRoom {
+    state.hiddenRoom = null;
+    state.rng = { ...state.rng, chance: () => true };
+    planHidden(state);
+    const hr = state.hiddenRoom;
+    if (!hr) throw new Error("隠し部屋が計画されなかった（テストの前提が崩れている）");
+    return hr;
+  }
+
+  /** 隠し部屋のある rooms 型の階（HIDDEN_ROOM.minDepth 以上・ボス階を避ける）。手がかりは立てておく */
+  function hiddenFloor(seed: number): GameState {
+    const state = arena(seed);
+    state.depth = 3;
+    buildFloor(state, "rooms");
+    forceHidden(state).hinted = true;
+    return state;
+  }
+
+  it("手がかりの出た扉へ動き、届かないまま上限秒を超えたら諦める（壁に押し当て続けて止まらない）", () => {
+    const state = hiddenFloor(9);
+    const bot = createBotState(1);
+    const first = botInput(state, bot, 1);
+    expect(isZero(first.move), "扉へ向かって動く").toBe(false);
+    expect(bot.hiddenDoorTime).toBeGreaterThan(0);
+    // state を進めないので扉は開かない。追った秒が上限を超えたら以後は数えない（= 扉を追わない）
+    for (let i = 0; i < HIDDEN_DOOR_GIVE_UP * 2; i++) botInput(state, bot, 1);
+    expect(bot.hiddenDoorTime).toBeLessThanOrEqual(HIDDEN_DOOR_GIVE_UP + 1);
   });
 });

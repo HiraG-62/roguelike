@@ -55,8 +55,13 @@ export function reaperWarning(state: GameState): boolean {
   return state.reaper === null && reaperTimeLeft(state) <= REAPER.warnMargin;
 }
 
+/** 階の主（major を問わない）の部屋を封鎖している間は死神を止める。bossRoomLocked と同じ式（reaper.ts と spawner.ts で個別に持つ） */
+function bossRoomLocked(state: GameState): boolean {
+  return state.boss !== null && state.rooms[state.boss.roomIndex]?.locked === true;
+}
+
 export function updateReaper(state: GameState, dt: number): void {
-  if (state.status !== "playing") return;
+  if (state.status !== "playing" || bossRoomLocked(state)) return;
   state.floorTime += dt;
   if (!state.reaper) {
     // 警告の鼓動（8-14）は近さで間隔が縮むので、残り秒だけ渡して effects.ts が鳴らす

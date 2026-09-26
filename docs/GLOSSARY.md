@@ -28,7 +28,9 @@
 - B: 霊気 / 命 / 見極め / 強者 / 巡り。霊気がステータス「霊力」と、巡りが刻印符「巡り」と衝突する
 - C: 灯 / 血 / 刹那 / 異形 / 冷え / 潜り。雰囲気は強いが「最大灯」「血が足りない（出血と紛れる）」など直感性が落ちる
 
-変えずに残した語: ボス / 死神（既に日本語、または誰にでも通じる）、ダッシュ / コンボ / スキル / スキル石 / スロット / アーマー / リゲイン（カタカナのままの方が直感的。固有名詞を増やしすぎない）、起点 / 縛り / 位階 / 図鑑 / 依頼 / 実績 / 称号（既に日本語の世界観語）、地下 n 階（表示は既に階）。キー名・ボタン名（WASD / Space / Esc / LB / A X Y B）と URL は操作の案内なので英字のまま。
+変えずに残した語: ボス / 死神（既に日本語、または誰にでも通じる）、ダッシュ / コンボ / スキル / スキル石 / スロット / リゲイン（カタカナのままの方が直感的。固有名詞を増やしすぎない）、起点 / 縛り / 位階 / 図鑑 / 依頼 / 実績 / 称号（既に日本語の世界観語）、地下 n 階（表示は既に階）。キー名・ボタン名（WASD / Space / Esc / LB / A X Y B）と URL は操作の案内なので英字のまま。
+
+「アーマー」は廃止し「防御力」に統一（2026-09-26、ステータス「防御」`def` の追加に合わせて）。`PlayerStats.armor` の表示名は常に「防御力」。
 
 ## 表示文字列の書き方（2026-09-24）
 
@@ -178,7 +180,9 @@
 | 出発 | start | 起点画面でランを始める行 | `ui/origin.ts` START_LABEL |
 | 地下 n 階 | depth | 階層 | HUD |
 | 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper。バリアントは 鎖の死神 / 取り立て屋 / 双子の死神 / 影の死神（付き物は 死神の影）/ 静かな死神 | `system/reaper.ts`、`system/reaperVariants.ts` |
-| ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士 / 盗賊王） | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
+| ボス | boss | 階層ボス（5 の倍数の階、`BOSS.interval`）。スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士 / 盗賊王 | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
+| 階の主 | floorLord（`BossState.major` が false） | 毎階の最後の部屋に出る主。部屋主かその階に出る通常敵を格上げした「〜の長」で、ボスと同じ封鎖・HP バー・撃破で階段の仕組みに乗る | `system/floorLord.ts` |
+| 隠し部屋 | HiddenRoom | 壁の中に埋めた小部屋。稀に生成され、ひび割れた壁に近づくと手がかりが出て、押し当て続けると開き遺物と次の階への階段が出る。ボスの出る階には生成しない | `system/hiddenRoom.ts`、`map/hidden.ts` |
 | 精鋭 | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の / 強欲の（2026-09-24 追加。床の遺物・気力結晶を拾って逃げる）。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
 | 部屋主 | lairMaster | 巣の主。通常の抽選にも低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長 / 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み） | `data/enemies.ts` |
 | 再配色種 | recolor | 元の敵の絵の色を差し替え、挙動を 1 つ足した派生 | `data/enemies.ts` recolor |
@@ -210,7 +214,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 装備 / 倉庫 | equipment / stash | 装着中と所持品 | `ui/inventory.ts` |
-| 右手 / 左手 / 鎧 / 靴 / 指輪 / 首飾り | Slot（mainHand / offHand / armor / boots / ring / amulet） | 6 スロット。右手は近接武器・銃どちらも装備する 1 枠、左手は今はベースが無く常に空（倉庫・並べ替えの対象からは外す） | `ui/inventoryLayout.ts` SLOT_LABEL、`loot/types.ts` LOOT_SLOTS |
+| 右手 / 左手 / 頭 / 体 / 足 / 指輪 / 首飾り | Slot（mainHand / offHand / head / armor / boots / ring / amulet） | 7 スロット（2026-09-26 に頭を追加、鎧→体・靴→足に改名。内部 key は据え置き）。右手は近接武器・銃どちらも装備する 1 枠、左手は今はベースが無く常に空（倉庫・並べ替えの対象からは外す） | `ui/inventoryLayout.ts` SLOT_LABEL、`loot/types.ts` LOOT_SLOTS |
 | 遺物 | Item | 装備アイテム全般の呼称 | `loot/types.ts`、`loot/names.ts` |
 | 静 / 揺 / 荒 / 反転あり | normal / magic / rare / unique（`Rarity`。キーは旧レアリティのまま） | 揺らぎの見た目の分類。格付けではない | `loot/types.ts` RARITY_LABEL |
 | 性質 | AffixRoll（旧 affix） | 遺物に宿る 1 つの性質。表の性質 / トリガー文法 / 変換 / 誓約 | `loot/describe.ts`、装備画面 |
@@ -219,6 +223,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 支配 / 二重 / 三和音 / 散光 | dominant / dual / triad / scatter | 共鳴の種類。1 色が過半 / 上位 2 色が各 30% 以上 / ちょうど 3 色が各 22% 以上 / 全色が分散 | `loot/resonance.ts` resolveResonance |
 | 陰画 | `Resonance.form = "negative"`（kind は dominant） | 反転した性質の重みが 35% 以上で、反転を除いた配合に支配色があると支配が裏返る。冷たい炎（紅）/ 熱い氷（蒼）/ 枯れ森（翠）/ 暗雷（金）。冥の支配は虚極のまま | `loot/resonance.ts` NEGATIVE_EFFECTS |
 | 拮抗 | `Resonance.form = "balance"`（kind は dual） | 他の共鳴が成立しないとき、反対色の組（紅と蒼 / 翠と金）がそれぞれ 25% 以上で差 5% 以内なら成立。天秤（紅と蒼）/ 表裏（翠と金） | `loot/resonance.ts` BALANCE_EFFECTS |
+| 地金 | `Item.innate`（`loot/innate.ts`） | 装備に既定で宿るステータス・防御力・属性耐性。性質とは別の層で、クラフト・色の配合の対象外 | `loot/describe.ts` innateLines |
 | 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖。うち双子 / 対岸 / 鏡像 / 鎖は左手が使えるまで非表示（`hidden`） | `loot/resonance.ts` CONSTELLATIONS |
 | 主色 | itemMainColor | 遺物 1 つの性質（implicit を除く）で重みが最も大きい色。同点なら先に付いた性質の色。無色の性質は数えない | `loot/resonance.ts` |
 | 無色（性質） | `AffixRoll.colorless` | 脱色した性質。共鳴の配合に数えず、支配の減衰も受けない。行の頭に「無色」 | `loot/crafting.ts` bleachTrait |
@@ -309,17 +314,19 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | --- | --- | --- | --- |
 | 攻撃ジャンル | `AttackGenre`（range × quality） | 範囲軸と質軸の組み合わせ。表示は「近接・物理」 | `core/element.ts` genreLabel |
 | 近接 / 遠距離 / 範囲 | `AttackRange`: melee / ranged / area | 範囲軸。銃の弾・遠距離のスキルは「遠距離」（ボタンの役割の「射撃」とは別） | `core/element.ts` RANGE_LABEL |
-| 物理 / 魔法 / 混成 | `AttackQuality`: physical / arcane / hybrid | 質軸。物理はアーマー（敵は防御）、魔法は魔防、混成は両方の平均で受ける | `core/element.ts` QUALITY_LABEL |
+| 物理 / 魔法 / 混成 | `AttackQuality`: physical / arcane / hybrid | 質軸。物理は防御力（敵は防御）、魔法は魔防、混成は両方の平均で受ける | `core/element.ts` QUALITY_LABEL |
 | 属性 / 無属性 / 炎属性 / 氷属性 / 雷属性 / 毒属性 / 闇属性 / 光属性 | `Element`: none / fire / ice / lightning / poison / dark / light | 攻撃の属性。状態異常（燃焼・冷気…）とは別。表示は「炎属性」、耐性は「炎耐性」 | `core/element.ts` ELEMENT_LABEL |
-| 魔防 | `PlayerStats.warding` / 敵の `EnemyDefenseDef.warding` | 魔法の軽減。アーマーと同じ逓減式 | `loot/stats.ts`、`data/enemyDefense.ts` |
-| 防御（敵） | `EnemyDefenseDef.defense` | 敵の物理の軽減 %。プレイヤー側は「アーマー」 | `data/enemyDefense.ts` |
-| 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く | `loot/affixes.ts` res_* |
+| 防御力 | `PlayerStats.armor` | 物理の軽減。ステータス「防御」`def` 1 点につき +1.0 | `loot/stats.ts`、`system/attributes.ts` |
+| 魔防 | `PlayerStats.warding` / 敵の `EnemyDefenseDef.warding` | 魔法の軽減。防御力と同じ逓減式。ステータス「防御」`def` 1 点につき +0.5 | `loot/stats.ts`、`data/enemyDefense.ts`、`system/attributes.ts` |
+| 防御（敵） | `EnemyDefenseDef.defense` | 敵の物理の軽減 %。プレイヤー側は「防御力」 | `data/enemyDefense.ts` |
+| 防御 | `AttrKey` の `def` | ステータスの 6 種目。防御力・魔防を底上げし、盾の技・反撃系のスキルなど係数で参照する行動も伸ばす。5 色（紅蒼翠金冥）とは対応しない別軸（`COMBAT_ATTR_KEYS` は防御を除く 5 種） | `loot/types.ts`、`docs/STATS_AND_SCALING.md` |
+| 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く。ステータスタブの「体の性能」に耐性 2 行（炎/氷/雷、毒/闇/光）で出す | `loot/affixes.ts` res_*、`ui/statusTab.ts` |
 | 弱点 / 耐性（浮き文字） | `ELEMENT.weakText` / `resistText` | 敵の耐性が負 / 正の属性で当てたとき | `system/elementCombat.ts` |
 | ダメージ数字の種類（2026-09-24 第 3 弾） | `FloatTextKind`: crit / weak / resist / dot / reaction / normal | 会心 / 弱点 / 耐性 / 継続 / 反応 / 通常の 6 種で色と大きさを変える（会心 > 反応 > 弱点 > 耐性 の優先順で 1 つ選ぶ）。継続（dot）は 0.5 秒ぶんを敵ごとに束ねて小さく表示 | `system/effects.ts` damageTextKind |
 | 弱点の印 / ？ | `weaknessMark` | 敵の頭上の弱点の色。このランでその種類を倒すまでは「？」 | `render/elementUi.ts` |
 | 属性の変換（近接・射撃の n% を炎属性に変換） | `cv_infuse*` / `PlayerStats.infuse` | 通常攻撃の一部を属性として扱う変換 | `loot/affixes.ts` |
 | 無の刻印 | `cv_infuseNone` / `skillNeutral` | スキルの属性の n% を無属性に変換する | `loot/affixes.ts` |
-| 堅牢 | `sturdy` | アーマーと魔防 + / 移動速度 − の性質 | `loot/affixes.ts` |
+| 堅牢 | `sturdy` | 防御力と魔防 + / 移動速度 − の性質 | `loot/affixes.ts` |
 
 ## スキル・ラン内
 
@@ -458,7 +465,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 短銃（sidearm） | 六連射（一撃） / 零距離乱射（一撃） / 集中（持続） |
 | 長銃（longarm） | 徹甲弾（一撃） / 掃射（一撃） / 狙撃手の息（持続） |
 | 砲（cannon） | 大砲撃（一撃） / 全弾発射（一撃） / 火薬庫（持続） |
-| 投擲（thrown） | 千手（一撃） / 一点集中（一撃） / 手返しの理（持続） |
+| 投擲（thrown） | 千手（一撃） / 一点集中（一撃） / 早業（持続） |
 | 擲弾（grenade） | 鉄の雨（一撃） / 焼夷弾（一撃） / 榴弾の宴（持続） |
 | 仕掛け（trapper） | 地雷原（一撃） / 連鎖爆破（一撃） / 罠師の勘（持続） |
 | 戦輪（warRing） | 輪舞（一撃） / 断頭輪（一撃） / 円環の理（持続） |

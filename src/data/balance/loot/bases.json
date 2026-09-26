@@ -320,5 +320,29 @@
   },
   "warFan": {
     "minLevel": 14
+  },
+  "hood": {
+    "minLevel": 1
+  },
+  "leatherCap": {
+    "minLevel": 2
+  },
+  "ironHelm": {
+    "minLevel": 7
+  },
+  "circlet": {
+    "minLevel": 5
+  },
+  "maskedVisor": {
+    "minLevel": 12
+  },
+  "sandogasa": {
+    "minLevel": 3
+  },
+  "hachigane": {
+    "minLevel": 4
+  },
+  "hornedHelm": {
+    "minLevel": 10
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { CAVE } from "../data/tuning";
-import { type CaveOptions, DEFAULT_CAVE_OPTIONS, generateCave } from "./cave";
+import { type CaveOptions, DEFAULT_CAVE_OPTIONS, carveArena, generateCave } from "./cave";
 import { DEFAULT_GENERATOR_OPTIONS, generateMap } from "./generator";
 import { type GameMap, Tile, getTile, isWalkable, rectCenter, toIndex } from "./grid";
 
@@ -183,5 +183,56 @@ describe("バイオームごとの洞窟の形（CAVE.biome）", () => {
       meadow += b ? Array.from(b.tiles).filter((t) => t !== Tile.Wall).length : 0;
     }
     expect(meadow, "草原の床は既定より多い").toBeGreaterThan(base);
+  });
+});
+
+describe("carveArena（system/floorLord.ts が最後の部屋を広げる）", () => {
+  it("最後の塊を円形に広げる。他の塊とは 8 近傍で接せず、外周 1 マスは掘らない", () => {
+    let widened = 0;
+    for (let seed = 0; seed < SEED_SAMPLES; seed++) {
+      const map = caveFor(seed);
+      if (!map.roomTiles) continue;
+      const last = map.roomTiles.length - 1;
+      const before = map.roomTiles[last]?.length ?? 0;
+      carveArena(map, last, 5);
+      const after = map.roomTiles[last] ?? [];
+      expect(after.length, `seed=${seed} 縮まない`).toBeGreaterThanOrEqual(before);
+      if (after.length > before) widened++;
+
+      const owner = new Int16Array(map.tiles.length).fill(-1);
+      map.roomTiles.forEach((tiles, id) => {
+        for (const t of tiles) owner[t] = id;
+      });
+      for (const t of after) {
+        const x = t % map.width;
+        const y = Math.floor(t / map.width);
+        expect(x > 0 && y > 0 && x < map.width - 1 && y < map.height - 1, `seed=${seed} 外周は掘らない`).toBe(true);
+        for (const [dx, dy] of [...CARDINALS, ...DIAGONALS]) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
+          const o = owner[toIndex(map, nx, ny)] ?? -1;
+          expect(o === -1 || o === last, `seed=${seed} tile=${t} 他の塊と接しない`).toBe(true);
+        }
+      }
+    }
+    expect(widened, "少なくともいくつかの seed では実際に広がる").toBeGreaterThan(0);
+  });
+
+  it("rooms 型（roomTiles が無い）では何もしない", () => {
+    const map = generateMap("rooms", createRng(3), DEFAULT_GENERATOR_OPTIONS);
+    const before = Array.from(map.tiles);
+    carveArena(map, map.rooms.length - 1, 5);
+    expect(Array.from(map.tiles)).toEqual(before);
+  });
+
+  it("乱数を使わない（同じ洞窟に対して何度呼んでも同じ結果。純関数）", () => {
+    const a = caveFor(5);
+    const b = caveFor(5);
+    if (!a.roomTiles || !b.roomTiles) throw new Error("no cave");
+    carveArena(a, a.roomTiles.length - 1, 5);
+    carveArena(b, b.roomTiles.length - 1, 5);
+    expect(Array.from(a.tiles)).toEqual(Array.from(b.tiles));
+    expect(a.roomTiles).toEqual(b.roomTiles);
   });
 });

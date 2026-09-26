@@ -734,6 +734,24 @@ export const UNIQUES: readonly UniqueDef[] = [
     flavor: "油を撒いたのは、誰だったか。",
     affixes: [{ key: "igniter" }, { key: "emberTrail" }],
   },
+  // 頭（2026-09-26 部位「頭」）
+  {
+    key: "readersCirclet",
+    name: "読み手の額冠",
+    baseKey: "circlet",
+    minLevel: 6,
+    flavor: "弱みは、額の奥で先に光る。",
+    affixes: [{ key: "weakRead" }, { key: "maxManaFlat" }],
+  },
+  {
+    key: "demonMask",
+    name: "鬼面",
+    baseKey: "maskedVisor",
+    minLevel: 12,
+    keystone: "ks_stanceOath",
+    flavor: "振りかぶる間だけ、鬼は人を寄せつけない。",
+    affixes: [{ key: "fearPoise" }, { key: "maxLife" }],
+  },
 ];
 
 /** slot に対応し depth で解禁済みの名のある遺物 */

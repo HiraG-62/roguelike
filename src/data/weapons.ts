@@ -147,6 +147,11 @@ interface ArtBase {
   readonly desc: string;
   /** 再使用までの秒。0 なら連撃と同じで制限なし */
   readonly cooldown: number;
+  /**
+   * この段を出した後に次の段を受け付ける秒（入力の窓）。省略は WEAPON.chainWindow。
+   * 再使用・共有の間（laneGap）が窓を食う段（杖の氷の連射）で、間が明けてから押す猶予を残すために延ばす
+   */
+  readonly chainWindow?: number;
 }
 
 /** 振りの付随効果（砲の零距離砲・仕掛けの起爆・派生の反動） */
@@ -235,7 +240,7 @@ export interface RecallArtDef {
   readonly homing?: RecallHomingDef;
 }
 
-/** 手元返しの戻りの追尾（投擲・手返しの理）。敵がいなければ手元へ戻る */
+/** 手元返しの戻りの追尾（投擲の右の呼び戻し）。敵がいなければ手元へ戻る */
 export interface RecallHomingDef {
   readonly turnRate: number;
   readonly range: number;
@@ -674,19 +679,21 @@ function reviveActionStep(raw: unknown): ActionStepDef {
   const name = STEP2_NAMES[key] ?? key;
   const desc = STEP2_DESC[key] ?? "";
   const cooldown = optionalNumber(raw.cooldown) ?? 0;
+  const chainWindow = optionalNumber(raw.chainWindow);
+  const window = chainWindow === undefined ? {} : { chainWindow };
   switch (raw.kind) {
     case "swing":
       return { kind: "swing", step: reviveStep(raw.step), key: key || undefined, name: key ? name : undefined, desc: desc || undefined, cooldown, extras: reviveExtras(raw) };
     case "hold":
-      return { kind: "hold", key, name, desc, cooldown, hold: reviveHold(raw.hold) };
+      return { kind: "hold", key, name, desc, cooldown, hold: reviveHold(raw.hold), ...window };
     case "volley":
-      return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name) };
+      return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name), ...window };
     case "charge":
-      return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge) };
+      return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge), ...window };
     case "aim":
-      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef };
+      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef, ...window };
     case "recall":
-      return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef };
+      return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef, ...window };
     default:
       throw new Error(`未知の右レーンの段の kind: ${raw.kind}`);
   }
@@ -1540,6 +1547,12 @@ export function actionCooldown(s: ActionStepDef): number {
   return s.cooldown ?? 0;
 }
 
+/** 右レーンの段を出した後の入力の窓（秒）。段の上書きが無ければ全武器共通の WEAPON.chainWindow */
+export function laneChainWindow(s: ActionStepDef | undefined): number {
+  if (s === undefined || s.kind === "swing") return WEAPON.chainWindow;
+  return s.chainWindow ?? WEAPON.chainWindow;
+}
+
 /**
  * 武器種に派生を 1 本足した型（ジョブ固有の派生）。同じ入力列の派生を武器種が既に持つなら足さない（武器種が優先）。
  * 照合は長い列から（reviveBranches と同じ並び）
@@ -1666,4 +1679,38 @@ export function chargeLevelAt(levels: readonly { readonly time: number }[], held
     if (held >= l.time) level += 1;
   }
   return level;
+}
+
+/** 武器種の全行動（左の段・ダッシュ攻撃・派生・溜め・右の振り / 弾 / 溜め）の係数表 */
+export function movesetScalings(key: MovesetKey): Scaling[] {
+  const m = MOVESETS[key];
+  const out: Scaling[] = [...m.steps.map((s) => s.scaling), m.dashAttack.scaling, ...m.branches.map((b) => b.step.scaling)];
+  if (m.charge) out.push(m.charge.step.scaling);
+  for (const s of m.steps2) {
+    if (s.kind === "swing") out.push(s.step.scaling);
+    if (s.kind === "volley") out.push(s.throw.scaling);
+    if (s.kind === "charge") out.push(s.charge.step.scaling);
+  }
+  return out;
+}
+
+/** 係数表を足し合わせたステータスごとの合計（extra は銃の弾など武器種の外の係数表） */
+export function movesetAttrTotals(key: MovesetKey, extra: readonly Scaling[] = []): Record<AttrKey, number> {
+  const total = Object.fromEntries(ATTR_KEYS.map((k) => [k, 0])) as Record<AttrKey, number>;
+  for (const s of [...movesetScalings(key), ...extra]) {
+    for (const k of ATTR_KEYS) total[k] += s[k] ?? 0;
+  }
+  return total;
+}
+
+/**
+ * 武器種の主な参照ステータス: 全行動の係数の合計が大きい順に top 個（合計 0 は除く。同点は ATTR_KEYS 順）。
+ * 地金（loot/innate.ts）で武器に出やすいステータスを決める
+ */
+export function movesetMainAttrs(key: MovesetKey, top: number, extra: readonly Scaling[] = []): AttrKey[] {
+  const total = movesetAttrTotals(key, extra);
+  return [...ATTR_KEYS]
+    .filter((k) => total[k] > 0)
+    .sort((a, b) => total[b] - total[a] || ATTR_KEYS.indexOf(a) - ATTR_KEYS.indexOf(b))
+    .slice(0, Math.max(0, top));
 }

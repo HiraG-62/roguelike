@@ -13,7 +13,7 @@ import type { MovesetKey } from "../data/weapons";
  * 部位。右手 / 左手（旧「近接 / 銃」。docs/ideas/weapon-redesign.md 5 章）。
  * 左手（offHand）は共鳴の環の席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
  */
-export const SLOTS = ["mainHand", "offHand", "armor", "boots", "ring", "amulet"] as const;
+export const SLOTS = ["mainHand", "offHand", "head", "armor", "boots", "ring", "amulet"] as const;
 export type Slot = (typeof SLOTS)[number];
 
 /** ドロップ・依頼・QA の装備が対象にする部位（左手は今はベースが無い） */
@@ -79,8 +79,8 @@ export const TRAIT_COLOR_LABEL: Readonly<Record<TraitColor, string>> = {
   umbra: "冥",
 };
 
-/** 性質の出自。found = 拾った時点 / bud = 芽吹いた / named = 名のある遺物の固定 */
-export type TraitOrigin = "found" | "bud" | "named";
+/** 性質の出自。found = 拾った時点 / bud = 芽吹いた / named = 名のある遺物の固定 / innate = 地金（Item.innate） */
+export type TraitOrigin = "found" | "bud" | "named" | "innate";
 
 /** @deprecated prefix / suffix は廃止。旧セーブの読み込みとテスト用の型としてだけ残す */
 export type AffixKind = "prefix" | "suffix";
@@ -226,6 +226,11 @@ export interface Item {
   implicit: AffixRoll | null;
   /** 性質 */
   affixes: AffixRoll[];
+  /**
+   * 地金: ベースに既定で宿るステータス・防御力・耐性（loot/innate.ts）。性質とは別で、余白・色の配合・クラフトの対象外。
+   * 旧セーブ・リプレイのスナップショットには無いので、読むときは item.innate ?? []
+   */
+  innate?: AffixRoll[];
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
@@ -298,7 +303,7 @@ export interface Profile {
 }
 
 export function createEmptyEquipment(): Equipment {
-  return { mainHand: null, offHand: null, armor: null, boots: null, ring: null, amulet: null };
+  return { mainHand: null, offHand: null, head: null, armor: null, boots: null, ring: null, amulet: null };
 }
 
 export function createEmptyProfile(): Profile {
@@ -314,10 +319,16 @@ export function createEmptyProfile(): Profile {
 // ステータス（素質値）。docs/COMBAT_DESIGN.md A
 // ---------------------------------------------------------------------------
 
-/** 筋力 / 技巧 / 体力 / 精神 / 霊力 */
-export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
+/** 筋力 / 技巧 / 体力 / 精神 / 霊力 / 防御 */
+export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi", "def"] as const;
 export type AttrKey = (typeof ATTR_KEYS)[number];
 export type Attributes = Record<AttrKey, number>;
+
+/**
+ * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。共鳴の色対応・散光・「5 種全部を参照する行動」の
+ * 判定はこちら。防御は色を持たない別軸のステータスなので、5 種すべてを求めるテスト・ロジックはこちらを使う
+ */
+export const COMBAT_ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
 
 /**
  * 係数表（LoL のレシオ）。技の威力 = base + Σ(係数 × 実効値)。base はステータスが 0 のときの値。
@@ -333,7 +344,7 @@ export type AttrRatio = Partial<Record<AttrKey, number>>;
 
 /** 全ステータスが同じ値の Attributes */
 export function uniformAttributes(value: number): Attributes {
-  return { str: value, dex: value, vit: value, mnd: value, spi: value };
+  return { str: value, dex: value, vit: value, mnd: value, spi: value, def: value };
 }
 
 /**
@@ -348,9 +359,9 @@ export interface PlayerStats {
   lifeOnHit: number;
   /** 撃破時の回復量。コンボ HEAL.killHealMinCombo 以上でだけ発動し、共通上限を受ける */
   lifeOnKill: number;
-  /** 防御（物理の軽減。逓減式は system/combat.ts の armorReduction）。docs/COMBAT_DESIGN.md A-8 */
+  /** 防御力（物理の軽減。逓減式は system/combat.ts の armorReduction）。docs/COMBAT_DESIGN.md A-8。ステータスの「防御」`def` はこれと魔防を底上げする */
   armor: number;
-  /** 魔防（魔法の軽減。armor と同じ逓減式）。混成の攻撃は防御と魔防の平均で受ける */
+  /** 魔防（魔法の軽減。armor と同じ逓減式）。混成の攻撃は防御力と魔防の平均で受ける */
   warding: number;
   /** 属性耐性（%、−100〜75 のソフトキャップは system/combat.ts の effectiveResist） */
   resist: ElementTable;

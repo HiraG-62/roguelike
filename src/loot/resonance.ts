@@ -4,6 +4,7 @@ import { scaleFlat } from "./flux";
 import { ATTR_GAIN, KEYSTONE, RESONANCE } from "../data/tuning";
 import {
   ATTR_KEYS,
+  COMBAT_ATTR_KEYS,
   TRAIT_COLORS,
   type ConstellationKey,
   type Equipment,
@@ -782,13 +783,17 @@ export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
   vit: "体力",
   mnd: "精神",
   spi: "霊力",
+  def: "防御",
 };
 
 function zeroAttributes(): Attributes {
-  return { str: 0, dex: 0, vit: 0, mnd: 0, spi: 0 };
+  return { str: 0, dex: 0, vit: 0, mnd: 0, spi: 0, def: 0 };
 }
 
-/** 共鳴が足すステータス（逓減前の生の値）。支配: その色 / 二重: 2 色それぞれ / 散光: 全部 */
+/**
+ * 共鳴が足すステータス（逓減前の生の値）。支配: その色 / 二重: 2 色それぞれ / 散光: 5 色全部。
+ * 防御は色を持たない別軸のステータスなので、散光（全ステータス +n）にも乗らない（COMBAT_ATTR_KEYS を使う）
+ */
 export function resonanceAttributes(resonance: Resonance): Attributes {
   const out = zeroAttributes();
   switch (resonance.kind) {
@@ -802,7 +807,7 @@ export function resonanceAttributes(resonance: Resonance): Attributes {
       for (const c of resonance.colors) out[COLOR_ATTR[c]] += TRIAD_ATTR_GAIN;
       return out;
     case "scatter":
-      for (const k of ATTR_KEYS) out[k] += ATTR_GAIN.resonanceScatter;
+      for (const k of COMBAT_ATTR_KEYS) out[k] += ATTR_GAIN.resonanceScatter;
       return out;
     case "none":
       return out;
@@ -869,7 +874,7 @@ function describeColorResonance(resonance: Resonance): string[] {
 // 星座（6 部位の主色の並び。docs/ideas/loot-expansion.md 9-4）
 // ---------------------------------------------------------------------------
 
-/** 部位の輪（右手 - 左手 - 首飾り - 鎧 - 靴 - 指輪 - 右手）。隣り合い・向かい合いはこの並びで見る */
+/** 部位の輪（右手 - 左手 - 首飾り - 体 - 足 - 指輪 - 右手）。隣り合い・向かい合いはこの並びで見る。頭は輪の外 */
 export const CONSTELLATION_RING: readonly Slot[] = ["mainHand", "offHand", "amulet", "armor", "boots", "ring"];
 /** 輪で向かい合う 3 組 */
 const OPPOSED_SLOTS: readonly (readonly [Slot, Slot])[] = [
@@ -900,6 +905,7 @@ export function mainColors(equipment: Equipment): MainColors {
   const out: Record<Slot, TraitColor | undefined> = {
     mainHand: undefined,
     offHand: undefined,
+    head: undefined,
     armor: undefined,
     boots: undefined,
     ring: undefined,
@@ -1000,7 +1006,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
   },
   spine: {
     name: "背骨",
-    pattern: "首飾り・鎧・靴が同じ主色",
+    pattern: "首飾り・体・足が同じ主色",
     lines: [`被ダメージ -${pctText(RESONANCE.spineGuard)}%`, `代償: 移動速度 -${pctText(RESONANCE.spineSlow)}%`],
     apply: (s) => {
       s.damageTakenMul -= RESONANCE.spineGuard;
@@ -1018,7 +1024,7 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
   },
   mirror: {
     name: "鏡像",
-    pattern: "輪で向かい合う 3 組（武器と鎧・銃と靴・首飾りと指輪）が同じ主色",
+    pattern: "輪で向かい合う 3 組（右手と体・左手と足・首飾りと指輪）が同じ主色",
     lines: [`装備のトリガーの発動間隔 -${pctText(RESONANCE.mirrorIcdCut)}%`, `代償: 最大生命 -${RESONANCE.mirrorHpLoss}`],
     apply: (s) => {
       s.traits.triggerIcdCut = Math.max(s.traits.triggerIcdCut, RESONANCE.mirrorIcdCut);

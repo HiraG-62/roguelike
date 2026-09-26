@@ -10,7 +10,7 @@ import { descend } from "../system/floor";
 import { allocateAttribute } from "./attributeAlloc";
 import { createInventoryUi, updateInventoryUi, type InventoryUi } from "./inventory";
 import { PANEL_H, PANEL_W, PANEL_X, PANEL_Y, type Rect } from "./inventoryLayout";
-import { derivedStatRows, layoutStatusTab, statusTabRects, ultimateCostOf } from "./statusTab";
+import { derivedStatRows, effectsPanelRect, layoutStatusTab, statusTabEffectRows, statusTabRects, ultimateCostOf } from "./statusTab";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -143,5 +143,42 @@ describe("ステータスタブ: 派生値と振り分け", () => {
     const def = ULTIMATES.sword[0];
     const cost = ultimateCostOf(def);
     expect(cost === null || typeof cost === "number").toBe(true);
+  });
+});
+
+describe("ステータスタブ: 効果の頁", () => {
+  it("拾うキーで効果の頁とステータスの頁を切り替える", () => {
+    const { state, ui } = openStatus(false);
+    expect(ui.status.effectsPage, "既定はステータス").toBe(false);
+    updateInventoryUi(state, ui, withInput({ interactPressed: true }), 0);
+    expect(ui.status.effectsPage, "1 回目で効果へ").toBe(true);
+    updateInventoryUi(state, ui, withInput({ interactPressed: true }), 0);
+    expect(ui.status.effectsPage, "2 回目でステータスへ戻る").toBe(false);
+  });
+
+  it("効果の頁では奥義カードのクリックが効かない（誤操作を防ぐ）", () => {
+    const { state, ui } = openStatus(true);
+    updateInventoryUi(state, ui, withInput({ interactPressed: true }), 0);
+    const moveset = state.stats.moveset;
+    const before = ultimateChoice(state.profile, moveset).key;
+    clickAt(state, ui, cardRect(state, ui, 1));
+    expect(ultimateChoice(state.profile, moveset).key, "変わらない").toBe(before);
+  });
+
+  it("拠点（sandbox）では効果の一覧が空", () => {
+    const { state } = openStatus(true);
+    expect(statusTabEffectRows(state)).toHaveLength(0);
+  });
+
+  it("ラン中に祝福を持っていれば効果の一覧に出る", () => {
+    const { state } = openStatus(false);
+    state.boons.push("ricochet");
+    const rows = statusTabEffectRows(state);
+    expect(rows.some((r) => r.key === "boon:ricochet")).toBe(true);
+  });
+
+  it("効果の頁の枠は装備画面のパネル内に収まる", () => {
+    const rect = effectsPanelRect();
+    expect(rect.x >= PANEL_X && rect.y >= PANEL_Y && rect.x + rect.w <= PANEL_X + PANEL_W && rect.y + rect.h <= PANEL_Y + PANEL_H).toBe(true);
   });
 });

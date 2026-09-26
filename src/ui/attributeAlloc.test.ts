@@ -47,16 +47,18 @@ describe("振り分け点の付与", () => {
 
   it("ボスを倒した階から降りるとさらに +2", () => {
     const state = createGame(1);
-    state.boss = { enemyId: 0, name: "test", roomIndex: 0, introTimer: 0, defeated: true };
+    state.boss = { enemyId: 0, name: "test", roomIndex: 0, introTimer: 0, defeated: true, major: true };
     expect(floorAttributePoints(state)).toBe(ATTR_GAIN.perFloor + ATTR_GAIN.perBoss);
     descend(state);
     expect(state.runAttributes.unspent).toBe(ATTR_GAIN.perFloor + ATTR_GAIN.perBoss);
-    expect(state.boss, "新しい階ではボス状態が消えている").toBeNull();
+    // 毎階の最後の部屋には主（階の主かボス）が出るので state.boss 自体は null にならないが、
+    // 前の階の撃破済みの状態は引き継がない（新しい主はまだ倒していない）
+    expect(state.boss?.defeated, "新しい階の主はまだ倒していない").toBe(false);
   });
 
   it("倒していないボスでは +2 しない", () => {
     const state = createGame(1);
-    state.boss = { enemyId: 0, name: "test", roomIndex: 0, introTimer: 0, defeated: false };
+    state.boss = { enemyId: 0, name: "test", roomIndex: 0, introTimer: 0, defeated: false, major: true };
     expect(floorAttributePoints(state)).toBe(ATTR_GAIN.perFloor);
   });
 });
