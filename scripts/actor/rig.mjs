@@ -76,12 +76,42 @@ export function skeleton(ps) {
 
 const TAU = Math.PI * 2;
 
-/** 待機: 呼吸で胸と頭がわずかに上下し、布がゆっくり揺れる（IDLE_FRAMES 枚で 1 巡） */
+/**
+ * 待機の構え（武器の系統ごと。実行時の render/playerRig.ts の STANCES が選ぶ）。棒立ちにせず、足を前後に開いて腰を落とす。
+ * 呼吸で胸と頭が上下し、腰がわずかに沈み、布がゆっくり揺れる（IDLE_FRAMES 枚で 1 巡）。
+ * ready: 近接の既定（半身に開いて腰を落とし、上体をやや前へ）/ heavy: 重い武器（足を大きく開いて低く踏ん張る）/
+ * light: 軽い武器・素手（前のめりで後ろの踵を浮かせ、小さく弾む）/ aim: 銃（足を前後に開き、上体を起こして狙う）
+ */
 export const IDLE_FRAMES = 8;
-function idlePose(f) {
-  const t = f / IDLE_FRAMES;
-  const b = (1 - Math.cos(t * TAU)) / 2;
-  return pose({ breath: b * 1.5, bob: b >= 0.5 ? 0.5 : 0, sway: Math.sin(t * TAU) * 0.5, footF: { x: 3.5, lift: 0 }, footB: { x: -3.5, lift: 0 } });
+const IDLE_STANCES = {
+  ready: { front: 6, back: -6, crouch: 2.5, lean: 1.5, tilt: 0.5, breath: 1.2, sink: 0.6, bounce: 0, heel: 0 },
+  heavy: { front: 7.5, back: -7.5, crouch: 3.5, lean: 1, tilt: 0.3, breath: 1.4, sink: 0.8, bounce: 0, heel: 0 },
+  light: { front: 5.5, back: -6, crouch: 2.5, lean: 2.5, tilt: 1, breath: 1, sink: 0, bounce: 1.1, heel: 1.2 },
+  aim: { front: 5, back: -6.5, crouch: 1.5, lean: 0.5, tilt: 0, breath: 1.1, sink: 0.4, bounce: 0, heel: 0 },
+};
+export const IDLE_STANCE_KEYS = Object.keys(IDLE_STANCES);
+
+function idlePose(stance) {
+  const c = IDLE_STANCES[stance];
+  return (f) => {
+    const t = f / IDLE_FRAMES;
+    const b = (1 - Math.cos(t * TAU)) / 2;
+    // 弾む構えは呼吸の倍の速さで上下する（つま先で刻むリズム）
+    const hop = c.bounce * (1 - Math.cos(t * TAU * 2)) / 2;
+    return pose({
+      breath: b * c.breath,
+      bob: c.crouch + b * c.sink + hop,
+      lean: c.lean,
+      tilt: c.tilt,
+      sway: Math.sin(t * TAU) * 0.5,
+      footF: { x: c.front, lift: 0 },
+      footB: { x: c.back, lift: c.heel },
+    });
+  };
+}
+
+function capital(key) {
+  return `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
 }
 
 /** 歩き: 8 枚で 1 歩ずつ 2 歩。上体は接地で沈み、蹴り出しで浮く */
@@ -116,7 +146,7 @@ function hitPose() {
 
 /** 体のシートの並び（名前・枚数・姿勢）。実行時の render/playerRig.ts の BODY_CLIPS と同じ名前 */
 export const BODY_CLIPS = [
-  { name: "idle", frames: IDLE_FRAMES, pose: idlePose },
+  ...IDLE_STANCE_KEYS.map((k) => ({ name: `idle${capital(k)}`, frames: IDLE_FRAMES, pose: idlePose(k) })),
   { name: "walk", frames: WALK_FRAMES, pose: walkPose },
   { name: "dash", frames: DASH_FRAMES, pose: dashPose },
   { name: "windup", frames: 1, pose: windupPose },

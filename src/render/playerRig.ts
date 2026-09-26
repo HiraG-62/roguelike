@@ -9,10 +9,26 @@ import type { MovesetKey } from "../data/weapons";
 import type { WeaponPose } from "./renderMath";
 import { poseReachRatio, swingSign } from "./renderMath";
 
-export type BodyClip = "idle" | "walk" | "dash" | "windup" | "strike" | "hit";
+/** 待機の構えの系統（scripts/actor/rig.mjs の IDLE_STANCES と同じ） */
+export type IdleStance = "ready" | "heavy" | "light" | "aim";
+export type IdleClip = "idleReady" | "idleHeavy" | "idleLight" | "idleAim";
+export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit";
+
+const IDLE_CLIP: Readonly<Record<IdleStance, IdleClip>> = { ready: "idleReady", heavy: "idleHeavy", light: "idleLight", aim: "idleAim" };
+const IDLE_FRAMES = 8;
 
 /** 体のシートの枚数（scripts/actor/rig.mjs の BODY_CLIPS と同じ） */
-export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = { idle: 8, walk: 8, dash: 2, windup: 1, strike: 1, hit: 1 };
+export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = {
+  idleReady: IDLE_FRAMES,
+  idleHeavy: IDLE_FRAMES,
+  idleLight: IDLE_FRAMES,
+  idleAim: IDLE_FRAMES,
+  walk: 8,
+  dash: 2,
+  windup: 1,
+  strike: 1,
+  hit: 1,
+};
 
 /** 待機の呼吸の 1 巡（秒）と歩きの 1 枚（秒。8 枚で 2 歩） */
 export const IDLE_PERIOD = 1.6;
@@ -29,6 +45,8 @@ export interface BodyClipInput {
   readonly moving: boolean;
   readonly walkTime: number;
   readonly time: number;
+  /** 待機の構え（武器種の Stance.body） */
+  readonly idle: IdleStance;
 }
 
 export interface BodyFrame {
@@ -48,7 +66,7 @@ export function bodyClip(i: BodyClipInput): BodyFrame {
   if (i.phase === "windup" || (i.phase === "none" && i.holding)) return { clip: "windup", frame: 0 };
   if (i.phase === "active" || i.phase === "recover") return { clip: "strike", frame: 0 };
   if (i.moving) return { clip: "walk", frame: cycleFrame(i.walkTime, WALK_FRAME_TIME * BODY_CLIP_FRAMES.walk, BODY_CLIP_FRAMES.walk) };
-  return { clip: "idle", frame: cycleFrame(i.time, IDLE_PERIOD, BODY_CLIP_FRAMES.idle) };
+  return { clip: IDLE_CLIP[i.idle], frame: cycleFrame(i.time, IDLE_PERIOD, IDLE_FRAMES) };
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +78,8 @@ export type GripKind = "one" | "two" | "dual";
 
 export interface Stance {
   readonly grip: GripKind;
+  /** 待機の体の構え */
+  readonly body: IdleStance;
   /** 待機の武器の向き（度。右向きの空間、0 = 前、負 = 上） */
   readonly restDeg: number;
   /** 待機の主の手（前の肩から、ドット） */
@@ -73,17 +93,18 @@ export interface Stance {
   readonly swayDeg: number;
 }
 
-const ONE_HAND_REST: Stance = { grip: "one", restDeg: -40, restHand: [5, 7], swayDeg: 3 };
+const ONE_HAND_REST: Stance = { grip: "one", body: "ready", restDeg: -40, restHand: [5, 7], swayDeg: 3 };
 
 /**
  * 武器種ごとの待機の構え。無い武器種は片手の既定。
- * 剣は切っ先を前上へ、双剣は前の手を順手・後ろの手を逆手に、槍は両手で穂先を前へ水平に、銃は照準へ向ける（aimHeld）
+ * 剣は胸の前で切っ先を前上へ、双剣は前の手を順手・後ろの手を逆手に、槍は両手で穂先を前へ水平に、
+ * 片手銃は照準へ向けて後ろの手を銃把に添える（aimHeld）
  */
 export const STANCES: Readonly<Partial<Record<MovesetKey, Stance>>> = {
-  sword: { grip: "one", restDeg: -38, restHand: [6, 8], swayDeg: 3 },
-  twinBlades: { grip: "dual", restDeg: -20, restHand: [7, 8], offHand: [-3, 9], offDeg: 150, swayDeg: 4 },
-  spear: { grip: "two", restDeg: -8, restHand: [7, 9], swayDeg: 2 },
-  sidearm: { grip: "one", restDeg: 0, restHand: [8, 4], swayDeg: 1 },
+  sword: { grip: "one", body: "ready", restDeg: -32, restHand: [8, 6], swayDeg: 3 },
+  twinBlades: { grip: "dual", body: "light", restDeg: -20, restHand: [7, 8], offHand: [-3, 9], offDeg: 150, swayDeg: 4 },
+  spear: { grip: "two", body: "ready", restDeg: -8, restHand: [7, 9], swayDeg: 2 },
+  sidearm: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1 },
 };
 
 export function stanceOf(moveset: MovesetKey): Stance {

@@ -1,4 +1,4 @@
-// 片手銃: 真鍮の輪胴を持つ重い回転式拳銃。長めの銃身・照星・木の銃把。銃口の位置を印で渡す
+// 片手銃（後ろの手を銃把の下に添えて構える。meta.offGrip）: 真鍮の輪胴を持つ重い回転式拳銃。長めの銃身・照星・木の銃把。銃口の位置を印で渡す
 import { capsule, ellipse, paint, polygon } from "../paint.mjs";
 import { DARK_STEEL, GOLD, STEEL, WOOD, weaponSheets } from "../weapon.mjs";
 
@@ -24,4 +24,4 @@ function draw(frame) {
   frame.anchor("muzzle", 17 * K, -3.2 * K);
 }
 
-export const ATLAS = { key: "wpnSidearm", sheets: weaponSheets("wpnSidearm", draw, { size: 56 }), meta: { offGrip: null } };
+export const ATLAS = { key: "wpnSidearm", sheets: weaponSheets("wpnSidearm", draw, { size: 56 }), meta: { offGrip: -1.5 } };

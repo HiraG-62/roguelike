@@ -2100,6 +2100,7 @@ export class Renderer {
       moving: p.body.vel.x !== 0 || p.body.vel.y !== 0,
       walkTime: p.walkTime,
       time: state.time,
+      idle: stanceOf(moveset.key).body,
     });
     const bodyKey = `${body}.${clip.clip}`;
     const bodyCell = this.actorBank.cell(bodyKey, 0, clip.frame);
