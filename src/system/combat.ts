@@ -6,7 +6,7 @@ import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
-import { type HitFamily, type HitWeight, hitSfxName } from "./effects";
+import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effects";
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
 import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
@@ -211,8 +211,9 @@ export function damageEnemy(
   if (opts.energy !== undefined && opts.energy > 0) gainEnergy(state, opts.energy);
   if (kind === "melee") {
     pushSfx(state, opts.impact ? hitSfxName(opts.impact.family, opts.impact.weight) : heavy ? "hitHeavy" : "hit");
-    // 命中の低域のドン（docs/ideas/combat-feel-design.md D-5）。重撃は hitHeavy / 重い impact が既に低域を持つ
-    if (!heavy) pushSfx(state, "hitThump");
+    // 命中の低域のドン（docs/ideas/combat-feel-design.md D-5）。重撃は hitHeavy / 重い impact が既に低域を持つ。
+    // 刃・鞭打は高域の「ザシュッ」「ピシッ」が主役で、ドンを重ねると埋もれて鈍い音にしか聞こえないので重ねない
+    if (!heavy && !skipsThump(opts.impact?.family)) pushSfx(state, "hitThump");
   }
   if (kind === "ranged") pushSfx(state, opts.impact?.weight === "heavy" ? "bulletHitHeavy" : "bulletHit");
   if (kind === "melee" && !opts.silent) applyRegain(state);

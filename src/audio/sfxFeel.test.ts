@@ -105,6 +105,9 @@ describe("攻撃の効果音の構成", () => {
       expect(za, `${name} のザ`).toBe(true);
       expect(shu, `${name} のシュッ`).toBe(true);
       expect(wet, `${name} の湿った肉`).toBe(true);
+      // 高域の「ザ」が小さいと低域に埋もれて鈍い音にしか聞こえない（2026-09-26 のプレイ所見）
+      const zaPeak = noises.filter((l) => (l.drive ?? 0) > 0 && l.from >= 3000 && (l.at ?? 0) === 0).reduce((m, l) => Math.max(m, l.peak), 0);
+      expect(zaPeak, `${name} のザは十分な音量`).toBeGreaterThanOrEqual(MIN_ZA_PEAK);
       const ring = layers.filter((l) => l.k === "metal").reduce((m, l) => Math.max(m, l.peak), 0);
       expect(ring, `${name} の刃鳴りは小さい`).toBeLessThanOrEqual(MAX_RING_PEAK);
     }
@@ -144,6 +147,8 @@ describe("攻撃の効果音の構成", () => {
 
 /** 斬撃の命中で刃鳴り（metal）が主張しすぎない上限。金属どうしの「キーン」でなく肉を断つ音にするため */
 const MAX_RING_PEAK = 0.04;
+/** 斬撃の命中の「ザ」の音量の下限。これより小さいと同時に鳴る低域に負けて斬った音に聞こえない */
+const MIN_ZA_PEAK = 0.45;
 /** 鞭のクラック本体の長さの上限（秒）。これより長いと「パン」でなく「バフッ」になる */
 const MAX_CRACK_SECONDS = 0.03;
 

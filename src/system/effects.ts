@@ -398,6 +398,14 @@ const HIT_SFX: Readonly<Record<HitFamily, Readonly<Record<HitWeight, SfxName>>>>
   lash: { light: "hitLashLight", mid: "hitLashMid", heavy: "hitLashHeavy" },
 };
 
+/** 低域のドン（hitThump）を重ねない系統。高域が主役の刃・鞭打はドンに埋もれて鈍く聞こえるため */
+const NO_THUMP_FAMILIES: ReadonlySet<HitFamily> = new Set<HitFamily>(["slash", "lash"]);
+
+/** 近接命中で hitThump を重ねないか（系統が未指定なら重ねる） */
+export function skipsThump(family: HitFamily | undefined): boolean {
+  return family !== undefined && NO_THUMP_FAMILIES.has(family);
+}
+
 /** 近接命中の音。武器種の系統（刃・打撃・刺突）× 重さで選ぶ（docs/recipes/audio.md） */
 export function hitSfxName(family: HitFamily, weight: HitWeight): SfxName {
   return HIT_SFX[family][weight];

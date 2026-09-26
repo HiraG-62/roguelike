@@ -72,6 +72,19 @@ describe("stats → 近接", () => {
     damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", poise: e.poise.max * 10 });
     expect(state.sfx).not.toContain("hitThump");
   });
+
+  it("刃・鞭打の命中には hitThump を重ねない（高域の斬撃音が低域に埋もれないように）。打撃には重ねる", () => {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 999);
+    for (const family of ["slash", "lash"] as const) {
+      state.sfx.length = 0;
+      damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", impact: { family, weight: "light" } });
+      expect(state.sfx, family).not.toContain("hitThump");
+    }
+    state.sfx.length = 0;
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", impact: { family: "blunt", weight: "light" } });
+    expect(state.sfx).toContain("hitThump");
+  });
 });
 
 describe("stats → 射撃", () => {
