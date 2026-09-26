@@ -709,6 +709,11 @@ export function edgeView(view: WeaponView, edge: WeaponEdge, want: { x: number; 
   }
 }
 
+/** 拳が腕の付け根から離れている距離を、待機の距離（HAND_RADIUS）との比で（突きの引き・伸びで 1 から動く） */
+export function poseReachRatio(pose: Pick<WeaponPose, "dx" | "dy">): number {
+  return Math.hypot(pose.dx, pose.dy - WEAPON_PIVOT_Y) / HAND_RADIUS;
+}
+
 function poseAt(angle: number, reach: number): WeaponPose {
   return {
     ...weaponView(angle),
