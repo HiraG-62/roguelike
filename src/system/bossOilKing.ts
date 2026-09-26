@@ -36,7 +36,7 @@ const SEQUENCE: Readonly<Record<number, readonly number[]>> = {
   [STAGE_DRENCHED]: [OIL_CHARGE, OIL_SLAM, OIL_FIREBOMB, OIL_JAR],
 };
 const FULL_CIRCLE = Math.PI * 2;
-const FIRE_TEXT = "火が点いた";
+const FIRE_TEXT = "着火";
 const DRENCH_TEXT = "油まみれ";
 const IGNITE_TEXT = "引火";
 /** 投げる・叩く技の攻撃の長さ（strikeTime に対する割合。すぐ隙へ移る） */

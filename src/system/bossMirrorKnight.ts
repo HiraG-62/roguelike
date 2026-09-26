@@ -30,7 +30,7 @@ const SEQUENCE: Readonly<Record<number, readonly number[]>> = {
   [STAGE_COPY]: [MIRROR_LUNGE, MIRROR_WAVE],
   [STAGE_IMAGES]: [MIRROR_WAVE, MIRROR_LUNGE, MIRROR_LUNGE],
 };
-const COPY_TEXT = "写し取った";
+const COPY_TEXT = "模写";
 const IMAGES_TEXT = "写し身";
 /** 写すものが無いときに乗せる状態異常 */
 const FALLBACK_COPY: StatusKind = "bleed";

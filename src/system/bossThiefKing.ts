@@ -36,8 +36,8 @@ const SEQUENCE: Readonly<Record<number, readonly number[]>> = {
 };
 const FULL_CIRCLE = Math.PI * 2;
 const TRAPS_TEXT = "手下ども、出番だ";
-const CORNERED_TEXT = "開き直った";
-const DOWN_TEXT = "追い詰めた";
+const CORNERED_TEXT = "開き直り";
+const DOWN_TEXT = "ダウン";
 const MINION_KEY = "thief";
 const MINE_KEY = "enemyMine";
 /** 投げる技の攻撃の長さ（strikeTime に対する割合。すぐ隙へ移る） */

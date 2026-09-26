@@ -107,7 +107,7 @@ export function isUltimateKey(v: unknown): v is string;
   - `noteUltimateKill(state)` — `combat.ts` の撃破分岐に 1 行（`kills += 1`）
   - `chosenUltimate(state): UltimateDef` — `state.profile.ultimates?.[moveset] ?? defaultUltimate(moveset)`。変身中は変身前の武器種で引く
 - 発動の流れ（instant）: ゲージ 0 → `cancelAttack` → acts を順に実行（swing / lunge は 1 振りとして `beginSwing` に `spec.ultimate = true` で渡し、`meleeStep` が `Player.ultimate` の step を返す。振りが終わるまで次の act を待つ列は持たず、**swing / lunge は列の最後にだけ置く**という制約をテストで固定する）→ 無敵 → `pushSfx("burst")`（音名は据え置き）→ `onBoonBurstKills` → `onBurst`
-- 発動の流れ（sustain）: ゲージはそのまま drain 開始 → `active = key` → 変身中なら `endShape(state, "manual")`（同時に立てない。逆に持続中に変身を撃ったら `endUltimate(state, "form")`）→ 浮き文字「<奥義名>」→ 終了時に `onEnd` acts → `onBurst`（amount = kills）→ 浮き文字「奥義が終わった」
+- 発動の流れ（sustain）: ゲージはそのまま drain 開始 → `active = key` → 変身中なら `endShape(state, "manual")`（同時に立てない。逆に持続中に変身を撃ったら `endUltimate(state, "form")`）→ 浮き文字「<奥義名>」→ 終了時に `onEnd` acts → `onBurst`（amount = kills）→ 浮き文字「奥義終了」
 - Rule 条件を 1 つ足す（`src/core/rules.ts`、最小 Edit）: `{ kind: "ultimateActive" }`。sustain の `rules` は `system/rules.ts` の `collectRules` が `active` のときだけ集める（武器種の `movesetRules` の隣）
 - `burstDamageMul` の掛け先: acts と aura の `scaling` 評価の直後。`burstRadiusMul`: nova / pull / aura の radius
 - 効果音: 発動 `burst`（既存）、sustain の終了は `formShift` を借りる。新規は足さない

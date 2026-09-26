@@ -27,7 +27,7 @@ export const TWIN_MOVE_VOLLEY = 1;
 const SISTER_OFFSET = 48;
 /** 突進を始める距離（これより遠ければ寄る） */
 const LUNGE_REACH = 110;
-const BEREAVED_TEXT = "形見を拾った";
+const BEREAVED_TEXT = "形見継承";
 const RAGE_TEXT = "激昂";
 const RAGE_COLOR = "#ff6060";
 
