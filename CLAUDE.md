@@ -65,7 +65,7 @@ electron/    Electron 版の main / preload / IPC
 9. **型と作法**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので添字結果の undefined を扱う。マジックナンバーは定数化、早期リターン、関数は単一責任。コメントは日本語で「なぜ」
 10. **テスト**: Vitest。`it` / `describe` 名とメッセージは日本語。新しい仕組みには必ずテスト。テスト専用ヘルパーは `system/testHelpers.ts` / `meta/testStorage.ts` / `audio/testAudioMock.ts`（本体から import しない）
 11. **UI の方針**: 単一指標（DPS・アイテムスコア）を出さない。ツールチップは「何ができるか」を語る（`docs/DESIGN_PRINCIPLES.md`）。仕組み・用語の説明は UI に書かず `meta/tips.ts`（Tips ノート）に足す。キー名は `core/input.ts` の `keyLabel` で組み、固定で書かない
-12. **用語**: 表示文字列は `docs/GLOSSARY.md`（世界観語の対応表・表示文字列の書き方）に従う。内部 key は変えない。新語を作ったら GLOSSARY に 1 行足し、迷ったらユーザーに聞く
+12. **用語**: 表示文字列は `docs/GLOSSARY.md`（世界観語の対応表・表示文字列の書き方）に従う。ラベル・浮き文字は体言止め（「奥義終了」。「奥義が終わった」にしない。`system/floatingText.test.ts` が検査）。内部 key は変えない。新語を作ったら GLOSSARY に 1 行足し、迷ったらユーザーに聞く
 
 ## 要素の足し方（レシピ）
 

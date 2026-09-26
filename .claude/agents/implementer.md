@@ -16,7 +16,7 @@ model: sonnet
 - ロジックは state を読み書き、描画は読むだけ。描画で `state.rng` を使わない
 - 乱数は `state.rng`。`Math.random` 禁止。`Date.now()` は生成物の id / foundAt 用の `now` 引数だけ
 - 数値は `src/data/balance/**/*.json`（ブロック名 + `_note`。置き場所は `docs/BALANCE.md`）に置き、`data/tuning.ts` / `skills/data.ts` が再 export する定数経由で読む。直書きしない。JSON と TS のキー集合は `balance.test.ts` が検査する
-- 表示文字列は日本語、`docs/GLOSSARY.md` の表記（ラベルは名詞、効果説明は効果そのもの）。文字は `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` だけで描く（`ctx.fillText` / `measureText` 禁止）
+- 表示文字列は日本語、`docs/GLOSSARY.md` の表記（ラベル・浮き文字は名詞・体言止め、効果説明は効果そのもの）。文字は `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` だけで描く（`ctx.fillText` / `measureText` 禁止）
 - 距離を表示に出すなら `core/units.ts` の `formatMeters`
 - `any` 禁止、早期リターン、関数は単一責任、コメントは「なぜ」
 - 効果音は `pushSfx(state, name)`。新しい名前は `audio/sfxNames.ts` の `SFX_NAMES` に足し、まず `audio/sfxLayers.ts` の `LAYERED_SFX` で作る（個別合成が要るときだけ `sfx.ts`）
