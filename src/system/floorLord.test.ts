@@ -21,6 +21,19 @@ function floorAt(depth: number, seed = 11): ReturnType<typeof createGame> {
 }
 
 describe("階の主（毎階）", () => {
+  it("自爆で消える敵・地雷・卵は主に選ばれない（主が自滅して階段が出るのを防ぐ）", () => {
+    const LAST_DEPTH = 12;
+    for (let depth = 1; depth <= LAST_DEPTH; depth++) {
+      const state = createGame(depth);
+      state.depth = depth;
+      for (let i = 0; i < 50; i++) {
+        const { def } = pickFloorLordDef(state);
+        expect(def.explode, `${def.key} は自爆する`).toBeUndefined();
+        expect(["mine", "egg"]).not.toContain(def.behavior);
+      }
+    }
+  });
+
   it("毎階の最後の部屋に主が出て、5 の倍数（BOSS.interval）だけ major", () => {
     for (let depth = 1; depth <= BOSS.interval * 2; depth++) {
       const state = floorAt(depth);

@@ -877,7 +877,10 @@ function shrinkRoom(state: GameState, index: number): void {
 function useMomentum(state: GameState, index: number): void {
   const p = state.player;
   p.buffs.speed = { time: RUN_EVENT.momentumSpeedTime, mul: RUN_EVENT.momentumSpeedMul };
-  const victim = state.enemies.find((e) => e.roomIndex === index && e.hp > 0 && !enemyDef(e.defKey).boss);
+  // 階の主（def.boss でない毎階の主。state.boss.enemyId）も消さない: 消すと撃破扱いで階段と報酬が出てしまう
+  const victim = state.enemies.find(
+    (e) => e.roomIndex === index && e.hp > 0 && !enemyDef(e.defKey).boss && state.boss?.enemyId !== e.id,
+  );
   if (victim) {
     victim.vanished = true;
     victim.hp = 0;

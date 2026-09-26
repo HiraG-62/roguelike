@@ -176,6 +176,8 @@ export interface BotState {
   laneQueue: ButtonKey[];
   /** 受け流しの右を押し続ける残り秒 */
   parryTimer: number;
+  /** この階で隠し部屋の扉を追った累計秒（HIDDEN_DOOR_GIVE_UP で諦める。階が変わると 0） */
+  hiddenDoorTime: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -198,6 +200,7 @@ export function createBotState(seed: number): BotState {
     artTimer: 0,
     laneQueue: [],
     parryTimer: 0,
+    hiddenDoorTime: 0,
   };
 }
 
@@ -260,12 +263,49 @@ function tileCenterPx(map: GameMap, index: number): Vec {
 /**
  * 隠し部屋の扉タイルの中心 px。まだ手がかり（ヒント）が出ていない扉には向かわない
  * （実際の距離で state.hiddenRoom.hinted が立った扉だけを追う。遠くの扉を知っているかのように
- * 直進すると壁に頭を突っ込んだまま止まるため）。開いた後・隠し部屋が無ければ null
+ * 直進すると壁に頭を突っ込んだまま止まるため）。開いた後・隠し部屋が無い・追い続けて
+ * HIDDEN_DOOR_GIVE_UP 秒を超えた（届かない扉）ときは null
  */
-function hiddenDoorTarget(state: GameState): Vec | null {
+function hiddenDoorTarget(state: GameState, bot: BotState): Vec | null {
   const hr = state.hiddenRoom;
-  if (!hr || hr.opened || !hr.hinted) return null;
+  if (!hr || hr.opened || !hr.hinted || bot.hiddenDoorTime > HIDDEN_DOOR_GIVE_UP) return null;
   return tileCenterPx(state.map, hr.doorTile);
+}
+
+/** 隠し部屋の扉を追い続ける上限秒。手がかりは直線距離で出るので、壁の向こう側から近づいた扉には届かない */
+export const HIDDEN_DOOR_GIVE_UP = 20;
+/** この距離（px）まで近づいたら経路を捨てて扉へまっすぐ押し当てる */
+const HIDDEN_DOOR_PUSH_DIST = TILE_SIZE * 1.5;
+
+/** 扉タイルに 4 近傍で接する歩ける床（通路側。ポケット側と両脇は壁）の中心 px。無ければ null */
+function hiddenDoorApproach(state: GameState): Vec | null {
+  const hr = state.hiddenRoom;
+  if (!hr) return null;
+  const map = state.map;
+  const dx0 = hr.doorTile % map.width;
+  const dy0 = Math.floor(hr.doorTile / map.width);
+  for (const [dx, dy] of NEIGHBOR_STEPS) {
+    const x = dx0 + dx;
+    const y = dy0 + dy;
+    if (!inBounds(map, x, y) || isSolidTile(state, x, y)) continue;
+    return tileCenterPx(map, toIndex(map, x, y));
+  }
+  return null;
+}
+
+/**
+ * 隠し部屋の扉へ向かう入力。扉の前の床までは BFS の経路で歩き（手がかりは直線距離で出るので、
+ * 壁越しに直進すると壁に頭を突っ込んだまま止まる）、近づいたら経路を捨てて扉へまっすぐ押し当て続ける。
+ * 押し当てる間は steerToward の詰まり検知（動けていないとランダム方向へ逃げる）と相性が悪いので使わない
+ * （openHold は数百 ms なので、詰まり検知に阻まれる前に開く）
+ */
+function hiddenDoorInput(state: GameState, bot: BotState, door: Vec, dt: number): FrameInput {
+  const pos = state.player.body.pos;
+  const approach = hiddenDoorApproach(state);
+  if (approach === null || dist(pos, approach) <= HIDDEN_DOOR_PUSH_DIST) return moveOnlyInput(moveToward(door, pos));
+  ensurePath(state, bot, approach);
+  const waypoint = currentWaypoint(bot, pos) ?? approach;
+  return moveOnlyInput(steerToward(state, bot, waypoint, dt));
 }
 
 function findStairsPos(state: GameState): Vec | null {
@@ -868,6 +908,7 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     bot.wanderTimer = 0;
     bot.stuckTimer = 0;
     bot.lastCheckPos = { ...state.player.body.pos };
+    bot.hiddenDoorTime = 0;
   }
 
   const p = state.player;
@@ -881,11 +922,12 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   const enemy = nearestEngagedEnemy(state);
   if (enemy) return combatInput(state, bot, enemy, dt);
 
-  // 隠し部屋: 手がかりが出た扉へ直進して押し当て続ける。steerToward の詰まり検知（動けていないと
-  // 判定してランダム方向へ逃げる）は壁に押し当て続ける動きと相性が悪いので使わず、まっすぐ向くだけにする
-  // （openHold は数百ms なので、詰まり検知に阻まれる前に開く）
-  const hiddenDoor = hiddenDoorTarget(state);
-  if (hiddenDoor) return moveOnlyInput(moveToward(hiddenDoor, state.player.body.pos));
+  // 隠し部屋: 手がかりが出た扉へ経路で近づき、押し当て続ける（hiddenDoorInput）。追い続ける秒を数えて諦めも判定する
+  const hiddenDoor = hiddenDoorTarget(state, bot);
+  if (hiddenDoor) {
+    bot.hiddenDoorTime += dt;
+    return hiddenDoorInput(state, bot, hiddenDoor, dt);
+  }
 
   return withDropPickup(state, bot, explorationInput(state, bot, dt));
 }

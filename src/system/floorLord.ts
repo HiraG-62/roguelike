@@ -16,7 +16,12 @@ import { eliteKindsFor, makeElite } from "./elites";
  * 部屋の主にふさわしくない behavior。喰らう宝箱・鎧の中身は専用の部屋演出（罠・変身）が要るので
  * 部屋主の候補から外す。鐘・据え置きはその場から動かず、格上げしても戦いにならないので通常敵の候補から外す
  */
-const LORD_EXCLUDED_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["mimic", "hollowArmor", "graveBell", "inert"]);
+const LORD_EXCLUDED_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["mimic", "hollowArmor", "graveBell", "inert", "mine", "egg"]);
+
+/** 自爆で消える敵（爆弾持ち・鬼火など）は、主が自分で死んで階段が出てしまうので主にしない */
+function selfDestructs(d: EnemyDef): boolean {
+  return d.explode !== undefined;
+}
 
 export interface FloorLordPick {
   def: EnemyDef;
@@ -25,12 +30,12 @@ export interface FloorLordPick {
 }
 
 function lordCandidates(depth: number): EnemyDef[] {
-  return enemiesForDepth(depth).filter((d) => d.lairMaster === true && !LORD_EXCLUDED_BEHAVIORS.has(d.behavior));
+  return enemiesForDepth(depth).filter((d) => d.lairMaster === true && !LORD_EXCLUDED_BEHAVIORS.has(d.behavior) && !selfDestructs(d));
 }
 
 function championCandidates(depth: number): EnemyDef[] {
   return enemiesForDepth(depth).filter(
-    (d) => !d.lairMaster && !d.swarm && !d.timid && d.weight > 0 && !LORD_EXCLUDED_BEHAVIORS.has(d.behavior),
+    (d) => !d.lairMaster && !d.swarm && !d.timid && d.weight > 0 && !LORD_EXCLUDED_BEHAVIORS.has(d.behavior) && !selfDestructs(d),
   );
 }
 
