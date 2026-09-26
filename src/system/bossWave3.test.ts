@@ -155,7 +155,7 @@ describe("図書館の司書", () => {
     applyStatus(state, { kind: "enemy", enemy: boss }, { kind: "silence", stacks: 1, duration: 3, potency: 0 }, "player");
     tick(state);
     expect(isStaggered(boss)).toBe(true);
-    expect(state.texts.some((t) => t.text === "本を落とした")).toBe(true);
+    expect(state.texts.some((t) => t.text === "読書中断")).toBe(true);
     tick(state, 120);
     expect(state.hazards.some((h) => h.kind === "landing"), "予告は消えている").toBe(false);
   });

@@ -32,7 +32,7 @@ const SEQUENCE: Readonly<Record<number, readonly number[]>> = {
 };
 const FULL_CIRCLE = Math.PI * 2;
 const WINGED_TEXT = "羽化";
-const COLLAPSE_TEXT = "巣が崩れる";
+const COLLAPSE_TEXT = "巣の崩落";
 /** 部屋に同時に置ける卵の上限（産みすぎて部屋が埋まらないように） */
 const EGG_MAX = 6;
 /** 卵の置き場の影の半径 */

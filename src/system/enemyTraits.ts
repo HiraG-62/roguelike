@@ -23,7 +23,7 @@ const PACK_RING = 20;
 export const PACK_PENDING = 1;
 export const PACK_DONE = 2;
 const MANA_TEXT_COLOR = "#60a0ff";
-const VANISH_TEXT = "逃げた";
+const VANISH_TEXT = "逃走";
 
 // -----------------------------------------------------------------------------
 // 置き場所（壁に埋めない）

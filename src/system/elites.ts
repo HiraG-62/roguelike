@@ -128,7 +128,7 @@ const GUARD_BREAK_TEXT = "ガードブレイク";
 const ROUT_TEXT = "敗走";
 const NULLIFY_TEXT = "無効";
 const TIMED_OUT_TEXT = "刻限";
-const DEVOUR_TEXT = "貪った";
+const DEVOUR_TEXT = "貪食";
 const BLOCK_PARTICLES = 6;
 const GUARD_BREAK_PARTICLES = 10;
 const REFLECT_PARTICLES = 5;
@@ -739,7 +739,7 @@ function releaseParasites(state: GameState, e: Enemy): void {
 // 強欲の（docs/ideas/enemies.md M12）: 床の遺物・スキル石を拾って逃げる。倒すと拾った物 + 1 つを落とす
 // -----------------------------------------------------------------------------
 
-const SNATCH_TEXT = "奪った";
+const SNATCH_TEXT = "強奪";
 const FLOAT_TEXT_SCALE = 1;
 const FLOAT_TEXT_LIFE = 0.8;
 const SNATCH_PARTICLES = 6;
