@@ -369,6 +369,8 @@ export interface BossState {
   /** 「ボス」表示の残り時間 */
   introTimer: number;
   defeated: boolean;
+  /** 5 の倍数の階の階層ボス（BOSS_ROTATION）。false は毎階の「階の主」（system/floorLord.ts） */
+  major: boolean;
 }
 
 /** 同じフロアに長居すると湧く無敵の追跡者 */

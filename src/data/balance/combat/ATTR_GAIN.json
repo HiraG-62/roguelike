@@ -4,5 +4,6 @@
   "resonanceDual": 2,
   "resonanceScatter": 1,
   "perFloor": 1,
-  "perBoss": 2
+  "perBoss": 2,
+  "perFloorLord": 0
 }

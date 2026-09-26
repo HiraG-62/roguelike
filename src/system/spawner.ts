@@ -145,10 +145,13 @@ function retarget(state: GameState, e: Enemy): void {
 
 /**
  * この step で増援を出す時刻をまたぐか。floorTime（updateReaper が進める）の reinforceDelay 秒後から
- * reinforceInterval 秒ごと。ボス階は出さない（ボス部屋の戦いに徘徊が混ざらないように）
+ * reinforceInterval 秒ごと。5 の倍数の階（major）と、階の主の部屋を封鎖している間は出さない
+ * （部屋の戦いに徘徊が混ざらないように）。bossRoomLocked は system/floorLord.ts と同じ式だが、
+ * spawner.ts → floorLord.ts → elites.ts → spawner.ts の循環 import を避けてここへ直に書く
  */
 export function reinforceDue(state: GameState, dt: number): boolean {
-  if (state.boss) return false;
+  const b = state.boss;
+  if (b?.major || (b !== null && state.rooms[b.roomIndex]?.locked === true)) return false;
   const t0 = state.floorTime - ROAM.reinforceDelay;
   const t1 = t0 + dt;
   if (t1 < 0) return false;

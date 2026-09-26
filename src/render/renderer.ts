@@ -256,6 +256,7 @@ const BOSS_DEATH_RINGS = 3;
 const BOSS_DEATH_RING_R = 70;
 const BOSS_DEATH_RING_DELAY = 0.15;
 const BOSS_LABEL = "― ボス ―";
+const FLOOR_LORD_LABEL = "― 階の主 ―";
 /** 階層移動ワイプ: map が変わった瞬間の flash がこれ以上ならワイプにする */
 const WIPE_TRIGGER_FLASH = 0.7;
 const WIPE_EDGE_ALPHA = 0.6;
@@ -2591,7 +2592,8 @@ export class Renderer {
     const center = VIEW_W / 2;
     const nameX = Math.round(lerp(-center, center, ph.slide));
     const labelX = Math.round(lerp(VIEW_W + center, center, ph.slide));
-    this.shadowText(BOSS_LABEL, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER, TEXT.SMALL);
+    const label = b.major ? BOSS_LABEL : FLOOR_LORD_LABEL;
+    this.shadowText(label, labelX, BOSS_BANNER_Y - BOSS_LABEL_GAP + BOSS_NAME_SHADOW, COLOR_BOSS_BANNER, TEXT.SMALL);
     const nameY = BOSS_BANNER_Y + BOSS_BANNER_NAME_GAP / 2;
     drawTextShadow(ctx, b.name, nameX, nameY, TEXT.BIG, COLOR_BOSS_NAME, COLOR_BLACK, "center", BOSS_NAME_SHADOW);
     ctx.globalAlpha = 1;

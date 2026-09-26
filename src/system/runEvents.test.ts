@@ -117,7 +117,8 @@ describe("ランイベントの予告", () => {
       run(state, Math.floor(RUN_EVENT.warnTime / FIXED_DT) - 2);
       expect(state.runEvents[slot]?.phase, `${key} は予告中`).toBe("warn");
       state.sfx = [];
-      run(state, 4);
+      // ヒットストップで実ステップの一部が空撃ちになっても跨げるよう、余裕を持たせる
+      run(state, 40);
       const current = state.runEvents[slot];
       // 一瞬で終わるもの（宝の雨・縮みの呪い）も始まった瞬間の音は鳴る
       expect(state.sfx.includes("runEventStart") || current?.phase === "active", `${key} が始まる`).toBe(true);
@@ -274,7 +275,8 @@ describe("ランイベントの効果", () => {
   });
 
   it("勢いの風: 次の部屋を封鎖すると足が速くなり、敵が 1 体減る", () => {
-    const { state, room, index } = setup();
+    // DEPTH（既定）は BOSS.interval の倍数でボス階になり、封鎖できる通常の部屋が 1 つしか無い階がある。1 つ浅い階で見る
+    const { state, room, index } = setup(7, DEPTH - 1);
     start(state, "momentum", -1);
     const others = state.rooms.findIndex((r, i) => i !== index && i > 0 && i < state.rooms.length - 1 && r.kind === "normal");
     expect(others).toBeGreaterThanOrEqual(0);

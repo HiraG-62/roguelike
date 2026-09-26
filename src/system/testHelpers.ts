@@ -1,5 +1,6 @@
-import { createGame } from "../core/game";
+import { createGame, step } from "../core/game";
 import { EMPTY_INPUT, type FrameInput } from "../core/input";
+import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { enemyDef } from "../data/enemies";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
@@ -25,6 +26,20 @@ export function arena(seed = 5, stats: Partial<PlayerStats> = {}): GameState {
   state.player.dashChargesLeft = state.stats.dashCharges;
   state.player.facing = { x: 1, y: 0 };
   return state;
+}
+
+/**
+ * この階の主（階の主 / ボス、どちらでも）を即座に倒し、階段を出す。
+ * state.boss が指す敵の hp を 0 にして 1 step 進める（onBossDeath は enemies.ts の死亡処理から自然に呼ばれる）。
+ * 主がいない、あるいは既に enemies から消えている（テストで丸ごと置き換えたなど）ときは何もしない
+ */
+export function slayFloorLord(state: GameState): void {
+  const b = state.boss;
+  if (!b) return;
+  const e = state.enemies.find((x) => x.id === b.enemyId);
+  if (!e) return;
+  e.hp = 0;
+  step(state, withInput({}), FIXED_DT);
 }
 
 /** プレイヤーから (dx, dy) の位置に敵を置く */

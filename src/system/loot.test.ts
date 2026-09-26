@@ -207,7 +207,8 @@ describe("装備ドロップと拾得", () => {
 
   it("階層を降りると LOOT_DROP.depthArrivalChance でボーナスが落ちる", async () => {
     const { descend } = await import("./floor");
-    const state = createGame(11);
+    // seed 11 は着いた階が入れ替え部屋（invertHall）等で始めから遺物を置くため、統合チェックには使わない
+    const state = createGame(1);
     descend(state);
     expect(state.floorItems.length, "多くても 1 個").toBeLessThanOrEqual(1);
     expect(state.sfx).toContain("descend");

@@ -1134,7 +1134,8 @@ export function escapeActive(state: GameState): boolean {
 export function planForkStairs(state: GameState): void {
   const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax);
   const kinds = pickFloorKinds(state.depth + 1, state.rng, count);
-  if (isBossDepth(state.depth)) {
+  // この階に主（ボスか階の主）がいれば、階段は撃破後に出る（tile は -1 のまま。ensureForkStairs が置く）
+  if (state.boss) {
     state.stairs = kinds.map((nextKind) => ({ tile: -1, nextKind }));
     return;
   }

@@ -125,6 +125,7 @@ import j_enemies_BOSS_broodMother from "./enemies/BOSS/broodMother.json";
 import j_enemies_BOSS_librarian from "./enemies/BOSS/librarian.json";
 import j_enemies_BOSS_mirrorKnight from "./enemies/BOSS/mirrorKnight.json";
 import j_enemies_BOSS_thiefKing from "./enemies/BOSS/thiefKing.json";
+import j_enemies_FLOOR_LORD from "./enemies/FLOOR_LORD.json";
 import j_enemies_REAPER from "./enemies/REAPER.json";
 import j_enemies_stats__index from "./enemies/stats/_index.json";
 import j_enemies_stats_slime from "./enemies/stats/slime.json";
@@ -741,7 +742,6 @@ import j_loot_affixCurves_cv_infuseDark from "./loot/affixCurves/cv_infuseDark.j
 import j_loot_affixCurves_cv_infuseLight from "./loot/affixCurves/cv_infuseLight.json";
 import j_loot_affixCurves_cv_infuseNone from "./loot/affixCurves/cv_infuseNone.json";
 import j_loot_affixCurves_attr_def from "./loot/affixCurves/attr_def.json";
-import j_skills__index from "./skills/_index.json";
 import j_loot_bases from "./loot/bases.json";
 import j_loot_INNATE__index from "./loot/INNATE/_index.json";
 import j_loot_INNATE_budget from "./loot/INNATE/budget.json";
@@ -752,6 +752,7 @@ import j_loot_INNATE_pointValue from "./loot/INNATE/pointValue.json";
 import j_loot_INNATE_armor from "./loot/INNATE/armor.json";
 import j_loot_INNATE_resistLines from "./loot/INNATE/resistLines.json";
 import j_loot_INNATE_slotLean from "./loot/INNATE/slotLean.json";
+import j_skills__index from "./skills/_index.json";
 import j_skills_SKILL__index from "./skills/SKILL/_index.json";
 import j_skills_SKILL_whirl from "./skills/SKILL/whirl.json";
 import j_skills_SKILL_lunge from "./skills/SKILL/lunge.json";
@@ -1142,6 +1143,7 @@ export const enemies = {
     "mirrorKnight": j_enemies_BOSS_mirrorKnight,
     "thiefKing": j_enemies_BOSS_thiefKing,
   },
+  "FLOOR_LORD": j_enemies_FLOOR_LORD,
   "REAPER": j_enemies_REAPER,
   "stats": {
     "_fields": j_enemies_stats__index["_fields"],
@@ -1794,9 +1796,9 @@ export const loot = {
     "cv_infuseDark": j_loot_affixCurves_cv_infuseDark,
     "cv_infuseLight": j_loot_affixCurves_cv_infuseLight,
     "cv_infuseNone": j_loot_affixCurves_cv_infuseNone,
+    "attr_def": j_loot_affixCurves_attr_def,
   },
   "bases": j_loot_bases,
-    "attr_def": j_loot_affixCurves_attr_def,
   "INNATE": {
     "_note": j_loot_INNATE__index["_note"],
     "_fields": j_loot_INNATE__index["_fields"],
@@ -1849,9 +1851,9 @@ export const skills = {
   },
   "EXTRA_SKILL_TUNING": {
     "_note": j_skills_EXTRA_SKILL_TUNING__index["_note"],
+    "_fields": j_skills_EXTRA_SKILL_TUNING__index["_fields"],
     "contagion": j_skills_EXTRA_SKILL_TUNING_contagion,
     "unravel": j_skills_EXTRA_SKILL_TUNING_unravel,
-    "_fields": j_skills_EXTRA_SKILL_TUNING__index["_fields"],
     "kindle": j_skills_EXTRA_SKILL_TUNING_kindle,
     "prismShard": j_skills_EXTRA_SKILL_TUNING_prismShard,
     "fullMoon": j_skills_EXTRA_SKILL_TUNING_fullMoon,
@@ -2334,6 +2336,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_AI/wisp.json",
   "enemies/ENEMY_SCALE.json",
   "enemies/ENEMY_TEMPO.json",
+  "enemies/FLOOR_LORD.json",
   "enemies/REAPER.json",
   "enemies/_index.json",
   "enemies/combat/_index.json",
@@ -2692,9 +2695,6 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "jobs/_index.json",
   "jobs/attributes.json",
   "jobs/weakness.json",
-  "loot/KEYSTONE.json",
-  "loot/LOOT_DROP.json",
-  "loot/PICKUP.json",
   "loot/INNATE/_index.json",
   "loot/INNATE/armor.json",
   "loot/INNATE/budget.json",
@@ -2704,6 +2704,9 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/INNATE/pointValue.json",
   "loot/INNATE/resistLines.json",
   "loot/INNATE/slotLean.json",
+  "loot/KEYSTONE.json",
+  "loot/LOOT_DROP.json",
+  "loot/PICKUP.json",
   "loot/RESONANCE.json",
   "loot/SYNERGY.json",
   "loot/TRIGGER.json",
@@ -2713,10 +2716,10 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/arcaneFocus.json",
   "loot/affixCurves/armorFlat.json",
   "loot/affixCurves/attackSpeed.json",
+  "loot/affixCurves/attr_def.json",
   "loot/affixCurves/attr_dex.json",
   "loot/affixCurves/attr_mnd.json",
   "loot/affixCurves/attr_spi.json",
-  "loot/affixCurves/attr_def.json",
   "loot/affixCurves/attr_str.json",
   "loot/affixCurves/attr_vit.json",
   "loot/affixCurves/backlash.json",

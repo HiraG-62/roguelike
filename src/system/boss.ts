@@ -1,15 +1,17 @@
-import { type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
+import { type BossState, type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, enemyDef, isBossClass } from "../data/enemies";
-import { BOSS, FEEL } from "../data/tuning";
+import { BOSS, FEEL, FLOOR_LORD } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
+import { boonHeartsAllowed } from "./boons";
 import { damagePlayer } from "./combat";
 import { addFloatingText, bossKillFx, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
+import { hasMod } from "./runSetup";
 import { inflictOnPlayer, isSilenced } from "./statusEffects";
 import { spawnTwinSister, twinPartner, updateTwin } from "./bossTwins";
 import { frostGiantArmored, updateFrostGiant } from "./bossFrostGiant";
@@ -20,10 +22,13 @@ import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, upda
 import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import type { EnemyTelegraph } from "./enemies";
 
-/** 階層ボス。depth が BOSS.interval の倍数の階は、階段のある最後の部屋がボス部屋になる */
+/**
+ * 階層ボス（major）。depth が BOSS.interval（5）の倍数の階は、階段のある最後の部屋がボス部屋になる。
+ * それ以外の階は system/floorLord.ts の「階の主」が同じ部屋に出る（isBossDepth は major のボス階だけを指す）
+ */
 
 /**
- * ボスの回転（深度 3 の倍数ごとに 1 体。9 体で 27 階まで重複なし。第 4 弾の盗賊王は逃げながら罠を撒く）。
+ * ボスの回転（深度 5 の倍数ごとに 1 体。9 体で 45 階まで重複なし。第 4 弾の盗賊王は逃げながら罠を撒く）。
  * Wave 3 の 4 体はバイオームと結び付く（油壺の王 = 油の坑道・熔鉱炉 / 群れの母 = 沼・草原 /
  * 図書館の司書 = 骨の墓所の書庫 / 鏡の騎士 = 鏡の部屋）。取り巻きの敵を biomes.ts のファミリー表に足してある
  */
@@ -81,7 +86,7 @@ export function setupBossRoom(state: GameState, roomIndex: number): void {
   const def = enemyDef(bossKeyForDepth(state.depth));
   const boss = createEnemy(state, def, rectCenterPx(room.rect), roomIndex, false);
   state.enemies.push(boss);
-  state.boss = { enemyId: boss.id, name: def.bossTitle ?? def.name, roomIndex, introTimer: 0, defeated: false };
+  state.boss = { enemyId: boss.id, name: def.bossTitle ?? def.name, roomIndex, introTimer: 0, defeated: false, major: true };
   if (def.behavior === "twinBlade") spawnTwinSister(state, boss);
   if (def.behavior === "oilKing") setupOilKingRoom(state, roomIndex);
   if (def.behavior === "thiefKing") setupThiefKingRoom(state, boss);
@@ -482,11 +487,26 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   state.slowmo = Math.max(state.slowmo, BOSS.defeatSlowmo);
   shake(state, FEEL.shakeSpecial);
   addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 20 }, `${b.name} 撃破`, DEFEAT_TEXT_COLOR, 1.8, 2);
-  pushLog(state, `${b.name}を倒した。階段が現れた。`, DEFEAT_TEXT_COLOR);
+  pushLog(state, defeatLogText(b), DEFEAT_TEXT_COLOR);
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   bossKillFx(state, e.body.pos);
-  for (let i = 0; i < BOSS.rareDrops; i++) dropRareItem(state, e.body.pos, i);
+  const drops = b.major ? BOSS.rareDrops : FLOOR_LORD.drops;
+  const boost = b.major ? BOSS.rareDropBoost : FLOOR_LORD.rareDropBoost;
+  const attempts = b.major ? BOSS.rareDropAttempts : FLOOR_LORD.rareDropAttempts;
+  for (let i = 0; i < drops; i++) dropRareItem(state, e.body.pos, i, boost, attempts);
+  if (!b.major && state.rng.chance(FLOOR_LORD.heartChance)) dropFloorLordHeart(state, e.body.pos);
+}
+
+function defeatLogText(b: BossState): string {
+  return b.major ? `${b.name}を倒した。階段が現れた。` : `階の主 ${b.name}を討った。階段が現れた。`;
+}
+
+/** 階の主の撃破時のハート（BOSS.rareDrops と違い、確定ドロップの一部を割合で出す控えめな報酬） */
+const FLOOR_LORD_HEART_RADIUS = 6;
+function dropFloorLordHeart(state: GameState, pos: Vec): void {
+  if (!boonHeartsAllowed(state) || hasMod(state, "dryFountain")) return;
+  state.pickups.push({ id: allocId(state), kind: "heart", pos: { ...pos }, radius: FLOOR_LORD_HEART_RADIUS, bobTime: 0 });
 }
 
 /** 双子の騎士: 片方が倒れても相方が生きていれば、ボスの座（HP バーと撃破判定）を相方へ移す */
@@ -499,20 +519,20 @@ function handOverBoss(state: GameState, e: Enemy): boolean {
   return true;
 }
 
-/** rare 以上が出るまで引き直す（上限回数で打ち切り） */
-function dropRareItem(state: GameState, pos: Vec, index: number): void {
+/** rare 以上が出るまで引き直す（上限回数で打ち切り）。boost/attempts は major か階の主かで呼び分ける */
+function dropRareItem(state: GameState, pos: Vec, index: number, boost: number, attempts: number): void {
   const depth = state.depth;
   let item = generateItem(state.rng, {
     itemLevel: depth + 1,
-    rarityBoost: BOSS.rareDropBoost,
+    rarityBoost: boost,
     foundDepth: depth,
     now: Date.now(),
     excludeNamed: state.lockedRelics,
   });
-  for (let i = 0; i < BOSS.rareDropAttempts && !RARE_OR_BETTER.has(item.rarity); i++) {
+  for (let i = 0; i < attempts && !RARE_OR_BETTER.has(item.rarity); i++) {
     item = generateItem(state.rng, {
       itemLevel: depth + 1,
-      rarityBoost: BOSS.rareDropBoost,
+      rarityBoost: boost,
       foundDepth: depth,
       now: Date.now(),
       excludeNamed: state.lockedRelics,

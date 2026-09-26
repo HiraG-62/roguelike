@@ -1,6 +1,6 @@
 {
   "_note": "ボス共通 + 個体別パラメータ。kingSlime.shockDamage は 22→17(QA 0.0.7α で死因単独 2 位。被ダメの 7 割が着地の衝撃波で深度 3 で他ボスの約 2 倍速でプレイヤーを倒していたため、頻度・範囲は変えず 1 回の重さを下げた)。phase2JumpTime は 0.65→0.8(影を見てから走って抜けられる長さにするテレグラフ原則)。splitCount は 4→3(第 2 段階の囲まれ方を和らげる)",
-  "interval": 3,
+  "interval": 5,
   "roomMinW": 18,
   "roomMinH": 14,
   "introTime": 2,

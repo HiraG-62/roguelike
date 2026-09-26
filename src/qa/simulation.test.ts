@@ -902,7 +902,8 @@ describe("QA simulation (縮小版スモーク)", () => {
       // 祝福の計測だけを見たいとき（QA_DEBUG=1）に縮小版でも表を出す
       if (process.env.QA_DEBUG) console.log(buildBoonMetricsSection(all).join("\n"));
     },
-    30_000,
+    // 毎階の「階の主」で 1 階の戦いが重くなった分、既定の 30s から広げる
+    60_000,
   );
 });
 
@@ -941,8 +942,8 @@ function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: nu
   return fingerprintState(state);
 }
 
-/** 6 装備 × 2 回 × 4,000 step。要素が増えて 5 秒の既定を超えるようになったので余裕を持たせる */
-const DETERMINISM_TIMEOUT_MS = 30_000;
+/** 6 装備 × 2 回 × 4,000 step。毎階の「階の主」で 1 階の戦いが重くなった分、余裕を広げた */
+const DETERMINISM_TIMEOUT_MS = 60_000;
 
 describe("QA simulation (決定性)", () => {
   it("同じ seed・装備なら bot 駆動でも 2 回とも同じ結果になる", { timeout: DETERMINISM_TIMEOUT_MS }, () => {

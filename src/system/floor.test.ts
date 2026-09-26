@@ -25,6 +25,7 @@ import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
 import { VIEW_H, VIEW_W } from "../core/view";
+import { slayFloorLord } from "./testHelpers";
 
 /** 広いマップ（面積 3.5〜5 倍）を何十枚も作るテストの制限時間（ms）。既定の 5 秒では並列実行の負荷で足りない */
 const WIDE_FLOOR_LOOP_TIMEOUT = 30_000;
@@ -378,6 +379,8 @@ describe("分岐路（階段ごとの行き先）", () => {
   it("最後の部屋に 1〜3 個の階段が置かれ、行き先は次の階の候補から重複なしで選ばれる", () => {
     for (let seed = 0; seed < 30; seed++) {
       const state = createGame(seed);
+      // 階段は階の主（毎階、最後の部屋にいる）を倒すまで tile: -1 のまま（ensureForkStairs が撃破後に置く）
+      slayFloorLord(state);
       expect(state.stairs.length, `seed=${seed}`).toBeGreaterThanOrEqual(1);
       expect(state.stairs.length).toBeLessThanOrEqual(FLOOR_KIND.forkMax);
       const kinds = state.stairs.map((s) => s.nextKind);
@@ -401,6 +404,7 @@ describe("分岐路（階段ごとの行き先）", () => {
   it("階段を踏むと、その階段の行き先のフロア種別へ降りる", () => {
     for (let seed = 0; seed < 30; seed++) {
       const state = createGame(seed);
+      slayFloorLord(state);
       const choice = state.stairs[state.stairs.length - 1];
       if (!choice || state.stairs.length < 2) continue;
       const x = ((choice.tile % state.map.width) + 0.5) * TILE_SIZE;
@@ -890,10 +894,12 @@ describe("戻る（上り階段）", () => {
   });
 
   it("上り階段は乗り続けたときだけ戻る（通りすがりでは戻らない）", () => {
+    // ascendAllowed はボス階とその 1 つ下には置かない。BOSS.interval の倍数と衝突しない深度を使う
+    const testDepth = FLOOR_KIND.ascendMinDepth;
     let state: GameState | null = null;
     for (const seed of [5, 7, 9, 11, 13]) {
       const s = createGame(seed);
-      s.depth = 5;
+      s.depth = testDepth;
       buildFloor(s, "rooms");
       if (s.rooms[s.rooms.length - 1]?.special?.props.some((p) => p.kind === "ascend")) {
         state = s;
@@ -906,13 +912,13 @@ describe("戻る（上り階段）", () => {
     if (!prop) throw new Error("上り階段");
     state.player.body.pos = { ...prop.pos };
     updateSpecialRooms(state, FLOOR_KIND.ascendHold / 2);
-    expect(state.depth, "まだ戻らない").toBe(5);
+    expect(state.depth, "まだ戻らない").toBe(testDepth);
     state.player.body.pos = rectCenterPx(state.rooms[0]?.rect ?? { x: 0, y: 0, w: 1, h: 1 });
     updateSpecialRooms(state, FIXED_DT);
     expect(prop.hold, "離れると戻る").toBe(0);
     state.player.body.pos = { ...prop.pos };
-    for (let t = 0; t < FLOOR_KIND.ascendHold + FIXED_DT * 2 && state.depth === 5; t += FIXED_DT) updateSpecialRooms(state, FIXED_DT);
-    expect(state.depth, "戻った").toBe(4);
+    for (let t = 0; t < FLOOR_KIND.ascendHold + FIXED_DT * 2 && state.depth === testDepth; t += FIXED_DT) updateSpecialRooms(state, FIXED_DT);
+    expect(state.depth, "戻った").toBe(testDepth - 1);
   });
 });
 

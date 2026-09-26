@@ -180,7 +180,8 @@
 | 出発 | start | 起点画面でランを始める行 | `ui/origin.ts` START_LABEL |
 | 地下 n 階 | depth | 階層 | HUD |
 | 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper。バリアントは 鎖の死神 / 取り立て屋 / 双子の死神 / 影の死神（付き物は 死神の影）/ 静かな死神 | `system/reaper.ts`、`system/reaperVariants.ts` |
-| ボス | boss | 階層ボス（スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士 / 盗賊王） | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
+| ボス | boss | 階層ボス（5 の倍数の階、`BOSS.interval`）。スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士 / 盗賊王 | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
+| 階の主 | floorLord（`BossState.major` が false） | 毎階の最後の部屋に出る主。部屋主かその階に出る通常敵を格上げした「〜の長」で、ボスと同じ封鎖・HP バー・撃破で階段の仕組みに乗る | `system/floorLord.ts` |
 | 精鋭 | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の / 強欲の（2026-09-24 追加。床の遺物・気力結晶を拾って逃げる）。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
 | 部屋主 | lairMaster | 巣の主。通常の抽選にも低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長 / 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み） | `data/enemies.ts` |
 | 再配色種 | recolor | 元の敵の絵の色を差し替え、挙動を 1 つ足した派生 | `data/enemies.ts` recolor |
@@ -221,8 +222,8 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 支配 / 二重 / 三和音 / 散光 | dominant / dual / triad / scatter | 共鳴の種類。1 色が過半 / 上位 2 色が各 30% 以上 / ちょうど 3 色が各 22% 以上 / 全色が分散 | `loot/resonance.ts` resolveResonance |
 | 陰画 | `Resonance.form = "negative"`（kind は dominant） | 反転した性質の重みが 35% 以上で、反転を除いた配合に支配色があると支配が裏返る。冷たい炎（紅）/ 熱い氷（蒼）/ 枯れ森（翠）/ 暗雷（金）。冥の支配は虚極のまま | `loot/resonance.ts` NEGATIVE_EFFECTS |
 | 拮抗 | `Resonance.form = "balance"`（kind は dual） | 他の共鳴が成立しないとき、反対色の組（紅と蒼 / 翠と金）がそれぞれ 25% 以上で差 5% 以内なら成立。天秤（紅と蒼）/ 表裏（翠と金） | `loot/resonance.ts` BALANCE_EFFECTS |
-| 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖。うち双子 / 対岸 / 鏡像 / 鎖は左手が使えるまで非表示（`hidden`） | `loot/resonance.ts` CONSTELLATIONS |
 | 地金 | `Item.innate`（`loot/innate.ts`） | 装備に既定で宿るステータス・防御力・属性耐性。性質とは別の層で、クラフト・色の配合の対象外 | `loot/describe.ts` innateLines |
+| 星座 | ConstellationKey | 6 部位の主色の並びで成立する、共鳴とは別の層の効果。同時に 1 つ。すべて代償付き。双子 / 対岸 / 背骨 / 環 / 鏡像 / 虚空 / 鎖。うち双子 / 対岸 / 鏡像 / 鎖は左手が使えるまで非表示（`hidden`） | `loot/resonance.ts` CONSTELLATIONS |
 | 主色 | itemMainColor | 遺物 1 つの性質（implicit を除く）で重みが最も大きい色。同点なら先に付いた性質の色。無色の性質は数えない | `loot/resonance.ts` |
 | 無色（性質） | `AffixRoll.colorless` | 脱色した性質。共鳴の配合に数えず、支配の減衰も受けない。行の頭に「無色」 | `loot/crafting.ts` bleachTrait |
 | 三和音の名前 | TRIAD_EFFECTS | 四季 / 雷雨 / 煤 / 祭 / 血肉 / 賭場 / 凪 / 沼 / 流星 / 輪廻 | `loot/resonance.ts` |

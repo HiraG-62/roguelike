@@ -1,6 +1,10 @@
 {
-  "_note": "戦闘中の回復を束ねる窓（system/combat.ts。docs/COMBAT_DESIGN.md「回復の設計」）。sustainWindow は秒、sustainCapRatio は割合、killHealMinCombo はコンボ数",
+  "_note": "戦闘中の回復を束ねる窓（system/combat.ts。docs/COMBAT_DESIGN.md「回復の設計」）。sustainWindow は秒、sustainCapRatio は割合、killHealMinCombo はコンボ数。descendHealRatio は降階の回復（system/floor.ts の healOnDescend）",
+  "_fields": {
+    "descendHealRatio": "初めて着いた階へ降りたとき、失った生命（maxHp - hp）のうちこの割合を回復する。割合(0..1)"
+  },
   "sustainWindow": 1,
   "sustainCapRatio": 0.04,
-  "killHealMinCombo": 5
+  "killHealMinCombo": 5,
+  "descendHealRatio": 0.35
 }

@@ -122,6 +122,9 @@ export const BOSS = BALANCE.enemies.BOSS;
 /** 追跡者（Reaper）。数値は src/data/balance/enemies/ の "REAPER"（src/system/reaper.ts / reaperVariants.ts が読む） */
 export const REAPER = BALANCE.enemies.REAPER;
 
+/** 毎階の「階の主」。数値は src/data/balance/enemies/ の "FLOOR_LORD"（src/system/floorLord.ts が読む） */
+export const FLOOR_LORD = BALANCE.enemies.FLOOR_LORD;
+
 /** 深度による敵の HP の伸び（src/data/enemies.ts の depthHpScale）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
 export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
 

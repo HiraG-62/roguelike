@@ -82,7 +82,8 @@ describe("フロア種別", () => {
 
   it("フロア種別は深度で解禁された候補から重みどおりに出る（dark は depth 4 から）", () => {
     const samples = 2000;
-    const depth = 5;
+    // depth 5 は BOSS.interval の倍数（ボス階は rooms 固定）なので、dark が解禁済みの非ボス階で見る
+    const depth = 4;
     const pool = floorKindCandidates(depth);
     const total = pool.reduce((s, k) => s + FLOOR_KIND.weight[k], 0);
     let dark = 0;
@@ -93,13 +94,17 @@ describe("フロア種別", () => {
     expect(Math.abs(dark / samples - expected), "暗闇の出る割合が重みに近い").toBeLessThan(0.04);
     expect(floorKindCandidates(3)).not.toContain("dark");
     expect(floorKindCandidates(3)).not.toContain("forge");
-    expect(floorKindCandidates(FLOOR_KIND.biomeMinDepth.forge + 1)).toContain("forge");
+    // ボス階（BOSS.interval の倍数）は常に rooms 固定なので、解禁直後の深度がボス階なら 1 つ後ろへずらす
+    const forgeUnlocked = FLOOR_KIND.biomeMinDepth.forge + 1;
+    const forgeDepth = isBossDepth(forgeUnlocked) ? forgeUnlocked + 1 : forgeUnlocked;
+    expect(floorKindCandidates(forgeDepth)).toContain("forge");
   });
 
   it("dark フロアでは isDark が true になる", () => {
     for (let seed = 0; seed < SEARCH_SEEDS; seed++) {
       const state = createGame(seed);
-      state.depth = 5;
+      // depth 5 は BOSS.interval の倍数（ボス階は rooms 固定）なので、dark が解禁済みの非ボス階で見る
+      state.depth = 4;
       buildFloor(state);
       if (state.floorKind !== "dark") continue;
       expect(isDark(state)).toBe(true);
