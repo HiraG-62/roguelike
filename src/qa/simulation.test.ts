@@ -955,8 +955,8 @@ describe("QA simulation (縮小版スモーク)", () => {
       // 祝福の計測だけを見たいとき（QA_DEBUG=1）に縮小版でも表を出す
       if (process.env.QA_DEBUG) console.log(buildBoonMetricsSection(all).join("\n"));
     },
-    // 毎階の「階の主」で 1 階の戦いが重くなった分、既定の 30s から広げる
-    60_000,
+    // 毎階の「階の主」で 1 階の戦いが重くなった分、既定の 30s から広げる（全体を並列で回すと 60s も超えるので 120s）
+    120_000,
   );
 });
 
