@@ -93,7 +93,7 @@ export interface Stance {
   readonly swayDeg: number;
 }
 
-const ONE_HAND_REST: Stance = { grip: "one", body: "ready", restDeg: -40, restHand: [5, 7], swayDeg: 3 };
+const ONE_HAND_REST: Stance = { grip: "one", body: "ready", restDeg: -40, restHand: [7, 9], swayDeg: 3 };
 
 /**
  * 武器種ごとの待機の構え。無い武器種は片手の既定。
@@ -101,10 +101,10 @@ const ONE_HAND_REST: Stance = { grip: "one", body: "ready", restDeg: -40, restHa
  * 片手銃は照準へ向けて後ろの手を銃把に添える（aimHeld）
  */
 export const STANCES: Readonly<Partial<Record<MovesetKey, Stance>>> = {
-  sword: { grip: "one", body: "ready", restDeg: -32, restHand: [8, 6], swayDeg: 3 },
-  twinBlades: { grip: "dual", body: "light", restDeg: -20, restHand: [7, 8], offHand: [-3, 9], offDeg: 150, swayDeg: 4 },
-  spear: { grip: "two", body: "ready", restDeg: -8, restHand: [7, 9], swayDeg: 2 },
-  sidearm: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1 },
+  sword: { grip: "one", body: "ready", restDeg: -32, restHand: [10, 8], swayDeg: 3 },
+  twinBlades: { grip: "dual", body: "light", restDeg: -20, restHand: [9, 10], offHand: [-3, 12], offDeg: 150, swayDeg: 4 },
+  spear: { grip: "two", body: "ready", restDeg: -8, restHand: [9, 12], swayDeg: 2 },
+  sidearm: { grip: "two", body: "aim", restDeg: 0, restHand: [10, 6], swayDeg: 1 },
 };
 
 export function stanceOf(moveset: MovesetKey): Stance {
@@ -166,16 +166,16 @@ export interface RigInput {
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
-export const ARM_REACH = 10;
+export const ARM_REACH = 13;
 /** 銃の握りを自分の中心から照準へ出す距離（ドット） */
-const AIM_REACH = 10;
+const AIM_REACH = 11;
 /** 両手持ちの振りは腰の高さで（肩から下へ。長柄が顔を横切らない） */
-const TWO_HAND_DROP = 3;
+const TWO_HAND_DROP = 4;
 const DEG = Math.PI / 180;
 /** これより上を向いたら体の後ろ（sin の値） */
 const BEHIND_SIN = -0.38;
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
-const FREE_HAND: Pt = { x: -1, y: 9 };
+const FREE_HAND: Pt = { x: -1, y: 12 };
 
 /** 画面の角 → 組み立ての空間の角（左向きなら左右に写す） */
 export function toRigAngle(angle: number, facingRight: boolean): number {
@@ -255,8 +255,8 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
 // ---------------------------------------------------------------------------
 
 /** 上腕・前腕の長さ（ドット） */
-export const UPPER_ARM = 5.5;
-export const FOREARM = 5.5;
+export const UPPER_ARM = 7;
+export const FOREARM = 7;
 
 /**
  * 肩と手から肘を解く（2 本の骨）。届かなければ手へ向けてまっすぐ伸ばした点。
@@ -282,7 +282,7 @@ export interface ArmPixel {
   readonly ink: ArmInk;
 }
 
-const SLEEVE_R = 1.9;
+const SLEEVE_R = 2;
 const HAND_R = 2.1;
 /** 画面の光（左上）。生成器の scripts/actor/paint.mjs と同じ向き */
 const LIGHT_X = -0.62;

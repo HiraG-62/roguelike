@@ -13,9 +13,9 @@ export const BODY_OX = 36;
 export const BODY_OY = 72;
 
 /** 骨の長さ（絵のドット） */
-const THIGH = 7;
-const SHIN = 7;
-const HIP_Y = -14;
+const THIGH = 10;
+const SHIN = 10;
+const HIP_Y = -20;
 
 /**
  * 姿勢の値。
@@ -50,9 +50,9 @@ function knee(hip, foot, bend = 1) {
 export function skeleton(ps) {
   const up = ps.bob;
   const hip = { x: ps.lean * 0.35, y: HIP_Y + up + ps.squash };
-  const chest = { x: ps.lean * 0.75, y: -21 + up - ps.breath * 0.6 + ps.squash * 0.7 };
-  const neck = { x: ps.lean * 0.95, y: -26 + up - ps.breath * 0.4 + ps.squash * 0.5 };
-  const head = { x: ps.lean + 1 + ps.tilt * 0.6, y: -34 + up - ps.breath * 0.3 + ps.squash * 0.4 };
+  const chest = { x: ps.lean * 0.75, y: -30 + up - ps.breath * 0.6 + ps.squash * 0.7 };
+  const neck = { x: ps.lean * 0.95, y: -36 + up - ps.breath * 0.4 + ps.squash * 0.5 };
+  const head = { x: ps.lean + 1 + ps.tilt * 0.6, y: -43 + up - ps.breath * 0.3 + ps.squash * 0.4 };
   const hipF = { x: hip.x + 2, y: hip.y };
   const hipB = { x: hip.x - 2, y: hip.y };
   const footF = { x: ps.footF.x, y: -ps.footF.lift };
@@ -69,8 +69,8 @@ export function skeleton(ps) {
     footB,
     kneeF: knee(hipF, footF),
     kneeB: knee(hipB, footB),
-    shoulderF: { x: chest.x + 3, y: chest.y - 3 },
-    shoulderB: { x: chest.x - 4, y: chest.y - 3.5 },
+    shoulderF: { x: chest.x + 3, y: chest.y - 4 },
+    shoulderB: { x: chest.x - 4, y: chest.y - 4.5 },
   };
 }
 
@@ -84,10 +84,10 @@ const TAU = Math.PI * 2;
  */
 export const IDLE_FRAMES = 8;
 const IDLE_STANCES = {
-  ready: { front: 6, back: -6, crouch: 2.5, lean: 1.5, tilt: 0.5, breath: 1.2, sink: 0.6, bounce: 0, heel: 0 },
-  heavy: { front: 7.5, back: -7.5, crouch: 3.5, lean: 1, tilt: 0.3, breath: 1.4, sink: 0.8, bounce: 0, heel: 0 },
-  light: { front: 5.5, back: -6, crouch: 2.5, lean: 2.5, tilt: 1, breath: 1, sink: 0, bounce: 1.1, heel: 1.2 },
-  aim: { front: 5, back: -6.5, crouch: 1.5, lean: 0.5, tilt: 0, breath: 1.1, sink: 0.4, bounce: 0, heel: 0 },
+  ready: { front: 7.5, back: -7.5, crouch: 3.5, lean: 2, tilt: 0.5, breath: 1.3, sink: 0.8, bounce: 0, heel: 0 },
+  heavy: { front: 9.5, back: -9.5, crouch: 5, lean: 1.5, tilt: 0.3, breath: 1.5, sink: 1, bounce: 0, heel: 0 },
+  light: { front: 7, back: -7.5, crouch: 3.5, lean: 3, tilt: 1, breath: 1.1, sink: 0, bounce: 1.4, heel: 1.6 },
+  aim: { front: 6.5, back: -8, crouch: 2, lean: 0.8, tilt: 0, breath: 1.2, sink: 0.5, bounce: 0, heel: 0 },
 };
 export const IDLE_STANCE_KEYS = Object.keys(IDLE_STANCES);
 
@@ -118,11 +118,11 @@ function capital(key) {
 export const WALK_FRAMES = 8;
 function walkPose(f) {
   const t = (f / WALK_FRAMES) * TAU;
-  const stride = 5;
+  const stride = 6.5;
   const fx = Math.cos(t) * stride;
   const bx = -fx;
-  const liftF = Math.max(0, Math.sin(t)) * 3;
-  const liftB = Math.max(0, -Math.sin(t)) * 3;
+  const liftF = Math.max(0, Math.sin(t)) * 4;
+  const liftB = Math.max(0, -Math.sin(t)) * 4;
   const bob = Math.abs(Math.cos(t)) > 0.7 ? 1 : 0;
   return pose({ bob, lean: 1, footF: { x: fx + 0.5, lift: liftF }, footB: { x: bx - 0.5, lift: liftB }, sway: 0.6 + Math.sin(t * 2) * 0.25 });
 }
@@ -130,18 +130,18 @@ function walkPose(f) {
 /** ダッシュ: 前へ大きく倒れ、後ろ足を伸ばす */
 export const DASH_FRAMES = 2;
 function dashPose(f) {
-  return pose({ lean: 4 + f, bob: 2, footF: { x: 6, lift: 1 }, footB: { x: -7, lift: 2 + f }, sway: 1, tilt: 1 });
+  return pose({ lean: 5 + f, bob: 3, footF: { x: 8, lift: 1 }, footB: { x: -9, lift: 3 + f }, sway: 1, tilt: 1 });
 }
 
 /** 構え（予備動作）: 腰を落とし上体を引く / 振り抜き: 前足を踏み込み上体を前へ / 被弾: 仰け反る */
 function windupPose() {
-  return pose({ lean: -2, bob: 2, footF: { x: 6, lift: 0 }, footB: { x: -6, lift: 0 }, sway: -0.3, tilt: -1 });
+  return pose({ lean: -2.5, bob: 3.5, footF: { x: 8, lift: 0 }, footB: { x: -8, lift: 0 }, sway: -0.3, tilt: -1 });
 }
 function strikePose() {
-  return pose({ lean: 3, bob: 1.5, footF: { x: 8, lift: 0 }, footB: { x: -6, lift: 0 }, sway: 0.9, tilt: 1 });
+  return pose({ lean: 4, bob: 3, footF: { x: 10.5, lift: 0 }, footB: { x: -8, lift: 0 }, sway: 0.9, tilt: 1 });
 }
 function hitPose() {
-  return pose({ lean: -3, bob: 1, footF: { x: 4, lift: 0 }, footB: { x: -4, lift: 1 }, sway: -0.6, tilt: -2, squash: 1 });
+  return pose({ lean: -3.5, bob: 1.5, footF: { x: 5, lift: 0 }, footB: { x: -5, lift: 1 }, sway: -0.6, tilt: -2, squash: 1 });
 }
 
 /** 体のシートの並び（名前・枚数・姿勢）。実行時の render/playerRig.ts の BODY_CLIPS と同じ名前 */

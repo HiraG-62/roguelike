@@ -310,7 +310,7 @@ export function setPlayerMuzzle(state: GameState, muzzle: Point | null): void {
  * 自分の弾を描く高さ（論理 px。地面の当たりの位置から上へ）。弾は胸の高さで構えた銃から出て飛ぶように見せる
  * （当たり判定は地面の位置のまま。曲射・設置弾は別に持ち上げる）
  */
-export const PLAYER_SHOT_LIFT = 5;
+export const PLAYER_SHOT_LIFT = 8;
 
 /** 弾の出た位置が自分からこれ以内なら、描いた銃口から閃光を出す（遠くで生まれる弾・奥義の弾は元の位置） */
 const MUZZLE_NEAR_PX = 16;
