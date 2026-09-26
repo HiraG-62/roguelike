@@ -15,6 +15,7 @@ import fx_fistsUlt from "./fx/fistsUlt.gen.json";
 import fx_flail from "./fx/flail.gen.json";
 import fx_flailUlt from "./fx/flailUlt.gen.json";
 import fx_greatsword from "./fx/greatsword.gen.json";
+import fx_greatswordUlt from "./fx/greatswordUlt.gen.json";
 import fx_grenade from "./fx/grenade.gen.json";
 import fx_gunner from "./fx/gunner.gen.json";
 import fx_hammer from "./fx/hammer.gen.json";
@@ -61,6 +62,7 @@ export const FX_ATLASES = {
   flail: { url: "assets/fx/flail.png", width: fx_flail.width, height: fx_flail.height },
   flailUlt: { url: "assets/fx/flailUlt.png", width: fx_flailUlt.width, height: fx_flailUlt.height },
   greatsword: { url: "assets/fx/greatsword.png", width: fx_greatsword.width, height: fx_greatsword.height },
+  greatswordUlt: { url: "assets/fx/greatswordUlt.png", width: fx_greatswordUlt.width, height: fx_greatswordUlt.height },
   grenade: { url: "assets/fx/grenade.png", width: fx_grenade.width, height: fx_grenade.height },
   gunner: { url: "assets/fx/gunner.png", width: fx_gunner.width, height: fx_gunner.height },
   hammer: { url: "assets/fx/hammer.png", width: fx_hammer.width, height: fx_hammer.height },
@@ -124,6 +126,7 @@ export const FX_SHEETS = {
   ...fx_flail.sheets,
   ...fx_flailUlt.sheets,
   ...fx_greatsword.sheets,
+  ...fx_greatswordUlt.sheets,
   ...fx_grenade.sheets,
   ...fx_gunner.sheets,
   ...fx_hammer.sheets,
@@ -157,4 +160,4 @@ export const FX_SHEETS = {
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_cannon.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_clawsUlt.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fists.fx, fx_fistsUlt.fx, fx_flail.fx, fx_flailUlt.fx, fx_greatsword.fx, fx_grenade.fx, fx_gunner.fx, fx_hammer.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_ringBlades.fx, fx_ringBladesUlt.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_trapper.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_warRing.fx, fx_whip.fx, fx_whipUlt.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_cannon.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_clawsUlt.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fists.fx, fx_fistsUlt.fx, fx_flail.fx, fx_flailUlt.fx, fx_greatsword.fx, fx_greatswordUlt.fx, fx_grenade.fx, fx_gunner.fx, fx_hammer.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_ringBlades.fx, fx_ringBladesUlt.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_trapper.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_warRing.fx, fx_whip.fx, fx_whipUlt.fx] as const;
