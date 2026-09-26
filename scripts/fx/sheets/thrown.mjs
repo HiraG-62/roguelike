@@ -3,7 +3,7 @@
 //
 // 手で投げる・吹く武器。銃のような火薬の閃光は出さず、「手から放つ風切り」（手首の返しの細い弧と、前へ抜ける空気の裂け目）を
 // 撃つ瞬間の絵にする。弾 4 種は形そのもので描き分ける:
-//   投げ短剣（throwingKnives）: 回転しながら飛ぶ刃。刃の縁だけ白く閃き、切っ先の回転の残像が弧を引く。着弾は壁に突き立って震える
+//   投げ短剣（throwingKnives）: 本体は描画側がナイフの絵で描くので、飛ぶ絵はその下の風切りの筋と切っ先の光だけ。着弾は壁に突き立って震える
 //   吹き矢（blowgun）: 細い針と羽根。後ろへ揺れる毒の筋と滴。吹いた息の輪が口元に出る
 //   跳ね銃（ricochetGun）: 硬い玉と短い曳光。着弾は折れ曲がって跳ね返る火花
 //   導きの珠（seekerOrb）: 渦を抱いた毒の珠。揺らめく尾を引く。着弾は弾けて泡が散る
@@ -528,21 +528,31 @@ function pierceHit(frame, f, heavy) {
 // 弾: 投げ短剣（throwingKnives）。radius 2、速さ ≈ 186px/秒 → 尾 ≈ 15 ドット
 // -----------------------------------------------------------------------------
 
-/** 1 回転のフレーム数（60° ずつ回る） */
-const KNIFE_SPIN = 6;
+/** 飛ぶ短剣の風切りの揺らぎの周期（フレーム数） */
+const KNIFE_FLY_FRAMES = 6;
+/** 描画側が弾の中心に重ねるナイフの絵の半分の長さの目安（ドット）。風切りはこれより後ろから引く */
+const KNIFE_BODY_HALF = 8;
 
 /**
- * 飛ぶ短剣: 原点 = 弾の中心。刃がフレームごとに 60° ずつ時計回りに回り、切っ先の通った跡に細い弧の残像。
- * 後ろ（−x）へ薄い風の筋を 1 本。白は刃の縁だけ
+ * 飛ぶ短剣: 原点 = 弾の中心。ナイフの本体（刃・柄）は描画側が武器の絵を進む向きへ向けて重ねる（thrownLook.ts）ので、
+ * ここでは描かない（描くと二重になる）。その下に敷く風切りだけ: 刃の後ろへ抜ける芯の筋（切っ先の残像）、
+ * 両脇を後ろへ流れる細い風の筋（フレームで長さが揺らぐ）、切っ先の前の小さな光（2 フレームおきに閃く）
  */
 function knifeFly(frame, f) {
-  const a = (f / KNIFE_SPIN) * TAU;
-  const len = 14;
-  const tipR = len / 2 + 0.5;
-  thinArc(frame, { r: tipR, a0: a - 110 * DEG + 0.6, a1: a - 0.2, width: 1.2, bright: 0.55 });
-  knife(frame, { a, len, w: 2.4, seed: 4011 + f });
-  streakLine(frame, { ax: -18, ay: 0, bx: -tipR - 1, by: 0, bright: 0.42 });
-  if (f % 3 === 0) dot(frame, -12 - hash1(f, 4012) * 4, (hash1(f, 4013) - 0.5) * 4, 3);
+  const t = (f / KNIFE_FLY_FRAMES) * TAU;
+  const tail = -KNIFE_BODY_HALF - 1;
+  // 芯の筋: 本体の直後から後ろへ。切っ先が通った線の残像として一番明るい
+  streakLine(frame, { ax: tail - 14, ay: 0, bx: tail, by: 0, width: 1.2, bright: 0.6 });
+  // 両脇の風の筋: 上下で位相をずらして長さを揺らし、流れて見せる
+  for (const side of [-1, 1]) {
+    const len = 8 + 3 * Math.sin(t + (side > 0 ? 0 : Math.PI));
+    const y = side * 3;
+    streakLine(frame, { ax: tail - 2 - len, ay: y, bx: tail + 3, by: y * 0.7, bright: 0.38 });
+  }
+  // 切っ先の光: 本体の先に小さく閃く（常時だとうるさいので 2 フレームおき）
+  if (f % 2 === 0) sparkle(frame, KNIFE_BODY_HALF + 1, 0, 1);
+  // 後ろへ散る風の粒
+  if (f % 3 === 0) dot(frame, tail - 8 - hash1(f, 4012) * 6, (hash1(f, 4013) - 0.5) * 6, 3);
 }
 
 /**
@@ -1048,7 +1058,7 @@ export const ATLAS = {
     { key: "thrown.grab", dirs: DIRS, frames: 9, active: 3, size: 112, draw: grabToss },
     { key: "thrown.hit", dirs: DIRS, frames: 6, active: 0, size: 72, draw: (frame, f) => pierceHit(frame, f, false) },
     { key: "thrown.hitHeavy", dirs: DIRS, frames: 7, active: 0, size: 104, draw: (frame, f) => pierceHit(frame, f, true) },
-    { key: "thrown.knifeFly", dirs: SHOT_DIRS, frames: KNIFE_SPIN, active: 0, size: 48, draw: knifeFly },
+    { key: "thrown.knifeFly", dirs: SHOT_DIRS, frames: KNIFE_FLY_FRAMES, active: 0, size: 48, draw: knifeFly },
     { key: "thrown.knifeMuzzle", dirs: DIRS, frames: 5, active: 0, size: 64, draw: knifeMuzzle },
     { key: "thrown.knifeImpact", dirs: DIRS, frames: 7, active: 0, size: 56, draw: knifeImpact },
     { key: "thrown.knifeHit", dirs: DIRS, frames: 6, active: 0, size: 56, draw: knifeHit },
