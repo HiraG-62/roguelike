@@ -9,7 +9,8 @@ import { ultPiece } from "./fxUltimate";
 import { BULLETS } from "../loot/bullets";
 import { BASES, baseFamily } from "../loot/bases";
 import { movesetCasts } from "../data/weapons";
-import { ultimateDef } from "../data/ultimates";
+import { ULTIMATES, ultimateDef } from "../data/ultimates";
+import { MOVESET_KEYS } from "../data/weapons";
 import { ELEMENTS } from "../core/element";
 
 const SHEET_KEYS = Object.keys(FX_SHEETS) as FxSheetKey[];
@@ -241,6 +242,23 @@ describe("fxMotions: 奥義の絵の表", () => {
       for (const i of Object.keys(fx.shots)) expect(acts[Number(i)]?.kind, `${key} の弾 ${i}`).toBe("volley");
       // 絵の表の行は壊れていない（載せた番号の絵が引ける）
       fx.acts.forEach((p, i) => p && expect(ultPiece(fx, { part: "act", index: i }), `${key} act ${i}`).toBe(p));
+    }
+  });
+});
+
+describe("fxMotions: 全武器種・全奥義の網羅", () => {
+  it("どの武器種も専用の絵の表を持つ（手続きの描画に戻らない）", () => {
+    for (const key of MOVESET_KEYS) expect(MOVESET_FX[key], key).toBeDefined();
+  });
+
+  it("どの奥義も専用の絵を持つ（一撃は発動と行為、持続は発動と纏い）", () => {
+    for (const key of MOVESET_KEYS) {
+      for (const def of ULTIMATES[key]) {
+        const fx = ULTIMATE_FX[def.key];
+        expect(fx?.cast, `${def.key} の発動`).toBeDefined();
+        if (def.kind === "sustain") expect(fx?.sustain, `${def.key} の纏い`).toBeDefined();
+        else expect(fx?.acts.some((p) => p), `${def.key} の行為`).toBe(true);
+      }
     }
   });
 });

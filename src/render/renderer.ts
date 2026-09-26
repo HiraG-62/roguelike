@@ -1894,12 +1894,13 @@ export class Renderer {
       const lift = this.lobLift(pr);
       if (lift > 0) this.drawLobShadow(pr.pos.x, pr.pos.y);
       const py = pr.pos.y - lift;
-      // 投げた武器（斧・短刀・輪 …。thrownLook.ts）は弾の専用スプライトより武器の絵を優先する
+      // 投げた武器（斧・短刀・輪 …。thrownLook.ts）は武器の絵が本体。弾の専用スプライトはその下に風切りの軌跡として重ねる
       const thrown = projectileLook(pr) !== undefined;
-      // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があればそれだけを描く（尾も絵が持つ）
-      if (!thrown && drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow)) continue;
+      // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があれば尾も絵が持つ
+      const drewShot = drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow);
+      if (drewShot && !thrown) continue;
       // 位置履歴が無いので速度の逆方向に細る尾と光を置く（fxAttack.ts。弾の性質で長さ・太さが変わる）
-      drawBulletTrail(ctx, pr, pr.pos.x, py, dx, dy, isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL, this.fxSprites.glow);
+      if (!drewShot) drawBulletTrail(ctx, pr, pr.pos.x, py, dx, dy, isPlayer ? (rangedTrail ?? pr.color) : COLOR_ENEMY_TRAIL, this.fxSprites.glow);
       if (thrown && drawThrownProjectile(ctx, state, this.atlas, pr, pr.pos.x, py)) continue;
 
       // 武器の絵を持つ弾（斧の投擲など。ThrowArtDef.sprite）はその武器を回しながら飛ばす
