@@ -182,6 +182,7 @@
 | 死神 | reaper | 長居すると出る無敵の追跡者。コードと設計文書では Reaper。バリアントは 鎖の死神 / 取り立て屋 / 双子の死神 / 影の死神（付き物は 死神の影）/ 静かな死神 | `system/reaper.ts`、`system/reaperVariants.ts` |
 | ボス | boss | 階層ボス（5 の倍数の階、`BOSS.interval`）。スライム王 / 骸骨卿 / 双子の騎士 / 霜の巨人 / 油壺の王 / 群れの母 / 図書館の司書 / 鏡の騎士 / 盗賊王 | `data/enemies.ts`、`system/boss.ts` BOSS_ROTATION |
 | 階の主 | floorLord（`BossState.major` が false） | 毎階の最後の部屋に出る主。部屋主かその階に出る通常敵を格上げした「〜の長」で、ボスと同じ封鎖・HP バー・撃破で階段の仕組みに乗る | `system/floorLord.ts` |
+| 隠し部屋 | HiddenRoom | 壁の中に埋めた小部屋。稀に生成され、ひび割れた壁に近づくと手がかりが出て、押し当て続けると開き遺物と次の階への階段が出る。ボスの出る階には生成しない | `system/hiddenRoom.ts`、`map/hidden.ts` |
 | 精鋭 | elite | 修飾子付きの敵。接頭辞は 爆裂の / 反射の / 障壁の / 迅速の / 連結の / 残響の / 伝染の / 堅牢の / 報復の / 分光の / 刻限の / 寄生の / 不動の / 貪食の / 群長の / 灼熱の / 封魔の / 号令の / 見切りの / 鎖縛の / 強欲の（2026-09-24 追加。床の遺物・気力結晶を拾って逃げる）。深層では 2 つ重なる組（炎の柱 = 灼熱の + 不動の など）がある | `system/elites.ts` ELITE_PREFIX / ELITE_PAIRS |
 | 部屋主 | lairMaster | 巣の主。通常の抽選にも低い重みで混ざる中型の敵（喰らう宝箱 / 鎧の中身 / 骨の楽団長 / 大蝦蟇 / 炎の鍛冶 / 砲台長 / 石化の蜥蜴 / 影踏み） | `data/enemies.ts` |
 | 再配色種 | recolor | 元の敵の絵の色を差し替え、挙動を 1 つ足した派生 | `data/enemies.ts` recolor |

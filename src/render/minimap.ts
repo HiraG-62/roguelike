@@ -281,9 +281,9 @@ export class Minimap {
     this.ctx.clearRect(0, 0, size.w, size.h);
   }
 
-  /** 階段はボス撃破で後から出るので、ボスの状態が変わったときだけ探し直す */
+  /** 階段はボス撃破・隠し部屋が開いたときに後から出るので、そのどちらかが変わったときだけ探し直す */
   private refreshStairs(state: GameState): void {
-    const key = `${state.boss?.defeated ?? "none"}`;
+    const key = `${state.boss?.defeated ?? "none"}|${state.hiddenRoom?.opened ?? "none"}`;
     if (key === this.stairsKey) return;
     this.stairsKey = key;
     this.stairs = [];

@@ -373,6 +373,28 @@ export interface BossState {
   major: boolean;
 }
 
+/**
+ * 隠し部屋（system/hiddenRoom.ts・map/hidden.ts）。壁の中に埋めたポケットで、開くまで tiles / doorTile は
+ * すべて Tile.Wall のまま（GameMap.tiles には反映されない）。5 の倍数の階（isBossDepth）では生成しない
+ */
+export interface HiddenRoom {
+  /** 押し当てて開ける壁タイル */
+  doorTile: number;
+  /** ポケットの床タイル（doorTile を含まない） */
+  tiles: readonly number[];
+  /** ポケット内の階段タイル */
+  stairsTile: number;
+  /** 開いたときに行ける次のフロア種別 */
+  nextKind: FloorKind;
+  opened: boolean;
+  /** 扉タイルに体を押し当てている秒数。離れると 0 に戻る */
+  hold: number;
+  /** 手がかり（ログ・音）を出したか */
+  hinted: boolean;
+  /** 風の粒子を次に出すまでの秒（hinted の間だけ進む） */
+  windTimer: number;
+}
+
 /** 同じフロアに長居すると湧く無敵の追跡者 */
 export interface Reaper {
   pos: Vec;
@@ -629,6 +651,13 @@ export type RoomKind =
  */
 export type FloorKind = "rooms" | "cave" | "dark" | "forge" | "ossuary" | "swamp" | "glacier" | "mine" | "meadow";
 
+/**
+ * どの部屋にも属さない敵の roomIndex（Enemy.roomIndex / EliteWork の判定などが使う）。
+ * 徘徊・通路の初期配置（system/spawner.ts の populateCorridors）・盗みなどの増援が使う。
+ * spawner.ts から使うファイルが多いので spawner.ts が re-export する
+ */
+export const ROAMING_ROOM = -1;
+
 export interface RoomState {
   rect: Rect;
   cleared: boolean;
@@ -736,6 +765,8 @@ export interface GameState {
   terrainSeeds?: TerrainSeed[];
   /** このフロアのボス。ボス階以外は null */
   boss: BossState | null;
+  /** このフロアの隠し部屋。無ければ null（system/hiddenRoom.ts が buildFloor の末尾で毎階作り直す） */
+  hiddenRoom: HiddenRoom | null;
   /** 今のフロアに入ってからの経過秒 */
   floorTime: number;
   reaper: Reaper | null;

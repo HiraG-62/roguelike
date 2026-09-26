@@ -5,7 +5,7 @@ import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
-import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
+import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
@@ -33,6 +33,7 @@ import {
   bossIntroPhase,
   bossPhaseThreshold,
   clamp01,
+  crackPixels,
   damageTextStyle,
   easeOutCubic,
   floorVariant,
@@ -1018,10 +1019,12 @@ export class Renderer {
           const masked = this.atlas[`tile.${biome}.wall.${wallMask(map, x, y)}`];
           if (masked) {
             this.blit(masked, 0, px, py);
-            continue;
+          } else if (style === "face") {
+            this.blit(wallFace, 0, px, py);
+          } else if (style === "top") {
+            this.blit(wallTop, 0, px, py);
           }
-          if (style === "face") this.blit(wallFace, 0, px, py);
-          else if (style === "top") this.blit(wallTop, 0, px, py);
+          this.drawHiddenCrack(state, x, y, px, py);
           continue;
         }
         this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
@@ -1095,6 +1098,23 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+
+  /** 隠し部屋の扉タイル（開くまで壁）にひびを重ねる */
+  private drawHiddenCrack(state: GameState, x: number, y: number, px: number, py: number): void {
+    const hr = state.hiddenRoom;
+    if (!hr || hr.opened || toIndex(state.map, x, y) !== hr.doorTile) return;
+    const { ctx } = this;
+    ctx.strokeStyle = HIDDEN_ROOM.color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    crackPixels(x, y).forEach((p, i) => {
+      const cx = px + p.x + 0.5;
+      const cy = py + p.y + 0.5;
+      if (i === 0) ctx.moveTo(cx, cy);
+      else ctx.lineTo(cx, cy);
+    });
+    ctx.stroke();
   }
 
   private drawStairsGlow(state: GameState): void {

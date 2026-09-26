@@ -257,6 +257,17 @@ function tileCenterPx(map: GameMap, index: number): Vec {
   return { x: (x + 0.5) * TILE_SIZE, y: (y + 0.5) * TILE_SIZE };
 }
 
+/**
+ * 隠し部屋の扉タイルの中心 px。まだ手がかり（ヒント）が出ていない扉には向かわない
+ * （実際の距離で state.hiddenRoom.hinted が立った扉だけを追う。遠くの扉を知っているかのように
+ * 直進すると壁に頭を突っ込んだまま止まるため）。開いた後・隠し部屋が無ければ null
+ */
+function hiddenDoorTarget(state: GameState): Vec | null {
+  const hr = state.hiddenRoom;
+  if (!hr || hr.opened || !hr.hinted) return null;
+  return tileCenterPx(state.map, hr.doorTile);
+}
+
 function findStairsPos(state: GameState): Vec | null {
   const map = state.map;
   for (let y = 0; y < map.height; y++) {
@@ -869,6 +880,12 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
   if (state.skills.shape?.key === "siegeForm") return { ...freshInput(), dashPressed: true };
   const enemy = nearestEngagedEnemy(state);
   if (enemy) return combatInput(state, bot, enemy, dt);
+
+  // 隠し部屋: 手がかりが出た扉へ直進して押し当て続ける。steerToward の詰まり検知（動けていないと
+  // 判定してランダム方向へ逃げる）は壁に押し当て続ける動きと相性が悪いので使わず、まっすぐ向くだけにする
+  // （openHold は数百ms なので、詰まり検知に阻まれる前に開く）
+  const hiddenDoor = hiddenDoorTarget(state);
+  if (hiddenDoor) return moveOnlyInput(moveToward(hiddenDoor, state.player.body.pos));
 
   return withDropPickup(state, bot, explorationInput(state, bot, dt));
 }

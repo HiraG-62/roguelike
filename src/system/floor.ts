@@ -1,7 +1,7 @@
 import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { pushPlayerEvent } from "../core/events";
 import type { Rng } from "../core/rng";
-import { normalize, sub } from "../core/vec";
+import { type Vec, normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
 import { ATTR_GAIN, BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { type CaveShapeOptions, carveArena } from "../map/cave";
@@ -31,6 +31,7 @@ import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
+import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
 import {
   applyBoonFloorRules,
@@ -65,7 +66,17 @@ import {
   updateShrines,
   waveMul,
 } from "./roomTypes";
-import { ROAMING_ROOM, assignRoamers, makeRoamer, reinforceDue, roamCap, roamSpawnPoint, roamerCount, updateRoamers } from "./spawner";
+import {
+  ROAMING_ROOM,
+  assignRoamers,
+  makeRoamer,
+  populateCorridors,
+  reinforceDue,
+  roamCap,
+  roamSpawnPoint,
+  roamerCount,
+  updateRoamers,
+} from "./spawner";
 import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
@@ -112,6 +123,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.lockedTiles = new Set();
   state.hazards = [];
   state.boss = null;
+  state.hiddenRoom = null;
   state.floorTime = 0;
   state.reaper = null;
   state.enemies = [];
@@ -164,11 +176,14 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeOssuaryCorpses(state, ends);
   planForkStairs(state);
   assignRoamers(state, new Set([START_ROOM, bossRoom]));
+  populateCorridors(state, pickEnemy, spawnCorridorRoamer);
   clearEmptyOpenRooms(state);
   onFloorStart(state);
   // 契約者と上り階段は最後に置く（それより前の乱数消費を変えない）
   placeContractor(state);
   placeAscend(state);
+  // 隠し部屋の計画は一番最後（それより前の乱数消費を変えないため）
+  planHidden(state);
 }
 
 /**
@@ -373,7 +388,7 @@ function spawnCapped(state: GameState, room: RoomState, index: number, spawning:
   }
 }
 
-function pickEnemy(state: GameState): EnemyDef {
+export function pickEnemy(state: GameState): EnemyDef {
   const pool = enemiesForDepth(state.depth);
   const weight = (d: EnemyDef): number => biomeEnemyWeight(d, state.floorKind);
   const total = pool.reduce((s, d) => s + weight(d), 0);
@@ -383,6 +398,21 @@ function pickEnemy(state: GameState): EnemyDef {
     if (roll <= 0) return def;
   }
   return pool[pool.length - 1] ?? pool[0]!;
+}
+
+/**
+ * 通路に置く徘徊（spawner.ts の populateCorridors が呼ぶ）。部屋の湧きと同じフック
+ * （祝福・ランイベント・エリート）を通してから push した敵を返す。roomIndex は
+ * ROAMING_ROOM 固定なので、この階では最初からどの部屋にも属さない
+ */
+function spawnCorridorRoamer(state: GameState, def: EnemyDef, pos: Vec): Enemy {
+  const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
+  onBoonEnemySpawned(state, e);
+  onRunEnemySpawned(state, e);
+  rollElite(state, e);
+  if (extraEliteRoll(state, e)) rollElite(state, e);
+  state.enemies.push(e);
+  return e;
 }
 
 const FREE_POINT_ATTEMPTS = 30;
@@ -483,6 +513,7 @@ export function updateRooms(state: GameState, dt: number): void {
   updateBossIntro(state, dt);
   updatePickups(state, dt);
   updateFloorItems(state, dt);
+  updateHiddenRoom(state, dt);
   checkStairs(state);
 }
 

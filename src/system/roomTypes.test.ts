@@ -7,7 +7,7 @@ import { ENEMIES } from "../data/enemies";
 import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
-import { buildFloor, descend, enemyCount, insideRoom, withBaseAreaMul } from "./floor";
+import { buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, withBaseAreaMul } from "./floor";
 import { ROOM_LOCKS, applyCurse, chooseFloorKind, fountainPx, hordeMax, isDark, roomLocks } from "./roomTypes";
 import { MAP_SHAPE, floorKindCandidates } from "./biomes";
 import { placeEnemy, withInput } from "./testHelpers";
@@ -342,7 +342,9 @@ describe("部屋の種類", () => {
     enterRoom(state, index);
     expect(state.rooms[index]?.locked).toBe(true);
     const spawned = state.enemies.filter((e) => e.roomIndex === index);
-    expect(spawned.length).toBeGreaterThanOrEqual(enemyCount(state) * ROOM_KIND.ambushEnemyMul - 2);
+    // 敵密度の引き上げで depth 4 でも 2 倍湧きが maxEnemies に掛かることがあるので、その場合はそちらを下限にする
+    const expectedMin = Math.min(enemyCount(state) * ROOM_KIND.ambushEnemyMul, maxEnemiesFor(state.depth));
+    expect(spawned.length).toBeGreaterThanOrEqual(expectedMin - 2);
     expect(spawned.every((e) => e.phase === "spawning")).toBe(true);
     expect(state.texts.some((t) => t.text === "伏兵！")).toBe(true);
   });

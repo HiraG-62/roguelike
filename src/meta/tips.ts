@@ -171,6 +171,7 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
   { key: "floorLord", term: "階の主", category: "run", body: "毎階の最後の部屋に出る主。倒すまで階段は出ない。5 の倍数の階はボスが代わりに出る。" },
+  { key: "hiddenRoom", term: "隠し部屋", category: "run", body: "稀に生成される、壁の中に隠れた小部屋。ひび割れた壁に近づくと風の音がする。体を押し当て続けると開き、遺物と次の階への階段が出る。ボスの出る階には無い。" },
 ];
 
 const HUB_TIPS: readonly TipDef[] = [

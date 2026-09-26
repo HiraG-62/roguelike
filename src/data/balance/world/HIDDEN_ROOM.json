@@ -1,0 +1,29 @@
+{
+  "_note": "隠し部屋（system/hiddenRoom.ts・map/hidden.ts）。壁の中に埋めた岩のポケットで、5 の倍数の階（ボス階）では生成しない。ひび割れた壁に体を押し当てて openHold 秒で開き、お宝と次の階への道が出る",
+  "_fields": {
+    "chance": "この階に隠し部屋を計画する確率。割合(0..1)",
+    "minDepth": "この深度未満では生成しない",
+    "w": "ポケットの横幅（タイル）",
+    "h": "ポケットの縦幅（タイル）",
+    "minSteps": "開始位置からの歩数がこれ未満の通路には置かない（入ってすぐ見つからないように）",
+    "openHold": "扉に体を押し当ててから開くまでの秒",
+    "touchMargin": "扉タイルへの重なり判定に足す半径の余裕（px）。厳密に壁へめり込まなくても「押し当てた」とみなす",
+    "hintRadius": "この距離（px）以内に入ると手がかり（ログ・音・風の粒子）を出す",
+    "hintInterval": "手がかり中、風の粒子を出す間隔（秒）",
+    "items": "開けたときに落ちる遺物の数",
+    "rarityBoost": "開けたときに落ちる遺物の rarityBoost（dropItem の extraBoost）",
+    "color": "ひび・風の粒子・ログの色"
+  },
+  "chance": 0.2,
+  "minDepth": 2,
+  "w": 5,
+  "h": 4,
+  "minSteps": 25,
+  "openHold": 0.5,
+  "touchMargin": 4,
+  "hintRadius": 160,
+  "hintInterval": 1.5,
+  "items": 2,
+  "rarityBoost": 1.2,
+  "color": "#c8a868"
+}

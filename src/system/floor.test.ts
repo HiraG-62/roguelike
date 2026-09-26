@@ -112,14 +112,15 @@ describe("マップの広さ（MAP_SIZE）", () => {
 });
 
 describe("depth 2 の難度調整", () => {
-  it("湧き数は base 3 + floor(depth * 1.0)（depth1:4, depth2:5, depth5:8）。ROOM.baseEnemies は QA 2026-09-23 で 2 → 3、enemiesPerDepth は同日 2 巡目で 0.8 → 1.0", () => {
-    const state = createGame(1);
+  it("湧き数は base 4 + floor(depth * 1.0)（depth1:5, depth2:6, depth5:9）。ROOM.baseEnemies は敵密度の引き上げ（2026-09-26）で 3 → 4", () => {
+    // 面積の倍率を 1 に固定（roomEnemiesExp が 0 でなくなったので、広さの影響を受けない基準値で比べる）
+    const state = withBaseAreaMul(() => createGame(1));
     for (const [depth, expected] of [
-      [1, 4],
-      [2, 5],
-      [3, 6],
-      [4, 7],
-      [5, 8],
+      [1, 5],
+      [2, 6],
+      [3, 7],
+      [4, 8],
+      [5, 9],
     ] as const) {
       state.depth = depth;
       expect(enemyCount(state)).toBe(expected);
@@ -605,14 +606,16 @@ describe("交戦中（isEngaged）: 封鎖中 または 開放型の交戦中", 
     expect(isEngaged(state), "倒すと交戦中でない").toBe(false);
   });
 
-  it("徘徊の敵（どの部屋にも属さない）が近くにいても交戦中にはならない", () => {
+  it("気付いた徘徊（どの部屋にも属さない）が近くにいれば交戦中（C-3: 通路で戦っている間も交戦中）", () => {
     const state = createGame(4);
     const index = openRoomWithEnemies(state);
     const e = state.enemies.find((x) => x.roomIndex === index)!;
     e.roomIndex = ROAMING_ROOM;
     e.phase = "chase";
     e.body.pos = { x: state.player.body.pos.x + 1, y: state.player.body.pos.y };
-    expect(isEngaged(state)).toBe(false);
+    expect(isEngaged(state)).toBe(true);
+    e.body.pos = { x: state.player.body.pos.x + ROAM.engageLeash + 1, y: state.player.body.pos.y };
+    expect(isEngaged(state), "離れると交戦中でない").toBe(false);
   });
 
   it("封鎖中の部屋は敵がいない波の合間でも交戦中", () => {
@@ -873,7 +876,11 @@ describe("戻る（上り階段）", () => {
     // 同じ乱数の流れで深度 5 を普通に作ったときと比べる
     b.depth = 5;
     buildFloor(b);
-    expect(a.enemies.length, "半分").toBe(Math.ceil(b.enemies.length / 2));
+    // ボス・階の主は必ず残るので、半分になるのは非ボスの分だけ（丸ごと ceil(全体/2) にはならない）
+    const isBoss = (e: Enemy) => enemyDef(e.defKey).boss || b.boss?.enemyId === e.id;
+    const bossCount = b.enemies.filter(isBoss).length;
+    const nonBossCount = b.enemies.length - bossCount;
+    expect(a.enemies.length, "半分").toBe(bossCount + Math.ceil(nonBossCount / 2));
   });
 
   it("戻ってから降り直した階では、振り分け点・階層到達の報酬を二重に取らない", () => {

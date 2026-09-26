@@ -692,6 +692,18 @@ export const LAYERED_SFX = {
   // ---- コンボの可視化と爽快感パッケージ（docs/ideas/combat-feel-design.md D-1 / D-5）----
   /** 派生成立: 短い上昇の 2 音 */
   branch: [{ k: "arp", type: "triangle", freqs: [880, 1318.5], note: 0.05, gap: 0.01, peak: 0.2 }],
+
+  // ---- 隠し部屋（system/hiddenRoom.ts）: 手がかりは控えめな風の掃引、開くときは崩落 + 低い鐘の解放感 ----
+  hiddenHint: [
+    { k: "noise", filter: "bandpass", from: 500, to: 1400, dur: 0.5, q: 1.2, attack: 0.15, peak: 0.14 },
+    { k: "noise", filter: "highpass", from: 3000, to: 5000, dur: 0.35, attack: 0.1, peak: 0.05 },
+  ],
+  hiddenOpen: [
+    { k: "noise", filter: "lowpass", from: 800, to: 90, dur: 0.3, attack: 0.02, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 3000, to: 1100, dur: 0.12, q: 2, peak: 0.14, at: 0.06 },
+    { k: "tone", type: "sine", freq: 261.6, dur: 0.6, peak: 0.22, at: 0.1 },
+    { k: "tone", type: "sine", freq: 261.6 * BELL_PARTIAL, dur: 0.4, peak: 0.09, at: 0.1 },
+  ],
 } as const satisfies Partial<Record<SfxName, readonly Layer[]>>;
 
 export type LayeredSfxName = keyof typeof LAYERED_SFX;

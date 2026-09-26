@@ -226,6 +226,11 @@ export const SFX_NAMES = [
   "castPoison",
   "castDark",
   "castLight",
+  // ---- 隠し部屋（system/hiddenRoom.ts）----
+  /** ひび割れた壁に近づいたときの一度きりの手がかり */
+  "hiddenHint",
+  /** 押し当てて隠し部屋が開いた */
+  "hiddenOpen",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];

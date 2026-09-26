@@ -133,7 +133,7 @@ GameState
 - `Date.now()` は生成物の `id` / `foundAt` に使うだけで、挙動には影響しない
 - 描画は `state.rng` を消費しない（見た目のばらつきは `render/renderMath.ts` の座標ハッシュ）
 - スローモーションは `gdt = dt * slowmoScale` で内部時間だけ縮め、ステップ数は変えない
-- リプレイ（`core/replay.ts`）: seed + 起点・ラン修飾子（縛り）+ 依頼報酬で抽選から外れる名のある遺物（`lockedRelics`）+ 開始時の装備 / スキルのスナップショット（`captureLoadout`。所持刻印符の件数も含む）+ FrameInput 列（ランレングス圧縮、照準は差分）+ ラン中の装備変更イベント（何フレーム目の前か）。`REPLAY_VERSION`（現行 9。8 でヒットストップの強さ `hitstopScale` を記録、9 で奥義の選択 `ReplayLoadout.ultimates` と左右アクションの作り直し）は同じ入力列でも進行が変わる更新（武器種の追加、GCD 廃止、開放型マップ化、契約者・演出の乱数分離など）のたびに上げ、`version` が一致しないリプレイは再生を拒否する
+- リプレイ（`core/replay.ts`）: seed + 起点・ラン修飾子（縛り）+ 依頼報酬で抽選から外れる名のある遺物（`lockedRelics`）+ 開始時の装備 / スキルのスナップショット（`captureLoadout`。所持刻印符の件数も含む）+ FrameInput 列（ランレングス圧縮、照準は差分）+ ラン中の装備変更イベント（何フレーム目の前か）。`REPLAY_VERSION`（現行 12。8 でヒットストップの強さ `hitstopScale` を記録、9 で奥義の選択 `ReplayLoadout.ultimates` と左右アクションの作り直し、12 で防御ステータス・頭・地金・毎階の主・隠し部屋・通路の敵）は同じ入力列でも進行が変わる更新（武器種の追加、GCD 廃止、開放型マップ化、契約者・演出の乱数分離など）のたびに上げ、`version` が一致しないリプレイは再生を拒否する
 - `ReplayData.snapshotAfterStart`（2026-09-24 追加）: スナップショットを `createGame` の後に取った記録かどうかの印。ジョブの初期スキル石を既に持っているとき、再生側で倉庫の件数を `createGame` 後の状態に合わせ直すために使う（版は上げず、印の無い旧記録は従来どおり `createGame` 前のスナップショットとして再生する）
 - 再生中は `guardStorageWrites` で永続キーへの書き込みを止め、再生がプロフィールを汚さない
 - デイリーシード: `dailySeedText(new Date())` の文字列を `hashSeed` で seed にする

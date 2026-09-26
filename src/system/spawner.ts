@@ -1,4 +1,4 @@
-import type { Enemy, GameState } from "../core/state";
+import { ROAMING_ROOM, type Enemy, type GameState } from "../core/state";
 import { type Vec, dist, normalize, sub } from "../core/vec";
 import { type EnemyBehavior, type EnemyDef, enemyDef } from "../data/enemies";
 import { MAP_SIZE, ROAM } from "../data/tuning";
@@ -7,7 +7,7 @@ import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { nextWaypoint } from "../map/pathing";
 import { farFromPlayer, moveEnemy } from "./enemies";
 import { spawnSpot } from "./enemyTraits";
-import { overlapsWall } from "./physics";
+import { circlesOverlap, overlapsWall } from "./physics";
 import { ROOM_LOCKS } from "./roomTypes";
 import { isHalted } from "./statusEffects";
 
@@ -18,8 +18,8 @@ import { isHalted } from "./statusEffects";
  * 塊の制圧（その塊の敵の全滅）を妨げない。乱数は state.rng だけで、呼び出し順は floor.ts の updateRooms で固定
  */
 
-/** どの塊にも属さない敵の roomIndex */
-export const ROAMING_ROOM = -1;
+/** どの塊にも属さない敵の roomIndex（core/state.ts から re-export。import 元が多いのでここは変えない） */
+export { ROAMING_ROOM };
 
 /** その場から動かない・隠れている・時間で消える敵は徘徊させない */
 const NO_ROAM_BEHAVIORS: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["graveBell", "inert", "mimic", "hollowArmor"]);
@@ -84,6 +84,83 @@ export function assignRoamers(state: GameState, skip: ReadonlySet<number>): void
     const count = left.get(e.roomIndex) ?? 0;
     if (count <= 1) continue;
     left.set(e.roomIndex, count - 1);
+    makeRoamer(state, e);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 通路への初期配置（C-1: 部屋と通路の区別を消し、どこでも敵に出会うようにする。memo「敵密度」要望）
+// -----------------------------------------------------------------------------
+
+/** 各床タイルが部屋の内側かどうかの印。矩形の部屋は外周 1 マスを除いた内側、塊の部屋は room.tiles */
+function markRoomInterior(state: GameState): Uint8Array {
+  const map = state.map;
+  const owned = new Uint8Array(map.tiles.length);
+  for (const room of state.rooms) {
+    if (room.tiles) {
+      for (const t of room.tiles) owned[t] = 1;
+      continue;
+    }
+    const r = room.rect;
+    for (let y = r.y + 1; y < r.y + r.h - 1; y++) {
+      for (let x = r.x + 1; x < r.x + r.w - 1; x++) owned[toIndex(map, x, y)] = 1;
+    }
+  }
+  return owned;
+}
+
+/** どの部屋の内側でもない床タイル（通路・扉前後）の index 一覧 */
+function corridorTileList(state: GameState): number[] {
+  const map = state.map;
+  const owned = markRoomInterior(state);
+  const out: number[] = [];
+  for (let i = 0; i < map.tiles.length; i++) {
+    if (map.tiles[i] === Tile.Floor && owned[i] === 0) out.push(i);
+  }
+  return out;
+}
+
+/**
+ * 通路タイルからランダムに位置を探す（プレイヤーから corridorMinDist 以上、壁・他の敵に重ならない）。
+ * spawnAttempts 回まで。見つからなければ null（その体は見送る）
+ */
+function corridorSpawnPoint(state: GameState, tiles: readonly number[], radius: number): Vec | null {
+  const map = state.map;
+  const p = state.player.body.pos;
+  for (let n = 0; n < ROAM.spawnAttempts; n++) {
+    const i = tiles[state.rng.int(0, tiles.length - 1)];
+    if (i === undefined) continue;
+    const tx = i % map.width;
+    const ty = Math.floor(i / map.width);
+    const pos = { x: (tx + state.rng.next()) * TILE_SIZE, y: (ty + state.rng.next()) * TILE_SIZE };
+    if (dist(pos, p) < ROAM.corridorMinDist) continue;
+    if (overlapsWall(state, pos.x, pos.y, radius)) continue;
+    if (state.enemies.some((e) => circlesOverlap(pos.x, pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius))) continue;
+    return pos;
+  }
+  return null;
+}
+
+/**
+ * フロア生成時: 通路の床タイル数に応じた数（corridorPerTiles ごとに 1 体、上限 corridorMax）を通路へ直接徘徊として置く。
+ * spawn は createEnemy から祝福・ランイベント・エリートのフックまでを済ませて push 済みの敵を返す関数（floor.ts が渡す）。
+ * spawner.ts が boons.ts / runEvents.ts / elites.ts を直接 import すると、それらが ROAMING_ROOM 目当てに spawner.ts を
+ * import しているため循環になる（reinforceDue と同じ理由）ので、フック呼び出しは floor.ts 側に置く
+ */
+export function populateCorridors(
+  state: GameState,
+  pickEnemy: (state: GameState) => EnemyDef,
+  spawn: (state: GameState, def: EnemyDef, pos: Vec) => Enemy,
+): void {
+  const tiles = corridorTileList(state);
+  if (tiles.length === 0) return;
+  const want = Math.min(ROAM.corridorMax, Math.floor(tiles.length / ROAM.corridorPerTiles));
+  for (let n = 0; n < want; n++) {
+    const def = pickEnemy(state);
+    if (!canRoam(def)) continue;
+    const pos = corridorSpawnPoint(state, tiles, def.radius);
+    if (!pos) continue;
+    const e = spawn(state, def, pos);
     makeRoamer(state, e);
   }
 }

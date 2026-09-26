@@ -149,6 +149,9 @@ export const ROAM = BALANCE.world.ROAM;
 /** ランイベント（src/system/runEvents.ts。docs/ideas/run-expansion.md 3 章）。すべて予告してから始まる */
 export const RUN_EVENT = BALANCE.world.RUN_EVENT;
 
+/** 隠し部屋（src/map/hidden.ts・src/system/hiddenRoom.ts） */
+export const HIDDEN_ROOM = BALANCE.world.HIDDEN_ROOM;
+
 /** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
 export const LINGER = BALANCE.world.LINGER;
 

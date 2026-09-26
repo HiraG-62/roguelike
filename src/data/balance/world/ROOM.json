@@ -11,9 +11,9 @@
     "clearBonus": "部屋を制圧したときの得点。階段を初めて降りたときも clearBonus × 深度 × 位階の倍率が入る"
   },
   "enterMargin": 10,
-  "baseEnemies": 3,
+  "baseEnemies": 4,
   "enemiesPerDepth": 1,
-  "maxEnemies": 12,
+  "maxEnemies": 16,
   "reinforcementRatio": 0.5,
   "spawnTelegraph": 0.7,
   "heartDropChance": 0.2,
