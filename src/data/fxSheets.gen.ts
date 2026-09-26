@@ -35,6 +35,7 @@ import fx_trapper from "./fx/trapper.gen.json";
 import fx_twinBlades from "./fx/twinBlades.gen.json";
 import fx_twinBladesUlt from "./fx/twinBladesUlt.gen.json";
 import fx_wand from "./fx/wand.gen.json";
+import fx_wandUlt from "./fx/wandUlt.gen.json";
 import fx_whip from "./fx/whip.gen.json";
 import fx_whipUlt from "./fx/whipUlt.gen.json";
 
@@ -75,6 +76,7 @@ export const FX_ATLASES = {
   twinBlades: { url: "assets/fx/twinBlades.png", width: fx_twinBlades.width, height: fx_twinBlades.height },
   twinBladesUlt: { url: "assets/fx/twinBladesUlt.png", width: fx_twinBladesUlt.width, height: fx_twinBladesUlt.height },
   wand: { url: "assets/fx/wand.png", width: fx_wand.width, height: fx_wand.height },
+  wandUlt: { url: "assets/fx/wandUlt.png", width: fx_wandUlt.width, height: fx_wandUlt.height },
   whip: { url: "assets/fx/whip.png", width: fx_whip.width, height: fx_whip.height },
   whipUlt: { url: "assets/fx/whipUlt.png", width: fx_whipUlt.width, height: fx_whipUlt.height },
 } as const;
@@ -132,6 +134,7 @@ export const FX_SHEETS = {
   ...fx_twinBlades.sheets,
   ...fx_twinBladesUlt.sheets,
   ...fx_wand.sheets,
+  ...fx_wandUlt.sheets,
   ...fx_whip.sheets,
   ...fx_whipUlt.sheets,
 } satisfies Record<string, FxSheetDef>;
@@ -139,4 +142,4 @@ export const FX_SHEETS = {
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_cannon.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_grenade.fx, fx_gunner.fx, fx_hammer.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_ringBlades.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_trapper.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_whip.fx, fx_whipUlt.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_cannon.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fists.fx, fx_flail.fx, fx_greatsword.fx, fx_grenade.fx, fx_gunner.fx, fx_hammer.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_ringBlades.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_trapper.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_whip.fx, fx_whipUlt.fx] as const;
