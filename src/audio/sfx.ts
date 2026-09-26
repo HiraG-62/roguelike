@@ -21,6 +21,8 @@ import {
 import { SFX_NAMES, type SfxName } from "./sfxNames";
 import { type Layer, playLayers } from "./layers";
 import { LAYERED_SFX, type LayeredSfxName } from "./sfxLayers";
+import { WEAPON_HIT_NAMES, type WeaponHitName } from "./weaponHitNames";
+import { WEAPON_HIT_LAYERS } from "./weaponHits";
 
 /** play() に渡せる再生オプション */
 export interface SfxPlayOptions {
@@ -265,8 +267,19 @@ function layeredDefinitions(): Record<LayeredSfxName, SfxDefinition> {
   return out as Record<LayeredSfxName, SfxDefinition>;
 }
 
+/** 武器種ごとの近接命中音（audio/weaponHits.ts が層を作る）の定義 */
+function weaponHitDefinitions(): Record<WeaponHitName, SfxDefinition> {
+  const out: Partial<Record<WeaponHitName, SfxDefinition>> = {};
+  for (const name of WEAPON_HIT_NAMES) {
+    const layers = WEAPON_HIT_LAYERS[name];
+    out[name] = (ctx, dest, opts) => playLayers(ctx, dest, layers, opts.pitch);
+  }
+  return out as Record<WeaponHitName, SfxDefinition>;
+}
+
 const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
   ...layeredDefinitions(),
+  ...weaponHitDefinitions(),
   death: (ctx, dest, opts) =>
     toneSweep(ctx, dest, opts, {
       type: "sawtooth",

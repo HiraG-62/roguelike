@@ -51,7 +51,8 @@ describe("stats → 近接", () => {
       step(state, withInput({}), FIXED_DT);
       for (const s of state.sfx) heard.add(s);
     }
-    expect(heard.has("hitSlashLight")).toBe(true);
+    // 近接の命中は武器種ごとの音（既定の武器は剣）
+    expect(heard.has("hitW_sword_light")).toBe(true);
   });
 
   it("impact を渡すと系統と重さに応じた命中音の名前が積まれる", () => {
@@ -61,6 +62,14 @@ describe("stats → 近接", () => {
     expect(state.sfx).toContain("hitBluntHeavy");
     expect(state.sfx).not.toContain("hit");
     expect(state.sfx).not.toContain("hitHeavy");
+  });
+
+  it("impact に武器種を渡すと武器種ごとの命中音（hitW_<武器種>_<重さ>）が積まれる", () => {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 999);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee", impact: { family: "slash", weight: "mid", weapon: "katana" } });
+    expect(state.sfx).toContain("hitW_katana_mid");
+    expect(state.sfx).not.toContain("hitSlashMid");
   });
 
   it("怯まない近接ヒットには低域の hitThump が足される（重撃は hitHeavy 自身が低域を持つため足さない）", () => {

@@ -26,6 +26,7 @@ import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
 import { noteUltimateKill, ultimateBlocksEnergy, ultimateCritBonus, ultimateIncomingMul, ultimateOutgoingMul } from "./ultimates";
+import type { MovesetKey } from "../data/weapons";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -76,7 +77,7 @@ export interface HitOptions {
    * 命中音の質感（system/effects.ts の hitSfxName）。近接は武器種の系統 × 段の重さ、未指定は従来の hit / hitHeavy。
    * 射撃は weight: "heavy" のときだけ bulletHitHeavy に差し替える（family は使わない）
    */
-  impact?: { family: HitFamily; weight: HitWeight };
+  impact?: { family: HitFamily; weight: HitWeight; weapon?: MovesetKey };
 }
 
 /** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
@@ -210,7 +211,7 @@ export function damageEnemy(
 
   if (opts.energy !== undefined && opts.energy > 0) gainEnergy(state, opts.energy);
   if (kind === "melee") {
-    pushSfx(state, opts.impact ? hitSfxName(opts.impact.family, opts.impact.weight) : heavy ? "hitHeavy" : "hit");
+    pushSfx(state, opts.impact ? hitSfxName(opts.impact.family, opts.impact.weight, opts.impact.weapon) : heavy ? "hitHeavy" : "hit");
     // 命中の低域のドン（docs/ideas/combat-feel-design.md D-5）。重撃は hitHeavy / 重い impact が既に低域を持つ。
     // 刃・鞭打は高域の「ザシュッ」「ピシッ」が主役で、ドンを重ねると埋もれて鈍い音にしか聞こえないので重ねない
     if (!heavy && !skipsThump(opts.impact?.family)) pushSfx(state, "hitThump");

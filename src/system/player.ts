@@ -1266,7 +1266,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
     crit: out.crit,
     guardBreak: counter,
     finisher,
-    impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo) },
+    impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo), weapon: playerMoveset(state).key },
   });
   if (counter) showCounter(state, pos);
   if (counter) onTraitCounter(state, e);
@@ -1404,7 +1404,7 @@ function justCounterStrike(state: GameState, target: Enemy): void {
     kind: "melee",
     crit: out.crit,
     guardBreak: true,
-    impact: { family: hitFamily(playerMoveset(state).key), weight: "heavy" },
+    impact: { family: hitFamily(playerMoveset(state).key), weight: "heavy", weapon: playerMoveset(state).key },
   });
   gainMeleeMana(state, step.mana, false);
   p.meleeHitCount += 1;

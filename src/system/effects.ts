@@ -4,6 +4,7 @@ import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
 import { EFFECTS, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
 import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures } from "../data/weapons";
+import { weaponHitName } from "../audio/weaponHitNames";
 import type { SfxName } from "../audio/sfxNames";
 import { TRAIT_COLORS, type Item, type TraitColor } from "../loot/types";
 import { colorWeights } from "../loot/resonance";
@@ -407,7 +408,9 @@ export function skipsThump(family: HitFamily | undefined): boolean {
 }
 
 /** 近接命中の音。武器種の系統（刃・打撃・刺突）× 重さで選ぶ（docs/recipes/audio.md） */
-export function hitSfxName(family: HitFamily, weight: HitWeight): SfxName {
+export function hitSfxName(family: HitFamily, weight: HitWeight, weapon?: MovesetKey): SfxName {
+  // 武器種が分かれば武器ごとに作り分けた命中音（audio/weaponHits.ts。重さ・ニュアンスが武器で違う）
+  if (weapon !== undefined) return weaponHitName(weapon, weight);
   return HIT_SFX[family][weight];
 }
 

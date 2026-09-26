@@ -3,6 +3,7 @@
  * 実際の再生は main.ts が audio/sfx.ts を通して行う（ロジックと音を分離）。
  */
 import type { Element } from "../core/element";
+import { WEAPON_HIT_NAMES } from "./weaponHitNames";
 
 export const SFX_NAMES = [
   "slash1",
@@ -231,6 +232,8 @@ export const SFX_NAMES = [
   "hiddenHint",
   /** 押し当てて隠し部屋が開いた */
   "hiddenOpen",
+  // 武器種ごとの近接命中音 hitW_<武器種>_<重さ>（audio/weaponHitNames.ts が生成、層は audio/weaponHits.ts）
+  ...WEAPON_HIT_NAMES,
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];
