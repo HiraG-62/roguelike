@@ -133,8 +133,23 @@ function head(frame, sk) {
   const fy = Math.round(h.y) + 1;
   const face = frame.newGroup();
   paint(frame, faceShape(fx, fy), SKIN, { group: face });
-  // 前髪（額を斜めに覆い、横に一房）
-  paint(frame, union(ellipse(fx - 0.5, fy - 4.3, 5.6, 2.4), ellipse(fx + 3.2, fy - 3.4, 2.6, 1.8), ellipse(fx - 3.6, fy - 1.6, 1.8, 3)), HAIR, { group: face, maxShade: 2 });
+  // 前髪: 頭の丸みで陰を付けた髪の塊から、毛束が額へ尖って下りる（平らな帯にしない）
+  paint(
+    frame,
+    union(
+      ellipse(fx - 0.8, fy - 4.6, 5.6, 2.2),
+      polygon([[fx - 4.5, fy - 5], [fx - 3.2, fy - 0.5], [fx - 1.8, fy - 4]]),
+      polygon([[fx - 2.2, fy - 4.5], [fx - 0.6, fy - 2.2], [fx + 0.8, fy - 4.4]]),
+      polygon([[fx + 0.4, fy - 4.5], [fx + 2.2, fy - 1.9], [fx + 3.2, fy - 4.2]]),
+      polygon([[fx + 2.6, fy - 4.4], [fx + 4.4, fy - 2.6], [fx + 4.6, fy - 4.6]]),
+    ),
+    HAIR,
+    { group: face, bias: 0.15 },
+  );
+  // 髪の艶（左上の毛束に短い光の筋）
+  px(frame, fx - 2.5, fy - 5, HAIR[3]);
+  px(frame, fx - 1.5, fy - 5, HAIR[3]);
+  px(frame, fx - 2.5, fy - 4, HAIR[2]);
   // 頭巾の縁: 額の上と後ろ側だけ（顔の前を覆わない）
   paint(frame, hoodRim(fx, fy - 0.5), HOOD, { group: g, bias: 0.3 });
   // 眼: 縦長の小さな点を 2 つ（塊にすると眼鏡に見えるので、1 ドット幅で間を空ける）
@@ -146,16 +161,20 @@ function head(frame, sk) {
 
 const FACE_INK = { k: EYE };
 
-/** 顔: 平らに塗り、左上に明部、あごの下に影（光で顔の前が暗く沈まないように法線を使わない） */
+/**
+ * 顔: ほぼ一色で塗り、頬に小さな明部、あごの縁にだけ影（光で顔の前が暗く沈まないように法線を使わない。
+ * 明暗を面で分けると顔の上下で色がくっきり割れて見えるので、明部と影は数ドットに留める）
+ */
 function faceShape(cx, cy) {
   const rx = 5.4;
   const ry = 5.6;
   return (x, y) => {
     const nx = (x - cx) / rx;
     const ny = (y - cy) / ry;
-    if (nx * nx + ny * ny > 1 || x < cx - 4.6) return null;
-    if (ny > 0.62) return 0;
-    if (nx < -0.25 && ny < 0.15) return 2;
+    const d = nx * nx + ny * ny;
+    if (d > 1 || x < cx - 4.6) return null;
+    if (ny > 0.55 && d > 0.72) return 0;
+    if (Math.hypot(x - (cx - 2.6), y - (cy + 1.6)) < 0.75) return 2;
     return 1;
   };
 }
