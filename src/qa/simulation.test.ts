@@ -1627,8 +1627,9 @@ const REPORT_END = "<<<QA_REPORT_END>>>";
 /**
  * フル版の制限時間（ms）。マップ拡大（MAP_SIZE の面積 3.5〜5 倍）で 1 ランの階が広く敵も多くなり、
  * 1 ステップ約 1.15 倍・ランの長さも伸びて、基準 約 570 秒の実行が約 920 秒（2026-09-25 実測）になったため 600 秒から 2 倍に広げる
+ * 2026-09-26: 毎階の主と敵の増量で約 1,520 秒になったので 2,400 秒に広げる
  */
-const FULL_TIMEOUT_MS = 1_200_000;
+const FULL_TIMEOUT_MS = 2_400_000;
 
 describe("QA simulation (フル版, SIM_FULL=1)", () => {
   it.runIf(FULL)(
