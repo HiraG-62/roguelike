@@ -1,6 +1,6 @@
 // 大鎌: 死神の長柄の鎌。黒い木の長柄に鉄の帯金、先の口金から刃が振りの向き（-y）へ張り出し、切っ先は握りの側へ鉤に巻き込む。
 // 刃は黒鉄の峰（外の凸側）と鋼の刃（内の凹側）の二色で、刃の縁に艶。口金に赤い布を結び、柄の尻に鉄の石突。
-// エフェクト（scripts/fx/sheets/scythe.mjs）の「外縁の弧 + 内へ巻く鉤」と同じ読みになるよう、刃は握りを中心にした弧に沿わせる
+// エフェクト（scripts/fx/sheets/scythe.mjs）の「外縁の弧 + 内へ巻く鉤」と同じ読みになるよう、刃は浅い弧に沿わせる
 import { capsule, ellipse, paint, polygon, px, union } from "../paint.mjs";
 import { CLOTH_RED, DARK_STEEL, GOLD, STEEL, shaft, weaponSheets } from "../weapon.mjs";
 
@@ -10,8 +10,10 @@ const DARK_WOOD = ["#1c1619", "#33282a", "#4b3b3a", "#64504b"];
 const OFF_GRIP = -14;
 /** 柄の先（口金の中心）と刃の弧の中心・半径 */
 const HEAD_X = 40;
-const ARC_CX = 12;
-const ARC_CY = 2;
+/** 刃の弧は大きな半径で浅く反らせる（小さな半径で深く巻くと鉤に見えすぎる） */
+const ARC_CX = -12;
+const ARC_CY = 4.5;
+const ARC_R = 56;
 
 /** 弧の上の点（中心 ARC、半径 r、角 a 度。0 = +x、-90 = -y） */
 function arcPt(r, a) {
@@ -24,15 +26,15 @@ function bladeOutline() {
   const outer = [];
   const inner = [];
   const A0 = -6;
-  const A1 = -118;
+  const A1 = -52;
   const N = 16;
   for (let i = 0; i <= N; i++) {
     const u = i / N;
     const a = A0 + (A1 - A0) * u;
     // 峰の半径: 先へ行くほど内へ巻き込む（鉤）
-    const rOut = 32 - 6 * Math.pow(u, 2.4);
+    const rOut = ARC_R - 3 * Math.pow(u, 2.4);
     // 刃の幅: 根元で太く、先で尖る
-    const w = 11 * Math.pow(1 - u, 0.75) + 0.3;
+    const w = 9.5 * Math.pow(1 - u, 0.75) + 0.3;
     outer.push(arcPt(rOut, a));
     inner.push(arcPt(rOut - w, a));
   }

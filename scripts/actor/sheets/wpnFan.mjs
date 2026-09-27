@@ -9,12 +9,12 @@ const PIVOT_X = -3;
 /** 開いた角（+x = 0、負 = 上）。上へ大きく、下へ少しだけ開く */
 const OPEN_FROM = -80 * DEG;
 const OPEN_TO = 14 * DEG;
-/** 紙の張ってある範囲（要からの半径）と外周の金の縁 */
-const LEAF_IN = 12;
-const LEAF_OUT = 29;
-const RIM_IN = 26.7;
+/** 紙の張ってある範囲（要からの半径）と外周の金の縁。体より大きく見えないよう半径 19 ドットに留める */
+const LEAF_IN = 8;
+const LEAF_OUT = 19;
+const RIM_IN = 17.2;
 /** 折り目の数（紙の面） */
-const PLEATS = 9;
+const PLEATS = 7;
 /** 朱の紙（暗・基・明・艶）。鉄の骨と金の縁の間で識別色になる */
 const LACQUER = ["#3c1219", "#6e1f28", "#9c3036", "#c65446"];
 
@@ -76,7 +76,7 @@ function draw(frame) {
     (x, y) => {
       const p = polar(x, y);
       if (!inOpen(p.a) || p.a < -62 * DEG || p.a > -8 * DEG) return null;
-      return Math.abs(p.r - 19.5) < 0.7 ? { nx: 0, ny: -0.3 } : null;
+      return Math.abs(p.r - 13) < 0.6 ? { nx: 0, ny: -0.3 } : null;
     },
     GOLD,
     { rim: false, maxShade: 2 },
@@ -98,7 +98,7 @@ function draw(frame) {
   for (const a of [OPEN_FROM, OPEN_TO]) {
     const [x, y] = at(a, LEAF_OUT + 0.5);
     paint(frame, capsule(PIVOT_X, 0, x, y, 1.5, 1.1), DARK_STEEL);
-    const [sx, sy] = at(a, LEAF_OUT - 3);
+    const [sx, sy] = at(a, LEAF_OUT - 2.2);
     paint(frame, ellipse(sx, sy, 0.9, 0.9), GOLD, { rim: false });
     const [mx, my] = at(a, LEAF_IN);
     paint(frame, ellipse(mx, my, 0.9, 0.9), GOLD, { rim: false });
@@ -112,6 +112,6 @@ function draw(frame) {
 
 export const ATLAS = {
   key: "wpnFan",
-  sheets: weaponSheets("wpnFan", draw, { size: 80, edge: true }),
+  sheets: weaponSheets("wpnFan", draw, { size: 56, edge: true }),
   meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: -40, restHand: [7, 7], restMirror: true, swayDeg: 5 } },
 };
