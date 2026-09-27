@@ -201,7 +201,7 @@ const DEG = Math.PI / 180;
 /** これより上を向いたら体の後ろ（sin の値） */
 const BEHIND_SIN = -0.38;
 /** 二丁の銃の後ろの手の銃（前の手から、ドット） */
-const DUAL_AIM_OFFSET: Pt = { x: -3, y: 2 };
+const DUAL_AIM_OFFSET: Pt = { x: -3, y: 5 };
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
 const FREE_HAND: Pt = { x: -1, y: 9 };
 
