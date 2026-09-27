@@ -1,13 +1,11 @@
-// 見習い（ジョブなし）の体: 深層へ潜る探索者。尖った頭巾と肩掛け、裾の割れた長い外套、長い赤い襟巻き、革の胴着、膝までの長靴。
-// 世界観（深層の遺跡・修道院・死神）に合わせ、彩度は襟巻きの赤だけを立てて他は落とす。
-// 外套の裾と襟巻きは姿勢の flow（動きの勢い）で後ろへなびき、sway でゆっくり揺れる
+// 見習い（ジョブなし）の体: 深層へ潜る探索者。頭巾付きの短い外套、赤い襟巻き、革の胴着、長靴。
+// 世界観（深層の遺跡・修道院・死神）に合わせ、彩度は襟巻きの赤だけを立てて他は落とす
 import { capsule, ellipse, paint, polygon, px, stamp, union } from "../paint.mjs";
 import { bodySheets, mid } from "../rig.mjs";
 
 const SKIN = ["#8a4c3c", "#c27f5f", "#dfa27c", "#f0c49e"];
 const HAIR = ["#2a1c1f", "#46302d", "#644437", "#7e5a45"];
 const HOOD = ["#1c2a2e", "#2c4446", "#3f6061", "#577f7d"];
-const COAT = ["#18242a", "#26393d", "#375457", "#4d7170"];
 const TUNIC = ["#33221f", "#553729", "#77503a", "#946c4c"];
 const SCARF = ["#4a1820", "#7c2830", "#a63d3c", "#c9614f"];
 const PANTS = ["#1f1f2a", "#313245", "#46485e", "#5d6078"];
@@ -15,83 +13,59 @@ const BOOTS = ["#1c1517", "#382925", "#523c34", "#6b5143"];
 const BRASS = ["#5c4726", "#8e733c", "#c2a153", "#e8d48e"];
 const EYE = "#1a1620";
 
-/** 腕（実行時に描く）の色: 袖 3 段・手 3 段。袖は外套の色 */
-export const ARM_COLORS = { sleeve: [COAT[0], COAT[1], COAT[2]], hand: [BOOTS[1], BOOTS[2], BOOTS[3]] };
+/** 腕（実行時に描く）の色: 袖 3 段・手 3 段 */
+export const ARM_COLORS = { sleeve: [TUNIC[0], TUNIC[1], TUNIC[2]], hand: [BOOTS[1], BOOTS[2], BOOTS[3]] };
 
 function leg(frame, sk, side) {
   const hip = side === "F" ? sk.hipF : sk.hipB;
   const kn = side === "F" ? sk.kneeF : sk.kneeB;
   const foot = side === "F" ? sk.footF : sk.footB;
-  const dim = side === "B" ? -0.3 : 0;
+  const dim = side === "B" ? -0.25 : 0;
   const g = frame.newGroup();
-  paint(frame, union(capsule(hip.x, hip.y, kn.x, kn.y, 2.5, 2.1), capsule(kn.x, kn.y, foot.x, foot.y - 3, 2.1, 1.9)), PANTS, { group: g, bias: dim });
-  // 膝下までの長靴（膝の少し下から爪先まで。爪先は細く尖らせる）
-  const top = mid(kn, foot, 0.18);
-  const toe = polygon(
-    [
-      [foot.x - 2, foot.y - 3.2],
-      [foot.x + 4.8, foot.y - 1],
-      [foot.x + 4, foot.y + 0.3],
-      [foot.x - 2.4, foot.y + 0.3],
-    ],
-    { round: 1.2 },
-  );
-  paint(frame, union(capsule(top.x, top.y, foot.x, foot.y - 2, 2.3, 2.1), toe), BOOTS, { group: g, bias: dim });
+  paint(frame, union(capsule(hip.x, hip.y, kn.x, kn.y, 2.6, 2.3), capsule(kn.x, kn.y, foot.x, foot.y - 3, 2.3, 2.2)), PANTS, { group: g, bias: dim });
+  // 長靴: 脛の下半分から爪先まで
+  const shin = mid(kn, foot, 0.35);
+  paint(frame, union(capsule(shin.x, shin.y, foot.x, foot.y - 2, 2.6, 2.7), ellipse(foot.x + 1.6, foot.y - 1.4, 3.6, 1.8)), BOOTS, { group: g, bias: dim });
   // 折り返し
-  paint(frame, capsule(top.x - 0.2, top.y, top.x + 0.2, top.y + 0.3, 2.8), BOOTS, { group: g, bias: dim + 0.25, maxShade: 2 });
+  paint(frame, capsule(shin.x - 0.3, shin.y, shin.x + 0.3, shin.y + 0.4, 3.1), BOOTS, { group: g, bias: dim + 0.2, maxShade: 2 });
 }
 
-/** 外套の後ろ身頃: 肩から膝まで。裾は二つに割れて後ろへなびく */
-function coatBack(frame, sk) {
-  const c = sk.chest;
-  const h = sk.hip;
-  const f = sk.ps.flow;
+function scarfTail(frame, sk) {
+  const n = sk.neck;
   const s = sk.ps.sway;
-  const hemY = h.y + 11 - f * 3;
+  // 首の後ろから後ろへなびく 2 本の細い端（腕と見間違えない細さ・高さ）
+  for (const [dy, len, r] of [
+    [0, 9, 1.3],
+    [1.8, 7, 1.1],
+  ]) {
+    const a = { x: n.x - 3, y: n.y + dy };
+    const b = { x: a.x - len * 0.55, y: a.y + 1.5 - s * 1.2 };
+    const c = { x: a.x - len - s * 2, y: a.y + 2.5 - s * 2.2 };
+    paint(frame, union(capsule(a.x, a.y, b.x, b.y, r + 0.3, r), capsule(b.x, b.y, c.x, c.y, r, r * 0.7)), SCARF, { bias: -0.1, maxShade: 2 });
+  }
+}
+
+function cloakBack(frame, sk) {
+  const c = sk.chest;
+  const s = sk.ps.sway;
+  // 背中側に垂れる外套の裾（後ろへなびく）
   paint(
     frame,
     polygon(
       [
-        [c.x - 5, c.y - 4],
-        [c.x + 2, c.y - 4],
-        [h.x + 3, h.y + 2],
-        [h.x + 1 - f * 2, hemY + 1],
-        [h.x - 3 - f * 5 - s, hemY - 1.5],
-        [h.x - 5 - f * 7 - s * 1.5, hemY + 1.5 - f],
-        [h.x - 7 - f * 7 - s * 2, hemY - 3 - f * 2],
-        [c.x - 7, c.y + 3],
+        [c.x - 5, c.y - 5],
+        [c.x + 2, c.y - 5],
+        [c.x + 1, sk.hip.y + 3],
+        [c.x - 6 - s * 3, sk.hip.y + 4 + Math.abs(s)],
+        [c.x - 9 - s * 3, sk.hip.y + 1],
       ],
-      { round: 2, tilt: { nx: -0.25, ny: 0.1 } },
+      { round: 2.5, tilt: { nx: -0.2, ny: 0.1 } },
     ),
-    COAT,
-    { bias: -0.15 },
+    HOOD,
+    { bias: -0.2 },
   );
 }
 
-/**
- * 長い襟巻きの端: 首の後ろから 2 本。止まっていれば背中へ垂れ、動きの勢い（flow）で後ろへ水平に流れる。
- * 2 節で少し波打たせ、先ほど細くする
- */
-function scarfTail(frame, sk) {
-  const n = sk.neck;
-  const s = sk.ps.sway;
-  const f = sk.ps.flow;
-  const deg = Math.PI / 180;
-  const ang = (100 + Math.min(1.5, Math.max(-0.5, f)) * 65) * deg;
-  for (const [dy, len, r, lag] of [
-    [0, 13, 1.3, 0],
-    [1.6, 10, 1.1, 8],
-  ]) {
-    const a = { x: n.x - 3, y: n.y + dy };
-    const a1 = ang + (-8 + s * 6 + lag) * deg;
-    const a2 = ang + (10 - s * 8 + lag) * deg;
-    const b = { x: a.x + Math.cos(a1) * len * 0.5, y: a.y + Math.sin(a1) * len * 0.5 };
-    const c = { x: b.x + Math.cos(a2) * len * 0.5, y: b.y + Math.sin(a2) * len * 0.5 };
-    paint(frame, union(capsule(a.x, a.y, b.x, b.y, r + 0.3, r), capsule(b.x, b.y, c.x, c.y, r, r * 0.6)), SCARF, { bias: -0.1, maxShade: 2 });
-  }
-}
-
-/** 胴: 肩を張り腰を絞った胴着、帯と留め金、腰の小物入れ */
 function torso(frame, sk) {
   const c = sk.chest;
   const h = sk.hip;
@@ -102,94 +76,55 @@ function torso(frame, sk) {
       [
         [c.x - 5.5, c.y - 5],
         [c.x + 5, c.y - 5],
-        [c.x + 5, c.y + 1],
-        [h.x + 3.8, h.y - 1],
-        [h.x + 4.2, h.y + 2],
-        [h.x - 4, h.y + 2],
-        [h.x - 3.6, h.y - 1],
-        [c.x - 5.5, c.y + 1],
+        [c.x + 6, c.y + 1],
+        [h.x + 5.5, h.y + 1.5],
+        [h.x - 5, h.y + 1.5],
+        [c.x - 6, c.y + 1],
       ],
-      { round: 2.5 },
+      { round: 3 },
     ),
     TUNIC,
     { group: g },
   );
   // 胴着の前合わせ（縫い目）
-  for (let y = c.y - 3; y < h.y - 1; y += 1) px(frame, c.x + 2.5 + (y - c.y) * 0.1, y, TUNIC[0]);
-  // 帯（斜めに締める）と真鍮の留め金
-  paint(frame, capsule(h.x - 4.2, h.y - 1.2, h.x + 4.5, h.y - 2, 1.3), BOOTS, { group: g, bias: 0.1, maxShade: 2 });
-  paint(frame, ellipse(h.x + 2, h.y - 1.7, 1.4, 1.4), BRASS, { rim: false });
-  paint(frame, ellipse(h.x - 3.6, h.y + 1, 1.9, 1.8), TUNIC, { bias: 0.15 });
+  for (let y = c.y - 3; y < h.y + 1; y += 1) px(frame, c.x + 2.5 + (y - c.y) * 0.08, y, TUNIC[0]);
+  // 帯と真鍮の留め金
+  paint(frame, capsule(h.x - 5, h.y - 1.5, h.x + 5.5, h.y - 1.5, 1.4), BOOTS, { group: g, bias: 0.1, maxShade: 2 });
+  paint(frame, ellipse(h.x + 2.5, h.y - 1.5, 1.6, 1.6), BRASS, { rim: false });
+  // 腰の小物入れ
+  paint(frame, ellipse(h.x - 4, h.y + 0.5, 2.2, 2), TUNIC, { bias: 0.15 });
 }
 
-/** 外套の前身頃（開いた前立て）。前の肩から裾へ、胴着の前を縁取る */
-function coatFront(frame, sk) {
-  const c = sk.chest;
-  const h = sk.hip;
-  const f = sk.ps.flow;
-  paint(
-    frame,
-    polygon(
-      [
-        [c.x + 2.5, c.y - 5],
-        [c.x + 5.5, c.y - 4],
-        [c.x + 5, c.y + 2],
-        [h.x + 4.8, h.y + 3],
-        [h.x + 3.5 - f * 2, h.y + 8 - f * 1.5],
-        [h.x + 1.5 - f * 2.5, h.y + 7 - f * 1.5],
-        [h.x + 2.6, h.y + 1],
-        [c.x + 3, c.y],
-      ],
-      { round: 1.5 },
-    ),
-    COAT,
-  );
-}
-
-/** 肩掛け（頭巾から続く短い肩の覆い） */
-function mantle(frame, sk) {
+function capelet(frame, sk) {
   const n = sk.neck;
   const s = sk.ps.sway;
+  // 肩を覆う短い外套（頭巾から続く）。前は胸の上まで、後ろは肩甲骨まで
   paint(
     frame,
     polygon(
       [
-        [n.x - 6, n.y],
-        [n.x + 4, n.y],
-        [n.x + 6.5, n.y + 3.5],
-        [n.x + 4, n.y + 6],
-        [n.x - 2, n.y + 6.5],
-        [n.x - 7.5 - s, n.y + 5],
+        [n.x - 7, n.y - 1],
+        [n.x + 5, n.y - 1],
+        [n.x + 7, n.y + 4],
+        [n.x + 4, n.y + 7],
+        [n.x - 2, n.y + 7.5],
+        [n.x - 8 - s, n.y + 6],
       ],
-      { round: 2.5 },
+      { round: 3 },
     ),
     HOOD,
   );
-}
-
-function scarfWrap(frame, sk) {
-  const n = sk.neck;
-  paint(frame, union(ellipse(n.x + 0.5, n.y + 0.8, 4.6, 2.1), ellipse(n.x + 3, n.y + 2.6, 1.7, 2.3)), SCARF);
+  // 外套の縁取り（裾の 1 段暗い線）
+  for (let x = -7; x <= 4; x++) px(frame, n.x + x, n.y + 6.5 + (x < -1 ? (x + 1) * -0.15 : (x + 1) * 0.1), HOOD[0]);
 }
 
 function head(frame, sk) {
   const h = sk.head;
   const g = frame.newGroup();
-  // 頭巾（頭より一回り大きく、後ろへ長く尖る。動きで先がなびく）
-  const f = sk.ps.flow;
+  // 頭巾の後ろ（頭より大きく、後ろへ尖る）
   paint(
     frame,
-    union(
-      ellipse(h.x - 0.4, h.y - 0.4, 7, 6.9),
-      polygon(
-        [
-          [h.x - 5, h.y - 4],
-          [h.x - 11 - f * 2 - sk.ps.sway, h.y - 1 + f],
-          [h.x - 4, h.y + 4],
-        ],
-        { round: 1.5 },
-      ),
-    ),
+    union(ellipse(h.x - 0.5, h.y - 0.5, 8.6, 8.4), polygon([[h.x - 6, h.y - 5], [h.x - 11 - sk.ps.sway * 1.5, h.y + 1], [h.x - 5, h.y + 5]], { round: 2 })),
     HOOD,
     { group: g },
   );
@@ -202,22 +137,26 @@ function head(frame, sk) {
   paint(
     frame,
     union(
-      ellipse(fx - 0.7, fy - 3.8, 4.6, 1.9),
-      polygon([[fx - 3.7, fy - 4.1], [fx - 2.6, fy - 0.4], [fx - 1.5, fy - 3.3]]),
-      polygon([[fx - 1.8, fy - 3.7], [fx - 0.5, fy - 1.8], [fx + 0.7, fy - 3.6]]),
-      polygon([[fx + 0.3, fy - 3.7], [fx + 1.8, fy - 1.6], [fx + 2.6, fy - 3.4]]),
-      polygon([[fx + 2.1, fy - 3.6], [fx + 3.6, fy - 2.1], [fx + 3.8, fy - 3.8]]),
+      ellipse(fx - 0.8, fy - 4.6, 5.6, 2.2),
+      polygon([[fx - 4.5, fy - 5], [fx - 3.2, fy - 0.5], [fx - 1.8, fy - 4]]),
+      polygon([[fx - 2.2, fy - 4.5], [fx - 0.6, fy - 2.2], [fx + 0.8, fy - 4.4]]),
+      polygon([[fx + 0.4, fy - 4.5], [fx + 2.2, fy - 1.9], [fx + 3.2, fy - 4.2]]),
+      polygon([[fx + 2.6, fy - 4.4], [fx + 4.4, fy - 2.6], [fx + 4.6, fy - 4.6]]),
     ),
     HAIR,
     { group: face, bias: 0.15 },
   );
-  px(frame, fx - 2, fy - 4, HAIR[3]);
-  px(frame, fx - 1, fy - 4, HAIR[3]);
+  // 髪の艶（左上の毛束に短い光の筋）
+  px(frame, fx - 2.5, fy - 5, HAIR[3]);
+  px(frame, fx - 1.5, fy - 5, HAIR[3]);
+  px(frame, fx - 2.5, fy - 4, HAIR[2]);
   // 頭巾の縁: 額の上と後ろ側だけ（顔の前を覆わない）
-  paint(frame, hoodRim(fx, fy - 0.4), HOOD, { group: g, bias: 0.3 });
+  paint(frame, hoodRim(fx, fy - 0.5), HOOD, { group: g, bias: 0.3 });
   // 眼: 縦長の小さな点を 2 つ（塊にすると眼鏡に見えるので、1 ドット幅で間を空ける）
   stamp(frame, fx - 0.5, fy - 1, ["k", "k"], FACE_INK);
-  stamp(frame, fx + 2, fy - 1, ["k", "k"], FACE_INK);
+  stamp(frame, fx + 2.5, fy - 1, ["k", "k"], FACE_INK);
+  // 口元の影
+  px(frame, fx + 1, fy + 3, SKIN[0]);
 }
 
 const FACE_INK = { k: EYE };
@@ -227,39 +166,43 @@ const FACE_INK = { k: EYE };
  * 明暗を面で分けると顔の上下で色がくっきり割れて見えるので、明部と影は数ドットに留める）
  */
 function faceShape(cx, cy) {
-  const rx = 4.5;
-  const ry = 4.7;
+  const rx = 5.4;
+  const ry = 5.6;
   return (x, y) => {
     const nx = (x - cx) / rx;
     const ny = (y - cy) / ry;
     const d = nx * nx + ny * ny;
-    if (d > 1 || x < cx - 3.8) return null;
+    if (d > 1 || x < cx - 4.6) return null;
     if (ny > 0.55 && d > 0.72) return 0;
-    if (Math.hypot(x - (cx - 2.1), y - (cy + 1.3)) < 0.7) return 2;
+    if (Math.hypot(x - (cx - 2.6), y - (cy + 1.6)) < 0.75) return 2;
     return 1;
   };
 }
 
 /** 頭巾の縁（顔を囲む厚み）のうち、額の上と後ろ側 */
 function hoodRim(cx, cy) {
-  const outer = ellipse(cx - 0.3, cy, 6.1, 6.2);
+  const outer = ellipse(cx - 0.4, cy, 7.4, 7.6);
   return (x, y) => {
-    const nx = (x - cx) / 4.8;
-    const ny = (y - cy) / 5.1;
+    const nx = (x - cx) / 5.8;
+    const ny = (y - cy) / 6.2;
     if (nx * nx + ny * ny <= 1) return null;
-    if (y > cy - 2.5 && x > cx - 2.9) return null;
+    if (y > cy - 3 && x > cx - 3.5) return null;
     return outer(x, y);
   };
 }
 
+function scarfWrap(frame, sk) {
+  const n = sk.neck;
+  paint(frame, union(ellipse(n.x + 0.5, n.y + 0.5, 5.5, 2.4), ellipse(n.x + 3.5, n.y + 2.5, 2, 2.6)), SCARF);
+}
+
 function draw(frame, sk) {
-  coatBack(frame, sk);
-  scarfTail(frame, sk);
   leg(frame, sk, "B");
+  scarfTail(frame, sk);
+  cloakBack(frame, sk);
   torso(frame, sk);
   leg(frame, sk, "F");
-  coatFront(frame, sk);
-  mantle(frame, sk);
+  capelet(frame, sk);
   scarfWrap(frame, sk);
   head(frame, sk);
 }
