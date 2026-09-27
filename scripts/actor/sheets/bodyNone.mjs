@@ -24,7 +24,7 @@ function leg(frame, sk, side) {
   const foot = side === "F" ? sk.footF : sk.footB;
   const dim = side === "B" ? -0.3 : 0;
   const g = frame.newGroup();
-  paint(frame, union(capsule(hip.x, hip.y, kn.x, kn.y, 2.3, 1.9), capsule(kn.x, kn.y, foot.x, foot.y - 3, 1.9, 1.7)), PANTS, { group: g, bias: dim });
+  paint(frame, union(capsule(hip.x, hip.y, kn.x, kn.y, 2.5, 2.1), capsule(kn.x, kn.y, foot.x, foot.y - 3, 2.1, 1.9)), PANTS, { group: g, bias: dim });
   // 膝下までの長靴（膝の少し下から爪先まで。爪先は細く尖らせる）
   const top = mid(kn, foot, 0.18);
   const toe = polygon(
@@ -47,7 +47,7 @@ function coatBack(frame, sk) {
   const h = sk.hip;
   const f = sk.ps.flow;
   const s = sk.ps.sway;
-  const hemY = h.y + 13 - f * 3;
+  const hemY = h.y + 11 - f * 3;
   paint(
     frame,
     polygon(
@@ -180,12 +180,12 @@ function head(frame, sk) {
   paint(
     frame,
     union(
-      ellipse(h.x - 0.4, h.y - 0.3, 6.2, 6),
+      ellipse(h.x - 0.4, h.y - 0.4, 7, 6.9),
       polygon(
         [
-          [h.x - 4.5, h.y - 4],
-          [h.x - 10 - f * 2 - sk.ps.sway, h.y - 1 + f],
-          [h.x - 3.5, h.y + 3],
+          [h.x - 5, h.y - 4],
+          [h.x - 11 - f * 2 - sk.ps.sway, h.y - 1 + f],
+          [h.x - 4, h.y + 4],
         ],
         { round: 1.5 },
       ),
@@ -202,20 +202,22 @@ function head(frame, sk) {
   paint(
     frame,
     union(
-      ellipse(fx - 0.6, fy - 3.4, 4.1, 1.7),
-      polygon([[fx - 3.3, fy - 3.7], [fx - 2.4, fy - 0.5], [fx - 1.3, fy - 3]]),
-      polygon([[fx - 1.6, fy - 3.3], [fx - 0.4, fy - 1.6], [fx + 0.7, fy - 3.2]]),
-      polygon([[fx + 0.3, fy - 3.3], [fx + 1.6, fy - 1.5], [fx + 2.4, fy - 3.1]]),
+      ellipse(fx - 0.7, fy - 3.8, 4.6, 1.9),
+      polygon([[fx - 3.7, fy - 4.1], [fx - 2.6, fy - 0.4], [fx - 1.5, fy - 3.3]]),
+      polygon([[fx - 1.8, fy - 3.7], [fx - 0.5, fy - 1.8], [fx + 0.7, fy - 3.6]]),
+      polygon([[fx + 0.3, fy - 3.7], [fx + 1.8, fy - 1.6], [fx + 2.6, fy - 3.4]]),
+      polygon([[fx + 2.1, fy - 3.6], [fx + 3.6, fy - 2.1], [fx + 3.8, fy - 3.8]]),
     ),
     HAIR,
     { group: face, bias: 0.15 },
   );
-  px(frame, fx - 1.5, fy - 4, HAIR[3]);
+  px(frame, fx - 2, fy - 4, HAIR[3]);
+  px(frame, fx - 1, fy - 4, HAIR[3]);
   // 頭巾の縁: 額の上と後ろ側だけ（顔の前を覆わない）
   paint(frame, hoodRim(fx, fy - 0.4), HOOD, { group: g, bias: 0.3 });
   // 眼: 縦長の小さな点を 2 つ（塊にすると眼鏡に見えるので、1 ドット幅で間を空ける）
   stamp(frame, fx - 0.5, fy - 1, ["k", "k"], FACE_INK);
-  stamp(frame, fx + 1.5, fy - 1, ["k", "k"], FACE_INK);
+  stamp(frame, fx + 2, fy - 1, ["k", "k"], FACE_INK);
 }
 
 const FACE_INK = { k: EYE };
@@ -225,27 +227,27 @@ const FACE_INK = { k: EYE };
  * 明暗を面で分けると顔の上下で色がくっきり割れて見えるので、明部と影は数ドットに留める）
  */
 function faceShape(cx, cy) {
-  const rx = 3.9;
-  const ry = 4.3;
+  const rx = 4.5;
+  const ry = 4.7;
   return (x, y) => {
     const nx = (x - cx) / rx;
     const ny = (y - cy) / ry;
     const d = nx * nx + ny * ny;
-    if (d > 1 || x < cx - 3.3) return null;
+    if (d > 1 || x < cx - 3.8) return null;
     if (ny > 0.55 && d > 0.72) return 0;
-    if (Math.hypot(x - (cx - 1.8), y - (cy + 1.2)) < 0.7) return 2;
+    if (Math.hypot(x - (cx - 2.1), y - (cy + 1.3)) < 0.7) return 2;
     return 1;
   };
 }
 
 /** 頭巾の縁（顔を囲む厚み）のうち、額の上と後ろ側 */
 function hoodRim(cx, cy) {
-  const outer = ellipse(cx - 0.3, cy, 5.4, 5.6);
+  const outer = ellipse(cx - 0.3, cy, 6.1, 6.2);
   return (x, y) => {
-    const nx = (x - cx) / 4.2;
-    const ny = (y - cy) / 4.6;
+    const nx = (x - cx) / 4.8;
+    const ny = (y - cy) / 5.1;
     if (nx * nx + ny * ny <= 1) return null;
-    if (y > cy - 2.2 && x > cx - 2.5) return null;
+    if (y > cy - 2.5 && x > cx - 2.9) return null;
     return outer(x, y);
   };
 }
