@@ -1,17 +1,53 @@
 import { ENEMIES } from "../data/enemies";
 import { PALETTE, SPRITES, type SpriteFrames } from "../data/sprites";
 import { POSE_SUFFIXES, type PoseSuffix, poseKey } from "../data/sprites/frameKit";
+import { DEFAULT_SPRITE_DOTS, type SpriteDots, baseOfPose, spriteDots } from "../data/sprites/dots";
 import type { EnemyPhase } from "../core/state";
 
 export interface Sprite {
   frames: HTMLCanvasElement[];
   /** 被弾フラッシュ用の白抜きシルエット */
   white: HTMLCanvasElement[];
+  /** 論理 px（= キャンバスの実寸 / dots）。位置合わせ・当たり判定表示はこの寸法を使う */
   w: number;
   h: number;
+  /** 論理 1px あたりのドット数。省略時は密度 1 として扱う（buildAtlas / loadImageAtlas は必ず設定する） */
+  dots?: SpriteDots;
 }
 
 const FLASH_COLOR = "#ffffff";
+
+/** sprite.dots の既定値込みの読み出し（テスト用に手で作った Sprite は省略できる） */
+export function dotsOf(sprite: Pick<Sprite, "dots">): SpriteDots {
+  return sprite.dots ?? DEFAULT_SPRITE_DOTS;
+}
+
+/** 密度の格子に位置を丸める。dots=1 のときは Math.round と同じ結果になる */
+export function snapTo(v: number, dots: SpriteDots): number {
+  return Math.round(v * dots) / dots;
+}
+
+/**
+ * 論理寸法で描く共通ヘルパー。dw/dh を省略すると sprite.w/h（既定サイズ）で描く。
+ * ソース側の物理サイズ（dots 倍）に関わらず、キャンバスには常に論理 px で置く
+ */
+export function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  sprite: Pick<Sprite, "w" | "h">,
+  img: HTMLCanvasElement,
+  x: number,
+  y: number,
+  dw = sprite.w,
+  dh = sprite.h,
+): void {
+  ctx.drawImage(img, x, y, dw, dh);
+}
+
+/** フレーム（ASCII）から論理寸法を出す純関数（canvas を作らないのでテストできる） */
+export function frameDims(frames: SpriteFrames, dots: SpriteDots = DEFAULT_SPRITE_DOTS): { w: number; h: number } {
+  const first = frames[0];
+  return { w: (first?.[0]?.length ?? 0) / dots, h: (first?.length ?? 0) / dots };
+}
 
 function renderFrame(rows: readonly string[], override?: string): HTMLCanvasElement {
   const h = rows.length;
@@ -34,11 +70,11 @@ function renderFrame(rows: readonly string[], override?: string): HTMLCanvasElem
   return canvas;
 }
 
-function buildSprite(frames: SpriteFrames): Sprite {
+function buildSprite(frames: SpriteFrames, dots: SpriteDots = DEFAULT_SPRITE_DOTS): Sprite {
   const rendered = frames.map((f) => renderFrame(f));
   const white = frames.map((f) => renderFrame(f, FLASH_COLOR));
-  const first = rendered[0];
-  return { frames: rendered, white, w: first?.width ?? 0, h: first?.height ?? 0 };
+  const { w, h } = frameDims(frames, dots);
+  return { frames: rendered, white, w, h, dots };
 }
 
 export type SpriteAtlas = Record<string, Sprite>;
@@ -83,11 +119,21 @@ export function enemySpriteKey(base: string, phase: EnemyPhase, has: (key: strin
   return has(key) ? key : base;
 }
 
+/**
+ * 密度を引くための元キー: 再配色種・そのポーズは元の敵の密度を継ぐ（絵は自分の物のまま）。
+ * それ以外はそのまま spriteDots に渡す（ポーズの解決は spriteDots 自身がやる）
+ */
+function dotsSourceKey(key: string): string {
+  const base = baseOfPose(key);
+  const recolor = ENEMIES.find((d) => d.sprite === base)?.recolor;
+  return recolor?.base ?? key;
+}
+
 /** 起動時に一度だけ全スプライトをオフスクリーンへ描いておく */
 export function buildAtlas(): SpriteAtlas {
   const atlas: SpriteAtlas = {};
   for (const [key, frames] of Object.entries(spriteSources())) {
-    atlas[key] = buildSprite(frames);
+    atlas[key] = buildSprite(frames, spriteDots(dotsSourceKey(key)));
   }
   return atlas;
 }

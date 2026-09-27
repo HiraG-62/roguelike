@@ -1,4 +1,5 @@
 import type { FloorKind } from "../core/state";
+import type { SpriteDots } from "./sprites/dots";
 
 /**
  * 外部素材（PNG）の取り込み表（docs/ideas/graphics-design.md レーン B / C）。
@@ -19,6 +20,8 @@ export interface TileSpriteDef {
   w: number;
   h: number;
   frames?: number;
+  /** 密度（省略時 1）。段 2 で敵・プレイヤー・ボスの高解像度版を差し込むときに使う */
+  dots?: SpriteDots;
 }
 
 /** シートの実寸（px）。テストで矩形がはみ出していないかを見る */

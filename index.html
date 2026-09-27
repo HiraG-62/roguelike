@@ -7,6 +7,7 @@
     <style>
       html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
       body { display: flex; align-items: center; justify-content: center; }
+      /* renderer.ts の fitToWindow が窓のフィット状況（整数倍 / 非整数縮小）に応じて上書きする */
       canvas { image-rendering: pixelated; cursor: none; }
       /* ドット風日本語フォント（SIL OFL 1.1、public/fonts/OFL.txt） */
       @font-face { font-family: "DotGothic16"; src: url("/fonts/DotGothic16-Regular.ttf") format("truetype"); font-display: block; }
