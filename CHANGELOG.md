@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### 追加
+- **生成した効果音の素材 7 本**（`public/assets/sfx/`）: Stable Audio 3 small-sfx で生成して選んだ剣・剣（軽め）・大剣・大剣（ため）・双剣の振り、パリィ、射撃。LUFS とトゥルーピーク -1dBFS で音量をそろえ、剣と双剣は高域を抑えた。まだゲームからは鳴らしていない（読み込みは次の段階）
 - **PALETTE を 1 系統 5 段に**: 12 系統（赤・緑・青・紫・橙・黄・肌・金属・氷・骨・木・石）に中間色 29 色を足し、明 → 暗の並びを `PALETTE_RAMPS` にした。既存の色と文字は変えていない（既存のスプライトと再配色はそのまま）。48 以上の細かい絵はこの 5 段で塗る
 - **ドット絵の作業台 `npm run sprite`**（`scripts/sprite/`）: コード内のピクセルマップを拡大した確認用 PNG に描く `render`（格子・参考絵の並置）、様式書の癖を座標付きで出す `lint`、Aseprite へ渡す `strip --ase`（フレーム分割と PALETTE 同梱）、PNG / .aseprite から `Frame` のリテラルに戻す `import`、`palette`、ローカルの画像生成サーバー Spriteloom に下絵の案を頼む `gen`（PALETTE に色を固定、`--from` で既存スプライトを指示で描き変え）。PNG の読み込み（`decodePng`）を `scripts/fx/png.mjs` に追加。pixel-artist が MCP サーバー `aseprite` を使えるようにし、手順を `docs/recipes/sprite.md` に書いた
 - **Spriteloom の専用ページ `tools/sprite-gen.html`**（開発サーバーでだけ開ける。配布物には入らない）: 下絵の案を出して拡大とゲーム内の大きさで見比べ、様式書の点検を見ながら選んだ案を `Frame` のリテラルとしてコピーする。既存スプライトの描き変え・既存の絵との並び比較・seed の引き継ぎも画面でできる。送る文の型を `scripts/sprite/prompt.mjs` に分けて CLI と共通にした
