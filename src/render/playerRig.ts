@@ -92,6 +92,8 @@ export interface Stance {
   readonly swayDeg: number;
   /** 手にはめる武器（爪・籠手）。拳を描かず、武器の絵が手になる（腕の上に重ねる） */
   readonly worn?: boolean;
+  /** 振りの間も武器を照準へ向けたまま突き出す（大盾。面を敵へ向けて押す） */
+  readonly braced?: boolean;
 }
 
 /** 構えを持たない武器の既定（片手で切っ先を前上へ） */
@@ -131,6 +133,7 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(isPair(r.offHand) ? { offHand: r.offHand } : {}),
     ...(num(r.offDeg) !== undefined ? { offDeg: num(r.offDeg) } : {}),
     ...(r.worn === true ? { worn: true } : {}),
+    ...(r.braced === true ? { braced: true } : {}),
   };
 }
 
@@ -242,7 +245,8 @@ function restPart(i: RigInput): HeldPart {
 function mainPart(i: RigInput): HeldPart {
   const dualOffSwing = i.stance.grip === "dual" && i.swing !== undefined && swingSign(i.step) < 0;
   if (i.swing && !dualOffSwing) {
-    const angle = toRigAngle(i.swing.angle, i.facingRight);
+    // 構えたまま押す武器は向きを照準に保ち、振りの伸び縮みだけを手の距離に使う
+    const angle = toRigAngle(i.stance.braced ? i.aim : i.swing.angle, i.facingRight);
     const reach = ARM_REACH * poseReachRatio(i.swing);
     const drop = i.stance.grip === "two" ? TWO_HAND_DROP : 0;
     return part(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), angle, rigSwingSign(i.step, i.facingRight) > 0);
@@ -274,7 +278,9 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     }
     const off = s.offHand ?? [0, 8];
     const angle = (s.offDeg ?? 150) * DEG - sway(i.time, s.swayDeg);
-    return part({ x: i.shoulderB.x + off[0], y: i.shoulderB.y + off[1] }, angle, false, false, true);
+    // 後ろの手が体の中心より前へ出ていれば手前に描く（両拳を胸の前に構える拳など）
+    const hand = { x: i.shoulderB.x + off[0], y: i.shoulderB.y + off[1] };
+    return part(hand, angle, false, false, hand.x < 0);
   }
   return part({ x: i.shoulderB.x + FREE_HAND.x, y: i.shoulderB.y + FREE_HAND.y }, Math.PI / 2, false, true, true);
 }

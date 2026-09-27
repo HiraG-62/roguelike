@@ -2139,21 +2139,25 @@ export class Renderer {
     const heldWeapon = (part: HeldPart): void => {
       if (!worn) this.rigWeapon(weapon, part);
     };
+    // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く
+    const backFront = !twoHanded && !rig.back.behind;
     if (!rig.back.bare && rig.back.behind) heldWeapon(rig.back);
-    if (!twoHanded) arm(shoulderB, rig.back, true);
+    if (!twoHanded && !backFront) arm(shoulderB, rig.back, true);
     // 振りかぶって手が頭の後ろへ回ったら、腕も体の後ろ（顔の前を腕が横切らない）
     const frontArmBehind = rig.front.behind || rig.front.hand.x < shoulderF.x - RIG_ARM_BEHIND_X;
     if (rig.front.behind) heldWeapon(rig.front);
     if (frontArmBehind) arm(shoulderF, rig.front, false);
     this.rigCell(bodyCell, 0, 0);
     if (!rig.back.bare && !rig.back.behind) heldWeapon(rig.back);
+    if (backFront) arm(shoulderB, rig.back, true);
     if (!rig.front.behind) heldWeapon(rig.front);
     if (twoHanded) arm(shoulderB, rig.back, false);
     if (!frontArmBehind) arm(shoulderF, rig.front, false);
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
-    if (moveset.primary === "shot") this.rigMuzzle = this.rigMuzzleAt(weapon, rig.front, toScreen, p.body.pos);
+    // 銃口の印を持つ武器（銃・杖・投げ物）は、描いた銃口から閃光と弾を出す
+    this.rigMuzzle = this.rigMuzzleAt(weapon, rig.front, toScreen, p.body.pos);
 
     const blink = p.invulnTimer > 0 && !dashing && p.hitFlash <= 0 && state.tick % 6 < 3;
     const white = p.hitFlash > 0 || dashing ? this.rigWhiteCopy() : null;
