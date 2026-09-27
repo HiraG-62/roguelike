@@ -15,4 +15,11 @@
 - 弾（銃・魔法・弾を出す技）: 武器種のファイルの `fx.bullets`（弾の key → `fly` / `muzzle` / `impact` / `hit` / `fizzle` / `blast`）。弾を出す武器種はその武器種が撃つ弾をすべて載せる。奥義: `scripts/fx/sheets/<武器種>Ult.mjs`（アトラス `<武器種>Ult`）の `fx.ultimates`（奥義の key → 発動・行為・持続の纏いの絵）。形と時間割は `docs/ideas/fx-sprites.md` 9 章。配色の確認は `--ramps brass,fire`
 - 見た目の決まり（剣で固まったもの）: 内側に 2 本目の弧を重ねない・速度線は刃の外側だけ・斬線の反りは前（敵の側）へふくらむ。詳しくは `docs/ideas/fx-sprites.md`
 
+## プレイヤーの体・手に持つ武器
+
+- 手で打たず **生成器**（`scripts/actor/`）で描く。設計と決まりは `docs/ideas/player-sprites.md`（密度 2 倍・色はそのまま・腕は実行時に引く）
+- ジョブの体: `scripts/actor/sheets/` の `body<ジョブ>.mjs`（`bodySheets(key, draw)` で骨組み `rig.mjs` の全クリップを作る。`meta.arm` に袖・手の 3 段の色）。手本は `bodyNone.mjs`。顔はほぼ一色、眼は 1x2 の点を 2 つ
+- 武器種の手に持つ絵: `scripts/actor/sheets/` の `wpn<武器種>.mjs`（`weaponSheets(key, draw, { size, edge })` で 32 方向。原点 = 握り、+x = 切っ先）。`meta.stance` に待機の構え（持ち方・体の構え・手の位置・向き・手にはめるか）、`meta.offGrip` に両手持ちの添え手、弾を撃つなら `frame.anchor("muzzle", …)`。手本は `wpnSword.mjs` / `wpnSpear.mjs` / `wpnSidearm.mjs`
+- 確認: `node scripts/actor/gen.mjs --only <シート> --preview <dir> --scale 8`、書き出しは `npm run actor:gen`（`-- --atlas <key>` で 1 つ）。網羅（全ジョブの体・全武器種の絵と構え・銃口の印）は `render/actorSprites.test.ts` が検査する
+
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
