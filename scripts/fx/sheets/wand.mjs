@@ -1187,10 +1187,10 @@ const ICE = { muzzle: "wand.muzzleIce", impact: "wand.impactIce", fizzle: "wand.
 const FX = {
   moveset: "wand",
   motions: {
-    "l:0": { sheet: "wand.cast1", pivot: "anchor", base: 14, measure: "reach" },
-    "l:1": { sheet: "wand.cast2", pivot: "anchor", base: 14, measure: "reach" },
-    "l:2": { sheet: "wand.cast3", pivot: "anchor", base: 14, measure: "reach" },
-    "l:3": { sheet: "wand.cast4", pivot: "anchor", base: 14, measure: "reach" },
+    "l:0": { sheet: "wand.cast1", pivot: "muzzle", base: 14, measure: "reach" },
+    "l:1": { sheet: "wand.cast2", pivot: "muzzle", base: 14, measure: "reach" },
+    "l:2": { sheet: "wand.cast3", pivot: "muzzle", base: 14, measure: "reach" },
+    "l:3": { sheet: "wand.cast4", pivot: "muzzle", base: 14, measure: "reach" },
     dash: { sheet: "wand.dash", pivot: "self", base: 40, measure: "size" },
     "branch:vortex": { sheet: "wand.vortex", pivot: "self", base: 96, measure: "size" },
   },
