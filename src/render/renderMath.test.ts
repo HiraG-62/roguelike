@@ -7,6 +7,7 @@ import {
   offhandOffset,
   phaseProgress,
   playerBodyPose,
+  poseShape,
   slashVisual,
   slashWeight,
   swingSign,
@@ -386,6 +387,14 @@ describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）"
   const pose = (over: Partial<WeaponPoseInput>) => weaponPose({ ...base, ...over });
   /** 2 つの角度の差（-π..π） */
   const diff = (a: number, b: number): number => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+
+  it("前へ離した円（戦槌の叩きつけ）は振りかぶって振り下ろし、自分の周りの円だけ一周する", () => {
+    expect(poseShape("circle", 14)).toBe("box");
+    expect(poseShape("circle", 0)).toBe("circle");
+    expect(poseShape("arc", 14)).toBe("arc");
+    const slam = pose({ phase: "active", t: 0.2, shape: poseShape("circle", 14) });
+    expect(Math.cos(slam.angle), "振り始めで武器が後ろへ回らない").toBeGreaterThan(-0.5);
+  });
 
   it("weaponView は 8 方向を横・斜め・縦の 3 枚と反転で表す", () => {
     expect(weaponView(0)).toEqual({ frame: WEAPON_FRAME.side, flipX: false, flipY: false });

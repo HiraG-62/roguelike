@@ -571,6 +571,14 @@ export function weaponView(angle: number): WeaponView {
   return OCTANT_VIEW[octant] ?? VIEW_RIGHT;
 }
 
+/**
+ * 振りの体の動きを選ぶ形。前へ離した円（reach > 0。戦槌の叩きつけ）は一周させず、箱と同じく振りかぶって振り下ろす
+ * （足元の輪と亀裂のエフェクトは前に出るので、一周すると最初に武器が後ろへ飛んで読みがずれる）
+ */
+export function poseShape(shape: HitShape["kind"], reach: number): HitShape["kind"] {
+  return shape === "circle" && reach > 0 ? "box" : shape;
+}
+
 /** 段ごとの振る向き（偶数段 +1 / 奇数段 -1） */
 export function swingSign(step: number): number {
   return step % 2 === 0 ? 1 : -1;
