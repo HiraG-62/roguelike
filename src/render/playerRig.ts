@@ -5,7 +5,6 @@
  * 座標は「組み立ての空間」: 絵のドット（論理 0.5px）、右向き、原点 = 足元の中心、+y = 画面の下。
  * 左を向いているときは照準を左右に写して右向きで組み、最後に絵ごと反転する
  */
-import type { MovesetKey } from "../data/weapons";
 import type { WeaponPose } from "./renderMath";
 import { poseReachRatio, swingSign } from "./renderMath";
 
@@ -91,24 +90,48 @@ export interface Stance {
   readonly offDeg?: number;
   /** 待機の揺れ（度。呼吸に合わせて武器の先が上下する） */
   readonly swayDeg: number;
+  /** 手にはめる武器（爪・籠手）。拳を描かず、武器の絵が手になる（腕の上に重ねる） */
+  readonly worn?: boolean;
 }
 
-const ONE_HAND_REST: Stance = { grip: "one", body: "ready", restDeg: -40, restHand: [5, 7], swayDeg: 3 };
+/** 構えを持たない武器の既定（片手で切っ先を前上へ） */
+export const DEFAULT_STANCE: Stance = { grip: "one", body: "ready", restDeg: -40, restHand: [5, 7], swayDeg: 3 };
+
+const GRIPS: readonly GripKind[] = ["one", "two", "dual"];
+const IDLE_STANCES: readonly IdleStance[] = ["ready", "heavy", "light", "aim"];
+
+function isPair(v: unknown): v is readonly [number, number] {
+  return Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
+}
+
+function num(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
 
 /**
- * 武器種ごとの待機の構え。無い武器種は片手の既定。
- * 剣は胸の前で切っ先を前上へ、双剣は前の手を順手・後ろの手を逆手に、槍は両手で穂先を前へ水平に、
- * 片手銃は照準へ向けて後ろの手を銃把に添える（aimHeld）
+ * 武器の絵の付帯情報（生成器の `meta.stance`）から構えを読む。武器種ごとの構えは武器の絵のファイル
+ * （scripts/actor/sheets/wpn<武器種>.mjs）が持つ（武器を足す人が共有の表を触らずに済むように）。
+ * 形が崩れていれば既定の構え
  */
-export const STANCES: Readonly<Partial<Record<MovesetKey, Stance>>> = {
-  sword: { grip: "one", body: "ready", restDeg: -32, restHand: [8, 6], swayDeg: 3 },
-  twinBlades: { grip: "dual", body: "light", restDeg: -20, restHand: [7, 8], offHand: [-3, 9], offDeg: 150, swayDeg: 4 },
-  spear: { grip: "two", body: "ready", restDeg: -8, restHand: [7, 9], swayDeg: 2 },
-  sidearm: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1 },
-};
-
-export function stanceOf(moveset: MovesetKey): Stance {
-  return STANCES[moveset] ?? ONE_HAND_REST;
+export function stanceFromMeta(raw: unknown): Stance {
+  if (typeof raw !== "object" || raw === null) return DEFAULT_STANCE;
+  const r = raw as Record<string, unknown>;
+  const grip = GRIPS.find((g) => g === r.grip);
+  const body = IDLE_STANCES.find((b) => b === r.body);
+  const restDeg = num(r.restDeg);
+  const swayDeg = num(r.swayDeg);
+  if (!grip || !body || restDeg === undefined || swayDeg === undefined || !isPair(r.restHand)) return DEFAULT_STANCE;
+  return {
+    grip,
+    body,
+    restDeg,
+    restHand: r.restHand,
+    swayDeg,
+    ...(r.restMirror === true ? { restMirror: true } : {}),
+    ...(isPair(r.offHand) ? { offHand: r.offHand } : {}),
+    ...(num(r.offDeg) !== undefined ? { offDeg: num(r.offDeg) } : {}),
+    ...(r.worn === true ? { worn: true } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +197,8 @@ const TWO_HAND_DROP = 3;
 const DEG = Math.PI / 180;
 /** これより上を向いたら体の後ろ（sin の値） */
 const BEHIND_SIN = -0.38;
+/** 二丁の銃の後ろの手の銃（前の手から、ドット） */
+const DUAL_AIM_OFFSET: Pt = { x: -3, y: 2 };
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
 const FREE_HAND: Pt = { x: -1, y: 9 };
 
@@ -238,6 +263,10 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     return part(at(main.hand, main.angle, i.offGrip), main.angle, false, true, main.behind);
   }
   if (s.grip === "dual") {
+    // 二丁の銃は両手とも照準へ向け、後ろの手の銃を少し奥・下へずらして並べる
+    if (i.aimHeld && !i.swing) {
+      return part({ x: main.hand.x + DUAL_AIM_OFFSET.x, y: main.hand.y + DUAL_AIM_OFFSET.y }, main.angle, false, false, true);
+    }
     if (i.swing && swingSign(i.step) < 0) {
       const angle = toRigAngle(i.swing.angle, i.facingRight);
       const reach = ARM_REACH * poseReachRatio(i.swing);

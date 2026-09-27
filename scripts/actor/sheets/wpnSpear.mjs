@@ -33,4 +33,4 @@ function draw(frame) {
   paint(frame, polygon([[34, -0.4], [57, -0.2], [57, 0.25], [34, 0.35]]), STEEL, { minShade: 3, maxShade: 3, rim: false });
 }
 
-export const ATLAS = { key: "wpnSpear", sheets: weaponSheets("wpnSpear", draw, { size: 120 }), meta: { offGrip: OFF_GRIP } };
+export const ATLAS = { key: "wpnSpear", sheets: weaponSheets("wpnSpear", draw, { size: 120 }), meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "ready", restDeg: -8, restHand: [7, 9], swayDeg: 2 } } };

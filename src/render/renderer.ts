@@ -95,8 +95,8 @@ import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thro
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
-import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip } from "./actorSprites";
-import { type ArmInk, type HeldPart, type Pt, armPixels, bodyClip, elbowOf, solveRig, stanceOf } from "./playerRig";
+import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
+import { type ArmInk, type HeldPart, type Pt, armPixels, bodyClip, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -2091,6 +2091,7 @@ export class Renderer {
     const swing = this.playerSwing(state);
     const holding = p.attack.charging || p.art.holding;
     const dashing = isDashing(p);
+    const stance = stanceFromMeta(weaponStanceMeta(weapon));
     const clip = bodyClip({
       dashing,
       dashProgress: 1 - p.dashTimer / Math.max(1e-6, dashTime(state.stats)),
@@ -2100,7 +2101,7 @@ export class Renderer {
       moving: p.body.vel.x !== 0 || p.body.vel.y !== 0,
       walkTime: p.walkTime,
       time: state.time,
-      idle: stanceOf(moveset.key).body,
+      idle: stance.body,
     });
     const bodyKey = `${body}.${clip.clip}`;
     const bodyCell = this.actorBank.cell(bodyKey, 0, clip.frame);
@@ -2110,7 +2111,6 @@ export class Renderer {
     const facingRight = p.facing.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;
-    const stance = stanceOf(moveset.key);
     const rig = solveRig({
       stance,
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
@@ -2130,17 +2130,26 @@ export class Renderer {
     const g = rc.ctx;
     g.clearRect(0, 0, RIG_CANVAS, RIG_CANVAS);
     const twoHanded = rig.back.bare && stance.grip === "two";
-    if (!rig.back.bare && rig.back.behind) this.rigWeapon(weapon, rig.back);
-    if (!twoHanded) this.rigArm(shoulderB, rig.back, colors.sleeve, colors.hand, true);
+    // 手にはめる武器（爪・籠手）は腕の上に重ねる（拳の代わり）。それ以外は武器の上に腕と拳を重ねる
+    const worn = stance.worn === true;
+    const arm = (shoulder: Pt, part: HeldPart, dim: boolean): void => {
+      this.rigArm(shoulder, part, colors.sleeve, colors.hand, dim, !worn || part.bare);
+      if (worn) this.rigWeapon(weapon, part);
+    };
+    const heldWeapon = (part: HeldPart): void => {
+      if (!worn) this.rigWeapon(weapon, part);
+    };
+    if (!rig.back.bare && rig.back.behind) heldWeapon(rig.back);
+    if (!twoHanded) arm(shoulderB, rig.back, true);
     // 振りかぶって手が頭の後ろへ回ったら、腕も体の後ろ（顔の前を腕が横切らない）
     const frontArmBehind = rig.front.behind || rig.front.hand.x < shoulderF.x - RIG_ARM_BEHIND_X;
-    if (rig.front.behind) this.rigWeapon(weapon, rig.front);
-    if (frontArmBehind) this.rigArm(shoulderF, rig.front, colors.sleeve, colors.hand, false);
+    if (rig.front.behind) heldWeapon(rig.front);
+    if (frontArmBehind) arm(shoulderF, rig.front, false);
     this.rigCell(bodyCell, 0, 0);
-    if (!rig.back.bare && !rig.back.behind) this.rigWeapon(weapon, rig.back);
-    if (!rig.front.behind) this.rigWeapon(weapon, rig.front);
-    if (twoHanded) this.rigArm(shoulderB, rig.back, colors.sleeve, colors.hand, false);
-    if (!frontArmBehind) this.rigArm(shoulderF, rig.front, colors.sleeve, colors.hand, false);
+    if (!rig.back.bare && !rig.back.behind) heldWeapon(rig.back);
+    if (!rig.front.behind) heldWeapon(rig.front);
+    if (twoHanded) arm(shoulderB, rig.back, false);
+    if (!frontArmBehind) arm(shoulderF, rig.front, false);
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
@@ -2187,7 +2196,7 @@ export class Renderer {
     if (cell) this.rigCell(cell, part.hand.x, part.hand.y);
   }
 
-  private rigArm(shoulder: Pt, part: HeldPart, sleeve: readonly string[], hand: readonly string[], dim: boolean): void {
+  private rigArm(shoulder: Pt, part: HeldPart, sleeve: readonly string[], hand: readonly string[], dim: boolean, withHand = true): void {
     const g = this.rigCanvas.ctx;
     const inks: Record<ArmInk, string> = {
       0: COLOR_RIG_OUTLINE,
@@ -2198,7 +2207,7 @@ export class Renderer {
       5: hand[dim ? 0 : 1] ?? COLOR_RIG_OUTLINE,
       6: hand[dim ? 1 : 2] ?? COLOR_RIG_OUTLINE,
     };
-    for (const px of armPixels(shoulder, elbowOf(shoulder, part.hand), part.hand)) {
+    for (const px of armPixels(shoulder, elbowOf(shoulder, part.hand), part.hand, withHand)) {
       g.fillStyle = inks[px.ink];
       g.fillRect(RIG_ORIGIN_X + px.x, RIG_ORIGIN_Y + px.y, 1, 1);
     }

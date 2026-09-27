@@ -131,6 +131,13 @@ export function armColors(body: string): ArmColors | undefined {
   return meta?.arm;
 }
 
+/** 武器の絵の付帯情報の構え（形の検査は playerRig.ts の stanceFromMeta） */
+export function weaponStanceMeta(weapon: string): unknown {
+  if (!isActorAtlas(weapon)) return undefined;
+  const meta = ACTOR_ATLASES[weapon].meta as { stance?: unknown } | null;
+  return meta?.stance;
+}
+
 export function weaponOffGrip(weapon: string): number | null {
   if (!isActorAtlas(weapon)) return null;
   const meta = ACTOR_ATLASES[weapon].meta as { offGrip?: number | null } | null;

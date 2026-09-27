@@ -25,4 +25,4 @@ function draw(frame) {
   paint(frame, polygon([[3, -4.2], [4.6, -4.4], [4.6, 3.6], [3, 3.4]], { round: 1 }), GOLD);
 }
 
-export const ATLAS = { key: "wpnTwinBlades", sheets: weaponSheets("wpnTwinBlades", draw, { size: 64, edge: true }), meta: { offGrip: null } };
+export const ATLAS = { key: "wpnTwinBlades", sheets: weaponSheets("wpnTwinBlades", draw, { size: 64, edge: true }), meta: { offGrip: null, stance: { grip: "dual", body: "light", restDeg: -20, restHand: [7, 8], offHand: [-3, 9], offDeg: 150, swayDeg: 4 } } };

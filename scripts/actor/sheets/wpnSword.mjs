@@ -17,4 +17,4 @@ function draw(frame) {
   paint(frame, ellipse(4.4, 0, 1.4, 1.4), GOLD, { bias: 0.3 });
 }
 
-export const ATLAS = { key: "wpnSword", sheets: weaponSheets("wpnSword", draw, { size: 80 }), meta: { offGrip: null } };
+export const ATLAS = { key: "wpnSword", sheets: weaponSheets("wpnSword", draw, { size: 80 }), meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -32, restHand: [8, 6], swayDeg: 3 } } };
