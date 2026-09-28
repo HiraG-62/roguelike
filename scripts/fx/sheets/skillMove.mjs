@@ -63,7 +63,8 @@ function cut(frame, f) {
   const p = (f + 0.5) / frames;
   const grow = Math.min(1, p * 3);
   const erosion = smoothstep(0.4, 1, p);
-  lens(frame, { ax: 6, ay: -30, bx: 14, by: 30, T: 9, bend: 7, grow, erosion, seed: SEED + 5, bright: 1.05 });
+  // 駆け抜けた刃の跡なので進む向き（+x）へ膨らむ弓なり（bend が負で +x 側へ反る）
+  lens(frame, { ax: 4, ay: -30, bx: 12, by: 30, T: 9, bend: -8, grow, erosion, seed: SEED + 5, bright: 1.05 });
   shards(frame, f, 9, SEED + 6, (i, r) => ({ x: 10, y: (r(1) - 0.5) * 30, vx: 4 + 4 * r(2), vy: (r(3) - 0.5) * 5, life: 4 + Math.floor(3 * r(4)), size: r(5) > 0.5 ? 2 : 1 }));
   if (p < 0.4) ring(frame, { ox: 10, radius: 6 + p * 30, width: 3, squash: 0.45, bright: 0.7 * (1 - p * 2) });
 }
