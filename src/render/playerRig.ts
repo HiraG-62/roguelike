@@ -209,6 +209,11 @@ export interface RigPose {
   readonly front: HeldPart;
   /** 後ろの手（二刀のもう 1 本・両手持ちの添え手）。片手の武器なら体の脇に垂らす */
   readonly back: HeldPart;
+  /**
+   * 両手で構えた銃の持ち方: 後ろの肩の腕が握り（front の手）を持って銃の奥に隠れ、前の肩の腕が先台（back の手）を支えて
+   * 手前に出る（腕が交差せず、両腕とも手前に見えない）
+   */
+  readonly gunHold?: boolean;
 }
 
 export interface RigInput {
@@ -250,8 +255,13 @@ const TWO_HAND_DROP = 3;
 const DEG = Math.PI / 180;
 /** これより上を向いたら体の後ろ（sin の値） */
 const BEHIND_SIN = -0.38;
-/** 二丁の銃の後ろの手の銃（前の手から、ドット） */
-const DUAL_AIM_OFFSET: Pt = { x: -3, y: 5 };
+/** 二丁の銃の後ろの手の銃（前の手から、ドット）。後ろの肩から届く所 */
+const DUAL_AIM_OFFSET: Pt = { x: -4, y: 2 };
+/** 銃の握りを照準へ出す距離の下限（ドット。負なら自分の中心より後ろ。長銃は肩の後ろまで引いて先台を持つ） */
+const AIM_REACH_MIN = -8;
+const AIM_REACH_STEP = 0.5;
+/** 腕を伸ばしきらずに届く距離（上腕 + 前腕より少し短く。肘がわずかに曲がって見える） */
+const ARM_SPAN = 10.5;
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
 const FREE_HAND: Pt = { x: -1, y: 9 };
 
@@ -343,13 +353,22 @@ export function solveRig(i: RigInput): RigPose {
   }
   const main = mainPart(i);
   const back = backPart(i, main);
-  return { front: main, back };
+  const gunHold = i.aimHeld && !i.swing && i.stance.grip === "two" && i.offGrip !== null;
+  return gunHold ? { front: main, back, gunHold } : { front: main, back };
+}
+
+/** 肩から腕の長さ（ARM_SPAN）を越える手は、肩へ向けて届く所まで引き寄せる */
+function withinReach(hand: Pt, shoulder: Pt): Pt {
+  const d = Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y);
+  if (d <= ARM_SPAN) return hand;
+  const k = ARM_SPAN / d;
+  return { x: shoulder.x + (hand.x - shoulder.x) * k, y: shoulder.y + (hand.y - shoulder.y) * k };
 }
 
 function restPart(i: RigInput): HeldPart {
   const s = i.stance;
   const angle = s.restDeg * DEG + sway(i.time, s.swayDeg);
-  const hand = { x: i.shoulderF.x + s.restHand[0], y: i.shoulderF.y + s.restHand[1] };
+  const hand = withinReach({ x: i.shoulderF.x + s.restHand[0], y: i.shoulderF.y + s.restHand[1] }, i.shoulderF);
   return part(hand, angle, s.restMirror ?? false);
 }
 
@@ -358,9 +377,10 @@ function mainPart(i: RigInput): HeldPart {
   if (i.swing && !dualOffSwing) {
     // 構えたまま押す武器は向きを照準に保ち、振りの伸び縮みだけを手の距離に使う
     const angle = toRigAngle(i.stance.braced ? i.aim : i.swing.angle, i.facingRight);
-    const reach = ARM_REACH * poseReachRatio(i.swing);
+    const reach = swingHandReach(i.swing);
     const drop = i.stance.grip === "two" ? TWO_HAND_DROP : 0;
-    return part(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), angle, rigSwingSign(i) > 0);
+    const hand = withinReach(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), i.shoulderF);
+    return part(hand, angle, rigSwingSign(i) > 0);
   }
   if (i.aimHeld) {
     // 銃身の線が弾の出る位置（自分の中心から照準の向き）を通るように、握りを銃身のずれの分だけ反対へ寄せる。
@@ -369,16 +389,106 @@ function mainPart(i: RigInput): HeldPart {
     const aimAngle = toRigAngle(i.aim, i.facingRight);
     // 反動で銃口が上（組み立ての空間の -y）へ跳ねる。真上・真下を狙っているときも体の外側へ跳ねる
     const angle = aimAngle + sway(i.time, i.stance.swayDeg) - Math.sign(Math.cos(aimAngle) || 1) * RECOIL_CLIMB * kick;
-    const grip = at(i.aimOrigin, aimAngle, AIM_REACH - RECOIL_BACK * kick);
-    return part({ x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY }, angle, false, false, false);
+    const reach = aimReach(i, aimAngle, angle);
+    return part(aimGrip(i, aimAngle, angle, reach - RECOIL_BACK * kick), angle, false, false, false);
   }
   return restPart(i);
+}
+
+/** 照準へ reach だけ出した銃の握り（銃身の線が弾の出る位置を通るように、銃身のずれの分だけ反対へ寄せる） */
+function aimGrip(i: RigInput, aimAngle: number, angle: number, reach: number): Pt {
+  const grip = at(i.aimOrigin, aimAngle, reach);
+  return { x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY };
+}
+
+/** 銃を握る腕と、もう一方の手（先台・二丁のもう 1 挺）を持つ腕 */
+function aimArms(i: RigInput): { grip: Pt; other: Pt } {
+  return i.stance.grip === "two" ? { grip: i.shoulderB, other: i.shoulderF } : { grip: i.shoulderF, other: i.shoulderB };
+}
+
+/** もう一方の手の位置（握りから。無ければ null） */
+function aimOtherHand(i: RigInput, hand: Pt, angle: number): Pt | null {
+  if (i.stance.grip === "two" && i.offGrip !== null) return at(hand, angle, i.offGrip);
+  if (i.stance.grip === "dual") return { x: hand.x + DUAL_AIM_OFFSET.x, y: hand.y + DUAL_AIM_OFFSET.y };
+  return null;
+}
+
+/**
+ * 銃の握りを照準へ出す距離。両手とも腕を伸ばしきらずに届く、いちばん前の距離を選ぶ（長い銃ほど手前へ引いて構える）。
+ * どこでも届かなければ、届かない量がいちばん小さい距離
+ */
+function aimReach(i: RigInput, aimAngle: number, angle: number): number {
+  const arms = aimArms(i);
+  const over = (hand: Pt, shoulder: Pt): number => Math.max(0, Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y) - ARM_SPAN);
+  let best = AIM_REACH;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (let r = AIM_REACH; r >= AIM_REACH_MIN; r -= AIM_REACH_STEP) {
+    const hand = aimGrip(i, aimAngle, angle, r);
+    const other = aimOtherHand(i, hand, angle);
+    const cost = over(hand, arms.grip) + (other ? over(other, arms.other) : 0);
+    if (cost <= 0) return r;
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = r;
+    }
+  }
+  return best;
+}
+
+/**
+ * 振りの間の拳の距離（肩から）。振りの伸び・突きの突き出しで伸ばすが、腕の長さ（ARM_SPAN）を越えない
+ * （越えると腕が引き伸ばされて見える。突きの伸びは体の踏み込み・肩の入れが受け持つ）
+ */
+function swingHandReach(swing: WeaponPose): number {
+  return Math.min(ARM_REACH * poseReachRatio(swing), ARM_SPAN);
+}
+
+/** 両手持ちの添え手が柄を滑れる範囲（offGrip に掛ける倍率。柄の尻の側・握りの側） */
+const OFF_GRIP_SLIDE_FAR = 1.5;
+const OFF_GRIP_SLIDE_NEAR = 0.35;
+const OFF_GRIP_SLIDE_STEP = 0.5;
+/** 添え手を離すまでに許す届かなさ（ドット。少しなら腕を伸ばしきって持つ） */
+const OFF_GRIP_RELEASE = 0.5;
+
+/**
+ * 両手持ちの添え手の柄の上の位置（握りから +x へ、ドット）。既定の offGrip で後ろの肩から届けばそこ、届かなければ
+ * 柄の上を滑らせて届くうち offGrip にいちばん近い所、どこも届かなければいちばん肩に近い所
+ * （武器が上や下を向いても後ろの腕が引き伸ばされない）。構えた銃は先台の位置のまま
+ */
+function slideOffGrip(i: RigInput, main: HeldPart, offGrip: number): number {
+  if (i.aimHeld && !i.swing) return offGrip;
+  const distAt = (u: number): number => {
+    const h = at(main.hand, main.angle, u);
+    return Math.hypot(h.x - i.shoulderB.x, h.y - i.shoulderB.y);
+  };
+  if (distAt(offGrip) <= ARM_SPAN) return offGrip;
+  const a = offGrip * OFF_GRIP_SLIDE_NEAR;
+  const b = offGrip * OFF_GRIP_SLIDE_FAR;
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  let reachable: number | null = null;
+  let nearest = offGrip;
+  let nearestDist = distAt(offGrip);
+  for (let u = lo; u <= hi; u += OFF_GRIP_SLIDE_STEP) {
+    const d = distAt(u);
+    if (d <= ARM_SPAN && (reachable === null || Math.abs(u - offGrip) < Math.abs(reachable - offGrip))) reachable = u;
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearest = u;
+    }
+  }
+  return reachable ?? nearest;
 }
 
 function backPart(i: RigInput, main: HeldPart): HeldPart {
   const s = i.stance;
   if (s.grip === "two" && i.offGrip !== null) {
-    return part(at(main.hand, main.angle, i.offGrip), main.angle, false, true, main.behind);
+    const hand = at(main.hand, main.angle, slideOffGrip(i, main, i.offGrip));
+    // 柄を滑らせても届かなければ手を離し、体の脇へ下ろす（重い武器の振り抜きを片手で流す）。
+    // 構えた銃の先台は前の腕が持つ（aimReach が届く所に銃を置く）ので離さない
+    const aimedGun = i.aimHeld && !i.swing;
+    if (!aimedGun && Math.hypot(hand.x - i.shoulderB.x, hand.y - i.shoulderB.y) > ARM_SPAN + OFF_GRIP_RELEASE) return freeHand(i);
+    return part(hand, main.angle, false, true, main.behind);
   }
   if (s.grip === "dual") {
     // 二丁の銃は両手とも照準へ向け、後ろの手の銃を少し奥・下へずらして並べる
@@ -387,7 +497,7 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     }
     if (i.swing && swingSign(i.step) < 0) {
       const angle = toRigAngle(i.swing.angle, i.facingRight);
-      const reach = ARM_REACH * poseReachRatio(i.swing);
+      const reach = swingHandReach(i.swing);
       return part(at(i.shoulderB, angle, reach), angle, rigSwingSign(i) > 0, false, true);
     }
     const off = s.offHand ?? [0, 8];
@@ -396,6 +506,11 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     const hand = { x: i.shoulderB.x + off[0], y: i.shoulderB.y + off[1] };
     return part(hand, angle, false, false, hand.x < 0);
   }
+  return freeHand(i);
+}
+
+/** 空いた後ろの手（体の脇に垂らす。体の後ろに描く） */
+function freeHand(i: RigInput): HeldPart {
   return part({ x: i.shoulderB.x + FREE_HAND.x, y: i.shoulderB.y + FREE_HAND.y }, Math.PI / 2, false, true, true);
 }
 
@@ -452,6 +567,22 @@ function shadeInk(nx: number, ny: number, k: number, base: 1 | 4): ArmInk {
   const light = (nx * LIGHT_X + ny * LIGHT_Y) * k;
   const step = light > 0.35 ? 2 : light > -0.3 ? 1 : 0;
   return (base + step) as ArmInk;
+}
+
+/** 拳だけの画素（外周の 1 ドットは輪郭）。銃の先台を握る手を銃の上に重ね直すのに使う */
+export function handPixels(hand: Pt): ArmPixel[] {
+  const out: ArmPixel[] = [];
+  const pad = HAND_R + 1;
+  for (let y = Math.floor(hand.y - pad); y <= Math.ceil(hand.y + pad); y++) {
+    for (let x = Math.floor(hand.x - pad); x <= Math.ceil(hand.x + pad); x++) {
+      const cx = x + 0.5 - hand.x;
+      const cy = y + 0.5 - hand.y;
+      const d = Math.hypot(cx, cy);
+      if (d <= HAND_R) out.push({ x, y, ink: shadeInk(cx / HAND_R, cy / HAND_R, 1, 4) });
+      else if (d <= HAND_R + 1) out.push({ x, y, ink: 0 });
+    }
+  }
+  return out;
 }
 
 /**

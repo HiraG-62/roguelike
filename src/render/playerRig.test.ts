@@ -10,6 +10,7 @@ import {
   attackClip,
   attackFrame,
   bodyClip,
+  handPixels,
   RECOIL_TIME,
   recoilOf,
   restBlendOf,
@@ -191,5 +192,59 @@ describe("playerRig: 撃った反動", () => {
     expect(kicked.angle, "銃口が上へ").toBeLessThan(still.angle);
     const heavy = solveRig({ ...aim, kick: 1, stance: { ...DEFAULT_STANCE, recoil: 2 } }).front;
     expect(heavy.angle).toBeLessThan(kicked.angle);
+  });
+});
+
+describe("playerRig: 銃の構え", () => {
+  const span = UPPER_ARM + FOREARM;
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  const longGun: RigInput = { ...base, aimHeld: true, stance: { ...DEFAULT_STANCE, grip: "two", body: "aim" }, offGrip: 13, barrelY: -3.6 };
+
+  it("両手の銃は後ろの腕が握り・前の腕が先台を持ち、どの向きでも腕を伸ばしきらずに届く", () => {
+    for (const deg of [0, -45, -80, 45, 80]) {
+      const rig = solveRig({ ...longGun, aim: (deg * Math.PI) / 180 });
+      expect(rig.gunHold, `${deg} 度: 銃の持ち方`).toBe(true);
+      expect(dist(rig.front.hand, longGun.shoulderB), `${deg} 度: 握りに届く`).toBeLessThanOrEqual(span);
+      expect(dist(rig.back.hand, longGun.shoulderF), `${deg} 度: 先台に届く`).toBeLessThanOrEqual(span);
+    }
+  });
+
+  it("二丁拳銃のもう 1 挺は後ろの腕が届く所に持つ", () => {
+    const rig = solveRig({ ...base, aimHeld: true, stance: { ...DEFAULT_STANCE, grip: "dual", body: "aim" }, barrelY: -4.2 });
+    expect(rig.gunHold).toBeUndefined();
+    expect(dist(rig.front.hand, base.shoulderF)).toBeLessThanOrEqual(span);
+    expect(dist(rig.back.hand, base.shoulderB)).toBeLessThanOrEqual(span);
+  });
+});
+
+describe("playerRig: 拳だけの画素", () => {
+  it("拳の塗り（手の色）と外周の輪郭だけを返す", () => {
+    const px = handPixels({ x: 0, y: 0 });
+    expect(px.some((p) => p.ink === 0)).toBe(true);
+    expect(px.every((p) => p.ink === 0 || (p.ink >= 4 && p.ink <= 6)), "袖の色は無い").toBe(true);
+  });
+});
+
+describe("playerRig: 腕の長さを越えない", () => {
+  const span = UPPER_ARM + FOREARM;
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  /** 武器の姿勢（renderMath の weaponPose の形）: 腕の付け根（体の中心の 4px 上）から reach px の所に拳 */
+  const swingAt = (angle: number, reach = 6): RigInput["swing"] => ({ frame: 0, flipX: false, flipY: false, angle, dx: Math.cos(angle) * reach, dy: -4 + Math.sin(angle) * reach, behind: false });
+
+  it("振りの伸び・突きの突き出しでも拳は肩から腕の長さの内", () => {
+    for (const reach of [6, 8, 10, 14]) {
+      const rig = solveRig({ ...base, swing: swingAt(0, reach) });
+      expect(dist(rig.front.hand, base.shoulderF), `拳の距離 ${reach}px`).toBeLessThanOrEqual(span);
+    }
+  });
+
+  it("両手持ちの添え手は柄を滑らせて届く所を持ち、届かなければ手を離して体の脇へ下ろす", () => {
+    const two: RigInput = { ...base, stance: { ...DEFAULT_STANCE, grip: "two", body: "heavy" }, offGrip: -14 };
+    for (const deg of [-90, -45, 0, 45, 90]) {
+      const a = (deg * Math.PI) / 180;
+      const rig = solveRig({ ...two, swing: swingAt(a) });
+      const held = dist(rig.back.hand, base.shoulderB) <= span + 0.5;
+      expect(held || rig.back.behind, `${deg} 度: 届くか、離して体の後ろ`).toBe(true);
+    }
   });
 });
