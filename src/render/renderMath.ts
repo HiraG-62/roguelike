@@ -597,6 +597,14 @@ export function poseShape(shape: HitShape["kind"], reach: number, punch = false)
   return shape;
 }
 
+/**
+ * 見た目の向き。攻撃の最中（予備動作 → 振り → 戻し）は振り出した向き（attack.dir。振りの間は固定）、それ以外は今の向き。
+ * 振りの途中でカーソルを反対へ動かしても、体・武器・振りのエフェクトが反対向きへ裏返らない
+ */
+export function visualFacing(facing: { x: number; y: number }, attackDir: { x: number; y: number }, attacking: boolean): { x: number; y: number } {
+  return attacking ? attackDir : facing;
+}
+
 /** 段ごとの振る向き（偶数段 +1 / 奇数段 -1） */
 export function swingSign(step: number): number {
   return step % 2 === 0 ? 1 : -1;

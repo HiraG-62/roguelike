@@ -10,6 +10,7 @@ import {
   playerBodyPose,
   poseShape,
   screenSwingSign,
+  visualFacing,
   slashVisual,
   slashWeight,
   swingSign,
@@ -422,6 +423,13 @@ describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）"
     expect(diff(recover.angle, active.angle), "振り抜いた先よりさらに流れる").toBeGreaterThan(0.2);
     const mid = pose({ phase: "active", t: 0.2, shape: "box" });
     expect(Math.hypot(mid.dx, mid.dy + 4), "振りの途中で腕を伸ばしきる").toBeGreaterThan(6.5);
+  });
+
+  it("攻撃の最中は振り出した向きで見せ、途中でカーソルを反対へ動かしても裏返らない", () => {
+    const right = { x: 1, y: 0 };
+    const left = { x: -1, y: 0 };
+    expect(visualFacing(left, right, true), "攻撃中は振り出した向き").toBe(right);
+    expect(visualFacing(left, right, false), "攻撃の外は今の向き").toBe(left);
   });
 
   it("振る向きは左を向いても同じ振りに見え、重い箱は段によらず振り下ろす", () => {

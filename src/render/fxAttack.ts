@@ -197,7 +197,8 @@ function meleeHitInfo(state: GameState, e: Enemy): { angle: number; heavy: boole
   const dir = Math.atan2(p.attack.dir.y, p.attack.dir.x);
   // 突きは攻撃の向きに、振りは刃の進む向き（自分から敵への向きに直交）に光の線を引く
   const toward = dx === 0 && dy === 0 ? dir : Math.atan2(dy, dx);
-  const sign = screenSwingSign(p.attack.step, p.facing.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy);
+  // 振りの向きは振り出した向きで決める（振りの途中で向きを変えても光の線が裏返らない）
+  const sign = screenSwingSign(p.attack.step, p.attack.dir.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy);
   const angle = step.shape.kind === "thrust" ? dir : toward + (Math.PI / 2) * sign;
   return { angle, heavy: step.heavy };
 }
