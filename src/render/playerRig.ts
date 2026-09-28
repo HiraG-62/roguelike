@@ -209,6 +209,11 @@ export interface RigPose {
   readonly front: HeldPart;
   /** 後ろの手（二刀のもう 1 本・両手持ちの添え手）。片手の武器なら体の脇に垂らす */
   readonly back: HeldPart;
+  /**
+   * 両手で構えた銃の持ち方: 後ろの肩の腕が握り（front の手）を持って銃の奥に隠れ、前の肩の腕が先台（back の手）を支えて
+   * 手前に出る（腕が交差せず、両腕とも手前に見えない）
+   */
+  readonly gunHold?: boolean;
 }
 
 export interface RigInput {
@@ -250,8 +255,13 @@ const TWO_HAND_DROP = 3;
 const DEG = Math.PI / 180;
 /** これより上を向いたら体の後ろ（sin の値） */
 const BEHIND_SIN = -0.38;
-/** 二丁の銃の後ろの手の銃（前の手から、ドット） */
-const DUAL_AIM_OFFSET: Pt = { x: -3, y: 5 };
+/** 二丁の銃の後ろの手の銃（前の手から、ドット）。後ろの肩から届く所 */
+const DUAL_AIM_OFFSET: Pt = { x: -4, y: 2 };
+/** 銃の握りを照準へ出す距離の下限（ドット。負なら自分の中心より後ろ。長銃は肩の後ろまで引いて先台を持つ） */
+const AIM_REACH_MIN = -8;
+const AIM_REACH_STEP = 0.5;
+/** 腕を伸ばしきらずに届く距離（上腕 + 前腕より少し短く。肘がわずかに曲がって見える） */
+const ARM_SPAN = 10.5;
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
 const FREE_HAND: Pt = { x: -1, y: 9 };
 
@@ -343,7 +353,8 @@ export function solveRig(i: RigInput): RigPose {
   }
   const main = mainPart(i);
   const back = backPart(i, main);
-  return { front: main, back };
+  const gunHold = i.aimHeld && !i.swing && i.stance.grip === "two" && i.offGrip !== null;
+  return gunHold ? { front: main, back, gunHold } : { front: main, back };
 }
 
 function restPart(i: RigInput): HeldPart {
@@ -369,10 +380,50 @@ function mainPart(i: RigInput): HeldPart {
     const aimAngle = toRigAngle(i.aim, i.facingRight);
     // 反動で銃口が上（組み立ての空間の -y）へ跳ねる。真上・真下を狙っているときも体の外側へ跳ねる
     const angle = aimAngle + sway(i.time, i.stance.swayDeg) - Math.sign(Math.cos(aimAngle) || 1) * RECOIL_CLIMB * kick;
-    const grip = at(i.aimOrigin, aimAngle, AIM_REACH - RECOIL_BACK * kick);
-    return part({ x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY }, angle, false, false, false);
+    const reach = aimReach(i, aimAngle, angle);
+    return part(aimGrip(i, aimAngle, angle, reach - RECOIL_BACK * kick), angle, false, false, false);
   }
   return restPart(i);
+}
+
+/** 照準へ reach だけ出した銃の握り（銃身の線が弾の出る位置を通るように、銃身のずれの分だけ反対へ寄せる） */
+function aimGrip(i: RigInput, aimAngle: number, angle: number, reach: number): Pt {
+  const grip = at(i.aimOrigin, aimAngle, reach);
+  return { x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY };
+}
+
+/** 銃を握る腕と、もう一方の手（先台・二丁のもう 1 挺）を持つ腕 */
+function aimArms(i: RigInput): { grip: Pt; other: Pt } {
+  return i.stance.grip === "two" ? { grip: i.shoulderB, other: i.shoulderF } : { grip: i.shoulderF, other: i.shoulderB };
+}
+
+/** もう一方の手の位置（握りから。無ければ null） */
+function aimOtherHand(i: RigInput, hand: Pt, angle: number): Pt | null {
+  if (i.stance.grip === "two" && i.offGrip !== null) return at(hand, angle, i.offGrip);
+  if (i.stance.grip === "dual") return { x: hand.x + DUAL_AIM_OFFSET.x, y: hand.y + DUAL_AIM_OFFSET.y };
+  return null;
+}
+
+/**
+ * 銃の握りを照準へ出す距離。両手とも腕を伸ばしきらずに届く、いちばん前の距離を選ぶ（長い銃ほど手前へ引いて構える）。
+ * どこでも届かなければ、届かない量がいちばん小さい距離
+ */
+function aimReach(i: RigInput, aimAngle: number, angle: number): number {
+  const arms = aimArms(i);
+  const over = (hand: Pt, shoulder: Pt): number => Math.max(0, Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y) - ARM_SPAN);
+  let best = AIM_REACH;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (let r = AIM_REACH; r >= AIM_REACH_MIN; r -= AIM_REACH_STEP) {
+    const hand = aimGrip(i, aimAngle, angle, r);
+    const other = aimOtherHand(i, hand, angle);
+    const cost = over(hand, arms.grip) + (other ? over(other, arms.other) : 0);
+    if (cost <= 0) return r;
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = r;
+    }
+  }
+  return best;
 }
 
 function backPart(i: RigInput, main: HeldPart): HeldPart {

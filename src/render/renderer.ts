@@ -99,7 +99,7 @@ import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawP
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
-import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -2242,20 +2242,15 @@ export class Renderer {
     const heldWeapon = (part: HeldPart): void => {
       if (!worn) this.rigWeapon(weapon, part, swingArt && part === rig.front);
     };
-    // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く
-    const backFront = !twoHanded && !rig.back.behind;
-    if (!rig.back.bare && rig.back.behind) heldWeapon(rig.back);
-    if (!twoHanded && !backFront) arm(shoulderB, rig.back, true);
-    // 振りかぶって手が頭の後ろへ回ったら、腕も体の後ろ（顔の前を腕が横切らない）
-    const frontArmBehind = rig.front.behind || rig.front.hand.x < shoulderF.x - RIG_ARM_BEHIND_X;
-    if (rig.front.behind) heldWeapon(rig.front);
-    if (frontArmBehind) arm(shoulderF, rig.front, false);
-    this.rigCell(bodyCell, 0, 0);
-    if (!rig.back.bare && !rig.back.behind) heldWeapon(rig.back);
-    if (backFront) arm(shoulderB, rig.back, true);
-    if (!rig.front.behind) heldWeapon(rig.front);
-    if (twoHanded) arm(shoulderB, rig.back, false);
-    if (!frontArmBehind) arm(shoulderF, rig.front, false);
+    if (rig.gunHold) {
+      // 両手で構えた銃: 体 → 握りを持つ後ろの腕（銃の奥）→ 銃 → 先台を支える前の腕（手前）
+      this.rigCell(bodyCell, 0, 0);
+      arm(shoulderB, rig.front, true);
+      heldWeapon(rig.front);
+      arm(shoulderF, rig.back, false);
+    } else {
+      this.rigLayers(rig, shoulderF, shoulderB, bodyCell, twoHanded, arm, heldWeapon);
+    }
     // 鞭: 振り抜いた後、エフェクトの線が薄れてから縄が垂れて手元へ巻き戻る
     if (swing.phase === "recover") this.rigRope(weapon, rig.front, swing);
 
@@ -2277,6 +2272,32 @@ export class Renderer {
     const jolt = Math.round((rigInput.kick ?? 0) * (stance.recoil ?? 1) * RIG_RECOIL_JOLT) * (facingRight ? -1 : 1);
     this.blitRig(p.hitFlash > 0 && white ? white : rc.canvas, cx + jolt, bottom, !facingRight, 1);
     return true;
+  }
+
+  /** 銃以外の重ね順: 後ろの武器 → 後ろの腕 → 体 → 前の武器 → 前の腕（振りかぶった腕・二刀の前へ出た手は入れ替える） */
+  private rigLayers(
+    rig: RigPose,
+    shoulderF: Pt,
+    shoulderB: Pt,
+    bodyCell: ActorCell,
+    twoHanded: boolean,
+    arm: (shoulder: Pt, part: HeldPart, dim: boolean) => void,
+    heldWeapon: (part: HeldPart) => void,
+  ): void {
+    // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く
+    const backFront = !twoHanded && !rig.back.behind;
+    if (!rig.back.bare && rig.back.behind) heldWeapon(rig.back);
+    if (!twoHanded && !backFront) arm(shoulderB, rig.back, true);
+    // 振りかぶって手が頭の後ろへ回ったら、腕も体の後ろ（顔の前を腕が横切らない）
+    const frontArmBehind = rig.front.behind || rig.front.hand.x < shoulderF.x - RIG_ARM_BEHIND_X;
+    if (rig.front.behind) heldWeapon(rig.front);
+    if (frontArmBehind) arm(shoulderF, rig.front, false);
+    this.rigCell(bodyCell, 0, 0);
+    if (!rig.back.bare && !rig.back.behind) heldWeapon(rig.back);
+    if (backFront) arm(shoulderB, rig.back, true);
+    if (!rig.front.behind) heldWeapon(rig.front);
+    if (twoHanded) arm(shoulderB, rig.back, false);
+    if (!frontArmBehind) arm(shoulderF, rig.front, false);
   }
 
   /** 主の武器の銃口（武器の絵の位置の印）を論理座標で。印の無い武器は null */

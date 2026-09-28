@@ -193,3 +193,25 @@ describe("playerRig: 撃った反動", () => {
     expect(heavy.angle).toBeLessThan(kicked.angle);
   });
 });
+
+describe("playerRig: 銃の構え", () => {
+  const span = UPPER_ARM + FOREARM;
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  const longGun: RigInput = { ...base, aimHeld: true, stance: { ...DEFAULT_STANCE, grip: "two", body: "aim" }, offGrip: 13, barrelY: -3.6 };
+
+  it("両手の銃は後ろの腕が握り・前の腕が先台を持ち、どの向きでも腕を伸ばしきらずに届く", () => {
+    for (const deg of [0, -45, -80, 45, 80]) {
+      const rig = solveRig({ ...longGun, aim: (deg * Math.PI) / 180 });
+      expect(rig.gunHold, `${deg} 度: 銃の持ち方`).toBe(true);
+      expect(dist(rig.front.hand, longGun.shoulderB), `${deg} 度: 握りに届く`).toBeLessThanOrEqual(span);
+      expect(dist(rig.back.hand, longGun.shoulderF), `${deg} 度: 先台に届く`).toBeLessThanOrEqual(span);
+    }
+  });
+
+  it("二丁拳銃のもう 1 挺は後ろの腕が届く所に持つ", () => {
+    const rig = solveRig({ ...base, aimHeld: true, stance: { ...DEFAULT_STANCE, grip: "dual", body: "aim" }, barrelY: -4.2 });
+    expect(rig.gunHold).toBeUndefined();
+    expect(dist(rig.front.hand, base.shoulderF)).toBeLessThanOrEqual(span);
+    expect(dist(rig.back.hand, base.shoulderB)).toBeLessThanOrEqual(span);
+  });
+});
