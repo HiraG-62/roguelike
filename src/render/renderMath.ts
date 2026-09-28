@@ -598,11 +598,25 @@ export function poseShape(shape: HitShape["kind"], reach: number, punch = false)
 }
 
 /**
- * 見た目の向き。攻撃の最中（予備動作 → 振り → 戻し）は振り出した向き（attack.dir。振りの間は固定）、それ以外は今の向き。
+ * 見た目の向き。locked（attackFacingLocked）の間は振り出した向き（attack.dir。振りの間は固定）、それ以外は今の向き。
  * 振りの途中でカーソルを反対へ動かしても、体・武器・振りのエフェクトが反対向きへ裏返らない
  */
-export function visualFacing(facing: { x: number; y: number }, attackDir: { x: number; y: number }, attacking: boolean): { x: number; y: number } {
-  return attacking ? attackDir : facing;
+export function visualFacing(facing: { x: number; y: number }, attackDir: { x: number; y: number }, locked: boolean): { x: number; y: number } {
+  return locked ? attackDir : facing;
+}
+
+/**
+ * 振り出した向きに見た目を留める間か。予備動作・振りの間と、戻しのうち振りのエフェクトの尾が残る間（fxTail 秒）。
+ * エフェクトが消えた後の戻しは、カーソルの向きへ振り向いてよい
+ */
+export function attackFacingLocked(phase: SwingPhase, recoverElapsed: number, fxTail: number): boolean {
+  if (phase === "windup" || phase === "active") return true;
+  return phase === "recover" && recoverElapsed < fxTail;
+}
+
+/** 振り向いた後の攻撃の向き: 見た目の左右が振り出した向きと逆なら、振り出した向きを左右に写す（戻しの形ごと振り向く） */
+export function turnedAttackDir(attackDir: { x: number; y: number }, lookRight: boolean): { x: number; y: number } {
+  return attackDir.x >= 0 === lookRight ? attackDir : { x: -attackDir.x, y: attackDir.y };
 }
 
 /** 段ごとの振る向き（偶数段 +1 / 奇数段 -1） */

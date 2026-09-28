@@ -80,6 +80,8 @@ import {
   weaponGrip,
   poseShape,
   screenSwingSign,
+  attackFacingLocked,
+  turnedAttackDir,
   visualFacing,
   weaponPose,
 } from "./renderMath";
@@ -2074,7 +2076,7 @@ export class Renderer {
 
     const moving = p.body.vel.x !== 0 || p.body.vel.y !== 0;
     const walkFrame = moving ? spriteFrame(sprite, p.walkTime, WALK_FRAME_TIME) : 0;
-    const flip = this.playerLook(p).x < 0;
+    const flip = this.playerLook(state).x < 0;
     const dashing = isDashing(p);
     if (dashing) this.drawDashGhosts(p, sprite, walkFrame, cx, bottom, flip);
 
@@ -2136,14 +2138,20 @@ export class Renderer {
   }
 
   /** 見た目の向き（攻撃の最中は振り出した向きで固定。renderMath の visualFacing） */
-  private playerLook(p: Player): { x: number; y: number } {
-    return visualFacing(p.facing, p.attack.dir, isAttacking(p));
+  private playerLook(state: GameState): { x: number; y: number } {
+    const p = state.player;
+    const step = currentMeleeStep(state);
+    const recoverElapsed = step && p.attack.phase === "recover" ? step.recover - p.attack.timer : 0;
+    // 振りのエフェクト（スプライトの崩れ・手続きの軌跡の尾）が消えるまでは振り出した向きのまま
+    const tail = Math.max(FX_ATTACK.sprite.swingFade, FX_ATTACK.slash.fadeTime);
+    return visualFacing(p.facing, p.attack.dir, attackFacingLocked(p.attack.phase, recoverElapsed, tail));
   }
 
   private heldWeaponPose(state: GameState, swing: PlayerSwing): WeaponPose {
     const p = state.player;
-    const look = this.playerLook(p);
-    const aimVec = swing.phase === "none" ? look : p.attack.dir;
+    const look = this.playerLook(state);
+    // 戻しで振り向いたら、戻しの形も左右に写して新しい向きで構え直す
+    const aimVec = swing.phase === "none" ? look : turnedAttackDir(p.attack.dir, look.x >= 0);
     const moveset = playerMoveset(state);
     return weaponPose({
       phase: swing.phase,
@@ -2202,7 +2210,7 @@ export class Renderer {
     const shoulderF = actorAnchor(bodyKey, 0, clip.frame, "shoulderF");
     const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
     if (!bodyCell || !shoulderF || !shoulderB) return false;
-    const look = this.playerLook(p);
+    const look = this.playerLook(state);
     const facingRight = look.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;

@@ -9,7 +9,9 @@ import {
   overshootCurve,
   playerBodyPose,
   poseShape,
+  attackFacingLocked,
   screenSwingSign,
+  turnedAttackDir,
   visualFacing,
   slashVisual,
   slashWeight,
@@ -425,11 +427,22 @@ describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）"
     expect(Math.hypot(mid.dx, mid.dy + 4), "振りの途中で腕を伸ばしきる").toBeGreaterThan(6.5);
   });
 
-  it("攻撃の最中は振り出した向きで見せ、途中でカーソルを反対へ動かしても裏返らない", () => {
+  it("振りとエフェクトの尾の間は振り出した向きで見せ、エフェクトが消えた後の戻しは振り向いてよい", () => {
     const right = { x: 1, y: 0 };
     const left = { x: -1, y: 0 };
-    expect(visualFacing(left, right, true), "攻撃中は振り出した向き").toBe(right);
-    expect(visualFacing(left, right, false), "攻撃の外は今の向き").toBe(left);
+    expect(visualFacing(left, right, true), "留める間は振り出した向き").toBe(right);
+    expect(visualFacing(left, right, false), "それ以外は今の向き").toBe(left);
+    expect(attackFacingLocked("windup", 0, 0.2)).toBe(true);
+    expect(attackFacingLocked("active", 0, 0.2)).toBe(true);
+    expect(attackFacingLocked("recover", 0.1, 0.2), "エフェクトの尾が残る間").toBe(true);
+    expect(attackFacingLocked("recover", 0.25, 0.2), "エフェクトが消えた後").toBe(false);
+    expect(attackFacingLocked("none", 0, 0.2)).toBe(false);
+  });
+
+  it("戻しで振り向いたら、振り出した向きを左右に写して構え直す", () => {
+    const dir = { x: 0.8, y: -0.6 };
+    expect(turnedAttackDir(dir, true), "同じ側ならそのまま").toBe(dir);
+    expect(turnedAttackDir(dir, false)).toEqual({ x: -0.8, y: -0.6 });
   });
 
   it("振る向きは左を向いても同じ振りに見え、重い箱は段によらず振り下ろす", () => {
