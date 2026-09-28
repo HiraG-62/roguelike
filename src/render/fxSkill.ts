@@ -8,10 +8,11 @@ import type { Vec } from "../core/vec";
 import { FX_ATTACK } from "../data/tuning";
 import type { FxSheetKey } from "../data/fxSheets.gen";
 import { castElement } from "../skills/hit";
-import { SKILL } from "../skills/data";
+import { SKILL, skillAttack } from "../skills/data";
 import { fieldRadius, mineRadius, thunderRadius, wellRadius } from "../skills/placed";
 import { graveRadius, kegRadius, springRadius } from "../skills/summons";
-import type { ActiveCast, CastParams } from "../skills/types";
+import type { ActiveCast, CastParams, SkillKey } from "../skills/types";
+import { TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
 import { grenadeRadius, hookRange, quakeRadius, whirlRadius } from "../system/skills";
 import { GRENADE_ARC_H } from "./thrownLook";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
@@ -36,6 +37,8 @@ interface Moving {
   pos: Vec;
   angle: number;
   params: CastParams;
+  /** 物ごとの配色（五彩の礫の共鳴の色。遊びの情報なので属性より優先） */
+  ramp?: FxRampKey;
   /** 床からの高さ（px。投げた手榴弾の放物線）。空中の絵はその分だけ上に、地面の絵（影）は床に描く */
   lift?: number;
 }
@@ -51,7 +54,13 @@ const ACTIVE_SIZE: Readonly<Record<string, (state: GameState, a: ActiveCast) => 
   whirl: (state, a) => whirlRadius(state, a.params),
   quake: (_state, a) => quakeRadius(a.params),
   chainHook: (_state, a) => hookRange(a.params),
+  dregsBlade: (state, a) => SKILL.dregsBlade.radius * state.stats.meleeReachMul * a.params.areaMul,
 };
+
+/** 五彩の礫の共鳴の色 → 配色（紅 = 出血の赤、蒼 = 感電、翠 = 癒やしの緑、金 = 貫く光、冥 = 脆くする闇） */
+const PRISM_RAMP: ReadonlyMap<string, FxRampKey> = new Map(
+  (Object.entries({ crimson: "fire", azure: "lightning", jade: "poison", gold: "light", umbra: "dark" }) as [TraitColor, FxRampKey][]).map(([c, r]) => [TRAIT_COLOR_HEX[c], r]),
+);
 
 /** 置いてある物の一覧（どのスキルの物かは発動の値の skillKey。型替え符で別のスキルが置いた物もそのスキルの絵になる） */
 function placedOf(state: GameState): Placed[] {
@@ -79,7 +88,10 @@ function placedOf(state: GameState): Placed[] {
 function movingOf(state: GameState): Moving[] {
   const rs = state.skills;
   const out: Moving[] = [];
-  for (const s of rs.shots) out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params });
+  for (const s of rs.shots) {
+    const ramp = s.effect === "prism" ? PRISM_RAMP.get(s.color) : undefined;
+    out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params, ramp });
+  }
   for (const b of rs.bullets) out.push({ key: b.params.skillKey, pos: b.pos, angle: Math.atan2(b.vel.y, b.vel.x), params: b.params });
   for (const g of rs.grenades) {
     if (g.flight <= 0) continue;
@@ -103,9 +115,13 @@ function aurasOf(state: GameState): Aura[] {
   return out;
 }
 
-/** 配色: 刻印符などで差し替わった属性、無ければ絵の表の配色 */
-function rampOf(fx: SkillFx, element: string): FxRampKey {
-  return element === "none" ? fx.ramp : rampOfElement(element as Element);
+/**
+ * 配色: 絵の表の配色（スキルに合わせて選んだ色。血抜きの血は闇の素性でも赤）を基本に、
+ * 刻印符などで属性がスキルの素性から差し替わったときだけ、その属性の配色にする
+ */
+function rampOf(fx: SkillFx, key: string, element: string): FxRampKey {
+  const own = skillAttack(key as SkillKey)?.element ?? "none";
+  return element === "none" || element === own ? fx.ramp : rampOfElement(element as Element);
 }
 
 function paramsElement(params: Readonly<CastParams>): string {
@@ -156,7 +172,7 @@ function drawEvents(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
   for (const ev of state.effects?.skills ?? []) {
     const fx = SKILL_FX[ev.key];
     const piece = fx ? pieceOf(fx, ev) : undefined;
-    if (fx && piece) drawPiece(ctx, bank, ev, piece, rampOf(fx, ev.element), ground);
+    if (fx && piece) drawPiece(ctx, bank, ev, piece, rampOf(fx, ev.key, ev.element), ground);
   }
 }
 
@@ -174,7 +190,7 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
   const pos = state.player.body.pos;
   const size = ACTIVE_SIZE[a.skillKey]?.(state, a) ?? 0;
   const angle = Math.atan2(a.dir.y, a.dir.x);
-  bank.draw(ctx, sheet, frame, pos.x, pos.y, angle, { ramp: rampOf(fx, paramsElement(a.params)), scale: scaleOf(size, loop.base) });
+  bank.draw(ctx, sheet, frame, pos.x, pos.y, angle, { ramp: rampOf(fx, a.skillKey, paramsElement(a.params)), scale: scaleOf(size, loop.base) });
 }
 
 /** 置いてある間の絵: period 秒で繰り返す（向きなし）。物ごとに位置で位相をずらし、同じ物が並んでも揃って瞬かない */
@@ -186,7 +202,7 @@ function drawPlaced(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const phase = ((it.pos.x * 7 + it.pos.y * 13) % 97) / 97;
     const frame = loopFrame(sheetDef(sheet).frames, state.time + phase * loop.period, loop.period);
-    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, 0, { ramp: rampOf(fx, paramsElement(it.params)), scale: scaleOf(it.size, loop.base), alpha: it.alpha });
+    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, 0, { ramp: rampOf(fx, it.key, paramsElement(it.params)), scale: scaleOf(it.size, loop.base), alpha: it.alpha });
   }
 }
 
@@ -199,7 +215,7 @@ function drawMoving(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const frame = loopFrame(sheetDef(sheet).frames, state.time, loop.period);
     const y = ground ? it.pos.y : it.pos.y - (it.lift ?? 0);
-    bank.draw(ctx, sheet, frame, it.pos.x, y, it.angle, { ramp: rampOf(fx, paramsElement(it.params)) });
+    bank.draw(ctx, sheet, frame, it.pos.x, y, it.angle, { ramp: it.ramp ?? rampOf(fx, it.key, paramsElement(it.params)) });
   }
 }
 
@@ -212,7 +228,7 @@ function drawAuras(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpri
     const sheet = ground ? loop?.ground : loop?.sheet;
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const frame = loopFrame(sheetDef(sheet).frames, state.time, loop.period);
-    bank.draw(ctx, sheet, frame, pos.x, pos.y, 0, { ramp: rampOf(fx, it.element) });
+    bank.draw(ctx, sheet, frame, pos.x, pos.y, 0, { ramp: rampOf(fx, it.key, it.element) });
   }
 }
 
