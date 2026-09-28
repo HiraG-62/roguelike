@@ -1,13 +1,13 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { shake, spawnBlast, spawnBurst, spawnRing } from "../system/effects";
+import { addSkillFx, shake, spawnBlast, spawnBurst, spawnRing, withSkillFx } from "../system/effects";
 import { gainMana } from "../system/mana";
 import { circlesOverlap, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { enemiesInRadius } from "../system/statusEffects";
 import { SKILL, SKILL_DEFS } from "./data";
 import { angleDiff } from "./geom";
-import { skillHit, skillPower } from "./hit";
+import { castElement, skillHit, skillPower } from "./hit";
 import { spawnShot } from "./shots";
 import type { BoneRing, CastParams, GraveSword, PowderKeg } from "./types";
 
@@ -58,7 +58,7 @@ export function placeKeg(state: GameState, pos: Vec, params: CastParams): void {
   const limit = maxKegs(params);
   while (rs.kegs.length > limit) {
     const old = rs.kegs.shift();
-    if (old) spawnBurst(state, old.pos, COLOR_KEG, FIZZLE_PARTICLES, FIZZLE_SPEED, FIZZLE_LIFE, BURST_SIZE);
+    if (old) withSkillFx(state, "powderKeg", () => spawnBurst(state, old.pos, COLOR_KEG, FIZZLE_PARTICLES, FIZZLE_SPEED, FIZZLE_LIFE, BURST_SIZE));
   }
 }
 
@@ -142,8 +142,11 @@ function detonate(state: GameState, k: PowderKeg, blown: Set<number>): void {
 export function explodeKeg(state: GameState, pos: Vec, params: CastParams): void {
   const kp = SKILL.powderKeg;
   const radius = kegRadius(params);
-  spawnBlast(state, pos, radius, COLOR_KEG, RING_LIFE * 2);
-  spawnBurst(state, pos, "#ffb060", BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, "powderKeg", () => {
+    spawnBlast(state, pos, radius, COLOR_KEG, RING_LIFE * 2);
+    spawnBurst(state, pos, "#ffb060", BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, "powderKeg", "end", pos, { size: radius, element: castElement(params) });
   shake(state, SHAKE_KEG);
   pushSfx(state, "explode");
   const power = skillPower(state, kp.damage, params);
@@ -169,7 +172,8 @@ export function placeGrave(state: GameState, pos: Vec, params: CastParams): void
   rs.graves.push(sword);
   const limit = Math.max(1, g.maxAlive + params.countBonus);
   while (rs.graves.length > limit) rs.graves.shift();
-  spawnRing(state, pos, graveRadius(params), COLOR_GRAVE, RING_LIFE);
+  withSkillFx(state, "swordGrave", () => spawnRing(state, pos, graveRadius(params), COLOR_GRAVE, RING_LIFE));
+  addSkillFx(state, "swordGrave", "cast", pos, { element: castElement(params) });
   if (params.reshape === "toLobbed") spinGrave(state, sword);
 }
 
@@ -185,8 +189,11 @@ function spinGrave(state: GameState, sword: GraveSword): void {
   const g = SKILL.swordGrave;
   sword.spin = g.spinShow;
   const radius = graveRadius(sword.params);
-  spawnRing(state, sword.pos, radius, COLOR_GRAVE, RING_LIFE);
-  spawnBurst(state, sword.pos, COLOR_GRAVE, SPIN_PARTICLES, BURST_SPEED / 2, FIZZLE_LIFE, BURST_SIZE / 2);
+  withSkillFx(state, "swordGrave", () => {
+    spawnRing(state, sword.pos, radius, COLOR_GRAVE, RING_LIFE);
+    spawnBurst(state, sword.pos, COLOR_GRAVE, SPIN_PARTICLES, BURST_SPEED / 2, FIZZLE_LIFE, BURST_SIZE / 2);
+  });
+  addSkillFx(state, "swordGrave", "act", sword.pos, { size: radius, element: castElement(sword.params) });
   const power = skillPower(state, g.damage, sword.params);
   for (const e of enemiesInRadius(state, sword.pos, radius)) {
     skillHit(state, e, sword.params, { base: power, kind: "melee", dir: sub(e.body.pos, sword.pos), knockback: g.knockback, stagger: false, from: sword.pos });
@@ -213,7 +220,8 @@ export function placeTurret(state: GameState, pos: Vec, params: CastParams): voi
   rs.turrets.push({ id: allocId(state), pos: { ...pos }, life, total: life, params });
   const limit = Math.max(1, t.maxAlive + params.countBonus);
   while (rs.turrets.length > limit) rs.turrets.shift();
-  spawnRing(state, pos, t.radius * 4, COLOR_TURRET, RING_LIFE);
+  withSkillFx(state, "turret", () => spawnRing(state, pos, t.radius * 4, COLOR_TURRET, RING_LIFE));
+  addSkillFx(state, "turret", "cast", pos, { element: castElement(params) });
 }
 
 /** 自分が射撃した瞬間に、各砲台が自分の向きの先を狙って 1 発撃つ */
@@ -222,6 +230,7 @@ export function onTurretShoot(state: GameState): void {
   const p = state.player;
   const aim = add(p.body.pos, scale(p.facing, t.aimReach));
   for (const tur of state.skills.turrets) {
+    addSkillFx(state, "turret", "act", tur.pos, { angle: Math.atan2(aim.y - tur.pos.y, aim.x - tur.pos.x), element: castElement(tur.params) });
     spawnShot(state, tur.pos, sub(aim, tur.pos), tur.params, {
       effect: "turret",
       power: skillPower(state, t.damage, tur.params),
@@ -259,6 +268,7 @@ export function startBoneRing(state: GameState, params: CastParams): void {
   const bones = Math.max(1, Math.round(b.bones * params.potencyMul) + params.countBonus);
   const time = b.duration * params.durationMul;
   state.skills.boneRing = { bones, timer: time, total: time, params };
+  addSkillFx(state, "boneRing", "cast", state.player.body.pos, { element: castElement(params) });
 }
 
 /** 骨片 i の位置（HUD と共有） */
@@ -291,7 +301,8 @@ function catchWithBones(state: GameState, ring: BoneRing): void {
     if (!hit) continue;
     pr.life = 0;
     ring.bones -= 1;
-    spawnBurst(state, hit, COLOR_BONE, FIZZLE_PARTICLES, BURST_SPEED / 2, FIZZLE_LIFE, BURST_SIZE / 2);
+    withSkillFx(state, "boneRing", () => spawnBurst(state, hit, COLOR_BONE, FIZZLE_PARTICLES, BURST_SPEED / 2, FIZZLE_LIFE, BURST_SIZE / 2));
+    addSkillFx(state, "boneRing", "act", hit, { element: castElement(ring.params) });
     pushSfx(state, "parry");
   }
 }
@@ -308,7 +319,8 @@ export function springRadius(params: Readonly<CastParams>): number {
 export function placeSpring(state: GameState, pos: Vec, params: CastParams): void {
   const time = SKILL.manaSpring.duration * params.durationMul;
   state.skills.springs = [{ pos: { ...pos }, timer: time, total: time, params }];
-  spawnRing(state, pos, springRadius(params), COLOR_SPRING, RING_LIFE);
+  withSkillFx(state, "manaSpring", () => spawnRing(state, pos, springRadius(params), COLOR_SPRING, RING_LIFE));
+  addSkillFx(state, "manaSpring", "cast", pos, { size: springRadius(params), element: castElement(params) });
 }
 
 /** 近接の命中ごと: 石の半径内に立っていればマナを余分に回収する */
@@ -317,7 +329,9 @@ export function onSpringMeleeHit(state: GameState): void {
   const spring = state.skills.springs.find((s) => dist(s.pos, p) <= springRadius(s.params));
   if (!spring) return;
   const gained = gainMana(state, SKILL.manaSpring.manaPerHit * spring.params.potencyMul);
-  if (gained > 0) spawnBurst(state, p, COLOR_SPRING, 1, MANA_PARTICLE_SPEED, FIZZLE_LIFE, BURST_SIZE / 2);
+  if (gained <= 0) return;
+  withSkillFx(state, "manaSpring", () => spawnBurst(state, p, COLOR_SPRING, 1, MANA_PARTICLE_SPEED, FIZZLE_LIFE, BURST_SIZE / 2));
+  addSkillFx(state, "manaSpring", "act", p, { element: castElement(spring.params) });
 }
 
 export function updateSprings(state: GameState, dt: number): void {

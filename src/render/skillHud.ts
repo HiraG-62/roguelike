@@ -596,7 +596,9 @@ function drawBones(ctx: CanvasRenderingContext2D, state: GameState): void {
 function drawStakes(ctx: CanvasRenderingContext2D, state: GameState): void {
   const stakes = state.skills.stakes;
   const first = stakes[0];
-  if (!first || drawnBySprite(first.params)) return;
+  if (!first) return;
+  // 絵があっても、3 本以上の内側の塗り（中の敵が脆くなる範囲）は遊びの情報なので残す。杭と線は絵に任せる
+  const sprite = drawnBySprite(first.params);
   if (stakes.length >= 3) {
     ctx.beginPath();
     stakes.forEach((s, i) => (i === 0 ? ctx.moveTo(s.pos.x, s.pos.y) : ctx.lineTo(s.pos.x, s.pos.y)));
@@ -604,6 +606,10 @@ function drawStakes(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.globalAlpha = STAKE_FILL_ALPHA;
     ctx.fillStyle = COLOR_STAKE;
     ctx.fill();
+  }
+  if (sprite) {
+    ctx.globalAlpha = 1;
+    return;
   }
   ctx.globalAlpha = STAKE_LINE_ALPHA;
   ctx.strokeStyle = COLOR_STAKE;

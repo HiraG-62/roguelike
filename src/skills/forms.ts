@@ -8,13 +8,13 @@ import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, de
 import { ATTR_KEYS, type AttrRatio, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
-import { addFloatingText, shake, spawnBurst, spawnRing } from "../system/effects";
+import { addFloatingText, addSkillFx, shake, spawnBurst, spawnRing, withSkillFx } from "../system/effects";
 import { canAffordSkill, paySkillCost } from "../system/keystones";
 import { circlesOverlap } from "../system/physics";
 import { applyStatus, enemiesInRadius, hasStatus, removeStatus } from "../system/statusEffects";
 import { endUltimate } from "../system/ultimates";
 import { SKILL } from "./data";
-import { skillPower } from "./hit";
+import { castElement, skillPower } from "./hit";
 import { spawnShot } from "./shots";
 import { SHAPE_TUNING as S } from "./tuning3";
 import { type CastParams, type ShapeFormState, type SkillDef, type SkillKey, WAVE3_SKILL_KEYS, type Wave3SkillKey } from "./types";
@@ -213,8 +213,11 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
     moveset: buildMoveset(state.stats.moveset, key, params),
   };
   const color = SHAPE_COLOR[key];
-  spawnRing(state, p.body.pos, p.body.radius * 3, color, RING_LIFE);
-  spawnBurst(state, p.body.pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, key, () => {
+    spawnRing(state, p.body.pos, p.body.radius * 3, color, RING_LIFE);
+    spawnBurst(state, p.body.pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, key, "cast", p.body.pos, { angle: Math.atan2(p.facing.y, p.facing.x), element: castElement(params) });
   addFloatingText(state, p.body.pos, SKILL_NAME[key], color, TEXT_SCALE, TEXT_LIFE);
   pushSfx(state, "formShift");
   if (key === "siegeForm") openFire(state, rs.shape, params);
@@ -288,6 +291,7 @@ export function endShape(state: GameState, cause: ShapeEndCause): void {
   // 差し替えた近接の型の段は装備の武器種では引けないので、振りの途中なら止める
   if (shape.moveset && state.player.attack.phase !== "none") cancelAttack(state);
   rs.formRecover = shape.recover;
+  addSkillFx(state, shape.key, "end", state.player.body.pos, { element: castElement(shape.params) });
   addFloatingText(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], NOTICE_SCALE, TEXT_LIFE / 2);
 }
 
@@ -386,7 +390,8 @@ function howl(state: GameState, shape: ShapeFormState): void {
   for (const e of enemiesInRadius(state, p.body.pos, radius)) {
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "fear", stacks: 1, duration: w.fearDuration * shape.params.statusDurationMul, potency: 0 }, "player");
   }
-  spawnRing(state, p.body.pos, radius, COLOR_WOLF, RING_LIFE);
+  withSkillFx(state, "wolfForm", () => spawnRing(state, p.body.pos, radius, COLOR_WOLF, RING_LIFE));
+  addSkillFx(state, "wolfForm", "act", p.body.pos, { size: radius, element: castElement(shape.params) });
   pushSfx(state, "wolfHowl");
 }
 
@@ -438,7 +443,8 @@ function fireShell(state: GameState, from: Vec, dir: Vec, params: CastParams): v
   });
   const p = state.player;
   p.knock = add(p.knock, scale(dir, -s.recoil));
-  spawnBurst(state, add(from, scale(dir, p.body.radius)), COLOR_SIEGE, BURST_PARTICLES / 2, BURST_SPEED, BURST_LIFE / 2, BURST_SIZE);
+  withSkillFx(state, "siegeForm", () => spawnBurst(state, add(from, scale(dir, p.body.radius)), COLOR_SIEGE, BURST_PARTICLES / 2, BURST_SPEED, BURST_LIFE / 2, BURST_SIZE));
+  addSkillFx(state, "siegeForm", "act", from, { angle: Math.atan2(dir.y, dir.x), element: castElement(params) });
   shake(state, SHAKE_SHELL);
   pushSfx(state, "siegeCannon");
 }

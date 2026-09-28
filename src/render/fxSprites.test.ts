@@ -5,7 +5,7 @@ import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, loopFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
 import { BULLET_FX, MOVESET_FX, SKILL_FX, type SkillFx, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, skillAtlas, swingMotionKeys } from "./fxMotions";
-import { SKILL_KEYS } from "../skills/types";
+import { LEGACY_SKILL_KEYS, SKILL_KEYS } from "../skills/types";
 import { ultPiece } from "./fxUltimate";
 import { BULLETS } from "../loot/bullets";
 import { BASES, baseFamily } from "../loot/bases";
@@ -282,6 +282,13 @@ describe("fxMotions: スキル石の絵の表", () => {
     for (const [key, fx] of Object.entries(SKILL_FX)) {
       for (const [part, loop] of [["placed", fx.placed], ["fly", fx.fly], ["aura", fx.aura]] as const) if (loop) expect(loop.period, `${key} ${part}`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("fxMotions: 全スキル石の網羅", () => {
+  it("どのスキル石も専用の絵を持つ（技は対象外。技は行為の輪・線・弾で描く）", () => {
+    const missing = LEGACY_SKILL_KEYS.filter((key) => !SKILL_FX[key]);
+    expect(missing).toEqual([]);
   });
 });
 

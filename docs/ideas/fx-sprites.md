@@ -161,7 +161,7 @@
 
 絵は **スキル名と説明から連想できるもの** にする（ユーザーの指示）。旋風斬りは体の周りを回る刃の渦と巻く風、撃ち抜きは照準で光を溜めて壁まで貫く螺旋の光条、氷結地帯は霜の結晶の網目が張った凍った床、突進斬りは踏み込みの衝撃と斬り抜けの一閃。
 
-- アトラスはスキルの形ごと（`scripts/fx/sheets/skill<形>.mjs`）: `skillArea`（自分の周り・前方の範囲）・`skillShot`（弾・ビーム・鎖）・`skillPlaced`（設置物・場）・`skillMove`（移動）。残りの形（照準地点・自己強化・変身）も同じ名付けで足す。実行時は装備中の石のアトラスだけを読む（`renderer.ts` の `focus` と `equippedSkillKeys`）
+- アトラス（`scripts/fx/sheets/skill<群>.mjs`）: 見本 4 本は形ごと（`skillArea` 旋風斬り・`skillShot` 撃ち抜き・`skillPlaced` 氷結地帯・`skillMove` 突進斬り）、残り 72 本は処理のファイルの群ごとに並列で制作（2026-09-28）: `skillBase`（基本 10 本）・`skillExtraA`（拡張の前半 16 本）・`skillExtraB`（拡張の後半と召喚・設置 17 本）・`skillWave2`（第 2 弾 21 本）・`skillForm`（変身 8 本）。実行時は装備中の石のアトラスだけを読む（`renderer.ts` の `focus` と `equippedSkillKeys`）。全スキル石が絵を持つことは `render/fxSprites.test.ts` が固定する（技は対象外）
 - 表は `fx.skills`（スキルの key → `{ ramp, cast, act, end, active, placed }`。`render/fxMotions.ts` の `SkillFx`）
   - 出来事（`EffectsState.skills`。`system/effects.ts` の `addSkillFx`）: `cast` = 発動・設置した瞬間、`act` = 1 回の行為（撃ち抜きのビーム 1 本）、`end` = 終わり（突進の止まった所・場が消える）。`pos` / `to` / `angle` / `size`（半径）/ `element`（刻印符で差し替わる属性 → 配色）を持つ
   - 1 つの絵は奥義の絵と同じ `{ sheet, life, base, pivot, ground? }` に、`beam`（`pos` → `to` に `step` px ごとに並べる帯。区間のシートは向き 0 だけを描き、実行時に実際の角度へ回して並べる。15° 刻みの向きに丸めると斜めで階段状に折れるため。`FxSpriteBank.drawStrip`）と `tip`（`to` に置く着弾）を足せる
@@ -169,5 +169,8 @@
   - `placed`: 置いてある間（場・設置物）。`period` 秒で繰り返す。置いてある物の一覧は `fxSkill.ts` の `placedOf`（スキルを足すときにその設置物を足す）
 - 絵が読めたスキルは、手続きの描画を省く: スキルの処理が出す輪・線・粒を `withSkillFx` で狭く囲んで印を付け（命中・撃破の粒まで消さないよう、演出の呼び出しだけを囲む）、`skillHud.ts` の発動中・場の描画はスキルの key で飛ばす（撃ち抜きの照準線は狙いの表示なので残す）
 - 反響の残像（旋風斬りの残像など）は発動中の絵を持たないので、手続きの輪のまま
+- 置いてある物・飛んでいる物・纏い（`placed` / `fly` / `aura`）は、スキルのコードを触らずに表に書くだけで描ける（`fxSkill.ts` の `placedOf` / `movingOf` / `aurasOf`。どのスキルの物かは発動の値の `skillKey`）。弾は半径で拡縮し（`fly.base`）、投げた手榴弾は放物線の高さで描いて影は床に置く
+- 配色は表の `ramp`（スキルに合わせて選んだ色）を基本に、刻印符で属性が素性から差し替わったときだけその属性の配色にする（血抜きの血は闇の素性でも赤）。五彩の礫は礫ごとの共鳴の色
+- 遊びの情報は絵があっても残す: 撃ち抜き・墜星・手繰り糸の狙いと落下点（`skillHud.ts` の `KEEP_TELEGRAPH`）、雷の落ちるまでの残り（縮む輪）、投げた手榴弾の落ちる所の輪、結界杭 3 本の内側の塗り。起動前の地雷は薄く描く
 - テスト: `render/fxSprites.test.ts`（表のスキルが実在し、絵が `skill<形>` のアトラスに載り、行が壊れていない）、`system/effects.test.ts`（出来事の寿命・階の切り替え・印）
 

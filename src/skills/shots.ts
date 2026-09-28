@@ -4,11 +4,11 @@ import { type Vec, add, dist, normalize, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { healPlayer } from "../system/combat";
-import { addFloatingText, spawnBurst } from "../system/effects";
+import { addFloatingText, addSkillFx, spawnBurst, withSkillFx } from "../system/effects";
 import { overlapsWall } from "../system/physics";
 import { enemiesInRadius, findStatus, removeStatus } from "../system/statusEffects";
 import { SKILL } from "./data";
-import { skillHit, skillPower } from "./hit";
+import { castElement, skillHit, skillPower } from "./hit";
 import type { CastParams, ShotEffect, SkillShot } from "./types";
 
 /**
@@ -117,6 +117,7 @@ function stepShot(state: GameState, s: SkillShot, dt: number): void {
   s.vel = { x: blockedX || !blockedY ? -s.vel.x : s.vel.x, y: blockedY || !blockedX ? -s.vel.y : s.vel.y };
   s.bouncesLeft -= 1;
   s.bounced += 1;
+  if (s.effect === "ricochet") addSkillFx(state, "ricochet", "act", s.pos, { angle: Math.atan2(s.vel.y, s.vel.x), element: castElement(s.params) });
   pushSfx(state, "wallHit");
 }
 
@@ -129,7 +130,8 @@ function cutBullets(state: GameState, s: SkillShot): void {
     if (dist(pr.pos, s.pos) > pr.radius + s.radius) continue;
     pr.life = 0;
     s.life += speed > 0 ? g.rangePerCut / speed : 0;
-    spawnBurst(state, pr.pos, s.color, HIT_PARTICLES, HIT_PARTICLE_SPEED, HIT_PARTICLE_LIFE, HIT_PARTICLE_SIZE);
+    withSkillFx(state, "galeSlash", () => spawnBurst(state, pr.pos, s.color, HIT_PARTICLES, HIT_PARTICLE_SPEED, HIT_PARTICLE_LIFE, HIT_PARTICLE_SIZE));
+    addSkillFx(state, "galeSlash", "act", pr.pos, { element: castElement(s.params) });
   }
 }
 
@@ -200,6 +202,7 @@ function unravelHit(state: GameState, s: SkillShot, e: Enemy): void {
   const u = SKILL.unravel;
   const kinds = harmfulKinds(e);
   for (const k of kinds) removeStatus(state, { kind: "enemy", enemy: e }, k);
+  addSkillFx(state, "unravel", "act", e.body.pos, { angle: Math.atan2(s.vel.y, s.vel.x), element: castElement(s.params) });
   const n = kinds.length;
   const power = s.power + skillPower(state, u.perKind, s.params) * n;
   if (n > 0) addFloatingText(state, e.body.pos, `綻び ${n}`, s.color, TEXT_SCALE, TEXT_LIFE);
@@ -227,6 +230,7 @@ function harvestHit(state: GameState, s: SkillShot, e: Enemy): void {
   const remaining = e.maxHp * ratio * poison.stacks * poison.time * bossMul;
   removeStatus(state, { kind: "enemy", enemy: e }, "poison");
   addFloatingText(state, e.body.pos, "収穫", s.color, TEXT_SCALE, TEXT_LIFE);
+  addSkillFx(state, "harvest", "act", e.body.pos, { angle: Math.atan2(s.vel.y, s.vel.x), element: castElement(s.params) });
   basicHit(state, s, e, s.power + remaining);
 }
 
@@ -238,6 +242,7 @@ function routHit(state: GameState, s: SkillShot, e: Enemy): void {
     return;
   }
   removeStatus(state, { kind: "enemy", enemy: e }, "fear");
+  addSkillFx(state, "rout", "act", e.body.pos, { angle: Math.atan2(s.vel.y, s.vel.x), element: castElement(s.params) });
   basicHit(state, s, e, s.power * r.fearDamageMul, r.poise * r.fearPoiseMul);
 }
 
@@ -252,6 +257,9 @@ function stripHit(state: GameState, s: SkillShot, e: Enemy): void {
   const buff = state.player.buffs.damage;
   state.player.buffs.damage = { time: Math.max(buff.time, time), mul: Math.max(buff.time > 0 ? buff.mul : 1, st.buffMul) };
   addFloatingText(state, state.player.body.pos, "剥奪", s.color, TEXT_SCALE, TEXT_LIFE);
+  // 奪った弱体が敵 → 自分へ流れ込む
+  const me = state.player.body.pos;
+  addSkillFx(state, "strip", "act", e.body.pos, { to: me, angle: Math.atan2(me.y - e.body.pos.y, me.x - e.body.pos.x), element: castElement(s.params) });
 }
 
 /** 散弾符: 同じ斉射で 1 体に focusHits 発目が当たった瞬間、怯み値を上乗せ */

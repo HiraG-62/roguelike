@@ -10,7 +10,7 @@ import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { type Scaling, TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
 import { cancelAttack } from "../system/combat";
-import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addFloatingText, addSkillFx, shake, spawnBurst, spawnLine, spawnRing, withSkillFx } from "../system/effects";
 import { moveBody } from "../system/physics";
 import { applyStagger, isStaggered } from "../system/poise";
 import { applyStatus, convertStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
@@ -18,7 +18,7 @@ import { placeTerrain, terrainAt } from "../system/terrain";
 import { type CastCtx, landingShock } from "./actions";
 import { SKILL } from "./data";
 import { enemiesInCone, enemiesOnSegment, enemyNear, rayEnd } from "./geom";
-import { resonanceHueIndex, skillHit, skillPower } from "./hit";
+import { castElement, resonanceHueIndex, skillHit, skillPower } from "./hit";
 import { spawnFan, spawnShot } from "./shots";
 import { FORM_TUNING as F, WAVE2_COMBO_TUNING as C2, WEAPON_ART, WEAPON_ART_BLEED } from "./tuning2";
 import type { ActiveCast, CastParams, FormSkillKey, Wave2SkillKey, WardStake } from "./types";
@@ -99,13 +99,13 @@ export function wave2CastBlock(state: GameState, key: Wave2SkillKey, target: Vec
 type Wave2CastFn = (state: GameState, ctx: CastCtx) => void;
 
 export const WAVE2_CAST: Record<Wave2SkillKey, Wave2CastFn> = {
-  waterJar: (state, ctx) => splashTerrain(state, ctx, SKILL.waterJar, "water", COLOR_WATER),
-  oilPot: (state, ctx) => splashTerrain(state, ctx, SKILL.oilPot, "oil", COLOR_OIL),
+  waterJar: (state, ctx) => splashTerrain(state, ctx, SKILL.waterJar, "water", COLOR_WATER, "waterJar"),
+  oilPot: (state, ctx) => splashTerrain(state, ctx, SKILL.oilPot, "oil", COLOR_OIL, "oilPot"),
   scorchLine: castScorchLine,
   iceSlide: castIceSlide,
   levelGround: castLevelGround,
   emberDraw: castEmberDraw,
-  bogCall: (state, ctx) => splashTerrain(state, ctx, SKILL.bogCall, "bog", COLOR_BOG),
+  bogCall: (state, ctx) => splashTerrain(state, ctx, SKILL.bogCall, "bog", COLOR_BOG, "bogCall"),
   brandSear: (state, ctx) => coneStrike(state, ctx, SKILL.brandSear, COLOR_BRAND),
   brandBlast: castBrandBlast,
   breakKick: castBreakKick,
@@ -136,11 +136,14 @@ interface SplashBlock {
 }
 
 /** 照準地点で弾けて周りに当て、床に地形を残す（水瓶・油流し・沼呼び） */
-function splashTerrain(state: GameState, ctx: CastCtx, block: SplashBlock, kind: TerrainKind, color: string): void {
+function splashTerrain(state: GameState, ctx: CastCtx, block: SplashBlock, kind: TerrainKind, color: string, fxKey: Wave2SkillKey): void {
   const at = ctx.target;
   const radius = block.radius * ctx.params.areaMul;
-  spawnRing(state, at, radius, color, RING_LIFE * 2);
-  spawnBurst(state, at, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, fxKey, () => {
+    spawnRing(state, at, radius, color, RING_LIFE * 2);
+    spawnBurst(state, at, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, fxKey, "cast", at, { size: radius, element: castElement(ctx.params) });
   pushSfx(state, "oilSplash");
   placeTerrain(state, at.x, at.y, kind, block.terrainRadius * ctx.params.areaMul, block.terrainTime * ctx.params.durationMul);
   const power = skillPower(state, block.damage, ctx.params);
@@ -152,7 +155,7 @@ function splashTerrain(state: GameState, ctx: CastCtx, block: SplashBlock, kind:
 /** 泥沼: 照準地点に泥を広げ、中の敵に怯み値を入れ続ける領域を置く（領域の周期は skills/placed.ts） */
 function castMire(state: GameState, ctx: CastCtx): void {
   const m = SKILL.mire;
-  splashTerrain(state, ctx, m, "mud", COLOR_MUD);
+  splashTerrain(state, ctx, m, "mud", COLOR_MUD, "mire");
   const zones = state.skills.mires ?? [];
   state.skills.mires = zones;
   zones.push({ pos: { ...ctx.target }, timer: m.terrainTime * ctx.params.durationMul, tick: m.tickEvery, params: ctx.params, map: state.map });
@@ -165,17 +168,23 @@ interface ConeBlock {
   knockback: number;
 }
 
-/** 前方の扇に当てる（焼き印・彩刻・移ろい刃）。applies を渡せば付与を差し替える */
+/**
+ * 前方の扇に当てる（焼き印・彩刻・移ろい刃）。applies を渡せば付与を差し替える。
+ * fxElement は絵の配色の属性（彩刻の彩痕の色。無ければ発動の属性）
+ */
 function coneStrike(
   state: GameState,
   ctx: CastCtx,
   block: ConeBlock,
   color: string,
   applies?: readonly StatusApply[] | null,
+  fxElement?: Element,
 ): void {
   const radius = block.radius * state.stats.meleeReachMul * ctx.params.areaMul;
   const power = skillPower(state, block.damage, ctx.params);
-  spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, color, RING_LIFE);
+  const fxKey = ctx.params.skillKey;
+  withSkillFx(state, fxKey, () => spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, color, RING_LIFE));
+  addSkillFx(state, fxKey, "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: radius, element: fxElement ?? castElement(ctx.params) });
   pushSfx(state, "slash2");
   for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, block.halfAngle)) {
     skillHit(state, e, ctx.params, { base: power, kind: "melee", dir: sub(e.body.pos, ctx.origin), knockback: block.knockback, stagger: false, applies, from: ctx.origin });
@@ -227,7 +236,8 @@ function castScorchLine(state: GameState, ctx: CastCtx): void {
   const s = SKILL.scorchLine;
   const end = rayEnd(state, ctx.origin, ctx.dir, scorchLength(ctx.params));
   const power = skillPower(state, s.damage, ctx.params);
-  spawnLine(state, ctx.origin, end, COLOR_FIRE, LINE_LIFE * 2);
+  withSkillFx(state, "scorchLine", () => spawnLine(state, ctx.origin, end, COLOR_FIRE, LINE_LIFE * 2));
+  addSkillFx(state, "scorchLine", "cast", ctx.origin, { to: end, angle: Math.atan2(ctx.dir.y, ctx.dir.x), element: castElement(ctx.params) });
   pushSfx(state, "burn");
   // 自分の足元のマスは燃やさない（撃った本人が焼けないように）
   const start = add(ctx.origin, scale(ctx.dir, s.fireStart));
@@ -247,9 +257,12 @@ function slideDistance(state: GameState): number {
 }
 
 function castIceSlide(state: GameState, ctx: CastCtx): void {
+  const angle = Math.atan2(ctx.dir.y, ctx.dir.x);
+  addSkillFx(state, "iceSlide", "cast", ctx.origin, { angle, element: castElement(ctx.params) });
   if (ctx.remote) {
     const end = rayEnd(state, ctx.origin, ctx.dir, slideDistance(state));
     iceTrail(state, ctx.origin, end, ctx.params, new Set());
+    addSkillFx(state, "iceSlide", "end", end, { to: ctx.origin, angle, element: castElement(ctx.params) });
     return;
   }
   const time = SKILL.iceSlide.time * ctx.params.timeMul;
@@ -295,6 +308,7 @@ function updateIceSlide(state: GameState, a: ActiveCast, dt: number): void {
   iceTrail(state, before, p.body.pos, a.params, a.hitIds);
   if (a.timer > 0 && !hit.hitX && !hit.hitY) return;
   state.skills.active = null;
+  addSkillFx(state, "iceSlide", "end", p.body.pos, { to: a.origin, angle: Math.atan2(a.dir.y, a.dir.x), element: castElement(a.params) });
   landingShock(state, p.body.pos, a.params);
 }
 
@@ -307,7 +321,8 @@ function breakTerrainAlong(state: GameState, from: Vec, to: Vec): number {
     const kind = terrainAt(state, p.x, p.y);
     if (kind === "none" || kind === "lava") continue;
     placeTerrain(state, p.x, p.y, "none", ONE_TILE, NO_TIME);
-    spawnBurst(state, p, COLOR_STONE, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE);
+    withSkillFx(state, "levelGround", () => spawnBurst(state, p, COLOR_STONE, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE));
+    addSkillFx(state, "levelGround", "act", p);
     broken += 1;
   }
   return broken;
@@ -324,7 +339,8 @@ function castLevelGround(state: GameState, ctx: CastCtx): void {
   const end = rayEnd(state, ctx.origin, ctx.dir, l.length * ctx.params.areaMul);
   const broken = breakTerrainAlong(state, ctx.origin, end);
   const power = skillPower(state, l.damage, ctx.params) * levelGroundMul(broken);
-  spawnLine(state, ctx.origin, end, COLOR_STONE, LINE_LIFE * 2);
+  withSkillFx(state, "levelGround", () => spawnLine(state, ctx.origin, end, COLOR_STONE, LINE_LIFE * 2));
+  addSkillFx(state, "levelGround", "cast", ctx.origin, { to: end, angle: Math.atan2(ctx.dir.y, ctx.dir.x), element: castElement(ctx.params) });
   shake(state, broken > 0 ? SHAKE_HEAVY : SHAKE_LIGHT);
   pushSfx(state, "explode");
   if (broken > 0) addFloatingText(state, end, `地均し ${broken}`, COLOR_STONE, TEXT_SCALE, TEXT_LIFE);
@@ -341,7 +357,8 @@ function drawFire(state: GameState, center: Vec, radius: number): number {
   for (const p of tileCentersInRadius(center, radius)) {
     if (terrainAt(state, p.x, p.y) !== "fire") continue;
     placeTerrain(state, p.x, p.y, "none", ONE_TILE, NO_TIME);
-    spawnLine(state, p, center, COLOR_FIRE, LINE_LIFE);
+    withSkillFx(state, "emberDraw", () => spawnLine(state, p, center, COLOR_FIRE, LINE_LIFE));
+    addSkillFx(state, "emberDraw", "act", p, { to: center, angle: Math.atan2(center.y - p.y, center.x - p.x) });
     drawn += 1;
   }
   return drawn;
@@ -361,6 +378,8 @@ function castEmberDraw(state: GameState, ctx: CastCtx): void {
   const power = skillPower(state, m.damage, ctx.params) * (1 + bonus);
   const radius = Math.min(m.maxRadius, m.radius + m.radiusPerCell * cells) * ctx.params.areaMul;
   if (cells > 0) addFloatingText(state, ctx.origin, `火吸い ${cells}`, COLOR_FIRE, TEXT_SCALE, TEXT_LIFE);
+  // 吸ったマスの出来事より後に積む（出来事の上限で古い方から落ちるので、渦を残す）
+  addSkillFx(state, "emberDraw", "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: m.drawRadius * ctx.params.areaMul, element: castElement(ctx.params) });
   pushSfx(state, "burn");
   const applies: readonly StatusApply[] = [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: m.burnPotency }];
   spawnShot(state, ctx.origin, ctx.dir, ctx.params, {
@@ -386,7 +405,8 @@ function castBrandBlast(state: GameState, ctx: CastCtx): void {
   const radius = brandBlastRadius(ctx.params);
   const power = skillPower(state, b.damage, ctx.params);
   const extra = ctx.params.combo === "brandChain" ? b.comboStacks : 0;
-  spawnRing(state, ctx.target, radius, COLOR_BRAND, RING_LIFE * 2);
+  withSkillFx(state, "brandBlast", () => spawnRing(state, ctx.target, radius, COLOR_BRAND, RING_LIFE * 2));
+  addSkillFx(state, "brandBlast", "cast", ctx.target, { size: radius, element: castElement(ctx.params) });
   pushSfx(state, "explode");
   for (const e of enemiesInRadius(state, ctx.target, radius)) {
     const brand = findStatus(e.status, "brand");
@@ -400,7 +420,8 @@ function castBrandBlast(state: GameState, ctx: CastCtx): void {
 function doubleBrand(state: GameState, e: Enemy, stacks: number, potency: number): void {
   if (stacks <= 0) return;
   applyStatus(state, { kind: "enemy", enemy: e }, { kind: "brand", stacks, duration: STATUS.brand.duration, potency }, "player");
-  spawnBurst(state, e.body.pos, COLOR_BRAND, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, "brandBlast", () => spawnBurst(state, e.body.pos, COLOR_BRAND, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE));
+  addSkillFx(state, "brandBlast", "act", e.body.pos);
 }
 
 // ---- 崩し蹴り・崩落槌 ----
@@ -409,7 +430,8 @@ function castBreakKick(state: GameState, ctx: CastCtx): void {
   const k = SKILL.breakKick;
   const end = rayEnd(state, ctx.origin, ctx.dir, k.length * state.stats.meleeReachMul * ctx.params.areaMul);
   const power = skillPower(state, k.damage, ctx.params);
-  spawnLine(state, ctx.origin, end, COLOR_BREAK, LINE_LIFE);
+  withSkillFx(state, "breakKick", () => spawnLine(state, ctx.origin, end, COLOR_BREAK, LINE_LIFE));
+  addSkillFx(state, "breakKick", "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: dist(ctx.origin, end), element: castElement(ctx.params) });
   pushSfx(state, "hitHeavy");
   for (const e of enemiesOnSegment(state, ctx.origin, end, k.halfWidth)) {
     // 崩勢中の敵は踏ん張れず、壁まで飛んで叩きつけられる
@@ -422,7 +444,8 @@ function castCollapseHammer(state: GameState, ctx: CastCtx): void {
   const c = SKILL.collapseHammer;
   const radius = c.radius * state.stats.meleeReachMul * ctx.params.areaMul;
   const power = skillPower(state, c.damage, ctx.params);
-  spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_BREAK, RING_LIFE * 2);
+  withSkillFx(state, "collapseHammer", () => spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_BREAK, RING_LIFE * 2));
+  addSkillFx(state, "collapseHammer", "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: radius, element: castElement(ctx.params) });
   shake(state, SHAKE_HEAVY);
   pushSfx(state, "hitHeavy");
   for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, c.halfAngle)) {
@@ -437,6 +460,7 @@ function castCollapseHammer(state: GameState, ctx: CastCtx): void {
 
 function castTideSlash(state: GameState, ctx: CastCtx): void {
   const t = SKILL.tideSlash;
+  addSkillFx(state, "tideSlash", "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), element: castElement(ctx.params) });
   pushSfx(state, "slash2");
   spawnShot(state, ctx.origin, ctx.dir, ctx.params, {
     effect: "plain",
@@ -474,7 +498,8 @@ function castFlashFreeze(state: GameState, ctx: CastCtx): void {
   const f = SKILL.flashFreeze;
   const radius = flashFreezeRadius(ctx.params);
   const power = skillPower(state, f.damage, ctx.params);
-  spawnRing(state, ctx.origin, radius, COLOR_ICE, RING_LIFE * 2);
+  withSkillFx(state, "flashFreeze", () => spawnRing(state, ctx.origin, radius, COLOR_ICE, RING_LIFE * 2));
+  addSkillFx(state, "flashFreeze", "cast", ctx.origin, { size: radius, element: castElement(ctx.params) });
   pushSfx(state, "freeze");
   for (const p of tileCentersInRadius(ctx.origin, radius)) {
     if (terrainAt(state, p.x, p.y) === "water") placeTerrain(state, p.x, p.y, "ice", ONE_TILE, f.iceTime * ctx.params.durationMul);
@@ -485,6 +510,7 @@ function castFlashFreeze(state: GameState, ctx: CastCtx): void {
     skillHit(state, e, ctx.params, { base: power, kind: "ranged", dir: sub(e.body.pos, ctx.origin), knockback: wet ? 0 : f.knockback, stagger: false, applies: wet ? null : CHILL_ONE, from: ctx.origin });
     if (!wet || e.hp <= 0) continue;
     convertStatus(state, { kind: "enemy", enemy: e }, "wet", "freeze", flashFreezeTime(wet.stacks, ctx.params), "player");
+    addSkillFx(state, "flashFreeze", "act", e.body.pos, { element: castElement(ctx.params) });
   }
 }
 
@@ -494,7 +520,20 @@ function castHueEtch(state: GameState, ctx: CastCtx): void {
   // 共鳴の色が定まらない（散光・共鳴なし）ときは色をくじで決める（state.rng）
   const index = resonanceHueIndex(state) ?? state.rng.int(0, TRAIT_COLORS.length - 1);
   const applies: readonly StatusApply[] = [{ kind: "hue", stacks: 1, duration: STATUS.hue.duration, potency: index }];
-  coneStrike(state, ctx, SKILL.hueEtch, COLOR_HUE, applies);
+  coneStrike(state, ctx, SKILL.hueEtch, COLOR_HUE, applies, hueFxElement(TRAIT_COLORS[index]));
+}
+
+/** 彩痕の色 → 絵の配色の属性（見た目だけ。紅 = 炎・蒼 = 氷・翠 = 毒・金 = 雷・影 = 闇） */
+const HUE_FX_ELEMENT: Readonly<Record<TraitColor, Element>> = {
+  crimson: "fire",
+  azure: "ice",
+  jade: "poison",
+  gold: "lightning",
+  umbra: "dark",
+};
+
+function hueFxElement(color: TraitColor | undefined): Element | undefined {
+  return color ? HUE_FX_ELEMENT[color] : undefined;
 }
 
 function hueReleaseRadius(params: Readonly<CastParams>): number {
@@ -523,11 +562,13 @@ function castHueRelease(state: GameState, ctx: CastCtx): void {
   const h = SKILL.hueRelease;
   const radius = hueReleaseRadius(ctx.params);
   const power = skillPower(state, h.damage, ctx.params);
-  spawnRing(state, ctx.target, radius, COLOR_HUE, RING_LIFE * 2);
+  withSkillFx(state, "hueRelease", () => spawnRing(state, ctx.target, radius, COLOR_HUE, RING_LIFE * 2));
+  addSkillFx(state, "hueRelease", "cast", ctx.target, { size: radius, element: castElement(ctx.params) });
   pushSfx(state, "explode");
   for (const e of enemiesInRadius(state, ctx.target, radius)) {
     const color = hueColorOf(e);
     const applies = color ? [HUE_RELEASE_TRIGGER[color]] : null;
+    if (color) addSkillFx(state, "hueRelease", "act", e.body.pos, { element: HUE_FX_ELEMENT[color] });
     skillHit(state, e, ctx.params, { base: power * (color ? h.hueMul : 1), kind: "ranged", dir: sub(e.body.pos, ctx.target), knockback: h.knockback, stagger: color !== undefined, applies, from: ctx.target });
   }
 }
@@ -536,6 +577,7 @@ function castHueRelease(state: GameState, ctx: CastCtx): void {
 
 function castSiphonMark(state: GameState, ctx: CastCtx): void {
   const s = SKILL.siphonMark;
+  addSkillFx(state, "siphonMark", "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), element: castElement(ctx.params) });
   pushSfx(state, "shoot");
   spawnShot(state, ctx.origin, ctx.dir, ctx.params, {
     effect: "plain",
@@ -555,7 +597,8 @@ function castDoomSentence(state: GameState, ctx: CastCtx): void {
   const at = { ...center.body.pos };
   const radius = d.radius * ctx.params.areaMul;
   const power = skillPower(state, d.damage, ctx.params);
-  spawnRing(state, at, radius, COLOR_DOOM, RING_LIFE * 2);
+  withSkillFx(state, "doomSentence", () => spawnRing(state, at, radius, COLOR_DOOM, RING_LIFE * 2));
+  addSkillFx(state, "doomSentence", "cast", at, { size: radius, element: castElement(ctx.params) });
   pushSfx(state, "hitHeavy");
   addFloatingText(state, at, "宣告", COLOR_DOOM, TEXT_SCALE, TEXT_LIFE);
   for (const e of enemiesInRadius(state, at, radius)) {
@@ -623,12 +666,17 @@ function castWeaponArt(state: GameState, ctx: CastCtx): void {
   shake(state, SHAKE_LIGHT);
   pushSfx(state, "slash3");
   const kb = SKILL.weaponArt.knockback;
+  // 絵: 気合いの閃き（cast）+ 面の技は半月の薙ぎ（end。円は反対向きにもう 1 つ）、線の技は突きの光条（act）
+  const angle = Math.atan2(ctx.dir.y, ctx.dir.x);
+  const fxElement = castElement(params);
+  addSkillFx(state, "weaponArt", "cast", ctx.origin, { angle, element: fxElement });
   switch (art.kind) {
     case "cone": {
       const radius = art.radius * reach;
       const applies = "bleed" in art ? [{ kind: "bleed" as const, stacks: art.bleed, duration: WEAPON_ART_BLEED.duration, potency: WEAPON_ART_BLEED.potency }] : undefined;
       const pull = "pull" in art && art.pull;
-      spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_ART, RING_LIFE);
+      withSkillFx(state, "weaponArt", () => spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_ART, RING_LIFE));
+      addSkillFx(state, "weaponArt", "end", ctx.origin, { angle, size: radius, element: fxElement });
       for (let i = 0; i < art.hits; i++) {
         for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, art.halfAngle)) {
           const to = sub(e.body.pos, ctx.origin);
@@ -640,7 +688,9 @@ function castWeaponArt(state: GameState, ctx: CastCtx): void {
     case "circle": {
       const radius = art.radius * reach;
       const knock = kb * ("knockbackMul" in art ? art.knockbackMul : 1);
-      spawnRing(state, ctx.origin, radius, COLOR_ART, RING_LIFE * 2);
+      withSkillFx(state, "weaponArt", () => spawnRing(state, ctx.origin, radius, COLOR_ART, RING_LIFE * 2));
+      addSkillFx(state, "weaponArt", "end", ctx.origin, { angle, size: radius, element: fxElement });
+      addSkillFx(state, "weaponArt", "end", ctx.origin, { angle: angle + Math.PI, size: radius, element: fxElement });
       for (const e of enemiesInRadius(state, ctx.origin, radius)) {
         skillHit(state, e, params, { base, kind: "melee", dir: sub(e.body.pos, ctx.origin), knockback: knock, stagger: true, from: ctx.origin });
       }
@@ -648,7 +698,8 @@ function castWeaponArt(state: GameState, ctx: CastCtx): void {
     }
     case "thrust": {
       const end = rayEnd(state, ctx.origin, ctx.dir, art.length * reach);
-      spawnLine(state, ctx.origin, end, COLOR_ART, LINE_LIFE);
+      withSkillFx(state, "weaponArt", () => spawnLine(state, ctx.origin, end, COLOR_ART, LINE_LIFE));
+      addSkillFx(state, "weaponArt", "act", ctx.origin, { to: end, angle, element: fxElement });
       for (let i = 0; i < art.hits; i++) {
         for (const e of enemiesOnSegment(state, ctx.origin, end, art.halfWidth)) {
           skillHit(state, e, params, { base, kind: "melee", dir: ctx.dir, knockback: kb / art.hits, stagger: art.hits === 1, from: ctx.origin });
@@ -659,7 +710,8 @@ function castWeaponArt(state: GameState, ctx: CastCtx): void {
     case "tip": {
       const total = art.length * reach;
       const end = rayEnd(state, ctx.origin, ctx.dir, total);
-      spawnLine(state, ctx.origin, end, COLOR_ART, LINE_LIFE);
+      withSkillFx(state, "weaponArt", () => spawnLine(state, ctx.origin, end, COLOR_ART, LINE_LIFE));
+      addSkillFx(state, "weaponArt", "act", ctx.origin, { to: end, angle, element: fxElement });
       for (const e of enemiesOnSegment(state, ctx.origin, end, art.halfWidth)) {
         const tip = length(sub(e.body.pos, ctx.origin)) >= total * art.tipFrom;
         skillHit(state, e, params, { base: base * (tip ? art.tipMul : 1), kind: "melee", dir: ctx.dir, knockback: kb, stagger: tip, from: ctx.origin });
@@ -706,8 +758,11 @@ function formBurst(state: GameState, center: Vec, params: CastParams, key: FormS
   const f = SKILL[key];
   const radius = f.radius * params.areaMul;
   const power = skillPower(state, f.damage, params) * params.potencyMul;
-  spawnRing(state, center, radius, COLOR_FORM, RING_LIFE * 2);
-  spawnBurst(state, center, COLOR_FORM, BURST_PARTICLES * 2, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, key, () => {
+    spawnRing(state, center, radius, COLOR_FORM, RING_LIFE * 2);
+    spawnBurst(state, center, COLOR_FORM, BURST_PARTICLES * 2, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, key, "cast", center, { size: radius, element: castElement(params) });
   shake(state, SHAKE_HEAVY);
   pushSfx(state, "burst");
   for (const e of enemiesInRadius(state, center, radius)) {
@@ -774,6 +829,7 @@ export function endForm(state: GameState): void {
   if (state.player.attack.phase !== "none") cancelAttack(state);
   setMoveset(state, form.base);
   rs.formRecover = form.recover;
+  addSkillFx(state, form.skillKey, "end", state.player.body.pos);
   addFloatingText(state, state.player.body.pos, "変身解除", COLOR_FORM, TEXT_SCALE, TEXT_LIFE);
 }
 
@@ -792,7 +848,8 @@ export function placeStake(state: GameState, pos: Vec, params: CastParams): void
   const rs = state.skills;
   const life = SKILL.wardStake.life * params.durationMul;
   rs.stakes.push({ id: allocId(state), pos: { ...pos }, life, total: life, params });
-  spawnBurst(state, pos, COLOR_STONE, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, "wardStake", () => spawnBurst(state, pos, COLOR_STONE, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE));
+  addSkillFx(state, "wardStake", "cast", pos, { element: castElement(params) });
   pushSfx(state, "hit");
   const limit = maxStakes(params);
   while (rs.stakes.length > limit) rs.stakes.shift();
@@ -849,7 +906,8 @@ function stakeTickHits(state: GameState): void {
     const params = b.params;
     const half = w.lineHalfWidth * params.areaMul;
     const power = skillPower(state, w.damage, params);
-    spawnLine(state, a.pos, b.pos, COLOR_STONE, LINE_LIFE);
+    withSkillFx(state, "wardStake", () => spawnLine(state, a.pos, b.pos, COLOR_STONE, LINE_LIFE));
+    addSkillFx(state, "wardStake", "act", a.pos, { to: b.pos, angle: Math.atan2(b.pos.y - a.pos.y, b.pos.x - a.pos.x), element: castElement(params) });
     for (const e of enemiesOnSegment(state, a.pos, b.pos, half)) {
       if (hit.has(e.id)) continue;
       hit.add(e.id);

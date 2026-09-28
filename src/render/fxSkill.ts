@@ -39,6 +39,8 @@ interface Moving {
   params: CastParams;
   /** 物ごとの配色（五彩の礫の共鳴の色。遊びの情報なので属性より優先） */
   ramp?: FxRampKey;
+  /** 大きさ（弾の半径 px。0 は拡縮しない。火吸いの火球は吸った数で大きくなる） */
+  size: number;
   /** 床からの高さ（px。投げた手榴弾の放物線）。空中の絵はその分だけ上に、地面の絵（影）は床に描く */
   lift?: number;
 }
@@ -93,15 +95,15 @@ function movingOf(state: GameState): Moving[] {
   const out: Moving[] = [];
   for (const s of rs.shots) {
     const ramp = s.effect === "prism" ? PRISM_RAMP.get(s.color) : undefined;
-    out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params, ramp });
+    out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params, ramp, size: s.radius });
   }
-  for (const b of rs.bullets) out.push({ key: b.params.skillKey, pos: b.pos, angle: Math.atan2(b.vel.y, b.vel.x), params: b.params });
+  for (const b of rs.bullets) out.push({ key: b.params.skillKey, pos: b.pos, angle: Math.atan2(b.vel.y, b.vel.x), params: b.params, size: 0 });
   for (const g of rs.grenades) {
     if (g.flight <= 0) continue;
     const t = g.flightTotal > 0 ? 1 - g.flight / g.flightTotal : 1;
     // skillHud の手続きの描画と同じ放物線の高さ（落ちる所の輪は skillHud が残す）
     const pos = { x: g.from.x + (g.to.x - g.from.x) * t, y: g.from.y + (g.to.y - g.from.y) * t };
-    out.push({ key: g.params.skillKey, pos, angle: Math.atan2(g.to.y - g.from.y, g.to.x - g.from.x), params: g.params, lift: Math.sin(t * Math.PI) * GRENADE_ARC_H });
+    out.push({ key: g.params.skillKey, pos, angle: Math.atan2(g.to.y - g.from.y, g.to.x - g.from.x), params: g.params, size: 0, lift: Math.sin(t * Math.PI) * GRENADE_ARC_H });
   }
   return out;
 }
@@ -218,7 +220,7 @@ function drawMoving(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const frame = loopFrame(sheetDef(sheet).frames, state.time, loop.period);
     const y = ground ? it.pos.y : it.pos.y - (it.lift ?? 0);
-    bank.draw(ctx, sheet, frame, it.pos.x, y, it.angle, { ramp: it.ramp ?? rampOf(fx, it.key, paramsElement(it.params)) });
+    bank.draw(ctx, sheet, frame, it.pos.x, y, it.angle, { ramp: it.ramp ?? rampOf(fx, it.key, paramsElement(it.params)), scale: scaleOf(it.size, loop.base) });
   }
 }
 
