@@ -22,7 +22,8 @@ export const CLOTH_RED = ["#4a1820", "#7c2830", "#a63d3c", "#c9614f"];
  */
 export function weaponSheets(key, draw, opts = {}) {
   const size = opts.size ?? 96;
-  const base = { frames: 1, dirs: WEAPON_DIRS, w: size, h: size, ox: size / 2, oy: size / 2, draw: (frame) => draw(frame) };
+  // 光は武器に固定する（どの向き・写しでも同じ陰影。振りの途中で明暗がちらつかない）
+  const base = { frames: 1, dirs: WEAPON_DIRS, w: size, h: size, ox: size / 2, oy: size / 2, localLight: true, draw: (frame) => draw(frame) };
   const sheets = [{ ...base, key: `${key}.held` }];
   if (opts.edge) sheets.push({ ...base, key: `${key}.heldM`, mirror: true });
   return sheets;

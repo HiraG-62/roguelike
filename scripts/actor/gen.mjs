@@ -58,6 +58,7 @@ function renderSheet(sheet) {
     const angle = (d / dirs) * Math.PI * 2;
     for (let f = 0; f < sheet.frames; f++) {
       const frame = new ColorFrame(sheet.w, sheet.h, sheet.ox, sheet.oy, angle, sheet.mirror === true);
+      frame.localLight = sheet.localLight === true;
       sheet.draw(frame, f, { dir: d, angle });
       finish(frame, { outline: sheet.outline !== false });
       const box = trimBox(frame);
