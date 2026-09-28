@@ -1,0 +1,449 @@
+<title>探索者の原画比較</title>
+<meta name="description" content="プレイヤーの高密度ドット絵 3 案 × ジョブ 10 種の比較">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #17151c;
+    --panel: #211e28;
+    --panel-2: #2a2632;
+    --line: #3a3545;
+    --floor: #47424e;
+    --ink: #ece6da;
+    --muted: #a39bb0;
+    --lamp: #e8a64c;
+    --lamp-ink: #1c1408;
+    --cool: #8ec5ff;
+    --pick: #7fd18b;
+    --display: "DotGothic16", "Zen Kaku Gothic New", system-ui, sans-serif;
+    --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.7; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(28px, 4vw, 40px); letter-spacing: 0.04em; }
+  h2 { font-size: 22px; letter-spacing: 0.04em; }
+  p { margin: 0; }
+  .lede { color: var(--muted); max-width: 68ch; margin-top: 10px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .facts b { color: var(--ink); font-weight: 500; font-family: var(--display); }
+  section { margin-top: 40px; display: grid; gap: 14px; }
+  .sub { color: var(--muted); font-size: 13px; }
+
+  /* 操作 */
+  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--ground) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); margin-top: 24px; }
+  .bar .inner { max-width: 1320px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .ctl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ctl > span { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; margin-right: 2px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { background: transparent; color: var(--muted); border: 0; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--lamp); color: var(--lamp-ink); font-weight: 700; }
+  .seg button:focus-visible, .pickbtn:focus-visible, .copy:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--cool); outline-offset: 2px; }
+  select { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; font-size: 13px; }
+
+  /* ゲーム画面の大きさ */
+  .scene-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #0e0d12; }
+  .scene-box canvas { display: block; image-rendering: pixelated; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+
+  /* 比較の表 */
+  .grid-scroll { overflow-x: auto; }
+  .grid { display: grid; grid-template-columns: minmax(150px, 190px) repeat(var(--cols), minmax(0, 1fr)); gap: 10px; min-width: 700px; }
+  .colhead { padding: 10px 12px; border-radius: 8px; background: var(--panel); display: grid; gap: 4px; align-content: start; }
+  .colhead h3 { font-size: 17px; }
+  .colhead p { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+  .colhead .num { font-family: var(--display); font-size: 12px; color: var(--lamp); }
+  .rowhead { padding: 10px 4px 10px 0; display: grid; gap: 4px; align-content: center; }
+  .rowhead h3 { font-size: 18px; }
+  .rowhead p { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+  .cell { position: relative; border-radius: 8px; background: var(--panel-2); border: 2px solid transparent; display: grid; justify-items: center; padding: 6px 6px 8px; gap: 6px; cursor: zoom-in; }
+  .cell.is-picked { border-color: var(--pick); }
+  .cell canvas { image-rendering: pixelated; max-width: 100%; height: auto; display: block; }
+  .cell.ref { cursor: default; opacity: 0.9; }
+  .pickbtn { font: inherit; font-size: 12px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; cursor: pointer; }
+  .cell.is-picked .pickbtn { background: var(--pick); color: #0f2413; border-color: var(--pick); font-weight: 700; }
+  .tag { position: absolute; top: 6px; left: 8px; font-size: 11px; color: var(--muted); font-family: var(--display); }
+
+  /* 1 枚ずつ */
+  .detail { background: var(--panel); border-radius: 10px; padding: 14px; display: grid; gap: 10px; }
+  .frames { display: flex; flex-wrap: wrap; gap: 10px; }
+  .frames figure { margin: 0; display: grid; gap: 4px; justify-items: center; }
+  .frames canvas { image-rendering: pixelated; border-radius: 6px; max-width: 100%; height: auto; }
+  .action-row { display: grid; gap: 6px; }
+  .action-row h3 { font-size: 16px; color: var(--lamp); }
+  .frames figcaption { font-size: 12px; color: var(--muted); }
+
+  /* 採用メモ */
+  .tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .tally .t { background: var(--panel); border-radius: 8px; padding: 12px 14px; display: grid; gap: 2px; }
+  .tally .t b { font-family: var(--display); font-size: 26px; font-weight: 400; color: var(--lamp); font-variant-numeric: tabular-nums; }
+  textarea { width: 100%; min-height: 90px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 14px; resize: vertical; }
+  .summary { white-space: pre-wrap; background: #0e0d12; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; color: var(--muted); overflow-x: auto; }
+  .copy { justify-self: start; font: inherit; font-weight: 700; background: var(--lamp); color: var(--lamp-ink); border: 0; border-radius: 6px; padding: 7px 16px; cursor: pointer; }
+  .notes { display: grid; gap: 6px; font-size: 13.5px; color: var(--muted); max-width: 80ch; }
+  .notes li { margin-left: 1.1em; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <h1>探索者の原画比較</h1>
+  <p class="lede"><b>手打ち版を追加しました。</b>「手打ち」の列は、素材を見ながら 1 ドットずつ手で打った絵です（いまは待機と歩き 4 枚）。ゲーム画面の大きさの見本と「行動ごとのコマ」も手打ち版を出しています。以下は前回までの説明です。いただいた素材の主人公を、ゲームの格子に合わせて描き直した版です。素材のシートにある行動は、素材の各コマから頭・首・腰・膝・足首・肩・肘・手・剣先の位置を読み取り、その姿勢どおりに骨組みを動かして作りました。回り込む斬り、地を這うダッシュ、のけぞる被弾など、素材の動きをそのまま写しています。上の「動き」で切り替えられます。捲った袖と紅い裏地の黒い長外套、白いシャツ、二重のベルト、革帯の長靴、無造作な黒髪を写しています。色は素材から拾いました。10 の姿勢は同じ骨組みで動かしているので、ジョブの特徴（肩当て・帽子・武器など）はこの上に足していけます。素材の右向きの絵と、今のゲームの絵を横に並べてあります。</p>
+  <div class="facts" id="facts"></div>
+</div>
+
+<div class="bar" role="toolbar" aria-label="表示の切り替え">
+  <div class="inner">
+    <div class="ctl"><span>動き</span><div class="seg" id="ctl-anim"></div></div>
+    <div class="ctl"><span>拡大</span><div class="seg" id="ctl-zoom"></div></div>
+    <div class="ctl"><span>武器</span><div class="seg" id="ctl-weapon"></div></div>
+    <div class="ctl"><span>背景</span><div class="seg" id="ctl-bg"></div></div>
+    <div class="ctl"><span>向き</span><div class="seg" id="ctl-face"></div></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <section aria-labelledby="scene-h">
+    <h2 id="scene-h">ゲーム画面の大きさで見る</h2>
+    <p class="sub">1920×1080 の画面で遊んだときと同じ大きさです（絵の 1 ドット = 画面の 2px）。描き直した主人公の左右に、今のプレイヤーと敵を今のゲームの絵で置いています。</p>
+    <div class="scene-box"><canvas id="scene" aria-label="床の上に描き直した主人公と今の絵と敵を並べた画面"></canvas></div>
+  </section>
+
+  <section aria-labelledby="grid-h">
+    <h2 id="grid-h">素材との見比べ</h2>
+    <p class="sub">素材の列は元の絵をそのまま縮めたものです（格子が揃っていないのでぼけて見えます）。素材の右向きには待機と歩きしかないので、ほかの動きでは待機を出します。</p>
+    <div class="grid-scroll"><div class="grid" id="grid"></div></div>
+  </section>
+
+  <section aria-labelledby="detail-h">
+    <h2 id="detail-h">行動ごとのコマ</h2>
+    <div class="detail">
+      <p class="sub" id="detail-title"></p>
+      <div class="frames" id="frames"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="pick-h">
+    <h2 id="pick-h">確認メモ</h2>
+    <div class="tally" id="tally"></div>
+    <label class="sub" for="memo">直してほしいところ（任意）</label>
+    <textarea id="memo" placeholder="例: 外套の裾をもっと広げる。髪の跳ねを減らす。袖の紅い帯を細く"></textarea>
+    <div class="summary" id="summary" aria-live="polite"></div>
+    <button class="copy" id="copy" type="button">まとめをコピー</button>
+    <p class="sub">コピーした文を Claude に貼ってください。書いた内容はこのブラウザにだけ残ります。</p>
+  </section>
+
+  <section aria-labelledby="notes-h">
+    <h2 id="notes-h">この版の前提</h2>
+    <ul class="notes">
+      <li>素材をそのまま縮めて格子に乗せる方法も試しました。ただ、素材は格子が揃っておらず、段ごとに大きさと向きも違います。黒い外套が背景と近い色で、ぼけて崩れたため採りませんでした。</li>
+      <li>絵は描画スクリプト（体の骨組み + 部品 + 左上の光 + しわと髪の筋の描き込み）で作っています。直してほしい点は、スクリプトの数値と部品を直して全姿勢へ一度に反映します。</li>
+      <li>ゲームでは武器を体とは別の層で手に重ねます。「武器」を「なし」にすると、ゲームで体として使う部分だけになります。</li>
+      <li>背の高さは論理 29px で、今の約 1.4 倍です。当たり判定（半径 6）と足元の位置は変えません。</li>
+      <li>行動は素材のシートに合わせて 8 種です。待機、歩き、斬り、突き、ダッシュ、被弾、倒れる、納刀です。コマの時間は仮の値で、ゲームに組み込むときに攻撃の速さに合わせます。</li><li>斬りや突きの光の軌跡は描いていません。ゲームでは攻撃エフェクトを別の層で重ねます。</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const ART = /*__ART__*/null;
+/** 行動の表（rig.mjs の ACTIONS）から、動きの切り替えと再生の順を作る。一度きりの行動は待機を挟んで繰り返す */
+const IDLE_PAUSE = 600;
+const ANIMS = {};
+for (const a of ART.actions) {
+  const seq = a.idx.map((f, i) => [f, a.ms[i]]);
+  if (!a.loop) seq.push([ART.actions[0].idx[0], IDLE_PAUSE]);
+  ANIMS[a.key] = { label: a.label, seq };
+}
+ANIMS.still = { label: "止める", seq: [[0, 1000]] };
+const FRAME_ACTION = {};
+for (const a of ART.actions) a.idx.forEach((f, i) => { FRAME_ACTION[f] ??= { action: a.key, i }; });
+const ZOOMS = [2, 3, 4, 6];
+const STORE = "player-art-compare-v4";
+const FINAL = ART.styles.some((s) => s.key === "H") ? "H" : "S";
+
+const state = { anim: "walk", zoom: 3, weapon: true, bg: "floor", face: "right", detail: null, picks: {}, memo: "" };
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+  if (saved) Object.assign(state, { picks: saved.picks || {}, memo: saved.memo || "", zoom: saved.zoom || 3 });
+} catch (e) { /* 保存が使えない環境でも表示はできる */ }
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify({ picks: state.picks, memo: state.memo, zoom: state.zoom })); } catch (e) { /* 無視 */ }
+}
+
+const { w: FW, h: FH, anchorX: AX, ground: GY } = ART.canvas;
+const images = {};
+function img(src) {
+  if (!images[src]) { const im = new Image(); im.src = src; images[src] = im; }
+  return images[src];
+}
+const floorImg = img(ART.ref.floor.src);
+const styleOf = (k) => ART.styles.find((s) => s.key === k);
+
+/** 床のタイル（論理 16px = 絵 32 ドット）を敷く */
+function paintFloor(ctx, W, H, dot) {
+  if (state.bg !== "floor" || !floorImg.complete) { ctx.fillStyle = state.bg === "light" ? "#d8d2c4" : "#47424e"; ctx.fillRect(0, 0, W, H); return; }
+  const t = 16 * 2 * dot;
+  const n = ART.ref.floor.n;
+  for (let y = 0, j = 0; y < H; y += t, j++) for (let x = 0, i = 0; x < W; x += t, i++) {
+    const v = ((i * 7 + j * 13) ^ (i * j)) % n;
+    ctx.drawImage(floorImg, v * 16, 0, 16, 16, x, y, t, t);
+  }
+}
+
+/** 足元を (fx, fy) に合わせて 1 枚描く。dot = 絵の 1 ドットの画面 px */
+function drawArt(ctx, sheet, frame, fx, fy, dot, flip) {
+  const im = img(sheet);
+  if (!im.complete) return;
+  const n = Math.round(im.width / FW);
+  const f = frame < n ? frame : 0;
+  ctx.save();
+  ctx.translate(fx, fy);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(im, f * FW, 0, FW, FH, -AX * dot, -GY * dot, FW * dot, FH * dot);
+  ctx.restore();
+}
+/** 素材の絵（格子が揃っていないので、背丈を合わせて縮めるだけ）。rects[0] は待機、1〜5 は歩き */
+function drawSample(ctx, i, fx, fy, dot, flip) {
+  const s = ART.ref.sample;
+  const im = img(s.src);
+  const r = s.rects[i];
+  if (!im.complete || !r) return;
+  const target = (i === 0 ? 60 : 52) * dot;
+  const k = target / r.h;
+  ctx.save();
+  ctx.translate(fx, fy + 3 * dot);
+  if (flip) ctx.scale(-1, 1);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(im, r.x, r.y, r.w, r.h, -r.w * k * 0.5, -r.h * k, r.w * k, r.h * k);
+  ctx.restore();
+}
+/** 今のゲームの絵（論理 1px = 絵 2 ドット） */
+function drawRef(ctx, ref, frame, fx, fy, dot, flip) {
+  const im = img(ref.src);
+  if (!im.complete) return;
+  const s = dot * 2;
+  ctx.save();
+  ctx.translate(fx, fy);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(im, (frame % ref.n) * ref.w, 0, ref.w, ref.h, -ref.w / 2 * s, -ref.h * s, ref.w * s, ref.h * s);
+  ctx.restore();
+}
+function drawShadow(ctx, x, y, dot) {
+  ctx.fillStyle = "rgba(10, 8, 14, 0.35)";
+  ctx.beginPath();
+  ctx.ellipse(x, y - dot, 9 * dot, 3 * dot, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+function sheetOf(styleKey, jobKey) {
+  const s = ART.sheets[`${styleKey}.${jobKey}`];
+  if (!s) return "";
+  return state.weapon ? s.weapon : s.body;
+}
+function frameAt(anim, t) {
+  const seq = ANIMS[anim].seq;
+  const total = seq.reduce((a, [, d]) => a + d, 0);
+  let m = t % total;
+  for (const [f, d] of seq) { if (m < d) return f; m -= d; }
+  return seq[0][0];
+}
+/** 今のゲームの絵には 10 姿勢が無いので、ダッシュ・被弾は歩き・待機で見せる */
+function refFrame(f) {
+  const k = ART.frames[f] || "";
+  const walk = /^walk(\d)$/.exec(k);
+  if (walk) return 2 + Number(walk[1]);
+  if (k === "slashWind" || k === "thrustPrep" || k === "windup") return 6;
+  if (k === "slash1" || k === "slash2" || k === "thrust" || k === "strike") return 7;
+  return 0;
+}
+
+// ---- 操作 -----------------------------------------------------------------
+function seg(id, options, key, after) {
+  const el = document.getElementById(id);
+  el.innerHTML = "";
+  for (const [value, label] of options) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String(state[key] === value));
+    b.addEventListener("click", () => { state[key] = value; seg(id, options, key, after); after && after(); save(); });
+    el.appendChild(b);
+  }
+}
+seg("ctl-anim", Object.entries(ANIMS).map(([k, v]) => [k, v.label]), "anim");
+seg("ctl-zoom", ZOOMS.map((z) => [z, `×${z}`]), "zoom", () => buildGrid());
+seg("ctl-weapon", [[true, "あり"], [false, "なし"]], "weapon", () => renderDetail());
+seg("ctl-bg", [["floor", "床"], ["plain", "無地"], ["light", "明るい"]], "bg", () => renderDetail());
+seg("ctl-face", [["right", "右"], ["left", "左"]], "face");
+
+const fin = styleOf(FINAL);
+document.getElementById("facts").innerHTML = `<span><b>描き直し</b>：約 ${fin.heads} 頭身・背 ${Math.round(fin.heightDots / 2)}px・行動 ${ART.actions.length} 種、コマ ${ART.actions.reduce((n, a) => n + a.idx.length, 0)} 枚</span><span><b>今の絵</b>：約 2.5 頭身・背 21px・姿勢 6 枚</span><span><b>密度</b>：絵の 1 ドット = ゲームの 0.5px</span>`;
+
+// ---- ゲーム画面 -----------------------------------------------------------
+const scene = document.getElementById("scene");
+const SCENE_DOT = 2;
+scene.width = 660;
+scene.height = 190;
+const sctx = scene.getContext("2d");
+const ROW = 165;
+const sceneActors = [
+  { kind: "ref", key: "slime", x: 60, y: ROW },
+  { kind: "ref", key: "player", x: 170, y: ROW },
+  { kind: "art", job: "base", x: 320, y: ROW },
+  { kind: "ref", key: "knight", x: 480, y: ROW },
+  { kind: "ref", key: "skeleton", x: 590, y: ROW },
+];
+
+// ---- 見比べの表 -----------------------------------------------------------
+const grid = document.getElementById("grid");
+const cells = [];
+const COLS = ["ref", "sample", ...ART.styles.map((s) => s.key)];
+function buildGrid() {
+  grid.innerHTML = "";
+  cells.length = 0;
+  grid.style.setProperty("--cols", String(COLS.length));
+  grid.appendChild(document.createElement("div"));
+  const refHead = document.createElement("div");
+  refHead.className = "colhead";
+  refHead.innerHTML = `<span class="num">今</span><h3>今の絵</h3><p>24×24。ジョブで見た目は変わらない</p>`;
+  grid.appendChild(refHead);
+  const smpHead = document.createElement("div");
+  smpHead.className = "colhead";
+  smpHead.innerHTML = `<span class="num">素材</span><h3>いただいた素材</h3><p>右向きの待機と歩き。元の絵を同じ背丈に縮めて表示</p>`;
+  grid.appendChild(smpHead);
+  for (const s of ART.styles) {
+    const h = document.createElement("div");
+    h.className = "colhead";
+    h.innerHTML = `<span class="num">姿勢 ${s.frames} 枚</span><h3>${s.name}</h3><p>${s.tagline}</p>`;
+    grid.appendChild(h);
+  }
+  const z = state.zoom;
+  const cropX = 4, cropY = 2, cropW = 88, cropH = FH - 2;
+  for (const j of ART.jobs) {
+    const rh = document.createElement("div");
+    rh.className = "rowhead";
+    rh.innerHTML = `<h3>${j.name}</h3><p>${j.concept}</p>`;
+    grid.appendChild(rh);
+    for (const col of COLS) {
+      const kind = col === "ref" || col === "sample" ? col : "art";
+      const cell = document.createElement("div");
+      cell.className = "cell" + (kind !== "art" ? " ref" : "");
+      const cv = document.createElement("canvas");
+      cv.width = cropW * z;
+      cv.height = cropH * z;
+      cv.setAttribute("aria-label", kind === "ref" ? "今の絵" : kind === "sample" ? "素材の絵" : styleOf(col).name);
+      cell.appendChild(cv);
+      if (kind === "art") cell.addEventListener("click", () => { state.detail = { style: col, job: j.key }; renderDetail(); document.getElementById("detail-h").scrollIntoView({ behavior: "smooth", block: "start" }); });
+      grid.appendChild(cell);
+      cells.push({ cell, cv, ctx: cv.getContext("2d"), kind, style: col, job: j.key, crop: { cropX, cropY } });
+    }
+  }
+  refreshPicks();
+}
+
+function refreshPicks() {
+  for (const c of cells) if (c.style === FINAL) c.cell.classList.toggle("is-picked", !!state.picks[c.job]);
+  renderTally();
+}
+
+// ---- 1 枚ずつ -------------------------------------------------------------
+function renderDetail() {
+  const d = state.detail || { style: FINAL, job: "base" };
+  const s = styleOf(d.style);
+  const j = ART.jobs.find((x) => x.key === d.job);
+  document.getElementById("detail-title").textContent = `${s.name} ／ ${j.name}（×3、1 ドット = 3px）`;
+  const host = document.getElementById("frames");
+  host.innerHTML = "";
+  const z = 3;
+  const sheet = sheetOf(d.style, d.job);
+  for (const a of ART.actions) {
+    const row = document.createElement("div");
+    row.className = "action-row";
+    const title = document.createElement("h3");
+    title.textContent = `${a.label}（${a.idx.length} 枚）`;
+    row.appendChild(title);
+    const list = document.createElement("div");
+    list.className = "frames";
+    a.idx.forEach((f, i) => {
+      const fig = document.createElement("figure");
+      const cv = document.createElement("canvas");
+      cv.width = 92 * z; cv.height = 74 * z;
+      const ctx = cv.getContext("2d");
+      const paint = () => {
+        ctx.imageSmoothingEnabled = false;
+        paintFloor(ctx, cv.width, cv.height, z);
+        drawArt(ctx, sheet, f, (AX - 2) * z, (GY - 4) * z, z, false);
+      };
+      const im = img(sheet);
+      if (im.complete) paint(); else im.addEventListener("load", paint, { once: true });
+      fig.appendChild(cv);
+      const cap = document.createElement("figcaption");
+      cap.textContent = `${i + 1}（${a.ms[i]}ms）`;
+      fig.appendChild(cap);
+      list.appendChild(fig);
+    });
+    row.appendChild(list);
+    host.appendChild(row);
+  }
+}
+
+// ---- 確認メモ -------------------------------------------------------------
+function renderTally() {
+  document.getElementById("tally").innerHTML = "";
+  const lines = ["主人公（素材ベースの描き直し）の確認"];
+  lines.push(state.memo.trim() ? "直してほしいところ:\n" + state.memo.trim() : "このままでよい");
+  document.getElementById("summary").textContent = lines.join("\n");
+}
+const memo = document.getElementById("memo");
+memo.value = state.memo;
+memo.addEventListener("input", () => { state.memo = memo.value; save(); renderTally(); });
+document.getElementById("copy").addEventListener("click", async (ev) => {
+  const text = document.getElementById("summary").textContent;
+  const btn = ev.currentTarget;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "コピーしました";
+  } catch (e) {
+    const r = document.createRange();
+    r.selectNodeContents(document.getElementById("summary"));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    btn.textContent = "選択しました。Ctrl+C でコピー";
+  }
+  setTimeout(() => { btn.textContent = "まとめをコピー"; }, 2200);
+});
+
+// ---- 毎フレーム -----------------------------------------------------------
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function tick(now) {
+  const t = reduce ? 0 : now;
+  const frame = frameAt(state.anim, t);
+  const flip = state.face === "left";
+  for (const c of cells) {
+    const { ctx, cv } = c;
+    const z = state.zoom;
+    ctx.imageSmoothingEnabled = false;
+    paintFloor(ctx, cv.width, cv.height, z);
+    const fx = (AX - c.crop.cropX) * z;
+    const fy = (GY - c.crop.cropY) * z;
+    drawShadow(ctx, fx, fy, z);
+    if (c.kind === "ref") drawRef(ctx, ART.ref.player, refFrame(frame), fx, fy, z, flip);
+    else if (c.kind === "sample") drawSample(ctx, state.anim === "walk" ? 1 + (Math.floor(t / 120) % 5) : 0, fx, fy, z, flip);
+    else drawArt(ctx, sheetOf(c.style, c.job), frame, fx, fy, z, flip);
+  }
+  sctx.imageSmoothingEnabled = false;
+  paintFloor(sctx, scene.width, scene.height, SCENE_DOT);
+  for (const a of sceneActors) {
+    drawShadow(sctx, a.x, a.y, SCENE_DOT);
+    if (a.kind === "art") drawArt(sctx, sheetOf(FINAL, a.job), frame, a.x, a.y, SCENE_DOT, flip);
+    else { const r = ART.ref[a.key]; if (r) drawRef(sctx, r, a.key === "player" ? refFrame(frame) : Math.floor(t / 140), a.x, a.y, SCENE_DOT, flip); }
+  }
+  requestAnimationFrame(tick);
+}
+
+buildGrid();
+renderDetail();
+requestAnimationFrame(tick);
+</script>

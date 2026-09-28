@@ -24,6 +24,7 @@
 | `npm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
 | `npm run audit:docs` | エージェント資料とコードのずれを検査（`check` の最初の段でも走る） |
 | `npm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、1 武器種 約 30 秒）。`-- --atlas <武器種>` でその武器種だけ、`-- --only <key> --preview <dir>` で確認用 PNG だけ |
+| `npm run sprite` | ドット絵の作業台（`scripts/sprite/cli.mjs`）: `render`（確認用 PNG）/ `lint`（様式書の点検）/ `strip --ase`（Aseprite へ）/ `import`（PNG・.aseprite → `Frame` リテラル）/ `palette` / `gen`（Spriteloom で下絵の案）。手順は `docs/recipes/sprite.md` |
 | `npm run qa:full` | `SIM_FULL=1` でフル QA（数分）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
 | `npm run sync:claude` | ローカルの `~/.claude` を `.claude/global/` へ写す。`-- --check` で差分だけ確認 |
@@ -59,7 +60,7 @@ electron/    Electron 版の main / preload / IPC
 3. **決定性**: 同じ seed + 同じ FrameInput 列 → 同じ結果。`Math.random`（`audio/synth.ts` の揺らぎ以外）と実時間に依存しない。`Date.now()` は id / `foundAt` の `now` 引数だけ。`core/replay.test.ts` を壊さない
 4. **バランス数値は `src/data/balance/**/*.json`**（ブロック名 + `_note`）。ロジックは `data/tuning.ts` / `skills/data.ts` の再 export 経由で読み、直書きしない。union 文字列・key・表示名・関数は TS。置き場所と境界は `docs/BALANCE.md`。項目の意味は `_fields`（親に 1 回、行は引き継ぐ。新しい数値には 1 行足す）
 5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`。`ctx.fillText` / `measureText` / `ctx.font` と等幅前提の文字数計算は禁止。行高は `Math.max(定数, textLineHeight())`
-6. **座標は 480x270 の論理座標**（`core/view.ts`）。距離の表示は `core/units.ts` の `formatMeters`（10px = 1m）
+6. **座標は 480x270 の論理座標**（`core/view.ts`）。描画は `RENDER_SCALE`（4）倍のバックバッファに描き、スプライトは `SPRITE_DOTS`（`data/sprites/dots.ts`）の密度を持つが論理寸法で描く。距離の表示は `core/units.ts` の `formatMeters`（10px = 1m）
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts
 8. **永続化**: `src/save/backend.ts` の `saveStorage()` 経由で、各ストア（loot/profile・craftingStore・skills/persistence・ui/settings・ui/replayStore・meta/*Store）からのみ触る。step の中では触らない。壊れたデータは黙って既定へ。キーの形式を変えるなら `v2` を切る
 9. **型と作法**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので添字結果の undefined を扱う。マジックナンバーは定数化、早期リターン、関数は単一責任。コメントは日本語で「なぜ」

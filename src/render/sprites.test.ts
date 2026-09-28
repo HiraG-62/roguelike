@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PALETTE, SPRITES } from "../data/sprites";
+import { PALETTE, PALETTE_RAMPS, SPRITES } from "../data/sprites";
 import { ENEMIES, spriteBaseKey } from "../data/enemies";
 import { CANVAS_24, CANVAS_32, CANVAS_48, POSE_SUFFIXES, poseKey } from "../data/sprites/frameKit";
 import { BEASTS_KEYS, BEASTS_SMALL_KEYS } from "../data/sprites/beasts";
@@ -29,7 +29,8 @@ import {
   weaponSpriteKey,
 } from "../data/sprites/weapons";
 import { MOVESET_KEYS, type MovesetKey } from "../data/weapons";
-import { type Sprite, enemySpriteKey, recolorFrames, spriteFrame, spriteSources } from "./sprites";
+import { SPRITE_DOTS, baseOfPose, spriteDots } from "../data/sprites/dots";
+import { type Sprite, enemySpriteKey, frameDims, recolorFrames, snapTo, spriteFrame, spriteSources } from "./sprites";
 
 const TRANSPARENT = ".";
 const TILE = 16;
@@ -145,6 +146,27 @@ describe("PALETTE", () => {
       expect(color).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
+
+  /** 知覚上の明るさ（Rec. 601 の重み） */
+  const luma = (hex: string): number => {
+    const n = Number.parseInt(hex.slice(1), 16);
+    return 0.299 * ((n >> 16) & 0xff) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff);
+  };
+
+  it.each(Object.entries(PALETTE_RAMPS))("5 段 %s: PALETTE の別々の文字で、明 → 暗の順に並ぶ", (_name, ramp) => {
+    expect(new Set(ramp).size).toBe(ramp.length);
+    const lumas = ramp.map((ch) => {
+      const color = PALETTE[ch];
+      expect(color, `PALETTE に無い文字 ${ch}`).toBeDefined();
+      return luma(color ?? "#000000");
+    });
+    for (let i = 1; i < lumas.length; i++) expect(lumas[i], `${ramp[i - 1]} → ${ramp[i]}`).toBeLessThan(lumas[i - 1] ?? 0);
+  });
+
+  it("PALETTE の色はすべて別々", () => {
+    const colors = Object.values(PALETTE);
+    expect(new Set(colors).size).toBe(colors.length);
+  });
 });
 
 describe("spriteFrame", () => {
@@ -225,42 +247,46 @@ describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
     ...STILL_PLAIN,
   ];
 
-  it.each(STILL)("据え置き・状態フレームの %s は %i px 四方で 4 フレーム、最下段に接地している", (key, size) => {
+  it.each(STILL)("据え置き・状態フレームの %s は %i px 四方（× 密度）で 4 フレーム、最下段に接地している", (key, size) => {
+    const raw = size * spriteDots(key);
     const frames = SPRITES[key] ?? [];
     expect(frames.length).toBe(4);
     for (const frame of frames) {
-      expect(frame.length).toBe(size);
-      expect(frame[0]?.length).toBe(size);
-      expect(isEmptyRow(frame[size - 1])).toBe(false);
+      expect(frame.length).toBe(raw);
+      expect(frame[0]?.length).toBe(raw);
+      expect(isEmptyRow(frame[raw - 1])).toBe(false);
     }
   });
   /** 小型のキャンバス（様式書 1 章） */
   const SMALL_CANVAS = 16;
 
-  it.each(SMALL)("小型 %s は 16x16 で 4 フレーム", (key) => {
+  it.each(SMALL)("小型 %s は 16x16（× 密度）で 4 フレーム", (key) => {
+    const raw = SMALL_CANVAS * spriteDots(key);
     const frames = SPRITES[key];
     expect(frames?.length).toBe(4);
     for (const frame of frames ?? []) {
-      expect(frame.length).toBe(SMALL_CANVAS);
-      expect(frame[0]?.length).toBe(SMALL_CANVAS);
+      expect(frame.length).toBe(raw);
+      expect(frame[0]?.length).toBe(raw);
     }
   });
 
-  it.each(REDRAWN)("%s は様式書のキャンバス（16〜48）で 4 フレーム", (key) => {
+  it.each(REDRAWN)("%s は様式書のキャンバス（16〜48 × 密度）で 4 フレーム", (key) => {
+    const raw = sizeOf(key) * spriteDots(key);
     const frames = SPRITES[key];
     expect(frames?.length).toBe(4);
     for (const frame of frames ?? []) {
-      expect(frame.length).toBe(sizeOf(key));
-      expect(frame[0]?.length).toBe(sizeOf(key));
+      expect(frame.length).toBe(raw);
+      expect(frame[0]?.length).toBe(raw);
     }
   });
 
   it.each(REDRAWN)("%s は予備動作と攻撃の原画を歩きと同じ寸法の 1 フレームで持つ", (key) => {
+    const raw = sizeOf(key) * spriteDots(key);
     for (const pose of POSE_SUFFIXES) {
       const frames = SPRITES[poseKey(key, pose)];
       expect(frames?.length, pose).toBe(1);
-      expect(frames?.[0]?.length, pose).toBe(sizeOf(key));
-      expect(frames?.[0]?.[0]?.length, pose).toBe(sizeOf(key));
+      expect(frames?.[0]?.length, pose).toBe(raw);
+      expect(frames?.[0]?.[0]?.length, pose).toBe(raw);
     }
   });
 
@@ -273,15 +299,18 @@ describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
     expect(strike).not.toEqual(windup);
   });
 
-  it.each(REDRAWN)("%s は頭上 2 行を空け、歩き原画の足が最下段にある", (key) => {
+  it.each(REDRAWN)("%s は頭上 2 行（× 密度）を空け、歩き原画の足が最下段にある", (key) => {
+    const dots = spriteDots(key);
+    const raw = sizeOf(key) * dots;
+    const headRoom = HEAD_ROOM * dots;
     const frames = SPRITES[key] ?? [];
     // 原画（歩き A / B と各ポーズ）を見る。lift した 1・3 枚目は 1 段上がってよい
     const all = [frames[0] ?? [], frames[2] ?? [], ...POSE_SUFFIXES.map((pose) => SPRITES[poseKey(key, pose)]?.[0] ?? [])];
     for (const frame of all) {
-      for (let y = 0; y < HEAD_ROOM; y++) expect(isEmptyRow(frame[y]), `${y} 行目`).toBe(true);
+      for (let y = 0; y < headRoom; y++) expect(isEmptyRow(frame[y]), `${y} 行目`).toBe(true);
     }
     // 歩き A / B（lift していない 0 と 2）は足元の基準を揃える
-    for (const i of [0, 2]) expect(isEmptyRow(frames[i]?.[sizeOf(key) - 1]), `フレーム ${i}`).toBe(false);
+    for (const i of [0, 2]) expect(isEmptyRow(frames[i]?.[raw - 1]), `フレーム ${i}`).toBe(false);
   });
 
   it("描き直した原画を元にする再配色種は、swap 元の文字が新原画に残っている", () => {
@@ -486,3 +515,47 @@ function sidesOfShaftOf(frame: readonly string[]): { ul: number; dr: number } {
   );
   return { ul, dr };
 }
+
+describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
+  /** 密度 1 以外を載せてよいのは敵・プレイヤー・ボスのキー（とそのポーズ）だけ。武器・タイル・UI アイコンは密度 1 のまま */
+  const ALLOWED_BASE_KEYS = new Set<string>(["player", ...ENEMIES.map((d) => d.sprite), ...BOSS_KEYS]);
+
+  it("SPRITE_DOTS のキーは SPRITES に存在し、フレームの寸法が dots の倍数", () => {
+    for (const [key, dots] of Object.entries(SPRITE_DOTS)) {
+      const frames = SPRITES[key];
+      expect(frames, key).toBeDefined();
+      const h = frames?.[0]?.length ?? 0;
+      const w = frames?.[0]?.[0]?.length ?? 0;
+      expect(h % dots, `${key} の高さ`).toBe(0);
+      expect(w % dots, `${key} の幅`).toBe(0);
+    }
+  });
+
+  it("dots>1 のキーは敵・プレイヤー・ボスのキー（とそのポーズ）だけ", () => {
+    for (const [key, dots] of Object.entries(SPRITE_DOTS)) {
+      if (dots <= 1) continue;
+      expect(ALLOWED_BASE_KEYS.has(baseOfPose(key)), key).toBe(true);
+    }
+  });
+
+  it("snapTo(v, 1) は Math.round と一致する", () => {
+    for (const v of [0, 0.4, 0.5, 0.6, -1.5, 3.49, 100.51]) {
+      expect(snapTo(v, 1)).toBe(Math.round(v));
+    }
+  });
+
+  it("snapTo は密度の格子に丸める（1/dots の倍数になる）", () => {
+    expect(snapTo(1.3, 2)).toBeCloseTo(1.5);
+    expect(snapTo(1.6, 2)).toBeCloseTo(1.5);
+    expect(snapTo(1.76, 4)).toBeCloseTo(1.75);
+  });
+
+  it("frameDims: 密度 2 の仮フレームは論理寸法が半分になる（buildSprite が使う寸法計算）", () => {
+    const fakeFrames = [
+      ["....", "....", "....", "...."],
+      ["....", "....", "....", "...."],
+    ];
+    expect(frameDims(fakeFrames, 1)).toEqual({ w: 4, h: 4 });
+    expect(frameDims(fakeFrames, 2)).toEqual({ w: 2, h: 2 });
+  });
+});

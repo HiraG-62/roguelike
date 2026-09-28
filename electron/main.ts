@@ -167,7 +167,11 @@ function createWindow(): void {
       webSecurity: true,
     },
   });
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    // show: false で作った窓は生成時の fullscreen が Windows で効かないことがあるので、見せる時点で掛け直す
+    if (initial.fullscreen) win.setFullScreen(true);
+    win.show();
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
     if (!isAllowedNavigation(url)) event.preventDefault();

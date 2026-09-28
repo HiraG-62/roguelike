@@ -214,41 +214,59 @@ describe("演出用の純関数", () => {
 });
 
 describe("computeViewScale", () => {
-  it("ウィンドウに収まる最大の整数倍率を選ぶ", () => {
+  it("canvas 実寸は窓の大きさに依らず常に 1920x1080", () => {
+    for (const [w, h, dpr] of [
+      [1920, 1080, 1],
+      [3840, 2160, 1],
+      [1440, 810, 1],
+      [1536, 864, 1.25],
+      [100, 100, 1],
+    ] as const) {
+      const s = computeViewScale(w, h, dpr);
+      expect(s.canvasW, `${w}x${h}/dpr${dpr}`).toBe(1920);
+      expect(s.canvasH, `${w}x${h}/dpr${dpr}`).toBe(1080);
+      expect(s.renderScale, `${w}x${h}/dpr${dpr}`).toBe(4);
+    }
+  });
+
+  it("1920x1080 / dpr1 は等倍・nearest", () => {
     const s = computeViewScale(1920, 1080, 1);
-    expect(s.cssScale).toBe(4);
-    expect(s.pixelRatio).toBe(4);
+    expect(s.pixelated).toBe(true);
+    expect(s.cssW).toBe(1920);
+    expect(s.cssH).toBe(1080);
+  });
+
+  it("WQHD（2560x1440）は解像度 1920x1080 のまま窓いっぱいに広げる", () => {
+    const s = computeViewScale(2560, 1440, 1);
+    expect(s.pixelated).toBe(true);
     expect(s.canvasW).toBe(1920);
-    expect(s.canvasH).toBe(1080);
+    expect(s.cssW).toBe(2560);
+    expect(s.cssH).toBe(1440);
   });
 
-  it("dpr を掛けた実ピクセルで canvas を持つ", () => {
-    const s = computeViewScale(1920, 1080, 2);
-    expect(s.cssScale).toBe(4);
-    expect(s.pixelRatio).toBe(8);
-    expect(s.canvasW).toBe(3840);
-    expect(s.canvasH).toBe(2160);
+  it("1440x810 / dpr1 は縮小なので補間に任せる", () => {
+    const s = computeViewScale(1440, 810, 1);
+    expect(s.pixelated).toBe(false);
+    expect(s.cssW).toBe(1440);
+    expect(s.cssH).toBe(810);
   });
 
-  it("非整数 dpr は実ピクセルを丸める", () => {
-    const s = computeViewScale(1280, 720, 1.25);
-    expect(s.cssScale).toBe(2);
-    expect(s.pixelRatio).toBe(2.5);
-    expect(s.canvasW).toBe(1200);
-    expect(s.canvasH).toBe(675);
+  it("1536x864 / dpr1.25 はデバイスピクセルで見ると等倍なので nearest", () => {
+    const s = computeViewScale(1536, 864, 1.25);
+    expect(s.pixelated).toBe(true);
+    expect(s.cssW).toBeCloseTo(1536, 5);
+    expect(s.cssH).toBeCloseTo(864, 5);
   });
 
-  it("小さいウィンドウでも倍率は最低 1", () => {
-    expect(computeViewScale(100, 100, 1).cssScale).toBe(1);
+  it("縦横の小さい方に合わせる（16:9 を保つ）", () => {
+    const s = computeViewScale(3000, 1200, 1);
+    expect(s.cssH).toBeCloseTo(1200, 5);
+    expect(s.cssW).toBeCloseTo((1200 * 16) / 9, 5);
   });
 
   it("不正な dpr は 1 とみなす", () => {
-    expect(computeViewScale(960, 540, 0).pixelRatio).toBe(2);
-    expect(computeViewScale(960, 540, Number.NaN).pixelRatio).toBe(2);
-  });
-
-  it("縦横の小さい方で倍率が決まる", () => {
-    expect(computeViewScale(2000, 600, 1).cssScale).toBe(2);
+    expect(computeViewScale(1920, 1080, Number.NaN).pixelated).toBe(true);
+    expect(computeViewScale(1920, 1080, 0).pixelated).toBe(true);
   });
 });
 

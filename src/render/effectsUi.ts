@@ -4,6 +4,7 @@
  * state.effects（死に方・演出の印）に置いたものを読む
  */
 import type { DeathFx, FxMark, GameState, RoomState } from "../core/state";
+import type { SpriteDots } from "../data/sprites/dots";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { EFFECTS, FX_WAVE3 } from "../data/tuning";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
@@ -28,12 +29,20 @@ import {
   shardOffset,
 } from "./renderMath";
 
+/** 演出が借りるスプライト画像。w/h は論理寸法（Sprite.w/h と同じ意味） */
+export interface SpriteImage {
+  img: HTMLCanvasElement;
+  w: number;
+  h: number;
+  dots: SpriteDots;
+}
+
 /** レンダラーのスプライトを借りる窓口（アトラス・色付けのキャッシュはレンダラーが持つ） */
 export interface FxSprites {
   /** 敵の 1 コマ目（色付け済み）。color が null なら元の色 */
-  enemy(defKey: string, color: string | null): HTMLCanvasElement | undefined;
+  enemy(defKey: string, color: string | null): SpriteImage | undefined;
   /** プレイヤーの 1 コマ目の色付き */
-  player(color: string): HTMLCanvasElement | undefined;
+  player(color: string): SpriteImage | undefined;
   /** 加算の丸い光 */
   glow(x: number, y: number, color: string, r: number, alpha: number): void;
 }
@@ -61,7 +70,7 @@ function deathT(d: Readonly<DeathFx>): number {
 /** 足元を基準にスプライトを置く（sx / sy は伸縮、flip は左右反転） */
 function drawFoot(
   ctx: CanvasRenderingContext2D,
-  img: HTMLCanvasElement,
+  sprite: SpriteImage,
   x: number,
   bottom: number,
   sx: number,
@@ -71,7 +80,7 @@ function drawFoot(
   ctx.save();
   ctx.translate(Math.round(x), Math.round(bottom));
   ctx.scale(flip ? -sx : sx, sy);
-  ctx.drawImage(img, -img.width / 2, -img.height);
+  ctx.drawImage(sprite.img, -sprite.w / 2, -sprite.h, sprite.w, sprite.h);
   ctx.restore();
 }
 
@@ -79,52 +88,59 @@ function drawFoot(
 // 死に方
 // -----------------------------------------------------------------------------
 
-function drawAsh(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number): void {
+function drawAsh(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number): void {
   const gone = ashCrumble(t);
-  const h = img.height;
+  const h = sprite.h;
   const keep = Math.max(0, Math.round(h * (1 - gone)));
   const bottom = d.pos.y + h / 2;
   if (keep > 0) {
+    // 崩れ残りの高さ（論理 px）を、実際のキャンバス（dots 倍）の行数に直して底から切り出す
+    const keepPhysical = Math.round(keep * sprite.dots);
     ctx.globalAlpha = 1 - gone * 0.4;
     ctx.save();
     ctx.translate(Math.round(d.pos.x), Math.round(bottom));
     ctx.scale(d.flip ? -1 : 1, 1);
-    ctx.drawImage(img, 0, h - keep, img.width, keep, -img.width / 2, -keep, img.width, keep);
+    ctx.drawImage(sprite.img, 0, sprite.img.height - keepPhysical, sprite.img.width, keepPhysical, -sprite.w / 2, -keep, sprite.w, keep);
     ctx.restore();
   }
   // 崩れた灰が足元にこぼれる
   ctx.fillStyle = deathColor("ash");
   for (let i = 0; i < 4; i++) {
-    const x = d.pos.x + (hash01(d.pos.x + i, d.pos.y) * 2 - 1) * (img.width / 2);
+    const x = d.pos.x + (hash01(d.pos.x + i, d.pos.y) * 2 - 1) * (sprite.w / 2);
     const y = bottom - 1 - hash01(d.pos.y + i, d.pos.x) * 2 * t;
     ctx.globalAlpha = t;
     ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
 }
 
-function drawShatter(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number): void {
-  const hw = img.width / 2;
-  const hh = img.height / 2;
+function drawShatter(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number): void {
+  const hw = sprite.w / 2;
+  const hh = sprite.h / 2;
+  // 切り出す矩形は実際のキャンバス（dots 倍）の側で四分割する
+  const shw = sprite.img.width / 2;
+  const shh = sprite.img.height / 2;
   ctx.globalAlpha = 1 - t;
   for (let i = 0; i < SHARD_COUNT; i++) {
     const o = shardOffset(i, SHARD_COUNT, t, EFFECTS.death.shardSpeed * 0.15);
-    const sx = i % 2 === 0 ? 0 : hw;
-    const sy = i < 2 ? 0 : hh;
-    ctx.drawImage(img, sx, sy, hw, hh, Math.round(d.pos.x - hw + sx + o.x), Math.round(d.pos.y - hh + sy + o.y), hw, hh);
+    const srcX = i % 2 === 0 ? 0 : shw;
+    const srcY = i < 2 ? 0 : shh;
+    const dx = i % 2 === 0 ? 0 : hw;
+    const dy = i < 2 ? 0 : hh;
+    ctx.drawImage(sprite.img, srcX, srcY, shw, shh, Math.round(d.pos.x - hw + dx + o.x), Math.round(d.pos.y - hh + dy + o.y), hw, hh);
   }
 }
 
-function drawDischarge(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number, time: number): void {
+function drawDischarge(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number, time: number): void {
   const hop = Math.sin(t * Math.PI * 2) * EFFECTS.death.dischargeHop * (1 - t);
   ctx.globalAlpha = 1 - t * t;
-  drawFoot(ctx, img, d.pos.x, d.pos.y + img.height / 2 - Math.abs(hop), 1, 1, d.flip);
+  drawFoot(ctx, sprite, d.pos.x, d.pos.y + sprite.h / 2 - Math.abs(hop), 1, 1, d.flip);
   // 放電の線（時間で位置が変わる）
   ctx.strokeStyle = deathColor("discharge");
   ctx.lineWidth = 1;
   const flicker = Math.floor(time * DISCHARGE_FLICKER);
   for (let i = 0; i < DISCHARGE_BOLTS; i++) {
     const a = hash01(flicker + i, d.pos.x) * Math.PI * 2;
-    const r = img.width * 0.8;
+    const r = sprite.w * 0.8;
     const mx = d.pos.x + Math.cos(a) * r * 0.5 + (hash01(flicker, i) - 0.5) * 4;
     const my = d.pos.y + Math.sin(a) * r * 0.5;
     ctx.beginPath();
@@ -135,19 +151,19 @@ function drawDischarge(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanva
   }
 }
 
-function drawMelt(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number): void {
+function drawMelt(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number): void {
   const s = meltScale(t);
-  const bottom = d.pos.y + img.height / 2;
+  const bottom = d.pos.y + sprite.h / 2;
   ctx.globalAlpha = 0.6 * (1 - t * 0.5);
   ctx.fillStyle = deathColor("melt");
   ctx.beginPath();
-  ctx.ellipse(d.pos.x, bottom, (img.width / 2) * s.sx, PUDDLE_RY, 0, 0, Math.PI * 2);
+  ctx.ellipse(d.pos.x, bottom, (sprite.w / 2) * s.sx, PUDDLE_RY, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1 - t * 0.3;
-  drawFoot(ctx, img, d.pos.x, bottom, s.sx, s.sy, d.flip);
+  drawFoot(ctx, sprite, d.pos.x, bottom, s.sx, s.sy, d.flip);
 }
 
-function drawBlood(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number): void {
+function drawBlood(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number): void {
   // 飛沫: 攻撃の向きに血の点が伸びる
   ctx.fillStyle = deathColor("blood");
   const spread = BLOOD_SPREAD * easeOutCubic(t);
@@ -158,16 +174,16 @@ function drawBlood(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasEle
     ctx.fillRect(Math.round(d.pos.x + Math.cos(a) * r), Math.round(d.pos.y + Math.sin(a) * r), 2, 2);
   }
   ctx.globalAlpha = Math.max(0, 1 - t * 2);
-  drawFoot(ctx, img, d.pos.x, d.pos.y + img.height / 2, 1, 1, d.flip);
+  drawFoot(ctx, sprite, d.pos.x, d.pos.y + sprite.h / 2, 1, 1, d.flip);
 }
 
 /** 両断: 攻撃の向きに垂直な切り口で上下に分かれて離れる */
-function drawSever(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number): void {
+function drawSever(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number): void {
   const gap = severGap(t, EFFECTS.death.severGap);
   const cut = d.angle;
   const nx = Math.cos(cut + Math.PI / 2);
   const ny = Math.sin(cut + Math.PI / 2);
-  const size = Math.max(img.width, img.height);
+  const size = Math.max(sprite.w, sprite.h);
   ctx.globalAlpha = 1 - t * t;
   for (const side of [-1, 1] as const) {
     ctx.save();
@@ -178,7 +194,7 @@ function drawSever(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasEle
     ctx.clip();
     ctx.rotate(-cut);
     ctx.scale(d.flip ? -1 : 1, 1);
-    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.drawImage(sprite.img, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
     ctx.restore();
   }
   // 切り口の白い線（最初だけ）
@@ -193,10 +209,10 @@ function drawSever(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasEle
   }
 }
 
-function drawVoid(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number): void {
+function drawVoid(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number): void {
   const s = 1 - easeOutCubic(t);
   ctx.globalAlpha = 1 - t * 0.5;
-  drawFoot(ctx, img, d.pos.x, d.pos.y + (img.height / 2) * s, s, s, d.flip);
+  drawFoot(ctx, sprite, d.pos.x, d.pos.y + (sprite.h / 2) * s, s, s, d.flip);
   ctx.strokeStyle = deathColor("void");
   ctx.lineWidth = 1;
   ctx.globalAlpha = t;
@@ -205,10 +221,10 @@ function drawVoid(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElem
   ctx.stroke();
 }
 
-function drawHoly(ctx: CanvasRenderingContext2D, d: DeathFx, img: HTMLCanvasElement, t: number, sprites: FxSprites): void {
+function drawHoly(ctx: CanvasRenderingContext2D, d: DeathFx, sprite: SpriteImage, t: number, sprites: FxSprites): void {
   ctx.globalAlpha = 1 - t;
-  drawFoot(ctx, img, d.pos.x, d.pos.y + img.height / 2 - HOLY_RISE * easeOutCubic(t), 1, 1, d.flip);
-  sprites.glow(d.pos.x, d.pos.y - HOLY_RISE * t, deathColor("holy"), img.width, 0.5 * (1 - t));
+  drawFoot(ctx, sprite, d.pos.x, d.pos.y + sprite.h / 2 - HOLY_RISE * easeOutCubic(t), 1, 1, d.flip);
+  sprites.glow(d.pos.x, d.pos.y - HOLY_RISE * t, deathColor("holy"), sprite.w, 0.5 * (1 - t));
 }
 
 /** 死に方ごとのスプライトの色（灰は灰色、感電は黒焦げ …） */
@@ -235,33 +251,33 @@ export function drawDeathFx(ctx: CanvasRenderingContext2D, state: GameState, spr
   const fx = state.effects;
   if (!fx || fx.deaths.length === 0) return;
   for (const d of fx.deaths) {
-    const img = sprites.enemy(d.defKey, deathTint(d));
-    if (!img) continue;
+    const sprite = sprites.enemy(d.defKey, deathTint(d));
+    if (!sprite) continue;
     const t = deathT(d);
     switch (d.kind) {
       case "ash":
-        drawAsh(ctx, d, img, t);
+        drawAsh(ctx, d, sprite, t);
         break;
       case "shatter":
-        drawShatter(ctx, d, img, t);
+        drawShatter(ctx, d, sprite, t);
         break;
       case "discharge":
-        drawDischarge(ctx, d, img, t, state.time);
+        drawDischarge(ctx, d, sprite, t, state.time);
         break;
       case "melt":
-        drawMelt(ctx, d, img, t);
+        drawMelt(ctx, d, sprite, t);
         break;
       case "blood":
-        drawBlood(ctx, d, img, t);
+        drawBlood(ctx, d, sprite, t);
         break;
       case "sever":
-        drawSever(ctx, d, img, t);
+        drawSever(ctx, d, sprite, t);
         break;
       case "void":
-        drawVoid(ctx, d, img, t);
+        drawVoid(ctx, d, sprite, t);
         break;
       case "holy":
-        drawHoly(ctx, d, img, t, sprites);
+        drawHoly(ctx, d, sprite, t, sprites);
         break;
       case "burst":
         break;
@@ -396,10 +412,10 @@ function drawDropBeam(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSprit
 }
 
 function drawDashGhost(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSprites): void {
-  const img = sprites.player(m.color);
-  if (!img) return;
+  const sprite = sprites.player(m.color);
+  if (!sprite) return;
   ctx.globalAlpha = EFFECTS.dashGhost.alpha * (1 - markT(m));
-  drawFoot(ctx, img, m.pos.x, m.pos.y + img.height / 2, 1, 1, m.value === 1);
+  drawFoot(ctx, sprite, m.pos.x, m.pos.y + sprite.h / 2, 1, 1, m.value === 1);
 }
 
 /** 芽吹き（7-15）: 足元から双葉が開き、短い光柱が立つ */

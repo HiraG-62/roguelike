@@ -1,5 +1,5 @@
 import { actionKeyLabel } from "../core/input";
-import { VIEW_H, VIEW_W, screenToWorld } from "../core/view";
+import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import type { BossState, Enemy, FloorKind, GameState, Hazard, Particle, Player, Projectile, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
@@ -48,7 +48,7 @@ import {
   type HudLayout,
 } from "./renderMath";
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
-import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, enemySpriteKey, getSprite, mergeAtlas, spriteFrame } from "./sprites";
+import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, dotsOf, drawFrame, enemySpriteKey, getSprite, mergeAtlas, snapTo, spriteFrame } from "./sprites";
 import { expandTileAtlas } from "./tileAtlas";
 import { tileBiome } from "../data/tiles";
 import { isDark } from "../system/roomTypes";
@@ -60,7 +60,7 @@ import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
-import { type FxSprites, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
+import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
 import { EFFECTS, FX_ATTACK } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
@@ -674,7 +674,7 @@ export class Renderer {
   private bossPhaseFlashAt = Number.NEGATIVE_INFINITY;
   private bossTrail = 1;
   private bossDefeatAt: number | null = null;
-  private bossSnap: { img: HTMLCanvasElement; x: number; bottom: number; flip: boolean } | null = null;
+  private bossSnap: { img: HTMLCanvasElement; w: number; h: number; x: number; bottom: number; flip: boolean } | null = null;
   private readonly reaperTrail: { x: number; y: number }[] = [];
   private reaperTrailAt = 0;
   private readonly pillars = new Map<string, HTMLCanvasElement>();
@@ -686,11 +686,22 @@ export class Renderer {
   private readonly fxSprites: FxSprites = {
     enemy: (defKey, color) => {
       const key = enemyDef(defKey).sprite;
-      return color ? this.tinted(key, color)[0] : this.sprite(key).frames[0];
+      const sprite = this.sprite(key);
+      const img = color ? this.tinted(key, color)[0] : sprite.frames[0];
+      return img ? this.spriteImage(sprite, img) : undefined;
     },
-    player: (color) => this.tinted(SPR.player, color)[0],
+    player: (color) => {
+      const sprite = this.sprite(SPR.player);
+      const img = this.tinted(SPR.player, color)[0];
+      return img ? this.spriteImage(sprite, img) : undefined;
+    },
     glow: (x, y, color, r, alpha) => this.drawGlow(x, y, color, r, alpha),
   };
+
+  /** FxSprites が貸す窓口用の形に詰め替える（論理寸法 + 密度） */
+  private spriteImage(sprite: Sprite, img: HTMLCanvasElement): SpriteImage {
+    return { img, w: sprite.w, h: sprite.h, dots: dotsOf(sprite) };
+  }
   /** 武器種・モーション専用のエフェクトのスプライト（docs/ideas/fx-sprites.md）。読み込むまでは手続きの描画 */
   private readonly fxBank = new FxSpriteBank();
   /** 高精細のプレイヤーの体と武器（docs/ideas/player-sprites.md）。読み込むまでは 24x24 の体 */
@@ -715,12 +726,12 @@ export class Renderer {
   /** 拠点の台（setHubView）。拠点以外では null */
   private hubView: HubSpotsView | null = null;
 
-  /** 論理 1px あたりの実ピクセル数。fitToWindow で更新する */
-  private pixelRatio = 1;
-
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2D context unavailable");
+    // バックバッファは窓の大きさに依らず常に VIEW_W*RENDER_SCALE x VIEW_H*RENDER_SCALE で固定
+    canvas.width = VIEW_W * RENDER_SCALE;
+    canvas.height = VIEW_H * RENDER_SCALE;
     ctx.imageSmoothingEnabled = false;
     this.ctx = ctx;
     this.atlas = buildAtlas();
@@ -729,25 +740,21 @@ export class Renderer {
     this.edgeBlue = buildEdgeGlow("80,160,255");
     this.edgeRed = buildEdgeGlow("255,40,40");
     this.edgePurple = buildEdgeGlow("128,64,192");
+    pixelText().setScale(RENDER_SCALE);
+    this.beginFrame();
     this.fitToWindow();
     window.addEventListener("resize", () => this.fitToWindow());
   }
 
   /**
-   * CSS は整数倍で拡大してドットを崩さず、canvas の実ピクセルはデバイス解像度で持つ。
-   * 論理座標（VIEW_W x VIEW_H）は beginFrame の transform で揃えるので描画コードは変えなくてよい
+   * canvas の実ピクセルは固定なので、窓の変化では CSS の表示サイズと
+   * image-rendering（非整数縮小のときだけ auto にして間引きの粗さを避ける）だけを変える
    */
   private fitToWindow(): void {
     const view = computeViewScale(window.innerWidth, window.innerHeight, window.devicePixelRatio);
-    this.canvas.style.width = `${VIEW_W * view.cssScale}px`;
-    this.canvas.style.height = `${VIEW_H * view.cssScale}px`;
-    this.pixelRatio = view.pixelRatio;
-    pixelText().setScale(view.pixelRatio);
-    if (this.canvas.width === view.canvasW && this.canvas.height === view.canvasH) return;
-    // サイズ変更で context の状態（transform・smoothing）はリセットされる
-    this.canvas.width = view.canvasW;
-    this.canvas.height = view.canvasH;
-    this.beginFrame();
+    this.canvas.style.width = `${view.cssW}px`;
+    this.canvas.style.height = `${view.cssH}px`;
+    this.canvas.style.imageRendering = view.pixelated ? "pixelated" : "auto";
   }
 
   /**
@@ -756,12 +763,10 @@ export class Renderer {
    */
   beginFrame(): void {
     const { ctx } = this;
-    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
-    // 文字倍率は表示倍率に依存するため毎フレーム再計算する（リサイズ直後のフレームから正しい大きさにする）
-    pixelText().setScale(this.pixelRatio);
     updateTextSizes();
   }
 
@@ -912,7 +917,7 @@ export class Renderer {
       const img = pick(sprite.white, this.enemyFrame(e, sprite));
       if (img) {
         const bottom = e.body.pos.y + sprite.h / 2 - this.jumpLift(e);
-        this.bossSnap = { img, x: e.body.pos.x, bottom, flip: e.facing.x < 0 };
+        this.bossSnap = { img, w: sprite.w, h: sprite.h, x: e.body.pos.x, bottom, flip: e.facing.x < 0 };
       }
     }
     if (b.defeated && this.bossDefeatAt === null) this.bossDefeatAt = state.time;
@@ -993,13 +998,16 @@ export class Renderer {
 
   private blit(sprite: Sprite, frame: number, x: number, y: number): void {
     const img = pick(sprite.frames, frame);
-    if (img) this.ctx.drawImage(img, Math.round(x), Math.round(y));
+    if (!img) return;
+    const dots = dotsOf(sprite);
+    drawFrame(this.ctx, sprite, img, snapTo(x, dots), snapTo(y, dots));
   }
 
   /**
    * 足元 (cx, bottom) を基準に拡縮・回転・反転して描く。変形が無ければ save/restore を使わない。
    */
   private drawAnchored(
+    sprite: Sprite,
     img: HTMLCanvasElement | undefined,
     cx: number,
     bottom: number,
@@ -1010,35 +1018,50 @@ export class Renderer {
   ): void {
     if (!img) return;
     const { ctx } = this;
+    const dots = dotsOf(sprite);
+    const w = sprite.w;
+    const h = sprite.h;
     if (sx === 1 && sy === 1 && rot === 0 && !flip) {
-      ctx.drawImage(img, Math.round(cx - img.width / 2), Math.round(bottom - img.height));
+      drawFrame(ctx, sprite, img, snapTo(cx - w / 2, dots), snapTo(bottom - h, dots));
       return;
     }
     ctx.save();
-    ctx.translate(Math.round(cx), Math.round(bottom));
+    ctx.translate(snapTo(cx, dots), snapTo(bottom, dots));
     if (rot !== 0) ctx.rotate(rot);
     ctx.scale(flip ? -sx : sx, sy);
-    ctx.drawImage(img, -img.width / 2, -img.height);
+    ctx.drawImage(img, -w / 2, -h, w, h);
     ctx.restore();
   }
 
-  /** 中心基準で回転・拡大して描く */
-  private drawRotated(img: HTMLCanvasElement | undefined, cx: number, cy: number, rot: number, scale: number): void {
+  /**
+   * 中心基準で回転・拡大して描く。w / h を渡すと論理寸法で描く（既定は img の実寸のまま = 密度 1 前提。
+   * 武器・弾・UI アイコンなど、いまは密度 1 のまま置くキーの経路はこれで足りる）
+   */
+  private drawRotated(
+    img: HTMLCanvasElement | undefined,
+    cx: number,
+    cy: number,
+    rot: number,
+    scale: number,
+    w = img?.width ?? 0,
+    h = img?.height ?? 0,
+  ): void {
     if (!img) return;
     const { ctx } = this;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(rot);
     if (scale !== 1) ctx.scale(scale, scale);
-    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
     ctx.restore();
   }
 
   private drawShadow(cx: number, cy: number, scale = 1): void {
-    const img = this.sprite(SPR.shadow).frames[0];
+    const shadow = this.sprite(SPR.shadow);
+    const img = shadow.frames[0];
     if (!img) return;
-    const w = Math.round(img.width * scale);
-    const h = Math.max(2, Math.round(img.height * scale));
+    const w = Math.round(shadow.w * scale);
+    const h = Math.max(2, Math.round(shadow.h * scale));
     const { ctx } = this;
     ctx.globalAlpha = SHADOW_ALPHA;
     ctx.drawImage(img, Math.round(cx - w / 2), Math.round(cy - h / 2), w, h);
@@ -1411,27 +1434,27 @@ export class Renderer {
         : 0;
 
     const base = hit ? sprite.white : sprite.frames;
-    this.drawAnchored(pick(base, frame), x, bottom, sx, sy, rot, flip);
+    this.drawAnchored(sprite, pick(base, frame), x, bottom, sx, sy, rot, flip);
 
     // 状態の重ね描き（同じ変形のシルエットを半透明で）
     if (e.phase === "windup" && Math.sin(state.time * WINDUP_BLINK_SPEED) > 0) {
       ctx.globalAlpha = WINDUP_RED_ALPHA;
-      this.drawAnchored(pick(this.tinted(key, COLOR_TELEGRAPH), frame), x, bottom, sx, sy, rot, flip);
+      this.drawAnchored(sprite, pick(this.tinted(key, COLOR_TELEGRAPH), frame), x, bottom, sx, sy, rot, flip);
     }
     if (hasStatus(e.status, "chill") || hasStatus(e.status, "freeze")) {
       ctx.globalAlpha = CHILL_TINT_ALPHA;
-      this.drawAnchored(pick(this.tinted(key, STATUS.chillColor), frame), x, bottom, sx, sy, rot, flip);
+      this.drawAnchored(sprite, pick(this.tinted(key, STATUS.chillColor), frame), x, bottom, sx, sy, rot, flip);
     }
     if (hasStatus(e.status, "burn")) {
       ctx.globalAlpha = BURN_TINT_ALPHA * (0.6 + 0.4 * Math.sin(state.time * BURN_FLICKER_SPEED + e.id));
-      this.drawAnchored(pick(this.tinted(key, STATUS.burnColor), frame), x, bottom, sx, sy, rot, flip);
+      this.drawAnchored(sprite, pick(this.tinted(key, STATUS.burnColor), frame), x, bottom, sx, sy, rot, flip);
     }
-    this.drawStatusTint(state, e, key, frame, x, bottom, sx, sy, rot, flip);
+    this.drawStatusTint(state, e, sprite, key, frame, x, bottom, sx, sy, rot, flip);
     if (critFlashActive(state, e.id)) {
       // 会心の反転: 白いシルエットを差の合成で重ねて 1 瞬だけ色を反転する
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "difference";
-      this.drawAnchored(pick(sprite.white, frame), x, bottom, sx, sy, rot, flip);
+      this.drawAnchored(sprite, pick(sprite.white, frame), x, bottom, sx, sy, rot, flip);
       ctx.globalCompositeOperation = "source-over";
     }
     ctx.globalAlpha = 1;
@@ -1474,6 +1497,7 @@ export class Renderer {
   private drawStatusTint(
     state: GameState,
     e: Enemy,
+    sprite: Sprite,
     key: string,
     frame: number,
     x: number,
@@ -1486,7 +1510,7 @@ export class Renderer {
     const tint = statusTint(e.status);
     if (!tint || BUILTIN_TINT_KINDS.has(tint.kind)) return;
     this.ctx.globalAlpha = EFFECTS.statusTintAlpha * (0.7 + 0.3 * Math.sin(state.time * STATUS_TINT_SPEED + e.id));
-    this.drawAnchored(pick(this.tinted(key, tint.color), frame), x, bottom, sx, sy, rot, flip);
+    this.drawAnchored(sprite, pick(this.tinted(key, tint.color), frame), x, bottom, sx, sy, rot, flip);
   }
 
   /** ボスは行動に合わせてフレームを選ぶ。他は時間で回す */
@@ -1520,7 +1544,7 @@ export class Renderer {
     const frames = this.tinted(SPR.eliteAura, ELITE_COLOR[e.elite]);
     const frame = spriteFrame(aura, state.time + e.id, ELITE_AURA_FRAME_TIME);
     this.ctx.globalAlpha = ELITE.auraAlpha * pulse(state.time + e.id, ELITE_AURA_PULSE_SPEED, ELITE_AURA_PULSE_MIN, 1);
-    this.drawAnchored(pick(frames, frame), cx, feetY + ELITE_AURA_DROP);
+    this.drawAnchored(aura, pick(frames, frame), cx, feetY + ELITE_AURA_DROP);
     this.ctx.globalAlpha = 1;
   }
 
@@ -2079,7 +2103,7 @@ export class Renderer {
         sx = SQUASH_X;
         sy = SQUASH_Y;
       }
-      this.drawAnchored(pick(hit ? body.white : body.frames, frame), cx, bottom, sx, sy, 0, flip);
+      this.drawAnchored(body, pick(hit ? body.white : body.frames, frame), cx, bottom, sx, sy, 0, flip);
     }
     if (!blink && !held.behind) this.drawHeldWeapon(state, held);
 
@@ -2394,7 +2418,7 @@ export class Renderer {
       ctx.globalAlpha = DASH_GHOST_ALPHA * (1 - (i - 1) / DASH_GHOSTS);
       const gx = cx - p.dashDir.x * DASH_GHOST_SPACING * i;
       const gy = bottom - p.dashDir.y * DASH_GHOST_SPACING * i;
-      this.drawAnchored(img, gx, gy, 1, 1, 0, flip);
+      this.drawAnchored(sprite, img, gx, gy, 1, 1, 0, flip);
     }
     ctx.globalAlpha = 1;
   }
@@ -2837,7 +2861,7 @@ export class Renderer {
   private drawHudRightPanel(state: GameState, rightX: number, rightY: number, line: number): void {
     const m = TEXT.SMALL;
     const { ctx } = this;
-    const ascent = Math.max(HUD_PANEL_ASCENT, baselineOffset("alphabetic", m, this.pixelRatio));
+    const ascent = Math.max(HUD_PANEL_ASCENT, baselineOffset("alphabetic", m, RENDER_SCALE));
     const depthText = `地下 ${state.depth} 階 · ${FLOOR_KIND_LABEL_JA[state.floorKind]}`;
     const scoreText = `スコア ${state.score}`;
     const seedText = `シード ${state.seedText}`;
@@ -2963,11 +2987,11 @@ export class Renderer {
     const { ctx } = this;
     const grow = 1 + (BOSS_DEATH_GROW - 1) * easeOutCubic(t);
     ctx.globalAlpha = 1 - t;
-    const cy = snap.bottom - snap.img.height / 2;
+    const cy = snap.bottom - snap.h / 2;
     ctx.save();
     ctx.translate(Math.round(snap.x), Math.round(cy));
     ctx.scale(snap.flip ? -grow : grow, grow);
-    ctx.drawImage(snap.img, -snap.img.width / 2, -snap.img.height / 2);
+    ctx.drawImage(snap.img, -snap.w / 2, -snap.h / 2, snap.w, snap.h);
     ctx.restore();
     ctx.strokeStyle = COLOR_WHITE;
     for (let i = 0; i < BOSS_DEATH_RINGS; i++) {
@@ -3014,7 +3038,7 @@ export class Renderer {
   }
 
   private textLine(m: number): number {
-    return pixelText().lineHeight(m, this.pixelRatio);
+    return pixelText().lineHeight(m, RENDER_SCALE);
   }
 
   /** Reaper 出現までの残り秒（警告時間以降）と、出現中の警告 */

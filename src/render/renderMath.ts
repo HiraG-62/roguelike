@@ -1,5 +1,5 @@
 import type { FloatTextKind, Hazard } from "../core/state";
-import { VIEW_H, VIEW_W } from "../core/view";
+import { RENDER_SCALE, VIEW_H, VIEW_W } from "../core/view";
 import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
 import { type KeystoneGroup, keystoneDef } from "../loot/affixes";
 import { type Rarity, type Resonance, TRAIT_COLOR_HEX } from "../loot/types";
@@ -313,18 +313,26 @@ export function bossPhaseThreshold(behavior: string): number | null {
 }
 
 export interface ViewScale {
-  /** CSS 上の整数拡大率（ドット絵を崩さない） */
-  cssScale: number;
-  /** 論理 1px あたりの実ピクセル数（cssScale * devicePixelRatio）。ctx.setTransform に使う */
-  pixelRatio: number;
-  /** canvas の実ピクセルサイズ */
+  /** 論理 1px あたりのバックバッファ px 数。常に RENDER_SCALE 固定 */
+  renderScale: number;
+  /** canvas の実ピクセルサイズ（窓に依らず一定 = viewW/viewH * RENDER_SCALE） */
   canvasW: number;
   canvasH: number;
+  /** CSS 上の表示サイズ（CSS px）。16:9 で窓に収まる最大 */
+  cssW: number;
+  cssH: number;
+  /** true なら拡大（等倍を含む）なので nearest で描く。false は縮小なので補間に任せる */
+  pixelated: boolean;
 }
 
+/** 等倍判定で浮動小数の誤差を吸収する余裕 */
+const UPSCALE_EPS = 1e-6;
+
 /**
- * ウィンドウに収まる最大の整数倍率と、文字を高精細に描くための実ピクセルサイズ。
- * 論理座標は viewW x viewH のまま、canvas だけデバイス解像度で持つ
+ * バックバッファは常に viewW*RENDER_SCALE x viewH*RENDER_SCALE（既定 1920x1080）に固定し、
+ * 表示は 16:9 のまま窓いっぱいに広げる（WQHD なら 2560x1440 に引き伸ばす）。
+ * 拡大は nearest（ドットの大きさが 1px ずれる程度で、ぼやけるよりよい）、
+ * 縮小は nearest だとドットが間引かれて欠けるので補間に任せる
  */
 export function computeViewScale(
   innerW: number,
@@ -333,14 +341,18 @@ export function computeViewScale(
   viewW: number = VIEW_W,
   viewH: number = VIEW_H,
 ): ViewScale {
-  const cssScale = Math.max(1, Math.floor(Math.min(innerW / viewW, innerH / viewH)));
   const safeDpr = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
-  const pixelRatio = cssScale * safeDpr;
+  const canvasW = viewW * RENDER_SCALE;
+  const canvasH = viewH * RENDER_SCALE;
+  const fit = Math.min(innerW / viewW, innerH / viewH);
+  const devicePerCanvasPx = (fit * safeDpr) / RENDER_SCALE;
   return {
-    cssScale,
-    pixelRatio,
-    canvasW: Math.round(viewW * pixelRatio),
-    canvasH: Math.round(viewH * pixelRatio),
+    renderScale: RENDER_SCALE,
+    canvasW,
+    canvasH,
+    cssW: viewW * fit,
+    cssH: viewH * fit,
+    pixelated: devicePerCanvasPx >= 1 - UPSCALE_EPS,
   };
 }
 

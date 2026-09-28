@@ -1,4 +1,5 @@
 import type { SheetKey, TileSpriteDef } from "../data/tiles";
+import { DEFAULT_SPRITE_DOTS } from "../data/sprites/dots";
 import type { Sprite, SpriteAtlas } from "./sprites";
 
 export interface ImageSheet {
@@ -64,7 +65,8 @@ export async function loadImageAtlas(defs: readonly TileSpriteDef[], sheets: rea
     const frameCount = Math.max(1, def.frames ?? 1);
     const frames: HTMLCanvasElement[] = [];
     for (let i = 0; i < frameCount; i++) frames.push(sliceFrame(img, def.x + i * def.w, def.y, def.w, def.h));
-    const sprite: Sprite = { frames, white: frames.map(whiteSilhouette), w: def.w, h: def.h };
+    const dots = def.dots ?? DEFAULT_SPRITE_DOTS;
+    const sprite: Sprite = { frames, white: frames.map(whiteSilhouette), w: def.w / dots, h: def.h / dots, dots };
     atlas[def.key] = sprite;
   }
   return atlas;
