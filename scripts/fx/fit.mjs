@@ -49,6 +49,12 @@ function stepOf(raw, motion) {
   return undefined;
 }
 
+/** 弾を出す派生（絵は飛ぶ弾を描いていて、近接の当たり判定の大きさとは関係ない） */
+function firesShots(raw, motion) {
+  if (!motion.startsWith("branch:")) return false;
+  return !!raw.branches?.[motion.slice("branch:".length)]?.shots;
+}
+
 /** 当たり判定の外縁までの距離（論理 px）。self は体の中心（描くのは肩からなので数 px 前へずれる）、anchor は当たり判定の中心から */
 function targetEdge(step, pivot) {
   const kind = step.shape?.kind ?? "box";
@@ -86,6 +92,12 @@ export function fitAtlas(root, atlas) {
   const motions = {};
   for (const [key, m] of Object.entries(fx.motions)) {
     const step = stepOf(raw, key);
+    if (firesShots(raw, key)) {
+      // 絵は弾のまま（縮めない）。実行時にも比で拡縮しないよう base だけ今の値にする
+      const now = step?.[m.measure];
+      motions[key] = typeof now === "number" && now > 0 ? { ...m, base: now } : m;
+      continue;
+    }
     const actual = step?.[m.measure];
     const target = step ? targetEdge(step, m.pivot) : undefined;
     const sheet = byKey.get(m.sheet);
