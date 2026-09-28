@@ -330,11 +330,14 @@ function blendPart(from: HeldPart, to: HeldPart, k: number): HeldPart {
   if (k >= 1) return to;
   const angle = lerpAngle(from.angle, to.angle, k);
   const late = k >= 0.5;
+  // 振りの形と待機の形で前後が揃っていればそのまま（二刀の後ろの手は寄せる途中で体の前へ出ない）。
+  // 食い違うときだけ寄せた角で決める
+  const behind = from.behind === to.behind ? from.behind : Math.sin(angle) < BEHIND_SIN;
   return {
     hand: { x: from.hand.x + (to.hand.x - from.hand.x) * k, y: from.hand.y + (to.hand.y - from.hand.y) * k },
     angle,
     mirror: late ? to.mirror : from.mirror,
-    behind: Math.sin(angle) < BEHIND_SIN,
+    behind,
     bare: from.bare,
   };
 }
