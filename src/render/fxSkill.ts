@@ -12,7 +12,8 @@ import { SKILL } from "../skills/data";
 import { fieldRadius, mineRadius, thunderRadius, wellRadius } from "../skills/placed";
 import { graveRadius, kegRadius, springRadius } from "../skills/summons";
 import type { ActiveCast, CastParams } from "../skills/types";
-import { grenadeRadius, whirlRadius } from "../system/skills";
+import { grenadeRadius, hookRange, quakeRadius, whirlRadius } from "../system/skills";
+import { GRENADE_ARC_H } from "./thrownLook";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
 import { SKILL_FX, type SkillFx, type SkillLoop, type SkillPiece, mirrorFlip, rampOfElement, skillSheet } from "./fxMotions";
 
@@ -22,7 +23,12 @@ interface Placed {
   pos: Vec;
   size: number;
   params: CastParams;
+  /** 不透明度（起動前の地雷は薄く。無ければ 1） */
+  alpha?: number;
 }
+
+/** 起動前の地雷の不透明度（起動したら濃くなるのが「踏むと炸裂する」の合図） */
+const UNARMED_ALPHA = 0.5;
 
 /** 飛んでいる物 1 つ（スキルの弾・投げた手榴弾）。向きは速度の向き */
 interface Moving {
@@ -30,6 +36,8 @@ interface Moving {
   pos: Vec;
   angle: number;
   params: CastParams;
+  /** 床からの高さ（px。投げた手榴弾の放物線）。空中の絵はその分だけ上に、地面の絵（影）は床に描く */
+  lift?: number;
 }
 
 /** 効いている纏い 1 つ（自己強化・変身）。発動の値の無いもの（加速）は属性なし */
@@ -41,18 +49,20 @@ interface Aura {
 /** 発動中の絵の大きさ（絵の表の base と比べて拡縮する）。載っていないスキルは 0（拡縮しない）。スキルの絵を足すときにここへ足す */
 const ACTIVE_SIZE: Readonly<Record<string, (state: GameState, a: ActiveCast) => number>> = {
   whirl: (state, a) => whirlRadius(state, a.params),
+  quake: (_state, a) => quakeRadius(a.params),
+  chainHook: (_state, a) => hookRange(a.params),
 };
 
 /** 置いてある物の一覧（どのスキルの物かは発動の値の skillKey。型替え符で別のスキルが置いた物もそのスキルの絵になる） */
 function placedOf(state: GameState): Placed[] {
   const rs = state.skills;
   const out: Placed[] = [];
-  const add = (pos: Vec, params: CastParams, size: number): void => {
-    out.push({ key: params.skillKey, pos, size, params });
+  const add = (pos: Vec, params: CastParams, size: number, alpha?: number): void => {
+    out.push({ key: params.skillKey, pos, size, params, alpha });
   };
   for (const f of rs.fields) add(f.pos, f.params, fieldRadius(f.params));
   for (const w of rs.wells) add(w.pos, w.params, wellRadius(w.params));
-  for (const m of rs.mines) add(m.pos, m.params, mineRadius(m.params));
+  for (const m of rs.mines) add(m.pos, m.params, mineRadius(m.params), m.arm > 0 ? UNARMED_ALPHA : 1);
   for (const t of rs.strikes) add(t.pos, t.params, thunderRadius(t.params));
   for (const k of rs.kegs) add(k.pos, k.params, kegRadius(k.params));
   for (const g of rs.graves) add(g.pos, g.params, graveRadius(g.params));
@@ -74,8 +84,9 @@ function movingOf(state: GameState): Moving[] {
   for (const g of rs.grenades) {
     if (g.flight <= 0) continue;
     const t = g.flightTotal > 0 ? 1 - g.flight / g.flightTotal : 1;
+    // skillHud の手続きの描画と同じ放物線の高さ（落ちる所の輪は skillHud が残す）
     const pos = { x: g.from.x + (g.to.x - g.from.x) * t, y: g.from.y + (g.to.y - g.from.y) * t };
-    out.push({ key: g.params.skillKey, pos, angle: Math.atan2(g.to.y - g.from.y, g.to.x - g.from.x), params: g.params });
+    out.push({ key: g.params.skillKey, pos, angle: Math.atan2(g.to.y - g.from.y, g.to.x - g.from.x), params: g.params, lift: Math.sin(t * Math.PI) * GRENADE_ARC_H });
   }
   return out;
 }
@@ -175,7 +186,7 @@ function drawPlaced(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const phase = ((it.pos.x * 7 + it.pos.y * 13) % 97) / 97;
     const frame = loopFrame(sheetDef(sheet).frames, state.time + phase * loop.period, loop.period);
-    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, 0, { ramp: rampOf(fx, paramsElement(it.params)), scale: scaleOf(it.size, loop.base) });
+    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, 0, { ramp: rampOf(fx, paramsElement(it.params)), scale: scaleOf(it.size, loop.base), alpha: it.alpha });
   }
 }
 
@@ -187,7 +198,8 @@ function drawMoving(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
     const sheet = ground ? loop?.ground : loop?.sheet;
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const frame = loopFrame(sheetDef(sheet).frames, state.time, loop.period);
-    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, it.angle, { ramp: rampOf(fx, paramsElement(it.params)) });
+    const y = ground ? it.pos.y : it.pos.y - (it.lift ?? 0);
+    bank.draw(ctx, sheet, frame, it.pos.x, y, it.angle, { ramp: rampOf(fx, paramsElement(it.params)) });
   }
 }
 

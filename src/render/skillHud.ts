@@ -307,7 +307,11 @@ function drawRunes(ctx: CanvasRenderingContext2D, state: GameState): void {
 
 function drawGrenades(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const g of state.skills.grenades) {
-    if (drawnBySprite(g.params)) continue;
+    if (drawnBySprite(g.params)) {
+      // 絵があっても、飛んでいる間は落ちる所の輪を見せる
+      if (g.flight > 0) drawGrenadeTarget(ctx, g);
+      continue;
+    }
     if (g.flight > 0) drawGrenadeFlight(ctx, g);
     else drawGrenadeFuse(ctx, state, g);
   }
@@ -320,6 +324,11 @@ function drawGrenadeFlight(ctx: CanvasRenderingContext2D, g: Grenade): void {
   const y = g.from.y + (g.to.y - g.from.y) * t - Math.sin(t * Math.PI) * GRENADE_ARC_H;
   ctx.fillStyle = COLOR_GRENADE;
   ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, DOT_SIZE + 1, DOT_SIZE + 1);
+  drawGrenadeTarget(ctx, g);
+}
+
+/** 落ちる所の輪 */
+function drawGrenadeTarget(ctx: CanvasRenderingContext2D, g: Grenade): void {
   ctx.strokeStyle = COLOR_AIM;
   ctx.globalAlpha = FUSE_FILL_ALPHA * 2;
   ctx.beginPath();
@@ -438,9 +447,15 @@ function drawMines(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 雷撃: 落下地点の円。内側の円が縮んで外周に重なった瞬間に落ちる */
 function drawStrikes(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.strikes) {
-    if (drawnBySprite(s.params)) continue;
     const r = thunderRadius(s.params);
     const progress = s.total > 0 ? 1 - s.timer / s.total : 1;
+    // 絵があっても、落ちるまでの残りを縮む輪で見せる（予告は避ける判断に要る）
+    if (drawnBySprite(s.params)) {
+      ctx.strokeStyle = COLOR_THUNDER;
+      circlePath(ctx, s.pos.x, s.pos.y, r * progress);
+      ctx.stroke();
+      continue;
+    }
     const on = Math.sin(state.time * STRIKE_BLINK) > 0;
     drawZone(ctx, s.pos.x, s.pos.y, r, COLOR_THUNDER, on ? 1 : ZONE_FADE_MIN);
     ctx.strokeStyle = COLOR_THUNDER;
@@ -773,7 +788,7 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState, sprite: Ski
     ctx.globalAlpha = 1;
   }
   // 加速中は回る水色の弧、切れた後の反動（ダッシュ不可）は暗い青の輪
-  if (rs.haste.time > 0) {
+  if (rs.haste.time > 0 && !spriteReady("haste")) {
     const a = state.time * HASTE_SPIN;
     ctx.strokeStyle = COLOR_HASTE;
     ctx.beginPath();
