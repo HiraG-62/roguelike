@@ -11,10 +11,14 @@ import { poseReachRatio, swingSign } from "./renderMath";
 /** 待機の構えの系統（scripts/actor/rig.mjs の IDLE_STANCES と同じ） */
 export type IdleStance = "ready" | "heavy" | "light" | "aim";
 export type IdleClip = "idleReady" | "idleHeavy" | "idleLight" | "idleAim";
-export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit";
+/** 攻撃の体のコマ（scripts/actor/rig.mjs の ATTACK_KEYS と同じ名前）。振り下ろし・斬り上げ・叩きつけ・突き・回転 */
+export type AttackClip = "atkSlash" | "atkRise" | "atkSlam" | "atkThrust" | "atkSpin";
+export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit" | AttackClip;
 
 const IDLE_CLIP: Readonly<Record<IdleStance, IdleClip>> = { ready: "idleReady", heavy: "idleHeavy", light: "idleLight", aim: "idleAim" };
 const IDLE_FRAMES = 8;
+/** 攻撃の体のコマの枚数（0-1 予備動作 / 2-3 振り / 4 振り抜き / 5 戻し） */
+export const ATTACK_FRAMES = 6;
 
 /** 体のシートの枚数（scripts/actor/rig.mjs の BODY_CLIPS と同じ） */
 export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = {
@@ -27,6 +31,11 @@ export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = {
   windup: 1,
   strike: 1,
   hit: 1,
+  atkSlash: ATTACK_FRAMES,
+  atkRise: ATTACK_FRAMES,
+  atkSlam: ATTACK_FRAMES,
+  atkThrust: ATTACK_FRAMES,
+  atkSpin: ATTACK_FRAMES,
 };
 
 /** 待機の呼吸の 1 巡（秒）と歩きの 1 枚（秒。8 枚で 2 歩） */
@@ -46,6 +55,10 @@ export interface BodyClipInput {
   readonly time: number;
   /** 待機の構え（武器種の Stance.body） */
   readonly idle: IdleStance;
+  /** 今の振りの体のコマ（attackClip）。無ければ共通の構え 1 枚・振り抜き 1 枚 */
+  readonly attack?: AttackClip;
+  /** phase の進み（0 → 1） */
+  readonly t?: number;
 }
 
 export interface BodyFrame {
@@ -58,10 +71,34 @@ function cycleFrame(time: number, period: number, frames: number): number {
   return Math.min(frames - 1, Math.floor(k * frames));
 }
 
+/** 予備動作・振り・戻しを 2 枚ずつに割る境目（進み）。振りは頭の鞭で角度を稼ぐので早めに伸び切りのコマへ */
+const WINDUP_SPLIT = 0.5;
+const ACTIVE_SPLIT = 0.35;
+const RECOVER_SPLIT = 0.35;
+
+/** 攻撃のコマの番号（0-1 予備動作 / 2-3 振り / 4-5 戻し） */
+export function attackFrame(phase: "windup" | "active" | "recover", t: number): number {
+  if (phase === "windup") return t < WINDUP_SPLIT ? 0 : 1;
+  if (phase === "active") return t < ACTIVE_SPLIT ? 2 : 3;
+  return t < RECOVER_SPLIT ? 4 : 5;
+}
+
+/**
+ * 振りの形から体のコマを選ぶ。突き・構えて押す武器 = 突き、自分の周りの円 = 回転、
+ * 重い振り下ろし（重い段・重い構えの箱）= 叩きつけ、それ以外の扇・箱は振る向きで振り下ろし / 斬り上げ
+ */
+export function attackClip(shape: "arc" | "box" | "thrust" | "circle", step: number, heavy: boolean, stance: Pick<Stance, "body" | "braced">): AttackClip {
+  if (shape === "thrust" || stance.braced) return "atkThrust";
+  if (shape === "circle") return "atkSpin";
+  if (shape === "box" && (heavy || stance.body === "heavy")) return "atkSlam";
+  return swingSign(step) > 0 ? "atkSlash" : "atkRise";
+}
+
 /** 今の体のシートとフレーム。被弾 → ダッシュ → 攻撃（構え・振り）→ 歩き → 待機 の順 */
 export function bodyClip(i: BodyClipInput): BodyFrame {
   if (i.hit) return { clip: "hit", frame: 0 };
   if (i.dashing) return { clip: "dash", frame: i.dashProgress < 0.5 ? 0 : 1 };
+  if (i.attack && i.phase !== "none") return { clip: i.attack, frame: attackFrame(i.phase, i.t ?? 0) };
   if (i.phase === "windup" || (i.phase === "none" && i.holding)) return { clip: "windup", frame: 0 };
   if (i.phase === "active" || i.phase === "recover") return { clip: "strike", frame: 0 };
   if (i.moving) return { clip: "walk", frame: cycleFrame(i.walkTime, WALK_FRAME_TIME * BODY_CLIP_FRAMES.walk, BODY_CLIP_FRAMES.walk) };

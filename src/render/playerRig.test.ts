@@ -7,6 +7,8 @@ import {
   type Stance,
   UPPER_ARM,
   armPixels,
+  attackClip,
+  attackFrame,
   bodyClip,
   elbowOf,
   solveRig,
@@ -32,6 +34,40 @@ describe("playerRig: 体のシートの選び方", () => {
     expect(bodyClip({ ...idle, idle: "aim" }).clip).toBe("idleAim");
     const frames = new Set([0, 0.4, 0.8, 1.2].map((time) => bodyClip({ ...idle, time }).frame));
     expect(frames.size).toBeGreaterThan(1);
+  });
+});
+
+describe("playerRig: 攻撃の体のコマ", () => {
+  const idle = { dashing: false, dashProgress: 0, hit: false, phase: "none", holding: false, moving: false, walkTime: 0, time: 0, idle: "ready" } as const;
+  it("予備動作・振り・戻しを 2 枚ずつに割り、進みで順に送る", () => {
+    const seq = [
+      attackFrame("windup", 0),
+      attackFrame("windup", 0.9),
+      attackFrame("active", 0),
+      attackFrame("active", 0.9),
+      attackFrame("recover", 0),
+      attackFrame("recover", 0.9),
+    ];
+    expect(seq).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("形と振る向き・重さで体のコマを選ぶ", () => {
+    const ready = { body: "ready" } as const;
+    expect(attackClip("box", 0, false, ready)).toBe("atkSlash");
+    expect(attackClip("box", 1, false, ready), "逆の段は斬り上げ").toBe("atkRise");
+    expect(attackClip("box", 0, true, ready), "重い振り下ろしは叩きつけ").toBe("atkSlam");
+    expect(attackClip("box", 1, false, { body: "heavy" }), "重い構えの箱も叩きつけ").toBe("atkSlam");
+    expect(attackClip("arc", 0, true, ready), "扇は重くても振り下ろし").toBe("atkSlash");
+    expect(attackClip("thrust", 0, false, ready)).toBe("atkThrust");
+    expect(attackClip("arc", 0, false, { body: "ready", braced: true }), "構えて押す盾は突き").toBe("atkThrust");
+    expect(attackClip("circle", 0, false, ready)).toBe("atkSpin");
+  });
+
+  it("攻撃中は選んだコマ、被弾とダッシュはそれより優先", () => {
+    const atk = { ...idle, phase: "active", attack: "atkSlash", t: 0.8 } as const;
+    expect(bodyClip(atk)).toEqual({ clip: "atkSlash", frame: 3 });
+    expect(bodyClip({ ...atk, hit: true }).clip).toBe("hit");
+    expect(bodyClip({ ...atk, dashing: true }).clip).toBe("dash");
   });
 });
 

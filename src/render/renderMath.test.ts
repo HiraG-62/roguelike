@@ -6,6 +6,7 @@ import {
   edgeView,
   offhandOffset,
   phaseProgress,
+  overshootCurve,
   playerBodyPose,
   poseShape,
   slashVisual,
@@ -14,6 +15,7 @@ import {
   weaponGrip,
   weaponPose,
   weaponView,
+  whipEase,
 } from "./renderMath";
 import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_FRAME } from "../data/sprites/weapons";
 import { MOVESETS } from "../data/weapons";
@@ -387,6 +389,21 @@ describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）"
   const pose = (over: Partial<WeaponPoseInput>) => weaponPose({ ...base, ...over });
   /** 2 つの角度の差（-π..π） */
   const diff = (a: number, b: number): number => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+
+  it("振りは頭で一気に角度を稼ぎ、戻しは振りの先へ行き過ぎてから少し戻る", () => {
+    expect(whipEase(0.25), "振りの 4 分の 1 で 6 割以上").toBeGreaterThan(0.6);
+    expect(whipEase(1)).toBe(1);
+    expect(overshootCurve(0)).toBe(0);
+    expect(overshootCurve(0.3), "戻しの頭で行き過ぎ切る").toBeCloseTo(1);
+    const end = overshootCurve(1);
+    expect(end, "残心で少し戻る").toBeLessThan(1);
+    expect(end).toBeGreaterThan(0);
+    const active = pose({ phase: "active", t: 1, shape: "box" });
+    const recover = pose({ phase: "recover", t: 0.3, shape: "box" });
+    expect(diff(recover.angle, active.angle), "振り抜いた先よりさらに流れる").toBeGreaterThan(0.2);
+    const mid = pose({ phase: "active", t: 0.2, shape: "box" });
+    expect(Math.hypot(mid.dx, mid.dy + 4), "振りの途中で腕を伸ばしきる").toBeGreaterThan(6.5);
+  });
 
   it("前へ離した円（戦槌の叩きつけ）は振りかぶって振り下ろし、自分の周りの円だけ一周する", () => {
     expect(poseShape("circle", 14)).toBe("box");

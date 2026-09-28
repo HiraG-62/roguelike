@@ -97,7 +97,7 @@ import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxU
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
-import { type ArmInk, type HeldPart, type Pt, armPixels, bodyClip, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -518,6 +518,11 @@ const RIG_ORIGIN_Y = 132;
 const COLOR_RIG_OUTLINE = "#14121c";
 /** 手が前の肩よりこれだけ後ろ（ドット）へ回ったら、前の腕を体の後ろに描く */
 const RIG_ARM_BEHIND_X = 3;
+/** 振りの残像（遅れ = 振りの進みの差、濃さ）。古いものから描く */
+const RIG_SWING_GHOSTS: readonly (readonly [number, number])[] = [
+  [0.36, 0.18],
+  [0.18, 0.35],
+];
 
 function createRigCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
@@ -540,6 +545,7 @@ interface PlayerSwing {
   readonly t: number;
   readonly shape: HitShape;
   readonly reach: number;
+  readonly heavy: boolean;
   readonly step: number;
 }
 
@@ -2077,11 +2083,11 @@ export class Renderer {
     const first = moveset.steps[0];
     if (p.attack.charging) {
       const charge = moveset.charge?.step ?? first;
-      return { phase: "windup", t: 1, shape: charge?.shape ?? SHAPE_ARC, reach: charge?.reach ?? 0, step: 0 };
+      return { phase: "windup", t: 1, shape: charge?.shape ?? SHAPE_ARC, reach: charge?.reach ?? 0, heavy: true, step: 0 };
     }
     const step = currentMeleeStep(state);
-    if (!step || !isAttacking(p)) return { phase: "none", t: 0, shape: first?.shape ?? SHAPE_ARC, reach: first?.reach ?? 0, step: 0 };
-    return { phase: p.attack.phase, t: phaseProgress(p.attack.phase, p.attack.timer, step), shape: step.shape, reach: step.reach, step: p.attack.step };
+    if (!step || !isAttacking(p)) return { phase: "none", t: 0, shape: first?.shape ?? SHAPE_ARC, reach: first?.reach ?? 0, heavy: false, step: 0 };
+    return { phase: p.attack.phase, t: phaseProgress(p.attack.phase, p.attack.timer, step), shape: step.shape, reach: step.reach, heavy: step.heavy, step: p.attack.step };
   }
 
   private heldWeaponPose(state: GameState, swing: PlayerSwing): WeaponPose {
@@ -2127,6 +2133,9 @@ export class Renderer {
       walkTime: p.walkTime,
       time: state.time,
       idle: stance.body,
+      ...(swing.phase !== "none"
+        ? { attack: attackClip(poseShape(swing.shape.kind, swing.reach), swing.step, swing.heavy, stance), t: swing.t }
+        : {}),
     });
     const bodyKey = `${body}.${clip.clip}`;
     const bodyCell = this.actorBank.cell(bodyKey, 0, clip.frame);
@@ -2136,7 +2145,7 @@ export class Renderer {
     const facingRight = p.facing.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;
-    const rig = solveRig({
+    const rigInput = {
       stance,
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
       step: swing.step,
@@ -2149,11 +2158,22 @@ export class Renderer {
       offGrip: weaponOffGrip(weapon),
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
-    });
+    };
+    const rig = solveRig(rigInput);
 
     const rc = this.rigCanvas;
     const g = rc.ctx;
     g.clearRect(0, 0, RIG_CANVAS, RIG_CANVAS);
+    // 振りの残像: 少し前の進みの武器を薄く重ねて、速い振りの軌道を見せる（手にはめる武器は拳の残像になるので描かない）
+    if (swing.phase === "active" && stance.worn !== true) {
+      const dualOff = stance.grip === "dual" && swingSign(swing.step) < 0;
+      for (const [lag, alpha] of RIG_SWING_GHOSTS) {
+        const past = solveRig({ ...rigInput, swing: this.heldWeaponPose(state, { ...swing, t: Math.max(0, swing.t - lag) }) });
+        g.globalAlpha = alpha;
+        this.rigWeapon(weapon, dualOff ? past.back : past.front);
+      }
+      g.globalAlpha = 1;
+    }
     const twoHanded = rig.back.bare && stance.grip === "two";
     // 手にはめる武器（爪・籠手）は腕の上に重ねる（拳の代わり）。それ以外は武器の上に腕と拳を重ねる
     const worn = stance.worn === true;
