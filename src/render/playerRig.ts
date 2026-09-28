@@ -134,6 +134,8 @@ export interface Stance {
   readonly braced?: boolean;
   /** 箱の振りをまっすぐ打ち出す拳にする（拳。左右の拳を交互に突き出す） */
   readonly punch?: boolean;
+  /** 二刀の後ろの手を体の前に構える（拳の両拳の構え）。省けば後ろの手は体の後ろ */
+  readonly offFront?: boolean;
   /** 撃った反動の大きさ（1 = 片手銃。大筒・長銃は大きく、二丁拳銃は小さく）。省けば 1 */
   readonly recoil?: number;
 }
@@ -177,6 +179,7 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(r.worn === true ? { worn: true } : {}),
     ...(r.braced === true ? { braced: true } : {}),
     ...(r.punch === true ? { punch: true } : {}),
+    ...(r.offFront === true ? { offFront: true } : {}),
     ...(num(r.recoil) !== undefined ? { recoil: num(r.recoil) } : {}),
   };
 }
@@ -330,11 +333,14 @@ function blendPart(from: HeldPart, to: HeldPart, k: number): HeldPart {
   if (k >= 1) return to;
   const angle = lerpAngle(from.angle, to.angle, k);
   const late = k >= 0.5;
+  // 振りの形と待機の形で前後が揃っていればそのまま（二刀の後ろの手は寄せる途中で体の前へ出ない）。
+  // 食い違うときだけ寄せた角で決める
+  const behind = from.behind === to.behind ? from.behind : Math.sin(angle) < BEHIND_SIN;
   return {
     hand: { x: from.hand.x + (to.hand.x - from.hand.x) * k, y: from.hand.y + (to.hand.y - from.hand.y) * k },
     angle,
     mirror: late ? to.mirror : from.mirror,
-    behind: Math.sin(angle) < BEHIND_SIN,
+    behind,
     bare: from.bare,
   };
 }
@@ -502,9 +508,10 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     }
     const off = s.offHand ?? [0, 8];
     const angle = (s.offDeg ?? 150) * DEG - sway(i.time, s.swayDeg);
-    // 後ろの手が体の中心より前へ出ていれば手前に描く（両拳を胸の前に構える拳など）
+    // 後ろの手は体の後ろ。構えの offFront（両拳を胸の前に構える拳）だけ手前に描く。
+    // 手の位置で決めると、体が前へ傾くコマ（ダッシュ・被弾・歩き）で肩ごと前へ出て手前に来てしまう
     const hand = { x: i.shoulderB.x + off[0], y: i.shoulderB.y + off[1] };
-    return part(hand, angle, false, false, hand.x < 0);
+    return part(hand, angle, false, false, s.offFront !== true);
   }
   return freeHand(i);
 }

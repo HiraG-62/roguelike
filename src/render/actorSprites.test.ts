@@ -5,7 +5,7 @@ import { ACTOR_ATLASES, ACTOR_SHEETS } from "../data/actorSheets.gen";
 import { JOB_KEYS } from "../data/jobs";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponStanceMeta } from "./actorSprites";
-import { BODY_CLIP_FRAMES, DEFAULT_STANCE, stanceFromMeta } from "./playerRig";
+import { BODY_CLIP_FRAMES, DEFAULT_STANCE, solveRig, stanceFromMeta } from "./playerRig";
 
 const RECT_STRIDE = 6;
 /** 腕の袖・手は 3 段（暗・基・明） */
@@ -104,6 +104,28 @@ describe("actorSprites: 全武器種の手に持つ武器", () => {
       if (stance.grip !== "two") continue;
       const meta = ACTOR_ATLASES[atlas as keyof typeof ACTOR_ATLASES].meta as { offGrip?: unknown } | null;
       expect(typeof meta?.offGrip, key).toBe("number");
+    }
+  });
+});
+
+describe("二刀の後ろの手の前後（構えの offFront）", () => {
+  it("爪・双剣・戦輪の後ろの手は、全ジョブの体の全コマで体の後ろ。拳だけ体の前に構える", () => {
+    for (const key of ["claws", "twinBlades", "ringBlades", "fists"] as const) {
+      const weapon = weaponAtlas(key);
+      if (!weapon) throw new Error(`${key} の絵が無い`);
+      const stance = stanceFromMeta(weaponStanceMeta(weapon));
+      for (const job of JOB_KEYS) {
+        const body = bodyAtlas(job);
+        for (const [clip, frames] of Object.entries(BODY_CLIP_FRAMES)) {
+          for (let f = 0; f < frames; f++) {
+            const shoulderF = actorAnchor(`${body}.${clip}`, 0, f, "shoulderF");
+            const shoulderB = actorAnchor(`${body}.${clip}`, 0, f, "shoulderB");
+            if (!shoulderF || !shoulderB) continue;
+            const rig = solveRig({ stance, swing: undefined, step: 0, aim: 0, aimHeld: false, facingRight: true, shoulderF, shoulderB, time: 0, offGrip: null, aimOrigin: { x: 0, y: -20 }, barrelY: 0 });
+            expect(rig.back.behind, `${key} ${job} ${clip}[${f}]`).toBe(key !== "fists");
+          }
+        }
+      }
     }
   });
 });

@@ -80,6 +80,9 @@ import {
   weaponGrip,
   poseShape,
   screenSwingSign,
+  attackFacingLocked,
+  turnedAttackDir,
+  visualFacing,
   weaponPose,
 } from "./renderMath";
 import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
@@ -2073,7 +2076,7 @@ export class Renderer {
 
     const moving = p.body.vel.x !== 0 || p.body.vel.y !== 0;
     const walkFrame = moving ? spriteFrame(sprite, p.walkTime, WALK_FRAME_TIME) : 0;
-    const flip = p.facing.x < 0;
+    const flip = this.playerLook(state).x < 0;
     const dashing = isDashing(p);
     if (dashing) this.drawDashGhosts(p, sprite, walkFrame, cx, bottom, flip);
 
@@ -2134,9 +2137,21 @@ export class Renderer {
     return of(step, p.attack.phase, phaseProgress(p.attack.phase, p.attack.timer, step), p.attack.step);
   }
 
+  /** 見た目の向き（攻撃の最中は振り出した向きで固定。renderMath の visualFacing） */
+  private playerLook(state: GameState): { x: number; y: number } {
+    const p = state.player;
+    const step = currentMeleeStep(state);
+    const recoverElapsed = step && p.attack.phase === "recover" ? step.recover - p.attack.timer : 0;
+    // 振りのエフェクト（スプライトの崩れ・手続きの軌跡の尾）が消えるまでは振り出した向きのまま
+    const tail = Math.max(FX_ATTACK.sprite.swingFade, FX_ATTACK.slash.fadeTime);
+    return visualFacing(p.facing, p.attack.dir, attackFacingLocked(p.attack.phase, recoverElapsed, tail));
+  }
+
   private heldWeaponPose(state: GameState, swing: PlayerSwing): WeaponPose {
     const p = state.player;
-    const aimVec = swing.phase === "none" ? p.facing : p.attack.dir;
+    const look = this.playerLook(state);
+    // 戻しで振り向いたら、戻しの形も左右に写して新しい向きで構え直す
+    const aimVec = swing.phase === "none" ? look : turnedAttackDir(p.attack.dir, look.x >= 0);
     const moveset = playerMoveset(state);
     return weaponPose({
       phase: swing.phase,
@@ -2145,11 +2160,11 @@ export class Renderer {
       deg: swing.shape.kind === "arc" ? swing.shape.deg : 0,
       aim: Math.atan2(aimVec.y, aimVec.x),
       step: swing.step,
-      facingRight: p.facing.x >= 0,
+      facingRight: look.x >= 0,
       aimHeld: moveset.primary === "shot",
       edge: WEAPON_EDGE[moveset.key],
       hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
-      sign: screenSwingSign(swing.step, p.facing.x >= 0, swing.pose, swing.heavy),
+      sign: screenSwingSign(swing.step, look.x >= 0, swing.pose, swing.heavy),
     });
   }
 
@@ -2195,14 +2210,15 @@ export class Renderer {
     const shoulderF = actorAnchor(bodyKey, 0, clip.frame, "shoulderF");
     const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
     if (!bodyCell || !shoulderF || !shoulderB) return false;
-    const facingRight = p.facing.x >= 0;
+    const look = this.playerLook(state);
+    const facingRight = look.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;
     const rigInput = {
       stance,
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
       step: swing.step,
-      aim: Math.atan2(p.facing.y, p.facing.x),
+      aim: Math.atan2(look.y, look.x),
       aimHeld: moveset.primary === "shot",
       facingRight,
       shoulderF,
@@ -2609,7 +2625,7 @@ export class Renderer {
       angle: Math.atan2(p.attack.dir.y, p.attack.dir.x),
       opts: {
         ramp: swingRamp(state, step),
-        ccw: mirrorFlip(motion.mirror, screenSwingSign(p.attack.step, p.facing.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy) < 0, p.attack.dir.x < 0),
+        ccw: mirrorFlip(motion.mirror, screenSwingSign(p.attack.step, p.attack.dir.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy) < 0, p.attack.dir.x < 0),
         scale: fitScale(actual, motion.base, c.scaleTolerance),
       },
     };

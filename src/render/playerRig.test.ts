@@ -248,3 +248,14 @@ describe("playerRig: 腕の長さを越えない", () => {
     }
   });
 });
+
+describe("playerRig: 二刀の後ろの手の前後", () => {
+  it("後ろの手の振りから構えへ戻る途中も、体の後ろのまま", () => {
+    const dual: RigInput = { ...base, stance: { ...DEFAULT_STANCE, grip: "dual", body: "light", offHand: [2, 6], offDeg: -10 } };
+    const swing = { frame: 0, flipX: false, flipY: false, angle: 0.3, dx: 6, dy: -2, behind: false } as const;
+    for (const restBlend of [0.2, 0.5, 0.8]) {
+      const rig = solveRig({ ...dual, step: 1, swing, restBlend });
+      expect(rig.back.behind, `寄せる割合 ${restBlend}`).toBe(true);
+    }
+  });
+});
