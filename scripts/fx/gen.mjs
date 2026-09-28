@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { encodePng } from "./png.mjs";
 import { shelfPack } from "./pack.mjs";
 import { Frame, cleanup, trimBox } from "./raster.mjs";
+import { fitAtlas } from "./fit.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
@@ -57,13 +58,13 @@ const checkOnly = args.includes("--check");
 const only = argValue("--only");
 const atlasFilter = argValue("--atlas")?.split(",");
 
-/** 1 シートの全フレーム（方向 × フレーム）を描いて切り詰める */
-function renderSheet(sheet) {
+/** 1 シートの全フレーム（方向 × フレーム）を描いて切り詰める。scale は当たり判定に合わせた縮尺（fit.mjs） */
+function renderSheet(sheet, scale = 1) {
   const cells = [];
   for (let d = 0; d < sheet.dirs; d++) {
     const angle = (d / sheet.dirs) * Math.PI * 2;
     for (let f = 0; f < sheet.frames; f++) {
-      const frame = new Frame(sheet.size, sheet.size, angle);
+      const frame = new Frame(sheet.size, sheet.size, angle, scale);
       sheet.draw(frame, f, { dir: d, angle });
       cleanup(frame);
       const box = trimBox(frame);
@@ -74,7 +75,8 @@ function renderSheet(sheet) {
 }
 
 function buildAtlas(atlas) {
-  const sheets = atlas.sheets.map((sheet) => ({ sheet, cells: renderSheet(sheet) }));
+  const fit = fitAtlas(ROOT, atlas);
+  const sheets = atlas.sheets.map((sheet) => ({ sheet, cells: renderSheet(sheet, fit.sheets.get(sheet.key)) }));
   const all = sheets.flatMap((s) => s.cells);
   const packed = shelfPack(all);
   const rgba = new Uint8Array(packed.width * packed.height * 4);
@@ -109,7 +111,7 @@ function buildAtlas(atlas) {
     width: packed.width,
     height: packed.height,
     sheets: Object.fromEntries(entries.map((e) => [e.key, { atlas: atlas.key, frames: e.frames, dirs: e.dirs, active: e.active, rects: e.rects }])),
-    fx: atlas.fx ?? null,
+    fx: fit.fx ?? null,
   };
   return { key: atlas.key, png: encodePng(packed.width, packed.height, rgba), width: packed.width, height: packed.height, entries, sheets, json: `${JSON.stringify(json)}\n` };
 }
@@ -214,7 +216,8 @@ if (only) {
   mkdirSync(dir, { recursive: true });
   for (const atlas of atlases) {
     const sheets = atlas.sheets.filter((s) => s.key.startsWith(only));
-    if (sheets.length) writePreview(dir, { sheets: sheets.map((sheet) => ({ sheet, cells: renderSheet(sheet) })) });
+    const fit = fitAtlas(ROOT, atlas);
+    if (sheets.length) writePreview(dir, { sheets: sheets.map((sheet) => ({ sheet, cells: renderSheet(sheet, fit.sheets.get(sheet.key)) })) });
   }
   process.exit(0);
 }
