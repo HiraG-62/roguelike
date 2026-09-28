@@ -111,7 +111,10 @@ export interface SkillLoop {
   ground?: FxSheetKey;
 }
 
-/** スキル 1 本の絵 */
+/**
+ * スキル 1 本の絵。fly = 飛んでいる間（スキルの弾・投げた手榴弾。速度の向きを向き、period 秒で繰り返す）、
+ * aura = 効いている間の自分の纏い（自己強化・変身。自分の中心で period 秒で繰り返す）
+ */
 export interface SkillFx {
   ramp: FxRampKey;
   cast?: SkillPiece;
@@ -119,6 +122,8 @@ export interface SkillFx {
   end?: SkillPiece;
   active?: SkillLoop;
   placed?: SkillLoop;
+  fly?: SkillLoop;
+  aura?: SkillLoop;
 }
 
 /** 奥義 1 本の絵。acts / ends は行為の並びの番号、shots は行為の番号 → その行為が出した弾の絵 */
@@ -208,6 +213,8 @@ interface RawSkill {
   readonly end?: RawSkillPiece;
   readonly active?: RawSkillLoop;
   readonly placed?: RawSkillLoop;
+  readonly fly?: RawSkillLoop;
+  readonly aura?: RawSkillLoop;
 }
 
 /**
@@ -360,6 +367,8 @@ export function buildSkillFx(raws: readonly (RawMovesetFx | null)[]): Record<str
         end: toSkillPiece(r.end),
         active: toSkillLoop(r.active),
         placed: toSkillLoop(r.placed),
+        fly: toSkillLoop(r.fly),
+        aura: toSkillLoop(r.aura),
       };
     }
   }
@@ -411,7 +420,7 @@ export const SKILL_FX: Readonly<Record<string, SkillFx>> = buildSkillFx(FX_MOVES
 
 /** スキルの絵のシート（どれか 1 枚。載っているアトラスを引くのと、読めたかを確かめるのに使う） */
 export function skillSheet(fx: SkillFx): FxSheetKey | undefined {
-  return (fx.active ?? fx.placed ?? fx.cast ?? fx.act ?? fx.end)?.sheet;
+  return (fx.active ?? fx.placed ?? fx.fly ?? fx.aura ?? fx.cast ?? fx.act ?? fx.end)?.sheet;
 }
 
 /** スキルの絵が載っているアトラス（遅延読み込みの単位）。表が無ければ undefined */

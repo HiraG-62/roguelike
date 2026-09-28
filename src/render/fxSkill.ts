@@ -8,30 +8,88 @@ import type { Vec } from "../core/vec";
 import { FX_ATTACK } from "../data/tuning";
 import type { FxSheetKey } from "../data/fxSheets.gen";
 import { castElement } from "../skills/hit";
-import { fieldRadius } from "../skills/placed";
+import { SKILL } from "../skills/data";
+import { fieldRadius, mineRadius, thunderRadius, wellRadius } from "../skills/placed";
+import { graveRadius, kegRadius, springRadius } from "../skills/summons";
 import type { ActiveCast, CastParams } from "../skills/types";
-import { whirlRadius } from "../system/skills";
+import { grenadeRadius, whirlRadius } from "../system/skills";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
 import { SKILL_FX, type SkillFx, type SkillLoop, type SkillPiece, mirrorFlip, rampOfElement, skillSheet } from "./fxMotions";
 
-/** 置いてある物 1 つ（場・設置物）。スキルの key・中心・置いてからの秒・大きさ・発動の値 */
+/** 置いてある物 1 つ（場・設置物）。スキルの key・中心・大きさ（半径 px。0 は拡縮しない）・発動の値 */
 interface Placed {
   key: string;
   pos: Vec;
-  age: number;
   size: number;
   params: CastParams;
 }
 
-/** 発動中の絵の大きさ（絵の表の base と比べて拡縮する）。載っていないスキルは 0（拡縮しない） */
+/** 飛んでいる物 1 つ（スキルの弾・投げた手榴弾）。向きは速度の向き */
+interface Moving {
+  key: string;
+  pos: Vec;
+  angle: number;
+  params: CastParams;
+}
+
+/** 効いている纏い 1 つ（自己強化・変身）。発動の値の無いもの（加速）は属性なし */
+interface Aura {
+  key: string;
+  element: string;
+}
+
+/** 発動中の絵の大きさ（絵の表の base と比べて拡縮する）。載っていないスキルは 0（拡縮しない）。スキルの絵を足すときにここへ足す */
 const ACTIVE_SIZE: Readonly<Record<string, (state: GameState, a: ActiveCast) => number>> = {
   whirl: (state, a) => whirlRadius(state, a.params),
 };
 
-/** 置いてある物の一覧。スキルの絵を足すときに、そのスキルの設置物をここへ足す */
+/** 置いてある物の一覧（どのスキルの物かは発動の値の skillKey。型替え符で別のスキルが置いた物もそのスキルの絵になる） */
 function placedOf(state: GameState): Placed[] {
   const rs = state.skills;
-  return rs.fields.map((f) => ({ key: "frostField", pos: f.pos, age: f.total - f.timer, size: fieldRadius(f.params), params: f.params }));
+  const out: Placed[] = [];
+  const add = (pos: Vec, params: CastParams, size: number): void => {
+    out.push({ key: params.skillKey, pos, size, params });
+  };
+  for (const f of rs.fields) add(f.pos, f.params, fieldRadius(f.params));
+  for (const w of rs.wells) add(w.pos, w.params, wellRadius(w.params));
+  for (const m of rs.mines) add(m.pos, m.params, mineRadius(m.params));
+  for (const t of rs.strikes) add(t.pos, t.params, thunderRadius(t.params));
+  for (const k of rs.kegs) add(k.pos, k.params, kegRadius(k.params));
+  for (const g of rs.graves) add(g.pos, g.params, graveRadius(g.params));
+  for (const t of rs.turrets) add(t.pos, t.params, 0);
+  for (const s of rs.springs) add(s.pos, s.params, springRadius(s.params));
+  for (const s of rs.stakes) add(s.pos, s.params, 0);
+  for (const z of rs.mires ?? []) add(z.pos, z.params, SKILL.mire.radius * z.params.areaMul);
+  // 着地して導火線が燃えている手榴弾
+  for (const g of rs.grenades) if (g.flight <= 0) add(g.to, g.params, grenadeRadius(g.params));
+  return out;
+}
+
+/** 飛んでいる物の一覧 */
+function movingOf(state: GameState): Moving[] {
+  const rs = state.skills;
+  const out: Moving[] = [];
+  for (const s of rs.shots) out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params });
+  for (const b of rs.bullets) out.push({ key: b.params.skillKey, pos: b.pos, angle: Math.atan2(b.vel.y, b.vel.x), params: b.params });
+  for (const g of rs.grenades) {
+    if (g.flight <= 0) continue;
+    const t = g.flightTotal > 0 ? 1 - g.flight / g.flightTotal : 1;
+    const pos = { x: g.from.x + (g.to.x - g.from.x) * t, y: g.from.y + (g.to.y - g.from.y) * t };
+    out.push({ key: g.params.skillKey, pos, angle: Math.atan2(g.to.y - g.from.y, g.to.x - g.from.x), params: g.params });
+  }
+  return out;
+}
+
+/** 効いている纏いの一覧（加速・血の契約・骨の輪・変身） */
+function aurasOf(state: GameState): Aura[] {
+  const rs = state.skills;
+  const out: Aura[] = [];
+  if (rs.haste.time > 0) out.push({ key: "haste", element: "none" });
+  if (rs.lifesteal.time > 0 || rs.frenzy.time > 0) out.push({ key: "bloodPact", element: "none" });
+  if (rs.boneRing) out.push({ key: rs.boneRing.params.skillKey, element: paramsElement(rs.boneRing.params) });
+  if (rs.form) out.push({ key: rs.form.skillKey, element: "none" });
+  if (rs.shape) out.push({ key: rs.shape.key, element: paramsElement(rs.shape.params) });
+  return out;
 }
 
 /** 配色: 刻印符などで差し替わった属性、無ければ絵の表の配色 */
@@ -108,21 +166,49 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
   bank.draw(ctx, sheet, frame, pos.x, pos.y, angle, { ramp: rampOf(fx, paramsElement(a.params)), scale: scaleOf(size, loop.base) });
 }
 
-/** 置いてある間の絵: period 秒で繰り返す（向きなし） */
+/** 置いてある間の絵: period 秒で繰り返す（向きなし）。物ごとに位置で位相をずらし、同じ物が並んでも揃って瞬かない */
 function drawPlaced(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
   for (const it of placedOf(state)) {
     const fx = SKILL_FX[it.key];
     const loop: SkillLoop | undefined = fx?.placed;
     const sheet = ground ? loop?.ground : loop?.sheet;
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
-    const frame = loopFrame(sheetDef(sheet).frames, it.age, loop.period);
+    const phase = ((it.pos.x * 7 + it.pos.y * 13) % 97) / 97;
+    const frame = loopFrame(sheetDef(sheet).frames, state.time + phase * loop.period, loop.period);
     bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, 0, { ramp: rampOf(fx, paramsElement(it.params)), scale: scaleOf(it.size, loop.base) });
+  }
+}
+
+/** 飛んでいる間の絵: 速度の向きを向いて period 秒で繰り返す */
+function drawMoving(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
+  for (const it of movingOf(state)) {
+    const fx = SKILL_FX[it.key];
+    const loop = fx?.fly;
+    const sheet = ground ? loop?.ground : loop?.sheet;
+    if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
+    const frame = loopFrame(sheetDef(sheet).frames, state.time, loop.period);
+    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, it.angle, { ramp: rampOf(fx, paramsElement(it.params)) });
+  }
+}
+
+/** 纏いの絵: 自分の中心で period 秒で繰り返す */
+function drawAuras(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
+  const pos = state.player.body.pos;
+  for (const it of aurasOf(state)) {
+    const fx = SKILL_FX[it.key];
+    const loop = fx?.aura;
+    const sheet = ground ? loop?.ground : loop?.sheet;
+    if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
+    const frame = loopFrame(sheetDef(sheet).frames, state.time, loop.period);
+    bank.draw(ctx, sheet, frame, pos.x, pos.y, 0, { ramp: rampOf(fx, it.element) });
   }
 }
 
 /** 地面の層（キャラより下）: 場・設置物・足元の紋 */
 export function drawSkillFxGround(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank): void {
   drawPlaced(ctx, state, bank, true);
+  drawAuras(ctx, state, bank, true);
+  drawMoving(ctx, state, bank, true);
   drawActive(ctx, state, bank, true);
   drawEvents(ctx, state, bank, true);
 }
@@ -130,6 +216,8 @@ export function drawSkillFxGround(ctx: CanvasRenderingContext2D, state: GameStat
 /** 空中の層（キャラより上）: 斬撃・ビーム・閃光 */
 export function drawSkillFxAir(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank): void {
   drawPlaced(ctx, state, bank, false);
+  drawAuras(ctx, state, bank, false);
+  drawMoving(ctx, state, bank, false);
   drawActive(ctx, state, bank, false);
   drawEvents(ctx, state, bank, false);
 }
