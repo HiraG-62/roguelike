@@ -97,7 +97,8 @@ import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thro
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
-import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
+import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
+import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
@@ -512,13 +513,20 @@ const PLAYER_SPRITE_LIFT = 2;
 /** 溜め中の武器を段の色で染める強さ */
 const CHARGE_WEAPON_TINT = 0.55;
 /** 高精細のプレイヤーを組む作業面の一辺と原点（足元、絵のドット）。大剣を振り上げても収まる大きさ */
-const RIG_CANVAS = 192;
+/** 作業面（右向き。鞭の縄が前へ長く伸びるので横に広い） */
+const RIG_W = 320;
+const RIG_H = 192;
 const RIG_ORIGIN_X = 96;
 const RIG_ORIGIN_Y = 132;
 /** 腕の輪郭（scripts/actor/paint.mjs の OUTLINE と同じ） */
 const COLOR_RIG_OUTLINE = "#14121c";
 /** 手が前の肩よりこれだけ後ろ（ドット）へ回ったら、前の腕を体の後ろに描く */
 const RIG_ARM_BEHIND_X = 3;
+/** 鞭の縄の先の房（ドット） */
+const ROPE_TASSEL_W = 3;
+const ROPE_TASSEL_H = 2;
+/** 振りの間の絵を使う、構え直しの割合の上限（これを越えたら待機の絵へ戻す） */
+const SWING_ART_UNTIL = 0.5;
 /** 反動 1・強さ 1 のときに体ごと後ろへ揺らす距離（論理 px。丸めるので強い銃だけ動く） */
 const RIG_RECOIL_JOLT = 0.8;
 /** 振りの残像（遅れ = 振りの進みの差、濃さ）。古いものから描く */
@@ -529,8 +537,8 @@ const RIG_SWING_GHOSTS: readonly (readonly [number, number])[] = [
 
 function createRigCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
-  canvas.width = RIG_CANVAS;
-  canvas.height = RIG_CANVAS;
+  canvas.width = RIG_W;
+  canvas.height = RIG_H;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("rig canvas");
   ctx.imageSmoothingEnabled = false;
@@ -2187,14 +2195,14 @@ export class Renderer {
 
     const rc = this.rigCanvas;
     const g = rc.ctx;
-    g.clearRect(0, 0, RIG_CANVAS, RIG_CANVAS);
+    g.clearRect(0, 0, RIG_W, RIG_H);
     // 振りの残像: 少し前の進みの武器を薄く重ねて、速い振りの軌道を見せる（手にはめる武器は拳の残像になるので描かない）
     if (swing.phase === "active" && stance.worn !== true) {
       const dualOff = stance.grip === "dual" && swingSign(swing.step) < 0;
       for (const [lag, alpha] of RIG_SWING_GHOSTS) {
         const past = solveRig({ ...rigInput, swing: this.heldWeaponPose(state, { ...swing, t: Math.max(0, swing.t - lag) }) });
         g.globalAlpha = alpha;
-        this.rigWeapon(weapon, dualOff ? past.back : past.front);
+        this.rigWeapon(weapon, dualOff ? past.back : past.front, true);
       }
       g.globalAlpha = 1;
     }
@@ -2205,8 +2213,10 @@ export class Renderer {
       this.rigArm(shoulder, part, colors.sleeve, colors.hand, dim, !worn || part.bare);
       if (worn) this.rigWeapon(weapon, part);
     };
+    // 振りの間の絵（鞭は束を解いて、エフェクトのしなる線を鞭そのものに見せる）。構え直しの半ばで元の絵へ戻す
+    const swingArt = (swing.phase === "active" || swing.phase === "recover") && (rigInput.restBlend ?? 0) < SWING_ART_UNTIL;
     const heldWeapon = (part: HeldPart): void => {
-      if (!worn) this.rigWeapon(weapon, part);
+      if (!worn) this.rigWeapon(weapon, part, swingArt && part === rig.front);
     };
     // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く
     const backFront = !twoHanded && !rig.back.behind;
@@ -2222,6 +2232,8 @@ export class Renderer {
     if (!rig.front.behind) heldWeapon(rig.front);
     if (twoHanded) arm(shoulderB, rig.back, false);
     if (!frontArmBehind) arm(shoulderF, rig.front, false);
+    // 鞭: 振り抜いた後、エフェクトの線が薄れてから縄が垂れて手元へ巻き戻る
+    if (swing.phase === "recover") this.rigRope(weapon, rig.front, swing);
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
@@ -2261,14 +2273,37 @@ export class Renderer {
     this.rigCanvas.ctx.drawImage(cell.img, cell.sx, cell.sy, cell.w, cell.h, px, py, cell.w, cell.h);
   }
 
-  private rigWeapon(weapon: string, part: HeldPart): void {
+  /**
+   * 手に持つ武器の絵を置く。swingArt なら振りの間の絵（`<武器>.swing`。鞭の解いた柄など）があればそれを使う
+   */
+  private rigWeapon(weapon: string, part: HeldPart, swingArt = false): void {
     if (part.bare) return;
     const mirrored = `${weapon}.heldM`;
-    const key = part.mirror && actorSheet(mirrored) ? mirrored : `${weapon}.held`;
+    const swingKey = `${weapon}.swing`;
+    const key = swingArt && actorSheet(swingKey) ? swingKey : part.mirror && actorSheet(mirrored) ? mirrored : `${weapon}.held`;
     const sheet = actorSheet(key);
     if (!sheet) return;
     const cell = this.actorBank.cell(key, actorDir(part.angle, sheet.dirs), 0);
     if (cell) this.rigCell(cell, part.hand.x, part.hand.y);
+  }
+
+  /** 鞭の縄（whipRope.ts）を作業面に描く。縄を持たない武器・描かない間は何もしない */
+  private rigRope(weapon: string, part: HeldPart, swing: PlayerSwing): void {
+    const rope = weaponRope(weapon);
+    if (!rope) return;
+    const from = { x: part.hand.x + Math.cos(part.angle) * rope.from, y: part.hand.y + Math.sin(part.angle) * rope.from };
+    const length = Math.max(0, swing.reach * ACTOR_ART_SCALE - Math.hypot(from.x, from.y));
+    const g = this.rigCanvas.ctx;
+    const points = ropePoints({ from, angle: part.angle, length, t: swing.t });
+    for (const px of ropePixels(points)) {
+      g.fillStyle = px.ink === 0 ? COLOR_RIG_OUTLINE : (rope.colors[px.ink - 1] ?? COLOR_RIG_OUTLINE);
+      g.fillRect(RIG_ORIGIN_X + px.x, RIG_ORIGIN_Y + px.y, 1, 1);
+    }
+    // 先の房（束ねた絵の先と同じ赤）
+    const tip = points[points.length - 1];
+    if (!tip) return;
+    g.fillStyle = rope.tip;
+    g.fillRect(RIG_ORIGIN_X + Math.floor(tip.x) - 1, RIG_ORIGIN_Y + Math.floor(tip.y), ROPE_TASSEL_W, ROPE_TASSEL_H);
   }
 
   private rigArm(shoulder: Pt, part: HeldPart, sleeve: readonly string[], hand: readonly string[], dim: boolean, withHand = true): void {
@@ -2295,7 +2330,7 @@ export class Renderer {
     w.ctx.drawImage(this.rigCanvas.canvas, 0, 0);
     w.ctx.globalCompositeOperation = "source-in";
     w.ctx.fillStyle = COLOR_WHITE;
-    w.ctx.fillRect(0, 0, RIG_CANVAS, RIG_CANVAS);
+    w.ctx.fillRect(0, 0, RIG_W, RIG_H);
     w.ctx.globalCompositeOperation = "source-over";
     return w.canvas;
   }
@@ -2308,7 +2343,7 @@ export class Renderer {
     ctx.globalAlpha = alpha;
     ctx.translate(snapArt(x), snapArt(y));
     if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(img, -RIG_ORIGIN_X * s, -RIG_ORIGIN_Y * s, RIG_CANVAS * s, RIG_CANVAS * s);
+    ctx.drawImage(img, -RIG_ORIGIN_X * s, -RIG_ORIGIN_Y * s, RIG_W * s, RIG_H * s);
     ctx.restore();
   }
 
