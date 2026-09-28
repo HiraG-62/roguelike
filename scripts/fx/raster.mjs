@@ -81,15 +81,16 @@ export function segment(px, py, ax, ay, bx, by) {
 
 /**
  * 1 フレームの作業面。w x h の格子、原点は (cx, cy)。angle は方向（ラジアン）。
- * 正準座標 ↔ 格子座標の変換を持つ
+ * 正準座標 ↔ 格子座標の変換を持つ。scale は正準座標 1 が格子の何ドットか（当たり判定に合わせて絵を縮めて描く。gen.mjs の fit）
  */
 export class Frame {
-  constructor(w, h, angle) {
+  constructor(w, h, angle, scale = 1) {
     this.w = w;
     this.h = h;
     this.cx = w / 2;
     this.cy = h / 2;
     this.angle = angle;
+    this.scale = scale;
     this.cos = Math.cos(angle);
     this.sin = Math.sin(angle);
     this.grid = new Uint8Array(w * h);
@@ -97,13 +98,14 @@ export class Frame {
 
   /** 正準座標 → 格子座標（実数） */
   toGrid(x, y) {
-    return { x: this.cx + x * this.cos - y * this.sin, y: this.cy + x * this.sin + y * this.cos };
+    const k = this.scale;
+    return { x: this.cx + (x * this.cos - y * this.sin) * k, y: this.cy + (x * this.sin + y * this.cos) * k };
   }
 
   /** 格子座標（実数）→ 正準座標 */
   toCanon(gx, gy) {
-    const dx = gx - this.cx;
-    const dy = gy - this.cy;
+    const dx = (gx - this.cx) / this.scale;
+    const dy = (gy - this.cy) / this.scale;
     return { x: dx * this.cos + dy * this.sin, y: -dx * this.sin + dy * this.cos };
   }
 

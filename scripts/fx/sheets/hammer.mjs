@@ -26,10 +26,12 @@ const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 function paintScreen(frame, fn, b, opts = {}) {
   const samples = opts.samples ?? 3;
   const dither = opts.dither ?? 0.04;
-  const x0 = Math.max(0, Math.floor(frame.cx + b.x0) - 1);
-  const y0 = Math.max(0, Math.floor(frame.cy + b.y0) - 1);
-  const x1 = Math.min(frame.w - 1, Math.ceil(frame.cx + b.x1) + 1);
-  const y1 = Math.min(frame.h - 1, Math.ceil(frame.cy + b.y1) + 1);
+  // 画面の座標も作業面の縮尺（frame.scale）で縮める
+  const k = frame.scale ?? 1;
+  const x0 = Math.max(0, Math.floor(frame.cx + b.x0 * k) - 1);
+  const y0 = Math.max(0, Math.floor(frame.cy + b.y0 * k) - 1);
+  const x1 = Math.min(frame.w - 1, Math.ceil(frame.cx + b.x1 * k) + 1);
+  const y1 = Math.min(frame.h - 1, Math.ceil(frame.cy + b.y1 * k) + 1);
   const inv = 1 / samples;
   const need = (samples * samples) / 2;
   for (let iy = y0; iy <= y1; iy++) {
@@ -38,7 +40,7 @@ function paintScreen(frame, fn, b, opts = {}) {
       let sum = 0;
       for (let sy = 0; sy < samples; sy++) {
         for (let sx = 0; sx < samples; sx++) {
-          const v = fn(ix + (sx + 0.5) * inv - frame.cx, iy + (sy + 0.5) * inv - frame.cy);
+          const v = fn((ix + (sx + 0.5) * inv - frame.cx) / k, (iy + (sy + 0.5) * inv - frame.cy) / k);
           if (v < 0) continue;
           inside++;
           sum += v;
@@ -53,7 +55,8 @@ function paintScreen(frame, fn, b, opts = {}) {
 
 /** 画面の座標の 1 ドット */
 function screenDot(frame, sx, sy, level) {
-  frame.raise(Math.floor(frame.cx + sx), Math.floor(frame.cy + sy), level);
+  const k = frame.scale ?? 1;
+  frame.raise(Math.floor(frame.cx + sx * k), Math.floor(frame.cy + sy * k), level);
 }
 
 /** 崩れの判定（ノイズと芯からの近さ）。shapes.mjs の survives と同じ考え方 */
@@ -216,8 +219,9 @@ function rocks(frame, age, o) {
     const base = 2 + Math.floor(rnd(5) * big);
     const s = Math.max(1, Math.round(base * (0.8 + 0.6 * Math.sin(Math.PI * Math.min(1, t * 1.3)))) - (t > 0.8 ? 1 : 0));
     const L = Math.max(4, Math.round(6.4 - 2.6 * t));
-    const x0 = Math.floor(frame.cx + sx - s / 2);
-    const y0 = Math.floor(frame.cy + sy - s / 2);
+    const k = frame.scale ?? 1;
+    const x0 = Math.floor(frame.cx + sx * k - s / 2);
+    const y0 = Math.floor(frame.cy + sy * k - s / 2);
     // 暗い縁取り（段 1）で塊に見せる。亀裂や輪の上に乗っても色が溶けない
     for (let yy = -1; yy <= s; yy++) for (let xx = -1; xx <= s; xx++) frame.raise(x0 + xx, y0 + yy, 1);
     // 石の陰影: 左上が明るく、右下が暗い
