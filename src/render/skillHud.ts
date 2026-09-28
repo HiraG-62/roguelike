@@ -191,6 +191,9 @@ export type SkillSpriteReady = (key: string) => boolean;
 
 const NO_SPRITES: SkillSpriteReady = () => false;
 
+/** 絵があっても手続きの描画を残す発動中のスキル（狙い・落下点の予告） */
+const KEEP_TELEGRAPH: ReadonlySet<string> = new Set(["railshot", "meteorDive", "threadReel"]);
+
 /** 今の描画で専用の絵が読めているスキル（drawSkillGround / drawSkillAir の入口で差し替える） */
 let spriteReady: SkillSpriteReady = NO_SPRITES;
 
@@ -801,8 +804,9 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState, sprite: Ski
   }
   const a = rs.active;
   if (!a) return;
-  // 発動中の絵があるスキルは絵に任せる。撃ち抜きの照準線は狙いの表示なので絵があっても残す
-  if (sprite(a.skillKey) && a.skillKey !== "railshot") return;
+  // 発動中の絵があるスキルは絵に任せる。狙い・落下点の予告（撃ち抜きの照準線・墜星の落下点・手繰り糸の糸）は、
+  // 発動の長さが刻印符で伸びても最後まで見えるよう、絵があっても残す
+  if (sprite(a.skillKey) && !KEEP_TELEGRAPH.has(a.skillKey)) return;
   drawActiveCast(ctx, state, a);
 }
 

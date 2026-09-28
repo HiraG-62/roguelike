@@ -10,7 +10,7 @@ import type { FxSheetKey } from "../data/fxSheets.gen";
 import { castElement } from "../skills/hit";
 import { SKILL, skillAttack } from "../skills/data";
 import { fieldRadius, mineRadius, thunderRadius, wellRadius } from "../skills/placed";
-import { graveRadius, kegRadius, springRadius } from "../skills/summons";
+import { bonePositions, graveRadius, kegRadius, springRadius } from "../skills/summons";
 import type { ActiveCast, CastParams, SkillKey } from "../skills/types";
 import { TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
 import { grenadeRadius, hookRange, quakeRadius, whirlRadius } from "../system/skills";
@@ -55,6 +55,7 @@ const ACTIVE_SIZE: Readonly<Record<string, (state: GameState, a: ActiveCast) => 
   quake: (_state, a) => quakeRadius(a.params),
   chainHook: (_state, a) => hookRange(a.params),
   dregsBlade: (state, a) => SKILL.dregsBlade.radius * state.stats.meleeReachMul * a.params.areaMul,
+  guillotine: (state, a) => SKILL.guillotine.length * state.stats.meleeReachMul * a.params.areaMul,
 };
 
 /** 五彩の礫の共鳴の色 → 配色（紅 = 出血の赤、蒼 = 感電、翠 = 癒やしの緑、金 = 貫く光、冥 = 脆くする闇） */
@@ -78,6 +79,8 @@ function placedOf(state: GameState): Placed[] {
   for (const t of rs.turrets) add(t.pos, t.params, 0);
   for (const s of rs.springs) add(s.pos, s.params, springRadius(s.params));
   for (const s of rs.stakes) add(s.pos, s.params, 0);
+  // 骨片の輪: 骨 1 本ずつ（位置と残りの数は当たり判定と同じ bonePositions）
+  if (rs.boneRing) for (const b of bonePositions(state, rs.boneRing)) add(b, rs.boneRing.params, 0);
   for (const z of rs.mires ?? []) add(z.pos, z.params, SKILL.mire.radius * z.params.areaMul);
   // 着地して導火線が燃えている手榴弾
   for (const g of rs.grenades) if (g.flight <= 0) add(g.to, g.params, grenadeRadius(g.params));

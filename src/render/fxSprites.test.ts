@@ -249,7 +249,7 @@ describe("fxMotions: 奥義の絵の表", () => {
 
 describe("fxMotions: スキル石の絵の表", () => {
   const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
-    const all: (FxSheetKey | undefined)[] = [fx.active?.sheet, fx.active?.ground, fx.placed?.sheet, fx.placed?.ground];
+    const all: (FxSheetKey | undefined)[] = [fx.active, fx.placed, fx.fly, fx.aura].flatMap((l) => [l?.sheet, l?.ground]);
     for (const p of [fx.cast, fx.act, fx.end]) if (p) all.push(p.sheet, p.ground, p.beam?.sheet, p.tip);
     return all.filter((k): k is FxSheetKey => k !== undefined);
   };
@@ -271,15 +271,17 @@ describe("fxMotions: スキル石の絵の表", () => {
       for (const [key, row] of Object.entries(skills)) {
         const fx = SKILL_FX[key];
         expect(fx, key).toBeDefined();
-        for (const part of ["cast", "act", "end", "active", "placed"] as const) {
+        for (const part of ["cast", "act", "end", "active", "placed", "fly", "aura"] as const) {
           if (row[part] !== undefined) expect(fx?.[part], `${key} ${part}`).toBeDefined();
         }
       }
     }
   });
 
-  it("置いてある間の絵は繰り返しの周期を持つ", () => {
-    for (const [key, fx] of Object.entries(SKILL_FX)) if (fx.placed) expect(fx.placed.period, `${key} placed`).toBeGreaterThan(0);
+  it("置いてある間・飛んでいる間・纏いの絵は繰り返しの周期を持つ", () => {
+    for (const [key, fx] of Object.entries(SKILL_FX)) {
+      for (const [part, loop] of [["placed", fx.placed], ["fly", fx.fly], ["aura", fx.aura]] as const) if (loop) expect(loop.period, `${key} ${part}`).toBeGreaterThan(0);
+    }
   });
 });
 
