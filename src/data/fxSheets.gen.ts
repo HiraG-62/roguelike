@@ -36,6 +36,10 @@ import fx_shield from "./fx/shield.gen.json";
 import fx_shieldUlt from "./fx/shieldUlt.gen.json";
 import fx_sidearm from "./fx/sidearm.gen.json";
 import fx_sidearmUlt from "./fx/sidearmUlt.gen.json";
+import fx_skillArea from "./fx/skillArea.gen.json";
+import fx_skillMove from "./fx/skillMove.gen.json";
+import fx_skillPlaced from "./fx/skillPlaced.gen.json";
+import fx_skillShot from "./fx/skillShot.gen.json";
 import fx_spear from "./fx/spear.gen.json";
 import fx_spearUlt from "./fx/spearUlt.gen.json";
 import fx_staff from "./fx/staff.gen.json";
@@ -93,6 +97,10 @@ export const FX_ATLASES = {
   shieldUlt: { url: "assets/fx/shieldUlt.png", width: fx_shieldUlt.width, height: fx_shieldUlt.height },
   sidearm: { url: "assets/fx/sidearm.png", width: fx_sidearm.width, height: fx_sidearm.height },
   sidearmUlt: { url: "assets/fx/sidearmUlt.png", width: fx_sidearmUlt.width, height: fx_sidearmUlt.height },
+  skillArea: { url: "assets/fx/skillArea.png", width: fx_skillArea.width, height: fx_skillArea.height },
+  skillMove: { url: "assets/fx/skillMove.png", width: fx_skillMove.width, height: fx_skillMove.height },
+  skillPlaced: { url: "assets/fx/skillPlaced.png", width: fx_skillPlaced.width, height: fx_skillPlaced.height },
+  skillShot: { url: "assets/fx/skillShot.png", width: fx_skillShot.width, height: fx_skillShot.height },
   spear: { url: "assets/fx/spear.png", width: fx_spear.width, height: fx_spear.height },
   spearUlt: { url: "assets/fx/spearUlt.png", width: fx_spearUlt.width, height: fx_spearUlt.height },
   staff: { url: "assets/fx/staff.png", width: fx_staff.width, height: fx_staff.height },
@@ -167,6 +175,10 @@ export const FX_SHEETS = {
   ...fx_shieldUlt.sheets,
   ...fx_sidearm.sheets,
   ...fx_sidearmUlt.sheets,
+  ...fx_skillArea.sheets,
+  ...fx_skillMove.sheets,
+  ...fx_skillPlaced.sheets,
+  ...fx_skillShot.sheets,
   ...fx_spear.sheets,
   ...fx_spearUlt.sheets,
   ...fx_staff.sheets,
@@ -190,4 +202,4 @@ export const FX_SHEETS = {
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_cannon.fx, fx_cannonUlt.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_clawsUlt.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fanUlt.fx, fx_fists.fx, fx_fistsUlt.fx, fx_flail.fx, fx_flailUlt.fx, fx_greatsword.fx, fx_greatswordUlt.fx, fx_grenade.fx, fx_grenadeUlt.fx, fx_gunner.fx, fx_gunnerUlt.fx, fx_hammer.fx, fx_hammerUlt.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_longarmUlt.fx, fx_ringBlades.fx, fx_ringBladesUlt.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_sidearmUlt.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_thrownUlt.fx, fx_trapper.fx, fx_trapperUlt.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_warRing.fx, fx_warRingUlt.fx, fx_whip.fx, fx_whipUlt.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_cannon.fx, fx_cannonUlt.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_clawsUlt.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fanUlt.fx, fx_fists.fx, fx_fistsUlt.fx, fx_flail.fx, fx_flailUlt.fx, fx_greatsword.fx, fx_greatswordUlt.fx, fx_grenade.fx, fx_grenadeUlt.fx, fx_gunner.fx, fx_gunnerUlt.fx, fx_hammer.fx, fx_hammerUlt.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_longarmUlt.fx, fx_ringBlades.fx, fx_ringBladesUlt.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_sidearmUlt.fx, fx_skillArea.fx, fx_skillMove.fx, fx_skillPlaced.fx, fx_skillShot.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_thrownUlt.fx, fx_trapper.fx, fx_trapperUlt.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_warRing.fx, fx_warRingUlt.fx, fx_whip.fx, fx_whipUlt.fx] as const;

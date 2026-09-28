@@ -205,6 +205,30 @@ export class FxSpriteBank {
     return true;
   }
 
+  /**
+   * 長さ方向に一様な帯（ビーム・斬線の 1 区間の絵。向き 0 だけを描いたシート）を、始点 (x, y) から angle の向きへ
+   * length px まで step px ごとに並べる。区間を 15° 刻みの向きに丸めると斜めで階段状に折れるので、帯は実際の角度に回して描く
+   * （帯は一様なので回したドットの崩れが目立たない）。終点を越えた分は切る
+   */
+  drawStrip(ctx: CanvasRenderingContext2D, key: FxSheetKey, frame: number, x: number, y: number, angle: number, length: number, step: number, opts: FxDrawOpts): boolean {
+    const sheet = FX_SHEETS[key];
+    const cell = cellOf(sheet, 0, frame);
+    if (!cell || length <= 0 || step <= 0) return false;
+    const img = this.cellCanvas(key, sheet, 0, frame, cell, opts.ramp);
+    if (!img) return false;
+    const s = (opts.scale ?? 1) / FX_ART_SCALE;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.globalAlpha = opts.alpha ?? 1;
+    ctx.beginPath();
+    ctx.rect(0, -cell.h * s, length, cell.h * s * 2);
+    ctx.clip();
+    for (let d = step / 2; d < length + step; d += step) ctx.drawImage(img, d - cell.ox * s, -cell.oy * s, cell.w * s, cell.h * s);
+    ctx.restore();
+    return true;
+  }
+
   private cellCanvas(key: FxSheetKey, sheet: FxSheetDef, dir: number, frame: number, cell: FxCell, ramp: FxRampKey): HTMLCanvasElement | null {
     const id = `${key}|${dir}|${frame}|${ramp}`;
     const hit = this.cells.get(id);

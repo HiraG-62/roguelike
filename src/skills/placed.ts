@@ -1,13 +1,13 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEffects";
-import { shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addSkillFx, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withSkillFx } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { STATUS } from "../data/tuning";
 import { SKILL, SKILL_DEFS } from "./data";
 import { COMBO_TUNING } from "./tuning";
-import { skillHit, skillPower } from "./hit";
+import { castElement, skillHit, skillPower } from "./hit";
 import { terrainAt } from "../system/terrain";
 import type { CastParams } from "./types";
 
@@ -138,7 +138,8 @@ export function placeMine(state: GameState, pos: Vec, params: CastParams): void 
 export function spawnField(state: GameState, target: Vec, params: CastParams): void {
   const total = SKILL.frostField.duration * params.durationMul;
   state.skills.fields.push({ pos: { ...target }, timer: total, total, tick: 0, params });
-  spawnRing(state, target, fieldRadius(params), COLOR_FROST, RING_LIFE);
+  withSkillFx(state, "frostField", () => spawnRing(state, target, fieldRadius(params), COLOR_FROST, RING_LIFE));
+  addSkillFx(state, "frostField", "cast", target, { size: fieldRadius(params), element: castElement(params) });
   pushSfx(state, "freeze");
 }
 
@@ -298,7 +299,7 @@ function updateFields(state: GameState, dt: number): void {
     field.timer -= dt;
     field.tick -= dt;
     const radius = fieldRadius(field.params);
-    if (state.tick % FIELD_PARTICLE_EVERY === 0) wellParticle(state, field.pos, radius * state.rng.next());
+    if (state.tick % FIELD_PARTICLE_EVERY === 0) withSkillFx(state, "frostField", () => wellParticle(state, field.pos, radius * state.rng.next()));
     if (field.tick > 0) continue;
     field.tick = f.tickEvery;
     const slow = Math.min(f.maxSlow, f.slow * field.params.potencyMul);
@@ -308,6 +309,9 @@ function updateFields(state: GameState, dt: number): void {
       applyChill(state, e, slow, f.chillTime);
       skillHit(state, e, field.params, { base: power, kind: "ranged", dir: sub(e.body.pos, field.pos), knockback: 0, stagger: false });
     }
+  }
+  for (const field of rs.fields) {
+    if (field.timer <= 0) addSkillFx(state, "frostField", "end", field.pos, { size: fieldRadius(field.params), element: castElement(field.params) });
   }
   rs.fields = rs.fields.filter((field) => field.timer > 0);
 }

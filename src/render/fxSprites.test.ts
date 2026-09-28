@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, loopFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
-import { BULLET_FX, MOVESET_FX, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
+import { BULLET_FX, MOVESET_FX, SKILL_FX, type SkillFx, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, skillAtlas, swingMotionKeys } from "./fxMotions";
+import { SKILL_KEYS } from "../skills/types";
 import { ultPiece } from "./fxUltimate";
 import { BULLETS } from "../loot/bullets";
 import { BASES, baseFamily } from "../loot/bases";
@@ -202,8 +203,8 @@ describe("fxMotions: 弾の絵の表", () => {
     for (const raw of FX_MOVESET_RAW) {
       const bullets = raw && "bullets" in raw ? (raw.bullets as Record<string, unknown>) : {};
       for (const key of Object.keys(bullets)) {
-        expect(BULLETS[key], `${raw?.moveset} の弾 ${key}`).toBeDefined();
-        expect(BULLET_FX.get(key), `${raw?.moveset} の弾 ${key} の行`).toBeDefined();
+        expect(BULLETS[key], `${raw && "moveset" in raw ? raw.moveset : "?"} の弾 ${key}`).toBeDefined();
+        expect(BULLET_FX.get(key), `${raw && "moveset" in raw ? raw.moveset : "?"} の弾 ${key} の行`).toBeDefined();
       }
     }
   });
@@ -243,6 +244,42 @@ describe("fxMotions: 奥義の絵の表", () => {
       // 絵の表の行は壊れていない（載せた番号の絵が引ける）
       fx.acts.forEach((p, i) => p && expect(ultPiece(fx, { part: "act", index: i }), `${key} act ${i}`).toBe(p));
     }
+  });
+});
+
+describe("fxMotions: スキル石の絵の表", () => {
+  const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
+    const all: (FxSheetKey | undefined)[] = [fx.active?.sheet, fx.active?.ground, fx.placed?.sheet, fx.placed?.ground];
+    for (const p of [fx.cast, fx.act, fx.end]) if (p) all.push(p.sheet, p.ground, p.beam?.sheet, p.tip);
+    return all.filter((k): k is FxSheetKey => k !== undefined);
+  };
+
+  it("表のスキルは実在し、絵はスキル石のアトラス（`skill<形>`）に載る", () => {
+    expect(Object.keys(SKILL_FX).length).toBeGreaterThan(0);
+    for (const [key, fx] of Object.entries(SKILL_FX)) {
+      expect(SKILL_KEYS as readonly string[], key).toContain(key);
+      const sheets = sheetsOf(fx);
+      expect(sheets.length, `${key} に絵がある`).toBeGreaterThan(0);
+      for (const sheet of sheets) expect(FX_SHEETS[sheet].atlas, `${key} ${sheet}`).toMatch(/^skill[A-Z]/);
+      expect(skillAtlas(key), key).toMatch(/^skill[A-Z]/);
+    }
+  });
+
+  it("表の行は壊れていない（生成器の表の行がすべて型付きの表に残る）", () => {
+    for (const raw of FX_MOVESET_RAW) {
+      const skills = raw && "skills" in raw ? (raw.skills as Record<string, Record<string, unknown>>) : {};
+      for (const [key, row] of Object.entries(skills)) {
+        const fx = SKILL_FX[key];
+        expect(fx, key).toBeDefined();
+        for (const part of ["cast", "act", "end", "active", "placed"] as const) {
+          if (row[part] !== undefined) expect(fx?.[part], `${key} ${part}`).toBeDefined();
+        }
+      }
+    }
+  });
+
+  it("置いてある間の絵は繰り返しの周期を持つ", () => {
+    for (const [key, fx] of Object.entries(SKILL_FX)) if (fx.placed) expect(fx.placed.period, `${key} placed`).toBeGreaterThan(0);
   });
 });
 

@@ -110,6 +110,11 @@ export function castAttack(params: Readonly<CastParams>): AttackProfile | null {
   return { ...base, element: params.element };
 }
 
+/** この発動の属性（見た目の配色に使う。与ダメを持たないスキルは none） */
+export function castElement(params: Readonly<CastParams>): Element {
+  return castAttack(params)?.element ?? "none";
+}
+
 /** 1 体への命中。倒したら true */
 export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec): boolean {
   const def = SKILL_DEFS[params.skillKey];

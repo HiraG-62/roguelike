@@ -14,6 +14,7 @@ import {
   type DeathCause,
   addFloatingText,
   addMark,
+  addSkillFx,
   budBloomFx,
   chargeStepSfxName,
   chargeUpFx,
@@ -37,11 +38,15 @@ import {
   roomClearFx,
   roomLockFx,
   shotSfxName,
+  resetFloorEffects,
+  skillFxOf,
   spawnBurst,
   spawnDeathFx,
+  spawnRing,
   statusSfxName,
   swingSfxName,
   updateEffects,
+  withSkillFx,
   hitstop,
 } from "./effects";
 import { applyStatus } from "./statusEffects";
@@ -527,5 +532,33 @@ describe("死神の接近の鼓動（8-14）", () => {
     noteReaperWarning(state, null);
     updateEffects(state, 1);
     expect(state.sfx).not.toContain("reaperHeartbeat");
+  });
+});
+
+describe("スキルの見た目の出来事（render/fxSkill.ts が描く）", () => {
+  it("積んだ出来事は寿命で消え、階が変わると捨てる", () => {
+    const state = arena(5);
+    addSkillFx(state, "railshot", "act", { x: 1, y: 2 }, { to: { x: 50, y: 2 }, angle: 0, element: "light" });
+    const ev = state.effects?.skills[0];
+    expect(ev?.to).toEqual({ x: 50, y: 2 });
+    expect(ev?.element).toBe("light");
+    updateEffects(state, (ev?.life ?? 0) + 0.01);
+    expect(state.effects?.skills).toHaveLength(0);
+    addSkillFx(state, "whirl", "cast", { x: 0, y: 0 });
+    resetFloorEffects(state);
+    expect(state.effects?.skills).toHaveLength(0);
+  });
+
+  it("囲んだ間に増えた輪・粒にだけスキルの印が付く", () => {
+    const state = arena(5);
+    spawnRing(state, { x: 0, y: 0 }, 10, "#fff", 0.2);
+    withSkillFx(state, "whirl", () => {
+      spawnRing(state, { x: 0, y: 0 }, 20, "#fff", 0.2);
+      spawnBurst(state, { x: 0, y: 0 }, "#fff", 2, 10, 0.2, 1);
+    });
+    const [before, inside] = state.shapes;
+    expect(before && skillFxOf(before)).toBeUndefined();
+    expect(inside && skillFxOf(inside)).toBe("whirl");
+    expect(state.particles.every((p) => skillFxOf(p) === "whirl")).toBe(true);
   });
 });

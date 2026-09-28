@@ -53,7 +53,7 @@ import {
   wearBudCount,
 } from "../skills/data";
 import { type RuneDropSource, makeRuneItem, rollRuneDrop, rollRuneModifier } from "../skills/generator";
-import { refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
+import { castElement, refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
 import { addRune, saveSkillProfile, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
 import {
   fieldRadius,
@@ -105,7 +105,7 @@ import { JOBS } from "../data/jobs";
 import { buffMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
-import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { addFloatingText, addSkillFx, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withSkillFx } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -1255,7 +1255,9 @@ const CAST: Record<BaseSkillKey, CastFn> = {
   whirl: (state, slot, params, dir) => startActive(state, slot, "whirl", params, dir, SKILL.whirl.duration * params.timeMul),
   lunge: (state, slot, params, dir) => {
     startActive(state, slot, "lunge", params, dir, SKILL.lunge.time * params.timeMul);
-    spawnBurst(state, state.player.body.pos, COLOR_LUNGE, 6, 60, 0.2, 1.5);
+    const pos = state.player.body.pos;
+    withSkillFx(state, "lunge", () => spawnBurst(state, pos, COLOR_LUNGE, 6, 60, 0.2, 1.5));
+    addSkillFx(state, "lunge", "cast", pos, { angle: Math.atan2(dir.y, dir.x), element: castElement(params) });
   },
   railshot: (state, slot, params, dir) => startActive(state, slot, "railshot", params, dir, SKILL.railshot.aim * params.timeMul),
   parry: (state, slot, params, dir) => {
@@ -1531,19 +1533,20 @@ function whirlHitCount(params: CastParams): number {
   return Math.max(1, SKILL.whirl.hits + params.countBonus);
 }
 
-/** 経過時間に応じて多段ヒットを出す。旋風斬りの本体と残像で共有 */
-function stepWhirlHits(state: GameState, center: Vec, params: CastParams, elapsed: number, total: number, done: number): number {
+/** 経過時間に応じて多段ヒットを出す。旋風斬りの本体と残像で共有（本体の輪だけが発動中の絵に置き換わる: own） */
+function stepWhirlHits(state: GameState, center: Vec, params: CastParams, elapsed: number, total: number, done: number, own = false): number {
   const hits = whirlHitCount(params);
   const interval = total / hits;
   let n = done;
   while (n < hits && elapsed >= n * interval) {
-    whirlHit(state, center, params);
+    whirlHit(state, center, params, own);
     n += 1;
   }
   return n;
 }
 
-function whirlRadius(state: GameState, params: CastParams): number {
+/** 旋風斬りの半径（描画の絵の大きさにも使う） */
+export function whirlRadius(state: GameState, params: CastParams): number {
   return SKILL.whirl.radius * state.stats.meleeReachMul * params.areaMul;
 }
 
@@ -1554,11 +1557,12 @@ const PACT_WHIRL_APPLIES = [
   { kind: "bleed", stacks: COMBO_BLEED.bleedStacks, duration: COMBO_BLEED.bleedTime, potency: COMBO_BLEED.bleedPotency },
 ] as const;
 
-function whirlHit(state: GameState, center: Vec, params: CastParams): void {
+function whirlHit(state: GameState, center: Vec, params: CastParams, own: boolean): void {
   const radius = whirlRadius(state, params);
   const power = skillPower(state, SKILL.whirl.damage, params);
   const applies = params.combo === "pactWhirl" ? PACT_WHIRL_APPLIES : undefined;
-  spawnRing(state, center, radius, COLOR_WHIRL, RING_LIFE);
+  if (own) withSkillFx(state, "whirl", () => spawnRing(state, center, radius, COLOR_WHIRL, RING_LIFE));
+  else spawnRing(state, center, radius, COLOR_WHIRL, RING_LIFE);
   for (const e of enemiesInRadius(state, center, radius)) {
     skillHit(state, e, params, { base: power, kind: "melee", dir: sub(e.body.pos, center), knockback: SKILL.whirl.knockback, stagger: false, applies, from: center });
   }
@@ -1579,7 +1583,7 @@ function updateWhirl(state: GameState, a: ActiveCast, dt: number): void {
     if (a.timer <= 0) rs.active = null;
     return;
   }
-  a.hitsDone = stepWhirlHits(state, state.player.body.pos, a.params, a.total - a.timer, a.total, a.hitsDone);
+  a.hitsDone = stepWhirlHits(state, state.player.body.pos, a.params, a.total - a.timer, a.total, a.hitsDone, true);
   if (a.timer > 0) return;
   a.phase = "recover";
   a.timer = SKILL.whirl.recover;
@@ -1599,6 +1603,11 @@ function lungeHits(state: GameState, center: Vec, a: { hitIds: Set<number>; para
   }
 }
 
+/** 突進の終わりの見た目（踏みとどまりの斬り抜け）。始点から今の位置までを突進の道のりとして持たせる */
+function lungeEndFx(state: GameState, a: ActiveCast): void {
+  addSkillFx(state, "lunge", "end", state.player.body.pos, { to: a.origin, angle: Math.atan2(a.dir.y, a.dir.x), element: castElement(a.params) });
+}
+
 function updateLunge(state: GameState, a: ActiveCast, dt: number): void {
   const rs = state.skills;
   const p = state.player;
@@ -1606,8 +1615,9 @@ function updateLunge(state: GameState, a: ActiveCast, dt: number): void {
   a.timer -= dt;
   const hit = moveBody(state, p.body, a.dir.x * step, a.dir.y * step);
   lungeHits(state, p.body.pos, a);
-  if (state.tick % 2 === 0) spawnBurst(state, p.body.pos, COLOR_LUNGE, 1, 10, 0.18, 3);
+  if (state.tick % 2 === 0) withSkillFx(state, "lunge", () => spawnBurst(state, p.body.pos, COLOR_LUNGE, 1, 10, 0.18, 3));
   if (hit.hitX || hit.hitY) {
+    lungeEndFx(state, a);
     rs.active = null;
     rs.stunTimer = SKILL.lunge.wallStun;
     shake(state, SHAKE_SKILL);
@@ -1616,6 +1626,7 @@ function updateLunge(state: GameState, a: ActiveCast, dt: number): void {
     return;
   }
   if (a.timer > 0) return;
+  lungeEndFx(state, a);
   rs.active = null;
   rs.lungeComboTimer = SKILL.lunge.comboLinkWindow;
   landingShock(state, p.body.pos, a.params);
@@ -1666,7 +1677,8 @@ function distToSegment(pt: Vec, a: Vec, b: Vec): number {
 function fireBeam(state: GameState, origin: Vec, dir: Vec, params: CastParams): void {
   const r = SKILL.railshot;
   const end = beamEnd(state, origin, dir);
-  spawnLine(state, origin, end, COLOR_RAIL, BEAM_LIFE);
+  withSkillFx(state, "railshot", () => spawnLine(state, origin, end, COLOR_RAIL, BEAM_LIFE));
+  addSkillFx(state, "railshot", "act", origin, { to: end, angle: Math.atan2(dir.y, dir.x), element: castElement(params) });
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase === "spawning") continue;
     if (distToSegment(e.body.pos, origin, end) > e.body.radius + r.halfWidth) continue;

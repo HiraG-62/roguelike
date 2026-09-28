@@ -532,6 +532,31 @@ export interface UltFx {
   life: number;
 }
 
+/**
+ * スキル石の見た目の出来事（system/skills.ts と skills/*.ts が積み、render/fxSkill.ts がスキルごとのスプライトで描く）。
+ * cast = 発動・設置した瞬間、act = 1 回の行為（撃ち抜きのビーム 1 本など。index は同じ発動の中の番号）、end = 終わり（着地・場が消える）
+ */
+export type SkillFxPart = "cast" | "act" | "end";
+
+export interface SkillFxEvent {
+  /** スキルの key（SkillKey。core から skills を読まないので string） */
+  key: string;
+  part: SkillFxPart;
+  index: number;
+  /** 原点（発動した位置・場の中心・ビームの始点） */
+  pos: Vec;
+  /** 終点（ビームの終点・突進の終点）。無ければ pos と同じ */
+  to: Vec;
+  /** 向き（ラジアン） */
+  angle: number;
+  /** 大きさ（範囲の半径など。px。無ければ 0） */
+  size: number;
+  /** 配色を決める属性（Element。刻印符で差し替わる。none は絵の表の配色） */
+  element: string;
+  age: number;
+  life: number;
+}
+
 /** 時間で消える演出の印（src/render/effectsUi.ts が種類ごとに描く） */
 export type FxMarkKind =
   | "clearWave"
@@ -568,6 +593,8 @@ export interface EffectsState {
   marks: FxMark[];
   /** 奥義の見た目の出来事 */
   ults: UltFx[];
+  /** スキル石の見た目の出来事 */
+  skills: SkillFxEvent[];
   /** 色ごとのドロップ音を鳴らし終えた floorItems の id の最大値 */
   lastDropId: number;
   /** 連携の残光を出し終えた chains の最新時刻 */

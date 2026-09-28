@@ -91,6 +91,36 @@ export interface UltLoop {
   ground?: FxSheetKey;
 }
 
+/**
+ * スキルの出来事（SkillFxEvent）1 つの絵。奥義の UltPiece に、ビーム（pos → to に beam.sheet を step px ごとに並べる）と
+ * 終点の絵（tip。to に置く）を足したもの
+ */
+export interface SkillPiece extends UltPiece {
+  beam?: { sheet: FxSheetKey; step: number };
+  tip?: FxSheetKey;
+}
+
+/**
+ * 続いている間ずっと描く絵。active = 発動中（state.skills.active。本動作の進み具合でフレームを流す）、
+ * placed = 置いてある間（場・設置物。period 秒で繰り返す）。base は絵を描いたときの大きさ（半径など。0 は拡縮しない）
+ */
+export interface SkillLoop {
+  sheet: FxSheetKey;
+  base: number;
+  period: number;
+  ground?: FxSheetKey;
+}
+
+/** スキル 1 本の絵 */
+export interface SkillFx {
+  ramp: FxRampKey;
+  cast?: SkillPiece;
+  act?: SkillPiece;
+  end?: SkillPiece;
+  active?: SkillLoop;
+  placed?: SkillLoop;
+}
+
 /** 奥義 1 本の絵。acts / ends は行為の並びの番号、shots は行為の番号 → その行為が出した弾の絵 */
 export interface UltimateFx {
   ramp: FxRampKey;
@@ -159,12 +189,34 @@ interface RawUltimate {
   readonly shots?: Readonly<Record<string, RawBullet>>;
 }
 
+interface RawSkillLoop {
+  readonly sheet: string;
+  readonly base?: number;
+  readonly period?: number;
+  readonly ground?: string;
+}
+
+interface RawSkillPiece extends RawPiece {
+  readonly beam?: { readonly sheet: string; readonly step: number };
+  readonly tip?: string;
+}
+
+interface RawSkill {
+  readonly ramp?: string;
+  readonly cast?: RawSkillPiece;
+  readonly act?: RawSkillPiece;
+  readonly end?: RawSkillPiece;
+  readonly active?: RawSkillLoop;
+  readonly placed?: RawSkillLoop;
+}
+
 /**
  * アトラスの表（生成器の ATLAS.fx）。武器種のアトラスは motions・hit・hitHeavy（と弾の bullets）を、
  * 奥義のアトラス（`<武器種>Ult`）は ultimates だけを持つ
  */
 interface RawMovesetFx {
-  readonly moveset: string;
+  /** 武器種のアトラス・奥義のアトラスの武器種。スキル石のアトラス（`skill<形>`）は持たない */
+  readonly moveset?: string;
   readonly motions?: Readonly<Record<string, RawMotion>>;
   readonly hit?: string;
   readonly hitHeavy?: string;
@@ -172,14 +224,16 @@ interface RawMovesetFx {
   readonly holds?: Readonly<Record<string, RawHold>>;
   readonly bullets?: Readonly<Record<string, RawBullet>>;
   readonly ultimates?: Readonly<Record<string, RawUltimate>>;
+  /** スキル石のアトラス（`skill<形>`）の表: スキルの key → 絵 */
+  readonly skills?: Readonly<Record<string, RawSkill>>;
 }
 
 function isSheetKey(key: string | undefined): key is FxSheetKey {
   return key !== undefined && Object.hasOwn(FX_SHEETS, key);
 }
 
-function isMovesetKey(key: string): key is MovesetKey {
-  return Object.hasOwn(MOVESETS, key);
+function isMovesetKey(key: string | undefined): key is MovesetKey {
+  return key !== undefined && Object.hasOwn(MOVESETS, key);
 }
 
 function toMirror(raw: string | undefined): FxMirror | undefined {
@@ -271,6 +325,47 @@ function toUltimate(raw: RawUltimate): UltimateFx {
   };
 }
 
+function toSkillPiece(raw: RawSkillPiece | undefined): SkillPiece | undefined {
+  const piece = toPiece(raw);
+  if (!piece || !raw) return undefined;
+  const out: SkillPiece = { ...piece };
+  if (raw.beam) {
+    if (!isSheetKey(raw.beam.sheet) || !(raw.beam.step > 0)) return undefined;
+    out.beam = { sheet: raw.beam.sheet, step: raw.beam.step };
+  }
+  if (raw.tip !== undefined) {
+    if (!isSheetKey(raw.tip)) return undefined;
+    out.tip = raw.tip;
+  }
+  return out;
+}
+
+function toSkillLoop(raw: RawSkillLoop | undefined): SkillLoop | undefined {
+  if (!raw || !isSheetKey(raw.sheet)) return undefined;
+  if (raw.ground !== undefined && !isSheetKey(raw.ground)) return undefined;
+  const loop: SkillLoop = { sheet: raw.sheet, base: raw.base ?? 0, period: raw.period ?? 0 };
+  if (isSheetKey(raw.ground)) loop.ground = raw.ground;
+  return loop;
+}
+
+/** スキル石のアトラスの表を検査して型を付ける（スキルの key → 絵）。知らないスキルの key は読み飛ばす（テストが落とす） */
+export function buildSkillFx(raws: readonly (RawMovesetFx | null)[]): Record<string, SkillFx> {
+  const out: Record<string, SkillFx> = {};
+  for (const raw of raws) {
+    for (const [key, r] of Object.entries(raw?.skills ?? {})) {
+      out[key] = {
+        ramp: isRampKey(r.ramp) ? r.ramp : "steel",
+        cast: toSkillPiece(r.cast),
+        act: toSkillPiece(r.act),
+        end: toSkillPiece(r.end),
+        active: toSkillLoop(r.active),
+        placed: toSkillLoop(r.placed),
+      };
+    }
+  }
+  return out;
+}
+
 /** 奥義のアトラスの表を検査して型を付ける（奥義の key → 絵）。知らない奥義の key は読み飛ばす（テストが落とす） */
 export function buildUltimateFx(raws: readonly (RawMovesetFx | null)[]): Record<string, UltimateFx> {
   const out: Record<string, UltimateFx> = {};
@@ -311,6 +406,20 @@ export function buildMovesetFx(raws: readonly (RawMovesetFx | null)[]): Partial<
 export const MOVESET_FX: Readonly<Partial<Record<MovesetKey, MovesetFx>>> = buildMovesetFx(FX_MOVESET_RAW);
 
 export const ULTIMATE_FX: Readonly<Record<string, UltimateFx>> = buildUltimateFx(FX_MOVESET_RAW);
+
+export const SKILL_FX: Readonly<Record<string, SkillFx>> = buildSkillFx(FX_MOVESET_RAW);
+
+/** スキルの絵のシート（どれか 1 枚。載っているアトラスを引くのと、読めたかを確かめるのに使う） */
+export function skillSheet(fx: SkillFx): FxSheetKey | undefined {
+  return (fx.active ?? fx.placed ?? fx.cast ?? fx.act ?? fx.end)?.sheet;
+}
+
+/** スキルの絵が載っているアトラス（遅延読み込みの単位）。表が無ければ undefined */
+export function skillAtlas(key: string): string | undefined {
+  const fx = SKILL_FX[key];
+  const sheet = fx ? skillSheet(fx) : undefined;
+  return sheet ? FX_SHEETS[sheet].atlas : undefined;
+}
 
 /** 弾の key → 弾の絵（どの武器種のアトラスに載っていても引ける。同じ弾を二つの武器種が持つことはない） */
 export const BULLET_FX: ReadonlyMap<string, BulletFx> = new Map(Object.values(MOVESET_FX).flatMap((fx) => Object.entries(fx?.bullets ?? {})));

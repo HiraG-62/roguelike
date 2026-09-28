@@ -186,11 +186,16 @@ const SECONDS_DIGITS = 1;
 const COLOR_FORM_WAIT = "#a080a0";
 
 
+/** スキルの専用の絵（render/fxSkill.ts）が読めているか。読めていればそのスキルの手続きの描画を省く */
+export type SkillSpriteReady = (key: string) => boolean;
+
+const NO_SPRITES: SkillSpriteReady = () => false;
+
 /** 床に置く物（敵より下）。ワールドの座標系（カメラの translate 済み）で呼ぶ */
-export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState, sprite: SkillSpriteReady = NO_SPRITES): void {
   drawFloorStones(ctx, state);
   drawRunes(ctx, state);
-  drawFields(ctx, state);
+  if (!sprite("frostField")) drawFields(ctx, state);
   drawSprings(ctx, state);
   drawStakes(ctx, state);
   drawWells(ctx, state);
@@ -205,7 +210,7 @@ export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState)
 }
 
 /** 宙の物と変身・発動中の見た目（自分より上）。ワールドの座標系で呼ぶ */
-export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState, sprite: SkillSpriteReady = NO_SPRITES): void {
   drawThrown(ctx, state);
   drawGrenades(ctx, state);
   drawBullets(ctx, state);
@@ -215,7 +220,7 @@ export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState): v
   for (const g of state.skills.ghosts) drawGhost(ctx, state, g);
   drawForm(ctx, state);
   drawShape(ctx, state);
-  drawActive(ctx, state);
+  drawActive(ctx, state, sprite);
   resetDrawState(ctx);
 }
 
@@ -733,7 +738,7 @@ function drawGhost(ctx: CanvasRenderingContext2D, state: GameState, g: Ghost): v
   ctx.globalAlpha = 1;
 }
 
-function drawActive(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawActive(ctx: CanvasRenderingContext2D, state: GameState, sprite: SkillSpriteReady): void {
   const p = state.player;
   const rs = state.skills;
   const { x, y } = p.body.pos;
@@ -759,6 +764,8 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
   const a = rs.active;
   if (!a) return;
+  // 発動中の絵があるスキルは絵に任せる。撃ち抜きの照準線は狙いの表示なので絵があっても残す
+  if (sprite(a.skillKey) && a.skillKey !== "railshot") return;
   drawActiveCast(ctx, state, a);
 }
 
