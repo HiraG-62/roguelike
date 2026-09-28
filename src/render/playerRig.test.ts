@@ -10,6 +10,8 @@ import {
   attackClip,
   attackFrame,
   bodyClip,
+  RECOIL_TIME,
+  recoilOf,
   restBlendOf,
   elbowOf,
   solveRig,
@@ -170,5 +172,24 @@ describe("playerRig: 腕", () => {
     expect([4, 5, 6].some((i) => inks.has(i as 4))).toBe(true);
     const bare = new Set(armPixels(s, elbowOf(s, h), h, false).map((p) => p.ink));
     expect([4, 5, 6].some((i) => bare.has(i as 4))).toBe(false);
+  });
+});
+
+describe("playerRig: 撃った反動", () => {
+  it("撃った瞬間が最大で、RECOIL_TIME で戻る", () => {
+    expect(recoilOf(0)).toBe(1);
+    expect(recoilOf(RECOIL_TIME / 2)).toBeLessThan(0.5);
+    expect(recoilOf(RECOIL_TIME)).toBe(0);
+    expect(recoilOf(Number.POSITIVE_INFINITY), "撃っていない").toBe(0);
+  });
+
+  it("反動で銃を後ろへ引き、銃口を上へ跳ね上げる。強い銃ほど大きい", () => {
+    const aim = { ...base, aimHeld: true };
+    const still = solveRig(aim).front;
+    const kicked = solveRig({ ...aim, kick: 1 }).front;
+    expect(kicked.hand.x, "後ろへ引く").toBeLessThan(still.hand.x);
+    expect(kicked.angle, "銃口が上へ").toBeLessThan(still.angle);
+    const heavy = solveRig({ ...aim, kick: 1, stance: { ...DEFAULT_STANCE, recoil: 2 } }).front;
+    expect(heavy.angle).toBeLessThan(kicked.angle);
   });
 });

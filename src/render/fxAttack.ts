@@ -125,6 +125,8 @@ interface Layer {
   scorches: Scorch[];
   /** 描いた銃の銃口（高精細のプレイヤーの組み立てが決める。銃口の閃光をここから出す）。無ければ弾の出た位置 */
   muzzle: Point | null;
+  /** 自分の手元から最後に弾が出た時刻（state.time）。撃った反動の姿勢に使う */
+  lastShotAt: number;
 }
 
 const layers = new WeakMap<GameState, Layer>();
@@ -141,6 +143,7 @@ function layerOf(state: GameState): Layer {
     shots: new Map(),
     struck: new Set(),
     blasts: new WeakSet(),
+    lastShotAt: Number.NEGATIVE_INFINITY,
     events: [],
     scorches: [],
     muzzle: null,
@@ -307,6 +310,11 @@ export function setPlayerMuzzle(state: GameState, muzzle: Point | null): void {
   layerOf(state).muzzle = muzzle;
 }
 
+/** 自分の手元から最後に弾が出てからの秒（出ていなければ Infinity）。撃った反動の姿勢に使う */
+export function playerShotAge(state: GameState): number {
+  return state.time - layerOf(state).lastShotAt;
+}
+
 /**
  * 自分の弾を描く高さ（論理 px。地面の当たりの位置から上へ）。弾は胸の高さで構えた銃から出て飛ぶように見せる
  * （当たり判定は地面の位置のまま。曲射・設置弾は別に持ち上げる）
@@ -325,6 +333,9 @@ function muzzleOf(state: GameState, layer: Layer, pr: Projectile): Point {
 
 function onShotBorn(state: GameState, layer: Layer, pr: Projectile, style: BulletStyle, merged: Point[], seen: ShotSeen): void {
   if (pr.owner !== "player") return;
+  // 手元から出た弾（遠くで生まれる弾・奥義の弾は除く）は投げ物も含めて反動の姿勢を出す
+  const me = state.player.body.pos;
+  if (Math.hypot(pr.pos.x - me.x, pr.pos.y - me.y) <= MUZZLE_NEAR_PX) layer.lastShotAt = state.time;
   // 投げた武器（thrownLook.ts）は火薬で撃つ弾ではないので、銃口の閃光を出さない
   if (projectileLook(pr)) return;
   const at = muzzleOf(state, layer, pr);

@@ -95,10 +95,10 @@ import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
-import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, setPlayerMuzzle } from "./fxAttack";
+import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
-import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -519,6 +519,8 @@ const RIG_ORIGIN_Y = 132;
 const COLOR_RIG_OUTLINE = "#14121c";
 /** 手が前の肩よりこれだけ後ろ（ドット）へ回ったら、前の腕を体の後ろに描く */
 const RIG_ARM_BEHIND_X = 3;
+/** 反動 1・強さ 1 のときに体ごと後ろへ揺らす距離（論理 px。丸めるので強い銃だけ動く） */
+const RIG_RECOIL_JOLT = 0.8;
 /** 振りの残像（遅れ = 振りの進みの差、濃さ）。古いものから描く */
 const RIG_SWING_GHOSTS: readonly (readonly [number, number])[] = [
   [0.36, 0.18],
@@ -2178,6 +2180,7 @@ export class Renderer {
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
       restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
+      kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
     };
     const rig = solveRig(rigInput);
@@ -2234,7 +2237,9 @@ export class Renderer {
       }
     }
     if (blink) return true;
-    this.blitRig(p.hitFlash > 0 && white ? white : rc.canvas, cx, bottom, !facingRight, 1);
+    // 重い銃の反動で体ごと後ろへ 1px 揺れる（論理 px に丸める。軽い銃は揺れない）
+    const jolt = Math.round((rigInput.kick ?? 0) * (stance.recoil ?? 1) * RIG_RECOIL_JOLT) * (facingRight ? -1 : 1);
+    this.blitRig(p.hitFlash > 0 && white ? white : rc.canvas, cx + jolt, bottom, !facingRight, 1);
     return true;
   }
 

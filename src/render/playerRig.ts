@@ -134,6 +134,8 @@ export interface Stance {
   readonly braced?: boolean;
   /** 箱の振りをまっすぐ打ち出す拳にする（拳。左右の拳を交互に突き出す） */
   readonly punch?: boolean;
+  /** 撃った反動の大きさ（1 = 片手銃。大筒・長銃は大きく、二丁拳銃は小さく）。省けば 1 */
+  readonly recoil?: number;
 }
 
 /** 構えを持たない武器の既定（片手で切っ先を前上へ） */
@@ -175,6 +177,7 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(r.worn === true ? { worn: true } : {}),
     ...(r.braced === true ? { braced: true } : {}),
     ...(r.punch === true ? { punch: true } : {}),
+    ...(num(r.recoil) !== undefined ? { recoil: num(r.recoil) } : {}),
   };
 }
 
@@ -232,6 +235,8 @@ export interface RigInput {
   readonly barrelY: number;
   /** 画面での振る向き（renderMath の screenSwingSign）。省けば段の偶奇 */
   readonly sign?: number;
+  /** 撃った反動の強さ（0..1、recoilOf）。銃を後ろへ引き、銃口を跳ね上げる */
+  readonly kick?: number;
   /** 戻しの後半で待機の構えへ寄せる割合（0 = 振り抜いたまま、1 = 待機の構え。restBlendOf） */
   readonly restBlend?: number;
 }
@@ -271,6 +276,18 @@ function sway(time: number, deg: number): number {
 /** 振りの向きの符号（組み立ての空間で時計回りなら +1）。左向きでは写すので逆 */
 function rigSwingSign(i: Pick<RigInput, "sign" | "step" | "facingRight">): number {
   return (i.sign ?? swingSign(i.step)) * (i.facingRight ? 1 : -1);
+}
+
+/** 撃った反動: 戻るまでの秒と、1 のときに銃を引く距離（ドット）・銃口を跳ね上げる角 */
+export const RECOIL_TIME = 0.16;
+const RECOIL_BACK = 2.5;
+const RECOIL_CLIMB = 12 * DEG;
+
+/** 撃ってからの秒 → 反動の強さ（撃った瞬間 1、RECOIL_TIME で 0。頭で速く戻る 2 乗の減衰） */
+export function recoilOf(age: number): number {
+  if (!(age >= 0) || age >= RECOIL_TIME) return 0;
+  const u = 1 - age / RECOIL_TIME;
+  return u * u;
 }
 
 /** 戻しのうち、振り抜いたまま止める割合（残心）。その後は待機の構えへ寄せる */
@@ -348,8 +365,11 @@ function mainPart(i: RigInput): HeldPart {
   if (i.aimHeld) {
     // 銃身の線が弾の出る位置（自分の中心から照準の向き）を通るように、握りを銃身のずれの分だけ反対へ寄せる。
     // 描いた銃口と弾・銃口の閃光の出る線が揃う
-    const angle = toRigAngle(i.aim, i.facingRight) + sway(i.time, i.stance.swayDeg);
-    const grip = at(i.aimOrigin, angle, AIM_REACH);
+    const kick = (i.kick ?? 0) * (i.stance.recoil ?? 1);
+    const aimAngle = toRigAngle(i.aim, i.facingRight);
+    // 反動で銃口が上（組み立ての空間の -y）へ跳ねる。真上・真下を狙っているときも体の外側へ跳ねる
+    const angle = aimAngle + sway(i.time, i.stance.swayDeg) - Math.sign(Math.cos(aimAngle) || 1) * RECOIL_CLIMB * kick;
+    const grip = at(i.aimOrigin, aimAngle, AIM_REACH - RECOIL_BACK * kick);
     return part({ x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY }, angle, false, false, false);
   }
   return restPart(i);
