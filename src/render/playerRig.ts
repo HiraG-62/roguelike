@@ -505,6 +505,22 @@ function shadeInk(nx: number, ny: number, k: number, base: 1 | 4): ArmInk {
   return (base + step) as ArmInk;
 }
 
+/** 拳だけの画素（外周の 1 ドットは輪郭）。銃の先台を握る手を銃の上に重ね直すのに使う */
+export function handPixels(hand: Pt): ArmPixel[] {
+  const out: ArmPixel[] = [];
+  const pad = HAND_R + 1;
+  for (let y = Math.floor(hand.y - pad); y <= Math.ceil(hand.y + pad); y++) {
+    for (let x = Math.floor(hand.x - pad); x <= Math.ceil(hand.x + pad); x++) {
+      const cx = x + 0.5 - hand.x;
+      const cy = y + 0.5 - hand.y;
+      const d = Math.hypot(cx, cy);
+      if (d <= HAND_R) out.push({ x, y, ink: shadeInk(cx / HAND_R, cy / HAND_R, 1, 4) });
+      else if (d <= HAND_R + 1) out.push({ x, y, ink: 0 });
+    }
+  }
+  return out;
+}
+
 /**
  * 腕の画素（肩 → 肘 → 手の円柱と拳）。整数の格子（ドット）で返す。外周の 1 ドットは輪郭。
  * withHand が false なら拳を描かない（手を武器の絵が持つ爪・籠手など）

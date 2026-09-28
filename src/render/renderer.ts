@@ -99,7 +99,7 @@ import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawP
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
-import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -2243,11 +2243,13 @@ export class Renderer {
       if (!worn) this.rigWeapon(weapon, part, swingArt && part === rig.front);
     };
     if (rig.gunHold) {
-      // 両手で構えた銃: 体 → 握りを持つ後ろの腕（銃の奥）→ 銃 → 先台を支える前の腕（手前）
+      // 両手で構えた銃: 体 → 握りを持つ後ろの腕 → 先台を支える前の腕 → 銃 → 先台を握る拳。
+      // 前の腕も銃の下に描き（肩に重なる銃床の上に腕が浮かない）、先台を握る拳だけを銃の上に重ね直す
       this.rigCell(bodyCell, 0, 0);
       arm(shoulderB, rig.front, true);
-      heldWeapon(rig.front);
       arm(shoulderF, rig.back, false);
+      heldWeapon(rig.front);
+      this.rigHand(rig.back.hand, colors.hand);
     } else {
       this.rigLayers(rig, shoulderF, shoulderB, bodyCell, twoHanded, arm, heldWeapon);
     }
@@ -2349,6 +2351,15 @@ export class Renderer {
     if (!tip) return;
     g.fillStyle = rope.tip;
     g.fillRect(RIG_ORIGIN_X + Math.floor(tip.x) - 1, RIG_ORIGIN_Y + Math.floor(tip.y), ROPE_TASSEL_W, ROPE_TASSEL_H);
+  }
+
+  /** 拳だけを作業面に描く（銃の先台を握る手を銃の上に重ね直す） */
+  private rigHand(hand: Pt, colors: readonly string[]): void {
+    const g = this.rigCanvas.ctx;
+    for (const px of handPixels(hand)) {
+      g.fillStyle = px.ink === 0 ? COLOR_RIG_OUTLINE : (colors[px.ink - 4] ?? COLOR_RIG_OUTLINE);
+      g.fillRect(RIG_ORIGIN_X + px.x, RIG_ORIGIN_Y + px.y, 1, 1);
+    }
   }
 
   private rigArm(shoulder: Pt, part: HeldPart, sleeve: readonly string[], hand: readonly string[], dim: boolean, withHand = true): void {

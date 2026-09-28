@@ -10,6 +10,7 @@ import {
   attackClip,
   attackFrame,
   bodyClip,
+  handPixels,
   RECOIL_TIME,
   recoilOf,
   restBlendOf,
@@ -213,5 +214,13 @@ describe("playerRig: 銃の構え", () => {
     expect(rig.gunHold).toBeUndefined();
     expect(dist(rig.front.hand, base.shoulderF)).toBeLessThanOrEqual(span);
     expect(dist(rig.back.hand, base.shoulderB)).toBeLessThanOrEqual(span);
+  });
+});
+
+describe("playerRig: 拳だけの画素", () => {
+  it("拳の塗り（手の色）と外周の輪郭だけを返す", () => {
+    const px = handPixels({ x: 0, y: 0 });
+    expect(px.some((p) => p.ink === 0)).toBe(true);
+    expect(px.every((p) => p.ink === 0 || (p.ink >= 4 && p.ink <= 6)), "袖の色は無い").toBe(true);
   });
 });
