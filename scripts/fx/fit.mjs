@@ -1,11 +1,18 @@
 // 武器種のモーションの絵を、今の当たり判定の大きさに合わせて描く縮尺（docs/ideas/fx-sprites.md 3.4）。
-// シートの base（絵を作ったときの当たり判定の値）と、balance の JSON の今の値の比で作業面を縮めて描き、
-// 一覧の base を今の値に書き換える。実行時の fitScale はほぼ 1 になり、絵を描き先で拡縮しない（ドットが崩れず、振りの原点から外縁までが当たり判定と揃う）
+// 絵を縮尺 1 で描いて外縁（原点からの距離）を測り、その外縁が当たり判定の外縁に重なる縮尺で作業面を縮めて描く。
+// 一覧の base は今の値に書き換えるので、実行時の fitScale は 1 になり、描き先で拡縮しない（ドットが崩れず、振りの原点から外縁までが当たり判定と揃う）
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { Frame, cleanup } from "./raster.mjs";
 
 /** 比がこれより 1 に近ければ描き直さない（丸めの誤差で絵を変えない） */
 const SAME = 0.005;
+/** 絵の 1 論理 px のドット数（FX_ART_SCALE） */
+const DOTS_PER_PX = 2;
+/** 外縁とみなす距離の分位（飛び散る粒・砂煙の数ドットで縮めすぎない） */
+const EDGE_QUANTILE = 0.97;
+/** 縮尺を 1 より大きくしない（小さく描いた絵を引き伸ばすと細部が崩れる。足りない分は実行時の fitScale に任せない＝絵のまま） */
+const MAX_SCALE = 1;
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -42,6 +49,29 @@ function stepOf(raw, motion) {
   return undefined;
 }
 
+/** 当たり判定の外縁までの距離（論理 px）。self は体の中心（描くのは肩からなので数 px 前へずれる）、anchor は当たり判定の中心から */
+function targetEdge(step, pivot) {
+  const kind = step.shape?.kind ?? "box";
+  if (pivot === "self") return kind === "box" || kind === "circle" ? step.reach + step.size / 2 : step.reach;
+  if (pivot === "anchor") return kind === "box" || kind === "circle" ? step.size / 2 : step.reach / 2;
+  return undefined;
+}
+
+/** 縮尺 1 で描いたときの絵の外縁（論理 px）。向き 0 の active のコマの不透明なドットの、原点からの距離の分位 */
+function measuredEdge(sheet) {
+  const dists = [];
+  const frames = Math.max(1, Math.min(sheet.frames, sheet.active || sheet.frames));
+  for (let f = 0; f < frames; f++) {
+    const frame = new Frame(sheet.size, sheet.size, 0, 1);
+    sheet.draw(frame, f, { dir: 0, angle: 0 });
+    cleanup(frame);
+    for (let y = 0; y < frame.h; y++) for (let x = 0; x < frame.w; x++) if (frame.get(x, y)) dists.push(Math.hypot(x + 0.5 - frame.cx, y + 0.5 - frame.cy));
+  }
+  if (!dists.length) return undefined;
+  dists.sort((a, b) => a - b);
+  return (dists[Math.floor((dists.length - 1) * EDGE_QUANTILE)] ?? 0) / DOTS_PER_PX;
+}
+
 /**
  * アトラスの縮尺: sheets（シートの key → 縮尺。地面の層も同じ）と、base を今の値に書き換えた fx の表。
  * 1 つのシートを大きさの違う複数のモーションが使うと描き分けられないので止める
@@ -52,21 +82,27 @@ export function fitAtlas(root, atlas) {
   if (!fx?.moveset || !fx.motions) return { sheets, fx };
   const raw = movesetRaw(root, fx.moveset);
   if (!raw) return { sheets, fx };
+  const byKey = new Map(atlas.sheets.map((s) => [s.key, s]));
   const motions = {};
   for (const [key, m] of Object.entries(fx.motions)) {
     const step = stepOf(raw, key);
     const actual = step?.[m.measure];
-    if (typeof actual !== "number" || actual <= 0 || !(m.base > 0)) {
+    const target = step ? targetEdge(step, m.pivot) : undefined;
+    const sheet = byKey.get(m.sheet);
+    const edge = sheet && target ? measuredEdge(sheet) : undefined;
+    if (typeof actual !== "number" || actual <= 0 || !target || !edge) {
       motions[key] = m;
       continue;
     }
-    const scale = Math.abs(actual / m.base - 1) < SAME ? 1 : actual / m.base;
-    for (const sheet of [m.sheet, m.ground].filter(Boolean)) {
-      const prev = sheets.get(sheet);
-      if (prev !== undefined && Math.abs(prev - scale) > 1e-9) throw new Error(`fx: ${sheet} を大きさの違うモーションが共有している（${prev} と ${scale}）`);
-      sheets.set(sheet, scale);
+    const fit = Math.min(MAX_SCALE, target / edge);
+    const scale = Math.abs(fit - 1) < SAME ? 1 : fit;
+    for (const k of [m.sheet, m.ground].filter(Boolean)) {
+      const prev = sheets.get(k);
+      if (prev !== undefined && Math.abs(prev - scale) > 1e-9) throw new Error(`fx: ${k} を大きさの違うモーションが共有している（${prev} と ${scale}）`);
+      sheets.set(k, scale);
     }
-    motions[key] = scale === 1 ? m : { ...m, base: actual };
+    // 絵は今の数値で描いたので、実行時は拡縮しない
+    motions[key] = { ...m, base: actual };
   }
   return { sheets, fx: { ...fx, motions } };
 }
