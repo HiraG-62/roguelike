@@ -9,6 +9,7 @@ import {
   overshootCurve,
   playerBodyPose,
   poseShape,
+  screenSwingSign,
   slashVisual,
   slashWeight,
   swingSign,
@@ -403,6 +404,17 @@ describe("手に持つ武器の姿勢（docs/ideas/combat-feel-design.md C-2）"
     expect(diff(recover.angle, active.angle), "振り抜いた先よりさらに流れる").toBeGreaterThan(0.2);
     const mid = pose({ phase: "active", t: 0.2, shape: "box" });
     expect(Math.hypot(mid.dx, mid.dy + 4), "振りの途中で腕を伸ばしきる").toBeGreaterThan(6.5);
+  });
+
+  it("振る向きは左を向いても同じ振りに見え、重い箱は段によらず振り下ろす", () => {
+    expect(screenSwingSign(0, true, "box", false)).toBe(1);
+    expect(screenSwingSign(0, false, "box", false), "左向きは画面で逆回り").toBe(-1);
+    expect(screenSwingSign(1, true, "arc", false)).toBe(-1);
+    expect(screenSwingSign(3, true, "box", true), "重い箱の奇数段も振り下ろし").toBe(1);
+    expect(screenSwingSign(3, false, "box", true)).toBe(-1);
+    // 左向き（照準 = π）の振り下ろしは、振りかぶりが上（画面の y が負）から始まる
+    const left = pose({ phase: "windup", t: 1, shape: "box", aim: Math.PI, facingRight: false, sign: screenSwingSign(0, false, "box", false) });
+    expect(Math.sin(left.angle), "左向きでも上から").toBeLessThan(0);
   });
 
   it("前へ離した円（戦槌の叩きつけ）は振りかぶって振り下ろし、自分の周りの円だけ一周する", () => {

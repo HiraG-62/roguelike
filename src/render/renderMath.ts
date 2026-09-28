@@ -499,6 +499,8 @@ export interface WeaponPoseInput {
   readonly edge?: WeaponEdge;
   /** 右レーンの構え・狙いの段を押している最中の構え（phase が none のときだけ効く） */
   readonly hold?: HoldPose;
+  /** 画面での振る向き（screenSwingSign）。省けば段の偶奇 */
+  readonly sign?: number;
 }
 
 /** 右レーンの構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
@@ -573,15 +575,29 @@ export function weaponView(angle: number): WeaponView {
 
 /**
  * 振りの体の動きを選ぶ形。前へ離した円（reach > 0。戦槌の叩きつけ）は一周させず、箱と同じく振りかぶって振り下ろす
- * （足元の輪と亀裂のエフェクトは前に出るので、一周すると最初に武器が後ろへ飛んで読みがずれる）
+ * （足元の輪と亀裂のエフェクトは前に出るので、一周すると最初に武器が後ろへ飛んで読みがずれる）。
+ * punch（拳の構え）は箱を突きの動きにする
  */
-export function poseShape(shape: HitShape["kind"], reach: number): HitShape["kind"] {
-  return shape === "circle" && reach > 0 ? "box" : shape;
+export function poseShape(shape: HitShape["kind"], reach: number, punch = false): HitShape["kind"] {
+  if (shape === "circle" && reach > 0) return "box";
+  // 拳（構えの punch）の箱は、振り回さずまっすぐ打ち出す（命中の絵も前へ弾ける）
+  if (punch && shape === "box") return "thrust";
+  return shape;
 }
 
 /** 段ごとの振る向き（偶数段 +1 / 奇数段 -1） */
 export function swingSign(step: number): number {
   return step % 2 === 0 ? 1 : -1;
+}
+
+/**
+ * 画面での振る向き（+1 = 時計回り）。偶数段は右向きで振り下ろし・奇数段は斬り上げで、左を向いても同じ振りに見えるよう
+ * 左右で回る向きを返す。重い箱（叩きつけ）は段によらず必ず上から振り下ろす。
+ * 手に持つ武器の軌道・振りのエフェクトの反転・命中の光の線はこの向きで揃える
+ */
+export function screenSwingSign(step: number, facingRight: boolean, shape: HitShape["kind"], heavy: boolean): number {
+  const down = shape === "box" && heavy ? 1 : swingSign(step);
+  return down * (facingRight ? 1 : -1);
 }
 
 /** 振りの鞭の速さ: 振りの頭で一気に角度を稼ぎ、振り終わりで減速する（4 次の ease-out） */
@@ -621,7 +637,7 @@ function swingReach(e: number): number {
 function swingAngle(input: WeaponPoseInput): { angle: number; reach: number } {
   const { phase, shape, aim } = input;
   const t = clamp01(input.t);
-  const sign = swingSign(input.step);
+  const sign = input.sign ?? swingSign(input.step);
   const whip = whipEase(t);
   const tuck = HAND_RADIUS * (1 - WINDUP_TUCK * easeOutCubic(t));
   switch (shape) {
@@ -712,7 +728,7 @@ const HEAD_Y = -9;
 function edgeWant(input: WeaponPoseInput, pose: WeaponPose): { x: number; y: number } {
   const swinging = input.phase !== "none" && input.shape !== "thrust";
   if (swinging) {
-    const sign = swingSign(input.step);
+    const sign = input.sign ?? swingSign(input.step);
     return { x: -Math.sin(pose.angle) * sign, y: Math.cos(pose.angle) * sign };
   }
   return { x: pose.dx, y: pose.dy - HEAD_Y };

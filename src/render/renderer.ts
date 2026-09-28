@@ -79,6 +79,7 @@ import {
   swingSign,
   weaponGrip,
   poseShape,
+  screenSwingSign,
   weaponPose,
 } from "./renderMath";
 import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
@@ -97,7 +98,7 @@ import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxU
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
-import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
@@ -547,6 +548,8 @@ interface PlayerSwing {
   readonly reach: number;
   readonly heavy: boolean;
   readonly step: number;
+  /** 手に持つ武器と体の動きの形（poseShape。当たり判定の形を武器の構えで読み替えたもの） */
+  readonly pose: HitShape["kind"];
 }
 
 interface SwingPlan {
@@ -2080,14 +2083,21 @@ export class Renderer {
   private playerSwing(state: GameState): PlayerSwing {
     const p = state.player;
     const moveset = playerMoveset(state);
+    const atlas = weaponAtlas(moveset.key);
+    const punch = atlas ? stanceFromMeta(weaponStanceMeta(atlas)).punch === true : false;
+    const of = (s: { shape: HitShape; reach: number; heavy: boolean } | undefined, phase: SwingPhase, t: number, step: number): PlayerSwing => {
+      const shape = s?.shape ?? SHAPE_ARC;
+      const reach = s?.reach ?? 0;
+      return { phase, t, shape, reach, heavy: s?.heavy ?? false, step, pose: poseShape(shape.kind, reach, punch) };
+    };
     const first = moveset.steps[0];
     if (p.attack.charging) {
       const charge = moveset.charge?.step ?? first;
-      return { phase: "windup", t: 1, shape: charge?.shape ?? SHAPE_ARC, reach: charge?.reach ?? 0, heavy: true, step: 0 };
+      return { ...of(charge, "windup", 1, 0), heavy: true };
     }
     const step = currentMeleeStep(state);
-    if (!step || !isAttacking(p)) return { phase: "none", t: 0, shape: first?.shape ?? SHAPE_ARC, reach: first?.reach ?? 0, heavy: false, step: 0 };
-    return { phase: p.attack.phase, t: phaseProgress(p.attack.phase, p.attack.timer, step), shape: step.shape, reach: step.reach, heavy: step.heavy, step: p.attack.step };
+    if (!step || !isAttacking(p)) return of(first, "none", 0, 0);
+    return of(step, p.attack.phase, phaseProgress(p.attack.phase, p.attack.timer, step), p.attack.step);
   }
 
   private heldWeaponPose(state: GameState, swing: PlayerSwing): WeaponPose {
@@ -2097,7 +2107,7 @@ export class Renderer {
     return weaponPose({
       phase: swing.phase,
       t: swing.t,
-      shape: poseShape(swing.shape.kind, swing.reach),
+      shape: swing.pose,
       deg: swing.shape.kind === "arc" ? swing.shape.deg : 0,
       aim: Math.atan2(aimVec.y, aimVec.x),
       step: swing.step,
@@ -2105,6 +2115,7 @@ export class Renderer {
       aimHeld: moveset.primary === "shot",
       edge: WEAPON_EDGE[moveset.key],
       hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
+      sign: screenSwingSign(swing.step, p.facing.x >= 0, swing.pose, swing.heavy),
     });
   }
 
@@ -2134,7 +2145,15 @@ export class Renderer {
       time: state.time,
       idle: stance.body,
       ...(swing.phase !== "none"
-        ? { attack: attackClip(poseShape(swing.shape.kind, swing.reach), swing.step, swing.heavy, stance), t: swing.t }
+        ? {
+            attack: attackClip(
+              swing.pose,
+              screenSwingSign(swing.step, true, swing.pose, swing.heavy),
+              swing.heavy,
+              stance,
+            ),
+            t: swing.t,
+          }
         : {}),
     });
     const bodyKey = `${body}.${clip.clip}`;
@@ -2158,6 +2177,8 @@ export class Renderer {
       offGrip: weaponOffGrip(weapon),
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
+      restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
+      sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
     };
     const rig = solveRig(rigInput);
 
@@ -2488,7 +2509,7 @@ export class Renderer {
       angle: Math.atan2(p.attack.dir.y, p.attack.dir.x),
       opts: {
         ramp: swingRamp(state, step),
-        ccw: mirrorFlip(motion.mirror, swingSign(p.attack.step) < 0, p.attack.dir.x < 0),
+        ccw: mirrorFlip(motion.mirror, screenSwingSign(p.attack.step, p.facing.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy) < 0, p.attack.dir.x < 0),
         scale: fitScale(actual, motion.base, c.scaleTolerance),
       },
     };

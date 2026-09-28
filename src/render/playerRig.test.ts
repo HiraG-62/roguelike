@@ -10,6 +10,7 @@ import {
   attackClip,
   attackFrame,
   bodyClip,
+  restBlendOf,
   elbowOf,
   solveRig,
   stanceFromMeta,
@@ -53,14 +54,14 @@ describe("playerRig: 攻撃の体のコマ", () => {
 
   it("形と振る向き・重さで体のコマを選ぶ", () => {
     const ready = { body: "ready" } as const;
-    expect(attackClip("box", 0, false, ready)).toBe("atkSlash");
-    expect(attackClip("box", 1, false, ready), "逆の段は斬り上げ").toBe("atkRise");
-    expect(attackClip("box", 0, true, ready), "重い振り下ろしは叩きつけ").toBe("atkSlam");
-    expect(attackClip("box", 1, false, { body: "heavy" }), "重い構えの箱も叩きつけ").toBe("atkSlam");
-    expect(attackClip("arc", 0, true, ready), "扇は重くても振り下ろし").toBe("atkSlash");
-    expect(attackClip("thrust", 0, false, ready)).toBe("atkThrust");
-    expect(attackClip("arc", 0, false, { body: "ready", braced: true }), "構えて押す盾は突き").toBe("atkThrust");
-    expect(attackClip("circle", 0, false, ready)).toBe("atkSpin");
+    expect(attackClip("box", 1, false, ready)).toBe("atkSlash");
+    expect(attackClip("box", -1, false, ready), "下から振る向きは斬り上げ").toBe("atkRise");
+    expect(attackClip("box", 1, true, ready), "重い振り下ろしは叩きつけ").toBe("atkSlam");
+    expect(attackClip("box", -1, false, { body: "heavy" }), "重い構えの箱も叩きつけ").toBe("atkSlam");
+    expect(attackClip("arc", 1, true, ready), "扇は重くても振り下ろし").toBe("atkSlash");
+    expect(attackClip("thrust", 1, false, ready)).toBe("atkThrust");
+    expect(attackClip("arc", 1, false, { body: "ready", braced: true }), "構えて押す盾は突き").toBe("atkThrust");
+    expect(attackClip("circle", 1, false, ready)).toBe("atkSpin");
   });
 
   it("攻撃中は選んだコマ、被弾とダッシュはそれより優先", () => {
@@ -68,6 +69,17 @@ describe("playerRig: 攻撃の体のコマ", () => {
     expect(bodyClip(atk)).toEqual({ clip: "atkSlash", frame: 3 });
     expect(bodyClip({ ...atk, hit: true }).clip).toBe("hit");
     expect(bodyClip({ ...atk, dashing: true }).clip).toBe("dash");
+  });
+});
+
+describe("playerRig: 戻しで構え直す", () => {
+  it("戻しの前半は振り抜いたまま、後半で待機の構えへ寄せる", () => {
+    expect(restBlendOf("active", 0.9)).toBe(0);
+    expect(restBlendOf("recover", 0.3), "残心").toBe(0);
+    expect(restBlendOf("recover", 1)).toBe(1);
+    const mid = restBlendOf("recover", 0.7);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
   });
 });
 

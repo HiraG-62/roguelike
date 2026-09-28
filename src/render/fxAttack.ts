@@ -19,7 +19,7 @@ import { type FxRampKey, type FxSpriteBank, lifeFrame, sheetDef } from "./fxSpri
 import { type BulletFx, MOVESET_FX, rampOfElement } from "./fxMotions";
 import { shotFx, shotRamp } from "./fxShots";
 import { projectileLook } from "./thrownLook";
-import { clamp01, easeOutCubic, hash01, swingSign } from "./renderMath";
+import { clamp01, easeOutCubic, hash01, poseShape, screenSwingSign, swingSign } from "./renderMath";
 import {
   type Point,
   arcTrailSamples,
@@ -194,7 +194,8 @@ function meleeHitInfo(state: GameState, e: Enemy): { angle: number; heavy: boole
   const dir = Math.atan2(p.attack.dir.y, p.attack.dir.x);
   // 突きは攻撃の向きに、振りは刃の進む向き（自分から敵への向きに直交）に光の線を引く
   const toward = dx === 0 && dy === 0 ? dir : Math.atan2(dy, dx);
-  const angle = step.shape.kind === "thrust" ? dir : toward + (Math.PI / 2) * swingSign(p.attack.step);
+  const sign = screenSwingSign(p.attack.step, p.facing.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy);
+  const angle = step.shape.kind === "thrust" ? dir : toward + (Math.PI / 2) * sign;
   return { angle, heavy: step.heavy };
 }
 
