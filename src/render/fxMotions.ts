@@ -8,8 +8,11 @@ import { type ButtonKey, MOVESETS, type MovesetDef, type MovesetKey, meleeCharge
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { FX_RAMP_KEYS, type FxRampKey } from "./fxSprites";
 
-/** 原点: self = 自分の中心、anchor = 当たり判定の中心（meleeAnchor） */
-export type FxPivot = "self" | "anchor";
+/**
+ * 原点: self = 自分の中心、anchor = 当たり判定の中心（meleeAnchor）、
+ * muzzle = 手に持つ武器の先（杖の詠唱の紋。描いた武器の銃口の印。印が無い・古い絵では anchor）
+ */
+export type FxPivot = "self" | "anchor" | "muzzle";
 
 /**
  * 絵を上下反転する条件。swing = 反時計回りの段（renderMath の swingSign が負）。
@@ -186,7 +189,7 @@ function toMirror(raw: string | undefined): FxMirror | undefined {
 
 function toMotion(raw: RawMotion): FxMotion | undefined {
   if (!isSheetKey(raw.sheet)) return undefined;
-  if (raw.pivot !== "self" && raw.pivot !== "anchor") return undefined;
+  if (raw.pivot !== "self" && raw.pivot !== "anchor" && raw.pivot !== "muzzle") return undefined;
   if (raw.measure !== "reach" && raw.measure !== "size") return undefined;
   const mirror = toMirror(raw.mirror);
   if (!mirror) return undefined;

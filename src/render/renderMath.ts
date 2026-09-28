@@ -511,6 +511,8 @@ export interface WeaponPoseInput {
   readonly edge?: WeaponEdge;
   /** 右レーンの構え・狙いの段を押している最中の構え（phase が none のときだけ効く） */
   readonly hold?: HoldPose;
+  /** 画面での振る向き（screenSwingSign）。省けば段の偶奇 */
+  readonly sign?: number;
 }
 
 /** 右レーンの構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
@@ -583,40 +585,97 @@ export function weaponView(angle: number): WeaponView {
   return OCTANT_VIEW[octant] ?? VIEW_RIGHT;
 }
 
+/**
+ * 振りの体の動きを選ぶ形。前へ離した円（reach > 0。戦槌の叩きつけ）は一周させず、箱と同じく振りかぶって振り下ろす
+ * （足元の輪と亀裂のエフェクトは前に出るので、一周すると最初に武器が後ろへ飛んで読みがずれる）。
+ * punch（拳の構え）は箱を突きの動きにする
+ */
+export function poseShape(shape: HitShape["kind"], reach: number, punch = false): HitShape["kind"] {
+  if (shape === "circle" && reach > 0) return "box";
+  // 拳（構えの punch）の箱は、振り回さずまっすぐ打ち出す（命中の絵も前へ弾ける）
+  if (punch && shape === "box") return "thrust";
+  return shape;
+}
+
 /** 段ごとの振る向き（偶数段 +1 / 奇数段 -1） */
 export function swingSign(step: number): number {
   return step % 2 === 0 ? 1 : -1;
 }
 
-/** 攻撃中の武器の向き（rad）と、拳を腕の付け根から離す距離 */
+/**
+ * 画面での振る向き（+1 = 時計回り）。偶数段は右向きで振り下ろし・奇数段は斬り上げで、左を向いても同じ振りに見えるよう
+ * 左右で回る向きを返す。重い箱（叩きつけ）は段によらず必ず上から振り下ろす。
+ * 手に持つ武器の軌道・振りのエフェクトの反転・命中の光の線はこの向きで揃える
+ */
+export function screenSwingSign(step: number, facingRight: boolean, shape: HitShape["kind"], heavy: boolean): number {
+  const down = shape === "box" && heavy ? 1 : swingSign(step);
+  return down * (facingRight ? 1 : -1);
+}
+
+/** 振りの鞭の速さ: 振りの頭で一気に角度を稼ぎ、振り終わりで減速する（4 次の ease-out） */
+export function whipEase(t: number): number {
+  const u = 1 - clamp01(t);
+  return 1 - u * u * u * u;
+}
+
+/** 振り抜きの行き過ぎ（rad）。戻しの頭で振りの先へさらに流れ、残心で少し戻る */
+const SWING_OVERSHOOT = 0.35;
+/** 戻しのうち行き過ぎへ流れ切るまでの割合と、戻しの終わりに残す行き過ぎの割合 */
+const OVERSHOOT_PEAK_AT = 0.3;
+const OVERSHOOT_REST = 0.4;
+/** 振りの途中で腕を伸ばしきる量（拳の距離の倍率の上乗せ）と、溜めで腕を畳む量 */
+const SWING_EXTEND = 0.3;
+const WINDUP_TUCK = 0.15;
+/** 突きの戻しで伸ばしたまま止める割合 */
+const THRUST_HOLD = 0.4;
+
+/** 戻しの行き過ぎの量（0 → 1 → OVERSHOOT_REST） */
+export function overshootCurve(t: number): number {
+  const u = clamp01(t);
+  if (u < OVERSHOOT_PEAK_AT) return easeOutCubic(u / OVERSHOOT_PEAK_AT);
+  const k = (u - OVERSHOOT_PEAK_AT) / (1 - OVERSHOOT_PEAK_AT);
+  return lerp(1, OVERSHOOT_REST, k * k * (3 - 2 * k));
+}
+
+/** 振りの間の拳の距離: 振りの中ほどで腕を伸ばしきる */
+function swingReach(e: number): number {
+  return HAND_RADIUS * (1 + SWING_EXTEND * Math.sin(Math.PI * clamp01(e)));
+}
+
+/**
+ * 攻撃中の武器の向き（rad）と、拳を腕の付け根から離す距離。予備動作は腕を畳んで溜め、振りは頭で一気に角度を稼いで
+ * 中ほどで腕を伸ばしきり、戻しは振りの先へ行き過ぎてから少し戻る（残心）
+ */
 function swingAngle(input: WeaponPoseInput): { angle: number; reach: number } {
   const { phase, shape, aim } = input;
   const t = clamp01(input.t);
-  const sign = swingSign(input.step);
-  const ease = easeOutCubic(t);
+  const sign = input.sign ?? swingSign(input.step);
+  const whip = whipEase(t);
+  const tuck = HAND_RADIUS * (1 - WINDUP_TUCK * easeOutCubic(t));
   switch (shape) {
     case "arc": {
       const half = Math.min(ARC_HALF_MAX, (input.deg * Math.PI) / 360);
-      if (phase === "windup") return { angle: aim - sign * (half + ARC_WINDUP_PULL * t), reach: HAND_RADIUS };
-      if (phase === "active") return { angle: aim - sign * half + sign * 2 * half * ease, reach: HAND_RADIUS };
-      return { angle: aim + sign * half, reach: HAND_RADIUS };
+      if (phase === "windup") return { angle: aim - sign * (half + ARC_WINDUP_PULL * easeOutCubic(t)), reach: tuck };
+      if (phase === "active") return { angle: aim - sign * half + sign * 2 * half * whip, reach: swingReach(whip) };
+      return { angle: aim + sign * (half + SWING_OVERSHOOT * overshootCurve(t)), reach: HAND_RADIUS };
     }
     case "box": {
       const from = aim - sign * BOX_RAISE;
       const to = aim + sign * BOX_FOLLOW;
-      if (phase === "windup") return { angle: from - sign * BOX_WINDUP_PULL * t, reach: HAND_RADIUS };
-      if (phase === "active") return { angle: lerp(from, to, ease), reach: HAND_RADIUS };
-      return { angle: to, reach: HAND_RADIUS };
+      if (phase === "windup") return { angle: from - sign * BOX_WINDUP_PULL * easeOutCubic(t), reach: tuck };
+      if (phase === "active") return { angle: lerp(from, to, whip), reach: swingReach(whip) };
+      return { angle: to + sign * SWING_OVERSHOOT * overshootCurve(t), reach: HAND_RADIUS };
     }
     case "thrust": {
-      if (phase === "windup") return { angle: aim, reach: HAND_RADIUS - THRUST_PULL * t };
-      if (phase === "active") return { angle: aim, reach: lerp(HAND_RADIUS - THRUST_PULL, HAND_RADIUS + THRUST_REACH, ease) };
-      return { angle: aim, reach: lerp(HAND_RADIUS + THRUST_REACH, HAND_RADIUS, t) };
+      if (phase === "windup") return { angle: aim, reach: HAND_RADIUS - THRUST_PULL * easeOutCubic(t) };
+      if (phase === "active") return { angle: aim, reach: lerp(HAND_RADIUS - THRUST_PULL, HAND_RADIUS + THRUST_REACH, whip) };
+      const back = clamp01((t - THRUST_HOLD) / (1 - THRUST_HOLD));
+      return { angle: aim, reach: lerp(HAND_RADIUS + THRUST_REACH, HAND_RADIUS, easeOutCubic(back)) };
     }
     case "circle": {
-      if (phase === "windup") return { angle: aim - sign * CIRCLE_PULL * t, reach: HAND_RADIUS };
-      if (phase === "active") return { angle: aim + sign * FULL_TURN * ease, reach: HAND_RADIUS };
-      return { angle: aim, reach: HAND_RADIUS };
+      if (phase === "windup") return { angle: aim - sign * CIRCLE_PULL * easeOutCubic(t), reach: tuck };
+      if (phase === "active") return { angle: aim + sign * FULL_TURN * whip, reach: swingReach(whip) };
+      return { angle: aim + sign * SWING_OVERSHOOT * overshootCurve(t), reach: HAND_RADIUS };
     }
   }
 }
@@ -681,7 +740,7 @@ const HEAD_Y = -9;
 function edgeWant(input: WeaponPoseInput, pose: WeaponPose): { x: number; y: number } {
   const swinging = input.phase !== "none" && input.shape !== "thrust";
   if (swinging) {
-    const sign = swingSign(input.step);
+    const sign = input.sign ?? swingSign(input.step);
     return { x: -Math.sin(pose.angle) * sign, y: Math.cos(pose.angle) * sign };
   }
   return { x: pose.dx, y: pose.dy - HEAD_Y };

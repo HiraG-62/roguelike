@@ -7,7 +7,12 @@ import {
   type Stance,
   UPPER_ARM,
   armPixels,
+  attackClip,
+  attackFrame,
   bodyClip,
+  RECOIL_TIME,
+  recoilOf,
+  restBlendOf,
   elbowOf,
   solveRig,
   stanceFromMeta,
@@ -32,6 +37,51 @@ describe("playerRig: 体のシートの選び方", () => {
     expect(bodyClip({ ...idle, idle: "aim" }).clip).toBe("idleAim");
     const frames = new Set([0, 0.4, 0.8, 1.2].map((time) => bodyClip({ ...idle, time }).frame));
     expect(frames.size).toBeGreaterThan(1);
+  });
+});
+
+describe("playerRig: 攻撃の体のコマ", () => {
+  const idle = { dashing: false, dashProgress: 0, hit: false, phase: "none", holding: false, moving: false, walkTime: 0, time: 0, idle: "ready" } as const;
+  it("予備動作・振り・戻しを 2 枚ずつに割り、進みで順に送る", () => {
+    const seq = [
+      attackFrame("windup", 0),
+      attackFrame("windup", 0.9),
+      attackFrame("active", 0),
+      attackFrame("active", 0.9),
+      attackFrame("recover", 0),
+      attackFrame("recover", 0.9),
+    ];
+    expect(seq).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("形と振る向き・重さで体のコマを選ぶ", () => {
+    const ready = { body: "ready" } as const;
+    expect(attackClip("box", 1, false, ready)).toBe("atkSlash");
+    expect(attackClip("box", -1, false, ready), "下から振る向きは斬り上げ").toBe("atkRise");
+    expect(attackClip("box", 1, true, ready), "重い振り下ろしは叩きつけ").toBe("atkSlam");
+    expect(attackClip("box", -1, false, { body: "heavy" }), "重い構えの箱も叩きつけ").toBe("atkSlam");
+    expect(attackClip("arc", 1, true, ready), "扇は重くても振り下ろし").toBe("atkSlash");
+    expect(attackClip("thrust", 1, false, ready)).toBe("atkThrust");
+    expect(attackClip("arc", 1, false, { body: "ready", braced: true }), "構えて押す盾は突き").toBe("atkThrust");
+    expect(attackClip("circle", 1, false, ready)).toBe("atkSpin");
+  });
+
+  it("攻撃中は選んだコマ、被弾とダッシュはそれより優先", () => {
+    const atk = { ...idle, phase: "active", attack: "atkSlash", t: 0.8 } as const;
+    expect(bodyClip(atk)).toEqual({ clip: "atkSlash", frame: 3 });
+    expect(bodyClip({ ...atk, hit: true }).clip).toBe("hit");
+    expect(bodyClip({ ...atk, dashing: true }).clip).toBe("dash");
+  });
+});
+
+describe("playerRig: 戻しで構え直す", () => {
+  it("戻しの前半は振り抜いたまま、後半で待機の構えへ寄せる", () => {
+    expect(restBlendOf("active", 0.9)).toBe(0);
+    expect(restBlendOf("recover", 0.3), "残心").toBe(0);
+    expect(restBlendOf("recover", 1)).toBe(1);
+    const mid = restBlendOf("recover", 0.7);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
   });
 });
 
@@ -122,5 +172,24 @@ describe("playerRig: 腕", () => {
     expect([4, 5, 6].some((i) => inks.has(i as 4))).toBe(true);
     const bare = new Set(armPixels(s, elbowOf(s, h), h, false).map((p) => p.ink));
     expect([4, 5, 6].some((i) => bare.has(i as 4))).toBe(false);
+  });
+});
+
+describe("playerRig: 撃った反動", () => {
+  it("撃った瞬間が最大で、RECOIL_TIME で戻る", () => {
+    expect(recoilOf(0)).toBe(1);
+    expect(recoilOf(RECOIL_TIME / 2)).toBeLessThan(0.5);
+    expect(recoilOf(RECOIL_TIME)).toBe(0);
+    expect(recoilOf(Number.POSITIVE_INFINITY), "撃っていない").toBe(0);
+  });
+
+  it("反動で銃を後ろへ引き、銃口を上へ跳ね上げる。強い銃ほど大きい", () => {
+    const aim = { ...base, aimHeld: true };
+    const still = solveRig(aim).front;
+    const kicked = solveRig({ ...aim, kick: 1 }).front;
+    expect(kicked.hand.x, "後ろへ引く").toBeLessThan(still.hand.x);
+    expect(kicked.angle, "銃口が上へ").toBeLessThan(still.angle);
+    const heavy = solveRig({ ...aim, kick: 1, stance: { ...DEFAULT_STANCE, recoil: 2 } }).front;
+    expect(heavy.angle).toBeLessThan(kicked.angle);
   });
 });

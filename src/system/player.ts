@@ -1687,7 +1687,11 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   for (const pr of fired) markShotBullet(pr, shot.key);
   onBoonShoot(state, fired);
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
-  spawnBurst(state, muzzle, spec.color, shot.look?.particles ?? MUZZLE_PARTICLES, 60, 0.12, 1.5);
+  const sparks = shot.look?.particles ?? MUZZLE_PARTICLES;
+  spawnBurst(state, muzzle, spec.color, sparks, 60, 0.12, 1.5);
+  // 描いた銃は胸の高さで前へ伸びるので、描画側が粒を描いた銃口へ付け替えられるよう生まれた位置を持たせる
+  // （上限で古い粒が先頭から消えても、今出した粒は末尾に並ぶ）
+  if (sparks > 0) for (const pt of state.particles.slice(-sparks)) pt.muzzleFrom = { ...muzzle };
   shake(state, 1);
   // 右レーンの弾も弾の性質で音を選ぶ（docs/ideas/weapon-redesign.md 6 章）
   pushSfx(state, shotSfxName(shot));

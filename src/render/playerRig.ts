@@ -11,10 +11,14 @@ import { poseReachRatio, swingSign } from "./renderMath";
 /** 待機の構えの系統（scripts/actor/rig.mjs の IDLE_STANCES と同じ） */
 export type IdleStance = "ready" | "heavy" | "light" | "aim";
 export type IdleClip = "idleReady" | "idleHeavy" | "idleLight" | "idleAim";
-export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit";
+/** 攻撃の体のコマ（scripts/actor/rig.mjs の ATTACK_KEYS と同じ名前）。振り下ろし・斬り上げ・叩きつけ・突き・回転 */
+export type AttackClip = "atkSlash" | "atkRise" | "atkSlam" | "atkThrust" | "atkSpin";
+export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit" | AttackClip;
 
 const IDLE_CLIP: Readonly<Record<IdleStance, IdleClip>> = { ready: "idleReady", heavy: "idleHeavy", light: "idleLight", aim: "idleAim" };
 const IDLE_FRAMES = 8;
+/** 攻撃の体のコマの枚数（0-1 予備動作 / 2-3 振り / 4 振り抜き / 5 戻し） */
+export const ATTACK_FRAMES = 6;
 
 /** 体のシートの枚数（scripts/actor/rig.mjs の BODY_CLIPS と同じ） */
 export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = {
@@ -27,6 +31,11 @@ export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = {
   windup: 1,
   strike: 1,
   hit: 1,
+  atkSlash: ATTACK_FRAMES,
+  atkRise: ATTACK_FRAMES,
+  atkSlam: ATTACK_FRAMES,
+  atkThrust: ATTACK_FRAMES,
+  atkSpin: ATTACK_FRAMES,
 };
 
 /** 待機の呼吸の 1 巡（秒）と歩きの 1 枚（秒。8 枚で 2 歩） */
@@ -46,6 +55,10 @@ export interface BodyClipInput {
   readonly time: number;
   /** 待機の構え（武器種の Stance.body） */
   readonly idle: IdleStance;
+  /** 今の振りの体のコマ（attackClip）。無ければ共通の構え 1 枚・振り抜き 1 枚 */
+  readonly attack?: AttackClip;
+  /** phase の進み（0 → 1） */
+  readonly t?: number;
 }
 
 export interface BodyFrame {
@@ -58,10 +71,35 @@ function cycleFrame(time: number, period: number, frames: number): number {
   return Math.min(frames - 1, Math.floor(k * frames));
 }
 
+/** 予備動作・振り・戻しを 2 枚ずつに割る境目（進み）。振りは頭の鞭で角度を稼ぐので早めに伸び切りのコマへ */
+const WINDUP_SPLIT = 0.5;
+const ACTIVE_SPLIT = 0.35;
+const RECOVER_SPLIT = 0.35;
+
+/** 攻撃のコマの番号（0-1 予備動作 / 2-3 振り / 4-5 戻し） */
+export function attackFrame(phase: "windup" | "active" | "recover", t: number): number {
+  if (phase === "windup") return t < WINDUP_SPLIT ? 0 : 1;
+  if (phase === "active") return t < ACTIVE_SPLIT ? 2 : 3;
+  return t < RECOVER_SPLIT ? 4 : 5;
+}
+
+/**
+ * 振りの形から体のコマを選ぶ。突き・構えて押す武器 = 突き、自分の周りの円 = 回転、
+ * 重い振り下ろし（重い段・重い構えの箱）= 叩きつけ、それ以外の扇・箱は組み立ての空間での振る向き（rigSign。
+ * + = 上から振り下ろす）で振り下ろし / 斬り上げ
+ */
+export function attackClip(shape: "arc" | "box" | "thrust" | "circle", rigSign: number, heavy: boolean, stance: Pick<Stance, "body" | "braced">): AttackClip {
+  if (shape === "thrust" || stance.braced) return "atkThrust";
+  if (shape === "circle") return "atkSpin";
+  if (shape === "box" && (heavy || stance.body === "heavy")) return "atkSlam";
+  return rigSign > 0 ? "atkSlash" : "atkRise";
+}
+
 /** 今の体のシートとフレーム。被弾 → ダッシュ → 攻撃（構え・振り）→ 歩き → 待機 の順 */
 export function bodyClip(i: BodyClipInput): BodyFrame {
   if (i.hit) return { clip: "hit", frame: 0 };
   if (i.dashing) return { clip: "dash", frame: i.dashProgress < 0.5 ? 0 : 1 };
+  if (i.attack && i.phase !== "none") return { clip: i.attack, frame: attackFrame(i.phase, i.t ?? 0) };
   if (i.phase === "windup" || (i.phase === "none" && i.holding)) return { clip: "windup", frame: 0 };
   if (i.phase === "active" || i.phase === "recover") return { clip: "strike", frame: 0 };
   if (i.moving) return { clip: "walk", frame: cycleFrame(i.walkTime, WALK_FRAME_TIME * BODY_CLIP_FRAMES.walk, BODY_CLIP_FRAMES.walk) };
@@ -94,6 +132,10 @@ export interface Stance {
   readonly worn?: boolean;
   /** 振りの間も武器を照準へ向けたまま突き出す（大盾。面を敵へ向けて押す） */
   readonly braced?: boolean;
+  /** 箱の振りをまっすぐ打ち出す拳にする（拳。左右の拳を交互に突き出す） */
+  readonly punch?: boolean;
+  /** 撃った反動の大きさ（1 = 片手銃。大筒・長銃は大きく、二丁拳銃は小さく）。省けば 1 */
+  readonly recoil?: number;
 }
 
 /** 構えを持たない武器の既定（片手で切っ先を前上へ） */
@@ -134,6 +176,8 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(num(r.offDeg) !== undefined ? { offDeg: num(r.offDeg) } : {}),
     ...(r.worn === true ? { worn: true } : {}),
     ...(r.braced === true ? { braced: true } : {}),
+    ...(r.punch === true ? { punch: true } : {}),
+    ...(num(r.recoil) !== undefined ? { recoil: num(r.recoil) } : {}),
   };
 }
 
@@ -189,6 +233,12 @@ export interface RigInput {
   readonly aimOrigin: Pt;
   /** 銃身が握りの線からずれている量（武器の絵の銃口の印の y、ドット。上なら負） */
   readonly barrelY: number;
+  /** 画面での振る向き（renderMath の screenSwingSign）。省けば段の偶奇 */
+  readonly sign?: number;
+  /** 撃った反動の強さ（0..1、recoilOf）。銃を後ろへ引き、銃口を跳ね上げる */
+  readonly kick?: number;
+  /** 戻しの後半で待機の構えへ寄せる割合（0 = 振り抜いたまま、1 = 待機の構え。restBlendOf） */
+  readonly restBlend?: number;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -224,12 +274,73 @@ function sway(time: number, deg: number): number {
 }
 
 /** 振りの向きの符号（組み立ての空間で時計回りなら +1）。左向きでは写すので逆 */
-function rigSwingSign(step: number, facingRight: boolean): number {
-  return swingSign(step) * (facingRight ? 1 : -1);
+function rigSwingSign(i: Pick<RigInput, "sign" | "step" | "facingRight">): number {
+  return (i.sign ?? swingSign(i.step)) * (i.facingRight ? 1 : -1);
+}
+
+/** 撃った反動: 戻るまでの秒と、1 のときに銃を引く距離（ドット）・銃口を跳ね上げる角 */
+export const RECOIL_TIME = 0.16;
+const RECOIL_BACK = 2.5;
+const RECOIL_CLIMB = 12 * DEG;
+
+/** 撃ってからの秒 → 反動の強さ（撃った瞬間 1、RECOIL_TIME で 0。頭で速く戻る 2 乗の減衰） */
+export function recoilOf(age: number): number {
+  if (!(age >= 0) || age >= RECOIL_TIME) return 0;
+  const u = 1 - age / RECOIL_TIME;
+  return u * u;
+}
+
+/** 戻しのうち、振り抜いたまま止める割合（残心）。その後は待機の構えへ寄せる */
+const REST_BLEND_FROM = 0.45;
+
+/**
+ * 戻しの進みから待機の構えへ寄せる割合。戻しの前半は振り抜いた形で残心を見せ、後半で構え直す
+ * （重い武器の長い戻しで刃を下へ向けたまま止まって見えない。次の段へつながって読める）
+ */
+export function restBlendOf(phase: "none" | "windup" | "active" | "recover", t: number): number {
+  if (phase !== "recover") return 0;
+  const k = Math.min(1, Math.max(0, (t - REST_BLEND_FROM) / (1 - REST_BLEND_FROM)));
+  return k * k * (3 - 2 * k);
+}
+
+/** -π..π に畳む（組み立ての空間の 0 = 前、±π = 真後ろ） */
+function wrapAngle(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/** 2 つの角の間。構え直しは必ず体の前を通す（-π..π で線形に寄せれば真後ろ ±π を横切らない） */
+function lerpAngle(a: number, b: number, k: number): number {
+  const from = wrapAngle(a);
+  return from + (wrapAngle(b) - from) * k;
+}
+
+/** 振りの持ち方から待機の持ち方へ寄せる。刃の写しと前後は半分を越えたら待機の側 */
+function blendPart(from: HeldPart, to: HeldPart, k: number): HeldPart {
+  if (k <= 0) return from;
+  if (k >= 1) return to;
+  const angle = lerpAngle(from.angle, to.angle, k);
+  const late = k >= 0.5;
+  return {
+    hand: { x: from.hand.x + (to.hand.x - from.hand.x) * k, y: from.hand.y + (to.hand.y - from.hand.y) * k },
+    angle,
+    mirror: late ? to.mirror : from.mirror,
+    behind: Math.sin(angle) < BEHIND_SIN,
+    bare: from.bare,
+  };
 }
 
 /** 手と武器の位置を決める */
 export function solveRig(i: RigInput): RigPose {
+  const k = i.restBlend ?? 0;
+  if (k > 0 && i.swing) {
+    const idle: RigInput = { ...i, swing: undefined };
+    const swingMain = mainPart(i);
+    const restMain = mainPart(idle);
+    const main = blendPart(swingMain, restMain, k);
+    const back = blendPart(backPart(i, swingMain), backPart(idle, restMain), k);
+    // 両手持ちの添え手は寄せた主の手から引き直す（柄から離れない）
+    return { front: main, back: i.stance.grip === "two" && i.offGrip !== null ? backPart(i, main) : back };
+  }
   const main = mainPart(i);
   const back = backPart(i, main);
   return { front: main, back };
@@ -249,13 +360,16 @@ function mainPart(i: RigInput): HeldPart {
     const angle = toRigAngle(i.stance.braced ? i.aim : i.swing.angle, i.facingRight);
     const reach = ARM_REACH * poseReachRatio(i.swing);
     const drop = i.stance.grip === "two" ? TWO_HAND_DROP : 0;
-    return part(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), angle, rigSwingSign(i.step, i.facingRight) > 0);
+    return part(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), angle, rigSwingSign(i) > 0);
   }
   if (i.aimHeld) {
     // 銃身の線が弾の出る位置（自分の中心から照準の向き）を通るように、握りを銃身のずれの分だけ反対へ寄せる。
     // 描いた銃口と弾・銃口の閃光の出る線が揃う
-    const angle = toRigAngle(i.aim, i.facingRight) + sway(i.time, i.stance.swayDeg);
-    const grip = at(i.aimOrigin, angle, AIM_REACH);
+    const kick = (i.kick ?? 0) * (i.stance.recoil ?? 1);
+    const aimAngle = toRigAngle(i.aim, i.facingRight);
+    // 反動で銃口が上（組み立ての空間の -y）へ跳ねる。真上・真下を狙っているときも体の外側へ跳ねる
+    const angle = aimAngle + sway(i.time, i.stance.swayDeg) - Math.sign(Math.cos(aimAngle) || 1) * RECOIL_CLIMB * kick;
+    const grip = at(i.aimOrigin, aimAngle, AIM_REACH - RECOIL_BACK * kick);
     return part({ x: grip.x + Math.sin(angle) * i.barrelY, y: grip.y - Math.cos(angle) * i.barrelY }, angle, false, false, false);
   }
   return restPart(i);
@@ -274,7 +388,7 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     if (i.swing && swingSign(i.step) < 0) {
       const angle = toRigAngle(i.swing.angle, i.facingRight);
       const reach = ARM_REACH * poseReachRatio(i.swing);
-      return part(at(i.shoulderB, angle, reach), angle, rigSwingSign(i.step, i.facingRight) > 0, false, true);
+      return part(at(i.shoulderB, angle, reach), angle, rigSwingSign(i) > 0, false, true);
     }
     const off = s.offHand ?? [0, 8];
     const angle = (s.offDeg ?? 150) * DEG - sway(i.time, s.swayDeg);

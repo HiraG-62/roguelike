@@ -3,7 +3,8 @@
 // エフェクト（scripts/fx/raster.mjs）は段の灰色で描いて実行時に配色するが、キャラと武器は素材ごとに色が違うので
 // 色をそのまま持つ。形は「正準座標」で書く: 原点 = 絵の原点（体は足元の中心、武器は握り）、+x = 右（武器は切っ先の向き）、
 // +y = 画面の下、単位は絵のドット（論理 0.5px）。方向のある絵（武器）は paint が回して塗る。
-// 光は画面の左上から当てる（回した武器でも光は画面に固定）。陰は素材の 4 段（暗・基・明・艶）に量子化する
+// 光は左上から当てる。体は画面に固定、方向のある絵（武器）は武器に固定する（localLight: 回しても写しても陰影の並びが
+// 変わらず、振りの途中でコマごとに刃の明暗が入れ替わらない）。陰は素材の 4 段（暗・基・明・艶）に量子化する
 
 /** 画面の光の向き（左上・手前）。正規化済み */
 const LIGHT = (() => {
@@ -54,6 +55,8 @@ export class ColorFrame {
     this.nextGroup = 1;
     /** 位置の印（肩・頭・銃口など。実行時に腕や閃光を合わせる） */
     this.anchors = {};
+    /** 光を絵に固定する（正準座標の法線のまま当てる）。方向の違う絵・写しの絵で陰影を揃える */
+    this.localLight = false;
   }
 
   toGrid(x, y0) {
@@ -149,7 +152,8 @@ export function paint(frame, fn, mat, opts = {}) {
             fixed = r;
             continue;
           }
-          const n = frame.normalToScreen(r.nx, r.ny);
+          // 絵に固定した光でも写しは上下を返した法線で当てる（刃を反対へ向けた絵でも明るい側は同じ）
+          const n = frame.localLight ? { x: r.nx, y: r.ny * frame.my } : frame.normalToScreen(r.nx, r.ny);
           const nz = r.nz ?? Math.sqrt(Math.max(0, 1 - n.x * n.x - n.y * n.y));
           lsum += lightOf(n.x, n.y, nz);
         }

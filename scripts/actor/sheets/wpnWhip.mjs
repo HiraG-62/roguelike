@@ -1,5 +1,6 @@
 // 鞭: 金具の付いた革巻きの柄の先に、編んだ生革の鞭を輪にまとめて巻いて持つ。巻きから短い先端が垂れ、先に赤い房。
-// 振りの長い線はエフェクト（scripts/fx/sheets/whip.mjs）が描くので、手の絵は「巻いた束」にして回しても不自然にしない
+// 振りの長い線はエフェクト（scripts/fx/sheets/whip.mjs）が描くので、手の絵は「巻いた束」にして回しても不自然にしない。
+// 振りの間は束を解いた絵（wpnWhip.swing: 柄と口金から出る鞭の根元だけ）に替え、エフェクトのしなる線を鞭そのものに見せる
 import { capsule, ellipse, paint, polygon, px } from "../paint.mjs";
 import { CLOTH_RED, DARK_STEEL, GOLD, LEATHER, grip, pommel, weaponSheets } from "../weapon.mjs";
 
@@ -45,10 +46,23 @@ function braid(frame, cx, cy, a, b, tilt, n, phase = 0) {
   }
 }
 
-function draw(frame) {
-  // 柄: 革巻き、尻に金の柄頭、先に金の口金
+/** 柄: 革巻き、尻に金の柄頭 */
+function handle(frame) {
   grip(frame, -4, 7, 1.7, LEATHER);
   pommel(frame, -5.6, 2.2, GOLD);
+}
+
+/** 振りの間の絵: 束を解き、口金から鞭の根元が細って伸びる（その先はエフェクトの線が続ける） */
+function drawSwing(frame) {
+  handle(frame);
+  paint(frame, capsule(8.5, 0, 17, 0, 1.2, 0.9), RAWHIDE);
+  braid(frame, 12.5, 0, 4, 0.4, 0, 6, 0);
+  paint(frame, capsule(6.8, 0, 9.2, 0, 2.2, 1.9), GOLD);
+}
+
+function draw(frame) {
+  // 柄: 革巻き、尻に金の柄頭、先に金の口金
+  handle(frame);
   // 巻いた束（奥の輪 → 手前の輪。口金の先に下がる）
   const coil = [
     [17.6, -0.4, 9.4, 6.4, -0.28],
@@ -72,6 +86,11 @@ function draw(frame) {
 
 export const ATLAS = {
   key: "wpnWhip",
-  sheets: weaponSheets("wpnWhip", draw, { size: 80 }),
-  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 40, restHand: [7, 8], swayDeg: 4 } },
+  sheets: [
+    ...weaponSheets("wpnWhip", draw, { size: 80 }),
+    // 振りの間だけ使う解いた絵（実行時の renderer.ts が `<武器>.swing` があれば振りの間に替える）
+    ...weaponSheets("wpnWhip", drawSwing, { size: 48 }).map((sheet) => ({ ...sheet, key: "wpnWhip.swing" })),
+  ],
+  // rope: 戻しで垂れて巻き戻る縄（実行時の render/whipRope.ts）の革の色（暗・基・明）・先の房の色と、握りから縄の出る所（解いた絵の根元の先）
+  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 40, restHand: [7, 8], swayDeg: 4 }, rope: { colors: RAWHIDE.slice(0, 3), tip: CLOTH_RED[1], from: 17 } },
 };

@@ -22,7 +22,7 @@
 2. **点検**: `npm run sprite -- lint <key>` が様式書の癖（輪郭が閉じていない・頭上・最下段・白の量・暗部の無い 3 段 / 5 段崩れ）を座標付きで出す。判定は `spriteDots(key)` の密度に合わせて頭上の行数・中央帯・白の目安・3 段 / 5 段の切り替えが変わる。テストが落とす項目ではないので、意図があれば無視してよい
 3. **Aseprite で直す**（任意）: `npm run sprite -- strip <key> --out art/<key>.png --ase art/<key>.aseprite` で等倍の横一列 PNG と、フレームに分けた `.aseprite`（`PALETTE` を `roguelike.gpl` として同梱）を作る。Aseprite の GUI で手直しするか、Agent なら MCP サーバー `aseprite` のツール（`draw_pixels_at` / `outline_cel` / `replace_color` / `render_onion_skin` など）で編集する。**PALETTE の色以外を置かない**（`quantize_to_palette` で丸められる）
 4. **戻す**: `npm run sprite -- import art/<key>.aseprite --name <NAME>`（横一列 PNG も可、`--cell 24` で 1 フレームの寸法）が `Frame` のリテラルを標準出力に出すので、家族ファイルに貼る。`PALETTE` に無い色があれば失敗する（`--nearest` で最も近い色に丸める）。ゼロから Aseprite で描くときは `create_canvas` → `set_palette`（`npm run sprite -- palette --json` の配列）→ 描く → 同じ手順で戻す
-5. 配布素材や参考画像（`docs/example/`、git 対象外）を下敷きにするときも 4 と同じ経路: PNG を `import --nearest` で `PALETTE` に丸めてから、様式書（輪郭 `k`・左上光源・3 段）に合わせて手で直す
+5. 配布素材や参考画像（docs 直下の example フォルダ。git 対象外で手元にだけ置く）を下敷きにするときも 4 と同じ経路: PNG を `import --nearest` で `PALETTE` に丸めてから、様式書（輪郭 `k`・左上光源・3 段）に合わせて手で直す
 
 ## Spriteloom で下絵の案を出す（任意）
 

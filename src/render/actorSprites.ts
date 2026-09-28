@@ -138,6 +138,17 @@ export function weaponStanceMeta(weapon: string): unknown {
   return meta?.stance;
 }
 
+/** 鞭の縄（武器の絵の meta.rope: 革の 3 段の色・先の房の色と、握りから縄の出る所までのドット）。持たない武器は null */
+export function weaponRope(weapon: string): { colors: readonly string[]; tip: string; from: number } | null {
+  if (!isActorAtlas(weapon)) return null;
+  const meta = ACTOR_ATLASES[weapon].meta as { rope?: { colors?: unknown; tip?: unknown; from?: unknown } } | null;
+  const colors = meta?.rope?.colors;
+  const tip = meta?.rope?.tip;
+  const from = meta?.rope?.from;
+  if (!Array.isArray(colors) || colors.length < 3 || !colors.every((c) => typeof c === "string") || typeof from !== "number") return null;
+  return { colors, tip: typeof tip === "string" ? tip : (colors[1] ?? ""), from };
+}
+
 export function weaponOffGrip(weapon: string): number | null {
   if (!isActorAtlas(weapon)) return null;
   const meta = ACTOR_ATLASES[weapon].meta as { offGrip?: number | null } | null;

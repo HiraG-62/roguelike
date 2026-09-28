@@ -474,6 +474,8 @@ export interface Particle {
   size: number;
   /** 空気抵抗。1 で減衰なし */
   drag: number;
+  /** 自分の銃口の粒の生まれた位置（描画側が描いた銃口へ付け替える基準。ロジックは読まない） */
+  muzzleFrom?: Vec;
 }
 
 export interface FloatingText {

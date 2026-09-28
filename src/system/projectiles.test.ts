@@ -349,3 +349,15 @@ describe("弾の挙動: 周回（円環の理）", () => {
     expect(pr.life, "壁で消えない").toBeGreaterThan(0);
   });
 });
+
+describe("銃口の粒", () => {
+  it("撃った銃口の粒は生まれた位置を持ち、描画側が描いた銃口へ付け替えられる", () => {
+    const state = shooter("pistol");
+    state.particles = [];
+    emitVolley(state, bulletDef("pistol"), 0);
+    expect(state.particles.length, "粒が出る").toBeGreaterThan(0);
+    const from = state.particles[0]?.muzzleFrom;
+    expect(from, "生まれた位置").toEqual(state.projectiles[0]?.pos);
+    for (const pt of state.particles) expect(pt.muzzleFrom, "今出した粒はすべて印を持つ").toEqual(from);
+  });
+});

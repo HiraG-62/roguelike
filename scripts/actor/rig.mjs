@@ -20,7 +20,8 @@ const HIP_Y = -14;
 /**
  * 姿勢の値。
  * bob: 上体の上下（+ で下がる）/ lean: 上体の前後（+ で前へ）/ breath: 胸の膨らみ（0..1）/
- * footF, footB: 前足・後ろ足の { x, lift } / sway: 布の揺れ（-1..1、+ で後ろへなびく）/ tilt: 頭の傾き（+ で前へ）
+ * footF, footB: 前足・後ろ足の { x, lift } / sway: 布の揺れ（-1..1、+ で後ろへなびく）/ tilt: 頭の傾き（+ で前へ）/
+ * reach: 振りで肩を前へ入れる量（+ で前の肩が前・後ろの肩が後ろへ。上体をひねって腕を伸ばす）
  */
 export function pose(p = {}) {
   return {
@@ -32,6 +33,7 @@ export function pose(p = {}) {
     sway: p.sway ?? 0,
     tilt: p.tilt ?? 0,
     squash: p.squash ?? 0,
+    reach: p.reach ?? 0,
   };
 }
 
@@ -69,8 +71,8 @@ export function skeleton(ps) {
     footB,
     kneeF: knee(hipF, footF),
     kneeB: knee(hipB, footB),
-    shoulderF: { x: chest.x + 3, y: chest.y - 3 },
-    shoulderB: { x: chest.x - 4, y: chest.y - 3.5 },
+    shoulderF: { x: chest.x + 3 + ps.reach * 0.7, y: chest.y - 3 },
+    shoulderB: { x: chest.x - 4 - ps.reach * 0.3, y: chest.y - 3.5 },
   };
 }
 
@@ -144,6 +146,62 @@ function hitPose() {
   return pose({ lean: -3, bob: 1, footF: { x: 4, lift: 0 }, footB: { x: -4, lift: 1 }, sway: -0.6, tilt: -2, squash: 1 });
 }
 
+/**
+ * 攻撃の体のコマ（docs/ideas/player-sprites.md 5 章）。振りの形ごとに 6 枚: 0-1 = 予備動作（溜め → 溜め切り）、
+ * 2-3 = 振り（踏み込み → 伸び切り）、4 = 振り抜き（残心で伸びたまま）、5 = 戻し（構えへ落ち着く）。
+ * 実行時は render/playerRig.ts の bodyClip が段階と進みからコマを選ぶ
+ */
+export const ATTACK_FRAMES = 6;
+const f = (x, lift = 0) => ({ x, lift });
+const ATTACK_KEYS = {
+  // 振り下ろし（順手）: 肩の上へ振りかぶって前足を浮かせ、踏み込んで上体を前へ倒しながら斜めに斬り下ろす
+  atkSlash: [
+    { lean: -1.5, bob: 2.5, footF: f(6), footB: f(-6), tilt: -1, sway: -0.3, breath: 0.6, reach: -0.5 },
+    { lean: -2.5, bob: 2, footF: f(5, 1.5), footB: f(-6), tilt: -1.5, sway: -0.5, breath: 1, reach: -1 },
+    { lean: 3, bob: 3, footF: f(9, 0.5), footB: f(-6), tilt: 1, sway: 0.6, reach: 1.2 },
+    { lean: 4.5, bob: 4, footF: f(10), footB: f(-7, 1), tilt: 1.5, sway: 1, reach: 2, squash: 0.5 },
+    { lean: 4, bob: 4.5, footF: f(10), footB: f(-7, 1.5), tilt: 1.5, sway: 1.2, reach: 1.5 },
+    { lean: 2.5, bob: 3.5, footF: f(8), footB: f(-6.5, 0.5), tilt: 0.8, sway: 0.7, reach: 0.5 },
+  ],
+  // 斬り上げ（逆手）: 低く沈んで溜め、後ろ足の踵を上げて伸び上がりながら下から上へ
+  atkRise: [
+    { lean: 0.5, bob: 4, footF: f(7), footB: f(-6), tilt: 0.5, sway: 0, reach: -0.5 },
+    { lean: 1, bob: 5, footF: f(7), footB: f(-7), tilt: 0.5, sway: -0.3, reach: -1 },
+    { lean: 2.5, bob: 2, footF: f(8), footB: f(-6, 1.5), tilt: -0.5, sway: 0.8, breath: 1, reach: 1.5 },
+    { lean: 3, bob: 0.5, footF: f(8), footB: f(-5, 3), tilt: -1, sway: 1.2, breath: 1.2, reach: 2 },
+    { lean: 2.5, bob: 0.5, footF: f(8), footB: f(-5, 2.5), tilt: -1, sway: 1.3, breath: 1, reach: 1.5 },
+    { lean: 2, bob: 2, footF: f(7), footB: f(-6, 0.5), tilt: 0, sway: 0.7, reach: 0.5 },
+  ],
+  // 叩きつけ（重い振り下ろし）: 伸び上がって大きく反り、深く沈み込んで全身で叩き下ろす
+  atkSlam: [
+    { lean: -2, bob: 0.5, footF: f(6, 1), footB: f(-6), tilt: -1.5, sway: -0.5, breath: 1.5, reach: -0.5 },
+    { lean: -3, bob: 0, footF: f(5, 2.5), footB: f(-6, 0.5), tilt: -2, sway: -0.7, breath: 1.5, reach: -1 },
+    { lean: 3.5, bob: 4, footF: f(9), footB: f(-7), tilt: 1.5, sway: 0.8, reach: 1 },
+    { lean: 5, bob: 6, footF: f(10), footB: f(-8), tilt: 2, sway: 1.2, squash: 1.5, reach: 2 },
+    { lean: 5, bob: 6, footF: f(10), footB: f(-8), tilt: 2, sway: 0.9, squash: 1.2, reach: 1.5 },
+    { lean: 3, bob: 4.5, footF: f(9), footB: f(-7), tilt: 1, sway: 0.5, reach: 0.5 },
+  ],
+  // 突き: 後ろへ体重を引いて前足を浮かせ、大きく踏み込んで肩ごと突き出す
+  atkThrust: [
+    { lean: -1.5, bob: 3, footF: f(5), footB: f(-7), tilt: -0.5, sway: -0.3, reach: -1 },
+    { lean: -2.5, bob: 3.5, footF: f(4, 1), footB: f(-8), tilt: -0.5, sway: -0.5, reach: -1.5 },
+    { lean: 4, bob: 3.5, footF: f(11, 0.5), footB: f(-8), tilt: 1, sway: 1, reach: 2.5 },
+    { lean: 5.5, bob: 4, footF: f(12), footB: f(-9, 0.5), tilt: 1, sway: 1.3, reach: 3 },
+    { lean: 5, bob: 4, footF: f(12), footB: f(-9, 1), tilt: 1, sway: 1.1, reach: 2.5 },
+    { lean: 3, bob: 3, footF: f(9), footB: f(-7), tilt: 0.5, sway: 0.6, reach: 1 },
+  ],
+  // 回転: 腰を落として逆へひねり、足を開いたまま布を振り回す
+  atkSpin: [
+    { lean: -1, bob: 3.5, footF: f(7), footB: f(-7), sway: -0.4, reach: -0.5 },
+    { lean: -1.5, bob: 4, footF: f(7), footB: f(-7), sway: -0.6, reach: -1 },
+    { lean: 1.5, bob: 3, footF: f(8), footB: f(-8, 1), sway: 1.2, reach: 1.5 },
+    { lean: 0, bob: 2.5, footF: f(7, 1), footB: f(-8), sway: -1, reach: -1 },
+    { lean: 1, bob: 3, footF: f(8), footB: f(-7), sway: 1, reach: 1 },
+    { lean: 1, bob: 3, footF: f(7), footB: f(-6.5), sway: 0.5, reach: 0.5 },
+  ],
+};
+export const ATTACK_CLIP_KEYS = Object.keys(ATTACK_KEYS);
+
 /** 体のシートの並び（名前・枚数・姿勢）。実行時の render/playerRig.ts の BODY_CLIPS と同じ名前 */
 export const BODY_CLIPS = [
   ...IDLE_STANCE_KEYS.map((k) => ({ name: `idle${capital(k)}`, frames: IDLE_FRAMES, pose: idlePose(k) })),
@@ -152,6 +210,7 @@ export const BODY_CLIPS = [
   { name: "windup", frames: 1, pose: windupPose },
   { name: "strike", frames: 1, pose: strikePose },
   { name: "hit", frames: 1, pose: hitPose },
+  ...ATTACK_CLIP_KEYS.map((k) => ({ name: k, frames: ATTACK_FRAMES, pose: (i) => pose(ATTACK_KEYS[k][i]) })),
 ];
 
 /**

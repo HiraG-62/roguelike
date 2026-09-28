@@ -1,6 +1,6 @@
 import { actionKeyLabel } from "../core/input";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { BossState, Enemy, FloorKind, GameState, Hazard, Player, Projectile, RoomKind, RoomState } from "../core/state";
+import type { BossState, Enemy, FloorKind, GameState, Hazard, Particle, Player, Projectile, RoomKind, RoomState } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
@@ -78,6 +78,8 @@ import {
   slashWeight,
   swingSign,
   weaponGrip,
+  poseShape,
+  screenSwingSign,
   weaponPose,
 } from "./renderMath";
 import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
@@ -93,11 +95,12 @@ import { drawDoubleChargeLine } from "./chargeLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
-import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, setPlayerMuzzle } from "./fxAttack";
+import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
-import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
-import { type ArmInk, type HeldPart, type Pt, armPixels, bodyClip, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
-import { type FxMotion, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
+import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
+import { ropePixels, ropePoints } from "./whipRope";
+import { type ArmInk, type HeldPart, type Pt, armPixels, attackClip, bodyClip, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -510,18 +513,32 @@ const PLAYER_SPRITE_LIFT = 2;
 /** 溜め中の武器を段の色で染める強さ */
 const CHARGE_WEAPON_TINT = 0.55;
 /** 高精細のプレイヤーを組む作業面の一辺と原点（足元、絵のドット）。大剣を振り上げても収まる大きさ */
-const RIG_CANVAS = 192;
+/** 作業面（右向き。鞭の縄が前へ長く伸びるので横に広い） */
+const RIG_W = 320;
+const RIG_H = 192;
 const RIG_ORIGIN_X = 96;
 const RIG_ORIGIN_Y = 132;
 /** 腕の輪郭（scripts/actor/paint.mjs の OUTLINE と同じ） */
 const COLOR_RIG_OUTLINE = "#14121c";
 /** 手が前の肩よりこれだけ後ろ（ドット）へ回ったら、前の腕を体の後ろに描く */
 const RIG_ARM_BEHIND_X = 3;
+/** 鞭の縄の先の房（ドット） */
+const ROPE_TASSEL_W = 3;
+const ROPE_TASSEL_H = 2;
+/** 振りの間の絵を使う、構え直しの割合の上限（これを越えたら待機の絵へ戻す） */
+const SWING_ART_UNTIL = 0.5;
+/** 反動 1・強さ 1 のときに体ごと後ろへ揺らす距離（論理 px。丸めるので強い銃だけ動く） */
+const RIG_RECOIL_JOLT = 0.8;
+/** 振りの残像（遅れ = 振りの進みの差、濃さ）。古いものから描く */
+const RIG_SWING_GHOSTS: readonly (readonly [number, number])[] = [
+  [0.36, 0.18],
+  [0.18, 0.35],
+];
 
 function createRigCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
-  canvas.width = RIG_CANVAS;
-  canvas.height = RIG_CANVAS;
+  canvas.width = RIG_W;
+  canvas.height = RIG_H;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("rig canvas");
   ctx.imageSmoothingEnabled = false;
@@ -533,6 +550,18 @@ const SLASH_TINT = 0.7;
 const SLASH_DEFAULT_COLOR = "#8ce0f0";
 
 /** 今の振りの専用スプライトの描き方（Renderer.swingPlan）。frame が null は流し切った */
+/** 今の振り（段階・進み・当たりの形と前への距離・段） */
+interface PlayerSwing {
+  readonly phase: SwingPhase;
+  readonly t: number;
+  readonly shape: HitShape;
+  readonly reach: number;
+  readonly heavy: boolean;
+  readonly step: number;
+  /** 手に持つ武器と体の動きの形（poseShape。当たり判定の形を武器の構えで読み替えたもの） */
+  readonly pose: HitShape["kind"];
+}
+
 interface SwingPlan {
   motion: FxMotion;
   frame: number | null;
@@ -1294,7 +1323,18 @@ export class Renderer {
     drawParryMarks(this.ctx, state, this.fxBank);
     drawUltimateAir(this.ctx, state, this.fxBank);
     const skipUlt = ultimateSpritesReady(chosenUltimate(state).key, this.fxBank);
-    drawParticleFx(this.ctx, state.particles, state.time, skipUlt ? isUltimateFx : undefined);
+    drawParticleFx(this.ctx, this.particlesAtMuzzle(state.particles), state.time, skipUlt ? isUltimateFx : undefined);
+  }
+
+  /** 自分の銃口の粒を、描いた銃口（胸の高さの銃の先）からの位置へ付け替える。描いた銃口が無ければそのまま */
+  private particlesAtMuzzle(particles: readonly Particle[]): readonly Particle[] {
+    const m = this.rigMuzzle;
+    if (!m || !particles.some((pt) => pt.muzzleFrom)) return particles;
+    return particles.map((pt) => {
+      const from = pt.muzzleFrom;
+      if (!from) return pt;
+      return { ...pt, pos: { x: m.x + pt.pos.x - from.x, y: m.y + pt.pos.y - from.y } };
+    });
   }
 
   /**
@@ -2074,23 +2114,34 @@ export class Renderer {
   }
 
   /** 今の振りの段階と進み・形。溜め中は予備動作の終わりで止める（C-2） */
-  private playerSwing(state: GameState): { phase: SwingPhase; t: number; shape: HitShape; step: number } {
+  private playerSwing(state: GameState): PlayerSwing {
     const p = state.player;
     const moveset = playerMoveset(state);
-    if (p.attack.charging) return { phase: "windup", t: 1, shape: moveset.charge?.step.shape ?? moveset.steps[0]?.shape ?? SHAPE_ARC, step: 0 };
+    const atlas = weaponAtlas(moveset.key);
+    const punch = atlas ? stanceFromMeta(weaponStanceMeta(atlas)).punch === true : false;
+    const of = (s: { shape: HitShape; reach: number; heavy: boolean } | undefined, phase: SwingPhase, t: number, step: number): PlayerSwing => {
+      const shape = s?.shape ?? SHAPE_ARC;
+      const reach = s?.reach ?? 0;
+      return { phase, t, shape, reach, heavy: s?.heavy ?? false, step, pose: poseShape(shape.kind, reach, punch) };
+    };
+    const first = moveset.steps[0];
+    if (p.attack.charging) {
+      const charge = moveset.charge?.step ?? first;
+      return { ...of(charge, "windup", 1, 0), heavy: true };
+    }
     const step = currentMeleeStep(state);
-    if (!step || !isAttacking(p)) return { phase: "none", t: 0, shape: moveset.steps[0]?.shape ?? SHAPE_ARC, step: 0 };
-    return { phase: p.attack.phase, t: phaseProgress(p.attack.phase, p.attack.timer, step), shape: step.shape, step: p.attack.step };
+    if (!step || !isAttacking(p)) return of(first, "none", 0, 0);
+    return of(step, p.attack.phase, phaseProgress(p.attack.phase, p.attack.timer, step), p.attack.step);
   }
 
-  private heldWeaponPose(state: GameState, swing: { phase: SwingPhase; t: number; shape: HitShape; step: number }): WeaponPose {
+  private heldWeaponPose(state: GameState, swing: PlayerSwing): WeaponPose {
     const p = state.player;
     const aimVec = swing.phase === "none" ? p.facing : p.attack.dir;
     const moveset = playerMoveset(state);
     return weaponPose({
       phase: swing.phase,
       t: swing.t,
-      shape: swing.shape.kind,
+      shape: swing.pose,
       deg: swing.shape.kind === "arc" ? swing.shape.deg : 0,
       aim: Math.atan2(aimVec.y, aimVec.x),
       step: swing.step,
@@ -2098,6 +2149,7 @@ export class Renderer {
       aimHeld: moveset.primary === "shot",
       edge: WEAPON_EDGE[moveset.key],
       hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
+      sign: screenSwingSign(swing.step, p.facing.x >= 0, swing.pose, swing.heavy),
     });
   }
 
@@ -2126,6 +2178,17 @@ export class Renderer {
       walkTime: p.walkTime,
       time: state.time,
       idle: stance.body,
+      ...(swing.phase !== "none"
+        ? {
+            attack: attackClip(
+              swing.pose,
+              screenSwingSign(swing.step, true, swing.pose, swing.heavy),
+              swing.heavy,
+              stance,
+            ),
+            t: swing.t,
+          }
+        : {}),
     });
     const bodyKey = `${body}.${clip.clip}`;
     const bodyCell = this.actorBank.cell(bodyKey, 0, clip.frame);
@@ -2135,7 +2198,7 @@ export class Renderer {
     const facingRight = p.facing.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;
-    const rig = solveRig({
+    const rigInput = {
       stance,
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
       step: swing.step,
@@ -2148,11 +2211,25 @@ export class Renderer {
       offGrip: weaponOffGrip(weapon),
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
-    });
+      restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
+      kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
+      sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
+    };
+    const rig = solveRig(rigInput);
 
     const rc = this.rigCanvas;
     const g = rc.ctx;
-    g.clearRect(0, 0, RIG_CANVAS, RIG_CANVAS);
+    g.clearRect(0, 0, RIG_W, RIG_H);
+    // 振りの残像: 少し前の進みの武器を薄く重ねて、速い振りの軌道を見せる（手にはめる武器は拳の残像になるので描かない）
+    if (swing.phase === "active" && stance.worn !== true) {
+      const dualOff = stance.grip === "dual" && swingSign(swing.step) < 0;
+      for (const [lag, alpha] of RIG_SWING_GHOSTS) {
+        const past = solveRig({ ...rigInput, swing: this.heldWeaponPose(state, { ...swing, t: Math.max(0, swing.t - lag) }) });
+        g.globalAlpha = alpha;
+        this.rigWeapon(weapon, dualOff ? past.back : past.front, true);
+      }
+      g.globalAlpha = 1;
+    }
     const twoHanded = rig.back.bare && stance.grip === "two";
     // 手にはめる武器（爪・籠手）は腕の上に重ねる（拳の代わり）。それ以外は武器の上に腕と拳を重ねる
     const worn = stance.worn === true;
@@ -2160,8 +2237,10 @@ export class Renderer {
       this.rigArm(shoulder, part, colors.sleeve, colors.hand, dim, !worn || part.bare);
       if (worn) this.rigWeapon(weapon, part);
     };
+    // 振りの間の絵（鞭は束を解いて、エフェクトのしなる線を鞭そのものに見せる）。構え直しの半ばで元の絵へ戻す
+    const swingArt = (swing.phase === "active" || swing.phase === "recover") && (rigInput.restBlend ?? 0) < SWING_ART_UNTIL;
     const heldWeapon = (part: HeldPart): void => {
-      if (!worn) this.rigWeapon(weapon, part);
+      if (!worn) this.rigWeapon(weapon, part, swingArt && part === rig.front);
     };
     // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く
     const backFront = !twoHanded && !rig.back.behind;
@@ -2177,6 +2256,8 @@ export class Renderer {
     if (!rig.front.behind) heldWeapon(rig.front);
     if (twoHanded) arm(shoulderB, rig.back, false);
     if (!frontArmBehind) arm(shoulderF, rig.front, false);
+    // 鞭: 振り抜いた後、エフェクトの線が薄れてから縄が垂れて手元へ巻き戻る
+    if (swing.phase === "recover") this.rigRope(weapon, rig.front, swing);
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
@@ -2192,7 +2273,9 @@ export class Renderer {
       }
     }
     if (blink) return true;
-    this.blitRig(p.hitFlash > 0 && white ? white : rc.canvas, cx, bottom, !facingRight, 1);
+    // 重い銃の反動で体ごと後ろへ 1px 揺れる（論理 px に丸める。軽い銃は揺れない）
+    const jolt = Math.round((rigInput.kick ?? 0) * (stance.recoil ?? 1) * RIG_RECOIL_JOLT) * (facingRight ? -1 : 1);
+    this.blitRig(p.hitFlash > 0 && white ? white : rc.canvas, cx + jolt, bottom, !facingRight, 1);
     return true;
   }
 
@@ -2214,14 +2297,37 @@ export class Renderer {
     this.rigCanvas.ctx.drawImage(cell.img, cell.sx, cell.sy, cell.w, cell.h, px, py, cell.w, cell.h);
   }
 
-  private rigWeapon(weapon: string, part: HeldPart): void {
+  /**
+   * 手に持つ武器の絵を置く。swingArt なら振りの間の絵（`<武器>.swing`。鞭の解いた柄など）があればそれを使う
+   */
+  private rigWeapon(weapon: string, part: HeldPart, swingArt = false): void {
     if (part.bare) return;
     const mirrored = `${weapon}.heldM`;
-    const key = part.mirror && actorSheet(mirrored) ? mirrored : `${weapon}.held`;
+    const swingKey = `${weapon}.swing`;
+    const key = swingArt && actorSheet(swingKey) ? swingKey : part.mirror && actorSheet(mirrored) ? mirrored : `${weapon}.held`;
     const sheet = actorSheet(key);
     if (!sheet) return;
     const cell = this.actorBank.cell(key, actorDir(part.angle, sheet.dirs), 0);
     if (cell) this.rigCell(cell, part.hand.x, part.hand.y);
+  }
+
+  /** 鞭の縄（whipRope.ts）を作業面に描く。縄を持たない武器・描かない間は何もしない */
+  private rigRope(weapon: string, part: HeldPart, swing: PlayerSwing): void {
+    const rope = weaponRope(weapon);
+    if (!rope) return;
+    const from = { x: part.hand.x + Math.cos(part.angle) * rope.from, y: part.hand.y + Math.sin(part.angle) * rope.from };
+    const length = Math.max(0, swing.reach * ACTOR_ART_SCALE - Math.hypot(from.x, from.y));
+    const g = this.rigCanvas.ctx;
+    const points = ropePoints({ from, angle: part.angle, length, t: swing.t });
+    for (const px of ropePixels(points)) {
+      g.fillStyle = px.ink === 0 ? COLOR_RIG_OUTLINE : (rope.colors[px.ink - 1] ?? COLOR_RIG_OUTLINE);
+      g.fillRect(RIG_ORIGIN_X + px.x, RIG_ORIGIN_Y + px.y, 1, 1);
+    }
+    // 先の房（束ねた絵の先と同じ赤）
+    const tip = points[points.length - 1];
+    if (!tip) return;
+    g.fillStyle = rope.tip;
+    g.fillRect(RIG_ORIGIN_X + Math.floor(tip.x) - 1, RIG_ORIGIN_Y + Math.floor(tip.y), ROPE_TASSEL_W, ROPE_TASSEL_H);
   }
 
   private rigArm(shoulder: Pt, part: HeldPart, sleeve: readonly string[], hand: readonly string[], dim: boolean, withHand = true): void {
@@ -2248,7 +2354,7 @@ export class Renderer {
     w.ctx.drawImage(this.rigCanvas.canvas, 0, 0);
     w.ctx.globalCompositeOperation = "source-in";
     w.ctx.fillStyle = COLOR_WHITE;
-    w.ctx.fillRect(0, 0, RIG_CANVAS, RIG_CANVAS);
+    w.ctx.fillRect(0, 0, RIG_W, RIG_H);
     w.ctx.globalCompositeOperation = "source-over";
     return w.canvas;
   }
@@ -2261,7 +2367,7 @@ export class Renderer {
     ctx.globalAlpha = alpha;
     ctx.translate(snapArt(x), snapArt(y));
     if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(img, -RIG_ORIGIN_X * s, -RIG_ORIGIN_Y * s, RIG_CANVAS * s, RIG_CANVAS * s);
+    ctx.drawImage(img, -RIG_ORIGIN_X * s, -RIG_ORIGIN_Y * s, RIG_W * s, RIG_H * s);
     ctx.restore();
   }
 
@@ -2422,7 +2528,8 @@ export class Renderer {
     this.fxBank.draw(this.ctx, plan.motion.sheet, plan.frame, plan.origin.x, plan.origin.y, plan.angle, plan.opts);
     // 当たりの中心に淡い加算の光（ドット絵の上に空気の明るさを足す。形は絵が担う）
     if (plan.active) {
-      this.drawGlow(plan.anchor.x, plan.anchor.y, rampColors(plan.opts.ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
+      const glow = plan.motion.pivot === "muzzle" ? plan.origin : plan.anchor;
+      this.drawGlow(glow.x, glow.y, rampColors(plan.opts.ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
     }
     return true;
   }
@@ -2462,14 +2569,21 @@ export class Renderer {
       progress,
       anchor,
       // 自分を中心に振る絵は、描いた腕の肩（武器の振りの支点）から出す。当たり判定の位置は変えない
-      origin: motion.pivot === "self" ? (this.rigSwingPivot ?? p.body.pos) : anchor,
+      origin: this.swingOrigin(motion.pivot, p, anchor),
       angle: Math.atan2(p.attack.dir.y, p.attack.dir.x),
       opts: {
         ramp: swingRamp(state, step),
-        ccw: mirrorFlip(motion.mirror, swingSign(p.attack.step) < 0, p.attack.dir.x < 0),
+        ccw: mirrorFlip(motion.mirror, screenSwingSign(p.attack.step, p.facing.x >= 0, poseShape(step.shape.kind, step.reach), step.heavy) < 0, p.attack.dir.x < 0),
         scale: fitScale(actual, motion.base, c.scaleTolerance),
       },
     };
+  }
+
+  /** 振りの絵の原点。自分を中心に振る絵は描いた腕の肩（武器の振りの支点）、杖の紋は描いた杖の先から出す */
+  private swingOrigin(pivot: FxPivot, p: Player, anchor: Pt): Pt {
+    if (pivot === "self") return this.rigSwingPivot ?? p.body.pos;
+    if (pivot === "muzzle" && this.rigMuzzle) return { x: this.rigMuzzle.x, y: this.rigMuzzle.y };
+    return anchor;
   }
 
   /**
