@@ -2251,7 +2251,7 @@ export class Renderer {
       heldWeapon(rig.front);
       this.rigHand(rig.back.hand, colors.hand);
     } else {
-      this.rigLayers(rig, shoulderF, shoulderB, bodyCell, twoHanded, arm, heldWeapon);
+      this.rigLayers(rig, shoulderF, shoulderB, bodyCell, twoHanded, arm, heldWeapon, colors.hand);
     }
     // 鞭: 振り抜いた後、エフェクトの線が薄れてから縄が垂れて手元へ巻き戻る
     if (swing.phase === "recover") this.rigRope(weapon, rig.front, swing);
@@ -2285,11 +2285,14 @@ export class Renderer {
     twoHanded: boolean,
     arm: (shoulder: Pt, part: HeldPart, dim: boolean) => void,
     heldWeapon: (part: HeldPart) => void,
+    handColors: readonly string[],
   ): void {
-    // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く
+    // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く。
+    // 両手持ちの添え手が体の前にあれば、腕は武器の下に描いて柄を握る拳だけを武器の上に重ね直す（後ろの腕が武器より手前に浮かない）
     const backFront = !twoHanded && !rig.back.behind;
+    const backUnderWeapon = twoHanded && !rig.back.behind;
     if (!rig.back.bare && rig.back.behind) heldWeapon(rig.back);
-    if (!twoHanded && !backFront) arm(shoulderB, rig.back, true);
+    if (rig.back.behind) arm(shoulderB, rig.back, true);
     // 振りかぶって手が頭の後ろへ回ったら、腕も体の後ろ（顔の前を腕が横切らない）
     const frontArmBehind = rig.front.behind || rig.front.hand.x < shoulderF.x - RIG_ARM_BEHIND_X;
     if (rig.front.behind) heldWeapon(rig.front);
@@ -2297,8 +2300,9 @@ export class Renderer {
     this.rigCell(bodyCell, 0, 0);
     if (!rig.back.bare && !rig.back.behind) heldWeapon(rig.back);
     if (backFront) arm(shoulderB, rig.back, true);
+    if (backUnderWeapon) arm(shoulderB, rig.back, true);
     if (!rig.front.behind) heldWeapon(rig.front);
-    if (twoHanded) arm(shoulderB, rig.back, false);
+    if (backUnderWeapon) this.rigHand(rig.back.hand, handColors);
     if (!frontArmBehind) arm(shoulderF, rig.front, false);
   }
 
