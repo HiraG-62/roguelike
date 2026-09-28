@@ -18,6 +18,8 @@ const EDGE_SLACK = 1;
 const THRUST_SLACK = 5;
 /** 拳・爪・盾は腕ごと前へ突き出して打つので、全段を突きと同じ余裕で見る */
 const ARM_STRIKE: readonly MovesetKey[] = ["fists", "claws", "shield"];
+/** 鎖で振る武器は鎖が伸びる分だけ刃先より遠くへ届いてよい（px）。鎖を投げる技は BEYOND_BLADE */
+const CHAIN_REACH: Partial<Record<MovesetKey, number>> = { flail: 8, chainSickle: 8 };
 /** 溜めの段で届く距離の倍率の上限。溜めは威力と怯み値で強くし、届く距離は刃先のまま（伸ばすと刃から離れた所に当たる） */
 const MAX_CHARGE_REACH_MUL = 1;
 
@@ -78,7 +80,7 @@ describe("近接の当たり判定の外縁", () => {
     const tip = GRIP_FROM_CENTER + (bladeLength(key) ?? 0);
     const over = swingsOf(MOVESETS[key])
       .filter(({ label }) => !exempt(key, label))
-      .map(({ label, step }) => ({ label, edge: outerEdge(step), cap: tip + EDGE_SLACK + (step.shape.kind === "thrust" || ARM_STRIKE.includes(key) ? THRUST_SLACK : 0) }))
+      .map(({ label, step }) => ({ label, edge: outerEdge(step), cap: tip + EDGE_SLACK + (CHAIN_REACH[key] ?? 0) + (step.shape.kind === "thrust" || ARM_STRIKE.includes(key) ? THRUST_SLACK : 0) }))
       .filter(({ edge, cap }) => edge > cap + 1e-6)
       .map(({ label, edge, cap }) => `${label}: 外縁 ${edge.toFixed(1)} > ${cap.toFixed(1)}`);
     expect(over, `${key}（刃先 ${tip.toFixed(1)}px）`).toEqual([]);
