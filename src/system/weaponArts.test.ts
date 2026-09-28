@@ -434,7 +434,8 @@ describe("銃の家系", () => {
     expect(featuresOf(playerShots(lob)[0]), "左は曲射").toEqual(["lob"]);
 
     const state = arena(5, { moveset: "grenade", bullet: "mortar" });
-    const e = tough(placeEnemy(state, "boar", 20));
+    // 筒払いは振り始めに自分が下がるので、懐（筒の先の届く所）の敵に当てる
+    const e = tough(placeEnemy(state, "boar", 10));
     play(state, [{ shootHeld: true }]);
     expect(laneKey(state)).toBe("tubeBash");
     expect(state.player.knock.x, "後ろへ下がった").toBeLessThan(0);

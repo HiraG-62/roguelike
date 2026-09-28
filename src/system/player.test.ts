@@ -420,7 +420,7 @@ describe("武器種: 形とリーチ", () => {
     const sword = arena(5, { moveset: "sword" });
     for (const st of [spear, sword]) st.player.attack.dir = { x: 1, y: 0 };
     const far = (st: GameState) => ({ x: st.player.body.pos.x + 40, y: st.player.body.pos.y });
-    const side = (st: GameState) => ({ x: st.player.body.pos.x + 10, y: st.player.body.pos.y + 14 });
+    const side = (st: GameState) => ({ x: st.player.body.pos.x + 10, y: st.player.body.pos.y + 10 });
     const sp = meleeStep(spear.stats, 0);
     const sw = meleeStep(sword.stats, 0);
     if (!sp || !sw) throw new Error("段が無い");
@@ -510,7 +510,7 @@ describe("武器種: 大剣の溜め", () => {
     expect(tap.player.attack.step).toBe(0);
   });
 
-  it("溜めるほど威力・怯み値・リーチが伸びる", () => {
+  it("溜めるほど威力・怯み値が伸び、届く距離は刃先のまま", () => {
     const state = arena(5, { moveset: "greatsword" });
     const tap = meleeStep(state.stats, 0);
     const lv1 = meleeStep(state.stats, 0, false, 1);
@@ -519,7 +519,7 @@ describe("武器種: 大剣の溜め", () => {
     expect(lv3.damage).toBeGreaterThan(lv1.damage);
     expect(lv1.damage).toBeGreaterThan(tap.damage);
     expect(lv3.poise).toBeGreaterThan(lv1.poise);
-    expect(lv3.reach).toBeGreaterThan(lv1.reach);
+    expect(lv3.reach, "溜めても刃より遠くへは届かない").toBe(lv1.reach);
   });
 
   it("溜め攻撃は正面の敵に当たり、tap より多く削る", () => {
