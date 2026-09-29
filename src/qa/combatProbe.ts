@@ -1,0 +1,489 @@
+import { createGame, step } from "../core/game";
+import { EMPTY_INPUT, type FrameInput } from "../core/input";
+import { FIXED_DT } from "../core/loop";
+import type { Enemy, GameState } from "../core/state";
+import { dist, normalize, sub, type Vec } from "../core/vec";
+import { ACTION_TEXT } from "../data/actionText";
+import { enemyDef } from "../data/enemies";
+import { DEFAULT_STATS } from "../loot/types";
+import { createEnemy } from "../system/enemies";
+import { withBaseAreaMul } from "../system/floor";
+import { isStaggered } from "../system/poise";
+import { createCombatRecorder, sumBands, type CombatBandTally } from "./combatMetrics";
+
+/**
+ * 1 対 1 / 集団の「連打」計測（docs/ideas/core-synthesis.md 9 章 段取り 1、encounter-core.md 12 章 Q0）。
+ * 戦闘の核を変える前後で同じ物差しを当てるための道具で、結果は src/qa/probe.md（`npm run qa:probe`）。
+ * ゲームのロジックは変えず、実際の step() を回して数えるだけ。
+ * system/testHelpers.ts は本体から import してはいけないので、必要な部屋づくりはここに持つ。
+ */
+
+/** 見切りの浮き文字（system/combat.ts の justDodge が出す。actionText には無いのでここに写す） */
+const JUST_DODGE_TEXT = "見切り！";
+
+export type ProbeBot = "mash" | "mashDodge" | "mashKite";
+
+export const PROBE_BOT_LABEL: Readonly<Record<ProbeBot, string>> = {
+  mash: "連打",
+  mashDodge: "連打+ダッシュ",
+  mashKite: "連打+離脱",
+};
+
+/** 敵との間合い（px）。これより遠いと近づく */
+const BOT_REACH = 20;
+/** これより近い敵の予備動作 / 攻撃を危険とみなす（px） */
+const DANGER_RANGE = 55;
+/** ダッシュで避ける: 予備動作の終わりまでの残り秒がこれ未満になったら踏み出す（見切りの猶予に合わせた） */
+const DODGE_WINDUP_LEFT = 0.12;
+/** 1 対 1: 敵を置く距離（px） */
+const DUEL_ENEMY_DISTANCE = 40;
+/** 1 対 1: 置いた敵の初回攻撃までの待ち（秒） */
+const DUEL_FIRST_COOLDOWN = 0.3;
+/** 1 対 1: 死なないように保つ最低 HP（被弾は数える） */
+const DUEL_HP_FLOOR = 50;
+/** 集団: 敵を円形に置く半径（px） */
+const GROUP_RING_RADIUS = 60;
+/** 集団: 敵ごとの初回攻撃までの待ちをずらす（同時に殴りかからないように） */
+const GROUP_COOLDOWN_BASE = 0.3;
+const GROUP_COOLDOWN_STAGGER = 0.2;
+/** 集団: この HP 以下になったら「死亡」に数えて全快させる */
+const GROUP_DEATH_HP = 30;
+
+const NO_MOVE: Vec = { x: 0, y: 0 };
+
+function frameInput(partial: Partial<FrameInput>): FrameInput {
+  return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
+}
+
+/** 敵のいない開始部屋。クリティカルは切る（乱数で数値がぶれないように）。マップは基準の大きさで作る */
+function makeArena(seed: number, depth: number): GameState {
+  const state = withBaseAreaMul(() => createGame(seed));
+  state.enemies = [];
+  state.depth = depth;
+  state.stats = { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [] };
+  state.player.maxHp = state.stats.maxHp;
+  state.player.hp = state.stats.maxHp;
+  state.player.dashChargesLeft = state.stats.dashCharges;
+  state.player.facing = { x: 1, y: 0 };
+  return state;
+}
+
+function placeEnemy(state: GameState, key: string, dx: number, dy: number): Enemy {
+  const p = state.player.body.pos;
+  const e = createEnemy(state, enemyDef(key), { x: p.x + dx, y: p.y + dy }, 0, false);
+  state.enemies.push(e);
+  e.phase = "chase";
+  return e;
+}
+
+function nearestEnemy(state: GameState): Enemy | undefined {
+  const p = state.player.body.pos;
+  let best: Enemy | undefined;
+  let bestDist = Infinity;
+  for (const e of state.enemies) {
+    const d = dist(e.body.pos, p);
+    if (d >= bestDist) continue;
+    bestDist = d;
+    best = e;
+  }
+  return best;
+}
+
+/** bot の入力。最も近い敵へ向かって殴り続け、bot ごとに予備動作への対処が違う */
+function botInput(state: GameState, bot: ProbeBot): FrameInput {
+  const p = state.player;
+  const target = nearestEnemy(state);
+  if (!target) return frameInput({});
+  const d = dist(target.body.pos, p.body.pos);
+  const toward = normalize(sub(target.body.pos, p.body.pos));
+  p.facing = toward;
+  const away: Vec = { x: -toward.x, y: -toward.y };
+
+  if (bot === "mashKite") {
+    const danger = state.enemies.some(
+      (e) => (e.phase === "windup" || e.phase === "strike") && dist(e.body.pos, p.body.pos) < DANGER_RANGE,
+    );
+    if (danger) return frameInput({ move: away, aimScreen: null });
+  }
+  if (bot === "mashDodge" && p.dashChargesLeft > 0) {
+    const threat = state.enemies.find(
+      (e) => e.phase === "windup" && e.phaseTimer < DODGE_WINDUP_LEFT && dist(e.body.pos, p.body.pos) < DANGER_RANGE,
+    );
+    if (threat) {
+      const escape = normalize(sub(p.body.pos, threat.body.pos));
+      return frameInput({ dashPressed: true, move: escape, aimScreen: null });
+    }
+  }
+  return frameInput({ attackPressed: true, aimScreen: null, move: d > BOT_REACH ? toward : NO_MOVE });
+}
+
+/** 1 回の計測の生の数（seed をまたいで足せる） */
+export interface ProbeCounts {
+  /** 観測した時間（秒。ヒットストップで止まった分も含む実時間） */
+  seconds: number;
+  kills: number;
+  hitsTaken: number;
+  damageTaken: number;
+  /** HP が GROUP_DEATH_HP 以下になった回数（集団のみ） */
+  deaths: number;
+  counters: number;
+  dodges: number;
+  /** 生きている敵 × step の延べ数と、そのうち怯み中だった数 */
+  enemySteps: number;
+  staggeredEnemySteps: number;
+  band: CombatBandTally;
+}
+
+function emptyCounts(): ProbeCounts {
+  return {
+    seconds: 0,
+    kills: 0,
+    hitsTaken: 0,
+    damageTaken: 0,
+    deaths: 0,
+    counters: 0,
+    dodges: 0,
+    enemySteps: 0,
+    staggeredEnemySteps: 0,
+    band: { steps: 0, hitstopSteps: 0, windups: 0, strikes: 0, engagedSteps: 0, engagementSeconds: [] },
+  };
+}
+
+function addCounts(into: ProbeCounts, from: ProbeCounts): void {
+  into.seconds += from.seconds;
+  into.kills += from.kills;
+  into.hitsTaken += from.hitsTaken;
+  into.damageTaken += from.damageTaken;
+  into.deaths += from.deaths;
+  into.counters += from.counters;
+  into.dodges += from.dodges;
+  into.enemySteps += from.enemySteps;
+  into.staggeredEnemySteps += from.staggeredEnemySteps;
+  into.band.steps += from.band.steps;
+  into.band.hitstopSteps += from.band.hitstopSteps;
+  into.band.windups += from.band.windups;
+  into.band.strikes += from.band.strikes;
+  into.band.engagedSteps += from.band.engagedSteps;
+}
+
+/** step の前後で共通の観測（被弾・怯み・浮き文字）。浮き文字は同じものを二度数えない */
+interface StepObserver {
+  counts: ProbeCounts;
+  before(state: GameState): void;
+  after(state: GameState): void;
+  /** 交戦を閉じて、帯ごとの集計を counts.band に入れて返す */
+  finish(): ProbeCounts;
+}
+
+function createStepObserver(): StepObserver {
+  const counts = emptyCounts();
+  const recorder = createCombatRecorder();
+  const seenTexts = new WeakSet<object>();
+  let hpBefore = 0;
+  return {
+    counts,
+    before(state) {
+      hpBefore = state.player.hp;
+      recorder.beforeStep(state);
+    },
+    after(state) {
+      recorder.afterStep(state, FIXED_DT);
+      counts.seconds += FIXED_DT;
+      if (state.player.hp < hpBefore) {
+        counts.hitsTaken++;
+        counts.damageTaken += hpBefore - state.player.hp;
+      }
+      for (const t of state.texts) {
+        if (seenTexts.has(t)) continue;
+        seenTexts.add(t);
+        if (t.text === ACTION_TEXT.counter) counts.counters++;
+        if (t.text === JUST_DODGE_TEXT) counts.dodges++;
+      }
+      for (const e of state.enemies) {
+        if (e.hp <= 0) continue;
+        counts.enemySteps++;
+        if (isStaggered(e)) counts.staggeredEnemySteps++;
+      }
+    },
+    finish() {
+      recorder.finish();
+      counts.band = sumBands(recorder.tally);
+      return counts;
+    },
+  };
+}
+
+/** 1 対 1: 敵 1 体を倒しては同じ敵を置き直し、seconds 秒のあいだ連打する */
+export function runDuel(depth: number, key: string, bot: ProbeBot, seconds: number, seed: number): ProbeCounts {
+  const state = makeArena(seed, depth);
+  const origin = { ...state.player.body.pos };
+  const observer = createStepObserver();
+
+  const spawn = (): Enemy => {
+    state.player.body.pos = { ...origin };
+    state.player.knock = { x: 0, y: 0 };
+    state.enemies = [];
+    const e = placeEnemy(state, key, DUEL_ENEMY_DISTANCE, 0);
+    e.attackCooldown = DUEL_FIRST_COOLDOWN;
+    return e;
+  };
+
+  let enemy = spawn();
+  const steps = Math.round(seconds / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    if (enemy.hp <= 0 || !state.enemies.includes(enemy)) {
+      observer.counts.kills++;
+      enemy = spawn();
+    }
+    state.player.hp = Math.max(state.player.hp, DUEL_HP_FLOOR);
+    const input = botInput(state, bot);
+    observer.before(state);
+    step(state, input, FIXED_DT);
+    observer.after(state);
+  }
+  return observer.finish();
+}
+
+/** 集団: 敵を円形に置き、全滅したら置き直す。HP が GROUP_DEATH_HP 以下で死亡に数えて全快 */
+export function runGroup(depth: number, keys: readonly string[], bot: ProbeBot, seconds: number, seed: number): ProbeCounts {
+  const state = makeArena(seed, depth);
+  const origin = { ...state.player.body.pos };
+  const observer = createStepObserver();
+
+  const respawnAll = (): void => {
+    state.player.body.pos = { ...origin };
+    state.enemies = [];
+    keys.forEach((key, i) => {
+      const angle = (i / keys.length) * Math.PI * 2;
+      const e = placeEnemy(state, key, Math.cos(angle) * GROUP_RING_RADIUS, Math.sin(angle) * GROUP_RING_RADIUS);
+      e.attackCooldown = GROUP_COOLDOWN_BASE + i * GROUP_COOLDOWN_STAGGER;
+    });
+  };
+
+  respawnAll();
+  const steps = Math.round(seconds / FIXED_DT);
+  for (let i = 0; i < steps; i++) {
+    const p = state.player;
+    if (state.enemies.length === 0) respawnAll();
+    if (p.hp <= GROUP_DEATH_HP) {
+      observer.counts.deaths++;
+      p.hp = p.maxHp;
+    }
+    const killsBefore = state.kills;
+    const input = botInput(state, bot);
+    observer.before(state);
+    step(state, input, FIXED_DT);
+    observer.after(state);
+    observer.counts.kills += state.kills - killsBefore;
+  }
+  return observer.finish();
+}
+
+// ---------------------------------------------------------------------------
+// 設定・実行・表
+// ---------------------------------------------------------------------------
+
+export interface ProbeConfig {
+  enemies: readonly string[];
+  depths: readonly number[];
+  seeds: readonly number[];
+  /** 1 回の計測の長さ（秒） */
+  seconds: number;
+  duelBots: readonly ProbeBot[];
+  groups: Readonly<Record<string, readonly string[]>>;
+  groupBots: readonly ProbeBot[];
+}
+
+/** `npm run qa:probe` の重い版 */
+export const FULL_PROBE_CONFIG: ProbeConfig = {
+  enemies: ["slime", "bat", "eye", "boar", "knight", "skeleton", "wolf", "spearman"],
+  depths: [1, 5, 10],
+  seeds: [1, 2, 3],
+  seconds: 60,
+  duelBots: ["mash", "mashDodge", "mashKite"],
+  groups: {
+    slime2bat3: ["slime", "slime", "bat", "bat", "bat"],
+    skel_wolf2_eye: ["skeleton", "wolf", "wolf", "eye"],
+    knight_spear_slime2: ["knight", "spearman", "slime", "slime"],
+  },
+  groupBots: ["mash", "mashDodge"],
+};
+
+/** `npm run test` の縮小版（健全性の確認だけ。数分の計測はしない） */
+export const SMOKE_PROBE_CONFIG: ProbeConfig = {
+  enemies: ["slime", "skeleton"],
+  depths: [1],
+  seeds: [1],
+  seconds: 10,
+  duelBots: ["mash", "mashDodge", "mashKite"],
+  groups: { slime2bat3: ["slime", "slime", "bat", "bat", "bat"] },
+  groupBots: ["mash"],
+};
+
+export interface ProbeRow {
+  label: string;
+  depth: number;
+  bot: ProbeBot;
+  counts: ProbeCounts;
+}
+
+export interface ProbeResult {
+  duels: ProbeRow[];
+  groups: ProbeRow[];
+}
+
+function sumOverSeeds(seeds: readonly number[], run: (seed: number) => ProbeCounts): ProbeCounts {
+  const total = emptyCounts();
+  for (const seed of seeds) addCounts(total, run(seed));
+  return total;
+}
+
+export function runProbe(cfg: ProbeConfig): ProbeResult {
+  const duels: ProbeRow[] = [];
+  for (const label of cfg.enemies) {
+    for (const depth of cfg.depths) {
+      for (const bot of cfg.duelBots) {
+        const counts = sumOverSeeds(cfg.seeds, (seed) => runDuel(depth, label, bot, cfg.seconds, seed));
+        duels.push({ label, depth, bot, counts });
+      }
+    }
+  }
+  const groups: ProbeRow[] = [];
+  for (const [label, keys] of Object.entries(cfg.groups)) {
+    for (const depth of cfg.depths) {
+      for (const bot of cfg.groupBots) {
+        const counts = sumOverSeeds(cfg.seeds, (seed) => runGroup(depth, keys, bot, cfg.seconds, seed));
+        groups.push({ label, depth, bot, counts });
+      }
+    }
+  }
+  return { duels, groups };
+}
+
+const SECONDS_PER_MINUTE = 60;
+
+/** 行の指標（値が定義できないものは null。表では「-」） */
+export interface ProbeMetrics {
+  secondsPerKill: number | null;
+  killsPer60: number;
+  hitsPer60: number;
+  damagePer60: number;
+  deathsPer60: number;
+  windupsPer60: number;
+  strikesPer60: number;
+  completionRate: number | null;
+  staggeredRate: number | null;
+  hitstopRate: number | null;
+  countersPer60: number;
+  dodgesPer60: number;
+}
+
+function ratio(n: number, d: number): number | null {
+  return d > 0 ? n / d : null;
+}
+
+export function probeMetrics(c: ProbeCounts): ProbeMetrics {
+  const per60 = (n: number): number => (c.seconds > 0 ? (n / c.seconds) * SECONDS_PER_MINUTE : 0);
+  return {
+    secondsPerKill: ratio(c.seconds, c.kills),
+    killsPer60: per60(c.kills),
+    hitsPer60: per60(c.hitsTaken),
+    damagePer60: per60(c.damageTaken),
+    deathsPer60: per60(c.deaths),
+    windupsPer60: per60(c.band.windups),
+    strikesPer60: per60(c.band.strikes),
+    completionRate: ratio(c.band.strikes, c.band.windups),
+    staggeredRate: ratio(c.staggeredEnemySteps, c.enemySteps),
+    hitstopRate: ratio(c.band.hitstopSteps, c.band.steps),
+    countersPer60: per60(c.counters),
+    dodgesPer60: per60(c.dodges),
+  };
+}
+
+function fixed(n: number | null, digits: number): string {
+  return n === null ? "-" : n.toFixed(digits);
+}
+
+function pct(n: number | null): string {
+  return n === null ? "-" : `${(n * 100).toFixed(0)}%`;
+}
+
+function mdRow(cells: readonly string[]): string {
+  return `| ${cells.join(" | ")} |`;
+}
+
+export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string {
+  const lines: string[] = [];
+  lines.push("# 戦闘の基準値（連打シミュレーション）");
+  lines.push("");
+  lines.push(
+    `\`npm run qa:probe\` が生成。装備なし（既定の剣）のプレイヤーが敵に殴りかかり続ける。` +
+      `1 回 ${cfg.seconds} 秒 × seed ${cfg.seeds.length}（${cfg.seeds.join(", ")}）の合計から出した。` +
+      "戦闘の核を変える前後で同じ表を出して比べる（core-synthesis.md 9 章 段取り 1）。",
+  );
+  lines.push("");
+  lines.push("## 読み方");
+  lines.push("");
+  lines.push("- bot: 連打 = 近づいて殴り続ける / 連打+ダッシュ = 予備動作の終わり際にダッシュで避ける / 連打+離脱 = 予備動作・攻撃中の敵から離れる");
+  lines.push("- 1 対 1 は死なない（HP 下限 50。被弾は数える）。倒したら同じ敵を置き直す。集団は HP 30 以下を「死亡」に数えて全快する");
+  lines.push("- 撃破秒 = 観測秒 ÷ 撃破数。被弾・予備動作・攻撃・カウンター・見切りは 60 秒あたり");
+  lines.push("- 攻撃 = 予備動作が最後まで進んで strike（か、strike を経ず隙へ進むもの）に至った数。完遂率 = 攻撃 ÷ 予備動作。怯み・恐怖・沈黙で取り消されたものは完遂に入らない");
+  lines.push("- 怯み中 = 生きている敵 × step のうち怯み中の割合。ヒットストップ = プレイヤーの世界が止まっていた step の割合");
+  lines.push("- カウンター・見切りは浮き文字の数（bot は狙って出していない）");
+  lines.push("");
+
+  lines.push("## 1 対 1");
+  lines.push("");
+  lines.push(
+    mdRow(["敵", "深度", "bot", "撃破秒", "被弾/60秒", "予備動作/60秒", "攻撃/60秒", "完遂率", "怯み中", "ヒットストップ", "カウンター/60秒", "見切り/60秒"]),
+  );
+  lines.push(mdRow(new Array<string>(12).fill("---")));
+  for (const r of result.duels) {
+    const m = probeMetrics(r.counts);
+    lines.push(
+      mdRow([
+        r.label,
+        String(r.depth),
+        PROBE_BOT_LABEL[r.bot],
+        fixed(m.secondsPerKill, 2),
+        fixed(m.hitsPer60, 1),
+        fixed(m.windupsPer60, 1),
+        fixed(m.strikesPer60, 1),
+        pct(m.completionRate),
+        pct(m.staggeredRate),
+        pct(m.hitstopRate),
+        fixed(m.countersPer60, 1),
+        fixed(m.dodgesPer60, 1),
+      ]),
+    );
+  }
+  lines.push("");
+
+  lines.push("## 集団");
+  lines.push("");
+  lines.push(
+    mdRow(["組", "深度", "bot", "撃破/60秒", "被弾/60秒", "被ダメ/60秒", "死亡/60秒", "完遂率", "怯み中", "ヒットストップ", "カウンター/60秒", "見切り/60秒"]),
+  );
+  lines.push(mdRow(new Array<string>(12).fill("---")));
+  for (const r of result.groups) {
+    const m = probeMetrics(r.counts);
+    lines.push(
+      mdRow([
+        `${r.label}（${cfg.groups[r.label]?.join("+") ?? ""}）`,
+        String(r.depth),
+        PROBE_BOT_LABEL[r.bot],
+        fixed(m.killsPer60, 1),
+        fixed(m.hitsPer60, 1),
+        fixed(m.damagePer60, 0),
+        fixed(m.deathsPer60, 2),
+        pct(m.completionRate),
+        pct(m.staggeredRate),
+        pct(m.hitstopRate),
+        fixed(m.countersPer60, 1),
+        fixed(m.dodgesPer60, 1),
+      ]),
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
+}

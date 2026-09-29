@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### 追加
+- **戦闘の計測 `npm run qa:probe`**（`src/qa/combatProbe.ts`・`combatMetrics.ts`）: 1 対 1 / 集団の連打・連打 + ダッシュ・離脱の bot で、撃破秒・被弾・敵の予備動作 → 攻撃の完遂率・ヒットストップで止まった割合を測り `src/qa/probe.md` に書く。フル QA に「戦闘の基準」（深度帯別の完遂率・ヒットストップ割合・交戦の回数と長さ・時間配分）と深度帯別の死因の表を足した。戦闘の核を変える前の基準値（剣・深度 1 の連打で完遂率 0〜17%、ヒットストップ 25〜40%）
 - **生成した効果音の素材 7 本**（`public/assets/sfx/`）: Stable Audio 3 small-sfx で生成して選んだ剣・剣（軽め）・大剣・大剣（ため）・双剣の振り、パリィ、射撃。LUFS とトゥルーピーク -1dBFS で音量をそろえ、剣と双剣は高域を抑えた。まだゲームからは鳴らしていない（読み込みは次の段階）
 - **PALETTE を 1 系統 5 段に**: 12 系統（赤・緑・青・紫・橙・黄・肌・金属・氷・骨・木・石）に中間色 29 色を足し、明 → 暗の並びを `PALETTE_RAMPS` にした。既存の色と文字は変えていない（既存のスプライトと再配色はそのまま）。48 以上の細かい絵はこの 5 段で塗る
 - **ドット絵の作業台 `npm run sprite`**（`scripts/sprite/`）: コード内のピクセルマップを拡大した確認用 PNG に描く `render`（格子・参考絵の並置）、様式書の癖を座標付きで出す `lint`、Aseprite へ渡す `strip --ase`（フレーム分割と PALETTE 同梱）、PNG / .aseprite から `Frame` のリテラルに戻す `import`、`palette`、ローカルの画像生成サーバー Spriteloom に下絵の案を頼む `gen`（PALETTE に色を固定、`--from` で既存スプライトを指示で描き変え）。PNG の読み込み（`decodePng`）を `scripts/fx/png.mjs` に追加。pixel-artist が MCP サーバー `aseprite` を使えるようにし、手順を `docs/recipes/sprite.md` に書いた

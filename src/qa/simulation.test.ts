@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import type { Enemy, EliteKind, EnemyPhase, GameState, GameStatus } from "../core/state";
+import type { Enemy, EliteKind, GameState, GameStatus } from "../core/state";
 import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, TERRAIN_LABEL, type TerrainKind } from "../core/terrain";
 import { createRng, type Rng } from "../core/rng";
@@ -37,6 +37,7 @@ import { terrainAt, smokeAt } from "../system/terrain";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
+import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, type CombatTally } from "./combatMetrics";
 import * as boonsModule from "../system/boons";
 import * as specialRoomsModule from "../system/specialRooms";
 import { BOON_GRADES, BOON_GRADE_LABEL, type BoonGrade, boonGradeOf, isGraded } from "../system/boonGrade";
@@ -242,15 +243,6 @@ function emptySkillMetrics(): SkillMetrics {
     oneVOneSeconds: 0,
     oneVOneHits: 0,
   };
-}
-
-/** bot.ts の NON_ENGAGEABLE_PHASES と同じ意図（idle / spawning は交戦相手に数えない） */
-const NON_ENGAGEABLE: ReadonlySet<EnemyPhase> = new Set(["idle", "spawning"]);
-
-function countEngagedEnemies(state: GameState): number {
-  let n = 0;
-  for (const e of state.enemies) if (e.hp > 0 && !NON_ENGAGEABLE.has(e.phase)) n++;
-  return n;
 }
 
 /** 計測中のラン 1 本ぶんの集計先。runOnce がループの間だけ差し替える（null なら計測しない） */
@@ -592,6 +584,8 @@ interface RunMetrics {
   synergyEventCapHits: number;
   /** 祝福の芯・格・取得機会（docs/ideas/boon-power-up.md 5 節） */
   boon: BoonMetrics;
+  /** 予備動作の完遂・ヒットストップで止まった step・交戦の長さと時間配分（深度帯別。combatMetrics.ts） */
+  combat: CombatTally;
 }
 
 /**
@@ -704,6 +698,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   const profile = buildProfile(profileKind, seed);
   const state = createGame(seed, String(seed), profile, buildQaSkillProfile());
   const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
+  const combatRecorder = createCombatRecorder();
 
   const metrics: RunMetrics = {
     seed,
@@ -746,6 +741,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     eliteSpawnCounts: {},
     synergyEventCapHits: 0,
     boon: emptyBoonMetrics(),
+    combat: combatRecorder.tally,
   };
 
   let depthEnterTime = state.time;
@@ -796,6 +792,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     engagedEnemyCountThisStep = countEngagedEnemies(state);
     const oneVOne = engagedEnemyCountThisStep === 1;
 
+    combatRecorder.beforeStep(state);
     const t0 = performance.now();
     try {
       step(state, input, FIXED_DT);
@@ -805,6 +802,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     }
     stepTimeTotal += performance.now() - t0;
     metrics.stepsRun++;
+    combatRecorder.afterStep(state, FIXED_DT);
 
     if (oneVOne) metrics.skill.oneVOneSeconds += FIXED_DT;
     // マナ不足の不発（src/system/skills.ts の misfire）: manaFlash が 0 から立ち上がった瞬間を数える
@@ -898,6 +896,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     }
   }
 
+  combatRecorder.finish();
   metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
   metrics.kills = state.kills;
   metrics.bestCombo = state.combo.best;
@@ -1209,6 +1208,9 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   for (const r of RARITIES) lines.push(`| ${r} | ${rarityTotals[r]} | ${percent(rarityTotals[r], rarityTotalAll)} |`);
   lines.push("");
 
+  lines.push(...buildCombatSection(allMetrics.map((m) => m.combat)));
+  const deathRecords = allMetrics.flatMap((m) => (m.died && m.deathDepth !== null ? [{ depth: m.deathDepth, cause: m.deathCause ?? "unknown" }] : []));
+  lines.push(...buildDeathCauseByBandSection(deathRecords));
   lines.push(...buildSkillMetricsSection(allMetrics));
   lines.push(...buildGenreMetricsSection(allMetrics));
   lines.push(...buildObservationGapsSection(allMetrics));

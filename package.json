@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "check": "node scripts/check.mjs",
     "qa:full": "node scripts/qa-full.mjs",
+    "qa:probe": "node scripts/qa-probe.mjs",
     "audit:docs": "node scripts/audit-agent-docs.mjs",
     "balance:gen": "node scripts/balance-assemble.mjs",
     "fx:gen": "node scripts/fx/gen.mjs",
