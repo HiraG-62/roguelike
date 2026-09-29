@@ -22,6 +22,7 @@ import { onStatusAppliedFx, shake, spawnBurst, spawnBlast, spawnLine } from "./e
 import { withRatio } from "./attributes";
 import { circlesOverlap } from "./physics";
 import { blastMulAt } from "./blast";
+import { emitNoise } from "./noise";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { boonChainExtension } from "./boonRules";
 import {
@@ -747,6 +748,7 @@ export function explodeAt(state: GameState, pos: Vec, radius: number, damage: nu
   spawnBurst(state, pos, STATUS.explodeColor, EXPLODE_PARTICLES, EXPLODE_SPEED, 0.4, 2.5);
   shake(state, 3);
   pushSfx(state, "explode");
+  emitNoise(state, pos, "explode");
   for (const e of enemiesInRadius(state, pos, radius)) {
     if (e.id === excludeId) continue;
     const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);

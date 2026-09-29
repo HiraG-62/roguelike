@@ -46,6 +46,10 @@
     "lookout.noticeMul": "物見が気付く距離の倍率（敵の気付く距離に掛ける）。気付くと最も近い眠っている陣を起こす",
     "lookout.snapDist": "物見を置く通路タイルが、2 つの陣の中点からこの距離以内であること。px。遠ければその組は見送る",
     "lookout.minDistFromJin": "物見を、陣の中心・開始の塊の中心・他の物見からこの距離以上離す。px",
+    "noise.dash": "ダッシュの音が届く距離。px。この内側の眠っている敵（視線が通る間）が気付く。歩きは音を出さない（system/noise.ts）",
+    "noise.hit": "近接・射撃が敵に当たった音が届く距離（当たった敵の位置が中心）。px",
+    "noise.explode": "爆発（system/statusEffects.ts の explodeAt）の音が届く距離（爆心が中心）。px",
+    "noise.maxPerStep": "1 ステップに積む音の上限。多段ヒットや爆発の連鎖で配列が膨らまないようにする。超えた分は捨てる",
     "hud.color": "群勢のバーの色（render/jinUi.ts。画面上部の陣の名札）",
     "hud.bgColor": "群勢のバーの地の色",
     "hud.leaderColor": "大将の頭上の印（三角）と名札の大将名の色",
@@ -81,5 +85,6 @@
   "stir": { "delay": 40, "interval": 25 },
   "roamHeartChance": 0.05,
   "lookout": { "count": 2, "noticeMul": 2, "snapDist": 120, "minDistFromJin": 120 },
+  "noise": { "dash": 200, "hit": 200, "explode": 200, "maxPerStep": 8 },
   "hud": { "color": "#d89040", "bgColor": "#2a1a0c", "leaderColor": "#ffd860", "strongColor": "#f0b878", "range": 320 }
 }

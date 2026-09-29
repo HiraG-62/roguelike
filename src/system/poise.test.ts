@@ -423,6 +423,16 @@ describe("攻撃のコミット", () => {
     expect(e.phase).toBe("windup");
   });
 
+  it("連撃の続き（chainWindup）の予備動作は最初からコミットで、前半でも怯まない", () => {
+    const state = arena();
+    const e = windingUp(state, 1);
+    e.chainWindup = true;
+    expect(windupCommitted(e), "予備動作の頭でもコミット").toBe(true);
+    addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+    expect(isStaggered(e)).toBe(false);
+    expect(e.phase).toBe("windup");
+  });
+
   it("ignoreCommit（受け流し）はコミット窓の中でも溜めて怯ませる", () => {
     const state = arena();
     const e = windingUp(state, ENEMY_TEMPO.commitRatio - 0.1);

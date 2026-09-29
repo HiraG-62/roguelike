@@ -16,6 +16,7 @@ import {
   Keeper,
   Knight,
   Laser,
+  Leaper,
   MineLayer,
   Mimic,
   Rusher,
@@ -90,6 +91,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   librarian: new BossDriven("librarian"),
   mirrorKnight: new BossDriven("mirrorKnight"),
   thiefKing: new BossDriven("thiefKing"),
+  leaper: new Leaper(),
 });
 
 /** その敵の振る舞い */

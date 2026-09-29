@@ -90,11 +90,13 @@ export function spawnLanding(state: GameState, pos: Vec, radius: number, time: n
 function syncLanding(state: GameState, h: Hazard): void {
   if (h.sourceId === undefined) return;
   const source = state.enemies.find((e) => e.id === h.sourceId && e.hp > 0);
-  if (!source || source.phase !== "windup") {
+  // 跳躍の影は空中（strike）の間も残し、着地（spent）で消す
+  const airborne = h.airTime !== undefined && !h.spent && source?.phase === "strike";
+  if (!source || (source.phase !== "windup" && !airborne) || h.spent) {
     h.time = 0;
     return;
   }
-  h.time = source.phaseTimer;
+  h.time = source.phaseTimer + (source.phase === "windup" ? (h.airTime ?? 0) : 0);
   if (h.followSource) h.pos = { ...source.body.pos };
 }
 

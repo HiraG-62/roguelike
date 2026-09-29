@@ -50,6 +50,14 @@ export interface FormationLeader {
   lairChance: number;
 }
 
+/** 列の入れ替え（衡軛）。system/jinFormations.ts が読む */
+export interface FormationRotate {
+  /** 入れ替わって下がる側の次の攻撃までの間（攻撃間隔に掛ける） */
+  restMul: number;
+  /** 前へ出る側の次の攻撃までの間の上限。秒 */
+  stepInCooldown: number;
+}
+
 export interface FormationDef {
   key: FormationKey;
   layout: FormationLayout;
@@ -59,6 +67,10 @@ export interface FormationDef {
   spacing: number;
   /** 大将のスロット。無ければ大将のいない陣（Jin.leaderId は null） */
   leader?: FormationLeader;
+  /** 列の後ろほど最初の攻撃間隔を遅らせる秒（鋒矢）。省略は遅らせない */
+  cooldownStagger?: number;
+  /** 前列と後列の入れ替え（衡軛）。省略は入れ替えない */
+  rotate?: FormationRotate;
   /** 正面から置く順（大将がいれば大将の次から） */
   slots: readonly FormationSlot[];
 }
@@ -107,6 +119,11 @@ function leaderOf(v: unknown, where: string): FormationLeader {
   };
 }
 
+function rotateOf(v: unknown, where: string): FormationRotate {
+  if (!isRaw(v)) fail(where, "rotate は { restMul, stepInCooldown } の形");
+  return { restMul: num(v, "restMul", where), stepInCooldown: num(v, "stepInCooldown", where) };
+}
+
 function defOf(key: string, v: unknown): FormationDef {
   const where = key;
   const formationKey = oneOf(FORMATION_KEYS, key, "key", where);
@@ -121,10 +138,15 @@ function defOf(key: string, v: unknown): FormationDef {
     spacing: num(v, "spacing", where),
     slots: slots.map((s, i) => slotOf(s, `${where}.slots[${i}]`)),
   };
-  return v.leader === undefined ? def : { ...def, leader: leaderOf(v.leader, `${where}.leader`) };
+  return {
+    ...def,
+    ...(v.leader === undefined ? {} : { leader: leaderOf(v.leader, `${where}.leader`) }),
+    ...(v.cooldownStagger === undefined ? {} : { cooldownStagger: num(v, "cooldownStagger", where) }),
+    ...(v.rotate === undefined ? {} : { rotate: rotateOf(v.rotate, `${where}.rotate`) }),
+  };
 }
 
-/** JSON に書かれた陣形（JSON の並び順）。3a は魚鱗・鶴翼・雁行・長蛇、3b で偃月・方円・物見 */
+/** JSON に書かれた陣形（JSON の並び順）。3a は魚鱗・鶴翼・雁行・長蛇、3b で偃月・方円・物見、3c で鋒矢・衡軛 */
 export const FORMATION_DEFS: readonly FormationDef[] = Object.entries(FORMATION as Raw).map(([key, v]) => defOf(key, v));
 
 /** JSON に無い陣形（まだ実装していない）は undefined */

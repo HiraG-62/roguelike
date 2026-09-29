@@ -56,7 +56,9 @@ export function isStaggered(e: Enemy): boolean {
  * windupTotal が 0 の敵（記録が無い経路・手で phase を置いた敵）は窓なし = 従来どおり
  */
 export function windupCommitted(e: Enemy): boolean {
-  return e.phase === "windup" && e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
+  if (e.phase !== "windup") return false;
+  if (e.chainWindup) return true;
+  return e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
 }
 
 /** 攻撃が出ることが確定している（予告の色が「必ず出る」になる）: コミット窓に入った予備動作か攻撃中。render も読む */

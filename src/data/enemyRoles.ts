@@ -38,6 +38,7 @@ export const ROLE_BY_BEHAVIOR: Readonly<Record<EnemyBehavior, EnemyRole>> = {
   burrower: "charge",
   dropper: "charge",
   shadowStalker: "charge",
+  leaper: "charge",
   shooter: "shooter",
   laser: "shooter",
   lobber: "shooter",

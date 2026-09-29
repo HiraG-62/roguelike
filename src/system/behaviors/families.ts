@@ -1,8 +1,10 @@
 import type { Enemy, GameState } from "../../core/state";
+import type { Vec } from "../../core/vec";
 import type { EnemyBehavior, EnemyDef } from "../../data/enemies";
 import { ENEMY_AI, REACTION } from "../../data/tuning";
 import { frostCrusherReady, isMimicTongue, scavengerHeading } from "../enemyBehaviors";
 import { absorberReady, bannerAlive, hollowFrozen } from "../enemyWave3";
+import { canLeap, planLeap, stepLeap } from "../enemyLeap";
 import { EnemyBehaviorBase } from "./base";
 
 // 基本パラメータは移行前の system/enemies.ts の表の値そのまま（第 2 段で enemies.json の BEHAVIOR へ移す）
@@ -232,6 +234,28 @@ export class WindSprite extends Keeper {
   }
   override aimFixedAtWindup(_e: Enemy, _def: EnemyDef): boolean {
     return true;
+  }
+}
+
+/**
+ * 跳躍: 予備動作の始まりに着地点の影を出し、strike の間に跳んで着地で円に当てる（system/enemyLeap.ts）。
+ * 共通の突進（strikeSpeedMul）と接触は使わない（0）。着地点は予備動作の始まりで固定
+ */
+export class Leaper extends Rusher {
+  constructor() {
+    super("leaper", 0);
+  }
+  override canBeginAttack(state: GameState, e: Enemy, _def: EnemyDef, _d: number): boolean {
+    return canLeap(state, e);
+  }
+  override aimFixedAtWindup(_e: Enemy, _def: EnemyDef): boolean {
+    return true;
+  }
+  override telegraph(state: GameState, e: Enemy, def: EnemyDef, _dir: Vec): void {
+    planLeap(state, e, def);
+  }
+  override tickStrike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
+    stepLeap(state, e, def, dt);
   }
 }
 

@@ -204,6 +204,8 @@ export interface Enemy {
   phaseTimer: number;
   /** 今の予備動作の総秒（コミット窓の判定用。0 = 未記録で、窓なし = 従来どおり怯む） */
   windupTotal: number;
+  /** 連撃の 2 撃目以降の予備動作。最初からコミット（怯み値が溜まらず必ず出る）。startWindup が毎回戻す */
+  chainWindup?: boolean;
   strikeDir: Vec;
   attackCooldown: number;
   hitFlash: number;
@@ -367,6 +369,8 @@ export interface Hazard {
   sourceKey?: string;
   /** landing: 出した敵の位置に付いて動く（自爆の範囲。src/system/hazards.ts の syncLanding） */
   followSource?: boolean;
+  /** landing: 跳躍の滞空秒。予備動作の後の strike（空中）の間も影を残し、着地で消す（system/enemyLeap.ts） */
+  airTime?: number;
   /** boneWall の残り耐久（docs/ideas/enemies.md H6。爆発・壁叩きつけ・弾で削れる） */
   hp?: number;
   /** bomb の爆発が敵にも当たる（爆裂のエリートの死後の爆発。H10） */
@@ -687,6 +691,12 @@ export const ROAMING_ROOM = -1;
 /** 陣の進行: 眠っている / 交戦中 / 決着済み */
 export type JinPhase = "sleeping" | "engaged" | "settled";
 
+/** 音: 眠っている敵を起こす一時的な輪（GameState.noises。中心と半径） */
+export interface Noise {
+  pos: Vec;
+  radius: number;
+}
+
 /**
  * 陣: 敵の一団が陣形を組んで占める戦いの単位（docs/ideas/jin-impl.md 2-5）。部屋を置き換えず、部屋の塊の上に乗る。
  * メンバーは Enemy.jinId を持つ。buildFloor で作り直す
@@ -797,6 +807,8 @@ export interface GameState {
   rooms: RoomState[];
   /** 陣（部屋の塊の上に乗る敵の一団）。buildFloor で作り直す */
   jins: Jin[];
+  /** 今ステップに鳴った音（ダッシュ・命中・爆発）。眠っている敵が聞きつける。updateEnemies が読んで空にする（system/noise.ts） */
+  noises: Noise[];
   lockedTiles: Set<number>;
   player: Player;
   enemies: Enemy[];

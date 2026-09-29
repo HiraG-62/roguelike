@@ -107,6 +107,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     map: layout.map,
     rooms: layout.map.rooms.map(hubRoom),
     jins: [],
+    noises: [],
     lockedTiles: new Set(),
     player: createPlayer({ ...layout.playerStart }, stats),
     enemies: [],

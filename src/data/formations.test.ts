@@ -41,6 +41,29 @@ describe("陣形の定義", () => {
     expect(keys(99)).not.toContain("lookout");
   });
 
+  it("3c の 2 陣形（鋒矢・衡軛）は列の後ろほど遅らせる・列を入れ替える数値を持ち、大将はいない", () => {
+    const arrowhead = formationDef("arrowhead");
+    expect(arrowhead?.layout).toBe("line");
+    expect(arrowhead?.cooldownStagger ?? 0, "鋒矢は攻撃間隔をずらす").toBeGreaterThan(0);
+    expect(arrowhead?.rotate).toBeUndefined();
+    const yoke = formationDef("yoke");
+    expect(yoke?.layout).toBe("twoRows");
+    expect(yoke?.rotate?.restMul ?? 0, "衡軛は入れ替わって下がる間を置く").toBeGreaterThan(1);
+    expect(yoke?.rotate?.stepInCooldown ?? 0).toBeGreaterThan(0);
+    expect(yoke?.cooldownStagger).toBeUndefined();
+    expect(yoke?.slots.map((s) => s.role), "前衛の列 + 射手").toEqual(["vanguard", "shooter"]);
+    for (const key of ["arrowhead", "yoke"] as const) expect(formationDef(key)?.leader, key).toBeUndefined();
+  });
+
+  it("鋒矢・衡軛は解禁の深度から部屋の抽選に出る", () => {
+    const keys = (depth: number): string[] => roomFormations(depth).map((d) => d.key);
+    for (const key of ["arrowhead", "yoke"] as const) {
+      const min = formationDef(key)?.minDepth ?? 99;
+      expect(keys(min - 1), key).not.toContain(key);
+      expect(keys(min), key).toContain(key);
+    }
+  });
+
   it("全陣形に表示名があり、役割・格・並べ方は定義済みの値", () => {
     for (const key of FORMATION_KEYS) expect(FORMATION_LABEL[key].length, key).toBeGreaterThan(0);
     for (const def of FORMATION_DEFS) {

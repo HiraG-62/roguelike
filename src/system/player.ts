@@ -3,6 +3,7 @@ import { type Enemy, type GameState, type Player, type Projectile, allocId, push
 import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
+import { emitNoise } from "./noise";
 import { ACTION, BOON, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
 import {
   type ButtonKey,
@@ -719,6 +720,7 @@ function tryDash(state: GameState, input: FrameInput): void {
   p.attack.pendingBranch = -1;
   spawnBurst(state, p.body.pos, "#ffffff", 6, 40, 0.2, 1.5);
   pushSfx(state, "dash");
+  emitNoise(state, p.body.pos, "dash");
 
   if (hasKeystone(state, KS.blink)) {
     blink(state);

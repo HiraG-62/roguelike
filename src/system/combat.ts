@@ -10,6 +10,7 @@ import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage,
 import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effects";
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
+import { emitNoise } from "./noise";
 import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
@@ -220,6 +221,7 @@ export function damageEnemy(
     if (!heavy && !skipsThump(opts.impact?.family)) pushSfx(state, "hitThump");
   }
   if (kind === "ranged") pushSfx(state, opts.impact?.weight === "heavy" ? "bulletHitHeavy" : "bulletHit");
+  if (!opts.silent && (kind === "melee" || kind === "ranged")) emitNoise(state, enemy.body.pos, "hit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state, amount);

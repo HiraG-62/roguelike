@@ -16,6 +16,7 @@ import { circlesOverlap, overlapsWall } from "./physics";
 import { roomLocks } from "./roomTypes";
 import { onRunEnemySpawned } from "./runEvents";
 import { canRoam, corridorTileList, pickRoamTarget } from "./spawner";
+import { ringLookoutBell } from "./noise";
 import { initJinMorale, updateJins, wakeJin as wakeJinMembers } from "./jin";
 
 /**
@@ -238,6 +239,7 @@ export function spawnJin(
     const pos = freeSpotNear(state, add(center, rotateToFacing(offset, facing)), member.def.radius, inArea);
     if (!pos) return;
     const e = spawnMember(state, jin, member, pos);
+    staggerCooldown(e, member.def, formation, i);
     if (member.leader) jin.leaderId = e.id;
     weight += member.leader ? JIN.gradeWeight.leader : JIN.gradeWeight[member.grade];
   });
@@ -246,6 +248,16 @@ export function spawnJin(
   state.jins.push(jin);
   if (roomIndex !== ROAMING_ROOM) finalizeLinks(state, roomIndex);
   return jin;
+}
+
+/**
+ * 鋒矢: 列の後ろほど最初の攻撃を遅らせる（先頭から 1 人ごとに cooldownStagger 秒）。
+ * 乱数の基準（攻撃間隔の 0.5〜1.5 倍）だとずれに埋もれるので、基準は攻撃間隔そのものにして、先頭から順に仕掛ける並びを読めるようにする
+ */
+function staggerCooldown(e: Enemy, def: EnemyDef, formation: FormationDef, rank: number): void {
+  const stagger = formation.cooldownStagger;
+  if (stagger === undefined || stagger <= 0) return;
+  e.attackCooldown = def.attackInterval + rank * stagger;
 }
 
 /** 空の陣（メンバーは置く側が足す）。id は陣が消えないので通し番号 */
@@ -530,6 +542,7 @@ export function updateLookouts(state: GameState): void {
     const watcher = state.enemies.find((e) => e.jinId === jin.id && e.hp > 0 && e.phase === "idle");
     if (!watcher || dist(watcher.body.pos, p) > range || !lineOfSight(state.map, watcher.body.pos, p)) continue;
     wakeJin(state, jin);
+    ringLookoutBell(state);
     const target = nearestSleepingJin(state, jin);
     if (target) wakeJin(state, target);
   }

@@ -9,10 +9,14 @@
     "telegraphWindow": "予告の見やすさの上限: 予備動作に入ってからこの秒の間を「予告が出たばかり」とみなす。秒",
     "telegraphCap": "予告が出たばかり（telegraphWindow 未満）の敵がこの数以上いたら、新しい予備動作は telegraphWindow だけ待つ。ボスは数えない",
     "telegraphRange": "予告の見やすさの上限に数える敵の範囲。プレイヤーからの px",
-    "minDepth": "連続攻撃が解禁される最小の深度（敵の定義 key ごとの行）",
+    "depthStages": "章で技を覚える段（docs/ideas/jin-impl.md 2-4）。敵の定義 key ごとの段の列（minDepth の昇順）。深度が minDepth 以上の段が全部効き、同じ技は後の段が上書きする",
+    "minDepth": "この段の技を覚える最小の深度",
+    "followUp": "連撃: 1 撃目のあとに予備動作を挟んで続ける",
     "count": "1 撃目のあとに追加で続ける撃数",
-    "windup": "2 撃目以降の予備動作の基準。秒",
-    "onWallOnly": "true なら壁に激突したときだけ続ける（猪）"
+    "windup": "2 撃目以降の予備動作の基準。秒（深度で縮み、windupFloor 倍が下限）",
+    "onWallOnly": "true なら壁に激突したときだけ続ける（猪）",
+    "retreatMul": "離脱: 攻撃の後の隙の間に離れる速さ。歩く速さに対する倍率。REACTION.retreatAfterStrike と behavior 既定より優先",
+    "windupMoveMul": "予備動作中に動く速さ。歩く速さに対する倍率。負は後退射撃（プレイヤーから離れながら構える）。behavior 既定より優先"
   },
   "windupDepthStep": 0.015,
   "windupDepthMin": 0.75,
@@ -28,36 +32,13 @@
   "telegraphCap": 3,
   "telegraphRange": 260,
   "batCoordDelay": 0.15,
-  "followUps": {
-    "slime": {
-      "minDepth": 4,
-      "count": 1,
-      "windup": 0.25,
-      "onWallOnly": false
-    },
-    "skeleton": {
-      "minDepth": 4,
-      "count": 1,
-      "windup": 0.3,
-      "onWallOnly": false
-    },
-    "knight": {
-      "minDepth": 1,
-      "count": 1,
-      "windup": 0.3,
-      "onWallOnly": false
-    },
-    "boar": {
-      "minDepth": 6,
-      "count": 1,
-      "windup": 0.35,
-      "onWallOnly": true
-    },
-    "golem": {
-      "minDepth": 1,
-      "count": 1,
-      "windup": 0.5,
-      "onWallOnly": false
-    }
+  "depthStages": {
+    "slime": [{ "minDepth": 4, "followUp": { "count": 1, "windup": 0.25, "onWallOnly": false } }],
+    "skeleton": [{ "minDepth": 5, "followUp": { "count": 1, "windup": 0.4, "onWallOnly": false } }],
+    "knight": [{ "minDepth": 1, "followUp": { "count": 1, "windup": 0.3, "onWallOnly": false } }],
+    "boar": [{ "minDepth": 6, "followUp": { "count": 1, "windup": 0.35, "onWallOnly": true } }],
+    "golem": [{ "minDepth": 1, "followUp": { "count": 1, "windup": 0.5, "onWallOnly": false } }],
+    "spearman": [{ "minDepth": 6, "retreatMul": 1.5 }],
+    "bomber": [{ "minDepth": 6, "windupMoveMul": -0.5 }]
   }
 }

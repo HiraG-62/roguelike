@@ -53,6 +53,21 @@ describe("陣形の並び（layoutOffsets）", () => {
     expect(layoutOffsets("single", 1, 20)).toEqual([{ x: 0, y: 0 }]);
   });
 
+  it("鋒矢（line）は先頭から後ろへ一直線、衡軛（twoRows）は前列を先に埋めて後列がその後ろ", () => {
+    const line = layoutOffsets("line", 5, 22);
+    for (let i = 1; i < line.length; i++) {
+      expect(line[i]!.x, "後ろへ").toBeCloseTo(line[i - 1]!.x - 22, 6);
+      expect(line[i]!.y, "一直線").toBeCloseTo(line[0]!.y, 6);
+    }
+    const rows = layoutOffsets("twoRows", 6, 22);
+    const front = rows.slice(0, 3);
+    const back = rows.slice(3);
+    for (const p of front) expect(p.x, "前列は同じ奥行き").toBeCloseTo(front[0]!.x, 6);
+    for (const p of back) expect(p.x, "後列は前列より後ろ").toBeLessThan(front[0]!.x);
+    expect(new Set(rows.map((p) => p.x.toFixed(3))).size, "奥行きは 2 段だけ").toBe(2);
+    expect(layoutOffsets("twoRows", 5, 22).slice(0, 3), "奇数は前列が多い").toHaveLength(3);
+  });
+
   it("同じ引数なら同じ結果（乱数を使わない）", () => {
     expect(layoutOffsets("diagonal", 7, 22)).toEqual(layoutOffsets("diagonal", 7, 22));
   });

@@ -100,7 +100,9 @@ export type EnemyBehavior =
   | "librarian"
   | "mirrorKnight"
   /** ボス: 盗賊王（逃げながら罠を撒き、追い詰めるとダウン。src/system/bossThiefKing.ts） */
-  | "thiefKing";
+  | "thiefKing"
+  /** 跳んで着地で円に当てる（着地点に影の予告。src/system/enemyLeap.ts。毒スライム） */
+  | "leaper";
 
 /** 再配色種: 元の絵のパレット文字を差し替えて別の絵にする（render/sprites.ts） */
 export interface SpriteRecolor {
@@ -270,7 +272,7 @@ const N = BALANCE.enemies.stats;
  */
 const WAVE2_ENEMIES: readonly EnemyDef[] = [
   // ---- 再配色種（元の敵の絵と behavior に、追加の挙動を 1 つ） ----
-  { key: "poisonSlime", name: "毒スライム", sprite: "poisonSlime", recolor: { base: "slime", swap: { g: "p", G: "P", h: "e" } }, behavior: "chaser", color: "#b060e0", deathTerrain: { kind: "bog", radius: 16 }, ...N.poisonSlime },
+  { key: "poisonSlime", name: "毒スライム", sprite: "poisonSlime", recolor: { base: "slime", swap: { g: "p", G: "P", h: "e" } }, behavior: "leaper", color: "#b060e0", deathTerrain: { kind: "bog", radius: 16 }, ...N.poisonSlime },
   { key: "iceSlime", name: "氷スライム", sprite: "iceSlime", recolor: { base: "slime", swap: { g: "3", G: "4", h: "2" } }, behavior: "chaser", color: "#8fd0ff", deathTerrain: { kind: "ice", radius: 16 }, ...N.iceSlime },
   { key: "fireSlime", name: "炎スライム", sprite: "fireSlime", recolor: { base: "slime", swap: { g: "o", G: "O", h: "y" } }, behavior: "chaser", color: "#e88838", ...N.fireSlime },
   { key: "goldSlime", name: "金色スライム", sprite: "goldSlime", recolor: { base: "slime", swap: { g: "y", G: "Y", h: "1" } }, behavior: "chaser", color: "#f8d848", ...N.goldSlime },

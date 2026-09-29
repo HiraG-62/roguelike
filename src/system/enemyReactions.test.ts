@@ -328,11 +328,11 @@ describe("動きの語彙: 離脱・後退射撃", () => {
     expect(dist(laser.body.pos, state.player.body.pos), "光線眼は動かない").toBeCloseTo(laserBefore, 6);
   });
 
-  it("骸骨兵は深度 4 から 2 連撃（2 撃目は 0.3 秒の予備動作）", () => {
-    expect(followUpOf("skeleton", 3)).toBeUndefined();
-    const f = followUpOf("skeleton", 4);
+  it("骸骨兵は深度 5 から 2 連撃（章で覚える段。2 撃目の予備動作は 1 撃目の半分以上）", () => {
+    expect(followUpOf("skeleton", 4), "深度 4 はまだ覚えていない").toBeUndefined();
+    const f = followUpOf("skeleton", 5);
     expect(f?.count).toBe(1);
-    expect(f?.windup).toBeCloseTo(0.3, 9);
+    expect(f?.windup ?? 0, "2 撃目も読める長さ").toBeGreaterThanOrEqual(enemyDef("skeleton").windup / 2);
   });
 });
 

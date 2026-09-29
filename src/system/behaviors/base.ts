@@ -2,6 +2,7 @@ import type { Enemy, GameState } from "../../core/state";
 import type { Vec } from "../../core/vec";
 import type { EnemyBehavior, EnemyDef } from "../../data/enemies";
 import { reactCooldownRate, reactSlotTarget, reactStruck } from "../enemyReactions";
+import { rotateYokeRow } from "../jinFormations";
 
 /** 予備動作中に描く予告の種類（render/renderer.ts が system/enemies.ts の再 export 経由で読む） */
 export type EnemyTelegraph =
@@ -72,8 +73,10 @@ export abstract class EnemyBehaviorBase {
   onStrikeEnd(_state: GameState, _e: Enemy, _def: EnemyDef, _byWall: boolean): void {}
   /** 隙の間、毎ステップ（一撃離脱の後退など） */
   tickRecover(_state: GameState, _e: Enemy, _def: EnemyDef, _toPlayer: Vec, _dt: number): void {}
-  /** 隙の終わり */
-  onRecoverEnd(_state: GameState, _e: Enemy, _def: EnemyDef): void {}
+  /** 隙の終わり（toChase の後に呼ぶ）。既定は陣形の動き（衡軛の列の入れ替え。他の陣形・陣に属さない敵は何もしない） */
+  onRecoverEnd(state: GameState, e: Enemy, def: EnemyDef): void {
+    rotateYokeRow(state, e, def);
+  }
   /** 殴られた（damageEnemy の silent でない melee / shot / skill。継続ダメージは呼ばない）。既定は間合い取り */
   onStruck(state: GameState, e: Enemy, def: EnemyDef): void {
     reactStruck(state, e, def);

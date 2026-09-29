@@ -112,6 +112,7 @@ import j_enemies_ENEMY_AI_turretMaster from "./enemies/ENEMY_AI/turretMaster.jso
 import j_enemies_ENEMY_AI_turret from "./enemies/ENEMY_AI/turret.json";
 import j_enemies_ENEMY_AI_basilisk from "./enemies/ENEMY_AI/basilisk.json";
 import j_enemies_ENEMY_AI_shadowStalker from "./enemies/ENEMY_AI/shadowStalker.json";
+import j_enemies_ENEMY_AI_leaper from "./enemies/ENEMY_AI/leaper.json";
 import j_enemies_ENEMY_TEMPO from "./enemies/ENEMY_TEMPO.json";
 import j_enemies_ELITE from "./enemies/ELITE.json";
 import j_enemies_ELITE_GREEDY from "./enemies/ELITE_GREEDY.json";
@@ -136,6 +137,8 @@ import j_enemies_FORMATION_column from "./enemies/FORMATION/column.json";
 import j_enemies_FORMATION_crescent from "./enemies/FORMATION/crescent.json";
 import j_enemies_FORMATION_circle from "./enemies/FORMATION/circle.json";
 import j_enemies_FORMATION_lookout from "./enemies/FORMATION/lookout.json";
+import j_enemies_FORMATION_arrowhead from "./enemies/FORMATION/arrowhead.json";
+import j_enemies_FORMATION_yoke from "./enemies/FORMATION/yoke.json";
 import j_enemies_REAPER from "./enemies/REAPER.json";
 import j_enemies_stats__index from "./enemies/stats/_index.json";
 import j_enemies_stats_slime from "./enemies/stats/slime.json";
@@ -1132,6 +1135,7 @@ export const enemies = {
     "turret": j_enemies_ENEMY_AI_turret,
     "basilisk": j_enemies_ENEMY_AI_basilisk,
     "shadowStalker": j_enemies_ENEMY_AI_shadowStalker,
+    "leaper": j_enemies_ENEMY_AI_leaper,
   },
   "ENEMY_TEMPO": j_enemies_ENEMY_TEMPO,
   "ELITE": j_enemies_ELITE,
@@ -1169,6 +1173,8 @@ export const enemies = {
     "crescent": j_enemies_FORMATION_crescent,
     "circle": j_enemies_FORMATION_circle,
     "lookout": j_enemies_FORMATION_lookout,
+    "arrowhead": j_enemies_FORMATION_arrowhead,
+    "yoke": j_enemies_FORMATION_yoke,
   },
   "REAPER": j_enemies_REAPER,
   "stats": {
@@ -2343,6 +2349,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_AI/kamikaze.json",
   "enemies/ENEMY_AI/knight.json",
   "enemies/ENEMY_AI/laser.json",
+  "enemies/ENEMY_AI/leaper.json",
   "enemies/ENEMY_AI/lobber.json",
   "enemies/ENEMY_AI/manaLeech.json",
   "enemies/ENEMY_AI/mimic.json",
@@ -2369,6 +2376,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_TEMPO.json",
   "enemies/FLOOR_LORD.json",
   "enemies/FORMATION/_index.json",
+  "enemies/FORMATION/arrowhead.json",
   "enemies/FORMATION/circle.json",
   "enemies/FORMATION/column.json",
   "enemies/FORMATION/craneWing.json",
@@ -2376,6 +2384,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/FORMATION/fishScale.json",
   "enemies/FORMATION/geese.json",
   "enemies/FORMATION/lookout.json",
+  "enemies/FORMATION/yoke.json",
   "enemies/JIN.json",
   "enemies/REACTION.json",
   "enemies/REAPER.json",

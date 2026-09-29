@@ -17,7 +17,9 @@ import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./bos
 import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
+import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
 import { jinBonusMul, stepRout } from "./jin";
+import { wakeByNoise } from "./noise";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
@@ -114,17 +116,8 @@ const ENEMY_BULLET_COLOR = "#e070ff";
 const SPAWN_TIME = 0.7;
 const DEG_TO_RAD = Math.PI / 180;
 
-/** 連続攻撃の定義（ENEMY_TEMPO.followUps の 1 行） */
-export interface FollowUpDef {
-  minDepth: number;
-  /** 追加の撃数 */
-  count: number;
-  /** 2 撃目以降の予備動作の基準（秒） */
-  windup: number;
-  /** 壁に激突したときだけ続ける（猪） */
-  onWallOnly: boolean;
-}
-const FOLLOW_UPS: Readonly<Record<string, FollowUpDef | undefined>> = ENEMY_TEMPO.followUps;
+// 連撃は章で覚える段（ENEMY_TEMPO.depthStages）の 1 つ。既存の import 先を変えないため再 export
+export { type FollowUpDef, followUpOf } from "./enemyStages";
 /** 攻撃の後の隙で離れる速さの倍率（敵の定義ごと。REACTION.retreatAfterStrike。behavior 既定より優先） */
 const RETREAT_AFTER_STRIKE: Readonly<Record<string, number | undefined>> = REACTION.retreatAfterStrike;
 
@@ -139,13 +132,6 @@ export function depthWindupMul(depth: number): number {
  */
 export function scaledWindup(base: number, depth: number, extraMul = 1): number {
   return base * Math.max(ENEMY_TEMPO.windupFloor, depthWindupMul(depth) * extraMul);
-}
-
-/** その深度で使える連続攻撃。無ければ undefined */
-export function followUpOf(key: string, depth: number): FollowUpDef | undefined {
-  const f = FOLLOW_UPS[key];
-  if (!f || depth < f.minDepth) return undefined;
-  return f;
 }
 
 export function createAi(): EnemyAi {
@@ -182,6 +168,7 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
 }
 
 export function updateEnemies(state: GameState, dt: number): void {
+  wakeByNoise(state);
   updateElites(state, dt);
   updateCorpses(state, dt);
   updateRallies(state, dt);
@@ -559,6 +546,7 @@ function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: 
   e.phase = "windup";
   e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e)) * boonWindupMul(state, e);
   e.windupTotal = e.phaseTimer;
+  e.chainWindup = false;
   e.strikeDir = dir;
   telegraphWindup(state, e, def, dir);
   pushSfx(state, "enemyWindup");
@@ -634,6 +622,8 @@ function telegraphWave3(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): vo
       telegraphToad(state, e, dir);
       return;
     default:
+      // クラスへ移した behavior の予告（跳躍の着地点の影など。behaviors/*.ts）
+      behaviorOf(def).telegraph(state, e, def, dir);
       return;
   }
 }
@@ -645,7 +635,7 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
     return;
   }
   e.phaseTimer -= dt;
-  const mul = behaviorOf(def).windupMoveMul;
+  const mul = learnedWindupMoveMul(def.key, state.depth) ?? behaviorOf(def).windupMoveMul;
   // 負は後退射撃（プレイヤーから離れながら構える）
   if (mul !== 0) {
     const dir = normalize(toPlayer);
@@ -889,6 +879,9 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   e.phaseTimer -= dt;
   if (def.behavior === "windSprite") blowWind(state, e, dt);
   if (def.behavior === "basilisk") tickGaze(state, e, dt);
+  behaviorOf(def).tickStrike(state, e, def, dt);
+  // 攻撃中の処理で受け流されて怯んだ・攻撃が終わった敵は、下の endStrike の recover で上書きさせない
+  if (e.phase !== "strike" || isStaggered(e)) return;
   // 氷猪: 突進の跡が氷床になる（突進の予告線がそのまま予告）
   if (def.chargeTrail === "ice") placeTerrain(state, e.body.pos.x, e.body.pos.y, "ice", ENEMY_AI.iceTrail.radius);
   const speed = enemySpeed(state, e, def) * strikeSpeedMul(e, def);
@@ -973,11 +966,12 @@ function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: n
   if (def.behavior === "scavenger") finishEating(state, e, def);
   onRecoverEndWave3(e, def);
   toChase(state, e, def);
+  behaviorOf(def).onRecoverEnd(state, e, def);
 }
 
 /** 離脱: 攻撃の後の隙の間、プレイヤーから離れる（蝙蝠・狼・棘鼠・盗賊。速さは歩きの倍率） */
 function retreatAfterStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
-  const mul = RETREAT_AFTER_STRIKE[def.key] ?? behaviorOf(def).recoverRetreatMul;
+  const mul = learnedRetreatMul(def.key, state.depth) ?? RETREAT_AFTER_STRIKE[def.key] ?? behaviorOf(def).recoverRetreatMul;
   if (mul <= 0) return;
   const away = scale(normalize(toPlayer), -1);
   const speed = enemySpeed(state, e, def) * mul;
@@ -1062,6 +1056,8 @@ function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean)
   ai.counter -= 1;
   const dir = byWall ? scale(e.strikeDir, -1) : e.strikeDir;
   startWindup(state, e, def, dir, f.windup);
+  // 連撃の続きは 1 撃目と一続きの約束。前半で怯ませて潰せると連打が 2 撃目を必ず消してしまう
+  e.chainWindup = true;
   return true;
 }
 
