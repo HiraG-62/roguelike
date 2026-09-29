@@ -60,6 +60,10 @@
 | ガードブレイク | guard break | 盾騎士の正面ブロックをカウンターで割る | `system/elites.ts` GUARD_BREAK_TEXT |
 | ブロック | block | 盾騎士の正面で攻撃が弾かれた。ブロック時も怯み値の 50% は溜まる | `system/elites.ts` BLOCK_TEXT |
 | パリィ | parry | スキル。再使用型、近接の衝撃波 | `skills/data.ts` |
+| 受け流し（受け流し） | parry（`PARRY`）/ 剣の右 1 段目 `hold.parry` | 全武器共通の行動（2026-09-30。既定 R / 中クリック / パッド RB）。窓の間の被弾を無効にして敵を怯ませ、コミットした攻撃も止める。外すと硬直。スキル石「パリィ」とは別物 | `system/parry.ts` |
+| 武器の重さ（軽 / 中 / 重） | `WeaponWeight`（light / medium / heavy）、`WEAPON.weightClass` | 武器種ごとの重さ（2026-09-30）。軽は攻撃中も動ける、中は終撃で足を止める、重は振る間止まりダッシュで取り消せない相が長い。表示は「軽い」「重い」など形容で | `data/weapons.ts`、`system/player.ts` |
+| 予告の色（黄 / 赤） | `TELEGRAPH.readyColor` / `commitColor` | 敵の予告の線と「!」の色。黄 = まだ怯ませて崩せる、赤 = コミット（必ず出る。止められるのは受け流しだけ） | `render/telegraphLineUi.ts` |
+| ダッシュの無敵時間 | dashInvulnBonus | ステータスの表示名（秒の加算。既定 0） | `loot/stats.ts` |
 | 弾返し（祝福） | reflect（祝福 key） | 近接攻撃で敵弾を撃ち返す。撃ち返すと奥義ゲージ ×3。祝福を取らないと出ない | `system/boons.ts` |
 | 殲滅 | lastKill | 交戦中の部屋の最後の 1 体を倒した瞬間のスロー演出 | tuning ACTION.lastKill |
 | 壁叩きつけ | wallSplat | 吹き飛んだ敵が壁に激突して追加ダメージ + 怯み値（強靭を無視） | `system/enemies.ts`、tuning ACTION.wallSplat |
