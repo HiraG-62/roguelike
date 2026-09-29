@@ -448,6 +448,8 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 先制 / 終撃 / 充溢 / 放出 / 応手 / 双撃 | 全ての武器の型が出す共通の瞬間（未実装）。交戦の最初の一撃 / 連撃の締め・最大溜め攻撃 / 戦意が満ちた / 戦意を使った / 受け流し・見切り・弾返しの成功 / 左右を交互に当てた | `docs/ideas/build-core.md` 柱 5 |
 | 個性 | 武器の型の中で束ねたベースごとの違い（リーチ・速さ・右の段の 1 つ）（未実装） | `docs/ideas/build-core.md` 4-1 |
 | 陣 / 陣形 / 群勢 | 戦いの単位（敵の一団が陣形を組んで占める場所）/ 役割と格の組み合わせ（八陣: 魚鱗・鶴翼・偃月・鋒矢・方円・雁行・長蛇・衡軛）/ 陣の士気。尽きると敗走（未実装） | `docs/ideas/core-synthesis.md` 4 章 |
+| 役割 | 敵の役割 7 種（内部名 `EnemyRole`）: 前衛・突撃・射手・妨害・支援・爆発・群れ（vanguard / charge / shooter / disruptor / support / blast / swarm）。陣形のスロットと反応ルールの単位。behavior の表で決まり、違う敵だけ `EnemyDef.role` で上書き | `data/enemyRoles.ts`、`docs/ideas/jin-impl.md` 2-1 |
+| 格 | 敵の格 3 段（内部名 `EnemyGrade`）: 並（無印）・猛（強。接頭辞「猛スライム」。未実装）・精鋭（エリート修飾子つき） | `data/enemyRoles.ts` gradeOf、`docs/ideas/jin-impl.md` 2-2 |
 | 共鳴（後継の設計） | 全ての層の流れの源と糧が揃うと倍が入る仕組み（未実装）。今の色の配合の共鳴を置き換える予定で、名前は「共鳴」のまま | `docs/ideas/build-core.md` 4-5 |
 | 隙 | ボスのダウンの機会（設計用語。旧「窓」） | `docs/ideas/encounter-core.md` 7 章 |
 | 銭 / 鍵 / 瓶 | ラン内の通貨（欠片の後継）/ 宝箱などを開ける 2 つ目の通貨 / 持ち運べる回復（未実装） | `docs/ideas/economy-core.md` 4 章 |

@@ -62,6 +62,7 @@ export function createGame(
     time: 0,
     map: createMap(1, 1),
     rooms: [],
+    jins: [],
     lockedTiles: new Set(),
     player: createPlayer({ x: 0, y: 0 }, stats),
     enemies: [],

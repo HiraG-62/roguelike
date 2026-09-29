@@ -211,6 +211,10 @@ export interface Enemy {
   animTime: number;
   /** エリート修飾子（src/system/elites.ts） */
   elite?: EliteKind;
+  /** 属する陣の id（GameState.jins の Jin.id）。roomIndex は陣が占める塊のまま。陣に属さない敵（湧き・召喚・敗走中）は undefined */
+  jinId?: number;
+  /** 格「強」（猛〜）。並は無印、精鋭は elite。判定は data/enemyRoles.ts の gradeOf */
+  grade?: "strong";
   /** Shielded: hp の上乗せぶんのシールド量。hp > maxHp - shieldMax の間はシールドが残っている */
   shieldMax?: number;
   /** Linked の HP 共有用: 前ステップの hp */
@@ -669,6 +673,37 @@ export type FloorKind = "rooms" | "cave" | "dark" | "forge" | "ossuary" | "swamp
  */
 export const ROAMING_ROOM = -1;
 
+/** 陣の進行: 眠っている / 交戦中 / 決着済み */
+export type JinPhase = "sleeping" | "engaged" | "settled";
+
+/**
+ * 陣: 敵の一団が陣形を組んで占める戦いの単位（docs/ideas/jin-impl.md 2-5）。部屋を置き換えず、部屋の塊の上に乗る。
+ * メンバーは Enemy.jinId を持つ。buildFloor で作り直す
+ */
+export interface Jin {
+  id: number;
+  /** 占める塊。長蛇・物見は ROAMING_ROOM */
+  roomIndex: number;
+  /** data/formations.ts の FormationKey に絞る（3a-A）。それまでは文字列 */
+  formation: string;
+  center: Vec;
+  /** 正面（開始側の隣の塊へ向く）。陣形の並びの向き */
+  facing: Vec;
+  /** 大将の敵 id。いない陣は null */
+  leaderId: number | null;
+  /** 群勢（士気）。moraleMax は生成時のメンバーの重さの合計 */
+  morale: number;
+  moraleMax: number;
+  phase: JinPhase;
+  /** 決着の種類（全滅 / 敗走）。settled のとき */
+  settledBy?: "wipe" | "rout";
+  /** 後詰（第 2 波）を起こす floorTime。null なら無し */
+  secondWaveAt: number | null;
+  /** 同じ tick の撃破数（一網打尽の判定） */
+  deathsTick: number;
+  deathsInTick: number;
+}
+
 export interface RoomState {
   rect: Rect;
   cleared: boolean;
@@ -722,6 +757,8 @@ export interface GameState {
   time: number;
   map: GameMap;
   rooms: RoomState[];
+  /** 陣（部屋の塊の上に乗る敵の一団）。buildFloor で作り直す */
+  jins: Jin[];
   lockedTiles: Set<number>;
   player: Player;
   enemies: Enemy[];

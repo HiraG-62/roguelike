@@ -1,6 +1,7 @@
 import type { StatusKind } from "../core/status";
 import type { FloorKind, RallyKind } from "../core/state";
 import type { TerrainKind } from "../core/terrain";
+import type { EnemyRole } from "./enemyRoles";
 import { BALANCE } from "./balance";
 import { ENEMY_SCALE } from "./tuning";
 import { WAVE3_ENEMIES } from "./enemiesWave3";
@@ -169,6 +170,8 @@ export interface EnemyDef {
   hp: number;
   speed: number;
   behavior: EnemyBehavior;
+  /** 陣での役割。省略時は enemyRoles.ts の roleOf が behavior と swarm / explode から決める（表と違うときだけ書く） */
+  role?: EnemyRole;
   /** strike 中に接触したときのダメージ */
   contactDamage: number;
   /** 攻撃の予備動作時間（秒）。長いほど避けやすい */
@@ -293,7 +296,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "multiBomber", name: "連投ゴブリン", sprite: "multiBomber", recolor: { base: "bomber", swap: { g: "o", G: "O", h: "q" } }, behavior: "bomber", color: "#e88838", ...N.multiBomber },
   { key: "spearman", name: "槍兵", sprite: "spearman", recolor: { base: "knight", swap: { b: "o", B: "O", a: "q" } }, behavior: "charger", color: "#e88838", ...N.spearman },
   { key: "hornBeetle", name: "角甲虫", sprite: "beetle", behavior: "charger", color: "#58d058", chargeTrail: "rockfall", ...N.hornBeetle },
-  { key: "netter", name: "投網兵", sprite: "netter", recolor: { base: "bomber", swap: { g: "c", G: "C", h: "1" } }, behavior: "shooter", color: "#60e0f0", ...N.netter },
+  { key: "netter", name: "投網兵", sprite: "netter", recolor: { base: "bomber", swap: { g: "c", G: "C", h: "1" } }, behavior: "shooter", role: "disruptor", color: "#60e0f0", ...N.netter },
   { key: "carrionFly", name: "腐肉蝿", sprite: "carrionFly", recolor: { base: "bat", swap: { P: "v", p: "J" } }, behavior: "bat", color: "#a0e040", frenzy: { vs: ["bleed", "poison"], speedMul: 1.5 }, ...N.carrionFly },
   { key: "thunderWisp", name: "雷鬼火", sprite: "thunderWisp", recolor: { base: "wisp", swap: { c: "N", C: "y" } }, behavior: "wisp", color: "#fff4a0", phasing: true, deathRally: { kind: "charged", radius: 60, time: 5 }, ...N.thunderWisp },
   { key: "skeleton", name: "骸骨兵", sprite: "skeleton", behavior: "chaser", color: "#e0d8c0", ...N.skeleton },
@@ -301,7 +304,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "fuseRat", name: "導火鼠", sprite: "fuseRat", recolor: { base: "rat", swap: { S: "O", s: "o", r: "y" } }, behavior: "kamikaze", color: "#e88838", ...N.fuseRat },
   { key: "crystalMite", name: "結晶ダニ", sprite: "mite", behavior: "kamikaze", color: "#60e0f0", ...N.crystalMite },
   { key: "echoStriker", name: "残像打ち", sprite: "hooded", behavior: "echoStriker", color: "#5a4a8a", ...N.echoStriker },
-  { key: "packLeader", name: "群れの長", sprite: "packLeader", recolor: { base: "wolf", swap: { S: "W", s: "q" } }, behavior: "packLeader", color: "#7a6a58", pack: { minion: "wolf", count: 3 }, ...N.packLeader },
+  { key: "packLeader", name: "群れの長", sprite: "packLeader", recolor: { base: "wolf", swap: { S: "W", s: "q" } }, behavior: "packLeader", role: "support", color: "#7a6a58", pack: { minion: "wolf", count: 3 }, ...N.packLeader },
   { key: "manaLeech", name: "気力喰い", sprite: "leech", behavior: "manaLeech", color: "#3c7ad8", ...N.manaLeech },
   { key: "scavenger", name: "骨拾い", sprite: "ghoul", behavior: "scavenger", color: "#5b7e48", ...N.scavenger },
   { key: "graveBell", name: "墓守の鐘", sprite: "bell", behavior: "graveBell", color: "#f8d848", noCorpse: true, ...N.graveBell },
