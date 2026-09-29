@@ -16,7 +16,7 @@
   "maxEnemies": 16,
   "reinforcementRatio": 0.5,
   "spawnTelegraph": 0.7,
-  "heartDropChance": 0.2,
+  "heartDropChance": 0.1,
   "heartHeal": 18,
   "clearBonus": 50
 }
