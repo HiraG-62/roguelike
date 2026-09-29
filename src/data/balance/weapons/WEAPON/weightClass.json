@@ -1,0 +1,17 @@
+{
+  "_note": "武器の重さ別の係数（data/weapons.ts の MovesetDef.weight。docs/ideas/combat-core-impl.md 2-5）。重い武器は振りの間止まり、ダッシュで取り消せない。軽い武器は動きながら振れ、いつでもダッシュで切れる。damageMul / poiseMul は重さの補償の口で、初期は 1（balance-tuner が動かす）",
+  "_fields": {
+    "moveMulMin": "攻撃中の移動倍率の下限。武器種の attackMoveMul をこの帯 [Min, Max] に丸める（1 = 等倍）",
+    "moveMulMax": "攻撃中の移動倍率の上限（1 = 等倍）",
+    "finisherMoveMul": "終撃（最終段・フィニッシュ派生）の移動倍率。-1 は段と同じ（足を止めない）。0 で止まる",
+    "lockActive": "持続（active）中もダッシュで取り消せない（真偽）。発生（windup）は全重さで取り消せない",
+    "lockRecoverRatio": "硬直（recover）の最初のこの割合はダッシュで取り消せない。割合（0..1）。0 で硬直は最初から切れる",
+    "recoverMul": "硬直の倍率（1 = 等倍）",
+    "damageMul": "重さの補償の威力の倍率（1 = 等倍）。balance-tuner が動かす",
+    "poiseMul": "重さの補償の怯み値の倍率（1 = 等倍）。balance-tuner が動かす",
+    "hitstop": "通常命中のヒットストップ（ステップ。60Hz）。段が hitstop を持てば段が優先。重い命中・終撃・撃破・会心は別"
+  },
+  "light": { "moveMulMin": 0.6, "moveMulMax": 0.8, "finisherMoveMul": -1, "lockActive": false, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 0 },
+  "medium": { "moveMulMin": 0.3, "moveMulMax": 0.5, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 1 },
+  "heavy": { "moveMulMin": 0, "moveMulMax": 0, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0.5, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 2 }
+}

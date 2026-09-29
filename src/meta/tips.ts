@@ -1,5 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
-import { padSkillKeysLabel } from "../core/padBinds";
+import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
+import { PARRY } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL } from "../loot/resonance";
 import type { AttrKey } from "../loot/types";
@@ -57,12 +58,14 @@ const CONTROL_TIPS: readonly TipDef[] = [
   { key: "attack1", term: "攻撃 1", category: "controls", body: (b) => `${k(b, "attack")}。武器種ごとの左の連撃。銃の家系なら射撃。` },
   { key: "attack2", term: "攻撃 2", category: "controls", body: (b) => `${k(b, "shoot")}。全武器種に共通の右の連撃。左右の押し方の列でコンボ派生が出る。` },
   { key: "special", term: "奥義", category: "controls", body: (b) => `${k(b, "special")}。奥義ゲージが満ちると出せる。持続の奥義はもう一度 ${k(b, "special")} で終える。武器種ごとの 3 本から装備画面のステータスタブで選ぶ（拠点のみ）。` },
+  { key: "parry", term: "受け流し", category: "controls", body: (b) => `${k(b, "parry")}（パッドは ${padActionLabel("parry")}）。振っていなければいつでも出せる。窓（${PARRY.windowSec} 秒）の間の被弾を無効にして相手を怯ませ、予備動作を終えた攻撃も止められる。外すと ${PARRY.recoverSec} 秒の間、攻撃もダッシュもできない。` },
   { key: "skillKeys", term: "スキル石", category: "controls", body: (b) => `${skillKeys(b)}。パッドは ${padSkillKeysLabel()}（+ は押さえたまま次を押す）。` },
   { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物・スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
   { key: "inventory", term: "装備画面", category: "controls", body: (b) => `${k(b, "inventory")} で開き、押すたびにタブが進む。開いている間は時間が止まる。` },
   { key: "dropInfo", term: "アイテム情報", category: "controls", body: (b) => `${k(b, "toggleDropInfo")} で床のアイテムの性能表示を切り替える。` },
   { key: "restart", term: "やり直す", category: "controls", body: (b) => `${k(b, "restart")} で新しいシードの探索をやり直す。` },
   { key: "keybinds", term: "キー設定", category: "controls", body: "設定 → キー設定で、アクションごとに主 / 副 / 予備の 3 つまで割り当てられる。画面の案内の表記もこれに合わせて変わる。" },
+  { key: "hitstopDaily", term: "ヒットストップ", category: "controls", body: "設定のヒットストップの強さは、今日の挑戦では既定値で固定される（記録を競うため）。" },
   { key: "padBinds", term: "パッド設定", category: "controls", body: "設定 → パッド設定で、ゲームパッドのボタンを割り当て直せる。ボタンを押さえたまま別のボタンを押すと「LB+A」のような組み合わせになる。左スティック・十字キーの移動、A の決定、B の戻る、Start のポーズは固定。" },
   { key: "padAim", term: "パッドの照準", category: "controls", body: "右スティックを倒した方向を狙う。離すと移動の向きを狙う（マウスカーソルの位置には戻らない）。マウスを動かすかクリックすると、マウスの照準に戻る。" },
 ];

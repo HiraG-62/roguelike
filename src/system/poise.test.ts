@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { Enemy, GameState } from "../core/state";
 import { ENEMIES } from "../data/enemies";
 import { ENEMY_COMBAT } from "../data/enemyCombat";
-import { ELITE, POISE, STATUS } from "../data/tuning";
+import { ELITE, ENEMY_TEMPO, POISE, STATUS } from "../data/tuning";
 import { damageEnemy, rollOutgoing } from "./combat";
 import { interceptEnemyDamage, makeElite, updateElites } from "./elites";
 import { updateEnemies } from "./enemies";
-import { addPoise, applyStagger, basePoiseMax, bossPoiseGrowth, isStaggered } from "./poise";
+import { addPoise, applyStagger, attackCommitted, basePoiseMax, bossPoiseGrowth, isStaggered, settlePendingStagger, windupCommitted } from "./poise";
 import { applyStatus, findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
 
@@ -386,5 +386,187 @@ describe("怯みの伝播", () => {
     expect(isStaggered(a)).toBe(true);
     expect(b.poise.damage).toBeCloseTo(POISE.spreadPoise, 5);
     expect(c.poise.damage, "半径の外").toBe(0);
+  });
+});
+
+describe("攻撃のコミット", () => {
+  const WINDUP_TOTAL = 1;
+  const HUGE_POISE = 9999;
+
+  /** 予備動作の残り割合を指定して手で置く（プレイヤーは左を向く位置なので背面の一撃にならない） */
+  function windingUp(state: GameState, remainRatio: number, key = "slime"): Enemy {
+    const e = sturdy(state, key, 200);
+    e.phase = "windup";
+    e.windupTotal = WINDUP_TOTAL;
+    e.phaseTimer = WINDUP_TOTAL * remainRatio;
+    e.strikeDir = { x: -1, y: 0 };
+    return e;
+  }
+
+  it("予備動作の前半（残りが commitRatio より多い）に耐性ぶん当てると即怯み、予備動作は取り消される", () => {
+    const state = arena();
+    const e = windingUp(state, ENEMY_TEMPO.commitRatio + 0.2);
+    expect(windupCommitted(e), "まだコミット前").toBe(false);
+    addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+    expect(isStaggered(e)).toBe(true);
+    expect(e.phase).toBe("chase");
+  });
+
+  it("残りが commitRatio を切ってからは怯み値が溜まらず、攻撃は取り消されない", () => {
+    const state = arena();
+    const e = windingUp(state, ENEMY_TEMPO.commitRatio - 0.1);
+    expect(windupCommitted(e)).toBe(true);
+    expect(attackCommitted(e), "コミット窓の中は攻撃が確定").toBe(true);
+    const damage = addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+    expect(damage, "怯まない").toBe(false);
+    expect(e.poise.damage, "溜まらない").toBe(0);
+    expect(e.phase).toBe("windup");
+  });
+
+  it("ignoreCommit（受け流し）はコミット窓の中でも溜めて怯ませる", () => {
+    const state = arena();
+    const e = windingUp(state, ENEMY_TEMPO.commitRatio - 0.1);
+    addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true, ignoreCommit: true });
+    expect(isStaggered(e)).toBe(true);
+    expect(e.phase).toBe("chase");
+  });
+
+  it("windupTotal が 0 の敵（記録の無い経路）はコミット窓が無く、従来どおり溜まる", () => {
+    const state = arena();
+    const e = windingUp(state, 0.1);
+    e.windupTotal = 0;
+    expect(windupCommitted(e)).toBe(false);
+    addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+    expect(isStaggered(e)).toBe(true);
+  });
+
+  it("通常の予備動作の始まりで windupTotal が記録され、進むとコミット窓に入る", () => {
+    const state = arena();
+    const e = sturdy(state, "slime", 40);
+    e.attackCooldown = 0;
+    for (let i = 0; i < 5 && e.phase !== "windup"; i++) updateEnemies(state, 0.016);
+    expect(e.phase, "予備動作に入った").toBe("windup");
+    expect(e.windupTotal).toBeGreaterThan(0);
+    expect(e.windupTotal, "始まりの直後は残り = 総時間").toBeGreaterThanOrEqual(e.phaseTimer);
+    expect(windupCommitted(e), "始まりはまだ怯ませられる").toBe(false);
+    e.phaseTimer = e.windupTotal * ENEMY_TEMPO.commitRatio;
+    expect(windupCommitted(e), "残り割合がちょうど commitRatio で窓に入る").toBe(true);
+  });
+
+  describe("攻撃中の怯みの先送り", () => {
+    /** プレイヤーから遠くで背を向けて走る strike（接触しない） */
+    function striking(state: GameState, key: string, timer: number): Enemy {
+      const e = sturdy(state, key, 250);
+      e.phase = "strike";
+      e.phaseTimer = timer;
+      e.strikeDir = { x: 1, y: 0 };
+      return e;
+    }
+
+    it("strike 中に耐性を超えても phase は strike のままで、蓄積は満杯で止まり pending になる", () => {
+      const state = arena();
+      const e = striking(state, "slime", 0.5);
+      const staggered = addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+      expect(staggered, "怯みは先送り").toBe(false);
+      expect(e.phase).toBe("strike");
+      expect(e.poise.pending).toBe(true);
+      expect(e.poise.damage).toBe(e.poise.max);
+      const before = e.poise.damage;
+      addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+      expect(e.poise.damage, "先送り中はさらに溜まらない").toBe(before);
+    });
+
+    it("strike が時間切れで終わったところで怯み、recover に進まず chase へ戻る", () => {
+      const state = arena();
+      const e = striking(state, "slime", 0.05);
+      addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+      updateEnemies(state, 0.1);
+      expect(isStaggered(e), "技の終わりで怯む").toBe(true);
+      expect(e.phase).toBe("chase");
+      expect(e.poise.pending).toBe(false);
+      expect(e.poise.damage, "怯みで蓄積は 0 に戻る").toBe(0);
+    });
+
+    it("連続攻撃の途中で先送りされた怯みは、2 撃目の予備動作へ進ませずに払う", () => {
+      const state = arena();
+      const e = striking(state, "knight", 0.05);
+      if (!e.ai) throw new Error("ai が無い");
+      e.ai.counter = 1;
+      addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+      updateEnemies(state, 0.1);
+      expect(e.phase, "2 撃目（windup）は出ない").toBe("chase");
+      expect(isStaggered(e)).toBe(true);
+    });
+
+    it("先送りが無ければ連続攻撃は従来どおり 2 撃目の予備動作へ進む", () => {
+      const state = arena();
+      const e = striking(state, "knight", 0.05);
+      if (!e.ai) throw new Error("ai が無い");
+      e.ai.counter = 1;
+      updateEnemies(state, 0.1);
+      expect(e.phase).toBe("windup");
+    });
+
+    it("ignoreCommit は攻撃中でも先送りせず即座に怯ませる", () => {
+      const state = arena();
+      const e = striking(state, "slime", 0.5);
+      addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true, ignoreCommit: true });
+      expect(isStaggered(e)).toBe(true);
+      expect(e.poise.pending).toBe(false);
+    });
+
+    it("安全網: endStrike を通らず phase が strike でなくなった敵も、次の step で怯む", () => {
+      const state = arena();
+      const e = striking(state, "slime", 0.5);
+      addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+      e.phase = "recover";
+      e.phaseTimer = 1;
+      updateEnemies(state, 0.016);
+      expect(isStaggered(e)).toBe(true);
+      expect(e.poise.pending).toBe(false);
+    });
+
+    it("先送り中にほかの手段で怯んだ敵は、二重に怯まず pending だけ捨てる", () => {
+      const state = arena();
+      const e = striking(state, "slime", 0.5);
+      addPoise(state, e, HUGE_POISE, { ignoreSuperArmor: true });
+      applyStagger(state, e, 0.5);
+      expect(settlePendingStagger(state, e)).toBe(false);
+      expect(e.poise.pending).toBe(false);
+    });
+
+    it("ボス（bossKit の敵）は strike 中にダウン条件を満たしても、技が終わるまでダウンしない", () => {
+      const state = arena();
+      const e = striking(state, "oilKing", 0.3);
+      const downsBefore = e.poise.downs;
+      addPoise(state, e, e.poise.max * 10, { ignoreSuperArmor: true });
+      expect(e.poise.pending, "ダウンは先送り").toBe(true);
+      expect(isStaggered(e)).toBe(false);
+      for (let i = 0; i < 40 && !isStaggered(e); i++) updateEnemies(state, 0.05);
+      expect(isStaggered(e), "技の後にダウンする").toBe(true);
+      expect(e.poise.downs).toBe(downsBefore + 1);
+    });
+  });
+});
+
+describe("処刑の上限", () => {
+  it("処刑の閾値の上限は基準値以上（ビルドで伸ばしても上限で止まる口）", () => {
+    expect(POISE.executeHpRatioMax).toBeGreaterThanOrEqual(POISE.executeHpRatio);
+  });
+
+  it("上限ちょうどの HP 割合までは処刑でき、それを超える HP は処刑しない", () => {
+    const state = arena();
+    const above = sturdy(state, "slime");
+    above.maxHp = 100;
+    above.hp = Math.floor(100 * POISE.executeHpRatioMax) + 2;
+    applyStagger(state, above, 1);
+    addPoise(state, above, POISE.executeMinPoise, { canExecute: true });
+    expect(above.hp, "閾値より上は処刑されない").toBeGreaterThan(0);
+    const below = sturdy(state, "slime");
+    below.maxHp = 100;
+    below.hp = Math.floor(100 * POISE.executeHpRatioMax);
+    applyStagger(state, below, 1);
+    addPoise(state, below, POISE.executeMinPoise, { canExecute: true });
+    expect(below.hp, "閾値以下は処刑される").toBe(0);
   });
 });

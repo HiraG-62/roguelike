@@ -185,6 +185,9 @@ describe("encodeInputs / decodeInputs", () => {
       skill4Pressed: true,
       skill3Held: true,
       skill4Held: true,
+      attackHeld: true,
+      interactPressed: true,
+      parryPressed: true,
       wheel: -3,
     });
     expect(decodeInputs(encodeInputs([all]))).toEqual([all]);
@@ -197,6 +200,16 @@ describe("encodeInputs / decodeInputs", () => {
     expect(decoded?.skill4Held, "skill4Held が落ちた").toBe(true);
     expect(decoded?.skill4Pressed, "skill4Pressed が立った").toBe(false);
     expect(decoded?.skill1Pressed, "skill1Pressed が立った").toBe(false);
+  });
+
+  it("受け流しのビットは他のボタンと混ざらず、押していない列では 0 のまま（REPLAY_VERSION 13）", () => {
+    const only = withInput({ parryPressed: true });
+    const decoded = decodeInputs(encodeInputs([only, withInput({})]));
+    expect(decoded[0]?.parryPressed, "parryPressed が落ちた").toBe(true);
+    expect(decoded[0]?.interactPressed, "interactPressed が立った").toBe(false);
+    expect(decoded[0]?.dashPressed, "dashPressed が立った").toBe(false);
+    expect(decoded[1]?.parryPressed, "押していないフレームは false").toBe(false);
+    expect(REPLAY_VERSION, "受け流しの入力を足した版").toBeGreaterThanOrEqual(13);
   });
 
   it("壊れた文字列は例外", () => {

@@ -154,6 +154,11 @@ export interface Player {
    * recover = 受け流しを外した硬直の残り秒、cooldowns = 右レーンの段（ActionStepDef.key）ごとの再使用の残り秒
    */
   art: { cooldown: number; holding: boolean; holdTime: number; recover: number; cooldowns: Map<string, number> };
+  /**
+   * 全武器共通の受け流し（src/system/parry.ts）。window = 受け流しが有効な残り秒、recover = 外した硬直の残り秒。
+   * 剣の右 1 段目の構えの受け流し（art）とは別の状態
+   */
+  parry: { window: number; recover: number };
   /** 奥義（F）の作業領域 */
   ultimate: UltimateState;
 }
@@ -182,6 +187,8 @@ export interface PoiseState {
   sinceHit: number;
   /** ボスのダウン回数 */
   downs: number;
+  /** 攻撃中（strike）に耐性を超えた: 技を出し切った後で怯む（system/poise.ts の settlePendingStagger）。蓄積は満杯で止まる */
+  pending: boolean;
 }
 
 export interface Enemy {
@@ -194,6 +201,8 @@ export interface Enemy {
   facing: Vec;
   phase: EnemyPhase;
   phaseTimer: number;
+  /** 今の予備動作の総秒（コミット窓の判定用。0 = 未記録で、窓なし = 従来どおり怯む） */
+  windupTotal: number;
   strikeDir: Vec;
   attackCooldown: number;
   hitFlash: number;

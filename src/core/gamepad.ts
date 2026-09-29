@@ -43,6 +43,8 @@ export interface GamepadFrame {
   attackHeld: boolean;
   shootHeld: boolean;
   specialPressed: boolean;
+  /** 受け流し（既定は RB） */
+  parryPressed: boolean;
   confirmPressed: boolean;
   /** A の押下中（LB のスキル層を除く）。拠点の出撃の長押しが読む */
   confirmHeld: boolean;
@@ -77,6 +79,7 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   attackHeld: false,
   shootHeld: false,
   specialPressed: false,
+  parryPressed: false,
   confirmPressed: false,
   confirmHeld: false,
   escapePressed: false,
@@ -255,6 +258,7 @@ export class GamepadInput {
       attackHeld: a.attack.held,
       shootHeld: a.shoot.held,
       specialPressed: a.special.pressed,
+      parryPressed: a.parry.pressed,
       confirmPressed: menuJust(PAD_A),
       confirmHeld: (isDown[PAD_A] ?? false) && !consumed(PAD_A),
       escapePressed: menuJust(PAD_B) || justPressed(PAD_START),

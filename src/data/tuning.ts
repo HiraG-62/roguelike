@@ -52,6 +52,9 @@ export const ENERGY = BALANCE.combat.ENERGY;
 /** 怯み（docs/COMBAT_DESIGN.md D-1）。段階 1 の L3 が読む */
 export const POISE = BALANCE.combat.POISE;
 
+/** 全武器共通の受け流し（窓・硬直・移動・ボスへの怯み値）。src/system/parry.ts が読む */
+export const PARRY = BALANCE.combat.PARRY;
+
 /** 地形の層（docs/ideas/status-and-terrain.md 3 章）。src/system/terrain.ts と src/map/generator.ts の planTerrain が読む */
 export const TERRAIN = BALANCE.combat.TERRAIN;
 
@@ -105,6 +108,9 @@ export const PICKUP = BALANCE.loot.PICKUP;
 export const INNATE = BALANCE.loot.INNATE;
 
 export const FEEL = BALANCE.feel.FEEL;
+
+/** 敵の予告の線の色・長さ。見た目だけ（render/telegraphLineUi.ts が読む） */
+export const TELEGRAPH = BALANCE.feel.TELEGRAPH;
 
 export const ROOM = BALANCE.world.ROOM;
 

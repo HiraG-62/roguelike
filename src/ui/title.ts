@@ -381,7 +381,7 @@ export function bindsExtraRow(mode: BindsMode, index: number): "reset" | "close"
 }
 
 // 「アイテム情報」を足して 18 行になったので、パネルを画面いっぱい（y0）にし上下の余白をさらに詰めて
-// 最小の行間（13）で全行が 1 画面に収まるようにした
+// 最小の行間で全行が 1 画面に収まるようにした（「受け流し」で 19 行になり、最小の行間を 13 → 12 にした）
 const KEYBINDS_PANEL: Rect = { x: 40, y: 0, w: 400, h: 270 };
 /** パネル上端から見出し・列見出し・最初の行の中心までの距離 */
 const KEYBINDS_TITLE_TOP = 8;

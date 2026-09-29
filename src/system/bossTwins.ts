@@ -112,6 +112,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void 
   const bereaved = (e.ai?.stage ?? STAGE_PAIRED) >= STAGE_BEREAVED;
   e.phase = "windup";
   e.phaseTimer = scaledWindup(def.windup * (bereaved ? BOSS.twinKnights.bereavedWindupMul : 1), state.depth);
+  e.windupTotal = e.phaseTimer;
   e.strikeDir = dir;
   pushSfx(state, "enemyWindup");
 }

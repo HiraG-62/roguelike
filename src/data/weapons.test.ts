@@ -12,6 +12,8 @@ import {
   MOVESETS,
   MOVESET_KEYS,
   STEP2_NAMES,
+  WEAPON_WEIGHTS,
+  reviveWeight,
   type MeleeStepDef,
   actionLane,
   branchHints,
@@ -573,5 +575,68 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     expect(fan.steps[3]?.cutsBullets, "左 4 段目").toBe(true);
     expect(fan.branches.find((b) => b.key === "downdraft")?.step.cutsBullets, "颪").toBe(true);
     expect(fan.attack.genre.quality, "扇子は混成").toBe("hybrid");
+  });
+});
+
+describe("武器の重さ（docs/ideas/combat-core-impl.md 2-5）", () => {
+  /** 攻撃中の移動倍率が重さの帯の外にあり、丸められる武器種（丸めた結果を手触りとして受け入れる。理由は割り当て表） */
+  const EXPECTED_CLAMP: Readonly<Partial<Record<MovesetKey, string>>> = {
+    claws: "0.85 → 軽の上限 0.8",
+    fists: "1.0 → 軽の上限 0.8",
+    fan: "1.0 → 軽の上限 0.8（暫定で軽。段取り 5 で見直す）",
+    chainSickle: "0.6 → 中の上限 0.5",
+    trapper: "0.7 → 中の上限 0.5",
+    greatsword: "0.2 → 重は止まる（0）",
+    hammer: "0.2 → 重は止まる（0）",
+    cleaver: "0.25 → 重は止まる（0）",
+    axe: "0.3 → 重は止まる（0）",
+    shield: "0.45 → 重は止まる（0）",
+    longarm: "0.5 → 重は止まる（0）",
+    cannon: "0.4 → 重は止まる（0）",
+  };
+
+  it("全武器種が WEAPON_WEIGHTS のどれかの weight を持つ", () => {
+    for (const key of MOVESET_KEYS) {
+      expect(WEAPON_WEIGHTS, `${key} の weight`).toContain(MOVESETS[key].weight);
+    }
+  });
+
+  it("weightClass は全部の重さの係数を持ち、移動の帯が下限 <= 上限", () => {
+    for (const w of WEAPON_WEIGHTS) {
+      const c = WEAPON.weightClass[w];
+      expect(c.moveMulMin, `${w} の帯`).toBeLessThanOrEqual(c.moveMulMax);
+      expect(c.lockRecoverRatio, `${w} の硬直ロック割合`).toBeGreaterThanOrEqual(0);
+      expect(c.lockRecoverRatio, `${w} の硬直ロック割合`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("重いほど硬直の前半を取り消せない・止まる（重さの順序）", () => {
+    const { light, medium, heavy } = WEAPON.weightClass;
+    expect(light.lockActive, "軽は持続中も切れる").toBe(false);
+    expect(medium.lockActive && heavy.lockActive, "中・重は持続中は切れない").toBe(true);
+    expect(heavy.lockRecoverRatio, "重は硬直の前半も切れない").toBeGreaterThan(medium.lockRecoverRatio);
+    expect(heavy.moveMulMax, "重は止まる").toBeLessThanOrEqual(medium.moveMulMin);
+    expect(medium.moveMulMax).toBeLessThanOrEqual(light.moveMulMax);
+  });
+
+  it("attackMoveMul が重さの帯の外の武器種は EXPECTED_CLAMP に理由付きで載っている（帯の中なら載せない）", () => {
+    for (const key of MOVESET_KEYS) {
+      const def = MOVESETS[key];
+      const c = WEAPON.weightClass[def.weight];
+      const outside = def.attackMoveMul < c.moveMulMin || def.attackMoveMul > c.moveMulMax;
+      expect(EXPECTED_CLAMP[key] !== undefined, `${key} の帯外の扱い`).toBe(outside);
+    }
+  });
+
+  it("銃の家系は縛らない（軽・中・重のどれでもよい）", () => {
+    for (const key of GUN_MOVESETS) {
+      expect(WEAPON_WEIGHTS, `${key}`).toContain(MOVESETS[key].weight);
+    }
+  });
+
+  it("reviveWeight は未知の値を落とす", () => {
+    expect(reviveWeight("heavy")).toBe("heavy");
+    expect(() => reviveWeight("huge")).toThrow();
+    expect(() => reviveWeight(undefined)).toThrow();
   });
 });

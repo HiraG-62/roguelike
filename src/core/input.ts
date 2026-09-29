@@ -11,6 +11,8 @@ export const ACTION_NAMES = [
   "attack",
   "shoot",
   "special",
+  /** 全武器共通の受け流し（system/parry.ts）。振っていなければいつでも押せる */
+  "parry",
   "confirm",
   "restart",
   "inventory",
@@ -42,6 +44,7 @@ export const REBINDABLE_ACTIONS = [
   "attack",
   "shoot",
   "special",
+  "parry",
   "inventory",
   "skill1",
   "skill2",
@@ -73,8 +76,11 @@ export const DEFAULT_KEYBINDS: Readonly<Keybinds> = {
   attack: ["KeyE", "Mouse0"],
   shoot: ["KeyQ", "Mouse2"],
   special: ["KeyF"],
+  // 受け流し。R は WASD の上で左手が届く。中クリックはマウス派の副（右クリックは右の連撃で塞がっている）
+  parry: ["KeyR", "Mouse1"],
   confirm: ["Enter"],
-  restart: ["KeyR"],
+  // 受け流しに R を譲って P へ（ラン中のやり直しは稀。死亡画面・ポーズメニューの案内はキー表記を通る）
+  restart: ["KeyP"],
   inventory: ["Tab", "KeyI"],
   skill1: ["Digit1", "KeyC", "Mouse3"],
   skill2: ["Digit2", "KeyV", "Mouse4"],
@@ -98,6 +104,7 @@ const MAX_CODE_LENGTH = 32;
 export const SKILL_ACTIONS: readonly ActionName[] = ["skill1", "skill2", "skill3", "skill4"];
 
 const MOUSE_LEFT = 0;
+const MOUSE_MIDDLE = 1;
 const MOUSE_RIGHT = 2;
 /** サイドボタン（戻る / 進む）。ブラウザの履歴移動を止める必要がある */
 const MOUSE_BACK = 3;
@@ -106,6 +113,7 @@ const HISTORY_BUTTONS: ReadonlySet<number> = new Set([MOUSE_BACK, MOUSE_FORWARD]
 /** マウスボタンを擬似キーコードとして扱う */
 const MOUSE_CODE: Record<number, BindingCode> = {
   [MOUSE_LEFT]: "Mouse0",
+  [MOUSE_MIDDLE]: "Mouse1",
   [MOUSE_RIGHT]: "Mouse2",
   [MOUSE_BACK]: "Mouse3",
   [MOUSE_FORWARD]: "Mouse4",
@@ -117,6 +125,7 @@ const UI_CLICK_CODE: BindingCode = "Mouse0";
 /** 表示名の特例。それ以外は Key / Digit を落とすか code をそのまま出す */
 const CODE_LABEL: Readonly<Record<string, string>> = {
   Mouse0: "左クリック",
+  Mouse1: "中クリック",
   Mouse2: "右クリック",
   Mouse3: "サイド1",
   Mouse4: "サイド2",
@@ -366,6 +375,8 @@ export interface FrameInput {
   /** 右 = 武器ごとの固有技の押しっぱなし（構え技など）。内部名は改名しない */
   shootHeld: boolean;
   specialPressed: boolean;
+  /** 受け流し（system/parry.ts）。押した瞬間だけ true */
+  parryPressed: boolean;
   confirmPressed: boolean;
   /**
    * パッド A のエッジのみ（キーボード Enter を含まない）。confirmPressed はキーボード/パッド OR なので、
@@ -409,6 +420,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   attackHeld: false,
   shootHeld: false,
   specialPressed: false,
+  parryPressed: false,
   confirmPressed: false,
   padConfirmPressed: false,
   restartPressed: false,
@@ -602,6 +614,7 @@ export class PlayerInput {
       attackHeld: this.isDown("attack") || pad.attackHeld,
       shootHeld: this.isDown("shoot") || pad.shootHeld,
       specialPressed: this.wasPressed("special") || pad.specialPressed,
+      parryPressed: this.wasPressed("parry") || pad.parryPressed,
       confirmPressed: this.wasPressed("confirm") || pad.confirmPressed,
       padConfirmPressed: pad.confirmPressed,
       restartPressed: this.wasPressed("restart"),

@@ -298,6 +298,7 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   dashCooldownMul: { label: "ダッシュ再使用時間", style: "mul" },
   dashCharges: { label: "ダッシュ回数", style: "flat" },
   dashDistanceMul: { label: "ダッシュ距離", style: "mul" },
+  dashInvulnBonus: { label: "ダッシュの無敵時間", style: "flat" },
 
   meleeDamageMul: { label: "近接ダメージ", style: "mul" },
   meleeDamageFlat: { label: "近接ダメージ（固定値）", style: "flat" },

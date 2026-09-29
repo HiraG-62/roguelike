@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.5,
+  "weight": "medium",
   "dashAttack": {"windup":0.04,"active":0.1,"recover":0.24,"scaling":{"base":5,"str":0.3,"vit":0.4},"poiseRatio":{"vit":0.36},"poise":12,"reach":0,"size":36,"knockback":260,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hitstop":4,"shake":2,"trail":"#ffc070"},
   "steps2": [
     {"kind":"swing","key":"tubeBash","cooldown":1,"selfKnock":360,"step":{"windup":0.05,"active":0.1,"recover":0.22,"scaling":{"base":5,"str":0.5,"vit":0.3},"poiseRatio":{"str":0.3,"vit":0.24},"poise":18,"reach":20.5,"size":20.5,"knockback":420,"heavy":true,"mana":3,"shape":{"kind":"arc","deg":150},"hitstop":4,"shake":2.5,"trail":"#ffc070"}},

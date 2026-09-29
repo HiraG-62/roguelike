@@ -254,6 +254,7 @@ function updateKingSlime(state: GameState, e: Enemy, def: EnemyDef, dt: number):
       e.phase = "windup";
       // 第 2 段階の速さと深度の短縮を掛けても、基準の 60% は残す（scaledWindup の下限）
       e.phaseTimer = scaledWindup(def.windup, state.depth, 1 / mul);
+      e.windupTotal = e.phaseTimer;
       pushSfx(state, "enemyWindup");
       return;
     }
@@ -345,6 +346,7 @@ function updateBoneLord(state: GameState, e: Enemy, def: EnemyDef, dt: number): 
       if (e.attackCooldown > 0) return;
       e.phase = "windup";
       e.phaseTimer = scaledWindup(def.windup, state.depth);
+      e.windupTotal = e.phaseTimer;
       ai.counter = 0;
       pushSfx(state, "enemyWindup");
       return;

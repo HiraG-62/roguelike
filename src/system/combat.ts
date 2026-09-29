@@ -276,6 +276,8 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   let steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
   // 武器種の最終段・フィニッシュ派生の命中は、他の値より軽ければ底上げする（docs/ideas/combat-feel-design.md D-2）
   if (opts.finisher) steps = Math.max(steps, FEEL.hitstopFinisher);
+  // 通常命中は 1 か所で上限を掛ける（段の JSON の hitstop が 269 か所あるので個別には直さない）
+  if (!heavy && !opts.finisher && !opts.crit) steps = Math.min(steps, FEEL.hitstopNormalMax);
   hitstop(state, steps);
   shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
   // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）
@@ -459,7 +461,8 @@ export function tickHpRegen(state: GameState, dt: number): void {
   healPlayer(state, regen * dt, { silent: true });
 }
 
-export type PlayerHitResult = "hit" | "dodged" | "ignored";
+/** parried = 受け流した（弾は消え、攻撃した敵は止まる。避けた dodged と同じく「当たり判定は済んだ」扱い） */
+export type PlayerHitResult = "hit" | "dodged" | "ignored" | "parried";
 
 export interface DamagePlayerOptions {
   /** true なら無敵中でも JUST 回避（スロー・ゲージ）を発生させない。単に "ignored" 扱い（Reaper の常時接触が稼ぎ場にならないように） */
@@ -495,8 +498,8 @@ export function damagePlayer(
     }
     return "ignored";
   }
-  // 右クリックの固有技: 受け流しの窓は無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
-  if (tryParry(state, attacker)) return "ignored";
+  // 受け流し（共通の窓と剣の右 1 段目の構え）は被弾を無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
+  if (tryParry(state, attacker, fromPos)) return "parried";
 
   const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker) * guardDamageMul(state, fromPos) * ultimateIncomingMul(state, fromPos);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));

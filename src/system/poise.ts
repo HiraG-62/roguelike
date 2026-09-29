@@ -3,7 +3,7 @@ import { enemyTarget, pushEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
 import { enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
-import { POISE, STATUS } from "../data/tuning";
+import { ENEMY_TEMPO, POISE, STATUS } from "../data/tuning";
 import { addFloatingText, markExecuted, spawnBurst } from "./effects";
 import { shieldLeft } from "./elites";
 import { gainMana } from "./mana";
@@ -50,6 +50,19 @@ export function isStaggered(e: Enemy): boolean {
   return hasStatus(e.status, "stagger");
 }
 
+/**
+ * 予備動作のコミット窓: 残りが総時間の commitRatio を切った予備動作は、怯み値が溜まらず攻撃が必ず出る。
+ * windupTotal が 0 の敵（記録が無い経路・手で phase を置いた敵）は窓なし = 従来どおり
+ */
+export function windupCommitted(e: Enemy): boolean {
+  return e.phase === "windup" && e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
+}
+
+/** 攻撃が出ることが確定している（予告の色が「必ず出る」になる）: コミット窓に入った予備動作か攻撃中。render も読む */
+export function attackCommitted(e: Enemy): boolean {
+  return e.phase === "strike" || windupCommitted(e);
+}
+
 export interface PoiseHitOptions {
   /** 壁叩きつけなど: 強靭を無視する */
   ignoreSuperArmor?: boolean;
@@ -63,6 +76,8 @@ export interface PoiseHitOptions {
    * addPoise から処刑すると撃破の報酬・トリガーが抜けたまま消える
    */
   canExecute?: boolean;
+  /** 受け流し: コミット窓と攻撃中の先送りを破る（窓の中でも溜め、攻撃中でも即怯ませる） */
+  ignoreCommit?: boolean;
 }
 
 /**
@@ -95,9 +110,9 @@ export function isBehind(state: GameState, e: Enemy): boolean {
   return facing.x * toPlayer.x + facing.y * toPlayer.y < POISE.backstabDot;
 }
 
-/** 怯み値が溜まらない状態か（耐性なし・出現中・怯み中・障壁が残っている） */
+/** 怯み値が溜まらない状態か（耐性なし・出現中・怯み中・障壁が残っている・怯みが先送り済み） */
 function cannotAccumulate(e: Enemy): boolean {
-  return e.poise.max <= 0 || e.hp <= 0 || e.phase === "spawning" || isStaggered(e) || shieldLeft(e) > 0;
+  return e.poise.max <= 0 || e.hp <= 0 || e.phase === "spawning" || isStaggered(e) || shieldLeft(e) > 0 || e.poise.pending;
 }
 
 /**
@@ -109,14 +124,48 @@ export function addPoise(state: GameState, e: Enemy, amount: number, opts: Poise
   if (opts.canExecute === true && tryExecute(state, e, amount)) return true;
   if (cannotAccumulate(e)) return false;
   const hitOpts = opts.fromBehind === undefined ? { ...opts, fromBehind: isBehind(state, e) } : opts;
+  // コミット窓の中は溜まらない（読んで潰せるのは窓の前だけ）
+  if (opts.ignoreCommit !== true && windupCommitted(e)) return false;
   const gained = amount * playerPoiseDealtMul(state) * poiseTakenMul(e, hitOpts);
   if (gained <= 0) return false;
   e.poise.damage += gained;
   e.poise.sinceHit = 0;
   if (e.poise.damage < e.poise.max) return false;
+  // 攻撃中は満杯で止めて先送り（1 撃は出し切らせる）。怯むのは技の終わり
+  if (opts.ignoreCommit !== true && e.phase === "strike") {
+    e.poise.damage = e.poise.max;
+    e.poise.pending = true;
+    return false;
+  }
+  return triggerStagger(state, e, opts.noSpread === true);
+}
+
+/** 耐性を超えた怯みを起こす（伝播つき）。拘束上限などで入らなければ false */
+function triggerStagger(state: GameState, e: Enemy, noSpread: boolean): boolean {
   if (!breakPoise(state, e)) return false;
-  if (!opts.noSpread) spreadStagger(state, e);
+  if (!noSpread) spreadStagger(state, e);
   return true;
+}
+
+/**
+ * 攻撃中に先送りされた怯みを払う（endStrike・ボスの strike の終わり・updateEnemies の安全網から呼ぶ）。
+ * すでに怯んでいる・死んでいるなら捨てる。怯ませたら true（phase は chase に戻っている）
+ */
+export function settlePendingStagger(state: GameState, e: Enemy): boolean {
+  if (!e.poise.pending) return false;
+  e.poise.pending = false;
+  if (e.hp <= 0 || isStaggered(e)) return false;
+  return triggerStagger(state, e, false);
+}
+
+/** 処刑の閾値（HP 割合）。ビルドで伸ばす口は executeBonus。上限は POISE.executeHpRatioMax（core-synthesis 3-7） */
+function executeHpRatio(state: GameState): number {
+  return Math.min(POISE.executeHpRatio + executeBonus(state), POISE.executeHpRatioMax);
+}
+
+/** 性質・祝福が処刑の閾値を伸ばす口（今は伸ばすものが無い） */
+function executeBonus(_state: GameState): number {
+  return 0;
 }
 
 /**
@@ -126,7 +175,7 @@ export function addPoise(state: GameState, e: Enemy, amount: number, opts: Poise
  */
 function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
   if (amount < POISE.executeMinPoise || e.hp <= 0 || !isStaggered(e)) return false;
-  if (isExecuteImmune(enemyDef(e.defKey)) || e.hp > e.maxHp * POISE.executeHpRatio) return false;
+  if (isExecuteImmune(enemyDef(e.defKey)) || e.hp > e.maxHp * executeHpRatio(state)) return false;
   e.hp = 0;
   markExecuted(state, e);
   addFloatingText(state, e.body.pos, EXECUTE_TEXT, EXECUTE_COLOR, EXECUTE_TEXT_SCALE, 0.7);
@@ -152,6 +201,7 @@ function spreadStagger(state: GameState, e: Enemy): void {
 function breakPoise(state: GameState, e: Enemy): boolean {
   const combat = enemyCombat(e.defKey);
   e.poise.damage = e.poise.max;
+  e.poise.pending = false;
   if (!applyStagger(state, e, combat.staggerTime)) return false;
   e.poise.damage = 0;
   if (isBossClass(enemyDef(e.defKey))) {

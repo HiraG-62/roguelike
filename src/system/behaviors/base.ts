@@ -4,7 +4,8 @@ import type { EnemyBehavior, EnemyDef } from "../../data/enemies";
 
 /** 予備動作中に描く予告の種類（render/renderer.ts が system/enemies.ts の再 export 経由で読む） */
 export type EnemyTelegraph =
-  | { kind: "line" }
+  /** length = 線の長さ px。enemyTelegraph が必ず入れる（ボスの個別関数は省略してよい） */
+  | { kind: "line"; length?: number }
   | { kind: "laser" }
   | { kind: "ring"; radius: number }
   /** 十字の線（ai.points の各点へ。十字ゴーレム） */

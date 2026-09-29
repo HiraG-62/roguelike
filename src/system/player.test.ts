@@ -13,6 +13,8 @@ import { grantBoon } from "./boons";
 import type { FrameInput } from "../core/input";
 import {
   type MeleeStep,
+  attackMoveMulOf,
+  canDashCancel,
   dashCooldownTime,
   hookCombo,
   isPlayerStaggered,
@@ -107,7 +109,7 @@ function staggerPlayer(state: GameState): void {
   state.player.status.effects.push(effect);
 }
 
-describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
+describe("ダッシュの無敵（前半だけ）", () => {
   it("ダッシュ直後は JUST 回避になる", () => {
     const state = arena();
     step(state, withInput({ dashPressed: true }), FIXED_DT);
@@ -116,7 +118,7 @@ describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
     expect(state.player.dodgedThisDash, "このダッシュで JUST を取った").toBe(true);
   });
 
-  it("無敵は invulnTime で切れ、ダッシュ中でも 0.10 秒後は被弾する", () => {
+  it("無敵は invulnTime で切れ、ダッシュ中でも無敵が切れた後は被弾する", () => {
     const state = arena();
     step(state, withInput({ dashPressed: true }), FIXED_DT);
     expect(state.player.invulnTimer, "無敵はダッシュ全長ではなく invulnTime").toBeCloseTo(PLAYER.dash.invulnTime);
@@ -127,10 +129,10 @@ describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
     expect(state.player.hp).toBeLessThan(hp);
   });
 
-  it("ダッシュ後の猶予無敵は無く、CD は 0.45 秒", () => {
+  it("ダッシュ後の猶予無敵は無く、再使用は PLAYER.dash.cooldown（基礎 1 回ぶん）", () => {
     const state = arena();
     expect(dashCooldownTime(state.stats), "基礎のダッシュ CD").toBeCloseTo(PLAYER.dash.cooldown);
-    expect(PLAYER.dash.cooldown).toBeCloseTo(0.45);
+    expect(PLAYER.dash.cooldown, "無敵を連打で繋げない長さ（invulnTime より十分長い）").toBeGreaterThan(PLAYER.dash.invulnTime * 5);
     step(state, withInput({ dashPressed: true }), FIXED_DT);
     while (state.player.dashTimer > 0) step(state, withInput({}), FIXED_DT);
     expect(state.player.invulnTimer, "終了直後に無敵が残らない").toBe(0);
@@ -911,5 +913,108 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     expect(hammerIds.some((id) => id.startsWith("player:moveset.axe:")), "斧の固有効果は入らない").toBe(false);
     const sword = arena(5);
     expect(collectRules(sword).some((r) => r.id.startsWith("player:moveset.")), "剣は固有効果なし").toBe(false);
+  });
+});
+
+describe("武器の重さ（ダッシュの取り消し・攻撃中の移動・硬直）", () => {
+  const MAX_WAIT_STEPS = 120;
+
+  /** 1 段目を押して、指定の相に入るまで回す */
+  function swingUntil(moveset: "greatsword" | "sword" | "twinBlades", phase: "active" | "recover"): GameState {
+    const state = arena(5, { moveset });
+    step(state, withInput({ attackPressed: true }), FIXED_DT);
+    for (let i = 0; i < MAX_WAIT_STEPS && state.player.attack.phase !== phase; i++) step(state, withInput({}), FIXED_DT);
+    if (state.player.attack.phase !== phase) throw new Error(`${phase} に入らない`);
+    return state;
+  }
+
+  it("発生中はどの重さでもダッシュで取り消せず、入力は捨てられて回数も減らない", () => {
+    for (const key of ["twinBlades", "sword", "greatsword"] as const) {
+      const state = arena(5, { moveset: key });
+      step(state, withInput({ attackPressed: true }), FIXED_DT);
+      expect(state.player.attack.phase, `${key} は振り始めが発生`).toBe("windup");
+      const charges = state.player.dashChargesLeft;
+      step(state, withInput({ dashPressed: true }), FIXED_DT);
+      expect(state.player.dashChargesLeft, `${key} の発生中は回数が減らない`).toBe(charges);
+      expect(state.player.dashTimer, `${key} の発生中はダッシュが出ない`).toBe(0);
+    }
+  });
+
+  it("重い武器（大剣）は持続中にダッシュを押しても切れず、回数も減らない", () => {
+    const state = swingUntil("greatsword", "active");
+    const charges = state.player.dashChargesLeft;
+    step(state, withInput({ dashPressed: true }), FIXED_DT);
+    expect(canDashCancel(state), "持続中は取り消せない").toBe(false);
+    expect(state.player.dashChargesLeft, "回数が減らない").toBe(charges);
+    expect(state.player.attack.phase, "振りが続く").not.toBe("none");
+  });
+
+  it("軽い武器（双剣）は持続中にダッシュで切れる", () => {
+    const state = swingUntil("twinBlades", "active");
+    const charges = state.player.dashChargesLeft;
+    step(state, withInput({ dashPressed: true }), FIXED_DT);
+    expect(state.player.dashChargesLeft, "回数を使った").toBe(charges - 1);
+    expect(state.player.attack.phase, "振りが消えた").toBe("none");
+  });
+
+  it("重い武器は硬直の前半は切れず、後半（残りが半分以下）で切れる", () => {
+    const state = swingUntil("greatsword", "recover");
+    expect(canDashCancel(state), "硬直の最初は取り消せない").toBe(false);
+    const step0 = meleeStep(state.stats, state.player.attack.step, false, 0, -1, playerMoveset(state));
+    if (!step0) throw new Error("段が無い");
+    const ratio = WEAPON.weightClass.heavy.lockRecoverRatio;
+    for (let i = 0; i < MAX_WAIT_STEPS && state.player.attack.timer > step0.recover * (1 - ratio); i++) step(state, withInput({}), FIXED_DT);
+    expect(state.player.attack.phase, "まだ硬直中").toBe("recover");
+    expect(canDashCancel(state), "後半は取り消せる").toBe(true);
+  });
+
+  it("中の剣は硬直に入れば切れる（lockRecoverRatio 0）", () => {
+    const state = swingUntil("sword", "recover");
+    expect(canDashCancel(state), "硬直では取り消せる").toBe(true);
+  });
+
+  it("溜め中はダッシュで切れる（振りの相ではない）", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    expect(canDashCancel(state), "溜め中").toBe(true);
+  });
+
+  it("攻撃中の移動倍率は武器種の値を重さの帯に丸める（重は 0、軽は帯の中）", () => {
+    const light = WEAPON.weightClass.light;
+    const heavy = WEAPON.weightClass.heavy;
+    expect(attackMoveMulOf(MOVESETS.greatsword, 0), "大剣は止まる").toBe(heavy.moveMulMax);
+    expect(attackMoveMulOf(MOVESETS.fists, 0), "拳は等倍から帯の上限へ").toBe(light.moveMulMax);
+    expect(attackMoveMulOf(MOVESETS.twinBlades, 0), "双剣は帯の中ならそのまま").toBe(MOVESETS.twinBlades.attackMoveMul);
+  });
+
+  it("終撃は中で足が止まり、軽は止まらない", () => {
+    const finisher = (key: "sword" | "twinBlades"): number => attackMoveMulOf(MOVESETS[key], hookCombo(MOVESETS[key], MOVESETS[key].steps.length - 1));
+    expect(finisher("sword"), "中の終撃").toBe(WEAPON.weightClass.medium.finisherMoveMul);
+    expect(finisher("sword")).toBe(0);
+    expect(finisher("twinBlades"), "軽の終撃は段と同じ").toBeGreaterThan(0);
+  });
+
+  it("recoverMul が硬直に掛かる", () => {
+    const state = arena(5, { moveset: "sword" });
+    const base = meleeStep(state.stats, 0)?.recover;
+    const weight = WEAPON.weightClass.medium;
+    const saved = weight.recoverMul;
+    try {
+      Object.assign(weight, { recoverMul: 2 });
+      const doubled = meleeStep(state.stats, 0)?.recover;
+      expect(base).toBeDefined();
+      expect(doubled).toBeCloseTo((base ?? 0) * 2);
+    } finally {
+      Object.assign(weight, { recoverMul: saved });
+    }
+  });
+
+  it("ダッシュの無敵は dashInvulnBonus だけ伸びる（ダッシュ時間を超えない）", () => {
+    const state = arena(5, { dashInvulnBonus: 0.03 });
+    step(state, withInput({ dashPressed: true }), FIXED_DT);
+    expect(state.player.invulnTimer).toBeCloseTo(PLAYER.dash.invulnTime + 0.03);
+    const long = arena(5, { dashInvulnBonus: 10 });
+    step(long, withInput({ dashPressed: true }), FIXED_DT);
+    expect(long.player.invulnTimer, "ダッシュ時間で頭打ち").toBeLessThanOrEqual(PLAYER.dash.time);
   });
 });

@@ -85,7 +85,7 @@ const SILENCEABLE_WINDUP: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["
 
 /** 怯みの蓄積の初期値。耐性は enemies.ts の createEnemy が ENEMY_COMBAT から入れる */
 export function createPoiseState(): PoiseState {
-  return { max: 0, damage: 0, sinceHit: 0, downs: 0 };
+  return { max: 0, damage: 0, sinceHit: 0, downs: 0, pending: false };
 }
 
 /** 状態異常の付与先（docs/COMBAT_DESIGN.md E-1） */

@@ -62,7 +62,7 @@ import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
-import { EFFECTS, FX_ATTACK } from "../data/tuning";
+import { EFFECTS, FX_ATTACK, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
@@ -95,6 +95,7 @@ import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
+import { drawStrikeLine, telegraphColor } from "./telegraphLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
@@ -397,8 +398,6 @@ const WINDUP_JITTER_SPEED = 60;
 const WINDUP_JITTER_Y_RATIO = 1.3;
 const WINDUP_BLINK_SPEED = 30;
 const WINDUP_RED_ALPHA = 0.55;
-const CHARGER_LINE_LEN = 120;
-const CHARGER_LINE_ALPHA = 0.35;
 const STAGGER_TILT = 0.25;
 const STAGGER_WOBBLE_SPEED = 14;
 const SPAWN_RING_GROW = 1;
@@ -1467,10 +1466,10 @@ export class Renderer {
 
     const top = cy - sprite.h / 2 - 2;
     if (e.phase === "windup") {
-      drawText(ctx, "!", cx, top, TEXT.SMALL, COLOR_TELEGRAPH, "center");
+      drawText(ctx, "!", cx, top, TEXT.SMALL, telegraphColor(e), "center");
       // 予告の種類は system 側（enemyTelegraph）が決める。影で見せるものは hazards の landing が描く
       const tele = enemyTelegraph(e, def);
-      if (tele?.kind === "line") this.drawChargeLine(e);
+      if (tele?.kind === "line") drawStrikeLine(ctx, state, e, tele.length ?? TELEGRAPH.fallbackLength);
       if (tele?.kind === "laser") this.drawLaserTelegraph(state, e, def.windup);
       if (tele?.kind === "ring") this.drawRingTelegraph(cx, cy, tele.radius);
       this.drawWave3Telegraph(e, tele, CONE_WINDUP_ALPHA);
@@ -1947,18 +1946,6 @@ export class Renderer {
     ctx.lineTo(r.aim.x, r.aim.y);
     ctx.stroke();
     ctx.lineWidth = 1;
-    ctx.globalAlpha = 1;
-  }
-
-  /** 突進方向の予告線 */
-  private drawChargeLine(e: Enemy): void {
-    const { ctx } = this;
-    ctx.strokeStyle = COLOR_TELEGRAPH;
-    ctx.globalAlpha = CHARGER_LINE_ALPHA;
-    ctx.beginPath();
-    ctx.moveTo(e.body.pos.x, e.body.pos.y);
-    ctx.lineTo(e.body.pos.x + e.strikeDir.x * CHARGER_LINE_LEN, e.body.pos.y + e.strikeDir.y * CHARGER_LINE_LEN);
-    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 

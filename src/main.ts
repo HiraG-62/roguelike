@@ -87,6 +87,7 @@ import {
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
 import {
   adjustHitstopScale,
+  DEFAULT_HITSTOP_SCALE,
   adjustMusicVolume,
   adjustScreenShake,
   adjustVolume,
@@ -216,9 +217,14 @@ const codexSave = loadCodex();
 const questSave = loadQuests();
 const achievementSave = loadAchievements();
 
+/** 記録を競う「今日の挑戦」は手触りの差で有利不利が出ないよう、ヒットストップの強さを既定値で固定する */
+function hitstopScaleFor(seedText: string): number {
+  return isDailySeedText(seedText) ? DEFAULT_HITSTOP_SCALE : settings.hitstopScale;
+}
+
 function startGame(seedText: string): GameState {
   syncSeedUrl(seedText);
-  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup, settings.hitstopScale);
+  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup, hitstopScaleFor(seedText));
 }
 
 /** ラン開始時に依頼の除外遺物を確定させる（記録器と createGame が同じ集合を見る） */
@@ -275,7 +281,8 @@ applySettings();
  * ラン中の変更は記録中のリプレイにもイベントとして積み、再生で同じ強さを再現する
  */
 function applyHitstopScale(): void {
-  if (state) {
+  // 今日の挑戦は固定（設定の保存だけする）
+  if (state && !isDailySeedText(state.seedText)) {
     state.hitstopScale = settings.hitstopScale;
     recorder?.noteHitstopScale(state, settings.hitstopScale);
   }
@@ -413,7 +420,7 @@ function beginRun(seedText: string): void {
   state = startGame(seedText);
   // スナップショットは createGame の後に取る（startJob が倉庫へ入れる初期スキル石の有無を記録に残すため）
   recorder = ReplayRecorder.fromStartedGame(
-    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup, hitstopScale: settings.hitstopScale },
+    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup, hitstopScale: hitstopScaleFor(seedText) },
     state,
   );
   // 受けた依頼（やり直し・同じシードでの再挑戦は起点画面を通らないので、保存の active を引き継ぐ）

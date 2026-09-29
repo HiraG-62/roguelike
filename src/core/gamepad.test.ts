@@ -195,7 +195,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(f2.shootHeld).toBe(true);
   });
 
-  it("B(1) or RB(5) は dashPressed、Y(3) は specialPressed", () => {
+  it("B(1) は dashPressed、RB(5) は parryPressed（ダッシュにはならない）、Y(3) は specialPressed", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
@@ -205,7 +205,9 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(input.read().dashPressed).toBe(true);
 
     stubPads({ index: 0, buttons: makeButtons([5]), axes: [0, 0, 0, 0] });
-    expect(input.read().dashPressed).toBe(true);
+    const rb = input.read();
+    expect(rb.parryPressed, "RB は受け流し").toBe(true);
+    expect(rb.dashPressed, "RB はダッシュにならない").toBe(false);
 
     stubPads({ index: 0, buttons: makeButtons([3]), axes: [0, 0, 0, 0] });
     expect(input.read().specialPressed).toBe(true);
@@ -237,7 +239,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(held.skill1Held).toBe(true);
   });
 
-  it("LB 中も RT(攻撃) / LT(固有技) / RB(ダッシュ) は効く", () => {
+  it("LB 中も RT(攻撃) / LT(固有技) / RB(受け流し) は効く", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
@@ -247,7 +249,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     const f = input.read();
     expect(f.attackPressed).toBe(true);
     expect(f.shootHeld).toBe(true);
-    expect(f.dashPressed).toBe(true);
+    expect(f.parryPressed).toBe(true);
   });
 
   it("右スティック押し込み(11) / D-pad 上(12) はスキルに使わない", () => {

@@ -86,6 +86,7 @@ import {
   startLaneArt,
   updateArt,
 } from "./weaponArts";
+import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
 
@@ -171,6 +172,7 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     shotBurst: { left: 0, timer: 0, side: 1 },
     swingImpact: 0,
     art: { cooldown: 0, holding: false, holdTime: 0, recover: 0, cooldowns: new Map() },
+    parry: { window: 0, recover: 0 },
     ultimate: createUltimateState(),
   };
 }
@@ -331,12 +333,13 @@ export function meleeStep(
 function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: MovesetDef, level?: MeleeChargeDef["levels"][number]): MeleeStep {
   const speed = stats.attackSpeedMul;
   const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1);
+  const weight = WEAPON.weightClass[moveset.weight];
   return {
     windup: base.windup / speed,
     active: base.active / speed,
-    recover: base.recover / speed,
-    damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1),
-    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1),
+    recover: (base.recover * weight.recoverMul) / speed,
+    damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1) * weight.damageMul,
+    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1) * weight.poiseMul,
     reach: base.reach * reachMul,
     size: base.size * reachMul,
     knockback: base.knockback * stats.knockbackMul,
@@ -430,7 +433,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
 /** ダッシュ・近接・奥義の入力を読む（怯み中は呼ばない） */
 function readActions(state: GameState, input: FrameInput): void {
-  if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
+  if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
+  if (input.parryPressed) startParry(state);
   if (!skillLocksAttack(state) && !artLocksActions(state)) readAttackButtons(state, input);
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
@@ -640,6 +644,7 @@ function applyAim(state: GameState, input: FrameInput): boolean {
 function tickTimers(state: GameState, dt: number): void {
   const p = state.player;
   tickDashCharges(state, dt);
+  tickParry(state, dt);
   p.invulnTimer = Math.max(0, p.invulnTimer - dt);
   p.hitFlash = Math.max(0, p.hitFlash - dt);
   p.swingImpact = Math.max(0, p.swingImpact - dt);
@@ -680,9 +685,27 @@ function tickDashCharges(state: GameState, dt: number): void {
   if (p.dashChargesLeft < max) p.dashCooldown = dashCooldownTime(state.stats);
 }
 
+/**
+ * 振っている最中にダッシュで取り消せるか（武器の重さ。docs/ideas/combat-core-impl.md 2-5）。
+ * 発生（windup）は全重さで取り消せない。持続（active）は lockActive、硬直（recover）は最初の lockRecoverRatio まで取り消せない。
+ * 振っていない・溜め中・構え中（振りの相ではない）は常に取り消せる
+ */
+export function canDashCancel(state: GameState): boolean {
+  const p = state.player;
+  if (!isAttacking(p)) return true;
+  const step = currentMeleeStep(state);
+  if (!step) return true;
+  const weight = WEAPON.weightClass[playerMoveset(state).weight];
+  if (p.attack.phase === "windup") return false;
+  if (p.attack.phase === "active") return !weight.lockActive;
+  return p.attack.timer <= step.recover * (1 - weight.lockRecoverRatio);
+}
+
 function tryDash(state: GameState, input: FrameInput): void {
   const p = state.player;
   if (p.dashChargesLeft <= 0 || isDashing(p)) return;
+  // 取り消せない相の入力は捨てる（回数も減らさない。手触りで不満が出たら先行入力を足す）
+  if (!canDashCancel(state)) return;
   p.dashChargesLeft -= 1;
   if (p.dashCooldown <= 0) p.dashCooldown = dashCooldownTime(state.stats);
   if (tryDashGuard(state)) return;
@@ -703,7 +726,7 @@ function tryDash(state: GameState, input: FrameInput): void {
     const time = dashTime(state.stats);
     p.dashTimer = time;
     // 無敵はダッシュの前半だけ。後半は被弾するので、ダッシュを押すタイミングが問われる
-    p.invulnTimer = Math.max(p.invulnTimer, Math.min(time, PLAYER.dash.invulnTime));
+    p.invulnTimer = Math.max(p.invulnTimer, Math.min(time, PLAYER.dash.invulnTime + state.stats.dashInvulnBonus));
     p.dodgedThisDash = false;
   }
   onBoonDash(state);
@@ -719,6 +742,16 @@ function blink(state: GameState): void {
   moveBody(state, p.body, p.dashDir.x * distance, p.dashDir.y * distance);
   spawnBurst(state, from, KEYSTONE.blinkColor, 10, 60, 0.3, 2);
   explodeAt(state, p.body.pos, KEYSTONE.blinkRadius, KEYSTONE.blinkDamage);
+}
+
+/**
+ * 攻撃中の移動倍率。武器種の attackMoveMul を重さの帯に丸め、終撃（最終段・フィニッシュ派生）は重さごとの倍率で上書きする。
+ * 溜め中（chargeMul）・構え中（artMoveMul）は呼び出し側で別に掛ける
+ */
+export function attackMoveMulOf(moveset: MovesetDef, combo: number): number {
+  const w = WEAPON.weightClass[moveset.weight];
+  if (combo === FINISHER_COMBO && w.finisherMoveMul >= 0) return w.finisherMoveMul;
+  return Math.min(w.moveMulMax, Math.max(w.moveMulMin, moveset.attackMoveMul));
 }
 
 function updateMovement(state: GameState, input: FrameInput, dt: number, aiming: boolean): void {
@@ -743,7 +776,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     const moveset = playerMoveset(state);
     const chargeMul = p.attack.charging ? (meleeChargeOf(moveset)?.moveMul ?? 1) : 1;
     const attackMul =
-      (isAttacking(p) ? moveset.attackMoveMul : 1) *
+      (isAttacking(p) ? attackMoveMulOf(moveset, p.attack.combo) : 1) *
       chargeMul *
       artMoveMul(state) *
       ultimateMoveMul(state) *
@@ -1250,7 +1283,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   // 霊刃（spiritBlade）: 通常攻撃に霊力の係数が加わる
   const out = rollOutgoing(state, e, (step.damage + boonNormalAttackBonus(state)) * tipMul.damage, "melee");
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
-  const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : FEEL.hitstopLight);
+  const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : WEAPON.weightClass[playerMoveset(state).weight].hitstop);
   if (step.shake > 0) shake(state, step.shake);
   const pos = { ...e.body.pos };
   if (step.heavy) e.wallSplat = true;

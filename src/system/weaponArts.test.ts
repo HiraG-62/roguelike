@@ -13,6 +13,7 @@ import { stoneFromSeed } from "../skills/generator";
 import { damagePlayer } from "./combat";
 import { nextLaneIndex, playerMoveset, shotDamage, updatePlayer } from "./player";
 import { createSkillRunState, updateSkills } from "./skills";
+import { hasStatus } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { actionCooldownLeft, onBranchStart } from "./weaponArts";
 import { bulletDef } from "../loot/bullets";
@@ -123,13 +124,28 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     const hp = state.player.hp;
     state.events.length = 0;
     const result = damagePlayer(state, HIT, e.body.pos, e);
-    expect(result, "被弾しない").toBe("ignored");
+    expect(result, "受け流した（被弾しない）").toBe("parried");
     expect(state.player.hp, "生命が減らない").toBe(hp);
-    expect(e.poise.damage, "相手に怯み値が入った").toBeGreaterThan(0);
+    expect(hasStatus(e.status, "stagger"), "相手が怯む").toBe(true);
     expect(state.events.some((ev) => ev.kind === "onCounter"), "カウンター扱い").toBe(true);
     expect(state.player.invulnTimer, "受け流した直後は無敵").toBeGreaterThan(0);
     expect(state.player.art.recover, "成功なら硬直しない").toBe(0);
     expect(state.player.attack.step, "受け流しが決まると段が進む").toBe(1);
+  });
+
+  it("剣の構えの受け流しも、コミットした予備動作の敵を共通の受け流しと同じに止める", () => {
+    const state = arena(5);
+    const e = tough(placeEnemy(state, "boar", 14));
+    // 予備動作の残りが総秒の 0.6 を切っている（怯み値では崩せない）
+    e.phase = "windup";
+    e.windupTotal = 1;
+    e.phaseTimer = 0.3;
+    play(state, [{ shootHeld: true }]);
+    state.events.length = 0;
+    expect(damagePlayer(state, HIT, e.body.pos, e), "受け流した").toBe("parried");
+    expect(hasStatus(e.status, "stagger"), "コミット中でも怯む").toBe(true);
+    expect(e.phase, "予備動作は取り消される").toBe("chase");
+    expect(state.events.some((ev) => ev.kind === "onCounter"), "共通の受け流しと同じカウンター扱い").toBe(true);
   });
 
   it("受け流しの窓を過ぎた被弾は通り、外した硬直が付く", () => {

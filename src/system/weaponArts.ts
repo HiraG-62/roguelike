@@ -1,8 +1,7 @@
 import type { FrameInput } from "../core/input";
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
-import { enemyTarget, pushEvent } from "../core/events";
-import { FX_ATTACK, WEAPON } from "../data/tuning";
+import { WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
   type AimArtDef,
@@ -21,10 +20,9 @@ import {
 } from "../data/weapons";
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
-import { addFloatingText, addMark, spawnBurst } from "./effects";
+import { spawnBurst } from "./effects";
 import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
-import { addPoise } from "./poise";
-import { onTraitCounter } from "./traitHooks";
+import { parryLocksActions, parryMoveMul, parrySucceed, tryWindowParry } from "./parry";
 import { BULLETS } from "../loot/bullets";
 
 /**
@@ -37,8 +35,6 @@ import { BULLETS } from "../loot/bullets";
 const A = WEAPON.artDefaults;
 const DEG_TO_RAD = Math.PI / 180;
 const FULL_TURN = Math.PI * 2;
-const PARRY_TEXT_SCALE = 1.4;
-const PARRY_TEXT_LIFE = 0.6;
 const FX_SPEED = 120;
 const FX_LIFE = 0.3;
 const FX_SIZE = 2;
@@ -115,9 +111,9 @@ function advanceLane(state: GameState, index: number): void {
   a.inputTimer = Math.max(a.inputTimer, laneChainWindow(playerMoveset(state).steps2[index]));
 }
 
-/** 受け流しを外した硬直中か（攻撃・技・射撃のボタンを受け付けない） */
+/** 受け流しを外した硬直中か（攻撃・技・射撃のボタンを受け付けない）。共通の受け流し（parry.ts）の窓と硬直も含む */
 export function artLocksActions(state: GameState): boolean {
-  return state.player.art.recover > 0;
+  return state.player.art.recover > 0 || parryLocksActions(state);
 }
 
 /** 振りの最中なら段を出せない。recover 中は振りを打ち切って出す（先行入力と同じ手触り） */
@@ -262,8 +258,10 @@ function onAimReady(state: GameState): void {
   pushSfx(state, "chargeLevel");
 }
 
-/** 構え・狙い中の移動速度倍率（構えていなければ 1） */
+/** 構え・狙い・共通の受け流し中の移動速度倍率（どれでもなければ 1） */
 export function artMoveMul(state: GameState): number {
+  const parry = parryMoveMul(state);
+  if (parry !== 1) return parry;
   if (!state.player.art.holding) return 1;
   const hold = currentHold(state);
   if (hold) return hold.moveMul;
@@ -271,27 +269,17 @@ export function artMoveMul(state: GameState): number {
 }
 
 /**
- * 受け流し（combat.ts の damagePlayer が無敵判定の直後に呼ぶ）。窓の中の被弾を無効にし、
- * 攻撃した敵に怯み値を入れてカウンター扱いにする（onCounter を発火。刀のルールや祝福が乗る）。受け流したら true
+ * 受け流し（combat.ts の damagePlayer が無敵判定の直後に呼ぶ）。剣の右 1 段目の構えの窓、なければ共通の受け流しの窓（parry.ts）の
+ * 中の被弾を無効にし、攻撃した敵を止めてカウンター扱いにする（onCounter を発火。刀のルールや祝福が乗る）。受け流したら true。
+ * fromPos は攻撃の出どころ（共通の受け流しの向きの判定に使う）
  */
-export function tryParry(state: GameState, attacker?: Enemy): boolean {
+export function tryParry(state: GameState, attacker?: Enemy, fromPos?: Vec): boolean {
   const p = state.player;
   const parry = currentHold(state)?.parry;
-  if (!parry || !p.art.holding || p.art.holdTime >= parry.windowSec) return false;
+  if (!parry || !p.art.holding || p.art.holdTime >= parry.windowSec) return tryWindowParry(state, fromPos, attacker);
   finishArtHold(state);
-  p.invulnTimer = Math.max(p.invulnTimer, A.parryInvuln);
-  addFloatingText(state, p.body.pos, A.parryText, A.parryColor, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
-  spawnBurst(state, p.body.pos, A.parryColor, A.parryParticles, FX_SPEED, FX_LIFE, FX_SIZE);
-  addMark(state, "parry", p.body.pos, FX_ATTACK.sprite.parryLife, A.parryColor);
-  pushSfx(state, "counter");
-  if (attacker && attacker.hp > 0) counterAttacker(state, attacker, parry.staggerPoise);
+  parrySucceed(state, attacker, parry.staggerPoise);
   return true;
-}
-
-function counterAttacker(state: GameState, e: Enemy, poise: number): void {
-  addPoise(state, e, poise * state.stats.poiseDamageMul, { ignoreSuperArmor: true });
-  onTraitCounter(state, e);
-  pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
 }
 
 /**

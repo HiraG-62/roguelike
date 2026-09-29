@@ -2,7 +2,7 @@ import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../c
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE, ROAM } from "../data/tuning";
+import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
@@ -10,7 +10,7 @@ import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, hasElit
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
-import { applyStagger, initEnemyPoise } from "./poise";
+import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
 import { boonWindupMul } from "./boonRules";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
@@ -160,6 +160,7 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     facing: { x: 1, y: 0 },
     phase: spawning ? "spawning" : "idle",
     phaseTimer: spawning ? SPAWN_TIME : 0,
+    windupTotal: 0,
     strikeDir: { x: 1, y: 0 },
     attackCooldown: def.attackInterval * (0.5 + state.rng.next()),
     hitFlash: 0,
@@ -191,6 +192,8 @@ export function updateEnemies(state: GameState, dt: number): void {
     // chill 中は移動も攻撃の進行も遅くなる
     const edt = dt * chillFactor(e);
     applyKnock(state, e, def, dt);
+    // 先送りされた怯みの安全網（個別 AI のボスなど endStrike を通らない技の後）。行動停止の判定より前に払う
+    if (e.phase !== "strike") settlePendingStagger(state, e);
     // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
     if (isHalted(e)) continue;
     e.animTime += edt;
@@ -503,6 +506,7 @@ function beamOffsetDeg(def: EnemyDef, index: number): number {
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: number): void {
   e.phase = "windup";
   e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e)) * boonWindupMul(state, e);
+  e.windupTotal = e.phaseTimer;
   e.strikeDir = dir;
   telegraphWindup(state, e, def, dir);
   pushSfx(state, "enemyWindup");
@@ -847,6 +851,8 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
     const damage = contactDamageOf(e, def);
     if (damage > 0) {
       const result = touchPlayer(state, e, damage);
+      // 受け流しなどで touchPlayer の最中に怯んだ・攻撃が終わった敵は、endStrike の recover で怯みを上書きさせない
+      if (e.phase !== "strike" || isStaggered(e)) return;
       if (result !== null) {
         if (result === "hit" && def.behavior === "manaLeech") stealMana(state, e);
         endStrike(state, e, def);
@@ -901,6 +907,8 @@ function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: n
 
 /** 攻撃の終わり。連続攻撃・残響・次の光線が残っていれば次の予備動作へ、無ければ隙（recover） */
 function endStrike(state: GameState, e: Enemy, def: EnemyDef, byWall = false): void {
+  // 先送りされた怯みはここで払う（連続攻撃・次の光線・recover へ進む前）。怯めば phase は chase に戻っている
+  if (settlePendingStagger(state, e)) return;
   if (def.behavior === "charger" && !byWall) leaveChargeTrail(state, e, def, false);
   // 鎖の番人・大蝦蟇: 引き寄せが当たったら続けて叩きつけ（2 段の読み）
   const hook = hookFollowUp(e, def);
@@ -1088,8 +1096,30 @@ function pushApart(state: GameState, e: Enemy, push: Vec): void {
 /** 予備動作中に描く予告の種類（定義は behaviors/base.ts。render と boss*.ts の import 先を変えないため再 export） */
 export type { EnemyTelegraph };
 
-/** その敵の予備動作の予告。影（landing）で見せるものは hazards 側が描くので null */
+/**
+ * その敵の予備動作の予告。影（landing）で見せるものは hazards 側が描くので null。
+ * 線は長さを持つ（突進・踏み込みで届く距離。ボスなど動かない技の線は TELEGRAPH.fallbackLength）
+ */
 export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  const shape = enemyTelegraphShape(e, def);
+  if (shape?.kind !== "line" || shape.length !== undefined) return shape;
+  return { kind: "line", length: strikeLineLength(e, def) };
+}
+
+/** 線の長さ = 攻撃中の移動で届く距離（精鋭の迅速・冷気は無視した近似）を最短〜最長に丸めたもの */
+function strikeLineLength(e: Enemy, def: EnemyDef): number {
+  const reach = def.speed * strikeSpeedMul(e, def) * def.strikeTime;
+  if (!(reach > 0)) return TELEGRAPH.fallbackLength;
+  return Math.max(TELEGRAPH.minLength, Math.min(TELEGRAPH.maxLength, reach));
+}
+
+/** 踏み込んで接触で殴る敵の既定の線。影（落下点）で見せる天井吊りは線を出さない */
+function defaultStrikeLine(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  if (def.behavior === "dropper" || def.contactDamage <= 0 || strikeSpeedMul(e, def) <= 0) return null;
+  return { kind: "line" };
+}
+
+function enemyTelegraphShape(e: Enemy, def: EnemyDef): EnemyTelegraph {
   switch (def.behavior) {
     case "charger":
       // 二度突きの猪の折れ線は render/chargeLineUi.ts が e.doubleCharge を読んで描く
@@ -1110,7 +1140,7 @@ export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
     case "frostGiant":
       return e.ai?.move === GIANT_MOVE_SLAM ? { kind: "ring", radius: BOSS.frostGiant.slamRadius } : null;
     default:
-      return enemyTelegraphWave3(e, def) ?? bossTelegraph(e, def);
+      return enemyTelegraphWave3(e, def) ?? bossTelegraph(e, def) ?? defaultStrikeLine(e, def);
   }
 }
 

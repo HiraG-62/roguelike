@@ -50,6 +50,7 @@ import j_combat_STATUS_lacerate from "./combat/STATUS/lacerate.json";
 import j_combat_ATTR from "./combat/ATTR.json";
 import j_combat_ATTR_GAIN from "./combat/ATTR_GAIN.json";
 import j_combat_POISE from "./combat/POISE.json";
+import j_combat_PARRY from "./combat/PARRY.json";
 import j_combat_GENRE from "./combat/GENRE.json";
 import j_combat_ELEMENT from "./combat/ELEMENT.json";
 import j_combat_TERRAIN from "./combat/TERRAIN.json";
@@ -479,6 +480,7 @@ import j_feel_FX_ATTACK_sprite from "./feel/FX_ATTACK/sprite.json";
 import j_feel_MUSIC from "./feel/MUSIC.json";
 import j_feel_FX_WAVE3 from "./feel/FX_WAVE3.json";
 import j_feel_SFX_WAVE3 from "./feel/SFX_WAVE3.json";
+import j_feel_TELEGRAPH from "./feel/TELEGRAPH.json";
 import j_jobs__index from "./jobs/_index.json";
 import j_jobs_JOB from "./jobs/JOB.json";
 import j_jobs_attributes from "./jobs/attributes.json";
@@ -930,6 +932,7 @@ import j_weapons_WEAPON_movesetRules from "./weapons/WEAPON/movesetRules.json";
 import j_weapons_WEAPON_jobBranches from "./weapons/WEAPON/jobBranches.json";
 import j_weapons_WEAPON_bullets from "./weapons/WEAPON/bullets.json";
 import j_weapons_WEAPON_unarmed from "./weapons/WEAPON/unarmed.json";
+import j_weapons_WEAPON_weightClass from "./weapons/WEAPON/weightClass.json";
 import j_weapons_PLAYER_MELEE from "./weapons/PLAYER_MELEE.json";
 import j_weapons_ACTION_DASH_ATTACK from "./weapons/ACTION_DASH_ATTACK.json";
 import j_world__index from "./world/_index.json";
@@ -1049,6 +1052,7 @@ export const combat = {
   "ATTR": j_combat_ATTR,
   "ATTR_GAIN": j_combat_ATTR_GAIN,
   "POISE": j_combat_POISE,
+  "PARRY": j_combat_PARRY,
   "GENRE": j_combat_GENRE,
   "ELEMENT": j_combat_ELEMENT,
   "TERRAIN": j_combat_TERRAIN,
@@ -1524,6 +1528,7 @@ export const feel = {
   "MUSIC": j_feel_MUSIC,
   "FX_WAVE3": j_feel_FX_WAVE3,
   "SFX_WAVE3": j_feel_SFX_WAVE3,
+  "TELEGRAPH": j_feel_TELEGRAPH,
 };
 
 export const jobs = {
@@ -2039,6 +2044,7 @@ export const weapons = {
     "bullets": j_weapons_WEAPON_bullets,
     "meleeDamageScale": j_weapons_WEAPON__index["meleeDamageScale"],
     "unarmed": j_weapons_WEAPON_unarmed,
+    "weightClass": j_weapons_WEAPON_weightClass,
   },
   "PLAYER_MELEE": j_weapons_PLAYER_MELEE,
   "ACTION_DASH_ATTACK": j_weapons_ACTION_DASH_ATTACK,
@@ -2224,6 +2230,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "combat/GENRE.json",
   "combat/HEAL.json",
   "combat/MANA.json",
+  "combat/PARRY.json",
   "combat/PLAYER.json",
   "combat/POISE.json",
   "combat/STATUS/_index.json",
@@ -2692,6 +2699,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/MINIMAP.json",
   "feel/MUSIC.json",
   "feel/SFX_WAVE3.json",
+  "feel/TELEGRAPH.json",
   "feel/_index.json",
   "jobs/JOB.json",
   "jobs/_index.json",
@@ -3148,6 +3156,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/movesets/warRing.json",
   "weapons/WEAPON/movesets/whip.json",
   "weapons/WEAPON/unarmed.json",
+  "weapons/WEAPON/weightClass.json",
   "weapons/_index.json",
   "world/CAVE.json",
   "world/CONTRACT.json",

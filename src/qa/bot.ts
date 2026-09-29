@@ -13,6 +13,7 @@ import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing"
 import { PLAYER } from "../data/tuning";
 import { reaperTimeLeft } from "../system/reaper";
 import { isSolidTile, overlapsWall } from "../system/physics";
+import { canStartParry } from "../system/parry";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun } from "../data/weapons";
@@ -764,13 +765,21 @@ function nextRightStep(state: GameState, moveset: MovesetDef): ActionStepDef | u
   return index === undefined ? undefined : moveset.steps2[index];
 }
 
-/** 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに右を押し続ける（次の右段が受け流しのときだけ）。押したら true */
+/**
+ * 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに受け流す。
+ * 次の右段が剣の構えの受け流しなら右を押し続け、そうでなければ全武器共通の受け流し（parryPressed）を 1 回押す。押したら true
+ */
 function tryParryInput(state: GameState, bot: BotState, enemy: Enemy, d: number, input: FrameInput): boolean {
+  if (enemy.phase !== "windup" || d >= DANGER_RANGE) return false;
   const s = nextRightStep(state, playerMoveset(state));
-  if (s?.kind !== "hold" || !s.hold.parry || actionCooldownLeft(state, s) > 0 || state.player.attack.phase !== "none") return false;
-  if (enemy.phase !== "windup" || d >= DANGER_RANGE || !bot.rng.chance(PARRY_CHANCE)) return false;
-  bot.parryTimer = PARRY_HOLD;
-  input.shootHeld = true;
+  if (s?.kind === "hold" && s.hold.parry) {
+    if (actionCooldownLeft(state, s) > 0 || state.player.attack.phase !== "none" || !bot.rng.chance(PARRY_CHANCE)) return false;
+    bot.parryTimer = PARRY_HOLD;
+    input.shootHeld = true;
+    return true;
+  }
+  if (!canStartParry(state) || !bot.rng.chance(PARRY_CHANCE)) return false;
+  input.parryPressed = true;
   return true;
 }
 

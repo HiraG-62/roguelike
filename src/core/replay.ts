@@ -45,11 +45,12 @@ import { clampHitstopScale } from "../ui/settings";
  * 10: コンボ派生の入力列が「実際に出た段」になり、曲射の派生・右レーンの弾がカーソル距離で落ちるようになった
  * 11: スキル石の抽選に技（共通技・武器技。docs/ideas/weapon-skills.md）が加わり、装備中の武器種で重みが変わるようになった
  * 12: ステータス「防御」・部位「頭」・装備の地金、毎階の「階の主」とボス階の周期 5、隠し部屋、通路への敵の初期配置、降階の回復
+ * 13: 受け流しの入力（parryPressed）・敵の攻撃のコミットと怯みの先送り・武器の重さ・ダッシュの再使用 1.2 秒
  *
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  */
-export const REPLAY_VERSION = 12;
+export const REPLAY_VERSION = 13;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -178,7 +179,8 @@ type ButtonKey =
   | "skill3Held"
   | "skill4Held"
   | "attackHeld"
-  | "interactPressed";
+  | "interactPressed"
+  | "parryPressed";
 
 /** ビット順。末尾に追加するのは可、並べ替えは不可（過去のリプレイが壊れる） */
 const BUTTON_BITS: readonly ButtonKey[] = [
@@ -207,6 +209,8 @@ const BUTTON_BITS: readonly ButtonKey[] = [
   "attackHeld",
   // 床の遺物・スキル石を拾う。末尾に足したので旧リプレイは 0（押していない）として読める
   "interactPressed",
+  // 全武器共通の受け流し（REPLAY_VERSION 13）。末尾に足したので旧リプレイは 0 として読める
+  "parryPressed",
 ];
 
 /** 照準を 1px 単位に量子化する。-0 は 0 に寄せる */

@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.7,
+  "weight": "medium",
   "dashAttack": {"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4,"dex":0.4,"vit":0.3},"poiseRatio":{"dex":0.24},"poise":8,"reach":0,"size":32,"knockback":200,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#ffb040"},
   "steps2": [
     {"kind":"volley","key":"scatterMines","cooldown":4,"throw":{"bullet":{"scaling":{"base":4.3},"cooldownMul":2.8,"damageMul":3,"speedMul":0.6,"lifeMul":1,"radius":3,"poiseMul":4,"recoilMul":0.5,"pellets":0,"spreadDeg":12,"pierceBonus":0,"mine":{"fuse":3,"drag":6,"blastRadius":30,"triggerRadius":10,"color":"#ffb040"}},"scaling":{"base":10},"poise":12,"count":3,"spreadDeg":40}},

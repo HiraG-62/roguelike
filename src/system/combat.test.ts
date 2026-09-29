@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import { ENERGY, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
+import { ENERGY, FEEL, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
 import type { TriggeredEffect } from "../loot/types";
@@ -613,5 +613,40 @@ describe("奥義ゲージの溜まり方（ENERGY）", () => {
     expect(e.hp, "当たっている").toBeLessThan(5000);
     expect(state.player.energy, "射撃の命中で溜まる").toBeCloseTo(expected, 5);
     expect(expected, "近接より低い割合").toBeLessThan(meleeHitEnergy(PLAYER.shoot.cooldown * bullet.cooldownMul, 1) + 1e-9);
+  });
+});
+
+describe("通常命中のヒットストップの上限（FEEL.hitstopNormalMax）", () => {
+  const DIR = { x: 1, y: 0 };
+  const BIG_HP = 1_000_000;
+  /** 段の JSON が上書きしうる大きな値（上限がなければそのまま止まる） */
+  const OVERRIDDEN_STEPS = 9;
+  const HUGE_POISE = 1_000_000;
+
+  function hitWith(opts: Parameters<typeof damageEnemy>[5]): number {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = BIG_HP;
+    e.maxHp = BIG_HP;
+    state.hitstop = 0;
+    damageEnemy(state, e, 5, DIR, 0, opts);
+    return state.hitstop;
+  }
+
+  it("通常命中は段が大きな値を持っていても hitstopNormalMax 以下", () => {
+    expect(hitWith({ hitstopSteps: OVERRIDDEN_STEPS, kind: "melee" }), "通常命中").toBeLessThanOrEqual(FEEL.hitstopNormalMax);
+  });
+
+  it("怯ませた命中は上限を受けず重いヒットストップになる", () => {
+    expect(hitWith({ hitstopSteps: 1, poise: HUGE_POISE, kind: "melee" }), "怯ませた命中").toBeGreaterThanOrEqual(FEEL.hitstopHeavy);
+  });
+
+  it("終撃は上限を受けず hitstopFinisher 以上", () => {
+    expect(hitWith({ hitstopSteps: 1, finisher: true, kind: "melee" }), "終撃").toBeGreaterThanOrEqual(FEEL.hitstopFinisher);
+  });
+
+  it("会心は上限を受けない（会心ぶんの加算が残る）", () => {
+    const crit = hitWith({ hitstopSteps: OVERRIDDEN_STEPS, crit: true, kind: "melee" });
+    expect(crit, "会心").toBe(OVERRIDDEN_STEPS + PLAYER.critHitstopBonus);
   });
 });

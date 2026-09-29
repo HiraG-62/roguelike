@@ -98,10 +98,12 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef): void {
   pushSfx(state, "enemyWindup");
   if (ai.move === GIANT_MOVE_SLAM) {
     e.phaseTimer = scaledWindup(def.windup, state.depth);
+    e.windupTotal = e.phaseTimer;
     return;
   }
   // つらら: 影が出てから落ちるまでがそのまま予備動作（深度で縮めても下限は守る）
   e.phaseTimer = scaledWindup(BOSS.frostGiant.icicleFall, state.depth);
+  e.windupTotal = e.phaseTimer;
   ai.points = pickIciclePoints(state);
   for (const p of ai.points) spawnLanding(state, p, BOSS.frostGiant.icicleRadius, e.phaseTimer, e.id);
 }

@@ -47,6 +47,19 @@ describe("パッドのコード", () => {
   });
 });
 
+describe("受け流しの既定", () => {
+  it("受け流しは RB で、ダッシュは B だけ（RB を譲った）", () => {
+    expect(DEFAULT_PAD_BINDS.parry).toEqual([padButtonCode(PAD_RB)]);
+    expect(DEFAULT_PAD_BINDS.dash).toEqual([padButtonCode(PAD_B)]);
+  });
+
+  it("旧い保存データ（ダッシュが B と RB）は、受け流しと重ならないよう両方が既定へ戻る", () => {
+    const binds = sanitizePadBinds({ dash: ["Pad1", "Pad5"] });
+    expect(binds.dash).toEqual([padButtonCode(PAD_B)]);
+    expect(binds.parry).toEqual([padButtonCode(PAD_RB)]);
+  });
+});
+
 describe("sanitizePadBinds", () => {
   it("壊れた値・未知アクションは既定、空の割り当ては残す", () => {
     const binds = sanitizePadBinds({ dash: ["Pad99"], attack: [], unknown: ["Pad0"] });

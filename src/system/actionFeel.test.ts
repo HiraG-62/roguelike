@@ -99,10 +99,12 @@ describe("カウンターヒット", () => {
     expect(hasText(state, ACTION.counter.text)).toBe(false);
   });
 
-  it("カウンターは確定の怯みではなく怯み値が 2 倍になる", () => {
+  it("カウンターは確定の怯みではなく、怯み値は等倍（威力の倍率は残る）", () => {
     const state = arena();
     const first = meleeStep(state.stats, 0);
     if (!first) throw new Error("1 段目が無い");
+    expect(ACTION.counter.poiseMul, "怯み値は等倍（怯ませる手段は読みと受け流し）").toBe(1);
+    expect(ACTION.counter.damageMul, "威力の倍率は残る").toBeGreaterThan(1);
     expect(counterPoise(first, true), "カウンターの怯み値").toBe(first.poise * ACTION.counter.poiseMul);
     expect(counterPoise(first, false), "通常の怯み値").toBe(first.poise);
 
@@ -508,11 +510,18 @@ describe("近接のリカバリーキャンセル（docs/ideas/combat-feel-desig
     expect(elapsed).toBeLessThan(def.recover + FIXED_DT * 2);
   });
 
-  it("ダッシュはこれまでどおり任意のタイミングで攻撃を切る", () => {
+  it("ダッシュは発生・持続では切れず、硬直に入ってから攻撃を切る（重さ中の剣）", () => {
     const state = arena();
     step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.player.attack.phase).not.toBe("none");
+    expect(state.player.attack.phase, "振り始めは発生").toBe("windup");
     step(state, withInput({ dashPressed: true, move: { x: 1, y: 0 } }), FIXED_DT);
-    expect(state.player.attack.phase).toBe("none");
+    expect(state.player.attack.phase, "発生中のダッシュ入力は捨てる").toBe("windup");
+    expect(state.player.dashTimer, "ダッシュは始まらない").toBe(0);
+    let guard = 0;
+    while (state.player.attack.phase !== "recover" && guard++ < 60) step(state, withInput({}), FIXED_DT);
+    expect(state.player.attack.phase, "硬直に入った").toBe("recover");
+    step(state, withInput({ dashPressed: true, move: { x: 1, y: 0 } }), FIXED_DT);
+    expect(state.player.attack.phase, "硬直ではダッシュで切れる").toBe("none");
+    expect(state.player.dashTimer, "ダッシュが出る").toBeGreaterThan(0);
   });
 });

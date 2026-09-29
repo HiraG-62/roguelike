@@ -331,6 +331,10 @@ export interface SpinningDef {
   readonly step: MeleeStepDef;
 }
 
+/** 武器の重さ（docs/ideas/combat-core-impl.md 2-5）。攻撃中の移動・ダッシュでの取り消し・硬直・通常命中のヒットストップの帯を決める */
+export const WEAPON_WEIGHTS = ["light", "medium", "heavy"] as const;
+export type WeaponWeight = (typeof WEAPON_WEIGHTS)[number];
+
 export interface MovesetDef {
   readonly key: MovesetKey;
   /** 表示名（docs/GLOSSARY.md「武器種」） */
@@ -342,8 +346,10 @@ export interface MovesetDef {
   /** 左の長押しの溜め（primary が charge の武器種だけ） */
   readonly charge?: MeleeChargeDef;
   readonly tip?: TipDef;
-  /** 攻撃中の移動速度倍率 */
+  /** 攻撃中の移動速度倍率（重さの帯 WEAPON.weightClass に丸めて使う。attackMoveMulOf） */
   readonly attackMoveMul: number;
+  /** 武器の重さ。係数は WEAPON.weightClass[weight] */
+  readonly weight: WeaponWeight;
   /** 左クリックの役割 */
   readonly primary: PrimaryKind;
   /**
@@ -547,6 +553,13 @@ function hitShape(raw: unknown): HitShape {
   }
   if (raw.kind === "box" || raw.kind === "thrust" || raw.kind === "circle") return { kind: raw.kind };
   throw new Error(`未知の shape.kind: ${raw.kind}`);
+}
+
+/** JSON の weight を WEAPON_WEIGHTS と照合する（未知の値は読み込み時に落とす） */
+export function reviveWeight(raw: unknown): WeaponWeight {
+  const found = WEAPON_WEIGHTS.find((w) => w === raw);
+  if (found === undefined) throw new Error(`未知の weight: ${String(raw)}`);
+  return found;
 }
 
 function statusApply(raw: unknown): StatusApply {
@@ -1064,6 +1077,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: swordSteps(),
     dashAttack: { ...ACTION.dashAttack, scaling: meleeScaling(ACTION.dashAttack.scaling), shape: BOX, mana: MANA.onDashAttack },
     attackMoveMul: W.sword.attackMoveMul,
+    weight: reviveWeight(W.sword.weight),
     primary: "melee",
     steps2: reviveLane(W.sword.steps2),
     branches: reviveBranches(W.sword.branches),
@@ -1078,6 +1092,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.greatsword.dashAttack),
     charge: reviveCharge(W.greatsword.charge),
     attackMoveMul: W.greatsword.attackMoveMul,
+    weight: reviveWeight(W.greatsword.weight),
     primary: "charge",
     steps2: reviveLane(W.greatsword.steps2),
     branches: reviveBranches(W.greatsword.branches),
@@ -1091,6 +1106,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.twinBlades.steps),
     dashAttack: reviveStep(W.twinBlades.dashAttack),
     attackMoveMul: W.twinBlades.attackMoveMul,
+    weight: reviveWeight(W.twinBlades.weight),
     primary: "melee",
     steps2: reviveLane(W.twinBlades.steps2),
     branches: reviveBranches(W.twinBlades.branches),
@@ -1105,6 +1121,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.spear.dashAttack),
     tip: W.spear.tip,
     attackMoveMul: W.spear.attackMoveMul,
+    weight: reviveWeight(W.spear.weight),
     primary: "melee",
     steps2: reviveLane(W.spear.steps2),
     branches: reviveBranches(W.spear.branches),
@@ -1118,6 +1135,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.scythe.steps),
     dashAttack: reviveStep(W.scythe.dashAttack),
     attackMoveMul: W.scythe.attackMoveMul,
+    weight: reviveWeight(W.scythe.weight),
     primary: "melee",
     steps2: reviveLane(W.scythe.steps2),
     branches: reviveBranches(W.scythe.branches),
@@ -1131,6 +1149,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.fists.steps),
     dashAttack: reviveStep(W.fists.dashAttack),
     attackMoveMul: W.fists.attackMoveMul,
+    weight: reviveWeight(W.fists.weight),
     primary: "melee",
     steps2: reviveLane(W.fists.steps2),
     branches: reviveBranches(W.fists.branches),
@@ -1145,6 +1164,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.whip.dashAttack),
     tip: W.whip.tip,
     attackMoveMul: W.whip.attackMoveMul,
+    weight: reviveWeight(W.whip.weight),
     primary: "melee",
     steps2: reviveLane(W.whip.steps2),
     branches: reviveBranches(W.whip.branches),
@@ -1158,6 +1178,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.cleaver.steps),
     dashAttack: reviveStep(W.cleaver.dashAttack),
     attackMoveMul: W.cleaver.attackMoveMul,
+    weight: reviveWeight(W.cleaver.weight),
     primary: "melee",
     steps2: reviveLane(W.cleaver.steps2),
     branches: reviveBranches(W.cleaver.branches),
@@ -1171,6 +1192,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.staff.steps),
     dashAttack: reviveStep(W.staff.dashAttack),
     attackMoveMul: W.staff.attackMoveMul,
+    weight: reviveWeight(W.staff.weight),
     primary: "melee",
     steps2: reviveLane(W.staff.steps2),
     branches: reviveBranches(W.staff.branches),
@@ -1184,6 +1206,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.wand.steps),
     dashAttack: reviveStep(W.wand.dashAttack),
     attackMoveMul: W.wand.attackMoveMul,
+    weight: reviveWeight(W.wand.weight),
     primary: "melee",
     steps2: reviveLane(W.wand.steps2),
     branches: reviveBranches(W.wand.branches),
@@ -1197,6 +1220,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.katana.steps),
     dashAttack: reviveStep(W.katana.dashAttack),
     attackMoveMul: W.katana.attackMoveMul,
+    weight: reviveWeight(W.katana.weight),
     primary: "melee",
     steps2: reviveLane(W.katana.steps2),
     branches: reviveBranches(W.katana.branches),
@@ -1216,6 +1240,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.axe.steps),
     dashAttack: reviveStep(W.axe.dashAttack),
     attackMoveMul: W.axe.attackMoveMul,
+    weight: reviveWeight(W.axe.weight),
     primary: "melee",
     steps2: reviveLane(W.axe.steps2),
     branches: reviveBranches(W.axe.branches),
@@ -1237,6 +1262,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.shield.steps),
     dashAttack: reviveStep(W.shield.dashAttack),
     attackMoveMul: W.shield.attackMoveMul,
+    weight: reviveWeight(W.shield.weight),
     primary: "melee",
     steps2: reviveLane(W.shield.steps2),
     branches: reviveBranches(W.shield.branches),
@@ -1257,6 +1283,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.chainSickle.steps),
     dashAttack: reviveStep(W.chainSickle.dashAttack),
     attackMoveMul: W.chainSickle.attackMoveMul,
+    weight: reviveWeight(W.chainSickle.weight),
     primary: "melee",
     steps2: reviveLane(W.chainSickle.steps2),
     branches: reviveBranches(W.chainSickle.branches),
@@ -1278,6 +1305,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.hammer.dashAttack),
     charge: reviveCharge(W.hammer.charge),
     attackMoveMul: W.hammer.attackMoveMul,
+    weight: reviveWeight(W.hammer.weight),
     primary: "charge",
     steps2: reviveLane(W.hammer.steps2),
     branches: reviveBranches(W.hammer.branches),
@@ -1304,6 +1332,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.gunner.dashAttack),
     attackMoveMul: W.gunner.attackMoveMul,
+    weight: reviveWeight(W.gunner.weight),
     primary: "shot",
     steps2: reviveLane(W.gunner.steps2),
     branches: reviveBranches(W.gunner.branches),
@@ -1324,6 +1353,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.sidearm.dashAttack),
     attackMoveMul: W.sidearm.attackMoveMul,
+    weight: reviveWeight(W.sidearm.weight),
     primary: "shot",
     steps2: reviveLane(W.sidearm.steps2),
     branches: reviveBranches(W.sidearm.branches),
@@ -1337,6 +1367,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.longarm.dashAttack),
     attackMoveMul: W.longarm.attackMoveMul,
+    weight: reviveWeight(W.longarm.weight),
     primary: "shot",
     steps2: reviveLane(W.longarm.steps2),
     branches: reviveBranches(W.longarm.branches),
@@ -1350,6 +1381,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,
+    weight: reviveWeight(W.cannon.weight),
     primary: "shot",
     steps2: reviveLane(W.cannon.steps2),
     branches: reviveBranches(W.cannon.branches),
@@ -1363,6 +1395,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.thrown.dashAttack),
     attackMoveMul: W.thrown.attackMoveMul,
+    weight: reviveWeight(W.thrown.weight),
     primary: "shot",
     steps2: reviveLane(W.thrown.steps2),
     branches: reviveBranches(W.thrown.branches),
@@ -1376,6 +1409,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.grenade.dashAttack),
     attackMoveMul: W.grenade.attackMoveMul,
+    weight: reviveWeight(W.grenade.weight),
     primary: "shot",
     steps2: reviveLane(W.grenade.steps2),
     branches: reviveBranches(W.grenade.branches),
@@ -1389,6 +1423,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.trapper.dashAttack),
     attackMoveMul: W.trapper.attackMoveMul,
+    weight: reviveWeight(W.trapper.weight),
     primary: "shot",
     steps2: reviveLane(W.trapper.steps2),
     branches: reviveBranches(W.trapper.branches),
@@ -1402,6 +1437,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.warRing.dashAttack),
     attackMoveMul: W.warRing.attackMoveMul,
+    weight: reviveWeight(W.warRing.weight),
     primary: "shot",
     steps2: reviveLane(W.warRing.steps2),
     branches: reviveBranches(W.warRing.branches),
@@ -1416,6 +1452,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.claws.steps),
     dashAttack: reviveStep(W.claws.dashAttack),
     attackMoveMul: W.claws.attackMoveMul,
+    weight: reviveWeight(W.claws.weight),
     primary: "melee",
     steps2: reviveLane(W.claws.steps2),
     branches: reviveBranches(W.claws.branches),
@@ -1437,6 +1474,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.flail.steps),
     dashAttack: reviveStep(W.flail.dashAttack),
     attackMoveMul: W.flail.attackMoveMul,
+    weight: reviveWeight(W.flail.weight),
     primary: "melee",
     steps2: reviveLane(W.flail.steps2),
     branches: reviveBranches(W.flail.branches),
@@ -1457,6 +1495,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.ringBlades.steps),
     dashAttack: reviveStep(W.ringBlades.dashAttack),
     attackMoveMul: W.ringBlades.attackMoveMul,
+    weight: reviveWeight(W.ringBlades.weight),
     primary: "melee",
     steps2: reviveLane(W.ringBlades.steps2),
     branches: reviveBranches(W.ringBlades.branches),
@@ -1477,6 +1516,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.fan.steps),
     dashAttack: reviveStep(W.fan.dashAttack),
     attackMoveMul: W.fan.attackMoveMul,
+    weight: reviveWeight(W.fan.weight),
     primary: "melee",
     steps2: reviveLane(W.fan.steps2),
     branches: reviveBranches(W.fan.branches),

@@ -241,6 +241,21 @@ describe("既定のキー設定", () => {
     expect(DEFAULT_KEYBINDS.skill2).toContain("Mouse4");
   });
 
+  it("受け流し（parry）は既定で R と中クリック、リスタートは P。どちらも変更可能で重複しない", () => {
+    expect(DEFAULT_KEYBINDS.parry).toEqual(["KeyR", "Mouse1"]);
+    expect(DEFAULT_KEYBINDS.restart).toEqual(["KeyP"]);
+    expect((REBINDABLE_ACTIONS as readonly string[]).includes("parry"), "変更可能").toBe(true);
+    expect(formatBindingCode("Mouse1"), "中クリックの表記").toBe("中クリック");
+    expect(keyLabel("parry", { binds: defaultKeybinds() }), "案内は両方").toBe("R / 中クリック");
+  });
+
+  it("旧い保存データ（リスタートが R）は、受け流しの既定と重ならないよう両方が既定へ戻る", () => {
+    const binds = sanitizeKeybinds({ restart: ["KeyR"], attack: ["KeyJ", "Mouse0"] });
+    expect(binds.restart, "restart は P").toEqual(["KeyP"]);
+    expect(binds.parry, "受け流しは R / 中クリック").toEqual(["KeyR", "Mouse1"]);
+    expect(binds.attack, "重ならないアクションの変更は残る").toEqual(["KeyJ", "Mouse0"]);
+  });
+
   it("アイテム情報表示の切替（toggleDropInfo）は既定で T、他のアクションと衝突しない", () => {
     expect(DEFAULT_KEYBINDS.toggleDropInfo).toEqual(["KeyT"]);
     expect((REBINDABLE_ACTIONS as readonly string[]).includes("toggleDropInfo"), "変更可能").toBe(true);
@@ -304,10 +319,11 @@ describe("sanitizeKeybinds", () => {
     expect(binds.restart).toEqual(["KeyK"]);
   });
 
-  it("R は他のアクションに割り当てられる（restart から外れる）", () => {
+  it("R は他のアクションに割り当てられる（受け流しから外れる。restart は動かない）", () => {
     const next = assignBinding(defaultKeybinds(), "attack", 0, "KeyR");
     expect(next?.attack[0]).toBe("KeyR");
-    expect(next?.restart, "restart には attack の元のキーが渡る").toEqual(["KeyE"]);
+    expect(next?.parry, "受け流しには中クリックが残る").toEqual(["Mouse1"]);
+    expect(next?.restart, "restart は P のまま").toEqual(["KeyP"]);
   });
 
   it("アクション間の重複は関わったアクションを既定へ戻し、結果に重複が残らない", () => {

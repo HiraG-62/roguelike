@@ -5,6 +5,7 @@ import { FEEL } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { shake } from "./effects";
 import { moveEnemy } from "./enemies";
+import { settlePendingStagger } from "./poise";
 import { circlesOverlap } from "./physics";
 import { inflictOnPlayer } from "./statusEffects";
 
@@ -37,6 +38,7 @@ export function runBossCycle(state: GameState, e: Enemy, def: EnemyDef, dt: numb
       e.phase = "windup";
       pushSfx(state, "enemyWindup");
       h.beginWindup(state, e, def);
+      e.windupTotal = e.phaseTimer;
       return;
     case "windup":
       e.phaseTimer -= dt;
@@ -48,6 +50,8 @@ export function runBossCycle(state: GameState, e: Enemy, def: EnemyDef, dt: numb
       e.phaseTimer -= dt;
       if (h.tickStrike?.(state, e, def, dt)) e.phaseTimer = 0;
       if (e.phaseTimer > 0 || e.phase !== "strike") return;
+      // 攻撃中に先送りされた怯み（ダウン）は技を出し切ったここで払う
+      if (settlePendingStagger(state, e)) return;
       e.phase = "recover";
       e.phaseTimer = def.recover;
       return;

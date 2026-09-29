@@ -372,6 +372,8 @@ export interface PlayerStats {
   dashCooldownMul: number;
   dashCharges: number;
   dashDistanceMul: number;
+  /** ダッシュの無敵時間の加算（秒。PLAYER.dash.invulnTime に足す。ダッシュ時間を超えない） */
+  dashInvulnBonus: number;
 
   meleeDamageMul: number;
   meleeDamageFlat: number;
@@ -909,6 +911,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   dashCooldownMul: 1,
   dashCharges: 1,
   dashDistanceMul: 1,
+  dashInvulnBonus: 0,
 
   meleeDamageMul: 1,
   meleeDamageFlat: 0,

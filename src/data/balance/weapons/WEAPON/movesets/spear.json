@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.35,
+  "weight": "medium",
   "tip": {"ratio":0.34,"damageMul":1.15,"poiseMul":2,"manaMul":1.5,"offDamageMul":1,"offManaMul":1},
   "steps": [
     {"windup":0.05,"active":0.07,"recover":0.14,"scaling":{"base":4,"str":0.2,"dex":0.5},"poiseRatio":{"str":0.12,"dex":0.12},"poise":8,"reach":38,"size":10,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"hitstop":2,"lunge":4,"trail":"#e0f0ff"},
