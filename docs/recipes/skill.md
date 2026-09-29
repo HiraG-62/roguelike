@@ -10,6 +10,7 @@
   - 直前に撃った別のスキルを受けて効果が変わる「連携」を足すなら `skills/combos.ts` の `COMBOS`（発動元 → 受け側のキーで引く。受付秒は `SkillRunState.lastCast`）
 - 刻印符: `MODIFIER_KEYS` → `MODIFIERS`（大拡張分は `skills/modifiers.ts`。`canAttach` の条件）→ `resolveCast` に効果。`CastParams.burdenMul`（旧 `cooldownMul`）は気力型ならコスト、再使用型なら再使用時間に掛かる。発動の「型」自体を変える型替え符は `ModifierDef.reshape`（リンク 2 本、1 スロット 1 枚まで）
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
+- 常時の増・倍・条件付き・「〜につき」: スキル石の定義に `modifiers`（`core/rules.ts` の `Modifier`）を置くと、スロットに入っている間だけ与ダメ・怯み値に効く（評価は `system/modifiers.ts`。書き方は `docs/recipes/boon.md` の「常時の増・倍」節）。`CastParams` の倍率で常時の与ダメを盛らない
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 
