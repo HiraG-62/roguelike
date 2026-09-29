@@ -50,8 +50,9 @@ import { clampHitstopScale } from "../ui/settings";
  * スナップショットを createGame の後に取るようにした変更（ReplayData.snapshotAfterStart）では版を上げない。
  * 入力列の意味は変わらず、欄の無い旧記録は従来どおり（createGame 前のスナップショットとして）再生できるため
  * 14: 陣（通常の部屋の敵を陣形で配る・通路の長蛇・猛・隊長）、敵の反応ルール（間合い取り・隙を狙う・囲む）、同時攻撃の上限 strikerCap と予告の見やすさの上限
+ * 15: 陣の群勢と敗走・大将・後詰・眠っている陣が歩き出す・物見・陣形の偃月と方円・ボスの陣
  */
-export const REPLAY_VERSION = 14;
+export const REPLAY_VERSION = 15;
 
 // ---------------------------------------------------------------------------
 // データ型

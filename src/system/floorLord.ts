@@ -29,7 +29,7 @@ export interface FloorLordPick {
   lair: boolean;
 }
 
-function lordCandidates(depth: number): EnemyDef[] {
+export function lordCandidates(depth: number): EnemyDef[] {
   return enemiesForDepth(depth).filter((d) => d.lairMaster === true && !LORD_EXCLUDED_BEHAVIORS.has(d.behavior) && !selfDestructs(d));
 }
 

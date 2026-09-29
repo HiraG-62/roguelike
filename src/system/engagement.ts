@@ -68,7 +68,8 @@ function roamerEngaged(state: GameState): boolean {
   const p = state.player.body.pos;
   const leash2 = ROAM.engageLeash * ROAM.engageLeash;
   return state.enemies.some((e) => {
-    if (e.roomIndex !== ROAMING_ROOM || e.hp <= 0 || e.phase === "idle" || e.phase === "spawning") return false;
+    // 敗走中の敵は逃げるだけなので交戦に数えない（jin.ts）
+    if (e.roomIndex !== ROAMING_ROOM || e.hp <= 0 || e.rout || e.phase === "idle" || e.phase === "spawning") return false;
     const dx = e.body.pos.x - p.x;
     const dy = e.body.pos.y - p.y;
     return dx * dx + dy * dy <= leash2;

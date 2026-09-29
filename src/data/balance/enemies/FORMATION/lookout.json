@@ -1,0 +1,9 @@
+{
+  "layout": "single",
+  "minDepth": 2,
+  "weight": 0,
+  "spacing": 20,
+  "slots": [
+    { "role": "shooter", "grade": "normal", "share": 1, "min": 1, "max": 1 }
+  ]
+}

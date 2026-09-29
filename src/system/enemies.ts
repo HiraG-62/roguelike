@@ -17,6 +17,7 @@ import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./bos
 import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
+import { jinBonusMul, stepRout } from "./jin";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
@@ -105,7 +106,7 @@ import {
 } from "./enemyBehaviors";
 
 /** 通路からでも気付く距離 */
-const NOTICE_RANGE = 110;
+export const NOTICE_RANGE = 110;
 const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
@@ -204,6 +205,11 @@ export function updateEnemies(state: GameState, dt: number): void {
     e.attackCooldown = Math.max(0, e.attackCooldown - edt * behaviorOf(def).attackCooldownRate(state, e, def));
     if (isFeared(e) && e.phase !== "spawning") {
       flee(state, e, def, edt);
+      continue;
+    }
+    // 敗走中は攻撃せず行き先の陣へ逃げる（system/jin.ts）
+    if (e.rout) {
+      stepRout(state, e, def, edt, enemySpeed(state, e, def));
       continue;
     }
 
@@ -364,9 +370,10 @@ function phasesNow(state: GameState, e: Enemy, def: EnemyDef): boolean {
   return overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius);
 }
 
-function toChase(e: Enemy, def: EnemyDef): void {
+function toChase(state: GameState, e: Enemy, def: EnemyDef): void {
   e.phase = "chase";
-  e.attackCooldown = def.attackInterval;
+  // 群勢が高い陣のメンバーは攻撃の間が詰まる（集まっている間の強化。system/jin.ts）
+  e.attackCooldown = def.attackInterval * jinBonusMul(state, e, "attackInterval");
 }
 
 function enemySpeed(state: GameState, e: Enemy, def: EnemyDef): number {
@@ -634,7 +641,7 @@ function telegraphWave3(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): vo
 function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
   // 予備動作の途中で沈黙したら詠唱・チャージを取り消す（docs/ideas/enemies.md H4。付与の瞬間の取り消しは statusEffects.ts）
   if (isSilenced(e) && behaviorOf(def).silenceable) {
-    toChase(e, def);
+    toChase(state, e, def);
     return;
   }
   e.phaseTimer -= dt;
@@ -965,7 +972,7 @@ function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: n
   if (e.phaseTimer > 0) return;
   if (def.behavior === "scavenger") finishEating(state, e, def);
   onRecoverEndWave3(e, def);
-  toChase(e, def);
+  toChase(state, e, def);
 }
 
 /** 離脱: 攻撃の後の隙の間、プレイヤーから離れる（蝙蝠・狼・棘鼠・盗賊。速さは歩きの倍率） */

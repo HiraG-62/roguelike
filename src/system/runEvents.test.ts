@@ -46,7 +46,10 @@ function setup(seed = 7, depth = DEPTH): { state: GameState; room: RoomState; in
   state.depth = depth;
   buildFloor(state, "rooms");
   quiet(state);
-  const index = state.rooms.findIndex((r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0);
+  // 陣が乗った塊だけに敵がいる（陣の抽選で敵のいない塊もある）ので、敵のいる塊を選ぶ
+  const index = state.rooms.findIndex(
+    (r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0 && state.enemies.some((e) => e.roomIndex === i),
+  );
   const room = state.rooms[index];
   if (!room) throw new Error("room missing");
   // 開放型フロアでは通常の部屋は封鎖しないので、封鎖する種類（伏兵）にしておく
@@ -85,7 +88,9 @@ function start(state: GameState, key: RunEventKey, index: number): void {
 /** 封鎖中の部屋の敵を n 体まで減らす（部屋の敵数の上限 ROOM.maxEnemies に当たらないように） */
 function thin(state: GameState, index: number, keep: number): void {
   const alive = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
+  // 陣の群勢を崩して敗走させないよう、陣から外してから倒す（このテストは敗走でなく部屋の封鎖・増援を見る）
   alive.slice(keep).forEach((e) => {
+    e.jinId = undefined;
     e.hp = 0;
   });
   run(state, 1);
@@ -397,7 +402,9 @@ describe("縛りの効果", () => {
     state.depth = DEPTH;
     buildFloor(state, "rooms");
     quiet(state);
-    const index = state.rooms.findIndex((r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0);
+    const index = state.rooms.findIndex(
+      (r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0 && state.enemies.some((e) => e.roomIndex === i),
+    );
     const room = state.rooms[index];
     if (!room) throw new Error("room missing");
     room.kind = "ambush";

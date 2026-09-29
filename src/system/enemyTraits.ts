@@ -10,6 +10,7 @@ import { overlapsWall } from "./physics";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { dropDeathTerrain, onRallyDeath } from "./enemyTerrain";
 import { addPoise } from "./poise";
+import { noteJinDeath } from "./jin";
 
 /**
  * 敵の性質（EnemyDef の任意フィールド）の処理: 死に際の置き土産・死骸・取り巻き・逃げ回り・マナの奪い合い。
@@ -114,6 +115,7 @@ export function fanDirections(dir: Vec, count: number, spreadDeg: number): Vec[]
 /** 配列から消す直前に 1 回。自爆・時間切れ（vanished）は置き土産を出さない */
 export function onEnemyDeath(state: GameState, e: Enemy, def: EnemyDef): void {
   if (e.vanished) return;
+  noteJinDeath(state, e);
   if (def.deathBurst) burstOnDeath(state, e, def);
   if (def.deathBomb) {
     const b = def.deathBomb;

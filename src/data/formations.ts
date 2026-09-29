@@ -38,6 +38,18 @@ export interface FormationSlot {
   max?: number;
 }
 
+/**
+ * 大将のスロット。陣形の先頭（正面）に立ち、必ず精鋭の修飾子を 1 つ持つ（解禁前の深度では付かない）。
+ * 部屋主（lairMaster）が階の主の候補にいれば lairChance でそれを大将にし、外れたら role・grade の敵を大将にする
+ */
+export interface FormationLeader {
+  role: EnemyRole;
+  /** 部屋主でない大将の格（強を推奨。深度が解禁に足りなければ並） */
+  grade: EnemyGrade;
+  /** 部屋主を大将にする確率（0..1）。候補がいなければ引かない */
+  lairChance: number;
+}
+
 export interface FormationDef {
   key: FormationKey;
   layout: FormationLayout;
@@ -45,7 +57,9 @@ export interface FormationDef {
   /** 部屋に置く陣形の抽選の重み。0 は抽選に出ない（長蛇・物見） */
   weight: number;
   spacing: number;
-  /** 正面から置く順 */
+  /** 大将のスロット。無ければ大将のいない陣（Jin.leaderId は null） */
+  leader?: FormationLeader;
+  /** 正面から置く順（大将がいれば大将の次から） */
   slots: readonly FormationSlot[];
 }
 
@@ -84,13 +98,22 @@ function slotOf(v: unknown, where: string): FormationSlot {
   return max === undefined ? slot : { ...slot, max };
 }
 
+function leaderOf(v: unknown, where: string): FormationLeader {
+  if (!isRaw(v)) fail(where, "leader は { role, grade, lairChance } の形");
+  return {
+    role: oneOf(ENEMY_ROLES, v.role, "role", where),
+    grade: oneOf(GRADES, v.grade, "grade", where),
+    lairChance: num(v, "lairChance", where),
+  };
+}
+
 function defOf(key: string, v: unknown): FormationDef {
   const where = key;
   const formationKey = oneOf(FORMATION_KEYS, key, "key", where);
   if (!isRaw(v)) fail(where, "陣形はオブジェクト");
   const slots = v.slots;
   if (!Array.isArray(slots) || slots.length === 0) fail(where, "slots は空でない配列");
-  return {
+  const def: FormationDef = {
     key: formationKey,
     layout: oneOf(FORMATION_LAYOUTS, v.layout, "layout", where),
     minDepth: num(v, "minDepth", where),
@@ -98,9 +121,10 @@ function defOf(key: string, v: unknown): FormationDef {
     spacing: num(v, "spacing", where),
     slots: slots.map((s, i) => slotOf(s, `${where}.slots[${i}]`)),
   };
+  return v.leader === undefined ? def : { ...def, leader: leaderOf(v.leader, `${where}.leader`) };
 }
 
-/** JSON に書かれた陣形（JSON の並び順）。3a は魚鱗・鶴翼・雁行・長蛇 */
+/** JSON に書かれた陣形（JSON の並び順）。3a は魚鱗・鶴翼・雁行・長蛇、3b で偃月・方円・物見 */
 export const FORMATION_DEFS: readonly FormationDef[] = Object.entries(FORMATION as Raw).map(([key, v]) => defOf(key, v));
 
 /** JSON に無い陣形（まだ実装していない）は undefined */

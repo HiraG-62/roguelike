@@ -133,6 +133,9 @@ import j_enemies_FORMATION_fishScale from "./enemies/FORMATION/fishScale.json";
 import j_enemies_FORMATION_craneWing from "./enemies/FORMATION/craneWing.json";
 import j_enemies_FORMATION_geese from "./enemies/FORMATION/geese.json";
 import j_enemies_FORMATION_column from "./enemies/FORMATION/column.json";
+import j_enemies_FORMATION_crescent from "./enemies/FORMATION/crescent.json";
+import j_enemies_FORMATION_circle from "./enemies/FORMATION/circle.json";
+import j_enemies_FORMATION_lookout from "./enemies/FORMATION/lookout.json";
 import j_enemies_REAPER from "./enemies/REAPER.json";
 import j_enemies_stats__index from "./enemies/stats/_index.json";
 import j_enemies_stats_slime from "./enemies/stats/slime.json";
@@ -1163,6 +1166,9 @@ export const enemies = {
     "craneWing": j_enemies_FORMATION_craneWing,
     "geese": j_enemies_FORMATION_geese,
     "column": j_enemies_FORMATION_column,
+    "crescent": j_enemies_FORMATION_crescent,
+    "circle": j_enemies_FORMATION_circle,
+    "lookout": j_enemies_FORMATION_lookout,
   },
   "REAPER": j_enemies_REAPER,
   "stats": {
@@ -2363,10 +2369,13 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_TEMPO.json",
   "enemies/FLOOR_LORD.json",
   "enemies/FORMATION/_index.json",
+  "enemies/FORMATION/circle.json",
   "enemies/FORMATION/column.json",
   "enemies/FORMATION/craneWing.json",
+  "enemies/FORMATION/crescent.json",
   "enemies/FORMATION/fishScale.json",
   "enemies/FORMATION/geese.json",
+  "enemies/FORMATION/lookout.json",
   "enemies/JIN.json",
   "enemies/REACTION.json",
   "enemies/REAPER.json",

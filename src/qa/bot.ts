@@ -419,6 +419,8 @@ function nearestEngagedEnemy(state: GameState): Enemy | null {
   let bestDist = Infinity;
   for (const e of state.enemies) {
     if (e.hp <= 0 || NON_ENGAGEABLE_PHASES.has(e.phase)) continue;
+    // 敗走中の敵は攻撃してこないので追わない（逃げる敵を追い続けて探索の時間を溶かさない）
+    if (e.rout) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
     if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos)) continue;

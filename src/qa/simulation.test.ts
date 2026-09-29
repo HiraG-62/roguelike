@@ -37,7 +37,16 @@ import { terrainAt, smokeAt } from "../system/terrain";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
-import { buildFloorSpawnSection, emptyFloorSpawn, recordFloorSpawn, type FloorSpawnTally } from "./jinMetrics";
+import {
+  buildFloorSpawnSection,
+  buildJinSettleSection,
+  emptyFloorSpawn,
+  emptyJinSettle,
+  recordFloorSpawn,
+  recordJinSettle,
+  type FloorSpawnTally,
+  type JinSettleTally,
+} from "./jinMetrics";
 import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, createStrikerCapWatcher, type CombatTally } from "./combatMetrics";
 import * as boonsModule from "../system/boons";
 import * as specialRoomsModule from "../system/specialRooms";
@@ -579,6 +588,8 @@ interface RunMetrics {
   corridorRoamerFloors: number;
   /** 階に着いた直後の敵の総数・陣の数・陣あたり人数・陣形（qa/jinMetrics.ts） */
   floorSpawn: FloorSpawnTally;
+  /** 陣の決着（全滅 / 敗走 / 大将撃破）と敗走した敵の行く末（qa/jinMetrics.ts） */
+  jinSettle: JinSettleTally;
   /** QA の観測の盲点（2026-09-24 追加）: 地形種別ごとにプレイヤーが踏み込んだ回数（前ステップと種類が変わった瞬間を数える） */
   terrainEnterCounts: Partial<Record<TerrainKind, number>>;
   /** 同上、煙（terrainAt とは別レイヤー）に入った回数 */
@@ -743,6 +754,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     avgEnemiesAlive: 0,
     corridorRoamerFloors: 0,
     floorSpawn: emptyFloorSpawn(),
+    jinSettle: emptyJinSettle(),
     terrainEnterCounts: {},
     smokeEnterCount: 0,
     eliteSpawnCounts: {},
@@ -760,6 +772,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   let sawHiddenOpenThisFloor = false;
   let sawCorridorRoamerThisFloor = false;
   recordFloorSpawn(metrics.floorSpawn, state);
+  // 階を作り直すと state.jins が新しい配列になるので、前の配列を持っておいて離れるときに数える
+  let floorJins = state.jins;
   let stepTimeTotal = 0;
   let enemySampleSum = 0;
   const strikerCapWatcher = createStrikerCapWatcher(FIXED_DT);
@@ -896,6 +910,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       if (state.runEvents.strata.fresh) recordFloorSpawn(metrics.floorSpawn, state);
     }
 
+    if (state.jins !== floorJins) {
+      recordJinSettle(metrics.jinSettle, floorJins);
+      floorJins = state.jins;
+    }
+
     metrics.maxDepth = Math.max(metrics.maxDepth, state.depth);
 
     // ループ先頭の `state.status !== "playing"` 判定により、TS はここでも status を
@@ -909,6 +928,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   }
 
   combatRecorder.finish();
+  recordJinSettle(metrics.jinSettle, floorJins);
   metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
   metrics.kills = state.kills;
   metrics.bestCombo = state.combo.best;
@@ -1111,6 +1131,7 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   lines.push(`通路に徘徊が立った階: ${corridorFloors} / 観測した階 ${totalFloorsSeen}（${percent(corridorFloors, totalFloorsSeen)}）`);
   lines.push("");
   lines.push(...buildFloorSpawnSection(allMetrics.map((m) => m.floorSpawn)));
+  lines.push(...buildJinSettleSection(allMetrics.map((m) => m.jinSettle)));
 
   lines.push("## ドロップの内訳（装備パターン別。撃破起因 = 倒した一撃の中で床に増えた遺物）");
   lines.push("");

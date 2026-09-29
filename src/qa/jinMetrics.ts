@@ -90,3 +90,61 @@ export function buildFloorSpawnSection(list: readonly FloorSpawnTally[]): string
   lines.push("");
   return lines;
 }
+
+// -----------------------------------------------------------------------------
+// 決着の内訳（3b。docs/ideas/jin-impl.md 5 章「決着の内訳」）
+// -----------------------------------------------------------------------------
+
+export interface JinSettleTally {
+  /** 決着した陣の数（全滅 / 敗走。大将撃破は敗走の内訳） */
+  wipe: number;
+  rout: number;
+  leaderFell: number;
+  /** 階を離れた時点で決着していない陣 */
+  unsettled: number;
+  /** 敗走した敵の行く末（逃げ出した数 = 合流 + 討伐 + 逃げ切り + 階を離れた時点でまだ逃げている） */
+  fled: number;
+  merged: number;
+  killed: number;
+  escaped: number;
+}
+
+export function emptyJinSettle(): JinSettleTally {
+  return { wipe: 0, rout: 0, leaderFell: 0, unsettled: 0, fled: 0, merged: 0, killed: 0, escaped: 0 };
+}
+
+/** 階を離れる直前（またはランの終わり）の陣の一覧から決着と敗走の行く末を数える */
+export function recordJinSettle(t: JinSettleTally, jins: GameState["jins"]): void {
+  for (const jin of jins) {
+    if (jin.settledBy === "wipe") t.wipe++;
+    else if (jin.settledBy === "rout") t.rout++;
+    else t.unsettled++;
+    if (jin.leaderFell) t.leaderFell++;
+    const r = jin.routTally;
+    if (!r) continue;
+    t.fled += r.fled;
+    t.merged += r.merged;
+    t.killed += r.killed;
+    t.escaped += r.escaped;
+  }
+}
+
+function pct(n: number, total: number): string {
+  return total > 0 ? `${((n / total) * 100).toFixed(0)}%` : "-";
+}
+
+/** report.md の節 */
+export function buildJinSettleSection(list: readonly JinSettleTally[]): string[] {
+  const t = emptyJinSettle();
+  for (const x of list) {
+    for (const key of Object.keys(t) as (keyof JinSettleTally)[]) t[key] += x[key];
+  }
+  const settled = t.wipe + t.rout;
+  const lines: string[] = [];
+  lines.push("## 陣の決着（system/jin.ts。つまみ: JIN.morale.routRatio → leaderBreakRatio → rout.speedMul）");
+  lines.push("");
+  lines.push(`決着: 全滅 ${t.wipe}（${pct(t.wipe, settled)}）/ 敗走 ${t.rout}（${pct(t.rout, settled)}。うち大将撃破 ${t.leaderFell}）、階を離れた時点で未決着 ${t.unsettled}`);
+  lines.push(`敗走した敵: 逃げ出した ${t.fled} → 合流 ${t.merged}（${pct(t.merged, t.fled)}）/ 討伐 ${t.killed}（${pct(t.killed, t.fled)}）/ 逃げ切り ${t.escaped}（${pct(t.escaped, t.fled)}）`);
+  lines.push("");
+  return lines;
+}

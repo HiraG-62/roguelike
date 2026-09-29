@@ -2,19 +2,21 @@ import { type Enemy, type GameState, type Jin, ROAMING_ROOM, type RoomState } fr
 import { type Vec, add, clamp, dist, lerp, normalize, sub } from "../core/vec";
 import { type EnemyDef, enemiesForDepth } from "../data/enemies";
 import { type EnemyGrade, type EnemyRole, roleOf } from "../data/enemyRoles";
-import { type FormationDef, type FormationSlot, formationDef, roomFormations } from "../data/formations";
+import { type FormationDef, type FormationKey, type FormationLeader, type FormationSlot, formationDef, roomFormations } from "../data/formations";
 import { ELITE, JIN } from "../data/tuning";
 import { TILE_SIZE, Tile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { layoutOffsets, rotateToFacing } from "../map/formation";
-import { nextWaypoint } from "../map/pathing";
+import { lineOfSight, nextWaypoint } from "../map/pathing";
 import { biomeEnemyWeight } from "./biomes";
 import { extraEliteRoll, onBoonEnemySpawned } from "./boons";
-import { createEnemy } from "./enemies";
+import { NOTICE_RANGE, createEnemy } from "./enemies";
 import { eliteKindsForRole, finalizeLinks, makeElite, rollElite } from "./elites";
+import { lordCandidates } from "./floorLord";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { roomLocks } from "./roomTypes";
 import { onRunEnemySpawned } from "./runEvents";
 import { canRoam, corridorTileList, pickRoamTarget } from "./spawner";
+import { initJinMorale, updateJins, wakeJin as wakeJinMembers } from "./jin";
 
 /**
  * 陣の配り（docs/ideas/jin-impl.md 2-5・2-6・2-9）。部屋を置き換えず、封鎖しない通常の塊の上に陣を乗せる。
@@ -38,6 +40,8 @@ interface MemberPlan {
   def: EnemyDef;
   role: EnemyRole;
   grade: EnemyGrade;
+  /** 大将。格の重みは JIN.gradeWeight.leader、必ず精鋭の修飾子を付ける（深度が解禁に足りれば） */
+  leader?: boolean;
 }
 
 /** 置いてよいタイルか（陣の塊・通路） */
@@ -63,39 +67,17 @@ export function planJins(state: GameState, skip: ReadonlySet<number>): void {
     spawnJin(state, index, formation, budget, center, roomFacing(state, index), roomArea(state, room), () => true);
   }
   placeColumns(state);
+  placeLookouts(state);
 }
 
-/** 陣を起こす（3a: メンバーを全員 chase に。後詰は 3b） */
+/** 陣を起こす（気付いた者の近くだけ起こし、残りは後詰。本体は jin.ts） */
 export function wakeJin(state: GameState, jin: Jin): void {
-  if (jin.phase === "settled") return;
-  jin.phase = "engaged";
-  for (const e of state.enemies) {
-    if (e.jinId === jin.id && e.hp > 0 && e.phase === "idle") e.phase = "chase";
-  }
+  wakeJinMembers(state, jin);
 }
 
-/**
- * 毎ステップ: 生き残りの無い陣を決着（全滅）にし、長蛇の誰かが気付いたら列ごと起こす。
- * 塊の陣は floor.ts の engageRoom が塊ごと起こす（部屋のフックを 1 回通すため）ので、ここでは起こさない
- */
+/** 毎ステップ: 決着（全滅）・長蛇の起床・後詰・増援の代わり。本体は jin.ts の updateJins */
 export function updateJinPhases(state: GameState): void {
-  if (state.jins.length === 0) return;
-  const alive = new Set<number>();
-  const awake = new Set<number>();
-  for (const e of state.enemies) {
-    if (e.jinId === undefined || e.hp <= 0) continue;
-    alive.add(e.jinId);
-    if (e.phase !== "idle" && e.phase !== "spawning") awake.add(e.jinId);
-  }
-  for (const jin of state.jins) {
-    if (jin.phase === "settled") continue;
-    if (!alive.has(jin.id)) {
-      jin.phase = "settled";
-      jin.settledBy = "wipe";
-      continue;
-    }
-    if (jin.phase === "sleeping" && jin.roomIndex === ROAMING_ROOM && awake.has(jin.id)) wakeJin(state, jin);
-  }
+  updateJins(state);
 }
 
 /** 格「猛」（強）にする: 生命と怯み耐性を上げる（接触ダメージの倍率は enemies.ts の contactDamageOf が JIN.strong.damageMul を掛ける） */
@@ -249,10 +231,29 @@ export function spawnJin(
 ): Jin | null {
   const plan = planMembers(state, formation, budget, canUse);
   const offsets = layoutOffsets(formation.layout, plan.length, formation.spacing);
-  const jin: Jin = {
+  const jin = newJin(state, roomIndex, formation.key, center, facing);
+  let weight = 0;
+  plan.forEach((member, i) => {
+    const offset = offsets[i] ?? { x: 0, y: 0 };
+    const pos = freeSpotNear(state, add(center, rotateToFacing(offset, facing)), member.def.radius, inArea);
+    if (!pos) return;
+    const e = spawnMember(state, jin, member, pos);
+    if (member.leader) jin.leaderId = e.id;
+    weight += member.leader ? JIN.gradeWeight.leader : JIN.gradeWeight[member.grade];
+  });
+  if (weight === 0) return null;
+  initJinMorale(state, jin);
+  state.jins.push(jin);
+  if (roomIndex !== ROAMING_ROOM) finalizeLinks(state, roomIndex);
+  return jin;
+}
+
+/** 空の陣（メンバーは置く側が足す）。id は陣が消えないので通し番号 */
+function newJin(state: GameState, roomIndex: number, formation: FormationKey, center: Vec, facing: Vec): Jin {
+  return {
     id: state.jins.length + 1,
     roomIndex,
-    formation: formation.key,
+    formation,
     center: { ...center },
     facing: { ...facing },
     leaderId: null,
@@ -263,21 +264,6 @@ export function spawnJin(
     deathsTick: -1,
     deathsInTick: 0,
   };
-  let weight = 0;
-  plan.forEach((member, i) => {
-    const offset = offsets[i] ?? { x: 0, y: 0 };
-    const pos = freeSpotNear(state, add(center, rotateToFacing(offset, facing)), member.def.radius, inArea);
-    if (!pos) return;
-    spawnMember(state, jin, member, pos);
-    weight += JIN.gradeWeight[member.grade];
-  });
-  if (weight === 0) return null;
-  // 群勢の本実装（initJinMorale）は 3b。それまでは生成時の重さの合計で満たしておく
-  jin.moraleMax = weight;
-  jin.morale = weight;
-  state.jins.push(jin);
-  if (roomIndex !== ROAMING_ROOM) finalizeLinks(state, roomIndex);
-  return jin;
 }
 
 /** スロットの人数: 予算 × share / 格の重さ を四捨五入して min〜max */
@@ -300,8 +286,12 @@ export function gradeAtDepth(grade: EnemyGrade, depth: number): EnemyGrade {
 function planMembers(state: GameState, formation: FormationDef, budget: number, canUse: (def: EnemyDef) => boolean): MemberPlan[] {
   const species = new Map<EnemyRole, EnemyDef | null>();
   const out: MemberPlan[] = [];
+  // 大将は正面（先頭）に立ち、予算のうち大将の重さぶんを使う。残りをスロットに割る
+  const leader = formation.leader ? planLeader(state, formation.leader, species, canUse) : null;
+  if (leader) out.push(leader);
+  const slotBudget = leader ? Math.max(0, budget - JIN.gradeWeight.leader) : budget;
   for (const slot of formation.slots) {
-    const count = slotCount(slot, budget);
+    const count = slotCount(slot, slotBudget);
     if (count <= 0) continue;
     if (!species.has(slot.role)) species.set(slot.role, pickRoleDef(state, slot.role, canUse));
     const def = species.get(slot.role);
@@ -310,6 +300,23 @@ function planMembers(state: GameState, formation: FormationDef, budget: number, 
     for (let k = 0; k < count; k++) out.push({ def, role: slot.role, grade });
   }
   return out;
+}
+
+/**
+ * 大将の配役（rng: 部屋主の抽選 1 回 + 選んだ敵 1 回）。部屋主が候補にいれば lairChance でそれを大将にする
+ * （階の主と同じ候補。深度 3 から）。外れたら role の敵を格 grade で。
+ * 部屋主でない大将の種類は species に登録し、同じ役割のスロットが同じ種類で揃うようにする。候補がいなければ null
+ */
+function planLeader(state: GameState, leader: FormationLeader, species: Map<EnemyRole, EnemyDef | null>, canUse: (def: EnemyDef) => boolean): MemberPlan | null {
+  const lairs = lordCandidates(state.depth).filter(canUse);
+  if (lairs.length > 0 && state.rng.chance(leader.lairChance)) {
+    const def = state.rng.pick(lairs);
+    return { def, role: roleOf(def), grade: "normal", leader: true };
+  }
+  const def = pickRoleDef(state, leader.role, canUse);
+  species.set(leader.role, def);
+  if (!def) return null;
+  return { def, role: leader.role, grade: gradeAtDepth(leader.grade, state.depth), leader: true };
 }
 
 /** 陣の候補の敵（抽選に出る・臆病でない・部屋主でない。部屋主は大将のスロットだけ） */
@@ -345,8 +352,9 @@ function spawnMember(state: GameState, jin: Jin, member: MemberPlan, pos: Vec): 
 
 function applyGrade(state: GameState, e: Enemy, member: MemberPlan): void {
   if (member.grade === "strong") makeStrong(e);
-  // ランの縛り・反転層で既に精鋭になっていれば重ねない
-  if (member.grade === "elite" && !e.elite) makeElite(e, state.rng.pick(eliteKindsForRole(member.def, member.role)));
+  // ランの縛り・反転層で既に精鋭になっていれば重ねない。大将は格に関わらず精鋭を 1 つ持つ（解禁前の深度では付かない）
+  const elite = member.grade === "elite" || (member.leader === true && gradeAtDepth("elite", state.depth) === "elite");
+  if (elite && !e.elite) makeElite(e, state.rng.pick(eliteKindsForRole(member.def, member.role)));
 }
 
 // -----------------------------------------------------------------------------
@@ -446,4 +454,123 @@ function spawnColumn(state: GameState, formation: FormationDef, at: Vec, inArea:
     e.ai.roam = { ...target };
     e.ai.roamStuck = 0;
   }
+}
+
+// -----------------------------------------------------------------------------
+// 物見（2 つの陣の間の通路に立つ見張り）
+// -----------------------------------------------------------------------------
+
+/**
+ * 物見を置く: 塊の陣を近い順の組にし、組の中点に最も近い通路タイルへ射手を 1 人置く（乱数は配役の分だけ）。
+ * 中点から snapDist を超えて離れる・他の陣や物見に近すぎる組は見送り、count 人で止める。
+ * 塊の陣が 2 つに満たない・深度が解禁に足りない（陣形の minDepth）ときは置かない
+ */
+function placeLookouts(state: GameState): void {
+  const formation = formationDef("lookout");
+  if (!formation || formation.minDepth > state.depth) return;
+  const corridor = corridorTileList(state);
+  if (corridor.length === 0) return;
+  const area = new Uint8Array(state.map.tiles.length);
+  for (const t of corridor) area[t] = 1;
+  const start = state.rooms[START_ROOM];
+  const anchors: Vec[] = [...(start ? [rectCenterPx(start.rect)] : []), ...state.jins.map((j) => j.center)];
+  let placed = 0;
+  for (const mid of jinPairMidpoints(state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM))) {
+    if (placed >= JIN.lookout.count) return;
+    const at = nearestTile(state, corridor, mid);
+    if (!at || dist(at, mid) > JIN.lookout.snapDist || minDistTo(at, anchors) < JIN.lookout.minDistFromJin) continue;
+    const jin = spawnJin(state, ROAMING_ROOM, formation, 1, at, DEFAULT_FACING, (t) => area[t] === 1, canRoam);
+    if (!jin) continue;
+    anchors.push(at);
+    placed++;
+  }
+}
+
+/** 陣の組の中点を、組の距離が近い順に並べる（同距離は組の並び順。乱数なし） */
+export function jinPairMidpoints(jins: readonly Jin[]): Vec[] {
+  const pairs: { d: number; mid: Vec }[] = [];
+  for (let a = 0; a < jins.length; a++) {
+    for (let b = a + 1; b < jins.length; b++) {
+      const ja = jins[a];
+      const jb = jins[b];
+      if (!ja || !jb) continue;
+      pairs.push({ d: dist(ja.center, jb.center), mid: lerpVec(ja.center, jb.center, 0.5) });
+    }
+  }
+  return pairs.sort((p, q) => p.d - q.d).map((p) => p.mid);
+}
+
+function lerpVec(a: Vec, b: Vec, t: number): Vec {
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+}
+
+/** 一覧のうち p に最も近いタイルの中心（同距離は index の小さい方）。空なら null */
+function nearestTile(state: GameState, tiles: readonly number[], p: Vec): Vec | null {
+  let best: Vec | null = null;
+  let bestD = Number.POSITIVE_INFINITY;
+  for (const t of tiles) {
+    const q = { x: ((t % state.map.width) + 0.5) * TILE_SIZE, y: (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE };
+    const d = dist(q, p);
+    if (d >= bestD) continue;
+    best = q;
+    bestD = d;
+  }
+  return best;
+}
+
+/**
+ * 毎ステップ: 眠っている物見が通常の 2 倍の距離（視線が通る間）でプレイヤーに気付いたら、
+ * 物見の陣と、最も近い眠っている陣（物見どうしは除く）を起こす。起こすだけで決着・敗走は jin.ts の受け持ち
+ */
+export function updateLookouts(state: GameState): void {
+  const p = state.player.body.pos;
+  const range = NOTICE_RANGE * JIN.lookout.noticeMul;
+  for (const jin of state.jins) {
+    if (jin.formation !== "lookout" || jin.phase !== "sleeping") continue;
+    const watcher = state.enemies.find((e) => e.jinId === jin.id && e.hp > 0 && e.phase === "idle");
+    if (!watcher || dist(watcher.body.pos, p) > range || !lineOfSight(state.map, watcher.body.pos, p)) continue;
+    wakeJin(state, jin);
+    const target = nearestSleepingJin(state, jin);
+    if (target) wakeJin(state, target);
+  }
+}
+
+/** from に最も近い眠っている陣（物見・from 自身を除く。同距離は id の小さい方）。無ければ null */
+export function nearestSleepingJin(state: GameState, from: Jin): Jin | null {
+  let best: Jin | null = null;
+  let bestD = Number.POSITIVE_INFINITY;
+  for (const j of state.jins) {
+    if (j === from || j.formation === "lookout" || j.phase !== "sleeping") continue;
+    const d = dist(j.center, from.center);
+    if (d >= bestD) continue;
+    best = j;
+    bestD = d;
+  }
+  return best;
+}
+
+// -----------------------------------------------------------------------------
+// ボス陣（階の主と取り巻き）
+// -----------------------------------------------------------------------------
+
+/**
+ * 階の主の部屋の封鎖で取り巻きが湧いた直後に呼ぶ: 主を大将、取り巻きをメンバーにした陣（陣形 偃月）を作る。
+ * 配置は取り巻きの湧きのまま（陣形の並びにはしない）。封鎖中で全員が動いているので最初から交戦。
+ * 主を倒すと群勢が崩れて取り巻きが敗走する（jin.ts）。主がいなければ null
+ */
+export function createBossJin(state: GameState, roomIndex: number, lordId: number, escorts: readonly Enemy[]): Jin | null {
+  const lord = state.enemies.find((e) => e.id === lordId && e.hp > 0);
+  const room = state.rooms[roomIndex];
+  if (!lord || !room) return null;
+  const jin = newJin(state, roomIndex, "crescent", rectCenterPx(room.rect), roomFacing(state, roomIndex));
+  jin.leaderId = lord.id;
+  jin.phase = "engaged";
+  lord.jinId = jin.id;
+  for (const e of escorts) {
+    if (e.id === lord.id || e.hp <= 0 || e.jinId !== undefined) continue;
+    e.jinId = jin.id;
+  }
+  initJinMorale(state, jin);
+  state.jins.push(jin);
+  return jin;
 }

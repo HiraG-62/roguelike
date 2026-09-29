@@ -67,7 +67,8 @@ import {
   waveMul,
 } from "./roomTypes";
 import { updateRoamers } from "./spawner";
-import { planJins, updateJinPhases, wakeJin } from "./jinSpawn";
+import { roomClearText } from "./jin";
+import { createBossJin, planJins, updateJinPhases, updateLookouts, wakeJin } from "./jinSpawn";
 import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
@@ -483,6 +484,7 @@ export function updateRooms(state: GameState, dt: number): void {
 
   updateRoamers(state, dt);
   updateJinPhases(state);
+  updateLookouts(state);
   updateShrines(state);
   updateSpecialRooms(state, dt);
   updateContractors(state, dt);
@@ -542,14 +544,14 @@ function engageRoom(state: GameState, room: RoomState, index: number): void {
 }
 
 /**
- * 部屋の敵をまとめて起こす: 塊に乗った陣は wakeJin（3a は全員。後詰は 3b）、陣に属さない敵（特別な部屋の湧き）も起こす
+ * 部屋の敵をまとめて起こす: 塊に乗った陣は wakeJin（気付いた者の近くだけ。残りは後詰）、陣に属さない敵（特別な部屋の湧き）も起こす
  */
 function wakeRoom(state: GameState, index: number): void {
   for (const jin of state.jins) {
     if (jin.roomIndex === index) wakeJin(state, jin);
   }
   for (const e of state.enemies) {
-    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
+    if (e.roomIndex === index && e.jinId === undefined && e.phase === "idle") e.phase = "chase";
   }
 }
 
@@ -750,6 +752,8 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
     if (!state.boss.major) {
       spawnCapped(state, room, index, true, Math.round(enemyCount(state) * FLOOR_LORD.escortRatio));
       finalizeLinks(state, index);
+      const escorts = state.enemies.filter((e) => e.roomIndex === index);
+      createBossJin(state, index, state.boss.enemyId, escorts);
     }
     return;
   }
@@ -797,7 +801,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   room.cleared = true;
   for (const t of room.doorTiles) state.lockedTiles.delete(t);
   state.score += ROOM.clearBonus;
-  addFloatingText(state, p2(state), "制圧", "#ffd75f", 1.5, 1);
+  addFloatingText(state, p2(state), roomClearText(state, index), "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
   roomClearFx(state, index);

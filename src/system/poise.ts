@@ -7,6 +7,7 @@ import { ENEMY_TEMPO, POISE, STATUS } from "../data/tuning";
 import { addFloatingText, markExecuted, spawnBurst } from "./effects";
 import { shieldLeft } from "./elites";
 import { gainMana } from "./mana";
+import { jinBonusMul } from "./jin";
 import { boonSkipsGuarded, onBoonStagger, onBoonStaggerEnd } from "./boonRules";
 import { applyStatus, enemiesInRadius, hasStatus, playerPoiseDealtMul, removeStatus, statusStacks } from "./statusEffects";
 
@@ -126,7 +127,7 @@ export function addPoise(state: GameState, e: Enemy, amount: number, opts: Poise
   const hitOpts = opts.fromBehind === undefined ? { ...opts, fromBehind: isBehind(state, e) } : opts;
   // コミット窓の中は溜まらない（読んで潰せるのは窓の前だけ）
   if (opts.ignoreCommit !== true && windupCommitted(e)) return false;
-  const gained = amount * playerPoiseDealtMul(state) * poiseTakenMul(e, hitOpts);
+  const gained = amount * playerPoiseDealtMul(state) * poiseTakenMul(e, hitOpts) * jinBonusMul(state, e, "poiseTaken");
   if (gained <= 0) return false;
   e.poise.damage += gained;
   e.poise.sinceHit = 0;
@@ -177,6 +178,7 @@ function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
   if (amount < POISE.executeMinPoise || e.hp <= 0 || !isStaggered(e)) return false;
   if (isExecuteImmune(enemyDef(e.defKey)) || e.hp > e.maxHp * executeHpRatio(state)) return false;
   e.hp = 0;
+  e.executed = true;
   markExecuted(state, e);
   addFloatingText(state, e.body.pos, EXECUTE_TEXT, EXECUTE_COLOR, EXECUTE_TEXT_SCALE, 0.7);
   spawnBurst(state, e.body.pos, EXECUTE_COLOR, EXECUTE_PARTICLES, 180, 0.45, 2.5);

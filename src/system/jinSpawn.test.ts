@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { type GameState, ROAMING_ROOM } from "../core/state";
-import { dist } from "../core/vec";
+import { type Vec, dist } from "../core/vec";
 import { depthHpScale, enemyDef } from "../data/enemies";
-import { ROLE_ELITE_EXCLUDE, roleOf } from "../data/enemyRoles";
+import { ROLE_ELITE_EXCLUDE, gradeOf, roleOf } from "../data/enemyRoles";
 import type { FormationSlot } from "../data/formations";
 import { ELITE, JIN } from "../data/tuning";
 import { TILE_SIZE, rectCenterPx, toIndex } from "../map/grid";
-import { createEnemy } from "./enemies";
+import { lineOfSight } from "../map/pathing";
+import { NOTICE_RANGE, createEnemy } from "./enemies";
 import { buildFloor, updateRooms, withBaseAreaMul } from "./floor";
-import { gradeAtDepth, jinBudget, makeStrong, slotCount, updateJinPhases } from "./jinSpawn";
+import { createBossJin, gradeAtDepth, jinBudget, jinPairMidpoints, makeStrong, nearestSleepingJin, slotCount, updateJinPhases, updateLookouts } from "./jinSpawn";
+import { overlapsWall } from "./physics";
 import { roomLocks } from "./roomTypes";
+import { corridorTileList } from "./spawner";
 
 /** 陣の配り（system/jinSpawn.ts。docs/ideas/jin-impl.md 2-2・2-5・2-9） */
 
@@ -201,5 +204,211 @@ describe("陣の起床と決着（3a）", () => {
     updateJinPhases(state);
     expect(column.phase).toBe("settled");
     expect(column.settledBy).toBe("wipe");
+  });
+});
+
+/** メンバーが陣の中心から正面（facing）へどれだけ進んでいるか */
+function alongFacing(jin: GameState["jins"][number], e: GameState["enemies"][number]): number {
+  return (e.body.pos.x - jin.center.x) * jin.facing.x + (e.body.pos.y - jin.center.y) * jin.facing.y;
+}
+
+/** ある陣形の陣を、深度と seed を変えて集める */
+function collectJins(formation: string, depths: readonly number[], seeds: number): { state: GameState; jin: GameState["jins"][number] }[] {
+  const out: { state: GameState; jin: GameState["jins"][number] }[] = [];
+  for (const depth of depths) {
+    for (let seed = 0; seed < seeds; seed++) {
+      const state = floorAt(depth, seed);
+      for (const jin of state.jins) if (jin.formation === formation) out.push({ state, jin });
+    }
+  }
+  return out;
+}
+
+describe("偃月（大将のいる陣、3b）", () => {
+  it("深度 2 の偃月は大将（猛の前衛）が先頭に立ち、精鋭はまだ付かない", () => {
+    const found = collectJins("crescent", [2], 12);
+    expect(found.length, "偃月が出る").toBeGreaterThan(0);
+    for (const { state, jin } of found) {
+      const leader = state.enemies.find((e) => e.id === jin.leaderId);
+      expect(leader, "大将がいる").toBeDefined();
+      expect(leader?.jinId).toBe(jin.id);
+      expect(leader?.grade, "猛").toBe("strong");
+      expect(roleOf(enemyDef(leader!.defKey)), "前衛").toBe("vanguard");
+      expect(leader?.elite, "精鋭は深度 3 から").toBeUndefined();
+    }
+  });
+
+  it("深度 3 以降の偃月の大将は精鋭の修飾子を持ち、正面に立つ。部屋主の大将は役割に合わない修飾子を持たない", () => {
+    const found = collectJins("crescent", [3, 5, 7], 10);
+    expect(found.length, "偃月が出る").toBeGreaterThan(0);
+    for (const { state, jin } of found) {
+      const leader = state.enemies.find((e) => e.id === jin.leaderId);
+      expect(leader, "大将がいる").toBeDefined();
+      expect(leader?.elite, "大将は精鋭").toBeDefined();
+      expect(gradeOf(leader!), "格は精鋭").toBe("elite");
+      // 塞がった点は近くの空きへ寄るので、最前かどうかでなく「他の平均より前」で見る
+      const others = membersOf(state, jin.id).filter((e) => e.id !== leader?.id);
+      const mean = others.reduce((sum, e) => sum + alongFacing(jin, e), 0) / Math.max(1, others.length);
+      expect(alongFacing(jin, leader!), `大将が前（${jin.formation}）`).toBeGreaterThan(mean);
+      const role = roleOf(enemyDef(leader!.defKey));
+      expect(ROLE_ELITE_EXCLUDE[role], `${leader!.defKey} の ${leader!.elite}`).not.toContain(leader!.elite);
+    }
+  });
+
+  it("大将のいない陣形は leaderId が null（魚鱗・鶴翼・雁行・長蛇・方円・物見）", () => {
+    for (const { jin } of [...collectJins("fishScale", [3], 4), ...collectJins("column", [3], 4), ...collectJins("circle", [4], 8), ...collectJins("lookout", [3], 8)]) {
+      expect(jin.leaderId, jin.formation).toBeNull();
+    }
+  });
+
+  it("大将の重さ（leader）を除いた予算をスロットに割るので、偃月の重さの合計が予算から大きく外れない", () => {
+    for (const { state, jin } of collectJins("crescent", [4], 12)) {
+      const weights = membersOf(state, jin.id).map((e) => (e.id === jin.leaderId ? JIN.gradeWeight.leader : JIN.gradeWeight[gradeOf(e)]));
+      const total = weights.reduce((a, b) => a + b, 0);
+      expect(jin.moraleMax, "群勢の最大 = メンバーの重さの合計").toBe(total);
+    }
+  });
+});
+
+describe("方円（支援を中心に置く陣、3b）", () => {
+  it("方円は支援が 1 人だけで、陣の中心に最も近く、深度 3 から出る", () => {
+    expect(collectJins("circle", [1, 2], 10), "深度 2 以下は出ない").toHaveLength(0);
+    const found = collectJins("circle", [3, 4, 5], 12);
+    expect(found.length, "方円が出る").toBeGreaterThan(0);
+    for (const { state, jin } of found) {
+      const members = membersOf(state, jin.id);
+      const support = members.filter((e) => roleOf(enemyDef(e.defKey)) === "support");
+      expect(support, "支援は 1 人").toHaveLength(1);
+      const nearest = members.reduce((best, e) => (dist(e.body.pos, jin.center) < dist(best.body.pos, jin.center) ? e : best));
+      expect(nearest.id, "支援が中心").toBe(support[0]?.id);
+    }
+  });
+});
+
+describe("物見（見張りの射手、3b）", () => {
+  const onCorridor = (state: GameState, e: GameState["enemies"][number]): boolean =>
+    corridorTileList(state).includes(toIndex(state.map, Math.floor(e.body.pos.x / TILE_SIZE), Math.floor(e.body.pos.y / TILE_SIZE)));
+
+  it("深度 1 に物見はいない。深い階には物見が出て、射手 1 人が通路に立ち、数は JIN.lookout.count 以下", () => {
+    expect(collectJins("lookout", [1], SEEDS), "深度 1").toHaveLength(0);
+    let total = 0;
+    for (let seed = 0; seed < SEEDS; seed++) {
+      const state = floorAt(3, seed);
+      const lookouts = state.jins.filter((j) => j.formation === "lookout");
+      expect(lookouts.length, `seed=${seed} 上限`).toBeLessThanOrEqual(JIN.lookout.count);
+      total += lookouts.length;
+      for (const jin of lookouts) {
+        expect(jin.roomIndex, "塊に属さない").toBe(ROAMING_ROOM);
+        const members = membersOf(state, jin.id);
+        expect(members, "1 人").toHaveLength(1);
+        expect(roleOf(enemyDef(members[0]!.defKey)), "射手").toBe("shooter");
+        expect(members[0]!.roomIndex).toBe(ROAMING_ROOM);
+        expect(onCorridor(state, members[0]!), `seed=${seed} 通路の上`).toBe(true);
+      }
+    }
+    expect(total, "物見が出る").toBeGreaterThan(0);
+  });
+
+  it("物見は 2 つの陣の中点から snapDist 以内の通路に立つ", () => {
+    for (let seed = 0; seed < SEEDS; seed++) {
+      const state = floorAt(3, seed);
+      const mids = jinPairMidpoints(state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM));
+      for (const jin of state.jins.filter((j) => j.formation === "lookout")) {
+        const near = mids.some((m) => dist(m, jin.center) <= JIN.lookout.snapDist + TILE_SIZE);
+        expect(near, `seed=${seed} 陣の組の中点の近く`).toBe(true);
+      }
+    }
+  });
+
+  it("陣の組の中点は組の距離が近い順に並ぶ", () => {
+    const state = floorAt(3, 1);
+    const jins = state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM);
+    const mids = jinPairMidpoints(jins);
+    expect(mids).toHaveLength((jins.length * (jins.length - 1)) / 2);
+    expect(jinPairMidpoints([])).toEqual([]);
+  });
+
+  /** from から半径 r の点で、視線が通り壁に埋まらない点（無ければ null） */
+  function clearSpot(state: GameState, from: Vec, r: number): Vec | null {
+    for (let k = 0; k < 32; k++) {
+      const a = (k / 32) * 2 * Math.PI;
+      const p = { x: from.x + Math.cos(a) * r, y: from.y + Math.sin(a) * r };
+      if (!overlapsWall(state, p.x, p.y, state.player.body.radius) && lineOfSight(state.map, from, p)) return p;
+    }
+    return null;
+  }
+
+  /** 物見を持つ階と、その物見・見通せる距離の組を探す */
+  function lookoutScene(radius: number): { state: GameState; jin: GameState["jins"][number]; spot: Vec } {
+    for (let seed = 0; seed < 24; seed++) {
+      const state = floorAt(4, seed);
+      for (const jin of state.jins.filter((j) => j.formation === "lookout")) {
+        const watcher = membersOf(state, jin.id)[0];
+        const spot = watcher ? clearSpot(state, watcher.body.pos, radius) : null;
+        if (spot && nearestSleepingJin(state, jin)) return { state, jin, spot };
+      }
+    }
+    throw new Error("物見の見通せる場所が無い");
+  }
+
+  it("物見は通常の 2 倍の距離で気付き、自分の陣と最も近い眠っている陣を起こす", () => {
+    const { state, jin, spot } = lookoutScene(NOTICE_RANGE * 1.6);
+    const target = nearestSleepingJin(state, jin)!;
+    expect(target.formation, "物見どうしは起こさない").not.toBe("lookout");
+    state.player.body.pos = spot;
+    updateLookouts(state);
+    expect(jin.phase, "物見の陣").toBe("engaged");
+    expect(target.phase, "最も近い眠っている陣").toBe("engaged");
+    expect(membersOf(state, target.id).filter((e) => e.phase === "idle"), "全員起きる").toHaveLength(0);
+  });
+
+  it("通常の気付く距離の外（2 倍の外）では起こさない", () => {
+    const { state, jin, spot } = lookoutScene(NOTICE_RANGE * JIN.lookout.noticeMul * 1.3);
+    state.player.body.pos = spot;
+    updateLookouts(state);
+    expect(jin.phase).toBe("sleeping");
+    expect(state.jins.filter((j) => j !== jin && j.phase !== "sleeping"), "他の陣も眠ったまま").toHaveLength(0);
+  });
+});
+
+describe("ボス陣（階の主と取り巻き、3b）", () => {
+  it("階の主の部屋を封鎖すると、主を大将・取り巻きをメンバーにした偃月の陣ができる", () => {
+    const state = floorAt(2, 3);
+    const roomIndex = state.boss?.roomIndex ?? -1;
+    const room = state.rooms[roomIndex];
+    if (!room || !state.boss) throw new Error("階の主の部屋が無い");
+    expect(state.boss.major, "階の主（major でない）").toBe(false);
+    state.player.body.pos = rectCenterPx(room.rect);
+    state.player.invulnTimer = 999;
+    updateRooms(state, FIXED_DT);
+    expect(room.locked, "封鎖される").toBe(true);
+    const jin = state.jins.find((j) => j.roomIndex === roomIndex);
+    expect(jin?.formation).toBe("crescent");
+    expect(jin?.leaderId, "大将 = 階の主").toBe(state.boss.enemyId);
+    expect(jin?.phase, "封鎖中は最初から交戦").toBe("engaged");
+    const inRoom = state.enemies.filter((e) => e.roomIndex === roomIndex);
+    expect(inRoom.length, "取り巻きがいる").toBeGreaterThan(1);
+    for (const e of inRoom) expect(e.jinId, "部屋の全員が陣のメンバー").toBe(jin?.id);
+    const weight = inRoom.reduce((sum, e) => sum + (e.id === jin?.leaderId ? JIN.gradeWeight.leader : JIN.gradeWeight[gradeOf(e)]), 0);
+    expect(jin?.moraleMax, "群勢の最大 = 重さの合計").toBe(weight);
+  });
+
+  it("主がいなければ陣を作らない。すでに陣に属す敵・倒れた敵は数えない", () => {
+    const state = floorAt(2, 3);
+    const roomIndex = state.boss?.roomIndex ?? -1;
+    expect(createBossJin(state, roomIndex, -999, [])).toBeNull();
+    const lordId = state.boss?.enemyId ?? -1;
+    const other = createEnemy(state, enemyDef("slime"), { x: 0, y: 0 }, roomIndex, false);
+    const dead = createEnemy(state, enemyDef("slime"), { x: 0, y: 0 }, roomIndex, false);
+    dead.hp = 0;
+    const owned = createEnemy(state, enemyDef("slime"), { x: 0, y: 0 }, roomIndex, false);
+    owned.jinId = 99;
+    // 取り巻きは lockRoom で湧いた後なので state.enemies に入っている（群勢は生きているメンバーから数える）
+    state.enemies.push(other, dead, owned);
+    const jin = createBossJin(state, roomIndex, lordId, [other, dead, owned]);
+    expect(other.jinId).toBe(jin?.id);
+    expect(dead.jinId).toBeUndefined();
+    expect(owned.jinId).toBe(99);
+    expect(jin?.moraleMax).toBe(JIN.gradeWeight.leader + JIN.gradeWeight.normal);
   });
 });

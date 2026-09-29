@@ -36,6 +36,23 @@ describe("陣形の並び（layoutOffsets）", () => {
     for (let i = 1; i < column.length; i++) expect(column[i]!.x, "後ろへ").toBeLessThan(column[i - 1]!.x);
   });
 
+  it("偃月（arc）は先頭が最前で残りが後ろの弧、方円（ring）は先頭が中心で残りが同じ半径の輪、物見（single）は 1 点", () => {
+    const arc = layoutOffsets("arc", 6, 22);
+    const front = Math.max(...arc.map((p) => p.x));
+    expect(arc[0]!.x, "先頭が最前").toBe(front);
+    for (const p of arc.slice(1)) expect(p.x, "残りは先頭より後ろ").toBeLessThan(arc[0]!.x);
+
+    const ring = layoutOffsets("ring", 7, 20);
+    const center = ring[0]!;
+    const radii = ring.slice(1).map((p) => Math.hypot(p.x - center.x, p.y - center.y));
+    expect(radii.length).toBe(6);
+    for (const r of radii) expect(r, "輪は同じ半径").toBeCloseTo(radii[0]!, 6);
+    expect(radii[0]!, "中心から離れる").toBeGreaterThan(20);
+    expect(Math.hypot(center.x, center.y), "中心は陣の中心").toBeCloseTo(0, 6);
+
+    expect(layoutOffsets("single", 1, 20)).toEqual([{ x: 0, y: 0 }]);
+  });
+
   it("同じ引数なら同じ結果（乱数を使わない）", () => {
     expect(layoutOffsets("diagonal", 7, 22)).toEqual(layoutOffsets("diagonal", 7, 22));
   });

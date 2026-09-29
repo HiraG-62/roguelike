@@ -5,7 +5,7 @@ import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
-import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
+import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, JIN, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
@@ -92,6 +92,7 @@ import { drawUnspentHud } from "./attributeUi";
 import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
 import { drawInLayerOrder, hudLayoutFor } from "./layers";
+import { drawJinHud, drawLeaderMark } from "./jinUi";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
@@ -1479,12 +1480,13 @@ export class Renderer {
     if (staggered) {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
-    drawEnemyStatus(ctx, e, cx, e.elite ? top - ELITE_NAME_OFFSET : top);
+    drawEnemyStatus(ctx, e, cx, e.elite || e.grade === "strong" ? top - ELITE_NAME_OFFSET : top);
     // 属性の弱点の印（docs/COMBAT_DESIGN.md A-8）
     drawWeaknessMark(ctx, state, e, cx + sprite.w / 2, top);
     // ボスの座にいる敵（双子の妹が兄から継いだ後も）は上部バーだけで見せる
     if (showsBossBar(state, e)) return;
     const barY = cy + sprite.h / 2 - 2;
+    drawLeaderMark(ctx, state, e, cx, top);
     if (e.elite) {
       this.drawEliteBars(e, cx, barY);
       drawPoiseGauge(ctx, e, cx, barY + ELITE_BAR_H, ELITE_BAR_W);
@@ -1493,6 +1495,8 @@ export class Renderer {
     }
     if (e.hp < e.maxHp) this.drawBar(cx - 8, barY, 16, 2, e.hp / e.maxHp, COLOR_HP, COLOR_HP_BG);
     drawPoiseGauge(ctx, e, cx, barY + 2, 16);
+    // 精鋭でない猛（強）は名前だけ出す
+    this.drawEliteName(e, cx, top - ELITE_NAME_OFFSET);
   }
 
   /** 冷気・凍結・燃焼（drawEnemy が個別に重ねる色）以外の状態異常の色調（毒の緑・濡れの青・宣告の紫 …） */
@@ -1572,9 +1576,10 @@ export class Renderer {
   }
 
   private drawEliteName(e: Enemy, cx: number, y: number): void {
-    if (!e.elite) return;
-    const name = eliteDisplayName(e);
-    this.shadowText(name, Math.round(cx), Math.round(y), ELITE_COLOR[e.elite], TEXT.SMALL);
+    // 精鋭は修飾子の色、精鋭でない猛（強）は陣の色。並は名前を出さない
+    const color = e.elite ? ELITE_COLOR[e.elite] : e.grade === "strong" ? JIN.hud.strongColor : undefined;
+    if (color === undefined) return;
+    this.shadowText(eliteDisplayName(e), Math.round(cx), Math.round(y), color, TEXT.SMALL);
   }
 
   /**
@@ -2883,6 +2888,7 @@ export class Renderer {
     this.drawBossHud(state);
     this.drawReaperHud(state);
     drawRunHud(ctx, state);
+    drawJinHud(ctx, state);
     drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
     drawComboHud(ctx, state, hud);
 

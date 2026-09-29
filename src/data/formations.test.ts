@@ -15,6 +15,32 @@ describe("陣形の定義", () => {
     for (const key of ["fishScale", "craneWing", "geese", "column"] as const) expect(formationDef(key), key).toBeDefined();
   });
 
+  it("3b の 3 陣形（偃月・方円・物見）があり、大将を持つのは偃月だけ", () => {
+    for (const key of ["crescent", "circle", "lookout"] as const) expect(formationDef(key), key).toBeDefined();
+    expect(formationDef("crescent")?.leader?.role, "偃月の大将は前衛").toBe("vanguard");
+    expect(formationDef("crescent")?.leader?.lairChance).toBeGreaterThan(0);
+    expect(formationDef("circle")?.leader).toBeUndefined();
+    expect(formationDef("lookout")?.leader).toBeUndefined();
+  });
+
+  it("方円は支援を 1 人だけ中心に置き、物見は射手 1 人で抽選に出ない", () => {
+    const circle = formationDef("circle");
+    expect(circle?.layout).toBe("ring");
+    expect(circle?.slots[0]).toMatchObject({ role: "support", min: 1, max: 1 });
+    const lookout = formationDef("lookout");
+    expect(lookout?.weight, "物見は部屋の抽選に出ない").toBe(0);
+    expect(lookout?.slots).toHaveLength(1);
+    expect(lookout?.slots[0]).toMatchObject({ role: "shooter", min: 1, max: 1 });
+  });
+
+  it("偃月・方円は解禁の深度から部屋の抽選に出る（物見は出ない）", () => {
+    const keys = (depth: number): string[] => roomFormations(depth).map((d) => d.key);
+    expect(keys(1)).not.toContain("crescent");
+    expect(keys(formationDef("crescent")?.minDepth ?? 99)).toContain("crescent");
+    expect(keys(formationDef("circle")?.minDepth ?? 99)).toContain("circle");
+    expect(keys(99)).not.toContain("lookout");
+  });
+
   it("全陣形に表示名があり、役割・格・並べ方は定義済みの値", () => {
     for (const key of FORMATION_KEYS) expect(FORMATION_LABEL[key].length, key).toBeGreaterThan(0);
     for (const def of FORMATION_DEFS) {

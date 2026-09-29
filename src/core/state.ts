@@ -216,7 +216,11 @@ export interface Enemy {
   jinId?: number;
   /** 格「強」（猛〜）。並は無印、精鋭は elite。判定は data/enemyRoles.ts の gradeOf */
   grade?: "strong";
-  /** Shielded: hp の上乗せぶんのシールド量。hp > maxHp - shieldMax の間はシールドが残っている */
+  /** 敗走中（system/jin.ts の stepRout）。陣から外れ roomIndex は ROAMING_ROOM。攻撃せず行き先の陣へ逃げる */
+  rout?: EnemyRout;
+  /** 処刑で倒された（群勢の減りを足す。system/poise.ts の tryExecute が立てる） */
+  executed?: boolean;
+  /** Shielded:hp の上乗せぶんのシールド量。hp > maxHp - shieldMax の間はシールドが残っている */
   shieldMax?: number;
   /** Linked の HP 共有用: 前ステップの hp */
   lastHp?: number;
@@ -708,6 +712,34 @@ export interface Jin {
   /** 同じ tick の撃破数（一網打尽の判定） */
   deathsTick: number;
   deathsInTick: number;
+  /** 増援の代わりに長蛇へ変わって歩き出した（system/jin.ts の stirSleepingJin。1 陣 1 回） */
+  stirred?: boolean;
+  /** 大将の撃破で崩れた（決着の内訳。QA が数える） */
+  leaderFell?: boolean;
+  /** この陣から敗走した敵の行く末（QA が数える） */
+  routTally?: JinRoutTally;
+}
+
+/** 敗走した敵の行く末の数（逃げ出した数 = 合流 + 討伐 + 逃げ切り + まだ逃げている） */
+export interface JinRoutTally {
+  fled: number;
+  merged: number;
+  killed: number;
+  escaped: number;
+}
+
+/** 敗走中の敵の行き先と時計（system/jin.ts） */
+export interface EnemyRout {
+  /** 逃げ出した陣の id（QA の内訳用） */
+  fromJin: number;
+  /** 合流しに行く陣の id。行き先が無ければ null（プレイヤーの反対へ逃げ、時間切れで消える） */
+  toJin: number | null;
+  /** 合流する点（行き先の陣の先頭のメンバーの位置。retargetSec ごとに取り直す） */
+  dest: Vec | null;
+  /** 合流を諦めるまで / 逃げ切るまでの残り秒 */
+  time: number;
+  /** 行き先を見直すまでの残り秒 */
+  recheck: number;
 }
 
 export interface RoomState {
