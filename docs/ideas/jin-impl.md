@@ -15,6 +15,8 @@
 
 - **3b の実装で変えたこと**: 群勢の強化は `poiseTakenMul` でなく `addPoise` の増分に掛ける（state が要るため）。合流は行き先の陣の id 最小のメンバーの位置へ `rout.mergeDist`（40px）で。歩き出した陣（stir）はメンバーの `roomIndex` を元の塊のままにする（倒し切れば制圧の報酬、空の部屋に入るだけで報酬が出ないように）。塊の陣の「敗走」は `clearRoom` 側だけで出す。`roamHeartChance` は交戦した陣の決着でだけ引く。物見の起床は `updateLookouts`（jinSpawn.ts）。偃月は深度 2 から、大将の部屋主は深度 4 から。大将の JSON は `{ role, grade, lairChance }`。5 の倍数のボス階は単騎のまま（陣を作らない）
 
+- **3c の実装で変えたこと**: 跳躍は新しい敵を足さず毒スライムを `leaper` にした（再配色の敵を章の段へ吸収する方針。役割は突撃）。`followUps` は `depthStages`（連撃・離脱・後退射撃を深度で覚える）に置き換え、骸骨兵の連撃は深度 5・2 撃目の予備動作 0.4。連撃の 2 撃目以降の予備動作は最初からコミット（`Enemy.chainWindup`。連打で必ず潰れるため）。音で起きるには視線が要り、ボスは起きない。鋒矢は `cooldownStagger`、衡軛は `rotate` と `onRecoverEnd` フック（`system/jinFormations.ts`）。陣の目的（J）と精鋭修飾子の整理は段取り 6 以降
+
 ---
 
 ## 0. 結論
