@@ -1,0 +1,195 @@
+import { describe, expect, it } from "vitest";
+import { createIncreased } from "../core/damage";
+import type { Modifier } from "../core/rules";
+import type { GameState } from "../core/state";
+import { JOB, KEYSTONE, PLAYER } from "../data/tuning";
+import { meleeScaling } from "../data/weapons";
+import { scaled } from "./attributes";
+import { slashBase } from "./boonRules";
+import { rollOutgoing } from "./combat";
+import { buildContext, poiseIncreasedMul } from "./damageMods";
+import { KS } from "./keystones";
+import { applyModifiers, collectModifiers, countPer, estimateModifiers } from "./modifiers";
+import { applyStagger } from "./poise";
+import { applyStatus } from "./statusEffects";
+import { keystoneMore } from "./traitHooks";
+import { arena, placeEnemy } from "./testHelpers";
+
+/** Modifier（常時の増・倍と「〜につき」。system/modifiers.ts）の検査 */
+
+const BASE = 100;
+const STAGGER_TIME = 2;
+const OWNER = { kind: "boon", key: "test" } as const;
+
+/** 生命を大きくした、倒れない敵 */
+function sturdy(state: GameState): ReturnType<typeof placeEnemy> {
+  const e = placeEnemy(state, "slime", 20);
+  e.hp = 10_000;
+  e.maxHp = 10_000;
+  return e;
+}
+
+/** テストの中だけの見本: コンボ 10 につき増 +2%（上限 100%） */
+const COMBO_STEP: Modifier = {
+  id: "boon:test:0",
+  kind: "increased",
+  tag: "all",
+  amount: 0.02,
+  per: { count: { kind: "combo" }, every: 10, cap: 1.0 },
+  if: [],
+  owner: OWNER,
+};
+
+function modifier(partial: Partial<Modifier>): Modifier {
+  return { id: "boon:test:1", kind: "more", tag: "all", amount: 1.5, if: [], owner: OWNER, ...partial };
+}
+
+describe("移行の見本: 楔の誓い（誓約の分岐 → Modifier）", () => {
+  it("怯んでいない敵への近接・射撃だけ楔の倍が掛かる（数値は KEYSTONE.wedgeUnstaggeredMul のまま）", () => {
+    const state = arena(5, { keystones: [KS.wedgeOath] });
+    const e = sturdy(state);
+    const melee = rollOutgoing(state, e, BASE, "melee");
+    expect(melee.amount, "近接").toBe(Math.round(BASE * KEYSTONE.wedgeUnstaggeredMul));
+    expect(rollOutgoing(state, e, BASE, "ranged").amount, "射撃").toBe(Math.round(BASE * KEYSTONE.wedgeUnstaggeredMul));
+    expect(rollOutgoing(state, e, BASE, "proc").amount, "proc には掛けない").toBe(BASE);
+    expect(melee.breakdown.more.map((m) => m.source), "出所は Modifier").toEqual(["mod:keystone:ks_wedgeOath:0"]);
+    expect(melee.breakdown.more[0]?.label, "表示名は誓約の名").toBe("楔の誓い");
+  });
+
+  it("怯んだ敵・対象のいない 1 撃には掛からない", () => {
+    const state = arena(5, { keystones: [KS.wedgeOath] });
+    const e = sturdy(state);
+    applyStagger(state, e, STAGGER_TIME);
+    expect(rollOutgoing(state, e, BASE, "melee").amount, "怯み中").toBe(BASE);
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "対象なし").toBe(BASE);
+  });
+
+  it("誓約の分岐（keystoneMore）には楔が残っていない（二重に掛からない）", () => {
+    const state = arena(5, { keystones: [KS.wedgeOath] });
+    const e = sturdy(state);
+    expect(keystoneMore(state, e, "melee", false)).toEqual([]);
+  });
+});
+
+describe("移行の見本: ジョブの得意武器（stats.more → Modifier）", () => {
+  it("得意武器の近接だけ倍が掛かり、射撃・得意でない武器・素手には掛からない", () => {
+    const state = arena(5, { moveset: "sword" });
+    state.job = "swordsman";
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "得意武器の近接").toBe(Math.round(BASE * JOB.favoredMeleeMul));
+    expect(rollOutgoing(state, null, BASE, "ranged").amount, "射撃").toBe(BASE);
+    state.stats = { ...state.stats, moveset: "wand" };
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "得意でない武器").toBe(BASE);
+    state.stats = { ...state.stats, moveset: "sword", unarmed: true };
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "素手").toBe(BASE);
+  });
+
+  it("銃の家系の得意武器は射撃に掛かる", () => {
+    const state = arena(5, { moveset: "longarm" });
+    state.job = "hunter";
+    expect(rollOutgoing(state, null, BASE, "ranged").amount, "射撃").toBe(Math.round(BASE * JOB.favoredMeleeMul));
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "近接").toBe(BASE);
+  });
+
+  it("祝福の威力の見積もり（slashBase）にも得意武器の倍が入る（stats.more にあった頃と同じ値）", () => {
+    const state = arena(5, { moveset: "sword" });
+    state.job = "swordsman";
+    const first = PLAYER.melee[0];
+    if (!first) throw new Error("近接 1 段目が無い");
+    const raw = scaled(state.stats, meleeScaling(first.scaling)) + state.stats.meleeDamageFlat;
+    expect(slashBase(state)).toBe(Math.round(raw * JOB.favoredMeleeMul));
+  });
+
+  it("見習いは得意武器の倍を持たない", () => {
+    const state = arena(5, { moveset: "sword" });
+    state.job = "none";
+    expect(rollOutgoing(state, null, BASE, "melee").amount).toBe(BASE);
+  });
+});
+
+describe("「〜につき」（per）", () => {
+  it("コンボ 10 につき増 +2%、上限 100%", () => {
+    const state = arena();
+    const ctx = buildContext(null, "melee");
+    const inc = (combo: number): number => {
+      state.combo.count = combo;
+      return applyModifiers(state, ctx, null, [COMBO_STEP]).increased;
+    };
+    expect(inc(0), "コンボ 0").toBe(0);
+    expect(inc(9), "10 に満たない").toBe(0);
+    expect(inc(25), "コンボ 25 は 2 つ分").toBeCloseTo(0.04);
+    expect(inc(1000), "上限 100%").toBeCloseTo(1);
+  });
+
+  it("装備の Modifier として与ダメの増に足される", () => {
+    const state = arena(5, { modifiers: [COMBO_STEP] });
+    state.combo.count = 50;
+    const out = rollOutgoing(state, null, BASE, "melee");
+    expect(out.amount).toBe(Math.round(BASE * 1.1));
+    expect(out.breakdown.increased, "Σ増").toBeCloseTo(0.1);
+  });
+
+  it("倍の「〜につき」は 1 + amount × 数（上限つき）", () => {
+    const state = arena();
+    state.combo.count = 30;
+    const m = modifier({ amount: 0.1, per: { count: { kind: "combo" }, every: 10, cap: 0.25 } });
+    const out = applyModifiers(state, buildContext(null, "melee"), null, [m]);
+    expect(out.more.map((x) => x.mul), "上限で ×1.25").toEqual([1.25]);
+    state.combo.count = 10;
+    expect(applyModifiers(state, buildContext(null, "melee"), null, [m]).more[0]?.mul).toBeCloseTo(1.1);
+  });
+
+  it("数え方: 失った生命・撃破数・会心率・状態異常の種類・周りの敵", () => {
+    const state = arena(5, { critChance: 0.25 });
+    state.player.hp = state.player.maxHp * 0.65;
+    state.kills = 7;
+    expect(countPer(state, { kind: "missingHpTenths" }, null), "失った生命 35% は 3").toBe(3);
+    expect(countPer(state, { kind: "runKills" }, null)).toBe(7);
+    expect(countPer(state, { kind: "stat", stat: "critChance" }, null), "会心率 25%").toBeCloseTo(25);
+    const e = sturdy(state);
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: 1, duration: 3, potency: 1 }, "player");
+    applyStagger(state, e, STAGGER_TIME);
+    expect(countPer(state, { kind: "targetStatusKinds" }, e), "対象の状態異常 2 種").toBe(2);
+    expect(countPer(state, { kind: "targetStatusKinds" }, null), "対象なしは 0").toBe(0);
+    expect(countPer(state, { kind: "nearbyEnemies", radius: 40 }, null), "周りの敵").toBe(1);
+    expect(countPer(state, { kind: "chainVisits" }, null), "連鎖の外は 0").toBe(0);
+  });
+});
+
+describe("タグと条件", () => {
+  it("tag が 1 撃のタグに合わなければ無視する", () => {
+    const state = arena(5, { modifiers: [modifier({ tag: "ranged" })] });
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "近接").toBe(BASE);
+    expect(rollOutgoing(state, null, BASE, "ranged").amount, "射撃").toBe(Math.round(BASE * 1.5));
+  });
+
+  it("poise タグは怯み値だけに効き、与ダメには効かない", () => {
+    const poise: Modifier[] = [modifier({ kind: "increased", tag: "poise", amount: 0.5 }), modifier({ id: "boon:test:2", tag: "poise", amount: 2 })];
+    const state = arena(5, { modifiers: poise, increased: createIncreased() });
+    const e = sturdy(state);
+    expect(rollOutgoing(state, e, BASE, "melee").amount, "与ダメ").toBe(BASE);
+    expect(poiseIncreasedMul(state, e), "怯み値は (1 + 0.5) × 2").toBeCloseTo(3);
+  });
+
+  it("条件を満たさなければ効かない（対象の状態異常）", () => {
+    const m = modifier({ if: [{ kind: "targetHas", status: "burn" }] });
+    const state = arena(5, { modifiers: [m] });
+    const e = sturdy(state);
+    expect(rollOutgoing(state, e, BASE, "melee").amount, "燃えていない").toBe(BASE);
+    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: 1, duration: 3, potency: 1 }, "player");
+    expect(applyModifiers(state, buildContext(e, "melee"), e).more.map((x) => x.mul), "燃えている").toEqual([1.5]);
+  });
+
+  it("見積もり（estimateModifiers）は対象を見る Modifier を入れない", () => {
+    const state = arena(5, { modifiers: [modifier({ if: [{ kind: "not", condition: { kind: "targetHas", status: "stagger" } }] }), modifier({ id: "boon:test:3", amount: 2 })] });
+    expect(estimateModifiers(state, "melee").more.map((x) => x.mul)).toEqual([2]);
+  });
+});
+
+describe("集め方", () => {
+  it("装備 → 誓約 → ジョブの固定順に集める", () => {
+    const state = arena(5, { modifiers: [COMBO_STEP], keystones: [KS.wedgeOath], moveset: "sword" });
+    state.job = "swordsman";
+    const ids = collectModifiers(state).map((m) => m.id);
+    expect(ids).toEqual(["boon:test:0", "keystone:ks_wedgeOath:0", "keystone:ks_wedgeOath:1", "player:job.swordsman:0", "player:job.swordsman:1"]);
+  });
+});

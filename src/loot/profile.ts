@@ -209,6 +209,9 @@ function sanitizeItem(v: unknown): Item | null {
   };
   const innate = sanitizeInnate(v.innate);
   if (innate !== undefined) item.innate = innate;
+  // 地金の上振れ。壊れていれば捨て、migrateItem が行から復元する
+  const innateLuck = optionalNumber(v.innateLuck);
+  if (innateLuck !== undefined && innateLuck >= 0) item.innateLuck = innateLuck;
   copyGrowthFields(item, v);
   return migrateItem(item);
 }

@@ -6,6 +6,7 @@ import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
 import { traitColorOf } from "./colors";
 import { CALM_FLUX_LIMIT, WAVER_FLUX_LIMIT, fluxMagnitude } from "./flux";
 import { baseDef } from "./bases";
+import { innateAt } from "./innate";
 import { milestoneDef } from "./provenance";
 import { baseName, dominantColor } from "./names";
 import { ATTR_LABEL, colorWeights } from "./resonance";
@@ -289,13 +290,16 @@ export function itemKindName(item: Pick<Item, "baseKey">): string {
   return moveset === undefined ? baseName(item.baseKey) : MOVESETS[moveset].name;
 }
 
-/** 地金の行。性質の行と違い、ステータスの一言は付けない（詳細欄の幅を性質に回す） */
-export function innateLines(item: Pick<Item, "innate">): string[] {
-  return (item.innate ?? []).map((roll) => formatAffix(roll));
+/**
+ * 地金の行。性質の行と違い、ステータスの一言は付けない（詳細欄の幅を性質に回す）。
+ * depth は今いる階の深度（持ち込むと地金は深度で決め直すので、効く値を見せる。拠点・倉庫は 1）
+ */
+export function innateLines(item: Pick<Item, "innate" | "innateLuck" | "itemLevel" | "slot">, depth = 1): string[] {
+  return innateAt(item, depth).map((roll) => formatAffix(roll));
 }
 
-/** アイテム 1 つの表示情報 */
-export function describeItem(item: Item): ItemDescription {
+/** アイテム 1 つの表示情報。depth は地金の表示に使う今の深度（innateLines） */
+export function describeItem(item: Item, depth = 1): ItemDescription {
   const dominant = dominantColor(item.affixes);
   const hueText = dominant === undefined ? "" : `・${TRAIT_COLOR_LABEL[dominant]}`;
   const desc: ItemDescription = {
@@ -305,7 +309,7 @@ export function describeItem(item: Item): ItemDescription {
     summary: itemSummary(item.affixes),
     colorBar: itemColorBar(item.affixes),
     lines: item.affixes.map(describeTrait),
-    innate: innateLines(item),
+    innate: innateLines(item, depth),
     marginText: marginText(item),
     provenanceLines: provenanceLines(item),
   };

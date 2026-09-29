@@ -228,13 +228,15 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
  * 2. 装備中の性質の色の配合から共鳴を決める（resonance.ts。支配 → 二重 → 三和音 → 散光 → なし。規則は色の誓約などで変わる）
  * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う / 無色の誓い: 全性質 +20%）
  * 4. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
- *    地金（全部位）→ 装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
+ *    地金（全部位。今の深度 depth で決め直す: innate.ts の innateAt）→ 装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
  * 5. 共鳴の効果を畳み込む。星座（6 部位の主色の並び）が成立していればその効果も（虚空は 3 の後に反転を打ち消す）
  * 6. 速さの倍率にソフトキャップ
  * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。与ダメは倍（more）に入る。HP 倍率も flat 合算後に掛かる）
  * 8. 整数化・クランプ
+ *
+ * depth は今いる階の深度（地金だけが使う。拠点・倉庫・ランの開始は 1）
  */
-export function computeStats(equipment: Equipment): PlayerStats {
+export function computeStats(equipment: Equipment, depth = 1): PlayerStats {
   const stats = createBaseStats();
   Object.assign(stats.traits, gearContext(equipment));
   const filtered = filterKeystoneRolls(collectRolls(equipment));
@@ -244,7 +246,7 @@ export function computeStats(equipment: Equipment): PlayerStats {
   const adjusted = adjustForResonance(filtered, resonance, rules);
   const rolls = constellation === "void" ? cancelInversions(adjusted) : adjusted;
   // 地金は共鳴の調整・来歴の段数・色の配合を通さず、性質と同じ段階（flat → scale → convert）で先に畳む
-  applyStaged(stats, [...collectInnate(equipment), ...rolls.filter((r) => !isKeystoneKey(r.key))]);
+  applyStaged(stats, [...collectInnate(equipment, depth), ...rolls.filter((r) => !isKeystoneKey(r.key))]);
   applyResonanceEffect(stats, resonance, rules);
   if (constellation !== undefined) applyConstellation(stats, constellation);
   applySoftCaps(stats);
@@ -350,6 +352,8 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   statusTakenMul: { label: "受ける状態異常の持続", style: "mul" },
   bulletCut: { label: "弾斬り", style: "flat" },
   skillNeutral: { label: "スキルの無属性化", style: "percent" },
+  chainRevisits: { label: "連鎖が同じ敵へ戻れる回数", style: "flat" },
+  chainCoefBonus: { label: "連鎖係数の上乗せ", style: "percent" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */

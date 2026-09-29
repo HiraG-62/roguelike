@@ -1,6 +1,6 @@
 import { type EventActor, type EventSource, type GameEvent, type StatusSnap, happenedWithin } from "../core/events";
 import type { Element } from "../core/element";
-import { type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, effectKeyword } from "../core/rules";
+import { type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, effectKeyword, procCoefficientOf } from "../core/rules";
 import { type Enemy, type GameState, allocId } from "../core/state";
 import type { StatusKind } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
@@ -39,9 +39,11 @@ import { statsBulletHas } from "../loot/bullets";
  * 統一ルールの照合（docs/ideas/synergy-web.md 3-3）。step の combo の後・effects の前に 1 回呼ぶ。
  * - 積んだ順のイベントに、固定順の Rule（祝福の取得順 → スキルスロット順 → 対象の敵）を照合する
  * - 効果が起こしたイベントは深さ +1 で次ステップへ（pushEvent が pendingEvents へ積む）。同ステップで再帰しない
- * - 深さ SYNERGY.maxDepth 以上は照合しない。効果量は深さごとに × SYNERGY.chainDecay
+ * - 連鎖は 3 つで止まる（docs/ideas/scaling-impl.md 2-7）: 範囲に次の標的がいない・同じ敵への訪問回数（1 + chainRevisits を超えたら
+ *   その敵から先へ跳ばない）・連鎖係数（効果ごとの procCoefficient の積が次の Rule の確率に掛かる）。効果量は深さによらず等倍。
+ *   深さ SYNERGY.maxDepth 以上は照合しない（性能の保険）
  * - ICD は 3 層: Rule ごと（ruleIcd）・語ごとの回数上限（keywordBudget）・敵ごと（StatusBag.procIcd）
- * - direct の Rule（旧フックから移した祝福）は連鎖に数えない: 深さを進めず、減衰・語の上限・深さの上限・連鎖の記録から外す
+ * - direct の Rule（旧フックから移した祝福）は連鎖に数えない: 深さを進めず、訪問回数・連鎖係数・語の上限・深さの上限・連鎖の記録から外す
  * 装備の tr: は fireTrigger がその場で同じ文法（ruleFromTrigger）を照合するので、ここでは集めない（二重発火を防ぐ）
  */
 
@@ -150,6 +152,7 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
     return;
   }
   if (ev.depth >= SYNERGY.maxDepth) return;
+  if (revisitExceeded(state, ev)) return;
   if (rule.group !== undefined && fired.has(rule.group)) return;
   if ((state.ruleIcd.get(icdKeyOf(rule)) ?? 0) > 0) return;
   if (!ruleConditionsMet(state, rule.if, ev)) return;
@@ -158,8 +161,9 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   if (used >= SYNERGY.keywordBudget) return;
   const procTarget = PROC_ICD_EFFECTS.has(rule.then.kind) ? liveTarget(state, ev.targetId) : undefined;
   if (procTarget !== undefined && procTarget.status.procIcd > 0) return;
-  // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）
-  if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
+  // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）。連鎖係数が 1 未満なら確定の Rule も引く
+  const chance = chainedChance(state, rule, ev);
+  if (chance < 1 && !state.rng.chance(chance)) return;
   // 祝福の格（神威）は ICD を縮める。direct（旧フックの回数と揃えたもの）には掛けない
   if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), gradedIcd(rule.icd, ruleOwnerGrade(state, rule.owner)));
   if (rule.group !== undefined) fired.add(rule.group);
@@ -169,9 +173,24 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   recordChain(state, keyword, ev.depth);
 }
 
+/** この連鎖で対象の敵を訪れた回数が 1 + chainRevisits を超えたか。超えたらその敵から先へ跳ばない（命中そのものは入っている） */
+function revisitExceeded(state: GameState, ev: GameEvent): boolean {
+  const target = ev.targetId;
+  if (target === undefined || ev.visits === undefined) return false;
+  let count = 0;
+  for (const id of ev.visits) if (id === target) count++;
+  return count > 1 + state.stats.chainRevisits;
+}
+
+/** 連鎖係数を掛けた確率（1 で切る）。連鎖の源（chainCoefBonus）は係数だけを押し上げる */
+function chainedChance(state: GameState, rule: Readonly<Rule>, ev: GameEvent): number {
+  const coef = Math.min(1, (ev.coef ?? 1) * (1 + state.stats.chainCoefBonus));
+  return Math.min(1, rule.chance * coef);
+}
+
 /**
  * 直接の効果（旧フックから移した祝福）。フックはどの深さの出来事でも等倍で起き、語の上限も procIcd も持たなかったので、
- * それと同じに照合する（ICD・確率・group は通常どおり見る）
+ * それと同じに照合する（ICD・確率・group は通常どおり見る。訪問回数・連鎖係数は見ない）
  */
 function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
   if (rule.group !== undefined && fired.has(rule.group)) return;
@@ -182,13 +201,19 @@ function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fi
   if (rule.group !== undefined) fired.add(rule.group);
   const run = state.ruleRun;
   const prevDepth = run.depth;
-  // 深さはイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い。減衰は掛けない）
+  const prevVisits = run.visits;
+  const prevCoef = run.coef;
+  // 深さ・訪れた敵・連鎖係数はイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い）
   run.depth = ev.depth;
+  run.visits = ev.visits ?? [];
+  run.coef = ev.coef ?? 1;
   try {
     const grade = ruleOwnerGrade(state, rule.owner);
     applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
   } finally {
     run.depth = prevDepth;
+    run.visits = prevVisits;
+    run.coef = prevCoef;
   }
 }
 
@@ -197,25 +222,34 @@ function icdKeyOf(rule: Readonly<Rule>): string {
   return rule.icdKey ?? rule.id;
 }
 
-/** 効果を実行する。この間に積まれたイベントは深さ +1・持ち主の出どころで持ち越される */
+/**
+ * 効果を実行する。この間に積まれたイベントは深さ +1・持ち主の出どころ・訪れた敵の列・連鎖係数（× この効果の係数）で持ち越される。
+ * 効果量は深さによらず等倍（連鎖は訪問回数と連鎖係数で止まる）
+ */
 function runRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
   const run = state.ruleRun;
   const prevDepth = run.depth;
   const prevOwner = run.owner;
+  const prevVisits = run.visits;
+  const prevCoef = run.coef;
   run.depth = ev.depth + 1;
   run.owner = rule.owner;
+  run.visits = ev.visits ?? [];
+  run.coef = (ev.coef ?? 1) * procCoefficientOf(rule.then);
   try {
     // 祝福の格は効果量・半径に掛かる（呪い付き・祝福以外の Rule は並 = ×1）
     const grade = ruleOwnerGrade(state, rule.owner);
-    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, SYNERGY.chainDecay ** ev.depth * gradeMagnitudeMul(grade));
+    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
   } finally {
     run.depth = prevDepth;
     run.owner = prevOwner;
+    run.visits = prevVisits;
+    run.coef = prevCoef;
   }
 }
 
-function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, decay: number): void {
-  const magnitude = baseMagnitude(state, effect, ev) * decay;
+function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, gradeMul: number): void {
+  const magnitude = baseMagnitude(state, effect, ev) * gradeMul;
   applyEffectBody(state, effect, ev, magnitude);
   if (effect.text !== undefined) ruleText(state, effect.text, effect.color);
 }

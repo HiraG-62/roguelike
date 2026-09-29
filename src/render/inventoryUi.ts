@@ -455,7 +455,7 @@ export function itemTipLines(state: GameState, item: Item): TipLine[] {
 
 /** 要点: 名前・銘・種類・性質・誓約の競合。詳しく: 攻撃の素性・一言・固有・余白・来歴・語 */
 function itemDetailLines(state: GameState, item: Item): { lines: TipLine[]; more: TipLine[] } {
-  const d = describeItem(item);
+  const d = describeItem(item, state.depth);
   const lines: TipLine[] = [{ text: d.name, color: itemColor(item) }];
   if (d.inscription !== undefined && d.inscription !== d.name) lines.push({ text: `銘「${d.inscription}」`, color: COLOR_INSCRIPTION });
   lines.push({ text: d.subtitle, color: COLOR_DIM });

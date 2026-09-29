@@ -104,8 +104,8 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   const head: TipLine = worn
     ? { text: `装備中の「${worn.name}」との比較`, color: COLOR_DIM }
     : { text: `${SLOT_LABEL[item.slot]}: 空き（装備した場合）`, color: COLOR_DIM };
-  const before = computeStats(equipment);
-  const after = computeStats({ ...equipment, [item.slot]: item });
+  const before = computeStats(equipment, state.depth);
+  const after = computeStats({ ...equipment, [item.slot]: item }, state.depth);
   const diffs = NUMERIC_STAT_KEYS.filter((key) => Math.abs(after[key] - before[key]) > EPSILON)
     .map((key) => diffLine(key, before[key], after[key]))
     .filter((line): line is TipLine => line !== null);

@@ -163,7 +163,8 @@ describe("階の主（毎階）", () => {
 
   it("初めて着いた階だけ、失った生命の HEAL.descendHealRatio を回復する", () => {
     const state = createGame(3);
-    const missing = 100;
+    // 生命 0 のまま生きている状態は、降階の stats の決め直し（生存中は最低 1）で丸められるので半分だけ減らす
+    const missing = state.player.maxHp / 2;
     state.player.hp = state.player.maxHp - missing;
     const before = state.player.hp;
     descend(state);

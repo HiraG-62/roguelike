@@ -16,6 +16,7 @@ import { STATUS } from "../data/tuning";
 import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
 import { boonForcesCrit } from "./boonRules";
 import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, oathMore } from "./keystones";
+import { applyModifiers, applyPoiseModifiers } from "./modifiers";
 import { isStaggered } from "./poise";
 import { hasStatus, playerStatusOutgoingMul } from "./statusEffects";
 import { keystoneMore, traitIncreased } from "./traitHooks";
@@ -110,16 +111,19 @@ function staticMore(state: GameState, ctx: DamageContext): MoreMul[] {
  * 引く順は従来の rollOutgoing と同じ（会心 → 賭博師）
  */
 export function collectMore(state: GameState, enemy: Enemy | null, ctx: DamageContext, skill: boolean): { more: MoreMul[]; crit: boolean } {
-  const out: MoreMul[] = staticMore(state, ctx);
+  // 常時の倍（stats.more）の後に Modifier の倍（誓約の楔・得意武器・祝福の「〜につき」など）
+  const out: MoreMul[] = [...staticMore(state, ctx), ...applyModifiers(state, ctx, enemy).more];
   selfMore(state, enemy, ctx.kind, out);
   const crit = ctx.kind !== "proc" ? strikeMore(state, enemy, ctx.kind, out) : false;
   oathMores(state, enemy, ctx.kind, skill, out);
   return { more: dedupeMore(out), crit };
 }
 
-/** 性質の条件付きの加算（場・相手・第 2 弾・スキル）。敵の状態を読むので、属性の抽選（状態異常を付けうる）より前に呼ぶ */
+/**
+ * 性質の条件付きの加算（場・相手・第 2 弾・スキル）と Modifier の増。敵の状態を読むので、属性の抽選（状態異常を付けうる）より前に呼ぶ
+ */
 export function collectTraitIncreased(state: GameState, enemy: Enemy | null, ctx: DamageContext, skill: boolean): number {
-  return traitIncreased(state, enemy, ctx.kind, skill);
+  return traitIncreased(state, enemy, ctx.kind, skill) + applyModifiers(state, ctx, enemy).increased;
 }
 
 /** 1 + Σ増 + 性質の加算（下限 MIN_INCREASED_MUL）。属性の増は割合の重みで足す */
@@ -134,7 +138,8 @@ export function finishBreakdown(raw: number, increased: number, more: readonly M
   return { base: raw, increased: increased - 1, more, enemyMul, amount };
 }
 
-/** 怯み値の増（increased.poise）。怯み値は与ダメとは別の量なので、与ダメのタグの増は足さない */
-export function poiseIncreasedMul(state: GameState): number {
-  return Math.max(0, 1 + state.stats.increased.poise);
+/** 怯み値の増（increased.poise と tag: "poise" の Modifier）と倍。怯み値は与ダメとは別の量なので、与ダメのタグの増・倍は足さない */
+export function poiseIncreasedMul(state: GameState, enemy: Enemy | null = null): number {
+  const mods = applyPoiseModifiers(state, enemy);
+  return Math.max(0, 1 + state.stats.increased.poise + mods.increased) * productMore(mods.more);
 }

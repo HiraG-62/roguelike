@@ -1,7 +1,7 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import type { EventKind } from "../core/events";
-import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, type TerrainKind } from "../core/terrain";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
@@ -365,6 +365,8 @@ export interface MovesetDef {
   readonly attack: AttackProfile;
   /** 武器種の固有効果（統一ルール文法）。system/rules.ts の collectRules が今の武器種の分だけ集める */
   readonly rules?: readonly Rule[];
+  /** 武器種の常時の増・倍（Modifier）。system/modifiers.ts が今の武器種の分だけ集める */
+  readonly modifiers?: readonly Modifier[];
 }
 
 export interface BulletChargeLevelDef {

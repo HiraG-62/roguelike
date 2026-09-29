@@ -291,7 +291,7 @@ export function chooseBud(state: GameState, index: number): AffixRoll | null {
   const chosen = chooseBudOnItem(item, index);
   if (chosen === null) return null;
   if (unnamed && item.inscription !== undefined) inscribeFx(state);
-  applyStats(state, computeStats(state.profile.equipment));
+  applyStats(state, computeStats(state.profile.equipment, state.depth));
   saveProfile(state.profile);
   state.pendingBud = findPendingBud(state.profile);
   addFloatingText(state, state.player.body.pos, "芽吹き", BUD_TEXT_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);

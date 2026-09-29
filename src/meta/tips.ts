@@ -132,6 +132,7 @@ const GROWTH_TIPS: readonly TipDef[] = [
 const RELIC_TIPS: readonly TipDef[] = [
   { key: "relic", term: "遺物", category: "relic", body: "装備アイテム。右手・左手・鎧・靴・指輪・首飾りの 6 部位。" },
   { key: "trait", term: "性質", category: "relic", body: "遺物に宿る 1 つの効果。それぞれが響き（色）を持つ。" },
+  { key: "innate", term: "地金", category: "relic", body: "遺物に既定で宿るステータス・防御力・属性耐性。持ち込んだ遺物の地金は、今いる階の深さに合わせて伸びる。拾った時の配分と上振れはそのまま。" },
   { key: "flux", term: "揺らぎ", category: "relic", body: "性質の値の、期待値からのずれ。静・揺・荒は揺らぎの見た目の分類で、格付けではない。" },
   { key: "inverted", term: "反転", category: "relic", body: "揺らぎが強く裏返った性質。色は冥になり、共鳴への重みが 2 倍になる。" },
   { key: "hue", term: "響き", category: "relic", body: "性質と共鳴が持つ 5 色（紅・蒼・翠・金・冥）。反対色は紅と蒼、翠と金。" },

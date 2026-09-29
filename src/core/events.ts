@@ -83,8 +83,12 @@ export interface GameEvent {
   room?: number;
   /** 起こした敵の id（被弾の攻撃者など） */
   sourceId?: number;
-  /** 連鎖深さ。0 = 操作や system が直接起こしたもの */
+  /** 連鎖深さ。0 = 操作や system が直接起こしたもの。SYNERGY.maxDepth は性能の保険（連鎖は visits と coef で止まる） */
   depth: number;
+  /** この連鎖で対象になった敵 id の列（重複あり。自分の targetId を含む）。同じ敵への訪問回数の判定に使う。省略 = 空 */
+  visits?: readonly number[];
+  /** 連鎖係数の累積（0..1）。次の Rule の確率に掛かる。省略 = 1 */
+  coef?: number;
   source: EventSource;
   /** 付随の key（反応の種類・付いた状態異常・地形の種類・部屋の種類） */
   tag?: string;
@@ -94,8 +98,8 @@ export interface GameEvent {
   amount?: number;
 }
 
-/** pushEvent に渡す形。depth は照合中かどうかで pushEvent が決める */
-export type EventInput = Omit<GameEvent, "depth">;
+/** pushEvent に渡す形。depth / visits / coef は照合中かどうかで pushEvent が決める */
+export type EventInput = Omit<GameEvent, "depth" | "visits" | "coef">;
 
 export interface RecentEvent {
   /** 最後に起きた state.time */
@@ -117,6 +121,10 @@ export interface RuleRunState {
   depth: number;
   /** 照合中の Rule の持ち主。効果が起こしたイベントの出どころに使う */
   owner: EventSource | null;
+  /** 照合中のイベントまでに訪れた敵 id の列。効果が起こしたイベントへ写す */
+  visits: readonly number[];
+  /** 照合中の効果が起こすイベントの連鎖係数（元のイベントの係数 × 効果の係数） */
+  coef: number;
   /** 語ごとの今の窓での発動回数（SYNERGY.keywordBudget） */
   keywordUse: Map<string, number>;
   /** 語の窓の残り秒 */
@@ -131,6 +139,8 @@ export function createRuleRunState(): RuleRunState {
   return {
     depth: 0,
     owner: null,
+    visits: [],
+    coef: 1,
     keywordUse: new Map(),
     keywordWindowLeft: SYNERGY.keywordWindow,
     playerTerrain: "none",
@@ -158,11 +168,19 @@ export function enemyTarget(
 
 /**
  * イベントを積む。照合中（resolveRules が効果を実行している間）は深さ +1 で次ステップへ持ち越す。
- * 同ステップで再帰させないので、環が回っても 1 ステップに 1 段しか進まない（決定的）
+ * 同ステップで再帰させないので、環が回っても 1 ステップに 1 段しか進まない（決定的）。
+ * 照合中は訪れた敵の列と連鎖係数を引き継ぎ、操作や system が直接起こしたものは自分の対象だけから数え直す
  */
 export function pushEvent(state: GameState, input: EventInput): void {
   const run = state.ruleRun;
-  const ev: GameEvent = { ...input, depth: run.depth, source: run.owner ?? input.source };
+  const chained = run.depth > 0;
+  const ev: GameEvent = {
+    ...input,
+    depth: run.depth,
+    source: run.owner ?? input.source,
+    visits: chainVisits(chained ? run.visits : [], input.targetId),
+    coef: chained ? run.coef : 1,
+  };
   noteRecent(state, ev.kind);
   const queue = run.depth > 0 ? state.pendingEvents : state.events;
   const cap = run.depth > 0 ? SYNERGY.maxPendingEvents : SYNERGY.maxEventsPerStep;
@@ -171,6 +189,13 @@ export function pushEvent(state: GameState, input: EventInput): void {
     return;
   }
   queue.push(ev);
+}
+
+/** 訪れた敵の列に対象を足す。長さは SYNERGY.maxDepth で切る（direct は深さを進めずに列を伸ばせるので、性能の保険） */
+function chainVisits(prev: readonly number[], targetId: number | undefined): readonly number[] {
+  if (targetId === undefined) return prev;
+  const next = [...prev, targetId];
+  return next.length > SYNERGY.maxDepth ? next.slice(next.length - SYNERGY.maxDepth) : next;
 }
 
 /** 条件 recent と UI 用の直近記録。窓の外なら数え直す */

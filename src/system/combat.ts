@@ -167,7 +167,7 @@ export function damageEnemy(
 ): boolean {
   if (enemy.hp <= 0) return false;
   const kind = opts.kind ?? "proc";
-  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state);
+  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state, enemy);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;
   // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない

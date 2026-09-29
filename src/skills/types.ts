@@ -1,6 +1,6 @@
 import type { Element } from "../core/element";
 import type { KeywordProfile } from "../core/keywords";
-import type { Rule } from "../core/rules";
+import type { Modifier, Rule } from "../core/rules";
 import type { TimedMul } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
@@ -294,6 +294,8 @@ export interface SkillDef {
   combos?: readonly ComboKey[];
   /** 統一ルール（src/core/rules.ts）。scope が any ならこの石のスロットの発動が起こしたイベントだけを食う */
   rules?: readonly Rule[];
+  /** 常時の増・倍（Modifier）。スロットに入っている間だけ効く（system/modifiers.ts） */
+  modifiers?: readonly Modifier[];
   /** 共通語彙（docs/ideas/synergy-web.md 1 章）。命中で付ける状態異常とマナ消費は system/keywords.ts が足す */
   keywords: KeywordProfile;
   /**

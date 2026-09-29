@@ -550,7 +550,7 @@ export function generateItem(rng: Rng, opts: GenerateOptions): Item {
     : rollRandomItem(r, slot, depth, boost, traitOpts, opts.excludeNamed);
   const implicit = rollImplicit(r, rolled.base);
   // 地金は item 専用 rng の末尾で引く（既存の抽選の並びを変えず、state.rng の消費も増やさない）
-  const innate = rollInnate(r, rolled.base, depth, boost, opts.plain === true);
+  const { rolls: innate, luck: innateLuck } = rollInnate(r, rolled.base, depth, boost, opts.plain === true);
   const affixes = vowsLast(rolled.affixes);
 
   const item: Item = {
@@ -564,6 +564,7 @@ export function generateItem(rng: Rng, opts: GenerateOptions): Item {
     implicit,
     affixes,
     innate,
+    innateLuck,
     foundDepth: opts.foundDepth,
     foundAt: opts.now,
     provenance: createEmptyProvenance(),

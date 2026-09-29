@@ -293,7 +293,7 @@ export function layoutInventory(state: GameState, ui: InventoryUi): InventoryLay
 
 /** 装備変更後の反映: stats 再計算・HP 割合維持・芽の提示の付け直し・保存 */
 function applyEquipmentChange(state: GameState): void {
-  applyStats(state, computeStats(state.profile.equipment));
+  applyStats(state, computeStats(state.profile.equipment, state.depth));
   refreshPendingBud(state);
   saveProfile(state.profile);
 }

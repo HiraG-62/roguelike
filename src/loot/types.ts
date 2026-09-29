@@ -1,5 +1,6 @@
 import { type IncreasedTable, type MoreMul, createIncreased } from "../core/damage";
 import { type ElementTable, uniformElements } from "../core/element";
+import type { Modifier } from "../core/rules";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
 import { ATTR, MANA } from "../data/tuning";
@@ -232,6 +233,8 @@ export interface Item {
    * 旧セーブ・リプレイのスナップショットには無いので、読むときは item.innate ?? []
    */
   innate?: AffixRoll[];
+  /** 地金の上振れ（抽選した予算 ÷ 拾った深度の期待値）。持ち込むと今の深度の期待値に掛かる（loot/innate.ts の innateAt）。旧アイテムは migrate.ts が innate から補う */
+  innateLuck?: number;
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
@@ -386,6 +389,8 @@ export interface PlayerStats {
    * 列は複数の stats で共有されうるので push せず withMore で新しい列に差し替える
    */
   more: readonly MoreMul[];
+  /** 装備が出す常時の増・倍（core/rules.ts の Modifier。条件付き・〜につき）。more と同じく差し替えで足す */
+  modifiers: readonly Modifier[];
 
   meleeDamageFlat: number;
   attackSpeedMul: number;
@@ -450,6 +455,10 @@ export interface PlayerStats {
   statusTakenMul: number;
   /** 性質「弾斬り」: 0 より大きければ近接の active で敵弾を消す */
   bulletCut: number;
+  /** 連鎖が同じ敵をもう 1 度訪れてよい回数（0 = 1 度だけ。system/rules.ts の訪問回数） */
+  chainRevisits: number;
+  /** 連鎖係数に掛ける上乗せ（× (1 + これ)。連鎖の源） */
+  chainCoefBonus: number;
   statusProcs: StatusProc[];
   /** 性質のルール変更（docs/ideas/loot-expansion.md）。戦闘側は system/traitHooks.ts が読む */
   traits: TraitStats;
@@ -923,6 +932,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   // 既定は凍らせる（{ ...DEFAULT_STATS } の浅い写しから書き換えて既定を汚さない。複製は stats.ts の createBaseStats）
   increased: Object.freeze(createIncreased()),
   more: Object.freeze([]),
+  modifiers: Object.freeze([]),
 
   meleeDamageFlat: 0,
   attackSpeedMul: 1,
@@ -971,6 +981,8 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   statusPotencyMul: 1,
   statusTakenMul: 1,
   bulletCut: 0,
+  chainRevisits: 0,
+  chainCoefBonus: 0,
   statusProcs: [],
   traits: DEFAULT_TRAIT_STATS,
   moveset: "sword",

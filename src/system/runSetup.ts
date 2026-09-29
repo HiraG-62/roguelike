@@ -219,9 +219,9 @@ function addRunKeystone(stats: PlayerStats, key: string): void {
   stats.keystones.push(key);
 }
 
-/** 起点・祭壇で誓約や封印が変わったとき、装備から stats を畳み直す */
+/** 起点・祭壇で誓約や封印が変わったとき・階を移ったとき、装備から stats を畳み直す（地金は今の深度で決め直す） */
 export function refreshRunStats(state: GameState): void {
-  applyStats(state, computeStats(state.profile.equipment));
+  applyStats(state, computeStats(state.profile.equipment, state.depth));
 }
 
 /** 祭壇に並べられる誓約: 装備・ランの誓約と排他グループがぶつからないもの */

@@ -53,8 +53,9 @@ import { clampHitstopScale } from "../ui/settings";
  * 15: 陣の群勢と敗走・大将・後詰・眠っている陣が歩き出す・物見・陣形の偃月と方円・ボスの陣
  * 16: 陣形の鋒矢と衡軛・音で起きる・跳躍（毒スライム）・章で覚える段 depthStages・連撃の続きは最初からコミット
  * 17: 与ダメを「基礎 × (1 + Σ増) × Π倍 × 敵側」に・ソフトキャップは攻撃速度・連射・移動速度だけ・敵の曲線（攻撃を倍率に、深度 21 から指数）・性質の曲線の外挿と揺らぎの幅・陣ごとの生命の揺らぎ
+ * 18: 持ち込んだ遺物の地金を今の深度で決め直す・連鎖の止め方（訪問回数と連鎖係数。確定の Rule も乱数を引く）・常時の増・倍と「〜につき」（Modifier）
  */
-export const REPLAY_VERSION = 17;
+export const REPLAY_VERSION = 18;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -691,7 +692,7 @@ function applyEvent(session: ReplaySession, ev: ReplayEvent): void {
   const state = session.state;
   const equipmentChanged = equipmentSignature(session.profile.equipment) !== equipmentSignature(ev.loadout.equipment);
   applyLoadout(session.profile, session.skillProfile, ev.loadout);
-  if (equipmentChanged) applyStats(state, computeStats(session.profile.equipment));
+  if (equipmentChanged) applyStats(state, computeStats(session.profile.equipment, state.depth));
   if (ev.alloc) replayAllocation(state, ev.alloc);
   if (ev.hitstopScale !== undefined) state.hitstopScale = ev.hitstopScale;
   if (!ev.player) return;

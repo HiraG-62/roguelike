@@ -7,7 +7,7 @@
 
 import { type EventKind, type EventSource, SWING_TAG } from "../core/events";
 import { type KeywordProfile, kw } from "../core/keywords";
-import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { StatusKind } from "../core/status";
 import type { JobKey } from "../data/jobs";
 import { BOON, STATUS } from "../data/tuning";
@@ -243,6 +243,8 @@ export interface BoonDef {
   loadout?: BoonLoadout;
   /** 統一ルール（src/core/rules.ts）。取得順に src/system/rules.ts の resolveRules が照合する */
   rules?: readonly Rule[];
+  /** 常時の増・倍・条件付き・〜につき（core/rules.ts の Modifier。system/modifiers.ts が取得順に集める） */
+  modifiers?: readonly Modifier[];
   /** 共通語彙（docs/ideas/synergy-web.md 1 章）。tags / gives より細かい「出す・食う・強める」 */
   keywords: KeywordProfile;
   /** 芯（1 ランに 1 つ、深度 BOON.coreDepth の最初の提示だけに出る。通常の 3 択には出ない） */

@@ -14,7 +14,7 @@ import { ATTR_KEYS, DEFAULT_STATS, createEmptyProfile } from "../loot/types";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import { QUESTS, createQuestSave, lockedJobs, questRewardLabel } from "../meta/quests";
 import { ORIGINS, ORIGIN_KEYS } from "./runSetup";
-import { applyJobStats, isFavoredWeapon, jobDetailLines, jobRules, ownsSkillStone, ownsWeaponBase } from "./jobs";
+import { applyJobStats, isFavoredWeapon, jobDetailLines, jobModifiers, jobRules, ownsSkillStone, ownsWeaponBase } from "./jobs";
 import { applyBoonsToStats } from "./boons";
 import { collectRules, resolveRules } from "./rules";
 import { applyStatus, hasStatus } from "./statusEffects";
@@ -167,11 +167,12 @@ describe("ジョブの適用", () => {
     expect(isFavoredWeapon(other, "swordsman")).toBe(false);
     applyJobStats(favored, "swordsman");
     applyJobStats(other, "swordsman");
-    const fav = favored.more.find((m) => m.source === "job:favored");
-    expect(fav?.mul, "得意武器は倍").toBeCloseTo(JOB.favoredMeleeMul);
-    expect(fav?.tags, "近接に掛かる").toEqual(["melee"]);
+    // 威力の倍は Modifier（jobModifiers）。条件で得意かを見るので stats には入らない（倍の効きは modifiers.test.ts）
+    expect(favored.more.some((m) => m.source.startsWith("job:favored")), "威力の倍は stats に入れない").toBe(false);
+    expect(jobModifiers("swordsman").map((m) => m.amount), "得意武器は倍").toEqual([JOB.favoredMeleeMul, JOB.favoredMeleeMul]);
+    expect(jobModifiers("none"), "見習いは得意武器の倍を持たない").toEqual([]);
     expect(favored.attackSpeedMul).toBeCloseTo(DEFAULT_STATS.attackSpeedMul * JOB.favoredAttackSpeedMul);
-    expect(other.more.some((m) => m.source === "job:favored"), "得意でなければ等倍").toBe(false);
+    expect(other.attackSpeedMul, "得意でなければ等速").toBeCloseTo(DEFAULT_STATS.attackSpeedMul);
   });
 
   it("祝福・振り分けで畳み込み直してもジョブの偏り・倍率は二重に掛からない", () => {

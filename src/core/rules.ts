@@ -1,3 +1,4 @@
+import type { DamageTag } from "./damage";
 import type { Element } from "./element";
 import type { EventActor, EventKind, EventSource } from "./events";
 import type { FloorKind, RoomKind } from "./state";
@@ -7,6 +8,7 @@ import type { JobKey } from "../data/jobs";
 import type { BulletFeature, ButtonKey, MovesetKey } from "../data/weapons";
 import type { TriggerCondition, TriggerEffectKind } from "../loot/types";
 import type { SkillKey } from "../skills/types";
+import { SYNERGY } from "../data/tuning";
 
 /**
  * 統一ルール文法（docs/ideas/synergy-web.md 3-1）。
@@ -219,6 +221,8 @@ export interface RuleEffect {
   skipBoss?: boolean;
   /** 効果量をこの装備の値以上にする（scaleBy で求めた値と比べて大きい方） */
   statFloor?: RuleStatFloor;
+  /** 連鎖係数（0..1）。この効果が起こしたイベントの次の Rule の確率に掛かる。省略時は種類の既定（procCoefficientOf） */
+  procCoefficient?: number;
 }
 
 /** 敵の Rule が持てる効果（予告付きハザードのみ） */
@@ -319,6 +323,70 @@ export function effectKeyword(rule: Readonly<Rule>): string {
   if (kind === "nearbyEnemies") return "area";
   if (kind === "roomEnemies") return "stagger";
   return EFFECT_KEYWORD[kind] ?? kind;
+}
+
+/**
+ * 効果の連鎖係数（0..1）。効果ごとの指定 → 種類の既定表（SYNERGY.procCoefficient）→ 1 の順。
+ * 範囲の効果は 1 回で多くのイベントを起こすので、次の Rule の確率を下げて連鎖を自然に細らせる
+ */
+export function procCoefficientOf(effect: Readonly<RuleEffect>): number {
+  if (effect.procCoefficient !== undefined) return effect.procCoefficient;
+  const table: Readonly<Partial<Record<RuleEffectKind, number>>> = SYNERGY.procCoefficient;
+  return table[effect.kind] ?? 1;
+}
+
+// -----------------------------------------------------------------------------
+// 常時の増・倍（Modifier。docs/ideas/scaling-impl.md 2-8）。評価は system/modifiers.ts
+// -----------------------------------------------------------------------------
+
+/** 「〜につき」の数え方。数は評価の瞬間に system/modifiers.ts の countPer が数える */
+export type PerCounter =
+  /** 今のコンボ数 */
+  | { kind: "combo" }
+  /** 対象の敵に付いている状態異常の種類数 */
+  | { kind: "targetStatusKinds" }
+  /** 対象の敵の status のスタック */
+  | { kind: "targetStacks"; status: StatusKind }
+  /** 自分に付いている状態異常の種類数 */
+  | { kind: "selfStatusKinds" }
+  /** 自分の周り radius の生きている敵の数 */
+  | { kind: "nearbyEnemies"; radius: number }
+  /** この連鎖で繋いだ敵の数（訪問の種類数。イベント経由の一撃だけ。それ以外は 0） */
+  | { kind: "chainVisits" }
+  /** 失った生命の 10% ごと */
+  | { kind: "missingHpTenths" }
+  /** 転じ（会心率 1% につき など。倍率系は (値 − 1) × 100、率は × 100） */
+  | { kind: "stat"; stat: "critChance" | "moveSpeedMul" | "dashCharges" | "projectileCount" | "armor" }
+  /** このランの撃破数 */
+  | { kind: "runKills" };
+
+/** 「〜につき」。n = floor(数 / every)。効きは amount × n を cap で切る（増なら増の量、倍なら 1 を超える分） */
+export interface ModifierPer {
+  count: PerCounter;
+  /** 何単位で 1 つと数えるか（コンボ 10 につき = 10）。省略 = 1 */
+  every?: number;
+  /** amount × n の上限（0.1 = 増 +10% / 倍 +0.1）。省略 = 上限なし */
+  cap?: number;
+}
+
+/**
+ * 常時の増・倍。イベントを待たず、与ダメ・怯み値の計算がその都度読む。
+ * - 増: amount 0.1 = +10%（per があれば 1 単位あたり）。装備の増と足してから 1 回掛ける
+ * - 倍: amount 1.2 = ×1.2。per があれば 1 + amount × n
+ */
+export interface Modifier {
+  /** ruleId と同じ作り（owner + 添字）。倍の出所は "mod:" + id */
+  id: string;
+  kind: "increased" | "more";
+  /** 何に掛かるか。与ダメのタグ（1 撃がそのタグを持つとき）/ "all" = 与ダメ全部 / "poise" = 怯み値だけ */
+  tag: DamageTag | "all";
+  amount: number;
+  per?: ModifierPer;
+  /** 全部満たすときだけ（空 = 常時）。対象の条件は今殴っている敵で見る */
+  if: readonly RuleCondition[];
+  owner: EventSource;
+  /** 倍の内訳に出す名前（省略時は owner.key） */
+  label?: string;
 }
 
 /** 持ち主と添字から Rule の id を作る（同じ定義は常に同じ id） */

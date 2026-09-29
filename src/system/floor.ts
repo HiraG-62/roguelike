@@ -909,9 +909,10 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
     state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
   }
   buildFloor(state, nextKind);
-  // 起点の階ごとの報酬（死神の友の振り分け点）も初めての階だけ。降り直しでは stats の封印・解除だけ合わせ直す
+  // 起点の階ごとの報酬（死神の友の振り分け点）も初めての階だけ
   if (fresh) onOriginDescend(state);
-  else refreshRunStats(state);
+  // 持ち込んだ遺物の地金を今の深度で決め直す（降り直しでも封印・解除を合わせ直す）
+  refreshRunStats(state);
   descendMana(state);
   if (fresh) healOnDescend(state);
   onContractsFloorReached(state);
@@ -951,6 +952,8 @@ export function ascend(state: GameState): void {
   strata.fresh = false;
   state.depth -= 1;
   buildFloor(state);
+  // 地金は今いる階の深度に合わせる（浅い階へ戻れば縮む）
+  refreshRunStats(state);
   thinRevisitedFloor(state);
   recordProvenance(state, { kind: "returned" });
   onContractsFloorReached(state);

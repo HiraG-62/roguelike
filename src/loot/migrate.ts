@@ -1,6 +1,7 @@
 import { isKeystoneKey, isMarkerKey, keystoneDef, keystoneToRoll } from "./affixes";
 import { defaultColorOfKey } from "./colors";
 import { fluxClassOf } from "./flux";
+import { recoverInnateLuck } from "./innate";
 import { UNIQUES } from "./named";
 import { nameItem } from "./names";
 import { isTriggerKey } from "./triggers";
@@ -177,7 +178,7 @@ export const PROVENANCE_COUNTERS = [
  */
 export function migrateItem(item: Item): Item {
   const slot = normalizeSlot(item.slot) ?? item.slot;
-  if (isNewFormat(item)) return ensureGrowthFields({ ...item, slot });
+  if (isNewFormat(item)) return ensureInnateLuck(ensureGrowthFields({ ...item, slot }));
   const affixes = item.affixes.map(migrateRoll).filter((r): r is AffixRoll => r !== null);
   const margin = LEGACY_RARITY_MARGIN[item.rarity];
   const out: Item = {
@@ -206,7 +207,18 @@ export function migrateItem(item: Item): Item {
   const keepName = item.rarity === "rare" || (item.rarity === "unique" && namedKey === undefined);
   if (keepName && item.name.length > 0) out.inscription = item.name;
   out.name = nameItem(out);
-  return out;
+  if (item.innateLuck !== undefined) out.innateLuck = item.innateLuck;
+  return ensureInnateLuck(out);
+}
+
+/**
+ * 地金の上振れが無い・壊れていれば行から補う（その場で書き換える）。innateLuck を足す前の遺物は、
+ * 拾った深度での点の合計 ÷ その深度の期待値を上振れとする（拾った深度では今と同じ地金になる）
+ */
+function ensureInnateLuck(item: Item): Item {
+  const luck = item.innateLuck;
+  if (luck === undefined || !Number.isFinite(luck) || luck < 0) item.innateLuck = recoverInnateLuck(item);
+  return item;
 }
 
 /** implicit から kind / tier を落とす */

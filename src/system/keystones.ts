@@ -1,4 +1,6 @@
-import type { MoreMul } from "../core/damage";
+import type { DamageTag, MoreMul } from "../core/damage";
+import type { EventSource } from "../core/events";
+import { type Modifier, type RuleCondition, ruleId } from "../core/rules";
 import type { Enemy, GameState, Player } from "../core/state";
 import { dist } from "../core/vec";
 import type { PlayerStats } from "../loot/types";
@@ -95,6 +97,34 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_slickOath: "滑りの誓い",
   ks_emberOath: "熾火の誓い",
 };
+
+// -----------------------------------------------------------------------------
+// 誓約の常時の倍（Modifier。system/modifiers.ts の collectModifiers が持っている誓約の順に集める）
+// -----------------------------------------------------------------------------
+
+/** 怯んでいない相手 */
+const TARGET_UNSTAGGERED: readonly RuleCondition[] = [{ kind: "not", condition: { kind: "targetHas", status: "stagger" } }];
+/** 近接・射撃の 1 撃（proc〈燃焼・トリガーの衝撃波など〉には掛けない誓約の対象） */
+const STRIKE_TAGS: readonly DamageTag[] = ["melee", "ranged"];
+
+/** 誓約の倍を、proc 以外の 1 撃のタグごとに 1 つずつ（1 撃のタグは 1 つなので 2 重には掛からない） */
+function oathModifiers(key: KeystoneKey, amount: number, conditions: readonly RuleCondition[]): readonly Modifier[] {
+  const owner: EventSource = { kind: "keystone", key };
+  const label = KEYSTONE_NAME[key] ?? key;
+  return STRIKE_TAGS.map((tag, i) => ({ id: ruleId(owner, i), kind: "more", tag, amount, if: conditions, owner, label }));
+}
+
+const KEYSTONE_MODIFIERS: Readonly<Partial<Record<string, readonly Modifier[]>>> = {
+  // 楔: 怯んでいない敵への与ダメが下がる（怯ませてから殴る）
+  [KS.wedgeOath]: oathModifiers(KS.wedgeOath, KEYSTONE.wedgeUnstaggeredMul, TARGET_UNSTAGGERED),
+};
+
+/** 持っている誓約の Modifier（持っている順） */
+export function keystoneModifiers(keys: readonly string[]): Modifier[] {
+  const out: Modifier[] = [];
+  for (const key of keys) out.push(...(KEYSTONE_MODIFIERS[key] ?? []));
+  return out;
+}
 
 /** 誓約の判定に要る state の部分（テストで GameState 全体を作らずに済むよう絞る） */
 export interface KeystoneHolder {

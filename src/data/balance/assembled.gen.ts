@@ -762,7 +762,6 @@ import j_loot_bases from "./loot/bases.json";
 import j_loot_INNATE__index from "./loot/INNATE/_index.json";
 import j_loot_INNATE_budget from "./loot/INNATE/budget.json";
 import j_loot_INNATE_depthScale from "./loot/INNATE/depthScale.json";
-import j_loot_INNATE_hardCap from "./loot/INNATE/hardCap.json";
 import j_loot_INNATE_maxLines from "./loot/INNATE/maxLines.json";
 import j_loot_INNATE_pointValue from "./loot/INNATE/pointValue.json";
 import j_loot_INNATE_armor from "./loot/INNATE/armor.json";
@@ -1840,7 +1839,6 @@ export const loot = {
     "_fields": j_loot_INNATE__index["_fields"],
     "budget": j_loot_INNATE_budget,
     "depthScale": j_loot_INNATE_depthScale,
-    "hardCap": j_loot_INNATE_hardCap,
     "maxLines": j_loot_INNATE_maxLines,
     "extraLineChance": j_loot_INNATE__index["extraLineChance"],
     "linesPerPoint": j_loot_INNATE__index["linesPerPoint"],
@@ -2753,7 +2751,6 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/INNATE/armor.json",
   "loot/INNATE/budget.json",
   "loot/INNATE/depthScale.json",
-  "loot/INNATE/hardCap.json",
   "loot/INNATE/maxLines.json",
   "loot/INNATE/pointValue.json",
   "loot/INNATE/resistLines.json",

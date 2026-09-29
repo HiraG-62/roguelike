@@ -1,9 +1,10 @@
-import { type DamageTag, type MoreMul, withMore } from "../core/damage";
-import type { Rule } from "../core/rules";
+import type { DamageTag } from "../core/damage";
+import type { EventSource } from "../core/events";
+import { type Modifier, type Rule, type RuleCondition, ruleId } from "../core/rules";
 import type { GameState } from "../core/state";
 import { JOBS, JOB_KEYS, type JobKey, applyJobMul } from "../data/jobs";
 import { JOB } from "../data/tuning";
-import { MOVESETS, isGun } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
 import { createRng } from "../core/rng";
 import { baseDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -19,7 +20,8 @@ import type { SkillKey, SkillProfile } from "../skills/types";
 
 /**
  * ジョブの効果（定義は src/data/jobs.ts）。
- * - ステータスの偏り・得意な武器種・弱点: applyJobStats（system/runSetup.ts の applyRunStats が畳み込む）
+ * - ステータスの偏り・得意な武器種の攻撃速度・弱点: applyJobStats（system/runSetup.ts の applyRunStats が畳み込む）
+ * - 得意な武器種の威力: jobModifiers（Modifier。system/modifiers.ts の collectModifiers が誓約の後に集める）
  * - 固有のルール: jobRules（system/rules.ts の collectRules が祝福より前に集める）
  * - 初期スキル石・初期武器: startJob（createGame が呼ぶ。未所持のときだけ）
  */
@@ -46,8 +48,41 @@ export function isFavoredWeapon(stats: Readonly<PlayerStats>, job: JobKey): bool
 /** 得意武器の倍の表示名 */
 export const FAVORED_WEAPON_LABEL = "得意武器";
 
-function favoredMore(tag: DamageTag): MoreMul {
-  return { source: "job:favored", label: FAVORED_WEAPON_LABEL, mul: JOB.favoredMeleeMul, tags: [tag] };
+/** 銃の家系の武器種（得意武器の倍を射撃側に掛ける判定） */
+const GUN_KEYS: readonly MovesetKey[] = MOVESET_KEYS.filter((k) => isGun(MOVESETS[k]));
+
+/**
+ * 得意武器の倍（ジョブの顔。装備の増と足さずに掛ける）。銃の家系なら射撃、それ以外は近接に掛かる
+ * （docs/ideas/weapon-redesign.md 6 章）。見習いは得意武器を持たないので条件が満たされず効かない
+ */
+function favoredModifiers(job: JobKey): readonly Modifier[] {
+  // EventSource に job の種類は無いので、data/jobs.ts の Rule と同じくプレイヤー由来として key で区別する
+  const owner: EventSource = { kind: "player", key: `job.${job}` };
+  const favored: RuleCondition = { kind: "favoredWeapon" };
+  const gun: RuleCondition = { kind: "moveset", movesets: GUN_KEYS };
+  const spec: readonly [DamageTag, RuleCondition][] = [
+    ["melee", { kind: "not", condition: gun }],
+    ["ranged", gun],
+  ];
+  return spec.map(([tag, weapon], i) => ({
+    id: ruleId(owner, i),
+    kind: "more",
+    tag,
+    amount: JOB.favoredMeleeMul,
+    if: [favored, weapon],
+    owner,
+    label: FAVORED_WEAPON_LABEL,
+  }));
+}
+
+const JOB_MODIFIERS: ReadonlyMap<JobKey, readonly Modifier[]> = new Map(
+  JOB_KEYS.map((key) => [key, JOBS[key].favored.length > 0 ? favoredModifiers(key) : []]),
+);
+const NO_MODIFIERS: readonly Modifier[] = [];
+
+/** ジョブの常時の増・倍（Modifier）。今は得意武器の倍だけ */
+export function jobModifiers(job: JobKey): readonly Modifier[] {
+  return JOB_MODIFIERS.get(job) ?? NO_MODIFIERS;
 }
 
 /**
@@ -58,15 +93,9 @@ export function applyJobStats(stats: PlayerStats, job: JobKey): void {
   const def = JOBS[job];
   for (const k of ATTR_KEYS) stats.attributes[k] += def.attributes[k] ?? 0;
   if (isFavoredWeapon(stats, job)) {
-    // 銃の家系なら射撃側、それ以外は近接側へ上乗せする（docs/ideas/weapon-redesign.md 6 章）
-    // 威力は倍（ジョブの顔。装備の増と足さずに掛ける）
-    if (isGun(MOVESETS[stats.moveset])) {
-      stats.more = withMore(stats.more, favoredMore("ranged"));
-      stats.fireRateMul *= JOB.favoredAttackSpeedMul;
-    } else {
-      stats.more = withMore(stats.more, favoredMore("melee"));
-      stats.attackSpeedMul *= JOB.favoredAttackSpeedMul;
-    }
+    // 銃の家系なら射撃側、それ以外は近接側の速さを上げる（docs/ideas/weapon-redesign.md 6 章）。威力は jobModifiers
+    if (isGun(MOVESETS[stats.moveset])) stats.fireRateMul *= JOB.favoredAttackSpeedMul;
+    else stats.attackSpeedMul *= JOB.favoredAttackSpeedMul;
   }
   if (def.weakness) applyJobMul(stats, def.weakness.mul);
 }
@@ -127,7 +156,7 @@ export function startJobWeapon(state: GameState): void {
   }
   profile.equipment.mainHand = item;
   // createGame は applyStats の後に startJob を呼ぶので、装着した武器種をここで stats へ流す
-  applyStats(state, computeStats(profile.equipment));
+  applyStats(state, computeStats(profile.equipment, state.depth));
 }
 
 // -----------------------------------------------------------------------------

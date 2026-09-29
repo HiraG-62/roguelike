@@ -1,5 +1,5 @@
 import { type AttackProfile, attack } from "../core/element";
-import { type Rule, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { EventKind } from "../core/events";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
@@ -191,6 +191,8 @@ export interface SustainDef {
   readonly pointBlank?: { readonly range: number; readonly mul: number };
   /** 持続中だけ効く Rule（system/rules.ts の collectRules が Player.ultimate.active のとき集める） */
   readonly rules?: readonly Rule[];
+  /** 持続中だけ効く常時の増・倍（Modifier。system/modifiers.ts） */
+  readonly modifiers?: readonly Modifier[];
   /** 終わりに出す行為 */
   readonly onEnd?: readonly UltimateAct[];
 }

@@ -16,7 +16,7 @@ import { addFloatingText, spawnRing } from "./effects";
 import { isEngaged } from "./engagement";
 import { KS, hasKeystone, oathMore } from "./keystones";
 import { gainMana } from "./mana";
-import { addPoise, isStaggered, poiseRatio } from "./poise";
+import { addPoise, poiseRatio } from "./poise";
 import { applyStatus, enemiesInRadius, hasStatus } from "./statusEffects";
 import { fireTrigger, inflictApply, shockwave } from "./triggers";
 import { type OutgoingElement, dominantElement, elementShares, enemyAttackOf, enemyElementMul } from "./elementCombat";
@@ -310,14 +310,13 @@ function chargeOathMul(state: GameState): number {
 }
 
 /**
- * 誓約の倍（楔・読み勝ち・背水・死神 + 第 2 弾の武器・地形）。1 つの誓約につき 1 要素（system/damageMods.ts の collectMore が集める）。
+ * 誓約の倍（読み勝ち・背水・死神 + 第 2 弾の武器・地形。楔は Modifier〈keystones.ts の keystoneModifiers〉）。1 つの誓約につき 1 要素（system/damageMods.ts の collectMore が集める）。
  * proc（燃焼・トリガーの衝撃波など）には掛けない
  */
 export function keystoneMore(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): MoreMul[] {
   const out: MoreMul[] = [];
   if (kind === "proc" || state.stats.keystones.length === 0) return out;
   wave2KeystoneMore(state, enemy, kind, skill, out);
-  if (enemy !== null && hasKeystone(state, KS.wedgeOath) && !isStaggered(enemy)) out.push(oathMore(KS.wedgeOath, KEYSTONE.wedgeUnstaggeredMul));
   if (enemy !== null && kind === "melee" && hasKeystone(state, KS.readOath) && enemy.phase !== "windup") {
     out.push(oathMore(KS.readOath, KEYSTONE.readOffWindupDamageMul));
   }

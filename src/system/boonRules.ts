@@ -1,4 +1,4 @@
-import { increasedMul, moreMulFor } from "../core/damage";
+import { MIN_INCREASED_MUL, moreMulFor, productMore } from "../core/damage";
 import type { StatusKind } from "../core/status";
 import {
   type AttackPhase,
@@ -23,6 +23,7 @@ import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { engagedRoomIndex } from "./engagement";
 import { scaled } from "./attributes";
 import { gainMana } from "./mana";
+import { estimateModifiers } from "./modifiers";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { shotDamage } from "./player";
 import { addPoise, isStaggered } from "./poise";
@@ -201,7 +202,10 @@ function rules(state: GameState): BoonRuleState {
 export function slashBase(state: GameState): number {
   const s = state.stats;
   const base = scaled(s, meleeScaling(PLAYER.melee[0]!.scaling));
-  return Math.round((base + s.meleeDamageFlat) * increasedMul(s.increased, "melee") * moreMulFor(s.more, "melee"));
+  // 相手を選ばない Modifier（得意武器など）も威力に含める（得意武器の倍が stats.more にあった頃と同じ値）
+  const mods = estimateModifiers(state, "melee");
+  const increased = Math.max(MIN_INCREASED_MUL, 1 + s.increased.melee + mods.increased);
+  return Math.round((base + s.meleeDamageFlat) * increased * moreMulFor(s.more, "melee") * productMore(mods.more));
 }
 
 /** 付与済みの potency（霊力の倍率込み）を付与前の値へ割り戻す。applyStatus が player 由来に再度掛けるため */
