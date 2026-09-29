@@ -87,6 +87,7 @@ electron/    Electron 版の main / preload / IPC
 | 依頼 / 実績 | `docs/recipes/quest.md` |
 | 倉庫の並び・絞り込みの軸 | `docs/recipes/stash.md` |
 | 部屋種類 | `docs/recipes/room.md` |
+| 陣形 | `docs/recipes/formation.md` |
 | 効果音・音楽 | `docs/recipes/audio.md` |
 | スプライト | `docs/recipes/sprite.md` |
 
