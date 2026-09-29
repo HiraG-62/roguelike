@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { addFloatingText, shake, spawnBurst } from "./effects";
@@ -138,7 +138,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
 /** 叩きつけ: 冷気の衝撃波。真下にいたら潰される */
 function slam(state: GameState, e: Enemy, def: EnemyDef): void {
   const g = BOSS.frostGiant;
-  const damage = g.slamDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(g.slamDamage, state.depth);
   spawnShockwave(state, e.body.pos, g.slamRadius, damage, e.id);
   spawnBurst(state, e.body.pos, def.color, 24, 150, 0.5, 3);
   shake(state, FEEL.shakeSpecial);
@@ -150,7 +150,7 @@ function slam(state: GameState, e: Enemy, def: EnemyDef): void {
 
 function dropIcicles(state: GameState, e: Enemy): void {
   const g = BOSS.frostGiant;
-  const damage = g.icicleDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(g.icicleDamage, state.depth);
   const source = { defKey: e.defKey, roomIndex: e.roomIndex };
   for (const p of e.ai?.points ?? []) explodeHostile(state, p, g.icicleRadius, damage, g.color, source);
   if (e.ai) e.ai.points = [];

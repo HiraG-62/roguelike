@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
+import { triangular } from "../core/scale";
 import { affixDef } from "./affixes";
 import {
   CALM_FLUX_LIMIT,
@@ -17,7 +18,6 @@ import {
   scaleFlat,
   scaledNominalAt,
   sigmaAt,
-  triangular,
   valueFromFlux,
 } from "./flux";
 
@@ -34,10 +34,34 @@ describe("期待値曲線（旧 tier 表の読み替え）", () => {
     expect(nominalAt(def, 26).nominal).toBeCloseTo(55);
   });
 
-  it("点の間は線形補間、範囲外は端の値", () => {
+  it("点の間は線形補間、最初の点より浅ければ最初の点の値", () => {
     expect(nominalAt(def, 16).nominal).toBeCloseTo(34.5 + (44.5 - 34.5) * (3 / 6));
     expect(nominalAt(def, 0).nominal).toBeCloseTo(9);
-    expect(nominalAt(def, 99).nominal).toBeCloseTo(55);
+  });
+
+  it("最後の点より深ければ最後の区間の傾きで伸ばす（深度 26 で頭打ちにならない）", () => {
+    // 最後の区間: (19, 44.5) → (26, 55) で 1 深度あたり 1.5
+    const slope = (55 - 44.5) / (26 - 19);
+    expect(nominalAt(def, 26).nominal, "最後の点は据え置き").toBeCloseTo(55);
+    expect(nominalAt(def, 40).nominal).toBeCloseTo(55 + slope * 14);
+    expect(nominalAt(def, 40).nominal, "最後の点を超える").toBeGreaterThan(nominalAt(def, 26).nominal);
+    let prev = 0;
+    for (let d = 1; d <= 60; d++) {
+      const v = nominalAt(def, d).nominal;
+      expect(v, `深度 ${d} は前の深度以上（単調）`).toBeGreaterThanOrEqual(prev);
+      prev = v;
+    }
+  });
+
+  it("下がる曲線は最後の点を下回らない", () => {
+    const falling = { ...def, curve: [{ depth: 1, min: 10, max: 10 }, { depth: 5, min: 2, max: 2 }] };
+    expect(nominalAt(falling, 30).nominal).toBeCloseTo(2);
+  });
+
+  it("2 値の性質の nominal2 も外挿する", () => {
+    const rising = { ...def, curve: [{ depth: 1, min: 1, max: 1, min2: 2, max2: 2 }, { depth: 5, min: 5, max: 5, min2: 10, max2: 10 }] };
+    expect(nominalAt(rising, 9).nominal).toBeCloseTo(9);
+    expect(nominalAt(rising, 9).nominal2).toBeCloseTo(18);
   });
 
   it("2 値の性質は nominal2 も補間する", () => {
@@ -52,6 +76,17 @@ describe("揺らぎ", () => {
     expect(sigmaAt(10)).toBeGreaterThan(sigmaAt(1));
     expect(sigmaAt(1000)).toBe(SIGMA_MAX);
     expect(sigmaAt(10, 6)).toBeGreaterThan(sigmaAt(10));
+  });
+
+  it("下振れは狭い（下端は期待値の 0.6 倍まで、上端は 1.8 倍まで）", () => {
+    expect(MIN_FLUX).toBeGreaterThanOrEqual(-0.4);
+    expect(FLUX.flux.highScale * SIGMA_MAX).toBeLessThanOrEqual(0.8);
+    const rng = createRng(3);
+    for (let i = 0; i < MANY; i++) {
+      const f = rollFlux(rng, SIGMA_MAX);
+      expect(f).toBeGreaterThanOrEqual(-0.4);
+      expect(f).toBeLessThanOrEqual(0.8);
+    }
   });
 
   it("三角分布は範囲内", () => {

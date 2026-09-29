@@ -717,6 +717,8 @@ export interface Jin {
   phase: JinPhase;
   /** 決着の種類（全滅 / 敗走）。settled のとき */
   settledBy?: "wipe" | "rout";
+  /** 陣ごとの生命の揺らぎ（JIN.hpSpread から陣を作るとき 1 回引く）。メンバー全員の生命に掛かる。HUD には出さない */
+  hpMul: number;
   /** 後詰（第 2 波）を起こす floorTime。null なら無し */
   secondWaveAt: number | null;
   /** 同じ tick の撃破数（一網打尽の判定） */

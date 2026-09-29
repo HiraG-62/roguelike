@@ -154,7 +154,9 @@ describe("ジョブの適用", () => {
     expect(hunter.maxHp).toBeCloseTo(DEFAULT_STATS.maxHp * JOB.hunterHpMul);
     expect(game("hunter").stats.maxHp, "ラン開始時にも弱い").toBeLessThan(game("none").stats.maxHp);
     const plain = game("none");
-    expect(game("swordsman").stats.skillDamageMul).toBeCloseTo(plain.stats.skillDamageMul * JOB.swordsmanSkillMul);
+    expect(plain.stats.more.some((m) => m.source.startsWith("job:")), "見習いは倍を持たない").toBe(false);
+    const weakness = game("swordsman").stats.more.find((m) => m.source === "job:weakness:skill");
+    expect(weakness?.mul, "剣士の弱点はスキルの倍").toBeCloseTo(JOB.swordsmanSkillMul);
     expect(game("brawler").stats.damageTakenMul).toBeCloseTo(plain.stats.damageTakenMul * JOB.brawlerDamageTakenMul);
   });
 
@@ -165,9 +167,11 @@ describe("ジョブの適用", () => {
     expect(isFavoredWeapon(other, "swordsman")).toBe(false);
     applyJobStats(favored, "swordsman");
     applyJobStats(other, "swordsman");
-    expect(favored.meleeDamageMul).toBeCloseTo(DEFAULT_STATS.meleeDamageMul * JOB.favoredMeleeMul);
+    const fav = favored.more.find((m) => m.source === "job:favored");
+    expect(fav?.mul, "得意武器は倍").toBeCloseTo(JOB.favoredMeleeMul);
+    expect(fav?.tags, "近接に掛かる").toEqual(["melee"]);
     expect(favored.attackSpeedMul).toBeCloseTo(DEFAULT_STATS.attackSpeedMul * JOB.favoredAttackSpeedMul);
-    expect(other.meleeDamageMul, "得意でなければ等倍").toBeCloseTo(DEFAULT_STATS.meleeDamageMul);
+    expect(other.more.some((m) => m.source === "job:favored"), "得意でなければ等倍").toBe(false);
   });
 
   it("祝福・振り分けで畳み込み直してもジョブの偏り・倍率は二重に掛からない", () => {
@@ -178,10 +182,9 @@ describe("ジョブの適用", () => {
       applyBoonsToStats(s);
       expect(s.stats.attributes, `${job} の生値`).toEqual(before.attributes);
       expect(s.stats.maxHp, `${job} の最大生命`).toBeCloseTo(before.maxHp);
-      expect(s.stats.meleeDamageMul, `${job} の近接倍率`).toBeCloseTo(before.meleeDamageMul);
+      expect(s.stats.more, `${job} の倍`).toEqual(before.more);
+      expect(s.stats.increased, `${job} の増`).toEqual(before.increased);
       expect(s.stats.attackSpeedMul, `${job} の攻撃速度`).toBeCloseTo(before.attackSpeedMul);
-      expect(s.stats.rangedDamageMul, `${job} の射撃倍率`).toBeCloseTo(before.rangedDamageMul);
-      expect(s.stats.skillDamageMul, `${job} のスキル倍率`).toBeCloseTo(before.skillDamageMul);
       expect(s.stats.damageTakenMul, `${job} の被ダメ倍率`).toBeCloseTo(before.damageTakenMul);
     }
   });

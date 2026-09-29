@@ -1,3 +1,4 @@
+import { createIncreased } from "../core/damage";
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { KEYSTONE, RESONANCE } from "../data/tuning";
@@ -205,6 +206,8 @@ const PERCENT = 0.01;
 function stats(): PlayerStats {
   return {
     ...DEFAULT_STATS,
+    increased: createIncreased(),
+    more: [],
     keystones: [],
     triggers: [],
     statusProcs: [],
@@ -323,7 +326,7 @@ describe("第 2 弾の性質（30 種以上）", () => {
     applyRoll(s, roll("rapidBrand", 80, 10));
     applyRoll(s, roll("rapidBrand", 80, 10));
     expect(s.traits.rapidBrandChance).toBe(1);
-    expect(s.rangedDamageMul).toBeCloseTo(1 - 0.2);
+    expect(s.increased.ranged).toBeCloseTo(-0.2);
   });
 });
 
@@ -373,7 +376,7 @@ describe("第 2 弾の変換（6 種以上）", () => {
     expect(s.resist.fire).toBeCloseTo(30);
     expect(s.resist.ice, "弱点はそのまま").toBe(-20);
     // 捨てた 30 を 6 属性で割った平均 5% × 0.5%
-    expect(s.meleeDamageMul).toBeCloseTo(1 + 5 * 0.005);
+    expect(s.increased.melee).toBeCloseTo(5 * 0.005);
     const t = stats();
     t.resist.light = 60;
     applyRoll(t, roll("cv_resistToWarding", 100));

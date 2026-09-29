@@ -1,3 +1,4 @@
+import { withMore } from "../core/damage";
 import type { GameState } from "../core/state";
 import { BOON, FEEL } from "../data/tuning";
 import type { PlayerStats } from "../loot/types";
@@ -31,9 +32,13 @@ function scaleMaxHp(out: PlayerStats, mul: number): void {
 
 /** 硝子の心: 近接・射撃・スキルの威力 ×glassHeartDamageMul、最大生命 ×glassHeartHpMul */
 function foldGlassHeart(out: PlayerStats): void {
-  out.meleeDamageMul *= BOON.glassHeartDamageMul;
-  out.rangedDamageMul *= BOON.glassHeartDamageMul;
-  out.skillDamageMul *= BOON.glassHeartDamageMul;
+  // 芯はビルドの顔なので倍（近接のスキルにも 1 回だけ掛かる）
+  out.more = withMore(out.more, {
+    source: "boon:coreGlassHeart",
+    label: BOONS.coreGlassHeart.name,
+    mul: BOON.glassHeartDamageMul,
+    tags: ["melee", "ranged", "skill"],
+  });
   scaleMaxHp(out, BOON.glassHeartHpMul);
 }
 

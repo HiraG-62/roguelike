@@ -178,6 +178,81 @@ describe("陣の配り（planJins）", () => {
   });
 });
 
+describe("陣ごとの生命の揺らぎ（hpSpread）", () => {
+  const spread = JIN.hpSpread;
+
+  it("陣ごとの hpMul は hpSpread の範囲に収まり、陣によって異なる", () => {
+    const muls = new Set<number>();
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      for (const j of floorAt(3, seed).jins) {
+        expect(j.hpMul, `seed ${seed} 陣 ${j.id}`).toBeGreaterThanOrEqual(spread.low);
+        expect(j.hpMul).toBeLessThanOrEqual(spread.high);
+        muls.add(j.hpMul);
+      }
+    }
+    expect(muls.size, "全部同じ倍率ではない").toBeGreaterThan(1);
+  });
+
+  it("並・精鋭でないメンバーの生命は 素の生命 × 陣の hpMul（同じ陣は同じ倍率）", () => {
+    const state = floorAt(1, 5);
+    let checked = 0;
+    for (const j of state.jins) {
+      for (const e of membersOf(state, j.id)) {
+        if (gradeOf(e) !== "normal" || e.elite) continue;
+        const base = Math.round(enemyDef(e.defKey).hp * depthHpScale(state.depth));
+        expect(e.maxHp, `陣 ${j.id} の ${e.defKey}`).toBe(Math.max(1, Math.round(base * j.hpMul)));
+        expect(e.hp, "生成直後は満タン").toBe(e.maxHp);
+        checked++;
+      }
+    }
+    expect(checked, "検査した敵がいる").toBeGreaterThan(0);
+  });
+
+  it("hpSpread を等倍に差し替えると生命は素の値のまま", () => {
+    const saved = { low: spread.low, high: spread.high };
+    Object.assign(spread, { low: 1, high: 1 });
+    try {
+      const state = floorAt(1, 5);
+      for (const j of state.jins) {
+        expect(j.hpMul).toBe(1);
+        for (const e of membersOf(state, j.id)) {
+          if (gradeOf(e) !== "normal" || e.elite) continue;
+          expect(e.maxHp).toBe(Math.round(enemyDef(e.defKey).hp * depthHpScale(state.depth)));
+        }
+      }
+    } finally {
+      Object.assign(spread, saved);
+    }
+  });
+
+  it("陣に属さない敵（createEnemy 直後）は等倍のまま", () => {
+    const state = createGame(1);
+    const def = enemyDef("slime");
+    const e = createEnemy(state, def, { x: 0, y: 0 }, 0, false);
+    expect(e.maxHp).toBe(Math.round(def.hp * depthHpScale(state.depth)));
+  });
+
+  it("階の主の陣は主と取り巻きの全員に同じ倍率を掛ける", () => {
+    const state = floorAt(2, 3);
+    const roomIndex = state.boss?.roomIndex ?? -1;
+    const room = state.rooms[roomIndex];
+    if (!room || !state.boss) throw new Error("階の主の部屋が無い");
+    const lord = state.enemies.find((e) => e.id === state.boss?.enemyId);
+    const lordBefore = lord?.maxHp ?? 0;
+    state.player.body.pos = rectCenterPx(room.rect);
+    state.player.invulnTimer = 999;
+    updateRooms(state, FIXED_DT);
+    const jin = state.jins.find((j) => j.roomIndex === roomIndex);
+    expect(jin, "陣ができる").toBeDefined();
+    expect(lord?.maxHp, "主にも陣の倍率").toBe(Math.max(1, Math.round(lordBefore * (jin?.hpMul ?? 1))));
+  });
+
+  it("同じ seed なら陣の hpMul と生命も同じ（決定的）", () => {
+    const snap = (state: GameState): unknown => state.jins.map((j) => [j.hpMul, membersOf(state, j.id).map((e) => e.maxHp)]);
+    expect(snap(createGame(12))).toEqual(snap(createGame(12)));
+  });
+});
+
 describe("陣の起床と決着（3a）", () => {
   it("陣の塊に入ると陣が交戦になり、メンバーが全員起きる", () => {
     const state = createGame(4);

@@ -1,3 +1,4 @@
+import { type DamageTag, moreApplies } from "../core/damage";
 import {
   KEYWORDS,
   type Keyword,
@@ -146,6 +147,17 @@ function below(id: NumericStat, tags: readonly BoonTag[], keywords: KeywordProfi
   return { id, tags, keywords, test: (s) => s[id] < D[id] };
 }
 
+/** そのタグの与ダメが上がっている（増が正、またはそのタグに掛かる倍が 1 より大きい）ときに成立。id は "increased.<tag>" */
+function damageAbove(tag: DamageTag, tags: readonly BoonTag[], keywords: KeywordProfile): StatRule {
+  const only: ReadonlySet<DamageTag> = new Set([tag]);
+  return {
+    id: `increased.${tag}`,
+    tags,
+    keywords,
+    test: (s) => s.increased[tag] > 0 || s.more.some((m) => m.tags !== undefined && moreApplies(m, only) && m.mul > 1),
+  };
+}
+
 /** 性質のルール変更（TraitStats）が 0 より大きいときに成立。祝福タグは持たない */
 function trait(id: NumericTrait, keywords: KeywordProfile): StatRule {
   return { id: `traits.${id}`, tags: [], keywords, test: (s) => s.traits[id] > 0 };
@@ -157,10 +169,10 @@ const STAT_RULES: readonly StatRule[] = [
   above("chillChance", ["chill"], kw(["chill"])),
   above("shockChance", ["shock"], kw(["shock"])),
   above("explodeOnKillChance", ["explode"], kw(["explode"], ["kill"])),
-  above("meleeDamageMul", ["melee"], kw([], [], ["melee"])),
+  damageAbove("melee", ["melee"], kw([], [], ["melee"])),
   above("meleeDamageFlat", ["melee"], kw([], [], ["melee"])),
   above("attackSpeedMul", ["melee"], kw([], [], ["melee"])),
-  above("rangedDamageMul", ["ranged"], kw([], [], ["ranged"])),
+  damageAbove("ranged", ["ranged"], kw([], [], ["ranged"])),
   above("rangedDamageFlat", ["ranged"], kw([], [], ["ranged"])),
   above("fireRateMul", ["ranged"], kw([], [], ["ranged"])),
   above("projectileCount", ["ranged"], kw([], [], ["ranged", "bullet"])),
@@ -173,7 +185,7 @@ const STAT_RULES: readonly StatRule[] = [
   above("comboDamagePerStack", ["combo"], kw([], ["combo"])),
   above("comboWindowBonus", ["combo"], kw([], [], ["combo"])),
   above("energyGainMul", ["energy"], kw([], [], ["energy"])),
-  above("burstDamageMul", ["energy"], kw([], [], ["energy"])),
+  damageAbove("ultimate", ["energy"], kw([], [], ["energy"])),
   above("burstRadiusMul", ["energy"], kw([], [], ["energy"])),
   above("critChance", ["crit"], kw(["crit"])),
   above("critMul", ["crit"], kw([], [], ["crit"])),
@@ -197,7 +209,7 @@ const STAT_RULES: readonly StatRule[] = [
   below("damageTakenMul", [], kw([], [], ["hurt"])),
   above("armor", [], kw([], [], ["hurt"])),
   above("knockbackMul", [], kw(["wall"])),
-  above("damageVsStaggeredMul", [], kw([], ["stagger"])),
+  damageAbove("vsStaggered", [], kw([], ["stagger"])),
   above("meleeReachMul", [], kw([], [], ["melee"])),
   above("projectileSpeedMul", [], kw([], [], ["bullet"])),
   above("burnDps", [], kw([], [], ["burn"])),

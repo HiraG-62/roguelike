@@ -2,7 +2,7 @@ import { ELEMENTS, type Element, ELEMENT_LABEL } from "../core/element";
 import type { Enemy, FloorKind, GameState, RoomState } from "../core/state";
 import { pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, sub } from "../core/vec";
-import { depthHpScale, enemyDef } from "../data/enemies";
+import { enemyDef } from "../data/enemies";
 import { CONTRACT, ELITE_GREEDY, FLOOR_KIND, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { type EchoWallet, createEchoWallet } from "../loot/crafting";
 import { inversionChance } from "../loot/flux";
@@ -362,7 +362,7 @@ export function onRoomCleared(state: GameState, room: RoomState, index: number):
 
 /** 湧いた敵への縛り・イベント・階層の効果（floor.ts の湧かせ処理から） */
 export function onRunEnemySpawned(state: GameState, e: Enemy): void {
-  let hpMul = deepHpMul(state.depth);
+  let hpMul = 1;
   if (hasMod(state, "thickHide")) hpMul *= RUN_MOD.thickHideHpMul;
   if (floorActive(state, "bloodMoon")) hpMul *= RUN_EVENT.bloodMoonHpMul;
   if (hpMul !== 1) scaleHp(e, hpMul);
@@ -370,13 +370,6 @@ export function onRunEnemySpawned(state: GameState, e: Enemy): void {
   // 反転層: 敵はエリートの抽選を 1 回多く引く
   if (isInvertedDepth(state.depth) && !e.elite && !enemyDef(e.defKey).boss) rollElite(state, e);
   if (floorActive(state, "frenzyMoon") && !e.elite) hasten(e);
-}
-
-/** 無限の深み: HP の伸びを deepHpSlope まで寝かせる倍率（深みより浅ければ 1） */
-export function deepHpMul(depth: number): number {
-  if (depth <= FLOOR_KIND.deepDepth) return 1;
-  const target = depthHpScale(FLOOR_KIND.deepDepth) + (depth - FLOOR_KIND.deepDepth) * FLOOR_KIND.deepHpSlope;
-  return target / depthHpScale(depth);
 }
 
 function scaleHp(e: Enemy, mul: number): void {

@@ -11,23 +11,24 @@ import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effect
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
 import { emitNoise } from "./noise";
-import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
+import { KS, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
-import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playerStatusTakenMul } from "./statusEffects";
+import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusTakenMul } from "./statusEffects";
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
 import { pushComboEvent, pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent, pushShatterEvent } from "../core/events";
-import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
+import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitPoiseMul } from "./traitHooks";
+import { buildContext, collectMore, collectTraitIncreased, finishBreakdown, increasedFactor, poiseIncreasedMul } from "./damageMods";
+import type { DamageBreakdown } from "../core/damage";
 import { interceptEnemyDamage } from "./elites";
-import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
 import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
-import { boonForcesCrit, boonPoise } from "./boonRules";
+import { boonPoise } from "./boonRules";
 import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
-import { noteUltimateKill, ultimateBlocksEnergy, ultimateCritBonus, ultimateIncomingMul, ultimateOutgoingMul } from "./ultimates";
+import { noteUltimateKill, ultimateBlocksEnergy, ultimateIncomingMul } from "./ultimates";
 import type { MovesetKey } from "../data/weapons";
 
 export const COLOR_DAMAGE = "#ffffff";
@@ -82,7 +83,7 @@ export interface HitOptions {
   impact?: { family: HitFamily; weight: HitWeight; weapon?: MovesetKey };
 }
 
-/** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
+/** rollOutgoing の追加指定。skill はスキル由来（スキルの増 increased.skill が足される） */
 export interface OutgoingOptions {
   skill?: boolean;
   /**
@@ -97,6 +98,8 @@ export interface OutgoingHit {
   crit: boolean;
   /** 属性の弱点 / 耐性に当たったか（素性なし・敵なしは neutral） */
   affinity: ElementAffinity;
+  /** 増・倍・敵側の内訳（表示・テスト・QA 用） */
+  breakdown: DamageBreakdown;
 }
 
 /** コンボ数からスコア倍率。5 ヒットごとに +0.5 */
@@ -113,15 +116,10 @@ export function registerComboHit(state: GameState): void {
   pushComboEvent(state);
 }
 
-/** コンボによる与ダメ倍率 */
-export function comboDamageMul(state: GameState): number {
-  const s = state.stats;
-  return 1 + Math.min(s.comboDamageCap, state.combo.count * s.comboDamagePerStack);
-}
-
 /**
- * プレイヤー由来の与ダメを stats / バフ / キーストーンで仕上げる。
- * base は tuning の基礎値（melee / ranged は flat と mul をここで足す）
+ * プレイヤー由来の与ダメを増と倍で仕上げる（docs/ideas/scaling-impl.md 2-1。集め方は system/damageMods.ts）。
+ * base は tuning の基礎値（melee / ranged は flat をここで足す）。
+ * 乱数の順は従来と同じ: 会心 → 賭博師 → 属性の抽選
  */
 export function rollOutgoing(
   state: GameState,
@@ -131,35 +129,19 @@ export function rollOutgoing(
   opts: OutgoingOptions = {},
 ): OutgoingHit {
   const s = state.stats;
-  const p = state.player;
-  let amount = base;
-  if (kind === "melee") amount = (base + s.meleeDamageFlat) * s.meleeDamageMul;
-  if (kind === "ranged") amount = (base + s.rangedDamageFlat) * s.rangedDamageMul;
-  if (opts.skill) amount *= s.skillDamageMul;
-  if (hasStatus(p.status, "weaken")) amount *= 1 - STATUS.weaken.mul;
-  amount *= playerStatusOutgoingMul(state);
-  // 持続の奥義の倍率（通常攻撃だけ。奥義の行為は proc なので掛からない）
-  if (kind === "melee" || kind === "ranged") amount *= ultimateOutgoingMul(state, enemy);
-  // 霊体化（skills/forms.ts）はすり抜ける代わりに与ダメが落ちる。forms.ts を import すると循環の評価順が崩れるので state を直に見る
-  if (state.skills.shape?.key === "wraithForm") amount *= WAVE3_SKILL_TUNING.wraithForm.outgoingMul;
-
-  let crit = false;
-  if (kind !== "proc") {
-    if (enemy && isStaggered(enemy)) amount *= s.damageVsStaggeredMul;
-    amount *= comboDamageMul(state);
-    if (p.justTimer > 0) amount *= s.justDodgeDamageMul;
-    if (p.buffs.damage.time > 0) amount *= p.buffs.damage.mul;
-    crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || boonForcesCrit(state, enemy, kind);
-    if (crit) amount *= s.critMul;
-  }
-  amount *= berserkerMul(state);
-  amount *= gamblerMul(state);
-  // ks_bladeOath（近間の誓い）: 近接・射撃・スキルに効く。素性なしの proc は距離を測る意味が薄いので対象外
-  if (kind !== "proc" || opts.skill) amount *= bladeOathMul(state, enemy);
-  amount *= traitOutgoingMul(state, enemy, kind, opts.skill === true);
+  const skill = opts.skill === true;
+  let raw = base;
+  if (kind === "melee") raw = base + s.meleeDamageFlat;
+  if (kind === "ranged") raw = base + s.rangedDamageFlat;
+  const ctx = buildContext(enemy, kind, opts);
+  const { more, crit } = collectMore(state, enemy, ctx, skill);
+  ctx.crit = crit;
+  // 性質の加算は敵の状態を読むので、状態異常を付けうる属性の抽選より前に数える
+  const trait = collectTraitIncreased(state, enemy, ctx, skill);
   const element = enemy ? genreAndElement(state, enemy, kind, opts) : null;
-  if (element) amount *= element.mul;
-  return { amount: Math.max(MIN_DAMAGE, Math.round(amount)), crit, affinity: element?.affinity ?? "neutral" };
+  const shares = element?.shares ?? [];
+  const breakdown = finishBreakdown(raw, increasedFactor(state, ctx, trait, shares), more, element?.mul ?? 1, MIN_DAMAGE);
+  return { amount: breakdown.amount, crit, affinity: element?.affinity ?? "neutral", breakdown };
 }
 
 /** A-8: 敵の防御（質軸）と属性耐性の倍率。弱点 / 耐性の表示と、属性が呼ぶ状態異常の抽選もここで起こす */
@@ -185,7 +167,7 @@ export function damageEnemy(
 ): boolean {
   if (enemy.hp <= 0) return false;
   const kind = opts.kind ?? "proc";
-  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true);
+  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;
   // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない

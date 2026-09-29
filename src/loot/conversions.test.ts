@@ -66,7 +66,8 @@ describe("変換の性質", () => {
   it("melee → burn: 近接倍率の一部を burn に移す（scale の後に掛かる）", () => {
     const s = statsWith([roll("meleeDamagePct", 50), roll("cv_meleeToBurn", 40)], "amulet");
     // 1.5 * 0.6 = 0.9、移した 0.6 → burn DPS 6、chance 0.4 * 0.5 = 0.2。右手が空なので最後に素手の倍率が掛かる
-    expect(s.meleeDamageMul).toBeCloseTo(0.9 * WEAPON.unarmed.damageMul, 5);
+    expect(1 + s.increased.melee).toBeCloseTo(0.9, 5);
+    expect(s.more.find((m) => m.source === "unarmed")?.mul).toBe(WEAPON.unarmed.damageMul);
     expect(s.burnDps).toBeCloseTo(6, 5);
     expect(s.burnChance).toBeCloseTo(0.2, 5);
   });
@@ -103,7 +104,7 @@ describe("変換の性質", () => {
     const s = statsWith([roll("projectiles", 2, 0), roll("cv_splitToPierce", 10, 3)], "amulet");
     expect(s.projectileCount).toBe(3);
     expect(s.pierce).toBe(3);
-    expect(s.rangedDamageMul).toBeCloseTo(0.8, 5);
+    expect(s.more.find((m) => m.source === "affix:cv_splitToPierce")?.mul).toBeCloseTo(0.8, 5);
   });
 
   it("move speed の超過分 → attack speed", () => {

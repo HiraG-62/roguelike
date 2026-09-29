@@ -1,3 +1,4 @@
+import { rollSpread } from "../core/scale";
 import { type Enemy, type GameState, type Jin, ROAMING_ROOM, type RoomState } from "../core/state";
 import { type Vec, add, clamp, dist, lerp, normalize, sub } from "../core/vec";
 import { type EnemyDef, enemiesForDepth } from "../data/enemies";
@@ -79,6 +80,15 @@ export function wakeJin(state: GameState, jin: Jin): void {
 /** 毎ステップ: 決着（全滅）・長蛇の起床・後詰・増援の代わり。本体は jin.ts の updateJins */
 export function updateJinPhases(state: GameState): void {
   updateJins(state);
+}
+
+/** 陣の生命の揺らぎを掛ける。被弾していても満タンに戻さない（生成直後なら満タン） */
+export function applyHpMul(e: Enemy, mul: number): void {
+  if (mul === 1) return;
+  const ratio = e.maxHp > 0 ? Math.min(1, e.hp / e.maxHp) : 1;
+  e.maxHp = Math.max(1, Math.round(e.maxHp * mul));
+  e.hp = Math.max(1, Math.round(e.maxHp * ratio));
+  e.lastHp = e.hp;
 }
 
 /** 格「猛」（強）にする: 生命と怯み耐性を上げる（接触ダメージの倍率は enemies.ts の contactDamageOf が JIN.strong.damageMul を掛ける） */
@@ -232,6 +242,7 @@ export function spawnJin(
 ): Jin | null {
   const plan = planMembers(state, formation, budget, canUse);
   const offsets = layoutOffsets(formation.layout, plan.length, formation.spacing);
+  // 陣の生命の揺らぎ（newJin の中で rng を 1 回）は配役の後・メンバーを置く前。消費順は plan → hpMul → 各メンバー
   const jin = newJin(state, roomIndex, formation.key, center, facing);
   let weight = 0;
   plan.forEach((member, i) => {
@@ -263,6 +274,7 @@ function staggerCooldown(e: Enemy, def: EnemyDef, formation: FormationDef, rank:
 /** 空の陣（メンバーは置く側が足す）。id は陣が消えないので通し番号 */
 function newJin(state: GameState, roomIndex: number, formation: FormationKey, center: Vec, facing: Vec): Jin {
   return {
+    hpMul: rollSpread(state.rng, 1, JIN.hpSpread),
     id: state.jins.length + 1,
     roomIndex,
     formation,
@@ -354,6 +366,7 @@ function pickRoleDef(state: GameState, role: EnemyRole, canUse: (def: EnemyDef) 
 function spawnMember(state: GameState, jin: Jin, member: MemberPlan, pos: Vec): Enemy {
   const e = createEnemy(state, member.def, pos, jin.roomIndex, false);
   e.jinId = jin.id;
+  applyHpMul(e, jin.hpMul);
   onBoonEnemySpawned(state, e);
   onRunEnemySpawned(state, e);
   applyGrade(state, e, member);
@@ -579,9 +592,11 @@ export function createBossJin(state: GameState, roomIndex: number, lordId: numbe
   jin.leaderId = lord.id;
   jin.phase = "engaged";
   lord.jinId = jin.id;
+  applyHpMul(lord, jin.hpMul);
   for (const e of escorts) {
     if (e.id === lord.id || e.hp <= 0 || e.jinId !== undefined) continue;
     e.jinId = jin.id;
+    applyHpMul(e, jin.hpMul);
   }
   initJinMorale(state, jin);
   state.jins.push(jin);

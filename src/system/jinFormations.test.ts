@@ -25,6 +25,7 @@ function jinOf(formation: Jin["formation"], id = 1): Jin {
     center: { x: 0, y: 0 },
     facing: { x: 1, y: 0 },
     leaderId: null,
+    hpMul: 1,
     morale: 10,
     moraleMax: 10,
     phase: "engaged",

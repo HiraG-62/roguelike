@@ -1,3 +1,4 @@
+import { type IncreasedTable, type MoreMul, createIncreased } from "../core/damage";
 import { type ElementTable, uniformElements } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
@@ -375,14 +376,22 @@ export interface PlayerStats {
   /** ダッシュの無敵時間の加算（秒。PLAYER.dash.invulnTime に足す。ダッシュ時間を超えない） */
   dashInvulnBonus: number;
 
-  meleeDamageMul: number;
+  /**
+   * 与ダメの増（core/damage.ts。0.1 = +10%）。性質・地金・共鳴・偏りの数値はここへ足す。
+   * 1 撃に効くタグの増を全部足して 1 回掛ける（system/damageMods.ts）
+   */
+  increased: IncreasedTable;
+  /**
+   * 装備・祝福・ジョブが出す常時の倍（誓約・芯・得意武器・素手・弱点など。出所ごと 1 要素）。
+   * 列は複数の stats で共有されうるので push せず withMore で新しい列に差し替える
+   */
+  more: readonly MoreMul[];
+
   meleeDamageFlat: number;
   attackSpeedMul: number;
   meleeReachMul: number;
   knockbackMul: number;
-  damageVsStaggeredMul: number;
 
-  rangedDamageMul: number;
   rangedDamageFlat: number;
   fireRateMul: number;
   projectileCount: number;
@@ -393,7 +402,6 @@ export interface PlayerStats {
   critMul: number;
 
   energyGainMul: number;
-  burstDamageMul: number;
   burstRadiusMul: number;
 
   comboWindowBonus: number;
@@ -436,7 +444,6 @@ export interface PlayerStats {
   manaCostMul: number;
   /** 撃破時のマナ回収に足す固定値（MANA.onKill に加算。manaGainMul も掛かる） */
   manaOnKill: number;
-  skillDamageMul: number;
   poiseDamageMul: number;
   statusPotencyMul: number;
   /** プレイヤーが受ける状態異常の持続倍率 */
@@ -913,14 +920,15 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   dashDistanceMul: 1,
   dashInvulnBonus: 0,
 
-  meleeDamageMul: 1,
+  // 既定は凍らせる（{ ...DEFAULT_STATS } の浅い写しから書き換えて既定を汚さない。複製は stats.ts の createBaseStats）
+  increased: Object.freeze(createIncreased()),
+  more: Object.freeze([]),
+
   meleeDamageFlat: 0,
   attackSpeedMul: 1,
   meleeReachMul: 1,
   knockbackMul: 1,
-  damageVsStaggeredMul: 1,
 
-  rangedDamageMul: 1,
   rangedDamageFlat: 0,
   fireRateMul: 1,
   projectileCount: 1,
@@ -931,7 +939,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   critMul: 1.5,
 
   energyGainMul: 1,
-  burstDamageMul: 1,
   burstRadiusMul: 1,
 
   comboWindowBonus: 0,
@@ -960,7 +967,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   manaGainMul: 1,
   manaCostMul: 1,
   manaOnKill: 0,
-  skillDamageMul: 1,
   poiseDamageMul: 1,
   statusPotencyMul: 1,
   statusTakenMul: 1,

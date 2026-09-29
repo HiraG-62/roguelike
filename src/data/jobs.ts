@@ -1,3 +1,4 @@
+import { type DamageTag, withMore } from "../core/damage";
 import type { EventKind, EventSource } from "../core/events";
 import { type KeywordProfile, kw } from "../core/keywords";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
@@ -22,7 +23,7 @@ const JOB_WEAKNESS = BALANCE.jobs.weakness;
 export const JOB_KEYS = ["none", "swordsman", "hunter", "brawler", "shieldBearer", "hexer", "lancer", "invoker", "shadow", "alchemist"] as const;
 export type JobKey = (typeof JOB_KEYS)[number];
 
-/** 弱点・得意で掛ける倍率の対象（いずれも掛け算で効く数値） */
+/** 弱点・得意で掛ける倍率の対象（いずれも掛け算で効く数値。与ダメの 3 つは stats.more の倍になる） */
 export type JobMulStat =
   | "maxHp"
   | "meleeDamageMul"
@@ -367,9 +368,33 @@ export function jobBranch(job: JobKey): BranchDef | undefined {
   return job === "none" ? undefined : JOB_BRANCHES[job];
 }
 
-/** 倍率を掛ける（PlayerStats の該当フィールドだけ。書き換えるのは渡した stats） */
+/**
+ * 与ダメの弱点（JSON のキーは旧フィールド名のまま）。値は増ではなく倍として stats.more に入る
+ * （ジョブの顔なので、装備の増と足さずに掛ける。docs/ideas/scaling-impl.md 2-1）
+ */
+const JOB_DAMAGE_TAGS: Readonly<Record<JobDamageStat, DamageTag>> = {
+  meleeDamageMul: "melee",
+  rangedDamageMul: "ranged",
+  skillDamageMul: "skill",
+};
+type JobDamageStat = "meleeDamageMul" | "rangedDamageMul" | "skillDamageMul";
+
+function isJobDamageStat(key: JobMulStat): key is JobDamageStat {
+  return key in JOB_DAMAGE_TAGS;
+}
+
+/** 弱点の倍の表示名 */
+export const JOB_WEAKNESS_LABEL = "ジョブの弱点";
+
+/** 倍率を掛ける（PlayerStats の該当フィールドだけ。与ダメは倍の列へ。書き換えるのは渡した stats） */
 export function applyJobMul(stats: PlayerStats, mul: Readonly<JobStatMul>): void {
   for (const [key, value] of Object.entries(mul) as [JobMulStat, number | undefined][]) {
-    if (value !== undefined) stats[key] *= value;
+    if (value === undefined) continue;
+    if (!isJobDamageStat(key)) {
+      stats[key] *= value;
+      continue;
+    }
+    const tag = JOB_DAMAGE_TAGS[key];
+    stats.more = withMore(stats.more, { source: `job:weakness:${tag}`, label: JOB_WEAKNESS_LABEL, mul: value, tags: [tag] });
   }
 }

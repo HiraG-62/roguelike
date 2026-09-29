@@ -99,7 +99,8 @@ describe("ステータスの性質（attr_*）", () => {
     expect(s.attributes.spi).toBe(BASE + 3);
     expect(s.attributes.dex).toBe(BASE);
     // 右手が空なので素手の倍率だけが掛かる
-    expect(s.meleeDamageMul).toBe(DEFAULT_STATS.meleeDamageMul * WEAPON.unarmed.damageMul);
+    expect(s.increased.melee).toBe(0);
+    expect(s.more.map((m) => [m.source, m.mul])).toEqual([["unarmed", WEAPON.unarmed.damageMul]]);
   });
 
   it("複数の部位の同じステータスは合算される", () => {
@@ -265,14 +266,14 @@ describe("マナの誓約（過負荷・静寂の誓い）", () => {
   it("過負荷: スキル威力 -10%", () => {
     const s = statsWith([{ key: "ks_overdraw", value: 0, color: "umbra" }]);
     expect(s.keystones).toEqual(["ks_overdraw"]);
-    expect(s.skillDamageMul).toBeCloseTo(0.9);
+    expect(s.more.find((m) => m.source === "keystone:ks_overdraw")?.mul, "誓約は倍").toBeCloseTo(0.9);
   });
 
   it("静寂の誓い: 自然回復 ×3、スキル威力 +30%", () => {
     const s = statsWith([{ key: "ks_silentVow", value: 0, color: "umbra" }]);
     expect(s.keystones).toEqual(["ks_silentVow"]);
     expect(s.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen * 3);
-    expect(s.skillDamageMul).toBeCloseTo(1.3);
+    expect(s.more.find((m) => m.source === "keystone:ks_silentVow")?.mul, "誓約は倍").toBeCloseTo(1.3);
   });
 
   it("装備 2 部位で両方を持つと、装備順で後の方だけが効く", () => {
@@ -283,7 +284,8 @@ describe("マナの誓約（過負荷・静寂の誓い）", () => {
       ),
     );
     expect(s.keystones).toEqual(["ks_silentVow"]);
-    expect(s.skillDamageMul).toBeCloseTo(1.3);
+    expect(s.more.find((m) => m.source === "keystone:ks_silentVow")?.mul, "誓約は倍").toBeCloseTo(1.3);
+    expect(s.more.some((m) => m.source === "keystone:ks_overdraw"), "負けた誓約の倍は入らない").toBe(false);
   });
 });
 

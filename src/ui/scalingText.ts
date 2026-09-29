@@ -6,6 +6,8 @@ import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { ATTR_LABEL } from "../loot/resonance";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Item, type PlayerStats, type Scaling } from "../loot/types";
+import { type DamageTag, dedupeMore, moreApplies } from "../core/damage";
+import { INCREASED_LABEL, UNARMED_MORE, formatMoreMul } from "../loot/stats";
 import { SKILL, SKILL_DEFS } from "../skills/data";
 import { ART_DEFS, isArtKey } from "../skills/arts";
 import type { ArtSkillKey } from "../skills/arts/keys";
@@ -15,7 +17,7 @@ import { ratioToScaling, scaled, withRatio } from "../system/attributes";
 /**
  * 行動ごとの係数（docs/COMBAT_DESIGN.md A-10）を「威力 18 = 10 ＋ 筋力×1.3 ＋ 技巧×0.2」の形に組み立てる。
  * DOM・Canvas に依存しない純関数だけを置き、色付けと折り返しは render 側（detailPane.ts）が行う。
- * ここで出す値は「係数による基礎の値」。装備の倍率・刻印符・祝福などは後から掛かるので含めない
+ * ここで出す値は「係数による基礎の値」。装備の増・倍（modifierRows）・刻印符・祝福などは後から掛かるので含めない
  */
 
 /** 計算式の量の種類。威力 / 怯み値 / 状態異常の効果量 / 強化の効果量 */
@@ -524,6 +526,55 @@ export function itemMoveset(item: Readonly<Item>): { moveset: MovesetDef; bullet
 export function itemFormulas(stats: Readonly<PlayerStats>, item: Readonly<Item>): ActionFormulas[] {
   const m = itemMoveset(item);
   return m === null ? [] : movesetFormulas(stats, m.moveset, m.bullet);
+}
+
+// ---------------------------------------------------------------------------
+// 増と倍（docs/ideas/scaling-impl.md 2-1）。基礎の値の後に掛かるものの内訳。合計の 1 つの数にはまとめない
+// ---------------------------------------------------------------------------
+
+export const INCREASED_HEAD = "増";
+export const MORE_HEAD = "倍";
+
+/** 攻撃の種類ごとに計算式の頁へ出す増のタグ（種類そのものと、怯み中の敵へ足される増） */
+const MODIFIER_TAGS: Readonly<Record<AttackTag, readonly DamageTag[]>> = {
+  melee: ["melee", "vsStaggered"],
+  ranged: ["ranged", "vsStaggered"],
+};
+type AttackTag = "melee" | "ranged";
+
+/** 見出し 1 つと内訳の片（「増 近接ダメージ +20%・怯み中の敵へのダメージ +10%」） */
+function modifierRow(head: string, parts: readonly string[]): FormulaChunk[] {
+  const chunks: FormulaChunk[] = [{ pieces: [{ text: head, tone: "name" }] }];
+  parts.forEach((text, i) => chunks.push({ pieces: [{ text: i === parts.length - 1 ? text : `${text}${NAME_SEP}` }], glue: i > 0 }));
+  return chunks;
+}
+
+/** その攻撃に掛かる増（タグごと）と倍（出所ごと）の行。無ければ空。skipSources の倍は出さない */
+export function modifierRows(stats: Readonly<PlayerStats>, attack: AttackTag, skipSources: readonly string[] = []): FormulaChunk[][] {
+  const rows: FormulaChunk[][] = [];
+  const incTags = MODIFIER_TAGS[attack].filter((tag) => Math.abs(stats.increased[tag]) >= EPS);
+  if (incTags.length > 0) {
+    rows.push(modifierRow(INCREASED_HEAD, incTags.map((tag) => `${INCREASED_LABEL[tag]} ${formatSignedPct(stats.increased[tag])}`)));
+  }
+  const only: ReadonlySet<DamageTag> = new Set([attack]);
+  const more = dedupeMore(stats.more).filter((m) => moreApplies(m, only) && Math.abs(m.mul - 1) >= EPS && !skipSources.includes(m.source));
+  if (more.length > 0) rows.push(modifierRow(MORE_HEAD, more.map((m) => `${m.label} ${TIMES}${formatMoreMul(m.mul)}`)));
+  return rows;
+}
+
+/** 武器の攻撃（銃は射撃、それ以外は近接）に掛かる増と倍の行。武器でなければ空 */
+export function itemModifierRows(stats: Readonly<PlayerStats>, item: Readonly<Item>): FormulaChunk[][] {
+  const m = itemMoveset(item);
+  if (m === null) return [];
+  // 武器を持てば素手ではなくなるので、今が素手でも素手の倍は出さない
+  return modifierRows(stats, isGun(m.moveset) ? "ranged" : "melee", [UNARMED_MORE.source]);
+}
+
+const PCT_SCALE = 100;
+
+function formatSignedPct(v: number): string {
+  const pct = trimDigits(v * PCT_SCALE, 1);
+  return v >= 0 ? `${PLUS}${pct}%` : `${pct}%`;
 }
 
 // ---------------------------------------------------------------------------

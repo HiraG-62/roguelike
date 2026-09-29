@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Enemy } from "../core/state";
 import type { StatusKind } from "../core/status";
-import { arena, placeEnemy } from "../system/testHelpers";
+import { arena, increasedWith, placeEnemy } from "../system/testHelpers";
 import { SKILL, SKILL_DEFS, resolveCast } from "./data";
 import { stoneFromSeed } from "./generator";
 import { skillHit } from "./hit";
@@ -28,6 +28,9 @@ function setup(): { state: ReturnType<typeof arena>; enemy: ReturnType<typeof pl
   enemy.hp = BIG_HP;
   enemy.maxHp = BIG_HP;
   enemy.phase = "idle";
+  // 属性の相性の抽選（ELEMENT.affinity、命中の 1 割で属性の状態異常を付ける）を外す。
+  // applies の検証が乱数の位置しだい（感電 2 + 相性の感電 1 で麻痺に変わる等）にならないように
+  state.rng = { ...state.rng, chance: () => false };
   return { state, enemy };
 }
 
@@ -60,10 +63,10 @@ function poiseDealt(key: SkillKey, poiseDamageMul: number, override?: number): n
 }
 
 describe("skillHit が戦闘の口へ渡す値", () => {
-  it("スキル由来として rollOutgoing に渡る（skillDamageMul が掛かる）", () => {
+  it("スキル由来として rollOutgoing に渡る（スキルの増が足される）", () => {
     const plain = damageDealt("frag");
     expect(plain, "前提: 当たっている").toBeGreaterThan(0);
-    expect(damageDealt("frag", { skillDamageMul: 2 })).toBeCloseTo(plain * 2, 0);
+    expect(damageDealt("frag", { increased: increasedWith({ skill: 1 }) })).toBeCloseTo(plain * 2, 0);
   });
 
   it("素性が null のスキル（影渡りの着地など）が当てても、敵の防御を素通ししない", () => {

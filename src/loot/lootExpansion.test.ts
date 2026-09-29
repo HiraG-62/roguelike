@@ -1,7 +1,8 @@
+import { createIncreased } from "../core/damage";
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
-import { KEYSTONE, WEAPON } from "../data/tuning";
+import { KEYSTONE } from "../data/tuning";
 import {
   AFFIXES,
   CONVERSION_AFFIXES,
@@ -63,6 +64,8 @@ const PERCENT = 0.01;
 function stats(): PlayerStats {
   return {
     ...DEFAULT_STATS,
+    increased: createIncreased(),
+    more: [],
     keystones: [],
     triggers: [],
     statusProcs: [],
@@ -153,10 +156,9 @@ describe("装備全体の文脈を読む性質", () => {
     eq.boots = item("boots", [], { margin: 2 });
     const s = computeStats(eq);
     // 右手が空なので素手の倍率が掛かる
-    const unarmed = WEAPON.unarmed.damageMul;
-    expect(s.meleeDamageMul).toBeCloseTo((1 + 2 * PERCENT * 5) * unarmed);
+    expect(s.increased.melee).toBeCloseTo(2 * PERCENT * 5);
     eq.boots = item("boots", [], { margin: 0 });
-    expect(computeStats(eq).meleeDamageMul).toBeCloseTo((1 + 2 * PERCENT * 3) * unarmed);
+    expect(computeStats(eq).increased.melee).toBeCloseTo(2 * PERCENT * 3);
   });
 
   it("文脈（余白・銘・反転・異色の数）は畳み込み後の stats に残らない", () => {
@@ -184,7 +186,7 @@ describe("装備全体の文脈を読む性質", () => {
     eq.boots = item("boots", [inverted, { ...inverted, key: "dashDistance" }]);
     const s = computeStats(eq);
     expect(s.resonance.kind).toBe("none");
-    expect(s.rangedDamageMul).toBeCloseTo(1 + 0.2);
+    expect(s.increased.ranged).toBeCloseTo(0.2);
     expect(s.damageTakenMul).toBeCloseTo(1 + 0.06);
   });
 
@@ -274,7 +276,7 @@ describe("誓約の追加", () => {
     eq.mainHand = item("mainHand", [roll("heavyHand", 40, 5), keystoneToRoll(keystoneDefOrThrow("ks_unshaken"))]);
     const s = computeStats(eq);
     expect(s.poiseDamageMul).toBe(0);
-    expect(s.skillDamageMul).toBeCloseTo(1 + KEYSTONE.unshakenDamageBonus + 0.4 * KEYSTONE.unshakenPoiseToDamage);
+    expect(s.more.find((m) => m.source === "keystone:ks_unshaken")?.mul).toBeCloseTo(1 + KEYSTONE.unshakenDamageBonus + 0.4 * KEYSTONE.unshakenPoiseToDamage);
   });
 
   it("背水の誓い: 制圧時に失った HP を取り戻すトリガーを持つ", () => {
@@ -337,7 +339,7 @@ describe("共鳴: 三和音と規則", () => {
     eq.ring = item("ring", [roll("attackSpeed", 10), keystoneToRoll(keystoneDefOrThrow("ks_colorless"))]);
     const s = computeStats(eq);
     expect(s.resonance.kind).toBe("none");
-    expect(s.meleeDamageMul).toBeCloseTo(1 + 0.2 * KEYSTONE.colorlessTraitMul);
+    expect(s.increased.melee).toBeCloseTo(0.2 * KEYSTONE.colorlessTraitMul);
   });
 
   it("鏡の誓い: 色を反対色で数える（紅ばかりなら蒼の支配）", () => {

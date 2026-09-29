@@ -505,6 +505,7 @@ import j_loot_RESONANCE from "./loot/RESONANCE.json";
 import j_loot_KEYSTONE from "./loot/KEYSTONE.json";
 import j_loot_TRIGGER from "./loot/TRIGGER.json";
 import j_loot_SYNERGY from "./loot/SYNERGY.json";
+import j_loot_FLUX from "./loot/FLUX.json";
 import j_loot_affixCurves_wardingFlat from "./loot/affixCurves/wardingFlat.json";
 import j_loot_affixCurves_sturdy from "./loot/affixCurves/sturdy.json";
 import j_loot_affixCurves_meleeDamagePct from "./loot/affixCurves/meleeDamagePct.json";
@@ -1575,6 +1576,7 @@ export const loot = {
   "KEYSTONE": j_loot_KEYSTONE,
   "TRIGGER": j_loot_TRIGGER,
   "SYNERGY": j_loot_SYNERGY,
+  "FLUX": j_loot_FLUX,
   "STASH_CAPACITY": j_loot__index["STASH_CAPACITY"],
   "ARMOR_K": j_loot__index["ARMOR_K"],
   "ARMOR_MAX_REDUCTION": j_loot__index["ARMOR_MAX_REDUCTION"],
@@ -2746,6 +2748,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "jobs/_index.json",
   "jobs/attributes.json",
   "jobs/weakness.json",
+  "loot/FLUX.json",
   "loot/INNATE/_index.json",
   "loot/INNATE/armor.json",
   "loot/INNATE/budget.json",

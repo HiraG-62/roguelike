@@ -12,7 +12,6 @@
   "bossPoiseGrowth": 1.5,
   "bossPoiseGrowthMax": 3,
   "bossDownDamageMul": 1.25,
-  "depthScale": 0.08,
   "eliteMul": 1.5,
   "knockbackUnstaggered": 0.7,
   "blockMul": 0.5,

@@ -5,6 +5,7 @@ import { dist } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { roleOf } from "../data/enemyRoles";
 import { ENEMY_AI } from "../data/tuning";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { behaviorOf } from "./behaviors/registry";
 import { damageEnemy } from "./combat";
@@ -41,6 +42,39 @@ function readyLeaper(state: GameState, dx: number): Enemy {
   e.phase = "chase";
   e.attackCooldown = 0;
   return e;
+}
+
+/** 壁の角のすれすれ（px）: 中心の線は壁の外、体の半径は壁に掛かる */
+const CORNER_GRAZE = 3;
+/** 敵とプレイヤーの間のタイル数（真ん中の 1 枚を壁にする） */
+const GRAZE_TILES = 4;
+
+/**
+ * 中心の視線は通るが、体の幅が壁の角を削る配置: プレイヤーと敵を同じ高さに置き、
+ * 間のタイル 1 枚を壁にして、その上端から CORNER_GRAZE だけ上を通す
+ */
+function grazingLeap(state: GameState): { e: Enemy; wallTile: { x: number; y: number } } {
+  const p = state.player.body;
+  const ptx = Math.floor(p.pos.x / TILE_SIZE);
+  const pty = Math.floor(p.pos.y / TILE_SIZE);
+  p.pos = { x: ptx * TILE_SIZE + TILE_SIZE / 2, y: (pty + 1) * TILE_SIZE - CORNER_GRAZE };
+  const e = readyLeaper(state, GRAZE_TILES * TILE_SIZE);
+  expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), "前提: 敵は床の上").toBe(false);
+  const wallTile = { x: ptx + GRAZE_TILES / 2, y: pty + 1 };
+  setTile(state.map, wallTile.x, wallTile.y, Tile.Wall);
+  expect(lineOfSight(state.map, e.body.pos, p.pos), "前提: 中心の視線は通る").toBe(true);
+  expect(overlapsWall(state, (wallTile.x + 0.5) * TILE_SIZE, p.pos.y, e.body.radius), "前提: 体の幅は壁に掛かる").toBe(true);
+  return { e, wallTile };
+}
+
+/** from → to を刻んで、半径 r の体がどこかで壁に掛かるか */
+function pathHitsWall(state: GameState, from: { x: number; y: number }, to: { x: number; y: number }, r: number): boolean {
+  const n = Math.ceil(dist(from, to));
+  for (let i = 0; i <= n; i++) {
+    const t = n === 0 ? 1 : i / n;
+    if (overlapsWall(state, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, r)) return true;
+  }
+  return false;
 }
 
 function tick(state: GameState): void {
@@ -96,6 +130,28 @@ describe("跳躍（leaper）", () => {
     const e = placeEnemy(state, LEAPER, spot?.x ?? 0, spot?.y ?? 0);
     planLeap(state, e, enemyDef(LEAPER));
     expect(dist(e.ai?.target ?? e.body.pos, e.body.pos)).toBeCloseTo(ENEMY_AI.leaper.maxLeap, 3);
+  });
+
+  it("中心の視線が通っても、体の幅が壁の角に掛かる道筋は壁の手前で着地する", () => {
+    const state = leapArena();
+    const { e, wallTile } = grazingLeap(state);
+    planLeap(state, e, enemyDef(LEAPER));
+    const target = e.ai?.target ?? e.body.pos;
+    expect(pathHitsWall(state, e.body.pos, target, e.body.radius), "着地点までの道筋は壁に掛からない").toBe(false);
+    expect(target.x, "壁のタイルを越えない").toBeGreaterThan((wallTile.x + 1) * TILE_SIZE);
+  });
+
+  it("跳躍の間ずっと壁にめり込まない（壁の角すれすれの配置でも）", () => {
+    const state = leapArena();
+    const { e } = grazingLeap(state);
+    untilWindup(state, e);
+    let sawStrike = false;
+    for (let i = 0; i < MAX_STEPS && e.phase !== "recover"; i++) {
+      tick(state);
+      if (e.phase === "strike") sawStrike = true;
+      expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), `${e.phase} で壁にめり込まない`).toBe(false);
+    }
+    expect(sawStrike, "跳んだ").toBe(true);
   });
 
   it("予備動作と空中では当たらず、影は着地まで残り、着地で円の中のプレイヤーに当たる", () => {

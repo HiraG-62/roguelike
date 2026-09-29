@@ -52,6 +52,7 @@ function addJin(state: GameState, id: number, formation: Jin["formation"], cente
     center: { ...center },
     facing: { x: 1, y: 0 },
     leaderId: null,
+    hpMul: 1,
     morale: 0,
     moraleMax: 0,
     phase: "sleeping",

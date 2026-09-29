@@ -106,7 +106,7 @@ describe("computeStats と共鳴", () => {
     expect(stats.resonance.colors).toEqual(["crimson"]);
     expect(stats.critChance).toBeCloseTo(0.05 + 0.1 * OFF_COLOR_DAMPING);
     // 共鳴の効果値には装備の強さの係数（FLUX.globalScale）が掛かる
-    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.2 + scaleFlat(0.1, 4));
+    expect(stats.increased.melee).toBeCloseTo(0.2 + scaleFlat(0.1, 4));
     expect(stats.triggers.some((t) => t.trigger === "everyNthMeleeHit" && t.effect === "burnNearby")).toBe(true);
   });
 

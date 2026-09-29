@@ -1,7 +1,7 @@
 import { FIXED_DT } from "../core/loop";
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, scale } from "../core/vec";
-import { type EnemyDef, depthDamageBonus } from "../data/enemies";
+import { type EnemyDef, depthDamage } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { addFloatingText, shake, spawnBurst } from "./effects";
@@ -151,26 +151,25 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
   const ai = e.ai;
   if (!ai) return;
   const k = BOSS.oilKing;
-  const bonus = depthDamageBonus(state.depth);
   const source = { defKey: e.defKey, roomIndex: e.roomIndex };
   switch (ai.move) {
     case OIL_JAR:
       e.phaseTimer = def.strikeTime * QUICK_STRIKE_RATIO;
       for (const p of ai.points ?? []) {
-        blastBoth(state, p, k.jarBlast, k.jarDamage + bonus, def.color, source, e.id);
+        blastBoth(state, p, k.jarBlast, depthDamage(k.jarDamage, state.depth), def.color, source, e.id);
         placeTerrain(state, p.x, p.y, "oil", k.jarRadius);
       }
       pushSfx(state, "oilSplash");
       return;
     case OIL_FIREBOMB:
       e.phaseTimer = def.strikeTime * QUICK_STRIKE_RATIO;
-      blastBoth(state, ai.target, k.fireBombRadius, k.fireBombDamage + bonus, "#ff6020", source, e.id);
+      blastBoth(state, ai.target, k.fireBombRadius, depthDamage(k.fireBombDamage, state.depth), "#ff6020", source, e.id);
       placeTerrain(state, ai.target.x, ai.target.y, "fire", k.fireBombRadius / 2);
       igniteTerrainAt(state, ai.target.x, ai.target.y, k.fireBombRadius);
       return;
     case OIL_SLAM:
       e.phaseTimer = def.strikeTime * SLAM_STRIKE_RATIO;
-      spawnShockwave(state, e.body.pos, k.slamRadius, k.slamDamage + bonus, e.id);
+      spawnShockwave(state, e.body.pos, k.slamRadius, depthDamage(k.slamDamage, state.depth), e.id);
       igniteTerrainAt(state, e.body.pos.x, e.body.pos.y, k.slamRadius);
       shake(state, FEEL.shakeSpecial);
       pushSfx(state, "wallHit");

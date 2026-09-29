@@ -1,3 +1,4 @@
+import { increasedMul } from "../core/damage";
 import { type Enemy, type GameState, type UltFxPart, type UltimateState, pushSfx } from "../core/state";
 import type { StatusApply } from "../core/status";
 import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
@@ -119,9 +120,12 @@ function activeSustain(state: GameState): SustainUltimate | undefined {
   return def?.kind === "sustain" ? def : undefined;
 }
 
-/** 奥義の行為の威力（係数表の評価 × burstDamageMul）。sustain 中の通常攻撃には掛けない */
+/**
+ * 奥義の行為の威力（係数表の評価 × 奥義の増）。sustain 中の通常攻撃には掛けない。
+ * 行為は rollOutgoing へ proc として渡るので、奥義の増はここで 1 回だけ掛ける
+ */
 export function ultimateDamage(stats: Readonly<PlayerStats>, scaling: Scaling): number {
-  return scaled(stats, scaling) * stats.burstDamageMul;
+  return scaled(stats, scaling) * increasedMul(stats.increased, "ultimate");
 }
 
 /**
@@ -279,7 +283,7 @@ function tryExecute(state: GameState, e: Enemy, ratio: number, dir: Vec): boolea
 }
 
 /**
- * 周囲攻撃（円月など）。半径に burstRadiusMul、威力に burstDamageMul。distance があれば照準の先（近くの敵へ寄せる）に
+ * 周囲攻撃（円月など）。半径に burstRadiusMul、威力に 奥義の増（increased.ultimate）。distance があれば照準の先（近くの敵へ寄せる）に
  * count 個の爆発として出す。clearsBullets なら範囲内の敵弾を消す
  */
 function runNova(state: GameState, def: UltimateDef, act: NovaAct, slot: ActSlot): number {
@@ -448,7 +452,7 @@ function lungeFx(state: GameState, from: Vec, to: Vec, color: string): void {
   }
 }
 
-/** 弾を出す（射撃扱い）。威力は係数 × burstDamageMul、曲射は近くの敵までの距離に落とす */
+/** 弾を出す（射撃扱い）。威力は係数 × 奥義の増（increased.ultimate）、曲射は近くの敵までの距離に落とす */
 function runVolley(state: GameState, t: ThrowArtDef): void {
   const s = state.stats;
   const target = autoAim(state, Number.POSITIVE_INFINITY);
@@ -788,7 +792,7 @@ export function ultimateFireRateMul(state: GameState): number {
 
 /**
  * 持続中の与ダメの倍率（近接・射撃。無ければ 1）。combat.ts の rollOutgoing から。
- * burstDamageMul は掛けない（奥義の行為だけに掛ける。通常攻撃への二重掛けを避ける）
+ * 奥義の増（increased.ultimate） は掛けない（奥義の行為だけに掛ける。通常攻撃への二重掛けを避ける）
  */
 export function ultimateOutgoingMul(state: GameState, enemy: Enemy | null): number {
   const s = activeSustain(state)?.sustain;

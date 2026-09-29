@@ -1,3 +1,4 @@
+import { type MoreMul, productMore } from "../core/damage";
 import type { Element } from "../core/element";
 import type { DamageKind, Enemy, GameState } from "../core/state";
 import type { StatusBag, StatusKind } from "../core/status";
@@ -13,7 +14,7 @@ import { BOONS, type BoonTag } from "./boonDefs";
 import { gainEnergy, healSustained, isLastKillInEngagedRoom, pacifistMercyClamp } from "./combat";
 import { addFloatingText, spawnRing } from "./effects";
 import { isEngaged } from "./engagement";
-import { KS, hasKeystone } from "./keystones";
+import { KS, hasKeystone, oathMore } from "./keystones";
 import { gainMana } from "./mana";
 import { addPoise, isStaggered, poiseRatio } from "./poise";
 import { applyStatus, enemiesInRadius, hasStatus } from "./statusEffects";
@@ -286,18 +287,20 @@ function skillBonus(state: GameState): number {
   return full + t.lowManaSkillMul * (1 - ratio);
 }
 
-/** 武器・地形の誓約（鉄・溜め・滑り・熾火） */
-function wave2KeystoneMul(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): number {
-  let mul = 1;
+/** 武器・地形の誓約（鉄・溜め・滑り・熾火）。持っている誓約ごとに 1 つの倍 */
+function wave2KeystoneMore(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean, out: MoreMul[]): void {
   const melee = kind === "melee" && !skill;
-  if (melee && hasKeystone(state, KS.ironOath)) mul *= holdsFavored(state) ? KEYSTONE.ironFavoredMul : KEYSTONE.ironUnfavoredMul;
-  if (melee && hasKeystone(state, KS.chargeOath)) mul *= chargeOathMul(state);
-  if (hasKeystone(state, KS.slickOath)) mul *= SLICK_GROUND.has(playerGround(state)) ? KEYSTONE.slickOnMul : KEYSTONE.slickOffMul;
+  if (melee && hasKeystone(state, KS.ironOath)) {
+    out.push(oathMore(KS.ironOath, holdsFavored(state) ? KEYSTONE.ironFavoredMul : KEYSTONE.ironUnfavoredMul));
+  }
+  if (melee && hasKeystone(state, KS.chargeOath)) out.push(oathMore(KS.chargeOath, chargeOathMul(state)));
+  if (hasKeystone(state, KS.slickOath)) {
+    out.push(oathMore(KS.slickOath, SLICK_GROUND.has(playerGround(state)) ? KEYSTONE.slickOnMul : KEYSTONE.slickOffMul));
+  }
   if (enemy !== null && hasKeystone(state, KS.emberOath)) {
     const lit = isBurning(enemy) || BURNING_GROUND.has(enemyGround(state, enemy));
-    mul *= lit ? KEYSTONE.emberOnMul : KEYSTONE.emberOffMul;
+    out.push(oathMore(KS.emberOath, lit ? KEYSTONE.emberOnMul : KEYSTONE.emberOffMul));
   }
-  return mul;
 }
 
 function chargeOathMul(state: GameState): number {
@@ -306,32 +309,45 @@ function chargeOathMul(state: GameState): number {
   return weaponCharges(state) ? KEYSTONE.chargeOathUnchargedMul : 1;
 }
 
-/** 誓約の掛け算（楔・読み勝ち・背水・死神 + 第 2 弾の武器・地形） */
-function keystoneOutgoingMul(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): number {
-  if (state.stats.keystones.length === 0) return 1;
-  let mul = wave2KeystoneMul(state, enemy, kind, skill);
-  if (enemy !== null && hasKeystone(state, KS.wedgeOath) && !isStaggered(enemy)) mul *= KEYSTONE.wedgeUnstaggeredMul;
+/**
+ * 誓約の倍（楔・読み勝ち・背水・死神 + 第 2 弾の武器・地形）。1 つの誓約につき 1 要素（system/damageMods.ts の collectMore が集める）。
+ * proc（燃焼・トリガーの衝撃波など）には掛けない
+ */
+export function keystoneMore(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): MoreMul[] {
+  const out: MoreMul[] = [];
+  if (kind === "proc" || state.stats.keystones.length === 0) return out;
+  wave2KeystoneMore(state, enemy, kind, skill, out);
+  if (enemy !== null && hasKeystone(state, KS.wedgeOath) && !isStaggered(enemy)) out.push(oathMore(KS.wedgeOath, KEYSTONE.wedgeUnstaggeredMul));
   if (enemy !== null && kind === "melee" && hasKeystone(state, KS.readOath) && enemy.phase !== "windup") {
-    mul *= KEYSTONE.readOffWindupDamageMul;
+    out.push(oathMore(KS.readOath, KEYSTONE.readOffWindupDamageMul));
   }
-  if (hasKeystone(state, KS.backwater) && isEngaged(state)) mul *= KEYSTONE.backwaterDamageMul;
+  if (hasKeystone(state, KS.backwater) && isEngaged(state)) out.push(oathMore(KS.backwater, KEYSTONE.backwaterDamageMul));
   if (hasKeystone(state, KS.reaperOath)) {
-    mul *= state.reaper === null ? KEYSTONE.reaperOathDamageMul : KEYSTONE.reaperOathHuntedMul;
+    out.push(oathMore(KS.reaperOath, state.reaper === null ? KEYSTONE.reaperOathDamageMul : KEYSTONE.reaperOathHuntedMul));
   }
-  return mul;
+  return out;
 }
 
 /**
- * 性質・誓約による与ダメージ倍率。proc（燃焼・トリガーの衝撃波など）には掛けない
- * （既存の会心・コンボと同じ扱い）
+ * 性質の条件付きの与ダメの加算（場・相手・第 2 弾・スキル）。増として装備の増と足す（system/damageMods.ts）。
+ * proc（燃焼・トリガーの衝撃波など）には掛けない（既存の会心・コンボと同じ扱い）
  */
-export function traitOutgoingMul(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): number {
-  if (kind === "proc") return 1;
+export function traitIncreased(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): number {
+  if (kind === "proc") return 0;
   let bonus = fieldBonus(state, kind) + wave2Bonus(state, enemy, kind, skill);
   if (enemy !== null) bonus += targetBonus(state, enemy);
   if (skill) bonus += skillBonus(state);
-  const mul = Math.max(TRIGGER.trait.minMul, 1 + bonus);
-  return mul * keystoneOutgoingMul(state, enemy, kind, skill);
+  return bonus;
+}
+
+/**
+ * 性質・誓約だけの与ダメの倍率（装備の増を含まない。テストと見積もり用）。
+ * 実際の与ダメは system/damageMods.ts が装備の増と traitIncreased を足してから誓約の倍を掛ける
+ */
+export function traitOutgoingMul(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean): number {
+  if (kind === "proc") return 1;
+  const mul = Math.max(TRIGGER.trait.minMul, 1 + traitIncreased(state, enemy, kind, skill));
+  return mul * productMore(keystoneMore(state, enemy, kind, skill));
 }
 
 // ---------------------------------------------------------------------------

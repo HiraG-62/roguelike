@@ -1,6 +1,6 @@
 import { type BossState, type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef, isBossClass } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef, isBossClass } from "../data/enemies";
 import { BOSS, FEEL, FLOOR_LORD } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
@@ -294,7 +294,7 @@ function beginJump(state: GameState, e: Enemy): void {
 
 function landKingSlime(state: GameState, e: Enemy, def: EnemyDef): void {
   const ks = BOSS.kingSlime;
-  const dmg = ks.shockDamage + depthDamageBonus(state.depth);
+  const dmg = depthDamage(ks.shockDamage, state.depth);
   spawnShockwave(state, e.body.pos, ks.shockRadius, dmg, e.id);
   spawnBurst(state, e.body.pos, def.color, 24, 160, 0.5, 3);
   shake(state, FEEL.shakeSpecial);
@@ -417,7 +417,7 @@ function fireBone(state: GameState, e: Enemy, dir: Vec): void {
     pos: add(e.body.pos, scale(dir, e.body.radius + 2)),
     vel: scale(dir, bl.bulletSpeed),
     radius: BONE_BULLET_RADIUS,
-    damage: bl.bulletDamage + depthDamageBonus(state.depth),
+    damage: depthDamage(bl.bulletDamage, state.depth),
     life: BONE_BULLET_LIFE,
     color: bl.color,
     kind: "proc",

@@ -2,7 +2,7 @@ import { actionKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { computeStats, statsSummary } from "../loot/stats";
+import { type DamageModDiff, computeStats, damageModDiffs, statsSummary } from "../loot/stats";
 import { DEFAULT_STATS, type Item, type PlayerStats } from "../loot/types";
 import { SKILL_DEFS, formatVariant, stoneLabel } from "../skills/data";
 import type { SkillStone } from "../skills/types";
@@ -88,6 +88,12 @@ function diffLine(key: NumericStatKey, before: number, after: number): TipLine |
   return { text, color: better ? COLOR_BETTER : COLOR_WORSE, mark: rises ? MARK_UP : MARK_DOWN, markColor: better ? COLOR_BETTER : COLOR_WORSE };
 }
 
+/** 与ダメの増・倍の差の行（上がるほど良い） */
+function modDiffLine(d: DamageModDiff): TipLine {
+  const color = d.rises ? COLOR_BETTER : COLOR_WORSE;
+  return { text: d.text, color, mark: d.rises ? MARK_UP : MARK_DOWN, markColor: color };
+}
+
 /**
  * 装備中の同部位と入れ替えたときに変わる能力値（共鳴の変化も computeStats に含まれる）。
  * 単一のスコアにはまとめず、項目ごとに ▲▼ と良し悪しの色で並べる
@@ -103,6 +109,7 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   const diffs = NUMERIC_STAT_KEYS.filter((key) => Math.abs(after[key] - before[key]) > EPSILON)
     .map((key) => diffLine(key, before[key], after[key]))
     .filter((line): line is TipLine => line !== null);
+  diffs.push(...damageModDiffs(before, after).map(modDiffLine));
   if (diffs.length === 0) return [head, { text: "能力値の変化なし", color: COLOR_DIM }];
   const shown = diffs.slice(0, DIFF_LINES_MAX);
   const rest = diffs.length - shown.length;

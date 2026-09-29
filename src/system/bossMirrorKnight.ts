@@ -1,7 +1,7 @@
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import type { StatusKind } from "../core/status";
 import { type Vec, add, fromAngle, length, normalize, scale } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { shake, spawnBurst } from "./effects";
 import { type EnemyTelegraph, createEnemy, scaledWindup } from "./enemies";
@@ -99,7 +99,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
   const m = BOSS.mirrorKnight;
   if (ai.move === MIRROR_WAVE) {
     e.phaseTimer = def.strikeTime;
-    const damage = m.waveDamage + depthDamageBonus(state.depth);
+    const damage = depthDamage(m.waveDamage, state.depth);
     for (const dir of fanDirections(e.strikeDir, m.waveCount, m.waveSpread)) {
       fireEnemyBullet(state, { pos: add(e.body.pos, scale(dir, e.body.radius + 2)), dir, speed: m.waveSpeed, damage, color: m.color, sourceId: e.id });
     }

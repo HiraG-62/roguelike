@@ -1,3 +1,4 @@
+import { type DamageTag, type MoreMul, withMore } from "../core/damage";
 import type { Rule } from "../core/rules";
 import type { GameState } from "../core/state";
 import { JOBS, JOB_KEYS, type JobKey, applyJobMul } from "../data/jobs";
@@ -42,6 +43,13 @@ export function isFavoredWeapon(stats: Readonly<PlayerStats>, job: JobKey): bool
   return !stats.unarmed && JOBS[job].favored.includes(stats.moveset);
 }
 
+/** 得意武器の倍の表示名 */
+export const FAVORED_WEAPON_LABEL = "得意武器";
+
+function favoredMore(tag: DamageTag): MoreMul {
+  return { source: "job:favored", label: FAVORED_WEAPON_LABEL, mul: JOB.favoredMeleeMul, tags: [tag] };
+}
+
 /**
  * ジョブのステータスの偏り・得意な武器種の上乗せ・弱点を stats に足す（渡した stats を書き換える。呼び出し側で複製済みのもの）。
  * 偏りは生値に足すので、逓減（deriveAttributes）はこの後にまとめて掛かる
@@ -51,11 +59,12 @@ export function applyJobStats(stats: PlayerStats, job: JobKey): void {
   for (const k of ATTR_KEYS) stats.attributes[k] += def.attributes[k] ?? 0;
   if (isFavoredWeapon(stats, job)) {
     // 銃の家系なら射撃側、それ以外は近接側へ上乗せする（docs/ideas/weapon-redesign.md 6 章）
+    // 威力は倍（ジョブの顔。装備の増と足さずに掛ける）
     if (isGun(MOVESETS[stats.moveset])) {
-      stats.rangedDamageMul *= JOB.favoredMeleeMul;
+      stats.more = withMore(stats.more, favoredMore("ranged"));
       stats.fireRateMul *= JOB.favoredAttackSpeedMul;
     } else {
-      stats.meleeDamageMul *= JOB.favoredMeleeMul;
+      stats.more = withMore(stats.more, favoredMore("melee"));
       stats.attackSpeedMul *= JOB.favoredAttackSpeedMul;
     }
   }

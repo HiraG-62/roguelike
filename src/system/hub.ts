@@ -5,7 +5,7 @@ import type { GameState, RoomState } from "../core/state";
 import { createTerrainLayer } from "../core/terrain";
 import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { FEEL, HUB, WEAPON } from "../data/tuning";
+import { FEEL, HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
 import { bulletOfBase } from "../loot/bullets";
@@ -14,7 +14,7 @@ import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
 import { addToStash, chooseUltimate, ultimateChoice } from "../loot/profile";
 import { findPendingBud } from "../loot/provenance";
-import { computeStats } from "../loot/stats";
+import { UNARMED_MORE, computeStats } from "../loot/stats";
 import { type Item, type Profile, type Slot, uniformAttributes } from "../loot/types";
 import { HUB_SPOT_KEYS, type HubLayout, type HubSpotKey, buildHubMap } from "../map/hubMap";
 import type { SkillProfile } from "../skills/types";
@@ -327,9 +327,9 @@ function enforceTrialWeapon(session: HubSession): void {
   const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
   if (state.stats.moveset === moveset && state.stats.bullet === bullet && !state.stats.unarmed) return;
   const prev = state.stats;
-  // 素手の威力の倍率は試す武器種には掛けない（素手のまま武器掛けで試したとき）
-  const unarmedMul = prev.unarmed ? WEAPON.unarmed.damageMul : 1;
-  state.stats = { ...prev, moveset, bullet, unarmed: false, meleeDamageMul: prev.meleeDamageMul / unarmedMul };
+  // 素手の威力の倍は試す武器種には掛けない（素手のまま武器掛けで試したとき）
+  const more = prev.more.filter((m) => m.source !== UNARMED_MORE.source);
+  state.stats = { ...prev, moveset, bullet, unarmed: false, more };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }

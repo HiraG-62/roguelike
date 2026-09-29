@@ -1,5 +1,6 @@
 import type { FrameInput } from "../core/input";
 import type { KeywordProfile } from "../core/keywords";
+import { withMore } from "../core/damage";
 import { type Enemy, type GameState, type Projectile, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, length, scale } from "../core/vec";
 import { VIEW_W } from "../core/view";
@@ -611,7 +612,7 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   if (boons.includes("glassJust")) out.maxHp = BOON.glassJustMaxHp;
   if (boons.includes("triggerHappy")) {
     out.fireRateMul *= BOON.triggerHappyFireMul;
-    out.rangedDamageMul *= BOON.triggerHappyDamageMul;
+    out.more = withMore(out.more, { source: "boon:triggerHappy", label: BOONS.triggerHappy.name, mul: BOON.triggerHappyDamageMul, tags: ["ranged"] });
   }
   if (boons.includes("oneWing")) out.dashCooldownMul += BOON.oneWingDashCooldownMul;
   if (boons.includes("comboClock")) out.comboWindowBonus -= FEEL.comboWindow * BOON.comboClockWindowMul;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DamageTag } from "../core/damage";
 import { ELEMENTS } from "../core/element";
 import { KEYWORDS, KEYWORD_DEFS, type Keyword, emptyProfile, kw, mergeProfiles, profileKeywords } from "../core/keywords";
 import { createRng } from "../core/rng";
@@ -60,6 +61,11 @@ const LEGACY_STATUS_TAGS: Readonly<Partial<Record<StatusKind, readonly BoonTag[]
   guarded: ["guarded"],
 };
 
+/** 旧 xxxDamageMul > 1 の読み替え（増が正、またはそのタグに掛かる倍が 1 より大きい。段取り 4a） */
+function damageRaised(stats: Readonly<PlayerStats>, tag: DamageTag): boolean {
+  return stats.increased[tag] > 0 || stats.more.some((m) => m.tags?.includes(tag) === true && m.mul > 1);
+}
+
 function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   const tags = new Set<BoonTag>();
   const effects = new Set(stats.triggers.map((t) => t.effect));
@@ -74,7 +80,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   if (stats.shockChance > 0 || effects.has("chainLightning")) tags.add("shock");
   if (stats.explodeOnKillChance > 0 || effects.has("explode") || ks.has(KS.blink)) tags.add("explode");
   if (
-    stats.meleeDamageMul > d.meleeDamageMul ||
+    damageRaised(stats, "melee") ||
     stats.meleeDamageFlat > d.meleeDamageFlat ||
     stats.attackSpeedMul > d.attackSpeedMul ||
     triggers.has("onMeleeHit") ||
@@ -84,7 +90,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
     tags.add("melee");
   }
   if (
-    stats.rangedDamageMul > d.rangedDamageMul ||
+    damageRaised(stats, "ranged") ||
     stats.rangedDamageFlat > d.rangedDamageFlat ||
     stats.fireRateMul > d.fireRateMul ||
     stats.projectileCount > d.projectileCount ||
@@ -109,7 +115,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   if (stats.comboDamagePerStack > 0 || stats.comboWindowBonus > 0 || conditions.has("comboAbove10")) tags.add("combo");
   if (
     stats.energyGainMul > d.energyGainMul ||
-    stats.burstDamageMul > d.burstDamageMul ||
+    damageRaised(stats, "ultimate") ||
     stats.burstRadiusMul > d.burstRadiusMul ||
     effects.has("energy") ||
     conditions.has("fullEnergy")

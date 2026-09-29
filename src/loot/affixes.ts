@@ -1,4 +1,5 @@
 import { BALANCE } from "../data/balance";
+import { type DamageTag, withMore } from "../core/damage";
 import { ELEMENTS, ELEMENT_LABEL, type Element } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import { formatMeters } from "../core/units";
@@ -408,7 +409,7 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: MELEE_SLOTS,
     curve: curveFor("meleeDamagePct"),
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
     },
   }),
   trait({
@@ -458,7 +459,7 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: ["mainHand", "ring"],
     curve: curveFor("damageVsStaggered"),
     apply: (s, v) => {
-      s.damageVsStaggeredMul += pct(v);
+      s.increased.vsStaggered += pct(v);
     },
   }),
 
@@ -471,7 +472,7 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: RANGED_SLOTS,
     curve: curveFor("rangedDamagePct"),
     apply: (s, v) => {
-      s.rangedDamageMul += pct(v);
+      s.increased.ranged += pct(v);
     },
   }),
   trait({
@@ -505,7 +506,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("projectiles"),
     apply: (s, v, v2) => {
       s.projectileCount += v;
-      s.rangedDamageMul -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
   trait({
@@ -702,7 +703,7 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: ["mainHand", "amulet"],
     curve: curveFor("burstDamage"),
     apply: (s, v) => {
-      s.burstDamageMul += pct(v);
+      s.increased.ultimate += pct(v);
     },
   }),
   trait({
@@ -809,8 +810,8 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: JEWELRY_SLOTS,
     curve: curveFor("hybridDamage"),
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
-      s.rangedDamageMul += pct(v);
+      s.increased.melee += pct(v);
+      s.increased.ranged += pct(v);
     },
   }),
   trait({
@@ -845,7 +846,7 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: ["mainHand"],
     curve: curveFor("crushing"),
     apply: (s, v, v2) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
       s.attackSpeedMul -= pct(v2);
     },
   }),
@@ -858,7 +859,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("frenzied"),
     apply: (s, v, v2) => {
       s.attackSpeedMul += pct(v);
-      s.meleeDamageMul -= pct(v2);
+      s.increased.melee -= pct(v2);
     },
   }),
   trait({
@@ -869,7 +870,7 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: ["mainHand"],
     curve: curveFor("overcharged"),
     apply: (s, v, v2) => {
-      s.rangedDamageMul += pct(v);
+      s.increased.ranged += pct(v);
       s.fireRateMul -= pct(v2);
     },
   }),
@@ -964,7 +965,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("shatterEdge"),
     apply: (s, v, v2) => {
       s.chillChance += pct(v);
-      s.damageVsStaggeredMul += pct(v2);
+      s.increased.vsStaggered += pct(v2);
     },
   }),
   trait({
@@ -1023,7 +1024,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("stormcaller"),
     apply: (s, v, v2) => {
       s.shockDamage += v;
-      s.rangedDamageMul -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
   trait({
@@ -1045,7 +1046,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("arcaneBattery"),
     apply: (s, v, v2) => {
       s.energyGainMul += pct(v);
-      s.burstDamageMul -= pct(v2);
+      s.increased.ultimate -= pct(v2);
     },
   }),
   trait({
@@ -1246,7 +1247,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("manaCostPct"),
     apply: (s, v, v2) => {
       s.manaCostMul -= pct(v);
-      s.skillDamageMul -= pct(v2);
+      s.increased.skill -= pct(v2);
     },
   }),
   trait({
@@ -1360,7 +1361,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("silencedKillMana"),
     apply: (s, v, v2) => {
       s.traits.silencedKillMana += v;
-      s.rangedDamageMul -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
   trait({
@@ -1418,9 +1419,9 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: JEWELRY_SLOTS,
     curve: curveFor("arcaneFocus"),
     apply: (s, v, v2) => {
-      s.skillDamageMul += pct(v);
-      s.meleeDamageMul -= pct(v2);
-      s.rangedDamageMul -= pct(v2);
+      s.increased.skill += pct(v);
+      s.increased.melee -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
 
@@ -1507,7 +1508,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("rotBurst"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onMeleeHit", condition: "targetMultiStatus", effect: "explode", magnitude: v });
-      s.meleeDamageMul -= pct(v2);
+      s.increased.melee -= pct(v2);
     },
   }),
   trait({
@@ -1602,7 +1603,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("fearPoise"),
     apply: (s, v, v2) => {
       s.traits.fearPoiseMul += pct(v);
-      s.meleeDamageMul -= pct(v2);
+      s.increased.melee -= pct(v2);
     },
   }),
   trait({
@@ -1614,7 +1615,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("vortexCore"),
     apply: (s, v, v2) => {
       s.traits.silencedPoiseMul += pct(v);
-      s.rangedDamageMul -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
   trait({
@@ -1659,7 +1660,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("staggerCharge"),
     apply: (s, v, v2) => {
       pushFixedTrigger(s, { trigger: "onStagger", condition: "always", effect: "energy", magnitude: v });
-      s.burstDamageMul -= pct(v2);
+      s.increased.ultimate -= pct(v2);
     },
   }),
   trait({
@@ -1805,8 +1806,8 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("sapling"),
     apply: (s, v) => {
       const bonus = pct(v) * s.traits.gearMargin;
-      s.meleeDamageMul += bonus;
-      s.rangedDamageMul += bonus;
+      s.increased.melee += bonus;
+      s.increased.ranged += bonus;
     },
   }),
   trait({
@@ -1830,8 +1831,8 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("invertedFeast"),
     apply: (s, v, v2) => {
       const inverted = s.traits.gearInverted;
-      s.meleeDamageMul += pct(v) * inverted;
-      s.rangedDamageMul += pct(v) * inverted;
+      s.increased.melee += pct(v) * inverted;
+      s.increased.ranged += pct(v) * inverted;
       s.damageTakenMul += pct(v2) * inverted;
     },
   }),
@@ -1875,8 +1876,8 @@ export const AFFIXES: readonly AffixDef[] = [
     slots: ["mainHand"],
     curve: curveFor("veteran"),
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
-      s.rangedDamageMul += pct(v);
+      s.increased.melee += pct(v);
+      s.increased.ranged += pct(v);
     },
   }),
   trait({
@@ -1950,7 +1951,7 @@ export const AFFIXES: readonly AffixDef[] = [
     curve: curveFor("stake"),
     apply: (s, v, v2) => {
       s.traits.stakeDamage += v;
-      s.rangedDamageMul -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
 
@@ -2243,7 +2244,7 @@ export const AFFIXES: readonly AffixDef[] = [
     cap: 100,
     apply: (s, v, v2) => {
       s.traits.rapidBrandChance = Math.min(1, s.traits.rapidBrandChance + pct(v));
-      s.rangedDamageMul -= pct(v2);
+      s.increased.ranged -= pct(v2);
     },
   }),
   trait({
@@ -2818,8 +2819,9 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     stage: "convert",
     apply: (s, v) => {
       const f = fraction(v);
-      const moved = s.meleeDamageMul * f;
-      s.meleeDamageMul -= moved;
+      // 基準の 1 を含む近接の倍率ごと移す（従来の meleeDamageMul × f と同じ量）
+      const moved = (BASE_MULTIPLIER + s.increased.melee) * f;
+      s.increased.melee -= moved;
       s.burnChance += f * BURN_CHANCE_PER_FRACTION;
       s.burnDps += moved * BURN_DPS_PER_MELEE_MUL;
     },
@@ -2835,7 +2837,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     apply: (s, v, v2) => {
       const extra = Math.max(0, s.projectileCount - BASE_PROJECTILES);
       const factor = Math.max(MIN_SPLIT_DAMAGE_FACTOR, 1 - fraction(v) * extra);
-      s.rangedDamageMul *= factor;
+      s.more = withMore(s.more, { source: "affix:cv_splitToPierce", label: "拡散を貫通に変換", mul: factor, tags: ["ranged"] });
       s.pierce += v2;
     },
   }),
@@ -2928,9 +2930,9 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     curve: curveFor("cv_meleeToRanged"),
     stage: "convert",
     apply: (s, v) => {
-      const moved = Math.max(0, s.meleeDamageMul - BASE_MULTIPLIER) * fraction(v);
-      s.meleeDamageMul -= moved;
-      s.rangedDamageMul += moved;
+      const moved = Math.max(0, s.increased.melee) * fraction(v);
+      s.increased.melee -= moved;
+      s.increased.ranged += moved;
     },
   }),
   trait({
@@ -2999,8 +3001,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     apply: (s, v) => {
       const moved = Math.max(0, s.poiseDamageMul - BASE_MULTIPLIER) * fraction(v);
       s.poiseDamageMul -= moved;
-      s.meleeDamageMul += moved * DAMAGE_PER_POISE;
-      s.rangedDamageMul += moved * DAMAGE_PER_POISE;
+      s.increased.melee += moved * DAMAGE_PER_POISE;
+      s.increased.ranged += moved * DAMAGE_PER_POISE;
     },
   }),
   trait({
@@ -3052,9 +3054,9 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     curve: curveFor("cv_burstToSkill"),
     stage: "convert",
     apply: (s, v) => {
-      const moved = Math.max(0, s.burstDamageMul - BASE_MULTIPLIER) * fraction(v);
-      s.burstDamageMul -= moved;
-      s.skillDamageMul += moved * SKILL_PER_BURST;
+      const moved = Math.max(0, s.increased.ultimate) * fraction(v);
+      s.increased.ultimate -= moved;
+      s.increased.skill += moved * SKILL_PER_BURST;
     },
   }),
   trait({
@@ -3141,8 +3143,8 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
     stage: "convert",
     apply: (s, v) => {
       const bonus = shedResist(s, fraction(v)) * DAMAGE_PER_RESIST_PCT;
-      s.meleeDamageMul += bonus;
-      s.rangedDamageMul += bonus;
+      s.increased.melee += bonus;
+      s.increased.ranged += bonus;
     },
   }),
   trait({
@@ -3375,6 +3377,25 @@ function focusInfuse(s: PlayerStats): void {
   for (const e of ELEMENTS) s.infuse[e] = e === best ? 1 : 0;
 }
 
+/** 硝子の砲の近接・射撃の倍 */
+const GLASS_CANNON_MUL = 2;
+const ATTACK_TAGS: readonly DamageTag[] = ["melee", "ranged"];
+const SKILL_TAGS: readonly DamageTag[] = ["skill"];
+const ATTACK_SKILL_TAGS: readonly DamageTag[] = ["melee", "ranged", "skill"];
+/** 1 つの誓約が近接・射撃とスキルに別の倍を持つときのスキル側（source と表示名の添え） */
+const SKILL_PART = { suffix: "skill", label: "スキル" } as const;
+
+/**
+ * 誓約の与ダメは増ではなく倍（ビルドの顔。docs/ideas/scaling-impl.md 2-1）。
+ * source は "keystone:<key>"。part は 1 つの誓約が対象ごとに別の倍を持つときの添え（source と表示名を分ける）
+ */
+function oathMore(s: PlayerStats, key: string, mul: number, tags: readonly DamageTag[], part?: { suffix: string; label: string }): void {
+  const name = keystoneDef(key)?.name ?? key;
+  const source = part === undefined ? `keystone:${key}` : `keystone:${key}:${part.suffix}`;
+  const label = part === undefined ? name : `${name}（${part.label}）`;
+  s.more = withMore(s.more, { source, label, mul, tags });
+}
+
 export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_glassCannon",
@@ -3382,8 +3403,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     description: "近接・射撃ダメージが2倍になる。最大生命が1/4になる。",
     exclusiveGroup: "body",
     apply: (s) => {
-      s.meleeDamageMul += 1;
-      s.rangedDamageMul += 1;
+      oathMore(s, "ks_glassCannon", GLASS_CANNON_MUL, ATTACK_TAGS);
       s.maxHp *= 0.25;
     },
   },
@@ -3477,7 +3497,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     description: "気力が足りなくても、不足分を生命で払ってスキルを撃てる（気力1につき生命0.5）。スキル威力 -10%。",
     exclusiveGroup: "mana",
     apply: (s) => {
-      s.skillDamageMul -= OVERDRAW_SKILL_PENALTY;
+      oathMore(s, "ks_overdraw", 1 - OVERDRAW_SKILL_PENALTY, SKILL_TAGS);
     },
   },
   {
@@ -3487,7 +3507,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     exclusiveGroup: "mana",
     apply: (s) => {
       s.manaRegen *= SILENT_VOW_REGEN_MUL;
-      s.skillDamageMul += SILENT_VOW_SKILL_BONUS;
+      oathMore(s, "ks_silentVow", 1 + SILENT_VOW_SKILL_BONUS, SKILL_TAGS);
     },
   },
   {
@@ -3536,8 +3556,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     description: "敵が倒れると、付いていた状態異常が周囲の敵へすべて移る。近接・射撃ダメージ -40%。",
     exclusiveGroup: "status",
     apply: (s) => {
-      s.meleeDamageMul *= KEYSTONE.contagionDamageMul;
-      s.rangedDamageMul *= KEYSTONE.contagionDamageMul;
+      oathMore(s, "ks_contagion", KEYSTONE.contagionDamageMul, ATTACK_TAGS);
     },
   },
   {
@@ -3556,9 +3575,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     exclusiveGroup: "poise",
     apply: (s) => {
       const bonus = KEYSTONE.unshakenDamageBonus + Math.max(0, s.poiseDamageMul - BASE_MULTIPLIER) * KEYSTONE.unshakenPoiseToDamage;
-      s.meleeDamageMul += bonus;
-      s.rangedDamageMul += bonus;
-      s.skillDamageMul += bonus;
+      oathMore(s, "ks_unshaken", 1 + bonus, ATTACK_SKILL_TAGS);
       s.poiseDamageMul = 0;
     },
   },
@@ -3600,9 +3617,9 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     description: "近接・射撃の与ダメージが30%になる。通常攻撃の命中で戻る気力が4倍になり、スキル威力 +50%。",
     exclusiveGroup: "mana",
     apply: (s) => {
-      s.meleeDamageMul *= KEYSTONE.chantAttackDamageMul;
-      s.rangedDamageMul *= KEYSTONE.chantAttackDamageMul;
-      s.skillDamageMul += KEYSTONE.chantSkillBonus;
+      oathMore(s, "ks_chant", KEYSTONE.chantAttackDamageMul, ATTACK_TAGS);
+      // 近接のスキルは両方に当たる（従来の近接 × スキルと同じ）ので source を分ける
+      oathMore(s, "ks_chant", 1 + KEYSTONE.chantSkillBonus, SKILL_TAGS, SKILL_PART);
     },
   },
   {
@@ -3632,9 +3649,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     description: "装備の来歴が3倍の早さで積もる。近接・射撃・スキルの与ダメージ -20%。",
     exclusiveGroup: "chronicle",
     apply: (s) => {
-      s.meleeDamageMul *= KEYSTONE.disciplineDamageMul;
-      s.rangedDamageMul *= KEYSTONE.disciplineDamageMul;
-      s.skillDamageMul *= KEYSTONE.disciplineDamageMul;
+      oathMore(s, "ks_discipline", KEYSTONE.disciplineDamageMul, ATTACK_SKILL_TAGS);
     },
   },
   {
@@ -3655,8 +3670,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     exclusiveGroup: "element",
     apply: (s) => {
       focusInfuse(s);
-      s.meleeDamageMul += KEYSTONE.oneElementDamageBonus;
-      s.rangedDamageMul += KEYSTONE.oneElementDamageBonus;
+      oathMore(s, "ks_oneElement", 1 + KEYSTONE.oneElementDamageBonus, ATTACK_TAGS);
       for (const e of ELEMENTS) if (e !== "none") s.resist[e] -= KEYSTONE.oneElementResistLoss;
     },
   },
@@ -3674,8 +3688,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
     exclusiveGroup: "element",
     apply: (s) => {
       for (const e of ELEMENTS) s.infuse[e] = 0;
-      s.meleeDamageMul += KEYSTONE.nullOathDamageBonus;
-      s.rangedDamageMul += KEYSTONE.nullOathDamageBonus;
+      oathMore(s, "ks_nullOath", 1 + KEYSTONE.nullOathDamageBonus, ATTACK_TAGS);
       s.statusPotencyMul *= KEYSTONE.nullOathPotencyMul;
     },
   },
@@ -3779,7 +3792,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       s.attackSpeedMul += pct(v);
       s.critChance += pct(3);
-      s.meleeDamageMul -= pct(20);
+      s.increased.melee -= pct(20);
       s.meleeReachMul -= pct(15);
     },
   },
@@ -3788,7 +3801,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "近接ダメージ +{v}%",
     range: { min: 8, max: 12 },
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
     },
   },
   {
@@ -3796,7 +3809,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "近接ダメージ +{v}%、リーチ +10%、攻撃速度 -5%",
     range: { min: 15, max: 22 },
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
       s.meleeReachMul += pct(10);
       s.attackSpeedMul -= pct(5);
     },
@@ -3808,7 +3821,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       s.meleeReachMul += pct(v);
       s.knockbackMul += pct(15);
-      s.meleeDamageMul -= pct(10);
+      s.increased.melee -= pct(10);
     },
   },
   {
@@ -3816,7 +3829,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "近接ダメージ +{v}%、リーチ +20%、攻撃速度 -25%",
     range: { min: 35, max: 45 },
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
       s.meleeReachMul += pct(20);
       s.attackSpeedMul -= pct(25);
     },
@@ -3835,7 +3848,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "怯み中の敵へのダメージ +{v}%、ノックバック +25%、攻撃速度 -15%",
     range: { min: 40, max: 55 },
     apply: (s, v) => {
-      s.damageVsStaggeredMul += pct(v);
+      s.increased.vsStaggered += pct(v);
       s.knockbackMul += pct(25);
       s.attackSpeedMul -= pct(15);
     },
@@ -3846,7 +3859,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "射撃ダメージ +{v}%",
     range: { min: 5, max: 10 },
     apply: (s, v) => {
-      s.rangedDamageMul += pct(v);
+      s.increased.ranged += pct(v);
     },
   },
   {
@@ -3855,7 +3868,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 40, max: 60 },
     apply: (s, v) => {
       s.fireRateMul += pct(v);
-      s.rangedDamageMul -= pct(30);
+      s.increased.ranged -= pct(30);
     },
   },
   {
@@ -3863,7 +3876,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "射撃ダメージ +{v}%、貫通 +1、弾速 +25%、連射速度 -20%",
     range: { min: 30, max: 40 },
     apply: (s, v) => {
-      s.rangedDamageMul += pct(v);
+      s.increased.ranged += pct(v);
       s.pierce += 1;
       s.projectileSpeedMul += pct(25);
       s.fireRateMul -= pct(20);
@@ -3875,7 +3888,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 2, max: 3 },
     apply: (s, v) => {
       s.projectileCount += v;
-      s.rangedDamageMul -= pct(40);
+      s.increased.ranged -= pct(40);
       s.fireRateMul -= pct(30);
       s.projectileSpeedMul -= pct(25);
     },
@@ -3886,7 +3899,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 8, max: 12 },
     apply: (s, v) => {
       s.critChance += pct(v);
-      s.rangedDamageMul += pct(20);
+      s.increased.ranged += pct(20);
       s.fireRateMul -= pct(25);
     },
   },
@@ -3942,7 +3955,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "近接ダメージ +{v}%、被ダメージ +10%",
     range: { min: 12, max: 18 },
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
       s.damageTakenMul += pct(10);
     },
   },
@@ -4004,7 +4017,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "近接ダメージ +{v}%",
     range: { min: 4, max: 8 },
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
     },
   },
   {
@@ -4012,7 +4025,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "射撃ダメージ +{v}%",
     range: { min: 4, max: 8 },
     apply: (s, v) => {
-      s.rangedDamageMul += pct(v);
+      s.increased.ranged += pct(v);
     },
   },
   {
@@ -4089,7 +4102,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "奥義の威力 +{v}%、奥義ゲージ獲得 -8%",
     range: { min: 15, max: 25 },
     apply: (s, v) => {
-      s.burstDamageMul += pct(v);
+      s.increased.ultimate += pct(v);
       s.energyGainMul -= pct(8);
     },
   },
@@ -4132,7 +4145,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       s.poiseDamageMul += pct(v);
       s.manaGainMul += pct(20);
-      s.meleeDamageMul -= pct(20);
+      s.increased.melee -= pct(20);
     },
   },
   {
@@ -4142,7 +4155,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       s.fireRateMul += pct(v);
       s.critChance += pct(3);
-      s.rangedDamageMul -= pct(15);
+      s.increased.ranged -= pct(15);
     },
   },
   {
@@ -4162,7 +4175,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     apply: (s, v) => {
       pushProc(s, statusProc("poison", BLOWGUN_POISON_PCT, STATUS.poison.duration, STATUS.poison.hpRatioPerSec, "ranged"));
       s.statusPotencyMul += pct(v);
-      s.rangedDamageMul -= pct(35);
+      s.increased.ranged -= pct(35);
     },
   },
   {
@@ -4285,7 +4298,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     label: "近接ダメージ +{v}%、被ダメージ +5%",
     range: { min: 6, max: 10 },
     apply: (s, v) => {
-      s.meleeDamageMul += pct(v);
+      s.increased.melee += pct(v);
       s.damageTakenMul += pct(5);
     },
   },
@@ -4328,7 +4341,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     decimals: 1,
     apply: (s, v) => {
       s.manaRegen += v;
-      s.meleeDamageMul -= pct(10);
+      s.increased.melee -= pct(10);
     },
   },
   {

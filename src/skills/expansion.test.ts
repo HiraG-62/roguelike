@@ -94,6 +94,14 @@ function has(e: Enemy, kind: StatusKind): boolean {
   return e.status.effects.some((s) => s.kind === kind && s.time > 0);
 }
 
+/**
+ * 確率の抽選をすべて外す。属性の相性の抽選（ELEMENT.affinity、命中の 1 割で属性の状態異常を付ける）が
+ * 消費系のスキルの命中で燃焼・毒・感電を付け直すと「消える」の検証が乱数の位置しだいになるため
+ */
+function missAllChances(state: GameState): void {
+  state.rng = { ...state.rng, chance: () => false };
+}
+
 function give(state: GameState, e: Enemy, kind: StatusKind, stacks = 1, potency = 1, duration = 5): void {
   applyStatus(state, { kind: "enemy", enemy: e }, { kind, stacks, duration, potency }, "player");
 }
@@ -139,6 +147,7 @@ describe("消費系のスキル", () => {
 
   it("燃え種爆ぜ: 燃焼を消して爆発させる。燃焼が無ければ撃てない", () => {
     const state = skillArena([{ key: "kindle" }]);
+    missAllChances(state);
     const e = tough(state, 60);
     cast(state, e.body.pos);
     expect(state.player.mana, "燃焼なしは払わない").toBe(state.stats.maxMana);
@@ -166,6 +175,7 @@ describe("消費系のスキル", () => {
     cast(plain);
     run(plain, 0.3);
     const poisoned = skillArena([{ key: "harvest" }]);
+    missAllChances(poisoned);
     const b = tough(poisoned, 40);
     give(poisoned, b, "poison", 2, 0, 5);
     const hpBefore = b.hp;
@@ -177,6 +187,7 @@ describe("消費系のスキル", () => {
 
   it("放電: 感電した敵から自分へ雷が戻り、感電は消える。感電が無ければ撃てない", () => {
     const state = skillArena([{ key: "discharge" }]);
+    missAllChances(state);
     const e = tough(state, 80);
     cast(state);
     expect(state.player.mana).toBe(state.stats.maxMana);

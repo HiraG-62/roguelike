@@ -15,6 +15,7 @@ function makeJin(patch: Partial<Jin> = {}): Jin {
     center: { x: 0, y: 0 },
     facing: { x: 1, y: 0 },
     leaderId: null,
+    hpMul: 1,
     morale: 6,
     moraleMax: 6,
     phase: "engaged",

@@ -1,7 +1,7 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, depthHpScale, enemyDef } from "../data/enemies";
 import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
@@ -283,7 +283,7 @@ function handleDeaths(state: GameState): void {
     if (def.behavior === "bomber" && !e.vanished) {
       // 持っていた爆弾がその場に落ち、予告の後に爆ぜる（即時の爆発は近接で倒すと避けられない。テレグラフ原則）
       const b = ENEMY_AI.bomber;
-      spawnBomb(state, e.body.pos, b.damage + depthDamageBonus(state.depth), e.id, b.deathFuse, b.radius);
+      spawnBomb(state, e.body.pos, depthDamage(b.damage, state.depth), e.id, b.deathFuse, b.radius);
     }
     if (def.behavior === "wisp" && !e.vanished) {
       // 即時爆発だと近接で倒しても避けられないので、bomb と同じ仕組みでテレグラフしてから爆発させる
@@ -695,7 +695,6 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
   if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
   e.phase = "strike";
   e.phaseTimer = def.strikeTime;
-  const dmgBonus = depthDamageBonus(state.depth);
 
   switch (def.behavior) {
     case "shooter":
@@ -703,12 +702,12 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
       spawnBurst(state, e.body.pos, ENEMY_BULLET_COLOR, 4, 50, 0.15, 1.5);
       return;
     case "bomber":
-      throwBombs(state, e, def, dmgBonus);
+      throwBombs(state, e, def);
       return;
     case "laser": {
       const l = ENEMY_AI.laser;
       const target = e.ai?.target ?? add(e.body.pos, scale(e.strikeDir, l.length));
-      spawnLaser(state, e.body.pos, target, def.strikeTime, l.damage + dmgBonus, e.id);
+      spawnLaser(state, e.body.pos, target, def.strikeTime, depthDamage(l.damage, state.depth), e.id);
       shake(state, FEEL.shakeLight);
       pushSfx(state, "enemyShoot");
       pushSfx(state, "laserFire");
@@ -719,7 +718,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
       return;
     case "golem": {
       const g = ENEMY_AI.golem;
-      spawnShockwave(state, e.body.pos, g.ringRadius, g.damage + dmgBonus, e.id);
+      spawnShockwave(state, e.body.pos, g.ringRadius, depthDamage(g.damage, state.depth), e.id);
       spawnBurst(state, e.body.pos, g.color, 16, 120, 0.4, 2.5);
       shake(state, FEEL.shakeHeavy);
       pushSfx(state, "wallHit");
@@ -851,7 +850,7 @@ function fireVolley(state: GameState, e: Enemy, def: EnemyDef): void {
   }
   const v = def.volley;
   const speed = ENEMY_BULLET_SPEED * (v.speedMul ?? 1);
-  const damage = Math.round((ENEMY_BULLET_DAMAGE + depthDamageBonus(state.depth)) * (v.damageMul ?? 1));
+  const damage = Math.round((depthDamage(ENEMY_BULLET_DAMAGE, state.depth)) * (v.damageMul ?? 1));
   for (const dir of fanDirections(e.strikeDir, v.count, v.spreadDeg)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed, damage, color: def.color, radius: v.radius, sourceId: e.id });
@@ -860,11 +859,11 @@ function fireVolley(state: GameState, e: Enemy, def: EnemyDef): void {
 }
 
 /** 爆弾を投げる。volley があれば扇に並べて複数（連投ゴブリン） */
-function throwBombs(state: GameState, e: Enemy, def: EnemyDef, dmgBonus: number): void {
+function throwBombs(state: GameState, e: Enemy, def: EnemyDef): void {
   const b = ENEMY_AI.bomber;
   const v = def.volley;
   const dirs = v ? fanDirections(e.strikeDir, v.count, v.spreadDeg) : [e.strikeDir];
-  const damage = Math.round((b.damage + dmgBonus) * (v?.damageMul ?? 1));
+  const damage = Math.round(depthDamage(b.damage, state.depth) * (v?.damageMul ?? 1));
   for (const dir of dirs) {
     const target = add(e.body.pos, scale(dir, b.throwDist));
     const pos = overlapsWall(state, target.x, target.y, 2) ? { ...e.body.pos } : target;
@@ -944,7 +943,7 @@ function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResul
   if (state.skills.shape?.key === "wraithForm") return null;
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return null;
-  const result = damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e);
+  const result = damagePlayer(state, depthDamage(damage, state.depth), e.body.pos, e);
   if (result === "hit") {
     inflictOnPlayer(state, e, "contact");
     onRallyContact(state, e);
@@ -1037,7 +1036,7 @@ function dropRocks(state: GameState, e: Enemy): void {
     const a = state.rng.next() * Math.PI * 2;
     const q = add(center, scale(fromAngle(a), state.rng.next() * r.spread));
     if (overlapsWall(state, q.x, q.y, 2)) continue;
-    spawnBomb(state, q, r.damage + depthDamageBonus(state.depth), e.id, r.fuse, r.radius);
+    spawnBomb(state, q, depthDamage(r.damage, state.depth), e.id, r.fuse, r.radius);
   }
 }
 
@@ -1067,7 +1066,7 @@ function fireAtPlayer(state: GameState, e: Enemy): void {
     pos: add(e.body.pos, scale(dir, e.body.radius + 2)),
     dir,
     speed: ENEMY_BULLET_SPEED,
-    damage: ENEMY_BULLET_DAMAGE + depthDamageBonus(state.depth),
+    damage: depthDamage(ENEMY_BULLET_DAMAGE, state.depth),
     color: ENEMY_BULLET_COLOR,
     sourceId: e.id,
   });

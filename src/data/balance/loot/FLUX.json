@@ -1,0 +1,33 @@
+{
+  "_note": "性質の揺らぎ（期待値 + 分散）と装備の強さの係数。loot/flux.ts が読む（docs/LOOT_DESIGN.md「揺らぎ」、docs/ideas/scaling-impl.md 2-5）。値 = 期待値 × (1 + flux)。flux は三角分布 [−lowScale×σ, 0, +highScale×σ]。2026-09-30（4b）: 下振れを狭めた（lowScale 1.3→0.4・minFlux −0.9→−0.4。期待値の 0.6〜1.8 倍）。globalScale は据え置き（下振れが消えたぶんの平均の上昇の相殺は 4d の計測で決める）。TS 直書きだった定数をここへ移した。flux の幅が約半分になったので、見た目の分類の境界も 0.15 / 0.45 → 0.07 / 0.21 に縮めた（静・揺・荒の出る割合を深度・boost ごとに旧分布へ合わせた。据え置くと荒がほぼ出ず、ボス・挑戦・闘技場の「rare 確定」が引き直しの上限で外れる）",
+  "_fields": {
+    "sigma.base": "揺らぎの幅 σ の深度 0 での値。σ = min(base + perDepth × 深度, max) × (1 + boost × perBoost)",
+    "sigma.perDepth": "深度 1 つごとに広がる σ",
+    "sigma.max": "σ の上限（boost 前）",
+    "sigma.perBoost": "ドロップ元の boost（ボス・宝物庫など）1 あたりの σ の増加率",
+    "flux.lowScale": "三角分布の下端（σ に対する倍率）。小さいほど下振れが浅い。σ が上限のとき −lowScale が最悪の値",
+    "flux.highScale": "三角分布の上端（σ に対する倍率）。σ が上限のとき +highScale（0.8 で期待値の 1.8 倍）が最良の値",
+    "flux.min": "反転していない性質の flux の下限（値が 0 や負にならないように。−0.4 で期待値の 0.6 倍が底）",
+    "flux.maxConversion": "変換の性質の flux の上限（変換割合が 100% を大きく超えないように）",
+    "inversion.minDepth": "反転（flux < −1 で値が負になる）が起こり始める発見深度",
+    "inversion.baseChance": "反転の確率の基本（minDepth のとき）",
+    "inversion.chancePerDepth": "minDepth より深い階 1 つごとに増える反転の確率",
+    "inversion.maxChance": "反転の確率の上限",
+    "inversion.magnitudeMin": "反転したときの |値| / 期待値 の下限",
+    "inversion.magnitudeMax": "反転したときの |値| / 期待値 の上限",
+    "class.calmLimit": "見た目の分類（静 / 揺 / 荒）の境界。|flux| の最大がこれ未満なら静",
+    "class.waverLimit": "|flux| の最大がこれ未満なら揺、以上なら荒（反転は別に unique）",
+    "globalScale": "生成時の期待値と共鳴・三和音の効果値に全深度で掛ける係数（memo 2026-09-24: 序盤から装備が強すぎる）。期待値の曲線（affixCurves）は触らない",
+    "depthScale": "深度ごとの追加の係数（depth / scale の点列を線形補間、範囲外は端の値）。浅い層ほど小さくし、深度 1〜5 の伸びを緩やかにする"
+  },
+  "sigma": { "base": 0.12, "perDepth": 0.05, "max": 1, "perBoost": 0.1 },
+  "flux": { "lowScale": 0.4, "highScale": 0.8, "min": -0.4, "maxConversion": 0.5 },
+  "inversion": { "minDepth": 13, "baseChance": 0.04, "chancePerDepth": 0.01, "maxChance": 0.15, "magnitudeMin": 0.2, "magnitudeMax": 0.9 },
+  "class": { "calmLimit": 0.07, "waverLimit": 0.21 },
+  "globalScale": 0.8,
+  "depthScale": [
+    { "depth": 1, "scale": 0.75 },
+    { "depth": 5, "scale": 0.85 },
+    { "depth": 10, "scale": 1 }
+  ]
+}

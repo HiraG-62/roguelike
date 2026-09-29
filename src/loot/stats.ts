@@ -1,3 +1,4 @@
+import { DAMAGE_TAGS, type DamageTag, type MoreMul, dedupeMore, withMore } from "../core/damage";
 import { ELEMENTS, ELEMENT_LABEL } from "../core/element";
 import { HEAL, MANA, STATUS, WEAPON } from "../data/tuning";
 import { DEFAULT_MOVESET } from "../data/weapons";
@@ -30,6 +31,8 @@ const MIN_DASH_CHARGES = 1;
 const EPSILON = 1e-6;
 const PERCENT_SCALE = 100;
 const DISPLAY_DECIMALS = 1;
+/** 倍の表示の小数の桁 */
+const MORE_DECIMALS = 2;
 
 /** PlayerStats のうち数値のフィールド（keystones / triggers などの配列は除く） */
 type StatKey = {
@@ -40,23 +43,18 @@ const MULTIPLIER_KEYS: readonly StatKey[] = [
   "moveSpeedMul",
   "dashCooldownMul",
   "dashDistanceMul",
-  "meleeDamageMul",
   "attackSpeedMul",
   "meleeReachMul",
   "knockbackMul",
-  "damageVsStaggeredMul",
-  "rangedDamageMul",
   "fireRateMul",
   "projectileSpeedMul",
   "critMul",
   "energyGainMul",
-  "burstDamageMul",
   "burstRadiusMul",
   "justDodgeDamageMul",
   // マナの性質（スキルのコスト −% と威力の代償）を重ねても 0 以下にしない
   "manaGainMul",
   "manaCostMul",
-  "skillDamageMul",
   // 多彩（効果量 −）などの代償を重ねても 0 以下にしない
   "statusPotencyMul",
 ];
@@ -77,10 +75,11 @@ export const SOFT_CAP_THRESHOLD = 2;
  */
 const SOFT_CAP_KNEE = 0.4;
 
-/** ソフトキャップ対象（「1 種類を盛る」を鈍らせたい主要倍率） */
+/**
+ * ソフトキャップ対象（速さだけ。与ダメの増は加算なので積むほど 1 点の価値が下がり、圧縮しない。
+ * docs/ideas/scaling-impl.md 2-2）
+ */
 const SOFT_CAPPED_KEYS: readonly StatKey[] = [
-  "meleeDamageMul",
-  "rangedDamageMul",
   "attackSpeedMul",
   "fireRateMul",
   "moveSpeedMul",
@@ -128,6 +127,8 @@ function withConstellation(resonance: Resonance, equipment: Equipment): Resonanc
 function createBaseStats(): PlayerStats {
   return {
     ...DEFAULT_STATS,
+    increased: { ...DEFAULT_STATS.increased },
+    more: [],
     keystones: [...DEFAULT_STATS.keystones],
     triggers: [...DEFAULT_STATS.triggers],
     resonance: {
@@ -229,8 +230,8 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
  * 4. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
  *    地金（全部位）→ 装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
  * 5. 共鳴の効果を畳み込む。星座（6 部位の主色の並び）が成立していればその効果も（虚空は 3 の後に反転を打ち消す）
- * 6. 主要倍率にソフトキャップ
- * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。HP 倍率も flat 合算後に掛かる）
+ * 6. 速さの倍率にソフトキャップ
+ * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。与ダメは倍（more）に入る。HP 倍率も flat 合算後に掛かる）
  * 8. 整数化・クランプ
  */
 export function computeStats(equipment: Equipment): PlayerStats {
@@ -263,8 +264,16 @@ function applyWeaponForms(stats: PlayerStats, equipment: Equipment): void {
   // 素手は拳と同じ動きができるが、武器を持つ意味を残すため威力を下げる。
   // 右手に物があれば素手ではない（未知のベースは壊れたデータなので型だけ既定へ落とし、威力は削らない）
   stats.unarmed = !equipment.mainHand;
-  if (stats.unarmed) stats.meleeDamageMul *= WEAPON.unarmed.damageMul;
+  if (stats.unarmed) stats.more = withMore(stats.more, UNARMED_MORE);
 }
+
+/** 素手の威力の倍（近接だけ。拠点の武器掛けで試すときは source で外す） */
+export const UNARMED_MORE: Readonly<MoreMul> = {
+  source: "unarmed",
+  label: "素手",
+  mul: WEAPON.unarmed.damageMul,
+  tags: ["melee"],
+};
 
 // ---------------------------------------------------------------------------
 // 表示
@@ -300,14 +309,11 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   dashDistanceMul: { label: "ダッシュ距離", style: "mul" },
   dashInvulnBonus: { label: "ダッシュの無敵時間", style: "flat" },
 
-  meleeDamageMul: { label: "近接ダメージ", style: "mul" },
   meleeDamageFlat: { label: "近接ダメージ（固定値）", style: "flat" },
   attackSpeedMul: { label: "攻撃速度", style: "mul" },
   meleeReachMul: { label: "リーチ", style: "mul" },
   knockbackMul: { label: "ノックバック", style: "mul" },
-  damageVsStaggeredMul: { label: "怯み中の敵へのダメージ", style: "mul" },
 
-  rangedDamageMul: { label: "射撃ダメージ", style: "mul" },
   rangedDamageFlat: { label: "射撃ダメージ（固定値）", style: "flat" },
   fireRateMul: { label: "連射速度", style: "mul" },
   projectileCount: { label: "弾数", style: "flat" },
@@ -318,7 +324,6 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   critMul: { label: "会心倍率", style: "percent" },
 
   energyGainMul: { label: "奥義ゲージ獲得", style: "mul" },
-  burstDamageMul: { label: "奥義の威力", style: "mul" },
   burstRadiusMul: { label: "奥義の範囲", style: "mul" },
 
   comboWindowBonus: { label: "コンボ猶予", style: "seconds" },
@@ -340,7 +345,6 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   manaGainMul: { label: "気力回収", style: "mul" },
   manaCostMul: { label: "スキルのコスト", style: "mul" },
   manaOnKill: { label: "撃破時気力回収", style: "flat" },
-  skillDamageMul: { label: "スキル威力", style: "mul" },
   poiseDamageMul: { label: "怯み値", style: "mul" },
   statusPotencyMul: { label: "状態異常の効果量", style: "mul" },
   statusTakenMul: { label: "受ける状態異常の持続", style: "mul" },
@@ -370,13 +374,95 @@ function formatStat(format: StatFormat, value: number): string {
   }
 }
 
-/** DEFAULT_STATS と異なる数値項目だけを表示用文字列で列挙する（keystones / triggers は対象外） */
+/** DEFAULT_STATS と異なる数値項目だけを表示用文字列で列挙する（keystones / triggers は対象外）。増・倍は数値項目の後 */
 export function statsSummary(stats: PlayerStats): string[] {
   const keys = Object.keys(STAT_FORMATS) as StatKey[];
   const lines = keys
     .filter((key) => Math.abs(stats[key] - DEFAULT_STATS[key]) > EPSILON)
     .map((key) => formatStat(STAT_FORMATS[key], stats[key]));
-  return [...lines, ...elementSummary(stats)];
+  return [...lines, ...increasedSummary(stats), ...moreSummary(stats), ...elementSummary(stats)];
+}
+
+/** 増のタグの表示名（「近接ダメージ 増 +20%」の頭）。docs/GLOSSARY.md「増 / 倍」 */
+export const INCREASED_LABEL: Readonly<Record<DamageTag, string>> = {
+  melee: "近接ダメージ",
+  ranged: "射撃ダメージ",
+  skill: "スキル威力",
+  ultimate: "奥義の威力",
+  proc: "追加効果のダメージ",
+  dot: "継続ダメージ",
+  area: "範囲ダメージ",
+  placed: "設置物のダメージ",
+  minion: "従魔のダメージ",
+  fire: "炎属性のダメージ",
+  ice: "氷属性のダメージ",
+  lightning: "雷属性のダメージ",
+  poison: "毒属性のダメージ",
+  dark: "闇属性のダメージ",
+  light: "光属性のダメージ",
+  vsStaggered: "怯み中の敵へのダメージ",
+  vsBoss: "ボスへのダメージ",
+  vsElite: "精鋭へのダメージ",
+  counter: "カウンターのダメージ",
+  backstab: "背後からのダメージ",
+  reaction: "反応のダメージ",
+  critMulti: "会心倍率",
+  poise: "怯み値",
+};
+
+/** 増の 1 行（「近接ダメージ 増 +20%」） */
+export function formatIncreased(tag: DamageTag, value: number): string {
+  return `${INCREASED_LABEL[tag]} 増 ${signed(value * PERCENT_SCALE)}%`;
+}
+
+/** 倍の 1 行（「硝子の砲 倍 ×2」） */
+export function formatMore(m: Readonly<MoreMul>): string {
+  return `${m.label} 倍 ×${formatMoreMul(m.mul)}`;
+}
+
+/** 倍率の表記（小数 2 桁まで、末尾の 0 は落とす） */
+export function formatMoreMul(mul: number): string {
+  return String(Number(mul.toFixed(MORE_DECIMALS)));
+}
+
+/** 0 でない増を DAMAGE_TAGS 順に */
+export function increasedSummary(stats: Readonly<PlayerStats>): string[] {
+  return DAMAGE_TAGS.filter((tag) => Math.abs(stats.increased[tag]) > EPSILON).map((tag) => formatIncreased(tag, stats.increased[tag]));
+}
+
+/** 常時の倍を出所ごとに（等倍は出さない） */
+export function moreSummary(stats: Readonly<PlayerStats>): string[] {
+  return dedupeMore(stats.more).filter((m) => Math.abs(m.mul - 1) > EPSILON).map(formatMore);
+}
+
+/** 装備の入れ替えで変わる増・倍の 1 行（rises は値が上がったか。与ダメの増・倍は上がるほど良い） */
+export interface DamageModDiff {
+  text: string;
+  rises: boolean;
+}
+
+/** 入れ替え前後の増（タグごと）と倍（出所ごと）の差。消えたものは「→ なし」 */
+export function damageModDiffs(before: Readonly<PlayerStats>, after: Readonly<PlayerStats>): DamageModDiff[] {
+  const out: DamageModDiff[] = [];
+  for (const tag of DAMAGE_TAGS) {
+    const was = before.increased[tag];
+    const now = after.increased[tag];
+    if (Math.abs(now - was) <= EPSILON) continue;
+    const text = Math.abs(now) > EPSILON ? formatIncreased(tag, now) : `${formatIncreased(tag, was)} → なし`;
+    out.push({ text, rises: now > was });
+  }
+  const wasMore = new Map(dedupeMore(before.more).map((m) => [m.source, m]));
+  const nowMore = new Map(dedupeMore(after.more).map((m) => [m.source, m]));
+  for (const source of new Set([...nowMore.keys(), ...wasMore.keys()])) {
+    const was = wasMore.get(source);
+    const now = nowMore.get(source);
+    const wasMul = was?.mul ?? 1;
+    const nowMul = now?.mul ?? 1;
+    if (Math.abs(nowMul - wasMul) <= EPSILON) continue;
+    const text = now !== undefined ? formatMore(now) : `${formatMore(was ?? { source, label: source, mul: 1 })} → なし`;
+    out.push({ text, rises: nowMul > wasMul });
+  }
+  return out;
 }
 
 /** 属性耐性（「炎耐性 +20%」）と属性の変換（「近接・射撃の炎属性 40%」）。0 の行は出さない */

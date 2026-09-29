@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Enemy, GameState } from "../core/state";
-import { ENEMIES } from "../data/enemies";
+import { ENEMIES, depthHpScale } from "../data/enemies";
 import { ENEMY_COMBAT } from "../data/enemyCombat";
 import { ELITE, ENEMY_TEMPO, POISE, STATUS } from "../data/tuning";
 import { damageEnemy, rollOutgoing } from "./combat";
@@ -8,7 +8,7 @@ import { interceptEnemyDamage, makeElite, updateElites } from "./elites";
 import { updateEnemies } from "./enemies";
 import { addPoise, applyStagger, attackCommitted, basePoiseMax, bossPoiseGrowth, isStaggered, settlePendingStagger, windupCommitted } from "./poise";
 import { applyStatus, findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, increasedWith, placeEnemy } from "./testHelpers";
 
 const BIG_HP = 100000;
 /** 近接 1 / 2 / 3 段の基礎怯み値（docs/COMBAT_DESIGN.md D-2） */
@@ -91,8 +91,8 @@ describe("怯みの蓄積（D-1）", () => {
     expect(Math.hypot(e.knock.x, e.knock.y), "怯ませた一撃は押し出す").toBeCloseTo(100, 5);
   });
 
-  it("怯み中は与ダメ × damageVsStaggeredMul（rollOutgoing の判定は状態異常 stagger）", () => {
-    const state = arena(5, { damageVsStaggeredMul: 2 });
+  it("怯み中は与ダメに怯み中の増が足される（rollOutgoing の判定は状態異常 stagger）", () => {
+    const state = arena(5, { increased: increasedWith({ vsStaggered: 1 }) });
     const e = sturdy(state, "slime");
     expect(rollOutgoing(state, e, 10, "melee").amount).toBe(10);
     applyStagger(state, e, 1);
@@ -137,7 +137,9 @@ describe("敵ごとの耐性（D-3）", () => {
   });
 
   it("耐性は深度で伸び、エリートは × eliteMul（迅速は据え置き）", () => {
-    expect(basePoiseMax("slime", 4)).toBeCloseTo(25 * (1 + POISE.depthScale * 3), 5);
+    expect(basePoiseMax("slime", 4)).toBeCloseTo(25 * depthHpScale(4), 5);
+    expect(basePoiseMax("slime", 1), "深度 1 は表の値のまま").toBe(25);
+    expect(basePoiseMax("slime", 30), "深みでも生命と同じ曲線").toBeCloseTo(25 * depthHpScale(30), 5);
     const state = arena();
     const a = sturdy(state, "slime");
     const b = sturdy(state, "slime", 50);

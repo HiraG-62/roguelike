@@ -12,7 +12,7 @@ import { applyStats, dashTime, meleeStep } from "./player";
 import { applyStagger } from "./poise";
 import { updateProjectiles } from "./projectiles";
 import { applyBurn, applyChill, applyOnHitStatus, updateStatusEffects } from "./statusEffects";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 import { fireTrigger } from "./triggers";
 
 /** 1 段目を振り切るまで回す */
@@ -22,7 +22,7 @@ function swingOnce(state: ReturnType<typeof arena>): void {
 }
 
 function meleeDamageWith(meleeDamageMul: number): number {
-  const state = arena(5, { meleeDamageMul });
+  const state = arena(5, { increased: increasedWith({ melee: meleeDamageMul - 1 }) });
   const e = placeEnemy(state, "boar", 14);
   const before = e.hp;
   swingOnce(state);

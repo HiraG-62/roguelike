@@ -361,7 +361,7 @@ export const DOMINANT_EFFECTS: Readonly<Record<TraitColor, ResonanceEffect>> = {
     apply: both(
       trigger({ trigger: "everyNthMeleeHit", every: 3, condition: "always", effect: "burnNearby", magnitude: amt(6), duration: 3, chance: 1 }),
       (s) => {
-        s.meleeDamageMul += frac(0.1);
+        s.increased.melee += frac(0.1);
       },
     ),
   },
@@ -519,8 +519,8 @@ export const SCATTER_EFFECT: ResonanceEffect = {
     "反転した性質の代償を打ち消す（正の効果には転じない）",
   ],
   apply: (s) => {
-    s.meleeDamageMul += frac(0.025);
-    s.rangedDamageMul += frac(0.025);
+    s.increased.melee += frac(0.025);
+    s.increased.ranged += frac(0.025);
     s.attackSpeedMul += frac(0.025);
     s.fireRateMul += frac(0.025);
     s.moveSpeedMul += frac(0.025);
@@ -630,7 +630,7 @@ export const NEGATIVE_EFFECTS: Readonly<Record<Exclude<TraitColor, "umbra">, Res
     apply: (s) => {
       s.chillChance += Math.max(0, s.burnChance);
       s.burnChance = 0;
-      s.rangedDamageMul += frac(RESONANCE.coldFlameShift);
+      s.increased.ranged += frac(RESONANCE.coldFlameShift);
     },
   },
   azure: {
@@ -982,10 +982,10 @@ export const CONSTELLATIONS: Readonly<Record<ConstellationKey, ConstellationDef>
       `代償: 攻撃速度・連射速度 -${pctText(RESONANCE.twinsTempoLoss)}%`,
     ],
     apply: (s) => {
-      const melee = Math.max(0, s.meleeDamageMul - 1);
-      const ranged = Math.max(0, s.rangedDamageMul - 1);
-      s.meleeDamageMul += ranged * RESONANCE.twinsShare;
-      s.rangedDamageMul += melee * RESONANCE.twinsShare;
+      const melee = Math.max(0, s.increased.melee);
+      const ranged = Math.max(0, s.increased.ranged);
+      s.increased.melee += ranged * RESONANCE.twinsShare;
+      s.increased.ranged += melee * RESONANCE.twinsShare;
       s.attackSpeedMul -= RESONANCE.twinsTempoLoss;
       s.fireRateMul -= RESONANCE.twinsTempoLoss;
     },

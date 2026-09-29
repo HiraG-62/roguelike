@@ -28,7 +28,7 @@ import {
 export const ULTIMATE_KINDS = ["instant", "sustain"] as const;
 export type UltimateKind = (typeof ULTIMATE_KINDS)[number];
 
-/** 周囲攻撃。radius に burstRadiusMul、威力に burstDamageMul が掛かる */
+/** 周囲攻撃。radius に burstRadiusMul、威力に 奥義の増（increased.ultimate） が掛かる */
 export interface NovaAct {
   readonly kind: "nova";
   readonly radius: number;
@@ -136,7 +136,7 @@ export interface SustainShot {
   readonly orbit?: OrbitDef;
 }
 
-/** 命中の衝撃波（鉄槌の律）。半径に burstRadiusMul、威力に burstDamageMul が掛かる */
+/** 命中の衝撃波（鉄槌の律）。半径に burstRadiusMul、威力に 奥義の増（increased.ultimate） が掛かる */
 export interface HitQuakeDef {
   readonly radius: number;
   readonly scaling: Scaling;
@@ -154,7 +154,7 @@ export interface SustainDef {
   /** 毎秒減るゲージ。0 になったら終わる。もう一度 F で早く終える（残りは保つ） */
   readonly drainPerSec: number;
   readonly minSec: number;
-  /** 通常攻撃に掛ける倍率（burstDamageMul は掛けない） */
+  /** 通常攻撃に掛ける倍率（奥義の増（increased.ultimate） は掛けない） */
   readonly mul: {
     readonly damage?: number;
     readonly attackSpeed?: number;
@@ -183,7 +183,7 @@ export interface SustainDef {
   readonly recall?: { readonly interval: number; readonly returnDamageMul: number; readonly speedMul: number; readonly homing?: RecallHomingDef };
   /** 床の自分の設置弾が近くの敵を引き寄せる */
   readonly minePull?: { readonly radius: number; readonly speed: number };
-  /** 左の振りを始めるたびに体の前から照準方向へ撃つ弾（射撃扱い。威力は係数表そのまま、burstDamageMul は掛けない） */
+  /** 左の振りを始めるたびに体の前から照準方向へ撃つ弾（射撃扱い。威力は係数表そのまま、奥義の増（increased.ultimate） は掛けない） */
   readonly swingVolley?: ThrowArtDef;
   /** 近接の振りが当たるたびに当てた敵の位置で起こす衝撃波（icd 秒に 1 回） */
   readonly hitQuake?: HitQuakeDef;

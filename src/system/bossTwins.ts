@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { shake, spawnBurst } from "./effects";
@@ -133,7 +133,7 @@ function fireArrows(state: GameState, e: Enemy): void {
   const t = BOSS.twinKnights;
   const rage = e.ai?.stage === STAGE_RAGE;
   const count = rage ? t.rageArrowCount : t.arrowCount;
-  const damage = t.arrowDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(t.arrowDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, count, t.arrowSpreadDeg * (rage ? 2 : 1))) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed: t.arrowSpeed, damage, color: t.color, sourceId: e.id });
@@ -159,7 +159,7 @@ function touch(state: GameState, e: Enemy, def: EnemyDef): boolean {
   if (state.skills.shape?.key === "wraithForm") return false;
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return false;
-  const result = damagePlayer(state, def.contactDamage + depthDamageBonus(state.depth), e.body.pos, e);
+  const result = damagePlayer(state, depthDamage(def.contactDamage, state.depth), e.body.pos, e);
   if (result === "hit") {
     inflictOnPlayer(state, e, "contact");
     shake(state, FEEL.shakeHeavy);

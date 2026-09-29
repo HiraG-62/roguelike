@@ -64,6 +64,7 @@ import {
   type LoadoutSources,
   type ScalingFormula,
   actionListRows,
+  itemModifierRows,
   allFormulas,
   attributeReferences,
   formulaChunks,
@@ -245,7 +246,8 @@ export function itemFormulaLines(state: GameState, item: Item): DetailLine[] {
   const head: TipLine = { text: item.name, color: itemColor(item) };
   const actions = itemFormulas(state.stats, item);
   if (actions.length === 0) return [head, captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
-  return [head, captionLine(FORMULA_CAPTION), ...actionFormulaLines(actions)];
+  const modifiers = itemModifierRows(state.stats, item).map((chunks): DetailLine => ({ chunks }));
+  return [head, captionLine(FORMULA_CAPTION), ...actionFormulaLines(actions), ...modifiers];
 }
 
 /** 要点の「主に参照: 筋力・体力」（武器だけ） */

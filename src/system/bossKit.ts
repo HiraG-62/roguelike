@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus } from "../data/enemies";
+import { type EnemyDef, depthDamage } from "../data/enemies";
 import { FEEL } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { shake } from "./effects";
@@ -119,7 +119,7 @@ export function bossTouch(state: GameState, e: Enemy, def: EnemyDef): boolean {
   if (state.skills.shape?.key === "wraithForm") return false;
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return false;
-  const result = damagePlayer(state, def.contactDamage + depthDamageBonus(state.depth), e.body.pos, e);
+  const result = damagePlayer(state, depthDamage(def.contactDamage, state.depth), e.body.pos, e);
   if (result === "hit") {
     inflictOnPlayer(state, e, "contact");
     shake(state, FEEL.shakeHeavy);

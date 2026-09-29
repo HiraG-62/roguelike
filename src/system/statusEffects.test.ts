@@ -38,7 +38,7 @@ import {
   updateStatusEffects,
 } from "./statusEffects";
 import { TRAIT_COLORS } from "../loot/types";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 import { step } from "../core/game";
 import { descend } from "./floor";
 
@@ -253,8 +253,8 @@ describe("相互作用（E-3）", () => {
     expect(BIG_HP - poisoned.hp).toBe(expected * STATUS.bleed.poisonMul);
   });
 
-  it("脆弱 + 怯み: 乗算（× 1.2 × damageVsStaggeredMul）", () => {
-    const state = arena(5, { damageVsStaggeredMul: 2 });
+  it("脆弱 + 怯み: 乗算（× 1.2 × 怯み中の増）", () => {
+    const state = arena(5, { increased: increasedWith({ vsStaggered: 1 }) });
     const e = sturdy(state, "golem");
     applyStatus(state, on(e), apply("stagger", 1), "player");
     applyStatus(state, on(e), apply("vulnerable", 4), "player");

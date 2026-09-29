@@ -1,3 +1,4 @@
+import { increasedMul, moreMulFor } from "../core/damage";
 import type { StatusKind } from "../core/status";
 import {
   type AttackPhase,
@@ -200,7 +201,7 @@ function rules(state: GameState): BoonRuleState {
 export function slashBase(state: GameState): number {
   const s = state.stats;
   const base = scaled(s, meleeScaling(PLAYER.melee[0]!.scaling));
-  return Math.round((base + s.meleeDamageFlat) * s.meleeDamageMul);
+  return Math.round((base + s.meleeDamageFlat) * increasedMul(s.increased, "melee") * moreMulFor(s.more, "melee"));
 }
 
 /** 付与済みの potency（霊力の倍率込み）を付与前の値へ割り戻す。applyStatus が player 由来に再度掛けるため */

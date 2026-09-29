@@ -55,7 +55,7 @@ import {
 } from "./boonGrade";
 import { clearSpecialRoom } from "./specialRooms";
 import { castSlot, effectiveManaCost } from "./skills";
-import { arena, engageStartRoom, placeEnemy, slayFloorLord, withInput } from "./testHelpers";
+import { arena, increasedWith, engageStartRoom, placeEnemy, slayFloorLord, withInput } from "./testHelpers";
 
 const FIXED_DT = 1 / 60;
 /** 入力無視時間を確実に超えるステップ数 */
@@ -347,7 +347,7 @@ describe("ルール変更の実効", () => {
     const state = arena();
     grantBoon(state, "triggerHappy");
     expect(state.stats.fireRateMul).toBe(DEFAULT_STATS.fireRateMul * BOON.triggerHappyFireMul);
-    expect(state.stats.rangedDamageMul).toBeCloseTo(DEFAULT_STATS.rangedDamageMul * BOON.triggerHappyDamageMul);
+    expect(state.stats.more.find((m) => m.source === "boon:triggerHappy")?.mul, "射撃の倍").toBeCloseTo(BOON.triggerHappyDamageMul);
     step(state, withInput({ attackPressed: true }), FIXED_DT);
     expect(state.player.attack.phase).not.toBe("none");
   });
@@ -663,7 +663,7 @@ describe("射撃の祝福の loadout（銃の家系だけに出す。docs/ideas/
     const state = arena();
     state.stats.moveset = "sword";
     // 指輪・首飾りが乗せる射撃性質（弾を出せない武器種のまま）。遠距離スキル石は外して装備由来だけを見る
-    state.stats.rangedDamageMul += 0.5;
+    state.stats.increased.ranged += 0.5;
     state.skills.profile = { ...state.skills.profile, loadout: [null, null, null, null] };
     state.boonRun.baseStats = state.stats;
     const tags = buildTags(state);
@@ -848,7 +848,7 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
   it("Rule の効果量は格で ×1.5 / ×2.2 になる（爆走の爆発ダメージで確認）", () => {
     const blastDamage = (grade: BoonGrade): number => {
       // 威力を大きくして整数の丸めを比に効かせない
-      const state = arena(5, { meleeDamageMul: STRONG_MELEE });
+      const state = arena(5, { increased: increasedWith({ melee: STRONG_MELEE - 1 }) });
       state.boonRun.baseStats = state.stats;
       grantBoon(state, "dashBlast", grade);
       const e = placeEnemy(state, "golem", 10);

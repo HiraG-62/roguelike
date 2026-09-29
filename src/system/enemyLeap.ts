@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus } from "../data/enemies";
+import { type EnemyDef, depthDamage } from "../data/enemies";
 import { ENEMY_AI, FEEL, JIN } from "../data/tuning";
 import { lineOfSight } from "../map/pathing";
 import { damagePlayer } from "./combat";
@@ -9,6 +9,7 @@ import { contactDamageOf } from "./enemyBehaviors";
 import { onRallyContact } from "./enemyTerrain";
 import { findFreeSpot } from "./enemyTraits";
 import { spawnLanding } from "./hazards";
+import { moveBody, overlapsWall } from "./physics";
 import { inflictOnPlayer } from "./statusEffects";
 
 /**
@@ -18,6 +19,9 @@ import { inflictOnPlayer } from "./statusEffects";
  * - 跳んでいる間も当たり判定を持つ（無敵にしない。空中の敵を殴って落とす読み合いを残す）
  * ai.target = 着地点。状態は e.ai だけに置く（behavior のクラスは凍結されている）
  */
+
+/** 跳ぶ道筋を調べる刻み（px）。体の半径より十分小さく、壁の角を飛び越えない */
+const LEAP_PATH_STEP = 2;
 
 /** 攻撃を始めてよいか: 着地点までの間に壁が無いとき（壁越しに跳ばない） */
 export function canLeap(state: GameState, e: Enemy): boolean {
@@ -32,9 +36,26 @@ export function planLeap(state: GameState, e: Enemy, def: EnemyDef): void {
   const toPlayer = sub(state.player.body.pos, e.body.pos);
   const reach = Math.min(length(toPlayer), l.maxLeap);
   const want = add(e.body.pos, scale(normalize(toPlayer, e.facing), reach));
-  ai.target = findFreeSpot(state, want, def.radius) ?? { ...e.body.pos };
+  const free = findFreeSpot(state, want, def.radius) ?? { ...e.body.pos };
+  ai.target = clearLeapEnd(state, e.body.pos, free, e.body.radius);
   const shadow = spawnLanding(state, ai.target, l.radius, e.phaseTimer + def.strikeTime, e.id);
   shadow.airTime = def.strikeTime;
+}
+
+/**
+ * from から to へ体（半径 radius）を運ぶとき、壁に掛からずに届く最も遠い点。
+ * canLeap の視線は中心の線だけを見るので、体の幅が壁の角を削る道筋はここで手前に切る（空中で壁にめり込ませない）
+ */
+function clearLeapEnd(state: GameState, from: Vec, to: Vec, radius: number): Vec {
+  const delta = sub(to, from);
+  const steps = Math.ceil(length(delta) / LEAP_PATH_STEP);
+  let last = { ...from };
+  for (let i = 1; i <= steps; i++) {
+    const p = add(from, scale(delta, i / steps));
+    if (overlapsWall(state, p.x, p.y, radius)) return last;
+    last = p;
+  }
+  return { ...to };
 }
 
 /**
@@ -46,7 +67,9 @@ export function stepLeap(state: GameState, e: Enemy, def: EnemyDef, dt: number):
   if (!target) return;
   if (e.phaseTimer > 0) {
     const frac = Math.min(1, dt / (e.phaseTimer + dt));
-    e.body.pos = add(e.body.pos, scale(sub(target, e.body.pos), frac));
+    const step = scale(sub(target, e.body.pos), frac);
+    // 押し合い・吹き飛びでずれた位置からの寄せ直しは壁の角を通りうるので、壁で止まる移動にする
+    moveBody(state, e.body, step.x, step.y);
     return;
   }
   land(state, e, def, target);
@@ -71,7 +94,7 @@ function land(state: GameState, e: Enemy, def: EnemyDef, at: Vec): void {
 /** 着地の威力 = 接触ダメージ（格「猛」の倍率込み）+ 深度の加算 */
 export function landingDamage(state: GameState, e: Enemy, def: EnemyDef): number {
   const strongMul = e.grade === "strong" ? JIN.strong.damageMul : 1;
-  return Math.round(contactDamageOf(e, def) * strongMul) + depthDamageBonus(state.depth);
+  return depthDamage(Math.round(contactDamageOf(e, def) * strongMul), state.depth);
 }
 
 /** 着いた跳躍の影を消す（連撃で次の予備動作に入っても、前の影が残らないように） */

@@ -2,7 +2,7 @@ import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { STATUS_KINDS, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS } from "../core/terrain";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, ENEMY_AI } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { SKILL_DEFS } from "../skills/data";
@@ -129,7 +129,7 @@ export function strikeLob(state: GameState, e: Enemy, def: EnemyDef): void {
   const lob = def.lob;
   if (!lob) return;
   const target = e.ai?.target ?? state.player.body.pos;
-  blastBoth(state, target, lob.blastRadius, lob.damage + depthDamageBonus(state.depth), lob.color, sourceOf(e), e.id);
+  blastBoth(state, target, lob.blastRadius, depthDamage(lob.damage, state.depth), lob.color, sourceOf(e), e.id);
   placeTerrain(state, target.x, target.y, lob.terrain, lob.terrainRadius);
   pushSfx(state, "oilSplash");
 }
@@ -209,7 +209,7 @@ export function telegraphBurrow(state: GameState, e: Enemy): void {
 export function strikeBurrow(state: GameState, e: Enemy): void {
   const b = ENEMY_AI.burrower;
   e.hidden = false;
-  blastBoth(state, e.body.pos, b.emergeRadius, b.damage + depthDamageBonus(state.depth), b.color, sourceOf(e), e.id);
+  blastBoth(state, e.body.pos, b.emergeRadius, depthDamage(b.damage, state.depth), b.color, sourceOf(e), e.id);
   e.phase = "recover";
   e.phaseTimer = b.exposeTime;
 }
@@ -228,7 +228,7 @@ export function strikeDrop(state: GameState, e: Enemy, def: EnemyDef): boolean {
   const d = ENEMY_AI.dropper;
   e.body.pos = findFreeSpot(state, ai.target, def.radius) ?? e.body.pos;
   e.hidden = false;
-  blastBoth(state, ai.target, d.radius, d.damage + depthDamageBonus(state.depth), d.color, sourceOf(e), e.id);
+  blastBoth(state, ai.target, d.radius, depthDamage(d.damage, state.depth), d.color, sourceOf(e), e.id);
   e.phase = "recover";
   e.phaseTimer = def.recover;
   return true;
@@ -252,7 +252,7 @@ export function strikeStalk(state: GameState, e: Enemy): void {
   const target = e.ai?.target ?? e.body.pos;
   e.body.pos = { ...target };
   e.hidden = false;
-  blastBoth(state, target, s.radius, s.damage + depthDamageBonus(state.depth), s.color, sourceOf(e), e.id);
+  blastBoth(state, target, s.radius, depthDamage(s.damage, state.depth), s.color, sourceOf(e), e.id);
   e.phase = "recover";
   e.phaseTimer = s.exposeTime;
 }
@@ -290,7 +290,7 @@ export function strikeAbsorber(state: GameState, e: Enemy): void {
   const a = ENEMY_AI.absorber;
   const count = ai.counter;
   ai.counter = 0;
-  const damage = a.bulletDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(a.bulletDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, count, a.spreadDeg)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed: a.bulletSpeed, damage, color: a.color, sourceId: e.id });
@@ -348,7 +348,7 @@ export function strikeHomunculus(state: GameState, e: Enemy): void {
   const h = ENEMY_AI.homunculus;
   const kind = stolenStatus(e);
   const stacks = Math.max(1, Math.round(ai.timer));
-  const damage = h.damage + depthDamageBonus(state.depth);
+  const damage = depthDamage(h.damage, state.depth);
   for (const p of ai.points ?? []) {
     const hitsPlayer = playerOpenAt(state, p, h.radius);
     blastBoth(state, p, h.radius, damage, h.color, sourceOf(e), e.id);
@@ -426,20 +426,19 @@ export function strikeScribe(state: GameState, e: Enemy): boolean {
   const ai = e.ai;
   if (!ai) return true;
   const s = ENEMY_AI.scribeImp;
-  const bonus = depthDamageBonus(state.depth);
   switch (ai.move) {
     case SCRIBE_DASH:
       return false;
     case SCRIBE_RING:
-      for (const p of ai.points ?? []) blastBoth(state, p, s.ringRadius, s.ringDamage + bonus, s.color, sourceOf(e), e.id);
+      for (const p of ai.points ?? []) blastBoth(state, p, s.ringRadius, depthDamage(s.ringDamage, state.depth), s.color, sourceOf(e), e.id);
       return true;
     case SCRIBE_BLASTS:
-      for (const p of ai.points ?? []) blastBoth(state, p, s.blastRadius, s.blastDamage + bonus, s.color, sourceOf(e), e.id);
+      for (const p of ai.points ?? []) blastBoth(state, p, s.blastRadius, depthDamage(s.blastDamage, state.depth), s.color, sourceOf(e), e.id);
       return true;
     default:
       for (const dir of fanDirections(e.strikeDir, s.bulletCount, s.spreadDeg)) {
         const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
-        fireEnemyBullet(state, { pos, dir, speed: s.bulletSpeed, damage: s.bulletDamage + bonus, color: s.color, sourceId: e.id });
+        fireEnemyBullet(state, { pos, dir, speed: s.bulletSpeed, damage: depthDamage(s.bulletDamage, state.depth), color: s.color, sourceId: e.id });
       }
       pushSfx(state, "enemyShoot");
       return true;
@@ -461,7 +460,7 @@ export function telegraphCross(state: GameState, e: Enemy): void {
 export function strikeCross(state: GameState, e: Enemy, def: EnemyDef): void {
   const ai = e.ai;
   if (!ai) return;
-  const damage = ENEMY_AI.crossGolem.damage + depthDamageBonus(state.depth);
+  const damage = depthDamage(ENEMY_AI.crossGolem.damage, state.depth);
   for (const end of ai.points ?? []) spawnLaser(state, e.body.pos, end, def.strikeTime, damage, e.id);
   ai.move = ai.move === 1 ? 0 : 1;
   shake(state, 3);
@@ -542,7 +541,7 @@ export function telegraphMine(state: GameState, e: Enemy): void {
 
 export function strikeMine(state: GameState, e: Enemy): void {
   const m = ENEMY_AI.mine;
-  blastBoth(state, e.body.pos, m.radius, m.damage + depthDamageBonus(state.depth), m.color, sourceOf(e), e.id);
+  blastBoth(state, e.body.pos, m.radius, depthDamage(m.damage, state.depth), m.color, sourceOf(e), e.id);
   e.vanished = true;
   e.hp = 0;
 }
@@ -572,7 +571,7 @@ export function strikeHook(state: GameState, e: Enemy, pull: number, damage: num
   // 霊体化（skills/forms.ts）は鎖もすり抜ける（投げる見た目と音は残す）
   if (state.skills.shape?.key === "wraithForm") return false;
   if (!segmentCircleHit(e.body.pos, ai.target, 3, p.body.pos, p.body.radius)) return false;
-  if (damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e) !== "hit") return false;
+  if (damagePlayer(state, depthDamage(damage, state.depth), e.body.pos, e) !== "hit") return false;
   p.knock = scale(normalize(sub(e.body.pos, p.body.pos)), pull);
   ai.move = HOOK_SLAM;
   return true;
@@ -609,7 +608,7 @@ export function strikeToad(state: GameState, e: Enemy): void {
   }
   if (ai.move === HOOK_LOB) {
     const target = ai.target;
-    blastBoth(state, target, g.biteRadius, g.biteDamage / 2 + depthDamageBonus(state.depth), g.color, sourceOf(e), e.id);
+    blastBoth(state, target, g.biteRadius, depthDamage(g.biteDamage / 2, state.depth), g.color, sourceOf(e), e.id);
     placeTerrain(state, target.x, target.y, "water", g.pondRadius / 2);
     pushSfx(state, "oilSplash");
     ai.move = HOOK_PULL;
@@ -776,7 +775,7 @@ function watchAnvil(state: GameState, e: Enemy): void {
 
 export function strikeForge(state: GameState, e: Enemy): void {
   const f = ENEMY_AI.forgeMaster;
-  const damage = f.bladeDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(f.bladeDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, f.bladeCount, f.spreadDeg)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed: f.bladeSpeed, damage, color: f.color, sourceId: e.id });
@@ -826,7 +825,7 @@ function placeTurrets(state: GameState, e: Enemy): void {
 
 export function strikeTurretMaster(state: GameState, e: Enemy): void {
   const t = ENEMY_AI.turretMaster;
-  const damage = t.orbDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(t.orbDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, 3, 40)) {
     fireEnemyBullet(state, { pos: add(e.body.pos, scale(dir, e.body.radius + 2)), dir, speed: t.orbSpeed, damage, color: t.color, sourceId: e.id });
   }
@@ -836,7 +835,7 @@ export function strikeTurretMaster(state: GameState, e: Enemy): void {
 export function strikeTurret(state: GameState, e: Enemy): void {
   const t = ENEMY_AI.turret;
   const pos = add(e.body.pos, scale(e.strikeDir, e.body.radius + 2));
-  fireEnemyBullet(state, { pos, dir: e.strikeDir, speed: t.bulletSpeed, damage: t.bulletDamage + depthDamageBonus(state.depth), color: "#e0e0ff", sourceId: e.id });
+  fireEnemyBullet(state, { pos, dir: e.strikeDir, speed: t.bulletSpeed, damage: depthDamage(t.bulletDamage, state.depth), color: "#e0e0ff", sourceId: e.id });
   pushSfx(state, "enemyShoot");
 }
 

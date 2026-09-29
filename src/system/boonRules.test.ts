@@ -71,7 +71,7 @@ import { reaperAppearAfter } from "./reaper";
 import { ROAMING_ROOM } from "./spawner";
 import { resolveRules } from "./rules";
 import { applyBurn, applyStatus, findStatus, hasStatus, removeStatus, statusStacks } from "./statusEffects";
-import { arena, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, engageStartRoom, placeEnemy, withInput } from "./testHelpers";
 import { step } from "../core/game";
 import { KEYWORDS } from "../core/keywords";
 import { FIXED_DT } from "../core/loop";
@@ -1207,7 +1207,7 @@ describe("結び祝福", () => {
 describe("祝福の威力は装備に比例する", () => {
   it("slashBase は近接の性質で伸びる", () => {
     const plain = arena();
-    const strong = arena(5, { meleeDamageMul: 2 });
+    const strong = arena(5, { increased: increasedWith({ melee: 1 }) });
     expect(slashBase(strong)).toBeGreaterThan(slashBase(plain));
   });
 });
@@ -1675,12 +1675,13 @@ describe("芯の祝福（第 3 弾）", () => {
     expect(ownedCore(state)?.key).toBe("coreMirage");
   });
 
-  it("硝子の心は近接・射撃・スキルの倍率を ×1.5 にし最大生命を半分にする（ソフトキャップの後に掛かる）", () => {
-    const over = { meleeDamageMul: OVER_CAP_MUL, rangedDamageMul: OVER_CAP_MUL, skillDamageMul: OVER_CAP_MUL, maxHp: BASE_MAX_HP };
+  it("硝子の心は近接・射撃・スキルに倍 ×1.5 を足し最大生命を半分にする（装備の増とは掛け算）", () => {
+    const over = { increased: increasedWith({ melee: OVER_CAP_MUL - 1 }), maxHp: BASE_MAX_HP };
     const out = fold(["coreGlassHeart"], over);
-    expect(out.meleeDamageMul, "近接").toBeCloseTo(OVER_CAP_MUL * BOON.glassHeartDamageMul);
-    expect(out.rangedDamageMul, "射撃").toBeCloseTo(OVER_CAP_MUL * BOON.glassHeartDamageMul);
-    expect(out.skillDamageMul, "スキル").toBeCloseTo(OVER_CAP_MUL * BOON.glassHeartDamageMul);
+    const heart = out.more.find((m) => m.source === "boon:coreGlassHeart");
+    expect(heart?.mul, "芯は倍").toBeCloseTo(BOON.glassHeartDamageMul);
+    expect(heart?.tags, "近接・射撃・スキル").toEqual(["melee", "ranged", "skill"]);
+    expect(out.increased.melee, "増はそのまま").toBeCloseTo(OVER_CAP_MUL - 1);
     expect(out.maxHp, "最大生命").toBe(Math.round(BASE_MAX_HP * BOON.glassHeartHpMul));
   });
 

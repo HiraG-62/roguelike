@@ -16,7 +16,6 @@ import {
   type RunEventKey,
   activeElementStorm,
   bountyTargetId,
-  deepHpMul,
   fogActive,
   hourglassLeft,
   mutationsFor,
@@ -664,11 +663,6 @@ describe("無限の深み（変異）", () => {
     expect(state.runEvents.mutations.length).toBe(3);
     expect(fogActive(state), "霧の変異").toBe(true);
     expect(runEventHudLines(state).some((l) => l.text.startsWith("変異")), "HUD").toBe(true);
-  });
-
-  it("深みでは敵の HP の伸びが寝る", () => {
-    expect(deepHpMul(FLOOR_KIND.deepDepth)).toBe(1);
-    expect(deepHpMul(FLOOR_KIND.deepDepth + 20)).toBeLessThan(1);
   });
 });
 

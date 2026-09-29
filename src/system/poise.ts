@@ -1,7 +1,7 @@
 import { type EliteKind, type Enemy, type GameState, pushSfx } from "../core/state";
 import { enemyTarget, pushEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
-import { enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
+import { depthHpScale, enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { ENEMY_TEMPO, POISE, STATUS } from "../data/tuning";
 import { addFloatingText, markExecuted, spawnBurst } from "./effects";
@@ -23,10 +23,10 @@ const EXECUTE_COLOR = "#ff4060";
 const EXECUTE_TEXT_SCALE = 1.4;
 const EXECUTE_PARTICLES = 20;
 
-/** 深度で伸びた基礎耐性。表に耐性が無い敵は 0（怯まない） */
+/** 深度で伸びた基礎耐性（生命と同じ曲線）。表に耐性が無い敵は 0（怯まない） */
 export function basePoiseMax(key: string, depth: number): number {
   const base = enemyCombat(key).poise ?? 0;
-  return base * (1 + POISE.depthScale * Math.max(0, depth - 1));
+  return base * depthHpScale(depth);
 }
 
 /** エリートの耐性倍率。迅速は据え置き */

@@ -27,7 +27,7 @@ import {
 import { ultimateDamage } from "./ultimates";
 import { collectRules } from "./rules";
 import { hasStatus } from "./statusEffects";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 
 /**
  * 無効化手段の整理と手触り（docs/COMBAT_DESIGN.md C 章・段階 1 の L4）。
@@ -262,10 +262,10 @@ describe("射撃・バーストの威力と怯み値", () => {
     expect(shot.poise, "射撃の怯み値").toBeCloseTo(PLAYER.shoot.poise * state.stats.poiseDamageMul);
   });
 
-  it("バーストは burstDamageMul を掛け、無敵は 0.15 秒", () => {
-    const state = arena(5, { burstDamageMul: 2 });
+  it("バーストは奥義の増を掛け、無敵は 0.15 秒", () => {
+    const state = arena(5, { increased: increasedWith({ ultimate: 1 }) });
     const scaling = ULTIMATE.defs.sword.fullMoon.nova.scaling;
-    expect(ultimateDamage(state.stats, scaling), "バースト威力 × burstDamageMul").toBeCloseTo(ultimateDamage({ ...state.stats, burstDamageMul: 1 }, scaling) * 2);
+    expect(ultimateDamage(state.stats, scaling), "バースト威力 × 奥義の増").toBeCloseTo(ultimateDamage({ ...state.stats, increased: increasedWith({}) }, scaling) * 2);
     state.player.energy = ULTIMATE.common.cost;
     step(state, withInput({ specialPressed: true }), FIXED_DT);
     expect(state.player.energy, "ゲージを消費した").toBe(0);

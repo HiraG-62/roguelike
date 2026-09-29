@@ -54,6 +54,7 @@ function addJin(state: GameState, id: number, roomIndex: number, center: Vec, ph
     center: { ...center },
     facing: { x: 1, y: 0 },
     leaderId: null,
+    hpMul: 1,
     morale: 0,
     moraleMax: 0,
     phase,

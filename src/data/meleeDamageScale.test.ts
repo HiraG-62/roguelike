@@ -3,7 +3,7 @@ import { BULLETS } from "../loot/bullets";
 import { DEFAULT_STATS, ATTR_KEYS, type PlayerStats, type Scaling } from "../loot/types";
 import { scaled } from "../system/attributes";
 import { isFavoredWeapon } from "../system/jobs";
-import { depthHpScale, enemyDef } from "./enemies";
+import { depthDamage, depthDamageMul, depthHpScale, enemyDef } from "./enemies";
 import { ACTION, ENEMY_SCALE, PLAYER, WEAPON } from "./tuning";
 import { MOVESETS, MOVESET_KEYS, type MeleeStepDef } from "./weapons";
 
@@ -123,10 +123,40 @@ describe("素手とジョブの得意", () => {
   });
 });
 
-describe("敵の HP の深度倍率", () => {
+describe("敵の生命・攻撃の深度倍率", () => {
   it("深度 1 で等倍、1 つ深くなるごとに ENEMY_SCALE.hpPerDepth ずつ増える", () => {
-    expect(ENEMY_SCALE.hpPerDepth, "外部化前の値のまま").toBe(0.18);
+    expect(ENEMY_SCALE.hpPerDepth, "章の傾き").toBe(0.15);
     expect(depthHpScale(1)).toBe(1);
     expect(depthHpScale(4)).toBeCloseTo(1 + 3 * ENEMY_SCALE.hpPerDepth);
+  });
+
+  it("深度 deepDepth 以降は生命が指数（deepHpGrowth）で伸びる", () => {
+    const deep = ENEMY_SCALE.deepDepth;
+    const atDeep = 1 + ENEMY_SCALE.hpPerDepth * (deep - 1);
+    expect(depthHpScale(deep), "深みの入口は線形の延長").toBeCloseTo(atDeep);
+    expect(depthHpScale(deep + 1)).toBeCloseTo(atDeep * ENEMY_SCALE.deepHpGrowth);
+    expect(depthHpScale(deep + 5)).toBeCloseTo(atDeep * ENEMY_SCALE.deepHpGrowth ** 5);
+  });
+
+  it("攻撃は深度 1 で等倍、章は damagePerDepth ずつ、深みは deepDamageGrowth で伸びる", () => {
+    expect(depthDamageMul(1)).toBe(1);
+    expect(depthDamageMul(10)).toBeCloseTo(1 + 9 * ENEMY_SCALE.damagePerDepth);
+    const deep = ENEMY_SCALE.deepDepth;
+    const atDeep = 1 + ENEMY_SCALE.damagePerDepth * (deep - 1);
+    expect(depthDamageMul(deep + 3)).toBeCloseTo(atDeep * ENEMY_SCALE.deepDamageGrowth ** 3);
+  });
+
+  it("depthDamage は基礎に倍率を掛けて丸める（深度 1 は基礎のまま、深度 10 の接触 10 は 14.5 を丸めた値）", () => {
+    for (const base of [1, 6, 9, 10, 25]) {
+      expect(depthDamage(base, 1), `深度 1 の ${base}`).toBe(base);
+    }
+    expect(depthDamage(10, 10)).toBe(Math.round(10 * 1.45));
+    expect(depthDamage(4, 10), "個性が潰れず、弱い攻撃は弱いまま").toBeLessThan(depthDamage(10, 10));
+  });
+
+  it("深度 1 の敵の生命と攻撃は外部化前のまま（曲線を変えても浅い階は動かない）", () => {
+    const slime = enemyDef("slime");
+    expect(Math.round(slime.hp * depthHpScale(1))).toBe(slime.hp);
+    expect(depthDamage(slime.contactDamage, 1)).toBe(slime.contactDamage);
   });
 });

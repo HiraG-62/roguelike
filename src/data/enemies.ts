@@ -1,3 +1,4 @@
+import { curveAt } from "../core/scale";
 import type { StatusKind } from "../core/status";
 import type { FloorKind, RallyKind } from "../core/state";
 import type { TerrainKind } from "../core/terrain";
@@ -373,11 +374,22 @@ export function enemiesForDepth(depth: number): EnemyDef[] {
   return ENEMIES.filter((e) => !e.boss && depth >= e.minDepth);
 }
 
-/** 深さによるステータス倍率 */
-export function depthHpScale(depth: number): number {
-  return 1 + (depth - 1) * ENEMY_SCALE.hpPerDepth;
+/** 章は線形、ENEMY_SCALE.deepDepth 以降は指数（core/scale.ts の共通の曲線） */
+function enemyCurve(perDepth: number, deepGrowth: number, depth: number): number {
+  return curveAt({ perDepth, deepDepth: ENEMY_SCALE.deepDepth, deepGrowth }, depth);
 }
 
-export function depthDamageBonus(depth: number): number {
-  return Math.floor((depth - 1) / 2) * 2;
+/** 深さによる敵の生命倍率。怯み耐性も同じ曲線（system/poise.ts の basePoiseMax） */
+export function depthHpScale(depth: number): number {
+  return enemyCurve(ENEMY_SCALE.hpPerDepth, ENEMY_SCALE.deepHpGrowth, depth);
+}
+
+/** 深さによる敵の攻撃倍率（深度 1 で 1 倍） */
+export function depthDamageMul(depth: number): number {
+  return enemyCurve(ENEMY_SCALE.damagePerDepth, ENEMY_SCALE.deepDamageGrowth, depth);
+}
+
+/** 敵の攻撃の深度補正。基礎の攻撃に倍率を掛けて丸める（敵ごとの個性を保つため flat 加算はしない） */
+export function depthDamage(base: number, depth: number): number {
+  return Math.round(base * depthDamageMul(depth));
 }

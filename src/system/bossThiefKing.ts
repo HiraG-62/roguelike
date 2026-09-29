@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { type EnemyTelegraph, createEnemy, moveEnemy, scaledWindup } from "./enemies";
@@ -233,7 +233,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
     case THIEF_SMOKE: {
       e.phaseTimer = def.strikeTime * QUICK_STRIKE_RATIO;
       const source = { defKey: e.defKey, roomIndex: e.roomIndex };
-      blastBoth(state, e.body.pos, k.smokeRadius, k.smokeDamage + depthDamageBonus(state.depth), k.color, source, e.id);
+      blastBoth(state, e.body.pos, k.smokeRadius, depthDamage(k.smokeDamage, state.depth), k.color, source, e.id);
       placeTerrain(state, e.body.pos.x, e.body.pos.y, "smoke", k.smokeRadius, k.smokeTime);
       pushSfx(state, "smokeBomb");
       return;
@@ -249,7 +249,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
 function throwKnives(state: GameState, e: Enemy): void {
   const k = BOSS.thiefKing;
   const count = e.ai?.stage === STAGE_CORNERED ? k.rageKnifeCount : k.knifeCount;
-  const damage = k.knifeDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(k.knifeDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, count, k.knifeSpreadDeg)) {
     fireEnemyBullet(state, { pos: add(e.body.pos, scale(dir, e.body.radius + 2)), dir, speed: k.knifeSpeed, damage, color: k.color, sourceId: e.id });
   }

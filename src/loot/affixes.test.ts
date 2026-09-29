@@ -1,3 +1,4 @@
+import { createIncreased } from "../core/damage";
 import { describe, expect, it } from "vitest";
 import {
   AFFIXES,
@@ -127,9 +128,9 @@ describe("トレードオフ付きアフィックス", () => {
   it("利得と代償が表示され、stats にも両方反映される", () => {
     const roll = { key: "crushing", kind: "prefix" as const, tier: 1, value: 60, value2: 12 };
     expect(formatAffix(roll)).toBe("近接ダメージ +60%、攻撃速度 -12%");
-    const stats = { ...DEFAULT_STATS, keystones: [], triggers: [] };
+    const stats = { ...DEFAULT_STATS, keystones: [], triggers: [], increased: createIncreased(), more: [] };
     applyRoll(stats, roll);
-    expect(stats.meleeDamageMul).toBeCloseTo(1.6);
+    expect(stats.increased.melee).toBeCloseTo(0.6);
     expect(stats.attackSpeedMul).toBeCloseTo(0.88);
   });
 });
@@ -157,7 +158,7 @@ describe("キーストーン", () => {
   });
 
   it("apply で keystones に積み、数値効果も掛ける", () => {
-    const stats = { ...DEFAULT_STATS, keystones: [], triggers: [] };
+    const stats = { ...DEFAULT_STATS, keystones: [], triggers: [], increased: createIncreased(), more: [] };
     applyRoll(stats, { key: "ks_pacifist", kind: "suffix", tier: 1, value: 0 });
     expect(stats.keystones).toEqual(["ks_pacifist"]);
     expect(stats.poiseDamageMul).toBeCloseTo(DEFAULT_STATS.poiseDamageMul * KEYSTONE.pacifistPoiseMul);
@@ -233,7 +234,7 @@ describe("ベースアイテム定義", () => {
 });
 
 describe("マナの性質", () => {
-  const fresh = (): PlayerStats => ({ ...DEFAULT_STATS, keystones: [], triggers: [], statusProcs: [] });
+  const fresh = (): PlayerStats => ({ ...DEFAULT_STATS, keystones: [], triggers: [], statusProcs: [], increased: createIncreased(), more: [] });
 
   it("各性質が対応する stat を動かす", () => {
     const s = fresh();
@@ -251,7 +252,7 @@ describe("マナの性質", () => {
     const s = fresh();
     applyRoll(s, { key: "manaCostPct", value: 20, value2: 10 });
     expect(s.manaCostMul).toBeCloseTo(0.8);
-    expect(s.skillDamageMul).toBeCloseTo(0.9);
+    expect(s.increased.skill).toBeCloseTo(-0.1);
     expect(formatAffix({ key: "manaCostPct", value: 20, value2: 10 })).toBe("スキルのコスト -20%、スキル威力 -10%");
   });
 

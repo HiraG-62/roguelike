@@ -7,8 +7,12 @@ import { SKILL_KEYS } from "../skills/types";
 import { ART_DEFS, isArtKey } from "../skills/arts";
 import { deriveAttributes, scaled, withRatio } from "../system/attributes";
 import { shotScaling } from "../system/player";
+import { createIncreased } from "../core/damage";
 import {
   FOLDED_GROUP_HEAD,
+  INCREASED_HEAD,
+  MORE_HEAD,
+  modifierRows,
   NO_SCALING_NOTE,
   actionListRows,
   allFormulas,
@@ -279,5 +283,34 @@ describe("奥義の式", () => {
       const referenced = formulas.some((f) => f.terms.some((t) => t.attr === r.attr));
       expect(r.names.includes(pick.name), `${r.attr} の参照に奥義`).toBe(referenced);
     }
+  });
+});
+
+describe("増と倍の行（計算式の頁）", () => {
+  const withMods = (patch: Partial<PlayerStats>): PlayerStats => ({ ...DEFAULT_STATS, increased: { ...createIncreased() }, more: [], ...patch });
+
+  it("増も倍も無ければ行を出さない", () => {
+    expect(modifierRows(withMods({}), "melee")).toEqual([]);
+  });
+
+  it("増はタグごと、倍は出所ごとに並べ、合計の 1 つの数にはまとめない", () => {
+    const stats = withMods({
+      increased: { ...createIncreased(), melee: 0.2, vsStaggered: 0.1, ranged: 0.5 },
+      more: [
+        { source: "unarmed", label: "素手", mul: 0.7, tags: ["melee"] },
+        { source: "keystone:ks_glassCannon", label: "硝子の砲", mul: 2, tags: ["melee", "ranged"] },
+        { source: "boon:triggerHappy", label: "乱れ撃ち", mul: 0.6, tags: ["ranged"] },
+      ],
+    });
+    const rows = modifierRows(stats, "melee");
+    expect(rows.map((r) => r[0]?.pieces[0]?.text), "見出し").toEqual([INCREASED_HEAD, MORE_HEAD]);
+    const [inc, more] = rows.map((r) => chunksText(r));
+    expect(inc, "近接と怯み中の増（射撃の増は出さない）").toBe("増 近接ダメージ +20%・怯み中の敵へのダメージ +10%");
+    expect(more, "近接に掛かる倍だけ").toBe("倍 素手 ×0.7・硝子の砲 ×2");
+  });
+
+  it("除く出所の倍は出さない（武器の頁では素手の倍を出さない）", () => {
+    const stats = withMods({ more: [{ source: "unarmed", label: "素手", mul: 0.7, tags: ["melee"] }] });
+    expect(modifierRows(stats, "melee", ["unarmed"])).toEqual([]);
   });
 });

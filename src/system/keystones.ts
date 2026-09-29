@@ -1,3 +1,4 @@
+import type { MoreMul } from "../core/damage";
 import type { Enemy, GameState, Player } from "../core/state";
 import { dist } from "../core/vec";
 import type { PlayerStats } from "../loot/types";
@@ -107,6 +108,11 @@ export interface ManaPayer extends KeystoneHolder {
 
 export function hasKeystone(state: KeystoneHolder, key: KeystoneKey): boolean {
   return state.stats.keystones.includes(key);
+}
+
+/** 誓約の与ダメの倍（1 つの誓約につき 1 要素。source は "keystone:<key>"） */
+export function oathMore(key: KeystoneKey, mul: number): MoreMul {
+  return { source: `keystone:${key}`, label: KEYSTONE_NAME[key] ?? key, mul };
 }
 
 /** ks_berserker: 失った HP の割合ぶん与ダメが増える */

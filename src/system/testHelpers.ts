@@ -1,3 +1,4 @@
+import { type IncreasedTable, createIncreased } from "../core/damage";
 import { createGame, step } from "../core/game";
 import { EMPTY_INPUT, type FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
@@ -13,6 +14,11 @@ export function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
 }
 
+/** 一部のタグだけ増を持つ増の表（arena の stats に { increased: increasedWith({ melee: 1 }) } のように渡す） */
+export function increasedWith(partial: Partial<IncreasedTable>): IncreasedTable {
+  return { ...createIncreased(), ...partial };
+}
+
 /**
  * 敵のいない開始部屋に立った状態。クリティカルは切っておく（乱数で数値がぶれないように）。
  * マップは基準の大きさ（面積の倍率 1）で作る（広いマップの生成は重く、形のばらつきで小さな検証が揺れるため）
@@ -20,7 +26,7 @@ export function withInput(partial: Partial<FrameInput>): FrameInput {
 export function arena(seed = 5, stats: Partial<PlayerStats> = {}): GameState {
   const state = withBaseAreaMul(() => createGame(seed));
   state.enemies = [];
-  state.stats = { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [], ...stats };
+  state.stats = { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [], increased: createIncreased(), more: [], ...stats };
   state.player.maxHp = state.stats.maxHp;
   state.player.hp = state.stats.maxHp;
   state.player.dashChargesLeft = state.stats.dashCharges;
