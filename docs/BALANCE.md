@@ -9,9 +9,9 @@
 | `enemies/` | 敵 104 体の HP・速度・予告（`stats/<敵の key>.json`）、怯み耐性（`combat/<敵の key>.json`）、防御・耐性（`defense/enemies/<敵の key>.json`。体つき・土地は `defense/bodies.json` / `defense/biomes.json`）、行動（`ENEMY_AI/<行動の key>.json`）、精鋭・ボス（`BOSS/<ボスの key>.json`）・死神、陣の配り（`JIN.json`: 陣の数・予算・猛・長蛇・物見 `lookout`・群勢 `morale`・敗走 `rout`・後詰 `wake`・眠っている陣が歩き出す `stir`・陣の名札 `hud`）と陣形（`FORMATION/<陣形の key>.json`: 並べ方・役割と格のスロット）、敵の反応ルール（`REACTION.json`: 間合い取り・隙を狙う・囲む・後退射撃・離脱）、同時攻撃の上限と予告の見やすさの上限（`ENEMY_TEMPO.json` の `striker*` / `telegraph*`）、章で覚える技（`ENEMY_TEMPO.json` の `depthStages`: 深度ごとの連撃・離脱・後退射撃）、跳躍（`ENEMY_AI/leaper.json`）、音で起きる半径（`JIN.json` の `noise`） | スライム → `enemies/stats/slime.json` ほか同名 3 ファイル |
 | `skills/` | スキルのコスト・威力・再使用時間（`SKILL/<key>.json`、`EXTRA_SKILL_TUNING/<key>.json`、`WAVE2_SKILL_TUNING/<key>.json`、`WAVE3_SKILL_TUNING.json`）、刻印符（`SKILL/modifier.json` と `*_MODIFIER_TUNING.json`）、連携、変身、使い込み | 伝染 → `skills/EXTRA_SKILL_TUNING/contagion.json` |
 | `boons/` | 祝福の数値（`BOON.json`） | |
-| `loot/` | ドロップ率、共鳴、誓約、トリガー、性質の期待値曲線（`affixCurves/<性質の key>.json`）、ベースの出現深度（`bases.json`）、地金の予算と配り方（`INNATE/`） | 堅牢の曲線 → `loot/affixCurves/sturdy.json` |
+| `loot/` | ドロップ率、共鳴、誓約、トリガー、性質の揺らぎ（`FLUX.json`: 幅・反転・見た目の分類の境界・強さの係数）、性質の期待値曲線（`affixCurves/<性質の key>.json`）、ベースの出現深度（`bases.json`）、地金の予算と配り方（`INNATE/`） | 堅牢の曲線 → `loot/affixCurves/sturdy.json` |
 | `combat/` | 気力、回復、状態異常（`STATUS/`）、ステータス、怯み、攻撃ジャンル、属性、地形、プレイヤーの移動・ダッシュ・生命・射撃の共通値（`PLAYER.json`。近接 3 段は `weapons/PLAYER_MELEE.json`）、全武器共通の受け流し（`PARRY.json`）、アクション手触り（`ACTION.json`。浮き文字の文言は `src/data/actionText.ts`） | 毒 → `combat/STATUS/poison.json` |
-| `enemies/ENEMY_SCALE.json` | 深度による敵の HP の伸び（`hpPerDepth`） | |
+| `enemies/ENEMY_SCALE.json` | 深度による敵の伸び: 生命と怯み耐性 `hpPerDepth`、攻撃の倍率 `damagePerDepth`、深み（`deepDepth` 以降は指数 `deepHpGrowth` / `deepDamageGrowth`）。敵の攻撃は `depthDamage(基礎, 深度)` で倍率を掛ける | |
 | `world/` | フロア、マップの広さ（`MAP_SIZE.json`: 面積の倍率の抽選・部屋数・部屋の大きさ `roomSizeExp`・部屋の敵の伸び `roomEnemiesExp`・死神の猶予と徘徊上限の伸び）、敵の眠りの距離（`ROAM.json` の `sleepDist`）、部屋（`ROOM_KIND/`）、洞窟、徘徊（通路への初期配置 `ROAM.corridorPerTiles` / `corridorMax` を含む）、隠し部屋（`HIDDEN_ROOM.json`）、ランイベント（`RUN_EVENT/`）、起点、契約者、縛り、拠点 | |
 | `ultimates/` | 奥義の共通値（`ULTIMATE/common.json`。ゲージ消費・無敵・浮き文字の色）と、奥義ごとの数値（`ULTIMATE/defs/<武器種>.json` の `<名前>`。一撃は行為ごとのブロック `nova` / `swing` / `lunge` / `volley` など、持続は `drainPerSec`・`minSec`・倍率・`patch`。奥義ごとの必要な奥義ゲージは `cost`〔省略時 `common.cost`〕）。奥義ゲージの溜まり方は `combat/ENERGY.json` | 剣の奥義 → `ultimates/ULTIMATE/defs/sword.json` |
 | `feel/` | ヒットストップ・揺れなどの手触り（通常命中の上限 `FEEL.hitstopNormalMax`）、敵の予告の線の色と長さ（`TELEGRAPH.json`）、演出（`EFFECTS/`、攻撃エフェクトの見た目は `FX_ATTACK/`）、ミニマップ、音楽、効果音 | |
@@ -71,7 +71,7 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 - 怯み値は `"poise"`（ステータス各 5 のときの値）と `"poiseRatio"`（`{ "str": 0.6 }` の形。1 点あたりの上乗せ）。状態異常の効果量は `"applies"` の各要素の `"ratio"`
 - どのステータスを参照させるかの決め方は `docs/STATS_AND_SCALING.md`（効果から見て納得できる参照先にする）
 - 右の連撃（右クリック。アクション 2）は同じファイル（`weapons/WEAPON/movesets/<武器種>.json`）の `steps2` の配列（1 段 1 要素。段カウンタは左と共有なので、3 段目に右を押すと `steps2[2]`）。振りの段（`"kind": "swing"`）は `.step.scaling`、弾の段（`"volley"`）は `.throw.scaling`、構え（`"hold"`）の離した振りは `.hold.release.scaling`。派生は `branches.<派生の key>.step.scaling`
-- 奥義は `src/data/balance/ultimates/ULTIMATE/defs/<武器種>.json` の `<名前>`（例: `defs/sword.json` の `fullMoon.nova.scaling`）。威力には性質の「奥義の威力」（`burstDamageMul`）が掛かる。持続の奥義の減る速さは `drainPerSec`（ゲージ/秒）
+- 奥義は `src/data/balance/ultimates/ULTIMATE/defs/<武器種>.json` の `<名前>`（例: `defs/sword.json` の `fullMoon.nova.scaling`）。威力には性質の「奥義の威力」（`奥義の増 `increased.ultimate``）が掛かる。持続の奥義の減る速さは `drainPerSec`（ゲージ/秒）
 
 **ジョブのステータスの偏りを変える**:
 1. `src/data/balance/jobs/attributes.json` の `<ジョブ名>` を開く（例: `swordsman`）

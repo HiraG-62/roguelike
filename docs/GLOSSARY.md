@@ -76,7 +76,7 @@
 | コンボ | combo | 連続ヒット数。時間切れか被弾で途切れる | HUD |
 | 奥義 | `special`（入力）/ `UltimateDef`（定義）/ `Player.ultimate`（作業領域） | 奥義ゲージ満タンで F。武器種ごとに 3 本から装備画面のステータスタブで 1 本選ぶ（拠点のみ。ラン中は変えられない）（`Profile.ultimates`）。一撃（instant）と、ゲージが減る間の強化（持続 / sustain）がある。旧表記「バースト」 | `data/ultimates.ts`、`system/ultimates.ts` |
 | 奥義ゲージ | `energy` / `maxEnergy` | 奥義の資源。旧表記「必殺ゲージ」「エネルギー」。持続の奥義の間は HUD のゲージの色が変わる | HUD、祝福の説明文 |
-| 奥義の威力 / 奥義の範囲 / 奥義ゲージ獲得 | `burstDamageMul` / `burstRadiusMul` / `energyGainMul` | 性質の表示名。旧「必殺ダメージ / 必殺範囲 / 必殺ゲージ獲得」 | `loot/stats.ts` |
+| 奥義の威力 / 奥義の範囲 / 奥義ゲージ獲得 | `increased.ultimate`（奥義の増）/ `burstRadiusMul` / `energyGainMul` | 性質の表示名。旧「必殺ダメージ / 必殺範囲 / 必殺ゲージ獲得」 | `loot/stats.ts` |
 | 一撃 / 持続（奥義の種類） | `UltimateKind`: instant / sustain | ステータスタブの奥義カードに出す種類の名前 | `ui/statusTab.ts` ULTIMATE_KIND_LABEL |
 | ステータス（装備画面のタブ） | `InventoryTab` "status" | ステータス 5 種・振り分けの「+」・体の性能・奥義のカード 3 枚を並べる装備画面のタブ | `ui/statusTab.ts`、`render/statusTabUi.ts` |
 | 体の性能 | `derivedStatRows` | ステータスタブの派生値（最大生命・最大気力・移動速度など）の見出し | `ui/statusTab.ts` |
@@ -435,7 +435,8 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 表記 | 意味 | 出典 |
 | --- | --- | --- |
 | ゴール装備 / BiS | 「これを作れば最強」の装備。作らないのが方針 | `docs/LOOT_DESIGN.md` |
-| ソフトキャップ | +100% 超を sqrt 圧縮する逓減 | `loot/stats.ts` |
+| ソフトキャップ | +100% 超を sqrt 圧縮する逓減。攻撃速度・連射速度・移動速度だけ（与ダメの増には掛けない） | `loot/stats.ts` |
+| 増 / 倍 | 与ダメの 2 つの壺。増 = 性質・地金・共鳴の数値。同じ 1 撃に効く増は足してから 1 回掛ける（表示「近接ダメージ 増 +20%」）。倍 = 誓約・芯・得意武器・素手・会心・コンボなど出所が 1 つのもの。出所ごとに掛け合わせる（表示「硝子の砲 倍 ×2」）。合計の 1 つの数にはまとめない。内部名 `increased` / `more` | `core/damage.ts`、`system/damageMods.ts` |
 | 流れ（旧「語」） | 表示では「シナジー」と書かない。全要素（装備・祝福・スキル石・刻印符・敵・部屋）が共有するシナジーの単位。燃焼・ダッシュ・瀕死・会心などの「状況」。40 種。内部名 `Keyword` | `core/keywords.ts`、`docs/ideas/synergy-web.md` 1 章 |
 | 源 / 糧 / 強める | 流れへの関わり方（旧「出す / 食う」）。源 = その状況を起こす側、糧 = その状況を条件に強くなる側、強める = 起こした結果の量や質を上げる。表示は名詞で、「〜を燃料にする」のような文にしない。内部名 `produces` / `consumes` / `amplifies` | `core/keywords.ts` |
 | 溢れ / 枯れ | 溢れ = 源はあるのに糧がない流れ。枯れ = 糧はあるのに源がない流れ（旧「余り / 飢え」）。ビルドの穴を示す。内部名 `surplus` / `hunger` | `system/keywords.ts` |

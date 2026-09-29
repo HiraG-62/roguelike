@@ -132,7 +132,7 @@ function scaled(stats: Readonly<PlayerStats>, s: Scaling): number {
 }
 ```
 
-**与ダメの合成順序**（`rollOutgoing` の変更点は ★）:
+**与ダメの合成順序**（2026-09-30 に「基礎 × (1 + Σ増) × Π倍 × 敵側」へ置き換えた。`docs/STATS_AND_SCALING.md` 3 章。下は置き換え前の記録。`meleeDamageMul` などは `increased.<tag>` に、誓約などの乗算は `more` になった）:
 
 ```
 1. raw   = scaled(stats, 技の Scaling) × CastParams.damageMul      … 呼び出し側（player.ts / skills）
