@@ -1,0 +1,12 @@
+{
+  "layout": "wedge",
+  "minDepth": 1,
+  "weight": 3,
+  "spacing": 20,
+  "slots": [
+    { "role": "vanguard", "grade": "strong", "share": 0.3, "min": 0, "max": 1 },
+    { "role": "vanguard", "grade": "elite", "share": 0.2, "min": 0, "max": 1 },
+    { "role": "vanguard", "grade": "normal", "share": 0.35, "min": 2 },
+    { "role": "charge", "grade": "normal", "share": 0.15, "min": 0, "max": 2 }
+  ]
+}

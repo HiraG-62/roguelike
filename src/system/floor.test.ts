@@ -16,7 +16,7 @@ import { updateRunEvents } from "./runEvents";
 import { BOSS, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { grantBoon } from "./boons";
 import { resolveRules } from "./rules";
-import { ROAMING_ROOM, reinforceDue, roamCap, roamerCount, updateRoamers } from "./spawner";
+import { ROAMING_ROOM, updateRoamers } from "./spawner";
 import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
 import { FLOOR_KINDS, biomeEnemyWeight, floorKindCandidates, floorKindWeight, isInvertedDepth } from "./biomes";
@@ -24,7 +24,6 @@ import { stairsTilesValid, updateSpecialRooms } from "./specialRooms";
 import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
-import { VIEW_H, VIEW_W } from "../core/view";
 import { slayFloorLord } from "./testHelpers";
 
 /** 広いマップ（面積 3.5〜5 倍）を何十枚も作るテストの制限時間（ms）。既定の 5 秒では並列実行の負荷で足りない */
@@ -101,13 +100,6 @@ describe("マップの広さ（MAP_SIZE）", () => {
     expect([small.map.width, small.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
     const wide = createGame(5);
     expect(wide.floorAreaMul, "抜けた後は MAP_SIZE の範囲").toBeGreaterThanOrEqual(MAP_SIZE.areaMulMin);
-  });
-
-  it("徘徊の上限は広い階ほど 面積の倍率 ^ roamCapExp 倍に増える", () => {
-    const depth = 2;
-    expect(roamCap(depth, 1)).toBe(roamCap(depth));
-    expect(roamCap(depth, 4)).toBe(Math.round(roamCap(depth) * 4 ** MAP_SIZE.roamCapExp));
-    expect(roamCap(depth, 4)).toBeGreaterThan(roamCap(depth));
   });
 });
 
@@ -647,7 +639,7 @@ describe("交戦中（isEngaged）: 封鎖中 または 開放型の交戦中", 
 });
 
 describe("開放型フロア: 徘徊", () => {
-  it("生成時に一部の敵が徘徊（どの部屋にも属さない）になり、目的地は封鎖しない部屋の中心。開始の部屋には敵がいない", () => {
+  it("生成時に長蛇（通路の陣）が徘徊（どの部屋にも属さない）として立ち、目的地は封鎖しない部屋の中心。開始の部屋には敵がいない", () => {
     let roamers = 0;
     for (let seed = 0; seed < 20; seed++) {
       const state = createGame(seed);
@@ -658,12 +650,13 @@ describe("開放型フロア: 徘徊", () => {
         expect(start.tiles?.has(toIndex(state.map, tx, ty)) ?? false, `seed=${seed} 開始の部屋に敵`).toBe(false);
         if (e.roomIndex !== ROAMING_ROOM) continue;
         roamers++;
+        expect(e.jinId, "徘徊は長蛇の陣に属する").toBeDefined();
         const roam = e.ai?.roam;
         expect(roam, "徘徊の目的地").toBeDefined();
         const centers = state.rooms.filter((r, i) => i !== 0 && !ROOM_KIND.locks[r.kind]).map((r) => rectCenterPx(r.rect));
         expect(centers.some((c) => c.x === roam!.x && c.y === roam!.y), "目的地は開始以外の封鎖しない部屋の中心").toBe(true);
       }
-      // 徘徊を抜いても、敵を置いた部屋には 1 体以上残る
+      // 陣を置いた通常の部屋は未制圧で、敵が 1 体以上いる
       state.rooms.forEach((room, i) => {
         if (i === 0 || room.cleared || room.kind !== "normal") return;
         expect(state.enemies.some((e) => e.roomIndex === i), `seed=${seed} room=${i}`).toBe(true);
@@ -709,50 +702,17 @@ describe("開放型フロア: 徘徊", () => {
   });
 });
 
-describe("開放型フロア: 時間経過の増援", () => {
-  it("reinforceDelay 秒後から reinforceInterval 秒ごとに増援の時刻が来る（ボス階は来ない）", () => {
+describe("開放型フロア: 時間経過では湧かない（増援の代わりは 3b の陣の長居）", () => {
+  it("階に長く居ても、部屋の外で敵が増えない（陣で配った数のまま）", () => {
     const state = createGame(3);
-    state.floorTime = ROAM.reinforceDelay - FIXED_DT / 2;
-    expect(reinforceDue(state, FIXED_DT)).toBe(true);
-    state.floorTime = ROAM.reinforceDelay + FIXED_DT;
-    expect(reinforceDue(state, FIXED_DT)).toBe(false);
-    state.floorTime = ROAM.reinforceDelay + ROAM.reinforceInterval - FIXED_DT / 2;
-    expect(reinforceDue(state, FIXED_DT)).toBe(true);
-    state.floorTime = ROAM.reinforceDelay - 1;
-    expect(reinforceDue(state, FIXED_DT)).toBe(false);
-  });
-
-  it("増援は画面外の壁でない床に徘徊として湧き、徘徊の上限を超えない", () => {
-    const state = createGame(3);
-    state.enemies = state.enemies.filter((e) => e.roomIndex !== ROAMING_ROOM);
-    const cap = roamCap(state.depth, state.floorAreaMul);
-    for (let n = 0; n < cap * 3; n++) {
-      state.floorTime = ROAM.reinforceDelay + n * ROAM.reinforceInterval - FIXED_DT / 2;
+    const before = state.enemies.length;
+    const LONG_STAY_SEC = 120;
+    const STEP_SEC = 5;
+    for (let t = 0; t < LONG_STAY_SEC; t += STEP_SEC) {
+      state.floorTime = t;
       updateRooms(state, FIXED_DT);
-      expect(roamerCount(state), "上限").toBeLessThanOrEqual(cap);
     }
-    expect(roamerCount(state), "上限まで湧く").toBe(cap);
-    const p = state.player.body.pos;
-    for (const e of state.enemies.filter((x) => x.roomIndex === ROAMING_ROOM)) {
-      expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), "壁に埋まらない").toBe(false);
-      expect(Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y), "プレイヤーから離れる").toBeGreaterThanOrEqual(ROAM.minSpawnDist);
-      const c = state.camera.pos;
-      const inView = Math.abs(e.body.pos.x - c.x) < VIEW_W / 2 && Math.abs(e.body.pos.y - c.y) < VIEW_H / 2;
-      expect(inView, "カメラの表示範囲の外（画面の角にも湧かない）").toBe(false);
-      expect(e.ai?.roam, "徘徊の目的地").toBeDefined();
-    }
-  });
-
-  it("同じ seed と同じ時間経過なら同じ増援（決定的）", () => {
-    const run = (): string => {
-      const state = createGame(12);
-      for (let n = 0; n < 3; n++) {
-        state.floorTime = ROAM.reinforceDelay + n * ROAM.reinforceInterval - FIXED_DT / 2;
-        updateRooms(state, FIXED_DT);
-      }
-      return JSON.stringify(state.enemies.map((e) => [e.defKey, e.body.pos, e.roomIndex, e.ai?.roam]));
-    };
-    expect(run()).toBe(run());
+    expect(state.enemies.length, "敵の数は増えない").toBe(before);
   });
 });
 

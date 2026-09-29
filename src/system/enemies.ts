@@ -2,7 +2,7 @@ import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../c
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE, ROAM, TELEGRAPH } from "../data/tuning";
+import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
@@ -16,6 +16,7 @@ import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
 import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
+import { takeRetreatStep, tickReaction } from "./enemyReactions";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
@@ -123,6 +124,8 @@ export interface FollowUpDef {
   onWallOnly: boolean;
 }
 const FOLLOW_UPS: Readonly<Record<string, FollowUpDef | undefined>> = ENEMY_TEMPO.followUps;
+/** 攻撃の後の隙で離れる速さの倍率（敵の定義ごと。REACTION.retreatAfterStrike。behavior 既定より優先） */
+const RETREAT_AFTER_STRIKE: Readonly<Record<string, number | undefined>> = REACTION.retreatAfterStrike;
 
 /** 深度による予備動作の倍率。1 階で 1、深くなるほど短く windupDepthMin で止まる */
 export function depthWindupMul(depth: number): number {
@@ -197,7 +200,8 @@ export function updateEnemies(state: GameState, dt: number): void {
     // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
     if (isHalted(e)) continue;
     e.animTime += edt;
-    e.attackCooldown = Math.max(0, e.attackCooldown - edt);
+    // プレイヤーの隙では前衛・突撃の時計が速く進む（反応ルール。ボス・設置物は 1 倍）
+    e.attackCooldown = Math.max(0, e.attackCooldown - edt * behaviorOf(def).attackCooldownRate(state, e, def));
     if (isFeared(e) && e.phase !== "spawning") {
       flee(state, e, def, edt);
       continue;
@@ -268,6 +272,7 @@ export function farFromPlayer(state: GameState, e: Enemy): boolean {
 /** 状態機械の前に毎ステップ行う behavior 固有の下準備（取り巻きを呼ぶ・位置を記録する・蘇生の時計） */
 function beforeAct(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   if (e.phase !== "chase" && e.phase !== "windup" && e.phase !== "strike" && e.phase !== "recover") return;
+  tickReaction(e, dt);
   if (def.pack) spawnPackOnce(state, e, def);
   if (def.behavior === "echoStriker") recordTrail(state, e, dt);
   if (def.behavior === "twinShade") tickTwinRevive(state, e, dt);
@@ -382,6 +387,8 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
   if (dir.x !== 0) e.facing = dir;
   // 盾持ちは常にプレイヤーへ正面を向ける
   if (def.blocks) e.facing = dir;
+  // 間合い取り: 殴られ続けたら少し離れる（離れている間は攻撃を始めない）
+  if (stepRetreat(state, e, def, toPlayer, dt)) return;
   if (def.behavior === "scavenger" && tryStartEating(state, e)) return;
 
   const move = chaseMove(state, e, def, chaseHeading(state.map, e.body.pos, state.player.body.pos, dir), d);
@@ -390,7 +397,41 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
 
   if (!wantsEngage(state, e, def, d) || e.attackCooldown > 0) return;
   if (!canBeginAttack(state, e, def, d)) return;
+  // 予告の見やすさの上限: 同じ 0.3 秒に赤くなる予告を絞る（次の窓で再挑戦）
+  if (telegraphCrowded(state, e)) {
+    e.attackCooldown = ENEMY_TEMPO.telegraphWindow;
+    return;
+  }
   beginWindup(state, e, def, dir);
+}
+
+/**
+ * 間合い取りの 1 ステップ。ai.retreat が残っていればプレイヤーの反対へ離れ、動いたら true。
+ * 離れる速さは敵の速さに依らず一定（REACTION.retreatDist ÷ retreatSec）
+ */
+function stepRetreat(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): boolean {
+  const step = takeRetreatStep(e, dt);
+  if (step <= 0) return false;
+  const away = scale(normalize(toPlayer), -1);
+  moveEnemy(state, e, def, away.x * step, away.y * step);
+  return true;
+}
+
+/**
+ * 予告の見やすさの上限: 予備動作に入ってから telegraphWindow 未満（=予告が出たばかり）の非ボスの敵が、
+ * プレイヤーの telegraphRange 以内に telegraphCap 以上いれば true。ボスは自前の予告があるので数えない
+ */
+function telegraphCrowded(state: GameState, e: Enemy): boolean {
+  const t = ENEMY_TEMPO;
+  const p = state.player.body.pos;
+  let fresh = 0;
+  for (const o of state.enemies) {
+    if (o === e || o.hp <= 0 || o.phase !== "windup") continue;
+    if (o.windupTotal - o.phaseTimer >= t.telegraphWindow) continue;
+    if (dist(o.body.pos, p) > t.telegraphRange || isBossDriven(enemyDef(o.defKey))) continue;
+    fresh++;
+  }
+  return fresh >= t.telegraphCap;
 }
 
 /** 攻撃に入る距離か。地雷はプレイヤーだけでなく敵が踏んでも爆ぜる */
@@ -438,10 +479,14 @@ function chaseMove(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: numbe
     case "oiler":
       // 油壺運びはふらふら走り回って床に油を広げる
       return normalize(add(dir, scale(perp, Math.sin(e.animTime * 2 + e.id) * 1.2)));
-    default:
-      // 狼は遠いうちは横へ回り込み、近づいたら素直に飛びかかる
+    default: {
+      // 囲む: 仲間が揃うとプレイヤーの周りの持ち場へ回り込む。持ち場が見えないとき（壁越し）は経路の探索を増やさず直進に戻す
+      const slot = d >= def.engageRange ? behaviorOf(def).slotTarget(state, e, def) : undefined;
+      if (slot && lineOfSight(state.map, e.body.pos, slot)) return normalize(sub(slot, e.body.pos), dir);
+      // 狼は仲間がいないうちは遠くから横へ回り込み、近づいたら素直に飛びかかる
       if (def.flank && d > ENEMY_AI.flank.minDist) return normalize(add(dir, scale(perp, side * def.flank)));
       return dir;
+    }
   }
 }
 
@@ -594,7 +639,8 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
   }
   e.phaseTimer -= dt;
   const mul = behaviorOf(def).windupMoveMul;
-  if (mul > 0) {
+  // 負は後退射撃（プレイヤーから離れながら構える）
+  if (mul !== 0) {
     const dir = normalize(toPlayer);
     const speed = enemySpeed(state, e, def) * mul;
     moveEnemy(state, e, def, dir.x * speed * dt, dir.y * speed * dt);
@@ -608,6 +654,26 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
 }
 
 /**
+ * 同時攻撃の上限（docs/ideas/jin-impl.md 2-8）: strikerBase + 切り捨て(起きている敵 ÷ strikerPerAwake)。
+ * 起きている敵 = プレイヤーの strikerCountRadius 以内の生存・非ボス・潜っていない・idle / spawning でない敵。
+ * 周りが多いほど同時に殴りかかってよい数が増える（少人数は 2 のまま、大勢は待ちが減る）
+ */
+export function strikerCap(state: GameState): number {
+  const t = ENEMY_TEMPO;
+  const p = state.player.body.pos;
+  const r2 = t.strikerCountRadius * t.strikerCountRadius;
+  let awake = 0;
+  for (const o of state.enemies) {
+    if (o.hp <= 0 || o.hidden || o.phase === "idle" || o.phase === "spawning") continue;
+    const dx = o.body.pos.x - p.x;
+    const dy = o.body.pos.y - p.y;
+    if (dx * dx + dy * dy > r2 || isBossDriven(enemyDef(o.defKey))) continue;
+    awake++;
+  }
+  return t.strikerBase + Math.floor(awake / t.strikerPerAwake);
+}
+
+/**
  * 同時攻撃の上限: すでに strike の敵が上限に達していれば待たせる。
  * 敵は配列順（id 順）に更新されるので、同じステップで予備動作が終わった敵は id の若い方が先に枠を取る（決定的）。
  * ボスは数えない: ボスは自前の AI（boss*.ts）で動いてこの上限を受けず、技の strike も長いので、数えると
@@ -618,7 +684,7 @@ function strikeSlotsFull(state: GameState, e: Enemy): boolean {
   for (const o of state.enemies) {
     if (o !== e && o.hp > 0 && o.phase === "strike" && !isBossDriven(enemyDef(o.defKey))) striking++;
   }
-  return striking >= ENEMY_AI.maxSimultaneousStrikers;
+  return striking >= strikerCap(state);
 }
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */
@@ -848,7 +914,8 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
       endStrike(state, e, def);
       return;
     }
-    const damage = contactDamageOf(e, def);
+    // 格「猛」は接触ダメージが重い（陣の強。docs/ideas/jin-impl.md 2-2）
+    const damage = Math.round(contactDamageOf(e, def) * (e.grade === "strong" ? JIN.strong.damageMul : 1));
     if (damage > 0) {
       const result = touchPlayer(state, e, damage);
       // 受け流しなどで touchPlayer の最中に怯んだ・攻撃が終わった敵は、endStrike の recover で怯みを上書きさせない
@@ -893,16 +960,21 @@ function touchWisp(state: GameState, e: Enemy, def: EnemyDef): void {
 
 function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
   e.phaseTimer -= dt;
-  if (def.behavior === "bat") {
-    // 一撃離脱: 噛んだら離れる
-    const away = scale(normalize(toPlayer), -1);
-    const speed = enemySpeed(state, e, def) * ENEMY_AI.bat.retreatMul;
-    moveEnemy(state, e, def, away.x * speed * dt, away.y * speed * dt);
-  }
+  // 殴られ続けて間合いを取っている間は、攻撃の後の離脱と二重に動かない
+  if (!stepRetreat(state, e, def, toPlayer, dt)) retreatAfterStrike(state, e, def, toPlayer, dt);
   if (e.phaseTimer > 0) return;
   if (def.behavior === "scavenger") finishEating(state, e, def);
   onRecoverEndWave3(e, def);
   toChase(e, def);
+}
+
+/** 離脱: 攻撃の後の隙の間、プレイヤーから離れる（蝙蝠・狼・棘鼠・盗賊。速さは歩きの倍率） */
+function retreatAfterStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
+  const mul = RETREAT_AFTER_STRIKE[def.key] ?? behaviorOf(def).recoverRetreatMul;
+  if (mul <= 0) return;
+  const away = scale(normalize(toPlayer), -1);
+  const speed = enemySpeed(state, e, def) * mul;
+  moveEnemy(state, e, def, away.x * speed * dt, away.y * speed * dt);
 }
 
 /** 攻撃の終わり。連続攻撃・残響・次の光線が残っていれば次の予備動作へ、無ければ隙（recover） */

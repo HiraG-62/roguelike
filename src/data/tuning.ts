@@ -121,6 +121,8 @@ export const ROOM = BALANCE.world.ROOM;
 export const ENEMY_AI = BALANCE.enemies.ENEMY_AI;
 export const ENEMY_TEMPO = BALANCE.enemies.ENEMY_TEMPO;
 export const ELITE = BALANCE.enemies.ELITE;
+/** 敵の反応ルール（間合い取り・隙を狙う・囲む・後退射撃・離脱。system/enemyReactions.ts） */
+export const REACTION = BALANCE.enemies.REACTION;
 
 /** ボス共通 + 個体別パラメータ。数値は src/data/balance/enemies/ の "BOSS"（各 src/system/boss<Name>.ts が読む） */
 export const BOSS = BALANCE.enemies.BOSS;
@@ -130,6 +132,10 @@ export const REAPER = BALANCE.enemies.REAPER;
 
 /** 毎階の「階の主」。数値は src/data/balance/enemies/ の "FLOOR_LORD"（src/system/floorLord.ts が読む） */
 export const FLOOR_LORD = BALANCE.enemies.FLOOR_LORD;
+
+/** 陣の配り方（src/system/jinSpawn.ts）と陣形の人数・格（src/data/formations.ts が検査して読む） */
+export const JIN = BALANCE.enemies.JIN;
+export const FORMATION = BALANCE.enemies.FORMATION;
 
 /** 深度による敵の HP の伸び（src/data/enemies.ts の depthHpScale）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
 export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;

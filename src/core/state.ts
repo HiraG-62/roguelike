@@ -15,6 +15,7 @@ import type { ContractState } from "../system/contractors";
 import type { OriginKey, RunModKey } from "../system/runSetup";
 import type { ButtonKey, ShotRuntime } from "../data/weapons";
 import type { JobKey } from "../data/jobs";
+import type { FormationKey } from "../data/formations";
 import type { CodexRun } from "../meta/codex";
 import type { QuestRun } from "../meta/quests";
 
@@ -330,6 +331,12 @@ export interface EnemyAi {
   roamStuck?: number;
   /** 盗賊王: 追い詰められている秒（src/system/bossThiefKing.ts） */
   cornered?: number;
+  /** 反応ルール（system/enemyReactions.ts）: 直近の被弾を数える窓の残り秒 */
+  hitWindow?: number;
+  /** 反応ルール: 窓の中で殴られた回数（閾値で間合い取りへ） */
+  hitCount?: number;
+  /** 反応ルール: 間合い取り（プレイヤーから離れる）の残り秒 */
+  retreat?: number;
 }
 
 export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall";
@@ -668,7 +675,7 @@ export type FloorKind = "rooms" | "cave" | "dark" | "forge" | "ossuary" | "swamp
 
 /**
  * どの部屋にも属さない敵の roomIndex（Enemy.roomIndex / EliteWork の判定などが使う）。
- * 徘徊・通路の初期配置（system/spawner.ts の populateCorridors）・盗みなどの増援が使う。
+ * 徘徊・通路の陣「長蛇」（system/jinSpawn.ts）・敗走した敵・盗みなどの増援が使う。
  * spawner.ts から使うファイルが多いので spawner.ts が re-export する
  */
 export const ROAMING_ROOM = -1;
@@ -684,8 +691,7 @@ export interface Jin {
   id: number;
   /** 占める塊。長蛇・物見は ROAMING_ROOM */
   roomIndex: number;
-  /** data/formations.ts の FormationKey に絞る（3a-A）。それまでは文字列 */
-  formation: string;
+  formation: FormationKey;
   center: Vec;
   /** 正面（開始側の隣の塊へ向く）。陣形の並びの向き */
   facing: Vec;

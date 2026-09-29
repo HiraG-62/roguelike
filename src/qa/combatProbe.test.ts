@@ -24,6 +24,7 @@ function finiteCounts(c: ProbeCounts): boolean {
   const nums = [
     c.seconds, c.kills, c.hitsTaken, c.damageTaken, c.deaths, c.counters, c.dodges, c.enemySteps, c.staggeredEnemySteps,
     c.band.steps, c.band.hitstopSteps, c.band.windups, c.band.strikes, c.band.engagedSteps,
+    c.retreats, c.punishShrunkSeconds, c.punishSteps, c.maxRedTelegraphs, c.holdSeconds,
   ];
   return nums.every((n) => Number.isFinite(n) && n >= 0);
 }
@@ -83,10 +84,31 @@ describe("連打計測の指標", () => {
     const m = probeMetrics({
       seconds: 10, kills: 0, hitsTaken: 0, damageTaken: 0, deaths: 0, counters: 0, dodges: 0, enemySteps: 0, staggeredEnemySteps: 0,
       band: { steps: 600, hitstopSteps: 60, windups: 0, strikes: 0, engagedSteps: 0, engagementSeconds: [] },
+      retreats: 6, punishShrunkSeconds: 3, punishSteps: 10, maxRedTelegraphs: 2, holdSeconds: 0.5,
     });
     expect(m.secondsPerKill, "撃破 0").toBeNull();
     expect(m.completionRate, "予備動作 0").toBeNull();
     expect(m.hitstopRate, "60 / 600").toBeCloseTo(0.1, 5);
+  });
+
+  it("反応ルールの指標は 60 秒あたりに直し、赤い予告の最大はそのまま出す", () => {
+    const m = probeMetrics({
+      seconds: 30, kills: 1, hitsTaken: 0, damageTaken: 0, deaths: 0, counters: 0, dodges: 0, enemySteps: 0, staggeredEnemySteps: 0,
+      band: { steps: 1800, hitstopSteps: 0, windups: 1, strikes: 1, engagedSteps: 0, engagementSeconds: [] },
+      retreats: 6, punishShrunkSeconds: 3, punishSteps: 10, maxRedTelegraphs: 2, holdSeconds: 0.5,
+    });
+    expect(m.retreatsPer60, "30 秒で 6 回 → 60 秒で 12 回").toBeCloseTo(12, 5);
+    expect(m.punishSecondsPer60).toBeCloseTo(6, 5);
+    expect(m.holdSecondsPer60).toBeCloseTo(1, 5);
+    expect(m.maxRedTelegraphs).toBe(2);
+  });
+});
+
+describe("連打計測の反応ルールの観測", () => {
+  it("連打 bot は前衛の間合い取りを起こし、隙狙いの時計も進める", () => {
+    const c = runDuel(1, "golem", "mash", 20, 1);
+    expect(c.retreats, "殴り続けると前衛は離れる").toBeGreaterThan(0);
+    expect(c.punishShrunkSeconds, "連打は終撃の硬直を晒す").toBeGreaterThan(0);
   });
 });
 

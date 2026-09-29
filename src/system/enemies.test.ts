@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { createRng } from "../core/rng";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { dist } from "../core/vec";
 import { ENEMIES, enemiesForDepth, enemyDef } from "../data/enemies";
-import { ENEMY_AI } from "../data/tuning";
+import { ENEMY_AI, ENEMY_TEMPO } from "../data/tuning";
 import { damageEnemy } from "./combat";
-import { enemyTelegraph, moveEnemy, updateEnemies } from "./enemies";
+import { enemyTelegraph, moveEnemy, strikerCap, updateEnemies } from "./enemies";
 import { updateHazards } from "./hazards";
 import { updateProjectiles } from "./projectiles";
 import { interceptEnemyDamage } from "./elites";
@@ -691,7 +692,7 @@ describe("シナジーの穴: 沈黙で詠唱が止まる（H4）", () => {
   });
 });
 
-describe("同時攻撃の上限（ENEMY_AI.maxSimultaneousStrikers）", () => {
+describe("同時攻撃の上限（strikerCap = ENEMY_TEMPO.strikerBase + 起きている敵 ÷ strikerPerAwake）", () => {
   /** 予備動作が次のステップで終わる状態にして置く */
   function aboutToStrike(state: GameState, dx: number, dy: number): Enemy {
     const e = placeEnemy(state, "slime", dx, dy);
@@ -700,24 +701,43 @@ describe("同時攻撃の上限（ENEMY_AI.maxSimultaneousStrikers）", () => {
     return e;
   }
 
-  it("上限を超えた 3 体目は予備動作のまま待ち、枠が空いてから攻撃する", () => {
-    expect(ENEMY_AI.maxSimultaneousStrikers, "既定の上限は 2").toBe(2);
+  it("上限は周りの起きている敵が増えるほど 1 ずつ増える（起きていない敵・遠い敵は数えない）", () => {
+    const state = arena();
+    expect(strikerCap(state), "敵がいなければ下限").toBe(ENEMY_TEMPO.strikerBase);
+    for (let i = 0; i < ENEMY_TEMPO.strikerPerAwake; i++) aboutToStrike(state, 30 + i * 5, 0);
+    expect(strikerCap(state), "strikerPerAwake 体で 1 増える").toBe(ENEMY_TEMPO.strikerBase + 1);
+    const sleeper = placeEnemy(state, "slime", 40, 20);
+    sleeper.phase = "idle";
+    const far = placeEnemy(state, "slime", ENEMY_TEMPO.strikerCountRadius + 50, 0);
+    far.phase = "chase";
+    expect(strikerCap(state), "idle と半径の外の敵は数えない").toBe(ENEMY_TEMPO.strikerBase + 1);
+  });
+
+  it("ボスは起きている敵に数えない", () => {
+    const state = arena();
+    placeEnemy(state, "frostGiant", 60, 0).phase = "chase";
+    expect(strikerCap(state)).toBe(ENEMY_TEMPO.strikerBase);
+  });
+
+  it("上限を超えた 4 体目は予備動作のまま待ち、枠が空いてから攻撃する", () => {
     const state = arena();
     state.player.maxHp = HUGE_HP;
     state.player.hp = HUGE_HP;
-    const a = aboutToStrike(state, 30, 0);
-    const b = aboutToStrike(state, -30, 0);
-    const c = aboutToStrike(state, 0, 30);
+    const list = [aboutToStrike(state, 30, 0), aboutToStrike(state, -30, 0), aboutToStrike(state, 0, 30), aboutToStrike(state, 0, -30)];
+    const cap = strikerCap(state);
+    expect(cap, "前提: 4 体いる上限は下限 + 1").toBe(ENEMY_TEMPO.strikerBase + 1);
     tickEnemies(state);
-    expect(a.phase, "id の若い 1 体目は攻撃に入る").toBe("strike");
-    expect(b.phase, "2 体目も攻撃に入る").toBe("strike");
-    expect(c.phase, "3 体目は予備動作のまま待つ").toBe("windup");
-    for (let i = 0; i < 600 && c.phase === "windup"; i++) {
+    const [a, b, c, d] = list;
+    expect(a?.phase, "id の若い 1 体目は攻撃に入る").toBe("strike");
+    expect(b?.phase, "2 体目も攻撃に入る").toBe("strike");
+    expect(c?.phase, "3 体目も上限の中").toBe("strike");
+    expect(d?.phase, "4 体目は予備動作のまま待つ").toBe("windup");
+    for (let i = 0; i < 600 && d?.phase === "windup"; i++) {
       tickEnemies(state);
       const striking = state.enemies.filter((e) => e.phase === "strike").length;
-      expect(striking, "攻撃中の敵は常に上限以下").toBeLessThanOrEqual(ENEMY_AI.maxSimultaneousStrikers);
+      expect(striking, "攻撃中の敵は常にその時点の上限以下").toBeLessThanOrEqual(strikerCap(state));
     }
-    expect(c.phase, "枠が空けば 3 体目も攻撃する").toBe("strike");
+    expect(d?.phase, "枠が空けば 4 体目も攻撃する").toBe("strike");
   });
 
   it("技を出しているボスは枠を埋めない（取り巻きは待たずに攻撃する）", () => {
@@ -750,6 +770,8 @@ describe("同時攻撃の上限（ENEMY_AI.maxSimultaneousStrikers）", () => {
 // 二度突きの猪（docs/ideas/enemies.md E6）と泥の中の突進
 // -----------------------------------------------------------------------------
 
+const BOAR_TURN_SEED = 1;
+
 describe("二度突きの猪", () => {
   it("猪の再配色種で、深度 5 以上に出る。予告は折れ線（enemyTelegraph は直線を出さない）", () => {
     const def = enemyDef("boarDouble");
@@ -766,6 +788,8 @@ describe("二度突きの猪", () => {
     state.depth = 5;
     const b = readyEnemy(state, "boarDouble", 60);
     b.hp = HUGE_HP;
+    // 曲がる向きは state.rng で決まる。arena の生成が引く乱数の数に左右されないよう固定する（逃げ先を床に保つ）
+    state.rng = createRng(BOAR_TURN_SEED);
     tickEnemies(state);
     expect(b.phase).toBe("windup");
     const path = b.doubleCharge;

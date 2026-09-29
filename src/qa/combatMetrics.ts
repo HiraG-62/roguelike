@@ -32,6 +32,31 @@ export function countEngagedEnemies(state: GameState): number {
   return n;
 }
 
+/** 同時攻撃の上限を見るときに遡る秒。上限は周りの敵の数で動くので、倒して上限が下がった直後の超過は違反にしない */
+const STRIKER_CAP_WINDOW_SECONDS = 1;
+
+export interface StrikerCapWatcher {
+  /** 1 step ごとに、その時点の上限と攻撃中の非ボス数を渡す。直近の上限の最大を超えた数（0 以上）を返す */
+  observe(cap: number, strikers: number): number;
+}
+
+/**
+ * 同時攻撃の上限（system/enemies.ts の strikerCap）を守れているかの見張り。
+ * 上限は攻撃の開始の瞬間に判定されるが、その後に周りの敵が倒れて上限が下がることがある。
+ * 直近 STRIKER_CAP_WINDOW_SECONDS の上限の最大と比べれば、開始時の判定を取りこぼさずに済む
+ */
+export function createStrikerCapWatcher(dt: number): StrikerCapWatcher {
+  const windowSteps = Math.max(1, Math.round(STRIKER_CAP_WINDOW_SECONDS / dt));
+  const recent: number[] = [];
+  return {
+    observe(cap, strikers) {
+      recent.push(cap);
+      if (recent.length > windowSteps) recent.shift();
+      return Math.max(0, strikers - Math.max(...recent));
+    },
+  };
+}
+
 /** 深度帯ごとの集計 */
 export interface CombatBandTally {
   /** 観測した step 数（ヒットストップで止まった step も含む） */

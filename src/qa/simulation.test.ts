@@ -6,7 +6,7 @@ import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, TERRAIN_LABEL, type TerrainKind } from "../core/terrain";
 import { createRng, type Rng } from "../core/rng";
 import { ENEMIES, enemyDef, isBossClass } from "../data/enemies";
-import { ENEMY_AI } from "../data/tuning";
+import { ENEMY_TEMPO } from "../data/tuning";
 import {
   createEmptyProfile,
   createEmptyProvenance,
@@ -26,7 +26,7 @@ import { fluxClassOf } from "../loot/flux";
 import { nameItem } from "../loot/names";
 import { chooseBud } from "../system/loot";
 import { isBossDriven } from "../system/boss";
-import { createEnemy, isAsleep } from "../system/enemies";
+import { createEnemy, isAsleep, strikerCap } from "../system/enemies";
 import { ROAMING_ROOM } from "../system/spawner";
 import { TILE_SIZE, toIndex } from "../map/grid";
 import { ELITE_KINDS, ELITE_PREFIX } from "../system/elites";
@@ -37,7 +37,8 @@ import { terrainAt, smokeAt } from "../system/terrain";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
-import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, type CombatTally } from "./combatMetrics";
+import { buildFloorSpawnSection, emptyFloorSpawn, recordFloorSpawn, type FloorSpawnTally } from "./jinMetrics";
+import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, createStrikerCapWatcher, type CombatTally } from "./combatMetrics";
 import * as boonsModule from "../system/boons";
 import * as specialRoomsModule from "../system/specialRooms";
 import { BOON_GRADES, BOON_GRADE_LABEL, type BoonGrade, boonGradeOf, isGraded } from "../system/boonGrade";
@@ -567,13 +568,17 @@ interface RunMetrics {
   maxConcurrentStrikers: number;
   /**
    * 上と同じだがボス（isBossDriven）を除いた数の最大。ゲームロジックの strikeSlotsFull と同じ基準なので、
-   * ENEMY_AI.maxSimultaneousStrikers の上限超過はこちらで判定する
+   * 上限超過の判定は下の maxStrikersOverCap（上限は周りの敵の数で動くため、固定の数とは比べない）
    */
   maxConcurrentNonBossStrikers: number;
+  /** 攻撃中の非ボスの数が、直近 1 秒の同時攻撃の上限（strikerCap）を超えた数の最大。0 なら上限を守れている */
+  maxStrikersOverCap: number;
   /** ステップごとの生存敵数（state.enemies.length）の平均。敵密度の引き上げ（3.4）の実測用 */
   avgEnemiesAlive: number;
-  /** 通路（どの部屋の内側でもない床）に徘徊が立っていた階の数（system/spawner.ts の populateCorridors） */
+  /** 通路（どの部屋の内側でもない床）に徘徊が立っていた階の数（system/jinSpawn.ts の長蛇） */
   corridorRoamerFloors: number;
+  /** 階に着いた直後の敵の総数・陣の数・陣あたり人数・陣形（qa/jinMetrics.ts） */
+  floorSpawn: FloorSpawnTally;
   /** QA の観測の盲点（2026-09-24 追加）: 地形種別ごとにプレイヤーが踏み込んだ回数（前ステップと種類が変わった瞬間を数える） */
   terrainEnterCounts: Partial<Record<TerrainKind, number>>;
   /** 同上、煙（terrainAt とは別レイヤー）に入った回数 */
@@ -734,8 +739,10 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     genre: emptyGenreMetrics(),
     maxConcurrentStrikers: 0,
     maxConcurrentNonBossStrikers: 0,
+    maxStrikersOverCap: 0,
     avgEnemiesAlive: 0,
     corridorRoamerFloors: 0,
+    floorSpawn: emptyFloorSpawn(),
     terrainEnterCounts: {},
     smokeEnterCount: 0,
     eliteSpawnCounts: {},
@@ -752,8 +759,10 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   let sawHiddenRoomThisFloor = false;
   let sawHiddenOpenThisFloor = false;
   let sawCorridorRoamerThisFloor = false;
+  recordFloorSpawn(metrics.floorSpawn, state);
   let stepTimeTotal = 0;
   let enemySampleSum = 0;
+  const strikerCapWatcher = createStrikerCapWatcher(FIXED_DT);
   let prevManaFlash = state.skills.manaFlash;
   let prevTerrain: TerrainKind = "none";
   let prevSmoke = false;
@@ -812,6 +821,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     const striking = countStrikers(state.enemies);
     metrics.maxConcurrentStrikers = Math.max(metrics.maxConcurrentStrikers, striking.total);
     metrics.maxConcurrentNonBossStrikers = Math.max(metrics.maxConcurrentNonBossStrikers, striking.nonBoss);
+    metrics.maxStrikersOverCap = Math.max(metrics.maxStrikersOverCap, strikerCapWatcher.observe(strikerCap(state), striking.nonBoss));
     enemySampleSum += state.enemies.length;
 
     // QA の観測の盲点（2026-09-24 追加）: 地形踏み込み・煙・精鋭出現・SYNERGY イベント上限到達
@@ -882,6 +892,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       sawHiddenRoomThisFloor = false;
       sawHiddenOpenThisFloor = false;
       sawCorridorRoamerThisFloor = false;
+      // 初めて着いた階だけ（上り階段で戻った階は間引かれているので数えない）
+      if (state.runEvents.strata.fresh) recordFloorSpawn(metrics.floorSpawn, state);
     }
 
     metrics.maxDepth = Math.max(metrics.maxDepth, state.depth);
@@ -1094,10 +1106,11 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
 
   const corridorFloors = allMetrics.reduce((s, m) => s + m.corridorRoamerFloors, 0);
   const totalFloorsSeen = allMetrics.reduce((s, m) => s + m.depthSeconds.filter((sec) => sec > 0).length, 0);
-  lines.push("## 通路の初期配置（system/spawner.ts の populateCorridors。3.4 C-1）");
+  lines.push("## 通路の長蛇（system/jinSpawn.ts の陣形 column。jin-impl 2-5）");
   lines.push("");
   lines.push(`通路に徘徊が立った階: ${corridorFloors} / 観測した階 ${totalFloorsSeen}（${percent(corridorFloors, totalFloorsSeen)}）`);
   lines.push("");
+  lines.push(...buildFloorSpawnSection(allMetrics.map((m) => m.floorSpawn)));
 
   lines.push("## ドロップの内訳（装備パターン別。撃破起因 = 倒した一撃の中で床に増えた遺物）");
   lines.push("");
@@ -1544,17 +1557,18 @@ function buildSuggestions(allMetrics: readonly RunMetrics[]): string {
 }
 
 /**
- * 同時攻撃の上限の行。上限超過はボスを除いた数で判定する（strikeSlotsFull はボスを枠に数えないため、
- * ボス込みの総数で比べると「ボス 1 + 取り巻き 2」が超過に見えていた。report.md の調査メモ）
+ * 同時攻撃の上限の行。上限は strikerCap（strikerBase + 周りの起きている敵 ÷ strikerPerAwake）で動くので、
+ * 超過は step ごとの上限（直近 1 秒の最大）との差で判定する。ボスは数えない（strikeSlotsFull と同じ）
  */
-function strikerReportLines(allMetrics: readonly Pick<RunMetrics, "seed" | "profileKind" | "maxConcurrentStrikers" | "maxConcurrentNonBossStrikers">[]): string[] {
-  const cap = ENEMY_AI.maxSimultaneousStrikers;
+function strikerReportLines(
+  allMetrics: readonly Pick<RunMetrics, "seed" | "profileKind" | "maxConcurrentStrikers" | "maxConcurrentNonBossStrikers" | "maxStrikersOverCap">[],
+): string[] {
   const maxNonBoss = Math.max(0, ...allMetrics.map((m) => m.maxConcurrentNonBossStrikers));
   const maxTotal = Math.max(0, ...allMetrics.map((m) => m.maxConcurrentStrikers));
-  const overCap = allMetrics.filter((m) => m.maxConcurrentNonBossStrikers > cap);
+  const overCap = allMetrics.filter((m) => m.maxStrikersOverCap > 0);
   const overList = overCap.length > 0 ? `（seed/profile: ${overCap.map((m) => `${m.seed}/${m.profileKind}`).join(", ")}）` : "。";
   return [
-    `- **同時に phase===strike だった非ボスの敵数の最大**（上限 ENEMY_AI.maxSimultaneousStrikers=${cap}。strikeSlotsFull と同じくボスを除く）: 全 run 中の最大 ${maxNonBoss}。上限超過 run: ${overCap.length} 件${overList}`,
+    `- **同時に phase===strike だった非ボスの敵数の最大**（上限は strikerCap = ${ENEMY_TEMPO.strikerBase} + 周りの起きている敵 ÷ ${ENEMY_TEMPO.strikerPerAwake}。ボスを除く）: 全 run 中の最大 ${maxNonBoss}。上限超過 run: ${overCap.length} 件${overList}`,
     `- **同時に phase===strike だった敵数の最大（ボス込みの総数。参考）**: 全 run 中の最大 ${maxTotal}（ボスは上限の枠に数えないので、非ボスが上限以内ならこの数が上限を超えても設計どおり）`,
   ];
 }
@@ -1580,19 +1594,30 @@ describe("QA 計測: 同時攻撃数の切り分け", () => {
   }
 
   it("ボスを除いた数と、ボス込みの総数を分けて数える", () => {
-    const counted = countStrikers(strikingState(ENEMY_AI.maxSimultaneousStrikers).enemies);
-    expect(counted.nonBoss, "非ボスは strikeSlotsFull と同じくボスを除く").toBe(ENEMY_AI.maxSimultaneousStrikers);
-    expect(counted.total, "総数はボスを含む").toBe(ENEMY_AI.maxSimultaneousStrikers + 1);
+    const counted = countStrikers(strikingState(ENEMY_TEMPO.strikerBase).enemies);
+    expect(counted.nonBoss, "非ボスは strikeSlotsFull と同じくボスを除く").toBe(ENEMY_TEMPO.strikerBase);
+    expect(counted.total, "総数はボスを含む").toBe(ENEMY_TEMPO.strikerBase + 1);
   });
 
-  it("上限超過はボスを除いた数で判定する（ボス 1 + 非ボスが上限いっぱいは超過にしない）", () => {
-    const cap = ENEMY_AI.maxSimultaneousStrikers;
-    const atCap = { seed: 1, profileKind: PROFILE_KINDS[0]!, maxConcurrentStrikers: cap + 1, maxConcurrentNonBossStrikers: cap };
-    const over = { seed: 2, profileKind: PROFILE_KINDS[0]!, maxConcurrentStrikers: cap + 1, maxConcurrentNonBossStrikers: cap + 1 };
+  it("上限超過は step ごとの上限との差で判定する（ボス 1 + 非ボスが上限いっぱいは超過にしない）", () => {
+    const cap = ENEMY_TEMPO.strikerBase;
+    const atCap = { seed: 1, profileKind: PROFILE_KINDS[0]!, maxConcurrentStrikers: cap + 1, maxConcurrentNonBossStrikers: cap, maxStrikersOverCap: 0 };
+    const over = { seed: 2, profileKind: PROFILE_KINDS[0]!, maxConcurrentStrikers: cap + 1, maxConcurrentNonBossStrikers: cap + 1, maxStrikersOverCap: 1 };
     const [nonBossLine, totalLine] = strikerReportLines([atCap]);
     expect(nonBossLine, "上限いっぱいは超過 0 件").toContain("上限超過 run: 0 件");
     expect(totalLine, "総数の行も出る").toContain(`最大 ${cap + 1}`);
-    expect(strikerReportLines([atCap, over])[0], "非ボスが上限を超えた run だけを挙げる").toContain("上限超過 run: 1 件（seed/profile: 2/");
+    expect(strikerReportLines([atCap, over])[0], "上限を超えた run だけを挙げる").toContain("上限超過 run: 1 件（seed/profile: 2/");
+  });
+
+  it("上限が周りの敵で動くので、倒して上限が下がった直後の攻撃は超過にしない", () => {
+    const watcher = createStrikerCapWatcher(FIXED_DT);
+    expect(watcher.observe(3, 3), "上限どおり").toBe(0);
+    expect(watcher.observe(2, 3), "直近の上限（3）以内なら、上限が 2 に下がっても超過にしない").toBe(0);
+    expect(watcher.observe(2, 4), "直近の最大を超えたら超過").toBe(1);
+    const later = createStrikerCapWatcher(FIXED_DT);
+    later.observe(3, 0);
+    for (let i = 0; i < Math.round(2 / FIXED_DT); i++) later.observe(2, 0);
+    expect(later.observe(2, 3), "十分時間が経てば下がった上限で見る").toBe(1);
   });
 });
 

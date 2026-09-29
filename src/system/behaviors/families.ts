@@ -1,6 +1,6 @@
 import type { Enemy, GameState } from "../../core/state";
 import type { EnemyBehavior, EnemyDef } from "../../data/enemies";
-import { ENEMY_AI } from "../../data/tuning";
+import { ENEMY_AI, REACTION } from "../../data/tuning";
 import { frostCrusherReady, isMimicTongue, scavengerHeading } from "../enemyBehaviors";
 import { absorberReady, bannerAlive, hollowFrozen } from "../enemyWave3";
 import { EnemyBehaviorBase } from "./base";
@@ -18,6 +18,8 @@ const WISP_STRIKE_SPEED_MUL = 3;
 const HOLLOW_STRIKE_SPEED_MUL = 5;
 /** 飛ぶ敵は予備動作中も少し寄ってくる */
 const FLY_WINDUP_MOVE_MUL = 0.3;
+/** 射手が予備動作の間に後ろへ下がる速さの倍率（負 = プレイヤーから離れる。後退射撃） */
+const SHOOTER_BACKSTEP_MUL = -REACTION.shooterBackstepMul;
 /** 旗持ちが旗を立てた後に殴りに来る距離 */
 const BANNER_MELEE_RANGE = 44;
 
@@ -46,10 +48,19 @@ export class Charger extends Rusher {
 export class Keeper extends EnemyBehaviorBase {
   override readonly keepAway: number | undefined;
   override readonly silenceable: boolean;
-  constructor(key: EnemyBehavior, keepAway: number | undefined = undefined, silenceable = true) {
+  override readonly windupMoveMul: number;
+  constructor(key: EnemyBehavior, keepAway: number | undefined = undefined, silenceable = true, windupMoveMul = 0) {
     super(key);
     this.keepAway = keepAway;
     this.silenceable = silenceable;
+    this.windupMoveMul = windupMoveMul;
+  }
+}
+
+/** 撃ちながら下がる射手（後退射撃）。狙いは予備動作の終わりまで更新されるので、下がっても外れない */
+export class Backstepper extends Keeper {
+  constructor(key: EnemyBehavior, keepAway: number | undefined = undefined) {
+    super(key, keepAway, true, SHOOTER_BACKSTEP_MUL);
   }
 }
 
@@ -57,15 +68,33 @@ export class Keeper extends EnemyBehaviorBase {
 export class Flyer extends EnemyBehaviorBase {
   override readonly strikeSpeedMul: number = FLY_STRIKE_SPEED_MUL;
   override readonly windupMoveMul: number = FLY_WINDUP_MOVE_MUL;
+  override readonly recoverRetreatMul: number = ENEMY_AI.bat.retreatMul;
 }
 
 /** 動かない（氷柱・地雷・卵・吸い込み蟲）。追わない・押されない */
 export class Stationary extends EnemyBehaviorBase {
   override readonly stationary: boolean = true;
+  // 動かないので、離れる・囲む・時計を速めるの反応は無い
+  override onStruck(): void {}
+  override attackCooldownRate(): number {
+    return 1;
+  }
+  override slotTarget(): undefined {
+    return undefined;
+  }
 }
 
 /** ボス。状態機械を通らず boss*.ts が動かす。登録表の席を埋めるだけ */
-export class BossDriven extends EnemyBehaviorBase {}
+export class BossDriven extends EnemyBehaviorBase {
+  // 自前の AI（boss*.ts）で動くので、共通の反応ルールは受けない
+  override onStruck(): void {}
+  override attackCooldownRate(): number {
+    return 1;
+  }
+  override slotTarget(): undefined {
+    return undefined;
+  }
+}
 
 // ---- 個別（canBeginAttack / aimFixedAtWindup / 基本パラメータが家族と違う behavior） ----
 
@@ -79,6 +108,8 @@ export class Knight extends Rusher {
 /** 鬼火: 蝙蝠より少し遅い体当たり */
 export class Wisp extends Flyer {
   override readonly strikeSpeedMul: number = WISP_STRIKE_SPEED_MUL;
+  // 鬼火は体当たりの後に離れない（一撃離脱は蝙蝠だけの動き）
+  override readonly recoverRetreatMul: number = 0;
   constructor() {
     super("wisp");
   }

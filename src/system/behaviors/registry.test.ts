@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENEMIES, enemyDef } from "../../data/enemies";
-import { ENEMY_AI } from "../../data/tuning";
+import { ENEMY_AI, REACTION } from "../../data/tuning";
 import { arena, placeEnemy } from "../testHelpers";
 import { EnemyBehaviorBase } from "./base";
 import { BEHAVIORS, behaviorOf } from "./registry";
@@ -68,5 +68,29 @@ describe("敵の振る舞いの登録表", () => {
     banner.leaderId = bearer.id;
     expect(b.canBeginAttack(state, bearer, bearerDef, FAR), "旗があれば遠くからは始めない").toBe(false);
     expect(b.canBeginAttack(state, bearer, bearerDef, NEAR), "旗があっても近ければ始める").toBe(true);
+  });
+
+  it("反応ルールの席: ボス・設置物は反応を受けず、離脱は蝙蝠だけが既定で持つ", () => {
+    const state = arena();
+    for (const key of ["frostGiant", "turret"]) {
+      const def = enemyDef(key);
+      const e = placeEnemy(state, key, 60);
+      const b = behaviorOf(def);
+      expect(b.attackCooldownRate(state, e, def), `${key} は時計を速めない`).toBe(1);
+      expect(b.slotTarget(state, e, def), `${key} は囲まない`).toBeUndefined();
+      b.onStruck(state, e, def);
+      expect(e.ai?.hitCount, `${key} は殴られても数えない`).toBeUndefined();
+    }
+    expect(BEHAVIORS.bat.recoverRetreatMul).toBe(ENEMY_AI.bat.retreatMul);
+    expect(BEHAVIORS.wisp.recoverRetreatMul, "鬼火は蝙蝠を継ぐが離脱しない").toBe(0);
+    expect(BEHAVIORS.chaser.recoverRetreatMul).toBe(0);
+  });
+
+  it("後退射撃は射手の behavior だけ（負の予備動作の移動倍率）", () => {
+    for (const key of ["shooter", "lobber", "echoStriker", "scribeImp"] as const) {
+      expect(BEHAVIORS[key].windupMoveMul, `${key} は下がりながら構える`).toBeCloseTo(-REACTION.shooterBackstepMul, 9);
+    }
+    expect(BEHAVIORS.laser.windupMoveMul, "レーザーは据え置き").toBe(0);
+    expect(BEHAVIORS.bomber.windupMoveMul, "投擲は下がらない").toBe(0);
   });
 });

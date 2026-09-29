@@ -1,7 +1,7 @@
 import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { pushPlayerEvent } from "../core/events";
 import type { Rng } from "../core/rng";
-import { type Vec, normalize, sub } from "../core/vec";
+import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
 import { ATTR_GAIN, BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { type CaveShapeOptions, carveArena } from "../map/cave";
@@ -66,17 +66,8 @@ import {
   updateShrines,
   waveMul,
 } from "./roomTypes";
-import {
-  ROAMING_ROOM,
-  assignRoamers,
-  makeRoamer,
-  populateCorridors,
-  reinforceDue,
-  roamCap,
-  roamSpawnPoint,
-  roamerCount,
-  updateRoamers,
-} from "./spawner";
+import { updateRoamers } from "./spawner";
+import { planJins, updateJinPhases, wakeJin } from "./jinSpawn";
 import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
@@ -98,7 +89,7 @@ import { CONTRACT, FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 
 const START_ROOM = 0;
-/** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の戦闘部屋にする */
+/** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の部屋（陣の候補）にする */
 const FIRST_FIGHT_ROOM = 1;
 const PICKUP_RADIUS = 6;
 const LOCK_SHAKE = 3;
@@ -127,6 +118,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.floorTime = 0;
   state.reaper = null;
   state.enemies = [];
+  state.jins = [];
   state.projectiles = [];
   state.pickups = [];
   state.particles = [];
@@ -166,17 +158,17 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
     }
     if (room.kind === "shrine") setupShrine(state, room);
     setupSpecialRoom(state, room);
-    if (startsEmpty(room.kind)) return;
+    // 通常の部屋は陣（planJins）が受け持つ。特別な部屋で最初から敵がいる種類（巣・潮の間など）は従来どおり
+    if (startsEmpty(room.kind) || room.kind === "normal") return;
     populateRoom(state, room, i);
   });
+  planJins(state, new Set([START_ROOM, bossRoom]));
   revealAround(state);
   // ここから下の乱数は部屋の中身が決まった後に引く（既存の部屋・敵の配置の乱数消費を変えない）
   const ends = new Set([START_ROOM, last]);
   placeBiomeTerrain(state, ends);
   placeOssuaryCorpses(state, ends);
   planForkStairs(state);
-  assignRoamers(state, new Set([START_ROOM, bossRoom]));
-  populateCorridors(state, pickEnemy, spawnCorridorRoamer);
   clearEmptyOpenRooms(state);
   onFloorStart(state);
   // 契約者と上り階段は最後に置く（それより前の乱数消費を変えない）
@@ -400,21 +392,6 @@ export function pickEnemy(state: GameState): EnemyDef {
   return pool[pool.length - 1] ?? pool[0]!;
 }
 
-/**
- * 通路に置く徘徊（spawner.ts の populateCorridors が呼ぶ）。部屋の湧きと同じフック
- * （祝福・ランイベント・エリート）を通してから push した敵を返す。roomIndex は
- * ROAMING_ROOM 固定なので、この階では最初からどの部屋にも属さない
- */
-function spawnCorridorRoamer(state: GameState, def: EnemyDef, pos: Vec): Enemy {
-  const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
-  onBoonEnemySpawned(state, e);
-  onRunEnemySpawned(state, e);
-  rollElite(state, e);
-  if (extraEliteRoll(state, e)) rollElite(state, e);
-  state.enemies.push(e);
-  return e;
-}
-
 const FREE_POINT_ATTEMPTS = 30;
 /** プレイヤーの近くに湧かせない距離 */
 const SPAWN_CLEARANCE = 40;
@@ -492,7 +469,7 @@ export function insideRoom(state: GameState, room: RoomState, px: number, py: nu
   return ENTER_PROBES.every(([dx, dy]) => pxInRoomTiles(state, room, px + dx * margin, py + dy * margin));
 }
 
-/** 部屋のロック/解除・開放型の交戦と制圧、徘徊と増援、階段、ピックアップ */
+/** 部屋のロック/解除・開放型の交戦と制圧、徘徊と陣の進行、階段、ピックアップ */
 export function updateRooms(state: GameState, dt: number): void {
   revealAround(state);
   state.rooms.forEach((room, i) => {
@@ -505,7 +482,7 @@ export function updateRooms(state: GameState, dt: number): void {
   });
 
   updateRoamers(state, dt);
-  if (reinforceDue(state, dt)) spawnRoamReinforcement(state);
+  updateJinPhases(state);
   updateShrines(state);
   updateSpecialRooms(state, dt);
   updateContractors(state, dt);
@@ -557,13 +534,23 @@ function roomNoticed(state: GameState, index: number): boolean {
 function engageRoom(state: GameState, room: RoomState, index: number): void {
   room.engaged = true;
   if (!roomAlive(state, index)) return;
-  for (const e of state.enemies) {
-    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
-  }
+  wakeRoom(state, index);
   onBoonRoomLock(state, index);
   pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   applyCurse(state, index);
+}
+
+/**
+ * 部屋の敵をまとめて起こす: 塊に乗った陣は wakeJin（3a は全員。後詰は 3b）、陣に属さない敵（特別な部屋の湧き）も起こす
+ */
+function wakeRoom(state: GameState, index: number): void {
+  for (const jin of state.jins) {
+    if (jin.roomIndex === index) wakeJin(state, jin);
+  }
+  for (const e of state.enemies) {
+    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
+  }
 }
 
 function enterRoom(state: GameState, room: RoomState, index: number): void {
@@ -753,9 +740,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   // 扉を閉じた後に置く（閉じる前だと扉タイルの上に落ちて、制圧まで壁の中に埋まる）
   dropGreedyLootAtPlayer(state, rescued);
   roomLockFx(state, index, room.kind === "horde");
-  for (const e of state.enemies) {
-    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
-  }
+  wakeRoom(state, index);
   onBoonRoomLock(state, index);
   pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
@@ -1002,28 +987,6 @@ export function floorAttributePoints(state: GameState): number {
 // -----------------------------------------------------------------------------
 // 特別な部屋・ランイベントが使う湧かせ処理（specialRooms.ts の roomHooks へ差し込む）
 // -----------------------------------------------------------------------------
-
-/**
- * 時間経過の増援: 画面外の床に 1 抽選ぶん（群れは複数体）を徘徊として湧かせる。徘徊の上限（roamCap）を超えない。
- * 画面外なので予告（spawning）は付けない
- */
-function spawnRoamReinforcement(state: GameState): void {
-  const cap = roamCap(state.depth, state.floorAreaMul ?? 1);
-  if (roamerCount(state) >= cap) return;
-  const def = pickEnemy(state);
-  const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;
-  for (let k = 0; k < n && roamerCount(state) < cap; k++) {
-    const pos = roamSpawnPoint(state, def.radius);
-    if (!pos) return;
-    const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
-    onBoonEnemySpawned(state, e);
-    onRunEnemySpawned(state, e);
-    rollElite(state, e);
-    if (extraEliteRoll(state, e)) rollElite(state, e);
-    state.enemies.push(e);
-    makeRoamer(state, e);
-  }
-}
 
 /** 部屋に追加で湧かせる（部屋の敵数の上限は守る） */
 function spawnReinforcements(state: GameState, index: number, rolls: number, spawning: boolean): void {

@@ -127,6 +127,12 @@ import j_enemies_BOSS_librarian from "./enemies/BOSS/librarian.json";
 import j_enemies_BOSS_mirrorKnight from "./enemies/BOSS/mirrorKnight.json";
 import j_enemies_BOSS_thiefKing from "./enemies/BOSS/thiefKing.json";
 import j_enemies_FLOOR_LORD from "./enemies/FLOOR_LORD.json";
+import j_enemies_JIN from "./enemies/JIN.json";
+import j_enemies_FORMATION__index from "./enemies/FORMATION/_index.json";
+import j_enemies_FORMATION_fishScale from "./enemies/FORMATION/fishScale.json";
+import j_enemies_FORMATION_craneWing from "./enemies/FORMATION/craneWing.json";
+import j_enemies_FORMATION_geese from "./enemies/FORMATION/geese.json";
+import j_enemies_FORMATION_column from "./enemies/FORMATION/column.json";
 import j_enemies_REAPER from "./enemies/REAPER.json";
 import j_enemies_stats__index from "./enemies/stats/_index.json";
 import j_enemies_stats_slime from "./enemies/stats/slime.json";
@@ -446,6 +452,7 @@ import j_enemies_defense_enemies_thief from "./enemies/defense/enemies/thief.jso
 import j_enemies_defense_enemies_mirrorImage from "./enemies/defense/enemies/mirrorImage.json";
 import j_enemies_defense_enemies_reaperShade from "./enemies/defense/enemies/reaperShade.json";
 import j_enemies_ENEMY_SCALE from "./enemies/ENEMY_SCALE.json";
+import j_enemies_REACTION from "./enemies/REACTION.json";
 import j_feel__index from "./feel/_index.json";
 import j_feel_FEEL from "./feel/FEEL.json";
 import j_feel_EFFECTS__index from "./feel/EFFECTS/_index.json";
@@ -1067,7 +1074,6 @@ export const enemies = {
   "_note": j_enemies__index["_note"],
   "ENEMY_AI": {
     "_note": j_enemies_ENEMY_AI__index["_note"],
-    "maxSimultaneousStrikers": j_enemies_ENEMY_AI__index["maxSimultaneousStrikers"],
     "strikerHoldTime": j_enemies_ENEMY_AI__index["strikerHoldTime"],
     "knockDecay": j_enemies_ENEMY_AI__index["knockDecay"],
     "knight": j_enemies_ENEMY_AI_knight,
@@ -1149,6 +1155,15 @@ export const enemies = {
     "thiefKing": j_enemies_BOSS_thiefKing,
   },
   "FLOOR_LORD": j_enemies_FLOOR_LORD,
+  "JIN": j_enemies_JIN,
+  "FORMATION": {
+    "_note": j_enemies_FORMATION__index["_note"],
+    "_fields": j_enemies_FORMATION__index["_fields"],
+    "fishScale": j_enemies_FORMATION_fishScale,
+    "craneWing": j_enemies_FORMATION_craneWing,
+    "geese": j_enemies_FORMATION_geese,
+    "column": j_enemies_FORMATION_column,
+  },
   "REAPER": j_enemies_REAPER,
   "stats": {
     "_fields": j_enemies_stats__index["_fields"],
@@ -1476,6 +1491,7 @@ export const enemies = {
     },
   },
   "ENEMY_SCALE": j_enemies_ENEMY_SCALE,
+  "REACTION": j_enemies_REACTION,
 };
 
 export const feel = {
@@ -2346,6 +2362,13 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/ENEMY_SCALE.json",
   "enemies/ENEMY_TEMPO.json",
   "enemies/FLOOR_LORD.json",
+  "enemies/FORMATION/_index.json",
+  "enemies/FORMATION/column.json",
+  "enemies/FORMATION/craneWing.json",
+  "enemies/FORMATION/fishScale.json",
+  "enemies/FORMATION/geese.json",
+  "enemies/JIN.json",
+  "enemies/REACTION.json",
   "enemies/REAPER.json",
   "enemies/_index.json",
   "enemies/combat/_index.json",

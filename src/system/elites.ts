@@ -2,6 +2,7 @@ import { type EliteKind, type EliteWork, type Enemy, type GameState, type Projec
 import type { StatusKind } from "../core/status";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
+import { type EnemyRole, GRADE_LABEL, ROLE_ELITE_EXCLUDE } from "../data/enemyRoles";
 import { ELITE, ELITE_GREEDY, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
 import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
@@ -180,6 +181,12 @@ export function eliteKindsFor(def: EnemyDef): readonly EliteKind[] {
   return def.speed > 0 ? kinds : kinds.filter((k) => k !== "greedy");
 }
 
+/** 陣のスロットで付ける修飾子: eliteKindsFor から役割の読みを壊す組み合わせ（ROLE_ELITE_EXCLUDE）を外す */
+export function eliteKindsForRole(def: EnemyDef, role: EnemyRole): readonly EliteKind[] {
+  const kinds = eliteKindsFor(def).filter((k) => !ROLE_ELITE_EXCLUDE[role].includes(k));
+  return kinds.length > 0 ? kinds : eliteKindsFor(def);
+}
+
 function createWork(): EliteWork {
   return { timer: 0, count: 0, wasStaggered: false, initialized: false };
 }
@@ -279,8 +286,14 @@ export function shieldLeft(e: Enemy): number {
   return Math.max(0, e.hp - (e.maxHp - max));
 }
 
-export function eliteDisplayName(e: Enemy): string {
+/** 格の接頭辞（猛）を付けた名前。精鋭の接頭辞は eliteDisplayName がその外側に足す */
+export function gradedName(e: Enemy): string {
   const name = enemyDef(e.defKey).name;
+  return e.grade === "strong" ? `${GRADE_LABEL.strong}${name}` : name;
+}
+
+export function eliteDisplayName(e: Enemy): string {
+  const name = gradedName(e);
   if (!e.elite) return name;
   // 刻限の は残り秒を名前に添える（時計が頭上に見える）
   const timer = e.elite === "timed" && !timedOut(e) ? ` ${Math.ceil(e.eliteWork?.timer ?? 0)}` : "";

@@ -1,6 +1,7 @@
 import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
+import { behaviorOf } from "./behaviors/registry";
 import { ACTION, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
@@ -196,6 +197,8 @@ export function damageEnemy(
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
   const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
   if (heavy) onTraitStagger(state, enemy);
+  // 反応ルール（間合い取り）。怯み値を入れた後に呼ぶので、この一撃で怯んだ敵は動かさない
+  if (!opts.silent && kind !== "proc") behaviorOf(def).onStruck(state, enemy, def);
 
   const dir = normalize(knockDir);
   if (!opts.silent) {

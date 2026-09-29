@@ -7,7 +7,7 @@ import { Tile, getTile, rectCenter } from "../map/grid";
 import { isBossDepth } from "./boss";
 import { createEnemy } from "./enemies";
 import { ascend, buildFloor, descend, updateRooms } from "./floor";
-import { bossRoomLocked, pickFloorLordDef, setupFloorLordRoom } from "./floorLord";
+import { bossRoomLocked, isCaptain, pickFloorLordDef, setupFloorLordRoom } from "./floorLord";
 import { updateReaper } from "./reaper";
 import { stairsTilesValid } from "./specialRooms";
 import { arena, slayFloorLord } from "./testHelpers";
@@ -74,6 +74,36 @@ describe("階の主（毎階）", () => {
     expect(e.maxHp, "生命が底上げされている").toBeGreaterThan(baseHp * FLOOR_LORD.hpMulLair * 0.95);
     const basePoise = createEnemy(state, def, e.body.pos, roomIndex, false).poise.max;
     expect(e.poise.max, "怯み耐性が底上げされている").toBeGreaterThan(basePoise * FLOOR_LORD.poiseMul * 0.95);
+  });
+
+  it("浅い階（captainMaxDepth 以下）で通常敵を格上げした主は隊長: 号令のを添えた精鋭 2 つ・captainHpMul。深い階は「〜の長」", () => {
+    let captains = 0;
+    let chiefs = 0;
+    for (let seed = 0; seed < 30; seed++) {
+      for (const depth of [FLOOR_LORD.captainMaxDepth, FLOOR_LORD.captainMaxDepth + 1]) {
+        const state = arena(seed);
+        state.depth = depth;
+        const roomIndex = state.rooms.length - 1;
+        setupFloorLordRoom(state, roomIndex);
+        const e = state.enemies[0];
+        const name = state.boss?.name ?? "";
+        if (!e) throw new Error("no floor lord enemy");
+        const def = enemyDef(e.defKey);
+        if (name === def.name) continue; // 部屋主（lair）は名前も修飾子も従来どおり
+        if (isCaptain(depth, false)) {
+          captains++;
+          expect(name, "隊長の名").toBe(`${def.name}の隊長`);
+          expect(e.eliteExtra, "号令のを添える").toBe("commanding");
+          expect(e.elite, "主の修飾子は号令の以外").not.toBe("commanding");
+          continue;
+        }
+        chiefs++;
+        expect(name, "深い階は〜の長").toBe(`${def.name}の長`);
+        expect(e.eliteExtra, "添えは無い").toBeUndefined();
+      }
+    }
+    expect(captains, "隊長が出る").toBeGreaterThan(0);
+    expect(chiefs, "〜の長が出る").toBeGreaterThan(0);
   });
 
   it("階の主の部屋を封鎖すると取り巻きが増える（major は単騎のまま）", () => {

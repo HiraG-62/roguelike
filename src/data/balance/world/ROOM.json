@@ -1,7 +1,7 @@
 {
   "_fields": {
     "enterMargin": "部屋に入ったとみなすのに要る、部屋の縁からの食い込み。px。大きいほど奥まで入らないと封鎖しない",
-    "baseEnemies": "部屋に置く敵の抽選回数の基本。抽選回数 = baseEnemies + 切り捨て（深度 × enemiesPerDepth）。群れる敵は 1 回で複数体",
+    "baseEnemies": "特別な部屋・封鎖する部屋の波・ボスの取り巻きに置く敵の抽選回数の基本（通常の部屋は陣で配る。enemies/JIN.json）。抽選回数 = baseEnemies + 切り捨て（深度 × enemiesPerDepth）。群れる敵は 1 回で複数体",
     "enemiesPerDepth": "深度 1 つごとに増える抽選回数",
     "maxEnemies": "部屋の敵の抽選回数と、増援で湧く実体数の上限。深度 FLOOR_KIND.deepDepth 以降は deepMaxEnemiesBonus を足す",
     "reinforcementRatio": "封鎖したときに湧く増援の数。部屋の抽選回数に掛ける割合（0.5 で半分）",

@@ -1,6 +1,7 @@
 import type { Enemy, GameState } from "../../core/state";
 import type { Vec } from "../../core/vec";
 import type { EnemyBehavior, EnemyDef } from "../../data/enemies";
+import { reactCooldownRate, reactSlotTarget, reactStruck } from "../enemyReactions";
 
 /** 予備動作中に描く予告の種類（render/renderer.ts が system/enemies.ts の再 export 経由で読む） */
 export type EnemyTelegraph =
@@ -35,6 +36,8 @@ export abstract class EnemyBehaviorBase {
   readonly keepAway: number | undefined = undefined;
   /** その場から動かない（追わない・押されない） */
   readonly stationary: boolean = false;
+  /** 攻撃（strike）の後の隙の間、プレイヤーから離れる速さ（def.speed に掛ける）。0 は離れない（一撃離脱・後退の語彙 = 離脱） */
+  readonly recoverRetreatMul: number = 0;
   /** 沈黙で予備動作に入れない・取り消される（射撃・詠唱・鐘・指揮） */
   readonly silenceable: boolean = false;
 
@@ -71,6 +74,18 @@ export abstract class EnemyBehaviorBase {
   tickRecover(_state: GameState, _e: Enemy, _def: EnemyDef, _toPlayer: Vec, _dt: number): void {}
   /** 隙の終わり */
   onRecoverEnd(_state: GameState, _e: Enemy, _def: EnemyDef): void {}
+  /** 殴られた（damageEnemy の silent でない melee / shot / skill。継続ダメージは呼ばない）。既定は間合い取り */
+  onStruck(state: GameState, e: Enemy, def: EnemyDef): void {
+    reactStruck(state, e, def);
+  }
+  /** attackCooldown の進む速さの倍率（1 = 通常。前衛・突撃はプレイヤーの隙で速くなる） */
+  attackCooldownRate(state: GameState, e: Enemy, def: EnemyDef): number {
+    return reactCooldownRate(state, e, def);
+  }
+  /** 追跡の目標点（囲む持ち場）。undefined なら共通の追跡 */
+  slotTarget(state: GameState, e: Enemy, def: EnemyDef): Vec | undefined {
+    return reactSlotTarget(state, e, def);
+  }
   /** 描画向け: 予備動作中の予告の形（render は state を読むだけ。ここも状態を書かない） */
   telegraphShape(_e: Enemy, _def: EnemyDef): EnemyTelegraph {
     return null;

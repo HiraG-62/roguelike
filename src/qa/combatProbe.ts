@@ -5,10 +5,13 @@ import type { Enemy, GameState } from "../core/state";
 import { dist, normalize, sub, type Vec } from "../core/vec";
 import { ACTION_TEXT } from "../data/actionText";
 import { enemyDef } from "../data/enemies";
+import { ENEMY_AI } from "../data/tuning";
 import { DEFAULT_STATS } from "../loot/types";
 import { createEnemy } from "../system/enemies";
 import { withBaseAreaMul } from "../system/floor";
-import { isStaggered } from "../system/poise";
+import { attackCommitted, isStaggered } from "../system/poise";
+import { isBossDriven } from "../system/boss";
+import { behaviorOf } from "../system/behaviors/registry";
 import { createCombatRecorder, sumBands, type CombatBandTally } from "./combatMetrics";
 
 /**
@@ -132,6 +135,15 @@ export interface ProbeCounts {
   enemySteps: number;
   staggeredEnemySteps: number;
   band: CombatBandTally;
+  /** 間合い取りの立ち上がり（ai.retreat が 0 から立った回数） */
+  retreats: number;
+  /** 隙狙いで攻撃間隔の時計が余分に進んだ秒の合計（敵ごとの (倍率 - 1) × dt の和）と、それが起きた step 数 */
+  punishShrunkSeconds: number;
+  punishSteps: number;
+  /** 同時に赤い（攻撃が確定した = attackCommitted の）予備動作の非ボスの数の最大。seed をまたぐときは最大を取る */
+  maxRedTelegraphs: number;
+  /** 同時攻撃の上限で予備動作の終わりを待たされた秒の合計（待つたびに strikerHoldTime） */
+  holdSeconds: number;
 }
 
 function emptyCounts(): ProbeCounts {
@@ -146,6 +158,11 @@ function emptyCounts(): ProbeCounts {
     enemySteps: 0,
     staggeredEnemySteps: 0,
     band: { steps: 0, hitstopSteps: 0, windups: 0, strikes: 0, engagedSteps: 0, engagementSeconds: [] },
+    retreats: 0,
+    punishShrunkSeconds: 0,
+    punishSteps: 0,
+    maxRedTelegraphs: 0,
+    holdSeconds: 0,
   };
 }
 
@@ -164,6 +181,11 @@ function addCounts(into: ProbeCounts, from: ProbeCounts): void {
   into.band.windups += from.band.windups;
   into.band.strikes += from.band.strikes;
   into.band.engagedSteps += from.band.engagedSteps;
+  into.retreats += from.retreats;
+  into.punishShrunkSeconds += from.punishShrunkSeconds;
+  into.punishSteps += from.punishSteps;
+  into.maxRedTelegraphs = Math.max(into.maxRedTelegraphs, from.maxRedTelegraphs);
+  into.holdSeconds += from.holdSeconds;
 }
 
 /** step の前後で共通の観測（被弾・怯み・浮き文字）。浮き文字は同じものを二度数えない */
@@ -175,15 +197,47 @@ interface StepObserver {
   finish(): ProbeCounts;
 }
 
+/** 反応ルール・予告の上限の観測（間合い取りの立ち上がり / 隙狙いの縮み / 同時に赤い予告 / 上限の待ち） */
+function observeReactions(
+  state: GameState,
+  counts: ProbeCounts,
+  prev: ReadonlyMap<number, { retreating: boolean; windup: boolean; timer: number }>,
+): void {
+  let red = 0;
+  let punishing = false;
+  for (const e of state.enemies) {
+    if (e.hp <= 0) continue;
+    const def = enemyDef(e.defKey);
+    if (isBossDriven(def)) continue;
+    const before = prev.get(e.id);
+    if ((e.ai?.retreat ?? 0) > 0 && before && !before.retreating) counts.retreats++;
+    if (e.phase === "windup" && attackCommitted(e)) red++;
+    // 予備動作の終わりで上限に阻まれると phaseTimer が strikerHoldTime へ戻る（減るはずの時計が増えた）
+    if (before?.windup && e.phase === "windup" && e.phaseTimer > before.timer) counts.holdSeconds += ENEMY_AI.strikerHoldTime;
+    const rate = e.attackCooldown > 0 ? behaviorOf(def).attackCooldownRate(state, e, def) : 1;
+    if (rate > 1) {
+      counts.punishShrunkSeconds += (rate - 1) * FIXED_DT;
+      punishing = true;
+    }
+  }
+  if (punishing) counts.punishSteps++;
+  counts.maxRedTelegraphs = Math.max(counts.maxRedTelegraphs, red);
+}
+
 function createStepObserver(): StepObserver {
   const counts = emptyCounts();
   const recorder = createCombatRecorder();
   const seenTexts = new WeakSet<object>();
   let hpBefore = 0;
+  /** step の直前の敵ごとの観測（間合い取りの立ち上がり・予備動作の待ちの検出用） */
+  let prev = new Map<number, { retreating: boolean; windup: boolean; timer: number }>();
   return {
     counts,
     before(state) {
       hpBefore = state.player.hp;
+      prev = new Map(
+        state.enemies.map((e) => [e.id, { retreating: (e.ai?.retreat ?? 0) > 0, windup: e.phase === "windup", timer: e.phaseTimer }]),
+      );
       recorder.beforeStep(state);
     },
     after(state) {
@@ -199,6 +253,7 @@ function createStepObserver(): StepObserver {
         if (t.text === ACTION_TEXT.counter) counts.counters++;
         if (t.text === JUST_DODGE_TEXT) counts.dodges++;
       }
+      observeReactions(state, counts, prev);
       for (const e of state.enemies) {
         if (e.hp <= 0) continue;
         counts.enemySteps++;
@@ -376,6 +431,10 @@ export interface ProbeMetrics {
   hitstopRate: number | null;
   countersPer60: number;
   dodgesPer60: number;
+  retreatsPer60: number;
+  punishSecondsPer60: number;
+  holdSecondsPer60: number;
+  maxRedTelegraphs: number;
 }
 
 function ratio(n: number, d: number): number | null {
@@ -397,6 +456,10 @@ export function probeMetrics(c: ProbeCounts): ProbeMetrics {
     hitstopRate: ratio(c.band.hitstopSteps, c.band.steps),
     countersPer60: per60(c.counters),
     dodgesPer60: per60(c.dodges),
+    retreatsPer60: per60(c.retreats),
+    punishSecondsPer60: per60(c.punishShrunkSeconds),
+    holdSecondsPer60: per60(c.holdSeconds),
+    maxRedTelegraphs: c.maxRedTelegraphs,
   };
 }
 
@@ -430,14 +493,16 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
   lines.push("- 攻撃 = 予備動作が最後まで進んで strike（か、strike を経ず隙へ進むもの）に至った数。完遂率 = 攻撃 ÷ 予備動作。怯み・恐怖・沈黙で取り消されたものは完遂に入らない");
   lines.push("- 怯み中 = 生きている敵 × step のうち怯み中の割合。ヒットストップ = プレイヤーの世界が止まっていた step の割合");
   lines.push("- カウンター・見切りは浮き文字の数（bot は狙って出していない）");
+  lines.push("- 間合い取り = 殴られ続けた敵が離れ始めた回数。隙狙い縮み = プレイヤーの隙で攻撃間隔の時計が余分に進んだ秒の合計（敵ごとの (倍率 - 1) × dt の和）");
+  lines.push("- 赤い予告の最大 = 同時に「攻撃が確定した」予備動作の非ボスの数の最大（seed をまたいで最大）。上限待ち = 同時攻撃の上限で予備動作の終わりを待たされた秒");
   lines.push("");
 
   lines.push("## 1 対 1");
   lines.push("");
   lines.push(
-    mdRow(["敵", "深度", "bot", "撃破秒", "被弾/60秒", "予備動作/60秒", "攻撃/60秒", "完遂率", "怯み中", "ヒットストップ", "カウンター/60秒", "見切り/60秒"]),
+    mdRow(["敵", "深度", "bot", "撃破秒", "被弾/60秒", "予備動作/60秒", "攻撃/60秒", "完遂率", "怯み中", "ヒットストップ", "カウンター/60秒", "見切り/60秒", "間合い取り/60秒", "隙狙い縮み秒/60秒"]),
   );
-  lines.push(mdRow(new Array<string>(12).fill("---")));
+  lines.push(mdRow(new Array<string>(14).fill("---")));
   for (const r of result.duels) {
     const m = probeMetrics(r.counts);
     lines.push(
@@ -454,6 +519,8 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
         pct(m.hitstopRate),
         fixed(m.countersPer60, 1),
         fixed(m.dodgesPer60, 1),
+        fixed(m.retreatsPer60, 1),
+        fixed(m.punishSecondsPer60, 1),
       ]),
     );
   }
@@ -462,9 +529,9 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
   lines.push("## 集団");
   lines.push("");
   lines.push(
-    mdRow(["組", "深度", "bot", "撃破/60秒", "被弾/60秒", "被ダメ/60秒", "死亡/60秒", "完遂率", "怯み中", "ヒットストップ", "カウンター/60秒", "見切り/60秒"]),
+    mdRow(["組", "深度", "bot", "撃破/60秒", "被弾/60秒", "被ダメ/60秒", "死亡/60秒", "完遂率", "怯み中", "ヒットストップ", "カウンター/60秒", "見切り/60秒", "赤い予告の最大", "上限待ち秒/60秒"]),
   );
-  lines.push(mdRow(new Array<string>(12).fill("---")));
+  lines.push(mdRow(new Array<string>(14).fill("---")));
   for (const r of result.groups) {
     const m = probeMetrics(r.counts);
     lines.push(
@@ -481,6 +548,8 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
         pct(m.hitstopRate),
         fixed(m.countersPer60, 1),
         fixed(m.dodgesPer60, 1),
+        String(m.maxRedTelegraphs),
+        fixed(m.holdSecondsPer60, 2),
       ]),
     );
   }
