@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type EventKind, enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
 import type { Enemy, GameState } from "../core/state";
-import { RELIC } from "../data/tuning";
+import { ORIGIN, RELIC } from "../data/tuning";
 import { baseDef } from "../loot/bases";
 import { DICE_TALLY, DRAGON_SCALE_TALLY, STRIDE_TALLY, applyNamedRelics, relicTallyKey, uniqueDef } from "../loot/named";
 import { computeStats } from "../loot/stats";
@@ -360,5 +360,16 @@ describe("装備の判定", () => {
     expect(hasNamedRelic(state, "twinSerpent")).toBe(false);
     expect(relicBlocksSwing(state, false)).toBe(false);
     expect(relicIncomingMul(state)).toBe(1);
+  });
+
+  it("起点「素手」で装備が封印されている間は分岐が効かず、封印が解けると効く", () => {
+    const state = arena();
+    equip(state, "emptyScabbard");
+    state.origin = "unarmed";
+    state.depth = 1;
+    expect(hasNamedRelic(state, "emptyScabbard"), "封印中は持っていない扱い").toBe(false);
+    expect(relicBlocksSwing(state, false), "封印中は振りを止めない").toBe(false);
+    state.depth = ORIGIN.unarmedUnsealDepth;
+    expect(hasNamedRelic(state, "emptyScabbard"), "封印が解けたら効く").toBe(true);
   });
 });
