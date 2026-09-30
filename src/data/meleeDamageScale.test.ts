@@ -125,7 +125,7 @@ describe("素手とジョブの得意", () => {
 
 describe("敵の生命・攻撃の深度倍率", () => {
   it("深度 1 で等倍、1 つ深くなるごとに ENEMY_SCALE.hpPerDepth ずつ増える", () => {
-    expect(ENEMY_SCALE.hpPerDepth, "章の傾き").toBe(0.15);
+    expect(ENEMY_SCALE.hpPerDepth, "章の傾き（段取り 7e で 0.15 → 0.11）").toBe(0.11);
     expect(depthHpScale(1)).toBe(1);
     expect(depthHpScale(4)).toBeCloseTo(1 + 3 * ENEMY_SCALE.hpPerDepth);
   });
@@ -146,11 +146,11 @@ describe("敵の生命・攻撃の深度倍率", () => {
     expect(depthDamageMul(deep + 3)).toBeCloseTo(atDeep * ENEMY_SCALE.deepDamageGrowth ** 3);
   });
 
-  it("depthDamage は基礎に倍率を掛けて丸める（深度 1 は基礎のまま、深度 10 の接触 10 は 14.5 を丸めた値）", () => {
+  it("depthDamage は基礎に倍率を掛けて丸める（深度 1 は基礎のまま、深度 10 の接触 10 は 倍率 × 10 を丸めた値）", () => {
     for (const base of [1, 6, 9, 10, 25]) {
       expect(depthDamage(base, 1), `深度 1 の ${base}`).toBe(base);
     }
-    expect(depthDamage(10, 10)).toBe(Math.round(10 * 1.45));
+    expect(depthDamage(10, 10)).toBe(Math.round(10 * (1 + 9 * ENEMY_SCALE.damagePerDepth)));
     expect(depthDamage(4, 10), "個性が潰れず、弱い攻撃は弱いまま").toBeLessThan(depthDamage(10, 10));
   });
 
