@@ -53,5 +53,5 @@ export function stashListArea(hasBud: boolean): Rect {
 // 詳細欄（何も乗せていないときのビルドの要約）
 // ---------------------------------------------------------------------------
 
-/** 要約の見出し行（ジョブ・未振り点）。ステータスの一覧と振り分けはステータスタブ（ui/statusTab.ts） */
+/** 要約の見出し行（ジョブ）。ステータスの一覧はステータスタブ（ui/statusTab.ts） */
 export const SUMMARY_HEAD_H = 12;

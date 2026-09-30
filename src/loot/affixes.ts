@@ -3244,7 +3244,7 @@ export const CONVERSION_AFFIXES: readonly AffixDef[] = [
  * ステータスの変換 5 種。各ステータスが 1 回ずつ移し元・移し先になる輪
  * （技巧 → 筋力 → 霊力 → 体力 → 精神 → 技巧）。
  * convert 段階の attributes は基礎値と装備の合計なので、基礎値ごと移す（「技巧は 50% 減る」）。
- * 共鳴とラン内の振り分けは convert の後に足されるので移らない
+ * 共鳴は convert の後に足されるので移らない
  */
 function attributeConversions(): AffixDef[] {
   return ATTR_CONVERSION_PAIRS.map(([from, to]) => ({

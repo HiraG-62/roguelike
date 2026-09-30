@@ -15,7 +15,7 @@ import { generateItem } from "../loot/generator";
 import { addToStash, chooseUltimate, ultimateChoice } from "../loot/profile";
 import { findPendingBud } from "../loot/provenance";
 import { UNARMED_MORE, computeStats } from "../loot/stats";
-import { type Item, type Profile, type Slot, uniformAttributes } from "../loot/types";
+import { type Item, type Profile, type Slot } from "../loot/types";
 import { HUB_SPOT_KEYS, type HubLayout, type HubSpotKey, buildHubMap } from "../map/hubMap";
 import type { SkillProfile } from "../skills/types";
 import { createCodexRun } from "../meta/codex";
@@ -153,7 +153,6 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     reforges: [],
     reforgeChoice: null,
     pendingBud: findPendingBud(profile),
-    runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
     runKeystones: [],
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],

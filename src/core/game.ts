@@ -14,7 +14,7 @@ import { updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { updateDropInteract } from "../system/loot";
 import { VIEW_H, VIEW_W } from "./view";
-import { type Profile, createEmptyProfile, uniformAttributes } from "../loot/types";
+import { type Profile, createEmptyProfile } from "../loot/types";
 import { computeStats } from "../loot/stats";
 import { findPendingBud } from "../loot/provenance";
 import { updateStatusEffects } from "../system/statusEffects";
@@ -113,7 +113,6 @@ export function createGame(
     reforges: [],
     reforgeChoice: null,
     pendingBud: findPendingBud(profile),
-    runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
     runKeystones: originKeystones(setup.origin),
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
@@ -136,7 +135,7 @@ export function createGame(
   // 祝福の畳み込み元（boonRun.baseStats）を覚えつつ、ステータスの派生（deriveAttributes）を通す
   applyStats(state, stats);
   refillMana(state);
-  // 起点の初期効果（祝福・刻印符・振り分け点）。放浪者は何もしない（乱数も消費しない）
+  // 起点の初期効果（祝福・刻印符・銭）。放浪者は何もしない（乱数も消費しない）
   startOrigin(state);
   buildFloor(state);
   // ジョブの初期スキル石（未所持のときだけ倉庫へ。見習いは何もしない）

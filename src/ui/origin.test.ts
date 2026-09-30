@@ -148,10 +148,10 @@ describe("起点の適用", () => {
     expect(boon && BOONS[boon].tags.includes("melee")).toBe(true);
   });
 
-  it("呪われた者: 呪い付きの祝福 2 つと振り分け点 4", () => {
+  it("呪われた者: 呪い付きの祝福 2 つと銭", () => {
     const s = game({ origin: "cursedOne", modifiers: [] });
     expect(s.boons.filter((k) => BOONS[k].cursed).length).toBe(ORIGIN.cursedBoons);
-    expect(s.runAttributes.unspent).toBe(ORIGIN.cursedPoints);
+    expect(s.economy.earned.event, "起点の銭").toBe(Math.round(ORIGIN.cursedCoins * s.stats.coinGainMul));
   });
 
   it("素手: 地下 3 階までは装備が封印され、着くと解ける", () => {
@@ -172,7 +172,7 @@ describe("起点の適用", () => {
     profile.equipment.armor = armor;
     const s = createGame(21, "21", profile, undefined, { origin: "unarmed", modifiers: [] });
     const bare = computeStats(createEmptyEquipment());
-    expect(s.runAttributes.unspent).toBe(ORIGIN.unarmedPoints);
+    expect(s.economy.earned.event, "起点の銭").toBe(Math.round(ORIGIN.unarmedCoins * s.stats.coinGainMul));
     expect(s.stats.maxHp).toBe(bare.maxHp);
     while (s.depth < ORIGIN.unarmedUnsealDepth) descend(s);
     expect(s.stats.maxHp, "封印が解けて装備の最大 HP が乗る").toBeGreaterThan(bare.maxHp);
@@ -191,16 +191,13 @@ describe("起点の適用", () => {
     expect(s.stats.keystones).toContain("ks_gambler");
   });
 
-  it("死神の友: 階に入ってすぐ死神が出て、足は遅い。降りるたびに振り分け点が 1 多い", () => {
+  it("死神の友: 階に入ってすぐ死神が出て、足は遅い。初めての階へ降りるたびに銭を得る", () => {
     const s = game({ origin: "reaperFriend", modifiers: [] });
     step(s, withInput({}), FIXED_DT);
     expect(s.reaper).not.toBeNull();
-    const before = s.runAttributes.unspent;
-    const plain = game({ origin: "wanderer", modifiers: [] });
-    const plainBefore = plain.runAttributes.unspent;
+    const before = s.economy.earned.event;
     descend(s);
-    descend(plain);
-    expect(s.runAttributes.unspent - before).toBe(plain.runAttributes.unspent - plainBefore + ORIGIN.reaperFriendPoints);
+    expect(s.economy.earned.event - before, "降りた階の銭").toBe(Math.round(ORIGIN.reaperFriendCoins * s.stats.coinGainMul));
     expect(ORIGIN.reaperFriendSpeedMul * REAPER.speed).toBeLessThan(REAPER.speed);
   });
 });

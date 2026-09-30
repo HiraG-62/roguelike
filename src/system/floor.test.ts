@@ -21,6 +21,7 @@ import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
 import { FLOOR_KINDS, biomeEnemyWeight, floorKindCandidates, floorKindWeight, isInvertedDepth } from "./biomes";
 import { stairsTilesValid, updateSpecialRooms } from "./specialRooms";
+import { apprenticeExtraExits } from "./exits";
 import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
@@ -375,7 +376,8 @@ describe("分岐路（階段ごとの行き先）", () => {
       // 階段は階の主（毎階、最後の部屋にいる）を倒すまで tile: -1 のまま（ensureForkStairs が撃破後に置く）
       slayFloorLord(state);
       expect(state.stairs.length, `seed=${seed}`).toBeGreaterThanOrEqual(1);
-      expect(state.stairs.length).toBeLessThanOrEqual(FLOOR_KIND.forkMax);
+      // 見習い（createGame の既定）は階段が 1 本多い（出口の予告。system/exits.ts）
+      expect(state.stairs.length).toBeLessThanOrEqual(FLOOR_KIND.forkMax + apprenticeExtraExits(state));
       const kinds = state.stairs.map((s) => s.nextKind);
       expect(new Set(kinds).size).toBe(kinds.length);
       for (const k of kinds) expect(floorKindCandidates(state.depth + 1)).toContain(k);
@@ -845,21 +847,17 @@ describe("戻る（上り階段）", () => {
     expect(a.enemies.length, "半分").toBe(bossCount + Math.ceil(nonBossCount / 2));
   });
 
-  it("戻ってから降り直した階では、振り分け点・階層到達の報酬を二重に取らない", () => {
+  it("戻ってから降り直した階では、階層到達の報酬を二重に取らない", () => {
     const state = createGame(5);
     state.depth = 6;
     state.runEvents.strata.deepest = 6;
     buildFloor(state, "rooms");
     ascend(state);
-    const points = state.runAttributes.unspent;
     const score = state.score;
     descend(state, "rooms");
     expect(state.depth).toBe(6);
-    expect(state.runAttributes.unspent, "振り分け点").toBe(points);
     expect(state.score, "スコア").toBe(score);
     expect(state.runEvents.strata.revisit, "帰還の印は消える").toBe(false);
-    descend(state, "rooms");
-    expect(state.runAttributes.unspent, "初めての階では点が入る").toBeGreaterThan(points);
   });
 
   it("上り階段は乗り続けたときだけ戻る（通りすがりでは戻らない）", () => {
@@ -932,18 +930,18 @@ describe("戻る（上り階段）: 階層到達の報酬", () => {
     expect(state.runEvents.strata.fresh, "初めての階").toBe(true);
   });
 
-  it("起点「死神の友」の振り分け点は降り直しでは入らない", () => {
+  it("起点「死神の友」の銭は降り直しでは入らない", () => {
     const state = createGame(5);
     state.origin = "reaperFriend";
     state.depth = 6;
     state.runEvents.strata.deepest = 6;
     buildFloor(state, "rooms");
     ascend(state);
-    const points = state.runAttributes.unspent;
+    const earned = state.economy.earned.event;
     descend(state, "rooms");
-    expect(state.runAttributes.unspent, "降り直し").toBe(points);
+    expect(state.economy.earned.event, "降り直し").toBe(earned);
     descend(state, "rooms");
-    expect(state.runAttributes.unspent, "初めての階では入る").toBeGreaterThan(points);
+    expect(state.economy.earned.event, "初めての階では入る").toBeGreaterThan(earned);
   });
 });
 

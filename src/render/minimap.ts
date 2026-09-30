@@ -2,6 +2,7 @@ import type { GameState, RoomKind } from "../core/state";
 import type { Vec } from "../core/vec";
 import { MINIMAP, REAPER, RUN_EVENT } from "../data/tuning";
 import { type GameMap, TILE_SIZE, Tile, rectCenter, toIndex } from "../map/grid";
+import { exitColor } from "../system/exits";
 import { bountyTargetId } from "../system/runEvents";
 import { ROOM_KIND_COLOR } from "../system/specialRooms";
 
@@ -216,9 +217,10 @@ export class Minimap {
     target.drawImage(this.canvas, x0, y0);
 
     // 点と記号は縮めても大きさを変えない（位置だけ縮尺に合わせる）
-    target.fillStyle = COLOR_STAIRS;
     for (const i of this.stairs) {
       if (!state.explored[i]) continue;
+      // 出口の予告がある階段は報酬の色（system/exits.ts）。無ければ既定の黄
+      target.fillStyle = exitColor(state.stairs.find((s) => s.tile === i)?.reward) ?? COLOR_STAIRS;
       const sx = Math.floor((i % map.width) * size.scale);
       const sy = Math.floor(Math.floor(i / map.width) * size.scale);
       target.fillRect(x0 + sx - STAIRS_HALF, y0 + sy - STAIRS_HALF, STAIRS_DOT, STAIRS_DOT);

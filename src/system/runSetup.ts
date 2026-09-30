@@ -9,8 +9,8 @@ import { SKILL } from "../skills/data";
 import { rollRuneModifier } from "../skills/generator";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillKey } from "../skills/types";
-import { grantAttributePoints } from "../ui/attributeAlloc";
 import { BOONS, BOON_KEYS, type BoonKey, grantBoon, hasBoon } from "./boons";
+import { gainCoins } from "./economy";
 import { applyStats } from "./player";
 import { applyJobStats, jobChangesStats } from "./jobs";
 import { attachRune } from "./skills";
@@ -46,13 +46,13 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   cursedOne: {
     name: "呪われた者",
-    desc: "呪い付きの祝福を 2 つ持って出発する。代わりにステータスの振り分け点を 4 得る。",
+    desc: "呪い付きの祝福を 2 つ持って出発する。代わりに銭を 20 得る。",
     keystones: [],
     unlockedBy: "cursedDepth",
   },
   unarmed: {
     name: "素手",
-    desc: "地下 3 階に着くまで装備が封印される。代わりに振り分け点を 3 得る。",
+    desc: "地下 3 階に着くまで装備が封印される。代わりに銭を 30 得る。",
     keystones: [],
   },
   chanter: {
@@ -69,7 +69,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   reaperFriend: {
     name: "死神の友",
-    desc: "死神が最初から追ってくる（足は半分）。階段を降りるたびに振り分け点を 1 余分に得る。",
+    desc: "死神が最初から追ってくる（足は半分）。初めての階へ降りるたびに銭を 5 得る。",
     keystones: [],
     unlockedBy: "reaperDance",
   },
@@ -206,7 +206,7 @@ const RUN_FOLD_SOURCE = new WeakMap<PlayerStats, PlayerStats>();
  * 装備の stats に、起点・ジョブ・縛り・祭壇の誓約を畳み込む。何も無ければ同じオブジェクトを返す（従来と完全に同じ結果）。
  * 誓約は装備の誓約と排他グループがぶつかるなら足さない（装備側が勝つ。祭壇は候補の時点で除いている）
  *
- * 祝福・振り分けの畳み込み直し（boons.ts の applyBoonsToStats）は、この関数の結果（boonRun.baseStats）をもう一度
+ * 祝福の畳み込み直し（boons.ts の applyBoonsToStats）は、この関数の結果（boonRun.baseStats）をもう一度
  * applyStats へ渡してくる。そのまま畳むとジョブの偏り・倍率や最大生命の倍率が重なるので、畳んだ結果には元の装備の
  * stats を覚えさせ、再入力されたら元からやり直す（同じ状態なら何度呼んでも同じ結果）
  */
@@ -257,10 +257,10 @@ export function startOrigin(state: GameState): void {
       return;
     case "cursedOne":
       for (let i = 0; i < ORIGIN.cursedBoons; i++) grantRandomBoon(state, (key) => BOONS[key].cursed);
-      grantAttributePoints(state, ORIGIN.cursedPoints);
+      gainCoins(state, ORIGIN.cursedCoins, "event");
       return;
     case "unarmed":
-      grantAttributePoints(state, ORIGIN.unarmedPoints);
+      gainCoins(state, ORIGIN.unarmedCoins, "event");
       return;
     case "chanter":
       for (let i = 0; i < ORIGIN.chanterRunes; i++) attachRune(state, rollRuneModifier(state.rng, equippedSkillKeys(state)));
@@ -291,7 +291,7 @@ export function equippedSkillKeys(state: GameState): SkillKey[] {
 
 /** 階段を降りた直後（新しい階の depth になってから）の起点の処理 */
 export function onOriginDescend(state: GameState): void {
-  if (state.origin === "reaperFriend") grantAttributePoints(state, ORIGIN.reaperFriendPoints);
+  if (state.origin === "reaperFriend") gainCoins(state, ORIGIN.reaperFriendCoins, "event");
   if (state.origin === "unarmed" && state.depth === ORIGIN.unarmedUnsealDepth) refreshRunStats(state);
 }
 

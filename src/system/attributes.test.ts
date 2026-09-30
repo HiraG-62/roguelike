@@ -8,12 +8,11 @@ import {
   ATTR_KEYS,
   DEFAULT_STATS,
   createEmptyEquipment,
-  uniformAttributes,
   type AttrKey,
   type PlayerStats,
   type Scaling,
 } from "../loot/types";
-import { addRunAttributes, buffMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
+import { buffMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
 import { applyStats } from "./player";
 
 /** 素の stats（装備なし）の生ステータスを 1 つだけ変えたもの */
@@ -140,16 +139,6 @@ describe("deriveAttributes（派生）", () => {
   });
 });
 
-describe("addRunAttributes（ラン内振り分け）", () => {
-  it("生の値に足し、入力は書き換えない", () => {
-    const base = computeStats(createEmptyEquipment());
-    const alloc = { ...uniformAttributes(0), str: 3, spi: 1 };
-    const out = addRunAttributes(base, alloc);
-    expect(out.attributes).toEqual({ str: 8, dex: 5, vit: 5, mnd: 5, spi: 6, def: 5 });
-    expect(base.attributes, "入力の attributes が変わった").toEqual(uniformAttributes(ATTR.base));
-  });
-});
-
 describe("applyStats への組み込み", () => {
   it("開始時の state.stats は基礎値なら computeStats と一致する", () => {
     const state = createGame(1);
@@ -157,17 +146,17 @@ describe("applyStats への組み込み", () => {
     expect(state.player.mana, "マナは満タンで始まる").toBe(DEFAULT_STATS.maxMana);
   });
 
-  it("振り分けが派生に反映され、何度呼んでも二重に掛からない", () => {
+  it("装備が上げた体力が派生に反映され、何度呼んでも二重に掛からない", () => {
     const state = createGame(1);
-    state.runAttributes.alloc.vit = 10;
-    const equip = computeStats(state.profile.equipment);
+    const plain = computeStats(state.profile.equipment);
+    const equip = { ...plain, attributes: { ...plain.attributes, vit: plain.attributes.vit + 10 } };
     applyStats(state, equip);
     const once = state.stats.maxHp;
     applyStats(state, equip);
-    expect(state.stats.attributes.vit).toBe(15);
+    expect(state.stats.attributes.vit).toBe(ATTR.base + 10);
     expect(state.stats.maxHp, "二重に掛かった").toBe(once);
-    expect(state.stats.maxHp, "体力 +10 で最大生命 +40").toBe(computeStats(state.profile.equipment).maxHp + ATTR.vitMaxHp * 10);
-    expect(state.boonRun.baseStats?.attributes.vit, "祝福の基準 stats は振り分け前").toBe(ATTR.base);
+    expect(state.stats.maxHp, "体力 +10 で最大生命 +40").toBe(plain.maxHp + ATTR.vitMaxHp * 10);
+    expect(state.boonRun.baseStats?.attributes.vit, "祝福の基準 stats は派生前の生値").toBe(ATTR.base + 10);
   });
 });
 

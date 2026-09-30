@@ -8,8 +8,7 @@ import { CONTRACT, ECONOMY } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { type PlayerStats, TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, inBounds, rectCenterPx, toIndex } from "../map/grid";
-import { grantAttributePoints } from "../ui/attributeAlloc";
-import { BOONS, BOON_KEYS, type BoonKey, applyBoonsToStats, grantBoon, hasBoon, offerBoons } from "./boons";
+import { BOONS, BOON_KEYS, type BoonKey, applyBoonsToStats, grantBoon, hasBoon, offerBoons, removeBoon } from "./boons";
 import { coreKeepsCurses } from "./boonCores";
 import { type BetOffer, betHudLine, betOfferLabel, doubleUpGo, doubleUpGoLabel, doubleUpStop, doubleUpStopLabel, onBetsFloorReached, placeBet, planBookieBets, stakeFor, updateBets } from "./bets";
 import { bossKeyForDepth, isBossDepth } from "./boss";
@@ -161,7 +160,7 @@ export interface PactDef {
 
 export const PACTS: Readonly<Record<PactKey, PactDef>> = {
   unscathed: { name: "無傷の契約", desc: "次の階まで被弾しない → 祝福と銭 / 破れば呪い" },
-  swift: { name: "疾走の契約", desc: `${CONTRACT.pactSwiftTime} 秒で次の階へ → 振り分け点 / 破れば死神が早まる` },
+  swift: { name: "疾走の契約", desc: `${CONTRACT.pactSwiftTime} 秒で次の階へ → 次の階で錬磨 / 破れば死神が早まる` },
   slayer: { name: "狩りの契約", desc: `次の階までに ${CONTRACT.pactSlayerKills} 体倒す → 遺物 / 破れば呪い` },
   silent: { name: "沈黙の契約", desc: "次の階までスキルを使わない → 銭と気力 / 破れば銭を失う" },
 };
@@ -606,13 +605,8 @@ function liftCurse(state: GameState, color: string): void {
   sayAt(state, `呪いが解けた: ${BOONS[key].name}`, color);
 }
 
-/** 祝福を 1 つ外して stats を畳み直す（呪いを解く・呪詛の声の達成） */
-export function removeBoon(state: GameState, key: BoonKey): void {
-  const i = state.boons.indexOf(key);
-  if (i < 0) return;
-  state.boons.splice(i, 1);
-  applyBoonsToStats(state);
-}
+/** 祝福を 1 つ外す処理は加護の入れ替えと共用なので boons.ts に置く（runEvents.ts などの既存の import 口として再 export） */
+export { removeBoon } from "./boons";
 
 /** 呪い付きの祝福を 1 つ受ける（契約の失敗・呪詛の声の失敗）。受けられるものが無ければ何もしない */
 export function grantCurse(state: GameState): void {
@@ -787,7 +781,8 @@ function fulfilPact(state: GameState, pact: ActivePact): void {
       state.contracts.boonsOwed += 1;
       return;
     case "swift":
-      grantAttributePoints(state, CONTRACT.pactSwiftPoints);
+      // 次の階の到着時に錬磨の提示を出す（消費は system/exits.ts）
+      state.boonRun.temperQueued += CONTRACT.pactSwiftTempers;
       return;
     case "slayer":
       dropRareItem(state, { ...state.player.body.pos });

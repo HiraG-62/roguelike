@@ -7,7 +7,6 @@ import { PX_PER_METER } from "../core/units";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import type { AttrKey } from "../loot/types";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
 import { PLAYER } from "../data/tuning";
@@ -22,7 +21,6 @@ import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
-import { allocateAttribute } from "../ui/attributeAlloc";
 import { SKILL } from "../skills/data";
 import type { SkillKey } from "../skills/types";
 import { statsBulletHas } from "../loot/bullets";
@@ -152,11 +150,6 @@ const SKILL_ENGAGE_RANGE = 150;
 const MELEE_SKILL_RANGE_MARGIN = 20;
 const SKILL_SLOT_COUNT = 4;
 const SKILL_PRESSED_KEYS = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed"] as const;
-/**
- * ラン内ステータス振り分け（`allocateAttribute`、src/ui/attributeAlloc.ts）の決定的な優先順位。
- * 「体力 → 筋力 → 技巧 → 精神 → 霊力 → 防御」の順で 1 点ずつ振り、末尾まで行ったら先頭に戻る（循環）
- */
-const ALLOC_PRIORITY: readonly AttrKey[] = ["vit", "str", "dex", "mnd", "spi", "def"];
 
 /** bot が手番をまたいで保持する内部状態 */
 export interface BotState {
@@ -175,8 +168,6 @@ export interface BotState {
   wanderTimer: number;
   stuckTimer: number;
   lastCheckPos: Vec;
-  /** ラン内ステータス振り分けで、ALLOC_PRIORITY の何番目を次に選ぶか（循環） */
-  allocCursor: number;
   /**
    * bot がスキルスロットを押した回数の累計（発動回数/分などの QA 指標用。ラン全体で単調増加）。
    * QA 側で runOnce 終了時に経過時間と合わせて発動頻度を出す想定
@@ -212,7 +203,6 @@ export function createBotState(seed: number): BotState {
     wanderTimer: 0,
     stuckTimer: 0,
     lastCheckPos: { x: 0, y: 0 },
-    allocCursor: 0,
     skillCastAttempts: 0,
     triedDropIds: new Set(),
     artTimer: 0,
@@ -535,19 +525,6 @@ function chooseSkillSlot(state: GameState, distanceToTarget: number): number {
 function pressSkillSlot(input: FrameInput, index: number): void {
   const key = SKILL_PRESSED_KEYS[index];
   if (key) input[key] = true;
-}
-
-/**
- * ラン内ステータス振り分け（src/ui/attributeAlloc.ts）。振り分け UI は装備画面（Tab）へ移り、
- * 探索中の攻撃・スキルキーを奪わなくなったため、bot は画面操作を模す（キーを押す）のではなく
- * `allocateAttribute` を直接呼んで、未消化の点を ALLOC_PRIORITY の順で即座に消化する
- */
-function drainAttributePoints(state: GameState, bot: BotState): void {
-  while (state.runAttributes.unspent > 0) {
-    const attr = ALLOC_PRIORITY[bot.allocCursor % ALLOC_PRIORITY.length]!;
-    bot.allocCursor++;
-    allocateAttribute(state, attr);
-  }
 }
 
 /** target 方向への正規化ベクトル。真上に乗っていれば無入力 */
@@ -945,9 +922,6 @@ function decideInput(state: GameState, bot: BotState, dt: number): FrameInput {
   // （system/loot.ts の chooseBud を呼ぶ副作用が要るだけで、FrameInput とは無関係）ため、
   // ここでは何もしない。芽の選択・出現回数の計測は呼び出し側（qa/simulation.test.ts の
   // runOnce）が state.pendingBud を見て chooseBud(state, 0) を直接呼んでいる
-
-  // ラン内ステータス振り分けも同様に FrameInput 非依存の直接呼び出し（drainAttributePoints 参照）
-  drainAttributePoints(state, bot);
 
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;

@@ -226,11 +226,31 @@ export const LINEAGE_KEYS: readonly LineageKey[] = [
   "wealth",
 ];
 
-/** 札の種類（boon-impl 2-1）: 加護 = 行動に宿る / 摂理 = 常時 / 研鑽 = ラン中に育つ / 昇華 = 系譜の頂点 */
+/** 札の種類（boon-impl 2-1）: 加護 = 行動に宿る / 摂理 = 常時 / 研鑽 = ラン中に育つ / 真髄 = 系譜の頂点 */
 export type BoonCard = "grace" | "law" | "temper" | "apex";
 
 /** 加護が宿る行動（左 / 右 / ダッシュ / スキル / 奥義） */
 export type BoonAction = "primary" | "secondary" | "dash" | "skill" | "ultimate";
+
+/** 全ての行動（加護の枠・融合の判定・表示の並び順） */
+export const BOON_ACTIONS: readonly BoonAction[] = ["primary", "secondary", "dash", "skill", "ultimate"];
+
+/** 行動の見出し（「左 1/2」の頭。キー名ではなく行動の名前） */
+export const BOON_ACTION_LABEL: Readonly<Record<BoonAction, string>> = {
+  primary: "左",
+  secondary: "右",
+  dash: "ダッシュ",
+  skill: "スキル",
+  ultimate: "奥義",
+};
+
+/** 札の種類の表示名 */
+export const BOON_CARD_LABEL: Readonly<Record<BoonCard, string>> = {
+  grace: "加護",
+  law: "摂理",
+  temper: "研鑽",
+  apex: "真髄",
+};
 
 /** 柱 7 の審査: その札で何が変わるか（押すもの / 押す時 / 立つ場所 / 狙う相手 / 見るもの） */
 export type BoonChange = "press" | "timing" | "position" | "target" | "watch";
@@ -377,7 +397,8 @@ const OVERCHARGE_BLAST: RuleEffect = {
   excludeTarget: true,
 };
 
-export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
+/** 祝福の本体（効果）。系譜・札の種類は末尾の BOON_META が上書きして BOONS にする */
+const BOON_BODIES: Readonly<Record<BoonKey, BoonDef>> = {
   finisherOnly: {
     key: "finisherOnly",
     name: "終撃のみ",
@@ -1974,3 +1995,231 @@ export const BOONS: Readonly<Record<BoonKey, BoonDef>> = {
   ...BOONS_WAVE2,
   ...BOONS_WAVE3,
 };
+
+// -----------------------------------------------------------------------------
+// 仮の系譜と札の種類（段取り 7a。docs/ideas/boon-impl.md 2-1・4 章）。
+// 中身は今の祝福のまま、系譜 9 × 札 4 種の器に機械的に写す。旧 6 系譜の 4 段は同じ系譜で 4 段目を真髄、
+// それ以外は tags から（mana / skill → 輪廻、placed → 眷属、loot → 財宝、burn → 灰燼、chill → 霜枷、shock → 雷鳴、
+// stagger → 大地、combo → 刃鳴、bleed / hp / 状態異常の弱らせ → 月蝕）。結びは組の 2 系譜が違えば融合、
+// 付けられないものは legacy（提示に出ないが持っていれば動く）。呪い付き・芯は系譜を持たない（ここに書かない）。
+// 7b で系譜ごとのファイルに作り直すときに消える
+// -----------------------------------------------------------------------------
+
+/** BoonDef のうち、系譜と札の種類を決める欄 */
+type BoonMeta = Pick<BoonDef, "lineage" | "card" | "action" | "fusion" | "changes" | "legacy">;
+
+function grace(lineage: LineageKey, action: BoonAction, changes: BoonChange): BoonMeta {
+  return { lineage, card: "grace", action, changes };
+}
+
+function law(lineage: LineageKey, changes: BoonChange): BoonMeta {
+  return { lineage, card: "law", changes };
+}
+
+function temper(lineage: LineageKey, changes: BoonChange): BoonMeta {
+  return { lineage, card: "temper", changes };
+}
+
+function apex(lineage: LineageKey, changes: BoonChange): BoonMeta {
+  return { lineage, card: "apex", changes };
+}
+
+/** 融合は枠を取らない（摂理と同じ扱い）。系譜は持たず、組の 2 系譜のどちらにも数える */
+function fuse(a: LineageKey, b: LineageKey, changes: BoonChange): BoonMeta {
+  return { fusion: [a, b], card: "law", changes };
+}
+
+const LEGACY: BoonMeta = { legacy: true };
+
+/** 呪い付き・芯以外の全ての祝福の仮の写し（boonDefs.test.ts が網羅を検査する） */
+export const BOON_META: Readonly<Partial<Record<BoonKey, BoonMeta>>> = {
+  finisherOnly: law("blade", "press"),
+  dashGun: grace("thunder", "dash", "press"),
+  reflect: grace("blade", "primary", "timing"),
+  justSlash: grace("blade", "dash", "timing"),
+  comboWave: law("blade", "watch"),
+  heartBurn: law("ash", "watch"),
+  eliteVault: law("wealth", "target"),
+  secondWind: law("moon", "watch"),
+  dashBlast: grace("ash", "dash", "position"),
+  justWipe: law("blade", "timing"),
+  clearShield: law("earth", "timing"),
+  finisherWave: grace("blade", "secondary", "position"),
+  rearGuard: grace("thunder", "primary", "position"),
+  standingSniper: law("thunder", "position"),
+  comboKeeper: law("blade", "timing"),
+  overcharge: grace("ash", "primary", "timing"),
+  burstRefund: grace("cycle", "ultimate", "timing"),
+  burnSpread: law("ash", "target"),
+  chillShatter: law("frost", "target"),
+  dashShock: grace("thunder", "dash", "position"),
+  critChain: law("thunder", "target"),
+  frostLock: law("frost", "timing"),
+  swapHands: LEGACY,
+  plague: law("moon", "target"),
+  bloodMist: law("moon", "target"),
+  crumble: law("earth", "target"),
+  frostPierce: law("frost", "target"),
+  springWell: law("cycle", "timing"),
+  bloodMana: law("cycle", "timing"),
+  reaperCup: law("cycle", "watch"),
+  keenBreath: grace("cycle", "dash", "timing"),
+  circulation: law("cycle", "watch"),
+  // ---- 旧系譜: 灰燼 ----
+  emberSeed: grace("ash", "primary", "timing"),
+  wildfire: law("ash", "target"),
+  ashBed: law("ash", "position"),
+  scorchedEarth: apex("ash", "timing"),
+  // ---- 旧系譜: 霜枷 ----
+  frostBreath: grace("frost", "primary", "target"),
+  frostFeet: law("frost", "timing"),
+  shatterBell: law("frost", "timing"),
+  eternalWinter: apex("frost", "timing"),
+  // ---- 旧系譜: 雷鳴 ----
+  staticDash: grace("thunder", "dash", "position"),
+  chargedBlade: grace("thunder", "primary", "target"),
+  thunderMark: law("thunder", "timing"),
+  thunderDrum: apex("thunder", "watch"),
+  // ---- 旧系譜: 月蝕（7b で輪廻へ写す） ----
+  moonRead: grace("moon", "skill", "target"),
+  highTide: law("moon", "timing"),
+  newMoon: law("moon", "timing"),
+  eclipse: apex("moon", "press"),
+  // ---- 単体 ----
+  bulletSteal: grace("thunder", "dash", "timing"),
+  silenceShot: grace("moon", "primary", "timing"),
+  glare: grace("moon", "dash", "target"),
+  intimidate: law("moon", "target"),
+  reaperPlay: LEGACY,
+  wakeupHunt: grace("earth", "secondary", "timing"),
+  elementTrail: grace("ash", "dash", "position"),
+  recall: law("thunder", "press"),
+  huntBleed: grace("moon", "primary", "target"),
+  frostRead: law("frost", "timing"),
+  venomBreak: law("moon", "target"),
+  insight: grace("moon", "secondary", "target"),
+  twinWheels: law("cycle", "press"),
+  iceRelay: law("frost", "target"),
+  trialSeeker: law("wealth", "target"),
+  justReturn: law("thunder", "timing"),
+  passCut: grace("blade", "dash", "position"),
+  ricochet: law("thunder", "position"),
+  warhead: law("ash", "position"),
+  weakSpot: law("moon", "target"),
+  embers: law("ash", "timing"),
+  nerveCut: law("thunder", "target"),
+  bloodReturn: grace("moon", "dash", "timing"),
+  laceration: law("moon", "timing"),
+  frayWiden: law("moon", "target"),
+  backstab: law("moon", "position"),
+  quietHall: law("cycle", "position"),
+  keenEye: law("cycle", "target"),
+  collapseChain: law("earth", "target"),
+  regroupHunt: law("earth", "target"),
+  edgeStrike: law("blade", "timing"),
+  cashOut: grace("cycle", "ultimate", "timing"),
+  takeBack: law("moon", "timing"),
+  woundMemory: law("moon", "target"),
+  reaperShadow: LEGACY,
+  stallTime: LEGACY,
+  afterglow: grace("cycle", "skill", "timing"),
+  ambushReturn: law("wealth", "target"),
+  appraise: law("blade", "target"),
+  usurp: law("earth", "target"),
+  swallowFlight: grace("blade", "primary", "position"),
+  chantReturn: law("cycle", "watch"),
+  fullMoonShot: grace("cycle", "skill", "timing"),
+  carryOver: temper("blade", "watch"),
+  fireWalk: law("ash", "position"),
+  // ---- 結び → 融合（組の 2 系譜が同じなら legacy） ----
+  swallowReturn: LEGACY,
+  plagueBlood: LEGACY,
+  thunderBlast: fuse("ash", "thunder", "position"),
+  totalCollapse: fuse("earth", "moon", "target"),
+  feastCup: fuse("moon", "cycle", "watch"),
+  criticalMass: fuse("ash", "cycle", "timing"),
+  hollowBlade: LEGACY,
+  winterNest: fuse("frost", "earth", "timing"),
+  clearMirror: fuse("cycle", "thunder", "timing"),
+  stillDash: LEGACY,
+  waveReturn: LEGACY,
+  // ---- 旧系譜: 大地 ----
+  leyLine: law("earth", "position"),
+  footBreak: grace("earth", "primary", "target"),
+  oilSpill: law("earth", "position"),
+  earthWrath: apex("earth", "position"),
+  // ---- 旧系譜: 刃鳴 ----
+  bladeHum: grace("blade", "secondary", "press"),
+  layeredEdge: grace("blade", "primary", "press"),
+  chargeRing: law("blade", "press"),
+  hundredBlades: apex("blade", "press"),
+  // ---- 武器種・銃の弾 ----
+  rockStance: grace("earth", "secondary", "timing"),
+  twinShadow: grace("blade", "primary", "press"),
+  spearPierce: grace("earth", "primary", "position"),
+  scytheReap: law("moon", "target"),
+  fistsHeat: law("blade", "watch"),
+  whipThreat: grace("moon", "secondary", "target"),
+  cleaverSplit: grace("earth", "primary", "target"),
+  staffRing: law("earth", "position"),
+  wandLamp: grace("cycle", "primary", "press"),
+  oilMine: grace("horde", "primary", "position"),
+  chargeRecoil: law("thunder", "press"),
+  venomBee: law("moon", "target"),
+  pebbleRain: law("earth", "position"),
+  // ---- 属性・地形 ----
+  weakStrike: law("cycle", "target"),
+  resistBreak: law("moon", "target"),
+  oilSlash: law("ash", "position"),
+  elementTorrent: law("cycle", "watch"),
+  darkFeast: law("moon", "watch"),
+  lightPierce: law("thunder", "target"),
+  waterThunder: law("thunder", "position"),
+  iceSkate: grace("frost", "dash", "position"),
+  fieldBurn: law("ash", "position"),
+  waterRunner: law("thunder", "position"),
+  frozenWater: law("frost", "position"),
+  // ---- ジョブ・部屋 ----
+  favoredPride: law("cycle", "press"),
+  namelessPride: law("cycle", "watch"),
+  otherStyle: grace("cycle", "primary", "press"),
+  hordeLord: law("horde", "timing"),
+  hordeEater: law("horde", "watch"),
+  roamHunt: law("horde", "target"),
+  strayMark: law("horde", "target"),
+  wayfarer: law("earth", "position"),
+  engageSpark: law("moon", "timing"),
+  reactionEmber: law("cycle", "watch"),
+  steamVeil: law("frost", "position"),
+  weave: law("cycle", "press"),
+  overflowCup: temper("cycle", "watch"),
+  // ---- 第 2 弾の結び ----
+  oilBlast: fuse("ash", "earth", "position"),
+  iceDance: fuse("frost", "blade", "timing"),
+  thunderRain: fuse("thunder", "earth", "position"),
+  groundRend: fuse("blade", "earth", "position"),
+  huntLord: LEGACY,
+  weakChain: LEGACY,
+  // ---- 第 3 弾 ----
+  firePillar: law("ash", "target"),
+  boltDrop: grace("thunder", "dash", "timing"),
+  bloodVein: law("moon", "target"),
+  surgeOfBattle: law("blade", "timing"),
+  tailwind: law("thunder", "position"),
+  woundReply: law("moon", "position"),
+  eliteHunt: law("moon", "target"),
+  shadowStitch: law("moon", "target"),
+  iceStep: grace("frost", "dash", "position"),
+  counterBlast: grace("ash", "secondary", "timing"),
+  miser: temper("wealth", "watch"),
+  coinGleaner: grace("wealth", "dash", "position"),
+};
+
+/** 本体に仮の系譜・札を重ねる（キーの並びは BOON_KEYS のまま） */
+function withBoonMeta(bodies: Readonly<Record<BoonKey, BoonDef>>): Readonly<Record<BoonKey, BoonDef>> {
+  const out: Partial<Record<BoonKey, BoonDef>> = {};
+  for (const key of BOON_KEYS) out[key] = { ...bodies[key], ...BOON_META[key] };
+  return out as Record<BoonKey, BoonDef>;
+}
+
+export const BOONS: Readonly<Record<BoonKey, BoonDef>> = withBoonMeta(BOON_BODIES);

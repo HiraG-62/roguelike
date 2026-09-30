@@ -37,7 +37,7 @@ export const STATUS = BALANCE.combat.STATUS;
  */
 export const ATTR = BALANCE.combat.ATTR;
 
-/** ステータスの入手（共鳴）とラン内の振り分け（docs/COMBAT_DESIGN.md A-3） */
+/** 色の共鳴によるステータスの加算量（docs/COMBAT_DESIGN.md A-3） */
 export const ATTR_GAIN = BALANCE.combat.ATTR_GAIN;
 
 /**
@@ -166,6 +166,9 @@ export const RUN_EVENT = BALANCE.world.RUN_EVENT;
 
 /** 隠し部屋（src/map/hidden.ts・src/system/hiddenRoom.ts） */
 export const HIDDEN_ROOM = BALANCE.world.HIDDEN_ROOM;
+
+/** 出口の予告（src/system/exits.ts・src/render/exitUi.ts。docs/ideas/boon-impl.md 2-3） */
+export const EXIT = BALANCE.world.EXIT;
 
 /** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
 export const LINGER = BALANCE.world.LINGER;

@@ -22,8 +22,17 @@ import {
   boonWeight,
   buildTags,
   canTakeCurse,
+  canTemper,
+  choiceCardCount,
   choiceGrade,
   chooseBoon,
+  graceSlotsOf,
+  gracesOf,
+  lineageCardWeight,
+  offerTemper,
+  removeBoon,
+  rollLineageOptions,
+  temperCandidates,
   equipmentTags,
   grantBoon,
   hasBoon,
@@ -581,9 +590,10 @@ describe("結び祝福（2 つ揃うと出る）", () => {
   const none = new Set<BoonTag>();
 
   it("片方だけでは重み 0、両方あれば結びの倍率が掛かる", () => {
-    expect(boonWeight(BOONS.plagueBlood, none, ["plague"])).toBe(0);
-    const w = boonWeight(BOONS.plagueBlood, none, ["plague", "bloodMist"]);
+    expect(boonWeight(BOONS.thunderBlast, none, ["dashBlast"])).toBe(0);
+    const w = boonWeight(BOONS.thunderBlast, none, ["dashBlast", "dashShock"]);
     expect(w).toBeCloseTo(BOON.rarityWeight.epic * BOON.duoWeightMul);
+    expect(boonWeight(BOONS.plagueBlood, none, ["plague", "bloodMist"]), "融合にできなかった結び（legacy）は出ない").toBe(0);
   });
 
   it("結びは 1 回の 3 択に 1 枚まで、揃えば出てくる", () => {
@@ -791,7 +801,7 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
   function plainKeys(): BoonKey[] {
     return BOON_KEYS.filter((k) => {
       const d = BOONS[k];
-      return !d.cursed && d.core !== true && !d.after && !d.duo && !d.requires && !d.loadout && !d.lineage;
+      return !d.cursed && d.core !== true && !d.after && !d.duo && !d.requires && !d.loadout && d.legacy !== true;
     });
   }
 
@@ -934,6 +944,8 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
       state.enemies = [];
       state.player.invulnTimer = 999;
       state.depth = fromDepth;
+      // 出口の予告で 3 択が出る階が絞られるので、どの階段も祝福の出口にしておく
+      for (const s of state.stairs) s.reward = { kind: "boon", lineage: "ash" };
       state.player.body.pos = stairsPos(state);
       step(state, withInput({}), FIXED_DT);
       expect(state.depth).toBe(fromDepth + 1);
@@ -1026,5 +1038,216 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
     };
     for (let seed = 1; seed <= SEEDS; seed++) expect(grades(seed)).toEqual(grades(seed));
     expect(gradeHistogram(DEEP, 7)).toEqual(gradeHistogram(DEEP, 7));
+  });
+});
+
+describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs/ideas/boon-impl.md 2-2〜2-7）", () => {
+  const SEEDS = 40;
+  /** 系譜の提示を確かめられる深さ（芯の提示の深度を避ける） */
+  const OFFER_DEPTH = BOON.coreDepth + 1;
+  /** 灰燼の札 4 枚（真髄の条件を満たす）と 3 枚 */
+  const ASH_FOUR: BoonKey[] = ["emberSeed", "wildfire", "ashBed", "burnSpread"];
+
+  function offerState(seed: number): GameState {
+    const state = arena(seed);
+    state.depth = OFFER_DEPTH;
+    return state;
+  }
+
+  function openWith(state: GameState, options: BoonKey[], grades: BoonGrade[]): void {
+    state.boonChoice = { options, hover: -1, curseHover: false, timer: BOON.inputDelay, curseTaken: false, curse: null, grades };
+  }
+
+  it("出口で選んだ系譜の札だけが 3 枚並ぶ（呪い枠は据え置き）", () => {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = offerState(seed);
+      offerBoons(state, 0, "frost");
+      const c = state.boonChoice;
+      if (!c) throw new Error("提示が開いていない");
+      expect(c.lineage, "提示の系譜").toBe("frost");
+      expect(c.options).toHaveLength(BOON.choiceCount);
+      expect(new Set(c.options).size, "重複なし").toBe(c.options.length);
+      for (const k of c.options) {
+        if (BOONS[k].cursed) continue;
+        expect(BOONS[k].lineage, `${k} は霜枷`).toBe("frost");
+        expect(BOONS[k].card, `${k} は重みで出る札`).not.toBe("apex");
+      }
+      expect(c.options.filter((k) => BOONS[k].cursed).length, "呪いは 1 枚まで").toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("同じ札の種類 × 行動は 1 回の提示に 1 枚まで", () => {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const options = rollLineageOptions(offerState(seed), "ash").filter((k) => !BOONS[k].cursed);
+      const slots = options.map((k) => `${BOONS[k].card}:${BOONS[k].action ?? "-"}`);
+      expect(new Set(slots).size, `seed ${seed}: ${slots.join(", ")}`).toBe(slots.length);
+    }
+  });
+
+  it("同じ seed なら系譜の提示の候補も同じ（state.rng で決定的）", () => {
+    expect(rollLineageOptions(offerState(9), "thunder")).toEqual(rollLineageOptions(offerState(9), "thunder"));
+  });
+
+  it("系譜を渡さなければ今までの抽選のまま（系譜を問わない）", () => {
+    const state = offerState(9);
+    offerBoons(state);
+    expect(state.boonChoice?.lineage, "系譜なしの提示").toBeUndefined();
+    expect(state.boonChoice?.options).toEqual(rollBoonOptions(offerState(9)));
+  });
+
+  it("真髄はその系譜の札が apexMinCards 枚以上で 1 枚目に確定する", () => {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const three = offerState(seed);
+      three.boons = ASH_FOUR.slice(0, BOON.apexMinCards - 1);
+      expect(rollLineageOptions(three, "ash"), "3 枚では真髄は出ない").not.toContain("scorchedEarth");
+      const four = offerState(seed);
+      four.boons = [...ASH_FOUR];
+      expect(four.boons.length).toBeGreaterThanOrEqual(BOON.apexMinCards);
+      expect(rollLineageOptions(four, "ash")[0], "1 枚目に真髄").toBe("scorchedEarth");
+    }
+  });
+
+  it("真髄を取るとその系譜の加護が宿っている行動の枠が 1 つ開く（上限 graceSlotsMax）", () => {
+    const state = offerState(3);
+    for (const k of ASH_FOUR) grantBoon(state, k);
+    expect(graceSlotsOf(state, "primary")).toBe(BOON.graceSlots);
+    grantBoon(state, "scorchedEarth");
+    expect(graceSlotsOf(state, "primary"), "火種の宿る左").toBe(Math.min(BOON.graceSlotsMax, BOON.graceSlots + 1));
+    expect(graceSlotsOf(state, "dash"), "灰燼の加護の無い行動は開かない").toBe(BOON.graceSlots);
+  });
+
+  it("違う 2 系譜の加護が同じ行動に乗ると、次の提示の 1 枚目に融合が確定し、真髄があればその次", () => {
+    const state = offerState(5);
+    grantBoon(state, "dashBlast");
+    expect(state.boonRun.fusionDue, "1 系譜だけでは積まない").toEqual([]);
+    grantBoon(state, "dashShock");
+    expect(state.boonRun.fusionDue, "灰燼 × 雷鳴 がダッシュに乗った").toEqual(["thunderBlast"]);
+    expect(rollLineageOptions(state, "frost")[0], "別の系譜の提示でも確定").toBe("thunderBlast");
+    for (const k of ASH_FOUR) grantBoon(state, k);
+    const options = rollLineageOptions(state, "ash");
+    expect(options.slice(0, 2), "真髄 → 融合").toEqual(["scorchedEarth", "thunderBlast"]);
+    grantBoon(state, "thunderBlast");
+    expect(state.boonRun.fusionDue, "取ったら外れる").toEqual([]);
+  });
+
+  it("入れ替えで片方の加護が外れると融合の確定枠も消える", () => {
+    const state = offerState(5);
+    grantBoon(state, "dashBlast");
+    grantBoon(state, "dashShock");
+    removeBoon(state, "dashShock");
+    expect(state.boonRun.fusionDue).toEqual([]);
+  });
+
+  it("同じ系譜の加護は同じ行動に出ない", () => {
+    const tags = new Set<BoonTag>();
+    expect(boonWeight(BOONS.overcharge, tags, ["emberSeed"]), "灰燼の左を持つ").toBe(0);
+    expect(boonWeight(BOONS.rearGuard, tags, ["emberSeed"]), "別の系譜の左は出る").toBeGreaterThan(0);
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = offerState(seed);
+      grantBoon(state, "emberSeed");
+      expect(lineageCardWeight(state, BOONS.overcharge, undefined, { produces: [], consumes: [], amplifies: [] })).toBe(0);
+      expect(rollLineageOptions(state, "ash"), `seed ${seed}`).not.toContain("overcharge");
+    }
+  });
+
+  it("加護は 1 行動に graceSlots 枠。満ちた行動の加護を選ぶと第 2 段が開き、見送りなら取らない", () => {
+    const state = offerState(4);
+    grantBoon(state, "emberSeed");
+    grantBoon(state, "chargedBlade");
+    expect(gracesOf(state, "primary")).toEqual(["emberSeed", "chargedBlade"]);
+    openWith(state, ["frostBreath", "chillShatter"], [2, 1]);
+    chooseBoon(state, 0);
+    const c = state.boonChoice;
+    if (!c) throw new Error("第 2 段が開いていない");
+    expect(c.replace?.incoming).toBe("frostBreath");
+    expect(c.replace?.action).toBe("primary");
+    expect(c.options, "今の加護が並ぶ").toEqual(["emberSeed", "chargedBlade"]);
+    expect(choiceCardCount(c), "見送りの札が 1 枚増える").toBe(BOON.graceSlots + 1);
+    expect(canTakeCurse(state), "第 2 段では呪いを受けられない").toBe(false);
+    chooseBoon(state, c.options.length);
+    expect(state.boonChoice).toBeNull();
+    expect(hasBoon(state, "frostBreath"), "見送り").toBe(false);
+    expect(gracesOf(state, "primary")).toEqual(["emberSeed", "chargedBlade"]);
+  });
+
+  it("第 2 段で外す加護を選ぶと入れ替わり、外した札の格も消える", () => {
+    const state = offerState(4);
+    grantBoon(state, "chargedBlade", 3);
+    grantBoon(state, "huntBleed");
+    expect(boonGradeOf(state, "chargedBlade")).toBe(3);
+    openWith(state, ["overcharge"], [2]);
+    chooseBoon(state, 0);
+    chooseBoon(state, 0);
+    expect(state.boonChoice).toBeNull();
+    expect(hasBoon(state, "chargedBlade"), "外した").toBe(false);
+    expect(state.boonRun.grades.chargedBlade, "格も消える").toBeUndefined();
+    expect(gracesOf(state, "primary")).toEqual(["huntBleed", "overcharge"]);
+    expect(isGraded(BOONS.overcharge)).toBe(true);
+    expect(boonGradeOf(state, "overcharge"), "新しい札は提示の格").toBe(2);
+  });
+
+  it("第 2 段の見送りはキー（3 枚目 = 攻撃）でも選べ、入力の待ちを数え直す", () => {
+    const state = offerState(4);
+    grantBoon(state, "emberSeed");
+    grantBoon(state, "chargedBlade");
+    openWith(state, ["frostBreath"], [1]);
+    updateBoonChoice(state, withInput({ skill1Pressed: true }), FIXED_DT);
+    expect(state.boonChoice?.replace, "第 2 段").toBeDefined();
+    updateBoonChoice(state, withInput({ attackPressed: true }), FIXED_DT);
+    expect(state.boonChoice, "待ちの間は押せない").not.toBeNull();
+    for (let i = 0; i < WAIT_STEPS; i++) updateBoonChoice(state, withInput({}), FIXED_DT);
+    updateBoonChoice(state, withInput({ attackPressed: true }), FIXED_DT);
+    expect(state.boonChoice).toBeNull();
+    expect(hasBoon(state, "frostBreath")).toBe(false);
+  });
+
+  it("錬磨: 格の対象の札から最大 temperOfferCount 枚を出し、選ぶと格が 1 段上がる。極致で止まる", () => {
+    const state = offerState(6);
+    expect(canTemper(state), "札が無ければ錬磨できない").toBe(false);
+    expect(offerTemper(state)).toBe(false);
+    for (const k of ["dashBlast", "emberSeed", "chargedBlade", "firePillar", "boltDrop"] as const) grantBoon(state, k);
+    expect(canTemper(state)).toBe(true);
+    expect(offerTemper(state)).toBe(true);
+    const c = state.boonChoice;
+    if (!c) throw new Error("錬磨が開いていない");
+    expect(c.mode).toBe("temper");
+    expect(c.options.length).toBe(Math.min(BOON.temperOfferCount, temperCandidates(state).length));
+    for (const k of c.options) expect(temperCandidates(state)).toContain(k);
+    expect(offerTemper(state), "提示が開いていれば開かない").toBe(false);
+    const picked = c.options[0];
+    if (!picked) throw new Error("札が無い");
+    chooseBoon(state, 0);
+    expect(boonGradeOf(state, picked)).toBe(2);
+    for (let i = 0; i < 10; i++) {
+      state.boons = [picked];
+      if (!offerTemper(state)) break;
+      chooseBoon(state, 0);
+    }
+    expect(boonGradeOf(state, picked), "極致で止まる").toBe(5);
+    expect(canTemper(state), "極致の札しか無ければ錬磨できない").toBe(false);
+  });
+
+  it("系譜の提示で呪いを受けて足す 4 枚目も同じ系譜から出る", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const state = offerState(seed);
+      offerBoons(state, 0, "blade");
+      if (!takeCurse(state)) continue;
+      const fourth = state.boonChoice?.options[BOON.choiceCountWithCurse - 1];
+      if (!fourth) continue;
+      expect(BOONS[fourth].lineage, `seed ${seed}: ${fourth}`).toBe("blade");
+      checked++;
+    }
+    expect(checked, "4 枚目を確かめた").toBeGreaterThan(0);
+  });
+
+  it("錬磨の候補は同じ seed なら同じ", () => {
+    const options = (seed: number): BoonKey[] | undefined => {
+      const state = offerState(seed);
+      for (const k of ["dashBlast", "emberSeed", "chargedBlade", "firePillar", "boltDrop"] as const) grantBoon(state, k);
+      offerTemper(state);
+      return state.boonChoice?.options;
+    };
+    expect(options(11)).toEqual(options(11));
   });
 });

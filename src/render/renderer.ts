@@ -89,7 +89,6 @@ import {
 import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
 import { poseKey } from "../data/sprites/frameKit";
 import { drawWeaknessMark } from "./elementUi";
-import { drawUnspentHud } from "./attributeUi";
 import { drawFlaskHud } from "./flaskHud";
 import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
@@ -114,6 +113,7 @@ import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
+import { drawExitHints } from "./exitUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
 /** コンボ表示（論理 px・y 座標） */
@@ -498,8 +498,6 @@ const HUD_MANA_H = 2;
 const HUD_ENERGY_Y = 17;
 const HUD_ENERGY_H = 4;
 const HUD_TEXT_X = HUD_BAR_X + HUD_BAR_W + 4;
-/** HP の数値と未振り点の表示の間 */
-const HUD_UNSPENT_GAP = 6;
 const HUD_PIP_Y = 24;
 const HUD_KEYSTONE_Y = 36;
 const HUD_WARN_Y = 45;
@@ -839,6 +837,7 @@ export class Renderer {
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
+    drawExitHints(ctx, state);
     if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
@@ -2864,8 +2863,6 @@ export class Renderer {
     drawManaBar(ctx, state, HUD_BAR_X, HUD_MANA_Y, HUD_BAR_W, HUD_MANA_H);
     const hpText = `${Math.ceil(p.hp)}/${p.maxHp}`;
     drawText(ctx, hpText, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
-    // 未振りの点はマナバーの横（HP の数値の右）に。振るのは装備画面（Tab）
-    drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
     drawMoraleHud(ctx, state, HUD_TEXT_X, HUD_ENERGY_Y);
 
     const sustaining = p.ultimate.active !== null;

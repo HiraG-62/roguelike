@@ -86,7 +86,9 @@ describe("祝福 第 2 弾の定義", () => {
 
   it("系譜「大地」と「刃鳴」は 4 段で、4 段目（真髄）は装備のタグを要求する", () => {
     for (const lineage of ["earth", "blade"] as const) {
-      const steps = wave2.filter((d) => d.lineage === lineage);
+      // 段取り 7a で他の祝福も仮に同じ系譜へ写したので、前段でつながる 4 段だけを数える
+      const chained = (d: (typeof wave2)[number]): boolean => d.after !== undefined || wave2.some((o) => o.after === d.key);
+      const steps = wave2.filter((d) => d.lineage === lineage && chained(d));
       expect(steps.length, `${lineage} は 4 段`).toBe(4);
       const first = steps.filter((d) => d.after === undefined);
       expect(first.length, `${lineage} の 1 段目は 1 つ`).toBe(1);

@@ -129,9 +129,6 @@ const INNATE_JOINER = "、";
 
 const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", status: "ステータス", skills: "スキル", echo: "残響", web: "流れ" };
 const TAB_UNDERLINE_H = 1;
-/** 未振り点があるときにステータスタブの右肩に出す印 */
-const TAB_BADGE = "+";
-const TAB_BADGE_INSET = 3;
 const HELP_LABEL = "？ ヘルプ";
 const COLOR_HELP = "#8fd0ff";
 const COLOR_HELP_BG = "rgba(143,208,255,0.12)";
@@ -270,7 +267,7 @@ export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState,
   const layout = layoutInventory(state, ui);
 
   fillRectPx(ctx, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, COLOR_OVERLAY);
-  drawPanelFrame(ctx, state, layout, ui);
+  drawPanelFrame(ctx, layout, ui);
   switch (ui.tab) {
     case "status":
       drawStatusTab(ctx, state, ui.status);
@@ -315,11 +312,11 @@ function drawDetailPager(ctx: CanvasRenderingContext2D, ui: InventoryUi): void {
 // 枠と見出し
 // ---------------------------------------------------------------------------
 
-function drawPanelFrame(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
+function drawPanelFrame(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: InventoryUi): void {
   const { panel } = layout;
   fillRectPx(ctx, panel, COLOR_FRAME_BG);
   strokeRectPx(ctx, panel, COLOR_BORDER);
-  drawTabs(ctx, state, ui);
+  drawTabs(ctx, ui);
   const help = helpButtonRect();
   const lit = ui.hoverHelp || ui.helpOpen;
   fillRectPx(ctx, help, lit ? COLOR_HOVER_BG : COLOR_HELP_BG);
@@ -334,14 +331,11 @@ function drawPanelFrame(ctx: CanvasRenderingContext2D, state: GameState, layout:
   drawText(ctx, truncateText(ui.message, right - tabsRight - TEXT_PAD_X * 2, m), right, help.y + help.h - 2, m, COLOR_SELECTED, "right");
 }
 
-function drawTabs(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
-  const unspent = state.runAttributes.unspent > 0;
+function drawTabs(ctx: CanvasRenderingContext2D, ui: InventoryUi): void {
   for (const { tab, rect } of tabRects()) {
     const selected = ui.tab === tab;
     drawText(ctx, TAB_LABEL[tab], rect.x + rect.w / 2, rect.y + rect.h - 2, TEXT.BODY, selected ? COLOR_TEXT : COLOR_DIM, "center");
     if (selected) fillRectPx(ctx, { x: rect.x, y: rect.y + rect.h, w: rect.w, h: TAB_UNDERLINE_H }, COLOR_SELECTED);
-    // 未振り点があることをタブの外からも見せる（振り分けはステータスタブにしか無い）
-    if (tab === "status" && unspent) drawText(ctx, TAB_BADGE, rect.x + rect.w, rect.y + TAB_BADGE_INSET + ROW_BASELINE_OFFSET, TEXT.SMALL, COLOR_SELECTED, "right");
   }
 }
 
@@ -497,15 +491,15 @@ export function summaryFormulaLines(state: GameState): DetailLine[] {
   return [captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
 }
 
-/** 要約の詳細欄: 見出し（ジョブ・未振り点）の下から詳細欄の部品で流し込む */
+/** 要約の詳細欄: 見出し（ジョブ）の下から詳細欄の部品で流し込む */
 export function summaryBelowRect(rect: Rect): Rect {
   const top = rect.y + SUMMARY_HEAD_H + SECTION_GAP;
   return { x: rect.x, y: top, w: rect.w, h: rect.y + rect.h - top };
 }
 
 /**
- * 何も乗せていないとき: ジョブと未振り点 → 奥義 → 近接・射撃の素性 → 共鳴。
- * 詳しくでは装備の効果の一覧（statsSummary）を足す。ステータスの一覧と振り分けはステータスタブ
+ * 何も乗せていないとき: ジョブ → 奥義 → 近接・射撃の素性 → 共鳴。
+ * 詳しくでは装備の効果の一覧（statsSummary）を足す。ステータスの一覧はステータスタブ
  */
 function drawBuildSummary(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect, ui: InventoryUi): void {
   const lines: DetailLine[] = [];

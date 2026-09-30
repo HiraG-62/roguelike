@@ -2,7 +2,7 @@ import type { AttackProfile } from "./element";
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
-import type { Attributes, FloorItem, LootRuntime, PendingBud, PlayerStats, Profile } from "../loot/types";
+import type { FloorItem, LootRuntime, PendingBud, PlayerStats, Profile } from "../loot/types";
 import type { StatusApply, StatusBag } from "./status";
 import type { TerrainKind, TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
@@ -947,6 +947,8 @@ export interface RoomState {
   special?: RoomSpecial;
   /** 封鎖しない部屋で交戦が始まった（入った・敵が気付いた）。全滅でその部屋を制圧する（src/system/floor.ts） */
   engaged?: boolean;
+  /** 出口の予告「危険」で強制した部屋。制圧報酬が倍になる（src/system/exits.ts） */
+  danger?: true;
 }
 
 export interface Camera {
@@ -1066,12 +1068,6 @@ export interface GameState {
   reforgeChoice: ReforgeChoice | null;
   /** 装備の芽（来歴の節目で出る 2 択）の提示中。UI が表示し、system/loot.ts の chooseBud で選ぶ */
   pendingBud: PendingBud | null;
-  /** ラン内のステータス振り分け（docs/COMBAT_DESIGN.md A-3）。ランで消える */
-  runAttributes: {
-    alloc: Attributes;
-    /** 未振りの点。装備画面（src/ui/attributeAlloc.ts）で振る */
-    unspent: number;
-  };
   // ---- ラン構造（起点・縛り・祭壇・ランイベント・分岐路。docs/ideas/run-expansion.md）----
   /** 祭壇・起点がこのランだけ与えた誓約の key（applyStats が装備の誓約に足す） */
   runKeystones: string[];

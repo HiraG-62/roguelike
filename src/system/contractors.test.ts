@@ -438,6 +438,14 @@ describe("灰の公証人: 契約", () => {
     expect(state.floorTime, "死神の前倒し").toBe(CONTRACT.pactSwiftPenalty);
   });
 
+  it("疾走の契約: 果たすと次の階の到着時に錬磨の提示を積む", () => {
+    const state = withContractor("notary");
+    state.contracts.pacts = [{ key: "swift", signedAt: state.time, killsAt: 0, depth: state.depth, failed: false }];
+    const queued = state.boonRun.temperQueued;
+    onContractsFloorReached(state);
+    expect(state.boonRun.temperQueued, "錬磨の予約").toBe(queued + CONTRACT.pactSwiftTempers);
+  });
+
   it("沈黙の契約: スキルを使うと破れて銭を失う", () => {
     const state = withContractor("notary");
     state.economy.coins = ECONOMY.income.pactSilentPenalty + 5;

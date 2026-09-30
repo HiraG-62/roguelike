@@ -116,7 +116,7 @@ const ATTR_TIP_BODY: Readonly<Record<AttrKey, string>> = {
 const ATTR_ORDER: readonly AttrKey[] = ["str", "dex", "vit", "mnd", "spi", "def"];
 
 const GROWTH_TIPS: readonly TipDef[] = [
-  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力・防御の 6 つ。探索中に得た点を装備画面で振り分ける（振った点はその探索の間だけ）。" },
+  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力・防御の 6 つ。装備の性質や共鳴で上がり、技の威力や体の性能に効く。" },
   ...ATTR_ORDER.map((a): TipDef => ({ key: `attr_${a}`, term: ATTR_LABEL[a], category: "growth", body: ATTR_TIP_BODY[a] })),
   { key: "effective", term: "実効値", category: "growth", body: "ステータスに逓減を掛けた計算用の値。高く積むほど 1 点あたりの伸びが小さくなる。" },
   {
@@ -191,7 +191,14 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "core", term: "芯", category: "run", body: "1 回の探索に 1 つだけ持てる大型の祝福。遊び方を変える効果と代償を持ち、芯と重なる祝福が以後出やすい。" },
   { key: "cursed", term: "呪い付き", category: "run", body: "強い効果と代償を併せ持つ祝福。" },
   { key: "takeCurse", term: "呪いを受けて 4 択", category: "run", body: "祝福の 3 択で呪い付きの祝福を 1 つ受ける代わりに、4 枚目の候補が加わる。" },
-  { key: "lineage", term: "系譜", category: "run", body: "同じ主から出る 4 段の祝福。前の段を持つと次の段が 3 択に出る。" },
+  { key: "lineage", term: "系譜", category: "run", body: "祝福の流れ（灰燼・霜枷・雷鳴・月蝕・大地・刃鳴・輪廻・眷属・財宝）。祝福の出口で系譜を選ぶと、その系譜の札が 3 枚並ぶ。同じ系譜の札を 4 枚持つと真髄が確定で並ぶ。" },
+  {
+    key: "graceSlots",
+    term: "加護",
+    category: "run",
+    body: "左・右・ダッシュ・スキル・奥義の行動に宿る祝福。1 つの行動に 2 枚まで。満ちた行動の加護を選ぶと、今の加護から 1 枚外すか見送るかを選ぶ。真髄を取ると、その系譜の加護が乗る行動は 3 枚まで。違う 2 系譜の加護が同じ行動に乗ると、次の提示に融合が並ぶ。",
+  },
+  { key: "temper", term: "錬磨", category: "run", body: "持っている祝福の札を 1 枚選び、格を 1 つ上げる。至高と極致は錬磨でだけ届く。出口の予告の「錬磨」や契約で開く。" },
   { key: "clue", term: "手がかり", category: "run", body: "祝福の 3 択に出る、今のビルドで成立し得る未発見の連携。" },
   { key: "engaged", term: "交戦", category: "run", body: "部屋に入る、または部屋の敵に気付かれた状態。扉が閉じる部屋（封鎖）もある。" },
   { key: "jin", term: "陣", category: "run", body: "敵は陣形（魚鱗・鶴翼・雁行・長蛇など）を組んだ一団で待ち構える。画面上の群勢は仲間を倒すほど減り、大将を倒すと大きく崩れる。尽きると残りは敗走する。起こした直後に後詰が遅れて加わることもある。" },
@@ -204,6 +211,12 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は装備画面で石に付ける。" },
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
+  {
+    key: "exitPreview",
+    term: "出口の予告",
+    category: "run",
+    body: "分岐路の階段の上に、降りた先で手に入る報酬が出る。祝福は系譜の名前つきで、降りると選んだ系譜の札が 3 枚並ぶ（祝福の出口を選ばなかった階では並ばない）。遺物は到着報酬が確定し、銭は初めて着いた階の銭が 3 倍、鍵と瓶は足元の少し先に落ちる。危険は巣窟・闘技場・試練のどれかが 1 つ現れ、制圧の報酬が倍になる。錬磨は持っている札の格を 1 つ上げる。隠し部屋と案内人の階段には予告が出ない。",
+  },
   { key: "floorLord", term: "階の主", category: "run", body: "毎階の最後の部屋に出る主。倒すまで階段は出ない。5 の倍数の階はボスが代わりに出る。" },
   { key: "hiddenRoom", term: "隠し部屋", category: "run", body: "稀に生成される、壁の中に隠れた小部屋。ひび割れた壁に近づくと風の音がする。体を押し当て続けると開き、遺物と次の階への階段が出る。ボスの出る階には無い。" },
 ];

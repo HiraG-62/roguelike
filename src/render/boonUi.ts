@@ -5,7 +5,11 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { BOON } from "../data/tuning";
 import {
+  BOON_ACTION_LABEL,
   BOON_CARD,
+  BOON_CARD_LABEL,
+  type BoonAction,
+  type BoonChoice,
   type BoonDef,
   type BoonTag,
   LINEAGE_LABEL,
@@ -14,7 +18,11 @@ import {
   boonDef,
   buildTags,
   canTakeCurse,
+  choiceCardCount,
   choiceGrade,
+  graceSlotsOf,
+  gracesOf,
+  grantColor,
 } from "../system/boons";
 import type { BoonKey } from "../system/boonDefs";
 import {
@@ -25,6 +33,7 @@ import {
   gradeMagnitudeMul,
   gradeRadiusMul,
   isGraded,
+  temperGrade,
 } from "../system/boonGrade";
 import { linkHintText } from "../meta/linkHint";
 import { type KeywordAffinity, affinity, buildProfile } from "../system/keywords";
@@ -46,9 +55,23 @@ const COLOR_ICON_BG = "rgba(12,12,18,0.85)";
 const COLOR_USED = "#505050";
 const COLOR_CURSE_BG = "rgba(48,12,16,0.95)";
 const COLOR_CURSE_BG_HOVER = "rgba(80,20,24,0.98)";
-/** 系譜・結びの注記の色 */
+/** 系譜・融合・結びの注記の色 */
 const COLOR_LINEAGE = "#ffb060";
 const COLOR_DUO = "#80e0c0";
+/** 融合の注記の頭と、2 系譜のつなぎ */
+const FUSION_LABEL = "融合";
+const FUSION_JOIN = "×";
+/** 錬磨・入れ替えの題と案内 */
+const TEMPER_TITLE = "錬磨 - 格を上げる札を選ぶ";
+const TEMPER_HINT = "選んだ札の格が 1 段上がる";
+const REPLACE_TITLE = "入れ替える加護を選ぶ";
+const REPLACE_INCOMING = "新しい加護";
+const NORMAL_TITLE = "祝福を選べ";
+const NORMAL_HINT = "この探索のみ有効";
+/** 入れ替えの第 2 段の最後の札（新しい加護を取らない） */
+const PASS_ICON = "-";
+const PASS_NAME = "見送り";
+const PASS_COLOR = "#a0a0a0";
 /** 芯の注記・枠の色（芯は格を持たないので格の色と分ける） */
 const COLOR_CORE = "#c0a0ff";
 /** 芯のカードの内側の 2 本目の枠の間隔 */
@@ -100,8 +123,6 @@ const BOON_MARK_COLOR: Readonly<Record<BoonMark, string>> = {
 /** 手がかり枠（5-d）の行。呪いの札の下 */
 const HINT_GAP_BELOW_CURSE = 12;
 const COLOR_HINT = "#a0c0e0";
-/** 系譜の段数をたどる上限（定義の循環で止まらないように） */
-const LINEAGE_MAX_DEPTH = 8;
 
 const HUD_ICON = 10;
 const HUD_GAP = 2;
@@ -117,24 +138,20 @@ const HUD_PER_ROW = 16;
 const TIP_MAX_W = 220;
 
 /**
- * 札・アイコンの色。大祝福・神威は格の色（強さは格が語る）。並は希少度の色のまま（希少度は抽選の重みで、語としては出さない）
+ * 札・アイコンの色。大祝福〜極致は格の色（強さは格が語る）。並は札の種類の色（加護・摂理・研鑽・真髄。種類を持たない旧祝福は希少度の色）
  */
 export function boonCardColor(def: BoonDef, grade: BoonGrade = 1): string {
-  if (def.cursed) return BOON.cursedColor;
-  if (grade >= 3) return BOON.gradeColor.divine;
-  if (grade === 2) return BOON.gradeColor.grand;
-  return BOON.rarityColor[def.rarity];
+  return grantColor(def, grade);
 }
 
-/** 系譜の何段目か（1 始まり） */
-function lineageStage(def: BoonDef): number {
-  let stage = 1;
-  let prev = def.after;
-  while (prev && stage < LINEAGE_MAX_DEPTH) {
-    stage += 1;
-    prev = boonDef(prev).after;
-  }
-  return stage;
+/** 加護の行動の見出し（「左 1/2」。今宿っている枚数 / 枠） */
+export function graceActionHead(state: GameState, action: BoonAction): string {
+  return `${BOON_ACTION_LABEL[action]} ${gracesOf(state, action).length}/${graceSlotsOf(state, action)}`;
+}
+
+/** 錬磨の札の行（「格 2 → 3」） */
+export function temperLine(grade: BoonGrade): string {
+  return `格 ${grade} → ${temperGrade(grade)}`;
 }
 
 /**
@@ -147,21 +164,31 @@ export function boonMark(aff: Readonly<KeywordAffinity>): BoonMark {
   return "fresh";
 }
 
-/** 呪い・系譜・結びの注記（並の副題はこれだけ） */
-function cardNote(def: BoonDef): { text: string; color: string | null } | null {
+/** 系譜と札の種類の注記（「灰燼 加護 左 1/2」「灰燼 摂理」）。加護は行動の見出しを後ろに付ける */
+function lineageNote(def: BoonDef, actionHead: string | undefined): string | null {
+  if (def.lineage === undefined || def.card === undefined) return null;
+  const head = `${LINEAGE_LABEL[def.lineage]} ${BOON_CARD_LABEL[def.card]}`;
+  if (def.card !== "grace" || def.action === undefined) return head;
+  return `${head} ${actionHead ?? BOON_ACTION_LABEL[def.action]}`;
+}
+
+/** 呪い・系譜・融合・結びの注記（並の副題はこれだけ） */
+function cardNote(def: BoonDef, actionHead: string | undefined): { text: string; color: string | null } | null {
   if (def.cursed) return { text: "呪い付き", color: null };
-  if (def.lineage) return { text: `${LINEAGE_LABEL[def.lineage]} ${lineageStage(def)}段`, color: COLOR_LINEAGE };
+  if (def.fusion) return { text: `${FUSION_LABEL} ${def.fusion.map((l) => LINEAGE_LABEL[l]).join(FUSION_JOIN)}`, color: COLOR_DUO };
+  const lineage = lineageNote(def, actionHead);
+  if (lineage !== null) return { text: lineage, color: COLOR_LINEAGE };
   if (def.duo) return { text: "結び", color: COLOR_DUO };
   return null;
 }
 
 /**
- * カードの 3 行目。芯は「芯」の注記、大祝福・神威は格の語を先頭に付けて格の色、並は注記だけ（無ければ空）。
- * color が null なら札の色で描く
+ * カードの 3 行目。芯は「芯」の注記、大祝福〜極致は格の語を先頭に付けて格の色、並は注記だけ（無ければ空）。
+ * actionHead は加護の行動の見出し（「左 1/2」。省略時は行動の名前だけ）。color が null なら札の色で描く
  */
-export function boonCardSubtitle(def: BoonDef, grade: BoonGrade = 1): { text: string; color: string | null } {
+export function boonCardSubtitle(def: BoonDef, grade: BoonGrade = 1, actionHead?: string): { text: string; color: string | null } {
   if (def.core === true) return { text: CORE_SUBTITLE, color: COLOR_CORE };
-  const note = cardNote(def);
+  const note = cardNote(def, actionHead);
   if (grade < 2) return note ?? { text: "", color: null };
   const label = BOON_GRADE_LABEL[grade];
   const text = note ? `${label}${SUBTITLE_SEP}${note.text}` : label;
@@ -173,7 +200,7 @@ export type CurseOfferView = "taken" | "offer" | "none";
 
 export function curseOfferView(state: GameState): CurseOfferView {
   const c = state.boonChoice;
-  if (!c || c.core === true) return "none";
+  if (!c || c.core === true || c.mode === "temper" || c.replace) return "none";
   if (c.curse) return "taken";
   return canTakeCurse(state) ? "offer" : "none";
 }
@@ -208,26 +235,66 @@ export function boonHudOrder(boons: readonly BoonKey[]): BoonKey[] {
   return [...cores, ...boons.filter((k) => boonDef(k).core !== true)];
 }
 
+/** 提示の題と案内（芯 / 錬磨 / 入れ替えの第 2 段 / 系譜の提示 / 系譜を問わない提示） */
+export function boonChoiceHeading(state: GameState, c: Readonly<BoonChoice>): { title: string; hint: string } {
+  if (c.core === true) return { title: CORE_TITLE, hint: NORMAL_HINT };
+  if (c.mode === "temper") return { title: TEMPER_TITLE, hint: TEMPER_HINT };
+  if (c.replace) {
+    const incoming = boonDef(c.replace.incoming);
+    return { title: REPLACE_TITLE, hint: `${graceActionHead(state, c.replace.action)}${SUBTITLE_SEP}${REPLACE_INCOMING} ${incoming.name}` };
+  }
+  if (c.lineage !== undefined) return { title: `${LINEAGE_LABEL[c.lineage]}の${NORMAL_TITLE}`, hint: NORMAL_HINT };
+  return { title: NORMAL_TITLE, hint: NORMAL_HINT };
+}
+
 export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState): void {
   const c = state.boonChoice;
   if (!c) return;
   ctx.fillStyle = COLOR_DIM_BG;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  const title = c.core === true ? CORE_TITLE : "祝福を選べ";
-  drawText(ctx, `地下 ${state.depth} 階 - ${title}`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
-  drawText(ctx, "この探索のみ有効", VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
+  const heading = boonChoiceHeading(state, c);
+  drawText(ctx, `地下 ${state.depth} 階 - ${heading.title}`, VIEW_W / 2, TITLE_Y, TEXT.TITLE, COLOR_TITLE, "center");
+  drawText(ctx, truncateText(heading.hint, VIEW_W - CARD_PAD * 2, TEXT.SMALL), VIEW_W / 2, HINT_Y, TEXT.SMALL, COLOR_SUB, "center");
 
   // 装備・スキル石のタグと、取得済み祝福が出すタグのどちらかに一致すれば強調（なぜ出やすいかが分かる）
   const t = buildTags(state);
   const tags = new Set<BoonTag>([...t.owned, ...t.gives]);
   // 今のビルドの飢えを埋める / 余りを食う語を明るくする（並びは抽選順のまま。優劣は付けない）
   const build = buildProfile(state);
+  const count = choiceCardCount(c);
   c.options.forEach((key, i) => {
     const def = boonDef(key);
-    drawCard(ctx, def, choiceGrade(c, i), i, c.options.length, i === c.hover, tags, affinity(def.keywords, build));
+    const grade = choiceGrade(c, i);
+    const sub = cardSubtitleFor(state, c, def, grade);
+    drawCard(ctx, { def, grade, sub, index: i, count, hover: i === c.hover, tags, aff: affinity(def.keywords, build) });
   });
+  if (c.replace) drawPassCard(ctx, c.options.length, count, c.hover === c.options.length);
   drawCurseOffer(ctx, state);
   drawLinkHint(ctx, state);
+}
+
+/** 札の 3 行目: 錬磨は「格 2 → 3」、それ以外は格と注記（加護は今の枠の埋まり具合を添える） */
+function cardSubtitleFor(state: GameState, c: Readonly<BoonChoice>, def: BoonDef, grade: BoonGrade): { text: string; color: string | null } {
+  if (c.mode === "temper") return { text: temperLine(grade), color: boonCardColor(def, temperGrade(grade)) };
+  const head = def.card === "grace" && def.action !== undefined ? graceActionHead(state, def.action) : undefined;
+  return boonCardSubtitle(def, grade, head);
+}
+
+/** 入れ替えの第 2 段の見送りの札（新しい加護を取らない） */
+function drawPassCard(ctx: CanvasRenderingContext2D, index: number, count: number, hover: boolean): void {
+  const r = boonCardRect(index, count);
+  const y = hover ? r.y - BOON_CARD.hoverLift : r.y;
+  const cx = r.x + r.w / 2;
+  ctx.fillStyle = hover ? COLOR_CARD_HOVER : COLOR_CARD;
+  ctx.fillRect(r.x, y, r.w, r.h);
+  ctx.strokeStyle = PASS_COLOR;
+  ctx.lineWidth = hover ? 2 : 1;
+  ctx.strokeRect(r.x + 0.5, y + 0.5, r.w - 1, r.h - 1);
+  ctx.lineWidth = 1;
+  drawText(ctx, PASS_ICON, cx, y + ICON_Y, TEXT.BIG, PASS_COLOR, "center");
+  drawText(ctx, PASS_NAME, cx, y + NAME_Y, TEXT.SMALL, PASS_COLOR, "center");
+  const action = CARD_KEY_ACTIONS[index];
+  if (action !== undefined) drawText(ctx, cardKeyHint(action), r.x + CARD_PAD, y + r.h - TAGS_BOTTOM, TEXT.SMALL, COLOR_SUB);
 }
 
 /** 手がかり枠: 今のビルドで成立し得る未発見の連携を 1 件（祝福を選ぶ手がかりになるよう、選択画面では常に出す） */
@@ -261,16 +328,20 @@ function drawCurseOffer(ctx: CanvasRenderingContext2D, state: GameState): void {
   drawText(ctx, label, cx, r.y + CURSE_TEXT_Y, TEXT.SMALL, BOON.cursedColor, "center");
 }
 
-function drawCard(
-  ctx: CanvasRenderingContext2D,
-  def: BoonDef,
-  grade: BoonGrade,
-  index: number,
-  count: number,
-  hover: boolean,
-  tags: ReadonlySet<BoonTag>,
-  aff: KeywordAffinity,
-): void {
+interface CardView {
+  def: BoonDef;
+  grade: BoonGrade;
+  /** 3 行目（格・注記・錬磨の行） */
+  sub: { text: string; color: string | null };
+  index: number;
+  count: number;
+  hover: boolean;
+  tags: ReadonlySet<BoonTag>;
+  aff: KeywordAffinity;
+}
+
+function drawCard(ctx: CanvasRenderingContext2D, view: CardView): void {
+  const { def, grade, sub, index, count, hover, tags, aff } = view;
   const r = boonCardRect(index, count);
   const y = hover ? r.y - BOON_CARD.hoverLift : r.y;
   const color = boonCardColor(def, grade);
@@ -292,7 +363,6 @@ function drawCard(
   const maxWidth = r.w - CARD_PAD * 2;
   drawText(ctx, def.icon, cx, y + ICON_Y, TEXT.BIG, color, "center");
   drawText(ctx, truncateText(def.name, maxWidth, TEXT.SMALL), cx, y + NAME_Y, TEXT.SMALL, color, "center");
-  const sub = boonCardSubtitle(def, grade);
   if (sub.text !== "") drawText(ctx, truncateText(sub.text, maxWidth, TEXT.SMALL), cx, y + RARITY_Y, TEXT.SMALL, sub.color ?? color, "center");
 
   const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));

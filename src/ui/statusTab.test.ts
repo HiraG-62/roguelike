@@ -6,8 +6,9 @@ import { ATTR } from "../data/tuning";
 import { ULTIMATES } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
 import { ultimateChoice } from "../loot/profile";
-import { descend } from "../system/floor";
-import { allocateAttribute } from "./attributeAlloc";
+import { computeStats } from "../loot/stats";
+import { type PlayerStats, createEmptyEquipment } from "../loot/types";
+import { deriveAttributes } from "../system/attributes";
 import { createInventoryUi, updateInventoryUi, type InventoryUi } from "./inventory";
 import { PANEL_H, PANEL_W, PANEL_X, PANEL_Y, type Rect } from "./inventoryLayout";
 import { derivedStatRows, effectsPanelRect, layoutStatusTab, statusTabEffectRows, statusTabRects, ultimateCostOf } from "./statusTab";
@@ -119,24 +120,12 @@ describe("ステータスタブ: レイアウト", () => {
   });
 });
 
-describe("ステータスタブ: 派生値と振り分け", () => {
-  it("派生値は今の stats から読み、体力を振ると最大生命が増える", () => {
-    const state = createGame(3);
-    descend(state);
-    const hp = (): string | undefined => derivedStatRows(state.stats).find((r) => r.label === "最大生命")?.value;
-    const before = Number(hp());
-    allocateAttribute(state, "vit");
-    expect(Number(hp()), "最大生命").toBe(before + ATTR.vitMaxHp);
-  });
-
-  it("ラン中はステータスタブの「+」で振れる", () => {
-    const state = createGame(3);
-    descend(state);
-    const ui = createInventoryUi();
-    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
-    updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
-    updateInventoryUi(state, ui, withInput({ skill3Pressed: true }), 0);
-    expect(state.runAttributes.alloc.vit, "3 行目 = 体力").toBe(1);
+describe("ステータスタブ: 派生値", () => {
+  it("派生値は渡した stats から読み、体力が上がると最大生命が増える", () => {
+    const plain = computeStats(createEmptyEquipment());
+    const raised = deriveAttributes({ ...plain, attributes: { ...plain.attributes, vit: plain.attributes.vit + 1 } });
+    const hp = (stats: PlayerStats): string | undefined => derivedStatRows(stats).find((r) => r.label === "最大生命")?.value;
+    expect(Number(hp(raised)), "最大生命").toBe(Number(hp(deriveAttributes(plain))) + ATTR.vitMaxHp);
   });
 
   it("奥義の必要ゲージは定義に数値があるときだけ返す", () => {

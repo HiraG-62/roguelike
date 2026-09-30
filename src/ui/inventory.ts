@@ -208,7 +208,7 @@ export interface InventoryUi {
   echo: EchoUi;
   /** 網タブ（語の一覧） */
   web: SynergyPanelUi;
-  /** ステータスタブ（振り分けと奥義） */
+  /** ステータスタブ（ステータスの一覧と奥義） */
   status: StatusTabUi;
   /** スキルタブで今操作している列（マウスの乗った列 / キーで動かした列） */
   skillFocus: SkillColumn;

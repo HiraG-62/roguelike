@@ -1,5 +1,5 @@
 import { ELEMENTS, type Element, ELEMENT_LABEL } from "../core/element";
-import type { ExitReward } from "./exits";
+import { type ExitReward, NO_EXIT, apprenticeExtraExits, rollExitRewards } from "./exits";
 import type { EliteKind, Enemy, FloorKind, GameState, RoomKind, RoomState } from "../core/state";
 import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
@@ -111,8 +111,8 @@ export interface RoomSpecial {
 export interface StairsChoice {
   tile: number;
   nextKind: FloorKind;
-  /** 出口の予告（system/exits.ts）。省略は予告なし */
-  reward?: ExitReward;
+  /** 出口の予告（system/exits.ts）。隠し部屋・案内人の階段は none */
+  reward: ExitReward;
 }
 
 // -----------------------------------------------------------------------------
@@ -1189,22 +1189,25 @@ export function escapeActive(state: GameState): boolean {
  * 次の階の候補が 1 つなら階段も 1 つ
  */
 export function planForkStairs(state: GameState): void {
-  const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax);
+  // 見習いは階段が 1 本多い（増えた分は必ず祝福。system/exits.ts）
+  const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax) + apprenticeExtraExits(state);
   const kinds = pickFloorKinds(state.depth + 1, state.rng, count);
+  // 出口の予告は行き先の抽選の直後に引く（乱数の順序を固定する）
+  const rewards = rollExitRewards(state, kinds.length);
   // この階に主（ボスか階の主）がいれば、階段は撃破後に出る（tile は -1 のまま。ensureForkStairs が置く）
   if (state.boss) {
-    state.stairs = kinds.map((nextKind) => ({ tile: -1, nextKind }));
+    state.stairs = kinds.map((nextKind, i) => ({ tile: -1, nextKind, reward: rewards[i] ?? NO_EXIT }));
     return;
   }
-  state.stairs = placeStairs(state, kinds);
+  state.stairs = placeStairs(state, kinds, rewards);
 }
 
-function placeStairs(state: GameState, kinds: readonly FloorKind[]): StairsChoice[] {
+function placeStairs(state: GameState, kinds: readonly FloorKind[], rewards: readonly ExitReward[]): StairsChoice[] {
   const lastIndex = state.rooms.length - 1;
   const last = state.rooms[lastIndex];
   if (!last) return [];
   const tiles = forkStairsTiles(state.map, last.rect, last.tiles, kinds.length, FLOOR_KIND.forkOffset);
-  return tiles.map((tile, i) => ({ tile, nextKind: kinds[i] ?? "rooms" }));
+  return tiles.map((tile, i) => ({ tile, nextKind: kinds[i] ?? "rooms", reward: rewards[i] ?? NO_EXIT }));
 }
 
 /**
@@ -1215,13 +1218,18 @@ export function ensureForkStairs(state: GameState): void {
   if (!state.stairs.some((s) => s.tile < 0)) return;
   if (!state.boss?.defeated) return;
   const placed = state.stairs.filter((s) => s.tile >= 0);
-  const kinds = state.stairs.filter((s) => s.tile < 0).map((s) => s.nextKind);
-  state.stairs = [...placed, ...placeStairs(state, kinds)];
+  const waiting = state.stairs.filter((s) => s.tile < 0);
+  state.stairs = [...placed, ...placeStairs(state, waiting.map((s) => s.nextKind), waiting.map((s) => s.reward))];
 }
 
 /** 階段タイルの行き先（分岐路に無い階段は undefined = 従来どおり抽選） */
 export function stairsChoiceAt(state: GameState, tile: number): FloorKind | undefined {
   return state.stairs.find((s) => s.tile === tile)?.nextKind;
+}
+
+/** 階段タイルの出口の予告（分岐路に無い階段は undefined = 予告なし） */
+export function stairsRewardAt(state: GameState, tile: number): ExitReward | undefined {
+  return state.stairs.find((s) => s.tile === tile)?.reward;
 }
 
 const FORK_EXTRA_DIRS = [
@@ -1271,14 +1279,14 @@ export function addForkStair(state: GameState, dryRun: boolean): boolean {
   const kind = floorKindCandidates(state.depth + 1).find((k) => !used.has(k));
   if (!kind) return false;
   if (state.stairs.some((s) => s.tile < 0)) {
-    if (!dryRun) state.stairs.push({ tile: -1, nextKind: kind });
+    if (!dryRun) state.stairs.push({ tile: -1, nextKind: kind, reward: NO_EXIT });
     return true;
   }
   const tile = freeStairTile(state, last);
   if (tile < 0) return false;
   if (dryRun) return true;
   setTile(state.map, tile % state.map.width, Math.floor(tile / state.map.width), Tile.StairsDown);
-  state.stairs.push({ tile, nextKind: kind });
+  state.stairs.push({ tile, nextKind: kind, reward: NO_EXIT });
   return true;
 }
 

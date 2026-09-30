@@ -6,16 +6,15 @@ import { ULTIMATES, type UltimateDef, type UltimateKind } from "../data/ultimate
 import { PLAYER } from "../data/tuning";
 import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { chooseUltimate, saveProfile, ultimateChoice } from "../loot/profile";
-import type { AttrKey, PlayerStats } from "../loot/types";
+import { ATTR_KEYS, type AttrKey, type PlayerStats } from "../loot/types";
 import { dashCooldownTime } from "../system/player";
 import { formatCooldown } from "../system/skills";
-import { ALLOC_BUTTON, ALLOC_ORDER, updateAllocButtons } from "./attributeAlloc";
 import { type EffectRow, runEffectRows } from "./effectsList";
 import { COLUMN_GAP, CONTENT_BOTTOM, CONTENT_RIGHT, CONTENT_Y, LIST_X, type Point, type Rect, clamp, pointInRect } from "./inventoryLayout";
 
 /**
  * 装備画面のステータスタブ（レイアウト・当たり判定・入力。DOM 非依存）。
- * 左: ジョブ・ステータス（ラン中は振り分けの「+」）・体の性能の派生値。右: 奥義の 3 枚のカード。
+ * 左: ジョブ・ステータス・体の性能の派生値。右: 奥義の 3 枚のカード。
  * 奥義は拠点（state.sandbox）でだけ選べる。リプレイは開始時の奥義の写しを取るので、ラン中に変えると再生とずれる
  * 単一の強さの指標（DPS・スコア）は出さない（docs/DESIGN_PRINCIPLES.md）
  */
@@ -43,9 +42,9 @@ export interface StatusCardLayout {
 export interface StatusTabLayout {
   left: Rect;
   right: Rect;
-  /** ジョブ名と未振り点の行 */
+  /** ジョブ名の行 */
   head: Rect;
-  /** ステータス 5 行（「+」の当たり判定は attributeAlloc.allocButtonRect がこの枠から出す） */
+  /** ステータスの一覧（ATTR_KEYS の 1 行ずつ） */
   attrPanel: Rect;
   derivedHead: Rect;
   derivedRows: Rect[];
@@ -58,9 +57,12 @@ export interface StatusTabLayout {
   cards: StatusCardLayout[];
 }
 
+/** ステータス一覧の 1 行の高さ（描画もこの間隔で並べる） */
+export const STATUS_ATTR_ROW_H = 12;
+
 /** ステータス一覧の枠（左の列、見出しの下） */
 export function statusAttrPanelRect(): Rect {
-  return { x: LIST_X, y: CONTENT_Y + HEAD_H + 2, w: LEFT_W, h: ALLOC_ORDER.length * ALLOC_BUTTON.rowH };
+  return { x: LIST_X, y: CONTENT_Y + HEAD_H + 2, w: LEFT_W, h: ATTR_KEYS.length * STATUS_ATTR_ROW_H };
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +166,7 @@ function percent(mul: number): string {
   return `${Math.round(mul * PERCENT)}%`;
 }
 
-/** 左の列の派生値。値は今の stats（装備・共鳴・祝福・振り分けを畳み込んだ後）から読む */
+/** 左の列の派生値。値は今の stats（装備・共鳴・祝福を畳み込んだ後）から読む */
 export function derivedStatRows(stats: Readonly<PlayerStats>): DerivedStatRow[] {
   return [
     { label: "最大生命", value: `${Math.round(stats.maxHp)}`, attr: "vit" },
@@ -207,8 +209,6 @@ export interface StatusTabUi {
   hoverCard: number;
   /** 武器種の送り（-1 = 前 / 1 = 次 / 0 = なし） */
   hoverArrow: number;
-  /** マウスが乗っている「+」の行（-1 = なし） */
-  hoverAlloc: number;
   /** 移動入力のエッジ検出用（前フレームの向き） */
   navX: number;
   navY: number;
@@ -218,13 +218,12 @@ export interface StatusTabUi {
 }
 
 export function createStatusTabUi(): StatusTabUi {
-  return { moveset: null, cursor: 0, hoverCard: -1, hoverArrow: 0, hoverAlloc: -1, navX: 0, navY: 0, effectsPage: false, effectsScroll: 0 };
+  return { moveset: null, cursor: 0, hoverCard: -1, hoverArrow: 0, navX: 0, navY: 0, effectsPage: false, effectsScroll: 0 };
 }
 
 export function clearStatusHover(ui: StatusTabUi): void {
   ui.hoverCard = -1;
   ui.hoverArrow = 0;
-  ui.hoverAlloc = -1;
 }
 
 const EFFECTS_PAGE_TEXT = "効果: 状態異常・祝福・芯・一時強化（ラン中のみ）";
@@ -311,7 +310,7 @@ function arrowAt(layout: StatusTabLayout, p: Point | null): number {
 
 /**
  * ステータスタブの入力。拾うキーで効果の頁と切り替え、効果の頁ではスクロールだけを受け付ける。
- * ステータスの頁は 振り分け（「+」・スキル 1〜4 / 攻撃キー）→ 武器種の送り（拠点のみ）→ 奥義のカード。
+ * ステータスの頁は 武器種の送り（拠点のみ）→ 奥義のカード。
  * 戻り値は見出しに出すメッセージ（無ければ null）
  */
 export function updateStatusTab(state: GameState, ui: StatusTabUi, input: FrameInput, aimMoved: boolean): string | null {
@@ -321,10 +320,6 @@ export function updateStatusTab(state: GameState, ui: StatusTabUi, input: FrameI
     return null;
   }
   const layout = layoutStatusTab(state, ui);
-  const alloc = updateAllocButtons(state, input, layout.attrPanel);
-  ui.hoverAlloc = alloc.hover;
-  if (alloc.used) return null;
-
   const aim = input.aimScreen;
   const nav = readStatusNav(ui, input);
   ui.hoverArrow = arrowAt(layout, aim);

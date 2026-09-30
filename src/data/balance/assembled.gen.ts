@@ -1046,6 +1046,7 @@ import j_world_ECONOMY_donation from "./world/ECONOMY/donation.json";
 import j_world_ECONOMY_bet from "./world/ECONOMY/bet.json";
 import j_world_ECONOMY_build from "./world/ECONOMY/build.json";
 import j_world_ARC from "./world/ARC.json";
+import j_world_EXIT from "./world/EXIT.json";
 
 export const boons = {
   "_note": j_boons__index["_note"],
@@ -2378,6 +2379,7 @@ export const world = {
     "build": j_world_ECONOMY_build,
   },
   "ARC": j_world_ARC,
+  "EXIT": j_world_EXIT,
 };
 
 /** 組み立てに使った JSON（src/data/balance からの相対。_index.json を含む）。生成し忘れの検査に使う */
@@ -3399,6 +3401,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/ECONOMY/market.json",
   "world/ECONOMY/price.json",
   "world/ECONOMY/spill.json",
+  "world/EXIT.json",
   "world/FLOOR_KIND.json",
   "world/HIDDEN_ROOM.json",
   "world/HUB.json",

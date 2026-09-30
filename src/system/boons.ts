@@ -12,8 +12,28 @@ import type { SkillResource, SkillTag } from "../skills/types";
 import type { JobKey } from "../data/jobs";
 import { type BulletFeature, MOVESETS, type MovesetKey, bulletFeatures, usesProjectiles } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
-import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag, type LineageKey } from "./boonDefs";
-import { BOON_GRADE_LABEL, type BoonGrade, clampGrade, isGraded, rollGrade } from "./boonGrade";
+import {
+  BOONS,
+  BOON_ACTIONS,
+  BOON_KEYS,
+  type BoonAction,
+  type BoonCard,
+  type BoonDef,
+  type BoonKey,
+  type BoonLoadout,
+  type BoonTag,
+  type LineageKey,
+} from "./boonDefs";
+import {
+  BOON_GRADE_LABEL,
+  type BoonGrade,
+  boonGradeOf,
+  canRaiseGrade,
+  clampGrade,
+  isGraded,
+  rollGrade,
+  temperGrade,
+} from "./boonGrade";
 import { coreCursedForced, coreGradeShift, foldCoreStats } from "./boonCores";
 import {
   type BoonRuleState,
@@ -66,6 +86,9 @@ export {
   type BoonAction,
   type BoonChange,
   LINEAGE_KEYS,
+  BOON_ACTIONS,
+  BOON_ACTION_LABEL,
+  BOON_CARD_LABEL,
 } from "./boonDefs";
 export { onBoonWaveStart } from "./boonRules";
 
@@ -97,6 +120,27 @@ export interface BoonChoice {
   core?: boolean;
   /** この提示の格の下駄（呪いを受けて足す 4 枚目がさらに gradeBoostCurseCard を足す） */
   boost?: number;
+  /** 系譜の提示なら、その系譜（出口の予告で選んだもの）。省略は系譜を問わない提示 */
+  lineage?: LineageKey;
+  /** 錬磨の提示（選んだ札の格を 1 段上げる。grades は今の格） */
+  mode?: "temper";
+  /** 入れ替えの第 2 段。options は今の加護で、その後ろに見送りの札が 1 枚並ぶ */
+  replace?: BoonReplace;
+}
+
+/** 加護の枠が満ちた行動の加護を選んだときの第 2 段（docs/ideas/boon-impl.md 2-2） */
+export interface BoonReplace {
+  /** 取ろうとしている加護とその格 */
+  incoming: BoonKey;
+  incomingGrade: BoonGrade;
+  action: BoonAction;
+  /** 今その行動に宿っている加護（外す候補） */
+  outgoing: BoonKey[];
+}
+
+/** 並べる札の枚数（入れ替えの第 2 段は見送りの札が 1 枚増える） */
+export function choiceCardCount(choice: Readonly<BoonChoice>): number {
+  return choice.options.length + (choice.replace ? 1 : 0);
 }
 
 /** index 番目の札の格（grades の無い提示・範囲外は並） */
@@ -128,6 +172,10 @@ export interface BoonRunState {
   gradeBoost: number;
   /** 次の階の到着時に出す錬磨の提示の回数（契約・出口の予告「錬磨」が積む。system/exits.ts が消費） */
   temperQueued: number;
+  /** 真髄で開いた加護の枠（行動ごとに足す枚数） */
+  graceOpen: Partial<Record<BoonAction, number>>;
+  /** 確定枠で出す融合（違う 2 系譜の加護が同じ行動に乗ると積む。取るか、入れ替えで条件が崩れるまで残す） */
+  fusionDue: BoonKey[];
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -144,6 +192,8 @@ export function createBoonRunState(): BoonRunState {
     grades: {},
     gradeBoost: 0,
     temperQueued: 0,
+    graceOpen: {},
+    fusionDue: [],
   };
 }
 
@@ -160,7 +210,7 @@ function inLineage(def: BoonDef, lineage: LineageKey): boolean {
   return def.lineage === lineage || (def.fusion?.includes(lineage) ?? false);
 }
 
-/** 持っている札のうち、この系譜に数えるものの枚数（昇華の条件・出口の系譜の重み） */
+/** 持っている札のうち、この系譜に数えるものの枚数（真髄の条件・出口の系譜の重み） */
 export function lineageCardsOwned(state: GameState, lineage: LineageKey): number {
   return state.boons.filter((k) => inLineage(BOONS[k], lineage)).length;
 }
@@ -174,13 +224,173 @@ export function lineageCardsRemaining(state: GameState, lineage: LineageKey): nu
   }).length;
 }
 
-/** 錬磨で格を上げられる札を 1 枚以上持っているか（出口の予告「錬磨」を並べる条件） */
-export function canTemper(_state: GameState): boolean {
-  return false;
+// -----------------------------------------------------------------------------
+// 加護の枠・真髄・融合（docs/ideas/boon-impl.md 2-2・2-4）
+// -----------------------------------------------------------------------------
+
+/** その行動に宿っている加護（取得順。state.boons を正とし、別の配列は持たない） */
+export function gracesOf(state: GameState, action: BoonAction): BoonKey[] {
+  return state.boons.filter((k) => BOONS[k].card === "grace" && BOONS[k].action === action);
 }
 
-/** 錬磨の提示を開く（出口の予告「錬磨」の到着時・契約）。7a のレーン A が中身を書く */
-export function offerTemper(_state: GameState): void {}
+/** その行動の加護の枠の数（BOON.graceSlots + 真髄で開いた分。graceSlotsMax で止める） */
+export function graceSlotsOf(state: GameState, action: BoonAction): number {
+  return Math.min(BOON.graceSlotsMax, BOON.graceSlots + (state.boonRun.graceOpen[action] ?? 0));
+}
+
+function graceSlotFree(state: GameState, action: BoonAction): boolean {
+  return gracesOf(state, action).length < graceSlotsOf(state, action);
+}
+
+/** 同じ行動に同じ系譜の加護を既に持っているか（同じ系譜の加護は 1 行動に 1 枚） */
+function hasLineageGraceOn(owned: readonly BoonKey[], def: BoonDef): boolean {
+  if (def.card !== "grace" || def.lineage === undefined) return false;
+  return owned.some((k) => {
+    const o = BOONS[k];
+    return o.key !== def.key && o.card === "grace" && o.action === def.action && o.lineage === def.lineage;
+  });
+}
+
+/** 系譜の真髄の札（無い系譜は undefined） */
+function apexOf(lineage: LineageKey): BoonDef | undefined {
+  return BOON_KEYS.map(boonDef).find((d) => d.lineage === lineage && d.card === "apex" && d.legacy !== true);
+}
+
+/** 次の系譜の提示の 1 枚目に確定で入る真髄（その系譜の札が apexMinCards 枚以上で、まだ持っていない） */
+function dueApex(state: GameState, lineage: LineageKey): BoonKey | null {
+  const def = apexOf(lineage);
+  if (!def || hasBoon(state, def.key)) return null;
+  return lineageCardsOwned(state, lineage) >= BOON.apexMinCards ? def.key : null;
+}
+
+/** 真髄を取ったら、その系譜の加護が宿っている行動の枠を 1 つずつ開く */
+function openApexSlots(state: GameState, lineage: LineageKey): void {
+  const open = state.boonRun.graceOpen;
+  for (const action of BOON_ACTIONS) {
+    const onAction = gracesOf(state, action).some((k) => BOONS[k].lineage === lineage);
+    if (!onAction || graceSlotsOf(state, action) >= BOON.graceSlotsMax) continue;
+    open[action] = (open[action] ?? 0) + 1;
+  }
+}
+
+/** その行動に加護を宿している系譜（重複なし、取得順） */
+function lineagesOnAction(owned: readonly BoonKey[], action: BoonAction): LineageKey[] {
+  const out: LineageKey[] = [];
+  for (const k of owned) {
+    const d = BOONS[k];
+    if (d.card !== "grace" || d.action !== action || d.lineage === undefined || out.includes(d.lineage)) continue;
+    out.push(d.lineage);
+  }
+  return out;
+}
+
+/** 2 系譜の組の融合（legacy は除く。無ければ null） */
+function fusionFor(a: LineageKey, b: LineageKey): BoonKey | null {
+  const def = BOON_KEYS.map(boonDef).find((d) => d.legacy !== true && d.fusion !== undefined && d.fusion.includes(a) && d.fusion.includes(b));
+  return def?.key ?? null;
+}
+
+/** 融合の条件（組の 2 系譜の加護が同じ行動に乗っている）が今も成り立つか */
+function fusionHolds(owned: readonly BoonKey[], def: BoonDef): boolean {
+  const pair = def.fusion;
+  if (!pair) return false;
+  return BOON_ACTIONS.some((action) => {
+    const lineages = lineagesOnAction(owned, action);
+    return pair.every((l) => lineages.includes(l));
+  });
+}
+
+/** 融合の確定枠を数え直す（取ったもの・条件が崩れたものを外し、新しく揃った組を積む）。grant / remove の後に呼ぶ */
+export function refreshFusionDue(state: GameState): void {
+  const run = state.boonRun;
+  run.fusionDue = run.fusionDue.filter((k) => !hasBoon(state, k) && fusionHolds(state.boons, BOONS[k]));
+  for (const action of BOON_ACTIONS) {
+    const lineages = lineagesOnAction(state.boons, action);
+    for (let i = 0; i < lineages.length; i++) {
+      for (let j = i + 1; j < lineages.length; j++) {
+        const a = lineages[i];
+        const b = lineages[j];
+        if (a === undefined || b === undefined) continue;
+        const key = fusionFor(a, b);
+        if (key === null || hasBoon(state, key) || run.fusionDue.includes(key)) continue;
+        run.fusionDue.push(key);
+      }
+    }
+  }
+}
+
+/** 祝福を 1 つ外して stats を畳み直す（呪いを解く・呪詛の声・加護の入れ替え）。格も消し、融合の確定枠を数え直す */
+export function removeBoon(state: GameState, key: BoonKey): void {
+  const i = state.boons.indexOf(key);
+  if (i < 0) return;
+  state.boons.splice(i, 1);
+  delete state.boonRun.grades[key];
+  applyBoonsToStats(state);
+  refreshFusionDue(state);
+}
+
+// -----------------------------------------------------------------------------
+// 錬磨（docs/ideas/boon-impl.md 2-5）: 持っている札の格を 1 段上げる。至高・極致はここでだけ届く
+// -----------------------------------------------------------------------------
+
+/** 錬磨で格を上げられる札（格の対象で、極致に届いていない。取得順） */
+export function temperCandidates(state: GameState): BoonKey[] {
+  return state.boons.filter((k) => {
+    const def = BOONS[k];
+    return def.core !== true && isGraded(def) && canRaiseGrade(boonGradeOf(state, k));
+  });
+}
+
+/** 錬磨で格を上げられる札を 1 枚以上持っているか（出口の予告「錬磨」を並べる条件） */
+export function canTemper(state: GameState): boolean {
+  return temperCandidates(state).length > 0;
+}
+
+/**
+ * 錬磨の提示を開く（出口の予告「錬磨」の到着時・契約）。格を上げられる札から state.rng で最大 temperOfferCount 枚。
+ * 既に提示が開いている・上げられる札が無いなら開かずに false（持ち越すかは呼び元が boonRun.temperQueued で決める）
+ */
+export function offerTemper(state: GameState): boolean {
+  if (state.boonChoice) return false;
+  const pool = temperCandidates(state);
+  if (pool.length === 0) return false;
+  const options: BoonKey[] = [];
+  while (options.length < BOON.temperOfferCount && pool.length > 0) {
+    const [picked] = pool.splice(state.rng.int(0, pool.length - 1), 1);
+    if (picked) options.push(picked);
+  }
+  state.boonChoice = {
+    options,
+    hover: -1,
+    curseHover: false,
+    timer: 0,
+    curseTaken: false,
+    curse: null,
+    grades: options.map((k) => boonGradeOf(state, k)),
+    mode: "temper",
+  };
+  pushSfx(state, "boonOffer");
+  return true;
+}
+
+/** 錬磨で 1 枚の格を上げる（極致で止まる）。浮き文字は「錬磨 至高 火種」 */
+export function temperBoon(state: GameState, key: BoonKey): void {
+  if (!hasBoon(state, key)) return;
+  const def = boonDef(key);
+  if (!isGraded(def)) return;
+  const grade = temperGrade(boonGradeOf(state, key));
+  state.boonRun.grades[key] = grade;
+  applyBoonsToStats(state);
+  const color = grantColor(def, grade);
+  const text = `${TEMPER_LABEL} ${BOON_GRADE_LABEL[grade]} ${def.name}`;
+  addFloatingText(state, state.player.body.pos, text, color, 1.4, 1.2);
+  pushLog(state, `${TEMPER_LABEL}: ${def.name} - ${BOON_GRADE_LABEL[grade]}`, color);
+  pushSfx(state, "boonSelect");
+}
+
+const TEMPER_LABEL = "錬磨";
+/** 入れ替えで新しい札を取らなかったときの浮き文字 */
+const PASS_LABEL = "見送り";
 
 // -----------------------------------------------------------------------------
 // 装備タグと抽選
@@ -271,7 +481,8 @@ export function loadoutMatches(want: BoonLoadout | undefined, now: LoadoutNow | 
 const NO_TAGS: ReadonlySet<BoonTag> = new Set();
 
 /**
- * 候補の重み。取得済み / requires を満たさない / 系譜の前段が無い / 結びの片方が無いなら 0。
+ * 候補の重み。取得済み / legacy / requires を満たさない / 系譜の前段が無い / 結びの片方が無い /
+ * 同じ行動に同じ系譜の加護を持っているなら 0。
  * 装備・スキル石のタグの一致で大きく、取得済み祝福の「出す」タグの一致で小さく上がる（同じタグは二重に数えない）。
  * 系譜の次段と結びは、条件を満たした時点で出やすくする
  */
@@ -282,8 +493,9 @@ export function boonWeight(
   gives: ReadonlySet<BoonTag> = NO_TAGS,
   loadout?: LoadoutNow,
 ): number {
-  if (owned.includes(def.key)) return 0;
+  if (owned.includes(def.key) || def.legacy === true) return 0;
   if (!loadoutMatches(def.loadout, loadout)) return 0;
+  if (hasLineageGraceOn(owned, def)) return 0;
   if (def.requires && !tags.has(def.requires)) return 0;
   if (def.after && !owned.includes(def.after)) return 0;
   if (def.duo && !def.duo.every((k) => owned.includes(k))) return 0;
@@ -327,7 +539,12 @@ export function boonAffinityMul(def: BoonDef, build: Readonly<KeywordProfile>): 
 
 /** 重み付きで 1 つ取り出す（pool から除く）。全て 0 なら null */
 function takeWeighted(state: GameState, pool: BoonDef[], tags: BuildTags, build: Readonly<KeywordProfile>): BoonDef | null {
-  const weights = pool.map((d) => boonWeight(d, tags.owned, state.boons, tags.gives, tags.loadout) * boonAffinityMul(d, build));
+  return takeWeightedBy(state, pool, (d) => boonWeight(d, tags.owned, state.boons, tags.gives, tags.loadout) * boonAffinityMul(d, build));
+}
+
+/** 重みの関数で 1 つ取り出す（pool から除く）。乱数は合計が正のときだけ 1 回引く。全て 0 なら null */
+function takeWeightedBy(state: GameState, pool: BoonDef[], weightOf: (d: BoonDef) => number): BoonDef | null {
+  const weights = pool.map(weightOf);
   const total = weights.reduce((s, w) => s + w, 0);
   if (total <= 0) return null;
   let roll = state.rng.next() * total;
@@ -382,6 +599,84 @@ export function rollBoonOptions(state: GameState): BoonKey[] {
   return picks.map((d) => d.key);
 }
 
+// -----------------------------------------------------------------------------
+// 系譜の提示（docs/ideas/boon-impl.md 2-7）: 出口の予告で選んだ 1 系譜の札だけが並ぶ
+// -----------------------------------------------------------------------------
+
+/** 系譜の提示に重みで出る札の種類（真髄・融合は確定枠でだけ出る） */
+type DrawnCard = Exclude<BoonCard, "apex">;
+
+function isDrawnCard(card: BoonCard | undefined): card is DrawnCard {
+  return card === "grace" || card === "law" || card === "temper";
+}
+
+/** 系譜の提示の候補（その系譜の、取っていない加護・摂理・研鑽。legacy は出さない） */
+function lineagePool(state: GameState, lineage: LineageKey): BoonDef[] {
+  return BOON_KEYS.map(boonDef).filter(
+    (d) => d.lineage === lineage && d.legacy !== true && d.cursed !== true && isDrawnCard(d.card) && !hasBoon(state, d.key),
+  );
+}
+
+/**
+ * 系譜の提示での重み: BOON.cardWeight × 枠に空きのある加護なら graceFreeMul × 語の潤い。
+ * 今の武器種・弾・ジョブに合わない札、同じ行動に同じ系譜の加護を持っている札は 0
+ */
+export function lineageCardWeight(state: GameState, def: BoonDef, loadout: LoadoutNow | undefined, build: Readonly<KeywordProfile>): number {
+  if (!isDrawnCard(def.card) || !loadoutMatches(def.loadout, loadout) || hasLineageGraceOn(state.boons, def)) return 0;
+  const free = def.card === "grace" && def.action !== undefined && graceSlotFree(state, def.action);
+  return BOON.cardWeight[def.card] * (free ? BOON.graceFreeMul : 1) * boonAffinityMul(def, build);
+}
+
+/** 同じ提示に並べない組: 同じ札の種類 × 同じ行動 */
+function sameSlot(a: BoonDef, b: BoonDef): boolean {
+  return a.card === b.card && a.action === b.action;
+}
+
+/** 確定枠（rng を引かない）: 真髄 → 融合の順に 1 枚ずつ */
+function fixedLineageCards(state: GameState, lineage: LineageKey): BoonKey[] {
+  const out: BoonKey[] = [];
+  const apex = dueApex(state, lineage);
+  if (apex !== null) out.push(apex);
+  const fusion = state.boonRun.fusionDue.find((k) => !hasBoon(state, k));
+  if (fusion !== undefined) out.push(fusion);
+  return out;
+}
+
+/**
+ * 系譜の 3 枚を抽選する。確定枠（真髄・融合）を先頭に置き、呪い枠（cursedChance）は据え置き、残りを系譜の札から重みで引く。
+ * 同じ札の種類 × 行動は 1 枚までにするが、それで 3 枚に届かない系譜は残りから重ねて埋める（札が少ない系譜で提示が痩せないように）
+ */
+export function rollLineageOptions(state: GameState, lineage: LineageKey): BoonKey[] {
+  const tags = buildTags(state);
+  const build = buildProfile(state);
+  const fixed = fixedLineageCards(state, lineage);
+  const picks: BoonDef[] = fixed.map(boonDef);
+  const weightOf = (d: BoonDef): number => lineageCardWeight(state, d, tags.loadout, build);
+  const wantCursed = state.rng.chance(BOON.cursedChance) || coreCursedForced(state);
+  const cursedPool = BOON_KEYS.map(boonDef).filter((d) => d.cursed && d.core !== true);
+  const cursed = wantCursed && picks.length < BOON.choiceCount ? takeWeighted(state, cursedPool, tags, build) : null;
+  const room = (): boolean => picks.length + (cursed ? 1 : 0) < BOON.choiceCount;
+  const pool = lineagePool(state, lineage).filter((d) => !fixed.includes(d.key));
+  const spare: BoonDef[] = [];
+  while (room()) {
+    const picked = takeWeightedBy(state, pool, weightOf);
+    if (!picked) break;
+    picks.push(picked);
+    for (let i = pool.length - 1; i >= 0; i--) {
+      const d = pool[i];
+      if (d && sameSlot(d, picked)) spare.push(...pool.splice(i, 1));
+    }
+  }
+  while (room()) {
+    const picked = takeWeightedBy(state, spare, weightOf);
+    if (!picked) break;
+    picks.push(picked);
+  }
+  // 呪い枠の位置もランダム（確定枠より後ろ。いつも同じ位置だと読まれる）
+  if (cursed) picks.splice(state.rng.int(fixed.length, picks.length), 0, cursed);
+  return picks.map((d) => d.key);
+}
+
 /** 芯だけの 3 択（呪い枠なし、coreChoiceCount 枚。重みは boonWeight と同じ） */
 export function rollCoreOptions(state: GameState): BoonKey[] {
   const tags = buildTags(state);
@@ -423,7 +718,7 @@ export function stairsGradeBoost(afterBoss: boolean): number {
  * 3 択を提示する（階段で降りた直後。depth 2 以降）。深度 coreDepth の最初の提示は芯だけの 3 択。
  * boost は格の下駄（試練の制圧・ボス階の直後）。boonRun.gradeBoost もここで 1 回だけ使う（芯の提示では使わない）
  */
-export function offerBoons(state: GameState, boost = 0, _lineage?: LineageKey): void {
+export function offerBoons(state: GameState, boost = 0, lineage?: LineageKey): void {
   if (state.depth < 2) return;
   if (wantsCore(state)) {
     const cores = rollCoreOptions(state);
@@ -432,15 +727,19 @@ export function offerBoons(state: GameState, boost = 0, _lineage?: LineageKey): 
       return;
     }
   }
-  const options = rollBoonOptions(state);
+  const drawn = lineage === undefined ? null : rollLineageOptions(state, lineage);
+  // 系譜の札が 1 枚も並ばない（取り尽くした系譜）なら、系譜を問わない抽選に戻す
+  const byLineage = drawn !== null && drawn.some((k) => !BOONS[k].cursed);
+  const options = byLineage && drawn !== null ? drawn : rollBoonOptions(state);
   if (options.length === 0) return;
   const total = boost + state.boonRun.gradeBoost;
   state.boonRun.gradeBoost = 0;
-  openChoice(state, options, options.map((k) => rollCardGrade(state, k, total)), false, total);
+  openChoice(state, options, options.map((k) => rollCardGrade(state, k, total)), false, total, byLineage ? lineage : undefined);
 }
 
-function openChoice(state: GameState, options: BoonKey[], grades: BoonGrade[], core: boolean, boost: number): void {
+function openChoice(state: GameState, options: BoonKey[], grades: BoonGrade[], core: boolean, boost: number, lineage?: LineageKey): void {
   state.boonChoice = { options, hover: -1, curseHover: false, timer: 0, curseTaken: false, curse: null, grades, core, boost };
+  if (lineage !== undefined) state.boonChoice.lineage = lineage;
   pushSfx(state, "lootRare");
   pushSfx(state, "boonOffer");
 }
@@ -456,7 +755,7 @@ export function offerBoonsFromRule(state: GameState): void {
     offerBoons(state);
     return;
   }
-  if (c.core === true) return;
+  if (c.core === true || c.mode === "temper" || c.replace) return;
   c.grades = c.options.map((key, i) => {
     const grade = choiceGrade(c, i);
     return isGraded(boonDef(key)) ? clampGrade(grade + BOON.gradeBoostTrialSeeker) : grade;
@@ -475,14 +774,33 @@ function extraPool(shown: readonly BoonKey[]): BoonDef[] {
   );
 }
 
+/** 系譜の提示の 4 枚目の候補（同じ系譜の、並んでいない加護・摂理・研鑽） */
+function lineageExtraPool(state: GameState, lineage: LineageKey, shown: readonly BoonKey[]): BoonDef[] {
+  return lineagePool(state, lineage).filter((d) => !shown.includes(d.key));
+}
+
+/** 4 枚目の重み（系譜の提示なら系譜の重み、それ以外は今までの重み） */
+function extraWeightOf(state: GameState, c: Readonly<BoonChoice>): (d: BoonDef) => number {
+  const tags = buildTags(state);
+  const build = buildProfile(state);
+  if (c.lineage !== undefined) return (d) => lineageCardWeight(state, d, tags.loadout, build);
+  return (d) => boonWeight(d, tags.owned, state.boons, tags.gives, tags.loadout) * boonAffinityMul(d, build);
+}
+
+/** 4 枚目の候補（系譜の提示は同じ系譜から。呪いを受けても 1 提示 1 系譜を崩さない） */
+function extraCandidates(state: GameState, c: Readonly<BoonChoice>): BoonDef[] {
+  return c.lineage === undefined ? extraPool(c.options) : lineageExtraPool(state, c.lineage, c.options);
+}
+
 /** いま呪いを受けて 4 択にできるか（未使用・受けられる呪いと 4 枚目の候補がある） */
 export function canTakeCurse(state: GameState): boolean {
   const c = state.boonChoice;
-  if (!c || c.core === true || c.curseTaken || c.options.length >= BOON.choiceCountWithCurse) return false;
+  if (!c || c.core === true || c.mode === "temper" || c.replace || c.curseTaken || c.options.length >= BOON.choiceCountWithCurse) return false;
   const tags = buildTags(state);
   const owned = [...state.boons, ...c.options];
   const hasCurse = BOON_KEYS.some((k) => BOONS[k].cursed && boonWeight(BOONS[k], tags.owned, owned, tags.gives, tags.loadout) > 0);
-  const hasExtra = extraPool(c.options).some((d) => boonWeight(d, tags.owned, state.boons, tags.gives, tags.loadout) > 0);
+  const weightOf = extraWeightOf(state, c);
+  const hasExtra = extraCandidates(state, c).some((d) => weightOf(d) > 0);
   return hasCurse && hasExtra;
 }
 
@@ -499,7 +817,7 @@ export function takeCurse(state: GameState): boolean {
   grantBoon(state, curse.key);
   c.curseTaken = true;
   c.curse = curse.key;
-  const extra = takeWeighted(state, extraPool(c.options), buildTags(state), buildProfile(state));
+  const extra = takeWeightedBy(state, extraCandidates(state, c), extraWeightOf(state, c));
   if (!extra) return true;
   // 呪いで買った 4 枚目は格が 1 段上がる（grades は options と同じ長さに揃えてから足す）
   const grades = c.options.map((_, i) => choiceGrade(c, i));
@@ -588,7 +906,8 @@ export function updateBoonChoice(state: GameState, input: FrameInput, dt: number
   const c = state.boonChoice;
   if (!c) return;
   c.timer += dt;
-  c.hover = input.aimScreen ? cardIndexAt(input.aimScreen, c.options.length) : -1;
+  const count = choiceCardCount(c);
+  c.hover = input.aimScreen ? cardIndexAt(input.aimScreen, count) : -1;
   c.curseHover = input.aimScreen !== null && inRect(input.aimScreen, boonCurseRect());
   if (c.timer < BOON.inputDelay) return;
   if (curseRequested(input, c.curseHover)) {
@@ -596,17 +915,60 @@ export function updateBoonChoice(state: GameState, input: FrameInput, dt: number
     return;
   }
   const index = selectedIndex(input, c.hover);
-  if (index < 0 || index >= c.options.length) return;
+  if (index < 0 || index >= count) return;
   chooseBoon(state, index);
 }
 
+/**
+ * index 番目の札を選ぶ。錬磨なら格を上げ、入れ替えの第 2 段なら外す札（最後の札は見送り）を決める。
+ * 枠の満ちた行動の加護を選んだら提示を閉じずに第 2 段へ進む
+ */
 export function chooseBoon(state: GameState, index: number): void {
   const c = state.boonChoice;
-  const key = c?.options[index];
-  const grade = c ? choiceGrade(c, index) : 1;
+  if (!c) return;
+  if (c.mode === "temper") {
+    state.boonChoice = null;
+    const key = c.options[index];
+    if (key) temperBoon(state, key);
+    return;
+  }
+  if (c.replace) {
+    state.boonChoice = null;
+    resolveReplace(state, c.replace, index);
+    return;
+  }
+  const key = c.options[index];
+  const grade = choiceGrade(c, index);
+  if (key && openReplace(state, c, key, grade)) return;
   state.boonChoice = null;
   if (!key) return;
   grantBoon(state, key, grade);
+}
+
+/** 枠の満ちた行動の加護なら、同じ提示を入れ替えの第 2 段に差し替える（入力の待ちも数え直す）。差し替えたら true */
+function openReplace(state: GameState, c: BoonChoice, key: BoonKey, grade: BoonGrade): boolean {
+  const def = boonDef(key);
+  if (def.card !== "grace" || def.action === undefined || hasBoon(state, key)) return false;
+  const current = gracesOf(state, def.action);
+  if (current.length < graceSlotsOf(state, def.action)) return false;
+  c.replace = { incoming: key, incomingGrade: grade, action: def.action, outgoing: current };
+  c.options = [...current];
+  c.grades = current.map((k) => boonGradeOf(state, k));
+  c.hover = -1;
+  c.curseHover = false;
+  c.timer = 0;
+  return true;
+}
+
+/** 第 2 段の選択: 外す加護を選べば入れ替え、最後の札（見送り）なら新しい札を取らない */
+function resolveReplace(state: GameState, r: Readonly<BoonReplace>, index: number): void {
+  const out = r.outgoing[index];
+  if (out === undefined) {
+    addFloatingText(state, state.player.body.pos, PASS_LABEL, BOON.cardColor.grace, TEXT_SCALE, TEXT_LIFE);
+    return;
+  }
+  removeBoon(state, out);
+  grantBoon(state, r.incoming, r.incomingGrade);
 }
 
 /** 祝福を得る（テストからも直接使う）。grade は格（呪いの祠・契約など格を持たない入手は並） */
@@ -619,6 +981,8 @@ export function grantBoon(state: GameState, key: BoonKey, grade: BoonGrade = 1):
   else delete state.boonRun.grades[key];
   state.boons.push(key);
   applyBoonsToStats(state);
+  if (def.card === "apex" && def.lineage !== undefined) openApexSlots(state, def.lineage);
+  refreshFusionDue(state);
   // 祝福は階に着いた後で選ぶので、この階に配置済みの敵（ボス含む）にも遡って掛ける
   if (key === "giantSlayer") applyGiantSlayerToExisting(state);
   const color = grantColor(def, kept);
@@ -630,12 +994,28 @@ export function grantBoon(state: GameState, key: BoonKey, grade: BoonGrade = 1):
   pushSfx(state, def.cursed ? "boonSelectCursed" : "boonSelect");
 }
 
-/** 取得時の文字の色: 呪い付き → 格（大祝福・神威）→ 希少度 */
-function grantColor(def: BoonDef, grade: BoonGrade): string {
+/** 取得時の文字の色: 呪い付き → 格（大祝福〜極致）→ 札の種類（無い旧祝福は希少度） */
+export function grantColor(def: BoonDef, grade: BoonGrade): string {
   if (def.cursed) return BOON.cursedColor;
-  if (grade === 3) return BOON.gradeColor.divine;
-  if (grade === 2) return BOON.gradeColor.grand;
-  return BOON.rarityColor[def.rarity];
+  const gradeColor = gradeColorOf(grade);
+  if (gradeColor !== null) return gradeColor;
+  return def.card === undefined ? BOON.rarityColor[def.rarity] : BOON.cardColor[def.card];
+}
+
+/** 格の色（並は null） */
+function gradeColorOf(grade: BoonGrade): string | null {
+  switch (grade) {
+    case 5:
+      return BOON.gradeColor.pinnacle;
+    case 4:
+      return BOON.gradeColor.supreme;
+    case 3:
+      return BOON.gradeColor.divine;
+    case 2:
+      return BOON.gradeColor.grand;
+    default:
+      return null;
+  }
 }
 
 // -----------------------------------------------------------------------------

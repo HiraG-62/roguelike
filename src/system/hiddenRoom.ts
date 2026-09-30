@@ -7,6 +7,7 @@ import { invalidatePathing, tileOf } from "../map/pathing";
 import { isBossDepth } from "./boss";
 import { pickFloorKinds } from "./biomes";
 import { spawnBurst, spawnDirectional } from "./effects";
+import { NO_EXIT } from "./exits";
 import { dropItem } from "./loot";
 import { placeBlackMarket } from "./merchants";
 import { overlapsTiles } from "./physics";
@@ -117,7 +118,7 @@ function openHiddenRoom(state: GameState, hr: HiddenRoom): void {
   for (const t of hr.tiles) setTileAt(state, t, Tile.Floor);
   setTileAt(state, hr.stairsTile, Tile.StairsDown);
   invalidatePathing(state.map);
-  state.stairs.push({ tile: hr.stairsTile, nextKind: hr.nextKind });
+  state.stairs.push({ tile: hr.stairsTile, nextKind: hr.nextKind, reward: NO_EXIT });
   const treasurePos = tileCenterPx(state.map, hr.stairsTile);
   for (let i = 0; i < HIDDEN_ROOM.items; i++) dropItem(state, treasurePos, HIDDEN_ROOM.rarityBoost);
   // 闇市はお宝の後（開ける前の乱数消費を変えない。system/merchants.ts）

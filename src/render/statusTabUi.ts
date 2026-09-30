@@ -24,7 +24,7 @@ import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } fro
 
 /**
  * 装備画面のステータスタブの描画（state と ui を読むだけ）。
- * 左: ジョブ・ステータス（「+」）・体の性能。右: 今の武器種の奥義 3 枚（選んでいる奥義に印）。
+ * 左: ジョブ・ステータス・体の性能。右: 今の武器種の奥義 3 枚（選んでいる奥義に印）。
  * 単一の強さの指標は出さない。当たり判定は ui/statusTab.ts の layoutStatusTab と共有する
  */
 
@@ -54,7 +54,7 @@ export function drawStatusTab(ctx: CanvasRenderingContext2D, state: GameState, u
     drawEffectsPage(ctx, state, ui);
     return;
   }
-  drawAttributePanel(ctx, state, ui.hoverAlloc, layout.attrPanel);
+  drawAttributePanel(ctx, state, layout.attrPanel);
   drawDerived(ctx, state, layout);
   const sep = layout.right.x - 2;
   fillRectPx(ctx, { x: sep, y: layout.right.y, w: 1, h: layout.right.h }, COLOR_RULE);

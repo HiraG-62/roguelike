@@ -3,7 +3,7 @@ import { pushPlayerEvent } from "../core/events";
 import type { Rng } from "../core/rng";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ATTR_GAIN, BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { type CaveShapeOptions, carveArena } from "../map/cave";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap, scaleGeneratorOptions } from "../map/generator";
 import {
@@ -38,7 +38,6 @@ import {
   applyBoonFloorRules,
   boonHeartsAllowed,
   extraEliteRoll,
-  offerBoons,
   stairsGradeBoost,
   onBoonEnemySpawned,
   onBoonHeartPickup,
@@ -49,7 +48,6 @@ import {
 } from "./boons";
 import { resetExplored, revealAround } from "./explore";
 import { descendMana } from "./mana";
-import { grantAttributePoints } from "../ui/attributeAlloc";
 import {
   FLOOR_KIND_LABEL,
   announceAmbush,
@@ -83,8 +81,10 @@ import {
   roomHooks,
   setupSpecialRoom,
   stairsChoiceAt,
+  stairsRewardAt,
   updateSpecialRooms,
 } from "./specialRooms";
+import { type ExitReward, applyDangerReward, applyExitArrival, applyExitDanger, offerArrivalChoices, replacesArrivalRelic } from "./exits";
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
 import { hasMod, onOriginDescend, refreshRunStats, tierScoreMul } from "./runSetup";
 import { onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
@@ -156,6 +156,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   assignRoomKinds(state, reserved);
   assignExtraRoomKinds(state, reserved);
   applyBoonFloorRules(state, reserved);
+  // 出口の予告「危険」: 巣窟 / 闘技場 / 試練を 1 つ強制する（部屋の準備の前）
+  applyExitDanger(state, reserved);
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
     if (i === bossRoom) {
@@ -190,6 +192,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeMerchants(state);
   // 壺・木箱は商人の台座を避けて最後に置く（それより前の乱数消費を変えない。system/containers.ts）
   placeContainers(state);
+  // 出口の予告はこの階を作るためだけに使う。次の階へ持ち越さない
+  state.pendingExit = null;
 }
 
 /**
@@ -829,6 +833,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   onRoomClearedCoins(state, room, index);
   onRoomCleared(state, room, index);
   clearSpecialRoom(state, room, center);
+  applyDangerReward(state, room, center);
   // 試練: rare 確定 + ハート確定
   if (room.kind === "challenge") {
     dropRareItem(state, center);
@@ -904,29 +909,34 @@ function checkStairs(state: GameState): void {
   if (getTile(state.map, tx, ty) !== Tile.StairsDown) return;
   // 上り階段で戻ってから降り直した階では 3 択を出さない（戻る → 降りるの往復で祝福を稼がせない）
   const fresh = state.depth + 1 > state.runEvents.strata.deepest;
-  descend(state, stairsChoiceAt(state, toIndex(state.map, tx, ty)));
-  // 祝福 3 択は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）
-  // ボス階を抜けた直後の提示は格が 1 段上がる
-  if (fresh) offerBoons(state, stairsGradeBoost(isBossDepth(state.depth - 1)));
+  const tile = toIndex(state.map, tx, ty);
+  const reward = stairsRewardAt(state, tile);
+  descend(state, stairsChoiceAt(state, tile), reward);
+  // 祝福の 3 択・錬磨は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）。
+  // 3 択は祝福の出口を選んだ階だけ。ボス階を抜けた直後の提示は格が 1 段上がる
+  if (fresh) offerArrivalChoices(state, reward, stairsGradeBoost(isBossDepth(state.depth - 1)));
 }
 
-/** 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選） */
-export function descend(state: GameState, nextKind?: FloorKind): void {
+/**
+ * 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選）。
+ * reward は出口の予告（省略 = 予告なし）。初めて着いた階だけ、buildFloor と到着報酬で確定する
+ */
+export function descend(state: GameState, nextKind?: FloorKind, reward?: ExitReward): void {
   const strata = state.runEvents.strata;
-  // 上り階段で戻ってから降り直した階は、振り分け点・スコア・来歴・階層到達の報酬を二重に取らない
+  // 上り階段で戻ってから降り直した階は、スコア・来歴・階層到達の報酬を二重に取らない
   const fresh = state.depth + 1 > strata.deepest;
-  // buildFloor が state.boss を消すので、ボス撃破の判定は先に行う
-  if (fresh) grantAttributePoints(state, floorAttributePoints(state));
   state.depth += 1;
   strata.revisit = false;
   strata.fresh = fresh;
+  // buildFloor が危険な部屋づくりに読み、末尾で消す。降り直した階は報酬を二重に取らない
+  state.pendingExit = fresh ? (reward ?? null) : null;
   if (fresh) {
     strata.deepest = state.depth;
     recordProvenance(state, { kind: "floorClear" });
     state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
   }
   buildFloor(state, nextKind);
-  // 起点の階ごとの報酬（死神の友の振り分け点）も初めての階だけ
+  // 起点の階ごとの報酬（死神の友の銭）も初めての階だけ
   if (fresh) onOriginDescend(state);
   // 持ち込んだ遺物の地金を今の深度で決め直す（降り直しでも封印・解除を合わせ直す）
   refreshRunStats(state);
@@ -937,8 +947,10 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
   const label = FLOOR_KIND_LABEL[state.floorKind];
   pushSfx(state, "descend");
   if (fresh) {
-    dropDepthReward(state);
+    // 遺物の出口は到着報酬の遺物を確定にして置き換える（二重に落とさない）
+    if (!replacesArrivalRelic(reward)) dropDepthReward(state);
     grantFloorArrival(state);
+    applyExitArrival(state, reward);
   }
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
   if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);
@@ -959,7 +971,7 @@ function announceInverted(state: GameState): void {
 
 /**
  * 上り階段で 1 つ浅い階へ戻る（docs/ideas/run-expansion.md 4 章 #6）。戻った階は作り直され、敵は半分、
- * 死神の猶予は FLOOR_KIND.revisitReaperHeadStart 秒進んだ状態で始まる。祝福の 3 択・振り分け点・階層到達の報酬は出ない
+ * 死神の猶予は FLOOR_KIND.revisitReaperHeadStart 秒進んだ状態で始まる。祝福の 3 択・階層到達の報酬は出ない
  */
 export function ascend(state: GameState): void {
   const strata = state.runEvents.strata;
@@ -995,17 +1007,6 @@ function thinRevisitedFloor(state: GameState): void {
 /** 反転層か（HUD・描画が読む） */
 export function invertedLayer(state: GameState): boolean {
   return isInvertedDepth(state.depth);
-}
-
-/**
- * 階段で得るステータスの振り分け点（docs/COMBAT_DESIGN.md A-3）。階層到達 +1、この階の主を倒していれば
- * major なら perBoss、階の主なら perFloorLord（既定 0）。撃破の瞬間（boss.ts）ではなく降りるときにまとめて渡す
- * （ボス部屋は撃破しないと階段に届かない）
- */
-export function floorAttributePoints(state: GameState): number {
-  if (state.boss?.defeated !== true) return ATTR_GAIN.perFloor;
-  const bonus = state.boss.major ? ATTR_GAIN.perBoss : ATTR_GAIN.perFloorLord;
-  return ATTR_GAIN.perFloor + bonus;
 }
 
 // -----------------------------------------------------------------------------

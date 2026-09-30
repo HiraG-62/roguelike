@@ -21,13 +21,12 @@ import { hashSeed } from "./rng";
 import type { GameState } from "./state";
 import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
-import { ATTR_KEYS, SLOTS, createEmptyProfile, type Attributes, type Equipment, type Item, type Profile, uniformAttributes } from "../loot/types";
+import { SLOTS, createEmptyProfile, type Equipment, type Item, type Profile } from "../loot/types";
 import { PROFILE_KEY, sanitizeUltimateChoices } from "../loot/profile";
 import { guardSaveWrites } from "../save/backend";
 import { SKILL_PROFILE_KEY, ownedRunes, stoneInSlot } from "../skills/persistence";
 import { MODIFIER_KEYS, SKILL_KEYS, type RuneItem, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
-import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
 import {
   type OriginKey,
   type RunModKey,
@@ -70,8 +69,9 @@ import { clampHitstopScale } from "../ui/settings";
  * 24: 瓶と入力 flaskPressed・毎階の市と商人・章ボスの固定と章の境の休符（泉・階の主なし）・章ごとのハートの確率
  * 25: 賭け（賭場の品書き・賭け台を銭に）・壺と木箱・鍵付きの宝箱と封印庫の鍵・寄進の祠
  * 26: 旅商人（buildFloor の最後の抽選）・闇市・通貨の見本（性質「懐」・祝福「守銭」「拾銭」で抽選表が変わる）
+ * 27: 出口の予告（planForkStairs の抽選が増える）・系譜ごとの祝福の提示・加護 2 枠と入れ替え・昇華と融合の確定・格 1〜5 と錬磨・ステータス振り分けの撤去（alloc 欄は読み捨て）
  */
-export const REPLAY_VERSION = 26;
+export const REPLAY_VERSION = 27;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -98,17 +98,15 @@ export interface ReplayLoadout {
   ultimates?: Partial<Record<MovesetKey, string>>;
 }
 
-/** 装備画面での付け替え・ステータス振り分け。frame 番目の step の直前に適用する */
+/** 装備画面での付け替え。frame 番目の step の直前に適用する */
 export interface ReplayEvent {
   frame: number;
   loadout: ReplayLoadout;
   /**
-   * 装備か振り分けが変わった場合のみ: 操作直後のプレイヤー値（applyStats の丸め差や、
+   * 装備が変わった場合のみ: 操作直後のプレイヤー値（applyStats の丸め差や、
    * 操作の順序で変わるマナの切り詰めを消すため直接上書きする）。mana は REPLAY_VERSION 4 から
    */
   player: { hp: number; dashChargesLeft: number; mana?: number } | null;
-  /** 振り分けが変わった場合のみ: 操作直後の runAttributes.alloc（差分を allocateAttribute で振り直す） */
-  alloc: Attributes | null;
   /**
    * ラン中に設定画面でヒットストップの強さを変えた場合のみ、その新しい値。無ければ変更なし。
    * hitstop() が消費するステップ数に直接効くため、記録しないと再生がずれる
@@ -438,10 +436,6 @@ function loadoutSignature(l: ReplayLoadout): string {
   return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.runeCount ?? 0, l.ultimates ?? {}]);
 }
 
-function allocSignature(alloc: Attributes): string {
-  return JSON.stringify(ATTR_KEYS.map((k) => alloc[k]));
-}
-
 const PLACEHOLDER_ID_PREFIX = "replay-placeholder-";
 const PLACEHOLDER_SKILL_KEY = SKILL_KEYS[0];
 const PLACEHOLDER_MODIFIER = MODIFIER_KEYS[0];
@@ -540,8 +534,6 @@ export class ReplayRecorder {
   private readonly snapshot: ReplayLoadout;
   private lastSignature: string;
   private lastEquipmentSignature: string;
-  /** ラン開始時は振り分け 0（createGame が作る） */
-  private lastAllocSignature = allocSignature(uniformAttributes(0));
   /** 直近に記録したヒットストップの強さ（未変更なら noteHitstopScale はイベントを積まない） */
   private lastHitstopScale: number;
 
@@ -566,31 +558,24 @@ export class ReplayRecorder {
    * スナップショットに残すので、倉庫が上限付近でも再生で拾得の成否がずれない
    */
   static fromStartedGame(options: RecorderOptions, state: GameState): ReplayRecorder {
-    const recorder = new ReplayRecorder(options, state.profile, state.skills.profile, true);
-    // 再生側も同じ createGame を通るので、開始時点の振り分けはそこからの差分として記録する
-    recorder.lastAllocSignature = allocSignature(state.runAttributes.alloc);
-    return recorder;
+    return new ReplayRecorder(options, state.profile, state.skills.profile, true);
   }
 
   /**
    * 装備画面を触った後に呼ぶ。前回から変わっていれば次の step の直前に適用するイベントとして積む。
-   * state.profile / state.skills.profile / state.runAttributes.alloc を見る
+   * state.profile / state.skills.profile を見る
    */
   noteLoadout(state: GameState): void {
     const loadout = captureLoadout(state.profile, state.skills.profile);
     const signature = loadoutSignature(loadout);
-    const allocSig = allocSignature(state.runAttributes.alloc);
-    const allocChanged = allocSig !== this.lastAllocSignature;
-    if (signature === this.lastSignature && !allocChanged) return;
+    if (signature === this.lastSignature) return;
     this.lastSignature = signature;
-    this.lastAllocSignature = allocSig;
     const eqSig = equipmentSignature(loadout.equipment);
     const equipmentChanged = eqSig !== this.lastEquipmentSignature;
     this.lastEquipmentSignature = eqSig;
     const p = state.player;
-    const player = equipmentChanged || allocChanged ? { hp: p.hp, dashChargesLeft: p.dashChargesLeft, mana: p.mana } : null;
-    const alloc = allocChanged ? { ...state.runAttributes.alloc } : null;
-    this.events.push({ frame: this.encoder.frameCount, loadout, player, alloc });
+    const player = equipmentChanged ? { hp: p.hp, dashChargesLeft: p.dashChargesLeft, mana: p.mana } : null;
+    this.events.push({ frame: this.encoder.frameCount, loadout, player });
   }
 
   /**
@@ -601,7 +586,7 @@ export class ReplayRecorder {
     if (scale === this.lastHitstopScale) return;
     this.lastHitstopScale = scale;
     const loadout = captureLoadout(state.profile, state.skills.profile);
-    this.events.push({ frame: this.encoder.frameCount, loadout, player: null, alloc: null, hitstopScale: scale });
+    this.events.push({ frame: this.encoder.frameCount, loadout, player: null, hitstopScale: scale });
   }
 
   /** step に渡す直前に呼ぶ。量子化済みの入力を返すので、それをそのまま step に渡すこと */
@@ -714,31 +699,17 @@ function applyDueEvents(session: ReplaySession): void {
   }
 }
 
-/** 装備の付け替え → 振り分けの順に反映し、最後に記録時のプレイヤー値で上書きする */
+/** 装備の付け替えを反映し、最後に記録時のプレイヤー値で上書きする */
 function applyEvent(session: ReplaySession, ev: ReplayEvent): void {
   const state = session.state;
   const equipmentChanged = equipmentSignature(session.profile.equipment) !== equipmentSignature(ev.loadout.equipment);
   applyLoadout(session.profile, session.skillProfile, ev.loadout);
   if (equipmentChanged) applyStats(state, computeStats(session.profile.equipment, state.depth));
-  if (ev.alloc) replayAllocation(state, ev.alloc);
   if (ev.hitstopScale !== undefined) state.hitstopScale = ev.hitstopScale;
   if (!ev.player) return;
   state.player.hp = ev.player.hp;
   state.player.dashChargesLeft = ev.player.dashChargesLeft;
   if (ev.player.mana !== undefined) state.player.mana = ev.player.mana;
-}
-
-/**
- * 記録時の振り分けに追いつくまで allocateAttribute を呼ぶ。実プレイと同じ関数を通すので
- * 浮き文字が消費する state.rng の回数も一致する（振った順序は記録しないが、回数は同じ）
- */
-function replayAllocation(state: GameState, target: Attributes): void {
-  for (const key of ALLOC_ORDER) {
-    const missing = target[key] - state.runAttributes.alloc[key];
-    for (let i = 0; i < missing; i++) {
-      if (!allocateAttribute(state, key)) return;
-    }
-  }
 }
 
 /**
@@ -857,32 +828,14 @@ function sanitizePlayer(v: unknown): ReplayEvent["player"] | undefined {
   return { hp: v.hp, dashChargesLeft: v.dashChargesLeft, mana: v.mana };
 }
 
-/**
- * 振り分けは各ステータス 0 以上の整数。旧版（alloc 欠損）は null、壊れていれば undefined。
- * 防御 `def` を足す前の旧記録は alloc はあっても def の欄が無いので、無い項目は 0 で補う
- */
-function sanitizeAlloc(v: unknown): Attributes | null | undefined {
-  if (v === null || v === undefined) return null;
-  if (!isRecord(v)) return undefined;
-  const out = uniformAttributes(0);
-  for (const key of ATTR_KEYS) {
-    const n = v[key];
-    if (n === undefined) continue;
-    if (!isFiniteNumber(n) || n < 0 || !Number.isInteger(n)) return undefined;
-    out[key] = n;
-  }
-  return out;
-}
-
 function sanitizeEvent(v: unknown): ReplayEvent | null {
   if (!isRecord(v) || !isFiniteNumber(v.frame)) return null;
   const loadout = sanitizeLoadout(v.loadout);
   if (!loadout) return null;
   const player = sanitizePlayer(v.player);
-  const alloc = sanitizeAlloc(v.alloc);
-  if (player === undefined || alloc === undefined) return null;
+  if (player === undefined) return null;
   const hitstopScale = typeof v.hitstopScale === "number" && Number.isFinite(v.hitstopScale) ? clampHitstopScale(v.hitstopScale) : undefined;
-  return { frame: v.frame, loadout, player, alloc, ...(hitstopScale !== undefined ? { hitstopScale } : {}) };
+  return { frame: v.frame, loadout, player, ...(hitstopScale !== undefined ? { hitstopScale } : {}) };
 }
 
 /** 除外遺物があるときだけ書く（旧データ・依頼を持たないランの形を変えない） */

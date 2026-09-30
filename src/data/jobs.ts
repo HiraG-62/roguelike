@@ -4,6 +4,7 @@ import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } fro
 import type { Attributes } from "../loot/types";
 import type { QuestKey } from "../meta/quests";
 import type { SkillKey } from "../skills/types";
+import type { LineageKey } from "../system/boonDefs";
 import { BALANCE } from "./balance";
 import { JOB, MANA_SOURCE, WEAPON } from "./tuning";
 import { reviveStep } from "./weapons";
@@ -94,6 +95,8 @@ export interface JobDef {
   keywords: KeywordProfile;
   /** この依頼を達成すると選べる（src/meta/quests.ts）。無ければ最初から選べる */
   unlockedBy?: QuestKey;
+  /** 流儀の専用系譜（docs/ideas/boon-impl.md 2-1）。出口の予告で祝福の系譜に選ばれやすい。見習いは持たない */
+  lineage?: LineageKey;
 }
 
 const ALWAYS = 1;
@@ -136,6 +139,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     keywords: kw([]),
   },
   swordsman: {
+    lineage: "blade",
     name: "剣士",
     desc: "連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。",
     attributes: JOB_ATTRIBUTES.swordsman,
@@ -157,6 +161,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     keywords: kw(["melee", "finisher", "stagger"], ["just"]),
   },
   hunter: {
+    lineage: "thunder",
     name: "狩人",
     desc: "予備動作中の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
@@ -180,6 +185,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     keywords: kw(["ranged", "stagger", "vulnerable"], ["elite"]),
   },
   brawler: {
+    lineage: "blade",
     name: "拳闘士",
     desc: "殴り続けると衝撃波を放ち、被弾すると攻撃が強まる。",
     attributes: JOB_ATTRIBUTES.brawler,
@@ -201,6 +207,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     keywords: kw(["melee", "combo", "area"], ["hurt"]),
   },
   shieldBearer: {
+    lineage: "earth",
     name: "盾持ち",
     desc: "被弾の直後は無敵になり、カウンターで衝撃波を放つ。",
     attributes: JOB_ATTRIBUTES.shieldBearer,
@@ -222,6 +229,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     keywords: kw(["ward", "counter", "area"], ["hurt"]),
   },
   hexer: {
+    lineage: "moon",
     name: "呪術師",
     desc: "状態異常を付けるたびに気力が戻り、倒した敵から毒を広げる。",
     attributes: JOB_ATTRIBUTES.hexer,
@@ -246,6 +254,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     unlockedBy: "bloodPath",
   },
   lancer: {
+    lineage: "earth",
     name: "槍兵",
     desc: "堅守中の敵を崩しやすく、怯ませるたびに奥義ゲージが溜まる。",
     attributes: JOB_ATTRIBUTES.lancer,
@@ -268,6 +277,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     unlockedBy: "critStorm",
   },
   invoker: {
+    lineage: "cycle",
     name: "術士",
     desc: "スキルを使うと攻撃が強まり、気力が少ないときは撃破で気力を取り戻す。",
     attributes: JOB_ATTRIBUTES.invoker,
@@ -290,6 +300,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     unlockedBy: "chainWeaver",
   },
   shadow: {
+    lineage: "blade",
     name: "影",
     desc: "ダッシュ直後の近接で敵を脆弱にし、見切りで移動が速くなる。",
     attributes: JOB_ATTRIBUTES.shadow,
@@ -313,6 +324,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     unlockedBy: "justDancer",
   },
   alchemist: {
+    lineage: "ash",
     name: "錬金術師",
     desc: "反応を起こすたびに奥義ゲージが溜まり、状態異常が 2 種以上付いた敵は倒すと爆発する。",
     attributes: JOB_ATTRIBUTES.alchemist,
@@ -337,6 +349,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     unlockedBy: "deepChain",
   },
   onmyoji: {
+    lineage: "horde",
     name: "陰陽師",
     desc: "設置物・従魔を敵に当てて気力を得る。ダッシュで自分の設置物と入れ替わり、スキルを当てた敵を弱らせる。",
     attributes: JOB_ATTRIBUTES.onmyoji,

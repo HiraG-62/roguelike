@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { BOON } from "../data/tuning";
-import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, boonDef } from "../system/boons";
+import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, boonDef, grantBoon } from "../system/boons";
 import { isGraded } from "../system/boonGrade";
 import {
   BOON_MARKS,
   BOON_MARK_LABEL,
   boonCardColor,
   boonCardSubtitle,
+  boonChoiceHeading,
   boonGradeTipLine,
+  graceActionHead,
+  temperLine,
   boonHudOrder,
   boonMark,
   curseOfferView,
@@ -125,5 +128,50 @@ describe("芯の提示と HUD", () => {
     expect(order[0], "芯が先頭").toBe(coreKey);
     expect(order, "残りは取得順").toEqual([coreKey, ...keys.filter((k) => k !== coreKey)]);
     expect(boonHudOrder(keys), "芯が無ければ取得順のまま").toEqual(keys);
+  });
+});
+
+describe("系譜の札・加護の枠・錬磨の表示（段取り 7a）", () => {
+  it("並の札は札の種類の色、至高・極致は格の色", () => {
+    const law = findDef((d) => d.card === "law" && !d.cursed, "摂理");
+    expect(boonCardColor(law, 1), "摂理の色").toBe(BOON.cardColor.law);
+    const grace = findDef((d) => d.card === "grace" && !d.cursed, "加護");
+    expect(boonCardColor(grace, 1), "加護の色").toBe(BOON.cardColor.grace);
+    expect(boonCardColor(grace, 4), "至高の色").toBe(BOON.gradeColor.supreme);
+    expect(boonCardColor(grace, 5), "極致の色").toBe(BOON.gradeColor.pinnacle);
+  });
+
+  it("加護の行動の見出しは今の枚数と枠で変わり、副題に載る", () => {
+    const state = createGame(1);
+    const before = graceActionHead(state, "primary");
+    grantBoon(state, "emberSeed");
+    const after = graceActionHead(state, "primary");
+    expect(after, "1 枚宿ると見出しが変わる").not.toBe(before);
+    const sub = boonCardSubtitle(BOONS.emberSeed, 1, after);
+    expect(sub.text.endsWith(after), "副題の末尾に行動の見出し").toBe(true);
+    expect(boonCardSubtitle(BOONS.emberSeed, 1).text, "見出しを渡さなくても注記は出る").not.toBe("");
+  });
+
+  it("融合の札は結びではなく融合の注記を出す", () => {
+    const fused = boonCardSubtitle(BOONS.thunderBlast, 1);
+    const legacyDuo = boonCardSubtitle(BOONS.plagueBlood, 1);
+    expect(fused.text, "融合と結びは違う注記").not.toBe(legacyDuo.text);
+  });
+
+  it("錬磨・入れ替えの第 2 段・系譜の提示は題が変わり、呪いの札を出さない", () => {
+    const state = createGame(1);
+    const base = { hover: -1, curseHover: false, timer: 1, curseTaken: false, curse: null };
+    const plain = boonChoiceHeading(state, { ...base, options: ["emberSeed"] });
+    const lineage = boonChoiceHeading(state, { ...base, options: ["emberSeed"], lineage: "ash" });
+    const temper = boonChoiceHeading(state, { ...base, options: ["emberSeed"], mode: "temper" });
+    const replace = boonChoiceHeading(state, {
+      ...base,
+      options: ["emberSeed"],
+      replace: { incoming: "overcharge", incomingGrade: 1, action: "primary", outgoing: ["emberSeed"] },
+    });
+    expect(new Set([plain.title, lineage.title, temper.title, replace.title]).size, "4 つの題は別").toBe(4);
+    state.boonChoice = { ...base, options: ["emberSeed"], mode: "temper" };
+    expect(curseOfferView(state), "錬磨に呪いの札なし").toBe("none");
+    expect(temperLine(2), "錬磨の行は格 2 → 3").not.toBe(temperLine(3));
   });
 });

@@ -469,7 +469,7 @@ function gradeBandOf(depth: number): GradeBand {
 }
 
 function emptyGradeCounts(): Record<BoonGrade, number> {
-  return { 1: 0, 2: 0, 3: 0 };
+  return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 }
 
 interface BoonMetrics {

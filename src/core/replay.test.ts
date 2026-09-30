@@ -33,7 +33,6 @@ import { dropRune } from "../system/skills";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
-import { allocateAttribute } from "../ui/attributeAlloc";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
 import { ULTIMATES } from "../data/ultimates";
@@ -456,33 +455,26 @@ describe("記録 → 再生", () => {
   });
 });
 
-describe("装備画面でのステータス振り分けの記録 → 再生", () => {
-  const SEED = "alloc-replay";
-  /** 開始直後に 2 回降りて点を 2 得る（記録側と再生側で同じ操作をする） */
+describe("装備画面での付け替えの記録 → 再生", () => {
+  const SEED = "equip-replay";
+  /** 開始直後に 2 回降りる（記録側と再生側で同じ操作をする） */
   const DESCENTS = 2;
 
   function prepare(state: GameState): void {
     for (let i = 0; i < DESCENTS; i++) descend(state);
   }
 
-  /** frame 300 で体力と精神、frame 700 で装備の付け替えと同時に最後の 1 点を振る */
+  /** frame 700 で装備を付け替える */
   function record(): { data: ReplayData; state: GameState } {
     const profile = createEmptyProfile();
     const skillProfile = createDefaultSkillProfile();
     const recorder = new ReplayRecorder({ seedText: SEED, startedAt: 1, daily: false }, profile, skillProfile);
     const state = createGame(hashSeed(SEED), SEED, profile, skillProfile);
     prepare(state);
-    state.runAttributes.unspent += 1;
     randomInputs(11, 1200).forEach((input, i) => {
-      if (i === 300) {
-        allocateAttribute(state, "vit");
-        allocateAttribute(state, "mnd");
-        recorder.noteLoadout(state);
-      }
       if (i === 700) {
         state.profile.equipment.armor = armor(40);
         applyStats(state, computeStats(state.profile.equipment));
-        allocateAttribute(state, "str");
         recorder.noteLoadout(state);
       }
       step(state, recorder.record(input), FIXED_DT);
@@ -495,25 +487,22 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
     if (!loaded) throw new Error("sanitize failed");
     const session = createReplaySession(loaded);
     prepare(session.state);
-    session.state.runAttributes.unspent += 1;
     while (!isReplayFinished(session)) stepReplay(session, FIXED_DT);
     return session.state;
   }
 
-  it("振り分けがイベントとして記録され、再生で同じ状態になる", () => {
+  it("付け替えがイベントとして記録され、再生で同じ状態になる", () => {
     const { data, state } = record();
-    expect(data.events, "振り分け 2 回ぶんのイベント").toHaveLength(2);
-    expect(data.events[0]?.alloc, "1 回目は振り分けだけ").toEqual({ str: 0, dex: 0, vit: 1, mnd: 1, spi: 0, def: 0 });
-    expect(data.events[1]?.alloc?.str, "2 回目は装備と同時").toBe(1);
+    expect(data.events, "付け替え 1 回ぶんのイベント").toHaveLength(1);
+    expect(data.events[0]?.player, "装備が変わったのでプレイヤー値を残す").not.toBeNull();
     const played = replay(data);
-    expect(played.runAttributes).toEqual(state.runAttributes);
     expect(played.stats).toEqual(state.stats);
     expect(played.player.mana).toBe(state.player.mana);
-    expect(played.rng.next(), "浮き文字の乱数消費も一致").toBe(state.rng.next());
+    expect(played.rng.next(), "乱数の消費も一致").toBe(state.rng.next());
     expect(fingerprint(played)).toBe(fingerprint(state));
   });
 
-  it("振り分けが無ければイベントは積まれない", () => {
+  it("付け替えが無ければイベントは積まれない", () => {
     const profile = createEmptyProfile();
     const skillProfile = createDefaultSkillProfile();
     const recorder = new ReplayRecorder({ seedText: SEED, startedAt: 1, daily: false }, profile, skillProfile);
@@ -522,24 +511,13 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
     expect(recorder.finish({ depth: 1, kills: 0, score: 0 }, 2).events).toHaveLength(0);
   });
 
-  it("壊れた振り分けのイベントは sanitize で捨てる", () => {
+  it("旧記録の alloc の欄は無視して読める（イベントは捨てない）", () => {
     const { data } = record();
-    const broken = JSON.parse(JSON.stringify(data)) as { events: { alloc: unknown }[] };
-    const first = broken.events[0];
+    const legacy = JSON.parse(JSON.stringify(data)) as { events: { alloc?: unknown }[] };
+    const first = legacy.events[0];
     if (!first) throw new Error("イベントが無い");
-    first.alloc = { str: -1, dex: 0, vit: 0, mnd: 0, spi: 0 };
-    expect(sanitizeReplay(broken)).toBeNull();
-  });
-
-  it("防御 def の欄が無い旧記録は 0 で補う（def を足す前の記録）", () => {
-    const { data } = record();
-    const stripped = JSON.parse(JSON.stringify(data)) as { events: { alloc: Record<string, number> }[] };
-    const first = stripped.events[0];
-    if (!first) throw new Error("イベントが無い");
-    delete first.alloc.def;
-    const loaded = sanitizeReplay(stripped);
-    expect(loaded?.events[0]?.alloc?.def, "def は 0 で補う").toBe(0);
-    expect(loaded?.events[0]?.alloc?.vit, "他のステータスは変わらない").toBe(1);
+    first.alloc = { str: 1, dex: 0, vit: 0, mnd: 0, spi: 0, def: 0 };
+    expect(sanitizeReplay(legacy)?.events, "イベントが残る").toHaveLength(1);
   });
 });
 

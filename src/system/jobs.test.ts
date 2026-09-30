@@ -167,7 +167,7 @@ describe("ジョブの適用", () => {
     }
   });
 
-  it("祝福・振り分けで畳み込み直してもジョブの偏り・倍率は二重に掛からない", () => {
+  it("祝福で畳み込み直してもジョブの偏り・倍率は二重に掛からない", () => {
     for (const job of PLAYABLE) {
       const s = game(job);
       const before = structuredClone(s.stats);

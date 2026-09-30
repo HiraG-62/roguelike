@@ -139,9 +139,6 @@ describe("装備画面の描画", () => {
     ui.hoverPager = 1;
     drawInventoryUi(ctx, state, ui);
     ui.tab = "status";
-    state.runAttributes.unspent = 2;
-    state.runAttributes.alloc.str = 1;
-    ui.status.hoverAlloc = 0;
     drawInventoryUi(ctx, state, ui);
     state.sandbox = true;
     ui.status.hoverCard = 1;

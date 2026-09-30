@@ -1,4 +1,7 @@
 {
+  "_fields": {
+    "pactSwiftTempers": "契約「疾風」を果たした報酬: 次の階の到着時に出る錬磨の提示の回数"
+  },
   "minDepth": 2,
   "appearChance": 0.4,
   "weights": {
@@ -21,7 +24,7 @@
   "pactSlayerKills": 12,
   "pactSwiftTime": 75,
   "pactSwiftPenalty": 30,
-  "pactSwiftPoints": 2,
+  "pactSwiftTempers": 1,
   "peddlerItemCost": 70,
   "peddlerItemBoost": 2,
   "peddlerEchoCost": 30,

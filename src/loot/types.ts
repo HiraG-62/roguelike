@@ -437,7 +437,7 @@ export interface PlayerStats {
   resonance: Resonance;
 
   // ---- 戦闘再設計（docs/COMBAT_DESIGN.md F-1）。既定値は中立 ----
-  /** 装備・共鳴・祝福・ラン内振り分けの生の合計（逓減前）。基礎値を含む */
+  /** 装備・共鳴・祝福の生の合計（逓減前）。基礎値を含む */
   attributes: Attributes;
   /** 逓減後の実効値。deriveAttributes が埋める。計算はこちらを使う */
   attributesEff: Attributes;

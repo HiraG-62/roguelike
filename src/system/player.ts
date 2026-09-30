@@ -39,7 +39,7 @@ import { KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from 
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { applyStatus, explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { terrainSlide } from "./terrain";
-import { addRunAttributes, deriveAttributes, scaled, withRatio } from "./attributes";
+import { deriveAttributes, scaled, withRatio } from "./attributes";
 import { applyRunStats } from "./runSetup";
 import { gainAttackMana } from "./mana";
 import { type StatusApply, createStatusBag } from "../core/status";
@@ -192,7 +192,7 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
 /**
  * 装備変更などで stats が変わったときにプレイヤーへ反映する。
  * maxHp が変わったら現在 HP の割合を維持する。
- * 集計順は 装備 → ラン内振り分け → ステータスの派生 → 祝福（docs/COMBAT_DESIGN.md A-4 から祝福を最後へ移した）
+ * 集計順は 装備 → ステータスの派生 → 祝福（docs/COMBAT_DESIGN.md A-4 から祝福を最後へ移した）
  */
 export function applyStats(state: GameState, equipStats: PlayerStats): void {
   const p = state.player;
@@ -202,7 +202,7 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   // 祝福（ラン内）は装備の stats に畳み込む。装備画面から呼ばれても祝福が消えない
   state.boonRun.baseStats = base;
   // 派生 → 祝福の順: 祝福の固定値（硝子の見切りの最大 HP 1 など）を体力の加算で崩さない
-  const derived = deriveAttributes(addRunAttributes(base, state.runAttributes.alloc));
+  const derived = deriveAttributes(base);
   const stats = foldBoonStats(derived, state.boons, state.boonRun);
   // 武器種が変わったら持続の奥義を終える（別の武器種の型に同じ差し替えを畳まない）
   const movesetChanged = state.stats.moveset !== stats.moveset;
