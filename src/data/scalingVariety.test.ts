@@ -315,11 +315,17 @@ const CAST_TABLE = /\.cast\.throw\.scaling$/;
 /** 武器 Wave 4（2026-09-25）で足した武器種の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
 const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./;
 
+/** 段取り 5d で足した書・鈴の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
+const TOME_BELL_TABLE = /^weapons\.WEAPON\.movesets\.(book|handbell)\./;
+
 /**
  * 連刃の段数の拡張（段取り 5b-F）で終撃の手前に足した左の段（双剣・拳の 5 段目。爪は WAVE4_TABLE）。
  * 終撃の段は 6 段目へ下がったので、上の PINNED は steps[5] を指す。秒間威力の目安は data/weapons.test.ts が見る
  */
 const FLURRY_EXTRA_TABLE = /^weapons\.WEAPON\.movesets\.(twinBlades|fists)\.steps\[4\]\.scaling$/;
+
+/** 陰陽師・巫女（段取り 5d-O）のジョブ固有の派生の係数表。振り直しの後に足した行動 */
+const NEW_JOB_BRANCH_TABLE = /^weapons\.WEAPON\.jobBranches\.(onmyoji|miko)\.scaling$/;
 
 /** 奥義の定義の係数表のパスの頭 */
 const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
@@ -399,7 +405,9 @@ describe("振り直しで基礎値の値は変わらない", () => {
       // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
       if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
       if (WAVE4_TABLE.test(path)) continue;
+      if (TOME_BELL_TABLE.test(path)) continue;
       if (FLURRY_EXTRA_TABLE.test(path)) continue;
+      if (NEW_JOB_BRANCH_TABLE.test(path)) continue;
       // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
       if (path.startsWith(ART_PATH)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);

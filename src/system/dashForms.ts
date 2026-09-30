@@ -1,7 +1,8 @@
 import type { FrameInput } from "../core/input";
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { STATUS_LABEL, type StatusKind } from "../core/status";
-import { type Vec, isZero, normalize, scale } from "../core/vec";
+import { formatMeters } from "../core/units";
+import { type Vec, dist, isZero, normalize, scale } from "../core/vec";
 import { type DashForm, JOBS } from "../data/jobs";
 import { BOON, DASH_FORM, PLAYER } from "../data/tuning";
 import { isGun, laneLength } from "../data/weapons";
@@ -10,7 +11,7 @@ import { scaled } from "./attributes";
 import { tryDashGuard } from "./boons";
 import { cancelAttack } from "./combat";
 import { spawnRing } from "./effects";
-import { circlesOverlap, moveBody } from "./physics";
+import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { dashTime, isDashing, playerMoveset } from "./player";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { placeTerrain } from "./terrain";
@@ -30,6 +31,10 @@ const LEAP_TRAP_BULLET = "mineLauncher";
 const MIST_STATUS: StatusKind = "weaken";
 /** 瓶投げが元いた所に撒く地形（反応の火種になる油） */
 const FLASK_TERRAIN = "oil";
+/** 護り足の結界の輪（不退の構えと同じ色で「守られている」と読ませる） */
+const WARD_RING_SEC = 0.3;
+const WARD_RING_SCALE = 2.5;
+const PERCENT = 100;
 
 export function dashFormOf(state: Readonly<GameState>): DashForm {
   return JOBS[state.job].dash;
@@ -130,6 +135,11 @@ export function runDashForm(state: GameState): void {
     p.invulnTimer = Math.max(p.invulnTimer, invuln);
     return;
   }
+  // 入れ替わりは相手がいれば秒を持たずその場で移る。いなければ駆け（下の通常のダッシュ）
+  if (form === "swap" && swapWithNearest(state)) {
+    p.invulnTimer = Math.max(p.invulnTimer, DASH_FORM.swap.swapInvulnSec);
+    return;
+  }
   const time = dashTime(state.stats) * m.timeMul;
   p.dashTimer = time;
   // 無敵はダッシュの前半だけ。後半は被弾するので、ダッシュを押すタイミングが問われる
@@ -156,6 +166,10 @@ function startFormEffect(state: GameState, form: MovingForm, from: Vec, time: nu
       return;
     case "flask":
       placeTerrain(state, from.x, from.y, FLASK_TERRAIN, DASH_FORM.flask.terrainRadius, DASH_FORM.flask.terrainSec);
+      return;
+    case "ward":
+      raiseWard(state);
+      spawnRing(state, p.body.pos, p.body.radius * WARD_RING_SCALE, BOON.guardColor, WARD_RING_SEC);
       return;
     default:
       return;
@@ -185,9 +199,58 @@ function dropTrap(state: GameState, at: Vec): void {
   });
 }
 
-/** ダッシュ中の毎ステップ（player.ts の tickTimers）。霧隠れはすり抜けた敵を弱体にする（同じ敵に重ねない） */
+/**
+ * 入れ替わり: 範囲内で最も近い自分の設置物・従魔と位置を入れ替える。入れ替えたら true。
+ * 着地点が壁に埋まる相手は飛ばして次に近い相手を選ぶ（設置物は壁際にも置けるが、体は埋まれない）
+ */
+function swapWithNearest(state: GameState): boolean {
+  const p = state.player;
+  const near = swapCandidates(state)
+    .map((c) => ({ c, d: dist(p.body.pos, c.pos) }))
+    .filter((e) => e.d <= DASH_FORM.swap.range)
+    .sort((a, b) => a.d - b.d);
+  for (const { c } of near) {
+    if (overlapsWall(state, c.pos.x, c.pos.y, p.body.radius)) continue;
+    const from = { ...p.body.pos };
+    p.body.pos = { ...c.pos };
+    p.body.vel = { x: 0, y: 0 };
+    c.pos = from;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 入れ替われる相手（自分の設置物）。従魔（鈴の命令で動く体）が足されたらここに並べる。
+ * 泥沼の領域は地面に染みたもので位置を持ち運べないので数えない
+ */
+function swapCandidates(state: Readonly<GameState>): { pos: Vec }[] {
+  const s = state.skills;
+  return [...s.wells, ...s.mines, ...s.fields, ...s.kegs, ...s.graves, ...s.turrets, ...s.springs];
+}
+
+/** 結界を今から wardSec 秒に伸ばす（ダッシュ中は毎ステップ呼ぶので、着地からちょうど wardSec 秒残る） */
+function raiseWard(state: GameState): void {
+  state.player.moment.wardUntil = state.time + DASH_FORM.ward.wardSec;
+}
+
+/** 結界の中の被ダメージの倍率（全方位。combat.ts の damagePlayer が掛ける）。無ければ 1 */
+export function wardIncomingMul(state: Readonly<GameState>): number {
+  return state.time < state.player.moment.wardUntil ? DASH_FORM.ward.incomingMul : 1;
+}
+
+/**
+ * ダッシュ中の毎ステップ（player.ts の tickTimers）。霧隠れはすり抜けた敵を弱体にする（同じ敵に重ねない）、
+ * 護り足は結界を保つ（ダッシュが終わった瞬間から wardSec 秒で切れる）
+ */
 export function tickDashForm(state: GameState): void {
-  if (dashFormOf(state) !== "mist" || !isDashing(state.player)) return;
+  if (!isDashing(state.player)) return;
+  const form = dashFormOf(state);
+  if (form === "ward") raiseWard(state);
+  if (form === "mist") weakenPassedEnemies(state);
+}
+
+function weakenPassedEnemies(state: GameState): void {
   const p = state.player;
   const reach = p.body.radius + DASH_FORM.mist.touchRadius;
   for (const e of state.enemies) {
@@ -212,6 +275,8 @@ const DASH_FORM_TEXT: Readonly<Record<DashForm, string>> = {
   blink: "ダッシュの距離を一瞬で移る。無敵は無い",
   shadow: "長く潜って移動する。潜っている間は攻撃できず、出た直後の一撃は背面から当たる",
   flask: "短く駆け、元いた所に油を撒く",
+  swap: `${formatMeters(DASH_FORM.swap.range)} 以内で最も近い自分の設置物・従魔と位置を入れ替える。無いときは前へ駆ける`,
+  ward: `短く駆け、着地から ${DASH_FORM.ward.wardSec} 秒の結界を張る。結界の中は全方位からの被ダメージが ${Math.round((1 - DASH_FORM.ward.incomingMul) * PERCENT)}% 減る`,
 };
 
 export function dashFormText(form: DashForm): string {

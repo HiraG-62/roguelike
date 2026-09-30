@@ -13,6 +13,7 @@ import { createSkillRunState, resolveSlot, skillMoveMul, slotBodyBlocked, update
 import { applyStatus } from "../system/statusEffects";
 import { arena, placeEnemy, withInput } from "../system/testHelpers";
 import { FORM_TUNING } from "./tuning2";
+import { WEAPON } from "../data/tuning";
 import { SKILL, SKILL_DEFS, canAttach } from "./data";
 import { inAnyForm, shapeCastBlock } from "./forms";
 import { stoneFromSeed } from "./generator";
@@ -323,13 +324,14 @@ describe("砲身化", () => {
 });
 
 describe("鉄塊化", () => {
-  it("近接が 1 段の重い振り（怯み値 40）になり、移動 ×0.7", () => {
+  it("近接が 1 段の重い振り（怯み値 40 × 重い武器の補償）になり、移動 ×0.7", () => {
     const state = skillArena([{ key: "ironForm" }]);
     cast(state);
     expect(skillMoveMul(state)).toBeCloseTo(SKILL.ironForm.moveMul);
     updatePlayer(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
     const step = currentMeleeStep(state);
-    expect(step?.poise).toBeCloseTo(SKILL.ironForm.swing.poise * state.stats.poiseDamageMul);
+    // 鉄塊化の振りは重さ heavy なので重い武器の怯み値の補償も掛かる
+    expect(step?.poise).toBeCloseTo(SKILL.ironForm.swing.poise * state.stats.poiseDamageMul * WEAPON.weightClass.heavy.poiseMul);
     expect(step?.heavy).toBe(true);
     expect(playerMoveset(state).steps).toHaveLength(1);
   });

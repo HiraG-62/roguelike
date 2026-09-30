@@ -182,7 +182,8 @@ function hitShot(state: GameState, s: SkillShot, e: Enemy): void {
 
 function basicHit(state: GameState, s: SkillShot, e: Enemy, power: number, poise?: number): boolean {
   const kind = s.effect === "gale" ? "melee" : "ranged";
-  return skillHit(state, e, s.params, { base: power, kind, dir: s.vel, knockback: s.knockback, stagger: false, poise, applies: s.applies, from: s.pos });
+  // 砲台の弾は連動体の一撃（鈴の戦意・流儀の気力の源 minionHit）
+  return skillHit(state, e, s.params, { base: power, kind, dir: s.vel, knockback: s.knockback, stagger: false, poise, applies: s.applies, from: s.pos, minion: s.effect === "turret" });
 }
 
 /** 状態異常の種類（良い状態・怯み・堅守を除く） */

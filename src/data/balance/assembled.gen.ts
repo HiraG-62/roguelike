@@ -913,6 +913,8 @@ import j_ultimates_ULTIMATE_defs_claws from "./ultimates/ULTIMATE/defs/claws.jso
 import j_ultimates_ULTIMATE_defs_flail from "./ultimates/ULTIMATE/defs/flail.json";
 import j_ultimates_ULTIMATE_defs_ringBlades from "./ultimates/ULTIMATE/defs/ringBlades.json";
 import j_ultimates_ULTIMATE_defs_fan from "./ultimates/ULTIMATE/defs/fan.json";
+import j_ultimates_ULTIMATE_defs_book from "./ultimates/ULTIMATE/defs/book.json";
+import j_ultimates_ULTIMATE_defs_handbell from "./ultimates/ULTIMATE/defs/handbell.json";
 import j_weapons__index from "./weapons/_index.json";
 import j_weapons_WEAPON__index from "./weapons/WEAPON/_index.json";
 import j_weapons_WEAPON_movesets_sword from "./weapons/WEAPON/movesets/sword.json";
@@ -942,6 +944,8 @@ import j_weapons_WEAPON_movesets_claws from "./weapons/WEAPON/movesets/claws.jso
 import j_weapons_WEAPON_movesets_flail from "./weapons/WEAPON/movesets/flail.json";
 import j_weapons_WEAPON_movesets_ringBlades from "./weapons/WEAPON/movesets/ringBlades.json";
 import j_weapons_WEAPON_movesets_fan from "./weapons/WEAPON/movesets/fan.json";
+import j_weapons_WEAPON_movesets_book from "./weapons/WEAPON/movesets/book.json";
+import j_weapons_WEAPON_movesets_handbell from "./weapons/WEAPON/movesets/handbell.json";
 import j_weapons_WEAPON_artDefaults from "./weapons/WEAPON/artDefaults.json";
 import j_weapons_WEAPON_movesetRules from "./weapons/WEAPON/movesetRules.json";
 import j_weapons_WEAPON_jobBranches from "./weapons/WEAPON/jobBranches.json";
@@ -2060,6 +2064,8 @@ export const ultimates = {
       "flail": j_ultimates_ULTIMATE_defs_flail,
       "ringBlades": j_ultimates_ULTIMATE_defs_ringBlades,
       "fan": j_ultimates_ULTIMATE_defs_fan,
+      "book": j_ultimates_ULTIMATE_defs_book,
+      "handbell": j_ultimates_ULTIMATE_defs_handbell,
     },
   },
 };
@@ -2102,6 +2108,8 @@ export const weapons = {
       "flail": j_weapons_WEAPON_movesets_flail,
       "ringBlades": j_weapons_WEAPON_movesets_ringBlades,
       "fan": j_weapons_WEAPON_movesets_fan,
+      "book": j_weapons_WEAPON_movesets_book,
+      "handbell": j_weapons_WEAPON_movesets_handbell,
     },
     "artDefaults": j_weapons_WEAPON_artDefaults,
     "movesetRules": j_weapons_WEAPON_movesetRules,
@@ -3216,6 +3224,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "ultimates/ULTIMATE/common.json",
   "ultimates/ULTIMATE/defs/_index.json",
   "ultimates/ULTIMATE/defs/axe.json",
+  "ultimates/ULTIMATE/defs/book.json",
   "ultimates/ULTIMATE/defs/cannon.json",
   "ultimates/ULTIMATE/defs/chainSickle.json",
   "ultimates/ULTIMATE/defs/claws.json",
@@ -3227,6 +3236,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "ultimates/ULTIMATE/defs/grenade.json",
   "ultimates/ULTIMATE/defs/gunner.json",
   "ultimates/ULTIMATE/defs/hammer.json",
+  "ultimates/ULTIMATE/defs/handbell.json",
   "ultimates/ULTIMATE/defs/katana.json",
   "ultimates/ULTIMATE/defs/longarm.json",
   "ultimates/ULTIMATE/defs/ringBlades.json",
@@ -3285,6 +3295,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/movesetRules.json",
   "weapons/WEAPON/movesets/_index.json",
   "weapons/WEAPON/movesets/axe.json",
+  "weapons/WEAPON/movesets/book.json",
   "weapons/WEAPON/movesets/cannon.json",
   "weapons/WEAPON/movesets/chainSickle.json",
   "weapons/WEAPON/movesets/claws.json",
@@ -3296,6 +3307,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/movesets/grenade.json",
   "weapons/WEAPON/movesets/gunner.json",
   "weapons/WEAPON/movesets/hammer.json",
+  "weapons/WEAPON/movesets/handbell.json",
   "weapons/WEAPON/movesets/katana.json",
   "weapons/WEAPON/movesets/longarm.json",
   "weapons/WEAPON/movesets/ringBlades.json",

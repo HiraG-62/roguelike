@@ -246,6 +246,11 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   ironFan: "jade",
   danceFan: "gold",
   warFan: "crimson",
+  // 段取り 5d（書・鈴の器）
+  manuscript: "azure",
+  grimoire: "umbra",
+  kagura: "jade",
+  vajraBell: "azure",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

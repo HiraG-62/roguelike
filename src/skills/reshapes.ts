@@ -38,6 +38,9 @@ export const WEAPON_ART = {
   flail: { kind: "circle", name: "鉄球旋風", radius: 52, hits: 1, mul: 1.3, knockbackMul: 1.6 },
   ringBlades: { kind: "circle", name: "輪乱舞", radius: 42, hits: 2, mul: 0.7 },
   fan: { kind: "cone", name: "扇薙ぎ", radius: 44, halfAngle: 1.1, hits: 1, mul: 0.8 },
+  // 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8）
+  book: { kind: "shots", name: "頁散らし", count: 4, spreadRad: 0.25, speed: 220, life: 0.6, radius: 3, mul: 0.4 },
+  handbell: { kind: "circle", name: "鈴打ち", radius: 46, hits: 1, mul: 1.1, knockbackMul: 1.4 },
 } as const;
 
 /** 極意の出血（鉈）の持続と 10px あたりダメージ */

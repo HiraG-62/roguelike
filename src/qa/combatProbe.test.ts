@@ -104,10 +104,10 @@ describe("連打計測（縮小版）", () => {
 });
 
 describe("武器種 × 敵の計測", () => {
-  it("フル版は 27 武器種すべてを測り、bot は連打+ダッシュ・敵は 3 種・深度 1 / 5・60 秒 × seed 3", () => {
+  it("フル版は 29 武器種すべてを測り、bot は連打+ダッシュ・敵は 3 種・深度 1 / 5・60 秒 × seed 3", () => {
     const cfg = FULL_PROBE_CONFIG;
     expect(cfg.weapons, "全武器種").toEqual(MOVESET_KEYS);
-    expect(cfg.weapons).toHaveLength(27);
+    expect(cfg.weapons).toHaveLength(29);
     expect(cfg.weaponProbe.bot).toBe("mashDodge");
     expect(cfg.weaponProbe.enemies).toEqual(["slime", "knight", "eye"]);
     expect(cfg.weaponProbe.depths).toEqual([1, 5]);

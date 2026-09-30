@@ -278,13 +278,23 @@ describe("fxMotions: 奥義の絵の表", () => {
   });
 });
 
+/**
+ * エフェクトの絵がまだ無い武器種（段取り 5d の書・鈴。振り・奥義とも手続きの描画に落ちる）。
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す
+ */
+const UNDRAWN_MOVESETS: readonly MovesetKey[] = ["book", "handbell"];
+
 describe("fxMotions: 全武器種・全奥義の網羅", () => {
   it("どの武器種も専用の絵の表を持つ（手続きの描画に戻らない）", () => {
-    for (const key of MOVESET_KEYS) expect(MOVESET_FX[key], key).toBeDefined();
+    for (const key of MOVESET_KEYS) {
+      if (UNDRAWN_MOVESETS.includes(key)) expect(MOVESET_FX[key], `${key} は絵ができたので UNDRAWN_MOVESETS から消す`).toBeUndefined();
+      else expect(MOVESET_FX[key], key).toBeDefined();
+    }
   });
 
   it("どの奥義も専用の絵を持つ（一撃は発動と行為、持続は発動と纏い）", () => {
     for (const key of MOVESET_KEYS) {
+      if (UNDRAWN_MOVESETS.includes(key)) continue;
       for (const def of ULTIMATES[key]) {
         const fx = ULTIMATE_FX[def.key];
         expect(fx?.cast, `${def.key} の発動`).toBeDefined();

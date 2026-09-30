@@ -3,10 +3,12 @@
   "stepsMin": 3,
   "stepsMax": 3,
   "max": 5,
-  "releaseMin": 5,
+  "releaseMin": 3,
   "consumeUnits": 0,
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "perUnit": {"damageMul": 0, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0}
+  "gain": {"skillHit": 1},
+  "perUnit": {"damageMul": 0.1, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
+  "skillCooldownMul": 0.7
 }

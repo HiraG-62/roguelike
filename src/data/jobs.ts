@@ -21,17 +21,14 @@ const MS = MANA_SOURCE;
  * ダッシュの形は src/system/dashForms.ts、気力の源は src/system/manaSources.ts
  */
 
-export const JOB_KEYS = ["none", "swordsman", "hunter", "brawler", "shieldBearer", "hexer", "lancer", "invoker", "shadow", "alchemist"] as const;
+export const JOB_KEYS = ["none", "swordsman", "hunter", "brawler", "shieldBearer", "hexer", "lancer", "invoker", "shadow", "alchemist", "onmyoji", "miko"] as const;
 export type JobKey = (typeof JOB_KEYS)[number];
 
-/**
- * ダッシュの形（src/system/dashForms.ts）。数値は DASH_FORM.<形>。
- * 陰陽師の swap・巫女の ward は段取り 5d で足す（末尾に足す）
- */
-export const DASH_FORM_KEYS = ["standard", "step", "leap", "slip", "brace", "mist", "vault", "blink", "shadow", "flask"] as const;
+/** ダッシュの形（src/system/dashForms.ts）。数値は DASH_FORM.<形>。新しい形は末尾に足す */
+export const DASH_FORM_KEYS = ["standard", "step", "leap", "slip", "brace", "mist", "vault", "blink", "shadow", "flask", "swap", "ward"] as const;
 export type DashForm = (typeof DASH_FORM_KEYS)[number];
 
-/** ダッシュの形の表示名（docs/GLOSSARY.md）。「踏み込み」「飛び退き」「跳躍」「瞬歩」「霧」は既存の語と重なるので避けた */
+/** ダッシュの形の表示名（docs/GLOSSARY.md）。「踏み込み」「飛び退き」「跳躍」「瞬歩」「霧」「結界」（スキル「結界杭」）は既存の語と重なるので避けた */
 export const DASH_FORM_NAMES: Readonly<Record<DashForm, string>> = {
   standard: "駆け",
   step: "詰め足",
@@ -43,12 +40,14 @@ export const DASH_FORM_NAMES: Readonly<Record<DashForm, string>> = {
   blink: "転移",
   shadow: "影潜り",
   flask: "瓶投げ",
+  swap: "入れ替わり",
+  ward: "護り足",
 };
 
 /**
  * 気力の源（src/system/manaSources.ts）。流儀ごとに気力がどこから湧くか。
  * attackHit は通常攻撃の命中の回収（MANA.onMelee / onShot）に掛ける倍率。見習いは 1、他は JOB.manaBaseMul の下地。
- * minionHit（陰陽師）・boonFired（巫女）は段取り 5d のジョブが使う（呼び出しの口は先に入れてある）
+ * minionHit（陰陽師。skills/hit.ts の SkillHitSpec.minion）・boonFired（巫女。system/rules.ts の加護の発火）
  */
 export type ManaSource =
   | { readonly kind: "attackHit"; readonly mul: number }
@@ -98,6 +97,7 @@ export interface JobDef {
 }
 
 const ALWAYS = 1;
+const PERCENT = 100;
 const NO_ICD = 0;
 /** 広げる状態異常の強さの倍率（元と同じ） */
 const SAME_POTENCY = 1;
@@ -336,6 +336,49 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     keywords: kw(["reaction", "energy", "explode"], ["reaction", "kill"]),
     unlockedBy: "deepChain",
   },
+  onmyoji: {
+    name: "陰陽師",
+    desc: "設置物・従魔を敵に当てて気力を得る。ダッシュで自分の設置物と入れ替わり、スキルを当てた敵を弱らせる。",
+    attributes: JOB_ATTRIBUTES.onmyoji,
+    dash: "swap",
+    mana: [BASE_ATTACK_MANA, { kind: "minionHit", amount: MS.onmyoji.minionHit }],
+    rules: [
+      jobRule("onmyoji", 0, `スキルが敵に当たると ${JOB.onmyojiWeakenSec} 秒間弱体にする。`, {
+        when: "onSkillHit",
+        // 敵ごとの再付与の間隔は inflict 自身が持つ（規則の ICD だと範囲の命中で 1 体にしか付かない）
+        then: { kind: "inflict", status: "weaken", magnitude: JOB.onmyojiWeakenSec },
+      }),
+      jobRule("onmyoji", 1, `弱体の敵を倒すと奥義ゲージ +${JOB.onmyojiKillEnergy}。`, {
+        when: "onKill",
+        if: [{ kind: "targetHas", status: "weaken" }],
+        then: { kind: "energy", magnitude: JOB.onmyojiKillEnergy },
+      }),
+    ],
+    starterSkill: "mines",
+    starterWeapon: "ironFan",
+    keywords: kw(["placed", "weaken", "energy"], ["kill"]),
+  },
+  miko: {
+    name: "巫女",
+    desc: "祝福の加護が発動するたびに気力が湧く。ダッシュの着地に結界を張り、被弾を祓う。",
+    attributes: JOB_ATTRIBUTES.miko,
+    dash: "ward",
+    mana: [BASE_ATTACK_MANA, { kind: "boonFired", amount: MS.miko.boonFired }],
+    rules: [
+      jobRule("miko", 0, `被弾すると状態異常を 1 つ祓う（${JOB.mikoHurtIcd} 秒に 1 回）。`, {
+        when: "onHurt",
+        then: { kind: "cleanse", magnitude: 1 },
+        icd: JOB.mikoHurtIcd,
+      }),
+      jobRule("miko", 1, `部屋を制圧すると最大生命の ${Math.round(JOB.mikoClearHealRatio * PERCENT)}% を回復する。`, {
+        when: "onRoomClear",
+        then: { kind: "healDirect", magnitude: JOB.mikoClearHealRatio, scaleBy: "maxHp" },
+      }),
+    ],
+    starterSkill: "manaSpring",
+    starterWeapon: "wand",
+    keywords: kw(["ward", "heal"], ["hurt", "clear"]),
+  },
 };
 
 export function isJobKey(v: unknown): v is JobKey {
@@ -361,6 +404,8 @@ const JOB_BRANCH_NAMES: Readonly<Record<Exclude<JobKey, "none">, string>> = {
   invoker: "魔力放出",
   shadow: "影縫い",
   alchemist: "反応刃",
+  onmyoji: "式打ち",
+  miko: "祓い斬り",
 };
 
 /**
@@ -377,6 +422,8 @@ export const JOB_BRANCHES: Readonly<Record<Exclude<JobKey, "none">, BranchDef>> 
   invoker: jobBranchDef("invoker"),
   shadow: jobBranchDef("shadow"),
   alchemist: jobBranchDef("alchemist"),
+  onmyoji: jobBranchDef("onmyoji"),
+  miko: jobBranchDef("miko"),
 };
 
 function jobBranchDef(job: Exclude<JobKey, "none">): BranchDef {
@@ -404,6 +451,8 @@ const LEGACY_FAVORED: Readonly<Record<JobKey, readonly MovesetKey[]>> = {
   invoker: ["wand", "whip"],
   shadow: ["twinBlades", "fists"],
   alchemist: ["staff", "cleaver"],
+  onmyoji: ["fan", "wand"],
+  miko: ["wand", "staff"],
 };
 
 /** 旧「得意な武器」の武器種（見習いは空） */

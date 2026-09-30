@@ -11,7 +11,11 @@
     "touchRadius": "霧隠れ: すり抜けを数える距離（体の縁どうし）。px（10px = 1m）",
     "backstabSec": "影潜り: 潜り終えてからこの秒の間の攻撃は背面から当たる（堅守を無視し、影の気力が湧く）",
     "terrainRadius": "瓶投げ: 元いた所に撒く油の半径。px（10px = 1m）",
-    "terrainSec": "瓶投げ: 撒いた油が残る秒"
+    "terrainSec": "瓶投げ: 撒いた油が残る秒",
+    "range": "入れ替わり: 入れ替われる設置物・従魔までの距離の上限。px（10px = 1m）。この外か、無いときは駆け（距離・秒・無敵の倍率は駆けと同じ行）",
+    "swapInvulnSec": "入れ替わり: 入れ替わった直後の無敵の秒（駆けの無敵とは別。ダッシュ中ではないので見切りにはならない）",
+    "wardSec": "護り足: ダッシュを終えてからの結界が残る秒",
+    "incomingMul": "護り足: 結界の中の被ダメージの倍率（全方位。0.5 で半分）"
   },
   "standard": { "distanceMul": 1, "timeMul": 1, "invulnMul": 1, "invulnAdd": 0 },
   "step": { "distanceMul": 0.6, "timeMul": 0.6, "invulnMul": 0.5, "invulnAdd": 0, "keepChainSec": 0.25 },
@@ -22,5 +26,7 @@
   "vault": { "distanceMul": 1.2, "timeMul": 1.2, "invulnMul": 1.6, "invulnAdd": 0 },
   "blink": { "distanceMul": 1, "timeMul": 1, "invulnMul": 0, "invulnAdd": 0 },
   "shadow": { "distanceMul": 1.5, "timeMul": 2.5, "invulnMul": 1, "invulnAdd": 0, "backstabSec": 0.5 },
-  "flask": { "distanceMul": 0.6, "timeMul": 0.6, "invulnMul": 1, "invulnAdd": 0, "terrainRadius": 14, "terrainSec": 4 }
+  "flask": { "distanceMul": 0.6, "timeMul": 0.6, "invulnMul": 1, "invulnAdd": 0, "terrainRadius": 14, "terrainSec": 4 },
+  "swap": { "distanceMul": 1, "timeMul": 1, "invulnMul": 1, "invulnAdd": 0, "range": 160, "swapInvulnSec": 0.3 },
+  "ward": { "distanceMul": 0.4, "timeMul": 0.4, "invulnMul": 1, "invulnAdd": 0, "wardSec": 1.5, "incomingMul": 0.5 }
 }

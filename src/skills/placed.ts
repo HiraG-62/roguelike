@@ -251,7 +251,7 @@ function collapseWell(state: GameState, pos: Vec, radius: number, params: CastPa
   pushSfx(state, "explode");
   const power = skillPower(state, g.burstDamage, params);
   for (const e of enemiesInRadius(state, pos, radius)) {
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: g.burstKnockback, stagger: true, applies: null });
+    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: g.burstKnockback, stagger: true, applies: null, minion: true });
   }
 }
 
@@ -287,7 +287,7 @@ function explodeMine(state: GameState, pos: Vec, params: CastParams): void {
   const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
     const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
-    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback * mul, stagger: true, poise: poise * mul });
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: m.knockback * mul, stagger: true, poise: poise * mul, minion: true });
   }
 }
 
@@ -336,6 +336,37 @@ function updateMires(state: GameState, dt: number): void {
     }
   }
   state.skills.mires = zones.filter((z) => z.timer > 0);
+}
+
+/**
+ * 鈴の打ち鳴らし（system/tomeBell.ts）: center から radius の内側に置いた設置物を今すぐ動かす。
+ * 引力球・氷結地帯・泥沼は次の刻みを今にし、地雷はその場で起爆する（雷撃の落下待ち・回転弾幕は置いた物ではないので含めない）。
+ * 動かした数を返す
+ */
+export function tollPlaced(state: GameState, center: Vec, radius: number): number {
+  const rs = state.skills;
+  const near = (pos: Vec): boolean => dist(pos, center) <= radius;
+  let count = 0;
+  for (const w of rs.wells) {
+    if (!near(w.pos)) continue;
+    w.tick = 0;
+    count += 1;
+  }
+  for (const f of rs.fields) {
+    if (!near(f.pos)) continue;
+    f.tick = 0;
+    count += 1;
+  }
+  for (const z of rs.mires ?? []) {
+    if (z.map !== state.map || !near(z.pos)) continue;
+    z.tick = 0;
+    count += 1;
+  }
+  // 起爆した地雷は次の更新で踏まれて二度爆ぜないよう、先に取り除いてから爆発させる
+  const blown = rs.mines.filter((mine) => near(mine.pos));
+  rs.mines = rs.mines.filter((mine) => !near(mine.pos));
+  for (const mine of blown) explodeMine(state, mine.pos, mine.params);
+  return count + blown.length;
 }
 
 function updateBullets(state: GameState, dt: number): void {

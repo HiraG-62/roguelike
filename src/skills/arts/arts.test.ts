@@ -21,6 +21,8 @@ import { ART_SKILL_KEYS, COMMON_ART_KEYS, WEAPON_ART_KEYS, WEAPON_ART_MOVESETS, 
 
 const BIG_HP = 5000;
 const MIN_PER_MOVESET = 10;
+/** 技をまだ持たない武器種（段取り 5d の書・鈴。技の圧縮は段取り 7、docs/ideas/weapon-forms-impl.md 3-8） */
+const NO_ARTS_YET: readonly MovesetKey[] = ["book", "handbell"];
 let seed = 9100;
 
 function makeStone(key: SkillKey, links = 0): SkillStone {
@@ -72,6 +74,7 @@ function ahead(state: GameState, dx: number): Vec {
 describe("技の定義", () => {
   it("どの武器種にも武器技が 10 種以上ある", () => {
     for (const m of MOVESET_KEYS) {
+      if (NO_ARTS_YET.includes(m)) continue;
       const keys = (WEAPON_ART_KEYS as Partial<Record<MovesetKey, readonly string[]>>)[m] ?? [];
       expect(keys.length, `${MOVESETS[m].name}の武器技`).toBeGreaterThanOrEqual(MIN_PER_MOVESET);
     }

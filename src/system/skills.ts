@@ -119,6 +119,7 @@ import { ART_CAST_RANGE, isArtKey, weaponArtLabel } from "../skills/arts";
 import { MOVESETS } from "../data/weapons";
 import type { ArtSkillKey } from "../skills/arts/keys";
 import { castArt, updateArtQueue } from "../skills/arts/engine";
+import { consumeFreeCast, formSkillCooldownMul, freeCastCost, tickTomeBell } from "./tomeBell";
 
 /**
  * アクティブスキルの発動・更新・ドロップ・刻印符。docs/ideas/skills.md「7-4」〜「7-7」。
@@ -309,12 +310,13 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const params = cachedCast(def, stone, slotState);
   const burden = castBurden(def, params);
   const dynamic = dynamicBurdenMul(state, slot, def, params);
-  const cost = manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic, slot).cost);
+  // 書の無詠唱は気力を 0 に、書を持つ間は再使用が短い（system/tomeBell.ts）
+  const cost = freeCastCost(state, manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic, slot).cost));
   return {
     stone,
     def,
     params,
-    cooldown: burden.cooldown * dynamic,
+    cooldown: burden.cooldown * dynamic * formSkillCooldownMul(state),
     cost,
     interval: castInterval(def, params),
     resource: params.resource,
@@ -634,6 +636,7 @@ function tickTimers(state: GameState, dt: number): void {
   if (rs.pendingTimer === 0) rs.pendingSlot = -1;
   rs.manaFlash = Math.max(0, rs.manaFlash - dt);
   rs.backstabTimer = Math.max(0, rs.backstabTimer - dt);
+  tickTomeBell(state, dt);
   tickFormWait(state, dt);
   for (const slot of rs.slots) {
     slot.heatTimer = Math.max(0, slot.heatTimer - dt);
@@ -1167,6 +1170,7 @@ function payResource(state: GameState, index: number, slot: SkillSlotState, r: R
   slot.intervalLeft = r.interval;
   if (r.resource === "mana") {
     const paid = payMana(state, index, r);
+    consumeFreeCast(state);
     heatUp(slot, r);
     return paid;
   }

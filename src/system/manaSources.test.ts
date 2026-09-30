@@ -5,6 +5,12 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { JOBS, type JobKey } from "../data/jobs";
 import { JOB, MANA_SOURCE } from "../data/tuning";
+import { enemyTarget, pushPlayerEvent } from "../core/events";
+import { SKILL, SKILL_DEFS, resolveCast } from "../skills/data";
+import { stoneFromSeed } from "../skills/generator";
+import { placeMine, spawnWell, updatePlacedSkills } from "../skills/placed";
+import type { CastParams, SkillKey } from "../skills/types";
+import { grantBoon } from "./boons";
 import { damageEnemy, damagePlayer } from "./combat";
 import { isDashing } from "./player";
 import {
@@ -17,6 +23,7 @@ import {
   onManaSource,
 } from "./manaSources";
 import { noteRiposte } from "./moments";
+import { resolveRules } from "./rules";
 import { applyStatus, updateStatusEffects } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
@@ -34,6 +41,10 @@ const NO_ATTACK_COOLDOWN = 99;
 const SWING_STEPS = 20;
 /** ダッシュが終わるまで回す上限のステップ数 */
 const MAX_DASH_STEPS = 120;
+/** 地雷が起爆するまで回す上限のステップ数 */
+const MAX_MINE_STEPS = 200;
+/** 敵を 1 発で倒さない体力（撃破の気力を混ぜない） */
+const TOUGH_HP = 100000;
 
 function jobArena(job: JobKey): GameState {
   // 自然回復を止めて、源の量だけを数える
@@ -41,6 +52,18 @@ function jobArena(job: JobKey): GameState {
   state.job = job;
   state.player.mana = 0;
   return state;
+}
+
+function paramsFor(key: SkillKey): CastParams {
+  const stone = { ...stoneFromSeed(1, { foundDepth: 1, now: 0, skillKey: key }), variants: [], links: 0 };
+  return resolveCast(SKILL_DEFS[key], stone, []);
+}
+
+function toughEnemy(state: GameState): Enemy {
+  const e = passive(placeEnemy(state, "golem", NEAR));
+  e.hp = TOUGH_HP;
+  e.maxHp = TOUGH_HP;
+  return e;
 }
 
 function passive(e: Enemy): Enemy {
@@ -166,11 +189,47 @@ describe("流儀ごとの源", () => {
     expect(got, "蒸発").toBeCloseTo(MANA_SOURCE.alchemist.reaction);
   });
 
-  it("陰陽師・巫女の源（式神の命中・加護の発火）は口だけで、今の流儀は持たない", () => {
-    for (const job of ["none", "swordsman", "invoker"] as const) {
-      const state = jobArena(job);
-      expect(onManaSource(state, "minionHit"), `${job} の式神`).toBe(0);
-      expect(onManaSource(state, "boonFired"), `${job} の加護`).toBe(0);
+  it("陰陽師: 設置物が爆ぜて敵に当たると湧く。引力球・氷結地帯の刻みは数えない", () => {
+    const state = jobArena("onmyoji");
+    const e = toughEnemy(state);
+    placeMine(state, { ...e.body.pos }, paramsFor("mines"));
+    const got = gained(state, () => {
+      for (let i = 0; i < MAX_MINE_STEPS && state.skills.mines.length > 0; i++) updatePlacedSkills(state, FIXED_DT);
+    });
+    expect(state.skills.mines, "起爆した").toHaveLength(0);
+    expect(got, "地雷の命中").toBeCloseTo(MANA_SOURCE.onmyoji.minionHit);
+    const well = jobArena("onmyoji");
+    toughEnemy(well);
+    spawnWell(well, { x: well.player.body.pos.x + NEAR, y: well.player.body.pos.y }, paramsFor("gravityWell"));
+    expect(gained(well, () => updatePlacedSkills(well, FIXED_DT)), "引力球の刻みは湧かない").toBe(0);
+    expect(SKILL.gravityWell.tickEvery, "前提: 刻みで当たっている").toBeGreaterThan(0);
+  });
+
+  it("陰陽師: 直接の口（onManaSource）でも湧き、他の流儀は湧かない", () => {
+    const state = jobArena("onmyoji");
+    expect(gained(state, () => onManaSource(state, "minionHit")), "式神の命中").toBeCloseTo(MANA_SOURCE.onmyoji.minionHit);
+    expect(gained(state, () => onManaSource(state, "skillHit")), "スキルの命中の源は持たない").toBe(0);
+    for (const job of ["none", "swordsman", "invoker", "miko"] as const) {
+      const other = jobArena(job);
+      expect(onManaSource(other, "minionHit"), `${job} の式神`).toBe(0);
+    }
+  });
+
+  it("巫女: 祝福の加護が発動すると湧く。祝福でないルール（ジョブ自身）は数えない", () => {
+    const state = jobArena("miko");
+    grantBoon(state, "deathRush");
+    const e = toughEnemy(state);
+    e.hp = 0;
+    pushPlayerEvent(state, "onKill", "kill", enemyTarget(e, true));
+    resolveRules(state, 0);
+    expect(state.player.mana, "加護の発火").toBeCloseTo(MANA_SOURCE.miko.boonFired);
+    const own = jobArena("miko");
+    pushPlayerEvent(own, "onRoomClear", "clear");
+    resolveRules(own, 0);
+    expect(own.player.mana, "ジョブ自身のルールは数えない").toBe(0);
+    for (const job of ["none", "swordsman", "onmyoji"] as const) {
+      const other = jobArena(job);
+      expect(onManaSource(other, "boonFired"), `${job} の加護`).toBe(0);
     }
   });
 });

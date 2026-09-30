@@ -32,7 +32,11 @@
     "shadowJustSpeedSec": "影: 見切りの後の移動速度増が続く秒",
     "alchemistReactionEnergy": "錬金術師: 状態異常の反応を起こすたびに溜まる必殺ゲージ（最大 100）",
     "alchemistBlastRatio": "錬金術師: 状態異常が 2 種以上付いた敵を倒したときの爆発の威力。近接 1 段目の威力に掛ける倍率",
-    "alchemistBlastIcd": "錬金術師: 爆発の規則がもう一度発動できるまでの秒（内部の再使用時間）"
+    "alchemistBlastIcd": "錬金術師: 爆発の規則がもう一度発動できるまでの秒（内部の再使用時間）",
+    "onmyojiWeakenSec": "陰陽師: スキルが敵に当たったときに付ける弱体の秒",
+    "onmyojiKillEnergy": "陰陽師: 弱体の敵を倒したときに溜まる必殺ゲージ（最大 100）",
+    "mikoHurtIcd": "巫女: 被弾で状態異常を祓う規則がもう一度発動できるまでの秒（内部の再使用時間）",
+    "mikoClearHealRatio": "巫女: 部屋を制圧したときの回復。最大生命に対する割合（0.1 で 10%）"
   },
   "manaBaseMul": 0.35,
   "starterStoneLinks": 1,
@@ -66,5 +70,9 @@
   "shadowJustSpeedSec": 2,
   "alchemistReactionEnergy": 6,
   "alchemistBlastRatio": 0.6,
-  "alchemistBlastIcd": 1
+  "alchemistBlastIcd": 1,
+  "onmyojiWeakenSec": 3,
+  "onmyojiKillEnergy": 5,
+  "mikoHurtIcd": 8,
+  "mikoClearHealRatio": 0.08
 }

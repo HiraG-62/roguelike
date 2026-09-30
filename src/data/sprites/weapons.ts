@@ -952,6 +952,9 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   flail: held(FLAIL_SIDE, FLAIL_DIAG),
   ringBlades: held(RING_BLADES_SIDE, RING_BLADES_DIAG),
   fan: edged(FAN_SIDE, FAN_DIAG),
+  // 段取り 5d: 専用の持ち手ができるまで既存の絵を流用（書 = 杖、手鈴 = チェーンアレイの鉄球）。pixel-artist レーンが差し替える
+  book: held(WAND_SIDE, WAND_DIAG),
+  handbell: held(FLAIL_SIDE, FLAIL_DIAG),
 };
 
 // -----------------------------------------------------------------------------

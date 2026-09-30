@@ -252,8 +252,11 @@ describe("戦意: 長銃（狙い）", () => {
 });
 
 describe("戦意の共通", () => {
-  it("骨の型（書・鈴。5d で埋める）は溜まる出来事を持たない（HUD には出さない）", () => {
-    for (const key of ["tome", "bell"] as const) expect(FORMS[key].morale.gain, key).toEqual([]);
+  it("書・鈴（5d）はスキル・設置物の命中で溜まり、右 1 段目が放出（仕組みは system/tomeBell.test.ts）", () => {
+    expect(FORMS.tome.morale.gain.map((g) => g.kind), "書").toEqual(["skillHit"]);
+    expect(FORMS.bell.morale.gain.map((g) => g.kind), "鈴").toEqual(["minionHit"]);
+    expect(FORMS.tome.morale.release, "書の放出").toEqual({ kind: "laneStep", keys: ["freeCast"] });
+    expect(FORMS.bell.morale.release, "鈴の放出").toEqual({ kind: "laneStep", keys: ["toll"] });
   });
 
   it("上限の加算と溜まりやすさの倍率が効く", () => {

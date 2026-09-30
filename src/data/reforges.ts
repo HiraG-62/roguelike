@@ -411,14 +411,14 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
       },
     ],
   }),
-  // ---- 書（段取り 5d で書の武器種が入るまで 3 択に出ない） ----
+  // ---- 書 ----
   tomeHaste: def("tomeHaste", "tome", "速読", "無詠唱を放つと、スキルの再使用が縮む", {
     rules: [{ when: "onRelease", then: { kind: "skillHaste", magnitude: R.tome.tomeHaste.seconds } }],
   }),
   tomeFont: def("tomeFont", "tome", "熟読", "術が満ちると、気力が湧く", {
     rules: [{ when: "onBrim", then: { kind: "restoreMana", magnitude: R.tome.tomeFont.mana } }],
   }),
-  // ---- 鈴（段取り 5d で鈴の武器種が入るまで 3 択に出ない） ----
+  // ---- 鈴 ----
   bellToll: def("bellToll", "bell", "鳴動", "打ち鳴らしの音が、周りの敵を怯ませる", {
     rules: [{ when: "onRelease", then: { kind: "addPoise", magnitude: R.bell.bellToll.poise } }],
   }),

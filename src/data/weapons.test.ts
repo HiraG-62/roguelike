@@ -453,6 +453,8 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     flail: "charge",
     ringBlades: "volley",
     fan: "hold",
+    book: "swing",
+    handbell: "swing",
   };
 
   it("すべての武器種が右 1 段目の技を持ち、名前が登録済みで種類が設計どおり", () => {

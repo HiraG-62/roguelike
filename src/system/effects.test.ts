@@ -213,17 +213,17 @@ describe("効果音の名前", () => {
     for (const b of Object.values(BULLETS)) expect(names.has(shotSfxName(b)), `発射音 ${b.key}`).toBe(true);
     expect(shotSfxName(bulletDef("pistol")), "性質の無い弾は shoot").toBe("shoot");
     expect(shotSfxName(bulletDef("mortar")), "曲射筒は曲射の音").toBe("shotLob");
-    // 武器 Wave 4 の 4 種（爪・チェーンアレイ・チャクラム・扇子）は既存の振り音を流用する（docs/ideas/weapons-wave4.md 8 章 9）
-    const sharedSwing = 4;
-    expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音（流用の 4 種を除く）").toBe(MOVESET_KEYS.length - sharedSwing);
+    // 武器 Wave 4 の 4 種（爪・チェーンアレイ・チャクラム・扇子）と段取り 5d の書・鈴は既存の振り音を流用する（docs/ideas/weapons-wave4.md 8 章 9）
+    const sharedSwing = 6;
+    expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音（流用の 6 種を除く）").toBe(MOVESET_KEYS.length - sharedSwing);
   });
 
-  it("27 武器種すべてに命中音の系統がある", () => {
+  it("29 武器種すべてに命中音の系統がある", () => {
     for (const key of MOVESET_KEYS) {
       const family = hitFamily(key);
       expect(["slash", "blunt", "pierce", "lash"], `${key} の系統`).toContain(family);
     }
-    expect(MOVESET_KEYS.length, "武器種は 27 種").toBe(27);
+    expect(MOVESET_KEYS.length, "武器種は 29 種").toBe(29);
   });
 
   it("命中音は系統と重さで名前が決まり、SFX_NAMES にすべて登録されている", () => {

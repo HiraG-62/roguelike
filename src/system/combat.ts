@@ -28,6 +28,7 @@ import { boonPoise } from "./boonRules";
 import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
+import { wardIncomingMul } from "./dashForms";
 import { noteUltimateKill, ultimateBlocksEnergy, ultimateIncomingMul } from "./ultimates";
 import type { ButtonKey, MovesetKey } from "../data/weapons";
 import { chargeArmorOf } from "./morale";
@@ -518,6 +519,8 @@ export function damagePlayer(
     traitIncomingMul(state, attacker) *
     guardDamageMul(state, fromPos, amount, attacker) *
     ultimateIncomingMul(state, fromPos) *
+    // 護り足（巫女の流儀のダッシュ）の結界
+    wardIncomingMul(state) *
     (chargeArmor?.damageTakenMul ?? 1);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));
   p.hp = Math.max(0, p.hp - taken);

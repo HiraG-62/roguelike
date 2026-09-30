@@ -82,6 +82,9 @@ const CHARACTERS: Readonly<Record<MovesetKey, WeaponCharacter>> = {
   cannon: shift("blunt", 0.75, 1.25, 1, 1.4),
   grenade: shift("blunt", 0.9, 1.05, 0.95, 1.1),
   fan: shift("blunt", 1.25, 0.75, 0.85, 0.6),
+  // 書は紙の束で軽く乾いた音、手鈴は金属の中域（段取り 5d。専用の音は audio レーンで）
+  book: shift("blunt", 1.3, 0.7, 0.8, 0.5),
+  handbell: shift("blunt", 1.05, 1.05, 0.95, 0.9),
   // 刺突: 槍は深く抜け、杖（魔法の杖の殴り）と銃床は軽く短い
   spear: shift("pierce", 0.92, 1.15, 1, 1.2),
   wand: shift("pierce", 1.2, 0.8, 0.85, 0.7),

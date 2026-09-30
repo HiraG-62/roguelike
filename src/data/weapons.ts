@@ -46,6 +46,9 @@ export const MOVESET_KEYS = [
   "flail",
   "ringBlades",
   "fan",
+  // 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8）。型の key（tome / bell）と重ねない
+  "book",
+  "handbell",
 ] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
@@ -841,6 +844,15 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   downdraft: "颪",
   galeCut: "烈風",
   petalStorm: "花吹雪",
+  // 段取り 5d: 書 / 鈴
+  pageStorm: "紙吹雪",
+  sealStrike: "封じ打ち",
+  pageTurn: "頁繰り",
+  pageVolley: "頁飛ばし",
+  bellStorm: "鈴嵐",
+  warding: "魔除け",
+  ringOut: "振り鈴",
+  purifyStrike: "清め打ち",
 };
 
 /** 右レーンの段の表示名（数値は tuning の WEAPON.movesets[].steps2）。構えの離した振りは `${key}.release` */
@@ -956,6 +968,13 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   fanSnap: "扇打ち",
   petalWhirl: "花舞",
   windCutter: "風刃",
+  // 段取り 5d: 書の右（1 段目が放出の無詠唱）/ 鈴の右（1 段目が放出の打ち鳴らし）
+  freeCast: "無詠唱",
+  pageSweep: "頁払い",
+  bookSlam: "閉じ打ち",
+  toll: "打ち鳴らし",
+  bellSweep: "鈴払い",
+  bellDrop: "鈴落とし",
 };
 
 /** 右 1 段目の技の説明（「何ができるか」。2 段目以降の振りは HUD に名前だけ出すので持たない） */
@@ -987,6 +1006,8 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   flailWhirl: "押している間、鉄球を回して周りを打ち続ける。離すと勢いのついた一撃",
   orbitRing: "輪を自分の周りに回らせる。回っている間、近くの敵に何度も当たる",
   fanning: "押している間、前からの被弾を減らす。離すと突風で押し返し、敵弾を払う",
+  freeCast: "頁を払って周りを打つ。術が溜まっていれば、次のスキル 1 回の気力が 0 になる",
+  toll: "鈴を鳴らして周りを打つ。鈴音が溜まっていれば、近くの自分の設置物がすぐ動き、設置物・従魔の威力が少しの間上がる",
 };
 
 /** 弾を出す段・cast の素性（ジャンル・属性）と弾の絵 */
@@ -1008,6 +1029,7 @@ export const CAST_NAMES: Readonly<Record<string, string>> = {
   flash: "閃光",
   darkHand: "闇手",
   arcLightning: "跳ね雷",
+  flyingPage: "飛び頁",
 };
 
 /** cast の弾の素性と絵（キーは cast.key）。無ければ射撃・物理で点の弾 */
@@ -1021,6 +1043,7 @@ const CAST_VOLLEY: Readonly<Record<string, VolleyProfile>> = {
   flash: { attack: attack("ranged", "arcane", "light") },
   darkHand: { attack: attack("ranged", "arcane", "dark") },
   arcLightning: { attack: attack("ranged", "arcane", "lightning") },
+  flyingPage: { attack: attack("ranged", "arcane") },
 };
 
 /** 弾を出す段の素性（ジャンル・属性）と弾の絵。無ければ射撃・物理で点の弾 */
@@ -1576,6 +1599,37 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
         then: { kind: "addPoise", magnitude: R.fanEmberPoise },
       }),
     ],
+  }),
+  // ---- 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8） ----
+  book: defineMoveset({
+    key: "book",
+    name: "書",
+    desc: "軽く打つ 3 段。威力は低いが気力がよく戻る。持っている間はスキルの再使用が短い。右の無詠唱で次のスキルの気力が 0",
+    steps: reviveSteps(W.book.steps),
+    dashAttack: reviveStep(W.book.dashAttack),
+    attackMoveMul: W.book.attackMoveMul,
+    weight: reviveWeight(W.book.weight),
+    form: "tome",
+    primary: "melee",
+    steps2: reviveLane(W.book.steps2),
+    branches: reviveBranches(W.book.branches),
+    keywords: kw(["melee", "mana", "silence"], ["mana"], ["area"]),
+    attack: attack("melee", "arcane"),
+  }),
+  handbell: defineMoveset({
+    key: "handbell",
+    name: "手鈴",
+    desc: "鈴を振って周りを打つ 3 段。右の打ち鳴らしで近くの自分の設置物をすぐ動かし、設置物・従魔の威力を上げる。左の振りでその強化が延びる",
+    steps: reviveSteps(W.handbell.steps),
+    dashAttack: reviveStep(W.handbell.dashAttack),
+    attackMoveMul: W.handbell.attackMoveMul,
+    weight: reviveWeight(W.handbell.weight),
+    form: "bell",
+    primary: "melee",
+    steps2: reviveLane(W.handbell.steps2),
+    branches: reviveBranches(W.handbell.branches),
+    keywords: kw(["melee", "area", "placed"], [], ["placed"]),
+    attack: attack("melee", "arcane"),
   }),
 };
 

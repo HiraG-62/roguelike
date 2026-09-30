@@ -9,7 +9,7 @@ import { SKILL, SKILL_DEFS } from "./data";
 import { angleDiff } from "./geom";
 import { skillHit, skillPower } from "./hit";
 import { spawnShot } from "./shots";
-import type { BoneRing, CastParams, GraveSword, PowderKeg } from "./types";
+import type { BoneRing, CastParams, GraveSword, PowderKeg, Turret } from "./types";
 
 /**
  * 大拡張の設置物・連動体（爆薬樽・剣の墓標・砲台・骨片の輪・湧き石）。
@@ -150,7 +150,7 @@ export function explodeKeg(state: GameState, pos: Vec, params: CastParams): void
   const poise = SKILL_DEFS[params.skillKey].poise;
   for (const e of enemiesInRadius(state, pos, radius)) {
     const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
-    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: kp.knockback * mul, stagger: true, poise: poise * mul, from: pos });
+    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: kp.knockback * mul, stagger: true, poise: poise * mul, from: pos, minion: true });
   }
 }
 
@@ -189,7 +189,7 @@ function spinGrave(state: GameState, sword: GraveSword): void {
   spawnBurst(state, sword.pos, COLOR_GRAVE, SPIN_PARTICLES, BURST_SPEED / 2, FIZZLE_LIFE, BURST_SIZE / 2);
   const power = skillPower(state, g.damage, sword.params);
   for (const e of enemiesInRadius(state, sword.pos, radius)) {
-    skillHit(state, e, sword.params, { base: power, kind: "melee", dir: sub(e.body.pos, sword.pos), knockback: g.knockback, stagger: false, from: sword.pos });
+    skillHit(state, e, sword.params, { base: power, kind: "melee", dir: sub(e.body.pos, sword.pos), knockback: g.knockback, stagger: false, from: sword.pos, minion: true });
   }
 }
 
@@ -218,10 +218,15 @@ export function placeTurret(state: GameState, pos: Vec, params: CastParams): voi
 
 /** 自分が射撃した瞬間に、各砲台が自分の向きの先を狙って 1 発撃つ */
 export function onTurretShoot(state: GameState): void {
+  fireTurrets(state, state.skills.turrets);
+}
+
+/** 砲台ごとに自分の向きの先を狙って 1 発（射撃に合わせる・鈴の打ち鳴らしの命令） */
+function fireTurrets(state: GameState, turrets: readonly Turret[]): void {
   const t = SKILL.turret;
   const p = state.player;
   const aim = add(p.body.pos, scale(p.facing, t.aimReach));
-  for (const tur of state.skills.turrets) {
+  for (const tur of turrets) {
     spawnShot(state, tur.pos, sub(aim, tur.pos), tur.params, {
       effect: "turret",
       power: skillPower(state, t.damage, tur.params),
@@ -248,6 +253,27 @@ export function syncTurretShots(state: GameState): void {
   if (state.skills.turrets.length === 0) return;
   const swung = state.events.some((e) => e.kind === "onSwing" && e.actor === "player");
   if (swung) onTurretShoot(state);
+}
+
+/**
+ * 鈴の打ち鳴らし（system/tomeBell.ts）: center から radius の内側の連動体に命令する。
+ * 爆薬樽は起爆（爆風の連鎖も）、剣の墓標は回り、砲台は自分の向きの先へ 1 発撃つ。動かした数を返す
+ */
+export function tollSummons(state: GameState, center: Vec, radius: number): number {
+  const rs = state.skills;
+  const near = (pos: Vec): boolean => dist(pos, center) <= radius;
+  const blown = new Set<number>();
+  for (const k of rs.kegs) {
+    if (blown.has(k.id) || !near(k.pos)) continue;
+    blown.add(k.id);
+    detonate(state, k, blown);
+  }
+  rs.kegs = rs.kegs.filter((k) => !blown.has(k.id));
+  const graves = rs.graves.filter((sword) => near(sword.pos));
+  for (const sword of graves) spinGrave(state, sword);
+  const turrets = rs.turrets.filter((tur) => near(tur.pos));
+  fireTurrets(state, turrets);
+  return blown.size + graves.length + turrets.length;
 }
 
 // ---------------------------------------------------------------------------

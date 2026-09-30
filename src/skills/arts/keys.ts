@@ -386,6 +386,9 @@ export const WEAPON_ART_KEYS = {
     "fanRazorWind",
     "fanCalm",
   ],
+  // 段取り 5d: 書・鈴は技を持たない（技の圧縮は段取り 7。arts.test.ts の除外）
+  book: [],
+  handbell: [],
 } as const;
 
 type WeaponArtTable = typeof WEAPON_ART_KEYS;

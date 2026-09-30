@@ -27,7 +27,7 @@ const MID = 36;
 const SEED = 21;
 const PLAYABLE: readonly JobKey[] = JOB_KEYS.filter((j) => j !== "none");
 /** 既定で解放されているジョブの数（見習いを除く） */
-const DEFAULT_UNLOCKED = 4;
+const DEFAULT_UNLOCKED = 6;
 const RULES_PER_JOB = 2;
 
 function game(job: JobKey, seed = SEED): GameState {
@@ -109,8 +109,10 @@ describe("ジョブの定義", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("既定で 4 つ解放、残りは依頼の報酬で、依頼の報酬とジョブの unlockedBy が一致する", () => {
+  it("既定で 6 つ解放（陰陽師・巫女を含む）、残りは依頼の報酬で、依頼の報酬とジョブの unlockedBy が一致する", () => {
     expect(PLAYABLE.filter((k) => JOBS[k].unlockedBy === undefined).length).toBe(DEFAULT_UNLOCKED);
+    expect(JOBS.onmyoji.unlockedBy, "陰陽師は既定で解放").toBeUndefined();
+    expect(JOBS.miko.unlockedBy, "巫女は既定で解放").toBeUndefined();
     for (const key of PLAYABLE) {
       const by = JOBS[key].unlockedBy;
       if (by === undefined) continue;
@@ -337,6 +339,36 @@ describe("ジョブのルールが発火する", () => {
     s.events = [];
     fire(s, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(e, true) });
     expect(near.hp).toBeLessThan(near.maxHp);
+  });
+
+  it("陰陽師: スキルが当たった敵は弱体、弱体の敵の撃破で必殺ゲージ", () => {
+    const s = cleanArena("onmyoji");
+    const e = placeEnemy(s, "golem", NEAR);
+    fire(s, hit(e, "onSkillHit"));
+    expect(hasStatus(e.status, "weaken"), "スキルの命中で弱体").toBe(true);
+    const other = placeEnemy(s, "golem", MID);
+    fire(s, hit(other, "onSkillHit"));
+    expect(hasStatus(other.status, "weaken"), "同じ瞬間の別の敵にも付く（規則の ICD で 1 体に絞らない）").toBe(true);
+    const healthy = placeEnemy(s, "slime", -NEAR);
+    s.player.energy = 0;
+    fire(s, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(healthy, true) });
+    expect(s.player.energy, "弱体でない敵の撃破では溜まらない").toBe(0);
+    fire(s, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(e, true) });
+    expect(s.player.energy, "弱体の敵の撃破").toBeCloseTo(JOB.onmyojiKillEnergy * s.stats.energyGainMul);
+  });
+
+  it("巫女: 被弾で状態異常を 1 つ祓い、部屋の制圧で最大生命の一部を回復する", () => {
+    const s = cleanArena("miko");
+    applyStatus(s, { kind: "player" }, { kind: "burn", stacks: 1, duration: 5, potency: 1 }, "enemy");
+    expect(hasStatus(s.player.status, "burn"), "前提: 燃えている").toBe(true);
+    pushEvent(s, { kind: "onHurt", actor: "enemy", pos: { ...s.player.body.pos }, source: { kind: "enemy", key: "golem" } });
+    resolveRules(s, 0, jobRules("miko"));
+    expect(hasStatus(s.player.status, "burn"), "被弾で祓われる").toBe(false);
+    s.player.hp = 1;
+    pushPlayerEvent(s, "onRoomClear", "clear");
+    resolveRules(s, 0, jobRules("miko"));
+    expect(s.player.hp - 1, "最大生命の割合を回復").toBeGreaterThan(0);
+    expect(s.player.hp).toBeLessThanOrEqual(1 + Math.ceil(s.player.maxHp * JOB.mikoClearHealRatio));
   });
 });
 

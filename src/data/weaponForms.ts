@@ -359,8 +359,25 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     riposte: ["justDodge"],
     finisher: ["lastStep", "release"],
   }),
-  tome: defineForm("tome", { name: "書", desc: "スキルを当てて術を溜め、無詠唱で撃つ", label: "術", riposte: ["justDodge"] }),
-  bell: defineForm("bell", { name: "鈴", desc: "式を鳴らして鈴音を溜め、打ち鳴らして動かす", label: "鈴音", riposte: ["justDodge"] }),
+  // ---- 5d-L: 書・鈴（固有の仕組みは system/tomeBell.ts） ----
+  tome: defineForm("tome", {
+    name: "書",
+    desc: "スキルを当てて術を溜め、無詠唱で撃つ",
+    label: "術",
+    // スキルの命中（設置物・従魔の命中は鈴の分）で溜まり、右 1 段目の無詠唱が放出で次のスキル 1 回の気力が 0
+    gain: [{ kind: "skillHit", amount: FORM.tome.gain.skillHit }],
+    release: { kind: "laneStep", keys: ["freeCast"] },
+    riposte: ["justDodge"],
+  }),
+  bell: defineForm("bell", {
+    name: "鈴",
+    desc: "式を鳴らして鈴音を溜め、打ち鳴らして動かす",
+    label: "鈴音",
+    // 設置物・従魔の命中で溜まり、右 1 段目の打ち鳴らしが放出で近くの設置物を即発動し、従魔を強める
+    gain: [{ kind: "minionHit", amount: FORM.bell.gain.minionHit }],
+    release: { kind: "laneStep", keys: ["toll"] },
+    riposte: ["justDodge"],
+  }),
 };
 
 /** 武器種（変身・奥義の差し替え後の型でも key と form は装備のまま）の型 */

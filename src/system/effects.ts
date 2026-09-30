@@ -347,6 +347,9 @@ const SWING_SFX: Readonly<Record<MovesetKey, SfxName>> = {
   flail: "swingHammer",
   ringBlades: "swingSword",
   fan: "swingWhip",
+  // 段取り 5d: 既存の振り音を流用（書 = 杖、手鈴 = 棍）
+  book: "swingWand",
+  handbell: "swingStaff",
 };
 
 export function swingSfxName(moveset: MovesetKey): SfxName {
@@ -386,6 +389,8 @@ const HIT_FAMILY: Readonly<Record<MovesetKey, HitFamily>> = {
   flail: "blunt",
   ringBlades: "slash",
   fan: "blunt",
+  book: "blunt",
+  handbell: "blunt",
 };
 
 export function hitFamily(moveset: MovesetKey): HitFamily {

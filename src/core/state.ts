@@ -173,9 +173,17 @@ export interface Player {
   /**
    * 共通の瞬間の作業領域（system/moments.ts）。firstStrikeArmed = 次の一撃が先制、idleSec = 交戦の外にいる秒、
    * lastHitLane / lastHitAt = 双撃の判定に使う直前の命中のレーンと時刻、swingRiposte = 今の振りで応手を数えた、
-   * backstabUntil = 背面扱いが残る時刻（段取り 5c の影潜り）
+   * backstabUntil = 背面扱いが残る時刻（段取り 5c の影潜り）、wardUntil = 結界が残る時刻（段取り 5d の護り足）
    */
-  moment: { firstStrikeArmed: boolean; idleSec: number; lastHitLane: ButtonKey | null; lastHitAt: number; swingRiposte: boolean; backstabUntil: number };
+  moment: {
+    firstStrikeArmed: boolean;
+    idleSec: number;
+    lastHitLane: ButtonKey | null;
+    lastHitAt: number;
+    swingRiposte: boolean;
+    backstabUntil: number;
+    wardUntil: number;
+  };
 }
 
 export interface TimedMul {

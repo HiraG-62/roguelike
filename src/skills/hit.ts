@@ -14,6 +14,8 @@ import { applyStatus } from "../system/statusEffects";
 import { placeTerrain } from "../system/terrain";
 import { fireTrigger } from "../system/triggers";
 import { onManaSource } from "../system/manaSources";
+import { gainMorale } from "../system/morale";
+import { minionDamageMul } from "../system/tomeBell";
 import { TRAIT_COLORS } from "../loot/types";
 import { SKILL, SKILL_DEFS, resolveCast, skillAttack } from "./data";
 import { stoneInSlot } from "./persistence";
@@ -54,7 +56,7 @@ export interface SkillHitSpec {
   from?: Vec;
   /** 会心を確定させる（刺し穿ちの脆弱消費） */
   forceCrit?: boolean;
-  /** 設置物・従魔の命中（流儀の気力の源 minionHit。段取り 5d で skills/placed.ts・summons.ts が付ける） */
+  /** 設置物・従魔の命中（流儀の気力の源 minionHit。skills/placed.ts・summons.ts が爆ぜる・回る・崩れる一撃に付ける。刻む命中は付けない） */
   minion?: boolean;
 }
 
@@ -121,7 +123,9 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   noteWearHit(state, params.slot);
   // 素性が null のスキル（影渡り・伝染など）も刻印符「着地」などで当てることがある。null のまま渡すと防御・耐性を
   // 素通しするので、そのときは既定（範囲軸だけ合わせた無属性の物理）に任せる
-  const out = rollOutgoing(state, e, spec.base, spec.kind, { skill: true, attack: castAttack(params) ?? undefined });
+  // 鈴の打ち鳴らしの強化は設置物・従魔の命中だけに乗る（system/tomeBell.ts）
+  const base = spec.base * minionDamageMul(state, spec.minion === true);
+  const out = rollOutgoing(state, e, base, spec.kind, { skill: true, attack: castAttack(params) ?? undefined });
   const crit = out.crit || spec.forceCrit === true;
   const critMul = crit && !out.crit ? state.stats.critMul : 1;
   const attune = crit && params.attuneCrit ? SKILL.modifier.attune.matchMul : 1;
@@ -148,6 +152,8 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   onBoonSkillHit(state, e);
   // 流儀の気力の源（system/manaSources.ts）
   onManaSource(state, spec.minion === true ? "minionHit" : "skillHit");
+  // 型の戦意（書 = スキルの命中、鈴 = 設置物・従魔の命中）
+  gainMorale(state, spec.minion === true ? "minionHit" : "skillHit");
   afterHit(state, e, params, spec, killed, pos);
   return killed;
 }

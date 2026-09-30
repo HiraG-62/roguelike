@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ACTOR_ATLASES, ACTOR_SHEETS } from "../data/actorSheets.gen";
 import { JOB_KEYS } from "../data/jobs";
-import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponStanceMeta } from "./actorSprites";
 import { BODY_CLIP_FRAMES, DEFAULT_STANCE, solveRig, stanceFromMeta } from "./playerRig";
 
@@ -47,11 +47,14 @@ describe("actorSprites: 生成物の一覧と PNG", () => {
   });
 });
 
+/** 体の絵をまだ描いていないジョブ（見習いの体で描く。pixel-artist が bodyOnmyoji / bodyMiko を足したら消す） */
+const JOBS_WITHOUT_OWN_BODY: readonly string[] = ["onmyoji", "miko"];
+
 describe("actorSprites: 全ジョブの体", () => {
-  it("どのジョブも専用の体を持ち、全クリップの全フレームに肩と頭の位置の印がある", () => {
+  it("どのジョブも体を持ち、全クリップの全フレームに肩と頭の位置の印がある", () => {
     for (const job of JOB_KEYS) {
       const body = bodyAtlas(job);
-      const own = job === "none" ? "bodyNone" : `body${capital(job)}`;
+      const own = job === "none" || JOBS_WITHOUT_OWN_BODY.includes(job) ? "bodyNone" : `body${capital(job)}`;
       expect(body, job).toBe(own);
       for (const [clip, frames] of Object.entries(BODY_CLIP_FRAMES)) {
         const sheet = ACTOR_SHEETS[`${body}.${clip}`];
@@ -75,9 +78,19 @@ describe("actorSprites: 全ジョブの体", () => {
   });
 });
 
+/**
+ * 手に持つ絵がまだ無い武器種（段取り 5d の書・鈴。描画は 24x24 の体と HELD の持ち手に落ちる）。
+ * pixel-artist レーンが scripts/actor/ に足して `npm run actor:gen` したら消す
+ */
+const UNDRAWN_WEAPONS: readonly MovesetKey[] = ["book", "handbell"];
+
 describe("actorSprites: 全武器種の手に持つ武器", () => {
   it("どの武器種も手に持つ絵と、形の正しい構えを持つ", () => {
     for (const key of MOVESET_KEYS) {
+      if (UNDRAWN_WEAPONS.includes(key)) {
+        expect(weaponAtlas(key), `${key} は絵ができたので UNDRAWN_WEAPONS から消す`).toBeUndefined();
+        continue;
+      }
       const atlas = weaponAtlas(key);
       expect(atlas, key).toBe(`wpn${capital(key)}`);
       if (!atlas) continue;

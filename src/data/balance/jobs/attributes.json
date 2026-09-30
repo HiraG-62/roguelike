@@ -60,5 +60,17 @@
     "vit": 1,
     "str": -2,
     "dex": -2
+  },
+  "onmyoji": {
+    "mnd": 3,
+    "dex": 1,
+    "str": -2,
+    "vit": -2
+  },
+  "miko": {
+    "spi": 3,
+    "vit": 1,
+    "str": -2,
+    "dex": -2
   }
 }

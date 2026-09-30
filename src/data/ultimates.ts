@@ -901,6 +901,39 @@ function fanSet(): UltimateSet {
   ];
 }
 
+// ---- 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8） ----
+
+const ARCANE_RANGED = attack("ranged", "arcane");
+const ARCANE_PLAIN_AREA = attack("area", "arcane");
+
+function bookSet(): UltimateSet {
+  const m = "book";
+  return [
+    instantDef(m, "grandLibrary", "万巻", "周りに頁を舞わせて何度も打ち、気力を取り戻す", ARCANE_PLAIN_AREA, (n) => [nova(sub(n, "nova")), buff(sub(n, "buff"))]),
+    instantDef(m, "sealingScript", "封呪", "照準の方向へ呪符を扇に放つ。呪符は敵を貫く", ARCANE_RANGED, (n) => [volley(sub(n, "volley"), ARCANE_RANGED)]),
+    sustainDef(m, "recitation", "朗誦", "持続。打ちの命中で気力が戻り、スキルを当てるたびに再使用が早く進む", (n, key) => ({
+      ...sustainCore(n),
+      rules: [
+        sustainRule(key, 0, "onMeleeHit", { kind: "restoreMana", magnitude: num(sub(n, "hitMana"), "magnitude"), quiet: true }, num(sub(n, "hitMana"), "icd")),
+        sustainRule(key, 1, "onSkillHit", { kind: "skillHaste", magnitude: num(sub(n, "skillHaste"), "magnitude") }, num(sub(n, "skillHaste"), "icd")),
+      ],
+    })),
+  ];
+}
+
+function handbellSet(): UltimateSet {
+  const m = "handbell";
+  const thunder = attack("area", "arcane", "lightning");
+  return [
+    instantDef(m, "thunderToll", "鳴神", "鈴を大きく鳴らして周りに雷を落とし、感電させる", thunder, (n) => [nova(sub(n, "nova"), { applies: [applyOf("shock", sub(n, "shock"))] })]),
+    instantDef(m, "spiritCall", "招魂", "周りの敵を鈴の音で呼び寄せ、まとめて打つ", ARCANE_PLAIN_AREA, (n) => [pull(sub(n, "pull")), nova(sub(n, "nova"))]),
+    sustainDef(m, "requiem", "鎮魂", "持続。鈴の音が周りの敵を打ち続け、受けるダメージが減る", (n) => ({
+      ...sustainCore(n),
+      aura: auraOf(n),
+    })),
+  ];
+}
+
 const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   sword: swordSet,
   greatsword: greatswordSet,
@@ -929,6 +962,8 @@ const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   flail: flailSet,
   ringBlades: ringBladesSet,
   fan: fanSet,
+  book: bookSet,
+  handbell: handbellSet,
 };
 
 export const ULTIMATES: Readonly<Record<MovesetKey, UltimateSet>> = Object.fromEntries(MOVESET_KEYS.map((k) => [k, SET_BUILDERS[k]()])) as Record<

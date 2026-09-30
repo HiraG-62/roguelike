@@ -11,7 +11,9 @@
     "tipHit": "先端の命中（突きの穂先・鞭の先）1 回で戻る気力",
     "skillHit": "スキルの命中 1 回（1 体）で戻る気力",
     "backstab": "背面の命中 1 回で戻る気力（攻撃中の敵の背後・影潜りの直後）",
-    "reaction": "敵に状態異常の反応を起こすと戻る気力"
+    "reaction": "敵に状態異常の反応を起こすと戻る気力",
+    "minionHit": "設置物・従魔の命中 1 回（1 体）で戻る気力。設置物は爆ぜる・回る・崩れる一撃だけ数える（引力球・氷結地帯・泥沼の 0.5 秒ごとの刻みは数えない）",
+    "boonFired": "祝福の加護（Rule）が 1 回発動するごとに戻る気力"
   },
   "swordsman": { "riposte": 15, "finisher": 8 },
   "hunter": { "perMeter": 0.4, "minDistance": 40 },
@@ -21,5 +23,7 @@
   "lancer": { "tipHit": 3 },
   "invoker": { "skillHit": 2.5 },
   "shadow": { "backstab": 6 },
-  "alchemist": { "reaction": 10 }
+  "alchemist": { "reaction": 10 },
+  "onmyoji": { "minionHit": 2 },
+  "miko": { "boonFired": 3 }
 }

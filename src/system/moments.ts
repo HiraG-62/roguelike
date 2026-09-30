@@ -8,6 +8,7 @@ import type { ButtonKey, MovesetDef } from "../data/weapons";
 import { addFloatingText } from "./effects";
 import { noteFinisherMana, onManaSource } from "./manaSources";
 import { isEngaged } from "./engagement";
+import { onFormSwing } from "./tomeBell";
 import {
   type ReleaseMul,
   type ReleaseSwingSpec,
@@ -36,7 +37,7 @@ const BRIM_SFX = "chargeLevel";
 
 export function createMoment(): MomentState {
   // ランの始まりは交戦の外なので、最初の一撃は先制
-  return { firstStrikeArmed: true, idleSec: 0, lastHitLane: null, lastHitAt: 0, swingRiposte: false, backstabUntil: 0 };
+  return { firstStrikeArmed: true, idleSec: 0, lastHitLane: null, lastHitAt: 0, swingRiposte: false, backstabUntil: 0, wardUntil: 0 };
 }
 
 function showMoment(state: GameState, pos: Vec, key: MomentTextKey): void {
@@ -88,6 +89,8 @@ export function noteRelease(state: GameState, units: number): void {
 export function startSwingMoments(state: GameState, moveset: MovesetDef, spec: ReleaseSwingSpec): ReleaseMul | undefined {
   state.player.moment.swingRiposte = false;
   const units = beginSwingMorale(state, moveset, spec);
+  // 書・鈴の放出の効き目と鈴の強化の延長（system/tomeBell.ts）
+  onFormSwing(state, spec.lane, units);
   if (units <= 0) return undefined;
   noteRelease(state, units);
   return swingReleaseMul(state);

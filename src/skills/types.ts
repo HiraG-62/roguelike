@@ -966,4 +966,9 @@ export interface SkillRunState {
   traps: SkillTrap[];
   /** 技の遅れて出る行為（skills/arts/engine.ts）。後から足したので省略可（最初に積んだときに作る） */
   artQueue?: ArtPending[];
+  // ---- 段取り 5d: 書・鈴の型（system/tomeBell.ts）。後から足したので省略可 ----
+  /** 書の無詠唱: 次の気力のスキル 1 回の気力が 0 */
+  freeCast?: boolean;
+  /** 鈴の打ち鳴らし: 設置物・従魔の命中の威力の倍率と残り秒 */
+  bellBuff?: TimedMul;
 }
