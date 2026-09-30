@@ -637,6 +637,8 @@ QA 標準 4 スキル（旋風斬り / 突進斬り / グレネード / 撃ち�
 | 誓約 | 吸血 命中時 +3 / 背水 失った生命の 50% | 与ダメの 5% / 30% | tuning `KEYSTONE` |
 | 性質・名のある遺物・共鳴 | 曲線どおり | 装備の強さの係数（`docs/LOOT_DESIGN.md`「揺らぎ」の `FLUX`）を受ける。implicit の回復量は手で 30〜50% 下げた | `loot/flux.ts` / `loot/affixes.ts` |
 
+**2026-09-30 段取り 6b**: 泉は章の 1 階目（6・11・16）に必ず 1 つ（呪いなし・瓶が満ちる。`system/chapters.ts`）。制圧のハートは章ごとに減る（`HEAL.heartChanceByChapter` 0.1 / 0.08 / 0.06 / 0.04）。主な回復は瓶（`system/flask.ts`）。
+
 **2026-09-30 の絞り込み**（core-synthesis 3-5。回復は腕か資源で得る）: 降階の回復 35% → **15%**（`HEAL.descendHealRatio`）、部屋制圧のハート 20% → **10%**（`ROOM.heartDropChance`）。命中・撃破の回復は既定 0 のまま（ビルドだけ）。リゲイン・試練の確定ハートは残す。泉は瓶（段取り 6）が入るまで暫定で残し、そのとき章の境の休符へ移す。
 
 未統合（他レーンの所有ファイル。統合時に `healSustained` へ差し替える）: スキルの吸命（`system/skills.ts`）、怯み吸い `healOnStagger`（`system/traitHooks.ts`）、トリガー効果 `heal`（`system/triggers.ts`）、生命自然回復の呼び出し（`system/player.ts` の `tickRegen` → `tickHpRegen`）。
