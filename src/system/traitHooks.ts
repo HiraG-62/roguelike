@@ -145,7 +145,7 @@ function spreadCloseBonus(state: GameState, enemy: Enemy | null): number {
   return dist(state.player.body.pos, enemy.body.pos) <= TRIGGER.trait.spreadCloseRange ? t.spreadCloseMul : 0;
 }
 
-/** 天秤（紅と蒼の拮抗）: 近接と射撃を交互に当て続けた回数ぶん。表裏: 生命が半分以上 */
+/** 旧共鳴「天秤」「表裏」の欄（色の共鳴の廃止後は書く所が無く 0。loot/types.ts の旧欄と一緒に消す） */
 function rhythmBonus(state: GameState): number {
   const t = state.stats.traits;
   const p = state.player;
@@ -258,7 +258,7 @@ function poiseBonus(state: GameState, enemy: Enemy, kind: DamageKind, crit: bool
 }
 
 /**
- * 持ち替えの怯み値（共鳴の星座が持ち込む）。
+ * 持ち替えの怯み値（旧 共鳴の星座が持ち込んだ欄。今は書く所が無く 0。loot/types.ts の旧欄と一緒に消す）。
  * damageEnemy はスキルかどうかを渡さないので、近接 / 射撃の区別だけで見る
  */
 function alternatePoiseBonus(state: GameState, kind: DamageKind): number {
@@ -467,7 +467,7 @@ function tickIceTrail(state: GameState): void {
   placeTerrain(state, p.body.pos.x, p.body.pos.y, "ice", TRIGGER.trait.iceTrailRadius, seconds);
 }
 
-/** 鏡像: 装備トリガーの内部クールダウンに掛ける倍率（system/triggers.ts の fireTrigger） */
+/** 装備トリガーの内部クールダウンに掛ける倍率（旧 星座「鏡像」の欄。system/triggers.ts の fireTrigger） */
 export function traitTriggerIcdMul(state: GameState): number {
   return 1 - Math.min(TRIGGER_ICD_CUT_MAX, Math.max(0, state.stats.traits.triggerIcdCut));
 }

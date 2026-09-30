@@ -59,7 +59,7 @@ export function spendMana(state: GameState, cost: number): boolean {
  */
 export function tickMana(state: GameState, dt: number): void {
   if (state.status === "dead") return;
-  // 渇きの誓約は自然回復そのものを止める（精神の派生ぶんも含めて）
+  // 自然回復そのものを止める誓約が付くと止まる（精神の派生ぶんも含めて。今は止める誓約が無く、口だけ残してある）
   if (!manaRegenAllowed(state)) return;
   const p = state.player;
   const max = state.stats.maxMana;

@@ -10,7 +10,7 @@ import { ATTR_KEYS, type AffixRoll, type AttrKey, type Equipment, type Item, SLO
 
 /**
  * 地金（じがね。内部 innate）: ベースに既定で宿るステータス・防御力・属性耐性。性質（affixes）とは別の層で、
- * 余白・色の配合・共鳴・クラフトの対象外。数値は src/data/balance/loot/INNATE/。
+ * 余白・共鳴の数え・クラフトの対象外。数値は src/data/balance/loot/INNATE/。
  *
  * 予算（点）を深度で抽選してから「項目数 × 値」に配るので、値も項目数も両方多い遺物は出にくい。
  * 防具（右手以外）は防御力が必ず付く（予算を使わない）。武器は防御力の確定行を持たない。

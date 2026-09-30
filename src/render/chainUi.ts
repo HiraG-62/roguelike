@@ -14,7 +14,7 @@ import type { HudLayout } from "./renderMath";
 /**
  * 連鎖の表示（docs/ideas/synergy-web.md 4-e）。state.chains の直近を HUD の右下（祝福アイコン列の上）に
  * 「炎→炎 ×2」のように語の字形で流し、CHAIN_SHOW_SECONDS で消す。名のある連鎖（src/meta/links.ts の NAMED_CHAINS）は
- * 先頭に名前を添える（「延焼 炎→炎」）。その上に、初めて見つけた連携（「新たな連携「渦雷」」）と手がかり枠（5-d）を積む。
+ * 先頭に名前を添える（「延焼 炎→炎」）。その上に、初めて見つけた連携（「新たな連携「返し撃ち」」）と手がかり枠（5-d）を積む。
  * state を読むだけ。時刻は state.time だけを使い、rng は使わない
  */
 

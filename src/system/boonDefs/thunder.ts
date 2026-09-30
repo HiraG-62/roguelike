@@ -166,7 +166,7 @@ export const BOONS_THUNDER: Readonly<Record<ThunderKey, BoonDef>> = {
     card: "grace",
     action: "skill",
     changes: "target",
-    // 設計は全スロットに刻印符「連鎖」を足す grantsModifier。その符（7c）と付け方がまだ無いので、同じ効き目の Rule で書く
+    // 設計は全スロットに刻印符「連鎖」を足す grantsModifier（`skills/modifiers.ts` の連鎖）だが、ここでは同じ効き目の Rule で書いている
     rules: rulesOf("thunderLeap", [{ when: "onSkillHit", then: chainFromTarget(L.thunderLeap.ratio), icd: L.thunderLeap.icd }]),
   },
   thunderDrum: {

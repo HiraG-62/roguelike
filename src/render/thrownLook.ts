@@ -31,7 +31,7 @@ const SPIN_HEAVY = 11;
 const SPIN_PHASE_PER_ID = 0.9;
 /** この半径（px）までは等倍。大きい弾（断頭輪など）は半径に合わせて拡大する */
 const LOOK_BASE_RADIUS = 4;
-/** 投げ刃の放物線の高さ（px）。skillHud.ts の手続きの描画もこれを使い、同じ位置に重ねて描く */
+/** 投げる刃の放物線の高さ（px）。skillHud.ts の手続きの描画もこれを使い、同じ位置に重ねて描く */
 export const THROWN_ARC_H = 14;
 
 function spin(shape: ThrownShape, rate = SPIN_FAST): ThrownLook {
@@ -108,7 +108,7 @@ export const MOVESET_THROWN_LOOK: Readonly<Partial<Record<MovesetKey, ThrownLook
   warRing: WAR_RING,
 };
 
-/** 型替え符「投げ刃」で飛んでいる刃 */
+/** 型替え符「照準起点」で近接が飛ばす刃 */
 export const THROWN_ECHO_LOOK: ThrownLook = KNIFE_SPIN;
 
 /** プレイヤーの弾の見た目（奥義 → 弾の key の順）。敵の弾・表に無い弾は undefined */
@@ -168,7 +168,7 @@ export function drawThrownProjectile(ctx: CanvasRenderingContext2D, state: GameS
 }
 
 /**
- * 技の弾・投げ刃を武器の絵で描く（skillHud.ts の drawSkillAir の後に重ねる）。
+ * 技の弾・投げる刃を武器の絵で描く（skillHud.ts の drawSkillAir の後に重ねる）。
  * 位置は skillHud と同じ式で出すので、手続きの点の上にちょうど重なる
  */
 export function drawThrownSkillAir(ctx: CanvasRenderingContext2D, state: GameState, atlas: SpriteAtlas): void {
@@ -185,7 +185,7 @@ function drawThrownEcho(ctx: CanvasRenderingContext2D, state: GameState, atlas: 
   const t = e.total > 0 ? 1 - e.timer / e.total : 1;
   const from = state.player.body.pos;
   const at = arcPoint(from, e.origin, t, THROWN_ARC_H);
-  // 投げ刃は id を持たないので、着弾点の座標で位相をずらす
+  // 投げる刃は id を持たないので、着弾点の座標で位相をずらす
   const phase = Math.round(e.origin.x + e.origin.y);
   drawThrownLook(ctx, atlas, THROWN_ECHO_LOOK, at.x, at.y, thrownAngle(THROWN_ECHO_LOOK, state.time, phase, { x: e.origin.x - from.x, y: 0 }), 1);
 }

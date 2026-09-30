@@ -30,7 +30,7 @@ import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixel
  * 入りきらなければ行間を詰め、それでも溢れた分は切る（最後の行に … を出す）
  */
 
-/** 色の配合の帯を 1 行として挟む（共鳴の配合比など） */
+/** 色の配合の帯を 1 行として挟む（遺物の色の帯など） */
 export interface DetailBar {
   bar: readonly ColorBarSegment[];
 }

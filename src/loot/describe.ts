@@ -323,7 +323,7 @@ export function describeItem(item: Item, depth = 1): ItemDescription {
 // 「ここに噛む」（docs/ideas/synergy-web.md 4-b）。スコアにせず、語と相手の名前だけを返す
 // -----------------------------------------------------------------------------
 
-/** ビルドを構成する 1 要素。item = 装備中の遺物、resonance = 装備の組み合わせでだけ現れる語（共鳴など） */
+/** ビルドを構成する 1 要素。item = 装備中の遺物、resonance = 装備の組み合わせでだけ現れる語（流れタブの「装備全体」） */
 export type SynergyElementKind = "item" | "resonance" | "skill" | "boon";
 
 export interface SynergyElement {

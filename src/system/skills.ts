@@ -800,7 +800,7 @@ function castSlotWith(state: GameState, index: number, req: CastRequest): boolea
   // 変身は同時に 1 つ・共有の待ち、狼化などの間はほかの石も撃てない（払う前に弾く）
   const formBlocked = shapeCastBlock(state, r.def, index);
   if (formBlocked) return refuse(state, req, formBlocked);
-  // 武器技は装備中の武器種でだけ撃てる（払う前に弾く）
+  // 武器種を縛る石があれば、装備中の武器種でだけ撃てる（払う前に弾く。段取り 7c で技の縛りは無くなり、今は縛る石が無い）
   const weaponBlocked = weaponArtBlock(state, r.def);
   if (weaponBlocked) return refuse(state, req, weaponBlocked);
   const p = state.player;
@@ -923,7 +923,7 @@ function flushAutoCasts(state: GameState): void {
   for (const req of due) castSlotAt(state, req.slot, req.target);
 }
 
-/** 武器技が今の武器種で撃てないなら理由（撃てるなら null）。docs/ideas/weapon-skills.md */
+/** 武器種を縛る石が今の武器種で撃てないなら理由（撃てるなら null。縛る石が無ければ常に null）。docs/ideas/weapon-skills.md */
 export function weaponArtBlock(state: GameState, def: Readonly<SkillDef>): string | null {
   if (def.moveset === undefined || def.moveset === state.stats.moveset) return null;
   return weaponArtLabel(def.moveset);

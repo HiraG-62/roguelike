@@ -2423,7 +2423,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     key: "implicit.twinRing",
     label: "二重の共鳴の成立条件を {v} ポイント下げる",
     range: { min: 2, max: 4 },
-    // 判定は resonance.ts の resonanceRules（数値は stats に畳まない）
+    // 色の共鳴（二重）は段取り 7d で廃止され、今は効果が無い。旧セーブの遺物のために定義だけ残っている
     apply: noTraitEffect,
   },
   {

@@ -54,7 +54,7 @@ function amountOf(source: ManaSource, value: number): number {
 }
 
 /**
- * 源から気力を足す。attack は通常攻撃の命中から湧く源（静寂の誓い・後払いの返済・通常攻撃の回収の倍率が効く）。
+ * 源から気力を足す。attack は通常攻撃の命中から湧く源（静寂の誓い・通常攻撃の回収の倍率が効く）。
  * 実際に増えた量を返す
  */
 export function onManaSource(state: GameState, kind: ManaSourceKind, value = 1, attack = false): number {

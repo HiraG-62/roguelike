@@ -44,7 +44,7 @@ const NO_FLUX = 0;
 /**
  * 装備の強さの一律係数（memo 2026-09-24: 序盤から装備が強すぎて 5 層くらいまでヌルゲー化する）。
  * affixes.ts の期待値曲線（点列）は触らず、生成時の期待値にここで係数を掛ける（generator.ts の rollTableTrait /
- * rollTriggerTrait）。共鳴・三和音の効果値（resonance.ts）は深度に依らないので globalScale だけを掛ける。
+ * rollTriggerTrait）。深度に依らない効果の値（`scaleFlat`）は globalScale だけを掛ける。
  * - globalScale: 全深度に掛ける
  * - depthScale: 深度ごとの追加の係数（点列を線形補間、範囲外は端の値）。浅い層ほど小さくし、深度 1〜5 の伸びを緩やかにする
  * 数値は data/balance/loot/FLUX.json（data/tuning.ts の FLUX）。既存の import 先を保つためここからも再 export する
@@ -75,7 +75,7 @@ export function powerScaleAt(depth: number): number {
   return FLUX.globalScale * depthScaleAt(depth);
 }
 
-/** 深度に依らない効果（共鳴・三和音）の値に globalScale を掛け、decimals 桁に丸める */
+/** 深度に依らない効果の値に globalScale を掛け、decimals 桁に丸める（色の共鳴の廃止後は呼ぶ所が無いので、使うなら確かめる） */
 export function scaleFlat(value: number, decimals = 0): number {
   return roundTo(value * FLUX.globalScale, decimals);
 }

@@ -64,7 +64,7 @@ export function fireTrigger(state: GameState, kind: TriggerKind, ctx: TriggerCon
     const rule = ruleFromTrigger(t, index);
     if (!ruleConditionsMet(state, rule.if, ctx)) return;
     if (!state.rng.chance(rule.chance)) return;
-    // 星座「鏡像」は内部クールダウンを縮める
+    // 内部クールダウンを縮める欄（旧 星座「鏡像」が持ち込んだ。色の共鳴の廃止後は書く所が無く、常に縮まない）
     p.triggerCooldowns.set(key, rule.icd * traitTriggerIcdMul(state));
     runEffect(state, t, ctx);
   });
@@ -125,7 +125,7 @@ function targetConditionMet(target: Enemy | undefined, condition: TriggerConditi
   }
 }
 
-/** ICD を進める（毎ステップ）。性質の時計（死神の誓い）もここで進める */
+/** ICD を進める（毎ステップ）。性質の時計（余韻斬り・血の署名・土の息など。`traitHooks.ts` の `tickTraitClocks`）もここで進める */
 export function tickTriggerCooldowns(state: GameState, dt: number): void {
   tickTraitClocks(state, dt);
   const cds = state.player.triggerCooldowns;

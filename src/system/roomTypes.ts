@@ -77,6 +77,7 @@ export const ROOM_KEYWORDS: Readonly<Record<RoomKind, KeywordProfile>> = {
   forge: kw(["burn"]),
   exchange: kw([], [], ["crimson", "azure", "jade", "gold", "umbra"]),
   curseShrine: kw(["umbra"]),
+  // 色の語は段取り 7d で共鳴の数えから外れた（RESONANCE_EXCLUDED）。共鳴炉は流れタブの部屋の語としてだけ色を食う
   resonance: kw([], ["crimson", "azure", "jade", "gold", "umbra"]),
   escort: kw(["clear"], ["area"]),
   escape: kw(["burn"], ["dash"]),

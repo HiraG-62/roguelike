@@ -14,7 +14,7 @@ import type { MovesetKey } from "../data/weapons";
 
 /**
  * 部位。右手 / 左手（旧「近接 / 銃」。docs/ideas/weapon-redesign.md 5 章）。
- * 左手（offHand）は共鳴の環の席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
+ * 左手（offHand）は将来の両手の仕組みの席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
  */
 export const SLOTS = ["mainHand", "offHand", "head", "armor", "boots", "ring", "amulet"] as const;
 export type Slot = (typeof SLOTS)[number];
@@ -59,7 +59,7 @@ export const RARITY_LABEL: Readonly<Record<Rarity, string>> = {
 };
 
 // ---------------------------------------------------------------------------
-// 色（響き）。docs/LOOT_DESIGN.md「色と共鳴」
+// 色（響き）。docs/LOOT_DESIGN.md「色（分類）と源と糧の共鳴」
 // ---------------------------------------------------------------------------
 
 /** 性質の色。紅 / 蒼 / 翠 / 金 / 冥 */
@@ -105,12 +105,12 @@ export interface AffixRoll {
   nominal2?: number;
   /** 期待値からの相対的なずれ。-1 を下回ると反転 */
   flux?: number;
-  /** 反転（値が負）。色は冥になり、共鳴への重みが 2 倍 */
+  /** 反転（値が負）。色は冥になる。共鳴の数えには入らない */
   inverted?: boolean;
   origin?: TraitOrigin;
-  /** 脱色（残響の操作）: 共鳴の配合に数えず、支配の減衰も受けない。値は脱色した時点で 90% */
+  /** 旧セーブの脱色済みの印（脱色の操作は段取り 7d で廃止）。色を持たず、色の帯に数えない */
   colorless?: boolean;
-  /** 張り（残響の操作）: 利得と代償を両方 1.3 倍にした。1 つの性質に 1 回だけ */
+  /** 旧セーブの張りの印（張りの操作は段取り 7d で廃止）。利得と代償を両方 1.3 倍にした値が入っている */
   tensed?: boolean;
 }
 
@@ -225,12 +225,12 @@ export interface Item {
   itemLevel: number;
   /** 表示名。銘があれば銘、名のある遺物は固有名、それ以外は「{色の形容}{ベース名}」 */
   name: string;
-  /** ベース固有の暗黙補正（ロール済み）。色の配合には数えない */
+  /** ベース固有の暗黙補正（ロール済み）。共鳴の数え・色の帯には数えない */
   implicit: AffixRoll | null;
   /** 性質 */
   affixes: AffixRoll[];
   /**
-   * 地金: ベースに既定で宿るステータス・防御力・耐性（loot/innate.ts）。性質とは別で、余白・色の配合・クラフトの対象外。
+   * 地金: ベースに既定で宿るステータス・防御力・耐性（loot/innate.ts）。性質とは別で、余白・共鳴の数え・クラフトの対象外。
    * 旧セーブ・リプレイのスナップショットには無いので、読むときは item.innate ?? []
    */
   innate?: AffixRoll[];
@@ -340,7 +340,7 @@ export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
 };
 
 /**
- * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。共鳴の色対応・散光・「5 種全部を参照する行動」の
+ * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。「5 種全部を参照する行動」の
  * 判定はこちら。防御は色を持たない別軸のステータスなので、5 種すべてを求めるテスト・ロジックはこちらを使う
  */
 export const COMBAT_ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
@@ -391,7 +391,7 @@ export interface PlayerStats {
   dashInvulnBonus: number;
 
   /**
-   * 与ダメの増（core/damage.ts。0.1 = +10%）。性質・地金・共鳴・偏りの数値はここへ足す。
+   * 与ダメの増（core/damage.ts。0.1 = +10%）。性質・地金の数値はここへ足す（共鳴は倍で入る）。
    * 1 撃に効くタグの増を全部足して 1 回掛ける（system/damageMods.ts）
    */
   increased: IncreasedTable;
@@ -451,7 +451,7 @@ export interface PlayerStats {
   triggers: TriggeredEffect[];
 
   // ---- 戦闘再設計（docs/COMBAT_DESIGN.md F-1）。既定値は中立 ----
-  /** 装備・共鳴・祝福の生の合計（逓減前）。基礎値を含む */
+  /** 装備・祝福の生の合計（逓減前）。基礎値を含む */
   attributes: Attributes;
   /** 逓減後の実効値。deriveAttributes が埋める。計算はこちらを使う */
   attributesEff: Attributes;
@@ -624,9 +624,9 @@ export interface LootRuntime {
   lastCombo: number;
   /** 形見: 次の命中に乗せる状態異常と残り回数 */
   inherited: { kind: StatusKind; charges: number } | null;
-  /** 直前に当てた攻撃手段（持ち替えの性質・星座・拮抗が読む） */
+  /** 直前に当てた攻撃手段（持ち替えの性質が読む） */
   lastMode: AttackMode | null;
-  /** 天秤（拮抗）: 近接と射撃を交互に当て続けた回数と、途切れるまでの残り秒 */
+  /** 旧共鳴「天秤」の名残: 近接と射撃を交互に当て続けた回数と、途切れるまでの残り秒 */
   alternateStacks: number;
   alternateTimer: number;
   /** 地形の衝撃波の内部クールダウン（連鎖で画面が爆ぜ続けないように） */

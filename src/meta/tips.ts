@@ -115,7 +115,7 @@ const ATTR_TIP_BODY: Readonly<Record<AttrKey, string>> = {
 const ATTR_ORDER: readonly AttrKey[] = ["str", "dex", "vit", "mnd", "spi", "def"];
 
 const GROWTH_TIPS: readonly TipDef[] = [
-  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力・防御の 6 つ。装備の性質や共鳴で上がり、技の威力や体の性能に効く。" },
+  { key: "attributes", term: "ステータス", category: "growth", body: "筋力・技巧・体力・精神・霊力・防御の 6 つ。装備の地金などで上がり、技の威力や体の性能に効く。" },
   ...ATTR_ORDER.map((a): TipDef => ({ key: `attr_${a}`, term: ATTR_LABEL[a], category: "growth", body: ATTR_TIP_BODY[a] })),
   { key: "effective", term: "実効値", category: "growth", body: "ステータスに逓減を掛けた計算用の値。高く積むほど 1 点あたりの伸びが小さくなる。" },
   {
@@ -128,13 +128,13 @@ const GROWTH_TIPS: readonly TipDef[] = [
     key: "increased",
     term: "増",
     category: "growth",
-    body: "性質・地金・共鳴が上げる与ダメージ。1 撃に効く増はすべて足してから 1 回掛かる（近接 +50% と怯み中 +50% なら 2 倍）。積むほど 1 つあたりの伸びは小さくなる。",
+    body: "性質・地金が上げる与ダメージ。1 撃に効く増はすべて足してから 1 回掛かる（近接 +50% と怯み中 +50% なら 2 倍）。積むほど 1 つあたりの伸びは小さくなる。",
   },
   {
     key: "more",
     term: "倍",
     category: "growth",
-    body: "誓約・芯・会心・コンボなどが掛ける与ダメージ。増とは別に、出所ごとに掛け合わさる（×1.5 と ×1.5 なら 2.25 倍）。同じ出所は 2 つ持っても 1 回だけ。",
+    body: "誓約・共鳴・芯・会心・コンボなどが掛ける与ダメージ。増とは別に、出所ごとに掛け合わさる（×1.5 と ×1.5 なら 2.25 倍）。同じ出所は 2 つ持っても 1 回だけ。",
   },
   { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方（流儀）。ステータスの偏り・ダッシュの形・気力の源・固有のルール・初期スキル石を持つ。" },
   { key: "dashForm", term: "ダッシュの形", category: "growth", body: "ジョブごとのダッシュ。詰め足は振りの途中でも出せて連撃が続き、退き足は後ろへ跳んで足元に罠を残し、不退はその場で構えて受け止める。" },
@@ -144,12 +144,12 @@ const GROWTH_TIPS: readonly TipDef[] = [
 ];
 
 const RELIC_TIPS: readonly TipDef[] = [
-  { key: "relic", term: "遺物", category: "relic", body: "装備アイテム。右手・左手・鎧・靴・指輪・首飾りの 6 部位。" },
+  { key: "relic", term: "遺物", category: "relic", body: "装備アイテム。右手・頭・体・足・指輪・首飾りの 6 部位。" },
   { key: "trait", term: "性質", category: "relic", body: "遺物に宿る 1 つの効果。それぞれが響き（色）を持つ。" },
   { key: "innate", term: "地金", category: "relic", body: "遺物に既定で宿るステータス・防御力・属性耐性。持ち込んだ遺物の地金は、今いる階の深さに合わせて伸びる。拾った時の配分と上振れはそのまま。" },
   { key: "flux", term: "揺らぎ", category: "relic", body: "性質の値の、期待値からのずれ。静・揺・荒は揺らぎの見た目の分類で、格付けではない。" },
   { key: "inverted", term: "反転", category: "relic", body: "揺らぎが強く裏返った性質。色は冥になり、効果も裏返る。共鳴の数えには入らない。" },
-  { key: "hue", term: "響き", category: "relic", body: "性質が持つ 5 色（紅・蒼・翠・金・冥）。反対色は紅と蒼、翠と金。" },
+  { key: "hue", term: "響き", category: "relic", body: "性質が持つ 5 色（紅・蒼・翠・金・冥）。反対色は紅と蒼、翠と金。遺物の色の帯や残響の色になる。共鳴には関わらない。" },
   {
     key: "resonance",
     term: "共鳴",
@@ -165,6 +165,7 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "bud", term: "芽", category: "relic", body: "来歴の節目で出る 2 択の成長。選ばなかった方は失われる。" },
   { key: "margin", term: "余白", category: "relic", body: "その遺物があと何回芽吹けるか。無くなるとそれ以上育たない。" },
   { key: "inscription", term: "銘", category: "relic", body: "余白を使い切った遺物に、来歴から刻まれる名前。銘が付いたら成長は完了。" },
+  { key: "named", term: "名のある遺物", category: "relic", body: "固有の効果を持つ遺物（18 種）。効果は名前ごとに違い、性質のほかに固有の仕組みが付く。" },
   { key: "keystone", term: "誓約", category: "relic", body: "遊び方を大きく変える性質。同じ組の誓約は同時に持てない。拠点の祭壇で試せる。" },
   { key: "echo", term: "残響", category: "relic", body: "遺物を砕くと、性質の色の残響を得る。残響を払って性質を作り替える（装備中の遺物は対象にできない）。" },
   { key: "stir", term: "煽り", category: "relic", body: "性質 1 つの揺らぎを大きく引き直す。反転することもある。" },

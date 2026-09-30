@@ -4,7 +4,7 @@ import { INFLICT_COLOR, decodeTriggerRoll, inflictKindsOfColor, type TriggerShap
 import { SLOTS, TRAIT_COLORS, type AffixRoll, type Equipment, type TraitColor, type TriggeredEffect } from "./types";
 
 /**
- * 性質の色（響き）。docs/LOOT_DESIGN.md「色と共鳴」。
+ * 性質の色（響き）。docs/LOOT_DESIGN.md「色（分類）と源と糧の共鳴」。
  * - 紅 crimson: 近接・与ダメージ・炎
  * - 蒼 azure: 射撃・機動・冷気・マナ
  * - 翠 jade: 生存・回復

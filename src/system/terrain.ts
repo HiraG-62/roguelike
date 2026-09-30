@@ -364,7 +364,7 @@ function tickFireSpread(state: GameState, layer: TerrainLayer, i: number, dt: nu
 }
 
 /**
- * 崩れる床（地裂きの刻印符「地崩れ」）: 敵が乗り続けたセルは TERRAIN_RUBBLE.fallDelay 秒で抜け、乗っている敵が落ちる。
+ * 崩れる床（共通技「地裂き」「地叩き」・改鋳「余震」）: 敵が乗り続けたセルは TERRAIN_RUBBLE.fallDelay 秒で抜け、乗っている敵が落ちる。
  * 乗っている間は rubbleLoad が溜まり（描画が揺らして予告する）、誰も乗っていないステップで 0 に戻る。
  * 毎ステップ判定する（効果の周期 tickInterval では 1 秒の予告がぶれるため）。プレイヤーは落ちない
  */

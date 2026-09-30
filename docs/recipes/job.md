@@ -2,7 +2,7 @@
 
 ジョブ = 流儀。ステータスの偏り・**ダッシュの形**・**気力の源**・固有ルール 2 つ・初期スキル石・初期武器を持つ。得意武器の倍率と弱点は段取り 5c で削った（設計は `docs/ideas/weapon-forms-impl.md` 3-7）。
 
-1. `src/data/jobs.ts`: `JOB_KEYS` に key を足し、`JOBS` に `JobDef`（`attributes` はステータスの偏りで合計 0、`dash` はダッシュの形、`mana` は気力の源、固有ルール 2 つは統一ルール文法で `rules`、初期スキル石 `starterSkill`、初期武器 `starterWeapon`）
+1. `src/data/jobs.ts`: `JOB_KEYS` に key を足し、`JOBS` に `JobDef`（`keywords` は共鳴の数えに使う語で必須〔`kw(源, 糧, 強め)`。流儀 1 つが出どころ 1〕、`attributes` はステータスの偏りで合計 0、`dash` はダッシュの形、`mana` は気力の源、固有ルール 2 つは統一ルール文法で `rules`、初期スキル石 `starterSkill`、初期武器 `starterWeapon`）
    - 数値: 偏りは `data/balance/jobs/attributes.json`、気力の源の量は `data/balance/jobs/MANA_SOURCE.json` の `<ジョブ>`、ルールの数値は `JOB.json`。`mana` は `BASE_ATTACK_MANA`（通常攻撃の命中の下地 `JOB.manaBaseMul`）+ 流儀の源 1〜2 つ
    - ジョブ固有の派生（左左左右のフィニッシュ）も 1 本要る: `data/jobs.ts` の `JOB_BRANCH_NAMES` / `JOB_BRANCHES`、数値は `data/balance/weapons/WEAPON/jobBranches.json` の行（`data/scalingVariety.test.ts` の `NEW_JOB_BRANCH_TABLE` に key を足す）。`LEGACY_FAVORED`（旧「得意な武器」。初期武器の武器種を含める）にも 1 行。体の絵 `body<Job>` は pixel-artist の仕事で、描くまでは見習いの体で描かれる（`render/actorSprites.test.ts` の `JOBS_WITHOUT_OWN_BODY` に key を足す）
    - 既定で解放するジョブは `unlockedBy` を書かない（`system/jobs.test.ts` の `DEFAULT_UNLOCKED` を増やす）

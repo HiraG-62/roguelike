@@ -18,7 +18,7 @@ import type { CastParams, Wave2SkillKey, WardStake } from "./types";
 
 /**
  * スキル第 2 弾の発動（地形・新しい状態異常・属性・空間。docs/ideas/skills-expansion.md）。
- * actions.ts と同じく「発動地点・向き・照準地点」を受け取り、remote（反響・遅延・投げ刃・散り際・罠）なら
+ * actions.ts と同じく「発動地点・向き・照準地点」を受け取り、remote（反響・遅延・照準起点・据え置き）なら
  * プレイヤーを動かさずその地点で即時に起こす。
  * 地形は system/terrain.ts の placeTerrain / terrainAt を呼ぶだけ（地形の規則はあちらが持つ）
  */

@@ -62,7 +62,7 @@ export const TERRAIN = BALANCE.combat.TERRAIN;
 export const TERRAIN_MUD_SMOKE = BALANCE.combat.TERRAIN_MUD_SMOKE;
 
 /**
- * 地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2。地裂きの刻印符「地崩れ」が作る）。
+ * 地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2。共通技「地裂き」「地叩き」と改鋳「余震」が作る）。
  * 敵が fallDelay 秒乗り続けると床が抜け、乗っている敵に落下ダメージと怯み。プレイヤーは落ちない（自分の技で自分を罰しない）
  */
 export const TERRAIN_RUBBLE = BALANCE.combat.TERRAIN_RUBBLE;
