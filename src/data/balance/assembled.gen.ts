@@ -530,259 +530,108 @@ import j_loot_RELIC from "./loot/RELIC.json";
 import j_loot_TRIGGER from "./loot/TRIGGER.json";
 import j_loot_SYNERGY from "./loot/SYNERGY.json";
 import j_loot_FLUX from "./loot/FLUX.json";
-import j_loot_affixCurves_wardingFlat from "./loot/affixCurves/wardingFlat.json";
-import j_loot_affixCurves_sturdy from "./loot/affixCurves/sturdy.json";
-import j_loot_affixCurves_meleeDamagePct from "./loot/affixCurves/meleeDamagePct.json";
-import j_loot_affixCurves_meleeDamageFlat from "./loot/affixCurves/meleeDamageFlat.json";
-import j_loot_affixCurves_attackSpeed from "./loot/affixCurves/attackSpeed.json";
-import j_loot_affixCurves_meleeReach from "./loot/affixCurves/meleeReach.json";
-import j_loot_affixCurves_knockback from "./loot/affixCurves/knockback.json";
 import j_loot_affixCurves_damageVsStaggered from "./loot/affixCurves/damageVsStaggered.json";
-import j_loot_affixCurves_rangedDamagePct from "./loot/affixCurves/rangedDamagePct.json";
-import j_loot_affixCurves_rangedDamageFlat from "./loot/affixCurves/rangedDamageFlat.json";
-import j_loot_affixCurves_fireRate from "./loot/affixCurves/fireRate.json";
-import j_loot_affixCurves_projectiles from "./loot/affixCurves/projectiles.json";
-import j_loot_affixCurves_pierce from "./loot/affixCurves/pierce.json";
-import j_loot_affixCurves_projectileSpeed from "./loot/affixCurves/projectileSpeed.json";
-import j_loot_affixCurves_maxLife from "./loot/affixCurves/maxLife.json";
-import j_loot_affixCurves_maxLifePct from "./loot/affixCurves/maxLifePct.json";
-import j_loot_affixCurves_hpRegen from "./loot/affixCurves/hpRegen.json";
-import j_loot_affixCurves_lifeOnHit from "./loot/affixCurves/lifeOnHit.json";
-import j_loot_affixCurves_lifeOnKill from "./loot/affixCurves/lifeOnKill.json";
 import j_loot_affixCurves_armorFlat from "./loot/affixCurves/armorFlat.json";
-import j_loot_affixCurves_damageTaken from "./loot/affixCurves/damageTaken.json";
-import j_loot_affixCurves_thorns from "./loot/affixCurves/thorns.json";
-import j_loot_affixCurves_moveSpeed from "./loot/affixCurves/moveSpeed.json";
-import j_loot_affixCurves_dashCooldown from "./loot/affixCurves/dashCooldown.json";
-import j_loot_affixCurves_dashCharge from "./loot/affixCurves/dashCharge.json";
-import j_loot_affixCurves_dashDistance from "./loot/affixCurves/dashDistance.json";
-import j_loot_affixCurves_critChance from "./loot/affixCurves/critChance.json";
-import j_loot_affixCurves_critMultiplier from "./loot/affixCurves/critMultiplier.json";
-import j_loot_affixCurves_energyGain from "./loot/affixCurves/energyGain.json";
-import j_loot_affixCurves_burstDamage from "./loot/affixCurves/burstDamage.json";
-import j_loot_affixCurves_burstRadius from "./loot/affixCurves/burstRadius.json";
-import j_loot_affixCurves_comboWindow from "./loot/affixCurves/comboWindow.json";
 import j_loot_affixCurves_comboDamage from "./loot/affixCurves/comboDamage.json";
 import j_loot_affixCurves_justDodgeDamage from "./loot/affixCurves/justDodgeDamage.json";
 import j_loot_affixCurves_burn from "./loot/affixCurves/burn.json";
 import j_loot_affixCurves_chill from "./loot/affixCurves/chill.json";
 import j_loot_affixCurves_shock from "./loot/affixCurves/shock.json";
 import j_loot_affixCurves_explodeOnKill from "./loot/affixCurves/explodeOnKill.json";
-import j_loot_affixCurves_hybridDamage from "./loot/affixCurves/hybridDamage.json";
-import j_loot_affixCurves_hybridDefense from "./loot/affixCurves/hybridDefense.json";
-import j_loot_affixCurves_hybridSpeed from "./loot/affixCurves/hybridSpeed.json";
-import j_loot_affixCurves_crushing from "./loot/affixCurves/crushing.json";
-import j_loot_affixCurves_frenzied from "./loot/affixCurves/frenzied.json";
-import j_loot_affixCurves_overcharged from "./loot/affixCurves/overcharged.json";
-import j_loot_affixCurves_reckless from "./loot/affixCurves/reckless.json";
-import j_loot_affixCurves_bloodbound from "./loot/affixCurves/bloodbound.json";
-import j_loot_affixCurves_ironclad from "./loot/affixCurves/ironclad.json";
-import j_loot_affixCurves_razor from "./loot/affixCurves/razor.json";
-import j_loot_affixCurves_pike from "./loot/affixCurves/pike.json";
-import j_loot_affixCurves_flickering from "./loot/affixCurves/flickering.json";
-import j_loot_affixCurves_emberMomentum from "./loot/affixCurves/emberMomentum.json";
-import j_loot_affixCurves_shatterEdge from "./loot/affixCurves/shatterEdge.json";
-import j_loot_affixCurves_chainedBarrage from "./loot/affixCurves/chainedBarrage.json";
-import j_loot_affixCurves_deepPiercing from "./loot/affixCurves/deepPiercing.json";
-import j_loot_affixCurves_wallSlammer from "./loot/affixCurves/wallSlammer.json";
-import j_loot_affixCurves_vampiricRush from "./loot/affixCurves/vampiricRush.json";
-import j_loot_affixCurves_stormcaller from "./loot/affixCurves/stormcaller.json";
-import j_loot_affixCurves_frostbite from "./loot/affixCurves/frostbite.json";
-import j_loot_affixCurves_arcaneBattery from "./loot/affixCurves/arcaneBattery.json";
-import j_loot_affixCurves_gildedFang from "./loot/affixCurves/gildedFang.json";
-import j_loot_affixCurves_dashStrike from "./loot/affixCurves/dashStrike.json";
-import j_loot_affixCurves_finisherMend from "./loot/affixCurves/finisherMend.json";
-import j_loot_affixCurves_wardedSanctuary from "./loot/affixCurves/wardedSanctuary.json";
-import j_loot_affixCurves_roomMender from "./loot/affixCurves/roomMender.json";
 import j_loot_affixCurves_energyReserve from "./loot/affixCurves/energyReserve.json";
 import j_loot_affixCurves_procBleed from "./loot/affixCurves/procBleed.json";
 import j_loot_affixCurves_procPoison from "./loot/affixCurves/procPoison.json";
-import j_loot_affixCurves_procVulnerable from "./loot/affixCurves/procVulnerable.json";
-import j_loot_affixCurves_procWeaken from "./loot/affixCurves/procWeaken.json";
-import j_loot_affixCurves_procSilence from "./loot/affixCurves/procSilence.json";
 import j_loot_affixCurves_procFear from "./loot/affixCurves/procFear.json";
 import j_loot_affixCurves_bulletCut from "./loot/affixCurves/bulletCut.json";
-import j_loot_affixCurves_maxManaFlat from "./loot/affixCurves/maxManaFlat.json";
-import j_loot_affixCurves_manaRegenFlat from "./loot/affixCurves/manaRegenFlat.json";
-import j_loot_affixCurves_manaGainPct from "./loot/affixCurves/manaGainPct.json";
-import j_loot_affixCurves_manaCostPct from "./loot/affixCurves/manaCostPct.json";
-import j_loot_affixCurves_manaOnKillFlat from "./loot/affixCurves/manaOnKillFlat.json";
-import j_loot_affixCurves_manaDrought from "./loot/affixCurves/manaDrought.json";
 import j_loot_affixCurves_manaOnStagger from "./loot/affixCurves/manaOnStagger.json";
-import j_loot_affixCurves_lowTide from "./loot/affixCurves/lowTide.json";
 import j_loot_affixCurves_fullTide from "./loot/affixCurves/fullTide.json";
-import j_loot_affixCurves_ebbTide from "./loot/affixCurves/ebbTide.json";
 import j_loot_affixCurves_manaShield from "./loot/affixCurves/manaShield.json";
-import j_loot_affixCurves_painToMana from "./loot/affixCurves/painToMana.json";
-import j_loot_affixCurves_silencedKillMana from "./loot/affixCurves/silencedKillMana.json";
-import j_loot_affixCurves_lastKillMana from "./loot/affixCurves/lastKillMana.json";
 import j_loot_affixCurves_manaOverflow from "./loot/affixCurves/manaOverflow.json";
-import j_loot_affixCurves_counterMana from "./loot/affixCurves/counterMana.json";
 import j_loot_affixCurves_justBreath from "./loot/affixCurves/justBreath.json";
-import j_loot_affixCurves_arcaneFocus from "./loot/affixCurves/arcaneFocus.json";
 import j_loot_affixCurves_kaleidoscope from "./loot/affixCurves/kaleidoscope.json";
 import j_loot_affixCurves_fever from "./loot/affixCurves/fever.json";
-import j_loot_affixCurves_weakenedGuard from "./loot/affixCurves/weakenedGuard.json";
 import j_loot_affixCurves_plagueSeed from "./loot/affixCurves/plagueSeed.json";
-import j_loot_affixCurves_hurtWeaken from "./loot/affixCurves/hurtWeaken.json";
-import j_loot_affixCurves_procParalyze from "./loot/affixCurves/procParalyze.json";
 import j_loot_affixCurves_rotBurst from "./loot/affixCurves/rotBurst.json";
-import j_loot_affixCurves_virulent from "./loot/affixCurves/virulent.json";
-import j_loot_affixCurves_statusWard from "./loot/affixCurves/statusWard.json";
-import j_loot_affixCurves_hurtCleanse from "./loot/affixCurves/hurtCleanse.json";
 import j_loot_affixCurves_wedge from "./loot/affixCurves/wedge.json";
 import j_loot_affixCurves_guardPiercer from "./loot/affixCurves/guardPiercer.json";
 import j_loot_affixCurves_staggerQuake from "./loot/affixCurves/staggerQuake.json";
-import j_loot_affixCurves_staggerLeech from "./loot/affixCurves/staggerLeech.json";
-import j_loot_affixCurves_fearPoise from "./loot/affixCurves/fearPoise.json";
-import j_loot_affixCurves_vortexCore from "./loot/affixCurves/vortexCore.json";
-import j_loot_affixCurves_vulnPoise from "./loot/affixCurves/vulnPoise.json";
-import j_loot_affixCurves_heavyHand from "./loot/affixCurves/heavyHand.json";
 import j_loot_affixCurves_staggerSpark from "./loot/affixCurves/staggerSpark.json";
-import j_loot_affixCurves_staggerCharge from "./loot/affixCurves/staggerCharge.json";
 import j_loot_affixCurves_staggerMark from "./loot/affixCurves/staggerMark.json";
 import j_loot_affixCurves_readAhead from "./loot/affixCurves/readAhead.json";
-import j_loot_affixCurves_windupCrack from "./loot/affixCurves/windupCrack.json";
 import j_loot_affixCurves_counterWave from "./loot/affixCurves/counterWave.json";
 import j_loot_affixCurves_guardedBane from "./loot/affixCurves/guardedBane.json";
 import j_loot_affixCurves_downHunter from "./loot/affixCurves/downHunter.json";
-import j_loot_affixCurves_dashVolley from "./loot/affixCurves/dashVolley.json";
-import j_loot_affixCurves_brimShock from "./loot/affixCurves/brimShock.json";
-import j_loot_affixCurves_nightEyes from "./loot/affixCurves/nightEyes.json";
 import j_loot_affixCurves_lockdownFury from "./loot/affixCurves/lockdownFury.json";
-import j_loot_affixCurves_reaperShadow from "./loot/affixCurves/reaperShadow.json";
 import j_loot_affixCurves_sapling from "./loot/affixCurves/sapling.json";
-import j_loot_affixCurves_inscribedWeight from "./loot/affixCurves/inscribedWeight.json";
-import j_loot_affixCurves_invertedFeast from "./loot/affixCurves/invertedFeast.json";
-import j_loot_affixCurves_foreignEcho from "./loot/affixCurves/foreignEcho.json";
-import j_loot_affixCurves_bridge from "./loot/affixCurves/bridge.json";
 import j_loot_affixCurves_oldScars from "./loot/affixCurves/oldScars.json";
 import j_loot_affixCurves_veteran from "./loot/affixCurves/veteran.json";
-import j_loot_affixCurves_wayfarer from "./loot/affixCurves/wayfarer.json";
-import j_loot_affixCurves_kingslayerMark from "./loot/affixCurves/kingslayerMark.json";
-import j_loot_affixCurves_keenMemory from "./loot/affixCurves/keenMemory.json";
 import j_loot_affixCurves_echoSlash from "./loot/affixCurves/echoSlash.json";
 import j_loot_affixCurves_inheritance from "./loot/affixCurves/inheritance.json";
 import j_loot_affixCurves_stake from "./loot/affixCurves/stake.json";
 import j_loot_affixCurves_placedInfuse from "./loot/affixCurves/placedInfuse.json";
-import j_loot_affixCurves_placedAnchor from "./loot/affixCurves/placedAnchor.json";
 import j_loot_affixCurves_bloodSignature from "./loot/affixCurves/bloodSignature.json";
-import j_loot_affixCurves_shieldSplitter from "./loot/affixCurves/shieldSplitter.json";
-import j_loot_affixCurves_kickback from "./loot/affixCurves/kickback.json";
-import j_loot_affixCurves_plunder from "./loot/affixCurves/plunder.json";
 import j_loot_affixCurves_firstMove from "./loot/affixCurves/firstMove.json";
 import j_loot_affixCurves_curtainCall from "./loot/affixCurves/curtainCall.json";
-import j_loot_affixCurves_weakRead from "./loot/affixCurves/weakRead.json";
 import j_loot_affixCurves_prismEdge from "./loot/affixCurves/prismEdge.json";
-import j_loot_affixCurves_resistBreaker from "./loot/affixCurves/resistBreaker.json";
 import j_loot_affixCurves_backlash from "./loot/affixCurves/backlash.json";
 import j_loot_affixCurves_conductor from "./loot/affixCurves/conductor.json";
-import j_loot_affixCurves_igniter from "./loot/affixCurves/igniter.json";
 import j_loot_affixCurves_elementalBreak from "./loot/affixCurves/elementalBreak.json";
-import j_loot_affixCurves_elementalWard from "./loot/affixCurves/elementalWard.json";
 import j_loot_affixCurves_chargeCore from "./loot/affixCurves/chargeCore.json";
-import j_loot_affixCurves_chargeQuake from "./loot/affixCurves/chargeQuake.json";
 import j_loot_affixCurves_branchArt from "./loot/affixCurves/branchArt.json";
-import j_loot_affixCurves_spreadCore from "./loot/affixCurves/spreadCore.json";
-import j_loot_affixCurves_spreadShove from "./loot/affixCurves/spreadShove.json";
-import j_loot_affixCurves_homingVenom from "./loot/affixCurves/homingVenom.json";
 import j_loot_affixCurves_rapidBrand from "./loot/affixCurves/rapidBrand.json";
 import j_loot_affixCurves_brandDetonator from "./loot/affixCurves/brandDetonator.json";
-import j_loot_affixCurves_schoolForm from "./loot/affixCurves/schoolForm.json";
-import j_loot_affixCurves_selfTaught from "./loot/affixCurves/selfTaught.json";
-import j_loot_affixCurves_wanderer from "./loot/affixCurves/wanderer.json";
-import j_loot_affixCurves_schoolHarvest from "./loot/affixCurves/schoolHarvest.json";
 import j_loot_affixCurves_groundRooted from "./loot/affixCurves/groundRooted.json";
-import j_loot_affixCurves_slickFooting from "./loot/affixCurves/slickFooting.json";
-import j_loot_affixCurves_mireGuard from "./loot/affixCurves/mireGuard.json";
 import j_loot_affixCurves_terrainHunter from "./loot/affixCurves/terrainHunter.json";
 import j_loot_affixCurves_terrainBurst from "./loot/affixCurves/terrainBurst.json";
 import j_loot_affixCurves_emberTrail from "./loot/affixCurves/emberTrail.json";
 import j_loot_affixCurves_frostTrail from "./loot/affixCurves/frostTrail.json";
 import j_loot_affixCurves_groundMend from "./loot/affixCurves/groundMend.json";
-import j_loot_affixCurves_brokenHunter from "./loot/affixCurves/brokenHunter.json";
-import j_loot_affixCurves_corrodeClaw from "./loot/affixCurves/corrodeClaw.json";
-import j_loot_affixCurves_doomToll from "./loot/affixCurves/doomToll.json";
 import j_loot_affixCurves_siegeGuard from "./loot/affixCurves/siegeGuard.json";
-import j_loot_affixCurves_siegeSpark from "./loot/affixCurves/siegeSpark.json";
-import j_loot_affixCurves_switchHitter from "./loot/affixCurves/switchHitter.json";
 import j_loot_affixCurves_switchBreath from "./loot/affixCurves/switchBreath.json";
-import j_loot_affixCurves_weakInsight from "./loot/affixCurves/weakInsight.json";
-import j_loot_affixCurves_sevenHues from "./loot/affixCurves/sevenHues.json";
-import j_loot_affixCurves_counterGrain from "./loot/affixCurves/counterGrain.json";
-import j_loot_affixCurves_groundWisdom from "./loot/affixCurves/groundWisdom.json";
-import j_loot_affixCurves_mireLord from "./loot/affixCurves/mireLord.json";
-import j_loot_affixCurves_schoolMastery from "./loot/affixCurves/schoolMastery.json";
-import j_loot_affixCurves_schoolSecret from "./loot/affixCurves/schoolSecret.json";
-import j_loot_affixCurves_fullCharge from "./loot/affixCurves/fullCharge.json";
-import j_loot_affixCurves_formBreaker from "./loot/affixCurves/formBreaker.json";
-import j_loot_affixCurves_hueBreak from "./loot/affixCurves/hueBreak.json";
-import j_loot_affixCurves_brokenBreaker from "./loot/affixCurves/brokenBreaker.json";
-import j_loot_affixCurves_battleRhythm from "./loot/affixCurves/battleRhythm.json";
-import j_loot_affixCurves_stormConduit from "./loot/affixCurves/stormConduit.json";
-import j_loot_affixCurves_siegeHeart from "./loot/affixCurves/siegeHeart.json";
-import j_loot_affixCurves_emberWalk from "./loot/affixCurves/emberWalk.json";
-import j_loot_affixCurves_frostWalk from "./loot/affixCurves/frostWalk.json";
-import j_loot_affixCurves_cv_meleeToBurn from "./loot/affixCurves/cv_meleeToBurn.json";
-import j_loot_affixCurves_cv_splitToPierce from "./loot/affixCurves/cv_splitToPierce.json";
-import j_loot_affixCurves_cv_critToMultiplier from "./loot/affixCurves/cv_critToMultiplier.json";
-import j_loot_affixCurves_cv_speedToAttack from "./loot/affixCurves/cv_speedToAttack.json";
-import j_loot_affixCurves_cv_lifeToArmor from "./loot/affixCurves/cv_lifeToArmor.json";
 import j_loot_affixCurves_cv_chargesToDistance from "./loot/affixCurves/cv_chargesToDistance.json";
-import j_loot_affixCurves_cv_leechToEnergy from "./loot/affixCurves/cv_leechToEnergy.json";
-import j_loot_affixCurves_cv_comboToJust from "./loot/affixCurves/cv_comboToJust.json";
-import j_loot_affixCurves_cv_meleeToRanged from "./loot/affixCurves/cv_meleeToRanged.json";
-import j_loot_affixCurves_cv_critToBurn from "./loot/affixCurves/cv_critToBurn.json";
-import j_loot_affixCurves_cv_regenToGain from "./loot/affixCurves/cv_regenToGain.json";
-import j_loot_affixCurves_cv_knockbackToPoise from "./loot/affixCurves/cv_knockbackToPoise.json";
 import j_loot_affixCurves_cv_projectilesToPoise from "./loot/affixCurves/cv_projectilesToPoise.json";
-import j_loot_affixCurves_cv_poiseToDamage from "./loot/affixCurves/cv_poiseToDamage.json";
-import j_loot_affixCurves_cv_lifeToMana from "./loot/affixCurves/cv_lifeToMana.json";
-import j_loot_affixCurves_cv_manaToLife from "./loot/affixCurves/cv_manaToLife.json";
-import j_loot_affixCurves_cv_energyToMana from "./loot/affixCurves/cv_energyToMana.json";
-import j_loot_affixCurves_cv_burstToSkill from "./loot/affixCurves/cv_burstToSkill.json";
-import j_loot_affixCurves_cv_critToPoise from "./loot/affixCurves/cv_critToPoise.json";
-import j_loot_affixCurves_cv_burnToPoison from "./loot/affixCurves/cv_burnToPoison.json";
-import j_loot_affixCurves_cv_chillToVulnerable from "./loot/affixCurves/cv_chillToVulnerable.json";
-import j_loot_affixCurves_cv_armorToWarding from "./loot/affixCurves/cv_armorToWarding.json";
-import j_loot_affixCurves_cv_wardingToArmor from "./loot/affixCurves/cv_wardingToArmor.json";
-import j_loot_affixCurves_cv_resistToDamage from "./loot/affixCurves/cv_resistToDamage.json";
-import j_loot_affixCurves_cv_resistToWarding from "./loot/affixCurves/cv_resistToWarding.json";
-import j_loot_affixCurves_cv_burnToFire from "./loot/affixCurves/cv_burnToFire.json";
-import j_loot_affixCurves_cv_chillToIce from "./loot/affixCurves/cv_chillToIce.json";
-import j_loot_affixCurves_cv_shockToLightning from "./loot/affixCurves/cv_shockToLightning.json";
-import j_loot_affixCurves_cv_critToLight from "./loot/affixCurves/cv_critToLight.json";
 import j_loot_affixCurves_attr_str from "./loot/affixCurves/attr_str.json";
 import j_loot_affixCurves_attr_dex from "./loot/affixCurves/attr_dex.json";
 import j_loot_affixCurves_attr_vit from "./loot/affixCurves/attr_vit.json";
 import j_loot_affixCurves_attr_mnd from "./loot/affixCurves/attr_mnd.json";
 import j_loot_affixCurves_attr_spi from "./loot/affixCurves/attr_spi.json";
-import j_loot_affixCurves_boonEcho_crimson from "./loot/affixCurves/boonEcho_crimson.json";
-import j_loot_affixCurves_boonEcho_azure from "./loot/affixCurves/boonEcho_azure.json";
-import j_loot_affixCurves_boonEcho_jade from "./loot/affixCurves/boonEcho_jade.json";
-import j_loot_affixCurves_boonEcho_gold from "./loot/affixCurves/boonEcho_gold.json";
-import j_loot_affixCurves_boonEcho_umbra from "./loot/affixCurves/boonEcho_umbra.json";
 import j_loot_affixCurves_res_fire from "./loot/affixCurves/res_fire.json";
 import j_loot_affixCurves_res_ice from "./loot/affixCurves/res_ice.json";
 import j_loot_affixCurves_res_lightning from "./loot/affixCurves/res_lightning.json";
 import j_loot_affixCurves_res_poison from "./loot/affixCurves/res_poison.json";
 import j_loot_affixCurves_res_dark from "./loot/affixCurves/res_dark.json";
 import j_loot_affixCurves_res_light from "./loot/affixCurves/res_light.json";
-import j_loot_affixCurves_res_all from "./loot/affixCurves/res_all.json";
-import j_loot_affixCurves_cv_dexToStr from "./loot/affixCurves/cv_dexToStr.json";
-import j_loot_affixCurves_cv_strToSpi from "./loot/affixCurves/cv_strToSpi.json";
-import j_loot_affixCurves_cv_spiToVit from "./loot/affixCurves/cv_spiToVit.json";
-import j_loot_affixCurves_cv_vitToMnd from "./loot/affixCurves/cv_vitToMnd.json";
-import j_loot_affixCurves_cv_mndToDex from "./loot/affixCurves/cv_mndToDex.json";
 import j_loot_affixCurves_cv_infuseFire from "./loot/affixCurves/cv_infuseFire.json";
 import j_loot_affixCurves_cv_infuseIce from "./loot/affixCurves/cv_infuseIce.json";
 import j_loot_affixCurves_cv_infuseLightning from "./loot/affixCurves/cv_infuseLightning.json";
 import j_loot_affixCurves_cv_infusePoison from "./loot/affixCurves/cv_infusePoison.json";
 import j_loot_affixCurves_cv_infuseDark from "./loot/affixCurves/cv_infuseDark.json";
 import j_loot_affixCurves_cv_infuseLight from "./loot/affixCurves/cv_infuseLight.json";
-import j_loot_affixCurves_cv_infuseNone from "./loot/affixCurves/cv_infuseNone.json";
 import j_loot_affixCurves_attr_def from "./loot/affixCurves/attr_def.json";
 import j_loot_affixCurves_purse from "./loot/affixCurves/purse.json";
+import j_loot_affixCurves_desperation from "./loot/affixCurves/desperation.json";
+import j_loot_affixCurves_moraleSurge from "./loot/affixCurves/moraleSurge.json";
+import j_loot_affixCurves_finisherEdge from "./loot/affixCurves/finisherEdge.json";
+import j_loot_affixCurves_releaseEdge from "./loot/affixCurves/releaseEdge.json";
+import j_loot_affixCurves_riposteEdge from "./loot/affixCurves/riposteEdge.json";
+import j_loot_affixCurves_twinEdge from "./loot/affixCurves/twinEdge.json";
+import j_loot_affixCurves_firstStrikeEdge from "./loot/affixCurves/firstStrikeEdge.json";
+import j_loot_affixCurves_stanceGuard from "./loot/affixCurves/stanceGuard.json";
+import j_loot_affixCurves_unmoving from "./loot/affixCurves/unmoving.json";
+import j_loot_affixCurves_chainSource from "./loot/affixCurves/chainSource.json";
+import j_loot_affixCurves_chainReturn from "./loot/affixCurves/chainReturn.json";
+import j_loot_affixCurves_moraleCap from "./loot/affixCurves/moraleCap.json";
+import j_loot_affixCurves_burnStack from "./loot/affixCurves/burnStack.json";
+import j_loot_affixCurves_cv_critToChain from "./loot/affixCurves/cv_critToChain.json";
+import j_loot_affixCurves_cv_speedToDamage from "./loot/affixCurves/cv_speedToDamage.json";
+import j_loot_affixCurves_cv_manaToProjectiles from "./loot/affixCurves/cv_manaToProjectiles.json";
+import j_loot_affixCurves_cv_armorToPoise from "./loot/affixCurves/cv_armorToPoise.json";
+import j_loot_affixCurves_cv_lifeToArea from "./loot/affixCurves/cv_lifeToArea.json";
+import j_loot_affixCurves_cv_comboToFinisher from "./loot/affixCurves/cv_comboToFinisher.json";
+import j_loot_affixCurves_cv_coinsToMore from "./loot/affixCurves/cv_coinsToMore.json";
+import j_loot_affixCurves_cv_critToLightning from "./loot/affixCurves/cv_critToLightning.json";
+import j_loot_affixCurves_cv_critToCoins from "./loot/affixCurves/cv_critToCoins.json";
+import j_loot_affixCurves_cv_critToMorale from "./loot/affixCurves/cv_critToMorale.json";
 import j_loot_bases from "./loot/bases.json";
 import j_loot_INNATE__index from "./loot/INNATE/_index.json";
 import j_loot_INNATE_budget from "./loot/INNATE/budget.json";
@@ -1668,259 +1517,108 @@ export const loot = {
   "ARMOR_K": j_loot__index["ARMOR_K"],
   "ARMOR_MAX_REDUCTION": j_loot__index["ARMOR_MAX_REDUCTION"],
   "affixCurves": {
-    "wardingFlat": j_loot_affixCurves_wardingFlat,
-    "sturdy": j_loot_affixCurves_sturdy,
-    "meleeDamagePct": j_loot_affixCurves_meleeDamagePct,
-    "meleeDamageFlat": j_loot_affixCurves_meleeDamageFlat,
-    "attackSpeed": j_loot_affixCurves_attackSpeed,
-    "meleeReach": j_loot_affixCurves_meleeReach,
-    "knockback": j_loot_affixCurves_knockback,
     "damageVsStaggered": j_loot_affixCurves_damageVsStaggered,
-    "rangedDamagePct": j_loot_affixCurves_rangedDamagePct,
-    "rangedDamageFlat": j_loot_affixCurves_rangedDamageFlat,
-    "fireRate": j_loot_affixCurves_fireRate,
-    "projectiles": j_loot_affixCurves_projectiles,
-    "pierce": j_loot_affixCurves_pierce,
-    "projectileSpeed": j_loot_affixCurves_projectileSpeed,
-    "maxLife": j_loot_affixCurves_maxLife,
-    "maxLifePct": j_loot_affixCurves_maxLifePct,
-    "hpRegen": j_loot_affixCurves_hpRegen,
-    "lifeOnHit": j_loot_affixCurves_lifeOnHit,
-    "lifeOnKill": j_loot_affixCurves_lifeOnKill,
     "armorFlat": j_loot_affixCurves_armorFlat,
-    "damageTaken": j_loot_affixCurves_damageTaken,
-    "thorns": j_loot_affixCurves_thorns,
-    "moveSpeed": j_loot_affixCurves_moveSpeed,
-    "dashCooldown": j_loot_affixCurves_dashCooldown,
-    "dashCharge": j_loot_affixCurves_dashCharge,
-    "dashDistance": j_loot_affixCurves_dashDistance,
-    "critChance": j_loot_affixCurves_critChance,
-    "critMultiplier": j_loot_affixCurves_critMultiplier,
-    "energyGain": j_loot_affixCurves_energyGain,
-    "burstDamage": j_loot_affixCurves_burstDamage,
-    "burstRadius": j_loot_affixCurves_burstRadius,
-    "comboWindow": j_loot_affixCurves_comboWindow,
     "comboDamage": j_loot_affixCurves_comboDamage,
     "justDodgeDamage": j_loot_affixCurves_justDodgeDamage,
     "burn": j_loot_affixCurves_burn,
     "chill": j_loot_affixCurves_chill,
     "shock": j_loot_affixCurves_shock,
     "explodeOnKill": j_loot_affixCurves_explodeOnKill,
-    "hybridDamage": j_loot_affixCurves_hybridDamage,
-    "hybridDefense": j_loot_affixCurves_hybridDefense,
-    "hybridSpeed": j_loot_affixCurves_hybridSpeed,
-    "crushing": j_loot_affixCurves_crushing,
-    "frenzied": j_loot_affixCurves_frenzied,
-    "overcharged": j_loot_affixCurves_overcharged,
-    "reckless": j_loot_affixCurves_reckless,
-    "bloodbound": j_loot_affixCurves_bloodbound,
-    "ironclad": j_loot_affixCurves_ironclad,
-    "razor": j_loot_affixCurves_razor,
-    "pike": j_loot_affixCurves_pike,
-    "flickering": j_loot_affixCurves_flickering,
-    "emberMomentum": j_loot_affixCurves_emberMomentum,
-    "shatterEdge": j_loot_affixCurves_shatterEdge,
-    "chainedBarrage": j_loot_affixCurves_chainedBarrage,
-    "deepPiercing": j_loot_affixCurves_deepPiercing,
-    "wallSlammer": j_loot_affixCurves_wallSlammer,
-    "vampiricRush": j_loot_affixCurves_vampiricRush,
-    "stormcaller": j_loot_affixCurves_stormcaller,
-    "frostbite": j_loot_affixCurves_frostbite,
-    "arcaneBattery": j_loot_affixCurves_arcaneBattery,
-    "gildedFang": j_loot_affixCurves_gildedFang,
-    "dashStrike": j_loot_affixCurves_dashStrike,
-    "finisherMend": j_loot_affixCurves_finisherMend,
-    "wardedSanctuary": j_loot_affixCurves_wardedSanctuary,
-    "roomMender": j_loot_affixCurves_roomMender,
     "energyReserve": j_loot_affixCurves_energyReserve,
     "procBleed": j_loot_affixCurves_procBleed,
     "procPoison": j_loot_affixCurves_procPoison,
-    "procVulnerable": j_loot_affixCurves_procVulnerable,
-    "procWeaken": j_loot_affixCurves_procWeaken,
-    "procSilence": j_loot_affixCurves_procSilence,
     "procFear": j_loot_affixCurves_procFear,
     "bulletCut": j_loot_affixCurves_bulletCut,
-    "maxManaFlat": j_loot_affixCurves_maxManaFlat,
-    "manaRegenFlat": j_loot_affixCurves_manaRegenFlat,
-    "manaGainPct": j_loot_affixCurves_manaGainPct,
-    "manaCostPct": j_loot_affixCurves_manaCostPct,
-    "manaOnKillFlat": j_loot_affixCurves_manaOnKillFlat,
-    "manaDrought": j_loot_affixCurves_manaDrought,
     "manaOnStagger": j_loot_affixCurves_manaOnStagger,
-    "lowTide": j_loot_affixCurves_lowTide,
     "fullTide": j_loot_affixCurves_fullTide,
-    "ebbTide": j_loot_affixCurves_ebbTide,
     "manaShield": j_loot_affixCurves_manaShield,
-    "painToMana": j_loot_affixCurves_painToMana,
-    "silencedKillMana": j_loot_affixCurves_silencedKillMana,
-    "lastKillMana": j_loot_affixCurves_lastKillMana,
     "manaOverflow": j_loot_affixCurves_manaOverflow,
-    "counterMana": j_loot_affixCurves_counterMana,
     "justBreath": j_loot_affixCurves_justBreath,
-    "arcaneFocus": j_loot_affixCurves_arcaneFocus,
     "kaleidoscope": j_loot_affixCurves_kaleidoscope,
     "fever": j_loot_affixCurves_fever,
-    "weakenedGuard": j_loot_affixCurves_weakenedGuard,
     "plagueSeed": j_loot_affixCurves_plagueSeed,
-    "hurtWeaken": j_loot_affixCurves_hurtWeaken,
-    "procParalyze": j_loot_affixCurves_procParalyze,
     "rotBurst": j_loot_affixCurves_rotBurst,
-    "virulent": j_loot_affixCurves_virulent,
-    "statusWard": j_loot_affixCurves_statusWard,
-    "hurtCleanse": j_loot_affixCurves_hurtCleanse,
     "wedge": j_loot_affixCurves_wedge,
     "guardPiercer": j_loot_affixCurves_guardPiercer,
     "staggerQuake": j_loot_affixCurves_staggerQuake,
-    "staggerLeech": j_loot_affixCurves_staggerLeech,
-    "fearPoise": j_loot_affixCurves_fearPoise,
-    "vortexCore": j_loot_affixCurves_vortexCore,
-    "vulnPoise": j_loot_affixCurves_vulnPoise,
-    "heavyHand": j_loot_affixCurves_heavyHand,
     "staggerSpark": j_loot_affixCurves_staggerSpark,
-    "staggerCharge": j_loot_affixCurves_staggerCharge,
     "staggerMark": j_loot_affixCurves_staggerMark,
     "readAhead": j_loot_affixCurves_readAhead,
-    "windupCrack": j_loot_affixCurves_windupCrack,
     "counterWave": j_loot_affixCurves_counterWave,
     "guardedBane": j_loot_affixCurves_guardedBane,
     "downHunter": j_loot_affixCurves_downHunter,
-    "dashVolley": j_loot_affixCurves_dashVolley,
-    "brimShock": j_loot_affixCurves_brimShock,
-    "nightEyes": j_loot_affixCurves_nightEyes,
     "lockdownFury": j_loot_affixCurves_lockdownFury,
-    "reaperShadow": j_loot_affixCurves_reaperShadow,
     "sapling": j_loot_affixCurves_sapling,
-    "inscribedWeight": j_loot_affixCurves_inscribedWeight,
-    "invertedFeast": j_loot_affixCurves_invertedFeast,
-    "foreignEcho": j_loot_affixCurves_foreignEcho,
-    "bridge": j_loot_affixCurves_bridge,
     "oldScars": j_loot_affixCurves_oldScars,
     "veteran": j_loot_affixCurves_veteran,
-    "wayfarer": j_loot_affixCurves_wayfarer,
-    "kingslayerMark": j_loot_affixCurves_kingslayerMark,
-    "keenMemory": j_loot_affixCurves_keenMemory,
     "echoSlash": j_loot_affixCurves_echoSlash,
     "inheritance": j_loot_affixCurves_inheritance,
     "stake": j_loot_affixCurves_stake,
     "placedInfuse": j_loot_affixCurves_placedInfuse,
-    "placedAnchor": j_loot_affixCurves_placedAnchor,
     "bloodSignature": j_loot_affixCurves_bloodSignature,
-    "shieldSplitter": j_loot_affixCurves_shieldSplitter,
-    "kickback": j_loot_affixCurves_kickback,
-    "plunder": j_loot_affixCurves_plunder,
     "firstMove": j_loot_affixCurves_firstMove,
     "curtainCall": j_loot_affixCurves_curtainCall,
-    "weakRead": j_loot_affixCurves_weakRead,
     "prismEdge": j_loot_affixCurves_prismEdge,
-    "resistBreaker": j_loot_affixCurves_resistBreaker,
     "backlash": j_loot_affixCurves_backlash,
     "conductor": j_loot_affixCurves_conductor,
-    "igniter": j_loot_affixCurves_igniter,
     "elementalBreak": j_loot_affixCurves_elementalBreak,
-    "elementalWard": j_loot_affixCurves_elementalWard,
     "chargeCore": j_loot_affixCurves_chargeCore,
-    "chargeQuake": j_loot_affixCurves_chargeQuake,
     "branchArt": j_loot_affixCurves_branchArt,
-    "spreadCore": j_loot_affixCurves_spreadCore,
-    "spreadShove": j_loot_affixCurves_spreadShove,
-    "homingVenom": j_loot_affixCurves_homingVenom,
     "rapidBrand": j_loot_affixCurves_rapidBrand,
     "brandDetonator": j_loot_affixCurves_brandDetonator,
-    "schoolForm": j_loot_affixCurves_schoolForm,
-    "selfTaught": j_loot_affixCurves_selfTaught,
-    "wanderer": j_loot_affixCurves_wanderer,
-    "schoolHarvest": j_loot_affixCurves_schoolHarvest,
     "groundRooted": j_loot_affixCurves_groundRooted,
-    "slickFooting": j_loot_affixCurves_slickFooting,
-    "mireGuard": j_loot_affixCurves_mireGuard,
     "terrainHunter": j_loot_affixCurves_terrainHunter,
     "terrainBurst": j_loot_affixCurves_terrainBurst,
     "emberTrail": j_loot_affixCurves_emberTrail,
     "frostTrail": j_loot_affixCurves_frostTrail,
     "groundMend": j_loot_affixCurves_groundMend,
-    "brokenHunter": j_loot_affixCurves_brokenHunter,
-    "corrodeClaw": j_loot_affixCurves_corrodeClaw,
-    "doomToll": j_loot_affixCurves_doomToll,
     "siegeGuard": j_loot_affixCurves_siegeGuard,
-    "siegeSpark": j_loot_affixCurves_siegeSpark,
-    "switchHitter": j_loot_affixCurves_switchHitter,
     "switchBreath": j_loot_affixCurves_switchBreath,
-    "weakInsight": j_loot_affixCurves_weakInsight,
-    "sevenHues": j_loot_affixCurves_sevenHues,
-    "counterGrain": j_loot_affixCurves_counterGrain,
-    "groundWisdom": j_loot_affixCurves_groundWisdom,
-    "mireLord": j_loot_affixCurves_mireLord,
-    "schoolMastery": j_loot_affixCurves_schoolMastery,
-    "schoolSecret": j_loot_affixCurves_schoolSecret,
-    "fullCharge": j_loot_affixCurves_fullCharge,
-    "formBreaker": j_loot_affixCurves_formBreaker,
-    "hueBreak": j_loot_affixCurves_hueBreak,
-    "brokenBreaker": j_loot_affixCurves_brokenBreaker,
-    "battleRhythm": j_loot_affixCurves_battleRhythm,
-    "stormConduit": j_loot_affixCurves_stormConduit,
-    "siegeHeart": j_loot_affixCurves_siegeHeart,
-    "emberWalk": j_loot_affixCurves_emberWalk,
-    "frostWalk": j_loot_affixCurves_frostWalk,
-    "cv_meleeToBurn": j_loot_affixCurves_cv_meleeToBurn,
-    "cv_splitToPierce": j_loot_affixCurves_cv_splitToPierce,
-    "cv_critToMultiplier": j_loot_affixCurves_cv_critToMultiplier,
-    "cv_speedToAttack": j_loot_affixCurves_cv_speedToAttack,
-    "cv_lifeToArmor": j_loot_affixCurves_cv_lifeToArmor,
     "cv_chargesToDistance": j_loot_affixCurves_cv_chargesToDistance,
-    "cv_leechToEnergy": j_loot_affixCurves_cv_leechToEnergy,
-    "cv_comboToJust": j_loot_affixCurves_cv_comboToJust,
-    "cv_meleeToRanged": j_loot_affixCurves_cv_meleeToRanged,
-    "cv_critToBurn": j_loot_affixCurves_cv_critToBurn,
-    "cv_regenToGain": j_loot_affixCurves_cv_regenToGain,
-    "cv_knockbackToPoise": j_loot_affixCurves_cv_knockbackToPoise,
     "cv_projectilesToPoise": j_loot_affixCurves_cv_projectilesToPoise,
-    "cv_poiseToDamage": j_loot_affixCurves_cv_poiseToDamage,
-    "cv_lifeToMana": j_loot_affixCurves_cv_lifeToMana,
-    "cv_manaToLife": j_loot_affixCurves_cv_manaToLife,
-    "cv_energyToMana": j_loot_affixCurves_cv_energyToMana,
-    "cv_burstToSkill": j_loot_affixCurves_cv_burstToSkill,
-    "cv_critToPoise": j_loot_affixCurves_cv_critToPoise,
-    "cv_burnToPoison": j_loot_affixCurves_cv_burnToPoison,
-    "cv_chillToVulnerable": j_loot_affixCurves_cv_chillToVulnerable,
-    "cv_armorToWarding": j_loot_affixCurves_cv_armorToWarding,
-    "cv_wardingToArmor": j_loot_affixCurves_cv_wardingToArmor,
-    "cv_resistToDamage": j_loot_affixCurves_cv_resistToDamage,
-    "cv_resistToWarding": j_loot_affixCurves_cv_resistToWarding,
-    "cv_burnToFire": j_loot_affixCurves_cv_burnToFire,
-    "cv_chillToIce": j_loot_affixCurves_cv_chillToIce,
-    "cv_shockToLightning": j_loot_affixCurves_cv_shockToLightning,
-    "cv_critToLight": j_loot_affixCurves_cv_critToLight,
     "attr_str": j_loot_affixCurves_attr_str,
     "attr_dex": j_loot_affixCurves_attr_dex,
     "attr_vit": j_loot_affixCurves_attr_vit,
     "attr_mnd": j_loot_affixCurves_attr_mnd,
     "attr_spi": j_loot_affixCurves_attr_spi,
-    "boonEcho_crimson": j_loot_affixCurves_boonEcho_crimson,
-    "boonEcho_azure": j_loot_affixCurves_boonEcho_azure,
-    "boonEcho_jade": j_loot_affixCurves_boonEcho_jade,
-    "boonEcho_gold": j_loot_affixCurves_boonEcho_gold,
-    "boonEcho_umbra": j_loot_affixCurves_boonEcho_umbra,
     "res_fire": j_loot_affixCurves_res_fire,
     "res_ice": j_loot_affixCurves_res_ice,
     "res_lightning": j_loot_affixCurves_res_lightning,
     "res_poison": j_loot_affixCurves_res_poison,
     "res_dark": j_loot_affixCurves_res_dark,
     "res_light": j_loot_affixCurves_res_light,
-    "res_all": j_loot_affixCurves_res_all,
-    "cv_dexToStr": j_loot_affixCurves_cv_dexToStr,
-    "cv_strToSpi": j_loot_affixCurves_cv_strToSpi,
-    "cv_spiToVit": j_loot_affixCurves_cv_spiToVit,
-    "cv_vitToMnd": j_loot_affixCurves_cv_vitToMnd,
-    "cv_mndToDex": j_loot_affixCurves_cv_mndToDex,
     "cv_infuseFire": j_loot_affixCurves_cv_infuseFire,
     "cv_infuseIce": j_loot_affixCurves_cv_infuseIce,
     "cv_infuseLightning": j_loot_affixCurves_cv_infuseLightning,
     "cv_infusePoison": j_loot_affixCurves_cv_infusePoison,
     "cv_infuseDark": j_loot_affixCurves_cv_infuseDark,
     "cv_infuseLight": j_loot_affixCurves_cv_infuseLight,
-    "cv_infuseNone": j_loot_affixCurves_cv_infuseNone,
     "attr_def": j_loot_affixCurves_attr_def,
     "purse": j_loot_affixCurves_purse,
+    "desperation": j_loot_affixCurves_desperation,
+    "moraleSurge": j_loot_affixCurves_moraleSurge,
+    "finisherEdge": j_loot_affixCurves_finisherEdge,
+    "releaseEdge": j_loot_affixCurves_releaseEdge,
+    "riposteEdge": j_loot_affixCurves_riposteEdge,
+    "twinEdge": j_loot_affixCurves_twinEdge,
+    "firstStrikeEdge": j_loot_affixCurves_firstStrikeEdge,
+    "stanceGuard": j_loot_affixCurves_stanceGuard,
+    "unmoving": j_loot_affixCurves_unmoving,
+    "chainSource": j_loot_affixCurves_chainSource,
+    "chainReturn": j_loot_affixCurves_chainReturn,
+    "moraleCap": j_loot_affixCurves_moraleCap,
+    "burnStack": j_loot_affixCurves_burnStack,
+    "cv_critToChain": j_loot_affixCurves_cv_critToChain,
+    "cv_speedToDamage": j_loot_affixCurves_cv_speedToDamage,
+    "cv_manaToProjectiles": j_loot_affixCurves_cv_manaToProjectiles,
+    "cv_armorToPoise": j_loot_affixCurves_cv_armorToPoise,
+    "cv_lifeToArea": j_loot_affixCurves_cv_lifeToArea,
+    "cv_comboToFinisher": j_loot_affixCurves_cv_comboToFinisher,
+    "cv_coinsToMore": j_loot_affixCurves_cv_coinsToMore,
+    "cv_critToLightning": j_loot_affixCurves_cv_critToLightning,
+    "cv_critToCoins": j_loot_affixCurves_cv_critToCoins,
+    "cv_critToMorale": j_loot_affixCurves_cv_critToMorale,
   },
   "bases": j_loot_bases,
   "INNATE": {
@@ -2928,10 +2626,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/TRIGGER.json",
   "loot/_index.json",
   "loot/affixCurves/_index.json",
-  "loot/affixCurves/arcaneBattery.json",
-  "loot/affixCurves/arcaneFocus.json",
   "loot/affixCurves/armorFlat.json",
-  "loot/affixCurves/attackSpeed.json",
   "loot/affixCurves/attr_def.json",
   "loot/affixCurves/attr_dex.json",
   "loot/affixCurves/attr_mnd.json",
@@ -2939,248 +2634,100 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/attr_str.json",
   "loot/affixCurves/attr_vit.json",
   "loot/affixCurves/backlash.json",
-  "loot/affixCurves/battleRhythm.json",
   "loot/affixCurves/bloodSignature.json",
-  "loot/affixCurves/bloodbound.json",
-  "loot/affixCurves/boonEcho_azure.json",
-  "loot/affixCurves/boonEcho_crimson.json",
-  "loot/affixCurves/boonEcho_gold.json",
-  "loot/affixCurves/boonEcho_jade.json",
-  "loot/affixCurves/boonEcho_umbra.json",
   "loot/affixCurves/branchArt.json",
   "loot/affixCurves/brandDetonator.json",
-  "loot/affixCurves/bridge.json",
-  "loot/affixCurves/brimShock.json",
-  "loot/affixCurves/brokenBreaker.json",
-  "loot/affixCurves/brokenHunter.json",
   "loot/affixCurves/bulletCut.json",
   "loot/affixCurves/burn.json",
-  "loot/affixCurves/burstDamage.json",
-  "loot/affixCurves/burstRadius.json",
-  "loot/affixCurves/chainedBarrage.json",
+  "loot/affixCurves/burnStack.json",
+  "loot/affixCurves/chainReturn.json",
+  "loot/affixCurves/chainSource.json",
   "loot/affixCurves/chargeCore.json",
-  "loot/affixCurves/chargeQuake.json",
   "loot/affixCurves/chill.json",
   "loot/affixCurves/comboDamage.json",
-  "loot/affixCurves/comboWindow.json",
   "loot/affixCurves/conductor.json",
-  "loot/affixCurves/corrodeClaw.json",
-  "loot/affixCurves/counterGrain.json",
-  "loot/affixCurves/counterMana.json",
   "loot/affixCurves/counterWave.json",
-  "loot/affixCurves/critChance.json",
-  "loot/affixCurves/critMultiplier.json",
-  "loot/affixCurves/crushing.json",
   "loot/affixCurves/curtainCall.json",
-  "loot/affixCurves/cv_armorToWarding.json",
-  "loot/affixCurves/cv_burnToFire.json",
-  "loot/affixCurves/cv_burnToPoison.json",
-  "loot/affixCurves/cv_burstToSkill.json",
+  "loot/affixCurves/cv_armorToPoise.json",
   "loot/affixCurves/cv_chargesToDistance.json",
-  "loot/affixCurves/cv_chillToIce.json",
-  "loot/affixCurves/cv_chillToVulnerable.json",
-  "loot/affixCurves/cv_comboToJust.json",
-  "loot/affixCurves/cv_critToBurn.json",
-  "loot/affixCurves/cv_critToLight.json",
-  "loot/affixCurves/cv_critToMultiplier.json",
-  "loot/affixCurves/cv_critToPoise.json",
-  "loot/affixCurves/cv_dexToStr.json",
-  "loot/affixCurves/cv_energyToMana.json",
+  "loot/affixCurves/cv_coinsToMore.json",
+  "loot/affixCurves/cv_comboToFinisher.json",
+  "loot/affixCurves/cv_critToChain.json",
+  "loot/affixCurves/cv_critToCoins.json",
+  "loot/affixCurves/cv_critToLightning.json",
+  "loot/affixCurves/cv_critToMorale.json",
   "loot/affixCurves/cv_infuseDark.json",
   "loot/affixCurves/cv_infuseFire.json",
   "loot/affixCurves/cv_infuseIce.json",
   "loot/affixCurves/cv_infuseLight.json",
   "loot/affixCurves/cv_infuseLightning.json",
-  "loot/affixCurves/cv_infuseNone.json",
   "loot/affixCurves/cv_infusePoison.json",
-  "loot/affixCurves/cv_knockbackToPoise.json",
-  "loot/affixCurves/cv_leechToEnergy.json",
-  "loot/affixCurves/cv_lifeToArmor.json",
-  "loot/affixCurves/cv_lifeToMana.json",
-  "loot/affixCurves/cv_manaToLife.json",
-  "loot/affixCurves/cv_meleeToBurn.json",
-  "loot/affixCurves/cv_meleeToRanged.json",
-  "loot/affixCurves/cv_mndToDex.json",
-  "loot/affixCurves/cv_poiseToDamage.json",
+  "loot/affixCurves/cv_lifeToArea.json",
+  "loot/affixCurves/cv_manaToProjectiles.json",
   "loot/affixCurves/cv_projectilesToPoise.json",
-  "loot/affixCurves/cv_regenToGain.json",
-  "loot/affixCurves/cv_resistToDamage.json",
-  "loot/affixCurves/cv_resistToWarding.json",
-  "loot/affixCurves/cv_shockToLightning.json",
-  "loot/affixCurves/cv_speedToAttack.json",
-  "loot/affixCurves/cv_spiToVit.json",
-  "loot/affixCurves/cv_splitToPierce.json",
-  "loot/affixCurves/cv_strToSpi.json",
-  "loot/affixCurves/cv_vitToMnd.json",
-  "loot/affixCurves/cv_wardingToArmor.json",
-  "loot/affixCurves/damageTaken.json",
+  "loot/affixCurves/cv_speedToDamage.json",
   "loot/affixCurves/damageVsStaggered.json",
-  "loot/affixCurves/dashCharge.json",
-  "loot/affixCurves/dashCooldown.json",
-  "loot/affixCurves/dashDistance.json",
-  "loot/affixCurves/dashStrike.json",
-  "loot/affixCurves/dashVolley.json",
-  "loot/affixCurves/deepPiercing.json",
-  "loot/affixCurves/doomToll.json",
+  "loot/affixCurves/desperation.json",
   "loot/affixCurves/downHunter.json",
-  "loot/affixCurves/ebbTide.json",
   "loot/affixCurves/echoSlash.json",
   "loot/affixCurves/elementalBreak.json",
-  "loot/affixCurves/elementalWard.json",
-  "loot/affixCurves/emberMomentum.json",
   "loot/affixCurves/emberTrail.json",
-  "loot/affixCurves/emberWalk.json",
-  "loot/affixCurves/energyGain.json",
   "loot/affixCurves/energyReserve.json",
   "loot/affixCurves/explodeOnKill.json",
-  "loot/affixCurves/fearPoise.json",
   "loot/affixCurves/fever.json",
-  "loot/affixCurves/finisherMend.json",
-  "loot/affixCurves/fireRate.json",
+  "loot/affixCurves/finisherEdge.json",
   "loot/affixCurves/firstMove.json",
-  "loot/affixCurves/flickering.json",
-  "loot/affixCurves/foreignEcho.json",
-  "loot/affixCurves/formBreaker.json",
-  "loot/affixCurves/frenzied.json",
+  "loot/affixCurves/firstStrikeEdge.json",
   "loot/affixCurves/frostTrail.json",
-  "loot/affixCurves/frostWalk.json",
-  "loot/affixCurves/frostbite.json",
-  "loot/affixCurves/fullCharge.json",
   "loot/affixCurves/fullTide.json",
-  "loot/affixCurves/gildedFang.json",
   "loot/affixCurves/groundMend.json",
   "loot/affixCurves/groundRooted.json",
-  "loot/affixCurves/groundWisdom.json",
   "loot/affixCurves/guardPiercer.json",
   "loot/affixCurves/guardedBane.json",
-  "loot/affixCurves/heavyHand.json",
-  "loot/affixCurves/homingVenom.json",
-  "loot/affixCurves/hpRegen.json",
-  "loot/affixCurves/hueBreak.json",
-  "loot/affixCurves/hurtCleanse.json",
-  "loot/affixCurves/hurtWeaken.json",
-  "loot/affixCurves/hybridDamage.json",
-  "loot/affixCurves/hybridDefense.json",
-  "loot/affixCurves/hybridSpeed.json",
-  "loot/affixCurves/igniter.json",
   "loot/affixCurves/inheritance.json",
-  "loot/affixCurves/inscribedWeight.json",
-  "loot/affixCurves/invertedFeast.json",
-  "loot/affixCurves/ironclad.json",
   "loot/affixCurves/justBreath.json",
   "loot/affixCurves/justDodgeDamage.json",
   "loot/affixCurves/kaleidoscope.json",
-  "loot/affixCurves/keenMemory.json",
-  "loot/affixCurves/kickback.json",
-  "loot/affixCurves/kingslayerMark.json",
-  "loot/affixCurves/knockback.json",
-  "loot/affixCurves/lastKillMana.json",
-  "loot/affixCurves/lifeOnHit.json",
-  "loot/affixCurves/lifeOnKill.json",
   "loot/affixCurves/lockdownFury.json",
-  "loot/affixCurves/lowTide.json",
-  "loot/affixCurves/manaCostPct.json",
-  "loot/affixCurves/manaDrought.json",
-  "loot/affixCurves/manaGainPct.json",
-  "loot/affixCurves/manaOnKillFlat.json",
   "loot/affixCurves/manaOnStagger.json",
   "loot/affixCurves/manaOverflow.json",
-  "loot/affixCurves/manaRegenFlat.json",
   "loot/affixCurves/manaShield.json",
-  "loot/affixCurves/maxLife.json",
-  "loot/affixCurves/maxLifePct.json",
-  "loot/affixCurves/maxManaFlat.json",
-  "loot/affixCurves/meleeDamageFlat.json",
-  "loot/affixCurves/meleeDamagePct.json",
-  "loot/affixCurves/meleeReach.json",
-  "loot/affixCurves/mireGuard.json",
-  "loot/affixCurves/mireLord.json",
-  "loot/affixCurves/moveSpeed.json",
-  "loot/affixCurves/nightEyes.json",
+  "loot/affixCurves/moraleCap.json",
+  "loot/affixCurves/moraleSurge.json",
   "loot/affixCurves/oldScars.json",
-  "loot/affixCurves/overcharged.json",
-  "loot/affixCurves/painToMana.json",
-  "loot/affixCurves/pierce.json",
-  "loot/affixCurves/pike.json",
-  "loot/affixCurves/placedAnchor.json",
   "loot/affixCurves/placedInfuse.json",
   "loot/affixCurves/plagueSeed.json",
-  "loot/affixCurves/plunder.json",
   "loot/affixCurves/prismEdge.json",
   "loot/affixCurves/procBleed.json",
   "loot/affixCurves/procFear.json",
-  "loot/affixCurves/procParalyze.json",
   "loot/affixCurves/procPoison.json",
-  "loot/affixCurves/procSilence.json",
-  "loot/affixCurves/procVulnerable.json",
-  "loot/affixCurves/procWeaken.json",
-  "loot/affixCurves/projectileSpeed.json",
-  "loot/affixCurves/projectiles.json",
   "loot/affixCurves/purse.json",
-  "loot/affixCurves/rangedDamageFlat.json",
-  "loot/affixCurves/rangedDamagePct.json",
   "loot/affixCurves/rapidBrand.json",
-  "loot/affixCurves/razor.json",
   "loot/affixCurves/readAhead.json",
-  "loot/affixCurves/reaperShadow.json",
-  "loot/affixCurves/reckless.json",
-  "loot/affixCurves/res_all.json",
+  "loot/affixCurves/releaseEdge.json",
   "loot/affixCurves/res_dark.json",
   "loot/affixCurves/res_fire.json",
   "loot/affixCurves/res_ice.json",
   "loot/affixCurves/res_light.json",
   "loot/affixCurves/res_lightning.json",
   "loot/affixCurves/res_poison.json",
-  "loot/affixCurves/resistBreaker.json",
-  "loot/affixCurves/roomMender.json",
+  "loot/affixCurves/riposteEdge.json",
   "loot/affixCurves/rotBurst.json",
   "loot/affixCurves/sapling.json",
-  "loot/affixCurves/schoolForm.json",
-  "loot/affixCurves/schoolHarvest.json",
-  "loot/affixCurves/schoolMastery.json",
-  "loot/affixCurves/schoolSecret.json",
-  "loot/affixCurves/selfTaught.json",
-  "loot/affixCurves/sevenHues.json",
-  "loot/affixCurves/shatterEdge.json",
-  "loot/affixCurves/shieldSplitter.json",
   "loot/affixCurves/shock.json",
   "loot/affixCurves/siegeGuard.json",
-  "loot/affixCurves/siegeHeart.json",
-  "loot/affixCurves/siegeSpark.json",
-  "loot/affixCurves/silencedKillMana.json",
-  "loot/affixCurves/slickFooting.json",
-  "loot/affixCurves/spreadCore.json",
-  "loot/affixCurves/spreadShove.json",
-  "loot/affixCurves/staggerCharge.json",
-  "loot/affixCurves/staggerLeech.json",
   "loot/affixCurves/staggerMark.json",
   "loot/affixCurves/staggerQuake.json",
   "loot/affixCurves/staggerSpark.json",
   "loot/affixCurves/stake.json",
-  "loot/affixCurves/statusWard.json",
-  "loot/affixCurves/stormConduit.json",
-  "loot/affixCurves/stormcaller.json",
-  "loot/affixCurves/sturdy.json",
+  "loot/affixCurves/stanceGuard.json",
   "loot/affixCurves/switchBreath.json",
-  "loot/affixCurves/switchHitter.json",
   "loot/affixCurves/terrainBurst.json",
   "loot/affixCurves/terrainHunter.json",
-  "loot/affixCurves/thorns.json",
-  "loot/affixCurves/vampiricRush.json",
+  "loot/affixCurves/twinEdge.json",
+  "loot/affixCurves/unmoving.json",
   "loot/affixCurves/veteran.json",
-  "loot/affixCurves/virulent.json",
-  "loot/affixCurves/vortexCore.json",
-  "loot/affixCurves/vulnPoise.json",
-  "loot/affixCurves/wallSlammer.json",
-  "loot/affixCurves/wanderer.json",
-  "loot/affixCurves/wardedSanctuary.json",
-  "loot/affixCurves/wardingFlat.json",
-  "loot/affixCurves/wayfarer.json",
-  "loot/affixCurves/weakInsight.json",
-  "loot/affixCurves/weakRead.json",
-  "loot/affixCurves/weakenedGuard.json",
   "loot/affixCurves/wedge.json",
-  "loot/affixCurves/windupCrack.json",
   "loot/bases.json",
   "skills/ART/TRANSFORM/_index.json",
   "skills/ART/TRANSFORM/artillery.json",

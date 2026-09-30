@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { WEAPON } from "../data/tuning";
-import { CONVERSION_AFFIXES, affixDef, formatAffix, isConversionKey } from "./affixes";
+import { TRIGGER } from "../data/tuning";
+import { CONVERSION_AFFIXES, INFUSE_KEY_PREFIX, affixDef, formatAffix, isConversionKey } from "./affixes";
 import { CONVERSION_TRAIT_CHANCE, UNIQUES, generateItem } from "./generator";
 import { computeStats } from "./stats";
 import { DEFAULT_STATS, createEmptyEquipment, type AffixRoll, type Equipment, type Item } from "./types";
@@ -53,73 +53,56 @@ describe("変換の性質", () => {
     }
   });
 
-  it("表示は動詞で語る", () => {
+  it("転じ 12 と属性の変換 6 の 18 種", () => {
+    expect(CONVERSION_AFFIXES.length).toBe(18);
+    expect(CONVERSION_AFFIXES.filter((d) => d.key.startsWith(INFUSE_KEY_PREFIX)).length, "属性の変換").toBe(6);
+  });
+
+  it("表示は「〜につき」「変換」「会心時:」で語る", () => {
     for (const def of CONVERSION_AFFIXES) {
       const point = def.curve[0];
       if (!point) throw new Error(def.key);
       const text = formatAffix(roll(def.key, point.min, point.min2));
-      expect(text).toMatch(/(変換|消費)/);
+      expect(text, def.key).toMatch(/(変換|につき|会心時:)/);
     }
-    expect(formatAffix(roll("cv_meleeToBurn", 40))).toBe("近接ダメージの40%を炎上に変換");
+    expect(formatAffix(roll("cv_critToLightning", 8))).toBe("会心時: 連鎖雷（8 ダメージ）");
   });
 
-  it("melee → burn: 近接倍率の一部を burn に移す（scale の後に掛かる）", () => {
-    const s = statsWith([roll("meleeDamagePct", 50), roll("cv_meleeToBurn", 40)], "amulet");
-    // 1.5 * 0.6 = 0.9、移した 0.6 → burn DPS 6、chance 0.4 * 0.5 = 0.2。右手が空なので最後に素手の倍率が掛かる
-    expect(1 + s.increased.melee).toBeCloseTo(0.9, 5);
-    expect(s.more.find((m) => m.source === "unarmed")?.mul).toBe(WEAPON.unarmed.damageMul);
-    expect(s.burnDps).toBeCloseTo(6, 5);
-    expect(s.burnChance).toBeCloseTo(0.2, 5);
+  it("会心率 → 連鎖係数: 会心率 1% につき v% の連鎖係数", () => {
+    const s = statsWith([roll("cv_critToChain", 2)]);
+    expect(s.chainCoefBonus).toBeCloseTo(DEFAULT_STATS.critChance * 100 * 0.02, 5);
   });
 
-  it("crit chance → crit multiplier: chance が 0 になり、1% あたり v% の倍率になる", () => {
-    const s = statsWith([roll("critChance", 10), roll("cv_critToMultiplier", 5)]);
-    // chance 0.15 → multiplier +0.75
-    expect(s.critChance).toBe(0);
-    expect(s.critMul).toBeCloseTo(DEFAULT_STATS.critMul + 0.75, 5);
-  });
-
-  it("max HP → armor: 30% の HP を 1/3 の armor に", () => {
-    const s = statsWith([roll("cv_lifeToArmor", 30)], "armor");
-    expect(s.maxHp).toBe(70);
-    expect(s.armor).toBeCloseTo(10, 5);
+  it("最大気力 → 弾数: 最大気力の v% を manaPerProjectile ごとに 1 本、気力自然回復は倍率が掛かる", () => {
+    const s = statsWith([roll("cv_manaToProjectiles", 100)], "amulet");
+    expect(s.projectileCount).toBe(1 + Math.floor(DEFAULT_STATS.maxMana / TRIGGER.trait.manaPerProjectile));
+    expect(s.manaRegen).toBeCloseTo(DEFAULT_STATS.manaRegen * TRIGGER.trait.manaToProjectileRegenMul, 5);
   });
 
   it("dash charges → 距離: チャージは 1 に、距離はチャージ数に比例", () => {
-    const s = computeStats(
-      equip(
-        makeItem({
-          slot: "boots",
-          baseKey: "boots",
-          affixes: [roll("dashCharge", 1), roll("cv_chargesToDistance", 50)],
-        }),
-      ),
-    );
+    const s = computeStats(equip(makeItem({ slot: "boots", baseKey: "boots", affixes: [roll("cv_chargesToDistance", 50)] })));
     expect(s.dashCharges).toBe(1);
-    // 2 チャージ × 50% = +100%（boots の implicit は無し）
-    expect(s.dashDistanceMul).toBeCloseTo(2, 5);
+    expect(s.dashDistanceMul).toBeCloseTo(1 + 0.5 * DEFAULT_STATS.dashCharges, 5);
   });
 
-  it("spread → pierce: 弾数に比例して射撃ダメージが減り、pierce が増える", () => {
-    const s = statsWith([roll("projectiles", 2, 0), roll("cv_splitToPierce", 10, 3)], "amulet");
-    expect(s.projectileCount).toBe(3);
-    expect(s.pierce).toBe(3);
-    expect(s.more.find((m) => m.source === "affix:cv_splitToPierce")?.mul).toBeCloseTo(0.8, 5);
+  it("「〜につき」の転じは Modifier を足す（移動速度・防御力・最大生命・コンボ猶予・持ち金）", () => {
+    const perOf = (key: string, slot: Item["slot"]): string | undefined => statsWith([roll(key, 1)], slot).modifiers.find((m) => m.owner.key === key)?.per?.count.kind;
+    expect(perOf("cv_speedToDamage", "amulet")).toBe("stat");
+    expect(perOf("cv_armorToPoise", "boots")).toBe("stat");
+    expect(perOf("cv_lifeToArea", "amulet")).toBe("stat");
+    expect(perOf("cv_comboToFinisher", "ring")).toBe("stat");
+    expect(perOf("cv_coinsToMore", "ring")).toBe("coins");
+    const poise = statsWith([roll("cv_armorToPoise", 1)], "boots").modifiers.find((m) => m.owner.key === "cv_armorToPoise");
+    expect(poise?.tag, "怯み値だけに掛かる").toBe("poise");
   });
 
-  it("move speed の超過分 → attack speed", () => {
-    const s = statsWith([roll("moveSpeed", 20), roll("cv_speedToAttack", 50)], "amulet");
-    expect(s.moveSpeedMul).toBeCloseTo(1.1, 5);
-    expect(s.attackSpeedMul).toBeCloseTo(1.1, 5);
-  });
-
-  it("combo damage → JUST damage、life on hit → energy", () => {
-    const combo = statsWith([roll("comboDamage", 2, 40), roll("cv_comboToJust", 50)]);
-    expect(combo.comboDamageCap).toBeCloseTo(0.2, 5);
-    expect(combo.justDodgeDamageMul).toBeCloseTo(1 + 0.2 * 1.5, 5);
-    const leech = statsWith([roll("lifeOnHit", 4), roll("cv_leechToEnergy", 50)]);
-    expect(leech.lifeOnHit).toBeCloseTo(2, 5);
-    expect(leech.energyGainMul).toBeCloseTo(1 + 2 * 0.15, 5);
+  it("会心時の転じは Rule（onCrit）を stats.rules に積む（内部 CD は TRIGGER.trait.critRuleIcd）", () => {
+    const s = statsWith([roll("cv_critToLightning", 8), roll("cv_critToCoins", 2)]);
+    const kinds = s.rules.map((r) => [r.when, r.then.kind, r.then.magnitude, r.icd]);
+    expect(kinds).toEqual([
+      ["onCrit", "chainLightning", 8, TRIGGER.trait.critRuleIcd],
+      ["onCrit", "gainCoins", 2, TRIGGER.trait.critRuleIcd],
+    ]);
   });
 
   it("抽選に変換が混ざり、1 アイテムに 1 つまで（名のある遺物を除く）。名のある遺物にも組み込まれている", () => {

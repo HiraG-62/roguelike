@@ -123,7 +123,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
     tags.add("energy");
   }
   if (stats.critChance > d.critChance || stats.critMul > d.critMul) tags.add("crit");
-  if (stats.lifeOnHit > 0 || stats.lifeOnKill > 0 || stats.hpRegen > 0 || effects.has("heal") || ks.has(KS.vampire) || ks.has(KS.berserker)) {
+  if (stats.lifeOnHit > 0 || stats.lifeOnKill > 0 || stats.hpRegen > 0 || effects.has("heal") || ks.has(KS.vampire)) {
     tags.add("hp");
   }
   if (triggers.has("onRoomClear") || conditions.has("roomLocked")) tags.add("room");

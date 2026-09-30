@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { triangular } from "../core/scale";
-import { affixDef } from "./affixes";
+import { type AffixDef, affixDef } from "./affixes";
 import {
   CALM_FLUX_LIMIT,
   FLUX,
@@ -23,9 +23,27 @@ import {
 
 const MANY = 2000;
 
+/**
+ * 曲線の読み替えの見本（旧「近接ダメージ +%」の曲線。段取り 7d で性質は消えたが、補間と外挿の検査には点の多い曲線が要る）
+ */
+const CURVE_SAMPLE: AffixDef = {
+  key: "curveSample",
+  label: "見本 +{v}%",
+  tags: ["damage"],
+  slots: ["mainHand"],
+  curve: [
+    { depth: 26, min: 50, max: 60 },
+    { depth: 19, min: 40, max: 49 },
+    { depth: 13, min: 30, max: 39 },
+    { depth: 8, min: 21, max: 29 },
+    { depth: 4, min: 13, max: 20 },
+    { depth: 1, min: 6, max: 12 },
+  ],
+  apply: () => {},
+};
+
 describe("期待値曲線（旧 tier 表の読み替え）", () => {
-  const def = affixDef("meleeDamagePct");
-  if (def === undefined) throw new Error("meleeDamagePct missing");
+  const def = CURVE_SAMPLE;
   // 曲線: (1, 6..12) (4, 13..20) (8, 21..29) (13, 30..39) (19, 40..49) (26, 50..60)
 
   it("曲線の点では幅の中央", () => {
@@ -125,8 +143,7 @@ describe("揺らぎ", () => {
 });
 
 describe("装備の強さの係数（FLUX.globalScale × depthScale）", () => {
-  const def = affixDef("meleeDamagePct");
-  if (def === undefined) throw new Error("meleeDamagePct missing");
+  const def = CURVE_SAMPLE;
 
   it("全体を 20〜30% 下げる（globalScale）", () => {
     expect(FLUX.globalScale).toBeGreaterThanOrEqual(0.7);

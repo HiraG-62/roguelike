@@ -6,6 +6,7 @@ import {
   ATTR_TRAIT_PREFIX,
   AFFIXES,
   CONVERSION_AFFIXES,
+  INNATE_LINE_DEFS,
   affixDef,
   formatAffix,
   keystoneConflicts,
@@ -20,7 +21,7 @@ import { computeStats } from "./stats";
 import { ATTR_KEYS, DEFAULT_STATS, LOOT_SLOTS, createEmptyEquipment, type AffixRoll, type Equipment, type Item } from "./types";
 
 /**
- * 戦闘再設計 L5（装備の追随）で足した性質: ステータス・ステータスの変換・状態異常の付与・弾斬り・マナの誓約。
+ * 戦闘再設計 L5（装備の追随）で足した性質: ステータス（段取り 7d から地金の行）・状態異常の付与・弾斬り・マナの誓約。
  * docs/COMBAT_DESIGN.md A-3 / E-5 / F-2
  */
 
@@ -61,15 +62,16 @@ function statsWith(affixes: AffixRoll[]): ReturnType<typeof computeStats> {
   return computeStats(equip(makeItem({ affixes })));
 }
 
-const STATUS_TRAIT_KEYS = ["procBleed", "procPoison", "procVulnerable", "procWeaken", "procSilence", "procFear"];
+const STATUS_TRAIT_KEYS = ["procBleed", "procPoison", "procFear"];
 
-describe("ステータスの性質（attr_*）", () => {
+describe("ステータスの地金の行（attr_*）", () => {
   const attrDefs = ATTR_KEYS.map((k) => affixDef(`${ATTR_TRAIT_PREFIX}${k}`));
 
-  it("6 種あり、通常の抽選プール（AFFIXES）に入っている", () => {
+  it("6 種あり、affixDef で引けるが性質の抽選（AFFIXES）には入らない", () => {
     for (const [i, def] of attrDefs.entries()) {
       expect(def, ATTR_KEYS[i]).toBeDefined();
-      expect(AFFIXES, ATTR_KEYS[i]).toContain(def);
+      expect(INNATE_LINE_DEFS, ATTR_KEYS[i]).toContain(def);
+      expect(AFFIXES, ATTR_KEYS[i]).not.toContain(def);
     }
   });
 
@@ -118,54 +120,22 @@ describe("ステータスの性質（attr_*）", () => {
     expect(formatAffix(roll("attr_mnd", 3))).toBe("精神 +3");
   });
 
-  it("各スロットで少なくとも 1 種のステータスが抽選できる", () => {
+  it("どの部位の抽選にも出ない（地金が受け持つ）", () => {
     for (const slot of LOOT_SLOTS) {
-      const attrs = traitsFor(slot, 1).filter((d) => d.key.startsWith(ATTR_TRAIT_PREFIX));
-      expect(attrs.length, slot).toBeGreaterThan(0);
+      const attrs = traitsFor(slot, 30).filter((d) => d.key.startsWith(ATTR_TRAIT_PREFIX));
+      expect(attrs, slot).toEqual([]);
     }
   });
 });
 
-describe("ステータスの変換（cv_*To*）", () => {
-  const attrConversions = CONVERSION_AFFIXES.filter((d) => d.tags.includes("attribute"));
-
-  it("5 種あり、各ステータスが 1 回ずつ移し元・移し先になる", () => {
-    expect(attrConversions).toHaveLength(5);
-    const froms = new Set<string>();
-    const tos = new Set<string>();
-    for (const def of attrConversions) {
-      const before = computeStats(createEmptyEquipment()).attributes;
-      const after = statsWith([roll(def.key, 50)]).attributes;
-      for (const k of ATTR_KEYS) {
-        if (after[k] < before[k]) froms.add(k);
-        if (after[k] > before[k]) tos.add(k);
-      }
-    }
-    expect(froms.size).toBe(5);
-    expect(tos.size).toBe(5);
-  });
-
-  it("技巧の 50% を筋力として扱う（技巧は 50% 減る）", () => {
-    const s = statsWith([roll("attr_dex", 5), roll("cv_dexToStr", 50)]);
-    // 技巧 5 + 5 = 10 → 半分の 5 を筋力へ
-    expect(s.attributes.dex).toBe(5);
-    expect(s.attributes.str).toBe(BASE + 5);
-  });
-
-  it("色は移し先のステータスの色、表示は「変換」の動詞", () => {
-    const def = affixDef("cv_strToSpi");
-    if (def === undefined) throw new Error("cv_strToSpi が無い");
-    expect(affixColor(def)).toBe("umbra");
-    expect(formatAffix(roll("cv_strToSpi", 50))).toBe("筋力の50%を霊力に変換");
-  });
-
-  it("期待値は 50%", () => {
-    for (const def of attrConversions) expect(nominalAt(def, 10).nominal, def.key).toBe(50);
+describe("ステータスの変換（段取り 7d で消した）", () => {
+  it("cv_*To*（ステータスの変換）は変換の性質に無い", () => {
+    expect(CONVERSION_AFFIXES.filter((d) => d.tags.includes("attribute"))).toEqual([]);
   });
 });
 
 describe("状態異常を付ける性質（statusProcs）", () => {
-  it("6 種あり、抽選プールに入っている", () => {
+  it("3 種（出血・毒・恐怖）あり、抽選プールに入っている", () => {
     for (const key of STATUS_TRAIT_KEYS) {
       const def = affixDef(key);
       expect(def, key).toBeDefined();
@@ -173,13 +143,10 @@ describe("状態異常を付ける性質（statusProcs）", () => {
     }
   });
 
-  it("色: 出血 = 紅 / 毒・脆弱 = 冥 / 弱体 = 翠 / 沈黙 = 蒼 / 恐怖 = 金", () => {
+  it("色: 出血 = 紅 / 毒 = 冥 / 恐怖 = 金", () => {
     const expected: Record<string, string> = {
       procBleed: "crimson",
       procPoison: "umbra",
-      procVulnerable: "umbra",
-      procWeaken: "jade",
-      procSilence: "azure",
       procFear: "gold",
     };
     for (const [key, color] of Object.entries(expected)) {
@@ -203,12 +170,9 @@ describe("状態異常を付ける性質（statusProcs）", () => {
     expect(fear?.chance).toBeCloseTo(0.3);
   });
 
-  it("判定する攻撃: 脆弱はスキル、沈黙は射撃、毒と弱体はどの攻撃でも", () => {
-    const s = statsWith([roll("procVulnerable", 20), roll("procSilence", 10)]);
-    expect(s.statusProcs.find((p) => p.kind === "vulnerable")?.on).toBe("skill");
-    expect(s.statusProcs.find((p) => p.kind === "silence")?.on).toBe("ranged");
-    const t = statsWith([roll("procPoison", 10), roll("procWeaken", 10)]);
-    expect(t.statusProcs.map((p) => p.on)).toEqual(["any", "any"]);
+  it("判定する攻撃: 出血は近接、毒はどの攻撃でも", () => {
+    const t = statsWith([roll("procPoison", 10), roll("procBleed", 10, 1)]);
+    expect(t.statusProcs.map((p) => p.on)).toEqual(["any", "melee"]);
   });
 
   it("反転などで確率が 0 以下なら積まない", () => {
@@ -224,7 +188,7 @@ describe("状態異常を付ける性質（statusProcs）", () => {
   });
 
   it("空装備では statusProcs は空で、DEFAULT_STATS の配列を共有しない", () => {
-    const a = statsWith([roll("procWeaken", 10)]);
+    const a = statsWith([roll("procPoison", 10)]);
     expect(DEFAULT_STATS.statusProcs).toHaveLength(0);
     expect(a.statusProcs).not.toBe(DEFAULT_STATS.statusProcs);
   });
@@ -314,7 +278,7 @@ describe("生成", () => {
       const stats = computeStats(equip(item));
       for (const k of ATTR_KEYS) expect(Number.isFinite(stats.attributes[k]), k).toBe(true);
     }
-    for (const k of ATTR_KEYS) expect(seen.has(`${ATTR_TRAIT_PREFIX}${k}`), k).toBe(true);
+    for (const k of ATTR_KEYS) expect(seen.has(`${ATTR_TRAIT_PREFIX}${k}`), `${k} は性質に出ない`).toBe(false);
     for (const key of STATUS_TRAIT_KEYS) expect(seen.has(key), key).toBe(true);
   });
 

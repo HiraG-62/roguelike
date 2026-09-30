@@ -129,6 +129,7 @@ export function comboMultiplier(count: number): number {
 }
 
 export function registerComboHit(state: GameState): void {
+  if (hasKeystone(state, KS.mushin)) return;
   state.combo.count += 1;
   state.combo.timer = FEEL.comboWindow + state.stats.comboWindowBonus;
   state.combo.popTimer = COMBO_POP_TIME;
@@ -560,7 +561,7 @@ export function damagePlayer(
   const away = normalize(sub(p.body.pos, fromPos));
   // 鉄塊化（skills/forms.ts）は押されず、振りも止まらない
   const braced = state.skills.shape?.key === "ironForm";
-  if (!braced && !chargeArmor?.noKnock && !hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
+  if (!braced && !chargeArmor?.noKnock && !(state.stats.traits.unmoving > 0)) p.knock = scale(away, PLAYER.hurtKnockback);
   if (!braced) cancelAttack(state);
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
