@@ -364,7 +364,7 @@ export function buildDeathCauseByBandSection(deaths: readonly DeathRecord[]): st
 /** 封鎖の詰みを起こしたラン数の 1 行（死因の表の下に置く） */
 export function buildLockStallLines(stalledRuns: number, totalRuns: number): string[] {
   return [
-    `封鎖が ${LOCK_STALL_SECONDS} 秒以上続き、届く生きた敵が 0 だったラン数: ${stalledRuns} / ${totalRuns}（目標 0）`,
+    `封鎖が ${LOCK_STALL_SECONDS} 秒以上、被弾も撃破も無いまま続いたラン数: ${stalledRuns} / ${totalRuns}（目標 0）`,
     `- 定義（簡易）: 封鎖中の部屋に生きた敵が残っているのに、${LOCK_STALL_SECONDS} 秒のあいだプレイヤーへの被弾も撃破も無かったことが 1 度でもあったラン。敵が壁の中・到達不能な所にいる詰みを拾うための目安`,
     "",
   ];

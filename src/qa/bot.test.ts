@@ -5,7 +5,17 @@ import { ULTIMATES } from "../data/ultimates";
 import { placeEnemy, arena, slayFloorLord } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
-import { HIDDEN_DOOR_GIVE_UP, botInput, chooseTargetRoomIndex, createBotState, pickBoonIndex, shouldDrinkFlask, shouldPressUltimate } from "./bot";
+import {
+  HIDDEN_DOOR_GIVE_UP,
+  botInput,
+  chooseTargetRoomIndex,
+  createBotState,
+  nearestEngagedEnemy,
+  pickBoonIndex,
+  shouldDrinkFlask,
+  shouldPressUltimate,
+} from "./bot";
+import { TILE_SIZE, toIndex } from "../map/grid";
 import { isZero } from "../core/vec";
 import { buildFloor } from "../system/floor";
 import { planHidden } from "../system/hiddenRoom";
@@ -330,5 +340,54 @@ describe("bot の進み方（封鎖の部屋 → 階の主 → 階段）", () =>
     bot.targetRoomIndex = state.boss?.roomIndex ?? null;
     expect(chooseTargetRoomIndex(state, bot), "階段へ").toBeNull();
     expect(bot.targetRoomIndex, "覚えていた目標も捨てる").toBeNull();
+  });
+});
+
+describe("bot は閉じた扉の向こうを追わない", () => {
+  const ENEMY_DX = 70;
+  const HEART_DX = 60;
+  const LOW_HP_RATIO = 0.1;
+
+  function lockTileAt(state: GameState, x: number, y: number): number {
+    const index = toIndex(state.map, Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE));
+    state.lockedTiles.add(index);
+    return index;
+  }
+
+  it("視線が通っていても、線分が封鎖中の扉を横切る敵は狙わない", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const enemy = state.enemies[0];
+    expect(nearestEngagedEnemy(state), "前提: 扉が無ければ狙う").toBe(enemy);
+    const p = state.player.body.pos;
+    lockTileAt(state, p.x + ENEMY_DX / 2, p.y);
+    expect(nearestEngagedEnemy(state), "扉越しの敵は狙わない").toBeNull();
+  });
+
+  it("封鎖中の扉が線分から外れていれば狙う", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const p = state.player.body.pos;
+    lockTileAt(state, p.x, p.y + TILE_SIZE * 4);
+    expect(nearestEngagedEnemy(state), "扉が別の所にある").toBe(state.enemies[0]);
+  });
+
+  it("生命が低くても、経路で届かないハートへは向かわない（届くハートへは向かう）", () => {
+    const reachable = arena(3);
+    const heartPos = { x: reachable.player.body.pos.x + HEART_DX, y: reachable.player.body.pos.y };
+    reachable.pickups.push({ id: 9001, kind: "heart", pos: { ...heartPos }, radius: 6, bobTime: 0 });
+    reachable.player.hp = reachable.player.maxHp * LOW_HP_RATIO;
+    reachable.player.flasks = 0;
+    const botA = createBotState(1);
+    botInput(reachable, botA, DT);
+    expect(botA.pathGoal, "届くハートへ経路を引く").toEqual(heartPos);
+
+    const sealed = arena(3);
+    sealed.pickups.push({ id: 9002, kind: "heart", pos: { ...heartPos }, radius: 6, bobTime: 0 });
+    sealed.player.hp = sealed.player.maxHp * LOW_HP_RATIO;
+    sealed.player.flasks = 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) lockTileAt(sealed, heartPos.x + dx * TILE_SIZE, heartPos.y + dy * TILE_SIZE);
+    const botB = createBotState(1);
+    botInput(sealed, botB, DT);
+    expect(botB.pathGoal === null || Math.abs(botB.pathGoal.x - heartPos.x) > TILE_SIZE || Math.abs(botB.pathGoal.y - heartPos.y) > TILE_SIZE, "ハートを経路の目標にしない").toBe(true);
+    expect(botB.heartRetry, "届かないと分かったら次の引き直しまで待つ").toBeGreaterThan(0);
   });
 });
