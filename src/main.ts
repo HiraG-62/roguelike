@@ -146,6 +146,10 @@ import type { MovesetKey } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import { type RackAction, type RackCard, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
 import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
+import { type HallOutcome, type HallRun, createHallRun, hallOutcome, stepHall } from "./system/bossHall";
+import { addHallResult, hallRecordOf } from "./meta/hubStore";
+import { HALL_LIST_HINT, HALL_TITLE, hallFightHint, hallKeyOfEntry, hallResultHint, hallResultLines, hallTabs } from "./ui/bossHall";
+import { drawHallFightHint, drawHallResult } from "./render/bossHallUi";
 
 const canvasEl = document.getElementById("game");
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
@@ -184,7 +188,9 @@ type Screen =
   | "replay"
   | "hub"
   | "altar"
-  | "rack";
+  | "rack"
+  | "hall"
+  | "hallFight";
 
 /** タイトルのメニューから開く一覧画面（Tips ノートはポーズからも開く） */
 type ListScreenKind = "codex" | "questBoard" | "achievements" | "tips";
@@ -710,6 +716,10 @@ function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): 
     openRack(session, frame.move.x, frame.move.y);
     return;
   }
+  if (open.kind === "hall") {
+    openHall(frame.move.x, frame.move.y);
+    return;
+  }
   menuReturn = "hub";
   if (open.screen === "origin") openOrigin(committedSeedText, frame.move.x, frame.move.y);
   else if (open.screen === "history") openHistory();
@@ -776,6 +786,104 @@ function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolea
   setTrialKeystone(session, trialKeyOfEntry(entry.key));
   listTabs = altarTabs(session.hub.trialKeystone);
   sfx.play("uiClick");
+}
+
+// ---------------------------------------------------------------------------
+// ボスの間（拠点の台 → 一覧 → 挑む。docs/ideas/meta-impl.md 2-7）
+// ---------------------------------------------------------------------------
+
+/**
+ * ボスの間の挑戦。拠点と同じく `state` には入れない（ループ先頭の endRun が 1 ランとして履歴・図鑑・リプレイへ記録するため）。
+ * 装備は一時プロフィールの写しで、step 内の保存（拾得・ラン記録）は releaseGuard を外すまで捨てる
+ */
+interface HallFight {
+  run: HallRun;
+  releaseGuard: () => void;
+  /** 結果を拠点の保存データへ畳んだか（1 挑戦 1 回） */
+  recorded: boolean;
+  /** 結果の行。撃破か力尽きるまで null（null の間は step を回す） */
+  result: string[] | null;
+  /** 結果を出してからの秒。攻撃の連打のまま再挑戦しないよう、死亡画面と同じ待ちを入れる */
+  resultTimer: number;
+}
+let hallFight: HallFight | null = null;
+
+function openHall(frameMoveX: number, frameMoveY: number): void {
+  screen = "hall";
+  listUi = createListScreen();
+  listTabs = hallTabs(codexSave, loadHub());
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateHallListFrame(frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    returnToHub();
+    return;
+  }
+  if (stepListInput(frame, arrowX, arrowY) !== "activate") return;
+  const key = hallKeyOfEntry(listCursorEntry(listUi, listTabs));
+  if (key === null || !startHallFight(key)) sfx.play("uiClose");
+}
+
+/** 挑戦を始める。保存の抑止は createGame より前に掛ける（startJob などが一時プロフィールを保存しようとしても捨てる） */
+function startHallFight(key: string): boolean {
+  const releaseGuard = guardStorageWrites();
+  const run = createHallRun(key, profile, skillProfile, runSetup.job, settings.hitstopScale);
+  if (!run) {
+    releaseGuard();
+    return false;
+  }
+  hallFight = { run, releaseGuard, recorded: false, result: null, resultTimer: 0 };
+  inventoryUi.open = false;
+  screen = "hallFight";
+  sfx.play("uiClick");
+  return true;
+}
+
+/** 結果を拠点の保存データへ 1 回だけ畳む（封鎖前の挑戦は addHallResult が数えない）。戻り値は結果の行 */
+function settleHallFight(fight: HallFight, outcome: HallOutcome): string[] {
+  const save = loadHub();
+  const before = hallRecordOf(save, fight.run.key);
+  if (!fight.recorded) saveHub(addHallResult(save, fight.run.key, outcome));
+  fight.recorded = true;
+  return hallResultLines(outcome, before);
+}
+
+function endHallFight(fight: HallFight): void {
+  fight.releaseGuard();
+  hallFight = null;
+}
+
+function updateHallFightFrame(fight: HallFight, frame: FrameInput, escape: boolean, dt: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    // 途中でやめても封鎖していれば 1 回の挑戦として数える
+    if (!fight.recorded) settleHallFight(fight, hallOutcome(fight.run));
+    endHallFight(fight);
+    returnToHub();
+    return;
+  }
+  if (fight.result !== null) {
+    fight.resultTimer += dt;
+    if (fight.resultTimer <= DEATH_INPUT_DELAY || !deathConfirmPressed(frame, fight.resultTimer)) return;
+    endHallFight(fight);
+    if (!startHallFight(fight.run.key)) returnToHub();
+    return;
+  }
+  stepHall(fight.run, frame, dt);
+  drainSfx(fight.run.state);
+  const outcome = hallOutcome(fight.run);
+  // 撃破・力尽きた瞬間に止める（撃破後の改鋳の 3 択や死亡画面へ進めない）
+  if (outcome.done) fight.result = settleHallFight(fight, outcome);
+}
+
+function drawHallFight(ctx: CanvasRenderingContext2D, fight: HallFight): void {
+  renderGame(fight.run.state, fight.result === null ? lastAim : null);
+  if (fight.result === null) drawHallFightHint(ctx, hallFightHint(fight.run.key));
+  else drawHallResult(ctx, fight.result, hallResultHint());
 }
 
 const RACK_TITLE = "武器掛け";
@@ -1095,15 +1203,15 @@ function questDoneInRun(s: GameState): boolean {
  * 音楽の切り替え（src/audio/music.ts）。state は音楽を知らないので、ここで state を読んで曲を選ぶ。
  * ラン中の画面（プレイ・一時停止・設定・装備画面）と拠点は鳴らし続け、タイトル系・死亡後は止める
  */
-const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay"]);
+const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay", "hallFight"]);
 /** 拠点の画面。ランの state は無いので、拠点の曲だけを流す */
-const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack"]);
+const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack", "hall"]);
 function updateMusic(): void {
   if (hub && MUSIC_HUB_SCREENS.has(screen)) {
     music.update(musicCue({ inRun: true, hub: true, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
     return;
   }
-  const s = screen === "replay" ? (replay?.session.state ?? null) : state;
+  const s = screen === "replay" ? (replay?.session.state ?? null) : screen === "hallFight" ? (hallFight?.run.state ?? null) : state;
   const inRun = s !== null && !runOver(s) && MUSIC_RUN_SCREENS.has(screen);
   if (!s || !inRun) {
     music.update(musicCue({ inRun: false, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
@@ -1176,7 +1284,7 @@ function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
  */
 let cursorVisible = false;
 function updateCursorVisibility(cur: GameState | null): void {
-  const inWorld = screen === "playing" || screen === "hub";
+  const inWorld = screen === "playing" || screen === "hub" || screen === "hallFight";
   const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null || cur?.reforgeChoice != null;
   if (wantVisible === cursorVisible) return;
   cursorVisible = wantVisible;
@@ -1185,12 +1293,12 @@ function updateCursorVisibility(cur: GameState | null): void {
 
 startLoop(
   (dt) => {
-    const frame = input.snapshot((state ?? hub?.state)?.camera.offset);
+    const frame = input.snapshot((state ?? hallFight?.run.state ?? hub?.state)?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
     keyboardEscape = hotkeys.escape;
     // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する。
     // ただしプレイ中（装備画面を閉じている間）は B がダッシュと共用なので、ポーズは Start だけで開く
-    const padInGame = (screen === "playing" || screen === "hub") && !inventoryUi.open;
+    const padInGame = (screen === "playing" || screen === "hub" || screen === "hallFight") && !inventoryUi.open;
     if (padInGame ? gamepad.pausePressed() : input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
     updateMusic();
@@ -1278,6 +1386,24 @@ startLoop(
           break;
         }
         updateRackFrame(hub, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY, dt);
+        break;
+      }
+
+      case "hall": {
+        if (!hub) {
+          screen = "title";
+          break;
+        }
+        updateHallListFrame(frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
+        break;
+      }
+
+      case "hallFight": {
+        if (!hallFight) {
+          returnToHub();
+          break;
+        }
+        updateHallFightFrame(hallFight, frame, hotkeys.escape, dt);
         break;
       }
 
@@ -1705,6 +1831,16 @@ startLoop(
     }
     if (screen === "altar") {
       drawListScreen(ctx, { title: ALTAR_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: ALTAR_HINT });
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "hall") {
+      drawListScreen(ctx, { title: HALL_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: HALL_LIST_HINT });
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "hallFight" && hallFight) {
+      drawHallFight(ctx, hallFight);
       drawGamepadConnectedHint(ctx);
       return;
     }

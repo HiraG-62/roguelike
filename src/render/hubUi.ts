@@ -52,6 +52,7 @@ const SPOT_ACTION: Readonly<Record<HubSpotKey, string>> = {
   codex: "図鑑を開く",
   achievements: "実績を開く",
   rack: "武器を試す",
+  hall: "挑む",
 };
 
 /** 記録室の 3 台は設備名だけだと区別できないので台の名前を出す */

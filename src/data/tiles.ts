@@ -157,6 +157,7 @@ export const TILE_SPRITES: readonly TileSpriteDef[] = [
   cell("hub.codex", "kenneyTiny", 5, 5),
   cell("hub.achievements", "kenneyTiny", 6, 4),
   cell("hub.rack", "kenneyTiny", 10, 8),
+  cell("hub.hall", "puny", 24, 17),
 ];
 
 /**
