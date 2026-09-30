@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
-import { placeEnemy, arena } from "../system/testHelpers";
+import { placeEnemy, arena, slayFloorLord } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
-import { HIDDEN_DOOR_GIVE_UP, botInput, createBotState, pickBoonIndex, shouldDrinkFlask, shouldPressUltimate } from "./bot";
+import { HIDDEN_DOOR_GIVE_UP, botInput, chooseTargetRoomIndex, createBotState, pickBoonIndex, shouldDrinkFlask, shouldPressUltimate } from "./bot";
 import { isZero } from "../core/vec";
 import { buildFloor } from "../system/floor";
 import { planHidden } from "../system/hiddenRoom";
+import { setupFloorLordRoom } from "../system/floorLord";
 
 /** bot が待ち終えた後の提示時間（BOON_CHOICE_WAIT 0.5 秒より長く） */
 const WAITED = 1;
@@ -281,5 +282,53 @@ describe("bot の市", () => {
     const bot = createBotState(1);
     for (let i = 0; i < 100; i++) botInput(far, bot, 1);
     expect(bot.marketTime, "追った秒は上限を少し超えたところで止まる").toBeLessThanOrEqual(31 + 1);
+  });
+});
+
+describe("bot の進み方（封鎖の部屋 → 階の主 → 階段）", () => {
+  /** 階の主がいて、封鎖中の部屋は無い盤面（階段は主を倒すまで現れないので、全部屋を掃除して待つ bot は進めない） */
+  function lordFloor(seed: number): GameState {
+    const state = arena(seed);
+    state.rooms.forEach((room) => {
+      room.locked = false;
+    });
+    // arena は敵を空にするので、主は置き直す（slayFloorLord が倒せるよう敵としても立てる）
+    state.boss = null;
+    setupFloorLordRoom(state, state.rooms.length - 1);
+    return state;
+  }
+
+  it("封鎖中の部屋を最優先で目標にする（主の部屋より先）", () => {
+    const state = lordFloor(3);
+    expect(state.boss, "前提: 階の主がいる").not.toBeNull();
+    const lockedIndex = 0;
+    expect(state.boss?.roomIndex, "前提: 封鎖する部屋は主の部屋と別").not.toBe(lockedIndex);
+    const room = state.rooms[lockedIndex];
+    if (!room) throw new Error("部屋が無い");
+    room.locked = true;
+    expect(chooseTargetRoomIndex(state, createBotState(1)), "封鎖中の部屋").toBe(lockedIndex);
+  });
+
+  it("主が生きている間は主の部屋を目標にする（未制圧の近い部屋は後回し）", () => {
+    const state = lordFloor(3);
+    const boss = state.boss;
+    if (!boss) throw new Error("階の主がいない");
+    expect(boss.defeated, "前提: 主は未撃破").toBe(false);
+    const bot = createBotState(1);
+    expect(chooseTargetRoomIndex(state, bot), "主の部屋").toBe(boss.roomIndex);
+    expect(bot.targetRoomIndex, "bot の目標にも残る").toBe(boss.roomIndex);
+  });
+
+  it("主を倒した後は階段へ向かう（目標の部屋が null）", () => {
+    const state = lordFloor(3);
+    slayFloorLord(state);
+    expect(state.boss?.defeated, "前提: 主を倒した").toBe(true);
+    state.rooms.forEach((room) => {
+      room.locked = false;
+    });
+    const bot = createBotState(1);
+    bot.targetRoomIndex = state.boss?.roomIndex ?? null;
+    expect(chooseTargetRoomIndex(state, bot), "階段へ").toBeNull();
+    expect(bot.targetRoomIndex, "覚えていた目標も捨てる").toBeNull();
   });
 });
