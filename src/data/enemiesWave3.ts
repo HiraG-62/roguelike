@@ -71,6 +71,7 @@ export const WAVE3_ENEMIES: readonly EnemyDef[] = [
   { key: "librarian", name: "図書館の司書", sprite: "librarian", behavior: "librarian", color: "#c0a0ff", boss: true, ...N.librarian },
   { key: "mirrorKnight", name: "鏡の騎士", sprite: "mirrorKnight", behavior: "mirrorKnight", color: "#c0e0ff", boss: true, ...N.mirrorKnight },
   { key: "mirrorImage", name: "写し身", sprite: "mirrorImage", recolor: { base: "player", swap: { b: "3", B: "4", a: "2", t: "1", T: "s" } }, behavior: "charger", color: "#c0e0ff", noCorpse: true, ...N.mirrorImage },
+  { key: "mirrorPane", name: "姿見", sprite: "mirrorPane", behavior: "inert", color: "#c0e0ff", noCorpse: true, ...N.mirrorPane },
   // ---- 2026-09-24 第 4 弾: 盗賊王と盗賊（盗賊はボスの取り巻きとランイベント「盗賊の追跡」だけに出る）----
   { key: "thiefKing", name: "盗賊王", sprite: "thiefKing", behavior: "thiefKing", color: "#d0a040", boss: true, ...N.thiefKing },
   { key: "thief", name: "盗賊", sprite: "thief", recolor: { base: "player", swap: { b: "9", B: "k", a: "A", O: "9", o: "K", y: "S", r: "A", R: "n" } }, behavior: "chaser", color: "#a08060", ...N.thief },

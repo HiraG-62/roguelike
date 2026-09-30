@@ -261,6 +261,7 @@ import j_enemies_stats_reaperShade from "./enemies/stats/reaperShade.json";
 import j_enemies_stats_merchant from "./enemies/stats/merchant.json";
 import j_enemies_stats_pot from "./enemies/stats/pot.json";
 import j_enemies_stats_crate from "./enemies/stats/crate.json";
+import j_enemies_stats_mirrorPane from "./enemies/stats/mirrorPane.json";
 import j_enemies_combat__index from "./enemies/combat/_index.json";
 import j_enemies_combat_slime from "./enemies/combat/slime.json";
 import j_enemies_combat_eye from "./enemies/combat/eye.json";
@@ -369,6 +370,7 @@ import j_enemies_combat_reaperShade from "./enemies/combat/reaperShade.json";
 import j_enemies_combat_merchant from "./enemies/combat/merchant.json";
 import j_enemies_combat_pot from "./enemies/combat/pot.json";
 import j_enemies_combat_crate from "./enemies/combat/crate.json";
+import j_enemies_combat_mirrorPane from "./enemies/combat/mirrorPane.json";
 import j_enemies_defense__index from "./enemies/defense/_index.json";
 import j_enemies_defense_bodies from "./enemies/defense/bodies.json";
 import j_enemies_defense_biomes from "./enemies/defense/biomes.json";
@@ -479,6 +481,7 @@ import j_enemies_defense_enemies_reaperShade from "./enemies/defense/enemies/rea
 import j_enemies_defense_enemies_merchant from "./enemies/defense/enemies/merchant.json";
 import j_enemies_defense_enemies_pot from "./enemies/defense/enemies/pot.json";
 import j_enemies_defense_enemies_crate from "./enemies/defense/enemies/crate.json";
+import j_enemies_defense_enemies_mirrorPane from "./enemies/defense/enemies/mirrorPane.json";
 import j_enemies_ENEMY_SCALE from "./enemies/ENEMY_SCALE.json";
 import j_enemies_REACTION from "./enemies/REACTION.json";
 import j_feel__index from "./feel/_index.json";
@@ -1181,6 +1184,7 @@ export const enemies = {
     "merchant": j_enemies_stats_merchant,
     "pot": j_enemies_stats_pot,
     "crate": j_enemies_stats_crate,
+    "mirrorPane": j_enemies_stats_mirrorPane,
   },
   "combat": {
     "_fields": j_enemies_combat__index["_fields"],
@@ -1291,6 +1295,7 @@ export const enemies = {
     "merchant": j_enemies_combat_merchant,
     "pot": j_enemies_combat_pot,
     "crate": j_enemies_combat_crate,
+    "mirrorPane": j_enemies_combat_mirrorPane,
   },
   "defense": {
     "_fields": j_enemies_defense__index["_fields"],
@@ -1404,6 +1409,7 @@ export const enemies = {
       "merchant": j_enemies_defense_enemies_merchant,
       "pot": j_enemies_defense_enemies_pot,
       "crate": j_enemies_defense_enemies_crate,
+      "mirrorPane": j_enemies_defense_enemies_mirrorPane,
     },
   },
   "ENEMY_SCALE": j_enemies_ENEMY_SCALE,
@@ -2248,6 +2254,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/combat/mineLayer.json",
   "enemies/combat/mirrorImage.json",
   "enemies/combat/mirrorKnight.json",
+  "enemies/combat/mirrorPane.json",
   "enemies/combat/mirrorSelf.json",
   "enemies/combat/mossGolem.json",
   "enemies/combat/mudman.json",
@@ -2359,6 +2366,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/defense/enemies/mineLayer.json",
   "enemies/defense/enemies/mirrorImage.json",
   "enemies/defense/enemies/mirrorKnight.json",
+  "enemies/defense/enemies/mirrorPane.json",
   "enemies/defense/enemies/mirrorSelf.json",
   "enemies/defense/enemies/mossGolem.json",
   "enemies/defense/enemies/mudman.json",
@@ -2467,6 +2475,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/stats/mineLayer.json",
   "enemies/stats/mirrorImage.json",
   "enemies/stats/mirrorKnight.json",
+  "enemies/stats/mirrorPane.json",
   "enemies/stats/mirrorSelf.json",
   "enemies/stats/mossGolem.json",
   "enemies/stats/mudman.json",

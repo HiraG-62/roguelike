@@ -145,6 +145,7 @@ const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   broodEgg: CONTACT,
   librarian: bolt("dark"),
   mirrorKnight: attack("melee", "hybrid", "light"),
+  mirrorPane: CONTACT,
   thiefKing: blast("none"),
   thief: CONTACT,
   mirrorImage: CONTACT,

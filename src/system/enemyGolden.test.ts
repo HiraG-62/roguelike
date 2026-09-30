@@ -151,6 +151,7 @@ const GOLDEN: Readonly<Record<string, string>> = {
   librarian: "6595b9be",
   mirrorKnight: "5648cdee",
   mirrorImage: "6036338f",
+  mirrorPane: "218d0a8b",
   thiefKing: "6595b9be",
   thief: "bda8bec5",
   reaperShade: "82a31627",

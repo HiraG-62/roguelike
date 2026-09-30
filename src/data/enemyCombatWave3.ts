@@ -143,6 +143,7 @@ export const WAVE3_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
     ],
     immune: BOSS_IMMUNE,
   },
+  mirrorPane: { ...C.mirrorPane, inflicts: [], immune: FIXTURE_IMMUNE, keywords: kw([], ["area"]) },
   thiefKing: {
     ...C.thiefKing,
     keywords: kw(["elite", "bullet", "explode", "placed"], ["chill", "wall"]),
