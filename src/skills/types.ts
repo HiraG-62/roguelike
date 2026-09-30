@@ -491,22 +491,19 @@ export interface SkillStone {
   seed: number;
   skillKey: SkillKey;
   variants: VariantRoll[];
-  /** 刻印符を差せる数。多いほど負担（マナ型はコスト、CD 型は CD）が重い */
+  /**
+   * 読まない（リンクはスロットごとに固定の SKILL.slotLinks）。旧セーブ・リプレイ・テストの石の形を保つためだけに残し、生成は 0
+   */
   links: number;
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
-  /**
-   * この石に付けた刻印符（古い順）。石と一緒に動くのでスロットを入れ替えても付いたまま。
-   * 旧セーブ・リプレイの石には無いので省略可（無ければ空）
-   */
-  runes?: RuneItem[];
   /** 使い込み（docs/ideas/skills-expansion.md 5 章）。旧セーブ・未使用の石には無いので省略可 */
   wear?: StoneWear;
 }
 
-/** 使い込みの芽。link = 刻印符のリンク +1 / power = 威力・効果量 +（skills/tuning2.ts の WEAR_TUNING） */
-export type WearBud = "link" | "power";
+/** 使い込みの芽。威力・効果量 +（skills/tuning2.ts の WEAR_TUNING）。旧セーブの「枠」の芽は読み込み時にこれへ写す */
+export type WearBud = "power";
 
 export interface StoneWear {
   /** 手動で撃った回数 */
@@ -517,32 +514,26 @@ export interface StoneWear {
   buds: WearBud[];
 }
 
-/** 所持品としての刻印符（1 枚）。拾うと SkillProfile.runes に入り、装備画面で石に付け外しする */
-export interface RuneItem {
-  id: string;
-  modifier: ModifierKey;
-  /** epoch ms（表示と並び順だけ。決定性に影響しない） */
-  foundAt: number;
-}
-
+/** 永続するのは石と装着だけ。刻印符はラン内（SkillSlotState.runModifiers）で、セーブには持たない */
 export interface SkillProfile {
   version: 1;
   /** スキルスロット i に装着した石の id */
   loadout: (string | null)[];
   stones: SkillStone[];
-  /** 石に付けていない所持刻印符。旧セーブ・リプレイには無いので省略可（skills/persistence.ts の ownedRunes で読む） */
-  runes?: RuneItem[];
 }
 
 // ---- ラン内 ----
 
 export interface SkillSlotState {
   /**
-   * 実際に読む刻印符の並び（古い順）= スロットの石に付けた所持刻印符 + runModifiers。
+   * 実際に読む刻印符の並び（古い順）= runModifiers + 祝福が足す符。
    * system/skills.ts の syncSlotModifiers が作り直す（直接書き換えない）
    */
   modifiers: ModifierKey[];
-  /** ラン内だけの刻印符（起点「詠み手」の開始時など）。石ではなくスロットに属する（古い順） */
+  /**
+   * ラン内だけの刻印符（拾った符・起点「詠み手」・図書館など。セーブしない）。石ではなくスロットに属する（古い順）。
+   * 付け外しは system/skills.ts の attachRune / moveRunModifier / removeRunModifier
+   */
   runModifiers: ModifierKey[];
   cooldownLeft: number;
   /** HUD のマスク用: 直近にセットした CD の長さ */

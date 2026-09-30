@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { grantBoon } from "./boons";
 import { updateDropInteract } from "./loot";
 import { createGame, step } from "../core/game";
 import type { FrameInput } from "../core/input";
@@ -22,6 +23,8 @@ import {
   createSkillRunState,
   dropRune,
   frenzyMul,
+  moveRunModifier,
+  removeRunModifier,
   resolveSlot,
   rollEnemyRuneDrop,
   skillLocksAttack,
@@ -30,6 +33,7 @@ import {
   slotModifierView,
   trackDamageDealt,
   updateSkills,
+  usedLinks,
 } from "./skills";
 import { curseMul, skillHit, skillPower } from "../skills/hit";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -525,12 +529,12 @@ describe("チャージと CD（CD 型）", () => {
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
   });
 
-  it("リンクが多い石ほど負担が重い（マナ型はコスト）", () => {
+  it("石の links は負担に効かない（マナ型のコストは基本のまま）", () => {
     const state = skillArena([{ key: "whirl", links: 0 }, { key: "whirl", links: 3 }]);
     const a = manaCost(state, 0);
     const b = manaCost(state, 1);
     expect(a).toBeCloseTo(SKILL.whirl.cost);
-    expect(b).toBeCloseTo(a * (1 + SKILL.linkBurdenPenalty * 3));
+    expect(b).toBeCloseTo(a);
   });
 });
 
@@ -567,70 +571,127 @@ describe("修飾子", () => {
   });
 });
 
-describe("刻印符", () => {
-  it("空きのあるリンク枠に自動で刺さり、満杯なら最古を押し出す", () => {
-    const state = skillArena([{ key: "whirl", links: 1 }, { key: "frag", links: 2 }]);
-    const mods = (i: number): ModifierKey[] => state.skills.slots[i]?.modifiers ?? [];
-    expect(attachRune(state, "multiCharge")).toBe(0);
-    expect(attachRune(state, "bloodPrice")).toBe(1);
-    expect(attachRune(state, "comboFuel")).toBe(1);
-    expect(mods(0)).toEqual(["multiCharge"]);
-    expect(mods(1)).toEqual(["bloodPrice", "comboFuel"]);
-    // 空きなし: 最初の候補（スロット 1 = index 0）の最古を押し出す
-    expect(attachRune(state, "echo")).toBe(0);
-    expect(mods(0)).toEqual(["echo"]);
+describe("刻印符（ラン内だけの物）", () => {
+  const mods = (state: GameState, i: number): ModifierKey[] => state.skills.slots[i]?.modifiers ?? [];
+
+  it("自動で付くときは空きのあるスロットの先頭から。スロットのリンクを使い切ったら次のスロットへ", () => {
+    const state = skillArena([{ key: "frag" }, { key: "frag" }]);
+    const picks: ModifierKey[] = ["multiCharge", "bloodPrice", "comboFuel", "echo"];
+    for (const key of picks) expect(attachRune(state, key), key).toBe(0);
+    expect(mods(state, 0), "スロット 1 のリンクは 4 本").toEqual(picks);
+    expect(attachRune(state, "recoil"), "5 枚目は空きのあるスロット 2").toBe(1);
+    expect(mods(state, 1)).toEqual(["recoil"]);
   });
 
-  it("床の刻印符は触れると所持品に入り、スキルには勝手に付かない", () => {
-    const state = skillArena([{ key: "parry", links: 0 }, { key: "whirl", links: 1 }]);
-    const p = state.player.body.pos;
-    dropRune(state, p, "echo");
+  it("全スロットのリンクが埋まっていると、最初の候補の最古の符を押し出す", () => {
+    const state = skillArena([{ key: "frag" }]);
+    for (const key of ["multiCharge", "bloodPrice", "comboFuel", "echo"] as const) attachRune(state, key);
+    expect(attachRune(state, "recoil")).toBe(0);
+    expect(mods(state, 0), "最古の多重が押し出される").toEqual(["bloodPrice", "comboFuel", "echo", "recoil"]);
+  });
+
+  it("床の刻印符は触れると付けられるスロットへ入る（所持品もセーブも経由しない）", () => {
+    const state = skillArena([{ key: "parry" }, { key: "whirl" }]);
+    dropRune(state, state.player.body.pos, "echo");
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
     expect(state.skills.runes, "床から消える").toHaveLength(0);
-    expect(state.skills.profile.runes?.map((r) => r.modifier), "所持品に入る").toEqual(["echo"]);
-    expect(state.skills.slots[1]?.modifiers, "スロットには付かない").toEqual([]);
+    expect(state.skills.slots[1]?.runModifiers, "反響が付かないスロット 1 を飛ばして、スロット 2 の符になる").toEqual(["echo"]);
+    expect(mods(state, 1)).toEqual(["echo"]);
+    expect("runes" in state.skills.profile, "プロフィールに符を持たない").toBe(false);
+    expect(state.log.some((l) => l.text.includes("スキル 2")), "ログに付けた先").toBe(true);
   });
 
-  it("所持が満杯なら拾えず床に残る", () => {
-    const state = skillArena([{ key: "whirl", links: 1 }]);
-    state.skills.profile.runes = Array.from({ length: SKILL.runeCapacity }, (_, i) => ({ id: `full${i}`, modifier: "echo" as const, foundAt: 0 }));
-    dropRune(state, state.player.body.pos, "pierce");
+  it("付けられるスキルが無い符は床に残り、1 回だけ知らせる", () => {
+    const state = skillArena([{ key: "parry" }]);
+    dropRune(state, state.player.body.pos, "echo");
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
     expect(state.skills.runes, "床に残る").toHaveLength(1);
-    expect(state.skills.profile.runes).toHaveLength(SKILL.runeCapacity);
+    expect(state.skills.runes[0]?.warned).toBe(true);
+    expect(state.skills.slots[0]?.runModifiers).toEqual([]);
   });
 
-  it("石に付けた刻印符は次のステップからスロットに効き、ラン内の符より先に並ぶ", () => {
-    const state = skillArena([{ key: "frag", links: 2, modifiers: ["bloodPrice"] }]);
-    const stone = state.skills.profile.stones[0];
-    if (!stone) throw new Error("stone");
-    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
-    expect(state.skills.slots[0]?.modifiers, "付けた直後はまだ効かない（リプレイの装備変更と同じ時点に揃える）").toEqual(["bloodPrice"]);
-    run(state, FIXED_DT);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
-  });
-
-  it("同じ種類の符が石とラン内の両方にあっても 1 枚として効く（二重に掛からない）", () => {
-    const state = skillArena([{ key: "frag", links: 3, modifiers: ["echo", "bloodPrice"] }]);
-    const stone = state.skills.profile.stones[0];
-    if (!stone) throw new Error("stone");
-    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
-    run(state, FIXED_DT);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
-    expect(slotModifierView(state, 0).map((v) => [v.key, v.run]), "石の符として 1 回だけ並ぶ").toEqual([
-      ["echo", false],
+  it("リンクはスロットごとに固定: スロット 4 は 2 本まで。3 枚目の符は効かない", () => {
+    const state = skillArena([{ key: "frag" }, { key: "frag" }, { key: "frag" }, { key: "frag", modifiers: ["bloodPrice", "comboFuel", "echo"] }]);
+    const view = slotModifierView(state, 3);
+    expect(view.map((v) => [v.key, v.active]), "2 本ぶんだけ効く").toEqual([
       ["bloodPrice", true],
+      ["comboFuel", true],
+      ["echo", false],
+    ]);
+    expect(view.every((v) => v.run), "拾った符").toBe(true);
+    expect(usedLinks(state.skills, 3)).toBe(3);
+  });
+
+  it("石の links はどんな値でも効き方を変えない（リンクはスロットの物）", () => {
+    const state = skillArena([{ key: "frag", links: 0, modifiers: ["bloodPrice", "comboFuel"] }]);
+    expect(state.skills.profile.stones[0]?.links).toBe(0);
+    expect(slotModifierView(state, 0).every((v) => v.active), "links 0 でも効く").toBe(true);
+  });
+
+  it("祝福が足した符は run = false で、拾った符の後ろに並ぶ", () => {
+    const state = skillArena([{ key: "frag", modifiers: ["bloodPrice"] }]);
+    grantBoon(state, "echoCall");
+    const view = slotModifierView(state, 0);
+    expect(view.map((v) => [v.key, v.run])).toEqual([
+      ["bloodPrice", true],
+      ["echo", false],
     ]);
   });
+});
 
-  it("ラン内の自動装着は石に付けた符を押し出さない", () => {
-    const state = skillArena([{ key: "frag", links: 1 }]);
-    const stone = state.skills.profile.stones[0];
-    if (!stone) throw new Error("stone");
-    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
+describe("刻印符の移す・外す（装備画面）", () => {
+  it("別のスロットへ移せる。反映は次のステップの同期で、移した符は移し先の最新になる", () => {
+    const state = skillArena([{ key: "frag", modifiers: ["bloodPrice", "echo"] }, { key: "frag", modifiers: ["comboFuel"] }]);
+    expect(moveRunModifier(state.skills, 0, 1, "echo")).toBe("ok");
+    expect(state.skills.slots[0]?.runModifiers).toEqual(["bloodPrice"]);
+    expect(state.skills.slots[1]?.runModifiers).toEqual(["comboFuel", "echo"]);
+    expect(state.skills.slots[0]?.modifiers, "同期前はまだ古いまま").toEqual(["bloodPrice", "echo"]);
     run(state, FIXED_DT);
-    expect(attachRune(state, "bloodPrice"), "枠が埋まっているので付かない").toBe(-1);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["echo"]);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["bloodPrice"]);
+    expect(state.skills.slots[1]?.modifiers).toEqual(["comboFuel", "echo"]);
+  });
+
+  it("移せない理由: 石が無い・相性・重複・リンク不足・元に無い・同じスロット", () => {
+    const state = skillArena([
+      { key: "frag", modifiers: ["echo"] },
+      { key: "parry", modifiers: ["bloodPrice"] },
+      { key: "frag", modifiers: ["echo"] },
+      { key: "frag", modifiers: ["comboFuel", "recoil"] },
+    ]);
+    const rs = state.skills;
+    expect(moveRunModifier(rs, 0, 1, "echo"), "パリィには反響が付かない").toBe("notFit");
+    expect(moveRunModifier(rs, 0, 2, "echo"), "同じ符は 2 枚付けない").toBe("duplicate");
+    expect(moveRunModifier(rs, 0, 3, "echo"), "スロット 4 のリンク 2 本は埋まっている").toBe("noLinks");
+    expect(moveRunModifier(rs, 0, 0, "echo"), "同じスロットへは動かさない").toBe("missing");
+    expect(moveRunModifier(rs, 2, 3, "recoil"), "元のスロットに無い符").toBe("missing");
+    const empty = skillArena([{ key: "frag", modifiers: ["echo"] }]);
+    expect(moveRunModifier(empty.skills, 0, 2, "echo"), "石の無いスロット").toBe("noStone");
+    expect(rs.slots[0]?.runModifiers, "失敗したら動かない").toEqual(["echo"]);
+  });
+
+  it("型替え符は 1 枚まで", () => {
+    const state = skillArena([{ key: "whirl", modifiers: ["toStaged"] }, { key: "whirl", modifiers: ["toThrown"] }]);
+    expect(moveRunModifier(state.skills, 1, 0, "toThrown"), "リンクは足りるが型替え符は 1 枚まで").toBe("reshape");
+  });
+
+  it("外すと符は消え、次のステップで効かなくなる。無い符は外せない", () => {
+    const state = skillArena([{ key: "frag", modifiers: ["bloodPrice", "echo"] }]);
+    expect(removeRunModifier(state.skills, 0, "echo")).toBe(true);
+    expect(removeRunModifier(state.skills, 0, "echo"), "2 回目は無い").toBe(false);
+    expect(state.skills.slots[0]?.runModifiers).toEqual(["bloodPrice"]);
+    run(state, FIXED_DT);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["bloodPrice"]);
+  });
+
+  it("同じ seed・同じ操作なら同じ結果（決定性）", () => {
+    const play = (): ModifierKey[][] => {
+      const state = skillArena([{ key: "frag" }, { key: "whirl" }], 9);
+      for (const key of ["echo", "bloodPrice", "comboFuel"] as const) attachRune(state, key);
+      moveRunModifier(state.skills, 0, 1, "echo");
+      run(state, FIXED_DT * 3);
+      return state.skills.slots.map((s) => s.modifiers);
+    };
+    expect(play()).toEqual(play());
   });
 });
 
@@ -1013,7 +1074,7 @@ describe("追加の刻印符", () => {
   it("連鎖（マナ型）: スキルで倒すと払ったコストの 50% が戻る。倒さなければ戻らない", () => {
     const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
     const cost = manaCost(state, 0);
-    expect(cost, "連鎖の負担 ×1.2").toBeCloseTo(SKILL.whirl.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.chainReset.manaBurdenMul);
+    expect(cost, "連鎖の負担 ×1.2").toBeCloseTo(SKILL.whirl.cost * SKILL.modifier.chainReset.manaBurdenMul);
     const gained = (s: GameState): number => {
       const e = placeEnemy(s, "golem", 16);
       e.hp = 1;
@@ -1136,7 +1197,7 @@ describe("追加の刻印符", () => {
     const state = skillArena([{ key: "frostField", links: 1, modifiers: ["expand"] }]);
     press(state, 0, aimAt(state, 50));
     expect(state.skills.fields[0]?.params.areaMul).toBeCloseTo(SKILL.modifier.expand.areaMul);
-    expect(manaCost(state, 0)).toBeCloseTo(SKILL.frostField.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.expand.burdenMul);
+    expect(manaCost(state, 0)).toBeCloseTo(SKILL.frostField.cost * SKILL.modifier.expand.burdenMul);
   });
 
   it("反響は新スキルにも効く（回転弾幕は発動地点に残像）", () => {

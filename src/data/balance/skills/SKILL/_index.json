@@ -1,18 +1,16 @@
 {
   "_fields": {
-    "defaultCastRange": "照準地点の既定の射程。px。照準の射程表（CAST_RANGE）に無いスキル・技の上限と、照準が無いときの正面の距離。目安 120（破片弾の最大射程と同じ）"
+    "defaultCastRange": "照準地点の既定の射程。px。照準の射程表（CAST_RANGE）に無いスキル・技の上限と、照準が無いときの正面の距離。目安 120（破片弾の最大射程と同じ）",
+    "slotLinks": "スロットごとのリンク数（先頭がスキル 1）。そのスロットに付けられるラン内の刻印符の本数。石ごとには持たない（型替え符は linkCost 本ぶん使う）"
   },
   "slots": 4,
+  "slotLinks": [4, 3, 2, 2],
   "manaFlashTime": 0.3,
-  "linkBurdenPenalty": 0.15,
-  "maxLinks": 3,
-  "linkWeights": [30, 45, 20, 5],
   "variantCountWeights": [35, 45, 20],
   "variantPrecision": 100,
   "inputBuffer": 0.25,
   "notReadyTextInterval": 0.6,
   "stashCapacity": 60,
-  "runeCapacity": 60,
   "defaultCastRange": 120,
-  "_order": ["slots", "manaFlashTime", "linkBurdenPenalty", "maxLinks", "linkWeights", "variantCountWeights", "variantPrecision", "inputBuffer", "notReadyTextInterval", "stashCapacity", "runeCapacity", "defaultCastRange", "whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "modifier", "drop"]
+  "_order": ["slots", "slotLinks", "manaFlashTime", "variantCountWeights", "variantPrecision", "inputBuffer", "notReadyTextInterval", "stashCapacity", "defaultCastRange", "whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "modifier", "drop"]
 }

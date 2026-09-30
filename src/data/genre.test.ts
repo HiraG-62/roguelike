@@ -61,9 +61,9 @@ describe("武器種・銃の弾・必殺の係数", () => {
   });
 });
 
-/** スキルの数値ブロック（key → ブロック）。技（skills/arts/）の数値は ART.<武器種 | common>.<key> */
+/** スキルの数値ブロック（key → ブロック）。技（skills/arts/）の数値は ART.common.<key> */
 function skillBlocks(): Readonly<Record<string, unknown>> {
-  const artBlocks = Object.entries(BALANCE.skills.ART).flatMap(([group, table]) => (group === "weights" ? [] : Object.entries(table)));
+  const artBlocks = Object.entries(BALANCE.skills.ART).flatMap(([group, table]) => (group !== "common" ? [] : Object.entries(table)));
   return { ...SKILL, ...EXTRA_SKILL_TUNING, ...Object.fromEntries(artBlocks) };
 }
 

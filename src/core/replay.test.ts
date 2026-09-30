@@ -25,11 +25,11 @@ import { createEmptyProfile, type Item, type Profile } from "../loot/types";
 import { PROFILE_KEY, saveProfile } from "../loot/profile";
 import { MemoryStorage } from "../meta/testStorage";
 import { setSaveStorage } from "../save/backend";
-import { createDefaultSkillProfile, ownedRunes } from "../skills/persistence";
+import { createDefaultSkillProfile } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
 import { SKILL } from "../skills/data";
-import { dropRune } from "../system/skills";
+import { attachRune, moveRunModifier, removeRunModifier } from "../system/skills";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
@@ -324,21 +324,57 @@ describe("記録 → 再生", () => {
     expect(session.profile).not.toBe(profile);
   });
 
-  it("所持刻印符の件数もスナップショットされ、満杯なら再生でも床の刻印符を拾わない", () => {
-    const skillProfile = createDefaultSkillProfile();
-    skillProfile.runes = Array.from({ length: SKILL.runeCapacity }, (_, i) => ({ id: `full${i}`, modifier: "echo" as const, foundAt: 0 }));
-    const recorder = new ReplayRecorder({ seedText: "runes", startedAt: 1, daily: false }, createEmptyProfile(), skillProfile);
-    const data = recorder.finish({ depth: 1, kills: 0, score: 0 }, 2);
-    expect(data.snapshot.runeCount).toBe(SKILL.runeCapacity);
-    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
-    if (!loaded) throw new Error("sanitize failed");
-    const session = createReplaySession(loaded);
-    expect(ownedRunes(session.skillProfile), "ダミーで件数を合わせる").toHaveLength(SKILL.runeCapacity);
-    dropRune(session.state, session.state.player.body.pos, "pierce");
-    for (let t = 0; t <= SKILL.drop.pickupDelay + FIXED_DT; t += FIXED_DT) step(session.state, withInput({}), FIXED_DT);
-    expect(session.state.skills.runes, "記録時と同じく床に残る").toHaveLength(1);
-    const legacy = sanitizeReplay({ ...JSON.parse(JSON.stringify(data)), snapshot: { ...data.snapshot, runeCount: undefined } });
-    expect(legacy?.snapshot.runeCount, "欄の無い記録は 0").toBe(0);
+  it("ラン中に刻印符を付け替えた操作がイベントとして記録され、再生で同じ符が並ぶ", () => {
+    const { data, state } = recordRun("runes", createEmptyProfile(), randomInputs(13, 1500), (s, frame) => {
+      if (frame === 300) {
+        // 装備画面で符を付ける / 移す / 外す相当（runModifiers を直接書く）
+        attachRune(s, "echo");
+        return true;
+      }
+      if (frame === 700) {
+        moveRunModifier(s.skills, 0, 1, "echo");
+        return true;
+      }
+      if (frame === 1100) {
+        removeRunModifier(s.skills, 1, "echo");
+        return true;
+      }
+      return false;
+    });
+    expect(data.events, "3 回の操作ぶん").toHaveLength(3);
+    expect(data.events.map((e) => e.loadout.slotRunes), "符が残る間だけ写しを持ち、全部外したら欄ごと書かない").toEqual([
+      [["echo"], [], [], []],
+      [[], ["echo"], [], []],
+      undefined,
+    ]);
+    expect(data.events.every((e) => e.player === null), "装備は変わっていない").toBe(true);
+    const played = playBack(data);
+    expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
+    expect(fingerprint(played)).toBe(fingerprint(state));
+  });
+
+  it("符を付けなかったランの記録は slotRunes の欄を持たない（旧記録と同じ形）", () => {
+    const { data } = recordRun("no-runes", createEmptyProfile(), randomInputs(3, 60));
+    expect("slotRunes" in data.snapshot).toBe(false);
+    expect("runeCount" in data.snapshot).toBe(false);
+  });
+
+  it("起点「詠み手」の開始時の符は snapshot に写り、再生でも同じ符で始まる", () => {
+    const setup: RunSetup = { origin: "chanter", modifiers: [] };
+    const { data, state } = recordRun("chanter-runes", createEmptyProfile(), randomInputs(5, 600), undefined, setup);
+    expect(data.snapshot.slotRunes?.some((r) => r.length > 0), "開始時の符が snapshot にある").toBe(true);
+    const played = playBack(data);
+    expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
+  });
+
+  it("旧記録の runeCount は読み捨て、slotRunes の知らない符 key と壊れた欄は捨てる", () => {
+    const { data } = recordRun("legacy-runes", createEmptyProfile(), randomInputs(3, 60));
+    const raw = JSON.parse(JSON.stringify(data)) as { snapshot: Record<string, unknown> };
+    raw.snapshot.runeCount = 5;
+    raw.snapshot.slotRunes = [["echo", "nope"], "x", []];
+    const loaded = sanitizeReplay(raw);
+    expect("runeCount" in (loaded?.snapshot ?? {}), "runeCount は持たない").toBe(false);
+    expect(loaded?.snapshot.slotRunes, "知らない key と壊れたスロットは空").toEqual([["echo"], [], []]);
   });
 
   it("フレーム数が合わないデータは再生を拒否する", () => {

@@ -1,8 +1,6 @@
 {
-  "_note": "スキル石の使い込み（docs/ideas/skills-expansion.md 5章）。発動回数の節目で芽が1つ出る。1発で多くに当てる使い方の石は「威力」、撃ち続けた石（命中が少ない・強化）は「枠」（刻印符のリンク+1）の芽になる。芽は石ごとにmilestonesの数まで、枠の芽はmaxBonusLinksまで（それ以降の枠の芽は威力に替わる）",
+  "_note": "スキル石の使い込み（docs/ideas/skills-expansion.md 5章）。発動回数の節目で芽が1つ出て、芽は威力・効果量を伸ばす。芽は石ごとにmilestonesの数まで。旧「枠」の芽（刻印符のリンク+1）は刻印符のラン内化で意味を失い、読み込み時に威力の芽へ写す",
   "milestones": [40, 160],
-  "spreadHitsPerCast": 1.5,
   "powerPerBud": 0.1,
-  "maxBonusLinks": 1,
   "color": "#c0f080"
 }

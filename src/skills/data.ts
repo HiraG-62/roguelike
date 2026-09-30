@@ -3,7 +3,9 @@ import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { BALANCE } from "../data/balance";
 import { STATUS } from "../data/tuning";
-import { ART_ATTACK, ART_MIN_DEPTH, ART_SKILL_DEFS, ART_WEIGHTS } from "./arts";
+import type { FormKey } from "../data/weaponForms";
+import { ART_ATTACK, ART_MIN_DEPTH, ART_SKILL_DEFS, ART_WEIGHTS, isArtKey } from "./arts";
+import { formTransformLine } from "./arts/transform";
 import { EXTRA_SKILL_DEFS } from "./defs";
 import { WAVE2_SKILL_DEFS } from "./defs2";
 import { WAVE3_SKILL_DEFS } from "./defs3";
@@ -146,7 +148,7 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   siegeForm: 3,
   ironForm: 3,
   pyreForm: 3,
-  // 技（skills/arts/）: 名目の重み。装備中の武器種の武器技は抽選時に差し替える（generator.ts）
+  // 技（skills/arts/）: 共通技 1 種あたりの重み（ART.weight。武器種に依らない）
   ...ART_WEIGHTS,
 };
 
@@ -626,6 +628,11 @@ export function modifierLinkCost(key: ModifierKey): number {
   return MODIFIERS[key].linkCost ?? 1;
 }
 
+/** スロット（0 始まり）に付けられるリンクの本数。石ごとには持たず、スロットで固定（SKILL.slotLinks） */
+export function slotLinks(slot: number): number {
+  return SKILL.slotLinks[slot] ?? 0;
+}
+
 /** a と b が同じスロットで同時に効かないか（どちらかが相手を excludesModifiers に持つ） */
 export function modifiersClash(a: ModifierKey, b: ModifierKey): boolean {
   return (MODIFIERS[a].excludesModifiers?.includes(b) ?? false) || (MODIFIERS[b].excludesModifiers?.includes(a) ?? false);
@@ -739,22 +746,17 @@ function applyVariant(p: CastParams, roll: VariantRoll): CastParams {
 
 /**
  * 1 回の発動パラメータを決める純関数。stats は発動時に rollOutgoing 経由で掛けるのでここでは扱わない。
- * スキルに無い変異軸は無視する（壊れたセーブ対策）
+ * スキルに無い変異軸は無視する（壊れたセーブ対策）。刻印符の本数の上限は slot のリンク（省略はスキル 1 の枠）
  */
-export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonly ModifierKey[]): CastParams {
+export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonly ModifierKey[], slot = 0): CastParams {
   let p = baseCastParams(def);
   for (const roll of stone.variants) {
     if (def.axes.includes(roll.axis)) p = applyVariant(p, roll);
   }
-  // 使い込みの芽: 枠の芽で増えたリンクは負担に数えない、威力の芽は威力と効果量を伸ばす
+  // 使い込みの芽: 威力と効果量を伸ばす
   const wear = wearPowerMul(stone);
-  p = {
-    ...p,
-    burdenMul: p.burdenMul * (1 + SKILL.linkBurdenPenalty * burdenLinks(stone)),
-    damageMul: p.damageMul * wear,
-    potencyMul: p.potencyMul * wear,
-  };
-  const active = activeModifiers(def, stone.links, modifiers);
+  p = { ...p, damageMul: p.damageMul * wear, potencyMul: p.potencyMul * wear };
+  const active = activeModifiers(def, slotLinks(slot), modifiers);
   // 資源を差し替える刻印符（定刻・燃料化）を先に当て、多重・連鎖などが差し替え後の資源で読み替えるようにする
   const ordered = [...active.filter((k) => RESOURCE_CONVERTERS.includes(k)), ...active.filter((k) => !RESOURCE_CONVERTERS.includes(k))];
   for (const key of ordered) p = MODIFIERS[key].apply(p, def);
@@ -824,38 +826,31 @@ export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>, resour
   return `${label} ${signed(Math.round(gainSign * c.gain * v * PERCENT))}% / ${cost}`;
 }
 
-/** 石の表示名: スキル名 + リンク記号（使い込みの枠の芽で上限を超えたリンクも ◆ で出す） */
+/** 石の表示名（リンクはスロットの物なので石には出さない） */
 export function stoneLabel(stone: SkillStone): string {
-  return `${SKILL_DEFS[stone.skillKey].name} ${"◆".repeat(stone.links)}${"◇".repeat(Math.max(0, SKILL.maxLinks - stone.links))}`;
+  return SKILL_DEFS[stone.skillKey].name;
+}
+
+/**
+ * 技の石のツールチップの 1 行「今の型: 重打（範囲 ×1.3・段 −1）」（skills/arts/transform.ts）。技でないスキルは null。
+ * 型は呼び出し側が system/morale.ts の currentForm(state).key で引いて渡す（data.ts から system を読まない）
+ */
+export function transformLabel(form: FormKey, key: SkillKey): string | null {
+  return isArtKey(key) ? formTransformLine(form) : null;
 }
 
 // ---------------------------------------------------------------------------
 // 使い込み（docs/ideas/skills-expansion.md 5 章）の純粋な読み出し。記録は skills/wear.ts
 // ---------------------------------------------------------------------------
 
-/** 出た芽のうち、この種類の数 */
-export function wearBudCount(stone: Readonly<SkillStone>, bud: "link" | "power"): number {
-  return (stone.wear?.buds ?? []).filter((b) => b === bud).length;
-}
-
-/** 枠の芽で増えたリンク（上限は WEAR_TUNING.maxBonusLinks） */
-export function wearBonusLinks(stone: Readonly<SkillStone>): number {
-  return Math.min(WEAR_TUNING.maxBonusLinks, wearBudCount(stone, "link"));
+/** 出た芽の数（芽は威力だけ） */
+export function wearBudCount(stone: Readonly<SkillStone>): number {
+  return stone.wear?.buds.length ?? 0;
 }
 
 /** 威力の芽の倍率 */
 export function wearPowerMul(stone: Readonly<SkillStone>): number {
-  return 1 + WEAR_TUNING.powerPerBud * wearBudCount(stone, "power");
-}
-
-/** 負担（リンク 1 本ごとの +15%）に数えるリンク。枠の芽のぶんは数えない */
-export function burdenLinks(stone: Readonly<SkillStone>): number {
-  return Math.max(0, stone.links - wearBonusLinks(stone));
-}
-
-/** この石が持てるリンクの上限（基本の上限 + 枠の芽） */
-export function maxStoneLinks(stone: Readonly<SkillStone>): number {
-  return SKILL.maxLinks + wearBonusLinks(stone);
+  return 1 + WEAR_TUNING.powerPerBud * wearBudCount(stone);
 }
 
 // ---------------------------------------------------------------------------

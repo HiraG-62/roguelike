@@ -25,15 +25,15 @@ import { type SynergyPanelUi, createSynergyPanelUi, updateSynergyPanel } from ".
 import {
   RUNE_BLOCK_TEXT,
   type RuneListLayout,
-  type RuneToggleResult,
+  type RuneOpResult,
   type RuneUi,
   clampRuneCursor,
   createRuneUi,
   hoveredRuneRow,
   layoutRuneList,
   moveRuneCursor,
+  operateRune,
   readNav,
-  toggleRune,
 } from "./skillRunes";
 import {
   COLUMN_GAP,
@@ -128,7 +128,7 @@ export const DESTROY_CONFIRM_SECONDS = 2.5;
 /** スキルタブの列（今フォーカスしている列に枠を出す） */
 export type SkillColumn = "slots" | "stones" | "runes";
 
-/** 取り返しの付かない操作の 1 回目の印。key は「shatter:<遺物 id>」「salvage:<石 id>」「discard:<符 id>」 */
+/** 取り返しの付かない操作の 1 回目の印。key は「shatter:<遺物 id>」「salvage:<石 id>」「remove:<スロット>:<符 key>」 */
 export interface PendingDestroy {
   key: string;
   timer: number;
@@ -181,7 +181,7 @@ export interface SkillsLayout {
   rows: StoneRowLayout[];
   stoneOrder: SkillStone[];
   maxScroll: number;
-  /** 刻印符の列（選択中スロットの石に付いた符 → 所持品） */
+  /** 刻印符の列（選択中スロットのラン内の符） */
   runeList: RuneListLayout;
   detail: Rect;
 }
@@ -189,7 +189,7 @@ export interface SkillsLayout {
 export interface InventoryUi {
   open: boolean;
   tab: InventoryTab;
-  /** スキルタブの選択中スロット。石をクリックしたとき空きが無ければここへ入れ、刻印符はここの石に付け外しする */
+  /** スキルタブの選択中スロット。石をクリックしたとき空きが無ければここへ入れ、刻印符の列はここの符を出す */
   skillSlot: number;
   /** スキルタブの刻印符の列 */
   runes: RuneUi;
@@ -321,7 +321,7 @@ function clearHover(ui: InventoryUi): void {
   ui.hoverTile = null;
   ui.hoverStoneId = null;
   ui.hoverSkillSlot = null;
-  ui.runes.focusId = null;
+  ui.runes.focusKey = null;
   ui.echo.hoverOp = null;
   ui.echo.hoverId = null;
   clearStatusHover(ui.status);
@@ -415,7 +415,7 @@ export function layoutSkills(state: GameState, ui: InventoryUi): SkillsLayout {
     });
   }
   const runeArea: Rect = { x: RUNE_COL_X, y: SKILL_LIST_Y, w: RUNE_COL_W, h: CONTENT_BOTTOM - SKILL_LIST_Y };
-  const runeList = layoutRuneList(profile, stoneInSlot(profile, ui.skillSlot), ui.runes, runeArea);
+  const runeList = layoutRuneList(state, ui.skillSlot, ui.runes, runeArea);
   return { slots, stoneHeader, rows, stoneOrder: order, maxScroll, runeList, detail: detailBodyRect() };
 }
 
@@ -471,7 +471,7 @@ function selectSlotByKeys(ui: InventoryUi, input: FrameInput): { dy: number; slo
   return { dy: nav.dy, slotChanged: pressed >= 0 || nav.dx !== 0 };
 }
 
-/** 石の一覧のクリック: 装着（空きスロット優先）/ Shift で分解（付いていた刻印符は所持品へ戻る） */
+/** 石の一覧のクリック: 装着（空きスロット優先）/ Shift で分解 */
 function clickStoneRow(state: GameState, ui: InventoryUi, stoneId: string, shift: boolean): void {
   const profile = state.skills.profile;
   if (shift) {
@@ -492,8 +492,8 @@ function clickStoneRow(state: GameState, ui: InventoryUi, stoneId: string, shift
 }
 
 /**
- * 刻印符の列: マウスの乗った行かカーソルの行を、決定（クリック / Enter / パッド A）で付け外しする。
- * Shift+クリックは所持品の符を捨てる。操作を消費したら true。
+ * 刻印符の列: マウスの乗った行かカーソルの行を、決定（クリック / Enter / パッド A）で次に付けられるスロットへ移す。
+ * Shift+クリックは符を外す（外すと消える。取り返しが付かないので 2 回目で確定）。操作を消費したら true。
  * ホバーでのカーソル奪取はマウスが実際に動いた時だけ、スクロールの追随はキー操作でカーソルが動いた時だけ
  * （ホイールで一覧をスクロールしただけでカーソル行へ戻らないようにする）
  */
@@ -511,33 +511,25 @@ function updateRuneColumn(
   if (keyNavigated) moveRuneCursor(r, list, 0);
   else clampRuneCursor(r, list.entries.length);
   const entry = list.entries[r.cursor];
-  r.focusId = hovered ? hovered.rune.id : input.aimScreen ? null : (entry?.rune.id ?? null);
+  r.focusKey = hovered ? hovered.key : input.aimScreen ? null : (entry?.key ?? null);
   const clicked = input.clickPressed && hovered !== null;
   if (!clicked && !input.confirmPressed) return false;
   const target = clicked ? hovered : entry;
   if (!target) return clicked;
-  const discard = clicked && input.shiftHeld;
-  // 捨てるのは所持品の符だけ（付いている符は捨てない）。取り返しが付かないので 2 回目で確定
-  if (discard && !target.attached && !confirmDestroy(ui, `discard:${target.rune.id}`, "捨てる")) return true;
-  const profile = state.skills.profile;
-  const result = toggleRune(profile, stoneInSlot(profile, ui.skillSlot), target, discard);
-  reportRuneToggle(state, ui, result);
-  if (result.kind !== "blocked") saveSkillProfile(profile);
+  const remove = clicked && input.shiftHeld;
+  if (remove && target.run && !confirmDestroy(ui, `remove:${ui.skillSlot}:${target.key}`, "外す（消える）")) return true;
+  reportRuneOp(state, ui, operateRune(state, ui.skillSlot, target, remove));
   return true;
 }
 
-function reportRuneToggle(state: GameState, ui: InventoryUi, result: RuneToggleResult): void {
+function reportRuneOp(state: GameState, ui: InventoryUi, result: RuneOpResult): void {
   switch (result.kind) {
-    case "attached":
-      showMessage(ui, `刻印符「${result.name}」をスキル ${ui.skillSlot + 1} に付けた`);
+    case "moved":
+      showMessage(ui, `刻印符「${result.name}」をスキル ${result.to + 1} へ移した`);
       pushSfx(state, "runeAttach");
       return;
-    case "detached":
+    case "removed":
       showMessage(ui, `刻印符「${result.name}」を外した`);
-      pushSfx(state, "equipOff");
-      return;
-    case "discarded":
-      showMessage(ui, `刻印符「${result.name}」を捨てた`);
       pushSfx(state, "dismantle");
       return;
     case "blocked":

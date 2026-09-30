@@ -9,18 +9,19 @@
   - `SKILL` 定数（共通パラメータ）→ `system/skills.ts` の `castSlot` に発動処理（設置物なら `skills/placed.ts`）。発動処理の実体は近接型 `skills/actions.ts` / 弾型 `skills/shots.ts` / 設置・召喚型 `skills/summons.ts`、当たり判定の幾何は `skills/geom.ts`。数値は `skills/tuning.ts` に置き `SKILL.<key>` 経由で読む → `render/skillHud.ts` / `render/manaHud.ts` / `renderer.ts` の表現
   - 直前に撃った別のスキルを受けて効果が変わる「連携」を足すなら `skills/combos.ts` の `COMBOS`（発動元 → 受け側のキーで引く。受付秒は `SkillRunState.lastCast`）
 - 刻印符: `MODIFIER_KEYS` → `MODIFIERS`（大拡張分は `skills/modifiers.ts`。`canAttach` の条件）→ `resolveCast` に効果。`CastParams.burdenMul`（旧 `cooldownMul`）は気力型ならコスト、再使用型なら再使用時間に掛かる。発動の「型」自体を変える型替え符は `ModifierDef.reshape`（リンク 2 本、1 スロット 1 枚まで）
+- 刻印符はラン内だけの物（2026-09-30）。付け外しは `attachRune` / `moveRunModifier` / `removeRunModifier`（`system/skills.ts`）、1 スロットに付く本数は `SKILL.slotLinks`。石には符を持たせない
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（全組み合わせをテストで固定している）
 - 常時の増・倍・条件付き・「〜につき」: スキル石の定義に `modifiers`（`core/rules.ts` の `Modifier`）を置くと、スロットに入っている間だけ与ダメ・怯み値に効く（評価は `system/modifiers.ts`。書き方は `docs/recipes/boon.md` の「常時の増・倍」節）。`CastParams` の倍率で常時の与ダメを盛らない
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 
-## 技（共通技・武器技）
+## 技（共通技）
 
-行為の列（扇・円・帯・踏み込み・跳躍・弾・連鎖・引き寄せ・強化・起爆）で書けるスキルは、発動処理を書かずに `skills/arts/` へ足す（`docs/ideas/weapon-skills.md` 1 章に行為と数値の目安）。
+行為の列（扇・円・帯・踏み込み・跳躍・弾・連鎖・引き寄せ・強化・起爆）で書けるスキルは、発動処理を書かずに `skills/arts/` へ足す（`docs/ideas/weapon-skills.md` 1 章に行為と数値の目安）。技は武器種を問わず撃て（`moveset: null`。武器技は段取り 7c で共通技 60 に束ねた）、今の武器の型で形が変わる（変形。`skills/arts/transform.ts`）。
 
-1. `skills/arts/keys.ts` の `COMMON_ART_KEYS`（共通技）か `WEAPON_ART_KEYS.<武器種>`（武器技。key は武器種の key で始める）の末尾に key を足す
-2. 群のファイル（`common.ts` / `blades.ts` など）に `ArtSpec`（名前・1 文字アイコン・動詞・タグ・素性・行為の列）を足す
-3. `data/balance/skills/ART/<武器種 | common>.json` に数値ブロック（`cost` か `cooldown`・`minInterval`・`poise`・照準を使うなら `range`、行為ごとのブロック）を足す。新しい項目名を使ったら `data/balance/skills/ART/_index.json` の `_fields` に 1 行
+1. `skills/arts/keys.ts` の `COMMON_ART_KEYS` の末尾に key を足す（`common` + 英名。表示名に武器種名を入れない）
+2. `skills/arts/common2.ts` に `ArtSpec`（名前・1 文字アイコン・動詞・タグ・素性・行為の列。`moveset: null`）を足す
+3. `data/balance/skills/ART/common.json` に数値ブロック（`cost` か `cooldown`・`minInterval`・`poise`・照準を使うなら `range`、行為ごとのブロック）を足す。新しい項目名を使ったら `data/balance/skills/ART/_index.json` の `_fields` に 1 行。型ごとの形の変化は `transform.ts`（数値は `ART/TRANSFORM/<型>.json`）で、技ごとには書かない
 4. `npx vitest run src/skills/arts`（全技を 1 回ずつ撃つ検査がある）→ `npm run check`
 
 行為の種類を足すときは `types.ts` の `ART_ACT_KINDS`・`build.ts` の必須項目 / 項目名・`engine.ts` の `runAct` の 3 か所。

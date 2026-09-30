@@ -11,7 +11,10 @@ vi.mock("../loot/stats", () => ({
 }));
 
 import { computeStats } from "../loot/stats";
+import { MODIFIER_KEYS } from "../skills/types";
+import { grantBoon } from "../system/boons";
 import { refreshPendingBud } from "../system/loot";
+import { syncSlotModifiers } from "../system/skills";
 import { budBannerRect, layoutBudModal } from "./bud";
 import { createEchoUi } from "./echoTab";
 import {
@@ -28,6 +31,7 @@ import {
   type InventoryUi,
 } from "./inventory";
 import { detailPagerRects } from "./inventoryLayout";
+import { RUNE_BLOCK_TEXT } from "./skillRunes";
 import type { SlotFilter } from "./stashFilter";
 import type { Rect } from "./inventoryLayout";
 
@@ -168,50 +172,63 @@ describe("updateInventoryUi: スキルタブ", () => {
   });
 });
 
-describe("updateInventoryUi: スキルタブの刻印符", () => {
+describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移す・外す）", () => {
+  /** スロット 1（旋風斬り）に反響と多重、スロット 2（グレネード）は空。選択中はスロット 1 */
   function runeSetup(): { state: State; ui: InventoryUi } {
     const state = createGame(1);
     const ui = openUi(state);
     ui.tab = "skills";
-    const profile = state.skills.profile;
-    profile.runes = [
-      { id: "ra", modifier: "echo", foundAt: 2 },
-      { id: "rb", modifier: "comboFuel", foundAt: 1 },
-    ];
-    for (const stone of profile.stones) stone.links = 2;
+    const first = state.skills.slots[0];
+    if (!first) throw new Error("slot");
+    first.runModifiers = ["echo", "multiCharge"];
     return { state, ui };
   }
 
-  function runeRowRect(state: State, ui: InventoryUi, id: string): Rect {
-    const row = layoutSkills(state, ui).runeList.rows.find((r) => r.rune.id === id);
-    if (!row) throw new Error(`rune ${id} missing`);
+  const runes = (state: State, i: number): string[] => state.skills.slots[i]?.runModifiers ?? [];
+
+  function runeRowRect(state: State, ui: InventoryUi, key: string): Rect {
+    const row = layoutSkills(state, ui).runeList.rows.find((r) => r.key === key);
+    if (!row) throw new Error(`rune ${key} missing`);
     return row.rect;
   }
 
-  it("所持刻印符をクリックすると選択中スロットの石に付き、もう一度クリックで外れる", () => {
+  it("列は選択中スロットのラン内の符を並び順どおりに出す。スロットを変えれば中身が変わる", () => {
     const { state, ui } = runeSetup();
-    const profile = state.skills.profile;
-    const stone = profile.stones.find((st) => st.id === profile.loadout[0]);
-    if (!stone) throw new Error("stone");
-    clickAt(state, ui, runeRowRect(state, ui, "ra"));
-    expect(stone.runes?.map((r) => r.id), "石に付く").toEqual(["ra"]);
-    expect(profile.runes?.map((r) => r.id), "所持品から消える").toEqual(["rb"]);
-    clickAt(state, ui, runeRowRect(state, ui, "ra"));
-    expect(stone.runes, "外れる").toBeUndefined();
-    expect(profile.runes?.map((r) => r.id).sort(), "所持品へ戻る").toEqual(["ra", "rb"]);
+    expect(layoutSkills(state, ui).runeList.entries.map((e) => e.key)).toEqual(["echo", "multiCharge"]);
+    ui.skillSlot = 1;
+    expect(layoutSkills(state, ui).runeList.entries, "スロット 2 は空").toEqual([]);
   });
 
-  it("キー・パッド: 1〜4 でスロット、↓ でカーソル、決定で付ける", () => {
+  it("符をクリックすると次に付けられるスロットへ移る（次のスロットに石が無ければ飛ばす）", () => {
     const { state, ui } = runeSetup();
-    const profile = state.skills.profile;
-    updateInventoryUi(state, ui, withInput({ skill2Pressed: true }), 0);
-    expect(ui.skillSlot, "スロット 2 を選ぶ").toBe(1);
+    clickAt(state, ui, runeRowRect(state, ui, "echo"));
+    expect(runes(state, 0), "元のスロットから消える").toEqual(["multiCharge"]);
+    expect(runes(state, 1), "スロット 2 に付く").toEqual(["echo"]);
+    expect(ui.message).toContain("スキル 2");
+    clickAt(state, ui, runeRowRect(state, ui, "multiCharge"));
+    expect(runes(state, 1), "石の無いスロット 3・4 は飛ばす").toEqual(["echo", "multiCharge"]);
+  });
+
+  it("移した符は次のステップの同期で slot.modifiers に入る（装備画面では触らない）", () => {
+    const { state, ui } = runeSetup();
+    syncSlotModifiers(state.skills);
+    clickAt(state, ui, runeRowRect(state, ui, "echo"));
+    expect(state.skills.slots[1]?.modifiers, "同期前は変わらない").toEqual([]);
+    syncSlotModifiers(state.skills);
+    expect(state.skills.slots[1]?.modifiers).toEqual(["echo"]);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["multiCharge"]);
+  });
+
+  it("キー・パッド: 1〜4 でスロット、↓ でカーソル、決定で移す", () => {
+    const { state, ui } = runeSetup();
     updateInventoryUi(state, ui, withInput({ move: { x: 0, y: 1 } }), 0);
     updateInventoryUi(state, ui, withInput({ move: { x: 0, y: 1 } }), 0);
     expect(ui.runes.cursor, "押しっぱなしは 1 マスだけ").toBe(1);
     updateInventoryUi(state, ui, withInput({ confirmPressed: true }), 0);
-    const stone = profile.stones.find((st) => st.id === profile.loadout[1]);
-    expect(stone?.runes?.map((r) => r.id), "カーソルの符（新しい順で 2 番目）が付く").toEqual(["rb"]);
+    expect(runes(state, 0), "カーソルの符（2 番目）が移る").toEqual(["echo"]);
+    expect(runes(state, 1)).toEqual(["multiCharge"]);
+    updateInventoryUi(state, ui, withInput({ skill2Pressed: true }), 0);
+    expect(ui.skillSlot, "スロット 2 を選ぶ").toBe(1);
   });
 
   it("左右の移動でも選択中スロットが変わる（端で止まる）", () => {
@@ -225,27 +242,44 @@ describe("updateInventoryUi: スキルタブの刻印符", () => {
     expect(ui.skillSlot).toBe(0);
   });
 
-  it("付けられない符は付かず、所持品に残る（空きスロット）", () => {
+  it("移せる先が無い符は動かず、理由を出す（同じ符が付いている・石が無い）", () => {
     const { state, ui } = runeSetup();
-    ui.skillSlot = 3;
-    clickAt(state, ui, runeRowRect(state, ui, "ra"));
-    expect(state.skills.profile.runes, "所持品のまま").toHaveLength(2);
+    const second = state.skills.slots[1];
+    if (!second) throw new Error("slot");
+    second.runModifiers = ["echo", "multiCharge"];
+    clickAt(state, ui, runeRowRect(state, ui, "echo"));
+    expect(runes(state, 0), "動かない").toEqual(["echo", "multiCharge"]);
+    expect(ui.message).toBe(RUNE_BLOCK_TEXT.noTarget);
   });
 
-  it("Shift+クリックを 2 回で所持刻印符を捨てる", () => {
+  it("祝福が足した符は動かせない", () => {
+    const state = createGame(1);
+    const ui = openUi(state);
+    ui.tab = "skills";
+    grantBoon(state, "echoCall");
+    const list = layoutSkills(state, ui).runeList;
+    expect(list.entries.map((e) => [e.key, e.run]), "祝福の符は run = false").toEqual([["echo", false]]);
+    clickAt(state, ui, runeRowRect(state, ui, "echo"));
+    expect(ui.message).toBe(RUNE_BLOCK_TEXT.granted);
+    expect(runes(state, 1)).toEqual([]);
+  });
+
+  it("Shift+クリックを 2 回で符を外す（外すと消える）", () => {
     const { state, ui } = runeSetup();
-    clickAt(state, ui, runeRowRect(state, ui, "rb"), { shiftHeld: true });
-    expect(state.skills.profile.runes, "1 回目では捨てない").toHaveLength(2);
-    clickAt(state, ui, runeRowRect(state, ui, "rb"), { shiftHeld: true });
-    expect(state.skills.profile.runes?.map((r) => r.id)).toEqual(["ra"]);
+    clickAt(state, ui, runeRowRect(state, ui, "multiCharge"), { shiftHeld: true });
+    expect(runes(state, 0), "1 回目では外さない").toEqual(["echo", "multiCharge"]);
+    clickAt(state, ui, runeRowRect(state, ui, "multiCharge"), { shiftHeld: true });
+    expect(runes(state, 0)).toEqual(["echo"]);
+    expect(runes(state, 1), "どこにも移らない").toEqual([]);
   });
 
   it("ホイールで列をスクロールしてもカーソル行へ戻らない（マウスが動いていない間）", () => {
     const state = createGame(1);
     const ui = openUi(state);
     ui.tab = "skills";
-    const profile = state.skills.profile;
-    profile.runes = Array.from({ length: 20 }, (_, i) => ({ id: `r${i}`, modifier: "echo" as const, foundAt: i }));
+    const first = state.skills.slots[0];
+    if (!first) throw new Error("slot");
+    first.runModifiers = MODIFIER_KEYS.slice(0, 20);
     // 一覧の見出し帯（どの行にも乗らない位置）にマウスを置いたまま、ホイールだけを回す
     const list = layoutSkills(state, ui).runeList;
     const aimScreen = { x: list.header.x + 2, y: list.header.y + 1 };

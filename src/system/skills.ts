@@ -48,13 +48,15 @@ import {
   castBurden,
   castInterval,
   modifierLinkCost,
+  modifiersClash,
   resolveCast,
   skillAttack,
+  slotLinks,
   wearBudCount,
 } from "../skills/data";
-import { type RuneDropSource, makeRuneItem, rollRuneDrop, rollRuneModifier } from "../skills/generator";
+import { type RuneDropSource, rollRuneDrop, rollRuneModifier } from "../skills/generator";
 import { refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
-import { addRune, saveSkillProfile, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
+import { saveSkillProfile, stoneInSlot } from "../skills/persistence";
 import {
   fieldRadius,
   placeMine,
@@ -279,25 +281,21 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
 }
 
 /**
- * スロットの実効の刻印符 = スロットの石に付けた所持刻印符（古い順）+ ラン内の刻印符（古い順）。
- * 石の符を先に置くので、リンクが足りないときは自分で選んだ符が優先して効く。
- * 同じ種類が石とラン内の両方にあれば 1 枚として数える（activeModifiers は重複を弾かないので、ここで除かないと二重に効く）。
- * granted は祝福（スキルの加護 BoonDef.grantsModifier）が全スロットに足す符。自分で選んだ符の後ろに置き、
+ * スロットの実効の刻印符 = ラン内の刻印符（古い順。刻印符はセーブに持たない）。
+ * granted は祝福（スキルの加護 BoonDef.grantsModifier）が全スロットに足す符。拾った符の後ろに置き、
  * その石に付けられない符・既にある符は足さない（リンクの上限は activeModifiers が他の符と同じに数える）
  */
 export function effectiveSlotModifiers(rs: Readonly<SkillRunState>, slot: number, granted: readonly ModifierKey[] = []): ModifierKey[] {
   const stone = stoneInSlot(rs.profile, slot);
-  const own = stone ? stoneModifierKeys(stone) : [];
-  const run = (rs.slots[slot]?.runModifiers ?? []).filter((k) => !own.includes(k));
-  const chosen = [...own, ...run];
+  const chosen = [...(rs.slots[slot]?.runModifiers ?? [])];
   if (!stone) return chosen;
   const def = SKILL_DEFS[stone.skillKey];
   return [...chosen, ...granted.filter((k) => !chosen.includes(k) && canAttach(def, k))];
 }
 
 /**
- * slot.modifiers を石とラン内の刻印符から作り直す。updateSkills の先頭で毎ステップ呼ぶ。
- * 装備画面での付け外しはここで次のステップから効く（リプレイの装備変更イベントと同じ時点に揃えるため、UI からは呼ばない）。
+ * slot.modifiers をラン内の刻印符と祝福の符から作り直す。updateSkills の先頭で毎ステップ呼ぶ。
+ * 装備画面での移す / 外すはここで次のステップから効く（リプレイの装備変更イベントと同じ時点に揃えるため、UI からは呼ばない）。
  * granted は祝福が全スロットに足す符（boonGrantedModifiers）
  */
 export function syncSlotModifiers(rs: SkillRunState, granted: readonly ModifierKey[] = []): void {
@@ -314,7 +312,7 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const slotState = rs.slots[slot];
   if (!stone || !slotState) return null;
   const def = SKILL_DEFS[stone.skillKey];
-  const params = cachedCast(def, stone, slotState);
+  const params = cachedCast(def, stone, slotState, slot);
   const burden = castBurden(def, params);
   const dynamic = dynamicBurdenMul(state, slot, def, params);
   // 書の無詠唱は気力を 0 に、書を持つ間は再使用が短い（system/tomeBell.ts）
@@ -330,10 +328,9 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   };
 }
 
-/** resolveCast の結果の覚え書き（スロットごと）。石・リンク・変異・刻印符が同じなら同じ結果なので毎フレーム作り直さない */
+/** resolveCast の結果の覚え書き（スロットごと）。石・変異・刻印符が同じなら同じ結果なので毎フレーム作り直さない（リンクはスロットで固定） */
 interface CastCache {
   stone: SkillStone;
-  links: number;
   /** 使い込みの威力の芽の数（ラン中に芽が出たら作り直す） */
   powerBuds: number;
   variants: SkillStone["variants"];
@@ -347,22 +344,21 @@ const castCache = new WeakMap<SkillSlotState, CastCache>();
  * 覚え書き付きの resolveCast。返す params は読むだけにする（castSlot は写しを作ってから書き換える）。
  * 決定性には関わらない（入力が同じなら resolveCast と同じ値）
  */
-function cachedCast(def: SkillDef, stone: SkillStone, slot: SkillSlotState): CastParams {
+function cachedCast(def: SkillDef, stone: SkillStone, slot: SkillSlotState, index: number): CastParams {
   const modifiers = slot.modifiers.join(",");
   const hit = castCache.get(slot);
-  const powerBuds = wearBudCount(stone, "power");
+  const powerBuds = wearBudCount(stone);
   if (
     hit &&
     hit.stone === stone &&
-    hit.links === stone.links &&
     hit.powerBuds === powerBuds &&
     hit.variants === stone.variants &&
     hit.modifiers === modifiers
   ) {
     return hit.params;
   }
-  const params = resolveCast(def, stone, slot.modifiers);
-  castCache.set(slot, { stone, links: stone.links, powerBuds, variants: stone.variants, modifiers, params });
+  const params = resolveCast(def, stone, slot.modifiers, index);
+  castCache.set(slot, { stone, powerBuds, variants: stone.variants, modifiers, params });
   return params;
 }
 
@@ -825,7 +821,7 @@ function chargeKind(state: GameState, index: number): "charge" | "staged" | null
   const stone = stoneInSlot(rs.profile, index);
   const slot = rs.slots[index];
   if (!stone || !slot) return null;
-  const active = activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, slot.modifiers);
+  const active = activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(index), slot.modifiers);
   if (active.includes("toStaged")) return "staged";
   return active.includes("charge") ? "charge" : null;
 }
@@ -2130,9 +2126,8 @@ export function dropRune(state: GameState, pos: Vec, modifier?: ModifierKey): vo
 }
 
 /**
- * ラン内の刻印符を装着中スキルのリンク枠へ自動で差す（起点「詠み手」の開始時など、選んだ結果として付くもの）。
- * 拾った刻印符はここを通らず所持品へ入る（装備画面で自分で付け外しする）。
- * 優先: 同じ修飾子を持たず空きのあるスロット → ラン内の最古を押し出す（石に付けた所持刻印符は押し出さない）→ 同じ修飾子を最新扱いに。
+ * 刻印符を装着中スキルのリンク枠へ自動で差す（床の符を拾ったとき・起点「詠み手」・図書館など。刻印符はラン内だけの物）。
+ * 優先: 同じ符を持たず空きのあるスロット → 古い符を押し出して入れる → 同じ符を最新扱いに。
  * 差したスロット番号を返す（付けられる枠が無ければ -1）
  */
 export function attachRune(state: GameState, modifier: ModifierKey): number {
@@ -2140,28 +2135,20 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   const candidates: number[] = [];
   for (let i = 0; i < SLOT_COUNT; i++) {
     const stone = stoneInSlot(rs.profile, i);
-    if (!stone || stone.links <= 0) continue;
+    if (!stone || slotLinks(i) <= 0) continue;
     if (!canAttach(SKILL_DEFS[stone.skillKey], modifier)) continue;
     candidates.push(i);
   }
   if (candidates.length === 0) return -1;
 
-  const linksOf = (i: number): number => stoneInSlot(rs.profile, i)?.links ?? 0;
-  const usedLinks = (i: number): number => {
-    const stone = stoneInSlot(rs.profile, i);
-    if (!stone) return 0;
-    return effectiveSlotModifiers(rs, i)
-      .filter((k) => canAttach(SKILL_DEFS[stone.skillKey], k))
-      .reduce((sum, k) => sum + modifierLinkCost(k), 0);
-  };
   const cost = modifierLinkCost(modifier);
-  const without = candidates.filter((i) => !effectiveSlotModifiers(rs, i).includes(modifier) && linksOf(i) >= cost);
+  const without = candidates.filter((i) => !effectiveSlotModifiers(rs, i).includes(modifier) && slotLinks(i) >= cost);
 
   const commit = (i: number): number => {
     syncSlotModifiers(rs);
     return i;
   };
-  const free = without.find((i) => usedLinks(i) + cost <= linksOf(i));
+  const free = without.find((i) => usedLinks(rs, i) + cost <= slotLinks(i));
   if (free !== undefined) {
     rs.slots[free]?.runModifiers.push(modifier);
     return commit(free);
@@ -2169,13 +2156,13 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   for (const target of without) {
     const slot = rs.slots[target];
     if (!slot) continue;
-    // 収まるまでラン内の古い順に押し出す（型替え符はリンクを 2 本使う）
-    while (usedLinks(target) + cost > linksOf(target) && slot.runModifiers.length > 0) slot.runModifiers.shift();
-    if (usedLinks(target) + cost > linksOf(target)) continue;
+    // 収まるまで古い順に押し出す（型替え符はリンクを 2 本使う）
+    while (usedLinks(rs, target) + cost > slotLinks(target) && slot.runModifiers.length > 0) slot.runModifiers.shift();
+    if (usedLinks(rs, target) + cost > slotLinks(target)) continue;
     slot.runModifiers.push(modifier);
     return commit(target);
   }
-  // 全候補が既に持っている: ラン内の分なら最新扱いにする（重複装着はしない）
+  // 全候補が既に持っている: 最新扱いにする（重複装着はしない）
   const first = candidates.find((i) => rs.slots[i]?.runModifiers.includes(modifier));
   const slot = first === undefined ? undefined : rs.slots[first];
   if (first === undefined || !slot) return -1;
@@ -2184,19 +2171,64 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   return commit(first);
 }
 
+/** スロットの符が使っているリンク（石に付けられない符は効かないので数えない） */
+export function usedLinks(rs: Readonly<SkillRunState>, slot: number): number {
+  const stone = stoneInSlot(rs.profile, slot);
+  if (!stone) return 0;
+  return effectiveSlotModifiers(rs, slot)
+    .filter((k) => canAttach(SKILL_DEFS[stone.skillKey], k))
+    .reduce((sum, k) => sum + modifierLinkCost(k), 0);
+}
+
 /**
- * 刻印符を所持品へ入れて保存する（スキルには付けない）。満杯なら false。
- * idSeed は所持品の id を一意にするための数（床の刻印符の id など。省略時は allocId）
+ * 符を移せない理由。noStone = 移し先に石が無い / notFit = 相性表で不可 / duplicate = 同じ符が付いている /
+ * noLinks = リンクの空きが無い / reshape = 型替え符は 1 枚まで / clash = 排他の符が付いている
  */
-export function grantRune(state: GameState, modifier: ModifierKey, idSeed?: number): boolean {
-  const profile = state.skills.profile;
-  // now は決定性に影響しない（所持刻印符の id と foundAt の表示用）
-  if (!addRune(profile, makeRuneItem(modifier, idSeed ?? allocId(state), Date.now()))) return false;
-  saveSkillProfile(profile);
+export type RuneMoveBlock = "noStone" | "notFit" | "duplicate" | "noLinks" | "reshape" | "clash";
+
+/** スロット to に modifier を足せるか。足せるなら null */
+export function runeMoveBlock(rs: Readonly<SkillRunState>, to: number, modifier: ModifierKey): RuneMoveBlock | null {
+  const stone = stoneInSlot(rs.profile, to);
+  if (!stone) return "noStone";
+  if (!canAttach(SKILL_DEFS[stone.skillKey], modifier)) return "notFit";
+  const current = effectiveSlotModifiers(rs, to);
+  if (current.includes(modifier)) return "duplicate";
+  if (usedLinks(rs, to) + modifierLinkCost(modifier) > slotLinks(to)) return "noLinks";
+  if (MODIFIERS[modifier].reshape && current.some((k) => MODIFIERS[k].reshape)) return "reshape";
+  if (current.some((k) => modifiersClash(k, modifier))) return "clash";
+  return null;
+}
+
+/** 符の移し先の結果。missing = 元のスロットにその符が無い（同じスロットへの移しも含む） */
+export type RuneMoveResult = "ok" | "missing" | RuneMoveBlock;
+
+/**
+ * スロット from のラン内の符 modifier を to へ移す。付けられなければ動かさず理由を返す。
+ * slot.modifiers への反映は次のステップの syncSlotModifiers（装備画面の操作をリプレイの装備変更イベントと同じ時点に揃える）
+ */
+export function moveRunModifier(rs: SkillRunState, from: number, to: number, modifier: ModifierKey): RuneMoveResult {
+  const src = rs.slots[from];
+  const dst = rs.slots[to];
+  if (!src || !dst || from === to) return "missing";
+  const idx = src.runModifiers.indexOf(modifier);
+  if (idx < 0) return "missing";
+  const block = runeMoveBlock(rs, to, modifier);
+  if (block) return block;
+  src.runModifiers.splice(idx, 1);
+  dst.runModifiers.push(modifier);
+  return "ok";
+}
+
+/** スロットのラン内の符を外す（外した符は消える）。無ければ false。反映は moveRunModifier と同じく次のステップ */
+export function removeRunModifier(rs: SkillRunState, slot: number, modifier: ModifierKey): boolean {
+  const list = rs.slots[slot]?.runModifiers;
+  const idx = list ? list.indexOf(modifier) : -1;
+  if (!list || idx < 0) return false;
+  list.splice(idx, 1);
   return true;
 }
 
-/** 床の刻印符を拾って所持品へ入れる。所持が満杯なら床に残す */
+/** 床の刻印符を拾って、付けられるスロットへ入れる。付けられるスキルが無ければ床に残す */
 function updateRunes(state: GameState, dt: number): void {
   const rs = state.skills;
   const body = state.player.body;
@@ -2206,14 +2238,15 @@ function updateRunes(state: GameState, dt: number): void {
     if (rune.bobTime < SKILL.drop.pickupDelay) continue;
     if (!circlesOverlap(rune.pos.x, rune.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
     const def = MODIFIERS[rune.modifier];
-    if (!grantRune(state, rune.modifier, rune.id)) {
-      if (!rune.warned) addFloatingText(state, rune.pos, "刻印符が満杯", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
+    const slot = attachRune(state, rune.modifier);
+    if (slot < 0) {
+      if (!rune.warned) addFloatingText(state, rune.pos, "付ける先なし", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
       rune.warned = true;
       continue;
     }
     picked.add(rune.id);
     addFloatingText(state, rune.pos, def.name, def.color, LABEL_SCALE, LABEL_LIFE);
-    pushLog(state, `刻印符「${def.name}」を拾った。装備画面のスキルタブで付けられる。`, def.color);
+    pushLog(state, `刻印符「${def.name}」をスキル ${slot + 1} に付けた。`, def.color);
     pushSfx(state, "runeAttach");
   }
   if (picked.size > 0) rs.runes = rs.runes.filter((r) => !picked.has(r.id));
@@ -2231,23 +2264,23 @@ function spawnAura(state: GameState): void {
 }
 
 /**
- * 描画用: 刻印符の装着状況（有効 / 無効、ラン内か）。UI・HUD が使う。
- * 装備画面での付け外しは次のステップまで slot.modifiers に入らないので、石から直接作る
+ * 描画用: 刻印符の装着状況（有効 / 無効、拾った符か）。UI・HUD が使う。run = 拾って付けた符（移す / 外すができる）、
+ * false = 祝福が足した符。装備画面での操作は次のステップまで slot.modifiers に入らないので、runModifiers から直接作る
  */
 export function slotModifierView(state: GameState, slot: number): { key: ModifierKey; active: boolean; run: boolean }[] {
   const rs = state.skills;
   const s = rs.slots[slot];
   const stone = stoneInSlot(rs.profile, slot);
   if (!s) return [];
-  const own = stone ? stoneModifierKeys(stone).length : 0;
+  const runCount = s.runModifiers.length;
   const keys = effectiveSlotModifiers(rs, slot, boonGrantedModifiers(state));
-  const active = stone ? new Set(activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, keys)) : new Set<ModifierKey>();
-  return keys.map((key, i) => ({ key, active: active.has(key), run: i >= own }));
+  const active = stone ? new Set(activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(slot), keys)) : new Set<ModifierKey>();
+  return keys.map((key, i) => ({ key, active: active.has(key), run: i < runCount }));
 }
 
 /**
  * 撃破時の刻印符ドロップ（system/loot.ts の rollEnemyDrop から 1 行で呼ぶ）。
- * ボス・エリート・図書館・巣窟の敵は出やすい。落ちた刻印符は拾うと所持品へ入る
+ * ボス・エリート・図書館・巣窟の敵は出やすい。落ちた刻印符は拾うと付けられるスロットへ入る
  */
 export function rollEnemyRuneDrop(state: GameState, enemy: Enemy): void {
   const key = rollRuneDrop(state.rng, state.depth, runeDropSource(state, enemy), equippedSkillKeys(state));

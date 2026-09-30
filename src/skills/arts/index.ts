@@ -3,28 +3,17 @@ import { BALANCE } from "../../data/balance";
 import { MOVESETS, type MovesetKey } from "../../data/weapons";
 import type { SkillDef } from "../types";
 import { buildArtDef, buildArtSkillDef } from "./build";
-import { BLADE_ART_SPECS } from "./blades";
 import { COMMON_ART_SPECS } from "./common";
-import { GUN_ART_SPECS } from "./guns";
-import { HEAVY_ART_SPECS } from "./heavy";
+import { COMMON_ART_SPECS_2 } from "./common2";
 import { ART_SKILL_KEYS, type ArtSkillKey } from "./keys";
-import { POLEARM_ART_SPECS } from "./polearms";
-import { THROWING_ART_SPECS } from "./throwing";
 import type { ArtDef, ArtSpec } from "./types";
 
 /**
- * 技（共通技・武器技）の定義の集約。data.ts の SKILL_DEFS / SKILL_ATTACK / SKILL_WEIGHTS / SKILL_MIN_DEPTH に混ぜる。
- * 発動は skills/arts/engine.ts。一覧と狙いは docs/ideas/weapon-skills.md
+ * 技（共通技 60）の定義の集約。data.ts の SKILL_DEFS / SKILL_ATTACK / SKILL_WEIGHTS / SKILL_MIN_DEPTH に混ぜる。
+ * 発動は skills/arts/engine.ts、型ごとの形の変化は skills/arts/transform.ts。一覧は docs/ideas/skills-7c-plan.md 1 章
  */
 
-export const ART_SPECS: readonly ArtSpec[] = [
-  ...COMMON_ART_SPECS,
-  ...BLADE_ART_SPECS,
-  ...POLEARM_ART_SPECS,
-  ...HEAVY_ART_SPECS,
-  ...GUN_ART_SPECS,
-  ...THROWING_ART_SPECS,
-];
+export const ART_SPECS: readonly ArtSpec[] = [...COMMON_ART_SPECS, ...COMMON_ART_SPECS_2];
 
 function specTable(): Record<ArtSkillKey, ArtSpec> {
   const out: Partial<Record<ArtSkillKey, ArtSpec>> = {};
@@ -57,7 +46,7 @@ export const ART_ATTACK: Readonly<Record<ArtSkillKey, AttackProfile | null>> = m
 
 export const ART_MIN_DEPTH: Record<ArtSkillKey, number> = mapKeys((s) => ART_DEFS[s.key].minDepth);
 
-/** 照準地点を使う技の最大射程（system/skills.ts の CAST_RANGE に足す） */
+/** 照準地点を使う技の最大射程（system/skills.ts の CAST_RANGE に足す）。型の変形で照準地点へ移った技は SKILL.defaultCastRange に落ちる */
 export const ART_CAST_RANGE: Partial<Record<ArtSkillKey, number>> = Object.fromEntries(
   ART_SKILL_KEYS.flatMap((k) => {
     const r = ART_DEFS[k].castRange;
@@ -65,21 +54,8 @@ export const ART_CAST_RANGE: Partial<Record<ArtSkillKey, number>> = Object.fromE
   }),
 );
 
-const W = BALANCE.skills.ART.weights;
-
-/**
- * 抽選の重み（名目）。共通技は common、武器技は other（装備と違う武器種のときの重み）。
- * 装備中の武器種の武器技は抽選のときに matched へ差し替える（skills/generator.ts の skillWeight）
- */
-export const ART_WEIGHTS: Record<ArtSkillKey, number> = mapKeys((s) => (s.moveset === null ? W.common : W.other));
-
-/** 武器技の重みを装備中の武器種に合わせて返す（共通技・既存のスキルは null = 差し替えない） */
-export function artWeightFor(key: string, moveset: MovesetKey | undefined): number | null {
-  if (!isArtKey(key)) return null;
-  const m = SPECS[key].moveset;
-  if (m === null) return null;
-  return m === moveset ? W.matched : W.other;
-}
+/** 抽選の重み（共通技 1 種あたり。武器種に依らない） */
+export const ART_WEIGHTS: Record<ArtSkillKey, number> = mapKeys(() => BALANCE.skills.ART.weight);
 
 const ART_KEY_SET: ReadonlySet<string> = new Set(ART_SKILL_KEYS);
 
@@ -87,12 +63,12 @@ export function isArtKey(key: string): key is ArtSkillKey {
   return ART_KEY_SET.has(key);
 }
 
-/** 武器技の表示（「剣専用」）。石のツールチップと、違う武器種で撃ったときの浮き文字 */
+/** 武器種の縛りの表示（「剣専用」）。段取り 7c から技は縛りを持たないが、SkillDef.moveset を持つ石の表示に残す */
 export function weaponArtLabel(moveset: MovesetKey): string {
   return `${MOVESETS[moveset].name}専用`;
 }
 
-/** 技の武器種（共通技・技でないスキルは null） */
+/** 技の武器種の縛り（段取り 7c から技は全て null。技でないスキルも null） */
 export function artMoveset(key: string): MovesetKey | null {
   return isArtKey(key) ? SPECS[key].moveset : null;
 }

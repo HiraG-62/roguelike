@@ -1,27 +1,22 @@
 import type { FrameInput } from "../core/input";
+import type { GameState } from "../core/state";
 import { MODIFIERS } from "../skills/data";
-import {
-  type RuneAttachBlock,
-  attachRuneToStone,
-  detachRuneFromStone,
-  discardRune,
-  ownedRunes,
-  runeAttachBlock,
-  stoneRunes,
-} from "../skills/persistence";
-import type { RuneItem, SkillProfile, SkillStone } from "../skills/types";
+import type { ModifierKey } from "../skills/types";
+import { moveRunModifier, removeRunModifier, runeMoveBlock, slotModifierView } from "../system/skills";
 import { type Rect, STASH_HEADER_H, STASH_ROW_H, clamp, pointInRect } from "./inventoryLayout";
 
 /**
  * 装備画面スキルタブの「刻印符」列（DOM 非依存の状態と入力）。
- * 所持刻印符を、選択中スロットの石に付ける / 外す。マウス・キー・パッドのどれでも操作できる。
- * 付け外しは石（SkillStone.runes）に残るので、スロットを入れ替えても符は石と一緒に動く
+ * 刻印符はラン内だけの物（セーブしない）。選択中スロットに付いている符を、別のスロットへ移す / 外す（外すと消える）。
+ * マウス・キー・パッドのどれでも操作できる。移す / 外すは slot.runModifiers を直接書き、
+ * slot.modifiers へは次のステップの syncSlotModifiers が反映する
  */
 
-/** 列の 1 行: 選択中の石に付いている符（attached）か、所持品の符か */
+/** 列の 1 行: 選択中スロットの符。run = 拾って付けた符（動かせる）、false = 祝福が足した符（動かせない） */
 export interface RuneEntry {
-  rune: RuneItem;
-  attached: boolean;
+  key: ModifierKey;
+  active: boolean;
+  run: boolean;
 }
 
 export interface RuneRowLayout extends RuneEntry {
@@ -41,8 +36,8 @@ export interface RuneUi {
   /** キー・パッドのカーソル（entries の番号）。マウスが乗ればそこへ動く */
   cursor: number;
   scroll: number;
-  /** ツールチップを出す符（マウスかカーソル） */
-  focusId: string | null;
+  /** ツールチップを出す符の key（マウスかカーソル） */
+  focusKey: ModifierKey | null;
   /** 移動入力のエッジ検出用（前フレームの向き。-1 / 0 / 1） */
   navX: number;
   navY: number;
@@ -52,19 +47,17 @@ export interface RuneUi {
 const NAV_THRESHOLD = 0.5;
 
 export function createRuneUi(): RuneUi {
-  return { cursor: 0, scroll: 0, focusId: null, navX: 0, navY: 0 };
+  return { cursor: 0, scroll: 0, focusKey: null, navX: 0, navY: 0 };
 }
 
-/** 並び: 選択中の石に付いた符（付けた順）→ 所持品（新しい順）。付けた符を上に置き、外す操作を近くにする */
-export function runeEntries(profile: SkillProfile, stone: SkillStone | null): RuneEntry[] {
-  const attached = stone ? stoneRunes(stone).map((rune) => ({ rune, attached: true })) : [];
-  const owned = [...ownedRunes(profile)].sort((a, b) => b.foundAt - a.foundAt).map((rune) => ({ rune, attached: false }));
-  return [...attached, ...owned];
+/** 並び: スロットの符の並び順（拾った順 → 祝福の符）。効かない符も含めて出す */
+export function runeEntries(state: GameState, slot: number): RuneEntry[] {
+  return slotModifierView(state, slot);
 }
 
-export function layoutRuneList(profile: SkillProfile, stone: SkillStone | null, ui: RuneUi, area: Rect): RuneListLayout {
+export function layoutRuneList(state: GameState, slot: number, ui: RuneUi, area: Rect): RuneListLayout {
   const header: Rect = { x: area.x, y: area.y, w: area.w, h: STASH_HEADER_H };
-  const entries = runeEntries(profile, stone);
+  const entries = runeEntries(state, slot);
   const visible = Math.max(0, Math.floor((area.h - STASH_HEADER_H) / STASH_ROW_H));
   const maxScroll = Math.max(0, entries.length - visible);
   const scroll = clamp(ui.scroll, 0, maxScroll);
@@ -78,45 +71,43 @@ export function layoutRuneList(profile: SkillProfile, stone: SkillStone | null, 
   return { header, rows, entries, maxScroll };
 }
 
-/** 付け外しの結果（UI のメッセージと効果音の出し分け用） */
-export type RuneToggleResult =
-  | { kind: "attached"; name: string }
-  | { kind: "detached"; name: string }
-  | { kind: "discarded"; name: string }
-  | { kind: "blocked"; reason: RuneAttachBlock | "noStone" | "missing" };
+/** 移す / 外すを止める理由。granted = 祝福の符 / noTarget = 移せるスロットが無い / missing = 符が見つからない */
+export type RuneBlockReason = "granted" | "noTarget" | "missing";
 
-/** 所持品の符なら石に付け、付いている符なら外す。discard なら所持品の符を捨てる（付いている符は捨てない） */
-export function toggleRune(profile: SkillProfile, stone: SkillStone | null, entry: RuneEntry, discard = false): RuneToggleResult {
-  const name = MODIFIERS[entry.rune.modifier].name;
-  if (discard) {
-    if (entry.attached || !discardRune(profile, entry.rune.id)) return { kind: "blocked", reason: "missing" };
-    return { kind: "discarded", name };
+/** 移す / 外すの結果（UI のメッセージと効果音の出し分け用） */
+export type RuneOpResult =
+  | { kind: "moved"; name: string; to: number }
+  | { kind: "removed"; name: string }
+  | { kind: "blocked"; reason: RuneBlockReason };
+
+/** 符の移し先: from の次のスロットから順に、付けられる最初のスロット（無ければ null）。ボタン 1 つで巡るための決め方 */
+export function moveTarget(state: GameState, from: number, modifier: ModifierKey): number | null {
+  const count = state.skills.slots.length;
+  for (let step = 1; step < count; step++) {
+    const to = (from + step) % count;
+    if (runeMoveBlock(state.skills, to, modifier) === null) return to;
   }
-  if (!stone) return { kind: "blocked", reason: "noStone" };
-  if (entry.attached) {
-    return detachRuneFromStone(profile, stone.id, entry.rune.id) ? { kind: "detached", name } : { kind: "blocked", reason: "missing" };
-  }
-  const result = attachRuneToStone(profile, entry.rune.id, stone.id);
-  return result === "ok" ? { kind: "attached", name } : { kind: "blocked", reason: result };
+  return null;
 }
 
-/** 付けられない理由の表示文（docs/GLOSSARY.md「刻印符」） */
-export const RUNE_BLOCK_TEXT: Readonly<Record<RuneAttachBlock | "noStone" | "missing", string>> = {
-  notFit: "このスキルには付けられません",
-  duplicate: "同じ刻印符が付いています",
-  noLinks: "リンクの空きがありません",
-  reshape: "型替え符は 1 枚までです",
-  clash: "付いている刻印符と同時に付けられません",
-  noStone: "スロットにスキル石がありません",
+/** 選択中スロットの符を別のスロットへ移す。remove なら外して消す（祝福の符は動かせない） */
+export function operateRune(state: GameState, slot: number, entry: RuneEntry, remove: boolean): RuneOpResult {
+  const name = MODIFIERS[entry.key].name;
+  if (!entry.run) return { kind: "blocked", reason: "granted" };
+  if (remove) {
+    return removeRunModifier(state.skills, slot, entry.key) ? { kind: "removed", name } : { kind: "blocked", reason: "missing" };
+  }
+  const to = moveTarget(state, slot, entry.key);
+  if (to === null) return { kind: "blocked", reason: "noTarget" };
+  return moveRunModifier(state.skills, slot, to, entry.key) === "ok" ? { kind: "moved", name, to } : { kind: "blocked", reason: "missing" };
+}
+
+/** 動かせない理由の表示文（docs/GLOSSARY.md「刻印符」） */
+export const RUNE_BLOCK_TEXT: Readonly<Record<RuneBlockReason, string>> = {
+  granted: "祝福の刻印符は動かせません",
+  noTarget: "移せるスロットがありません",
   missing: "刻印符が見つかりません",
 };
-
-/** 選択中の石に付けられない理由（付けられる / 付いている符なら null）。ツールチップ用 */
-export function entryBlock(stone: SkillStone | null, entry: RuneEntry): RuneAttachBlock | "noStone" | null {
-  if (entry.attached) return null;
-  if (!stone) return "noStone";
-  return runeAttachBlock(stone, entry.rune.modifier);
-}
 
 /** 移動入力を 1 マスずつの操作に変える（押した瞬間だけ -1 / 1、押しっぱなしは 0） */
 export function readNav(ui: RuneUi, input: FrameInput): { dx: number; dy: number } {

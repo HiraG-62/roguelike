@@ -175,11 +175,11 @@ const RELIC_TIPS: readonly TipDef[] = [
 
 const SKILL_TIPS: readonly TipDef[] = [
   { key: "stone", term: "スキル石", category: "skill", body: "スロット 1〜4 に装着して撃つスキル。拾った石は倉庫に入り、探索を越えて持ち越す。" },
-  { key: "commonArt", term: "共通技", category: "skill", body: "どの武器種でも撃てるスキル石。火球・瞬身・応急手当のような道具・魔法・体術。" },
-  { key: "weaponArt", term: "武器技", category: "skill", body: "その武器種を装備しているときだけ撃てるスキル石（石に「剣専用」のように出る）。違う武器種では枠が暗くなり、撃っても気力を払わない。装備中の武器種の武器技ほど拾いやすく、ほかの武器種のものも稀に出るので、持ち替えに備えて集められる。" },
+  { key: "commonArt", term: "共通技", category: "skill", body: "どの武器種でも撃てるスキル石。旋風斬り・火球・瞬身のような剣技・魔法・体術。" },
+  { key: "artTransform", term: "変形", category: "skill", body: "共通技は今の武器の型で形が変わる。重打なら広く重く、短銃なら振りが弾に、鎖なら当てる前に引き寄せる。今の変わり方は石のツールチップの「今の型」の行。" },
   { key: "manaType", term: "気力型", category: "skill", body: "撃つたびに気力を払うスキル。" },
   { key: "cooldownType", term: "再使用型", category: "skill", body: "撃つと再使用時間が経つまで撃てないスキル。" },
-  { key: "rune", term: "刻印符", category: "skill", body: "スキル石のリンクに付ける修飾。拾うと所持品に入り、装備画面で石に付け外しする。石と一緒に持ち越す。" },
+  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。拾うと付けられるスロットへ入り、装備画面で別のスロットへ移す・外す（外すと消える）。スロットごとに付けられる数が決まっている。" },
   { key: "link", term: "リンク", category: "skill", body: "石に付けた刻印符の数。多いほど負担（気力のコスト / 再使用時間）が重くなる。" },
   { key: "combo", term: "連携", category: "skill", body: "スキルの直後に別のスキルを撃つと、後の方が変化する。HUD の枠の点滅する菱形が連携可の印。図鑑の連携の頁は、連携・反応・連鎖を初めて起こすと数える。" },
   { key: "form", term: "変身", category: "skill", body: "一定の間、武器種が変わる強化スキル。変身中の攻撃 1・攻撃 2 は変身先の技になる。" },

@@ -12,7 +12,9 @@ import { arena } from "../system/testHelpers";
 import {
   BULLET_LOOK,
   GRENADE_LOOK,
+  MOVESET_THROWN_LOOK,
   SKILL_LOOK,
+  THROWN_ART_KEYS,
   THROWN_ECHO_LOOK,
   ULTIMATE_LOOK,
   WEAPON_ART_LOOK,
@@ -72,13 +74,16 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
     expect(projectileLook(pistol)).toBeUndefined();
   });
 
-  it("技の弾は技の key で引き、極意は今の武器種で引く", () => {
-    expect(skillShotLook("spearHurl", "spear")?.sprite).toBe(thrownSpriteKey("spear"));
-    expect(skillShotLook("shieldThrow", "shield")?.sprite).toBe(thrownSpriteKey("shield"));
+  it("技の弾は技の key で引き、武器を投げる技と極意は今の武器種で引く", () => {
+    expect(skillShotLook("commonIceLance", "sword")?.sprite, "決まった絵").toBe(thrownSpriteKey("iceSpear"));
+    expect(skillShotLook("commonRicochet", "shield")?.sprite, "跳弾は盾を投げる").toBe(thrownSpriteKey("shield"));
+    expect(skillShotLook("commonRicochet", "axe")?.sprite, "跳弾は斧を投げる").toBe(thrownSpriteKey("axe"));
+    expect(skillShotLook("commonKiBlast", "chainSickle")?.sprite, "気弾は分銅").toBe(thrownSpriteKey("weight"));
+    expect(skillShotLook("commonRicochet", "gunner"), "投げる絵の無い武器種はふつうの弾").toBeUndefined();
     expect(skillShotLook("weaponArt", "thrown")?.sprite, "投げ散らし").toBe(thrownSpriteKey("knife"));
     expect(skillShotLook("weaponArt", "warRing")?.sprite, "乱れ輪").toBe(thrownSpriteKey("warRing"));
     expect(skillShotLook("weaponArt", "sword"), "剣の極意は弾を出さない").toBeUndefined();
-    expect(skillShotLook("wandDarkOrb", "wand"), "魔法の弾は対象外").toBeUndefined();
+    expect(skillShotLook("commonShadowBolt", "wand"), "魔法の弾は対象外").toBeUndefined();
   });
 
   it("表のすべての絵がスプライトに登録されている", () => {
@@ -86,6 +91,7 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
       ...Object.values(BULLET_LOOK),
       ...Object.values(ULTIMATE_LOOK),
       ...Object.values(SKILL_LOOK),
+      ...Object.values(MOVESET_THROWN_LOOK),
       ...Object.values(WEAPON_ART_LOOK),
       GRENADE_LOOK,
       THROWN_ECHO_LOOK,
@@ -102,13 +108,14 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
     const ultKeys = new Set(MOVESET_KEYS.flatMap((m) => ULTIMATES[m].map((u) => u.key)));
     for (const key of Object.keys(ULTIMATE_LOOK)) expect(ultKeys.has(key), `奥義 ${key}`).toBe(true);
     for (const key of Object.keys(SKILL_LOOK)) expect(key in SKILL_DEFS, `スキル ${key}`).toBe(true);
+    for (const key of THROWN_ART_KEYS) expect(key in SKILL_DEFS, `武器を投げる技 ${key}`).toBe(true);
   });
 });
 
 describe("投げた武器の角度と大きさ", () => {
   it("point は進む向き、spin は時刻で回り左へ飛ぶと逆回し", () => {
-    const knife = skillShotLook("thrownDagger", "thrown");
-    const axe = skillShotLook("axeHatchet", "axe");
+    const knife = skillShotLook("commonKnifeFan", "sword");
+    const axe = skillShotLook("commonRicochet", "axe");
     if (!knife || !axe) throw new Error("表に無い");
     expect(thrownAngle(knife, 3, 1, { x: 0, y: 10 })).toBeCloseTo(Math.PI / 2);
     const right = thrownAngle(axe, 0.5, 0, { x: 10, y: 0 });
@@ -155,14 +162,8 @@ const THROW_WORDS = /投げ|投擲|放る|放り|一投/;
  * 新しく「投げる」技を足したら、表（thrownLook.ts）に載せるかここへ理由を書く
  */
 const EXCLUDED: Readonly<Record<string, string>> = {
-  // 飛ぶ弾が無い（照準地点に即座に出る輪・引き寄せ・帯）
-  "skill:thrownBomb": "照準地点に即座に爆ぜる輪で、飛ぶ弾が無い",
-  "skill:grenadeCluster": "照準地点の周りに即座に出る輪で、飛ぶ弾が無い",
-  "skill:grenadeBarrage": "前方に即座に出る輪で、飛ぶ弾が無い",
-  "skill:trapperNet": "照準地点に即座に広がる輪で、飛ぶ弾が無い",
-  "skill:trapperLure": "照準地点での引き寄せで、飛ぶ弾が無い",
-  "skill:chainSickleHook": "引き寄せ（pull）で、飛ぶ弾が無い",
-  "skill:chainSickleChainThrow": "鎖を伸ばす帯（line）の近接",
+  // 飛ぶ弾が無い（照準地点に即座に出る輪）
+  "skill:commonBomb": "照準地点に即座に爆ぜる輪で、飛ぶ弾が無い",
   "modifier:toLobbed": "置く物を照準地点に即座に置く型替えで、飛ぶ弾が無い",
   // 敵を投げる近接
   "moveset:fists": "敵を背後へ投げる近接の振り",
@@ -213,7 +214,7 @@ function covered(id: string): boolean {
   const [kind, key = ""] = id.split(/:(.*)/s);
   switch (kind) {
     case "skill":
-      return SKILL_LOOK[key] !== undefined;
+      return SKILL_LOOK[key] !== undefined || THROWN_ART_KEYS.has(key);
     case "ult":
       return ULTIMATE_LOOK[key] !== undefined;
     case "step2":

@@ -17,7 +17,7 @@ import {
   modifierVerb,
   resolveCast,
 } from "./data";
-import { generateSkillStone, makeRuneItem, skillWeight, rollRuneDrop, rollRuneModifier, runeDropChance, stoneFromSeed } from "./generator";
+import { generateSkillStone, skillWeight, rollRuneDrop, rollRuneModifier, runeDropChance, stoneFromSeed } from "./generator";
 import {
   SKILL_PROFILE_KEY,
   addStone,
@@ -65,14 +65,11 @@ describe("スキル石の生成", () => {
     expect(a).toEqual(b);
   });
 
-  it("リンクは 0..3、変異軸はスキルが許す軸から重複なしで 0..2 本、値は -1..1", () => {
+  it("リンクは石に持たず（0）、変異軸はスキルが許す軸から重複なしで 0..2 本、値は -1..1", () => {
     const rng = createRng(7);
-    const seenLinks = new Set<number>();
     for (let i = 0; i < SAMPLE_COUNT; i++) {
       const s = generateSkillStone(rng, { foundDepth: 1, now: 0 });
-      seenLinks.add(s.links);
-      expect(s.links).toBeGreaterThanOrEqual(0);
-      expect(s.links).toBeLessThanOrEqual(SKILL.maxLinks);
+      expect(s.links).toBe(0);
       expect(s.variants.length).toBeLessThanOrEqual(2);
       const axes = s.variants.map((v) => v.axis);
       expect(new Set(axes).size).toBe(axes.length);
@@ -82,7 +79,6 @@ describe("スキル石の生成", () => {
         expect(v.value).not.toBe(0);
       }
     }
-    expect(seenLinks.size).toBeGreaterThanOrEqual(3);
   });
 
   it("刻印符は装着中スキルに付けられるものだけから選ぶ", () => {
@@ -238,15 +234,14 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
 });
 
 describe("resolveCast", () => {
-  it("リンクが多いほど負担が重い（1 本ごと +15%）。マナ型はコスト、CD 型は CD", () => {
+  it("リンクは負担に効かない（石の links を変えても基本のコスト / CD のまま）。CD 型はコスト 0", () => {
     const whirl = SKILL_DEFS.whirl;
-    const costs = [0, 1, 2, 3].map((links) => castBurden(whirl, resolveCast(whirl, stone("whirl", links), [])).cost);
-    for (let i = 1; i < costs.length; i++) expect(costs[i]).toBeGreaterThan(costs[i - 1] ?? 0);
-    expect(costs[0]).toBeCloseTo(SKILL.whirl.cost);
-    expect(costs[3]).toBeCloseTo(SKILL.whirl.cost * (1 + SKILL.linkBurdenPenalty * 3));
+    for (const links of [0, 1, 2, 3]) {
+      expect(castBurden(whirl, resolveCast(whirl, stone("whirl", links), [])).cost, `links ${links}`).toBeCloseTo(SKILL.whirl.cost);
+    }
     const lunge = SKILL_DEFS.lunge;
     const cd = castBurden(lunge, resolveCast(lunge, stone("lunge", 2), []));
-    expect(cd.cooldown).toBeCloseTo(SKILL.lunge.cooldown * (1 + SKILL.linkBurdenPenalty * 2));
+    expect(cd.cooldown).toBeCloseTo(SKILL.lunge.cooldown);
     expect(cd.cost, "CD 型はコスト 0").toBe(0);
   });
 
@@ -262,11 +257,13 @@ describe("resolveCast", () => {
     expect(p.damageMul).toBe(1);
   });
 
-  it("修飾子はリンク数まで・付けられるものだけ効く", () => {
+  it("修飾子はスロットのリンク数まで・付けられるものだけ効く（リンク 2 本のスロット 4 では 3 枚目は効かない）", () => {
     const def = SKILL_DEFS.lunge;
-    const p = resolveCast(def, stone("lunge", 1), ["multiCharge", "bloodPrice"]);
+    const p = resolveCast(def, stone("lunge", 0), ["multiCharge", "bloodPrice", "chainReset"], 3);
     expect(p.charges).toBe(1 + SKILL.modifier.multiCharge.extraCharges);
-    expect(p.hpCostFraction).toBe(0);
+    expect(p.hpCostFraction, "2 枚目までは効く").toBeGreaterThan(0);
+    expect(p.killRefund, "3 枚目は 2 本に収まらず効かない").toBe(false);
+    expect(resolveCast(def, stone("lunge", 0), ["multiCharge", "bloodPrice", "chainReset"], 0).killRefund, "リンク 4 本のスロット 1 なら効く").toBe(true);
     expect(activeModifiers(SKILL_DEFS.parry, 3, ["echo", "bloodPrice"])).toEqual(["bloodPrice"]);
   });
 
@@ -281,7 +278,7 @@ describe("resolveCast", () => {
     const m = SKILL.modifier;
     expect(p.damageMul).toBeCloseTo(m.multiCharge.damageMul * m.bloodPrice.damageMul);
     expect(p.hpCostFraction).toBeCloseTo(m.bloodPrice.hpFraction);
-    expect(p.burdenMul, "CD 型の血の代償は負担に触れない").toBeCloseTo((1 + SKILL.linkBurdenPenalty * 2) * m.multiCharge.burdenMul);
+    expect(p.burdenMul, "CD 型の血の代償は負担に触れない").toBeCloseTo(m.multiCharge.burdenMul);
   });
 
   it("多重の読み替え: マナ型はコスト ×0.6・最低間隔 ×0.5・威力 ×0.7（チャージは増えない）", () => {
@@ -290,7 +287,7 @@ describe("resolveCast", () => {
     const p = resolveCast(def, stone("frag", 1), ["multiCharge"]);
     expect(p.charges, "チャージは増えない").toBe(1);
     expect(p.damageMul).toBeCloseTo(m.damageMul);
-    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.frag.cost * (1 + SKILL.linkBurdenPenalty) * m.manaBurdenMul);
+    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.frag.cost * m.manaBurdenMul);
     expect(castInterval(def, p)).toBeCloseTo(SKILL.frag.minInterval * m.intervalMul);
     expect(castBurden(def, p).cooldown, "マナ型の CD は 0 のまま").toBe(0);
   });
@@ -300,14 +297,14 @@ describe("resolveCast", () => {
     const def = SKILL_DEFS.lunge;
     const p = resolveCast(def, stone("lunge", 0, { links: 1 }), ["multiCharge"]);
     expect(p.charges).toBe(1 + m.extraCharges);
-    expect(castBurden(def, p).cooldown).toBeCloseTo(SKILL.lunge.cooldown * (1 + SKILL.linkBurdenPenalty) * m.burdenMul);
+    expect(castBurden(def, p).cooldown).toBeCloseTo(SKILL.lunge.cooldown * m.burdenMul);
     expect(castInterval(def, p)).toBeCloseTo(SKILL.lunge.minInterval);
   });
 
   it("血の代償の読み替え: マナ型はコスト ×0.5", () => {
     const def = SKILL_DEFS.thunder;
     const p = resolveCast(def, stone("thunder", 1), ["bloodPrice"]);
-    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.thunder.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.bloodPrice.manaBurdenMul);
+    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.thunder.cost * SKILL.modifier.bloodPrice.manaBurdenMul);
     expect(p.hpCostFraction).toBeCloseTo(SKILL.modifier.bloodPrice.hpFraction);
   });
 
@@ -316,19 +313,19 @@ describe("resolveCast", () => {
     const mana = resolveCast(SKILL_DEFS.whirl, stone("whirl", 1), ["chainReset"]);
     expect(mana.killManaRefund).toBeCloseTo(m.manaRefund);
     expect(mana.killRefund, "マナ型はチャージを返さない").toBe(false);
-    expect(mana.burdenMul).toBeCloseTo((1 + SKILL.linkBurdenPenalty) * m.manaBurdenMul);
+    expect(mana.burdenMul).toBeCloseTo(m.manaBurdenMul);
     const cd = resolveCast(SKILL_DEFS.lunge, stone("lunge", 1), ["chainReset"]);
     expect(cd.killRefund).toBe(true);
     expect(cd.killManaRefund).toBe(0);
-    expect(cd.burdenMul).toBeCloseTo((1 + SKILL.linkBurdenPenalty) * m.burdenMul);
+    expect(cd.burdenMul).toBeCloseTo(m.burdenMul);
   });
 
   it("反響・拡大は負担に掛かる（マナ型ならコスト）", () => {
     const echo = resolveCast(SKILL_DEFS.frag, stone("frag", 1), ["echo"]);
-    expect(castBurden(SKILL_DEFS.frag, echo).cost).toBeCloseTo(SKILL.frag.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.echo.burdenMul);
+    expect(castBurden(SKILL_DEFS.frag, echo).cost).toBeCloseTo(SKILL.frag.cost * SKILL.modifier.echo.burdenMul);
     const expand = resolveCast(SKILL_DEFS.quake, stone("quake", 1), ["expand"]);
     expect(castBurden(SKILL_DEFS.quake, expand).cost).toBeCloseTo(
-      SKILL.quake.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.expand.burdenMul,
+      SKILL.quake.cost * SKILL.modifier.expand.burdenMul,
     );
   });
 
@@ -392,7 +389,7 @@ describe("resolveCast", () => {
     expect(recoil.damageMul).toBeCloseTo(m.recoil.damageMul);
     const chain = resolveCast(SKILL_DEFS.lunge, stone("lunge", 1), ["chainReset"]);
     expect(chain.killRefund).toBe(true);
-    expect(chain.burdenMul).toBeCloseTo((1 + SKILL.linkBurdenPenalty) * m.chainReset.burdenMul);
+    expect(chain.burdenMul).toBeCloseTo(m.chainReset.burdenMul);
     const curse = resolveCast(SKILL_DEFS.thunder, stone("thunder", 1), ["curse"]);
     expect(curse.curse).toEqual({ duration: m.curse.duration, bonus: m.curse.bonus });
     const delay = resolveCast(SKILL_DEFS.quake, stone("quake", 1), ["delay"]);
@@ -410,7 +407,6 @@ describe("resolveCast", () => {
 
 describe("大拡張の刻印符（resolveCast）", () => {
   const m = SKILL.modifier;
-  const link = (n: number): number => 1 + SKILL.linkBurdenPenalty * n;
 
   it("型替え符はリンクを 2 本使い、1 スロットに 1 枚まで", () => {
     expect(modifierLinkCost("toStaged")).toBe(2);
@@ -434,7 +430,7 @@ describe("大拡張の刻印符（resolveCast）", () => {
     expect(p.resource).toBe("cooldown");
     const burden = castBurden(def, p);
     expect(burden.cost, "マナは使わない").toBe(0);
-    expect(burden.cooldown).toBeCloseTo(SKILL.frag.cost * m.timeLock.cooldownPerCost * link(2) * m.multiCharge.burdenMul);
+    expect(burden.cooldown).toBeCloseTo(SKILL.frag.cost * m.timeLock.cooldownPerCost * m.multiCharge.burdenMul);
     expect(p.charges, "多重は CD 型の読み（チャージ +2）").toBe(1 + m.multiCharge.extraCharges);
     expect(castInterval(def, p)).toBeCloseTo(SKILL.frag.minInterval * m.timeLock.intervalMul);
   });
@@ -443,7 +439,7 @@ describe("大拡張の刻印符（resolveCast）", () => {
     const def = SKILL_DEFS.haste;
     const p = resolveCast(def, stone("haste", 1), ["fuelize"]);
     expect(p.resource).toBe("mana");
-    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.haste.cooldown * m.fuelize.costPerCooldown * link(1));
+    expect(castBurden(def, p).cost).toBeCloseTo(SKILL.haste.cooldown * m.fuelize.costPerCooldown);
     expect(castBurden(def, p).cooldown).toBe(0);
     expect(canAttach(SKILL_DEFS.parry, "fuelize")).toBe(false);
   });
@@ -459,7 +455,7 @@ describe("大拡張の刻印符（resolveCast）", () => {
     expect(castInterval(SKILL_DEFS.quake, heavy)).toBeCloseTo(SKILL.quake.minInterval * m.heavy.intervalMul);
     const feather = resolveCast(SKILL_DEFS.quake, stone("quake", 1), ["feather"]);
     expect(feather.poiseMul).toBe(0);
-    expect(castBurden(SKILL_DEFS.quake, feather).cost).toBeCloseTo(SKILL.quake.cost * link(1) * m.feather.burdenMul);
+    expect(castBurden(SKILL_DEFS.quake, feather).cost).toBeCloseTo(SKILL.quake.cost * m.feather.burdenMul);
   });
 
   it("延命・伝播は付与を持つスキルにだけ付く", () => {
@@ -641,13 +637,6 @@ describe("刻印符のドロップ（rollRuneDrop）", () => {
     const b = Array.from({ length: 50 }, (_, i) => rollRuneDrop(createRng(i), 5, "elite"));
     expect(a).toEqual(b);
   });
-
-  it("所持品の刻印符は種類・id・foundAt を持つ", () => {
-    const r = makeRuneItem("echo", 42, 1000);
-    expect(r.modifier).toBe("echo");
-    expect(r.foundAt).toBe(1000);
-    expect(r.id).not.toBe(makeRuneItem("echo", 43, 1000).id);
-  });
 });
 
 describe("生成の重み", () => {
@@ -735,7 +724,7 @@ describe("スキル石の永続化", () => {
       JSON.stringify({ version: 1, loadout: ["missing", "good"], stones: [good, { id: "bad", skillKey: "nope" }] }),
     );
     const loaded = loadSkillProfile(storage);
-    expect(loaded.stones).toEqual([good]);
+    expect(loaded.stones, "石の links は読まないので 0").toEqual([{ ...good, links: 0 }]);
     expect(loaded.loadout).toEqual([null, "good", null, null]);
   });
 

@@ -1,3 +1,4 @@
+import { currentForm } from "../system/morale";
 import { actionKeyLabel, skillKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
@@ -6,27 +7,27 @@ import { type SynergyDescription, describeItem, describeResonance, describeSyner
 import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item } from "../loot/types";
 import { statsSummary } from "../loot/stats";
 import {
-  BURDEN_LABEL,
   MODIFIERS,
   SKILL,
   SKILL_DEFS,
-  burdenLinks,
   castBurden,
   castInterval,
   formatVariant,
   modifierVerb,
   resolveCast,
+  slotLinks,
   stoneLabel,
+  transformLabel,
 } from "../skills/data";
 import { WEAR_TUNING } from "../skills/tuning2";
 import { wearSummary } from "../skills/wear";
 import { COMBOS, comboAfter } from "../skills/combos";
-import { findStone, stoneInSlot, stoneModifierKeys } from "../skills/persistence";
+import { findStone, stoneInSlot } from "../skills/persistence";
 import { weaponArtLabel } from "../skills/arts";
 import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
 import { affinity, skillKeywords } from "../system/keywords";
-import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, manaRuleCost, slotModifierView } from "../system/skills";
+import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, manaRuleCost, slotModifierView, usedLinks } from "../system/skills";
 import { boonGrantedModifiers } from "../system/boons";
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import { synergyBuild } from "../ui/synergyPanel";
@@ -149,7 +150,6 @@ const TILE_LINE2_Y = 19;
 const TILE_BAR_H = 2;
 const SKILL_ICON_SIZE = 14;
 const SKILL_ICON_BASELINE = 11;
-const PERCENT = 100;
 /** コストが最大気力を超えて切り詰められたときの注記 */
 const COST_CLAMPED_NOTE = "（上限で切り詰め）";
 const SECTION_GAP = 3;
@@ -665,7 +665,9 @@ function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams
 
 /** 武器技なら「〇〇専用」。今の武器種と違えば撃てないことを赤で出す */
 function weaponArtLines(state: GameState, def: Readonly<SkillDef>): TipLine[] {
-  if (def.moveset === undefined) return [];
+  // 共通技は今の武器の型で形が変わる（skills/arts/transform.ts）。変わらない型・技では出さない
+  const transform = transformLabel(currentForm(state).key, def.key);
+  if (def.moveset === undefined) return transform === null ? [] : [{ text: transform, color: COLOR_WEAPON_ART }];
   const label = weaponArtLabel(def.moveset);
   if (def.moveset === state.stats.moveset) return [{ text: label, color: COLOR_WEAPON_ART }];
   return [{ text: `${label}（今の武器種では撃てない）`, color: COLOR_WEAPON_ART_OFF }];
@@ -675,9 +677,9 @@ function weaponArtLines(state: GameState, def: Readonly<SkillDef>): TipLine[] {
 function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine[]; more: TipLine[] } {
   const def = SKILL_DEFS[stone.skillKey];
   const slot = state.skills.profile.loadout.indexOf(stone.id);
-  // 装備画面での付け外しは次のステップまで slot.modifiers に入らないので、石から直接読む
-  const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot, boonGrantedModifiers(state)) : stoneModifierKeys(stone);
-  const params = resolveCast(def, stone, modifiers);
+  // 装備画面での移す / 外すは次のステップまで slot.modifiers に入らないので、runModifiers から直接読む。符はスロットの物なので、装着していない石には付かない
+  const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot, boonGrantedModifiers(state)) : [];
+  const params = resolveCast(def, stone, modifiers, Math.max(0, slot));
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },
     ...weaponArtLines(state, def),
@@ -692,12 +694,11 @@ function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine
       lines.push({ text: `${m.active ? "+" : "x"} ${d.name}: ${modifierVerb(m.key, def, params.resource)}`, color: m.active ? d.color : COLOR_EMPTY });
     }
   }
-  // 使い込みの枠の芽で増えたリンクは負担に数えない
-  const linkPenalty = Math.round(burdenLinks(stone) * SKILL.linkBurdenPenalty * PERCENT);
+  const linkLine: TipLine[] = slot >= 0 ? [{ text: `リンク ${usedLinks(state.skills, slot)}/${slotLinks(slot)}`, color: COLOR_DIM }] : [];
   const attackLine = skillAttackLine(def.key);
   const more: TipLine[] = [
     ...(attackLine === null ? [] : [{ text: attackLine, color: COLOR_DIM }]),
-    { text: `リンク ${stone.links}（基本${BURDEN_LABEL[params.resource]} +${linkPenalty}%）`, color: COLOR_DIM },
+    ...linkLine,
     { text: wearSummary(stone), color: WEAR_TUNING.color },
     ...stoneSynergyLines(state, stone, slot, modifiers),
   ];
@@ -714,7 +715,7 @@ export function stoneFormulaLines(stone: SkillStone, formulas: readonly ScalingF
 /** 詳細欄の対象: 刻印符 → 乗せた石 → 乗せたスロット → 選択中のスロット */
 function skillDetail(state: GameState, ui: InventoryUi, skills: SkillsLayout): DetailContent {
   const rune = runeTooltipLines(state, ui, skills.runeList);
-  if (rune) return { lines: rune, actions: ["Shift+クリック 2 回: 捨てる"] };
+  if (rune) return { lines: rune, actions: ["クリック: 別のスロットへ移す", "Shift+クリック 2 回: 外す（消える）"] };
   const hoveredStone = findStone(state.skills.profile, ui.hoverStoneId);
   const onSlot = ui.hoverSkillSlot !== null;
   const stone = hoveredStone ?? stoneInSlot(state.skills.profile, ui.skillSlot);

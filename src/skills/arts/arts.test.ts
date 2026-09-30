@@ -4,25 +4,27 @@ import { FIXED_DT } from "../../core/loop";
 import type { Enemy, GameState } from "../../core/state";
 import type { Vec } from "../../core/vec";
 import { VIEW_H, VIEW_W } from "../../core/view";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../../data/weapons";
+import type { MovesetKey } from "../../data/weapons";
 import { updatePlayer } from "../../system/player";
 import { createSkillRunState, updateSkills } from "../../system/skills";
 import { arena, placeEnemy, withInput } from "../../system/testHelpers";
 import { SKILL_DEFS, canAttach } from "../data";
 import { stoneFromSeed, skillWeight } from "../generator";
-import { MODIFIER_KEYS, type ModifierKey, type SkillKey, type SkillStone } from "../types";
-import { ART_DEFS, ART_SPECS, artMoveset } from "./index";
-import { ART_SKILL_KEYS, COMMON_ART_KEYS, WEAPON_ART_KEYS, WEAPON_ART_MOVESETS, type ArtSkillKey } from "./keys";
+import { LEGACY_SKILL_MAP, migrateSkillKey } from "../legacyKeys";
+import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone } from "../types";
+import { ART_DEFS, ART_SPECS, artMoveset, isArtKey } from "./index";
+import { ART_SKILL_KEYS, COMMON_ART_KEYS, type ArtSkillKey } from "./keys";
 
 /**
- * 技（skills/arts/）: 共通技と武器技の定義の形と、実際の発動（updatePlayer → updateSkills → castSlot → engine）。
+ * 技（skills/arts/）: 共通技 60 の定義の形と旧 key の写し、実際の発動（updatePlayer → updateSkills → castSlot → engine）。
  * 全技を 1 回ずつ撃って例外・NaN が出ないことも見る（数値や形を足したときの壊れを早く落とす）
  */
 
 const BIG_HP = 5000;
-const MIN_PER_MOVESET = 10;
-/** 技をまだ持たない武器種（段取り 5d の書・鈴。技の圧縮は段取り 7、docs/ideas/weapon-forms-impl.md 3-8） */
-const NO_ARTS_YET: readonly MovesetKey[] = ["book", "handbell"];
+/** 共通技の数（今の 24 + 束ねた 36。docs/ideas/skills-7c-plan.md 1 章） */
+const COMMON_ART_COUNT = 60;
+/** 束ねた武器技の数（2 章。全部に写し先がある） */
+const WEAPON_ART_COUNT = 298;
 let seed = 9100;
 
 function makeStone(key: SkillKey, links = 0): SkillStone {
@@ -72,28 +74,16 @@ function ahead(state: GameState, dx: number): Vec {
 }
 
 describe("技の定義", () => {
-  it("どの武器種にも武器技が 10 種以上ある", () => {
-    for (const m of MOVESET_KEYS) {
-      if (NO_ARTS_YET.includes(m)) continue;
-      const keys = (WEAPON_ART_KEYS as Partial<Record<MovesetKey, readonly string[]>>)[m] ?? [];
-      expect(keys.length, `${MOVESETS[m].name}の武器技`).toBeGreaterThanOrEqual(MIN_PER_MOVESET);
-    }
+  it("技は共通技 60 だけで、key は common で始まる", () => {
+    expect(ART_SKILL_KEYS.length).toBe(COMMON_ART_COUNT);
+    for (const key of COMMON_ART_KEYS) expect(key.startsWith("common"), key).toBe(true);
   });
 
-  it("武器技の key は武器種の key で始まり、定義の武器種と一致する", () => {
-    for (const m of WEAPON_ART_MOVESETS) {
-      for (const key of WEAPON_ART_KEYS[m]) {
-        expect(key.startsWith(m), key).toBe(true);
-        expect(artMoveset(key), key).toBe(m);
-        expect(SKILL_DEFS[key].moveset, key).toBe(m);
-      }
-    }
-  });
-
-  it("共通技は武器種を持たず、key は common で始まる", () => {
-    for (const key of COMMON_ART_KEYS) {
-      expect(key.startsWith("common"), key).toBe(true);
-      expect(SKILL_DEFS[key].moveset, key).toBeUndefined();
+  it("武器種の縛りを持たない（ArtSpec.moveset は全て null、SkillDef.moveset も無い）", () => {
+    for (const spec of ART_SPECS) {
+      expect(spec.moveset, spec.key).toBeNull();
+      expect(artMoveset(spec.key), spec.key).toBeNull();
+      expect(SKILL_DEFS[spec.key].moveset, spec.key).toBeUndefined();
     }
   });
 
@@ -101,17 +91,13 @@ describe("技の定義", () => {
     expect(ART_SPECS.map((s) => s.key).sort()).toEqual([...ART_SKILL_KEYS].sort());
   });
 
-  it("名前は空でなく重複しない。アイコンは 1 文字で、同じ武器種（共通技は共通技どうし）の中で重複しない", () => {
+  it("名前は空でなく重複しない。アイコンは 1 文字で、60 種の中で重複しない", () => {
     const names = ART_SKILL_KEYS.map((k) => SKILL_DEFS[k].name);
+    for (const n of names) expect(n.length, "名前").toBeGreaterThan(0);
     expect(new Set(names).size, "名前の重複").toBe(names.length);
-    const groups = new Map<string, string[]>();
-    for (const k of ART_SKILL_KEYS) {
-      const icon = SKILL_DEFS[k].icon;
-      expect([...icon], `${k} のアイコン`).toHaveLength(1);
-      const g = artMoveset(k) ?? "common";
-      groups.set(g, [...(groups.get(g) ?? []), icon]);
-    }
-    for (const [g, icons] of groups) expect(new Set(icons).size, `${g} のアイコンの重複`).toBe(icons.length);
+    const icons = ART_SKILL_KEYS.map((k) => SKILL_DEFS[k].icon);
+    for (const icon of icons) expect([...icon], `${icon} のアイコン`).toHaveLength(1);
+    expect(new Set(icons).size, "アイコンの重複").toBe(icons.length);
   });
 
   it("どの技にも付く刻印符が 3 つ以上ある", () => {
@@ -120,27 +106,42 @@ describe("技の定義", () => {
     }
   });
 
-  it("抽選の重み: 装備中の武器種の武器技は厚く、ほかの武器種の武器技は薄い。共通技は武器種に依らない", () => {
-    expect(skillWeight("swordCrossCut", "sword")).toBeGreaterThan(skillWeight("swordCrossCut", "spear"));
-    expect(skillWeight("commonFireball", "sword")).toBe(skillWeight("commonFireball", "spear"));
-    expect(skillWeight("whirl", "sword")).toBe(SKILL_DEFS.whirl ? skillWeight("whirl", undefined) : 0);
+  it("抽選の重みは武器種に依らない", () => {
+    for (const key of ART_SKILL_KEYS) expect(skillWeight(key, "sword"), key).toBe(skillWeight(key, "cannon"));
+    expect(skillWeight("commonFireball", "sword")).toBeGreaterThan(0);
+  });
+});
+
+describe("旧 key の写し（skills/legacyKeys.ts）", () => {
+  const keySet = new Set<string>(SKILL_KEYS);
+  const isSkillKey = (k: string): boolean => keySet.has(k);
+
+  it("写し先は全て今の SKILL_KEYS にあり、写しで消える石は無い（null の行が無い）", () => {
+    for (const [from, to] of Object.entries(LEGACY_SKILL_MAP)) {
+      expect(to, `${from} の写し先`).not.toBeNull();
+      expect(isSkillKey(to ?? ""), `${from} → ${to}`).toBe(true);
+    }
+  });
+
+  it("旧 key は今の key と重ならない（今の石を写してしまわない）", () => {
+    for (const from of Object.keys(LEGACY_SKILL_MAP)) expect(isSkillKey(from), from).toBe(false);
+  });
+
+  it("束ねた武器技 298 を全部写す（技の写しの行の数）", () => {
+    const toArts = Object.values(LEGACY_SKILL_MAP).filter((to) => to !== null && isArtKey(to));
+    expect(toArts.length).toBeGreaterThanOrEqual(WEAPON_ART_COUNT);
+  });
+
+  it("旧 武器技の石は読み込みで共通技へ写る", () => {
+    expect(migrateSkillKey("swordWhirlwind")).toBe("commonWhirl");
+    expect(migrateSkillKey("cannonDetonate")).toBe("commonDetonate");
+    expect(migrateSkillKey("commonWhirl"), "今の key はそのまま").toBe("commonWhirl");
   });
 });
 
 describe("技の発動", () => {
-  it("武器技は違う武器種では撃てず、気力も払わない", () => {
-    const state = artArena("swordCrossCut", "spear");
-    const e = tough(state, 24);
-    const mana = state.player.mana;
-    cast(state, ahead(state, 24));
-    run(state, 0.5);
-    expect(e.hp).toBe(BIG_HP);
-    expect(state.player.mana).toBeLessThanOrEqual(mana);
-    expect(state.player.mana).toBeGreaterThanOrEqual(mana - 1);
-  });
-
-  it("武器技は同じ武器種なら撃てる（十字斬りの 2 手目は遅れて当たる）", () => {
-    const state = artArena("swordCrossCut", "sword");
+  it("十字斬りの 2 手目は遅れて当たる", () => {
+    const state = artArena("commonCrossCut", "sword");
     const e = tough(state, 24);
     cast(state, ahead(state, 24));
     const afterFirst = e.hp;
@@ -150,10 +151,11 @@ describe("技の発動", () => {
   });
 
   it("共通技はどの武器種でも撃てる", () => {
-    for (const m of ["sword", "cannon", "fan"] as const) {
+    for (const m of ["sword", "cannon", "fan", "spear", "book"] as const) {
       const state = artArena("commonShockwave", m);
       const e = tough(state, 20);
       cast(state, ahead(state, 20));
+      run(state, 0.5);
       expect(e.hp, m).toBeLessThan(BIG_HP);
     }
   });
@@ -182,22 +184,11 @@ describe("技の発動", () => {
   });
 
   it("止めの行為は弱った敵を仕留める", () => {
-    const state = artArena("swordFinisher");
+    const state = artArena("commonExecution");
     const e = tough(state, 20);
     e.hp = BIG_HP * 0.1;
     cast(state, ahead(state, 20));
     expect(e.hp).toBeLessThanOrEqual(0);
-  });
-
-  it("狙う状態異常を持つ敵には強く当たる（天割り × 怯み）", () => {
-    const hit = (staggered: boolean): number => {
-      const state = artArena("swordHeavenSplit");
-      const e = tough(state, 30);
-      if (staggered) e.status.effects.push({ kind: "stagger", stacks: 1, time: 5, potency: 0, source: "player" } as (typeof e.status.effects)[number]);
-      cast(state, ahead(state, 30));
-      return BIG_HP - e.hp;
-    };
-    expect(hit(true)).toBeGreaterThan(hit(false));
   });
 
   it("刻印符「反響」で技がもう一度起きる", () => {
@@ -213,7 +204,7 @@ describe("技の発動", () => {
   });
 
   it("階を移ると遅れて出る行為は捨てる", () => {
-    const state = artArena("swordBladeStorm");
+    const state = artArena("commonThousandCuts");
     cast(state, ahead(state, 60));
     expect(state.skills.artQueue?.length ?? 0).toBeGreaterThan(0);
     state.depth += 1;
@@ -224,8 +215,7 @@ describe("技の発動", () => {
 
 describe("全技の発動（壊れの検出）", () => {
   it.each([...ART_SKILL_KEYS])("%s: 撃って 2 秒進めても例外・NaN が出ない", (key: ArtSkillKey) => {
-    const moveset = artMoveset(key) ?? "sword";
-    const state = artArena(key, moveset);
+    const state = artArena(key, "sword");
     const enemies = [tough(state, 24), tough(state, 50, 20), tough(state, 90, -10)];
     cast(state, ahead(state, 60));
     run(state, 2);

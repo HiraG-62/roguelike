@@ -5,6 +5,8 @@ import type { GameState, RoomKind, RoomState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { BOSS, ELITE, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { SKILL } from "../skills/data";
+import type { ModifierKey } from "../skills/types";
 import { keystoneDef } from "../loot/affixes";
 import { TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, isWalkable, rectCenterPx } from "../map/grid";
@@ -190,7 +192,7 @@ describe("台座の部屋", () => {
     expect(state.sfx).toContain("pedestalUse");
   });
 
-  it("図書館: 刻印符 3 冊から 1 つを所持品へ取り（スキルには付かない）、残りは消える", () => {
+  it("図書館: 刻印符 3 冊から 1 つを床へ落とし、拾うと付けられるスロットへ入る。残りは消える", () => {
     const { state, room } = roomOf("library");
     const props = room.special?.props ?? [];
     expect(props.length).toBeGreaterThan(0);
@@ -198,8 +200,15 @@ describe("台座の部屋", () => {
     const pick = props[0];
     if (!pick) throw new Error("prop missing");
     standAt(state, pick.pos);
-    expect(state.skills.profile.runes?.map((r) => r.modifier), "所持品に入る").toContain(pick.key);
+    expect(state.skills.runes.map((r) => r.modifier), "台座の足元に符が落ちる（拾う前）").toEqual([pick.key]);
     expect(props.every((p) => p.used), "残りの台座も消える").toBe(true);
+    for (let i = 0; i < Math.ceil((SKILL.drop.pickupDelay + FIXED_DT) / FIXED_DT); i++) step(state, IDLE, FIXED_DT);
+    expect(state.skills.runes, "拾って床から消える").toHaveLength(0);
+    expect(
+      state.skills.slots.some((slot) => slot.runModifiers.includes(pick.key as ModifierKey)),
+      "付けられるスロットの符になる",
+    ).toBe(true);
+    expect("runes" in state.skills.profile, "セーブ対象のプロフィールには持たない").toBe(false);
   });
 
   it("賭博: 銭を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {

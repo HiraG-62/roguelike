@@ -330,7 +330,7 @@ export function refundCharge(state: GameState, slotIndex: number, pos: Vec): voi
   const slot = rs.slots[slotIndex];
   const stone = stoneInSlot(rs.profile, slotIndex);
   if (!slot || !stone) return;
-  const max = resolveCast(SKILL_DEFS[stone.skillKey], stone, slot.modifiers).charges;
+  const max = resolveCast(SKILL_DEFS[stone.skillKey], stone, slot.modifiers, slotIndex).charges;
   if (slot.chargesLeft >= max) return;
   slot.chargesLeft += 1;
   if (slot.chargesLeft >= max) slot.cooldownLeft = 0;

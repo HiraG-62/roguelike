@@ -4,7 +4,9 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type DamageModDiff, computeStats, damageModDiffs, statsSummary } from "../loot/stats";
 import { DEFAULT_STATS, type Item, type PlayerStats } from "../loot/types";
-import { SKILL_DEFS, formatVariant, stoneLabel } from "../skills/data";
+import { SKILL_DEFS, formatVariant, stoneLabel, transformLabel } from "../skills/data";
+import { currentForm } from "../system/morale";
+import type { FormKey } from "../data/weaponForms";
 import type { SkillStone } from "../skills/types";
 import { weaponArtLabel } from "../skills/arts";
 import { type FocusedDrop, aimWorldOf, focusedDrop } from "../system/loot";
@@ -117,12 +119,14 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   return [head, ...shown];
 }
 
-/** スキル石: 名前とリンク・動詞・タグ・変異軸（装備画面のツールチップの要約） */
-export function stoneLines(stone: SkillStone): TipLine[] {
+/** スキル石: 名前・今の型での形の変わり方・動詞・タグ・変異軸（装備画面のツールチップの要約）。form は今の武器の型 */
+export function stoneLines(stone: SkillStone, form?: FormKey): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
+  const transform = form === undefined ? null : transformLabel(form, stone.skillKey);
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_STONE },
     ...(def.moveset === undefined ? [] : [{ text: weaponArtLabel(def.moveset), color: COLOR_WEAPON_ART }]),
+    ...(transform === null ? [] : [{ text: transform, color: COLOR_WEAPON_ART }]),
     { text: def.verb, color: COLOR_TEXT },
     { text: def.tags.join(" / "), color: COLOR_DIM },
   ];
@@ -138,7 +142,7 @@ export interface DropTipContent {
 }
 
 export function dropTipContent(state: GameState, drop: FocusedDrop): DropTipContent {
-  if (drop.kind === "stone") return { body: stoneLines(drop.stone), tail: [] };
+  if (drop.kind === "stone") return { body: stoneLines(drop.stone, currentForm(state).key), tail: [] };
   return { body: itemTipLines(state, drop.item), tail: compareLines(state, drop.item) };
 }
 

@@ -878,33 +878,20 @@ import j_skills_WAVE3_SKILL_TUNING from "./skills/WAVE3_SKILL_TUNING.json";
 import j_skills_SHAPE_TUNING from "./skills/SHAPE_TUNING.json";
 import j_skills_ART__index from "./skills/ART/_index.json";
 import j_skills_ART_common from "./skills/ART/common.json";
-import j_skills_ART_sword from "./skills/ART/sword.json";
-import j_skills_ART_grenade from "./skills/ART/grenade.json";
-import j_skills_ART_gunner from "./skills/ART/gunner.json";
-import j_skills_ART_sidearm from "./skills/ART/sidearm.json";
-import j_skills_ART_thrown from "./skills/ART/thrown.json";
-import j_skills_ART_trapper from "./skills/ART/trapper.json";
-import j_skills_ART_warRing from "./skills/ART/warRing.json";
-import j_skills_ART_cannon from "./skills/ART/cannon.json";
-import j_skills_ART_cleaver from "./skills/ART/cleaver.json";
-import j_skills_ART_greatsword from "./skills/ART/greatsword.json";
-import j_skills_ART_katana from "./skills/ART/katana.json";
-import j_skills_ART_longarm from "./skills/ART/longarm.json";
-import j_skills_ART_twinBlades from "./skills/ART/twinBlades.json";
-import j_skills_ART_wand from "./skills/ART/wand.json";
-import j_skills_ART_claws from "./skills/ART/claws.json";
-import j_skills_ART_axe from "./skills/ART/axe.json";
-import j_skills_ART_chainSickle from "./skills/ART/chainSickle.json";
-import j_skills_ART_fan from "./skills/ART/fan.json";
-import j_skills_ART_fists from "./skills/ART/fists.json";
-import j_skills_ART_flail from "./skills/ART/flail.json";
-import j_skills_ART_hammer from "./skills/ART/hammer.json";
-import j_skills_ART_ringBlades from "./skills/ART/ringBlades.json";
-import j_skills_ART_scythe from "./skills/ART/scythe.json";
-import j_skills_ART_shield from "./skills/ART/shield.json";
-import j_skills_ART_spear from "./skills/ART/spear.json";
-import j_skills_ART_staff from "./skills/ART/staff.json";
-import j_skills_ART_whip from "./skills/ART/whip.json";
+import j_skills_ART_TRANSFORM__index from "./skills/ART/TRANSFORM/_index.json";
+import j_skills_ART_TRANSFORM_flurry from "./skills/ART/TRANSFORM/flurry.json";
+import j_skills_ART_TRANSFORM_crusher from "./skills/ART/TRANSFORM/crusher.json";
+import j_skills_ART_TRANSFORM_hewer from "./skills/ART/TRANSFORM/hewer.json";
+import j_skills_ART_TRANSFORM_polearm from "./skills/ART/TRANSFORM/polearm.json";
+import j_skills_ART_TRANSFORM_chain from "./skills/ART/TRANSFORM/chain.json";
+import j_skills_ART_TRANSFORM_bulwark from "./skills/ART/TRANSFORM/bulwark.json";
+import j_skills_ART_TRANSFORM_warfan from "./skills/ART/TRANSFORM/warfan.json";
+import j_skills_ART_TRANSFORM_rod from "./skills/ART/TRANSFORM/rod.json";
+import j_skills_ART_TRANSFORM_thrower from "./skills/ART/TRANSFORM/thrower.json";
+import j_skills_ART_TRANSFORM_pistol from "./skills/ART/TRANSFORM/pistol.json";
+import j_skills_ART_TRANSFORM_rifle from "./skills/ART/TRANSFORM/rifle.json";
+import j_skills_ART_TRANSFORM_artillery from "./skills/ART/TRANSFORM/artillery.json";
+import j_skills_ART_TRANSFORM_bell from "./skills/ART/TRANSFORM/bell.json";
 import j_ultimates__index from "./ultimates/_index.json";
 import j_ultimates_ULTIMATE__index from "./ultimates/ULTIMATE/_index.json";
 import j_ultimates_ULTIMATE_common from "./ultimates/ULTIMATE/common.json";
@@ -1957,16 +1944,13 @@ export const skills = {
   "SKILL": {
     "_fields": j_skills_SKILL__index["_fields"],
     "slots": j_skills_SKILL__index["slots"],
+    "slotLinks": j_skills_SKILL__index["slotLinks"],
     "manaFlashTime": j_skills_SKILL__index["manaFlashTime"],
-    "linkBurdenPenalty": j_skills_SKILL__index["linkBurdenPenalty"],
-    "maxLinks": j_skills_SKILL__index["maxLinks"],
-    "linkWeights": j_skills_SKILL__index["linkWeights"],
     "variantCountWeights": j_skills_SKILL__index["variantCountWeights"],
     "variantPrecision": j_skills_SKILL__index["variantPrecision"],
     "inputBuffer": j_skills_SKILL__index["inputBuffer"],
     "notReadyTextInterval": j_skills_SKILL__index["notReadyTextInterval"],
     "stashCapacity": j_skills_SKILL__index["stashCapacity"],
-    "runeCapacity": j_skills_SKILL__index["runeCapacity"],
     "defaultCastRange": j_skills_SKILL__index["defaultCastRange"],
     "whirl": j_skills_SKILL_whirl,
     "lunge": j_skills_SKILL_lunge,
@@ -2060,35 +2044,25 @@ export const skills = {
   "ART": {
     "_note": j_skills_ART__index["_note"],
     "_fields": j_skills_ART__index["_fields"],
-    "weights": j_skills_ART__index["weights"],
+    "weight": j_skills_ART__index["weight"],
     "common": j_skills_ART_common,
-    "sword": j_skills_ART_sword,
-    "grenade": j_skills_ART_grenade,
-    "gunner": j_skills_ART_gunner,
-    "sidearm": j_skills_ART_sidearm,
-    "thrown": j_skills_ART_thrown,
-    "trapper": j_skills_ART_trapper,
-    "warRing": j_skills_ART_warRing,
-    "cannon": j_skills_ART_cannon,
-    "cleaver": j_skills_ART_cleaver,
-    "greatsword": j_skills_ART_greatsword,
-    "katana": j_skills_ART_katana,
-    "longarm": j_skills_ART_longarm,
-    "twinBlades": j_skills_ART_twinBlades,
-    "wand": j_skills_ART_wand,
-    "claws": j_skills_ART_claws,
-    "axe": j_skills_ART_axe,
-    "chainSickle": j_skills_ART_chainSickle,
-    "fan": j_skills_ART_fan,
-    "fists": j_skills_ART_fists,
-    "flail": j_skills_ART_flail,
-    "hammer": j_skills_ART_hammer,
-    "ringBlades": j_skills_ART_ringBlades,
-    "scythe": j_skills_ART_scythe,
-    "shield": j_skills_ART_shield,
-    "spear": j_skills_ART_spear,
-    "staff": j_skills_ART_staff,
-    "whip": j_skills_ART_whip,
+    "TRANSFORM": {
+      "_note": j_skills_ART_TRANSFORM__index["_note"],
+      "_fields": j_skills_ART_TRANSFORM__index["_fields"],
+      "flurry": j_skills_ART_TRANSFORM_flurry,
+      "crusher": j_skills_ART_TRANSFORM_crusher,
+      "hewer": j_skills_ART_TRANSFORM_hewer,
+      "polearm": j_skills_ART_TRANSFORM_polearm,
+      "chain": j_skills_ART_TRANSFORM_chain,
+      "bulwark": j_skills_ART_TRANSFORM_bulwark,
+      "warfan": j_skills_ART_TRANSFORM_warfan,
+      "rod": j_skills_ART_TRANSFORM_rod,
+      "thrower": j_skills_ART_TRANSFORM_thrower,
+      "pistol": j_skills_ART_TRANSFORM_pistol,
+      "rifle": j_skills_ART_TRANSFORM_rifle,
+      "artillery": j_skills_ART_TRANSFORM_artillery,
+      "bell": j_skills_ART_TRANSFORM_bell,
+    },
   },
 };
 
@@ -3205,35 +3179,22 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/wedge.json",
   "loot/affixCurves/windupCrack.json",
   "loot/bases.json",
+  "skills/ART/TRANSFORM/_index.json",
+  "skills/ART/TRANSFORM/artillery.json",
+  "skills/ART/TRANSFORM/bell.json",
+  "skills/ART/TRANSFORM/bulwark.json",
+  "skills/ART/TRANSFORM/chain.json",
+  "skills/ART/TRANSFORM/crusher.json",
+  "skills/ART/TRANSFORM/flurry.json",
+  "skills/ART/TRANSFORM/hewer.json",
+  "skills/ART/TRANSFORM/pistol.json",
+  "skills/ART/TRANSFORM/polearm.json",
+  "skills/ART/TRANSFORM/rifle.json",
+  "skills/ART/TRANSFORM/rod.json",
+  "skills/ART/TRANSFORM/thrower.json",
+  "skills/ART/TRANSFORM/warfan.json",
   "skills/ART/_index.json",
-  "skills/ART/axe.json",
-  "skills/ART/cannon.json",
-  "skills/ART/chainSickle.json",
-  "skills/ART/claws.json",
-  "skills/ART/cleaver.json",
   "skills/ART/common.json",
-  "skills/ART/fan.json",
-  "skills/ART/fists.json",
-  "skills/ART/flail.json",
-  "skills/ART/greatsword.json",
-  "skills/ART/grenade.json",
-  "skills/ART/gunner.json",
-  "skills/ART/hammer.json",
-  "skills/ART/katana.json",
-  "skills/ART/longarm.json",
-  "skills/ART/ringBlades.json",
-  "skills/ART/scythe.json",
-  "skills/ART/shield.json",
-  "skills/ART/sidearm.json",
-  "skills/ART/spear.json",
-  "skills/ART/staff.json",
-  "skills/ART/sword.json",
-  "skills/ART/thrown.json",
-  "skills/ART/trapper.json",
-  "skills/ART/twinBlades.json",
-  "skills/ART/wand.json",
-  "skills/ART/warRing.json",
-  "skills/ART/whip.json",
   "skills/COMBO_TUNING.json",
   "skills/EXTRA_MODIFIER_TUNING.json",
   "skills/EXTRA_SKILL_TUNING/_index.json",

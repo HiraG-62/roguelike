@@ -25,7 +25,7 @@ import {
   type ReplaySession,
 } from "./core/replay";
 import { hashSeed } from "./core/rng";
-import type { GameState } from "./core/state";
+import { type GameState, pushLog } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
 import { loadProfile, pushRunHistory, returnLoaned, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
@@ -44,7 +44,7 @@ import {
   drawTitle,
   keybindsRowGap,
 } from "./render/titleUi";
-import { loadSkillProfile, saveSkillProfile } from "./skills/persistence";
+import { loadSkillProfileWithNotice, saveSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
 import {
   KEYBINDS_ROWS,
@@ -209,8 +209,11 @@ function syncSeedUrl(seedText: string): void {
 
 // プロフィール（装備・stash・ラン履歴）はラン間で共有。拾った瞬間に保存される
 const profile: Profile = loadProfile();
-// スキル石も別キーで永続。刻印符（修飾子）はラン内なので createGame が毎回空で作る
-const skillProfile = loadSkillProfile();
+// スキル石も別キーで永続。刻印符（修飾子）はラン内だけの物で、セーブしない。
+// 旧セーブの刻印符は読み捨てられ、その件数は拠点に入ったときに 1 回だけ知らせる（legacyRunesDropped）
+const loadedSkills = loadSkillProfileWithNotice();
+const skillProfile = loadedSkills.profile;
+let legacyRunesDropped = loadedSkills.droppedRunes;
 const settings: Settings = loadSettings();
 // メタ進行（図鑑・依頼・実績）。ラン終了時に endRun が 1 回だけ畳んで保存する（step の中では触れない）
 const codexSave = loadCodex();
@@ -616,8 +619,20 @@ function openHub(): void {
   saveHub(markFacilitiesSeen(hubSave, built));
   hubDonated = donatedOf(hubSave);
   hub = createHub(profile, skillProfile, availableSpots(built), settings.hitstopScale);
+  noteLegacyRunes(hub);
   inventoryUi.open = false;
   returnToHub();
+}
+
+/**
+ * 旧セーブの刻印符を読み捨てた旨を拠点のログに 1 回だけ出す。すぐ保存して runes を消すので、次に読み込んでも出ない
+ * （step の外。永続化はここでだけ触る）
+ */
+function noteLegacyRunes(session: HubSession): void {
+  if (legacyRunesDropped <= 0) return;
+  pushLog(session.state, `刻印符は探索ごとに拾い直す仕組みになった（手持ちの ${legacyRunesDropped} 枚は消えた）`);
+  legacyRunesDropped = 0;
+  saveSkillProfile(skillProfile);
 }
 
 /** ラン後に拠点へ戻る。次の出撃が同じ迷宮にならないよう、シードを新しくする（死亡画面の R と同じ扱い） */

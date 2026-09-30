@@ -8,7 +8,7 @@ import type { SkillDef, SkillTag, VariantAxis } from "../types";
 import type { ArtAct, ArtActKind, ArtActSpec, ArtDef, ArtSpec } from "./types";
 
 /**
- * 技の組み立て: TS の形（ArtSpec）と JSON の数値（BALANCE.skills.ART.<武器種 | common>.<key>）を合わせて
+ * 技の組み立て: TS の形（ArtSpec）と JSON の数値（BALANCE.skills.ART.common.<key>）を合わせて
  * SkillDef（スキル石としての定義）と ArtDef（行為の列）を作る。数値の欠け・打ち間違いは読み込み時に throw する
  * （balance の打ち間違いを早く落とす。data/ultimates.ts と同じ方針）
  */
@@ -133,6 +133,7 @@ const SKILL_FIELDS: ReadonlySet<string> = new Set(["cost", "cooldown", "minInter
 
 const ZERO = 0;
 const ONE_HIT = 1;
+const ONE_MUL = 1;
 
 function selfApplies(v: unknown, where: string): StatusApply[] {
   if (v === undefined) return [];
@@ -169,6 +170,7 @@ function buildAct(spec: ArtActSpec, r: Raw, where: string): ArtAct {
     hits: optNum(r, "hits") ?? ONE_HIT,
     heavy: r.heavy === true,
     poise: optNum(r, "poise"),
+    poiseMul: ONE_MUL,
     execute: optNum(r, "execute"),
     applies,
     vs: spec.vs ? { status: spec.vs, mul: num(r, "vsMul", where), consume: spec.consume === true } : undefined,
@@ -204,12 +206,12 @@ function buildAct(spec: ArtActSpec, r: Raw, where: string): ArtAct {
   };
 }
 
-/** 技ごとの数値ブロック（ART.<武器種 | common>.<key>） */
+/** 技ごとの数値ブロック（ART.common.<key>。段取り 7c で武器種ごとのファイルは共通技へ束ねた） */
 function artBlock(spec: ArtSpec): Raw {
   const table: unknown = BALANCE.skills.ART;
   if (!isRaw(table)) fail(spec.key, "ART が無い");
-  const group = table[spec.moveset ?? "common"];
-  if (!isRaw(group)) fail(spec.key, `ART.${spec.moveset ?? "common"} が無い`);
+  const group = table.common;
+  if (!isRaw(group)) fail(spec.key, "ART.common が無い");
   const block = group[spec.key];
   if (!isRaw(block)) fail(spec.key, "数値ブロックが無い");
   return block;

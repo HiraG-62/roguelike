@@ -31,7 +31,7 @@ import { circlesOverlap, overlapsWall } from "./physics";
 import { spawnReaper } from "./reaper";
 import { altarKeystoneCandidates, equippedSkillKeys, refreshRunStats } from "./runSetup";
 import { applyStatus } from "./statusEffects";
-import { dropRune, grantRune } from "./skills";
+import { dropRune } from "./skills";
 import { placeTerrain } from "./terrain";
 import { dropRareItem } from "./roomTypes";
 
@@ -676,12 +676,9 @@ function takeKeystone(state: GameState, room: RoomState, prop: RoomProp): void {
 
 function takeRune(state: GameState, room: RoomState, prop: RoomProp): void {
   const key = prop.key as ModifierKey;
-  // 選んだ符は所持品へ入れる（石への付け外しは装備画面で自分で選ぶ）
-  if (!grantRune(state, key)) {
-    sayAt(state, "刻印符が満杯", ROOM_KIND.libraryColor);
-    return;
-  }
   consumeAll(room, "rune");
+  // 選んだ符は台座の足元へ落とす。刻印符はラン内だけの物で、拾うと付けられるスロットへ入る（他の符の入手と同じ入り口にそろえる）
+  dropRune(state, prop.pos, key);
   const name = MODIFIERS[key].name;
   spawnBurst(state, prop.pos, ROOM_KIND.libraryColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `刻印符: ${name}`, ROOM_KIND.libraryColor);

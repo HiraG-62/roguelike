@@ -80,41 +80,35 @@ export const ULTIMATE_LOOK: Readonly<Record<string, ThrownLook>> = {
   "warRing.headsman": WAR_RING,
 };
 
-/** 技・スキル石の key（CastParams.skillKey）→ 見た目。技の弾（state.skills.shots）に使う */
+/** 技・スキル石の key（CastParams.skillKey）→ 見た目。武器種に依らず同じ絵を飛ばすもの。技の弾（state.skills.shots）に使う */
 export const SKILL_LOOK: Readonly<Record<string, ThrownLook>> = {
-  // 斧・戦鎚・大盾
-  axeHatchet: AXE,
-  axeStorm: AXE,
-  hammerThrow: spin("hammer", SPIN_HEAVY),
-  shieldThrow: spin("shield", SPIN_HEAVY),
-  // チャクラム
-  ringBladesThrow: RING_BLADES,
-  ringBladesRebound: RING_BLADES,
-  // 槍・鎖鎌・チェーンアレイ
-  spearHurl: point("spear"),
-  chainSickleWeight: spin("weight"),
-  flailHurl: spin("ironBall", SPIN_HEAVY),
-  // 双剣・鉈
-  twinBladesCrossThrow: KNIFE_SPIN,
-  cleaverThrow: spin("cleaver"),
-  // 共通技
+  // 共通技（投げる物が決まっている）
   commonKnifeFan: KNIFE,
   commonIceLance: point("iceSpear"),
-  // 投擲
-  thrownFan: KNIFE,
-  thrownPoison: KNIFE,
-  thrownRicochet: KNIFE_SPIN,
-  thrownVolley: KNIFE,
-  thrownPin: KNIFE,
-  thrownDagger: KNIFE,
-  thrownBola: spin("bola"),
-  // 戦輪
-  warRingThrow: WAR_RING,
-  warRingRicochet: WAR_RING,
-  warRingFan: WAR_RING,
-  warRingEcho: WAR_RING,
+  commonVenomDart: KNIFE,
   // スキル石「追い討ち」（短刀を 3 本投げる）
   rout: KNIFE,
+};
+
+/**
+ * 装備の武器を投げる技（段取り 7c で武器技を束ねた共通技。跳弾は斧・盾・輪、気弾は分銅・短刀・戦輪 …）。
+ * 絵は今の武器種で引き（MOVESET_THROWN_LOOK）、投げる絵を持たない武器種（剣・銃など）はふつうの弾のまま
+ */
+export const THROWN_ART_KEYS: ReadonlySet<string> = new Set(["commonRicochet", "commonKiBlast"]);
+
+/** 武器種 → 投げたときの武器の絵（投げる技と、旧 武器技の絵を引き継ぐ） */
+export const MOVESET_THROWN_LOOK: Readonly<Partial<Record<MovesetKey, ThrownLook>>> = {
+  axe: AXE,
+  hammer: spin("hammer", SPIN_HEAVY),
+  shield: spin("shield", SPIN_HEAVY),
+  ringBlades: RING_BLADES,
+  spear: point("spear"),
+  chainSickle: spin("weight"),
+  flail: spin("ironBall", SPIN_HEAVY),
+  twinBlades: KNIFE_SPIN,
+  cleaver: spin("cleaver"),
+  thrown: KNIFE_SPIN,
+  warRing: WAR_RING,
 };
 
 /** スキル石「極意」の弾（武器種で形が変わる）。投げ散らし・乱れ輪 */
@@ -140,9 +134,10 @@ export function projectileLook(pr: Projectile): ThrownLook | undefined {
   return key === undefined ? undefined : BULLET_LOOK[key];
 }
 
-/** 技の弾の見た目（key は弾を出したスキルの CastParams.skillKey）。極意は今の武器種で引く */
+/** 技の弾の見た目（key は弾を出したスキルの CastParams.skillKey）。極意と武器を投げる技は今の武器種で引く */
 export function skillShotLook(key: string, moveset: MovesetKey): ThrownLook | undefined {
   if (key === WEAPON_ART_SKILL) return WEAPON_ART_LOOK[moveset];
+  if (THROWN_ART_KEYS.has(key)) return MOVESET_THROWN_LOOK[moveset];
   return SKILL_LOOK[key];
 }
 

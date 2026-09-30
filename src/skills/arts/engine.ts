@@ -2,10 +2,13 @@ import { ELEMENT_COLOR } from "../../core/element";
 import { type Enemy, type GameState, pushSfx } from "../../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../../core/vec";
 import { enemyDef } from "../../data/enemies";
+import type { FormKey } from "../../data/weaponForms";
+import { MOVESETS } from "../../data/weapons";
 import { FEEL } from "../../data/tuning";
 import { damageEnemy, healPlayer } from "../../system/combat";
 import { spawnBlast, spawnBurst, spawnLine, spawnRing } from "../../system/effects";
 import { gainMana } from "../../system/mana";
+import { currentForm } from "../../system/morale";
 import { circlesOverlap, moveBody } from "../../system/physics";
 import { applyStatus, enemiesInRadius, hasStatus, removeStatus } from "../../system/statusEffects";
 import { placeTerrain } from "../../system/terrain";
@@ -18,10 +21,12 @@ import { spawnFan } from "../shots";
 import type { CastParams } from "../types";
 import { ART_DEFS } from "./index";
 import type { ArtSkillKey } from "./keys";
+import { ART_TRANSFORMS, TRANSFORM_NUMBERS, transformActs } from "./transform";
 import type { ArtAct, ArtPending } from "./types";
 
 /**
- * 技の発動（行為の列を出す）。docs/ideas/weapon-skills.md。
+ * 技の発動（行為の列を出す）。docs/ideas/weapon-skills.md・docs/ideas/skills-7c-plan.md 5 章。
+ * 撃つ瞬間に今の武器の型で行為の列を作り替え（skills/arts/transform.ts）、その列を出す。
  * delay 0 の行為は撃った瞬間に出し、delay のある行為は SkillRunState.artQueue に積んで updateArtQueue が出す。
  * remote（反響・遅延・投げ刃・散り際・罠）ではプレイヤーを動かさず、発動地点・向きで出す。
  * 命中はすべて skills/hit.ts の skillHit を通す（刻印符の命中時の効果・使い込み・連携の記録が乗る）
@@ -71,16 +76,29 @@ function isBoss(e: Enemy): boolean {
 
 /** 手動の発動（system/skills.ts の castNow / executeRemote から） */
 export function castArt(state: GameState, key: ArtSkillKey, ctx: CastCtx): void {
-  const art = ART_DEFS[key];
-  art.acts.forEach((act, i) => {
+  const form = currentForm(state).key;
+  const acts = transformActs(form, ART_DEFS[key].acts);
+  const params = formParams(state, form, ctx.params);
+  for (const act of acts) {
     if (act.delay <= 0) {
-      runAct(state, act, resolveCtx(state, key, act, ctx.params, ctx.origin, ctx.dir, ctx.target, ctx.remote, false));
-      return;
+      runAct(state, act, resolveCtx(state, key, act, params, ctx.origin, ctx.dir, ctx.target, ctx.remote, false));
+      continue;
     }
-    const delay = act.delay * ctx.params.timeMul;
-    queueOf(state).push({ timer: delay, key, act: i, params: ctx.params, origin: { ...ctx.origin }, dir: { ...ctx.dir }, target: { ...ctx.target }, remote: ctx.remote });
-    if (act.anchor === "target") telegraph(state, act, ctx.params, ctx.target, delay);
-  });
+    const delay = act.delay * params.timeMul;
+    queueOf(state).push({ timer: delay, key, act, params, origin: { ...ctx.origin }, dir: { ...ctx.dir }, target: { ...ctx.target }, remote: ctx.remote });
+    if (act.anchor === "target") telegraph(state, act, params, ctx.target, delay);
+  }
+}
+
+/**
+ * 型が発動の素性を変えるもの（杖: 攻撃の属性を装備の武器の属性に、無属性の武器なら威力を上げる）。
+ * 刻印符などで属性が既に決まっていればそちらを優先する（属性の上書きを 2 重にしない）
+ */
+function formParams(state: GameState, form: FormKey, params: CastParams): CastParams {
+  if (ART_TRANSFORMS[form].element !== "weapon" || params.element !== null) return params;
+  const weapon = (MOVESETS[state.stats.moveset] ?? MOVESETS.sword).attack.element;
+  if (weapon !== "none") return { ...params, element: weapon };
+  return { ...params, damageMul: params.damageMul * (TRANSFORM_NUMBERS[form].plainMul ?? 1) };
 }
 
 function queueOf(state: GameState): ArtPending[] {
@@ -107,11 +125,7 @@ export function updateArtQueue(state: GameState, dt: number): void {
   }
   if (due.length === 0) return;
   state.skills.artQueue = q.filter((p) => p.timer > 0);
-  for (const p of due) {
-    const act = ART_DEFS[p.key].acts[p.act];
-    if (!act) continue;
-    runAct(state, act, resolveCtx(state, p.key, act, p.params, p.origin, p.dir, p.target, p.remote, true));
-  }
+  for (const p of due) runAct(state, p.act, resolveCtx(state, p.key, p.act, p.params, p.origin, p.dir, p.target, p.remote, true));
 }
 
 /**
@@ -197,7 +211,7 @@ function strike(state: GameState, act: ArtAct, ctx: ActCtx, e: Enemy, from: Vec)
       dir,
       knockback: act.knockback,
       stagger: act.heavy,
-      poise: act.poise,
+      poise: act.poiseMul === 1 ? act.poise : (act.poise ?? SKILL_DEFS[ctx.key].poise) * act.poiseMul,
       // 状態異常は 1 回目だけ（多段で重ねすぎない）
       applies: i === 0 ? act.applies : [],
       from,
