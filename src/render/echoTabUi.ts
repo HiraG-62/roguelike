@@ -2,20 +2,16 @@ import type { GameState } from "../core/state";
 import { describeItem, describeTrait } from "../loot/describe";
 import { formatAffix } from "../loot/affixes";
 import {
-  DYE_COST,
   ECHO_LABEL,
   ECHO_OP_HINT,
   ECHO_OP_LABEL,
   canAffordEcho,
-  canBleachTrait,
   canRecallBud,
-  canTension,
   echoCost,
   type EchoOp,
 } from "../loot/crafting";
 import { milestoneDef } from "../loot/provenance";
-import { traitColorOf } from "../loot/colors";
-import { TRAIT_COLOR_HEX, type Item, type TraitColor } from "../loot/types";
+import { TRAIT_COLOR_HEX, type Item } from "../loot/types";
 import { itemColor } from "../system/loot";
 import {
   ECHO_STEP_PROMPT,
@@ -53,16 +49,15 @@ import { drawSlotGroupLines, drawStashToolbar, stashEmptyText, stashEmptyY } fro
 
 /**
  * 残響タブの描画（ui/echoTab.ts の layoutEcho と当たり判定を共有）。state と ui を読むだけ。
- * 左列: 残響の所持数 → 操作ボタン 12 → 実行ボタン（費用。払えなければ灰色）→ 次の手順・操作の説明・結果。
- * 右列: 倉庫（対象 / 移し先・注ぎ先の選択）→ 対象の詳細（性質の行をクリックで選ぶ、染めは色も選ぶ。呼び戻しは過去の芽の行）
+ * 左列: 残響の所持数 → 操作ボタン 5 → 実行ボタン（費用。払えなければ灰色）→ 次の手順・操作の説明・結果。
+ * 右列: 倉庫（対象 / 移し先・注ぎ先の選択）→ 対象の詳細（性質の行をクリックで選ぶ。呼び戻しは過去の芽の行）
  */
 
 /** ？ のヘルプに出す手順（画面には常時出さない。仕組みの説明は meta/tips.ts の Tips ノート） */
-export const ECHO_HELP: readonly string[] = ["倉庫で対象を選ぶ → 操作 → 性質・芽（→ 色 / 受け取る遺物）→ 実行"];
+export const ECHO_HELP: readonly string[] = ["倉庫で対象を選ぶ → 操作 → 性質・芽（→ 受け取る遺物）→ 実行"];
 const COLOR_BUTTON_BG = "rgba(255,255,255,0.08)";
 const COLOR_DISABLED_BG = "rgba(255,255,255,0.03)";
 const COLOR_PICK_BG = "rgba(255,215,95,0.14)";
-const COLOR_CHIP_ALPHA = 0.25;
 const BUTTON_BASELINE = 11;
 const EXECUTE_BASELINE = 12;
 const ROW_TEXT_BASELINE = 8;
@@ -189,21 +184,12 @@ function drawDetail(ctx: CanvasRenderingContext2D, state: GameState, ui: EchoUi,
   for (const row of layout.traitRows) drawTraitRow(ctx, ui, target, row.index, row.rect);
   for (const row of layout.budRows) drawBudRow(ctx, ui, target, row.index, row.rect);
   if (layout.inscriptionRow !== null) drawInscriptionRow(ctx, ui, target, layout.inscriptionRow);
-  for (const chip of layout.colorChips) drawColorChip(ctx, ui, target, chip.color, chip.rect);
 }
 
-/** 操作ごとに選べる性質（移し = 芽吹いた性質、脱色 = 色のあるもの、張り = 代償付き）。他は灰色 */
+/** 移しでは芽吹いた性質だけ選べる。他は灰色 */
 function traitSelectable(ui: EchoUi, target: Item, index: number): boolean {
-  switch (ui.op) {
-    case "transfer":
-      return transferWhatOf(target, { kind: "trait", index }) !== null;
-    case "bleach":
-      return canBleachTrait(target.affixes[index]);
-    case "tension":
-      return canTension(target.affixes[index]);
-    default:
-      return true;
-  }
+  if (ui.op !== "transfer") return true;
+  return transferWhatOf(target, { kind: "trait", index }) !== null;
 }
 
 /** 呼び戻しの行: 「節目: 選ばなかった方」。呼び戻せない芽は灰色 */
@@ -243,18 +229,4 @@ function drawInscriptionRow(ctx: CanvasRenderingContext2D, ui: EchoUi, target: I
   }
   const text = `銘「${target.inscription ?? ""}」を移す`;
   drawText(ctx, text, rect.x + TEXT_PAD_X, rect.y + ROW_TEXT_BASELINE, TEXT.SMALL, COLOR_INSCRIPTION);
-}
-
-/** 染めの色: 所持数が足りない色と、すでにその色の性質は灰色 */
-function drawColorChip(ctx: CanvasRenderingContext2D, ui: EchoUi, target: Item, color: TraitColor, rect: Rect): void {
-  const roll = ui.pick?.kind === "trait" ? target.affixes[ui.pick.index] : undefined;
-  const same = roll !== undefined && traitColorOf(roll) === color;
-  const usable = !same && ui.save.echoes[color] >= DYE_COST;
-  const hex = TRAIT_COLOR_HEX[color];
-  ctx.globalAlpha = usable ? COLOR_CHIP_ALPHA : COLOR_CHIP_ALPHA / 2;
-  fillRectPx(ctx, rect, hex);
-  ctx.globalAlpha = 1;
-  strokeRectPx(ctx, rect, ui.color === color ? COLOR_SELECTED : usable ? hex : COLOR_BORDER);
-  const label = `${ECHO_LABEL[color]} ${DYE_COST}`;
-  drawText(ctx, label, rect.x + rect.w / 2, rect.y + ROW_TEXT_BASELINE + 1, TEXT.SMALL, usable ? COLOR_TEXT : COLOR_EMPTY, "center");
 }

@@ -16,27 +16,17 @@ import {
   traitsFor,
 } from "./affixes";
 import { BASES, baseDef } from "./bases";
-import { BASE_LEAN, traitColorOf } from "./colors";
+import { BASE_LEAN } from "./colors";
 import {
-  BLEACH_COST,
-  BLEACH_VALUE_FACTOR,
   RECALL_COST,
-  REFORGE_MARGIN_COST,
-  TENSION_COST,
-  TENSION_FACTOR,
-  bleachTrait,
-  calmTrait,
   craftEcho,
   createEchoWallet,
   echoCost,
   pourGrowth,
   pouredProvenance,
   recallBud,
-  reforgeTrait,
-  tensionTrait,
   type EchoCraftState,
 } from "./crafting";
-import { describeTrait } from "./describe";
 import { rollUniqueAffixes } from "./generator";
 import { fillProvenanceCounters } from "./migrate";
 import { UNIQUES, uniqueDef } from "./named";
@@ -692,31 +682,6 @@ function craftState(amount = 20): EchoCraftState {
   return { echoes, counter: 0 };
 }
 
-describe("脱色", () => {
-  it("無色になり、値は 9 割、共鳴の配合に数えない。費用は翠響", () => {
-    const it = item("mainHand", [roll("meleeDamagePct", 20), roll("maxLife", 10)]);
-    const out = bleachTrait(it, 0);
-    const bleached = out?.affixes[0];
-    expect(bleached?.colorless).toBe(true);
-    expect(bleached?.value).toBeCloseTo(20 * BLEACH_VALUE_FACTOR);
-    expect(bleached === undefined ? "?" : traitColorOf(bleached)).toBeUndefined();
-    expect(colorWeights(out?.affixes ?? []).crimson).toBe(0);
-    expect(echoCost({ op: "bleach", item: it, traitIndex: 0 })).toEqual({ color: "jade", amount: BLEACH_COST });
-    expect(describeTrait(bleached ?? roll("x", 0)).text.startsWith("無色")).toBe(true);
-  });
-
-  it("反転・誓約・脱色済みは脱色できない", () => {
-    expect(bleachTrait(item("boots", [inverted("moveSpeed", 5)]), 0)).toBeNull();
-    expect(bleachTrait(item("ring", [keystoneRoll("ks_pure")]), 0)).toBeNull();
-    expect(bleachTrait(item("ring", [{ ...roll("maxLife", 5), colorless: true }]), 0)).toBeNull();
-  });
-
-  it("脱色済みの性質の鎮め・削ぎは元の色の残響で払う（無料にしない）", () => {
-    const it = item("mainHand", [{ ...roll("meleeDamagePct", 20), colorless: true, flux: 0.3 }]);
-    expect(echoCost({ op: "calm", item: it, traitIndex: 0 })?.color).toBe("crimson");
-  });
-});
-
 describe("呼び戻し", () => {
   const a = { ...roll("meleeDamagePct", 10), origin: "bud" as const };
   const b = { ...roll("maxLife", 10), origin: "bud" as const };
@@ -763,66 +728,6 @@ describe("注ぎ", () => {
     expect(target.milestones, "元の遺物の節目の配列を書き換えない").toEqual([]);
   });
 });
-
-describe("鍛え直し", () => {
-  it("来歴の最深で期待値を取り直し、揺らぎは保つ。余白の上限が 1 減る", () => {
-    const def = affixDef("meleeDamagePct");
-    if (def === undefined) throw new Error("def");
-    const low: AffixRoll = { key: "meleeDamagePct", value: 6, nominal: 5, flux: 0.2, origin: "found" };
-    const it = item("mainHand", [low], { itemLevel: 2, marginMax: 3, margin: 3, provenance: { ...createEmptyProvenance(), deepest: 20 } });
-    const out = reforgeTrait(it, 0);
-    const lifted = out?.affixes[0];
-    expect(lifted?.nominal ?? 0).toBeGreaterThan(5);
-    expect(lifted?.flux).toBeCloseTo(0.2);
-    expect(out?.marginMax).toBe(3 - REFORGE_MARGIN_COST);
-    expect(out?.margin).toBe(2);
-    expect(out?.reforged).toBe(1);
-    expect(out === null ? null : reforgeTrait(out, 0), "同じ最深では上がらない").toBeNull();
-  });
-
-  it("最深が浅い・余白の上限が無い・誓約は鍛え直せない", () => {
-    const low: AffixRoll = { key: "meleeDamagePct", value: 60, nominal: 60, flux: 0, origin: "found" };
-    expect(reforgeTrait(item("mainHand", [low], { provenance: { ...createEmptyProvenance(), deepest: 1 } }), 0)).toBeNull();
-    const deep = { ...createEmptyProvenance(), deepest: 30 };
-    const weak: AffixRoll = { key: "meleeDamagePct", value: 5, nominal: 5, flux: 0, origin: "found" };
-    expect(reforgeTrait(item("mainHand", [weak], { marginMax: 0, provenance: deep }), 0)).toBeNull();
-    expect(reforgeTrait(item("ring", [keystoneRoll("ks_pure")], { provenance: deep }), 0)).toBeNull();
-  });
-
-  it("同じ遺物・同じ回数なら同じ結果（決定的）", () => {
-    const low: AffixRoll = { key: "meleeDamagePct", value: 6, nominal: 5, flux: 0.2, origin: "found" };
-    const it = item("mainHand", [low], { itemLevel: 2, provenance: { ...createEmptyProvenance(), deepest: 18 } });
-    const a = craftEcho(craftState(), { op: "reforge", item: it, traitIndex: 0 });
-    const b = craftEcho(craftState(), { op: "reforge", item: it, traitIndex: 0 });
-    expect(a.ok && b.ok).toBe(true);
-    if (!a.ok || !b.ok) return;
-    expect(a.item?.affixes).toEqual(b.item?.affixes);
-  });
-});
-
-describe("張り", () => {
-  it("代償付きの性質の利得と代償を両方 1.3 倍。1 回だけ。鎮めでも戻らない", () => {
-    const crushing: AffixRoll = { key: "crushing", value: 40, value2: 10, nominal: 40, nominal2: 10, flux: 0.2, origin: "found" };
-    const it = item("mainHand", [crushing], { margin: 2 });
-    const out = tensionTrait(it, 0);
-    const tensed = out?.affixes[0];
-    expect(tensed?.value).toBeCloseTo(40 * TENSION_FACTOR);
-    expect(tensed?.value2).toBeCloseTo(10 * TENSION_FACTOR);
-    expect(tensed?.tensed).toBe(true);
-    expect(out === null ? null : tensionTrait(out, 0)).toBeNull();
-    const calmed = out === null ? null : calmTrait(out, 0);
-    expect(calmed?.affixes[0]?.nominal).toBeCloseTo(40 * TENSION_FACTOR);
-    expect(echoCost({ op: "tension", item: it, traitIndex: 0 })).toEqual({ color: "umbra", amount: TENSION_COST });
-  });
-
-  it("代償の無い性質は張れない", () => {
-    expect(tensionTrait(item("mainHand", [roll("meleeDamagePct", 20)]), 0)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 来歴の節目・移行
-// ---------------------------------------------------------------------------
 
 describe("第 2 弾の来歴と節目", () => {
   it("新しい出来事を数える", () => {

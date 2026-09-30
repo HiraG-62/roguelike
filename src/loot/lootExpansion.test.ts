@@ -21,7 +21,6 @@ import { BASES, baseDef } from "./bases";
 import { describeStatusProc } from "./describe";
 import { STATUS_KINDS } from "../core/status";
 import { BASE_LEAN, OPPOSITE_COLOR, traitColorOf } from "./colors";
-import { MODULATE_COST, craftEcho, createEchoWallet, modulateTrait, type EchoCraftState } from "./crafting";
 import { MAX_MARGIN, VESSEL_CAPACITY, generateItem, rollUniqueAffixes } from "./generator";
 import { UNIQUES } from "./named";
 import { loadProfile, saveProfile } from "./profile";
@@ -480,49 +479,6 @@ describe("来歴の節目と目覚め", () => {
     expect(loaded?.kills).toBe(7);
     expect(loaded?.staggers).toBe(0);
     expect(loaded?.lastKills).toBe(0);
-  });
-});
-
-describe("残響: 転調", () => {
-  function richState(): EchoCraftState {
-    const echoes = createEchoWallet();
-    for (const c of TRAIT_COLORS) echoes[c] = 10;
-    return { echoes, counter: 0 };
-  }
-
-  it("効果はそのまま、色だけ反対色へ。費用は変えた先の色の残響", () => {
-    const target = item("mainHand", [{ ...roll("meleeDamagePct", 20), color: "crimson" }]);
-    const craft = richState();
-    const result = craftEcho(craft, { op: "modulate", item: target, traitIndex: 0 });
-    expect(result.ok).toBe(true);
-    if (!result.ok || result.item === null) return;
-    expect(result.item.affixes[0]?.color).toBe("azure");
-    expect(result.item.affixes[0]?.value).toBe(20);
-    expect(craft.echoes.azure).toBe(10 - MODULATE_COST);
-    expect(craft.echoes.crimson).toBe(10);
-  });
-
-  it("反転・誓約は転調できない（何も消費しない）", () => {
-    const inverted: AffixRoll = { key: "moveSpeed", value: -3, nominal: 5, flux: -1.6, inverted: true, color: "umbra" };
-    expect(modulateTrait(item("boots", [inverted]), 0)).toBeNull();
-    expect(modulateTrait(item("ring", [keystoneToRoll(keystoneDefOrThrow("ks_pure"))]), 0)).toBeNull();
-    const craft = richState();
-    const result = craftEcho(craft, { op: "modulate", item: item("boots", [inverted]), traitIndex: 0 });
-    expect(result.ok).toBe(false);
-    expect(TRAIT_COLORS.every((c) => craft.echoes[c] === 10)).toBe(true);
-  });
-
-  it("転調で共鳴の配合が動く（紅 4・翠 1・金 1 の紅 2 つを蒼へ → 二重）", () => {
-    const eq = createEmptyEquipment();
-    const reds = [roll("meleeDamagePct", 20), roll("meleeDamageFlat", 5), roll("attackSpeed", 5), roll("crushing", 30, 10)];
-    eq.mainHand = item("mainHand", reds);
-    eq.armor = item("armor", [roll("maxLife", 20)]);
-    eq.ring = item("ring", [roll("critChance", 3)]);
-    expect(equipmentResonance(eq).kind).toBe("dominant");
-    let changed = eq.mainHand;
-    for (const index of [0, 1]) changed = modulateTrait(changed, index) ?? changed;
-    eq.mainHand = changed;
-    expect(equipmentResonance(eq).kind).toBe("dual");
   });
 });
 

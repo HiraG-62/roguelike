@@ -116,7 +116,7 @@ describe("装備画面の描画", () => {
     drawInventoryUi(ctx, state, ui);
     ui.tab = "echo";
     ui.echo.targetId = "a";
-    ui.echo.op = "dye";
+    ui.echo.op = "stir";
     ui.echo.pick = { kind: "trait", index: 0 };
     drawInventoryUi(ctx, state, ui);
     ui.echo.op = "transfer";
