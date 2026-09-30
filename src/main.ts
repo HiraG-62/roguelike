@@ -31,6 +31,7 @@ import { loadProfile, pushRunHistory, recordClear, returnLoaned, saveProfile } f
 import type { Item, Profile } from "./loot/types";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { drawBudUi } from "./render/budUi";
+import { drawQuestHud } from "./render/questHud";
 import { loadImageAtlas } from "./render/imageAtlas";
 import { SHEETS, TILE_SPRITES } from "./data/tiles";
 import { Renderer } from "./render/renderer";
@@ -126,7 +127,7 @@ import { TRAIT_COLORS } from "./loot/types";
 import { recordCodex, recordDefeat } from "./meta/codex";
 import { loadCodex, saveCodex } from "./meta/codexStore";
 import { seedKnownLinks } from "./meta/links";
-import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
+import { carriedQuest, codexPages, isQuestKey, loadoutKeywords, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
@@ -136,7 +137,7 @@ import { drawListScreen } from "./render/codexUi";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
 import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
-import { HUB } from "./data/tuning";
+import { HUB, META } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
 import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
@@ -505,7 +506,8 @@ function recordMeta(s: GameState, now: number): string[] {
 }
 
 function openQuestChoice(frameMoveX: number, frameMoveY: number): void {
-  questChoiceUi = createQuestChoice(pickQuestOffers(questSave, hashSeed(pendingSeedText)), carriedQuest(questSave));
+  const build = loadoutKeywords(profile, skillProfile);
+  questChoiceUi = createQuestChoice(pickQuestOffers(questSave, hashSeed(pendingSeedText), META.questOffers, build), carriedQuest(questSave));
   screen = "questChoice";
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
@@ -1915,6 +1917,7 @@ startLoop(
     renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
 
     if (!inventoryUi.open) drawBudUi(ctx, cur);
+    if (!inventoryUi.open) drawQuestHud(ctx, cur);
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
     if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
     if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);

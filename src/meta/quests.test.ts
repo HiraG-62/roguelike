@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { pushEvent } from "../core/events";
+import { KEYWORDS, type Keyword } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { ENEMIES } from "../data/enemies";
 import { uniqueDef } from "../loot/named";
+import { createEmptyProfile } from "../loot/types";
+import { createDefaultSkillProfile } from "../skills/persistence";
 import { resolveRules } from "../system/rules";
 import { ORIGINS, ORIGIN_KEYS } from "../system/runSetup";
 import { arena, placeEnemy } from "../system/testHelpers";
@@ -18,6 +21,7 @@ import {
   createQuestSave,
   isOriginUnlocked,
   lockedOrigins,
+  loadoutKeywords,
   lockedRelicKeys,
   pickQuestOffers,
   questProgress,
@@ -256,6 +260,64 @@ describe("依頼: 3 択の抽選", () => {
     const offers = pickQuestOffers(save, 7);
     expect(offers[0], "未達成が先").toBe("burnout");
     expect(offers.length, "達成済みで埋める").toBe(3);
+  });
+});
+
+describe("依頼: 持ち物の語で 3 択に重みを付ける", () => {
+  const SEEDS = Array.from({ length: 200 }, (_, i) => i + 1);
+
+  function count(key: QuestKey, build: ReadonlySet<Keyword>): number {
+    const save = createQuestSave();
+    return SEEDS.filter((seed) => pickQuestOffers(save, seed, 3, build).includes(key)).length;
+  }
+
+  it("全ての依頼の語は KEYWORDS の中にある", () => {
+    for (const key of QUEST_KEYS) {
+      for (const k of QUESTS[key].keywords ?? []) expect(KEYWORDS, `${key} の語 ${k}`).toContain(k);
+    }
+  });
+
+  it("語で言える依頼は 20 件、語の無い依頼は 12 件", () => {
+    expect(QUEST_KEYS.filter((k) => QUESTS[k].keywords !== undefined).length).toBe(20);
+    expect(QUEST_KEYS.filter((k) => QUESTS[k].keywords === undefined).length).toBe(12);
+  });
+
+  it("持ち物の語と重なる依頼が 3 択に出やすい", () => {
+    const build = new Set<Keyword>(["poison"]);
+    const plain = count("venomGarden", new Set());
+    const weighted = count("venomGarden", build);
+    expect(weighted, `毒の庭 ${plain} 回 → ${weighted} 回`).toBeGreaterThan(plain * 1.5);
+  });
+
+  it("持ち物の語が無ければ今と同じ 3 択（同じ seed で同じ並び）", () => {
+    const save = createQuestSave();
+    for (const seed of SEEDS) {
+      const a = pickQuestOffers(save, seed);
+      expect(pickQuestOffers(save, seed, 3, new Set()), `seed ${seed}`).toEqual(a);
+      // 語の無い依頼だけを引ける build（どの依頼の語とも重ならない）でも並びは変わらない
+      expect(pickQuestOffers(save, seed, 3, new Set<Keyword>(["elDark"])), `seed ${seed} 重なり無し`).toEqual(a);
+    }
+  });
+
+  it("重みがあっても重ならず、未達成を優先し、同じ seed なら同じ並び", () => {
+    const build = new Set<Keyword>(["burn", "chill", "crit"]);
+    const save = createQuestSave();
+    for (const seed of SEEDS.slice(0, 40)) {
+      const a = pickQuestOffers(save, seed, 3, build);
+      expect(new Set(a).size, "重ならない 3 つ").toBe(3);
+      expect(pickQuestOffers(save, seed, 3, build), "決定的").toEqual(a);
+    }
+    for (const key of QUEST_KEYS) save.completed[key] = 1;
+    delete save.completed.burnout;
+    expect(pickQuestOffers(save, 7, 3, build)[0], "未達成が先").toBe("burnout");
+  });
+
+  it("loadoutKeywords は装着中の石の語を含み、石を外すと消える", () => {
+    const skills = createDefaultSkillProfile();
+    const profile = createEmptyProfile();
+    expect(loadoutKeywords(profile, skills).has("area"), "旋風斬りの範囲").toBe(true);
+    skills.loadout = skills.loadout.map(() => null);
+    expect(loadoutKeywords(profile, skills).has("area"), "石を外した").toBe(false);
   });
 });
 
