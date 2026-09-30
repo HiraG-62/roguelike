@@ -388,31 +388,24 @@ function blobTargetPoint(state: GameState, tiles: ReadonlySet<number>): Vec {
 }
 
 /**
- * 現在の目標部屋を選ぶ。まだクリアされていなければ前回と同じ部屋を維持し続ける
- * （毎ティック最寄りを選び直すと、僅差の 2 部屋の間で目標が振動して経路が安定しない）
+ * 現在の目標部屋を選ぶ。階段は階の主（state.boss）を倒すまで現れない（system/floorLord.ts・boss.ts）ので、
+ * 「全部屋を掃除してから階段」だと 1 階で 60〜80 体と戦って時間を溶かし、到達深度が伸びない。
+ * そこで 封鎖中の部屋（戦闘中・封鎖の解除待ち）→ 未撃破の主の部屋 → 無ければ null（階段へ）の順にする。
+ * 途中で出会う敵は nearestEngagedEnemy が今までどおり相手にする
  */
-function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
+export function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
   if (shouldRushStairs(state, bot)) {
     bot.targetRoomIndex = null;
     return null;
   }
-  const current = bot.targetRoomIndex;
-  if (current !== null) {
-    const room = state.rooms[current];
-    if (room && !room.cleared) return current;
+  const locked = state.rooms.findIndex((room) => room.locked);
+  if (locked >= 0) {
+    bot.targetRoomIndex = locked;
+    return locked;
   }
-  const pos = state.player.body.pos;
-  let best = -1;
-  let bestDist = Infinity;
-  state.rooms.forEach((room, i) => {
-    if (room.cleared) return;
-    const d = dist(roomTargetPoint(state, room), pos);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
-    }
-  });
-  bot.targetRoomIndex = best >= 0 ? best : null;
+  const boss = state.boss;
+  const hasLivingBoss = boss !== null && !boss.defeated && state.rooms[boss.roomIndex] !== undefined;
+  bot.targetRoomIndex = hasLivingBoss ? boss.roomIndex : null;
   return bot.targetRoomIndex;
 }
 

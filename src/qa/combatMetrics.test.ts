@@ -4,8 +4,11 @@ import { arena, placeEnemy } from "../system/testHelpers";
 import {
   buildCombatSection,
   buildDeathCauseByBandSection,
+  buildLockStallLines,
   countEngagedEnemies,
   createCombatRecorder,
+  createLockStallWatcher,
+  LOCK_STALL_SECONDS,
   depthBandOf,
   emptyCombatTally,
   hurtTextDamage,
@@ -170,5 +173,67 @@ describe("フル QA の表", () => {
     expect(md).toContain("| 1-5 | 3 | bat×2, slime×1 |");
     expect(md).toContain("| 6-10 | 1 | reaper×1 |");
     expect(md).toContain("| 11-15 | 0 | - |");
+  });
+});
+
+describe("封鎖の詰みの見張り", () => {
+  /** 0 番の部屋を封鎖し、その部屋の敵を 1 体置く */
+  function lockedWithEnemy() {
+    const state = arena(3);
+    const room = state.rooms[0];
+    if (!room) throw new Error("部屋が無い");
+    room.locked = true;
+    const e = placeEnemy(state, "slime", 50);
+    e.roomIndex = 0;
+    return state;
+  }
+
+  function runQuiet(state: ReturnType<typeof arena>, seconds: number) {
+    const watcher = createLockStallWatcher();
+    const steps = Math.ceil(seconds / FIXED_DT);
+    for (let i = 0; i < steps; i++) {
+      watcher.beforeStep(state);
+      watcher.afterStep(state, FIXED_DT);
+    }
+    return watcher;
+  }
+
+  it("封鎖中の部屋に生きた敵がいて、被弾も撃破も無いまま上限の秒が過ぎたら詰み", () => {
+    const state = lockedWithEnemy();
+    expect(runQuiet(state, LOCK_STALL_SECONDS - 1).stalled, "上限の手前").toBe(false);
+    expect(runQuiet(state, LOCK_STALL_SECONDS + 1).stalled, "上限を超えた").toBe(true);
+  });
+
+  it("封鎖されていない・部屋に敵がいないなら詰みにしない", () => {
+    const open = lockedWithEnemy();
+    const room = open.rooms[0];
+    if (room) room.locked = false;
+    expect(runQuiet(open, LOCK_STALL_SECONDS * 2).stalled, "封鎖が無い").toBe(false);
+    const empty = lockedWithEnemy();
+    empty.enemies = [];
+    expect(runQuiet(empty, LOCK_STALL_SECONDS * 2).stalled, "敵が 0").toBe(false);
+  });
+
+  it("途中で撃破か被弾があれば静かな秒を数え直す", () => {
+    const state = lockedWithEnemy();
+    const watcher = createLockStallWatcher();
+    const half = Math.ceil((LOCK_STALL_SECONDS * 0.7) / FIXED_DT);
+    for (let i = 0; i < half; i++) {
+      watcher.beforeStep(state);
+      watcher.afterStep(state, FIXED_DT);
+    }
+    watcher.beforeStep(state);
+    state.kills += 1;
+    watcher.afterStep(state, FIXED_DT);
+    for (let i = 0; i < half; i++) {
+      watcher.beforeStep(state);
+      watcher.afterStep(state, FIXED_DT);
+    }
+    expect(watcher.stalled, "0.7 + 0.7 でも途中で切れている").toBe(false);
+  });
+
+  it("ラン数の 1 行を出す", () => {
+    const md = buildLockStallLines(2, 30).join("\n");
+    expect(md).toContain("ラン数: 2 / 30");
   });
 });

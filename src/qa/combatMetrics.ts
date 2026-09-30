@@ -213,6 +213,63 @@ export function createCombatRecorder(): CombatRecorder {
   };
 }
 
+/** 封鎖が何秒、被弾も撃破も無いまま続いたら「詰み」とみなすか */
+export const LOCK_STALL_SECONDS = 30;
+
+export interface LockStallWatcher {
+  /** いちどでも詰みの条件を満たしたか */
+  readonly stalled: boolean;
+  /** step の直前に呼ぶ（撃破数を控える） */
+  beforeStep(state: GameState): void;
+  /** step の直後に呼ぶ */
+  afterStep(state: GameState, dt: number): void;
+}
+
+/** 封鎖中の部屋に、まだ生きている敵が残っているか */
+function lockedRoomHasLivingEnemy(state: GameState): boolean {
+  const lockedRooms = new Set<number>();
+  state.rooms.forEach((room, i) => {
+    if (room.locked) lockedRooms.add(i);
+  });
+  if (lockedRooms.size === 0) return false;
+  return state.enemies.some((e) => e.hp > 0 && lockedRooms.has(e.roomIndex));
+}
+
+/**
+ * 封鎖の詰みの見張り。封鎖中の部屋に生きた敵が残るのに、LOCK_STALL_SECONDS のあいだ
+ * プレイヤーへの被弾も撃破も無い（= 敵が届かない・見えない）状態が続いたら詰みとする。
+ * 「届くかどうか」を経路で調べずに済ませる簡易の定義（敵が壁の中にいる等を見つけるのが目的）
+ */
+export function createLockStallWatcher(): LockStallWatcher {
+  const seenTexts = new WeakSet<object>();
+  let killsBefore = 0;
+  let quiet = 0;
+  let stalled = false;
+  return {
+    get stalled() {
+      return stalled;
+    },
+    beforeStep(state) {
+      killsBefore = state.kills;
+    },
+    afterStep(state, dt) {
+      let hurt = false;
+      for (const t of state.texts) {
+        if (seenTexts.has(t)) continue;
+        seenTexts.add(t);
+        if (hurtTextDamage(t) !== null) hurt = true;
+      }
+      const active = lockedRoomHasLivingEnemy(state);
+      if (!active || hurt || state.kills > killsBefore) {
+        quiet = 0;
+        return;
+      }
+      quiet += dt;
+      if (quiet >= LOCK_STALL_SECONDS) stalled = true;
+    },
+  };
+}
+
 /** 交戦の長さの要約（秒） */
 export interface EngagementSummary {
   count: number;
@@ -302,4 +359,13 @@ export function buildDeathCauseByBandSection(deaths: readonly DeathRecord[]): st
   }
   lines.push("");
   return lines;
+}
+
+/** 封鎖の詰みを起こしたラン数の 1 行（死因の表の下に置く） */
+export function buildLockStallLines(stalledRuns: number, totalRuns: number): string[] {
+  return [
+    `封鎖が ${LOCK_STALL_SECONDS} 秒以上続き、届く生きた敵が 0 だったラン数: ${stalledRuns} / ${totalRuns}（目標 0）`,
+    `- 定義（簡易）: 封鎖中の部屋に生きた敵が残っているのに、${LOCK_STALL_SECONDS} 秒のあいだプレイヤーへの被弾も撃破も無かったことが 1 度でもあったラン。敵が壁の中・到達不能な所にいる詰みを拾うための目安`,
+    "",
+  ];
 }

@@ -580,7 +580,7 @@ function totalsOf(t: EconomyTally, pick: (b: EconomyBandTally) => Record<string,
 function earnedSection(t: EconomyTally): string[] {
   const keys = orderedKeys(SOURCE_LABEL, totalsOf(t, (b) => b.earned), BASE_SOURCES);
   const lines: string[] = [];
-  lines.push("### 1 階の稼ぎ（源別。拾い直した銭は入らない。目標: 全部倒す bot で章 1 が 90〜120）");
+  lines.push("### 1 階の稼ぎ（源別。拾い直した銭は入らない。目標: 主へ向かう bot で章 1 が 90〜120）");
   lines.push("");
   lines.push(`| 深度帯 | 観測した階 | ${keys.map((k) => SOURCE_LABEL[k] ?? k).join(" | ")} | 合計 |`);
   lines.push(`| --- | --- | ${keys.map(() => "---").join(" | ")} | --- |`);
