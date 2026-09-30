@@ -27,6 +27,29 @@ export interface BandScaling {
   damage: number;
   /** 被弾のたびの最大 HP の合計（最大 HP の平均 = これ ÷ hits。最大 HP は階ごとに伸びるので被弾時点の値で数える） */
   maxHpAtHits: number;
+  /** 継続ダメージ（燃焼・毒・出血・溶岩・水没など。damagePlayerDot）で実際に減った生命の合計 */
+  dotDamage: number;
+}
+
+/** 1 階（深度 1）の生命の収支。回復は出どころで分ける */
+export interface LifeBalance {
+  /** 1 階にいた（観測した）ラン数。深く始めるランは入らない */
+  runs: number;
+  /** 被ダメの合計（damagePlayer と damagePlayerDot で実際に減った量） */
+  damage: number;
+  /** 瓶（system/flask.ts の tryDrink）で実際に増えた量 */
+  flask: number;
+  /** 降階の回復（system/floor.ts の healOnDescend）。1 階から降りるときの分も 1 階に入れる */
+  descend: number;
+  /** その他（自然回復・吸命・ハート・部屋の回復など）。毎 step の生命の増分から上の出どころと被ダメを引いた残り */
+  other: number;
+}
+
+/** 生命の回復の出どころ（計測できるもの。残りは LifeBalance.other） */
+export type HealSource = "flask" | "descend";
+
+export function emptyLifeBalance(): LifeBalance {
+  return { runs: 0, damage: 0, flask: 0, descend: 0, other: 0 };
 }
 
 /** 死亡時の与ダメの内訳（直近 DEATH_WINDOW_HITS 発の平均） */
@@ -67,16 +90,18 @@ export interface ScalingTally {
   /** 性能の歯止め（system/limits.ts）で消した弾・設置物の数（ruleRun.trimmed の増分。目標 0） */
   trimmed: number;
   death: DeathDigest | null;
+  /** 1 階の生命の収支（このランぶん。runs は 1 階にいたら 1） */
+  floor1: LifeBalance;
 }
 
 function emptyBand(): BandScaling {
-  return { steps: 0, kills: 0, hits: 0, damage: 0, maxHpAtHits: 0 };
+  return { steps: 0, kills: 0, hits: 0, damage: 0, maxHpAtHits: 0, dotDamage: 0 };
 }
 
 export function emptyScalingTally(): ScalingTally {
   const bands = {} as Record<DepthBand, BandScaling>;
   for (const band of DEPTH_BANDS) bands[band] = emptyBand();
-  return { bands, chainDepths: [], droppedEvents: 0, trimmed: 0, death: null };
+  return { bands, chainDepths: [], droppedEvents: 0, trimmed: 0, death: null, floor1: emptyLifeBalance() };
 }
 
 export interface ScalingRecorder {
@@ -87,6 +112,10 @@ export interface ScalingRecorder {
   afterStep(state: GameState): void;
   /** プレイヤー由来の与ダメ 1 発の内訳（combat.rollOutgoing の結果） */
   noteOutgoing(breakdown: DamageBreakdown): void;
+  /** プレイヤーの生命が実際に減った量（combat.damagePlayer / damagePlayerDot の前後の差）。dot は継続ダメージ */
+  noteDamage(amount: number, dot: boolean): void;
+  /** 計測できる出どころの回復で実際に増えた量（combat.healPlayer の戻り値） */
+  noteHeal(source: HealSource, amount: number): void;
   /** Rule が成立して連鎖が記録された（meta/runRecord の noteChainRecord の深さ） */
   noteChain(depth: number): void;
   /** 死んだ瞬間に呼ぶ。直近の与ダメの内訳を平均して控える。temper は死亡時の研鑽の持ち物（省略は 0） */
@@ -115,14 +144,42 @@ export function createScalingRecorder(): ScalingRecorder {
   let killsBefore = 0;
   let droppedBefore = 0;
   let trimmedBefore = 0;
+  // 生命の収支の step ごとの控え。階をまたぐ step は降りる前の階（depthBefore）に入れる
+  let hpBefore = 0;
+  let depthBefore = 1;
+  let stepDamage = 0;
+  let stepDot = 0;
+  let stepFlask = 0;
+  let stepDescend = 0;
+
+  /** その step の生命の動きを、降りる前の階の帯と 1 階の収支へ入れる */
+  function settleLife(state: GameState): void {
+    const other = Math.max(0, state.player.hp - hpBefore + stepDamage - stepFlask - stepDescend);
+    tally.bands[depthBandOf(depthBefore)].dotDamage += stepDot;
+    if (depthBefore !== 1) return;
+    const f = tally.floor1;
+    f.runs = 1;
+    f.damage += stepDamage;
+    f.flask += stepFlask;
+    f.descend += stepDescend;
+    f.other += other;
+  }
+
   return {
     tally,
     beforeStep(state) {
       killsBefore = state.kills;
       droppedBefore = state.ruleRun.droppedEvents;
       trimmedBefore = state.ruleRun.trimmed;
+      hpBefore = state.player.hp;
+      depthBefore = state.depth;
+      stepDamage = 0;
+      stepDot = 0;
+      stepFlask = 0;
+      stepDescend = 0;
     },
     afterStep(state) {
+      settleLife(state);
       const band = tally.bands[depthBandOf(state.depth)];
       band.steps++;
       band.kills += Math.max(0, state.kills - killsBefore);
@@ -137,6 +194,14 @@ export function createScalingRecorder(): ScalingRecorder {
       }
       tally.droppedEvents += Math.max(0, state.ruleRun.droppedEvents - droppedBefore);
       tally.trimmed += Math.max(0, state.ruleRun.trimmed - trimmedBefore);
+    },
+    noteDamage(amount, dot) {
+      stepDamage += amount;
+      if (dot) stepDot += amount;
+    },
+    noteHeal(source, amount) {
+      if (source === "flask") stepFlask += amount;
+      else stepDescend += amount;
     },
     noteOutgoing(breakdown) {
       recent.push(breakdown);
@@ -178,6 +243,7 @@ function mergeBands(tallies: readonly ScalingTally[]): Record<DepthBand, BandSca
       to.hits += from.hits;
       to.damage += from.damage;
       to.maxHpAtHits += from.maxHpAtHits;
+      to.dotDamage += from.dotDamage;
     }
   }
   return out;
@@ -191,6 +257,8 @@ export interface BandScalingMetrics {
   damagePerHit: number | null;
   /** 最大 HP ÷ 平均被ダメ = 被弾で死ぬまでの回数 */
   hitsToDie: number | null;
+  /** 継続ダメージ（生命が減った量）/ 60 秒 */
+  dotPer60: number | null;
 }
 
 export function bandScalingMetrics(b: BandScaling): BandScalingMetrics {
@@ -201,23 +269,47 @@ export function bandScalingMetrics(b: BandScaling): BandScalingMetrics {
     hitsPer60: seconds > 0 ? (b.hits / seconds) * SECONDS_PER_MINUTE : null,
     damagePerHit: b.hits > 0 ? b.damage / b.hits : null,
     hitsToDie: b.damage > 0 ? b.maxHpAtHits / b.damage : null,
+    dotPer60: seconds > 0 ? (b.dotDamage / seconds) * SECONDS_PER_MINUTE : null,
   };
 }
 
-/** 帯ごとの撃破秒・被弾/60 秒・被弾で死ぬまでの回数 */
+/** 帯ごとの撃破秒・被弾/60 秒・被弾で死ぬまでの回数・継続ダメージ/60 秒 */
 function buildBandTable(tallies: readonly ScalingTally[]): string[] {
   const merged = mergeBands(tallies);
   const lines: string[] = [];
-  lines.push("| 深度帯 | 観測時間(分) | 撃破 | 撃破秒 | 被弾/60秒 | 被ダメ/被弾 | 被弾で死ぬまで |");
-  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+  lines.push("| 深度帯 | 観測時間(分) | 撃破 | 撃破秒 | 被弾/60秒 | 被ダメ/被弾 | 被弾で死ぬまで | 継続ダメージ/60秒 |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const band of DEPTH_BANDS) {
     const b = merged[band];
     const m = bandScalingMetrics(b);
     lines.push(
       `| ${band} | ${m.minutes.toFixed(1)} | ${b.kills} | ${fixedOrDash(m.secondsPerKill, 2)} | ${fixedOrDash(m.hitsPer60, 1)} | ` +
-        `${fixedOrDash(m.damagePerHit, 1)} | ${fixedOrDash(m.hitsToDie, 1)} |`,
+        `${fixedOrDash(m.damagePerHit, 1)} | ${fixedOrDash(m.hitsToDie, 1)} | ${fixedOrDash(m.dotPer60, 1)} |`,
     );
   }
+  return lines;
+}
+
+/** 1 階の生命の収支（1 ランの平均。被ダメ合計 − 回復合計） */
+export function buildLifeBalanceTable(tallies: readonly ScalingTally[]): string[] {
+  const sum = emptyLifeBalance();
+  for (const t of tallies) {
+    sum.runs += t.floor1.runs;
+    sum.damage += t.floor1.damage;
+    sum.flask += t.floor1.flask;
+    sum.descend += t.floor1.descend;
+    sum.other += t.floor1.other;
+  }
+  const lines: string[] = [];
+  lines.push("| 1 階の生命（1 ランの平均） | ラン数 | 被ダメ合計 | 回復 瓶 | 回復 降階 | 回復 その他 | 収支（被ダメ − 回復） |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+  if (sum.runs === 0) {
+    lines.push("| 1 階 | 0 | - | - | - | - | - |");
+    return lines;
+  }
+  const avg = (n: number): string => (n / sum.runs).toFixed(0);
+  const balance = sum.damage - sum.flask - sum.descend - sum.other;
+  lines.push(`| 1 階 | ${sum.runs} | ${avg(sum.damage)} | ${avg(sum.flask)} | ${avg(sum.descend)} | ${avg(sum.other)} | ${avg(balance)} |`);
   return lines;
 }
 
@@ -278,6 +370,8 @@ export function buildScalingSection(title: string, note: string, tallies: readon
   lines.push(note);
   lines.push("");
   lines.push(...buildBandTable(tallies));
+  lines.push("");
+  lines.push(...buildLifeBalanceTable(tallies));
   lines.push("");
   lines.push("### 死亡時の与ダメの内訳（死ぬ直前の与ダメ 30 発の平均。`OutgoingHit.breakdown`）");
   lines.push("");

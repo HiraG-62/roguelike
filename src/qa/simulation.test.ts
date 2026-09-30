@@ -49,7 +49,16 @@ import {
   type FloorSpawnTally,
   type JinSettleTally,
 } from "./jinMetrics";
-import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, createStrikerCapWatcher, type CombatTally } from "./combatMetrics";
+import {
+  buildCombatSection,
+  buildDeathCauseByBandSection,
+  buildLockStallLines,
+  countEngagedEnemies,
+  createCombatRecorder,
+  createLockStallWatcher,
+  createStrikerCapWatcher,
+  type CombatTally,
+} from "./combatMetrics";
 import { buildEconomySection, createEconomyRecorder, type EconomyTally } from "./economyMetrics";
 import { fittedEquipment } from "./gearPower";
 import {
@@ -74,7 +83,7 @@ import { overlapsWall } from "../system/physics";
  * ヘッドレス自動プレイによるロングランシミュレーション。
  * 既定（vitest run / CI）では 5 seed × 20,000 ステップの縮小版のみ実行し、
  * 例外・NaN混入・壁めり込み・floorItems id 重複が無いことだけを assert する（30 秒未満を狙う）。
- * SIM_FULL=1 を付けたときだけフル版（30 seed × 3 装備パターン × 60,000 ステップ）を実行し、
+ * SIM_FULL=1 を付けたときだけフル版（30 seed × 6 装備パターン × 180,000 ステップ）を実行し、
  * 収集した指標を report.md 相当の Markdown を console.log に出力する
  * （@types/node が無いプロジェクトのため、このファイル自体は fs に触れない。
  *  実際の src/qa/report.md は `SIM_FULL=1 npx vitest run src/qa/simulation.test.ts` の
@@ -88,7 +97,11 @@ const FULL = process.env.SIM_FULL === "1";
 const FAST_SEED_COUNT = 5;
 const FAST_MAX_STEPS = 20_000;
 const FULL_SEED_COUNT = 30;
-const FULL_MAX_STEPS = 60_000;
+/**
+ * bot が階の主へ向かうようになった（qa/bot.ts の chooseTargetRoomIndex）ので、1 階あたりの時間が縮み、
+ * 60,000 step（1,000 秒）では打ち切りが先に来て到達深度が伸びきらない。上限を 3 倍にする（縮小版の FAST_MAX_STEPS は据え置き）
+ */
+const FULL_MAX_STEPS = 180_000;
 /** BOSS.interval と同じ値をここでも参照したいが循環を避けるため直接は import せず、報告用の概算にのみ使う */
 
 /**
@@ -401,17 +414,41 @@ vi.spyOn(combat, "damageEnemy").mockImplementation((...args: Parameters<typeof o
   return killed;
 });
 
+/** 上と同じく runOnce がループの間だけ差し替える（与ダメの内訳と連鎖の深さ・生命の収支。qa/scalingMetrics.ts） */
+let activeScaling: ScalingRecorder | null = null;
+
 const originalDamagePlayer = combat.damagePlayer;
 vi.spyOn(combat, "damagePlayer").mockImplementation((...args: Parameters<typeof originalDamagePlayer>) => {
+  const hpBefore = args[0].player.hp;
   const result = originalDamagePlayer(...args);
+  activeScaling?.noteDamage(Math.max(0, hpBefore - args[0].player.hp), false);
   if (result === "hit" && activeSkillMetrics && engagedEnemyCountThisStep === 1) {
     activeSkillMetrics.oneVOneHits += 1;
   }
   return result;
 });
 
-/** 上と同じく runOnce がループの間だけ差し替える（与ダメの内訳と連鎖の深さ。qa/scalingMetrics.ts） */
-let activeScaling: ScalingRecorder | null = null;
+/** 継続ダメージ（燃焼・毒・出血・溶岩など）。実際に減った量を数えるだけで、素通し */
+const originalDamagePlayerDot = combat.damagePlayerDot;
+vi.spyOn(combat, "damagePlayerDot").mockImplementation((...args: Parameters<typeof originalDamagePlayerDot>) => {
+  const hpBefore = args[0].player.hp;
+  originalDamagePlayerDot(...args);
+  activeScaling?.noteDamage(Math.max(0, hpBefore - args[0].player.hp), true);
+});
+
+/**
+ * 回復の出どころ。呼び出し元の関数名で瓶（flask.ts の tryDrink）と降階（floor.ts の healOnDescend）を分ける
+ * （offerSourceOf と同じ手段。system 側に計測用の引数を足さない）。ほかは scalingMetrics が生命の増分の残りから出す
+ */
+const originalHealPlayer = combat.healPlayer;
+vi.spyOn(combat, "healPlayer").mockImplementation((...args: Parameters<typeof originalHealPlayer>) => {
+  const gained = originalHealPlayer(...args);
+  if (!activeScaling || gained <= 0) return gained;
+  const stack = new Error().stack ?? "";
+  if (stack.includes("tryDrink")) activeScaling.noteHeal("flask", gained);
+  else if (stack.includes("healOnDescend")) activeScaling.noteHeal("descend", gained);
+  return gained;
+});
 
 const originalRollOutgoing = combat.rollOutgoing;
 vi.spyOn(combat, "rollOutgoing").mockImplementation((...args: Parameters<typeof originalRollOutgoing>) => {
@@ -654,6 +691,8 @@ interface RunMetrics {
   scaling: ScalingTally;
   /** 銭の稼ぎ・こぼれ・使い道・死亡時の持ち金（深度帯別。economyMetrics.ts。state.economy が無ければ空） */
   economy: EconomyTally;
+  /** 封鎖が 30 秒以上、被弾も撃破も無いまま続いたことがあるか（combatMetrics.ts の createLockStallWatcher） */
+  lockStalled: boolean;
 }
 
 /**
@@ -755,6 +794,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   const combatRecorder = createCombatRecorder();
   const scalingRecorder = createScalingRecorder();
   const economyRecorder = createEconomyRecorder(state);
+  const lockStallWatcher = createLockStallWatcher();
 
   const metrics: RunMetrics = {
     seed,
@@ -804,6 +844,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     startDepth,
     scaling: scalingRecorder.tally,
     economy: economyRecorder.tally,
+    lockStalled: false,
   };
 
   let depthEnterTime = state.time;
@@ -861,6 +902,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
 
     combatRecorder.beforeStep(state);
     scalingRecorder.beforeStep(state);
+    lockStallWatcher.beforeStep(state);
     const t0 = performance.now();
     try {
       step(state, input, FIXED_DT);
@@ -872,6 +914,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     metrics.stepsRun++;
     combatRecorder.afterStep(state, FIXED_DT);
     scalingRecorder.afterStep(state);
+    lockStallWatcher.afterStep(state, FIXED_DT);
     economyRecorder.afterStep(state, FIXED_DT);
 
     if (oneVOne) metrics.skill.oneVOneSeconds += FIXED_DT;
@@ -976,6 +1019,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   }
 
   combatRecorder.finish();
+  metrics.lockStalled = lockStallWatcher.stalled;
   economyRecorder.finish(state);
   recordJinSettle(metrics.jinSettle, floorJins);
   recordBossRun(metrics.boss, state);
@@ -1033,6 +1077,11 @@ describe("QA simulation (縮小版スモーク)", () => {
         expect(metrics.boon.takenNonCore, `seed=${seed} 芯を除く取得数は全体以下`).toBeLessThanOrEqual(metrics.boon.taken);
         expect(metrics.hiddenRoomsOpened, `seed=${seed} 開いた隠し部屋は計画された数以下`).toBeLessThanOrEqual(metrics.hiddenRoomsPlanned);
       }
+      // 生命の収支のスパイ（damagePlayer / damagePlayerDot / healPlayer の素通し）が実際に数えていること
+      const floor1 = all.map((m) => m.scaling.floor1);
+      expect(floor1.every((f) => f.runs === 1), "1 階から始めるランはどれも 1 階を観測する").toBe(true);
+      expect(floor1.reduce((sum, f) => sum + f.damage, 0), "1 階の被ダメが数えられる").toBeGreaterThan(0);
+      expect(floor1.reduce((sum, f) => sum + f.descend + f.flask, 0), "瓶か降階の回復が数えられる").toBeGreaterThan(0);
       // 深く始めるラン（RunSetup.startDepth）が通ること。深度 10 の並の遺物で短く回す
       const deep = runOnce(10_100, "fittedLoadout", DEEP_SMOKE_STEPS, 10);
       expect(deep.exceptions, `深く始めるランで例外: ${deep.exceptions.map((e) => `step${e.step}: ${e.message}`).join(" / ")}`).toHaveLength(0);
@@ -1319,6 +1368,7 @@ function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly Ru
   lines.push(...buildCombatSection(allMetrics.map((m) => m.combat)));
   const deathRecords = allMetrics.flatMap((m) => (m.died && m.deathDepth !== null ? [{ depth: m.deathDepth, cause: m.deathCause ?? "unknown" }] : []));
   lines.push(...buildDeathCauseByBandSection(deathRecords));
+  lines.push(...buildLockStallLines(allMetrics.filter((m) => m.lockStalled).length, allMetrics.length));
   lines.push(
     ...buildScalingSection(
       "数式と文法の計測（深度帯別・標準の 6 装備）",
@@ -1839,8 +1889,9 @@ const REPORT_END = "<<<QA_REPORT_END>>>";
  * 2026-09-26: 毎階の主と敵の増量で約 1,520 秒になったので 2,400 秒に広げる
  * 2026-09-30: 陣の導入で到達深度が伸びて 1 ランの step が増え、約 2,620 秒になったので 4,200 秒に広げる
  * 2026-09-30（段取り 7e）: 祝福・遺物の作り直しで 1 ステップが約 1.6 倍（0.35 → 0.55ms）になり、約 5,570 秒かかったので 9,000 秒に広げる
+ * 上限 step を 60,000 → 180,000 にしたので、生き残るランの分だけ最大で約 3 倍（約 16,700 秒）見込み、28,800 秒（8 時間）に広げる
  */
-const FULL_TIMEOUT_MS = 9_000_000;
+const FULL_TIMEOUT_MS = 28_800_000;
 
 describe("QA simulation (フル版, SIM_FULL=1)", () => {
   it.runIf(FULL)(

@@ -6,6 +6,7 @@ import { addFloatingText } from "../system/effects";
 import { arena } from "../system/testHelpers";
 import {
   bandScalingMetrics,
+  buildLifeBalanceTable,
   buildReachSection,
   buildScalingSection,
   createScalingRecorder,
@@ -49,13 +50,72 @@ describe("深度帯ごとの被弾と撃破", () => {
   });
 
   it("被弾で死ぬまでの回数 = 最大 HP ÷ 平均被ダメ。被弾が無ければ null", () => {
-    const m = bandScalingMetrics({ steps: 3600, kills: 30, hits: 10, damage: 50, maxHpAtHits: 1000 });
+    const m = bandScalingMetrics({ steps: 3600, kills: 30, hits: 10, damage: 50, maxHpAtHits: 1000, dotDamage: 30 });
     expect(m.hitsToDie, "最大 HP 100 ÷ 平均 5").toBeCloseTo(20, 5);
     expect(m.secondsPerKill, "60 秒 ÷ 30").toBeCloseTo(3600 * FIXED_DT / 30, 5);
     expect(m.hitsPer60, "60 秒に 10 回").toBeCloseTo(10 * 60 / (3600 * FIXED_DT), 5);
-    const none = bandScalingMetrics({ steps: 100, kills: 0, hits: 0, damage: 0, maxHpAtHits: 0 });
+    const none = bandScalingMetrics({ steps: 100, kills: 0, hits: 0, damage: 0, maxHpAtHits: 0, dotDamage: 0 });
     expect(none.hitsToDie).toBeNull();
     expect(none.secondsPerKill).toBeNull();
+    expect(m.dotPer60, "60 秒に 30").toBeCloseTo(30 * 60 / (3600 * FIXED_DT), 5);
+    expect(none.dotPer60, "観測した時間があれば 0").toBe(0);
+  });
+});
+
+describe("継続ダメージと 1 階の生命の収支", () => {
+  it("継続ダメージは、降りる前の階の深度帯へ数える（通常の被弾は数えない）", () => {
+    const state = arena(1);
+    state.depth = 7;
+    const rec = createScalingRecorder();
+    rec.beforeStep(state);
+    rec.noteDamage(4, true);
+    rec.noteDamage(6, false);
+    state.depth = 8;
+    rec.afterStep(state);
+    expect(rec.tally.bands["6-10"].dotDamage, "継続ダメージだけ").toBe(4);
+    expect(rec.tally.floor1.runs, "1 階ではない").toBe(0);
+  });
+
+  it("1 階では被ダメ・瓶・降階と、残りの回復（その他）を分けて数える", () => {
+    const state = arena(1);
+    state.depth = 1;
+    state.player.maxHp = 100;
+    state.player.hp = 50;
+    const rec = createScalingRecorder();
+    rec.beforeStep(state);
+    // 被ダメ 10・瓶 30・降階 5 のあと、自然回復などで 7 増えて 50 - 10 + 30 + 5 + 7 = 82 になる
+    rec.noteDamage(10, false);
+    rec.noteHeal("flask", 30);
+    rec.noteHeal("descend", 5);
+    state.player.hp = 82;
+    rec.afterStep(state);
+    const f = rec.tally.floor1;
+    expect(f.runs).toBe(1);
+    expect(f.damage).toBe(10);
+    expect(f.flask).toBe(30);
+    expect(f.descend).toBe(5);
+    expect(f.other, "残りの回復").toBeCloseTo(7, 5);
+  });
+
+  it("計測外の生命の減り（代償など）でその他の回復が負にならない", () => {
+    const state = arena(1);
+    state.depth = 1;
+    state.player.hp = 50;
+    const rec = createScalingRecorder();
+    rec.beforeStep(state);
+    state.player.hp = 40;
+    rec.afterStep(state);
+    expect(rec.tally.floor1.other).toBe(0);
+  });
+
+  it("表は 1 ランの平均で出し、観測が無いときも NaN を出さない", () => {
+    const a = emptyScalingTally();
+    a.floor1 = { runs: 1, damage: 100, flask: 30, descend: 20, other: 10 };
+    const b = emptyScalingTally();
+    b.floor1 = { runs: 1, damage: 60, flask: 10, descend: 0, other: 10 };
+    const md = buildLifeBalanceTable([a, b]).join("\n");
+    expect(md, "平均: 被ダメ 80・瓶 20・降階 10・その他 10・収支 40").toContain("| 1 階 | 2 | 80 | 20 | 10 | 10 | 40 |");
+    expect(buildLifeBalanceTable([emptyScalingTally()]).join("\n")).not.toMatch(/NaN|Infinity/);
   });
 });
 
