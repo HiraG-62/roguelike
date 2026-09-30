@@ -2,6 +2,12 @@
 
 作成日: 2026-09-30。`docs/ideas/core-synthesis.md` 9 章の段取り 9 を architect が確定リストまで設計したもの。★（ユーザー確認）の結果は下の「決めたこと」に書く。
 
+## 決めたこと（ユーザー確認済み 2026-09-30）
+
+- ★1 表示名は案のとおり確定（死因 / 次の山 / 前回比 / 余波 / 流れ弾 / 落下物 / 仇〔名札「仇・」〕/ 仇の気配 / 仇討ち / 予告の図解 / ボスの間 / 踏破の碑、実績 7 件）
+- ★2 解放制は今までのセーブにも効かせる（新しい保存値は足さない）
+- ★3 ボスの間の装備は今の装備の写し
+
 
 作成日: 2026-09-30
 前提: `docs/ideas/core-synthesis.md` 9 章の段取り 9「メタと上達: 死因と次・予告の図解・仇・解放制・位階と依頼・ボスの間」（元は `encounter-core.md` 12 章 Q8 と 9 章・8-6・10-1、`run-arc.md` 1-3・1-6）。段取り 8（`boss-impl.md`）の `state.bossLog` / `BossRecord`（`src/system/bossRecord.ts`）・`GameStatus "cleared"`・`runOver`・`BOSS_THREATS`（`src/system/bossKit.ts:81`）・`chapterAheadLines`（`src/system/chapters.ts:75`）を読む側として使い、8b のファイルは作り直さない。行番号は main の作業ツリー（`0c47a24` + 8b E2 の取り込み中）で確かめた値。
