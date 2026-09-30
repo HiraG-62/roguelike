@@ -37,6 +37,8 @@ import { terrainAt, smokeAt } from "../system/terrain";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile, SkillStone } from "../skills/types";
 import { createBotState, botInput } from "./bot";
+import { buildBossLogSection, emptyBossRun, recordBossRun, type BossRunTally } from "./bossMetrics";
+import { killerOf } from "../system/deathCause";
 import {
   buildFloorSpawnSection,
   buildJinSettleSection,
@@ -631,6 +633,8 @@ interface RunMetrics {
   floorSpawn: FloorSpawnTally;
   /** 陣の決着（全滅 / 敗走 / 大将撃破）と敗走した敵の行く末（qa/jinMetrics.ts） */
   jinSettle: JinSettleTally;
+  /** ボスの撃破（state.bossLog）とボス戦で倒れた 1 件（qa/bossMetrics.ts。ラン終わりに集める） */
+  boss: BossRunTally;
   /** QA の観測の盲点（2026-09-24 追加）: 地形種別ごとにプレイヤーが踏み込んだ回数（前ステップと種類が変わった瞬間を数える） */
   terrainEnterCounts: Partial<Record<TerrainKind, number>>;
   /** 同上、煙（terrainAt とは別レイヤー）に入った回数 */
@@ -736,25 +740,11 @@ function hasDuplicateFloorItemId(state: GameState): boolean {
   return false;
 }
 
-/** 死因の推測: プレイヤーに最も近い敵の defKey。Reaper との接触があればそれを優先する */
-function guessDeathCause(state: GameState): string {
-  if (state.reaper) {
-    const p = state.player.body.pos;
-    const d = Math.hypot(state.reaper.pos.x - p.x, state.reaper.pos.y - p.y);
-    if (d < state.reaper.radius + state.player.body.radius + 20) return "reaper";
-  }
-  let best: string | null = null;
-  let bestDist = Infinity;
-  const p = state.player.body.pos;
-  for (const e of state.enemies) {
-    if (e.hp <= 0) continue;
-    const d = Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y);
-    if (d < bestDist) {
-      bestDist = d;
-      best = e.defKey;
-    }
-  }
-  return best ?? "unknown";
+/** 死因: 最後の被弾の出どころ（system/deathCause.ts の killerOf）。key の無い被弾（地形・状態異常・死神）は種類で書く */
+function deathCauseOf(state: GameState): string {
+  const killer = killerOf(state);
+  if (!killer) return "unknown";
+  return killer.key === "" ? killer.kind : killer.key;
 }
 
 function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, startDepth = 1): RunMetrics {
@@ -803,6 +793,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     corridorRoamerFloors: 0,
     floorSpawn: emptyFloorSpawn(),
     jinSettle: emptyJinSettle(),
+    boss: emptyBossRun(),
     terrainEnterCounts: {},
     smokeEnterCount: 0,
     eliteSpawnCounts: {},
@@ -978,7 +969,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     if ((state.status as GameStatus) === "dead" && !metrics.died) {
       metrics.died = true;
       metrics.deathDepth = state.depth;
-      metrics.deathCause = guessDeathCause(state);
+      metrics.deathCause = deathCauseOf(state);
       scalingRecorder.noteDeath(state.depth);
     }
   }
@@ -986,6 +977,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   combatRecorder.finish();
   economyRecorder.finish(state);
   recordJinSettle(metrics.jinSettle, floorJins);
+  recordBossRun(metrics.boss, state);
   metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
   metrics.kills = state.kills;
   metrics.bestCombo = state.combo.best;
@@ -1201,6 +1193,7 @@ function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly Ru
   lines.push("");
   lines.push(...buildFloorSpawnSection(allMetrics.map((m) => m.floorSpawn)));
   lines.push(...buildJinSettleSection(allMetrics.map((m) => m.jinSettle)));
+  lines.push(...buildBossLogSection(allMetrics.map((m) => m.boss), allMetrics.length, allMetrics.filter((m) => m.died).length));
 
   lines.push("## ドロップの内訳（装備パターン別。撃破起因 = 倒した一撃の中で床に増えた遺物）");
   lines.push("");

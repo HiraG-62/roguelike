@@ -8,6 +8,7 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { isAllied } from "../system/rules";
+import { bossArmorBlocks } from "../system/boss";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
 import { PLAYER } from "../data/tuning";
@@ -446,6 +447,8 @@ function nearestEngagedEnemy(state: GameState): Enemy | null {
     if (e.hp <= 0 || NON_ENGAGEABLE_PHASES.has(e.phase)) continue;
     // 敗走中の敵は攻撃してこないので追わない（逃げる敵を追い続けて探索の時間を溶かさない）。従魔（眷属）は味方なので狙わない
     if (e.rout || isAllied(state, e)) continue;
+    // 氷の鎧・門柱が立つ間の本体は殴っても通らない。無敵の本体を殴り続けて詰まらないよう、ほかの敵（門柱・取り巻き）を狙う
+    if (bossArmorBlocks(state, e)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
     if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos)) continue;
