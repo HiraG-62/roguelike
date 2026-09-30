@@ -149,6 +149,8 @@ const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   thief: CONTACT,
   mirrorImage: CONTACT,
   reaperShade: contact("dark"),
+  deepLord: spell("dark"),
+  gatePillar: CONTACT,
 };
 
 interface DefenseBody {

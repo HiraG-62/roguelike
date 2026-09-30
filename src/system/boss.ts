@@ -20,6 +20,7 @@ import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
 import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, updateMirrorKnight } from "./bossMirrorKnight";
 import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import { kingSlimeTelegraph, updateKingSlime } from "./bossKingSlime";
+import { deepLordGuarded, deepLordTelegraph, settleDeepLordRoom, setupDeepLordRoom, updateDeepLord } from "./bossDeepLord";
 import { pushBossRecord } from "./bossRecord";
 import { grantBossReward } from "./bossRewards";
 import type { EnemyTelegraph } from "./enemies";
@@ -110,6 +111,7 @@ export function setupBossRoom(state: GameState, roomIndex: number): void {
   if (def.behavior === "twinBlade") spawnTwinSister(state, boss);
   if (def.behavior === "oilKing") setupOilKingRoom(state, roomIndex);
   if (def.behavior === "thiefKing") setupThiefKingRoom(state, boss);
+  if (def.behavior === "deepLord") setupDeepLordRoom(state, boss);
 }
 
 /** ボス部屋のロック時の演出 */
@@ -151,6 +153,7 @@ export function showsBossBar(state: GameState, e: Enemy): boolean {
 
 /** 氷の鎧のように、ボスがダメージを受け付けない状態か（elites.ts の interceptEnemyDamage が読む） */
 export function bossArmorBlocks(state: GameState, e: Enemy): boolean {
+  if (e.defKey === "deepLord") return deepLordGuarded(state, e);
   return e.defKey === "frostGiant" && frostGiantArmored(state, e);
 }
 
@@ -179,6 +182,8 @@ export function bossTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
       return thiefKingTelegraph(e);
     case "kingSlime":
       return kingSlimeTelegraph(e);
+    case "deepLord":
+      return deepLordTelegraph(e);
     default:
       return null;
   }
@@ -225,6 +230,9 @@ export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: n
       return;
     case "thiefKing":
       updateThiefKing(state, e, def, dt);
+      return;
+    case "deepLord":
+      updateDeepLord(state, e, def, dt);
       return;
     default:
       return;
@@ -425,6 +433,7 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   bossKillFx(state, e.body.pos);
+  if (e.defKey === "deepLord") settleDeepLordRoom(state, e);
   pushBossRecord(state, e);
   if (b.major) grantBossReward(state, e.defKey, e.body.pos);
   const drops = b.major ? BOSS.rareDrops : FLOOR_LORD.drops;

@@ -80,6 +80,7 @@ export const ROLE_BY_BEHAVIOR: Readonly<Record<EnemyBehavior, EnemyRole>> = {
   librarian: "vanguard",
   mirrorKnight: "vanguard",
   thiefKing: "vanguard",
+  deepLord: "vanguard",
 };
 
 /**

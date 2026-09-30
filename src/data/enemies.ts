@@ -102,6 +102,8 @@ export type EnemyBehavior =
   | "mirrorKnight"
   /** ボス: 盗賊王（逃げながら罠を撒き、追い詰めるとダウン。src/system/bossThiefKing.ts） */
   | "thiefKing"
+  /** ボス: 最深の主（門柱の四門 → 陥没 → 第三の顔。src/system/bossDeepLord.ts） */
+  | "deepLord"
   /** 跳んで着地で円に当てる（着地点に影の予告。src/system/enemyLeap.ts。毒スライム） */
   | "leaper"
   /** 商人（台座を並べて立つ。殴られるまで気付かず、怒ると品を投げる。src/system/merchants.ts） */
