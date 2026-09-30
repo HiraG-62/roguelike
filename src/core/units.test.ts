@@ -15,15 +15,17 @@ describe("距離の単位", () => {
 });
 
 describe("大きな数の表示（formatAmount）", () => {
-  it("10 万未満はそのまま、10 万以上は万、1 億以上は億（小数 1 桁、末尾の .0 は落とす）", () => {
+  it("1 万未満はそのまま、1 万以上は K・M・B・T（小数 1 桁、100 以上は整数、末尾の .0 は落とす）", () => {
     expect(formatAmount(0), "0").toBe("0");
-    expect(formatAmount(99_999), "10 万未満").toBe("99999");
+    expect(formatAmount(9_999), "1 万未満").toBe("9999");
     expect(formatAmount(12.6), "四捨五入").toBe("13");
-    expect(formatAmount(100_000), "10 万ちょうど").toBe("10万");
-    expect(formatAmount(123_456), "12.3 万").toBe("12.3万");
-    expect(formatAmount(99_990_000), "丸めても 1 億に届かない").toBe("9999万");
-    expect(formatAmount(99_999_999), "丸めて 1 億に届く値は億").toBe("1億");
-    expect(formatAmount(120_000_000), "1.2 億").toBe("1.2億");
-    expect(formatAmount(1_000_000_000), "10 億").toBe("10億");
+    expect(formatAmount(10_000), "1 万ちょうど").toBe("10K");
+    expect(formatAmount(12_345), "12.3K").toBe("12.3K");
+    expect(formatAmount(123_456), "100 以上は整数").toBe("123K");
+    expect(formatAmount(999_950), "丸めて 1000K に届く値は M").toBe("1M");
+    expect(formatAmount(1_234_567), "1.2M").toBe("1.2M");
+    expect(formatAmount(2_500_000_000), "2.5B").toBe("2.5B");
+    expect(formatAmount(3_000_000_000_000), "3T").toBe("3T");
+    expect(formatAmount(-12_345), "負の数").toBe("-12.3K");
   });
 });
