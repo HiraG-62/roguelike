@@ -25,8 +25,20 @@ const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
 const PROJECTILE_LOADOUT: BoonLoadout = { movesets: [...GUN_MOVESETS, "wand", "axe"] };
 import { BOONS_WAVE2, BOON_KEYS_WAVE2 } from "./boonDefsWave2";
 import { BOONS_WAVE3, BOON_KEYS_WAVE3 } from "./boonDefsWave3";
+import { BOONS_ASH, BOON_KEYS_ASH } from "./boonDefs/ash";
+import { BOONS_FROST, BOON_KEYS_FROST } from "./boonDefs/frost";
+import { BOONS_THUNDER, BOON_KEYS_THUNDER } from "./boonDefs/thunder";
+import { BOONS_MOON, BOON_KEYS_MOON } from "./boonDefs/moon";
+import { BOONS_EARTH, BOON_KEYS_EARTH } from "./boonDefs/earth";
+import { BOONS_BLADE, BOON_KEYS_BLADE } from "./boonDefs/blade";
+import { BOONS_CYCLE, BOON_KEYS_CYCLE } from "./boonDefs/cycle";
+import { BOONS_HORDE, BOON_KEYS_HORDE } from "./boonDefs/horde";
+import { BOONS_WEALTH, BOON_KEYS_WEALTH } from "./boonDefs/wealth";
+import { BOONS_FUSION, BOON_KEYS_FUSION } from "./boonDefs/fusion";
+import { BOONS_CURSED, BOON_KEYS_CURSED } from "./boonDefs/cursed";
 
-export const BOON_KEYS = [
+/** 段取り 7a までの祝福（7b のレーン E が系譜の札に置き換えて消す） */
+const LEGACY_BOON_KEYS = [
   "finisherOnly",
   "dashGun",
   "reflect",
@@ -161,7 +173,28 @@ export const BOON_KEYS = [
   ...BOON_KEYS_WAVE3,
 ] as const;
 
-export type BoonKey = (typeof BOON_KEYS)[number];
+/** 系譜の札（src/system/boonDefs/*.ts。docs/ideas/boon-impl.md 2-6） */
+const LINEAGE_BOON_KEYS = [
+  ...BOON_KEYS_ASH,
+  ...BOON_KEYS_FROST,
+  ...BOON_KEYS_THUNDER,
+  ...BOON_KEYS_MOON,
+  ...BOON_KEYS_EARTH,
+  ...BOON_KEYS_BLADE,
+  ...BOON_KEYS_CYCLE,
+  ...BOON_KEYS_HORDE,
+  ...BOON_KEYS_WEALTH,
+  ...BOON_KEYS_FUSION,
+  ...BOON_KEYS_CURSED,
+] as const;
+
+export type BoonKey = (typeof LEGACY_BOON_KEYS)[number] | (typeof LINEAGE_BOON_KEYS)[number];
+
+/** 系譜の札のうち旧祝福と同じ key のものは 1 つにまとめる（並びは旧 → 新） */
+export const BOON_KEYS: readonly BoonKey[] = [...new Set<BoonKey>([...LEGACY_BOON_KEYS, ...LINEAGE_BOON_KEYS])];
+
+/** 系譜の札の key（旧祝福の仮の系譜・札 BOON_META を重ねない） */
+const LINEAGE_KEY_SET: ReadonlySet<BoonKey> = new Set<BoonKey>(LINEAGE_BOON_KEYS);
 export type BoonRarity = "common" | "rare" | "epic";
 export type BoonTag =
   | "melee"
@@ -2019,6 +2052,18 @@ const BOON_BODIES: Readonly<Record<BoonKey, BoonDef>> = {
   },
   ...BOONS_WAVE2,
   ...BOONS_WAVE3,
+  // ---- 系譜の札（同じ key の旧定義を上書きする） ----
+  ...BOONS_ASH,
+  ...BOONS_FROST,
+  ...BOONS_THUNDER,
+  ...BOONS_MOON,
+  ...BOONS_EARTH,
+  ...BOONS_BLADE,
+  ...BOONS_CYCLE,
+  ...BOONS_HORDE,
+  ...BOONS_WEALTH,
+  ...BOONS_FUSION,
+  ...BOONS_CURSED,
 };
 
 // -----------------------------------------------------------------------------
@@ -2243,7 +2288,7 @@ export const BOON_META: Readonly<Partial<Record<BoonKey, BoonMeta>>> = {
 /** 本体に仮の系譜・札を重ねる（キーの並びは BOON_KEYS のまま） */
 function withBoonMeta(bodies: Readonly<Record<BoonKey, BoonDef>>): Readonly<Record<BoonKey, BoonDef>> {
   const out: Partial<Record<BoonKey, BoonDef>> = {};
-  for (const key of BOON_KEYS) out[key] = { ...bodies[key], ...BOON_META[key] };
+  for (const key of BOON_KEYS) out[key] = LINEAGE_KEY_SET.has(key) ? bodies[key] : { ...bodies[key], ...BOON_META[key] };
   return out as Record<BoonKey, BoonDef>;
 }
 

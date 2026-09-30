@@ -219,6 +219,8 @@ export const ACTION = {
 
 /** ラン内限定の祝福 3 択（src/system/boons.ts）。docs/ideas/run-structure.md「祝福 3 択」 */
 export const BOON = BALANCE.boons.BOON;
+/** 系譜の札の数値（balance/boons/LINEAGE/<系譜>.json。docs/ideas/boon-impl.md 2-6） */
+export const BOON_LINEAGE = BALANCE.boons.LINEAGE;
 
 /**
  * 武器種（src/data/weapons.ts）と銃の弾の数値。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/meta-and-weapons.md 1〜2 章。

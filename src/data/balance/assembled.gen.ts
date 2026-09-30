@@ -2,6 +2,18 @@
 // 配置の決まりは docs/BALANCE.md「ファイルの配置」
 import j_boons__index from "./boons/_index.json";
 import j_boons_BOON from "./boons/BOON.json";
+import j_boons_LINEAGE__index from "./boons/LINEAGE/_index.json";
+import j_boons_LINEAGE_ash from "./boons/LINEAGE/ash.json";
+import j_boons_LINEAGE_frost from "./boons/LINEAGE/frost.json";
+import j_boons_LINEAGE_thunder from "./boons/LINEAGE/thunder.json";
+import j_boons_LINEAGE_moon from "./boons/LINEAGE/moon.json";
+import j_boons_LINEAGE_earth from "./boons/LINEAGE/earth.json";
+import j_boons_LINEAGE_blade from "./boons/LINEAGE/blade.json";
+import j_boons_LINEAGE_cycle from "./boons/LINEAGE/cycle.json";
+import j_boons_LINEAGE_horde from "./boons/LINEAGE/horde.json";
+import j_boons_LINEAGE_wealth from "./boons/LINEAGE/wealth.json";
+import j_boons_LINEAGE_fusion from "./boons/LINEAGE/fusion.json";
+import j_boons_LINEAGE_cursed from "./boons/LINEAGE/cursed.json";
 import j_combat__index from "./combat/_index.json";
 import j_combat_MANA from "./combat/MANA.json";
 import j_combat_HEAL from "./combat/HEAL.json";
@@ -1051,6 +1063,20 @@ import j_world_EXIT from "./world/EXIT.json";
 export const boons = {
   "_note": j_boons__index["_note"],
   "BOON": j_boons_BOON,
+  "LINEAGE": {
+    "_note": j_boons_LINEAGE__index["_note"],
+    "ash": j_boons_LINEAGE_ash,
+    "frost": j_boons_LINEAGE_frost,
+    "thunder": j_boons_LINEAGE_thunder,
+    "moon": j_boons_LINEAGE_moon,
+    "earth": j_boons_LINEAGE_earth,
+    "blade": j_boons_LINEAGE_blade,
+    "cycle": j_boons_LINEAGE_cycle,
+    "horde": j_boons_LINEAGE_horde,
+    "wealth": j_boons_LINEAGE_wealth,
+    "fusion": j_boons_LINEAGE_fusion,
+    "cursed": j_boons_LINEAGE_cursed,
+  },
 };
 
 export const combat = {
@@ -2385,6 +2411,18 @@ export const world = {
 /** 組み立てに使った JSON（src/data/balance からの相対。_index.json を含む）。生成し忘れの検査に使う */
 export const BALANCE_SOURCE_FILES: readonly string[] = [
   "boons/BOON.json",
+  "boons/LINEAGE/_index.json",
+  "boons/LINEAGE/ash.json",
+  "boons/LINEAGE/blade.json",
+  "boons/LINEAGE/cursed.json",
+  "boons/LINEAGE/cycle.json",
+  "boons/LINEAGE/earth.json",
+  "boons/LINEAGE/frost.json",
+  "boons/LINEAGE/fusion.json",
+  "boons/LINEAGE/horde.json",
+  "boons/LINEAGE/moon.json",
+  "boons/LINEAGE/thunder.json",
+  "boons/LINEAGE/wealth.json",
   "boons/_index.json",
   "combat/ACTION.json",
   "combat/ATTR.json",
