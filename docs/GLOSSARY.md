@@ -62,6 +62,7 @@
 | 受け流し（受け流し） | parry（`PARRY`）/ 剣の右 1 段目 `hold.parry` | 全武器共通の行動（2026-09-30。既定 R / 中クリック / パッド RB）。窓の間の被弾を無効にして敵を怯ませ、コミットした攻撃も止める。外すと硬直。スキル石「パリィ」とは別物 | `system/parry.ts` |
 | 武器の重さ（軽 / 中 / 重） | `WeaponWeight`（light / medium / heavy）、`WEAPON.weightClass` | 武器種ごとの重さ（2026-09-30）。軽は攻撃中も動ける、中は終撃で足を止める、重は振る間止まりダッシュで取り消せない相が長い。表示は「軽い」「重い」など形容で | `data/weapons.ts`、`system/player.ts` |
 | 予告の色（黄 / 赤） | `TELEGRAPH.readyColor` / `commitColor` | 敵の予告の線と「!」の色。黄 = まだ怯ませて崩せる、赤 = コミット（必ず出る。止められるのは受け流しだけ） | `render/telegraphLineUi.ts` |
+| 予告の図解 | `telegraphDiagram`（`META.diagramDeaths`） | 図鑑の敵の頁から開ける図。同じ敵に 3 回倒されると開く。予告の形・怯ませられる間とコミットの境・隙・安全な場所を敵のデータから描く（ボスは段階ごとの危ない間合いも） | `system/telegraphDiagram.ts` / `render/telegraphDiagramUi.ts` |
 | ダッシュの無敵時間 | dashInvulnBonus | ステータスの表示名（秒の加算。既定 0） | `loot/stats.ts` |
 | 弾返し（祝福。撤去） | reflect | 段取り 7b（2026-09-30）で祝福ごと撤去。型の受け「弾返し」は別 | - |
 | 殲滅 | lastKill | 交戦中の部屋の最後の 1 体を倒した瞬間のスロー演出 | tuning ACTION.lastKill |
