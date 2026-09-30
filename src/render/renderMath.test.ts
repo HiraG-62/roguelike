@@ -393,8 +393,9 @@ describe("誓約のオーラ（7-20）", () => {
   });
 
   it("同じ系統の誓約は 1 色、系統が違えば色が増える。知らない key は無視する", () => {
-    expect(keystoneAuraColors(["ks_glassCannon", "ks_juggernaut"]), "どちらも body").toEqual([KEYSTONE_GROUP_COLOR.body]);
-    expect(keystoneAuraColors(["ks_glassCannon", "ks_berserker", "ks_unknown"])).toEqual([KEYSTONE_GROUP_COLOR.body, KEYSTONE_GROUP_COLOR.tempo]);
+    expect(keystoneAuraColors(["ks_glassCannon", "ks_vampire"]), "どちらも body").toEqual([KEYSTONE_GROUP_COLOR.body]);
+    expect(keystoneAuraColors(["ks_glassCannon", "ks_mushin", "ks_unknown"])).toEqual([KEYSTONE_GROUP_COLOR.body, KEYSTONE_GROUP_COLOR.tempo]);
+    expect(keystoneAuraColors(["ks_goldCage"]), "銭の系統").toEqual([KEYSTONE_GROUP_COLOR.coin]);
   });
 
   it("輪を系統の数の弧に分け、隙間を空けて回す", () => {

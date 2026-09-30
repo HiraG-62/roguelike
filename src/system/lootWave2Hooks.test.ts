@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { GameState } from "../core/state";
-import { KEYSTONE, RESONANCE, TRIGGER } from "../data/tuning";
+import { RESONANCE, TRIGGER } from "../data/tuning";
+import { applyRoll } from "../loot/affixes";
 import { DEFAULT_STATS, createLootRuntime, type TraitStats } from "../loot/types";
 import type { OutgoingElement } from "./elementCombat";
-import { enemyElementMul } from "./elementCombat";
-import { KS } from "./keystones";
+import { buildContext } from "./damageMods";
+import { applyModifiers } from "./modifiers";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { placeTerrain, terrainAt } from "./terrain";
 import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
@@ -49,11 +50,11 @@ function affinityOut(affinity: OutgoingElement["affinity"], element: OutgoingEle
 }
 
 describe("属性の性質（traitElementMul）", () => {
-  it("弱点刺し: 弱点へ + / 弱点でない相手へ −。proc には掛けない", () => {
-    const state = withTraits({ weakDamageMul: 0.4, nonWeakPenalty: 0.1 });
+  it("弱点刺し: 弱点へ +、弱点でない相手へは等倍（罰は無い）。proc には掛けない", () => {
+    const state = withTraits({ weakDamageMul: 0.4 });
     const e = placeEnemy(state, "slime", FAR);
     expect(traitElementMul(state, e, affinityOut("weak"), "melee")).toBeCloseTo(1.4);
-    expect(traitElementMul(state, e, affinityOut("neutral"), "melee")).toBeCloseTo(0.9);
+    expect(traitElementMul(state, e, affinityOut("neutral"), "melee")).toBeCloseTo(1);
     expect(traitElementMul(state, e, affinityOut("weak"), "proc")).toBe(1);
   });
 
@@ -63,16 +64,6 @@ describe("属性の性質（traitElementMul）", () => {
     const e = placeEnemy(state, "slime", FAR);
     traitElementMul(state, e, affinityOut("weak"), "ranged");
     expect(state.player.mana).toBeGreaterThan(0);
-  });
-
-  it("耐性破り: 耐性の減少を打ち消す（100% で耐性が無いのと同じ）", () => {
-    const state = withTraits({ resistPierce: 1 });
-    const e = placeEnemy(state, "eye", FAR);
-    const shares = [{ element: "light" as const, share: 1 }];
-    const elementMul = enemyElementMul(e, shares);
-    expect(elementMul, "目玉は光に耐性").toBeLessThan(1);
-    const out: OutgoingElement = { mul: elementMul, affinity: "resist", shares };
-    expect(traitElementMul(state, e, out, "melee") * elementMul).toBeCloseTo(1);
   });
 
   it("逆撫で: 耐性に阻まれた命中で、その属性の状態異常を付ける", () => {
@@ -91,24 +82,13 @@ describe("属性の性質（traitElementMul）", () => {
     expect(traitElementMul(state, e, affinityOut("neutral", "lightning"), "melee")).toBeCloseTo(1.4);
   });
 
-  it("弱点の誓い / 無の誓い", () => {
-    const weak = withTraits({}, [KS.weakOath]);
-    const e = placeEnemy(weak, "slime", FAR);
-    expect(traitElementMul(weak, e, affinityOut("weak"), "melee")).toBeCloseTo(KEYSTONE.weakOathWeakMul);
-    expect(traitElementMul(weak, e, affinityOut("neutral"), "melee")).toBeCloseTo(KEYSTONE.weakOathOtherMul);
-    const nul = withTraits({}, [KS.nullOath]);
-    const eye = placeEnemy(nul, "eye", FAR);
-    const shares = [{ element: "light" as const, share: 1 }];
-    const elementMul = enemyElementMul(eye, shares);
-    expect(traitElementMul(nul, eye, { mul: elementMul, affinity: "resist", shares }, "melee") * elementMul).toBeCloseTo(1);
-  });
 });
 
 describe("武器種・銃の弾・ジョブ（traitOutgoingMul / traitPoiseMul）", () => {
-  it("溜めの芯: 段 1 つにつき近接 +、溜めを持つ武器で溜めないと −（スキルには掛けない）", () => {
-    const state = withTraits({ chargedMeleeMul: 0.2, unchargedPenalty: 0.1 });
+  it("溜めの芯: 段 1 つにつき近接 +、溜めずに振っても減らない（スキルには掛けない）", () => {
+    const state = withTraits({ chargedMeleeMul: 0.2 });
     state.stats = { ...state.stats, moveset: "greatsword" };
-    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(0.9);
+    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1);
     state.player.attack.chargeLevel = 2;
     expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1.4);
     expect(traitOutgoingMul(state, null, "melee", true), "スキルには掛けない").toBeCloseTo(1);
@@ -124,93 +104,40 @@ describe("武器種・銃の弾・ジョブ（traitOutgoingMul / traitPoiseMul�
     expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1.3);
   });
 
-  it("散弾の芯: 散弾の射撃で近い敵へ + / 遠い敵へ −", () => {
-    const state = withTraits({ spreadCloseMul: 0.5, spreadFarPenalty: 0.2 });
+  it("ラッパ銃（ベース）: 散弾の射撃で近い敵へ +、遠い敵へは等倍", () => {
+    const state = withTraits({ spreadCloseMul: 0.5 });
     state.stats = { ...state.stats, bullet: "shotgun" };
     const near = placeEnemy(state, "slime", NEAR);
     const far = placeEnemy(state, "slime", FAR);
     expect(traitOutgoingMul(state, near, "ranged", false)).toBeCloseTo(1.5);
-    expect(traitOutgoingMul(state, far, "ranged", false)).toBeCloseTo(0.8);
+    expect(traitOutgoingMul(state, far, "ranged", false)).toBeCloseTo(1);
     expect(traitOutgoingMul(state, near, "melee", false), "近接には掛けない").toBeCloseTo(1);
   });
 
-  it("流派の型・無所属: ジョブと得意武器で変わる", () => {
-    const state = withTraits({ favoredDamageMul: 0.2, unfavoredPenalty: 0.1, noJobDamageMul: 0.25, jobPenalty: 0.05 });
-    state.job = "none";
-    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1 - 0.1 + 0.25);
-    state.job = "swordsman";
-    state.stats = { ...state.stats, moveset: "sword" };
-    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1 + 0.2 - 0.05);
-  });
-
-  it("我流・散弾押し・腐食の爪は怯み値に乗る", () => {
-    const state = withTraits({ unfavoredPoiseMul: 0.4, favoredPoisePenalty: 0.1, spreadPoiseMul: 0.3, corrodePoiseMul: 0.5 });
+  it("大連接棍（ベース）: 溜めの段 1 つにつき近接の怯み値 +", () => {
+    const state = withTraits({ chargedPoiseMul: 0.2 });
     const e = placeEnemy(state, "slime", FAR);
-    state.job = "none";
+    state.player.attack.chargeLevel = 2;
     expect(traitPoiseMul(state, e, "melee", false)).toBeCloseTo(1.4);
-    state.stats = { ...state.stats, bullet: "shotgun" };
-    expect(traitPoiseMul(state, e, "ranged", false)).toBeCloseTo(1.3);
-    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "corrode", stacks: 1, duration: 5, potency: 0 }, "env");
-    expect(traitPoiseMul(state, e, "ranged", false)).toBeCloseTo(1.8);
+    expect(traitPoiseMul(state, e, "ranged", false), "射撃には掛けない").toBeCloseTo(1);
   });
 
-  it("起爆の手・崩勢狩り: 新しい状態異常の敵へ", () => {
-    const state = withTraits({ brandedMul: 0.5, unbrandedPenalty: 0.1, brokenMul: 0.3 });
-    const e = placeEnemy(state, "slime", FAR);
-    expect(traitOutgoingMul(state, e, "ranged", false)).toBeCloseTo(0.9);
-    expect(traitOutgoingMul(state, e, "melee", false), "近接には烙印の加減が無い").toBeCloseTo(1);
-    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "brand", stacks: 1, duration: 5, potency: 0 }, "player");
-    expect(traitOutgoingMul(state, e, "ranged", false)).toBeCloseTo(1.5);
-    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "broken", stacks: 1, duration: 5, potency: 0 }, "player");
-    expect(traitOutgoingMul(state, e, "melee", false)).toBeCloseTo(1.3);
-  });
-
-  it("鉄の誓い・溜めの誓い", () => {
-    const iron = withTraits({}, [KS.ironOath]);
-    iron.job = "swordsman";
-    iron.stats = { ...iron.stats, moveset: "sword" };
-    expect(traitOutgoingMul(iron, null, "melee", false)).toBeCloseTo(KEYSTONE.ironFavoredMul);
-    iron.stats = { ...iron.stats, moveset: "whip" };
-    expect(traitOutgoingMul(iron, null, "melee", false)).toBeCloseTo(KEYSTONE.ironUnfavoredMul);
-    expect(traitOutgoingMul(iron, null, "ranged", false), "射撃には掛けない").toBeCloseTo(1);
-    const charge = withTraits({}, [KS.chargeOath]);
-    charge.stats = { ...charge.stats, moveset: "greatsword" };
-    expect(traitOutgoingMul(charge, null, "melee", false)).toBeCloseTo(KEYSTONE.chargeOathUnchargedMul);
-    charge.player.attack.chargeLevel = 3;
-    expect(traitOutgoingMul(charge, null, "melee", false)).toBeCloseTo(1 + KEYSTONE.chargeOathPerLevel * 3);
-  });
 });
 
 describe("地形（足元・敵の足元）", () => {
-  it("地の利: 地形の上で + / 何も無い床で −。滑り足は水・氷だけ", () => {
-    const state = withTraits({ terrainDamageMul: 0.3, offTerrainPenalty: 0.1, slickDamageMul: 0.2 });
-    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(0.9);
+  it("地の利（Modifier）: 地形の上に立つ間だけ与ダメージ +", () => {
+    const state = withTraits({});
+    applyRoll(state.stats, { key: "groundRooted", value: 30 });
+    expect(applyModifiers(state, buildContext(null, "melee"), null).increased).toBeCloseTo(0);
     groundUnderPlayer(state, "grass");
-    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1.3);
-    groundUnderPlayer(state, "ice");
-    expect(traitOutgoingMul(state, null, "melee", false)).toBeCloseTo(1.5);
+    expect(applyModifiers(state, buildContext(null, "melee"), null).increased).toBeCloseTo(0.3);
   });
 
-  it("泥除け: 地形の上で被ダメージ −", () => {
+  it("蓑（ベース）: 地形の上で被ダメージ −", () => {
     const state = withTraits({ terrainGuard: 0.2 });
     expect(traitIncomingMul(state, undefined)).toBeCloseTo(1);
     groundUnderPlayer(state, "water");
     expect(traitIncomingMul(state, undefined)).toBeCloseTo(0.8);
-  });
-
-  it("滑りの誓い: 水・氷の上とそれ以外で倍率が変わる", () => {
-    const state = withTraits({}, [KS.slickOath]);
-    expect(traitOutgoingMul(state, null, "ranged", false)).toBeCloseTo(KEYSTONE.slickOffMul);
-    groundUnderPlayer(state, "water");
-    expect(traitOutgoingMul(state, null, "ranged", false)).toBeCloseTo(KEYSTONE.slickOnMul);
-  });
-
-  it("熾火の誓い: 燃えている敵へ強く、それ以外へは弱い", () => {
-    const state = withTraits({}, [KS.emberOath]);
-    const e = placeEnemy(state, "slime", FAR);
-    expect(traitOutgoingMul(state, e, "melee", false)).toBeCloseTo(KEYSTONE.emberOffMul);
-    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: 1, duration: 5, potency: 3 }, "player");
-    expect(traitOutgoingMul(state, e, "melee", false)).toBeCloseTo(KEYSTONE.emberOnMul);
   });
 
   it("地脈の炸裂: 地形の上の敵を倒すと周囲に地形の状態異常（内部クールダウンで連鎖しない）", () => {
@@ -249,35 +176,18 @@ describe("地形（足元・敵の足元）", () => {
 });
 
 describe("交戦・被ダメージの属性・構え", () => {
-  it("籠城: 交戦中は − / 交戦外は +", () => {
-    const state = withTraits({ engagedGuard: 0.2, roamExposure: 0.1 });
-    expect(traitIncomingMul(state, undefined)).toBeCloseTo(1.1);
+  it("籠城: 交戦中は −、交戦外は等倍（罰は無い）", () => {
+    const state = withTraits({ engagedGuard: 0.2 });
+    expect(traitIncomingMul(state, undefined)).toBeCloseTo(1);
     engageStartRoom(state);
     expect(traitIncomingMul(state, undefined)).toBeCloseTo(0.8);
   });
 
-  it("属性の帳: 属性を持つ攻撃は −、無属性は +", () => {
-    const state = withTraits({ elementalGuard: 0.3, physicalExposure: 0.1 });
-    const bomber = placeEnemy(state, "bomber", FAR);
-    const knight = placeEnemy(state, "knight", FAR);
-    expect(traitIncomingMul(state, bomber), "爆弾ゴブリンは炎").toBeCloseTo(0.7);
-    expect(traitIncomingMul(state, knight), "盾騎士は無属性").toBeCloseTo(1.1);
-  });
-
-  it("構えの誓い: 振っている間は被ダメージ −、それ以外は +", () => {
-    const state = withTraits({}, [KS.stanceOath]);
-    expect(traitIncomingMul(state, undefined)).toBeCloseTo(KEYSTONE.stanceExposedMul);
+  it("構え: 振っている間は被ダメージ −、それ以外は等倍", () => {
+    const state = withTraits({ stanceGuard: 0.4 });
+    expect(traitIncomingMul(state, undefined)).toBeCloseTo(1);
     state.player.attack.phase = "active";
-    expect(traitIncomingMul(state, undefined)).toBeCloseTo(KEYSTONE.stanceGuardMul);
-  });
-
-  it("封鎖の火花: 交戦中の撃破で必殺ゲージ", () => {
-    const state = withTraits({ engagedKillEnergy: 10 });
-    engageStartRoom(state);
-    const e = placeEnemy(state, "slime", NEAR);
-    state.player.energy = 0;
-    onTraitKill(state, e);
-    expect(state.player.energy).toBeGreaterThan(0);
+    expect(traitIncomingMul(state, undefined)).toBeCloseTo(0.6);
   });
 });
 
@@ -342,26 +252,20 @@ describe("怯ませた・命中ごと・時間", () => {
     expect(hasStatus(e.status, "weaken"), "大鎌は闇 = 弱体").toBe(true);
   });
 
-  it("追尾の毒・連射の烙印", () => {
-    const state = withTraits({ homingPoison: 3, rapidBrandChance: 1 });
+  it("連射の烙印", () => {
+    const state = withTraits({ rapidBrandChance: 1 });
     const e = placeEnemy(state, "slime", FAR);
-    state.stats = { ...state.stats, bullet: "blowgun" };
-    onTraitHit(state, e, "ranged");
-    expect(hasStatus(e.status, "poison")).toBe(true);
     state.stats = { ...state.stats, bullet: "smg" };
     onTraitHit(state, e, "ranged");
     expect(hasStatus(e.status, "brand")).toBe(true);
   });
 
-  it("溜め崩し・派生の冴え: 命中で必殺ゲージ・気力", () => {
-    const state = withTraits({ chargedHitEnergy: 4, branchHitMana: 2 });
+  it("派生の冴え: 派生の命中で気力", () => {
+    const state = withTraits({ branchHitMana: 2 });
     const e = placeEnemy(state, "slime", FAR);
-    state.player.energy = 0;
     state.player.mana = 0;
-    state.player.attack.chargeLevel = 2;
     state.player.attack.branch = 1;
     onTraitHit(state, e, "melee");
-    expect(state.player.energy).toBeGreaterThan(0);
     expect(state.player.mana).toBeGreaterThan(0);
   });
 
@@ -369,14 +273,6 @@ describe("怯ませた・命中ごと・時間", () => {
     expect(traitTriggerIcdMul(withTraits({}))).toBe(1);
     expect(traitTriggerIcdMul(withTraits({ triggerIcdCut: RESONANCE.mirrorIcdCut }))).toBeCloseTo(1 - RESONANCE.mirrorIcdCut);
     expect(traitTriggerIcdMul(withTraits({ triggerIcdCut: 5 }))).toBeGreaterThan(0);
-  });
-
-  it("土の誓い: 地形の上で回復する", () => {
-    const state = withTraits({}, [KS.earthOath]);
-    state.player.hp = state.player.maxHp / 2;
-    groundUnderPlayer(state, "oil");
-    tickTraitClocks(state, 1);
-    expect(state.player.hp).toBeGreaterThan(state.player.maxHp / 2);
   });
 
   it("表裏: 生命が半分以上なら与ダメージ +、未満なら被ダメージ −", () => {

@@ -5,7 +5,7 @@ import { SLOTS, type AffixRoll, type Equipment, type Provenance, type TraitStats
 /**
  * 性質が「自分の外」を読むための文脈（docs/ideas/loot-expansion.md 1-e）。
  * - 来歴で育つ性質（古傷・歴戦 …）: その遺物の来歴から段数を出し、値に掛けてから適用する
- * - 装備全体を見る性質（若木・銘の重み・裏の糧 …）: computeStats が適用の前に TraitStats の gear* へ入れる
+ * - 装備全体を見る性質（若木）とベースの implicit: computeStats が適用の前に TraitStats の gear* へ入れる
  * どちらも純関数。state.rng は使わない
  */
 
@@ -21,9 +21,6 @@ interface ProvenanceStep {
 export const PROVENANCE_STEPS: Readonly<Record<string, ProvenanceStep>> = {
   oldScars: { per: 100, max: 5, read: (p) => p.hurtTaken },
   veteran: { per: 100, max: 8, read: (p) => p.kills },
-  wayfarer: { per: 3, max: 6, read: (p) => p.floorsCleared },
-  kingslayerMark: { per: 1, max: 5, read: (p) => p.bosses },
-  keenMemory: { per: 25, max: 4, read: (p) => p.justDodges },
 };
 
 /** 来歴から段数（0..max） */

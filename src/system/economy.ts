@@ -21,6 +21,8 @@ import { gradeOf } from "../data/enemyRoles";
 import { ECONOMY } from "../data/tuning";
 import { chapterOf } from "./chapters";
 import { addFloatingText } from "./effects";
+import { povertyMana } from "./keystones";
+import { gainMana } from "./mana";
 import { circlesOverlap, overlapsWall } from "./physics";
 
 /**
@@ -99,6 +101,7 @@ export function gainCoins(state: GameState, amount: number, source: CoinSource):
   const mul = UNSCALED_SOURCES.has(source) ? 1 : Math.max(0, state.stats.coinGainMul);
   const n = Math.round(amount * mul);
   if (n <= 0) return 0;
+  if (convertedToMana(state, n)) return 0;
   const eco = state.economy;
   eco.coins += n;
   if (source !== "spill") eco.earned[source] += n;
@@ -106,6 +109,14 @@ export function gainCoins(state: GameState, amount: number, source: CoinSource):
   pushSfx(state, "coinPickup");
   pushEvent(state, { kind: "onCoinPickup", actor: "player", pos: { ...state.player.body.pos }, source: playerSource("coin"), amount: n, tag: source });
   return n;
+}
+
+/** 清貧（誓約）: 銭を持てず、拾った銭は気力に換わる。換えたら true */
+function convertedToMana(state: GameState, coins: number): boolean {
+  const mana = povertyMana(state, coins);
+  if (mana === undefined) return false;
+  gainMana(state, mana);
+  return true;
 }
 
 /** 銭を払う。足りなければ何もせず false。0 以下の額は払ったことにして true（集計もイベントも出さない） */

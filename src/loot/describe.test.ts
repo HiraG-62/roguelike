@@ -39,7 +39,7 @@ describe("ステータスの一言", () => {
     const line = describeTrait({ key: "attr_str", value: 4, color: "crimson" });
     expect(line.text).toBe(`筋力 +4（${ATTRIBUTE_HINT.str}）`);
     expect(line.hue).toBe("crimson");
-    expect(describeTrait({ key: "meleeDamagePct", value: 20 }).text).toBe("近接ダメージ +20%");
+    expect(describeTrait({ key: "damageVsStaggered", value: 20 }).text).toBe("怯み中の敵へのダメージ +20%");
   });
 });
 
@@ -85,7 +85,7 @@ function synergyItem(affixes: AffixRoll[]): Item {
 }
 
 const burnRoll: AffixRoll = { key: "burn", value: 20, value2: 5, nominal: 20, flux: 0, origin: "found" };
-const lifeOnKillRoll: AffixRoll = { key: "lifeOnKill", value: 5, nominal: 5, flux: 0, origin: "found" };
+const killRoll: AffixRoll = { key: "explodeOnKill", value: 10, value2: 10, nominal: 10, flux: 0, origin: "found" };
 
 function buildOf(elements: SynergyElement[]): SynergyBuild {
   return { profile: mergeProfiles(emptyProfile(), ...elements.map((e) => e.keywords)), elements };
@@ -102,8 +102,8 @@ describe("describeSynergy: 遺物とビルドの相性", () => {
 
   it("遺物の糧のうち、ビルドの溢れを feeds に返す", () => {
     const build = buildOf([{ kind: "skill", name: "撃破を出す石", keywords: kw(["kill"]) }]);
-    const d = describeSynergy(synergyItem([lifeOnKillRoll]), build);
-    expect(d.consumes, "撃破時回復は撃破を食う").toContain("kill");
+    const d = describeSynergy(synergyItem([killRoll]), build);
+    expect(d.consumes, "撃破時の爆発は撃破を食う").toContain("kill");
     expect(d.feeds, "余っている撃破を食う").toEqual(["kill"]);
     expect(d.partners, "撃破が源のスキル石と相性がよい").toEqual(["撃破を出す石"]);
   });

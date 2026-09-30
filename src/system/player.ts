@@ -442,7 +442,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   else resetShooting(p);
   // 右の「押した瞬間」は前フレームとの差で取る（FrameInput は押しっぱなししか持たない）
   p.secondaryWasHeld = input.shootHeld;
-  if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
+  if (state.stats.traits.unmoving > 0) p.knock = { x: 0, y: 0 };
   trackDamageDealt(state);
 }
 

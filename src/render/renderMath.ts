@@ -268,12 +268,7 @@ export const KEYSTONE_GROUP_COLOR: Readonly<Record<KeystoneGroup, string>> = {
   mana: "#60a0ff",
   status: "#90e050",
   poise: "#c8a078",
-  room: "#ffe080",
-  hue: "#ff80e0",
-  chronicle: "#b0a0ff",
-  element: "#80f0f0",
-  weapon: "#c8c8c8",
-  terrain: "#b08850",
+  coin: "#ffd24a",
 };
 
 /** 持っている誓約の系統の色（重複を除いて持っている順）。誓約が無ければ空 */

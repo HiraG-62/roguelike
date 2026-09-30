@@ -441,7 +441,8 @@ export function namedChance(depth: number, boost = 0): number {
 function uniqueKeystone(unique: UniqueDef): AffixRoll | undefined {
   if (unique.keystone === undefined) return undefined;
   const def = keystoneDef(unique.keystone);
-  if (def === undefined) throw new Error(`named ${unique.key}: unknown vow ${unique.keystone}`);
+  // 消えた誓約を指していても生成を止めない（定義の誤りは generator.test の「実在する」が拾う）
+  if (def === undefined) return undefined;
   return keystoneToRoll(def);
 }
 
@@ -454,10 +455,11 @@ export function rollUniqueAffixes(rng: Rng, unique: UniqueDef, depth: number): A
     allowInversion: false,
     origin: "named",
   };
-  const traits = unique.affixes.map((spec) => {
+  const traits = unique.affixes.flatMap((spec) => {
     const def = affixDef(spec.key);
-    if (def === undefined) throw new Error(`named ${unique.key}: unknown trait ${spec.key}`);
-    return rollTableTrait(rng, def, opts);
+    // 消えた性質を指していても生成を止めない（段取り 7d の性質の作り直しの途中など。定義の誤りは generator.test が拾う）
+    if (def === undefined) return [];
+    return [rollTableTrait(rng, def, opts)];
   });
   const vow = uniqueKeystone(unique);
   return vow === undefined ? traits : [...traits, { ...vow, origin: "named" }];

@@ -4,7 +4,7 @@ import { FIXED_DT } from "../core/loop";
 import { ENERGY, FEEL, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
-import type { TriggeredEffect } from "../loot/types";
+import { DEFAULT_TRAIT_STATS, type TriggeredEffect } from "../loot/types";
 import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
@@ -286,8 +286,8 @@ describe("キーストーン", () => {
     expect(state.player.invulnTimer).toBe(0);
   });
 
-  it("ks_juggernaut では被弾ノックバックを受けない", () => {
-    const state = arena(5, { keystones: [KS.juggernaut] });
+  it("性質「踏ん張り」（traits.unmoving）では被弾ノックバックを受けない", () => {
+    const state = arena(5, { traits: { ...DEFAULT_TRAIT_STATS, unmoving: 0.1 } });
     const p = state.player.body.pos;
     damagePlayer(state, 10, { x: p.x - 10, y: p.y });
     expect(state.player.knock).toEqual({ x: 0, y: 0 });
@@ -530,8 +530,8 @@ describe("回復の設計（与ダメの % 回復・共通上限・条件付き�
     expect(state.player.hp, "封鎖中は回復しない").toBe(50);
   });
 
-  it("狂戦士・吸血の誓約では敵がいなくてもHP自然回復しない", () => {
-    const state = arena(5, { hpRegen: 2, keystones: [KS.berserker] });
+  it("吸血の誓約では敵がいなくてもHP自然回復しない", () => {
+    const state = arena(5, { hpRegen: 2, keystones: [KS.vampire] });
     state.player.hp = 50;
     tickHpRegen(state, 1);
     expect(state.player.hp, "誓約で自然回復が止まる").toBe(50);

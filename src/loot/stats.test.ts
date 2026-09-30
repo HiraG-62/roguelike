@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { STATUS, WEAPON } from "../data/tuning";
 import { DEFAULT_MOVESET, MOVESETS, UNARMED_NAME, movesetLabel } from "../data/weapons";
-import { scaleFlat } from "./flux";
 import { generateItem } from "./generator";
 import { UNARMED_MORE, computeStats, damageModDiffs, softCap, statsSummary } from "./stats";
 import { createIncreased } from "../core/damage";
@@ -47,50 +46,33 @@ describe("computeStats", () => {
     equipment.mainHand = makeItem("mainHand", {
       implicit: { key: "implicit.greatsword", kind: "prefix", tier: 1, value: 40 },
       affixes: [
-        { key: "meleeDamagePct", kind: "prefix", tier: 3, value: 25 },
-        { key: "meleeDamageFlat", kind: "prefix", tier: 4, value: 5 },
-        { key: "critChance", kind: "suffix", tier: 5, value: 2 },
+        { key: "damageVsStaggered", kind: "prefix", tier: 3, value: 25 },
         { key: "burn", kind: "prefix", tier: 4, value: 5, value2: 3 },
       ],
     });
+    // 性質 2 つまでなら共鳴しないので、implicit と性質の数値だけを見られる
     const stats = computeStats(equipment);
-    // 紅 3 / 金 1 → 紅の支配（灼極）: 近接 +10%、金の性質（会心率）は 75% に弱まる。implicit は色を持たず弱まらない
-    expect(stats.resonance.kind).toBe("dominant");
-    expect(stats.resonance.colors).toEqual(["crimson"]);
-    expect(stats.increased.melee).toBeCloseTo(0.4 + 0.25 + scaleFlat(0.1, 4));
+    expect(stats.increased.melee).toBeCloseTo(0.4);
     expect(stats.attackSpeedMul).toBeCloseTo(0.75);
     expect(stats.meleeReachMul).toBeCloseTo(1.2);
-    expect(stats.meleeDamageFlat).toBe(5);
-    expect(stats.critChance).toBeCloseTo(0.05 + 0.02 * 0.75);
+    expect(stats.increased.vsStaggered).toBeCloseTo(0.25);
     expect(stats.burnChance).toBeCloseTo(0.05);
     expect(stats.burnDps).toBe(3);
-  });
-
-  it("max HP % は全スロットの flat 合算後に掛かる", () => {
-    const equipment = createEmptyEquipment();
-    // % を先の slot（armor）に、flat を後の slot（ring）に置いても順序に依存しない
-    equipment.armor = makeItem("armor", {
-      affixes: [{ key: "maxLifePct", kind: "prefix", tier: 4, value: 10 }],
-    });
-    equipment.ring = makeItem("ring", {
-      affixes: [{ key: "maxLife", kind: "prefix", tier: 5, value: 20 }],
-    });
-    expect(computeStats(equipment).maxHp).toBe(132);
   });
 
   it("整数化とクランプが効く", () => {
     const equipment = createEmptyEquipment();
     equipment.ring = makeItem("ring", {
       affixes: [
-        { key: "critChance", kind: "suffix", tier: 1, value: 500 },
-        { key: "maxLife", kind: "prefix", tier: 1, value: -1000 },
+        { key: "burn", kind: "prefix", tier: 1, value: 500, value2: 1 },
+        { key: "groundMend", kind: "prefix", tier: 1, value: 1, value2: 1000 },
       ],
     });
     equipment.mainHand = makeItem("mainHand", {
       implicit: { key: "implicit.shotgun", kind: "prefix", tier: 1, value: 2 },
     });
     const stats = computeStats(equipment);
-    expect(stats.critChance).toBe(1);
+    expect(stats.burnChance).toBe(1);
     expect(stats.maxHp).toBe(1);
     expect(Number.isInteger(stats.projectileCount)).toBe(true);
     expect(stats.projectileCount).toBe(3);
@@ -157,25 +139,13 @@ describe("softCap", () => {
 
   it("+300% は 4.0 倍になる（増は圧縮しない。computeStats 経由）", () => {
     const equipment = createEmptyEquipment();
-    const melee = (slot: Slot, value: number): Item =>
-      makeItem(slot, { affixes: [{ key: "meleeDamagePct", kind: "prefix", tier: 1, value }] });
-    equipment.mainHand = melee("mainHand", 100);
-    equipment.ring = melee("ring", 100);
-    equipment.amulet = melee("amulet", 100);
+    const staggered = (slot: Slot, value: number): Item =>
+      makeItem(slot, { affixes: [{ key: "damageVsStaggered", kind: "prefix", tier: 1, value }] });
+    equipment.mainHand = staggered("mainHand", 100);
+    equipment.ring = staggered("ring", 100);
+    equipment.amulet = staggered("amulet", 100);
     const stats = computeStats(equipment);
-    // 紅 3 = 紅の支配（灼極: 近接 +10% × 装備の強さの係数）も増に足される
-    expect(1 + stats.increased.melee).toBeCloseTo(4 + scaleFlat(0.1, 4));
-  });
-
-  it("攻撃速度はソフトキャップが残る", () => {
-    const equipment = createEmptyEquipment();
-    const speed = (slot: Slot): Item => makeItem(slot, { affixes: [{ key: "attackSpeed", kind: "prefix", tier: 1, value: 100 }] });
-    equipment.mainHand = speed("mainHand");
-    equipment.ring = speed("ring");
-    equipment.amulet = speed("amulet");
-    const stats = computeStats(equipment);
-    expect(stats.attackSpeedMul).toBeLessThan(3);
-    expect(stats.attackSpeedMul).toBeGreaterThan(2);
+    expect(1 + stats.increased.vsStaggered).toBeCloseTo(4);
   });
 });
 
@@ -185,45 +155,38 @@ describe("キーストーンとトリガーの集計", () => {
   it("同じ排他グループは後勝ち（装備順）で 1 つだけ残る", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
-    equipment.ring = makeItem("ring", { affixes: [ks("ks_juggernaut"), ks("ks_gambler")] });
+    equipment.ring = makeItem("ring", { affixes: [ks("ks_vampire"), ks("ks_gambler")] });
     const stats = computeStats(equipment);
-    expect(stats.keystones).toEqual(["ks_juggernaut", "ks_gambler"]);
-    // 誓約 3 つ = 冥の支配（虚極: 被ダメ +10%）。負けた誓約も色の配合には数える
-    expect(stats.resonance.colors).toEqual(["umbra"]);
-    expect(stats.damageTakenMul).toBeCloseTo(0.5 + 0.1);
-    expect(stats.moveSpeedMul).toBeCloseTo(0.65);
-    expect(stats.critChance).toBeCloseTo(0.15);
-    // 負けた glassCannon の数値効果は掛からない
-    expect(stats.maxHp).toBe(DEFAULT_STATS.maxHp);
+    expect(stats.keystones).toEqual(["ks_vampire", "ks_gambler"]);
+    expect(stats.critChance).toBeCloseTo(DEFAULT_STATS.critChance + 0.1);
+    // 負けた glassCannon の数値効果（最大 HP 1/4）は掛からず、勝った吸血の 0.7 だけ
+    expect(stats.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * 0.7));
     expect(stats.more.some((m) => m.source === "keystone:ks_glassCannon"), "負けた誓約の倍は入らない").toBe(false);
   });
 
   it("glassCannon は与ダメ 2 倍・最大 HP 1/4（flat 合算後に掛かる）", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
-    equipment.ring = makeItem("ring", {
-      affixes: [{ key: "maxLife", kind: "prefix", tier: 5, value: 20 }],
-    });
     const stats = computeStats(equipment);
     const glass = stats.more.find((m) => m.source === "keystone:ks_glassCannon");
     expect(glass?.mul, "誓約は倍").toBeCloseTo(2);
     expect(glass?.tags, "近接と射撃に掛かる").toEqual(["melee", "ranged"]);
     expect(stats.increased.melee, "増には入らない").toBe(0);
-    expect(stats.maxHp).toBe(30);
+    expect(stats.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * 0.25));
   });
 
   it("誓約は more に入り増と掛け算になる", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", {
       affixes: [
-        { key: "rangedDamagePct", kind: "prefix", tier: 1, value: 200 },
+        { key: "damageVsStaggered", kind: "prefix", tier: 1, value: 200 },
         ks("ks_glassCannon"),
       ],
     });
     // 増 +200% → ×3.0、誓約の倍 ×2 → 6 倍
     const stats = computeStats(equipment);
     const glass = stats.more.find((m) => m.source === "keystone:ks_glassCannon")?.mul ?? 1;
-    expect((1 + stats.increased.ranged) * glass).toBeCloseTo(6);
+    expect((1 + stats.increased.vsStaggered) * glass).toBeCloseTo(6);
   });
 
   it("同じキーストーンを 2 つ装備しても 1 回しか効かない", () => {
@@ -293,29 +256,20 @@ describe("damageModDiffs（装備の比較の増・倍の差）", () => {
   });
 });
 
-describe("computeStats: マナの性質と渇きの誓約", () => {
-  it("渇きの誓約はマナ自然回復の性質があっても自然回復を 0 にする（装備順に依らない）", () => {
+describe("computeStats: 気力の性質の代償", () => {
+  it("汲み上げの代償は撃破時の気力回収を下げる", () => {
     const equipment = createEmptyEquipment();
-    equipment.ring = makeItem("ring", { affixes: [{ key: "ks_thirst", value: 0, color: "umbra" }] });
-    equipment.amulet = makeItem("amulet", { affixes: [{ key: "manaRegenFlat", value: 1.5 }] });
+    equipment.mainHand = makeItem("mainHand", { affixes: [{ key: "manaOnStagger", value: 4, value2: 2 }] });
     const stats = computeStats(equipment);
-    expect(stats.keystones).toContain("ks_thirst");
-    expect(stats.manaRegen).toBe(0);
+    expect(stats.traits.manaOnStagger).toBe(4);
+    expect(stats.manaOnKill).toBe(-2);
   });
 
-  it("撃破でマナの性質は manaOnKill に積み、表示にも出る", () => {
+  it("溢れの代償（最大気力 −）を重ねても最大気力は 0 未満にならない", () => {
     const equipment = createEmptyEquipment();
-    equipment.boots = makeItem("boots", { affixes: [{ key: "manaOnKillFlat", value: 4 }] });
-    const stats = computeStats(equipment);
-    expect(stats.manaOnKill).toBe(4);
-    expect(statsSummary(stats)).toContain("撃破時気力回収 4");
-  });
-
-  it("最大マナ −の性質を重ねても最大マナは 0 未満にならない", () => {
-    const equipment = createEmptyEquipment();
-    const drought = { key: "manaDrought", value: 10, value2: 100 };
-    equipment.ring = makeItem("ring", { affixes: [drought] });
-    equipment.amulet = makeItem("amulet", { affixes: [drought] });
+    const overflow = { key: "manaOverflow", value: 50, value2: 100 };
+    equipment.ring = makeItem("ring", { affixes: [overflow] });
+    equipment.amulet = makeItem("amulet", { affixes: [overflow] });
     expect(computeStats(equipment).maxMana).toBe(0);
   });
 });
