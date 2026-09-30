@@ -8,3 +8,4 @@
 - テスト: `loot/affixes.test.ts` / `generator.test.ts` / `stats.test.ts`
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+- 性質が条件付きの増・倍を出すなら `s.modifiers = [...s.modifiers, {…}]` で差し替える（push しない）。見本は性質「懐」`purse`（持ち金 50 以上で増。閾値は `ECONOMY.build.pocketCoins`）

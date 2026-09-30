@@ -18,3 +18,4 @@
 - 集める順は `system/modifiers.ts` の `collectModifiers`（装備 → 誓約 → ジョブ → 武器種 → 持続の奥義 → 祝福の取得順 → スキルスロット順）。テストは `system/modifiers.test.ts`
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+- 銭の祝福の見本: 「守銭」`miser`（持つ型: 持ち金 20 につき増。`modifiers` の `per: { kind: "coins" }`）/ 「拾銭」`coinGleaner`（稼ぐ型: `onCoinPickup` の Rule）。`boonDefsWave3.ts`
