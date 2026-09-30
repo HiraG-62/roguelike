@@ -141,16 +141,18 @@ describe("フル QA の bossLog の集計", () => {
     expect(summary.map((s) => s.key), "章の順").toEqual(["kingSlime", "thiefKing"]);
   });
 
-  it("report の表に NaN・Infinity が出ず、目標の外の秒に * が付く", () => {
+  it("report の表に NaN・Infinity が出ず、秒・被弾に * が付かず、装備の注記がある", () => {
     const a = emptyBossRun();
-    a.records.push(rec("kingSlime", 20, 4, 2), rec("thiefKing", 90, 5, 2));
+    a.records.push(rec("kingSlime", 20, 4, 2), rec("thiefKing", 200, 12, 2));
     const md = buildBossLogSection([a], 10, 4).join("\n");
     expect(md).not.toMatch(/NaN|Infinity/);
     expect(md.startsWith("## ボス")).toBe(true);
     const slimeLine = md.split("\n").find((l) => l.startsWith("| kingSlime |")) ?? "";
-    expect(slimeLine, "スライム王の 20 秒は目標 40〜90 の外").toContain("| 20.0* |");
+    expect(slimeLine, "目標の外の秒にも * が付かない").toContain("| 20.0 |");
     const thiefLine = md.split("\n").find((l) => l.startsWith("| thiefKing |")) ?? "";
-    expect(thiefLine, "盗賊王の 90 秒は目標 60〜120 の内").toContain("| 90.0 |");
+    expect(thiefLine, "目標の外の秒・被弾にも * が付かない").toContain("| 200.0 | 12.0 |");
+    expect(md, "目標の秒の列が無い").not.toContain("目標の秒");
+    expect(md, "装備の注記がある").toContain("itemLevel 20 固定");
   });
 
   it("ボス戦が 1 度も無ければ、その旨を 1 行で書く", () => {

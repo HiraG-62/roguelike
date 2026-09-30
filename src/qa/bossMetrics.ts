@@ -241,7 +241,7 @@ export function summarizeBossLog(tallies: readonly BossRunTally[]): BossLogSumma
 
 /**
  * フル QA の report.md の「## ボス」節。runs = ラン本数、runDeaths = 力尽きたラン数。
- * 撃破の秒・被弾・ダウンは撃破できた戦いの中央値（目標の幅の外は * を付ける）
+ * 撃破の秒・被弾・ダウンは撃破できた戦いの中央値（ダウンだけ目標の下限未満に * を付ける。秒・被弾の目標は probe.md の「## ボス」と比べる）
  */
 export function buildBossLogSection(tallies: readonly BossRunTally[], runs: number, runDeaths: number): string[] {
   const lines = ["## ボス（bossLog。撃破 = 封鎖から撃破までの秒・封鎖中の被弾・ダウン。docs/ideas/boss-impl.md 5 章）", ""];
@@ -250,24 +250,22 @@ export function buildBossLogSection(tallies: readonly BossRunTally[], runs: numb
     lines.push("ボス戦は 1 度も起きなかった。", "");
     return lines;
   }
-  lines.push("| ボス | 戦闘 | 撃破 | 死亡 | 撃破の秒（中央値） | 目標の秒 | 被弾（中央値） | ダウン（中央値） |");
-  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
+  lines.push("| ボス | 戦闘 | 撃破 | 死亡 | 撃破の秒（中央値） | 被弾（中央値） | ダウン（中央値） |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const s of summary) {
-    const target = BOSS_TARGETS[s.key];
-    const seconds = target ? flag(s.secondsMedian, target.seconds) : fmt(s.secondsMedian);
     const downs = s.downsMedian !== null && s.downsMedian < DOWNS_TARGET_MIN ? `${fmt(s.downsMedian)}*` : fmt(s.downsMedian);
-    lines.push(
-      `| ${s.key} | ${s.fights} | ${s.defeats} | ${s.deaths} | ${seconds} | ${target ? rangeText(target.seconds) : "-"} | ${flag(s.hitsMedian, HITS_TARGET)} | ${downs} |`,
-    );
+    lines.push(`| ${s.key} | ${s.fights} | ${s.defeats} | ${s.deaths} | ${fmt(s.secondsMedian)} | ${fmt(s.hitsMedian)} | ${downs} |`);
   }
   lines.push("");
   const bossDeaths = tallies.reduce((n, t) => n + t.diedIn.length, 0);
   const deepDefeats = tallies.reduce((n, t) => n + t.records.filter((r) => r.key === "deepLord").length, 0);
-  lines.push(
-    `- ボス戦で死んだラン: ${bossDeaths} / 死亡したラン ${runDeaths}（${pct(bossDeaths, runDeaths)}。目標 ${rangeText([20, 30])}%）`,
-  );
+  lines.push(`- ボス戦で死んだラン（参考）: ${bossDeaths} / 死亡したラン ${runDeaths}（${pct(bossDeaths, runDeaths)}）`);
   lines.push(`- 踏破率（最深の主を倒したラン）: ${deepDefeats} / ${runs}（${pct(deepDefeats, runs)}。標準の bot の目標 ${rangeText([5, 15])}%）`);
-  lines.push("- `*` は目標の外。撃破の秒・被弾・ダウンの目標は docs/ideas/boss-impl.md 5 章。ダウンは怯み + 自傷のダウンの回数", "");
+  lines.push(
+    "- フル QA の装備は itemLevel 20 固定（simulation.test.ts の buildProfile）で、章ボスの階では深度相応の 3〜4 倍の火力。撃破の秒・被弾を目標と比べるのは probe.md「## ボス」",
+    "- `*` はダウンが目標の下限未満。ダウンは怯み + 自傷のダウンの回数",
+    "",
+  );
   return lines;
 }
 

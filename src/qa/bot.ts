@@ -129,6 +129,10 @@ const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawnin
  * 引っかかっている遠い追跡者へ直進して詰まらないよう、近い敵だけを相手にする（遠い敵は来るまで探索を続ける）
  */
 const ENGAGE_RANGE = 240;
+/** 閉じた扉の判定で線分をたどる刻み（px）。タイルより細かければ扉を飛び越えない */
+const LOCK_PROBE_STEP = 4;
+/** 届かないハートの経路を引き直すまでの間隔（秒）。毎フレーム BFS しないため */
+const HEART_PATH_RETRY = 1;
 /** 部屋の目標地点にこの距離まで来ても制圧できていなければ、その部屋の残りの敵を探しに行く（px） */
 const ROOM_ARRIVE_DIST = TILE_SIZE * 2;
 /**
@@ -192,6 +196,8 @@ export interface BotState {
   triedWares: WeakSet<Ware>;
   /** この階で市の台座を追った累計秒（MARKET_GIVE_UP で諦める。階が変わると 0） */
   marketTime: number;
+  /** 届かないハートの経路を次に引き直せるまでの秒（heartWaypoint） */
+  heartRetry: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -216,6 +222,7 @@ export function createBotState(seed: number): BotState {
     hiddenDoorTime: 0,
     triedWares: new WeakSet(),
     marketTime: 0,
+    heartRetry: 0,
   };
 }
 
@@ -433,7 +440,7 @@ function shouldRushStairs(state: GameState, bot: BotState): boolean {
  * 含めてしまうと、フロア生成時点で全部屋に散らばった敵まで直線的に狙って
  * 壁に頭を突っ込んだまま止まってしまう（実際にこれで詰まるバグを確認した）
  */
-function nearestEngagedEnemy(state: GameState): Enemy | null {
+export function nearestEngagedEnemy(state: GameState): Enemy | null {
   let best: Enemy | null = null;
   let bestDist = Infinity;
   for (const e of state.enemies) {
@@ -444,13 +451,25 @@ function nearestEngagedEnemy(state: GameState): Enemy | null {
     if (bossArmorBlocks(state, e)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
-    if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos)) continue;
+    if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos) || crossesLockedTile(state, state.player.body.pos, e.body.pos)) continue;
     if (d < bestDist) {
       bestDist = d;
       best = e;
     }
   }
   return best;
+}
+
+/** 線分が封鎖中の扉（lockedTiles）を通るか（視線はマップの壁しか見ないので、閉じた扉越しの敵を狙わないために足す） */
+function crossesLockedTile(state: GameState, a: Vec, b: Vec): boolean {
+  if (state.lockedTiles.size === 0) return false;
+  const n = Math.max(1, Math.ceil(dist(a, b) / LOCK_PROBE_STEP));
+  for (let k = 0; k <= n; k++) {
+    const x = a.x + ((b.x - a.x) * k) / n;
+    const y = a.y + ((b.y - a.y) * k) / n;
+    if (state.lockedTiles.has(toIndex(state.map, Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE)))) return true;
+  }
+  return false;
 }
 
 function isThreatening(e: Enemy): boolean {
@@ -685,6 +704,25 @@ function ensurePath(state: GameState, bot: BotState, goal: Vec): void {
   bot.pathIndex = 0;
 }
 
+/**
+ * ハートへ向かう次のウェイポイント。閉じた扉の向こうなど経路で届かないハートへは壁越しに押し続けず null を返す。
+ * 経路は使い回し、届かなかったときも HEART_PATH_RETRY 秒は引き直さない（毎フレーム BFS しない）
+ */
+function heartWaypoint(state: GameState, bot: BotState, heart: Vec, dt: number): Vec | null {
+  bot.heartRetry = Math.max(0, bot.heartRetry - dt);
+  const reusable =
+    bot.path !== null && bot.pathGoal !== null && dist(bot.pathGoal, heart) <= GOAL_CHANGE_THRESHOLD && bot.pathIndex < bot.path.length;
+  if (!reusable) {
+    if (bot.heartRetry > 0) return null;
+    ensurePath(state, bot, heart);
+    if (bot.path === null) {
+      bot.heartRetry = HEART_PATH_RETRY;
+      return null;
+    }
+  }
+  return currentWaypoint(bot, state.player.body.pos) ?? heart;
+}
+
 /** 経路上の次のウェイポイント。到達済みの分は進める */
 function currentWaypoint(bot: BotState, pos: Vec): Vec | null {
   const path = bot.path;
@@ -906,6 +944,8 @@ function explorationInput(state: GameState, bot: BotState, dt: number): FrameInp
   if (roomIndex !== null) {
     goal = roomTargetPoint(state, state.rooms[roomIndex]!);
     if (dist(goal, pos) < ROOM_ARRIVE_DIST) bot.arrivedRoomIndex = roomIndex;
+    // 封鎖中の部屋にもう入っているなら、部屋の目標地点を経ずに残りの敵へ向かう（大きな塊の部屋で目標地点に着けず敵を探さないのを防ぐ）
+    if (state.rooms[roomIndex]?.locked) bot.arrivedRoomIndex = roomIndex;
     if (bot.arrivedRoomIndex === roomIndex) goal = nearestRoomEnemy(state, roomIndex) ?? goal;
   } else {
     if (!bot.stairsPos) bot.stairsPos = findStairsPos(state);
@@ -975,7 +1015,8 @@ function decideInput(state: GameState, bot: BotState, dt: number): FrameInput {
   const p = state.player;
   if (p.hp / p.maxHp <= LOW_HP_RATIO) {
     const heart = pickHeartTarget(state);
-    if (heart) return moveOnlyInput(steerToward(state, bot, heart, dt));
+    const waypoint = heart ? heartWaypoint(state, bot, heart, dt) : null;
+    if (waypoint) return moveOnlyInput(steerToward(state, bot, waypoint, dt));
   }
 
   // 砲身化の構え中は動けない。bot は砲撃を狙わず、ダッシュで構えを解いて立ち往生しない
