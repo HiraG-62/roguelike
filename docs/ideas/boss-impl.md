@@ -397,7 +397,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 - `BossHooks` に `chainWindupMul`（連撃の続きの予備動作の倍をボスごとに変える）・`recoverTime`（硬直の秒）を足した。`signatureOf(key, move, hooks)`（署名の技の組み立て）と `noteBossDown`（ダウン回数を `bossLog` へ）が `bossKit.ts` / `bossRecord.ts` に入った
 - `deepLord.json` の新しい葉: `beamLength` / `collapseMinInner` / `collapseFade` / `handFall`（2-6 の一覧に無い）
 - 撃破の後始末は `settleThiefKingRoom`（柵・地雷）/ `settleMirrorKnightRoom`（写し身と姿見）/ `settleDeepLordRoom`（門柱・崩れる床の予約・借りた地雷）。残ると部屋の封鎖が解けない（レビューで見つかった不具合）
-- ボスの QA（F）と `qa/bot.ts` の `bossArmorBlocks` の 1 行は未実施（6 章 10。無敵の門柱の間は bot が本体を殴り続ける）
+- ボスの QA（F）は取り込み済み（`qa/bossMetrics.ts` / `qa/bossProbe.ts`、フル QA の「## ボス」、`qa:probe -- --bosses`、bot は `bossArmorBlocks` の敵を狙わない）。結果: 撃破は目標より速い・深度相応の装備の bot は最深の主に 5/5 で倒れる・盗賊王 / 油壺の王 / 鏡の騎士は行為で進む段階が 0%（数値は `src/qa/probe.md` の「## ボス」）
 
 ## 参照（絶対パス）
 
