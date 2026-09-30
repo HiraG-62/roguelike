@@ -121,6 +121,15 @@ function addMorale(state: GameState, amount: number): void {
 }
 
 /**
+ * 量で戦意を足す（Rule の gainMorale。型の出来事の量・溜まりの倍 moraleGainMul は掛けない）。
+ * 導出の型（溜め・傷・鎖…）は毎ステップ値を作り直すので足しても残らない。足さずに捨てる
+ */
+export function addMoraleAmount(state: GameState, amount: number): void {
+  if (currentForm(state).morale.derived) return;
+  addMorale(state, amount);
+}
+
+/**
  * 出来事で戦意を溜める（各フックから 1 行）。scale は出来事の量（受けたダメージ・秒）を掛けるときに渡す。
  * 型がその出来事を持たなければ何もしない。導出の型は溜め込まない
  */

@@ -1,0 +1,3 @@
+{
+  "_note": "名のある遺物の固有の数値（loot/named.ts の UniqueDef と system/namedRelics.ts が読む。docs/ideas/relics-7d-plan.md 3 章）。遺物ごとに 1 ブロック（key は UniqueDef.key）。_fields は最初の項目と一緒に足す（空の _fields は validate が落とす）"
+}

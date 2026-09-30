@@ -1,6 +1,7 @@
 import { type IncreasedTable, type MoreMul, createIncreased } from "../core/damage";
 import { type ElementTable, uniformElements } from "../core/element";
-import type { Modifier } from "../core/rules";
+import type { BoonAction } from "../core/build";
+import type { Modifier, Rule } from "../core/rules";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
 import { ATTR, ECONOMY, MANA } from "../data/tuning";
@@ -328,6 +329,16 @@ export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi", "def"] as const;
 export type AttrKey = (typeof ATTR_KEYS)[number];
 export type Attributes = Record<AttrKey, number>;
 
+/** ステータスの表示名（docs/GLOSSARY.md）。装備画面・振り分けパネル・Tips・流儀の説明で共有する */
+export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
+  str: "筋力",
+  dex: "技巧",
+  vit: "体力",
+  mnd: "精神",
+  spi: "霊力",
+  def: "防御",
+};
+
 /**
  * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。共鳴の色対応・散光・「5 種全部を参照する行動」の
  * 判定はこちら。防御は色を持たない別軸のステータスなので、5 種すべてを求めるテスト・ロジックはこちらを使う
@@ -391,6 +402,11 @@ export interface PlayerStats {
   more: readonly MoreMul[];
   /** 装備が出す常時の増・倍（core/rules.ts の Modifier。条件付き・〜につき）。more と同じく差し替えで足す */
   modifiers: readonly Modifier[];
+  /**
+   * 装備が出す「〜時: 〜」（core/rules.ts の Rule。転じ・名のある遺物）。装備スロット順に畳み、collectRules が先頭で集める。
+   * modifiers と同じく差し替えで足す
+   */
+  rules: readonly Rule[];
 
   meleeDamageFlat: number;
   attackSpeedMul: number;
@@ -483,6 +499,10 @@ export interface PlayerStats {
   coinGainMul: number;
   /** 持てる瓶の本数（既定は ECONOMY.flask.max。system/flask.ts） */
   flaskMax: number;
+  /** 自分が敵に付ける状態異常の重ねの上限への加算（種類ごと。system/statusEffects.ts の maxStacks が敵側だけに足す） */
+  statusStackCapBonus: Readonly<Partial<Record<StatusKind, number>>>;
+  /** 加護の枠の加算（行動ごと。名のある遺物の 3 枠目。system/boons.ts の graceSlotsOf が足す） */
+  graceSlotBonus: Readonly<Partial<Record<BoonAction, number>>>;
 }
 
 /**
@@ -945,6 +965,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   increased: Object.freeze(createIncreased()),
   more: Object.freeze([]),
   modifiers: Object.freeze([]),
+  rules: Object.freeze([]),
 
   meleeDamageFlat: 0,
   attackSpeedMul: 1,
@@ -1008,4 +1029,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   coinSpillMul: 1,
   coinGainMul: 1,
   flaskMax: ECONOMY.flask.max,
+  statusStackCapBonus: Object.freeze({}),
+  graceSlotBonus: Object.freeze({}),
 };

@@ -17,6 +17,7 @@ import { damageEnemy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
 import { engagedRoomIndex } from "./engagement";
 import { isFavoredWeapon, jobRules } from "./jobs";
+import { keystoneRules } from "./keystones";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 import { spawnBomb } from "./hazards";
@@ -35,7 +36,7 @@ import { ultimateBlocksEnergy, ultimateReady } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
 import { onManaSource } from "./manaSources";
-import { releaseTerrainRadiusBonus } from "./morale";
+import { addMoraleAmount, releaseTerrainRadiusBonus } from "./morale";
 import type { TriggerEffectKind } from "../loot/types";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
 import { statsBulletHas } from "../loot/bullets";
@@ -107,12 +108,14 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
 
 /**
  * 今のビルドが持つ Rule を固定順で集める（決定性: 同じ状態なら同じ順）。
- * 装備スロット → 共鳴 → 誓約 → ジョブ → 祝福の取得順 → スキルスロット順 → 部屋 → 敵 id 順。
- * 装備（tr:）は fireTrigger が即時に照合する。共鳴・誓約・部屋の Rule はまだ無い（置き場ができたらここへ足す）。
+ * 装備 → 誓約 → ジョブ → 武器種 → 改鋳 → 持続の奥義 → 祝福の取得順 → スキルスロット順 → 敵 id 順。
+ * 装備の Rule は computeStats が stats.rules に装備スロット順で畳んだもの（転じ・名のある遺物）。
+ * 装備トリガー（tr:）は fireTrigger が即時に照合するのでここには入らない。
  * 敵の Rule はイベントの対象ごとに enemyRulesOf が引く
  */
 export function collectRules(state: GameState): Rule[] {
   const out: Rule[] = [];
+  out.push(...state.stats.rules, ...keystoneRules(state.stats.keystones));
   out.push(...jobRules(state.job));
   // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
   out.push(...movesetRules(state.stats.moveset));
@@ -355,6 +358,7 @@ function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
     case "gainCoins":
     case "spendCoins":
     case "scatterCoins":
+    case "gainMorale":
       // applyMigratedEffect が扱い済み
       return;
     case "tally":
@@ -432,6 +436,9 @@ function applyMigratedPlayerEffect(state: GameState, effect: Readonly<RuleEffect
     case "spendCoins":
     case "scatterCoins":
       applyCoinRuleEffect(state, effect.kind, magnitude, ev.pos);
+      return true;
+    case "gainMorale":
+      addMoraleAmount(state, magnitude);
       return true;
     default:
       return false;

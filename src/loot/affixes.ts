@@ -5,6 +5,7 @@ import type { StatusKind, StatusProc } from "../core/status";
 import { formatMeters } from "../core/units";
 import { ECONOMY, HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
 import type { EventSource } from "../core/events";
+import type { KeywordProfile } from "../core/keywords";
 import { type Modifier, ruleId } from "../core/rules";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
 import {
@@ -54,7 +55,9 @@ export type AffixTag =
   /** マナ（最大・自然回復・回収・コスト）を動かす */
   | "mana"
   /** スキル（スキル石）に効く */
-  | "skill";
+  | "skill"
+  /** 条件の族（条件を満たす間だけ効く。代償を持たない。docs/ideas/relics-7d-plan.md 1-1） */
+  | "condition";
 
 /** ロール幅。value2 を持つアフィックスは min2/max2 も持つ */
 export interface RollRange {
@@ -123,6 +126,8 @@ export interface AffixDef {
    * provenance.ts の節目が名指ししたときだけ芽の片方に出る
    */
   awakening?: boolean;
+  /** 共鳴の数えに使う語（出す / 食う / 強める。system/resonance.ts が遺物 1 つにつき語ごと最大 1 と数える） */
+  keywords?: KeywordProfile;
   apply: ApplyFn;
 }
 

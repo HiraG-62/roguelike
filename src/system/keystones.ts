@@ -1,6 +1,6 @@
 import type { DamageTag, MoreMul } from "../core/damage";
 import type { EventSource } from "../core/events";
-import { type Modifier, type RuleCondition, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleCondition, ruleId } from "../core/rules";
 import type { Enemy, GameState, Player } from "../core/state";
 import { dist } from "../core/vec";
 import type { PlayerStats } from "../loot/types";
@@ -123,6 +123,19 @@ const KEYSTONE_MODIFIERS: Readonly<Partial<Record<string, readonly Modifier[]>>>
 export function keystoneModifiers(keys: readonly string[]): Modifier[] {
   const out: Modifier[] = [];
   for (const key of keys) out.push(...(KEYSTONE_MODIFIERS[key] ?? []));
+  return out;
+}
+
+/**
+ * 誓約の Rule（「〜時: 〜」で書ける誓約。collectRules が装備の直後に集める）。
+ * 置き場だけ先に作る（段取り 7d の前置き。中身は誓約の作り直しで足す）
+ */
+const KEYSTONE_RULES: Readonly<Partial<Record<string, readonly Rule[]>>> = {};
+
+/** 持っている誓約の Rule（持っている順） */
+export function keystoneRules(keys: readonly string[]): Rule[] {
+  const out: Rule[] = [];
+  for (const key of keys) out.push(...(KEYSTONE_RULES[key] ?? []));
   return out;
 }
 

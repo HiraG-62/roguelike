@@ -17,6 +17,7 @@ import {
   type ResonanceRules,
 } from "./resonance";
 import { collectInnate } from "./innate";
+import { applyNamedRelics } from "./named";
 import { gearContext, gearContextCleared, scaleByProvenance } from "./traitContext";
 import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
 
@@ -130,6 +131,7 @@ function createBaseStats(): PlayerStats {
     ...DEFAULT_STATS,
     increased: { ...DEFAULT_STATS.increased },
     more: [],
+    rules: [],
     keystones: [...DEFAULT_STATS.keystones],
     triggers: [...DEFAULT_STATS.triggers],
     resonance: {
@@ -143,6 +145,8 @@ function createBaseStats(): PlayerStats {
     traits: { ...DEFAULT_STATS.traits },
     resist: { ...DEFAULT_STATS.resist },
     infuse: { ...DEFAULT_STATS.infuse },
+    statusStackCapBonus: { ...DEFAULT_STATS.statusStackCapBonus },
+    graceSlotBonus: { ...DEFAULT_STATS.graceSlotBonus },
   };
 }
 
@@ -230,6 +234,7 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
  * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う / 無色の誓い: 全性質 +20%）
  * 4. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
  *    地金（全部位。今の深度 depth で決め直す: innate.ts の innateAt）→ 装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
+ *    続けて名のある遺物の固有（rules / modifiers / 加護の枠 / apply。named.ts の applyNamedRelics）を装備スロット順に
  * 5. 共鳴の効果を畳み込む。星座（6 部位の主色の並び）が成立していればその効果も（虚空は 3 の後に反転を打ち消す）
  * 6. 速さの倍率にソフトキャップ
  * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。与ダメは倍（more）に入る。HP 倍率も flat 合算後に掛かる）
@@ -248,6 +253,7 @@ export function computeStats(equipment: Equipment, depth = 1): PlayerStats {
   const rolls = constellation === "void" ? cancelInversions(adjusted) : adjusted;
   // 地金は共鳴の調整・来歴の段数・色の配合を通さず、性質と同じ段階（flat → scale → convert）で先に畳む
   applyStaged(stats, [...collectInnate(equipment, depth), ...rolls.filter((r) => !isKeystoneKey(r.key))]);
+  applyNamedRelics(stats, equipment);
   applyResonanceEffect(stats, resonance, rules);
   if (constellation !== undefined) applyConstellation(stats, constellation);
   applySoftCaps(stats);

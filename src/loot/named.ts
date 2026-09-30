@@ -1,5 +1,8 @@
+import type { BoonAction, BuildChange } from "../core/build";
+import type { KeywordProfile } from "../core/keywords";
+import type { Modifier, Rule } from "../core/rules";
 import { baseDef } from "./bases";
-import type { Slot } from "./types";
+import { type Equipment, type PlayerStats, type Slot, SLOTS } from "./types";
 
 /**
  * 名のある遺物（旧 unique）。性質は固定（値は小さく揺らぐ）、誓約も固定。
@@ -20,6 +23,21 @@ export interface UniqueDef {
   keystone?: string;
   /** フレーバー 1 行 */
   flavor?: string;
+  // ---- 段取り 7d（docs/ideas/relics-7d-plan.md 3 章）。畳み方は applyNamedRelics ----
+  /** 固有の「〜時: 〜」（owner は { kind: "item", key: この key }）。stats.rules へ装備スロット順に積む */
+  rules?: readonly Rule[];
+  /** 固有の常時の増・倍。stats.modifiers へ装備スロット順に積む */
+  modifiers?: readonly Modifier[];
+  /** Rule / Modifier で書けない固有の数値（stats を直接書き換える） */
+  apply?: (stats: PlayerStats) => void;
+  /** 共鳴の数えに使う語（遺物 1 つの出どころに足す。system/resonance.ts） */
+  keywords?: KeywordProfile;
+  /** 柱 7 の審査: この遺物で何が変わるか */
+  changes?: BuildChange;
+  /** 加護の枠を 1 つ開く行動（3 枠目。stats.graceSlotBonus に +1） */
+  graceSlot?: BoonAction;
+  /** 生成時の余白（省略は名のある遺物の既定） */
+  margin?: number;
 }
 
 export const UNIQUES: readonly UniqueDef[] = [
@@ -761,4 +779,32 @@ export function uniquesFor(slot: Slot, depth: number): UniqueDef[] {
 
 export function uniqueDef(key: string): UniqueDef | undefined {
   return UNIQUES.find((u) => u.key === key);
+}
+
+/**
+ * 装備している名のある遺物の固有を stats に畳む（computeStats が性質の適用の直後に呼ぶ）。
+ * 決定性のため装備スロット順（SLOTS）。rules / modifiers は差し替えで足す（列は複数の stats で共有されうる）。
+ * lookup は定義の引き方（テストで表に無い遺物を差し込むため。本体は uniqueDef）
+ */
+export function applyNamedRelics(
+  stats: PlayerStats,
+  equipment: Equipment,
+  lookup: (key: string) => UniqueDef | undefined = uniqueDef,
+): void {
+  for (const slot of SLOTS) {
+    const key = equipment[slot]?.namedKey;
+    const def = key === undefined ? undefined : lookup(key);
+    if (def === undefined) continue;
+    applyNamedRelic(stats, def);
+  }
+}
+
+function applyNamedRelic(stats: PlayerStats, def: UniqueDef): void {
+  if (def.rules !== undefined && def.rules.length > 0) stats.rules = [...stats.rules, ...def.rules];
+  if (def.modifiers !== undefined && def.modifiers.length > 0) stats.modifiers = [...stats.modifiers, ...def.modifiers];
+  if (def.graceSlot !== undefined) {
+    const action = def.graceSlot;
+    stats.graceSlotBonus = { ...stats.graceSlotBonus, [action]: (stats.graceSlotBonus[action] ?? 0) + 1 };
+  }
+  def.apply?.(stats);
 }
