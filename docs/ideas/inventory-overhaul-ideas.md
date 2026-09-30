@@ -4,6 +4,8 @@
 前提: `docs/DESIGN_PRINCIPLES.md`・`docs/LOOT_DESIGN.md`・`docs/recipes/stash.md`・`docs/GLOSSARY.md`・`docs/ideas/graphics-style.md`・`docs/ideas/map-overhaul-ideas.md`（章のテーマと配色）と、`synergy-web.md` / `loot-identity.md` / `build-core.md` / `core-synthesis.md` / `boon-impl.md` / `run-arc.md` の持ち物・共鳴・系譜・刻印符の部分を読んだ。今の装備画面（`src/ui/inventory.ts` ほか）は 5 タブ（装備 / ステータス / スキル / 残響 / 流れ）で、どのタブも「左に一覧・右に 164px の詳細欄」。入力はマウスのホバーとクリック（破壊は Shift+クリック 2 回）、祝福はステータスタブの「効果」頁の一覧、共鳴は流れタブにある。文字は 4 倍描画（`RENDER_SCALE`）で SMALL = 8 論理 px（字形は 16 ドット）、BODY = 12 論理 px（倍率 m=3）。別 Agent の現状解析（スクショ付き）の結論は 0 章で受けた。
 凡例: コスト S = 数時間 / M = 1〜2 日 / L = 数日以上。面白さ ★1〜5（UI の案では「触って気持ちいいか・迷わないか」で付ける）。図は 1 文字 = 4px（全角 1 字 = 8px = SMALL の 1 字）・1 行 = 10px の目安で、寸法は各図の下の表が正。図の中の遺物・祝福・技の名前と数は例。
 
+見本ページ: `docs/ideas/previews/inventory-preview.html`（単体の HTML。ブラウザで開くと案を切り替えて見比べられる。公開版 https://claude.ai/artifact/Ry4XzZiHcJ4LyxppTomxYQ）
+
 ## 結論
 
 1. タブを「仕組みを足した順」の 5 つから、**旅装（ビルド全体の 1 枚）を家にして 遺物 / スキル / 祝福 の 3 頁へ潜る 4 頁**に作り直す。ステータス・共鳴・効果・奥義は旅装に溶かし、流れは旅装から開く「語の表」、残響は鍛冶場で開いた遺物頁の右半分にする

@@ -1,0 +1,2119 @@
+<title>持ち物画面の見本</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+:root {
+  color-scheme: dark;
+  /* ページの外側 */
+  --page-bg: #0a090c;
+  --page-panel: #141216;
+  --page-line: #3a3640;
+  --page-tx: #e8e2d4;
+  --page-sub: #9a948a;
+  --page-dim: #5c5852;
+  --page-accent: #c83a2a;
+  --page-focus: #fff4d0;
+
+  /* G4 推奨: 墨染めの帳 + 漆の縁 */
+  --g4-paper: #141216; --g4-fiber-a: #1c1a20; --g4-fiber-b: #100e12;
+  --g4-card: #1e1b22; --g4-card2: #2a2630; --g4-rule: #3a3640;
+  --g4-tx: #e8e2d4; --g4-sub: #9a948a; --g4-dim: #5c5852; --g4-ink: #141216;
+  --g4-focus: #fff4d0; --g4-shu: #c83a2a; --g4-gold: #c8a050;
+  --g4-fr1: #2a282c; --g4-fr2: #b0342c; --g4-fr3: #c8a050;
+  --g4-gold-hi: #f0d890; --g4-gold-lo: #7a5a28;
+  --g4-up: #8fd08a; --g4-down: #ff7a70;
+  /* G3 墨染めの帳 */
+  --g3-rule-fr: #3a3640;
+  /* G2 漆の盆 */
+  --g2-paper: #120a0b; --g2-fiber-a: #1c1012; --g2-fiber-b: #0a0506;
+  --g2-card: #1e1113; --g2-card2: #33191c; --g2-rule: #8a6a30;
+  --g2-fr1: #050304; --g2-fr2: #c0342a; --g2-fr3: #d8b060;
+  /* G5 素のピクセル */
+  --g5-paper: rgba(14, 16, 28, 0.88); --g5-fiber-a: rgba(20, 24, 40, 0.88); --g5-fiber-b: rgba(10, 12, 22, 0.88);
+  --g5-card: #1c2034; --g5-card2: #2a3050; --g5-rule: #3c4462;
+  --g5-tx: #eef0f6; --g5-sub: #a0a6b8; --g5-dim: #5a607a; --g5-ink: #0e101c;
+  --g5-focus: #ffffff; --g5-accent: #8cb4ff; --g5-hi: #d8e0f0; --g5-lo: #07080f;
+  /* G1 巻物 */
+  --g1-paper: #e6dcc4; --g1-fiber-a: #d9cdb0; --g1-fiber-b: #efe7d4;
+  --g1-card: #ddd1b4; --g1-card2: #cbbd98; --g1-rule: #9a8a6a;
+  --g1-tx: #221e1a; --g1-sub: #5e5446; --g1-dim: #9a8e78;
+  --g1-focus: #1a1a24; --g1-rod: #5a3a22; --g1-rod-hi: #8a6040; --g1-knob: #c8a050;
+  --g1-up: #2f7a2a; --g1-down: #b8322a;
+  /* 今の画面（再現） */
+  --cur-paper: #0d0d14; --cur-card: #14141e; --cur-card2: #25252f; --cur-line: #4a4a58;
+  --cur-tx: #d8d8e0; --cur-sub: #8a8a9a; --cur-dim: #50505e; --cur-sel: #ffd75f; --cur-help: #6ab0e8;
+  --cur-warn: #ff6060;
+
+  /* 語の色（G-3 の 5 家族） */
+  --kw-act: #d8d0bc;
+  --kw-melee: var(--kw-act); --kw-ranged: var(--kw-act); --kw-dash: var(--kw-act); --kw-just: var(--kw-act);
+  --kw-combo: var(--kw-act); --kw-finisher: var(--kw-act); --kw-counter: var(--kw-act); --kw-still: var(--kw-act);
+  --kw-placed: var(--kw-act); --kw-area: var(--kw-act); --kw-bullet: var(--kw-act); --kw-explode: var(--kw-act); --kw-wall: var(--kw-act);
+  --kw-mana: #7890f0; --kw-energy: #c8a050; --kw-crit: #fff4d0;
+  --kw-lowHp: #ff7a70; --kw-hurt: #ff7a70; --kw-kill: #ff7a70; --kw-stagger: #ff7a70; --kw-elite: #ff7a70;
+  --kw-heal: #8fd08a; --kw-ward: #8fd08a; --kw-clear: #8fd08a; --kw-reaction: #8fd08a;
+  --kw-burn: #f07038; --kw-chill: #80c8f0; --kw-shock: #e6dc50; --kw-poison: #98d048; --kw-bleed: #e0485a;
+  --kw-vulnerable: #f088b8; --kw-weaken: #b898c0; --kw-fear: #b080f0; --kw-silence: #8c90f0;
+  --kw-elFire: #f07038; --kw-elIce: #80c8f0; --kw-elLightning: #e6dc50; --kw-elPoison: #98d048;
+  --kw-elDark: #a078e0; --kw-elLight: #f0e8c0; --kw-elNone: #c8c8c8;
+  --kw-crimson: #e8553a; --kw-azure: #3a8ee8; --kw-jade: #49c46b; --kw-gold: #f2c84b; --kw-umbra: #9a5ae0; --kw-inverted: #a070e0;
+  /* 今の語の色（流れタブの再現に使う） */
+  --old-kw-a: #e0e0e0; --old-kw-b: #ffd75f; --old-kw-c: #ff7030; --old-kw-d: #80d0ff; --old-kw-e: #ffff60;
+  --old-kw-f: #80ffd0; --old-kw-g: #ff6060; --old-kw-h: #6080ff; --old-kw-i: #ffe040; --old-kw-j: #c03030;
+  /* 系譜 9 色 */
+  --ln-ash: #e0582e; --ln-frost: #9fd6f0; --ln-thunder: #e6dc50; --ln-moon: #a078e0; --ln-earth: #b88a48;
+  --ln-blade: #b8c0c8; --ln-cycle: #6cc08a; --ln-horde: #b04868; --ln-wealth: #e0a030;
+  --ln-core: #d8d0bc; --ln-curse: #9a5ae0;
+  /* 性質の分類 5 色 */
+  --tr-crimson: #e8553a; --tr-azure: #3a8ee8; --tr-jade: #49c46b; --tr-gold: #f2c84b; --tr-umbra: #9a5ae0;
+  /* 揺らぎ */
+  --fx-sei: #b0a898; --fx-yu: #6ec3d4; --fx-ara: #f08a3c; --fx-han: #a070e0; --fx-mei: #c8a050;
+  /* 章の差し色 */
+  --ch-hub: #c83a2a; --ch-1: #c8e878; --ch-2: #ffb45a; --ch-3f: #ff7a2a; --ch-3i: #b8e4ff; --ch-4: #b27cff; --ch-deep: #c83a2a;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page-bg);
+  color: var(--page-tx);
+  font-family: 'DotGothic16', 'MS Gothic', 'Osaka-Mono', 'Noto Sans Mono CJK JP', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.wrap { max-width: 1960px; margin: 0 auto; padding: 16px; }
+.top h1 { font-size: 22px; font-weight: normal; margin: 0 0 4px; letter-spacing: 1px; }
+.top p { margin: 0 0 12px; color: var(--page-sub); max-width: 60em; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 10px; }
+.ctl .grp { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ctl .lab { color: var(--page-sub); margin-right: 4px; font-size: 13px; }
+.btn {
+  font: inherit; font-size: 13px; color: var(--page-tx); background: var(--page-panel);
+  border: 1px solid var(--page-line); padding: 3px 8px; cursor: pointer; line-height: 1.4;
+}
+.btn:hover { border-color: var(--page-sub); }
+.btn[aria-pressed="true"] { background: var(--page-accent); border-color: var(--page-accent); color: var(--page-tx); }
+.btn:focus-visible, .stage:focus-visible { outline: 2px solid var(--page-focus); outline-offset: 2px; }
+.jump { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; align-items: center; }
+.stage {
+  width: 100%; overflow: hidden; background: var(--page-bg); outline: none;
+  border: 1px solid var(--page-line);
+}
+.notes { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.notes .card { background: var(--page-panel); border: 1px solid var(--page-line); padding: 10px 12px; }
+.notes h2 { font-size: 15px; font-weight: normal; margin: 0 0 4px; color: var(--page-focus); }
+.notes ul { margin: 0; padding-left: 1.2em; }
+.notes li { margin: 2px 0; }
+.notes .sub { color: var(--page-sub); }
+.keys { color: var(--page-sub); font-size: 13px; margin-top: 8px; }
+.keys b { color: var(--page-tx); font-weight: normal; border: 1px solid var(--page-line); padding: 0 4px; margin: 0 2px; }
+
+/* ===== ゲーム画面（480x270 の論理座標。zoom で整数倍） ===== */
+.screen {
+  position: relative; width: 480px; height: 270px; overflow: hidden;
+  font-size: 8px; line-height: 10px; letter-spacing: 0;
+  image-rendering: pixelated;
+  color: var(--tx); cursor: default; user-select: none; -webkit-user-select: none;
+  -webkit-font-smoothing: none;
+}
+.screen canvas.bgc { position: absolute; left: 0; top: 0; width: 480px; height: 270px; image-rendering: pixelated; }
+.screen .paper { position: absolute; inset: 0; background-color: var(--paper); background-size: 64px 64px; image-rendering: pixelated; }
+.screen .frame { position: absolute; inset: 0; pointer-events: none; }
+.screen .ui { position: absolute; inset: 0; }
+.screen svg { display: block; shape-rendering: crispEdges; image-rendering: pixelated; }
+
+/* 意匠ごとの色の割り当て */
+.screen[data-g="g4"], .screen[data-g="g3"] {
+  --paper: var(--g4-paper); --fa: var(--g4-fiber-a); --fb: var(--g4-fiber-b);
+  --card: var(--g4-card); --card2: var(--g4-card2); --rule: var(--g4-rule);
+  --tx: var(--g4-tx); --sub: var(--g4-sub); --dim: var(--g4-dim); --ink: var(--g4-ink);
+  --focus: var(--g4-focus); --shu: var(--g4-shu); --gold: var(--g4-gold);
+  --up: var(--g4-up); --down: var(--g4-down);
+  --fr1: var(--g4-fr1); --fr2: var(--g4-fr2); --fr3: var(--acc, var(--g4-fr3));
+  --tab-on: var(--acc-tab, var(--g4-shu)); --tab-on-tx: var(--acc-tx, var(--g4-tx)); --tab-off: var(--g4-card); --tab-off-tx: var(--g4-sub);
+  --band: var(--g4-shu); --band-tx: var(--g4-tx);
+}
+.screen[data-g="g2"] {
+  --paper: var(--g2-paper); --fa: var(--g2-fiber-a); --fb: var(--g2-fiber-b);
+  --card: var(--g2-card); --card2: var(--g2-card2); --rule: var(--g2-rule);
+  --tx: var(--g4-tx); --sub: var(--g4-sub); --dim: var(--g4-dim); --ink: var(--g2-paper);
+  --focus: var(--g4-focus); --shu: var(--g2-fr2); --gold: var(--g2-fr3);
+  --up: var(--g4-up); --down: var(--g4-down);
+  --fr1: var(--g2-fr1); --fr2: var(--g2-fr2); --fr3: var(--acc, var(--g2-fr3));
+  --tab-on: var(--acc-tab, var(--g2-fr2)); --tab-on-tx: var(--acc-tx, var(--g4-tx)); --tab-off: var(--g2-card); --tab-off-tx: var(--g4-sub);
+  --band: var(--g2-fr2); --band-tx: var(--g4-tx);
+}
+.screen[data-g="g5"] {
+  --paper: var(--g5-paper); --fa: var(--g5-fiber-a); --fb: var(--g5-fiber-b);
+  --card: var(--g5-card); --card2: var(--g5-card2); --rule: var(--g5-rule);
+  --tx: var(--g5-tx); --sub: var(--g5-sub); --dim: var(--g5-dim); --ink: var(--g5-ink);
+  --focus: var(--g5-focus); --shu: var(--acc, var(--g5-accent)); --gold: var(--g5-hi);
+  --up: var(--g4-up); --down: var(--g4-down);
+  --fr1: var(--g5-lo); --fr2: var(--g5-hi); --fr3: var(--g5-lo);
+  --tab-on: var(--acc, var(--g5-hi)); --tab-on-tx: var(--g5-ink); --tab-off: var(--g5-card); --tab-off-tx: var(--g5-sub);
+  --band: var(--g5-card2); --band-tx: var(--g5-tx);
+}
+.screen[data-g="g1"] {
+  --paper: var(--g1-paper); --fa: var(--g1-fiber-a); --fb: var(--g1-fiber-b);
+  --card: var(--g1-card); --card2: var(--g1-card2); --rule: var(--g1-rule);
+  --tx: var(--g1-tx); --sub: var(--g1-sub); --dim: var(--g1-dim); --ink: var(--g1-tx);
+  --focus: var(--g1-focus); --shu: var(--g4-shu); --gold: var(--g1-rod);
+  --up: var(--g1-up); --down: var(--g1-down);
+  --fr1: var(--g1-rule); --fr2: var(--g1-paper); --fr3: var(--g1-rule);
+  --tab-on: var(--acc-tab, var(--g4-shu)); --tab-on-tx: var(--acc-tx, var(--g1-paper)); --tab-off: var(--g1-card); --tab-off-tx: var(--g1-sub);
+  --band: var(--g4-shu); --band-tx: var(--g1-paper);
+}
+.screen[data-g="g1"] { --kw-act: #a89878; --ln-core: #8a7a5a; --ln-blade: #7a8490; }
+.screen[data-g="g2"] .pane { box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 0 2px var(--g2-fr1); }
+.screen[data-g="g2"] .pane .band { top: 2px; left: 2px; right: 2px; box-shadow: inset 0 -1px 0 0 var(--gold); }
+.screen[data-g="g2"] .sec::after { background: var(--gold); opacity: 0.6; }
+.screen[data-g="cur"] {
+  --paper: var(--cur-paper); --fa: var(--cur-paper); --fb: var(--cur-paper);
+  --card: var(--cur-card); --card2: var(--cur-card2); --rule: var(--cur-line);
+  --tx: var(--cur-tx); --sub: var(--cur-sub); --dim: var(--cur-dim); --ink: var(--cur-paper);
+  --focus: var(--cur-sel); --shu: var(--cur-sel); --gold: var(--cur-sel);
+  --up: #60ff80; --down: var(--cur-warn);
+}
+
+/* 外枠（9-slice 相当は inset の段の影で描く。ぼかしは無し） */
+.screen[data-g="g4"] .frame, .screen[data-g="g2"] .frame {
+  box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 2px var(--fr2), inset 0 0 0 3px var(--fr3);
+}
+.screen[data-g="g2"] .frame {
+  box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 3px var(--fr2), inset 0 0 0 4px var(--fr3);
+}
+.screen[data-g="g3"] .frame { box-shadow: inset 0 0 0 1px var(--g4-fr1), inset 0 0 0 2px var(--g3-rule-fr); }
+.screen[data-g="g5"] .frame { box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 2px var(--fr2), inset 0 0 0 3px var(--fr3); }
+.screen[data-g="g1"] .frame { box-shadow: inset 1px 0 0 0 var(--g1-rule), inset -1px 0 0 0 var(--g1-rule); }
+.screen[data-g="cur"] .frame { box-shadow: inset 0 0 0 8px transparent; }
+.corner { position: absolute; width: 8px; height: 8px; }
+.corner.tl { left: 0; top: 0; } .corner.tr { right: 0; top: 0; transform: scaleX(-1); }
+.corner.bl { left: 0; bottom: 0; transform: scaleY(-1); } .corner.br { right: 0; bottom: 0; transform: scale(-1, -1); }
+.rod { position: absolute; left: 0; width: 480px; height: 3px; background: var(--g1-rod); box-shadow: inset 0 1px 0 0 var(--g1-rod-hi); }
+.rod.top { top: 0; } .rod.bot { bottom: 0; }
+.knob { position: absolute; width: 4px; height: 5px; background: var(--g1-knob); }
+
+/* 箱と文字 */
+.b { position: absolute; }
+.t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.il { display: inline-block; vertical-align: top; }
+.row { position: absolute; display: flex; align-items: flex-start; white-space: nowrap; }
+.big { font-size: 12px; line-height: 12px; }
+.sub { color: var(--sub); }
+.dim { color: var(--dim); }
+.tx { color: var(--tx); }
+.up { color: var(--up); } .down { color: var(--down); }
+.gap2 { margin-left: 2px; } .gap4 { margin-left: 4px; } .gap6 { margin-left: 6px; } .gap8 { margin-left: 8px; }
+.wrapt { white-space: normal; word-break: normal; overflow-wrap: anywhere; line-break: strict; overflow: hidden; }
+
+/* 区画の見出し（朱の菱 + 下に墨の罫） */
+.sec { position: absolute; height: 10px; display: flex; align-items: flex-start; }
+.sec .dia { margin: 2px 3px 0 0; }
+.sec .st { color: var(--sub); line-height: 8px; height: 8px; }
+.sec::after { content: ""; position: absolute; left: 2px; right: 2px; bottom: 0; height: 1px; background: var(--rule); }
+.sec .aside { position: absolute; right: 0; top: 0; color: var(--dim); line-height: 8px; }
+.screen[data-g="g5"] .sec .dia, .screen[data-g="cur"] .sec .dia { display: none; }
+
+/* 罫（かすれ 3 種を固定の並びで） */
+.hr { position: absolute; height: 1px; background-image: repeating-linear-gradient(90deg, var(--rule) 0 23px, transparent 23px 24px, var(--rule) 24px 51px, transparent 51px 52px, var(--rule) 52px 71px, transparent 71px 72px); }
+.vr { position: absolute; width: 1px; background-image: repeating-linear-gradient(180deg, var(--rule) 0 29px, transparent 29px 30px, var(--rule) 30px 61px, transparent 61px 62px); }
+.screen[data-g="g2"] .hr, .screen[data-g="g2"] .vr { background-image: none; background-color: var(--rule); }
+
+/* 頁札 */
+.tabs { position: absolute; left: 10px; top: 3px; height: 13px; display: flex; gap: 2px; }
+.tab { height: 13px; padding: 0 4px; font-size: 12px; line-height: 13px; background: var(--tab-off); color: var(--tab-off-tx); cursor: pointer;
+  clip-path: polygon(1px 0, calc(100% - 1px) 0, 100% 1px, 100% 100%, 0 100%, 0 1px); }
+.tab.on { background: var(--tab-on); color: var(--tab-on-tx); }
+.screen[data-g="g2"] .tab.on { box-shadow: inset 0 1px 0 0 var(--gold); }
+.screen[data-g="g3"] .tab { background: transparent; }
+.screen[data-g="g3"] .tab.on { background: transparent; color: var(--tx); box-shadow: inset 0 -1px 0 0 var(--shu); padding-left: 9px; position: relative; }
+.screen[data-g="g3"] .tab.on::before { content: ""; position: absolute; left: 2px; top: 4px; width: 5px; height: 5px; background: var(--shu); }
+.qe { position: absolute; top: 5px; color: var(--dim); line-height: 8px; }
+.money { position: absolute; right: 8px; top: 5px; display: flex; gap: 6px; line-height: 8px; color: var(--tx); align-items: flex-start; }
+.money .cur { display: inline-block; width: 8px; height: 8px; font-size: 6px; }
+
+/* 一字の印（10x10） */
+.gb { display: inline-block; width: 10px; height: 10px; font-size: 8px; line-height: 10px; text-align: center; vertical-align: top; flex: none; overflow: hidden; }
+.gb.s { background: var(--c); color: var(--g4-ink); }
+.gb.k { box-shadow: inset 0 0 0 1px var(--c); color: var(--c); }
+.gb.a { box-shadow: inset 0 0 0 1px var(--c); color: var(--c);
+  background: linear-gradient(var(--c), var(--c)) 2px 2px / 2px 1px no-repeat, linear-gradient(var(--c), var(--c)) 2px 2px / 1px 2px no-repeat,
+    linear-gradient(var(--c), var(--c)) right 2px bottom 2px / 2px 1px no-repeat, linear-gradient(var(--c), var(--c)) right 2px bottom 2px / 1px 2px no-repeat; }
+.gb + .gb { margin-left: 1px; }
+.lb { display: inline-block; color: var(--dim); margin-right: 1px; flex: none; }
+.lb + .gb { margin-left: 0; }
+.gb + .lb { margin-left: 3px; }
+/* 札の印（新 / 愛 / が / 芽 / 誓 / 名 / 装） */
+.mk { display: inline-block; width: 10px; height: 10px; font-size: 8px; line-height: 10px; text-align: center; vertical-align: top; flex: none; }
+.mk.new { background: var(--shu); color: var(--g4-tx); }
+.pane .band .mk.new { background: var(--g4-tx); color: var(--g4-shu); }
+.mk.new.seen { background: transparent; color: var(--dim); box-shadow: inset 0 0 0 1px var(--dim); }
+.mk.fav { background: var(--gold); color: var(--g4-ink); }
+.mk.junk { box-shadow: inset 0 0 0 1px var(--dim); color: var(--dim); }
+.mk.bud { box-shadow: inset 0 0 0 1px var(--up); color: var(--up); }
+.mk.oath { box-shadow: inset 0 0 0 1px var(--tr-umbra); color: var(--tr-umbra); }
+.mk.named { box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 0 2px var(--paper); color: var(--gold); }
+.mk.eq { box-shadow: inset 0 0 0 1px var(--sub); color: var(--sub); }
+.mk + .mk { margin-left: 1px; }
+.slotic { display: inline-block; width: 12px; height: 12px; line-height: 12px; text-align: center; box-shadow: inset 0 0 0 1px var(--sub); color: var(--tx); flex: none; }
+.slotic.w { box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold); }
+/* 系譜の紋・札の枠（14x14） */
+.bc { display: inline-block; width: 14px; height: 14px; line-height: 14px; text-align: center; font-size: 8px; vertical-align: top; flex: none; position: relative;
+  background: var(--card); color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+.bc.grace { clip-path: polygon(1px 0, 13px 0, 14px 1px, 14px 13px, 13px 14px, 1px 14px, 0 13px, 0 1px); background: var(--c); color: var(--g4-ink); }
+.bc.apex { box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--c); }
+.bc.core { box-shadow: inset 0 0 0 2px var(--c); }
+.bc.temper::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 2px; height: 1px; background: var(--c); }
+.bc.cursed::before { content: ""; position: absolute; right: 1px; top: 1px; width: 2px; height: 2px; background: var(--tr-umbra); }
+.bc.fuse { background: linear-gradient(90deg, var(--c) 0 7px, var(--c2) 7px 14px); color: var(--g4-ink); }
+.bc.empty { box-shadow: none; background: transparent;
+  background-image: repeating-linear-gradient(90deg, var(--dim) 0 1px, transparent 1px 2px), repeating-linear-gradient(90deg, var(--dim) 0 1px, transparent 1px 2px),
+    repeating-linear-gradient(180deg, var(--dim) 0 1px, transparent 1px 2px), repeating-linear-gradient(180deg, var(--dim) 0 1px, transparent 1px 2px);
+  background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%; background-position: 0 0, 0 100%, 0 0, 100% 0; background-repeat: no-repeat; }
+.bc.locked { box-shadow: inset 0 0 0 1px var(--rule); background: transparent; color: var(--rule); }
+.bc.nm { box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--gold); color: var(--gold); background: var(--card); }
+
+/* 刻印符の刻み（6x6 の菱） */
+.notch { display: inline-block; width: 7px; height: 7px; flex: none; vertical-align: top; }
+.notch + .notch { margin-left: 1px; }
+
+/* 段の点（5x5） */
+.dots { display: inline-flex; gap: 1px; vertical-align: top; margin-top: 2px; flex: none; }
+
+/* キーの札 */
+.kc { display: inline-block; height: 10px; padding: 0 2px; line-height: 10px; color: var(--tx); box-shadow: inset 0 0 0 1px var(--sub); margin-right: 3px; flex: none;
+  clip-path: polygon(1px 0, calc(100% - 1px) 0, 100% 1px, 100% calc(100% - 1px), calc(100% - 1px) 100%, 1px 100%, 0 calc(100% - 1px), 0 1px); }
+.foot { position: absolute; left: 8px; right: 8px; top: 256px; height: 10px; display: flex; gap: 10px; white-space: nowrap; color: var(--sub); line-height: 10px; }
+.foot .it { display: flex; }
+.foot .it .kc { margin-left: 3px; margin-right: 0; }
+
+/* 焦点（白金 2px + 朱の楔） */
+.fring { position: absolute; pointer-events: none; box-shadow: inset 0 0 0 2px var(--focus); display: none; z-index: 5; }
+.fring.on { display: block; }
+.fring .wedge { position: absolute; left: -4px; top: 50%; margin-top: -4px; width: 3px; height: 7px; }
+.screen[data-g="cur"] .fring { box-shadow: inset 0 0 0 1px var(--cur-sel); }
+.screen[data-g="cur"] .fring .wedge { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .fring { transition: left 60ms steps(3), top 60ms steps(3), width 60ms steps(3), height 60ms steps(3); }
+  .fring .wedge { animation: breathe 1.2s steps(1) infinite; }
+  .fx-stamp { animation: stamp 0.35s steps(4) forwards; }
+  .fx-dot { animation: splash 0.3s steps(5) forwards; }
+  .fx-wipe { animation: wipe 0.2s steps(8) forwards; }
+  .lit-flash { animation: litf 0.3s steps(2) 1; }
+  .blink { animation: blink 0.5s steps(1) 2; }
+}
+@keyframes breathe { 0% { transform: translateX(0); } 50% { transform: translateX(-1px); } }
+@keyframes stamp { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes splash { to { transform: translate(var(--dx), var(--dy)); opacity: 0; } }
+@keyframes wipe { from { width: 0; } to { width: 100%; } }
+@keyframes litf { 50% { filter: brightness(1.6); } }
+@keyframes blink { 50% { opacity: 0.2; } }
+
+.foc { cursor: pointer; }
+.row.zebra, .b.zebra { background: rgba(255, 255, 255, 0.03); }
+.screen[data-g="g1"] .row.zebra, .screen[data-g="g1"] .b.zebra { background: rgba(0, 0, 0, 0.04); }
+.focusbg { background: var(--card2) !important; }
+.bar2 { position: absolute; left: 0; top: 1px; width: 2px; height: 9px; }
+
+/* 語の灯 */
+.kwrow.lit-dim { opacity: 0.35; }
+.kwrow.lit-src { background: color-mix(in srgb, var(--litc) 22%, transparent) !important; }
+.kwrow.lit-sink { box-shadow: inset 0 0 0 1px var(--litc); }
+
+/* 詳細欄 */
+.pane { position: absolute; background: var(--card); box-shadow: inset 0 0 0 1px var(--rule); }
+.pane .band { position: absolute; left: 1px; right: 1px; top: 1px; height: 14px; background: var(--band); color: var(--band-tx); padding: 1px 4px 0; font-size: 12px; line-height: 12px;
+  display: flex; justify-content: space-between; align-items: flex-start; }
+.pane .band .t { flex: 1 1 auto; min-width: 0; }
+.screen[data-g="g3"] .pane .band { background: transparent; color: var(--tx); padding-left: 10px; box-shadow: inset 0 -1px 0 0 var(--rule); }
+.screen[data-g="g3"] .pane .band::before { content: ""; position: absolute; left: 3px; top: 4px; width: 5px; height: 5px; background: var(--shu); }
+.pane .body { position: absolute; left: 4px; right: 4px; top: 18px; overflow: hidden; }
+.pane .body .l { min-height: 10px; line-height: 10px; }
+.pane .body .l.t { height: 10px; }
+.pane .ops { position: absolute; left: 4px; right: 4px; bottom: 2px; height: 30px; }
+.pane .ops::before { content: ""; position: absolute; left: 0; right: 0; top: -2px; height: 1px; background: var(--rule); }
+.pane .ops .op { height: 10px; line-height: 10px; display: flex; white-space: nowrap; overflow: hidden; }
+.pane .ops .op span.opx { cursor: pointer; }
+.pane .rulei { height: 1px; background: var(--rule); margin: 2px 0 3px; }
+.jumpl { text-decoration: underline; text-decoration-color: var(--dim); text-underline-offset: 1px; cursor: pointer; }
+
+/* 小窓（並びの候補） */
+.pop { position: absolute; background: var(--card); box-shadow: inset 0 0 0 1px var(--sub); z-index: 4; }
+
+/* 演出 */
+.fx { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.fx-stamp { position: absolute; width: 12px; height: 12px; background: var(--shu); color: var(--g4-tx); line-height: 12px; text-align: center; font-size: 8px; }
+.fx-dot { position: absolute; width: 1px; height: 1px; background: var(--shu); }
+.fx-wipe { position: absolute; height: 11px; background: var(--g4-ink); width: 100%; }
+.ring { position: absolute; width: 9px; height: 9px; z-index: 7; pointer-events: none; }
+
+/* 今の画面の再現 */
+.cur-tab { position: absolute; top: 9px; font-size: 12px; line-height: 14px; color: var(--sub); cursor: pointer; white-space: nowrap; }
+.cur-tab.on { color: var(--tx); box-shadow: inset 0 -1px 0 0 var(--cur-sel); }
+.cur-box { position: absolute; box-shadow: inset 0 0 0 1px var(--cur-line); }
+.cur-help { position: absolute; right: 10px; top: 10px; height: 11px; padding: 0 3px; line-height: 11px; color: var(--cur-help); box-shadow: inset 0 0 0 1px var(--cur-help); }
+
+@media (max-width: 520px) {
+  .wrap { padding: 16px; }
+  .top h1 { font-size: 18px; }
+  .btn { font-size: 12px; padding: 2px 6px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>持ち物画面の見本</h1>
+    <p>480x270 の論理座標を整数倍に拡大した 16:9 の箱に、持ち物のメニューの案を組んだ。箱をクリック（またはタップ）してからキーで触れる。構成と意匠と章の差し色を上のボタンで切り替える。見本のデータはコードの実名（遺物・性質・祝福・スキル石・刻印符・語）から組んだ。</p>
+  </header>
+
+  <section class="ctl" aria-label="切り替え">
+    <div class="grp" role="group" aria-label="構成"><span class="lab">構成</span>
+      <button class="btn" data-layout="cur">今の 5 タブ（再現）</button>
+      <button class="btn" data-layout="rec">推奨: 旅装 + 頁 + 語の表</button>
+      <button class="btn" data-layout="act">別案: 行動で割る（A2）</button>
+    </div>
+    <div class="grp" role="group" aria-label="意匠"><span class="lab">意匠</span>
+      <button class="btn" data-g="g4">G4 推奨 帳 + 漆の縁</button>
+      <button class="btn" data-g="g3">G3 墨染めの帳</button>
+      <button class="btn" data-g="g2">G2 漆の盆</button>
+      <button class="btn" data-g="g5">G5 素の 9-slice</button>
+      <button class="btn" data-g="g1">G1 巻物</button>
+    </div>
+    <div class="grp" role="group" aria-label="章の差し色"><span class="lab">章の差し色（G6）</span>
+      <button class="btn" data-ch="hub">拠点</button>
+      <button class="btn" data-ch="1">章 1</button>
+      <button class="btn" data-ch="2">章 2</button>
+      <button class="btn" data-ch="3f">章 3 炎</button>
+      <button class="btn" data-ch="3i">章 3 霜</button>
+      <button class="btn" data-ch="4">章 4</button>
+      <button class="btn" data-ch="deep">最深</button>
+    </div>
+  </section>
+
+  <div class="stage" id="stage" tabindex="0" aria-label="持ち物画面の見本。クリックしてからキーで操作する">
+    <div class="screen" id="screen" data-g="g4">
+      <canvas class="bgc" id="bgc" width="480" height="270"></canvas>
+      <div class="paper" id="paper"></div>
+      <div class="frame" id="frame"></div>
+      <div class="ui" id="ui"></div>
+      <div class="fring" id="fring"><svg class="wedge" width="3" height="7" viewBox="0 0 3 7"><rect x="0" y="0" width="1" height="7" fill="var(--shu)"/><rect x="1" y="1" width="1" height="5" fill="var(--shu)"/><rect x="2" y="2" width="1" height="3" fill="var(--shu)"/></svg></div>
+      <div class="fx" id="fx"></div>
+    </div>
+  </div>
+
+  <div class="jump" id="jump" aria-label="操作のボタン"></div>
+
+  <section class="notes">
+    <div class="card" id="note" aria-live="polite"></div>
+    <div class="card">
+      <h2>操作</h2>
+      <div class="keys" id="keys"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+// ============================================================
+// データ（名前はコードの実名: loot/named.ts・loot/affixes.ts・loot/bases.ts・system/boonDefs/*.ts・skills/*・core/keywords.ts）
+// ============================================================
+const KW = {
+  melee: ['剣', '近接'], ranged: ['射', '射撃'], dash: ['駆', 'ダッシュ'], just: ['見', '見切り'], combo: ['連', 'コンボ'],
+  finisher: ['終', '終撃'], counter: ['返', 'カウンター'], still: ['静', '静止'], mana: ['気', '気力'], energy: ['奥', '奥義ゲージ'],
+  lowHp: ['瀕', '瀕死'], heal: ['癒', '回復'], hurt: ['傷', '被弾'], ward: ['護', '障壁'], burn: ['炎', '燃焼'], chill: ['氷', '冷気'],
+  shock: ['雷', '感電'], poison: ['毒', '毒'], bleed: ['血', '出血'], vulnerable: ['脆', '脆弱'], weaken: ['弱', '弱体'], fear: ['怖', '恐怖'],
+  silence: ['黙', '沈黙'], stagger: ['怯', '怯み'], reaction: ['応', '反応'], placed: ['置', '設置物'], area: ['円', '範囲'], bullet: ['弾', '弾'],
+  explode: ['爆', '爆発'], wall: ['壁', '壁'], crit: ['会', '会心'], kill: ['撃', '撃破'], clear: ['制', '制圧'], elite: ['精', '精鋭'],
+  elFire: ['焔', '炎属性'], elIce: ['凍', '氷属性'], elLightning: ['轟', '雷属性'], elPoison: ['瘴', '毒属性'], elDark: ['闇', '闇属性'], elLight: ['光', '光属性'],
+};
+const KW_ORDER = Object.keys(KW);
+// 共鳴の数え（balance/RESONANCE: 源 2・糧 2 で 1 段、源 + 糧 が 3 増えるごとに +1、強め 1 で +1、上限 3、1 段 x1.15）
+const RES = { minSrc: 2, minSink: 2, every: 3, max: 3, mul: 0.15 };
+const STAT_KW = new Set(['dash', 'just', 'mana', 'heal', 'ward']);
+
+const SLOTS = ['main', 'head', 'armor', 'boots', 'ring', 'amulet'];
+const SLOT_LABEL = { main: '右手', head: '頭', armor: '体', boots: '足', ring: '指輪', amulet: '首飾り' };
+const SLOT_GLYPH = { main: '刀', head: '頭', armor: '体', boots: '足', ring: '指', amulet: '首' };
+const COLOR_ADJ = { crimson: '紅を帯びた', azure: '蒼く冴えた', jade: '翠に芽吹く', gold: '金に閃く', umbra: '冥く淀んだ' };
+const TRAIT_ORDER = ['crimson', 'azure', 'jade', 'gold', 'umbra'];
+const ATTR = [['str', '筋', '筋力'], ['dex', '技', '技巧'], ['vit', '体', '体力'], ['mnd', '精', '精神'], ['spi', '霊', '霊力'], ['def', '防', '防御']];
+const FLUX_COLOR = { '静': 'var(--fx-sei)', '揺': 'var(--fx-yu)', '荒': 'var(--fx-ara)', '反': 'var(--fx-han)', '名': 'var(--fx-mei)' };
+const FLUX_LONG = { '静': '静', '揺': '揺', '荒': '荒', '反': '反転あり', '名': '名のある遺物' };
+const ACT = ['primary', 'secondary', 'dash', 'skill', 'ultimate'];
+const ACT_SHORT = { primary: '左', secondary: '右', dash: '駆', skill: '技', ultimate: '奥' };
+const ACT_LONG = { primary: '左', secondary: '右', dash: 'ダッシュ', skill: 'スキル', ultimate: '奥義' };
+const LN = { ash: ['灰燼', '灰'], frost: ['霜枷', '霜'], thunder: ['雷鳴', '雷'], moon: ['月蝕', '月'], earth: ['大地', '地'], blade: ['刃鳴', '刃'], cycle: ['輪廻', '輪'], horde: ['眷属', '眷'], wealth: ['財宝', '財'] };
+const CARD = { grace: '加護', law: '摂理', temper: '研鑽', apex: '真髄', core: '芯', cursed: '呪い付き' };
+const WEAPON_ULT = { '刀': ['一刀両断', '燕舞', '無想'], '大剣': ['断罪', '巨人の膂力', '地割り'], '双剣': ['千刃', '朧渡り', '残影'] };
+
+const ITEMS0 = [
+  // ---- 装備中 ----
+  { id: 'e1', slot: 'main', base: '打刀', wk: '刀', inscr: '王殺しの不屈', flux: '揺', margin: 0, depth: 6, innate: { str: 3 }, prov: '撃破 812 / ボス 2', af: [
+    { t: '終撃の与ダメージ +18%', c: 'crimson', co: ['finisher'], acts: ['primary', 'secondary'] },
+    { t: '12%の確率で炎上（4ダメージ/秒）', c: 'crimson', p: ['burn'], acts: ['primary', 'secondary'] },
+    { t: '瀕死の間、与ダメージ +12%', c: 'umbra', co: ['lowHp'], acts: ACT }] },
+  { id: 'e2', slot: 'head', base: '額冠', named: '星読みの眼', flux: '名', margin: 1, depth: 8, innate: { mnd: 1 }, flavor: '星の巡りに比べれば、振りかぶる腕などゆっくりだ。', kw: { co: ['counter'] }, af: [
+    { t: '予備動作中の敵への与ダメージ +20%', c: 'gold', co: ['counter'], acts: ACT }] },
+  { id: 'e3', slot: 'armor', base: '鎖帷子', flux: '静', margin: 2, depth: 4, innate: { def: 2 }, af: [
+    { t: '怯み中の敵へのダメージ +15%', c: 'crimson', co: ['stagger'], acts: ACT },
+    { t: '15%の確率で炎上（3ダメージ/秒）', c: 'crimson', p: ['burn'], acts: ['primary', 'secondary'] }] },
+  { id: 'e4', slot: 'boots', base: '草鞋', named: '旅人の靴', flux: '名', margin: 1, depth: 5, flavor: '道のりは靴底に溜まる。蹴り出す一歩のために。', kw: { co: ['dash'] }, af: [
+    { t: '先制の後 2 秒間、与ダメージ +10%', c: 'azure', acts: ACT }] },
+  { id: 'e5', slot: 'ring', base: '黒鉄の指輪', named: '鐘の舌', flux: '名', margin: 1, depth: 9, grace: 'ultimate', flavor: '九つまでは余韻。十で、鐘は割れるほど鳴る。', kw: { p: ['area'], co: ['finisher'] }, af: [
+    { t: '終撃の与ダメージ +16%', c: 'crimson', co: ['finisher'], acts: ['primary', 'secondary'] }] },
+  { id: 'e6', slot: 'amulet', base: '琥珀の首飾り', flux: '荒', margin: 1, depth: 7, bud: true, innate: { vit: 1 }, keystone: ['過駆動', '攻撃速度・連射速度 +60%。攻撃のたびに生命を1消費する。'], af: [
+    { t: '残り火: 燃えている敵を倒すと、足元に炎を 3 秒置く、炎耐性 -10%', c: 'crimson', p: ['burn'], co: ['burn', 'kill'], acts: ACT },
+    { t: '撃破時8%の確率で爆発（14ダメージ）', c: 'crimson', p: ['explode'], co: ['kill'], acts: ACT }] },
+  // ---- 倉庫 ----
+  { id: 's1', slot: 'main', base: '太刀', wk: '刀', flux: '荒', margin: 3, depth: 12, isNew: true, innate: { dex: 4 }, af: [
+    { t: '18%の確率で感電、6ダメージが連鎖', c: 'gold', p: ['shock'], acts: ['primary', 'secondary'] },
+    { t: '先制の後 2 秒間、与ダメージ +15%', c: 'azure', acts: ACT }] },
+  { id: 's2', slot: 'main', base: '打刀', wk: '刀', flux: '揺', margin: 1, depth: 7, innate: { str: 2 }, af: [
+    { t: '見切りの後 3 秒間、与ダメージ +14%', c: 'gold', co: ['just'], acts: ACT },
+    { t: '返し波: カウンター時、衝撃波を放つ（22 ダメージ）', c: 'crimson', p: ['area'], co: ['counter'], acts: ['secondary'] }] },
+  { id: 's3', slot: 'main', base: '太刀', wk: '刀', named: '空の鞘', flux: '名', margin: 2, depth: 9, mark: 'fav', grace: 'dash', flavor: '刃は抜かれない。抜かれぬまま、通り過ぎたものを斬っている。', kw: { co: ['dash'], am: ['dash'] }, af: [] },
+  { id: 's4', slot: 'main', base: '脇差', wk: '刀', flux: '揺', margin: 2, depth: 5, bud: true, innate: { dex: 2 }, af: [
+    { t: '18%の確率で炎上（3ダメージ/秒）', c: 'crimson', p: ['burn'], acts: ['primary', 'secondary'] },
+    { t: '構え: 近接を振っている間、被ダメージ -6%', c: 'jade', p: ['ward'], co: ['melee'], acts: ['primary', 'secondary'] }] },
+  { id: 's5', slot: 'main', base: '打刀', wk: '刀', flux: '静', margin: 3, depth: 3, mark: 'junk', innate: { str: 1 }, af: [
+    { t: '怯み中の敵へのダメージ +9%', c: 'crimson', co: ['stagger'], acts: ACT }] },
+  { id: 's6', slot: 'main', base: '斬馬刀', wk: '大剣', flux: '荒', margin: 2, depth: 10, innate: { str: 5 }, af: [
+    { t: '終撃の与ダメージ +24%', c: 'crimson', co: ['finisher'], acts: ['primary', 'secondary'] },
+    { t: '腐爆: 状態異常が 2 種以上の敵への近接命中で爆発する（30 ダメージ）、近接ダメージ -10%', c: 'umbra', p: ['explode'], co: ['reaction'], acts: ['primary', 'secondary'] }] },
+  { id: 's7', slot: 'main', base: '双短刀', wk: '双剣', named: '双頭の蛇', flux: '名', margin: 1, depth: 11, grace: 'secondary', innate: { dex: 3 }, flavor: '右の牙と左の牙。交互に噛むほど、毒は深く回る。', kw: { co: ['combo'] }, af: [
+    { t: '双撃の後 2 秒間、与ダメージ +16%', c: 'azure', co: ['combo'], acts: ACT }] },
+  { id: 's21', slot: 'main', base: '打刀', wk: '刀', flux: '反', margin: 2, depth: 8, af: [
+    { t: '崩れ雷: 敵を怯ませると連鎖雷を呼ぶ（12 ダメージ）', c: 'gold', p: ['shock'], co: ['stagger'], acts: ACT }] },
+  { id: 's8', slot: 'head', base: '鉢金', flux: '揺', margin: 2, depth: 11, isNew: true, innate: { def: 2 }, af: [
+    { t: '見切りの息吹: 見切りで気力 +6、ダッシュ再使用時間 +10%', c: 'azure', p: ['mana'], co: ['just'], acts: ['dash'] }] },
+  { id: 's9', slot: 'head', base: '三度笠', flux: '静', margin: 1, depth: 4, af: [
+    { t: '籠城: 交戦中の部屋で被ダメージ -8%', c: 'jade', p: ['ward'], co: ['clear'] }] },
+  { id: 's10', slot: 'head', base: '角兜', named: '骸の冠', flux: '名', margin: 1, depth: 10, flavor: '死者は冠の主に道を譲る。踏まれると、弾けて。', kw: { p: ['explode'], co: ['kill'] }, af: [] },
+  { id: 's22', slot: 'head', base: '頭巾', flux: '静', margin: 2, depth: 2, mark: 'junk', af: [
+    { t: '地形の上に立つ間、与ダメージ +6%', c: 'jade', acts: ACT }] },
+  { id: 's11', slot: 'armor', base: '狂戦士の皮鎧', flux: '静', margin: 1, depth: 5, af: [
+    { t: '奥義ゲージ満タン時に被弾: 0.2秒間無敵', c: 'gold', p: ['ward'], co: ['energy', 'hurt'] },
+    { t: '幕引き: 殲滅の瞬間に敵弾をすべて消し、奥義ゲージ +12', c: 'gold', p: ['energy'], co: ['clear'], acts: ['ultimate'] }] },
+  { id: 's12', slot: 'armor', base: '法衣', flux: '揺', margin: 2, depth: 6, mark: 'junk', af: [
+    { t: '気力が満ちている間、スキル威力 +12%', c: 'azure', co: ['mana'], acts: ['skill'] }] },
+  { id: 's13', slot: 'armor', base: '鱗鎧', named: '起死の鱗', flux: '名', margin: 1, depth: 12, isNew: true, flavor: '死の淵で、鱗は一枚だけ時を止める。', kw: { p: ['ward'], co: ['lowHp'] }, af: [] },
+  { id: 's14', slot: 'boots', base: '雪沓', flux: '荒', margin: 2, depth: 10, isNew: true, af: [
+    { t: '霜の轍: ダッシュの軌跡に氷床を 2 秒残す、ダッシュ距離 -10%', c: 'azure', p: ['chill'], co: ['dash'], acts: ['dash'] }] },
+  { id: 's15', slot: 'boots', base: '忍び足袋', flux: '揺', margin: 1, depth: 6, af: [
+    { t: '見切りの後 3 秒間、与ダメージ +12%', c: 'gold', co: ['just'], acts: ACT }] },
+  { id: 's16', slot: 'ring', base: 'ルビーの指輪', flux: '揺', margin: 2, depth: 7, mark: 'fav', af: [
+    { t: '燃焼の重ねの上限 +2', c: 'crimson', am: ['burn'] },
+    { t: '10%の確率で炎上（3ダメージ/秒）', c: 'crimson', p: ['burn'], acts: ['primary', 'secondary'] }] },
+  { id: 's17', slot: 'ring', base: '金の指輪', named: '招き猫', flux: '名', margin: 1, depth: 8, flavor: '右手で銭を招き、左手で落とし物を招く。', af: [
+    { t: '懐: 持ち金が 50 以上の間、与ダメージ +8%', c: 'crimson', acts: ACT }] },
+  { id: 's18', slot: 'ring', base: '骨の指輪', flux: '静', margin: 3, depth: 3, mark: 'junk', af: [
+    { t: '連鎖係数 +8%', c: 'gold', am: ['reaction'] }] },
+  { id: 's19', slot: 'amulet', base: '珊瑚の首飾り', named: '重ねの首飾り', flux: '名', margin: 1, depth: 9, flavor: '滅多に刺さらない。刺さったときは、三度刺さっている。', kw: { am: ['burn', 'poison', 'bleed'] }, af: [
+    { t: '命中時 10% で毒にする', c: 'umbra', p: ['poison'], acts: ACT }] },
+  { id: 's20', slot: 'amulet', base: '翡翠の首飾り', flux: '揺', margin: 2, depth: 11, isNew: true, af: [
+    { t: '土の息: 地形の上に立つ間、毎秒生命 +1、最大生命 -10', c: 'jade', p: ['heal'] }] },
+];
+
+// スキル石（skills/data.ts の名前・字・動詞・気力）。v = 変異（AXIS_LABEL の先頭 1 字）
+const STONES0 = [
+  { id: 'st1', n: '旋風斬り', g: '円', tags: '近接 / 範囲', res: '気力 20', poise: 7, v: ['範', '範囲 +16% / ダメージ -12%'], verb: 'その場で回って周りの敵を 3 度斬る', p: ['melee', 'area'], wear: 2 },
+  { id: 'st2', n: '燃え種爆ぜ', g: '爆', tags: '範囲 / 炎', res: '気力 14', poise: 10, v: ['再', 'コスト -9% / ダメージ -8%'], verb: 'カーソル周りの燃焼をすべて爆発に変える（残りの燃焼が多いほど強い）', p: ['explode'], co: ['burn'], wear: 1 },
+  { id: 'st3', n: '鎖鎌', g: '鎖', tags: '近接 / 投射', res: '気力 12', poise: 15, v: ['速', '発動時間 -9% / ダメージ -6%'], verb: '鎖を伸ばし、最初に当たった敵を手元へ引き寄せる', p: ['melee'], wear: 0 },
+  { id: 'st4', n: '墜星', g: '墜', tags: '近接 / 移動', res: '再使用 9s', poise: 12, v: ['範', '範囲 +8% / ダメージ -6%'], verb: '闇に紛れて跳び、着地点に闇の円を広げる', p: ['melee', 'dash', 'elDark'], wear: 0, isNew: true },
+  { id: 'st5', n: '伝染', g: '伝', tags: '範囲', res: '気力 14', poise: 0, v: ['持', '持続 +20% / 効果量 -12%'], verb: 'カーソル近くの敵の状態異常を、周りの敵へ持続半分で写す（元の敵からは消えない）', p: ['reaction', 'area'], co: ['burn', 'poison', 'bleed'], wear: 0, isNew: true },
+  { id: 'st6', n: '綻び', g: '綻', tags: '投射', res: '気力 16', poise: 8, v: ['再', 'コスト -12% / ダメージ -10%'], verb: '命中した敵の状態異常をすべて消し、種類が多いほど強く打つ', p: ['ranged'], co: ['burn', 'chill', 'shock', 'poison', 'bleed'], wear: 1 },
+  { id: 'st7', n: '結界杭', g: '杭', tags: '設置 / 範囲', res: '気力 15', poise: 3, v: ['回', '回数 +1 / ダメージ -15%'], verb: 'カーソル地点に杭を打つ（最大 3）。杭同士を結ぶ線に触れた敵を削り、3 本の内側の敵を脆くする', p: ['vulnerable', 'placed'], am: ['area'], wear: 0 },
+  { id: 'st8', n: '旋風斬り', g: '円', tags: '近接 / 範囲', res: '気力 20', poise: 7, v: ['再', 'コスト -12% / ダメージ -10%'], verb: 'その場で回って周りの敵を 3 度斬る', p: ['melee', 'area'], wear: 0 },
+];
+const RUNES = {
+  ghost: { n: '分身', g: '分', fam: '形', verb: '撃った位置から0.3秒後に60%の威力でもう一度発動、再使用時間 x1.2' },
+  charge: { n: '溜め', g: '溜', fam: '形', verb: '長押しで溜める（最大1.2秒）: ダメージ x1〜2.2、範囲 x1〜1.5', p: ['still'] },
+  refund: { n: '巡り', g: '巡', fam: '循環', verb: '命中1回ごとに払った気力の15%を返す（払った額まで）、ダメージ x0.9' },
+  pierce: { n: '貫き', g: '貫', fam: '形', verb: '弾・鎖が+2体貫通' },
+};
+const SLOT_LINKS = [4, 3, 2, 2];
+const COMBOS = [{ n: '引き回し', after: '鎖鎌', then: '旋風斬り', verb: '鎖鎌の直後の旋風斬りは、範囲が広く引き寄せた敵を押し出さない' },
+  { n: '総解き', after: '伝染', then: '綻び', verb: '伝染の直後の綻びは、命中した敵の周りの敵もまとめて綻ばせる' }];
+
+// 祝福 12 枚（system/boonDefs/*.ts の名前・説明・語）
+const BOONS = [
+  { id: 'b1', n: '火種', i: '火', card: 'grace', ln: 'ash', act: 'primary', gr: '大祝福', d: '攻撃 1 の終撃が当たると燃焼を付ける（3秒）。', p: ['burn'], co: ['finisher'], isNew: true },
+  { id: 'b2', n: '重ね刃', i: '層', card: 'grace', ln: 'blade', act: 'primary', gr: '並', d: '左の連撃が当たるたび、分身が同じ敵へ追撃する。', p: ['melee'], co: ['melee'] },
+  { id: 'b3', n: '断裂波', i: '裁', card: 'grace', ln: 'blade', act: 'secondary', gr: '並', d: '右の放出で照準方向へ貫通する衝撃波。', p: ['area', 'wall'], co: ['melee'] },
+  { id: 'b4', n: '火渡り', i: '渡', card: 'grace', ln: 'ash', act: 'dash', gr: '並', d: 'ダッシュで離れた場所に半径2mの炎を置く（3秒）。', p: ['burn', 'placed'], co: ['dash'] },
+  { id: 'b5', n: '静電気', i: '静', card: 'grace', ln: 'thunder', act: 'dash', gr: '神威', d: 'ダッシュの終わりに、自分から連鎖する雷を放つ。', p: ['shock'], co: ['dash'] },
+  { id: 'b6', n: '雷跳ね', i: '迸', card: 'grace', ln: 'thunder', act: 'skill', gr: '並', d: 'スキルが当たると、その敵から連鎖する雷が走る（0.4秒に1回）。', p: ['shock'], co: ['mana'] },
+  { id: 'b7', n: '焦土', i: '焦', card: 'grace', ln: 'ash', act: 'ultimate', gr: '並', d: '奥義で半径16mの燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。', p: ['explode'], co: ['energy', 'burn'] },
+  { id: 'b8', n: '延焼', i: '延', card: 'law', ln: 'ash', gr: '神威', d: '燃えている敵に近接・射撃・スキルを当てると、半径3.2mの敵へ燃焼が移る（強さ50%、0.3秒に1回）。', p: ['burn'], co: ['burn'] },
+  { id: 'b9', n: '落雷予告', i: '落', card: 'law', ln: 'thunder', gr: '並', d: '敵を麻痺させると、その敵に雷が落ちる。', p: ['shock'], co: ['shock'] },
+  { id: 'b10', n: '連綿', i: '綿', card: 'temper', ln: 'blade', gr: '並', tally: '最大コンボ 47', d: 'この探索の最大コンボ10につき近接の与ダメ+3%（上限なし）。', co: ['combo'], am: ['melee'] },
+  { id: 'b11', n: '拍の刻', i: '拍', card: 'core', d: 'コンボ1ごとに与ダメージ+2%（最大+80%）。代わりにコンボの猶予が-40%になり、被弾するとコンボが必ず0になる。', co: ['hurt'], am: ['combo'] },
+  { id: 'b12', n: '濡れ鼠', i: '鼠', card: 'cursed', d: '水たまりに踏み込むと気力が満ちる（6秒に1回）。その代わり、自分に濡れが3つ付く。', p: ['mana'], co: ['placed'] },
+];
+const FORM = { n: '剣', label: '応報', d: '敵の攻撃を待って取り、応報を溜めて放つ', p: ['melee', 'counter'], co: ['just'] };
+const JOB = { n: '剣士', d: '連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。' };
+const QUEST = { n: '燃え尽き', d: '燃焼中の敵を 50 体倒す。', now: 12, goal: 50, reward: '称号 灰を撒く者' };
+const STATUS_SELF = [{ g: '速', n: '加速', s: '5s', good: true, d: '移動と攻撃が速い。' }, { g: '硬', n: '硬化', s: '2s', good: true, d: '被ダメージが減る。' }];
+const BASE_ATTR = { str: 9, dex: 6, vit: 8, mnd: 6, spi: 5, def: 4 };
+const JOB_ATTR = { str: 2 };
+const LINEAGE_NEED = 4;
+const SORTS = ['部位ごと', '拾った順', '武器種', '深度', '揺らぎ', '色', '名前', '余白', '性質の数'];
+const FILTERS = [['new', '新', '新着'], ['fav', '愛', '愛用'], ['bud', '芽', '芽あり'], ['oath', '誓', '誓約'], ['named', '名', '名のある遺物']];
+
+// ============================================================
+// 状態
+// ============================================================
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const S = {
+  layout: 'rec', g: 'g4', ch: 'hub',
+  page: 'sheet', wide: false, lit: null, litIdx: 0,
+  focus: { sheet: 'r:main', relic: null, skill: 'sl:0', boon: 'g:primary:0', words: null, cur: null, act: null },
+  relicPart: 'main', sort: 0, filters: {}, pop: null,
+  items: clone(ITEMS0),
+  eq: { main: 'e1', head: 'e2', armor: 'e3', boots: 'e4', ring: 'e5', amulet: 'e6' },
+  stones: clone(STONES0),
+  slots: [{ st: 'st1', runes: ['ghost', 'charge'] }, { st: 'st2', runes: ['refund'] }, { st: 'st3', runes: ['pierce'] }, { st: null, runes: [] }],
+  skillSel: 0, lift: null, undo: null, jumps: [], seen: {},
+  curTab: 0, actPage: 'primary', ult: 1,
+};
+
+// ============================================================
+// 小さな道具
+// ============================================================
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const B = (x, y, w, h, cls, inner, attrs) => `<div class="b ${cls || ''}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px" ${attrs || ''}>${inner || ''}</div>`;
+const T = (s, cls) => `<span class="t ${cls || ''}">${esc(s)}</span>`;
+const kc = (k) => `<span class="kc">${esc(k)}</span>`;
+const kwc = (k) => `var(--kw-${k})`;
+const gb = (k, verb) => `<span class="gb ${verb}" style="--c:${kwc(k)}" title="${esc((KW[k] || ['', k])[1])}">${esc((KW[k] || ['?'])[0])}</span>`;
+const itemById = (id) => S.items.find((i) => i.id === id);
+const stoneById = (id) => S.stones.find((s) => s.id === id);
+const boonById = (id) => BOONS.find((b) => b.id === id);
+const uniq = (a) => KW_ORDER.filter((k) => a.includes(k));
+const diaSvg = '<svg class="dia" width="3" height="5" viewBox="0 0 3 5"><rect x="1" y="0" width="1" height="5" fill="var(--shu)"/><rect x="0" y="1" width="3" height="3" fill="var(--shu)"/></svg>';
+const sec = (x, y, w, title, aside) => `<div class="sec" style="left:${x}px;top:${y}px;width:${w}px">${diaSvg}<span class="st">${esc(title)}</span>${aside ? `<span class="aside">${aside}</span>` : ''}</div>`;
+function dotsSvg(n, max, color) {
+  let s = '<span class="dots">';
+  for (let i = 0; i < max; i++) {
+    const on = i < n;
+    s += `<svg width="5" height="5" viewBox="0 0 5 5">${on ? `<rect x="1" y="0" width="3" height="5" fill="${color}"/><rect x="0" y="1" width="5" height="3" fill="${color}"/>` : `<rect x="1" y="0" width="3" height="1" fill="var(--dim)"/><rect x="1" y="4" width="3" height="1" fill="var(--dim)"/><rect x="0" y="1" width="1" height="3" fill="var(--dim)"/><rect x="4" y="1" width="1" height="3" fill="var(--dim)"/>`}</svg>`;
+  }
+  return s + '</span>';
+}
+function notchSvg(filled, color) {
+  const c = filled ? color : 'var(--dim)';
+  const rects = filled
+    ? '<rect x="3" y="0" width="1" height="7"/><rect x="2" y="1" width="3" height="5"/><rect x="1" y="2" width="5" height="3"/><rect x="0" y="3" width="7" height="1"/>'
+    : '<rect x="3" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="4" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/>';
+  return `<svg class="notch" width="7" height="7" viewBox="0 0 7 7" fill="${c}">${rects}</svg>`;
+}
+const arrow = (d) => (d > 0 ? '<span class="up">▲</span>' : d < 0 ? '<span class="down">▼</span>' : '');
+
+function kwProfile(obj) {
+  const p = [], co = [], am = [];
+  const add = (src) => { if (!src) return; (src.p || []).forEach((k) => p.push(k)); (src.co || []).forEach((k) => co.push(k)); (src.am || []).forEach((k) => am.push(k)); };
+  add(obj);
+  add(obj.kw);
+  (obj.af || []).forEach(add);
+  return { p: uniq(p), co: uniq(co), am: uniq(am) };
+}
+function kwBadges(prof, opt) {
+  const o = opt || {};
+  let s = '';
+  if (prof.p.length) s += `${o.noLabel ? '' : '<span class="lb">源</span>'}${prof.p.map((k) => gb(k, 's')).join('')}`;
+  if (prof.co.length) s += `${o.noLabel ? '' : '<span class="lb">糧</span>'}${prof.co.map((k) => gb(k, 'k')).join('')}`;
+  if (prof.am.length) s += `${o.noLabel ? '' : '<span class="lb">強</span>'}${prof.am.map((k) => gb(k, 'a')).join('')}`;
+  return s;
+}
+const kwAttr = (prof) => `data-kp="${prof.p.join(' ')}" data-kc="${[...prof.co, ...prof.am].join(' ')}"`;
+
+function dominant(it) {
+  const n = {};
+  (it.af || []).forEach((a) => { n[a.c] = (n[a.c] || 0) + 1; });
+  let best = null, bc = 0;
+  TRAIT_ORDER.forEach((c) => { if ((n[c] || 0) > bc) { best = c; bc = n[c]; } });
+  return best;
+}
+const fullName = (it) => it.inscr || it.named || ((dominant(it) ? COLOR_ADJ[dominant(it)] : '') + it.base);
+const shortName = (it) => it.inscr || it.named || it.base;
+const weaponOf = (it) => it.wk || '';
+
+// ============================================================
+// 計算（state を変えない純関数。試着は写しで計算する）
+// ============================================================
+function sourcesOf(eq, slots) {
+  const src = [];
+  SLOTS.forEach((sl) => { const it = eq[sl] && itemById(eq[sl]); if (it) src.push({ name: shortName(it), kind: SLOT_LABEL[sl], ref: `item:${it.id}`, ...kwProfile(it) }); });
+  slots.forEach((s, i) => {
+    const st = s.st && stoneById(s.st);
+    if (!st) return;
+    const prof = kwProfile(st);
+    s.runes.forEach((r) => { const rp = kwProfile(RUNES[r]); prof.p = uniq([...prof.p, ...rp.p]); });
+    src.push({ name: st.n, kind: `スキル${i + 1}`, ref: `slot:${i}`, ...prof });
+  });
+  BOONS.forEach((b) => src.push({ name: b.n, kind: '祝福', ref: `boon:${b.id}`, ...kwProfile(b) }));
+  src.push({ name: `${FORM.n}の型`, kind: '型', ref: 'form', ...kwProfile(FORM) });
+  return src;
+}
+function resonance(eq, slots) {
+  const src = sourcesOf(eq, slots);
+  const out = {};
+  KW_ORDER.forEach((k) => {
+    const p = src.filter((s) => s.p.includes(k)), c = src.filter((s) => s.co.includes(k)), a = src.filter((s) => s.am.includes(k));
+    let step = 0;
+    if (p.length >= RES.minSrc && c.length >= RES.minSink) step = Math.min(RES.max, 1 + Math.floor((p.length + c.length - RES.minSrc - RES.minSink) / RES.every) + a.length);
+    const miss = Math.max(0, RES.minSrc - p.length) + Math.max(0, RES.minSink - c.length);
+    out[k] = { k, p, c, a, step, miss };
+  });
+  return out;
+}
+function statsOf(eq) {
+  const s = { ...BASE_ATTR };
+  const from = {};
+  ATTR.forEach(([k]) => { from[k] = { base: BASE_ATTR[k], item: 0, job: JOB_ATTR[k] || 0 }; s[k] += JOB_ATTR[k] || 0; });
+  SLOTS.forEach((sl) => {
+    const it = eq[sl] && itemById(eq[sl]);
+    if (!it || !it.innate) return;
+    Object.entries(it.innate).forEach(([k, v]) => { s[k] += v; from[k].item += v; });
+  });
+  return { s, from };
+}
+const effective = (v) => (v <= 10 ? v : 10 + (v - 10) * 0.8);
+function graceSlots(eq) {
+  const n = {};
+  ACT.forEach((a) => { n[a] = 2; });
+  SLOTS.forEach((sl) => { const it = eq[sl] && itemById(eq[sl]); if (it && it.grace) n[it.grace] = 3; });
+  return n;
+}
+function actionsOf(eq, slots) {
+  const { s } = statsOf(eq);
+  const main = eq.main && itemById(eq.main);
+  const wk = main ? weaponOf(main) : '素手';
+  const ult = (WEAPON_ULT[wk] || ['—', '—', '—'])[S.ult] || '—';
+  const used = slots.filter((x) => x.st).length;
+  return {
+    primary: { name: '左', move: `${FORM.n}の型 4段`, pow: Math.round(10 + s.str * 0.6), poise: Math.round(4 + s.str * 0.15), line2: null },
+    secondary: { name: '右', move: `${FORM.n}の型 4段`, pow: Math.round(8 + s.str * 0.3 + s.dex * 0.5), poise: Math.round(6 + s.str * 0.2), line2: null },
+    dash: { name: '駆', move: '踏み込み 2回', line2: '1.2秒 無敵0.2秒' },
+    skill: { name: '技', move: `スキル ${used}/4`, line2: '気力 60/80' },
+    ultimate: { name: '奥', move: `${ult} 75%`, line2: 'ゲージ 75/100', ult, wk },
+  };
+}
+function graceMap(eq) {
+  const cap = graceSlots(eq);
+  const m = {};
+  ACT.forEach((a) => {
+    const list = BOONS.filter((b) => b.card === 'grace' && b.act === a);
+    m[a] = [0, 1, 2].map((i) => (i >= cap[a] ? { locked: true } : list[i] ? { boon: list[i] } : { empty: true, third: i === 2 }));
+  });
+  return m;
+}
+const readers = {
+  str: ['左', '右', '旋風斬り', '燕舞'], dex: ['右', '鎖鎌'], vit: ['生命'], mnd: ['気力', '燃え種爆ぜ'], spi: ['奥義ゲージ'], def: ['防御力'],
+};
+const readActs = { str: ['primary', 'secondary', 'ultimate'], dex: ['secondary'], vit: [], mnd: ['skill'], spi: ['ultimate'], def: [] };
+
+// 試着: 候補を仮に装備した写しで前後を出す（state は変えない）
+function swapPreview(candId) {
+  const cand = itemById(candId);
+  if (!cand) return null;
+  const eq1 = { ...S.eq, [cand.slot]: cand.id };
+  const cur = S.eq[cand.slot] ? itemById(S.eq[cand.slot]) : null;
+  const r0 = resonance(S.eq, S.slots), r1 = resonance(eq1, S.slots);
+  const a0 = actionsOf(S.eq, S.slots), a1 = actionsOf(eq1, S.slots);
+  const s0 = statsOf(S.eq).s, s1 = statsOf(eq1).s;
+  const g0 = graceSlots(S.eq), g1 = graceSlots(eq1);
+  const pc = cur ? kwProfile(cur) : { p: [], co: [], am: [] }, pn = kwProfile(cand);
+  const gain = { p: pn.p.filter((k) => !pc.p.includes(k)), co: pn.co.filter((k) => !pc.co.includes(k)) };
+  const lose = { p: pc.p.filter((k) => !pn.p.includes(k)), co: pc.co.filter((k) => !pn.co.includes(k)) };
+  const res = KW_ORDER.filter((k) => r0[k].step !== r1[k].step || (r0[k].miss !== r1[k].miss && (r0[k].miss <= 1 || r1[k].miss <= 1) && (r0[k].step + r1[k].step) === 0))
+    .map((k) => ({ k, s0: r0[k].step, s1: r1[k].step, m0: r0[k].miss, m1: r1[k].miss }));
+  const acts = [];
+  ['primary', 'secondary'].forEach((a) => {
+    if (a0[a].pow !== a1[a].pow) acts.push({ a, what: '威力', v0: a0[a].pow, v1: a1[a].pow });
+    if (a0[a].poise !== a1[a].poise) acts.push({ a, what: '怯み', v0: a0[a].poise, v1: a1[a].poise });
+  });
+  ACT.forEach((a) => { if (g0[a] !== g1[a]) acts.push({ a, what: '加護の枠', v0: g0[a], v1: g1[a] }); });
+  const stats = ATTR.filter(([k]) => s0[k] !== s1[k]).map(([k, , long]) => ({ k, long, v0: s0[k], v1: s1[k] }));
+  return { cand, cur, gain, lose, res, acts, stats, r0, r1, ult0: a0.ultimate, ult1: a1.ultimate };
+}
+
+// ============================================================
+// 背景（暗くしたゲーム画面）と和紙の地（座標ハッシュ。乱数は使わない）
+// ============================================================
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function drawBackdrop() {
+  const cv = document.getElementById('bgc');
+  const c = cv.getContext('2d');
+  for (let ty = 0; ty < 270; ty += 16) for (let tx = 0; tx < 480; tx += 16) {
+    const v = hash(tx, ty);
+    c.fillStyle = v < 0.08 ? '#2c2c38' : v < 0.5 ? '#3a3a48' : '#40404e';
+    c.fillRect(tx, ty, 16, 16);
+    c.fillStyle = '#2a2a36';
+    c.fillRect(tx, ty + 15, 16, 1); c.fillRect(tx + 15, ty, 1, 16);
+    if (v > 0.8) { c.fillStyle = '#3c5a3a'; c.fillRect(tx + 4, ty + 9, 2, 1); c.fillRect(tx + 10, ty + 3, 1, 2); }
+  }
+  // 墨の暗幕 0.78、周辺は段で 0.9 まで（ビネットは階段状）
+  for (let y = 0; y < 270; y++) for (let x = 0; x < 480; x += 2) {
+    const dx = (x - 240) / 240, dy = (y - 135) / 135;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const a = d > 1.05 ? 0.9 : d > 0.9 ? 0.86 : d > 0.75 ? 0.82 : 0.78;
+    c.fillStyle = `rgba(12,11,14,${a})`;
+    c.fillRect(x, y, 2, 1);
+  }
+}
+const fiberCache = {};
+function fiberUrl(a, b) {
+  const key = a + b;
+  if (fiberCache[key]) return fiberCache[key];
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 64;
+  const c = cv.getContext('2d');
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    const v = hash(x + 911, y + 57);
+    if (v < 0.035) { c.fillStyle = a; c.fillRect(x, y, v < 0.012 ? 2 : 1, 1); } else if (v > 0.975) { c.fillStyle = b; c.fillRect(x, y, 1, 1); }
+  }
+  fiberCache[key] = cv.toDataURL();
+  return fiberCache[key];
+}
+function cornerSvg() {
+  // 角金具 8x8（金・明るい縁・暗い縁・朱の鋲）
+  return `<svg width="8" height="8" viewBox="0 0 8 8"><rect x="0" y="0" width="8" height="2" fill="var(--g4-gold-lo)"/><rect x="0" y="0" width="2" height="8" fill="var(--g4-gold-lo)"/>
+<rect x="0" y="0" width="7" height="1" fill="var(--gold)"/><rect x="0" y="0" width="1" height="7" fill="var(--gold)"/><rect x="1" y="1" width="5" height="1" fill="var(--g4-gold-hi)"/><rect x="1" y="1" width="1" height="5" fill="var(--g4-gold-hi)"/>
+<rect x="2" y="2" width="3" height="3" fill="var(--gold)"/><rect x="3" y="3" width="1" height="1" fill="var(--shu)"/></svg>`;
+}
+function g5CornerSvg() {
+  return `<svg width="8" height="8" viewBox="0 0 8 8"><rect x="0" y="0" width="3" height="3" fill="var(--paper)"/><rect x="1" y="1" width="3" height="1" fill="var(--g5-hi)"/><rect x="1" y="1" width="1" height="3" fill="var(--g5-hi)"/></svg>`;
+}
+function applyTheme() {
+  const scr = document.getElementById('screen');
+  const g = S.layout === 'cur' ? 'cur' : S.g;
+  scr.dataset.g = g;
+  // 章の差し色: 外枠の金の糸と今の頁札の地
+  const chVar = { hub: null, '1': '--ch-1', '2': '--ch-2', '3f': '--ch-3f', '3i': '--ch-3i', '4': '--ch-4', deep: '--ch-deep' }[S.ch];
+  const light = ['1', '2', '3i', '3f'].includes(S.ch);
+  scr.style.setProperty('--acc', chVar ? `var(${chVar})` : '');
+  scr.style.setProperty('--acc-tab', chVar ? `var(${chVar})` : '');
+  scr.style.setProperty('--acc-tx', chVar && light ? 'var(--g4-ink)' : '');
+  if (!chVar) { scr.style.removeProperty('--acc'); scr.style.removeProperty('--acc-tab'); scr.style.removeProperty('--acc-tx'); }
+  const cs = getComputedStyle(scr);
+  const fa = cs.getPropertyValue('--fa').trim(), fb = cs.getPropertyValue('--fb').trim();
+  document.getElementById('paper').style.backgroundImage = g === 'cur' || g === 'g5' ? 'none' : `url(${fiberUrl(fa, fb)})`;
+  const fr = document.getElementById('frame');
+  if (g === 'g4' || g === 'g2') fr.innerHTML = ['tl', 'tr', 'bl', 'br'].map((c) => `<div class="corner ${c}">${cornerSvg()}</div>`).join('');
+  else if (g === 'g5') fr.innerHTML = ['tl', 'tr', 'bl', 'br'].map((c) => `<div class="corner ${c}">${g5CornerSvg()}</div>`).join('');
+  else if (g === 'g1') fr.innerHTML = '<div class="rod top"></div><div class="rod bot"></div><div class="knob" style="left:0;top:0"></div><div class="knob" style="right:0;top:0"></div><div class="knob" style="left:0;bottom:0"></div><div class="knob" style="right:0;bottom:0"></div>';
+  else if (g === 'cur') fr.innerHTML = `<div class="b cur-box" style="left:8px;top:8px;width:464px;height:254px"></div>`;
+  else fr.innerHTML = '';
+  // 今の画面は余白に止まったゲームが見える。紙を内側だけに
+  const paper = document.getElementById('paper');
+  paper.style.inset = g === 'cur' ? '8px' : '0';
+}
+
+// ============================================================
+// 共通の部品（見出し・足元・詳細欄）
+// ============================================================
+const TABS = [['sheet', '旅装'], ['relic', '遺物'], ['skill', 'スキル'], ['boon', '祝福']];
+function header(page) {
+  let s = '<div class="tabs">';
+  if (page === 'words') {
+    s += `<span class="tab" data-tab="sheet">旅装</span><span class="tab on">語の表</span>`;
+  } else {
+    TABS.forEach(([k, l]) => { s += `<span class="tab ${page === k ? 'on' : ''}" data-tab="${k}">${l}</span>`; });
+  }
+  s += '</div>';
+  s += `<span class="qe" style="left:${page === 'words' ? 90 : 170}px">${page === 'words' ? 'Esc で旅装へ' : 'Q ‹  › E'}</span>`;
+  if (S.lit) s += `<span class="qe" style="left:${page === 'words' ? 160 : 214}px;top:4px;display:flex;color:var(--sub)"><span class="lb" style="margin-right:2px">灯</span>${gb(S.lit, 's')}<span class="gap2">${esc(KW[S.lit][1])}</span></span>`;
+  s += `<div class="money"><span>銭 <span class="tx">1240</span></span><span>鍵 <span class="tx">2</span></span><span style="display:flex">瓶${dotsSvg(2, 3, 'var(--kw-heal)')}</span><span>地下 <span class="tx">7</span> 階</span></div>`;
+  return s;
+}
+function footer(items) {
+  return `<div class="foot">${items.map(([l, k]) => `<span class="it">${esc(l)}${k.split(' ').map(kc).join('')}</span>`).join('')}</div>`;
+}
+function pane(x, y, w, h, title, titleRight, lines, ops, attrs) {
+  const opsHtml = (ops || []).map((o) => `<div class="op">${o}</div>`).join('');
+  const n = ops ? ops.length : 0;
+  const opsH = n * 10;
+  return `<div class="pane" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px" ${attrs || ''}>
+    <div class="band"><span class="t">${esc(title)}</span>${titleRight || ''}</div>
+    <div class="body" style="bottom:${n ? opsH + 6 : 4}px">${lines.join('')}</div>
+    ${n ? `<div class="ops" style="height:${opsH}px">${opsHtml}</div>` : ''}</div>`;
+}
+const L = (html, cls) => `<div class="l t ${cls || ''}">${html}</div>`;
+const LW = (text, cls) => `<div class="l wrapt ${cls || ''}">${esc(text)}</div>`;
+const LR = () => '<div class="rulei"></div>';
+const op = (keys, label, act) => `<span class="opx" data-op="${act || ''}">${keys.split(' ').map(kc).join('')}${esc(label)}</span>`;
+
+// 物ごとの詳細欄（旅装・遺物頁・語の表で共有）
+function relicLines(it, opt) {
+  const o = opt || {};
+  const prof = kwProfile(it);
+  const lines = [];
+  lines.push(L(`<span class="sub">${esc(SLOT_LABEL[it.slot])} / ${esc(it.base)} / 地下${it.depth} / </span><span style="color:${FLUX_COLOR[it.flux]}">${esc(FLUX_LONG[it.flux])}</span>${o.tryOn ? `<span class="sub"> / 余白 </span>${it.margin}` : ''}`));
+  if (it.slot === 'main' && !o.tryOn) lines.push(L(`<span class="sub">奥義</span> ${esc((WEAPON_ULT[it.wk] || ['—'])[S.ult] || '—')}${it.wk !== '刀' ? `<span class="dim">（${esc(it.wk)}）</span>` : ''}`));
+  if (it.innate) lines.push(L(`<span class="sub">地金</span> ${Object.entries(it.innate).map(([k, v]) => `${ATTR.find((a) => a[0] === k)[2]}+${v}`).join(' ')}`));
+  if (!o.tryOn) lines.push(LR());
+  it.af.forEach((a) => lines.push(`<div class="l wrapt" style="padding-left:4px;box-shadow:inset 2px 0 0 0 var(--tr-${a.c})">${esc(a.t)}</div>`));
+  if (it.keystone) lines.push(`<div class="l wrapt"><span style="color:var(--tr-umbra)">誓約 ${esc(it.keystone[0])}</span> <span class="sub">${esc(o.short ? '' : it.keystone[1])}</span></div>`);
+  if (it.flavor && !o.short) lines.push(`<div class="l wrapt sub">「${esc(it.flavor)}」</div>`);
+  if (!o.tryOn) lines.push(L(`<span class="sub" style="margin-right:3px">流れ</span>${kwBadges(prof)}`, 'row0'));
+  if (!o.noPartner) {
+    const ps = partners(prof, `item:${it.id}`).slice(0, 2);
+    if (ps.length) lines.push(`<div class="l wrapt" style="max-height:20px"><span class="sub">相性</span> ${ps.map((p) => `<span class="jumpl" data-jump="${p.ref}">${esc(p.name)}</span><span class="dim">(${esc(p.kind)})</span>`).join(' ')}</div>`);
+  }
+  if (!o.tryOn) lines.push(L(`<span class="sub">余白</span> ${it.margin}${it.bud ? '  <span class="up">芽あり</span>' : ''}${it.inscr ? '  <span class="sub">銘あり</span>' : ''}`));
+  return lines;
+}
+function partners(prof, selfRef) {
+  const src = sourcesOf(S.eq, S.slots).filter((s) => s.ref !== selfRef);
+  return src.filter((s) => s.co.some((k) => prof.p.includes(k)) || s.p.some((k) => prof.co.includes(k)));
+}
+function boonLines(b) {
+  const prof = kwProfile(b);
+  const lines = [];
+  const kind = [b.ln ? LN[b.ln][0] : '', CARD[b.card], b.act ? ACT_LONG[b.act] : '', b.gr || ''].filter(Boolean).join(' / ');
+  lines.push(L(`<span class="sub">${esc(kind)}</span>`));
+  lines.push(LR());
+  lines.push(LW(b.d));
+  if (b.tally) lines.push(L(`<span class="sub">数え</span> ${esc(b.tally)}`));
+  lines.push(L(`<span class="sub" style="margin-right:3px">流れ</span>${kwBadges(prof)}`));
+  const ps = partners(prof, `boon:${b.id}`).slice(0, 2);
+  if (ps.length) lines.push(L(`<span class="sub">相性</span> ${ps.map((p) => `<span class="jumpl" data-jump="${p.ref}">${esc(p.name)}</span>`).join(' ')}`));
+  if (b.act) {
+    const gm = graceMap(S.eq)[b.act];
+    const used = gm.filter((x) => x.boon).length, cap = gm.filter((x) => !x.locked).length;
+    lines.push(L(`<span class="sub">${esc(ACT_LONG[b.act])}の枠</span> ${used}/${cap}`));
+  }
+  return lines;
+}
+function stoneLines(st, slotIdx) {
+  const prof = kwProfile(st);
+  const lines = [];
+  lines.push(L(`<span class="sub">${esc(st.tags)}</span>`));
+  lines.push(L(`${esc(st.res)}  <span class="sub">怯み</span> ${st.poise}`));
+  lines.push(L(`<span class="sub">変異</span> <span class="gb k" style="--c:var(--sub)">${esc(st.v[0])}</span> ${esc(st.v[1])}`));
+  lines.push(LR());
+  lines.push(LW(st.verb));
+  if (slotIdx !== undefined && slotIdx !== null) {
+    S.slots[slotIdx].runes.forEach((r) => lines.push(`<div class="l wrapt"><span class="sub">符 ${esc(RUNES[r].n)}:</span> ${esc(RUNES[r].verb)}</div>`));
+  }
+  lines.push(L(`<span class="sub" style="margin-right:3px">流れ</span>${kwBadges(prof)}`));
+  const cb = COMBOS.find((c) => c.then === st.n || c.after === st.n);
+  if (cb) lines.push(L(`<span class="sub">連携</span> ${esc(cb.n)} <span class="dim">(${esc(cb.after)}の後)</span>`));
+  lines.push(L(`<span class="sub">使い込み</span> ${dotsSvg(st.wear, 3, 'var(--gold)')}`));
+  return lines;
+}
+
+// ============================================================
+// 頁: 旅装（E-1 / E-1b）
+// ============================================================
+function renderSheet() {
+  const res = resonance(S.eq, S.slots);
+  const acts = actionsOf(S.eq, S.slots);
+  const gm = graceMap(S.eq);
+  const { s: st } = statsOf(S.eq);
+  let h = header('sheet');
+  // 左: 遺物 6
+  h += sec(6, 17, 142, '遺物');
+  SLOTS.forEach((sl, i) => {
+    const it = S.eq[sl] && itemById(S.eq[sl]);
+    const y = 27 + i * 20;
+    const prof = it ? kwProfile(it) : { p: [], co: [], am: [] };
+    const marks = it ? `${it.bud ? '<span class="mk bud">芽</span>' : ''}${it.named ? '<span class="mk named">名</span>' : ''}${it.keystone ? '<span class="mk oath">誓</span>' : ''}` : '';
+    const inner = `<div class="row" style="left:1px;top:0;width:139px"><span class="slotic ${sl === 'main' ? 'w' : ''}">${SLOT_GLYPH[sl]}</span><span class="t gap2" style="flex:1 1 auto;min-width:0;line-height:12px">${it ? esc(shortName(it)) : '<span class="dim">（空き）</span>'}</span><span style="display:flex;margin-top:1px">${marks}</span></div>
+      <div class="row" style="left:15px;top:10px;width:124px">${kwBadges(prof)}</div>`;
+    h += B(6, y, 142, 20, `foc kwrow ${i % 2 ? 'zebra' : ''}`, inner, `data-f="r:${sl}" ${kwAttr(prof)}`);
+  });
+  // 左: スキル 4
+  h += sec(6, 147, 142, 'スキル');
+  S.slots.forEach((slot, i) => {
+    const stn = slot.st && stoneById(slot.st);
+    const y = 157 + i * 19;
+    const prof = stn ? kwProfile(stn) : { p: [], co: [], am: [] };
+    const notches = Array.from({ length: SLOT_LINKS[i] }, (_, j) => notchSvg(j < slot.runes.length, 'var(--gold)')).join('');
+    const runes = slot.runes.map((r) => `<span class="gb k" style="--c:var(--gold)">${RUNES[r].g}</span>`).join('');
+    const inner = `<div class="row" style="left:1px;top:0;width:139px"><span class="dim" style="width:12px">${i + 1}</span><span class="t" style="flex:1 1 auto;min-width:0">${stn ? esc(stn.n) : '<span class="dim">（空き）</span>'}</span><span style="display:flex;margin-top:1px">${notches}</span></div>
+      <div class="row" style="left:13px;top:9px;width:126px">${runes ? `<span class="lb">符</span>${runes}<span class="lb" style="margin-left:3px"></span>` : ''}${kwBadges(prof)}</div>`;
+    h += B(6, y, 142, 19, `foc kwrow ${i % 2 ? 'zebra' : ''}`, inner, `data-f="k:${i}" ${kwAttr(prof)}`);
+  });
+  h += B(6, 234, 142, 10, 'foc kwrow', `<span class="t"><span class="sub">ジョブ</span> ${JOB.n} <span class="sub">/ 型</span> ${FORM.n}</span>`, `data-f="job" ${kwAttr(kwProfile(FORM))}`);
+  h += B(6, 244, 142, 10, 'foc', `<span class="t"><span class="sub">依頼</span> ${QUEST.n} <span class="tx">${QUEST.now}/${QUEST.goal}</span></span>`, 'data-f="quest"');
+  h += `<div class="vr" style="left:149px;top:17px;height:238px"></div><div class="vr" style="left:317px;top:17px;height:238px"></div>`;
+
+  if (S.wide) {
+    h += sheetWide();
+    h += footer([['閉じる', 'Shift'], ['戻る', 'Esc'], ['頁', 'Q E']]);
+    return h;
+  }
+  // 中: 体
+  const focusId = S.focus.sheet || '';
+  const statFocus = focusId.startsWith('st:') ? focusId.slice(3) : null;
+  h += sec(152, 17, 164, '体');
+  ATTR.forEach(([k, g], i) => {
+    h += B(152 + i * 27, 27, 26, 10, 'foc', `<span class="t"><span class="sub">${g}</span>${st[k]}</span>`, `data-f="st:${k}"`);
+  });
+  h += B(152, 37, 164, 10, '', `<span class="t sub">生命 <span class="tx">172/220</span>  気力 <span class="tx">60/80</span></span>`);
+  // 中: 共鳴の帯
+  h += sec(152, 48, 164, '共鳴', 'Enter で語の表');
+  const active = KW_ORDER.map((k) => res[k]).filter((r) => r.step > 0).sort((a, b) => b.step - a.step || b.p.length - a.p.length).slice(0, 2);
+  const near = KW_ORDER.map((k) => res[k]).filter((r) => r.step === 0 && r.miss === 1).slice(0, 1);
+  active.forEach((r, i) => {
+    h += B(152, 58 + i * 10, 164, 10, 'foc kwrow', `<div class="row" style="left:1px;top:0">${gb(r.k, 's')}<span class="gap2" style="width:44px">${KW[r.k][1]}</span>${dotsSvg(r.step, 3, kwc(r.k))}<span class="sub gap6">源${r.p.length} 糧${r.c.length}${r.a.length ? ` 強${r.a.length}` : ''}</span></div>`, `data-f="w:${r.k}" data-kp="${r.k}"`);
+  });
+  near.forEach((r) => {
+    const need = r.p.length < RES.minSrc ? '源' : '糧';
+    h += B(152, 78, 164, 10, 'foc kwrow', `<div class="row" style="left:1px;top:0"><span class="sub" style="width:18px">あと1</span>${gb(r.k, 'k')}<span class="gap2">${KW[r.k][1]}</span><span class="sub gap4">${need}が1つ足りない</span></div>`, `data-f="w:${r.k}" data-kc="${r.k}"`);
+  });
+  // 中: 行動
+  h += sec(152, 89, 164, '行動', '加護');
+  ACT.forEach((a, i) => {
+    const y = 99 + i * 20;
+    const ac = acts[a];
+    const reads = statFocus && readActs[statFocus].includes(a);
+    const l2 = ac.line2 || `威力${ac.pow} 怯み${ac.poise}`;
+    h += B(152, y, 116, 20, `foc ${reads ? 'focusbg' : ''}`, `<div class="row" style="left:1px;top:0;width:114px"><span style="width:12px">${ac.name}</span><span class="t" style="flex:1 1 auto;min-width:0">${esc(ac.move)}</span></div><div class="row sub" style="left:13px;top:10px;width:101px"><span class="t">${esc(l2)}</span></div>`, `data-f="a:${a}"`);
+    gm[a].forEach((gs, j) => {
+      const x = 270 + j * 15;
+      let cell;
+      if (gs.locked) cell = `<span class="bc locked" style="--c:var(--rule)">·</span>`;
+      else if (gs.boon) cell = `<span class="bc grace" style="--c:var(--ln-${gs.boon.ln})">${LN[gs.boon.ln][1]}</span>`;
+      else cell = `<span class="bc empty"></span>`;
+      const b = gs.boon;
+      h += B(x, y + 3, 14, 14, `foc ${b ? 'kwrow' : ''}`, cell, `data-f="g:${a}:${j}" ${b ? kwAttr(kwProfile(b)) : ''}`);
+    });
+  });
+  // 中: 常時の札
+  h += sec(152, 199, 164, '常時');
+  const always = BOONS.filter((b) => b.card !== 'grace');
+  let x = 152;
+  always.forEach((b, i) => {
+    const w = i < 3 ? 52 : 52;
+    const row = i < 3 ? 0 : 1;
+    const xx = 152 + (i % 3) * 55;
+    const yy = 209 + row * 15;
+    const cc = b.ln ? `var(--ln-${b.ln})` : b.card === 'cursed' ? 'var(--ln-curse)' : 'var(--ln-core)';
+    h += B(xx, yy, w, 14, 'foc kwrow', `<div class="row" style="left:0;top:0;width:${w}px"><span class="bc ${b.card}" style="--c:${cc}">${b.i}</span><span class="t gap2" style="line-height:14px;flex:1 1 auto;min-width:0">${esc(b.n)}</span></div>`, `data-f="c:${b.id}" ${kwAttr(kwProfile(b))}`);
+    x += w;
+  });
+  // 中: 状態
+  h += B(152, 240, 164, 12, '', `<div class="row" style="left:0;top:1px"><span class="sub" style="width:20px">状態</span></div>`);
+  STATUS_SELF.forEach((s2, i) => {
+    h += B(172 + i * 30, 241, 28, 10, 'foc', `<div class="row" style="left:0;top:0"><span class="gb k" style="--c:var(--up)">${s2.g}</span><span class="gap2 sub">${s2.s}</span></div>`, `data-f="sx:${i}"`);
+  });
+  const oath = SLOTS.map((sl) => itemById(S.eq[sl])).find((it) => it && it.keystone);
+  if (oath) h += B(234, 241, 80, 10, 'foc', `<span class="t"><span class="sub">誓約</span> <span style="color:var(--tr-umbra)">${esc(oath.keystone[0])}</span></span>`, 'data-f="oath"');
+
+  // 右: 詳細欄
+  h += sheetDetail(res, acts, gm);
+  h += footer([['頁', 'Q E'], ['決定', 'Enter'], ['戻る', 'Esc'], ['詳しく', 'Shift'], ['灯す', 'F'], ['外す', 'X長押し']]);
+  return h;
+}
+function sheetDetail(res, acts, gm) {
+  const f = S.focus.sheet || '';
+  const [kind, a, b] = f.split(':');
+  const X = 320, Y = 17, W = 154, H = 238;
+  if (kind === 'r') {
+    const it = S.eq[a] && itemById(S.eq[a]);
+    if (!it) return pane(X, Y, W, H, SLOT_LABEL[a], '', [L('<span class="dim">空き</span>')], [op('Enter', ' 倉庫から選ぶ', 'enter')]);
+    return pane(X, Y, W, H, fullName(it), '', relicLines(it, { short: true }), [op('Enter', ' 倉庫から選ぶ', 'enter'), op('X長押し', ' 外す', 'sub'), op('F', ' 語を灯す', 'light')]);
+  }
+  if (kind === 'k') {
+    const slot = S.slots[+a];
+    const stn = slot.st && stoneById(slot.st);
+    if (!stn) return pane(X, Y, W, H, `スキル ${+a + 1}`, '', [L('<span class="dim">空き。スキル頁で石を付ける</span>')], [op('Enter', ' 石を選ぶ', 'enter')]);
+    return pane(X, Y, W, H, stn.n, '', stoneLines(stn, +a), [op('Enter', ' 石を替える', 'enter'), op('X長押し', ' 外す', 'sub'), op('F', ' 語を灯す', 'light')]);
+  }
+  if (kind === 'st') {
+    const { s, from } = statsOf(S.eq);
+    const at = ATTR.find((x) => x[0] === a);
+    const fr = from[a];
+    const eff = effective(s[a]);
+    const lines = [L(`${s[a]} <span class="sub">(実効 ${eff.toFixed(1)})</span>`),
+      L(`<span class="sub">= 基礎 ${fr.base} + 地金 ${fr.item}${fr.job ? ` + ジョブ ${fr.job}` : ''}</span>`),
+      LR(), L('<span class="sub">読む</span>'), LW(readers[a].join(' / ')),
+      L('<span class="dim">読む行動を行動の欄で塗った</span>')];
+    return pane(X, Y, W, H, at[2], '', lines, [op('Shift', ' 体の性能を広げる', 'wide')]);
+  }
+  if (kind === 'w') return wordDetail(a, X, Y, W, H, res);
+  if (kind === 'a') {
+    const ac = acts[a];
+    const lines = [L(`<span class="sub">${esc(ACT_LONG[a])} / ${esc(ac.move)}</span>`), LR()];
+    if (ac.pow !== undefined) { lines.push(L(`1段 威力 ${ac.pow}  怯み ${ac.poise}`)); lines.push(L('<span class="sub">2-4段 威力 14/16/30</span>')); }
+    else lines.push(L(esc(ac.line2)));
+    lines.push(L('<span class="sub">加護</span>'));
+    gm[a].forEach((g) => lines.push(L(g.locked ? '<span class="dim">3枠目: 真髄か名で開く</span>' : g.boon ? `<span class="bc grace" style="--c:var(--ln-${g.boon.ln});width:10px;height:10px;line-height:10px">${LN[g.boon.ln][1]}</span> ${esc(g.boon.n)}` : '<span class="dim">（空き）</span>')));
+    const eff = SLOTS.map((sl) => itemById(S.eq[sl])).filter(Boolean).flatMap((it) => it.af.filter((x) => (x.acts || []).includes(a)).map((x) => ({ it, x })));
+    lines.push(L(`<span class="sub">効く性質</span> ${eff.length}`));
+    eff.slice(0, 3).forEach(({ it, x }) => lines.push(L(`<span class="t">${esc(x.t)}</span>`)));
+    if (a === 'ultimate') lines.push(L(`<span class="sub">奥義の選び: 拠点で</span>`));
+    return pane(X, Y, W, H, `行動 ${ACT_LONG[a]}`, '', lines, [op('Shift', ' 式を広げる', 'wide'), op('Enter', ' 加護を見る', 'enter')]);
+  }
+  if (kind === 'g') {
+    const g = gm[a][+b];
+    if (g.locked) return pane(X, Y, W, H, `${ACT_LONG[a]}の3枠目`, '', [LW('開いていない。真髄か、この行動の枠を開く名のある遺物で開く。')], []);
+    if (!g.boon) return pane(X, Y, W, H, `${ACT_LONG[a]}の${+b + 1}枠目`, '', [L('<span class="dim">空き</span>'), LW(g.third ? '名のある遺物で開いた枠。' : '加護の祝福を取ると入る。')], []);
+    return pane(X, Y, W, H, g.boon.n, '', boonLines(g.boon), [op('Enter', ' 祝福頁で見る', 'enter'), op('F', ' 語を灯す', 'light')]);
+  }
+  if (kind === 'c') { const bn = boonById(a); return pane(X, Y, W, H, bn.n, '', boonLines(bn), [op('Enter', ' 祝福頁で見る', 'enter'), op('F', ' 語を灯す', 'light')]); }
+  if (kind === 'sx') { const s2 = STATUS_SELF[+a]; return pane(X, Y, W, H, s2.n, '', [L(`<span class="sub">一時強化 / 残り</span> ${s2.s}`), LW(s2.d)], []); }
+  if (kind === 'oath') { const it = SLOTS.map((sl) => itemById(S.eq[sl])).find((i) => i && i.keystone); return pane(X, Y, W, H, it.keystone[0], '', [L(`<span class="sub">誓約 / ${esc(SLOT_LABEL[it.slot])} ${esc(shortName(it))}</span>`), LR(), LW(it.keystone[1])], []); }
+  if (kind === 'job') return pane(X, Y, W, H, JOB.n, '', [L('<span class="sub">ジョブ</span>'), LW(JOB.d), LR(), L(`<span class="sub">型</span> ${FORM.n}（${FORM.label}）`), LW(FORM.d), L(`<span class="sub" style="margin-right:3px">流れ</span>${kwBadges(kwProfile(FORM))}`)], []);
+  if (kind === 'quest') return pane(X, Y, W, H, QUEST.n, '', [L(`<span class="sub">依頼</span> ${QUEST.now}/${QUEST.goal}`), LW(QUEST.d), L(`<span class="sub">報酬</span> ${esc(QUEST.reward)}`), L(`<span class="sub" style="margin-right:3px">語</span>${gb('burn', 'k')}`)], []);
+  return pane(X, Y, W, H, '旅装', '', [LW('焦点の物の要点がここに出る。')], []);
+}
+function sheetWide() {
+  const f = S.focus.sheet || '';
+  const [kind, a] = f.split(':');
+  const act = kind === 'a' ? a : 'primary';
+  const acts = actionsOf(S.eq, S.slots);
+  const res = resonance(S.eq, S.slots);
+  const { s } = statsOf(S.eq);
+  const main = itemById(S.eq.main);
+  const ac = acts[act];
+  const lines = [];
+  lines.push(L(`<span class="sub">${esc(ACT_LONG[act])} / ${esc(ac.move)} / 右手 ${esc(main ? shortName(main) : '素手')}</span>`));
+  if (ac.pow !== undefined) {
+    lines.push(L(act === 'primary' ? `1段 威力 ${ac.pow} = 10 + 筋力x0.6    怯み ${ac.poise} = 4 + 筋力x0.15` : `1段 威力 ${ac.pow} = 8 + 筋力x0.3 + 技巧x0.5    怯み ${ac.poise} = 6 + 筋力x0.2`));
+    lines.push(L('<span class="sub">2-4段 威力 14/16/30   怯み 5/6/14</span>'));
+  } else lines.push(L(esc(ac.line2)));
+  const inc = SLOTS.map((sl) => itemById(S.eq[sl])).filter(Boolean).flatMap((it) => it.af.filter((x) => (x.acts || []).includes(act) && /与ダメージ|ダメージ \+/.test(x.t)).map((x) => `${SLOT_LABEL[it.slot]} ${x.t.replace(/の与ダメージ/, '')}`));
+  lines.push(L(`<span class="sub">増</span> ${esc(inc.slice(0, 2).join('   ') || 'なし')}`));
+  const mels = KW_ORDER.filter((k) => res[k].step > 0 && !STAT_KW.has(k)).map((k) => `x${(1 + RES.mul * res[k].step).toFixed(2)} 共鳴 ${KW[k][1]}`);
+  lines.push(L(`<span class="sub">倍</span> ${esc(mels.join('   '))}`));
+  lines.push(LR());
+  ATTR.slice(0, 2).forEach(([k, , long]) => lines.push(L(`${long} ${s[k]} <span class="sub">(実効 ${effective(s[k]).toFixed(1)}) を読む:</span> ${esc(readers[k].join(' / '))}`)));
+  lines.push(L(`<span class="sub">生命</span> 220  <span class="sub">防御力</span> 34  <span class="sub">魔防</span> 12  <span class="sub">移動</span> 5.2m/s  <span class="sub">ダッシュ</span> 1.2s`));
+  lines.push(L(`<span class="sub">耐性</span> 炎-10%(誓約の代償) 氷0% 雷0% 毒0% 闇0% 光0%`));
+  lines.push(L(`<span class="sub">体の性能</span> 被る状態異常の持続 94%  気力の自然回復 1.3/秒`));
+  lines.push(LR());
+  lines.push(L(`<span class="sub">加護</span> ${graceMap(S.eq)[act].map((g) => (g.boon ? esc(g.boon.n) : g.locked ? '<span class="dim">[--]</span>' : '<span class="dim">[  ]</span>')).join('  ')}`));
+  return pane(152, 17, 322, 238, `詳しく  ${ACT_LONG[act]}`, '<span class="sub" style="font-size:8px;line-height:12px">Shift で閉じる</span>', lines, [op('Shift', ' 閉じる', 'wide'), op('Esc', ' 戻る', 'back')], `data-f="${esc(f)}"`);
+}
+function wordDetail(k, X, Y, W, H, res) {
+  const r = res[k];
+  const lines = [];
+  if (r.step > 0) lines.push(L(`${dotsSvg(r.step, 3, kwc(k))} <span class="gap4">${r.step}段</span> ${STAT_KW.has(k) ? '<span class="sub">体の性能へ</span>' : `<span class="sub">${esc(KW[k][1])}の与ダメ</span> x${(1 + RES.mul * r.step).toFixed(2)}`}`));
+  else lines.push(L(`<span class="sub">${r.miss === 1 ? 'あと1つ' : r.p.length && !r.c.length ? '溢れ（源だけ）' : !r.p.length && r.c.length ? '枯れ（糧だけ）' : '段なし'}</span>`));
+  lines.push(LR());
+  const grp = (label, list) => {
+    lines.push(L(`<span class="sub">${label} ${list.length}</span>`));
+    list.slice(0, 6).forEach((s2) => lines.push(L(`<span class="t" style="padding-left:6px"><span class="jumpl" data-jump="${s2.ref}">${esc(s2.name)}</span> <span class="dim">(${esc(s2.kind)})</span></span>`)));
+  };
+  grp('源', r.p); grp('糧', r.c); if (r.a.length) grp('強め', r.a);
+  return pane(X, Y, W, H, `${KW[k][1]}`, gb(k, 's'), lines, [op('Enter', S.page === 'words' ? ' 灯す' : ' 語の表へ', 'enter'), op('F', ' 灯す', 'light'), L('<span class="dim">名前をクリックで跳ぶ</span>')]);
+}
+
+// ============================================================
+// 頁: 遺物（E-2）
+// ============================================================
+const PARTS = [['all', '全'], ['main', '刀'], ['head', '頭'], ['armor', '体'], ['boots', '足'], ['ring', '指'], ['amulet', '首']];
+function stashList() {
+  let list = S.items.filter((it) => !Object.values(S.eq).includes(it.id));
+  if (S.relicPart !== 'all') list = list.filter((it) => it.slot === S.relicPart);
+  Object.keys(S.filters).forEach((f) => {
+    if (!S.filters[f]) return;
+    list = list.filter((it) => (f === 'new' ? it.isNew && !S.seen[it.id] : f === 'fav' ? it.mark === 'fav' : f === 'bud' ? it.bud : f === 'oath' ? !!it.keystone : f === 'named' ? !!it.named : true));
+  });
+  if (S.lit) list = list.slice().sort((a, b) => litRank(b) - litRank(a));
+  const sortKey = SORTS[S.sort];
+  const cmp = {
+    '部位ごと': (a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (b.mark === 'fav' ? 1 : 0) - (a.mark === 'fav' ? 1 : 0),
+    '拾った順': () => 0, '武器種': (a, b) => (a.wk || '').localeCompare(b.wk || ''), '深度': (a, b) => b.depth - a.depth,
+    '揺らぎ': (a, b) => '名反荒揺静'.indexOf(a.flux) - '名反荒揺静'.indexOf(b.flux), '色': (a, b) => TRAIT_ORDER.indexOf(dominant(a)) - TRAIT_ORDER.indexOf(dominant(b)),
+    '名前': (a, b) => shortName(a).localeCompare(shortName(b), 'ja'), '余白': (a, b) => b.margin - a.margin, '性質の数': (a, b) => b.af.length - a.af.length,
+  }[sortKey];
+  if (!S.lit) list = list.slice().sort(cmp);
+  return list;
+}
+function litRank(it) { const p = kwProfile(it); return p.p.includes(S.lit) ? 2 : p.co.includes(S.lit) || p.am.includes(S.lit) ? 1 : 0; }
+function renderRelic() {
+  let h = header('relic');
+  // 部位の札・並び・絞り・灯・共鳴の帯
+  PARTS.forEach(([k, g], i) => {
+    const on = S.relicPart === k;
+    const nNew = S.items.filter((it) => !Object.values(S.eq).includes(it.id) && (k === 'all' || it.slot === k) && it.isNew && !S.seen[it.id]).length;
+    h += B(6 + i * 17, 18, 16, 12, 'foc', `<span class="slotic" style="width:16px;${on ? 'background:var(--tab-on);color:var(--tab-on-tx);box-shadow:none' : ''}">${g}</span>${nNew ? `<span style="position:absolute;right:0;top:0;width:3px;height:3px;background:var(--shu)"></span>` : ''}`, `data-f="p:${k}"`);
+  });
+  h += B(128, 19, 72, 10, 'foc', `<span class="t"><span class="sub">並び</span> ${esc(SORTS[S.sort])}▾</span>`, 'data-f="sort"');
+  h += B(202, 19, 18, 10, '', '<span class="sub">絞り</span>');
+  FILTERS.forEach(([k, g], i) => {
+    const on = S.filters[k];
+    h += B(220 + i * 11, 19, 10, 10, 'foc', `<span class="mk ${on ? 'fav' : 'eq'}">${g}</span>`, `data-f="fl:${k}"`);
+  });
+  // A9 共鳴の帯（試着中は変わる語に ▲▼）
+  const fid = S.focus.relic || '';
+  const candId = fid.startsWith('i:') ? fid.slice(2) : null;
+  const cand = candId && itemById(candId);
+  const isCand = cand && !Object.values(S.eq).includes(cand.id);
+  const pv = isCand ? swapPreview(cand.id) : null;
+  const r0 = resonance(S.eq, S.slots);
+  const bandKw = KW_ORDER.filter((k) => r0[k].step > 0 || (pv && pv.r1[k].step > 0) || r0[k].miss === 1).slice(0, 4);
+  let bx = 282;
+  h += B(bx, 19, 30, 10, '', '<span class="sub">共鳴</span>');
+  bx += 22;
+  bandKw.forEach((k) => {
+    const s0 = r0[k].step, s1 = pv ? pv.r1[k].step : s0;
+    const d = s1 - s0;
+    h += B(bx, 19, 42, 10, `${d ? 'blink' : ''}`, `<div class="row" style="left:0;top:0">${gb(k, s1 > 0 ? 's' : 'k')}${dotsSvg(s1, 3, kwc(k))}${d ? `<span class="gap2">${arrow(d)}</span>` : ''}</div>`);
+    bx += 42;
+  });
+  if (S.wide && isCand) {
+    h += relicWide(pv);
+    h += footer([['閉じる', 'Shift'], ['装備', 'Enter'], ['戻る', 'Esc']]);
+    return h;
+  }
+  // 一覧
+  const list = stashList();
+  const partLabel = S.relicPart === 'all' ? '全部位' : SLOT_LABEL[S.relicPart];
+  h += `<div class="vr" style="left:221px;top:31px;height:224px"></div>`;
+  h += B(6, 31, 214, 9, '', `<span class="t sub">装備中</span>`);
+  const pinned = S.relicPart === 'all' ? [] : [S.eq[S.relicPart]].filter(Boolean).map(itemById);
+  let y = 40;
+  pinned.forEach((it) => { h += relicRow(it, y, true); y += 11; });
+  if (!pinned.length) { h += B(6, y, 214, 11, '', `<span class="t dim" style="padding-left:14px">${S.relicPart === 'all' ? '（部位を選ぶと装備中を先頭に留める）' : '（空き）'}</span>`); y += 11; }
+  h += B(6, y + 1, 214, 9, '', `<div class="row sub" style="left:0;top:0;width:214px"><span style="width:100px;padding-left:14px">倉庫 ${esc(partLabel)} ${list.length}点</span><span style="width:70px">語</span><span style="width:12px;text-align:center">揺</span><span style="width:14px;text-align:center">余</span></div>`);
+  h += `<div class="hr" style="left:8px;top:${y + 10}px;width:208px"></div>`;
+  y += 11;
+  const maxRows = Math.floor((244 - y) / 11);
+  const fIdx = Math.max(0, list.findIndex((it) => `i:${it.id}` === fid));
+  const start = Math.max(0, Math.min(fIdx - maxRows + 2, list.length - maxRows));
+  list.slice(start, start + maxRows).forEach((it, i) => { h += relicRow(it, y + i * 11, false, i); });
+  // スクロールバー（溝 2px + 朱の玉）
+  if (list.length > maxRows) {
+    const trackH = maxRows * 11, knobH = Math.max(6, Math.round(trackH * maxRows / list.length));
+    const ky = y + Math.round((trackH - knobH) * start / Math.max(1, list.length - maxRows));
+    h += `<div class="b" style="left:217px;top:${y}px;width:2px;height:${trackH}px;background:var(--rule)"></div><div class="b" style="left:217px;top:${ky}px;width:2px;height:${knobH}px;background:var(--shu)"></div>`;
+  }
+  h += B(6, 245, 214, 10, '', `<span class="t sub">${esc(partLabel)} ${list.length}点 / 倉庫 ${S.items.length - 6}/400${list.length > maxRows ? `   ${start + 1}-${Math.min(list.length, start + maxRows)}` : ''}</span>`);
+  // 右: 候補の札 + 入れ替えると / 詳しく
+  h += relicRight(fid, pv);
+  if (S.pop) h += sortPop();
+  h += footer([['頁', 'Q E'], ['部位', 'Z C'], ['装備', 'Enter'], ['砕く', 'X長押し'], ['印', 'V'], ['並べる', 'Shift'], ['灯す', 'F'], ['新着', 'R'], ['戻す', 'Ctrl+Z']]);
+  return h;
+}
+function relicRow(it, y, pinned, idx) {
+  const prof = kwProfile(it);
+  const seen = S.seen[it.id];
+  const mark = pinned ? '<span class="mk eq">装</span>' : it.isNew ? `<span class="mk new ${seen ? 'seen' : ''}">新</span>` : it.mark === 'fav' ? '<span class="mk fav">愛</span>' : it.mark === 'junk' ? '<span class="mk junk">が</span>' : it.bud ? '<span class="mk bud">芽</span>' : '';
+  const dc = dominant(it);
+  const badges = [...prof.p.map((k) => gb(k, 's')), ...prof.co.map((k) => gb(k, 'k')), ...prof.am.map((k) => gb(k, 'a'))].slice(0, 6).join('');
+  const junk = it.mark === 'junk' && !pinned;
+  const inner = `${dc ? `<span class="bar2" style="background:var(--tr-${dc})"></span>` : ''}<div class="row" style="left:3px;top:0;width:209px${junk ? ';opacity:.5' : ''}"><span style="width:12px;display:flex">${mark}</span><span class="t" style="width:84px">${esc(shortName(it))}</span><span style="width:70px;display:flex">${badges}</span><span style="width:12px;text-align:center;color:${FLUX_COLOR[it.flux]}">${it.flux}</span><span style="width:14px;text-align:center" class="${it.margin ? 'tx' : 'dim'}">${it.margin}</span></div>`;
+  return B(6, y, 214, 11, `foc kwrow ${!pinned && idx % 2 ? 'zebra' : ''}`, inner, `data-f="${pinned ? 'eq' : 'i'}:${it.id}" ${kwAttr(prof)}`);
+}
+function relicRight(fid, pv) {
+  const X = 224, Y = 31, W = 250, H = 224;
+  const [kind, id] = fid.split(':');
+  if (kind === 'eq' || (kind === 'i' && !pv)) {
+    const it = itemById(id);
+    return pane(X, Y, W, H, fullName(it), '<span class="mk eq" style="margin-top:1px">装</span>', relicLines(it), [op('X長押し', ' 外す', 'sub'), `${op('V', ' 印', 'mark')}<span class="gap8"></span>${op('F', ' 灯す', 'light')}`]);
+  }
+  if (pv) {
+    const c = pv.cand;
+    const lines = relicLines(c, { short: true, noPartner: true, tryOn: true });
+    lines.push(`<div class="sec" style="position:relative;left:0;top:1px;width:242px;margin-bottom:2px">${diaSvg}<span class="st">入れ替えると</span><span class="aside">装備中 ${esc(pv.cur ? shortName(pv.cur) : '空き')}</span></div>`);
+    const sw = swapLines(pv, false);
+    lines.push(...sw.top, ...sw.lost, ...sw.gain);
+    return pane(X, Y, W, H, `候補  ${fullName(c)}`, c.isNew && !S.seen[c.id] ? '<span class="mk new" style="margin-top:1px">新</span>' : '', lines,
+      [`${op('Enter', ' 装備', 'enter')}<span class="gap8"></span>${op('X長押し', ' 砕く', 'sub')}<span class="gap8"></span>${op('V', ' 印', 'mark')}`, `${op('Shift', ' 装備中と並べる', 'wide')}<span class="gap8"></span>${op('Ctrl+Z', ' 戻す', 'undo')}`], true);
+  }
+  if (kind === 'sort') return pane(X, Y, W, H, '並び', '', [LW('決定で候補の一覧が開く。既定は部位ごと → 装備中を先頭 → 新着 → 愛用 → 拾った順。強さの順は作らない。')], [op('Enter', ' 候補を開く', 'enter')]);
+  if (kind === 'fl') { const f = FILTERS.find((x) => x[0] === id); return pane(X, Y, W, H, `絞り ${f[2]}`, '', [L(S.filters[id] ? '絞っている' : '<span class="sub">絞っていない</span>')], [op('Enter', ' 切り替える', 'enter')]); }
+  if (kind === 'p') return pane(X, Y, W, H, `部位 ${id === 'all' ? '全部位' : SLOT_LABEL[id]}`, '', [LW('Z / C で部位を送る。札の右上の朱の点は新着あり。')], [op('Enter', ' この部位へ', 'enter')]);
+  return pane(X, Y, W, H, '遺物', '', [LW('一覧の物に焦点を当てると試着する。')], []);
+}
+function swapLines(pv, wide) {
+  const top = [], lost = [], gain = [];
+  const LW_ = wide ? 26 : 22;
+  const wr = (label, html) => L(`<span class="sub" style="display:inline-block;width:${LW_}px">${label}</span>${html}`);
+  const gainB = [...pv.gain.p.map((k) => gb(k, 's')), ...pv.gain.co.map((k) => gb(k, 'k'))].join('');
+  const loseB = [...pv.lose.p.map((k) => gb(k, 's')), ...pv.lose.co.map((k) => gb(k, 'k'))].join('');
+  top.push(wr('語', `<span class="sub">得る</span> ${gainB || '<span class="dim">なし</span>'}   <span class="sub">失う</span> ${loseB || '<span class="dim">なし</span>'}`));
+  const res = pv.res.slice(0, 3).map((r) => `${esc(KW[r.k][1])} ${dotsSvg(r.s0, 3, kwc(r.k))}→${dotsSvg(r.s1, 3, kwc(r.k))}${r.s1 !== r.s0 ? arrow(r.s1 - r.s0) : r.m1 < r.m0 ? `<span class="sub">あと${r.m1}</span>${arrow(1)}` : `<span class="sub">あと${r.m1}</span>${arrow(-1)}`}`).join('  ');
+  top.push(wr('共鳴', res || '<span class="dim">変化なし</span>'));
+  const pw = pv.acts.filter((x) => x.what === '威力');
+  top.push(wr('行動', pw.map((x) => `${ACT_SHORT[x.a]} 威力${x.v0}→${x.v1}${arrow(x.v1 - x.v0)}`).join('  ') || '<span class="dim">威力は変わらない</span>'));
+  const fr = pv.acts.filter((x) => x.what === '加護の枠');
+  if (fr.length) top.push(wr('枠', fr.map((x) => `${ACT_LONG[x.a]}の加護 ${x.v0}→${x.v1}${arrow(x.v1 - x.v0)}`).join('  ')));
+  const st = pv.stats.map((x) => `${x.long} ${x.v0}→${x.v1}${arrow(x.v1 - x.v0)}`).join('  ');
+  top.push(wr('体', st || '<span class="dim">変化なし</span>'));
+  if (pv.cand.slot === 'main' && pv.ult0.wk !== pv.ult1.wk) top.push(wr('奥義', `${esc(pv.ult0.ult)}→${esc(pv.ult1.ult)} <span class="sub">(${esc(pv.ult1.wk)}に替わる)</span>`));
+  const row = (label, text, cls, oneLine) => `<div class="l ${oneLine ? 't ell' : 'wrapt'}" style="padding-left:${LW_}px;text-indent:-${LW_}px"><span class="sub" style="display:inline-block;width:${LW_}px;text-indent:0">${label}</span><span class="${cls}">${esc(text)}</span></div>`;
+  (pv.cur ? pv.cur.af : []).forEach((a, i) => lost.push(row(i ? '' : '失う', a.t, 'down', false)));
+  if (pv.cur && pv.cur.keystone) lost.push(row(lost.length ? '' : '失う', `誓約 ${pv.cur.keystone[0]}`, 'down', true));
+  if (pv.cur && pv.cur.named) lost.push(row(lost.length ? '' : '失う', '固有の効果（名のある遺物）', 'down', true));
+  // 得る性質の全文は上の札に出ているので、ここは 1 行ずつに縮める
+  pv.cand.af.forEach((a, i) => gain.push(row(i ? '' : '得る', a.t, 'up', !wide)));
+  if (pv.cand.named) gain.push(row(pv.cand.af.length ? '' : '得る', '固有の効果（名のある遺物）', 'up', true));
+  return { top, lost, gain };
+}
+function relicWide(pv) {
+  const c = pv.cand, cur = pv.cur;
+  let h = '';
+  h += pane(6, 31, 232, 118, `候補  ${fullName(c)}`, '', relicLines(c, { short: true, noPartner: true }), [], `data-f="i:${esc(c.id)}"`);
+  h += cur ? pane(242, 31, 232, 118, `装備中  ${fullName(cur)}`, '<span class="mk eq" style="margin-top:1px">装</span>', relicLines(cur, { short: true, noPartner: true }), []) : pane(242, 31, 232, 118, '装備中 なし', '', [], []);
+  const sw = swapLines(pv, true);
+  h += `<div class="pane" style="left:6px;top:152px;width:468px;height:103px"><div class="band"><span class="t">入れ替えると</span><span class="sub" style="font-size:8px;line-height:12px">Shift で閉じる</span></div>
+    <div class="body" style="right:auto;width:226px;bottom:4px">${sw.top.join('')}</div><div class="body" style="left:238px;bottom:4px">${sw.lost.join('')}${sw.gain.join('')}</div></div>`;
+  return h;
+}
+function sortPop() {
+  let h = `<div class="pop" style="left:128px;top:30px;width:72px;height:${SORTS.length * 10 + 4}px">`;
+  SORTS.forEach((s2, i) => { h += B(2, 2 + i * 10, 68, 10, 'foc', `<span class="t ${i === S.sort ? 'tx' : 'sub'}">${i === S.sort ? '● ' : '  '}${esc(s2)}</span>`, `data-f="so:${i}"`); });
+  return h + '</div>';
+}
+
+// ============================================================
+// 頁: スキル（E-4）
+// ============================================================
+function renderSkill() {
+  let h = header('skill');
+  h += sec(6, 17, 190, 'スロット', '1-4 で選ぶ');
+  const lifting = !!S.lift;
+  S.slots.forEach((slot, i) => {
+    const stn = slot.st && stoneById(slot.st);
+    const y = 27 + i * 52;
+    const prof = stn ? kwProfile(stn) : { p: [], co: [], am: [] };
+    const sel = S.skillSel === i;
+    let inner = `<div class="row" style="left:2px;top:1px;width:186px"><span class="dim" style="width:12px">${i + 1}</span><span class="t" style="flex:1 1 auto;min-width:0">${stn ? esc(stn.n) : '<span class="dim">（空き）</span>'}</span><span class="sub">${stn ? esc(stn.res) : ''}</span></div>`;
+    if (stn) inner += `<div class="row sub" style="left:14px;top:10px;width:172px"><span class="t ell">${esc(stn.verb)}</span></div>`;
+    h += B(6, y, 190, 50, `${lifting ? '' : 'foc'} kwrow ${sel ? 'focusbg' : ''}`, inner, `${lifting ? '' : `data-f="sl:${i}"`} ${kwAttr(prof)}`);
+    // 符の刻み（2 字の名 / 空き）
+    h += B(20, y + 20, 20, 10, 'sub', '符');
+    for (let j = 0; j < SLOT_LINKS[i]; j++) {
+      const r = slot.runes[j];
+      const liftedHere = S.lift && S.lift.slot === i && S.lift.idx === j;
+      const canPlace = lifting && !r && !(S.lift.slot === i);
+      const cls = r ? '' : 'empty';
+      const cell = r ? `<span class="t" style="text-align:center;line-height:10px;${liftedHere ? 'opacity:.3' : ''}">${esc(RUNES[r].n)}</span>` : '';
+      const fAttr = lifting ? (canPlace ? `data-f="rn:${i}:${j}"` : '') : r ? `data-f="rn:${i}:${j}"` : '';
+      h += B(34 + j * 24, y + 20, 22, 10, `${fAttr ? 'foc' : ''} ${cls ? 'rune-empty' : ''}`, `<span class="bc ${r ? '' : 'empty'}" style="--c:var(--gold);width:22px;height:10px;line-height:10px;${r ? 'background:var(--card);' : ''}${lifting && !canPlace && !r ? 'opacity:.35' : ''}">${cell}</span>`, fAttr);
+    }
+    h += B(14, y + 30, 176, 10, '', `<div class="row" style="left:0;top:0;width:176px"><span style="display:flex;flex:1 1 auto">${kwBadges(prof)}</span>${stn ? `<span class="sub">使い込み</span>${dotsSvg(stn.wear, 3, 'var(--gold)')}` : ''}</div>`);
+    const cb = stn && COMBOS.find((c) => c.then === stn.n && S.slots.some((s2) => s2.st && stoneById(s2.st).n === c.after));
+    if (cb) {
+      const from = S.slots.findIndex((s2) => s2.st && stoneById(s2.st).n === cb.after);
+      h += B(14, y + 40, 176, 9, 'sub', `<span class="t"><span style="color:var(--gold)">連携</span> ${esc(cb.n)} (${from + 1} → ${i + 1})</span>`);
+    }
+  });
+  // 連携の線（左端の縦線）
+  const cbLine = COMBOS.map((c) => ({ a: S.slots.findIndex((s2) => s2.st && stoneById(s2.st).n === c.after), b: S.slots.findIndex((s2) => s2.st && stoneById(s2.st).n === c.then) })).find((x) => x.a >= 0 && x.b >= 0);
+  if (cbLine) {
+    const y1 = 27 + Math.min(cbLine.a, cbLine.b) * 52 + 5, y2 = 27 + Math.max(cbLine.a, cbLine.b) * 52 + 5;
+    h += `<div class="b" style="left:4px;top:${y1}px;width:1px;height:${y2 - y1}px;background:var(--gold)"></div><div class="b" style="left:4px;top:${y1}px;width:3px;height:1px;background:var(--gold)"></div><div class="b" style="left:4px;top:${y2}px;width:3px;height:1px;background:var(--gold)"></div>`;
+  }
+  h += `<div class="vr" style="left:197px;top:17px;height:238px"></div><div class="vr" style="left:317px;top:17px;height:238px"></div>`;
+  // 石の在庫
+  h += sec(200, 17, 116, `石 ${S.stones.length}`, '新しい順');
+  const order = S.stones.slice().sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+  order.forEach((stn, i) => {
+    const inSlot = S.slots.findIndex((s2) => s2.st === stn.id);
+    const same = S.stones.filter((x) => x.n === stn.n).length > 1;
+    const seen = S.seen[stn.id];
+    const mark = stn.isNew ? `<span class="mk new ${seen ? 'seen' : ''}">新</span>` : inSlot >= 0 ? '<span class="mk eq">装</span>' : '';
+    const prof = kwProfile(stn);
+    h += B(200, 27 + i * 11, 116, 11, `${lifting ? '' : 'foc'} kwrow ${i % 2 ? 'zebra' : ''}`, `<div class="row" style="left:1px;top:0;width:114px"><span style="width:12px;display:flex">${mark}</span><span class="t" style="flex:1 1 auto;min-width:0">${esc(stn.n)}</span>${same ? `<span class="gb k" style="--c:var(--sub)">${esc(stn.v[0])}</span>` : ''}<span style="width:10px;text-align:right" class="sub">${inSlot >= 0 ? inSlot + 1 : ''}</span></div>`, `${lifting ? '' : `data-f="so2:${stn.id}"`} ${kwAttr(prof)}`);
+  });
+  if (S.lit) {
+    const n = S.stones.filter((s2) => { const p = kwProfile(s2); return p.p.includes(S.lit) || p.co.includes(S.lit); }).length;
+    h += B(200, 244, 116, 10, '', `<div class="row" style="left:0;top:0"><span class="lb">灯</span>${gb(S.lit, 's')}<span class="sub gap2">${n}個</span></div>`);
+  }
+  // 詳細欄
+  h += skillDetail();
+  h += footer(S.lift ? [['置く', 'Enter'], ['やめる', 'Esc'], ['動かす', '← → ↑ ↓']] : [['頁', 'Q E'], ['スロット', '1 2 3 4'], ['決定', 'Enter'], ['外す', 'X長押し'], ['灯す', 'F'], ['戻る', 'Esc']]);
+  return h;
+}
+function skillDetail() {
+  const X = 320, Y = 17, W = 154, H = 238;
+  const f = S.focus.skill || '';
+  const [kind, a, b] = f.split(':');
+  if (S.lift) {
+    const r = RUNES[S.lift.key];
+    return pane(X, Y, W, H, `持ち上げ中 ${r.n}`, '', [LW('付けられる空きの刻みだけが焦点になる。Enter で置く、Esc でやめる。'), LR(), LW(r.verb)], [op('Enter', ' 置く', 'enter'), op('Esc', ' やめる', 'back')]);
+  }
+  if (kind === 'sl') {
+    const slot = S.slots[+a];
+    const stn = slot.st && stoneById(slot.st);
+    if (!stn) return pane(X, Y, W, H, `スロット ${+a + 1}`, '', [L('<span class="dim">空き</span>'), LW(`リンク ${SLOT_LINKS[+a]}。在庫の石で Enter を押すとここに付く。`)], [op('Enter', ' 在庫へ', 'enter')]);
+    return pane(X, Y, W, H, stn.n, '', stoneLines(stn, +a), [op('Enter', ' 石を替える', 'enter'), op('X長押し', ' 外す', 'sub'), op('F', ' 語を灯す', 'light')]);
+  }
+  if (kind === 'rn') {
+    const r = RUNES[S.slots[+a].runes[+b]];
+    if (!r) return pane(X, Y, W, H, '空きの刻み', '', [], []);
+    const stn = stoneById(S.slots[+a].st);
+    return pane(X, Y, W, H, r.n, '', [L(`<span class="sub">刻印符 / ${esc(r.fam)} / リンク 1</span>`), LR(), LW(r.verb), L(`<span class="sub">付いている</span> ${+a + 1} ${esc(stn ? stn.n : '')}`), L('<span class="dim">ラン内だけ（拾うと自動で付く）</span>')],
+      [op('Enter', ' 持ち上げて移す', 'enter'), op('X長押し', ' 外す(消える)', 'sub')]);
+  }
+  if (kind === 'so2') {
+    const stn = stoneById(a);
+    const inSlot = S.slots.findIndex((s2) => s2.st === stn.id);
+    return pane(X, Y, W, H, stn.n, stn.isNew && !S.seen[stn.id] ? '<span class="mk new" style="margin-top:1px">新</span>' : '', stoneLines(stn, inSlot >= 0 ? inSlot : null), [op('Enter', ` スロット${S.skillSel + 1}に付ける`, 'enter'), op('X長押し', ' 分解(拠点)', 'sub'), op('F', ' 語を灯す', 'light')]);
+  }
+  return pane(X, Y, W, H, 'スキル', '', [LW('スロットか在庫の石に焦点を当てる。')], []);
+}
+
+// ============================================================
+// 頁: 祝福（E-5）
+// ============================================================
+function renderBoon() {
+  let h = header('boon');
+  const gm = graceMap(S.eq);
+  h += sec(6, 17, 310, '加護');
+  h += B(34, 16, 280, 8, '', `<div class="row dim" style="left:0;top:0;line-height:8px"><span style="width:92px">1枠目</span><span style="width:92px">2枠目</span><span style="width:92px">3枠目</span></div>`);
+  let y = 28;
+  ACT.forEach((a) => {
+    h += B(6, y, 28, 14, '', `<span class="t" style="line-height:14px">${ACT_SHORT[a]}</span>`);
+    gm[a].forEach((g, j) => {
+      const x = 34 + j * 92;
+      let inner;
+      if (g.locked) inner = `<div class="row" style="left:0;top:0"><span class="bc locked">·</span><span class="dim gap2" style="line-height:14px">開いていない</span></div>`;
+      else if (g.boon) inner = `<div class="row" style="left:0;top:0;width:90px"><span class="bc grace" style="--c:var(--ln-${g.boon.ln})">${LN[g.boon.ln][1]}</span><span class="t gap2" style="line-height:14px;flex:1 1 auto;min-width:0">${esc(g.boon.n)}<span class="sub"> ${g.boon.gr === '並' ? '' : esc(g.boon.gr)}</span></span></div>`;
+      else inner = `<div class="row" style="left:0;top:0"><span class="bc ${g.third ? 'nm' : 'empty'}">${g.third ? '名' : ''}</span><span class="dim gap2" style="line-height:14px">${g.third ? '鐘の舌で開く' : '空き'}</span></div>`;
+      h += B(x, y, 90, 14, `foc ${g.boon ? 'kwrow' : ''}`, inner, `data-f="g:${a}:${j}" ${g.boon ? kwAttr(kwProfile(g.boon)) : ''}`);
+    });
+    y += 15;
+    if (a === 'dash') {
+      const lns = [...new Set(gm.dash.filter((g) => g.boon).map((g) => g.boon.ln))];
+      if (lns.length >= 2) {
+        h += B(34, y, 280, 10, '', `<div class="row" style="left:0;top:0"><span class="bc fuse" style="--c:var(--ln-${lns[0]});--c2:var(--ln-${lns[1]});width:10px;height:10px;line-height:10px"></span><span class="gap2 sub">融合</span><span class="gap2">雷火</span><span class="sub gap2">が次の3択に並ぶ</span></div>`);
+        y += 11;
+      }
+    }
+  });
+  // 常時
+  y += 2;
+  h += sec(6, y, 310, '常時');
+  y += 10;
+  BOONS.filter((b) => b.card !== 'grace').forEach((b, i) => {
+    const cc = b.ln ? `var(--ln-${b.ln})` : b.card === 'cursed' ? 'var(--ln-curse)' : 'var(--ln-core)';
+    const x = 6 + (i % 3) * 104, yy = y + Math.floor(i / 3) * 15;
+    h += B(x, yy, 100, 14, 'foc kwrow', `<div class="row" style="left:0;top:0;width:100px"><span class="bc ${b.card}" style="--c:${cc}">${b.i}</span><span class="t gap2" style="line-height:14px;flex:1 1 auto;min-width:0">${esc(b.n)}<span class="sub"> ${b.tally ? '47' : b.gr && b.gr !== '並' ? esc(b.gr) : CARD[b.card]}</span></span></div>`, `data-f="c:${b.id}" ${kwAttr(kwProfile(b))}`);
+  });
+  y += 32;
+  // 系譜の進み
+  h += sec(6, y, 310, '系譜の進み', '4枚で真髄');
+  y += 10;
+  Object.keys(LN).forEach((ln, i) => {
+    const n = BOONS.filter((b) => b.ln === ln).length;
+    const x = 6 + (i % 3) * 104, yy = y + Math.floor(i / 3) * 10;
+    const note = n >= LINEAGE_NEED ? '真髄が並ぶ' : n === LINEAGE_NEED - 1 ? 'あと1で真髄' : '';
+    h += B(x, yy, 100, 10, 'foc', `<div class="row" style="left:0;top:0;width:100px"><span class="${n ? 'tx' : 'dim'}" style="width:18px">${LN[ln][0]}</span><span style="display:flex;margin-top:1px">${Array.from({ length: 4 }, (_, j) => notchSvg(j < n, `var(--ln-${ln})`)).join('')}</span><span class="t sub gap2" style="flex:1 1 auto;min-width:0">${note}</span></div>`, `data-f="ln:${ln}"`);
+  });
+  y += 32;
+  h += B(6, y, 310, 10, '', `<div class="row" style="left:0;top:0"><span class="sub" style="width:22px">状態</span>${STATUS_SELF.map((s2) => `<span class="gb k" style="--c:var(--up)">${s2.g}</span><span class="gap2">${s2.n} ${s2.s}</span><span class="gap6"></span>`).join('')}<span class="sub">誓約</span><span class="gap2" style="color:var(--tr-umbra)">過駆動</span></div>`);
+  h += `<div class="vr" style="left:317px;top:17px;height:238px"></div>`;
+  h += boonDetail(gm);
+  h += footer([['頁', 'Q E'], ['灯す', 'F'], ['戻る', 'Esc'], ['詳しく', 'Shift']]);
+  return h;
+}
+function boonDetail(gm) {
+  const X = 320, Y = 17, W = 154, H = 238;
+  const [kind, a, b] = (S.focus.boon || '').split(':');
+  if (kind === 'g') {
+    const g = gm[a][+b];
+    if (g.boon) return pane(X, Y, W, H, g.boon.n, '', boonLines(g.boon), [op('F', ' 語を灯す', 'light')]);
+    if (g.locked) return pane(X, Y, W, H, `${ACT_LONG[a]}の3枠目`, '', [LW('開いていない。真髄か、この行動の枠を開く名のある遺物で開く。')], []);
+    return pane(X, Y, W, H, `${ACT_LONG[a]}の${+b + 1}枠目`, '', [L('<span class="dim">空き</span>'), LW(g.third ? '指輪の「鐘の舌」がこの枠を開いている。' : '加護の祝福を取るとここに入る。')], []);
+  }
+  if (kind === 'c') { const bn = boonById(a); return pane(X, Y, W, H, bn.n, '', boonLines(bn), [op('F', ' 語を灯す', 'light')]); }
+  if (kind === 'ln') {
+    const list = BOONS.filter((x) => x.ln === a);
+    return pane(X, Y, W, H, LN[a][0], `<span class="bc" style="--c:var(--ln-${a});width:12px;height:12px;line-height:12px">${LN[a][1]}</span>`, [L(`<span class="sub">札</span> ${list.length}/4`), ...list.map((x) => L(`${esc(x.n)} <span class="dim">${CARD[x.card]}</span>`)), LR(), LW(list.length >= 4 ? '真髄が次の3択に並ぶ。' : list.length ? `あと${4 - list.length}枚で真髄。` : 'まだ札が無い。')], []);
+  }
+  return pane(X, Y, W, H, '祝福', '', [], []);
+}
+
+// ============================================================
+// 頁: 語の表（E-6）
+// ============================================================
+function renderWords() {
+  let h = header('words');
+  const res = resonance(S.eq, S.slots);
+  const all = KW_ORDER.map((k) => res[k]);
+  const groups = [
+    ['共鳴中', all.filter((r) => r.step > 0)],
+    ['あと1つ', all.filter((r) => r.step === 0 && r.miss === 1)],
+    ['あと2つ', all.filter((r) => r.step === 0 && r.miss === 2 && r.p.length && r.c.length)],
+    ['溢れ（源だけ）', all.filter((r) => r.step === 0 && r.p.length && !r.c.length && r.miss > 1)],
+    ['枯れ（糧だけ）', all.filter((r) => r.step === 0 && !r.p.length && r.c.length && r.miss > 1)],
+  ];
+  const used = new Set(groups.flatMap((g) => g[1].map((r) => r.k)));
+  const none = all.filter((r) => !used.has(r.k));
+  let y = 17;
+  h += B(6, y, 310, 10, '', `<div class="row" style="left:0;top:0"><span class="tx">語の表</span><span class="sub gap8">共鳴中 → あと1つ → 溢れ → 枯れ → なし</span></div>`);
+  y += 12;
+  groups.forEach(([label, list]) => {
+    if (!list.length) return;
+    h += sec(6, y, 310, label);
+    y += 10;
+    list.forEach((r, i) => {
+      const x = 6 + (i % 2) * 156, yy = y + Math.floor(i / 2) * 11;
+      const need = r.step === 0 && r.miss === 1 ? (r.p.length < 2 ? '源が1つ' : '糧が1つ') : '';
+      h += B(x, yy, 152, 11, 'foc kwrow', `<div class="row" style="left:0;top:0;width:152px">${gb(r.k, r.step > 0 ? 's' : r.p.length ? 's' : 'k')}<span class="gap2" style="width:48px">${esc(KW[r.k][1])}</span><span class="sub" style="width:52px">源${r.p.length} 糧${r.c.length}${r.a.length ? ` 強${r.a.length}` : ''}</span>${r.step ? dotsSvg(r.step, 3, kwc(r.k)) : `<span class="sub t">${need}</span>`}</div>`, `data-f="w:${r.k}" data-kp="${r.k}"`);
+    });
+    y += Math.ceil(list.length / 2) * 11 + 2;
+  });
+  h += sec(6, y, 310, `なし（${none.length}語）`);
+  y += 10;
+  none.forEach((r, i) => {
+    const x = 6 + (i % 26) * 12, yy = y + Math.floor(i / 26) * 11;
+    h += B(x, yy, 10, 10, 'foc', gb(r.k, 'k').replace('class="gb k"', 'class="gb k" style="--c:var(--dim)"').replace(/style="--c:var\(--kw-[a-zA-Z]+\)" /, ''), `data-f="w:${r.k}"`);
+  });
+  h += `<div class="vr" style="left:317px;top:17px;height:238px"></div>`;
+  const f = S.focus.words || '';
+  h += f.startsWith('w:') ? wordDetail(f.slice(2), 320, 17, 154, 238, res) : pane(320, 17, 154, 238, '語の表', '', [LW('語に焦点を当てると出どころが出る。')], []);
+  h += footer([['旅装へ戻る', 'Esc'], ['灯す', 'Enter'], ['跳ぶ', 'クリック'], ['頁', 'Q E']]);
+  return h;
+}
+
+// ============================================================
+// 構成: 今の 5 タブ（再現・簡略）
+// ============================================================
+const CUR_TABS = ['装備', 'ステータス', 'スキル', '残響', '流れ'];
+const CUR_COLOR = { crimson: '#e8553a', azure: '#3a8ee8', jade: '#49c46b', gold: '#f2c84b', umbra: '#9a5ae0' };
+function renderCur() {
+  let h = '';
+  // タブの字幅は BODY 12px なのに固定の間隔で置いていて、字が繋がる（今の欠点をそのまま再現）
+  let x = 14;
+  CUR_TABS.forEach((t, i) => {
+    const w = t.length * 12;
+    h += `<span class="cur-tab ${S.curTab === i ? 'on' : ''}" style="left:${x}px" data-curtab="${i}">${t}</span>`;
+    x += i < 2 ? w : w + 10;
+  });
+  h += `<span class="cur-help">? ヘルプ</span>`;
+  h += `<div class="b" style="left:9px;top:22px;width:462px;height:1px;background:var(--cur-line)"></div>`;
+  const tab = S.curTab;
+  if (tab === 0) h += curEquip();
+  else if (tab === 1) h += curStatus();
+  else if (tab === 2) h += curSkills();
+  else if (tab === 3) h += curEcho();
+  else h += curFlow();
+  return h;
+}
+function curEquip() {
+  let h = '';
+  const boxes = [['全部位', `${S.items.length - 6} 点`], ...['main', 'left', 'head', 'armor', 'boots', 'ring', 'amulet'].map((sl) => sl)];
+  const bw = 36;
+  h += B(12, 24, bw - 2, 22, 'cur-box', `<span class="t" style="padding:1px 3px;color:var(--cur-sel)">全部位</span><span class="t" style="padding:0 3px;color:var(--cur-sel)">${S.items.length - 6} 点</span>`, '');
+  h += `<div class="b" style="left:12px;top:24px;width:${bw - 2}px;height:22px;box-shadow:inset 0 0 0 1px var(--cur-sel)"></div>`;
+  ['main', 'left', 'head', 'armor', 'boots', 'ring', 'amulet'].forEach((sl, i) => {
+    const it = sl === 'left' ? null : itemById(S.eq[sl]);
+    const label = sl === 'left' ? '左手' : SLOT_LABEL[sl];
+    const n = sl === 'left' ? 0 : S.items.filter((x) => x.slot === sl).length;
+    const col = it && dominant(it) ? CUR_COLOR[dominant(it)] : 'var(--cur-sub)';
+    h += B(12 + (i + 1) * bw, 24, bw - 2, 22, 'cur-box foc', `<div class="row" style="left:3px;top:1px;width:${bw - 8}px"><span class="t" style="flex:1 1 auto;min-width:0">${label}</span><span>${n}</span></div><span class="t ell" style="position:absolute;left:3px;top:11px;width:${bw - 8}px;color:${col}">${it ? esc(fullName(it)) : '空'}</span>`, `data-f="cs:${sl}"`);
+  });
+  const heads = ['拾った順↓', '色', '揺らぎ', '印', '武器種'];
+  heads.forEach((t, i) => { h += B(12 + i * 58, 49, 56, 9, 'cur-box', `<span class="t sub" style="text-align:center;line-height:9px">${t}</span>`); });
+  const list = S.items.filter((it) => !Object.values(S.eq).includes(it.id));
+  list.slice(0, 17).forEach((it, i) => {
+    const dc = dominant(it);
+    const col = dc ? CUR_COLOR[dc] : 'var(--cur-tx)';
+    const fx = it.flux === '荒' ? '#ffd75f' : it.flux === '揺' ? '#6a8cff' : 'var(--cur-tx)';
+    h += B(12, 60 + i * 11, 290, 11, 'foc', `<span class="bar2" style="background:${col}"></span><div class="row" style="left:4px;top:0;width:284px"><span class="t" style="width:200px;color:${col}">${esc(fullName(it))}</span><span class="t sub" style="width:50px">${esc(it.base)}</span><span style="width:18px;height:2px;margin-top:4px;background:${col}"></span><span style="width:14px;text-align:right;color:${fx}">${it.flux === '名' ? '反' : it.flux}</span></div>`, `data-f="ci:${it.id}"`);
+  });
+  const f = S.focus.cur || '';
+  const it = f.startsWith('ci:') ? itemById(f.slice(3)) : null;
+  h += B(306, 24, 164, 212, 'cur-box', '');
+  if (it) {
+    const dc = dominant(it);
+    let lines = `<span class="t" style="color:${dc ? CUR_COLOR[dc] : 'var(--cur-tx)'}">${esc(fullName(it))}</span><span class="t sub">${esc(it.base)}・${it.flux}・${dc ? { crimson: '紅', azure: '蒼', jade: '翠', gold: '金', umbra: '冥' }[dc] : ''}・地下 ${it.depth} 階</span>`;
+    it.af.forEach((a) => { lines += `<div class="wrapt" style="color:${CUR_COLOR[a.c]}">${esc(a.t)}</div>`; });
+    h += B(309, 27, 158, 180, '', lines);
+    h += B(309, 208, 158, 26, '', '<span class="t sub">クリック: 装備</span><span class="t sub">Shift+クリック 2 回: 砕く</span>');
+  } else h += B(309, 27, 158, 20, '', `<span class="t sub">${JOB.n}</span>`);
+  h += B(306, 238, 164, 20, 'cur-box', `<div class="row" style="left:4px;top:5px;width:156px"><span>&lt;</span><span class="t" style="flex:1;text-align:center">要点 1/3  G</span><span>&gt;</span></div>`);
+  return h;
+}
+function curStatus() {
+  const { s } = statsOf(S.eq);
+  let h = B(14, 26, 180, 10, 'sub', `<span class="t">${JOB.n}</span>`);
+  const cols = ['#e8553a', '#3a8ee8', '#49c46b', '#f2c84b', '#9a5ae0', '#49c46b'];
+  ATTR.forEach(([k, , long], i) => { h += B(16, 38 + i * 12, 100, 12, 'foc', `<span class="t big" style="color:${cols[i]}">${long} ${s[k]}</span>`, `data-f="cst:${k}"`); });
+  h += B(14, 112, 190, 9, 'sub', '<span class="t">体の性能</span>');
+  [['最大生命', '220'], ['被る状態異常の持続', '94%'], ['最大気力', '80'], ['気力の自然回復', '1.3/秒'], ['移動速度', '12.4m/秒'], ['ダッシュ再使用', '1.2s'], ['防御力', '10'], ['魔防', '0'], ['耐性 炎/氷/雷', '0/0/0%']].forEach(([a, b], i) => {
+    h += B(14, 123 + i * 10, 190, 10, '', `<div class="row" style="left:0;top:0;width:190px"><span class="t" style="flex:1">${a}</span><span>${b}</span></div>`);
+  });
+  const ult = WEAPON_ULT['刀'];
+  h += B(212, 26, 256, 12, 'cur-box', `<div class="row" style="left:4px;top:1px;width:248px"><span>&lt;</span><span class="t" style="flex:1;text-align:center">奥義: 刀（装備中）</span><span>&gt;</span></div>`);
+  ult.forEach((u, i) => {
+    const on = i === S.ult;
+    h += B(212, 42 + i * 70, 256, 66, `cur-box foc`, `${on ? '<div class="b" style="inset:0;box-shadow:inset 0 0 0 1px var(--cur-sel)"></div>' : ''}<span class="t" style="padding:3px 4px 0">${on ? '● ' : ''}${esc(u)}</span>`, `data-f="cu:${i}"`);
+  });
+  return h;
+}
+function curSkills() {
+  let h = '';
+  S.slots.forEach((sl, i) => {
+    const st = sl.st && stoneById(sl.st);
+    h += B(12 + i * 74, 25, 70, 24, 'cur-box foc', `<span class="t" style="padding:2px 3px">${i + 1} / ${'CVXZ'[i]}</span><span class="t" style="padding:0 3px;color:#b890ff">${st ? esc(st.n) : ''}</span>`, `data-f="ck:${i}"`);
+  });
+  h += B(12, 52, 144, 204, 'cur-box', `<span class="t" style="padding:2px 3px;color:#b890ff">スキル石 ${S.stones.length}</span>`);
+  S.stones.forEach((st, i) => { h += B(14, 64 + i * 11, 140, 11, 'foc', `<div class="row" style="left:2px;top:0;width:136px"><span class="t" style="flex:1;color:#b890ff">${esc(st.n)}</span><span style="color:var(--cur-sel)">${(S.slots.findIndex((x) => x.st === st.id) + 1) || ''}</span></div>`, `data-f="cks:${st.id}"`); });
+  h += B(160, 52, 142, 10, '', '<div class="row" style="left:0;top:0;width:142px"><span style="flex:1;color:#ffb040">刻印符</span><span class="sub">リンク 2/4</span></div>');
+  h += B(306, 24, 164, 232, 'cur-box', '');
+  return h;
+}
+function curEcho() {
+  let h = B(14, 26, 300, 10, 'sub', '<span class="t">残響  紅 12  蒼 3  翠 8  金 0  冥 2</span>');
+  S.items.filter((it) => !Object.values(S.eq).includes(it.id)).slice(0, 6).forEach((it, i) => {
+    const dc = dominant(it);
+    h += B(14, 40 + i * 12, 200, 12, 'foc', `<span class="t" style="color:${dc ? CUR_COLOR[dc] : 'var(--cur-tx)'}">${esc(fullName(it))}</span>`, `data-f="ce:${it.id}"`);
+  });
+  ['砕く', '注ぎ', '移し', '呼び戻し', '煽り'].forEach((o, i) => { h += B(230, 40 + i * 14, 80, 12, 'cur-box foc', `<span class="t" style="text-align:center">${o}</span>`, `data-f="co:${i}"`); });
+  h += B(14, 120, 300, 10, 'sub', '<span class="t">対象を選ぶ → 操作を選ぶ → 実行（5 段）</span>');
+  return h;
+}
+function curFlow() {
+  let h = '';
+  const res = resonance(S.eq, S.slots);
+  const keys = KW_ORDER;
+  const oldCol = ['var(--old-kw-a)', 'var(--old-kw-b)', 'var(--old-kw-c)', 'var(--old-kw-d)', 'var(--old-kw-e)', 'var(--old-kw-f)', 'var(--old-kw-g)', 'var(--old-kw-h)', 'var(--old-kw-i)', 'var(--old-kw-j)'];
+  keys.forEach((k, i) => {
+    const r = res[k];
+    const x = 10 + (i % 5) * 58, y = 24 + Math.floor(i / 5) * 21;
+    const has = r.p.length || r.c.length;
+    h += B(x, y, 56, 19, `cur-box foc`, `<div class="row" style="left:2px;top:1px;width:52px"><span class="big" style="color:${oldCol[i % 10]};opacity:${has ? 1 : 0.35}">${KW[k][0]}</span><span class="t ell gap2" style="${has ? '' : 'opacity:.35'}">${esc(KW[k][1])}</span></div>${has ? `<span style="position:absolute;right:2px;top:9px">${r.p.length}/${r.c.length}</span>` : ''}`, `data-f="cf:${k}"`);
+  });
+  h += B(304, 24, 166, 232, 'cur-box', '');
+  const f = S.focus.cur || '';
+  if (f.startsWith('cf:')) {
+    const r = res[f.slice(3)];
+    h += B(308, 27, 158, 200, '', `<span class="t big">${KW[r.k][0]} ${esc(KW[r.k][1])}</span><span class="t sub">源:</span>${r.p.map((x) => `<span class="t" style="padding-left:6px;color:#b890ff">${esc(x.name)}</span>`).join('')}<span class="t sub">糧:</span>${r.c.map((x) => `<span class="t" style="padding-left:6px;color:#f2c84b">${esc(x.name)}</span>`).join('')}`);
+  }
+  return h;
+}
+
+// ============================================================
+// 構成: 別案 A2 行動で割る
+// ============================================================
+const ACT_PAGES = [...ACT, 'body'];
+function renderAct() {
+  let h = '<div class="tabs">';
+  ACT_PAGES.forEach((a) => { h += `<span class="tab ${S.actPage === a ? 'on' : ''}" data-actpage="${a}">${a === 'body' ? '体' : ACT_LONG[a]}</span>`; });
+  h += '</div>';
+  h += `<div class="money"><span>銭 <span class="tx">1240</span></span><span>地下 <span class="tx">7</span> 階</span></div>`;
+  const a = S.actPage;
+  const acts = actionsOf(S.eq, S.slots);
+  const gm = graceMap(S.eq);
+  let y = 17;
+  if (a === 'body') {
+    const { s, from } = statsOf(S.eq);
+    h += sec(6, y, 200, 'ステータス');
+    ATTR.forEach(([k, , long], i) => { h += B(6, 27 + i * 11, 200, 11, 'foc', `<div class="row" style="left:2px;top:0;width:196px"><span style="width:30px">${long}</span><span class="tx" style="width:18px">${s[k]}</span><span class="sub t">基礎${from[k].base} 地金${from[k].item}${from[k].job ? ` ジョブ${from[k].job}` : ''}</span></div>`, `data-f="ab:${k}"`); });
+    h += sec(6, 96, 200, '体の性能');
+    [['生命', '172/220'], ['気力', '60/80'], ['防御力', '34'], ['移動', '5.2m/s'], ['耐性 炎', '-10%']].forEach(([l, v], i) => { h += B(6, 106 + i * 10, 200, 10, '', `<div class="row" style="left:2px;top:0;width:196px"><span class="sub" style="flex:1">${l}</span><span>${v}</span></div>`); });
+    h += sec(6, 160, 200, '状態・誓約');
+    h += B(6, 170, 200, 10, '', `<span class="t">加速 5s  硬化 2s  <span style="color:var(--tr-umbra)">誓約 過駆動</span></span>`);
+  } else {
+    const ac = acts[a];
+    h += sec(6, y, 200, '武器と型');
+    const main = itemById(S.eq.main);
+    h += B(6, 27, 200, 10, 'foc', `<span class="t">${esc(main ? shortName(main) : '素手')} <span class="sub">/ ${esc(ac.move)}</span></span>`, `data-f="am:main"`);
+    h += sec(6, 40, 200, '加護');
+    gm[a].forEach((g, j) => {
+      h += B(6, 50 + j * 15, 200, 14, `foc ${g.boon ? 'kwrow' : ''}`, g.boon ? `<div class="row" style="left:0;top:0;width:200px"><span class="bc grace" style="--c:var(--ln-${g.boon.ln})">${LN[g.boon.ln][1]}</span><span class="t gap2" style="line-height:14px">${esc(g.boon.n)} <span class="sub">${esc(LN[g.boon.ln][0])}</span></span></div>` : `<div class="row" style="left:0;top:0"><span class="bc ${g.locked ? 'locked' : 'empty'}"></span><span class="dim gap2" style="line-height:14px">${g.locked ? '開いていない' : '空き'}</span></div>`, `data-f="ag:${j}" ${g.boon ? kwAttr(kwProfile(g.boon)) : ''}`);
+    });
+    h += sec(6, 97, 200, 'この行動に効く性質');
+    const eff = SLOTS.map((sl) => itemById(S.eq[sl])).filter(Boolean).flatMap((it) => it.af.filter((x) => (x.acts || []).includes(a)).map((x) => ({ it, x })));
+    eff.slice(0, 8).forEach(({ it, x }, i) => { h += B(6, 107 + i * 11, 200, 11, 'foc', `<div class="row" style="left:0;top:0;width:200px"><span class="bar2" style="background:var(--tr-${x.c})"></span><span class="t gap4" style="flex:1 1 auto;min-width:0">${esc(x.t)}</span><span class="sub gap2">${esc(SLOT_GLYPH[it.slot])}</span></div>`, `data-f="ae:${it.id}:${i}"`); });
+    let yy = 107 + Math.min(8, eff.length) * 11 + 2;
+    if (a === 'skill') {
+      h += sec(6, yy, 200, 'スキルと符'); yy += 10;
+      S.slots.forEach((sl, i) => { const st = sl.st && stoneById(sl.st); h += B(6, yy + i * 10, 200, 10, 'foc', `<span class="t">${i + 1} ${st ? esc(st.n) : '<span class="dim">空き</span>'} <span class="sub">${sl.runes.map((r) => RUNES[r].n).join(' ')}</span></span>`, `data-f="ak:${i}"`); });
+      yy += 42;
+    }
+    h += sec(6, yy, 200, '読むステータス');
+    const reads = ATTR.filter(([k]) => readActs[k].includes(a));
+    h += B(6, yy + 10, 200, 10, '', `<span class="t">${reads.map(([k, , l]) => `${l} ${statsOf(S.eq).s[k]}`).join('  ') || '<span class="dim">なし</span>'}</span>`);
+    // 中: 段ごとの数
+    h += `<div class="vr" style="left:209px;top:17px;height:238px"></div>`;
+    h += sec(212, 17, 104, '段ごと');
+    if (ac.pow !== undefined) {
+      [[1, ac.pow, ac.poise], [2, 14, 5], [3, 16, 6], [4, 30, 14]].forEach(([n, p, q], i) => { h += B(212, 27 + i * 10, 104, 10, '', `<div class="row" style="left:0;top:0;width:104px"><span class="sub" style="width:24px">${n}段</span><span style="width:40px">威力${p}</span><span>怯み${q}</span></div>`); });
+    } else h += B(212, 27, 104, 20, '', `<span class="t">${esc(ac.move)}</span><span class="t sub">${esc(ac.line2)}</span>`);
+    h += B(212, 72, 104, 60, 'sub wrapt', '遺物は複数の行動の頁に何度も出る。倉庫の整理と試着の置き場はこの構成に無い。');
+  }
+  h += `<div class="vr" style="left:317px;top:17px;height:238px"></div>`;
+  h += actDetail();
+  h += footer([['頁', 'Q E'], ['決定', 'Enter'], ['戻る', 'Esc'], ['灯す', 'F']]);
+  return h;
+}
+function actDetail() {
+  const [kind, a, b] = (S.focus.act || '').split(':');
+  const X = 320, Y = 17, W = 154, H = 238;
+  if (kind === 'ag') { const g = graceMap(S.eq)[S.actPage][+a]; if (g && g.boon) return pane(X, Y, W, H, g.boon.n, '', boonLines(g.boon), []); }
+  if (kind === 'ae' || kind === 'am') { const it = itemById(kind === 'am' ? S.eq.main : a); return pane(X, Y, W, H, fullName(it), '', relicLines(it, { short: true }), []); }
+  if (kind === 'ak') { const st = S.slots[+a].st && stoneById(S.slots[+a].st); if (st) return pane(X, Y, W, H, st.n, '', stoneLines(st, +a), []); }
+  if (kind === 'ab') { const at = ATTR.find((x) => x[0] === a); return pane(X, Y, W, H, at[2], '', [L('<span class="sub">読む</span>'), LW(readers[a].join(' / '))], []); }
+  return pane(X, Y, W, H, S.actPage === 'body' ? '体' : `行動 ${ACT_LONG[S.actPage]}`, '', [LW('この行動を変える物（武器・型・加護・性質・符・ステータス）を 1 頁に集めた。')], []);
+}
+
+// ============================================================
+// 描画の入口・焦点・語の灯
+// ============================================================
+function curPageKey() { return S.layout === 'cur' ? 'cur' : S.layout === 'act' ? 'act' : S.page; }
+function render() {
+  applyTheme();
+  const ui = document.getElementById('ui');
+  let h;
+  if (S.layout === 'cur') h = renderCur();
+  else if (S.layout === 'act') h = renderAct();
+  else h = { sheet: renderSheet, relic: renderRelic, skill: renderSkill, boon: renderBoon, words: renderWords }[S.page]();
+  ui.innerHTML = h;
+  const key = curPageKey();
+  const els = [...ui.querySelectorAll('[data-f]')];
+  if (els.length && !els.some((e) => e.dataset.f === S.focus[key])) {
+    S.focus[key] = els[0].dataset.f;
+    if (S.layout === 'rec' && S.page === 'relic') {
+      const firstItem = els.find((e) => e.dataset.f.startsWith('i:'));
+      if (firstItem) S.focus[key] = firstItem.dataset.f;
+    }
+    return render();
+  }
+  applyLit();
+  placeRing();
+  updateChrome();
+}
+function applyLit() {
+  const ui = document.getElementById('ui');
+  ui.querySelectorAll('.kwrow').forEach((e) => {
+    e.classList.remove('lit-src', 'lit-sink', 'lit-dim');
+    if (!S.lit || S.layout === 'cur') return;
+    const p = (e.dataset.kp || '').split(' '), c = (e.dataset.kc || '').split(' ');
+    e.style.setProperty('--litc', kwc(S.lit));
+    if (p.includes(S.lit)) e.classList.add('lit-src');
+    else if (c.includes(S.lit)) e.classList.add('lit-sink');
+    else e.classList.add('lit-dim');
+  });
+}
+function screenScale() {
+  const scr = document.getElementById('screen');
+  const r = scr.getBoundingClientRect();
+  return { r, k: r.width / 480 };
+}
+function rectOf(el) {
+  const { r, k } = screenScale();
+  const e = el.getBoundingClientRect();
+  return { x: (e.left - r.left) / k, y: (e.top - r.top) / k, w: e.width / k, h: e.height / k };
+}
+function placeRing() {
+  const ring = document.getElementById('fring');
+  const key = curPageKey();
+  const el = document.querySelector(`#ui [data-f="${CSS.escape(S.focus[key] || '')}"]`);
+  if (!el) { ring.classList.remove('on'); return; }
+  const q = rectOf(el);
+  ring.style.left = `${Math.round(q.x) - 1}px`;
+  ring.style.top = `${Math.round(q.y) - 1}px`;
+  ring.style.width = `${Math.round(q.w) + 2}px`;
+  ring.style.height = `${Math.round(q.h) + 2}px`;
+  ring.classList.add('on');
+}
+function setFocus(id, fromMouse) {
+  const key = curPageKey();
+  if (S.focus[key] === id) return;
+  S.focus[key] = id;
+  // 新着は焦点を当てると消える（墨に沈む）
+  const m = /^(i|so2):(.+)$/.exec(id);
+  if (m) S.seen[m[2]] = true;
+  if (S.layout === 'rec' && S.page === 'skill' && id.startsWith('sl:')) S.skillSel = +id.split(':')[1];
+  render();
+}
+function moveFocus(dx, dy) {
+  const key = curPageKey();
+  const els = [...document.querySelectorAll('#ui [data-f]')];
+  const cur = els.find((e) => e.dataset.f === S.focus[key]);
+  if (!cur) { if (els[0]) setFocus(els[0].dataset.f); return; }
+  const c = rectOf(cur);
+  let best = null, bs = Infinity;
+  els.forEach((e) => {
+    if (e === cur) return;
+    const q = rectOf(e);
+    // 進む向きの隙間（縁から縁）。後ろや重なりすぎは候補にしない
+    const gap = dx > 0 ? q.x - (c.x + c.w) : dx < 0 ? c.x - (q.x + q.w) : dy > 0 ? q.y - (c.y + c.h) : c.y - (q.y + q.h);
+    const centerAlong = dx ? (q.x + q.w / 2 - (c.x + c.w / 2)) * dx : (q.y + q.h / 2 - (c.y + c.h / 2)) * dy;
+    if (gap < -2 || centerAlong <= 0) return;
+    // 直交の向きのずれ（区間が重なれば 0）
+    const ortho = dx ? Math.max(0, Math.max(q.y, c.y) - Math.min(q.y + q.h, c.y + c.h)) : Math.max(0, Math.max(q.x, c.x) - Math.min(q.x + q.w, c.x + c.w));
+    const centerOff = dx ? Math.abs(q.y + q.h / 2 - (c.y + c.h / 2)) : Math.abs(q.x + q.w / 2 - (c.x + c.w / 2));
+    const score = Math.max(0, gap) + ortho * 2 + centerOff * 0.05;
+    if (score < bs) { bs = score; best = e; }
+  });
+  if (best) setFocus(best.dataset.f);
+}
+
+// ============================================================
+// 動詞（決定 / 戻る / 副の長押し / 詳しく / 灯す / 印）と頁の送り
+// ============================================================
+function snapshot() { S.undo = clone({ items: S.items, eq: S.eq, slots: S.slots, stones: S.stones }); }
+function undo() {
+  if (!S.undo) return;
+  Object.assign(S, clone(S.undo));
+  S.undo = null;
+  render();
+}
+function gotoPage(p, focus) {
+  if (S.layout !== 'rec') return;
+  S.page = p; S.wide = false; S.pop = null; S.lift = null;
+  if (focus) S.focus[p] = focus;
+  render();
+}
+function pageStep(d) {
+  if (S.layout === 'cur') { S.curTab = (S.curTab + d + 5) % 5; S.focus.cur = null; render(); return; }
+  if (S.layout === 'act') { const i = ACT_PAGES.indexOf(S.actPage); S.actPage = ACT_PAGES[(i + d + ACT_PAGES.length) % ACT_PAGES.length]; S.focus.act = null; render(); return; }
+  const order = TABS.map((t) => t[0]);
+  const i = Math.max(0, order.indexOf(S.page === 'words' ? 'sheet' : S.page));
+  gotoPage(order[(i + d + order.length) % order.length]);
+}
+function stamp(el, ch) {
+  const fx = document.getElementById('fx');
+  if (!el) return;
+  const q = rectOf(el);
+  const d = document.createElement('div');
+  d.className = 'fx-stamp';
+  d.textContent = ch;
+  d.style.left = `${Math.round(q.x + q.w - 13)}px`;
+  d.style.top = `${Math.round(q.y - 3)}px`;
+  fx.appendChild(d);
+  setTimeout(() => d.remove(), reduced() ? 250 : 400);
+}
+const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function enter() {
+  if (S.layout === 'cur') {
+    const f = S.focus.cur || '';
+    if (f.startsWith('cu:')) { S.ult = +f.slice(3); render(); }
+    return;
+  }
+  if (S.layout === 'act') return;
+  const f = S.focus[S.page] || '';
+  const [kind, a, b] = f.split(':');
+  const el = document.querySelector(`#ui [data-f="${CSS.escape(f)}"]`);
+  if (S.page === 'sheet') {
+    if (kind === 'r') { S.relicPart = a; S.focus.relic = S.eq[a] ? `eq:${S.eq[a]}` : null; gotoPage('relic'); return; }
+    if (kind === 'k') { S.skillSel = +a; gotoPage('skill', `sl:${a}`); return; }
+    if (kind === 'w') { gotoPage('words', `w:${a}`); return; }
+    if (kind === 'g' || kind === 'c') { gotoPage('boon', f); return; }
+    if (kind === 'a') { gotoPage('boon', `g:${a}:0`); return; }
+    if (kind === 'st') { S.wide = !S.wide; render(); return; }
+    return;
+  }
+  if (S.page === 'relic') {
+    if (S.pop && kind === 'so') { S.sort = +a; S.pop = null; S.focus.relic = 'sort'; render(); return; }
+    if (kind === 'sort') { S.pop = true; S.focus.relic = `so:${S.sort}`; render(); return; }
+    if (kind === 'fl') { S.filters[a] = !S.filters[a]; render(); return; }
+    if (kind === 'p') { S.relicPart = a; render(); return; }
+    if (kind === 'i') {
+      const it = itemById(a);
+      snapshot();
+      const old = S.eq[it.slot];
+      S.eq[it.slot] = it.id;
+      S.relicPart = it.slot;
+      S.focus.relic = `eq:${it.id}`;
+      if (old) S.seen[old] = true;
+      render();
+      stamp(document.querySelector(`#ui [data-f="eq:${CSS.escape(it.id)}"]`), '装');
+      return;
+    }
+    return;
+  }
+  if (S.page === 'skill') {
+    if (S.lift && kind === 'rn') {
+      snapshot();
+      const from = S.slots[S.lift.slot];
+      from.runes.splice(S.lift.idx, 1);
+      S.slots[+a].runes.push(S.lift.key);
+      S.lift = null;
+      S.focus.skill = `rn:${a}:${S.slots[+a].runes.length - 1}`;
+      render();
+      stamp(document.querySelector(`#ui [data-f="${CSS.escape(S.focus.skill)}"]`), '移');
+      return;
+    }
+    if (kind === 'rn') { S.lift = { slot: +a, idx: +b, key: S.slots[+a].runes[+b] }; render(); const first = document.querySelector('#ui [data-f^="rn:"]'); if (first) setFocus(first.dataset.f); return; }
+    if (kind === 'sl') { S.skillSel = +a; const first = document.querySelector('#ui [data-f^="so2:"]'); if (first) setFocus(first.dataset.f); return; }
+    if (kind === 'so2') {
+      snapshot();
+      const prevIdx = S.slots.findIndex((s2) => s2.st === a);
+      if (prevIdx >= 0) S.slots[prevIdx].st = S.slots[S.skillSel].st;
+      S.slots[S.skillSel].st = a;
+      S.focus.skill = `sl:${S.skillSel}`;
+      render();
+      stamp(document.querySelector(`#ui [data-f="sl:${S.skillSel}"]`), '装');
+      return;
+    }
+  }
+  if (S.page === 'words' && kind === 'w') { S.lit = S.lit === a ? null : a; render(); flashLit(); }
+}
+function back() {
+  if (S.layout !== 'rec') return;
+  if (S.pop) { S.pop = null; S.focus.relic = 'sort'; render(); return; }
+  if (S.lift) { S.lift = null; S.focus.skill = 'sl:0'; render(); return; }
+  if (S.wide) { S.wide = false; render(); return; }
+  if (S.jumps.length) { const j = S.jumps.pop(); S.page = j.page; S.focus[j.page] = j.focus; render(); return; }
+  if (S.page !== 'sheet') {
+    const back2 = { relic: `r:${S.relicPart === 'all' ? 'main' : S.relicPart}`, skill: `k:${S.skillSel}`, boon: S.focus.sheet && /^[gc]:/.test(S.focus.sheet) ? S.focus.sheet : 'a:primary', words: S.focus.sheet && S.focus.sheet.startsWith('w:') ? S.focus.sheet : 'r:main' }[S.page];
+    gotoPage('sheet', back2);
+  }
+}
+function toggleWide() {
+  if (S.layout !== 'rec') return;
+  if (S.page === 'relic') { const f = S.focus.relic || ''; if (!f.startsWith('i:')) return; }
+  if (S.page !== 'sheet' && S.page !== 'relic') return;
+  S.wide = !S.wide;
+  render();
+}
+function kwOfFocus() {
+  const el = document.querySelector(`#ui [data-f="${CSS.escape(S.focus[curPageKey()] || '')}"]`);
+  if (!el) return [];
+  return uniq([...(el.dataset.kp || '').split(' '), ...(el.dataset.kc || '').split(' ')].filter(Boolean));
+}
+function light() {
+  if (S.layout === 'cur') return;
+  const ks = kwOfFocus();
+  if (!ks.length) { S.lit = null; render(); return; }
+  const i = S.lit ? ks.indexOf(S.lit) : -1;
+  S.lit = i === ks.length - 1 ? null : ks[i + 1];
+  render();
+  flashLit();
+}
+function flashLit() {
+  document.querySelectorAll('#ui .lit-src, #ui .lit-sink').forEach((e) => { e.classList.add('lit-flash'); });
+}
+function mark() {
+  if (S.layout !== 'rec' || S.page !== 'relic') return;
+  const f = S.focus.relic || '';
+  if (!f.startsWith('i:')) return;
+  const it = itemById(f.slice(2));
+  it.mark = it.mark === 'fav' ? 'junk' : it.mark === 'junk' ? undefined : 'fav';
+  if (it.isNew) S.seen[it.id] = true;
+  it.isNew = it.isNew && !S.seen[it.id];
+  render();
+}
+function nextNew() {
+  if (S.layout !== 'rec' || S.page !== 'relic') return;
+  const all = S.items.filter((it) => !Object.values(S.eq).includes(it.id) && it.isNew && !S.seen[it.id]);
+  if (!all.length) return;
+  S.relicPart = all[0].slot;
+  S.focus.relic = `i:${all[0].id}`;
+  S.seen[all[0].id] = true;
+  render();
+}
+function partStep(d) {
+  if (S.layout !== 'rec' || S.page !== 'relic') return;
+  const i = PARTS.findIndex((p) => p[0] === S.relicPart);
+  S.relicPart = PARTS[(i + d + PARTS.length) % PARTS.length][0];
+  S.focus.relic = null;
+  render();
+}
+// 副（長押しで確定）
+const HOLD_SEC = 0.5;
+let hold = null;
+const RING_PX = [[4, 0], [5, 0], [6, 1], [7, 2], [8, 3], [8, 4], [8, 5], [7, 6], [6, 7], [5, 8], [4, 8], [3, 8], [2, 7], [1, 6], [0, 5], [0, 4], [0, 3], [1, 2], [2, 1], [3, 0]];
+function subTarget() {
+  if (S.layout !== 'rec') return null;
+  const f = S.focus[S.page] || '';
+  const [kind, a] = f.split(':');
+  if (S.page === 'relic' && (kind === 'i' || kind === 'eq')) return { f, label: kind === 'i' ? '砕く' : '外す' };
+  if (S.page === 'sheet' && kind === 'r' && S.eq[a]) return { f, label: '外す' };
+  if (S.page === 'skill' && (kind === 'rn' || kind === 'sl')) return { f, label: '外す' };
+  return null;
+}
+function holdStart() {
+  if (hold) return;
+  const t = subTarget();
+  if (!t) return;
+  const el = document.querySelector(`#ui [data-f="${CSS.escape(t.f)}"]`);
+  if (!el) return;
+  const q = rectOf(el);
+  const ring = document.createElement('div');
+  ring.className = 'ring';
+  ring.style.left = `${Math.round(q.x + q.w - 11)}px`;
+  ring.style.top = `${Math.round(q.y + q.h / 2 - 4.5)}px`;
+  document.getElementById('fx').appendChild(ring);
+  hold = { t, ring, t0: performance.now(), q };
+  requestAnimationFrame(holdTick);
+}
+function holdTick(now) {
+  if (!hold) return;
+  const p = Math.min(1, (now - hold.t0) / 1000 / HOLD_SEC);
+  const n = Math.round(p * RING_PX.length);
+  hold.ring.innerHTML = `<svg width="9" height="9" viewBox="0 0 9 9">${RING_PX.map(([x, y], i) => `<rect x="${x}" y="${y}" width="1" height="1" fill="${i < n ? 'var(--shu)' : 'var(--dim)'}"/>`).join('')}</svg>`;
+  if (p >= 1) { const h2 = hold; hold = null; h2.ring.remove(); holdDone(h2); return; }
+  requestAnimationFrame(holdTick);
+}
+function holdCancel() { if (!hold) return; hold.ring.remove(); hold = null; }
+function holdDone(h2) {
+  const fx = document.getElementById('fx');
+  // 墨の粒 4 つと、行を左から墨で塗りつぶす
+  [[-6, -5], [7, -6], [-5, 6], [8, 5]].forEach(([dx, dy]) => {
+    const d = document.createElement('div');
+    d.className = 'fx-dot';
+    d.style.left = `${Math.round(h2.q.x + h2.q.w - 7)}px`; d.style.top = `${Math.round(h2.q.y + h2.q.h / 2)}px`;
+    d.style.setProperty('--dx', `${dx}px`); d.style.setProperty('--dy', `${dy}px`);
+    fx.appendChild(d);
+    setTimeout(() => d.remove(), 350);
+  });
+  const wipe = document.createElement('div');
+  wipe.className = 'b';
+  wipe.style.cssText = `left:${Math.round(h2.q.x)}px;top:${Math.round(h2.q.y)}px;width:${Math.round(h2.q.w)}px;height:${Math.round(h2.q.h)}px;overflow:hidden`;
+  wipe.innerHTML = '<div class="fx-wipe" style="height:100%"></div>';
+  fx.appendChild(wipe);
+  setTimeout(() => { wipe.remove(); applySub(h2.t.f); }, reduced() ? 0 : 200);
+}
+function applySub(f) {
+  const [kind, a, b] = f.split(':');
+  snapshot();
+  if (S.page === 'relic' && kind === 'i') { S.items = S.items.filter((it) => it.id !== a); S.focus.relic = null; }
+  else if ((S.page === 'relic' && kind === 'eq') || (S.page === 'sheet' && kind === 'r')) { const sl = kind === 'r' ? a : itemById(a).slot; S.eq[sl] = null; }
+  else if (S.page === 'skill' && kind === 'rn') { S.slots[+a].runes.splice(+b, 1); S.focus.skill = `sl:${a}`; }
+  else if (S.page === 'skill' && kind === 'sl') { S.slots[+a].st = null; S.slots[+a].runes = []; }
+  render();
+}
+function jumpTo(ref) {
+  if (S.layout !== 'rec') return;
+  S.jumps.push({ page: S.page, focus: S.focus[S.page] });
+  const [kind, id] = ref.split(':');
+  if (kind === 'item') { const it = itemById(id); S.relicPart = it.slot; S.page = 'relic'; S.focus.relic = `eq:${id}`; }
+  else if (kind === 'slot') { S.page = 'skill'; S.focus.skill = `sl:${id}`; }
+  else if (kind === 'boon') { const bn = boonById(id); S.page = 'boon'; S.focus.boon = bn.card === 'grace' ? `g:${bn.act}:${BOONS.filter((x) => x.card === 'grace' && x.act === bn.act).indexOf(bn)}` : `c:${id}`; }
+  else if (kind === 'form') { S.page = 'sheet'; S.focus.sheet = 'job'; }
+  S.wide = false;
+  render();
+}
+
+// ============================================================
+// 入力（キーボード・マウス・タップ）
+// ============================================================
+const stage = document.getElementById('stage');
+function keyTargetOk() {
+  const ae = document.activeElement;
+  return !ae || ae === document.body || ae === stage || stage.contains(ae);
+}
+document.addEventListener('keydown', (e) => {
+  if (!keyTargetOk()) return;
+  const k = e.key;
+  const handled = () => { e.preventDefault(); };
+  if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'Z')) { handled(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (k === 'ArrowUp' || k === 'w' || k === 'W') { handled(); moveFocus(0, -1); return; }
+  if (k === 'ArrowDown' || k === 's' || k === 'S') { handled(); moveFocus(0, 1); return; }
+  if (k === 'ArrowLeft' || k === 'a' || k === 'A') { handled(); moveFocus(-1, 0); return; }
+  if (k === 'ArrowRight' || k === 'd' || k === 'D') { handled(); moveFocus(1, 0); return; }
+  if (k === 'Enter' || k === ' ') { handled(); enter(); return; }
+  if (k === 'Escape' || k === 'Backspace') { handled(); back(); return; }
+  if (k === 'Shift') { handled(); toggleWide(); return; }
+  if (k === 'q' || k === 'Q') { handled(); pageStep(-1); return; }
+  if (k === 'e' || k === 'E') { handled(); pageStep(1); return; }
+  if (k === 'f' || k === 'F') { handled(); light(); return; }
+  if (k === 'v' || k === 'V') { handled(); mark(); return; }
+  if (k === 'r' || k === 'R') { handled(); nextNew(); return; }
+  if (k === 'z' || k === 'Z') { handled(); partStep(-1); return; }
+  if (k === 'c' || k === 'C') { handled(); partStep(1); return; }
+  if (k === 'x' || k === 'X') { handled(); if (!e.repeat) holdStart(); return; }
+  if (/^[1-4]$/.test(k) && S.layout === 'rec' && S.page === 'skill') { handled(); setFocus(`sl:${+k - 1}`); }
+});
+document.addEventListener('keyup', (e) => { if (e.key === 'x' || e.key === 'X') holdCancel(); });
+
+let lastMouse = null;
+const ui = document.getElementById('ui');
+ui.addEventListener('mousemove', (e) => {
+  // マウスは動いたときだけ焦点を奪う
+  if (lastMouse && lastMouse.x === e.clientX && lastMouse.y === e.clientY) return;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  const el = e.target.closest('[data-f]');
+  if (el && !hold) setFocus(el.dataset.f, true);
+});
+let downInfo = null;
+ui.addEventListener('pointerdown', (e) => {
+  stage.focus({ preventScroll: true });
+  const opEl = e.target.closest('[data-op]');
+  if (opEl && opEl.dataset.op === 'sub') { e.preventDefault(); downInfo = { hold: true }; holdStart(); return; }
+  if (e.button === 2) { const el = e.target.closest('[data-f]'); if (el) setFocus(el.dataset.f); downInfo = { hold: true }; holdStart(); return; }
+  const el = e.target.closest('[data-f]');
+  downInfo = { type: e.pointerType, f: el ? el.dataset.f : null, wasFocused: el ? S.focus[curPageKey()] === el.dataset.f : false };
+});
+window.addEventListener('pointerup', () => { if (downInfo && downInfo.hold) holdCancel(); });
+ui.addEventListener('contextmenu', (e) => e.preventDefault());
+ui.addEventListener('click', (e) => {
+  const info = downInfo; downInfo = null;
+  if (info && info.hold) return;
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { gotoPage(tab.dataset.tab); return; }
+  const ct = e.target.closest('[data-curtab]');
+  if (ct) { S.curTab = +ct.dataset.curtab; S.focus.cur = null; render(); return; }
+  const ap = e.target.closest('[data-actpage]');
+  if (ap) { S.actPage = ap.dataset.actpage; S.focus.act = null; render(); return; }
+  const jl = e.target.closest('[data-jump]');
+  if (jl) { jumpTo(jl.dataset.jump); return; }
+  const opEl = e.target.closest('[data-op]');
+  if (opEl) { const o = opEl.dataset.op; ({ enter, back, wide: toggleWide, light, mark, undo })[o] && ({ enter, back, wide: toggleWide, light, mark, undo })[o](); return; }
+  const el = e.target.closest('[data-f]');
+  if (!el) return;
+  // タッチは 1 回目で焦点、2 回目で決定。マウスはクリックで決定
+  if (info && info.type === 'touch' && !info.wasFocused) { setFocus(el.dataset.f); return; }
+  setFocus(el.dataset.f);
+  enter();
+});
+
+// ============================================================
+// ページの外側（切り替え・説明・拡大）
+// ============================================================
+const NOTES = {
+  cur: ['今の 5 タブ（再現・簡略）', ['どのタブも「左に一覧・右に 164px の詳細欄」。比べる相手が並ばず、▲▼ の差は床のツールチップにしか無い', '祝福は「ステータス → G」の 2 段奥、共鳴は流れタブ、奥義は選ぶ所と出る所が別。残響は同じ倉庫を別の 6 行で出し直す', '部位の枠 51px に名前が「紅を…」で切れる、流れの 42 マスで名前が切れる、名前が「紅を帯びた○○」ばかりで見分けられない（今の欠点をそのまま再現）', 'マウスのホバーとクリック前提（砕くは Shift+クリック 2 回）。この再現は意匠の切り替えを受けない']],
+  rec: ['推奨（A4）: 旅装を家にして 遺物 / スキル / 祝福 の頁へ潜る 4 頁 + 語の表', ['旅装 1 枚に遺物 6・スキル 4・体・共鳴・行動 5 と加護・常時の札・状態が並ぶ。祝福・共鳴・ステータスが 1 画面に揃い、ステータスタブが要らなくなる（0 章 #2・#6）', '遺物頁は試着: 候補に焦点を当てるだけで共鳴の帯と「入れ替えると」（語・共鳴・行動・体・失う / 得る性質）が ▲▼ で動く。単一の数は出さない。Shift で装備中と横並び（#1）', '焦点 1 つと 5 動詞（決定 / 戻る / 副の長押し / 詳しく / 灯す）。確定は長押し 1 種と取り消し 1 段。語の灯で源は塗り・糧は縁取りで全頁が光る（#3）', '一字の印・8px と 12px の 2 段・一覧の名前はベース名に縮め違いは語の印・揺らぎ・余白の列で見せる。新着・愛用・がらくたの印（#4・#5）']],
+  act: ['別案（A2）: 行動で割る（左 / 右 / ダッシュ / スキル / 奥義 / 体）', ['原則 11（行動ごとの係数）にそのまま沿い、「この行動を何が変えているか」（武器・加護・性質・符・読むステータス）が 1 頁で読める', '加護の枠が行動の頁にそのまま収まり、祝福の置き場は迷わない', '遺物は複数の行動にまたがって何度も出る。倉庫の整理と試着の置き場がこの構成に無い（推奨にしなかった理由）']],
+};
+const G_NOTES = {
+  g4: 'G4 推奨: 地と罫は墨染めの帳、頁の外枠と頁札だけ漆の縁（墨 1・朱 1・金の糸 1 の 3px）と角金具。朱は「今ここ・取り返しが付かない」、金は「特別」だけ。暗い地で語・系譜の色と 8px の字が読める',
+  g3: 'G3 墨染めの帳: 飾りは見出しの朱の落款と墨の罫だけ。中身の面積を削らず一番読みやすいが、枠の手触りは控えめ',
+  g2: 'G2 漆の盆: 黒漆の地・朱の縁・金継ぎの罫・角金具。豪華で色が映えるが、枠と罫が主張する',
+  g5: 'G5 素のピクセル 9-slice: 明るい細線の 9-slice と暗い半透明の地（止まったゲームが透ける）。安く邪魔をしないが和の手がかりが無い',
+  g1: 'G1 巻物: 明るい和紙に墨。世界観は最も強いが、語の色の印と 8px の色文字が沈む（そのまま見せている）。軸は上下 3px に縮めて描いた（本来は 24px を食う）',
+};
+const CH_NOTE = { hub: '拠点（朱）', '1': '章 1 苔の黄緑', '2': '章 2 灯籠の暖色', '3f': '章 3 炎', '3i': '章 3 霜', '4': '章 4 燐光', deep: '最深 朱' };
+function updateChrome() {
+  document.querySelectorAll('[data-layout]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.layout === S.layout)));
+  document.querySelectorAll('.ctl [data-g]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.g === S.g)));
+  document.querySelectorAll('.ctl [data-ch]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ch === S.ch)));
+  const [title, pts] = NOTES[S.layout];
+  const pageName = S.layout === 'rec' ? ` ／ 今の頁: ${{ sheet: '旅装', relic: '遺物', skill: 'スキル', boon: '祝福', words: '語の表' }[S.page]}${S.wide ? '（詳しく）' : ''}` : '';
+  const design = S.layout === 'cur' ? '' : `<p class="sub" style="margin:6px 0 0">意匠: ${esc(G_NOTES[S.g])} ／ 章の差し色: ${esc(CH_NOTE[S.ch])}</p>`;
+  document.getElementById('note').innerHTML = `<h2>${esc(title)}${esc(pageName)}</h2><ul>${pts.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>${design}`;
+  const jump = document.getElementById('jump');
+  const btns = S.layout === 'rec'
+    ? [['旅装', () => gotoPage('sheet', 'r:main')], ['旅装 詳しく', () => { gotoPage('sheet', 'a:primary'); S.wide = true; render(); }], ['遺物頁で試着', () => { S.relicPart = 'main'; gotoPage('relic', 'i:s1'); }], ['装備中と並べる', () => { S.relicPart = 'main'; gotoPage('relic', 'i:s1'); S.wide = true; render(); }], ['スキル頁', () => gotoPage('skill', 'sl:0')], ['祝福頁', () => gotoPage('boon', 'g:primary:0')], ['語の表', () => gotoPage('words', 'w:burn')], [S.lit ? `灯を消す（${KW[S.lit][1]}）` : '燃焼を灯す', () => { S.lit = S.lit ? null : 'burn'; render(); flashLit(); }], ['戻る Esc', back], ['戻す Ctrl+Z', undo]]
+    : S.layout === 'act' ? ACT_PAGES.map((a) => [a === 'body' ? '体' : ACT_LONG[a], () => { S.actPage = a; S.focus.act = null; render(); }]).concat([[S.lit ? '灯を消す' : '燃焼を灯す', () => { S.lit = S.lit ? null : 'burn'; render(); }]])
+      : CUR_TABS.map((t, i) => [t, () => { S.curTab = i; S.focus.cur = null; render(); }]);
+  jump.innerHTML = '<span class="lab" style="color:var(--page-sub);font-size:13px;margin-right:4px">移動</span>' + btns.map((b, i) => `<button class="btn" data-j="${i}">${esc(b[0])}</button>`).join('');
+  jump.querySelectorAll('[data-j]').forEach((el) => { el.onclick = () => { btns[+el.dataset.j][1](); stage.focus({ preventScroll: true }); }; });
+  document.getElementById('keys').innerHTML = [
+    ['焦点', '矢印 / WASD・マウスのホバー'], ['決定（潜る・装備・持ち上げ / 置く）', 'Enter / Space・クリック'], ['戻る', 'Esc / Backspace'],
+    ['副（外す・砕く）', 'X 長押し・右クリック長押し・操作の札を押し続ける'], ['詳しく（広げる / 並べる）', 'Shift'], ['灯す', 'F（語が複数なら押すたびに次）'],
+    ['印（愛用 → がらくた → なし）', 'V'], ['頁', 'Q / E・頁札のクリック'], ['部位', 'Z / C'], ['次の新着', 'R'], ['取り消し', 'Ctrl+Z'], ['スキルのスロット', '1〜4'],
+  ].map(([a, b]) => `${esc(a)} <b>${esc(b)}</b>`).join('　');
+}
+function fit() {
+  const st = document.getElementById('stage');
+  const scr = document.getElementById('screen');
+  const w = st.clientWidth;
+  const hMax = Math.max(270, window.innerHeight - 40);
+  let z = Math.min(w / 480, hMax / 270);
+  z = z >= 1 ? Math.floor(z) : z;
+  scr.style.zoom = String(z);
+  st.style.height = `${Math.ceil(270 * z)}px`;
+  placeRing();
+}
+document.querySelectorAll('[data-layout]').forEach((b) => { b.onclick = () => { S.layout = b.dataset.layout; S.wide = false; S.pop = null; S.lift = null; render(); }; });
+document.querySelectorAll('.ctl [data-g]').forEach((b) => { b.onclick = () => { S.g = b.dataset.g; if (S.layout === 'cur') S.layout = 'rec'; render(); }; });
+document.querySelectorAll('.ctl [data-ch]').forEach((b) => { b.onclick = () => { S.ch = b.dataset.ch; render(); }; });
+window.addEventListener('resize', fit);
+// 前回見ていた案を覚える（見る人ごとの便利機能。失敗しても既定で動く）
+try {
+  const saved = JSON.parse(localStorage.getItem('inv-preview') || 'null');
+  if (saved && ['cur', 'rec', 'act'].includes(saved.layout)) { S.layout = saved.layout; S.g = saved.g || S.g; S.ch = saved.ch || S.ch; }
+} catch (err) { /* 保存が使えない環境では既定のまま */ }
+const _render = render;
+render = function () { _render(); try { localStorage.setItem('inv-preview', JSON.stringify({ layout: S.layout, g: S.g, ch: S.ch })); } catch (err) { /* 無視 */ } };
+drawBackdrop();
+fit();
+render();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { render(); });
+</script>

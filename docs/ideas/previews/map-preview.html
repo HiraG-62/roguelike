@@ -1,0 +1,1978 @@
+<title>マップ意匠の見本</title>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@400;700&display=swap");
+:root {
+  color-scheme: dark;
+  --bg: #121118;
+  --panel: #1a1922;
+  --panel-2: #22202c;
+  --line: #34313f;
+  --text: #ebe6d9;
+  --muted: #a8a194;
+  --faint: #6f6a62;
+  --accent: #e2a24e;
+  --accent-ink: #1a1308;
+  --vermilion: #c83a2a;
+  --focus: #ffd05a;
+  --btn: #26242f;
+  --btn-hover: #312e3c;
+  --btn-on: #4a3624;
+  --btn-on-line: #e2a24e;
+  --canvas-bg: #0b0a0f;
+  --font-ui: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  --font-dot: "DotGothic16", "Zen Maru Gothic", monospace;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+.wrap { max-width: 1320px; margin: 0 auto; padding: 20px 16px 48px; }
+header h1 {
+  font-family: var(--font-dot);
+  font-weight: 400;
+  font-size: clamp(22px, 4vw, 30px);
+  letter-spacing: 0.06em;
+  margin: 0 0 4px;
+}
+header p { margin: 0 0 14px; color: var(--muted); max-width: 70ch; }
+.controls { display: grid; gap: 10px; margin-bottom: 14px; }
+.group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.group-label {
+  font-family: var(--font-dot);
+  color: var(--muted);
+  font-size: 13px;
+  min-width: 4.5em;
+}
+button, .seed-input {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--btn);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 11px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+button:hover { background: var(--btn-hover); }
+button[aria-pressed="true"] {
+  background: var(--btn-on);
+  border-color: var(--btn-on-line);
+  color: var(--text);
+}
+button:focus-visible, canvas:focus-visible, input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.seed-input { width: 7em; cursor: text; }
+.split-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.split-row input[type="range"] { width: min(260px, 60vw); accent-color: var(--accent); }
+.split-row[hidden] { display: none; }
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (min-width: 1180px) {
+  .stage { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+.canvasbox {
+  background: var(--canvas-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  overflow: hidden;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+#view { max-width: 100%; height: auto; background: var(--canvas-bg); }
+.side { display: grid; gap: 12px; min-width: 0; }
+@media (min-width: 640px) and (max-width: 1179px) {
+  .side { grid-template-columns: 1fr 1fr; }
+}
+figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
+figure canvas { width: 100%; height: auto; background: var(--canvas-bg); border-radius: 4px; cursor: crosshair; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.notes {
+  margin-top: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.notes h2 { font-family: var(--font-dot); font-weight: 400; font-size: 18px; margin: 0 0 6px; color: var(--accent); }
+.notes ul { margin: 0 0 10px; padding-left: 1.2em; }
+.notes li { margin: 2px 0; }
+.notes .sub { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+.notes .sub b { color: var(--text); font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; border: 1px solid var(--line); }
+.status { font-size: 12.5px; color: var(--faint); margin-top: 6px; min-height: 1.4em; }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<main class="wrap">
+  <header>
+    <h1>マップ意匠の見本</h1>
+    <p>同じ seed の同じ地図を、見た目の案・章のテーマ・生成の案で描き分けます。当たりの格子はどの案も 16px のままで、変わるのは描き方だけです（生成の案だけは形そのものが変わります）。中央が旅人、周りに敵が 3 体います。</p>
+  </header>
+
+  <section class="controls" aria-label="切り替え">
+    <div class="group" role="group" aria-label="見た目の案">
+      <span class="group-label">見た目</span>
+      <button type="button" data-variant="0">0 現状</button>
+      <button type="button" data-variant="1">A 真上・なめらか</button>
+      <button type="button" data-variant="2">B 3/4 見下ろし</button>
+      <button type="button" data-variant="3">C 光と置物</button>
+    </div>
+    <div class="group" role="group" aria-label="章のテーマ" id="themeGroup">
+      <span class="group-label">章</span>
+    </div>
+    <div class="group" role="group" aria-label="生成の案">
+      <span class="group-label">生成</span>
+      <button type="button" data-gen="cave">今の洞窟</button>
+      <button type="button" data-gen="skel">骨組み + 形の語彙</button>
+      <button type="button" data-gen="rooms">今の回廊</button>
+    </div>
+    <div class="group" role="group" aria-label="seed と視点">
+      <span class="group-label">seed</span>
+      <button type="button" id="seedPrev" aria-label="seed を 1 戻す">◀</button>
+      <input class="seed-input" id="seedInput" type="number" inputmode="numeric" value="7" aria-label="seed">
+      <button type="button" id="seedNext" aria-label="seed を 1 進める">▶</button>
+      <button type="button" id="seedRand">別の seed</button>
+      <button type="button" id="focusNext">視点を移す</button>
+    </div>
+    <div class="group" role="group" aria-label="比較">
+      <span class="group-label">比較</span>
+      <button type="button" id="compareBtn" aria-pressed="false">現状と左右に並べる</button>
+      <div class="split-row" id="splitRow" hidden>
+        <label for="split">境目</label>
+        <input type="range" id="split" min="0" max="480" step="4" value="240">
+        <span class="status" id="splitNote">左 = 現状 / 右 = 選んだ案</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="stage">
+    <div class="canvasbox" id="canvasbox">
+      <canvas id="view" width="960" height="540" tabindex="0" aria-label="地図の見本。矢印キーで拡大鏡を動かす"></canvas>
+    </div>
+    <aside class="side">
+      <figure>
+        <canvas id="mini" width="192" height="120" aria-label="全体図。押すとその場所へ視点を移す"></canvas>
+        <figcaption>全体図（押すとその場所へ視点を移す。白枠 = 画面、橙 = 骨組みのグラフ）</figcaption>
+      </figure>
+      <figure>
+        <canvas id="mag" width="384" height="216" aria-label="拡大鏡"></canvas>
+        <figcaption>拡大鏡: 論理 96x54 を 2 倍で見る。地図の上でポインタを動かすか、地図を選んで矢印キー</figcaption>
+      </figure>
+    </aside>
+  </div>
+
+  <section class="notes" aria-live="polite">
+    <h2 id="vTitle"></h2>
+    <ul id="vDesc"></ul>
+    <p class="sub" id="tDesc"></p>
+    <p class="sub" id="gDesc"></p>
+    <div class="legend" id="legend"></div>
+    <p class="status" id="status"></p>
+  </section>
+</main>
+
+<script>
+"use strict";
+// =====================================================================
+// 定数（論理 480x270・当たりのマス 16px・密度 2 = 1 マス 32 ドット）
+// =====================================================================
+const TILE = 16;
+const DOTS = 2;
+const TD = TILE * DOTS;
+const VIEW_W = 480, VIEW_H = 270;
+const VW = VIEW_W * DOTS, VH = VIEW_H * DOTS;
+const MAP_W = 64, MAP_H = 40;
+const MARGIN = 96;
+const LIP = 6; // 手前の縁の張り出し（ドット = 論理 3px）
+
+// =====================================================================
+// 色
+// =====================================================================
+const pack = (r, g, b) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+const cr = (c) => c & 255, cg = (c) => (c >>> 8) & 255, cb = (c) => (c >>> 16) & 255;
+function hex(h) { const n = parseInt(h.slice(1), 16); return pack((n >> 16) & 255, (n >> 8) & 255, n & 255); }
+function mix(a, b, t) {
+  return pack(
+    Math.round(cr(a) + (cr(b) - cr(a)) * t),
+    Math.round(cg(a) + (cg(b) - cg(a)) * t),
+    Math.round(cb(a) + (cb(b) - cb(a)) * t));
+}
+const clamp255 = (v) => v < 0 ? 0 : v > 255 ? 255 : v | 0;
+function lighten(c, t) { return mix(c, hex("#ffffff"), t); }
+function darken(c, t) { return mix(c, hex("#000000"), t); }
+const OUTLINE_K = hex("#1a1a24");
+const WHITE = hex("#ffffff");
+
+// =====================================================================
+// 乱数・座標ハッシュ・雑音（すべて決定的）
+// =====================================================================
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function h32(x, y, s) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(s | 0, 1442695041);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  h = Math.imul(h, 2246822519);
+  h ^= h >>> 13;
+  return h >>> 0;
+}
+const hf = (x, y, s) => h32(x, y, s) / 4294967296;
+function vnoise(x, y, p, s) {
+  const fx = x / p, fy = y / p;
+  const ix = Math.floor(fx), iy = Math.floor(fy);
+  let tx = fx - ix, ty = fy - iy;
+  tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+  const a = hf(ix, iy, s), b = hf(ix + 1, iy, s), c = hf(ix, iy + 1, s), d = hf(ix + 1, iy + 1, s);
+  return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+}
+const VR = { d1: 0, d2: 0, id: 0, cx: 0, cy: 0 };
+function vor(x, y, cell, s) {
+  const gx0 = Math.floor(x / cell), gy0 = Math.floor(y / cell);
+  let d1 = 1e9, d2 = 1e9, id = 0, px = 0, py = 0;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const gx = gx0 + i, gy = gy0 + j;
+    const hh = h32(gx, gy, s);
+    const fx = (gx + 0.12 + ((hh & 1023) / 1024) * 0.76) * cell;
+    const fy = (gy + 0.12 + (((hh >>> 10) & 1023) / 1024) * 0.76) * cell;
+    const dx = x - fx, dy = y - fy, d = dx * dx + dy * dy;
+    if (d < d1) { d2 = d1; d1 = d; id = hh; px = fx; py = fy; } else if (d < d2) d2 = d;
+  }
+  VR.d1 = Math.sqrt(d1); VR.d2 = Math.sqrt(d2); VR.id = id; VR.cx = px; VR.cy = py;
+  return VR;
+}
+
+// =====================================================================
+// 章のテーマ（docs/ideas/map-overhaul-ideas.md の A-6 の配色表）
+// =====================================================================
+const THEMES = [
+  { key: "moss", label: "章1 苔の洞", sub: "深度 1〜5",
+    note: "自然の洞窟。丸い岩、側面は低い（半マス）、天面と側面に苔が垂れる。光は蛍苔の黄緑と天窓の薄日。地形は水たまり。",
+    c: { fD: "#2f3530", fB: "#3d4540", fL: "#4d5a4c", top: "#56604a", side: "#262b25", light: "#c8e878", accent: "#4a8cb0", moss1: "#4a6238", moss2: "#65823f", wood: "#5a4632" },
+    floor: "cobble", top: "rock", side: "rockside", corner: "round", noise: 3, h: 16, abyss: false, ter: "water", dark: 0.34, drips: true,
+    props: [["mush", 5], ["hokora", 1], ["skull", 2]], decals: ["pebble", "moss", "crack", "root", "pebble"] },
+  { key: "temple", label: "章2 地下寺院と坑道", sub: "深度 6〜10",
+    note: "人が掘って祀った場所。石垣と朱の柱、側面は 1 マス。光は灯籠の暖色。地形は坑道の油（虹色の膜）。",
+    c: { fD: "#3a3230", fB: "#4a403c", fL: "#5c5048", top: "#6e6258", side: "#2c2420", light: "#ffb45a", accent: "#b0342c", moss1: "#4e4a3a", moss2: "#5e5842", wood: "#6a4a30" },
+    floor: "slab", top: "mason", side: "stonewall", corner: "chamfer", noise: 0, h: 32, abyss: false, ter: "oil", dark: 0.44,
+    props: [["lantern", 4], ["jizo", 3], ["pillar", 2]], decals: ["crack", "pebble", "bones", "crack"] },
+  { key: "fire", label: "章3 廃城（炎）", sub: "深度 11〜15",
+    note: "焼けた地底の城。城壁の切石、煤けた側面。光は篝火と溶岩の橙。地形は溶岩（黒く冷えた殻）。",
+    c: { fD: "#33241f", fB: "#45302a", fL: "#5a3c30", top: "#5e4a40", side: "#221612", light: "#ff7a2a", accent: "#ffd05a", moss1: "#2a1a14", moss2: "#1a110d", wood: "#4a3020" },
+    floor: "ashlar", top: "mason", side: "ashlarside", corner: "chamfer", noise: 0, h: 32, abyss: false, ter: "lava", dark: 0.42, soot: true,
+    props: [["brazier", 4], ["spear", 3], ["skull", 2]], decals: ["scorch", "crack", "ember", "crack"] },
+  { key: "frost", label: "章3 廃城（霜）", sub: "深度 11〜15",
+    note: "凍った地底の城の庭。切石に霜、側面から氷柱。光は氷晶の青白。地形は氷（白い霜の縁とひび）。",
+    c: { fD: "#2c3444", fB: "#3a4458", fL: "#4c5a70", top: "#6a7c96", side: "#1e2432", light: "#b8e4ff", accent: "#e8f4ff", moss1: "#8aa4c0", moss2: "#c8d8e8", wood: "#4a4a58" },
+    floor: "ashlar", top: "mason", side: "ashlarside", corner: "chamfer", noise: 0, h: 32, abyss: false, ter: "ice", dark: 0.38, frost: true,
+    props: [["crystal", 4], ["spear", 2], ["skull", 1]], decals: ["frost", "crack", "frost"] },
+  { key: "deep", label: "章4 深みの異界", sub: "深度 16〜20",
+    note: "裏返った空間。床は島になって浮き、壁の代わりに奈落（崖の断面が下へ垂れる）。紫の燐光と金の文字。地形は瘴気の溜まり。",
+    c: { fD: "#241f30", fB: "#302a40", fL: "#3e3654", top: "#4c4266", side: "#17131f", light: "#b27cff", accent: "#d8b04a", moss1: "#5a3a8a", moss2: "#3a2658", wood: "#3a3048" },
+    floor: "glyph", top: "rock", side: "cliff", corner: "round", noise: 3, h: 24, abyss: true, ter: "miasma", dark: 0.52,
+    props: [["orb", 3], ["lantern", 2], ["skull", 1]], decals: ["glyph", "crack", "crack"] },
+  { key: "final", label: "最深の間（墨と朱）", sub: "深度 21",
+    note: "枯山水の砂紋の床と墨の石。墨・砂・朱の 3 色だけ。光は白。地形は墨の池。",
+    c: { fD: "#5a564e", fB: "#6a665c", fL: "#7a7466", top: "#2a282c", side: "#141216", light: "#f0ece0", accent: "#c83a2a", moss1: "#4a4640", moss2: "#8a8474", wood: "#2a282c" },
+    floor: "sand", top: "ink", side: "inkside", corner: "round", noise: 1, h: 24, abyss: false, ter: "ink", dark: 0.2,
+    props: [["stone", 4], ["pillar", 2], ["andon", 2]], decals: [] },
+  { key: "blood", label: "深み（血の月）", sub: "深度 22〜",
+    note: "章 4 の変異。5 層ごとの変異が積まれるたびに色相をずらす（ここは血の月 = 赤み）。浮島と奈落はそのまま。",
+    c: { fD: "#2e1c22", fB: "#3c262c", fL: "#50323a", top: "#603844", side: "#1c1014", light: "#e8927a", accent: "#d8b04a", moss1: "#7a2a36", moss2: "#4a121c", wood: "#3a2228" },
+    floor: "glyph", top: "rock", side: "cliff", corner: "round", noise: 3, h: 24, abyss: true, ter: "blood", dark: 0.56,
+    props: [["orb", 3], ["lantern", 2], ["skull", 2]], decals: ["glyph", "crack", "crack"] },
+];
+
+function derivePalette(th) {
+  const c = {}; for (const k in th.c) c[k] = hex(th.c[k]);
+  const P = Object.assign({}, c);
+  P.fO = mix(c.fD, hex("#0c0b10"), 0.55);
+  P.fH = lighten(c.fL, 0.07);
+  P.tB = c.top; P.tD = mix(c.top, c.side, 0.5); P.tL = lighten(c.top, 0.13);
+  P.sB = c.side; P.sL = mix(c.side, c.top, 0.42); P.sD = darken(c.side, 0.35);
+  P.vD = darken(c.side, 0.62); P.v1 = mix(c.top, P.vD, 0.42); P.v2 = mix(c.top, P.vD, 0.74);
+  P.soot = hex("#150d0a"); P.snow = hex("#d4e2f0");
+  P.accL = lighten(c.accent, 0.25); P.accD = darken(c.accent, 0.35);
+  P.lightDim = mix(c.light, P.vD, 0.5);
+  P.stoneL = mix(c.top, c.fL, 0.3); P.stoneB = mix(c.top, c.side, 0.25); P.stoneD = mix(c.top, c.side, 0.65);
+  return P;
+}
+const TER = {
+  water: { a: "#4a8cb0", deep: "#2e5a78", foam: "#9ccbe0", rip: "#72b0d0", bank: "#1e2a2c", liquid: true, old: "#4a8cb0", oldA: 0.55 },
+  oil: { a: "#2a2420", deep: "#1c1816", foam: "#6a5a9a", rip: "#3a8a7a", bank: "#16110f", liquid: true, sheen: ["#7a62a8", "#3a8a7a", "#a89a48"], old: "#2a2420", oldA: 0.7 },
+  lava: { a: "#e0561e", deep: "#ff7a2a", foam: "#1a0e0a", rip: "#ffd05a", bank: "#140a08", mid: "#a8341a", liquid: true, old: "#ff6a2a", oldA: 1 },
+  ice: { a: "#8ab8d8", deep: "#6a98bc", foam: "#e8f4ff", rip: "#b8e4ff", bank: "#2a3448", liquid: false, old: "#b8e4ff", oldA: 0.6 },
+  miasma: { a: "#4a2e72", deep: "#321e52", foam: "#b27cff", rip: "#7a52b8", bank: "#120e18", liquid: true, old: "#6a3aa0", oldA: 0.6 },
+  ink: { a: "#1e1c20", deep: "#141216", foam: "#3a3834", rip: "#f0ece0", bank: "#4a463e", liquid: true, old: "#141216", oldA: 0.85 },
+  blood: { a: "#5a1822", deep: "#3e0e16", foam: "#8a2a36", rip: "#c85a5a", bank: "#1a0a0e", liquid: true, old: "#6a1a26", oldA: 0.7 },
+};
+const TERC = {};
+for (const k in TER) {
+  const t = TER[k]; const o = {};
+  for (const f of ["a", "deep", "foam", "rip", "bank", "mid", "old"]) if (t[f]) o[f] = hex(t[f]);
+  o.sheen = t.sheen ? t.sheen.map(hex) : null; o.liquid = t.liquid; o.oldA = t.oldA;
+  TERC[k] = o;
+}
+
+// =====================================================================
+// 生成（タイル: 1 = 壁、0 = 床。当たりの格子は 16px のまま）
+// =====================================================================
+const idx = (x, y) => y * MAP_W + x;
+const inMap = (x, y) => x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
+function keepLargest(g) {
+  const lab = new Int32Array(MAP_W * MAP_H).fill(-1);
+  let best = -1, bestN = 0, n = 0;
+  const q = new Int32Array(MAP_W * MAP_H);
+  for (let i = 0; i < g.length; i++) {
+    if (g[i] || lab[i] >= 0) continue;
+    let qh = 0, qt = 0; q[qt++] = i; lab[i] = n; let cnt = 0;
+    while (qh < qt) {
+      const c = q[qh++]; cnt++;
+      const x = c % MAP_W, y = (c / MAP_W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue;
+        const ni = idx(nx, ny); if (g[ni] || lab[ni] >= 0) continue;
+        lab[ni] = n; q[qt++] = ni;
+      }
+    }
+    if (cnt > bestN) { bestN = cnt; best = n; }
+    n++;
+  }
+  for (let i = 0; i < g.length; i++) if (!g[i] && lab[i] !== best) g[i] = 1;
+}
+function border(g) {
+  for (let x = 0; x < MAP_W; x++) { g[idx(x, 0)] = 1; g[idx(x, MAP_H - 1)] = 1; }
+  for (let y = 0; y < MAP_H; y++) { g[idx(0, y)] = 1; g[idx(MAP_W - 1, y)] = 1; }
+}
+function wallCount8(g, x, y) {
+  let n = 0;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    if (!i && !j) continue;
+    const nx = x + i, ny = y + j;
+    if (!inMap(nx, ny) || g[idx(nx, ny)]) n++;
+  }
+  return n;
+}
+function caStep(g, birth, survive) {
+  const o = new Uint8Array(g.length);
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+    const n = wallCount8(g, x, y), i = idx(x, y);
+    o[i] = g[i] ? (n >= survive ? 1 : 0) : (n >= birth ? 1 : 0);
+  }
+  return o;
+}
+
+// 今の洞窟: 全面に 45% の壁を撒き、セルオートマトン 5 回（CAVE.json の base と同じ数値）
+function genCave(seed) {
+  const rng = mulberry32(seed * 9973 + 1);
+  let g = new Uint8Array(MAP_W * MAP_H);
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++)
+    g[idx(x, y)] = (x === 0 || y === 0 || x === MAP_W - 1 || y === MAP_H - 1 || rng() < 0.45) ? 1 : 0;
+  for (let i = 0; i < 5; i++) g = caStep(g, 5, 4);
+  border(g); keepLargest(g);
+  return { solid: g, ter: new Uint8Array(g.length), graph: null };
+}
+
+// 今の回廊: 矩形の部屋 + 幅 2 の L 字通路
+function genRooms(seed) {
+  const rng = mulberry32(seed * 7717 + 3);
+  const g = new Uint8Array(MAP_W * MAP_H).fill(1);
+  const rooms = [];
+  for (let t = 0; t < 300 && rooms.length < 10; t++) {
+    const w = 6 + Math.floor(rng() * 8), h = 5 + Math.floor(rng() * 5);
+    const x = 2 + Math.floor(rng() * (MAP_W - w - 4)), y = 2 + Math.floor(rng() * (MAP_H - h - 4));
+    if (rooms.some((r) => x < r.x + r.w + 3 && x + w + 3 > r.x && y < r.y + r.h + 3 && y + h + 3 > r.y)) continue;
+    rooms.push({ x, y, w, h });
+  }
+  rooms.sort((a, b) => a.x - b.x);
+  for (const r of rooms) for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) g[idx(x, y)] = 0;
+  const carve = (x, y) => { for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) if (inMap(x + i, y + j) && x + i > 0 && y + j > 0 && x + i < MAP_W - 1 && y + j < MAP_H - 1) g[idx(x + i, y + j)] = 0; };
+  for (let i = 1; i < rooms.length; i++) {
+    const a = rooms[i - 1], b = rooms[i];
+    const ax = a.x + (a.w >> 1), ay = a.y + (a.h >> 1), bx = b.x + (b.w >> 1), by = b.y + (b.h >> 1);
+    if (rng() < 0.5) {
+      for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) carve(x, ay);
+      for (let y = Math.min(ay, by); y <= Math.max(ay, by); y++) carve(bx, y);
+    } else {
+      for (let y = Math.min(ay, by); y <= Math.max(ay, by); y++) carve(ax, y);
+      for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) carve(x, by);
+    }
+  }
+  border(g); keepLargest(g);
+  return { solid: g, ter: new Uint8Array(g.length), graph: null };
+}
+
+// 骨組み + 形の語彙: 主の道・ループ・寄り道のグラフ → 形の塊 → 曲線の通路 → 縁だけ崩す
+const SHAPES = ["gourd", "crescent", "ring", "fan", "compound", "circle", "pond", "double"];
+const SHAPE_LABEL = { circle: "円広間", gourd: "瓢箪", crescent: "三日月", ring: "環", fan: "扇", compound: "合成塊", pond: "池の広間", double: "二重円" };
+function genSkeleton(seed) {
+  const rng = mulberry32(seed * 7919 + 13);
+  const g = new Uint8Array(MAP_W * MAP_H).fill(1);
+  const ter = new Uint8Array(MAP_W * MAP_H);
+  const nodes = [], edges = [];
+  const N = 6;
+  const roles = ["開始", "前哨", "分かれ道", "中核", "前室", "主の間"];
+  for (let i = 0; i < N; i++) {
+    const x = 7 + i * (MAP_W - 14) / (N - 1) + (rng() - 0.5) * 3;
+    const y = MAP_H / 2 + (rng() - 0.5) * MAP_H * 0.4;
+    nodes.push({ x, y, role: roles[i], kind: "main" });
+    if (i) edges.push([i - 1, i, "main"]);
+  }
+  const la = 1 + Math.floor(rng() * 2), lb = la + 2;
+  const loopUp = nodes[la + 1].y > MAP_H / 2;
+  nodes.push({ x: (nodes[la].x + nodes[lb].x) / 2 + (rng() - 0.5) * 3,
+    y: Math.max(6, Math.min(MAP_H - 7, nodes[la + 1].y + (loopUp ? -1 : 1) * (11 + rng() * 3))), role: "ループ", kind: "loop" });
+  edges.push([la, nodes.length - 1, "loop"], [nodes.length - 1, lb, "loop"]);
+  for (let k = 0; k < 2; k++) {
+    const base = k === 0 ? 1 + Math.floor(rng() * 2) : 3 + Math.floor(rng() * 2);
+    const b = nodes[base];
+    const dir = (b.y > MAP_H / 2 ? -1 : 1) * (loopUp && base > la && base < lb ? 1 : 1);
+    let y = b.y + dir * (10 + rng() * 3);
+    if (Math.abs(y - nodes[N].y) < 8 && Math.abs(b.x - nodes[N].x) < 12) y = b.y - dir * (10 + rng() * 2);
+    nodes.push({ x: b.x + (rng() - 0.5) * 8, y: Math.max(5, Math.min(MAP_H - 6, y)), role: "寄り道", kind: "branch" });
+    edges.push([base, nodes.length - 1, "branch"]);
+  }
+  // 形を割り当てる（開始は小さな円、主の間は二重円）
+  const bag = SHAPES.slice();
+  for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+  let bi = 0;
+  for (const n of nodes) {
+    n.ang = rng() * Math.PI * 2;
+    if (n.role === "開始") { n.shape = "circle"; n.r = 3.6; }
+    else if (n.role === "主の間") { n.shape = "double"; n.r = 7.2; }
+    else if (n.kind === "branch") { n.shape = rng() < 0.5 ? "fan" : "circle"; n.r = 3.4 + rng() * 1.2; }
+    else { n.shape = bag[bi++ % bag.length]; if (n.shape === "double") n.shape = "compound"; n.r = 4.6 + rng() * 1.8; }
+    if (n.shape === "compound") {
+      n.parts = [];
+      const cnt = 3 + Math.floor(rng() * 2);
+      for (let k = 0; k < cnt; k++) n.parts.push({ dx: (rng() - 0.5) * n.r * 1.2, dy: (rng() - 0.5) * n.r * 1.0, r: n.r * (0.42 + rng() * 0.25) });
+    }
+  }
+  const inside = (n, x, y) => {
+    const dx = x - n.x, dy = y - n.y, d = Math.hypot(dx, dy);
+    const ux = Math.cos(n.ang), uy = Math.sin(n.ang);
+    switch (n.shape) {
+      case "circle": case "ring": case "pond": case "double": return d < n.r;
+      case "gourd": {
+        const c1x = n.x - ux * n.r * 0.6, c1y = n.y - uy * n.r * 0.6, c2x = n.x + ux * n.r * 0.65, c2y = n.y + uy * n.r * 0.65;
+        if (Math.hypot(x - c1x, y - c1y) < n.r * 0.62 || Math.hypot(x - c2x, y - c2y) < n.r * 0.55) return true;
+        const t = Math.max(0, Math.min(1, ((x - c1x) * (c2x - c1x) + (y - c1y) * (c2y - c1y)) / ((c2x - c1x) ** 2 + (c2y - c1y) ** 2)));
+        return Math.hypot(x - (c1x + (c2x - c1x) * t), y - (c1y + (c2y - c1y) * t)) < n.r * 0.24;
+      }
+      case "crescent": return d < n.r && Math.hypot(x - (n.x + ux * n.r * 0.6), y - (n.y + uy * n.r * 0.6)) > n.r * 0.72;
+      case "fan": {
+        const ax = n.x - ux * n.r * 0.7, ay = n.y - uy * n.r * 0.7;
+        const vx = x - ax, vy = y - ay, vd = Math.hypot(vx, vy);
+        if (vd < n.r * 0.45) return true;
+        return vd < n.r * 1.6 && (vx * ux + vy * uy) / (vd || 1) > Math.cos(0.72);
+      }
+      case "compound": return n.parts.some((p) => Math.hypot(x - n.x - p.dx, y - n.y - p.dy) < p.r);
+    }
+    return false;
+  };
+  const hole = (n, x, y) => {
+    const d = Math.hypot(x - n.x, y - n.y);
+    if (n.shape === "ring") return d < n.r * 0.4;
+    if (n.shape === "double") {
+      if (d < n.r * 0.6 || d > n.r * 0.78) return false;
+      const a = Math.atan2(y - n.y, x - n.x);
+      for (let k = 0; k < 3; k++) {
+        let da = Math.abs(a - (n.ang + k * Math.PI * 2 / 3)) % (Math.PI * 2);
+        if (da > Math.PI) da = Math.PI * 2 - da;
+        if (da < 0.26) return false;
+      }
+      return true;
+    }
+    return false;
+  };
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++)
+    for (const n of nodes) if (inside(n, x + 0.5, y + 0.5)) { g[idx(x, y)] = 0; break; }
+  // 辺: 二次ベジェの曲線の通路（主の道は太く、寄り道は細く）
+  for (const [a, b, kind] of edges) {
+    const A = nodes[a], B = nodes[b];
+    const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const len = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+    const px = -(B.y - A.y) / len, py = (B.x - A.x) / len;
+    const bend = (rng() - 0.5) * (kind === "main" ? 9 : 6);
+    const cx = mx + px * bend, cy = my + py * bend;
+    const rad = kind === "main" ? 1.75 : kind === "loop" ? 1.45 : 1.25;
+    for (let t = 0; t <= 1.0001; t += 1 / 80) {
+      const qx = (1 - t) * (1 - t) * A.x + 2 * (1 - t) * t * cx + t * t * B.x;
+      const qy = (1 - t) * (1 - t) * A.y + 2 * (1 - t) * t * cy + t * t * B.y;
+      const r = rad + Math.sin(t * 9 + a) * 0.25;
+      for (let y = Math.floor(qy - r - 1); y <= qy + r + 1; y++) for (let x = Math.floor(qx - r - 1); x <= qx + r + 1; x++) {
+        if (x < 1 || y < 1 || x >= MAP_W - 1 || y >= MAP_H - 1) continue;
+        if (Math.hypot(x + 0.5 - qx, y + 0.5 - qy) < r) g[idx(x, y)] = 0;
+      }
+    }
+  }
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++)
+    for (const n of nodes) if (hole(n, x + 0.5, y + 0.5)) { g[idx(x, y)] = 1; break; }
+  // 縁の崩し: 縁のマスだけ 22% で反転 → セルオートマトン 1 回
+  let e = g.slice();
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    const n = wallCount8(g, x, y);
+    if (n > 0 && n < 8 && rng() < 0.22) e[idx(x, y)] = g[idx(x, y)] ? 0 : 1;
+  }
+  e = caStep(e, 5, 4);
+  // 二重円・環の芯は崩しで消えないよう戻す
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++)
+    for (const n of nodes) if (hole(n, x + 0.5, y + 0.5) && n.shape === "ring") e[idx(x, y)] = 1;
+  border(e); keepLargest(e);
+  // 池の広間は中の円を水に
+  for (const n of nodes) if (n.shape === "pond") {
+    for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+      const d = Math.hypot(x + 0.5 - n.x, y + 0.5 - n.y);
+      if (d < n.r * 0.5 + (hf(x, y, seed) - 0.5) * 0.9 && !e[idx(x, y)]) ter[idx(x, y)] = 1;
+    }
+  }
+  return { solid: e, ter, graph: { nodes, edges } };
+}
+
+function clearanceMap(g) {
+  const c = new Int16Array(g.length).fill(999);
+  const q = [];
+  for (let i = 0; i < g.length; i++) if (g[i]) { c[i] = 0; q.push(i); }
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h], x = i % MAP_W, y = (i / MAP_W) | 0;
+    for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) {
+      const nx = x + k, ny = y + j; if (!inMap(nx, ny)) continue;
+      const ni = idx(nx, ny); if (c[ni] > c[i] + 1) { c[ni] = c[i] + 1; q.push(ni); }
+    }
+  }
+  return c;
+}
+// 地形の塊（生成の後に床の上へ置く。今の実装の「床の 1〜3%」に寄せる）
+function placeTerrain(m, seed) {
+  const rng = mulberry32(seed * 131 + 77);
+  const blobs = [];
+  const cands = [];
+  for (let y = 2; y < MAP_H - 2; y++) for (let x = 2; x < MAP_W - 2; x++) if (m.clear[idx(x, y)] >= 3) cands.push([x, y]);
+  const want = 5 + Math.floor(rng() * 3);
+  for (let t = 0; t < 80 && blobs.length < want && cands.length; t++) {
+    const [x, y] = cands[Math.floor(rng() * cands.length)];
+    if (blobs.some((b) => Math.hypot(b.x - x, b.y - y) < 9)) continue;
+    const r = 1.1 + rng() * 1.2;
+    blobs.push({ x: x + 0.5, y: y + 0.5, r });
+    for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+      const nx = x + i, ny = y + j; if (!inMap(nx, ny) || m.solid[idx(nx, ny)]) continue;
+      const d = Math.hypot(i * 0.9, j * 1.1) + (hf(nx, ny, seed + 5) - 0.5) * 1.2;
+      if (d < r) m.ter[idx(nx, ny)] = 1;
+    }
+  }
+  if (m.graph) for (const n of m.graph.nodes) if (n.shape === "pond") blobs.push({ x: n.x, y: n.y, r: n.r * 0.5 });
+  m.blobs = blobs;
+}
+function focusSpots(m) {
+  const cand = [];
+  for (let y = 2; y < MAP_H - 2; y++) for (let x = 2; x < MAP_W - 2; x++) {
+    const c = m.clear[idx(x, y)]; if (c < 3 || m.ter[idx(x, y)]) continue;
+    let ok = true;
+    for (let j = -1; j <= 1 && ok; j++) for (let i = -1; i <= 1; i++) if (m.clear[idx(x + i, y + j)] > c) { ok = false; break; }
+    if (ok) cand.push({ x, y, s: c * 4 - Math.hypot(x - MAP_W / 2, y - MAP_H / 2) / 3 });
+  }
+  cand.sort((a, b) => b.s - a.s);
+  const out = [];
+  for (const c of cand) { if (out.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= 11)) out.push(c); if (out.length >= 7) break; }
+  if (!out.length) {
+    let best = null;
+    for (let i = 0; i < m.solid.length; i++) if (!m.solid[i] && (!best || m.clear[i] > m.clear[idx(best.x, best.y)])) best = { x: i % MAP_W, y: (i / MAP_W) | 0 };
+    out.push(best);
+  }
+  return out;
+}
+const mapCache = new Map();
+function getMap(gen, seed) {
+  const key = gen + ":" + seed;
+  if (mapCache.has(key)) return mapCache.get(key);
+  const m = gen === "cave" ? genCave(seed) : gen === "rooms" ? genRooms(seed) : genSkeleton(seed);
+  m.clear = clearanceMap(m.solid);
+  placeTerrain(m, seed);
+  for (let i = 0; i < m.solid.length; i++) if (m.solid[i]) m.ter[i] = 0;
+  m.spots = focusSpots(m);
+  m.seed = seed;
+  m.key = key;
+  mapCache.set(key, m);
+  return m;
+}
+const tileSolid = (m, x, y) => (!inMap(x, y) || m.solid[idx(x, y)]) ? 1 : 0;
+const tileTer = (m, x, y) => (inMap(x, y) && m.ter[idx(x, y)]) ? 1 : 0;
+
+// =====================================================================
+// dual-grid の縁（表示の格子を半マスずらし、頂点を囲む 4 マスで形を決める）
+// 1 ドットの属する「頂点の区画」は、自分のマス + 横 + 縦 の 3 マスで決まる（斜めは内角の判定だけ）
+// =====================================================================
+function smoothMask(get, m, wx, wy, R, chamfer, amp, period, seed) {
+  const tx = Math.floor(wx / TD), ty = Math.floor(wy / TD);
+  const lx = wx - tx * TD, ly = wy - ty * TD;
+  const sx = lx < TD / 2 ? -1 : 1, sy = ly < TD / 2 ? -1 : 1;
+  const own = get(m, tx, ty), hN = get(m, tx + sx, ty), vN = get(m, tx, ty + sy);
+  const dx = (sx < 0 ? lx : TD - 1 - lx) + 0.5, dy = (sy < 0 ? ly : TD - 1 - ly) + 0.5;
+  const e = amp ? Math.round((vnoise(wx, wy, period, seed) - 0.5) * 2 * amp) : 0;
+  if (own) {
+    if (!hN && !vN) {
+      const ax = dx - e, ay = dy - e;
+      if (ax < 0 || ay < 0) return 0;
+      if (chamfer) return ax + ay >= R ? 1 : 0;
+      if (ax >= R || ay >= R) return 1;
+      return (ax - R) * (ax - R) + (ay - R) * (ay - R) <= R * R ? 1 : 0;
+    }
+    if (!hN) return dx >= e ? 1 : 0;
+    if (!vN) return dy >= e ? 1 : 0;
+    return 1;
+  }
+  if (hN && vN) {
+    const ax = dx + e, ay = dy + e;
+    if (ax < 0 || ay < 0) return 1;
+    if (chamfer) return ax + ay < R ? 1 : 0;
+    if (ax >= R || ay >= R) return 0;
+    return (ax - R) * (ax - R) + (ay - R) * (ay - R) > R * R ? 1 : 0;
+  }
+  if (hN) return dx < -e ? 1 : 0;
+  if (vN) return dy < -e ? 1 : 0;
+  return 0;
+}
+
+// 距離変換（3-4 の面取り距離。mask[i] === val のドットに、val でない最寄りまでの距離を入れる）
+function distField(mask, W, H, val) {
+  const d = new Float32Array(W * H);
+  const INF = 1e5, D2 = 1.414;
+  for (let i = 0; i < d.length; i++) d[i] = mask[i] === val ? INF : 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; let v = d[i]; if (!v) continue;
+    if (x > 0) v = Math.min(v, d[i - 1] + 1);
+    if (y > 0) {
+      v = Math.min(v, d[i - W] + 1);
+      if (x > 0) v = Math.min(v, d[i - W - 1] + D2);
+      if (x < W - 1) v = Math.min(v, d[i - W + 1] + D2);
+    }
+    d[i] = v;
+  }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+    const i = y * W + x; let v = d[i]; if (!v) continue;
+    if (x < W - 1) v = Math.min(v, d[i + 1] + 1);
+    if (y < H - 1) {
+      v = Math.min(v, d[i + W] + 1);
+      if (x < W - 1) v = Math.min(v, d[i + W + 1] + D2);
+      if (x > 0) v = Math.min(v, d[i + W - 1] + D2);
+    }
+    d[i] = v;
+  }
+  return d;
+}
+
+// =====================================================================
+// 素材（床・天面・側面・地形・岩盤）。すべて座標ハッシュで決まり、1 素材 3〜5 色の段で塗る
+// =====================================================================
+let P = null, TH = null, SEED = 0, STONES = [];
+function floorTex(wx, wy) {
+  switch (TH.floor) {
+    case "cobble": return floorCobble(wx, wy);
+    case "slab": return floorSlab(wx, wy, 32, 16, false);
+    case "ashlar": return floorAshlar(wx, wy);
+    case "glyph": return floorSlab(wx, wy, 32, 16, true);
+    case "sand": return floorSand(wx, wy);
+  }
+  return P.fB;
+}
+function floorCobble(wx, wy) {
+  const zone = vnoise(wx, wy, 56, SEED + 11);
+  const mossZ = vnoise(wx, wy, 34, SEED + 19);
+  if (zone < 0.42) {
+    // 土の地帯: ほぼ平塗り + 少しの粒（広間は読みやすく）
+    const h = hf(wx, wy, SEED + 3);
+    if (mossZ > 0.64) return mossZ > 0.8 ? mix(P.moss1, P.moss2, 0.5) : P.moss1;
+    return h < 0.018 ? P.fD : h < 0.03 ? P.fL : P.fB;
+  }
+  const v = vor(wx, wy, zone > 0.72 ? 13 : 17, SEED + 7);
+  const e = v.d2 - v.d1;
+  if (e < 1.2) return mossZ > 0.6 ? P.moss1 : P.fD;
+  const mossy = mossZ > 0.64 && ((v.id >>> 7) & 1);
+  let base = mossy ? P.moss1 : (v.id & 15) === 0 ? P.fL : ((v.id >>> 4) & 7) === 0 ? mix(P.fB, P.fD, 0.5) : P.fB;
+  const rel = (wx - v.cx) + (wy - v.cy);
+  if (e < 2.6) {
+    if (rel < -3) base = mossy ? P.moss2 : base === P.fL ? P.fH : P.fL;
+    else if (rel > 3) base = mossy ? mix(P.moss1, P.fD, 0.5) : mix(base, P.fD, 0.6);
+  }
+  return base;
+}
+function floorSlab(wx, wy, W, H, glyph) {
+  const row = Math.floor(wy / H), off = (row & 1) * (W / 2);
+  let col = Math.floor((wx + off) / W);
+  let lx = wx + off - col * W, ly = wy - row * H, sw = W, sh = H, id = h32(col, row, SEED + 23);
+  // 2x2 の大きな敷石を混ぜて格子を崩す
+  const bc = Math.floor(wx / (W * 2)), br = Math.floor(wy / (H * 2));
+  if (hf(bc, br, SEED + 29) < 0.12) {
+    lx = wx - bc * W * 2; ly = wy - br * H * 2; sw = W * 2; sh = H * 2; id = h32(bc, br, SEED + 31);
+  }
+  if (lx === 0 || ly === 0) return P.fD;
+  let base = id % 10 < 2 ? P.fL : id % 10 < 3 ? mix(P.fB, P.fD, 0.5) : P.fB;
+  if (lx === 1 || ly === 1) base = base === P.fL ? P.fH : P.fL;
+  else if (lx === sw - 1 || ly === sh - 1) base = mix(base, P.fD, 0.6);
+  if (id % 9 === 0) {
+    const t = lx / sw, yl = sh * 0.25 + sh * 0.5 * t + Math.round(Math.sin(lx * 0.8) * 1.2);
+    if (Math.abs(ly - yl) < 0.6 && lx > 3 && lx < sw - 4) return P.fD;
+  }
+  if (glyph && id % 19 === 1) {
+    const gx = lx - (sw >> 1) + 6, gy = ly - (sh >> 1) + 5;
+    if (gx >= 0 && gx < 12 && gy >= 0 && gy < 10) {
+      const cx = Math.floor((gx < 6 ? gx : 11 - gx) / 2), cy = Math.floor(gy / 2);
+      if ((id >>> (cx * 5 + cy)) & 1) return mix(P.accent, P.fB, 0.45);
+    }
+  }
+  const h = hf(wx, wy, SEED + 37);
+  if (h < 0.01) return P.fD;
+  return base;
+}
+function floorAshlar(wx, wy) {
+  const W = 32, H = 32;
+  const row = Math.floor(wy / H), off = (row & 1) * 16;
+  const col = Math.floor((wx + off) / W);
+  const lx = wx + off - col * W, ly = wy - row * H, id = h32(col, row, SEED + 41);
+  let c;
+  if (lx === 0 || ly === 0) c = P.fD;
+  else if ((lx <= 2 && ly <= 2) || (lx >= W - 2 && ly <= 1 && (id & 1))) c = P.fD;
+  else {
+    c = id % 7 === 0 ? P.fL : id % 7 === 1 ? mix(P.fB, P.fD, 0.5) : P.fB;
+    if (lx === 1 || ly === 1) c = c === P.fL ? P.fH : P.fL;
+    else if (lx === W - 1 || ly === H - 1) c = mix(c, P.fD, 0.6);
+    if (id % 5 === 0) {
+      const yl = 6 + lx * 0.6 + Math.round(Math.sin(lx) * 1.1);
+      if (Math.abs(ly - yl) < 0.6 && lx > 4 && lx < 26) c = P.fD;
+    }
+    if (hf(wx, wy, SEED + 43) < 0.012) c = P.fD;
+  }
+  const z = vnoise(wx, wy, 44, SEED + 47);
+  if (TH.soot) {
+    if (z > 0.8) c = mix(c, P.soot, 0.5);
+    else if (z > 0.72) c = mix(c, P.soot, 0.25);
+  }
+  if (TH.frost) {
+    if (z > 0.72) c = mix(c, P.snow, 0.42);
+    else if (z > 0.64) c = mix(c, P.snow, 0.2);
+  }
+  return c;
+}
+function floorSand(wx, wy) {
+  // 枯山水: 横の砂紋 + 墨の石の周りの同心円
+  let t = wy + Math.sin(wx / 37 + SEED) * 5 + Math.sin(wx / 13) * 1.2;
+  for (const s of STONES) {
+    const d = Math.hypot((wx - s.x) / 1.15, wy - s.y);
+    if (d < s.ring) { t = d; break; }
+  }
+  const ph = ((t / 7) % 1 + 1) % 1;
+  const c = ph < 0.2 ? P.fD : ph < 0.42 ? P.fL : P.fB;
+  const h = hf(wx, wy, SEED + 59);
+  return h < 0.01 ? P.fD : h < 0.02 ? P.fL : c;
+}
+function topTex(wx, wy) {
+  if (TH.top === "rock") {
+    const v = vor(wx, wy, 20, SEED + 61);
+    const e = v.d2 - v.d1;
+    const rel = (wx - v.cx) + (wy - v.cy);
+    let c;
+    if (e < 1.4) c = P.tD;
+    else if (e < 3.6 && rel < -3) c = P.tL;
+    else if (e < 3.6 && rel > 3) c = mix(P.tB, P.tD, 0.55);
+    else c = (v.id & 3) === 0 ? mix(P.tB, P.tD, 0.3) : P.tB;
+    if (TH.drips) {
+      const mz = vnoise(wx, wy, 30, SEED + 67);
+      if (mz > 0.66 && e >= 1.4) c = e < 3.6 && rel < -3 ? P.moss2 : P.moss1;
+    }
+    return c;
+  }
+  if (TH.top === "mason") {
+    const row = Math.floor(wy / 16), off = (row & 1) * 12;
+    const lx = ((wx + off) % 24 + 24) % 24, ly = wy - row * 16;
+    if (lx === 0 || ly === 0) return P.tD;
+    if (ly === 1) return P.tL;
+    const id = h32(Math.floor((wx + off) / 24), row, SEED + 71);
+    let c = id % 5 === 0 ? mix(P.tB, P.tD, 0.35) : P.tB;
+    if (TH.frost && vnoise(wx, wy, 26, SEED + 73) > 0.55) c = mix(c, P.snow, 0.45);
+    if (TH.soot && vnoise(wx, wy, 26, SEED + 73) > 0.6) c = mix(c, P.soot, 0.4);
+    return c;
+  }
+  // 墨: 横の刷毛目
+  const band = Math.floor(wy / 2);
+  const h = hf(band, Math.floor((wx + hf(band, 0, SEED) * 60) / 34), SEED + 79);
+  return h < 0.1 ? mix(P.tB, P.tL, 0.6) : h < 0.18 ? P.tD : P.tB;
+}
+// 側面: k = 側面の上端からのドット数（0..h-1）
+function sideTex(wx, wy, k, h) {
+  let c;
+  switch (TH.side) {
+    case "rockside": {
+      const strata = Math.floor((k + Math.round(vnoise(wx, 0, 18, SEED + 83) * 5)) / 5);
+      c = strata % 3 === 0 ? P.sL : P.sB;
+      if (k < 2) c = P.sL;
+      if (hf(wx >> 1, 3, SEED + 89) < 0.06 && k > 2) c = P.sD;
+      if (k >= h - 2) c = P.sD;
+      if (TH.drips) {
+        const col = wx >> 1;
+        if (hf(col, 11, SEED) < 0.45) {
+          const len = 2 + Math.floor(hf(col, 12, SEED) * h * 0.6);
+          if (k < len) c = k === len - 1 ? P.moss2 : P.moss1;
+        }
+      }
+      return c;
+    }
+    case "stonewall": {
+      const row = Math.floor(wy / 8), off = Math.floor(hf(row, 5, SEED) * 16);
+      const bw = 18, bx = ((wx + off) % bw + bw) % bw;
+      c = (bx === 0 || (wy & 7) === 0) ? P.sD : (wy & 7) === 1 ? P.sL : P.sB;
+      if (k < 2) c = P.sL;
+      // 朱の柱（寺院の側面）
+      const tx = Math.floor(wx / TD), px = wx - tx * TD;
+      if (hf(tx, 21, SEED) < 0.24 && px >= 11 && px <= 20) {
+        if (px === 11 || px === 20) c = P.fO;
+        else if (k < 3) c = P.tD;
+        else c = px === 12 ? P.accL : px >= 18 ? P.accD : P.accent;
+      }
+      if (k >= h - 2) c = P.sD;
+      return c;
+    }
+    case "ashlarside": {
+      const row = Math.floor(k / 10), off = (row & 1) * 8;
+      const bx = ((wx + off) % 16 + 16) % 16, by = k - row * 10;
+      c = (bx === 0 || by === 0) ? P.sD : by === 1 ? P.sL : P.sB;
+      if (k < 2) c = P.sL;
+      if (TH.soot && k > h * 0.45 && vnoise(wx, k, 14, SEED + 97) > 0.4) c = mix(c, P.soot, 0.6);
+      if (TH.frost && k >= h - 3) c = P.snow;
+      if (k >= h - 1) c = P.sD;
+      return c;
+    }
+    case "inkside": {
+      c = hf(wx >> 1, 31, SEED) < 0.12 ? mix(P.sB, P.tB, 0.55) : P.sB;
+      if (k < 1) c = P.tL;
+      return c;
+    }
+    case "cliff": {
+      const strata = Math.floor((k + Math.round(vnoise(wx, 0, 16, SEED + 101) * 4)) / 4);
+      c = strata % 2 ? P.sL : mix(P.sL, P.sB, 0.5);
+      if (k > h * 0.55) c = mix(c, P.vD, 0.45);
+      if (k > h * 0.8) c = mix(c, P.vD, 0.75);
+      const col = wx >> 1;
+      if (hf(col, 4, SEED) < 0.07 && k < 4 + Math.floor(hf(col, 5, SEED) * h)) c = P.fL;
+      return c;
+    }
+  }
+  return P.sB;
+}
+function voidTex(wx, wy, d) {
+  let c = d < 10 ? mix(P.sB, P.vD, 0.3) : d < 22 ? mix(P.sB, P.vD, 0.66) : P.vD;
+  // 浮かぶ岩片
+  const cell = 52, gx = Math.floor(wx / cell), gy = Math.floor(wy / cell);
+  const hh = h32(gx, gy, SEED + 103);
+  if ((hh & 255) < 22) {
+    const cx = gx * cell + 12 + ((hh >>> 8) & 31), cy = gy * cell + 12 + ((hh >>> 13) & 31);
+    const r = 3 + ((hh >>> 18) & 3);
+    const dx = wx - cx, dy = (wy - cy) * 1.3, dd = Math.hypot(dx, dy);
+    if (dd < r) c = dd > r - 1 ? P.fO : dy < -r * 0.2 ? P.sL : P.sB;
+  }
+  const m = hf(wx, wy, SEED + 107);
+  if (m < 0.0016) c = P.lightDim;
+  return c;
+}
+function terTex(wx, wy, d, north) {
+  const T = TERC[TH.ter];
+  if (north && T.liquid) return T.bank;
+  switch (TH.ter) {
+    case "water": {
+      if (d <= 1.5) return T.foam;
+      if (d <= 4) return T.a;
+      if ((((wy + Math.round(vnoise(wx, wy, 20, SEED) * 6)) % 8) + 8) % 8 === 0 && vnoise(wx, wy, 9, SEED + 3) > 0.6) return T.rip;
+      return T.deep;
+    }
+    case "oil": {
+      if (d <= 2) return T.sheen[(((wx + wy) >> 2) % 3 + 3) % 3];
+      if (hf(wx, wy, SEED + 9) < 0.008) return T.sheen[((wx >> 3) % 3 + 3) % 3];
+      return vnoise(wx, wy, 14, SEED + 5) > 0.62 ? T.a : T.deep;
+    }
+    case "lava": {
+      if (d <= 2) return T.foam;
+      if (d <= 4) return T.mid;
+      const v = vor(wx, wy, 10, SEED + 13);
+      const e = v.d2 - v.d1;
+      if (e < 1.4) return T.rip;
+      return (v.id & 3) === 0 ? T.mid : (v.id & 3) === 1 ? T.a : T.deep;
+    }
+    case "ice": {
+      if (d <= 1.5) return T.foam;
+      const v = vor(wx, wy, 15, SEED + 17);
+      if (v.d2 - v.d1 < 1) return T.rip;
+      if (((wx + wy) % 29 + 29) % 29 < 2 && vnoise(wx, wy, 18, SEED + 19) > 0.55) return T.foam;
+      return vnoise(wx, wy, 22, SEED + 23) > 0.55 ? T.rip : T.a;
+    }
+    case "miasma": case "blood": {
+      if (d <= 1.5) return T.foam;
+      if (hf(wx, wy, SEED + 29) < 0.01) return T.rip;
+      return d <= 5 ? T.a : T.deep;
+    }
+    case "ink": {
+      if (d <= 1.5) return T.bank;
+      const band = (wy + Math.round(Math.sin(wx / 9) * 2));
+      if (band % 11 === 0 && vnoise(wx, wy, 12, SEED) > 0.62) return T.foam;
+      return T.deep;
+    }
+  }
+  return T.a;
+}
+// 現状（密度 1）: 論理 1px = 2x2 ドット、16px の煉瓦、4 近傍の壁、岩盤は黒
+function oldPix(m, wx, wy) {
+  const lx = wx >> 1, ly = wy >> 1;
+  const tx = Math.floor(lx / TILE), ty = Math.floor(ly / TILE);
+  const px = lx - tx * TILE, py = ly - ty * TILE;
+  const row = py >> 2, bx = (px + (row & 1) * 4) & 7;
+  if (tileSolid(m, tx, ty)) {
+    const n = !tileSolid(m, tx, ty - 1), s = !tileSolid(m, tx, ty + 1), w = !tileSolid(m, tx - 1, ty), e = !tileSolid(m, tx + 1, ty);
+    if (!n && !s && !w && !e) return hex("#0b0a0f");
+    let c = (py & 3) === 3 || bx === 7 ? P.tD : (py & 3) === 0 ? P.tL : P.tB;
+    if (n && py <= 1) c = P.tL;
+    if (s && py >= 12) {
+      c = py === 12 ? P.sL : P.sB;
+      if ((px + 2) % 5 === 0 && py >= 13) c = P.fO;
+    }
+    return c;
+  }
+  let c = (py & 3) === 3 || bx === 7 ? P.fD : ((py & 3) === 0 && hf(tx * 4 + (px >> 3), ty * 4 + row, SEED) < 0.3) ? P.fL : P.fB;
+  if (tileTer(m, tx, ty)) {
+    const T = TERC[TH.ter];
+    if (T.oldA >= 1) c = (py & 3) === 3 || bx === 7 ? T.mid : T.old;
+    else c = mix(c, T.old, T.oldA);
+    if (hf(lx, ly, SEED + 5) < 0.02) c = lighten(c, 0.3);
+  }
+  return c;
+}
+
+// =====================================================================
+// ドット絵（密度 2。k = 輪郭 #1a1a24）
+// =====================================================================
+function sprite(rows) {
+  const w = Math.max(...rows.map((r) => r.length));
+  return { w, h: rows.length, rows: rows.map((r) => r.padEnd(w, ".")) };
+}
+const SPR = {
+  player: sprite([
+    "..........kkkk..........",
+    "........kkhhhhkk........",
+    "......kkhhhhhhHHkk......",
+    "....kkhhhhhhhhHHHHkk....",
+    "..kkhhhhhhhhhhHHHHHHjkk.",
+    ".kjjHHHHHHHHHHHHHHjjjjk.",
+    "..kkkkjjjjjjjjjjjjkkkk..",
+    ".......kSSSSSSSSk.......",
+    ".......kSsssssSSk.......",
+    ".......kskssksSSk.......",
+    ".......kssssssSSk.......",
+    "........kssssSk.........",
+    "......kwwrrrrrrwk.......",
+    ".....krrrrrrrrrrRk......",
+    "....knnwNNNNNNwnnNk.....",
+    "...knnnwNNNNwnnnNNmk....",
+    "...knnnnwNNwnnnnNNmk....",
+    "..ksnnnnnwwnnnnNNNmsk...",
+    "..ksnnnnnnnnnnNNNNmsk...",
+    "..ksnnnnnnnnnnNNNNmsk...",
+    "..kSkRRRRRRRRRRRRRkSk...",
+    "...kkrrrrrryyrrrrrrkkgg.",
+    "...knnnnnNNNNNNNmmkgg...",
+    "...knnnnNNNNNNNNmmmke...",
+    "...knnnnNNNNNNNmmmmk.e..",
+    "...knnnNNNNNNNmmmmmk..e.",
+    "..knnnNNNNNNNNmmmmmmk...",
+    "..knnnNNNNkNNNNmmmmmk...",
+    "..knnNNNNNkkNNNNmmmmk...",
+    "..knnNNNNk..kNNNmmmmk...",
+    "..knNNNNNk..kNNNNmmmk...",
+    "...kNNNNk....kNNNmmk....",
+    "...kmmmmk....kmmmmk.....",
+    "....kwwk......kwwk......",
+    "....kwwk......kwwk......",
+    "...kbbbk......kbbbk.....",
+    "...kkkkk......kkkkk.....",
+  ]),
+  gaki: sprite([
+    "......kkkkkk........",
+    ".....kppppppk.......",
+    "....kppppppPPk......",
+    "....kpwkppwkPk......",
+    "....kppppppPPk......",
+    "....kPprrrrPqk......",
+    ".....kPPPPPqk.......",
+    "...kkkPPPPPqkkk.....",
+    "..kppkpppppPPkqqk...",
+    ".kpp.kppppppPPPk.qk.",
+    ".kp..kpppppppPPqk.k.",
+    ".kk..kpppppppPPqk...",
+    ".....kppppppPPPqk...",
+    ".....kcccccccccck...",
+    ".....kcccccccqqck...",
+    "......kPPk..kPqk....",
+    "......kPPk..kPqk....",
+    ".....kkqqk..kqqkk...",
+  ]),
+  onibi: sprite([
+    "......K.......",
+    ".....KBK......",
+    ".....KBK...K..",
+    "....KBWBK.KBK.",
+    "....KBWBKKBK..",
+    "...KBWWWBBBK..",
+    "..KBBWWWWBDK..",
+    "..KBWWWWWWBDK.",
+    ".KBWWWWWWWBDK.",
+    ".KBWWKWWKWBDK.",
+    ".KBWWWWWWWBDK.",
+    ".KDBWWWWWBBDK.",
+    "..KDBBWWBBDK..",
+    "...KDDBBDDK...",
+    "....KKDDKK....",
+    "......KK......",
+  ]),
+  spider: sprite([
+    "......kkkk.kkkk......",
+    ".....kaaaakkaaaak....",
+    "..k.kaaAAAkkAAAaak.k.",
+    ".k.kaAyAyAAAyAyAAk.k.",
+    "k.kaaAAAAAAAAAAAAAk.k",
+    "k.kAAAAAAAAAAAAAAAk.k",
+    ".k.kAAAAAAAAAAAAAk.k.",
+    "k.k.kkAAAAAAAAAkk.k.k",
+    "k.k...kkkkkkkkk...k.k",
+    ".k.................k.",
+  ]),
+  lantern: sprite([
+    "....kkkk....",
+    "...kSSSSk...",
+    "..kSSSSSDk..",
+    ".kSSSSSSDDk.",
+    "kkkkkkkkkkkk",
+    ".kSkLLLLkDk.",
+    ".kSkLYYLkDk.",
+    ".kSkLLLLkDk.",
+    ".kkkkkkkkkk.",
+    "..kkSSSDkk..",
+    "...kSSDk....",
+    "...kSSDk....",
+    "...kSSDk....",
+    "...kSSDk....",
+    "..kkSSSDkk..",
+    ".kSSSSSSDDk.",
+    ".kkkkkkkkkk.",
+  ]),
+  jizo: sprite([
+    "...kkkk...",
+    "..kSSSDk..",
+    "..kSkSkk..",
+    "..kSSSDk..",
+    "...kSDk...",
+    "..kRRRRk..",
+    ".kRRRRRrk.",
+    ".kSSSSSDk.",
+    ".kSSSSSDk.",
+    ".kSSSSDDk.",
+    ".kSSSSDDk.",
+    "kkkkkkkkkk",
+    "kDDDDDDDDk",
+    "kkkkkkkkkk",
+  ]),
+  mush: sprite([
+    "..kkk.....",
+    ".kGGGk.kk.",
+    "kGYGGGkGGk",
+    "kkkkkkGYGk",
+    "..kWk.kkkk",
+    "..kWk..kWk",
+    "..kkk..kkk",
+  ]),
+  hokora: sprite([
+    "......kk......",
+    "....kkWWkk....",
+    "..kkWWWWWWkk..",
+    ".kWWWWWWWWWWk.",
+    "kkkkkkkkkkkkkk",
+    ".kWkDDDDDDkWk.",
+    ".kWkDDYYDDkWk.",
+    ".kWkDDLLDDkWk.",
+    ".kkkkkkkkkkkk.",
+    "kSSSSSSSSSSSSk",
+    "kkkkkkkkkkkkkk",
+  ]),
+  skull: sprite([
+    ".kkkk.....",
+    "kwwwwk....",
+    "kkwkwk.k..",
+    "kwwwwkkwk.",
+    ".kwwk.kwwk",
+    "..kk...kk.",
+  ]),
+  brazier: sprite([
+    "...F..F...",
+    "..FYF.FF..",
+    ".FYYYFYF..",
+    ".FYWYYYF..",
+    "kkkkkkkkkk",
+    "kIIIIIIIIk",
+    ".kIIIIIIk.",
+    "..k.kk.k..",
+    ".k..kk..k.",
+    "k...kk...k",
+  ]),
+  crystal: sprite([
+    "...kk...",
+    "..kWBk..",
+    "..kWBk..",
+    ".kWWBBk.",
+    ".kWBBDk.",
+    "kWWBBDDk",
+    "kWBBBDDk",
+    ".kBBDDk.",
+    "..kkkk..",
+  ]),
+  andon: sprite([
+    "..kkkkkk..",
+    ".kWWWWWWk.",
+    ".kWLLWWWk.",
+    ".kWLWWWWk.",
+    ".kWWWWWDk.",
+    ".kkkkkkkk.",
+    "..k....k..",
+    ".kk....kk.",
+  ]),
+  orb: sprite([
+    "..kkkk..",
+    ".kLLLLk.",
+    "kLWWLLDk",
+    "kLWLLLDk",
+    "kLLLLDDk",
+    ".kLDDDk.",
+    "..kkkk..",
+  ]),
+  torii: sprite([
+    "kkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "kRRRRRRRRRRRRRRRRRRRRRRRRRRk",
+    ".kkkkkkkkkkkkkkkkkkkkkkkkkk.",
+    "...kRRk..............kRRk...",
+    "kkkkRRkkkkkkkkkkkkkkkkRRkkkk",
+    "kRRRRRRRRRRRRRRRRRRRRRRRRRRk",
+    "kkkkRRkkkkkkkkkkkkkkkkRRkkkk",
+    "...kRRk..............kRRk...",
+    "...kRRk..............kRRk...",
+    "...kRRk..............kRRk...",
+    "...kRRk..............kRRk...",
+    "...kRRk..............kRRk...",
+    "...kDDk..............kDDk...",
+    "...kkkk..............kkkk...",
+  ]),
+};
+const PAL_PLAYER = { k: "#1a1a24", h: "#d8b878", H: "#b08a50", j: "#7a5a34", s: "#e0a878", S: "#b07850", n: "#4a5a8a", N: "#33406a", m: "#232a48", r: "#c8423a", R: "#8a2a2a", w: "#e8e4d8", b: "#5a3a28", g: "#3a3030", y: "#d8b04a", e: "#2a2230" };
+const PAL_GAKI = { k: "#1a1a24", p: "#9aa890", P: "#6e7c68", q: "#4a5448", w: "#e8e070", r: "#7a2a2a", c: "#8a7a60" };
+const PAL_ONIBI = { K: "#1a2a6a", B: "#8ac8ff", W: "#e8f4ff", D: "#3a78d8" };
+const PAL_SPIDER = { k: "#1a1a24", a: "#5a4a5a", A: "#3a2e40", y: "#e8c040" };
+function palOf(obj) { const o = {}; for (const k in obj) o[k] = typeof obj[k] === "number" ? obj[k] : hex(obj[k]); return o; }
+const PP = palOf(PAL_PLAYER), PG = palOf(PAL_GAKI), PO = palOf(PAL_ONIBI), PS = palOf(PAL_SPIDER);
+
+// =====================================================================
+// 置物（当たりなし。地図 1 枚ごとに座標ハッシュで決める）
+// =====================================================================
+function propPalette(kind) {
+  const k = OUTLINE_K;
+  switch (kind) {
+    case "lantern": return { k, S: P.stoneL, D: P.stoneD, L: TH.key === "deep" || TH.key === "blood" ? P.light : hex("#ffb45a"), Y: hex("#fff0c0") };
+    case "jizo": return { k, S: P.stoneL, D: P.stoneD, R: P.accent, r: P.accD };
+    case "mush": return { k, G: P.light, Y: hex("#f4ffc0"), W: hex("#b8b89a") };
+    case "hokora": return { k, W: P.wood, D: hex("#1a1410"), Y: hex("#ffd890"), L: hex("#c89a50"), S: P.stoneB };
+    case "skull": return { k, w: hex("#c8c0a8") };
+    case "brazier": return { k, F: hex("#ff7a2a"), Y: hex("#ffd05a"), W: hex("#fff4c8"), I: hex("#3a3434") };
+    case "crystal": return { k, W: hex("#e8f4ff"), B: hex("#b8e4ff"), D: hex("#6a98bc") };
+    case "andon": return { k, W: hex("#f0ece0"), L: hex("#fffaf0"), D: hex("#c8c0b0") };
+    case "orb": return { k: P.sB, L: P.light, W: hex("#f4ecff"), D: mix(P.light, P.sB, 0.45) };
+    case "torii": return { k: P.vD, R: mix(P.accent, P.vD, 0.35), D: mix(P.accent, P.vD, 0.65) };
+  }
+  return { k };
+}
+const PROP_LIGHT = {
+  lantern: { r: 92, s: 1.0, c: "#ffb45a", y: -24 },
+  mush: { r: 38, s: 0.8, c: null, y: -6 },
+  hokora: { r: 40, s: 0.6, c: "#ffd890", y: -10 },
+  brazier: { r: 104, s: 1.1, c: "#ff7a2a", y: -16 },
+  crystal: { r: 58, s: 0.75, c: "#b8e4ff", y: -10 },
+  andon: { r: 86, s: 0.95, c: "#f0ece0", y: -10 },
+  orb: { r: 70, s: 0.9, c: null, y: -22 },
+};
+const propCache = new Map();
+function getProps(m, th) {
+  const k2 = th.key + ":" + m.key;
+  if (propCache.has(k2)) return propCache.get(k2);
+  const salt = THEMES.indexOf(th) * 1000 + 17;
+  const total = th.props.reduce((a, [, w]) => a + w, 0);
+  const pick = (h) => { let r = h % total; for (const [k, w] of th.props) { if (r < w) return k; r -= w; } return th.props[0][0]; };
+  const props = [];
+  const stones = [];
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    const i = idx(x, y); if (m.solid[i] || m.ter[i]) continue;
+    const h = h32(x, y, m.seed * 31 + salt);
+    const near = m.clear[i] === 1;
+    const rate = near ? 0.075 : th.key === "final" ? 0.035 : 0.01;
+    if ((h & 1023) / 1024 >= rate) continue;
+    let kind = pick(h >>> 10);
+    if (kind === "pillar" && !(tileSolid(m, x, y - 1))) kind = th.props[0][0];
+    if (kind === "stone" && near) kind = "pillar";
+    const minD = kind === "mush" || kind === "skull" ? 4 : 6;
+    if (props.some((p) => Math.hypot(p.tx - x, p.ty - y) < minD)) continue;
+    const jx = kind === "pillar" ? 16 : 8 + ((h >>> 20) & 15);
+    const jy = kind === "pillar" ? 4 : 10 + ((h >>> 24) & 15);
+    const p = { kind, tx: x, ty: y, x: x * TD + jx, y: y * TD + jy, flip: (h >>> 28) & 1 };
+    if (kind === "pillar") p.y = y * TD + 30;
+    if (kind === "stone") { p.rx = 12 + ((h >>> 20) & 7); p.ry = 7 + ((h >>> 23) & 3); p.y = y * TD + 16; stones.push({ x: p.x, y: p.y, ring: p.rx * 3.2 }); }
+    props.push(p);
+  }
+  // 奈落に浮かぶ逆さの鳥居（深みだけ）
+  if (th.abyss) {
+    for (let y = 2; y < MAP_H - 2; y++) for (let x = 2; x < MAP_W - 2; x++) {
+      if (m.clear[idx(x, y)] !== 0) continue;
+      let far = true;
+      for (let j = -2; j <= 2 && far; j++) for (let i = -2; i <= 2; i++) if (!tileSolid(m, x + i, y + j)) { far = false; break; }
+      if (!far) continue;
+      if (hf(x, y, m.seed + salt) < 0.05 && !props.some((p) => p.kind === "torii" && Math.hypot(p.tx - x, p.ty - y) < 10))
+        props.push({ kind: "torii", tx: x, ty: y, x: x * TD + 16, y: y * TD + 24, flip: 1, void: true });
+    }
+  }
+  // 天窓の光の柱（章 1）
+  const shafts = [];
+  if (th.key === "moss") {
+    for (const s of m.spots) if (hf(s.x, s.y, m.seed + 3) < 0.6) shafts.push({ x: s.x * TD + 16 + 40, y: s.y * TD + 16 });
+  }
+  const out = { props, stones, shafts };
+  propCache.set(k2, out);
+  return out;
+}
+
+// =====================================================================
+// 描画の本体（1 枚の ImageData を作る。切り替え時に 1 回だけ）
+// =====================================================================
+function renderScene(scene, variant) {
+  const m = scene.map;
+  TH = scene.theme; P = scene.P; SEED = m.seed * 101 + 7;
+  const pr = variant === 3 || TH.floor === "sand" ? getProps(m, TH) : { props: [], stones: [], shafts: [] };
+  STONES = TH.floor === "sand" ? pr.stones : [];
+  const camL = scene.cam.x * DOTS, camT = scene.cam.y * DOTS;
+  const RW = VW + MARGIN * 2, RH = VH + MARGIN * 2, ox = camL - MARGIN, oy = camT - MARGIN;
+  const S = new Uint8Array(RW * RH), T = new Uint8Array(RW * RH);
+  const round = variant > 0;
+  const R = TH.corner === "chamfer" ? 12 : 16;
+  const chamfer = TH.corner === "chamfer";
+  for (let j = 0; j < RH; j++) for (let i = 0; i < RW; i++) {
+    const wx = ox + i, wy = oy + j, k = j * RW + i;
+    if (!round) {
+      S[k] = tileSolid(m, Math.floor(wx / TD), Math.floor(wy / TD));
+      T[k] = tileTer(m, Math.floor(wx / TD), Math.floor(wy / TD));
+    } else {
+      S[k] = smoothMask(tileSolid, m, wx, wy, R, chamfer, TH.noise, 11, SEED + 1);
+      T[k] = S[k] ? 0 : smoothMask(tileTer, m, wx, wy, 16, false, 2, 9, SEED + 2);
+    }
+  }
+  const dIn = distField(S, RW, RH, 1), dOut = distField(S, RW, RH, 0), dT = distField(T, RW, RH, 1);
+  const s = (i, j) => (i < 0 || j < 0 || i >= RW || j >= RH) ? 1 : S[j * RW + i];
+  const t = (i, j) => (i < 0 || j < 0 || i >= RW || j >= RH) ? 0 : T[j * RW + i];
+  const out = new Uint32Array(VW * VH);
+  const over = new Uint32Array(VW * VH);
+  const h = TH.h;
+  for (let vy = 0; vy < VH; vy++) for (let vx = 0; vx < VW; vx++) {
+    const i = vx + MARGIN, j = vy + MARGIN, k = j * RW + i, wx = ox + i, wy = oy + j, o = vy * VW + vx;
+    if (variant === 0) { out[o] = oldPix(m, wx, wy); continue; }
+    if (variant === 1) {
+      if (S[k]) {
+        if (TH.abyss) { out[o] = voidTex(wx, wy, dIn[k]); continue; }
+        let c = topTex(wx, wy);
+        if (dIn[k] <= 2) c = P.tL;
+        else if (dIn[k] > 70) c = mix(c, P.tD, 0.5);
+        out[o] = c; continue;
+      }
+      if (dOut[k] <= 1) { out[o] = TH.abyss ? mix(P.light, P.fL, 0.45) : P.fO; continue; }
+      out[o] = T[k] ? terTex(wx, wy, dT[k], false) : floorTex(wx, wy);
+      continue;
+    }
+    // B / C: 天面・側面・縁
+    if (S[k]) {
+      if (TH.abyss) {
+        let depth = -1;
+        for (let q = 1; q <= h; q++) if (!s(i, j - q)) { depth = q - 1; break; }
+        out[o] = depth >= 0 ? sideTex(wx, wy, depth, h) : voidTex(wx, wy, dIn[k]);
+        continue;
+      }
+      if (s(i, j + h)) {
+        const d = dIn[k];
+        let c;
+        if (d < 44) {
+          c = topTex(wx, wy);
+          if (d <= 1.5 || !s(i, j + h + 1) || !s(i, j + h + 2)) c = P.tL;
+        } else c = d < 54 ? P.v1 : d < 64 ? P.v2 : P.vD;
+        out[o] = c;
+        // 北が床の壁（部屋の南の壁）の天面はキャラより手前: 縁の層にも積む
+        for (let q = 1; q <= 14; q++) if (!s(i, j - q)) { over[o] = c; break; }
+      } else {
+        let b = 1;
+        while (b <= h && s(i, j + b)) b++;
+        out[o] = sideTex(wx, wy, h - b, h);
+      }
+      continue;
+    }
+    let c = T[k] ? terTex(wx, wy, dT[k], !t(i, j - 3) || !t(i, j - 2)) : floorTex(wx, wy);
+    if (TH.abyss) {
+      if (dOut[k] <= 1) c = mix(P.light, P.fL, 0.35);
+      else if (dOut[k] <= 2.5) c = P.fL;
+      out[o] = c; continue;
+    }
+    let sh = 0;
+    for (let q = 1; q <= 7; q++) if (s(i, j - q)) { sh = q <= 3 ? 0.55 : 0.3; break; }
+    if (!sh && s(i - 5, j - 7)) sh = 0.25;
+    if (dOut[k] <= 1) sh = Math.max(sh, 0.5);
+    if (sh) c = mix(c, P.fO, sh);
+    out[o] = c;
+    // 手前の縁（北側が床の壁の天面の端）。キャラの後に重ねる
+    for (let q = 1; q <= LIP; q++) {
+      if (s(i, j + q)) { over[o] = q === LIP ? P.fO : P.tL; break; }
+    }
+  }
+  const ctx = { out, over, S, T, s, t, RW, RH, ox, oy, camL, camT, cmask: new Uint8Array(VW * VH), lights: [] };
+  if (variant === 3) drawDecals(ctx, m);
+  // y 順に置物とキャラ
+  const items = [];
+  if (variant === 3) for (const p of pr.props) {
+    if (p.x < camL - 80 || p.x > camL + VW + 80 || p.y < camT - 80 || p.y > camT + VH + 120) continue;
+    items.push({ y: p.void ? -1e9 : p.y, draw: () => drawProp(ctx, p) });
+    const L = PROP_LIGHT[p.kind];
+    if (L) ctx.lights.push({ x: p.x, y: p.y + L.y, r: L.r, s: L.s, c: L.c ? hex(L.c) : P.light });
+  }
+  if (variant === 3) for (const b of m.blobs) {
+    if (TH.ter === "lava") ctx.lights.push({ x: b.x * TD, y: b.y * TD, r: (b.r + 2.2) * TD, s: 1.0, c: hex("#ff7a2a") });
+    if (TH.ter === "miasma" || TH.ter === "blood") ctx.lights.push({ x: b.x * TD, y: b.y * TD, r: (b.r + 1.4) * TD, s: 0.55, c: P.light });
+  }
+  const ch = scene.chars;
+  for (const c of ch) items.push({ y: c.y * DOTS, draw: () => drawChar(ctx, c) });
+  items.sort((a, b) => a.y - b.y);
+  for (const it of items) it.draw();
+  if (variant === 3) {
+    ctx.lights.push({ x: ch[0].x * DOTS, y: ch[0].y * DOTS - 16, r: 64, s: 0.55, c: hex("#ffe0b0") });
+    const onibi = ch.find((c) => c.kind === "onibi");
+    if (onibi) ctx.lights.push({ x: onibi.x * DOTS, y: onibi.y * DOTS - 30, r: 76, s: 0.9, c: hex("#8ac8ff") });
+  }
+  // 手前の縁を重ね、隠れたキャラは輪郭だけ透かす
+  if (variant >= 2) {
+    const cm = ctx.cmask;
+    for (let o = 0; o < out.length; o++) {
+      if (!over[o]) continue;
+      const who = cm[o];
+      if (who) {
+        const vx = o % VW;
+        const edge = (vx === 0 || cm[o - 1] !== who) || (vx === VW - 1 || cm[o + 1] !== who) || cm[o - VW] !== who || cm[o + VW] !== who || over[o + VW] === 0 && over[o - VW] === 0;
+        out[o] = edge ? (who === 1 ? hex("#f4f0e4") : hex("#e0584a")) : over[o];
+      } else out[o] = over[o];
+    }
+  }
+  if (variant === 3) applyLight(ctx, pr.shafts);
+  drawTelegraph(ctx, scene);
+  return new ImageData(new Uint8ClampedArray(out.buffer), VW, VH);
+}
+
+function vput(ctx, wx, wy, c, floorOnly) {
+  const vx = wx - ctx.camL, vy = wy - ctx.camT;
+  if (vx < 0 || vy < 0 || vx >= VW || vy >= VH) return;
+  if (floorOnly) {
+    const i = vx + MARGIN, j = vy + MARGIN;
+    if (ctx.S[j * ctx.RW + i] || ctx.T[j * ctx.RW + i]) return;
+  }
+  ctx.out[vy * VW + vx] = c;
+}
+function vget(ctx, wx, wy) {
+  const vx = wx - ctx.camL, vy = wy - ctx.camT;
+  if (vx < 0 || vy < 0 || vx >= VW || vy >= VH) return 0;
+  return ctx.out[vy * VW + vx];
+}
+function blit(ctx, spr, pal, left, top, who, flipX, flipY) {
+  for (let y = 0; y < spr.h; y++) {
+    const row = spr.rows[flipY ? spr.h - 1 - y : y];
+    for (let x = 0; x < spr.w; x++) {
+      const ch = row[flipX ? spr.w - 1 - x : x];
+      if (ch === ".") continue;
+      const c = pal[ch]; if (c === undefined) continue;
+      const vx = left + x - ctx.camL, vy = top + y - ctx.camT;
+      if (vx < 0 || vy < 0 || vx >= VW || vy >= VH) continue;
+      ctx.out[vy * VW + vx] = c;
+      if (who) ctx.cmask[vy * VW + vx] = who;
+    }
+  }
+}
+function shadow(ctx, cx, cy, rx, ry) {
+  for (let y = -ry; y <= ry; y++) for (let x = -rx; x <= rx; x++) {
+    if ((x * x) / (rx * rx) + (y * y) / (ry * ry) > 1) continue;
+    const c = vget(ctx, cx + x, cy + y); if (!c) continue;
+    vput(ctx, cx + x, cy + y, mix(c, P.fO, 0.5), false);
+  }
+}
+function drawChar(ctx, c) {
+  const fx = Math.round(c.x * DOTS), fy = Math.round(c.y * DOTS);
+  const spr = SPR[c.kind];
+  const pal = c.kind === "player" ? PP : c.kind === "gaki" ? PG : c.kind === "onibi" ? PO : PS;
+  const lift = c.kind === "onibi" ? 18 : 0;
+  shadow(ctx, fx, fy - 1, Math.round(spr.w * 0.38), 3);
+  blit(ctx, spr, pal, fx - (spr.w >> 1), fy - spr.h - lift, c.kind === "player" ? 1 : 2, c.flip, false);
+}
+function drawProp(ctx, p) {
+  const pal = propPalette(p.kind);
+  if (p.kind === "pillar") return drawPillar(ctx, p);
+  if (p.kind === "stone") return drawStone(ctx, p);
+  if (p.kind === "spear") return drawSpear(ctx, p);
+  const spr = SPR[p.kind]; if (!spr) return;
+  if (p.kind === "torii") { blit(ctx, spr, pal, p.x - (spr.w >> 1), p.y - spr.h, 0, false, true); return; }
+  if (p.kind === "orb") {
+    shadow(ctx, p.x, p.y, 5, 2);
+    blit(ctx, spr, pal, p.x - (spr.w >> 1), p.y - spr.h - 16, 0, false, false);
+    return;
+  }
+  shadow(ctx, p.x, p.y - 1, Math.round(spr.w * 0.45), 2);
+  blit(ctx, spr, pal, p.x - (spr.w >> 1), p.y - spr.h, 0, p.flip && p.kind !== "lantern", false);
+}
+function drawPillar(ctx, p) {
+  const H = TH.key === "final" ? 44 : 40, W = 10, left = p.x - 5, top = p.y - H;
+  shadow(ctx, p.x, p.y - 1, 7, 2);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let c;
+    if (y < 2 || y === H - 1 || x === 0 || x === W - 1) c = OUTLINE_K;
+    else if (y < 5) c = P.tD;
+    else if (y >= H - 5) c = y === H - 5 ? OUTLINE_K : P.stoneL;
+    else c = x === 1 ? P.accL : x >= W - 3 ? P.accD : P.accent;
+    vput(ctx, left + x, top + y, c, false);
+  }
+}
+function drawStone(ctx, p) {
+  shadow(ctx, p.x + 2, p.y + 2, p.rx + 2, p.ry - 1);
+  for (let y = -p.ry * 2; y <= p.ry; y++) for (let x = -p.rx; x <= p.rx; x++) {
+    const nx = x / p.rx, ny = y < 0 ? y / (p.ry * 1.6) : y / p.ry;
+    const d = nx * nx + ny * ny + (hf(x, y, p.x) - 0.5) * 0.08;
+    if (d > 1) continue;
+    let c = d > 0.8 ? OUTLINE_K : P.tB;
+    if (d <= 0.8 && nx < -0.1 && ny < -0.25) c = mix(P.tB, P.light, 0.35);
+    if (d <= 0.8 && nx < -0.25 && ny < -0.5) c = mix(P.tB, P.light, 0.6);
+    if (d <= 0.8 && ny > 0.45) c = P.sB;
+    vput(ctx, p.x + x, p.y + y, c, false);
+  }
+}
+function drawSpear(ctx, p) {
+  const len = 22, dir = p.flip ? 1 : -1;
+  for (let q = 0; q < len; q++) {
+    const x = p.x + Math.round(q * 0.8) * dir, y = p.y - q;
+    const c = q > len - 5 ? (TH.frost ? hex("#e8f4ff") : hex("#a8a8b0")) : P.wood;
+    vput(ctx, x, y, OUTLINE_K, false); vput(ctx, x + 1, y, c, false);
+  }
+  shadow(ctx, p.x, p.y + 1, 4, 1);
+}
+// 汚し（床）と、側面の飾り（注連縄・氷柱・光る苔）
+function drawDecals(ctx, m) {
+  const tx0 = Math.floor(ctx.camL / TD) - 1, ty0 = Math.floor(ctx.camT / TD) - 1;
+  const tx1 = tx0 + Math.ceil(VW / TD) + 2, ty1 = ty0 + Math.ceil(VH / TD) + 2;
+  const salt = THEMES.indexOf(TH) * 777 + 5;
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+    if (!inMap(tx, ty)) continue;
+    const i = idx(tx, ty), h = h32(tx, ty, m.seed + salt);
+    if (m.solid[i]) {
+      // 南が床の壁 = 側面がある
+      if (!TH.abyss && !tileSolid(m, tx, ty + 1)) sideDecal(ctx, tx, ty, h);
+      continue;
+    }
+    if (!TH.decals.length || m.ter[i]) continue;
+    const near = m.clear[i] === 1;
+    if ((h & 255) / 256 >= (near ? 0.55 : 0.1)) continue;
+    const kind = TH.decals[(h >>> 8) % TH.decals.length];
+    const x = tx * TD + 4 + ((h >>> 12) % 24), y = ty * TD + 4 + ((h >>> 17) % 24);
+    floorDecal(ctx, kind, x, y, h);
+  }
+}
+function floorDecal(ctx, kind, x, y, h) {
+  const put = (dx, dy, c) => vput(ctx, x + dx, y + dy, c, true);
+  const cur = (dx, dy) => vget(ctx, x + dx, y + dy);
+  switch (kind) {
+    case "pebble": {
+      const n = 2 + (h >>> 24) % 3;
+      for (let q = 0; q < n; q++) {
+        const px = ((h >>> (q * 3)) % 9) - 4, py = ((h >>> (q * 3 + 9)) % 7) - 3;
+        put(px, py, P.fH); put(px + 1, py, P.fL); put(px, py + 1, P.fL); put(px + 1, py + 1, P.fD); put(px + 1, py + 2, P.fO);
+      }
+      break;
+    }
+    case "crack": {
+      let cx = 0, cy = 0; const n = 7 + (h >>> 26) % 8;
+      for (let q = 0; q < n; q++) {
+        put(cx, cy, P.fO);
+        const r = (h >>> (q % 28)) & 3;
+        if (r === 0) cx++; else if (r === 1) { cx++; cy++; } else if (r === 2) cy++; else { cx--; cy++; }
+      }
+      break;
+    }
+    case "moss": {
+      const r = 3 + (h >>> 25) % 3;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r - 2; dx <= r + 2; dx++) {
+        const d = (dx * dx) / ((r + 2) * (r + 2)) + (dy * dy) / (r * r);
+        if (d > 1 + (hf(dx, dy, h) - 0.5) * 0.5) continue;
+        put(dx, dy, dx + dy < -1 ? P.moss2 : P.moss1);
+      }
+      break;
+    }
+    case "root": {
+      let cx = 0, cy = 0;
+      for (let q = 0; q < 14; q++) { put(cx, cy, P.wood); put(cx, cy + 1, P.fO); cx += 1; if (((h >>> q) & 3) === 0) cy += 1; if (((h >>> q) & 7) === 5) cy -= 1; }
+      break;
+    }
+    case "bones": {
+      blitFloor(ctx, SPR.skull, propPalette("skull"), x - 5, y - 3);
+      break;
+    }
+    case "scorch": {
+      const r = 6 + (h >>> 25) % 5;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r - 3; dx <= r + 3; dx++) {
+        const d = (dx * dx) / ((r + 3) * (r + 3)) + (dy * dy) / (r * r);
+        if (d > 1) continue;
+        const c = cur(dx, dy); if (!c) continue;
+        put(dx, dy, mix(c, P.soot, d < 0.45 ? 0.6 : 0.35));
+      }
+      break;
+    }
+    case "ember": {
+      put(0, 0, hex("#ff7a2a")); put(1, 0, hex("#ffd05a")); put(4, 2, hex("#ff7a2a"));
+      break;
+    }
+    case "frost": {
+      const c = P.snow;
+      put(0, 0, c); put(-1, 0, c); put(1, 0, c); put(0, -1, c); put(0, 1, c);
+      put(5, 3, mix(c, P.fB, 0.4)); put(-4, 4, mix(c, P.fB, 0.4));
+      break;
+    }
+    case "glyph": {
+      const g = mix(P.accent, P.fB, 0.35);
+      for (let q = 0; q < 25; q++) if ((h >>> q) & 1) {
+        const gx = q % 5, gy = (q / 5) | 0;
+        put(gx * 2 - 5, gy * 2 - 5, g); put(4 - gx * 2 + 1, gy * 2 - 5, g);
+      }
+      break;
+    }
+  }
+}
+function blitFloor(ctx, spr, pal, left, top) {
+  for (let y = 0; y < spr.h; y++) for (let x = 0; x < spr.w; x++) {
+    const ch = spr.rows[y][x]; if (ch === ".") continue;
+    vput(ctx, left + x, top + y, pal[ch], true);
+  }
+}
+function sideDecal(ctx, tx, ty, h) {
+  const yBase = (ty + 1) * TD, yTop = yBase - TH.h;
+  const isSide = (x, y) => {
+    const i = x - ctx.ox, j = y - ctx.oy;
+    return ctx.s(i, j) && !ctx.s(i, j + TH.h);
+  };
+  if (TH.key === "temple" && (h & 7) === 0) {
+    // 注連縄と紙垂
+    for (let x = 0; x < TD; x++) {
+      const wx = tx * TD + x, sag = Math.round(Math.sin((x / (TD - 1)) * Math.PI) * 4);
+      for (let q = 0; q < 3; q++) {
+        const wy = yTop + 3 + sag + q;
+        if (!isSide(wx, wy)) continue;
+        vput(ctx, wx, wy, q === 0 ? hex("#e0c890") : q === 1 ? ((x + q) % 4 < 2 ? hex("#c8a868") : hex("#a0844c")) : hex("#6a5430"), false);
+      }
+    }
+    for (const sx of [7, 16, 25]) {
+      const sag = Math.round(Math.sin((sx / (TD - 1)) * Math.PI) * 4);
+      for (let q = 0; q < 8; q++) {
+        const wx = tx * TD + sx + ((q >> 1) & 1 ? 1 : 0), wy = yTop + 6 + sag + q;
+        if (isSide(wx, wy)) vput(ctx, wx, wy, q === 7 ? hex("#b8b4a8") : hex("#f4f0e4"), false);
+      }
+    }
+  }
+  if (TH.frost && (h & 3) !== 3) {
+    // 氷柱
+    for (let x = 1; x < TD - 1; x += 3 + ((h >>> x) & 3)) {
+      const len = 4 + ((h >>> (x + 3)) & 7);
+      for (let q = 0; q < len; q++) {
+        const wx = tx * TD + x, wy = yTop + q;
+        if (!isSide(wx, wy)) continue;
+        vput(ctx, wx, wy, q < len - 3 ? hex("#e8f4ff") : hex("#b8e4ff"), false);
+        if (q < len / 2) vput(ctx, wx + 1, wy, hex("#8ab8d8"), false);
+      }
+    }
+  }
+  if (TH.key === "moss" && (h & 7) < 2) {
+    // 側面の光る苔（光源にもなる）
+    const cx = tx * TD + 6 + ((h >>> 5) % 20), cy = yTop + 5 + ((h >>> 9) % Math.max(1, TH.h - 8));
+    let any = false;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -3; dx <= 3; dx++) {
+      if (Math.abs(dx) + Math.abs(dy) > 3) continue;
+      if (!isSide(cx + dx, cy + dy)) continue;
+      vput(ctx, cx + dx, cy + dy, Math.abs(dx) + Math.abs(dy) <= 1 ? hex("#f0ffb8") : P.light, false);
+      any = true;
+    }
+    if (any) ctx.lights.push({ x: cx, y: cy + 10, r: 40, s: 0.6, c: P.light });
+  }
+  if (TH.key === "fire" && (h & 15) === 1) {
+    // 焼けた旗
+    const x0 = tx * TD + 10;
+    for (let y = 0; y < TH.h - 6; y++) for (let x = 0; x < 10; x++) {
+      const wx = x0 + x, wy = yTop + 2 + y;
+      if (!isSide(wx, wy)) continue;
+      if (y > TH.h - 14 && ((x * 7 + y * 3) % 5) < 2) continue;
+      vput(ctx, wx, wy, x === 0 || x === 9 ? OUTLINE_K : y < 2 ? hex("#3a3434") : (x + y) % 9 === 0 ? P.soot : hex("#6a2a22"), false);
+    }
+  }
+}
+
+// 光のマップ: 章の暗さ + 光源。光の縁は段（4 段）にしてディザは使わない
+function applyLight(ctx, shafts) {
+  const I = new Float32Array(VW * VH);
+  const best = new Float32Array(VW * VH);
+  const bestC = new Uint32Array(VW * VH);
+  for (const L of ctx.lights) {
+    const lx = L.x - ctx.camL, ly = L.y - ctx.camT, r2 = L.r * L.r;
+    const x0 = Math.max(0, Math.floor(lx - L.r)), x1 = Math.min(VW - 1, Math.ceil(lx + L.r));
+    const y0 = Math.max(0, Math.floor(ly - L.r)), y1 = Math.min(VH - 1, Math.ceil(ly + L.r));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dx = x - lx, dy = (y - ly) * 1.15, d2 = dx * dx + dy * dy;
+      if (d2 >= r2) continue;
+      const v = (1 - d2 / r2) * L.s, o = y * VW + x;
+      I[o] += v;
+      if (v > best[o]) { best[o] = v; bestC[o] = L.c; }
+    }
+  }
+  // 天窓の光の柱（斜めの帯と床の明るみ）
+  const shaftC = hex("#f4f4d0");
+  for (const sh of shafts) {
+    const bx = sh.x - ctx.camL, by = sh.y - ctx.camT;
+    for (let y = Math.max(0, by - 260); y < Math.min(VH, by + 20); y++) {
+      const off = (by - y) * 0.45;
+      const w = 14 + (by - y) * 0.05;
+      for (let x = Math.max(0, Math.floor(bx - off - w)); x < Math.min(VW, bx - off + w); x++) {
+        const o = y * VW + x;
+        const inFloor = y > by - 14 ? ((x - bx) ** 2) / 900 + ((y - by) ** 2) / 196 < 1 : true;
+        if (!inFloor) continue;
+        I[o] += y > by - 14 ? 0.45 : 0.2;
+        if (best[o] < 0.3) { best[o] = 0.3; bestC[o] = shaftC; }
+        if (hf(x, y, 991) < 0.0035 && y < by - 14) ctx.out[o] = mix(ctx.out[o], shaftC, 0.7);
+      }
+    }
+  }
+  const dark = TH.dark;
+  const out = ctx.out, cm = ctx.cmask;
+  for (let o = 0; o < out.length; o++) {
+    const v = I[o];
+    const q = v < 0.12 ? 0 : v < 0.38 ? 1 / 3 : v < 0.7 ? 2 / 3 : 1;
+    let f = (1 - dark) + dark * q;
+    const c = out[o];
+    if (cm[o]) f = 1 - (1 - f) * 0.45; // キャラは読みやすさを優先して暗くしすぎない
+    let r = cr(c) * f, g = cg(c) * f, b = cb(c) * f;
+    if (q > 0 && bestC[o]) {
+      // 光の色は掛け算で乗せる（白い霧にしない）。段ごとに一定の量
+      const L = bestC[o], tt = q * 0.45;
+      r = r * (1 - tt) + r * (cr(L) / 160) * tt;
+      g = g * (1 - tt) + g * (cg(L) / 160) * tt;
+      b = b * (1 - tt) + b * (cb(L) / 160) * tt;
+    }
+    out[o] = pack(clamp255(r), clamp255(g), clamp255(b));
+  }
+}
+// 予告（赤）は光の外の層: 暗くならない
+function drawTelegraph(ctx, scene) {
+  const sp = scene.chars.find((c) => c.kind === "spider");
+  const pl = scene.chars[0];
+  if (!sp) return;
+  const cx = sp.x * DOTS - ctx.camL, cy = sp.y * DOTS - 6 - ctx.camT;
+  const ang = Math.atan2(pl.y * DOTS - 16 - ctx.camT - cy, pl.x * DOTS - ctx.camL - cx);
+  const R = 60, half = 0.55;
+  const red = hex("#ff4a3a"), redL = hex("#ff8a6a");
+  for (let y = Math.max(0, Math.floor(cy - R)); y < Math.min(VH, cy + R); y++) for (let x = Math.max(0, Math.floor(cx - R)); x < Math.min(VW, cx + R); x++) {
+    const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy);
+    if (d > R || d < 10) continue;
+    let da = Math.atan2(dy, dx) - ang; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+    if (Math.abs(da) > half) continue;
+    const o = y * VW + x;
+    if (ctx.cmask[o]) continue;
+    const edge = d > R - 2 || Math.abs(Math.abs(da) - half) * d < 1.2;
+    ctx.out[o] = edge ? red : mix(ctx.out[o], redL, 0.24);
+  }
+}
+
+// =====================================================================
+// 場面（プレイヤーと敵の位置・カメラ）
+// =====================================================================
+function nearestTile(m, tx, ty, pred) {
+  for (let r = 0; r < 20; r++) {
+    let best = null, bd = 1e9;
+    for (let y = ty - r; y <= ty + r; y++) for (let x = tx - r; x <= tx + r; x++) {
+      if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) !== r) continue;
+      if (!inMap(x, y) || !pred(x, y)) continue;
+      const d = Math.hypot(x - tx, y - ty); if (d < bd) { bd = d; best = { x, y }; }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+function buildScene(st) {
+  const m = getMap(st.gen, st.seed);
+  const th = THEMES[st.theme];
+  const spot = st.focusPoint || m.spots[st.focusIdx % m.spots.length];
+  const pt = nearestTile(m, spot.x, spot.y, (x, y) => !m.solid[idx(x, y)] && !m.ter[idx(x, y)] && m.clear[idx(x, y)] >= 2) || nearestTile(m, spot.x, spot.y, (x, y) => !m.solid[idx(x, y)]);
+  const px = pt.x * TILE + 8, py = pt.y * TILE + 12;
+  const cam = { x: Math.round(Math.max(0, Math.min(MAP_W * TILE - VIEW_W, px - VIEW_W / 2))), y: Math.round(Math.max(0, Math.min(MAP_H * TILE - VIEW_H, py - VIEW_H / 2 - 8))) };
+  const inView = (x, y) => x * TILE >= cam.x + 16 && x * TILE <= cam.x + VIEW_W - 32 && y * TILE >= cam.y + 24 && y * TILE <= cam.y + VIEW_H - 32;
+  const used = [pt];
+  const free = (x, y) => !m.solid[idx(x, y)] && !m.ter[idx(x, y)] && used.every((u) => Math.hypot(u.x - x, u.y - y) >= 3);
+  const chars = [{ kind: "player", x: px, y: py, flip: false }];
+  const sp = nearestTile(m, pt.x + 5, pt.y + 1, (x, y) => free(x, y) && m.clear[idx(x, y)] >= 2 && inView(x, y));
+  if (sp) { used.push(sp); chars.push({ kind: "spider", x: sp.x * TILE + 8, y: sp.y * TILE + 11, flip: sp.x > pt.x }); }
+  const ob = nearestTile(m, pt.x - 4, pt.y - 2, (x, y) => free(x, y) && inView(x, y));
+  if (ob) { used.push(ob); chars.push({ kind: "onibi", x: ob.x * TILE + 8, y: ob.y * TILE + 10, flip: false }); }
+  // 餓鬼は南の壁際（手前の縁が足にかぶる所）に置く
+  const gk = nearestTile(m, pt.x - 1, pt.y + 3, (x, y) => free(x, y) && tileSolid(m, x, y + 1) && !tileSolid(m, x - 1, y + 1) + !tileSolid(m, x + 1, y + 1) === 0 && inView(x, y)) ||
+    nearestTile(m, pt.x - 1, pt.y + 3, (x, y) => free(x, y) && tileSolid(m, x, y + 1) && inView(x, y));
+  if (gk) chars.push({ kind: "gaki", x: gk.x * TILE + 8, y: (gk.y + 1) * TILE + 1, flip: gk.x > pt.x });
+  return { map: m, theme: th, P: derivePalette(th), cam, chars };
+}
+
+// =====================================================================
+// 画面
+// =====================================================================
+const VARIANTS = [
+  { title: "0 現状の再現",
+    lines: [
+      "当たりも絵も 16px のマス。床・壁は密度 1（論理 1px = 1 ドット）の粗い煉瓦で、キャラ（密度 2）の倍の粗さ。",
+      "壁は 4 近傍の 16 通りなので内角が出ず、洞窟の縁が 16px の直角の階段になる。周りが全部壁の岩盤は描かず真っ黒。",
+      "地形はマスごとの四角い半透明のタイル。"] },
+  { title: "A 真上・なめらか",
+    lines: [
+      "表示の格子を半マスずらす dual-grid（頂点を囲む 4 マスで 16 通り）で縁を描き、角を半マス（8px）で丸める。1 マスの出っ張りは岩のこぶになる。",
+      "床・壁・地形を密度 2（論理 0.5px のドット）で描き、キャラと粒がそろう。岩盤の中も岩の模様。地形は縁つきの有機的な形。",
+      "当たりは 16px のまま（見た目の角との差は丸めの数 px）。変わるのは render と絵だけで、state・乱数・リプレイは不変。コスト M（絵は章ごと）。"] },
+  { title: "B 3/4 見下ろし",
+    lines: [
+      "A に加えて壁を天面・側面・縁の 3 面で描く。側面は壁のマスの下側に描き床に食い込まない（洞窟・深みは半マス前後、寺院・城は 1 マス）。",
+      "北が床の壁は、天面の縁が床へ 3px 張り出してキャラの後に描く（南の壁際の餓鬼の足が隠れ、隠れた所は輪郭で透ける）。壁の根元に影、岩盤は 3 段の帯で闇へ。",
+      "当たりは不変。描画順だけ変わる（縁の層をキャラの後に）。リプレイの影響なし。チャンク焼き付けなら毎フレームは縁の層だけ追加。"] },
+  { title: "C 光と置物",
+    lines: [
+      "B に加えて光のマップ（章の暗さ + 灯籠・篝火・蛍苔・溶岩・鬼火・旅人のかすかな灯り）。光の縁はディザではなく 4 段の色。",
+      "置物・汚し（骨・苔・ひび・石仏・注連縄・柱・氷柱）を座標ハッシュで散らす。壁際は濃く、広間の真ん中は薄く。",
+      "予告（赤い扇）と弾は光の外の層に描くので暗くならない（A19）。state と rng を消費しないので生成もリプレイも不変。"] },
+];
+const GENS = {
+  cave: "今の洞窟: 全面に 45% の壁を撒いてセルオートマトン 5 回 → 最大連結成分（CAVE.json の base と同じ数値）。形に意図がなく、塊が似た不定形になる。",
+  skel: "骨組み + 形の語彙: 開始 → 主の間の主の道（6 ノード）、ループ 1 本、寄り道 2 本のグラフを先に作る。ノードに円・瓢箪・三日月・環・扇・合成塊・池の広間・二重円（主の間）を置き、辺を曲線の通路で結び、最後にセルオートマトン 1 回で縁だけ崩す。生成が変わるのでリプレイの版を上げる段（D4）。",
+  rooms: "今の回廊: 矩形の部屋 + 幅 2 の L 字通路。木構造でループは偶然だけ。",
+};
+const st = { variant: 1, theme: 0, gen: "skel", seed: 7, focusIdx: 0, focusPoint: null, compare: false, split: 240, mag: null };
+try {
+  const saved = JSON.parse(localStorage.getItem("mapPreview.v1") || "null");
+  if (saved && typeof saved === "object") {
+    if ([0, 1, 2, 3].includes(saved.variant)) st.variant = saved.variant;
+    if (Number.isInteger(saved.theme) && saved.theme >= 0 && saved.theme < THEMES.length) st.theme = saved.theme;
+    if (GENS[saved.gen]) st.gen = saved.gen;
+    if (Number.isInteger(saved.seed)) st.seed = saved.seed;
+  }
+} catch (e) { /* 保存が使えなくても既定で動く */ }
+function persist() {
+  try { localStorage.setItem("mapPreview.v1", JSON.stringify({ variant: st.variant, theme: st.theme, gen: st.gen, seed: st.seed })); } catch (e) { /* 無視 */ }
+}
+
+const view = document.getElementById("view");
+const vctx = view.getContext("2d");
+vctx.imageSmoothingEnabled = false;
+const mini = document.getElementById("mini");
+const mctx = mini.getContext("2d");
+const mag = document.getElementById("mag");
+const gctx = mag.getContext("2d");
+gctx.imageSmoothingEnabled = false;
+const themeGroup = document.getElementById("themeGroup");
+THEMES.forEach((th, i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.dataset.theme = String(i); b.textContent = th.label; b.title = th.sub;
+  themeGroup.appendChild(b);
+});
+
+let scene = null;
+const imgCache = new Map();
+function sceneKey() { return [st.gen, st.seed, st.theme, st.focusIdx, st.focusPoint ? st.focusPoint.x + "," + st.focusPoint.y : ""].join("|"); }
+function getImage(variant) {
+  const key = sceneKey() + "|" + variant;
+  if (imgCache.has(key)) return imgCache.get(key);
+  const img = renderScene(scene, variant);
+  if (imgCache.size > 24) imgCache.delete(imgCache.keys().next().value);
+  imgCache.set(key, img);
+  return img;
+}
+function redraw() {
+  const t0 = performance.now();
+  scene = buildScene(st);
+  const img = getImage(st.variant);
+  if (st.compare && st.variant !== 0) {
+    const base = getImage(0);
+    const sx = st.split * DOTS;
+    vctx.putImageData(base, 0, 0, 0, 0, sx, VH);
+    vctx.putImageData(img, 0, 0, sx, 0, VW - sx, VH);
+    vctx.fillStyle = "#f4f0e4";
+    vctx.fillRect(sx - 1, 0, 2, VH);
+  } else {
+    vctx.putImageData(img, 0, 0);
+  }
+  drawMini();
+  drawMag();
+  updateText();
+  document.getElementById("status").textContent = "描画 " + Math.round(performance.now() - t0) + "ms（切り替えのたびに 1 回だけ描く）";
+}
+function drawMini() {
+  const m = scene.map, P2 = scene.P, s = 3;
+  mctx.fillStyle = "#0b0a0f"; mctx.fillRect(0, 0, mini.width, mini.height);
+  const img = mctx.createImageData(MAP_W * s, MAP_H * s);
+  const u = new Uint32Array(img.data.buffer);
+  const wallC = scene.theme.abyss ? P2.vD : mix(P2.sB, P2.tD, 0.4), floorC = P2.fL, terC = TERC[scene.theme.ter].old;
+  for (let y = 0; y < MAP_H * s; y++) for (let x = 0; x < MAP_W * s; x++) {
+    const i = idx((x / s) | 0, (y / s) | 0);
+    u[y * MAP_W * s + x] = m.solid[i] ? (m.clear[i] === 0 && hasFloorNear(m, (x / s) | 0, (y / s) | 0) ? wallC : hex("#0b0a0f")) : m.ter[i] ? terC : floorC;
+  }
+  mctx.putImageData(img, 0, 0);
+  if (m.graph) {
+    mctx.strokeStyle = "rgba(226,162,78,0.8)"; mctx.lineWidth = 1;
+    for (const [a, b, kind] of m.graph.edges) {
+      const A = m.graph.nodes[a], B = m.graph.nodes[b];
+      mctx.setLineDash(kind === "main" ? [] : [3, 2]);
+      mctx.beginPath(); mctx.moveTo(A.x * s, A.y * s); mctx.lineTo(B.x * s, B.y * s); mctx.stroke();
+    }
+    mctx.setLineDash([]);
+    for (const n of m.graph.nodes) {
+      mctx.fillStyle = n.role === "主の間" ? "#c83a2a" : n.role === "開始" ? "#f4f0e4" : n.kind === "branch" ? "#a8a194" : "#e2a24e";
+      mctx.fillRect(Math.round(n.x * s) - 2, Math.round(n.y * s) - 2, 4, 4);
+    }
+  }
+  mctx.strokeStyle = "#f4f0e4"; mctx.lineWidth = 1;
+  mctx.strokeRect(Math.round(scene.cam.x / TILE * s) + 0.5, Math.round(scene.cam.y / TILE * s) + 0.5, Math.round(VIEW_W / TILE * s), Math.round(VIEW_H / TILE * s));
+  const pl = scene.chars[0];
+  mctx.fillStyle = "#ffd05a"; mctx.fillRect(Math.round(pl.x / TILE * s) - 1, Math.round(pl.y / TILE * s) - 2, 3, 3);
+}
+function hasFloorNear(m, x, y) {
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (inMap(x + i, y + j) && !m.solid[idx(x + i, y + j)]) return true;
+  return false;
+}
+function drawMag() {
+  const pl = scene.chars[0];
+  if (!st.mag) st.mag = { x: pl.x - scene.cam.x, y: pl.y - scene.cam.y - 10 };
+  const w = 96, hh = 54;
+  const sx = Math.max(0, Math.min(VIEW_W - w, Math.round(st.mag.x - w / 2))) * DOTS;
+  const sy = Math.max(0, Math.min(VIEW_H - hh, Math.round(st.mag.y - hh / 2))) * DOTS;
+  gctx.imageSmoothingEnabled = false;
+  gctx.clearRect(0, 0, mag.width, mag.height);
+  gctx.drawImage(view, sx, sy, w * DOTS, hh * DOTS, 0, 0, mag.width, mag.height);
+}
+function updateText() {
+  const v = VARIANTS[st.variant];
+  document.getElementById("vTitle").textContent = v.title;
+  const ul = document.getElementById("vDesc"); ul.textContent = "";
+  for (const line of v.lines) { const li = document.createElement("li"); li.textContent = line; ul.appendChild(li); }
+  const th = THEMES[st.theme];
+  const tEl = document.getElementById("tDesc"); tEl.textContent = "";
+  const b1 = document.createElement("b"); b1.textContent = th.label + "（" + th.sub + "）"; tEl.appendChild(b1);
+  tEl.appendChild(document.createTextNode(" " + th.note));
+  const gEl = document.getElementById("gDesc"); gEl.textContent = "";
+  const b2 = document.createElement("b"); b2.textContent = "生成"; gEl.appendChild(b2);
+  let gtxt = " " + GENS[st.gen];
+  if (st.gen === "skel" && scene.map.graph) {
+    const shapes = scene.map.graph.nodes.map((n) => n.role + "=" + SHAPE_LABEL[n.shape]).join("・");
+    gtxt += " この seed の塊: " + shapes + "。";
+  }
+  gEl.appendChild(document.createTextNode(gtxt));
+  const lg = document.getElementById("legend"); lg.textContent = "";
+  const c = th.c;
+  for (const [name, col] of [["床 暗", c.fD], ["床 基", c.fB], ["床 明", c.fL], ["天面", c.top], ["側面", c.side], ["光", c.light], ["差し色", c.accent]]) {
+    const span = document.createElement("span");
+    const sw = document.createElement("i"); sw.className = "swatch"; sw.style.background = col;
+    span.appendChild(sw); span.appendChild(document.createTextNode(name + " " + col));
+    lg.appendChild(span);
+  }
+  for (const b of document.querySelectorAll("[data-variant]")) b.setAttribute("aria-pressed", String(Number(b.dataset.variant) === st.variant));
+  for (const b of document.querySelectorAll("[data-theme]")) b.setAttribute("aria-pressed", String(Number(b.dataset.theme) === st.theme));
+  for (const b of document.querySelectorAll("[data-gen]")) b.setAttribute("aria-pressed", String(b.dataset.gen === st.gen));
+  document.getElementById("seedInput").value = String(st.seed);
+  document.getElementById("compareBtn").setAttribute("aria-pressed", String(st.compare));
+  document.getElementById("splitRow").hidden = !st.compare;
+}
+function resetView() { st.focusIdx = 0; st.focusPoint = null; st.mag = null; }
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.variant !== undefined) { st.variant = Number(b.dataset.variant); }
+  else if (b.dataset.theme !== undefined) { st.theme = Number(b.dataset.theme); }
+  else if (b.dataset.gen !== undefined) { st.gen = b.dataset.gen; resetView(); }
+  else if (b.id === "seedPrev") { st.seed -= 1; resetView(); }
+  else if (b.id === "seedNext") { st.seed += 1; resetView(); }
+  else if (b.id === "seedRand") { st.seed = (h32(st.seed, Date.now() & 65535, 5) % 9000) + 1; resetView(); }
+  else if (b.id === "focusNext") { st.focusPoint = null; st.focusIdx += 1; st.mag = null; }
+  else if (b.id === "compareBtn") { st.compare = !st.compare; }
+  else return;
+  persist();
+  redraw();
+});
+document.getElementById("seedInput").addEventListener("change", (e) => {
+  const v = parseInt(e.target.value, 10);
+  if (Number.isFinite(v)) { st.seed = v; resetView(); persist(); redraw(); }
+});
+document.getElementById("split").addEventListener("input", (e) => { st.split = Number(e.target.value); redraw(); });
+mini.addEventListener("click", (e) => {
+  const r = mini.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width * MAP_W), y = Math.floor((e.clientY - r.top) / r.height * MAP_H);
+  st.focusPoint = { x, y }; st.mag = null; redraw();
+});
+function magFromEvent(e) {
+  const r = view.getBoundingClientRect();
+  st.mag = { x: (e.clientX - r.left) / r.width * VIEW_W, y: (e.clientY - r.top) / r.height * VIEW_H };
+  drawMag();
+}
+view.addEventListener("pointermove", magFromEvent);
+view.addEventListener("pointerdown", magFromEvent);
+view.addEventListener("keydown", (e) => {
+  const step = e.shiftKey ? 32 : 8;
+  const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (!d) return;
+  e.preventDefault();
+  st.mag.x = Math.max(0, Math.min(VIEW_W, st.mag.x + d[0]));
+  st.mag.y = Math.max(0, Math.min(VIEW_H, st.mag.y + d[1]));
+  drawMag();
+});
+function fitCanvas() {
+  const box = document.getElementById("canvasbox");
+  const avail = box.clientWidth;
+  const mult = Math.min(3, Math.floor(avail / VIEW_W));
+  view.style.width = (mult >= 1 ? mult * VIEW_W : avail) + "px";
+}
+window.addEventListener("resize", fitCanvas);
+fitCanvas();
+redraw();
+window.__preview = { st, redraw };
+</script>
