@@ -1,3 +1,4 @@
+import { enemyDef } from "../data/enemies";
 import { ARC, HEAL } from "../data/tuning";
 
 /**
@@ -30,6 +31,16 @@ export function isChapterRest(depth: number): boolean {
   return depth > 1 && depth <= lastChapterFloor() && (depth - 1) % ARC.floorsPerChapter === 0;
 }
 
+/** 最深の間（章の階数 × 章の数 + 1 = 深度 21）。章ボスの次の階で、ここが踏破の場になる */
+export function isFinalDepth(depth: number): boolean {
+  return depth === lastChapterFloor() + 1;
+}
+
+/** 最深の間の主の key（ARC.finalBoss。最深の間でなければ null） */
+export function finalBossKey(depth: number): string | null {
+  return isFinalDepth(depth) ? ARC.finalBoss : null;
+}
+
 /** 章ボスの key。章ボスの階でなければ null（boss.ts が従来の回転へ回す） */
 export function chapterBossKey(depth: number): string | null {
   if (!isChapterBossDepth(depth)) return null;
@@ -50,4 +61,23 @@ export function hasRestFountain(depth: number): boolean {
 export function heartChanceOf(depth: number): number {
   const table = HEAL.heartChanceByChapter;
   return table[chapterOf(depth) - FIRST_CHAPTER] ?? table[table.length - 1] ?? 0;
+}
+
+function bossLabel(key: string): string {
+  const def = enemyDef(key);
+  return def.bossTitle ?? def.name;
+}
+
+/**
+ * 章の休符（6 / 11 / 16）に着いたときの予習の文。この章の主の階と名を告げ、最後の章の休符ではさらに最深の間の主も告げる
+ * （準備が効くようにする。docs/ideas/boss-impl.md 2-6）。休符でなければ空
+ */
+export function chapterAheadLines(depth: number): string[] {
+  if (!isChapterRest(depth)) return [];
+  const chapter = chapterOf(depth);
+  const lines: string[] = [];
+  const key = ARC.chapters[chapter - FIRST_CHAPTER]?.boss;
+  if (key) lines.push(`この章の主: 地下 ${chapter * ARC.floorsPerChapter} 階 ${bossLabel(key)}`);
+  if (chapter === ARC.maxChapter) lines.push(`最深の主: 地下 ${lastChapterFloor() + 1} 階 ${bossLabel(ARC.finalBoss)}`);
+  return lines;
 }

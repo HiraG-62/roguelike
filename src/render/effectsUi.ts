@@ -3,7 +3,7 @@
  * ばらつきは renderMath.ts の座標ハッシュと state.time で作る。演出の状態は system/effects.ts が
  * state.effects（死に方・演出の印）に置いたものを読む
  */
-import type { DeathFx, FxMark, GameState, RoomState } from "../core/state";
+import { type DeathFx, type FxMark, type GameState, type RoomState, runOver } from "../core/state";
 import type { SpriteDots } from "../data/sprites/dots";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { EFFECTS, FX_WAVE3 } from "../data/tuning";
@@ -633,7 +633,7 @@ function drawKeystoneAura(ctx: CanvasRenderingContext2D, x: number, y: number, c
 }
 
 export function drawPlayerAuras(ctx: CanvasRenderingContext2D, state: GameState): void {
-  if (state.status === "dead") return;
+  if (runOver(state)) return;
   const p = state.player.body.pos;
   drawResonanceMantle(ctx, p.x, p.y, resonanceMantleColors(state.boonRun.resonance), state.time);
   drawKeystoneAura(ctx, p.x, p.y, keystoneAuraColors(state.stats.keystones), state.time);

@@ -122,6 +122,7 @@ const KEYBIND_SCROLL_MARK_INSET = 6;
 
 /** RunHistoryEntry.cause（英語のキーのまま持つ）の表示専用ラベル */
 const CAUSE_LABEL: Readonly<Record<string, string>> = {
+  cleared: "踏破",
   defeated: "力尽きた",
   abandoned: "離脱",
 };

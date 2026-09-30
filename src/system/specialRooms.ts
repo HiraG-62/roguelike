@@ -5,7 +5,7 @@ import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ENEMIES, type EnemyDef, enemiesForDepth, enemyDef } from "../data/enemies";
 import { keystoneDef } from "../loot/affixes";
-import { BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { ARC, BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { createEchoWallet, shatterYield, stirTrait } from "../loot/crafting";
 import { generateItem } from "../loot/generator";
 import { type Item, TRAIT_COLORS, type TraitColor } from "../loot/types";
@@ -72,7 +72,9 @@ export type PropKind =
   /** 反転の間の台 */
   | "inverter"
   /** 寄進の祠（章の境の休符の開始部屋。触れるたび寄進する。system/donation.ts） */
-  | "donation";
+  | "donation"
+  /** 地上への道（最深の間の主を倒すと現れる。乗り続けると踏破。system/finale.ts） */
+  | "surface";
 
 /** 部屋に置く触れる物（台座・レバー・金床・宝箱・護衛対象） */
 export interface RoomProp {
@@ -166,6 +168,7 @@ export const PROP_LABEL: Readonly<Record<PropKind, string>> = {
   element: "属性",
   inverter: "反転の台",
   donation: "寄進の祠",
+  surface: "地上への道",
 };
 
 export const ROOM_KIND_COLOR: Readonly<Partial<Record<RoomKind, string>>> = {
@@ -439,7 +442,7 @@ function sayAt(state: GameState, text: string, color: string): void {
 
 /**
  * 毎ステップ: 台座に触れたら使う。離れたらレバーを再び使えるようにする。
- * 上り階段だけは触れ続けて使う（通りすがりに戻らない）。戻ると部屋が作り直されるので、そこで打ち切る
+ * 上り階段・地上への道は触れ続けて使う（通りすがりに戻らない・終わらせない）。戻ると部屋が作り直されるので、そこで打ち切る
  */
 export function updateRoomProps(state: GameState, dt = 0): void {
   const body = state.player.body;
@@ -452,7 +455,11 @@ export function updateRoomProps(state: GameState, dt = 0): void {
       if (prop.used || prop.kind === "captive") continue;
       const touching = circlesOverlap(prop.pos.x, prop.pos.y, ROOM_KIND.propRadius, body.pos.x, body.pos.y, body.radius);
       if (prop.kind === "ascend") {
-        if (holdAscend(state, prop, touching, dt)) return;
+        if (holdProp(state, prop, touching, dt, FLOOR_KIND.ascendHold, roomHooks.ascend)) return;
+        continue;
+      }
+      if (prop.kind === "surface") {
+        if (holdProp(state, prop, touching, dt, ARC.surfaceHold, roomHooks.surface)) return;
         continue;
       }
       if (!touching) {
@@ -466,16 +473,19 @@ export function updateRoomProps(state: GameState, dt = 0): void {
   }
 }
 
-/** 上り階段に触れ続けた秒を数え、FLOOR_KIND.ascendHold に達したら戻る。戻ったら true */
-function holdAscend(state: GameState, prop: RoomProp, touching: boolean, dt: number): boolean {
+/**
+ * 乗り続けて使う台座（上り階段・地上への道）。触れている秒を数え、need に達したら done を呼んで true を返す
+ * （通りすがりに使わない。離れたら秒を 0 に戻す）
+ */
+function holdProp(state: GameState, prop: RoomProp, touching: boolean, dt: number, need: number, done: (state: GameState) => void): boolean {
   if (!touching) {
     prop.hold = 0;
     return false;
   }
   prop.hold = (prop.hold ?? 0) + dt;
-  if (prop.hold < FLOOR_KIND.ascendHold) return false;
+  if (prop.hold < need) return false;
   prop.used = true;
-  roomHooks.ascend(state);
+  done(state);
   return true;
 }
 
@@ -902,6 +912,8 @@ export interface RoomHooks {
   dropHeart: (state: GameState, pos: Vec) => void;
   /** 上り階段で浅い階へ戻る */
   ascend: (state: GameState) => void;
+  /** 地上への道に乗り続けた（踏破。system/finale.ts の clearRun） */
+  surface: (state: GameState) => void;
 }
 
 const noop = (): void => undefined;
@@ -911,6 +923,7 @@ export const roomHooks: RoomHooks = {
   enemyCount: () => 0,
   dropHeart: noop,
   ascend: noop,
+  surface: noop,
 };
 
 /** 封鎖しない部屋に入った（逃走）。true なら封鎖しない */
@@ -1310,6 +1323,11 @@ export function placeAscend(state: GameState): void {
     addProp(last, "ascend", pos);
     return;
   }
+}
+
+/** 地上への道を部屋 room の pos に置く（最深の主の撃破後。system/finale.ts の placeSurfaceGate から） */
+export function placeSurface(room: RoomState, pos: Vec): void {
+  addProp(room, "surface", pos);
 }
 
 /** この階に上り階段を置けるか */

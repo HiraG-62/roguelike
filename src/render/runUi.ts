@@ -1,7 +1,7 @@
 import { type Element, ELEMENT_COLOR, ELEMENT_LABEL } from "../core/element";
 import type { FloorKind, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { CONTRACT, ECONOMY, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { ARC, CONTRACT, ECONOMY, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
 import { BIOMES, floorKindLabel, isInvertedDepth } from "../system/biomes";
@@ -86,6 +86,8 @@ function propColor(room: RoomState, prop: RoomProp): string {
       return ROOM_KIND.libraryColor;
     case "ascend":
       return FLOOR_KIND.ascendColor;
+    case "surface":
+      return ARC.surfaceColor;
     case "vein":
       return RUN_EVENT.vein.color;
     case "lockedChest":
@@ -118,6 +120,8 @@ export function propName(prop: RoomProp): string {
       return `${PROP_LABEL.vein} 残り ${prop.uses ?? 0}`;
     case "ascend":
       return `${PROP_LABEL.ascend}（乗り続ける）`;
+    case "surface":
+      return `${PROP_LABEL.surface}（乗り続ける）`;
     default:
       return PROP_LABEL[prop.kind];
   }
@@ -150,7 +154,7 @@ function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: Ro
       continue;
     }
     if (!drawPropSprite(ctx, prop, atlas)) drawPropDiamond(ctx, state, prop, color);
-    if (prop.kind === "ascend") drawHoldRing(ctx, prop, color);
+    if (prop.kind === "ascend" || prop.kind === "surface") drawHoldRing(ctx, prop, color);
     if (Math.hypot(p.x - prop.pos.x, p.y - prop.pos.y) > ROOM_KIND.propLabelRange) continue;
     const label = prop.kind === "lever" ? `${propName(prop)} 残り ${special.uses}` : propName(prop);
     drawTextShadow(ctx, label, prop.pos.x, prop.pos.y - LABEL_LIFT, TEXT.SMALL, color, COLOR_SHADOW, "center");
@@ -171,9 +175,9 @@ function drawPropDiamond(ctx: CanvasRenderingContext2D, state: GameState, prop: 
 
 const HOLD_RING_R = 8;
 
-/** 上り階段に乗り続けた割合の輪 */
+/** 乗り続ける台座（上り階段・地上への道）に乗り続けた割合の輪 */
 function drawHoldRing(ctx: CanvasRenderingContext2D, prop: RoomProp, color: string): void {
-  const ratio = clamp01((prop.hold ?? 0) / FLOOR_KIND.ascendHold);
+  const ratio = clamp01((prop.hold ?? 0) / (prop.kind === "surface" ? ARC.surfaceHold : FLOOR_KIND.ascendHold));
   if (ratio <= 0) return;
   ctx.strokeStyle = color;
   ctx.lineWidth = 1;

@@ -84,6 +84,7 @@ import { grantFloorArrival, onRoomClearedCoins, updateCoinPickups } from "./econ
 import { FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { onRelicFloorStart } from "./namedRelics";
+import { announceChapterAhead, clearRun, updateFinale } from "./finale";
 
 const START_ROOM = 0;
 /** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の部屋（陣の候補）にする */
@@ -502,6 +503,7 @@ export function updateRooms(state: GameState, dt: number): void {
   updateFloorItems(state, dt);
   updateHiddenRoom(state, dt);
   checkStairs(state);
+  updateFinale(state);
 }
 
 function updateLockedRoom(state: GameState, room: RoomState, index: number): void {
@@ -940,6 +942,7 @@ export function descend(state: GameState, nextKind?: FloorKind, reward?: ExitRew
   }
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
   if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);
+  if (fresh) announceChapterAhead(state);
 }
 
 /** 降階の回復（初めて着いた階だけ）。失った生命（maxHp - hp）の HEAL.descendHealRatio を戻す */
@@ -1030,4 +1033,5 @@ function installRoomHooks(): void {
   roomHooks.enemyCount = enemyCount;
   roomHooks.dropHeart = dropHeart;
   roomHooks.ascend = ascend;
+  roomHooks.surface = clearRun;
 }

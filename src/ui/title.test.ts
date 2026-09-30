@@ -241,6 +241,14 @@ describe("buildHistoryEntry", () => {
     const abandoned = buildHistoryEntry({ ...base, status: "playing" as const }, 2000);
     expect(abandoned.cause).toBe("abandoned");
   });
+
+  it("踏破（cleared）で終わったランの cause は cleared になる", () => {
+    const cleared = buildHistoryEntry(
+      { seedText: "abc", depth: 21, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "cleared" as const },
+      3000,
+    );
+    expect(cleared.cause).toBe("cleared");
+  });
 });
 
 describe("summarizeRunItems", () => {

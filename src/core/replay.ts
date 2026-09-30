@@ -18,7 +18,7 @@ import { BALANCE_HASH } from "../data/balance";
 import { createGame, step } from "./game";
 import { EMPTY_INPUT, type FrameInput } from "./input";
 import { hashSeed } from "./rng";
-import type { GameState } from "./state";
+import { type GameState, runOver } from "./state";
 import { normalize, type Vec } from "./vec";
 import { computeStats } from "../loot/stats";
 import { SLOTS, createEmptyProfile, type Equipment, type Item, type Profile } from "../loot/types";
@@ -733,7 +733,7 @@ function applyEvent(session: ReplaySession, ev: ReplayEvent): void {
 export function stepReplay(session: ReplaySession, dt: number): boolean {
   if (isReplayFinished(session)) {
     // 死亡で終わったランは演出の続きだけ流す。中断で終わったランはその場で止める
-    if (session.state.status === "dead") step(session.state, { ...EMPTY_INPUT, move: { x: 0, y: 0 } }, dt);
+    if (runOver(session.state)) step(session.state, { ...EMPTY_INPUT, move: { x: 0, y: 0 } }, dt);
     return false;
   }
   applyDueEvents(session);

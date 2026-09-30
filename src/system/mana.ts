@@ -1,4 +1,4 @@
-import type { GameState } from "../core/state";
+import { type GameState, runOver } from "../core/state";
 import { enemyDef } from "../data/enemies";
 import { ENEMY_AI, MANA } from "../data/tuning";
 import { hasStatus } from "./statusEffects";
@@ -14,7 +14,7 @@ import { spillManaOverflow, traitManaGainMul } from "./traitHooks";
  * 回収する。manaGainMul を掛け、上限で止める。実際に増えた量を返す
  */
 export function gainMana(state: GameState, amount: number): number {
-  if (amount <= 0 || state.status === "dead") return 0;
+  if (amount <= 0 || runOver(state)) return 0;
   return addMana(state, amount * state.stats.manaGainMul * traitManaGainMul(state));
 }
 
@@ -23,7 +23,7 @@ export function gainMana(state: GameState, amount: number): number {
  * 性質「底打ち」と合わせた積を MANA.attackGainMulMax で止める
  */
 export function gainAttackMana(state: GameState, base: number, mul: number): number {
-  if (base <= 0 || state.status === "dead") return 0;
+  if (base <= 0 || runOver(state)) return 0;
   // 沈黙中はスキルを撃てない代わりに、通常攻撃で溜める量が増える（docs/ideas/enemies.md H8。上限の外で掛ける）
   const silenced = hasStatus(state.player.status, "silence") ? ENEMY_AI.silencedAttackManaMul : 1;
   const total = Math.min(MANA.attackGainMulMax, mul * traitManaGainMul(state)) * silenced;
@@ -58,7 +58,7 @@ export function spendMana(state: GameState, cost: number): boolean {
  * 開放型フロアでは封鎖がほぼ無いので「近くに敵がいるか」で戦闘中を判定する
  */
 export function tickMana(state: GameState, dt: number): void {
-  if (state.status === "dead") return;
+  if (runOver(state)) return;
   // 自然回復そのものを止める誓約が付くと止まる（精神の派生ぶんも含めて。今は止める誓約が無く、口だけ残してある）
   if (!manaRegenAllowed(state)) return;
   const p = state.player;

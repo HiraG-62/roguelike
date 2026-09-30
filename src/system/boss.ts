@@ -22,7 +22,7 @@ import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, upda
 import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import type { EnemyTelegraph } from "./enemies";
 import { offerReforges } from "./reforge";
-import { chapterBossKey } from "./chapters";
+import { chapterBossKey, finalBossKey, isFinalDepth } from "./chapters";
 
 /**
  * 階層ボス（major）。depth が BOSS.interval（5）の倍数の階は、階段のある最後の部屋がボス部屋になる。
@@ -71,14 +71,16 @@ const STAGE_ONE = 1;
 const STAGE_TWO = 2;
 
 export function isBossDepth(depth: number): boolean {
-  return depth > 0 && depth % BOSS.interval === 0;
+  return (depth > 0 && depth % BOSS.interval === 0) || isFinalDepth(depth);
 }
 
 /**
- * 章ボスの階（深度 5 / 10 / 15 / 20）は ARC.chapters の固定のボス。最後の章より深い階（深み）は回転で、
+ * 最深の間（深度 21）は ARC.finalBoss。章ボスの階（深度 5 / 10 / 15 / 20）は ARC.chapters の固定のボス。最後の章より深い階（深み）は回転で、
  * 章ボスにならなかった 5 体（骸骨卿・双子の騎士・霜の巨人・群れの母・図書館の司書）を先に、続けて章ボス 4 体を回す
  */
 export function bossKeyForDepth(depth: number): string {
+  const finalKey = finalBossKey(depth);
+  if (finalKey) return finalKey;
   const chapterKey = chapterBossKey(depth);
   if (chapterKey) return chapterKey;
   const rotation = deepRotation();

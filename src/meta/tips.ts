@@ -218,6 +218,7 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は装備画面で石に付ける。" },
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
+  { key: "cleared", term: "踏破", category: "run", body: "最深の間（地下 21 階）の主を倒すと、階段のほかに地上への道が現れる。乗り続けると踏破でランが終わる。階段を降りて深みへ進み続けることもできる。" },
   {
     key: "exitPreview",
     term: "出口の予告",

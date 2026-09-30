@@ -1,11 +1,11 @@
 import { actionKeyLabel } from "../core/input";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { BossState, Enemy, FloorKind, GameState, Hazard, Particle, Player, Projectile, RoomKind, RoomState } from "../core/state";
+import { type BossState, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
-import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, JIN, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
+import { ARC, BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, JIN, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
@@ -813,7 +813,7 @@ export class Renderer {
         drawDropFocus(ctx, state, aimScreen, ox, oy, dropTooltip);
         drawBoonChoice(ctx, state);
         drawReforgeChoice(ctx, state);
-        if (state.status === "dead") this.drawDeath(state);
+        if (runOver(state)) this.drawDeath(state);
       },
       cursor: () => {
         if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
@@ -2058,7 +2058,7 @@ export class Renderer {
 
   private drawPlayer(state: GameState): void {
     const p = state.player;
-    if (state.status === "dead") return;
+    if (runOver(state)) return;
     const sprite = this.sprite(SPR.player);
     const cx = p.body.pos.x;
     const bottom = spriteFeetY(p.body.pos.y, p.body.radius) - PLAYER_SPRITE_LIFT;
@@ -3203,7 +3203,8 @@ export class Renderer {
     const cy = VIEW_H / 2;
     const statLine = Math.max(DEATH_STAT_LINE, this.textLine(TEXT.BODY));
     const summary = `地下 ${state.depth} 階 · 撃破 ${state.kills} · 最大コンボ ${state.combo.best}`;
-    drawText(ctx, "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, COLOR_HP, "center");
+    const cleared = state.status === "cleared";
+    drawText(ctx, cleared ? "踏破" : "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, cleared ? ARC.surfaceColor : COLOR_HP, "center");
     drawText(ctx, summary, cx, cy, TEXT.BODY, COLOR_TEXT, "center");
     drawText(ctx, `スコア ${state.score}`, cx, cy + statLine, TEXT.BODY, COLOR_TEXT, "center");
     drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード`, cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
