@@ -216,6 +216,10 @@ const LANDING_MAX_SCALE = 1.6;
 const KING_JUMP_HEIGHT = 40;
 const BONE_WALL_COLOR = "#e8e0c8";
 const BONE_WALL_EDGE = "#8a8068";
+/** 盗賊王の柵（木の色。骨の壁と見分ける） */
+const FENCE_WALL_COLOR = "#b08850";
+const FENCE_WALL_EDGE = "#5a3c20";
+const FENCE_SOURCE_KEY = "thiefKing";
 /** ボスのスプライトフレーム: kingSlime = 通常/潰れ/伸び/ジャンプ準備、boneLord = 待機2/杖を掲げる2 */
 const KING_FRAME = { idle: 0, squash: 1, stretch: 2, crouch: 3 } as const;
 const BONE_FRAME_RAISE = 2;
@@ -1873,11 +1877,13 @@ export class Renderer {
     const half = TILE_SIZE / 2;
     const x = Math.round(h.pos.x - half);
     const y = Math.round(h.pos.y - half);
-    ctx.fillStyle = BONE_WALL_EDGE;
+    const fence = h.sourceKey === FENCE_SOURCE_KEY;
+    const edge = fence ? FENCE_WALL_EDGE : BONE_WALL_EDGE;
+    ctx.fillStyle = edge;
     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-    ctx.fillStyle = BONE_WALL_COLOR;
+    ctx.fillStyle = fence ? FENCE_WALL_COLOR : BONE_WALL_COLOR;
     ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-    ctx.fillStyle = BONE_WALL_EDGE;
+    ctx.fillStyle = edge;
     ctx.fillRect(x + 4, y + half - 1, TILE_SIZE - 8, 2);
   }
 
