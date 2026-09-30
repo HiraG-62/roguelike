@@ -1,8 +1,10 @@
 {
   "_fields": {
     "questOffers": "依頼の候補として並べる数",
+    "questTagWeight": "依頼の 3 択で、持ち物の語と依頼の語が 1 つ重なるごとに足す重み（基本の重みは 1。0 で持ち物を見ない）",
     "roomSampleTicks": "図鑑に今いる部屋の種類を記録する間隔。ステップ（60Hz）"
   },
   "questOffers": 3,
+  "questTagWeight": 2,
   "roomSampleTicks": 15
 }
