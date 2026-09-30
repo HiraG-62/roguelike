@@ -134,7 +134,9 @@ export function planBookieBets(state: GameState): BetOffer[] {
   const luck = pickDistinct(state, LUCK_BETS, B.luckOffers).map((k) => luckOffer(state, k));
   const skill = pickDistinct(state, SKILL_BETS, B.skillOffers).map((k) => skillOffer(state, k));
   if (skill.length > 0 && jackpotAvailable(state)) {
-    skill[0] = { kind: "unscathed", tier: null, target: 0, mul: B.jackpotMul, jackpot: true, stake: stakeFor("unscathed", state.economy.coins) };
+    // 無傷が既に並んでいればそれを大穴にする（1 つ目を置き換えると無傷が 2 つ並ぶ）
+    const at = Math.max(0, skill.findIndex((o) => o.kind === "unscathed"));
+    skill[at] = { kind: "unscathed", tier: null, target: 0, mul: B.jackpotMul, jackpot: true, stake: stakeFor("unscathed", state.economy.coins) };
     state.economy.jackpotChapters.push(chapterOf(state.depth));
   }
   return [...luck, ...skill];
