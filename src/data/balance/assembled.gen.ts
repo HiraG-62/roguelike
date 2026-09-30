@@ -857,6 +857,7 @@ import j_world_CONTRACT from "./world/CONTRACT.json";
 import j_world_RUN_MOD from "./world/RUN_MOD.json";
 import j_world_HUB from "./world/HUB.json";
 import j_world_HUB_DECOR from "./world/HUB_DECOR.json";
+import j_world_BOSS_HALL from "./world/BOSS_HALL.json";
 import j_world_META from "./world/META.json";
 import j_world_DISCOVERY from "./world/DISCOVERY.json";
 import j_world_MAP_SIZE from "./world/MAP_SIZE.json";
@@ -2020,6 +2021,7 @@ export const world = {
   "RUN_MOD": j_world_RUN_MOD,
   "HUB": j_world_HUB,
   "HUB_DECOR": j_world_HUB_DECOR,
+  "BOSS_HALL": j_world_BOSS_HALL,
   "META": j_world_META,
   "DISCOVERY": j_world_DISCOVERY,
   "MAP_SIZE": j_world_MAP_SIZE,
@@ -2876,6 +2878,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/weightClass.json",
   "weapons/_index.json",
   "world/ARC.json",
+  "world/BOSS_HALL.json",
   "world/CAVE.json",
   "world/CONTRACT.json",
   "world/DISCOVERY.json",

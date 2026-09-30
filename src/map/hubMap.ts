@@ -2,7 +2,7 @@ import type { Vec } from "../core/vec";
 import { type GameMap, type Rect, TILE_SIZE, Tile, createMap, setTile } from "./grid";
 
 /** 拠点の台（設備）。記録室は履歴・図鑑・実績の 3 台に分かれる。rack は武器掛け */
-export const HUB_SPOT_KEYS = ["well", "board", "forge", "library", "altar", "garden", "history", "codex", "achievements", "rack"] as const;
+export const HUB_SPOT_KEYS = ["well", "board", "forge", "library", "altar", "garden", "history", "codex", "achievements", "rack", "hall"] as const;
 export type HubSpotKey = (typeof HUB_SPOT_KEYS)[number];
 
 export interface HubLayout {
@@ -22,7 +22,7 @@ const HUB_ASCII: readonly string[] = [
   "#..F......L.......A......G...#",
   "#............................#",
   "#............................#",
-  "#..H...C...R.................#",
+  "#..H...C...R............X....#",
   "#............................#",
   "#............K...D...D...D...#",
   "#............................#",
@@ -48,6 +48,8 @@ const SPOT_CHAR: Readonly<Record<string, HubSpotKey>> = {
   R: "achievements",
   // 武器掛けは試し振りの相手（木人）のすぐ横
   K: "rack",
+  // ボスの間は記録室の並びの右（倒したボスの記録を読む台の続き）
+  X: "hall",
 };
 
 const DUMMY_CHAR = "D";

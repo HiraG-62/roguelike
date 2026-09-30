@@ -147,7 +147,7 @@ export interface RunSetup {
    */
   lockedRelics?: readonly string[];
   /**
-   * 開始深度。QA 専用（深い階から始めて踏破率・被弾で死ぬまでの回数を測る。docs/ideas/scaling-impl.md 4d）。
+   * 開始深度。QA とボスの間（system/bossHall.ts。倒したボスの階を作る）専用（深い階から始めて踏破率・被弾で死ぬまでの回数を測る。docs/ideas/scaling-impl.md 4d）。
    * UI には出さず、リプレイに記録する。省略は 1
    */
   startDepth?: number;

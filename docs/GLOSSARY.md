@@ -418,6 +418,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。倒したボスの記念品、図鑑の埋まり具合で伸びる記録室の書架、名乗っている称号の看板 | `meta/hub.ts` |
 | 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（銃は家系の一番早い器の弾で撃つ）（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる。カードの格子で並べ、下の調整欄で生命・気力・奥義ゲージを試しに増減できる | `system/hub.ts` setTrialWeapon / borrowRackEntry / setHubResource、`ui/rackScreen.ts` rackCards |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
+| ボスの間 | hall（`FacilityKey` / `HubSpotKey`） | 拠点の設備（章ボスか最深の主を 1 体倒すと建つ）。倒したボスに今の装備の写し（借り物を含む）で挑み直す。祝福なし。保存するのは挑戦・撃破の回数と最速・最少の被弾だけ（`roguelike.hub.v1` の `hall`）。部屋の種類の「〜の間」（潮の間・反転の間）・最深の間とは別物 | `system/bossHall.ts`、`meta/hubStore.ts` HallRecord |
 | 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される得意武器の素の器。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |

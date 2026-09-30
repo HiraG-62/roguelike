@@ -239,6 +239,7 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "altar", term: "祭壇", category: "hub", body: "誓約を 1 つ選んで試せる。試している誓約は拠点を出ると消える。" },
   { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。決定の長押しで性質なしの武器を借りて出撃できる。" },
   { key: "loaned", term: "借り物", category: "hub", body: "武器掛けで借りた素の器。保存されず、探索が終わると消える。残響で育てたり砕いたりできない。" },
+  { key: "bossHall", term: "ボスの間", category: "hub", body: "探索で倒した章ボスと最深の主に、今の装備の写しで挑み直せる。祝福は無い。拾った物・探索履歴・図鑑には残らず、封鎖してからの挑戦の数と、撃破の最速・最少の被弾だけが記録される。" },
 ];
 
 /**

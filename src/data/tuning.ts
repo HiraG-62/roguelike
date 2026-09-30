@@ -296,5 +296,8 @@ export const DISCOVERY = BALANCE.world.DISCOVERY;
 /** 拠点（src/system/hub.ts / src/meta/hub.ts） */
 export const HUB = BALANCE.world.HUB;
 
+/** ボスの間（src/system/bossHall.ts）。拠点から倒したボスに挑み直す練習の場 */
+export const BOSS_HALL = BALANCE.world.BOSS_HALL;
+
 /** 拠点の飾り（src/meta/hub.ts）。見た目だけで強さには触れない */
 export const HUB_DECOR = BALANCE.world.HUB_DECOR;
