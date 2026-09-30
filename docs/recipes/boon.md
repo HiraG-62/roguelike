@@ -1,12 +1,11 @@
 # レシピ: 祝福
 
-1. `src/system/boonDefs.ts`: `BOON_KEYS` と `BOONS`（name / desc は日本語、`tags`、`cursed`、必要なら `requires`）。同じ主から出る多段の祝福なら `lineage` / `after`（系譜。4 段目は装備 / スキル石のタグを要求する奥義）、特定 2 祝福の合体なら `duo`（結び）
-   - 系譜と札（段取り 7a）: 新しい祝福は `boonDefs.ts` 末尾の `BOON_META` に系譜 `lineage`・札 `card`（加護 grace / 摂理 law / 研鑽 temper / 真髄 apex）・加護なら行動 `action`・`changes` を 1 行足す（`system/boonDefs.test.ts` が網羅を検査）。付けられない旧祝福は `legacy: true`（提示に出ない）。2 系譜の合体は `fusion`。設計は `docs/ideas/boon-impl.md`（7b で系譜ごとのファイルに作り直す）
-2. 効果: 数値なら `foldBoonStats`（`boons.ts`）、ルール変更なら `boons.ts` の既存フック（`onBoonMeleeHit` / `onBoonKill` / `onBoonDash` …）から `boonRules.ts` の `onBoonXxxRules` を呼ぶ（大拡張分はここに実装を足す）か、呼び出し側 system で `hasBoon` 分岐。数値は tuning の `BOON`
+1. 系譜ファイル `src/system/boonDefs/<系譜>.ts`（9 系譜・`fusion.ts`・`cursed.ts`）の `BOON_KEYS_<系譜>` と `BOONS_<系譜>` に札を足す。`lineage`・札 `card`（加護 grace / 摂理 law / 研鑽 temper / 真髄 apex）・加護なら行動 `action`（左 primary / 右 secondary / dash / skill / ultimate）・`changes`（何が変わるか）・`keywords`・`tags` は必須。融合は `fusion: [a, b]`（`lineage` なし・`card: "law"`）、呪い付きは `cursed: true`、芯は `core: true` / `graded: false`（`cursed.ts`）。1 系譜は加護 5（行動が全部違う）・摂理 3・研鑽 2・真髄 1 の 11 枚で、増やすときは入れ替える（`docs/ideas/boon-impl.md` 2-12）。名前は二字か四字の熟語で、奥義・状態異常・スキル・改鋳と重ねない（`system/boonDefs.test.ts` が検査）
+2. 効果: ルールは `rules`（統一ルール文法。加護の起点はその行動のイベント）、常時の増・倍は `modifiers`、常時の stats は `addStats`（`foldAddStats` が畳む）、研鑽は `tally` 効果 + `per: { kind: "tally" }` か `temperStat`、スキルの加護で全スロットに刻印符を足すなら `grantsModifier`。数値は `balance/boons/LINEAGE/<系譜>.json`（`_fields` をファイルに 1 回、読むのは `BOON_LINEAGE`）。**旧フック（`onBoonXxx`）は足さない**。Rule で書けないものだけ `boonRules.ts` に置く
 3. 原則: **数値盛りではなくルール変更**。装備タグと掛け算になる形にする
-   - 格（並 / 大祝福 / 神威）: Rule 型は `rules.ts` が効果量・半径（神威は ICD）に自動で掛ける。効果量 0 で半径だけ持つ Rule は `graded: true`。フック型で格を効かせるなら定義に `graded: true` を付け、倍率に `boonGradeMul(state, key)`（`boonGrade.ts`）を掛ける。呪い付きは格を持たず、無敵時間は格で伸びない
-   - 芯: 定義に `core: true` / `graded: false`（1 ランに 1 つ、深度 `BOON.coreDepth` の最初の提示だけに出る。遊び方を変える効果と代償を必ず持つ）。数値は `boonCores.ts` の `foldCoreStats`、他の system からの分岐は `boonCores.ts` の関数を呼ぶ。定義は `boonDefsWave3.ts`
-4. テスト: `system/boons.test.ts`（定義・抽選）/ `system/boonRules.test.ts`（拡張ルールの効果）
+   - 格（並 / 大祝福 / 神威 / 至高 / 極致）: Rule 型は `rules.ts` が効果量・半径（神威以上は ICD）に自動で掛ける。効果量 0 で半径だけ持つ Rule は `graded: true`。払う額に格が掛かると壊れる札は `graded: false`。呪い付きは格を持たず、無敵時間は格で伸びない
+   - 芯: 1 ランに 1 つ、深度 `BOON.coreDepth` の最初の提示だけに出る。遊び方を変える効果と代償を必ず持つ。数値は `boonCores.ts` の `foldCoreStats`
+4. テスト: `system/boonDefs.test.ts`（構成・名前）/ `system/boonDefs/<系譜>.test.ts`（札ごとの効果が発火する）/ `system/boons.test.ts`（抽選・枠・真髄・融合・錬磨）
 
 ## 段取り 7b の効果の種類（`core/rules.ts`。書き方の例は `system/rulesLineage.test.ts` / `boonTallies.test.ts`）
 
@@ -33,4 +32,4 @@
 - 集める順は `system/modifiers.ts` の `collectModifiers`（装備 → 誓約 → ジョブ → 武器種 → 持続の奥義 → 祝福の取得順 → スキルスロット順）。テストは `system/modifiers.test.ts`
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
-- 銭の祝福の見本: 「守銭」`miser`（持つ型: 持ち金 20 につき増。`modifiers` の `per: { kind: "coins" }`）/ 「拾銭」`coinGleaner`（稼ぐ型: `onCoinPickup` の Rule）。`boonDefsWave3.ts`
+- 銭の祝福の見本: 「守銭」`miser`（持つ型: 持ち金 20 につき増。`modifiers` の `per: { kind: "coins" }`）/ 「拾銭」`coinGleaner`（稼ぐ型: `onCoinPickup` の Rule）。`system/boonDefs/wealth.ts`
