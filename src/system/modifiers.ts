@@ -9,6 +9,7 @@ import { stoneInSlot } from "../skills/persistence";
 import { FEEL } from "../data/tuning";
 import { BOONS } from "./boonDefs";
 import { lineageCardsOwned } from "./boons";
+import { isDeepDepth } from "./chapters";
 import { totalEarned, totalSpent } from "./economy";
 import { keystoneModifiers } from "./keystones";
 import { resonanceModifiers } from "./resonance";
@@ -118,7 +119,8 @@ function perValue(state: GameState, amount: number, per: Readonly<ModifierPer>, 
   const every = per.every !== undefined && per.every > 0 ? per.every : 1;
   const n = Math.floor(countPer(state, per.count, enemy) / every);
   const value = amount * n;
-  return per.cap === undefined ? value : Math.min(per.cap, value);
+  // 深みでは上限を外す（章の間の釣り合いのための上限。深みで初めて壊れる）
+  return per.cap === undefined || isDeepDepth(state.depth) ? value : Math.min(per.cap, value);
 }
 
 /** 「〜につき」の数（評価の瞬間の値）。対象の敵を見る数え方は、対象がいなければ 0 */

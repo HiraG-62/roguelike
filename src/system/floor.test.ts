@@ -13,7 +13,7 @@ import { createEnemy } from "./enemies";
 import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
 import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
-import { BOSS, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { ARC, BOSS, DEEP, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { ROAMING_ROOM, updateRoamers } from "./spawner";
 import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
@@ -812,12 +812,14 @@ describe("反転層", () => {
   });
 });
 
-describe("無限の深み", () => {
-  it("深みでは部屋の敵数の上限が外れる", () => {
-    expect(maxEnemiesFor(FLOOR_KIND.deepDepth)).toBe(ROOM.maxEnemies + FLOOR_KIND.deepMaxEnemiesBonus);
-    expect(maxEnemiesFor(FLOOR_KIND.deepDepth - 1)).toBe(ROOM.maxEnemies);
+describe("深み", () => {
+  const finalDepth = ARC.floorsPerChapter * ARC.maxChapter + 1;
+
+  it("深みでは部屋の敵数の上限が DEEP.maxEnemiesBonus 増え、最深の間では増えない", () => {
+    expect(maxEnemiesFor(finalDepth + 1)).toBe(ROOM.maxEnemies + DEEP.maxEnemiesBonus);
+    expect(maxEnemiesFor(finalDepth), "最深の間").toBe(ROOM.maxEnemies);
     const state = createGame(1);
-    state.depth = FLOOR_KIND.deepDepth + 10;
+    state.depth = finalDepth + 10;
     expect(enemyCount(state)).toBeGreaterThan(ROOM.maxEnemies);
   });
 });

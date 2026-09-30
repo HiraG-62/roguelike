@@ -3,7 +3,7 @@
   "_fields": {
     "hpPerDepth": "深度 1 つごとに敵の生命へ足す倍率（深度 1 で 1 倍）。怯み耐性も同じ。目安 0.12〜0.18",
     "damagePerDepth": "深度 1 つごとに敵の攻撃へ足す倍率（深度 1 で 1 倍。旧 flat 加算 depthDamageBonus の置き換え）。目安 0.04〜0.06",
-    "deepDepth": "ここから深み（指数の伸び）。FLOOR_KIND.deepDepth とは別（あちらは部屋の敵数・変異の開始）。目安 21",
+    "deepDepth": "ここから深み（指数の伸び）。最深の間の深度と同じにする（chapters.test.ts が縛る）。深みの敵数・変異は world/DEEP。目安 21",
     "deepHpGrowth": "深み 1 階ごとの生命・怯み耐性の倍率（深度 deepDepth の値 × これ^(深度 − deepDepth)）。目安 1.10〜1.15",
     "deepDamageGrowth": "深み 1 階ごとの敵の攻撃の倍率。目安 1.03〜1.05"
   },

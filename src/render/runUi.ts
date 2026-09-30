@@ -5,6 +5,7 @@ import { ARC, CONTRACT, ECONOMY, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from
 import { TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
 import { BIOMES, floorKindLabel, isInvertedDepth } from "../system/biomes";
+import { deepFloorOf, isDeepDepth } from "../system/chapters";
 import { CONTRACTORS, type Contractor, offerLabel, pactHudLines } from "../system/contractors";
 import { LINGER_LABEL, lingerTimeLeft, shadowPositions, tideFull } from "../system/linger";
 import { bountyTargetId, fogActive, hourglassLeft, reaperPassLine, reaperPassPos, runEventHudLines } from "../system/runEvents";
@@ -489,7 +490,9 @@ export function runSetupParts(state: GameState): string[] {
   const tier = runTier(state.modifiers);
   if (state.origin !== "wanderer" || tier > 0) parts.push(tier > 0 ? `${ORIGINS[state.origin].name} · 位階 ${tier}` : ORIGINS[state.origin].name);
   parts.push(`銭 ${state.economy.coins} · 鍵 ${state.economy.keys}`);
-  if (isInvertedDepth(state.depth)) parts.push("反転層");
+  // 深みを優先して 1 つだけ出す（深みは章 4 の反転層と深度が重なるため）
+  if (isDeepDepth(state.depth)) parts.push(`深み ${deepFloorOf(state.depth)} 層`);
+  else if (isInvertedDepth(state.depth)) parts.push("反転層");
   if (state.runEvents.strata.revisit) parts.push("帰還");
   return parts;
 }

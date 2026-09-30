@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
+import { ARC } from "../data/tuning";
 import { BOONS } from "../system/boonDefs";
+import { BOON_GRADE_LABEL, boonGradeOf } from "../system/boonGrade";
 import { boonRows, buffRows, coreRows, runEffectRows, statusEffectRows } from "./effectsList";
 
 describe("効果の一覧（装備画面のステータスタブ「効果」頁）", () => {
@@ -22,6 +24,33 @@ describe("効果の一覧（装備画面のステータスタブ「効果」頁�
     expect(rows[0]?.name).toBe(BOONS.emberSeed.name);
     expect(rows[0]?.info, "格").toBe("大祝福");
     expect(rows[0]?.detail, "効果の説明").toBe(BOONS.emberSeed.desc);
+  });
+
+  it("研鑽の札の info に今の数えを出す（小数は切り捨て。研鑽でない札には出さない）", () => {
+    const state = createGame(1);
+    state.boons.push("ashBlaze", "emberSeed");
+    state.boonRun.tallies.ashBlaze = 7.9;
+    const rows = boonRows(state);
+    expect(rows.find((r) => r.key === "boon:ashBlaze")?.info, "格・数え").toBe(`${BOON_GRADE_LABEL[boonGradeOf(state, "ashBlaze")]}・7`);
+    expect(rows.find((r) => r.key === "boon:emberSeed")?.info, "研鑽でない札は格だけ").toBe(BOON_GRADE_LABEL[boonGradeOf(state, "emberSeed")]);
+  });
+
+  it("〜につきで数える研鑽の札も、その数えを出す", () => {
+    const state = createGame(1);
+    state.boons.push("earnTally");
+    state.economy.earned.kill = 123;
+    expect(boonRows(state)[0]?.info.endsWith("・123")).toBe(true);
+  });
+
+  it("深みでは上限を持つ札の説明に「最大なし」を足し、章の間は足さない", () => {
+    const state = createGame(1);
+    state.boons.push("miser", "emberSeed");
+    state.depth = ARC.floorsPerChapter * ARC.maxChapter;
+    expect(boonRows(state).some((r) => r.detail.includes("最大なし")), "章の間").toBe(false);
+    state.depth += 2;
+    const rows = boonRows(state);
+    expect(rows.find((r) => r.key === "boon:miser")?.detail, "上限を持つ札").toContain("（深み: 最大なし）");
+    expect(rows.find((r) => r.key === "boon:emberSeed")?.detail, "上限の無い札").toBe(BOONS.emberSeed.desc);
   });
 
   it("芯を持っていれば coreRows に 1 件出る", () => {

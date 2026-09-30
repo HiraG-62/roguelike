@@ -9,6 +9,7 @@ import { isDailySeedText, isPlayable, type ReplayData } from "../core/replay";
 import { KEYBIND_SLOTS, REBINDABLE_ACTIONS, type RebindableAction } from "../core/input";
 import { PAD_ACTIONS, type PadAction } from "../core/padBinds";
 import type { GameStatus } from "../core/state";
+import { conqueredBy } from "../system/chapters";
 import { VIEW_H, VIEW_W } from "../core/view";
 
 // ---------------------------------------------------------------------------
@@ -554,12 +555,14 @@ export interface RunSummarySource {
   combo: { best: number };
   time: number;
   status: GameStatus;
+  /** 最深の主を倒したか（深みへ降りて力尽きても・離脱しても踏破に数える）を調べる記録 */
+  bossLog?: readonly { readonly key: string }[];
 }
 
-/** 履歴の終わり方: 踏破 / 力尽きた / 離脱（進行中のまま中断） */
-function runCause(status: GameStatus): string {
-  if (status === "cleared") return "cleared";
-  return status === "dead" ? "defeated" : "abandoned";
+/** 履歴の終わり方: 踏破（最深の主を倒した） / 力尽きた / 離脱（進行中のまま中断） */
+function runCause(source: RunSummarySource): string {
+  if (source.status === "cleared" || conqueredBy(source.bossLog ?? [])) return "cleared";
+  return source.status === "dead" ? "defeated" : "abandoned";
 }
 
 export function buildHistoryEntry(source: RunSummarySource, now: number): RunHistoryEntry {
@@ -571,7 +574,7 @@ export function buildHistoryEntry(source: RunSummarySource, now: number): RunHis
     score: source.score,
     bestCombo: source.combo.best,
     durationSec: source.time,
-    cause: runCause(source.status),
+    cause: runCause(source),
   };
 }
 

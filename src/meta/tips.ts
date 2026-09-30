@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ECONOMY, META, PARRY, RESONANCE } from "../data/tuning";
+import { DEEP, ECONOMY, META, PARRY, RESONANCE } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
@@ -207,6 +207,7 @@ const RUN_TIPS: readonly TipDef[] = [
     body: "左・右・ダッシュ・スキル・奥義の行動に宿る祝福。1 つの行動に 2 枚まで。満ちた行動の加護を選ぶと、今の加護から 1 枚外すか見送るかを選ぶ。真髄を取ると、その系譜の加護が乗る行動は 3 枚まで。違う 2 系譜の加護が同じ行動に乗ると、次の提示に融合が並ぶ。",
   },
   { key: "temper", term: "錬磨", category: "run", body: "持っている祝福の札を 1 枚選び、格を 1 つ上げる。至高と極致は錬磨でだけ届く。出口の予告の「錬磨」や契約で開く。" },
+  { key: "tally", term: "研鑽", category: "run", body: "使うほど育つ祝福の札。倒した数・燃やした数などの数えで、深みでは上限なく伸びる。今の数えは装備画面のステータスタブ「効果」の頁に出る。" },
   { key: "frostPrison", term: "氷獄", category: "run", body: "霜枷の真髄。凍った敵へ与えた傷が溜まり、砕いたときにその一部がもう一度来る。" },
   { key: "thunderReturn", term: "還雷", category: "run", body: "雷鳴の真髄。連鎖雷が来た道を起点の敵まで戻り、同じ敵にもう一度当たる。" },
   { key: "moonReprieve", term: "執行猶予", category: "run", body: "月蝕の札。被弾の無敵と硬直はその場で起き、生命が減るのは少し後になる。減る前に回復しておけば持ちこたえられる。" },
@@ -224,7 +225,13 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は装備画面で石に付ける。" },
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
-  { key: "cleared", term: "踏破", category: "run", body: "最深の間（地下 21 階）の主を倒すと、階段のほかに地上への道が現れる。乗り続けると踏破でランが終わる。階段を降りて深みへ進み続けることもできる。" },
+  { key: "cleared", term: "踏破", category: "run", body: "最深の間（地下 21 階）の主を倒すと、階段のほかに地上への道が現れる。乗り続けると踏破でランが終わる。階段を降りて深みへ進み続けることもできる。最深の主を倒したランは、深みで力尽きても踏破に数える。" },
+  {
+    key: "deep",
+    term: "深み",
+    category: "run",
+    body: `最深の主を倒した後、階段を降りた先（地下 22 階から）。敵の生命と攻撃が 1 層ごとに掛け算で伸び、${DEEP.mutationEvery} 層ごとに変異（階のイベントが常に効く）が 1 つ積まれる。祝福・遺物の「〜につき」の最大と研鑽の上限が外れる。どこまで潜れるかがビルドの物差し。`,
+  },
   {
     key: "exitPreview",
     term: "出口の予告",

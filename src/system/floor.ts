@@ -3,7 +3,7 @@ import { pushPlayerEvent } from "../core/events";
 import type { Rng } from "../core/rng";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { BOSS, CAVE, DEEP, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { type CaveShapeOptions, carveArena } from "../map/cave";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap, scaleGeneratorOptions } from "../map/generator";
 import {
@@ -31,7 +31,8 @@ import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
-import { heartChanceOf, skipsFloorLord } from "./chapters";
+import { deepFloorOf, heartChanceOf, isDeepDepth, skipsFloorLord } from "./chapters";
+import { announceDeep } from "./deep";
 import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
 import { applyBoonFloorRules, boonHeartsAllowed, stairsGradeBoost } from "./boons";
@@ -350,9 +351,9 @@ export function enemyCount(state: GameState): number {
   return Math.min(maxEnemiesFor(state.depth), scaled);
 }
 
-/** 部屋の敵数の上限。無限の深み（FLOOR_KIND.deepDepth 以降）では上限を外して数でも押す */
+/** 部屋の敵数の上限。深み（最深の間の次の階から）では上限を上げて数でも押す */
 export function maxEnemiesFor(depth: number): number {
-  return ROOM.maxEnemies + (depth >= FLOOR_KIND.deepDepth ? FLOOR_KIND.deepMaxEnemiesBonus : 0);
+  return ROOM.maxEnemies + (isDeepDepth(depth) ? DEEP.maxEnemiesBonus : 0);
 }
 
 function populateRoom(state: GameState, room: RoomState, index: number): void {
@@ -946,6 +947,7 @@ export function descend(state: GameState, nextKind?: FloorKind, reward?: ExitRew
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
   if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);
   if (fresh) announceChapterAhead(state);
+  if (fresh && deepFloorOf(state.depth) === 1) announceDeep(state);
 }
 
 /** 降階の回復（初めて着いた階だけ）。失った生命（maxHp - hp）の HEAL.descendHealRatio を戻す */

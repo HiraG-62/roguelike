@@ -6,6 +6,7 @@ import { RisingEdge } from "./audio/cues";
 import { questProgress, questSnapshot } from "./meta/quests";
 import { isEngaged } from "./system/engagement";
 import { bossEnemy } from "./system/boss";
+import { conqueredBy } from "./system/chapters";
 import { isStaggered } from "./system/poise";
 import { createGame, step } from "./core/game";
 import { GamepadInput } from "./core/gamepad";
@@ -471,7 +472,7 @@ function endRun(current: GameState): void {
   const now = Date.now();
   const entry = { ...buildHistoryEntry(current, now), ...historyExtras(current) };
   pushRunHistory(current.profile, entry);
-  if (current.status === "cleared") recordClear(current.profile, runTier(current.modifiers));
+  if (current.status === "cleared" || conqueredBy(current.bossLog)) recordClear(current.profile, runTier(current.modifiers));
   // 武器掛けの借り物はランが終わると消える（saveProfile も書かないが、手元の profile からも外す）
   returnLoaned(current.profile);
   saveProfile(current.profile);

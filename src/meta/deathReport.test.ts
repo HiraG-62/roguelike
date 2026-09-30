@@ -77,6 +77,13 @@ describe("死亡画面の死因 / 次の山 / 前回比", () => {
     expect(deathReportLines(row({ cause: "abandoned" }), row({}), createCodexSave(), META)).toEqual([]);
   });
 
+  it("踏破の行は、深みで終えたら深みの層を足す", () => {
+    const shallow = deathReportLines(row({ cause: "cleared", tier: 1, depth: 21 }), null, createCodexSave(), META);
+    expect(shallow[0], "最深の間では足さない").not.toContain("深み");
+    const deep = deathReportLines(row({ cause: "cleared", tier: 1, depth: 27 }), null, createCodexSave(), META);
+    expect(deep[0], "深度 27 は深み 6 層").toContain("深み 6 層");
+  });
+
   it("行は 3 行まで", () => {
     const lines = deathReportLines(row({ depth: 3, killer: { kind: "strike", key: "wolf" } }), row({}), createCodexSave(), META);
     expect(lines.length).toBeLessThanOrEqual(DEATH_REPORT_MAX_LINES);

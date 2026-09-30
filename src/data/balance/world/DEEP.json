@@ -1,0 +1,11 @@
+{
+  "_note": "深み（最深の間の次の階 = 深度 22 から。system/chapters.ts の isDeepDepth）だけの項目。敵の生命・攻撃の指数は enemies/ENEMY_SCALE（deepDepth = 最深の間）",
+  "_fields": {
+    "maxEnemiesBonus": "深みで ROOM.maxEnemies に足す数",
+    "mutationEvery": "深みで変異が 1 つ増える層の数。深み 1 層目で 1 つ。目安 3〜10",
+    "color": "深みの表示の色（右上の「深み n 層」は白のまま、浮き文字とログ）"
+  },
+  "maxEnemiesBonus": 4,
+  "mutationEvery": 5,
+  "color": "#8fb4ff"
+}
