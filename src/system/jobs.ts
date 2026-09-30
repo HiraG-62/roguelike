@@ -80,7 +80,7 @@ export function startJob(state: GameState): void {
   if (ownsSkillStone(profile, skillKey)) return;
   const seed = (state.seed ^ (STONE_SALT + JOB_KEYS.indexOf(state.job))) >>> 0;
   // now は id と foundAt の表示用（決定性に影響しない）
-  const stone = { ...stoneFromSeed(seed, { foundDepth: state.depth, now: Date.now(), skillKey }), variants: [], links: JOB.starterStoneLinks };
+  const stone = { ...stoneFromSeed(seed, { foundDepth: state.depth, now: Date.now(), skillKey }), variants: [] };
   addStone(profile, stone);
 }
 

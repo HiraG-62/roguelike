@@ -50,8 +50,8 @@ function oldRune(id: string, modifier: string): { id: string; modifier: string; 
 describe("刻印符のラン内化（旧セーブの読み捨て）", () => {
   it("旧セーブの所持品と石に付けた符は読み捨てられ、件数が返る", () => {
     const storage = new MemoryStorage();
-    const withRunes = { ...stone("frag", "s1"), links: 2, runes: [oldRune("a", "echo"), oldRune("b", "pierce")] };
-    const plain = { ...stone("whirl", "s2"), links: 1 };
+    const withRunes = { ...stone("commonBomb", "s1"), links: 2, runes: [oldRune("a", "echo"), oldRune("b", "pierce")] };
+    const plain = { ...stone("commonWhirl", "s2"), links: 1 };
     storage.setItem(
       SKILL_PROFILE_KEY,
       JSON.stringify({ version: 1, loadout: ["s1", "s2"], stones: [withRunes, plain], runes: [oldRune("c", "delay"), oldRune("d", "echo"), oldRune("e", "pierce")] }),
@@ -66,7 +66,7 @@ describe("刻印符のラン内化（旧セーブの読み捨て）", () => {
 
   it("保存し直すと runes が消え、2 回目の読み込みでは件数が 0 になる（お知らせは 1 回だけ）", () => {
     const storage = new MemoryStorage();
-    const s = { ...stone("frag", "s1"), runes: [oldRune("a", "echo")] };
+    const s = { ...stone("commonBomb", "s1"), runes: [oldRune("a", "echo")] };
     storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["s1"], stones: [s], runes: [oldRune("b", "pierce")] }));
     const first = loadSkillProfileWithNotice(storage);
     expect(first.droppedRunes).toBe(2);
@@ -89,7 +89,7 @@ describe("刻印符のラン内化（旧セーブの読み捨て）", () => {
 
   it("runes が配列でない・中身が壊れている場合は数えず、石は読める", () => {
     const storage = new MemoryStorage();
-    const s = { ...stone("frag", "s1"), runes: "broken" };
+    const s = { ...stone("commonBomb", "s1"), runes: "broken" };
     storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["s1"], stones: [s], runes: [1, null, "x", oldRune("ok", "echo")] }));
     const loaded = loadSkillProfileWithNotice(storage);
     expect(loaded.droppedRunes, "オブジェクトの符だけ数える").toBe(1);
@@ -98,9 +98,9 @@ describe("刻印符のラン内化（旧セーブの読み捨て）", () => {
 
   it("loadSkillProfile は件数を返さずプロフィールだけ返す", () => {
     const storage = new MemoryStorage();
-    const profile = profileWith([stone("frag", "s1")]);
+    const profile = profileWith([stone("commonBomb", "s1")]);
     saveSkillProfile(profile, storage);
-    expect(loadSkillProfile(storage)).toEqual({ ...profile, stones: [{ ...stone("frag", "s1"), links: 0 }] });
+    expect(loadSkillProfile(storage)).toEqual({ ...profile, stones: [{ ...stone("commonBomb", "s1"), links: 0 }] });
   });
 
   it("初期プロフィールは刻印符を持たず、分解しても石が減るだけ", () => {
@@ -123,7 +123,7 @@ describe("スロットのリンク固定", () => {
 
   it("石の links は読まない（旧セーブの値が何でも 0 で読む）", () => {
     const storage = new MemoryStorage();
-    const stones = [{ ...stone("whirl", "l1"), links: 3 }, { ...stone("frag", "l2"), links: 99 }, { ...stone("lunge", "l3"), links: undefined }];
+    const stones = [{ ...stone("commonWhirl", "l1"), links: 3 }, { ...stone("commonBomb", "l2"), links: 99 }, { ...stone("commonLunge", "l3"), links: undefined }];
     storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["l1", "l2", "l3"], stones }));
     const loaded = loadSkillProfile(storage).stones;
     expect(loaded.map((s) => s.links)).toEqual([0, 0, 0]);
@@ -140,14 +140,14 @@ describe("スロットのリンク固定", () => {
 describe("使い込みの互換（SkillStone.wear は省略可）", () => {
   it("使い込みを持つ石は round-trip で同じ内容が戻る", () => {
     const storage = new MemoryStorage();
-    const s: SkillStone = { ...stone("whirl", "w1"), wear: { casts: 41, hits: 120, buds: ["power"] } };
+    const s: SkillStone = { ...stone("commonWhirl", "w1"), wear: { casts: 41, hits: 120, buds: ["power"] } };
     saveSkillProfile(profileWith([s]), storage);
     expect(loadSkillProfile(storage).stones).toEqual([s]);
   });
 
   it("旧セーブの石（wear 無し）は wear を足さずにそのまま読む", () => {
     const storage = new MemoryStorage();
-    const s = stone("frag", "old");
+    const s = stone("commonBomb", "old");
     storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["old"], stones: [s] }));
     const loaded = loadSkillProfile(storage).stones[0];
     expect(loaded).toEqual(s);
@@ -156,7 +156,7 @@ describe("使い込みの互換（SkillStone.wear は省略可）", () => {
 
   it("壊れた使い込みは直す（負の数は 0、知らない芽は捨て、芽は節目の数まで）", () => {
     const storage = new MemoryStorage();
-    const s = { ...stone("frag", "b1"), wear: { casts: -5, hits: "x", buds: ["nope", "power", "power", "power"] } };
+    const s = { ...stone("commonBomb", "b1"), wear: { casts: -5, hits: "x", buds: ["nope", "power", "power", "power"] } };
     storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["b1"], stones: [s] }));
     const wear = loadSkillProfile(storage).stones[0]?.wear;
     expect(wear?.casts).toBe(0);
@@ -166,7 +166,7 @@ describe("使い込みの互換（SkillStone.wear は省略可）", () => {
 
   it("旧セーブの枠の芽（link）は威力の芽へ写る", () => {
     const storage = new MemoryStorage();
-    const s = { ...stone("whirl", "l1"), wear: { casts: 160, hits: 10, buds: ["link", "power"] } };
+    const s = { ...stone("commonWhirl", "l1"), wear: { casts: 160, hits: 10, buds: ["link", "power"] } };
     storage.setItem(SKILL_PROFILE_KEY, JSON.stringify({ version: 1, loadout: ["l1"], stones: [s] }));
     const wear = loadSkillProfile(storage).stones[0]?.wear;
     expect(wear?.buds, "枠も威力の芽として数える").toEqual(["power", "power"]);

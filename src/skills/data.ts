@@ -2,7 +2,6 @@ import { type AttackProfile, attack } from "../core/element";
 import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { BALANCE } from "../data/balance";
-import { STATUS } from "../data/tuning";
 import type { FormKey } from "../data/weaponForms";
 import { ART_ATTACK, ART_MIN_DEPTH, ART_SKILL_DEFS, ART_WEIGHTS, isArtKey } from "./arts";
 import { formTransformLine } from "./arts/transform";
@@ -66,32 +65,21 @@ export const VARIANT_COEF: Record<VariantAxis, { gain: number; cost: number }> =
 };
 
 /**
- * スキル石の抽選の重み。初期の 6 を少し厚めにし、追加スキルは 1 種あたりやや薄くする
+ * スキル石の抽選の重み。最小実装からの 7 を少し厚めにし、追加スキルは 1 種あたりやや薄くする
  * （序盤に見慣れたスキルが出にくくなりすぎないように）
  */
 export const SKILL_WEIGHTS: Record<SkillKey, number> = {
-  whirl: 10,
-  lunge: 10,
-  frag: 10,
-  railshot: 10,
   parry: 10,
   bloodPact: 10,
-  quake: 8,
-  thunder: 8,
   gravityWell: 7,
   mines: 8,
   haste: 7,
   chainHook: 8,
-  spiral: 8,
   frostField: 7,
   // 大拡張: 1 種あたりは既存より薄く（種類が多いので合計では十分出る）
   contagion: 6,
   unravel: 6,
   kindle: 6,
-  prismShard: 6,
-  fullMoon: 5,
-  dregsBlade: 5,
-  shadowStep: 6,
   powderKeg: 6,
   swordGrave: 6,
   iceBreaker: 6,
@@ -105,15 +93,6 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   lastStand: 6,
   comboChain: 6,
   grudge: 5,
-  guillotine: 6,
-  ricochet: 6,
-  galeSlash: 6,
-  scatterSigil: 6,
-  stomp: 6,
-  threadReel: 6,
-  meteorDive: 5,
-  swallowFlip: 6,
-  boneRing: 5,
   backflow: 5,
   scarRoar: 5,
   manaSpring: 5,
@@ -121,26 +100,15 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
   // 第 2 弾: 大拡張と同じく 1 種あたりは薄め。変身は珍しめ
   waterJar: 6,
   oilPot: 6,
-  scorchLine: 6,
-  iceSlide: 5,
   levelGround: 5,
   emberDraw: 5,
-  bogCall: 5,
   brandSear: 6,
   brandBlast: 5,
-  breakKick: 6,
-  collapseHammer: 5,
-  tideSlash: 6,
   flashFreeze: 5,
   hueEtch: 5,
   hueRelease: 5,
-  siphonMark: 5,
   doomSentence: 5,
   shiftingEdge: 6,
-  weaponArt: 6,
-  titanForm: 4,
-  swiftForm: 4,
-  spiritForm: 4,
   wardStake: 5,
   mire: 5,
   wolfForm: 3,
@@ -157,27 +125,16 @@ export const SKILL_WEIGHTS: Record<SkillKey, number> = {
  * 揃い始める 2 層目から。変わり種（召喚・特殊な資源）は 3 層目から
  */
 export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
-  whirl: 1,
-  lunge: 1,
-  frag: 1,
-  railshot: 1,
   parry: 1,
   bloodPact: 1,
-  quake: 1,
-  thunder: 1,
   gravityWell: 1,
   mines: 1,
   haste: 1,
   chainHook: 1,
-  spiral: 1,
   frostField: 1,
   contagion: 2,
   unravel: 2,
   kindle: 2,
-  prismShard: 1,
-  fullMoon: 1,
-  dregsBlade: 1,
-  shadowStep: 1,
   powderKeg: 1,
   swordGrave: 2,
   iceBreaker: 1,
@@ -191,15 +148,6 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   lastStand: 1,
   comboChain: 1,
   grudge: 1,
-  guillotine: 1,
-  ricochet: 1,
-  galeSlash: 1,
-  scatterSigil: 1,
-  stomp: 1,
-  threadReel: 1,
-  meteorDive: 2,
-  swallowFlip: 1,
-  boneRing: 2,
   backflow: 3,
   scarRoar: 3,
   manaSpring: 2,
@@ -207,26 +155,15 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
   // 第 2 弾: 地形・素直な付与は 1 層目から、それを「食う」技と変身・空間は 2〜3 層目から
   waterJar: 1,
   oilPot: 1,
-  scorchLine: 1,
-  iceSlide: 1,
   levelGround: 2,
   emberDraw: 2,
-  bogCall: 2,
   brandSear: 1,
   brandBlast: 2,
-  breakKick: 1,
-  collapseHammer: 2,
-  tideSlash: 1,
   flashFreeze: 2,
   hueEtch: 2,
   hueRelease: 2,
-  siphonMark: 2,
   doomSentence: 3,
   shiftingEdge: 1,
-  weaponArt: 1,
-  titanForm: 3,
-  swiftForm: 3,
-  spiritForm: 3,
   wardStake: 2,
   mire: 2,
   wolfForm: 3,
@@ -239,8 +176,6 @@ export const SKILL_MIN_DEPTH: Record<SkillKey, number> = {
 
 /** 命中した敵に付ける状態異常（docs/COMBAT_DESIGN.md B-4 の「付与」列） */
 const APPLIES = {
-  railshot: [{ kind: "vulnerable", stacks: 1, duration: SKILL.railshot.vulnerableTime, potency: 0 }],
-  thunder: [{ kind: "shock", stacks: SKILL.thunder.shockStacks, duration: STATUS.shock.duration, potency: SKILL.thunder.shockPotency, ratio: SKILL.thunder.shockPotencyRatio }],
   gravityWell: [{ kind: "silence", stacks: 1, duration: SKILL.gravityWell.silenceTime, potency: 0 }],
   chainHook: [
     { kind: "bleed", stacks: SKILL.chainHook.bleedStacks, duration: SKILL.chainHook.bleedTime, potency: SKILL.chainHook.bleedPotency, ratio: SKILL.chainHook.bleedPotencyRatio },
@@ -248,54 +183,6 @@ const APPLIES = {
 } as const satisfies Partial<Record<SkillKey, readonly StatusApply[]>>;
 
 const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
-  whirl: {
-    key: "whirl",
-    name: "旋風斬り",
-    icon: "W",
-    verb: "回転して周囲の敵を斬り払う",
-    tags: ["melee", "area"],
-    keywords: kw(["melee", "area"]),
-    damageKind: "melee",
-    axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
-    ...manaSkill(SKILL.whirl),
-    combos: ["hookWhirl", "pactWhirl"],
-  },
-  lunge: {
-    key: "lunge",
-    name: "突進斬り",
-    icon: "L",
-    verb: "カーソル方向へ突進して斬る（無敵時間なし）",
-    tags: ["melee", "movement"],
-    keywords: kw(["melee", "dash"]),
-    damageKind: "melee",
-    axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage"],
-    ...cooldownSkill(SKILL.lunge, SKILL.lunge.poise),
-  },
-  frag: {
-    key: "frag",
-    name: "グレネード",
-    icon: "G",
-    verb: "導火線付きの手榴弾を投げ、少し遅れて爆発させる",
-    tags: ["area", "projectile", "placed"],
-    keywords: kw(["explode", "area"]),
-    damageKind: "ranged",
-    axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage", "countVsDamage"],
-    ...manaSkill(SKILL.frag),
-    combos: ["wellFrag"],
-  },
-  railshot: {
-    key: "railshot",
-    name: "撃ち抜き",
-    icon: "R",
-    verb: "照準してから、壁まで貫通するビームを撃つ",
-    tags: ["projectile"],
-    keywords: kw(["ranged", "bullet"]),
-    damageKind: "ranged",
-    axes: ["cooldownVsDamage", "speedVsDamage", "countVsDamage"],
-    ...manaSkill(SKILL.railshot),
-    combos: ["parryRail"],
-    applies: APPLIES.railshot,
-  },
   parry: {
     key: "parry",
     name: "パリィ",
@@ -318,31 +205,6 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     axes: ["durationVsPotency"],
     ...cooldownSkill(SKILL.bloodPact, 0),
     buffScaling: SKILL.bloodPact.buff,
-  },
-  quake: {
-    key: "quake",
-    name: "地裂き",
-    icon: "Q",
-    verb: "溜めてから前方扇状に衝撃波を放つ（溜め中の被弾で中断）",
-    tags: ["melee", "area"],
-    keywords: kw(["area", "wall", "stagger", "still"]),
-    damageKind: "melee",
-    axes: ["areaVsDamage", "speedVsDamage", "cooldownVsDamage"],
-    ...manaSkill(SKILL.quake),
-    combos: ["diveQuake"],
-  },
-  thunder: {
-    key: "thunder",
-    name: "雷撃",
-    icon: "T",
-    verb: "カーソル地点に遅れて雷を落とす",
-    tags: ["lightning", "area", "placed"],
-    keywords: kw(["placed", "area"]),
-    damageKind: "ranged",
-    axes: ["areaVsDamage", "speedVsDamage", "countVsDamage"],
-    ...manaSkill(SKILL.thunder),
-    combos: ["wellThunder", "frostThunder"],
-    applies: APPLIES.thunder,
   },
   gravityWell: {
     key: "gravityWell",
@@ -391,18 +253,6 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
     ...manaSkill(SKILL.chainHook),
     applies: APPLIES.chainHook,
   },
-  spiral: {
-    key: "spiral",
-    name: "回転弾幕",
-    icon: "S",
-    verb: "自分を中心に螺旋状の弾を放つ（発射中は移動が遅くなり、近接・射撃不可）",
-    tags: ["projectile", "channel"],
-    keywords: kw(["ranged", "bullet", "still"]),
-    damageKind: "ranged",
-    axes: ["countVsDamage", "speedVsDamage", "cooldownVsDamage"],
-    ...manaSkill(SKILL.spiral),
-    combos: ["hasteSpiral"],
-  },
   frostField: {
     key: "frostField",
     name: "氷結地帯",
@@ -417,28 +267,11 @@ const BASE_SKILL_DEFS: Record<BaseSkillKey, SkillDef> = {
 };
 
 /**
- * 排他グループ body（体を使う本動作）のスキル。SkillRunState.active を使うもの（近接・移動・照準の本動作）と、
- * プレイヤー自身を瞬間移動させる影渡り。active は 1 つだけなので、active を使うスキルは必ずここに入れる
+ * 排他グループ body（体を使う本動作）のスキル。SkillRunState.active を使うもの（構え・鎖・連続突き）。
+ * active は 1 つだけなので、active を使うスキルは必ずここに入れる
  * （system/skills.test.ts が全スキルを撃って active の有無と突き合わせる）。docs/COMBAT_DESIGN.md B-9
  */
-export const BODY_SKILL_KEYS: readonly SkillKey[] = [
-  "whirl",
-  "lunge",
-  "railshot",
-  "parry",
-  "quake",
-  "chainHook",
-  "spiral",
-  "dregsBlade",
-  "comboChain",
-  "guillotine",
-  "stomp",
-  "threadReel",
-  "meteorDive",
-  "swallowFlip",
-  "shadowStep",
-  "iceSlide",
-];
+export const BODY_SKILL_KEYS: readonly SkillKey[] = ["parry", "chainHook", "comboChain"];
 
 function withExclusiveGroups(defs: Record<SkillKey, SkillDef>): Record<SkillKey, SkillDef> {
   const out = { ...defs };
@@ -517,8 +350,6 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     color: "#c080ff",
     keywords: kw([], [], ["area"]),
     excludesTags: ["defense", "buff"],
-    // 影渡りは自分が動くだけで、発動地点での再発動に意味が無い
-    excludesSkills: ["shadowStep"],
     apply: (p) => ({
       ...p,
       echo: { delay: M.echo.delay, damageMul: M.echo.damageMul },
@@ -533,8 +364,6 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     keywords: kw([], [], ["bullet"]),
     excludesTags: ["placed"],
     requiresTags: ["projectile"],
-    // 撃ち抜き・満月の砲・風切り・手繰り糸は元から全員に当たる
-    excludesSkills: ["railshot", "fullMoon", "galeSlash", "threadReel"],
     apply: (p) => ({ ...p, pierce: p.pierce + M.pierce.count, areaMul: p.areaMul * M.pierce.areaMul }),
   },
   recoil: {
@@ -601,7 +430,7 @@ const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
     manaVerb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}。コストは離した瞬間に払う`,
     color: "#ffd060",
     keywords: kw(["still"]),
-    // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、回転弾幕はチャネル系で「溜めて離す」と噛み合わない
+    // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、チャネル系（砲身化）は「溜めて離す」と噛み合わない
     excludesTags: ["defense", "buff", "channel"],
     excludesModifiers: ["toStaged"],
     // 実際の倍率は system/skills.ts が発動時の経過秒から計算して CastParams に掛けるので、ここでは素通し
@@ -860,30 +689,19 @@ export function wearPowerMul(stone: Readonly<SkillStone>): number {
 /**
  * スキルごとの攻撃の素性。null は与ダメを持たないスキル（強化・移動・設置の補助）。
  * ジャンルは Scaling の参照ステータスと揃える（主か副を必ず含む。skills/skills.test.ts が検査する）。
- * 体力で伸びる震脚・恨み返し・巻き戻し・傷返しは「体を張る」系で、既定表の副（範囲・物理 = 体力）か筋力で揃えている
+ * 体力で伸びる恨み返し・巻き戻し・傷返しは「体を張る」系で、既定表の副（範囲・物理 = 体力）か筋力で揃えている
  */
 export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
-  whirl: attack("melee", "hybrid"),
-  lunge: attack("melee", "physical"),
-  frag: attack("area", "hybrid", "fire"),
-  railshot: attack("ranged", "hybrid", "light"),
   parry: attack("melee", "hybrid"),
   bloodPact: null,
-  quake: attack("area", "physical"),
-  thunder: attack("area", "arcane", "lightning"),
   gravityWell: attack("area", "arcane", "dark"),
   mines: attack("area", "hybrid", "fire"),
   haste: null,
   chainHook: attack("melee", "physical"),
-  spiral: attack("ranged", "hybrid"),
   frostField: attack("area", "arcane", "ice"),
   contagion: null,
   unravel: attack("ranged", "arcane"),
   kindle: attack("area", "arcane", "fire"),
-  prismShard: attack("ranged", "hybrid"),
-  fullMoon: attack("ranged", "arcane", "light"),
-  dregsBlade: attack("melee", "hybrid"),
-  shadowStep: null,
   powderKeg: attack("area", "hybrid", "fire"),
   swordGrave: attack("melee", "hybrid"),
   iceBreaker: attack("melee", "physical", "ice"),
@@ -897,42 +715,22 @@ export const SKILL_ATTACK: Readonly<Record<SkillKey, AttackProfile | null>> = {
   lastStand: attack("melee", "physical"),
   comboChain: attack("melee", "physical"),
   grudge: attack("melee", "physical"),
-  guillotine: attack("melee", "physical"),
-  ricochet: attack("ranged", "physical"),
-  galeSlash: attack("ranged", "physical"),
-  scatterSigil: attack("ranged", "physical"),
-  stomp: attack("area", "physical"),
-  threadReel: attack("ranged", "physical"),
-  meteorDive: attack("area", "hybrid", "fire"),
-  swallowFlip: attack("melee", "physical"),
-  boneRing: null,
   backflow: attack("melee", "physical"),
   scarRoar: attack("area", "arcane"),
   manaSpring: null,
   turret: attack("ranged", "physical"),
-  // 第 2 弾（移ろい刃・奥義は発動時に属性を差し替える。ここは名目の無属性）
+  // 第 2 弾（移ろい刃は発動時に属性を差し替える。ここは名目の無属性）
   waterJar: attack("area", "arcane"),
   oilPot: attack("area", "hybrid"),
-  scorchLine: attack("area", "arcane", "fire"),
-  iceSlide: attack("melee", "physical", "ice"),
   levelGround: attack("area", "physical"),
   emberDraw: attack("ranged", "arcane", "fire"),
-  bogCall: attack("area", "arcane", "poison"),
   brandSear: attack("melee", "hybrid", "fire"),
   brandBlast: attack("area", "arcane", "fire"),
-  breakKick: attack("melee", "physical"),
-  collapseHammer: attack("melee", "physical"),
-  tideSlash: attack("ranged", "physical"),
   flashFreeze: attack("area", "arcane", "ice"),
   hueEtch: attack("melee", "hybrid"),
   hueRelease: attack("area", "arcane"),
-  siphonMark: attack("ranged", "arcane", "dark"),
   doomSentence: attack("area", "arcane", "dark"),
   shiftingEdge: attack("melee", "hybrid"),
-  weaponArt: attack("melee", "hybrid"),
-  titanForm: attack("area", "physical"),
-  swiftForm: attack("melee", "physical"),
-  spiritForm: attack("area", "arcane", "light"),
   wardStake: attack("area", "hybrid"),
   mire: attack("area", "arcane"),
   // 第 3 弾の変身（噛みつき・重い振りは近接の仕組みで当てるので、変身そのものは与ダメを持たない。砲撃だけが持つ）

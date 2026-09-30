@@ -199,7 +199,7 @@ describe("ジョブの適用", () => {
     const setup = { origin: "wanderer" as const, modifiers: [], job: "hunter" as const };
     const a = createGame(SEED, String(SEED), profile, skills, setup);
     expect(skills.stones.length, "1 つ加わる").toBe(before + 1);
-    expect(skills.stones.at(-1)?.links).toBe(JOB.starterStoneLinks);
+    expect(skills.stones.at(-1)?.skillKey, "ジョブの初期スキル石").toBe(key);
     expect(a.skills.floorStones.some((fs) => fs.stone.skillKey === key), "床には置かない").toBe(false);
     createGame(SEED + 1, String(SEED + 1), profile, skills, setup);
     expect(skills.stones.length, "2 回目は増えない").toBe(before + 1);

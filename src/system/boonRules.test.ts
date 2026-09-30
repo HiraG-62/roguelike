@@ -47,8 +47,8 @@ function dropEvents(state: GameState): void {
 
 /** スロット 0・1 に気力のスキル石を 2 つ装着する（四重奏の数え） */
 function equipTwo(state: GameState, id: string): void {
-  const stones = ["whirl", "frag"].map((k, i) => ({
-    ...stoneFromSeed(i + 1, { foundDepth: 1, now: 0, skillKey: k as "whirl" | "frag" }),
+  const stones = (["commonWhirl", "commonBomb"] as const).map((k, i) => ({
+    ...stoneFromSeed(i + 1, { foundDepth: 1, now: 0, skillKey: k }),
     id: `${id}-${i}`,
   }));
   state.skills.profile = { ...state.skills.profile, stones, loadout: [stones[0]!.id, stones[1]!.id, null, null] };

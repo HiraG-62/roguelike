@@ -8,7 +8,7 @@ import type { GameState, Projectile } from "../core/state";
 import type { Vec } from "../core/vec";
 import type { MovesetKey } from "../data/weapons";
 import { type ThrownShape, thrownSpriteKey } from "../data/sprites/weapons";
-import type { EchoCast, Grenade } from "../skills/types";
+import type { EchoCast } from "../skills/types";
 import { shotBulletOf, ultimateShotOf } from "../system/effects";
 import type { SpriteAtlas } from "./sprites";
 
@@ -31,10 +31,7 @@ const SPIN_HEAVY = 11;
 const SPIN_PHASE_PER_ID = 0.9;
 /** この半径（px）までは等倍。大きい弾（断頭輪など）は半径に合わせて拡大する */
 const LOOK_BASE_RADIUS = 4;
-/** 手榴弾の絵（既存の bomb） */
-const GRENADE_SPRITE = "bomb";
-/** 放物線の高さ（px）。skillHud.ts の手続きの描画もこれを使い、同じ位置に重ねて描く */
-export const GRENADE_ARC_H = 18;
+/** 投げ刃の放物線の高さ（px）。skillHud.ts の手続きの描画もこれを使い、同じ位置に重ねて描く */
 export const THROWN_ARC_H = 14;
 
 function spin(shape: ThrownShape, rate = SPIN_FAST): ThrownLook {
@@ -111,16 +108,6 @@ export const MOVESET_THROWN_LOOK: Readonly<Partial<Record<MovesetKey, ThrownLook
   warRing: WAR_RING,
 };
 
-/** スキル石「極意」の弾（武器種で形が変わる）。投げ散らし・乱れ輪 */
-export const WEAPON_ART_LOOK: Readonly<Partial<Record<MovesetKey, ThrownLook>>> = {
-  thrown: KNIFE,
-  warRing: WAR_RING,
-};
-
-const WEAPON_ART_SKILL = "weaponArt";
-
-/** スキル石「グレネード」の飛んでいる手榴弾 */
-export const GRENADE_LOOK: ThrownLook = { sprite: GRENADE_SPRITE, motion: "spin", spin: SPIN_HEAVY };
 /** 型替え符「投げ刃」で飛んでいる刃 */
 export const THROWN_ECHO_LOOK: ThrownLook = KNIFE_SPIN;
 
@@ -134,9 +121,8 @@ export function projectileLook(pr: Projectile): ThrownLook | undefined {
   return key === undefined ? undefined : BULLET_LOOK[key];
 }
 
-/** 技の弾の見た目（key は弾を出したスキルの CastParams.skillKey）。極意と武器を投げる技は今の武器種で引く */
+/** 技の弾の見た目（key は弾を出したスキルの CastParams.skillKey）。武器を投げる技は今の武器種で引く */
 export function skillShotLook(key: string, moveset: MovesetKey): ThrownLook | undefined {
-  if (key === WEAPON_ART_SKILL) return WEAPON_ART_LOOK[moveset];
   if (THROWN_ART_KEYS.has(key)) return MOVESET_THROWN_LOOK[moveset];
   return SKILL_LOOK[key];
 }
@@ -182,7 +168,7 @@ export function drawThrownProjectile(ctx: CanvasRenderingContext2D, state: GameS
 }
 
 /**
- * 技の弾・飛んでいる手榴弾・投げ刃を武器の絵で描く（skillHud.ts の drawSkillAir の後に重ねる）。
+ * 技の弾・投げ刃を武器の絵で描く（skillHud.ts の drawSkillAir の後に重ねる）。
  * 位置は skillHud と同じ式で出すので、手続きの点の上にちょうど重なる
  */
 export function drawThrownSkillAir(ctx: CanvasRenderingContext2D, state: GameState, atlas: SpriteAtlas): void {
@@ -191,15 +177,7 @@ export function drawThrownSkillAir(ctx: CanvasRenderingContext2D, state: GameSta
     const look = skillShotLook(s.params.skillKey, moveset);
     if (look) drawThrownLook(ctx, atlas, look, s.pos.x, s.pos.y, thrownAngle(look, state.time, s.id, s.vel), thrownScale(s.radius));
   }
-  for (const g of state.skills.grenades) drawGrenadeFlight(ctx, state, atlas, g);
   for (const e of state.skills.echoes) drawThrownEcho(ctx, state, atlas, e);
-}
-
-function drawGrenadeFlight(ctx: CanvasRenderingContext2D, state: GameState, atlas: SpriteAtlas, g: Grenade): void {
-  if (g.flight <= 0) return;
-  const t = g.flightTotal > 0 ? 1 - g.flight / g.flightTotal : 1;
-  const at = arcPoint(g.from, g.to, t, GRENADE_ARC_H);
-  drawThrownLook(ctx, atlas, GRENADE_LOOK, at.x, at.y, thrownAngle(GRENADE_LOOK, state.time, g.id, { x: g.to.x - g.from.x, y: 0 }), 1);
 }
 
 function drawThrownEcho(ctx: CanvasRenderingContext2D, state: GameState, atlas: SpriteAtlas, e: EchoCast): void {

@@ -186,7 +186,7 @@ describe("語の型", () => {
     const frostGolem = enemyKeywords(golemDef);
     expect(frostGolem.consumes, "霜ゴーレムは炎が弱点").toContain("elFire");
     expect(frostGolem.produces, "霜ゴーレムは氷属性で攻撃する").toContain("elIce");
-    expect(skillKeywords(SKILL_DEFS.thunder).produces, "雷撃は雷属性").toContain("elLightning");
+    expect(skillKeywords(SKILL_DEFS.commonThunderclap).produces, "雷鳴は雷属性").toContain("elLightning");
     expect(statsKeywords({ ...DEFAULT_STATS, infuse: { ...DEFAULT_STATS.infuse, fire: 0.4 } }).produces, "炎の変換").toContain("elFire");
   });
 
@@ -263,8 +263,8 @@ describe("装備の語の推論", () => {
   });
 
   it("スキル石は命中で付ける状態異常とマナ消費、差した刻印符の語も持つ", () => {
-    const p = skillKeywords(SKILL_DEFS.thunder, ["curse"]);
-    expect(p.produces.includes("shock"), "雷撃の感電").toBe(true);
+    const p = skillKeywords(SKILL_DEFS.commonThunderclap, ["curse"]);
+    expect(p.produces.includes("shock"), "雷鳴の感電").toBe(true);
     expect(p.consumes.includes("mana"), "マナ型はマナを食う").toBe(true);
     expect(p.produces.includes("vulnerable"), "刻印符 呪い の脆弱").toBe(true);
   });

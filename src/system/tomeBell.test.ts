@@ -134,8 +134,8 @@ describe("書（無詠唱・再使用）", () => {
   });
 
   it("書を持つ間は CD 型のスキルの再使用が skillCooldownMul 倍になる", () => {
-    const withBook = skillArena({ moveset: "book" }, ["lunge"]);
-    const withSword = skillArena({ moveset: "sword" }, ["lunge"]);
+    const withBook = skillArena({ moveset: "book" }, ["commonLunge"]);
+    const withSword = skillArena({ moveset: "sword" }, ["commonLunge"]);
     const book = resolveSlot(withBook, 0)?.cooldown ?? 0;
     const sword = resolveSlot(withSword, 0)?.cooldown ?? 0;
     expect(sword, "突進は CD 型").toBeGreaterThan(0);

@@ -1,12 +1,11 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEffects";
+import { applyChill, enemiesInRadius } from "../system/statusEffects";
 import { shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
-import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
+import { circlesOverlap, moveBody } from "../system/physics";
 import { blastMulAt } from "../system/blast";
-import { BOON_LINEAGE, STATUS } from "../data/tuning";
+import { BOON_LINEAGE } from "../data/tuning";
 import { SKILL, SKILL_DEFS } from "./data";
-import { COMBO_TUNING } from "./tuning";
 import { skillHit, skillPower } from "./hit";
 import { terrainAt } from "../system/terrain";
 import type { CastParams } from "./types";
@@ -17,20 +16,16 @@ import { slashBase } from "../system/boonRules";
 import { damageEnemy, rollOutgoing } from "../system/combat";
 
 /**
- * 設置・飛翔系スキルの実体（雷撃・引力球・地雷・氷結地帯・回転弾幕の弾）。
+ * 設置系スキルの実体（引力球・地雷・氷結地帯・泥沼）。
  * 発動は system/skills.ts、毎フレームの更新は updatePlacedSkills から。
  */
 
-export const COLOR_THUNDER = "#ffff60";
 export const COLOR_WELL = "#a070ff";
 export const COLOR_MINE = "#ff9040";
 export const COLOR_FROST = "#80d0ff";
-export const COLOR_BULLET = "#60ffe0";
 
 const RING_LIFE = 0.2;
-const BOLT_HEIGHT = 70;
-const BOLT_LIFE = 0.15;
-const THUNDER_PARTICLES = 14;
+const COLLAPSE_PARTICLES = 14;
 const BURST_SPEED = 150;
 const BURST_LIFE = 0.35;
 const BURST_SIZE = 2;
@@ -44,16 +39,11 @@ const SHAKE_PLACED = 3;
 const BOSS_PULL_MUL = 0.3;
 /** 引力球: 敵弾の引き込みは敵本体より弱い */
 const BULLET_PULL_MUL = 0.5;
-const BULLET_WALL_PAD = 1;
 const FULL_TURN = Math.PI * 2;
 
 // ---------------------------------------------------------------------------
 // 半径（HUD と共有）
 // ---------------------------------------------------------------------------
-
-export function thunderRadius(params: Readonly<CastParams>): number {
-  return SKILL.thunder.radius * params.areaMul;
-}
 
 export function wellRadius(params: Readonly<CastParams>): number {
   return SKILL.gravityWell.radius * params.areaMul;
@@ -81,42 +71,6 @@ export function playerInFrost(state: GameState): boolean {
 // ---------------------------------------------------------------------------
 // 設置
 // ---------------------------------------------------------------------------
-
-/** 連携「渦雷」（引力球 → 雷撃）: 感電を 1 つ多く付ける */
-const WELL_THUNDER_APPLIES = [
-  {
-    kind: "shock",
-    stacks: SKILL.thunder.shockStacks + COMBO_TUNING.wellThunder.shockBonus,
-    duration: STATUS.shock.duration,
-    potency: SKILL.thunder.shockPotency,
-  },
-] as const;
-
-/**
- * 連携「渦雷」: 雷の落下点を最寄りの引力球の中心へ吸い寄せ、半径を球の大きさまで広げる。
- * 成立していなければ照準地点と params をそのまま返す
- */
-export function wellThunderTarget(state: GameState, target: Vec, params: CastParams): { target: Vec; params: CastParams } {
-  if (params.combo !== "wellThunder") return { target, params };
-  let best = state.skills.wells[0];
-  for (const w of state.skills.wells) if (best && dist(w.pos, target) < dist(best.pos, target)) best = w;
-  if (!best) return { target, params };
-  const areaMul = Math.max(params.areaMul, wellRadius(best.params) / SKILL.thunder.radius);
-  return { target: { ...best.pos }, params: { ...params, areaMul, countBonus: 0 } };
-}
-
-/** 雷撃: 中心に 1 本、回数ぶん周囲へ時間差で追加 */
-export function placeStrikes(state: GameState, target: Vec, params: CastParams): void {
-  const t = SKILL.thunder;
-  const count = Math.max(1, 1 + params.countBonus);
-  const delay = t.delay * params.timeMul;
-  for (let i = 0; i < count; i++) {
-    const pos = i === 0 ? { ...target } : add(target, scale(fromAngle((FULL_TURN * (i - 1)) / (count - 1)), t.extraOffset));
-    const safe = overlapsWall(state, pos.x, pos.y, 0) ? { ...target } : pos;
-    const timer = delay + i * t.extraGap;
-    state.skills.strikes.push({ pos: safe, timer, total: timer, params });
-  }
-}
 
 export function spawnWell(state: GameState, target: Vec, params: CastParams): void {
   const total = SKILL.gravityWell.duration * params.durationMul;
@@ -147,30 +101,15 @@ export function spawnField(state: GameState, target: Vec, params: CastParams): v
   pushSfx(state, "freeze");
 }
 
-/** 回転弾幕の 1 発 */
-export function spawnBullet(state: GameState, from: Vec, dir: Vec, params: CastParams): void {
-  const s = SKILL.spiral;
-  state.skills.bullets.push({
-    pos: { ...from },
-    vel: scale(dir, s.speed),
-    life: s.life * params.areaMul,
-    params,
-    hitIds: new Set(),
-    pierceLeft: params.pierce,
-  });
-}
-
 // ---------------------------------------------------------------------------
 // 更新
 // ---------------------------------------------------------------------------
 
 export function updatePlacedSkills(state: GameState, dt: number): void {
-  updateStrikes(state, dt);
   updateWells(state, dt);
   updateMines(state, dt);
   updateFields(state, dt);
   updateMires(state, dt);
-  updateBullets(state, dt);
   followDash(state, dt);
   updateCrossfire(state);
 }
@@ -234,33 +173,6 @@ function updateCrossfire(state: GameState): void {
   }
 }
 
-function updateStrikes(state: GameState, dt: number): void {
-  const rs = state.skills;
-  for (const s of rs.strikes) {
-    s.timer -= dt;
-    if (s.timer <= 0) strike(state, s.pos, s.params);
-  }
-  rs.strikes = rs.strikes.filter((s) => s.timer > 0);
-}
-
-function strike(state: GameState, pos: Vec, params: CastParams): void {
-  const t = SKILL.thunder;
-  const radius = thunderRadius(params);
-  spawnLine(state, { x: pos.x, y: pos.y - BOLT_HEIGHT }, pos, COLOR_THUNDER, BOLT_LIFE);
-  spawnRing(state, pos, radius, COLOR_THUNDER, RING_LIFE);
-  spawnBurst(state, pos, COLOR_THUNDER, THUNDER_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
-  shake(state, SHAKE_PLACED);
-  pushSfx(state, "shock");
-  const power = skillPower(state, t.damage, params);
-  const applies = params.combo === "wellThunder" ? WELL_THUNDER_APPLIES : undefined;
-  let first: number | null = null;
-  for (const e of enemiesInRadius(state, pos, radius)) {
-    first ??= e.id;
-    skillHit(state, e, params, { base: power, kind: "ranged", dir: sub(e.body.pos, pos), knockback: 0, stagger: true, applies, from: pos });
-  }
-  if (first !== null) chainLightning(state, pos, power * t.shockMul, first);
-}
-
 function updateWells(state: GameState, dt: number): void {
   const rs = state.skills;
   const g = SKILL.gravityWell;
@@ -312,7 +224,7 @@ function wellParticle(state: GameState, center: Vec, radius: number): void {
 function collapseWell(state: GameState, pos: Vec, radius: number, params: CastParams): void {
   const g = SKILL.gravityWell;
   spawnRing(state, pos, radius, COLOR_WELL, RING_LIFE * 2);
-  spawnBurst(state, pos, COLOR_WELL, THUNDER_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  spawnBurst(state, pos, COLOR_WELL, COLLAPSE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
   const power = skillPower(state, g.burstDamage, params);
@@ -406,7 +318,7 @@ function updateMires(state: GameState, dt: number): void {
 
 /**
  * 鈴の打ち鳴らし（system/tomeBell.ts）: center から radius の内側に置いた設置物を今すぐ動かす。
- * 引力球・氷結地帯・泥沼は次の刻みを今にし、地雷はその場で起爆する（雷撃の落下待ち・回転弾幕は置いた物ではないので含めない）。
+ * 引力球・氷結地帯・泥沼は次の刻みを今にし、地雷はその場で起爆する。
  * 動かした数を返す
  */
 export function tollPlaced(state: GameState, center: Vec, radius: number): number {
@@ -433,27 +345,4 @@ export function tollPlaced(state: GameState, center: Vec, radius: number): numbe
   rs.mines = rs.mines.filter((mine) => !near(mine.pos));
   for (const mine of blown) explodeMine(state, mine.pos, mine.params);
   return count + blown.length;
-}
-
-function updateBullets(state: GameState, dt: number): void {
-  const rs = state.skills;
-  const s = SKILL.spiral;
-  for (const b of rs.bullets) {
-    b.pos = add(b.pos, scale(b.vel, dt));
-    b.life -= dt;
-    if (overlapsWall(state, b.pos.x, b.pos.y, BULLET_WALL_PAD)) {
-      b.life = 0;
-      continue;
-    }
-    for (const e of state.enemies) {
-      if (b.life <= 0) break;
-      if (e.hp <= 0 || e.phase === "spawning" || b.hitIds.has(e.id)) continue;
-      if (dist(b.pos, e.body.pos) > e.body.radius + s.radius) continue;
-      b.hitIds.add(e.id);
-      skillHit(state, e, b.params, { base: skillPower(state, s.damage, b.params), kind: "ranged", dir: b.vel, knockback: s.knockback, stagger: false });
-      if (b.pierceLeft > 0) b.pierceLeft -= 1;
-      else b.life = 0;
-    }
-  }
-  rs.bullets = rs.bullets.filter((b) => b.life > 0);
 }

@@ -176,7 +176,7 @@ describe("依頼: ラン中の数え上げ", () => {
     state.codexRun.links.known.add("reaction:steam");
     pushEvent(state, { kind: "onReaction", actor: "player", pos: { x: 0, y: 0 }, tag: "steam", source: { kind: "player", key: "reaction" } });
     pushEvent(state, { kind: "onReaction", actor: "player", pos: { x: 0, y: 0 }, tag: "vaporize", source: { kind: "player", key: "reaction" } });
-    noteSkillCombo(state, "wellThunder");
+    noteSkillCombo(state, "parryRail");
     flush(state);
     const snap = questSnapshot(state);
     expect(snap.linkKinds, "成立した連携").toBe(3);

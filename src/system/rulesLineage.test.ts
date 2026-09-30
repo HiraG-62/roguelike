@@ -65,7 +65,7 @@ function withStone(skillKey: SkillKey): GameState {
 
 describe("refreshSkills", () => {
   it("再使用時間を全長の割合だけ戻し、最低間隔の残りも同じ割合で縮める", () => {
-    const state = withStone("whirl");
+    const state = withStone("commonWhirl");
     const slot = state.skills.slots[0];
     if (!slot) throw new Error("スロットが無い");
     slot.cooldownTotal = 10;
@@ -77,7 +77,7 @@ describe("refreshSkills", () => {
   });
 
   it("fill なら全部戻す", () => {
-    const state = withStone("whirl");
+    const state = withStone("commonWhirl");
     const slot = state.skills.slots[0];
     if (!slot) throw new Error("スロットが無い");
     slot.cooldownTotal = 10;
@@ -91,8 +91,8 @@ describe("refreshSkills", () => {
 
 describe("echoLast", () => {
   it("直前のスキルを気力を払わずに写しで撃ち、次の updateSkills で出る", () => {
-    const state = withStone("whirl");
-    state.skills.lastCast = { skillKey: "whirl", slot: 0, at: state.skills.clock, pos: { ...state.player.body.pos }, hitIds: new Set() };
+    const state = withStone("commonWhirl");
+    state.skills.lastCast = { skillKey: "commonWhirl", slot: 0, at: state.skills.clock, pos: { ...state.player.body.pos }, hitIds: new Set() };
     const mana = state.player.mana;
     const mul = 0.5;
     fire(state, makeRule("onDashEnd", { kind: "echoLast", magnitude: mul }), eventOn(state, "onDashEnd"));
@@ -103,15 +103,18 @@ describe("echoLast", () => {
     const base = resolveSlot(state, 0)?.params.damageMul ?? 0;
     expect(echo?.params.damageMul, "威力 × magnitude").toBeCloseTo(base * mul);
     expect(state.player.mana, "気力は変わらない").toBe(mana);
+    const e = sturdy(state, NEAR);
+    const hp = e.hp;
     updateSkills(state, withInput({}), FIXED_DT);
-    expect(state.skills.ghosts.length, "旋風の写しが出る").toBe(1);
+    expect(state.skills.echoes.length, "写しが出て予約が消える").toBe(0);
+    expect(e.hp, "旋風斬りの写しが周りの敵に当たる").toBeLessThan(hp);
   });
 
   it("直前の発動が無い・石が変わったなら撃たない", () => {
-    const state = withStone("whirl");
+    const state = withStone("commonWhirl");
     fire(state, makeRule("onDashEnd", { kind: "echoLast", magnitude: 1 }), eventOn(state, "onDashEnd"));
     expect(state.skills.echoes.length, "発動が無い").toBe(0);
-    state.skills.lastCast = { skillKey: "lunge", slot: 0, at: 0, pos: { x: 0, y: 0 }, hitIds: new Set() };
+    state.skills.lastCast = { skillKey: "commonLunge", slot: 0, at: 0, pos: { x: 0, y: 0 }, hitIds: new Set() };
     fire(state, makeRule("onDashEnd", { kind: "echoLast", magnitude: 1 }), eventOn(state, "onDashEnd"));
     expect(state.skills.echoes.length, "石が違う").toBe(0);
   });
@@ -130,7 +133,7 @@ describe("retarget", () => {
 
 describe("設置物（detonatePlaced / minions）", () => {
   it("最も近い設置物を消してその位置で爆発し、数え方 minions が減る", () => {
-    const state = withStone("whirl");
+    const state = withStone("commonWhirl");
     const params = resolveSlot(state, 0)?.params;
     if (!params) throw new Error("石が無い");
     const p = state.player.body.pos;

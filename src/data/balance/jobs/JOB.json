@@ -1,7 +1,6 @@
 {
   "_fields": {
     "manaBaseMul": "流儀の気力の下地: 見習い以外のジョブが通常攻撃の命中で得る気力の倍率（見習いは 1）。流儀の源（MANA_SOURCE）が主で、これは枯渇で遊べなくならないための保険。目安 0.25〜0.5",
-    "starterStoneLinks": "開始時に渡す初期スキル石の連結数",
     "starterWeaponLevel": "開始時に渡す初期武器（素の器）のアイテムレベル",
     "swordsmanFinisherPoise": "剣士: 終撃が当たったときに上乗せする怯み値",
     "swordsmanJustBuffPct": "剣士: 見切りを決めた後のダメージ増。%（表示単位。25 なら +25%）",
@@ -39,7 +38,6 @@
     "mikoClearHealRatio": "巫女: 部屋を制圧したときの回復。最大生命に対する割合（0.1 で 10%）"
   },
   "manaBaseMul": 0.35,
-  "starterStoneLinks": 1,
   "starterWeaponLevel": 1,
   "swordsmanFinisherPoise": 14,
   "swordsmanJustBuffPct": 25,

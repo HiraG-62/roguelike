@@ -182,7 +182,7 @@ const SKILL_TIPS: readonly TipDef[] = [
   { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。拾うと付けられるスロットへ入り、装備画面で別のスロットへ移す・外す（外すと消える）。スロットごとに付けられる数が決まっている。" },
   { key: "link", term: "リンク", category: "skill", body: "石に付けた刻印符の数。多いほど負担（気力のコスト / 再使用時間）が重くなる。" },
   { key: "combo", term: "連携", category: "skill", body: "スキルの直後に別のスキルを撃つと、後の方が変化する。HUD の枠の点滅する菱形が連携可の印。図鑑の連携の頁は、連携・反応・連鎖を初めて起こすと数える。" },
-  { key: "form", term: "変身", category: "skill", body: "一定の間、武器種が変わる強化スキル。変身中の攻撃 1・攻撃 2 は変身先の技になる。" },
+  { key: "form", term: "変身", category: "skill", body: "一定の間、姿が変わる強化スキル（狼化・霊体化・鉄塊化など）。変身中は左右の攻撃の動きが変わり、他のスキルは撃てない。" },
 ];
 
 const RUN_TIPS: readonly TipDef[] = [

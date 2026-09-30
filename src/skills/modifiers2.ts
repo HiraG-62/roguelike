@@ -12,7 +12,7 @@ import type { ModifierDef, ModifierKey, SkillKey, Wave2ModifierKey } from "./typ
  */
 
 /** 属性を自前で決めるスキル。属性の刻印符と武器写しは付けても意味が無い */
-const OWN_ELEMENT: readonly SkillKey[] = ["shiftingEdge", "weaponArt"];
+const OWN_ELEMENT: readonly SkillKey[] = ["shiftingEdge"];
 
 /** 属性を差し替える刻印符同士は同時に効かない（古い方が効く） */
 const ELEMENT_SETTERS: readonly ModifierKey[] = ["fireInfuse", "iceInfuse", "stormInfuse", "venomInfuse", "weaponBond"];
@@ -98,8 +98,6 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
     keywords: kw(["stagger"], [], ["stagger"]),
     excludesTags: [],
     requiresDamage: true,
-    // 崩し蹴りは同じ付与を内蔵している
-    excludesSkills: ["breakKick"],
     apply: (p) => ({ ...p, extraApplies: [...p.extraApplies, ...INFUSE_APPLIES.broken], damageMul: p.damageMul * M.breakInfuse.damageMul }),
   },
   hueInfuse: {
@@ -135,7 +133,7 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
     keywords: kw(["placed", "stagger"], [], ["area"]),
     excludesTags: [],
     requiresDamage: true,
-    onlySkills: ["quake"],
+    onlySkills: ["commonQuake"],
     apply: (p) => ({ ...p, crumble: true, burdenMul: p.burdenMul * M.crumble.burdenMul }),
   },
   // ---- ジョブ・武器種 ----
@@ -197,8 +195,8 @@ export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
     keywords: kw(["area"], [], ["placed"]),
     excludesTags: ["movement"],
     requiresTags: ["placed"],
-    // 地雷・湧き石はもともと足元に置く。グレネードは足元で爆ぜると自分も巻き込まれる
-    excludesSkills: ["mines", "manaSpring", "frag"],
+    // 地雷・湧き石はもともと足元に置く
+    excludesSkills: ["mines", "manaSpring"],
     linkCost: EXTRA_MODIFIER_TUNING.reshapeLinkCost,
     reshape: "toNova",
     apply: (p) => ({ ...p, reshape: "toNova", areaMul: p.areaMul * M.toNova.areaMul }),

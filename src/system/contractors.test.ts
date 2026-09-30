@@ -25,7 +25,8 @@ import { buildFloor, descend } from "./floor";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { isBossDepth } from "./boss";
 import { applyBoonsToStats } from "./boons";
-import { endForm, updateForm } from "../skills/actions2";
+import { baseCastParams, SKILL_DEFS } from "../skills/data";
+import { castShape, endShape, updateShape } from "../skills/forms";
 
 /** 1 ステップ */
 const DT = FIXED_DT;
@@ -468,23 +469,23 @@ describe("灰の公証人: 契約", () => {
 });
 
 describe("契約者: 属性の上乗せと変身", () => {
-  it("変身で武器種だけ差し替えても、鍛冶の属性が二重に乗らない", () => {
+  it("業火の化身で近接の付与だけ差し替えても、鍛冶の属性が二重に乗らない", () => {
     const state = withContractor("smith");
     const before = state.stats.infuse.fire;
     state.contracts.smith = { element: "fire", share: CONTRACT.smithShare };
     ensureContractStats(state);
-    const base = state.stats.moveset;
-    const moveset = base === "greatsword" ? "spear" : "greatsword";
-    state.skills.form = { skillKey: "titanForm", moveset, base, timer: 10, total: 10, recover: 0 };
+    state.player.mana = state.stats.maxMana;
+    const ctx = { slot: 0, params: baseCastParams(SKILL_DEFS.pyreForm), origin: { ...state.player.body.pos }, dir: { x: 1, y: 0 }, remote: false };
+    castShape(state, "pyreForm", ctx);
     for (let i = 0; i < 3; i++) {
-      updateForm(state, DT);
+      updateShape(state, DT);
       ensureContractStats(state);
     }
-    expect(state.stats.moveset, "変身の武器種").toBe(moveset);
+    expect(state.skills.shape?.key, "業火の化身の最中").toBe("pyreForm");
     expect(state.stats.infuse.fire, "変身中も 1 回分").toBeCloseTo(before + CONTRACT.smithShare, 5);
-    endForm(state);
+    endShape(state, "manual");
     ensureContractStats(state);
-    expect(state.stats.moveset, "戻る").toBe(base);
+    expect(state.skills.shape, "解けた").toBeNull();
     expect(state.stats.infuse.fire, "解けた後も 1 回分").toBeCloseTo(before + CONTRACT.smithShare, 5);
   });
 });

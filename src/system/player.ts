@@ -46,7 +46,6 @@ import { gainAttackMana } from "./mana";
 import { type StatusApply, createStatusBag } from "../core/status";
 import {
   cancelSkills,
-  consumeLungeCombo,
   frenzyMul,
   onSkillMeleeHit,
   onSkillPlayerShoot,
@@ -97,8 +96,6 @@ const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
 const SPIN_SFX: SfxName = "slash1";
 /** 装備変更で HP 割合を維持するときの生存中の下限 */
 const MIN_ALIVE_HP = 1;
-/** 突進斬りから繋がる近接の段（0 始まり） */
-const LUNGE_FOLLOW_COMBO = 1;
 /** 祝福・スキルが「最終段」として読む combo（剣の 3 段目と同じ 2） */
 const FINISHER_COMBO = PLAYER.melee.length - 1;
 const FULL_TURN = Math.PI * 2;
@@ -848,9 +845,9 @@ function tryAttack(state: GameState, charge = false): void {
   a.bufferedLane = "primary";
 }
 
-/** 次の段を振る。突進斬り直後は 2 段目から。logAs は派生の列に積むボタン（省略は振りのレーン） */
+/** 次の段を振る。logAs は派生の列に積むボタン（省略は振りのレーン） */
 function startNextSwing(state: GameState, logAs?: ButtonKey): void {
-  startSwing(state, consumeLungeCombo(state) ? LUNGE_FOLLOW_COMBO : state.player.attack.step, false, 0, "primary", logAs);
+  startSwing(state, state.player.attack.step, false, 0, "primary", logAs);
 }
 
 function beginCharge(p: Player): void {

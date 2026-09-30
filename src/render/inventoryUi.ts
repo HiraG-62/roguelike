@@ -27,7 +27,7 @@ import { weaponArtLabel } from "../skills/arts";
 import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "../skills/types";
 import { itemColor } from "../system/loot";
 import { affinity, skillKeywords } from "../system/keywords";
-import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, manaRuleCost, slotModifierView, usedLinks } from "../system/skills";
+import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, slotModifierView, usedLinks } from "../system/skills";
 import { boonGrantedModifiers } from "../system/boons";
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import { synergyBuild } from "../ui/synergyPanel";
@@ -659,8 +659,8 @@ function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams
   // 定刻・燃料化で資源が差し替わるので def.resource ではなく params.resource で出し分ける
   if (params.resource !== "mana") return `再使用 ${formatCooldown(burden.cooldown)}`;
   const capped = effectiveManaCost(state, burden.cost);
-  const note = capped.clamped && !def.manaRule ? COST_CLAMPED_NOTE : "";
-  return `コスト ${Math.round(manaRuleCost(state, def, capped.cost))}${note}  間隔 ${interval}`;
+  const note = capped.clamped ? COST_CLAMPED_NOTE : "";
+  return `コスト ${Math.round(capped.cost)}${note}  間隔 ${interval}`;
 }
 
 /** 武器技なら「〇〇専用」。今の武器種と違えば撃てないことを赤で出す */

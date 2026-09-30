@@ -11,7 +11,7 @@ import { currentMeleeStep, isAttacking, playerMoveset } from "../system/player";
 import { FX_ATTACK, STATUS } from "../data/tuning";
 import { type BulletFeature, type HitShape, bulletFeatures } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
-import { COLOR_THUNDER } from "../skills/placed";
+import { COLOR_SHOCK } from "../skills/actions";
 import type { GameMap } from "../map/grid";
 import { critFlashActive } from "./effectsUi";
 import type { FxSheetKey } from "../data/fxSheets.gen";
@@ -1021,7 +1021,7 @@ function drawRing(ctx: CanvasRenderingContext2D, s: ShapeFx): void {
 }
 
 /** 稲妻として描く線の色（雷の属性・感電・雷のスキル・感電死） */
-const BOLT_COLORS: ReadonlySet<string> = new Set([ELEMENT_FX_COLOR.lightning, STATUS.shockColor, deathColor("discharge"), COLOR_THUNDER].map((c) => c.toLowerCase()));
+const BOLT_COLORS: ReadonlySet<string> = new Set([ELEMENT_FX_COLOR.lightning, STATUS.shockColor, deathColor("discharge"), COLOR_SHOCK].map((c) => c.toLowerCase()));
 
 export function isBoltColor(color: string): boolean {
   return BOLT_COLORS.has(color.toLowerCase());

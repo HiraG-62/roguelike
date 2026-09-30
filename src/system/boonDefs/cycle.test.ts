@@ -103,7 +103,7 @@ describe("輪廻の札の効果", () => {
   });
 
   it("月読: 応手で気力が最大の割合だけ戻り、再使用時間が戻る", () => {
-    const state = withStone("whirl");
+    const state = withStone("commonWhirl");
     const slot = state.skills.slots[0];
     if (!slot) throw new Error("スロットが無い");
     slot.cooldownTotal = COOLDOWN;
@@ -115,8 +115,8 @@ describe("輪廻の札の効果", () => {
   });
 
   it("新月: ダッシュの終わりに直前のスキルを写しで撃ち直す", () => {
-    const state = withStone("whirl");
-    state.skills.lastCast = { skillKey: "whirl", slot: 0, at: state.skills.clock, pos: { ...state.player.body.pos }, hitIds: new Set() };
+    const state = withStone("commonWhirl");
+    state.skills.lastCast = { skillKey: "commonWhirl", slot: 0, at: state.skills.clock, pos: { ...state.player.body.pos }, hitIds: new Set() };
     fireCard(state, BOONS_CYCLE.newMoon, eventOf(state, "onDashEnd"));
     expect(state.skills.echoes.length, "写しを積む").toBe(1);
     expect(state.skills.echoes[0]?.params.manaPaid, "気力を払わない").toBe(0);
@@ -127,7 +127,7 @@ describe("輪廻の札の効果", () => {
   });
 
   it("満ち潮: 奥義で全スロットの再使用時間が戻り、気力が満タン", () => {
-    const state = withStone("whirl");
+    const state = withStone("commonWhirl");
     const slot = state.skills.slots[0];
     if (!slot) throw new Error("スロットが無い");
     slot.cooldownTotal = COOLDOWN;
@@ -204,7 +204,7 @@ describe("輪廻の札の効果", () => {
 describe("輪廻の決定性", () => {
   it("同じ seed で同じ札を同じ順に流すと同じ結果", () => {
     const run = (): { mana: number; tallies: Record<string, number>; rng: number } => {
-      const state = withStone("whirl", 9);
+      const state = withStone("commonWhirl", 9);
       const e = placeEnemy(state, "slime", 20);
       state.player.mana = 0;
       for (const key of BOON_KEYS_CYCLE) {

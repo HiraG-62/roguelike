@@ -820,11 +820,10 @@ interface PlacedZone {
   status: StatusKind;
 }
 
-/** 状態異常を持つ自分の設置物（雷撃 = 感電・引力球 = 沈黙・氷結地帯 = 冷気）の範囲 */
+/** 状態異常を持つ自分の設置物（引力球 = 沈黙・氷結地帯 = 冷気）の範囲 */
 function placedZones(state: GameState): PlacedZone[] {
   const rs = state.skills;
   return [
-    ...rs.strikes.map((s) => ({ pos: s.pos, radius: SKILL.thunder.radius * s.params.areaMul, status: "shock" as const })),
     ...rs.wells.map((w) => ({ pos: w.pos, radius: SKILL.gravityWell.radius * w.params.areaMul, status: "silence" as const })),
     ...rs.fields.map((f) => ({ pos: f.pos, radius: SKILL.frostField.radius * f.params.areaMul, status: "chill" as const })),
   ];

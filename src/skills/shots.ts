@@ -3,7 +3,6 @@ import { GOOD_STATUS_KINDS, NEUTRAL_STATUS_KINDS, type StatusApply, type StatusK
 import { type Vec, add, dist, normalize, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { healPlayer } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
 import { overlapsWall } from "../system/physics";
 import { enemiesInRadius, findStatus, removeStatus } from "../system/statusEffects";
@@ -12,8 +11,7 @@ import { skillHit, skillPower } from "./hit";
 import type { CastParams, ShotEffect, SkillShot } from "./types";
 
 /**
- * 大拡張の射撃弾（綻び・毒の収穫・追い討ち・剥奪・跳弾・風切り・散弾符・五彩の礫・砲台）。
- * 回転弾幕の弾（placed.ts の SkillBullet）とは別に持ち、命中の効果を ShotEffect で分ける。
+ * スキルの射撃弾（綻び・毒の収穫・追い討ち・剥奪・砲台・技の弾）。命中の効果を ShotEffect で分ける。
  */
 
 export const SHOT_COLOR: Record<ShotEffect, string> = {
@@ -23,9 +21,6 @@ export const SHOT_COLOR: Record<ShotEffect, string> = {
   rout: "#c0c0c0",
   strip: "#a0a0ff",
   ricochet: "#ffe080",
-  gale: "#c0ffe0",
-  scatter: "#ffc080",
-  prism: "#ffffff",
   turret: "#80c0ff",
 };
 
@@ -36,8 +31,6 @@ const HIT_PARTICLE_LIFE = 0.2;
 const HIT_PARTICLE_SIZE = 1.5;
 const TEXT_SCALE = 0.9;
 const TEXT_LIFE = 0.5;
-/** 風切り・手繰り糸のように「全員に当たる」弾の貫通数 */
-export const PIERCE_ALL = 999;
 
 export interface ShotSpec {
   effect: ShotEffect;
@@ -50,8 +43,6 @@ export interface ShotSpec {
   pierce?: number;
   bounces?: number;
   applies?: readonly StatusApply[] | null;
-  heal?: number;
-  volley?: Map<number, number>;
 }
 
 /** 弾を 1 発出す。貫通は刻印符の貫通（params.pierce）と spec の和 */
@@ -70,10 +61,7 @@ export function spawnShot(state: GameState, from: Vec, dir: Vec, params: CastPar
     hitIds: new Set(),
     pierceLeft: params.pierce + (spec.pierce ?? 0),
     bouncesLeft: spec.bounces ?? 0,
-    bounced: 0,
     applies: spec.applies,
-    heal: spec.heal ?? 0,
-    volley: spec.volley,
   };
   state.skills.shots.push(shot);
   return shot;
@@ -94,13 +82,12 @@ export function updateShots(state: GameState, dt: number): void {
   for (const s of rs.shots) {
     stepShot(state, s, dt);
     if (s.life <= 0) continue;
-    if (s.effect === "gale") cutBullets(state, s);
     hitEnemies(state, s);
   }
   rs.shots = rs.shots.filter((s) => s.life > 0);
 }
 
-/** 移動と壁。跳弾は当たった軸の速度を反転して跳ね返る */
+/** 移動と壁。跳ね返りの残りがある弾は当たった軸の速度を反転して跳ね返る */
 function stepShot(state: GameState, s: SkillShot, dt: number): void {
   s.life -= dt;
   const next = add(s.pos, scale(s.vel, dt));
@@ -116,21 +103,7 @@ function stepShot(state: GameState, s: SkillShot, dt: number): void {
   const blockedY = overlapsWall(state, s.pos.x, next.y, WALL_PAD);
   s.vel = { x: blockedX || !blockedY ? -s.vel.x : s.vel.x, y: blockedY || !blockedX ? -s.vel.y : s.vel.y };
   s.bouncesLeft -= 1;
-  s.bounced += 1;
   pushSfx(state, "wallHit");
-}
-
-/** 風切り: 触れた敵弾を消し、消すたびに射程が伸びる */
-function cutBullets(state: GameState, s: SkillShot): void {
-  const g = SKILL.galeSlash;
-  const speed = Math.hypot(s.vel.x, s.vel.y);
-  for (const pr of state.projectiles) {
-    if (pr.owner !== "enemy" || pr.life <= 0) continue;
-    if (dist(pr.pos, s.pos) > pr.radius + s.radius) continue;
-    pr.life = 0;
-    s.life += speed > 0 ? g.rangePerCut / speed : 0;
-    spawnBurst(state, pr.pos, s.color, HIT_PARTICLES, HIT_PARTICLE_SPEED, HIT_PARTICLE_LIFE, HIT_PARTICLE_SIZE);
-  }
 }
 
 function hitEnemies(state: GameState, s: SkillShot): void {
@@ -162,18 +135,8 @@ function hitShot(state: GameState, s: SkillShot, e: Enemy): void {
     case "strip":
       stripHit(state, s, e);
       return;
-    case "ricochet":
-      basicHit(state, s, e, s.power * (1 + SKILL.ricochet.bounceBonus * s.bounced));
-      return;
-    case "scatter":
-      scatterHit(state, s, e);
-      return;
-    case "prism":
-      basicHit(state, s, e, s.power);
-      if (s.heal > 0) healPlayer(state, s.heal, { silent: true });
-      return;
     case "plain":
-    case "gale":
+    case "ricochet":
     case "turret":
       basicHit(state, s, e, s.power);
       return;
@@ -181,9 +144,8 @@ function hitShot(state: GameState, s: SkillShot, e: Enemy): void {
 }
 
 function basicHit(state: GameState, s: SkillShot, e: Enemy, power: number, poise?: number): boolean {
-  const kind = s.effect === "gale" ? "melee" : "ranged";
   // 砲台の弾は連動体の一撃（鈴の戦意・流儀の気力の源 minionHit）
-  return skillHit(state, e, s.params, { base: power, kind, dir: s.vel, knockback: s.knockback, stagger: false, poise, applies: s.applies, from: s.pos, minion: s.effect === "turret" });
+  return skillHit(state, e, s.params, { base: power, kind: "ranged", dir: s.vel, knockback: s.knockback, stagger: false, poise, applies: s.applies, from: s.pos, minion: s.effect === "turret" });
 }
 
 /** 状態異常の種類（良い状態・怯み・堅守を除く） */
@@ -253,14 +215,4 @@ function stripHit(state: GameState, s: SkillShot, e: Enemy): void {
   const buff = state.player.buffs.damage;
   state.player.buffs.damage = { time: Math.max(buff.time, time), mul: Math.max(buff.time > 0 ? buff.mul : 1, st.buffMul) };
   addFloatingText(state, state.player.body.pos, "剥奪", s.color, TEXT_SCALE, TEXT_LIFE);
-}
-
-/** 散弾符: 同じ斉射で 1 体に focusHits 発目が当たった瞬間、怯み値を上乗せ */
-function scatterHit(state: GameState, s: SkillShot, e: Enemy): void {
-  const sc = SKILL.scatterSigil;
-  const volley = s.volley;
-  const count = (volley?.get(e.id) ?? 0) + 1;
-  volley?.set(e.id, count);
-  const focus = count === sc.focusHits;
-  basicHit(state, s, e, s.power, focus ? sc.poise * sc.focusPoiseMul : undefined);
 }

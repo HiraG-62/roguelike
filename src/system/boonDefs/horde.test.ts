@@ -34,7 +34,7 @@ function cleanArena(seed = 5): GameState {
   for (const r of state.rooms) r.locked = false;
   state.events = [];
   state.pendingEvents = [];
-  const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "whirl" }), variants: [], links: 0 };
+  const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "commonWhirl" }), variants: [], links: 0 };
   state.skills = createSkillRunState({ version: 1, loadout: [stone.id, null, null, null], stones: [stone] });
   updateSkills(state, withInput({}), 0);
   return state;

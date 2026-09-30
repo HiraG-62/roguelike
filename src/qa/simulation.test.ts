@@ -224,16 +224,15 @@ function buildProfile(kind: ProfileKind, seed: number, startDepth = 1): Profile 
 // ---------------------------------------------------------------------------
 
 /**
- * マナ型・近接（旋風斬り）/ マナ型・遠隔+状態異常付与（撃ち抜き）/ CD 型・近接（突進斬り）/
- * マナ型・遠隔範囲（グレネード）の 4 種で、資源タイプ（マナ / CD）と間合い（近接 / 遠隔）を
- * 両方カバーする。variants は空・links は 1 に固定し、刻印符・変異の乱数要素を増やさない
+ * 近接（旋風斬り）/ 遠隔の帯（撃ち抜き）/ 踏み込み（突進斬り）/ 照準地点の範囲（炸裂玉）の 4 種の技で、
+ * 間合い（近接 / 遠隔）と照準（自分 / 照準地点）を両方カバーする（段取り 7c で手書きの 4 種を技へ写した）。variants は空・links は 1 に固定し、刻印符・変異の乱数要素を増やさない
  * （bot の決定性・再現性を保つため。src/skills/persistence.ts の STARTER_STONES と同じ作り方）
  */
 const QA_SKILL_LOADOUT: readonly { seed: number; skillKey: SkillStone["skillKey"] }[] = [
-  { seed: 9001, skillKey: "whirl" },
-  { seed: 9002, skillKey: "railshot" },
-  { seed: 9003, skillKey: "lunge" },
-  { seed: 9004, skillKey: "frag" },
+  { seed: 9001, skillKey: "commonWhirl" },
+  { seed: 9002, skillKey: "commonRailshot" },
+  { seed: 9003, skillKey: "commonLunge" },
+  { seed: 9004, skillKey: "commonBomb" },
 ];
 
 function buildQaSkillProfile(): SkillProfile {

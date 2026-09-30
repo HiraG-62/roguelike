@@ -27,8 +27,8 @@ export const SKILL_PROFILE_KEY = "roguelike.skills.v1";
 const CURRENT_VERSION = 1;
 /** 初期所持の石。seed 固定で毎回同じ中身 */
 const STARTER_STONES: readonly { seed: number; skillKey: SkillKey }[] = [
-  { seed: 101, skillKey: "whirl" },
-  { seed: 202, skillKey: "frag" },
+  { seed: 101, skillKey: "commonWhirl" },
+  { seed: 202, skillKey: "commonBomb" },
 ];
 const MIN_VARIANT = -1;
 const MAX_VARIANT = 1;
@@ -129,7 +129,7 @@ function sanitizeLoadout(v: unknown, stones: readonly SkillStone[]): (string | n
   return out;
 }
 
-/** 初回用: 旋風斬りとグレネードをスロット 1 / 2 に装着済み、残りは空 */
+/** 初回用: 旋風斬りと炸裂玉をスロット 1 / 2 に装着済み、残りは空 */
 export function createDefaultSkillProfile(): SkillProfile {
   const stones = STARTER_STONES.map(({ seed, skillKey }) => ({
     ...stoneFromSeed(seed, { foundDepth: 0, now: 0, skillKey }),

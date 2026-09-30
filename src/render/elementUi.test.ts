@@ -15,7 +15,7 @@ describe("攻撃ジャンル・属性の表示（A-8）", () => {
   });
 
   it("スキルは与ダメを持つものだけ素性を出す", () => {
-    expect(skillAttackLine("thunder")).toBe("範囲・魔法 / 雷属性");
+    expect(skillAttackLine("commonThunderclap")).toBe("範囲・魔法 / 雷属性");
     expect(skillAttackLine("haste")).toBeNull();
   });
 

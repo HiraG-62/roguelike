@@ -127,7 +127,7 @@ export function updateLinkHint(state: LinkHintSource & Pick<GameState, "tick" | 
 }
 
 /**
- * 手がかりの文面。反応は「油膜 + 燃焼 → ？」「燃焼 + ？」、スキルの連携は撃つ順があるので「油流し → 焼き払い = ？」。
+ * 手がかりの文面。反応は「油膜 + 燃焼 → ？」「燃焼 + ？」、スキルの連携は撃つ順があるので「油流し → 炎の壁 = ？」。
  * 材料が引けなければ空文字
  */
 export function linkHintText(hint: Pick<LinkHint, "id" | "shown">): string {

@@ -793,19 +793,12 @@ import j_loot_INNATE_resistLines from "./loot/INNATE/resistLines.json";
 import j_loot_INNATE_slotLean from "./loot/INNATE/slotLean.json";
 import j_skills__index from "./skills/_index.json";
 import j_skills_SKILL__index from "./skills/SKILL/_index.json";
-import j_skills_SKILL_whirl from "./skills/SKILL/whirl.json";
-import j_skills_SKILL_lunge from "./skills/SKILL/lunge.json";
-import j_skills_SKILL_frag from "./skills/SKILL/frag.json";
-import j_skills_SKILL_railshot from "./skills/SKILL/railshot.json";
 import j_skills_SKILL_parry from "./skills/SKILL/parry.json";
 import j_skills_SKILL_bloodPact from "./skills/SKILL/bloodPact.json";
-import j_skills_SKILL_quake from "./skills/SKILL/quake.json";
-import j_skills_SKILL_thunder from "./skills/SKILL/thunder.json";
 import j_skills_SKILL_gravityWell from "./skills/SKILL/gravityWell.json";
 import j_skills_SKILL_mines from "./skills/SKILL/mines.json";
 import j_skills_SKILL_haste from "./skills/SKILL/haste.json";
 import j_skills_SKILL_chainHook from "./skills/SKILL/chainHook.json";
-import j_skills_SKILL_spiral from "./skills/SKILL/spiral.json";
 import j_skills_SKILL_frostField from "./skills/SKILL/frostField.json";
 import j_skills_SKILL_modifier from "./skills/SKILL/modifier.json";
 import j_skills_SKILL_drop from "./skills/SKILL/drop.json";
@@ -813,10 +806,6 @@ import j_skills_EXTRA_SKILL_TUNING__index from "./skills/EXTRA_SKILL_TUNING/_ind
 import j_skills_EXTRA_SKILL_TUNING_contagion from "./skills/EXTRA_SKILL_TUNING/contagion.json";
 import j_skills_EXTRA_SKILL_TUNING_unravel from "./skills/EXTRA_SKILL_TUNING/unravel.json";
 import j_skills_EXTRA_SKILL_TUNING_kindle from "./skills/EXTRA_SKILL_TUNING/kindle.json";
-import j_skills_EXTRA_SKILL_TUNING_prismShard from "./skills/EXTRA_SKILL_TUNING/prismShard.json";
-import j_skills_EXTRA_SKILL_TUNING_fullMoon from "./skills/EXTRA_SKILL_TUNING/fullMoon.json";
-import j_skills_EXTRA_SKILL_TUNING_dregsBlade from "./skills/EXTRA_SKILL_TUNING/dregsBlade.json";
-import j_skills_EXTRA_SKILL_TUNING_shadowStep from "./skills/EXTRA_SKILL_TUNING/shadowStep.json";
 import j_skills_EXTRA_SKILL_TUNING_powderKeg from "./skills/EXTRA_SKILL_TUNING/powderKeg.json";
 import j_skills_EXTRA_SKILL_TUNING_swordGrave from "./skills/EXTRA_SKILL_TUNING/swordGrave.json";
 import j_skills_EXTRA_SKILL_TUNING_iceBreaker from "./skills/EXTRA_SKILL_TUNING/iceBreaker.json";
@@ -830,15 +819,6 @@ import j_skills_EXTRA_SKILL_TUNING_strip from "./skills/EXTRA_SKILL_TUNING/strip
 import j_skills_EXTRA_SKILL_TUNING_lastStand from "./skills/EXTRA_SKILL_TUNING/lastStand.json";
 import j_skills_EXTRA_SKILL_TUNING_comboChain from "./skills/EXTRA_SKILL_TUNING/comboChain.json";
 import j_skills_EXTRA_SKILL_TUNING_grudge from "./skills/EXTRA_SKILL_TUNING/grudge.json";
-import j_skills_EXTRA_SKILL_TUNING_guillotine from "./skills/EXTRA_SKILL_TUNING/guillotine.json";
-import j_skills_EXTRA_SKILL_TUNING_ricochet from "./skills/EXTRA_SKILL_TUNING/ricochet.json";
-import j_skills_EXTRA_SKILL_TUNING_galeSlash from "./skills/EXTRA_SKILL_TUNING/galeSlash.json";
-import j_skills_EXTRA_SKILL_TUNING_scatterSigil from "./skills/EXTRA_SKILL_TUNING/scatterSigil.json";
-import j_skills_EXTRA_SKILL_TUNING_stomp from "./skills/EXTRA_SKILL_TUNING/stomp.json";
-import j_skills_EXTRA_SKILL_TUNING_threadReel from "./skills/EXTRA_SKILL_TUNING/threadReel.json";
-import j_skills_EXTRA_SKILL_TUNING_meteorDive from "./skills/EXTRA_SKILL_TUNING/meteorDive.json";
-import j_skills_EXTRA_SKILL_TUNING_swallowFlip from "./skills/EXTRA_SKILL_TUNING/swallowFlip.json";
-import j_skills_EXTRA_SKILL_TUNING_boneRing from "./skills/EXTRA_SKILL_TUNING/boneRing.json";
 import j_skills_EXTRA_SKILL_TUNING_backflow from "./skills/EXTRA_SKILL_TUNING/backflow.json";
 import j_skills_EXTRA_SKILL_TUNING_scarRoar from "./skills/EXTRA_SKILL_TUNING/scarRoar.json";
 import j_skills_EXTRA_SKILL_TUNING_manaSpring from "./skills/EXTRA_SKILL_TUNING/manaSpring.json";
@@ -848,26 +828,15 @@ import j_skills_COMBO_TUNING from "./skills/COMBO_TUNING.json";
 import j_skills_WAVE2_SKILL_TUNING__index from "./skills/WAVE2_SKILL_TUNING/_index.json";
 import j_skills_WAVE2_SKILL_TUNING_waterJar from "./skills/WAVE2_SKILL_TUNING/waterJar.json";
 import j_skills_WAVE2_SKILL_TUNING_oilPot from "./skills/WAVE2_SKILL_TUNING/oilPot.json";
-import j_skills_WAVE2_SKILL_TUNING_scorchLine from "./skills/WAVE2_SKILL_TUNING/scorchLine.json";
-import j_skills_WAVE2_SKILL_TUNING_iceSlide from "./skills/WAVE2_SKILL_TUNING/iceSlide.json";
 import j_skills_WAVE2_SKILL_TUNING_levelGround from "./skills/WAVE2_SKILL_TUNING/levelGround.json";
 import j_skills_WAVE2_SKILL_TUNING_emberDraw from "./skills/WAVE2_SKILL_TUNING/emberDraw.json";
-import j_skills_WAVE2_SKILL_TUNING_bogCall from "./skills/WAVE2_SKILL_TUNING/bogCall.json";
 import j_skills_WAVE2_SKILL_TUNING_brandSear from "./skills/WAVE2_SKILL_TUNING/brandSear.json";
 import j_skills_WAVE2_SKILL_TUNING_brandBlast from "./skills/WAVE2_SKILL_TUNING/brandBlast.json";
-import j_skills_WAVE2_SKILL_TUNING_breakKick from "./skills/WAVE2_SKILL_TUNING/breakKick.json";
-import j_skills_WAVE2_SKILL_TUNING_collapseHammer from "./skills/WAVE2_SKILL_TUNING/collapseHammer.json";
-import j_skills_WAVE2_SKILL_TUNING_tideSlash from "./skills/WAVE2_SKILL_TUNING/tideSlash.json";
 import j_skills_WAVE2_SKILL_TUNING_flashFreeze from "./skills/WAVE2_SKILL_TUNING/flashFreeze.json";
 import j_skills_WAVE2_SKILL_TUNING_hueEtch from "./skills/WAVE2_SKILL_TUNING/hueEtch.json";
 import j_skills_WAVE2_SKILL_TUNING_hueRelease from "./skills/WAVE2_SKILL_TUNING/hueRelease.json";
-import j_skills_WAVE2_SKILL_TUNING_siphonMark from "./skills/WAVE2_SKILL_TUNING/siphonMark.json";
 import j_skills_WAVE2_SKILL_TUNING_doomSentence from "./skills/WAVE2_SKILL_TUNING/doomSentence.json";
 import j_skills_WAVE2_SKILL_TUNING_shiftingEdge from "./skills/WAVE2_SKILL_TUNING/shiftingEdge.json";
-import j_skills_WAVE2_SKILL_TUNING_weaponArt from "./skills/WAVE2_SKILL_TUNING/weaponArt.json";
-import j_skills_WAVE2_SKILL_TUNING_titanForm from "./skills/WAVE2_SKILL_TUNING/titanForm.json";
-import j_skills_WAVE2_SKILL_TUNING_swiftForm from "./skills/WAVE2_SKILL_TUNING/swiftForm.json";
-import j_skills_WAVE2_SKILL_TUNING_spiritForm from "./skills/WAVE2_SKILL_TUNING/spiritForm.json";
 import j_skills_WAVE2_SKILL_TUNING_wardStake from "./skills/WAVE2_SKILL_TUNING/wardStake.json";
 import j_skills_WAVE2_SKILL_TUNING_mire from "./skills/WAVE2_SKILL_TUNING/mire.json";
 import j_skills_WAVE2_MODIFIER_TUNING from "./skills/WAVE2_MODIFIER_TUNING.json";
@@ -1952,19 +1921,14 @@ export const skills = {
     "notReadyTextInterval": j_skills_SKILL__index["notReadyTextInterval"],
     "stashCapacity": j_skills_SKILL__index["stashCapacity"],
     "defaultCastRange": j_skills_SKILL__index["defaultCastRange"],
-    "whirl": j_skills_SKILL_whirl,
-    "lunge": j_skills_SKILL_lunge,
-    "frag": j_skills_SKILL_frag,
-    "railshot": j_skills_SKILL_railshot,
+    "castWallProbe": j_skills_SKILL__index["castWallProbe"],
+    "fullManaEpsilon": j_skills_SKILL__index["fullManaEpsilon"],
     "parry": j_skills_SKILL_parry,
     "bloodPact": j_skills_SKILL_bloodPact,
-    "quake": j_skills_SKILL_quake,
-    "thunder": j_skills_SKILL_thunder,
     "gravityWell": j_skills_SKILL_gravityWell,
     "mines": j_skills_SKILL_mines,
     "haste": j_skills_SKILL_haste,
     "chainHook": j_skills_SKILL_chainHook,
-    "spiral": j_skills_SKILL_spiral,
     "frostField": j_skills_SKILL_frostField,
     "modifier": j_skills_SKILL_modifier,
     "drop": j_skills_SKILL_drop,
@@ -1975,10 +1939,6 @@ export const skills = {
     "contagion": j_skills_EXTRA_SKILL_TUNING_contagion,
     "unravel": j_skills_EXTRA_SKILL_TUNING_unravel,
     "kindle": j_skills_EXTRA_SKILL_TUNING_kindle,
-    "prismShard": j_skills_EXTRA_SKILL_TUNING_prismShard,
-    "fullMoon": j_skills_EXTRA_SKILL_TUNING_fullMoon,
-    "dregsBlade": j_skills_EXTRA_SKILL_TUNING_dregsBlade,
-    "shadowStep": j_skills_EXTRA_SKILL_TUNING_shadowStep,
     "powderKeg": j_skills_EXTRA_SKILL_TUNING_powderKeg,
     "swordGrave": j_skills_EXTRA_SKILL_TUNING_swordGrave,
     "iceBreaker": j_skills_EXTRA_SKILL_TUNING_iceBreaker,
@@ -1992,15 +1952,6 @@ export const skills = {
     "lastStand": j_skills_EXTRA_SKILL_TUNING_lastStand,
     "comboChain": j_skills_EXTRA_SKILL_TUNING_comboChain,
     "grudge": j_skills_EXTRA_SKILL_TUNING_grudge,
-    "guillotine": j_skills_EXTRA_SKILL_TUNING_guillotine,
-    "ricochet": j_skills_EXTRA_SKILL_TUNING_ricochet,
-    "galeSlash": j_skills_EXTRA_SKILL_TUNING_galeSlash,
-    "scatterSigil": j_skills_EXTRA_SKILL_TUNING_scatterSigil,
-    "stomp": j_skills_EXTRA_SKILL_TUNING_stomp,
-    "threadReel": j_skills_EXTRA_SKILL_TUNING_threadReel,
-    "meteorDive": j_skills_EXTRA_SKILL_TUNING_meteorDive,
-    "swallowFlip": j_skills_EXTRA_SKILL_TUNING_swallowFlip,
-    "boneRing": j_skills_EXTRA_SKILL_TUNING_boneRing,
     "backflow": j_skills_EXTRA_SKILL_TUNING_backflow,
     "scarRoar": j_skills_EXTRA_SKILL_TUNING_scarRoar,
     "manaSpring": j_skills_EXTRA_SKILL_TUNING_manaSpring,
@@ -2012,26 +1963,15 @@ export const skills = {
     "_note": j_skills_WAVE2_SKILL_TUNING__index["_note"],
     "waterJar": j_skills_WAVE2_SKILL_TUNING_waterJar,
     "oilPot": j_skills_WAVE2_SKILL_TUNING_oilPot,
-    "scorchLine": j_skills_WAVE2_SKILL_TUNING_scorchLine,
-    "iceSlide": j_skills_WAVE2_SKILL_TUNING_iceSlide,
     "levelGround": j_skills_WAVE2_SKILL_TUNING_levelGround,
     "emberDraw": j_skills_WAVE2_SKILL_TUNING_emberDraw,
-    "bogCall": j_skills_WAVE2_SKILL_TUNING_bogCall,
     "brandSear": j_skills_WAVE2_SKILL_TUNING_brandSear,
     "brandBlast": j_skills_WAVE2_SKILL_TUNING_brandBlast,
-    "breakKick": j_skills_WAVE2_SKILL_TUNING_breakKick,
-    "collapseHammer": j_skills_WAVE2_SKILL_TUNING_collapseHammer,
-    "tideSlash": j_skills_WAVE2_SKILL_TUNING_tideSlash,
     "flashFreeze": j_skills_WAVE2_SKILL_TUNING_flashFreeze,
     "hueEtch": j_skills_WAVE2_SKILL_TUNING_hueEtch,
     "hueRelease": j_skills_WAVE2_SKILL_TUNING_hueRelease,
-    "siphonMark": j_skills_WAVE2_SKILL_TUNING_siphonMark,
     "doomSentence": j_skills_WAVE2_SKILL_TUNING_doomSentence,
     "shiftingEdge": j_skills_WAVE2_SKILL_TUNING_shiftingEdge,
-    "weaponArt": j_skills_WAVE2_SKILL_TUNING_weaponArt,
-    "titanForm": j_skills_WAVE2_SKILL_TUNING_titanForm,
-    "swiftForm": j_skills_WAVE2_SKILL_TUNING_swiftForm,
-    "spiritForm": j_skills_WAVE2_SKILL_TUNING_spiritForm,
     "wardStake": j_skills_WAVE2_SKILL_TUNING_wardStake,
     "mire": j_skills_WAVE2_SKILL_TUNING_mire,
   },
@@ -3200,34 +3140,21 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "skills/EXTRA_SKILL_TUNING/_index.json",
   "skills/EXTRA_SKILL_TUNING/backflow.json",
   "skills/EXTRA_SKILL_TUNING/bloodlet.json",
-  "skills/EXTRA_SKILL_TUNING/boneRing.json",
   "skills/EXTRA_SKILL_TUNING/comboChain.json",
   "skills/EXTRA_SKILL_TUNING/contagion.json",
   "skills/EXTRA_SKILL_TUNING/discharge.json",
-  "skills/EXTRA_SKILL_TUNING/dregsBlade.json",
   "skills/EXTRA_SKILL_TUNING/exploit.json",
-  "skills/EXTRA_SKILL_TUNING/fullMoon.json",
-  "skills/EXTRA_SKILL_TUNING/galeSlash.json",
   "skills/EXTRA_SKILL_TUNING/grudge.json",
-  "skills/EXTRA_SKILL_TUNING/guillotine.json",
   "skills/EXTRA_SKILL_TUNING/harvest.json",
   "skills/EXTRA_SKILL_TUNING/iceBreaker.json",
   "skills/EXTRA_SKILL_TUNING/kindle.json",
   "skills/EXTRA_SKILL_TUNING/lastStand.json",
   "skills/EXTRA_SKILL_TUNING/manaSpring.json",
-  "skills/EXTRA_SKILL_TUNING/meteorDive.json",
   "skills/EXTRA_SKILL_TUNING/powderKeg.json",
-  "skills/EXTRA_SKILL_TUNING/prismShard.json",
-  "skills/EXTRA_SKILL_TUNING/ricochet.json",
   "skills/EXTRA_SKILL_TUNING/rout.json",
   "skills/EXTRA_SKILL_TUNING/scarRoar.json",
-  "skills/EXTRA_SKILL_TUNING/scatterSigil.json",
-  "skills/EXTRA_SKILL_TUNING/shadowStep.json",
-  "skills/EXTRA_SKILL_TUNING/stomp.json",
   "skills/EXTRA_SKILL_TUNING/strip.json",
-  "skills/EXTRA_SKILL_TUNING/swallowFlip.json",
   "skills/EXTRA_SKILL_TUNING/swordGrave.json",
-  "skills/EXTRA_SKILL_TUNING/threadReel.json",
   "skills/EXTRA_SKILL_TUNING/turret.json",
   "skills/EXTRA_SKILL_TUNING/unravel.json",
   "skills/EXTRA_SKILL_TUNING/verdict.json",
@@ -3237,46 +3164,28 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "skills/SKILL/bloodPact.json",
   "skills/SKILL/chainHook.json",
   "skills/SKILL/drop.json",
-  "skills/SKILL/frag.json",
   "skills/SKILL/frostField.json",
   "skills/SKILL/gravityWell.json",
   "skills/SKILL/haste.json",
-  "skills/SKILL/lunge.json",
   "skills/SKILL/mines.json",
   "skills/SKILL/modifier.json",
   "skills/SKILL/parry.json",
-  "skills/SKILL/quake.json",
-  "skills/SKILL/railshot.json",
-  "skills/SKILL/spiral.json",
-  "skills/SKILL/thunder.json",
-  "skills/SKILL/whirl.json",
   "skills/WAVE2_COMBO_TUNING.json",
   "skills/WAVE2_MODIFIER_TUNING.json",
   "skills/WAVE2_SKILL_TUNING/_index.json",
-  "skills/WAVE2_SKILL_TUNING/bogCall.json",
   "skills/WAVE2_SKILL_TUNING/brandBlast.json",
   "skills/WAVE2_SKILL_TUNING/brandSear.json",
-  "skills/WAVE2_SKILL_TUNING/breakKick.json",
-  "skills/WAVE2_SKILL_TUNING/collapseHammer.json",
   "skills/WAVE2_SKILL_TUNING/doomSentence.json",
   "skills/WAVE2_SKILL_TUNING/emberDraw.json",
   "skills/WAVE2_SKILL_TUNING/flashFreeze.json",
   "skills/WAVE2_SKILL_TUNING/hueEtch.json",
   "skills/WAVE2_SKILL_TUNING/hueRelease.json",
-  "skills/WAVE2_SKILL_TUNING/iceSlide.json",
   "skills/WAVE2_SKILL_TUNING/levelGround.json",
   "skills/WAVE2_SKILL_TUNING/mire.json",
   "skills/WAVE2_SKILL_TUNING/oilPot.json",
-  "skills/WAVE2_SKILL_TUNING/scorchLine.json",
   "skills/WAVE2_SKILL_TUNING/shiftingEdge.json",
-  "skills/WAVE2_SKILL_TUNING/siphonMark.json",
-  "skills/WAVE2_SKILL_TUNING/spiritForm.json",
-  "skills/WAVE2_SKILL_TUNING/swiftForm.json",
-  "skills/WAVE2_SKILL_TUNING/tideSlash.json",
-  "skills/WAVE2_SKILL_TUNING/titanForm.json",
   "skills/WAVE2_SKILL_TUNING/wardStake.json",
   "skills/WAVE2_SKILL_TUNING/waterJar.json",
-  "skills/WAVE2_SKILL_TUNING/weaponArt.json",
   "skills/WAVE3_SKILL_TUNING.json",
   "skills/WEAR_TUNING.json",
   "skills/_index.json",

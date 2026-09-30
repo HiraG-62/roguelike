@@ -1967,7 +1967,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "placedInfuse",
     color: "jade",
-    label: "置き土産: 自分の設置物（雷撃・引力球・氷結地帯）の範囲内では、近接命中でその状態異常を {v} 秒付ける、最大生命 -{v2}",
+    label: "置き土産: 自分の設置物（引力球・氷結地帯）の範囲内では、近接命中でその状態異常を {v} 秒付ける、最大生命 -{v2}",
     tags: ["status", "melee", "tradeoff"],
     slots: ["mainHand", "ring"],
     curve: curveFor("placedInfuse"),

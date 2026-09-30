@@ -1,7 +1,7 @@
 import type { FrameInput } from "../core/input";
 import { castSfxName } from "../audio/sfxNames";
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
-import { type Vec, add, dist, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { BOON_LINEAGE, ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
@@ -10,23 +10,14 @@ import { rectCenterPx } from "../map/grid";
 import {
   EXTRA_CAST,
   EXTRA_CAST_RANGE,
-  extraActiveMoveMul,
   extraCastBlock,
-  landingShock,
   updateExtraActive,
 } from "../skills/actions";
-import {
-  WAVE2_CAST,
-  WAVE2_CAST_RANGE,
-  formRecoverMoveMul,
-  updateForm,
-  updateStakes,
-  updateWave2Active,
-  wave2CastBlock,
-} from "../skills/actions2";
+import { WAVE2_CAST, WAVE2_CAST_RANGE, updateStakes, wave2CastBlock } from "../skills/actions2";
 import { type ComboDef, findCombo } from "../skills/combos";
 import {
   castShape,
+  formRecoverMoveMul,
   inAnyForm,
   isFormSkill,
   isShapeKey,
@@ -55,29 +46,15 @@ import {
   wearBudCount,
 } from "../skills/data";
 import { type RuneDropSource, rollRuneDrop, rollRuneModifier } from "../skills/generator";
-import { refundMana, skillHit, skillPower, tickCurses } from "../skills/hit";
+import { skillHit, skillPower, tickCurses } from "../skills/hit";
 import { saveSkillProfile, stoneInSlot } from "../skills/persistence";
-import {
-  fieldRadius,
-  placeMine,
-  placeStrikes,
-  playerInFrost,
-  spawnBullet,
-  spawnField,
-  spawnWell,
-  updatePlacedSkills,
-  wellRadius,
-  wellThunderTarget,
-} from "../skills/placed";
+import { placeMine, playerInFrost, spawnField, spawnWell, updatePlacedSkills } from "../skills/placed";
 import { updateShots } from "../skills/shots";
-import { COMBO_TUNING } from "../skills/tuning";
-import { WAVE2_COMBO_TUNING } from "../skills/tuning2";
 import { noteWearCast } from "../skills/wear";
 import {
   onGraveFinisher,
   onSpringMeleeHit,
   onTurretShoot,
-  updateBoneRing,
   updateGraves,
   updateKegs,
   updateSprings,
@@ -89,7 +66,6 @@ import {
   type EchoCast,
   EXTRA_SKILL_KEYS,
   type ExtraSkillKey,
-  type Ghost,
   type ModifierKey,
   type SkillDef,
   type SkillKey,
@@ -107,13 +83,11 @@ import { favoredMovesets } from "../data/jobs";
 import { buffMul } from "./attributes";
 import { boonGrantedModifiers, boonManaCostMul, hasBoon, onBoonSkillCast } from "./boons";
 import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
-import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
-import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { COLOR_JUST, cancelAttack, damageEnemy, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
+import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
-import { blastMulAt } from "./blast";
-import { addPoise } from "./poise";
 import { enemiesInRadius, playerCanCast } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { pushPlayerEvent } from "../core/events";
@@ -134,31 +108,21 @@ import { consumeFreeCast, formSkillCooldownMul, freeCastCost, tickTomeBell } fro
 
 const COLOR_NOT_READY = "#808080";
 const COLOR_BLOOD = "#ff4040";
-const COLOR_WHIRL = "#ffffff";
-const COLOR_RAIL = "#ff6060";
-const COLOR_LUNGE = "#c0e0ff";
 const TEXT_SCALE = 0.9;
 const TEXT_LIFE = 0.4;
 const LABEL_SCALE = 1;
 const LABEL_LIFE = 1.4;
 const RING_LIFE = 0.15;
-const BEAM_LIFE = 0.2;
 const PARRY_TEXT_SCALE = 1.5;
 const PARRY_TEXT_LIFE = 0.7;
 /** パリィ成功直後、同じ攻撃の続きで被弾しないための無敵 */
 const PARRY_AFTER_INVULN = 0.2;
 const PARRY_MOVE_MUL = 0.5;
-const SHAKE_SKILL = 3;
 const AURA_EVERY_TICKS = 3;
 const AURA_SPEED = 30;
 const SLOT_COUNT = SKILL.slots;
-const COLOR_QUAKE = "#d0a060";
 const COLOR_HOOK = "#c0c0d0";
 const COLOR_HASTE = "#80ffff";
-const COLOR_BROKEN = "#ff8080";
-const QUAKE_ARC_POINTS = 7;
-const QUAKE_PARTICLES = 3;
-const QUAKE_PARTICLE_SPEED = 90;
 const HOOK_STEP = 2;
 const HOOK_LINE_LIFE = 0.12;
 const HASTE_TEXT = "加速";
@@ -166,15 +130,11 @@ const SPARK_COUNT = 4;
 const SPARK_SPEED = 50;
 const SPARK_LIFE = 0.2;
 const SPARK_SIZE = 1.5;
-const FULL_TURN = Math.PI * 2;
 const COLOR_COMBO = "#ffe070";
-const COLOR_BACKSTAB = "#8060c0";
 const COLOR_FOLLOW = "#ffe0a0";
 const COLOR_TRAP = "#c0a0ff";
-/** 照準地点を使うスキルの最大射程（無いものはグレネードと同じ） */
+/** 照準地点を使うスキルの最大射程（無いものは SKILL.defaultCastRange） */
 const CAST_RANGE: Partial<Record<SkillKey, number>> = {
-  frag: SKILL.frag.maxRange,
-  thunder: SKILL.thunder.maxRange,
   gravityWell: SKILL.gravityWell.maxRange,
   frostField: SKILL.frostField.maxRange,
   ...EXTRA_CAST_RANGE,
@@ -224,14 +184,10 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     active: null,
     pendingSlot: -1,
     pendingTimer: 0,
-    grenades: [],
     echoes: [],
-    ghosts: [],
-    strikes: [],
     wells: [],
     mines: [],
     fields: [],
-    bullets: [],
     runes: [],
     floorStones: [],
     frenzy: { time: 0, mul: 1 },
@@ -241,8 +197,6 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     curses: new Map(),
     parryTimer: 0,
     parryFailTimer: 0,
-    stunTimer: 0,
-    lungeComboTimer: 0,
     notReadyTimer: 0,
     enemyHp: new Map(),
     tracking: { depth: null, cleared: [] },
@@ -252,12 +206,10 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     kegs: [],
     graves: [],
     turrets: [],
-    boneRing: null,
     springs: [],
     lastCast: null,
     recentSlots: [],
     lastMeleeHitAt: null,
-    backstabTimer: 0,
     marks: new Map(),
     gasps: [],
     debts: [],
@@ -266,7 +218,6 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     historyTimer: 0,
     hurtLog: [],
     lastHp: null,
-    form: null,
     formRecover: 0,
     shape: null,
     formWait: 0,
@@ -316,7 +267,7 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const burden = castBurden(def, params);
   const dynamic = dynamicBurdenMul(state, slot, def, params);
   // 書の無詠唱は気力を 0 に、書を持つ間は再使用が短い（system/tomeBell.ts）
-  const cost = freeCastCost(state, manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic).cost));
+  const cost = freeCastCost(state, effectiveManaCost(state, burden.cost * dynamic).cost);
   return {
     stone,
     def,
@@ -360,13 +311,6 @@ function cachedCast(def: SkillDef, stone: SkillStone, slot: SkillSlotState, inde
   const params = resolveCast(def, stone, slot.modifiers, index);
   castCache.set(slot, { stone, powerBuds, variants: stone.variants, modifiers, params });
   return params;
-}
-
-/** 満月の砲は常に最大マナ全量、枯渇の刃は 0。装備画面の表示も実払いと揃えるためこれを通す */
-export function manaRuleCost(state: GameState, def: SkillDef, cost: number): number {
-  if (def.manaRule === "full") return state.stats.maxMana;
-  if (def.manaRule === "low") return 0;
-  return cost;
 }
 
 /**
@@ -424,19 +368,19 @@ export function effectiveManaCost(state: GameState, cost: number): { cost: numbe
 /** 近接・射撃を受け付けないか */
 export function skillLocksAttack(state: GameState): boolean {
   const rs = state.skills;
-  return rs.active !== null || rs.parryFailTimer > 0 || rs.stunTimer > 0;
+  return rs.active !== null || rs.parryFailTimer > 0;
 }
 
-/** ダッシュを受け付けないか（パリィ失敗・突進の壁激突・加速の反動） */
+/** ダッシュを受け付けないか（パリィ失敗・加速の反動） */
 export function skillLocksDash(state: GameState): boolean {
   const rs = state.skills;
-  return rs.parryFailTimer > 0 || rs.stunTimer > 0 || rs.exhaustTimer > 0;
+  return rs.parryFailTimer > 0 || rs.exhaustTimer > 0;
 }
 
 /** 入力移動に掛ける倍率 */
 export function skillMoveMul(state: GameState): number {
   const rs = state.skills;
-  if (rs.parryFailTimer > 0 || rs.stunTimer > 0) return 0;
+  if (rs.parryFailTimer > 0) return 0;
   const haste = rs.haste.time > 0 ? rs.haste.mul : 1;
   const frost = playerInFrost(state) ? SKILL.frostField.selfMoveMul : 1;
   return activeMoveMul(rs.active) * haste * frost * chargingMoveMul(state) * formRecoverMoveMul(state) * shapeMoveMul(state);
@@ -454,24 +398,10 @@ function chargingMoveMul(state: GameState): number {
   return mul;
 }
 
+/** 本動作中の移動倍率。パリィの構えは歩けるが遅く、鎖鎌・連環撃の間は止まる */
 function activeMoveMul(a: ActiveCast | null): number {
   if (!a) return 1;
-  switch (a.skillKey) {
-    case "whirl":
-      return a.phase === "main" ? SKILL.whirl.moveMul : 1;
-    case "spiral":
-      // 連携「疾風弾幕」（加速 → 回転弾幕）は遅くならない
-      return a.params.combo === "hasteSpiral" ? 1 : SKILL.spiral.moveMul;
-    case "lunge":
-    case "railshot":
-    case "quake":
-    case "chainHook":
-      return 0;
-    case "parry":
-      return PARRY_MOVE_MUL;
-    default:
-      return extraActiveMoveMul(a);
-  }
+  return a.skillKey === "parry" ? PARRY_MOVE_MUL : 0;
 }
 
 /** 血の契約: 攻撃速度と連射に掛ける倍率 */
@@ -480,17 +410,9 @@ export function frenzyMul(state: GameState): number {
   return f.time > 0 ? f.mul : 1;
 }
 
-/** 突進斬り直後の近接は 2 段目から。消費したら true */
-export function consumeLungeCombo(state: GameState): boolean {
-  const rs = state.skills;
-  if (rs.lungeComboTimer <= 0) return false;
-  rs.lungeComboTimer = 0;
-  return true;
-}
-
 /** バーストは常にスキルをキャンセルできる */
 export function cancelSkills(state: GameState): void {
-  cancelActive(state, false);
+  cancelActive(state);
   state.skills.pendingSlot = -1;
 }
 
@@ -525,14 +447,12 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   tickTimers(state, dt);
   for (let i = 0; i < SLOT_COUNT; i++) tickSlot(state, i, dt);
   updateDebts(state, dt);
-  // 変身の武器種は発動・近接より先に確かめる（装備を替えて stats が作り直されていても差し直す）
-  updateForm(state, dt);
-  // 左右クリックを差し替える変身（第 3 弾）。解けていたら共有の待ちを伸ばす（どう積んでも稼働率が上限を超えない）
+  // 左右クリックを差し替える変身は発動・近接より先に進める。解けていたら共有の待ちを伸ばす（どう積んでも稼働率が上限を超えない）
   updateShape(state, dt);
   settleFormEnd(state);
 
   // ダッシュは発動中のスキルをキャンセルする（CD は消費済み）
-  if (rs.active && state.player.dashTimer > 0) cancelActive(state, true);
+  if (rs.active && state.player.dashTimer > 0) cancelActive(state);
 
   // 同じステップに押した複数スロットは 1→4 の順で受け付ける（決定性のため順序を固定）
   const pressed = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
@@ -545,18 +465,15 @@ export function updateSkills(state: GameState, input: FrameInput, dt: number): v
   updateCharging(state, input, dt, hurt);
 
   updateActive(state, dt);
-  updateGrenades(state, dt);
   updateTraps(state, dt);
   updateEchoes(state, dt);
   updateArtQueue(state, dt);
   updateGasps(state);
-  updateGhosts(state, dt);
   updatePlacedSkills(state, dt);
   updateShots(state, dt);
   updateKegs(state, dt);
   updateGraves(state, dt);
   updateTurrets(state, dt);
-  updateBoneRing(state, dt);
   updateSprings(state, dt);
   updateStakes(state, dt);
   updateHaste(state);
@@ -632,13 +549,10 @@ function tickTimers(state: GameState, dt: number): void {
   if (hasted && rs.haste.time === 0) rs.exhaustTimer = SKILL.haste.exhaust;
   tickCurses(state, dt);
   rs.parryFailTimer = Math.max(0, rs.parryFailTimer - dt);
-  rs.stunTimer = Math.max(0, rs.stunTimer - dt);
-  rs.lungeComboTimer = Math.max(0, rs.lungeComboTimer - dt);
   rs.notReadyTimer = Math.max(0, rs.notReadyTimer - dt);
   rs.pendingTimer = Math.max(0, rs.pendingTimer - dt);
   if (rs.pendingTimer === 0) rs.pendingSlot = -1;
   rs.manaFlash = Math.max(0, rs.manaFlash - dt);
-  rs.backstabTimer = Math.max(0, rs.backstabTimer - dt);
   tickTomeBell(state, dt);
   tickFormWait(state, dt);
   for (const slot of rs.slots) {
@@ -725,10 +639,9 @@ export function slotTogglesForm(state: GameState, index: number): boolean {
   return stone !== null && isToggleOff(state, stone.skillKey, index);
 }
 
-/** 行動不能（パリィ失敗・壁激突）か本動作の排他で、このスロットの入力を受け付けないか */
+/** 行動不能（パリィ失敗）か本動作の排他で、このスロットの入力を受け付けないか */
 function castLocked(state: GameState, index: number): boolean {
-  const rs = state.skills;
-  return rs.parryFailTimer > 0 || rs.stunTimer > 0 || bodyBlocked(state, index);
+  return state.skills.parryFailTimer > 0 || bodyBlocked(state, index);
 }
 
 /** 払えるか。払えなければ理由を出して false（何も消費しない） */
@@ -747,24 +660,19 @@ function checkAffordable(state: GameState, index: number, r: ResolvedSlot): bool
 }
 
 /**
- * マナ型が撃てるか。満月の砲 = 満タン、枯渇の刃 = 一定割合未満、後払い = 返済待ちでなければいつでも、
+ * マナ型が撃てるか。後払い = 返済待ちでなければいつでも、
  * 血の肩代わり = 不足分を HP で払っても HP が残るなら撃てる
  */
 function manaAffordable(state: GameState, index: number, r: ResolvedSlot): boolean {
   const p = state.player;
-  const max = state.stats.maxMana;
-  if (r.def.manaRule === "full") return p.mana >= max - SKILL.fullMoon.fullEpsilon;
-  if (r.def.manaRule === "low") return p.mana < max * SKILL.dregsBlade.lowRatio;
   if (r.params.deferredMul > 0) return state.skills.debtOwed <= 0 && !state.skills.debts.some((d) => d.slot === index);
   if (canAffordSkill(state, r.cost)) return true;
   if (!r.params.bloodTithe) return false;
   return p.hp - titheHpCost(state, r.cost) >= 1;
 }
 
-/** マナ不足以外の理由で撃てないときの浮き文字（満月の砲・枯渇の刃・後払いの返済待ち）。マナ不足なら null */
+/** マナ不足以外の理由で撃てないときの浮き文字（後払いの返済待ち）。マナ不足なら null */
 function manaRuleReason(state: GameState, index: number, r: ResolvedSlot): string | null {
-  if (r.def.manaRule === "full") return "満タン時のみ";
-  if (r.def.manaRule === "low") return "気力が少ない時のみ";
   if (r.params.deferredMul > 0 && state.skills.debtOwed > 0) return "未払いあり";
   if (r.params.deferredMul > 0 && state.skills.debts.some((d) => d.slot === index)) return "返済待ち";
   return null;
@@ -1001,7 +909,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   // 型替え符「自己中心化」は照準地点を自分の足元にする
   const aimed = clampTarget(state, origin, aimTarget(state, input), CAST_RANGE[key] ?? SKILL.defaultCastRange);
   const target = r.params.reshape === "toNova" ? { ...origin } : aimed;
-  // 対象のいない消費系・影渡りは何も払わずに弾く
+  // 対象のいない消費系は何も払わずに弾く
   const blocked = castBlock(state, key, target, r.params);
   if (blocked) {
     notReady(state, blocked);
@@ -1080,7 +988,7 @@ export function weaponArtBlock(state: GameState, def: Readonly<SkillDef>): strin
   return weaponArtLabel(def.moveset);
 }
 
-/** 手動の本発動（大拡張のスキルは skills/actions.ts、第 2 弾は skills/actions2.ts、技は skills/arts/engine.ts へ） */
+/** 手動の本発動（大拡張のスキルは skills/actions.ts、第 2 弾は skills/actions2.ts、変身は skills/forms.ts、技は skills/arts/engine.ts へ） */
 function castNow(state: GameState, index: number, key: SkillKey, params: CastParams, dir: Vec, target: Vec): void {
   if (isArtKey(key)) {
     castArt(state, key, { slot: index, params, origin: { ...state.player.body.pos }, dir, target, remote: false });
@@ -1150,7 +1058,7 @@ function castStateMul(state: GameState, r: ResolvedSlot): { damage: number; pote
   const p = state.player;
   const params = r.params;
   let damage = 1;
-  if (params.spillover) damage *= p.mana >= state.stats.maxMana - SKILL.fullMoon.fullEpsilon ? m.spillover.fullMul : m.spillover.otherMul;
+  if (params.spillover) damage *= p.mana >= state.stats.maxMana - SKILL.fullManaEpsilon ? m.spillover.fullMul : m.spillover.otherMul;
   if (params.dryFire && p.mana < state.stats.maxMana * m.dryFire.lowRatio) damage *= m.dryFire.damageMul;
   if (params.desperate) damage *= p.hp < p.maxHp * m.desperate.hpRatio ? m.desperate.lowMul : m.desperate.highMul;
   if (!params.attune) return { damage, potency: 1, attuneCrit: false };
@@ -1264,21 +1172,13 @@ function startActive(state: GameState, slot: number, key: ActiveCast["skillKey"]
     origin: { ...state.player.body.pos },
     hitIds: new Set(),
     hitsDone: 0,
-    startHp: state.player.hp,
     reach: 0,
-    target: { ...state.player.body.pos },
   };
 }
 
 type BaseSkillKey = Exclude<SkillKey, ExtraSkillKey | Wave2SkillKey | Wave3SkillKey | ArtSkillKey>;
 
 const CAST: Record<BaseSkillKey, CastFn> = {
-  whirl: (state, slot, params, dir) => startActive(state, slot, "whirl", params, dir, SKILL.whirl.duration * params.timeMul),
-  lunge: (state, slot, params, dir) => {
-    startActive(state, slot, "lunge", params, dir, SKILL.lunge.time * params.timeMul);
-    spawnBurst(state, state.player.body.pos, COLOR_LUNGE, 6, 60, 0.2, 1.5);
-  },
-  railshot: (state, slot, params, dir) => startActive(state, slot, "railshot", params, dir, SKILL.railshot.aim * params.timeMul),
   parry: (state, slot, params, dir) => {
     const window = SKILL.parry.window * params.timeMul;
     startActive(state, slot, "parry", params, dir, window);
@@ -1286,10 +1186,6 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     rs.parryTimer = window;
     const p = state.player;
     p.buffs.invuln = Math.max(p.buffs.invuln, window);
-  },
-  frag: (state, _slot, params, _dir, target) => {
-    const t = wellFragTarget(state, target, params);
-    throwGrenades(state, state.player.body.pos, t.target, t.params);
   },
   bloodPact: (state, _slot, params) => {
     const p = state.player;
@@ -1302,8 +1198,6 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     addFloatingText(state, p.body.pos, "血の契約", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
-  quake: (state, slot, params, dir) => startActive(state, slot, "quake", params, dir, SKILL.quake.windup * params.timeMul),
-  thunder: (state, _slot, params, _dir, target) => castThunderAt(state, target, params),
   gravityWell: (state, _slot, params, _dir, target) => spawnWell(state, target, params),
   // 投げ込み（型替え）なら足元ではなく照準地点へ
   mines: (state, _slot, params, _dir, target) => placeMine(state, params.reshape === "toLobbed" ? target : state.player.body.pos, params),
@@ -1317,7 +1211,6 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     spawnBurst(state, p.body.pos, COLOR_HASTE, 12, 90, 0.35, 1.5);
   },
   chainHook: (state, slot, params, dir) => startActive(state, slot, "chainHook", params, dir, SKILL.chainHook.extendTime * params.timeMul),
-  spiral: (state, slot, params, dir) => startActive(state, slot, "spiral", params, dir, SKILL.spiral.duration * params.timeMul),
   frostField: (state, _slot, params, _dir, target) => spawnField(state, target, params),
 };
 
@@ -1330,15 +1223,13 @@ function updateHaste(state: GameState): void {
   if (state.tick % AURA_EVERY_TICKS === 0) spawnBurst(state, p.body.pos, COLOR_HASTE, 1, AURA_SPEED, SPARK_LIFE, SPARK_SIZE);
 }
 
-/** 発動中スキルの中断。dashCancel なら撃ち抜き照準中に払ったマナを半分返す */
-function cancelActive(state: GameState, dashCancel: boolean): void {
+/** 発動中スキルの中断（ダッシュ・バースト）。払った資源は戻らない */
+function cancelActive(state: GameState): void {
   const rs = state.skills;
   const a = rs.active;
   if (!a) return;
   rs.active = null;
   if (a.skillKey === "parry") rs.parryTimer = 0;
-  if (!dashCancel || a.skillKey !== "railshot") return;
-  refundMana(state, a.params.manaPaid * SKILL.railshot.cancelRefund, state.player.body.pos, a.params.refundPool);
 }
 
 // ---------------------------------------------------------------------------
@@ -1349,32 +1240,8 @@ function updateActive(state: GameState, dt: number): void {
   const a = state.skills.active;
   if (!a) return;
   if (updateExtraActive(state, a, dt)) return;
-  if (updateWave2Active(state, a, dt)) return;
-  switch (a.skillKey) {
-    case "whirl":
-      updateWhirl(state, a, dt);
-      return;
-    case "lunge":
-      updateLunge(state, a, dt);
-      return;
-    case "railshot":
-      updateRailshot(state, a, dt);
-      return;
-    case "parry":
-      updateParry(state, a, dt);
-      return;
-    case "quake":
-      updateQuake(state, a, dt);
-      return;
-    case "chainHook":
-      updateHook(state, a, dt);
-      return;
-    case "spiral":
-      updateSpiral(state, a, dt);
-      return;
-    default:
-      return;
-  }
+  if (a.skillKey === "parry") updateParry(state, a, dt);
+  else if (a.skillKey === "chainHook") updateHook(state, a, dt);
 }
 
 /** 本動作の後の硬直へ移る */
@@ -1390,58 +1257,6 @@ function stepRecover(state: GameState, a: ActiveCast, dt: number): boolean {
   a.timer -= dt;
   if (a.timer <= 0) state.skills.active = null;
   return true;
-}
-
-// ---- 地裂き ----
-
-export function quakeRadius(params: Readonly<CastParams>): number {
-  return SKILL.quake.radius * params.areaMul;
-}
-
-/** 溜め中は照準に追従。被弾で中断（CD は消費済み） */
-function updateQuake(state: GameState, a: ActiveCast, dt: number): void {
-  if (stepRecover(state, a, dt)) return;
-  const p = state.player;
-  a.dir = { ...p.facing };
-  if (p.hp < a.startHp) {
-    state.skills.active = null;
-    addFloatingText(state, p.body.pos, "中断", COLOR_BROKEN, TEXT_SCALE, PARRY_TEXT_LIFE);
-    return;
-  }
-  a.timer -= dt;
-  if (a.timer > 0) return;
-  quakeRelease(state, p.body.pos, a.dir, a.params);
-  toRecover(a, SKILL.quake.recover);
-}
-
-/** 前方扇の衝撃波。密着している敵は角度を問わず当たる */
-function quakeRelease(state: GameState, center: Vec, dir: Vec, params: CastParams): void {
-  const q = SKILL.quake;
-  const radius = quakeRadius(params);
-  const base = angle(dir);
-  for (let i = 0; i < QUAKE_ARC_POINTS; i++) {
-    const t = i / (QUAKE_ARC_POINTS - 1);
-    const at = add(center, scale(fromAngle(base - q.halfAngle + t * q.halfAngle * 2), radius));
-    spawnBurst(state, at, COLOR_QUAKE, QUAKE_PARTICLES, QUAKE_PARTICLE_SPEED, SPARK_LIFE * 2, SPARK_SIZE);
-  }
-  spawnLine(state, center, add(center, scale(fromAngle(base - q.halfAngle), radius)), COLOR_QUAKE, BEAM_LIFE);
-  spawnLine(state, center, add(center, scale(fromAngle(base + q.halfAngle), radius)), COLOR_QUAKE, BEAM_LIFE);
-  shake(state, SHAKE_SKILL * 2);
-  pushSfx(state, "explode");
-  const bodyR = state.player.body.radius;
-  for (const e of enemiesInRadius(state, center, radius)) {
-    const to = sub(e.body.pos, center);
-    const touching = length(to) <= bodyR + e.body.radius;
-    if (!touching && Math.abs(angleDiff(angle(to), base)) > q.halfAngle) continue;
-    meleeSkillHit(state, e, params, skillPower(state, q.damage, params), to, q.knockback, true);
-  }
-}
-
-function angleDiff(a: number, b: number): number {
-  let d = a - b;
-  while (d > Math.PI) d -= FULL_TURN;
-  while (d < -Math.PI) d += FULL_TURN;
-  return d;
 }
 
 // ---- 鎖鎌 ----
@@ -1517,188 +1332,8 @@ function hookInstant(state: GameState, origin: Vec, dir: Vec, params: CastParams
   sweepHook(state, origin, dir, params, 0, hookRange(params), { hitIds: new Set(), pulled: 0 }, false);
 }
 
-// ---- 回転弾幕 ----
-
-function spiralBulletCount(params: CastParams): number {
-  const s = SKILL.spiral;
-  return Math.max(s.arms, s.bullets + params.countBonus * s.bulletsPerCount);
-}
-
-/** 経過時間に応じて螺旋の弾を出す。本体と残像で共有 */
-function stepSpiral(state: GameState, center: Vec, dir: Vec, params: CastParams, elapsed: number, total: number, done: number): number {
-  const s = SKILL.spiral;
-  const count = spiralBulletCount(params);
-  const perArm = Math.ceil(count / s.arms);
-  const interval = total / perArm;
-  const base = angle(dir);
-  let n = done;
-  while (n < count && elapsed >= Math.floor(n / s.arms) * interval) {
-    const step = Math.floor(n / s.arms);
-    const arm = n % s.arms;
-    const a = base + (step / perArm) * s.turns * FULL_TURN + (arm * FULL_TURN) / s.arms;
-    spawnBullet(state, center, fromAngle(a), params);
-    n += 1;
-  }
-  return n;
-}
-
-function updateSpiral(state: GameState, a: ActiveCast, dt: number): void {
-  a.timer -= dt;
-  a.hitsDone = stepSpiral(state, state.player.body.pos, a.dir, a.params, a.total - a.timer, a.total, a.hitsDone);
-  if (a.timer <= 0) state.skills.active = null;
-}
-
-function whirlHitCount(params: CastParams): number {
-  return Math.max(1, SKILL.whirl.hits + params.countBonus);
-}
-
-/** 経過時間に応じて多段ヒットを出す。旋風斬りの本体と残像で共有 */
-function stepWhirlHits(state: GameState, center: Vec, params: CastParams, elapsed: number, total: number, done: number): number {
-  const hits = whirlHitCount(params);
-  const interval = total / hits;
-  let n = done;
-  while (n < hits && elapsed >= n * interval) {
-    whirlHit(state, center, params);
-    n += 1;
-  }
-  return n;
-}
-
-function whirlRadius(state: GameState, params: CastParams): number {
-  return SKILL.whirl.radius * state.stats.meleeReachMul * params.areaMul;
-}
-
-const COMBO_BLEED = COMBO_TUNING.pactWhirl;
-
-/** 連携「血風」（血の契約 → 旋風斬り）: 当てるたびに出血 */
-const PACT_WHIRL_APPLIES = [
-  { kind: "bleed", stacks: COMBO_BLEED.bleedStacks, duration: COMBO_BLEED.bleedTime, potency: COMBO_BLEED.bleedPotency },
-] as const;
-
-function whirlHit(state: GameState, center: Vec, params: CastParams): void {
-  const radius = whirlRadius(state, params);
-  const power = skillPower(state, SKILL.whirl.damage, params);
-  const applies = params.combo === "pactWhirl" ? PACT_WHIRL_APPLIES : undefined;
-  spawnRing(state, center, radius, COLOR_WHIRL, RING_LIFE);
-  for (const e of enemiesInRadius(state, center, radius)) {
-    skillHit(state, e, params, { base: power, kind: "melee", dir: sub(e.body.pos, center), knockback: SKILL.whirl.knockback, stagger: false, applies, from: center });
-  }
-}
-
 function meleeSkillHit(state: GameState, e: Enemy, params: CastParams, base: number, dir: Vec, knockback: number, stagger: boolean): void {
   skillHit(state, e, params, { base, kind: "melee", dir, knockback, stagger });
-}
-
-function rangedSkillHit(state: GameState, e: Enemy, params: CastParams, base: number, dir: Vec, knockback: number, stagger: boolean): void {
-  skillHit(state, e, params, { base, kind: "ranged", dir, knockback, stagger });
-}
-
-function updateWhirl(state: GameState, a: ActiveCast, dt: number): void {
-  const rs = state.skills;
-  a.timer -= dt;
-  if (a.phase === "recover") {
-    if (a.timer <= 0) rs.active = null;
-    return;
-  }
-  a.hitsDone = stepWhirlHits(state, state.player.body.pos, a.params, a.total - a.timer, a.total, a.hitsDone);
-  if (a.timer > 0) return;
-  a.phase = "recover";
-  a.timer = SKILL.whirl.recover;
-  a.total = SKILL.whirl.recover;
-}
-
-function lungeSpeed(state: GameState, params: CastParams): number {
-  return (SKILL.lunge.distance * state.stats.dashDistanceMul) / (SKILL.lunge.time * params.timeMul);
-}
-
-function lungeHits(state: GameState, center: Vec, a: { hitIds: Set<number>; params: CastParams; dir: Vec }): void {
-  const radius = state.player.body.radius + SKILL.lunge.hitPad * a.params.areaMul;
-  for (const e of enemiesInRadius(state, center, radius)) {
-    if (a.hitIds.has(e.id)) continue;
-    a.hitIds.add(e.id);
-    meleeSkillHit(state, e, a.params, skillPower(state, SKILL.lunge.damage, a.params), a.dir, SKILL.lunge.knockback, true);
-  }
-}
-
-function updateLunge(state: GameState, a: ActiveCast, dt: number): void {
-  const rs = state.skills;
-  const p = state.player;
-  const step = lungeSpeed(state, a.params) * Math.min(dt, a.timer);
-  a.timer -= dt;
-  const hit = moveBody(state, p.body, a.dir.x * step, a.dir.y * step);
-  lungeHits(state, p.body.pos, a);
-  if (state.tick % 2 === 0) spawnBurst(state, p.body.pos, COLOR_LUNGE, 1, 10, 0.18, 3);
-  if (hit.hitX || hit.hitY) {
-    rs.active = null;
-    rs.stunTimer = SKILL.lunge.wallStun;
-    shake(state, SHAKE_SKILL);
-    pushSfx(state, "wallHit");
-    landingShock(state, p.body.pos, a.params);
-    return;
-  }
-  if (a.timer > 0) return;
-  rs.active = null;
-  rs.lungeComboTimer = SKILL.lunge.comboLinkWindow;
-  landingShock(state, p.body.pos, a.params);
-}
-
-function updateRailshot(state: GameState, a: ActiveCast, dt: number): void {
-  const p = state.player;
-  a.dir = { ...p.facing };
-  a.timer -= dt;
-  if (a.timer > 0) return;
-  state.skills.active = null;
-  fireRails(state, p.body.pos, a.dir, a.params);
-  p.knock = add(p.knock, scale(a.dir, -SKILL.railshot.recoil));
-  shake(state, SHAKE_SKILL);
-}
-
-function fireRails(state: GameState, origin: Vec, dir: Vec, params: CastParams): void {
-  const count = Math.max(1, 1 + params.countBonus);
-  const center = (count - 1) / 2;
-  const base = angle(dir);
-  for (let i = 0; i < count; i++) {
-    fireBeam(state, origin, fromAngle(base + (i - center) * SKILL.railshot.spreadRad), params);
-  }
-  pushSfx(state, "railshot");
-}
-
-/** 壁までの線分（stepPx 刻みで走査）の終点 */
-export function beamEnd(state: GameState, origin: Vec, dir: Vec): Vec {
-  const r = SKILL.railshot;
-  let end = { ...origin };
-  for (let d = r.stepPx; d <= r.maxLength; d += r.stepPx) {
-    const next = add(origin, scale(dir, d));
-    if (overlapsWall(state, next.x, next.y, 0)) break;
-    end = next;
-  }
-  return end;
-}
-
-/** 点から線分までの距離 */
-function distToSegment(pt: Vec, a: Vec, b: Vec): number {
-  const ab = sub(b, a);
-  const len2 = ab.x * ab.x + ab.y * ab.y;
-  if (len2 === 0) return length(sub(pt, a));
-  const t = Math.max(0, Math.min(1, ((pt.x - a.x) * ab.x + (pt.y - a.y) * ab.y) / len2));
-  return length(sub(pt, add(a, scale(ab, t))));
-}
-
-function fireBeam(state: GameState, origin: Vec, dir: Vec, params: CastParams): void {
-  const r = SKILL.railshot;
-  const end = beamEnd(state, origin, dir);
-  spawnLine(state, origin, end, COLOR_RAIL, BEAM_LIFE);
-  for (const e of state.enemies) {
-    if (e.hp <= 0 || e.phase === "spawning") continue;
-    if (distToSegment(e.body.pos, origin, end) > e.body.radius + r.halfWidth) continue;
-    rangedSkillHit(state, e, params, skillPower(state, r.damage, params), dir, r.knockback, false);
-  }
-  for (const pr of state.projectiles) {
-    if (pr.owner !== "enemy" || pr.life <= 0) continue;
-    if (distToSegment(pr.pos, origin, end) > pr.radius + r.halfWidth) continue;
-    pr.life = 0;
-    spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
-  }
 }
 
 /** 構え中に届きそうな攻撃（敵弾・突進中の接触）を探して受け止める */
@@ -1767,78 +1402,22 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
 }
 
 // ---------------------------------------------------------------------------
-// グレネード・反響・残像
+// 照準・罠・反響
 // ---------------------------------------------------------------------------
 
 /** 照準位置（最大射程、壁の手前でクランプ） */
 function clampTarget(state: GameState, from: Vec, target: Vec, maxRange: number): Vec {
-  const f = SKILL.frag;
+  const probe = SKILL.castWallProbe;
   const delta = sub(target, from);
   const dir = normalize(delta, state.player.facing);
   const maxD = Math.min(length(delta), maxRange);
   let to = { ...from };
-  for (let d = f.wallProbe; d <= maxD; d += f.wallProbe) {
+  for (let d = probe; d <= maxD; d += probe) {
     const next = add(from, scale(dir, d));
-    if (overlapsWall(state, next.x, next.y, f.wallProbe)) break;
+    if (overlapsWall(state, next.x, next.y, probe)) break;
     to = next;
   }
   return to;
-}
-
-function throwGrenades(state: GameState, from: Vec, target: Vec, params: CastParams): void {
-  const f = SKILL.frag;
-  const to = clampTarget(state, from, target, f.maxRange);
-  const count = Math.max(1, 1 + params.countBonus);
-  const dir = normalize(sub(to, from), state.player.facing);
-  const side = { x: -dir.y, y: dir.x };
-  const center = (count - 1) / 2;
-  for (let i = 0; i < count; i++) {
-    const offset = add(to, scale(side, (i - center) * f.spread));
-    const dest = overlapsWall(state, offset.x, offset.y, f.wallProbe) ? to : offset;
-    const flight = f.flight * params.timeMul;
-    const fuse = f.fuse * params.timeMul;
-    state.skills.grenades.push({
-      id: allocId(state),
-      from: { ...from },
-      to: dest,
-      flight,
-      flightTotal: flight,
-      fuse,
-      fuseTotal: fuse,
-      params,
-    });
-  }
-}
-
-/**
- * 連携「渦爆」（引力球の中へ投げたグレネード）: 落下点を照準地点を含む引力球の中心へ吸い寄せ、範囲を広げる。
- * 成立していなければそのまま返す
- */
-function wellFragTarget(state: GameState, target: Vec, params: CastParams): { target: Vec; params: CastParams } {
-  if (params.combo !== "wellFrag") return { target, params };
-  const well = state.skills.wells.find((w) => dist(w.pos, target) <= wellRadius(w.params));
-  if (!well) return { target, params };
-  return { target: { ...well.pos }, params: { ...params, areaMul: params.areaMul * WAVE2_COMBO_TUNING.wellFrag.areaMul, countBonus: 0 } };
-}
-
-/**
- * 雷撃を落とす。連携「渦雷」は引力球の中心へ、連携「氷雷」（氷結地帯の中へ落とす）は地帯の中の敵すべての足元へ落ちる
- */
-function castThunderAt(state: GameState, target: Vec, params: CastParams): void {
-  if (params.combo === "frostThunder" && frostThunder(state, target, params)) return;
-  const t = wellThunderTarget(state, target, params);
-  placeStrikes(state, t.target, t.params);
-}
-
-/** 氷雷: 照準地点を含む氷結地帯の中の敵それぞれへ 1 本ずつ。敵がいなければ false（普通に落とす） */
-function frostThunder(state: GameState, target: Vec, params: CastParams): boolean {
-  const field = state.skills.fields.find((f) => dist(f.pos, target) <= fieldRadius(f.params));
-  if (!field) return false;
-  const inside = enemiesInRadius(state, field.pos, fieldRadius(field.params));
-  if (inside.length === 0) return false;
-  const single = { ...params, countBonus: 0 };
-  for (const e of inside) placeStrikes(state, { ...e.body.pos }, single);
-  return true;
 }
 
 // ---- 型替え符「罠化」 ----
@@ -1884,43 +1463,6 @@ function springTrap(state: GameState, key: SkillKey, at: Vec, prey: Vec, params:
   scheduleEcho(state, { ...remote, params });
 }
 
-export function grenadeRadius(params: CastParams): number {
-  return SKILL.frag.radius * params.areaMul;
-}
-
-function updateGrenades(state: GameState, dt: number): void {
-  const rs = state.skills;
-  for (const g of rs.grenades) {
-    if (g.flight > 0) {
-      g.flight = Math.max(0, g.flight - dt);
-      continue;
-    }
-    g.fuse -= dt;
-    if (g.fuse <= 0) explodeGrenade(state, g.to, g.params);
-  }
-  rs.grenades = rs.grenades.filter((g) => g.flight > 0 || g.fuse > 0);
-}
-
-function explodeGrenade(state: GameState, pos: Vec, params: CastParams): void {
-  const f = SKILL.frag;
-  const radius = grenadeRadius(params);
-  spawnBlast(state, pos, radius, COLOR_RAIL, RING_LIFE * 2);
-  spawnBurst(state, pos, "#ffb060", 24, 180, 0.45, 2.5);
-  shake(state, SHAKE_SKILL);
-  pushSfx(state, "explode");
-  const power = skillPower(state, f.damage, params);
-  const poise = SKILL_DEFS[params.skillKey].poise;
-  for (const e of enemiesInRadius(state, pos, radius)) {
-    const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
-    skillHit(state, e, params, { base: power * mul, kind: "ranged", dir: sub(e.body.pos, pos), knockback: f.knockback * mul, stagger: true, poise: poise * mul });
-  }
-  // 自爆: 無敵中（ダッシュ）なら無効
-  const p = state.player;
-  if (p.invulnTimer > 0 || p.buffs.invuln > 0) return;
-  if (!circlesOverlap(pos.x, pos.y, radius, p.body.pos.x, p.body.pos.y, p.body.radius)) return;
-  damagePlayer(state, p.maxHp * f.selfDamageFraction * blastMulAt(pos, radius, p.body.pos, p.body.radius), pos);
-}
-
 function updateEchoes(state: GameState, dt: number): void {
   const rs = state.skills;
   const due = [];
@@ -1948,12 +1490,6 @@ function updateGasps(state: GameState): void {
   }
 }
 
-const GHOST_TIME: Record<Ghost["skillKey"], (p: CastParams) => number> = {
-  whirl: (p) => SKILL.whirl.duration * p.timeMul,
-  lunge: (p) => SKILL.lunge.time * p.timeMul,
-  spiral: (p) => SKILL.spiral.duration * p.timeMul,
-};
-
 /** 反響・遅延・投げ刃・散り際の発動。プレイヤーは動かさず、発動地点・向き・照準地点で起こす */
 function executeRemote(state: GameState, e: EchoCast): void {
   const key = e.skillKey;
@@ -1974,38 +1510,8 @@ function executeRemote(state: GameState, e: EchoCast): void {
     return;
   }
   switch (key) {
-    case "whirl":
-    case "lunge":
-    case "spiral": {
-      const total = GHOST_TIME[key](e.params);
-      state.skills.ghosts.push({
-        skillKey: key,
-        timer: total,
-        total,
-        pos: { ...e.origin },
-        dir: { ...e.dir },
-        params: e.params,
-        hitIds: new Set(),
-        hitsDone: 0,
-      });
-      return;
-    }
-    case "frag": {
-      const t = wellFragTarget(state, e.target, e.params);
-      throwGrenades(state, e.origin, t.target, t.params);
-      return;
-    }
-    case "railshot":
-      fireRails(state, e.origin, e.dir, e.params);
-      return;
-    case "quake":
-      quakeRelease(state, e.origin, e.dir, e.params);
-      return;
     case "chainHook":
       hookInstant(state, e.origin, e.dir, e.params);
-      return;
-    case "thunder":
-      castThunderAt(state, e.target, e.params);
       return;
     case "gravityWell":
       spawnWell(state, e.target, e.params);
@@ -2029,31 +1535,6 @@ export function remoteAnchor(e: EchoCast): Vec {
   return CAST_RANGE[e.skillKey] !== undefined ? e.target : e.origin;
 }
 
-function updateGhosts(state: GameState, dt: number): void {
-  const rs = state.skills;
-  for (const g of rs.ghosts) updateGhost(state, g, dt);
-  rs.ghosts = rs.ghosts.filter((g) => g.timer > 0);
-}
-
-function updateGhost(state: GameState, g: Ghost, dt: number): void {
-  if (g.skillKey === "spiral") {
-    g.timer -= dt;
-    g.hitsDone = stepSpiral(state, g.pos, g.dir, g.params, g.total - g.timer, g.total, g.hitsDone);
-    return;
-  }
-  if (g.skillKey === "whirl") {
-    g.timer -= dt;
-    g.hitsDone = stepWhirlHits(state, g.pos, g.params, g.total - g.timer, g.total, g.hitsDone);
-    return;
-  }
-  const step = lungeSpeed(state, g.params) * Math.min(dt, g.timer);
-  g.timer -= dt;
-  const body = { pos: g.pos, vel: { x: 0, y: 0 }, radius: state.player.body.radius };
-  const hit = moveBody(state, body, g.dir.x * step, g.dir.y * step);
-  lungeHits(state, g.pos, g);
-  if (hit.hitX || hit.hitY) g.timer = 0;
-}
-
 // ---------------------------------------------------------------------------
 // ドロップ・拾得・刻印符
 // ---------------------------------------------------------------------------
@@ -2070,20 +1551,15 @@ function syncTracking(state: GameState): void {
     // 前の階に残したものは失われる。床のスキル石は floor.ts の buildFloor が捨てる
     // （ここで捨てると、強欲のが抱えたまま階を移った石〔新しい階の足元へ届く〕まで消える）
     rs.runes = [];
-    rs.grenades = [];
     rs.echoes = [];
-    rs.ghosts = [];
-    rs.strikes = [];
     rs.wells = [];
     rs.mines = [];
     rs.fields = [];
-    rs.bullets = [];
     rs.curses.clear();
     rs.shots = [];
     rs.kegs = [];
     rs.graves = [];
     rs.turrets = [];
-    rs.boneRing = null;
     rs.springs = [];
     rs.stakes = [];
     rs.traps = [];
@@ -2302,22 +1778,14 @@ function runeDropSource(state: GameState, enemy: Enemy): RuneDropSource {
 
 /**
  * 通常の近接が敵に当たった瞬間（player.ts の meleeHitEnemy から）。
- * 刃の給油の記録・湧き石のマナ・剣の墓標（3 段目）・影渡りの背面・追撃の印をここで処理する
+ * 刃の給油の記録・湧き石のマナ・剣の墓標（3 段目）・追撃の印をここで処理する
  */
 export function onSkillMeleeHit(state: GameState, e: Enemy, combo: number): void {
   const rs = state.skills;
   rs.lastMeleeHitAt = rs.clock;
   onSpringMeleeHit(state);
   if (combo >= PLAYER.melee.length - 1) onGraveFinisher(state);
-  if (rs.backstabTimer > 0 && e.hp > 0) backstab(state, e);
   if (e.hp > 0) popFollowUp(state, e);
-}
-
-/** 影渡りの直後の近接 1 回: 背面から当たったものとして怯み値を上乗せ */
-function backstab(state: GameState, e: Enemy): void {
-  state.skills.backstabTimer = 0;
-  addPoise(state, e, SKILL.shadowStep.backstabPoise * state.stats.poiseDamageMul);
-  addFloatingText(state, e.body.pos, "背面", COLOR_BACKSTAB, TEXT_SCALE, TEXT_LIFE);
 }
 
 /** 追撃の印が付いた敵に近接を当てると、印が弾けて追加の一撃 */

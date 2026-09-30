@@ -124,7 +124,8 @@ describe("実績: 連携の発見", () => {
   it("発見数の節目で称号の実績が開き、スキルの連携をすべて決めると「型の極み」", () => {
     const ctx = context();
     const words = ["melee", "ranged", "dash", "burn", "chill", "shock", "poison", "bleed"];
-    const chains = words.flatMap((a) => words.map((b) => `${a}>${b}`)).slice(0, DISCOVERY.milestoneTitle);
+    // 30 種の 1 つ手前まで連鎖で埋める（スキルの連携を足すと必ず越える）
+    const chains = words.flatMap((a) => words.map((b) => `${a}>${b}`)).slice(0, DISCOVERY.milestoneGrand - 1);
     for (const key of chains) ctx.codex.chains[key] = 1;
     const save = createAchievementSave();
     const unlocked = evaluateAchievements(ctx, save, 1);

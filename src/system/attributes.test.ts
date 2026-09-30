@@ -196,18 +196,11 @@ const BASELINE: readonly BaselineRow[] = [
   { label: "射撃（1 発）", pinned: 4.3, scaling: { base: 2.8, dex: 0.3 }, current: () => atBase(PLAYER.shoot.scaling) },
   { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(ULTIMATE.defs.sword.fullMoon.nova.scaling) },
   { label: "壁叩きつけ", pinned: 10, scaling: { base: 7, str: 0.6 }, current: () => ACTION.wallSplat.damage },
-  { label: "旋風斬り（1 回転）", pinned: 8.9, scaling: { base: 4.9, str: 0.4, spi: 0.4 }, current: () => atBase(SKILL.whirl.damage) },
-  { label: "突進斬り", pinned: 18.4, scaling: { base: 10.4, str: 1, dex: 0.6 }, current: () => atBase(SKILL.lunge.damage) },
-  { label: "グレネード", pinned: 33.8, scaling: { base: 19.8, dex: 1.4, spi: 1.4 }, current: () => atBase(SKILL.frag.damage) },
-  { label: "撃ち抜き", pinned: 39, scaling: { base: 23, dex: 2, spi: 1.2 }, current: () => atBase(SKILL.railshot.damage) },
   { label: "パリィ（衝撃波）", pinned: 12, scaling: { base: 6, str: 0.6, spi: 0.6 }, current: () => atBase(SKILL.parry.damage) },
-  { label: "地裂き", pinned: 24.7, scaling: { base: 12.7, str: 1.6, spi: 0.8 }, current: () => atBase(SKILL.quake.damage) },
-  { label: "雷撃", pinned: 26.7, scaling: { base: 12.7, dex: 1.2, spi: 1.6 }, current: () => atBase(SKILL.thunder.damage) },
   { label: "引力球（tick）", pinned: 3.3, scaling: { base: 1.3, spi: 0.4 }, current: () => atBase(SKILL.gravityWell.tickDamage) },
   { label: "引力球（破裂）", pinned: 20.1, scaling: { base: 10.1, spi: 2 }, current: () => atBase(SKILL.gravityWell.burstDamage) },
   { label: "地雷", pinned: 22.1, scaling: { base: 10.1, dex: 1.2, spi: 1.2 }, current: () => atBase(SKILL.mines.damage) },
   { label: "鎖鎌", pinned: 15.6, scaling: { base: 7.6, str: 1, dex: 0.6 }, current: () => atBase(SKILL.chainHook.damage) },
-  { label: "回転弾幕（1 発）", pinned: 5.5, scaling: { base: 2.5, dex: 0.3, spi: 0.3 }, current: () => atBase(SKILL.spiral.damage) },
   { label: "氷結地帯（tick）", pinned: 4.3, scaling: { base: 1.3, spi: 0.6 }, current: () => atBase(SKILL.frostField.tickDamage) },
 ];
 

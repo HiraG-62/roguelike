@@ -119,7 +119,7 @@ export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard 
 
 /**
  * 骨の壁を削る（docs/ideas/enemies.md H6）。半径内の骨の壁の耐久を amount 減らし、0 以下なら次の更新で崩す。
- * 爆発（敵にも当たる爆発・グレネード）・壁叩きつけ・弾が呼ぶ。崩した数を返す
+ * 爆発（敵にも当たる爆発）・壁叩きつけ・弾が呼ぶ。崩した数を返す
  */
 export function damageBoneWalls(state: GameState, pos: Vec, radius: number, amount: number): number {
   let broken = 0;
@@ -150,7 +150,7 @@ export function blastEnemies(state: GameState, pos: Vec, radius: number, damage:
 }
 
 /**
- * プレイヤーの弾とグレネードが骨の壁を削る（H6）。projectiles.ts が壁で弾を消す前に、次の位置が骨の壁に入る弾を拾う。
+ * プレイヤーの弾が骨の壁を削る（H6）。projectiles.ts が壁で弾を消す前に、次の位置が骨の壁に入る弾を拾う。
  * enemies.ts の updateEnemies（updateProjectiles より前）から呼ぶ
  */
 export function chipBoneWallsByShots(state: GameState, dt: number): void {
@@ -162,10 +162,6 @@ export function chipBoneWallsByShots(state: GameState, dt: number): void {
     const wall = state.hazards.find((h) => h.kind === "boneWall" && h.tile === tile && h.time > 0);
     if (!wall) continue;
     damageBoneWalls(state, wall.pos, 0, pr.damage);
-  }
-  for (const g of state.skills.grenades) {
-    if (g.flight > 0 || g.fuse > dt) continue;
-    damageBoneWalls(state, g.to, BOSS.boneLord.wallBlastRadius, BOSS.boneLord.wallHp);
   }
 }
 

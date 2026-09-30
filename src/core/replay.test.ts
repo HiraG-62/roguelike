@@ -560,7 +560,7 @@ describe("装備画面での付け替えの記録 → 再生", () => {
 describe("ジョブの初期スキル石と倉庫の上限（snapshotAfterStart）", () => {
   const SEED = "starter-stone";
   const JOB_SETUP: RunSetup = { origin: "wanderer", modifiers: [], job: "swordsman" };
-  const STARTER = "lunge";
+  const STARTER = "commonLunge";
   /** 倉庫を上限の 1 つ手前まで埋める。拾えば満杯になり、初期石が 1 つ増えるだけで拾えなくなる */
   const NEAR_FULL = SKILL.stashCapacity - 1;
 
@@ -569,14 +569,14 @@ describe("ジョブの初期スキル石と倉庫の上限（snapshotAfterStart�
     const extra = ownsStarter ? [stoneFromSeed(1, { foundDepth: 1, now: 0, skillKey: STARTER })] : [];
     skillProfile.stones.push(...extra);
     for (let i = skillProfile.stones.length; i < NEAR_FULL; i++) {
-      skillProfile.stones.push(stoneFromSeed(i + 2, { foundDepth: 1, now: 0, skillKey: "frag" }));
+      skillProfile.stones.push(stoneFromSeed(i + 2, { foundDepth: 1, now: 0, skillKey: "commonBomb" }));
     }
     return skillProfile;
   }
 
   /** 足元にスキル石を置いてインタラクトで拾う（記録側と再生側に同じ操作をする） */
   function pickUpAtFeet(state: GameState): void {
-    const stone = stoneFromSeed(999, { foundDepth: 1, now: 0, skillKey: "frag" });
+    const stone = stoneFromSeed(999, { foundDepth: 1, now: 0, skillKey: "commonBomb" });
     state.skills.floorStones.push({ id: 9999, stone, pos: { ...state.player.body.pos }, bobTime: 0, warned: false });
     step(state, withInput({ interactPressed: true, aimScreen: null }), FIXED_DT);
   }

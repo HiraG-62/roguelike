@@ -23,6 +23,9 @@ import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
 import { SKILL } from "../skills/data";
+import { ART_DEFS, isArtKey } from "../skills/arts";
+import type { ArtSkillKey } from "../skills/arts/keys";
+import type { ArtAct } from "../skills/arts/types";
 import type { SkillKey } from "../skills/types";
 import { statsBulletHas } from "../loot/bullets";
 
@@ -56,11 +59,11 @@ const FAST_ATTACKER_INTERVAL = 1.0;
 /** windup/strike でない先読み回避を、どの頻度で「そもそも評価するか」（人間の警戒レベルのばらつき相当） */
 const PREEMPTIVE_DODGE_CHANCE = 0.5;
 /**
- * 自分中心・短射程の近接スキル（`skillEngageRange` で radius ベースの射程を使うもの）。
+ * 自分中心・短射程の近接スキル（技は isCloseArt。ほかは `skillEngageRange` で radius ベースの射程を使うパリィ）。
  * これらを撃つと必ず DANGER_RANGE 圏内で被弾判定を受けるため、詠唱直後は評価を待たず
  * 必ず離脱を試みる（ヒット＆アウェイ）
  */
-const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parry", "lunge"]);
+const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["parry"]);
 /**
  * 溜めのある武器種・銃の弾（src/data/weapons.ts）: 押しっぱなしのままだと撃たない / 振らないので、
  * この秒数だけ溜めたら離す（大剣は 2 段目、チャージ射撃は 2 段目に届く長さ）
@@ -463,32 +466,21 @@ function isThreatening(e: Enemy): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * スキルの有効射程。frag/thunder/gravityWell/frostField/chainHook は明示的な maxRange/range を
- * 持つのでそれを使う。lunge は突進距離 + ヒット判定の余白。旋風斬り・地裂き・パリィ・回転弾幕は
- * 自分中心の近接 AoE（半径のみで maxRange を持たない）なので、半径に接近余地を足した短い射程を使う。
+ * スキルの有効射程。gravityWell/frostField/chainHook は明示的な maxRange/range を持つのでそれを使う。
+ * パリィは自分中心の近接 AoE（半径のみで maxRange を持たない）なので、半径に接近余地を足した短い射程を使う。
+ * 技は行為の列から出す（artEngageRange）。
  * これが無く一律 SKILL_ENGAGE_RANGE（150px）で判定していたときは、旋風斬り（半径28）等を遠距離から
  * 発動して素通り（空振り）することがあった（QA 2026-09-23 スキル由来与ダメ比率の伸び悩みの一因）。
- * バフ・地雷・撃ち抜きなど距離の意味が薄い／別ロジックで判定するものは既定値のまま
+ * バフ・地雷など距離の意味が薄い／別ロジックで判定するものは既定値のまま
  */
 function skillEngageRange(resolved: ResolvedSlot): number {
   const key: SkillKey = resolved.def.key;
+  if (isArtKey(key)) return artEngageRange(key);
   switch (key) {
-    case "whirl":
-      return SKILL.whirl.radius + MELEE_SKILL_RANGE_MARGIN;
-    case "quake":
-      return SKILL.quake.radius + MELEE_SKILL_RANGE_MARGIN;
     case "parry":
       return SKILL.parry.radius + MELEE_SKILL_RANGE_MARGIN;
-    case "spiral":
-      return SKILL.spiral.speed * SKILL.spiral.life;
-    case "lunge":
-      return SKILL.lunge.distance + SKILL.lunge.hitPad;
     case "chainHook":
       return SKILL.chainHook.range;
-    case "frag":
-      return SKILL.frag.maxRange;
-    case "thunder":
-      return SKILL.thunder.maxRange;
     case "gravityWell":
       return SKILL.gravityWell.maxRange;
     case "frostField":
@@ -498,6 +490,51 @@ function skillEngageRange(resolved: ResolvedSlot): number {
   }
 }
 
+/** 行為 1 つの届く距離（自分から。照準地点へ出る行為・与ダメを持たない行為は 0 で、castRange か既定値に任せる） */
+function actReach(act: ArtAct): number {
+  if (act.anchor === "target") return 0;
+  switch (act.kind) {
+    case "ring":
+    case "pull":
+      return act.radius + MELEE_SKILL_RANGE_MARGIN;
+    case "arc":
+      return act.reach + MELEE_SKILL_RANGE_MARGIN;
+    case "line":
+      return act.length;
+    case "dash":
+      return Math.abs(act.distance);
+    case "shot":
+      return act.speed * act.life;
+    case "chain":
+      return act.range;
+    case "blink":
+    case "buff":
+    case "detonate":
+      return 0;
+  }
+}
+
+/** 技の有効射程: 照準地点を使うなら castRange、そうでなければ行為の届く距離の最大（どれも 0 なら既定値） */
+function artEngageRange(key: ArtSkillKey): number {
+  const def = ART_DEFS[key];
+  if (def.castRange !== undefined) return def.castRange;
+  const reach = Math.max(0, ...def.acts.map(actReach));
+  return reach > 0 ? reach : SKILL_ENGAGE_RANGE;
+}
+
+/** 自分中心の近接の技か（照準地点を使わず、与ダメを持つ行為がすべて自分の周りの円か前方の扇） */
+function isCloseArt(key: ArtSkillKey): boolean {
+  const def = ART_DEFS[key];
+  if (def.castRange !== undefined) return false;
+  const hitting = def.acts.filter((a) => a.damage !== undefined);
+  return hitting.length > 0 && hitting.every((a) => a.kind === "ring" || a.kind === "arc");
+}
+
+/** 撃った直後に離脱する近接スキルか */
+function isMeleeSkill(key: SkillKey): boolean {
+  return isArtKey(key) ? isCloseArt(key) : MELEE_SKILL_KEYS.has(key);
+}
+
 /**
  * このスロットを今フレーム押せるか。GCD・最低間隔・射程・（マナ型なら）canAffordSkill 相当の
  * 判定・（CD 型なら）チャージ残数を見る。発動中の別スキルやパリィ失敗硬直中も不可
@@ -505,7 +542,7 @@ function skillEngageRange(resolved: ResolvedSlot): number {
 function canCastSlotNow(state: GameState, index: number, distanceToTarget: number): boolean {
   const rs = state.skills;
   // 砲身化・業火の化身の最中に同じ石を押すと自分で解いてしまうので押さない
-  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || slotBodyBlocked(state, index) || slotTogglesForm(state, index)) return false;
+  if (rs.parryFailTimer > 0 || slotBodyBlocked(state, index) || slotTogglesForm(state, index)) return false;
   const slot = rs.slots[index];
   if (!slot || slot.intervalLeft > 0) return false;
   const resolved = resolveSlot(state, index);
@@ -742,7 +779,7 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     pressSkillSlot(input, skillIndex);
     bot.skillCastAttempts++;
     const resolved = resolveSlot(state, skillIndex);
-    if (resolved && MELEE_SKILL_KEYS.has(resolved.def.key)) {
+    if (resolved && isMeleeSkill(resolved.def.key)) {
       // ヒット&アウェイ: 自分中心の近接スキルは撃った時点で敵の DANGER_RANGE 圏内にいる。
       // 評価の確率判定を待たず、必ず逆方向へ動いて距離を取る（ダッシュは温存し歩行のみ）
       input.move = normalize(sub(pos, enemy.body.pos));

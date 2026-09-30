@@ -77,6 +77,7 @@ export const COMMON_ART_SPECS_2: readonly ArtSpec[] = [
     tags: ["melee", "area"],
     attack: MELEE,
     acts: [{ kind: "ring", n: "spin" }],
+    combos: ["hookWhirl"],
   },
   {
     key: "commonTremor",
@@ -128,6 +129,7 @@ export const COMMON_ART_SPECS_2: readonly ArtSpec[] = [
     tags: ["melee"],
     attack: MELEE,
     acts: [{ kind: "line", n: "cleave", terrain: "rubble" }],
+    combos: ["diveQuake", "breakCollapse"],
   },
   {
     key: "commonRailshot",
@@ -138,6 +140,7 @@ export const COMMON_ART_SPECS_2: readonly ArtSpec[] = [
     tags: ["projectile"],
     attack: LIGHT_ARCANE_RANGED,
     acts: [{ kind: "line", n: "rail" }],
+    combos: ["parryRail"],
   },
   {
     key: "commonFireWall",
@@ -148,6 +151,7 @@ export const COMMON_ART_SPECS_2: readonly ArtSpec[] = [
     tags: ["area", "fire"],
     attack: FIRE_AREA,
     acts: [{ kind: "line", n: "wall", terrain: "fire" }],
+    combos: ["oilScorch"],
   },
   {
     key: "commonShove",
@@ -368,6 +372,7 @@ export const COMMON_ART_SPECS_2: readonly ArtSpec[] = [
       { kind: "blink", n: "step", anchor: "target" },
       { kind: "ring", n: "burst" },
     ],
+    combos: ["levelMeteor"],
   },
   {
     key: "commonDetonate",
@@ -394,6 +399,7 @@ export const COMMON_ART_SPECS_2: readonly ArtSpec[] = [
       { kind: "arc", n: "side" },
       { kind: "line", n: "down" },
     ],
+    combos: ["formArt"],
   },
   {
     key: "commonBackstab",

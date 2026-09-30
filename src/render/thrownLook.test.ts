@@ -6,18 +6,15 @@ import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { ULTIMATES } from "../data/ultimates";
 import { BASES } from "../loot/bases";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
-import { WEAPON_ART } from "../skills/reshapes";
 import { markShotBullet, withUltimateFx } from "../system/effects";
 import { arena } from "../system/testHelpers";
 import {
   BULLET_LOOK,
-  GRENADE_LOOK,
   MOVESET_THROWN_LOOK,
   SKILL_LOOK,
   THROWN_ART_KEYS,
   THROWN_ECHO_LOOK,
   ULTIMATE_LOOK,
-  WEAPON_ART_LOOK,
   arcPoint,
   projectileLook,
   skillShotLook,
@@ -74,15 +71,12 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
     expect(projectileLook(pistol)).toBeUndefined();
   });
 
-  it("技の弾は技の key で引き、武器を投げる技と極意は今の武器種で引く", () => {
+  it("技の弾は技の key で引き、武器を投げる技は今の武器種で引く", () => {
     expect(skillShotLook("commonIceLance", "sword")?.sprite, "決まった絵").toBe(thrownSpriteKey("iceSpear"));
     expect(skillShotLook("commonRicochet", "shield")?.sprite, "跳弾は盾を投げる").toBe(thrownSpriteKey("shield"));
     expect(skillShotLook("commonRicochet", "axe")?.sprite, "跳弾は斧を投げる").toBe(thrownSpriteKey("axe"));
     expect(skillShotLook("commonKiBlast", "chainSickle")?.sprite, "気弾は分銅").toBe(thrownSpriteKey("weight"));
     expect(skillShotLook("commonRicochet", "gunner"), "投げる絵の無い武器種はふつうの弾").toBeUndefined();
-    expect(skillShotLook("weaponArt", "thrown")?.sprite, "投げ散らし").toBe(thrownSpriteKey("knife"));
-    expect(skillShotLook("weaponArt", "warRing")?.sprite, "乱れ輪").toBe(thrownSpriteKey("warRing"));
-    expect(skillShotLook("weaponArt", "sword"), "剣の極意は弾を出さない").toBeUndefined();
     expect(skillShotLook("commonShadowBolt", "wand"), "魔法の弾は対象外").toBeUndefined();
   });
 
@@ -92,8 +86,6 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
       ...Object.values(ULTIMATE_LOOK),
       ...Object.values(SKILL_LOOK),
       ...Object.values(MOVESET_THROWN_LOOK),
-      ...Object.values(WEAPON_ART_LOOK),
-      GRENADE_LOOK,
       THROWN_ECHO_LOOK,
     ];
     for (const look of looks) expect(SPRITES[look?.sprite ?? ""], look?.sprite).toBeDefined();
@@ -177,8 +169,8 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "ult:thrown.swiftToss": "持続の奥義。飛ぶ弾の見た目は武器の弾の表が決める",
 };
 
-/** 描画は表ではなく別の経路で持つもの（thrownLook.ts の GRENADE_LOOK / THROWN_ECHO_LOOK） */
-const DRAWN_ELSEWHERE = new Set(["skill:frag", "modifier:toThrown"]);
+/** 描画は表ではなく別の経路で持つもの（thrownLook.ts の THROWN_ECHO_LOOK） */
+const DRAWN_ELSEWHERE = new Set(["modifier:toThrown"]);
 
 interface Described {
   readonly id: string;
@@ -196,7 +188,6 @@ function described(): Described[] {
     for (const b of set.branches) out.push({ id: `branch:${b.key}`, text: b.name });
     for (const u of ULTIMATES[m]) out.push({ id: `ult:${u.key}`, text: `${u.name} ${u.desc}` });
   }
-  for (const [m, art] of Object.entries(WEAPON_ART)) out.push({ id: `weaponArt:${m}`, text: art.name });
   return out;
 }
 
@@ -219,8 +210,6 @@ function covered(id: string): boolean {
       return ULTIMATE_LOOK[key] !== undefined;
     case "step2":
       return BULLET_LOOK[`art.${key}`] !== undefined;
-    case "weaponArt":
-      return WEAPON_ART_LOOK[key as MovesetKey] !== undefined;
     case "moveset":
       return movesetBulletCovered(key as MovesetKey) || laneBulletCovered(key as MovesetKey);
     case "branch":

@@ -11,11 +11,8 @@ import type { ExtraModifierKey, ModifierDef, ModifierKey, SkillKey } from "./typ
 
 const PERCENT = 100;
 
-/** マナの払い方が特殊なスキル。コストを動かす刻印符は意味が無い（または壊れる）ので付けない */
-const SPECIAL_MANA: readonly SkillKey[] = ["fullMoon", "dregsBlade"];
-
 /** 怯み値を持たないスキル。重撃・軽打（怯み値を動かすことが得失）が片方だけになる */
-const NO_POISE: readonly SkillKey[] = ["frostField", "contagion", "shadowStep", "boneRing"];
+const NO_POISE: readonly SkillKey[] = ["frostField", "contagion"];
 
 /** 定刻（マナ → CD）と同時に効かせると意味の無くなるマナ経済の刻印符 */
 const MANA_ECONOMY: readonly ModifierKey[] = ["deferred", "refund", "bloodTithe", "spillover", "dryFire", "bladeFeed", "overheat"];
@@ -35,7 +32,7 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     excludesTags: [],
     requiresResource: "mana",
     // 業火の化身は維持の気力を毎秒払うので、入口だけ後払いにしても意味が無い
-    excludesSkills: [...SPECIAL_MANA, "pyreForm"],
+    excludesSkills: ["pyreForm"],
     apply: (p) => ({ ...p, deferredMul: M.deferred.costMul }),
   },
   refund: {
@@ -46,7 +43,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw(["mana"]),
     excludesTags: ["buff"],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
     apply: (p) => ({ ...p, refundPerHit: M.refund.perHit, damageMul: p.damageMul * M.refund.damageMul }),
   },
   bloodTithe: {
@@ -57,7 +53,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw(["lowHp"], ["mana"]),
     excludesTags: [],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
     apply: (p) => ({ ...p, bloodTithe: true, burdenMul: p.burdenMul * M.bloodTithe.costMul }),
   },
   spillover: {
@@ -68,7 +63,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw([], ["mana"]),
     excludesTags: ["buff"],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
     apply: (p) => ({ ...p, spillover: true }),
   },
   dryFire: {
@@ -79,7 +73,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw([], ["mana"]),
     excludesTags: ["buff"],
     requiresResource: "mana",
-    excludesSkills: ["fullMoon"],
     apply: (p) => ({ ...p, dryFire: true }),
   },
   bladeFeed: {
@@ -90,7 +83,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw([], ["melee"], ["mana"]),
     excludesTags: [],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
     apply: (p) => ({ ...p, bladeFeed: true }),
   },
   timeLock: {
@@ -101,7 +93,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw([], [], ["mana"]),
     excludesTags: [],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
     excludesModifiers: MANA_ECONOMY,
     apply: (p) => ({
       ...p,
@@ -138,7 +129,6 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     keywords: kw([], [], ["mana"]),
     excludesTags: [],
     requiresResource: "mana",
-    excludesSkills: SPECIAL_MANA,
     apply: (p) => ({ ...p, overheat: true }),
   },
   // ---- 当て方 ----
@@ -238,8 +228,8 @@ export const EXTRA_MODIFIERS: Record<ExtraModifierKey, ModifierDef> = {
     excludesTags: [],
     // 第 3 弾の変身（狼化・霊体化・鉄塊化）は持続が伸びる（durationMul）
     requiresTags: ["placed", "form"],
-    // グレネード・雷撃は置いたものが残らない（導火線・落雷の予告だけ）。第 2 弾の変身と、時間で切れない変身（砲身化・業火の化身）は除く
-    excludesSkills: ["frag", "thunder", "titanForm", "swiftForm", "spiritForm", "siegeForm", "pyreForm"],
+    // 時間で切れない変身（砲身化・業火の化身）は除く
+    excludesSkills: ["siegeForm", "pyreForm"],
     apply: (p) => ({ ...p, durationMul: p.durationMul * M.sustain.durationMul, potencyMul: p.potencyMul * M.sustain.potencyMul }),
   },
   landing: {

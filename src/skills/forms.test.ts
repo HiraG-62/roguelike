@@ -176,12 +176,12 @@ describe("狼化", () => {
   });
 
   it("変身中はほかのスキル石を使えず（何も払わない）、解けると 1 秒遅くなる", () => {
-    const state = skillArena([{ key: "wolfForm" }, { key: "frag" }]);
+    const state = skillArena([{ key: "wolfForm" }, { key: "commonBomb" }]);
     cast(state);
     const mana = state.player.mana;
     expect(slotBodyBlocked(state, 1), "HUD と bot は撃てないと分かる").toBe(true);
     cast(state, 1);
-    expect(state.skills.grenades, "グレネードは出ない").toHaveLength(0);
+    expect(state.skills.lastCast?.skillKey, "炸裂玉は撃っていない").not.toBe("commonBomb");
     expect(state.player.mana, "気力も払わない").toBe(mana);
     run(state, SKILL.wolfForm.duration + FIXED_DT);
     expect(state.skills.shape, "解けた").toBeNull();
@@ -390,10 +390,10 @@ describe("業火の化身", () => {
   });
 
   it("維持中もほかのスキル石は撃てる。化身は第 3 弾の変身中も強い", () => {
-    const state = skillArena([{ key: "pyreForm" }, { key: "quake", links: 1, modifiers: ["formSurge"] }]);
+    const state = skillArena([{ key: "pyreForm" }, { key: "comboChain", links: 1, modifiers: ["formSurge"] }]);
     cast(state, 1);
     const before = state.skills.active?.params.damageMul ?? 0;
-    run(state, SKILL.quake.windup + SKILL.quake.recover + 0.1);
+    run(state, SKILL.comboChain.gap * SKILL.comboChain.maxStages + 0.1);
     state.player.mana = state.stats.maxMana;
     cast(state, 0);
     waitInterval(state, 1);
@@ -404,15 +404,15 @@ describe("業火の化身", () => {
   });
 });
 
-describe("変身 8 種の排他と共有の待ち", () => {
-  it("変身中は別の変身（第 2 弾の型も）を撃てない", () => {
-    const state = skillArena([{ key: "titanForm" }, { key: "wolfForm" }]);
+describe("変身 5 種の排他と共有の待ち", () => {
+  it("変身中は別の変身を撃てない", () => {
+    const state = skillArena([{ key: "wolfForm" }, { key: "ironForm" }]);
     cast(state, 0);
-    expect(state.skills.form?.skillKey).toBe("titanForm");
+    expect(state.skills.shape?.key).toBe("wolfForm");
     cast(state, 1);
-    expect(state.skills.shape, "狼化にならない").toBeNull();
+    expect(state.skills.shape?.key, "鉄塊化にならない").toBe("wolfForm");
     expect(state.skills.slots[1]?.chargesLeft, "払っていない").toBe(1);
-    expect(shapeCastBlock(state, SKILL_DEFS.swiftForm, 2)).toBe("変身中");
+    expect(shapeCastBlock(state, SKILL_DEFS.wraithForm, 2)).toBe("変身中");
   });
 
   it("1 つ使うとほかの変身もその再使用時間だけ待つ", () => {
@@ -428,10 +428,9 @@ describe("変身 8 種の排他と共有の待ち", () => {
     expect(state.skills.shape?.key, "待ちが明けたら撃てる").toBe("ironForm");
   });
 
-  it("第 2 弾の 3 変身を回し続けても稼働率は 60% 以下（深化・持続の変異・得意の武器種を積んでも）", () => {
-    const uptime = (loadout: Loadout[], job?: GameState["job"]): number => {
+  it("時間で切れる 3 変身を回し続けても稼働率は 60% 以下（深化・持続の変異を積んでも）", () => {
+    const uptime = (loadout: Loadout[]): number => {
       const state = skillArena(loadout);
-      if (job) state.job = job;
       const all = withInput({ skill1Pressed: true, skill2Pressed: true, skill3Pressed: true });
       const steps = Math.ceil(UPTIME_SECONDS / FIXED_DT);
       let inForm = 0;
@@ -441,17 +440,14 @@ describe("変身 8 種の排他と共有の待ち", () => {
       }
       return inForm / steps;
     };
-    const plain = uptime([{ key: "titanForm" }, { key: "swiftForm" }, { key: "spiritForm" }]);
+    const plain = uptime([{ key: "wolfForm" }, { key: "wraithForm" }, { key: "ironForm" }]);
     expect(plain, "変身はしている").toBeGreaterThan(0.25);
     expect(plain).toBeLessThanOrEqual(SHAPE_TUNING.uptimeCap + UPTIME_SLACK);
     const stacked: VariantRoll[] = [
       { axis: "durationVsPotency", value: 1 },
       { axis: "cooldownVsDamage", value: 1 },
     ];
-    const heavy = uptime(
-      (["titanForm", "swiftForm", "spiritForm"] as const).map((key) => ({ key, links: 1, modifiers: ["formLinger"], variants: stacked })),
-      "swordsman",
-    );
+    const heavy = uptime((["wolfForm", "wraithForm", "ironForm"] as const).map((key) => ({ key, links: 1, modifiers: ["formLinger"], variants: stacked })));
     expect(heavy, "積んでも上限を超えない").toBeLessThanOrEqual(SHAPE_TUNING.uptimeCap + UPTIME_SLACK);
   });
 });

@@ -371,12 +371,12 @@ describe("抽選の拡張: 出すタグとスキル石のタグ", () => {
 
   it("スキル石のタグ・資源・付ける状態異常を祝福タグとして読む", () => {
     const state = arena();
-    const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "thunder" }), id: "boon-tag-thunder" };
+    const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "commonThunderclap" }), id: "boon-tag-thunder" };
     state.skills.profile = { ...state.skills.profile, stones: [stone], loadout: [stone.id, null, null, null] };
     const tags = skillStoneTags(state);
     expect(tags.has("skill")).toBe(true);
     expect(tags.has("shock"), "雷のスキルは shock").toBe(true);
-    if (SKILL_DEFS.thunder.resource === "mana") expect(tags.has("mana")).toBe(true);
+    if (SKILL_DEFS.commonThunderclap.resource === "mana") expect(tags.has("mana")).toBe(true);
     expect(buildTags(state).owned.has("shock"), "抽選のタグに入る").toBe(true);
     state.skills.profile = { ...state.skills.profile, loadout: [null, null, null, null] };
     expect(skillStoneTags(state).size, "何も付けていなければ空").toBe(0);
@@ -388,7 +388,7 @@ describe("抽選の拡張: 出すタグとスキル石のタグ", () => {
       // 銃の家系にしておく（射撃前提の祝福の loadout 判定で母集団が変わらないよう固定する）
       state.stats.moveset = "gunner";
       state.boonRun.baseStats = state.stats;
-      const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "thunder" }), id: "boon-tag-thunder2" };
+      const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "commonThunderclap" }), id: "boon-tag-thunder2" };
       const loadout = withStone ? [stone.id, null, null, null] : [null, null, null, null];
       state.skills.profile = { ...state.skills.profile, stones: [stone], loadout };
       let n = 0;
@@ -415,10 +415,10 @@ describe("弾を出せない武器種と ranged タグ（docs/ideas/weapon-redes
     const state = arena();
     state.stats.moveset = "sword";
     state.boonRun.baseStats = state.stats;
-    const stone = { ...stoneFromSeed(7, { foundDepth: 1, now: 0, skillKey: "frag" }), id: "boon-tag-ranged-skill" };
+    const stone = { ...stoneFromSeed(7, { foundDepth: 1, now: 0, skillKey: "commonRailshot" }), id: "boon-tag-ranged-skill" };
     state.skills.profile = { ...state.skills.profile, stones: [stone], loadout: [stone.id, null, null, null] };
     const tags = buildTags(state);
-    expect(SKILL_DEFS.frag.tags.includes("projectile"), "前提: グレネードは projectile タグ").toBe(true);
+    expect(SKILL_DEFS.commonRailshot.tags.includes("projectile"), "前提: 撃ち抜きは projectile タグ").toBe(true);
     expect(tags.owned.has("ranged"), "遠距離スキル石由来の ranged タグは剣でも残る").toBe(true);
   });
 });

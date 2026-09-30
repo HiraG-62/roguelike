@@ -16,12 +16,13 @@ import { endUltimate } from "../system/ultimates";
 import { SKILL } from "./data";
 import { skillPower } from "./hit";
 import { spawnShot } from "./shots";
+import { FORM_TUNING } from "./tuning2";
 import { SHAPE_TUNING as S } from "./tuning3";
 import { type CastParams, type ShapeFormState, type SkillDef, type SkillKey, WAVE3_SKILL_KEYS, type Wave3SkillKey } from "./types";
 
 /**
  * 変身（docs/ideas/skills-expansion.md 1-H #56〜#60）。左右クリックの動作そのものを差し替える 5 種の状態遷移と、
- * 第 2 弾の 3 種（剛 / 迅 / 霊の型。skills/actions2.ts）も含めた変身 8 種の共通規則（同時に 1 つ・共有の待ち）を持つ。
+ * 変身の共通規則（同時に 1 つ・共有の待ち・解けた後の反動）を持つ。第 2 弾の武器種の変身 3 種は段取り 7c で削った
  *
  * - 狼化・鉄塊化は近接の型（MovesetDef）を差し替える。player.ts は shapeMoveset を装備の武器種より先に読む
  * - 右クリックの差し替え（遠吠え・砲撃）は player.ts が shapeButtonPress に先に渡す
@@ -80,14 +81,19 @@ export function isShapeKey(key: SkillKey): key is Wave3SkillKey {
   return (WAVE3_SKILL_KEYS as readonly string[]).includes(key);
 }
 
-/** 変身 8 種（第 2 弾の 3 種を含む）か */
+/** 変身 5 種か */
 export function isFormSkill(def: Readonly<SkillDef>): boolean {
   return def.tags.includes("form");
 }
 
-/** どれかの変身中か（第 2 弾の武器種の変身も含む） */
+/** どれかの変身中か */
 export function inAnyForm(state: GameState): boolean {
-  return state.skills.form !== null || state.skills.shape !== null;
+  return state.skills.shape !== null;
+}
+
+/** 変身が解けた後の反動の移動倍率 */
+export function formRecoverMoveMul(state: GameState): number {
+  return state.skills.formRecover > 0 ? FORM_TUNING.recoverMoveMul : 1;
 }
 
 function shapeKey(state: GameState): Wave3SkillKey | null {
@@ -242,10 +248,11 @@ function openFire(state: GameState, shape: ShapeFormState, params: CastParams): 
 }
 
 /**
- * 変身の時間経過（updateSkills が updateForm の後に毎ステップ呼ぶ）。
+ * 変身の時間経過（updateSkills が毎ステップ呼ぶ）。反動の残り秒もここで減らす。
  * 砲身化はダッシュで、業火の化身は気力切れで、時間の変身は持続が尽きると解ける
  */
 export function updateShape(state: GameState, dt: number): void {
+  state.skills.formRecover = Math.max(0, state.skills.formRecover - dt);
   const shape = state.skills.shape;
   if (!shape) return;
   shape.elapsed += dt;
@@ -297,7 +304,7 @@ export function toggleOffShape(state: GameState): void {
 }
 
 // ---------------------------------------------------------------------------
-// 共有の待ち（変身 8 種）
+// 共有の待ち（変身 5 種）
 // ---------------------------------------------------------------------------
 
 /**
@@ -495,7 +502,6 @@ function pyreProcs(params: Readonly<CastParams>): StatusProc[] {
 
 /**
  * 近接・射撃の on-hit 付与に燃焼を差し込む。装備を替えると applyStats が stats を作り直して消えるので毎ステップ確かめる
- * （第 2 弾の変身が武器種を差し直すのと同じやり方）
  */
 function ensurePyreProcs(state: GameState, params: Readonly<CastParams>): void {
   if (state.stats.statusProcs.some((proc) => PYRE_PROCS.has(proc))) return;

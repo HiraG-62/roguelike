@@ -96,7 +96,7 @@ describe("永続データへ書かない", () => {
   });
 
   it("拠点でスキルを撃っても石の使い込みが増えない", () => {
-    const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "whirl" }), variants: [], links: 0 };
+    const stone = { ...stoneFromSeed(3, { foundDepth: 1, now: 0, skillKey: "commonWhirl" }), variants: [], links: 0 };
     const skillProfile: SkillProfile = { version: 1, loadout: [stone.id, null, null, null], stones: [stone] };
     const session = hub(ALL, skillProfile);
     const target = dummies(session)[0];

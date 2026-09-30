@@ -171,11 +171,6 @@ describe("スキル・祝福のキー集合(段 3)", () => {
     expect(diffKeySets("skills.modifier(base+extra+wave2)", allKeys, MODIFIER_KEYS)).toEqual([]);
   });
 
-  it("満月の砲のコストと払い戻し基準は MANA.baseMax と一致する(数値をJSONへ展開したぶんの検査)", () => {
-    expect(skillsJson.EXTRA_SKILL_TUNING.fullMoon.cost).toBe(BALANCE.combat.MANA.baseMax);
-    expect(skillsJson.EXTRA_SKILL_TUNING.fullMoon.refMana).toBe(BALANCE.combat.MANA.baseMax);
-  });
-
   it("狼化の遠吠え・業火の化身の燃焼秒は STATUS の値と一致する(数値をJSONへ展開したぶんの検査)", () => {
     expect(skillsJson.WAVE3_SKILL_TUNING.wolfForm.fearDuration).toBe(BALANCE.combat.STATUS.fear.duration);
     expect(skillsJson.WAVE3_SKILL_TUNING.pyreForm.burnDuration).toBe(BALANCE.combat.STATUS.burnDuration);

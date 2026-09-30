@@ -1,5 +1,5 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
-import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, angle, dist, length, normalize, scale, sub } from "../core/vec";
 import { shake, spawnBlast, spawnBurst, spawnRing } from "../system/effects";
 import { gainMana } from "../system/mana";
 import { circlesOverlap, overlapsWall } from "../system/physics";
@@ -10,17 +10,16 @@ import { SKILL, SKILL_DEFS } from "./data";
 import { angleDiff } from "./geom";
 import { skillHit, skillPower } from "./hit";
 import { spawnShot } from "./shots";
-import type { BoneRing, CastParams, GraveSword, PowderKeg, Turret } from "./types";
+import type { CastParams, GraveSword, PowderKeg, Turret } from "./types";
 
 /**
- * 大拡張の設置物・連動体（爆薬樽・剣の墓標・砲台・骨片の輪・湧き石）。
+ * 大拡張の設置物・連動体（爆薬樽・剣の墓標・砲台・湧き石）。
  * 連動体は自分では攻撃しない。プレイヤーの近接 3 段目（墓標）・振り（砲台。銃の弾だけでなく近接の振りにも合わせる）に合わせてだけ動く（ヴァンサバ化しない）。
  */
 
 export const COLOR_KEG = "#c07030";
 export const COLOR_GRAVE = "#d0d0e0";
 export const COLOR_TURRET = "#80c0ff";
-export const COLOR_BONE = "#f0f0d0";
 export const COLOR_SPRING = "#4aa0ff";
 
 const RING_LIFE = 0.2;
@@ -33,7 +32,6 @@ const BURST_LIFE = 0.4;
 const BURST_SIZE = 2.5;
 const SHAKE_KEG = 4;
 const SPIN_PARTICLES = 6;
-const FULL_TURN = Math.PI * 2;
 const MANA_PARTICLE_SPEED = 25;
 
 // ---------------------------------------------------------------------------
@@ -275,52 +273,6 @@ export function tollSummons(state: GameState, center: Vec, radius: number): numb
   const turrets = rs.turrets.filter((tur) => near(tur.pos));
   fireTurrets(state, turrets);
   return blown.size + graves.length + turrets.length;
-}
-
-// ---------------------------------------------------------------------------
-// 骨片の輪
-// ---------------------------------------------------------------------------
-
-export function startBoneRing(state: GameState, params: CastParams): void {
-  const b = SKILL.boneRing;
-  const bones = Math.max(1, Math.round(b.bones * params.potencyMul) + params.countBonus);
-  const time = b.duration * params.durationMul;
-  state.skills.boneRing = { bones, timer: time, total: time, params };
-}
-
-/** 骨片 i の位置（HUD と共有） */
-export function bonePositions(state: GameState, ring: Readonly<BoneRing>): Vec[] {
-  const b = SKILL.boneRing;
-  const base = state.skills.clock * b.spin;
-  const out: Vec[] = [];
-  for (let i = 0; i < ring.bones; i++) {
-    out.push(add(state.player.body.pos, scale(fromAngle(base + (i * FULL_TURN) / ring.bones), b.orbit)));
-  }
-  return out;
-}
-
-export function updateBoneRing(state: GameState, dt: number): void {
-  const rs = state.skills;
-  const ring = rs.boneRing;
-  if (!ring) return;
-  ring.timer -= dt;
-  catchWithBones(state, ring);
-  if (ring.timer <= 0 || ring.bones <= 0) rs.boneRing = null;
-}
-
-/** 骨片に触れた敵弾を 1 発ずつ止める（止めた骨片は砕ける） */
-function catchWithBones(state: GameState, ring: BoneRing): void {
-  const b = SKILL.boneRing;
-  for (const pr of state.projectiles) {
-    if (ring.bones <= 0) return;
-    if (pr.owner !== "enemy" || pr.life <= 0) continue;
-    const hit = bonePositions(state, ring).find((pos) => dist(pos, pr.pos) <= pr.radius + b.catchRadius);
-    if (!hit) continue;
-    pr.life = 0;
-    ring.bones -= 1;
-    spawnBurst(state, hit, COLOR_BONE, FIZZLE_PARTICLES, BURST_SPEED / 2, FIZZLE_LIFE, BURST_SIZE / 2);
-    pushSfx(state, "parry");
-  }
 }
 
 // ---------------------------------------------------------------------------
