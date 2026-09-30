@@ -80,8 +80,8 @@ import {
   type Wave3SkillKey,
 } from "../skills/types";
 import { buffMul } from "./attributes";
-import { boonGrantedModifiers, boonManaCostMul, hasBoon, onBoonSkillCast } from "./boons";
-import { refreshResonance } from "./resonance";
+import { applyBoonsToStats, boonGrantedModifiers, boonManaCostMul, hasBoon, onBoonSkillCast } from "./boons";
+import { refreshResonance, resonanceStatsDiffer } from "./resonance";
 import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
 import { COLOR_JUST, cancelAttack, gainEnergy, healSustained, registerComboHit } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
@@ -418,13 +418,25 @@ export function trackDamageDealt(state: GameState): void {
 // メイン更新
 // ---------------------------------------------------------------------------
 
+/**
+ * 共鳴を数え直し、stats へ畳む語（ダッシュ・見切りなど）の段が変わったら祝福ごと stats を畳み直す（倍だけの語は畳み直さない）。
+ * 装備の stats（boonRun.baseStats）をまだ持たない状態は、畳み直すと祝福を二重に掛けるので数え直すだけ
+ */
+function refreshResonanceStats(state: GameState): void {
+  const before = state.boonRun.resonance;
+  if (!refreshResonance(state)) return;
+  if (state.boonRun.baseStats === undefined) return;
+  if (resonanceStatsDiffer(before, state.boonRun.resonance)) applyBoonsToStats(state);
+}
+
 export function updateSkills(state: GameState, input: FrameInput, dt: number): void {
   const rs = state.skills;
   syncSlotModifiers(rs, boonGrantedModifiers(state));
-  // 符の移し・外し（moveRunModifier は state を持たない）・石の付け替え・改鋳の取得は、ここで次のステップに数え直す。
-  // 倍（resonanceModifiers）はすぐ効き、stats に畳む語（ダッシュ・見切りなど）は次の applyStats で追いつく
-  // （ここで stats を畳み直すと、テストや QA が直に書いた stats を装備の stats で上書きしてしまう）
-  refreshResonance(state);
+  // 符の拾い・移し・外し（moveRunModifier は state を持たない）・石の付け替え・改鋳の取得は、ここで次のステップに数え直す。
+  // 倍（resonanceModifiers）はすぐ効く。stats に畳む語（ダッシュ・見切りなど）の段が変わったときだけ畳み直す
+  // （畳み直さないと、HUD に出ている共鳴が次の階・装備の変更まで stats に乗らない。
+  // 装備の stats〈baseStats〉をまだ持たない状態〈テストが直に書いた stats〉は祝福を二重に畳むので触らない）
+  refreshResonanceStats(state);
   rs.clock += dt;
   syncTracking(state);
   trackHurt(state);
@@ -1542,8 +1554,9 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   const without = candidates.filter((i) => !effectiveSlotModifiers(rs, i).includes(modifier) && slotLinks(i) >= cost);
 
   const commit = (i: number): number => {
-    syncSlotModifiers(rs);
-    refreshResonance(state);
+    // 祝福が足す符も含めて写す（空で写すと、次の updateSkills まで祝福の符が消えて共鳴の数えも揺れる）
+    syncSlotModifiers(rs, boonGrantedModifiers(state));
+    refreshResonanceStats(state);
     return i;
   };
   const free = without.find((i) => usedLinks(rs, i) + cost <= slotLinks(i));
