@@ -279,10 +279,10 @@ describe("fxMotions: 奥義の絵の表", () => {
 });
 
 /**
- * エフェクトの絵がまだ無い武器種（段取り 5d の書・鈴。振り・奥義とも手続きの描画に落ちる）。
- * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す
+ * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切ったので空
  */
-const UNDRAWN_MOVESETS: readonly MovesetKey[] = ["book", "handbell"];
+const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
 
 describe("fxMotions: 全武器種・全奥義の網羅", () => {
   it("どの武器種も専用の絵の表を持つ（手続きの描画に戻らない）", () => {
