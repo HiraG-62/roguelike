@@ -22,8 +22,7 @@ const FAST_EXCLUDE = process.env.VITEST_FAST === "1" ? ["src/qa/simulation.test.
 export default defineConfig({
   test: {
     testTimeout: TEST_TIMEOUT_MS,
-    // 変換結果をファイルに残し、次の実行で使い回す（node_modules/.vitest-cache）
-    fsModuleCache: true,
+    // 変換結果のファイルキャッシュ（fsModuleCache）は使わない。消したファイルを指す古い結果が残って落ちることがあり、縮むのも 1 割未満だった（2026-09-30）
     projects: [
       {
         extends: true,
