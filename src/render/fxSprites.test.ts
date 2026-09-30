@@ -119,24 +119,16 @@ describe("fxSprites: 生成物と一覧の整合", () => {
 });
 
 /**
- * 連刃の段数の拡張（段取り 5b-F）で足した段のうち、絵がまだ無いもの（手続きの描画に落ちる）。
- * fx レーンが scripts/fx/sheets/{twinBlades,claws,fists}.mjs に足して `npm run fx:gen` したら、ここから消す
+ * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `npm run fx:gen` したら消す。
+ * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に描き切ったので空
  */
-const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
-  twinBlades: ["l:5", "r:spinCut", "r:frenzy"],
-  fists: ["l:5", "r:hook", "r:frenzy"],
-  claws: ["l:5", "l:6", "l:7", "r:chaseClaw", "r:clawReturn", "r:clawChain", "r:frenzy"],
-};
+const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
 
 /**
- * 定義から消えた段（右の最終段を乱舞へ差し替えた）の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
- * 左の l:4 は終撃の段が 6 段目以降へ下がったため、今は終撃の手前の新しい段に当たる（絵は旧終撃のまま。fx レーンで l:<最終段> へ移す）
+ * 定義から消えた段の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
+ * 連刃の段数の拡張（5b-F）の旧 key は 2026-09-30 に取り除いたので空
  */
-const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
-  twinBlades: ["r:shadowPin"],
-  fists: ["r:straightPunch"],
-  claws: ["r:throatSlit"],
-};
+const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
 
 describe("fxMotions: 武器種のモーションの表", () => {
   it("表の行は壊れていない（無いシート・知らない原点がない）", () => {
