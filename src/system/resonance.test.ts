@@ -238,6 +238,22 @@ describe("源と糧の共鳴: 数え直し", () => {
     expect(stepOf(state, plan.k), "外した次のステップで戻る").toBe(0);
   });
 
+  it("stats へ畳む語の段がステップの数え直しで変わったら、その場で stats を畳み直す", () => {
+    const state = bareArena();
+    const plan = KEYWORD_STAT.flatMap((k) => {
+      const boons = fillWithBoons(state, k, RESONANCE.minSources, RESONANCE.minSinks);
+      return boons ? [{ k, boons }] : [];
+    })[0];
+    if (!plan) throw new Error("stats へ畳む語をそろえる祝福が無い");
+    // applyStats を通さずに出どころを足す（符の拾い・移しと同じく、数え直しは updateSkills が拾う）
+    state.boons = plan.boons;
+    updateSkills(state, withInput({}), 0);
+    expect(stepOf(state, plan.k), "共鳴が立つ").toBeGreaterThan(0);
+    const folded = structuredClone(state.stats);
+    applyStats(state, computeStats(state.profile.equipment, state.depth));
+    expect(folded, "装備を付け替えたときと同じ stats になっている").toEqual(state.stats);
+  });
+
   it("持ち替えた型の改鋳は数えない", () => {
     const state = bareArena();
     const form = formOfKey((state.boonRun.baseStats ?? state.stats).moveset).key;

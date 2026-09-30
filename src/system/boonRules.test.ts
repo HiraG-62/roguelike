@@ -11,7 +11,8 @@ import { applyStatus, enemiesInRadius } from "./statusEffects";
 import { canAttach, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { boonGrantedModifiers, grantBoon } from "./boons";
-import { effectiveSlotModifiers, syncSlotModifiers } from "./skills";
+import { attachRune, effectiveSlotModifiers, syncSlotModifiers } from "./skills";
+import { MODIFIER_KEYS } from "../skills/types";
 import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
@@ -249,6 +250,19 @@ describe("スキルの加護が全スロットへ足す刻印符（BoonDef.grant
     state.boons = [];
     syncSlotModifiers(state.skills, boonGrantedModifiers(state));
     expect(state.skills.slots.some((s) => s.modifiers.includes("echo")), "手放すと消える").toBe(false);
+  });
+
+  it("床の符を差しても、祝福が足した符はスロットの符から消えない", () => {
+    const state = arena();
+    equipTwo(state, "boon-echo-rune");
+    grantBoon(state, "echoCall");
+    syncSlotModifiers(state.skills, boonGrantedModifiers(state));
+    const withEcho = [0, 1].filter((i) => state.skills.slots[i]?.modifiers.includes("echo"));
+    expect(withEcho.length, "反響の符が足されたスロットがある").toBeGreaterThan(0);
+    // 差せなければ attachRune は何も変えずに -1 を返すので、差せる符が見つかるまで順に試す
+    const rune = MODIFIER_KEYS.find((m) => m !== "echo" && attachRune(state, m) >= 0);
+    if (rune === undefined) throw new Error("差せる符が無い");
+    for (const i of withEcho) expect(state.skills.slots[i]?.modifiers, `スロット ${i}`).toContain("echo");
   });
 
   it("石の無いスロットには足さない", () => {

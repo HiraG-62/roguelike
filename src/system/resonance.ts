@@ -174,10 +174,25 @@ export function refreshResonance(state: GameState): boolean {
 // 効果
 // -----------------------------------------------------------------------------
 
+/**
+ * 段の列 → 倍の列の写し。collectModifiers は 1 撃ごとに何度も呼ばれるので、毎回 Modifier と文字列を作らない。
+ * refreshResonance は段が変わったときだけ列を差し替える（中身は書き換えない）ので、列の同一性を鍵にできる
+ */
+const MODIFIER_CACHE = new WeakMap<readonly ResonanceStep[], readonly Modifier[]>();
+
 /** 語の段の倍（1 語 1 出所 resonance:<語>）。boonRun.resonance を読むだけ */
-export function resonanceModifiers(state: Readonly<GameState>): Modifier[] {
+export function resonanceModifiers(state: Readonly<GameState>): readonly Modifier[] {
+  const steps = state.boonRun.resonance;
+  const cached = MODIFIER_CACHE.get(steps);
+  if (cached !== undefined) return cached;
+  const built = buildResonanceModifiers(steps);
+  MODIFIER_CACHE.set(steps, built);
+  return built;
+}
+
+function buildResonanceModifiers(steps: readonly ResonanceStep[]): Modifier[] {
   const out: Modifier[] = [];
-  for (const s of state.boonRun.resonance) {
+  for (const s of steps) {
     const tag = KEYWORD_TAG[s.keyword];
     if (tag === undefined) continue;
     out.push({
@@ -220,6 +235,11 @@ export function applyResonanceStats(stats: PlayerStats, steps: readonly Resonanc
         break;
     }
   }
+}
+
+/** stats へ畳む語（KEYWORD_STAT）の段が a と b で違うか。倍だけの語が変わっても stats は畳み直さなくてよい */
+export function resonanceStatsDiffer(a: readonly ResonanceStep[], b: readonly ResonanceStep[]): boolean {
+  return KEYWORD_STAT.some((k) => (a.find((s) => s.keyword === k)?.step ?? 0) !== (b.find((s) => s.keyword === k)?.step ?? 0));
 }
 
 /** applyStats から: 数え直して、倍の無い語を祝福を畳んだ stats に足す */

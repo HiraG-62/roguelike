@@ -7,6 +7,7 @@ import { slashBase } from "./boonRules";
 import { addFloatingText } from "./effects";
 import { spendCoins } from "./economy";
 import { consumeCorpse, nearestCorpse } from "./enemyTraits";
+import { equipmentSealed } from "./runSetup";
 import { type StatusTarget, explodeAt } from "./statusEffects";
 
 /**
@@ -38,8 +39,12 @@ const REVIVE_SFX = "fountainHeal";
 /** 生命の最低（蘇りで 0 のまま起きない） */
 const MIN_HP = 1;
 
-/** この名のある遺物を装備しているか */
-export function hasNamedRelic(state: Readonly<Pick<GameState, "profile">>, key: string): boolean {
+/**
+ * この名のある遺物を装備しているか。起点「素手」で装備が封印されている間は持っていない扱い
+ * （stats 側は applyRunStats が空の装備で畳むので、engine の分岐もそろえる。共鳴の数えと同じ）
+ */
+export function hasNamedRelic(state: Readonly<Pick<GameState, "profile" | "origin" | "depth">>, key: string): boolean {
+  if (equipmentSealed(state)) return false;
   const eq = state.profile.equipment;
   return SLOTS.some((slot) => eq[slot]?.namedKey === key);
 }
