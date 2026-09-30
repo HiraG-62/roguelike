@@ -522,7 +522,14 @@ function sidesOfShaftOf(frame: readonly string[]): { ul: number; dr: number } {
 describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
   /** 密度 1 以外を載せてよいのは敵・プレイヤー・ボスのキー（とそのポーズ）だけ。武器・タイル・UI アイコンは密度 1 のまま */
   // 経済の絵（拾い物・台座・HUD の瓶・商人の色違い）は描く側が drawFrame / 論理寸法で置くので密度 2 で描いてよい
-  const ALLOWED_BASE_KEYS = new Set<string>(["player", ...ENEMIES.map((d) => d.sprite), ...BOSS_KEYS, ...ECONOMY_KEYS]);
+  // 据え置きの置物（門柱・姿見）は敵の定義より先に絵が入ることがあるので、家族ファイルの一覧からも許す
+  const ALLOWED_BASE_KEYS = new Set<string>([
+    "player",
+    ...ENEMIES.map((d) => d.sprite),
+    ...BOSS_KEYS,
+    ...ECONOMY_KEYS,
+    ...STILL_PLAIN.map(([key]) => key),
+  ]);
 
   it("経済の絵はすべて密度 2 で登録されている", () => {
     for (const key of ECONOMY_KEYS) expect(SPRITE_DOTS[key], key).toBe(2);

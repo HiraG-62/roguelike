@@ -142,8 +142,9 @@ export type SpriteFrames = readonly (readonly string[])[];
  *   sprites/heavy.ts: golem / hollowArmor / mimic（32x32、同上）
  *   sprites/w3front.ts: flameEater / windSprite / hanger / maw / scribeImp（同上）、banner（はためき 4）
  *   sprites/w3back.ts: mudman / toad / oiler / bellImp / bannerBearer / mole / homunculus / hollow（同上）
- *   sprites/bosses.ts: ボス 15 体（48x48。kingSlime / boneLord は状態フレーム 4、他は歩行4 + windup / strike）
- *   sprites/still.ts: icePillar / anvil（据え置き 24）、turret（24）/ enemyMine / broodEgg（16）+ windup / strike、fountain（16x16 水面 2）
+ *   sprites/bosses.ts: ボス 15 体（48x48。kingSlime / boneLord は状態フレーム 4、他は歩行4 + windup / strike）、deepLord（96x96 密度 2、同上）
+ *   sprites/still.ts: icePillar / anvil（据え置き 24）、turret（24）/ enemyMine / broodEgg（16）+ windup / strike、fountain（16x16 水面 2）、
+ *     gatePillar / mirrorPane（48x48 密度 2 = 論理 24、据え置き 4。3 枚目が光る）
  *   sprites/beasts.ts: wolf / skeleton / laserEye（同上）、rat / mite / beetle / bat（16x16 歩行・羽ばたき 4）
  *   sprites/player.ts: player（24x24 歩行4。剣は描き込まない）+ player.windup（構え）/ player.strike（振り抜き）
  *   sprites/weapons.ts: weapon.<武器種>（12x12、横 / 斜め / 縦の 3。手に持つ武器 16 種）、

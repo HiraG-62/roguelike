@@ -32,6 +32,10 @@ export const SPRITE_DOTS: Readonly<Record<string, SpriteDots>> = {
   merchantChapter: 2,
   merchantPeddler: 2,
   merchantBlack: 2,
+  // 最深の間（sprites/bosses.ts・sprites/still.ts）
+  deepLord: 2,
+  gatePillar: 2,
+  mirrorPane: 2,
 };
 
 /** ポーズの接尾辞を外した元のキー */
