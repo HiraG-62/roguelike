@@ -94,7 +94,7 @@ electron/    Electron 版の main / preload / IPC
 
 ## 並列開発の作法
 
-詳細・プロンプト雛形・報告形式・モデルの使い分けは `docs/AI_WORKFLOW.md`。
+詳細・プロンプト雛形・報告形式・モデルの使い分け・**速く進める原則**（確定リストまで出す設計・並行の段は worktree・途中確認は `check:fast`・レビューと資料の文章と版上げは段の終わりにまとめる）は `docs/AI_WORKFLOW.md`。
 
 - 機能を **ファイル所有** で分割し、Agent ごとに「所有 / 編集禁止 / 先に読む / 完了条件 / 報告形式」を渡す（`/parallel`）。共有ファイルは **最小の Edit のみ**、全文 Write 禁止
 - Agent は **コミットしない**。統合役が `git add <所有ファイル>` で論理単位ごとにコミット（`git add -A` 禁止）。一時ファイルは scratchpad へ
