@@ -13,6 +13,7 @@ import { isStaggered } from "../system/poise";
 import { applyStatus } from "../system/statusEffects";
 import { placeTerrain } from "../system/terrain";
 import { fireTrigger } from "../system/triggers";
+import { onManaSource } from "../system/manaSources";
 import { TRAIT_COLORS } from "../loot/types";
 import { SKILL, SKILL_DEFS, resolveCast, skillAttack } from "./data";
 import { stoneInSlot } from "./persistence";
@@ -53,6 +54,8 @@ export interface SkillHitSpec {
   from?: Vec;
   /** 会心を確定させる（刺し穿ちの脆弱消費） */
   forceCrit?: boolean;
+  /** 設置物・従魔の命中（流儀の気力の源 minionHit。段取り 5d で skills/placed.ts・summons.ts が付ける） */
+  minion?: boolean;
 }
 
 /**
@@ -143,6 +146,8 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
     fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   }
   onBoonSkillHit(state, e);
+  // 流儀の気力の源（system/manaSources.ts）
+  onManaSource(state, spec.minion === true ? "minionHit" : "skillHit");
   afterHit(state, e, params, spec, killed, pos);
   return killed;
 }

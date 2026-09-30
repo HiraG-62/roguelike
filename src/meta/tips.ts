@@ -132,13 +132,13 @@ const GROWTH_TIPS: readonly TipDef[] = [
     key: "more",
     term: "倍",
     category: "growth",
-    body: "誓約・芯・得意な武器・会心・コンボなどが掛ける与ダメージ。増とは別に、出所ごとに掛け合わさる（×1.5 と ×1.5 なら 2.25 倍）。同じ出所は 2 つ持っても 1 回だけ。",
+    body: "誓約・芯・会心・コンボなどが掛ける与ダメージ。増とは別に、出所ごとに掛け合わさる（×1.5 と ×1.5 なら 2.25 倍）。同じ出所は 2 つ持っても 1 回だけ。",
   },
-  { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方。ステータスの偏り・得意な武器・固有のルール・初期スキル石・弱点を持つ。" },
-  { key: "favored", term: "得意な武器", category: "growth", body: "ジョブごとの武器種。その武器種を持っている間は近接の威力と攻撃速度が上がる。" },
-  { key: "starterWeapon", term: "初期武器", category: "growth", body: "ジョブの得意武器の素の器。同じベースを持っていなければ、出撃のときに渡される。" },
+  { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方（流儀）。ステータスの偏り・ダッシュの形・気力の源・固有のルール・初期スキル石を持つ。" },
+  { key: "dashForm", term: "ダッシュの形", category: "growth", body: "ジョブごとのダッシュ。詰め足は振りの途中でも出せて連撃が続き、退き足は後ろへ跳んで足元に罠を残し、不退はその場で構えて受け止める。" },
+  { key: "manaSource", term: "気力の源", category: "growth", body: "ジョブごとに気力が多く湧く出来事。剣士は応手と終撃、狩人は遠い命中、術士はスキルの命中など。通常攻撃の命中でも少しは湧く。" },
+  { key: "starterWeapon", term: "初期武器", category: "growth", body: "ジョブの初期の武器種の素の器。同じベースを持っていなければ、出撃のときに渡される。" },
   { key: "starterSkill", term: "初期スキル石", category: "growth", body: "ジョブのスキル石。そのスキルの石を持っていなければ、出撃のときに倉庫に入る。" },
-  { key: "weakness", term: "弱点", category: "growth", body: "ジョブの代償。最大生命・射撃の威力・移動速度などが下がる。" },
 ];
 
 const RELIC_TIPS: readonly TipDef[] = [

@@ -18,6 +18,7 @@ import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
+import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
@@ -241,6 +242,18 @@ function boonChoiceInput(state: GameState): FrameInput {
   if (!choice || choice.options.length === 0) return input;
   if (choice.timer < BOON_CHOICE_WAIT) return input;
   const index = pickBoonIndex(choice);
+  if (index === 0) input.skill1Pressed = true;
+  else if (index === 1) input.skill2Pressed = true;
+  else input.attackPressed = true;
+  return input;
+}
+
+/** 改鋳の 3 択への入力。祝福の 3 択と同じ押し方（skill1 / skill2 / attack）で、装備中の型の札を選ぶ */
+function reforgeChoiceInput(state: GameState): FrameInput {
+  const input = freshInput();
+  const choice = state.reforgeChoice;
+  if (!choice || choice.timer < BOON_CHOICE_WAIT) return input;
+  const index = Math.max(0, choice.options.findIndex((k) => REFORGES[k].form === playerMoveset(state).form));
   if (index === 0) input.skill1Pressed = true;
   else if (index === 1) input.skill2Pressed = true;
   else input.attackPressed = true;
@@ -899,6 +912,8 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
 
   // 祝福 3 択の間は他の処理が止まる（core/game.ts の step 参照）ので最優先で処理する
   if (state.boonChoice) return boonChoiceInput(state);
+  // 改鋳の 3 択も同じく step を止める。祝福と同じ待ちの後、装備中の型の札（無ければ 1 枚目）を選ぶ
+  if (state.reforgeChoice) return reforgeChoiceInput(state);
 
   // 装備の芽（state.pendingBud）は boonChoice と違い core/game.ts の step を止めない
   // （system/loot.ts の chooseBud を呼ぶ副作用が要るだけで、FrameInput とは無関係）ため、

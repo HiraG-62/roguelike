@@ -32,6 +32,7 @@ import { noteUltimateKill, ultimateBlocksEnergy, ultimateIncomingMul } from "./u
 import type { ButtonKey, MovesetKey } from "../data/weapons";
 import { chargeArmorOf } from "./morale";
 import { noteHitMoments, noteRiposte } from "./moments";
+import { noteBraceBlockMana, noteHitMana } from "./manaSources";
 import { shareLinkedDamage } from "./formMarks";
 
 export const COLOR_DAMAGE = "#ffffff";
@@ -227,6 +228,8 @@ export function damageEnemy(
   if (opts.crit) onBoonCrit(state, enemy, amount);
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
   noteHitMoments(state, enemy, { kind, skill: opts.skill, silent: opts.silent, finisher: opts.finisher, release: opts.release, lane: opts.lane });
+  // 流儀の気力の源: 背面の命中・遠い命中（system/manaSources.ts）
+  noteHitMana(state, enemy, kind, opts.skill === true, opts.silent === true);
   // 一蓮托生: 鎖で繋いだ敵どうしで与ダメを分け合う（system/formMarks.ts）
   shareLinkedDamage(state, enemy, amount, kind, opts.silent === true);
   if (enemy.hp > 0) return false;
@@ -495,6 +498,8 @@ export function damagePlayer(
   const p = state.player;
   if (state.status !== "playing") return "ignored";
   if (p.invulnTimer > 0 || p.buffs.invuln > 0) {
+    // 不退の構えで受けた量は盾持ちの気力の源（system/manaSources.ts）
+    noteBraceBlockMana(state, amount);
     if (!opts.noJust && (p.dashTimer > 0 || boonJustEligible(state)) && !p.dodgedThisDash) {
       justDodge(state, attacker);
       return "dodged";

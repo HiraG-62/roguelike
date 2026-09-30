@@ -8,6 +8,8 @@ import type { TerrainKind, TerrainLayer } from "./terrain";
 import type { SfxName } from "../audio/sfxNames";
 import type { FloorStone, SkillRunState } from "../skills/types";
 import type { BoonChoice, BoonKey, BoonRunState } from "../system/boons";
+import type { ReforgeChoice } from "../system/reforge";
+import type { ReforgeKey } from "../data/reforges";
 import type { ChainRecord, EventKind, GameEvent, RecentEvent, RuleRunState } from "./events";
 import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
 import type { RunEventState } from "../system/runEvents";
@@ -902,6 +904,10 @@ export interface GameState {
   /** 祝福 3 択の提示中。非 null の間は step が選択入力だけを処理する */
   boonChoice: BoonChoice | null;
   boonRun: BoonRunState;
+  /** ラン内の改鋳（取得順。永続化しない。data/reforges.ts）。武器の型の段・戦意・起点を書き換える */
+  reforges: ReforgeKey[];
+  /** 改鋳 3 択の提示中（5 の倍数の階のボスの後）。非 null の間は step が選択入力だけを処理する（system/reforge.ts） */
+  reforgeChoice: ReforgeChoice | null;
   /** 装備の芽（来歴の節目で出る 2 択）の提示中。UI が表示し、system/loot.ts の chooseBud で選ぶ */
   pendingBud: PendingBud | null;
   /** ラン内のステータス振り分け（docs/COMBAT_DESIGN.md A-3）。ランで消える */

@@ -182,7 +182,7 @@ function jobCursorDescription(ui: Readonly<OriginScreen>): { name: string; desc:
   return { name: JOBS[row].name, desc: JOBS[row].desc };
 }
 
-/** ジョブの段の詳細欄（カーソルのジョブの ステータス / 得意な武器 / ルール / 初期スキル石 / 弱点）。未解放なら空 */
+/** ジョブの段の詳細欄（カーソルのジョブの ステータス / ダッシュの形 / 気力の源 / ルール / 初期武器 / 初期スキル石）。未解放なら空 */
 export function jobCursorDetail(ui: Readonly<OriginScreen>): string[] {
   const row = JOB_ROWS[ui.jobCursor];
   if (!row || ui.lockedJobs.has(row)) return [];

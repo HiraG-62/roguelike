@@ -25,6 +25,7 @@ import { spawnBurst } from "./effects";
 import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
 import { type ShotRelease, gainMorale, isPlacedShot, laneStepRelease, swingShotRelease } from "./morale";
 import { noteRelease, noteRiposte } from "./moments";
+import { onManaSource } from "./manaSources";
 import { attackCommitted } from "./poise";
 import { parryLocksActions, parryMoveMul, parrySucceed, tryWindowParry } from "./parry";
 import { BULLETS } from "../loot/bullets";
@@ -307,6 +308,8 @@ export function guardDamageMul(state: GameState, fromPos: Vec, amount = 0, attac
  */
 function noteGuardBlock(state: GameState, amount: number, attacker?: Enemy): void {
   gainMorale(state, "guardBlock", amount);
+  // 構えで受けた量は盾持ちの気力の源（system/manaSources.ts）
+  onManaSource(state, "guardBlock", amount);
   if (FORM.bulwark.blockOnlyCommitted && !(attacker && attackCommitted(attacker))) return;
   noteRiposte(state, "guardBlock", attacker);
 }

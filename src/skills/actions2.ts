@@ -4,7 +4,7 @@ import type { StatusApply } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
 import { enemyCombat } from "../data/enemyCombat";
-import { JOBS } from "../data/jobs";
+import { favoredMovesets } from "../data/jobs";
 import { STATUS } from "../data/tuning";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { type Scaling, TRAIT_COLORS, type TraitColor } from "../loot/types";
@@ -717,7 +717,7 @@ function formBurst(state: GameState, center: Vec, params: CastParams, key: FormS
 
 /** 変身先がジョブの得意な武器種か（持続が伸びる） */
 export function formFavored(state: GameState, key: FormSkillKey): boolean {
-  return JOBS[state.job].favored.includes(FORM_MOVESET[key]);
+  return favoredMovesets(state.job).includes(FORM_MOVESET[key]);
 }
 
 /** 変身の持続（持続の変異・深化・得意の武器種を畳む） */

@@ -27,11 +27,13 @@ import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
+import { reforgeRules } from "./reforge";
 import { formOfKey } from "../data/weaponForms";
 import { sustainRules } from "../data/ultimates";
 import { ultimateBlocksEnergy, ultimateReady } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
+import { onManaSource } from "./manaSources";
 import { releaseTerrainRadiusBonus } from "./morale";
 import type { TriggerEffectKind } from "../loot/types";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
@@ -111,6 +113,8 @@ export function collectRules(state: GameState): Rule[] {
   out.push(...jobRules(state.job));
   // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
   out.push(...movesetRules(state.stats.moveset));
+  // 改鋳の起点（data/reforges.ts。型の合う改鋳だけ）
+  out.push(...reforgeRules(state));
   // 持続中の奥義の固有効果（data/ultimates.ts の SustainDef.rules）。持続中だけ集める
   out.push(...sustainRules(state.player.ultimate.active));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
@@ -212,6 +216,7 @@ function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fi
   try {
     const grade = ruleOwnerGrade(state, rule.owner);
     applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
+    if (rule.owner.kind === "boon") onManaSource(state, "boonFired");
   } finally {
     run.depth = prevDepth;
     run.visits = prevVisits;
@@ -242,6 +247,8 @@ function runRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
     // 祝福の格は効果量・半径に掛かる（呪い付き・祝福以外の Rule は並 = ×1）
     const grade = ruleOwnerGrade(state, rule.owner);
     applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
+    // 加護（祝福の Rule）の発火は巫女の流儀の気力の源（段取り 5d。system/manaSources.ts）
+    if (rule.owner.kind === "boon") onManaSource(state, "boonFired");
   } finally {
     run.depth = prevDepth;
     run.owner = prevOwner;

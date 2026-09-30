@@ -1,0 +1,4 @@
+{
+  "bellToll": { "poise": 30 },
+  "bellWard": { "seconds": 0.6 }
+}

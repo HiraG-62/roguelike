@@ -6,7 +6,7 @@ import { ReplayRecorder, createReplaySession, isReplayFinished, sanitizeReplay, 
 import { createRng, hashSeed } from "../core/rng";
 import { profileKeywords } from "../core/keywords";
 import type { Enemy, GameState } from "../core/state";
-import { JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
+import { JOBS, JOB_KEYS, type JobKey, favoredMovesets } from "../data/jobs";
 import { ATTR, JOB, PLAYER } from "../data/tuning";
 import { baseDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -14,7 +14,7 @@ import { ATTR_KEYS, DEFAULT_STATS, createEmptyProfile } from "../loot/types";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import { QUESTS, createQuestSave, lockedJobs, questRewardLabel } from "../meta/quests";
 import { ORIGINS, ORIGIN_KEYS } from "./runSetup";
-import { applyJobStats, isFavoredWeapon, jobDetailLines, jobModifiers, jobRules, ownsSkillStone, ownsWeaponBase } from "./jobs";
+import { applyJobStats, isFavoredWeapon, jobDetailLines, jobRules, ownsSkillStone, ownsWeaponBase } from "./jobs";
 import { applyBoonsToStats } from "./boons";
 import { collectRules, resolveRules } from "./rules";
 import { applyStatus, hasStatus } from "./statusEffects";
@@ -28,9 +28,6 @@ const SEED = 21;
 const PLAYABLE: readonly JobKey[] = JOB_KEYS.filter((j) => j !== "none");
 /** 既定で解放されているジョブの数（見習いを除く） */
 const DEFAULT_UNLOCKED = 4;
-/** 得意な武器種の数の範囲 */
-const FAVORED_MIN = 2;
-const FAVORED_MAX = 3;
 const RULES_PER_JOB = 2;
 
 function game(job: JobKey, seed = SEED): GameState {
@@ -70,23 +67,32 @@ describe("ジョブの定義", () => {
     for (const n of names) expect(originNames.has(n), `${n} が起点と同名`).toBe(false);
   });
 
-  it("見習い以外は語・ルール 2 つ・得意な武器種・初期スキル石・弱点を持つ", () => {
+  it("見習い以外は語・ルール 2 つ・固有のダッシュの形・気力の源・初期スキル石を持つ", () => {
     for (const key of PLAYABLE) {
       const def = JOBS[key];
       expect(profileKeywords(def.keywords).length, `${key} の語`).toBeGreaterThan(0);
       expect(def.rules.length, `${key} のルール`).toBe(RULES_PER_JOB);
-      expect(def.favored.length, `${key} の得意な武器種`).toBeGreaterThanOrEqual(FAVORED_MIN);
-      expect(def.favored.length, `${key} の得意な武器種`).toBeLessThanOrEqual(FAVORED_MAX);
+      expect(def.dash, `${key} のダッシュの形`).not.toBe("standard");
+      const base = def.mana.filter((m) => m.kind === "attackHit");
+      expect(base.map((m) => (m.kind === "attackHit" ? m.mul : 0)), `${key} の通常攻撃の下地`).toEqual([JOB.manaBaseMul]);
+      expect(def.mana.length, `${key} の流儀の源`).toBeGreaterThan(base.length);
       expect(def.starterSkill, `${key} の初期スキル石`).not.toBeNull();
-      expect(def.weakness, `${key} の弱点`).not.toBeNull();
     }
   });
 
-  it("見習いは何も持たない", () => {
+  it("ダッシュの形・気力の源は流儀ごとに違う（同じ形・同じ源の流儀が無い）", () => {
+    const dashes = PLAYABLE.map((k) => JOBS[k].dash);
+    expect(new Set(dashes).size, "ダッシュの形").toBe(dashes.length);
+    const sources = PLAYABLE.map((k) => JOBS[k].mana.filter((m) => m.kind !== "attackHit").map((m) => m.kind).join("+"));
+    expect(new Set(sources).size, "気力の源").toBe(sources.length);
+  });
+
+  it("見習いは既定のダッシュと通常攻撃の気力だけを持つ", () => {
     const def = JOBS.none;
     expect(def.rules).toEqual([]);
     expect(def.starterSkill).toBeNull();
-    expect(def.weakness).toBeNull();
+    expect(def.dash).toBe("standard");
+    expect(def.mana).toEqual([{ kind: "attackHit", mul: 1 }]);
     expect(def.unlockedBy).toBeUndefined();
   });
 
@@ -123,10 +129,10 @@ describe("ジョブの定義", () => {
     expect(questRewardLabel(QUESTS.critStorm.reward)).toContain(JOBS.lancer.name);
   });
 
-  it("説明欄はステータス・得意な武器・ルール・初期武器・初期スキル石・弱点を語る", () => {
+  it("説明欄はステータス・ダッシュの形・気力の源・ルール・初期武器・初期スキル石を語る", () => {
     for (const key of PLAYABLE) {
       const lines = jobDetailLines(key);
-      expect(lines.length, `${key} の行数`).toBe(1 + 1 + RULES_PER_JOB + 1 + 1 + 1);
+      expect(lines.length, `${key} の行数`).toBe(1 + 1 + 1 + RULES_PER_JOB + 1 + 1);
     }
     expect(jobDetailLines("none"), "見習いは詳細なし").toEqual([]);
   });
@@ -148,31 +154,15 @@ describe("ジョブの適用", () => {
     }
   });
 
-  it("弱点の倍率が掛かる（体力の偏りによる増減は後の派生で乗る）", () => {
-    const hunter = structuredClone(DEFAULT_STATS);
-    applyJobStats(hunter, "hunter");
-    expect(hunter.maxHp).toBeCloseTo(DEFAULT_STATS.maxHp * JOB.hunterHpMul);
-    expect(game("hunter").stats.maxHp, "ラン開始時にも弱い").toBeLessThan(game("none").stats.maxHp);
-    const plain = game("none");
-    expect(plain.stats.more.some((m) => m.source.startsWith("job:")), "見習いは倍を持たない").toBe(false);
-    const weakness = game("swordsman").stats.more.find((m) => m.source === "job:weakness:skill");
-    expect(weakness?.mul, "剣士の弱点はスキルの倍").toBeCloseTo(JOB.swordsmanSkillMul);
-    expect(game("brawler").stats.damageTakenMul).toBeCloseTo(plain.stats.damageTakenMul * JOB.brawlerDamageTakenMul);
-  });
-
-  it("得意な武器種を持つ間だけ近接の威力と攻撃速度が上がる", () => {
-    const favored = structuredClone({ ...DEFAULT_STATS, moveset: "sword" as const });
-    const other = structuredClone({ ...DEFAULT_STATS, moveset: "wand" as const });
-    expect(isFavoredWeapon(favored, "swordsman")).toBe(true);
-    expect(isFavoredWeapon(other, "swordsman")).toBe(false);
-    applyJobStats(favored, "swordsman");
-    applyJobStats(other, "swordsman");
-    // 威力の倍は Modifier（jobModifiers）。条件で得意かを見るので stats には入らない（倍の効きは modifiers.test.ts）
-    expect(favored.more.some((m) => m.source.startsWith("job:favored")), "威力の倍は stats に入れない").toBe(false);
-    expect(jobModifiers("swordsman").map((m) => m.amount), "得意武器は倍").toEqual([JOB.favoredMeleeMul, JOB.favoredMeleeMul]);
-    expect(jobModifiers("none"), "見習いは得意武器の倍を持たない").toEqual([]);
-    expect(favored.attackSpeedMul).toBeCloseTo(DEFAULT_STATS.attackSpeedMul * JOB.favoredAttackSpeedMul);
-    expect(other.attackSpeedMul, "得意でなければ等速").toBeCloseTo(DEFAULT_STATS.attackSpeedMul);
+  it("ジョブは偏り以外の数値を変えない（得意武器の倍率と弱点は流儀のダッシュ・気力に置き換えた）", () => {
+    for (const job of PLAYABLE) {
+      const stats = structuredClone({ ...DEFAULT_STATS, moveset: "sword" as const });
+      applyJobStats(stats, job);
+      const expected = structuredClone({ ...DEFAULT_STATS, moveset: "sword" as const });
+      for (const k of ATTR_KEYS) expected.attributes[k] += JOBS[job].attributes[k] ?? 0;
+      expect(stats, `${job} は偏りだけ`).toEqual(expected);
+      expect(game(job).stats.more.some((m) => m.source.startsWith("job:")), `${job} は倍を持たない`).toBe(false);
+    }
   });
 
   it("祝福・振り分けで畳み込み直してもジョブの偏り・倍率は二重に掛からない", () => {
@@ -351,7 +341,7 @@ describe("ジョブのルールが発火する", () => {
 });
 
 describe("ジョブの初期武器", () => {
-  it("初期武器は得意な武器種のベースを指す（見習いは持たない）", () => {
+  it("初期武器は旧「得意な武器」の武器種のベースを指す（見習いは持たない）", () => {
     expect(JOBS.none.starterWeapon, "見習いは初期武器なし").toBeNull();
     for (const key of PLAYABLE) {
       const baseKey = JOBS[key].starterWeapon;
@@ -360,7 +350,7 @@ describe("ジョブの初期武器", () => {
       expect(base?.slot, `${key} の初期武器は右手`).toBe("mainHand");
       const moveset = base?.moveset;
       if (moveset === undefined) throw new Error(`${key} の初期武器に武器種が無い`);
-      expect(JOBS[key].favored, `${key} の初期武器は得意な武器種`).toContain(moveset);
+      expect(favoredMovesets(key), `${key} の初期武器は旧「得意な武器」の武器種`).toContain(moveset);
     }
   });
 
@@ -371,7 +361,7 @@ describe("ジョブの初期武器", () => {
     expect(weapon?.baseKey, "弩を装着").toBe(JOBS.hunter.starterWeapon);
     expect(weapon?.affixes, "性質なしの素の器").toEqual([]);
     expect(s.stats.moveset, "武器種が長銃になる").toBe("longarm");
-    expect(isFavoredWeapon(s.stats, "hunter"), "得意武器の上乗せが効く").toBe(true);
+    expect(isFavoredWeapon(s.stats, "hunter"), "得意武器を読む性質・祝福が効く").toBe(true);
   });
 
   it("右手が埋まっていれば初期武器は倉庫へ入る", () => {

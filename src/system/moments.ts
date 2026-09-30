@@ -6,6 +6,7 @@ import { FORM, MOMENT } from "../data/tuning";
 import { type FormKey, MOMENT_TEXT, type RiposteSource } from "../data/weaponForms";
 import type { ButtonKey, MovesetDef } from "../data/weapons";
 import { addFloatingText } from "./effects";
+import { noteFinisherMana, onManaSource } from "./manaSources";
 import { isEngaged } from "./engagement";
 import {
   type ReleaseMul,
@@ -120,6 +121,8 @@ export function noteRiposte(state: GameState, source: RiposteSource, enemy?: Ene
   if (inSwing && m.swingRiposte) return;
   if (inSwing) m.swingRiposte = true;
   gainMorale(state, "riposte");
+  // 剣士の流儀の気力の源（system/manaSources.ts）
+  onManaSource(state, "riposte");
   const where = enemy && enemy.hp > 0 ? enemyTarget(enemy) : { pos: { ...state.player.body.pos } };
   pushEvent(state, { kind: "onRiposte", actor: "player", source: { kind: "player", key: "riposte" }, tag: source, ...where });
 }
@@ -153,6 +156,7 @@ export function noteHitMoments(state: GameState, enemy: Enemy, hit: MomentHit): 
   if (hit.silent) return;
   if (hit.kind === "proc" && !hit.skill) return;
   noteFirstStrike(state, enemy);
+  if (hit.finisher) noteFinisherMana(state, hit.kind);
   if (hit.finisher) pushEvent(state, { kind: "onFinisher", actor: "player", source: { kind: "player", key: "finisher" }, ...(hit.release ? { tag: "release" } : {}), ...enemyTarget(enemy) });
   if (hit.lane !== undefined && !hit.skill) noteTwinStrike(state, enemy, hit.lane);
 }

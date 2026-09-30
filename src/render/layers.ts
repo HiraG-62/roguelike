@@ -55,7 +55,7 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
   hud: ["drawHud", "drawSkillSlots"],
   hudOverlay: ["drawChainHud"],
   transition: ["drawFloorWipe", "drawFloorCard"],
-  popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawDeath"],
+  popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawReforgeChoice", "drawDeath"],
   cursor: ["drawCrosshair"],
 };
 

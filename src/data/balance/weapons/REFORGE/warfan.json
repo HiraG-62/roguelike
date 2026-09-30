@@ -1,0 +1,4 @@
+{
+  "warfanHaze": { "radius": 40, "duration": 3, "icd": 0.5 },
+  "warfanReturn": { "magnitude": 120, "count": 1, "icd": 0.1 }
+}

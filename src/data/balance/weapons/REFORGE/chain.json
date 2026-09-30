@@ -1,0 +1,4 @@
+{
+  "chainString": { "max": 5 },
+  "chainFling": { "knockbackMul": 2, "sizeMul": 1.3, "magnitude": 0.8, "icd": 0.2 }
+}

@@ -176,6 +176,9 @@ export const ORIGIN = BALANCE.world.ORIGIN;
 /** ジョブ（src/data/jobs.ts / src/system/jobs.ts。docs/COMBAT_DESIGN.md A-9） */
 /** ジョブ固有の数値（docs/COMBAT_DESIGN.md A-9）。定義元は src/data/balance/jobs/ の JOB */
 export const JOB = BALANCE.jobs.JOB;
+/** 流儀のダッシュの形（src/system/dashForms.ts）と気力の源（src/system/manaSources.ts）。docs/ideas/weapon-forms-impl.md 3-7 */
+export const DASH_FORM = BALANCE.jobs.DASH_FORM;
+export const MANA_SOURCE = BALANCE.jobs.MANA_SOURCE;
 
 /** メタ進行（図鑑・依頼・実績。src/meta/）。ゲーム進行には効かない */
 export const META = BALANCE.world.META;
@@ -226,6 +229,9 @@ export const FORM = BALANCE.weapons.FORM;
 
 /** 共通の瞬間（先制・双撃の窓と、充溢・放出・双撃・先制の浮き文字の見た目）。src/system/moments.ts が読む */
 export const MOMENT = BALANCE.weapons.MOMENT;
+
+/** 改鋳（5 の倍数の階のボスの後の 3 択。docs/ideas/weapon-forms-impl.md 3-6）の回数と改鋳ごとの数値。組み立ては src/data/reforges.ts */
+export const REFORGE = BALANCE.weapons.REFORGE;
 
 /**
  * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3 章）の共通値と奥義ごとの行為の数値。

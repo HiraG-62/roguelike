@@ -55,6 +55,7 @@ import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
+import { drawReforgeChoice } from "./reforgeUi";
 import { drawChainHud } from "./chainUi";
 import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
@@ -810,6 +811,7 @@ export class Renderer {
         drawBoonHud(ctx, state, aimScreen);
         drawDropFocus(ctx, state, aimScreen, ox, oy, dropTooltip);
         drawBoonChoice(ctx, state);
+        drawReforgeChoice(ctx, state);
         if (state.status === "dead") this.drawDeath(state);
       },
       cursor: () => {

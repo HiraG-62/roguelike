@@ -1,0 +1,4 @@
+{
+  "pistolDash": { "primes": true },
+  "pistolChain": { "magnitude": 0.6, "icd": 0 }
+}

@@ -28,6 +28,7 @@ import {
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
+import { withReforges } from "../data/reforges";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, gainEnergy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen, tickRegain } from "./combat";
 import { addFloatingText, markShotBullet, shake, spawnBurst, spawnLine } from "./effects";
@@ -70,7 +71,6 @@ import {
   onBoonMeleeHit,
   onBoonShoot,
   onBoonSwing,
-  tryDashGuard,
 } from "./boons";
 import { boonCounterable, onBoonShootInput } from "./boonRules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
@@ -95,6 +95,8 @@ import { formCutsBullets, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
 import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
 import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { dashDirection, dashIgnoresSwingLock, dashKeepsChain, dashLocksActions, dashSpeed, keepChainThroughDash, replaceDash, runDashForm, tickDashForm } from "./dashForms";
+import { attackHitManaMul, noteMeleeHitMana } from "./manaSources";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -274,11 +276,11 @@ export function currentMoveset(stats: Readonly<PlayerStats>): MovesetDef {
 
 /**
  * いま振る近接の型。狼化・鉄塊化の最中は変身の型（skills/forms.ts）、それ以外は装備の武器種に
- * 持続の奥義の差し替え（system/ultimates.ts）→ ジョブ固有の派生の順に重ねた型
+ * 持続の奥義の差し替え（system/ultimates.ts）→ 改鋳（data/reforges.ts）→ ジョブ固有の派生の順に重ねた型
  */
 export function playerMoveset(state: GameState): MovesetDef {
   // 奥義の差し替えはジョブ派生の後に畳む（ジョブの合成の cache は武器種の key で引くので、差し替えた型を渡すと古い型が返る）
-  return shapeMoveset(state) ?? ultimateMoveset(state, withJobBranch(currentMoveset(state.stats), state.job));
+  return shapeMoveset(state) ?? ultimateMoveset(state, withReforges(withJobBranch(currentMoveset(state.stats), state.job), state.reforges));
 }
 
 /** ジョブ × 武器種ごとの合成済みの型。毎ステップ新しいオブジェクトを作らない（中身は定義から決まるので決定性に影響しない） */
@@ -460,7 +462,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 function readActions(state: GameState, input: FrameInput): void {
   if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
   if (input.parryPressed) startParry(state);
-  if (!skillLocksAttack(state) && !artLocksActions(state)) readAttackButtons(state, input);
+  if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) readAttackButtons(state, input);
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
 }
@@ -688,6 +690,7 @@ function tickTimers(state: GameState, dt: number): void {
   tickTriggerCooldowns(state, dt);
   tickHpRegen(state, dt);
   if (p.dashTimer > 0) {
+    tickDashForm(state);
     p.dashTimer = Math.max(0, p.dashTimer - dt);
     // ダッシュが終わった直後、猶予ぶんの無敵を残す
     if (p.dashTimer === 0) {
@@ -720,6 +723,8 @@ function tickDashCharges(state: GameState, dt: number): void {
 export function canDashCancel(state: GameState): boolean {
   const p = state.player;
   if (!isAttacking(p)) return true;
+  // 詰め足（剣士の流儀）は持続・硬直の途中でも出せる
+  if (dashIgnoresSwingLock(state)) return true;
   const step = currentMeleeStep(state);
   if (!step) return true;
   const weight = WEAPON.weightClass[playerMoveset(state).weight];
@@ -735,11 +740,13 @@ function tryDash(state: GameState, input: FrameInput): void {
   if (!canDashCancel(state)) return;
   p.dashChargesLeft -= 1;
   if (p.dashCooldown <= 0) p.dashCooldown = dashCooldownTime(state.stats);
-  if (tryDashGuard(state)) return;
-  p.dashDir = isZero(input.move) ? { ...p.facing } : normalize(input.move);
+  // 流儀の不退（と祝福「鉄壁の構え」）はダッシュの代わりにその場で構える
+  if (replaceDash(state)) return;
+  p.dashDir = dashDirection(state, input);
   p.facing = { ...p.dashDir };
   p.knock = { x: 0, y: 0 };
-  // ダッシュで攻撃・溜め・予約した派生をキャンセルできる（手触り重視）
+  // ダッシュで攻撃・溜め・予約した派生をキャンセルできる（手触り重視）。詰め足は取り消す前に次の段を覚える
+  keepChainThroughDash(state);
   cancelAttack(state);
   cancelCharge(p);
   endArtHold(state);
@@ -748,15 +755,9 @@ function tryDash(state: GameState, input: FrameInput): void {
   pushSfx(state, "dash");
   emitNoise(state, p.body.pos, "dash");
 
-  if (hasKeystone(state, KS.blink)) {
-    blink(state);
-  } else {
-    const time = dashTime(state.stats);
-    p.dashTimer = time;
-    // 無敵はダッシュの前半だけ。後半は被弾するので、ダッシュを押すタイミングが問われる
-    p.invulnTimer = Math.max(p.invulnTimer, Math.min(time, PLAYER.dash.invulnTime + state.stats.dashInvulnBonus));
-    p.dodgedThisDash = false;
-  }
+  // 秒・無敵・始まりの効果は流儀のダッシュの形が決める（system/dashForms.ts）
+  if (hasKeystone(state, KS.blink)) blink(state);
+  else runDashForm(state);
   onBoonDash(state);
   fireTrigger(state, "onDash", { pos: { ...p.body.pos } });
   pushPlayerEvent(state, "onDash", "dash");
@@ -786,7 +787,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
   const p = state.player;
   let vel: Vec;
   if (isDashing(p)) {
-    vel = scale(p.dashDir, PLAYER.dash.speed);
+    vel = scale(p.dashDir, dashSpeed(state));
     // 残像
     if (state.tick % 2 === 0) {
       state.particles.push({
@@ -1350,6 +1351,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   // 通常の振りの命中の戦意は多段の区切りごとに 1 回（群れを薙いで一気に満たさない）
   if (p.attack.hitIds.size === 1) gainMorale(state, "meleeHit");
   gainMeleeMana(state, step.mana * tipMul.mana, counter);
+  noteMeleeHitMana(state, tip);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
@@ -1390,7 +1392,8 @@ function gainMeleeMana(state: GameState, base: number, counter: boolean): void {
   if (state.player.attack.hitIds.size > MANA.meleeTargetCap) return;
   // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
   const mul = counter ? MANA.onCounterMul : 1;
-  gainAttackMana(state, base * mul, attackManaMul(state) * boonAttackManaMul(state));
+  // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
+  gainAttackMana(state, base * mul * attackHitManaMul(state), attackManaMul(state) * boonAttackManaMul(state));
 }
 
 /** 近接 1 ヒットの怯み値。カウンターは確定の怯みではなく怯み値を倍にする（敵の強靭 ×0.5 と相殺して等倍になる） */
@@ -1501,7 +1504,9 @@ function releaseDashAttack(state: GameState): void {
   p.dashAttackQueued = false;
   if (skillLocksAttack(state) || isPlayerStaggered(p)) return;
   cancelAttack(state);
-  startSwing(state, 0, true);
+  // 詰め足（剣士の流儀）はダッシュ攻撃にせず、覚えた段から連撃を続ける
+  if (dashKeepsChain(state)) startNextSwing(state);
+  else startSwing(state, 0, true);
 }
 
 /** n 発を扇状に並べた角度オフセット（ラジアン）。1 発なら [0]。間隔は銃の弾ごと（既定は PLAYER.projectileSpreadDeg） */

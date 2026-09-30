@@ -149,6 +149,8 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     boons: [],
     boonChoice: null,
     boonRun: createBoonRunState(),
+    reforges: [],
+    reforgeChoice: null,
     pendingBud: findPendingBud(profile),
     runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
     runKeystones: [],

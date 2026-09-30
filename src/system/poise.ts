@@ -107,6 +107,8 @@ export function poiseTakenMul(e: Enemy, opts: PoiseHitOptions = {}): number {
  * 攻撃中に限るのは、向きが確定していて「回り込んだ」と読めるのがその間だけだから
  */
 export function isBehind(state: GameState, e: Enemy): boolean {
+  // 影潜り（流儀のダッシュの形。system/dashForms.ts）を出た直後は、向きを問わず背面から当たる
+  if (state.time < state.player.moment.backstabUntil) return true;
   if (e.phase !== "windup" && e.phase !== "strike" && e.phase !== "recover") return false;
   const toPlayer = normalize(sub(state.player.body.pos, e.body.pos));
   const facing = normalize(e.strikeDir);

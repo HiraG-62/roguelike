@@ -498,7 +498,8 @@ import j_feel_TELEGRAPH from "./feel/TELEGRAPH.json";
 import j_jobs__index from "./jobs/_index.json";
 import j_jobs_JOB from "./jobs/JOB.json";
 import j_jobs_attributes from "./jobs/attributes.json";
-import j_jobs_weakness from "./jobs/weakness.json";
+import j_jobs_DASH_FORM from "./jobs/DASH_FORM.json";
+import j_jobs_MANA_SOURCE from "./jobs/MANA_SOURCE.json";
 import j_loot__index from "./loot/_index.json";
 import j_loot_LOOT_DROP from "./loot/LOOT_DROP.json";
 import j_loot_PICKUP from "./loot/PICKUP.json";
@@ -966,6 +967,22 @@ import j_weapons_FORM_artillery from "./weapons/FORM/artillery.json";
 import j_weapons_FORM_tome from "./weapons/FORM/tome.json";
 import j_weapons_FORM_bell from "./weapons/FORM/bell.json";
 import j_weapons_MOMENT from "./weapons/MOMENT.json";
+import j_weapons_REFORGE__index from "./weapons/REFORGE/_index.json";
+import j_weapons_REFORGE_blade from "./weapons/REFORGE/blade.json";
+import j_weapons_REFORGE_flurry from "./weapons/REFORGE/flurry.json";
+import j_weapons_REFORGE_crusher from "./weapons/REFORGE/crusher.json";
+import j_weapons_REFORGE_hewer from "./weapons/REFORGE/hewer.json";
+import j_weapons_REFORGE_polearm from "./weapons/REFORGE/polearm.json";
+import j_weapons_REFORGE_chain from "./weapons/REFORGE/chain.json";
+import j_weapons_REFORGE_bulwark from "./weapons/REFORGE/bulwark.json";
+import j_weapons_REFORGE_warfan from "./weapons/REFORGE/warfan.json";
+import j_weapons_REFORGE_rod from "./weapons/REFORGE/rod.json";
+import j_weapons_REFORGE_thrower from "./weapons/REFORGE/thrower.json";
+import j_weapons_REFORGE_pistol from "./weapons/REFORGE/pistol.json";
+import j_weapons_REFORGE_rifle from "./weapons/REFORGE/rifle.json";
+import j_weapons_REFORGE_artillery from "./weapons/REFORGE/artillery.json";
+import j_weapons_REFORGE_tome from "./weapons/REFORGE/tome.json";
+import j_weapons_REFORGE_bell from "./weapons/REFORGE/bell.json";
 import j_world__index from "./world/_index.json";
 import j_world_ROOM from "./world/ROOM.json";
 import j_world_ROOM_KIND__index from "./world/ROOM_KIND/_index.json";
@@ -1582,7 +1599,8 @@ export const jobs = {
   "_note": j_jobs__index["_note"],
   "JOB": j_jobs_JOB,
   "attributes": j_jobs_attributes,
-  "weakness": j_jobs_weakness,
+  "DASH_FORM": j_jobs_DASH_FORM,
+  "MANA_SOURCE": j_jobs_MANA_SOURCE,
 };
 
 export const loot = {
@@ -2115,6 +2133,29 @@ export const weapons = {
     "bell": j_weapons_FORM_bell,
   },
   "MOMENT": j_weapons_MOMENT,
+  "REFORGE": {
+    "_note": j_weapons_REFORGE__index["_note"],
+    "_fields": j_weapons_REFORGE__index["_fields"],
+    "perRun": j_weapons_REFORGE__index["perRun"],
+    "offerCount": j_weapons_REFORGE__index["offerCount"],
+    "inputDelay": j_weapons_REFORGE__index["inputDelay"],
+    "textColor": j_weapons_REFORGE__index["textColor"],
+    "blade": j_weapons_REFORGE_blade,
+    "flurry": j_weapons_REFORGE_flurry,
+    "crusher": j_weapons_REFORGE_crusher,
+    "hewer": j_weapons_REFORGE_hewer,
+    "polearm": j_weapons_REFORGE_polearm,
+    "chain": j_weapons_REFORGE_chain,
+    "bulwark": j_weapons_REFORGE_bulwark,
+    "warfan": j_weapons_REFORGE_warfan,
+    "rod": j_weapons_REFORGE_rod,
+    "thrower": j_weapons_REFORGE_thrower,
+    "pistol": j_weapons_REFORGE_pistol,
+    "rifle": j_weapons_REFORGE_rifle,
+    "artillery": j_weapons_REFORGE_artillery,
+    "tome": j_weapons_REFORGE_tome,
+    "bell": j_weapons_REFORGE_bell,
+  },
 };
 
 export const world = {
@@ -2782,10 +2823,11 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/SFX_WAVE3.json",
   "feel/TELEGRAPH.json",
   "feel/_index.json",
+  "jobs/DASH_FORM.json",
   "jobs/JOB.json",
+  "jobs/MANA_SOURCE.json",
   "jobs/_index.json",
   "jobs/attributes.json",
-  "jobs/weakness.json",
   "loot/FLUX.json",
   "loot/INNATE/_index.json",
   "loot/INNATE/armor.json",
@@ -3220,6 +3262,22 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/FORM/warfan.json",
   "weapons/MOMENT.json",
   "weapons/PLAYER_MELEE.json",
+  "weapons/REFORGE/_index.json",
+  "weapons/REFORGE/artillery.json",
+  "weapons/REFORGE/bell.json",
+  "weapons/REFORGE/blade.json",
+  "weapons/REFORGE/bulwark.json",
+  "weapons/REFORGE/chain.json",
+  "weapons/REFORGE/crusher.json",
+  "weapons/REFORGE/flurry.json",
+  "weapons/REFORGE/hewer.json",
+  "weapons/REFORGE/pistol.json",
+  "weapons/REFORGE/polearm.json",
+  "weapons/REFORGE/rifle.json",
+  "weapons/REFORGE/rod.json",
+  "weapons/REFORGE/thrower.json",
+  "weapons/REFORGE/tome.json",
+  "weapons/REFORGE/warfan.json",
   "weapons/WEAPON/_index.json",
   "weapons/WEAPON/artDefaults.json",
   "weapons/WEAPON/bullets.json",

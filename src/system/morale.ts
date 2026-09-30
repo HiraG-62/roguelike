@@ -6,6 +6,8 @@ import { type FormDef, type MoraleGain, type MoraleRelease, type ReleasePerUnit,
 import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, isGun, meleeChargeOf } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { gatherLinked, linkedCount, woundPeak } from "./formMarks";
+import { reforgedForm } from "../data/reforges";
+import { movingAimGainMul, pullTowardShots, tickReforges } from "./reforge";
 
 /**
  * 戦意（docs/ideas/weapon-forms-impl.md 3-2）。武器の型ごとのゲージで、溜まる出来事（MoraleGain）で増え、
@@ -59,7 +61,8 @@ function equippedMoveset(state: GameState): MovesetDef {
 
 /** 今の武器の型 */
 export function currentForm(state: GameState): FormDef {
-  return formOfKey(equippedMoveset(state).key);
+  // 改鋳の戦意の上書き（上限・冷め・放出の上乗せ）を畳む（data/reforges.ts）
+  return reforgedForm(formOfKey(equippedMoveset(state).key), state.reforges);
 }
 
 function hasGain(form: FormDef, kind: MoraleGain["kind"]): boolean {
@@ -132,6 +135,8 @@ export function gainMorale(state: GameState, kind: MoraleGain["kind"], scale = 1
  * 満ちた瞬間（前ステップは満ちていない）なら true（充溢）
  */
 export function tickMorale(state: GameState, input: FrameInput, dt: number): boolean {
+  // 改鋳の挙動（装填の窓のダッシュ・設置弾の這い寄り）を窓の進みより先に（system/reforge.ts）
+  tickReforges(state);
   const m = state.player.morale;
   const form = currentForm(state);
   const reloading = m.window > 0;
@@ -174,8 +179,10 @@ function tickStill(state: GameState, form: FormDef, input: FrameInput, dt: numbe
   if (!still) return;
   const p = state.player;
   const moving = !isZero(input.move) || p.dashTimer > 0;
-  if (!moving) {
-    addMorale(state, still.perSec * dt * state.stats.moraleGainMul);
+  // 改鋳「騎射」は動いても減らず、倍率ぶんの速さで溜まる
+  const gainMul = moving ? movingAimGainMul(state) : 1;
+  if (gainMul > 0) {
+    addMorale(state, still.perSec * dt * state.stats.moraleGainMul * gainMul);
     return;
   }
   p.morale.value = Math.max(0, p.morale.value - still.lossPerSec * dt);
@@ -418,6 +425,8 @@ export function laneStepRelease(state: GameState, key: string | undefined): Shot
   if (key === undefined || release.kind !== "laneStep" || !release.keys.includes(key) || !hasGain(form, "flyingShots")) return undefined;
   const units = derivedValue(state, form);
   if (units <= 0 || units < moraleReleaseMin(state)) return undefined;
+  // 改鋳「牽引」は放出で飛んでいる刃の方へ引き寄せられる
+  pullTowardShots(state);
   return shotReleaseOf(form, units);
 }
 

@@ -10,7 +10,7 @@ import {
 } from "../../skills/types";
 import { ACTION_TEXT } from "../actionText";
 import { ENEMIES } from "../enemies";
-import { JOB_KEYS } from "../jobs";
+import { DASH_FORM_KEYS, JOB_KEYS } from "../jobs";
 import { ACTION, PLAYER } from "../tuning";
 import { MOVESET_KEYS } from "../weapons";
 import { AFFIXES, CONVERSION_AFFIXES } from "../../loot/affixes";
@@ -106,9 +106,13 @@ describe("敵のキー集合(段 1)", () => {
 describe("ジョブのキー集合(段 2)", () => {
   const nonNoneKeys = JOB_KEYS.filter((k) => k !== "none");
 
-  it("jobs の attributes / weakness のキー集合が「見習い」を除いた JOB_KEYS と一致する", () => {
+  it("jobs の attributes / MANA_SOURCE のキー集合が「見習い」を除いた JOB_KEYS と一致する", () => {
     expect(diffKeySets("jobs.attributes", rowKeys(jobsJson.attributes), nonNoneKeys)).toEqual([]);
-    expect(diffKeySets("jobs.weakness", rowKeys(jobsJson.weakness), nonNoneKeys)).toEqual([]);
+    expect(diffKeySets("jobs.MANA_SOURCE", rowKeys(jobsJson.MANA_SOURCE), nonNoneKeys)).toEqual([]);
+  });
+
+  it("jobs の DASH_FORM のキー集合が DASH_FORM_KEYS と一致する", () => {
+    expect(diffKeySets("jobs.DASH_FORM", rowKeys(jobsJson.DASH_FORM), DASH_FORM_KEYS)).toEqual([]);
   });
 });
 

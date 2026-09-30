@@ -39,6 +39,7 @@ import type { RunSetup } from "../system/runSetup";
 import { ULTIMATES } from "../data/ultimates";
 import { DEFAULT_MOVESET, MOVESET_KEYS } from "../data/weapons";
 import { chosenUltimate } from "../system/ultimates";
+import { offerReforges } from "../system/reforge";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -699,5 +700,37 @@ describe("奥義の選択の記録", () => {
     const loaded = sanitizeReplay(broken);
     if (!loaded) throw new Error("sanitize failed");
     expect(loaded.snapshot.ultimates, "知らない key は捨てる").toBeUndefined();
+  });
+});
+
+describe("改鋳の 3 択の記録 → 再生", () => {
+  /** ボスの撃破の代わりに 3 択を出すフレーム（撃破は入力で起きるので、記録と再生の両方で同じフレームに出す） */
+  const OFFER_FRAME = 40;
+  const WAIT_FRAMES = 40;
+
+  function reforgeInputs(): FrameInput[] {
+    const before = randomInputs(11, OFFER_FRAME);
+    const wait = Array.from({ length: WAIT_FRAMES }, () => withInput({}));
+    const after = randomInputs(12, 200);
+    return [...before, ...wait, withInput({ skill2Pressed: true }), ...after];
+  }
+
+  function play(inputs: readonly FrameInput[]): GameState {
+    const state = createGame(hashSeed("reforge"), "reforge");
+    inputs.forEach((input, i) => {
+      if (i === OFFER_FRAME) offerReforges(state);
+      step(state, input, FIXED_DT);
+    });
+    return state;
+  }
+
+  it("改鋳を選ぶ入力がエンコードの往復で残り、再生でも同じ改鋳が入って同じ結果になる", () => {
+    const inputs = reforgeInputs().map(normalizeFrame);
+    const recorded = play(inputs);
+    const replayed = play(decodeInputs(encodeInputs(inputs)));
+    expect(recorded.reforges, "スキル 2 で 2 枚目を選んだ").toHaveLength(1);
+    expect(recorded.reforgeChoice, "3 択は閉じた").toBeNull();
+    expect(replayed.reforges, "同じ改鋳").toEqual(recorded.reforges);
+    expect(fingerprint(replayed)).toBe(fingerprint(recorded));
   });
 });

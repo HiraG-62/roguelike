@@ -1141,7 +1141,7 @@ function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
 let cursorVisible = false;
 function updateCursorVisibility(cur: GameState | null): void {
   const inWorld = screen === "playing" || screen === "hub";
-  const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null;
+  const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null || cur?.reforgeChoice != null;
   if (wantVisible === cursorVisible) return;
   cursorVisible = wantVisible;
   canvas.style.cursor = wantVisible ? "default" : "none";

@@ -21,6 +21,7 @@ import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
 import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, updateMirrorKnight } from "./bossMirrorKnight";
 import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import type { EnemyTelegraph } from "./enemies";
+import { offerReforges } from "./reforge";
 
 /**
  * 階層ボス（major）。depth が BOSS.interval（5）の倍数の階は、階段のある最後の部屋がボス部屋になる。
@@ -498,6 +499,8 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   const attempts = b.major ? BOSS.rareDropAttempts : FLOOR_LORD.rareDropAttempts;
   for (let i = 0; i < drops; i++) dropRareItem(state, e.body.pos, i, boost, attempts);
   if (!b.major && state.rng.chance(FLOOR_LORD.heartChance)) dropFloorLordHeart(state, e.body.pos);
+  // 5 の倍数の階のボスの後は改鋳の 3 択（段取り 6 で章の出口へ移す）
+  if (b.major) offerReforges(state);
 }
 
 function defeatLogText(b: BossState): string {

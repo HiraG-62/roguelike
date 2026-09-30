@@ -25,6 +25,7 @@ import { blastMulAt } from "./blast";
 import { emitNoise } from "./noise";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { boonChainExtension } from "./boonRules";
+import { noteStatusTickMana } from "./manaSources";
 import {
   hueMatchesResonance,
   onEffectEnded,
@@ -803,6 +804,8 @@ function tickBag(state: GameState, target: StatusTarget, dt: number): void {
     if (effect.kind === "fear" && staggered) continue;
     const t = Math.min(dt, effect.time);
     tickEffect(state, target, effect, t);
+    // 呪術師の流儀の気力の源（継続ダメージの刻み。system/manaSources.ts）
+    noteStatusTickMana(state, target, effect, t);
     // 凍毒: 冷気がある間は毒の残り時間が減らない
     if (effect.kind === "poison" && chilled) continue;
     effect.time -= t;

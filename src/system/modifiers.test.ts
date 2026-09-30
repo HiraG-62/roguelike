@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createIncreased } from "../core/damage";
 import type { Modifier } from "../core/rules";
 import type { GameState } from "../core/state";
-import { JOB, KEYSTONE, PLAYER } from "../data/tuning";
+import { KEYSTONE, PLAYER } from "../data/tuning";
 import { meleeScaling } from "../data/weapons";
 import { scaled } from "./attributes";
 import { slashBase } from "./boonRules";
@@ -71,38 +71,19 @@ describe("移行の見本: 楔の誓い（誓約の分岐 → Modifier）", () =
   });
 });
 
-describe("移行の見本: ジョブの得意武器（stats.more → Modifier）", () => {
-  it("得意武器の近接だけ倍が掛かり、射撃・得意でない武器・素手には掛からない", () => {
+describe("ジョブは与ダメの倍を持たない（得意武器の倍は段取り 5c で流儀のダッシュ・気力に置き換えた）", () => {
+  it("剣士の剣・狩人の長銃でも近接・射撃・見積もりは等倍", () => {
     const state = arena(5, { moveset: "sword" });
     state.job = "swordsman";
-    expect(rollOutgoing(state, null, BASE, "melee").amount, "得意武器の近接").toBe(Math.round(BASE * JOB.favoredMeleeMul));
-    expect(rollOutgoing(state, null, BASE, "ranged").amount, "射撃").toBe(BASE);
-    state.stats = { ...state.stats, moveset: "wand" };
-    expect(rollOutgoing(state, null, BASE, "melee").amount, "得意でない武器").toBe(BASE);
-    state.stats = { ...state.stats, moveset: "sword", unarmed: true };
-    expect(rollOutgoing(state, null, BASE, "melee").amount, "素手").toBe(BASE);
-  });
-
-  it("銃の家系の得意武器は射撃に掛かる", () => {
-    const state = arena(5, { moveset: "longarm" });
-    state.job = "hunter";
-    expect(rollOutgoing(state, null, BASE, "ranged").amount, "射撃").toBe(Math.round(BASE * JOB.favoredMeleeMul));
-    expect(rollOutgoing(state, null, BASE, "melee").amount, "近接").toBe(BASE);
-  });
-
-  it("祝福の威力の見積もり（slashBase）にも得意武器の倍が入る（stats.more にあった頃と同じ値）", () => {
-    const state = arena(5, { moveset: "sword" });
-    state.job = "swordsman";
+    expect(rollOutgoing(state, null, BASE, "melee").amount, "剣士の剣の近接").toBe(BASE);
     const first = PLAYER.melee[0];
     if (!first) throw new Error("近接 1 段目が無い");
     const raw = scaled(state.stats, meleeScaling(first.scaling)) + state.stats.meleeDamageFlat;
-    expect(slashBase(state)).toBe(Math.round(raw * JOB.favoredMeleeMul));
-  });
-
-  it("見習いは得意武器の倍を持たない", () => {
-    const state = arena(5, { moveset: "sword" });
-    state.job = "none";
-    expect(rollOutgoing(state, null, BASE, "melee").amount).toBe(BASE);
+    expect(slashBase(state), "祝福の威力の見積もり").toBe(Math.round(raw));
+    state.job = "hunter";
+    state.stats = { ...state.stats, moveset: "longarm" };
+    expect(rollOutgoing(state, null, BASE, "ranged").amount, "狩人の長銃の射撃").toBe(BASE);
+    expect(collectModifiers(state).some((m) => m.owner.key.startsWith("job.")), "ジョブの Modifier が無い").toBe(false);
   });
 });
 
@@ -186,10 +167,10 @@ describe("タグと条件", () => {
 });
 
 describe("集め方", () => {
-  it("装備 → 誓約 → ジョブの固定順に集める", () => {
+  it("装備 → 誓約の固定順に集める（ジョブは Modifier を持たない）", () => {
     const state = arena(5, { modifiers: [COMBO_STEP], keystones: [KS.wedgeOath], moveset: "sword" });
     state.job = "swordsman";
     const ids = collectModifiers(state).map((m) => m.id);
-    expect(ids).toEqual(["boon:test:0", "keystone:ks_wedgeOath:0", "keystone:ks_wedgeOath:1", "player:job.swordsman:0", "player:job.swordsman:1"]);
+    expect(ids).toEqual(["boon:test:0", "keystone:ks_wedgeOath:0", "keystone:ks_wedgeOath:1"]);
   });
 });

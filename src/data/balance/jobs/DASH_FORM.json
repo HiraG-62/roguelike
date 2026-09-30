@@ -1,0 +1,26 @@
+{
+  "_fields": {
+    "distanceMul": "ダッシュの距離の倍率（1 = PLAYER.dash の既定の距離）。速さは距離 ÷ 秒で決まる",
+    "timeMul": "ダッシュの秒の倍率（1 = 既定）。距離をそのままに秒だけ伸ばすと遅く長い移動になる",
+    "invulnMul": "ダッシュの無敵の秒（PLAYER.dash.invulnTime + 性質の上乗せ）の倍率。0 は無敵なし。ダッシュの秒を超えない",
+    "invulnAdd": "ダッシュの無敵に足す秒（ダッシュ中の被弾が見切りになる窓が広がる）。ダッシュの秒を超えない",
+    "keepChainSec": "詰め足: ダッシュを終えてからこの秒の間に左を押すと、取り消した振りの次の段が出る",
+    "guardSec": "不退: その場で構える秒。構えの間は無敵で動けず、構えの中の被弾は見切りになる",
+    "trapDamageMul": "退き足: 足元に置く設置弾の威力の倍率（置き撃ち筒の弾の威力に掛ける）",
+    "statusSec": "霧隠れ: すり抜けた敵に付ける弱体の秒",
+    "touchRadius": "霧隠れ: すり抜けを数える距離（体の縁どうし）。px（10px = 1m）",
+    "backstabSec": "影潜り: 潜り終えてからこの秒の間の攻撃は背面から当たる（堅守を無視し、影の気力が湧く）",
+    "terrainRadius": "瓶投げ: 元いた所に撒く油の半径。px（10px = 1m）",
+    "terrainSec": "瓶投げ: 撒いた油が残る秒"
+  },
+  "standard": { "distanceMul": 1, "timeMul": 1, "invulnMul": 1, "invulnAdd": 0 },
+  "step": { "distanceMul": 0.6, "timeMul": 0.6, "invulnMul": 0.5, "invulnAdd": 0, "keepChainSec": 0.25 },
+  "leap": { "distanceMul": 0.9, "timeMul": 1, "invulnMul": 1, "invulnAdd": 0, "trapDamageMul": 0.6 },
+  "slip": { "distanceMul": 0.5, "timeMul": 1, "invulnMul": 1, "invulnAdd": 0.08 },
+  "brace": { "guardSec": 0.35 },
+  "mist": { "distanceMul": 1, "timeMul": 1, "invulnMul": 0.5, "invulnAdd": 0, "statusSec": 3, "touchRadius": 4 },
+  "vault": { "distanceMul": 1.2, "timeMul": 1.2, "invulnMul": 1.6, "invulnAdd": 0 },
+  "blink": { "distanceMul": 1, "timeMul": 1, "invulnMul": 0, "invulnAdd": 0 },
+  "shadow": { "distanceMul": 1.5, "timeMul": 2.5, "invulnMul": 1, "invulnAdd": 0, "backstabSec": 0.5 },
+  "flask": { "distanceMul": 0.6, "timeMul": 0.6, "invulnMul": 1, "invulnAdd": 0, "terrainRadius": 14, "terrainSec": 4 }
+}

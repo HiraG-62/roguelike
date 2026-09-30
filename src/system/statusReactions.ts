@@ -6,6 +6,7 @@ import { TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { healPlayer } from "./combat";
 import { addFloatingText, reactionSfxName, spawnBurst, spawnRing } from "./effects";
 import { gainMana } from "./mana";
+import { noteReactionMana } from "./manaSources";
 import {
   type OnHitContext,
   type Reaction,
@@ -97,6 +98,8 @@ function fire(state: GameState, target: StatusTarget, key: ReactionKey, showText
   }
   bag.lastReaction = { key, tick: state.tick };
   pushReactionEvent(state, enemyOf(target), key);
+  // 錬金術師の流儀の気力の源（system/manaSources.ts）
+  noteReactionMana(state, target);
   pushSfx(state, reactionSfxName(key));
   if (showText) addFloatingText(state, targetPos(state, target), REACTION_LABEL[key], REACTION_TEXT_COLOR, REACTION_TEXT_SCALE, REACTION_TEXT_LIFE);
   return true;

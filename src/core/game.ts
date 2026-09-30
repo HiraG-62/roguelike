@@ -27,6 +27,7 @@ import { syncTurretShots } from "../skills/summons";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import type { SkillProfile } from "../skills/types";
 import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
+import { updateReforgeChoice } from "../system/reforge";
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { createContractState } from "../system/contractors";
 import { type RunSetup, defaultRunSetup, originKeystones, sanitizeStartDepth, startOrigin } from "../system/runSetup";
@@ -107,6 +108,8 @@ export function createGame(
     boons: [],
     boonChoice: null,
     boonRun: createBoonRunState(),
+    reforges: [],
+    reforgeChoice: null,
     pendingBud: findPendingBud(profile),
     runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
     runKeystones: originKeystones(setup.origin),
@@ -151,6 +154,10 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
 
   if (state.boonChoice) {
     updateBoonChoice(state, input, dt);
+    return;
+  }
+  if (state.reforgeChoice) {
+    updateReforgeChoice(state, input, dt);
     return;
   }
 

@@ -101,7 +101,7 @@ import {
   type Wave3SkillKey,
 } from "../skills/types";
 import type { Element } from "../core/element";
-import { JOBS } from "../data/jobs";
+import { favoredMovesets } from "../data/jobs";
 import { buffMul } from "./attributes";
 import { boonManaCostMul, onBoonSkillCast } from "./boons";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
@@ -1096,7 +1096,7 @@ function wave2CastState(state: GameState, params: Readonly<CastParams>): { mul: 
   const m = SKILL.modifier;
   let mul = 1;
   let element = params.element;
-  if (params.jobMastery) mul *= JOBS[state.job].favored.includes(state.stats.moveset) ? m.jobMastery.favoredMul : m.jobMastery.otherMul;
+  if (params.jobMastery) mul *= favoredMovesets(state.job).includes(state.stats.moveset) ? m.jobMastery.favoredMul : m.jobMastery.otherMul;
   if (params.formSurge) mul *= inAnyForm(state) ? m.formSurge.formMul : m.formSurge.otherMul;
   if (params.weaponBond) {
     const weapon = (MOVESETS[state.stats.moveset] ?? MOVESETS.sword).attack.element;
