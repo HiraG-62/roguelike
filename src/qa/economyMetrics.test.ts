@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import type { GameState, Pickup } from "../core/state";
 import { createEconomyRecorder, buildEconomySection, emptyEconomyTally } from "./economyMetrics";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { countCombatants } from "./jinMetrics";
 
 const DT = 1 / 60;
@@ -15,6 +16,7 @@ interface FakeEconomy {
   recovered: number;
   outlaw?: boolean;
   merchants?: unknown[];
+  bought?: Record<string, number>;
   bet?: null;
 }
 
@@ -177,7 +179,7 @@ describe("経済の計測（qa/economyMetrics.ts）", () => {
     const md = buildEconomySection([fullRec.tally]).join("\n");
     expect(md, "鍵を 1 本使った").toContain("使った 1");
     expect(md, "瓶を 1 本飲んだ").toContain("飲んだ 1");
-    expect(md, "商人 2 人が立ち、襲われた").toContain("立った 2、襲われた 1");
+    expect(md, "商人 2 人が立ち、襲われた").toMatch(/立った 2、買い物 0 の商人 \d+%、襲われた 1/);
     expect(md).toContain("- 無法者になったラン: 1 / 1");
     expect(md).toContain("- 賭け");
   });
@@ -209,6 +211,112 @@ describe("経済の計測（qa/economyMetrics.ts）", () => {
     const t = emptyEconomyTally();
     t.seen.economy = true;
     expect(buildEconomySection([t]).join("\n")).not.toMatch(/NaN|Infinity/);
+  });
+});
+
+describe("瓶と商人の計測（qa/economyMetrics.ts）", () => {
+  function shopState(): { state: GameState; eco: FakeEconomy; merchant: { wares: { used: boolean }[] } } {
+    const state = createGame(11);
+    const merchant = { wares: [{ used: false }, { used: false }] };
+    const eco = withEconomy(state, fakeEconomy({ keys: 0, bought: {}, merchants: [merchant] }));
+    Object.assign(state.player, { flasks: 0 });
+    return { state, eco, merchant };
+  }
+
+  it("買った瓶は economy.bought の増分を正とし、買って増えた本数を泉・拾いに数えない", () => {
+    const { state, eco } = shopState();
+    const rec = createEconomyRecorder(state);
+    eco.bought = { flask: 1 };
+    Object.assign(state.player, { flasks: 1 });
+    rec.afterStep(state, DT);
+    const band = rec.tally.bands["1-5"];
+    expect(band.flasksBought, "買った 1").toBe(1);
+    expect(band.flasksFountain + band.flasksPicked, "買った分は泉にも拾いにも入らない").toBe(0);
+    expect(band.bought, "品別の買った回数").toEqual({ flask: 1 });
+  });
+
+  it("買った直後に飲むと、買った数と飲んだ数の両方に出る", () => {
+    const { state, eco } = shopState();
+    Object.assign(state.player, { flasks: 1 });
+    const rec = createEconomyRecorder(state);
+    eco.bought = { flask: 1 };
+    // 買って +1、同じ step で飲んで -1: 差し引きは 0
+    rec.afterStep(state, DT);
+    const band = rec.tally.bands["1-5"];
+    expect(band.flasksBought).toBe(1);
+    expect(band.flasksDrunk, "net 0 でも買った分だけ飲んだと分かる").toBe(1);
+  });
+
+  it("買っていない増えは、泉のタイルの近くなら泉で満たした、離れていれば拾いに数える", () => {
+    const { state } = shopState();
+    const rec = createEconomyRecorder(state);
+    // 泉から遠い場所（マップの外れ）に立たせて、まず拾い
+    Object.assign(state.player, { flasks: 1 });
+    rec.afterStep(state, DT);
+    // 足元に泉のタイルを置いて満たす
+    const pos = state.player.body.pos;
+    const tx = Math.floor(pos.x / TILE_SIZE);
+    const ty = Math.floor(pos.y / TILE_SIZE);
+    setTile(state.map, tx, ty, Tile.Fountain);
+    Object.assign(state.player, { flasks: 2 });
+    rec.afterStep(state, DT);
+    const band = rec.tally.bands["1-5"];
+    expect(band.flasksPicked, "泉の無い所での増えは拾い").toBe(1);
+    expect(band.flasksFountain, "泉のそばでの増えは泉").toBe(1);
+  });
+
+  it("階を離れるまで台座が 1 つも売れなかった商人を、買い物 0 に数える", () => {
+    const { state } = shopState();
+    const rec = createEconomyRecorder(state);
+    rec.afterStep(state, DT);
+    state.depth = 2;
+    Object.assign(state.economy, { merchants: [{ wares: [{ used: false }] }, { wares: [{ used: false }] }] });
+    rec.afterStep(state, DT);
+    // 深度 2 の商人 2 人のうち 1 人は売れた
+    const second = (state.economy as unknown as { merchants: { wares: { used: boolean }[] }[] }).merchants[0];
+    if (second?.wares[0]) second.wares[0].used = true;
+    rec.finish(state);
+    const band = rec.tally.bands["1-5"];
+    expect(band.merchants, "深度 1 の 1 人 + 深度 2 の 2 人").toBe(3);
+    expect(band.merchantsUnshopped, "深度 1 の 1 人と深度 2 の 1 人が売れなかった").toBe(2);
+  });
+
+  it("台座の used にならない買い物（引き直しなど）も、商人が 1 人だけの階なら買い物ありに数える", () => {
+    const { state, eco } = shopState();
+    (state.economy as unknown as { merchants: unknown[] }).merchants = [{ wares: [{ used: false }] }];
+    const rec = createEconomyRecorder(state);
+    eco.bought = { reroll: 1 };
+    rec.afterStep(state, DT);
+    rec.finish(state);
+    expect(rec.tally.bands["1-5"].merchantsUnshopped, "引き直しで買い物あり").toBe(0);
+  });
+
+  it("節に章別の瓶と買い物の表が出て、NaN を出さない", () => {
+    const { state, eco } = shopState();
+    // 商人 2 人（1 人だけの階は「引き直し」の救済が働くので、割合を見るには 2 人にする）
+    eco.merchants = [{ wares: [{ used: false }] }, { wares: [{ used: false }] }];
+    const rec = createEconomyRecorder(state);
+    eco.bought = { flask: 2 };
+    Object.assign(state.player, { flasks: 1 });
+    rec.afterStep(state, DT);
+    state.status = "dead";
+    rec.finish(state);
+    const md = buildEconomySection([rec.tally]).join("\n");
+    expect(md, "章別の表").toContain("### 章別の瓶と買い物");
+    expect(md, "買った瓶 2・飲んだ瓶 1").toContain("| 1-5 | 1 | 2 | 100% | 2 | 0 | 0 | 1 | flask 2 |");
+    expect(md, "瓶の行に内訳").toContain("買った 2 / 泉で満たした 0 / 拾った 0 / 飲んだ 1 / 死亡時の残り 平均 1.0");
+    expect(md, "買い物 0 の商人の割合").toContain("買い物 0 の商人 100%");
+    expect(md).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("瓶も商人も無い state では章別の表を出さない", () => {
+    const state = createGame(11);
+    withEconomy(state, fakeEconomy());
+    Reflect.deleteProperty(state.player, "flasks");
+    const rec = createEconomyRecorder(state);
+    rec.afterStep(state, DT);
+    rec.finish(state);
+    expect(buildEconomySection([rec.tally]).join("\n")).not.toContain("章別の瓶と買い物");
   });
 });
 

@@ -101,6 +101,7 @@ const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   icePillar: CONTACT,
   trainingDummy: CONTACT,
   mirrorSelf: CONTACT,
+  merchant: shot("none"),
   // ---- Wave 3 ----
   mudman: CONTACT,
   toad: shot("poison"),

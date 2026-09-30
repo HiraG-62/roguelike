@@ -4,7 +4,7 @@ import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, l
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
 import { emitNoise } from "./noise";
-import { ACTION, BOON, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
+import { ACTION, BOON, ECONOMY, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
 import {
   type ButtonKey,
   type HitShape,
@@ -126,6 +126,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     body: { pos: { ...pos }, vel: { x: 0, y: 0 }, radius: PLAYER.radius },
     hp: stats.maxHp,
     maxHp: stats.maxHp,
+    flasks: Math.min(ECONOMY.flask.start, stats.flaskMax),
+    flaskReadyAt: 0,
     facing: { x: 1, y: 0 },
     dashTimer: 0,
     dashCooldown: 0,
@@ -211,6 +213,7 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   // 精神が下がって上限が縮んだときだけ切り詰める（増えたぶんは自然回復で埋める）
   p.mana = Math.min(p.mana, stats.maxMana);
   p.dashChargesLeft = Math.min(p.dashChargesLeft, stats.dashCharges);
+  p.flasks = Math.min(p.flasks, Math.max(0, Math.floor(stats.flaskMax)));
   // 死亡中に装備画面を触っても蘇生しない
   if (state.status === "dead") return;
   // 丸めない（付け外しの往復で HP が増える抜け道を作らない）。生存中は最低 1

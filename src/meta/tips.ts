@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { PARRY } from "../data/tuning";
+import { ECONOMY, PARRY } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL } from "../loot/resonance";
 import type { AttrKey } from "../loot/types";
@@ -48,6 +48,8 @@ function k(binds: Keybinds | undefined, action: Parameters<typeof keyLabel>[0], 
   return keyLabel(action, { binds, first });
 }
 
+const PERCENT = 100;
+
 function skillKeys(binds: Keybinds | undefined): string {
   return SKILL_ACTIONS.map((a, i) => `スキル ${i + 1}: ${keyLabel(a, { binds })}`).join("、");
 }
@@ -61,6 +63,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
   { key: "parry", term: "受け流し", category: "controls", body: (b) => `${k(b, "parry")}（パッドは ${padActionLabel("parry")}）。振っていなければいつでも出せる。窓（${PARRY.windowSec} 秒）の間の被弾を無効にして相手を怯ませ、予備動作を終えた攻撃も止められる。外すと ${PARRY.recoverSec} 秒の間、攻撃もダッシュもできない。` },
   { key: "skillKeys", term: "スキル石", category: "controls", body: (b) => `${skillKeys(b)}。パッドは ${padSkillKeysLabel()}（+ は押さえたまま次を押す）。` },
   { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物・スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
+  { key: "flask", term: "瓶", category: "controls", body: (b) => `${k(b, "flask")}（パッドは ${padActionLabel("flask")}）。1 本飲むと最大生命の ${Math.round(ECONOMY.flask.healRatio * PERCENT)}% が戻る。戦闘中の回復の上限は通さない。ダッシュ中と、攻撃を振っている最中は飲めない。本数は HUD の枡で、上限までしか持てない。市で買え、章の境の泉で満ちる。` },
   { key: "inventory", term: "装備画面", category: "controls", body: (b) => `${k(b, "inventory")} で開き、押すたびにタブが進む。開いている間は時間が止まる。` },
   { key: "dropInfo", term: "アイテム情報", category: "controls", body: (b) => `${k(b, "toggleDropInfo")} で床のアイテムの性能表示を切り替える。` },
   { key: "restart", term: "やり直す", category: "controls", body: (b) => `${k(b, "restart")} で新しいシードの探索をやり直す。` },

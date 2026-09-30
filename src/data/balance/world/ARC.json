@@ -1,9 +1,15 @@
 {
-  "_note": "ランの章立て（system/chapters.ts。docs/ideas/economy-impl.md 2-8）。章ボス・休符は段取り 6b で足す",
+  "_note": "ランの章立て（system/chapters.ts。docs/ideas/economy-impl.md 2-8）。章ボスは core-synthesis 1 章の E29 に従い スライム王 → 盗賊王 → 油壺の王 → 鏡の騎士。骸骨卿・霜の巨人・双子の騎士・群れの母・図書館の司書は最後の章より深い階（深み）の回転に回る。章の境の休符（章の 1 階目）は階の主を出さず、泉を必ず 1 つ置く",
   "_fields": {
-    "floorsPerChapter": "1 章の階数。深度 1〜floorsPerChapter が章 1",
-    "maxChapter": "章の数。これより深い階は最後の章のまま（深み）"
+    "floorsPerChapter": "1 章の階数。深度 1〜floorsPerChapter が章 1。章ボスは各章の最後の階（floorsPerChapter の倍数）",
+    "maxChapter": "章の数。これより深い階は最後の章のまま（深み）",
+    "chapters": "章ごとの行（1 章から順）。boss は章の最後の階に出る階層ボスの key（data/enemies.ts の EnemyDef）",
+    "lordSkipFirstFloor": "true なら、章の 1 階目（休符。深度 1 は除く）に階の主を出さない。ただの部屋として遊べる",
+    "restFountain": "true なら、章の 1 階目（休符）に泉を必ず 1 つ置く。休符の泉は呪いを付けず、瓶を上限まで満たす"
   },
   "floorsPerChapter": 5,
-  "maxChapter": 4
+  "maxChapter": 4,
+  "chapters": [{ "boss": "kingSlime" }, { "boss": "thiefKing" }, { "boss": "oilKing" }, { "boss": "mirrorKnight" }],
+  "lordSkipFirstFloor": true,
+  "restFountain": true
 }

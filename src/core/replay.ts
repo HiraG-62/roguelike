@@ -67,8 +67,9 @@ import { clampHitstopScale } from "../ui/settings";
  * 21: 改鋳（5 の倍数の階のボスの後の 3 択）・流儀のダッシュの形と気力の源（得意武器の倍率と弱点を削除）
  * 22: 武器種 書・手鈴（技の抽選の母集団）・流儀 陰陽師・巫女・重い武器の補償（威力 ×1.1・怯み値 ×1.5）
  * 23: 欠片を銭へ（撃破・陣・部屋の制圧で銭の額を引く・被弾でこぼれる・契約者の代価）
+ * 24: 瓶と入力 flaskPressed・毎階の市と商人・章ボスの固定と章の境の休符（泉・階の主なし）・章ごとのハートの確率
  */
-export const REPLAY_VERSION = 23;
+export const REPLAY_VERSION = 24;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -200,7 +201,8 @@ type ButtonKey =
   | "skill4Held"
   | "attackHeld"
   | "interactPressed"
-  | "parryPressed";
+  | "parryPressed"
+  | "flaskPressed";
 
 /** ビット順。末尾に追加するのは可、並べ替えは不可（過去のリプレイが壊れる） */
 const BUTTON_BITS: readonly ButtonKey[] = [
@@ -231,6 +233,8 @@ const BUTTON_BITS: readonly ButtonKey[] = [
   "interactPressed",
   // 全武器共通の受け流し（REPLAY_VERSION 13）。末尾に足したので旧リプレイは 0 として読める
   "parryPressed",
+  // 瓶を飲む（economy-impl 6b）。末尾に足したので旧リプレイは 0 として読める
+  "flaskPressed",
 ];
 
 /** 照準を 1px 単位に量子化する。-0 は 0 に寄せる */

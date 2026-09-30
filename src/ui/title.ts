@@ -383,13 +383,13 @@ export function bindsExtraRow(mode: BindsMode, index: number): "reset" | "close"
 // 「アイテム情報」を足して 18 行になったので、パネルを画面いっぱい（y0）にし上下の余白をさらに詰めて
 // 最小の行間で全行が 1 画面に収まるようにした（「受け流し」で 19 行になり、最小の行間を 13 → 12 にした）
 const KEYBINDS_PANEL: Rect = { x: 40, y: 0, w: 400, h: 270 };
-/** パネル上端から見出し・列見出し・最初の行の中心までの距離 */
-const KEYBINDS_TITLE_TOP = 8;
-const KEYBINDS_HEADER_TOP = 20;
-const KEYBINDS_FIRST_ROW_TOP = 30;
+/** パネル上端から見出し・列見出し・最初の行の中心までの距離（行が増えても行間 12 で全行が収まるよう詰めてある） */
+const KEYBINDS_TITLE_TOP = 7;
+const KEYBINDS_HEADER_TOP = 17;
+const KEYBINDS_FIRST_ROW_TOP = 26;
 /** パネル下端から操作説明の中心・一覧の下端までの距離 */
 const KEYBINDS_FOOTER_BOTTOM = 6;
-const KEYBINDS_LIST_BOTTOM = 11;
+const KEYBINDS_LIST_BOTTOM = 10;
 /** アクション名の列の幅（この右から 主 / 副 / 予備 の列が並ぶ） */
 const KEYBINDS_NAME_W = 120;
 const KEYBINDS_SLOT_W = 88;

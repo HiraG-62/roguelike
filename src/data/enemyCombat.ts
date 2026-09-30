@@ -174,6 +174,8 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   trainingDummy: { ...C.trainingDummy, inflicts: [], keywords: kw([], ["melee", "ranged"]) },
   // 鏡の部屋の写し（src/system/specialRooms.ts）。ジャスト回避・カウンターで返す相手
   mirrorSelf: { ...C.mirrorSelf, inflicts: [], keywords: kw(["elite", "dash"], ["just", "counter"]) },
+  // 市の商人（src/system/merchants.ts）。怒ると品を投げる
+  merchant: { ...C.merchant, inflicts: [], keywords: kw(["bullet"], ["counter"]) },
 };
 
 const RAW_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {

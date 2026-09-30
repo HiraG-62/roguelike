@@ -5,6 +5,7 @@ import { ENEMY_AI, REACTION } from "../../data/tuning";
 import { frostCrusherReady, isMimicTongue, scavengerHeading } from "../enemyBehaviors";
 import { absorberReady, bannerAlive, hollowFrozen } from "../enemyWave3";
 import { canLeap, planLeap, stepLeap } from "../enemyLeap";
+import { merchantProvoked, provokeMerchant, throwWares } from "../merchantAi";
 import { EnemyBehaviorBase } from "./base";
 
 // 基本パラメータは移行前の system/enemies.ts の表の値そのまま（第 2 段で enemies.json の BEHAVIOR へ移す）
@@ -76,8 +77,8 @@ export class Flyer extends EnemyBehaviorBase {
 /** 動かない（氷柱・地雷・卵・吸い込み蟲）。追わない・押されない */
 export class Stationary extends EnemyBehaviorBase {
   override readonly stationary: boolean = true;
-  // 動かないので、離れる・囲む・時計を速めるの反応は無い
-  override onStruck(): void {}
+  // 動かないので、離れる・囲む・時計を速めるの反応は無い（引数は子の商人が怒るのに使う）
+  override onStruck(_state: GameState, _e: Enemy, _def: EnemyDef): void {}
   override attackCooldownRate(): number {
     return 1;
   }
@@ -262,4 +263,24 @@ export class Leaper extends Rusher {
 /** 動かずに撃つ・鳴らす（墓守の鐘・砲台）。沈黙が効く */
 export class SilenceableStationary extends Stationary {
   override readonly silenceable: boolean = true;
+}
+
+/**
+ * 商人（system/merchants.ts が立たせる）: 動かない。殴られるまで気付かず（enemies.ts の idle と noise.ts が def.merchant を見て起こさない）、
+ * 殴られると怒って品を扇に投げる（system/merchantAi.ts）
+ */
+export class Merchant extends Stationary {
+  constructor() {
+    super("merchant");
+  }
+  override onStruck(state: GameState, e: Enemy, _def: EnemyDef): void {
+    provokeMerchant(state, e);
+  }
+  override canBeginAttack(state: GameState, e: Enemy, _def: EnemyDef, _d: number): boolean {
+    return merchantProvoked(state, e);
+  }
+  override tickStrike(state: GameState, e: Enemy, _def: EnemyDef, _dt: number): void {
+    // strike の最後のステップ（この後 enemies.ts の strike が endStrike する）で 1 回だけ投げる
+    if (e.phaseTimer <= 0) throwWares(state, e);
+  }
 }

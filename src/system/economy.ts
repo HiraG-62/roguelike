@@ -55,6 +55,9 @@ export function createEconomyState(): EconomyState {
     recovered: 0,
     dropped: 0,
     expired: 0,
+    bought: {},
+    outlaw: false,
+    merchants: [],
   };
 }
 

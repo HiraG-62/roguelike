@@ -7,6 +7,7 @@ import { ENEMIES } from "../data/enemies";
 import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
+import { isChapterRest } from "./chapters";
 import { buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, withBaseAreaMul } from "./floor";
 import { ROOM_LOCKS, applyCurse, chooseFloorKind, fountainPx, hordeMax, isDark, roomLocks } from "./roomTypes";
 import { MAP_SHAPE, floorKindCandidates } from "./biomes";
@@ -16,6 +17,10 @@ const SEARCH_SEEDS = 300;
 const NON_BOSS_DEPTH = 7;
 /** 部屋の種類の割り当てを確かめる seed の数（広い階を深度 3 つぶん作るので控えめに） */
 const ROOM_KIND_SEEDS = 30;
+/** 章の休符（章 2 の 1 階目）の深度 */
+const CHAPTER_REST_DEPTH = 6;
+/** 章の休符の泉を確かめる seed の数（深度 9 通りを作るので控えめに） */
+const REST_SEEDS = 8;
 const IDLE = withInput({});
 
 /** 指定 depth で kind の部屋が出るフロアを seed 総当たりで探す */
@@ -281,8 +286,8 @@ describe("部屋の種類", () => {
     expect(state.floorItems.some((fi) => fi.item.rarity === "rare" || fi.item.rarity === "unique")).toBe(true);
   });
 
-  it("shrine: 泉で HP 全回復は 1 回だけ。代わりに呪い", () => {
-    const { state, index } = floorWith("shrine", 3);
+  it("shrine: 章の休符の泉は HP 全回復が 1 回だけで、呪いを付けず、瓶を上限まで満たす", () => {
+    const { state, index } = floorWith("shrine", CHAPTER_REST_DEPTH);
     const room = state.rooms[index];
     if (!room) throw new Error("room missing");
     expect(room.cleared).toBe(true);
@@ -291,14 +296,56 @@ describe("部屋の種類", () => {
     expect(getTile(state.map, Math.floor(f.x / TILE_SIZE), Math.floor(f.y / TILE_SIZE))).toBe(Tile.Fountain);
     const p = state.player;
     p.hp = 10;
+    p.flasks = 0;
     p.body.pos = { ...f };
     step(state, IDLE, FIXED_DT);
     expect(p.hp).toBe(p.maxHp);
+    expect(p.flasks, "瓶が上限まで満ちる").toBe(state.stats.flaskMax);
     expect(room.used).toBe(true);
-    expect(state.cursed).toBe(true);
+    expect(state.cursed, "休符の泉は呪いを付けない").toBe(false);
     p.hp = 10;
+    p.flasks = 0;
     step(state, IDLE, FIXED_DT);
-    expect(p.hp).toBe(10);
+    expect(p.hp, "2 回目は効かない").toBe(10);
+    expect(p.flasks, "2 回目は瓶も満ちない").toBe(0);
+  });
+
+  it("shrine: 休符でない階の泉は代わりに呪いを付け、瓶は満たさない", () => {
+    const { state, index } = floorWith("shrine", CHAPTER_REST_DEPTH);
+    const room = state.rooms[index];
+    if (!room) throw new Error("room missing");
+    // 章の休符でない階に泉が立った場合（将来の出どころ）の分岐を確かめる
+    state.depth = NON_BOSS_DEPTH;
+    const p = state.player;
+    p.hp = 10;
+    p.flasks = 0;
+    p.body.pos = { ...fountainPx(room) };
+    step(state, IDLE, FIXED_DT);
+    expect(p.hp).toBe(p.maxHp);
+    expect(state.cursed).toBe(true);
+    expect(p.flasks).toBe(0);
+  });
+
+  it("章の 1 階目（6 / 11 / 16）には泉が必ず 1 つあり、それ以外の階には無い", () => {
+    for (let seed = 0; seed < REST_SEEDS; seed++) {
+      for (const depth of [1, 2, 3, 5, 6, 7, 11, 16, 21]) {
+        const state = withBaseAreaMul(() => createGame(seed));
+        state.depth = depth;
+        buildFloor(state);
+        const shrines = state.rooms.filter((r) => r.kind === "shrine").length;
+        // 泉に回せる部屋（開始・最初の戦闘・最後を除く）が無い小さな階は置けない
+        const room = state.rooms.length > 3 ? 1 : 0;
+        expect(shrines, `seed=${seed} depth=${depth}`).toBe(isChapterRest(depth) ? room : 0);
+      }
+    }
+  });
+
+  it("縛り「乾いた泉」では章の 1 階目にも泉を置かない", () => {
+    const state = withBaseAreaMul(() => createGame(3));
+    state.modifiers.push("dryFountain");
+    state.depth = CHAPTER_REST_DEPTH;
+    buildFloor(state);
+    expect(state.rooms.some((r) => r.kind === "shrine")).toBe(false);
   });
 
   it("呪い: 次の部屋でエリート抽選が 1 回増え、呪いは消える", () => {

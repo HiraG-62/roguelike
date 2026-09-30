@@ -3,7 +3,7 @@ import { type ElementTable, uniformElements } from "../core/element";
 import type { Modifier } from "../core/rules";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
-import { ATTR, MANA } from "../data/tuning";
+import { ATTR, ECONOMY, MANA } from "../data/tuning";
 import type { MovesetKey } from "../data/weapons";
 
 /**
@@ -481,6 +481,8 @@ export interface PlayerStats {
   coinSpillMul: number;
   /** 稼ぐ銭の倍率（こぼれた銭の拾い直し・賭けの払い戻しには掛けない） */
   coinGainMul: number;
+  /** 持てる瓶の本数（既定は ECONOMY.flask.max。system/flask.ts） */
+  flaskMax: number;
 }
 
 /**
@@ -1005,4 +1007,5 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   coinMagnetMul: 1,
   coinSpillMul: 1,
   coinGainMul: 1,
+  flaskMax: ECONOMY.flask.max,
 };

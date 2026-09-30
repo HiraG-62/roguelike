@@ -265,6 +265,33 @@ describe("既定のキー設定", () => {
     expect(owners, "KeyT を持つのは toggleDropInfo だけ").toEqual(["toggleDropInfo"]);
   });
 
+  it("瓶（flask）は既定で B と 5、他のアクションと衝突せず、キー設定画面で変更できる", () => {
+    expect(DEFAULT_KEYBINDS.flask).toEqual(["KeyB", "Digit5"]);
+    expect((REBINDABLE_ACTIONS as readonly string[]).includes("flask"), "変更可能").toBe(true);
+    for (const code of DEFAULT_KEYBINDS.flask) {
+      const owners = (Object.keys(DEFAULT_KEYBINDS) as (keyof typeof DEFAULT_KEYBINDS)[]).filter((a) => DEFAULT_KEYBINDS[a].includes(code));
+      expect(owners, `${code} を持つのは flask だけ`).toEqual(["flask"]);
+    }
+    expect(assignBinding(defaultKeybinds(), "flask", 0, "KeyH")?.flask, "H に変えられる").toEqual(["KeyH", "Digit5"]);
+  });
+
+  it("B / 5 の押下は flaskPressed になり、押した瞬間だけ true", () => {
+    for (const code of ["KeyB", "Digit5"]) {
+      const input = new PlayerInput();
+      const target = new FakeEventTarget();
+      input.attachKeyboard(target as unknown as Window);
+      target.dispatch("keydown", keyEvent(code));
+      expect(input.snapshot().flaskPressed, `${code} で立つ`).toBe(true);
+      expect(input.snapshot().flaskPressed, `${code} は押しっぱなしでは立たない`).toBe(false);
+    }
+  });
+
+  it("パッドの flaskPressed はキーボードと OR で FrameInput に入る", () => {
+    const input = new PlayerInput();
+    input.attachGamepad(new StubGamepad(gamepadFrame({ flaskPressed: true })) as never);
+    expect(input.snapshot().flaskPressed).toBe(true);
+  });
+
   it("拾う（interact）は既定で G、キー設定画面で変更できる", () => {
     expect(DEFAULT_KEYBINDS.interact).toEqual(["KeyG"]);
     expect((REBINDABLE_ACTIONS as readonly string[]).includes("interact"), "変更可能").toBe(true);

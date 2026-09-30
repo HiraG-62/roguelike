@@ -1,7 +1,7 @@
 import { type BossState, type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamage, enemyDef, isBossClass } from "../data/enemies";
-import { BOSS, FEEL, FLOOR_LORD } from "../data/tuning";
+import { ARC, BOSS, FEEL, FLOOR_LORD } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
@@ -22,6 +22,7 @@ import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, upda
 import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import type { EnemyTelegraph } from "./enemies";
 import { offerReforges } from "./reforge";
+import { chapterBossKey } from "./chapters";
 
 /**
  * 階層ボス（major）。depth が BOSS.interval（5）の倍数の階は、階段のある最後の部屋がボス部屋になる。
@@ -73,9 +74,27 @@ export function isBossDepth(depth: number): boolean {
   return depth > 0 && depth % BOSS.interval === 0;
 }
 
+/**
+ * 章ボスの階（深度 5 / 10 / 15 / 20）は ARC.chapters の固定のボス。最後の章より深い階（深み）は回転で、
+ * 章ボスにならなかった 5 体（骸骨卿・双子の騎士・霜の巨人・群れの母・図書館の司書）を先に、続けて章ボス 4 体を回す
+ */
 export function bossKeyForDepth(depth: number): string {
-  const idx = Math.max(0, Math.floor(depth / BOSS.interval) - 1) % BOSS_ROTATION.length;
-  return BOSS_ROTATION[idx] ?? BOSS_ROTATION[0];
+  const chapterKey = chapterBossKey(depth);
+  if (chapterKey) return chapterKey;
+  const rotation = deepRotation();
+  const idx = Math.max(0, Math.floor(depth / BOSS.interval) - firstDeepBossStep()) % rotation.length;
+  return rotation[idx] ?? BOSS_ROTATION[0];
+}
+
+/** 深みのボス回転（章ボスの key は ARC.chapters にあるものを後ろへ） */
+export function deepRotation(): readonly string[] {
+  const chapterKeys = ARC.chapters.map((c) => c.boss);
+  return [...BOSS_ROTATION.filter((k) => !chapterKeys.includes(k)), ...chapterKeys];
+}
+
+/** 深みで最初のボス階が回転の何番目のステップか（interval 単位。深度 25 なら 5 → idx 0 になるよう引く） */
+function firstDeepBossStep(): number {
+  return Math.floor((ARC.floorsPerChapter * ARC.maxChapter) / BOSS.interval) + 1;
 }
 
 /** 最後の部屋をボス部屋にする: 階段を隠してボスを置く */

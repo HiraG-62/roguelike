@@ -95,7 +95,8 @@ describe("銭の器", () => {
     expect(eco.keys).toBe(0);
     expect(totalEarned(eco)).toBe(0);
     expect(totalSpent(eco)).toBe(0);
-    expect(createGame(1).economy, "createGame が作る").toEqual(eco);
+    // 市の商人は buildFloor が立たせる（system/merchants.ts）ので、器の初期値としては空と比べる
+    expect({ ...createGame(1).economy, merchants: [] }, "createGame が作る").toEqual(eco);
   });
 
   it("gainCoins は稼ぎに積み、spill の拾い直しは積まない。coinGainMul は賭け・拾い直しに掛けない", () => {

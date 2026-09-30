@@ -1,0 +1,13 @@
+{
+  "_note": "市の値段（system/merchants.ts）。章 1 の平均で書き、章ごとに ECONOMY.chapterMul を掛ける。置いたときに揺らぎを引いて固定する（名札が揺れない）",
+  "_fields": {
+    "spread": "値段の揺らぎ（平均に掛ける三角分布の倍率 low〜high、最頻 1）",
+    "repeatMul": "同じ品を買うたびに値段に足す割合（n 回買った品は 1 + repeatMul × n 倍）。仕入れ直しには掛けない",
+    "base": "品ごとの値段の平均（章 1）。flask 瓶 / item 遺物 / rune 刻印符 / key 鍵 / reroll 仕入れ直し。銭",
+    "rerollStep": "仕入れ直しをするたびに、その商人の仕入れ直しの値段に足す額（章の倍率を掛ける）。銭"
+  },
+  "spread": { "low": 0.85, "high": 1.2 },
+  "repeatMul": 0.2,
+  "base": { "flask": 40, "item": 70, "rune": 50, "key": 30, "reroll": 15 },
+  "rerollStep": 10
+}

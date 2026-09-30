@@ -59,6 +59,7 @@ export const ROLE_BY_BEHAVIOR: Readonly<Record<EnemyBehavior, EnemyRole>> = {
   bellImp: "support",
   bannerBearer: "support",
   inert: "support",
+  merchant: "support",
   egg: "support",
   forgeMaster: "support",
   bomber: "blast",

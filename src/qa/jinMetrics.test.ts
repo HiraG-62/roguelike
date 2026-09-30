@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { ROAMING_ROOM } from "../core/state";
+import { enemyDef } from "../data/enemies";
 import { buildFloorSpawnSection, buildHpMulSection, emptyFloorSpawn, recordFloorSpawn } from "./jinMetrics";
 
 /** 陣の配りの計測（qa/jinMetrics.ts） */
@@ -9,7 +10,10 @@ describe("陣の配りの計測", () => {
     const state = createGame(3);
     const t = emptyFloorSpawn();
     recordFloorSpawn(t, state);
-    expect(t.enemiesByBand["1-5"], "深度 1 は 1-5 の帯").toEqual([state.enemies.length]);
+    // 市の商人（def.merchant）は戦う相手に数えない
+    const combatants = state.enemies.filter((e) => enemyDef(e.defKey).merchant !== true);
+    expect(combatants.length, "商人が 1 人立つ").toBe(state.enemies.length - 1);
+    expect(t.enemiesByBand["1-5"], "深度 1 は 1-5 の帯").toEqual([combatants.length]);
     const roomJins = state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM);
     expect(t.roomJins).toEqual([roomJins.length]);
     expect(t.columns).toEqual([state.jins.length - roomJins.length]);

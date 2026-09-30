@@ -13,6 +13,8 @@ import { addFloatingText, shake, spawnBurst } from "./effects";
 import { finalizeLinks, rollElite } from "./elites";
 import { dropItem } from "./loot";
 import { circlesOverlap, overlapsWall } from "./physics";
+import { hasRestFountain } from "./chapters";
+import { refillFlasks } from "./flask";
 import { blackoutActive } from "./runEvents";
 import { hasMod } from "./runSetup";
 import { startsEmptySpecial } from "./specialRooms";
@@ -103,11 +105,10 @@ export function roomLocks(state: GameState, index: number): boolean {
   return room !== undefined && ROOM_LOCKS[room.kind];
 }
 
-/** 1 フロアに 0〜1 個の種類。この順に抽選する */
+/** 1 フロアに 0〜1 個の種類。この順に抽選する（泉は抽選ではなく章の休符に必ず置く。assignRestFountain） */
 const UNIQUE_KINDS: readonly UniqueKindRule[] = [
   { kind: "treasure", chance: ROOM_KIND.treasureChance, minDepth: 1 },
   { kind: "challenge", chance: ROOM_KIND.challengeChance, minDepth: ROOM_KIND.challengeMinDepth },
-  { kind: "shrine", chance: ROOM_KIND.shrineChance, minDepth: ROOM_KIND.shrineMinDepth },
 ];
 
 /** 敵が最初から置かれない種類（入ったときに湧く / 戦闘がない） */
@@ -123,12 +124,10 @@ export function startsEmpty(kind: RoomKind): boolean {
  */
 export function assignRoomKinds(state: GameState, reserved: ReadonlySet<number>): void {
   const candidates = state.rooms.map((_, i) => i).filter((i) => !reserved.has(i));
+  // 泉は他の種類より先に取る（章の休符の泉を宝物庫・試練に取られない）
+  assignRestFountain(state, candidates);
   for (const rule of UNIQUE_KINDS) {
     if (state.depth < rule.minDepth || candidates.length === 0) continue;
-    // 縛り「乾いた泉」: 泉は湧かない（抽選もしない）
-    if (rule.kind === "shrine" && hasMod(state, "dryFountain")) continue;
-    // 泉（全回復）は決まった深度にだけ出る = 1 ランに最大 shrineDepths.length 回
-    if (rule.kind === "shrine" && !ROOM_KIND.shrineDepths.includes(state.depth)) continue;
     if (!state.rng.chance(rule.chance)) continue;
     const [index] = candidates.splice(state.rng.int(0, candidates.length - 1), 1);
     const room = index === undefined ? undefined : state.rooms[index];
@@ -145,6 +144,17 @@ export function assignRoomKinds(state: GameState, reserved: ReadonlySet<number>)
     room.kind = "ambush";
     ambushes++;
   }
+}
+
+/**
+ * 章の休符（章の 1 階目）に泉の部屋を必ず 1 つ置く（候補から取り除く）。泉は休符にしか出ない
+ * （1 ランに章の数 - 1 回）。縛り「乾いた泉」では置かない。候補が無い階（部屋が少ない）は置けない
+ */
+function assignRestFountain(state: GameState, candidates: number[]): void {
+  if (!hasRestFountain(state.depth) || hasMod(state, "dryFountain") || candidates.length === 0) return;
+  const [index] = candidates.splice(state.rng.int(0, candidates.length - 1), 1);
+  const room = index === undefined ? undefined : state.rooms[index];
+  if (room) room.kind = "shrine";
 }
 
 /** 深度で決まる巣窟の最大数（0〜2） */
@@ -275,6 +285,7 @@ export function dropRareItem(state: GameState, pos: Vec): void {
 // -----------------------------------------------------------------------------
 
 const BLESS_TEXT = "回復";
+const FLASK_FILL_TEXT = "瓶補充";
 const CURSE_TEXT = "呪い";
 const SHRINE_PARTICLES = 24;
 const SHRINE_PARTICLE_SPEED = 90;
@@ -294,7 +305,7 @@ export function setupShrine(state: GameState, room: RoomState): void {
   room.cleared = true;
 }
 
-/** 泉に触れたら HP 全回復（1 回限り）。代わりに呪い */
+/** 泉に触れたら HP 全回復（1 回限り）。代わりに呪い。章の休符の泉は呪いを付けず、瓶を上限まで満たす */
 export function updateShrines(state: GameState): void {
   const body = state.player.body;
   for (const room of state.rooms) {
@@ -311,15 +322,27 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
   healPlayer(state, p.maxHp);
   // ks_berserker などの回復半減に関係なく全回復
   p.hp = p.maxHp;
-  state.cursed = true;
+  const rest = hasRestFountain(state.depth);
+  if (!rest) state.cursed = true;
   spawnBurst(state, pos, ROOM_KIND.shrineColor, SHRINE_PARTICLES, SHRINE_PARTICLE_SPEED, SHRINE_PARTICLE_LIFE, 2);
   spawnBurst(state, p.body.pos, COLOR_HEAL, SHRINE_PARTICLES, SHRINE_PARTICLE_SPEED, SHRINE_PARTICLE_LIFE, 2);
   addFloatingText(state, textPos(state), BLESS_TEXT, ROOM_KIND.shrineColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
   const below = { x: p.body.pos.x, y: p.body.pos.y + CURSE_TEXT_DELAY_LIFT };
-  addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE);
-  pushLog(state, "泉で生命が全回復した。代わりに次の部屋が呪われる。", ROOM_KIND.cursedColor);
+  if (rest) {
+    restFountainBoon(state, below);
+  } else {
+    addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE);
+    pushLog(state, "泉で生命が全回復した。代わりに次の部屋が呪われる。", ROOM_KIND.cursedColor);
+  }
   pushSfx(state, "heal");
   pushSfx(state, "fountainHeal");
+}
+
+/** 休符の泉: 呪いの代わりに瓶を上限まで満たす（満たすものが無くても休符の恵みとして記録は出す） */
+function restFountainBoon(state: GameState, pos: Vec): void {
+  const filled = refillFlasks(state);
+  if (filled > 0) addFloatingText(state, pos, FLASK_FILL_TEXT, ROOM_KIND.shrineColor, 1, WAVE_TEXT_LIFE);
+  pushLog(state, filled > 0 ? "章の境の泉で生命が全回復し、瓶が満ちた。" : "章の境の泉で生命が全回復した。", ROOM_KIND.shrineColor);
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   Knight,
   Laser,
   Leaper,
+  Merchant,
   MineLayer,
   Mimic,
   Rusher,
@@ -92,6 +93,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   mirrorKnight: new BossDriven("mirrorKnight"),
   thiefKing: new BossDriven("thiefKing"),
   leaper: new Leaper(),
+  merchant: new Merchant(),
 });
 
 /** その敵の振る舞い */

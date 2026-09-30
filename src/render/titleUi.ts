@@ -99,6 +99,7 @@ const ACTION_LABEL: Record<RebindableAction, string> = {
   skill3: "スキル 3",
   skill4: "スキル 4",
   interact: "拾う",
+  flask: "瓶",
   toggleDropInfo: "アイテム情報",
   restart: "やり直す（新シード）",
 };

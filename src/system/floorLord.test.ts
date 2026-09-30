@@ -5,6 +5,7 @@ import { depthHpScale, enemyDef } from "../data/enemies";
 import { BOSS, FLOOR_LORD, HEAL } from "../data/tuning";
 import { Tile, getTile, rectCenter } from "../map/grid";
 import { isBossDepth } from "./boss";
+import { isChapterRest } from "./chapters";
 import { createEnemy } from "./enemies";
 import { ascend, buildFloor, descend, updateRooms } from "./floor";
 import { bossRoomLocked, isCaptain, pickFloorLordDef, setupFloorLordRoom } from "./floorLord";
@@ -34,15 +35,30 @@ describe("階の主（毎階）", () => {
     }
   });
 
-  it("毎階の最後の部屋に主が出て、5 の倍数（BOSS.interval）だけ major", () => {
-    for (let depth = 1; depth <= BOSS.interval * 2; depth++) {
+  it("毎階の最後の部屋に主が出て、5 の倍数（BOSS.interval）だけ major。章の 1 階目（休符）は主が出ない", () => {
+    for (let depth = 1; depth <= BOSS.interval * 3; depth++) {
       const state = floorAt(depth);
       const last = state.rooms.length - 1;
       if (last <= 0) continue; // 部屋が 1 つしか無い階はスキップ
+      if (isChapterRest(depth)) {
+        expect(state.boss, `depth=${depth} 休符に主はいない`).toBeNull();
+        continue;
+      }
       expect(state.boss, `depth=${depth} 主がいる`).not.toBeNull();
       expect(state.boss?.roomIndex, `depth=${depth} 最後の部屋`).toBe(last);
       expect(state.boss?.major, `depth=${depth} major`).toBe(isBossDepth(depth));
       expect(state.boss?.defeated, `depth=${depth} まだ倒していない`).toBe(false);
+    }
+  });
+
+  it("章の 1 階目（6 / 11 / 16）は階の主も階層ボスもおらず、最後の部屋に階段が残る", () => {
+    for (const depth of [6, 11, 16]) {
+      const state = floorAt(depth);
+      const last = state.rooms[state.rooms.length - 1];
+      if (!last) throw new Error("no last room");
+      const c = rectCenter(last.rect);
+      expect(state.boss, `depth=${depth}`).toBeNull();
+      expect(getTile(state.map, c.x, c.y), `depth=${depth} 階段がある`).toBe(Tile.StairsDown);
     }
   });
 

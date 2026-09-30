@@ -7,7 +7,7 @@ import {
   PAD_RB,
   PAD_START,
   PAD_BUTTON_COUNT,
-  PAD_DPAD_UP,
+  PAD_DPAD_DOWN,
   PadCapture,
   assignPadBinding,
   clearPadBinding,
@@ -32,9 +32,10 @@ describe("パッドのコード", () => {
     expect(formatPadCode(padChordCode(PAD_LB, PAD_A))).toBe("LB+A");
   });
 
-  it("Start・十字キー・範囲外・同じボタン同士の組み合わせは割り当てられない", () => {
+  it("Start・十字キーの下左右・範囲外・同じボタン同士の組み合わせは割り当てられない", () => {
     expect(parsePadCode(padButtonCode(PAD_START))).toBeNull();
-    expect(parsePadCode(padButtonCode(PAD_DPAD_UP))).toBeNull();
+    expect(parsePadCode(padButtonCode(PAD_DPAD_DOWN))).toBeNull();
+    expect(parsePadCode("Pad14")).toBeNull();
     expect(parsePadCode("Pad16")).toBeNull();
     expect(parsePadCode("Pad0+Pad0")).toBeNull();
     expect(parsePadCode("KeyA")).toBeNull();
@@ -123,10 +124,10 @@ describe("PadCapture（取得モード）", () => {
     expect(cap.step(NONE, NONE)).toBe("Pad0");
   });
 
-  it("Start と十字キーは取らない", () => {
+  it("Start と十字キーの下左右は取らない", () => {
     const cap = new PadCapture();
     cap.start(NONE);
-    cap.step(buttons([PAD_START, PAD_DPAD_UP]), buttons([PAD_START, PAD_DPAD_UP]));
+    cap.step(buttons([PAD_START, PAD_DPAD_DOWN]), buttons([PAD_START, PAD_DPAD_DOWN]));
     expect(cap.step(NONE, NONE)).toBeNull();
   });
 });

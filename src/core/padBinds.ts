@@ -18,6 +18,7 @@ export const PAD_ACTIONS = [
   "skill3",
   "skill4",
   "interact",
+  "flask",
   "toggleDropInfo",
 ] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
@@ -49,10 +50,11 @@ export const PAD_DPAD_RIGHT = 15;
 export const PAD_BUTTON_COUNT = 16;
 
 /**
- * 割り当てに使えないボタン。Start はポーズと取得の取り消し、十字キーは移動とメニュー操作に固定する
- * （割り当てると移動と同時に技が出て、メニューでも迷子になるため）
+ * 割り当てに使えないボタン。Start はポーズと取得の取り消し、十字キーの下・左・右は移動とメニュー操作に固定する
+ * （割り当てると移動と同時に技が出て、メニューでも迷子になるため）。十字キー上だけは瓶の既定なので割り当てを許す
+ * （移動も兼ねるので、飲むとき少し上へ寄る。メニューの上移動は残す）
  */
-const RESERVED_BUTTONS: ReadonlySet<number> = new Set([PAD_START, PAD_DPAD_UP, PAD_DPAD_DOWN, PAD_DPAD_LEFT, PAD_DPAD_RIGHT]);
+const RESERVED_BUTTONS: ReadonlySet<number> = new Set([PAD_START, PAD_DPAD_DOWN, PAD_DPAD_LEFT, PAD_DPAD_RIGHT]);
 
 const BUTTON_LABEL: Readonly<Record<number, string>> = {
   [PAD_A]: "A",
@@ -67,6 +69,7 @@ const BUTTON_LABEL: Readonly<Record<number, string>> = {
   [PAD_START]: "Start",
   [PAD_LSTICK]: "L3",
   [PAD_RSTICK]: "R3",
+  [PAD_DPAD_UP]: "十字上",
 };
 
 const CODE_PATTERN = /^Pad(\d{1,2})(?:\+Pad(\d{1,2}))?$/;
@@ -116,7 +119,7 @@ export function formatPadCode(code: PadCode): string {
 
 /**
  * 既定の割り当て（以前の固定配置と同じ）。LB はスキルの層: 押している間の A / X / Y / B がスキル 1〜4。
- * 面ボタンは攻撃・固有技・奥義・ダッシュとメニューの決定・戻るを兼ねる。受け流しは RB（ダッシュの副だった RB を譲った）。拾うは空いている R3
+ * 面ボタンは攻撃・固有技・奥義・ダッシュとメニューの決定・戻るを兼ねる。受け流しは RB（ダッシュの副だった RB を譲った）。拾うは空いている R3、瓶は十字キー上
  */
 export const DEFAULT_PAD_BINDS: Readonly<PadBinds> = {
   dash: [padButtonCode(PAD_B)],
@@ -130,6 +133,7 @@ export const DEFAULT_PAD_BINDS: Readonly<PadBinds> = {
   skill3: [padChordCode(PAD_LB, PAD_Y)],
   skill4: [padChordCode(PAD_LB, PAD_B)],
   interact: [padButtonCode(PAD_RSTICK)],
+  flask: [padButtonCode(PAD_DPAD_UP)],
   toggleDropInfo: [],
 };
 

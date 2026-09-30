@@ -103,7 +103,9 @@ export type EnemyBehavior =
   /** ボス: 盗賊王（逃げながら罠を撒き、追い詰めるとダウン。src/system/bossThiefKing.ts） */
   | "thiefKing"
   /** 跳んで着地で円に当てる（着地点に影の予告。src/system/enemyLeap.ts。毒スライム） */
-  | "leaper";
+  | "leaper"
+  /** 商人（台座を並べて立つ。殴られるまで気付かず、怒ると品を投げる。src/system/merchants.ts） */
+  | "merchant";
 
 /** 再配色種: 元の絵のパレット文字を差し替えて別の絵にする（render/sprites.ts） */
 export interface SpriteRecolor {
@@ -258,6 +260,8 @@ export interface EnemyDef {
   terrainSpeed?: { on: readonly TerrainKind[]; mul: number };
   /** 被弾すると足元に小さな地形を出す（苔ゴーレムの胞子） */
   sporeOnHit?: TerrainKind;
+  /** 商人（src/system/merchants.ts）。殴られるまで気付かず、図鑑と陣の計測に数えない */
+  merchant?: boolean;
 }
 
 /**
@@ -328,6 +332,8 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "trainingDummy", name: "木人", sprite: "trainingDummy", recolor: { base: "icePillar", swap: { "1": "T", "2": "T", "3": "T", "4": "X" } }, behavior: "inert", color: "#c8a070", noCorpse: true, ...N.trainingDummy },
   // ---- 鏡の部屋の写し（src/system/specialRooms.ts が HP・エリート修飾子をプレイヤーの今のビルドから決める）----
   { key: "mirrorSelf", name: "鏡像", sprite: "mirrorSelf", recolor: { base: "player", swap: { b: "p", B: "P", a: "e", t: "3", T: "4", o: "A", O: "9" } }, behavior: "charger", color: "#c0e0ff", noCorpse: true, ...N.mirrorSelf },
+  // ---- 商人（src/system/merchants.ts が毎階の前室に立たせる。抽選には出ない）----
+  { key: "merchant", name: "商人", sprite: "merchant", recolor: { base: "hooded", swap: { "9": "o", A: "O", c: "y" } }, behavior: "merchant", color: "#e0b050", noCorpse: true, merchant: true, ...N.merchant },
 ];
 
 export const ENEMIES: readonly EnemyDef[] = [

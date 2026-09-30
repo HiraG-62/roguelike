@@ -2,7 +2,7 @@ import type { FrameInput } from "../core/input";
 import { ultimateReady } from "../system/ultimates";
 import { EMPTY_INPUT } from "../core/input";
 import { createRng, type Rng } from "../core/rng";
-import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
+import type { Enemy, EnemyPhase, GameState, RoomState, Ware } from "../core/state";
 import { PX_PER_METER } from "../core/units";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
@@ -12,7 +12,7 @@ import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex
 import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
 import { PLAYER } from "../data/tuning";
 import { reaperTimeLeft } from "../system/reaper";
-import { isSolidTile, overlapsWall } from "../system/physics";
+import { circlesOverlap, isSolidTile, overlapsWall } from "../system/physics";
 import { canStartParry } from "../system/parry";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
@@ -101,6 +101,18 @@ const ART_STRIKE_MARGIN = 6;
 const ULTIMATE_RANGE = 8 * PX_PER_METER;
 /** この割合以下の HP でハートが見えていれば拾いに行く */
 const LOW_HP_RATIO = 0.3;
+/**
+ * 瓶（docs/ideas/economy-impl.md 2-3・5 章）: 生命がこの割合以下で 1 本以上持っていれば飲む。
+ * 飲めない間（振りの最中・ダッシュ中・クールダウン）は tryDrink が無視するので毎フレーム押してよい
+ */
+const FLASK_HP_RATIO = 0.4;
+/**
+ * 市の台座に触れたとみなす半径（px）。system/merchants.ts の台座の判定（契約者の台座と同じ 9）と揃える。
+ * 触れた時点で買い物は済んでいる（払えず断られても台座は残るので、bot は 1 度触れたら諦めて先へ進む）
+ */
+const WARE_TOUCH_RADIUS = 9;
+/** 1 つの階で市へ寄り道に使う秒の上限（届かない台座を追い続けて探索を止めない） */
+const MARKET_GIVE_UP = 30;
 /** 詰まり判定のチェック間隔（秒） */
 const STUCK_CHECK_INTERVAL = 0.4;
 /** この間隔で動いた距離がこれ未満なら「壁に引っかかった」とみなす（px） */
@@ -180,6 +192,10 @@ export interface BotState {
   parryTimer: number;
   /** この階で隠し部屋の扉を追った累計秒（HIDDEN_DOOR_GIVE_UP で諦める。階が変わると 0） */
   hiddenDoorTime: number;
+  /** 触れに行った（買えた・買えなかったを問わず済ませた）市の台座。階ごとに台座は作り直されるので WeakSet で捨てられる */
+  triedWares: WeakSet<Ware>;
+  /** この階で市の台座を追った累計秒（MARKET_GIVE_UP で諦める。階が変わると 0） */
+  marketTime: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -203,6 +219,8 @@ export function createBotState(seed: number): BotState {
     laneQueue: [],
     parryTimer: 0,
     hiddenDoorTime: 0,
+    triedWares: new WeakSet(),
+    marketTime: 0,
   };
 }
 
@@ -905,9 +923,17 @@ function nearestRoomEnemy(state: GameState, roomIndex: number): Vec | null {
 
 /**
  * 1 ステップぶんの FrameInput を作る。
- * 優先順位: 低 HP でハートが見えていれば回収 > 交戦中の最寄りの敵 > 探索（未クリア部屋 → 階段）
+ * 優先順位: 低 HP でハートが見えていれば回収 > 交戦中の最寄りの敵 > 隠し部屋の扉 > 市の瓶 > 探索（未クリア部屋 → 階段）。
+ * 瓶は上の優先順位とは別に、低 HP なら flaskPressed を重ねる（botInput）
  */
 export function botInput(state: GameState, bot: BotState, dt: number): FrameInput {
+  const input = decideInput(state, bot, dt);
+  // 瓶は行動の種類に関わらず低 HP で飲む（戦闘中・回収中でも命綱として押す）
+  if (state.status === "playing" && !state.boonChoice && !state.reforgeChoice && shouldDrinkFlask(state)) input.flaskPressed = true;
+  return input;
+}
+
+function decideInput(state: GameState, bot: BotState, dt: number): FrameInput {
   if (state.status !== "playing") return freshInput();
 
   // 祝福 3 択の間は他の処理が止まる（core/game.ts の step 参照）ので最優先で処理する
@@ -935,6 +961,7 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     bot.stuckTimer = 0;
     bot.lastCheckPos = { ...state.player.body.pos };
     bot.hiddenDoorTime = 0;
+    bot.marketTime = 0;
   }
 
   const p = state.player;
@@ -955,7 +982,56 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     return hiddenDoorInput(state, bot, hiddenDoor, dt);
   }
 
+  // 市: 瓶が上限未満で払えるときだけ、瓶の台座へ寄って買う（他は買わない = 銭を温存する人の基準値）
+  const ware = pickFlaskWare(state, bot);
+  if (ware) {
+    bot.marketTime += dt;
+    return withDropPickup(state, bot, marketInput(state, bot, ware, dt));
+  }
+
   return withDropPickup(state, bot, explorationInput(state, bot, dt));
+}
+
+/** 瓶を飲むか: 1 本以上持っていて、生命が FLASK_HP_RATIO 以下 */
+export function shouldDrinkFlask(state: GameState): boolean {
+  const p = state.player;
+  return p.flasks > 0 && p.hp / p.maxHp <= FLASK_HP_RATIO;
+}
+
+/**
+ * 寄って買う瓶の台座。瓶が上限未満・払える・まだ触れていない台座のうち最も近いもの。
+ * 死神が迫って階段を急ぐときと、寄り道の秒を使い切ったときは寄らない
+ */
+function pickFlaskWare(state: GameState, bot: BotState): Ware | null {
+  if (state.player.flasks >= state.stats.flaskMax || bot.marketTime > MARKET_GIVE_UP) return null;
+  const pos = state.player.body.pos;
+  let best: Ware | null = null;
+  let bestDist = Infinity;
+  for (const merchant of state.economy.merchants) {
+    // 怒った商人は売らない
+    if (merchant.provoked) continue;
+    for (const ware of merchant.wares) {
+      if (ware.kind !== "flask" || ware.used || bot.triedWares.has(ware) || ware.price > state.economy.coins) continue;
+      const d = dist(ware.pos, pos);
+      if (d >= bestDist) continue;
+      best = ware;
+      bestDist = d;
+    }
+  }
+  if (best === null || shouldRushStairs(state, bot)) return null;
+  return best;
+}
+
+/** 台座へ経路で歩く。触れたら（買い物は step の中で済む）その台座は済ませたことにして探索へ戻る */
+function marketInput(state: GameState, bot: BotState, ware: Ware, dt: number): FrameInput {
+  const body = state.player.body;
+  if (circlesOverlap(ware.pos.x, ware.pos.y, WARE_TOUCH_RADIUS, body.pos.x, body.pos.y, body.radius)) {
+    bot.triedWares.add(ware);
+    return freshInput();
+  }
+  ensurePath(state, bot, ware.pos);
+  const waypoint = currentWaypoint(bot, body.pos) ?? ware.pos;
+  return moveOnlyInput(steerToward(state, bot, waypoint, dt));
 }
 
 /** 手の届くドロップ品で最も近いもの（まだ拾おうとしていないもの） */

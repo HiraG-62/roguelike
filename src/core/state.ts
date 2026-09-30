@@ -88,6 +88,10 @@ export interface Player {
   body: Body;
   hp: number;
   maxHp: number;
+  /** 持っている瓶の本数（上限は stats.flaskMax。system/flask.ts） */
+  flasks: number;
+  /** 次に瓶を飲める state.time（連打で 2 本空けないため） */
+  flaskReadyAt: number;
   facing: Vec;
   dashTimer: number;
   dashCooldown: number;
@@ -701,6 +705,47 @@ export interface EconomyState {
   /** 撃破で床に落ちた銭の総額 / 拾われずに消えた総額（こぼれた銭は含まない。QA の拾えなかった割合） */
   dropped: number;
   expired: number;
+  /** 品ごとに買った回数（同じ品は買うたび値上がり。system/merchants.ts） */
+  bought: Partial<Record<WareKind, number>>;
+  /** 怒らせた商人を倒した（以後このランの値段 ×ECONOMY.market.outlawPriceMul） */
+  outlaw: boolean;
+  /** この階の商人（実体は Enemy。buildFloor の最後で作り直す） */
+  merchants: Merchant[];
+}
+
+/** 商人の種類（system/merchants.ts）。market = 毎階の前室の市 / chapterMarket = 章ボス階の前室の章の市 */
+export type MerchantKind = "market" | "chapterMarket";
+/** 品の種類。reroll = 仕入れ直し（売れた品を並べ直し、値段を引き直す） */
+export type WareKind = "flask" | "item" | "rune" | "key" | "reroll";
+
+/** 商人の台座の品（触れて買う。contractors.ts の ContractOffer と同じ作法） */
+export interface Ware {
+  kind: WareKind;
+  /** 品の細目（今は使わない。闇市のスキル石・誓約の key 用の席） */
+  key: string;
+  /** 今の値段（base に買った回数・無法者の倍率を掛けたもの。変わるたびに merchants.ts が書き直す） */
+  price: number;
+  /** 置いたときに引いた値段（章の倍率 × 揺らぎ） */
+  base: number;
+  pos: Vec;
+  used: boolean;
+  /** false の間は触れても反応しない（離れると true。連打と出現直後の誤爆を防ぐ） */
+  armed: boolean;
+}
+
+/** 商人（台座を並べる人。体は state.enemies の Enemy で、殴られると怒る） */
+export interface Merchant {
+  enemyId: number;
+  kind: MerchantKind;
+  /** 立ち位置（倒れた後に品を落とす場所・名札） */
+  pos: Vec;
+  wares: Ware[];
+  /** 近づいたときの一言を出したか */
+  greeted: boolean;
+  /** 殴られて怒った（以後は品を投げてくる。売らない） */
+  provoked: boolean;
+  /** 仕入れ直しをした回数（その値段が rerollStep ずつ上がる） */
+  rerolls: number;
 }
 
 /** 部屋の種類（src/system/roomTypes.ts）。ボス部屋は normal のまま boss.ts が管理する */

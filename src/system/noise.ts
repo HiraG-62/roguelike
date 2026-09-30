@@ -41,7 +41,10 @@ export function wakeByNoise(state: GameState): void {
   for (const e of state.enemies) {
     // ボスは導入演出などの自前の流れで動くので、音では起こさない
     // ボスは導入演出などの自前の流れで動くので、音では起こさない
-    if (e.hp <= 0 || e.phase !== "idle" || isBossClass(enemyDef(e.defKey))) continue;
+    // 商人は殴られるまで気付かない（戦いの音でも起きない）
+    if (e.hp <= 0 || e.phase !== "idle") continue;
+    const def = enemyDef(e.defKey);
+    if (isBossClass(def) || def.merchant === true) continue;
     const heard = noises.some((n) => dist(n.pos, e.body.pos) <= n.radius && lineOfSight(state.map, n.pos, e.body.pos));
     if (!heard) continue;
     e.phase = "chase";

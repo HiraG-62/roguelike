@@ -15,11 +15,12 @@ import { keystoneDef } from "../loot/affixes";
 import { PROP_LABEL, ROOM_KIND_COLOR, type RoomProp, escapeActive, inFogRoom } from "../system/specialRooms";
 import { TEXT, drawTextShadow, textLineHeight } from "./pixelText";
 import { clamp01, pulse } from "./renderMath";
+import { drawMerchants, drawStallSpots, nearestStallSpot } from "./merchantUi";
 import type { SpriteAtlas } from "./sprites";
 
 /**
  * ラン構造の描画（docs/ideas/run-expansion.md）。state を読むだけで、乱数は使わない。
- * - ワールド座標: バイオームの色調（反転層の紫）・台座・契約者・護衛対象・刻の裂け目・落下物と落雷の予告・死神の通り道・
+ * - ワールド座標: バイオームの色調（反転層の紫）・台座・契約者・商人の台座（merchantUi.ts）・護衛対象・刻の裂け目・落下物と落雷の予告・死神の通り道・
  *   影の自分・賞金首の印・階段の行き先
  * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計・契約の予告行、霧（霧の部屋）、起点と位階・銭と鍵・反転層 / 帰還
  */
@@ -66,6 +67,7 @@ export function drawRunWorld(ctx: CanvasRenderingContext2D, state: GameState, at
   for (const room of state.rooms) drawRoomProps(ctx, state, room, atlas);
   const who = state.contracts.contractor;
   if (who) drawContractor(ctx, state, who);
+  drawMerchants(ctx, state);
   drawRift(ctx, state);
   drawShadows(ctx, state);
   drawBountyMark(ctx, state);
@@ -176,7 +178,6 @@ const CONTRACTOR_HEAD_R = 3;
 const CONTRACTOR_BODY_W = 6;
 const CONTRACTOR_BODY_H = 7;
 const CONTRACTOR_NAME_LIFT = 14;
-const OFFER_SIZE = 5;
 
 /** 契約者（頭と胴の簡単な人影）と、その前に並ぶ台座 */
 function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Contractor): void {
@@ -193,13 +194,7 @@ function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Co
   ctx.fill();
   const near = Math.hypot(p.x - who.pos.x, p.y - who.pos.y) <= CONTRACT.greetRange * 2;
   if (near) drawTextShadow(ctx, def.name, x, y - CONTRACTOR_NAME_LIFT, TEXT.SMALL, def.color, COLOR_SHADOW, "center");
-  for (const offer of who.offers) {
-    if (offer.used) continue;
-    ctx.globalAlpha = pulse(state.time, PROP_PULSE_SPEED, 0.5, 1);
-    ctx.fillStyle = def.color;
-    ctx.fillRect(Math.round(offer.pos.x - OFFER_SIZE / 2), Math.round(offer.pos.y - OFFER_SIZE / 2), OFFER_SIZE, OFFER_SIZE);
-    ctx.globalAlpha = 1;
-  }
+  drawStallSpots(ctx, state, who.offers, def.color);
   // 台座どうしが近く名前が重なるので、いちばん近い台座の名前だけを出す
   const offer = nearestOffer(state, who);
   if (!offer) return;
@@ -209,17 +204,7 @@ function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Co
 
 /** 名前を読める距離にある、まだ使っていない台座のうち最も近いもの */
 export function nearestOffer(state: GameState, who: Contractor): Contractor["offers"][number] | null {
-  const p = state.player.body.pos;
-  let best: Contractor["offers"][number] | null = null;
-  let bestDist: number = ROOM_KIND.propLabelRange;
-  for (const offer of who.offers) {
-    if (offer.used) continue;
-    const d = Math.hypot(p.x - offer.pos.x, p.y - offer.pos.y);
-    if (d > bestDist) continue;
-    best = offer;
-    bestDist = d;
-  }
-  return best;
+  return nearestStallSpot(state, who.offers);
 }
 
 /** 雷鳴の刻の落雷の予告: 外周の輪と、満ちていく中の円 */

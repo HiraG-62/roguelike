@@ -203,15 +203,18 @@ function spotFree(state: GameState, room: RoomState, pos: Vec): boolean {
   return inBounds(state.map, tx, ty) && room.tiles.has(toIndex(state.map, tx, ty));
 }
 
-/** 中心から dir 側（上 = -1 / 下 = 1）に、契約者 1 人と台座 n 個が置けるか。置けるなら位置を返す */
-function layout(state: GameState, room: RoomState, n: number, dir: number): { stand: Vec; offers: Vec[] } | null {
+/**
+ * 中心から dir 側（上 = -1 / 下 = 1）に、契約者 1 人と台座 n 個が置けるか。置けるなら位置を返す。
+ * spacing は台座の間隔（タイル）。市の商人（system/merchants.ts）も使う
+ */
+export function layout(state: GameState, room: RoomState, n: number, dir: number, spacing: number = CONTRACT.offerSpacing): { stand: Vec; offers: Vec[] } | null {
   const c = rectCenterPx(room.rect);
   const stand = { x: c.x, y: c.y + dir * CONTRACT.standOffset * TILE_SIZE };
   if (!spotFree(state, room, stand)) return null;
   const y = c.y + dir * CONTRACT.offerOffset * TILE_SIZE;
   const offers: Vec[] = [];
   for (let i = 0; i < n; i++) {
-    const p = { x: c.x + (i - (n - 1) / 2) * CONTRACT.offerSpacing * TILE_SIZE, y };
+    const p = { x: c.x + (i - (n - 1) / 2) * spacing * TILE_SIZE, y };
     if (!spotFree(state, room, p)) return null;
     offers.push(p);
   }

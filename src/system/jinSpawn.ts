@@ -255,9 +255,10 @@ export function spawnJin(
     weight += member.leader ? JIN.gradeWeight.leader : JIN.gradeWeight[member.grade];
   });
   if (weight === 0) return null;
+  // 連結の相方（並 → 精鋭）が決まってから群勢を満たす（先に満たすと相方の重さが群勢の最大に入らない）
+  if (roomIndex !== ROAMING_ROOM) finalizeLinks(state, roomIndex);
   initJinMorale(state, jin);
   state.jins.push(jin);
-  if (roomIndex !== ROAMING_ROOM) finalizeLinks(state, roomIndex);
   return jin;
 }
 

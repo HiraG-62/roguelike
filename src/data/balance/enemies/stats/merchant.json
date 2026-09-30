@@ -1,0 +1,16 @@
+{
+  "_note": "商人（system/merchants.ts）。並の敵のおよそ 6 倍の生命。怒ると距離を問わず品を投げる（投げる数・威力は world/ECONOMY/market.json の throw）。抽選には出ない",
+  "radius": 6,
+  "hp": 150,
+  "speed": 0,
+  "contactDamage": 0,
+  "windup": 0.7,
+  "strikeTime": 0.05,
+  "recover": 0.6,
+  "engageRange": 200,
+  "attackInterval": 1.2,
+  "score": 0,
+  "minDepth": 99,
+  "weight": 0,
+  "dropChance": 0
+}

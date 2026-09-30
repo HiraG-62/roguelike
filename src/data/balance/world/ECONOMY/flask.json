@@ -1,6 +1,16 @@
 {
   "_fields": {
-    "color": "床の瓶の色"
+    "color": "床の瓶・瓶の枡・浮き文字「瓶」の色",
+    "start": "ランの開始時に持っている瓶の本数。本",
+    "max": "瓶を持てる本数の基準（PlayerStats.flaskMax の既定。性質・祝福で増える）。本",
+    "healRatio": "1 本飲んで回復する量。最大生命に対する割合（戦闘中の回復の上限 HEAL.sustainCapRatio は通さない）",
+    "cooldown": "飲んだ後、次に飲めるまでの秒。秒",
+    "textLife": "浮き文字「瓶」の表示秒。秒"
   },
-  "color": "#e05060"
+  "color": "#e05060",
+  "start": 1,
+  "max": 2,
+  "healRatio": 0.35,
+  "cooldown": 0.6,
+  "textLife": 0.7
 }

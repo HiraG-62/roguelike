@@ -490,6 +490,8 @@ describe("ランイベント第 2 弾の効果", () => {
     const { state, room, index } = setup();
     lock(state, room);
     thin(state, index, 3);
+    // 名乗った敵が陣の大将だと、倒した瞬間に陣が敗走して残りが部屋を離れる（このテストは敗走でなく決闘の恐怖を見る）
+    for (const e of state.enemies) if (e.roomIndex === index) e.jinId = undefined;
     start(state, "duel", index);
     const current = state.runEvents.room;
     const champion = current?.target;

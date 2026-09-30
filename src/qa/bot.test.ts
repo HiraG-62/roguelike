@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
-import type { GameState, HiddenRoom } from "../core/state";
+import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
 import { placeEnemy, arena } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
-import { HIDDEN_DOOR_GIVE_UP, botInput, createBotState, pickBoonIndex, shouldPressUltimate } from "./bot";
+import { HIDDEN_DOOR_GIVE_UP, botInput, createBotState, pickBoonIndex, shouldDrinkFlask, shouldPressUltimate } from "./bot";
 import { isZero } from "../core/vec";
 import { buildFloor } from "../system/floor";
 import { planHidden } from "../system/hiddenRoom";
@@ -163,5 +163,123 @@ describe("bot の隠し部屋", () => {
     // state を進めないので扉は開かない。追った秒が上限を超えたら以後は数えない（= 扉を追わない）
     for (let i = 0; i < HIDDEN_DOOR_GIVE_UP * 2; i++) botInput(state, bot, 1);
     expect(bot.hiddenDoorTime).toBeLessThanOrEqual(HIDDEN_DOOR_GIVE_UP + 1);
+  });
+});
+
+describe("bot の瓶", () => {
+  function withHpRatio(state: GameState, ratio: number): void {
+    state.player.hp = state.player.maxHp * ratio;
+  }
+
+  it("瓶が 1 本以上で生命が 40% 以下なら飲む（ちょうど 40% は飲み、超えれば飲まない）", () => {
+    const state = arena(4);
+    state.player.flasks = 1;
+    withHpRatio(state, 0.4);
+    expect(botInput(state, createBotState(1), DT).flaskPressed, "40% で飲む").toBe(true);
+    withHpRatio(state, 0.41);
+    expect(botInput(state, createBotState(1), DT).flaskPressed, "41% では飲まない").toBe(false);
+  });
+
+  it("瓶が 0 本なら生命が低くても押さない", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    withHpRatio(state, 0.1);
+    expect(shouldDrinkFlask(state), "0 本").toBe(false);
+    expect(botInput(state, createBotState(1), DT).flaskPressed).toBe(false);
+  });
+
+  it("交戦中でも低 HP なら攻撃の入力に重ねて飲む", () => {
+    const state = arena(4);
+    placeEnemy(state, "slime", 20).phase = "chase";
+    state.player.flasks = 2;
+    withHpRatio(state, 0.2);
+    const input = botInput(state, createBotState(1), DT);
+    expect(input.flaskPressed, "戦闘の入力にも重なる").toBe(true);
+    expect(isZero(input.move) && !input.attackPressed && !input.attackHeld && !input.shootHeld && !input.dashPressed, "戦闘の入力そのものは残る").toBe(false);
+  });
+});
+
+describe("bot の市", () => {
+  const WARE_OFFSET = 40;
+
+  function ware(state: GameState, kind: WareKind, price: number, dx = WARE_OFFSET): Ware {
+    const p = state.player.body.pos;
+    return { kind, key: kind, price, base: price, pos: { x: p.x + dx, y: p.y }, used: false, armed: false };
+  }
+
+  function stand(state: GameState, wares: Ware[], provoked = false): void {
+    const merchant: Merchant = { enemyId: -1, kind: "market", pos: { ...state.player.body.pos }, wares, greeted: false, provoked, rerolls: 0 };
+    state.economy.merchants = [merchant];
+  }
+
+  it("瓶が上限未満で払えるなら瓶の台座へ寄り、触れたらその台座は済ませたことにして探索へ戻る", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    state.economy.coins = 100;
+    const target = ware(state, "flask", 40, 0);
+    stand(state, [target]);
+    const bot = createBotState(1);
+    botInput(state, bot, DT);
+    expect(bot.marketTime, "台座を追った").toBeGreaterThan(0);
+    expect(bot.triedWares.has(target), "台座の真上にいれば触れたとみなす").toBe(true);
+    const before = bot.marketTime;
+    botInput(state, bot, DT);
+    expect(bot.marketTime, "済んだ台座には寄り続けない").toBe(before);
+  });
+
+  it("払えない・瓶が上限・瓶以外の台座には寄らない（他は買わない）", () => {
+    const poor = arena(4);
+    poor.player.flasks = 0;
+    poor.economy.coins = 39;
+    stand(poor, [ware(poor, "flask", 40)]);
+    const poorBot = createBotState(1);
+    botInput(poor, poorBot, DT);
+    expect(poorBot.marketTime, "銭が足りなければ寄らない").toBe(0);
+
+    const full = arena(4);
+    full.economy.coins = 100;
+    full.player.flasks = full.stats.flaskMax;
+    stand(full, [ware(full, "flask", 40)]);
+    const fullBot = createBotState(1);
+    botInput(full, fullBot, DT);
+    expect(fullBot.marketTime, "瓶が上限なら寄らない").toBe(0);
+
+    const other = arena(4);
+    other.player.flasks = 0;
+    other.economy.coins = 500;
+    stand(other, [ware(other, "item", 70), ware(other, "rune", 50), ware(other, "key", 30)]);
+    const otherBot = createBotState(1);
+    botInput(other, otherBot, DT);
+    expect(otherBot.marketTime, "瓶以外の台座には寄らない").toBe(0);
+  });
+
+  it("怒った商人の台座には寄らない（売らないので）", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    state.economy.coins = 100;
+    stand(state, [ware(state, "flask", 40)], true);
+    const bot = createBotState(1);
+    botInput(state, bot, DT);
+    expect(bot.marketTime, "怒った商人").toBe(0);
+  });
+
+  it("買われて used になった台座には寄らず、寄り道の秒の上限を超えたら諦める", () => {
+    const sold = arena(4);
+    sold.player.flasks = 0;
+    sold.economy.coins = 100;
+    const w = ware(sold, "flask", 40);
+    w.used = true;
+    stand(sold, [w]);
+    const soldBot = createBotState(1);
+    botInput(sold, soldBot, DT);
+    expect(soldBot.marketTime, "used の台座は対象外").toBe(0);
+
+    const far = arena(4);
+    far.player.flasks = 0;
+    far.economy.coins = 100;
+    stand(far, [ware(far, "flask", 40, 5000)]);
+    const bot = createBotState(1);
+    for (let i = 0; i < 100; i++) botInput(far, bot, 1);
+    expect(bot.marketTime, "追った秒は上限を少し超えたところで止まる").toBeLessThanOrEqual(31 + 1);
   });
 });

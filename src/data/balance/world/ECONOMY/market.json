@@ -1,0 +1,22 @@
+{
+  "_note": "商人と市（system/merchants.ts。docs/ideas/economy-impl.md 2-5）。毎階の前室（最後の部屋に最も近い部屋）に市、章ボス階の前室は章の市。台座に触れて買う",
+  "_fields": {
+    "stock": "商人の種類ごとの品の数（market 市 / chapterMarket 章の市）。flask 瓶 / item 遺物 / rune 刻印符 / key 鍵 / reroll 仕入れ直し。個",
+    "outlawPriceMul": "怒らせた商人を倒した後（無法者）、このランの値段に掛ける倍率",
+    "itemBoost": "市で買う遺物のレアリティの底上げ（dropItem の extraBoost）",
+    "offerSpacing": "台座の間隔。タイル（契約者の台座より詰める。品が多いので）",
+    "greetRange": "商人に近づいて一言が出る距離。px",
+    "color": "商人の名札・台座・浮き文字の色",
+    "throw": "怒った商人が投げる品。count 1 回に投げる数 / spreadDeg 両端の角度差（度）/ speed 速さ（px/秒）/ damage 1 つの威力（深度で伸びる）/ color 色"
+  },
+  "stock": {
+    "market": { "flask": 1, "item": 1, "rune": 1, "key": 1, "reroll": 1 },
+    "chapterMarket": { "flask": 2, "item": 1, "key": 1, "reroll": 1 }
+  },
+  "outlawPriceMul": 2,
+  "itemBoost": 2,
+  "offerSpacing": 2,
+  "greetRange": 56,
+  "color": "#e0b050",
+  "throw": { "count": 3, "spreadDeg": 30, "speed": 130, "damage": 7, "color": "#e0b050" }
+}

@@ -1,4 +1,5 @@
 import type { GameState } from "../core/state";
+import { TILE_SIZE, Tile, getTile, inBounds } from "../map/grid";
 import { DEPTH_BANDS, type DepthBand, depthBandOf } from "./combatMetrics";
 
 /**
@@ -13,7 +14,10 @@ import { DEPTH_BANDS, type DepthBand, depthBandOf } from "./combatMetrics";
 const SOURCE_LABEL: Readonly<Record<string, string>> = {
   kill: "撃破",
   jin: "陣",
+  room: "部屋",
   floor: "階",
+  event: "出来事",
+  contract: "契約",
   container: "容れ物",
   bet: "賭け",
   sell: "売却",
@@ -36,6 +40,9 @@ const SPEND_LABEL: Readonly<Record<string, string>> = {
   toll: "通行料",
 };
 
+/** 泉の近さ（タイル）。瓶が増えた step でこの範囲に泉のタイルがあれば「泉で満たした」、無ければ床の瓶を拾ったとみなす */
+const FOUNTAIN_NEAR_TILES = 2;
+
 /** 消えた銭の判定: 最後に見た残り秒がこの step 数以内なら寿命切れ（拾われたのではなく消えた）とみなす */
 const EXPIRE_STEPS = 1.5;
 
@@ -56,15 +63,21 @@ export interface EconomyBandTally {
   keysUsed: number;
   /** 階に立っていた商人の数（economy.merchants の長さ。階に着いた時点） */
   merchants: number;
+  /** そのうち、階を離れる（ランが終わる）までに 1 つも買われなかった商人の数 */
+  merchantsUnshopped: number;
+  /** 品ごとに買った回数（economy.bought の増分） */
+  bought: Record<string, number>;
+  /** 瓶（player.flasks）の増減の内訳: 市で買った / 泉で満たした / 床から拾った / 飲んだ本数 */
+  flasksBought: number;
+  flasksFountain: number;
+  flasksPicked: number;
+  flasksDrunk: number;
 }
 
 export interface EconomyTally {
   bands: Record<DepthBand, EconomyBandTally>;
   /** state に現れた欄。無ければ対応する列・行を出さない */
   seen: { economy: boolean; keys: boolean; merchants: boolean; flasks: boolean; outlaw: boolean; bet: boolean };
-  /** 瓶（player.flasks）の増え（買い・泉・拾い）と、飲んで減った本数 */
-  flasksGained: number;
-  flasksDrunk: number;
   /** 商人を襲って無法者になった回数（1 ランに高々 1） */
   outlawEvents: number;
   /** 床に同時にあった銭の実体の最大 */
@@ -92,6 +105,12 @@ function emptyBand(): EconomyBandTally {
     keysGained: 0,
     keysUsed: 0,
     merchants: 0,
+    merchantsUnshopped: 0,
+    bought: {},
+    flasksBought: 0,
+    flasksFountain: 0,
+    flasksPicked: 0,
+    flasksDrunk: 0,
   };
 }
 
@@ -101,8 +120,6 @@ export function emptyEconomyTally(): EconomyTally {
   return {
     bands,
     seen: { economy: false, keys: false, merchants: false, flasks: false, outlaw: false, bet: false },
-    flasksGained: 0,
-    flasksDrunk: 0,
     outlawEvents: 0,
     maxCoinPickups: 0,
     finished: false,
@@ -150,6 +167,10 @@ interface EconomySnapshot {
   expired: number | null;
   outlaw: boolean | null;
   merchants: number | null;
+  /** 階に立っている商人の実体（買われたか = wares の used を後で読む） */
+  merchantList: readonly unknown[];
+  /** economy.bought（品ごとの買った回数）。欄が無ければ null */
+  bought: Record<string, number> | null;
   hasBet: boolean;
   flasks: number | null;
 }
@@ -172,6 +193,8 @@ function snapshotOf(state: GameState): EconomySnapshot | null {
     expired: typeof field(eco, "expired") === "number" ? numberOr(field(eco, "expired"), 0) : null,
     outlaw: typeof outlaw === "boolean" ? outlaw : null,
     merchants: Array.isArray(merchants) ? merchants.length : null,
+    merchantList: Array.isArray(merchants) ? merchants : [],
+    bought: typeof field(eco, "bought") === "object" && field(eco, "bought") !== null ? numberRecord(field(eco, "bought")) : null,
     hasBet: "bet" in eco,
     flasks: typeof flasks === "number" ? flasks : null,
   };
@@ -223,6 +246,28 @@ function addTo(target: Record<string, number>, key: string, amount: number): voi
   target[key] = (target[key] ?? 0) + amount;
 }
 
+/** 商人が 1 つでも品を売ったか（台座の used）。欄が無い・形が違う商人は「売れていない」 */
+function hasSold(merchant: unknown): boolean {
+  const wares = field(merchant, "wares");
+  if (!Array.isArray(wares)) return false;
+  return wares.some((w) => field(w, "used") === true);
+}
+
+/** 位置 pos の近く（FOUNTAIN_NEAR_TILES タイル以内）に泉のタイルがあるか。瓶の増えが泉か拾いかを分けるだけの読み取り */
+function nearFountain(state: GameState): boolean {
+  const pos = state.player.body.pos;
+  const cx = Math.floor(pos.x / TILE_SIZE);
+  const cy = Math.floor(pos.y / TILE_SIZE);
+  for (let dy = -FOUNTAIN_NEAR_TILES; dy <= FOUNTAIN_NEAR_TILES; dy++) {
+    for (let dx = -FOUNTAIN_NEAR_TILES; dx <= FOUNTAIN_NEAR_TILES; dx++) {
+      const x = cx + dx;
+      const y = cy + dy;
+      if (inBounds(state.map, x, y) && getTile(state.map, x, y) === Tile.Fountain) return true;
+    }
+  }
+  return false;
+}
+
 function addDiff(target: Record<string, number>, prev: Record<string, number>, next: Record<string, number>): void {
   for (const [key, value] of Object.entries(next)) addTo(target, key, value - (prev[key] ?? 0));
 }
@@ -237,6 +282,25 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
   const tracked = new Map<number, CoinPickupView>();
   let prev: EconomySnapshot | null = null;
   let prevDepth: number | null = null;
+  /** 初めて着いた階の商人（階を離れるときに買い物 0 かを数える）。再訪の階は持たない */
+  let heldMerchants: { band: EconomyBandTally; list: readonly unknown[]; boughtAtArrival: number } | null = null;
+
+  function boughtTotal(snap: EconomySnapshot): number {
+    return snap.bought === null ? 0 : sum(Object.values(snap.bought));
+  }
+
+  /** 階を離れる（ランが終わる）とき、その階の商人のうち何も売れなかった数を数える */
+  function settleMerchants(snap: EconomySnapshot | null): void {
+    const held = heldMerchants;
+    heldMerchants = null;
+    if (!held) return;
+    // 品の台座が used にならない買い物（引き直しなど）も、商人が 1 人だけの階なら買い物ありとみなす
+    const purchased = snap !== null && boughtTotal(snap) > held.boughtAtArrival;
+    const soleShopped = held.list.length === 1 && purchased;
+    for (const m of held.list) {
+      if (!hasSold(m) && !soleShopped) held.band.merchantsUnshopped++;
+    }
+  }
 
   function observeFloor(state: GameState, snap: EconomySnapshot, band: EconomyBandTally): void {
     if (visitedDepths.has(state.depth)) return;
@@ -245,6 +309,7 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
     if (snap.merchants === null) return;
     tally.seen.merchants = true;
     band.merchants += snap.merchants;
+    heldMerchants = { band, list: [...snap.merchantList], boughtAtArrival: boughtTotal(snap) };
   }
 
   function observePickups(state: GameState, band: EconomyBandTally, dt: number, depthChanged: boolean, exact: boolean): void {
@@ -267,7 +332,24 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
     }
   }
 
-  function observeDiff(snap: EconomySnapshot, before: EconomySnapshot, band: EconomyBandTally): void {
+  /**
+   * 瓶の増減の内訳。net = 買った − 飲んだ + (泉・拾い)。買った数は economy.bought の増分を正とし、
+   * 残りの増えは泉のタイルの近くなら泉、そうでなければ床の瓶の拾い
+   */
+  function observeFlasks(state: GameState, snap: EconomySnapshot, before: EconomySnapshot, band: EconomyBandTally): void {
+    const net = (snap.flasks ?? 0) - (before.flasks ?? 0);
+    const bought = Math.max(0, (snap.bought?.["flask"] ?? 0) - (before.bought?.["flask"] ?? 0));
+    band.flasksBought += bought;
+    if (net < bought) {
+      band.flasksDrunk += bought - net;
+      return;
+    }
+    if (net === bought) return;
+    if (nearFountain(state)) band.flasksFountain += net - bought;
+    else band.flasksPicked += net - bought;
+  }
+
+  function observeDiff(state: GameState, snap: EconomySnapshot, before: EconomySnapshot, band: EconomyBandTally): void {
     addDiff(band.earned, before.earned, snap.earned);
     addDiff(band.spent, before.spent, snap.spent);
     band.spilled += Math.max(0, snap.spilled - before.spilled);
@@ -281,10 +363,10 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
       if (snap.keys > before.keys) band.keysGained += snap.keys - before.keys;
       if (snap.keys < before.keys) band.keysUsed += before.keys - snap.keys;
     }
-    if (snap.flasks !== null && before.flasks !== null) {
-      if (snap.flasks > before.flasks) tally.flasksGained += snap.flasks - before.flasks;
-      if (snap.flasks < before.flasks) tally.flasksDrunk += before.flasks - snap.flasks;
+    if (snap.bought !== null) {
+      for (const [kind, count] of Object.entries(snap.bought)) addTo(band.bought, kind, count - (before.bought?.[kind] ?? 0));
     }
+    if (snap.flasks !== null && before.flasks !== null) observeFlasks(state, snap, before, band);
     if (snap.outlaw === true && before.outlaw === false) tally.outlawEvents++;
   }
 
@@ -304,8 +386,9 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
     tally.maxDepth = Math.max(tally.maxDepth, state.depth);
     if (!snap) return;
     markSeen(snap);
+    if (depthChanged) settleMerchants(prev);
     observeFloor(state, snap, band);
-    if (prev) observeDiff(snap, prev, band);
+    if (prev) observeDiff(state, snap, prev, band);
     observePickups(state, band, dt, depthChanged, hasExactCounters(snap) && prev !== null && hasExactCounters(prev));
     prev = snap;
   }
@@ -316,6 +399,7 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
     tally.died = state.status === "dead";
     tally.maxDepth = Math.max(tally.maxDepth, state.depth);
     if (!snap) return;
+    settleMerchants(snap);
     tally.finalCoins = snap.coins;
     tally.finalKeys = snap.keys ?? 0;
     tally.finalFlasks = snap.flasks ?? 0;
@@ -359,6 +443,12 @@ function mergeBand(into: EconomyBandTally, from: EconomyBandTally): void {
   into.keysGained += from.keysGained;
   into.keysUsed += from.keysUsed;
   into.merchants += from.merchants;
+  into.merchantsUnshopped += from.merchantsUnshopped;
+  mergeRecord(into.bought, from.bought);
+  into.flasksBought += from.flasksBought;
+  into.flasksFountain += from.flasksFountain;
+  into.flasksPicked += from.flasksPicked;
+  into.flasksDrunk += from.flasksDrunk;
 }
 
 function mergeTallies(list: readonly EconomyTally[]): EconomyTally {
@@ -366,8 +456,6 @@ function mergeTallies(list: readonly EconomyTally[]): EconomyTally {
   for (const t of list) {
     for (const band of DEPTH_BANDS) mergeBand(out.bands[band], t.bands[band]);
     for (const key of Object.keys(out.seen) as (keyof EconomyTally["seen"])[]) out.seen[key] = out.seen[key] || t.seen[key];
-    out.flasksGained += t.flasksGained;
-    out.flasksDrunk += t.flasksDrunk;
     out.outlawEvents += t.outlawEvents;
     out.maxCoinPickups = Math.max(out.maxCoinPickups, t.maxCoinPickups);
   }
@@ -498,6 +586,27 @@ function deathSection(list: readonly EconomyTally[], merged: EconomyTally): stri
   return lines;
 }
 
+/** 章（深度帯）別の瓶と買い物の表。瓶・商人の欄が state に現れたときだけ出す */
+function shopSection(t: EconomyTally): string[] {
+  if (!t.seen.flasks && !t.seen.merchants) return [];
+  const kinds = [...new Set(DEPTH_BANDS.flatMap((band) => Object.keys(t.bands[band].bought)))].sort();
+  const lines: string[] = [];
+  lines.push("### 章別の瓶と買い物（章 = 深度帯。買い物 0 = 階を離れるまで何も売れなかった商人の割合。目標: 市を素通りする割合が高いなら値段か置き場所を見直す）");
+  lines.push("");
+  lines.push(`| 深度帯 | 観測した階 | 商人 | 買い物 0 | 買った瓶 | 泉で満たした瓶 | 拾った瓶 | 飲んだ瓶 | 買った品 |`);
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const band of rowBands(t)) {
+    const b = t.bands[band];
+    const bought = kinds.filter((k) => (b.bought[k] ?? 0) > 0).map((k) => `${k} ${b.bought[k]}`);
+    lines.push(
+      `| ${band} | ${b.floors} | ${b.merchants} | ${pct(b.merchantsUnshopped, b.merchants)} | ${b.flasksBought} | ${b.flasksFountain} | ` +
+        `${b.flasksPicked} | ${b.flasksDrunk} | ${bought.length > 0 ? bought.join(" / ") : "-"} |`,
+    );
+  }
+  lines.push("");
+  return lines;
+}
+
 /** 6b 以降の欄（鍵・瓶・商人・賭け）。state に欄が現れたものだけ出す */
 function optionalSections(list: readonly EconomyTally[], t: EconomyTally): string[] {
   const lines: string[] = [];
@@ -509,13 +618,16 @@ function optionalSections(list: readonly EconomyTally[], t: EconomyTally): strin
     lines.push(`- 鍵（目標: 1 章に 3〜5 本）: 得た ${gained} / 使った ${used} / 死亡時の残り 平均 ${mean(deaths.map((x) => x.finalKeys))}（run あたり得た ${finished.length > 0 ? (gained / finished.length).toFixed(1) : "-"}）`);
   }
   if (t.seen.flasks) {
+    const of = (pick: (b: EconomyBandTally) => number): number => sum(DEPTH_BANDS.map((b) => pick(t.bands[b])));
     lines.push(
-      `- 瓶（目標: 死亡時の残り 0〜1）: 増えた ${t.flasksGained}（買い・泉・拾い）/ 飲んだ ${t.flasksDrunk} / 死亡時の残り 平均 ${mean(deaths.map((x) => x.finalFlasks))}`,
+      `- 瓶（目標: 死亡時の残り 0〜1）: 買った ${of((b) => b.flasksBought)} / 泉で満たした ${of((b) => b.flasksFountain)} / 拾った ${of((b) => b.flasksPicked)}` +
+        ` / 飲んだ ${of((b) => b.flasksDrunk)} / 死亡時の残り 平均 ${mean(deaths.map((x) => x.finalFlasks))}`,
     );
   }
   if (t.seen.merchants) {
     const stood = sum(DEPTH_BANDS.map((b) => t.bands[b].merchants));
-    lines.push(`- 商人: 立った ${stood}、襲われた ${t.outlawEvents}`);
+    const unshopped = sum(DEPTH_BANDS.map((b) => t.bands[b].merchantsUnshopped));
+    lines.push(`- 商人: 立った ${stood}、買い物 0 の商人 ${pct(unshopped, stood)}、襲われた ${t.outlawEvents}`);
   }
   if (t.seen.outlaw) {
     const outlaws = finished.filter((x) => x.outlaw);
@@ -551,6 +663,7 @@ export function buildEconomySection(list: readonly EconomyTally[]): string[] {
   lines.push(...spillSection(merged));
   lines.push(...spentSection(merged));
   lines.push(...deathSection(list, merged));
+  lines.push(...shopSection(merged));
   lines.push(...optionalSections(list, merged));
   return lines;
 }

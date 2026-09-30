@@ -360,6 +360,7 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   coinMagnetMul: { label: "銭の引き寄せ", style: "mul" },
   coinSpillMul: { label: "被弾でこぼれる銭", style: "mul" },
   coinGainMul: { label: "銭の稼ぎ", style: "mul" },
+  flaskMax: { label: "瓶の上限", style: "flat" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */

@@ -9,7 +9,8 @@ import { eliteKindsFor, makeElite, makeElitePair } from "./elites";
 /**
  * 毎階の最後の部屋に出る「階の主」（内部 key floorLord。表示は「階の主」）。
  * 部屋主（lairMaster）を優先して選び、外れたら通常敵を 1 体格上げして「〜の長」にする。
- * 5 の倍数の階は今までどおり boss.ts の階層ボス（BOSS_ROTATION）が出る（buildFloor が振り分ける）
+ * 5 の倍数の階は boss.ts の階層ボス（章ボス / 深みの回転）が出る（buildFloor が振り分ける）。
+ * 章の 1 階目（休符。system/chapters.ts の skipsFloorLord）は主を出さない
  */
 
 /**

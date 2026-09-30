@@ -31,6 +31,7 @@ import { updateReforgeChoice } from "../system/reforge";
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { createContractState } from "../system/contractors";
 import { createEconomyState } from "../system/economy";
+import { tryDrink } from "../system/flask";
 import { type RunSetup, defaultRunSetup, originKeystones, sanitizeStartDepth, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
 import { startJob } from "../system/jobs";
@@ -178,6 +179,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   state.time += gdt;
 
   tickMana(state, gdt);
+  tryDrink(state, input);
   updatePlayer(state, input, gdt);
   updateBoons(state, gdt);
   updateStatusEffects(state, gdt);

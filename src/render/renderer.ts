@@ -90,6 +90,7 @@ import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
 import { poseKey } from "../data/sprites/frameKit";
 import { drawWeaknessMark } from "./elementUi";
 import { drawUnspentHud } from "./attributeUi";
+import { drawFlaskHud } from "./flaskHud";
 import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
 import { drawInLayerOrder, hudLayoutFor } from "./layers";
@@ -2875,6 +2876,8 @@ export class Renderer {
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
     }
     this.drawDashPips(state);
+    // 瓶の枡はダッシュのチャージと同じ行の右端（左寄せのチャージと重ならない）
+    drawFlaskHud(ctx, state, HUD_BAR_X + HUD_BAR_W, HUD_PIP_Y - 1);
     this.drawKeystoneHud(state);
 
     // 拠点（sandbox）はミニマップと階層・スコア・シードの欄を出さない（右上は拠点の飾りが使う）

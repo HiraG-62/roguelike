@@ -19,6 +19,11 @@ import { buildFloor, updateRooms } from "./floor";
 import { reaperAppearAfter, updateReaper } from "./reaper";
 import type { Enemy, EnemyPhase, GameState } from "../core/state";
 
+/** 章ボスにならなかったボスは深み（章の後）の回転で出る（boss.ts deepRotation。25 から骸骨卿 → 双子の騎士 → 霜の巨人） */
+const BONE_LORD_DEPTH = BOSS.interval * 5;
+const TWIN_DEPTH = BOSS.interval * 6;
+const FROST_GIANT_DEPTH = BOSS.interval * 7;
+
 function bossFloor(depth: number, seed = 21): GameState {
   const state = createGame(seed);
   state.depth = depth;
@@ -34,12 +39,15 @@ function stairsTile(state: GameState): number {
 }
 
 describe("ボス階", () => {
-  it("depth が BOSS.interval の倍数がボス階で、9 体（スライム王 → 骸骨卿 → 双子の騎士 → 霜の巨人 → 油壺の王 → 群れの母 → 図書館の司書 → 鏡の騎士 → 盗賊王）が回る", () => {
+  it("章ボス（5 スライム王 / 10 盗賊王 / 15 油壺の王 / 20 鏡の騎士）は固定で、深み（25 以降）は 9 体が回る", () => {
     const n = BOSS.interval;
     expect([1, 2, n, n + 1, n * 2 - 1, n * 2, n * 3].map(isBossDepth)).toEqual([false, false, true, false, false, true, true]);
-    const order = ["kingSlime", "boneLord", "twinBrother", "frostGiant", "oilKing", "broodMother", "librarian", "mirrorKnight", "thiefKing"];
-    order.forEach((key, i) => expect(bossKeyForDepth((i + 1) * n), `深度 ${(i + 1) * n}`).toBe(key));
-    expect(bossKeyForDepth(n * order.length + n), "9 体で 1 周して戻る").toBe("kingSlime");
+    const chapters = ["kingSlime", "thiefKing", "oilKing", "mirrorKnight"];
+    chapters.forEach((key, i) => expect(bossKeyForDepth((i + 1) * n), `深度 ${(i + 1) * n}`).toBe(key));
+    const deep = ["boneLord", "twinBrother", "frostGiant", "broodMother", "librarian", ...chapters];
+    deep.forEach((key, i) => expect(bossKeyForDepth(n * (chapters.length + 1 + i)), `深度 ${n * (chapters.length + 1 + i)}`).toBe(key));
+    expect(bossKeyForDepth(n * (chapters.length + 1 + deep.length)), "9 体で 1 周して戻る").toBe("boneLord");
+    expect(new Set(deep).size, "深みの回転は 9 体すべてを含む").toBe(9);
   });
 
   it("generator の lastRoomMin で最後の部屋が大きくなる", () => {
@@ -121,7 +129,7 @@ describe("ボス階", () => {
   });
 
   it("Bone Lord は HP 30% 以下でテレポートを繰り返す", () => {
-    const state = bossFloor(BOSS.interval * 2);
+    const state = bossFloor(BONE_LORD_DEPTH);
     const boss = bossEnemy(state);
     if (!boss) throw new Error("no boss");
     expect(boss.defKey).toBe("boneLord");
@@ -130,10 +138,14 @@ describe("ボス階", () => {
     boss.hp = Math.floor(boss.maxHp * BOSS.boneLord.teleportRatio);
     const start = { ...boss.body.pos };
     const steps = Math.ceil((BOSS.boneLord.teleportInterval * 1.5) / FIXED_DT);
-    for (let i = 0; i < steps; i++) updateEnemies(state, FIXED_DT);
+    // 着地点は乱数で近いこともあるので、途中で最も離れた距離を見る
+    let farthest = 0;
+    for (let i = 0; i < steps; i++) {
+      updateEnemies(state, FIXED_DT);
+      farthest = Math.max(farthest, Math.hypot(boss.body.pos.x - start.x, boss.body.pos.y - start.y));
+    }
     expect(boss.ai?.stage).toBe(2);
-    const moved = Math.hypot(boss.body.pos.x - start.x, boss.body.pos.y - start.y);
-    expect(moved).toBeGreaterThan(20);
+    expect(farthest).toBeGreaterThan(20);
   });
 });
 
@@ -174,7 +186,7 @@ function kill(state: GameState, e: Enemy): void {
 
 describe("双子の騎士", () => {
   it("兄と妹が並んで出て、ボスの名前は「双子の騎士」", () => {
-    const state = bossFloor(BOSS.interval * 3);
+    const state = bossFloor(TWIN_DEPTH);
     const brother = bossEnemy(state);
     expect(brother?.defKey).toBe("twinBrother");
     expect(state.boss?.name).toBe("双子の騎士");
@@ -184,7 +196,7 @@ describe("双子の騎士", () => {
   });
 
   it("兄を先に倒すとボスの座が妹へ移り、妹を倒して初めて撃破になる", () => {
-    const state = bossFloor(BOSS.interval * 3);
+    const state = bossFloor(TWIN_DEPTH);
     const brother = bossEnemy(state);
     const sister = state.enemies.find((e) => e.defKey === "twinSister");
     if (!brother || !sister) throw new Error("no twins");
@@ -198,7 +210,7 @@ describe("双子の騎士", () => {
   });
 
   it("相方が倒れると形見を拾って第 2 段階になり、自分の技と相方の技を交互に使う", () => {
-    const state = bossFloor(BOSS.interval * 3);
+    const state = bossFloor(TWIN_DEPTH);
     const brother = bossEnemy(state);
     const sister = state.enemies.find((e) => e.defKey === "twinSister");
     if (!brother || !sister) throw new Error("no twins");
@@ -217,7 +229,7 @@ describe("双子の騎士", () => {
   });
 
   it("HP が rageRatio を切ると第 3 段階（激昂）になる", () => {
-    const state = bossFloor(BOSS.interval * 3);
+    const state = bossFloor(TWIN_DEPTH);
     const brother = bossEnemy(state);
     const sister = state.enemies.find((e) => e.defKey === "twinSister");
     if (!brother || !sister) throw new Error("no twins");
@@ -230,7 +242,7 @@ describe("双子の騎士", () => {
   });
 
   it("頭上の HP バー: 妹は兄が健在なら頭上に出し、ボスの座を継いだ後は上部バーだけ", () => {
-    const state = bossFloor(BOSS.interval * 3);
+    const state = bossFloor(TWIN_DEPTH);
     const brother = bossEnemy(state);
     const sister = state.enemies.find((e) => e.defKey === "twinSister");
     if (!brother || !sister) throw new Error("no twins");
@@ -241,7 +253,7 @@ describe("双子の騎士", () => {
   });
 
   it("妹は状態異常の扱いがボスと同じ（麻痺は短く、昇華しない）", () => {
-    const state = bossFloor(BOSS.interval * 3);
+    const state = bossFloor(TWIN_DEPTH);
     const sister = state.enemies.find((e) => e.defKey === "twinSister");
     if (!sister) throw new Error("no sister");
     expect(isBossClass(enemyDef("twinSister"))).toBe(true);
@@ -259,7 +271,7 @@ describe("双子の騎士", () => {
 
 describe("霜の巨人", () => {
   it("第 2 段階でつららの影を落とし、影の間は無害で、落ちると当たる", () => {
-    const state = bossFloor(BOSS.interval * 4);
+    const state = bossFloor(FROST_GIANT_DEPTH);
     const giant = bossEnemy(state);
     if (!giant?.ai) throw new Error("no giant");
     expect(giant.defKey).toBe("frostGiant");
@@ -286,7 +298,7 @@ describe("霜の巨人", () => {
   });
 
   it("第 3 段階で氷柱を立てて氷の鎧をまとい、柱を全部割ると鎧が砕けてダウンする", () => {
-    const state = bossFloor(BOSS.interval * 4);
+    const state = bossFloor(FROST_GIANT_DEPTH);
     const giant = bossEnemy(state);
     if (!giant) throw new Error("no giant");
     giant.phase = "chase";
@@ -309,7 +321,7 @@ describe("霜の巨人", () => {
   });
 
   it("壁際で氷の鎧をまとっても、氷柱は壁に埋まらない（割れない柱で詰まない）", () => {
-    const state = bossFloor(BOSS.interval * 4);
+    const state = bossFloor(FROST_GIANT_DEPTH);
     const giant = bossEnemy(state);
     const room = state.rooms[state.boss?.roomIndex ?? -1];
     if (!giant || !room) throw new Error("no giant");
@@ -326,7 +338,7 @@ describe("霜の巨人", () => {
   });
 
   it("つららの予備動作が麻痺で止まっても、影は落ちるまで残る（予告なしで落ちない）", () => {
-    const state = bossFloor(BOSS.interval * 4);
+    const state = bossFloor(FROST_GIANT_DEPTH);
     const giant = bossEnemy(state);
     if (!giant?.ai) throw new Error("no giant");
     giant.phase = "chase";
@@ -352,7 +364,7 @@ describe("霜の巨人", () => {
   });
 
   it("つららの予備動作が怯みで取り消されたら、影も消える（落ちない予告を残さない）", () => {
-    const state = bossFloor(BOSS.interval * 4);
+    const state = bossFloor(FROST_GIANT_DEPTH);
     const giant = bossEnemy(state);
     if (!giant?.ai) throw new Error("no giant");
     giant.phase = "chase";
@@ -372,7 +384,7 @@ describe("霜の巨人", () => {
   });
 
   it("叩きつけの予備動作は輪で予告する", () => {
-    const state = bossFloor(BOSS.interval * 4);
+    const state = bossFloor(FROST_GIANT_DEPTH);
     const giant = bossEnemy(state);
     if (!giant) throw new Error("no giant");
     expect(enemyTelegraph(giant, enemyDef("frostGiant"))).toEqual({ kind: "ring", radius: BOSS.frostGiant.slamRadius });

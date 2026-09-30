@@ -31,6 +31,7 @@ import { fireTrigger } from "./triggers";
 import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
+import { heartChanceOf, skipsFloorLord } from "./chapters";
 import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
 import {
@@ -86,6 +87,7 @@ import {
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
 import { hasMod, onOriginDescend, refreshRunStats, tierScoreMul } from "./runSetup";
 import { onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
+import { placeMerchants, updateMerchants } from "./merchants";
 import { grantFloorArrival, onRoomClearedCoins, updateCoinPickups } from "./economy";
 import { FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
@@ -109,7 +111,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.floorAreaMul = rollAreaMul(state.rng, state.depth);
   state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind, state.floorAreaMul));
   // 洞窟の最後の塊（階段の部屋）が狭いと階の主の戦いが窮屈になるので広げる（rooms 型・major は何もしない。乱数を使わない）
-  if (!isBossDepth(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
+  if (!isBossDepth(state.depth) && !skipsFloorLord(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
     carveArena(state.map, state.map.rooms.length - 1, FLOOR_LORD.arenaRadius);
   }
   state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
@@ -144,7 +146,9 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   snapCamera(state);
   dropGreedyLootAtPlayer(state, stolen);
 
-  const bossRoom = bossRoomIndex(state);
+  // 章の休符（章の 1 階目）は階の主を出さない。最後の部屋は主のいない通常の部屋になる
+  const lordless = !isBossDepth(state.depth) && skipsFloorLord(state.depth);
+  const bossRoom = lordless ? -1 : bossRoomIndex(state);
   const last = state.rooms.length - 1;
   const reserved = new Set([START_ROOM, FIRST_FIGHT_ROOM, last]);
   assignRoomKinds(state, reserved);
@@ -178,6 +182,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeAscend(state);
   // 隠し部屋の計画は一番最後（それより前の乱数消費を変えないため）
   planHidden(state);
+  // 市の商人は隠し部屋の後（それより前の乱数消費を変えない。system/merchants.ts）
+  placeMerchants(state);
 }
 
 /**
@@ -489,6 +495,7 @@ export function updateRooms(state: GameState, dt: number): void {
   updateShrines(state);
   updateSpecialRooms(state, dt);
   updateContractors(state, dt);
+  updateMerchants(state);
   ensureForkStairs(state);
   updateBossIntro(state, dt);
   updatePickups(state, dt);
@@ -822,7 +829,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
     dropHeart(state, center);
     return;
   }
-  if (state.rng.chance(ROOM.heartDropChance)) dropHeart(state, center);
+  if (state.rng.chance(heartChanceOf(state.depth))) dropHeart(state, center);
 }
 
 /** 報酬を置く点から階段までずらす量（タイル）。階段の上に置くと拾う前に降りてしまう */

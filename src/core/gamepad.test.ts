@@ -321,6 +321,40 @@ describe("GamepadInput 拾う（右スティック押し込み）", () => {
   });
 });
 
+describe("GamepadInput 瓶（十字キー上）", () => {
+  const BTN_DPAD_UP = 12;
+  const BTN_DPAD_LEFT = 14;
+
+  function readWith(pressed: readonly number[]): ReturnType<GamepadInput["read"]> {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons(pressed), axes: [0, 0, 0, 0] });
+    return input.read();
+  }
+
+  it("十字キー上で flaskPressed が立ち、移動の上入力も残る（メニューの上移動は変わらない）", () => {
+    const frame = readWith([BTN_DPAD_UP]);
+    expect(frame.flaskPressed, "瓶").toBe(true);
+    expect(frame.move.y, "上へ").toBeLessThan(0);
+  });
+
+  it("十字キーの左では瓶は立たない", () => {
+    expect(readWith([BTN_DPAD_LEFT]).flaskPressed).toBe(false);
+  });
+
+  it("押しっぱなしでは 2 フレーム目に立たない（押した瞬間だけ）", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons([BTN_DPAD_UP]), axes: [0, 0, 0, 0] });
+    expect(input.read().flaskPressed).toBe(true);
+    expect(input.read().flaskPressed).toBe(false);
+  });
+});
+
 describe("ボタン設定での解決（resolvePadActions）", () => {
   const down = (pressed: readonly number[]): boolean[] => Array.from({ length: 16 }, (_, i) => pressed.includes(i));
 
