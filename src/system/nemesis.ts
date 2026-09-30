@@ -78,8 +78,7 @@ export function placeNemesis(state: GameState): void {
 
 /** 記録の修飾子を濾して 1 つ足し（2 つで頭打ち、以後は生命の倍率）、猛と生命の倍率を掛ける */
 function strengthen(e: Enemy, def: EnemyDef, recorded: readonly EliteKind[]): void {
-  // 生成のフック（縛り・反転層）で付いた添えは記録から組み直す
-  delete e.eliteExtra;
+  // 生成のフック（縛り・反転層）の精鋭化は addJinMember が飛ばすので、ここで付く精鋭は記録のものだけ
   const allowed = eliteKindsFor(def);
   const kinds = recorded.filter((k) => allowed.includes(k));
   const [main, second] = kinds;
