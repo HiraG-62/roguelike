@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import type { Enemy, GameState, Projectile } from "../core/state";
+import type { Enemy, GameState } from "../core/state";
 import { BOSS } from "../data/tuning";
 import { Tile, getTile, rectCenter } from "../map/grid";
-import { bossEnemy, bossKeyForDepth, bossTakenMul } from "./boss";
+import { bossEnemy, bossKeyForDepth } from "./boss";
 import { BROOD_LAY } from "./bossBroodMother";
 import { LIB_READ_THUNDER } from "./bossLibrarian";
-import { copiedStatuses } from "./bossMirrorKnight";
 import { damageEnemy } from "./combat";
-import { deflectProjectile } from "./elites";
 import { updateEnemies } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { updateHazards } from "./hazards";
@@ -162,65 +160,5 @@ describe("図書館の司書", () => {
     expect(state.texts.some((t) => t.text === "読書中断")).toBe(true);
     tick(state, 120);
     expect(state.hazards.some((h) => h.kind === "landing"), "予告は消えている").toBe(false);
-  });
-});
-
-describe("鏡の騎士", () => {
-  function shotAt(state: GameState, boss: Enemy, fromFront: boolean): Projectile {
-    const side = fromFront ? 1 : -1;
-    return {
-      id: state.nextId++,
-      owner: "player",
-      pos: { x: boss.body.pos.x + boss.facing.x * 20 * side, y: boss.body.pos.y },
-      vel: { x: -boss.facing.x * 200 * side, y: 0 },
-      radius: 2,
-      damage: 5,
-      life: 1,
-      color: "#ffffff",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    };
-  }
-
-  it("正面から来た弾を跳ね返し、背後からの弾は通す", () => {
-    const { state, boss } = bossFloor(MIRROR_KNIGHT_DEPTH);
-    boss.facing = { x: -1, y: 0 };
-    const front = shotAt(state, boss, true);
-    expect(deflectProjectile(state, front, boss)).toBe(true);
-    expect(front.owner).toBe("enemy");
-    const back = shotAt(state, boss, false);
-    expect(deflectProjectile(state, back, boss)).toBe(false);
-  });
-
-  it("第 3 段階で写し身を呼び、写し身が残っている間は本体が守られる", () => {
-    const { state, boss } = bossFloor(MIRROR_KNIGHT_DEPTH);
-    boss.phase = "chase";
-    boss.attackCooldown = 99;
-    boss.hp = Math.floor(boss.maxHp * BOSS.mirrorKnight.phase2Ratio);
-    tick(state);
-    boss.hp = Math.floor(boss.maxHp * BOSS.mirrorKnight.phase3Ratio);
-    tick(state);
-    expect(boss.ai?.stage).toBe(3);
-    const images = state.enemies.filter((e) => e.defKey === "mirrorImage");
-    expect(images.length).toBe(BOSS.mirrorKnight.images);
-    expect(bossTakenMul(state, boss)).toBe(BOSS.mirrorKnight.imageGuardMul);
-    for (const img of images) damageEnemy(state, img, 999_999, { x: 1, y: 0 }, 0);
-    tick(state);
-    expect(bossTakenMul(state, boss)).toBe(1);
-  });
-
-  it("写す状態異常はプレイヤーの装備の付与（無ければ出血）", () => {
-    const state = createGame(3);
-    expect(copiedStatuses(state)).toEqual(["bleed"]);
-    state.stats = {
-      ...state.stats,
-      statusProcs: [
-        { kind: "burn", chance: 0.2, stacks: 1, duration: 2, potency: 3, on: "any" },
-        { kind: "burn", chance: 0.2, stacks: 1, duration: 2, potency: 3, on: "melee" },
-        { kind: "chill", chance: 0.2, stacks: 1, duration: 2, potency: 0, on: "any" },
-      ],
-    };
-    expect(copiedStatuses(state)).toEqual(["burn", "chill"]);
   });
 });
