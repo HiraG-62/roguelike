@@ -363,6 +363,16 @@ function raisePanes(state: GameState, e: Enemy): void {
   if (e.ai) e.ai.counter = m.panes;
 }
 
+/**
+ * 撃破の後始末: 残った写し身と姿見を消す（撃破には数えない）。残すと部屋の封鎖が割り切るまで解けない
+ */
+export function settleMirrorKnightRoom(state: GameState, e: Enemy): void {
+  for (const o of [...panesOf(state, e), ...imagesOf(state, e)]) {
+    o.vanished = true;
+    o.hp = 0;
+  }
+}
+
 function panesOf(state: GameState, e: Enemy): Enemy[] {
   return followersOf(state, e).filter((o) => o.defKey === "mirrorPane");
 }

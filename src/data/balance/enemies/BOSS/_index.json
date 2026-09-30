@@ -8,5 +8,5 @@
   "rareDrops": 2,
   "rareDropBoost": 6,
   "rareDropAttempts": 40,
-  "_order": ["interval", "roomMinW", "roomMinH", "introTime", "defeatSlowmo", "rareDrops", "rareDropBoost", "rareDropAttempts", "kingSlime", "boneLord", "twinKnights", "frostGiant", "oilKing", "broodMother", "librarian", "mirrorKnight", "thiefKing", "rules"]
+  "_order": ["interval", "roomMinW", "roomMinH", "introTime", "defeatSlowmo", "rareDrops", "rareDropBoost", "rareDropAttempts", "kingSlime", "boneLord", "twinKnights", "frostGiant", "oilKing", "broodMother", "librarian", "mirrorKnight", "thiefKing", "rules", "deepLord"]
 }

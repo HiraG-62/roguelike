@@ -8,7 +8,7 @@ import { ART_SKILL_KEYS } from "../skills/arts/keys";
 import { ART_DEFS } from "../skills/arts";
 import type { ArtActKind } from "../skills/arts/types";
 import type { SkillKey } from "../skills/types";
-import { bossEnemy, bossTakenMul } from "./boss";
+import { bossEnemy, bossTakenMul, onBossDeath } from "./boss";
 import { BOSS_THREATS } from "./bossKit";
 import {
   MIRROR_BASH,
@@ -360,6 +360,16 @@ describe("鏡の騎士: 第 2 段階（模写）", () => {
 });
 
 describe("鏡の騎士: 第 3 段階（写し身と姿見）", () => {
+  it("騎士を倒すと、残った写し身と姿見は消える（部屋の封鎖が割り切るまで残らない）", () => {
+    const { state, boss } = knightFloor();
+    toImagesStage(state, boss);
+    expect(panesOf(state, boss).length + imagesOf(state, boss).length, "倒す前は残っている").toBeGreaterThan(0);
+    boss.hp = 0;
+    onBossDeath(state, boss);
+    expect(panesOf(state, boss).length, "姿見").toBe(0);
+    expect(imagesOf(state, boss).length, "写し身").toBe(0);
+  });
+
   it("第 3 段階の始まりに姿見が panes 枚、中央から左右 paneOffset に立ち、写し身が守る", () => {
     const { state, boss } = knightFloor();
     toImagesStage(state, boss);

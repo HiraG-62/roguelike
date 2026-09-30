@@ -156,4 +156,14 @@ export const WAVE3_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   thief: { ...C.thief, keywords: kw(["melee"], ["chill"]), inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 3, potency: BLEED_POTENCY }] },
   mirrorImage: { ...C.mirrorImage, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   reaperShade: { ...C.reaperShade, keywords: kw(["hurt"], ["area"]), inflicts: [{ on: "contact", kind: "weaken", stacks: 1, duration: 2, potency: 0 }] },
+  deepLord: {
+    ...C.deepLord,
+    keywords: kw(["elite", "area", "explode"], ["counter", "stagger"]),
+    inflicts: [
+      { on: "contact", kind: "weaken", stacks: 1, duration: 3, potency: 0 },
+      { on: "bomb", kind: "vulnerable", stacks: 1, duration: 2, potency: 0 },
+    ],
+    immune: BOSS_IMMUNE,
+  },
+  gatePillar: { ...C.gatePillar, inflicts: [], immune: FIXTURE_IMMUNE, keywords: kw(["placed", "ward"], ["area"]) },
 };

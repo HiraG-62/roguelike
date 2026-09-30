@@ -158,6 +158,8 @@ const GOLDEN: Readonly<Record<string, string>> = {
   merchant: "d8347cad",
   crate: "2d962a73",
   pot: "2d962a73",
+  deepLord: "53fe0380",
+  gatePillar: "e6f9270f",
 };
 
 describe("敵 behavior の黄金 fingerprint（移行期間の安全網）", () => {

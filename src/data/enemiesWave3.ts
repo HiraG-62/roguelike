@@ -77,4 +77,7 @@ export const WAVE3_ENEMIES: readonly EnemyDef[] = [
   { key: "thief", name: "盗賊", sprite: "thief", recolor: { base: "player", swap: { b: "9", B: "k", a: "A", O: "9", o: "K", y: "S", r: "A", R: "n" } }, behavior: "chaser", color: "#a08060", ...N.thief },
   // ---- 死神の付き物（影の死神。src/system/reaper.ts が呼ぶ。倒せるが湧き直す） ----
   { key: "reaperShade", name: "死神の影", sprite: "reaperShade", recolor: { base: "shade", swap: { "9": "P", r: "p" } }, behavior: "chaser", color: "#8040c0", noCorpse: true, phasing: true, ...N.reaperShade },
+  // ---- 最深の間（深度 21）の主と門柱（src/system/bossDeepLord.ts）----
+  { key: "deepLord", name: "最深の主", sprite: "deepLord", behavior: "deepLord", color: "#9080d0", boss: true, ...N.deepLord },
+  { key: "gatePillar", name: "門柱", sprite: "gatePillar", behavior: "inert", color: "#9080d0", noCorpse: true, ...N.gatePillar },
 ];

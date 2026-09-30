@@ -140,6 +140,7 @@ import j_enemies_BOSS_librarian from "./enemies/BOSS/librarian.json";
 import j_enemies_BOSS_mirrorKnight from "./enemies/BOSS/mirrorKnight.json";
 import j_enemies_BOSS_thiefKing from "./enemies/BOSS/thiefKing.json";
 import j_enemies_BOSS_rules from "./enemies/BOSS/rules.json";
+import j_enemies_BOSS_deepLord from "./enemies/BOSS/deepLord.json";
 import j_enemies_FLOOR_LORD from "./enemies/FLOOR_LORD.json";
 import j_enemies_JIN from "./enemies/JIN.json";
 import j_enemies_FORMATION__index from "./enemies/FORMATION/_index.json";
@@ -262,6 +263,8 @@ import j_enemies_stats_merchant from "./enemies/stats/merchant.json";
 import j_enemies_stats_pot from "./enemies/stats/pot.json";
 import j_enemies_stats_crate from "./enemies/stats/crate.json";
 import j_enemies_stats_mirrorPane from "./enemies/stats/mirrorPane.json";
+import j_enemies_stats_deepLord from "./enemies/stats/deepLord.json";
+import j_enemies_stats_gatePillar from "./enemies/stats/gatePillar.json";
 import j_enemies_combat__index from "./enemies/combat/_index.json";
 import j_enemies_combat_slime from "./enemies/combat/slime.json";
 import j_enemies_combat_eye from "./enemies/combat/eye.json";
@@ -371,6 +374,8 @@ import j_enemies_combat_merchant from "./enemies/combat/merchant.json";
 import j_enemies_combat_pot from "./enemies/combat/pot.json";
 import j_enemies_combat_crate from "./enemies/combat/crate.json";
 import j_enemies_combat_mirrorPane from "./enemies/combat/mirrorPane.json";
+import j_enemies_combat_deepLord from "./enemies/combat/deepLord.json";
+import j_enemies_combat_gatePillar from "./enemies/combat/gatePillar.json";
 import j_enemies_defense__index from "./enemies/defense/_index.json";
 import j_enemies_defense_bodies from "./enemies/defense/bodies.json";
 import j_enemies_defense_biomes from "./enemies/defense/biomes.json";
@@ -482,6 +487,8 @@ import j_enemies_defense_enemies_merchant from "./enemies/defense/enemies/mercha
 import j_enemies_defense_enemies_pot from "./enemies/defense/enemies/pot.json";
 import j_enemies_defense_enemies_crate from "./enemies/defense/enemies/crate.json";
 import j_enemies_defense_enemies_mirrorPane from "./enemies/defense/enemies/mirrorPane.json";
+import j_enemies_defense_enemies_deepLord from "./enemies/defense/enemies/deepLord.json";
+import j_enemies_defense_enemies_gatePillar from "./enemies/defense/enemies/gatePillar.json";
 import j_enemies_ENEMY_SCALE from "./enemies/ENEMY_SCALE.json";
 import j_enemies_REACTION from "./enemies/REACTION.json";
 import j_feel__index from "./feel/_index.json";
@@ -1058,6 +1065,7 @@ export const enemies = {
     "mirrorKnight": j_enemies_BOSS_mirrorKnight,
     "thiefKing": j_enemies_BOSS_thiefKing,
     "rules": j_enemies_BOSS_rules,
+    "deepLord": j_enemies_BOSS_deepLord,
   },
   "FLOOR_LORD": j_enemies_FLOOR_LORD,
   "JIN": j_enemies_JIN,
@@ -1185,6 +1193,8 @@ export const enemies = {
     "pot": j_enemies_stats_pot,
     "crate": j_enemies_stats_crate,
     "mirrorPane": j_enemies_stats_mirrorPane,
+    "deepLord": j_enemies_stats_deepLord,
+    "gatePillar": j_enemies_stats_gatePillar,
   },
   "combat": {
     "_fields": j_enemies_combat__index["_fields"],
@@ -1296,6 +1306,8 @@ export const enemies = {
     "pot": j_enemies_combat_pot,
     "crate": j_enemies_combat_crate,
     "mirrorPane": j_enemies_combat_mirrorPane,
+    "deepLord": j_enemies_combat_deepLord,
+    "gatePillar": j_enemies_combat_gatePillar,
   },
   "defense": {
     "_fields": j_enemies_defense__index["_fields"],
@@ -1410,6 +1422,8 @@ export const enemies = {
       "pot": j_enemies_defense_enemies_pot,
       "crate": j_enemies_defense_enemies_crate,
       "mirrorPane": j_enemies_defense_enemies_mirrorPane,
+      "deepLord": j_enemies_defense_enemies_deepLord,
+      "gatePillar": j_enemies_defense_enemies_gatePillar,
     },
   },
   "ENEMY_SCALE": j_enemies_ENEMY_SCALE,
@@ -2106,6 +2120,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/BOSS/_index.json",
   "enemies/BOSS/boneLord.json",
   "enemies/BOSS/broodMother.json",
+  "enemies/BOSS/deepLord.json",
   "enemies/BOSS/frostGiant.json",
   "enemies/BOSS/kingSlime.json",
   "enemies/BOSS/librarian.json",
@@ -2213,6 +2228,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/combat/crystalGolem.json",
   "enemies/combat/crystalMite.json",
   "enemies/combat/curseEye.json",
+  "enemies/combat/deepLord.json",
   "enemies/combat/dropper.json",
   "enemies/combat/echoStriker.json",
   "enemies/combat/emberRat.json",
@@ -2229,6 +2245,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/combat/frostToad.json",
   "enemies/combat/frostWisp.json",
   "enemies/combat/fuseRat.json",
+  "enemies/combat/gatePillar.json",
   "enemies/combat/giantToad.json",
   "enemies/combat/goldSlime.json",
   "enemies/combat/golem.json",
@@ -2325,6 +2342,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/defense/enemies/crystalGolem.json",
   "enemies/defense/enemies/crystalMite.json",
   "enemies/defense/enemies/curseEye.json",
+  "enemies/defense/enemies/deepLord.json",
   "enemies/defense/enemies/dropper.json",
   "enemies/defense/enemies/echoStriker.json",
   "enemies/defense/enemies/emberRat.json",
@@ -2341,6 +2359,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/defense/enemies/frostToad.json",
   "enemies/defense/enemies/frostWisp.json",
   "enemies/defense/enemies/fuseRat.json",
+  "enemies/defense/enemies/gatePillar.json",
   "enemies/defense/enemies/giantToad.json",
   "enemies/defense/enemies/goldSlime.json",
   "enemies/defense/enemies/golem.json",
@@ -2434,6 +2453,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/stats/crystalGolem.json",
   "enemies/stats/crystalMite.json",
   "enemies/stats/curseEye.json",
+  "enemies/stats/deepLord.json",
   "enemies/stats/dropper.json",
   "enemies/stats/echoStriker.json",
   "enemies/stats/emberRat.json",
@@ -2450,6 +2470,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/stats/frostToad.json",
   "enemies/stats/frostWisp.json",
   "enemies/stats/fuseRat.json",
+  "enemies/stats/gatePillar.json",
   "enemies/stats/giantToad.json",
   "enemies/stats/goldSlime.json",
   "enemies/stats/golem.json",

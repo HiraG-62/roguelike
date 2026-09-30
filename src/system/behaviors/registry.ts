@@ -93,6 +93,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   librarian: new BossDriven("librarian"),
   mirrorKnight: new BossDriven("mirrorKnight"),
   thiefKing: new BossDriven("thiefKing"),
+  deepLord: new BossDriven("deepLord"),
   leaper: new Leaper(),
   merchant: new Merchant(),
   container: new Container(),
