@@ -1,0 +1,8 @@
+{
+  "_note": "銭・鍵・瓶（ラン内の通貨。system/economy.ts。docs/ideas/economy-impl.md 2 章）。値段と稼ぎは章 1 の平均で書き、章ごとに chapterMul を掛ける（片方だけ触らない）",
+  "_fields": {
+    "chapterMul": "章が 1 つ進むごとに稼ぎ（と値段）の平均に掛ける倍率。倍率（1 = 等倍）。章 n は chapterMul^(n−1)"
+  },
+  "chapterMul": 1.3,
+  "_order": ["chapterMul", "coin", "income", "spill", "key", "flask"]
+}

@@ -3,7 +3,7 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
 import { ELEMENT_LABEL } from "../core/element";
-import { CONTRACT, FLOOR_KIND, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { ECONOMY, FLOOR_KIND, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
@@ -486,7 +486,7 @@ describe("ランイベント第 2 弾の効果", () => {
     expect(state.player.mana, "制圧で満ちる").toBe(state.stats.maxMana);
   });
 
-  it("決闘: 名乗った敵以外が止まり、名乗った敵を倒すと残りが怯えて欠片", () => {
+  it("決闘: 名乗った敵以外が止まり、名乗った敵を倒すと残りが怯えて銭", () => {
     const { state, room, index } = setup();
     lock(state, room);
     thin(state, index, 3);
@@ -499,10 +499,10 @@ describe("ランイベント第 2 弾の効果", () => {
     const others = state.enemies.filter((e) => e !== champion && e.roomIndex === index && e.hp > 0);
     expect(others.length, "他の敵").toBeGreaterThan(0);
     expect(others.every((e) => e.attackCooldown > 0), "他の敵は手を出さない").toBe(true);
-    const shards = state.shards;
+    const coins = state.economy.coins;
     champion.hp = 0;
     run(state, 1);
-    expect(state.shards - shards, "欠片").toBeGreaterThanOrEqual(CONTRACT.shardsDuel);
+    expect(state.economy.coins - coins, "銭").toBeGreaterThanOrEqual(ECONOMY.income.duel);
     expect(others.filter((e) => e.hp > 0).some((e) => hasStatus(e.status, "fear")), "恐怖").toBe(true);
   });
 

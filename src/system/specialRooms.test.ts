@@ -418,19 +418,19 @@ describe("第 2 弾の部屋", () => {
     }
   });
 
-  it("封印庫: 欠片が足りなければ開かず、払えば深い遺物が並ぶ", () => {
+  it("封印庫: 銭が足りなければ開かず、払えば深い遺物が並ぶ", () => {
     const { state, room } = roomOf("vault");
     expect(room.cleared, "台座の部屋は制圧済み").toBe(true);
     const seal = propOf(room, "seal");
-    state.shards = ROOM_KIND.vaultCost - 1;
+    state.economy.coins = ROOM_KIND.vaultCoinCost - 1;
     standAt(state, seal.pos);
     expect(seal.used, "足りない").toBe(false);
     expect(state.floorItems.length).toBe(0);
     stepOff(state, room);
-    state.shards = ROOM_KIND.vaultCost;
+    state.economy.coins = ROOM_KIND.vaultCoinCost;
     standAt(state, seal.pos);
     expect(seal.used, "開いた").toBe(true);
-    expect(state.shards, "欠片").toBe(0);
+    expect(state.economy.coins, "銭").toBe(0);
     expect(state.floorItems.length, "遺物").toBe(ROOM_KIND.vaultDrops);
   });
 

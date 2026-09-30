@@ -24,6 +24,7 @@ import { createBoonRunState } from "./boons";
 import { snapCamera, updateCamera } from "./camera";
 import { cancelAttack } from "./combat";
 import { carryContractPatch, createContractState } from "./contractors";
+import { createEconomyState } from "./economy";
 import { updateEffects } from "./effects";
 import { createEnemy, updateEnemies } from "./enemies";
 import { resetExplored } from "./explore";
@@ -161,7 +162,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     lockedRelics: [],
     stairs: [],
     contracts: createContractState(),
-    shards: 0,
+    economy: createEconomyState(),
     events: [],
     pendingEvents: [],
     recent: {},

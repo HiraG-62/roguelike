@@ -187,6 +187,12 @@ export const META = BALANCE.world.META;
 /** 契約者・契約・欠片（src/system/contractors.ts。docs/ideas/run-expansion.md 0 章・6 章） */
 export const CONTRACT = BALANCE.world.CONTRACT;
 
+/** 銭・鍵・瓶（src/system/economy.ts。docs/ideas/economy-impl.md 2 章） */
+export const ECONOMY = BALANCE.world.ECONOMY;
+
+/** ランの章立て（src/system/chapters.ts） */
+export const ARC = BALANCE.world.ARC;
+
 export const RUN_MOD = BALANCE.world.RUN_MOD;
 
 /** ミニマップ */

@@ -6,6 +6,7 @@ import { MOVESETS } from "../data/weapons";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
+import { totalEarned, totalSpent } from "./economy";
 import { keystoneModifiers } from "./keystones";
 import { type ConditionSubject, ruleConditionsMet } from "./rules";
 import { enemiesInRadius, statusStacks } from "./statusEffects";
@@ -139,6 +140,12 @@ export function countPer(state: GameState, counter: PerCounter, enemy: Enemy | n
       return state.kills;
     case "morale":
       return p.morale.value;
+    case "coins":
+      return state.economy.coins;
+    case "coinsEarned":
+      return totalEarned(state.economy);
+    case "coinsSpent":
+      return totalSpent(state.economy);
   }
 }
 

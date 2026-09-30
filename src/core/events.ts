@@ -57,6 +57,13 @@ export const EVENT_KINDS = [
   "onRiposte",
   /** 左右の違うレーンの命中が窓の中で続いた。対象 = 当てた敵、tag = 当てたレーン */
   "onTwinStrike",
+  // ---- 2026-09-30 追加（銭。docs/ideas/economy-impl.md 2-10、system/economy.ts）----
+  /** 銭を得た（amount = 額、tag = CoinSource。こぼれた銭の拾い直しも起きる） */
+  "onCoinPickup",
+  /** 銭を払った（amount = 額、tag = SpendKind） */
+  "onCoinSpend",
+  /** 被弾で銭がこぼれた（amount = 額） */
+  "onCoinSpill",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

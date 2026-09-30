@@ -157,7 +157,8 @@ describe("群勢の減り", () => {
     const state = jinArena();
     let draws = 0;
     const base = state.rng;
-    state.rng = { ...base, chance: (p) => (draws++, base.chance(p)) };
+    // 陣の決着は鍵の抽選（ECONOMY.key）も引くので、ハートの確率の抽選だけを数える
+    state.rng = { ...base, chance: (p) => (p === JIN.roamHeartChance && draws++, base.chance(p)) };
     const sleeping = addJin(state, 1, ROAMING_ROOM, state.player.body.pos, "sleeping");
     const fought = addJin(state, 2, ROAMING_ROOM, state.player.body.pos, "engaged");
     updateJins(state);

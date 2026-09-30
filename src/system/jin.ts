@@ -6,6 +6,7 @@ import { JIN_TEXT } from "../data/actionText";
 import { JIN } from "../data/tuning";
 import { nextWaypoint } from "../map/pathing";
 import { addFloatingText } from "./effects";
+import { onJinSettled } from "./economy";
 import { farFromPlayer, moveEnemy } from "./enemies";
 import { vanish } from "./enemyTraits";
 import { roomHooks } from "./specialRooms";
@@ -293,6 +294,7 @@ export function roomClearText(state: GameState, roomIndex: number): string {
 export function wakeJin(state: GameState, jin: Jin): void {
   if (jin.phase === "settled") return;
   jin.phase = "engaged";
+  jin.engagedAt ??= state.time;
   const members = jinMembers(state, jin);
   if (state.rooms[jin.roomIndex]?.locked === true) {
     for (const e of members) if (e.phase === "idle") e.phase = "chase";
@@ -374,6 +376,7 @@ function settleJin(state: GameState, jin: Jin, by: "wipe" | "rout"): void {
   jin.phase = "settled";
   jin.settledBy = by;
   jin.secondWaveAt = null;
+  if (fought) onJinSettled(state, jin);
   if (jin.roomIndex !== ROAMING_ROOM || !fought) return;
   if (state.rng.chance(JIN.roamHeartChance)) roomHooks.dropHeart(state, { ...state.player.body.pos });
 }

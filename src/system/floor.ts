@@ -85,8 +85,9 @@ import {
 } from "./specialRooms";
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
 import { hasMod, onOriginDescend, refreshRunStats, tierScoreMul } from "./runSetup";
-import { gainShards, onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
-import { CONTRACT, FLOOR_KIND } from "../data/tuning";
+import { onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
+import { grantFloorArrival, onRoomClearedCoins, updateCoinPickups } from "./economy";
+import { FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 
 const START_ROOM = 0;
@@ -812,6 +813,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   onBoonRoomClear(state, room);
   recordProvenance(state, { kind: "roomClear" });
   onContractsRoomCleared(state, room);
+  onRoomClearedCoins(state, room, index);
   onRoomCleared(state, room, index);
   clearSpecialRoom(state, room, center);
   // 試練: rare 確定 + ハート確定
@@ -866,8 +868,10 @@ function p2(state: GameState): { x: number; y: number } {
 }
 
 function updatePickups(state: GameState, dt: number): void {
+  updateCoinPickups(state, dt);
   const p = state.player.body;
   for (const pk of state.pickups) {
+    if (pk.kind !== "heart") continue;
     pk.bobTime += dt;
     // ks_vampire: ハートは触れても消えない
     if (!heartsAllowed(state) || coreBlocksHearts(state)) continue;
@@ -921,7 +925,7 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
   pushSfx(state, "descend");
   if (fresh) {
     dropDepthReward(state);
-    gainShards(state, CONTRACT.shardsPerFloor);
+    grantFloorArrival(state);
   }
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
   if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);

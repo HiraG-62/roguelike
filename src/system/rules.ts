@@ -25,6 +25,7 @@ import { dropItem } from "./loot";
 import { addPoise } from "./poise";
 import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
+import { applyCoinRuleEffect } from "./economy";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
 import { reforgeRules } from "./reforge";
@@ -320,6 +321,9 @@ function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
     case "reclaim":
     case "resetCombo":
     case "reserveVault":
+    case "gainCoins":
+    case "spendCoins":
+    case "scatterCoins":
       // applyMigratedEffect が扱い済み
       return;
     default:
@@ -382,6 +386,11 @@ function applyMigratedPlayerEffect(state: GameState, effect: Readonly<RuleEffect
     case "extendStatus":
       if (effect.status === undefined) return false;
       extendTargetStatus(state, ev, effect.status, magnitude);
+      return true;
+    case "gainCoins":
+    case "spendCoins":
+    case "scatterCoins":
+      applyCoinRuleEffect(state, effect.kind, magnitude, ev.pos);
       return true;
     default:
       return false;
@@ -813,6 +822,8 @@ function migratedConditionHolds(state: GameState, c: RuleCondition, subject: Con
     case "form":
       // 条件 moveset と同じく装備の武器種で見る（変身・奥義の差し替えも key と型は装備のまま）
       return c.forms.includes(formOfKey(state.stats.moveset).key);
+    case "coinsAtLeast":
+      return state.economy.coins >= c.amount;
     default:
       return false;
   }

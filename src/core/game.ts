@@ -30,6 +30,7 @@ import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boo
 import { updateReforgeChoice } from "../system/reforge";
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { createContractState } from "../system/contractors";
+import { createEconomyState } from "../system/economy";
 import { type RunSetup, defaultRunSetup, originKeystones, sanitizeStartDepth, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
 import { startJob } from "../system/jobs";
@@ -120,7 +121,7 @@ export function createGame(
     lockedRelics: [...(setup.lockedRelics ?? [])],
     stairs: [],
     contracts: createContractState(),
-    shards: 0,
+    economy: createEconomyState(),
     events: [],
     pendingEvents: [],
     recent: {},

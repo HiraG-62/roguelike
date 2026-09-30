@@ -110,6 +110,7 @@ import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackCli
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
+import { drawFieldPickup } from "./coinUi";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
@@ -1229,6 +1230,10 @@ export class Renderer {
   private drawPickups(state: GameState): void {
     const heart = this.sprite(SPR.heart);
     for (const pk of state.pickups) {
+      if (pk.kind !== "heart") {
+        drawFieldPickup(this.ctx, pk);
+        continue;
+      }
       const bob = Math.sin(pk.bobTime * PICKUP_BOB_SPEED) * PICKUP_BOB_AMOUNT;
       this.drawShadow(pk.pos.x, pk.pos.y + heart.h / 2, SHADOW_SMALL);
       this.blit(heart, 0, pk.pos.x - heart.w / 2, pk.pos.y - heart.h / 2 + bob);

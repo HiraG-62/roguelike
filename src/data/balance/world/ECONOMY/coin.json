@@ -1,0 +1,24 @@
+{
+  "_fields": {
+    "color": "床の銭・浮き文字「銭 +n」の色",
+    "radius": "床の銭の拾う当たりの半径。px",
+    "life": "撃破で落ちた銭が床に残る秒。これを過ぎると消える。秒",
+    "blinkSec": "消える前の点滅を始める残り秒（描画が life を読む）。秒",
+    "magnetRadius": "プレイヤーからこの距離以内の銭・鍵は引き寄せられる（プレイヤーの半径の外側に足す）。px（15 = 1.5m）。stats.coinMagnetMul を掛ける",
+    "magnetSpeed": "引き寄せの速さ。px/秒",
+    "maxCoins": "床に同時に置ける銭の実体の上限。超えた分は最も新しい銭に額を足す。個",
+    "scatterSpeed": "撃破で落ちた銭が散る距離（初速 = これ × friction）。px",
+    "friction": "散る初速の減衰。毎秒の割合（速さ × e^(−friction × 秒)）。大きいほど早く止まる",
+    "splitPieces": "ボス・階の主・大将の撃破の銭を割って散らす数。個"
+  },
+  "color": "#ffd040",
+  "radius": 4,
+  "life": 8,
+  "blinkSec": 2,
+  "magnetRadius": 15,
+  "magnetSpeed": 240,
+  "maxCoins": 120,
+  "scatterSpeed": 10,
+  "friction": 6,
+  "splitPieces": 4
+}

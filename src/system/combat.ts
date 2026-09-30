@@ -35,6 +35,7 @@ import { chargeArmorOf } from "./morale";
 import { noteHitMoments, noteRiposte } from "./moments";
 import { noteBraceBlockMana, noteHitMana } from "./manaSources";
 import { shareLinkedDamage } from "./formMarks";
+import { dropCoins, spillCoins } from "./economy";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -337,6 +338,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   applyLifeOnKill(state);
   gainMana(state, MANA.onKill + state.stats.manaOnKill);
   if (counted) rollEnemyDrop(state, enemy);
+  dropCoins(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
   pushKillEvents(state, enemy);
@@ -524,6 +526,7 @@ export function damagePlayer(
     (chargeArmor?.damageTakenMul ?? 1);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));
   p.hp = Math.max(0, p.hp - taken);
+  spillCoins(state, fromPos);
   addRegain(state, taken);
   onPlayerHurtStatus(state);
   recordProvenance(state, { kind: "hurt" });

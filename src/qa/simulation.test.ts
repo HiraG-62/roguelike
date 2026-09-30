@@ -48,6 +48,7 @@ import {
   type JinSettleTally,
 } from "./jinMetrics";
 import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, createStrikerCapWatcher, type CombatTally } from "./combatMetrics";
+import { buildEconomySection, createEconomyRecorder, type EconomyTally } from "./economyMetrics";
 import { fittedEquipment } from "./gearPower";
 import {
   buildReachSection,
@@ -649,6 +650,8 @@ interface RunMetrics {
   startDepth: number;
   /** 帯ごとの被弾と撃破・死亡時の与ダメの内訳・連鎖の深さ・捨てられたイベント（scalingMetrics.ts） */
   scaling: ScalingTally;
+  /** 銭の稼ぎ・こぼれ・使い道・死亡時の持ち金（深度帯別。economyMetrics.ts。state.economy が無ければ空） */
+  economy: EconomyTally;
 }
 
 /**
@@ -763,6 +766,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
   const combatRecorder = createCombatRecorder();
   const scalingRecorder = createScalingRecorder();
+  const economyRecorder = createEconomyRecorder(state);
 
   const metrics: RunMetrics = {
     seed,
@@ -811,6 +815,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     combat: combatRecorder.tally,
     startDepth,
     scaling: scalingRecorder.tally,
+    economy: economyRecorder.tally,
   };
 
   let depthEnterTime = state.time;
@@ -879,6 +884,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     metrics.stepsRun++;
     combatRecorder.afterStep(state, FIXED_DT);
     scalingRecorder.afterStep(state);
+    economyRecorder.afterStep(state, FIXED_DT);
 
     if (oneVOne) metrics.skill.oneVOneSeconds += FIXED_DT;
     // マナ不足の不発（src/system/skills.ts の misfire）: manaFlash が 0 から立ち上がった瞬間を数える
@@ -982,6 +988,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   }
 
   combatRecorder.finish();
+  economyRecorder.finish(state);
   recordJinSettle(metrics.jinSettle, floorJins);
   metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
   metrics.kills = state.kills;
@@ -1328,6 +1335,7 @@ function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly Ru
       allMetrics.map((m) => ({ label: m.profileKind, maxDepth: m.maxDepth })),
     ),
   );
+  lines.push(...buildEconomySection(allMetrics.map((m) => m.economy)));
   lines.push(...buildDeepStartSection(deepMetrics));
   lines.push(...buildSkillMetricsSection(allMetrics));
   lines.push(...buildGenreMetricsSection(allMetrics));

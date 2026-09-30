@@ -1024,6 +1024,13 @@ import j_world_META from "./world/META.json";
 import j_world_DISCOVERY from "./world/DISCOVERY.json";
 import j_world_MAP_SIZE from "./world/MAP_SIZE.json";
 import j_world_HIDDEN_ROOM from "./world/HIDDEN_ROOM.json";
+import j_world_ECONOMY__index from "./world/ECONOMY/_index.json";
+import j_world_ECONOMY_coin from "./world/ECONOMY/coin.json";
+import j_world_ECONOMY_income from "./world/ECONOMY/income.json";
+import j_world_ECONOMY_spill from "./world/ECONOMY/spill.json";
+import j_world_ECONOMY_key from "./world/ECONOMY/key.json";
+import j_world_ECONOMY_flask from "./world/ECONOMY/flask.json";
+import j_world_ARC from "./world/ARC.json";
 
 export const boons = {
   "_note": j_boons__index["_note"],
@@ -2238,7 +2245,7 @@ export const world = {
     "mirrorColor": j_world_ROOM_KIND__index["mirrorColor"],
     "watchtowerReaperCost": j_world_ROOM_KIND__index["watchtowerReaperCost"],
     "watchtowerColor": j_world_ROOM_KIND__index["watchtowerColor"],
-    "vaultCost": j_world_ROOM_KIND__index["vaultCost"],
+    "vaultCoinCost": j_world_ROOM_KIND__index["vaultCoinCost"],
     "vaultDrops": j_world_ROOM_KIND__index["vaultDrops"],
     "vaultColor": j_world_ROOM_KIND__index["vaultColor"],
     "elementAltarChoices": j_world_ROOM_KIND__index["elementAltarChoices"],
@@ -2331,6 +2338,17 @@ export const world = {
   "DISCOVERY": j_world_DISCOVERY,
   "MAP_SIZE": j_world_MAP_SIZE,
   "HIDDEN_ROOM": j_world_HIDDEN_ROOM,
+  "ECONOMY": {
+    "_note": j_world_ECONOMY__index["_note"],
+    "_fields": j_world_ECONOMY__index["_fields"],
+    "chapterMul": j_world_ECONOMY__index["chapterMul"],
+    "coin": j_world_ECONOMY_coin,
+    "income": j_world_ECONOMY_income,
+    "spill": j_world_ECONOMY_spill,
+    "key": j_world_ECONOMY_key,
+    "flask": j_world_ECONOMY_flask,
+  },
+  "ARC": j_world_ARC,
 };
 
 /** 組み立てに使った JSON（src/data/balance からの相対。_index.json を含む）。生成し忘れの検査に使う */
@@ -3326,9 +3344,16 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/unarmed.json",
   "weapons/WEAPON/weightClass.json",
   "weapons/_index.json",
+  "world/ARC.json",
   "world/CAVE.json",
   "world/CONTRACT.json",
   "world/DISCOVERY.json",
+  "world/ECONOMY/_index.json",
+  "world/ECONOMY/coin.json",
+  "world/ECONOMY/flask.json",
+  "world/ECONOMY/income.json",
+  "world/ECONOMY/key.json",
+  "world/ECONOMY/spill.json",
   "world/FLOOR_KIND.json",
   "world/HIDDEN_ROOM.json",
   "world/HUB.json",

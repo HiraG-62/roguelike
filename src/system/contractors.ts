@@ -1,10 +1,10 @@
 import { ELEMENTS, type Element, ELEMENT_LABEL } from "../core/element";
-import type { GameState, RoomState } from "../core/state";
+import type { GameState, RoomState, SpendKind } from "../core/state";
 import { pushLog, pushSfx } from "../core/state";
 import { GOOD_STATUS_KINDS, NEUTRAL_STATUS_KINDS } from "../core/status";
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { CONTRACT } from "../data/tuning";
+import { CONTRACT, ECONOMY } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { type PlayerStats, TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, inBounds, rectCenterPx, toIndex } from "../map/grid";
@@ -13,6 +13,7 @@ import { BOONS, BOON_KEYS, type BoonKey, applyBoonsToStats, grantBoon, hasBoon, 
 import { coreKeepsCurses } from "./boonCores";
 import { bossKeyForDepth, isBossDepth } from "./boss";
 import { healPlayer } from "./combat";
+import { gainCoins, spendCoins } from "./economy";
 import { addFloatingText, spawnBurst } from "./effects";
 import { dropItem } from "./loot";
 import { refillMana } from "./mana";
@@ -24,9 +25,9 @@ import { addForkStair, revealRoomTiles, revealWholeFloor } from "./specialRooms"
 import { removeStatus } from "./statusEffects";
 
 /**
- * 契約者（docs/ideas/run-expansion.md 6 章）と欠片（0 章）。
+ * 契約者（docs/ideas/run-expansion.md 6 章）。銭の出入りは system/economy.ts（gainCoins / spendCoins）。
  * 契約者は階の入口（開始部屋）に立つ人物で、台座と同じく「触れて選ぶ」（モーダルなし。触れなければ何も起きないので QA bot も止まらない）。
- * 取引の代価は欠片（ラン内だけの資源）か生命。契約（灰の公証人）は state.contracts.pacts に積み、
+ * 取引の代価は銭（ラン内だけの資源）か生命。契約（灰の公証人）は state.contracts.pacts に積み、
  * 失敗は起きた瞬間に、達成は次の階に着いたとき（onContractsFloorReached）に判定する。
  * 鍛冶・属性の祭壇・属性の嵐の「通常攻撃に乗る属性」は、装備から畳んだ stats に後から足す（ensureContractStats）
  */
@@ -53,7 +54,7 @@ export type OfferKind =
   | "foretell"
   | "ward"
   | "farsight"
-  | "betShards"
+  | "betCoins"
   | "betLife"
   | "tale"
   | "witness"
@@ -61,13 +62,13 @@ export type OfferKind =
   | "fork"
   | "reveal"
   | "ferryLife"
-  | "ferryShards";
+  | "ferryCoins";
 
 export interface ContractOffer {
   kind: OfferKind;
   /** 契約の key・属性の key など */
   key: string;
-  /** 払う欠片（0 は欠片なし。生命で払うものは 0） */
+  /** 払う銭（0 は銭なし。生命で払うものは 0） */
   cost: number;
   pos: Vec;
   used: boolean;
@@ -137,7 +138,7 @@ export interface ContractorDef {
 
 export const CONTRACTORS: Readonly<Record<ContractorKey, ContractorDef>> = {
   notary: { name: "灰の公証人", line: "腕に賭けるか。署名は灰で書く", color: "#b8b0a8" },
-  peddler: { name: "行商", line: "欠片があるなら、何でも売るよ", color: "#e0c070" },
+  peddler: { name: "行商", line: "銭があるなら、何でも売るよ", color: "#e0c070" },
   mender: { name: "修理屋", line: "傷も呪いも、縫えば塞がる", color: "#90d0a0" },
   seer: { name: "占い", line: "次の階の匂いがする…", color: "#c090ff" },
   bookie: { name: "賭場の主", line: "倍か、無か。さあ張った", color: "#ffd040" },
@@ -154,14 +155,14 @@ export interface PactDef {
 }
 
 export const PACTS: Readonly<Record<PactKey, PactDef>> = {
-  unscathed: { name: "無傷の契約", desc: "次の階まで被弾しない → 祝福と欠片 / 破れば呪い" },
+  unscathed: { name: "無傷の契約", desc: "次の階まで被弾しない → 祝福と銭 / 破れば呪い" },
   swift: { name: "疾走の契約", desc: `${CONTRACT.pactSwiftTime} 秒で次の階へ → 振り分け点 / 破れば死神が早まる` },
   slayer: { name: "狩りの契約", desc: `次の階までに ${CONTRACT.pactSlayerKills} 体倒す → 遺物 / 破れば呪い` },
-  silent: { name: "沈黙の契約", desc: "次の階までスキルを使わない → 欠片と気力 / 破れば欠片を失う" },
+  silent: { name: "沈黙の契約", desc: "次の階までスキルを使わない → 銭と気力 / 破れば銭を失う" },
 };
 
 // -----------------------------------------------------------------------------
-// 欠片
+// 浮き文字
 // -----------------------------------------------------------------------------
 
 const TEXT_LIFT = 12;
@@ -174,20 +175,6 @@ const BURST_LIFE = 0.5;
 function sayAt(state: GameState, text: string, color: string): void {
   const p = state.player.body.pos;
   addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE);
-}
-
-/** 欠片を得る（浮き文字つき）。0 以下なら何もしない */
-export function gainShards(state: GameState, amount: number): void {
-  if (amount <= 0) return;
-  state.shards += amount;
-  sayAt(state, `欠片 +${amount}`, CONTRACT.shardColor);
-}
-
-/** 欠片を払えるなら払って true */
-export function spendShards(state: GameState, amount: number): boolean {
-  if (state.shards < amount) return false;
-  state.shards -= amount;
-  return true;
 }
 
 // -----------------------------------------------------------------------------
@@ -297,7 +284,7 @@ function offerPlan(state: GameState, key: ContractorKey): OfferPlan[] {
       ];
     case "bookie":
       return [
-        { kind: "betShards", key: "", cost: CONTRACT.bookieBet },
+        { kind: "betCoins", key: "", cost: CONTRACT.bookieBet },
         { kind: "betLife", key: "", cost: 0 },
       ];
     case "bard":
@@ -315,7 +302,7 @@ function offerPlan(state: GameState, key: ContractorKey): OfferPlan[] {
     case "ferryman":
       return [
         { kind: "ferryLife", key: "", cost: 0 },
-        { kind: "ferryShards", key: "", cost: CONTRACT.ferryShardCost },
+        { kind: "ferryCoins", key: "", cost: CONTRACT.ferryCoinCost },
       ];
     default:
       return [];
@@ -337,7 +324,7 @@ const OFFER_NAME: Readonly<Record<OfferKind, string>> = {
   foretell: "次の階の占い",
   ward: "厄払い",
   farsight: "この階の地図",
-  betShards: "欠片を賭ける",
+  betCoins: "銭を賭ける",
   betLife: "生命を賭ける",
   tale: "来歴を刻む",
   witness: "立ち会い",
@@ -345,13 +332,13 @@ const OFFER_NAME: Readonly<Record<OfferKind, string>> = {
   fork: "階段を増やす",
   reveal: "階段の場所",
   ferryLife: "死神の足止め（生命）",
-  ferryShards: "死神の足止め",
+  ferryCoins: "死神の足止め",
 };
 
 /** 台座の上に出す名前（代価つき） */
 export function offerLabel(offer: Readonly<ContractOffer>): string {
   const name = offerName(offer);
-  return offer.cost > 0 ? `${name}（欠片 ${offer.cost}）` : name;
+  return offer.cost > 0 ? `${name}（銭 ${offer.cost}）` : name;
 }
 
 function offerName(offer: Readonly<ContractOffer>): string {
@@ -429,11 +416,23 @@ function greet(state: GameState, who: Contractor): void {
   pushLog(state, `${def.name}「${def.line}」`, def.color);
 }
 
+/** 台座の代価を支出の集計のどこへ入れるか（賭けは賭け、それ以外は契約者との取引） */
+function offerSpendKind(offer: Readonly<ContractOffer>): SpendKind {
+  return offer.kind === "betCoins" ? "bet" : "contract";
+}
+
+/** 契約の破れなどで持ち金から失う（持ち金を超えては失わない） */
+function loseCoins(state: GameState, amount: number): void {
+  const lost = Math.min(state.economy.coins, amount);
+  if (lost <= 0) return;
+  spendCoins(state, lost, "contract");
+}
+
 /** 条件を満たさない・払えないときは何も起きない（台座は残る） */
 function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void {
   const color = CONTRACTORS[who.key].color;
-  if (state.shards < offer.cost) {
-    sayAt(state, `欠片が足りない（${offer.cost}）`, color);
+  if (state.economy.coins < offer.cost) {
+    sayAt(state, `銭が足りない（${offer.cost}）`, color);
     return;
   }
   const blocked = offerBlocked(state, offer);
@@ -441,7 +440,8 @@ function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void
     sayAt(state, blocked, color);
     return;
   }
-  state.shards -= offer.cost;
+  // 払えることは上で確かめてある（額 0 の台座は spendCoins が集計に積まない）
+  spendCoins(state, offer.cost, offerSpendKind(offer));
   offer.used = true;
   if (offer.kind === "pact" || offer.kind === "infuse") {
     for (const o of who.offers) if (o.kind === offer.kind) o.used = true;
@@ -461,7 +461,7 @@ function offerBlocked(state: GameState, offer: ContractOffer): string | null {
     case "ferryLife":
       if (state.contracts.ferried >= CONTRACT.ferryMaxUses) return "舟はもう出ない";
       return canPayLife(state, CONTRACT.ferryLifeCost) ? null : "生命が足りない";
-    case "ferryShards":
+    case "ferryCoins":
       return state.contracts.ferried >= CONTRACT.ferryMaxUses ? "舟はもう出ない" : null;
     case "fork":
       return addForkStair(state, true) ? null : "これ以上は増やせない";
@@ -515,8 +515,8 @@ function applyOffer(state: GameState, offer: ContractOffer, color: string): void
       revealWholeFloor(state);
       sayAt(state, "階の地図が分かった", color);
       return;
-    case "betShards":
-      betShards(state, color);
+    case "betCoins":
+      betCoins(state, color);
       return;
     case "betLife":
       betLife(state, below, color);
@@ -545,7 +545,7 @@ function applyOffer(state: GameState, offer: ContractOffer, color: string): void
       state.player.hp -= state.player.maxHp * CONTRACT.ferryLifeCost;
       buyTime(state, color);
       return;
-    case "ferryShards":
+    case "ferryCoins":
       buyTime(state, color);
       return;
     default:
@@ -614,12 +614,12 @@ export function nextBossDepth(depth: number): number {
   return d;
 }
 
-function betShards(state: GameState, color: string): void {
+function betCoins(state: GameState, color: string): void {
   if (!state.rng.chance(CONTRACT.bookieWinChance)) {
     sayAt(state, "負け", color);
     return;
   }
-  gainShards(state, CONTRACT.bookieBet * 2);
+  gainCoins(state, CONTRACT.bookieBet * 2, "bet");
 }
 
 function betLife(state: GameState, below: Vec, color: string): void {
@@ -695,7 +695,7 @@ function failPact(state: GameState, pact: ActivePact): void {
       state.contracts.reaperPenalty += CONTRACT.pactSwiftPenalty;
       return;
     case "silent":
-      state.shards = Math.max(0, state.shards - CONTRACT.pactSilentPenaltyShards);
+      loseCoins(state, ECONOMY.income.pactSilentPenalty);
       return;
     default:
       return;
@@ -707,7 +707,7 @@ function fulfilPact(state: GameState, pact: ActivePact): void {
   pushLog(state, `${PACTS[pact.key].name}を果たした。`, CONTRACT.pactColor);
   switch (pact.key) {
     case "unscathed":
-      gainShards(state, CONTRACT.pactUnscathedShards);
+      gainCoins(state, ECONOMY.income.pactUnscathed, "contract");
       state.contracts.boonsOwed += 1;
       return;
     case "swift":
@@ -717,7 +717,7 @@ function fulfilPact(state: GameState, pact: ActivePact): void {
       dropRareItem(state, { ...state.player.body.pos });
       return;
     case "silent":
-      gainShards(state, CONTRACT.pactSilentShards);
+      gainCoins(state, ECONOMY.income.pactSilent, "contract");
       refillMana(state);
       return;
     default:
@@ -746,22 +746,13 @@ export function onContractsFloorReached(state: GameState): void {
   }
 }
 
-/** 部屋を制圧した（floor.ts の clearRoom から）。欠片と、語り部の目撃中なら来歴をもう 1 回 */
-export function onContractsRoomCleared(state: GameState, room: RoomState): void {
-  gainShards(state, CONTRACT.shardsPerClear + (BONUS_SHARD_ROOMS.has(room.kind) ? CONTRACT.shardsBonusRoom : 0));
+/**
+ * 部屋を制圧した（floor.ts の clearRoom から）。語り部の目撃中なら来歴をもう 1 回。制圧の銭は economy.ts が出す。
+ * _room は floor.ts の呼び出しに合わせて残してある（欠片を出していた頃の名残。呼び出し側が直ったら消す）
+ */
+export function onContractsRoomCleared(state: GameState, _room: RoomState): void {
   if (state.contracts.witness > 0) recordProvenance(state, { kind: "roomClear" });
 }
-
-/** 制圧で欠片を多めに落とす部屋（波・部屋主・写し・霧・潮） */
-const BONUS_SHARD_ROOMS: ReadonlySet<RoomState["kind"]> = new Set<RoomState["kind"]>([
-  "challenge",
-  "arena",
-  "horde",
-  "nest",
-  "mirror",
-  "fogRoom",
-  "tideRoom",
-]);
 
 // -----------------------------------------------------------------------------
 // 通常攻撃に乗る属性（鍛冶・属性の祭壇・属性の嵐）

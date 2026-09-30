@@ -98,7 +98,10 @@ export type RuleCondition =
   | { kind: "lane"; lane: ButtonKey }
   // ---- 2026-09-30 追加（武器の型。docs/ideas/weapon-forms-impl.md 3-1） ----
   /** 今の武器種の型がどれか（個性で絞るなら moveset） */
-  | { kind: "form"; forms: readonly FormKey[] };
+  | { kind: "form"; forms: readonly FormKey[] }
+  // ---- 2026-09-30 追加（銭。docs/ideas/economy-impl.md 2-10） ----
+  /** 持ち金が amount 以上 */
+  | { kind: "coinsAtLeast"; amount: number };
 
 /** 属性・弱点の条件がどの攻撃の素性を見るか */
 export type RuleAttackVia = "melee" | "ranged";
@@ -167,7 +170,14 @@ export type RuleEffectKind =
   /** 対象が持っていた status を、残り時間ごと半径 radius 内の最も近い敵へ移す */
   | "passStatus"
   /** 次の階の宝物庫を予約する（予約済みなら何もしない） */
-  | "reserveVault";
+  | "reserveVault"
+  // ---- 2026-09-30 追加（銭。docs/ideas/economy-impl.md 2-10） ----
+  /** 銭を magnitude（四捨五入）得る */
+  | "gainCoins"
+  /** 銭を magnitude（四捨五入）払う。足りなければ何もしない */
+  | "spendCoins"
+  /** 持ち金の magnitude（割合 0..1）をイベントの位置へ撒く（拾い直しは稼ぎに数えない） */
+  | "scatterCoins";
 
 /**
  * 効果量の基準。flat = magnitude そのまま / slashBase = 近接 1 段目の威力 × magnitude /
@@ -364,7 +374,13 @@ export type PerCounter =
   /** このランの撃破数 */
   | { kind: "runKills" }
   /** 今の戦意（Player.morale.value。「戦意 10 につき」は every 10） */
-  | { kind: "morale" };
+  | { kind: "morale" }
+  /** 今の持ち金（EconomyState.coins） */
+  | { kind: "coins" }
+  /** このランで稼いだ銭の総額（拾い直しを除く） */
+  | { kind: "coinsEarned" }
+  /** このランで使った銭の総額 */
+  | { kind: "coinsSpent" };
 
 /** 「〜につき」。n = floor(数 / every)。効きは amount × n を cap で切る（増なら増の量、倍なら 1 を超える分） */
 export interface ModifierPer {

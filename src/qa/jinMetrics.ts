@@ -1,4 +1,5 @@
 import { type GameState, ROAMING_ROOM } from "../core/state";
+import { enemyDef } from "../data/enemies";
 import { FORMATION_KEYS, FORMATION_LABEL, type FormationKey } from "../data/formations";
 import { DEPTH_BANDS, type DepthBand, depthBandOf } from "./combatMetrics";
 
@@ -32,9 +33,23 @@ export function emptyFloorSpawn(): FloorSpawnTally {
   return { enemiesByBand: emptyBandLists(), roomJins: [], columns: [], jinMembers: [], formations: {}, hpMuls: [] };
 }
 
+/**
+ * 戦う相手としての敵の数。商人（def.merchant）と壺・木箱（def.container）は Enemy として置かれるが（economy-impl 2-5 / 2-7）、
+ * 「敵の総数 80〜100 体」の目標には数えない。定義にその欄がまだ無いときは何も除かない
+ */
+export function countCombatants(enemies: GameState["enemies"], defOf: (key: string) => object = enemyDef): number {
+  let n = 0;
+  for (const e of enemies) {
+    const def = defOf(e.defKey);
+    const fixture = ("merchant" in def && Boolean(def.merchant)) || ("container" in def && Boolean(def.container));
+    if (!fixture) n++;
+  }
+  return n;
+}
+
 /** 階に着いた直後の敵と陣を数える */
 export function recordFloorSpawn(t: FloorSpawnTally, state: GameState): void {
-  t.enemiesByBand[depthBandOf(state.depth)].push(state.enemies.length);
+  t.enemiesByBand[depthBandOf(state.depth)].push(countCombatants(state.enemies));
   const members = new Map<number, number>();
   for (const e of state.enemies) {
     if (e.jinId !== undefined) members.set(e.jinId, (members.get(e.jinId) ?? 0) + 1);

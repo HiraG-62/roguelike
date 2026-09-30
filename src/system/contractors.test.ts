@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
-import { BOSS, CONTRACT, ROOM_KIND } from "../data/tuning";
+import { BOSS, CONTRACT, ECONOMY, ROOM_KIND } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import {
   CONTRACTORS,
@@ -13,13 +13,11 @@ import {
   PACT_KEYS,
   activeInfusions,
   ensureContractStats,
-  gainShards,
   nextBossDepth,
   offerLabel,
   onContractsFloorReached,
   onContractsRoomCleared,
   placeContractor,
-  spendShards,
   standContractor,
   updateContractors,
 } from "./contractors";
@@ -128,12 +126,12 @@ describe("契約者: 出現", () => {
 
   it("立った直後は触れていても台座が動かない（出現直後の誤爆を防ぐ）", () => {
     const state = withContractor("peddler");
-    state.shards = 99;
+    state.economy.coins = 99;
     const offer = offerOf(state, "buyItem");
     state.player.body.pos = { ...offer.pos };
     updateContractors(state, DT);
     expect(offer.used, "出現直後").toBe(false);
-    expect(state.shards, "欠片は減らない").toBe(99);
+    expect(state.economy.coins, "銭は減らない").toBe(99);
   });
 
   it("階を移ると前の階の契約者は消え、祭壇の属性（この階だけ）も消える", () => {
@@ -146,41 +144,43 @@ describe("契約者: 出現", () => {
   });
 });
 
-describe("欠片", () => {
-  it("得る・払う。足りなければ払えない", () => {
-    const state = createGame(3);
-    gainShards(state, 3);
-    expect(state.shards).toBe(3);
-    expect(spendShards(state, 5), "足りない").toBe(false);
-    expect(state.shards).toBe(3);
-    expect(spendShards(state, 2), "足りる").toBe(true);
-    expect(state.shards).toBe(1);
+describe("銭と契約者", () => {
+  it("台座で払うと持ち金が減り、契約者への支出に積まれる", () => {
+    const state = withContractor("peddler");
+    state.economy.coins = CONTRACT.peddlerItemCost + 5;
+    touch(state, offerOf(state, "buyItem"));
+    expect(state.economy.coins, "持ち金").toBe(5);
+    expect(state.economy.spent.contract, "契約者への支出").toBe(CONTRACT.peddlerItemCost);
   });
 
-  it("制圧で欠片が入り、波の部屋は多い", () => {
+  it("賭けの代価は賭けの支出に積まれる", () => {
+    const state = withContractor("bookie");
+    state.economy.coins = CONTRACT.bookieBet;
+    touch(state, offerOf(state, "betCoins"));
+    expect(state.economy.spent.bet, "賭けの支出").toBe(CONTRACT.bookieBet);
+  });
+
+  it("代価 0 の台座は支出に積まれない", () => {
+    const state = withContractor("bard");
+    state.economy.coins = 10;
+    touch(state, offerOf(state, "witness"));
+    expect(state.economy.coins, "持ち金は減らない").toBe(10);
+    expect(state.economy.spent.contract, "支出").toBe(0);
+  });
+
+  it("制圧で契約者側は銭を出さない（制圧の銭は economy.ts）", () => {
     const state = createGame(3);
     const room = state.rooms[1];
     if (!room) throw new Error("room");
-    room.kind = "normal";
     onContractsRoomCleared(state, room);
-    expect(state.shards, "通常の部屋").toBe(CONTRACT.shardsPerClear);
-    room.kind = "challenge";
-    onContractsRoomCleared(state, room);
-    expect(state.shards, "試練").toBe(CONTRACT.shardsPerClear * 2 + CONTRACT.shardsBonusRoom);
-  });
-
-  it("初めて着いた階で欠片が入る", () => {
-    const state = createGame(3);
-    const before = state.shards;
-    descend(state, "rooms");
-    expect(state.shards - before, "階層到達").toBeGreaterThanOrEqual(CONTRACT.shardsPerFloor);
+    expect(state.economy.coins, "契約者側は銭を出さない").toBe(0);
   });
 });
 
 describe("契約者: 取引", () => {
-  it("欠片が足りなければ何も起きない", () => {
+  it("銭が足りなければ何も起きない", () => {
     const state = withContractor("peddler");
-    state.shards = 0;
+    state.economy.coins = 0;
     const items = state.floorItems.length;
     const offer = offerOf(state, "buyItem");
     touch(state, offer);
@@ -188,18 +188,18 @@ describe("契約者: 取引", () => {
     expect(state.floorItems.length, "遺物は出ない").toBe(items);
   });
 
-  it("行商: 欠片で遺物を買う", () => {
+  it("行商: 銭で遺物を買う", () => {
     const state = withContractor("peddler");
-    state.shards = CONTRACT.peddlerItemCost;
+    state.economy.coins = CONTRACT.peddlerItemCost;
     const items = state.floorItems.length;
     touch(state, offerOf(state, "buyItem"));
     expect(state.floorItems.length, "遺物が 1 つ").toBe(items + 1);
-    expect(state.shards, "欠片").toBe(0);
+    expect(state.economy.coins, "銭").toBe(0);
   });
 
-  it("行商: 欠片で残響を買う（main.ts が残響の保存へ移す）", () => {
+  it("行商: 銭で残響を買う（main.ts が残響の保存へ移す）", () => {
     const state = withContractor("peddler");
-    state.shards = CONTRACT.peddlerEchoCost;
+    state.economy.coins = CONTRACT.peddlerEchoCost;
     touch(state, offerOf(state, "buyEchoes"));
     const total = Object.values(state.runEvents.pendingEchoes).reduce((s, v) => s + v, 0);
     expect(total, "残響").toBe(CONTRACT.peddlerEchoes);
@@ -207,7 +207,7 @@ describe("契約者: 取引", () => {
 
   it("修理屋: 清めで悪い状態異常が解け、呪いも晴れる", () => {
     const state = withContractor("mender");
-    state.shards = CONTRACT.menderCleanseCost;
+    state.economy.coins = CONTRACT.menderCleanseCost;
     applyStatus(state, { kind: "player" }, { kind: "poison", stacks: 2, duration: 5, potency: 1 }, "env");
     state.cursed = true;
     expect(hasStatus(state.player.status, "poison"), "毒").toBe(true);
@@ -216,13 +216,13 @@ describe("契約者: 取引", () => {
     expect(state.cursed, "呪い").toBe(false);
   });
 
-  it("修理屋: 呪いを抱えていなければ呪いを解けない（欠片は払わない）", () => {
+  it("修理屋: 呪いを抱えていなければ呪いを解けない（銭は払わない）", () => {
     const state = withContractor("mender");
-    state.shards = CONTRACT.menderUncurseCost;
+    state.economy.coins = CONTRACT.menderUncurseCost;
     const offer = offerOf(state, "uncurse");
     touch(state, offer);
     expect(offer.used).toBe(false);
-    expect(state.shards).toBe(CONTRACT.menderUncurseCost);
+    expect(state.economy.coins).toBe(CONTRACT.menderUncurseCost);
   });
 
   it("修理屋: 呪い付きの祝福を 1 つ外す", () => {
@@ -230,14 +230,14 @@ describe("契約者: 取引", () => {
     const cursed = BOON_KEYS.find((k) => BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
     if (!cursed) throw new Error("呪い付きの祝福が無い");
     grantBoon(state, cursed);
-    state.shards = CONTRACT.menderUncurseCost;
+    state.economy.coins = CONTRACT.menderUncurseCost;
     touch(state, offerOf(state, "uncurse"));
     expect(state.boons.includes(cursed), "外れた").toBe(false);
   });
 
   it("占い: 次の階を読むと、次の階のイベントがその通りになる", () => {
     const state = withContractor("seer");
-    state.shards = CONTRACT.seerReadCost;
+    state.economy.coins = CONTRACT.seerReadCost;
     touch(state, offerOf(state, "foretell"));
     const foretold = state.contracts.foretold;
     expect(foretold, "読んだ").not.toBeNull();
@@ -249,7 +249,7 @@ describe("契約者: 取引", () => {
 
   it("占い: 凶兆を払うと次の階の階のイベントは起きない", () => {
     const state = withContractor("seer");
-    state.shards = CONTRACT.seerWardCost;
+    state.economy.coins = CONTRACT.seerWardCost;
     touch(state, offerOf(state, "ward"));
     descend(state, "rooms");
     expect(state.runEvents.floor, "階の枠").toBeNull();
@@ -261,11 +261,11 @@ describe("契約者: 取引", () => {
     expect(isBossDepth(d)).toBe(true);
   });
 
-  it("賭場: 欠片を賭けると倍になるか失う", () => {
+  it("賭場: 銭を賭けると倍になるか失う", () => {
     const state = withContractor("bookie");
-    state.shards = CONTRACT.bookieBet;
-    touch(state, offerOf(state, "betShards"));
-    expect([0, CONTRACT.bookieBet * 2], "倍か無").toContain(state.shards);
+    state.economy.coins = CONTRACT.bookieBet;
+    touch(state, offerOf(state, "betCoins"));
+    expect([0, CONTRACT.bookieBet * 2], "倍か無").toContain(state.economy.coins);
   });
 
   it("賭場: 生命を賭けると生命が減る", () => {
@@ -307,7 +307,7 @@ describe("契約者: 取引", () => {
 
   it("鍛冶: 焼き付けた属性が通常攻撃の属性の割合に足され、装備を付け替えても残る", () => {
     const state = withContractor("smith");
-    state.shards = CONTRACT.smithCost;
+    state.economy.coins = CONTRACT.smithCost;
     const offer = state.contracts.contractor?.offers[0];
     if (!offer) throw new Error("台座");
     const element = offer.key as keyof typeof state.stats.infuse;
@@ -335,7 +335,7 @@ describe("契約者: 取引", () => {
 
   it("案内人: 分岐路に階段を 1 つ足す", () => {
     const state = withContractor("guide");
-    state.shards = CONTRACT.guideForkCost;
+    state.economy.coins = CONTRACT.guideForkCost;
     const before = state.stairs.length;
     touch(state, offerOf(state, "fork"));
     const offer = offerOf(state, "fork");
@@ -344,7 +344,7 @@ describe("契約者: 取引", () => {
       const kinds = state.stairs.map((s) => s.nextKind);
       expect(new Set(kinds).size, "行き先は重ならない").toBe(kinds.length);
     } else {
-      expect(state.shards, "足せなければ払わない").toBe(CONTRACT.guideForkCost);
+      expect(state.economy.coins, "足せなければ払わない").toBe(CONTRACT.guideForkCost);
     }
   });
 
@@ -355,8 +355,8 @@ describe("契約者: 取引", () => {
     expect(state.floorTime, "経過時間が戻る").toBe(100 - CONTRACT.ferryTime);
     expect(state.contracts.ferried).toBe(1);
     state.contracts.ferried = CONTRACT.ferryMaxUses;
-    state.shards = CONTRACT.ferryShardCost;
-    const offer = offerOf(state, "ferryShards");
+    state.economy.coins = CONTRACT.ferryCoinCost;
+    const offer = offerOf(state, "ferryCoins");
     touch(state, offer);
     expect(offer.used, "上限").toBe(false);
   });
@@ -383,12 +383,12 @@ describe("灰の公証人: 契約", () => {
     expect(state.boons.filter((k) => BOONS[k].cursed).length, "呪い").toBe(cursedBefore + 1);
   });
 
-  it("無傷の契約: 被弾せず次の階に着けば欠片と祝福の 3 択", () => {
+  it("無傷の契約: 被弾せず次の階に着けば銭と祝福の 3 択", () => {
     const state = withContractor("notary");
     state.contracts.pacts = [{ key: "unscathed", signedAt: state.time, killsAt: 0, depth: state.depth, failed: false }];
-    const shards = state.shards;
+    const before = state.economy.coins;
     onContractsFloorReached(state);
-    expect(state.shards, "欠片").toBe(shards + CONTRACT.pactUnscathedShards);
+    expect(state.economy.coins, "銭").toBe(before + ECONOMY.income.pactUnscathed);
     updateContractors(state, DT);
     expect(state.boonChoice, "祝福の 3 択").not.toBeNull();
   });
@@ -433,14 +433,24 @@ describe("灰の公証人: 契約", () => {
     expect(state.floorTime, "死神の前倒し").toBe(CONTRACT.pactSwiftPenalty);
   });
 
-  it("沈黙の契約: スキルを使うと破れて欠片を失う", () => {
+  it("沈黙の契約: スキルを使うと破れて銭を失う", () => {
     const state = withContractor("notary");
-    state.shards = 5;
+    state.economy.coins = ECONOMY.income.pactSilentPenalty + 5;
     state.contracts.pacts = [{ key: "silent", signedAt: state.time, killsAt: 0, depth: state.depth, failed: false }];
     state.time += 1;
     state.recent.onSkillCast = { lastTime: state.time, count: 1 };
     updateContractors(state, DT);
-    expect(state.shards).toBe(5 - CONTRACT.pactSilentPenaltyShards);
+    expect(state.economy.coins, "違約の銭を失う").toBe(5);
+  });
+
+  it("沈黙の契約: 持ち金が違約の銭に足りなければ 0 まで（負にならない）", () => {
+    const state = withContractor("notary");
+    state.economy.coins = 1;
+    state.contracts.pacts = [{ key: "silent", signedAt: state.time, killsAt: 0, depth: state.depth, failed: false }];
+    state.time += 1;
+    state.recent.onSkillCast = { lastTime: state.time, count: 1 };
+    updateContractors(state, DT);
+    expect(state.economy.coins, "持ち金").toBe(0);
   });
 });
 

@@ -475,6 +475,12 @@ export interface PlayerStats {
   moraleMaxAdd: number;
   /** 戦意の溜まりやすさの倍率（1 = 等倍。導出の型には効かない） */
   moraleGainMul: number;
+  /** 銭・鍵を引き寄せる半径の倍率（ECONOMY.coin.magnetRadius に掛ける。system/economy.ts） */
+  coinMagnetMul: number;
+  /** 被弾でこぼれる銭の倍率（ECONOMY.spill.ratio に掛ける。0 でこぼれない） */
+  coinSpillMul: number;
+  /** 稼ぐ銭の倍率（こぼれた銭の拾い直し・賭けの払い戻しには掛けない） */
+  coinGainMul: number;
 }
 
 /**
@@ -996,4 +1002,7 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   skillNeutral: 0,
   moraleMaxAdd: 0,
   moraleGainMul: 1,
+  coinMagnetMul: 1,
+  coinSpillMul: 1,
+  coinGainMul: 1,
 };

@@ -1,0 +1,9 @@
+{
+  "_note": "ランの章立て（system/chapters.ts。docs/ideas/economy-impl.md 2-8）。章ボス・休符は段取り 6b で足す",
+  "_fields": {
+    "floorsPerChapter": "1 章の階数。深度 1〜floorsPerChapter が章 1",
+    "maxChapter": "章の数。これより深い階は最後の章のまま（深み）"
+  },
+  "floorsPerChapter": 5,
+  "maxChapter": 4
+}

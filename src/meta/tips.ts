@@ -192,7 +192,7 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "clue", term: "手がかり", category: "run", body: "祝福の 3 択に出る、今のビルドで成立し得る未発見の連携。" },
   { key: "engaged", term: "交戦", category: "run", body: "部屋に入る、または部屋の敵に気付かれた状態。扉が閉じる部屋（封鎖）もある。" },
   { key: "jin", term: "陣", category: "run", body: "敵は陣形（魚鱗・鶴翼・雁行・長蛇など）を組んだ一団で待ち構える。画面上の群勢は仲間を倒すほど減り、大将を倒すと大きく崩れる。尽きると残りは敗走する。起こした直後に後詰が遅れて加わることもある。" },
-  { key: "shards", term: "欠片", category: "run", body: "探索の間だけ集まる資源。契約者との取引と封印庫の解錠に使う。探索が終わると消える。" },
+  { key: "coins", term: "銭", category: "run", body: "探索の間だけ集まる資源。敵を倒すと落ち、契約者との取引と封印庫の解錠に使う。探索が終わると消える。" },
   { key: "contractor", term: "契約者", category: "run", body: "階の入口に立つ人物。台座に触れて取引を選ぶ。" },
   { key: "pact", term: "契約", category: "run", body: "灰の公証人と結ぶ条件付きの約束。破るとその場で代償、次の階に着けば報酬。" },
   { key: "elementAltar", term: "属性の祭壇", category: "run", body: "選んだ属性の加護を得る部屋。その階の間、通常攻撃の一部がその属性になる。鍛冶の焼き付けは探索の間ずっと続く。" },

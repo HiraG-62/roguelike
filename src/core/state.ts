@@ -661,7 +661,7 @@ export interface DotTally {
   age: number;
 }
 
-export type PickupKind = "heart";
+export type PickupKind = "heart" | "coin" | "key" | "flask";
 
 export interface Pickup {
   id: number;
@@ -669,6 +669,38 @@ export interface Pickup {
   pos: Vec;
   radius: number;
   bobTime: number;
+  // ---- 銭・鍵（src/system/economy.ts。docs/ideas/economy-impl.md 2-2）----
+  /** 銭の額 */
+  value?: number;
+  /** 残り秒。undefined = 消えない */
+  life?: number;
+  /** 持ち主の銭（被弾でこぼれた・撒いた）。拾い直しは稼ぎに数えない */
+  spilled?: true;
+  /** 散る速さ（px/秒。毎秒 ECONOMY.coin.friction で減衰） */
+  vel?: Vec;
+  /** この秒が過ぎるまで引き寄せず拾えない（こぼれた銭が即戻らないように） */
+  settle?: number;
+}
+
+/** 銭の源（QA と「稼ぐ」型の集計。表示には出さない）。spill = こぼれた銭の拾い直し（稼ぎに数えない） */
+export type CoinSource = "kill" | "jin" | "room" | "floor" | "event" | "contract" | "container" | "bet" | "sell" | "rule" | "spill";
+/** 銭の使い道（集計用） */
+export type SpendKind = "flask" | "item" | "rune" | "key" | "reroll" | "contract" | "bet" | "donation" | "toll" | "rule";
+
+/** ラン内の通貨（src/system/economy.ts）。死ぬと state ごと消える */
+export interface EconomyState {
+  coins: number;
+  keys: number;
+  /** このランで稼いだ総額（源別。こぼれた銭の拾い直しは数えない）。「稼ぐ」型と QA が読む */
+  earned: Record<CoinSource, number>;
+  /** このランで使った総額（用途別） */
+  spent: Record<SpendKind, number>;
+  /** 被弾・撒きで床へ出た持ち金の総額 / 拾い直した総額 */
+  spilled: number;
+  recovered: number;
+  /** 撃破で床に落ちた銭の総額 / 拾われずに消えた総額（こぼれた銭は含まない。QA の拾えなかった割合） */
+  dropped: number;
+  expired: number;
 }
 
 /** 部屋の種類（src/system/roomTypes.ts）。ボス部屋は normal のまま boss.ts が管理する */
@@ -743,6 +775,8 @@ export interface Jin {
   morale: number;
   moraleMax: number;
   phase: JinPhase;
+  /** 最初に起きた state.time（無傷の決着の判定。system/economy.ts）。眠ったままなら undefined */
+  engagedAt?: number;
   /** 決着の種類（全滅 / 敗走）。settled のとき */
   settledBy?: "wipe" | "rout";
   /** 陣ごとの生命の揺らぎ（JIN.hpSpread から陣を作るとき 1 回引く）。メンバー全員の生命に掛かる。HUD には出さない */
@@ -941,8 +975,8 @@ export interface GameState {
   stairs: StairsChoice[];
   /** 契約者・結んだ契約・鍛冶や祭壇の属性・占いの予言（src/system/contractors.ts） */
   contracts: ContractState;
-  /** 欠片: ラン内でだけ集まる小さな資源。契約者との取引と封印庫の解錠に使う。死ぬと消える */
-  shards: number;
+  /** 銭・鍵（ラン内の通貨。src/system/economy.ts）。契約者との取引と封印庫の解錠に使う。死ぬと消える */
+  economy: EconomyState;
   // ---- 統一ルール文法（src/core/events.ts / src/system/rules.ts。docs/ideas/synergy-web.md 3 章）----
   /** 今ステップに system が積んだイベント。resolveRules が照合して空にする */
   events: GameEvent[];

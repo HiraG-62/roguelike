@@ -21,7 +21,7 @@ import type { SpriteAtlas } from "./sprites";
  * ラン構造の描画（docs/ideas/run-expansion.md）。state を読むだけで、乱数は使わない。
  * - ワールド座標: バイオームの色調（反転層の紫）・台座・契約者・護衛対象・刻の裂け目・落下物と落雷の予告・死神の通り道・
  *   影の自分・賞金首の印・階段の行き先
- * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計・契約の予告行、霧（霧の部屋）、起点と位階・欠片・反転層 / 帰還
+ * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計・契約の予告行、霧（霧の部屋）、起点と位階・銭と鍵・反転層 / 帰還
  */
 
 const COLOR_SHADOW = "#000000";
@@ -105,7 +105,7 @@ export function propName(prop: RoomProp): string {
     case "element":
       return `${ELEMENT_LABEL[prop.key as Element] ?? ""}${PROP_LABEL.element}`;
     case "seal":
-      return `${PROP_LABEL.seal}（欠片 ${ROOM_KIND.vaultCost}）`;
+      return `${PROP_LABEL.seal}（銭 ${ROOM_KIND.vaultCoinCost}）`;
     case "vein":
       return `${PROP_LABEL.vein} 残り ${prop.uses ?? 0}`;
     case "ascend":
@@ -203,7 +203,7 @@ function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Co
   // 台座どうしが近く名前が重なるので、いちばん近い台座の名前だけを出す
   const offer = nearestOffer(state, who);
   if (!offer) return;
-  const affordable = state.shards >= offer.cost;
+  const affordable = state.economy.coins >= offer.cost;
   drawTextShadow(ctx, offerLabel(offer), offer.pos.x, offer.pos.y - LABEL_LIFT, TEXT.SMALL, affordable ? def.color : COLOR_DIM, COLOR_SHADOW, "center");
 }
 
@@ -479,7 +479,7 @@ function stairsLine(state: GameState): HudLine | null {
   return { text: `分岐路: ${state.stairs.map((s) => floorKindLabel(s.nextKind)).join(" / ")}`, color: COLOR_TEXT, blink: false };
 }
 
-/** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない）・欠片・反転層 / 帰還 */
+/** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない）・銭と鍵（常に出す。資源なので 0 でも数字で見せる）・反転層 / 帰還 */
 export function drawRunSetupHud(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number): void {
   const parts = runSetupParts(state);
   if (parts.length === 0) return;
@@ -491,7 +491,7 @@ export function runSetupParts(state: GameState): string[] {
   const parts: string[] = [];
   const tier = runTier(state.modifiers);
   if (state.origin !== "wanderer" || tier > 0) parts.push(tier > 0 ? `${ORIGINS[state.origin].name} · 位階 ${tier}` : ORIGINS[state.origin].name);
-  if (state.shards > 0) parts.push(`欠片 ${state.shards}`);
+  parts.push(`銭 ${state.economy.coins} · 鍵 ${state.economy.keys}`);
   if (isInvertedDepth(state.depth)) parts.push("反転層");
   if (state.runEvents.strata.revisit) parts.push("帰還");
   return parts;

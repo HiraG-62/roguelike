@@ -357,6 +357,9 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   chainCoefBonus: { label: "連鎖係数の上乗せ", style: "percent" },
   moraleMaxAdd: { label: "戦意の上限", style: "flat" },
   moraleGainMul: { label: "戦意の溜まりやすさ", style: "mul" },
+  coinMagnetMul: { label: "銭の引き寄せ", style: "mul" },
+  coinSpillMul: { label: "被弾でこぼれる銭", style: "mul" },
+  coinGainMul: { label: "銭の稼ぎ", style: "mul" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */

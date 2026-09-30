@@ -3,7 +3,7 @@ import type { Enemy, FloorKind, GameState, RoomState } from "../core/state";
 import { pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { CONTRACT, ELITE_GREEDY, FLOOR_KIND, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { ECONOMY, ELITE_GREEDY, FLOOR_KIND, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { type EchoWallet, createEchoWallet } from "../loot/crafting";
 import { inversionChance } from "../loot/flux";
 import { TILE_SIZE, inBounds, rectCenterPx, rectContainsPx, toIndex } from "../map/grid";
@@ -11,7 +11,8 @@ import { biomeShape, isInvertedDepth } from "./biomes";
 import { BOONS, applyBoonsToStats, offerBoons } from "./boons";
 import { coreKeepsCurses } from "./boonCores";
 import { damageEnemy, damagePlayer, healPlayer, healSustained } from "./combat";
-import { type Infusion, gainShards, grantCurse, removeBoon } from "./contractors";
+import { type Infusion, grantCurse, removeBoon } from "./contractors";
+import { grantEventCoins } from "./economy";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { engagedRoomIndex } from "./engagement";
 import { carriedCount, eliteKindsFor, makeElite, rollElite } from "./elites";
@@ -779,7 +780,7 @@ function tickBounty(state: GameState, current: ActiveRunEvent): void {
   const pos = current.pos ?? state.player.body.pos;
   dropRareItem(state, pos);
   state.score += RUN_EVENT.bountyScore;
-  gainShards(state, CONTRACT.shardsBounty);
+  grantEventCoins(state, ECONOMY.income.bounty);
   pushLog(state, "賞金首を仕留めた。", RUN_EVENT.activeColor);
 }
 
@@ -938,7 +939,7 @@ function tickDuel(state: GameState, current: ActiveRunEvent): void {
     if (e.roomIndex !== current.roomIndex || e.hp <= 0) continue;
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "fear", stacks: 1, duration: RUN_EVENT.duel.fearTime, potency: 0 }, "env");
   }
-  gainShards(state, CONTRACT.shardsDuel);
+  grantEventCoins(state, ECONOMY.income.duel);
   pushLog(state, "決闘に勝った。残りの敵が怯えている。", RUN_EVENT.activeColor);
 }
 

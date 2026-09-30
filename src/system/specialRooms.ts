@@ -17,7 +17,8 @@ import { floorKindCandidates, pickFloorKinds } from "./biomes";
 import { BOONS, BOON_KEYS, grantBoon, hasBoon, offerBoons } from "./boons";
 import { isBossDepth } from "./boss";
 import { COLOR_HEAL, healPlayer } from "./combat";
-import { ensureContractStats, spendShards } from "./contractors";
+import { ensureContractStats } from "./contractors";
+import { spendCoins } from "./economy";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { eliteKindsFor, makeElite } from "./elites";
@@ -58,7 +59,7 @@ export type PropKind =
   | "ascend"
   /** 残響の鉱脈（ランイベント）。何度か触れられる */
   | "vein"
-  /** 封印庫の封印。欠片で解く */
+  /** 封印庫の封印。銭で解く */
   | "seal"
   /** 属性の祭壇の属性 */
   | "element"
@@ -509,10 +510,10 @@ function useProp(state: GameState, room: RoomState, index: number, prop: RoomPro
   }
 }
 
-/** 封印庫: 欠片を払って封印を解くと、深い遺物が並ぶ */
+/** 封印庫: 銭を払って封印を解くと、深い遺物が並ぶ（鍵で開ける道は段取り 6c） */
 function openVault(state: GameState, prop: RoomProp): void {
-  if (!spendShards(state, ROOM_KIND.vaultCost)) {
-    sayAt(state, `欠片が足りない（${ROOM_KIND.vaultCost}）`, ROOM_KIND.vaultColor);
+  if (!spendCoins(state, ROOM_KIND.vaultCoinCost, "item")) {
+    sayAt(state, `銭が足りない（${ROOM_KIND.vaultCoinCost}）`, ROOM_KIND.vaultColor);
     return;
   }
   prop.used = true;
@@ -522,7 +523,7 @@ function openVault(state: GameState, prop: RoomProp): void {
   }
   spawnBurst(state, prop.pos, ROOM_KIND.vaultColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, "封印が解けた", ROOM_KIND.vaultColor);
-  pushLog(state, "欠片で封印庫を開けた。", ROOM_KIND.vaultColor);
+  pushLog(state, "銭で封印庫を開けた。", ROOM_KIND.vaultColor);
   pushSfx(state, "treasureOpen");
 }
 
