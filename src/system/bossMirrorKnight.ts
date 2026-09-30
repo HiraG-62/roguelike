@@ -9,7 +9,7 @@ import { fanDirections, fireEnemyBullet, followersOf, spawnSpot } from "./enemyT
 import { applyStagger, isStaggered } from "./poise";
 import { applyStatus } from "./statusEffects";
 import { phaseShift } from "./boss";
-import { type BossHooks, lungeStep, resetSequence, runBossCycle, toPlayer, walkToward } from "./bossKit";
+import { type BossHooks, lungeStep, resetSequence, runBossCycle, signatureOf, toPlayer, walkToward } from "./bossKit";
 
 /**
  * ボス: 鏡の騎士（docs/ideas/enemies.md B4「写し身」の騎士版。鏡の部屋と結び付く）。
@@ -165,3 +165,5 @@ export function mirrorKnightTelegraph(e: Enemy): EnemyTelegraph {
   return e.ai ? { kind: "line" } : null;
 }
 
+/** 署名の技（最深の主の第三の顔が借りる）: 剣の波 */
+export const MIRROR_KNIGHT_SIGNATURE = signatureOf("mirrorKnight", MIRROR_WAVE, HOOKS, mirrorKnightTelegraph);

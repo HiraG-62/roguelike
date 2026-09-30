@@ -99,6 +99,7 @@ export function createGame(
     terrain: createTerrainLayer(),
     corpses: [],
     boss: null,
+    bossLog: [],
     hiddenRoom: null,
     floorTime: 0,
     reaper: null,

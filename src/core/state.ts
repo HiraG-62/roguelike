@@ -377,6 +377,26 @@ export interface EnemyAi {
   hitCount?: number;
   /** 反応ルール: 間合い取り（プレイヤーから離れる）の残り秒 */
   retreat?: number;
+  /** ボスの読み（src/system/bossKit.ts の updateBossRead が毎ステップ書く。技の枝の材料） */
+  read?: BossReadMemory;
+  /** ボス: 行為で進む段階の数え（追い詰めのダウン・引火・壁激突・門柱） */
+  progress?: number;
+  /** スライム王: 呑んだ分裂体の数（消化し終えると回復。src/system/bossKingSlime.ts） */
+  digest?: number;
+  /** ボス: 今の連撃の何段目か（0 = 連撃でない。BossHooks.followUp が読む） */
+  chain?: number;
+}
+
+/** ボスがプレイヤーを読むための記憶（位置の差分から静止・遠さ・ダッシュを数える） */
+export interface BossReadMemory {
+  /** 前のステップのプレイヤーの位置 */
+  lastPos: Vec;
+  /** 止まっている秒（動くと 0） */
+  stillSec: number;
+  /** 前に技を選んでから遠い間合いにいた秒 */
+  farSec: number;
+  /** 最後にダッシュを見てからの秒 */
+  dashAgo: number;
 }
 
 export type HazardKind = "bomb" | "laser" | "shockwave" | "landing" | "boneWall";
@@ -433,6 +453,24 @@ export interface BossState {
   defeated: boolean;
   /** 5 の倍数の階の階層ボス（BOSS_ROTATION）。false は毎階の「階の主」（system/floorLord.ts） */
   major: boolean;
+  /** 部屋が封鎖されてからプレイヤーが受けた被弾の数（system/bossRecord.ts） */
+  hits?: number;
+  /** 部屋が封鎖された時点の floorTime（announceBoss が書く） */
+  lockedAt?: number;
+  /** 自傷のダウン（bossDown）の回数。怯みのダウン（poise.downs）と合わせて記録する */
+  selfDowns?: number;
+}
+
+/** 撃破したボスの記録（最深の主の「第三の顔」と QA が読む。system/bossRecord.ts） */
+export interface BossRecord {
+  key: string;
+  depth: number;
+  /** 封鎖から撃破までの秒 */
+  seconds: number;
+  /** 封鎖中の被弾の数 */
+  hits: number;
+  /** ダウンの回数（怯み + 自傷） */
+  downs: number;
 }
 
 /**
@@ -1048,6 +1086,8 @@ export interface GameState {
   terrainSeeds?: TerrainSeed[];
   /** このフロアのボス。ボス階以外は null */
   boss: BossState | null;
+  /** このランで撃破した階層ボスの記録（古い順。system/bossRecord.ts） */
+  bossLog: BossRecord[];
   /** このフロアの隠し部屋。無ければ null（system/hiddenRoom.ts が buildFloor の末尾で毎階作り直す） */
   hiddenRoom: HiddenRoom | null;
   /** 今のフロアに入ってからの経過秒 */

@@ -10,7 +10,7 @@ import { spawnLanding } from "./hazards";
 import { overlapsWall } from "./physics";
 import { applyStagger } from "./poise";
 import { phaseShift } from "./boss";
-import { type BossHooks, lungeStep, resetSequence, runBossCycle, toPlayer, walkToward } from "./bossKit";
+import { type BossHooks, lungeStep, resetSequence, runBossCycle, signatureOf, toPlayer, walkToward } from "./bossKit";
 import { placeTerrain } from "./terrain";
 
 /**
@@ -289,3 +289,6 @@ export function thiefKingTelegraph(e: Enemy): EnemyTelegraph {
   if (e.ai?.move === THIEF_DASH) return { kind: "line" };
   return null;
 }
+
+/** 署名の技（最深の主の第三の顔が借りる）: 地雷の扇（落下点の影 → 設置） */
+export const THIEF_KING_SIGNATURE = signatureOf("thiefKing", THIEF_MINE, HOOKS);
