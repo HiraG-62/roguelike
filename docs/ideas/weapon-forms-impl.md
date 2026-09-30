@@ -269,7 +269,7 @@ export type ManaSource =
   | { kind: "skillHit"; amount: number }          // 術士
   | { kind: "backstab"; amount: number }          // 影（背面・処刑）
   | { kind: "reaction"; amount: number }          // 錬金術師
-  | { kind: "minionHit"; amount: number }         // 陰泉師（式神 = 設置物・従魔）
+  | { kind: "minionHit"; amount: number }         // 陰陽師（式神 = 設置物・従魔）
   | { kind: "boonFired"; amount: number };        // 巫女（加護の Rule が発火）
 ```
 | 流儀 | dash | 実装（`system/dashForms.ts`。`tryDash` の `tryDashGuard` / `blink` 分岐を `runDashForm(state, form)` に置き換え）| mana |

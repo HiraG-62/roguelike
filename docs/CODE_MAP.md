@@ -44,7 +44,8 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `poise.ts` 怯みの蓄積・減衰・堅守・ダウン・処刑・背面の一撃（`addPoise` / `applyStagger` / `isStaggered` / `decayPoise` / `onStaggerEnd`）。敵の攻撃のコミット（`windupCommitted` 予備動作の後半は溜まらない / `attackCommitted` / strike 中に満ちた怯みは `settlePendingStagger` で攻撃の後へ先送り。予備動作の総秒は `Enemy.windupTotal`）。独立した `step` ステップは持たず `combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれる
 - `damageMods.ts` 与ダメの増・倍の集約（`buildContext` / `traitIncreased` / `collectMore`。`combat.ts` の `rollOutgoing` はこれだけを呼ぶ）
 - `reforge.ts` 改鋳の 3 択（5 の倍数の階のボスの後。`offerReforges` / `updateReforgeChoice`。祝福の 3 択と同じ入力経路）と flags の挙動（`tickReforges` ほか）
-- `dashForms.ts` 流儀のダッシュの形（不退の差し替え・退き足の向き・詰め足の連撃の引き継ぎ・秒と無敵・始まりと通過の効果・速さ）/ `manaSources.ts` 流儀の気力の源（`onManaSource` と各フック用の `note*`、起点画面の説明）
+- `dashForms.ts` 流儀のダッシュの形（陰陽師の入れ替わり swap・巫女の護り足 ward〔`wardIncomingMul`〕も。不退の差し替え・退き足の向き・詰め足の連撃の引き継ぎ・秒と無敵・始まりと通過の効果・速さ）/ `manaSources.ts` 流儀の気力の源（`onManaSource` と各フック用の `note*`、起点画面の説明）
+- `tomeBell.ts` 書・鈴の型の固有の仕組み（無詠唱 `freeCast`・書の再使用倍率 `formSkillCooldownMul`・鈴の打ち鳴らし `tollBell` と強化 `bellBuff`・`minionDamageMul`。呼び出しは `moments.ts` の `startSwingMoments` と `skills.ts`）
 - `formMarks.ts` 型の印（刃斧の傷・長柄の穂先・鎖の繋ぎ `Enemy.linked`・一蓮托生 `shareLinkedDamage`・束ね打ちの寄せ `gatherLinked`）
 - `morale.ts` 戦意の出し入れ（`gainMorale` / `tickMorale` / `beginSwingMorale` / `consumeShotRelease` / HUD の入口 `moraleGauge`・短銃の装填 `noteShotFired` / `tryPrimeReload`・砲の置いた弾 `placedShotCount`・導出の cast / flyingShots・放出の弾 `laneStepRelease` / `swingShotRelease` / 重打の溜め中の堅さ `chargeArmorOf`）/ `moments.ts` 共通の瞬間の 6 イベント（`tickFormState`〔tickTimers の直後〕/ `noteRiposte` / `noteHitMoments`〔damageEnemy〕/ `startSwingMoments` / `startShotMoments`）
 - `modifiers.ts` Rule 文法の常時の増・倍と「〜につき」（`Modifier`）。`collectModifiers`（装備 → 誓約 → ジョブ → 武器種 → 持続の奥義 → 祝福 → スキルスロット）/ `applyModifiers` / `countPer` / 見積もり `estimateModifiers`。`damageMods.ts` が呼ぶ
