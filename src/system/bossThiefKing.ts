@@ -1,24 +1,27 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
-import { BOSS, FEEL } from "../data/tuning";
-import { addFloatingText, shake, spawnBurst } from "./effects";
+import { BOSS } from "../data/tuning";
+import { TILE_SIZE, isWalkable, rectCenterPx } from "../map/grid";
+import { spawnBurst } from "./effects";
 import { type EnemyTelegraph, createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { blastBoth } from "./enemyTerrain";
 import { fanDirections, fireEnemyBullet, spawnSpot } from "./enemyTraits";
-import { spawnLanding } from "./hazards";
+import { spawnBoneWall, spawnLanding } from "./hazards";
 import { overlapsWall } from "./physics";
-import { applyStagger } from "./poise";
+import { isStaggered } from "./poise";
 import { phaseShift } from "./boss";
-import { type BossHooks, lungeStep, resetSequence, runBossCycle, signatureOf, toPlayer, walkToward } from "./bossKit";
+import { type BossHooks, type PlayerRead, bossDown, lungeStep, readPlayer, runBossCycle, signatureOf, toPlayer, walkToward } from "./bossKit";
 import { placeTerrain } from "./terrain";
 
 /**
  * ボス: 盗賊王（docs/ideas/enemies.md B3「逃げるボス」。3 部屋が連なる形は見送り、1 部屋の中で逃げ回る）。
- * 第 1 段階 = 距離を取って逃げながら短剣の扇・地雷・煙玉 / 第 2 段階 = 取り巻きを呼び、地雷を多く撒く /
- * 第 3 段階 = 開き直って突進と短剣で全力で戦う（逃げない）。
- * 部屋のギミック: 逃げ道が壁で塞がれた（壁際・角）ままプレイヤーに詰め寄られ続けると、追い詰められてダウンする。
- * 逃げ場の無い位置へ押し込むほど早く崩れる。予告: 短剣 = 扇 / 地雷 = 落下点の影 / 煙玉 = 足元の輪 / 突進 = 線
+ * 第 1 段階（逃げ撃ち）= 距離を取って逃げながら、プレイヤーの間合い・静止・ダッシュを読んで短剣の扇・地雷・煙玉を選ぶ /
+ * 第 2 段階（手下と地雷）= 取り巻きを呼び、地雷を多く撒く。始まりに部屋へ L 字の柵が立つ（角が増えて追い詰めやすい）/
+ * 第 3 段階（開き直り）= 生命が減るか、追い詰めのダウンが cornersToRage 回で、柵が崩れて突進と短剣で全力で戦う（逃げない）。
+ * 部屋のギミック: 逃げ道が壁で塞がれた（壁際・角・柵）ままプレイヤーに詰め寄られ続けると、追い詰められてダウンする。
+ * 逃げ場の無い位置へ押し込むほど早く崩れる。第 1・2 段階は技のあと離れる（一撃離脱）。
+ * 予告: 短剣 = 扇 / 地雷 = 落下点の影 / 煙玉 = 足元の輪 / 突進 = 線
  */
 
 const STAGE_ONE = 1;
@@ -29,16 +32,14 @@ export const THIEF_KNIFE = 0;
 export const THIEF_MINE = 1;
 export const THIEF_SMOKE = 2;
 export const THIEF_DASH = 3;
-const SEQUENCE: Readonly<Record<number, readonly number[]>> = {
-  [STAGE_ONE]: [THIEF_KNIFE, THIEF_MINE, THIEF_KNIFE, THIEF_SMOKE],
-  [STAGE_TRAPS]: [THIEF_MINE, THIEF_SMOKE, THIEF_KNIFE, THIEF_MINE],
-  [STAGE_CORNERED]: [THIEF_DASH, THIEF_KNIFE, THIEF_DASH, THIEF_MINE],
-};
 const FULL_CIRCLE = Math.PI * 2;
 const TRAPS_TEXT = "手下ども、出番だ";
 const CORNERED_TEXT = "開き直り";
 const DOWN_TEXT = "ダウン";
 const MINION_KEY = "thief";
+/** 柵を立てる部屋の 4 分割の中心（矩形の端から幅の 1/4）と、立てる数 */
+const QUARTER = 0.25;
+const FENCE_CORNERS = 2;
 const MINE_KEY = "enemyMine";
 /** 投げる技の攻撃の長さ（strikeTime に対する割合。すぐ隙へ移る） */
 const QUICK_STRIKE_RATIO = 0.3;
@@ -48,19 +49,15 @@ const MINE_MARK_RADIUS = 8;
 const SWEAT_EVERY = 6;
 const SWEAT_COLOR = "#c0e0ff";
 const SWEAT_PARTICLES = 3;
-/** 浮き文字の持ち上げ（px） */
-const TEXT_LIFT = 20;
-
-function sequenceOf(e: Enemy): readonly number[] {
-  return SEQUENCE[e.ai?.stage ?? STAGE_ONE] ?? SEQUENCE[STAGE_ONE] ?? [];
-}
 
 const HOOKS: BossHooks = {
   approach,
   beginWindup,
   beginStrike,
   tickStrike,
-  sequence: sequenceOf,
+  pickMove,
+  followUp,
+  recoverRetreatMul,
 };
 
 export function updateThiefKing(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
@@ -77,16 +74,130 @@ function advanceStage(state: GameState, e: Enemy): void {
   const k = BOSS.thiefKing;
   if (ai.stage === STAGE_ONE && e.hp <= e.maxHp * k.phase2Ratio) {
     phaseShift(state, e, TRAPS_TEXT, k.color, STAGE_TRAPS);
-    resetSequence(e, sequenceOf(e));
+    enterStage(state, e);
+    // 段階 2 の間の追い詰めだけを開き直りの数に入れる（段階 1 の分を持ち越すと入った直後に開き直る）
+    ai.progress = 0;
     summonThieves(state, e, k.minions[1] ?? 0);
+    raiseFence(state, e);
     return;
   }
-  if (ai.stage === STAGE_TRAPS && e.hp <= e.maxHp * k.phase3Ratio) {
+  // 規則 1（行為で進む段階）: 追い詰めのダウンが cornersToRage 回で、生命に関わらず開き直る。生命は保険
+  if (ai.stage === STAGE_TRAPS && (e.hp <= e.maxHp * k.phase3Ratio || (ai.progress ?? 0) >= k.cornersToRage)) {
     phaseShift(state, e, CORNERED_TEXT, k.color, STAGE_CORNERED);
-    resetSequence(e, sequenceOf(e));
+    enterStage(state, e);
     summonThieves(state, e, k.minions[2] ?? 0);
     ai.cornered = 0;
+    dropFence(state, e);
   }
+}
+
+/** 段階が変わった: 交互に選ぶ数えを戻し、追跡中なら新しい段階の技を選び直す（攻撃の最中なら今の技を出し切る） */
+function enterStage(state: GameState, e: Enemy): void {
+  const ai = e.ai;
+  if (!ai) return;
+  ai.counter = 0;
+  if (e.phase === "chase") ai.move = pickMove(state, e, readPlayer(state, e));
+}
+
+// -----------------------------------------------------------------------------
+// 技の選び（規則 4。乱数なし。交互は ai.counter の偶奇）
+// -----------------------------------------------------------------------------
+
+function pickMove(_state: GameState, e: Enemy, read: PlayerRead): number {
+  const ai = e.ai;
+  if (!ai) return THIEF_KNIFE;
+  ai.counter += 1;
+  const odd = ai.counter % 2 === 1;
+  switch (ai.stage) {
+    case STAGE_TRAPS:
+      return pickTraps(read, odd);
+    case STAGE_CORNERED:
+      // 開き直り: 近ければ怒りの扇、それ以外は突進
+      return read.band === "near" ? THIEF_KNIFE : THIEF_DASH;
+    default:
+      return pickOpening(read, odd);
+  }
+}
+
+/** 逃げ撃ち: 遠ければ短剣、ダッシュで詰めてきた相手には煙玉、止まっていれば地雷、他は短剣と地雷を交互 */
+function pickOpening(read: PlayerRead, odd: boolean): number {
+  if (read.band === "far") return THIEF_KNIFE;
+  if (read.dashedRecently) return THIEF_SMOKE;
+  if (read.stillSec >= BOSS.rules.stillSec) return THIEF_MINE;
+  return odd ? THIEF_MINE : THIEF_KNIFE;
+}
+
+/** 手下と地雷: 遠ければ地雷（追ってくる道を塞ぐ）、近ければ煙玉、中は短剣と地雷を交互（地雷を多く撒く） */
+function pickTraps(read: PlayerRead, odd: boolean): number {
+  if (read.band === "far") return THIEF_MINE;
+  if (read.band === "near") return THIEF_SMOKE;
+  return odd ? THIEF_MINE : THIEF_KNIFE;
+}
+
+/**
+ * 連撃（開き直りだけ）: 怒りの扇はもう 1 扇、突進は壁に当たらなかったもう 1 度。
+ * 壁激突で怯んだ突進は続けない（見えるダウンの隙を潰さない）
+ */
+function followUp(_state: GameState, e: Enemy, done: number): number | null {
+  const ai = e.ai;
+  if (!ai || ai.stage !== STAGE_CORNERED || isStaggered(e)) return null;
+  const k = BOSS.thiefKing;
+  const chain = ai.chain ?? 0;
+  if (done === THIEF_KNIFE) return chain < k.rageKnifeChain ? THIEF_KNIFE : null;
+  if (done === THIEF_DASH) return chain < k.dashChain ? THIEF_DASH : null;
+  return null;
+}
+
+/** 第 1・2 段階は技のあと離れる（一撃離脱）。開き直りは離れない */
+function recoverRetreatMul(e: Enemy): number {
+  return e.ai?.stage === STAGE_CORNERED ? 0 : BOSS.thiefKing.retreatMul;
+}
+
+// -----------------------------------------------------------------------------
+// 柵（第 2 段階の部屋の変化）
+// -----------------------------------------------------------------------------
+
+/**
+ * 部屋を 4 分割した中心のうち王から遠い 2 か所に、部屋の中心へ向けた L 字の柵を立てる。
+ * 角が増えるので追い詰めやすい。位置は部屋の矩形の幾何だけで決める（乱数なし）
+ */
+function raiseFence(state: GameState, e: Enemy): void {
+  const room = state.rooms[e.roomIndex];
+  if (!room) return;
+  const r = room.rect;
+  const centers = [
+    { x: Math.floor(r.x + r.w * QUARTER), y: Math.floor(r.y + r.h * QUARTER) },
+    { x: Math.floor(r.x + r.w * (1 - QUARTER)), y: Math.floor(r.y + r.h * QUARTER) },
+    { x: Math.floor(r.x + r.w * QUARTER), y: Math.floor(r.y + r.h * (1 - QUARTER)) },
+    { x: Math.floor(r.x + r.w * (1 - QUARTER)), y: Math.floor(r.y + r.h * (1 - QUARTER)) },
+  ];
+  const middle = rectCenterPx(r);
+  const farFromKing = (c: { x: number; y: number }): number => Math.hypot((c.x + 0.5) * TILE_SIZE - e.body.pos.x, (c.y + 0.5) * TILE_SIZE - e.body.pos.y);
+  const chosen = centers
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => farFromKing(b.c) - farFromKing(a.c) || a.i - b.i)
+    .slice(0, FENCE_CORNERS);
+  for (const { c } of chosen) {
+    const dx = (c.x + 0.5) * TILE_SIZE < middle.x ? 1 : -1;
+    const dy = (c.y + 0.5) * TILE_SIZE < middle.y ? 1 : -1;
+    for (const tile of lShape(c.x, c.y, dx, dy, BOSS.thiefKing.fenceLen)) {
+      if (!isWalkable(state.map, tile.x, tile.y)) continue;
+      spawnBoneWall(state, tile.x, tile.y, { time: BOSS.thiefKing.fenceTime, hp: BOSS.thiefKing.fenceHp, sourceKey: e.defKey });
+    }
+  }
+}
+
+/** 角のタイル (x, y) から dx 向きと dy 向きへ len マスずつ伸びる L 字（角は 1 度だけ） */
+function lShape(x: number, y: number, dx: number, dy: number, len: number): { x: number; y: number }[] {
+  const tiles = [];
+  for (let i = 0; i < len; i++) tiles.push({ x: x + dx * i, y });
+  for (let i = 1; i < len; i++) tiles.push({ x, y: y + dy * i });
+  return tiles;
+}
+
+/** 開き直りで柵はすべて崩れる（時間切れと同じ経路で lockedTiles を戻す） */
+function dropFence(state: GameState, e: Enemy): void {
+  for (const h of state.hazards) if (h.kind === "boneWall" && h.sourceKey === e.defKey) h.time = 0;
 }
 
 /** ボス部屋に最初から手下を置く（部屋の封鎖と同時に動き出す） */
@@ -167,10 +278,8 @@ function pressCornered(state: GameState, e: Enemy, dt: number): void {
   if (ai.cornered < k.cornerTime || ai.timer > 0) return;
   ai.cornered = 0;
   ai.timer = k.cornerCooldown;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, DOWN_TEXT, k.color, 1.5, 1.1);
-  shake(state, FEEL.shakeHeavy);
-  pushSfx(state, "wallHit");
-  applyStagger(state, e, k.cornerStagger, { selfInflicted: true });
+  // 追い詰めのダウンの数が段階 2 → 3 の条件（開き直り）
+  if (bossDown(state, e, k.cornerStagger, DOWN_TEXT, k.color)) ai.progress = (ai.progress ?? 0) + 1;
 }
 
 /** 追い詰められかけている割合（0..1。描画・テスト用） */
@@ -274,9 +383,7 @@ function tickStrike(state: GameState, e: Enemy, def: EnemyDef, dt: number): bool
   const k = BOSS.thiefKing;
   const step = lungeStep(state, e, def, k.dashSpeedMul, dt);
   if (step.wall) {
-    shake(state, FEEL.shakeHeavy);
-    pushSfx(state, "wallHit");
-    applyStagger(state, e, k.wallStagger, { selfInflicted: true });
+    bossDown(state, e, k.wallStagger, DOWN_TEXT, k.color);
     return true;
   }
   return step.touched;

@@ -100,8 +100,16 @@ function syncLanding(state: GameState, h: Hazard): void {
   if (h.followSource) h.pos = { ...source.body.pos };
 }
 
+/** 一時的な壁の数値（省略時は骸骨卿の骨の壁）。盗賊王の柵など、別の持ち主が耐久と寿命を決める */
+export interface BoneWallSpec {
+  time: number;
+  hp: number;
+  /** 出した敵の種類（描画が色を分ける） */
+  sourceKey?: string;
+}
+
 /** 一時的な壁タイル。lockedTiles を流用し、時間切れで消える */
-export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard | null {
+export function spawnBoneWall(state: GameState, tx: number, ty: number, spec?: BoneWallSpec): Hazard | null {
   const tile = toIndex(state.map, tx, ty);
   if (state.lockedTiles.has(tile)) return null;
   const pos = { x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE };
@@ -112,8 +120,10 @@ export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard 
     if (Math.abs(b.pos.x - pos.x) < half + b.radius && Math.abs(b.pos.y - pos.y) < half + b.radius) return null;
   }
   state.lockedTiles.add(tile);
-  const wall = addHazard(state, { kind: "boneWall", pos, radius: half, time: BOSS.boneLord.wallDuration, damage: 0, tile });
-  wall.hp = BOSS.boneLord.wallHp;
+  const time = spec?.time ?? BOSS.boneLord.wallDuration;
+  const wall = addHazard(state, { kind: "boneWall", pos, radius: half, time, damage: 0, tile });
+  wall.sourceKey = spec?.sourceKey;
+  wall.hp = spec?.hp ?? BOSS.boneLord.wallHp;
   return wall;
 }
 
