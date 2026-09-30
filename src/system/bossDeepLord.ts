@@ -19,7 +19,7 @@ import { phaseShift } from "./boss";
 import { noteBossDown } from "./bossRecord";
 import { type BossHooks, type BossSignature, type PlayerRead, bossDown, lungeStep, runBossCycle, toPlayer, walkToward } from "./bossKit";
 import { KING_SLIME_SIGNATURE } from "./bossKingSlime";
-import { THIEF_KING_SIGNATURE } from "./bossThiefKing";
+import { THIEF_KING_SIGNATURE, clearMinesOf } from "./bossThiefKing";
 import { OIL_KING_SIGNATURE } from "./bossOilKing";
 import { MIRROR_KNIGHT_SIGNATURE } from "./bossMirrorKnight";
 
@@ -293,6 +293,8 @@ function keepInside(state: GameState, e: Enemy): boolean {
  * 階段と地上への道へ歩いて行けるように（階を出れば地形の層と予約は階ごと捨てられる）
  */
 export function settleDeepLordRoom(state: GameState, e: Enemy): void {
+  // 盗賊王の地雷を借りて置いた分（残ると部屋の封鎖が解けない）
+  clearMinesOf(state, e);
   for (const pillar of gatePillarsOf(state, e)) {
     pillar.vanished = true;
     pillar.hp = 0;

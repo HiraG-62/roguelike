@@ -10,7 +10,7 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { damageEnemy } from "./combat";
 import { eliteDisplayName } from "./elites";
 import { ascend, descend, withBaseAreaMul } from "./floor";
-import { createNemesisRun } from "./nemesis";
+import { createNemesisRun, placeNemesis } from "./nemesis";
 import { type RunMetaSetup, emptyRunMeta } from "./runMeta";
 import type { RunSetup } from "./runSetup";
 import { withInput } from "./testHelpers";
@@ -140,5 +140,28 @@ describe("仇", () => {
   it("名札の頭に仇・", () => {
     const e = nemeses(start(4, metaWith()))[0];
     expect(e && eliteDisplayName(e).startsWith("仇・")).toBe(true);
+  });
+
+  it("縛り「精鋭の群れ」で生成のフックが精鋭にしても、仇の生命は精鋭の倍率が二重に掛からない", () => {
+    const setup: RunSetup = { origin: "wanderer", modifiers: ["eliteSwarm"], startDepth: 4 };
+    const state = withBaseAreaMul(() => createGame(SEED, String(SEED), createEmptyProfile(), createDefaultSkillProfile(), setup));
+    for (const e of nemeses(state)) state.enemies.splice(state.enemies.indexOf(e), 1);
+    const spec = { key: "wolf", elites: ["hasted"] as EliteKind[], depth: 5 };
+    // フックの精鋭の抽選（chance）を常に当たり / 常に外れにして、同じ陣・同じ位置に仇を置いた生命を比べる
+    const placeWith = (hit: boolean): Enemy => {
+      const original = state.rng.chance;
+      state.rng.chance = () => hit;
+      state.nemesis = createNemesisRun(spec);
+      placeNemesis(state);
+      state.rng.chance = original;
+      const e = nemeses(state)[0];
+      if (!e) throw new Error("仇がいない");
+      state.enemies.splice(state.enemies.indexOf(e), 1);
+      return e;
+    };
+    const always = placeWith(true);
+    const never = placeWith(false);
+    expect(always.maxHp, "フックの精鋭の抽選が当たっても生命は同じ").toBe(never.maxHp);
+    expect(always.elite, "記録の修飾子が主").toBe("hasted");
   });
 });

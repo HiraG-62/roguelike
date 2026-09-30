@@ -1,5 +1,5 @@
 import { rollSpread } from "../core/scale";
-import { type Enemy, type GameState, type Jin, ROAMING_ROOM, type RoomState } from "../core/state";
+import { type EliteKind, type Enemy, type GameState, type Jin, ROAMING_ROOM, type RoomState } from "../core/state";
 import { type Vec, add, clamp, dist, lerp, normalize, sub } from "../core/vec";
 import { type EnemyDef, enemiesForDepth } from "../data/enemies";
 import { type EnemyGrade, type EnemyRole, roleOf } from "../data/enemyRoles";
@@ -373,6 +373,9 @@ function spawnMember(state: GameState, jin: Jin, member: MemberPlan, pos: Vec): 
   return e;
 }
 
+/** addJinMember が生成のフックの精鋭化を飛ばすための仮の印（フックの後で外すので残らない） */
+const PLACEHOLDER_ELITE: EliteKind = "hasted";
+
 /**
  * 置き終えた陣に 1 人足す（仇。system/nemesis.ts）。want の近くの空きに置き、置けなければ null。
  * 格・精鋭・群勢は呼び元が決める（ここは生成 → 陣の生命の揺らぎ → 生成のフック → push だけ）
@@ -385,7 +388,11 @@ export function addJinMember(state: GameState, jin: Jin, def: EnemyDef, want: Ve
   const e = createEnemy(state, def, pos, jin.roomIndex, false);
   e.jinId = jin.id;
   applyHpMul(e, jin.hpMul);
+  // 生成のフックは「精鋭でない敵」にだけ精鋭の抽選を引く。仇の精鋭は呼び元が記録から決める（生命の倍率が二重に掛かる）ので、
+  // 仮の印を付けてフックの精鋭化を飛ばし、フックの後で外す（生命の倍率など精鋭以外の効果はそのまま掛かる）
+  e.elite = PLACEHOLDER_ELITE;
   onRunEnemySpawned(state, e);
+  delete e.elite;
   state.enemies.push(e);
   return e;
 }

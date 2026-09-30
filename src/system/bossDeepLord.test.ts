@@ -19,7 +19,7 @@ import {
   gatePillarsOf,
 } from "./bossDeepLord";
 import { damageEnemy } from "./combat";
-import { updateEnemies } from "./enemies";
+import { createEnemy, updateEnemies } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { buildFloor } from "./floor";
 import { updateHazards } from "./hazards";
@@ -362,6 +362,24 @@ describe("最深の主: 後始末と決定性", () => {
     tick(state, secs(K.collapseFade) + 2);
     expect(isLava(state, edgeTile(rect, 0)), "溶岩は消える").toBe(false);
     expect(isLava(state, rectCenterPx(rect)), "階段").toBe(false);
+  });
+
+  it("借りた技で置いた地雷は、倒れると消える（残ると部屋の封鎖が解けない）", () => {
+    const { state, boss } = lordFloor();
+    const def = enemyDef("enemyMine");
+    for (let i = 0; i < 2; i++) {
+      const mine = createEnemy(state, def, { x: boss.body.pos.x + 30 * (i + 1), y: boss.body.pos.y }, boss.roomIndex, false);
+      mine.leaderId = boss.id;
+      mine.revived = true;
+      mine.phase = "chase";
+      state.enemies.push(mine);
+    }
+    const minesOf = (): Enemy[] => state.enemies.filter((e) => e.defKey === "enemyMine" && e.leaderId === boss.id);
+    expect(minesOf(), "置いてある").toHaveLength(2);
+    boss.hp = 0;
+    tick(state, 2);
+    expect(state.boss?.defeated).toBe(true);
+    expect(minesOf(), "地雷は残らない").toHaveLength(0);
   });
 
   it("1 回目の陥没だけで倒れても、まだ崩れていない外周は撃破の瞬間に溶岩にならない", () => {
