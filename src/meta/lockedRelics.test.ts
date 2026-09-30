@@ -44,18 +44,18 @@ describe("依頼報酬の遺物の除外: 生成", () => {
 describe("依頼報酬の遺物の除外: リプレイ", () => {
   it("記録に除外集合が入り、再生のランも同じ集合で始まる", () => {
     const seedText = "locked-relics";
-    const setup: RunSetup = { origin: "wanderer", modifiers: [], lockedRelics: ["unshakenScale", "lastBell"] };
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], lockedRelics: ["herdFlute", "bellTongue"] };
     const profile = createEmptyProfile();
     const skillProfile = createDefaultSkillProfile();
     const recorder = new ReplayRecorder({ seedText, startedAt: 1, daily: false, setup }, profile, skillProfile);
     const state = createGame(hashSeed(seedText), seedText, profile, skillProfile, setup);
-    expect(state.lockedRelics, "ランに写る").toEqual(["unshakenScale", "lastBell"]);
+    expect(state.lockedRelics, "ランに写る").toEqual(["herdFlute", "bellTongue"]);
     for (let i = 0; i < 5; i++) step(state, recorder.record(EMPTY_INPUT), FIXED_DT);
     const data = recorder.finish({ depth: state.depth, kills: state.kills, score: state.score }, 2);
     const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
-    expect(loaded?.lockedRelics, "保存の往復").toEqual(["unshakenScale", "lastBell"]);
+    expect(loaded?.lockedRelics, "保存の往復").toEqual(["herdFlute", "bellTongue"]);
     if (!loaded) throw new Error("sanitize failed");
-    expect(createReplaySession(loaded).state.lockedRelics, "再生側").toEqual(["unshakenScale", "lastBell"]);
+    expect(createReplaySession(loaded).state.lockedRelics, "再生側").toEqual(["herdFlute", "bellTongue"]);
   });
 
   it("除外が無い旧データは [] で再生する", () => {

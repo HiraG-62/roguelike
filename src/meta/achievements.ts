@@ -95,7 +95,8 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "bossAll", name: "王たちの墓標", desc: "すべての種類のボスを倒す。", check: (c) => BOSS_KEYS.length > 0 && bossesKilled(c) >= BOSS_KEYS.length },
   { key: "relic1", name: "名を知る者", desc: "名のある遺物を 1 つ手に入れる。", check: (c) => c.codex.relics.length >= 1 },
   { key: "relic10", name: "蒐集家", desc: "名のある遺物を 10 種類手に入れる。", check: (c) => c.codex.relics.length >= 10 },
-  { key: "relic25", name: "宝物庫の主", desc: "名のある遺物を 25 種類手に入れる。", check: (c) => c.codex.relics.length >= 25 },
+  // key は旧名のまま（名のある遺物は 18 種になった。docs/ideas/relics-7d-plan.md 3 章）
+  { key: "relic25", name: "宝物庫の主", desc: "名のある遺物を 18 種類手に入れる。", check: (c) => c.codex.relics.length >= 18 },
   { key: "boon20", name: "祝福を知る", desc: "祝福を 20 種類受ける。", check: (c) => c.codex.boons.length >= 20 },
   { key: "boon60", name: "祝福の書", desc: "祝福を 60 種類受ける。", check: (c) => c.codex.boons.length >= 60 },
   { key: "cursed5", name: "呪いの友", desc: "呪い付きの祝福を 5 種類受ける。", check: (c) => cursedBoonsTaken(c) >= 5 },

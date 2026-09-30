@@ -1,11 +1,14 @@
 import { createIncreased } from "../core/damage";
 import { describe, expect, it } from "vitest";
+import { createRng } from "../core/rng";
 import { MOVESET_KEYS } from "../data/weapons";
 import { affixDef, applyRoll, formatAffix, implicitDef, traitsFor } from "./affixes";
 import { BASES, baseDef } from "./bases";
 import { BASE_LEAN } from "./colors";
 import { RECALL_COST, craftEcho, createEchoWallet, echoCost, pourGrowth, pouredProvenance, recallBud, type EchoCraftState } from "./crafting";
+import { rollUniqueAffixes } from "./generator";
 import { fillProvenanceCounters } from "./migrate";
+import { UNIQUES } from "./named";
 import { loadProfile, saveProfile } from "./profile";
 import { bumpProvenance, makeBudOffer, milestoneDef } from "./provenance";
 import { computeStats } from "./stats";
@@ -216,6 +219,25 @@ describe("第 2 弾のベース（10 種以上）", () => {
     const eq2 = createEmptyEquipment();
     eq2.mainHand = item("mainHand", [], { baseKey: "sickle", implicit: { key: "implicit.sickle", value: 25 } });
     expect(computeStats(eq2).infuse.dark).toBeCloseTo(0.25);
+  });
+});
+
+describe("名のある遺物（段取り 7d の 18）", () => {
+  it("全て生成でき、ベースが実在し、銘の一文を持つ", () => {
+    expect(UNIQUES.length).toBeGreaterThanOrEqual(18);
+    for (const def of UNIQUES) {
+      const key = def.key;
+      expect(baseDef(def.baseKey), key).toBeDefined();
+      expect(def.flavor?.length ?? 0, key).toBeGreaterThan(0);
+      const rolls = rollUniqueAffixes(createRng(3), def, def.minLevel);
+      expect(rolls.length, key).toBe(def.affixes.length + (def.keystone === undefined ? 0 : 1));
+      if (def.keystone !== undefined) expect(rolls.some((r) => r.key === def.keystone), key).toBe(true);
+    }
+  });
+
+  it("key は重複しない", () => {
+    const keys = UNIQUES.map((u) => u.key);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

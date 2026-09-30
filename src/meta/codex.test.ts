@@ -216,4 +216,9 @@ describe("図鑑: 永続化", () => {
     expect(parsed?.enemyKills, "負の回数は捨てる").toEqual({});
     expect(parsed?.chains, "未知の語の連鎖は捨てる").toEqual({});
   });
+
+  it("段取り 7d で消えた名のある遺物は写し先へ、写し先の無いものは落とす（重なりは 1 つ）", () => {
+    const parsed = parseCodexSave({ version: 1, relics: ["matedFangs", "widowmaker", "twinSerpent", "readersCirclet", 3] });
+    expect(parsed?.relics).toEqual(["twinSerpent", "starReader"]);
+  });
 });

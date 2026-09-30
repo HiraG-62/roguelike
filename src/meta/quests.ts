@@ -228,7 +228,7 @@ function depthIf(ok: boolean, depth: number): number {
 export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   burnout: { name: "燃え尽き", desc: "燃焼中の敵を 50 体倒す。", goal: 50, measure: (s) => s.burnKills, reward: { kind: "title", title: "灰を撒く者" } },
   steamHand: { name: "蒸気の手", desc: "蒸発（燃焼 + 冷気）を 10 回起こす。", goal: 10, measure: (s) => s.vaporizes, reward: { kind: "page", page: "link" } },
-  shaker: { name: "揺さぶり", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "unshakenScale" } },
+  shaker: { name: "揺さぶり", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "herdFlute" } },
   oathless: {
     name: "誓約を持たずに",
     desc: "誓約を一度も持たずに地下 5 階へ着く。",
@@ -237,13 +237,13 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
     reward: { kind: "title", title: "誓わぬ者" },
   },
   alchemist: { name: "反応の目録", desc: "状態異常の反応を 10 種類起こす。", goal: 10, measure: (s) => s.reactionKinds, reward: { kind: "origin", origin: "chanter" } },
-  comboArtist: { name: "連携の稽古", desc: "スキルの連携を 5 回決める。", goal: 5, measure: (s) => s.skillCombos, reward: { kind: "relic", relic: "chantRosary" } },
-  hordeBreaker: { name: "巣窟崩し", desc: "巣窟を 3 つ制圧する。", goal: 3, measure: (s) => s.hordesCleared, reward: { kind: "relic", relic: "lastBell" } },
-  kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "kingslayerCollar" } },
+  comboArtist: { name: "連携の稽古", desc: "スキルの連携を 5 回決める。", goal: 5, measure: (s) => s.skillCombos, reward: { kind: "relic", relic: "pilgrimBeads" } },
+  hordeBreaker: { name: "巣窟崩し", desc: "巣窟を 3 つ制圧する。", goal: 3, measure: (s) => s.hordesCleared, reward: { kind: "relic", relic: "bellTongue" } },
+  kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "plainBlade" } },
   untouched: { name: "無傷の階", desc: "1 度も被弾せずに階段を降りる。", goal: 1, measure: (s) => s.floorsNoHurt, reward: { kind: "page", page: "enemy" } },
   justDancer: { name: "見切りの舞", desc: "見切りを 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "job", job: "shadow" } },
-  counterman: { name: "返し手", desc: "カウンターを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "returningSwallow" } },
-  plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "contagionFang" } },
+  counterman: { name: "返し手", desc: "カウンターを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "starReader" } },
+  plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "layeredNecklace" } },
   cursedDepth: {
     name: "呪いを抱く",
     desc: "呪い付きの祝福を 2 つ持ったまま地下 4 階へ着く。",

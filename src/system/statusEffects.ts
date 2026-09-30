@@ -26,6 +26,7 @@ import { emitNoise } from "./noise";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { noteStatusTickMana } from "./manaSources";
 import { isAllied } from "./rules";
+import { relicStatusApply } from "./namedRelics";
 import {
   hueMatchesResonance,
   onEffectEnded,
@@ -389,7 +390,7 @@ export function applyStatus(
     duration = Math.min(duration, ccAllowance(bag));
     if (duration < CC_MIN_DURATION) return false;
   }
-  if (!mergeEffect(state, target, bag, apply, potency, duration, source)) return false;
+  if (!mergeEffect(state, target, bag, relicStatusApply(state, target, apply, source), potency, duration, source)) return false;
   if (limited) spendCc(bag, duration);
   afterApply(state, target, apply.kind, source);
   onStatusAppliedFx(state, target.kind === "enemy" ? target.enemy : null, apply.kind, isBossTarget(target));

@@ -1,12 +1,15 @@
 import type { BoonAction, BuildChange } from "../core/build";
-import type { KeywordProfile } from "../core/keywords";
-import type { Modifier, Rule } from "../core/rules";
+import type { DamageTag } from "../core/damage";
+import type { EventKind, EventSource } from "../core/events";
+import { type KeywordProfile, kw } from "../core/keywords";
+import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { RELIC } from "../data/tuning";
 import { baseDef } from "./bases";
 import { type Equipment, type PlayerStats, type Slot, SLOTS } from "./types";
 
 /**
- * 名のある遺物（旧 unique）。性質は固定（値は小さく揺らぐ）、誓約も固定。
- * docs/LOOT_DESIGN.md「名のある遺物」
+ * 名のある遺物（旧 unique）。18 個すべてが固有の Rule / Modifier / apply / engine の分岐（system/namedRelics.ts）を持つ。
+ * 性質は固定（値は小さく揺らぐ）。docs/LOOT_DESIGN.md「名のある遺物」、docs/ideas/relics-7d-plan.md 3 章
  */
 
 export interface UniqueAffixSpec {
@@ -40,735 +43,364 @@ export interface UniqueDef {
   margin?: number;
 }
 
-export const UNIQUES: readonly UniqueDef[] = [
-  {
-    key: "widowmaker",
-    name: "喪服の剣",
-    baseKey: "greatsword",
-    minLevel: 14,
-    keystone: "ks_berserker",
-    flavor: "命が削れるほど、その一振りは重くなる。",
-    affixes: [
-      { key: "meleeDamagePct" },
-      { key: "critMultiplier" },
-      { key: "lifeOnKill" },
-      { key: "knockback" },
-    ],
-  },
-  {
-    key: "hailstormEngine",
-    name: "雹嵐機関",
-    baseKey: "smg",
-    minLevel: 10,
-    keystone: "ks_overclock",
-    flavor: "引き金を引くたび、己の一部が飛び散る。",
-    affixes: [
-      { key: "projectiles" },
-      { key: "fireRate" },
-      { key: "chill" },
-      { key: "pierce" },
-      { key: "cv_splitToPierce" },
-    ],
-  },
-  {
-    key: "heartOfTheMountain",
-    name: "山の心臓",
-    baseKey: "plate",
-    minLevel: 18,
-    keystone: "ks_juggernaut",
-    flavor: "鈍く、重い。その重さが、そのまま力になる。",
-    affixes: [
-      { key: "maxLife" },
-      { key: "maxLifePct" },
-      { key: "thorns" },
-      { key: "damageTaken" },
-      { key: "cv_lifeToArmor" },
-    ],
-  },
-  {
-    key: "stormstriders",
-    name: "嵐脚",
-    baseKey: "greaves",
-    minLevel: 14,
-    keystone: "ks_blink",
-    flavor: "雷鳴より先に、お前はそこに立っている。",
-    affixes: [
-      { key: "moveSpeed" },
-      { key: "dashCharge" },
-      { key: "shock" },
-      { key: "dashCooldown" },
-    ],
-  },
-  {
-    key: "eyeOfTheTempest",
-    name: "颶風の瞳",
-    baseKey: "lapisAmulet",
-    minLevel: 12,
-    keystone: "ks_gambler",
-    flavor: "必殺はいつも賭けだ。当たれば、部屋ごと吹き飛ぶ。",
-    affixes: [
-      { key: "burstDamage" },
-      { key: "burstRadius" },
-      { key: "energyGain" },
-      { key: "comboWindow" },
-      { key: "explodeOnKill" },
-    ],
-  },
+/** 名のある遺物の数え（boonRun.tallies の key。ラン内で消える）。Rule の tally と Modifier の per が同じ key を読む */
+export function relicTallyKey(key: string): string {
+  return `relic:${key}`;
+}
 
-  // ---- 追加 10 種: 各スロット 2 つ以上、出始め ilvl は 4〜20 でばらす ----
+/** 名のある遺物の Rule / Modifier の持ち主（出どころの表示・ICD の鍵） */
+function relicOwner(key: string): EventSource {
+  return { kind: "item", key };
+}
+
+/** Rule の書きかけ（id・持ち主・既定の確率 / ICD / scope は relicRules が埋める） */
+interface RelicRuleSpec {
+  when: EventKind;
+  if?: readonly RuleCondition[];
+  then: RuleEffect;
+  icd?: number;
+}
+
+function relicRules(key: string, specs: readonly RelicRuleSpec[]): Rule[] {
+  const owner = relicOwner(key);
+  return specs.map((s, i) => ({ id: ruleId(owner, i), when: s.when, if: s.if ?? [], then: s.then, chance: 1, icd: s.icd ?? 0, scope: SCOPE_ANY, owner }));
+}
+
+type RelicModifierSpec = Omit<Modifier, "id" | "owner" | "label" | "if"> & { if?: readonly RuleCondition[] };
+
+/** Modifier の id は Rule と分けて "m" を付ける（倍の出所 "mod:<id>" が Rule の id と重ならない） */
+function relicModifiers(key: string, label: string, specs: readonly RelicModifierSpec[]): Modifier[] {
+  const owner = relicOwner(key);
+  return specs.map((s, i) => ({ ...s, id: `${ruleId(owner, i)}m`, if: s.if ?? [], owner, label }));
+}
+
+/** 数え key を 0 に戻す Rule の効果（magnitude −1 × 今の数え） */
+function resetTally(tally: string): RuleEffect {
+  return { kind: "tally", magnitude: -1, scaleBy: "counter", counter: { kind: "tally", key: tally }, key: tally };
+}
+
+function addTallyEffect(tally: string): RuleEffect {
+  return { kind: "tally", magnitude: 1, key: tally };
+}
+
+/** 数えが lo..hi の間（賽の目・1 階 1 回） */
+function tallyBetween(tally: string, atLeast?: number, atMost?: number): RuleCondition {
+  return {
+    kind: "counter",
+    counter: { kind: "tally", key: tally },
+    ...(atLeast === undefined ? {} : { atLeast }),
+    ...(atMost === undefined ? {} : { atMost }),
+  };
+}
+
+// ---- 遺物ごとの固有（数値は balance/loot/RELIC.json。docs/ideas/relics-7d-plan.md 3 章） ----
+
+const TWIN_SERPENT = "twinSerpent";
+const TWIN_TALLY = relicTallyKey(TWIN_SERPENT);
+const BELL_TONGUE = "bellTongue";
+const BELL_TALLY = relicTallyKey(BELL_TONGUE);
+const DRAGON_SCALE = "dragonScale";
+/** 起死の鱗の 1 階 1 回の数え（階の到着で system/namedRelics.ts が 0 に戻す） */
+export const DRAGON_SCALE_TALLY = relicTallyKey(DRAGON_SCALE);
+const DICE_RING = "diceRing";
+/** 賽の目の指輪の目（階の到着で system/namedRelics.ts が振る。0 = まだ振っていない） */
+export const DICE_TALLY = relicTallyKey(DICE_RING);
+const WANDER_SHOES = "wanderShoes";
+/** 旅人の靴の歩いた距離（px。system/namedRelics.ts の relicStride が足す） */
+export const STRIDE_TALLY = relicTallyKey(WANDER_SHOES);
+const PLAIN_BLADE = "plainBlade";
+/** 鐘の一掃の輪の色 / 起死の鱗の凍結の輪の色 */
+const BELL_COLOR = "#ffe0a0";
+const DRAGON_COLOR = "#a0e0ff";
+
+/** 賽の目 1..5 のタグ（6 は全部） */
+const DICE_TAGS: readonly DamageTag[] = ["melee", "ranged", "skill", "dot", "ultimate"];
+/** 全部の目（6） */
+const DICE_ALL_FACE = DICE_TAGS.length + 1;
+
+function diceModifiers(): RelicModifierSpec[] {
+  const faces: RelicModifierSpec[] = DICE_TAGS.map((tag, i) => ({ kind: "more", tag, amount: RELIC.diceRing.tagMul, if: [tallyBetween(DICE_TALLY, i + 1, i + 1)] }));
+  faces.push({ kind: "more", tag: "all", amount: RELIC.diceRing.allMul, if: [tallyBetween(DICE_TALLY, DICE_ALL_FACE, DICE_ALL_FACE)] });
+  return faces;
+}
+
+/** 起死の鱗: 生命が 3 割を切った被弾で（1 階に 1 回）。凍結 → 無敵 → 数え +1 の順（数えを先に進めると後の 2 つが外れる） */
+const DRAGON_IF: readonly RuleCondition[] = [
+  { kind: "counter", counter: { kind: "missingHpTenths" }, atLeast: RELIC.dragonScale.missingTenths },
+  tallyBetween(DRAGON_SCALE_TALLY, undefined, 0),
+];
+
+/** 重ねの首飾り: 命中で付ける状態異常の確率を下げる（重ねは system/namedRelics.ts の relicStatusApply） */
+function halveProcChances(s: PlayerStats): void {
+  const mul = RELIC.layeredNecklace.chanceMul;
+  s.burnChance *= mul;
+  s.chillChance *= mul;
+  s.shockChance *= mul;
+  s.statusProcs = s.statusProcs.map((p) => ({ ...p, chance: p.chance * mul }));
+}
+
+export const UNIQUES: readonly UniqueDef[] = [
+  // ---- 右手 4 ----
   {
-    key: "cinderfang",
-    name: "燠牙",
-    baseKey: "dagger",
-    minLevel: 4,
-    keystone: "ks_glassCannon",
-    flavor: "二度斬れば、あとは炎が片付ける。",
-    affixes: [
-      { key: "attackSpeed" },
-      { key: "burn" },
-      { key: "cv_meleeToBurn" },
-    ],
-  },
-  {
-    key: "bloodletterKiss",
-    name: "瀉血の口づけ",
-    baseKey: "shortsword",
-    minLevel: 8,
-    keystone: "ks_vampire",
-    flavor: "血を流すのは、お前だけではない。",
-    affixes: [
-      { key: "lifeOnHit" },
-      { key: "attackSpeed" },
-      { key: "critMultiplier" },
-    ],
-  },
-  {
-    key: "whisperOfTheVoid",
-    name: "虚無の囁き",
-    baseKey: "rifle",
-    minLevel: 9,
-    keystone: "ks_pacifist",
-    flavor: "膝をつかせるまでは、殺しはしない。",
-    affixes: [
-      { key: "heavyHand" },
-      { key: "pierce" },
-      { key: "critChance" },
-    ],
-  },
-  {
-    key: "lastRites",
-    name: "終油の秘跡",
-    baseKey: "shotgun",
-    minLevel: 15,
-    keystone: "ks_overclock",
-    flavor: "最後の祈りは、至近距離で撃ち込む。",
-    affixes: [
-      { key: "projectiles" },
-      { key: "explodeOnKill" },
-      { key: "fireRate" },
-    ],
-  },
-  {
-    key: "aegisOfTheUnbroken",
-    name: "不屈のイージス",
-    baseKey: "plate",
-    minLevel: 20,
-    keystone: "ks_juggernaut",
-    flavor: "退くことなど、考えたこともない。",
-    affixes: [
-      { key: "armorFlat" },
-      { key: "maxLifePct" },
-      { key: "damageTaken" },
-    ],
-  },
-  {
-    key: "wardensSilence",
-    name: "看守の沈黙",
-    baseKey: "chain",
-    minLevel: 11,
-    keystone: "ks_bladeOath",
-    flavor: "どんな問いにも、刃の腹で答える。",
-    affixes: [
-      { key: "maxLife" },
-      { key: "meleeDamageFlat" },
-      { key: "thorns" },
-    ],
-  },
-  {
-    key: "tempestLoader",
-    name: "疾風の装填",
-    baseKey: "greaves",
-    minLevel: 13,
-    keystone: "ks_windWalker",
-    flavor: "足が地に着く前に、ダッシュを使い切れ。",
-    affixes: [
-      { key: "dashDistance" },
-      { key: "moveSpeed" },
-      { key: "cv_speedToAttack" },
-    ],
-  },
-  {
-    key: "berserkersSignet",
-    name: "狂戦士の印章",
-    baseKey: "bloodRing",
-    minLevel: 10,
-    keystone: "ks_berserker",
-    flavor: "お前の代わりに、傷の数を数えてくれる。",
-    affixes: [
-      { key: "lifeOnKill" },
-      { key: "critMultiplier" },
-      { key: "maxLife" },
-    ],
-  },
-  {
-    key: "fortunesGambit",
-    name: "運命の賭け",
-    baseKey: "goldRing",
-    minLevel: 7,
-    keystone: "ks_gambler",
-    flavor: "胴元は、いつか必ず負ける。",
-    affixes: [
-      { key: "critChance" },
-      { key: "burstDamage" },
-      { key: "energyGain" },
-    ],
-  },
-  {
-    key: "phaseAnchor",
-    name: "位相の錨",
-    baseKey: "onyxAmulet",
-    minLevel: 14,
-    keystone: "ks_blink",
-    flavor: "お前がいるはずだった場所を、それは覚えている。",
-    affixes: [
-      { key: "burstRadius" },
-      { key: "dashCooldown" },
-      { key: "moveSpeed" },
-    ],
-  },
-  {
-    // 器は小さいが、倒すたびに汲み上げる。マナ経済（docs/COMBAT_DESIGN.md B 節）の尖った解
-    key: "driedWell",
-    name: "涸れ井戸の指輪",
-    baseKey: "sapphireRing",
-    minLevel: 10,
-    flavor: "底は乾いている。満たすのは、いつも他人の最期だ。",
-    affixes: [
-      { key: "manaDrought" },
-      { key: "manaCostPct" },
-    ],
-  },
-  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 4 章）。新しい性質・誓約を固定セットで見せる ----
-  {
-    key: "guardStripper",
-    name: "堅守剥がし",
-    baseKey: "revolver",
-    minLevel: 9,
-    flavor: "盾の裏を撃つ弾もある。",
-    affixes: [{ key: "guardPiercer" }, { key: "manaOnStagger" }, { key: "rangedDamagePct" }],
-  },
-  {
-    key: "silentScripture",
-    name: "沈黙の聖句",
-    baseKey: "smg",
-    minLevel: 8,
-    flavor: "黙らせた数だけ、祈りは届く。",
-    affixes: [{ key: "procSilence" }, { key: "silencedKillMana" }, { key: "vortexCore" }],
-  },
-  {
-    key: "paradoxRing",
-    name: "矛盾の指輪",
-    baseKey: "goldRing",
-    minLevel: 8,
-    flavor: "育てるか、育てぬか。どちらでも応える。",
-    affixes: [{ key: "sapling" }, { key: "inscribedWeight" }],
-  },
-  {
-    key: "bottomless",
-    name: "底なし",
-    baseKey: "jadeAmulet",
-    minLevel: 7,
-    flavor: "空になっても、満ちていても、底は見えない。",
-    affixes: [{ key: "lowTide" }, { key: "manaOverflow" }],
-  },
-  {
-    key: "manyHuedBrush",
-    name: "多彩の筆",
-    baseKey: "staff",
-    minLevel: 10,
-    flavor: "一色では、絵にならない。",
-    affixes: [{ key: "kaleidoscope" }, { key: "procWeaken" }, { key: "procPoison" }],
-  },
-  {
-    key: "wedgeDriver",
-    name: "楔打ち",
-    baseKey: "warpick",
-    minLevel: 15,
-    keystone: "ks_wedgeOath",
-    flavor: "割れ目があれば、そこが入口だ。",
-    affixes: [{ key: "wedge" }, { key: "staggerQuake" }, { key: "damageVsStaggered" }],
-  },
-  {
-    key: "firstStrikeBlade",
-    name: "先の先",
-    baseKey: "shortsword",
-    minLevel: 9,
-    keystone: "ks_readOath",
-    flavor: "構えた瞬間に、もう終わっている。",
-    affixes: [{ key: "readAhead" }, { key: "counterMana" }, { key: "windupCrack" }],
-  },
-  {
-    key: "lightningRod",
-    name: "避雷針",
-    baseKey: "railgun",
-    minLevel: 17,
-    flavor: "雷は、通り道を覚えている。",
-    affixes: [{ key: "brimShock" }, { key: "shock" }, { key: "chainedBarrage" }],
-  },
-  {
-    key: "scarredHide",
-    name: "古傷の胴",
-    baseKey: "leather",
-    minLevel: 6,
-    flavor: "傷の数だけ、厚くなる。",
-    affixes: [{ key: "oldScars" }, { key: "hybridDefense" }, { key: "staggerLeech" }],
-  },
-  {
-    key: "proxyRobe",
-    name: "身代わり衣",
-    baseKey: "robe",
-    minLevel: 8,
-    flavor: "払えるうちは、痛くない。",
-    affixes: [{ key: "manaShield" }, { key: "maxManaFlat" }, { key: "manaRegenFlat" }],
-  },
-  {
-    key: "sickbedCurtain",
-    name: "病床の帳",
-    baseKey: "chain",
-    minLevel: 11,
-    keystone: "ks_blight",
-    flavor: "熱のあるうちが、一番強い。",
-    affixes: [{ key: "fever" }, { key: "procPoison" }],
-  },
-  {
-    key: "whiteCloth",
-    name: "白布",
-    baseKey: "cloth",
-    minLevel: 6,
-    keystone: "ks_pure",
-    flavor: "何も染みず、何も染めない。",
-    affixes: [{ key: "hpRegen" }, { key: "maxLife" }, { key: "statusWard" }],
-  },
-  {
-    key: "backwaterPlate",
-    name: "背水の甲",
-    baseKey: "plate",
-    minLevel: 16,
-    keystone: "ks_backwater",
-    flavor: "退路は、扉と一緒に閉じた。",
-    affixes: [{ key: "lockdownFury" }, { key: "damageTaken" }, { key: "armorFlat" }],
-  },
-  {
-    key: "painlessChain",
-    name: "無痛の鎖",
-    baseKey: "scale",
-    minLevel: 12,
-    flavor: "痛みを売って、力を買った。",
-    affixes: [{ key: "painToMana" }, { key: "hurtWeaken" }, { key: "maxLife" }],
-  },
-  {
-    key: "wayfarerSandals",
-    name: "旅の垢",
-    baseKey: "sandals",
-    minLevel: 5,
-    keystone: "ks_discipline",
-    flavor: "歩いた道の分だけ、軽くなる。",
-    affixes: [{ key: "wayfarer" }, { key: "moveSpeed" }],
-  },
-  {
-    key: "idatenTabi",
-    name: "韋駄天の足袋",
-    baseKey: "tabi",
-    minLevel: 9,
-    flavor: "止まる理由を、一つずつ捨てた。",
-    affixes: [{ key: "dashVolley" }, { key: "moveSpeed" }, { key: "dashCooldown" }],
-  },
-  {
-    key: "keenSandals",
-    name: "見切りの草履",
-    baseKey: "sandals",
-    minLevel: 10,
-    flavor: "見た数だけ、遅く見える。",
-    affixes: [{ key: "keenMemory" }, { key: "justDodgeDamage" }, { key: "justBreath" }],
-  },
-  {
-    key: "reaperBoots",
-    name: "死神の靴",
-    baseKey: "wingedBoots",
-    minLevel: 16,
-    keystone: "ks_reaperOath",
-    flavor: "あれは、足音を真似ている。",
-    affixes: [{ key: "reaperShadow" }, { key: "moveSpeed" }],
-  },
-  {
-    key: "reverseRing",
-    name: "裏返しの輪",
-    baseKey: "voidBand",
-    minLevel: 14,
-    flavor: "裏も表も、同じ重さ。",
-    affixes: [{ key: "invertedFeast" }, { key: "foreignEcho" }],
-  },
-  {
-    key: "monochromeNecklace",
-    name: "一色の首飾り",
-    baseKey: "lapisAmulet",
-    minLevel: 12,
-    keystone: "ks_monochrome",
-    flavor: "一つの色で、部屋を塗れ。",
-    affixes: [{ key: "burstRadius" }, { key: "burstDamage" }],
-  },
-  {
-    key: "facingMirrors",
-    name: "合わせ鏡",
-    baseKey: "onyxAmulet",
-    minLevel: 11,
-    keystone: "ks_mirror",
-    flavor: "映ったほうが、本物かもしれない。",
-    affixes: [{ key: "bridge" }, { key: "critMultiplier" }],
-  },
-  {
-    key: "kingslayerCollar",
-    name: "王殺しの首輪",
-    baseKey: "duskAmulet",
-    minLevel: 13,
-    flavor: "冠の数だけ、鎖が重い。",
-    affixes: [{ key: "kingslayerMark" }, { key: "downHunter" }],
-  },
-  {
-    key: "nightOwl",
-    name: "夜更かしの眼",
-    baseKey: "rifle",
-    minLevel: 10,
-    flavor: "灯りを消せば、よく見える。",
-    affixes: [{ key: "nightEyes" }, { key: "critChance" }, { key: "pierce" }],
-  },
-  {
-    key: "lastBell",
-    name: "殲滅の鐘",
-    baseKey: "greatsword",
-    minLevel: 12,
-    flavor: "最後の一打が、次の最初の一打になる。",
-    affixes: [{ key: "lastKillMana" }, { key: "lockdownFury" }, { key: "meleeDamagePct" }],
-  },
-  {
-    key: "colorlessBell",
-    name: "無色の鈴",
-    baseKey: "bell",
-    minLevel: 9,
-    keystone: "ks_colorless",
-    flavor: "鳴らない鈴は、全ての音を持っている。",
-    affixes: [{ key: "virulent" }, { key: "critChance" }],
-  },
-  {
-    key: "contagionFang",
-    name: "病みの牙",
-    baseKey: "fangNecklace",
-    minLevel: 10,
-    keystone: "ks_contagion",
-    flavor: "死者の病は、生者が継ぐ。",
-    affixes: [{ key: "plagueSeed" }, { key: "procBleed" }, { key: "kaleidoscope" }],
-  },
-  {
-    key: "chantRosary",
-    name: "詠唱の数珠",
-    baseKey: "rosary",
-    minLevel: 8,
-    keystone: "ks_chant",
-    flavor: "空になるまで、祈れ。",
-    affixes: [{ key: "arcaneFocus" }, { key: "manaGainPct" }, { key: "fullTide" }],
-  },
-  {
-    key: "unshakenScale",
-    name: "揺るがぬ鱗",
-    baseKey: "scale",
-    minLevel: 14,
-    keystone: "ks_unshaken",
-    flavor: "揺るがぬ者は、敵も揺るがさない。",
-    affixes: [{ key: "heavyHand" }, { key: "armorFlat" }],
-  },
-  {
-    key: "chokeTwins",
-    name: "締め上げの双剣",
-    baseKey: "twinblades",
-    minLevel: 12,
-    keystone: "ks_chokehold",
-    flavor: "息を継ぐ隙は、与えない。",
-    affixes: [{ key: "guardedBane" }, { key: "fearPoise" }, { key: "attackSpeed" }],
-  },
-  {
-    key: "oblivionRags",
-    name: "忘却の襤褸",
-    baseKey: "rags",
-    minLevel: 7,
-    keystone: "ks_oblivion",
-    flavor: "何も覚えていない。だから、まだ何にでもなれる。",
-    affixes: [{ key: "sapling" }, { key: "maxLife" }],
-  },
-  {
-    key: "brokenCadence",
-    name: "途切れの音",
-    baseKey: "longsword",
-    minLevel: 8,
-    flavor: "途切れたときに、初めて音がする。",
-    affixes: [{ key: "echoSlash" }, { key: "comboDamage" }],
-  },
-  {
-    key: "keepsakeRing",
-    name: "形見分け",
-    baseKey: "rubyRing",
-    minLevel: 9,
-    flavor: "死者の病は、生者が継ぐ。",
-    affixes: [{ key: "inheritance" }, { key: "kaleidoscope" }],
-  },
-  {
-    key: "returningSwallow",
-    name: "帰り燕",
-    baseKey: "pistol",
-    minLevel: 7,
-    flavor: "行って、刺さって、帰ってくる。",
-    affixes: [{ key: "stake" }, { key: "rangedDamageFlat" }],
-  },
-  {
-    key: "leftBehind",
-    name: "置き土産の輪",
-    baseKey: "ironRing",
-    minLevel: 8,
-    flavor: "立ち去った後に、罠が牙をむく。",
-    affixes: [{ key: "placedInfuse" }, { key: "placedAnchor" }, { key: "bloodSignature" }],
-  },
-  // ---- 2026-09 第 2 弾: 属性・武器種・銃の弾・ジョブ・地形ごとに 1〜2 個 ----
-  // 属性
-  {
-    key: "emberHeart",
-    name: "熾火の心臓",
-    baseKey: "handCannon",
-    minLevel: 13,
-    keystone: "ks_emberOath",
-    flavor: "燃え残りは、次の火種になる。",
-    affixes: [{ key: "emberTrail" }, { key: "igniter" }, { key: "cv_burnToFire" }],
-  },
-  {
-    key: "glacierStep",
-    name: "氷河の足",
-    baseKey: "snowBoots",
-    minLevel: 9,
-    keystone: "ks_slickOath",
-    flavor: "滑る者だけが、氷の上で踊れる。",
-    affixes: [{ key: "frostTrail" }, { key: "slickFooting" }, { key: "res_ice" }],
-  },
-  {
-    key: "thunderLash",
-    name: "雷導の鞭",
-    baseKey: "chainWhip",
-    minLevel: 10,
-    flavor: "水を打て。雷は後から来る。",
-    affixes: [{ key: "conductor" }, { key: "cv_shockToLightning" }, { key: "shock" }],
-  },
-  {
-    key: "bogMother",
-    name: "沼母の珠",
-    baseKey: "seekerOrb",
-    minLevel: 8,
-    flavor: "逃げても、沼は追ってくる。",
-    affixes: [{ key: "homingVenom" }, { key: "cv_infusePoison" }, { key: "terrainHunter" }],
-  },
-  {
-    key: "duskSickle",
-    name: "宵の小鎌",
-    baseKey: "sickle",
-    minLevel: 7,
-    flavor: "告げられた者は、もう刈られている。",
-    affixes: [{ key: "doomToll" }, { key: "corrodeClaw" }, { key: "lifeOnKill" }],
-  },
-  {
-    key: "dawnCrystal",
-    name: "暁の水晶杖",
-    baseKey: "crystalWand",
-    minLevel: 11,
-    keystone: "ks_weakOath",
-    flavor: "光は、弱いところから差し込む。",
-    affixes: [{ key: "cv_critToLight" }, { key: "weakRead" }, { key: "prismEdge" }],
-  },
-  {
-    key: "oneHueBand",
-    name: "一色の輪",
-    baseKey: "goldRing",
-    minLevel: 10,
-    keystone: "ks_oneElement",
-    flavor: "一つの属性を極めれば、どんな守りも貫ける。",
-    affixes: [{ key: "resistBreaker" }, { key: "conductor" }],
-  },
-  {
-    key: "plainVeil",
-    name: "無地の帳",
-    baseKey: "robe",
-    minLevel: 9,
-    keystone: "ks_nullOath",
-    flavor: "色を捨てれば、色に傷つかない。",
-    affixes: [{ key: "elementalWard" }, { key: "wardingFlat" }, { key: "cv_resistToWarding" }],
-  },
-  {
-    key: "backlashCharm",
-    name: "逆撫での首飾り",
-    baseKey: "onyxAmulet",
-    minLevel: 8,
-    flavor: "嫌がるところを、何度でも撫でる。",
-    affixes: [{ key: "backlash" }, { key: "elementalBreak" }],
-  },
-  // 武器種
-  {
-    key: "moonCleaver",
-    name: "月断ち",
-    baseKey: "zanbato",
-    minLevel: 12,
-    keystone: "ks_chargeOath",
-    flavor: "満ちるまで待て。欠けた刃は届かない。",
-    affixes: [{ key: "chargeCore" }, { key: "chargeQuake" }],
-  },
-  {
-    key: "mastersKatana",
-    name: "師範の打刀",
-    baseKey: "katana",
-    minLevel: 9,
-    keystone: "ks_ironOath",
-    flavor: "型は、師より長く生きる。",
-    affixes: [{ key: "schoolForm" }, { key: "branchArt" }],
-  },
-  {
-    key: "strayFists",
-    name: "野良の鉄拳",
-    baseKey: "cestus",
-    minLevel: 8,
-    flavor: "誰にも習わなかった。だから誰にも読まれない。",
-    affixes: [{ key: "selfTaught" }, { key: "wanderer" }, { key: "attackSpeed" }],
-  },
-  {
-    key: "matedFangs",
-    name: "番いの短刀",
+    key: TWIN_SERPENT,
+    name: "双頭の蛇",
     baseKey: "twinDaggers",
     minLevel: 6,
-    flavor: "片方が噛めば、もう片方が離さない。",
-    affixes: [{ key: "switchHitter" }, { key: "switchBreath" }, { key: "critChance" }],
+    flavor: "右の牙と左の牙。交互に噛むほど、毒は深く回る。",
+    // 性質（固定）twinEdge は性質のレーンが足す（統合で { key: "twinEdge" }）
+    affixes: [],
+    rules: relicRules(TWIN_SERPENT, [{ when: "onTwinStrike", then: addTallyEffect(TWIN_TALLY) }]),
+    // 同じ側の命中で数えを 0 に戻すのは system/moments.ts の noteTwinStrike → namedRelics.ts の breakTwinSerpent
+    modifiers: relicModifiers(TWIN_SERPENT, "双頭の蛇", [{ kind: "more", tag: "all", amount: RELIC.twinSerpent.step, per: { count: { kind: "tally", key: TWIN_TALLY } } }]),
+    keywords: kw([], ["combo"]),
+    changes: "press",
+    graceSlot: "secondary",
   },
   {
-    key: "gateHalberd",
-    name: "城門の矛槍",
-    baseKey: "halberd",
-    minLevel: 11,
-    keystone: "ks_stanceOath",
-    flavor: "門は、開くより閉じる方が強い。",
-    affixes: [{ key: "siegeGuard" }, { key: "guardedBane" }],
-  },
-  {
-    key: "abbotsStaff",
-    name: "住職の錫杖",
-    baseKey: "shakujo",
-    minLevel: 9,
-    flavor: "鳴らすたびに、場が静まる。",
-    affixes: [{ key: "siegeSpark" }, { key: "schoolHarvest" }, { key: "maxManaFlat" }],
-  },
-  {
-    key: "rustbreaker",
-    name: "錆割りの双剣",
-    baseKey: "twinblades",
+    key: "emptyScabbard",
+    name: "空の鞘",
+    baseKey: "tachi",
     minLevel: 10,
-    flavor: "錆びた鎧ほど、よく割れる。",
-    affixes: [{ key: "brokenHunter" }, { key: "corrodeClaw" }],
-  },
-  // 銃の弾
-  {
-    key: "thunderTrumpet",
-    name: "雷鳴の喇叭銃",
-    baseKey: "blunderbuss",
-    minLevel: 8,
-    flavor: "耳元で鳴らせば、誰でも退く。",
-    affixes: [{ key: "spreadCore" }, { key: "spreadShove" }],
+    flavor: "刃は抜かれない。抜かれぬまま、通り過ぎたものを斬っている。",
+    affixes: [],
+    // 左右の振りが出ないのは system/player.ts の beginSwing → namedRelics.ts の relicBlocksSwing
+    rules: relicRules("emptyScabbard", [
+      { when: "onDash", then: { kind: "nearbyEnemies", magnitude: RELIC.emptyScabbard.mul, scaleBy: "slashBase", radius: RELIC.emptyScabbard.radius } },
+    ]),
+    keywords: kw([], ["dash"], ["dash"]),
+    changes: "press",
+    graceSlot: "dash",
   },
   {
-    key: "brandingKnives",
-    name: "烙印の投げ短剣",
-    baseKey: "throwingKnives",
-    minLevel: 6,
-    flavor: "一本目は印。二本目が本命。",
-    affixes: [{ key: "rapidBrand" }, { key: "brandDetonator" }],
-  },
-  {
-    key: "demonCaltrops",
-    name: "鬼の撒き菱",
-    baseKey: "caltrops",
-    minLevel: 9,
-    flavor: "足元を見ない者から、倒れていく。",
-    affixes: [{ key: "terrainBurst" }, { key: "terrainHunter" }],
-  },
-  {
-    key: "circlingMoon",
-    name: "巡り月",
-    baseKey: "chakram",
-    minLevel: 9,
-    flavor: "回るものは、必ず帰ってくる。",
-    affixes: [{ key: "switchBreath" }, { key: "pierce" }, { key: "projectileSpeed" }],
-  },
-  // 地形・ジョブ・交戦
-  {
-    key: "earthMino",
-    name: "土の蓑",
-    baseKey: "mino",
-    minLevel: 6,
-    keystone: "ks_earthOath",
-    flavor: "泥に座れば、泥が傷を塞ぐ。",
-    affixes: [{ key: "groundMend" }, { key: "mireGuard" }],
-  },
-  {
-    key: "rootedGeta",
-    name: "根張りの下駄",
-    baseKey: "ironGeta",
-    minLevel: 8,
-    flavor: "動かぬ足は、地の声を聞く。",
-    affixes: [{ key: "groundRooted" }, { key: "mireGuard" }],
-  },
-  {
-    key: "driftersCharm",
-    name: "流れ者の護符",
-    baseKey: "jadeAmulet",
+    key: "mallet",
+    name: "打ち出の小槌",
+    baseKey: "mallet",
     minLevel: 5,
-    flavor: "名も型も持たない。持たないから、どこへでも行ける。",
-    affixes: [{ key: "wanderer" }, { key: "siegeSpark" }],
+    flavor: "振れば出る。ただし、振り切ったときだけ。",
+    // 性質（固定）finisherEdge は性質のレーンが足す（統合で { key: "finisherEdge" }）
+    affixes: [],
+    rules: relicRules("mallet", [{ when: "onFinisher", then: { kind: "gainCoins", magnitude: RELIC.mallet.coins }, icd: RELIC.mallet.icd }]),
+    keywords: kw([], ["finisher"]),
+    changes: "press",
   },
   {
-    key: "lampOil",
-    name: "灯油の首飾り",
-    baseKey: "amberAmulet",
-    minLevel: 7,
-    flavor: "油を撒いたのは、誰だったか。",
-    affixes: [{ key: "igniter" }, { key: "emberTrail" }],
+    key: PLAIN_BLADE,
+    name: "無地の刃",
+    baseKey: "wakizashi",
+    minLevel: 9,
+    flavor: "何も刻まれていない。だから、何でも刻める。",
+    affixes: [],
+    margin: RELIC.plainBlade.margin,
+    modifiers: relicModifiers(PLAIN_BLADE, "無地の刃", [{ kind: "more", tag: "all", amount: RELIC.plainBlade.step, per: { count: { kind: "gearMargin" } } }]),
+    keywords: kw([]),
+    changes: "watch",
+    graceSlot: "primary",
   },
-  // 頭（2026-09-26 部位「頭」）
+  // ---- 首飾り 5 ----
   {
-    key: "readersCirclet",
-    name: "読み手の額冠",
+    key: "reverseHourglass",
+    name: "逆さ砂時計",
+    baseKey: "onyxAmulet",
+    minLevel: 10,
+    flavor: "落ちる砂は止められない。ただ、順番を入れ替えるだけだ。",
+    affixes: [],
+    // 遅れて来る傷と撃破の帳消しは system/combat.ts → namedRelics.ts の relicDeferDelay / relicForgiveOnKill
+    keywords: kw([], ["kill", "hurt"]),
+    changes: "timing",
+  },
+  {
+    key: "herdFlute",
+    name: "群れ呼びの笛",
+    baseKey: "fangNecklace",
+    minLevel: 8,
+    flavor: "群れの長が倒れたとき、群れは次の笛の音に従う。",
+    affixes: [],
+    rules: relicRules("herdFlute", [
+      {
+        when: "onExecute",
+        then: { kind: "tameEnemy", magnitude: 0, radius: RELIC.herdFlute.radius, onlyWith: "stagger", count: RELIC.herdFlute.count, duration: RELIC.herdFlute.duration },
+      },
+    ]),
+    keywords: kw(["placed"], ["stagger"]),
+    changes: "target",
+  },
+  {
+    key: "pilgrimBeads",
+    name: "巡礼の数珠",
+    baseKey: "rosary",
+    minLevel: 6,
+    flavor: "珠の一つひとつが、別の寺の名を覚えている。",
+    affixes: [],
+    modifiers: relicModifiers("pilgrimBeads", "巡礼の数珠", [{ kind: "more", tag: "all", amount: RELIC.pilgrimBeads.step, per: { count: { kind: "lineagesOwned" } } }]),
+    keywords: kw([]),
+    changes: "watch",
+    graceSlot: "skill",
+  },
+  {
+    key: "layeredNecklace",
+    name: "重ねの首飾り",
+    baseKey: "coralAmulet",
+    minLevel: 12,
+    flavor: "滅多に刺さらない。刺さったときは、三度刺さっている。",
+    affixes: [{ key: "procPoison" }],
+    // 1 回で 3 重ねは system/statusEffects.ts の applyStatus → namedRelics.ts の relicStatusApply
+    apply: halveProcChances,
+    keywords: kw([], [], ["burn", "poison", "bleed"]),
+    changes: "watch",
+  },
+  {
+    key: "sixCoins",
+    name: "六文銭",
+    baseKey: "duskAmulet",
+    minLevel: 12,
+    flavor: "渡し賃は足りている。今回は、戻りの舟に乗る。",
+    affixes: [],
+    // 蘇りは system/combat.ts の killPlayer → namedRelics.ts の relicRevive
+    keywords: kw([]),
+    changes: "watch",
+  },
+  // ---- 頭 3 ----
+  {
+    key: "starReader",
+    name: "星読みの眼",
     baseKey: "circlet",
     minLevel: 6,
-    flavor: "弱みは、額の奥で先に光る。",
-    affixes: [{ key: "weakRead" }, { key: "maxManaFlat" }],
+    flavor: "星の巡りに比べれば、振りかぶる腕などゆっくりだ。",
+    affixes: [{ key: "readAhead" }],
+    // 予告の線の目盛りは render/telegraphLineUi.ts（描画だけ）
+    modifiers: relicModifiers("starReader", "星読みの眼", [
+      { kind: "more", tag: "all", amount: RELIC.starReader.more, if: [{ kind: "trigger", condition: "targetInWindup" }] },
+    ]),
+    keywords: kw([], ["counter"]),
+    changes: "timing",
   },
   {
-    key: "demonMask",
-    name: "鬼面",
-    baseKey: "maskedVisor",
+    key: "jizo",
+    name: "身代わり地蔵",
+    baseKey: "sandogasa",
+    minLevel: 5,
+    flavor: "賽銭の分だけ、石が代わりに欠けてくれる。",
+    affixes: [],
+    // 被弾の半分を銭で受けるのは system/combat.ts → namedRelics.ts の relicPayWithCoins
+    keywords: kw(["ward"], ["hurt"]),
+    changes: "watch",
+  },
+  {
+    key: "boneCrown",
+    name: "骸の冠",
+    baseKey: "hornedHelm",
     minLevel: 12,
-    keystone: "ks_stanceOath",
-    flavor: "振りかぶる間だけ、鬼は人を寄せつけない。",
-    affixes: [{ key: "fearPoise" }, { key: "maxLife" }],
+    flavor: "死者は冠の主に道を譲る。踏まれると、弾けて。",
+    affixes: [],
+    // 死骸を踏むと爆ぜるのは system/player.ts → namedRelics.ts の tickNamedRelics
+    keywords: kw(["explode"], ["kill"]),
+    changes: "position",
+  },
+  // ---- 指輪 3 ----
+  {
+    key: BELL_TONGUE,
+    name: "鐘の舌",
+    baseKey: "blackIronRing",
+    minLevel: 14,
+    flavor: "九つまでは余韻。十で、鐘は割れるほど鳴る。",
+    // 性質（固定）finisherEdge は性質のレーンが足す（統合で { key: "finisherEdge" }）
+    affixes: [],
+    // 並び順が効く: +1 → 一掃（数え ≥ every = この終撃が every 回目）→ 戻し。数えは同じイベントの中で即座に進む
+    rules: relicRules(BELL_TONGUE, [
+      { when: "onFinisher", then: addTallyEffect(BELL_TALLY) },
+      {
+        when: "onFinisher",
+        if: [tallyBetween(BELL_TALLY, RELIC.bellTongue.every)],
+        then: { kind: "nearbyEnemies", magnitude: RELIC.bellTongue.mul, scaleBy: "slashBase", radius: RELIC.bellTongue.radius, color: BELL_COLOR },
+      },
+      { when: "onFinisher", if: [tallyBetween(BELL_TALLY, RELIC.bellTongue.every)], then: resetTally(BELL_TALLY) },
+    ]),
+    keywords: kw(["area"], ["finisher"]),
+    changes: "press",
+    graceSlot: "ultimate",
+  },
+  {
+    key: "luckyCat",
+    name: "招き猫",
+    baseKey: "goldRing",
+    minLevel: 7,
+    flavor: "右手で銭を招き、左手で落とし物を招く。",
+    affixes: [{ key: "purse" }],
+    apply: (s) => {
+      s.coinMagnetMul *= RELIC.luckyCat.magnetMul;
+      s.coinGainMul *= RELIC.luckyCat.gainMul;
+      s.coinSpillMul *= RELIC.luckyCat.spillMul;
+    },
+    keywords: kw([]),
+    changes: "position",
+  },
+  {
+    key: DICE_RING,
+    name: "賽の目の指輪",
+    baseKey: "boneRing",
+    minLevel: 8,
+    flavor: "骨の賽は、階ごとに一度だけ転がる。",
+    affixes: [],
+    // 目は階の到着で振る（system/floor.ts → namedRelics.ts の onRelicFloorStart）
+    modifiers: relicModifiers(DICE_RING, "賽の目の指輪", diceModifiers()),
+    keywords: kw([]),
+    changes: "watch",
+  },
+  // ---- 体 2 ----
+  {
+    key: DRAGON_SCALE,
+    name: "起死の鱗",
+    baseKey: "scale",
+    minLevel: 12,
+    flavor: "死の淵で、鱗は一枚だけ時を止める。",
+    affixes: [],
+    rules: relicRules(DRAGON_SCALE, [
+      {
+        when: "onHurt",
+        if: DRAGON_IF,
+        then: { kind: "nearbyEnemies", magnitude: 0, status: "freeze", duration: RELIC.dragonScale.freezeSec, radius: RELIC.dragonScale.radius, skipBoss: true, color: DRAGON_COLOR },
+      },
+      // 周りの凍結は対象（殴ってきた敵）を除くので、殴ってきた敵は別に凍らせる
+      { when: "onHurt", if: DRAGON_IF, then: { kind: "afflict", magnitude: 0, status: "freeze", duration: RELIC.dragonScale.freezeSec } },
+      { when: "onHurt", if: DRAGON_IF, then: { kind: "ward", magnitude: 0, duration: RELIC.dragonScale.wardSec } },
+      { when: "onHurt", if: DRAGON_IF, then: addTallyEffect(DRAGON_SCALE_TALLY) },
+    ]),
+    keywords: kw(["ward"], ["lowHp"]),
+    changes: "timing",
+  },
+  {
+    key: "greedHide",
+    name: "欲の皮",
+    baseKey: "leather",
+    minLevel: 6,
+    flavor: "厚いのは財布だけではない。",
+    affixes: [],
+    // 持ち金で被ダメージを減らすのは system/combat.ts → namedRelics.ts の relicIncomingMul
+    apply: (s) => {
+      s.coinSpillMul *= RELIC.greedHide.spillMul;
+    },
+    keywords: kw(["ward"]),
+    changes: "watch",
+  },
+  // ---- 足 1 ----
+  {
+    key: WANDER_SHOES,
+    name: "旅人の靴",
+    baseKey: "sandals",
+    minLevel: 4,
+    flavor: "道のりは靴底に溜まる。蹴り出す一歩のために。",
+    // 性質（固定）firstStrikeEdge は性質のレーンが足す（統合で { key: "firstStrikeEdge" }）
+    affixes: [],
+    // 距離を溜めるのは system/player.ts → namedRelics.ts の relicStride。当てた一撃（振り・弾）で使い切る
+    rules: relicRules(WANDER_SHOES, [
+      { when: "onSwingHit", then: resetTally(STRIDE_TALLY) },
+      { when: "onRangedHit", then: resetTally(STRIDE_TALLY) },
+    ]),
+    modifiers: relicModifiers(WANDER_SHOES, "旅人の靴", [
+      { kind: "more", tag: "all", amount: RELIC.wanderShoes.step, per: { count: { kind: "tally", key: STRIDE_TALLY }, every: RELIC.wanderShoes.every } },
+    ]),
+    keywords: kw([], ["dash"]),
+    changes: "position",
   },
 ];
 
