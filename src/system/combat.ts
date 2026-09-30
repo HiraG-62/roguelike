@@ -32,6 +32,7 @@ import { noteUltimateKill, ultimateBlocksEnergy, ultimateIncomingMul } from "./u
 import type { ButtonKey, MovesetKey } from "../data/weapons";
 import { chargeArmorOf } from "./morale";
 import { noteHitMoments, noteRiposte } from "./moments";
+import { shareLinkedDamage } from "./formMarks";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -226,6 +227,8 @@ export function damageEnemy(
   if (opts.crit) onBoonCrit(state, enemy, amount);
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
   noteHitMoments(state, enemy, { kind, skill: opts.skill, silent: opts.silent, finisher: opts.finisher, release: opts.release, lane: opts.lane });
+  // 一蓮托生: 鎖で繋いだ敵どうしで与ダメを分け合う（system/formMarks.ts）
+  shareLinkedDamage(state, enemy, amount, kind, opts.silent === true);
   if (enemy.hp > 0) return false;
   spawnDeathFx(state, enemy, opts);
   killEnemy(state, enemy, dir);
@@ -508,7 +511,7 @@ export function damagePlayer(
     playerTakenMul(state) *
     enemyDamageMul(attacker) *
     traitIncomingMul(state, attacker) *
-    guardDamageMul(state, fromPos) *
+    guardDamageMul(state, fromPos, amount, attacker) *
     ultimateIncomingMul(state, fromPos) *
     (chargeArmor?.damageTakenMul ?? 1);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));

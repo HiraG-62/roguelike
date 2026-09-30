@@ -93,6 +93,7 @@ import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
 import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawJinHud, drawLeaderMark } from "./jinUi";
+import { drawMoraleHud } from "./moraleHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
@@ -2853,6 +2854,7 @@ export class Renderer {
     drawText(ctx, hpText, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
     // 未振りの点はマナバーの横（HP の数値の右）に。振るのは装備画面（Tab）
     drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
+    drawMoraleHud(ctx, state, HUD_TEXT_X, HUD_ENERGY_Y);
 
     const sustaining = p.ultimate.active !== null;
     // 満タンの見た目は選んでいる奥義の cost 基準（持続中は上限に対する残り）

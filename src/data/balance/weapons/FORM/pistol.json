@@ -8,5 +8,8 @@
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "perUnit": {"damageMul": 0, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0}
+  "gain": {"shotFired": 1},
+  "perUnit": {"damageMul": 0.3, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
+  "reload": {"windowSec": 0.6, "primeFrom": 0.2, "primeTo": 0.4},
+  "zeroDistance": 30
 }

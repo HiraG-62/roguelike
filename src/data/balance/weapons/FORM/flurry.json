@@ -1,6 +1,6 @@
 {
   "weight": "light",
-  "stepsMin": 5,
+  "stepsMin": 6,
   "stepsMax": 8,
   "max": 100,
   "releaseMin": 30,

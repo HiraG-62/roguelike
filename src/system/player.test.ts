@@ -9,6 +9,7 @@ import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { type ButtonKey, MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { FORMS } from "../data/weaponForms";
 import { grantBoon } from "./boons";
 import type { FrameInput } from "../core/input";
 import {
@@ -471,13 +472,31 @@ describe("武器種: 形とリーチ", () => {
     expect(e2.knock.x, "拳の投げ: 背後（-x）へ飛ぶ").toBeLessThan(0);
   });
 
-  it("双剣の 5 段は最終段だけが祝福の最終段（combo 2）になる", () => {
+  it("双剣の 6 段は最終段だけが祝福の最終段（combo 2）になる", () => {
     const twin = MOVESETS.twinBlades;
+    expect(twin.steps.length, "連刃の型の下限（FORM.flurry.stepsMin）").toBe(FORMS.flurry.steps.min);
     expect(hookCombo(twin, 0)).toBe(0);
     expect(hookCombo(twin, 2), "途中の段は 1").toBe(1);
-    expect(hookCombo(twin, 3), "途中の段は 1").toBe(1);
-    expect(hookCombo(twin, 4), "最終段は 2").toBe(2);
+    expect(hookCombo(twin, 4), "途中の段は 1").toBe(1);
+    expect(hookCombo(twin, twin.steps.length - 1), "最終段は 2").toBe(2);
+    expect(hookCombo(twin, twin.steps.length - 1, "secondary"), "右の最終段（乱舞）も 2").toBe(2);
     expect(hookCombo(MOVESETS.sword, 2), "剣の 3 段目は従来どおり 2").toBe(2);
+  });
+
+  it("連刃の 3 武器種は段数が 双剣 6・拳 6・爪 8 で、右の最終段が乱舞（放出の段）になる", () => {
+    const EXPECTED_STEPS = { twinBlades: 6, fists: 6, claws: 8 } as const;
+    const form = FORMS.flurry;
+    for (const [key, count] of Object.entries(EXPECTED_STEPS) as [keyof typeof EXPECTED_STEPS, number][]) {
+      const m = MOVESETS[key];
+      expect(m.steps.length, `${key} の左の段数`).toBe(count);
+      expect(m.steps2.length, `${key} の右の段数`).toBe(count);
+      expect(count, `${key} が型の幅に入る`).toBeGreaterThanOrEqual(form.steps.min);
+      expect(count, `${key} が型の幅に入る`).toBeLessThanOrEqual(form.steps.max);
+      expect(m.steps2[count - 1]?.key, `${key} の右の最終段`).toBe("frenzy");
+      expect(m.steps2.filter((s) => s.key === "frenzy").length, `${key} の乱舞は 1 つだけ`).toBe(1);
+      expect(hookCombo(m, count - 1), `${key} の左の最終段は終撃`).toBe(2);
+      expect(hookCombo(m, count - 2), `${key} の左の最終段の 1 つ前は途中`).toBe(1);
+    }
   });
 });
 

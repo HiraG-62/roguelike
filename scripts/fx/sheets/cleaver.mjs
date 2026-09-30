@@ -738,7 +738,7 @@ const FX = {
     "r:shoulderCharge": { sheet: "cleaver.shoulder", pivot: "self", base: 12, measure: "reach" },
     "r:verticalSplit": { sheet: "cleaver.split", pivot: "anchor", base: 20, measure: "reach" },
     "r:cleaverSweep": { sheet: "cleaver.sweep", pivot: "self", base: 28, measure: "reach" },
-    "r:greatDrop": { sheet: "cleaver.drop", pivot: "anchor", base: 22, measure: "reach" },
+    "r:rend": { sheet: "cleaver.drop", pivot: "anchor", base: 22, measure: "reach" },
     "branch:slamDown": { sheet: "cleaver.slam", pivot: "anchor", base: 40, measure: "size" },
     "branch:bloodSpray": { sheet: "cleaver.blood", pivot: "anchor", base: 20, measure: "reach" },
     "branch:pressCut": { sheet: "cleaver.press", pivot: "self", base: 20, measure: "reach" },

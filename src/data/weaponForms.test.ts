@@ -86,8 +86,8 @@ describe("武器の型", () => {
     expect(gunPrimary).toEqual(["rifle"]);
   });
 
-  it("5a で戦意が動くのは剣・連刃・重打・長銃の 4 型で、全て上限と放出の最低を持つ", () => {
-    expect(activeForms().sort(), "溜まる出来事を持つ型").toEqual(["blade", "crusher", "flurry", "rifle"]);
+  it("戦意が動く型（5a の剣・連刃・重打・長銃、5b-E の短銃・砲、他のレーンが増やす型）は全て上限と放出の最低を持つ", () => {
+    expect(activeForms(), "溜まる出来事を持つ型").toEqual(expect.arrayContaining(["blade", "crusher", "flurry", "rifle", "pistol", "artillery"]));
     for (const form of activeForms()) {
       const n = FORMS[form].morale.numbers;
       expect(n.max, `${form} の上限`).toBeGreaterThan(0);

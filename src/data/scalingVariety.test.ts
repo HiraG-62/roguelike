@@ -58,7 +58,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.twinBlades.steps[1].scaling": [4.65, 0.45],
   "weapons.WEAPON.movesets.twinBlades.steps[2].scaling": [3.1, 0.3],
   "weapons.WEAPON.movesets.twinBlades.steps[3].scaling": [4.65, 0.45],
-  "weapons.WEAPON.movesets.twinBlades.steps[4].scaling": [9.5, 0.9],
+  "weapons.WEAPON.movesets.twinBlades.steps[5].scaling": [9.5, 0.9],
   "weapons.WEAPON.movesets.twinBlades.dashAttack.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.twinBlades.steps2[0].step.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.twinBlades.branches.flurry.step.scaling": [4, 0.4],
@@ -81,7 +81,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.fists.steps[1].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[2].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[3].scaling": [3.4, 0.4],
-  "weapons.WEAPON.movesets.fists.steps[4].scaling": [11, 1.2],
+  "weapons.WEAPON.movesets.fists.steps[5].scaling": [11, 1.2],
   "weapons.WEAPON.movesets.fists.dashAttack.scaling": [12, 1.2],
   "weapons.WEAPON.movesets.fists.steps2[0].step.scaling": [10, 1],
   "weapons.WEAPON.movesets.fists.branches.uppercut.step.scaling": [12, 1.2],
@@ -315,6 +315,12 @@ const CAST_TABLE = /\.cast\.throw\.scaling$/;
 /** 武器 Wave 4（2026-09-25）で足した武器種の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
 const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./;
 
+/**
+ * 連刃の段数の拡張（段取り 5b-F）で終撃の手前に足した左の段（双剣・拳の 5 段目。爪は WAVE4_TABLE）。
+ * 終撃の段は 6 段目へ下がったので、上の PINNED は steps[5] を指す。秒間威力の目安は data/weapons.test.ts が見る
+ */
+const FLURRY_EXTRA_TABLE = /^weapons\.WEAPON\.movesets\.(twinBlades|fists)\.steps\[4\]\.scaling$/;
+
 /** 奥義の定義の係数表のパスの頭 */
 const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
 const ART_PATH = "skills.ART.";
@@ -393,6 +399,7 @@ describe("振り直しで基礎値の値は変わらない", () => {
       // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
       if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
       if (WAVE4_TABLE.test(path)) continue;
+      if (FLURRY_EXTRA_TABLE.test(path)) continue;
       // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
       if (path.startsWith(ART_PATH)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);

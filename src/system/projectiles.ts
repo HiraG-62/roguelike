@@ -10,6 +10,8 @@ import { boonAttackManaMul } from "./boons";
 import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
 import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
+import { noteRiposte } from "./moments";
+import { currentForm } from "./morale";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { blastMulAt } from "./blast";
 import { applyStatus, inflictOnPlayer } from "./statusEffects";
@@ -63,9 +65,26 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
     if (def?.mine) updateMine(state, pr, def);
     else if (def?.lob) updateLob(state, pr, def);
     else hitEnemies(state, pr);
+    if (pr.shot?.returning) cutEnemyShotsByRecall(state, pr);
     if (def?.boomerang) catchBoomerang(state, pr, def);
   } else {
     hitPlayer(state, pr);
+  }
+}
+
+/** 戻りの弾（手元返し・回転刃の帰り）が触れた敵弾を消して応手（recallCut）にする。応手を持つ型（投具）だけ消す */
+function cutEnemyShotsByRecall(state: GameState, pr: Projectile): void {
+  if (pr.life <= 0 || !currentForm(state).riposte.includes("recallCut")) return;
+  for (const enemyShot of state.projectiles) {
+    if (enemyShot.owner !== "enemy" || enemyShot.life <= 0) continue;
+    if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, enemyShot.pos.x, enemyShot.pos.y, enemyShot.radius)) continue;
+    enemyShot.life = 0;
+    spawnBurst(state, enemyShot.pos, enemyShot.color, 4, 60, 0.2, 1.5);
+    noteRiposte(
+      state,
+      "recallCut",
+      state.enemies.find((e) => e.id === enemyShot.sourceId),
+    );
   }
 }
 

@@ -47,6 +47,7 @@ import j_combat_STATUS_shatterBleed from "./combat/STATUS/shatterBleed.json";
 import j_combat_STATUS_cauterize from "./combat/STATUS/cauterize.json";
 import j_combat_STATUS_panic from "./combat/STATUS/panic.json";
 import j_combat_STATUS_lacerate from "./combat/STATUS/lacerate.json";
+import j_combat_STATUS_wound from "./combat/STATUS/wound.json";
 import j_combat_ATTR from "./combat/ATTR.json";
 import j_combat_ATTR_GAIN from "./combat/ATTR_GAIN.json";
 import j_combat_POISE from "./combat/POISE.json";
@@ -1078,6 +1079,7 @@ export const combat = {
     "cauterize": j_combat_STATUS_cauterize,
     "panic": j_combat_STATUS_panic,
     "lacerate": j_combat_STATUS_lacerate,
+    "wound": j_combat_STATUS_wound,
   },
   "ATTR": j_combat_ATTR,
   "ATTR_GAIN": j_combat_ATTR_GAIN,
@@ -2338,6 +2340,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "combat/STATUS/vulnerable.json",
   "combat/STATUS/weaken.json",
   "combat/STATUS/wet.json",
+  "combat/STATUS/wound.json",
   "combat/STATUS/wrath.json",
   "combat/TERRAIN.json",
   "combat/TERRAIN_MUD_SMOKE.json",

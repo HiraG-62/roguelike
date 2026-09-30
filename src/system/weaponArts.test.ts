@@ -3,7 +3,7 @@ import { step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { PLAYER, WEAPON } from "../data/tuning";
+import { FORM, PLAYER, WEAPON } from "../data/tuning";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type ActionStepDef, type MovesetKey, GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
@@ -242,7 +242,8 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     const damage = shot.damage;
     play(state, [{ shootHeld: true }]);
     expect(shot.vel.x, "手元へ向いた").toBeLessThan(0);
-    expect(shot.damage).toBeCloseTo(damage * laneStepOf("thrown", 0, "recall").recall.returnDamageMul);
+    // 手元返しは投具の放出（飛んでいた 1 発ぶんの戦意が戻りの威力に乗る）
+    expect(shot.damage).toBeCloseTo(damage * laneStepOf("thrown", 0, "recall").recall.returnDamageMul * (1 + FORM.thrower.perUnit.damageMul));
   });
 
   it("呼び戻した弾は近くの敵へ曲がる", () => {

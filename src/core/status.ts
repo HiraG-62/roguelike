@@ -43,6 +43,8 @@ export const STATUS_KINDS = [
   "wrath",
   "fury",
   "charged",
+  // ---- 武器の型の印（docs/ideas/weapon-forms-impl.md 3-4。末尾に足すのは STATUS_KINDS の添字を保存する敵がいるため） ----
+  "wound",
 ] as const;
 export type StatusKind = (typeof STATUS_KINDS)[number];
 
@@ -82,6 +84,7 @@ export const STATUS_LABEL: Readonly<Record<StatusKind, string>> = {
   wrath: "怒気",
   fury: "激昂",
   charged: "帯電",
+  wound: "傷",
 };
 
 /** 良い状態（プレイヤーのバフ）。敵には付かず、異常数・総スタックにも数えない */

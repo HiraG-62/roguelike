@@ -118,6 +118,26 @@ describe("fxSprites: 生成物と一覧の整合", () => {
   });
 });
 
+/**
+ * 連刃の段数の拡張（段取り 5b-F）で足した段のうち、絵がまだ無いもの（手続きの描画に落ちる）。
+ * fx レーンが scripts/fx/sheets/{twinBlades,claws,fists}.mjs に足して `npm run fx:gen` したら、ここから消す
+ */
+const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
+  twinBlades: ["l:5", "r:spinCut", "r:frenzy"],
+  fists: ["l:5", "r:hook", "r:frenzy"],
+  claws: ["l:5", "l:6", "l:7", "r:chaseClaw", "r:clawReturn", "r:clawChain", "r:frenzy"],
+};
+
+/**
+ * 定義から消えた段（右の最終段を乱舞へ差し替えた）の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
+ * 左の l:4 は終撃の段が 6 段目以降へ下がったため、今は終撃の手前の新しい段に当たる（絵は旧終撃のまま。fx レーンで l:<最終段> へ移す）
+ */
+const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
+  twinBlades: ["r:shadowPin"],
+  fists: ["r:straightPunch"],
+  claws: ["r:throatSlit"],
+};
+
 describe("fxMotions: 武器種のモーションの表", () => {
   it("表の行は壊れていない（無いシート・知らない原点がない）", () => {
     for (const raw of FX_MOVESET_RAW) {
@@ -132,14 +152,34 @@ describe("fxMotions: 武器種のモーションの表", () => {
   it("表のある武器種は、振りのモーション（左の段・ダッシュ・右の振り・派生・溜め）をすべて持つ", () => {
     for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
       const def = MOVESETS[moveset as MovesetKey];
-      for (const key of swingMotionKeys(def)) expect(fx?.motions[key], `${moveset} ${key}`).toBeDefined();
+      const undrawn = UNDRAWN_MOTIONS[moveset as MovesetKey] ?? [];
+      for (const key of swingMotionKeys(def)) {
+        if (undrawn.includes(key)) continue;
+        expect(fx?.motions[key], `${moveset} ${key}`).toBeDefined();
+      }
     }
   });
 
   it("表のモーションの key は武器種の定義に実在する", () => {
     for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
       const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
-      for (const key of Object.keys(fx?.motions ?? {})) expect(real.has(key), `${moveset} ${key}`).toBe(true);
+      const stale = STALE_MOTIONS[moveset as MovesetKey] ?? [];
+      for (const key of Object.keys(fx?.motions ?? {})) expect(real.has(key) || stale.includes(key), `${moveset} ${key}`).toBe(true);
+    }
+  });
+
+  it("未描画・旧 key の許容リストは実在する段だけを指す（絵を足したら消し忘れを落とす）", () => {
+    for (const [moveset, keys] of Object.entries(UNDRAWN_MOTIONS)) {
+      const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
+      const motions = MOVESET_FX[moveset as MovesetKey]?.motions ?? {};
+      for (const key of keys ?? []) {
+        expect(real.has(key), `${moveset} ${key} は定義にある`).toBe(true);
+        expect(motions[key], `${moveset} ${key} は絵ができたので許容リストから消す`).toBeUndefined();
+      }
+    }
+    for (const [moveset, keys] of Object.entries(STALE_MOTIONS)) {
+      const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
+      for (const key of keys ?? []) expect(real.has(key), `${moveset} ${key} は定義に戻ったので許容リストから消す`).toBe(false);
     }
   });
 

@@ -78,6 +78,7 @@ import {
   actionCooldownLeft,
   artLocksActions,
   artMoveMul,
+  castOverride,
   emitArtVolley,
   endArtHold,
   finishArtHold,
@@ -90,8 +91,10 @@ import {
 import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
-import { type ReleaseMul, createMorale, gainMorale, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
-import { createMoment, noteRiposte, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { formCutsBullets, formReleaseCast } from "../data/weaponForms";
+import { onFormMeleeHit } from "./formMarks";
+import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
+import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -375,8 +378,9 @@ function scaleStep(
     applies: base.applies ?? [],
     cancel: base.cancel,
     invuln: base.invuln ?? 0,
-    cast: base.cast,
-    cutsBullets: base.cutsBullets ?? false,
+    // 長柄: 放出の突きは貫く穂先の弾を撃ち、穂先を持つ突きは敵弾を払う（data/weaponForms.ts）
+    cast: base.cast ?? formReleaseCast(moveset, base, release !== undefined),
+    cutsBullets: (base.cutsBullets ?? false) || formCutsBullets(moveset, base),
     ...(release ? { release: true } : {}),
   };
 }
@@ -543,6 +547,8 @@ function pressSecondary(state: GameState, moveset: MovesetDef): void {
   const p = state.player;
   const a = p.attack;
   if (isDashing(p)) return;
+  // 短銃の装填の拍に押せたら強装填（右の段は出さない）
+  if (primeReload(state)) return;
   if (a.phase === "none") {
     startLaneStep(state, moveset, a.step);
     return;
@@ -1067,7 +1073,7 @@ function updateAttack(state: GameState, dt: number): void {
       a.timer = step.active;
       spawnTrail(state, step);
       // 詠唱の弾は active の瞬間に 1 回だけ（予約のまま捨てられた振りでは出さない）
-      if (step.cast) emitArtVolley(state, step.cast.throw, { lane: a.lane });
+      if (step.cast) emitArtVolley(state, step.cast.throw, castOverride(state, a.lane));
       break;
     case "active":
       a.phase = "recover";
@@ -1285,6 +1291,9 @@ function resolveMeleeBullets(state: GameState, step: MeleeStep): void {
     if (meleeContact(state.player, step, pr.pos, pr.radius) === "none") continue;
     if (reflect) reflectProjectile(state, pr);
     else cutProjectile(state, pr);
+    // 敵弾を消した（撃ち返した）: 扇の風と応手
+    gainMorale(state, "bulletCut");
+    noteRiposte(state, "bulletCut");
   }
 }
 
@@ -1305,8 +1314,10 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   const p = state.player;
   const counter = isCounterable(e) || boonCounterable(state, e);
   const tipMul = tipMultipliers(step, tip);
+  // 型の印（穂先の戦意・鎖の繋ぎ・裂きが開く傷。system/formMarks.ts）
+  const formMul = onFormMeleeHit(state, e, step, tip, counter);
   // 霊刃（spiritBlade）: 通常攻撃に霊力の係数が加わる
-  const out = rollOutgoing(state, e, (step.damage + boonNormalAttackBonus(state)) * tipMul.damage, "melee", { release: step.release });
+  const out = rollOutgoing(state, e, (step.damage + boonNormalAttackBonus(state)) * tipMul.damage * formMul.damage, "melee", { release: step.release });
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
   const weight = WEAPON.weightClass[playerMoveset(state).weight];
   const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : weight.hitstop);
@@ -1319,7 +1330,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   if (finisher) pushSfx(state, "finisherHit");
   // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
   damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1), {
-    poise: counterPoise(step, counter) * tipMul.poise,
+    poise: counterPoise(step, counter) * tipMul.poise * formMul.poise,
     hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
     energy: stepHitEnergy(state, step),
     kind: "melee",
@@ -1584,7 +1595,7 @@ function updateShotCharge(state: GameState, shot: BulletDef, held: boolean, dt: 
 /** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中） */
 function canShootNow(state: GameState): boolean {
   const p = state.player;
-  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging) return false;
+  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging || isReloading(state)) return false;
   return !isDashing(p) || canShootWhileDashing(state);
 }
 
@@ -1758,6 +1769,8 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
     });
   }
   const fired = state.projectiles.slice(firstShot);
+  // 短銃の弾倉は左の射撃 1 回で 1 発数える（右レーンの弾・三点の続きは数えない）
+  if (override.lane === "primary") noteShotFired(state);
   for (const pr of fired) markShotBullet(pr, shot.key);
   onBoonShoot(state, fired);
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));

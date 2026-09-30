@@ -34,6 +34,7 @@ import {
   skillFormulas,
   skillScalingKeys,
   specialFormulas,
+  stepFormulas,
 } from "./scalingText";
 import { ULTIMATES, defaultUltimate } from "../data/ultimates";
 
@@ -156,6 +157,20 @@ describe("武器種の計算式", () => {
       expect(groups.length, `${key} 派生の段落の数`).toBe(named.length > 0 ? 1 : 0);
       const text = groups.map((g) => chunksText(g)).join("");
       for (const b of named) expect(text.includes(b.name), `${key} ${b.name} が派生の段落に無い`).toBe(true);
+    }
+  });
+
+  it("連続する行動で式が同じなら 1 行にまとめ、離れていれば別の行のまま（連刃の右の段が詳細欄に収まる）", () => {
+    const step = (name: string, base: number) => ({ name, formulas: stepFormulas(BASE_STATS, name, { ...MOVESETS.sword.steps[0]!, scaling: { base } }).formulas.slice(0, 1) });
+    const rows = actionListRows([step("あ", 1), step("い", 1), step("う", 2), step("え", 1)]);
+    expect(rows.map((r) => chunksText(r).split(" ")[0]), "あ・い だけがまとまる").toEqual(["あ・い", "う", "え"]);
+  });
+
+  it("連刃の 3 武器種は右の最終段の乱舞が式の頁に残り、右の段の名前がすべて頁のどこかに出る", () => {
+    for (const key of ["twinBlades", "claws", "fists"] as const) {
+      const m = MOVESETS[key];
+      const text = actionListRows(movesetFormulas(BASE_STATS, m, "single")).map((r) => chunksText(r)).join("\n");
+      for (const s of m.steps2) expect(text.includes(s.name ?? ""), `${key} の ${s.name} が頁に出る`).toBe(true);
     }
   });
 

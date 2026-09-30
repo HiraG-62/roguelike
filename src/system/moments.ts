@@ -1,9 +1,9 @@
 import type { FrameInput } from "../core/input";
 import { type DamageKind, type Enemy, type GameState, type Player, pushSfx } from "../core/state";
-import type { Vec } from "../core/vec";
+import { type Vec, dist } from "../core/vec";
 import { enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
-import { MOMENT } from "../data/tuning";
-import { MOMENT_TEXT, type RiposteSource } from "../data/weaponForms";
+import { FORM, MOMENT } from "../data/tuning";
+import { type FormKey, MOMENT_TEXT, type RiposteSource } from "../data/weaponForms";
 import type { ButtonKey, MovesetDef } from "../data/weapons";
 import { addFloatingText } from "./effects";
 import { isEngaged } from "./engagement";
@@ -17,6 +17,7 @@ import {
   moraleMax,
   swingReleaseMul,
   tickMorale,
+  tryPrimeReload,
 } from "./morale";
 
 /**
@@ -65,7 +66,8 @@ export function tickMoments(state: GameState, dt: number): void {
 export function noteBrim(state: GameState): void {
   const p = state.player;
   const form = currentForm(state);
-  showMoment(state, p.body.pos, "brim");
+  // 短銃の弾倉が空になった瞬間は充溢ではなく装填（窓が開く合図）
+  showMoment(state, p.body.pos, form.morale.release.kind === "reload" ? "reload" : "brim");
   // 導出の型（溜め）は溜めの段が上がった音が既に鳴っているので重ねない
   if (!form.morale.derived) pushSfx(state, BRIM_SFX);
   pushPlayerEvent(state, "onBrim", "morale", { amount: moraleMax(state), tag: form.key });
@@ -101,7 +103,9 @@ export function startShotMoments(state: GameState): ShotReleaseOverride {
   const r = consumeShotRelease(state);
   if (!r) return {};
   noteRelease(state, r.units);
-  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, release: { finisher: r.finisher, crit: r.crit } };
+  // 強装填の弾倉は 1 発目だけが放出の弾（units 0 の 2 発目以降は威力の上乗せだけ）
+  const release = r.units > 0 ? { release: { finisher: r.finisher, crit: r.crit } } : {};
+  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, ...release };
 }
 
 /**
@@ -110,7 +114,7 @@ export function startShotMoments(state: GameState): ShotReleaseOverride {
  */
 export function noteRiposte(state: GameState, source: RiposteSource, enemy?: Enemy): void {
   const form = currentForm(state);
-  if (!form.riposte.includes(source)) return;
+  if (!form.riposte.includes(source) || !inRiposteRange(state, form.key, source, enemy)) return;
   const m = state.player.moment;
   const inSwing = source === "counter" || source === "iai";
   if (inSwing && m.swingRiposte) return;
@@ -118,6 +122,20 @@ export function noteRiposte(state: GameState, source: RiposteSource, enemy?: Ene
   gainMorale(state, "riposte");
   const where = enemy && enemy.hp > 0 ? enemyTarget(enemy) : { pos: { ...state.player.body.pos } };
   pushEvent(state, { kind: "onRiposte", actor: "player", source: { kind: "player", key: "riposte" }, tag: source, ...where });
+}
+
+/** 短銃の見切りは零距離（FORM.pistol.zeroDistance）の敵のときだけ応手。他の型・出来事は距離を問わない */
+function inRiposteRange(state: GameState, form: FormKey, source: RiposteSource, enemy?: Enemy): boolean {
+  if (form !== "pistol" || source !== "justDodge") return true;
+  return enemy !== undefined && dist(enemy.body.pos, state.player.body.pos) <= FORM.pistol.zeroDistance;
+}
+
+/** 強装填（player.ts の右の押下）。装填の窓の拍に押せたら立てて浮き文字を出す。立てたら true（押下は強装填が使う） */
+export function primeReload(state: GameState): boolean {
+  if (!tryPrimeReload(state)) return false;
+  showMoment(state, state.player.body.pos, "primed");
+  pushSfx(state, BRIM_SFX);
+  return true;
 }
 
 /** damageEnemy から渡す命中の中身（combat.ts の HitOptions の部分） */

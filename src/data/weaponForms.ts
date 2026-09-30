@@ -1,6 +1,7 @@
 import type { StatusKind } from "../core/status";
 import { FORM } from "./tuning";
 import { type MovesetDef, type MovesetKey, type WeaponWeight, MOVESETS, MOVESET_KEYS, reviveWeight } from "./weapons";
+import { type CastDef, type MeleeStepDef, reviveCast } from "./weapons";
 
 /**
  * 武器の型（docs/ideas/weapon-forms-impl.md 2〜3 章）。27 の武器種（MovesetKey）の上に置く層で、
@@ -85,7 +86,7 @@ export type MoraleRelease =
   | { kind: "maxCharge" }
   /** 構えを離した振りが放出（盾押し） */
   | { kind: "release" }
-  /** 弾倉が空で装填、窓の中で右を押すと強装填（短銃。数値は 5b で FORM.pistol に足す） */
+  /** 弾倉が空で装填、窓の中で右を押すと強装填（短銃。数値は FORM.pistol.reload） */
   | { kind: "reload"; windowSec: number; primeFrom: number; primeTo: number };
 
 /** 放出の戦意 1 あたりの上乗せ（FORM.<型>.perUnit） */
@@ -145,6 +146,9 @@ export const MOMENT_TEXT = {
   release: "放出",
   twinStrike: "双撃",
   firstStrike: "先制",
+  /** 短銃の装填（弾倉が空。充溢の代わり）と強装填（窓の中で右を押せた） */
+  reload: "装填",
+  primed: "強装填",
 } as const;
 
 type FormNumbers = (typeof FORM)[FormKey];
@@ -173,6 +177,13 @@ function lastLaneKeys(form: FormKey): string[] {
     const key = lane[lane.length - 1]?.key;
     return key === undefined ? [] : [key];
   });
+}
+
+/** 型に束ねた武器種の右レーンのうち、床の設置弾・曲射弾を一斉に起爆する段の key（砲の放出の段。段の JSON の detonateMines が元） */
+function detonateLaneKeys(form: FormKey): string[] {
+  return movesetsOfForm(form).flatMap((k) =>
+    MOVESETS[k].steps2.flatMap((s) => (s.kind === "swing" && s.extras?.detonateMines && s.key !== undefined ? [s.key] : [])),
+  );
 }
 
 interface FormSpec {
@@ -224,8 +235,8 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     desc: "手を止めずに張り付き、熱を溜めて乱舞する",
     label: "熱",
     gain: [{ kind: "meleeHit", amount: FORM.flurry.gain.meleeHit }],
-    // 5b-F で右の最終段を乱舞（frenzy）に差し替えるまでは、今の右の最終段を放出の段にする
-    release: { kind: "laneStep", keys: ["frenzy", "shadowPin", "throatSlit", "straightPunch"] },
+    // 双剣・爪・拳とも右の最終段が乱舞
+    release: { kind: "laneStep", keys: ["frenzy"] },
     riposte: ["justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -249,15 +260,105 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     finisher: ["lastStep", "release", "aimedShot"],
   }),
   // ---- 5b・5d で戦意を埋める骨の型（名前と応手は 3-4 の表のまま） ----
-  hewer: defineForm("hewer", { name: "刃斧", desc: "傷を刻んで重ね、裂いて一度に開く", label: "傷", riposte: ["counter", "justDodge"] }),
-  polearm: defineForm("polearm", { name: "長柄", desc: "穂先で間合いを制し、満ちた突きで貫く", label: "穂先", riposte: ["counter", "bulletCut"] }),
-  chain: defineForm("chain", { name: "鎖", desc: "敵を繋いで引き寄せ、まとめて叩きつける", label: "繋ぎ", riposte: ["pullInterrupt", "justDodge"] }),
-  bulwark: defineForm("bulwark", { name: "盾", desc: "構えて受け、受けた分を盾押しで返す", label: "受け溜め", riposte: ["guardBlock"] }),
-  warfan: defineForm("warfan", { name: "扇", desc: "払って風を溜め、突風で押し流す", label: "風", riposte: ["bulletCut"] }),
-  rod: defineForm("rod", { name: "杖", desc: "詠唱を重ねて 3 手の魔法を放つ", label: "術式", riposte: ["justDodge"] }),
-  thrower: defineForm("thrower", { name: "投具", desc: "投げて飛ばし、戻りの刃で刻む", label: "飛んでいる数", riposte: ["recallCut", "justDodge"] }),
-  pistol: defineForm("pistol", { name: "短銃", desc: "弾倉を撃ち切り、装填の拍で強装填する", label: "弾倉", riposte: ["justDodge"] }),
-  artillery: defineForm("artillery", { name: "砲", desc: "弾を置いて広げ、一斉に起爆する", label: "置いた弾", riposte: ["justDodge"] }),
+  // ---- 5b-D1: 刃斧・長柄・鎖（固有の仕組みは system/formMarks.ts） ----
+  hewer: defineForm("hewer", {
+    name: "刃斧",
+    desc: "傷を刻んで重ね、裂いて一度に開く",
+    label: "傷",
+    // 近くの敵の傷の最大スタック（導出）。右の最終段の裂きが放出で、命中した敵の傷を消して重ねた数だけ強い
+    gain: [{ kind: "applyStatus", status: "wound" }],
+    release: { kind: "laneStep", keys: ["rend"] },
+    derived: true,
+    riposte: ["counter", "justDodge"],
+  }),
+  polearm: defineForm("polearm", {
+    name: "長柄",
+    desc: "穂先で間合いを制し、満ちた突きで貫く",
+    label: "穂先",
+    gain: [{ kind: "tipHit", amount: FORM.polearm.gain.tipHit }],
+    // 満ちた後の最初の突きが放出で、貫く穂先の弾（FORM.polearm.cast）を撃つ
+    release: { kind: "nextPrimary" },
+    riposte: ["counter", "bulletCut"],
+    finisher: ["lastStep", "release"],
+  }),
+  chain: defineForm("chain", {
+    name: "鎖",
+    desc: "敵を繋いで引き寄せ、まとめて叩きつける",
+    label: "繋ぎ",
+    // 繋いだ敵の数（導出）。右の最終段の束ね打ちが放出で、振り始めに繋いだ敵を前へ寄せる
+    gain: [{ kind: "pullHit" }],
+    release: { kind: "laneStep", keys: ["slam"] },
+    derived: true,
+    riposte: ["pullInterrupt", "justDodge"],
+  }),
+  // ---- 5b-D2: 盾・扇・杖・投具 ----
+  bulwark: defineForm("bulwark", {
+    name: "盾",
+    desc: "構えて受け、受けた分を盾押しで返す",
+    label: "受け溜め",
+    gain: [{ kind: "guardBlock", perDamage: FORM.bulwark.gain.guardBlock }],
+    // 構えを離した盾押し（hold.release の派生）が放出
+    release: { kind: "release" },
+    riposte: ["guardBlock"],
+    finisher: ["lastStep", "release"],
+  }),
+  warfan: defineForm("warfan", {
+    name: "扇",
+    desc: "払って風を溜め、突風で押し流す",
+    label: "風",
+    gain: [
+      { kind: "meleeHit", amount: FORM.warfan.gain.meleeHit },
+      { kind: "bulletCut", amount: FORM.warfan.gain.bulletCut },
+    ],
+    // 構えを離した突風（hold.release の派生）が放出
+    release: { kind: "release" },
+    riposte: ["bulletCut"],
+    finisher: ["lastStep", "release"],
+  }),
+  rod: defineForm("rod", {
+    name: "杖",
+    desc: "詠唱を重ねて 3 手の魔法を放つ",
+    label: "術式",
+    // 連撃の入力数が術式（導出）。3 手の派生が放出で終撃
+    gain: [{ kind: "cast" }],
+    release: { kind: "branch" },
+    derived: true,
+    riposte: ["justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  thrower: defineForm("thrower", {
+    name: "投具",
+    desc: "投げて飛ばし、戻りの刃で刻む",
+    label: "飛んでいる数",
+    // 飛んでいる自分の弾の数（導出）。手元返し（投擲）・輪刃の投げ放ち・戦輪の払いが放出
+    gain: [{ kind: "flyingShots" }],
+    release: { kind: "laneStep", keys: ["recall", "ringLaunch", "ringSweep"] },
+    derived: true,
+    riposte: ["recallCut", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  // ---- 5b-E: 銃の型 2（短銃の装填・砲の一斉起爆） ----
+  pistol: defineForm("pistol", {
+    name: "短銃",
+    desc: "弾倉を撃ち切り、装填の拍で強装填する",
+    label: "弾倉",
+    gain: [{ kind: "shotFired", amount: FORM.pistol.gain.shotFired }],
+    release: { kind: "reload", ...FORM.pistol.reload },
+    // 応手は零距離の見切りだけ（範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
+    riposte: ["justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  artillery: defineForm("artillery", {
+    name: "砲",
+    desc: "弾を置いて広げ、一斉に起爆する",
+    label: "置いた弾",
+    gain: [{ kind: "placedShots" }],
+    // 右の一斉起爆の段（零距離砲・起爆・蹴り飛ばし）が放出。一斉起爆した数が単位で、その一撃が終撃
+    release: { kind: "laneStep", keys: detonateLaneKeys("artillery") },
+    derived: true,
+    riposte: ["justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
   tome: defineForm("tome", { name: "書", desc: "スキルを当てて術を溜め、無詠唱で撃つ", label: "術", riposte: ["justDodge"] }),
   bell: defineForm("bell", { name: "鈴", desc: "式を鳴らして鈴音を溜め、打ち鳴らして動かす", label: "鈴音", riposte: ["justDodge"] }),
 };
@@ -270,4 +371,27 @@ export function formOf(moveset: Pick<MovesetDef, "form">): FormDef {
 /** 武器種の key から型 */
 export function formOfKey(key: MovesetKey): FormDef {
   return FORMS[MOVESETS[key].form];
+}
+
+// ---------------------------------------------------------------------------
+// 長柄の段の差し替え（system/player.ts の scaleStep が読む。武器種の定義は変えず、型と放出で決まる）
+// ---------------------------------------------------------------------------
+
+/** 長柄の放出の突きが撃つ貫く穂先の弾 */
+const PIERCE_THRUST_CAST: CastDef = reviveCast(FORM.polearm.cast);
+
+/** 突きの段か */
+function isThrust(step: Readonly<MeleeStepDef>): boolean {
+  return step.shape.kind === "thrust";
+}
+
+/** 放出の振りで段に差し込む弾（長柄の満ちた突き）。差し込まなければ undefined */
+export function formReleaseCast(moveset: Pick<MovesetDef, "form">, step: Readonly<MeleeStepDef>, release: boolean): CastDef | undefined {
+  if (!release || moveset.form !== "polearm" || !isThrust(step)) return undefined;
+  return PIERCE_THRUST_CAST;
+}
+
+/** 型が段に敵弾を払わせるか（長柄: 穂先を持つ突きの段は active の間に敵弾を払う。FORM.polearm.tipCutsBullets） */
+export function formCutsBullets(moveset: Pick<MovesetDef, "form" | "tip">, step: Readonly<MeleeStepDef>): boolean {
+  return moveset.form === "polearm" && FORM.polearm.tipCutsBullets && moveset.tip !== undefined && isThrust(step);
 }

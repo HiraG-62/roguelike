@@ -32,6 +32,7 @@ import { sustainRules } from "../data/ultimates";
 import { ultimateBlocksEnergy, ultimateReady } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
+import { releaseTerrainRadiusBonus } from "./morale";
 import type { TriggerEffectKind } from "../loot/types";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
 import { statsBulletHas } from "../loot/bullets";
@@ -565,7 +566,8 @@ function spawnShards(state: GameState, pos: Vec, count: number, damage: number):
 
 /** 地形の効果（置く・火をつける・広げる）。半径の既定は BOON.ruleTerrainRadius */
 function applyTerrainEffect(state: GameState, effect: Readonly<RuleEffect>, pos: Vec): void {
-  const radius = effect.radius ?? BOON.ruleTerrainRadius;
+  // 扇の突風（放出の振り）の間は広げる半径が風の分だけ伸びる
+  const radius = (effect.radius ?? BOON.ruleTerrainRadius) + (effect.kind === "spreadTerrain" ? releaseTerrainRadiusBonus(state) : 0);
   if (effect.kind === "igniteTerrain") {
     igniteTerrainAt(state, pos.x, pos.y, radius);
     return;

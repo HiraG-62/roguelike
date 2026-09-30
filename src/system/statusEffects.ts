@@ -74,6 +74,8 @@ const ENEMY_ONLY: ReadonlySet<StatusKind> = new Set<StatusKind>([
   "encase",
   "exposed",
   "enfeeble",
+  // 傷は刃斧の型の印（継続ダメージを持たず、裂きで一度に開くためだけに重ねる）
+  "wound",
 ]);
 /** プレイヤーに付かないもの（操作を奪いすぎる + 敵専用） */
 const PLAYER_IMMUNE: ReadonlySet<StatusKind> = new Set<StatusKind>(["freeze", "paralyze", "fear", ...ENEMY_ONLY]);
@@ -327,6 +329,8 @@ function maxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): numb
       return STATUS.wrath.maxStacks;
     case "charged":
       return STATUS.charged.maxStacks;
+    case "wound":
+      return STATUS.wound.maxStacks;
     default:
       return 1;
   }

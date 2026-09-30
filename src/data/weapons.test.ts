@@ -31,11 +31,11 @@ import {
   withExtraBranch,
 } from "./weapons";
 import { JOB_BRANCHES, JOB_BRANCH_SEQUENCE } from "./jobs";
+import { formOf } from "./weaponForms";
 import { bulletDef } from "../loot/bullets";
 
-/** 剣以外の武器種の段数（ユーザーメモ: 3 段固定ではなく 4〜5 段）。剣は QA で調整済みの基準線として 3 段のまま */
-const MIN_STEPS = 4;
-const MAX_STEPS = 5;
+/** 連刃の 3 武器種の段数（docs/ideas/weapon-forms-impl.md 3-9。左右とも同数で、右の最終段は乱舞） */
+const FLURRY_STEPS = { twinBlades: 6, fists: 6, claws: 8 } as const;
 /** 名前付き派生（構えを離した振りを除く）の本数と入力数（docs/ideas/ougi-and-dual-actions.md 4.3） */
 const MIN_BRANCHES = 4;
 const MIN_BRANCH_INPUTS = 3;
@@ -68,16 +68,29 @@ function dpsAtBase(s: MeleeStepDef): number {
 }
 
 describe("武器種の定義", () => {
-  it("すべての武器種が表示名・説明・語を持ち、剣と射撃専用以外は 4〜5 段ある", () => {
+  it("すべての武器種が表示名・説明・語を持ち、射撃専用以外は段数が型の幅（FORM.<型>.stepsMin/Max）に入る", () => {
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       expect(def.key, key).toBe(key);
       expect(def.name.length, `${key} の表示名`).toBeGreaterThan(0);
       expect(def.desc.length, `${key} の説明`).toBeGreaterThan(0);
       expect(profileKeywords(def.keywords).length, `${key} が語を持つ`).toBeGreaterThan(0);
-      if (key === "sword" || isGun(def)) continue;
-      expect(def.steps.length, `${key} の段数`).toBeGreaterThanOrEqual(MIN_STEPS);
-      expect(def.steps.length, `${key} の段数`).toBeLessThanOrEqual(MAX_STEPS);
+      if (isGun(def)) continue;
+      const { min, max } = formOf(def).steps;
+      expect(def.steps.length, `${key} の段数（型 ${def.form} の下限 ${min}）`).toBeGreaterThanOrEqual(min);
+      expect(def.steps.length, `${key} の段数（型 ${def.form} の上限 ${max}）`).toBeLessThanOrEqual(max);
+    }
+  });
+
+  it("連刃の武器種は段数が双剣 6・拳 6・爪 8 で、右の最終段だけが乱舞（frenzy）", () => {
+    for (const [key, count] of Object.entries(FLURRY_STEPS) as [keyof typeof FLURRY_STEPS, number][]) {
+      const def = MOVESETS[key];
+      expect(def.form, `${key} は連刃`).toBe("flurry");
+      expect(def.steps.length, `${key} の左の段数`).toBe(count);
+      expect(def.steps2.length, `${key} の右の段数`).toBe(count);
+      expect(def.steps2.map((s) => s.key).indexOf("frenzy"), `${key} の乱舞は右の最終段`).toBe(count - 1);
+      expect(def.steps2[count - 1]?.name, `${key} の乱舞の表示名`).toBe(STEP2_NAMES.frenzy);
+      for (const b of def.branches) expect(b.next ?? 0, `${key}.${b.key} の続き`).toBeLessThan(count);
     }
   });
 
@@ -247,8 +260,8 @@ describe("武器種の定義", () => {
     }
   });
 
-  it("双剣は 5 段、先端判定は突きの武器種（槍・鞭）だけ", () => {
-    expect(MOVESETS.twinBlades.steps.length).toBe(5);
+  it("双剣は 6 段、先端判定は突きの武器種（槍・鞭）だけ", () => {
+    expect(MOVESETS.twinBlades.steps.length).toBe(FLURRY_STEPS.twinBlades);
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       if (!def.tip) continue;
@@ -359,7 +372,8 @@ describe("武器種の拡張（docs/ideas/combat-feel-design.md レーン B）",
 
   it("段の applies: 斧の最終段は出血、鎖鎌の分銅は崩勢を付ける", () => {
     const axeLast = MOVESETS.axe.steps[MOVESETS.axe.steps.length - 1];
-    expect(axeLast?.applies?.map((a) => a.kind)).toEqual(["bleed"]);
+    // 刃斧の左の段はどれも傷を 1 つ刻む（data/weaponForms.ts の刃斧）
+    expect(axeLast?.applies?.map((a) => a.kind)).toEqual(["bleed", "wound"]);
     const first = MOVESETS.chainSickle.steps2[0];
     const weight = first.kind === "swing" ? first.step : undefined;
     expect(first.key, "鎖鎌の右 1 段目は分銅").toBe("chainWeight");
@@ -539,12 +553,13 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     }
   });
 
-  it("爪は左の全段が多段ヒットで、最終段と右の喉裂きが出血を付ける", () => {
+  it("爪は左の全段が多段ヒットで、最終段と右の最終段（乱舞）が出血を付ける", () => {
     const claws = MOVESETS.claws;
     for (const s of claws.steps) expect(s.hits ?? 1, "爪の左の段は 2 回以上当たる").toBeGreaterThanOrEqual(2);
     expect(claws.steps[claws.steps.length - 1]?.applies?.map((a) => a.kind)).toEqual(["bleed"]);
     const last = claws.steps2[claws.steps2.length - 1];
-    expect(last?.kind === "swing" ? last.step.applies?.map((a) => a.kind) : undefined, "喉裂き").toEqual(["bleed"]);
+    expect(last?.key, "右の最終段は乱舞").toBe("frenzy");
+    expect(last?.kind === "swing" ? last.step.applies?.map((a) => a.kind) : undefined, "乱舞").toEqual(["bleed"]);
     const leap = claws.steps2.find((s) => s.key === "leapBack");
     expect(leap?.kind === "swing" ? (leap.extras?.selfKnock ?? 0) : 0, "跳び退きは自分を後ろへ押す").toBeGreaterThan(0);
   });

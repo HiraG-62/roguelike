@@ -233,6 +233,29 @@ function foldedActionChunk(action: Readonly<ActionFormulas>, index: number, last
   return { pieces: [{ text: action.name, tone: "name" }, { text: ` ${values}${last ? "" : NAME_SEP}` }], glue: index > 0 };
 }
 
+/** 名前だけ違う 2 つの行動の式（畳んだ量を含む）が同じか。値まで同じなので 1 行にまとめても読める内容は変わらない */
+function sameActionFormulas(a: Readonly<ActionFormulas>, b: Readonly<ActionFormulas>): boolean {
+  if (a.formulas.length === 0 || b.formulas.length === 0) return false;
+  return sameFormulas(a.formulas, b.formulas) && sameFormulas(a.folded ?? [], b.folded ?? []);
+}
+
+/**
+ * 連続する行動で式が同じなら 1 つにまとめる（「膝蹴り・フック」）。左の連撃の段は「1〜2 段目」に畳み済みなので、
+ * これは右レーンの段のため。連刃は 6〜8 段あり、右の段を 1 つずつ出すと詳細欄 1 枚に収まらない
+ */
+function mergeSameActions(actions: readonly ActionFormulas[]): ActionFormulas[] {
+  const out: ActionFormulas[] = [];
+  for (const a of actions) {
+    const last = out[out.length - 1];
+    if (last !== undefined && sameActionFormulas(last, a)) {
+      last.name = `${last.name}${NAME_SEP}${a.name}`;
+      continue;
+    }
+    out.push({ ...a });
+  }
+  return out;
+}
+
 /**
  * 行動の列を詳細欄の行にする。式を持たない行動（値だけに畳んだ派生）は続けて 1 つの段落に詰める。
  * 派生は 4〜5 本あり、1 本 1 行だと行動の多い武器種（拳・双剣）が詳細欄 1 枚に収まらないため
@@ -245,7 +268,7 @@ export function actionListRows(actions: readonly ActionFormulas[]): FormulaChunk
     rows.push([{ pieces: [{ text: FOLDED_GROUP_HEAD, tone: "dim" }] }, ...folded.map((a, i) => foldedActionChunk(a, i, i === folded.length - 1))]);
     folded.length = 0;
   };
-  for (const a of actions) {
+  for (const a of mergeSameActions(actions)) {
     if (a.formulas.length === 0 && (a.folded ?? []).length > 0) {
       folded.push(a);
       continue;

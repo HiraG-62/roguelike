@@ -14,6 +14,7 @@ import {
   movesetLabel,
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
+import { currentForm, moraleGauge } from "../system/morale";
 import { currentShot, isAttacking, nextLaneIndex, plannedInputs, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { shapeMoveset } from "../skills/forms";
@@ -75,11 +76,22 @@ function primaryHint(moveset: MovesetDef, shot: BulletDef, index: number): strin
  * 左右の次の段の案内（「左: 2 段目 / 右: 返し斬り」「左 長押し: 溜め / 右: 薙ぎ払い」「左: 射撃 / 右 長押し: 狙い撃ち」）。
  * index は左右共有の段カウンタが次に指す段（右レーンを超えたら 1 段目）。右の段の再使用中は残り秒を添える
  */
-export function controlHint(moveset: MovesetDef, shot: BulletDef, index = 0, cooldownLeft = 0): string {
+export function controlHint(moveset: MovesetDef, shot: BulletDef, index = 0, cooldownLeft = 0, releaseKeys: readonly string[] = []): string {
   const rightIndex = index < moveset.steps2.length ? index : 0;
   const right = moveset.steps2[rightIndex] ?? moveset.steps2[0];
   const wait = cooldownLeft > 0 ? `（あと ${cooldownLeft.toFixed(COOLDOWN_DIGITS)} 秒）` : "";
-  return `${primaryHint(moveset, shot, index)} / ${artPress(right)}: ${actionStepName(right, rightIndex)}${wait}`;
+  const release = right.key !== undefined && releaseKeys.includes(right.key) ? RELEASE_MARK : "";
+  return `${primaryHint(moveset, shot, index)} / ${artPress(right)}: ${actionStepName(right, rightIndex)}${release}${wait}`;
+}
+
+/** 右の次の段が戦意の放出の段のときの印（用語は GLOSSARY の「放出」） */
+const RELEASE_MARK = "（放出）";
+
+/** 放出の段になる右レーンの key。放出が右の段（laneStep）の型で、戦意が溜まる型だけ（骨の型は放出が起きないので印を出さない） */
+export function releaseStepKeys(state: GameState): readonly string[] {
+  if (!moraleGauge(state).active) return [];
+  const release = currentForm(state).morale.release;
+  return release.kind === "laneStep" ? release.keys : [];
 }
 
 export interface ChargeGauge {
@@ -142,7 +154,7 @@ export function drawComboHud(ctx: CanvasRenderingContext2D, state: GameState, la
   const index = nextLaneIndex(state, moveset) ?? 0;
   const next = moveset.steps2[index];
   const wait = next ? actionCooldownLeft(state, next) : 0;
-  const hint = hudHintText(moveset, plannedInputs(state), currentShot(state.stats), index, wait);
+  const hint = hudHintText(moveset, plannedInputs(state), currentShot(state.stats), index, wait, releaseStepKeys(state));
   drawText(ctx, truncateText(hint, maxW, TEXT.SMALL), cx, bottom, TEXT.SMALL, COLOR_HINT, "center");
 }
 
@@ -152,10 +164,17 @@ function pipCount(moveset: MovesetDef): number {
 }
 
 /** 案内の 1 行。いまの入力列から成立しそうな派生（「左左」の後の「右: 十字断ち」など）があればそれを、無ければ左右の次の段を出す */
-export function hudHintText(moveset: MovesetDef, inputs: readonly ButtonKey[], shot: BulletDef, index: number, cooldownLeft: number): string {
+export function hudHintText(
+  moveset: MovesetDef,
+  inputs: readonly ButtonKey[],
+  shot: BulletDef,
+  index: number,
+  cooldownLeft: number,
+  releaseKeys: readonly string[] = [],
+): string {
   const hints = branchHints(moveset, inputs);
   if (hints.length > 0) return formatBranchHints(hints);
-  return controlHint(moveset, shot, index, cooldownLeft);
+  return controlHint(moveset, shot, index, cooldownLeft, releaseKeys);
 }
 
 function drawGauge(ctx: CanvasRenderingContext2D, cx: number, y: number, gauge: ChargeGauge): void {

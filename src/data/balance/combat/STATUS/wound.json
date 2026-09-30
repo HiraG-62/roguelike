@@ -1,0 +1,7 @@
+{
+  "_note": "傷（刃斧の型の印。docs/ideas/weapon-forms-impl.md 3-4）。継続ダメージを持たず、重ねるだけ。刃斧の左の段の命中で 1 つずつ付き（持続は movesets/axe.json・cleaver.json の applies）、右の最終段「裂き」が命中した敵の傷を全部消して重ねた数だけ強く当たる（倍率は FORM/hewer.json の rend）",
+  "_fields": {
+    "maxStacks": "重ねられる上限（刃斧の戦意「傷」の上限 FORM.hewer.max と揃える）"
+  },
+  "maxStacks": 5
+}

@@ -604,7 +604,7 @@ export function reviveStep(raw: unknown): MeleeStepDef {
 }
 
 /** 段の cast（{ key, throw }）。名前は CAST_NAMES、素性と絵は CAST_VOLLEY（無ければ射撃・物理）。弾の key は `cast.<key>` */
-function reviveCast(raw: unknown): CastDef {
+export function reviveCast(raw: unknown): CastDef {
   if (!isRecord(raw) || typeof raw.key !== "string" || raw.key === "") throw new Error(`不正な cast: ${JSON.stringify(raw)}`);
   const name = CAST_NAMES[raw.key] ?? raw.key;
   return { key: raw.key, name, throw: reviveThrowAs(raw.throw, `cast.${raw.key}`, name, CAST_VOLLEY[raw.key]) };
@@ -856,7 +856,8 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   crossThrust: "交差突き",
   danceCut: "舞い斬り",
   backhandCut: "逆手斬り",
-  shadowPin: "影止め",
+  spinCut: "旋回斬り",
+  frenzy: "乱舞",
   chargeThrust: "突進突き",
   buttStrike: "石突き",
   spearArc: "払い",
@@ -869,7 +870,7 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   elbow: "肘打ち",
   knee: "膝蹴り",
   roundKick: "回し蹴り",
-  straightPunch: "正拳",
+  hook: "フック",
   entangle: "巻き付け",
   whipSweep: "打ち払い",
   groundLash: "地打ち",
@@ -894,6 +895,9 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   axeChop: "打ち割り",
   axeWhirl: "回し斬り",
   greatSplit: "大割り",
+  // 刃斧の右の最終段（放出。傷を開く）/ 鎖の右の最終段（放出。繋いだ敵を寄せて打つ）
+  rend: "裂き",
+  slam: "束ね打ち",
   guard: "構え",
   "guard.release": "盾押し",
   shieldThrust: "盾突き",
@@ -936,7 +940,9 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   rake: "引っ掻き",
   leapBack: "跳び退き",
   clawFlurry: "乱れ爪",
-  throatSlit: "喉裂き",
+  chaseClaw: "追い爪",
+  clawReturn: "爪返し",
+  clawChain: "連爪",
   flailWhirl: "回し",
   chainSwing: "振り回し",
   ballDrop: "鉄球落とし",
@@ -991,6 +997,8 @@ interface VolleyProfile {
 
 /** 左の段の cast の表示名（HUD の「左: 火矢」）。キーは cast.key。数値は movesets.<武器種>.steps[n].cast */
 export const CAST_NAMES: Readonly<Record<string, string>> = {
+  // 長柄の放出の突きが撃つ貫く弾（data/weaponForms.ts。数値は FORM.polearm.cast）
+  pierceThrust: "穂先放ち",
   fireDart: "火矢",
   fireDart2: "火矢",
   fireDartTwin: "二連火矢",

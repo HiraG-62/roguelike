@@ -178,6 +178,7 @@ export function updateEnemies(state: GameState, dt: number): void {
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
     e.hitFlash = Math.max(0, e.hitFlash - dt);
+    if (e.linked !== undefined) e.linked = Math.max(0, e.linked - dt);
     if (isAsleep(state, e)) continue;
     const def = enemyDef(e.defKey);
     // chill 中は移動も攻撃の進行も遅くなる
