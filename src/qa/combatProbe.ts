@@ -6,11 +6,14 @@ import { dist, normalize, sub, type Vec } from "../core/vec";
 import { ACTION_TEXT } from "../data/actionText";
 import { enemyDef } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
+import { MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
+import { BASES } from "../loot/bases";
+import { bulletOfBase } from "../loot/bullets";
 import { computeStats } from "../loot/stats";
-import { DEFAULT_STATS } from "../loot/types";
+import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { createEnemy } from "../system/enemies";
 import { withBaseAreaMul } from "../system/floor";
-import { applyStats } from "../system/player";
+import { applyStats, playerMoveset } from "../system/player";
 import { attackCommitted, isStaggered } from "../system/poise";
 import { isBossDriven } from "../system/boss";
 import { behaviorOf } from "../system/behaviors/registry";
@@ -57,14 +60,32 @@ const GROUP_DEATH_HP = 30;
 
 /**
  * 装備の型。none = 装備なし（既定の剣。基準値の物差し）/ fitted = 深度に見合う装備
- * （itemLevel = 深度の並の遺物 6 部位。qa/gearPower.ts。地金は今の深度で決まる）
+ * （itemLevel = 深度の並の遺物 6 部位。qa/gearPower.ts。地金は今の深度で決まる）/
+ * { moveset } = 装備なしの素の能力のまま武器種だけ替える（武器種どうしの型の差だけを見る軸。docs/ideas/weapon-forms-impl.md 6 章）
  */
-export type ProbeGear = "none" | "fitted";
+export type ProbeStockGear = "none" | "fitted";
+export interface ProbeMovesetGear {
+  readonly moveset: MovesetKey;
+}
+export type ProbeGear = ProbeStockGear | ProbeMovesetGear;
 
-export const PROBE_GEAR_LABEL: Readonly<Record<ProbeGear, string>> = {
+export const PROBE_GEAR_LABEL: Readonly<Record<ProbeStockGear, string>> = {
   none: "なし",
   fitted: "深度相応",
 };
+
+export function probeGearLabel(gear: ProbeGear): string {
+  return typeof gear === "string" ? PROBE_GEAR_LABEL[gear] : gear.moveset;
+}
+
+/**
+ * 武器種だけを替えた素の能力。銃の家系は、その武器種の最初のベースの弾を撃たせる
+ * （bulletOfBase が実プレイと同じ決め方。近接は既定の弾のまま）
+ */
+function movesetStats(moveset: MovesetKey): PlayerStats {
+  const base = BASES.find((b) => b.moveset === moveset);
+  return { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [], moveset, bullet: bulletOfBase(base?.key) };
+}
 
 const NO_MOVE: Vec = { x: 0, y: 0 };
 
@@ -83,6 +104,10 @@ function makeArena(seed: number, depth: number, gear: ProbeGear = "none"): GameS
   if (gear === "fitted") {
     applyStats(state, { ...computeStats(fittedEquipment(seed, depth), depth), critChance: 0 });
     state.player.hp = state.player.maxHp;
+  } else if (typeof gear === "object") {
+    state.stats = movesetStats(gear.moveset);
+    state.player.maxHp = state.stats.maxHp;
+    state.player.hp = state.stats.maxHp;
   } else {
     state.stats = { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [] };
     state.player.maxHp = state.stats.maxHp;
@@ -139,7 +164,9 @@ function botInput(state: GameState, bot: ProbeBot): FrameInput {
       return frameInput({ dashPressed: true, move: escape, aimScreen: null });
     }
   }
-  return frameInput({ attackPressed: true, aimScreen: null, move: d > BOT_REACH ? toward : NO_MOVE });
+  // 銃の家系は押しっぱなしで撃つ（player.ts shotButtonHeld）。近接は今までどおり押すだけ（溜めない）
+  const held = isGun(playerMoveset(state));
+  return frameInput({ attackPressed: true, attackHeld: held, aimScreen: null, move: d > BOT_REACH ? toward : NO_MOVE });
 }
 
 /** 1 回の計測の生の数（seed をまたいで足せる） */
@@ -383,7 +410,27 @@ export interface ProbeConfig {
   gears: readonly ProbeGear[];
   /** 地力 ÷ 敵の生命の表に使う装備の seed（装備は乱数なので数を平均する） */
   powerSeeds: readonly number[];
+  /** 武器種 × 敵の表（空なら出さない）。装備は素の能力のまま武器種だけ替える */
+  weapons: readonly MovesetKey[];
+  weaponProbe: WeaponProbeSetup;
 }
+
+/** 武器種 × 敵の表の測り方（docs/ideas/weapon-forms-impl.md 6 章: bot は mashDodge、敵は並・堅守・射手、深度 1 / 5、60 秒 × seed 3） */
+export interface WeaponProbeSetup {
+  enemies: readonly string[];
+  depths: readonly number[];
+  seeds: readonly number[];
+  seconds: number;
+  bot: ProbeBot;
+}
+
+const WEAPON_PROBE_FULL: WeaponProbeSetup = {
+  enemies: ["slime", "knight", "eye"],
+  depths: [1, 5],
+  seeds: [1, 2, 3],
+  seconds: 60,
+  bot: "mashDodge",
+};
 
 /** `npm run qa:probe` の重い版 */
 export const FULL_PROBE_CONFIG: ProbeConfig = {
@@ -400,6 +447,8 @@ export const FULL_PROBE_CONFIG: ProbeConfig = {
   groupBots: ["mash", "mashDodge"],
   gears: ["none", "fitted"],
   powerSeeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  weapons: MOVESET_KEYS,
+  weaponProbe: WEAPON_PROBE_FULL,
 };
 
 /** `npm run test` の縮小版（健全性の確認だけ。数分の計測はしない） */
@@ -413,6 +462,8 @@ export const SMOKE_PROBE_CONFIG: ProbeConfig = {
   groupBots: ["mash"],
   gears: ["none", "fitted"],
   powerSeeds: [1, 2],
+  weapons: ["sword", "longarm"],
+  weaponProbe: { ...WEAPON_PROBE_FULL, enemies: ["slime"], depths: [1], seeds: [1], seconds: 5 },
 };
 
 export interface ProbeRow {
@@ -423,9 +474,18 @@ export interface ProbeRow {
   counts: ProbeCounts;
 }
 
+/** 武器種 × 敵 × 深度の 1 行（seed をまたいだ合計） */
+export interface WeaponProbeRow {
+  moveset: MovesetKey;
+  enemy: string;
+  depth: number;
+  counts: ProbeCounts;
+}
+
 export interface ProbeResult {
   duels: ProbeRow[];
   groups: ProbeRow[];
+  weapons: WeaponProbeRow[];
   /** 深度ごとの地力 ÷ 敵の生命（qa/gearPower.ts） */
   power: GearPowerRow[];
 }
@@ -459,7 +519,22 @@ export function runProbe(cfg: ProbeConfig): ProbeResult {
       }
     }
   }
-  return { duels, groups, power: measureGearPower(cfg.depths, cfg.powerSeeds) };
+  return { duels, groups, weapons: runWeaponProbe(cfg), power: measureGearPower(cfg.depths, cfg.powerSeeds) };
+}
+
+/** 武器種ごとに 1 対 1 を測る。装備は素の能力のままなので、差は武器種の型（と重さ）だけから出る */
+export function runWeaponProbe(cfg: ProbeConfig): WeaponProbeRow[] {
+  const setup = cfg.weaponProbe;
+  const rows: WeaponProbeRow[] = [];
+  for (const moveset of cfg.weapons) {
+    for (const enemy of setup.enemies) {
+      for (const depth of setup.depths) {
+        const counts = sumOverSeeds(setup.seeds, (seed) => runDuel(depth, enemy, setup.bot, setup.seconds, seed, { moveset }));
+        rows.push({ moveset, enemy, depth, counts });
+      }
+    }
+  }
+  return rows;
 }
 
 const SECONDS_PER_MINUTE = 60;
@@ -574,7 +649,7 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
       mdRow([
         r.label,
         String(r.depth),
-        PROBE_GEAR_LABEL[r.gear],
+        probeGearLabel(r.gear),
         PROBE_BOT_LABEL[r.bot],
         fixed(m.secondsPerKill, 2),
         fixed(m.hitsPer60, 1),
@@ -606,7 +681,7 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
       mdRow([
         `${r.label}（${cfg.groups[r.label]?.join("+") ?? ""}）`,
         String(r.depth),
-        PROBE_GEAR_LABEL[r.gear],
+        probeGearLabel(r.gear),
         PROBE_BOT_LABEL[r.bot],
         fixed(m.killsPer60, 1),
         fixed(m.hitsPer60, 1),
@@ -624,6 +699,113 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
     );
   }
   lines.push("");
+  lines.push(...buildWeaponSection(cfg, result.weapons));
   lines.push(...buildGearPowerSection(result.power, cfg.powerSeeds.length));
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// 武器種 × 敵の表
+// ---------------------------------------------------------------------------
+
+/** 型どうしの釣り合いの目標（docs/ideas/weapon-forms-impl.md 6 章）: 撃破秒は中央値 ±20%、被弾/60 秒は ±30% */
+export const WEAPON_KILL_TOLERANCE = 0.2;
+export const WEAPON_HIT_TOLERANCE = 0.3;
+
+/**
+ * 表に足す列（戦意の放出/60 秒・応手/60 秒など）。Player.morale や onRelease / onRiposte が入ったら、
+ * ProbeCounts に数を足してここに 1 要素ずつ足す。空の間は列を出さない
+ */
+export interface WeaponExtraColumn {
+  header: string;
+  value(counts: ProbeCounts): string;
+}
+export const WEAPON_EXTRA_COLUMNS: readonly WeaponExtraColumn[] = [];
+
+function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const hi = sorted[mid];
+  const lo = sorted[mid - 1];
+  if (hi === undefined) return null;
+  if (sorted.length % 2 === 1 || lo === undefined) return hi;
+  return (lo + hi) / 2;
+}
+
+/** 敵 × 深度ごとの、武器種をまたいだ中央値（撃破秒・被弾/60 秒）。キーは `${enemy}@${depth}` */
+export interface WeaponMedians {
+  secondsPerKill: number | null;
+  hitsPer60: number | null;
+}
+
+export function weaponMedians(rows: readonly WeaponProbeRow[]): ReadonlyMap<string, WeaponMedians> {
+  const groups = new Map<string, WeaponProbeRow[]>();
+  for (const r of rows) {
+    const key = `${r.enemy}@${r.depth}`;
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  const out = new Map<string, WeaponMedians>();
+  for (const [key, list] of groups) {
+    const metrics = list.map((r) => probeMetrics(r.counts));
+    out.set(key, {
+      secondsPerKill: median(metrics.flatMap((m) => (m.secondsPerKill === null ? [] : [m.secondsPerKill]))),
+      hitsPer60: median(metrics.map((m) => m.hitsPer60)),
+    });
+  }
+  return out;
+}
+
+/** 値 ÷ 中央値。中央値が 0 以下・値が無ければ null */
+function versusMedian(value: number | null, med: number | null): number | null {
+  if (value === null || med === null || med <= 0) return null;
+  return value / med;
+}
+
+/** 比を「1.23」の形に。目標の幅を外れたら * を付ける */
+function ratioCell(r: number | null, tolerance: number): string {
+  if (r === null) return "-";
+  return `${r.toFixed(2)}${Math.abs(r - 1) > tolerance ? "*" : ""}`;
+}
+
+/** 武器種 × 敵の節（見出し込み）。重いので `npm run qa:probe -- --weapons` だけでも出せるよう、報告全体から切り出してある */
+export function buildWeaponSection(cfg: ProbeConfig, rows: readonly WeaponProbeRow[]): string[] {
+  if (rows.length === 0) return [];
+  const setup = cfg.weaponProbe;
+  const medians = weaponMedians(rows);
+  const lines: string[] = [];
+  lines.push("## 武器種 × 敵");
+  lines.push("");
+  lines.push(
+    `装備なし（素の能力）のまま武器種だけ替え、bot「${PROBE_BOT_LABEL[setup.bot]}」で 1 回 ${setup.seconds} 秒 × seed ${setup.seeds.length}（${setup.seeds.join(", ")}）。` +
+      "銃の家系はその武器種の最初のベースの弾を撃つ。bot は左クリックの連打だけ（銃の家系は押しっぱなしで撃つ。右レーン・溜め・構えは押さない）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。",
+  );
+  lines.push("");
+  lines.push(
+    `- 比 = その武器種の値 ÷ 同じ敵・深度での武器種をまたいだ中央値。\`*\` は目標の幅の外（撃破秒は ±${WEAPON_KILL_TOLERANCE * 100}%、被弾/60秒は ±${WEAPON_HIT_TOLERANCE * 100}%）`,
+  );
+  lines.push("- 撃破 0 のとき撃破秒は「-」（60 秒で 1 体も倒せない）");
+  lines.push("");
+  const extraHeaders = WEAPON_EXTRA_COLUMNS.map((c) => c.header);
+  const headers = ["武器種", "敵", "深度", "撃破秒", "撃破秒の比", "被弾/60秒", "被弾の比", ...extraHeaders];
+  lines.push(mdRow(headers));
+  lines.push(mdRow(new Array<string>(headers.length).fill("---")));
+  for (const r of rows) {
+    const m = probeMetrics(r.counts);
+    const med = medians.get(`${r.enemy}@${r.depth}`);
+    lines.push(
+      mdRow([
+        r.moveset,
+        r.enemy,
+        String(r.depth),
+        fixed(m.secondsPerKill, 2),
+        ratioCell(versusMedian(m.secondsPerKill, med?.secondsPerKill ?? null), WEAPON_KILL_TOLERANCE),
+        fixed(m.hitsPer60, 1),
+        ratioCell(versusMedian(m.hitsPer60, med?.hitsPer60 ?? null), WEAPON_HIT_TOLERANCE),
+        ...WEAPON_EXTRA_COLUMNS.map((c) => c.value(r.counts)),
+      ]),
+    );
+  }
+  lines.push("");
+  return lines;
 }

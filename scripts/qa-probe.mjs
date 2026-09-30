@@ -5,11 +5,12 @@
  * （scripts/qa-full.mjs と同じ方式）。
  *
  * 使い方:
- *   npm run qa:probe              # 実行して probe.md を上書き
- *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）
+ *   npm run qa:probe              # 武器種 × 敵の表を除いて実行し、probe.md を上書き（武器種の節は今の内容を残す。約 1 分）
+ *   npm run qa:probe -- --weapons   # 武器種 × 敵の表（27 武器種 × 敵 3 × 深度 2 × seed 3。約 2 分）だけ測り、probe.md のその節だけ差し替える
+ *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）。--weapons と併用できる
  */
 import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -18,13 +19,42 @@ const VITEST = path.join(ROOT, "node_modules", "vitest", "vitest.mjs");
 const PROBE_PATH = path.join(ROOT, "src", "qa", "probe.md");
 const PROBE_START = "<<<QA_PROBE_START>>>";
 const PROBE_END = "<<<QA_PROBE_END>>>";
+const WEAPONS_START = "<<<QA_PROBE_WEAPONS_START>>>";
+const WEAPONS_END = "<<<QA_PROBE_WEAPONS_END>>>";
+/** 武器種 × 敵の節の見出しと、その直後に続く節（重い計測を毎回回さないため、節だけ差し替える） */
+const WEAPONS_HEADING = "## 武器種 × 敵";
+const POWER_HEADING = "## 地力 ÷ 敵の生命";
 const noWrite = process.argv.includes("--no-write");
+const weaponsOnly = process.argv.includes("--weapons");
+
+/** md から見出し行が `heading` で始まる節（次の `## ` の直前まで）の [開始, 終了) の文字位置を返す。無ければ null（見出しの後ろに補足が続いてもよい） */
+function findSection(md, heading) {
+  const lines = md.split("\n");
+  let offset = 0;
+  let start = -1;
+  for (const line of lines) {
+    if (start < 0 && line.startsWith(heading)) start = offset;
+    else if (start >= 0 && line.startsWith("## ")) return [start, offset];
+    offset += line.length + 1;
+  }
+  return start < 0 ? null : [start, md.length];
+}
+
+/** 武器種の節を差し替える（無ければ地力の節の直前、それも無ければ末尾に入れる）。section は末尾が改行の 1 節 */
+function replaceWeaponsSection(md, section) {
+  const body = `${section.trimEnd()}\n`;
+  const found = findSection(md, WEAPONS_HEADING);
+  if (found) return `${md.slice(0, found[0])}${body}\n${md.slice(found[1])}`;
+  const power = findSection(md, POWER_HEADING);
+  if (power) return `${md.slice(0, power[0])}${body}\n${md.slice(power[0])}`;
+  return `${md}\n${body}`;
+}
 
 // AI エージェント配下では vitest が agent reporter を選び、成功したテストの console 出力を隠すため明示する
 const VITEST_ARGS = ["run", "src/qa/combatProbe.test.ts", "--reporter=default", "--silent=false"];
 const child = spawn(process.execPath, [VITEST, ...VITEST_ARGS], {
   cwd: ROOT,
-  env: { ...process.env, SIM_PROBE: "1" },
+  env: { ...process.env, SIM_PROBE: weaponsOnly ? "weapons" : "1" },
   stdio: ["inherit", "pipe", "inherit"],
 });
 
@@ -40,13 +70,11 @@ child.on("error", (err) => {
 });
 
 child.on("close", (code) => {
-  const start = stdout.indexOf(PROBE_START);
-  const end = stdout.indexOf(PROBE_END, start + 1);
-  if (start < 0 || end < 0) {
+  const report = weaponsOnly ? weaponsReport() : fullReport();
+  if (report === null) {
     console.error("[qa:probe] 表のマーカーが出力に見つからない。probe.md は更新しない");
     process.exit(code === 0 ? 1 : (code ?? 1));
   }
-  const report = stdout.slice(start + PROBE_START.length, end).trim().replace(/\r\n/g, "\n") + "\n";
   if (noWrite) {
     console.log("[qa:probe] --no-write のため probe.md は更新しない");
   } else {
@@ -55,3 +83,30 @@ child.on("close", (code) => {
   }
   process.exit(code ?? 1);
 });
+
+function between(startMarker, endMarker) {
+  const start = stdout.indexOf(startMarker);
+  const end = stdout.indexOf(endMarker, start + 1);
+  if (start < 0 || end < 0) return null;
+  return stdout.slice(start + startMarker.length, end).trim().replace(/\r\n/g, "\n") + "\n";
+}
+
+function currentProbe() {
+  return existsSync(PROBE_PATH) ? readFileSync(PROBE_PATH, "utf8") : "";
+}
+
+/** 通常の実行: 新しい報告に、今の probe.md にある武器種の節をそのまま残す */
+function fullReport() {
+  const report = between(PROBE_START, PROBE_END);
+  if (report === null) return null;
+  const old = currentProbe();
+  const found = findSection(old, WEAPONS_HEADING);
+  return found ? replaceWeaponsSection(report, old.slice(found[0], found[1])) : report;
+}
+
+/** --weapons: 今の probe.md の武器種の節だけを差し替える（probe.md が無ければ節だけの報告になる） */
+function weaponsReport() {
+  const section = between(WEAPONS_START, WEAPONS_END);
+  if (section === null) return null;
+  return replaceWeaponsSection(currentProbe(), section);
+}
