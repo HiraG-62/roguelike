@@ -720,8 +720,22 @@ function tileCenterPx(state: GameState, t: number): { x: number; y: number } {
   return { x: ((t % state.map.width) + 0.5) * TILE_SIZE, y: (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE };
 }
 
+/** reachableFromPlayer の印: 届く床（寄せ先・敵の位置に使える） */
+const REACH_FLOOR = 1;
+/** reachableFromPlayer の印: 骨の壁（通り抜けて先を数えるが、寄せ先にも「届く敵の位置」にもしない） */
+const REACH_BONE_WALL = 2;
+
+/** 骨の壁（ボス・骨猪・柵が立てる一時の壁。lockedTiles に入る）のタイル */
+function boneWallTiles(state: GameState): ReadonlySet<number> {
+  const out = new Set<number>();
+  for (const h of state.hazards) if (h.kind === "boneWall") out.add(h.tile);
+  return out;
+}
+
 /**
- * プレイヤーのタイルから 4 近傍で歩いて届くタイルの印（壁と封鎖中の扉は isSolidTile で塞がる）。
+ * プレイヤーのタイルから 4 近傍で歩いて届くタイルの印（壁と封鎖中の扉で塞がる）。
+ * 骨の壁は崩せば・待てば通れるので塞がない扱いにする（塞ぐと、骨の壁で区切られた側の敵や、
+ * 骨の壁に囲まれたプレイヤーの周りへ部屋の敵が毎秒寄せられて、壁で分断する技が成り立たない）。
  * 配列はタイル数ぶんの 1 枚だけ。プレイヤーが部屋の外、または壁・扉の上にいるとき（押し出し中など）は判定できないので null
  */
 function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | null {
@@ -732,9 +746,10 @@ function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | nu
   const sx = Math.floor(p.x / TILE_SIZE);
   const sy = Math.floor(p.y / TILE_SIZE);
   if (isSolidTile(state, sx, sy)) return null;
+  const bone = boneWallTiles(state);
   const reach = new Uint8Array(map.tiles.length);
   const queue: number[] = [toIndex(map, sx, sy)];
-  reach[queue[0] ?? 0] = 1;
+  reach[queue[0] ?? 0] = REACH_FLOOR;
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head] ?? 0;
     const x = i % map.width;
@@ -742,10 +757,12 @@ function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | nu
     for (const c of CARDINALS) {
       const nx = x + c.x;
       const ny = y + c.y;
-      if (isSolidTile(state, nx, ny)) continue;
+      if (!inBounds(map, nx, ny) || getTile(map, nx, ny) === Tile.Wall) continue;
       const ni = toIndex(map, nx, ny);
-      if (reach[ni] === 1) continue;
-      reach[ni] = 1;
+      if (reach[ni] !== 0) continue;
+      const isBone = bone.has(ni);
+      if (state.lockedTiles.has(ni) && !isBone) continue;
+      reach[ni] = isBone ? REACH_BONE_WALL : REACH_FLOOR;
       queue.push(ni);
     }
   }
@@ -756,7 +773,7 @@ function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | nu
 function reachesEnemy(state: GameState, reach: Uint8Array, e: Enemy): boolean {
   const tx = Math.floor(e.body.pos.x / TILE_SIZE);
   const ty = Math.floor(e.body.pos.y / TILE_SIZE);
-  return inBounds(state.map, tx, ty) && reach[toIndex(state.map, tx, ty)] === 1;
+  return inBounds(state.map, tx, ty) && reach[toIndex(state.map, tx, ty)] === REACH_FLOOR;
 }
 
 /** 壁をすり抜ける敵が壁の中にいる（通り抜けの途中。寄せると毎秒瞬間移動するので見逃す） */
@@ -777,7 +794,7 @@ function strayTarget(state: GameState, room: RoomState, e: Enemy, reach: Uint8Ar
   let best: { x: number; y: number } | null = null;
   let bestD = -1;
   for (const t of roomTileIndices(state, room)) {
-    if (reach && reach[t] !== 1) continue;
+    if (reach && reach[t] !== REACH_FLOOR) continue;
     const { x, y } = tileCenterPx(state, t);
     const d = Math.hypot(x - p.x, y - p.y);
     if (d <= bestD || !strayTargetFree(state, room, e, x, y, true)) continue;
@@ -800,7 +817,7 @@ function nearestReachableTarget(state: GameState, room: RoomState, e: Enemy, rea
     let best: { x: number; y: number } | null = null;
     let bestD = Infinity;
     for (const t of roomTileIndices(state, room)) {
-      if (reach[t] !== 1) continue;
+      if (reach[t] !== REACH_FLOOR) continue;
       const c = tileCenterPx(state, t);
       const d = (c.x - from.x) ** 2 + (c.y - from.y) ** 2;
       // 近さで足切りしてから空きを調べる（空きの判定は生きた敵の全走査なので、全タイルでは呼ばない）
@@ -835,7 +852,7 @@ function isStray(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array 
  * 決定性のため敵 id 順に処理し、乱数は使わない。扉を閉じた後（lockedTiles に入った後）に呼ぶ
  */
 function pullStraysInside(state: GameState, room: RoomState, index: number, atLock: boolean): void {
-  const own = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
+  const own = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0 && !isAllied(state, e));
   if (own.length === 0) return;
   const reach = reachableFromPlayer(state, room);
   const strays = own.filter((e) => isStray(state, room, e, reach, atLock)).sort((a, b) => a.id - b.id);

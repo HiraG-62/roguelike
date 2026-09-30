@@ -6,6 +6,7 @@ import { enemyDef } from "../data/enemies";
 import { Tile, TILE_SIZE, createMap, toIndex } from "../map/grid";
 import { createEnemy } from "./enemies";
 import { updateRooms } from "./floor";
+import { spawnBoneWall } from "./hazards";
 import { isSolidTile } from "./physics";
 
 /**
@@ -175,6 +176,30 @@ describe("封鎖した塊の部屋で扉の向こうに残った敵", () => {
     const reach = reachableSet(state);
     expect(reach.has(tileOf(state, stray)), "封鎖直後に届く").toBe(true);
     for (const e of livingOwn(state)) expect(reach.has(tileOf(state, e)), `敵 ${e.id} が届く側にいる`).toBe(true);
+  });
+
+  it("骨の壁で区切られた側の敵は寄せない（崩せば・待てば通れる一時の壁）", () => {
+    const { state, room } = splitBlobState();
+    lockAndEmpty(state, room);
+    state.player.body.pos = tileCenter(A_RIGHT, 6);
+    const behind = addStray(state, "slime", tileCenter(A_LEFT, 6));
+    for (let y = ROW_TOP; y <= ROW_BOTTOM; y++) expect(spawnBoneWall(state, A_LEFT + 1, y), `骨の壁 (${A_LEFT + 1}, ${y})`).not.toBeNull();
+    expect(reachableSet(state).has(tileOf(state, behind)), "骨の壁で歩いては届かない").toBe(false);
+    state.tick = STRAY_CHECK_TICKS;
+    updateRooms(state, FIXED_DT);
+    expect(behind.body.pos, "位置はそのまま").toEqual(tileCenter(A_LEFT, 6));
+  });
+
+  it("骨の壁の上には寄せない", () => {
+    const { state, room } = splitBlobState();
+    lockAndEmpty(state, room);
+    state.player.body.pos = tileCenter(A_LEFT, 6);
+    // 扉の手前の列を骨の壁で埋める（元の位置に一番近いのはこの列だが、寄せ先にはしない）
+    for (let y = ROW_TOP; y <= ROW_BOTTOM; y++) expect(spawnBoneWall(state, A_RIGHT, y), `骨の壁 (${A_RIGHT}, ${y})`).not.toBeNull();
+    const stray = addStray(state, "slime", tileCenter(11, 6));
+    state.tick = STRAY_CHECK_TICKS;
+    updateRooms(state, FIXED_DT);
+    expect(stray.body.pos, "骨の壁の手前（x=7, y=6）").toEqual(tileCenter(A_RIGHT - 1, 6));
   });
 
   it("同じ入力なら同じ結果になる（決定性）", () => {
