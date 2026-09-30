@@ -24,8 +24,9 @@ import {
 import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_FRAME } from "../data/sprites/weapons";
 import { MOVESETS } from "../data/weapons";
 import { createMap, setTile, Tile } from "../map/grid";
-import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
-import { RARITIES, TRAIT_COLOR_HEX, createEmptyResonance, type Resonance } from "../loot/types";
+import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
+import { RARITIES } from "../loot/types";
+import { KEYWORD_DEFS, type Keyword, type ResonanceStep } from "../core/keywords";
 import {
   KEYSTONE_GROUP_COLOR,
   LOOT_PILLAR_HEIGHTS,
@@ -367,23 +368,22 @@ describe("カウンターの白黒の濃さ（7-10）", () => {
 });
 
 describe("共鳴のまとい（7-14）", () => {
-  function res(partial: Partial<Resonance>): Resonance {
-    return { ...createEmptyResonance(), ...partial };
+  function step(keyword: Keyword, n: number): ResonanceStep {
+    return { keyword, step: n, produces: 2, consumes: 2, amplifies: 0 };
   }
 
-  it("共鳴が無ければ描かない。散りも描かない", () => {
-    expect(resonanceMantleColors(createEmptyResonance())).toEqual([]);
-    expect(resonanceMantleColors(res({ kind: "scatter" }))).toEqual([]);
+  it("共鳴が無ければ描かない", () => {
+    expect(resonanceMantleColors([])).toEqual([]);
   });
 
-  it("単色・三和音は配合の色", () => {
-    expect(resonanceMantleColors(res({ kind: "dominant", colors: ["crimson"] }))).toEqual([TRAIT_COLOR_HEX.crimson]);
-    expect(resonanceMantleColors(res({ kind: "triad", colors: ["crimson", "azure", "jade"] })).length, "三和音は 3 色").toBe(3);
+  it("共鳴している語の色を段の高い順に。同段は並び順（KEYWORDS 順）", () => {
+    const colors = resonanceMantleColors([step("melee", 1), step("burn", 3), step("shock", 1)]);
+    expect(colors).toEqual([KEYWORD_DEFS.burn.color, KEYWORD_DEFS.melee.color, KEYWORD_DEFS.shock.color]);
   });
 
-  it("陰画は冥を重ね、星座は星の色を足す", () => {
-    expect(resonanceMantleColors(res({ kind: "dominant", colors: ["gold"], form: "negative" }))).toEqual([TRAIT_COLOR_HEX.gold, TRAIT_COLOR_HEX.umbra]);
-    expect(resonanceMantleColors(res({ kind: "none", constellation: "twins" })), "星座だけでも描く").toEqual([FX_WAVE3.mantle.constellationColor]);
+  it("最大 3 色", () => {
+    const colors = resonanceMantleColors([step("melee", 1), step("ranged", 2), step("burn", 1), step("chill", 3)]);
+    expect(colors, "段の低い 1 つは落とす").toEqual([KEYWORD_DEFS.chill.color, KEYWORD_DEFS.ranged.color, KEYWORD_DEFS.melee.color]);
   });
 });
 

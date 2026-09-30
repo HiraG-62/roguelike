@@ -449,8 +449,6 @@ export interface PlayerStats {
   keystones: string[];
   /** trigger × condition × effect 文法で生成された条件付き効果 */
   triggers: TriggeredEffect[];
-  /** 装備全体の色の配合で発現した共鳴（resonance.ts）。数値効果は他のフィールドに畳み込み済み */
-  resonance: Resonance;
 
   // ---- 戦闘再設計（docs/COMBAT_DESIGN.md F-1）。既定値は中立 ----
   /** 装備・共鳴・祝福の生の合計（逓減前）。基礎値を含む */
@@ -592,7 +590,7 @@ export interface TraitStats {
   switchMana: number;
   /** 怯ませた敵に、武器の主な属性の状態異常を付ける秒 */
   elementBreak: number;
-  // ---- 共鳴・星座が持ち込むもの（loot/resonance.ts。色の共鳴を消すときに一緒に消す）----
+  // ---- 旧 色の共鳴が持ち込んでいた欄（段取り 7d で書く所が無くなった。読む system/traitHooks.ts と一緒に消す）----
   /** 直前と違う手段で当てた命中の怯み値 / 同じ手段が続いた命中の減少 */
   alternatePoiseMul: number;
   repeatPoisePenalty: number;
@@ -693,39 +691,6 @@ export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
   gearInverted: 0,
   gearOffColor: 0,
 };
-
-/**
- * 共鳴の種類。同時に 1 つだけ。
- * dominant = 支配（1 色 >= 50%）/ dual = 二重（上位 2 色が各 >= 30%）/
- * triad = 三和音（上位 3 色が各 >= 22%）/ scatter = 散光（全色 < 30%）/ none = なし
- */
-export type ResonanceKind = "dominant" | "dual" | "triad" | "scatter" | "none";
-
-export interface Resonance {
-  kind: ResonanceKind;
-  /** dominant は 1 色、dual は 2 色、triad は 3 色（TRAIT_COLORS 順）、scatter / none は空 */
-  colors: TraitColor[];
-  /** 色ごとの配合比（合計 1。性質が無ければ全部 0） */
-  ratios: Record<TraitColor, number>;
-  /**
-   * 共鳴の変形（docs/ideas/loot-expansion.md 9-2 / 9-3）。kind は据え置いたまま効果だけを差し替える
-   * （kind で分岐する他の仕組みを壊さない）。negative = 陰画（支配が裏返る。kind は dominant）/
-   * balance = 拮抗（反対色の均衡。kind は dual）
-   */
-  form?: ResonanceForm;
-  /** 星座（6 部位の主色の並び。共鳴とは別の層で同時に 1 つ）。computeStats が入れる */
-  constellation?: ConstellationKey;
-}
-
-export type ResonanceForm = "negative" | "balance";
-
-/** 星座の key（resonance.ts の CONSTELLATIONS） */
-export const CONSTELLATION_KEYS = ["twins", "shores", "spine", "ring", "mirror", "void", "chain"] as const;
-export type ConstellationKey = (typeof CONSTELLATION_KEYS)[number];
-
-export function createEmptyResonance(): Resonance {
-  return { kind: "none", colors: [], ratios: { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0 } };
-}
 
 export type TriggerKind =
   | "onMeleeHit"
@@ -858,7 +823,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
 
   keystones: [],
   triggers: [],
-  resonance: createEmptyResonance(),
 
   attributes: uniformAttributes(ATTR.base),
   attributesEff: uniformAttributes(ATTR.base),

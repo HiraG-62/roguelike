@@ -16,8 +16,7 @@ import {
   movesetCasts,
 } from "../data/weapons";
 import { type UltimateDef, ULTIMATES } from "../data/ultimates";
-import { ATTR_LABEL } from "../loot/resonance";
-import { ATTR_KEYS, type AttrKey } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL, type AttrKey } from "../loot/types";
 
 /**
  * 武器種の Tips 本文を武器の定義（moveset の段・派生・右の段・奥義の名前）から組み立てる。

@@ -37,8 +37,7 @@
     "pulseSpeed": 2.2,
     "motes": 2,
     "moteSpeed": 1.4,
-    "moteAlpha": 0.7,
-    "constellationColor": "#e0e8ff"
+    "moteAlpha": 0.7
   },
   "keystoneAura": {
     "radius": 12,

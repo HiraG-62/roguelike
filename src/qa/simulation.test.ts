@@ -6,7 +6,8 @@ import { STATUS_KINDS, STATUS_LABEL, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, TERRAIN_LABEL, type TerrainKind } from "../core/terrain";
 import { createRng, type Rng } from "../core/rng";
 import { ENEMIES, enemyDef, isBossClass } from "../data/enemies";
-import { ENEMY_TEMPO } from "../data/tuning";
+import { ENEMY_TEMPO, RESONANCE } from "../data/tuning";
+import { KEYWORDS, KEYWORD_DEFS, type ResonanceStep } from "../core/keywords";
 import {
   createEmptyProfile,
   createEmptyProvenance,
@@ -17,7 +18,6 @@ import {
   type Item,
   type Profile,
   type Rarity,
-  type ResonanceKind,
   type Slot,
   type TraitColor,
 } from "../loot/types";
@@ -137,8 +137,7 @@ function rollUntilRarity(rng: Rng, slot: Slot, rarity: Rarity, itemLevel: number
 /**
  * 色を指定して性質を組み立てた装備アイテムを 1 個作る（generateItem は色を選べないため自前で組む）。
  * colors を巡回させながら loot/generator.ts の rollTraitOfColor で性質を埋める。
- * MAX_FOUND_TRAITS 枠すべて埋めることで、単色なら支配、2 色なら二重、5 色なら散光が
- * 安定して発現するようにする（resonance.ts の DOMINANT_RATIO / DUAL_MIN_RATIO / SCATTER_MAX_RATIO 参照）
+ * MAX_FOUND_TRAITS 枠すべて埋めて、装備の色の偏り（単色 / 2 色 / 5 色）を狙いどおりにする
  */
 function buildColoredItem(rng: Rng, slot: Slot, colors: readonly TraitColor[], depth: number, foundDepth: number, now: number): Item {
   const base = rollBase(rng, slot, depth);
@@ -602,9 +601,8 @@ interface RunMetrics {
   nanDetected: boolean;
   wallOverlapDetected: boolean;
   duplicateFloorItemId: boolean;
-  /** ラン終了時点の装備全体の共鳴（狙った loadout 通りに発現したかの確認も兼ねる） */
-  resonanceKind: ResonanceKind;
-  resonanceColors: TraitColor[];
+  /** ラン終了時点の源と糧の共鳴（段 1 以上の語。system/resonance.ts） */
+  resonance: ResonanceStep[];
   /** ラン中に拾って stash に入った性質のうち、反転していたものの数 / 全体数 */
   invertedTraitCount: number;
   totalTraitCount: number;
@@ -791,8 +789,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     nanDetected: false,
     wallOverlapDetected: false,
     duplicateFloorItemId: false,
-    resonanceKind: state.stats.resonance.kind,
-    resonanceColors: [...state.stats.resonance.colors],
+    resonance: state.boonRun.resonance.map((s) => ({ ...s })),
     invertedTraitCount: 0,
     totalTraitCount: 0,
     budsChosen: 0,
@@ -1002,9 +999,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   }
   metrics.avgStepMs = metrics.stepsRun > 0 ? stepTimeTotal / metrics.stepsRun : 0;
   metrics.avgEnemiesAlive = metrics.stepsRun > 0 ? enemySampleSum / metrics.stepsRun : 0;
-  // ラン終了時点（装備は固定なので初期値と基本一致するが、念のため最新化する）
-  metrics.resonanceKind = state.stats.resonance.kind;
-  metrics.resonanceColors = [...state.stats.resonance.colors];
+  // ラン終了時点（祝福・符・改鋳で変わるので最新化する）
+  metrics.resonance = state.boonRun.resonance.map((s) => ({ ...s }));
 
   activeSkillMetrics = null;
   activeDropMetrics = null;
@@ -1222,17 +1218,28 @@ function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly Ru
   }
   lines.push("");
 
-  lines.push("## 共鳴別の到達depth（dominant/dualLoadout は狙った色、装備が固定なので発現共鳴はほぼ固定）");
+  lines.push("## 共鳴の最大段別の到達depth（ラン終了時点。語のうち最も高い段）");
   lines.push("");
-  lines.push("| 共鳴 | n | 平均到達depth | 死亡率 |");
+  lines.push("| 最大段 | n | 平均到達depth | 死亡率 |");
   lines.push("| --- | --- | --- | --- |");
-  const resonanceKinds: readonly ResonanceKind[] = ["dominant", "dual", "scatter", "none"];
-  for (const kind of resonanceKinds) {
-    const group = allMetrics.filter((m) => m.resonanceKind === kind);
+  const topStep = (m: RunMetrics): number => Math.max(0, ...m.resonance.map((s) => s.step));
+  for (let stepN = 0; stepN <= RESONANCE.maxSteps; stepN++) {
+    const group = allMetrics.filter((m) => topStep(m) === stepN);
     if (group.length === 0) continue;
     lines.push(
-      `| ${kind} | ${group.length} | ${average(group.map((m) => m.maxDepth)).toFixed(2)} | ${percent(group.filter((m) => m.died).length, group.length)} |`,
+      `| ${stepN} | ${group.length} | ${average(group.map((m) => m.maxDepth)).toFixed(2)} | ${percent(group.filter((m) => m.died).length, group.length)} |`,
     );
+  }
+  lines.push("");
+
+  lines.push("## 共鳴の段の分布（語ごと。共鳴したランの数と最大段）");
+  lines.push("");
+  lines.push("| 語 | 共鳴したラン | 最大段 |");
+  lines.push("| --- | --- | --- |");
+  for (const k of KEYWORDS) {
+    const steps = allMetrics.flatMap((m) => m.resonance.filter((s) => s.keyword === k).map((s) => s.step));
+    if (steps.length === 0) continue;
+    lines.push(`| ${KEYWORD_DEFS[k].label} | ${steps.length} | ${Math.max(...steps)} |`);
   }
   lines.push("");
 

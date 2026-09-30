@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { GameState } from "../core/state";
-import { RESONANCE, TRIGGER } from "../data/tuning";
+import { TRIGGER } from "../data/tuning";
+
+/** 旧 色の共鳴（拮抗・鏡像）が入れていた量。欄の読み取り（traitHooks.ts）だけを確かめる */
+const ALTERNATE_STEP = 0.08;
+const ALTERNATE_CAP = 0.32;
+const ICD_CUT = 0.25;
 import { applyRoll } from "../loot/affixes";
 import { DEFAULT_STATS, createLootRuntime, type TraitStats } from "../loot/types";
 import type { OutgoingElement } from "./elementCombat";
@@ -221,17 +226,17 @@ describe("持ち替え（近接 / 射撃 / スキル）", () => {
   });
 
   it("天秤: 近接と射撃を交互に当てると重なり、途切れると消える", () => {
-    const state = withTraits({ alternateDamageStep: RESONANCE.balanceStep, alternateDamageCap: RESONANCE.balanceCap });
+    const state = withTraits({ alternateDamageStep: ALTERNATE_STEP, alternateDamageCap: ALTERNATE_CAP });
     const e = placeEnemy(state, "slime", FAR);
     onTraitHit(state, e, "melee");
     onTraitHit(state, e, "ranged");
     onTraitHit(state, e, "melee");
     expect(state.player.loot.alternateStacks).toBe(2);
-    expect(traitOutgoingMul(state, null, "ranged", false)).toBeCloseTo(1 + RESONANCE.balanceStep * 2);
+    expect(traitOutgoingMul(state, null, "ranged", false)).toBeCloseTo(1 + ALTERNATE_STEP * 2);
     for (let i = 0; i < 10; i++) {
       onTraitHit(state, e, i % 2 === 0 ? "ranged" : "melee");
     }
-    expect(traitOutgoingMul(state, null, "ranged", false), "上限").toBeCloseTo(1 + RESONANCE.balanceCap);
+    expect(traitOutgoingMul(state, null, "ranged", false), "上限").toBeCloseTo(1 + ALTERNATE_CAP);
     tickTraitClocks(state, TRIGGER.trait.alternateWindow + DT);
     expect(state.player.loot.alternateStacks).toBe(0);
   });
@@ -271,7 +276,7 @@ describe("怯ませた・命中ごと・時間", () => {
 
   it("鏡像: トリガーの内部クールダウンを縮める（上限つき）", () => {
     expect(traitTriggerIcdMul(withTraits({}))).toBe(1);
-    expect(traitTriggerIcdMul(withTraits({ triggerIcdCut: RESONANCE.mirrorIcdCut }))).toBeCloseTo(1 - RESONANCE.mirrorIcdCut);
+    expect(traitTriggerIcdMul(withTraits({ triggerIcdCut: ICD_CUT }))).toBeCloseTo(1 - ICD_CUT);
     expect(traitTriggerIcdMul(withTraits({ triggerIcdCut: 5 }))).toBeGreaterThan(0);
   });
 

@@ -700,9 +700,9 @@ describe("追加の状態異常: 効果", () => {
     expect(BIG_HP - 100 - b.hp).toBe(Math.round(Math.round(100 * STATUS.doom.vulnerableRatio) * STATUS.vulnerable.mul));
   });
 
-  it("彩痕: 共鳴と同じ色なら被ダメ ×1.15。対応する状態異常が入ると色爆（蒼 = 冷気 +2）で彩痕は消える", () => {
+  it("彩痕: 色の状態異常（蒼 = 冷気）が共鳴していれば被ダメ ×1.15。対応する状態異常が入ると色爆（蒼 = 冷気 +2）で彩痕は消える", () => {
     const state = arena();
-    state.stats.resonance = { ...state.stats.resonance, kind: "dominant", colors: ["azure"] };
+    state.boonRun.resonance = [{ keyword: "chill", step: 1, produces: 2, consumes: 2, amplifies: 0 }];
     const e = sturdy(state, "golem");
     applyStatus(state, on(e), apply("hue", 6, 1, TRAIT_COLORS.indexOf("azure")), "player");
     expect(enemyStatusTakenMul(state, e)).toBeCloseTo(STATUS.hue.takenMul, 5);

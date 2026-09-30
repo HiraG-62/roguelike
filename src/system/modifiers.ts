@@ -11,6 +11,7 @@ import { BOONS } from "./boonDefs";
 import { lineageCardsOwned } from "./boons";
 import { totalEarned, totalSpent } from "./economy";
 import { keystoneModifiers } from "./keystones";
+import { resonanceModifiers } from "./resonance";
 import { type ConditionSubject, minionCount, ruleConditionsMet } from "./rules";
 import { enemiesInRadius, statusStacks } from "./statusEffects";
 
@@ -38,6 +39,7 @@ const NO_MODIFIERS: readonly Modifier[] = [];
 export function collectModifiers(state: GameState): Modifier[] {
   const out: Modifier[] = [...state.stats.modifiers];
   out.push(...keystoneModifiers(state.stats.keystones));
+  out.push(...resonanceModifiers(state));
   out.push(...(MOVESETS[state.stats.moveset]?.modifiers ?? NO_MODIFIERS));
   out.push(...sustainModifiers(state.player.ultimate.active));
   for (const key of state.boons) out.push(...(BOONS[key].modifiers ?? NO_MODIFIERS));

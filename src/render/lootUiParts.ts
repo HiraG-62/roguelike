@@ -1,5 +1,5 @@
 import { type ColorBarSegment, type FluxLevel, type TraitLine } from "../loot/describe";
-import { RARITY_COLOR, RARITY_LABEL, TRAIT_COLORS, TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
+import { RARITY_COLOR, RARITY_LABEL, TRAIT_COLOR_HEX } from "../loot/types";
 import { itemColor } from "../system/loot";
 import type { Rect, StashRowLayout } from "../ui/inventoryLayout";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
@@ -63,11 +63,6 @@ export function drawColorBar(ctx: CanvasRenderingContext2D, bar: readonly ColorB
     fillRectPx(ctx, { x, y: r.y, w, h: r.h }, TRAIT_COLOR_HEX[seg.color]);
     x += w;
   });
-}
-
-/** 共鳴の配合比（Record）を帯の区切りにする。0 の色は含めない */
-export function ratiosToBar(ratios: Readonly<Record<TraitColor, number>>): ColorBarSegment[] {
-  return TRAIT_COLORS.filter((c) => ratios[c] > 0).map((c) => ({ color: c, ratio: ratios[c] }));
 }
 
 /** 性質の行の文字色。反転は暗い紫 */

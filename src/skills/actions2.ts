@@ -339,7 +339,7 @@ function castFlashFreeze(state: GameState, ctx: CastCtx): void {
 // ---- 彩刻・色解き ----
 
 function castHueEtch(state: GameState, ctx: CastCtx): void {
-  // 共鳴の色が定まらない（散光・共鳴なし）ときは色をくじで決める（state.rng）
+  // 状態異常の語が共鳴していないときは色をくじで決める（state.rng）
   const index = resonanceHueIndex(state) ?? state.rng.int(0, TRAIT_COLORS.length - 1);
   const applies: readonly StatusApply[] = [{ kind: "hue", stacks: 1, duration: STATUS.hue.duration, potency: index }];
   coneStrike(state, ctx, SKILL.hueEtch, COLOR_HUE, applies);

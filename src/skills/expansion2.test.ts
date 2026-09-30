@@ -6,7 +6,9 @@ import type { StatusKind } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { STATUS } from "../data/tuning";
-import { TRAIT_COLORS, type TraitColor, createEmptyResonance } from "../loot/types";
+import { TRAIT_COLORS, type TraitColor } from "../loot/types";
+import { BOONS, BOON_KEYS, type BoonKey } from "../system/boonDefs";
+import { HUE_KEYWORD, refreshResonance, resonantHue } from "../system/resonance";
 import { updatePlayer } from "../system/player";
 import { createSkillRunState, resolveSlot, slotComboReady, updateSkills } from "../system/skills";
 import { applyStatus } from "../system/statusEffects";
@@ -104,8 +106,19 @@ function ahead(state: GameState, dx: number, dy = 0): Vec {
   return { x: state.player.body.pos.x + dx, y: state.player.body.pos.y + dy };
 }
 
+/**
+ * 彩痕の色の状態異常を共鳴させる。共鳴は毎ステップ数え直すので、その語を出すだけの祝福 2 枚と食うだけの祝福 2 枚を持たせる
+ */
 function withResonance(state: GameState, color: TraitColor): void {
-  state.stats = { ...state.stats, resonance: { ...createEmptyResonance(), kind: "dominant", colors: [color] } };
+  const k = HUE_KEYWORD[color];
+  const pure = (verb: "produces" | "consumes"): BoonKey[] =>
+    BOON_KEYS.filter((b) => {
+      const p = BOONS[b].keywords;
+      return p[verb].includes(k) && !p[verb === "produces" ? "consumes" : "produces"].includes(k) && !p.amplifies.includes(k);
+    }).slice(0, 2);
+  state.boons = [...pure("produces"), ...pure("consumes")];
+  refreshResonance(state);
+  expect(resonantHue(state), `前提: ${k} が共鳴`).toBe(color);
 }
 
 /** 消費系は食う相手を用意してから撃つ */
@@ -235,7 +248,7 @@ describe("新しい状態異常を出す・食う", () => {
     expect(dry.player.mana).toBe(dry.stats.maxMana);
   });
 
-  it("彩刻: 共鳴の色の彩痕を刻む", () => {
+  it("彩刻: 共鳴している状態異常の色の彩痕を刻む", () => {
     const state = skillArena([{ key: "hueEtch" }]);
     withResonance(state, "azure");
     const e = tough(state, 25);
@@ -344,13 +357,13 @@ describe("第 2 弾の刻印符", () => {
     expect(p.element).toBe("ice");
   });
 
-  it("彩り: 共鳴の色の彩痕を付ける。共鳴が無ければ付かない", () => {
+  it("彩り: 共鳴している状態異常の色の彩痕を付ける。共鳴が無ければ付かない", () => {
     const state = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["hueInfuse"] }]);
-    withResonance(state, "gold");
+    withResonance(state, "crimson");
     const e = tough(state, 15);
     cast(state);
     run(state, 0.5);
-    expect(e.status.effects.find((s) => s.kind === "hue")?.potency).toBe(TRAIT_COLORS.indexOf("gold"));
+    expect(e.status.effects.find((s) => s.kind === "hue")?.potency).toBe(TRAIT_COLORS.indexOf("crimson"));
     const none = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["hueInfuse"] }]);
     const f = tough(none, 15);
     cast(none);
@@ -502,7 +515,7 @@ describe("第 2 弾の決定性", () => {
   it("同じ操作なら同じ結果（彩刻の色のくじも state.rng だけを使う）", () => {
     const play = (): number[] => {
       const state = skillArena([{ key: "hueEtch" }, { key: "shiftingEdge" }, { key: "waterJar" }]);
-      state.stats = { ...state.stats, resonance: { ...createEmptyResonance(), kind: "scatter", colors: [] } };
+      expect(state.boonRun.resonance.length, "前提: 共鳴なし（彩刻の色はくじ）").toBe(0);
       const e = tough(state, 25);
       cast(state, undefined, 0);
       waitReady(state, 0);
