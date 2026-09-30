@@ -29,6 +29,8 @@ import {
   countProfiles,
   hueResonates,
   refreshResonance,
+  TWIN_RING_IMPLICIT,
+  resonanceEaseOf,
   resonanceStepOf,
   resonanceSteps,
   resonanceSummary,
@@ -127,6 +129,64 @@ describe("源と糧の共鳴: 段", () => {
       expect(tag !== stat, `語 ${k}`).toBe(true);
     }
     for (const k of RESONANCE_EXCLUDED) expect(KEYWORD_TAG[k], `数えない語 ${k}`).toBeUndefined();
+  });
+});
+
+describe("双頭の指輪: あと 1 つで揃う共鳴の成立", () => {
+  /** burn は源 2・糧 1（糧が足りない）、shock は源 1・糧 2（源が足りない）、poison は源 0・糧 0 */
+  const counts = countProfiles([kw(["burn", "shock"], ["burn"]), kw(["burn"], ["shock"]), kw([], ["shock"])]);
+
+  it("指輪なし（ease 0）では何も成立しない", () => {
+    expect(resonanceSteps(counts)).toEqual([]);
+  });
+
+  it("ease 1 は源 + 糧の多い順（同数は KEYWORDS 順）の 1 語だけ 1 段にする。表示の源・糧の数は実際のまま", () => {
+    const steps = resonanceSteps(counts, 1);
+    expect(steps).toHaveLength(1);
+    const first = steps[0];
+    expect(first?.step).toBe(1);
+    expect(first ? counts[first.keyword].produces : -1).toBe(first?.produces);
+    expect(first ? counts[first.keyword].consumes : -1).toBe(first?.consumes);
+  });
+
+  it("ease 2 なら足りない語 2 つが成立し、両方足りない語（源 0・糧 0）は成立しない", () => {
+    const eased = resonanceSteps(counts, 2).map((s) => s.keyword);
+    expect(eased.sort()).toEqual(["burn", "shock"]);
+    const both = countProfiles([kw(["poison"], []), kw([], ["poison"])]);
+    expect(resonanceSteps(both, 2), "源 1・糧 1 は両側が足りない").toEqual([]);
+  });
+
+  it("成立済みの語や、あと 2 つ以上足りない語には効かない（成立済みの段は変わらない）", () => {
+    const full = countProfiles([kw(["burn"], ["burn"]), kw(["burn"], ["burn"])]);
+    expect(resonanceSteps(full, 2)).toEqual(resonanceSteps(full));
+  });
+
+  it("resonanceEaseOf: 指輪の implicit の値を RESONANCE.ringEaseMax で切って読み、指輪が無ければ 0", () => {
+    const state = bareArena();
+    expect(resonanceEaseOf(state)).toBe(0);
+    const ring = relicWith("ring", []);
+    state.profile.equipment.ring = { ...ring, implicit: { key: TWIN_RING_IMPLICIT, value: 1 } };
+    expect(resonanceEaseOf(state)).toBe(1);
+    state.profile.equipment.ring = { ...ring, implicit: { key: TWIN_RING_IMPLICIT, value: 4 } };
+    expect(resonanceEaseOf(state), "旧セーブの値 4 は上限で切る").toBe(RESONANCE.ringEaseMax);
+    state.profile.equipment.ring = { ...ring, implicit: { key: "implicit.boneRing", value: 3 } };
+    expect(resonanceEaseOf(state), "別の implicit は数えない").toBe(0);
+  });
+
+  it("双頭の指輪を着けると、糧が 1 つ足りない語が 1 段で成立する（装備の付け替えで数え直す）", () => {
+    const state = bareArena();
+    const plan = COUNTED.flatMap((k) => {
+      const boons = fillWithBoons(state, k, RESONANCE.minSources, RESONANCE.minSinks - 1);
+      return boons && boons.length > 0 ? [{ k, boons }] : [];
+    })[0];
+    if (!plan) throw new Error("糧が 1 つ足りない数えの組が見つからない");
+    state.boons = plan.boons;
+    applyStats(state, computeStats(state.profile.equipment, state.depth));
+    expect(stepOf(state, plan.k), "指輪なし").toBe(0);
+    const ring = relicWith("ring", []);
+    state.profile.equipment.ring = { ...ring, implicit: { key: TWIN_RING_IMPLICIT, value: RESONANCE.ringEaseMax } };
+    applyStats(state, computeStats(state.profile.equipment, state.depth));
+    expect(stepOf(state, plan.k), "指輪で成立").toBeGreaterThanOrEqual(1);
   });
 });
 

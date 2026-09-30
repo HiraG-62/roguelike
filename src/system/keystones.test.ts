@@ -186,6 +186,13 @@ describe("誓約 20（段取り 7d）", () => {
     expect(stats.coinSpillMul * ECONOMY.spill.ratio).toBeCloseTo(KEYSTONE.goldCageSpillRatio);
   });
 
+  it("黄金の檻: 段の合計は goldCageCap で頭打ちになる", () => {
+    const state = arena(5, { keystones: [KS.goldCage] });
+    state.economy.coins = KEYSTONE.goldCageEvery * 1000;
+    const more = applyModifiers(state, { tags: new Set(["melee"]) }, null).more.reduce((m, x) => m * x.mul, 1);
+    expect(more).toBeCloseTo(1 + KEYSTONE.goldCageCap);
+  });
+
   it("喜捨: 銭を払うと払った額に応じて回復し、与ダメの強化が付く", () => {
     const state = arena(5, { keystones: [KS.alms] });
     state.economy.coins = 100;
