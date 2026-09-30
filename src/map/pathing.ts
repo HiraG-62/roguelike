@@ -4,7 +4,7 @@ import { sightBlockedAt } from "./sightBlock";
 /**
  * タイル上の視線と経路（純関数 + マップから作る派生データのキャッシュ）。
  * 開放型フロア（system/spawner.ts の徘徊、system/enemies.ts の気付き・回り込み）と QA bot が使う。
- * 壁（Tile.Wall）だけを見る。封鎖中の扉（state.lockedTiles）は見ない（封鎖は一時的で、扉の前で押し合うだけなので）
+ * 壁（Tile.Wall）だけを見る。封鎖中の扉（state.lockedTiles）は見ない（扉は部屋の縁にしか立たない前提で、system/floor.ts の dropPocketDoors が袋の扉を作らないことで保つ。封鎖は一時的で、扉の前で押し合うだけ）
  */
 
 /** 視線を調べる刻み（px）。タイルの 1/4 なので壁の角をすり抜けない */

@@ -322,7 +322,7 @@ function doorMarksOf(map: GameMap): DoorMarks {
  * 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ）。
  * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える
  */
-function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
+export function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
   const { mark, stamp } = doorMarksOf(map);
   const roomStamp = stamp;
   const doorStamp = stamp + 1;
@@ -341,7 +341,48 @@ function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
       doors.push(ni);
     }
   }
-  return doors.sort((a, b) => a - b);
+  return dropPocketDoors(map, tiles, doors).sort((a, b) => a - b);
+}
+
+/**
+ * 袋の扉を除く: 扉の候補から、部屋の外の床を 8 近傍で辿っても他の部屋のタイルに行き着かない成分（塊の中の首・柱の裏の窪み・
+ * 主の間に取り込まれた床）に属するものを外す。封鎖しても外へ出られないので、閉じると部屋の中に見えない壁ができるだけになる
+ */
+function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly number[]): number[] {
+  const own = new Set(tiles);
+  const others = new Set<number>();
+  for (const list of map.roomTiles ?? []) {
+    if (list === tiles) continue;
+    for (const t of list) others.add(t);
+  }
+  const seen = new Set<number>();
+  const keep: number[] = [];
+  const doorSet = new Set(doors);
+  for (const d of doors) {
+    if (seen.has(d)) continue;
+    const comp = [d];
+    seen.add(d);
+    let exit = false;
+    for (let head = 0; head < comp.length; head++) {
+      const i = comp[head] ?? 0;
+      const x = i % map.width;
+      const y = Math.floor(i / map.width);
+      for (const [dx, dy] of NEIGHBORS_8) {
+        if (!isWalkable(map, x + dx, y + dy)) continue;
+        const ni = toIndex(map, x + dx, y + dy);
+        if (own.has(ni) || seen.has(ni)) continue;
+        if (others.has(ni)) {
+          exit = true;
+          continue;
+        }
+        seen.add(ni);
+        comp.push(ni);
+      }
+    }
+    if (!exit) continue;
+    for (const c of comp) if (doorSet.has(c)) keep.push(c);
+  }
+  return keep;
 }
 
 /** 部屋に置く敵の抽選回数。広い階（部屋も大きい）は 面積の倍率 ^ MAP_SIZE.roomEnemiesExp 倍（倍率 1 なら基準と同じ） */
