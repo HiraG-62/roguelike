@@ -12,15 +12,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bin = (rel) => path.join(ROOT, "node_modules", rel);
 
 const FAST = process.argv.includes("--fast");
-/** --fast で省く重いテスト（QA シミュレーションの縮小版・決定性。1 回で数分かかる） */
-const FAST_EXCLUDE = "src/qa/simulation.test.ts";
 
 const ALL_STEPS = [
   // エージェント資料（CLAUDE.md / .claude / AI_WORKFLOW）がコードとずれていないか。速いので最初に回す
   { label: "audit docs", entry: path.join(ROOT, "scripts", "audit-agent-docs.mjs"), args: [] },
   { label: "tsc", entry: bin("typescript/bin/tsc"), args: ["--noEmit"] },
   { label: "tsc (electron)", entry: bin("typescript/bin/tsc"), args: ["-p", "tsconfig.electron.json", "--noEmit"], full: true },
-  { label: "vitest", entry: bin("vitest/vitest.mjs"), args: FAST ? ["run", "--exclude", FAST_EXCLUDE] : ["run"] },
+  // --fast の vitest は重い QA シミュレーションを省く（vitest.config.ts が VITEST_FAST を読む）
+  { label: "vitest", entry: bin("vitest/vitest.mjs"), args: ["run"], env: FAST ? { VITEST_FAST: "1" } : {} },
   { label: "vite build", entry: bin("vite/bin/vite.js"), args: ["build"], full: true },
 ];
 const STEPS = ALL_STEPS.filter((step) => !(FAST && step.full));
@@ -28,7 +27,7 @@ const STEPS = ALL_STEPS.filter((step) => !(FAST && step.full));
 for (const step of STEPS) {
   console.log(`\n=== ${step.label} ===`);
   const started = Date.now();
-  const result = spawnSync(process.execPath, [step.entry, ...step.args], { cwd: ROOT, stdio: "inherit" });
+  const result = spawnSync(process.execPath, [step.entry, ...step.args], { cwd: ROOT, stdio: "inherit", env: { ...process.env, ...step.env } });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   if (result.error) {
     console.error(`[check] ${step.label} を起動できなかった: ${result.error.message}`);
