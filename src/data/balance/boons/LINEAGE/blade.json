@@ -1,3 +1,22 @@
 {
-  "_fields": {}
+  "_note": "刃鳴の札（コンボ・手数・分身。docs/ideas/boon-impl.md 2-6）。札 key ごとのブロック。名前・説明・Rule は src/system/boonDefs/blade.ts。抜き胴・専心は旧フック（boonRules.ts の updateDashThrough / boons.ts の boonSwingCombo）がそのまま動き、数値は BOON.passCut*",
+  "_fields": {
+    "strikeRatio": "追撃の威力（近接 1 段目の威力 × この値）",
+    "icd": "Rule の内部 CD（秒。BOON.ruleMinIcd 未満は切り上げ）",
+    "waveRatio": "照準方向へ貫通する衝撃波の威力（近接 1 段目の威力 × この値）",
+    "window": "奥義の後に分身の追撃が続く秒",
+    "every": "研鑽の段・連撃波の間隔: 数えがいくつで 1 段か",
+    "amount": "研鑽の 1 段あたりの増（0.01 = +1%）",
+    "max": "分身の追撃の上限（段の数）",
+    "windowBonus": "コンボの猶予に足す秒（実質、時間では切れない）"
+  },
+  "layeredEdge": { "strikeRatio": 0.35, "icd": 0.1 },
+  "finisherWave": { "waveRatio": 1, "icd": 0.1 },
+  "bladeLayered": { "strikeRatio": 0.3 },
+  "hundredBlades": { "window": 5, "strikeRatio": 0.5, "icd": 0.1 },
+  "bladeTwinWave": { "waveRatio": 0.6, "icd": 0.3 },
+  "comboWave": { "every": 20, "waveRatio": 1, "icd": 0.1 },
+  "bladeStreak": { "every": 10, "amount": 0.03 },
+  "bladeShadow": { "every": 5, "strikeRatio": 0.25, "max": 3, "icd": 0.1 },
+  "comboKeeper": { "windowBonus": 60 }
 }

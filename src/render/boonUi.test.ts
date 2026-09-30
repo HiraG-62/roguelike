@@ -36,8 +36,8 @@ function findDef(pred: (d: BoonDef) => boolean, what: string): BoonDef {
   return def;
 }
 
-/** 系譜・結び・呪いの注記を持たず、格の対象になる祝福 */
-const plainGraded = (): BoonDef => findDef((d) => isGraded(d) && !d.lineage && !d.duo && d.core !== true, "注記なしで格を持つ");
+/** 系譜の札で格の対象になる祝福 */
+const plainGraded = (): BoonDef => findDef((d) => isGraded(d) && d.lineage !== undefined && d.card !== undefined, "系譜の札で格を持つ");
 
 /** 芯を持たない今の定義でも試せるよう、一時的に芯にする（終わったら戻す） */
 function withTempCore<T>(key: BoonKey, run: () => T): T {
@@ -56,8 +56,8 @@ describe("祝福カードの格の表示", () => {
   it("大祝福・神威のカードは格の語と色で描かれ、並は今までの副題のまま", () => {
     const def = plainGraded();
     const plain = boonCardSubtitle(def, 1);
-    expect(plain.text, "注記の無い並は副題なし（希少度の語は出さない）").toBe("");
-    expect(boonCardColor(def, 1), "並は希少度の色").toBe(BOON.rarityColor[def.rarity]);
+    expect(plain.text.startsWith("大祝福"), "並は格の語を出さない").toBe(false);
+    expect(boonCardColor(def, 1), "並は札の種類の色").toBe(BOON.cardColor[def.card ?? "apex"]);
 
     const grand = boonCardSubtitle(def, 2);
     expect(grand.text.startsWith("大祝福"), "大祝福の語が先頭").toBe(true);
@@ -152,10 +152,10 @@ describe("系譜の札・加護の枠・錬磨の表示（段取り 7a）", () =
     expect(boonCardSubtitle(BOONS.emberSeed, 1).text, "見出しを渡さなくても注記は出る").not.toBe("");
   });
 
-  it("融合の札は結びではなく融合の注記を出す", () => {
+  it("融合の札は系譜ではなく融合の注記を出す", () => {
     const fused = boonCardSubtitle(BOONS.thunderBlast, 1);
-    const legacyDuo = boonCardSubtitle(BOONS.plagueBlood, 1);
-    expect(fused.text, "融合と結びは違う注記").not.toBe(legacyDuo.text);
+    expect(fused.text.startsWith("融合"), "融合の注記").toBe(true);
+    expect(fused.text, "系譜の札とは違う注記").not.toBe(boonCardSubtitle(BOONS.emberSeed, 1).text);
   });
 
   it("錬磨・入れ替えの第 2 段・系譜の提示は題が変わり、呪いの札を出さない", () => {
@@ -167,7 +167,7 @@ describe("系譜の札・加護の枠・錬磨の表示（段取り 7a）", () =
     const replace = boonChoiceHeading(state, {
       ...base,
       options: ["emberSeed"],
-      replace: { incoming: "overcharge", incomingGrade: 1, action: "primary", outgoing: ["emberSeed"] },
+      replace: { incoming: "frostBreath", incomingGrade: 1, action: "primary", outgoing: ["emberSeed"] },
     });
     expect(new Set([plain.title, lineage.title, temper.title, replace.title]).size, "4 つの題は別").toBe(4);
     state.boonChoice = { ...base, options: ["emberSeed"], mode: "temper" };

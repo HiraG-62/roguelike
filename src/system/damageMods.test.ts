@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MoreMul } from "../core/damage";
 import { MOVESETS } from "../data/weapons";
-import { BOON, KEYSTONE } from "../data/tuning";
+import { KEYSTONE } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import { createEmptyEquipment } from "../loot/types";
 import { scaled } from "./attributes";
@@ -25,7 +25,9 @@ function sturdy(state: ReturnType<typeof arena>, key: string): ReturnType<typeof
   return e;
 }
 
-const GLASS_HEART: MoreMul = { source: "boon:coreGlassHeart", label: "硝子の心", mul: BOON.glassHeartDamageMul, tags: ["melee", "ranged", "skill"] };
+/** 見本の倍（出所の文字列は内訳の並びを見るためだけの名前） */
+const GLASS_HEART_MUL = 1.5;
+const GLASS_HEART: MoreMul = { source: "boon:coreGlassHeart", label: "硝子の心", mul: GLASS_HEART_MUL, tags: ["melee", "ranged", "skill"] };
 /** 装備なし・会心なしの剣の 1 段目で深度 1 のスライムへ入る威力（段取り 4a の前の rollOutgoing で測った値。前後で同じ） */
 const SLIME_DEPTH1_SWORD_HIT = 5;
 
@@ -69,7 +71,7 @@ describe("与ダメの増と倍（rollOutgoing の内訳）", () => {
     const out = rollOutgoing(state, e, 100, "melee");
     expect(out.crit, "会心").toBe(true);
     expect(out.breakdown.more.map((m) => m.source)).toEqual(["boon:coreGlassHeart", "combo", "crit", "keystone:ks_bladeOath"]);
-    const expected = 100 * BOON.glassHeartDamageMul * 1.1 * state.stats.critMul * KEYSTONE.bladeOathNearMul;
+    const expected = 100 * GLASS_HEART_MUL * 1.1 * state.stats.critMul * KEYSTONE.bladeOathNearMul;
     expect(out.amount, "倍は掛け算").toBe(Math.round(expected));
   });
 
@@ -77,7 +79,7 @@ describe("与ダメの増と倍（rollOutgoing の内訳）", () => {
     const state = arena(5, { more: [GLASS_HEART, GLASS_HEART] });
     const out = rollOutgoing(state, null, 100, "melee");
     expect(out.breakdown.more, "1 要素に畳む").toHaveLength(1);
-    expect(out.amount).toBe(Math.round(100 * BOON.glassHeartDamageMul));
+    expect(out.amount).toBe(Math.round(100 * GLASS_HEART_MUL));
   });
 
   it("倍は tags の合う 1 撃にだけ掛かる（素手の倍は射撃に掛からない）", () => {

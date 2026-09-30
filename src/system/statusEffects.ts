@@ -24,8 +24,8 @@ import { circlesOverlap } from "./physics";
 import { blastMulAt } from "./blast";
 import { emitNoise } from "./noise";
 import { decayPoise, onStaggerEnd } from "./poise";
-import { boonChainExtension } from "./boonRules";
 import { noteStatusTickMana } from "./manaSources";
+import { isAllied } from "./rules";
 import {
   hueMatchesResonance,
   onEffectEnded,
@@ -677,6 +677,11 @@ export interface ChainOptions {
   maxTargets?: number;
   /** 優先して飛ぶ相手（拡散: 濡れた敵） */
   prefer?: (e: Enemy) => boolean;
+  /**
+   * 最後の敵から来た道を戻って打ち直す（真髄「還雷」。docs/ideas/boon-impl.md 2-6）。
+   * 省略時は連鎖が同じ敵へ戻れる回数（stats.chainRevisits）が 1 以上なら戻る
+   */
+  bounceBack?: boolean;
 }
 
 /**
@@ -687,20 +692,36 @@ export function chainLightning(state: GameState, origin: Vec, damage: number, ex
   const hit = new Set<number>();
   if (excludeId !== undefined) hit.add(excludeId);
   const radius = opts.radius ?? STATUS.shockRadius;
-  let maxTargets = opts.maxTargets ?? STATUS.shockMaxTargets;
-  const baseTargets = maxTargets;
+  const maxTargets = opts.maxTargets ?? STATUS.shockMaxTargets;
   let from = { ...origin };
-  let jumps = 0;
+  const path: Enemy[] = [];
   for (let i = 0; i < maxTargets; i++) {
     const next = (opts.prefer && nearestEnemy(state, from, radius, hit, opts.prefer)) || nearestEnemy(state, from, radius, hit);
     if (!next) break;
     hit.add(next.id);
-    if (maxTargets === baseTargets) maxTargets += boonChainExtension(state, next);
     zap(state, from, next, damage, origin);
     from = { ...next.body.pos };
-    jumps += 1;
+    path.push(next);
   }
-  if (jumps > 0) pushSfx(state, "shock");
+  const back = (opts.bounceBack ?? state.stats.chainRevisits > 0) ? bounceBack(state, path, excludeId, damage, origin) : 0;
+  if (path.length + back > 0) pushSfx(state, "shock");
+}
+
+/**
+ * 還雷: 最後の敵から来た道を逆にたどって打ち直す（起点の敵〔excludeId〕も道に入れる。倒れた敵は飛ばす）。打った数を返す
+ */
+function bounceBack(state: GameState, path: readonly Enemy[], startId: number | undefined, damage: number, origin: Vec): number {
+  const start = startId === undefined ? undefined : state.enemies.find((e) => e.id === startId && e.hp > 0);
+  const route = start === undefined ? path : [start, ...path];
+  let hits = 0;
+  for (let i = route.length - 2; i >= 0; i--) {
+    const to = route[i];
+    const prev = route[i + 1];
+    if (to === undefined || prev === undefined || to.hp <= 0) continue;
+    zap(state, prev.body.pos, to, damage, origin);
+    hits += 1;
+  }
+  return hits;
 }
 
 function zap(state: GameState, from: Vec, target: Enemy, damage: number, origin: Vec): void {
@@ -743,6 +764,7 @@ export function enemiesInRadius(state: GameState, pos: Vec, radius: number): Ene
     (e) =>
       e.hp > 0 &&
       e.phase !== "spawning" &&
+      !isAllied(state, e) &&
       circlesOverlap(pos.x, pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius),
   );
 }

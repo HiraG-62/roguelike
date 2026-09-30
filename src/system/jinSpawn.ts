@@ -9,9 +9,8 @@ import { TILE_SIZE, Tile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { layoutOffsets, rotateToFacing } from "../map/formation";
 import { lineOfSight, nextWaypoint } from "../map/pathing";
 import { biomeEnemyWeight } from "./biomes";
-import { extraEliteRoll, onBoonEnemySpawned } from "./boons";
 import { NOTICE_RANGE, createEnemy } from "./enemies";
-import { eliteKindsForRole, finalizeLinks, makeElite, rollElite } from "./elites";
+import { eliteKindsForRole, finalizeLinks, makeElite } from "./elites";
 import { lordCandidates } from "./floorLord";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { roomLocks } from "./roomTypes";
@@ -368,10 +367,8 @@ function spawnMember(state: GameState, jin: Jin, member: MemberPlan, pos: Vec): 
   const e = createEnemy(state, member.def, pos, jin.roomIndex, false);
   e.jinId = jin.id;
   applyHpMul(e, jin.hpMul);
-  onBoonEnemySpawned(state, e);
   onRunEnemySpawned(state, e);
   applyGrade(state, e, member);
-  if (extraEliteRoll(state, e)) rollElite(state, e);
   state.enemies.push(e);
   return e;
 }

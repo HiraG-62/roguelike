@@ -210,8 +210,6 @@ export const ACTION = {
   counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
   lastKill: { ...BALANCE.combat.ACTION.lastKill, text: ACTION_TEXT.lastKill },
   regain: BALANCE.combat.ACTION.regain,
-  justCounter: { ...BALANCE.combat.ACTION.justCounter, text: ACTION_TEXT.justCounter },
-  reflect: { ...BALANCE.combat.ACTION.reflect, text: ACTION_TEXT.reflect },
   wallSplat: BALANCE.combat.ACTION.wallSplat,
   dashAttack: BALANCE.weapons.ACTION_DASH_ATTACK,
   bulletCut: BALANCE.combat.ACTION.bulletCut,

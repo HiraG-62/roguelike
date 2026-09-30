@@ -1,8 +1,8 @@
-import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
+import { type DamageKind, type Enemy, type GameState, type VaultKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { behaviorOf } from "./behaviors/registry";
-import { ACTION, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
+import { ACTION, BOON_LINEAGE, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
 import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
@@ -13,8 +13,9 @@ import { roomInCombat } from "./engagement";
 import { emitNoise } from "./noise";
 import { KS, hasKeystone, healMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
-import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
+import { applyOnHitStatus, enemyDamageMul, explodeOnKill, findStatus, hasStatus, removeStatus } from "./statusEffects";
 import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusTakenMul } from "./statusEffects";
+import { isAllied } from "./rules";
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
@@ -23,8 +24,9 @@ import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncoming
 import { buildContext, collectMore, collectTraitIncreased, finishBreakdown, increasedFactor, poiseIncreasedMul } from "./damageMods";
 import type { DamageBreakdown } from "../core/damage";
 import { interceptEnemyDamage } from "./elites";
-import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
-import { boonPoise } from "./boonRules";
+import { boonJustEligible, comboAfterHurt, hasBoon, onBoonKill } from "./boons";
+import { MOON_REPRIEVE_KEY, MOON_TOTALITY_KEY } from "./boonDefs/moon";
+import { BOONS } from "./boonDefs";
 import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
@@ -57,6 +59,8 @@ const HEAVY_TEXT_SCALE = 1.4;
 const HEAVY_PARTICLES = 10;
 const LIGHT_PARTICLES = 5;
 const SHATTER_TEXT = "砕き";
+/** 氷獄の溜めの種類 */
+const ICE_VAULT: VaultKind = "ice";
 const SHATTER_PARTICLES = 12;
 /** 撃破の瞬間、攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5） */
 const KILL_DIRECTIONAL_PARTICLES = 8;
@@ -129,7 +133,6 @@ export function registerComboHit(state: GameState): void {
   state.combo.timer = FEEL.comboWindow + state.stats.comboWindowBonus;
   state.combo.popTimer = COMBO_POP_TIME;
   state.combo.best = Math.max(state.combo.best, state.combo.count);
-  onBoonComboHit(state);
   pushComboEvent(state);
 }
 
@@ -182,9 +185,10 @@ export function damageEnemy(
   knockForce: number,
   opts: HitOptions = {},
 ): boolean {
-  if (enemy.hp <= 0) return false;
+  // 従魔（眷属の Rule 効果 tameEnemy）はプレイヤーの攻撃でも巻き添えでも傷つかない
+  if (enemy.hp <= 0 || isAllied(state, enemy)) return false;
   const kind = opts.kind ?? "proc";
-  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state, enemy);
+  const poise = (opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state, enemy);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;
   // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない
@@ -193,6 +197,8 @@ export function damageEnemy(
   amount = pacifistMercyClamp(state, enemy, amount);
   const def = enemyDef(enemy.defKey);
   enemy.hp -= amount;
+  // 砕きで凍結が消える前に積む（砕く一撃そのものも溜めに入る）
+  stashFrozenDamage(state, enemy, amount);
   if (shatter) shatterFreeze(state, enemy);
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
   const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
@@ -229,7 +235,6 @@ export function damageEnemy(
     onTraitHit(state, enemy, kind, opts.skill === true);
   }
 
-  if (opts.crit) onBoonCrit(state, enemy, amount);
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
   noteHitMoments(state, enemy, { kind, skill: opts.skill, silent: opts.silent, finisher: opts.finisher, release: opts.release, lane: opts.lane });
   // 流儀の気力の源: 背面の命中・遠い命中（system/manaSources.ts）
@@ -262,13 +267,28 @@ export function pacifistMercyClamp(state: GameState, enemy: Enemy, amount: numbe
   return Math.max(0, Math.min(amount, room));
 }
 
+/**
+ * 氷獄（docs/ideas/boon-impl.md 2-6）: 凍った敵に与えた傷を Enemy.vault（ice）に写して溜める（与えた傷はそのまま入る）。
+ * 溜めを出す Rule（releaseVault ice）を持つときだけ積み、砕きの Rule が一度に出す。別の種類の溜めがある敵には積まない
+ */
+function stashFrozenDamage(state: GameState, enemy: Enemy, amount: number): void {
+  if (amount <= 0 || !hasStatus(enemy.status, "freeze")) return;
+  if (enemy.vault !== undefined && enemy.vault.kind !== ICE_VAULT) return;
+  if (!holdsVaultRelease(state, ICE_VAULT)) return;
+  enemy.vault = { kind: ICE_VAULT, amount: (enemy.vault?.amount ?? 0) + amount };
+}
+
+/** 持っている祝福のどれかが、その種類の溜めを出す Rule（releaseVault）を持つか */
+function holdsVaultRelease(state: GameState, kind: VaultKind): boolean {
+  return state.boons.some((key) => (BOONS[key].rules ?? []).some((r) => r.then.kind === "releaseVault" && r.then.vault === kind));
+}
+
 /** 砕き: 凍結を解き（冷気免疫が付く）、氷の破片を散らす */
 function shatterFreeze(state: GameState, enemy: Enemy): void {
   removeStatus(state, { kind: "enemy", enemy }, "freeze");
   addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6);
   spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
   pushSfx(state, "freeze");
-  onBoonShatter(state, enemy);
   pushShatterEvent(state, enemy);
 }
 
@@ -530,7 +550,7 @@ export function damagePlayer(
     wardIncomingMul(state) *
     (chargeArmor?.damageTakenMul ?? 1);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));
-  p.hp = Math.max(0, p.hp - taken);
+  p.hp = Math.max(0, p.hp - takeNowOrDefer(state, taken));
   spillCoins(state, fromPos);
   addRegain(state, taken);
   onPlayerHurtStatus(state);
@@ -551,7 +571,7 @@ export function damagePlayer(
   shake(state, FEEL.shakeHurt);
   state.flash = Math.max(state.flash, 0.35);
 
-  if (p.hp <= 0 && !tryRevive(state)) {
+  if (p.hp <= 0) {
     killPlayer(state);
     return "hit";
   }
@@ -559,7 +579,7 @@ export function damagePlayer(
   if (chargeArmor) noteRiposte(state, "chargeEndure", attacker);
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
-  pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" } });
+  pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" }, amount: taken });
   return "hit";
 }
 
@@ -570,14 +590,80 @@ function playerTakenMul(state: GameState): number {
 
 /**
  * 状態異常の継続ダメージ（燃焼・毒・出血・蒸発）。無敵・ノックバック・コンボ切れ・リゲインを起こさない。
- * 0 になったら再起を試し、だめなら倒れる
+ * 0 になったら倒れる
  */
 export function damagePlayerDot(state: GameState, amount: number): void {
   const p = state.player;
   if (state.status !== "playing" || amount <= 0) return;
   p.hp = Math.max(0, p.hp - amount);
-  if (p.hp > 0 || tryRevive(state)) return;
+  if (p.hp > 0) return;
   killPlayer(state);
+}
+
+// -----------------------------------------------------------------------------
+// 遅れて来る傷（月蝕の系譜。docs/ideas/boon-impl.md 2-6）
+// -----------------------------------------------------------------------------
+
+/** 遅れて来た傷の数字の大きさ（被弾の数字より少し小さく、別の出来事に見せる） */
+const DEFERRED_TEXT_SCALE = 1.1;
+/** 皆既の溜め（宣告） */
+const DOOM_VAULT: VaultKind = "doom";
+
+/** 執行猶予: 受けた傷を今は減らさず Player.deferredDamage へ回す（被弾の硬直・無敵・コンボ切れはその場で起きる）。今減らす量を返す */
+function takeNowOrDefer(state: GameState, taken: number): number {
+  if (taken <= 0 || !hasBoon(state, MOON_REPRIEVE_KEY)) return taken;
+  const p = state.player;
+  (p.deferredDamage ??= []).push({ amount: taken, due: state.time + BOON_LINEAGE.moon.moonReprieve.delay });
+  return 0;
+}
+
+/** 毎ステップ（player.ts の updatePlayer）: 期限の来た遅れて来る傷を払い、宣告の溜め（皆既）を写して明けた分を出す */
+export function tickDelayedDamage(state: GameState): void {
+  payDeferredDamage(state);
+  const echo = hasBoon(state, MOON_TOTALITY_KEY);
+  for (const e of state.enemies) {
+    if (e.hp > 0) tickDoomVault(state, e, echo);
+  }
+}
+
+/** 期限の来た傷をまとめて受ける（継続ダメージと同じく無敵・硬直を起こさず、0 になれば倒れる） */
+function payDeferredDamage(state: GameState): void {
+  const p = state.player;
+  const list = p.deferredDamage;
+  if (list === undefined || list.length === 0) return;
+  const due = list.filter((d) => d.due <= state.time).reduce((sum, d) => sum + d.amount, 0);
+  if (due <= 0) return;
+  p.deferredDamage = list.filter((d) => d.due > state.time);
+  addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE);
+  damagePlayerDot(state, due);
+}
+
+/**
+ * 皆既: 宣告の間に与えた傷（宣告を付けた時の生命 − 今の生命）を Enemy.vault（doom）に写し、宣告が明けたら echoRatio 倍で出す。
+ * 宣告の付け直しは溜めが減ることで分かる（付け直しの瞬間の生命から数え直す）ので、その時も前の溜めを出す。別の種類の溜めがある敵には写さない
+ */
+function tickDoomVault(state: GameState, e: Enemy, echo: boolean): void {
+  const held = e.vault?.kind === DOOM_VAULT ? e.vault.amount : undefined;
+  if (held !== undefined && (doomDamage(e) ?? -1) < held) releaseDoomVault(state, e, held);
+  if (!echo) return;
+  const now = doomDamage(e);
+  if (now === undefined) return;
+  if (e.vault !== undefined && e.vault.kind !== DOOM_VAULT) return;
+  e.vault = { kind: DOOM_VAULT, amount: now };
+}
+
+/** 今の宣告の間に減った生命。宣告が無ければ undefined */
+function doomDamage(e: Enemy): number | undefined {
+  const mark = findStatus(e.status, "doom")?.hpMark;
+  return mark === undefined ? undefined : Math.max(0, mark - e.hp);
+}
+
+function releaseDoomVault(state: GameState, e: Enemy, held: number): void {
+  delete e.vault;
+  const amount = Math.round(held * BOON_LINEAGE.moon.moonTotality.echoRatio);
+  if (amount < 1) return;
+  spawnRing(state, e.body.pos, e.body.radius * 2, BOON_LINEAGE.moon.moonTotality.color, STATUS.fxLife);
+  damageEnemy(state, e, amount, { x: 0, y: 0 }, 0, { hitstopSteps: 0 });
 }
 
 function reflectThorns(state: GameState, attacker: Enemy | undefined): void {
@@ -622,9 +708,6 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   const p = state.player;
   p.dodgedThisDash = true;
   p.justTimer = state.stats.justDodgeWindow;
-  // 直後に攻撃を押すと回避した敵へ瞬間移動斬り（player.ts の tryJustCounter）
-  p.justCounterTimer = ACTION.justCounter.window;
-  p.justCounterTargetId = attacker && attacker.hp > 0 ? attacker.id : null;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, ENERGY.just);
   gainMana(state, MANA.onJust);
@@ -634,7 +717,6 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   justFx(state);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");
-  onBoonJust(state);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
   pushPlayerEvent(state, "onJustDodge", "just", { sourceId: attacker?.id });
   noteRiposte(state, "justDodge", attacker);

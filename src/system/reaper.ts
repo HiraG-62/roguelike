@@ -3,7 +3,6 @@ import { type Vec, fromAngle } from "../core/vec";
 import { MAP_SIZE, ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { addFloatingText, noteReaperWarning, shake, spawnBurst } from "./effects";
-import { boonReaperDelay } from "./boonRules";
 import { initReaperVariant, reaperBodyVisible, tickReaper } from "./reaperVariants";
 import { hasMod } from "./runSetup";
 import { isPropRoom } from "./specialRooms";
@@ -32,7 +31,7 @@ export function reaperAppearAfter(state: GameState): number {
   const rooms = state.rooms.filter((r) => !excludedFromGrace(r.kind)).length;
   // 広い階は部屋の間の道のりも伸びるので、基本の猶予も広さで伸ばす（部屋数の分は部屋の数で伸びる）
   const areaGrace = REAPER.appearAfter * (state.floorAreaMul ?? 1) ** MAP_SIZE.graceAreaExp;
-  const base = areaGrace + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
+  const base = areaGrace + rooms * REAPER.appearPerRoom;
   return hasMod(state, "hastyReaper") ? base * RUN_MOD.hastyReaperMul : base;
 }
 

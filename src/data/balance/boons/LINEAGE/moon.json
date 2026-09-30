@@ -1,3 +1,30 @@
 {
-  "_fields": {}
+  "_note": "月蝕の札（宣告・遅れて来る傷・生命の代償。docs/ideas/boon-impl.md 2-6）。札 key ごとのブロック。名前・説明・Rule は src/system/boonDefs/moon.ts、遅れて来る傷と宣告の溜めの仕組みは src/system/combat.ts の tickDelayedDamage",
+  "_fields": {
+    "duration": "付ける状態異常（宣告・出血・脆弱）の秒",
+    "icd": "Rule の内部 CD（秒。BOON.ruleMinIcd 未満は切り上げ）",
+    "waveRatio": "照準方向へ貫通する衝撃波の威力（近接 1 段目の威力 × この値）",
+    "selfBleed": "代償として自分に付く出血の強さ（動いた 10px ごとに減る生命。格の倍率が掛かる）",
+    "selfBleedTime": "代償の出血の秒",
+    "radius": "範囲の半径（px。10px = 1m）",
+    "bleedPotency": "付ける出血の強さ（動いた 10px ごとのダメージ）",
+    "mana": "戻る気力",
+    "heal": "回復する生命（戦闘中の回復の上限を通さない）",
+    "delay": "受けた傷が遅れて来るまでの秒",
+    "every": "研鑽の段: 数えがいくつで 1 段か",
+    "amount": "研鑽の 1 段あたりの倍（0.01 = +1%）",
+    "echoRatio": "宣告が明けた時にもう一度来る傷（宣告の間に与えた傷 × この値。宣告そのものの割合 STATUS.doom.ratio とは別に来る）",
+    "color": "範囲・溜めを出す時の輪の色"
+  },
+  "moonVerdict": { "duration": 4 },
+  "bloodMist": { "waveRatio": 1.2, "selfBleed": 0.4, "selfBleedTime": 2, "icd": 0.1 },
+  "moonBloodFog": { "radius": 40, "bleedPotency": 1.5, "duration": 4, "color": "#d04050", "selfBleed": 0.2, "selfBleedTime": 2, "icd": 0.1 },
+  "moonBloodRite": { "mana": 6, "selfBleed": 0.3, "selfBleedTime": 2, "icd": 0.1 },
+  "moonNightfall": { "radius": 90, "duration": 4 },
+  "bloodFeast": { "heal": 2 },
+  "woundMemory": { "duration": 4 },
+  "moonReprieve": { "delay": 3 },
+  "moonGrudge": { "every": 50, "amount": 0.02 },
+  "moonJudgment": { "every": 3, "amount": 0.03 },
+  "moonTotality": { "duration": 3, "echoRatio": 0.4, "color": "#a070e0" }
 }

@@ -6,7 +6,7 @@ import { baseDef } from "../loot/bases";
 import { UNIQUES, type UniqueDef } from "../loot/named";
 import type { Item, Profile } from "../loot/types";
 import { FLOOR_KINDS, floorKindLabel } from "../system/biomes";
-import { BOONS, BOON_KEYS, type BoonDef } from "../system/boonDefs";
+import { BOONS, BOON_CARD_LABEL, BOON_KEYS, type BoonDef, LINEAGE_LABEL } from "../system/boonDefs";
 import { STATUS_KEYWORDS } from "../system/keywords";
 import { ROOM_KIND_LABEL } from "../system/specialRooms";
 import { COMBOS } from "../skills/combos";
@@ -348,18 +348,21 @@ function relicEntries(save: CodexSave, page: boolean): CodexEntry[] {
   });
 }
 
-const BOON_RARITY_LABEL: Readonly<Record<BoonDef["rarity"], string>> = {
-  common: "通常",
-  rare: "希少",
-  epic: "極稀",
-};
+/** 図鑑の祝福の分類（呪い付き / 芯 / 融合 / 「系譜 札の種類」） */
+function boonKindLabel(def: BoonDef): string {
+  if (def.cursed) return "呪い付き";
+  if (def.core === true) return "芯";
+  if (def.fusion !== undefined) return `融合 ${def.fusion.map((l) => LINEAGE_LABEL[l]).join("×")}`;
+  if (def.lineage === undefined || def.card === undefined) return "";
+  return `${LINEAGE_LABEL[def.lineage]} ${BOON_CARD_LABEL[def.card]}`;
+}
 
 function boonEntries(save: CodexSave, page: boolean): CodexEntry[] {
   const taken = new Set(save.boons);
   return BOON_KEYS.map((key) => {
     const def = BOONS[key];
     const known = taken.has(key);
-    const info = `${BOON_RARITY_LABEL[def.rarity]}${def.cursed ? "・呪い" : ""}`;
+    const info = boonKindLabel(def);
     if (known) return { key, known, name: def.name, info, detail: def.desc };
     const detail = page ? def.desc : "まだ受けたことのない祝福。";
     return { key, known, name: UNKNOWN_NAME, info, detail };

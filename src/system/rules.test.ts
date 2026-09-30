@@ -10,10 +10,10 @@ import { BOON, STATUS, SYNERGY } from "../data/tuning";
 import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggeredEffect } from "../loot/types";
 import { BOONS, type BoonDef } from "./boonDefs";
-import { slashBase, updateBoonRules } from "./boonRules";
+import { updateBoonRules } from "./boonRules";
 import { onBoonKill } from "./boons";
 import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
-import { applyBurn, chainLightning, findStatus, hasStatus } from "./statusEffects";
+import { applyBurn, findStatus, hasStatus } from "./statusEffects";
 import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
 import { placeTerrain, terrainAt } from "./terrain";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
@@ -319,16 +319,16 @@ describe("ICD の 3 層", () => {
 
 describe("照合順", () => {
   it("祝福の Rule は取得順に照合される（BoonDef.rules）", () => {
-    const first = BOONS.reaperCup as BoonDef;
+    const first = BOONS.wildfire as BoonDef;
     const second = BOONS.burnSpread as BoonDef;
     // 定義に置いた本物の rules は検査の後で戻す
     const saved = [first.rules, second.rules] as const;
-    first.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "first" }, "boon:reaperCup:0")];
+    first.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "first" }, "boon:wildfire:0")];
     second.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "second" }, "boon:burnSpread:0")];
     try {
       const state = cleanArena();
-      state.boons = ["burnSpread", "reaperCup"];
-      expect(collectRules(state).map((r) => r.id), "取得順").toEqual(["boon:burnSpread:0", "boon:reaperCup:0"]);
+      state.boons = ["burnSpread", "wildfire"];
+      expect(collectRules(state).map((r) => r.id), "取得順").toEqual(["boon:burnSpread:0", "boon:wildfire:0"]);
       pushPlayerEvent(state, "onDash", "dash");
       resolveRules(state, 0);
       expect(state.chains.map((c) => c.keyword), "照合も取得順").toEqual(["second", "first"]);
@@ -339,12 +339,12 @@ describe("照合順", () => {
   });
 
   it("step の中で祝福の Rule が照合される", () => {
-    const def = BOONS.reaperCup as BoonDef;
+    const def = BOONS.wildfire as BoonDef;
     const saved = def.rules;
-    def.rules = [makeRule({ when: "onDash", then: { kind: "heal", magnitude: HEAL } }, "boon:reaperCup:0")];
+    def.rules = [makeRule({ when: "onDash", then: { kind: "heal", magnitude: HEAL } }, "boon:wildfire:0")];
     try {
       const state = cleanArena();
-      state.boons = ["reaperCup"];
+      state.boons = ["wildfire"];
       state.player.hp = LOW_HP;
       pushPlayerEvent(state, "onDash", "dash");
       step(state, EMPTY_INPUT, FIXED_DT);
@@ -468,30 +468,6 @@ describe("祝福の Rule 化（旧フックと同じ結果。BoonDef.rules）", 
     // 旧フックは付与済みの強さを applyBurn へそのまま渡していた（霊力の倍率が掛かる）
     expect(b?.potency, "強さが同じ").toBeCloseTo(potency * state.stats.statusPotencyMul);
     expect(b?.time, "持続が同じ").toBeCloseTo(STATUS.burnDuration);
-  });
-
-  it("帯電疾走: ダッシュ開始で旧フックと同じ連鎖雷（近接 1 段目 × dashShockRatio）", () => {
-    const setup = (): { state: GameState; e: ReturnType<typeof placeEnemy> } => {
-      const state = cleanArena();
-      return { state, e: placeEnemy(state, "golem", NEAR) };
-    };
-    const hook = setup();
-    chainLightning(hook.state, hook.state.player.body.pos, slashBase(hook.state) * BOON.dashShockRatio);
-    const rule = setup();
-    pushPlayerEvent(rule.state, "onDash", "dash");
-    resolveRules(rule.state, 0, rulesOf("dashShock"));
-    expect(hook.e.hp, "旧フックの式で削れる").toBeLessThan(hook.e.maxHp);
-    expect(rule.e.hp, "同じだけ削れる").toBe(hook.e.hp);
-  });
-
-  it("屠りの盃: 撃破で reaperCupKillMana（回収の倍率込み）だけ気力が戻る", () => {
-    const state = cleanArena();
-    state.player.mana = 0;
-    const e = placeEnemy(state, "slime", NEAR);
-    e.hp = 0;
-    pushEvent(state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(e, true) });
-    resolveRules(state, 0, rulesOf("reaperCup"));
-    expect(state.player.mana, "同じだけ戻る").toBeCloseTo(BOON.reaperCupKillMana * state.stats.manaGainMul);
   });
 
   it("direct の Rule は深さ・減衰・語の上限・深さの上限の外で、連鎖に記録しない", () => {

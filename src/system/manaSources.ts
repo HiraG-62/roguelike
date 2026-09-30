@@ -4,7 +4,6 @@ import { formatMeters, pxToMeters } from "../core/units";
 import { dist } from "../core/vec";
 import { JOBS, type ManaSource, type ManaSourceKind } from "../data/jobs";
 import { MANA } from "../data/tuning";
-import { boonAttackManaMul } from "./boons";
 import { attackManaMul } from "./keystones";
 import { gainAttackMana, gainMana } from "./mana";
 import { isBehind } from "./poise";
@@ -64,7 +63,7 @@ export function onManaSource(state: GameState, kind: ManaSourceKind, value = 1, 
   const base = amountOf(source, value);
   if (base <= 0) return 0;
   if (!attack) return gainMana(state, base);
-  return gainAttackMana(state, base, attackManaMul(state) * boonAttackManaMul(state));
+  return gainAttackMana(state, base, attackManaMul(state));
 }
 
 /** 近接の振りの命中が気力を数える敵の上限を越えたか（群れを薙いで一気に満たさない。MANA.meleeTargetCap） */
@@ -93,7 +92,7 @@ export function noteFinisherMana(state: GameState, kind: DamageKind): void {
   onManaSource(state, "finisher");
 }
 
-/** 不退（と祝福「鉄壁の構え」）の構えの中の被弾（combat.ts の damagePlayer）。受けた量が受け止めの源になる */
+/** 不退の構えの中の被弾（combat.ts の damagePlayer）。受けた量が受け止めの源になる */
 export function noteBraceBlockMana(state: GameState, amount: number): void {
   if (state.boonRun.guardTimer <= 0) return;
   onManaSource(state, "guardBlock", amount);

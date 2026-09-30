@@ -757,25 +757,25 @@ describe("左右アクションの共有の段カウンタ（docs/ideas/ougi-and
     expect(names, "右（受け流し）→ 左の 2 段目 → 踏み込み斬り").toEqual(["primary:1", "steppingCut"]);
   });
 
-  it("右レーンの最終段は終撃として扱われる（得物の誉れが乗る）", () => {
-    const energyAfterRightFinisher = (withBoon: boolean): number => {
+  it("右レーンの最終段は終撃として扱われる（豪遊の銭が乗る）", () => {
+    const coinsAfterRightFinisher = (withBoon: boolean): number => {
       const state = arena(5);
       state.job = "swordsman";
       // 祝福は装備の stats から畳み直す。空の装備は素手（拳）になるので、arena の剣の stats を装備の stats として使わせる
       state.boonRun.baseStats = state.stats;
-      if (withBoon) grantBoon(state, "favoredPride");
+      if (withBoon) grantBoon(state, "lavishBlade");
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
       const log = swingLog(state, ["secondary", "secondary", "secondary"]);
       expect(log.at(-1), "右の 3 段目（斬り上げ）まで振った").toEqual({ step: 2, lane: "secondary", branch: -1 });
       expect(e.hp, "当たった").toBeLessThan(TOUGH_HP);
-      return state.player.energy;
+      return state.economy.coins;
     };
     const state = arena(5);
     expect(hookCombo(MOVESETS.sword, 2, "secondary"), "右の最終段は combo 2").toBe(2);
     expect(hookCombo(MOVESETS.sidearm, 2, "secondary"), "銃の右レーンの最終段も終撃").toBe(2);
     expect(hookCombo(MOVESETS.sidearm, 0, "primary"), "銃の左（反転撃ち）は連撃ではない").toBe(0);
     expect(state.player.energy).toBe(0);
-    expect(energyAfterRightFinisher(true), "得物の誉れで奥義ゲージが増える").toBeGreaterThan(energyAfterRightFinisher(false));
+    expect(coinsAfterRightFinisher(true), "豪遊で銭が入る").toBeGreaterThan(coinsAfterRightFinisher(false));
   });
 
   it("ジョブ派生 左左左右 は右レーンの 4 段目を上書きする", () => {

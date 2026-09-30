@@ -22,7 +22,6 @@ import { BULLETS } from "../loot/bullets";
 import { ultimateChoice } from "../loot/profile";
 import type { AttrRatio, PlayerStats, Scaling } from "../loot/types";
 import { scaled, withRatio } from "./attributes";
-import { onBoonBurstKills } from "./boons";
 import { cancelAttack, damageEnemy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, addUltFx, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withUltimateFx } from "./effects";
 import { gainMana } from "./mana";
@@ -171,7 +170,6 @@ function castInstant(state: GameState, def: UltimateDef & { kind: "instant" }): 
   state.flash = Math.max(state.flash, SCREEN_FLASH);
   p.invulnTimer = Math.max(p.invulnTimer, def.invuln);
   pushSfx(state, "burst");
-  onBoonBurstKills(state, kills);
   pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
 }
 
@@ -568,7 +566,6 @@ export function endUltimate(state: GameState, _reason: UltimateEndReason): void 
     addFloatingText(state, state.player.body.pos, END_TEXT, ULTIMATE.common.endTextColor, END_TEXT_SCALE, END_TEXT_LIFE);
     pushSfx(state, "formShift");
   }
-  onBoonBurstKills(state, kills);
   pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
 }
 

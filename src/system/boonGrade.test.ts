@@ -56,18 +56,18 @@ describe("格の純関数（system/boonGrade.ts）", () => {
     expect(gradedEffect(effect, 1)).toBe(effect);
   });
 
-  it("効果量を持たない Rule だけの祝福（試練の徒）は格の対象外", () => {
-    expect(isGraded(BOONS.trialSeeker)).toBe(false);
-    expect(isGraded(BOONS.dashBlast)).toBe(true);
+  it("格を明示で外した札（不断）は格の対象外、効果量を持つ Rule の札は対象", () => {
+    expect(isGraded(BOONS.comboKeeper)).toBe(false);
+    expect(isGraded(BOONS.staticDash)).toBe(true);
   });
 
   it("Rule の持ち主の格は祝福のときだけ読み、フック型の倍率も同じ表を読む", () => {
     const state = arena(3);
-    grantBoon(state, "dashBlast", 2);
-    expect(ruleOwnerGrade(state, { kind: "boon", key: "dashBlast" })).toBe(2);
-    expect(ruleOwnerGrade(state, { kind: "skill", key: "dashBlast" }), "祝福以外は並").toBe(1);
-    expect(boonGradeMul(state, "dashBlast")).toBe(gradeMagnitudeMul(2));
-    expect(boonGradeMul(state, "secondWind"), "持っていなければ並").toBe(1);
+    grantBoon(state, "staticDash", 2);
+    expect(ruleOwnerGrade(state, { kind: "boon", key: "staticDash" })).toBe(2);
+    expect(ruleOwnerGrade(state, { kind: "skill", key: "staticDash" }), "祝福以外は並").toBe(1);
+    expect(boonGradeMul(state, "staticDash")).toBe(gradeMagnitudeMul(2));
+    expect(boonGradeMul(state, "passCut"), "持っていなければ並").toBe(1);
   });
 });
 

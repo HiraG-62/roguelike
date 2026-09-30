@@ -144,8 +144,6 @@ describe("PLAYER / ACTION（プレイヤーの移動・ダッシュ・生命・�
     expect(ACTION.counter.damageMul).toBe(combatJson.ACTION.counter.damageMul);
     expect(ACTION.counter.text).toBe(ACTION_TEXT.counter);
     expect(ACTION.lastKill.text).toBe(ACTION_TEXT.lastKill);
-    expect(ACTION.justCounter.text).toBe(ACTION_TEXT.justCounter);
-    expect(ACTION.reflect.text).toBe(ACTION_TEXT.reflect);
     expect(ACTION.dashAttack).toBe(BALANCE.weapons.ACTION_DASH_ATTACK);
   });
 });

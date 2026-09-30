@@ -14,7 +14,6 @@ import type { DamageKind, Enemy, GameState } from "../core/state";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { STATUS } from "../data/tuning";
 import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
-import { boonForcesCrit } from "./boonRules";
 import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, oathMore } from "./keystones";
 import { applyModifiers, applyPoiseModifiers } from "./modifiers";
 import { isStaggered } from "./poise";
@@ -84,13 +83,13 @@ function selfMore(state: GameState, enemy: Enemy | null, kind: DamageKind, out: 
 }
 
 /** 攻撃の手応えの倍（コンボ・見切り・強化・会心）。proc には掛けない。会心の乱数はここで引く（forceCrit でも引く順は変えない） */
-function strikeMore(state: GameState, enemy: Enemy | null, kind: DamageKind, out: MoreMul[], forceCrit: boolean): boolean {
+function strikeMore(state: GameState, out: MoreMul[], forceCrit: boolean): boolean {
   const s = state.stats;
   const p = state.player;
   pushIfActive(out, "combo", LABEL.combo, comboDamageMul(state));
   if (p.justTimer > 0) pushIfActive(out, "just", LABEL.just, s.justDodgeDamageMul);
   if (p.buffs.damage.time > 0) pushIfActive(out, "buff:damage", LABEL.buff, p.buffs.damage.mul);
-  const crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || boonForcesCrit(state, enemy, kind) || forceCrit;
+  const crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || forceCrit;
   if (crit) out.push({ source: "crit", label: LABEL.crit, mul: s.critMul + s.increased.critMulti });
   return crit;
 }
@@ -117,7 +116,7 @@ export function collectMore(state: GameState, enemy: Enemy | null, ctx: DamageCo
   // 常時の倍（stats.more）の後に Modifier の倍（誓約の楔・得意武器・祝福の「〜につき」など）
   const out: MoreMul[] = [...staticMore(state, ctx), ...applyModifiers(state, ctx, enemy).more];
   selfMore(state, enemy, ctx.kind, out);
-  const crit = ctx.kind !== "proc" ? strikeMore(state, enemy, ctx.kind, out, forceCrit) : false;
+  const crit = ctx.kind !== "proc" ? strikeMore(state, out, forceCrit) : false;
   oathMores(state, enemy, ctx.kind, skill, out);
   return { more: dedupeMore(out), crit };
 }

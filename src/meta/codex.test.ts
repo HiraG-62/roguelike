@@ -130,14 +130,14 @@ describe("図鑑: 保存データへの畳み込み", () => {
     state.codexRun.seen.add("slime");
     state.codexRun.killed.set("slime", 3);
     state.codexRun.reactions.set("vaporize", 2);
-    state.boons = ["dashGun"];
+    state.boons = ["emberSeed"];
     const profile = createEmptyProfile();
     profile.stash.push({ ...generateItem(createRng(1), { itemLevel: 1, foundDepth: 1, now: 0 }), namedKey: relic.key });
     const save = createCodexSave();
     const added = recordCodex({ codexRun: state.codexRun, boons: state.boons, profile }, save);
     expect(save.enemyKills.slime, "撃破数").toBe(3);
     expect(save.relics, "遺物").toEqual([relic.key]);
-    expect(save.boons, "祝福").toEqual(["dashGun"]);
+    expect(save.boons, "祝福").toEqual(["emberSeed"]);
     expect(added, "見た敵・撃破・遺物・祝福・反応の 5 件").toBe(5);
     const again = recordCodex({ codexRun: state.codexRun, boons: state.boons, profile }, save);
     expect(again, "2 回目は新しい記録が無い").toBe(0);

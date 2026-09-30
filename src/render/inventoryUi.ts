@@ -27,6 +27,7 @@ import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "..
 import { itemColor } from "../system/loot";
 import { affinity, skillKeywords } from "../system/keywords";
 import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, manaRuleCost, slotModifierView } from "../system/skills";
+import { boonGrantedModifiers } from "../system/boons";
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import { synergyBuild } from "../ui/synergyPanel";
 import { SUMMARY_HEAD_H, type SlotTileLayout } from "../ui/equipmentLayout";
@@ -675,7 +676,7 @@ function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine
   const def = SKILL_DEFS[stone.skillKey];
   const slot = state.skills.profile.loadout.indexOf(stone.id);
   // 装備画面での付け外しは次のステップまで slot.modifiers に入らないので、石から直接読む
-  const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot) : stoneModifierKeys(stone);
+  const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot, boonGrantedModifiers(state)) : stoneModifierKeys(stone);
   const params = resolveCast(def, stone, modifiers);
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_SKILL },

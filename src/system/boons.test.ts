@@ -1,24 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
-import type { Enemy, GameState } from "../core/state";
-import { BOON, BOSS, MANA, PLAYER } from "../data/tuning";
+import type { GameState } from "../core/state";
+import { BOON, BOON_LINEAGE, BOSS, MANA, PLAYER } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import { DEFAULT_STATS } from "../loot/types";
-import { TILE_SIZE, Tile, rectCenterPx } from "../map/grid";
-import { SKILL_DEFS, resolveCast } from "../skills/data";
+import { TILE_SIZE, Tile } from "../map/grid";
+import { SKILL_DEFS } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
-import { skillHit } from "../skills/hit";
-import type { CastParams, SkillKey } from "../skills/types";
 import {
   BOONS,
   BOON_KEYS,
   type BoonKey,
   type BoonTag,
-  boonAttackManaMul,
   boonCardRect,
   boonCurseRect,
   boonGivenTags,
-  boonMoveMul,
+  boonHeartsAllowed,
   boonWeight,
   buildTags,
   canTakeCurse,
@@ -28,7 +25,6 @@ import {
   chooseBoon,
   graceSlotsOf,
   gracesOf,
-  lineageCardWeight,
   offerTemper,
   removeBoon,
   rollLineageOptions,
@@ -38,14 +34,13 @@ import {
   hasBoon,
   isSiblingBoon,
   offerBoons,
-  onBoonSkillCast,
   rollBoonOptions,
   skillStoneTags,
   takeCurse,
   updateBoonChoice,
 } from "./boons";
 import { VIEW_W } from "../core/view";
-import { damageEnemy, damagePlayer } from "./combat";
+import { damagePlayer } from "./combat";
 import { buildFloor } from "./floor";
 import { applyStats } from "./player";
 import { resolveRules } from "./rules";
@@ -63,8 +58,8 @@ import {
   rollGrade,
 } from "./boonGrade";
 import { clearSpecialRoom } from "./specialRooms";
-import { castSlot, effectiveManaCost } from "./skills";
-import { arena, increasedWith, engageStartRoom, placeEnemy, slayFloorLord, withInput } from "./testHelpers";
+import { effectiveManaCost } from "./skills";
+import { arena, increasedWith, placeEnemy, slayFloorLord, withInput } from "./testHelpers";
 
 const FIXED_DT = 1 / 60;
 /** 入力無視時間を確実に超えるステップ数 */
@@ -157,22 +152,25 @@ describe("祝福の提示タイミング", () => {
 });
 
 describe("抽選", () => {
-  it("祝福は 24 種以上、呪い付きもある", () => {
-    expect(BOON_KEYS.length).toBeGreaterThanOrEqual(24);
-    expect(BOON_KEYS.some((k) => BOONS[k].cursed)).toBe(true);
+  it("祝福は 9 系譜 × 11 + 融合 12 + 呪い付き 6 + 芯 4 = 121 種", () => {
+    expect(BOON_KEYS).toHaveLength(121);
+    expect(new Set(BOON_KEYS).size, "key は重複しない").toBe(BOON_KEYS.length);
+    expect(BOON_KEYS.filter((k) => BOONS[k].fusion !== undefined)).toHaveLength(12);
+    expect(BOON_KEYS.filter((k) => BOONS[k].cursed)).toHaveLength(6);
+    expect(BOON_KEYS.filter((k) => BOONS[k].core === true)).toHaveLength(4);
   });
 
   it("3 枚は重複せず、取得済みは出ず、呪いは最大 1 枚。呪い枠はおよそ cursedChance で混ざる", () => {
     const state = arena(7);
-    state.boons = ["dashGun", "secondWind"];
+    state.boons = ["emberSeed", "frostBreath"];
     const trials = 600;
     let withCursed = 0;
     for (let i = 0; i < trials; i++) {
       const options = rollBoonOptions(state);
       expect(options).toHaveLength(BOON.choiceCount);
       expect(new Set(options).size).toBe(options.length);
-      expect(options).not.toContain("dashGun");
-      expect(options).not.toContain("secondWind");
+      expect(options).not.toContain("emberSeed");
+      expect(options).not.toContain("frostBreath");
       const cursed = options.filter((k) => BOONS[k].cursed).length;
       expect(cursed).toBeLessThanOrEqual(1);
       if (cursed > 0) withCursed++;
@@ -196,11 +194,9 @@ describe("抽選", () => {
 
     const noTags = equipmentTags(plain.stats);
     const burnTags = equipmentTags(burn.stats);
-    // requires: burn の祝福は burn 装備が無いと出ない
-    expect(boonWeight(BOONS.burnSpread, noTags, [])).toBe(0);
-    expect(boonWeight(BOONS.burnSpread, burnTags, [])).toBeGreaterThan(0);
-    // タグ一致で重みが上がる
-    expect(boonWeight(BOONS.heartBurn, burnTags, [])).toBeGreaterThan(BOON.rarityWeight.common);
+    // タグ一致で重みが上がる（基礎は札の種類の重み）
+    expect(boonWeight(BOONS.wildfire, noTags, []), "摂理の基礎の重み").toBeCloseTo(BOON.cardWeight.law);
+    expect(boonWeight(BOONS.wildfire, burnTags, [])).toBeGreaterThan(boonWeight(BOONS.wildfire, noTags, []));
 
     const count = (state: GameState): number => {
       let n = 0;
@@ -233,17 +229,8 @@ describe("抽選", () => {
   });
 });
 
-describe("ルール変更の実効", () => {
-  it("封鎖疾走: 封鎖しない部屋でも交戦中なら速く、交戦していなければ遅い", () => {
-    const state = arena();
-    grantBoon(state, "lockdown");
-    for (const r of state.rooms) r.locked = false;
-    expect(boonMoveMul(state), "交戦していない").toBeCloseTo(BOON.lockdownSlowMul);
-    engageStartRoom(state);
-    expect(boonMoveMul(state), "開放型の交戦中").toBeCloseTo(BOON.lockdownFastMul);
-  });
-
-  it("finisherOnly: 斬撃が 3 段目から始まる", () => {
+describe("残した旧フックと常時の stats", () => {
+  it("専心（finisherOnly）: 斬撃が 3 段目から始まる", () => {
     const state = arena();
     grantBoon(state, "finisherOnly");
     step(state, withInput({ attackPressed: true }), FIXED_DT);
@@ -251,43 +238,7 @@ describe("ルール変更の実効", () => {
     expect(state.player.attack.combo).toBe(PLAYER.melee.length - 1);
   });
 
-  it("dashGun: ダッシュ中に射撃できる（無ければ撃てない）", () => {
-    const shoot = (boon: BoonKey | null): number => {
-      const state = arena();
-      if (boon) grantBoon(state, boon);
-      // 祝福の畳み込みは装備の stats から作り直すので、銃の家系は後から持たせる
-      state.stats = { ...state.stats, moveset: "sidearm" };
-      step(state, withInput({ dashPressed: true, attackHeld: true }), FIXED_DT);
-      expect(state.player.dashTimer).toBeGreaterThan(0);
-      return state.projectiles.filter((p) => p.owner === "player").length;
-    };
-    expect(shoot(null)).toBe(0);
-    expect(shoot("dashGun")).toBeGreaterThan(0);
-  });
-
-  it("secondWind: ランに 1 回だけ HP 30% で復活する", () => {
-    const state = arena();
-    grantBoon(state, "secondWind");
-    damagePlayer(state, 9999, { x: 0, y: 0 });
-    expect(state.status).toBe("playing");
-    expect(state.player.hp).toBe(Math.round(state.player.maxHp * BOON.reviveHpRatio));
-
-    state.player.invulnTimer = 0;
-    damagePlayer(state, 9999, { x: 0, y: 0 });
-    expect(state.status).toBe("dead");
-  });
-
-  it("glassJust: 最大 HP が 1、ダッシュ後も JUST が取れる窓が伸びる", () => {
-    const state = arena();
-    grantBoon(state, "glassJust");
-    expect(state.player.maxHp).toBe(1);
-    step(state, withInput({ dashPressed: true }), FIXED_DT);
-    // ダッシュ時間が過ぎても延長窓の中なら JUST 回避になる
-    state.player.dashTimer = 0;
-    expect(damagePlayer(state, 10, { x: 0, y: 0 })).toBe("dodged");
-  });
-
-  it("comboKeeper: 被弾でコンボが半分残る", () => {
+  it("不断（comboKeeper）: 被弾でコンボが半分残る", () => {
     const state = arena();
     grantBoon(state, "comboKeeper");
     state.combo.count = 10;
@@ -296,126 +247,37 @@ describe("ルール変更の実効", () => {
     expect(state.combo.count).toBe(5);
   });
 
-  it("justWipe: JUST 回避で敵弾が全部消える", () => {
+  it("宝物庫の予約（Rule 効果 reserveVault）があれば次の階に宝物庫が確定する", () => {
     const state = arena();
-    grantBoon(state, "justWipe");
-    const p = state.player.body.pos;
-    for (let i = 0; i < 3; i++) {
-      state.projectiles.push({
-        id: 100 + i,
-        owner: "enemy",
-        pos: { x: p.x + 80, y: p.y + i * 10 },
-        vel: { x: 0, y: 0 },
-        radius: 2,
-        damage: 5,
-        life: 5,
-        color: "#fff",
-        kind: "ranged",
-        hitIds: new Set(),
-        pierceLeft: 0,
-      });
-    }
-    step(state, withInput({ dashPressed: true }), FIXED_DT);
-    expect(damagePlayer(state, 5, { x: 0, y: 0 })).toBe("dodged");
-    expect(state.projectiles.filter((pr) => pr.owner === "enemy" && pr.life > 0)).toHaveLength(0);
-  });
-
-  it("eliteVault: エリート撃破の次の階に宝物庫が確定する", () => {
-    const state = arena();
-    grantBoon(state, "eliteVault");
     state.boonRun.vaultNext = true;
     buildFloor(state);
     expect(state.rooms.some((r) => r.kind === "treasure")).toBe(true);
     expect(state.boonRun.vaultNext).toBe(false);
   });
 
-  it("数値系は装備変更（applyStats）後も残る: clearHeal の最大 HP -30%", () => {
+  it("常時の stats（BoonDef.addStats）は装備変更（applyStats）後も残る: 還雷の連鎖の戻り", () => {
     const state = arena();
-    grantBoon(state, "clearHeal");
-    expect(state.player.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * BOON.clearHealMaxHpMul));
+    const base = state.stats.chainRevisits;
+    grantBoon(state, "thunderReturn");
+    const added = BOONS.thunderReturn.addStats?.chainRevisits ?? 0;
+    expect(added, "還雷は戻りを足す").toBeGreaterThan(0);
+    expect(state.stats.chainRevisits).toBe(base + added);
     applyStats(state, computeStats(state.profile.equipment));
-    expect(state.player.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * BOON.clearHealMaxHpMul));
+    expect(state.stats.chainRevisits, "畳み直しても残る").toBe(base + added);
+    removeBoon(state, "thunderReturn");
+    expect(state.stats.chainRevisits, "手放すと戻る").toBe(base);
   });
 
-  it("giantSlayer: 取った階に配置済みのボス / 通常敵にも遡って掛かる", () => {
-    const state = createGame(11);
-    state.depth = BOSS.interval;
-    buildFloor(state);
-    const bossId = state.boss?.enemyId;
-    const boss = state.enemies.find((e) => e.id === bossId);
-    const mob = state.enemies.find((e) => e.id !== bossId && e.hp > 0);
-    if (!boss || !mob) throw new Error("boss floor without enemies");
-    const bossHp = boss.maxHp;
-    const mobHp = mob.maxHp;
-    grantBoon(state, "giantSlayer");
-    expect(boss.maxHp).toBe(Math.max(1, Math.round(bossHp * BOON.bossHpMul)));
-    expect(mob.maxHp).toBe(Math.max(1, Math.round(mobHp * BOON.mobHpMul)));
-  });
-
-  it("triggerHappy: 連射 2 倍・1 発の威力が落ちる代わりに近接は使える", () => {
+  it("血の饗宴を持つとハートが出ない", () => {
     const state = arena();
-    grantBoon(state, "triggerHappy");
-    expect(state.stats.fireRateMul).toBe(DEFAULT_STATS.fireRateMul * BOON.triggerHappyFireMul);
-    expect(state.stats.more.find((m) => m.source === "boon:triggerHappy")?.mul, "射撃の倍").toBeCloseTo(BOON.triggerHappyDamageMul);
-    step(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.player.attack.phase).not.toBe("none");
+    expect(boonHeartsAllowed(state)).toBe(true);
+    grantBoon(state, "bloodFeast");
+    expect(boonHeartsAllowed(state)).toBe(false);
   });
 });
 
-describe("無効化手段の祝福化（docs/COMBAT_DESIGN.md C-1）", () => {
-  it("弾返し・見切り斬りは呪いなしの祝福で、旧 parryCharge は無い", () => {
-    expect(BOONS.reflect.cursed).toBe(false);
-    expect(BOONS.justSlash.cursed).toBe(false);
-    expect(BOONS.justSlash.rarity).toBe("rare");
-    expect((BOON_KEYS as readonly string[]).includes("parryCharge"), "弾斬り充填は弾返しに置き換わった").toBe(false);
-  });
-
-  it("どちらも初期状態では持っていない", () => {
-    const state = arena();
-    expect(hasBoon(state, "reflect")).toBe(false);
-    expect(hasBoon(state, "justSlash")).toBe(false);
-  });
-});
-
-describe("マナ系の祝福（ルールでマナの回し方を変える）", () => {
-  const BIG_HP = 100000;
-  const KILL_DAMAGE = BIG_HP * 2;
+describe("気力の祝福（血の対価・気力の下限・タグ）", () => {
   const SAMPLE_COST = 20;
-
-  /** 攻撃しない動かない敵（HP を大きくして skillHit で倒さない） */
-  function dummy(state: GameState, dx = 20, key = "golem"): Enemy {
-    const e = placeEnemy(state, key, dx);
-    e.hp = BIG_HP;
-    e.maxHp = BIG_HP;
-    e.phase = "idle";
-    return e;
-  }
-
-  function paramsFor(key: SkillKey): CastParams {
-    const stone = { ...stoneFromSeed(1, { foundDepth: 1, now: 0, skillKey: key }), variants: [], links: 0 };
-    return resolveCast(SKILL_DEFS[key], stone, []);
-  }
-
-  const hitSpec = { base: 1, kind: "ranged" as const, dir: { x: 1, y: 0 }, knockback: 0, stagger: false };
-
-  it("湧水: 部屋を制圧するとマナが満タンになる", () => {
-    const clearWith = (boon: BoonKey | null): { mana: number; max: number } => {
-      const state = createGame(11);
-      if (boon) grantBoon(state, boon);
-      const room = state.rooms[1]!;
-      state.player.body.pos = rectCenterPx(room.rect);
-      step(state, withInput({}), FIXED_DT);
-      expect(room.engaged, "入ると交戦が始まる（開放型フロアは封鎖しない）").toBe(true);
-      for (const e of state.enemies) if (e.roomIndex === 1) e.hp = 0;
-      state.player.mana = 0;
-      step(state, withInput({}), FIXED_DT);
-      expect(room.cleared, "敵が全滅すれば制圧").toBe(true);
-      return { mana: state.player.mana, max: state.stats.maxMana };
-    };
-    const withBoon = clearWith("springWell");
-    expect(withBoon.mana, "制圧で満タン").toBe(withBoon.max);
-    expect(clearWith(null).mana, "祝福が無ければ満タンにならない").toBeLessThan(withBoon.max);
-  });
 
   it("血の対価: HP 50% 以下の間だけスキルのコストが -40%", () => {
     const state = arena();
@@ -434,133 +296,36 @@ describe("マナ系の祝福（ルールでマナの回し方を変える）", (
     expect(effectiveManaCost(state, SAMPLE_COST).cost).toBeCloseTo(SAMPLE_COST * MANA.costMulMin);
   });
 
-  it("屠りの盃: 撃破でマナ +10、代わりに自然回復が半分", () => {
-    const killGain = (boon: BoonKey | null): number => {
-      const state = arena();
-      if (boon) grantBoon(state, boon);
-      const e = dummy(state, 20, "slime");
-      state.player.mana = 0;
-      expect(damageEnemy(state, e, KILL_DAMAGE, { x: 1, y: 0 }, 0), "倒せる").toBe(true);
-      // 屠りの盃は BoonDef.rules（撃破のイベント）。step と同じくステップ末の照合で起きる
-      resolveRules(state, 0);
-      return state.player.mana;
-    };
-    expect(killGain("reaperCup") - killGain(null), "撃破で追加のマナ").toBeCloseTo(BOON.reaperCupKillMana);
-
+  it("最大気力は装備で 0 まで落ちても下限で止まり、スキルのコストも 0 にならない", () => {
     const state = arena();
-    grantBoon(state, "reaperCup");
-    expect(state.stats.manaRegen, "自然回復が半分").toBeCloseTo(DEFAULT_STATS.manaRegen * BOON.reaperCupRegenMul);
-  });
-
-  it("見切りの息: ジャスト回避でマナ +25（通常の回収に加算）", () => {
-    const justGain = (boon: BoonKey | null): number => {
-      const state = arena();
-      if (boon) grantBoon(state, boon);
-      const e = dummy(state, 60);
-      const p = state.player;
-      p.mana = 0;
-      p.dashTimer = PLAYER.dash.time;
-      p.invulnTimer = PLAYER.dash.time;
-      p.dodgedThisDash = false;
-      expect(damagePlayer(state, 10, e.body.pos, e), "ジャスト回避になる").toBe("dodged");
-      // 見切りの息は BoonDef.rules（見切りのイベント）。step と同じくステップ末の照合で起きる
-      resolveRules(state, 0);
-      return p.mana;
-    };
-    expect(justGain("keenBreath") - justGain(null)).toBeCloseTo(BOON.keenBreathJustMana);
-  });
-
-  it("循環: スキル命中ごとにマナ +2、1 回の発動で +8 まで。次の発動でまた戻る", () => {
-    const state = arena();
-    grantBoon(state, "circulation");
-    const e = dummy(state);
-    const params = paramsFor("railshot");
-    state.player.mana = 0;
-    onBoonSkillCast(state);
-    skillHit(state, e, params, hitSpec);
-    expect(state.player.mana, "1 ヒットで +2").toBeCloseTo(BOON.circulationPerHit);
-    for (let i = 0; i < 10; i++) skillHit(state, e, params, hitSpec);
-    expect(state.player.mana, "多段ヒットでも 1 発動の上限で止まる").toBeCloseTo(BOON.circulationCap);
-    onBoonSkillCast(state);
-    skillHit(state, e, params, hitSpec);
-    expect(state.player.mana, "次の発動では上限が戻る").toBeCloseTo(BOON.circulationCap + BOON.circulationPerHit);
-  });
-
-  it("循環: 祝福が無ければスキル命中でマナは増えない", () => {
-    const state = arena();
-    const e = dummy(state);
-    state.player.mana = 0;
-    onBoonSkillCast(state);
-    skillHit(state, e, paramsFor("railshot"), hitSpec);
-    expect(state.player.mana).toBe(0);
-  });
-
-  it("循環: castSlot での発動が還元量を数え直す", () => {
-    const state = arena();
-    grantBoon(state, "circulation");
-    state.boonRun.circulationGained = BOON.circulationCap;
-    state.player.mana = state.stats.maxMana;
-    const cast = castSlot(state, 0, withInput({}));
-    expect(cast, "初期スロットのスキルが撃てる").toBe(true);
-    expect(state.boonRun.circulationGained, "発動でリセット").toBeLessThan(BOON.circulationCap);
-  });
-
-  it("虚ろの器: コスト -35%・最大マナ -40%・通常攻撃のマナ回収が半分", () => {
-    const state = arena();
-    state.player.mana = DEFAULT_STATS.maxMana;
-    grantBoon(state, "hollowVessel");
-    expect(BOONS.hollowVessel.cursed, "呪い付き").toBe(true);
-    expect(state.stats.maxMana).toBe(Math.round(DEFAULT_STATS.maxMana * BOON.hollowVesselMaxManaMul));
-    expect(state.player.mana, "今のマナも新しい上限に収まる").toBeLessThanOrEqual(state.stats.maxMana);
-    expect(effectiveManaCost(state, SAMPLE_COST).cost).toBeCloseTo(SAMPLE_COST * BOON.hollowVesselCostMul);
-    expect(boonAttackManaMul(state)).toBeCloseTo(BOON.hollowVesselAttackManaMul);
-  });
-
-  it("最大マナは重ね掛けで 0 にならず、スキルのコストも 0 にならない", () => {
-    const state = arena();
-    grantBoon(state, "hollowVessel");
-    // 涸れ井戸の性質の重ね掛け・精神低下で装備側が 0 まで落ちた状態
     applyStats(state, { ...DEFAULT_STATS, maxMana: 0 });
     expect(state.stats.maxMana, "下限で止まる").toBe(MANA.maxMin);
     expect(effectiveManaCost(state, SAMPLE_COST).cost, "コストは 0 に切り詰められない").toBeGreaterThan(0);
   });
 
-  it("虚ろの器と霊刃の通常攻撃マナ倍率は掛け合わせる", () => {
-    const state = arena();
-    grantBoon(state, "hollowVessel");
-    grantBoon(state, "spiritBlade");
-    expect(boonAttackManaMul(state)).toBeCloseTo(BOON.hollowVesselAttackManaMul * BOON.spiritBladeManaMul);
-  });
-
-  it("マナの性質を持つ装備は mana タグになり、マナ系の祝福が出やすい", () => {
+  it("気力の性質を持つ装備は mana タグになり、気力の札が出やすい", () => {
     expect(equipmentTags(DEFAULT_STATS).has("mana"), "基礎値では付かない").toBe(false);
     const tags = equipmentTags({ ...DEFAULT_STATS, manaRegen: DEFAULT_STATS.manaRegen + 1 });
     expect(tags.has("mana")).toBe(true);
-    expect(boonWeight(BOONS.reaperCup, tags, [])).toBeGreaterThan(boonWeight(BOONS.reaperCup, new Set(), []));
-  });
-
-  it("追加した 6 つはすべて mana タグを持つ", () => {
-    const keys: BoonKey[] = ["springWell", "bloodMana", "reaperCup", "keenBreath", "circulation", "hollowVessel"];
-    for (const k of keys) expect(BOONS[k].tags, k).toContain("mana");
+    expect(boonWeight(BOONS.circulation, tags, [])).toBeGreaterThan(boonWeight(BOONS.circulation, new Set(), []));
   });
 });
 
-describe("系譜（前段を持つと次段が出る）", () => {
+describe("真髄と融合の抽選の条件（系譜の前段・結びの後継）", () => {
   const none = new Set<BoonTag>();
-  const burn = new Set<BoonTag>(["burn"]);
 
-  it("前段が無ければ次段の重みは 0、あれば系譜の倍率が掛かる", () => {
-    expect(boonWeight(BOONS.wildfire, none, [])).toBe(0);
-    const w = boonWeight(BOONS.wildfire, none, ["emberSeed"]);
-    expect(w).toBeCloseTo(BOON.rarityWeight[BOONS.wildfire.rarity] * BOON.lineageWeightMul);
+  it("真髄はその系譜の札（融合を含む）が apexMinCards 枚に届くまで重み 0", () => {
+    const three: BoonKey[] = ["emberSeed", "wildfire", "burnSpread"];
+    expect(three.length).toBe(BOON.apexMinCards - 1);
+    expect(boonWeight(BOONS.ashInferno, none, three), "3 枚").toBe(0);
+    expect(boonWeight(BOONS.ashInferno, none, [...three, "embers"]), "4 枚").toBeGreaterThan(0);
+    expect(boonWeight(BOONS.ashInferno, none, [...three, "thunderBlast"]), "融合も数える").toBeGreaterThan(0);
   });
 
-  it("真髄（4 段目）は 3 段目に加えて装備のタグを要求する", () => {
-    const owned: BoonKey[] = ["emberSeed", "wildfire", "ashBed"];
-    expect(boonWeight(BOONS.scorchedEarth, none, owned), "装備に燃焼が無い").toBe(0);
-    expect(boonWeight(BOONS.scorchedEarth, burn, owned)).toBeGreaterThan(0);
-    // 祝福が出す燃焼は requires を満たさない（真髄は装備で選ぶ）
-    expect(boonWeight(BOONS.scorchedEarth, none, owned, new Set<BoonTag>(["burn"]))).toBe(0);
+  it("融合は組の 2 系譜の加護が同じ行動に乗るまで重み 0", () => {
+    expect(boonWeight(BOONS.thunderBlast, none, ["fireWalk"]), "片方だけ").toBe(0);
+    expect(boonWeight(BOONS.thunderBlast, none, ["fireWalk", "chargedBlade"]), "行動が違う").toBe(0);
+    expect(boonWeight(BOONS.thunderBlast, none, ["fireWalk", "staticDash"]), "ダッシュに灰燼と雷鳴").toBeCloseTo(BOON.cardWeight.law * (1 + 0));
   });
 
   it("同じ系譜は 1 回の 3 択に 1 枚まで", () => {
@@ -575,43 +340,21 @@ describe("系譜（前段を持つと次段が出る）", () => {
     }
   });
 
-  it("前段を持つと、次段が 3 択に出てくる", () => {
-    const state = arena(22);
-    state.boons = ["emberSeed"];
-    let seen = 0;
-    for (let i = 0; i < 300; i++) if (rollBoonOptions(state).includes("wildfire")) seen++;
-    expect(seen).toBeGreaterThan(0);
-    const fresh = arena(22);
-    for (let i = 0; i < 300; i++) expect(rollBoonOptions(fresh)).not.toContain("wildfire");
-  });
-});
-
-describe("結び祝福（2 つ揃うと出る）", () => {
-  const none = new Set<BoonTag>();
-
-  it("片方だけでは重み 0、両方あれば結びの倍率が掛かる", () => {
-    expect(boonWeight(BOONS.thunderBlast, none, ["dashBlast"])).toBe(0);
-    const w = boonWeight(BOONS.thunderBlast, none, ["dashBlast", "dashShock"]);
-    expect(w).toBeCloseTo(BOON.rarityWeight.epic * BOON.duoWeightMul);
-    expect(boonWeight(BOONS.plagueBlood, none, ["plague", "bloodMist"]), "融合にできなかった結び（legacy）は出ない").toBe(0);
-  });
-
-  it("結びは 1 回の 3 択に 1 枚まで、揃えば出てくる", () => {
+  it("融合は 1 回の 3 択に 1 枚まで、揃えば出てくる", () => {
     const state = arena(23);
-    state.boons = ["plague", "bloodMist", "dashBlast", "dashShock", "justSlash", "justWipe", "overcharge", "burstRefund"];
+    state.boons = ["fireWalk", "staticDash", "frostBreath", "chargedBlade", "emberSeed"];
     let seen = 0;
     for (let i = 0; i < 300; i++) {
-      const options = rollBoonOptions(state);
-      const duos = options.filter((k) => BOONS[k].duo);
-      expect(duos.length, "結びは 1 枚まで").toBeLessThanOrEqual(1);
-      seen += duos.length;
+      const fusions = rollBoonOptions(state).filter((k) => BOONS[k].fusion !== undefined);
+      expect(fusions.length, "融合は 1 枚まで").toBeLessThanOrEqual(1);
+      seen += fusions.length;
     }
     expect(seen).toBeGreaterThan(0);
   });
 
   it("同じ 3 択に並べない組の判定（isSiblingBoon）", () => {
-    expect(isSiblingBoon(BOONS.emberSeed, BOONS.wildfire)).toBe(true);
-    expect(isSiblingBoon(BOONS.plagueBlood, BOONS.feastCup)).toBe(true);
+    expect(isSiblingBoon(BOONS.emberSeed, BOONS.wildfire), "同じ系譜").toBe(true);
+    expect(isSiblingBoon(BOONS.thunderBlast, BOONS.winterNest), "融合同士").toBe(true);
     expect(isSiblingBoon(BOONS.emberSeed, BOONS.frostBreath)).toBe(false);
   });
 });
@@ -656,20 +399,8 @@ describe("抽選の拡張: 出すタグとスキル石のタグ", () => {
   });
 });
 
-describe("射撃の祝福の loadout（銃の家系だけに出す。docs/ideas/weapon-redesign.md 6 章）", () => {
-  it("射撃の祝福は銃の家系を持つときだけ 3 択に出る", () => {
-    const state = arena();
-    // buildTags は boonRun.baseStats（祝福を畳み込む前の装備 stats）を読むので、そちらも差し替える
-    state.stats.moveset = "sword";
-    state.boonRun.baseStats = state.stats;
-    const melee = buildTags(state);
-    expect(boonWeight(BOONS.dashGun, melee.owned, [], melee.gives, melee.loadout), "近接の武器種では出ない").toBe(0);
-    state.stats.moveset = "gunner";
-    const gun = buildTags(state);
-    expect(boonWeight(BOONS.dashGun, gun.owned, [], gun.gives, gun.loadout), "銃の家系では出る").toBeGreaterThan(0);
-  });
-
-  it("指輪の射撃性質だけでは射撃の祝福が出ない", () => {
+describe("弾を出せない武器種と ranged タグ（docs/ideas/weapon-redesign.md 6 章）", () => {
+  it("指輪の射撃性質だけでは ranged タグが付かない", () => {
     const state = arena();
     state.stats.moveset = "sword";
     // 指輪・首飾りが乗せる射撃性質（弾を出せない武器種のまま）。遠距離スキル石は外して装備由来だけを見る
@@ -678,33 +409,6 @@ describe("射撃の祝福の loadout（銃の家系だけに出す。docs/ideas/
     state.boonRun.baseStats = state.stats;
     const tags = buildTags(state);
     expect(tags.owned.has("ranged"), "弾を出せない武器種では装備由来の ranged タグを外す").toBe(false);
-    expect(boonWeight(BOONS.dashGun, tags.owned, [], tags.gives, tags.loadout)).toBe(0);
-  });
-
-  it("弾を出す武器（銃の家系・斧・杖）限定の祝福は剣では出ず、斧では出る", () => {
-    const state = arena();
-    state.stats.moveset = "sword";
-    state.boonRun.baseStats = state.stats;
-    const sword = buildTags(state);
-    for (const key of ["rearGuard", "ricochet", "warhead", "weakSpot", "fireWalk", "frostRead", "frostBreath"] as const) {
-      expect(boonWeight(BOONS[key], sword.owned, [], sword.gives, sword.loadout), `剣では${key}が出ない`).toBe(0);
-    }
-    state.stats.moveset = "axe";
-    const axe = buildTags(state);
-    for (const key of ["rearGuard", "ricochet", "warhead", "weakSpot", "fireWalk", "frostRead", "frostBreath"] as const) {
-      expect(boonWeight(BOONS[key], axe.owned, [], axe.gives, axe.loadout), `斧では${key}が出る`).toBeGreaterThan(0);
-    }
-  });
-
-  it("銃限定の祝福（呼び戻し・瞬停）は斧では出ず、銃では出る", () => {
-    const state = arena();
-    state.stats.moveset = "axe";
-    state.boonRun.baseStats = state.stats;
-    const axe = buildTags(state);
-    expect(boonWeight(BOONS.recall, axe.owned, [], axe.gives, axe.loadout), "斧では呼び戻しが出ない").toBe(0);
-    state.stats.moveset = "gunner";
-    const gun = buildTags(state);
-    expect(boonWeight(BOONS.recall, gun.owned, [], gun.gives, gun.loadout), "銃では呼び戻しが出る").toBeGreaterThan(0);
   });
 
   it("遠距離スキル石を付けていれば、弾を出せない武器種でも ranged タグは残る", () => {
@@ -797,11 +501,11 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
     return counts;
   }
 
-  /** 芯の候補にできる素直な祝福（呪いなし・前段や条件なし） */
+  /** 芯の候補にできる素直な祝福（呪いなし・真髄や融合の条件なし） */
   function plainKeys(): BoonKey[] {
     return BOON_KEYS.filter((k) => {
       const d = BOONS[k];
-      return !d.cursed && d.core !== true && !d.after && !d.duo && !d.requires && !d.loadout && d.legacy !== true;
+      return !d.cursed && d.core !== true && d.card !== "apex" && d.fusion === undefined && !d.requires && !d.loadout;
     });
   }
 
@@ -855,12 +559,12 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
     expect(boonGradeOf(state, cursed), "神威で渡しても並").toBe(1);
   });
 
-  it("Rule の効果量は格で ×1.5 / ×2.2 になる（爆走の爆発ダメージで確認）", () => {
+  it("Rule の効果量は格で ×1.5 / ×2.2 になる（静電気の連鎖雷のダメージで確認）", () => {
     const blastDamage = (grade: BoonGrade): number => {
       // 威力を大きくして整数の丸めを比に効かせない
       const state = arena(5, { increased: increasedWith({ melee: STRONG_MELEE - 1 }) });
       state.boonRun.baseStats = state.stats;
-      grantBoon(state, "dashBlast", grade);
+      grantBoon(state, "staticDash", grade);
       const e = placeEnemy(state, "golem", 10);
       e.hp = BIG_HP;
       e.maxHp = BIG_HP;
@@ -881,19 +585,21 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
   });
 
   it("神威の Rule は ICD が短くなるが ruleMinIcd を下回らない", () => {
+    const icd = BOON_LINEAGE.wealth.pickpocket.icd;
     const icdAfter = (grade: BoonGrade): number | undefined => {
       const state = arena(5);
-      grantBoon(state, "leyLine", grade);
+      grantBoon(state, "pickpocket", grade);
       state.events = [];
       state.pendingEvents = [];
-      pushPlayerEvent(state, "onTerrainEnter", "terrain");
+      pushPlayerEvent(state, "onDashEnd", "dash");
       resolveRules(state, 0);
-      return state.ruleIcd.get("boon:leyLine:0");
+      return state.ruleIcd.get("boon:pickpocket:0");
     };
-    expect(icdAfter(1)).toBeCloseTo(BOON.leyLineIcd);
-    expect(icdAfter(2), "大祝福は ICD を変えない").toBeCloseTo(BOON.leyLineIcd * gradeIcdMul(2));
-    expect(icdAfter(3)).toBeCloseTo(BOON.leyLineIcd * gradeIcdMul(3));
-    expect(icdAfter(3) ?? 0).toBeLessThan(BOON.leyLineIcd);
+    expect(isGraded(BOONS.pickpocket), "掏りは格の対象").toBe(true);
+    expect(icdAfter(1)).toBeCloseTo(icd);
+    expect(icdAfter(2), "大祝福の ICD").toBeCloseTo(icd * gradeIcdMul(2));
+    expect(icdAfter(3)).toBeCloseTo(icd * gradeIcdMul(3));
+    expect(icdAfter(3) ?? 0).toBeLessThan(icd);
     const short = BOON.ruleMinIcd * 1.2;
     expect(gradedIcd(short, 3), "下限").toBe(BOON.ruleMinIcd);
     expect(gradedIcd(0, 3), "ICD 0 は 0 のまま").toBe(0);
@@ -916,25 +622,6 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
       laterPlain += gradedCards(state).filter((g) => g === 1).length;
     }
     expect(laterPlain, "次の提示には下駄が乗らない（並が出る）").toBeGreaterThan(0);
-  });
-
-  it("試練の徒は試練の 3 択の格をもう 1 段上げる", () => {
-    for (let seed = 1; seed <= SEEDS; seed++) {
-      const state = arena(seed);
-      state.depth = BOON.coreDepth + 1;
-      grantBoon(state, "trialSeeker");
-      const room = state.rooms[0];
-      if (!room) throw new Error("部屋が無い");
-      room.kind = "challenge";
-      clearSpecialRoom(state, room, { ...state.player.body.pos });
-      // 実際の制圧と同じく、制圧のイベントは同じステップの resolveRules で食われる
-      state.events = [];
-      state.pendingEvents = [];
-      pushPlayerEvent(state, "onRoomClear", "room", { tag: "challenge", source: { kind: "room", key: "challenge" } });
-      resolveRules(state, 0);
-      const expected = clampGrade(1 + BOON.gradeBoostChallenge + BOON.gradeBoostTrialSeeker);
-      for (const g of gradedCards(state)) expect(g).toBeGreaterThanOrEqual(expected);
-    }
   });
 
   it("ボス階の直後の提示は格の下駄が乗る", () => {
@@ -1046,7 +733,7 @@ describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs
   /** 系譜の提示を確かめられる深さ（芯の提示の深度を避ける） */
   const OFFER_DEPTH = BOON.coreDepth + 1;
   /** 灰燼の札 4 枚（真髄の条件を満たす）と 3 枚 */
-  const ASH_FOUR: BoonKey[] = ["emberSeed", "wildfire", "ashBed", "burnSpread"];
+  const ASH_FOUR: BoonKey[] = ["emberSeed", "wildfire", "embers", "burnSpread"];
 
   function offerState(seed: number): GameState {
     const state = arena(seed);
@@ -1099,11 +786,11 @@ describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs
     for (let seed = 1; seed <= SEEDS; seed++) {
       const three = offerState(seed);
       three.boons = ASH_FOUR.slice(0, BOON.apexMinCards - 1);
-      expect(rollLineageOptions(three, "ash"), "3 枚では真髄は出ない").not.toContain("scorchedEarth");
+      expect(rollLineageOptions(three, "ash"), "3 枚では真髄は出ない").not.toContain("ashInferno");
       const four = offerState(seed);
       four.boons = [...ASH_FOUR];
       expect(four.boons.length).toBeGreaterThanOrEqual(BOON.apexMinCards);
-      expect(rollLineageOptions(four, "ash")[0], "1 枚目に真髄").toBe("scorchedEarth");
+      expect(rollLineageOptions(four, "ash")[0], "1 枚目に真髄").toBe("ashInferno");
     }
   });
 
@@ -1111,43 +798,31 @@ describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs
     const state = offerState(3);
     for (const k of ASH_FOUR) grantBoon(state, k);
     expect(graceSlotsOf(state, "primary")).toBe(BOON.graceSlots);
-    grantBoon(state, "scorchedEarth");
+    grantBoon(state, "ashInferno");
     expect(graceSlotsOf(state, "primary"), "火種の宿る左").toBe(Math.min(BOON.graceSlotsMax, BOON.graceSlots + 1));
     expect(graceSlotsOf(state, "dash"), "灰燼の加護の無い行動は開かない").toBe(BOON.graceSlots);
   });
 
   it("違う 2 系譜の加護が同じ行動に乗ると、次の提示の 1 枚目に融合が確定し、真髄があればその次", () => {
     const state = offerState(5);
-    grantBoon(state, "dashBlast");
+    grantBoon(state, "fireWalk");
     expect(state.boonRun.fusionDue, "1 系譜だけでは積まない").toEqual([]);
-    grantBoon(state, "dashShock");
+    grantBoon(state, "staticDash");
     expect(state.boonRun.fusionDue, "灰燼 × 雷鳴 がダッシュに乗った").toEqual(["thunderBlast"]);
     expect(rollLineageOptions(state, "frost")[0], "別の系譜の提示でも確定").toBe("thunderBlast");
     for (const k of ASH_FOUR) grantBoon(state, k);
     const options = rollLineageOptions(state, "ash");
-    expect(options.slice(0, 2), "真髄 → 融合").toEqual(["scorchedEarth", "thunderBlast"]);
+    expect(options.slice(0, 2), "真髄 → 融合").toEqual(["ashInferno", "thunderBlast"]);
     grantBoon(state, "thunderBlast");
     expect(state.boonRun.fusionDue, "取ったら外れる").toEqual([]);
   });
 
   it("入れ替えで片方の加護が外れると融合の確定枠も消える", () => {
     const state = offerState(5);
-    grantBoon(state, "dashBlast");
-    grantBoon(state, "dashShock");
-    removeBoon(state, "dashShock");
+    grantBoon(state, "fireWalk");
+    grantBoon(state, "staticDash");
+    removeBoon(state, "staticDash");
     expect(state.boonRun.fusionDue).toEqual([]);
-  });
-
-  it("同じ系譜の加護は同じ行動に出ない", () => {
-    const tags = new Set<BoonTag>();
-    expect(boonWeight(BOONS.overcharge, tags, ["emberSeed"]), "灰燼の左を持つ").toBe(0);
-    expect(boonWeight(BOONS.rearGuard, tags, ["emberSeed"]), "別の系譜の左は出る").toBeGreaterThan(0);
-    for (let seed = 1; seed <= SEEDS; seed++) {
-      const state = offerState(seed);
-      grantBoon(state, "emberSeed");
-      expect(lineageCardWeight(state, BOONS.overcharge, undefined, { produces: [], consumes: [], amplifies: [] })).toBe(0);
-      expect(rollLineageOptions(state, "ash"), `seed ${seed}`).not.toContain("overcharge");
-    }
   });
 
   it("加護は 1 行動に graceSlots 枠。満ちた行動の加護を選ぶと第 2 段が開き、見送りなら取らない", () => {
@@ -1173,17 +848,17 @@ describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs
   it("第 2 段で外す加護を選ぶと入れ替わり、外した札の格も消える", () => {
     const state = offerState(4);
     grantBoon(state, "chargedBlade", 3);
-    grantBoon(state, "huntBleed");
+    grantBoon(state, "moonVerdict");
     expect(boonGradeOf(state, "chargedBlade")).toBe(3);
-    openWith(state, ["overcharge"], [2]);
+    openWith(state, ["frostBreath"], [2]);
     chooseBoon(state, 0);
     chooseBoon(state, 0);
     expect(state.boonChoice).toBeNull();
     expect(hasBoon(state, "chargedBlade"), "外した").toBe(false);
     expect(state.boonRun.grades.chargedBlade, "格も消える").toBeUndefined();
-    expect(gracesOf(state, "primary")).toEqual(["huntBleed", "overcharge"]);
-    expect(isGraded(BOONS.overcharge)).toBe(true);
-    expect(boonGradeOf(state, "overcharge"), "新しい札は提示の格").toBe(2);
+    expect(gracesOf(state, "primary")).toEqual(["moonVerdict", "frostBreath"]);
+    expect(isGraded(BOONS.frostBreath)).toBe(true);
+    expect(boonGradeOf(state, "frostBreath"), "新しい札は提示の格").toBe(2);
   });
 
   it("第 2 段の見送りはキー（3 枚目 = 攻撃）でも選べ、入力の待ちを数え直す", () => {
@@ -1205,7 +880,7 @@ describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs
     const state = offerState(6);
     expect(canTemper(state), "札が無ければ錬磨できない").toBe(false);
     expect(offerTemper(state)).toBe(false);
-    for (const k of ["dashBlast", "emberSeed", "chargedBlade", "firePillar", "boltDrop"] as const) grantBoon(state, k);
+    for (const k of ["fireWalk", "emberSeed", "chargedBlade", "firePillar", "boltDrop"] as const) grantBoon(state, k);
     expect(canTemper(state)).toBe(true);
     expect(offerTemper(state)).toBe(true);
     const c = state.boonChoice;
@@ -1244,7 +919,7 @@ describe("系譜の提示・加護の枠・融合・錬磨（段取り 7a、docs
   it("錬磨の候補は同じ seed なら同じ", () => {
     const options = (seed: number): BoonKey[] | undefined => {
       const state = offerState(seed);
-      for (const k of ["dashBlast", "emberSeed", "chargedBlade", "firePillar", "boltDrop"] as const) grantBoon(state, k);
+      for (const k of ["fireWalk", "emberSeed", "chargedBlade", "firePillar", "boltDrop"] as const) grantBoon(state, k);
       offerTemper(state);
       return state.boonChoice?.options;
     };

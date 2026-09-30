@@ -4,12 +4,17 @@ import { applyChill, chainLightning, enemiesInRadius } from "../system/statusEff
 import { shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
 import { circlesOverlap, moveBody, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
-import { STATUS } from "../data/tuning";
+import { BOON_LINEAGE, STATUS } from "../data/tuning";
 import { SKILL, SKILL_DEFS } from "./data";
 import { COMBO_TUNING } from "./tuning";
 import { skillHit, skillPower } from "./hit";
 import { terrainAt } from "../system/terrain";
 import type { CastParams } from "./types";
+import { distToSegment } from "./geom";
+import { FIXED_DT } from "../core/loop";
+import { isAllied } from "../system/rules";
+import { slashBase } from "../system/boonRules";
+import { damageEnemy, rollOutgoing } from "../system/combat";
 
 /**
  * 設置・飛翔系スキルの実体（雷撃・引力球・地雷・氷結地帯・回転弾幕の弾）。
@@ -166,6 +171,67 @@ export function updatePlacedSkills(state: GameState, dt: number): void {
   updateFields(state, dt);
   updateMires(state, dt);
   updateBullets(state, dt);
+  followDash(state, dt);
+  updateCrossfire(state);
+}
+
+/** 自分の設置物の位置（眷属の札が読む。決定性のため固定の順。system/rules.ts の minionCount と同じ置き場） */
+function placedItems(state: GameState): { pos: Vec }[] {
+  const rs = state.skills;
+  return [...rs.kegs, ...rs.graves, ...rs.turrets, ...rs.mines, ...rs.wells, ...rs.fields, ...(rs.mires ?? []), ...rs.springs, ...rs.stakes, ...rs.traps];
+}
+
+/** 前のステップの出来事とみなす幅（刻みの 1.5 倍。浮動小数の誤差で 1 刻み前を取りこぼさない） */
+const LAST_STEP_SLACK = 1.5;
+
+/**
+ * 歩く杭（眷属の加護）: ダッシュを終えた次のステップで、最も近い自分の設置物を足元へ移す。
+ * ダッシュの終わりは updateSkills より後に積まれるので、state.recent の記録を 1 ステップ遅れで読む
+ */
+function followDash(state: GameState, dt: number): void {
+  if (!state.boons.includes("walkingStake")) return;
+  const ended = state.recent.onDashEnd;
+  if (ended === undefined) return;
+  const since = state.time - ended.lastTime;
+  if (since <= 0 || since > dt * LAST_STEP_SLACK) return;
+  const p = state.player.body.pos;
+  let nearest: { pos: Vec } | undefined;
+  for (const item of placedItems(state)) {
+    if (nearest === undefined || dist(p, item.pos) < dist(p, nearest.pos)) nearest = item;
+  }
+  if (nearest === undefined) return;
+  nearest.pos = { ...p };
+  const w = BOON_LINEAGE.horde.walkingStake;
+  spawnRing(state, p, w.ringRadius, w.color, w.fxLife);
+}
+
+/**
+ * 十字砲火（眷属の摂理）: 自分の設置物どうしを結ぶ線（長さ maxLength まで）に触れた敵へ、interval 秒ごとに傷。
+ * 1 回の刻みで同じ敵は 1 度だけ。従魔（味方にした敵）は傷つけない
+ */
+function updateCrossfire(state: GameState): void {
+  if (!state.boons.includes("crossfire")) return;
+  const c = BOON_LINEAGE.horde.crossfire;
+  if (state.tick % Math.max(1, Math.round(c.interval / FIXED_DT)) !== 0) return;
+  const items = placedItems(state);
+  if (items.length < 2) return;
+  const hit = new Set<number>();
+  const damage = slashBase(state) * c.ratio;
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i]?.pos;
+      const b = items[j]?.pos;
+      if (a === undefined || b === undefined || dist(a, b) > c.maxLength) continue;
+      spawnLine(state, a, b, c.color, c.fxLife);
+      for (const e of state.enemies) {
+        if (e.hp <= 0 || hit.has(e.id) || isAllied(state, e)) continue;
+        if (distToSegment(e.body.pos, a, b) > e.body.radius + c.width) continue;
+        hit.add(e.id);
+        const out = rollOutgoing(state, e, damage, "proc");
+        damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, a)), 0, { hitstopSteps: 0 });
+      }
+    }
+  }
 }
 
 function updateStrikes(state: GameState, dt: number): void {

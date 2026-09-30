@@ -6,8 +6,7 @@ import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
-import { boonAttackManaMul } from "./boons";
-import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
+import { isAllied } from "./rules";
 import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
 import { attackHitManaMul } from "./manaSources";
@@ -52,7 +51,6 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
 
   // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）
   if (!pr.shot?.orbit && overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
-    if (onBoonProjectileWall(state, pr, dt)) return;
     if (def && hitWallByShot(state, pr, def, prev, dt)) return;
     pr.life = 0;
     spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
@@ -243,7 +241,7 @@ function nearestEnemy(state: GameState, pos: Vec, range: number, skip: ReadonlyS
   let best: Vec | undefined;
   let bestDist = range;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.hidden || skip.has(e.id)) continue;
+    if (e.hp <= 0 || e.hidden || skip.has(e.id) || isAllied(state, e)) continue;
     const d = length(sub(e.body.pos, pos));
     if (d >= bestDist) continue;
     bestDist = d;
@@ -315,7 +313,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
   if (pr.shot) pr.shot.detonated = true;
   pr.life = 0;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.hidden) continue;
+    if (e.hp <= 0 || e.hidden || isAllied(state, e)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, blastRadius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     const mul = blastMulAt(pr.pos, blastRadius, e.body.pos, e.body.radius);
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
@@ -359,18 +357,19 @@ function gainShotMana(state: GameState, pr: Projectile): void {
   volley.manaHits += 1;
   // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
   // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
-  gainAttackMana(state, MANA.onShot * attackHitManaMul(state), attackManaMul(state) * boonAttackManaMul(state));
+  gainAttackMana(state, MANA.onShot * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
 function hitEnemies(state: GameState, pr: Projectile): void {
   for (const e of state.enemies) {
-    if (e.hp <= 0 || pr.hitIds.has(e.id)) continue;
+    // 従魔（眷属）は撃ち抜く（貫通を減らさず、傷つけない）
+    if (e.hp <= 0 || pr.hitIds.has(e.id) || isAllied(state, e)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit });
+    const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit });
     gainShotMana(state, pr);
     // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
     const heavy = shotDefOf(pr)?.charge !== undefined;

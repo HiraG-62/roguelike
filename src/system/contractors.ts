@@ -610,7 +610,7 @@ export { removeBoon } from "./boons";
 
 /** 呪い付きの祝福を 1 つ受ける（契約の失敗・呪詛の声の失敗）。受けられるものが無ければ何もしない */
 export function grantCurse(state: GameState): void {
-  const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k) && !BOONS[k].after && !BOONS[k].duo);
+  const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k));
   if (pool.length === 0) return;
   grantBoon(state, state.rng.pick(pool));
 }

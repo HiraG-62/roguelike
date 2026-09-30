@@ -128,10 +128,6 @@ export interface Player {
   regainTimer: number;
   /** リゲイン: 近接 1 ヒットで戻る量 */
   regainStep: number;
-  /** JUST 回避カウンターを受け付ける残り秒 */
-  justCounterTimer: number;
-  /** JUST 回避カウンターの飛び先（回避した攻撃の敵 id）。無ければ null */
-  justCounterTargetId: number | null;
   /** ダッシュ中に攻撃が押された（ダッシュ終了でダッシュ攻撃を出す） */
   dashAttackQueued: boolean;
   /** 今の振りがダッシュ攻撃か（attack.combo の段ではなく ACTION.dashAttack を使う） */

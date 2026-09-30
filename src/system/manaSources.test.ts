@@ -217,7 +217,7 @@ describe("流儀ごとの源", () => {
 
   it("巫女: 祝福の加護が発動すると湧く。祝福でないルール（ジョブ自身）は数えない", () => {
     const state = jobArena("miko");
-    grantBoon(state, "deathRush");
+    grantBoon(state, "bloodFeast");
     const e = toughEnemy(state);
     e.hp = 0;
     pushPlayerEvent(state, "onKill", "kill", enemyTarget(e, true));

@@ -8,7 +8,6 @@ import { BOON, DASH_FORM, PLAYER } from "../data/tuning";
 import { isGun, laneLength } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
 import { scaled } from "./attributes";
-import { tryDashGuard } from "./boons";
 import { cancelAttack } from "./combat";
 import { spawnRing } from "./effects";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -63,18 +62,17 @@ export function dashLocksActions(state: Readonly<GameState>): boolean {
 }
 
 /**
- * ダッシュそのものを差し替える（不退、祝福「鉄壁の構え」）。差し替えたら true（tryDash はここで終わる）。
- * 不退の流儀は祝福を持っていても 1 回だけ構える（二重に構えない）
+ * ダッシュそのものを差し替える（不退）。差し替えたら true（tryDash はここで終わる）
  */
 export function replaceDash(state: GameState): boolean {
-  if (dashFormOf(state) !== "brace") return tryDashGuard(state);
+  if (dashFormOf(state) !== "brace") return false;
   braceInPlace(state, DASH_FORM.brace.guardSec);
   return true;
 }
 
 /**
- * 不退: その場で構える。構えの作業領域は祝福「鉄壁の構え」と同じ boonRun.guardTimer を使い、
- * 移動 0（boonMoveMul）と構えの中の被弾の見切り（boonJustEligible）をそのまま効かせる（祝福側は段取り 7 で削る）
+ * 不退: その場で構える。構えの残り秒は boonRun.guardTimer に置き、
+ * 移動 0（boonMoveMul）と構えの中の被弾の見切り（boonJustEligible）を効かせる
  */
 function braceInPlace(state: GameState, sec: number): void {
   const p = state.player;

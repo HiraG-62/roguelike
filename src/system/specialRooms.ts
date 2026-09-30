@@ -817,7 +817,7 @@ function pxInRoom(state: GameState, room: RoomState, pos: Vec): boolean {
 /** 呪い付きの祝福を 1 つ受ける代わりに、祝福の 3 択を開く */
 function useCurseShrine(state: GameState, prop: RoomProp): void {
   prop.used = true;
-  const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k) && !BOONS[k].after && !BOONS[k].duo);
+  const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k));
   if (pool.length > 0) grantBoon(state, state.rng.pick(pool));
   spawnBurst(state, prop.pos, ROOM_KIND.curseShrineColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   pushLog(state, "呪いを受けた。代わりに祝福を 1 つ選べる。", ROOM_KIND.curseShrineColor);

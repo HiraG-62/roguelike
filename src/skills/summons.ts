@@ -5,6 +5,7 @@ import { gainMana } from "../system/mana";
 import { circlesOverlap, overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { enemiesInRadius } from "../system/statusEffects";
+import { focusTarget } from "../system/rules";
 import { SKILL, SKILL_DEFS } from "./data";
 import { angleDiff } from "./geom";
 import { skillHit, skillPower } from "./hit";
@@ -221,11 +222,11 @@ export function onTurretShoot(state: GameState): void {
   fireTurrets(state, state.skills.turrets);
 }
 
-/** 砲台ごとに自分の向きの先を狙って 1 発（射撃に合わせる・鈴の打ち鳴らしの命令） */
+/** 砲台ごとに自分の向きの先（号令の狙いがあればその敵）を狙って 1 発（射撃に合わせる・鈴の打ち鳴らしの命令） */
 function fireTurrets(state: GameState, turrets: readonly Turret[]): void {
   const t = SKILL.turret;
   const p = state.player;
-  const aim = add(p.body.pos, scale(p.facing, t.aimReach));
+  const aim = focusTarget(state)?.body.pos ?? add(p.body.pos, scale(p.facing, t.aimReach));
   for (const tur of turrets) {
     spawnShot(state, tur.pos, sub(aim, tur.pos), tur.params, {
       effect: "turret",

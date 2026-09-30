@@ -514,7 +514,7 @@ describe("ランイベント第 2 弾の効果", () => {
   });
 
   it("呪詛の声: 呪い持ちにだけ起き、コンボが届けば呪いが解け、届かなければ増える", () => {
-    const cursed = BOON_KEYS.filter((k) => BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const cursed = BOON_KEYS.filter((k) => BOONS[k].cursed);
     const first = cursed[0];
     if (!first) throw new Error("呪い付きの祝福が無い");
     const ok = setup();
@@ -632,7 +632,7 @@ describe("ランイベント第 2 弾の効果", () => {
 
   it("流れ星: 祝福を 1 つ手放して 3 択を開く", () => {
     const { state, room, index } = setup();
-    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && BOONS[k].core !== true && BOONS[k].card !== "apex" && BOONS[k].fusion === undefined);
     if (!plain) throw new Error("祝福");
     grantBoon(state, plain);
     lock(state, room);
@@ -644,7 +644,7 @@ describe("ランイベント第 2 弾の効果", () => {
 
   it("流れ星: 3 択が開けない深度では祝福を手放さない", () => {
     const { state, room, index } = setup(7, 1);
-    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && BOONS[k].core !== true && BOONS[k].card !== "apex" && BOONS[k].fusion === undefined);
     if (!plain) throw new Error("祝福");
     grantBoon(state, plain);
     lock(state, room);

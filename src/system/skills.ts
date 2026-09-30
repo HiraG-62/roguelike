@@ -4,7 +4,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, add, dist, fromAngle, angle, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
-import { ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
+import { BOON_LINEAGE, ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { rectCenterPx } from "../map/grid";
 import {
@@ -103,7 +103,8 @@ import {
 import type { Element } from "../core/element";
 import { favoredMovesets } from "../data/jobs";
 import { buffMul } from "./attributes";
-import { boonManaCostMul, onBoonSkillCast } from "./boons";
+import { boonGrantedModifiers, boonManaCostMul, hasBoon, onBoonSkillCast } from "./boons";
+import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
 import { COLOR_JUST, cancelAttack, damageEnemy, damagePlayer, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
 import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
@@ -280,22 +281,28 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
 /**
  * スロットの実効の刻印符 = スロットの石に付けた所持刻印符（古い順）+ ラン内の刻印符（古い順）。
  * 石の符を先に置くので、リンクが足りないときは自分で選んだ符が優先して効く。
- * 同じ種類が石とラン内の両方にあれば 1 枚として数える（activeModifiers は重複を弾かないので、ここで除かないと二重に効く）
+ * 同じ種類が石とラン内の両方にあれば 1 枚として数える（activeModifiers は重複を弾かないので、ここで除かないと二重に効く）。
+ * granted は祝福（スキルの加護 BoonDef.grantsModifier）が全スロットに足す符。自分で選んだ符の後ろに置き、
+ * その石に付けられない符・既にある符は足さない（リンクの上限は activeModifiers が他の符と同じに数える）
  */
-export function effectiveSlotModifiers(rs: Readonly<SkillRunState>, slot: number): ModifierKey[] {
+export function effectiveSlotModifiers(rs: Readonly<SkillRunState>, slot: number, granted: readonly ModifierKey[] = []): ModifierKey[] {
   const stone = stoneInSlot(rs.profile, slot);
   const own = stone ? stoneModifierKeys(stone) : [];
   const run = (rs.slots[slot]?.runModifiers ?? []).filter((k) => !own.includes(k));
-  return [...own, ...run];
+  const chosen = [...own, ...run];
+  if (!stone) return chosen;
+  const def = SKILL_DEFS[stone.skillKey];
+  return [...chosen, ...granted.filter((k) => !chosen.includes(k) && canAttach(def, k))];
 }
 
 /**
  * slot.modifiers を石とラン内の刻印符から作り直す。updateSkills の先頭で毎ステップ呼ぶ。
- * 装備画面での付け外しはここで次のステップから効く（リプレイの装備変更イベントと同じ時点に揃えるため、UI からは呼ばない）
+ * 装備画面での付け外しはここで次のステップから効く（リプレイの装備変更イベントと同じ時点に揃えるため、UI からは呼ばない）。
+ * granted は祝福が全スロットに足す符（boonGrantedModifiers）
  */
-export function syncSlotModifiers(rs: SkillRunState): void {
+export function syncSlotModifiers(rs: SkillRunState, granted: readonly ModifierKey[] = []): void {
   rs.slots.forEach((slot, i) => {
-    const next = effectiveSlotModifiers(rs, i);
+    const next = effectiveSlotModifiers(rs, i, granted);
     const same = next.length === slot.modifiers.length && next.every((k, j) => slot.modifiers[j] === k);
     if (!same) slot.modifiers = next;
   });
@@ -311,7 +318,7 @@ export function resolveSlot(state: GameState, slot: number): ResolvedSlot | null
   const burden = castBurden(def, params);
   const dynamic = dynamicBurdenMul(state, slot, def, params);
   // 書の無詠唱は気力を 0 に、書を持つ間は再使用が短い（system/tomeBell.ts）
-  const cost = freeCastCost(state, manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic, slot).cost));
+  const cost = freeCastCost(state, manaRuleCost(state, def, effectiveManaCost(state, burden.cost * dynamic).cost));
   return {
     stone,
     def,
@@ -408,8 +415,8 @@ export function capManaCost(cost: number, maxMana: number): { cost: number; clam
 }
 
 /** 実際に払うコスト。誓約「過負荷」は不足分を HP で払えて上限を超えても撃てるので切り詰めない */
-export function effectiveManaCost(state: GameState, cost: number, slot = -1): { cost: number; clamped: boolean } {
-  const scaled = cost * Math.max(MANA.costMulMin, state.stats.manaCostMul * boonManaCostMul(state, slot));
+export function effectiveManaCost(state: GameState, cost: number): { cost: number; clamped: boolean } {
+  const scaled = cost * Math.max(MANA.costMulMin, state.stats.manaCostMul * boonManaCostMul(state));
   if (hasKeystone(state, KS.overdraw)) return { cost: scaled, clamped: false };
   return capManaCost(scaled, state.stats.maxMana);
 }
@@ -514,7 +521,7 @@ export function trackDamageDealt(state: GameState): void {
 
 export function updateSkills(state: GameState, input: FrameInput, dt: number): void {
   const rs = state.skills;
-  syncSlotModifiers(rs);
+  syncSlotModifiers(rs, boonGrantedModifiers(state));
   rs.clock += dt;
   syncTracking(state);
   const hurt = trackHurt(state);
@@ -947,6 +954,19 @@ function payCosts(state: GameState, params: CastParams): CastParams {
 }
 
 /**
+ * 流転（輪廻の真髄）: 前の発動で払った気力 ÷ 最大気力 × ratio（上限 cap）がこの発動の倍。
+ * 次の発動の分は研鑽の数え（boonRun.tallies[FLOW_TURN_TALLY]）に置く（ランの途中だけの値で、保存しない）
+ */
+export function flowTurnMul(state: GameState, manaPaid: number): number {
+  if (!hasBoon(state, "flowTurn")) return 1;
+  const f = BOON_LINEAGE.cycle.flowTurn;
+  const tallies = state.boonRun.tallies;
+  const mul = 1 + (tallies[FLOW_TURN_TALLY] ?? 0);
+  tallies[FLOW_TURN_TALLY] = Math.min(f.cap, (manaPaid / Math.max(1, state.stats.maxMana)) * f.ratio);
+  return mul;
+}
+
+/**
  * 発動。成功したら true。chargeMul は Charge 刻印符が離した瞬間に渡す威力・範囲の追加倍率。
  * 最低間隔の中・本動作の排他にかかるなら何もしない（呼び出し側が先行入力に回す）。払えなければ何も消費せず不発
  */
@@ -1003,9 +1023,10 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   pushPlayerEvent(state, "onSkillCast", key, { slot: index, source: { kind: "skill", key } });
   recordProvenance(state, { kind: "skillCast" });
   const costed = payCosts(state, r.params);
+  const flow = flowTurnMul(state, manaPaid);
   const base: CastParams = {
     ...costed,
-    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1) * stateMul.damage * wave2.mul,
+    damageMul: costed.damageMul * (chargeMul?.damageMul ?? 1) * stateMul.damage * wave2.mul * flow,
     potencyMul: costed.potencyMul * stateMul.potency * wave2.mul,
     element: wave2.element,
     leyPool: { left: costed.leyline ? SKILL.modifier.leyline.maxPerCast : 0 },
@@ -2219,7 +2240,7 @@ export function slotModifierView(state: GameState, slot: number): { key: Modifie
   const stone = stoneInSlot(rs.profile, slot);
   if (!s) return [];
   const own = stone ? stoneModifierKeys(stone).length : 0;
-  const keys = effectiveSlotModifiers(rs, slot);
+  const keys = effectiveSlotModifiers(rs, slot, boonGrantedModifiers(state));
   const active = stone ? new Set(activeModifiers(SKILL_DEFS[stone.skillKey], stone.links, keys)) : new Set<ModifierKey>();
   return keys.map((key, i) => ({ key, active: active.has(key), run: i >= own }));
 }

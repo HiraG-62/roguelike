@@ -6,7 +6,6 @@ import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { ENERGY, FEEL, POISE, STATUS } from "../data/tuning";
 import type { Scaling } from "../loot/types";
 import { scaled, withRatio } from "../system/attributes";
-import { onBoonSkillHit } from "../system/boons";
 import { damageEnemy, rollOutgoing } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
 import { isStaggered } from "../system/poise";
@@ -149,7 +148,6 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
     fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
     fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
   }
-  onBoonSkillHit(state, e);
   // 流儀の気力の源（system/manaSources.ts）
   onManaSource(state, spec.minion === true ? "minionHit" : "skillHit");
   // 型の戦意（書 = スキルの命中、鈴 = 設置物・従魔の命中）

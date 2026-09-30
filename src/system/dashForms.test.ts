@@ -6,7 +6,6 @@ import type { Enemy, GameState } from "../core/state";
 import { type Vec, sub } from "../core/vec";
 import { DASH_FORM_KEYS, DASH_FORM_NAMES, JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
 import { DASH_FORM, PLAYER } from "../data/tuning";
-import { grantBoon } from "./boons";
 import { damagePlayer } from "./combat";
 import { SKILL_DEFS, resolveCast } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
@@ -139,9 +138,8 @@ describe("ダッシュの形の動き", () => {
     expect(moved.x / base.x, "距離の倍率").toBeCloseTo(DASH_FORM.slip.distanceMul, RATIO_DIGITS);
   });
 
-  it("不退（盾持ち）: 動かずに構え、構えの中の被弾は見切りになる。祝福「鉄壁の構え」と重ねても 1 回だけ構える", () => {
+  it("不退（盾持ち）: 動かずに構え、構えの中の被弾は見切りになる", () => {
     const state = jobArena("shieldBearer");
-    grantBoon(state, "dashGuard");
     const charges = state.player.dashChargesLeft;
     const moved = dashOnce(state);
     expect(Math.abs(moved.x), "動かない").toBeLessThan(1);

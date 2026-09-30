@@ -34,18 +34,8 @@ import { setupFloorLordRoom } from "./floorLord";
 import { heartChanceOf, skipsFloorLord } from "./chapters";
 import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
-import {
-  applyBoonFloorRules,
-  boonHeartsAllowed,
-  extraEliteRoll,
-  stairsGradeBoost,
-  onBoonEnemySpawned,
-  onBoonHeartPickup,
-  onBoonRoomClear,
-  onBoonRoomLock,
-  onBoonWaveStart,
-  onBossSpawned,
-} from "./boons";
+import { applyBoonFloorRules, boonHeartsAllowed, stairsGradeBoost } from "./boons";
+import { isAllied } from "./rules";
 import { resetExplored, revealAround } from "./explore";
 import { descendMana } from "./mana";
 import {
@@ -163,7 +153,6 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
     if (i === bossRoom) {
       if (isBossDepth(state.depth)) setupBossRoom(state, i);
       else setupFloorLordRoom(state, i);
-      onBossSpawned(state);
       return;
     }
     if (room.kind === "shrine") setupShrine(state, room);
@@ -374,10 +363,8 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
     if (!pos) continue;
     const e = createEnemy(state, def, pos, index, spawning);
     if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
-    onBoonEnemySpawned(state, e);
     onRunEnemySpawned(state, e);
     rollElite(state, e);
-    if (extraEliteRoll(state, e)) rollElite(state, e);
     state.enemies.push(e);
   }
 }
@@ -518,7 +505,6 @@ function updateLockedRoom(state: GameState, room: RoomState, index: number): voi
   if (roomAlive(state, index)) return;
   if (hasMoreWaves(room)) {
     startWave(state, room, () => spawnWave(state, room, index));
-    onBoonWaveStart(state, room);
     return;
   }
   clearRoom(state, room, index);
@@ -538,8 +524,9 @@ function updateOpenRoom(state: GameState, room: RoomState, index: number): void 
   if (!roomAlive(state, index)) clearRoom(state, room, index);
 }
 
+/** 部屋にまだ生きた敵がいるか（従魔は制圧の数に入れない） */
 function roomAlive(state: GameState, index: number): boolean {
-  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0);
+  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && !isAllied(state, e));
 }
 
 /** 部屋の敵のどれかがプレイヤーに気付いた（idle から抜けた） */
@@ -555,7 +542,6 @@ function engageRoom(state: GameState, room: RoomState, index: number): void {
   room.engaged = true;
   if (!roomAlive(state, index)) return;
   wakeRoom(state, index);
-  onBoonRoomLock(state, index);
   pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   applyCurse(state, index);
@@ -761,7 +747,6 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   dropGreedyLootAtPlayer(state, rescued);
   roomLockFx(state, index, room.kind === "horde");
   wakeRoom(state, index);
-  onBoonRoomLock(state, index);
   pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   if (state.boss && state.boss.roomIndex === index) {
@@ -827,7 +812,6 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   pushPlayerEvent(state, "onRoomClear", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
-  onBoonRoomClear(state, room);
   recordProvenance(state, { kind: "roomClear" });
   onContractsRoomCleared(state, room);
   onRoomClearedCoins(state, room, index);
@@ -895,7 +879,6 @@ function updatePickups(state: GameState, dt: number): void {
     if (!heartsAllowed(state) || coreBlocksHearts(state)) continue;
     if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, p.pos.x, p.pos.y, p.radius)) continue;
     healPlayer(state, ROOM.heartHeal);
-    onBoonHeartPickup(state);
     spawnBurst(state, pk.pos, COLOR_HEAL, 12, 100, 0.4, 2);
     pk.radius = 0;
   }
@@ -1029,7 +1012,6 @@ function spawnEnemyAt(state: GameState, def: EnemyDef, index: number): Enemy | n
   if (!pos) return null;
   const e = createEnemy(state, def, pos, index, true);
   e.phaseTimer = ROOM.spawnTelegraph;
-  onBoonEnemySpawned(state, e);
   onRunEnemySpawned(state, e);
   state.enemies.push(e);
   return e;

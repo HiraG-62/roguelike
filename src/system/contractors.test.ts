@@ -231,7 +231,7 @@ describe("契約者: 取引", () => {
 
   it("修理屋: 呪い付きの祝福を 1 つ外す", () => {
     const state = withContractor("mender");
-    const cursed = BOON_KEYS.find((k) => BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const cursed = BOON_KEYS.find((k) => BOONS[k].cursed);
     if (!cursed) throw new Error("呪い付きの祝福が無い");
     grantBoon(state, cursed);
     state.economy.coins = CONTRACT.menderUncurseCost;

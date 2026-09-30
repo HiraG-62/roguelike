@@ -52,7 +52,6 @@ const COLOR_SUB = "#a0a0a0";
 const COLOR_TAG_MATCH = "#ffd75f";
 const COLOR_TITLE = "#ffd75f";
 const COLOR_ICON_BG = "rgba(12,12,18,0.85)";
-const COLOR_USED = "#505050";
 const COLOR_CURSE_BG = "rgba(48,12,16,0.95)";
 const COLOR_CURSE_BG_HOVER = "rgba(80,20,24,0.98)";
 /** 系譜・融合・結びの注記の色 */
@@ -172,13 +171,12 @@ function lineageNote(def: BoonDef, actionHead: string | undefined): string | nul
   return `${head} ${actionHead ?? BOON_ACTION_LABEL[def.action]}`;
 }
 
-/** 呪い・系譜・融合・結びの注記（並の副題はこれだけ） */
+/** 呪い・融合・系譜の注記（並の副題はこれだけ） */
 function cardNote(def: BoonDef, actionHead: string | undefined): { text: string; color: string | null } | null {
   if (def.cursed) return { text: "呪い付き", color: null };
   if (def.fusion) return { text: `${FUSION_LABEL} ${def.fusion.map((l) => LINEAGE_LABEL[l]).join(FUSION_JOIN)}`, color: COLOR_DUO };
   const lineage = lineageNote(def, actionHead);
   if (lineage !== null) return { text: lineage, color: COLOR_LINEAGE };
-  if (def.duo) return { text: "結び", color: COLOR_DUO };
   return null;
 }
 
@@ -447,8 +445,7 @@ export function drawBoonHud(ctx: CanvasRenderingContext2D, state: GameState, aim
     const def = boonDef(key);
     const grade = boonGradeOf(state, key);
     const pos = hudIconPos(i);
-    const used = key === "secondWind" && state.boonRun.reviveUsed;
-    const color = used ? COLOR_USED : boonCardColor(def, grade);
+    const color = boonCardColor(def, grade);
     ctx.fillStyle = COLOR_ICON_BG;
     ctx.fillRect(pos.x, pos.y, HUD_ICON, HUD_ICON);
     ctx.strokeStyle = color;

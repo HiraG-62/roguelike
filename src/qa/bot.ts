@@ -7,6 +7,7 @@ import { PX_PER_METER } from "../core/units";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
+import { isAllied } from "../system/rules";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
 import { PLAYER } from "../data/tuning";
@@ -440,8 +441,8 @@ function nearestEngagedEnemy(state: GameState): Enemy | null {
   let bestDist = Infinity;
   for (const e of state.enemies) {
     if (e.hp <= 0 || NON_ENGAGEABLE_PHASES.has(e.phase)) continue;
-    // 敗走中の敵は攻撃してこないので追わない（逃げる敵を追い続けて探索の時間を溶かさない）
-    if (e.rout) continue;
+    // 敗走中の敵は攻撃してこないので追わない（逃げる敵を追い続けて探索の時間を溶かさない）。従魔（眷属）は味方なので狙わない
+    if (e.rout || isAllied(state, e)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
     if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos)) continue;
@@ -888,7 +889,7 @@ function nearestRoomEnemy(state: GameState, roomIndex: number): Vec | null {
   let best: Vec | null = null;
   let bestDist = Infinity;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.roomIndex !== roomIndex) continue;
+    if (e.hp <= 0 || e.roomIndex !== roomIndex || isAllied(state, e)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     if (d < bestDist) {
       bestDist = d;

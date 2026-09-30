@@ -8,7 +8,6 @@ import { addFloatingText, markExecuted, spawnBurst } from "./effects";
 import { shieldLeft } from "./elites";
 import { gainMana } from "./mana";
 import { jinBonusMul } from "./jin";
-import { boonSkipsGuarded, onBoonStagger, onBoonStaggerEnd } from "./boonRules";
 import { applyStatus, enemiesInRadius, hasStatus, playerPoiseDealtMul, removeStatus, statusStacks } from "./statusEffects";
 
 /**
@@ -215,7 +214,6 @@ function breakPoise(state: GameState, e: Enemy): boolean {
     e.poise.downs += 1;
     e.poise.max = basePoiseMax(e.defKey, state.depth) * bossPoiseGrowth(e.poise.downs);
   }
-  onBoonStagger(state, e);
   pushEvent(state, { kind: "onStagger", actor: "player", source: { kind: "player", key: "stagger" }, ...enemyTarget(e) });
   return true;
 }
@@ -240,8 +238,6 @@ export function applyStagger(state: GameState, e: Enemy, time: number, opts: Sta
 /** 怯みが解けた瞬間: 堅守を付ける（自傷の怯みの後は付けない。崩勢が付いていれば崩勢を消費して付けない = 崩落） */
 export function onStaggerEnd(state: GameState, e: Enemy, potency: number): void {
   if (potency === SELF_INFLICTED_POTENCY || e.hp <= 0) return;
-  onBoonStaggerEnd(state, e);
-  if (boonSkipsGuarded(state, e)) return;
   if (hasStatus(e.status, "broken")) {
     removeStatus(state, { kind: "enemy", enemy: e }, "broken", "consume");
     return;

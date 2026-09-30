@@ -305,8 +305,8 @@ describe("溢れ・枯れ・相性", () => {
   it("祝福の抽選: 飢えを埋める候補は重みが affinityWeightMul 倍", () => {
     // マナを食うだけのビルド（マナ型のスキル石だけ）で確かめる
     const build = kw([], ["mana"]);
-    expect(boonAffinityMul(BOONS.springWell, build), "湧水はマナを出す").toBe(BOON.affinityWeightMul);
-    expect(boonAffinityMul(BOONS.dashGun, build), "疾走射撃は関係なし").toBe(1);
+    expect(boonAffinityMul(BOONS.moonRead, build), "月読は気力を出す").toBe(BOON.affinityWeightMul);
+    expect(boonAffinityMul(BOONS.passCut, build), "抜き胴は関係なし").toBe(1);
   });
 });
 

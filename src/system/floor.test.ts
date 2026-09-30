@@ -14,8 +14,6 @@ import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesF
 import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
 import { BOSS, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
-import { grantBoon } from "./boons";
-import { resolveRules } from "./rules";
 import { ROAMING_ROOM, updateRoamers } from "./spawner";
 import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
@@ -510,29 +508,40 @@ describe("開放型フロア: 封鎖しない部屋の交戦と制圧", () => {
     expect(state.enemies.filter((e) => e.roomIndex === index && e.phase === "idle")).toHaveLength(0);
   });
 
-  it("部屋の敵を全滅させると 1 回だけ制圧し、湧水（onBoonRoomClear）と得点が 1 回だけ入る", () => {
+  it("部屋の敵を全滅させると 1 回だけ制圧し、制圧のイベントと得点が 1 回だけ入る", () => {
     const state = createGame(4);
-    grantBoon(state, "springWell");
     const index = openRoomWithEnemies(state);
     const room = state.rooms[index]!;
     state.player.body.pos = rectCenterPx(room.rect);
     state.player.invulnTimer = 999;
     updateRooms(state, FIXED_DT);
     killRoomEnemies(state, index);
-    state.player.mana = 0;
+    state.events = [];
+    state.pendingEvents = [];
+    const clears = (): number => [...state.events, ...state.pendingEvents].filter((e) => e.kind === "onRoomClear").length;
     const score = state.score;
     updateRooms(state, FIXED_DT);
-    // 湧水は BoonDef.rules（onRoomClear）。step と同じくステップ末の照合まで通す
-    resolveRules(state, 0);
     expect(room.cleared, "全滅で制圧").toBe(true);
-    expect(state.player.mana, "湧水でマナが満ちる").toBe(state.stats.maxMana);
+    expect(clears(), "制圧のイベント").toBe(1);
     expect(state.score - score, "制圧の得点").toBe(ROOM.clearBonus);
-    state.player.mana = 0;
     updateRooms(state, FIXED_DT);
     updateRooms(state, FIXED_DT);
-    resolveRules(state, 0);
-    expect(state.player.mana, "2 回目は起きない").toBe(0);
+    expect(clears(), "2 回目は積まない").toBe(1);
     expect(state.score - score, "得点も 1 回だけ").toBe(ROOM.clearBonus);
+  });
+
+  it("従魔（眷属）は部屋の制圧の数に入れない", () => {
+    const state = createGame(4);
+    const index = openRoomWithEnemies(state);
+    const room = state.rooms[index]!;
+    state.player.body.pos = rectCenterPx(room.rect);
+    state.player.invulnTimer = 999;
+    updateRooms(state, FIXED_DT);
+    const mine = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
+    expect(mine.length, "部屋に敵がいる").toBeGreaterThan(0);
+    for (const e of mine) e.allyUntil = state.time + 60;
+    updateRooms(state, FIXED_DT);
+    expect(room.cleared, "残りが従魔だけなら制圧").toBe(true);
   });
 
   it("交戦していない部屋は、敵がいても制圧されない。敵を置けなかった通常の部屋は最初から制圧済み", () => {

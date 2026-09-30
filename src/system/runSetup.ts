@@ -270,11 +270,12 @@ export function startOrigin(state: GameState): void {
   }
 }
 
-/** 前提（系譜の前段・結び・装備のタグ）の要らない祝福から 1 つ */
+/** 前提（真髄の枚数・融合の組・装備のタグ）の要らない祝福から 1 つ（芯は深度 2 の提示でだけ出るので除く） */
 function grantRandomBoon(state: GameState, filter: (key: BoonKey) => boolean): void {
   const pool = BOON_KEYS.filter((key) => {
     const def = BOONS[key];
-    return filter(key) && !hasBoon(state, key) && !def.after && !def.duo && !def.requires;
+    const gated = def.card === "apex" || def.fusion !== undefined || def.core === true || def.requires !== undefined;
+    return filter(key) && !hasBoon(state, key) && !gated;
   });
   if (pool.length === 0) return;
   grantBoon(state, state.rng.pick(pool));

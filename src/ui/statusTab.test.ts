@@ -161,9 +161,9 @@ describe("ステータスタブ: 効果の頁", () => {
 
   it("ラン中に祝福を持っていれば効果の一覧に出る", () => {
     const { state } = openStatus(false);
-    state.boons.push("ricochet");
+    state.boons.push("emberSeed");
     const rows = statusTabEffectRows(state);
-    expect(rows.some((r) => r.key === "boon:ricochet")).toBe(true);
+    expect(rows.some((r) => r.key === "boon:emberSeed")).toBe(true);
   });
 
   it("効果の頁の枠は装備画面のパネル内に収まる", () => {

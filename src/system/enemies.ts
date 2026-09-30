@@ -2,7 +2,7 @@ import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../c
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamage, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
+import { ACTION, BOON_LINEAGE, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
@@ -11,7 +11,6 @@ import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWa
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
 import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
-import { boonWindupMul } from "./boonRules";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
 import type { EnemyTelegraph } from "./behaviors/base";
@@ -24,6 +23,9 @@ import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
 import { placeTerrain, terrainMoveMul } from "./terrain";
+import { focusTarget, isAllied } from "./rules";
+import { applyModifiers } from "./modifiers";
+import type { DamageTag } from "../core/damage";
 import {
   BASILISK_BITE,
   BASILISK_GAZE,
@@ -201,6 +203,11 @@ export function updateEnemies(state: GameState, dt: number): void {
       continue;
     }
 
+    // 従魔（眷属。Enemy.allyUntil）は敵対の敵を狙い、プレイヤーを狙わない
+    if (isAllied(state, e)) {
+      updateAlly(state, e, def, edt);
+      continue;
+    }
     if (isBossDriven(def)) {
       updateBossEnemy(state, e, def, edt);
       continue;
@@ -263,6 +270,54 @@ export function farFromPlayer(state: GameState, e: Enemy): boolean {
   const dx = e.body.pos.x - state.player.body.pos.x;
   const dy = e.body.pos.y - state.player.body.pos.y;
   return dx * dx + dy * dy >= ROAM.sleepDist * ROAM.sleepDist;
+}
+
+/** 従魔が殴る 1 撃のタグ（群の「従魔の与ダメの倍」などの Modifier が読む） */
+const ALLY_HIT_TAGS: ReadonlySet<DamageTag> = new Set<DamageTag>(["minion"]);
+
+/**
+ * 従魔の番（docs/ideas/boon-impl.md 2-6 眷属）: 号令の狙い → 無ければ最も近い敵対の敵へ寄り、間合いに入ったら攻撃間隔ごとに殴る。
+ * 予備動作・攻撃は取り消して追跡から出直させる（味方になった瞬間にプレイヤーへ振り下ろさない）
+ */
+function updateAlly(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
+  const ai = BOON_LINEAGE.horde.allyAi;
+  if (e.phase !== "chase") e.phase = "chase";
+  const target = allyTarget(state, e);
+  if (target === undefined) return;
+  const to = sub(target.body.pos, e.body.pos);
+  const dir = normalize(to);
+  if (dir.x !== 0) e.facing = dir;
+  if (length(to) > e.body.radius + target.body.radius + ai.reach) {
+    const speed = enemySpeed(state, e, def) * ai.speedMul;
+    const heading = chaseHeading(state.map, e.body.pos, target.body.pos, dir);
+    moveEnemy(state, e, def, heading.x * speed * dt, heading.y * speed * dt);
+    return;
+  }
+  if (e.attackCooldown > 0) return;
+  e.attackCooldown = ai.interval;
+  const mods = applyModifiers(state, { tags: ALLY_HIT_TAGS }, target);
+  const more = mods.more.reduce((m, x) => m * x.mul, 1);
+  const base = Math.max(ai.minDamage, depthDamage(def.contactDamage, state.depth)) * ai.damageMul;
+  damageEnemy(state, target, Math.round(base * (1 + mods.increased) * more), dir, ai.knockback, { hitstopSteps: 0 });
+}
+
+/** 従魔の狙い: 号令の狙い、無ければ seekRange 内で最も近い敵対の敵（商人・壺・木箱・潜んだ敵は狙わない。同じ距離なら配列の先。決定性） */
+function allyTarget(state: GameState, e: Enemy): Enemy | undefined {
+  const focus = focusTarget(state);
+  if (focus !== undefined) return focus;
+  let best: Enemy | undefined;
+  let bestD = BOON_LINEAGE.horde.allyAi.seekRange;
+  for (const o of state.enemies) {
+    if (o === e || o.hp <= 0 || o.hidden === true || isAllied(state, o)) continue;
+    const od = enemyDef(o.defKey);
+    if (od.merchant === true || od.container !== undefined) continue;
+    const d = dist(e.body.pos, o.body.pos);
+    if (d < bestD) {
+      best = o;
+      bestD = d;
+    }
+  }
+  return best;
 }
 
 /** 状態機械の前に毎ステップ行う behavior 固有の下準備（取り巻きを呼ぶ・位置を記録する・蘇生の時計） */
@@ -548,7 +603,7 @@ function beamOffsetDeg(def: EnemyDef, index: number): number {
 /** 予備動作に入る（1 撃目・2 撃目以降の共通）。base は深度前の基準秒 */
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: number): void {
   e.phase = "windup";
-  e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e)) * boonWindupMul(state, e);
+  e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e));
   e.windupTotal = e.phaseTimer;
   e.chainWindup = false;
   e.strikeDir = dir;

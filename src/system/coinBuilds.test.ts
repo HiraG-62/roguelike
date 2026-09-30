@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FIXED_DT } from "../core/loop";
-import { ECONOMY, BOON } from "../data/tuning";
+import { BOON_LINEAGE, ECONOMY } from "../data/tuning";
 import { affixDef, applyRoll, formatAffix, traitsFor } from "../loot/affixes";
 import { createIncreased } from "../core/damage";
 import type { PlayerStats } from "../loot/types";
@@ -85,8 +85,8 @@ describe("性質「懐」（持ち金が閾値以上の間だけ与ダメの増�
 });
 
 describe("祝福「守銭」（持ち金に比例する与ダメの増）", () => {
-  const per = BOON.miserPerStep;
-  const every = BOON.miserEvery;
+  const per = BOON_LINEAGE.wealth.miser.perStep;
+  const every = BOON_LINEAGE.wealth.miser.every;
 
   it("定義: 常時の増（modifiers）だけで、Rule は持たない", () => {
     expect(BOON_KEYS).toContain("miser");
@@ -105,7 +105,7 @@ describe("祝福「守銭」（持ち金に比例する与ダメの増）", () =
   it("上限（cap）で止まる", () => {
     const state = arena();
     give(state, "miser");
-    expect(increasedAt(state, 1_000_000)).toBeCloseTo(BOON.miserCap);
+    expect(increasedAt(state, 1_000_000)).toBeCloseTo(BOON_LINEAGE.wealth.miser.cap);
   });
 
   it("持たなければ持ち金が多くても効かない", () => {
@@ -148,7 +148,7 @@ describe("祝福「拾銭」（銭を拾った瞬間の短い加速）", () => {
     gainCoins(state, 5, "kill");
     resolveRules(state, FIXED_DT);
     expect(speedBuff(state).time, "加速の秒").toBeGreaterThan(0);
-    expect(speedBuff(state).time).toBeLessThanOrEqual(BOON.coinGleanerTime);
+    expect(speedBuff(state).time).toBeLessThanOrEqual(BOON_LINEAGE.wealth.coinGleaner.time);
     expect(speedBuff(state).mul, "加速の倍率").toBeGreaterThan(1);
   });
 

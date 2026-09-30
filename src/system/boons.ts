@@ -1,14 +1,13 @@
 import type { FrameInput } from "../core/input";
 import type { KeywordProfile } from "../core/keywords";
-import { withMore } from "../core/damage";
-import { type Enemy, type GameState, type Projectile, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
-import { type Vec, length, scale } from "../core/vec";
+import { type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
+import type { Vec } from "../core/vec";
 import { VIEW_W } from "../core/view";
-import { BOON, FEEL, MANA, PLAYER, STATUS } from "../data/tuning";
-import { ATTR_KEYS, type AttrKey, type Attributes, type PlayerStats } from "../loot/types";
+import { BOON, MANA, PLAYER } from "../data/tuning";
+import type { PlayerStats } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
-import type { SkillResource, SkillTag } from "../skills/types";
+import type { ModifierKey, SkillResource, SkillTag } from "../skills/types";
 import type { JobKey } from "../data/jobs";
 import { type BulletFeature, MOVESETS, type MovesetKey, bulletFeatures, usesProjectiles } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
@@ -23,6 +22,7 @@ import {
   type BoonLoadout,
   type BoonTag,
   type LineageKey,
+  type NumericStatKey,
   type TemperStat,
 } from "./boonDefs";
 import {
@@ -38,34 +38,16 @@ import {
 import { coreCursedForced, coreGradeShift, foldCoreStats } from "./boonCores";
 import {
   type BoonRuleState,
-  boonRuleAttackManaMul,
-  boonRuleCostMul,
   createBoonRuleState,
-  onBoonComboHitRules,
-  onBoonCritRules,
-  onBoonDashEndRules,
   onBoonDashRules,
-  onBoonJustRules,
-  onBoonJustSteal,
   onBoonKillRules,
-  onBoonMeleeHitRules,
-  onBoonRoomClearRules,
-  onBoonRoomLockRules,
   onBoonSkillCastRules,
-  onBoonSkillHitRules,
-  onBoonSwingRules,
-  onBoonWaveStart,
   resetBoonRulesForFloor,
-  tightropePenalty,
   updateBoonRules,
 } from "./boonRules";
-import { cancelAttack } from "./combat";
-import { addFloatingText, spawnBurst, spawnRing } from "./effects";
-import { isEngaged } from "./engagement";
+import { addFloatingText } from "./effects";
 import { STATUS_BOON_TAGS, affinity, buildProfile, statsBoonTags } from "./keywords";
-import { gainMana } from "./mana";
-import { applyStats, dashTime } from "./player";
-import { applyStatus, enemiesInRadius, findStatus } from "./statusEffects";
+import { applyStats } from "./player";
 
 /**
  * ラン内限定の祝福 3 択。docs/ideas/run-structure.md「祝福 3 択（Boon）」。
@@ -79,7 +61,6 @@ export {
   LINEAGE_LABEL,
   type BoonDef,
   type BoonKey,
-  type BoonRarity,
   type BoonLoadout,
   type BoonTag,
   type LineageKey,
@@ -91,7 +72,6 @@ export {
   BOON_ACTION_LABEL,
   BOON_CARD_LABEL,
 } from "./boonDefs";
-export { onBoonWaveStart } from "./boonRules";
 
 export function boonDef(key: BoonKey): BoonDef {
   return BOONS[key];
@@ -153,18 +133,10 @@ export function choiceGrade(choice: Readonly<BoonChoice>, index: number): BoonGr
 export interface BoonRunState {
   /** applyStats に渡された装備由来の stats（祝福を畳み込む前）。未設定なら null */
   baseStats: PlayerStats | null;
-  reviveUsed: boolean;
-  /** eliteVault: 次の階に宝物庫を確定させる */
+  /** Rule 効果 reserveVault: 次の階に宝物庫を確定させる */
   vaultNext: boolean;
-  heartBurnTimer: number;
-  /** dashGuard: ガードの残り秒 */
+  /** 不退（ダッシュの型 brace）の構えの残り秒。移動 0 と構えの中の見切り（boonMoveMul / boonJustEligible） */
   guardTimer: number;
-  /** glassJust: ダッシュ後も JUST が取れる残り秒 */
-  justExtendTimer: number;
-  /** crumble: 前ステップまでに脆弱を付けた「怯み中の敵」の id。怯み 1 回につき 1 度だけ付ける */
-  crumbled: number[];
-  /** circulation: 直近の発動 1 回で既に戻したマナ。発動ごとに 0 へ戻す（多段ヒットの過剰還元を防ぐ） */
-  circulationGained: number;
   /** 拡張の祝福（system/boonRules.ts）の作業領域 */
   rules: BoonRuleState;
   /** 取得した祝福の格（並・格なしは持たない）。state.boons は変えず別に持つ。ランの途中は保存しないので永続化しない */
@@ -186,13 +158,8 @@ export interface BoonRunState {
 export function createBoonRunState(): BoonRunState {
   return {
     baseStats: null,
-    reviveUsed: false,
     vaultNext: false,
-    heartBurnTimer: 0,
     guardTimer: 0,
-    justExtendTimer: 0,
-    crumbled: [],
-    circulationGained: 0,
     rules: createBoonRuleState(),
     grades: {},
     gradeBoost: 0,
@@ -226,7 +193,7 @@ export function lineageCardsOwned(state: GameState, lineage: LineageKey): number
 export function lineageCardsRemaining(state: GameState, lineage: LineageKey): number {
   return BOON_KEYS.filter((k) => {
     const def = BOONS[k];
-    if (def.lineage !== lineage || def.legacy || def.card === "apex" || def.card === undefined) return false;
+    if (def.lineage !== lineage || def.card === "apex" || def.card === undefined) return false;
     return !state.boons.includes(k);
   }).length;
 }
@@ -260,7 +227,7 @@ function hasLineageGraceOn(owned: readonly BoonKey[], def: BoonDef): boolean {
 
 /** 系譜の真髄の札（無い系譜は undefined） */
 function apexOf(lineage: LineageKey): BoonDef | undefined {
-  return BOON_KEYS.map(boonDef).find((d) => d.lineage === lineage && d.card === "apex" && d.legacy !== true);
+  return BOON_KEYS.map(boonDef).find((d) => d.lineage === lineage && d.card === "apex");
 }
 
 /** 次の系譜の提示の 1 枚目に確定で入る真髄（その系譜の札が apexMinCards 枚以上で、まだ持っていない） */
@@ -291,9 +258,9 @@ function lineagesOnAction(owned: readonly BoonKey[], action: BoonAction): Lineag
   return out;
 }
 
-/** 2 系譜の組の融合（legacy は除く。無ければ null） */
+/** 2 系譜の組の融合（無ければ null） */
 function fusionFor(a: LineageKey, b: LineageKey): BoonKey | null {
-  const def = BOON_KEYS.map(boonDef).find((d) => d.legacy !== true && d.fusion !== undefined && d.fusion.includes(a) && d.fusion.includes(b));
+  const def = BOON_KEYS.map(boonDef).find((d) => d.fusion !== undefined && d.fusion.includes(a) && d.fusion.includes(b));
   return def?.key ?? null;
 }
 
@@ -396,6 +363,8 @@ export function temperBoon(state: GameState, key: BoonKey): void {
 }
 
 const TEMPER_LABEL = "錬磨";
+const TEXT_SCALE = 1.1;
+const TEXT_LIFE = 0.6;
 /** 入れ替えで新しい札を取らなかったときの浮き文字 */
 const PASS_LABEL = "見送り";
 
@@ -488,10 +457,10 @@ export function loadoutMatches(want: BoonLoadout | undefined, now: LoadoutNow | 
 const NO_TAGS: ReadonlySet<BoonTag> = new Set();
 
 /**
- * 候補の重み。取得済み / legacy / requires を満たさない / 系譜の前段が無い / 結びの片方が無い /
- * 同じ行動に同じ系譜の加護を持っているなら 0。
- * 装備・スキル石のタグの一致で大きく、取得済み祝福の「出す」タグの一致で小さく上がる（同じタグは二重に数えない）。
- * 系譜の次段と結びは、条件を満たした時点で出やすくする
+ * 候補の重み。取得済み / requires を満たさない / 真髄の条件（その系譜の札 apexMinCards 枚）に届かない /
+ * 融合の条件（組の 2 系譜の加護が同じ行動に乗る）が無い / 同じ行動に同じ系譜の加護を持っているなら 0。
+ * 基礎は札の種類の重み（札の種類を持たない呪い付き・芯と真髄は BOON.baseWeight）。
+ * 装備・スキル石のタグの一致で大きく、取得済み祝福の「出す」タグの一致で小さく上がる（同じタグは二重に数えない）
  */
 export function boonWeight(
   def: BoonDef,
@@ -500,19 +469,28 @@ export function boonWeight(
   gives: ReadonlySet<BoonTag> = NO_TAGS,
   loadout?: LoadoutNow,
 ): number {
-  if (owned.includes(def.key) || def.legacy === true) return 0;
+  if (owned.includes(def.key)) return 0;
   if (!loadoutMatches(def.loadout, loadout)) return 0;
   if (hasLineageGraceOn(owned, def)) return 0;
   if (def.requires && !tags.has(def.requires)) return 0;
-  if (def.after && !owned.includes(def.after)) return 0;
-  if (def.duo && !def.duo.every((k) => owned.includes(k))) return 0;
+  if (!apexReady(owned, def) || (def.fusion !== undefined && !fusionHolds(owned, def))) return 0;
   const matches = def.tags.filter((t) => tags.has(t)).length;
   const fed = def.tags.filter((t) => gives.has(t) && !tags.has(t)).length;
-  let weight = BOON.rarityWeight[def.rarity] * (1 + BOON.tagBonus * matches + BOON.givesTagBonus * fed);
-  if (def.after) weight *= BOON.lineageWeightMul;
-  if (def.duo) weight *= BOON.duoWeightMul;
+  let weight = baseWeight(def) * (1 + BOON.tagBonus * matches + BOON.givesTagBonus * fed);
   if (sharesCoreTag(def, owned)) weight *= BOON.coreTagBonus;
   return weight;
+}
+
+/** 抽選の基礎の重み（加護・摂理・研鑽・融合は札の種類の重み、それ以外は baseWeight） */
+function baseWeight(def: BoonDef): number {
+  return isDrawnCard(def.card) ? BOON.cardWeight[def.card] : BOON.baseWeight;
+}
+
+/** 真髄なら、その系譜の札を apexMinCards 枚以上持っているか（真髄でなければ true） */
+function apexReady(owned: readonly BoonKey[], def: BoonDef): boolean {
+  if (def.card !== "apex" || def.lineage === undefined) return true;
+  const lineage = def.lineage;
+  return owned.filter((k) => inLineage(BOONS[k], lineage)).length >= BOON.apexMinCards;
 }
 
 /** 持っている芯（1 ランに 1 つ）。無ければ null */
@@ -564,10 +542,10 @@ function takeWeightedBy(state: GameState, pool: BoonDef[], weightOf: (d: BoonDef
   return pool.pop() ?? null;
 }
 
-/** 同じ 3 択に並べない組: 同じ系譜 / 結び同士 */
+/** 同じ 3 択に並べない組: 同じ系譜 / 融合同士 */
 export function isSiblingBoon(a: BoonDef, b: BoonDef): boolean {
   if (a.lineage !== undefined && a.lineage === b.lineage) return true;
-  return a.duo !== undefined && b.duo !== undefined;
+  return a.fusion !== undefined && b.fusion !== undefined;
 }
 
 function dropSiblings(pool: BoonDef[], picked: BoonDef): void {
@@ -577,7 +555,7 @@ function dropSiblings(pool: BoonDef[], picked: BoonDef): void {
   }
 }
 
-/** 3 枚（重複なし）を抽選する。cursedChance で 1 枚が呪い付き祝福になる。同じ系譜・結びは 1 枚まで */
+/** 3 枚（重複なし）を抽選する。cursedChance で 1 枚が呪い付き祝福になる。同じ系譜・融合は 1 枚まで */
 export function rollBoonOptions(state: GameState): BoonKey[] {
   const tags = buildTags(state);
   const build = buildProfile(state);
@@ -617,11 +595,9 @@ function isDrawnCard(card: BoonCard | undefined): card is DrawnCard {
   return card === "grace" || card === "law" || card === "temper";
 }
 
-/** 系譜の提示の候補（その系譜の、取っていない加護・摂理・研鑽。legacy は出さない） */
+/** 系譜の提示の候補（その系譜の、取っていない加護・摂理・研鑽） */
 function lineagePool(state: GameState, lineage: LineageKey): BoonDef[] {
-  return BOON_KEYS.map(boonDef).filter(
-    (d) => d.lineage === lineage && d.legacy !== true && d.cursed !== true && isDrawnCard(d.card) && !hasBoon(state, d.key),
-  );
+  return BOON_KEYS.map(boonDef).filter((d) => d.lineage === lineage && d.cursed !== true && isDrawnCard(d.card) && !hasBoon(state, d.key));
 }
 
 /**
@@ -813,7 +789,7 @@ export function canTakeCurse(state: GameState): boolean {
 
 /**
  * 呪い付き祝福を 1 つ強制で受け、4 枚目の候補を足す。呪いは「罰」ではなく「選択肢を買う通貨」。
- * 呪いで結びの条件が揃うこともあるので、4 枚目は受けた後の持ち物で抽選する
+ * 呪いで真髄の枚数が揃うこともあるので、4 枚目は受けた後の持ち物で抽選する
  */
 export function takeCurse(state: GameState): boolean {
   const c = state.boonChoice;
@@ -990,8 +966,6 @@ export function grantBoon(state: GameState, key: BoonKey, grade: BoonGrade = 1):
   applyBoonsToStats(state);
   if (def.card === "apex" && def.lineage !== undefined) openApexSlots(state, def.lineage);
   refreshFusionDue(state);
-  // 祝福は階に着いた後で選ぶので、この階に配置済みの敵（ボス含む）にも遡って掛ける
-  if (key === "giantSlayer") applyGiantSlayerToExisting(state);
   const color = grantColor(def, kept);
   const label = BOON_GRADE_LABEL[kept];
   const name = label === "" ? def.name : `${label} ${def.name}`;
@@ -1001,12 +975,12 @@ export function grantBoon(state: GameState, key: BoonKey, grade: BoonGrade = 1):
   pushSfx(state, def.cursed ? "boonSelectCursed" : "boonSelect");
 }
 
-/** 取得時の文字の色: 呪い付き → 格（大祝福〜極致）→ 札の種類（無い旧祝福は希少度） */
+/** 取得時の文字の色: 呪い付き → 格（大祝福〜極致）→ 札の種類（札の種類を持たない芯は真髄の色） */
 export function grantColor(def: BoonDef, grade: BoonGrade): string {
   if (def.cursed) return BOON.cursedColor;
   const gradeColor = gradeColorOf(grade);
   if (gradeColor !== null) return gradeColor;
-  return def.card === undefined ? BOON.rarityColor[def.rarity] : BOON.cardColor[def.card];
+  return BOON.cardColor[def.card ?? "apex"];
 }
 
 /** 格の色（並は null） */
@@ -1032,33 +1006,21 @@ function gradeColorOf(grade: BoonGrade): string | null {
 /** 装備由来の stats に祝福を畳み込む（元の stats は変更しない） */
 export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly BoonKey[], run: Readonly<BoonRunState>): PlayerStats {
   const out: PlayerStats = { ...stats };
-  if (boons.includes("clearHeal")) out.maxHp = Math.round(out.maxHp * BOON.clearHealMaxHpMul);
-  if (boons.includes("deathRush")) out.maxHp = Math.max(1, Math.round(out.maxHp * BOON.deathRushMaxHpMul));
-  if (boons.includes("glassJust")) out.maxHp = BOON.glassJustMaxHp;
-  if (boons.includes("triggerHappy")) {
-    out.fireRateMul *= BOON.triggerHappyFireMul;
-    out.more = withMore(out.more, { source: "boon:triggerHappy", label: BOONS.triggerHappy.name, mul: BOON.triggerHappyDamageMul, tags: ["ranged"] });
-  }
-  if (boons.includes("oneWing")) out.dashCooldownMul += BOON.oneWingDashCooldownMul;
-  if (boons.includes("comboClock")) out.comboWindowBonus -= FEEL.comboWindow * BOON.comboClockWindowMul;
-  if (boons.includes("reaperCup")) out.manaRegen *= BOON.reaperCupRegenMul;
-  if (boons.includes("heavenEarth")) out.manaRegen = 0;
-  if (boons.includes("karmaFire")) out.burnDps *= BOON.karmaBurnMul;
-  if (boons.includes("hollowVessel")) {
-    out.manaCostMul *= BOON.hollowVesselCostMul;
-    out.maxMana = Math.round(out.maxMana * BOON.hollowVesselMaxManaMul);
-  }
-  if (boons.includes("heartBurn") && run.heartBurnTimer > 0) {
-    out.burnChance = Math.min(1, out.burnChance * BOON.heartBurnMul);
-    out.burnDps *= BOON.heartBurnMul;
-  }
-  // 係数（実効値）を組み替える。派生（HP・移動など）は元のステータスで決まっているので触らない
-  if (boons.includes("swapHands") || boons.includes("lopsided")) out.attributesEff = foldAttributeBoons(out.attributesEff, boons);
   Object.assign(out, foldCoreStats(out, boons));
+  foldAddStats(out, boons);
   foldTemperStats(out, boons, run.tallies);
   // 最終段で下限を掛ける。0 だと capManaCost がコストを 0 に切り詰めて撃ち放題になる
   out.maxMana = Math.max(MANA.maxMin, out.maxMana);
   return out;
+}
+
+/** 常時の stats への足し（BoonDef.addStats）を取得順に足す */
+function foldAddStats(out: PlayerStats, boons: readonly BoonKey[]): void {
+  for (const key of boons) {
+    const add = BOONS[key].addStats;
+    if (add === undefined) continue;
+    for (const [stat, amount] of Object.entries(add) as [NumericStatKey, number][]) out[stat] += amount;
+  }
 }
 
 /** 研鑽の stats への効き（BoonDef.temperStat）を取得順に足す */
@@ -1101,33 +1063,6 @@ function temperStepChanged(boons: readonly BoonKey[], key: string, prev: number,
   });
 }
 
-/** swapHands → lopsided の順に実効値を組み替える（入力は書き換えない） */
-function foldAttributeBoons(eff: Readonly<Attributes>, boons: readonly BoonKey[]): Attributes {
-  const out: Attributes = { ...eff };
-  if (boons.includes("swapHands")) {
-    out.str = eff.dex;
-    out.dex = eff.str;
-  }
-  if (boons.includes("lopsided")) applyLopsided(out);
-  return out;
-}
-
-/**
- * lopsided: 最も高いステータスの実効値 ×lopsidedHighMul、最も低いものを 0 に。
- * 同値なら ATTR_KEYS の先頭を最高、末尾を最低にする（決定的）。全部同じなら偏りが無いので何もしない
- */
-function applyLopsided(eff: Attributes): void {
-  let high: AttrKey = ATTR_KEYS[0];
-  let low: AttrKey = ATTR_KEYS[0];
-  for (const k of ATTR_KEYS) {
-    if (eff[k] > eff[high]) high = k;
-    if (eff[k] <= eff[low]) low = k;
-  }
-  if (eff[high] === eff[low]) return;
-  eff[high] *= BOON.lopsidedHighMul;
-  eff[low] = 0;
-}
-
 /** 装備の stats（祝福前）を覚えて、祝福を畳み込み直す。何度呼んでも同じ結果 */
 export function applyBoonsToStats(state: GameState): void {
   const base = state.boonRun.baseStats ?? state.stats;
@@ -1141,298 +1076,84 @@ export function applyBoonsToStats(state: GameState): void {
 export function updateBoons(state: GameState, dt: number): void {
   const run = state.boonRun;
   run.guardTimer = Math.max(0, run.guardTimer - dt);
-  run.justExtendTimer = Math.max(0, run.justExtendTimer - dt);
-  updateCrumble(state);
   updateBoonRules(state, dt);
-  if (run.heartBurnTimer <= 0) return;
-  run.heartBurnTimer = Math.max(0, run.heartBurnTimer - dt);
-  if (run.heartBurnTimer === 0) applyBoonsToStats(state);
-}
-
-/**
- * crumble: プレイヤー由来の怯みに入った敵へ脆弱を付ける（怯み 1 回につき 1 度）。
- * 怯みの付与元（poise.ts）に手を入れずに済むよう、毎ステップ新しく怯んだ敵を探す。
- * 自傷の怯み（猪の壁激突）は source が env なので対象外
- */
-function updateCrumble(state: GameState): void {
-  const run = state.boonRun;
-  if (!hasBoon(state, "crumble")) {
-    run.crumbled = [];
-    return;
-  }
-  const seen = new Set(run.crumbled);
-  const now: number[] = [];
-  const v = STATUS.vulnerable;
-  for (const e of state.enemies) {
-    if (e.hp <= 0) continue;
-    const stagger = findStatus(e.status, "stagger");
-    if (!stagger || stagger.source !== "player") continue;
-    now.push(e.id);
-    if (seen.has(e.id)) continue;
-    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "vulnerable", stacks: 1, duration: v.duration, potency: 0 }, "player");
-    if (hasBoon(state, "totalCollapse")) spreadCollapse(state, e);
-  }
-  run.crumbled = now;
-}
-
-/** totalCollapse: 崩しの脆弱を周囲の敵にも伝える */
-function spreadCollapse(state: GameState, source: Enemy): void {
-  const v = STATUS.vulnerable;
-  for (const e of enemiesInRadius(state, source.body.pos, BOON.collapseSpreadRadius)) {
-    if (e.id === source.id) continue;
-    applyStatus(state, { kind: "enemy", enemy: e }, { kind: "vulnerable", stacks: 1, duration: v.duration, potency: 0 }, "player");
-  }
-  spawnRing(state, source.body.pos, BOON.collapseSpreadRadius, BOON.ruleTextColor, STATUS.fxLife);
 }
 
 // -----------------------------------------------------------------------------
-// フック: player.ts
+// フック: player.ts（札の定義から「旧フック」として参照されているものだけが残る）
 // -----------------------------------------------------------------------------
 
 const LAST_COMBO = PLAYER.melee.length - 1;
-const TEXT_SCALE = 1.1;
-const TEXT_LIFE = 0.6;
 
-/** finisherOnly: 近接は常に最終段から（ダッシュ攻撃は除く） */
+/** 専心（finisherOnly）: 近接は常に最終段から（ダッシュ攻撃は除く） */
 export function boonSwingCombo(state: GameState, combo: number, dashStrike: boolean): number {
   if (dashStrike || !hasBoon(state, "finisherOnly")) return combo;
   return LAST_COMBO;
 }
 
-/** 振り始め: 片翼。断裂波・連撃波は BoonDef.rules（onSwing）へ移した */
-export function onBoonSwing(state: GameState, combo: number, dashStrike: boolean): void {
-  onBoonSwingRules(state, combo, dashStrike);
-}
-
-export function canShootWhileDashing(state: GameState): boolean {
-  return hasBoon(state, "dashGun");
-}
-
-/** 射撃直後: 背面撃ち / 静止射撃 */
-export function onBoonShoot(state: GameState, shots: readonly Projectile[]): void {
-  const p = state.player;
-  if (hasBoon(state, "standingSniper") && (length(p.body.vel) < BOON.standStillSpeed || stillDashing(state))) {
-    for (const s of shots) {
-      s.pierceLeft += BOON.standPierceBonus;
-      s.vel = scale(s.vel, BOON.standSpeedMul);
-    }
-  }
-  const first = shots[0];
-  if (!first || !hasBoon(state, "rearGuard")) return;
-  state.projectiles.push({
-    ...first,
-    id: allocId(state),
-    pos: { ...p.body.pos },
-    vel: scale(first.vel, -1),
-    damage: first.damage * BOON.rearShotDamageMul,
-    hitIds: new Set(),
-  });
-}
-
-/** stillDash: ダッシュの残りが短い（終わり際）なら静止とみなす */
-function stillDashing(state: GameState): boolean {
-  const t = state.player.dashTimer;
-  return hasBoon(state, "stillDash") && t > 0 && t <= BOON.stillDashWindow;
-}
-
-/** dashGuard: ダッシュの代わりにその場ガード。置き換えたら true */
-export function tryDashGuard(state: GameState): boolean {
-  if (!hasBoon(state, "dashGuard")) return false;
-  const p = state.player;
-  cancelAttack(state);
-  state.boonRun.guardTimer = BOON.guardTime;
-  p.invulnTimer = Math.max(p.invulnTimer, BOON.guardTime);
-  p.dodgedThisDash = false;
-  p.knock = { x: 0, y: 0 };
-  spawnRing(state, p.body.pos, p.body.radius * 2, BOON.guardColor, BOON.guardTime);
-  pushSfx(state, "dash");
-  return true;
-}
-
-/** ダッシュ開始: glassJust の JUST 窓延長（帯電疾走の連鎖雷は BoonDef.rules の onDash） */
+/** ダッシュ開始: すり抜けの記録（抜き胴）を空にする */
 export function onBoonDash(state: GameState): void {
-  const p = state.player;
   onBoonDashRules(state);
-  if (!hasBoon(state, "glassJust")) return;
-  const extended = dashTime(state.stats) * BOON.glassJustMul;
-  state.boonRun.justExtendTimer = extended;
-  p.invulnTimer = Math.max(p.invulnTimer, extended);
 }
 
 /**
- * ダッシュ終了（時間切れ / 壁）。爆走・雷爆走は BoonDef.rules（onDashEnd）へ移した。
- * 片翼（近接の代わりにダッシュの終わりで射撃の弾を扇状に出す）だけがここに残る
- */
-export function onBoonDashEnd(state: GameState): void {
-  onBoonDashEndRules(state);
-}
-
-/**
- * spiritBlade: 通常攻撃（近接 3 段・ダッシュ攻撃・射撃 1 発）の威力に足す値（霊力の実効値 × 係数）。
- * 祝福が無ければ 0。player.ts の近接・射撃の威力に加算する
- */
-export function boonNormalAttackBonus(state: GameState): number {
-  if (!hasBoon(state, "spiritBlade")) return 0;
-  const hollow = hasBoon(state, "hollowBlade") && state.player.mana < 1 ? BOON.hollowBladeMul : 1;
-  return BOON.spiritBladeSpi * state.stats.attributesEff.spi * hollow;
-}
-
-/** spiritBlade / hollowVessel: 通常攻撃の命中で戻るマナに掛ける倍率（keystones の attackManaMul と掛け合わせる） */
-export function boonAttackManaMul(state: GameState): number {
-  const spirit = hasBoon(state, "spiritBlade") ? BOON.spiritBladeManaMul : 1;
-  const hollow = hasBoon(state, "hollowVessel") ? BOON.hollowVesselAttackManaMul : 1;
-  return spirit * hollow * boonRuleAttackManaMul(state);
-}
-
-/**
- * bloodMana: HP が閾値以下の間だけのコスト倍率。HP で変わるので stats（manaCostMul）には畳めず、
+ * 血の対価（bloodMana）: HP が閾値以下の間だけのコスト倍率。HP で変わるので stats（manaCostMul）には畳めず、
  * skills.ts の effectiveManaCost が払う瞬間に読む（下限 MANA.costMulMin は向こうで掛かる）
  */
-export function boonManaCostMul(state: GameState, slot = -1): number {
+export function boonManaCostMul(state: GameState): number {
   const p = state.player;
-  const blood = hasBoon(state, "bloodMana") && p.hp <= p.maxHp * BOON.bloodManaHpRatio ? BOON.bloodManaCostMul : 1;
-  return blood * boonRuleCostMul(state, slot);
+  return hasBoon(state, "bloodMana") && p.hp <= p.maxHp * BOON.bloodManaHpRatio ? BOON.bloodManaCostMul : 1;
+}
+
+/** スキルの加護（BoonDef.grantsModifier）が全スロットに足す刻印符（取得順、重複なし）。skills.ts の syncSlotModifiers が読む */
+export function boonGrantedModifiers(state: GameState): ModifierKey[] {
+  const out: ModifierKey[] = [];
+  for (const key of state.boons) {
+    const m = BOONS[key].grantsModifier;
+    if (m !== undefined && !out.includes(m)) out.push(m);
+  }
+  return out;
+}
+
+/** 構え（不退）の間は動かない */
+export function boonMoveMul(state: GameState): number {
+  return state.boonRun.guardTimer > 0 ? 0 : 1;
 }
 
 // -----------------------------------------------------------------------------
-// フック: skills.ts / skills/hit.ts
+// フック: skills.ts
 // -----------------------------------------------------------------------------
 
-/**
- * スキル発動（castSlot。払った後）: circulation の還元量を発動単位で数え直す。
- * slot / resource / manaPaid は拡張の祝福（月蝕・両輪・満月撃ちなど）が読む。省略はテストの直接呼び出し
- */
+/** スキル発動（castSlot。払った後）: 四重奏（eclipse）の数えと、窓の中の気力の払い戻し。slot / resource / manaPaid は省略するとテストの直接呼び出し */
 export function onBoonSkillCast(state: GameState, slot = -1, resource: SkillResource | null = null, manaPaid = 0): void {
-  state.boonRun.circulationGained = 0;
   onBoonSkillCastRules(state, slot, resource, manaPaid);
 }
-
-/** スキル命中（skillHit）: circulation。1 回の発動で circulationCap まで */
-export function onBoonSkillHit(state: GameState, e?: Enemy): void {
-  onBoonSkillHitRules(state, e);
-  if (!hasBoon(state, "circulation")) return;
-  const run = state.boonRun;
-  const room = BOON.circulationCap - run.circulationGained;
-  if (room <= 0) return;
-  // 上限に数えるのは基礎量（manaGainMul の前）。回収量の性質はそのまま掛け算で効かせる
-  const base = Math.min(BOON.circulationPerHit, room);
-  run.circulationGained += base;
-  gainMana(state, base);
-}
-
-export function boonMoveMul(state: GameState): number {
-  if (state.boonRun.guardTimer > 0) return 0;
-  const burden = hasBoon(state, "burden") ? BOON.burdenMoveMul : 1;
-  if (!hasBoon(state, "lockdown")) return burden;
-  return burden * (isEngaged(state) ? BOON.lockdownFastMul : BOON.lockdownSlowMul);
-}
-
-/**
- * 近接ヒット: 拡張の祝福（counter = カウンターヒット。今は読む祝福が無いが呼び出しの形を保つ）。
- * 過充填・臨界は BoonDef.rules（onSwingHit）へ移した
- */
-export function onBoonMeleeHit(state: GameState, e: Enemy, counter = false): void {
-  onBoonMeleeHitRules(state, e, counter);
-}
-
-/**
- * バーストの後（kills = バーストで倒した数）。還元・臨界・焦土・換金は BoonDef.rules（onBurst。量 = 倒した数）へ移した。
- * 呼び出し（player.ts）はバーストに割り込む祝福を足すときの置き場として残す
- */
-export function onBoonBurstKills(_state: GameState, _kills: number): void {}
 
 // -----------------------------------------------------------------------------
 // フック: combat.ts
 // -----------------------------------------------------------------------------
 
-/** コンボ加算の後: 雷神の鼓。刻限のコンボ（10 ごとにゲージ満タン）は BoonDef.rules（onComboHit）へ移した */
-export function onBoonComboHit(state: GameState): void {
-  onBoonComboHitRules(state);
-}
-
-/** 会心: 血裂き（ダメージの途中に割り込む）。会心雷撃は BoonDef.rules（onCrit。量 = 与えたダメージ）へ移した */
-export function onBoonCrit(state: GameState, enemy: Enemy, _amount: number): void {
-  onBoonCritRules(state, enemy);
-}
-
-/**
- * 撃破時: 拡張の祝福（饗宴の盃・力の簒奪・灰積もり、徘徊の撃破の記録）。
- * 野火・氷砕・血の饗宴・疫病・屠りの盃・宝物の鍵・精鋭の磁力・血霧は BoonDef.rules（onKill）へ移した
- * （撃破回復は rules でも HEAL.sustainCapRatio の下）
- */
+/** 撃破時: 徘徊の撃破の記録（条件 targetRoamer） */
 export function onBoonKill(state: GameState, enemy: Enemy): void {
   onBoonKillRules(state, enemy);
 }
 
-/**
- * 凍結の砕き（combat.ts の shatterFreeze から）。霜貫き・砕氷の鐘は BoonDef.rules（onShatter）へ移した。
- * 呼び出しは砕きに割り込む祝福を足すときの置き場として残す
- */
-export function onBoonShatter(_state: GameState, _enemy: Enemy): void {}
-
-/** 無敵中に JUST 回避になる追加条件（ガード中 / glassJust の延長窓） */
+/** 無敵中に JUST 回避になる追加条件（不退の構えの中） */
 export function boonJustEligible(state: GameState): boolean {
-  const run = state.boonRun;
-  return run.guardTimer > 0 || run.justExtendTimer > 0;
+  return state.boonRun.guardTimer > 0;
 }
 
-/** 被弾後のコンボ数。comboKeeper なら半分残す */
+/** 被弾後のコンボ数。不断（comboKeeper）なら半分残す */
 export function comboAfterHurt(state: GameState): number {
-  // 綱渡りの追加ダメージはコンボが消える前の数で決まるので、ここで先に取る
-  tightropePenalty(state);
   if (!hasBoon(state, "comboKeeper")) return 0;
   return Math.floor(state.combo.count / 2);
-}
-
-/** secondWind: HP 0 になったとき 1 回だけ復活。復活したら true */
-export function tryRevive(state: GameState): boolean {
-  const run = state.boonRun;
-  if (run.reviveUsed || !hasBoon(state, "secondWind")) return false;
-  const p = state.player;
-  run.reviveUsed = true;
-  p.hp = Math.max(1, Math.round(p.maxHp * BOON.reviveHpRatio));
-  p.invulnTimer = Math.max(p.invulnTimer, BOON.reviveInvuln);
-  state.flash = 1;
-  addFloatingText(state, p.body.pos, "再起", BOON.rarityColor.epic, 1.6, 1.2);
-  spawnBurst(state, p.body.pos, BOON.rarityColor.epic, 30, 180, 0.6, 2.5);
-  pushLog(state, "再起！まだ終わらない。", BOON.rarityColor.epic);
-  pushSfx(state, "heal");
-  return true;
-}
-
-/**
- * JUST 回避時: glassJust / 奪弾 → justWipe → 拡張の祝福。
- * 見切りの息・睨み・見切り返し・乾坤は BoonDef.rules（onJustDodge。回避した攻撃の主はイベントの sourceId）へ移した
- */
-export function onBoonJust(state: GameState): void {
-  const p = state.player;
-  if (hasBoon(state, "glassJust")) {
-    p.justTimer *= BOON.glassJustMul;
-    p.justCounterTimer *= BOON.glassJustMul;
-  }
-  // 奪弾は一掃より先（奪った弾は自分の弾なので一掃で消えない）
-  onBoonJustSteal(state);
-  const wiped = hasBoon(state, "justWipe") ? wipeEnemyBullets(state) : 0;
-  onBoonJustRules(state, wiped);
-}
-
-/** justWipe: 敵弾を全て消す。消した数を返す（燕渡りが読む） */
-function wipeEnemyBullets(state: GameState): number {
-  let wiped = 0;
-  for (const pr of state.projectiles) {
-    if (pr.owner !== "enemy" || pr.life <= 0) continue;
-    pr.life = 0;
-    wiped += 1;
-    spawnBurst(state, pr.pos, pr.color, 3, 60, 0.2, 1.5);
-  }
-  return wiped;
 }
 
 // -----------------------------------------------------------------------------
 // フック: floor.ts
 // -----------------------------------------------------------------------------
 
-/** eliteVault: 予約があれば、この階の空いている部屋を 1 つ宝物庫にする */
+/** 階の始まり: 階ごとの作業領域を捨て、宝物庫の予約（Rule 効果 reserveVault）があれば空いている部屋を 1 つ宝物庫にする */
 export function applyBoonFloorRules(state: GameState, reserved: ReadonlySet<number>): void {
   resetBoonRulesForFloor(state);
   const run = state.boonRun;
@@ -1448,66 +1169,7 @@ export function applyBoonFloorRules(state: GameState, reserved: ReadonlySet<numb
   run.vaultNext = false;
 }
 
-/** giantSlayer: 通常敵の HP +25%（湧いた直後、エリート化の前に呼ぶ） */
-export function onBoonEnemySpawned(state: GameState, e: Enemy): void {
-  if (!hasBoon(state, "giantSlayer")) return;
-  scaleHp(e, BOON.mobHpMul);
-}
-
-/** giantSlayer: ボスの HP -25% */
-export function onBossSpawned(state: GameState): void {
-  if (!state.boss || !hasBoon(state, "giantSlayer")) return;
-  const id = state.boss.enemyId;
-  const boss = state.enemies.find((e) => e.id === id);
-  if (boss) scaleHp(boss, BOON.bossHpMul);
-}
-
-/** giantSlayer を取った時点で生きている敵に適用する（ボスは -25%、それ以外は +25%） */
-function applyGiantSlayerToExisting(state: GameState): void {
-  const bossId = state.boss?.enemyId;
-  for (const e of state.enemies) {
-    if (e.hp <= 0) continue;
-    scaleHp(e, e.id === bossId ? BOON.bossHpMul : BOON.mobHpMul);
-  }
-}
-
-function scaleHp(e: Enemy, mul: number): void {
-  const hp = Math.max(1, Math.round(e.maxHp * mul));
-  e.maxHp = hp;
-  e.hp = hp;
-  e.lastHp = hp;
-}
-
-/** eliteMagnet: エリート判定をもう 1 回振る */
-export function extraEliteRoll(state: GameState, e: Enemy): boolean {
-  return !e.elite && hasBoon(state, "eliteMagnet");
-}
-
-/** 部屋の封鎖: 持ち越しの終わりと巣窟の主。氷結封鎖は BoonDef.rules（onRoomLock。roomEnemies）へ移した */
-export function onBoonRoomLock(state: GameState, index: number): void {
-  onBoonRoomLockRules(state);
-  // 封鎖で最初の波が始まる（巣窟・試練・闘技場）。2 波目以降は floor.ts の updateLockedRoom が onBoonWaveStart を呼ぶ
-  const room = state.rooms[index];
-  if (room?.locked) onBoonWaveStart(state, room);
-}
-
-/**
- * 部屋クリア: 拡張の祝福（時間稼ぎ・持ち越し）。room は呼び出しの形を保つために受ける。
- * 勝利の帳・血の代償・湧水・伏兵返し・試練の徒・狩場の王は BoonDef.rules（onRoomClear。部屋の種類はイベントの tag）へ移した
- */
-export function onBoonRoomClear(state: GameState, _room?: RoomState): void {
-  onBoonRoomClearRules(state);
-}
-
+/** 血の饗宴（bloodFeast）を持っているとハートが出ない */
 export function boonHeartsAllowed(state: GameState): boolean {
   return !hasBoon(state, "bloodFeast");
-}
-
-/** heartBurn: ハートを拾うと burn が一定時間 2 倍 */
-export function onBoonHeartPickup(state: GameState): void {
-  if (!hasBoon(state, "heartBurn")) return;
-  const wasActive = state.boonRun.heartBurnTimer > 0;
-  state.boonRun.heartBurnTimer = BOON.heartBurnTime;
-  if (!wasActive) applyBoonsToStats(state);
-  addFloatingText(state, state.player.body.pos, "業火", STATUS.burnColor, TEXT_SCALE, TEXT_LIFE);
 }

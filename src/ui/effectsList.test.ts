@@ -15,24 +15,24 @@ describe("効果の一覧（装備画面のステータスタブ「効果」頁�
 
   it("持っている祝福を名前・格・効果の説明つきで出す（芯は除く）", () => {
     const state = createGame(1);
-    state.boons.push("ricochet");
-    state.boonRun.grades.ricochet = 2;
+    state.boons.push("emberSeed");
+    state.boonRun.grades.emberSeed = 2;
     const rows = boonRows(state);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.name).toBe(BOONS.ricochet.name);
+    expect(rows[0]?.name).toBe(BOONS.emberSeed.name);
     expect(rows[0]?.info, "格").toBe("大祝福");
-    expect(rows[0]?.detail, "効果の説明").toBe(BOONS.ricochet.desc);
+    expect(rows[0]?.detail, "効果の説明").toBe(BOONS.emberSeed.desc);
   });
 
   it("芯を持っていれば coreRows に 1 件出る", () => {
     const state = createGame(1);
     expect(coreRows(state)).toHaveLength(0);
-    state.boons.push("coreGlassHeart");
+    state.boons.push("coreTempo");
     const rows = coreRows(state);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.name).toBe(BOONS.coreGlassHeart.name);
+    expect(rows[0]?.name).toBe(BOONS.coreTempo.name);
     // 芯は祝福の一覧（boonRows）には出さない（二重に数えない）
-    expect(boonRows(state).some((r) => r.key.includes("coreGlassHeart"))).toBe(false);
+    expect(boonRows(state).some((r) => r.key.includes("coreTempo"))).toBe(false);
   });
 
   it("一時強化（ダメージ・移動速度・無敵）が掛かっていれば出す", () => {
@@ -53,17 +53,17 @@ describe("効果の一覧（装備画面のステータスタブ「効果」頁�
   it("拠点（sandbox）では何も出さない", () => {
     const state = createGame(1);
     state.sandbox = true;
-    state.boons.push("ricochet");
+    state.boons.push("emberSeed");
     state.player.status.effects.push({ kind: "haste", stacks: 1, time: 1, maxTime: 1, potency: 0, source: "player", acc: 0, tick: 0 });
     expect(runEffectRows(state)).toHaveLength(0);
   });
 
   it("ラン中は芯 → 祝福 → 状態異常 → 一時強化の順に並ぶ", () => {
     const state = createGame(1);
-    state.boons.push("coreGlassHeart", "ricochet");
+    state.boons.push("coreTempo", "emberSeed");
     state.player.status.effects.push({ kind: "haste", stacks: 1, time: 1, maxTime: 1, potency: 0, source: "player", acc: 0, tick: 0 });
     state.player.buffs.invuln = 1;
     const rows = runEffectRows(state);
-    expect(rows.map((r) => r.key)).toEqual(["core:coreGlassHeart", "boon:ricochet", "status:haste", "buff:invuln"]);
+    expect(rows.map((r) => r.key)).toEqual(["core:coreTempo", "boon:emberSeed", "status:haste", "buff:invuln"]);
   });
 });
