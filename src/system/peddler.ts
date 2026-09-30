@@ -9,6 +9,7 @@ import { moveEnemy } from "./enemies";
 import { overlapsWall } from "./physics";
 import { corridorTileList, pickRoamTarget } from "./spawner";
 import { isHalted } from "./statusEffects";
+import { isAllied } from "./rules";
 
 /**
  * 旅商人（MerchantKind "peddler"。docs/ideas/economy-impl.md 2-5）の体の動き。台座・値段・倒れた後は system/merchants.ts。
@@ -129,7 +130,9 @@ function tryOpen(state: GameState, m: Merchant, e: Enemy): boolean {
 // -----------------------------------------------------------------------------
 
 /** 旅商人を襲う敵か: 気付いている（idle・出現中でない）敵。商人・壺・木箱は襲わない */
-function hostile(o: Enemy): boolean {
+function hostile(state: GameState, o: Enemy): boolean {
+  // 従魔（眷属）は商人を襲わない（従魔の狙いからも商人は外している）
+  if (isAllied(state, o)) return false;
   const def = enemyDef(o.defKey);
   return def.merchant !== true && def.container === undefined && o.phase !== "idle" && o.phase !== "spawning";
 }
@@ -144,7 +147,7 @@ function mauled(state: GameState, m: Merchant, e: Enemy, dt: number): void {
   const pad = ECONOMY.market.peddler.threatPad;
   let attackers = 0;
   for (const o of state.enemies) {
-    if (o === e || o.hp <= 0 || !hostile(o)) continue;
+    if (o === e || o.hp <= 0 || !hostile(state, o)) continue;
     if (dist(o.body.pos, e.body.pos) <= o.body.radius + e.body.radius + pad) attackers += 1;
   }
   if (attackers === 0) return;

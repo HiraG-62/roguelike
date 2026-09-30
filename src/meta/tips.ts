@@ -201,7 +201,7 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "temper", term: "錬磨", category: "run", body: "持っている祝福の札を 1 枚選び、格を 1 つ上げる。至高と極致は錬磨でだけ届く。出口の予告の「錬磨」や契約で開く。" },
   { key: "frostPrison", term: "氷獄", category: "run", body: "霜枷の真髄。凍った敵へ与えた傷が溜まり、砕いたときにその一部がもう一度来る。" },
   { key: "thunderReturn", term: "還雷", category: "run", body: "雷鳴の真髄。連鎖雷が来た道を起点の敵まで戻り、同じ敵にもう一度当たる。" },
-  { key: "moonReprieve", term: "執行猶予", category: "run", body: "月蝕の札。被弾の無敵と硬直はその場で起き、生命が減るのは少し後になる。その間に敵を倒せば、宣告の札と合わせて傷を返せる。" },
+  { key: "moonReprieve", term: "執行猶予", category: "run", body: "月蝕の札。被弾の無敵と硬直はその場で起き、生命が減るのは少し後になる。減る前に回復しておけば持ちこたえられる。" },
   { key: "moonTotality", term: "皆既", category: "run", body: "月蝕の真髄。全ての命中で宣告が付く。宣告が明けると、その間に与えた傷の一部がもう一度来る。" },
   { key: "thrall", term: "従魔", category: "run", body: "眷属の札で従えた敵。時間まで他の敵を殴り、こちらの攻撃は当たらない。部屋の制圧には数えない。" },
   { key: "clue", term: "手がかり", category: "run", body: "祝福の 3 択に出る、今のビルドで成立し得る未発見の連携。" },

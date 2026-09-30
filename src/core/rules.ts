@@ -282,6 +282,8 @@ export interface RuleEffect {
   counter?: PerCounter;
   /** releaseVault: 出す溜めの種類 */
   vault?: VaultKind;
+  /** tameEnemy: 1 体従えるごとに払う銭（払えなければ従えない。買収） */
+  cost?: number;
 }
 
 /** 敵の Rule が持てる効果（予告付きハザードのみ） */

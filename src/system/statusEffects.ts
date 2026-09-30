@@ -363,6 +363,8 @@ export function applyStatus(
   source: StatusSource,
 ): boolean {
   if (!targetAlive(state, target) || apply.duration <= 0 || apply.stacks <= 0) return false;
+  // 従魔（眷属）にはこちらの攻撃・地形の状態異常が付かない（凍結・怯みで従魔を止めない。傷は damageEnemy が弾く）
+  if (target.kind === "enemy" && (source === "player" || source === "env") && isAllied(state, target.enemy)) return false;
   const bag = bagOf(state, target);
   if (isImmune(target, bag, apply.kind)) return false;
   const scaled = source === "player" && !UNSCALED_POTENCY.has(apply.kind);
@@ -711,7 +713,7 @@ export function chainLightning(state: GameState, origin: Vec, damage: number, ex
  * 還雷: 最後の敵から来た道を逆にたどって打ち直す（起点の敵〔excludeId〕も道に入れる。倒れた敵は飛ばす）。打った数を返す
  */
 function bounceBack(state: GameState, path: readonly Enemy[], startId: number | undefined, damage: number, origin: Vec): number {
-  const start = startId === undefined ? undefined : state.enemies.find((e) => e.id === startId && e.hp > 0);
+  const start = startId === undefined ? undefined : state.enemies.find((e) => e.id === startId && e.hp > 0 && !isAllied(state, e));
   const route = start === undefined ? path : [start, ...path];
   let hits = 0;
   for (let i = route.length - 2; i >= 0; i--) {
@@ -741,7 +743,8 @@ function nearestEnemy(
   let best: Enemy | null = null;
   let bestD = radius;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.phase === "spawning" || exclude.has(e.id)) continue;
+    // 従魔（眷属）へは跳ばない（傷つかない相手で連鎖の 1 跳びを無駄にしない）
+    if (e.hp <= 0 || e.phase === "spawning" || exclude.has(e.id) || isAllied(state, e)) continue;
     if (filter && !filter(e)) continue;
     const d = dist(from, e.body.pos);
     if (d > bestD) continue;

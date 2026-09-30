@@ -28,6 +28,7 @@ import { gainMana } from "./mana";
 import { boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { emitVolley, spreadOffsets } from "./player";
 import { applyStatus, hasStatus } from "./statusEffects";
+import { isAllied } from "./rules";
 import { placeTerrain } from "./terrain";
 import { detonateOwnMines, recallShots } from "./weaponArts";
 import { endShape } from "../skills/forms";
@@ -256,6 +257,8 @@ function hitSpec(state: GameState, src: HitSource): HitSpec {
 
 /** 敵 1 体へ hits 回当てる（素性は奥義のもの）。倒したら true */
 function strikeEnemy(state: GameState, def: UltimateDef, e: Enemy, spec: HitSpec, from: Vec): boolean {
+  // 従魔（眷属）は巻き込まない（吹き飛び・壁叩きつけの印・状態異常も付けない）
+  if (isAllied(state, e)) return false;
   const away = normalize(sub(e.body.pos, from), state.player.facing);
   const dir = spec.pull ? scale(away, -1) : away;
   const hitstopSteps = spec.heavy ? FEEL.hitstopHeavy : FEEL.hitstopLight;

@@ -327,16 +327,15 @@ export const BOONS_FUSION: Readonly<Record<FusionKey, BoonDef>> = {
     fusion: ["wealth", "horde"],
     card: "law",
     changes: "press",
-    // 払う額に格が掛かると従えてから払えないことがあるので格は持たない
     graded: false,
+    // 払いは従えた 1 体ごとに tameEnemy の中で行う（従えられない相手・上限に達したときに銭だけ減らない）
     rules: rulesOf("bribe", [
       {
         when: "onStagger",
         if: [{ kind: "coinsAtLeast", amount: F.bribe.cost }],
-        then: { kind: "tameEnemy", magnitude: NO_AMOUNT, count: F.bribe.count, duration: F.bribe.duration },
+        then: { kind: "tameEnemy", magnitude: NO_AMOUNT, count: F.bribe.count, duration: F.bribe.duration, cost: F.bribe.cost },
         icd: F.bribe.icd,
       },
-      { when: "onStagger", if: [{ kind: "coinsAtLeast", amount: F.bribe.cost }], then: { kind: "spendCoins", magnitude: F.bribe.cost }, icd: F.bribe.icd },
     ]),
   },
 };

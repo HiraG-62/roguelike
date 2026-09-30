@@ -216,6 +216,23 @@ describe("融合の札の効果", () => {
     expect(isAllied(state, e)).toBe(true);
     expect(state.economy.coins).toBe(0);
   });
+
+  it("買収: 従えられないとき（同時の上限・階の主）は銭を払わない", () => {
+    const state = cleanArena();
+    for (let i = 0; i < F.bribe.count; i++) sturdy(state, 0, NEAR * (i + 1)).allyUntil = state.time + BIG_HP;
+    const e = sturdy(state, NEAR);
+    state.economy.coins = F.bribe.cost;
+    fireCard(state, BOONS_FUSION.bribe, eventOf(state, "onStagger", { target: e }));
+    expect(isAllied(state, e), "上限").toBe(false);
+    expect(state.economy.coins, "上限では払わない").toBe(F.bribe.cost);
+    const fresh = cleanArena();
+    const lord = sturdy(fresh, NEAR);
+    fresh.boss = { enemyId: lord.id, name: "主", roomIndex: 0, introTimer: 0, defeated: false, major: false };
+    fresh.economy.coins = F.bribe.cost;
+    fireCard(fresh, BOONS_FUSION.bribe, eventOf(fresh, "onStagger", { target: lord }));
+    expect(isAllied(fresh, lord), "階の主").toBe(false);
+    expect(fresh.economy.coins, "階の主には払わない").toBe(F.bribe.cost);
+  });
 });
 
 describe("融合の決定性", () => {

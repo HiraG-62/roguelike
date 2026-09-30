@@ -12,6 +12,9 @@ import { updateEnemies } from "../enemies";
 import { applyModifiers } from "../modifiers";
 import { applyStagger } from "../poise";
 import { focusTarget, isAllied, resolveRules } from "../rules";
+import { skillHit } from "../../skills/hit";
+import { updateBoons } from "../boons";
+import { applyStatus, chainLightning, hasStatus } from "../statusEffects";
 import { createSkillRunState, resolveSlot, updateSkills } from "../skills";
 import { arena, placeEnemy, withInput } from "../testHelpers";
 import { BOONS_HORDE, BOON_KEYS_HORDE, HORDE_TALLY, STAKE_TALLY } from "./horde";
@@ -268,5 +271,61 @@ describe("従魔の AI（system/enemies.ts の updateAlly）", () => {
     const a = runAlly(11, 120);
     const b = runAlly(11, 120);
     expect([a.foe.hp, a.ally.body.pos, a.state.rng.next()]).toEqual([b.foe.hp, b.ally.body.pos, b.state.rng.next()]);
+  });
+});
+
+describe("従魔はこちらの攻撃で傷つかず、従えられない相手がいる", () => {
+  /** 怯ませた頑丈な敵を置く */
+  function staggered(state: GameState, dx: number, dy = 0): Enemy {
+    const e = sturdy(state, dx, dy);
+    applyStagger(state, e, LONG);
+    return e;
+  }
+
+  it("階の主は怯んでいても従えない（主の部屋が主を倒す前に制圧扱いにならない）", () => {
+    const state = cleanArena();
+    const lord = staggered(state, NEAR);
+    const other = staggered(state, -NEAR);
+    state.boss = { enemyId: lord.id, name: "主", roomIndex: 0, introTimer: 0, defeated: false, major: false };
+    fireCard(state, BOONS_HORDE.thrall, eventOf(state, "onBurst"));
+    expect(isAllied(state, lord), "階の主").toBe(false);
+    expect(isAllied(state, other), "ふつうの敵は従う").toBe(true);
+  });
+
+  it("連鎖雷は従魔へ跳ばず、その先の敵へ届く", () => {
+    const state = cleanArena();
+    const ally = sturdy(state, NEAR);
+    ally.allyUntil = state.time + LONG;
+    const foe = sturdy(state, NEAR * 2);
+    chainLightning(state, { ...state.player.body.pos }, 10, undefined, { maxTargets: 1 });
+    expect(ally.hp, "従魔は無傷").toBe(BIG_HP);
+    expect(foe.hp, "1 跳びが敵に使われる").toBeLessThan(BIG_HP);
+  });
+
+  it("スキルの命中とこちらの状態異常は従魔に何も起こさない（気力も戻らない）", () => {
+    const state = cleanArena();
+    const ally = sturdy(state, NEAR);
+    ally.allyUntil = state.time + LONG;
+    state.player.mana = 0;
+    const killed = skillHit(state, ally, params(state), { base: 50, kind: "melee", dir: { x: 1, y: 0 }, knockback: 0, stagger: false });
+    expect(killed).toBe(false);
+    expect(ally.hp).toBe(BIG_HP);
+    expect(state.player.mana, "命中の気力の源が起きない").toBe(0);
+    const burn = { kind: "burn" as const, stacks: 1, duration: 3, potency: 5 };
+    expect(applyStatus(state, { kind: "enemy", enemy: ally }, burn, "player")).toBe(false);
+    expect(hasStatus(ally.status, "burn")).toBe(false);
+  });
+
+  it("抜き胴は従魔を斬らず、時間切れで敵に戻った敵は斬る", () => {
+    const state = cleanArena();
+    state.boons = ["passCut"];
+    const ally = sturdy(state, 0);
+    ally.allyUntil = state.time + LONG;
+    const former = sturdy(state, 0, 1);
+    former.allyUntil = state.time - 1;
+    state.player.dashTimer = 1;
+    updateBoons(state, FIXED_DT);
+    expect(ally.hp, "従魔").toBe(BIG_HP);
+    expect(former.hp, "敵に戻った敵").toBeLessThan(BIG_HP);
   });
 });

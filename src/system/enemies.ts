@@ -193,6 +193,12 @@ export function updateEnemies(state: GameState, dt: number): void {
     e.animTime += edt;
     // プレイヤーの隙では前衛・突撃の時計が速く進む（反応ルール。ボス・設置物は 1 倍）
     e.attackCooldown = Math.max(0, e.attackCooldown - edt * behaviorOf(def).attackCooldownRate(state, e, def));
+    // 従魔（眷属。Enemy.allyUntil）は敵対の敵を狙い、プレイヤーを狙わない。
+    // 恐怖・敗走より先に見る（従えた陣の仲間が崩れて敗走しても、従っている間は逃げ出さない）
+    if (isAllied(state, e)) {
+      updateAlly(state, e, def, edt);
+      continue;
+    }
     if (isFeared(e) && e.phase !== "spawning") {
       flee(state, e, def, edt);
       continue;
@@ -203,11 +209,6 @@ export function updateEnemies(state: GameState, dt: number): void {
       continue;
     }
 
-    // 従魔（眷属。Enemy.allyUntil）は敵対の敵を狙い、プレイヤーを狙わない
-    if (isAllied(state, e)) {
-      updateAlly(state, e, def, edt);
-      continue;
-    }
     if (isBossDriven(def)) {
       updateBossEnemy(state, e, def, edt);
       continue;

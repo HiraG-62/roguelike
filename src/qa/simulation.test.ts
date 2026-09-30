@@ -1098,7 +1098,7 @@ function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: nu
 }
 
 /** 6 装備 × 2 回 × 4,000 step。毎階の「階の主」で 1 階の戦いが重くなった分、余裕を広げた */
-const DETERMINISM_TIMEOUT_MS = 60_000;
+const DETERMINISM_TIMEOUT_MS = 120_000;
 
 describe("QA simulation (決定性)", () => {
   it("同じ seed・装備なら bot 駆動でも 2 回とも同じ結果になる", { timeout: DETERMINISM_TIMEOUT_MS }, () => {

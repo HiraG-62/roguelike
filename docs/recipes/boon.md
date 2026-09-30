@@ -16,7 +16,7 @@
 | 反響 | `{ kind: "echoLast", magnitude: 1 }` | 直前のスキルを気力なしでもう一度 |
 | 号令 | `{ kind: "retarget", duration: 3 }` | 従魔・召喚の狙いを対象へ（`focusTarget`） |
 | 起爆 | `{ kind: "detonatePlaced", scaleBy: "slashBase", radius, count }` | 最も近い設置物を爆ぜさせる |
-| 従魔 | `{ kind: "tameEnemy", duration, radius?, onlyWith?, count }` | 敵を一時的に味方に（`Enemy.allyUntil`。ボス級は不可） |
+| 従魔 | `{ kind: "tameEnemy", duration, radius?, onlyWith?, count, cost? }` | 敵を一時的に味方に（`Enemy.allyUntil`。ボス級・階の主・商人・壺は不可）。`cost` は 1 体ごとに払う銭（払えなければ従えない） |
 | 投銭 | `{ kind: "coinShot", magnitude, count }` か `share` | 銭を払って弾を撃つ。払えなければ不発 |
 | 溜めの解放 | `{ kind: "releaseVault", vault: "ice" }` | `Enemy.vault` を一度に出す |
 | 基準・数え | `scaleBy: "coins" / "counter"`、`PerCounter` の `minions` / `coinsLog` / `lineageCards` / `lineagesOwned`、条件 `targetWithin` / `counter` | 持ち金・従魔と設置物の数・系譜の枚数・持っている系譜の数 |

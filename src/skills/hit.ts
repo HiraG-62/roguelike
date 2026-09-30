@@ -10,6 +10,7 @@ import { damageEnemy, rollOutgoing } from "../system/combat";
 import { addFloatingText, spawnBurst } from "../system/effects";
 import { isStaggered } from "../system/poise";
 import { applyStatus } from "../system/statusEffects";
+import { isAllied } from "../system/rules";
 import { placeTerrain } from "../system/terrain";
 import { fireTrigger } from "../system/triggers";
 import { onManaSource } from "../system/manaSources";
@@ -116,6 +117,8 @@ export function castAttack(params: Readonly<CastParams>): AttackProfile | null {
 
 /** 1 体への命中。倒したら true */
 export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams>, spec: SkillHitSpec): boolean {
+  // 従魔（眷属）はすり抜ける（傷・状態異常だけでなく、気力・戦意・命中の Trigger も起こさない）
+  if (isAllied(state, e)) return false;
   const def = SKILL_DEFS[params.skillKey];
   const from = spec.from ?? state.player.body.pos;
   const pos = { ...e.body.pos };

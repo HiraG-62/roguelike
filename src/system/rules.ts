@@ -1063,13 +1063,18 @@ export function isAllied(state: GameState, e: Readonly<Enemy>): boolean {
   return e.allyUntil !== undefined && e.allyUntil > state.time && e.hp > 0;
 }
 
-/** 従魔: 対象（radius があれば半径内の近い順）を duration 秒だけ味方にする。同時に従えるのは count 体まで */
+/**
+ * 従魔: 対象（radius があれば半径内の近い順）を duration 秒だけ味方にする。同時に従えるのは count 体まで。
+ * cost があれば 1 体ごとに銭を払い、払えなければそこで止める（買収。従えられなかったのに払わない）
+ */
 function tameEnemies(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): void {
   const limit = Math.max(1, Math.round(effect.count ?? 1));
   let room = limit - state.enemies.filter((e) => isAllied(state, e)).length;
   const until = state.time + (effect.duration ?? TRIGGER.defaultDuration);
+  const cost = Math.max(0, Math.round(effect.cost ?? 0));
   for (const e of tameCandidates(state, effect, ev)) {
     if (room <= 0) return;
+    if (cost > 0 && !spendCoins(state, cost, "rule")) return;
     e.allyUntil = until;
     room--;
   }
@@ -1086,9 +1091,15 @@ function tameCandidates(state: GameState, effect: Readonly<RuleEffect>, ev: Game
     .sort((a, b) => dist(ev.pos, a.body.pos) - dist(ev.pos, b.body.pos) || a.id - b.id);
 }
 
-/** 従えられる敵: 生きていて、まだ味方でなく、処刑の効かない相手（ボス級・部屋主・変身する敵）でない */
+/**
+ * 従えられる敵: 生きていて、まだ味方でなく、処刑の効かない相手（ボス級・部屋主・変身する敵）でも階の主でもない。
+ * 商人・壺や木箱も従えない（従魔の狙いからも外している相手。system/enemies.ts の allyTarget）。
+ * 階の主を従えると主の部屋が制圧扱いになり（roomAlive は従魔を数えない）、主を倒す前に部屋の報酬が出てしまう
+ */
 function tameable(state: GameState, e: Enemy): boolean {
-  return e.hp > 0 && !isAllied(state, e) && !isExecuteImmune(enemyDef(e.defKey));
+  if (e.hp <= 0 || isAllied(state, e) || state.boss?.enemyId === e.id) return false;
+  const def = enemyDef(e.defKey);
+  return !isExecuteImmune(def) && def.merchant !== true && def.container === undefined;
 }
 
 /** 投銭: 銭を払って向いている方へ銭の弾（素性なし）。威力 = 払った額 × perCoin。払えなければ不発 */

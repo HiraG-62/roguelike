@@ -12,6 +12,7 @@ import { addFloatingText } from "./effects";
 import { scaled } from "./attributes";
 import { estimateModifiers } from "./modifiers";
 import { circlesOverlap } from "./physics";
+import { isAllied } from "./rules";
 import { ROAMING_ROOM } from "./spawner";
 
 /**
@@ -113,7 +114,8 @@ function updateDashThrough(state: GameState): void {
   if (!hasBoon(state, "passCut") || p.dashTimer <= 0) return;
   const r = rules(state);
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.phase === "spawning" || e.allyUntil !== undefined || r.dashHits.includes(e.id)) continue;
+    // 従魔（眷属）は斬らない。時間切れで敵に戻った後は斬る（allyUntil が残っていても isAllied は偽）
+    if (e.hp <= 0 || e.phase === "spawning" || isAllied(state, e) || r.dashHits.includes(e.id)) continue;
     const reach = p.body.radius + BOON.passCutReach;
     if (!circlesOverlap(p.body.pos.x, p.body.pos.y, reach, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     r.dashHits.push(e.id);
