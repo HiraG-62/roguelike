@@ -95,7 +95,7 @@ electron/    Electron 版の main / preload / IPC
 
 - 機能を **ファイル所有** で分割し、Agent ごとに「所有 / 編集禁止 / 先に読む / 完了条件 / 報告形式」を渡す（`/parallel`）。共有ファイルは **最小の Edit のみ**、全文 Write 禁止
 - Agent は **コミットしない**。統合役が `git add <所有ファイル>` で論理単位ごとにコミット（`git add -A` 禁止）。一時ファイルは scratchpad へ
-- モデル: メインは Opus。設計判断・診断・深いレビュー・発想は Fable（architect / reviewer / brainstormer）、設計済みの実装と定型は Sonnet（implementer / qa-runner / localizer）、ドット絵と数値調整は Opus（pixel-artist / balance-tuner）。設計が曖昧なまま Sonnet に実装させない
+- モデル: メインは Opus。設計判断・診断・レビュー・発想・ドット絵・数値調整は Opus（architect / reviewer / brainstormer / pixel-artist / balance-tuner）、設計済みの実装と定型は Sonnet（implementer / qa-runner / localizer）。Fable は本当に超思考が要る場面だけ `model: "fable"` で上書きして呼ぶ。設計が曖昧なまま Sonnet に実装させない
 - skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/agent-docs` `/release-notes` `/bump`
 
 ## エージェント資料の保守
