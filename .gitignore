@@ -10,3 +10,4 @@ docs/example/
 
 # ドット絵の作業ファイル（.aseprite / 確認用 PNG）。真実は src/data/sprites*.ts で、npm run sprite で作り直せる
 art/
+.claude/worktrees/
