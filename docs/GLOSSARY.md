@@ -169,6 +169,10 @@
 | 分岐路 | stairs / StairsChoice | 最後の部屋の 2〜3 個の階段。階段ごとに次のバイオームが違い、上に行き先を出す。案内人で 1 つ増やせる | `system/specialRooms.ts` planForkStairs / addForkStair |
 | 出口の予告 | ExitReward / exitPreview | 分岐路の階段の上に「降りた先で手に入るもの」を出す（祝福 + 系譜名・遺物・銭・鍵・瓶・危険・錬磨）。祝福の出口を選んだ階だけ祝福の 3 択が出て、その系譜の札が並ぶ | `system/exits.ts`、`render/exitUi.ts` |
 | 上り階段 / 帰還 | ascend / strata.revisit | 最後の部屋に置かれる「上へ」の台座。乗り続けると 1 つ浅い階へ戻る（1 ランに 2 回、ボス階とその 1 つ下には出ない）。戻った階は「帰還」で、敵が半分・死神が早く、降り直しても階層到達の報酬は出ない | `system/specialRooms.ts` placeAscend、`system/floor.ts` ascend |
+| 最深の間 | `isFinalDepth` / `ARC.finalBoss` | 深度 21（章の階数 × 章の数 + 1）。章ボスの階の次にあるボス階で、主は最深の主。ボス階と同じ形（部屋の面積・階の主なし・出口は全部祝福） | `system/chapters.ts`、`system/boss.ts` |
+| 最深の主 | `ARC.finalBoss` | 最深の間の主。段取り 8a では骸骨卿が仮に務め、専用の新ボスは 8b で入る | `data/balance/world/ARC.json` |
+| 踏破 | `GameStatus "cleared"` / `RunHistoryEntry.cause "cleared"` | 最深の主を倒し、地上への道に乗り続けて終えたラン。画面は死亡画面の見出しを「踏破」に替えたもの（袋・持ち帰りは無い）。階の到着報酬の「階層踏破」（来歴）とは別 | `system/finale.ts`、`core/state.ts` runOver |
+| 地上への道 | `PropKind "surface"` | 最深の主を倒すと階段の右に現れる台座。乗り続けて `ARC.surfaceHold` 秒で踏破。階段（深みへ）と両方が出るので、続けるか終えるかを選べる | `system/finale.ts`、`system/specialRooms.ts` |
 | 反転層 | invertedDepth / isInvertedDepth | 深度 20 以降。バイオームの重みが逆順になり、敵はエリートの抽選を 1 回多く引き、落ちた遺物はもう 1 回反転の抽選を受ける。画面に紫が重なる | `system/biomes.ts`、`system/runEvents.ts` |
 | 無限の深み / 変異 | deepDepth / mutations | 深度 30 以降。敵の生命の伸びが寝て部屋の敵数の上限が外れ、10 階ごとに「変異」（階のランイベントの常時化: 狂乱の月 → 血の月 → 霧 → 属性の嵐）が 1 つ積まれる。スキル石の「変異軸」とは別 | `system/runEvents.ts` mutationsFor |
 | 銭（旧欠片） | `state.economy.coins` | ラン内の通貨（2026-09-30 に欠片を置き換えた）。撃破で落ち（8 秒で消える。近づくと引き寄せられる）、陣の決着・部屋の制圧・初めて着いた階・賞金首・決闘でも得る。被弾で持ち金の 5% がこぼれ、拾い直せる。契約者との取引・封印庫・（6b から）市に使う。死ぬと消える。浮き文字「銭 +n」、右上 HUD に「銭 n · 鍵 n」。ステータスの表示名「銭の引き寄せ」「被弾でこぼれる銭」「銭の稼ぎ」 | `system/economy.ts`、`render/coinUi.ts`、`render/runUi.ts` |

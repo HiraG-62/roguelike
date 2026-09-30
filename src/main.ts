@@ -25,7 +25,7 @@ import {
   type ReplaySession,
 } from "./core/replay";
 import { hashSeed } from "./core/rng";
-import { type GameState, pushLog } from "./core/state";
+import { type GameState, pushLog, runOver } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
 import { loadProfile, pushRunHistory, returnLoaned, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
@@ -1088,7 +1088,7 @@ function updateMusic(): void {
     return;
   }
   const s = screen === "replay" ? (replay?.session.state ?? null) : state;
-  const inRun = s !== null && s.status !== "dead" && MUSIC_RUN_SCREENS.has(screen);
+  const inRun = s !== null && !runOver(s) && MUSIC_RUN_SCREENS.has(screen);
   if (!s || !inRun) {
     music.update(musicCue({ inRun: false, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
     return;
@@ -1183,9 +1183,9 @@ startLoop(
     if (gamepadConnectedTimer > 0) gamepadConnectedTimer = Math.max(0, gamepadConnectedTimer - dt);
     if (dropInfoHintTimer > 0) dropInfoHintTimer = Math.max(0, dropInfoHintTimer - dt);
 
-    // 自然死（system/combat.ts が state.status を "dead" にして recordRunOnce を呼ぶ）も
+    // 自然死・踏破（system/combat.ts / finale.ts が state.status を "dead" / "cleared" にして recordRunOnce を呼ぶ）も
     // ここで拾ってラン履歴に積む。endRun は何度呼んでも安全
-    if (state && state.status === "dead") endRun(state);
+    if (state && runOver(state)) endRun(state);
 
     switch (screen) {
       case "title": {
@@ -1635,7 +1635,7 @@ startLoop(
           break;
         }
 
-        if (cur.status === "dead" && cur.deathTimer > DEATH_INPUT_DELAY) {
+        if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
           if (hotkeys.t) {
             endRun(cur);
             state = null;
@@ -1767,7 +1767,7 @@ startLoop(
     if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
     if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
     if (screen === "keybinds") drawKeybindsOverlay(ctx);
-    if (cur.status === "dead" && cur.deathTimer > DEATH_INPUT_DELAY) {
+    if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
       drawDeathSummary(ctx, {
         itemSummary: summarizeRunItems(foundItems(cur.profile), runStartedAt),
         bestCombo: cur.combo.best,

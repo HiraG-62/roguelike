@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { enemyDef } from "../data/enemies";
 import { ARC, HEAL } from "../data/tuning";
 import { isBossDepth } from "./boss";
-import { chapterBossKey, chapterOf, hasRestFountain, heartChanceOf, isChapterBossDepth, isChapterRest, skipsFloorLord } from "./chapters";
+import { chapterAheadLines, chapterBossKey, chapterOf, finalBossKey, hasRestFountain, heartChanceOf, isChapterBossDepth, isChapterRest, isFinalDepth, skipsFloorLord } from "./chapters";
 
 /** 章立て（system/chapters.ts） */
 
@@ -71,5 +71,23 @@ describe("heartChanceOf（章ごとのハートの確率）", () => {
     expect([1, 6, 11, 16].map(heartChanceOf)).toEqual(HEAL.heartChanceByChapter.slice(0, 4));
     expect(heartChanceOf(1)).toBeGreaterThan(heartChanceOf(16));
     expect(heartChanceOf(40)).toBe(heartChanceOf(16));
+  });
+});
+
+describe("最深の間", () => {
+  it("最深の間は章ボスの階でも休符でもなく、深度 21 だけが ARC.finalBoss を持つ", () => {
+    const final = ARC.floorsPerChapter * ARC.maxChapter + 1;
+    expect(isFinalDepth(final)).toBe(true);
+    expect(isChapterBossDepth(final), "章ボスの階ではない").toBe(false);
+    expect(isChapterRest(final), "休符ではない").toBe(false);
+    expect(finalBossKey(final)).toBe(ARC.finalBoss);
+    expect(enemyDef(ARC.finalBoss).boss, "最深の主は実在のボス").toBeTruthy();
+    expect([final - 1, final + 1].map(finalBossKey)).toEqual([null, null]);
+  });
+
+  it("章の休符の予習は章ボスの階と名、最後の章の休符は最深の主も告げる", () => {
+    expect(chapterAheadLines(6)).toHaveLength(1);
+    expect(chapterAheadLines(16)).toHaveLength(2);
+    expect(chapterAheadLines(7)).toEqual([]);
   });
 });

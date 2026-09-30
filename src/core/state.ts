@@ -22,7 +22,13 @@ import type { FormationKey } from "../data/formations";
 import type { CodexRun } from "../meta/codex";
 import type { QuestRun } from "../meta/quests";
 
-export type GameStatus = "playing" | "dead";
+/** playing = 進行中 / dead = 力尽きた / cleared = 最深の主を倒して地上への道に着いた（踏破） */
+export type GameStatus = "playing" | "dead" | "cleared";
+
+/** ランが終わった（死亡でも踏破でも）。step が進まず、終わりの画面と入力待ちに移る */
+export function runOver(state: { status: GameStatus }): boolean {
+  return state.status !== "playing";
+}
 
 export interface Body {
   pos: Vec;

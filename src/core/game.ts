@@ -1,6 +1,6 @@
 import type { FrameInput } from "./input";
 import { createRng } from "./rng";
-import type { GameState } from "./state";
+import { type GameState, runOver } from "./state";
 import { createMap } from "../map/grid";
 import { FEEL } from "../data/tuning";
 import { updateCamera } from "../system/camera";
@@ -147,7 +147,7 @@ export function createGame(
 /** 固定ステップ 1 回ぶんの更新。dt は実時間 */
 export function step(state: GameState, input: FrameInput, dt: number): void {
   if (state.paused) return;
-  if (state.status === "dead") {
+  if (runOver(state)) {
     state.deathTimer += dt;
     updateEffects(state, dt * 0.5);
     updateCamera(state, dt, VIEW_W, VIEW_H);

@@ -1,5 +1,5 @@
 import type { FrameInput } from "../core/input";
-import { type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx, runOver } from "../core/state";
 import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
@@ -201,7 +201,7 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   p.dashChargesLeft = Math.min(p.dashChargesLeft, stats.dashCharges);
   p.flasks = Math.min(p.flasks, Math.max(0, Math.floor(stats.flaskMax)));
   // 死亡中に装備画面を触っても蘇生しない
-  if (state.status === "dead") return;
+  if (runOver(state)) return;
   // 丸めない（付け外しの往復で HP が増える抜け道を作らない）。生存中は最低 1
   p.hp = Math.min(p.maxHp, Math.max(MIN_ALIVE_HP, p.maxHp * ratio));
 }
