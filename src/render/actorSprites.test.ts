@@ -47,8 +47,8 @@ describe("actorSprites: 生成物の一覧と PNG", () => {
   });
 });
 
-/** 体の絵をまだ描いていないジョブ（見習いの体で描く。pixel-artist が bodyOnmyoji / bodyMiko を足したら消す） */
-const JOBS_WITHOUT_OWN_BODY: readonly string[] = ["onmyoji", "miko"];
+/** 体の絵をまだ描いていないジョブ（見習いの体で描く。pixel-artist が body<ジョブ> を足したら消す） */
+const JOBS_WITHOUT_OWN_BODY: readonly string[] = [];
 
 describe("actorSprites: 全ジョブの体", () => {
   it("どのジョブも体を持ち、全クリップの全フレームに肩と頭の位置の印がある", () => {
@@ -79,10 +79,10 @@ describe("actorSprites: 全ジョブの体", () => {
 });
 
 /**
- * 手に持つ絵がまだ無い武器種（段取り 5d の書・鈴。描画は 24x24 の体と HELD の持ち手に落ちる）。
+ * 手に持つ絵がまだ無い武器種（描画は 24x24 の体と HELD の持ち手に落ちる）。
  * pixel-artist レーンが scripts/actor/ に足して `npm run actor:gen` したら消す
  */
-const UNDRAWN_WEAPONS: readonly MovesetKey[] = ["book", "handbell"];
+const UNDRAWN_WEAPONS: readonly MovesetKey[] = [];
 
 describe("actorSprites: 全武器種の手に持つ武器", () => {
   it("どの武器種も手に持つ絵と、形の正しい構えを持つ", () => {

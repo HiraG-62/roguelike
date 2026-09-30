@@ -921,6 +921,66 @@ export const FAN_DIAG: Frame = [
   ".kk.........",
 ];
 
+// ---- 書: 革紐で吊った赤い革の本（背は握りの側、小口に頁の束、中央に紫の留め鋲、角に金具） ----
+const BOOK_SIDE: Frame = [
+  "............",
+  "............",
+  "......kkkkk.",
+  ".....kRrryDk",
+  ".....kRrrrDk",
+  ".kkkkkRepRDk",
+  "kttWWkRpPRDk",
+  "kTTwwkRRRRDk",
+  ".kkkkkRRRYDk",
+  "......kkkkk.",
+  "............",
+  "............",
+];
+const BOOK_DIAG: Frame = [
+  "........kk..",
+  ".......kyDk.",
+  "......krrrDk",
+  ".....kRrepDk",
+  "....kRRrpPk.",
+  "....kRRRRk..",
+  "...kWkRRk...",
+  "..kWwkkk....",
+  ".kkwk.......",
+  "kttk........",
+  "kTTk........",
+  ".kk.........",
+];
+
+// ---- 手鈴: 朱塗りの柄に金の口金、段に重ねた金の小鈴（手元の段ほど広く、先へ細る） ----
+const HANDBELL_SIDE: Frame = [
+  "............",
+  ".....kk.....",
+  "....kyYk....",
+  "....kYYkkk..",
+  ".....kkyYk..",
+  ".kkkkkyYYkkk",
+  "kttrRykkkyYk",
+  "kTTRRYkyYkYk",
+  ".kkkkkkYYkk.",
+  "....kkyYkk..",
+  "....kyYYk...",
+  ".....kkk....",
+];
+const HANDBELL_DIAG: Frame = [
+  "........kkk.",
+  ".......kyYYk",
+  ".....kkkYYk.",
+  "....kyYkkk..",
+  "...kyYYkyYk.",
+  "...kkYkyYYk.",
+  "...kRkkYYk..",
+  "..krRk.kk...",
+  ".kkRk.......",
+  "kttk........",
+  "kTTk........",
+  ".kk.........",
+];
+
 /** 武器種ごとの持ち手（`weapon.<MovesetKey>`）。Record なので武器種を足すと型エラーで気付ける */
 const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   sword: held(SWORD_SIDE, SWORD_DIAG),
@@ -952,9 +1012,8 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   flail: held(FLAIL_SIDE, FLAIL_DIAG),
   ringBlades: held(RING_BLADES_SIDE, RING_BLADES_DIAG),
   fan: edged(FAN_SIDE, FAN_DIAG),
-  // 段取り 5d: 専用の持ち手ができるまで既存の絵を流用（書 = 杖、手鈴 = チェーンアレイの鉄球）。pixel-artist レーンが差し替える
-  book: held(WAND_SIDE, WAND_DIAG),
-  handbell: held(FLAIL_SIDE, FLAIL_DIAG),
+  book: held(BOOK_SIDE, BOOK_DIAG),
+  handbell: held(HANDBELL_SIDE, HANDBELL_DIAG),
 };
 
 // -----------------------------------------------------------------------------
