@@ -108,7 +108,7 @@ const KEYSTONE_MODIFIERS: Readonly<Partial<Record<string, readonly Modifier[]>>>
       kind: "more",
       tag: "all",
       amount: KEYSTONE.goldCageMul - 1,
-      per: { count: { kind: "coins" }, every: KEYSTONE.goldCageEvery },
+      per: { count: { kind: "coins" }, every: KEYSTONE.goldCageEvery, cap: KEYSTONE.goldCageCap },
       if: [],
       owner: keystoneOwner(KS.goldCage),
       label: keystoneName(KS.goldCage),

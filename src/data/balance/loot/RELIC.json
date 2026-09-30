@@ -1,7 +1,8 @@
 {
   "_note": "名のある遺物の固有の数値（loot/named.ts の UniqueDef と system/namedRelics.ts が読む。docs/ideas/relics-7d-plan.md 3 章）。遺物ごとに 1 ブロック（key は UniqueDef.key）。数え（連打・距離・賽の目・1 階 1 回）は boonRun.tallies の「relic:<key>」に置く（ラン内で消える）。初版は設計の目安のまま（QA 前）",
   "_fields": {
-    "twinSerpent.step": "双頭の蛇: 左右を交互に当てて双撃が出るたび、与ダメージの倍に足す量（×(1 + step × 回数)。上限なし。同じ側を続けると回数 0）。倍率",
+    "twinSerpent.step": "双頭の蛇: 左右を交互に当てて双撃が出るたび、与ダメージの倍に足す量（×(1 + min(cap, step × 回数))。同じ側を続けると回数 0）。倍率",
+    "twinSerpent.cap": "双頭の蛇: step × 回数の上限（0.75 = 最大 ×1.75。25 回で頭打ち）。段取り 7e で上限を付けた（際限なく伸びる倍を避ける）。倍率の 1 を超える分",
     "reverseHourglass.delay": "逆さ砂時計: 受けたダメージが遅れて来るまでの秒（その間に敵を倒すと古い 1 つが帳消し）。秒",
     "herdFlute.radius": "群れ呼びの笛: 処刑した位置から、怯んだ敵を従える半径。px",
     "herdFlute.count": "群れ呼びの笛: 同時に従えられる数の上限。体",
@@ -45,7 +46,7 @@
     "plainBlade.margin": "無地の刃: 生成時の余白（器の容量 5 を超えない）。個",
     "plainBlade.step": "無地の刃: 装備の空いた余白 1 つにつき与ダメージの倍に足す量。倍率"
   },
-  "twinSerpent": { "step": 0.03 },
+  "twinSerpent": { "step": 0.03, "cap": 0.75 },
   "reverseHourglass": { "delay": 3 },
   "herdFlute": { "radius": 80, "count": 3, "duration": 20 },
   "emptyScabbard": { "radius": 40, "mul": 2 },

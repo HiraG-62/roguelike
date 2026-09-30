@@ -277,7 +277,7 @@ describe("地金の集計と表示", () => {
 });
 
 describe("持ち込み: 地金は今の深度で決め直す（innateAt）", () => {
-  /** core-synthesis 3-1 の例: 深度 8 で拾った、筋力 6 割・体力 4 割・上振れ ×1.3 の遺物 */
+  /** core-synthesis 3-1 の例（数値は段取り 7e の INNATE.budget.perDepth 0.9 で合わせた）: 深度 8 で拾った、筋力 6 割・体力 4 割・上振れ ×1.3 の遺物 */
   const carried: Item = {
     id: "innate-carried",
     seed: 2,
@@ -308,17 +308,17 @@ describe("持ち込み: 地金は今の深度で決め直す（innateAt）", () 
 
   it("深度 1 では小さく、深度 8 / 15 / 20 で 3-1 の例のとおり伸びる", () => {
     expect(attrsAt(carried, 1), "深度 1: 予算 1 点").toEqual({ str: 1 });
-    expect(attrsAt(carried, 8), "深度 8: 筋力 +3・体力 +2").toEqual({ str: 3, vit: 2 });
-    expect(attrsAt(carried, 15), "深度 15: 筋力 +5・体力 +3").toEqual({ str: 5, vit: 3 });
-    expect(attrsAt(carried, 20), "深度 20: 筋力 +6・体力 +4").toEqual({ str: 6, vit: 4 });
+    expect(attrsAt(carried, 8), "深度 8: 筋力 +7・体力 +4").toEqual({ str: 7, vit: 4 });
+    expect(attrsAt(carried, 15), "深度 15: 筋力 +11・体力 +8").toEqual({ str: 11, vit: 8 });
+    expect(attrsAt(carried, 20), "深度 20: 筋力 +15・体力 +10").toEqual({ str: 15, vit: 10 });
   });
 
   it("computeStats は渡した深度で地金を畳む（既定は深度 1）", () => {
     const eq = { ...createEmptyEquipment(), mainHand: carried };
     const bare = computeStats({ ...createEmptyEquipment(), mainHand: { ...carried, innate: [] } }, 20);
     expect(computeStats(eq).attributes.str - bare.attributes.str, "既定の深度 1").toBe(1);
-    expect(computeStats(eq, 20).attributes.str - bare.attributes.str, "深度 20").toBe(6);
-    expect(computeStats(eq, 20).attributes.vit - bare.attributes.vit, "深度 20 の体力").toBe(4);
+    expect(computeStats(eq, 20).attributes.str - bare.attributes.str, "深度 20").toBe(15);
+    expect(computeStats(eq, 20).attributes.vit - bare.attributes.vit, "深度 20 の体力").toBe(10);
   });
 
   it("生成した遺物は、拾った深度では Item.innate と同じ行になる", () => {
@@ -402,10 +402,10 @@ describe("持ち込み: 地金は今の深度で決め直す（innateAt）", () 
     const strAt = (): number => state.boonRun.baseStats?.attributes.str ?? 0;
     const atDepth1 = strAt();
     while (state.depth < 8) descend(state);
-    expect(strAt() - atDepth1, "深度 8 は深度 1 より筋力 +2").toBe(2);
+    expect(strAt() - atDepth1, "深度 8 は深度 1 より筋力 +6").toBe(6);
     ascend(state);
     expect(state.depth).toBe(7);
-    expect(strAt(), "深度 7 は深度 8 以下").toBeLessThanOrEqual(atDepth1 + 2);
+    expect(strAt(), "深度 7 は深度 8 以下").toBeLessThanOrEqual(atDepth1 + 6);
   });
 });
 

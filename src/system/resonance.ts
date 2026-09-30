@@ -135,6 +135,20 @@ export function countKeywords(state: Readonly<GameState>): Record<Keyword, Keywo
   return countProfiles(resonanceSources(state));
 }
 
+/** 双頭の指輪の implicit（あと 1 つで揃う共鳴の語を成立させる。affixes.ts の IMPLICITS） */
+export const TWIN_RING_IMPLICIT = "implicit.twinRing";
+
+/**
+ * 双頭の指輪が成立させる語の数（0 = 指輪なし）。implicit の値を読み、RESONANCE.ringEaseMax で切る
+ * （旧セーブの遺物は昔の値 2〜4 を持つため）。装備が封じられている間は効かない
+ */
+export function resonanceEaseOf(state: Readonly<GameState>): number {
+  if (equipmentSealed(state)) return 0;
+  const implicit = state.profile.equipment.ring?.implicit;
+  if (implicit?.key !== TWIN_RING_IMPLICIT) return 0;
+  return Math.min(RESONANCE.ringEaseMax, Math.max(0, Math.floor(implicit.value)));
+}
+
 /** 語 1 つの段。源と糧がそれぞれ下限に届いて 1 段、その先は数と強めで上がる */
 export function resonanceStepOf(c: Readonly<KeywordCount>): number {
   if (c.produces < RESONANCE.minSources || c.consumes < RESONANCE.minSinks) return 0;
@@ -142,13 +156,36 @@ export function resonanceStepOf(c: Readonly<KeywordCount>): number {
   return Math.min(RESONANCE.maxSteps, 1 + extra + c.amplifies * RESONANCE.amplifyStep);
 }
 
-/** 段 1 以上の語だけ、KEYWORDS 順 */
-export function resonanceSteps(counts: Readonly<Record<Keyword, KeywordCount>>): ResonanceStep[] {
+/** 源か糧のどちらか 1 側があと 1 つ足りない（もう 1 側は届いている）語か。双頭の指輪の対象 */
+function oneShort(c: Readonly<KeywordCount>): boolean {
+  const sourceShort = c.produces === RESONANCE.minSources - 1 && c.produces >= 1 && c.consumes >= RESONANCE.minSinks;
+  const sinkShort = c.consumes === RESONANCE.minSinks - 1 && c.consumes >= 1 && c.produces >= RESONANCE.minSources;
+  return sourceShort || sinkShort;
+}
+
+/** 双頭の指輪が成立させる語: あと 1 つで揃う語のうち、源 + 糧の多い順（同数は KEYWORDS 順）に ease 語 */
+function easedKeywords(counts: Readonly<Record<Keyword, KeywordCount>>, ease: number): ReadonlySet<Keyword> {
+  if (ease <= 0) return new Set();
+  const candidates = KEYWORDS.filter((k) => !EXCLUDED.has(k) && oneShort(counts[k]));
+  const size = (k: Keyword): number => counts[k].produces + counts[k].consumes;
+  // sort は安定なので、同数は KEYWORDS 順のまま
+  candidates.sort((a, b) => size(b) - size(a));
+  return new Set(candidates.slice(0, ease));
+}
+
+/** 足りない側を下限まで満たした数え（段の計算だけに使う。表示の源・糧の数は実際のまま） */
+function fulfilled(c: Readonly<KeywordCount>): KeywordCount {
+  return { ...c, produces: Math.max(c.produces, RESONANCE.minSources), consumes: Math.max(c.consumes, RESONANCE.minSinks) };
+}
+
+/** 段 1 以上の語だけ、KEYWORDS 順。ease = 双頭の指輪が成立させる語の数（省略 = 0） */
+export function resonanceSteps(counts: Readonly<Record<Keyword, KeywordCount>>, ease = 0): ResonanceStep[] {
   const out: ResonanceStep[] = [];
+  const eased = easedKeywords(counts, ease);
   for (const keyword of KEYWORDS) {
     if (EXCLUDED.has(keyword)) continue;
     const c = counts[keyword];
-    const step = resonanceStepOf(c);
+    const step = resonanceStepOf(eased.has(keyword) ? fulfilled(c) : c);
     if (step > 0) out.push({ keyword, step, produces: c.produces, consumes: c.consumes, amplifies: c.amplifies });
   }
   return out;
@@ -164,7 +201,7 @@ function sameSteps(a: readonly ResonanceStep[], b: readonly ResonanceStep[]): bo
 
 /** boonRun.resonance を数え直す。変わったら true（stats 側を畳み直す合図） */
 export function refreshResonance(state: GameState): boolean {
-  const next = resonanceSteps(countKeywords(state));
+  const next = resonanceSteps(countKeywords(state), resonanceEaseOf(state));
   if (sameSteps(state.boonRun.resonance, next)) return false;
   state.boonRun.resonance = next;
   return true;

@@ -1834,7 +1834,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_goldCage",
     name: "黄金の檻",
-    description: `持ち金 ${KEYSTONE.goldCageEvery} につき与ダメージ ×${KEYSTONE.goldCageMul}（足し合わせ）。被弾でこぼれる銭が持ち金の ${ratioPct(KEYSTONE.goldCageSpillRatio)}% になる。`,
+    description: `持ち金 ${KEYSTONE.goldCageEvery} につき与ダメージ ×${KEYSTONE.goldCageMul}（足し合わせ。最大 ×${1 + KEYSTONE.goldCageCap}）。被弾でこぼれる銭が持ち金の ${ratioPct(KEYSTONE.goldCageSpillRatio)}% になる。`,
     exclusiveGroup: "coin",
     apply: (s) => {
       s.coinSpillMul *= KEYSTONE.goldCageSpillRatio / ECONOMY.spill.ratio;
@@ -2421,9 +2421,10 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.twinRing",
-    label: "二重の共鳴の成立条件を {v} ポイント下げる",
-    range: { min: 2, max: 4 },
-    // 色の共鳴（二重）は段取り 7d で廃止され、今は効果が無い。旧セーブの遺物のために定義だけ残っている
+    label: "源か糧があと 1 つ足りない共鳴の語 {v} つが 1 段で成立",
+    range: { min: 1, max: 2 },
+    // 効くのは system/resonance.ts の resonanceEaseOf（共鳴の数え直しが読む）。stats には畳まない。
+    // 旧セーブの遺物は昔の値（2〜4）を持つので、読む側が RESONANCE.ringEaseMax で切る
     apply: noTraitEffect,
   },
   {

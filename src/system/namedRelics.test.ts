@@ -80,6 +80,14 @@ describe("双頭の蛇", () => {
     expect(state.boonRun.tallies[key], "同じ側を続けると 0").toBe(0);
   });
 
+  it("倍は RELIC.twinSerpent.cap で頭打ちになる", () => {
+    const state = arena();
+    equip(state, "twinSerpent");
+    const e = placeEnemy(state, "slime", 20);
+    state.boonRun.tallies[relicTallyKey("twinSerpent")] = 1000;
+    expect(moreMuls(state, "melee", e, "twinSerpent")[0]).toBeCloseTo(1 + RELIC.twinSerpent.cap);
+  });
+
   it("同じ振りが複数の敵に当たった（同じ時刻）ぶんは途切れに数えない", () => {
     const state = arena();
     equip(state, "twinSerpent");

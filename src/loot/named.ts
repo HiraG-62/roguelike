@@ -150,7 +150,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     affixes: [{ key: "twinEdge" }],
     rules: relicRules(TWIN_SERPENT, [{ when: "onTwinStrike", then: addTallyEffect(TWIN_TALLY) }]),
     // 同じ側の命中で数えを 0 に戻すのは system/moments.ts の noteTwinStrike → namedRelics.ts の breakTwinSerpent
-    modifiers: relicModifiers(TWIN_SERPENT, "双頭の蛇", [{ kind: "more", tag: "all", amount: RELIC.twinSerpent.step, per: { count: { kind: "tally", key: TWIN_TALLY } } }]),
+    modifiers: relicModifiers(TWIN_SERPENT, "双頭の蛇", [{ kind: "more", tag: "all", amount: RELIC.twinSerpent.step, per: { count: { kind: "tally", key: TWIN_TALLY }, cap: RELIC.twinSerpent.cap } }]),
     keywords: kw([], ["combo"]),
     changes: "press",
     graceSlot: "secondary",
