@@ -10,6 +10,7 @@ import { type AchievementSave, currentTitleLabel } from "./achievements";
 import { type CodexSave, type CodexTab, codexTabCount } from "./codex";
 import type { HubSave } from "./hubStore";
 import { type QuestSave, createQuestSave } from "./quests";
+import { steleLabel } from "./tierRewards";
 
 export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden", "hall"] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
@@ -60,6 +61,9 @@ export interface HubProgressSource {
   achievements: AchievementSave;
   /** 依頼の報酬の称号を名乗っているときに名前を引くため。省略時は実績の称号だけ引ける */
   quests?: QuestSave;
+  /** 踏破の回数と最高位階（踏破の碑。profile.meta の写し。省略は踏破なし） */
+  clears?: number;
+  bestClearTier?: number;
 }
 
 /** 建っている設備。既存の保存データから導く純関数で、stats には触れない */
@@ -125,9 +129,15 @@ function titleDecor(src: HubProgressSource): HubDecor[] {
   return [{ key: "title", label: `看板「${label}」` }];
 }
 
-/** 拠点の飾り。ボスの記念品 → 書架 → 称号の看板の順 */
+/** 踏破の碑。踏破したことがあるときだけ（飾りは数行しか出ないので先頭に置く） */
+function steleDecor(src: HubProgressSource): HubDecor[] {
+  const label = steleLabel({ clears: src.clears, bestClearTier: src.bestClearTier });
+  return label === null ? [] : [{ key: "stele", label }];
+}
+
+/** 拠点の飾り。踏破の碑 → ボスの記念品 → 書架 → 称号の看板の順 */
 export function hubDecorations(src: HubProgressSource): HubDecor[] {
-  return [...trophyDecor(src.codex), ...shelfDecor(src.codex), ...titleDecor(src)];
+  return [...steleDecor(src), ...trophyDecor(src.codex), ...shelfDecor(src.codex), ...titleDecor(src)];
 }
 
 /** まだ「建った」演出を見せていない設備（最初から建っているものは除く） */

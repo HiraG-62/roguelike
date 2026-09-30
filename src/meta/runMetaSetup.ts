@@ -1,6 +1,10 @@
 import { isDailySeedText } from "../core/replay";
-import type { RunHistoryEntry } from "../loot/types";
+import type { ProfileMeta, RunHistoryEntry } from "../loot/types";
 import { type NemesisSpec, type RunMetaSetup, emptyRunMeta, sanitizeNemesisSpec } from "../system/runMeta";
+import type { CodexSave } from "./codex";
+import type { QuestSave } from "./quests";
+import { tierPerks } from "./tierRewards";
+import { lockedRunContent } from "./unlocks";
 
 /**
  * 保存データから RunSetup.runMeta を組む（main.ts の withRunMeta がラン開始のたびに呼ぶ。docs/ideas/meta-impl.md 2-8）。
@@ -10,8 +14,14 @@ import { type NemesisSpec, type RunMetaSetup, emptyRunMeta, sanitizeNemesisSpec 
 export interface RunMetaSources {
   /** プロフィールの履歴（新しい順） */
   history: readonly RunHistoryEntry[];
-  /** デイリー（今日の挑戦）なら true。デイリーは記録を競うので何も持ち込まない */
+  /** デイリー（今日の挑戦）なら true。デイリーは記録を競うので何も持ち込まない（封じも見返りも無し） */
   daily: boolean;
+  /** 図鑑（章ボスの撃破 = 解放の条件） */
+  codex: Readonly<CodexSave>;
+  /** 依頼（達成 = 解放の条件） */
+  quests: Readonly<QuestSave>;
+  /** プロフィールの統計（踏破の回数・最高位階 = 位階の見返り） */
+  meta: Readonly<Pick<ProfileMeta, "clears" | "bestClearTier">>;
 }
 
 const CAUSE_DEFEATED = "defeated";
@@ -35,5 +45,10 @@ export function buildRunMeta(sources: RunMetaSources): RunMetaSetup {
   const meta = emptyRunMeta();
   if (sources.daily) return meta;
   meta.nemesis = nemesisFromHistory(sources.history);
+  const locked = lockedRunContent({ codex: sources.codex, quests: sources.quests });
+  meta.lockedRooms = locked.lockedRooms;
+  meta.lockedContractors = locked.lockedContractors;
+  meta.lockedEvents = locked.lockedEvents;
+  meta.perks = tierPerks(sources.meta);
   return meta;
 }

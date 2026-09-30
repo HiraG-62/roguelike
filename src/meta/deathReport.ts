@@ -12,6 +12,7 @@ import { LINGER_LABEL } from "../system/linger";
 import { RUN_EVENTS } from "../system/runEvents";
 import { runTier } from "../system/runSetup";
 import type { CodexSave } from "./codex";
+import { nextTierRewardLine } from "./tierRewards";
 
 /**
  * 死亡画面の「死因 / 次の山 / 前回比」と、履歴に残す任意項目（docs/ideas/meta-impl.md 2-2）。
@@ -122,7 +123,7 @@ function compareLine(entry: Readonly<RunHistoryEntry>, previous: Readonly<RunHis
 }
 
 /**
- * 死亡画面の行（最大 3 行）。力尽きた: 死因 / 次の山 / 前回比、踏破: 踏破の位階と回数 / 前回比、離脱: なし。
+ * 死亡画面の行（最大 3 行）。力尽きた: 死因 / 次の山 / 前回比、踏破: 踏破の位階と回数 / 次の見返り / 前回比、離脱: なし。
  * codex は倒された回数を数えた後（recordDefeat の後）、meta は踏破を数えた後（recordClear の後）を渡す
  */
 export function deathReportLines(
@@ -135,7 +136,7 @@ export function deathReportLines(
   if (entry.cause === CAUSE_DEFEATED) {
     lines.push(entry.killer ? killerLine(entry.killer, codex) : null, nextPeakLine(entry.depth));
   } else if (entry.cause === CAUSE_CLEARED) {
-    lines.push(`踏破: 位階 ${entry.tier ?? 0}（${meta.clears ?? 1} 回目）`);
+    lines.push(`踏破: 位階 ${entry.tier ?? 0}（${meta.clears ?? 1} 回目）`, nextTierRewardLine(meta));
   } else {
     return [];
   }

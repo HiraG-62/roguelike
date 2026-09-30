@@ -189,10 +189,12 @@ const START_ROOM = 0;
 /** 台座・立ち位置が壁から離れているべき距離（px） */
 const SPOT_CLEARANCE = 6;
 
+/** 解放制で封じた契約者を重み 0 として外す（乱数は 1 回のまま。封じが空なら今と同じ結果） */
 function pickContractor(state: GameState): ContractorKey {
-  const total = CONTRACTOR_KEYS.reduce((s, k) => s + CONTRACT.weights[k], 0);
+  const open = CONTRACTOR_KEYS.filter((k) => !state.runMeta.lockedContractors.includes(k));
+  const total = open.reduce((s, k) => s + CONTRACT.weights[k], 0);
   let roll = state.rng.next() * total;
-  for (const k of CONTRACTOR_KEYS) {
+  for (const k of open) {
     roll -= CONTRACT.weights[k];
     if (roll < 0) return k;
   }

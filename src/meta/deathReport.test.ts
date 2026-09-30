@@ -69,9 +69,11 @@ describe("死亡画面の死因 / 次の山 / 前回比", () => {
 
   it("踏破の行は位階と回数、離脱は行なし", () => {
     const lines = deathReportLines(row({ cause: "cleared", tier: 4 }), null, createCodexSave(), { ...META, clears: 2 });
-    expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("4");
     expect(lines[0]).toContain("2");
+    expect(lines[1], "踏破の 2 行目は次の見返り").toContain("次の見返り");
+    const maxed = deathReportLines(row({ cause: "cleared", tier: 10 }), null, createCodexSave(), { ...META, clears: 2, bestClearTier: 10 });
+    expect(maxed, "見返りを全部得ていれば 1 行").toHaveLength(1);
     expect(deathReportLines(row({ cause: "abandoned" }), row({}), createCodexSave(), META)).toEqual([]);
   });
 

@@ -5,7 +5,7 @@ import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ENEMIES, type EnemyDef, enemiesForDepth, enemyDef } from "../data/enemies";
 import { keystoneDef } from "../loot/affixes";
-import { ARC, BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { ARC, BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT, TIER_REWARD } from "../data/tuning";
 import { createEchoWallet, shatterYield, stirTrait } from "../loot/crafting";
 import { generateItem } from "../loot/generator";
 import { type Item, TRAIT_COLORS, type TraitColor } from "../loot/types";
@@ -248,6 +248,8 @@ export function assignExtraRoomKinds(state: GameState, reserved: ReadonlySet<num
     const rule = ROOM_KIND.extra[kind];
     if (state.depth < rule.minDepth) continue;
     if (kind === "gamble" && state.origin === "gambler") continue;
+    // 解放制で封じた種類は抽選に入れない（乱数を引く前に飛ばすので、他の種類の抽選は封じが空の並びの部分列になる）
+    if (state.runMeta.lockedRooms.includes(kind)) continue;
     if (!state.rng.chance(rule.chance)) continue;
     place(kind);
   }
@@ -1191,6 +1193,11 @@ export function escapeActive(state: GameState): boolean {
 // 分岐路
 // -----------------------------------------------------------------------------
 
+/** 位階の見返り「出口」: 踏破した最高位階に応じて分岐の階段が増える（乱数は引かない） */
+function tierPerkExits(state: GameState): number {
+  return state.runMeta.perks.includes("exit") ? TIER_REWARD.exitExtra : 0;
+}
+
 /**
  * 最後の部屋に 2〜3 個の階段を置き、それぞれに次のフロア種別を割り当てる（重複なし）。
  * ボス階は撃破後に階段が出るので、行き先だけ先に決めて tile は -1 にしておく（ensureForkStairs が置く）。
@@ -1198,7 +1205,7 @@ export function escapeActive(state: GameState): boolean {
  */
 export function planForkStairs(state: GameState): void {
   // 見習いは階段が 1 本多い（増えた分は必ず祝福。system/exits.ts）
-  const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax) + apprenticeExtraExits(state);
+  const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax) + apprenticeExtraExits(state) + tierPerkExits(state);
   const kinds = pickFloorKinds(state.depth + 1, state.rng, count);
   // 出口の予告は行き先の抽選の直後に引く（乱数の順序を固定する）
   const rewards = rollExitRewards(state, kinds.length);

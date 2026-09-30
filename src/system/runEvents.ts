@@ -254,10 +254,10 @@ function prepareWarn(state: GameState, ev: ActiveRunEvent): void {
   ev.pos = { ...state.player.body.pos };
 }
 
-/** 表の順に確率で引く。allowed が false の種類は引かない（乱数も消費しない） */
+/** 表の順に確率で引く。allowed が false の種類と、解放制で封じた種類は引かない（乱数も消費しない） */
 function rollFirst<K extends RunEventKey>(state: GameState, table: Readonly<Record<K, number>>, allowed: (key: K) => boolean = () => true): K | null {
   for (const key of Object.keys(table) as K[]) {
-    if (!allowed(key)) continue;
+    if (!allowed(key) || state.runMeta.lockedEvents.includes(key)) continue;
     if (state.rng.chance(table[key])) return key;
   }
   return null;

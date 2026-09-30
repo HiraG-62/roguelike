@@ -50,6 +50,7 @@ import { recordRunOnce } from "./system/combat";
 import { killerOf } from "./system/deathCause";
 import { deathReportLines as buildDeathReportLines, historyExtras, previousComparable } from "./meta/deathReport";
 import { buildRunMeta } from "./meta/runMetaSetup";
+import { lockedRunContent, unlockNewsLines } from "./meta/unlocks";
 import {
   KEYBINDS_ROWS,
   PADBINDS_ROWS,
@@ -250,7 +251,10 @@ function withLockedRelics(setup: RunSetup): RunSetup {
 
 /** ラン開始時に仇などの持ち込みを保存データから確定させる（やり直しでも作り直す = 直前の死が新しい仇になる。記録器と createGame が同じ値を見る） */
 function withRunMeta(setup: RunSetup, seedText: string): RunSetup {
-  return { ...setup, runMeta: buildRunMeta({ history: profile.meta.history ?? [], daily: isDailySeedText(seedText) }) };
+  return {
+    ...setup,
+    runMeta: buildRunMeta({ history: profile.meta.history ?? [], daily: isDailySeedText(seedText), codex: codexSave, quests: questSave, meta: profile.meta }),
+  };
 }
 
 const input = new PlayerInput();
@@ -501,6 +505,8 @@ const CODEX_ENEMY_TAB = 0;
 
 /** ラン 1 回ぶんを図鑑・依頼・実績へ畳んで保存する。戻り値は死亡画面の行 */
 function recordMeta(s: GameState, now: number): string[] {
+  // 解放の知らせは、この記録で図鑑・依頼が進む前後の封じの差から組む
+  const lockedBefore = lockedRunContent({ codex: codexSave, quests: questSave });
   recordDefeat(codexSave, killerOf(s)?.key ?? null);
   const discovered = recordCodex(s, codexSave);
   saveCodex(codexSave);
@@ -509,7 +515,8 @@ function recordMeta(s: GameState, now: number): string[] {
   const jobsPlayed = noteJobPlayed(achievementSave, s.job);
   const unlocked = evaluateAchievements({ codex: codexSave, quests: questSave, meta: s.profile.meta, jobsPlayed }, achievementSave, now);
   saveAchievements(achievementSave);
-  return metaSummaryLines(outcome, discovered, unlocked);
+  const news = unlockNewsLines(lockedBefore, lockedRunContent({ codex: codexSave, quests: questSave }));
+  return [...metaSummaryLines(outcome, discovered, unlocked), ...news];
 }
 
 function openQuestChoice(frameMoveX: number, frameMoveY: number): void {
@@ -550,7 +557,7 @@ function updateQuestChoice(frame: FrameInput, escape: boolean, arrowX: number, a
 }
 
 function listTabsFor(kind: ListScreenKind): ListTab[] {
-  if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave));
+  if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave), questSave);
   if (kind === "questBoard") return questBoardTabs(questSave);
   if (kind === "tips") return tipsListTabs();
   return achievementTabs(achievementSave, questSave);
