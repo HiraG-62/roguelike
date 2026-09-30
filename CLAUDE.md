@@ -26,7 +26,7 @@
 | `npm run audit:docs` | エージェント資料とコードのずれを検査（`check` の最初の段でも走る） |
 | `npm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、1 武器種 約 30 秒）。`-- --atlas <武器種>` でその武器種だけ、`-- --only <key> --preview <dir>` で確認用 PNG だけ |
 | `npm run sprite` | ドット絵の作業台（`scripts/sprite/cli.mjs`）: `render`（確認用 PNG）/ `lint`（様式書の点検）/ `strip --ase`（Aseprite へ）/ `import`（PNG・.aseprite → `Frame` リテラル）/ `palette` / `gen`（Spriteloom で下絵の案）。手順は `docs/recipes/sprite.md` |
-| `npm run qa:full` | `SIM_FULL=1` でフル QA（数分）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
+| `npm run qa:full` | `SIM_FULL=1` でフル QA（1 時間超。裏で回す）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run qa:probe` | `SIM_PROBE=1` で 1 対 1 / 集団の連打計測（約 1 分）。基準値の `src/qa/probe.md` を上書き。`-- --no-write` で書き出さない。`-- --weapons`（武器種 × 敵）/ `-- --bosses`（章ボス 4 と最深の主）/ `-- --deep`（深みの曲線・到達・壊れの重さ）でその節だけ測って差し替え |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
 | `npm run sync:claude` | ローカルの `~/.claude` を `.claude/global/` へ写す。`-- --check` で差分だけ確認 |

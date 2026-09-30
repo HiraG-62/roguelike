@@ -11,7 +11,7 @@ model: sonnet
 0. 本体に他レーンの未コミット変更が混ざるときは隔離 worktree で回す（`git worktree add <scratchpad>/wt-qa <commit>` → `node_modules` は本体からコピー → その中で実行）。生成された report.md は本体へコピーする
 1. `git show HEAD:src/qa/report.md > <scratchpad>/report.prev.md` で前回版を控える（未コミットの手書き追記があれば先に読む）
 2. `npm run check` を実行。失敗したら失敗テスト名・ファイル・エラーを記録（ここで止めずに 3 へ進むかは失敗の種類で判断。型エラーなら止める）
-3. `npm run qa:full` を実行（数分かかる。timeout は 600000 ms）。`src/qa/report.md` が自動で上書きされる
+3. `npm run qa:full` を実行（1 時間を超えるので Bash の run_in_background で回し、終わりの通知を待つ）。`src/qa/report.md` が自動で上書きされる
 4. 前回版と比べる: 平均到達 depth・死亡率・kills・Reaper 出現・ボス撃破率・step 時間・例外・不変条件違反
 5. 前回版にあった「手書きの調査メモ」（再現手順・原因分析）で、まだ有効なものは新しい report.md の末尾に「## 調査メモ（引き継ぎ）」として戻す
 
