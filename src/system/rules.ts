@@ -1027,7 +1027,7 @@ export function focusTarget(state: GameState): Enemy | undefined {
 }
 
 /** 設置物の置き場（数える・起爆する順。決定性のため固定の順）。配列は state のものをそのまま返す（splice で消す） */
-function placedPools(state: GameState): { pos: Vec }[][] {
+export function placedPools(state: GameState): { pos: Vec }[][] {
   const rs = state.skills;
   return [rs.kegs, rs.graves, rs.turrets, rs.mines, rs.wells, rs.fields, rs.mires ?? [], rs.springs, rs.stakes, rs.traps];
 }

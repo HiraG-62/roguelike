@@ -351,6 +351,15 @@ describe("ダメージ文字の種類（7-19）", () => {
     expect(state.texts.find((t) => t.text === "3")?.kind, "弱点の数字").toBe("weak");
   });
 
+  it("大きなダメージの浮き文字は万で出る", () => {
+    const state = arena(26);
+    const e = placeEnemy(state, "slime", 30);
+    e.hp = 999_999_999;
+    state.texts = [];
+    damageEnemy(state, e, 123_456, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(state.texts.some((t) => t.text === "12.3万"), "10 万以上は万").toBe(true);
+  });
+
   it("継続ダメージは敵ごとに束ねて、間隔ごとに 1 つの小さな数字にする", () => {
     const state = arena(24);
     const e = placeEnemy(state, "slime", 30);

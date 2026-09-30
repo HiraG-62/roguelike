@@ -1,5 +1,6 @@
 import { type DamageKind, type Enemy, type GameState, type VaultKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
+import { formatAmount } from "../core/units";
 import type { HurtCause } from "../core/hurt";
 import { noteHurt } from "./deathCause";
 import { enemyDef, isBossClass } from "../data/enemies";
@@ -305,7 +306,7 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   const comboText = comboDamageText(state.combo.count, textColor, textScale, opts.crit === true);
   const textKind = damageTextKind(state, enemy, opts);
   const look = damageTextLook(textKind, comboText);
-  addFloatingText(state, enemy.body.pos, String(amount), look.color, look.scale, undefined, textKind);
+  addFloatingText(state, enemy.body.pos, formatAmount(amount), look.color, look.scale, undefined, textKind);
   spawnDirectional(state, enemy.body.pos, dir, color, heavy ? HEAVY_PARTICLES : LIGHT_PARTICLES, 140);
   const base = opts.hitstopSteps ?? FEEL.hitstopLight;
   let steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);

@@ -22,6 +22,7 @@ import { updateTerrain } from "../system/terrain";
 import { createTerrainLayer } from "./terrain";
 import { updateHazards } from "../system/hazards";
 import { updateReaper } from "../system/reaper";
+import { enforceLimits } from "../system/limits";
 import { createSkillRunState } from "../system/skills";
 import { syncTurretShots } from "../skills/summons";
 import { createDefaultSkillProfile } from "../skills/persistence";
@@ -200,6 +201,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   updateCombo(state, gdt);
   syncTurretShots(state); // 近接の振りに合わせて砲台を撃つ（resolveRules が state.events を空にする直前）
   resolveRules(state, gdt);
+  enforceLimits(state);
   updateEffects(state, gdt);
   updateCamera(state, dt, VIEW_W, VIEW_H);
 }

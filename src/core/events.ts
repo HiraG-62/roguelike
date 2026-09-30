@@ -162,6 +162,8 @@ export interface RuleRunState {
   playerTerrain: string;
   /** 上限（maxEventsPerStep / maxPendingEvents）で捨てたイベントの累計。黙って消えると連鎖の不発を追えないので数える */
   droppedEvents: number;
+  /** 性能の歯止め（system/limits.ts の LIMITS）で古い順に消した弾・設置物の累計 */
+  trimmed: number;
 }
 
 export function createRuleRunState(): RuleRunState {
@@ -174,6 +176,7 @@ export function createRuleRunState(): RuleRunState {
     keywordWindowLeft: SYNERGY.keywordWindow,
     playerTerrain: "none",
     droppedEvents: 0,
+    trimmed: 0,
   };
 }
 
