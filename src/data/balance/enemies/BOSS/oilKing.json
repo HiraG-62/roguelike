@@ -1,4 +1,8 @@
 {
+  "_fields": {
+    "ignitesToDrench": "第 2 段階: 王を燃える床へ誘って引火させると第 3 段階（油まみれ）へ進む回数（生命に関わらず）",
+    "chargeChain": "第 3 段階: 突進が壁に当たらなければ続けて出す回数"
+  },
   "jarCount": 3,
   "jarSpread": 50,
   "jarRadius": 24,
@@ -18,5 +22,7 @@
   "igniteCooldown": 8,
   "phase2Ratio": 0.6,
   "phase3Ratio": 0.3,
+  "ignitesToDrench": 2,
+  "chargeChain": 1,
   "color": "#c09050"
 }
