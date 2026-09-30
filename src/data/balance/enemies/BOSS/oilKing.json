@@ -1,4 +1,5 @@
 {
+  "_note": "章ボス調整: stats の hp 1000→2400 / contactDamage 20→10、jarDamage 10→7 / fireBombDamage 16→10 / slamDamage 20→13。撃破 26 秒が目標 60〜120 を下回るため生命を上げ、長い戦いで bot が倒れないよう 1 発を軽くした",
   "_fields": {
     "ignitesToDrench": "第 2 段階: 王を燃える床へ誘って引火させると第 3 段階（油まみれ）へ進む回数（生命に関わらず）",
     "chargeChain": "第 3 段階: 突進が壁に当たらなければ続けて出す回数"
@@ -7,17 +8,17 @@
   "jarSpread": 50,
   "jarRadius": 24,
   "jarBlast": 18,
-  "jarDamage": 10,
+  "jarDamage": 7,
   "jarFall": 1,
   "chargeSpeedMul": 5.5,
   "chargeTime": 0.7,
   "wallStagger": 1.2,
   "fireBombRadius": 34,
-  "fireBombDamage": 16,
+  "fireBombDamage": 10,
   "trailInterval": 0.2,
   "trailRadius": 10,
   "slamRadius": 70,
-  "slamDamage": 20,
+  "slamDamage": 13,
   "igniteStagger": 2,
   "igniteCooldown": 8,
   "phase2Ratio": 0.6,

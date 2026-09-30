@@ -1,4 +1,5 @@
 {
+  "_note": "章ボス調整（probe --bosses・深度相応の装備の bot）: stats の hp 700→1250 / contactDamage 18→12、shockDamage 17→11 / waveDamage 16→10。撃破 30 秒が目標 40〜90 を下回り、bot の最大生命が 80 前後で 4 発で落ちるため、生命を上げる分だけ 1 発を軽くした",
   "_fields": {
     "stillJumpChain": "第 1 段階: 着地の時点でプレイヤーが止まっていれば続けて跳ぶ回数",
     "acidRadius": "第 2 段階: 跳躍の着地点に残す毒沼の半径（px）",
@@ -18,7 +19,7 @@
   },
   "jumpTime": 0.9,
   "shockRadius": 60,
-  "shockDamage": 17,
+  "shockDamage": 11,
   "phase2Ratio": 0.5,
   "splitCount": 3,
   "phase2SpeedMul": 1.6,
@@ -35,7 +36,7 @@
   "inflateWindup": 1.4,
   "waveCount": 3,
   "waveGap": 0.5,
-  "waveDamage": 16,
+  "waveDamage": 10,
   "cornerSafeRatio": 0.8,
   "exhaustTime": 2.5
 }

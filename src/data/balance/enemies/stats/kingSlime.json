@@ -1,8 +1,8 @@
 {
   "radius": 14,
-  "hp": 700,
+  "hp": 1250,
   "speed": 45,
-  "contactDamage": 18,
+  "contactDamage": 12,
   "windup": 0.9,
   "strikeTime": 0.7,
   "recover": 0.72,
