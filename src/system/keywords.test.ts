@@ -260,10 +260,10 @@ describe("装備の語の推論", () => {
   });
 
   it("スキル石は命中で付ける状態異常とマナ消費、差した刻印符の語も持つ", () => {
-    const p = skillKeywords(SKILL_DEFS.commonThunderclap, ["curse"]);
+    const p = skillKeywords(SKILL_DEFS.commonThunderclap, ["burst"]);
     expect(p.produces.includes("shock"), "雷鳴の感電").toBe(true);
     expect(p.consumes.includes("mana"), "マナ型はマナを食う").toBe(true);
-    expect(p.produces.includes("vulnerable"), "刻印符 呪い の脆弱").toBe(true);
+    expect(p.produces.includes("explode"), "刻印符 爆ぜ の爆発").toBe(true);
   });
 });
 

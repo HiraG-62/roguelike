@@ -78,14 +78,14 @@ export function spawnWell(state: GameState, target: Vec, params: CastParams): vo
   spawnRing(state, target, wellRadius(params), COLOR_WELL, RING_LIFE);
 }
 
-/** 地雷: 上限を超えたら古いものから不発で消える。投げ込み（型替え）は着いた瞬間に爆発する */
+/** 地雷: 上限を超えたら古いものから不発で消える。照準起点（型替え）は照準地点へ投げ込み、着いた瞬間に爆発する */
 export function placeMine(state: GameState, pos: Vec, params: CastParams): void {
   if (params.reshape === "toLobbed") {
     explodeMine(state, pos, params);
     return;
   }
   const rs = state.skills;
-  // 起動の遅れは速度（timeMul）、残る時間は延長（durationMul）で変わる
+  // 起動の遅れは速度（timeMul）、残る時間は持続（durationMul）で変わる
   rs.mines.push({ id: allocId(state), pos: { ...pos }, arm: SKILL.mines.arm * params.timeMul, life: SKILL.mines.life * params.durationMul, params });
   const limit = maxMines(params);
   while (rs.mines.length > limit) {

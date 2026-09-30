@@ -8,7 +8,7 @@ import type { GameMap } from "../map/grid";
 import type { MovesetDef, MovesetKey } from "../data/weapons";
 import type { AttrRatio, Scaling } from "../loot/types";
 import { ART_SKILL_KEYS } from "./arts/keys";
-import type { ArtActsTransform, ArtPending } from "./arts/types";
+import type { ArtAct, ArtActsTransform, ArtPending } from "./arts/types";
 
 /**
  * スキルシステムの共有型。docs/ideas/skills.md「6-1」「7. 最小実装の仕様」。
@@ -98,84 +98,57 @@ export type LegacySkillKey = (typeof LEGACY_SKILL_KEYS)[number];
 export const SKILL_KEYS = [...LEGACY_SKILL_KEYS, ...ART_SKILL_KEYS] as const;
 export type SkillKey = (typeof SKILL_KEYS)[number];
 
-/** 最小実装の 4 + 追加の 7 */
-export const BASE_MODIFIER_KEYS = [
-  "multiCharge",
-  "bloodPrice",
-  "comboFuel",
-  "echo",
-  "pierce",
-  "recoil",
-  "chainReset",
-  "curse",
-  "delay",
-  "expand",
-  "charge",
-] as const;
+/**
+ * 刻印符 30（段取り 7c。docs/ideas/skills-7c-plan.md 4 章）。数値の置き場で 3 つに分ける（balance.test.ts が JSON と突き合わせる）。
+ * 変形（技の形を変える）: 数値は data/balance/skills/SKILL/modifier.json、定義は skills/modifiers.ts
+ */
+export const BASE_MODIFIER_KEYS = ["delay", "echo", "charge", "pierce", "tether", "focus", "ghost", "chain", "burst", "leyline"] as const;
+export type BaseModifierKey = (typeof BASE_MODIFIER_KEYS)[number];
 
-/** 大拡張の刻印符（docs/ideas/skills-expansion.md 2 章）と型替え符（3 章）。定義は skills/modifiers.ts */
+/** 循環（気力・再使用の回し方）: 数値は EXTRA_MODIFIER_TUNING.json、定義は skills/modifiers.ts */
 export const EXTRA_MODIFIER_KEYS = [
-  "deferred",
-  "refund",
-  "bloodTithe",
+  "bloodPrice",
   "spillover",
-  "dryFire",
-  "bladeFeed",
-  "timeLock",
-  "fuelize",
+  "streak",
+  "refund",
   "overheat",
-  "heavy",
-  "feather",
-  "repel",
-  "tether",
-  "linger",
-  "spread",
-  "followUp",
-  "lastGasp",
-  "sustain",
-  "landing",
+  "patience",
+  "sympathy",
   "desperate",
-  "attune",
-  "cycle",
-  "flank",
-  "pointBlank",
-  "longshot",
-  // ---- 型替え符（リンク 2 本・1 スロットに 1 枚まで） ----
-  "toThrown",
-  "toLobbed",
-  "toStaged",
+  "offering",
+  "ledger",
 ] as const;
 export type ExtraModifierKey = (typeof EXTRA_MODIFIER_KEYS)[number];
 
-/** 第 2 弾の刻印符（属性・地形・ジョブ・変身）と型替え符。定義は skills/modifiers2.ts */
+/**
+ * 変形のうち行為の列・起点・発動の時機を変えるもの（技だけに付く 5 枚・起点の型替え 3 枚・連動 2 枚）:
+ * 数値は WAVE2_MODIFIER_TUNING.json、定義は skills/modifiers2.ts
+ */
 export const WAVE2_MODIFIER_KEYS = [
-  "fireInfuse",
-  "iceInfuse",
-  "stormInfuse",
-  "venomInfuse",
-  "breakInfuse",
-  "hueInfuse",
-  "leyline",
-  /** 地崩れ: 地裂き専用。命中線に崩れる床を残す（2026-09-24 第 4 弾） */
-  "crumble",
-  "jobMastery",
-  "weaponBond",
-  "formSurge",
-  "formLinger",
-  // ---- 型替え符 ----
+  "split",
+  "orbit",
+  "tripleHit",
+  "recall",
+  "trail",
+  "toTarget",
   "toNova",
-  "toTrap",
+  "linger",
+  "autoFinisher",
+  "autoRiposte",
 ] as const;
 export type Wave2ModifierKey = (typeof WAVE2_MODIFIER_KEYS)[number];
 
 export const MODIFIER_KEYS = [...BASE_MODIFIER_KEYS, ...EXTRA_MODIFIER_KEYS, ...WAVE2_MODIFIER_KEYS] as const;
 export type ModifierKey = (typeof MODIFIER_KEYS)[number];
 
-/** 型替え符の種類。castSlot の入口で発動の「型」を差し替える */
-export type ReshapeKey = "toThrown" | "toLobbed" | "toStaged" | "toNova" | "toTrap";
+/**
+ * 型替え符が差し替える発動の型（castSlot の入口で読む）。toThrown / toLobbed = 照準起点（近接 / 置くもの）、
+ * toNova = 足元起点、toTrap = 据え置き
+ */
+export type ReshapeKey = "toThrown" | "toLobbed" | "toNova" | "toTrap";
 
-/** 距離で威力が変わる刻印符（至近 / 遠当て） */
-export type RangeBias = "pointBlank" | "longshot";
+/** 技の弾の動き（旋回 = 自分の周りを回る / 戻り刃 = 行って戻る）。skills/arts/engine.ts が弾を操る */
+export type ShotPath = "orbit" | "recall";
 
 /** 連携（docs/ideas/skills-expansion.md 4 章）。定義は skills/combos.ts */
 export type ComboKey =
@@ -274,108 +247,77 @@ export interface CastParams {
   charges: number;
   /** 回数 / 弾数の加算 */
   countBonus: number;
-  /** 発動時に払う最大 HP 割合（0 なら無し） */
-  hpCostFraction: number;
-  comboFuel: { perStack: number; cap: number; emptyMul: number } | null;
   echo: { delay: number; damageMul: number } | null;
+  /** 分身: 撃った時の自分の位置から、この秒数後に同じスキルをもう一度（反響と同じ写しの仕組み） */
+  ghost: { delay: number; damageMul: number } | null;
   /** 貫通数（弾・鎖が追加で抜ける敵の数） */
   pierce: number;
-  /** 反動: 発動時に照準の逆へ跳ぶ速度（0 なら無し） */
-  recoil: number;
-  /** 連鎖: このスキルで敵を倒すとチャージ +1 */
-  killRefund: boolean;
-  /** 呪い: ヒットした敵に刻印。刻印中の敵へのスキル被ダメ倍率 */
-  curse: { duration: number; bonus: number } | null;
   /** 遅延: この秒数後に発動地点で発動する */
   delay: { time: number; damageMul: number } | null;
-  /** 発動したスロット（連鎖の返却先）。resolveCast の時点では -1 */
+  /** 発動したスロット。resolveCast の時点では -1 */
   slot: number;
-  /** マナ型の最低間隔倍率（多重） */
+  /** 最低間隔の倍率 */
   intervalMul: number;
-  /** 連鎖（マナ型）: 撃破でコストのこの割合を返す。0 なら無し */
-  killManaRefund: number;
   /** どのスキルの発動か（怯み値・付与の状態異常を引くため。反響・遅延でも同じ値が残る） */
   skillKey: SkillKey;
-  /** この発動で実際に払ったマナ（連鎖の返却・撃ち抜きのキャンセル返却の基準）。resolveCast の時点では 0 */
+  /** この発動で実際に払ったマナ（巡りの返却の基準）。resolveCast の時点では 0 */
   manaPaid: number;
   /**
    * この発動で払い戻せるマナの残り（上限 = manaPaid）。反響・遅延・設置物の写しと同じ参照を共有し、
-   * 複数撃破や反響の撃破で払った以上に戻らないようにする。castSlot が発動ごとに新しく作る
+   * 払った以上に戻らないようにする。castSlot が発動ごとに新しく作る
    */
   refundPool: { left: number };
-  // ---- 大拡張（docs/ideas/skills-expansion.md 2〜4 章） ----
-  /** 実際に使う資源。定刻（mana → cooldown）・燃料化（cooldown → mana）で def.resource と変わる */
+  /** 実際に使う資源（def.resource の写し） */
   resource: SkillResource;
-  /** 負担の基準値。マナ型ならコスト、CD 型なら CD（定刻・燃料化で差し替わる） */
+  /** 負担の基準値。マナ型ならコスト、CD 型なら CD */
   baseCost: number;
   baseCooldown: number;
-  /** 怯み値の倍率（重撃 / 軽打） */
+  /** 怯み値の倍率 */
   poiseMul: number;
   /** ノックバックの倍率。負なら発動地点へ引く（手繰り） */
   knockbackMul: number;
-  /** 突き放し: 怯んでいない敵への押し出しの軽減を打ち消し、壁叩きつけを狙える */
-  repel: boolean;
-  /** 付与する状態異常の持続倍率（延命） */
+  /** 付与する状態異常の持続倍率 */
   statusDurationMul: number;
-  /** 伝播: 付与した状態異常が近くの 1 体にも付く */
-  spread: boolean;
-  /** 返金: 命中 1 回ごとに払ったコストのこの割合を返す（0 なら無し） */
+  /** 巡り: 命中 1 回ごとに払ったコストのこの割合を返す（0 なら無し） */
   refundPerHit: number;
-  /** 返金の上限（払ったコストのうち返せる残り）。発動ごとに castSlot が作る */
+  /** 巡りの上限（払ったコストのうち返せる残り）。発動ごとに castSlot が作る */
   hitRefundPool: { left: number };
-  /** 追撃: 命中した敵に印。印中の近接で追加ヒット */
-  followUp: boolean;
-  /** 散り際: このスキルで倒した敵の位置で、この倍率の同じスキルが起きる（null なら無し） */
-  lastGasp: number | null;
-  /** 着地衝撃: 移動スキルの終点で小さな衝撃波 */
-  landing: boolean;
-  /** 背面: 敵の背後から当てると強い（正面は弱い） */
-  flank: boolean;
-  /** 至近 / 遠当て */
-  rangeBias: RangeBias | null;
-  /** 同調: 金の支配共鳴のとき会心の一撃だけ伸びる */
-  attuneCrit: boolean;
-  /** 後払い: 発動時は払わず、少し後にコスト × この倍率を払う（0 なら無し） */
-  deferredMul: number;
-  /** 血の肩代わり: マナ不足でも撃て、不足分を HP で払う */
-  bloodTithe: boolean;
-  /** 状態で変わる刻印符（溢れ / 渇き撃ち / 刃の給油 / 過熱 / 背水 / 同調 / 巡り）。発動時に system/skills.ts が読む */
+  /** 血の代償: 気力が足りなくても撃て、不足分を生命で払う */
+  bloodPrice: boolean;
+  /** 状態で変わる刻印符（溢れ撃ち / 刻み撃ち / 過熱 / 蓄え / 呼応 / 背水 / 捧げ / 帳）。発動時に system/skills.ts が読む */
   spillover: boolean;
-  dryFire: boolean;
-  bladeFeed: boolean;
+  streak: boolean;
   overheat: boolean;
+  patience: boolean;
+  sympathy: boolean;
   desperate: boolean;
-  attune: boolean;
-  cycle: boolean;
+  offering: boolean;
+  ledger: boolean;
   /** 型替え符 */
   reshape: ReshapeKey | null;
   /** 成立した連携（反響・遅延の写しにも残る） */
   combo: ComboKey | null;
-  /** 発動した位置（至近 / 遠当ての距離の基準）。resolveCast の時点では原点 */
+  /** 発動した位置。resolveCast の時点では原点 */
   origin: Vec;
   /** この発動で命中した敵 id（連携の「直前の発動」が読む）。castSlot が発動ごとに作る */
   hitLog: Set<number>;
-  /** 散り際の残り回数（発動 1 回ぶんで共有） */
-  gaspPool: { left: number };
-  // ---- 第 2 弾（属性・地形・ジョブ・変身） ----
-  /** 属性の差し替え（属性の刻印符・武器写し・移ろい刃）。null なら SKILL_ATTACK のまま */
+  /** 属性の差し替え（杖の型・移ろい刃）。null なら SKILL_ATTACK のまま */
   element: Element | null;
-  /** 命中で追加に付ける状態異常（属性の刻印符・揺さぶり）。スキル本来の付与とは別に付く */
-  extraApplies: readonly StatusApply[];
-  /** 彩り: 命中で共鳴の色の彩痕を付ける */
-  hueInfuse: boolean;
-  /** 地染め: 命中した位置に属性の地形を置く。残り回数は発動 1 回ぶんで共有 */
+  /** 地形化: 命中した位置に属性の地形を置く。残り回数は発動 1 回ぶんで共有 */
   leyline: boolean;
   leyPool: { left: number };
-  /** 地崩れ: 命中した敵までの線に崩れる床を残す（skills/hit.ts） */
-  crumble: boolean;
-  /** 心得 / 武器写し / 化身: 発動時の状態で決まる（system/skills.ts の wave2CastState が読む） */
-  jobMastery: boolean;
-  weaponBond: boolean;
-  formSurge: boolean;
-  /** 変身の持続と、切れた後の反動の倍率（深化） */
-  formDurationMul: number;
-  formRecoverMul: number;
+  /** 連鎖: 命中点から次の敵へ跳ぶ。残り回数は発動 1 回ぶんで共有 */
+  chain: boolean;
+  chainPool: { left: number };
+  /** 爆ぜ: 命中点で小爆発。残り回数は発動 1 回ぶんで共有 */
+  burst: boolean;
+  burstPool: { left: number };
+  /** 技の行為の列を作り替える刻印符（付けた順。ModifierDef.transform を持つ符）。skills/arts/engine.ts が型の変形の後に当てる */
+  artTransforms: readonly ModifierKey[];
+  /** 技の弾の動き（旋回 / 戻り刃）。null なら真っ直ぐ */
+  shotPath: ShotPath | null;
+  /** 軌跡: 技の踏み込み・跳躍の通り道に攻撃の属性の地形 */
+  trail: boolean;
 }
 
 /** 刻印符の表示上の区分 */
@@ -396,26 +338,24 @@ export interface ModifierDef {
   requiresTags?: readonly SkillTag[];
   /** 個別に付けられないスキル（効果が既に内蔵されているもの） */
   excludesSkills?: readonly SkillKey[];
-  /** 指定があれば、このスキルにだけ付けられる（地崩れ = 地裂き専用） */
-  onlySkills?: readonly SkillKey[];
   /** マナ型スキルでの効果の説明。無ければ verb と同じ（docs/COMBAT_DESIGN.md B-5 で読み替えるものだけ持つ） */
   manaVerb?: string;
   /** 指定があれば、この資源のスキルにだけ付けられる */
   requiresResource?: SkillResource;
-  /** true なら SkillDef.applies を持つスキルにだけ付けられる */
-  requiresApplies?: boolean;
   /** 同じスロットで同時に効かない刻印符（古い方が効き、後から刺した方は無効） */
   excludesModifiers?: readonly ModifierKey[];
   /** true なら与ダメを持つスキル（damageKind が none でない）にだけ付けられる */
   requiresDamage?: boolean;
   /** 使うリンクの本数（既定 1。型替え符は 2） */
   linkCost?: number;
-  /** 型替え符か（1 スロットに 1 枚まで） */
-  reshape?: ReshapeKey;
+  /** 型替え符か（起点・発動の型を差し替える。1 スロットに 1 枚まで） */
+  reshape?: boolean;
   /** 表示用の区分（変形 = shape / 循環 = cycle）。効き方は変えない（docs/ideas/skills-7c-plan.md 4-1） */
   family?: ModifierFamily;
-  /** 技の行為の列を作り替える純関数。技（ArtSkillKey）にだけ付けられる。手書きのスキルには apply だけが効く */
+  /** 技の行為の列を作り替える純関数。transform か fitsArt を持つ符は技（ArtSkillKey）にだけ付く（型替え符は手書きにも付き、手書きには apply だけが効く） */
   transform?: ArtActsTransform;
+  /** 技に付けられるか（行為の列で判定する。弾が無い技に旋回を付けない など）。省略は transform を当てて列が変わるか */
+  fitsArt?: (acts: readonly ArtAct[]) => boolean;
   /** 指定があれば、その出来事（武器の終撃 / 応手）と同時にこのスキルを撃つ */
   autoCast?: AutoCastTrigger;
   /** def はマナ型 / CD 型で効果を読み替えるために渡す */
@@ -496,6 +436,12 @@ export interface SkillSlotState {
   /** 過熱: 続けて撃った回数と、途切れるまでの残り秒 */
   heat: number;
   heatTimer: number;
+  /** 最後に撃った SkillRunState.clock（蓄え・呼応）。まだ撃っていなければ省略 */
+  lastCastAt?: number;
+  /** 刻み撃ち: このスロットを続けて撃った回数（他のスロットを撃つと 0） */
+  streak?: number;
+  /** 帳: 撃った数（every 発ごとに無料で撃って 0 に戻る） */
+  ledger?: number;
   /** 移ろい刃: 次に撃つ属性の番号（撃つたびに進む） */
   elementStep: number;
 }
@@ -528,10 +474,10 @@ export interface ActiveCast {
 export interface EchoCast {
   timer: number;
   /**
-   * echo: 反響の再発動 / delay: 遅延の本発動（予兆の円を出す）/
-   * thrown: 型替え符「投げ刃」の着弾（origin が着弾点）/ gasp: 刻印符「散り際」
+   * echo: 反響・分身の再発動 / delay: 遅延の本発動（予兆の円を出す）/
+   * thrown: 型替え符「照準起点」の近接の着弾（origin が着弾点）
    */
-  kind: "echo" | "delay" | "thrown" | "gasp";
+  kind: "echo" | "delay" | "thrown";
   total: number;
   skillKey: SkillKey;
   origin: Vec;
@@ -649,7 +595,7 @@ export interface ShapeFormState {
   elapsed: number;
   /** 持続の秒（0 なら時間で切れない） */
   total: number;
-  /** 解けた後の反動の秒（深化で伸びる） */
+  /** 解けた後の反動の秒 */
   recover: number;
   /** 発動時の最終パラメータ（噛みつき・砲撃・出血の強さはここから読む） */
   params: CastParams;
@@ -670,7 +616,7 @@ export interface WardStake {
   params: CastParams;
 }
 
-/** 型替え符「罠化」の罠。敵が近づくと元のスキルが罠の位置から発動する */
+/** 型替え符「据え置き」の罠。敵が近づくと元のスキルが罠の位置から発動する */
 export interface SkillTrap {
   id: number;
   pos: Vec;
@@ -699,18 +645,23 @@ export interface LastCast {
   hitIds: Set<number>;
 }
 
-/** 散り際の予約（skills/hit.ts が積み、system/skills.ts が発動する） */
-export interface GaspRequest {
-  pos: Vec;
-  dir: Vec;
-  params: CastParams;
+/** 連動の予約（終撃・応手の瞬間に積み、次の updateSkills が撃つ）。target は起点の敵の位置 */
+export interface AutoCastRequest {
+  slot: number;
+  trigger: AutoCastTrigger;
+  target: Vec;
 }
 
-/** 後払いの返済予約 */
-export interface SkillDebt {
-  slot: number;
+/** 旋回・戻り刃の弾の操り（skills/arts/engine.ts）。弾本体は SkillRunState.shots にあり、id で引く */
+export interface ShotSteer {
+  shotId: number;
+  path: ShotPath;
+  /** 旋回: 自分から見た弾の角度（ラジアン） */
+  angle: number;
+  /** 旋回: 同じ敵にもう一度当たれるまでの残り秒 / 戻り刃: 折り返すまでの残り秒 */
   timer: number;
-  amount: number;
+  /** 戻り刃: 折り返して自分へ戻っているか */
+  returning: boolean;
 }
 
 export interface RuneTablet {
@@ -753,8 +704,6 @@ export interface SkillRunState {
   haste: TimedMul;
   /** 加速の反動: この間ダッシュ不可 */
   exhaustTimer: number;
-  /** 呪い: 敵 id → 残り秒と倍率 */
-  curses: Map<number, { time: number; bonus: number }>;
   parryTimer: number;
   parryFailTimer: number;
   notReadyTimer: number;
@@ -765,7 +714,7 @@ export interface SkillRunState {
   /** HUD: マナ不足の点滅の残り秒 */
   manaFlash: number;
   // ---- 大拡張 ----
-  /** スキル側の経過秒（updateSkills が dt で進める）。連携・刃の給油・恨み返し・巻き戻しの時刻はこれで測る */
+  /** スキル側の経過秒（updateSkills が dt で進める）。連携・恨み返し・巻き戻し・蓄え・呼応の時刻はこれで測る */
   clock: number;
   shots: SkillShot[];
   kegs: PowderKeg[];
@@ -774,20 +723,8 @@ export interface SkillRunState {
   springs: ManaSpring[];
   /** 連携: 直前の手動発動（パリィは成功した瞬間） */
   lastCast: LastCast | null;
-  /** 巡り: 直近の手動発動のスロット（新しい順、最大 2） */
+  /** 直近の発動のスロット（新しい順、最大 2。刻み撃ち・呼応が読む） */
   recentSlots: number[];
-  /** 刃の給油: 最後に近接を当てた clock（まだなら null） */
-  lastMeleeHitAt: number | null;
-  /** 追撃の印: 敵 id → 残り秒と追加ヒットの威力 */
-  marks: Map<number, { time: number; power: number }>;
-  gasps: GaspRequest[];
-  /** 後払いの返済予約 */
-  debts: SkillDebt[];
-  /**
-   * 後払いの返済残（マナ量）。返済期限に HP が 1 まで削れても払いきれなかった分。
-   * 0 でない間はマナの自然回復と通常攻撃のマナ回収が止まり、ほかのマナ回収（撃破など）は先にここへ充てる（system/mana.ts）
-   */
-  debtOwed: number;
   /** 巻き戻し用の履歴（古い順） */
   history: SkillHistoryEntry[];
   historyTimer: number;
@@ -810,6 +747,11 @@ export interface SkillRunState {
   traps: SkillTrap[];
   /** 技の遅れて出る行為（skills/arts/engine.ts）。後から足したので省略可（最初に積んだときに作る） */
   artQueue?: ArtPending[];
+  /** 旋回・戻り刃の弾の操り（skills/arts/engine.ts）。省略可 */
+  steers?: ShotSteer[];
+  /** 連動（終撃連動・応手連動）の予約と、起点ごとに最後に積んだ clock（1 回の終撃で 1 回だけ撃つため）。省略可 */
+  autoCasts?: AutoCastRequest[];
+  autoCastAt?: Partial<Record<AutoCastTrigger, number>>;
   // ---- 段取り 5d: 書・鈴の型（system/tomeBell.ts）。後から足したので省略可 ----
   /** 書の無詠唱: 次の気力のスキル 1 回の気力が 0 */
   freeCast?: boolean;

@@ -16,10 +16,9 @@ import { placeTerrain, terrainAt } from "../system/terrain";
 import { arena, placeEnemy, withInput } from "../system/testHelpers";
 import { HUE_RELEASE_TRIGGER, SHIFT_CYCLE, levelGroundMul, shiftElement } from "./actions2";
 import { COMBOS } from "./combos";
-import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, resolveCast } from "./data";
+import { MODIFIERS, SKILL, SKILL_DEFS, canAttach } from "./data";
 import { stoneFromSeed } from "./generator";
-import { castAttack } from "./hit";
-import { INFUSE_STATUS } from "./modifiers2";
+import { LEYLINE_TERRAIN } from "./hit";
 import { type ModifierKey, type SkillKey, type SkillStone, WAVE2_MODIFIER_KEYS, WAVE2_SKILL_KEYS } from "./types";
 
 /**
@@ -257,8 +256,9 @@ describe("新しい状態異常を出す・食う", () => {
     expect(hue?.potency).toBe(TRAIT_COLORS.indexOf("azure"));
   });
 
-  it("彩刻: 効果量が変わっても（血の代償）彩痕の色はずれない", () => {
-    const state = skillArena([{ key: "hueEtch", links: 1, modifiers: ["bloodPrice"] }]);
+  it("彩刻: 効果量が変わっても（捧げ）彩痕の色はずれない", () => {
+    const state = skillArena([{ key: "hueEtch", links: 1, modifiers: ["offering"] }]);
+    state.player.energy = state.player.maxEnergy;
     withResonance(state, "umbra");
     const e = tough(state, 25);
     cast(state);
@@ -334,98 +334,17 @@ describe("結界杭", () => {
   });
 });
 
-describe("第 2 弾の刻印符", () => {
-  it.each(["fireInfuse", "iceInfuse", "stormInfuse", "venomInfuse", "breakInfuse"] as const)("%s: 命中で状態異常を付ける", (mod) => {
-    // 1 回だけ当てる技（多段だと感電が重なって麻痺に変わる）
-    const state = skillArena([{ key: "exploit", links: 1, modifiers: [mod] }]);
-    const e = tough(state, 15);
-    cast(state);
-    run(state, 0.1);
-    const kind = INFUSE_STATUS[mod][0]?.kind;
-    if (!kind) throw new Error("付与が無い");
-    expect(has(e, kind) || (kind === "chill" && has(e, "freeze"))).toBe(true);
-  });
-
-  it("属性の刻印符は発動の属性を差し替える（ジャンルはそのまま）", () => {
-    const p = resolveCast(SKILL_DEFS.chainHook, makeStone({ key: "chainHook", links: 1 }), ["fireInfuse"]);
-    expect(castAttack(p)?.element).toBe("fire");
-    expect(castAttack(p)?.genre).toEqual(castAttack(resolveCast(SKILL_DEFS.chainHook, makeStone({ key: "chainHook" }), []))?.genre);
-  });
-
-  it("属性を差し替える刻印符同士は同時に効かない（古い方が効く）", () => {
-    const p = resolveCast(SKILL_DEFS.chainHook, makeStone({ key: "chainHook", links: 2 }), ["iceInfuse", "fireInfuse"]);
-    expect(p.element).toBe("ice");
-  });
-
-  it("彩り: 共鳴している状態異常の色の彩痕を付ける。共鳴が無ければ付かない", () => {
-    const state = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["hueInfuse"] }]);
-    withResonance(state, "crimson");
-    const e = tough(state, 15);
-    cast(state);
-    run(state, 0.5);
-    expect(e.status.effects.find((s) => s.kind === "hue")?.potency).toBe(TRAIT_COLORS.indexOf("crimson"));
-    const none = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["hueInfuse"] }]);
-    const f = tough(none, 15);
-    cast(none);
-    run(none, 0.5);
-    expect(has(f, "hue")).toBe(false);
-  });
-
-  it("地染め: 命中した位置に属性の地形が湧く（炎化なら炎）。1 回の発動で上限まで", () => {
-    const state = skillArena([{ key: "verdict", links: 2, modifiers: ["fireInfuse", "leyline"] }]);
+describe("第 2 弾のスキルと刻印符", () => {
+  it("地形化: 命中した位置に攻撃の属性の地形が湧く（光の裁きなら水たまり）", () => {
+    const state = skillArena([{ key: "verdict", links: 1, modifiers: ["leyline"] }]);
     const e = tough(state, 20);
     const at = { ...e.body.pos };
     cast(state);
     run(state, 0.05);
-    expect(terrainAt(state, at.x, at.y)).toBe("fire");
+    expect(terrainAt(state, at.x, at.y)).toBe(LEYLINE_TERRAIN.light);
   });
 
-  it("心得: ジョブの得意な武器種なら強く、そうでなければ弱い", () => {
-    const hit = (job: GameState["job"]): number => {
-      const state = skillArena([{ key: "comboChain", links: 1, modifiers: ["jobMastery"] }]);
-      state.job = job;
-      cast(state);
-      return state.skills.active?.params.damageMul ?? 0;
-    };
-    const m = SKILL.modifier.jobMastery;
-    expect(hit("swordsman") / hit("hunter")).toBeCloseTo(m.favoredMul / m.otherMul, 1);
-  });
-
-  it("武器写し: 雷の鞭なら雷属性、無属性の剣なら素の冴えで強い", () => {
-    const state = skillArena([{ key: "comboChain", links: 1, modifiers: ["weaponBond"] }]);
-    state.stats = { ...state.stats, moveset: "whip" };
-    const e = tough(state, 20);
-    cast(state);
-    expect(state.skills.active?.params.element).toBe("lightning");
-    run(state, 0.3);
-    expect(lost(e)).toBeGreaterThan(0);
-    const sword = skillArena([{ key: "comboChain", links: 1, modifiers: ["weaponBond"] }]);
-    cast(sword);
-    expect(sword.skills.active?.params.damageMul).toBeCloseTo(SKILL.modifier.weaponBond.plainMul);
-  });
-
-  it("化身: 変身中は強く、変身していなければ弱い", () => {
-    const state = skillArena([{ key: "pyreForm" }, { key: "comboChain", links: 1, modifiers: ["formSurge"] }]);
-    cast(state, undefined, 1);
-    const before = state.skills.active?.params.damageMul ?? 0;
-    run(state, SKILL.comboChain.gap * SKILL.comboChain.maxStages + 0.1);
-    state.player.mana = state.stats.maxMana;
-    cast(state, undefined, 0);
-    waitReady(state, 1);
-    cast(state, undefined, 1);
-    const after = state.skills.active?.params.damageMul ?? 0;
-    const m = SKILL.modifier.formSurge;
-    expect(after / before).toBeCloseTo(m.formMul / m.otherMul);
-  });
-
-  it("深化: 変身の持続と反動が伸びる", () => {
-    const state = skillArena([{ key: "wolfForm", links: 1, modifiers: ["formLinger"] }]);
-    cast(state);
-    expect(state.skills.shape?.total).toBeCloseTo(SKILL.wolfForm.duration * SKILL.modifier.formLinger.durationMul);
-    expect(state.skills.shape?.recover).toBeCloseTo(SKILL.wolfForm.recover * SKILL.modifier.formLinger.recoverMul);
-  });
-
-  it("自己中心化: 水瓶が照準地点ではなく足元で割れる", () => {
+  it("足元起点: 水瓶が照準地点ではなく足元で割れる", () => {
     const state = skillArena([{ key: "waterJar", links: 2, modifiers: ["toNova"] }]);
     const me = { ...state.player.body.pos };
     const far = ahead(state, 90);
@@ -434,28 +353,26 @@ describe("第 2 弾の刻印符", () => {
     expect(terrainAt(state, far.x, far.y)).toBe("none");
   });
 
-  it("罠化: 旋風斬りは撃たずに罠を置き、敵が近づくと罠の位置で回る", () => {
-    const state = skillArena([{ key: "commonWhirl", links: 2, modifiers: ["toTrap"] }]);
+  it("据え置き: 旋風斬りは撃たずに罠を置き、敵が近づくと罠の位置で回る", () => {
+    const state = skillArena([{ key: "commonWhirl", links: 2, modifiers: ["linger"] }]);
     const near = tough(state, 15);
     const at = ahead(state, 80);
     cast(state, at);
     expect(lost(near), "その場では回らない").toBe(0);
     expect(state.skills.traps).toHaveLength(1);
-    run(state, SKILL.modifier.toTrap.arm + 0.05);
+    run(state, SKILL.modifier.linger.arm + 0.05);
     const e = tough(state, 80);
     run(state, 0.5);
     expect(state.skills.traps).toHaveLength(0);
     expect(lost(e)).toBeGreaterThan(0);
   });
 
-  it("第 2 弾の刻印符はすべて定義され、どれかのスキルに付く", () => {
+  it("行為の列・起点・連動の刻印符はすべて定義され、どれかのスキルに付く", () => {
     for (const mod of WAVE2_MODIFIER_KEYS) {
       expect(MODIFIERS[mod].key).toBe(mod);
       expect(Object.values(SKILL_DEFS).some((d) => canAttach(d, mod)), mod).toBe(true);
     }
-    expect(canAttach(SKILL_DEFS.haste, "fireInfuse"), "与ダメの無いスキルには属性が付かない").toBe(false);
-    expect(canAttach(SKILL_DEFS.wolfForm, "formLinger")).toBe(true);
-    expect(canAttach(SKILL_DEFS.commonWhirl, "formLinger"), "深化は変身だけ").toBe(false);
+    expect(canAttach(SKILL_DEFS.waterJar, "split"), "行為の列を持たない手書きには分裂は付かない").toBe(false);
   });
 });
 

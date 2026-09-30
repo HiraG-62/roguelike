@@ -46,7 +46,7 @@ function maxKegs(params: Readonly<CastParams>): number {
   return Math.max(1, SKILL.powderKeg.maxAlive + params.countBonus);
 }
 
-/** 置く。上限を超えたら古いものから不発で消える。投げ込み（型替え）は着いた瞬間に爆発する */
+/** 置く。上限を超えたら古いものから不発で消える。照準起点（型替え）は照準地点へ投げ込み、着いた瞬間に爆発する */
 export function placeKeg(state: GameState, pos: Vec, params: CastParams): void {
   if (params.reshape === "toLobbed") {
     explodeKeg(state, pos, params);

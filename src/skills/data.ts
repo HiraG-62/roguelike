@@ -3,16 +3,15 @@ import { kw } from "../core/keywords";
 import type { StatusApply } from "../core/status";
 import { BALANCE } from "../data/balance";
 import type { FormKey } from "../data/weaponForms";
-import { ART_ATTACK, ART_MIN_DEPTH, ART_SKILL_DEFS, ART_WEIGHTS, isArtKey } from "./arts";
+import { ART_ATTACK, ART_DEFS, ART_MIN_DEPTH, ART_SKILL_DEFS, ART_WEIGHTS, isArtKey } from "./arts";
 import { formTransformLine } from "./arts/transform";
 import { EXTRA_SKILL_DEFS } from "./defs";
 import { WAVE2_SKILL_DEFS } from "./defs2";
 import { WAVE3_SKILL_DEFS } from "./defs3";
-import { EXTRA_MODIFIERS, RESOURCE_CONVERTERS } from "./modifiers";
+import { BASE_MODIFIERS, EXTRA_MODIFIERS } from "./modifiers";
 import { WAVE2_MODIFIERS } from "./modifiers2";
 import { IRON_SWING_STEP, WOLF_BITE_STEP } from "./reshapes";
 import type {
-  BASE_MODIFIER_KEYS,
   BASE_SKILL_KEYS,
   CastParams,
   ModifierDef,
@@ -27,7 +26,6 @@ import type {
 import { cooldownSkill, manaSkill } from "./resource";
 
 type BaseSkillKey = (typeof BASE_SKILL_KEYS)[number];
-type BaseModifierKey = (typeof BASE_MODIFIER_KEYS)[number];
 
 /** 割合 → % 表記 */
 const PERCENT_UNIT = 100;
@@ -287,170 +285,43 @@ export const SKILL_DEFS: Record<SkillKey, SkillDef> = withExclusiveGroups({
   ...ART_SKILL_DEFS,
 });
 
-const M = SKILL.modifier;
-
-const BASE_MODIFIERS: Record<BaseModifierKey, ModifierDef> = {
-  multiCharge: {
-    key: "multiCharge",
-    name: "多重",
-    verb: `チャージ +${M.multiCharge.extraCharges}、ダメージ x${M.multiCharge.damageMul}、再使用時間 x${M.multiCharge.burdenMul}`,
-    manaVerb: `コスト x${M.multiCharge.manaBurdenMul}、連打間隔 x${M.multiCharge.intervalMul}、ダメージ x${M.multiCharge.damageMul}`,
-    color: "#ffffff",
-    keywords: kw([], [], ["mana"]),
-    excludesTags: [],
-    apply: (p) =>
-      p.resource === "mana"
-        ? {
-            ...p,
-            burdenMul: p.burdenMul * M.multiCharge.manaBurdenMul,
-            intervalMul: p.intervalMul * M.multiCharge.intervalMul,
-            damageMul: p.damageMul * M.multiCharge.damageMul,
-          }
-        : {
-            ...p,
-            charges: p.charges + M.multiCharge.extraCharges,
-            damageMul: p.damageMul * M.multiCharge.damageMul,
-            burdenMul: p.burdenMul * M.multiCharge.burdenMul,
-          },
-  },
-  bloodPrice: {
-    key: "bloodPrice",
-    name: "血の代償",
-    verb: `ダメージ x${M.bloodPrice.damageMul}、最大生命の${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費`,
-    manaVerb: `ダメージ x${M.bloodPrice.damageMul}、最大生命の${M.bloodPrice.hpFraction * PERCENT_UNIT}%を消費してコスト x${M.bloodPrice.manaBurdenMul}`,
-    color: "#ff4040",
-    keywords: kw(["lowHp"]),
-    excludesTags: [],
-    apply: (p) => ({
-      ...p,
-      hpCostFraction: p.hpCostFraction + M.bloodPrice.hpFraction,
-      damageMul: p.damageMul * M.bloodPrice.damageMul,
-      potencyMul: p.potencyMul * M.bloodPrice.potencyMul,
-      // 血でマナを肩代わりする（CD 型は現行どおり CD に触れない）
-      burdenMul: p.resource === "mana" ? p.burdenMul * M.bloodPrice.manaBurdenMul : p.burdenMul,
-    }),
-  },
-  comboFuel: {
-    key: "comboFuel",
-    name: "コンボ燃料",
-    verb: `コンボを消費: 1ヒットにつき+${M.comboFuel.perStack * 100}%（コンボ0ならx${M.comboFuel.emptyMul}）`,
-    color: "#ffd75f",
-    keywords: kw([], ["combo"]),
-    excludesTags: [],
-    apply: (p) => ({
-      ...p,
-      comboFuel: { perStack: M.comboFuel.perStack, cap: M.comboFuel.cap, emptyMul: M.comboFuel.emptyMul },
-    }),
-  },
-  echo: {
-    key: "echo",
-    name: "反響",
-    verb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、再使用時間 x${M.echo.burdenMul}`,
-    manaVerb: `${M.echo.delay}秒後に${M.echo.damageMul * PERCENT_UNIT}%の威力で再発動、コスト x${M.echo.burdenMul}`,
-    color: "#c080ff",
-    keywords: kw([], [], ["area"]),
-    excludesTags: ["defense", "buff"],
-    apply: (p) => ({
-      ...p,
-      echo: { delay: M.echo.delay, damageMul: M.echo.damageMul },
-      burdenMul: p.burdenMul * M.echo.burdenMul,
-    }),
-  },
-  pierce: {
-    key: "pierce",
-    name: "貫通",
-    verb: `弾・鎖が+${M.pierce.count}体貫通、範囲 x${M.pierce.areaMul}`,
-    color: "#80ffc0",
-    keywords: kw([], [], ["bullet"]),
-    excludesTags: ["placed"],
-    requiresTags: ["projectile"],
-    apply: (p) => ({ ...p, pierce: p.pierce + M.pierce.count, areaMul: p.areaMul * M.pierce.areaMul }),
-  },
-  recoil: {
-    key: "recoil",
-    name: "反動",
-    verb: `発動時に後方へ跳ぶ（${M.recoil.invuln}秒無敵）、ダメージ x${M.recoil.damageMul}`,
-    color: "#a0c0ff",
-    keywords: kw(["dash", "ward"]),
-    // buff は威力を持たないので代償が空振りになる
-    excludesTags: ["movement", "defense", "buff"],
-    apply: (p) => ({ ...p, recoil: Math.max(p.recoil, M.recoil.speed), damageMul: p.damageMul * M.recoil.damageMul }),
-  },
-  chainReset: {
-    key: "chainReset",
-    name: "連鎖",
-    verb: `このスキルでの撃破でチャージが1回復、再使用時間 x${M.chainReset.burdenMul}`,
-    manaVerb: `このスキルでの撃破でコストの${M.chainReset.manaRefund * PERCENT_UNIT}%を返す、コスト x${M.chainReset.manaBurdenMul}`,
-    color: "#ffff80",
-    keywords: kw(["mana"], ["kill"]),
-    excludesTags: ["buff", "defense"],
-    apply: (p) =>
-      p.resource === "mana"
-        ? { ...p, killManaRefund: M.chainReset.manaRefund, burdenMul: p.burdenMul * M.chainReset.manaBurdenMul }
-        : { ...p, killRefund: true, burdenMul: p.burdenMul * M.chainReset.burdenMul },
-  },
-  curse: {
-    key: "curse",
-    name: "呪い",
-    verb: `命中した敵を${M.curse.duration}秒間呪う: スキル被ダメージ +${M.curse.bonus * PERCENT_UNIT}%、ダメージ x${M.curse.damageMul}`,
-    color: "#b040ff",
-    keywords: kw(["vulnerable"]),
-    excludesTags: ["buff"],
-    apply: (p) => ({
-      ...p,
-      curse: { duration: M.curse.duration, bonus: M.curse.bonus },
-      damageMul: p.damageMul * M.curse.damageMul,
-    }),
-  },
-  delay: {
-    key: "delay",
-    name: "遅延",
-    verb: `発動地点で${M.delay.time}秒後に発動、ダメージ x${M.delay.damageMul}`,
-    color: "#ff80c0",
-    keywords: kw(["placed"]),
-    // 変身は発動地点で後から起こしても変身しない（衝撃だけになる）
-    excludesTags: ["defense", "buff", "movement", "channel", "form"],
-    apply: (p) => ({ ...p, delay: { time: M.delay.time, damageMul: M.delay.damageMul } }),
-  },
-  expand: {
-    key: "expand",
-    name: "拡大",
-    verb: `範囲 x${M.expand.areaMul}、再使用時間 x${M.expand.burdenMul}`,
-    manaVerb: `範囲 x${M.expand.areaMul}、コスト x${M.expand.burdenMul}`,
-    color: "#60a0ff",
-    keywords: kw([], [], ["area"]),
-    excludesTags: [],
-    requiresTags: ["area"],
-    apply: (p) => ({ ...p, areaMul: p.areaMul * M.expand.areaMul, burdenMul: p.burdenMul * M.expand.burdenMul }),
-  },
-  charge: {
-    key: "charge",
-    name: "溜め",
-    verb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}`,
-    manaVerb: `長押しで溜める（最大${M.charge.maxTime}秒）: ダメージ x1〜${M.charge.maxDamageMul}、範囲 x1〜${M.charge.maxAreaMul}。コストは離した瞬間に払う`,
-    color: "#ffd060",
-    keywords: kw(["still"]),
-    // パリィ/血の契約/加速は「押した瞬間」に意味がある即応スキル、チャネル系（砲身化）は「溜めて離す」と噛み合わない
-    excludesTags: ["defense", "buff", "channel"],
-    excludesModifiers: ["toStaged"],
-    // 実際の倍率は system/skills.ts が発動時の経過秒から計算して CastParams に掛けるので、ここでは素通し
-    apply: (p) => p,
-  },
-};
-
 export const MODIFIERS: Record<ModifierKey, ModifierDef> = { ...BASE_MODIFIERS, ...EXTRA_MODIFIERS, ...WAVE2_MODIFIERS };
 
-/** 相性表: 除外タグ・必須タグ・個別除外・資源・付与の有無・与ダメの有無のすべてを満たすか */
+/**
+ * 相性表。技（行為の列で書くスキル）への行為の列を変える符（transform / fitsArt を持つ）は行為の列で決め（fitsArtAct）、
+ * それ以外はタグ・資源・与ダメの有無・個別除外で決める。行為の列を変える符は手書きのスキルには付かない
+ * （型替え符〔reshape〕は手書きには apply の型替えで効くので、手書きにはタグで決める）
+ */
 export function canAttach(def: SkillDef, key: ModifierKey): boolean {
   const m = MODIFIERS[key];
-  if (m.excludesTags.some((t) => def.tags.includes(t))) return false;
-  if (m.requiresTags && !m.requiresTags.some((t) => def.tags.includes(t))) return false;
   if (m.requiresResource && m.requiresResource !== def.resource) return false;
-  if (m.requiresApplies && !def.applies) return false;
   if (m.requiresDamage && def.damageKind === "none") return false;
-  if (m.onlySkills && !m.onlySkills.includes(def.key)) return false;
-  return !(m.excludesSkills?.includes(def.key) ?? false);
+  if (m.excludesSkills?.includes(def.key)) return false;
+  const actsModifier = m.transform !== undefined || m.fitsArt !== undefined;
+  if (actsModifier && isArtKey(def.key)) return fitsArtAct(key, def.key);
+  if (actsModifier && !m.reshape) return false;
+  if (m.excludesTags.some((t) => def.tags.includes(t))) return false;
+  return !m.requiresTags || m.requiresTags.some((t) => def.tags.includes(t));
 }
+
+/** 行為の列を変える符が技に付くか（読み込み時の行為の列で 1 回だけ判定して覚える。純関数の結果なので決定性に関わらない） */
+const artFitCache = new Map<string, boolean>();
+
+function fitsArtAct(key: ModifierKey, art: SkillKey): boolean {
+  if (!isArtKey(art)) return false;
+  const id = `${key}:${art}`;
+  const hit = artFitCache.get(id);
+  if (hit !== undefined) return hit;
+  const m = MODIFIERS[key];
+  const acts = ART_DEFS[art].acts;
+  // fitsArt が無い符は、当てて行為の列が変わるなら付く（変わらない技に付けても空振りなので）
+  const fits = m.fitsArt ? m.fitsArt(acts) : m.transform !== undefined && JSON.stringify(m.transform(acts, NO_NUMBERS)) !== JSON.stringify(acts);
+  artFitCache.set(id, fits);
+  return fits;
+}
+
+/** 刻印符の transform は自分の数値をそれぞれの定義で読むので、変形の数値の表は空で渡す */
+export const NO_NUMBERS: Readonly<Record<string, number>> = {};
 
 /** 刻印符が使うリンクの本数（型替え符は 2） */
 export function modifierLinkCost(key: ModifierKey): number {
@@ -496,17 +367,12 @@ export function baseCastParams(def: SkillDef): CastParams {
     burdenMul: 1,
     charges: def.charges,
     countBonus: 0,
-    hpCostFraction: 0,
-    comboFuel: null,
     echo: null,
+    ghost: null,
     pierce: 0,
-    recoil: 0,
-    killRefund: false,
-    curse: null,
     delay: null,
     slot: -1,
     intervalMul: 1,
-    killManaRefund: 0,
     skillKey: def.key,
     manaPaid: 0,
     refundPool: { left: 0 },
@@ -515,42 +381,32 @@ export function baseCastParams(def: SkillDef): CastParams {
     baseCooldown: def.cooldown,
     poiseMul: 1,
     knockbackMul: 1,
-    repel: false,
     statusDurationMul: 1,
-    spread: false,
     refundPerHit: 0,
     hitRefundPool: { left: 0 },
-    followUp: false,
-    lastGasp: null,
-    landing: false,
-    flank: false,
-    rangeBias: null,
-    attuneCrit: false,
-    deferredMul: 0,
-    bloodTithe: false,
+    bloodPrice: false,
     spillover: false,
-    dryFire: false,
-    bladeFeed: false,
+    streak: false,
     overheat: false,
+    patience: false,
+    sympathy: false,
     desperate: false,
-    attune: false,
-    cycle: false,
+    offering: false,
+    ledger: false,
     reshape: null,
     combo: null,
     origin: { x: 0, y: 0 },
     hitLog: new Set(),
-    gaspPool: { left: 0 },
     element: null,
-    extraApplies: [],
-    hueInfuse: false,
     leyline: false,
     leyPool: { left: 0 },
-    crumble: false,
-    jobMastery: false,
-    weaponBond: false,
-    formSurge: false,
-    formDurationMul: 1,
-    formRecoverMul: 1,
+    chain: false,
+    chainPool: { left: 0 },
+    burst: false,
+    burstPool: { left: 0 },
+    artTransforms: [],
+    shotPath: null,
+    trail: false,
   };
 }
 
@@ -585,10 +441,7 @@ export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonl
   // 使い込みの芽: 威力と効果量を伸ばす
   const wear = wearPowerMul(stone);
   p = { ...p, damageMul: p.damageMul * wear, potencyMul: p.potencyMul * wear };
-  const active = activeModifiers(def, slotLinks(slot), modifiers);
-  // 資源を差し替える刻印符（定刻・燃料化）を先に当て、多重・連鎖などが差し替え後の資源で読み替えるようにする
-  const ordered = [...active.filter((k) => RESOURCE_CONVERTERS.includes(k)), ...active.filter((k) => !RESOURCE_CONVERTERS.includes(k))];
-  for (const key of ordered) p = MODIFIERS[key].apply(p, def);
+  for (const key of activeModifiers(def, slotLinks(slot), modifiers)) p = MODIFIERS[key].apply(p, def);
   return p;
 }
 
@@ -598,20 +451,20 @@ export interface CastBurden {
   cooldown: number;
 }
 
-/** 資源は params.resource（定刻・燃料化で def.resource から差し替わる）。基準値も params が持つ */
+/** 資源は params.resource。基準値も params が持つ */
 export function castBurden(_def: SkillDef, params: Readonly<CastParams>): CastBurden {
   if (params.resource === "mana") return { cost: params.baseCost * params.burdenMul, cooldown: 0 };
   return { cost: 0, cooldown: params.baseCooldown * params.burdenMul };
 }
 
-/** このスロットだけの連打下限（秒）。多重（マナ型）で縮む */
+/** このスロットだけの連打下限（秒） */
 export function castInterval(def: SkillDef, params: Readonly<CastParams>): number {
   return def.minInterval * params.intervalMul;
 }
 
 /**
  * 刻印符の説明文。マナ型で読み替えるものは manaVerb を使う。
- * resource は実際に使う資源（定刻・燃料化で def.resource から差し替わるので CastParams.resource を渡す）
+ * resource は実際に使う資源（CastParams.resource を渡す）
  */
 export function modifierVerb(key: ModifierKey, def: Readonly<SkillDef>, resource: SkillResource = def.resource): string {
   const m = MODIFIERS[key];
@@ -638,7 +491,7 @@ function signed(n: number): string {
 
 /**
  * ツールチップ用の 1 行。例: "範囲 +24% / ダメージ -18%"。負担の軸は資源で「コスト」「CD」を出し分ける
- * （resource は定刻・燃料化で差し替わった後の CastParams.resource を渡す）
+ * （resource は CastParams.resource を渡す）
  */
 export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>, resource: SkillResource = def.resource): string {
   const c = VARIANT_COEF[roll.axis];

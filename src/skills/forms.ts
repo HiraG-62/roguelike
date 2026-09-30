@@ -170,7 +170,7 @@ export interface ShapeCastCtx {
 
 /**
  * 発動（system/skills.ts の castNow / executeRemote から）。remote（反響）は砲身化の砲撃 1 発だけで変身しない。
- * ほかの変身は canAttach で反響・遅延・投げ刃・罠化が付かない
+ * ほかの変身は canAttach で反響・遅延・照準起点・据え置きが付かない
  */
 export function castShape(state: GameState, key: Wave3SkillKey, ctx: ShapeCastCtx): void {
   if (ctx.remote) {
@@ -180,10 +180,9 @@ export function castShape(state: GameState, key: Wave3SkillKey, ctx: ShapeCastCt
   startShape(state, key, ctx.slot, ctx.params);
 }
 
-/** 変身の持続（時間で切れない変身は 0）。持続の変異・延長（durationMul）・深化（formDurationMul）を畳む */
+/** 変身の持続（時間で切れない変身は 0）。持続の変異（durationMul）を畳む */
 export function shapeDuration(key: Wave3SkillKey, params: Readonly<CastParams>): number {
-  const base = timedDuration(key);
-  return base * params.durationMul * params.formDurationMul;
+  return timedDuration(key) * params.durationMul;
 }
 
 function timedDuration(key: Wave3SkillKey): number {
@@ -212,7 +211,7 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
     slot,
     elapsed: 0,
     total: shapeDuration(key, params),
-    recover: SKILL[key].recover * params.formRecoverMul,
+    recover: SKILL[key].recover,
     params,
     actionLeft: 0,
     passed: new Set(),
@@ -426,7 +425,6 @@ function shellParams(base: CastParams, paid: number, origin: Vec): CastParams {
     manaPaid: paid,
     refundPool: { left: paid },
     hitRefundPool: { left: paid * SKILL.modifier.refund.cap },
-    gaspPool: { left: base.lastGasp === null ? 0 : SKILL.modifier.lastGasp.maxPerCast },
     hitLog: new Set(),
     origin: { ...origin },
   };

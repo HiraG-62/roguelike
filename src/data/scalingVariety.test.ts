@@ -209,7 +209,6 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "skills.EXTRA_SKILL_TUNING.backflow.damage": [10, 1.2],
   "skills.EXTRA_SKILL_TUNING.scarRoar.damage": [10, 1.2],
   "skills.EXTRA_SKILL_TUNING.turret.damage": [8, 1],
-  "skills.EXTRA_MODIFIER_TUNING.landing.damage": [5, 0.4],
   "skills.WAVE2_SKILL_TUNING.waterJar.damage": [8, 1],
   "skills.WAVE2_SKILL_TUNING.oilPot.damage": [5, 0.6],
   "skills.WAVE2_SKILL_TUNING.levelGround.damage": [16, 2],

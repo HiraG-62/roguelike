@@ -16,7 +16,7 @@ import type { ActiveCast, CastParams, ExtraSkillKey } from "./types";
 
 /**
  * 大拡張のスキルの発動（docs/ideas/skills-expansion.md 1 章）。
- * どのスキルも「発動地点・向き・照準地点」を受け取り、remote（反響・遅延・投げ刃・散り際）ならプレイヤーを動かさず
+ * どのスキルも「発動地点・向き・照準地点」を受け取り、remote（反響・分身・遅延・照準起点・据え置き）ならプレイヤーを動かさず
  * その地点で即時に起こす。時間のかかる本動作は SkillRunState.active に載せ、updateExtraActive が進める。
  */
 
@@ -26,7 +26,7 @@ export interface CastCtx {
   origin: Vec;
   dir: Vec;
   target: Vec;
-  /** 反響・遅延・投げ刃・散り際の写し（プレイヤーを動かさない・本動作を待たない） */
+  /** 反響・分身・遅延・照準起点・据え置きの写し（プレイヤーを動かさない・本動作を待たない） */
   remote: boolean;
 }
 
@@ -41,7 +41,6 @@ const COLOR_THRUST = "#ffffff";
 const COLOR_GRUDGE = "#ff4060";
 const COLOR_SCAR = "#ff80a0";
 const COLOR_REWIND = "#c0e0ff";
-const COLOR_LANDING = "#d0b070";
 
 const RING_LIFE = 0.2;
 const LINE_LIFE = 0.15;
@@ -49,7 +48,6 @@ const BURST_PARTICLES = 12;
 const BURST_SPEED = 120;
 const BURST_LIFE = 0.35;
 const BURST_SIZE = 2;
-const SMALL_PARTICLES = 4;
 const TEXT_SCALE = 1;
 const TEXT_LIFE = 0.6;
 const SHAKE_HEAVY = 4;
@@ -447,7 +445,6 @@ function castBackflow(state: GameState, ctx: CastCtx): void {
   for (const e of enemiesOnSegment(state, from, p.body.pos, b.halfWidth * ctx.params.areaMul)) {
     skillHit(state, e, ctx.params, { base: power, kind: "melee", dir, knockback: b.knockback, stagger: false, from });
   }
-  landingShock(state, p.body.pos, ctx.params);
 }
 
 // ---- 傷返し ----
@@ -475,21 +472,6 @@ function castScarRoar(state: GameState, ctx: CastCtx): void {
 /** 悪い状態異常か（良い状態・怯み・堅守は剥がさない） */
 function harmfulKind(kind: StatusKind): boolean {
   return !GOOD_STATUS_KINDS.has(kind) && !NEUTRAL_STATUS_KINDS.has(kind);
-}
-
-// ---------------------------------------------------------------------------
-// 着地衝撃（刻印符）
-// ---------------------------------------------------------------------------
-
-export function landingShock(state: GameState, pos: Vec, params: CastParams): void {
-  if (!params.landing) return;
-  const l = SKILL.modifier.landing;
-  spawnRing(state, pos, l.radius, COLOR_LANDING, RING_LIFE);
-  spawnBurst(state, pos, COLOR_LANDING, SMALL_PARTICLES, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE);
-  const power = skillPower(state, l.damage, params);
-  for (const e of enemiesInRadius(state, pos, l.radius)) {
-    skillHit(state, e, params, { base: power, kind: "melee", dir: sub(e.body.pos, pos), knockback: l.knockback, stagger: true, poise: l.poise, applies: null, from: pos });
-  }
 }
 
 // ---------------------------------------------------------------------------

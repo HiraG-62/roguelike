@@ -173,14 +173,14 @@ describe("updateInventoryUi: スキルタブ", () => {
 });
 
 describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移す・外す）", () => {
-  /** スロット 1（旋風斬り）に反響と多重、スロット 2（グレネード）は空。選択中はスロット 1 */
+  /** スロット 1（旋風斬り）に反響と収束、スロット 2（グレネード）は空。選択中はスロット 1 */
   function runeSetup(): { state: State; ui: InventoryUi } {
     const state = createGame(1);
     const ui = openUi(state);
     ui.tab = "skills";
     const first = state.skills.slots[0];
     if (!first) throw new Error("slot");
-    first.runModifiers = ["echo", "multiCharge"];
+    first.runModifiers = ["echo", "focus"];
     return { state, ui };
   }
 
@@ -194,7 +194,7 @@ describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移
 
   it("列は選択中スロットのラン内の符を並び順どおりに出す。スロットを変えれば中身が変わる", () => {
     const { state, ui } = runeSetup();
-    expect(layoutSkills(state, ui).runeList.entries.map((e) => e.key)).toEqual(["echo", "multiCharge"]);
+    expect(layoutSkills(state, ui).runeList.entries.map((e) => e.key)).toEqual(["echo", "focus"]);
     ui.skillSlot = 1;
     expect(layoutSkills(state, ui).runeList.entries, "スロット 2 は空").toEqual([]);
   });
@@ -202,11 +202,11 @@ describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移
   it("符をクリックすると次に付けられるスロットへ移る（次のスロットに石が無ければ飛ばす）", () => {
     const { state, ui } = runeSetup();
     clickAt(state, ui, runeRowRect(state, ui, "echo"));
-    expect(runes(state, 0), "元のスロットから消える").toEqual(["multiCharge"]);
+    expect(runes(state, 0), "元のスロットから消える").toEqual(["focus"]);
     expect(runes(state, 1), "スロット 2 に付く").toEqual(["echo"]);
     expect(ui.message).toContain("スキル 2");
-    clickAt(state, ui, runeRowRect(state, ui, "multiCharge"));
-    expect(runes(state, 1), "石の無いスロット 3・4 は飛ばす").toEqual(["echo", "multiCharge"]);
+    clickAt(state, ui, runeRowRect(state, ui, "focus"));
+    expect(runes(state, 1), "石の無いスロット 3・4 は飛ばす").toEqual(["echo", "focus"]);
   });
 
   it("移した符は次のステップの同期で slot.modifiers に入る（装備画面では触らない）", () => {
@@ -216,7 +216,7 @@ describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移
     expect(state.skills.slots[1]?.modifiers, "同期前は変わらない").toEqual([]);
     syncSlotModifiers(state.skills);
     expect(state.skills.slots[1]?.modifiers).toEqual(["echo"]);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["multiCharge"]);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["focus"]);
   });
 
   it("キー・パッド: 1〜4 でスロット、↓ でカーソル、決定で移す", () => {
@@ -226,7 +226,7 @@ describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移
     expect(ui.runes.cursor, "押しっぱなしは 1 マスだけ").toBe(1);
     updateInventoryUi(state, ui, withInput({ confirmPressed: true }), 0);
     expect(runes(state, 0), "カーソルの符（2 番目）が移る").toEqual(["echo"]);
-    expect(runes(state, 1)).toEqual(["multiCharge"]);
+    expect(runes(state, 1)).toEqual(["focus"]);
     updateInventoryUi(state, ui, withInput({ skill2Pressed: true }), 0);
     expect(ui.skillSlot, "スロット 2 を選ぶ").toBe(1);
   });
@@ -246,9 +246,9 @@ describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移
     const { state, ui } = runeSetup();
     const second = state.skills.slots[1];
     if (!second) throw new Error("slot");
-    second.runModifiers = ["echo", "multiCharge"];
+    second.runModifiers = ["echo", "focus"];
     clickAt(state, ui, runeRowRect(state, ui, "echo"));
-    expect(runes(state, 0), "動かない").toEqual(["echo", "multiCharge"]);
+    expect(runes(state, 0), "動かない").toEqual(["echo", "focus"]);
     expect(ui.message).toBe(RUNE_BLOCK_TEXT.noTarget);
   });
 
@@ -266,9 +266,9 @@ describe("updateInventoryUi: スキルタブの刻印符（ラン内の符を移
 
   it("Shift+クリックを 2 回で符を外す（外すと消える）", () => {
     const { state, ui } = runeSetup();
-    clickAt(state, ui, runeRowRect(state, ui, "multiCharge"), { shiftHeld: true });
-    expect(runes(state, 0), "1 回目では外さない").toEqual(["echo", "multiCharge"]);
-    clickAt(state, ui, runeRowRect(state, ui, "multiCharge"), { shiftHeld: true });
+    clickAt(state, ui, runeRowRect(state, ui, "focus"), { shiftHeld: true });
+    expect(runes(state, 0), "1 回目では外さない").toEqual(["echo", "focus"]);
+    clickAt(state, ui, runeRowRect(state, ui, "focus"), { shiftHeld: true });
     expect(runes(state, 0)).toEqual(["echo"]);
     expect(runes(state, 1), "どこにも移らない").toEqual([]);
   });

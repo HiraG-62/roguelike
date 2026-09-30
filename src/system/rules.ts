@@ -984,7 +984,7 @@ function refreshSkills(state: GameState, fill: boolean, fraction: number): void 
 
 /**
  * 直前に撃ったスキルを自分の位置からもう一度撃つ（反響と同じ写しの発動。次の updateSkills で出る）。
- * 気力・再使用は払わず、払い戻し・散り際・地染めの残りは 0 から（写しで資源を増やさない）。反響・遅延は付けない。
+ * 気力・再使用は払わず、払い戻し・地形化の残りは 0 から（写しで資源を増やさない）。反響・遅延は付けない。
  * スロットの石が撃った時と変わっていれば撃たない
  */
 function echoLastCast(state: GameState, damageMul: number): void {
@@ -1003,7 +1003,6 @@ function echoLastCast(state: GameState, damageMul: number): void {
     manaPaid: 0,
     refundPool: { left: 0 },
     hitRefundPool: { left: 0 },
-    gaspPool: { left: 0 },
     leyPool: { left: 0 },
     hitLog: new Set(),
     echo: null,
