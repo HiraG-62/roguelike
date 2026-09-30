@@ -1,6 +1,7 @@
 import { type DamageBreakdown, dedupeMore, productMore } from "../core/damage";
 import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
+import { BOONS } from "../system/boonDefs";
 import { DEPTH_BANDS, type DepthBand, depthBandOf, hurtTextDamage } from "./combatMetrics";
 
 /**
@@ -38,6 +39,23 @@ export interface DeathDigest {
   more: number;
   /** 倍の出所数の平均 */
   sources: number;
+  /** 死んだときに持っていた研鑽の札の枚数（深みまで来るビルドは研鑽を持っているか） */
+  temperCards: number;
+  /** 研鑽の数え（boonRun.tallies）の合計 */
+  tallySum: number;
+}
+
+/** 研鑽の持ち物の要約（死亡時の内訳に足す） */
+export interface TemperDigest {
+  temperCards: number;
+  tallySum: number;
+}
+
+/** 今の研鑽の札の枚数と数えの合計。state を読むだけ */
+export function temperDigestOf(state: Readonly<GameState>): TemperDigest {
+  const temperCards = state.boons.filter((k) => BOONS[k].card === "temper").length;
+  const tallySum = Object.values(state.boonRun.tallies).reduce((s, n) => s + n, 0);
+  return { temperCards, tallySum };
 }
 
 export interface ScalingTally {
@@ -46,6 +64,8 @@ export interface ScalingTally {
   chainDepths: number[];
   /** SYNERGY.maxEventsPerStep / maxPendingEvents で捨てられたイベントの数 */
   droppedEvents: number;
+  /** 性能の歯止め（system/limits.ts）で消した弾・設置物の数（ruleRun.trimmed の増分。目標 0） */
+  trimmed: number;
   death: DeathDigest | null;
 }
 
@@ -56,7 +76,7 @@ function emptyBand(): BandScaling {
 export function emptyScalingTally(): ScalingTally {
   const bands = {} as Record<DepthBand, BandScaling>;
   for (const band of DEPTH_BANDS) bands[band] = emptyBand();
-  return { bands, chainDepths: [], droppedEvents: 0, death: null };
+  return { bands, chainDepths: [], droppedEvents: 0, trimmed: 0, death: null };
 }
 
 export interface ScalingRecorder {
@@ -69,12 +89,12 @@ export interface ScalingRecorder {
   noteOutgoing(breakdown: DamageBreakdown): void;
   /** Rule が成立して連鎖が記録された（meta/runRecord の noteChainRecord の深さ） */
   noteChain(depth: number): void;
-  /** 死んだ瞬間に呼ぶ。直近の与ダメの内訳を平均して控える */
-  noteDeath(depth: number): void;
+  /** 死んだ瞬間に呼ぶ。直近の与ダメの内訳を平均して控える。temper は死亡時の研鑽の持ち物（省略は 0） */
+  noteDeath(depth: number, temper?: TemperDigest): void;
 }
 
 /** 与ダメの内訳の平均（増の Σ・倍の Π・倍の出所数）。空なら null */
-export function digestBreakdowns(depth: number, hits: readonly DamageBreakdown[]): DeathDigest | null {
+export function digestBreakdowns(depth: number, hits: readonly DamageBreakdown[], temper: TemperDigest = { temperCards: 0, tallySum: 0 }): DeathDigest | null {
   if (hits.length === 0) return null;
   let increased = 0;
   let more = 0;
@@ -85,7 +105,7 @@ export function digestBreakdowns(depth: number, hits: readonly DamageBreakdown[]
     sources += dedupeMore(h.more).length;
   }
   const n = hits.length;
-  return { depth, hits: n, increased: increased / n, more: more / n, sources: sources / n };
+  return { depth, hits: n, increased: increased / n, more: more / n, sources: sources / n, ...temper };
 }
 
 export function createScalingRecorder(): ScalingRecorder {
@@ -94,11 +114,13 @@ export function createScalingRecorder(): ScalingRecorder {
   const seenTexts = new WeakSet<object>();
   let killsBefore = 0;
   let droppedBefore = 0;
+  let trimmedBefore = 0;
   return {
     tally,
     beforeStep(state) {
       killsBefore = state.kills;
       droppedBefore = state.ruleRun.droppedEvents;
+      trimmedBefore = state.ruleRun.trimmed;
     },
     afterStep(state) {
       const band = tally.bands[depthBandOf(state.depth)];
@@ -114,6 +136,7 @@ export function createScalingRecorder(): ScalingRecorder {
         band.maxHpAtHits += state.player.maxHp;
       }
       tally.droppedEvents += Math.max(0, state.ruleRun.droppedEvents - droppedBefore);
+      tally.trimmed += Math.max(0, state.ruleRun.trimmed - trimmedBefore);
     },
     noteOutgoing(breakdown) {
       recent.push(breakdown);
@@ -124,8 +147,8 @@ export function createScalingRecorder(): ScalingRecorder {
       while (tally.chainDepths.length <= d) tally.chainDepths.push(0);
       tally.chainDepths[d] = (tally.chainDepths[d] ?? 0) + 1;
     },
-    noteDeath(depth) {
-      tally.death = digestBreakdowns(depth, recent);
+    noteDeath(depth, temper) {
+      tally.death = digestBreakdowns(depth, recent, temper);
     },
   };
 }
@@ -201,17 +224,18 @@ function buildBandTable(tallies: readonly ScalingTally[]): string[] {
 /** 死亡時の与ダメの内訳を、死んだ帯ごとに平均する */
 function buildDeathDigestTable(tallies: readonly ScalingTally[]): string[] {
   const lines: string[] = [];
-  lines.push("| 死んだ深度帯 | 死亡数 | Σ増 | Π倍 | 倍の出所数 |");
-  lines.push("| --- | --- | --- | --- | --- |");
+  lines.push("| 死んだ深度帯 | 死亡数 | Σ増 | Π倍 | 倍の出所数 | 研鑽の札 | 研鑽の数え |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const band of DEPTH_BANDS) {
     const digests = tallies.flatMap((t) => (t.death !== null && depthBandOf(t.death.depth) === band ? [t.death] : []));
     if (digests.length === 0) {
-      lines.push(`| ${band} | 0 | - | - | - |`);
+      lines.push(`| ${band} | 0 | - | - | - | - | - |`);
       continue;
     }
     const mean = (pick: (d: DeathDigest) => number): number => digests.reduce((s, d) => s + pick(d), 0) / digests.length;
     lines.push(
-      `| ${band} | ${digests.length} | +${(mean((d) => d.increased) * 100).toFixed(0)}% | ×${mean((d) => d.more).toFixed(2)} | ${mean((d) => d.sources).toFixed(1)} |`,
+      `| ${band} | ${digests.length} | +${(mean((d) => d.increased) * 100).toFixed(0)}% | ×${mean((d) => d.more).toFixed(2)} | ${mean((d) => d.sources).toFixed(1)} | ` +
+        `${mean((d) => d.temperCards).toFixed(1)} | ${mean((d) => d.tallySum).toFixed(0)} |`,
     );
   }
   return lines;
@@ -266,6 +290,8 @@ export function buildScalingSection(title: string, note: string, tallies: readon
   const dropped = tallies.reduce((s, t) => s + t.droppedEvents, 0);
   const runsWithDrops = tallies.filter((t) => t.droppedEvents > 0).length;
   lines.push(`捨てられたイベント（\`ruleRun.droppedEvents\`）: ${dropped} 件（${runsWithDrops} / ${tallies.length} ラン。目標 0）`);
+  const trimmed = tallies.reduce((s, t) => s + t.trimmed, 0);
+  lines.push(`性能の歯止めで消した数（\`ruleRun.trimmed\`）: ${trimmed}（目標 0）`);
   lines.push("");
   return lines;
 }

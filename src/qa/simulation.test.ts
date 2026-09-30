@@ -58,6 +58,7 @@ import {
   createScalingRecorder,
   type ScalingRecorder,
   type ScalingTally,
+  temperDigestOf,
 } from "./scalingMetrics";
 import { defaultRunSetup } from "../system/runSetup";
 import { SCOPE_ANY, type Rule } from "../core/rules";
@@ -107,7 +108,7 @@ const PROFILE_KINDS: readonly ProfileKind[] = [
  * 深く始めるランの型（scaling-impl.md 4d）。fittedLoadout は startDepth に見合う並の遺物 6 部位（qa/gearPower.ts）。
  * 標準の 6 装備のループには入れず、開始深度 10 / 20 から少数の seed だけ短く回す
  */
-const DEEP_START_DEPTHS: readonly number[] = [10, 20];
+const DEEP_START_DEPTHS: readonly number[] = [10, 20, 22];
 const DEEP_START_SEED_COUNT = 3;
 const DEEP_START_MAX_STEPS = 12_000;
 const DEEP_START_SEED_BASE = 70_000;
@@ -970,7 +971,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
       metrics.died = true;
       metrics.deathDepth = state.depth;
       metrics.deathCause = deathCauseOf(state);
-      scalingRecorder.noteDeath(state.depth);
+      scalingRecorder.noteDeath(state.depth, temperDigestOf(state));
     }
   }
 
@@ -1361,7 +1362,7 @@ function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly Ru
  */
 function buildDeepStartSection(deepMetrics: readonly RunMetrics[]): string[] {
   const lines: string[] = [];
-  lines.push("## 深く始めるラン（開始深度 10 / 20。深度に見合う並の遺物 6 部位。`RunSetup.startDepth`）");
+  lines.push("## 深く始めるラン（開始深度 10 / 20 / 22〔深み 1 層目〕。深度に見合う並の遺物 6 部位。`RunSetup.startDepth`）");
   lines.push("");
   if (deepMetrics.length === 0) {
     lines.push("深く始めるランは回さなかった。");
@@ -1377,6 +1378,10 @@ function buildDeepStartSection(deepMetrics: readonly RunMetrics[]): string[] {
   for (const startDepth of DEEP_START_DEPTHS) {
     const group = deepMetrics.filter((m) => m.startDepth === startDepth);
     if (group.length === 0) continue;
+    const deaths = group.filter((m) => m.died);
+    const byReaper = deaths.filter((m) => m.deathCause === "reaper").length;
+    lines.push(`開始深度 ${startDepth} の死因: 死神 ${byReaper} / 死亡 ${deaths.length}（深みは敵の指数と戦って終わる形が目標。死神が 5 割以下）`);
+    lines.push("");
     lines.push(
       ...buildScalingSection(
         `開始深度 ${startDepth} の帯別（${group.length} ラン）`,

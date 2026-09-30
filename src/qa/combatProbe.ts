@@ -97,7 +97,7 @@ function frameInput(partial: Partial<FrameInput>): FrameInput {
  * 敵のいない開始部屋。クリティカルは切る（乱数で数値がぶれないように）。マップは基準の大きさで作る。
  * 深度相応の装備は applyStats を通す（属性の派生・地金の深度反映を実プレイと同じにするため）
  */
-function makeArena(seed: number, depth: number, gear: ProbeGear = "none"): GameState {
+export function makeArena(seed: number, depth: number, gear: ProbeGear = "none"): GameState {
   const state = withBaseAreaMul(() => createGame(seed));
   state.enemies = [];
   state.depth = depth;
@@ -118,7 +118,7 @@ function makeArena(seed: number, depth: number, gear: ProbeGear = "none"): GameS
   return state;
 }
 
-function placeEnemy(state: GameState, key: string, dx: number, dy: number): Enemy {
+export function placeEnemy(state: GameState, key: string, dx: number, dy: number): Enemy {
   const p = state.player.body.pos;
   const e = createEnemy(state, enemyDef(key), { x: p.x + dx, y: p.y + dy }, 0, false);
   state.enemies.push(e);
@@ -140,7 +140,7 @@ function nearestEnemy(state: GameState): Enemy | undefined {
 }
 
 /** bot の入力。最も近い敵へ向かって殴り続け、bot ごとに予備動作への対処が違う */
-function botInput(state: GameState, bot: ProbeBot): FrameInput {
+export function botInput(state: GameState, bot: ProbeBot): FrameInput {
   const p = state.player;
   const target = nearestEnemy(state);
   if (!target) return frameInput({});
