@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ECONOMY, PARRY, RESONANCE } from "../data/tuning";
+import { ECONOMY, META, PARRY, RESONANCE } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
@@ -100,6 +100,12 @@ const COMBAT_TIPS: readonly TipDef[] = [
   { key: "reaction", term: "反応", category: "combat", body: "2 つの状態異常（か地形）が出会ったときの追加効果。図鑑の連携の頁に記録される。" },
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
   { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },
+  {
+    key: "telegraphDiagram",
+    term: "予告の図解",
+    category: "combat",
+    body: `同じ敵に ${META.diagramDeaths} 回倒されると、図鑑の敵の頁から開ける。その敵の予告の形・怯ませられる間とコミットの境・隙・安全な場所を、敵のデータから描く。`,
+  },
 ];
 
 /** ステータス 6 種の体の性能（装備画面の ？ のヘルプから移した） */

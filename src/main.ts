@@ -124,7 +124,7 @@ import {
 import { type RunSetup, defaultRunSetup, runTier } from "./system/runSetup";
 import { saveCraft } from "./loot/craftingStore";
 import { TRAIT_COLORS } from "./loot/types";
-import { recordCodex, recordDefeat } from "./meta/codex";
+import { diagramOpenable, recordCodex, recordDefeat } from "./meta/codex";
 import { loadCodex, saveCodex } from "./meta/codexStore";
 import { seedKnownLinks } from "./meta/links";
 import { carriedQuest, codexPages, isQuestKey, loadoutKeywords, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
@@ -134,6 +134,9 @@ import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines
 import { tipsListTabs } from "./meta/tips";
 import { type ListAction, type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
+import { drawTelegraphDiagram } from "./render/telegraphDiagramUi";
+import { enemyDef } from "./data/enemies";
+import { telegraphDiagram } from "./system/telegraphDiagram";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
 import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
@@ -491,6 +494,10 @@ let questChoiceUi: QuestChoiceScreen = createQuestChoice([]);
 let listUi: ListScreen = createListScreen();
 /** 一覧画面のタブ（開いたときと決定のたびに作り直す） */
 let listTabs: ListTab[] = [];
+/** 図鑑で予告の図解を開いている敵の key。null = 一覧を見ている */
+let diagramKey: string | null = null;
+/** 図鑑の敵のタブ（CODEX_TABS の先頭） */
+const CODEX_ENEMY_TAB = 0;
 
 /** ラン 1 回ぶんを図鑑・依頼・実績へ畳んで保存する。戻り値は死亡画面の行 */
 function recordMeta(s: GameState, now: number): string[] {
@@ -574,6 +581,7 @@ function openListScreen(next: ListScreenKind, frameMoveX: number, frameMoveY: nu
   screen = next;
   listUi = createListScreen();
   listTabs = listTabsFor(next);
+  diagramKey = null;
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
   menuAimPrev = null;
@@ -594,13 +602,34 @@ function stepListInput(frame: FrameInput, arrowX: number, arrowY: number): ListA
   return action;
 }
 
+/** 図鑑の敵の頁で、カーソルの行が予告の図解を開けるなら、その敵の key */
+function diagramKeyAtCursor(kind: ListScreenKind): string | null {
+  if (kind !== "codex" || listUi.tab !== CODEX_ENEMY_TAB) return null;
+  const entry = listCursorEntry(listUi, listTabs);
+  return entry && diagramOpenable(codexSave, entry.key) ? entry.key : null;
+}
+
 function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (diagramKey !== null) {
+    // 図解は一覧の上の重ね。Esc / 決定 / クリックで一覧へ戻る（メニューは抜けない）
+    if (!escape && !frame.confirmPressed && !frame.clickPressed) return;
+    diagramKey = null;
+    menuNav.prevX = frame.move.x;
+    menuNav.prevY = frame.move.y;
+    sfx.play("uiClose");
+    return;
+  }
   if (escape) {
     sfx.play("uiClose");
     leaveMenu();
     return;
   }
   const action = stepListInput(frame, arrowX, arrowY);
+  if (action === "activate" && diagramKeyAtCursor(kind) !== null) {
+    diagramKey = diagramKeyAtCursor(kind);
+    sfx.play("uiClick");
+    return;
+  }
   if (action !== "activate" || kind !== "achievements" || listUi.tab !== ACHIEVEMENT_TITLE_TAB) return;
   const entry = listCursorEntry(listUi, listTabs);
   if (!entry || !selectTitle(achievementSave, questSave, titleIdOfEntry(entry.key))) return;
@@ -1860,6 +1889,10 @@ startLoop(
         hint: LIST_SCREEN_HINT[screen],
         detailSide: screen === "tips",
       });
+      if (diagramKey !== null) {
+        const def = enemyDef(diagramKey);
+        drawTelegraphDiagram(ctx, def, telegraphDiagram(def), renderer.atlasSprite(def.sprite));
+      }
       drawGamepadConnectedHint(ctx);
       return;
     }

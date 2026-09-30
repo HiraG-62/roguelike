@@ -19,6 +19,7 @@ import {
   codexTabCount,
   createCodexRun,
   createCodexSave,
+  diagramOpenable,
   noteChainStep,
   recordCodex,
   recordDefeat,
@@ -26,6 +27,7 @@ import {
 import { CODEX_KEY, loadCodex, parseCodexSave, saveCodex } from "./codexStore";
 import { noteChainRecord } from "./runRecord";
 import { MemoryStorage } from "./testStorage";
+import { META } from "../data/tuning";
 
 const DT = 1 / 60;
 
@@ -242,5 +244,42 @@ describe("図鑑: 倒された回数", () => {
     expect(loadCodex(storage).enemyDeaths).toEqual({ slime: 3 });
     expect(parseCodexSave({ version: 1 })?.enemyDeaths, "旧データ").toEqual({});
     expect(parseCodexSave({ version: 1, enemyDeaths: { slime: -1, nope: 2 } })?.enemyDeaths, "壊れた値").toEqual({});
+  });
+});
+
+describe("図鑑: 予告の図解の案内", () => {
+  const wolfEntry = (save: ReturnType<typeof createCodexSave>) => {
+    const e = codexEntries(save, "enemy").find((x) => x.key === "wolf");
+    if (!e) throw new Error("wolf の頁が無い");
+    return e;
+  };
+
+  it("倒された回数が diagramDeaths に届いた敵だけ図解の案内が出る", () => {
+    const save = createCodexSave();
+    save.enemiesSeen.push("wolf");
+    save.enemyDeaths.wolf = META.diagramDeaths - 1;
+    expect(diagramOpenable(save, "wolf"), "届く前").toBe(false);
+    expect(wolfEntry(save).info, "届く前は info に出ない").not.toContain("図解");
+    expect(wolfEntry(save).detail, "届く前は detail に出ない").not.toContain("予告の図解");
+    save.enemyDeaths.wolf = META.diagramDeaths;
+    expect(diagramOpenable(save, "wolf"), "届いた").toBe(true);
+    expect(wolfEntry(save).info, "info に図解").toContain("図解");
+    expect(wolfEntry(save).detail, "detail の末尾に操作").toMatch(/Enter: 予告の図解$/);
+  });
+
+  it("未発見の敵は、倒された回数が届いていても開けない", () => {
+    const save = createCodexSave();
+    save.enemyDeaths.wolf = META.diagramDeaths + 5;
+    expect(diagramOpenable(save, "wolf"), "未発見").toBe(false);
+    expect(wolfEntry(save).known, "未発見のまま").toBe(false);
+    expect(wolfEntry(save).detail, "未発見の頁に案内なし").not.toContain("予告の図解");
+  });
+
+  it("他の敵の倒された回数は影響しない", () => {
+    const save = createCodexSave();
+    save.enemiesSeen.push("wolf", "slime");
+    save.enemyDeaths.slime = META.diagramDeaths;
+    expect(diagramOpenable(save, "slime"), "slime").toBe(true);
+    expect(diagramOpenable(save, "wolf"), "wolf").toBe(false);
   });
 });

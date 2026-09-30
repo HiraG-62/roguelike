@@ -2,6 +2,7 @@ import type { Keyword } from "../core/keywords";
 import type { FloorKind, GameState, RoomKind } from "../core/state";
 import { REACTION_KEYS, type ReactionKey, type StatusKind } from "../core/status";
 import { ENEMIES, type EnemyDef } from "../data/enemies";
+import { META } from "../data/tuning";
 import { baseDef } from "../loot/bases";
 import { UNIQUES, type UniqueDef } from "../loot/named";
 import type { Item, Profile } from "../loot/types";
@@ -325,6 +326,16 @@ export interface CodexEntry {
 /** 図鑑の頁（依頼の報酬）。持っているタブは未発見のヒントが 1 段詳しくなる */
 export type CodexPages = ReadonlySet<CodexTab>;
 
+/** 図鑑の敵の頁に付く、予告の図解の案内（info の語と detail の操作）。画面の決定キーは固定なので語で書く */
+const DIAGRAM_INFO = "図解";
+const DIAGRAM_DETAIL = "Enter: 予告の図解";
+
+/** その敵の予告の図解を開けるか（見た敵で、倒された回数が META.diagramDeaths に届いている）。main.ts の決定の判定もこれを通す */
+export function diagramOpenable(save: CodexSave, key: string): boolean {
+  if (!save.enemiesSeen.includes(key) && (save.enemyKills[key] ?? 0) === 0) return false;
+  return (save.enemyDeaths[key] ?? 0) >= META.diagramDeaths;
+}
+
 function enemyEntries(save: CodexSave, page: boolean): CodexEntry[] {
   const seen = new Set(save.enemiesSeen);
   return CODEX_ENEMIES.map((d) => {
@@ -336,8 +347,11 @@ function enemyEntries(save: CodexSave, page: boolean): CodexEntry[] {
       const name = page ? `${[...d.name][0] ?? ""}${UNKNOWN_PART}${UNKNOWN_PART}` : UNKNOWN_NAME;
       return { key: d.key, known, name, info: role, detail: `${where}現れる。` };
     }
-    const info = kills > 0 ? `撃破 ${kills}` : "未撃破";
-    return { key: d.key, known, name: d.name, info, detail: [role, where, info].filter((s) => s !== "").join(" / ") };
+    const killInfo = kills > 0 ? `撃破 ${kills}` : "未撃破";
+    const diagram = diagramOpenable(save, d.key);
+    const info = diagram ? `${killInfo} / ${DIAGRAM_INFO}` : killInfo;
+    const detail = [role, where, killInfo, diagram ? DIAGRAM_DETAIL : ""].filter((s) => s !== "").join(" / ");
+    return { key: d.key, known, name: d.name, info, detail };
   });
 }
 
