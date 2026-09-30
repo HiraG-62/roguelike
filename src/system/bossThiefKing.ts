@@ -45,6 +45,11 @@ const MINE_KEY = "enemyMine";
 const QUICK_STRIKE_RATIO = 0.3;
 /** 地雷の落下点の影の半径（落ちるまでの予告。地雷そのものの炸裂は踏まれてから別に予告する） */
 const MINE_MARK_RADIUS = 8;
+/** 撃破の後始末で消える地雷の煙（粒の数・速さ・寿命・大きさ） */
+const MINE_VANISH_PARTICLES = 6;
+const MINE_VANISH_SPEED = 50;
+const MINE_VANISH_LIFE = 0.3;
+const MINE_VANISH_SIZE = 2;
 /** 追い詰められかけている間の焦りの汗（予告）の間隔（ステップ）と色 */
 const SWEAT_EVERY = 6;
 const SWEAT_COLOR = "#c0e0ff";
@@ -206,6 +211,20 @@ function dropFence(state: GameState, e: Enemy): void {
  */
 export function settleThiefKingRoom(state: GameState, e: Enemy): void {
   dropFence(state, e);
+  clearMinesOf(state, e);
+}
+
+/**
+ * 本体（盗賊王・地雷を借りた最深の主）の置いた地雷を消す。残すと部屋の生存者に数えられて封鎖が解けない。
+ * 撃破ではなく消滅（vanished）にして、ドロップ・撃破数・置き土産を出さない
+ */
+export function clearMinesOf(state: GameState, e: Enemy): void {
+  for (const mine of state.enemies) {
+    if (mine.hp <= 0 || mine.defKey !== MINE_KEY || mine.leaderId !== e.id) continue;
+    mine.vanished = true;
+    mine.hp = 0;
+    spawnBurst(state, mine.body.pos, BOSS.thiefKing.color, MINE_VANISH_PARTICLES, MINE_VANISH_SPEED, MINE_VANISH_LIFE, MINE_VANISH_SIZE);
+  }
 }
 
 /** ボス部屋に最初から手下を置く（部屋の封鎖と同時に動き出す） */

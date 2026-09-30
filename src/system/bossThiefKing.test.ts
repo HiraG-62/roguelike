@@ -391,6 +391,20 @@ describe("盗賊王: 追い詰めで進む段階と柵", () => {
     expect(fences(state), "柵は残らない").toHaveLength(0);
     expect(state.lockedTiles.size, "壁の予約も戻る").toBe(0);
   });
+
+  it("倒れると置いた地雷が消える（撃破に数えず、部屋の封鎖が残らない）", () => {
+    const { state, boss } = bossFloor();
+    startMove(state, boss, THIEF_MINE);
+    for (let i = 0; i < 200 && inWindup(boss); i++) tick(state);
+    const minesOf = (): Enemy[] => state.enemies.filter((e) => e.defKey === "enemyMine" && e.leaderId === boss.id);
+    expect(minesOf().length, "地雷を置いている").toBeGreaterThan(0);
+    const kills = state.kills;
+    boss.hp = 0;
+    tick(state, 2);
+    expect(state.boss?.defeated, "撃破").toBe(true);
+    expect(minesOf(), "地雷は残らない").toHaveLength(0);
+    expect(state.kills - kills, "地雷は撃破に数えない（本体の 1 体だけ）").toBeLessThanOrEqual(1);
+  });
 });
 
 describe("盗賊王: 開き直りの連撃", () => {
