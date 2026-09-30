@@ -1,6 +1,5 @@
 import type { GameState } from "../core/state";
 import { MODIFIERS, SKILL, SKILL_DEFS } from "../skills/data";
-import { COLOR_CURSE } from "../skills/hit";
 import { stoneInSlot } from "../skills/persistence";
 import { COLOR_FROST, COLOR_MINE, COLOR_WELL, fieldRadius, mineRadius, wellRadius } from "../skills/placed";
 import { shiftElement, stakeSegments } from "../skills/actions2";
@@ -12,7 +11,6 @@ import type { ActiveCast, EchoCast } from "../skills/types";
 import {
   type ResolvedSlot,
   chargeRatio,
-  chargeStageMarks,
   hookRange,
   remoteAnchor,
   resolveSlot,
@@ -91,8 +89,6 @@ const WELL_CORE = 2;
 const MINE_SIZE = 2;
 const MINE_BLINK = 6;
 const MINE_RANGE_ALPHA = 0.2;
-const CURSE_MARK_Y = 4;
-const CURSE_MARK_SIZE = 2;
 const DELAY_DASH = [3, 3];
 const DELAY_RADIUS = 14;
 const HOOK_HEAD = 2;
@@ -102,14 +98,13 @@ const HASTE_SPIN = 12;
 const COLOR_CHARGE = MODIFIERS.charge.color;
 const CHARGE_BAR_H = 2;
 const CHARGE_BAR_BG = "rgba(0,0,0,0.6)";
-const COLOR_STAGE_MARK = "#000000";
 
 // ---- 大拡張の描画 ----
 const COLOR_COMBO = COMBO_TUNING.color;
 /** 連携可の印: 枠の左上の小さな菱形（点滅） */
 const COMBO_MARK_SIZE = 2;
 const COMBO_MARK_BLINK = 12;
-const COLOR_THROWN = MODIFIERS.toThrown.color;
+const COLOR_THROWN = MODIFIERS.toTarget.color;
 const THROWN_SIZE = 2;
 const SHOT_SIZE = 2;
 const KEG_W = 5;
@@ -124,7 +119,7 @@ const TURRET_BARREL = 5;
 
 // ---- 第 2 弾の描画 ----
 const COLOR_STAKE = "#d0c090";
-const COLOR_TRAP = MODIFIERS.toTrap.color;
+const COLOR_TRAP = MODIFIERS.linger.color;
 const STAKE_H = 7;
 const STAKE_LINE_ALPHA = 0.55;
 const STAKE_FILL_ALPHA = 0.12;
@@ -163,7 +158,6 @@ export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState)
 export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState): void {
   drawThrown(ctx, state);
   drawShots(ctx, state);
-  drawCurses(ctx, state);
   drawShape(ctx, state);
   drawActive(ctx, state);
   resetDrawState(ctx);
@@ -335,7 +329,7 @@ function drawDelays(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
-/** 型替え符「投げ刃」: 発動地点から着弾点へ放物線で飛ぶ刃 */
+/** 型替え符「照準起点」の近接: 発動地点から着弾点へ放物線で飛ぶ刃 */
 function drawThrown(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const e of state.skills.echoes) {
     if (e.kind !== "thrown") continue;
@@ -458,13 +452,13 @@ function drawStakes(ctx: CanvasRenderingContext2D, state: GameState): void {
   ctx.globalAlpha = 1;
 }
 
-/** 型替え符「罠化」の罠: 起動前は暗く、起動後は点滅する菱形と踏まれる範囲 */
+/** 型替え符「据え置き」の罠: 起動前は暗く、起動後は点滅する菱形と近付かれる範囲 */
 function drawTraps(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const t of state.skills.traps) {
     const x = Math.round(t.pos.x);
     const y = Math.round(t.pos.y);
     const armed = t.arm <= 0;
-    circlePath(ctx, x, y, SKILL.modifier.toTrap.trigger);
+    circlePath(ctx, x, y, SKILL.modifier.linger.trigger);
     ctx.globalAlpha = armed ? MINE_RANGE_ALPHA : MINE_RANGE_ALPHA / 2;
     ctx.strokeStyle = COLOR_TRAP;
     ctx.stroke();
@@ -506,25 +500,6 @@ function drawShape(ctx: CanvasRenderingContext2D, state: GameState): void {
 function drawSprings(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.springs) {
     drawZone(ctx, s.pos.x, s.pos.y, springRadius(s.params), COLOR_SPRING, s.total > 0 ? s.timer / s.total : 0);
-  }
-}
-
-/** 呪い中の敵の頭上に紫の菱形 */
-function drawCurses(ctx: CanvasRenderingContext2D, state: GameState): void {
-  const curses = state.skills.curses;
-  if (curses.size === 0) return;
-  ctx.fillStyle = COLOR_CURSE;
-  for (const e of state.enemies) {
-    if (!curses.has(e.id)) continue;
-    const x = Math.round(e.body.pos.x);
-    const y = Math.round(e.body.pos.y - e.body.radius - CURSE_MARK_Y);
-    ctx.beginPath();
-    ctx.moveTo(x, y - CURSE_MARK_SIZE);
-    ctx.lineTo(x + CURSE_MARK_SIZE, y);
-    ctx.lineTo(x, y + CURSE_MARK_SIZE);
-    ctx.lineTo(x - CURSE_MARK_SIZE, y);
-    ctx.closePath();
-    ctx.fill();
   }
 }
 
@@ -753,11 +728,6 @@ function drawChargeGauge(ctx: CanvasRenderingContext2D, state: GameState, index:
   ctx.fillRect(x, y - CHARGE_BAR_H - 1, HUD_SIZE, CHARGE_BAR_H);
   ctx.fillStyle = COLOR_CHARGE;
   ctx.fillRect(x, y - CHARGE_BAR_H - 1, Math.round(HUD_SIZE * ratio), CHARGE_BAR_H);
-  // 段階溜めは段の区切りを刻む
-  ctx.fillStyle = COLOR_STAGE_MARK;
-  for (const mark of chargeStageMarks(state, index)) {
-    ctx.fillRect(x + Math.round(HUD_SIZE * mark), y - CHARGE_BAR_H - 1, 1, CHARGE_BAR_H);
-  }
 }
 
 /** チャージは枠の下のドット（2 以上のときだけ） */

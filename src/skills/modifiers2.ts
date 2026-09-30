@@ -1,227 +1,226 @@
 import { kw } from "../core/keywords";
-import type { StatusApply } from "../core/status";
-import { STATUS } from "../data/tuning";
-import { EXTRA_MODIFIER_TUNING } from "./tuning";
-import { WAVE2_MODIFIER_TUNING as M } from "./tuning2";
-import type { ModifierDef, ModifierKey, SkillKey, Wave2ModifierKey } from "./types";
+import { BALANCE } from "../data/balance";
+import { ATTR_KEYS, type Scaling } from "../loot/types";
+import { isArtKey } from "./arts";
+import type { ArtAct, ArtActKind, ArtActsTransform } from "./arts/types";
+import type { ModifierDef, ModifierKey, Wave2ModifierKey } from "./types";
 
 /**
- * スキル第 2 弾の刻印符（属性・地形・ジョブ・変身）と型替え符（自己中心化・罠化）。data.ts の MODIFIERS に展開する。
- * apply は CastParams に旗や倍率を立てるだけ。発動時の状態で変わるもの（心得・武器写し・化身）は system/skills.ts の
- * wave2CastState が、命中ごとのもの（属性の付与・彩り・地染め）は skills/hit.ts が読む
+ * 刻印符の変形のうち、技の行為の列（分裂・旋回・重ね打ち・戻り刃・軌跡）・起点（照準起点・足元起点・据え置き）・
+ * 発動の時機（終撃連動・応手連動）を変えるもの（段取り 7c。docs/ideas/skills-7c-plan.md 4 章）。data.ts の MODIFIERS に展開する。
+ * transform は純関数（state も rng も読まない）。skills/arts/engine.ts の castArt が型の変形の後に付けた順で当てる。
+ * 行為の列を持たない手書きのスキルには、型替え符（照準起点・足元起点・据え置き）の apply だけが効く
  */
 
-/** 属性を自前で決めるスキル。属性の刻印符と武器写しは付けても意味が無い */
-const OWN_ELEMENT: readonly SkillKey[] = ["shiftingEdge"];
+const W = BALANCE.skills.WAVE2_MODIFIER_TUNING;
 
-/** 属性を差し替える刻印符同士は同時に効かない（古い方が効く） */
-const ELEMENT_SETTERS: readonly ModifierKey[] = ["fireInfuse", "iceInfuse", "stormInfuse", "venomInfuse", "weaponBond"];
+/** 型替え符（照準起点・足元起点・据え置き）が使うリンクの本数 */
+export const RESHAPE_LINK_COST = W.reshapeLinkCost;
 
-function othersOf(self: ModifierKey): ModifierKey[] {
-  return ELEMENT_SETTERS.filter((k) => k !== self);
+// ---------------------------------------------------------------------------
+// 行為の書き換えの部品（skills/arts/transform.ts の型の変形と同じ作法の小さな写し）
+// ---------------------------------------------------------------------------
+
+function scaleScaling(s: Readonly<Scaling>, mul: number): Scaling {
+  const out: Scaling = { base: s.base * mul };
+  for (const k of ATTR_KEYS) {
+    const v = s[k];
+    if (v !== undefined) out[k] = v * mul;
+  }
+  return out;
 }
 
-const INFUSE_APPLIES = {
-  fire: [{ kind: "burn", stacks: 1, duration: M.fireInfuse.burnTime, potency: M.fireInfuse.burnPotency }],
-  ice: [{ kind: "chill", stacks: M.iceInfuse.chillStacks, duration: STATUS.chill.duration, potency: 0 }],
-  storm: [{ kind: "shock", stacks: 1, duration: STATUS.shock.duration, potency: M.stormInfuse.shockPotency }],
-  venom: [{ kind: "poison", stacks: M.venomInfuse.poisonStacks, duration: STATUS.poison.duration, potency: 0 }],
-  broken: [{ kind: "broken", stacks: 1, duration: STATUS.broken.duration, potency: 0 }],
-} as const satisfies Record<string, readonly StatusApply[]>;
+function mulDamage(a: ArtAct, mul: number): ArtAct {
+  if (!a.damage || mul === 1) return a;
+  return { ...a, damage: scaleScaling(a.damage, mul) };
+}
+
+/** 照準起点へ移せる行為（自分の周りに出る範囲の行為。踏み込み・跳躍・弾・自己強化は自分から出るもの） */
+const RELOCATABLE: ReadonlySet<ArtActKind> = new Set(["arc", "ring", "line", "pull", "chain"]);
+
+/** 技にこの種類の行為が 1 つでもあるか */
+function hasKind(acts: readonly ArtAct[], kinds: readonly ArtActKind[]): boolean {
+  return acts.some((a) => kinds.includes(a.kind));
+}
+
+/** 分裂: 弾は数を countMul 倍（間隔が 0 の弾は spreadDeg で開く）、扇は隣り合う向きへ並べて countMul 個に。どれも威力 ×damageMul */
+const split: ArtActsTransform = (acts) =>
+  acts.flatMap((a) => {
+    if (a.kind === "shot") {
+      return [{ ...mulDamage(a, W.split.damageMul), count: a.count * W.split.countMul, spreadDeg: a.spreadDeg > 0 ? a.spreadDeg : W.split.spreadDeg }];
+    }
+    if (a.kind !== "arc") return [a];
+    // 扇は幅ぶんずつ向きをずらして重ならないように並べる（1 体に何度も当てて倍を超えないため）
+    const center = (W.split.countMul - 1) / 2;
+    return Array.from({ length: W.split.countMul }, (_, i) => ({
+      ...mulDamage(a, W.split.damageMul),
+      name: `${a.name}Split${i}`,
+      angleDeg: a.angleDeg + (i - center) * a.deg,
+    }));
+  });
+
+/** 旋回: 弾が自分の周りを回る（動きは engine.ts の shotPath、ここは寿命と貫通） */
+const orbit: ArtActsTransform = (acts) => acts.map((a) => (a.kind === "shot" ? { ...a, life: W.orbit.life, pierce: a.pierce + W.orbit.pierceAdd } : a));
+
+/** 重ね打ち: 弾以外の与ダメの行為の段を hitsMul 倍にし、1 段を軽く */
+const tripleHit: ArtActsTransform = (acts) =>
+  acts.map((a) => (a.damage === undefined || a.kind === "shot" ? a : { ...mulDamage(a, W.tripleHit.damageMul), hits: a.hits * W.tripleHit.hitsMul }));
+
+/** 戻り刃: 弾の寿命を伸ばし（行きは元の寿命、残りが帰り）、帰りにも当たるよう貫通を足す */
+const recall: ArtActsTransform = (acts) =>
+  acts.map((a) => (a.kind === "shot" ? { ...a, life: a.life * W.recall.lifeMul, pierce: a.pierce + W.recall.pierceAdd } : a));
+
+/** 照準起点: 自分の周りに出る範囲の行為を照準地点へ */
+const toTarget: ArtActsTransform = (acts) => acts.map((a) => (a.anchor === "self" && RELOCATABLE.has(a.kind) ? { ...a, anchor: "target" } : a));
+
+/** 足元起点: 照準地点に出る行為を自分の足元へ（跳躍は行き先そのものなので変えない） */
+const toNova: ArtActsTransform = (acts) => acts.map((a) => (a.anchor === "target" && a.kind !== "blink" ? { ...a, anchor: "self" } : a));
+
+/** 技の行為の列に transform を足す（付けた順に当てる） */
+function withTransform(p: { artTransforms: readonly ModifierKey[] }, key: ModifierKey): readonly ModifierKey[] {
+  return [...p.artTransforms, key];
+}
+
+/** 連動は変身の切り替え・構えの維持（もう一度撃つと解ける）とは噛み合わない */
+const AUTO_CAST_EXCLUDES = ["form", "channel"] as const;
 
 export const WAVE2_MODIFIERS: Record<Wave2ModifierKey, ModifierDef> = {
-  // ---- 属性 ----
-  fireInfuse: {
-    key: "fireInfuse",
-    name: "炎化",
-    verb: `属性を炎にし、命中で燃焼を付ける。ダメージ x${M.fireInfuse.damageMul}`,
-    color: "#ff7040",
-    keywords: kw(["burn", "elFire"]),
+  split: {
+    key: "split",
+    name: "分裂",
+    verb: `弾と扇を${W.split.countMul}つに分ける（1つ x${W.split.damageMul}）`,
+    color: "#80ff60",
+    family: "shape",
+    keywords: kw(["bullet"], [], ["area"]),
     excludesTags: [],
-    requiresDamage: true,
-    excludesSkills: OWN_ELEMENT,
-    excludesModifiers: othersOf("fireInfuse"),
-    apply: (p) => ({ ...p, element: "fire", extraApplies: [...p.extraApplies, ...INFUSE_APPLIES.fire], damageMul: p.damageMul * M.fireInfuse.damageMul }),
+    transform: split,
+    fitsArt: (acts) => acts.some((a) => a.damage !== undefined && (a.kind === "shot" || a.kind === "arc")),
+    apply: (p) => ({ ...p, artTransforms: withTransform(p, "split") }),
   },
-  iceInfuse: {
-    key: "iceInfuse",
-    name: "氷化",
-    verb: `属性を氷にし、命中で冷気を付ける。ダメージ x${M.iceInfuse.damageMul}`,
-    color: "#80d0ff",
-    keywords: kw(["chill", "elIce"]),
+  orbit: {
+    key: "orbit",
+    name: "旋回",
+    verb: `弾が自分の周りを${W.orbit.life}秒回り、近くの敵に何度も当たる`,
+    color: "#a0e0ff",
+    family: "shape",
+    keywords: kw(["bullet", "area"]),
     excludesTags: [],
-    requiresDamage: true,
-    excludesSkills: OWN_ELEMENT,
-    excludesModifiers: othersOf("iceInfuse"),
-    apply: (p) => ({ ...p, element: "ice", extraApplies: [...p.extraApplies, ...INFUSE_APPLIES.ice], damageMul: p.damageMul * M.iceInfuse.damageMul }),
+    excludesModifiers: ["recall"],
+    transform: orbit,
+    fitsArt: (acts) => hasKind(acts, ["shot"]),
+    apply: (p) => ({ ...p, artTransforms: withTransform(p, "orbit"), shotPath: "orbit" }),
   },
-  stormInfuse: {
-    key: "stormInfuse",
-    name: "雷化",
-    verb: `属性を雷にし、命中で感電を付ける。ダメージ x${M.stormInfuse.damageMul}`,
-    color: "#ffe060",
-    keywords: kw(["shock", "elLightning"]),
+  tripleHit: {
+    key: "tripleHit",
+    name: "重ね打ち",
+    verb: `1撃を${W.tripleHit.hitsMul}段に分ける（1段 x${W.tripleHit.damageMul}）`,
+    color: "#ffe0a0",
+    family: "shape",
+    keywords: kw(["combo"]),
     excludesTags: [],
-    requiresDamage: true,
-    excludesSkills: OWN_ELEMENT,
-    excludesModifiers: othersOf("stormInfuse"),
-    apply: (p) => ({
-      ...p,
-      element: "lightning",
-      extraApplies: [...p.extraApplies, ...INFUSE_APPLIES.storm],
-      damageMul: p.damageMul * M.stormInfuse.damageMul,
-    }),
+    transform: tripleHit,
+    fitsArt: (acts) => acts.some((a) => a.damage !== undefined && a.kind !== "shot"),
+    apply: (p) => ({ ...p, artTransforms: withTransform(p, "tripleHit") }),
   },
-  venomInfuse: {
-    key: "venomInfuse",
-    name: "毒化",
-    verb: `属性を毒にし、命中で毒を付ける。ダメージ x${M.venomInfuse.damageMul}`,
-    color: "#90e040",
-    keywords: kw(["poison", "elPoison"]),
+  recall: {
+    key: "recall",
+    name: "戻り刃",
+    verb: `弾が行って戻る（帰りにも当たる。貫通 +${W.recall.pierceAdd}）`,
+    color: "#d0c0ff",
+    family: "shape",
+    keywords: kw(["bullet"]),
     excludesTags: [],
-    requiresDamage: true,
-    excludesSkills: OWN_ELEMENT,
-    excludesModifiers: othersOf("venomInfuse"),
-    apply: (p) => ({
-      ...p,
-      element: "poison",
-      extraApplies: [...p.extraApplies, ...INFUSE_APPLIES.venom],
-      damageMul: p.damageMul * M.venomInfuse.damageMul,
-    }),
+    transform: recall,
+    fitsArt: (acts) => hasKind(acts, ["shot"]),
+    apply: (p) => ({ ...p, artTransforms: withTransform(p, "recall"), shotPath: "recall" }),
   },
-  // ---- 状態異常 ----
-  breakInfuse: {
-    key: "breakInfuse",
-    name: "揺さぶり",
-    verb: `命中で崩勢を付ける（受ける怯み値が増え、怯みが長く、解けても堅守が付かない）。ダメージ x${M.breakInfuse.damageMul}`,
-    color: "#e0a060",
-    keywords: kw(["stagger"], [], ["stagger"]),
+  trail: {
+    key: "trail",
+    name: "軌跡",
+    verb: `踏み込み・跳躍の通り道に攻撃の属性の地形を残す（${W.trail.time}秒）`,
+    color: "#c0e080",
+    family: "shape",
+    keywords: kw(["placed"], ["dash"]),
     excludesTags: [],
-    requiresDamage: true,
-    apply: (p) => ({ ...p, extraApplies: [...p.extraApplies, ...INFUSE_APPLIES.broken], damageMul: p.damageMul * M.breakInfuse.damageMul }),
+    // 通り道は撃った瞬間の壁で決まるので行為の列ではなく旗で持ち、engine.ts の踏み込み・跳躍が読む
+    fitsArt: (acts) => hasKind(acts, ["dash", "blink"]),
+    apply: (p) => ({ ...p, trail: true }),
   },
-  hueInfuse: {
-    key: "hueInfuse",
-    name: "彩り",
-    verb: `命中で装備の共鳴の色の彩痕を付ける（共鳴が無ければ付かない）。ダメージ x${M.hueInfuse.damageMul}`,
-    color: "#f0a0ff",
-    keywords: kw(["reaction"], ["crimson", "azure", "jade", "gold", "umbra"]),
-    excludesTags: [],
-    requiresDamage: true,
-    // 彩刻は同じ付与を内蔵している
-    excludesSkills: ["hueEtch"],
-    apply: (p) => ({ ...p, hueInfuse: true, damageMul: p.damageMul * M.hueInfuse.damageMul }),
+  toTarget: {
+    key: "toTarget",
+    name: "照準起点",
+    verb: `自分の周りに出る攻撃を照準地点で起こす（手書きの近接は刃が飛んで着いた所で、置くものは投げ込んで着いた瞬間に）`,
+    color: "#ffd0ff",
+    family: "shape",
+    keywords: kw(["ranged"], ["melee"]),
+    // 手書きのスキルの相性（技は行為の列で決める）。恨み返しは自分が受けたダメージを返す技なので離れた所では意味が無い
+    excludesTags: ["movement", "defense", "buff"],
+    requiresTags: ["melee", "placed"],
+    excludesSkills: ["grudge"],
+    linkCost: RESHAPE_LINK_COST,
+    reshape: true,
+    transform: toTarget,
+    apply: (p, def) => {
+      if (isArtKey(def.key)) return { ...p, artTransforms: withTransform(p, "toTarget") };
+      if (def.tags.includes("melee")) return { ...p, reshape: "toThrown", knockbackMul: p.knockbackMul * W.toTarget.thrown.knockbackMul };
+      const l = W.toTarget.lobbed;
+      return { ...p, reshape: "toLobbed", durationMul: p.durationMul * l.durationMul, timeMul: p.timeMul * l.timeMul, damageMul: p.damageMul * l.damageMul };
+    },
   },
-  // ---- 地形 ----
-  leyline: {
-    key: "leyline",
-    name: "地染め",
-    verb: `命中した位置に属性の地形が湧く（炎 炎 / 氷 氷床 / 雷・光 水たまり / 毒 毒沼 / 闇 油 / 無 草むら。1回の発動で${M.leyline.maxPerCast}か所まで）、再使用時間 x${M.leyline.burdenMul}`,
-    manaVerb: `命中した位置に属性の地形が湧く（炎 炎 / 氷 氷床 / 雷・光 水たまり / 毒 毒沼 / 闇 油 / 無 草むら。1回の発動で${M.leyline.maxPerCast}か所まで）、コスト x${M.leyline.burdenMul}`,
-    color: "#a0c070",
-    keywords: kw(["placed"], [], ["burn", "chill", "poison"]),
-    excludesTags: [],
-    requiresDamage: true,
-    apply: (p) => ({ ...p, leyline: true, burdenMul: p.burdenMul * M.leyline.burdenMul }),
-  },
-  crumble: {
-    key: "crumble",
-    name: "地崩れ",
-    verb: `地裂き専用。命中した敵までの地割れが崩れる床になる（${M.crumble.time}秒。敵が1秒乗り続けると抜けて落ち、ダメージと怯み）、再使用時間 x${M.crumble.burdenMul}`,
-    manaVerb: `地裂き専用。命中した敵までの地割れが崩れる床になる（${M.crumble.time}秒。敵が1秒乗り続けると抜けて落ち、ダメージと怯み）、コスト x${M.crumble.burdenMul}`,
-    color: "#b09070",
-    keywords: kw(["placed", "stagger"], [], ["area"]),
-    excludesTags: [],
-    requiresDamage: true,
-    onlySkills: ["commonQuake"],
-    apply: (p) => ({ ...p, crumble: true, burdenMul: p.burdenMul * M.crumble.burdenMul }),
-  },
-  // ---- ジョブ・武器種 ----
-  jobMastery: {
-    key: "jobMastery",
-    name: "心得",
-    verb: `ジョブの得意な武器種を持っていれば威力・効果量 x${M.jobMastery.favoredMul}（得意でなければ x${M.jobMastery.otherMul}）`,
-    color: "#ffc860",
-    keywords: kw([], [], ["melee"]),
-    excludesTags: [],
-    apply: (p) => ({ ...p, jobMastery: true }),
-  },
-  weaponBond: {
-    key: "weaponBond",
-    name: "武器写し",
-    verb: `属性を近接武器と同じにする。武器が無属性ならダメージ x${M.weaponBond.plainMul}`,
-    color: "#d0d0d0",
-    keywords: kw([], [], ["melee"]),
-    excludesTags: [],
-    requiresDamage: true,
-    excludesSkills: OWN_ELEMENT,
-    excludesModifiers: othersOf("weaponBond"),
-    apply: (p) => ({ ...p, weaponBond: true }),
-  },
-  // ---- 変身 ----
-  formSurge: {
-    key: "formSurge",
-    name: "化身",
-    verb: `変身中は威力・効果量 x${M.formSurge.formMul}（変身していなければ x${M.formSurge.otherMul}）`,
-    color: "#ff90d0",
-    keywords: kw([], [], ["melee"]),
-    excludesTags: ["form"],
-    apply: (p) => ({ ...p, formSurge: true }),
-  },
-  formLinger: {
-    key: "formLinger",
-    name: "深化",
-    verb: `変身の持続 x${M.formLinger.durationMul}、切れた後の反動も x${M.formLinger.recoverMul}、再使用時間 x${M.formLinger.burdenMul}`,
-    manaVerb: `変身の持続 x${M.formLinger.durationMul}、切れた後の反動も x${M.formLinger.recoverMul}、コスト x${M.formLinger.burdenMul}`,
-    color: "#d070ff",
-    keywords: kw([], [], ["melee"]),
-    excludesTags: [],
-    requiresTags: ["form"],
-    // 砲身化・業火の化身は時間で切れないので、持続を伸ばす意味が無い
-    excludesSkills: ["siegeForm", "pyreForm"],
-    apply: (p) => ({
-      ...p,
-      formDurationMul: p.formDurationMul * M.formLinger.durationMul,
-      formRecoverMul: p.formRecoverMul * M.formLinger.recoverMul,
-      burdenMul: p.burdenMul * M.formLinger.burdenMul,
-    }),
-  },
-  // ---- 型替え符（リンク 2 本・1 スロットに 1 枚） ----
   toNova: {
     key: "toNova",
-    name: "足元発動",
-    verb: `【型替え】カーソル地点ではなく自分の足元で発動する。範囲 x${M.toNova.areaMul}`,
+    name: "足元起点",
+    verb: `照準地点ではなく自分の足元で発動する。範囲 x${W.toNova.areaMul}`,
     color: "#fff0c0",
+    family: "shape",
     keywords: kw(["area"], [], ["placed"]),
     excludesTags: ["movement"],
     requiresTags: ["placed"],
     // 地雷・湧き石はもともと足元に置く
     excludesSkills: ["mines", "manaSpring"],
-    linkCost: EXTRA_MODIFIER_TUNING.reshapeLinkCost,
-    reshape: "toNova",
-    apply: (p) => ({ ...p, reshape: "toNova", areaMul: p.areaMul * M.toNova.areaMul }),
+    linkCost: RESHAPE_LINK_COST,
+    reshape: true,
+    transform: toNova,
+    apply: (p, def) => {
+      const areaMul = p.areaMul * W.toNova.areaMul;
+      if (isArtKey(def.key)) return { ...p, areaMul, artTransforms: withTransform(p, "toNova") };
+      return { ...p, areaMul, reshape: "toNova" };
+    },
   },
-  toTrap: {
-    key: "toTrap",
-    name: "罠化",
-    verb: `【型替え】撃たずにカーソル地点へ罠を置く（最大${M.toTrap.maxAlive}）。敵が踏むと罠の位置から最寄りの敵へ向けて発動（ダメージ x${M.toTrap.damageMul}）`,
+  linger: {
+    key: "linger",
+    name: "据え置き",
+    verb: `撃たずに照準地点へ置く（最大${W.linger.maxAlive}）。敵が近付くとその位置から最寄りの敵へ向けて発動（ダメージ x${W.linger.damageMul}）`,
     color: "#c0a0ff",
+    family: "shape",
     keywords: kw(["placed"], [], ["area"]),
     excludesTags: ["placed", "movement", "defense", "buff", "form", "channel"],
     requiresTags: ["melee", "projectile"],
-    // 恨み返しは自分が受けたダメージを返す技なので、離れた罠では意味が無い
     excludesSkills: ["grudge"],
-    linkCost: EXTRA_MODIFIER_TUNING.reshapeLinkCost,
-    reshape: "toTrap",
-    apply: (p) => ({ ...p, reshape: "toTrap", damageMul: p.damageMul * M.toTrap.damageMul }),
+    linkCost: RESHAPE_LINK_COST,
+    reshape: true,
+    apply: (p) => ({ ...p, reshape: "toTrap", damageMul: p.damageMul * W.linger.damageMul }),
   },
-};
-
-/** 属性の刻印符の内訳（テスト・UI 用） */
-export const INFUSE_STATUS: Readonly<Record<"fireInfuse" | "iceInfuse" | "stormInfuse" | "venomInfuse" | "breakInfuse", readonly StatusApply[]>> = {
-  fireInfuse: INFUSE_APPLIES.fire,
-  iceInfuse: INFUSE_APPLIES.ice,
-  stormInfuse: INFUSE_APPLIES.storm,
-  venomInfuse: INFUSE_APPLIES.venom,
-  breakInfuse: INFUSE_APPLIES.broken,
+  autoFinisher: {
+    key: "autoFinisher",
+    name: "終撃連動",
+    verb: "武器の終撃が当たると同時にこのスキルを撃つ（気力・再使用は払う）",
+    color: "#ffb060",
+    family: "shape",
+    keywords: kw([], ["finisher"]),
+    excludesTags: AUTO_CAST_EXCLUDES,
+    autoCast: "finisher",
+    apply: (p) => p,
+  },
+  autoRiposte: {
+    key: "autoRiposte",
+    name: "応手連動",
+    verb: "応手と同時にこのスキルを撃つ（気力・再使用は払う）",
+    color: "#60d0ff",
+    family: "shape",
+    keywords: kw([], ["counter"]),
+    excludesTags: AUTO_CAST_EXCLUDES,
+    autoCast: "riposte",
+    apply: (p) => p,
+  },
 };

@@ -10,6 +10,7 @@ import { noteFinisherMana, onManaSource } from "./manaSources";
 import { isEngaged } from "./engagement";
 import { onFormSwing } from "./tomeBell";
 import { breakTwinSerpent } from "./namedRelics";
+import { tryAutoCast } from "./skills";
 import {
   type ReleaseMul,
   type ReleaseSwingSpec,
@@ -129,6 +130,7 @@ export function noteRiposte(state: GameState, source: RiposteSource, enemy?: Ene
   onManaSource(state, "riposte");
   const where = enemy && enemy.hp > 0 ? enemyTarget(enemy) : { pos: { ...state.player.body.pos } };
   pushEvent(state, { kind: "onRiposte", actor: "player", source: { kind: "player", key: "riposte" }, tag: source, ...where });
+  tryAutoCast(state, "riposte", where.pos ?? state.player.body.pos);
 }
 
 /** 短銃の見切りは零距離（FORM.pistol.zeroDistance）の敵のときだけ応手。他の型・出来事は距離を問わない */
@@ -161,6 +163,7 @@ export function noteHitMoments(state: GameState, enemy: Enemy, hit: MomentHit): 
   if (hit.kind === "proc" && !hit.skill) return;
   noteFirstStrike(state, enemy);
   if (hit.finisher) noteFinisherMana(state, hit.kind);
+  if (hit.finisher) tryAutoCast(state, "finisher", enemy.body.pos);
   if (hit.finisher) pushEvent(state, { kind: "onFinisher", actor: "player", source: { kind: "player", key: "finisher" }, ...(hit.release ? { tag: "release" } : {}), ...enemyTarget(enemy) });
   if (hit.lane !== undefined && !hit.skill) noteTwinStrike(state, enemy, hit.lane);
 }

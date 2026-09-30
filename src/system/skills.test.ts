@@ -9,8 +9,8 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { KEYSTONE, MANA } from "../data/tuning";
-import { BODY_SKILL_KEYS, SKILL, SKILL_DEFS } from "../skills/data";
+import { KEYSTONE } from "../data/tuning";
+import { BODY_SKILL_KEYS, SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import { SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "../skills/types";
@@ -33,12 +33,10 @@ import {
   updateSkills,
   usedLinks,
 } from "./skills";
-import { curseMul, skillHit, skillPower } from "../skills/hit";
+import { skillPower } from "../skills/hit";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const BIG_HP = 1000;
-/** 技の行為が出揃うまで待つ秒（遅れて出る行為を含む） */
-const ART_SETTLE = 1;
 
 interface Loadout {
   key: SkillKey;
@@ -166,7 +164,7 @@ describe("マナと最低間隔", () => {
   });
 
   it("マナ不足は不発: 何も消費しない（マナ・HP・コンボ・最低間隔）。点滅と効果音が出て、先行入力も残らない", () => {
-    const state = skillArena([{ key: "gravityWell", links: 2, modifiers: ["bloodPrice", "comboFuel"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["spillover"] }]);
     const p = state.player;
     p.mana = manaCost(state, 0) - 1;
     state.combo.count = 5;
@@ -176,8 +174,8 @@ describe("マナと最低間隔", () => {
     press(state, 0, aimAt(state, 60));
     expect(state.skills.wells, "発動しない").toHaveLength(0);
     expect(p.mana, "マナは減らない").toBe(mana);
-    expect(p.hp, "血の代償の HP も払わない").toBe(hp);
-    expect(state.combo.count, "コンボ燃料も消費しない").toBe(5);
+    expect(p.hp, "HP も払わない").toBe(hp);
+    expect(state.combo.count, "コンボも減らない").toBe(5);
     expect(state.skills.slots[0]?.intervalLeft, "最低間隔も立たない").toBe(0);
     expect(state.skills.manaFlash, "マナバーの点滅").toBeGreaterThan(0);
     expect(state.sfx, "不発の効果音").toContain("manaEmpty");
@@ -385,8 +383,8 @@ describe("血の契約", () => {
     expect(p.hp).toBeCloseTo(hp + dealt * SKILL.bloodPact.lifesteal);
   });
 
-  it("HP コストで 1 未満にならない（血の代償付き）", () => {
-    const state = skillArena([{ key: "bloodPact", links: 1, modifiers: ["bloodPrice"] }]);
+  it("HP コストで 1 未満にならない", () => {
+    const state = skillArena([{ key: "bloodPact" }]);
     state.player.hp = 1;
     press(state, 0);
     expect(state.player.hp).toBe(1);
@@ -408,21 +406,6 @@ describe("チャージと CD（CD 型）", () => {
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
   });
 
-  it("多重付きで 3 回連続発動でき、4 回目は失敗。CD 経過で 1 回ずつ回復", () => {
-    const state = skillArena([{ key: "haste", links: 1, modifiers: ["multiCharge"] }]);
-    // 途中で付いた多重は 1 回ぶん即時、残りは CD で溜まる
-    run(state, (resolveSlot(state, 0)?.cooldown ?? 0) * 2 + FIXED_DT);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(3);
-    for (let i = 0; i < 4; i++) {
-      press(state, 0);
-      waitInterval(state, 0);
-    }
-    expect(state.skills.slots[0]?.chargesLeft).toBe(0);
-    const cd = resolveSlot(state, 0)?.cooldown ?? 0;
-    run(state, cd);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(1);
-  });
-
   it("石の links は負担に効かない（マナ型のコストは基本のまま）", () => {
     const state = skillArena([{ key: "gravityWell", links: 0 }, { key: "gravityWell", links: 3 }]);
     const a = manaCost(state, 0);
@@ -433,19 +416,7 @@ describe("チャージと CD（CD 型）", () => {
 });
 
 describe("修飾子", () => {
-  it("コンボ燃料: コンボ 10 で威力 x1.4、発動後コンボ 0。コンボ 0 なら x0.8", () => {
-    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["comboFuel"] }]);
-    state.combo.count = 10;
-    press(state, 0);
-    expect(state.skills.wells[0]?.params.damageMul).toBeCloseTo(1.4);
-    expect(state.combo.count).toBe(0);
-
-    const empty = skillArena([{ key: "gravityWell", links: 1, modifiers: ["comboFuel"] }]);
-    press(empty, 0);
-    expect(empty.skills.wells[0]?.params.damageMul).toBeCloseTo(SKILL.modifier.comboFuel.emptyMul);
-  });
-
-  it("反響: 0.8 秒後に 50% で再発動し、反響の反響は起きない", () => {
+  it("反響: 少し後に弱く再発動し、反響の反響は起きない", () => {
     const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["echo"] }]);
     press(state, 0);
     expect(state.skills.echoes).toHaveLength(1);
@@ -463,18 +434,18 @@ describe("刻印符（ラン内だけの物）", () => {
 
   it("自動で付くときは空きのあるスロットの先頭から。スロットのリンクを使い切ったら次のスロットへ", () => {
     const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }]);
-    const picks: ModifierKey[] = ["multiCharge", "bloodPrice", "comboFuel", "echo"];
+    const picks: ModifierKey[] = ["focus", "bloodPrice", "spillover", "echo"];
     for (const key of picks) expect(attachRune(state, key), key).toBe(0);
     expect(mods(state, 0), "スロット 1 のリンクは 4 本").toEqual(picks);
-    expect(attachRune(state, "recoil"), "5 枚目は空きのあるスロット 2").toBe(1);
-    expect(mods(state, 1)).toEqual(["recoil"]);
+    expect(attachRune(state, "streak"), "5 枚目は空きのあるスロット 2").toBe(1);
+    expect(mods(state, 1)).toEqual(["streak"]);
   });
 
   it("全スロットのリンクが埋まっていると、最初の候補の最古の符を押し出す", () => {
     const state = skillArena([{ key: "gravityWell" }]);
-    for (const key of ["multiCharge", "bloodPrice", "comboFuel", "echo"] as const) attachRune(state, key);
-    expect(attachRune(state, "recoil")).toBe(0);
-    expect(mods(state, 0), "最古の多重が押し出される").toEqual(["bloodPrice", "comboFuel", "echo", "recoil"]);
+    for (const key of ["focus", "bloodPrice", "spillover", "echo"] as const) attachRune(state, key);
+    expect(attachRune(state, "streak")).toBe(0);
+    expect(mods(state, 0), "最古の収束が押し出される").toEqual(["bloodPrice", "spillover", "echo", "streak"]);
   });
 
   it("床の刻印符は触れると付けられるスロットへ入る（所持品もセーブも経由しない）", () => {
@@ -498,11 +469,11 @@ describe("刻印符（ラン内だけの物）", () => {
   });
 
   it("リンクはスロットごとに固定: スロット 4 は 2 本まで。3 枚目の符は効かない", () => {
-    const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }, { key: "gravityWell" }, { key: "gravityWell", modifiers: ["bloodPrice", "comboFuel", "echo"] }]);
+    const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }, { key: "gravityWell" }, { key: "gravityWell", modifiers: ["bloodPrice", "spillover", "echo"] }]);
     const view = slotModifierView(state, 3);
     expect(view.map((v) => [v.key, v.active]), "2 本ぶんだけ効く").toEqual([
       ["bloodPrice", true],
-      ["comboFuel", true],
+      ["spillover", true],
       ["echo", false],
     ]);
     expect(view.every((v) => v.run), "拾った符").toBe(true);
@@ -510,7 +481,7 @@ describe("刻印符（ラン内だけの物）", () => {
   });
 
   it("石の links はどんな値でも効き方を変えない（リンクはスロットの物）", () => {
-    const state = skillArena([{ key: "gravityWell", links: 0, modifiers: ["bloodPrice", "comboFuel"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 0, modifiers: ["bloodPrice", "spillover"] }]);
     expect(state.skills.profile.stones[0]?.links).toBe(0);
     expect(slotModifierView(state, 0).every((v) => v.active), "links 0 でも効く").toBe(true);
   });
@@ -528,14 +499,14 @@ describe("刻印符（ラン内だけの物）", () => {
 
 describe("刻印符の移す・外す（装備画面）", () => {
   it("別のスロットへ移せる。反映は次のステップの同期で、移した符は移し先の最新になる", () => {
-    const state = skillArena([{ key: "gravityWell", modifiers: ["bloodPrice", "echo"] }, { key: "gravityWell", modifiers: ["comboFuel"] }]);
+    const state = skillArena([{ key: "gravityWell", modifiers: ["bloodPrice", "echo"] }, { key: "gravityWell", modifiers: ["spillover"] }]);
     expect(moveRunModifier(state.skills, 0, 1, "echo")).toBe("ok");
     expect(state.skills.slots[0]?.runModifiers).toEqual(["bloodPrice"]);
-    expect(state.skills.slots[1]?.runModifiers).toEqual(["comboFuel", "echo"]);
+    expect(state.skills.slots[1]?.runModifiers).toEqual(["spillover", "echo"]);
     expect(state.skills.slots[0]?.modifiers, "同期前はまだ古いまま").toEqual(["bloodPrice", "echo"]);
     run(state, FIXED_DT);
     expect(state.skills.slots[0]?.modifiers).toEqual(["bloodPrice"]);
-    expect(state.skills.slots[1]?.modifiers).toEqual(["comboFuel", "echo"]);
+    expect(state.skills.slots[1]?.modifiers).toEqual(["spillover", "echo"]);
   });
 
   it("移せない理由: 石が無い・相性・重複・リンク不足・元に無い・同じスロット", () => {
@@ -543,22 +514,22 @@ describe("刻印符の移す・外す（装備画面）", () => {
       { key: "gravityWell", modifiers: ["echo"] },
       { key: "parry", modifiers: ["bloodPrice"] },
       { key: "gravityWell", modifiers: ["echo"] },
-      { key: "gravityWell", modifiers: ["comboFuel", "recoil"] },
+      { key: "gravityWell", modifiers: ["spillover", "streak"] },
     ]);
     const rs = state.skills;
     expect(moveRunModifier(rs, 0, 1, "echo"), "パリィには反響が付かない").toBe("notFit");
     expect(moveRunModifier(rs, 0, 2, "echo"), "同じ符は 2 枚付けない").toBe("duplicate");
     expect(moveRunModifier(rs, 0, 3, "echo"), "スロット 4 のリンク 2 本は埋まっている").toBe("noLinks");
     expect(moveRunModifier(rs, 0, 0, "echo"), "同じスロットへは動かさない").toBe("missing");
-    expect(moveRunModifier(rs, 2, 3, "recoil"), "元のスロットに無い符").toBe("missing");
+    expect(moveRunModifier(rs, 2, 3, "streak"), "元のスロットに無い符").toBe("missing");
     const empty = skillArena([{ key: "gravityWell", modifiers: ["echo"] }]);
     expect(moveRunModifier(empty.skills, 0, 2, "echo"), "石の無いスロット").toBe("noStone");
     expect(rs.slots[0]?.runModifiers, "失敗したら動かない").toEqual(["echo"]);
   });
 
   it("型替え符は 1 枚まで", () => {
-    const state = skillArena([{ key: "commonWhirl", modifiers: ["toStaged"] }, { key: "commonWhirl", modifiers: ["toThrown"] }]);
-    expect(moveRunModifier(state.skills, 1, 0, "toThrown"), "リンクは足りるが型替え符は 1 枚まで").toBe("reshape");
+    const state = skillArena([{ key: "commonWhirl", modifiers: ["toTarget"] }, { key: "commonWhirl", modifiers: ["linger"] }]);
+    expect(moveRunModifier(state.skills, 1, 0, "linger"), "リンクは足りるが型替え符は 1 枚まで").toBe("reshape");
   });
 
   it("外すと符は消え、次のステップで効かなくなる。無い符は外せない", () => {
@@ -573,7 +544,7 @@ describe("刻印符の移す・外す（装備画面）", () => {
   it("同じ seed・同じ操作なら同じ結果（決定性）", () => {
     const play = (): ModifierKey[][] => {
       const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }], 9);
-      for (const key of ["echo", "bloodPrice", "comboFuel"] as const) attachRune(state, key);
+      for (const key of ["echo", "bloodPrice", "spillover"] as const) attachRune(state, key);
       moveRunModifier(state.skills, 0, 1, "echo");
       run(state, FIXED_DT * 3);
       return state.skills.slots.map((s) => s.modifiers);
@@ -837,132 +808,19 @@ describe("氷結地帯", () => {
 // ---------------------------------------------------------------------------
 
 describe("追加の刻印符", () => {
-  it("反動: 発動時に照準の逆へ跳び、短い無敵", () => {
-    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["recoil"] }]);
-    const x = state.player.body.pos.x;
+  it("分身: 撃った位置から少し後に弱い写しが出て、写しからは写しが出ない", () => {
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["ghost"] }]);
     press(state, 0, aimAt(state, 60));
-    expect(state.player.invulnTimer).toBeGreaterThan(0);
-    run(state, 0.1);
-    expect(state.player.body.pos.x).toBeLessThan(x);
+    expect(state.skills.echoes, "写しの予約").toHaveLength(1);
+    run(state, SKILL.modifier.ghost.delay + FIXED_DT);
+    const copy = state.skills.wells.find((g) => g.params.ghost === null);
+    expect(copy?.params.damageMul).toBeCloseTo(SKILL.modifier.ghost.damageMul);
+    run(state, SKILL.modifier.ghost.delay * 2);
+    expect(state.skills.echoes).toHaveLength(0);
+    expect(state.skills.wells, "本体と写しの 2 つだけ").toHaveLength(2);
   });
 
-  it("連鎖（CD 型）: スキルで倒すとチャージが戻る", () => {
-    const state = skillArena([{ key: "commonLunge", links: 1, modifiers: ["chainReset"] }]);
-    const e = placeEnemy(state, "golem", 20);
-    e.hp = 1;
-    e.phase = "idle";
-    press(state, 0);
-    run(state, FIXED_DT);
-    expect(e.hp).toBeLessThanOrEqual(0);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(1);
-
-    const plain = skillArena([{ key: "commonLunge" }]);
-    const f = placeEnemy(plain, "golem", 20);
-    f.hp = 1;
-    f.phase = "idle";
-    press(plain, 0);
-    run(plain, FIXED_DT);
-    expect(plain.skills.slots[0]?.chargesLeft).toBe(0);
-  });
-
-  it("連鎖（マナ型）: スキルで倒すと払ったコストの 50% が戻る。倒さなければ戻らない", () => {
-    const state = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["chainReset"] }]);
-    const cost = manaCost(state, 0);
-    expect(cost, "連鎖の負担 ×1.2").toBeCloseTo(SKILL_DEFS.commonWhirl.manaCost * SKILL.modifier.chainReset.manaBurdenMul);
-    const gained = (s: GameState): number => {
-      const e = placeEnemy(s, "golem", 16);
-      e.hp = 1;
-      e.phase = "idle";
-      const before = s.player.mana;
-      const paid = manaCost(s, 0);
-      press(s, 0);
-      expect(e.hp).toBeLessThanOrEqual(0);
-      return s.player.mana - (before - paid);
-    };
-    // 撃破そのもので増える分（MANA.onKill）は連鎖と無関係なので、連鎖なしの同条件と差を取る
-    const control = gained(skillArena([{ key: "commonWhirl", links: 1 }]));
-    expect(gained(state) - control, "コストの 50% が戻る").toBeCloseTo(cost * SKILL.modifier.chainReset.manaRefund);
-
-    const miss = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["chainReset"] }]);
-    const m0 = miss.player.mana;
-    press(miss, 0);
-    run(miss, ART_SETTLE);
-    expect(miss.player.mana, "撃破が無ければ返らない").toBeCloseTo(m0 - manaCost(miss, 0));
-  });
-
-  it("連鎖（マナ型）: 1 回の発動で何体倒しても、戻るのは払ったマナまで", () => {
-    const state = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["chainReset"] }]);
-    // 撃破 1 体ぶんの返却はコストの 50%。4 体倒しても合計は払った額（100%）で止まる
-    for (const [dx, dy] of [[14, 0], [-14, 0], [0, 14], [0, -14]] as const) {
-      const e = placeEnemy(state, "golem", dx, dy);
-      e.hp = 1;
-      e.phase = "idle";
-    }
-    state.player.mana = state.stats.maxMana * 0.5;
-    const before = state.player.mana;
-    const cost = manaCost(state, 0);
-    const killsBefore = state.kills;
-    press(state, 0);
-    run(state, ART_SETTLE);
-    const kills = state.kills - killsBefore;
-    expect(kills, "複数体を倒している").toBeGreaterThanOrEqual(3);
-    // 撃破そのもの（MANA.onKill）の回収を除いた返却分
-    const refund = state.player.mana - (before - cost) - kills * MANA.onKill;
-    expect(refund, "払った額を超えて戻らない").toBeLessThanOrEqual(cost + 1e-6);
-    expect(refund, "払った額までは戻る").toBeCloseTo(cost);
-  });
-
-  it("連鎖（マナ型）: 過負荷で HP から払った分はマナとして返さない", () => {
-    const state = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["chainReset"] }], 5, ["ks_overdraw"]);
-    const e = placeEnemy(state, "golem", 16);
-    e.hp = 1;
-    e.phase = "idle";
-    state.player.mana = 0;
-    press(state, 0);
-    run(state, ART_SETTLE);
-    expect(e.hp).toBeLessThanOrEqual(0);
-    expect(state.player.mana, "戻るのは撃破の回収だけ").toBeCloseTo(MANA.onKill);
-  });
-
-  it("連鎖（マナ型）の返却は最大マナを超えない", () => {
-    const state = skillArena([{ key: "commonWhirl", links: 1, modifiers: ["chainReset"] }]);
-    for (const dx of [14, -14, 0]) {
-      const e = placeEnemy(state, "golem", dx, dx === 0 ? 14 : 0);
-      e.hp = 1;
-      e.phase = "idle";
-    }
-    state.player.mana = state.stats.maxMana;
-    press(state, 0);
-    expect(state.player.mana).toBeLessThanOrEqual(state.stats.maxMana);
-  });
-
-  it("呪い: 当てた敵に刻印、刻印中はスキル被ダメが増える", () => {
-    const state = skillArena([{ key: "commonThunderclap", links: 1, modifiers: ["curse"] }]);
-    const e = tough(state, 60);
-    press(state, 0, aimAt(state, 60));
-    run(state, ART_SETTLE);
-    expect(state.skills.curses.has(e.id)).toBe(true);
-    expect(curseMul(state, e.id)).toBeCloseTo(1 + SKILL.modifier.curse.bonus);
-
-    const params = resolveSlot(state, 0)?.params;
-    if (!params) throw new Error("params");
-    const target = tough(state, 0, 40);
-    const base = 20;
-    const spec = { base, kind: "ranged" as const, dir: { x: 1, y: 0 }, knockback: 0, stagger: false };
-    state.combo.count = 0;
-    let hp = target.hp;
-    skillHit(state, target, { ...params, curse: null }, spec);
-    const plainDamage = hp - target.hp;
-    state.skills.curses.set(target.id, { time: SKILL.modifier.curse.duration, bonus: SKILL.modifier.curse.bonus });
-    state.combo.count = 0;
-    hp = target.hp;
-    skillHit(state, target, { ...params, curse: null }, spec);
-    expect(hp - target.hp).toBe(Math.round(plainDamage * (1 + SKILL.modifier.curse.bonus)));
-    run(state, SKILL.modifier.curse.duration + 1);
-    expect(state.skills.curses.has(target.id)).toBe(false);
-  });
-
-  it("遅延: その場では何も起きず、0.8 秒後に発動地点で強化して発動", () => {
+  it("遅延: その場では何も起きず、少し後に発動地点で強化して発動", () => {
     const state = skillArena([{ key: "commonQuake", links: 1, modifiers: ["delay"] }]);
     const e = tough(state, 30);
     press(state, 0);
@@ -987,29 +845,27 @@ describe("追加の刻印符", () => {
     expect(state.skills.mines).toHaveLength(2);
   });
 
-  it("拡大: 範囲 x1.5 でコストが重い", () => {
-    const state = skillArena([{ key: "frostField", links: 1, modifiers: ["expand"] }]);
+  it("収束: 範囲が狭く威力が高い", () => {
+    const state = skillArena([{ key: "frostField", links: 1, modifiers: ["focus"] }]);
     press(state, 0, aimAt(state, 50));
-    expect(state.skills.fields[0]?.params.areaMul).toBeCloseTo(SKILL.modifier.expand.areaMul);
-    expect(manaCost(state, 0)).toBeCloseTo(SKILL.frostField.cost * SKILL.modifier.expand.burdenMul);
+    expect(state.skills.fields[0]?.params.areaMul).toBeCloseTo(SKILL.modifier.focus.areaMul);
+    expect(state.skills.fields[0]?.params.damageMul).toBeCloseTo(SKILL.modifier.focus.damageMul);
   });
 
-  it("階層を移ると設置物と呪いは消える", () => {
+  it("階層を移ると設置物は消える", () => {
     const state = skillArena([{ key: "mines" }, { key: "frostField" }]);
     press(state, 0);
     waitInterval(state, 1);
     press(state, 1, aimAt(state, 30));
     expect(state.skills.fields, "前提: 氷結地帯が出ている").toHaveLength(1);
-    state.skills.curses.set(1, { time: 3, bonus: 0.3 });
     state.depth += 1;
     updateSkills(state, withInput({}), FIXED_DT);
     expect(state.skills.mines).toHaveLength(0);
     expect(state.skills.fields).toHaveLength(0);
-    expect(state.skills.curses.size).toBe(0);
   });
 
   it("階層を移ると結界杭と罠は消え、変身は続く", () => {
-    const state = skillArena([{ key: "wardStake" }, { key: "wolfForm" }, { key: "commonWhirl", links: 2, modifiers: ["toTrap"] }]);
+    const state = skillArena([{ key: "wardStake" }, { key: "wolfForm" }, { key: "commonWhirl", links: 2, modifiers: ["linger"] }]);
     state.player.mana = state.stats.maxMana;
     press(state, 0, aimAt(state, 30));
     press(state, 2, aimAt(state, 60));

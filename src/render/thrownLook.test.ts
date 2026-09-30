@@ -156,7 +156,6 @@ const THROW_WORDS = /投げ|投擲|放る|放り|一投/;
 const EXCLUDED: Readonly<Record<string, string>> = {
   // 飛ぶ弾が無い（照準地点に即座に出る輪）
   "skill:commonBomb": "照準地点に即座に爆ぜる輪で、飛ぶ弾が無い",
-  "modifier:toLobbed": "置く物を照準地点に即座に置く型替えで、飛ぶ弾が無い",
   // 敵を投げる近接
   "moveset:fists": "敵を背後へ投げる近接の振り",
   "branch:grabToss": "敵を投げる近接の振り",
@@ -169,8 +168,8 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "ult:thrown.swiftToss": "持続の奥義。飛ぶ弾の見た目は武器の弾の表が決める",
 };
 
-/** 描画は表ではなく別の経路で持つもの（thrownLook.ts の THROWN_ECHO_LOOK） */
-const DRAWN_ELSEWHERE = new Set(["modifier:toThrown"]);
+/** 描画は表ではなく別の経路で持つもの（thrownLook.ts の THROWN_ECHO_LOOK。照準起点の近接が飛ばす刃） */
+const DRAWN_ELSEWHERE = new Set(["modifier:toTarget"]);
 
 interface Described {
   readonly id: string;

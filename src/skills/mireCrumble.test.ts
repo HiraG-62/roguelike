@@ -9,13 +9,13 @@ import { updatePlayer } from "../system/player";
 import { createSkillRunState, updateSkills } from "../system/skills";
 import { igniteTerrainAt, terrainAt, terrainMoveMul } from "../system/terrain";
 import { arena, placeEnemy, withInput } from "../system/testHelpers";
-import { SKILL, SKILL_DEFS, canAttach, resolveCast } from "./data";
+import { SKILL, SKILL_DEFS } from "./data";
 import { stoneFromSeed } from "./generator";
 import type { ModifierKey, SkillKey, SkillStone } from "./types";
 
 /**
- * 第 4 弾: スキル「泥沼」と、地裂きの刻印符「地崩れ」。泥沼は実際の発動（updatePlayer → updateSkills → castSlot）を通して
- * 地形・怯み値・状態で検証する（崩れる床そのものの規則は system/terrain.test.ts）
+ * 第 4 弾: スキル「泥沼」。実際の発動（updatePlayer → updateSkills → castSlot）を通して
+ * 地形・怯み値・状態で検証する（崩れる床そのものの規則は system/terrain.test.ts。地崩れの刻印符は段取り 7c で消えた）
  */
 
 const BIG_HP = 1000;
@@ -114,22 +114,5 @@ describe("泥沼（mire）", () => {
     cast(state, ahead(state, 60));
     run(state, SKILL.mire.terrainTime + FIXED_DT * 2);
     expect(state.skills.mires ?? []).toHaveLength(0);
-  });
-});
-
-describe("地裂きの刻印符「地崩れ」（crumble）", () => {
-  // 段取り 7c で地裂きは技（commonQuake。前方の帯に瓦礫を残す）になった。崩れる床の出し方は刻印符の整理（H2）で決め直す
-  it("地裂きにだけ付く", () => {
-    expect(canAttach(SKILL_DEFS.commonQuake, "crumble")).toBe(true);
-    expect(canAttach(SKILL_DEFS.commonWhirl, "crumble")).toBe(false);
-    expect(canAttach(SKILL_DEFS.mire, "crumble")).toBe(false);
-  });
-
-  it("負担が増え、発動の旗が立つ", () => {
-    const stone = makeStone({ key: "commonQuake", links: 1 });
-    const plain = resolveCast(SKILL_DEFS.commonQuake, makeStone({ key: "commonQuake", links: 1 }), []);
-    const p = resolveCast(SKILL_DEFS.commonQuake, stone, ["crumble"]);
-    expect(p.crumble).toBe(true);
-    expect(p.burdenMul).toBeCloseTo(plain.burdenMul * SKILL.modifier.crumble.burdenMul);
   });
 });

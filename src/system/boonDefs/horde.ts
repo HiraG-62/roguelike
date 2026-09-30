@@ -130,7 +130,7 @@ export const BOONS_HORDE: Readonly<Record<HordeKey, BoonDef>> = {
     key: "lingerOn",
     name: "居残り",
     // 符の名前は skills/modifiers.ts の linger（読むと起動時の循環になるので名前だけ書く）
-    desc: "装着中の全てのスキルに刻印符「延命」が付く（設置物が長く残る）。",
+    desc: "装着中の全てのスキルに刻印符「据え置き」が付く（撃つと照準地点に留まり、敵が近付くとそこから発動）。",
     icon: "居",
     tags: ["placed", "skill"],
     keywords: kw([], [], ["placed"]),
