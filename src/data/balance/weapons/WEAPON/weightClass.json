@@ -1,5 +1,5 @@
 {
-  "_note": "武器の重さ別の係数（data/weapons.ts の MovesetDef.weight。docs/ideas/combat-core-impl.md 2-5）。重い武器は振りの間止まり、ダッシュで取り消せない。軽い武器は動きながら振れ、いつでもダッシュで切れる。damageMul / poiseMul は重さの補償の口で、初期は 1（balance-tuner が動かす）",
+  "_note": "武器の重さ別の係数（data/weapons.ts の MovesetDef.weight。docs/ideas/combat-core-impl.md 2-5）。重い武器は振りの間止まり、ダッシュで取り消せない。軽い武器は動きながら振れ、いつでもダッシュで切れる。damageMul / poiseMul は重さの補償の口で、初期は 1（balance-tuner が動かす）。finisherKnockbackMul / finisherGuardBreak / hitstopFinisher は重さの補償の副次の効果（docs/ideas/weapon-forms-impl.md 3-5 の初期値。hitstopFinisher は今の FEEL.hitstopFinisher と同じ 9 から）",
   "_fields": {
     "moveMulMin": "攻撃中の移動倍率の下限。武器種の attackMoveMul をこの帯 [Min, Max] に丸める（1 = 等倍）",
     "moveMulMax": "攻撃中の移動倍率の上限（1 = 等倍）",
@@ -9,9 +9,12 @@
     "recoverMul": "硬直の倍率（1 = 等倍）",
     "damageMul": "重さの補償の威力の倍率（1 = 等倍）。balance-tuner が動かす",
     "poiseMul": "重さの補償の怯み値の倍率（1 = 等倍）。balance-tuner が動かす",
-    "hitstop": "通常命中のヒットストップ（ステップ。60Hz）。段が hitstop を持てば段が優先。重い命中・終撃・撃破・会心は別"
+    "hitstop": "通常命中のヒットストップ（ステップ。60Hz）。段が hitstop を持てば段が優先。重い命中・終撃・撃破・会心は別",
+    "finisherKnockbackMul": "重さの補償: 終撃（最終段・フィニッシュ派生・終撃になる放出）の命中のノックバックの倍率（1 = 等倍）。system/player.ts の meleeHitEnemy",
+    "finisherGuardBreak": "重さの補償: 終撃が堅守（騎士の盾）を崩す（真偽）。カウンターは重さによらず崩す",
+    "hitstopFinisher": "終撃の命中のヒットストップの底上げ（ステップ。60Hz）。FEEL.hitstopFinisher を重さで上書きする"
   },
-  "light": { "moveMulMin": 0.6, "moveMulMax": 0.8, "finisherMoveMul": -1, "lockActive": false, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 0 },
-  "medium": { "moveMulMin": 0.3, "moveMulMax": 0.5, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 1 },
-  "heavy": { "moveMulMin": 0, "moveMulMax": 0, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0.5, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 2 }
+  "light": { "moveMulMin": 0.6, "moveMulMax": 0.8, "finisherMoveMul": -1, "lockActive": false, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 0, "finisherKnockbackMul": 1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
+  "medium": { "moveMulMin": 0.3, "moveMulMax": 0.5, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 1, "finisherKnockbackMul": 1.1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
+  "heavy": { "moveMulMin": 0, "moveMulMax": 0, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0.5, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 2, "finisherKnockbackMul": 1.4, "finisherGuardBreak": true, "hitstopFinisher": 9 }
 }

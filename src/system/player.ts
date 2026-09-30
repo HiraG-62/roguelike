@@ -90,6 +90,8 @@ import {
 import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
+import { type ReleaseMul, createMorale, gainMorale, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
+import { createMoment, noteRiposte, startShotMoments, startSwingMoments, tickFormState } from "./moments";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -175,6 +177,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     art: { cooldown: 0, holding: false, holdTime: 0, recover: 0, cooldowns: new Map() },
     parry: { window: 0, recover: 0 },
     ultimate: createUltimateState(),
+    morale: createMorale(),
+    moment: createMoment(),
   };
 }
 
@@ -197,6 +201,7 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   const movesetChanged = state.stats.moveset !== stats.moveset;
   state.stats = stats;
   if (movesetChanged) endUltimate(state, "manual");
+  if (movesetChanged) resetMorale(p);
   p.maxHp = stats.maxHp;
   // 精神が下がって上限が縮んだときだけ切り詰める（増えたぶんは自然回復で埋める）
   p.mana = Math.min(p.mana, stats.maxMana);
@@ -254,6 +259,8 @@ export interface MeleeStep {
   cast?: CastDef;
   /** 弾返し・弾斬りが無くても敵弾を消す（MeleeStepDef.cutsBullets） */
   cutsBullets: boolean;
+  /** 戦意を使った放出の振り（system/morale.ts。与ダメのタグ release・終撃の判定） */
+  release?: boolean;
 }
 
 /** 装備中の武器種。武器なしは剣 */
@@ -323,34 +330,44 @@ export function meleeStep(
   branch = -1,
   moveset: MovesetDef = currentMoveset(stats),
   lane: ButtonKey = "primary",
+  release?: ReleaseMul,
 ): MeleeStep | undefined {
   const base = stepDef(moveset, step, dashStrike, chargeLevel, branch, lane);
   if (!base) return undefined;
   const level = chargeLevel > 0 ? meleeChargeOf(moveset)?.levels[chargeLevel - 1] : undefined;
-  return scaleStep(stats, base, moveset, level);
+  return scaleStep(stats, base, moveset, level, release);
 }
 
-/** 段の定義に stats と溜めの段の倍率を掛ける（meleeStep と溜め中の回しが使う） */
-function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: MovesetDef, level?: MeleeChargeDef["levels"][number]): MeleeStep {
+/**
+ * 段の定義に stats と溜めの段の倍率を掛ける（meleeStep と溜め中の回しが使う）。
+ * release は戦意の放出の倍率（system/morale.ts。放出の段の振りだけ）
+ */
+function scaleStep(
+  stats: Readonly<PlayerStats>,
+  base: MeleeStepDef,
+  moveset: MovesetDef,
+  level?: MeleeChargeDef["levels"][number],
+  release?: ReleaseMul,
+): MeleeStep {
   const speed = stats.attackSpeedMul;
-  const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1);
+  const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1) * (release?.reachMul ?? 1);
   const weight = WEAPON.weightClass[moveset.weight];
   return {
     windup: base.windup / speed,
     active: base.active / speed,
     recover: (base.recover * weight.recoverMul) / speed,
-    damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1) * weight.damageMul,
-    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1) * weight.poiseMul,
+    damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1) * weight.damageMul * (release?.damageMul ?? 1),
+    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1) * weight.poiseMul * (release?.poiseMul ?? 1),
     reach: base.reach * reachMul,
     size: base.size * reachMul,
-    knockback: base.knockback * stats.knockbackMul,
+    knockback: base.knockback * stats.knockbackMul * (release?.knockbackMul ?? 1),
     heavy: base.heavy,
     shape: base.shape,
     mana: base.mana,
     pull: base.pull ?? false,
     throw: base.throw ?? false,
     tip: base.shape.kind === "thrust" ? moveset.tip : undefined,
-    hits: Math.max(1, base.hits ?? 1),
+    hits: Math.max(1, base.hits ?? 1) + (release?.hitsAdd ?? 0),
     hitstop: base.hitstop,
     shake: base.shake ?? 0,
     lunge: base.lunge ?? 0,
@@ -360,6 +377,7 @@ function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: Mo
     invuln: base.invuln ?? 0,
     cast: base.cast,
     cutsBullets: base.cutsBullets ?? false,
+    ...(release ? { release: true } : {}),
   };
 }
 
@@ -367,7 +385,7 @@ function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: Mo
 export function currentMeleeStep(state: GameState): MeleeStep | undefined {
   const p = state.player;
   if (!isAttacking(p)) return undefined;
-  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state), p.attack.lane);
+  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state), p.attack.lane, swingReleaseMul(state));
 }
 
 /** 射撃 1 発の基礎威力（今の銃の弾の係数を評価した値。銃の弾の damageMul は含まない） */
@@ -406,6 +424,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   // 血の契約の吸収は前フレームの敵・弾による与ダメも拾う
   trackDamageDealt(state);
   tickTimers(state, dt);
+  // 戦意と共通の瞬間（止まっている秒を数えるので入力を渡す）
+  tickFormState(state, input, dt);
   const aiming = applyAim(state, input);
   // 鉄塊化は被弾硬直を受けない（敵の攻撃が付けた怯みを判定より先に外す）
   shrugStagger(state);
@@ -982,8 +1002,11 @@ interface SwingSpec {
 function beginSwing(state: GameState, spec: SwingSpec): void {
   const p = state.player;
   const moveset = playerMoveset(state);
-  const step = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane);
-  if (!step) return;
+  const plain = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane);
+  if (!plain) return;
+  // 放出の段なら戦意を振りの開始で使う（空振りでも消える）。その振りの間は放出の倍率で数える
+  const release = startSwingMoments(state, moveset, spec);
+  const step = release ? (meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane, release) ?? plain) : plain;
   const a = p.attack;
   // 派生の照合は実際に出た段で行う（派生そのものは startBranch が列を捨てる）
   if (spec.branch < 0) logButton(p, spec.logAs ?? spec.lane);
@@ -1018,7 +1041,7 @@ function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state), a.lane);
+  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state), a.lane, swingReleaseMul(state));
   if (!step) {
     cancelAttack(state);
     return;
@@ -1044,7 +1067,7 @@ function updateAttack(state: GameState, dt: number): void {
       a.timer = step.active;
       spawnTrail(state, step);
       // 詠唱の弾は active の瞬間に 1 回だけ（予約のまま捨てられた振りでは出さない）
-      if (step.cast) emitArtVolley(state, step.cast.throw);
+      if (step.cast) emitArtVolley(state, step.cast.throw, { lane: a.lane });
       break;
     case "active":
       a.phase = "recover";
@@ -1283,29 +1306,38 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   const counter = isCounterable(e) || boonCounterable(state, e);
   const tipMul = tipMultipliers(step, tip);
   // 霊刃（spiritBlade）: 通常攻撃に霊力の係数が加わる
-  const out = rollOutgoing(state, e, (step.damage + boonNormalAttackBonus(state)) * tipMul.damage, "melee");
+  const out = rollOutgoing(state, e, (step.damage + boonNormalAttackBonus(state)) * tipMul.damage, "melee", { release: step.release });
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
-  const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : WEAPON.weightClass[playerMoveset(state).weight].hitstop);
+  const weight = WEAPON.weightClass[playerMoveset(state).weight];
+  const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : weight.hitstop);
   if (step.shake > 0) shake(state, step.shake);
   const pos = { ...e.body.pos };
   if (step.heavy) e.wallSplat = true;
-  // 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-1 / D-5）
-  const finisher = p.attack.combo === FINISHER_COMBO;
+  // 武器種の最終段・フィニッシュ派生・終撃になる放出の命中（docs/ideas/combat-feel-design.md D-1 / D-5）
+  const finisher = p.attack.combo === FINISHER_COMBO || (step.release === true && releaseIsFinisher(state));
   p.swingImpact = FEEL.swingImpact;
   if (finisher) pushSfx(state, "finisherHit");
-  damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback, {
+  // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
+  damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1), {
     poise: counterPoise(step, counter) * tipMul.poise,
     hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
     energy: stepHitEnergy(state, step),
     kind: "melee",
     crit: out.crit,
-    guardBreak: counter,
+    guardBreak: counter || (finisher && weight.finisherGuardBreak),
     finisher,
+    finisherHitstop: weight.hitstopFinisher,
+    release: step.release,
+    lane: p.attack.lane,
     impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo), weapon: playerMoveset(state).key },
   });
   if (counter) showCounter(state, pos);
   if (counter) onTraitCounter(state, e);
   if (counter) pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
+  // 右の溜め（居合）を離した振りのカウンターは居合の応手、それ以外はカウンターの応手
+  if (counter) noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
+  // 通常の振りの命中の戦意は多段の区切りごとに 1 回（群れを薙いで一気に満たさない）
+  if (p.attack.hitIds.size === 1) gainMorale(state, "meleeHit");
   gainMeleeMana(state, step.mana * tipMul.mana, counter);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
@@ -1594,6 +1626,10 @@ export interface VolleyOverride {
   energy?: number;
   /** 命中・炸裂で付ける状態異常（ThrowArtDef.applies） */
   applies?: readonly StatusApply[];
+  /** 撃ったレーン（双撃の判定。Projectile.lane） */
+  lane?: ButtonKey;
+  /** 放出の弾（Projectile.release） */
+  release?: { finisher: boolean; crit: boolean };
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1661,7 +1697,8 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   const s = state.stats;
   const shot = ultimateShot(state, currentShot(s));
   p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
-  emitVolley(state, shot, level, aim, { energy: gunShotEnergy(state, shot, level) });
+  // 満ちた後の 1 発（長銃）は戦意を使った放出の弾
+  emitVolley(state, shot, level, aim, { energy: gunShotEnergy(state, shot, level), lane: "primary", ...startShotMoments(state) });
   if (!shot.burst) return;
   p.shotBurst.left = shot.burst.count - 1;
   p.shotBurst.timer = shot.burst.interval;
@@ -1716,6 +1753,8 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       // 周回する弾は 1 周ごとに当て直すので、持続の奥義が終わった後に奥義ゲージを溜め直させない
       ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
+      ...(override.lane ? { lane: override.lane } : {}),
+      ...(override.release ? { release: { ...override.release } } : {}),
     });
   }
   const fired = state.projectiles.slice(firstShot);

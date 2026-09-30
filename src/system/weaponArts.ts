@@ -4,6 +4,7 @@ import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
 import { WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
+  type ButtonKey,
   type AimArtDef,
   type BranchDef,
   type BranchShots,
@@ -312,6 +313,8 @@ export interface ArtVolleyOverride {
   spreadDeg?: number;
   pierceBonus?: number;
   damageMul?: number;
+  /** 撃ったレーン（双撃の判定。省略は右 = 右レーンの弾の段） */
+  lane?: ButtonKey;
 }
 
 /**
@@ -329,6 +332,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     recoil: false,
     sprite: t.sprite,
     applies: t.applies,
+    lane: over.lane ?? "secondary",
   });
 }
 
@@ -388,7 +392,8 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
 
 /** 派生の弾。from が lane なら右レーンの弾の段の弾、省略は装備の銃の弾（射撃として当たる） */
 function emitBranchShots(state: GameState, shots: BranchShots): void {
-  const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul };
+  // 派生の弾のレーンは派生の最後のボタン（beginSwing が attack.lane に置いた値）
+  const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
   if (shots.from !== "lane") {
     emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, over);
     return;

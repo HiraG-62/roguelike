@@ -162,6 +162,18 @@ export interface Player {
   parry: { window: number; recover: number };
   /** 奥義（F）の作業領域 */
   ultimate: UltimateState;
+  /**
+   * 戦意（武器の型ごとのゲージ。system/morale.ts）。value = 今の量、sinceGain = 最後に溜まってからの秒（冷め）、
+   * window = 装填の窓など型固有の残り秒、primed = 次の一撃が放出、full = 前ステップで満ちていた（充溢の瞬間の検出）、
+   * swingUnits = 今の振りが放出なら使った戦意（0 = 放出でない。振りの開始で決まり、その振りの間の倍率になる）
+   */
+  morale: { value: number; sinceGain: number; window: number; primed: boolean; full: boolean; swingUnits: number };
+  /**
+   * 共通の瞬間の作業領域（system/moments.ts）。firstStrikeArmed = 次の一撃が先制、idleSec = 交戦の外にいる秒、
+   * lastHitLane / lastHitAt = 双撃の判定に使う直前の命中のレーンと時刻、swingRiposte = 今の振りで応手を数えた、
+   * backstabUntil = 背面扱いが残る時刻（段取り 5c の影潜り）
+   */
+  moment: { firstStrikeArmed: boolean; idleSec: number; lastHitLane: ButtonKey | null; lastHitAt: number; swingRiposte: boolean; backstabUntil: number };
 }
 
 export interface TimedMul {
@@ -258,6 +270,8 @@ export interface Enemy {
   doubleCharge?: { turn: Vec; end: Vec; leg: 1 | 2 };
   /** 強欲のが拾った床の遺物・スキル石（src/system/elites.ts）。倒すと落とし、階を移るときはプレイヤーの足元へ落とす */
   carried?: { items: FloorItem[]; stones: FloorStone[] };
+  /** 鎖の型で繋がれている残り秒（docs/ideas/weapon-forms-impl.md 3-4。段取り 5b）。未指定 = 繋がれていない */
+  linked?: number;
 }
 
 /** 支援役の敵が周りの敵に掛ける一時的な強化（docs/ideas/enemies.md 0 章「鼓舞」） */
@@ -477,6 +491,10 @@ export interface Projectile {
   energy?: number;
   /** 命中・炸裂で敵に付ける状態異常（ThrowArtDef.applies。付与元は player）。未指定は付けない */
   applies?: readonly StatusApply[];
+  /** 撃ったレーン（双撃の判定。system/moments.ts）。未指定 = レーンに属さない弾（スキルなど） */
+  lane?: ButtonKey;
+  /** 放出の弾（長銃の満ちた 1 発など）。finisher = 終撃になる、crit = 必ず会心。未指定 = 放出でない */
+  release?: { finisher: boolean; crit: boolean };
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

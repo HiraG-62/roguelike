@@ -778,7 +778,7 @@ export function buildWeaponSection(cfg: ProbeConfig, rows: readonly WeaponProbeR
   lines.push("");
   lines.push(
     `装備なし（素の能力）のまま武器種だけ替え、bot「${PROBE_BOT_LABEL[setup.bot]}」で 1 回 ${setup.seconds} 秒 × seed ${setup.seeds.length}（${setup.seeds.join(", ")}）。` +
-      "銃の家系はその武器種の最初のベースの弾を撃つ。bot は左クリックの連打だけ（銃の家系は押しっぱなしで撃つ。右レーン・溜め・構えは押さない）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。",
+      "銃の家系はその武器種の最初のベースの弾を撃つ。bot は左の連撃の連打だけ（銃の家系は押しっぱなしで撃つ。右レーン・溜め・構えは押さない）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。",
   );
   lines.push("");
   lines.push(

@@ -139,6 +139,8 @@ export function countPer(state: GameState, counter: PerCounter, enemy: Enemy | n
       return statCount(state, counter.stat);
     case "runKills":
       return state.kills;
+    case "morale":
+      return p.morale.value;
   }
 }
 

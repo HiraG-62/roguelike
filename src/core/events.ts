@@ -44,6 +44,19 @@ export const EVENT_KINDS = [
   "onShatter",
   /** 通常の振り（近接の連撃・ダッシュ攻撃）の命中。tag = SWING_TAG の段の種類。スキルや衝撃波の近接命中は含まない */
   "onSwingHit",
+  // ---- 2026-09-30 追加（武器の型の共通の瞬間。docs/ideas/weapon-forms-impl.md 3-3、system/moments.ts） ----
+  /** 交戦の外で待った後の最初の一撃（近接・射撃・スキル）。対象 = 当てた敵 */
+  "onFirstStrike",
+  /** 終撃の命中（最終段・フィニッシュ派生・最大溜め・終撃になる放出）。対象 = 当てた敵、tag = release なら放出の一撃 */
+  "onFinisher",
+  /** 戦意が満ちた瞬間（amount = 満ちた量、tag = 型の key） */
+  "onBrim",
+  /** 戦意を使った（amount = 使った量、tag = 型の key） */
+  "onRelease",
+  /** 型の応手（tag = RiposteSource。受け流し・カウンター・見切り…）。既存の onCounter / onJustDodge も並べて出す */
+  "onRiposte",
+  /** 左右の違うレーンの命中が窓の中で続いた。対象 = 当てた敵、tag = 当てたレーン */
+  "onTwinStrike",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

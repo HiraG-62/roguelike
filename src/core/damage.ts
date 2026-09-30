@@ -34,6 +34,8 @@ export const DAMAGE_TAGS = [
   "reaction",
   "critMulti",
   "poise",
+  /** 放出の一撃（戦意を使った振り・弾。system/morale.ts） */
+  "release",
 ] as const;
 export type DamageTag = (typeof DAMAGE_TAGS)[number];
 

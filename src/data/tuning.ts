@@ -219,6 +219,15 @@ export const BOON = BALANCE.boons.BOON;
 export const WEAPON = BALANCE.weapons.WEAPON;
 
 /**
+ * 武器の型（docs/ideas/weapon-forms-impl.md 3-1 / 3-2）の数値: 重さの既定・段数の幅・戦意の上限と放出の強さ。
+ * 型の骨（union・表示名・溜まる出来事・放出の形）は src/data/weaponForms.ts。定義元は src/data/balance/weapons/FORM/
+ */
+export const FORM = BALANCE.weapons.FORM;
+
+/** 共通の瞬間（先制・双撃の窓と、充溢・放出・双撃・先制の浮き文字の見た目）。src/system/moments.ts が読む */
+export const MOMENT = BALANCE.weapons.MOMENT;
+
+/**
  * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3 章）の共通値と奥義ごとの行為の数値。
  * 定義元は src/data/balance/ultimates/ の ULTIMATE。組み立ては src/data/ultimates.ts
  */

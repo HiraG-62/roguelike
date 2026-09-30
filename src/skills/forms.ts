@@ -4,7 +4,7 @@ import { type Enemy, type GameState, pushSfx } from "../core/state";
 import type { StatusProc } from "../core/status";
 import { type Vec, add, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
-import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, defineMoveset } from "../data/weapons";
+import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, MOVESETS, defineMoveset } from "../data/weapons";
 import { ATTR_KEYS, type AttrRatio, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
@@ -571,6 +571,8 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       dashAttack: bite,
       attackMoveMul: w.attackMoveMul,
       weight: "light",
+      // 変身中も型は装備の武器種のまま（戦意を変身で失わない）
+      form: MOVESETS[equipped].form,
       primary: "melee",
       steps2: [{ kind: "swing", key: "wolfHowl", name: "遠吠え", desc: "周りの敵に恐怖を付ける", cooldown: 0, step: bite }],
       branches: [],
@@ -589,6 +591,8 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       dashAttack: swing,
       attackMoveMul: f.attackMoveMul,
       weight: "heavy",
+      // 変身中も型は装備の武器種のまま（戦意を変身で失わない）
+      form: MOVESETS[equipped].form,
       primary: "melee",
       steps2: [{ kind: "swing", key: "ironSwing", name: "鉄塊の振り", desc: "重い振りで大きく怯ませる", cooldown: 0, step: swing }],
       branches: [],

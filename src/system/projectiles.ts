@@ -349,7 +349,7 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind, { attack: pr.attack });
+    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit });
     gainShotMana(state, pr);
     // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
     const heavy = shotDefOf(pr)?.charge !== undefined;
@@ -360,6 +360,10 @@ function hitEnemies(state: GameState, pr: Projectile): void {
       poise: pr.poise ?? 0,
       impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
       energy: pr.energy,
+      // 放出の弾（終撃）とレーン（双撃）は system/moments.ts が読む
+      finisher: pr.release?.finisher,
+      release: pr.release !== undefined,
+      lane: pr.lane,
     });
     applyShotStatus(state, pr, e);
     // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）

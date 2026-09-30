@@ -471,6 +471,10 @@ export interface PlayerStats {
   infuse: ElementTable;
   /** スキルの属性のうち無属性へ戻す割合 0..1（無の刻印） */
   skillNeutral: number;
+  /** 戦意の上限への加算（武器の型の max に足す。system/morale.ts。性質・祝福で使うのは段取り 7） */
+  moraleMaxAdd: number;
+  /** 戦意の溜まりやすさの倍率（1 = 等倍。導出の型には効かない） */
+  moraleGainMul: number;
 }
 
 /**
@@ -990,4 +994,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   bullet: "pistol",
   infuse: uniformElements(0),
   skillNeutral: 0,
+  moraleMaxAdd: 0,
+  moraleGainMul: 1,
 };

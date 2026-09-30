@@ -6,6 +6,7 @@ import type { StatusKind } from "./status";
 import type { TerrainKind } from "./terrain";
 import type { JobKey } from "../data/jobs";
 import type { BulletFeature, ButtonKey, MovesetKey } from "../data/weapons";
+import type { FormKey } from "../data/weaponForms";
 import type { TriggerCondition, TriggerEffectKind } from "../loot/types";
 import type { SkillKey } from "../skills/types";
 import { SYNERGY } from "../data/tuning";
@@ -94,7 +95,10 @@ export type RuleCondition =
   /** 持続（sustain）の奥義の最中（Player.ultimate.active） */
   | { kind: "ultimateActive" }
   /** 今の振りのレーン（左 = primary / 右 = secondary。AttackState.lane） */
-  | { kind: "lane"; lane: ButtonKey };
+  | { kind: "lane"; lane: ButtonKey }
+  // ---- 2026-09-30 追加（武器の型。docs/ideas/weapon-forms-impl.md 3-1） ----
+  /** 今の武器種の型がどれか（個性で絞るなら moveset） */
+  | { kind: "form"; forms: readonly FormKey[] };
 
 /** 属性・弱点の条件がどの攻撃の素性を見るか */
 export type RuleAttackVia = "melee" | "ranged";
@@ -358,7 +362,9 @@ export type PerCounter =
   /** 転じ（会心率 1% につき など。倍率系は (値 − 1) × 100、率は × 100） */
   | { kind: "stat"; stat: "critChance" | "moveSpeedMul" | "dashCharges" | "projectileCount" | "armor" }
   /** このランの撃破数 */
-  | { kind: "runKills" };
+  | { kind: "runKills" }
+  /** 今の戦意（Player.morale.value。「戦意 10 につき」は every 10） */
+  | { kind: "morale" };
 
 /** 「〜につき」。n = floor(数 / every)。効きは amount × n を cap で切る（増なら増の量、倍なら 1 を超える分） */
 export interface ModifierPer {

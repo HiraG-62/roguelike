@@ -57,6 +57,7 @@ const MULTIPLIER_KEYS: readonly StatKey[] = [
   "manaCostMul",
   // 多彩（効果量 −）などの代償を重ねても 0 以下にしない
   "statusPotencyMul",
+  "moraleGainMul",
 ];
 
 const PROBABILITY_KEYS: readonly StatKey[] = [
@@ -354,6 +355,8 @@ const STAT_FORMATS: Readonly<Record<StatKey, StatFormat>> = {
   skillNeutral: { label: "スキルの無属性化", style: "percent" },
   chainRevisits: { label: "連鎖が同じ敵へ戻れる回数", style: "flat" },
   chainCoefBonus: { label: "連鎖係数の上乗せ", style: "percent" },
+  moraleMaxAdd: { label: "戦意の上限", style: "flat" },
+  moraleGainMul: { label: "戦意の溜まりやすさ", style: "mul" },
 };
 
 /** 小数 1 桁に丸め、末尾の .0 を落とす */
@@ -412,6 +415,7 @@ export const INCREASED_LABEL: Readonly<Record<DamageTag, string>> = {
   reaction: "反応のダメージ",
   critMulti: "会心倍率",
   poise: "怯み値",
+  release: "放出のダメージ",
 };
 
 /** 増の 1 行（「近接ダメージ 増 +20%」） */

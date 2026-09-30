@@ -42,12 +42,15 @@ const LABEL = {
 /** 1 撃の文脈の追加指定（combat.ts の OutgoingOptions の部分） */
 export interface DamageContextOptions {
   skill?: boolean;
+  /** 放出の一撃（タグ release） */
+  release?: boolean;
 }
 
 /** 1 撃のタグ。近接 / 射撃 / proc・スキル由来・怯み中（proc 以外）・ボス・精鋭 */
 export function buildContext(enemy: Enemy | null, kind: DamageKind, opts: DamageContextOptions = {}): DamageContext {
   const tags = new Set<DamageTag>([kind]);
   if (opts.skill === true) tags.add("skill");
+  if (opts.release === true) tags.add("release");
   if (enemy !== null) addEnemyTags(tags, enemy, kind);
   return { kind, tags, elementShares: [], enemyId: enemy?.id ?? null, crit: false };
 }
@@ -80,14 +83,14 @@ function selfMore(state: GameState, enemy: Enemy | null, kind: DamageKind, out: 
   if (state.skills.shape?.key === "wraithForm") out.push({ source: "skill:wraithForm", label: LABEL.wraith, mul: WAVE3_SKILL_TUNING.wraithForm.outgoingMul });
 }
 
-/** 攻撃の手応えの倍（コンボ・見切り・強化・会心）。proc には掛けない。会心の乱数はここで引く */
-function strikeMore(state: GameState, enemy: Enemy | null, kind: DamageKind, out: MoreMul[]): boolean {
+/** 攻撃の手応えの倍（コンボ・見切り・強化・会心）。proc には掛けない。会心の乱数はここで引く（forceCrit でも引く順は変えない） */
+function strikeMore(state: GameState, enemy: Enemy | null, kind: DamageKind, out: MoreMul[], forceCrit: boolean): boolean {
   const s = state.stats;
   const p = state.player;
   pushIfActive(out, "combo", LABEL.combo, comboDamageMul(state));
   if (p.justTimer > 0) pushIfActive(out, "just", LABEL.just, s.justDodgeDamageMul);
   if (p.buffs.damage.time > 0) pushIfActive(out, "buff:damage", LABEL.buff, p.buffs.damage.mul);
-  const crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || boonForcesCrit(state, enemy, kind);
+  const crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || boonForcesCrit(state, enemy, kind) || forceCrit;
   if (crit) out.push({ source: "crit", label: LABEL.crit, mul: s.critMul + s.increased.critMulti });
   return crit;
 }
@@ -110,11 +113,11 @@ function staticMore(state: GameState, ctx: DamageContext): MoreMul[] {
  * この 1 撃の倍をすべて集める（出所ごと 1 要素、同じ source は後勝ち）。乱数（会心・賭博師）はここで引く。
  * 引く順は従来の rollOutgoing と同じ（会心 → 賭博師）
  */
-export function collectMore(state: GameState, enemy: Enemy | null, ctx: DamageContext, skill: boolean): { more: MoreMul[]; crit: boolean } {
+export function collectMore(state: GameState, enemy: Enemy | null, ctx: DamageContext, skill: boolean, forceCrit = false): { more: MoreMul[]; crit: boolean } {
   // 常時の倍（stats.more）の後に Modifier の倍（誓約の楔・得意武器・祝福の「〜につき」など）
   const out: MoreMul[] = [...staticMore(state, ctx), ...applyModifiers(state, ctx, enemy).more];
   selfMore(state, enemy, ctx.kind, out);
-  const crit = ctx.kind !== "proc" ? strikeMore(state, enemy, ctx.kind, out) : false;
+  const crit = ctx.kind !== "proc" ? strikeMore(state, enemy, ctx.kind, out, forceCrit) : false;
   oathMores(state, enemy, ctx.kind, skill, out);
   return { more: dedupeMore(out), crit };
 }

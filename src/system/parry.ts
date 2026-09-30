@@ -6,6 +6,7 @@ import { enemyCombat } from "../data/enemyCombat";
 import { FX_ATTACK, PARRY, WEAPON } from "../data/tuning";
 import { addFloatingText, addMark, spawnBurst } from "./effects";
 import { gainMana } from "./mana";
+import { noteRiposte } from "./moments";
 import { addPoise, applyStagger } from "./poise";
 import { skillLocksAttack } from "./skills";
 import { hasStatus } from "./statusEffects";
@@ -139,6 +140,7 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   addMark(state, "parry", p.body.pos, FX_ATTACK.sprite.parryLife, A.parryColor);
   pushSfx(state, "counter");
   gainMana(state, PARRY.mana);
+  noteRiposte(state, "parry", attacker);
   if (!attacker || attacker.hp <= 0) return;
   stopAttacker(state, attacker, bossPoise);
   onTraitCounter(state, attacker);

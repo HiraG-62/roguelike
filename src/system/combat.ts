@@ -29,7 +29,9 @@ import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
 import { noteUltimateKill, ultimateBlocksEnergy, ultimateIncomingMul } from "./ultimates";
-import type { MovesetKey } from "../data/weapons";
+import type { ButtonKey, MovesetKey } from "../data/weapons";
+import { chargeArmorOf } from "./morale";
+import { noteHitMoments, noteRiposte } from "./moments";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -81,6 +83,12 @@ export interface HitOptions {
    * 射撃は weight: "heavy" のときだけ bulletHitHeavy に差し替える（family は使わない）
    */
   impact?: { family: HitFamily; weight: HitWeight; weapon?: MovesetKey };
+  /** 終撃のヒットストップの底上げ（武器の重さの hitstopFinisher。省略は FEEL.hitstopFinisher） */
+  finisherHitstop?: number;
+  /** 戦意を使った放出の一撃（system/morale.ts。onFinisher の tag） */
+  release?: boolean;
+  /** 当てたレーン（双撃の判定。近接の振り・レーンの弾だけ。system/moments.ts） */
+  lane?: ButtonKey;
 }
 
 /** rollOutgoing の追加指定。skill はスキル由来（スキルの増 increased.skill が足される） */
@@ -91,6 +99,10 @@ export interface OutgoingOptions {
    * proc = 素性なし（防御・耐性を掛けない）。null を渡すと素性なし
    */
   attack?: AttackProfile | null;
+  /** 放出の一撃（与ダメのタグ release が付く） */
+  release?: boolean;
+  /** 必ず会心にする（長銃の満ちた 1 発）。会心の乱数は従来どおり引く */
+  forceCrit?: boolean;
 }
 
 export interface OutgoingHit {
@@ -134,7 +146,7 @@ export function rollOutgoing(
   if (kind === "melee") raw = base + s.meleeDamageFlat;
   if (kind === "ranged") raw = base + s.rangedDamageFlat;
   const ctx = buildContext(enemy, kind, opts);
-  const { more, crit } = collectMore(state, enemy, ctx, skill);
+  const { more, crit } = collectMore(state, enemy, ctx, skill, opts.forceCrit === true);
   ctx.crit = crit;
   // 性質の加算は敵の状態を読むので、状態異常を付けうる属性の抽選より前に数える
   const trait = collectTraitIncreased(state, enemy, ctx, skill);
@@ -213,6 +225,7 @@ export function damageEnemy(
 
   if (opts.crit) onBoonCrit(state, enemy, amount);
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
+  noteHitMoments(state, enemy, { kind, skill: opts.skill, silent: opts.silent, finisher: opts.finisher, release: opts.release, lane: opts.lane });
   if (enemy.hp > 0) return false;
   spawnDeathFx(state, enemy, opts);
   killEnemy(state, enemy, dir);
@@ -262,7 +275,7 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   const base = opts.hitstopSteps ?? FEEL.hitstopLight;
   let steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
   // 武器種の最終段・フィニッシュ派生の命中は、他の値より軽ければ底上げする（docs/ideas/combat-feel-design.md D-2）
-  if (opts.finisher) steps = Math.max(steps, FEEL.hitstopFinisher);
+  if (opts.finisher) steps = Math.max(steps, opts.finisherHitstop ?? FEEL.hitstopFinisher);
   // 通常命中は 1 か所で上限を掛ける（段の JSON の hitstop が 269 か所あるので個別には直さない）
   if (!heavy && !opts.finisher && !opts.crit) steps = Math.min(steps, FEEL.hitstopNormalMax);
   hitstop(state, steps);
@@ -488,7 +501,16 @@ export function damagePlayer(
   // 受け流し（共通の窓と剣の右 1 段目の構え）は被弾を無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
   if (tryParry(state, attacker, fromPos)) return "parried";
 
-  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker) * guardDamageMul(state, fromPos) * ultimateIncomingMul(state, fromPos);
+  // 重打の溜め中は堅く、押されない（docs/ideas/weapon-forms-impl.md 3-4）
+  const chargeArmor = chargeArmorOf(state);
+  const raw =
+    amount *
+    playerTakenMul(state) *
+    enemyDamageMul(attacker) *
+    traitIncomingMul(state, attacker) *
+    guardDamageMul(state, fromPos) *
+    ultimateIncomingMul(state, fromPos) *
+    (chargeArmor?.damageTakenMul ?? 1);
   const taken = mitigate(state, raw, enemyAttackOf(attacker));
   p.hp = Math.max(0, p.hp - taken);
   addRegain(state, taken);
@@ -499,7 +521,7 @@ export function damagePlayer(
   const away = normalize(sub(p.body.pos, fromPos));
   // 鉄塊化（skills/forms.ts）は押されず、振りも止まらない
   const braced = state.skills.shape?.key === "ironForm";
-  if (!braced && !hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
+  if (!braced && !chargeArmor?.noKnock && !hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
   if (!braced) cancelAttack(state);
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
@@ -515,6 +537,7 @@ export function damagePlayer(
     return "hit";
   }
   pushSfx(state, "hurt");
+  if (chargeArmor) noteRiposte(state, "chargeEndure", attacker);
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
   pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" } });
@@ -595,6 +618,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   onBoonJust(state);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
   pushPlayerEvent(state, "onJustDodge", "just", { sourceId: attacker?.id });
+  noteRiposte(state, "justDodge", attacker);
   recordProvenance(state, { kind: "just" });
 }
 

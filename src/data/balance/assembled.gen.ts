@@ -948,6 +948,23 @@ import j_weapons_WEAPON_unarmed from "./weapons/WEAPON/unarmed.json";
 import j_weapons_WEAPON_weightClass from "./weapons/WEAPON/weightClass.json";
 import j_weapons_PLAYER_MELEE from "./weapons/PLAYER_MELEE.json";
 import j_weapons_ACTION_DASH_ATTACK from "./weapons/ACTION_DASH_ATTACK.json";
+import j_weapons_FORM__index from "./weapons/FORM/_index.json";
+import j_weapons_FORM_blade from "./weapons/FORM/blade.json";
+import j_weapons_FORM_flurry from "./weapons/FORM/flurry.json";
+import j_weapons_FORM_crusher from "./weapons/FORM/crusher.json";
+import j_weapons_FORM_hewer from "./weapons/FORM/hewer.json";
+import j_weapons_FORM_polearm from "./weapons/FORM/polearm.json";
+import j_weapons_FORM_chain from "./weapons/FORM/chain.json";
+import j_weapons_FORM_bulwark from "./weapons/FORM/bulwark.json";
+import j_weapons_FORM_warfan from "./weapons/FORM/warfan.json";
+import j_weapons_FORM_rod from "./weapons/FORM/rod.json";
+import j_weapons_FORM_thrower from "./weapons/FORM/thrower.json";
+import j_weapons_FORM_pistol from "./weapons/FORM/pistol.json";
+import j_weapons_FORM_rifle from "./weapons/FORM/rifle.json";
+import j_weapons_FORM_artillery from "./weapons/FORM/artillery.json";
+import j_weapons_FORM_tome from "./weapons/FORM/tome.json";
+import j_weapons_FORM_bell from "./weapons/FORM/bell.json";
+import j_weapons_MOMENT from "./weapons/MOMENT.json";
 import j_world__index from "./world/_index.json";
 import j_world_ROOM from "./world/ROOM.json";
 import j_world_ROOM_KIND__index from "./world/ROOM_KIND/_index.json";
@@ -2076,6 +2093,26 @@ export const weapons = {
   },
   "PLAYER_MELEE": j_weapons_PLAYER_MELEE,
   "ACTION_DASH_ATTACK": j_weapons_ACTION_DASH_ATTACK,
+  "FORM": {
+    "_note": j_weapons_FORM__index["_note"],
+    "_fields": j_weapons_FORM__index["_fields"],
+    "blade": j_weapons_FORM_blade,
+    "flurry": j_weapons_FORM_flurry,
+    "crusher": j_weapons_FORM_crusher,
+    "hewer": j_weapons_FORM_hewer,
+    "polearm": j_weapons_FORM_polearm,
+    "chain": j_weapons_FORM_chain,
+    "bulwark": j_weapons_FORM_bulwark,
+    "warfan": j_weapons_FORM_warfan,
+    "rod": j_weapons_FORM_rod,
+    "thrower": j_weapons_FORM_thrower,
+    "pistol": j_weapons_FORM_pistol,
+    "rifle": j_weapons_FORM_rifle,
+    "artillery": j_weapons_FORM_artillery,
+    "tome": j_weapons_FORM_tome,
+    "bell": j_weapons_FORM_bell,
+  },
+  "MOMENT": j_weapons_MOMENT,
 };
 
 export const world = {
@@ -3162,6 +3199,23 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "ultimates/ULTIMATE/defs/whip.json",
   "ultimates/_index.json",
   "weapons/ACTION_DASH_ATTACK.json",
+  "weapons/FORM/_index.json",
+  "weapons/FORM/artillery.json",
+  "weapons/FORM/bell.json",
+  "weapons/FORM/blade.json",
+  "weapons/FORM/bulwark.json",
+  "weapons/FORM/chain.json",
+  "weapons/FORM/crusher.json",
+  "weapons/FORM/flurry.json",
+  "weapons/FORM/hewer.json",
+  "weapons/FORM/pistol.json",
+  "weapons/FORM/polearm.json",
+  "weapons/FORM/rifle.json",
+  "weapons/FORM/rod.json",
+  "weapons/FORM/thrower.json",
+  "weapons/FORM/tome.json",
+  "weapons/FORM/warfan.json",
+  "weapons/MOMENT.json",
   "weapons/PLAYER_MELEE.json",
   "weapons/WEAPON/_index.json",
   "weapons/WEAPON/artDefaults.json",

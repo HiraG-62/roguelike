@@ -27,6 +27,7 @@ import { reaperWarning } from "./reaper";
 import { dropRune } from "./skills";
 import { enemyDef } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
+import { formOfKey } from "../data/weaponForms";
 import { sustainRules } from "../data/ultimates";
 import { ultimateBlocksEnergy, ultimateReady } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
@@ -800,6 +801,9 @@ function migratedConditionHolds(state: GameState, c: RuleCondition, subject: Con
       return p.ultimate.active !== null;
     case "lane":
       return p.attack.lane === c.lane;
+    case "form":
+      // 条件 moveset と同じく装備の武器種で見る（変身・奥義の差し替えも key と型は装備のまま）
+      return c.forms.includes(formOfKey(state.stats.moveset).key);
     default:
       return false;
   }
