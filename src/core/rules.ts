@@ -1,7 +1,7 @@
 import type { DamageTag } from "./damage";
 import type { Element } from "./element";
 import type { EventActor, EventKind, EventSource } from "./events";
-import type { FloorKind, RoomKind } from "./state";
+import type { FloorKind, RoomKind, VaultKind } from "./state";
 import type { StatusKind } from "./status";
 import type { TerrainKind } from "./terrain";
 import type { JobKey } from "../data/jobs";
@@ -9,6 +9,7 @@ import type { BulletFeature, ButtonKey, MovesetKey } from "../data/weapons";
 import type { FormKey } from "../data/weaponForms";
 import type { TriggerCondition, TriggerEffectKind } from "../loot/types";
 import type { SkillKey } from "../skills/types";
+import type { LineageKey } from "../system/boonDefs";
 import { SYNERGY } from "../data/tuning";
 
 /**
@@ -101,7 +102,12 @@ export type RuleCondition =
   | { kind: "form"; forms: readonly FormKey[] }
   // ---- 2026-09-30 追加（銭。docs/ideas/economy-impl.md 2-10） ----
   /** 持ち金が amount 以上 */
-  | { kind: "coinsAtLeast"; amount: number };
+  | { kind: "coinsAtLeast"; amount: number }
+  // ---- 2026-09-30 追加（祝福の中身。docs/ideas/boon-impl.md 2-6） ----
+  /** 対象（イベントの位置。Modifier なら殴っている敵）が自分から radius 以内（領域） */
+  | { kind: "targetWithin"; radius: number }
+  /** 「〜につき」の数（PerCounter）が atLeast 以上かつ atMost 以下（一念: 系譜が 1 つだけ = lineagesOwned atMost 1） */
+  | { kind: "counter"; counter: PerCounter; atLeast?: number; atMost?: number };
 
 /** 属性・弱点の条件がどの攻撃の素性を見るか */
 export type RuleAttackVia = "melee" | "ranged";
@@ -177,7 +183,30 @@ export type RuleEffectKind =
   /** 銭を magnitude（四捨五入）払う。足りなければ何もしない */
   | "spendCoins"
   /** 持ち金の magnitude（割合 0..1）をイベントの位置へ撒く（拾い直しは稼ぎに数えない） */
-  | "scatterCoins";
+  | "scatterCoins"
+  // ---- 2026-09-30 追加（祝福の中身。docs/ideas/boon-impl.md 2-6 末尾の新しい効果の種類） ----
+  /**
+   * 研鑽の数え: boonRun.tallies[key] に magnitude（scaleBy 込み）を足す。mode: max なら大きい方を残す（最長記録）。
+   * 格は掛けず、連鎖にも語の上限にも数えない（数えるだけで何も起こさない）
+   */
+  | "tally"
+  /** 全スロットの再使用時間を全長の magnitude（割合 0..1）だけ戻し、最低間隔の残りも同じ割合で縮める。fill なら全部 */
+  | "refreshSkills"
+  /** 直前に撃ったスキル（SkillRunState.lastCast）を自分の位置からもう一度撃つ。気力・再使用は払わない。威力 × magnitude */
+  | "echoLast"
+  /** 従魔・召喚・設置物の狙いを対象の敵へ向ける（duration 秒。boonRun.focus に置き、狙う側が focusTarget で読む） */
+  | "retarget"
+  /** イベントの位置に最も近い設置物を count 個（既定 1）消し、その位置で爆発（半径 radius、ダメージ magnitude） */
+  | "detonatePlaced"
+  /**
+   * 敵を duration 秒だけ味方にする（Enemy.allyUntil）。radius があれば半径内の敵（onlyWith で絞る。近い順）、無ければ対象の敵。
+   * count = 同時に従える上限（既定 1）。ボス級・変身する敵は従えない
+   */
+  | "tameEnemy"
+  /** 銭を count（share があれば持ち金の割合）払い、照準へ銭の弾を撃つ。威力 = 払った額 × magnitude。払えなければ不発 */
+  | "coinShot"
+  /** 対象の敵の溜め（Enemy.vault。種類 vault が合うときだけ）を magnitude 倍のダメージで一度に出し、溜めを空にする */
+  | "releaseVault";
 
 /**
  * 効果量の基準。flat = magnitude そのまま / slashBase = 近接 1 段目の威力 × magnitude /
@@ -193,7 +222,12 @@ export type RuleMagnitudeBase =
   /** 今のコンボ数 × magnitude */
   | "combo"
   /** 対象の敵の status の強さ × magnitude（撃破は倒れた瞬間の写し） */
-  | "targetPotency";
+  | "targetPotency"
+  // ---- 2026-09-30 追加（祝福の中身） ----
+  /** 今の持ち金 × magnitude（散財。払う効果より前に並べる） */
+  | "coins"
+  /** effect.counter（「〜につき」の数え方）の今の数 × magnitude（従えた数・連鎖の長さを数えに積むなど） */
+  | "counter";
 
 /** 効果量の下限に使う装備の値（祝福の雷・炎は「装備の方が強ければそちら」） */
 export type RuleStatFloor = "shockDamage" | "burnDps";
@@ -237,6 +271,17 @@ export interface RuleEffect {
   statFloor?: RuleStatFloor;
   /** 連鎖係数（0..1）。この効果が起こしたイベントの次の Rule の確率に掛かる。省略時は種類の既定（procCoefficientOf） */
   procCoefficient?: number;
+  // ---- 2026-09-30 追加（祝福の中身） ----
+  /** tally: 数えの key（boonRun.tallies の key。Modifier の per { kind: "tally", key } と TemperStat.tally が読む） */
+  key?: string;
+  /** tally: add = 足す（既定）/ max = 最高記録を残す */
+  mode?: "add" | "max";
+  /** coinShot: 持ち金のこの割合（0..1）を払う。count より優先 */
+  share?: number;
+  /** scaleBy: "counter" の数え方 */
+  counter?: PerCounter;
+  /** releaseVault: 出す溜めの種類 */
+  vault?: VaultKind;
 }
 
 /** 敵の Rule が持てる効果（予告付きハザードのみ） */
@@ -316,6 +361,12 @@ const EFFECT_KEYWORD: Readonly<Partial<Record<RuleEffectKind, string>>> = {
   reclaim: "heal",
   dropRune: "loot",
   dropItem: "loot",
+  refreshSkills: "mana",
+  echoLast: "mana",
+  retarget: "placed",
+  detonatePlaced: "explode",
+  tameEnemy: "placed",
+  coinShot: "bullet",
 };
 
 /** status を持てば語を status にする効果（状態異常を付ける・広げる・起爆する） */
@@ -370,7 +421,7 @@ export type PerCounter =
   /** 失った生命の 10% ごと */
   | { kind: "missingHpTenths" }
   /** 転じ（会心率 1% につき など。倍率系は (値 − 1) × 100、率は × 100） */
-  | { kind: "stat"; stat: "critChance" | "moveSpeedMul" | "dashCharges" | "projectileCount" | "armor" }
+  | { kind: "stat"; stat: PerStat }
   /** このランの撃破数 */
   | { kind: "runKills" }
   /** 今の戦意（Player.morale.value。「戦意 10 につき」は every 10） */
@@ -380,7 +431,24 @@ export type PerCounter =
   /** このランで稼いだ銭の総額（拾い直しを除く） */
   | { kind: "coinsEarned" }
   /** このランで使った銭の総額 */
-  | { kind: "coinsSpent" };
+  | { kind: "coinsSpent" }
+  // ---- 2026-09-30 追加（祝福の中身。docs/ideas/boon-impl.md 2-6） ----
+  /** 研鑽の数え（boonRun.tallies[key]。無ければ 0） */
+  | { kind: "tally"; key: string }
+  /** 従魔・召喚・設置物の数（設置物 + 味方にした敵。system/rules.ts の minionCount） */
+  | { kind: "minions" }
+  /** 持ち金の対数の段: base 未満 0、base 以上 1、以後 2 倍ごとに +1（50 → 1 / 100 → 2 / 200 → 3。黄金律） */
+  | { kind: "coinsLog"; base: number }
+  /** この系譜に数える札の枚数（融合は 2 系譜のどちらにも数える） */
+  | { kind: "lineageCards"; lineage: LineageKey }
+  /** 持っている札の系譜の種類数（一念・巡礼） */
+  | { kind: "lineagesOwned" };
+
+/**
+ * 転じの数え方。率は %、倍率は 1 を超える分の %、個数・防御・最大値はそのまま、
+ * comboWindow はコンボの猶予（FEEL.comboWindow + comboWindowBonus）の 0.1 秒ごとに 1
+ */
+export type PerStat = "critChance" | "moveSpeedMul" | "dashCharges" | "projectileCount" | "armor" | "maxMana" | "maxHp" | "comboWindow";
 
 /** 「〜につき」。n = floor(数 / every)。効きは amount × n を cap で切る（増なら増の量、倍なら 1 を超える分） */
 export interface ModifierPer {

@@ -5,10 +5,12 @@ import { ultimateDef } from "../data/ultimates";
 import { MOVESETS } from "../data/weapons";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
+import { FEEL } from "../data/tuning";
 import { BOONS } from "./boonDefs";
+import { lineageCardsOwned } from "./boons";
 import { totalEarned, totalSpent } from "./economy";
 import { keystoneModifiers } from "./keystones";
-import { type ConditionSubject, ruleConditionsMet } from "./rules";
+import { type ConditionSubject, minionCount, ruleConditionsMet } from "./rules";
 import { enemiesInRadius, statusStacks } from "./statusEffects";
 
 /**
@@ -146,7 +148,34 @@ export function countPer(state: GameState, counter: PerCounter, enemy: Enemy | n
       return totalEarned(state.economy);
     case "coinsSpent":
       return totalSpent(state.economy);
+    case "tally":
+      return state.boonRun.tallies[counter.key] ?? 0;
+    case "minions":
+      return minionCount(state);
+    case "coinsLog":
+      return coinsLogSteps(state.economy.coins, counter.base);
+    case "lineageCards":
+      return lineageCardsOwned(state, counter.lineage);
+    case "lineagesOwned":
+      return lineagesOwned(state);
   }
+}
+
+/** 持ち金の対数の段: base 未満 0、base 以上 1、以後 2 倍ごとに +1。base が 0 以下なら 0（割り算の番人） */
+export function coinsLogSteps(coins: number, base: number): number {
+  if (base <= 0 || coins < base) return 0;
+  return Math.floor(Math.log2(coins / base)) + 1;
+}
+
+/** 持っている札の系譜の種類数（融合は 2 系譜とも数える。呪い・芯は系譜を持たない） */
+function lineagesOwned(state: GameState): number {
+  const seen = new Set<string>();
+  for (const key of state.boons) {
+    const def = BOONS[key];
+    if (def.lineage !== undefined) seen.add(def.lineage);
+    for (const l of def.fusion ?? []) seen.add(l);
+  }
+  return seen.size;
 }
 
 /** 付いている（残り秒のある）状態異常の種類数 */
@@ -161,7 +190,7 @@ function chainVisitCount(state: GameState): number {
   return new Set(run.visits).size;
 }
 
-/** 転じの数。率は %、倍率は 1 を超える分の %、個数・防御はそのまま */
+/** 転じの数。率は %、倍率は 1 を超える分の %、個数・防御・最大値はそのまま、コンボの猶予は 0.1 秒ごと */
 function statCount(state: GameState, stat: Extract<PerCounter, { kind: "stat" }>["stat"]): number {
   const s = state.stats;
   switch (stat) {
@@ -175,6 +204,12 @@ function statCount(state: GameState, stat: Extract<PerCounter, { kind: "stat" }>
       return s.projectileCount;
     case "armor":
       return s.armor;
+    case "maxMana":
+      return s.maxMana;
+    case "maxHp":
+      return s.maxHp;
+    case "comboWindow":
+      return (FEEL.comboWindow + s.comboWindowBonus) * TENTHS;
   }
 }
 
@@ -191,7 +226,7 @@ function conditionSubject(state: GameState, enemy: Enemy | null): ConditionSubje
 
 /** 対象の敵を見る Modifier か（対象のいない 1 撃では効かせない） */
 function needsTarget(m: Readonly<Modifier>): boolean {
-  if (m.per !== undefined && (m.per.count.kind === "targetStatusKinds" || m.per.count.kind === "targetStacks")) return true;
+  if (m.per !== undefined && TARGET_COUNTERS.has(m.per.count.kind)) return true;
   return m.if.some(conditionNeedsTarget);
 }
 
@@ -202,10 +237,15 @@ const TARGET_CONDITIONS: ReadonlySet<RuleCondition["kind"]> = new Set<RuleCondit
   "targetRoamer",
   "targetElite",
   "swingStruck",
+  "targetWithin",
 ]);
+
+/** 対象の敵を数える「〜につき」 */
+const TARGET_COUNTERS: ReadonlySet<PerCounter["kind"]> = new Set<PerCounter["kind"]>(["targetStatusKinds", "targetStacks"]);
 
 function conditionNeedsTarget(c: RuleCondition): boolean {
   if (c.kind === "not") return conditionNeedsTarget(c.condition);
+  if (c.kind === "counter") return TARGET_COUNTERS.has(c.counter.kind);
   if (c.kind === "trigger") return c.condition.startsWith("target");
   return TARGET_CONDITIONS.has(c.kind);
 }

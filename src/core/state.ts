@@ -189,6 +189,8 @@ export interface Player {
     backstabUntil: number;
     wardUntil: number;
   };
+  /** 遅れて受ける傷（逆さ時計・不動。docs/ideas/boon-impl.md 2-6）。due = 受ける state.time。未指定 = 遅らせていない */
+  deferredDamage?: { amount: number; due: number }[];
 }
 
 export interface TimedMul {
@@ -287,7 +289,14 @@ export interface Enemy {
   carried?: { items: FloorItem[]; stones: FloorStone[] };
   /** 鎖の型で繋がれている残り秒（docs/ideas/weapon-forms-impl.md 3-4。段取り 5b）。未指定 = 繋がれていない */
   linked?: number;
+  /** 溜め（氷獄 = 凍結中の傷 / 月蝕 = 宣告に溜まる傷）。Rule 効果 releaseVault で一度に出す。未指定 = 溜めなし（docs/ideas/boon-impl.md 2-6） */
+  vault?: { kind: VaultKind; amount: number };
+  /** 味方になっている間の終わりの state.time（Rule 効果 tameEnemy。system/rules.ts の isAllied）。未指定 = 敵のまま */
+  allyUntil?: number;
 }
+
+/** 敵に溜める傷の種類（氷獄 = ice / 月蝕 = doom） */
+export type VaultKind = "ice" | "doom";
 
 /** 支援役の敵が周りの敵に掛ける一時的な強化（docs/ideas/enemies.md 0 章「鼓舞」） */
 export type RallyKind = "charged" | "hastened" | "warded";

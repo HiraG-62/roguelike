@@ -8,6 +8,20 @@
    - 芯: 定義に `core: true` / `graded: false`（1 ランに 1 つ、深度 `BOON.coreDepth` の最初の提示だけに出る。遊び方を変える効果と代償を必ず持つ）。数値は `boonCores.ts` の `foldCoreStats`、他の system からの分岐は `boonCores.ts` の関数を呼ぶ。定義は `boonDefsWave3.ts`
 4. テスト: `system/boons.test.ts`（定義・抽選）/ `system/boonRules.test.ts`（拡張ルールの効果）
 
+## 段取り 7b の効果の種類（`core/rules.ts`。書き方の例は `system/rulesLineage.test.ts` / `boonTallies.test.ts`）
+
+| 効果 / 数え | 書き方 | 中身 |
+| --- | --- | --- |
+| 研鑽の数え | `{ kind: "tally", magnitude: 1, key: "ash" }`（最高記録は `mode: "max"` + `scaleBy`）、読む側は `per: { count: { kind: "tally", key }, every }` か `temperStat` | `boonRun.tallies`。格を掛けず、連鎖・語の上限に数えない |
+| スキル戻し | `{ kind: "refreshSkills", magnitude: 0.2 }`（`fill: true` で全部） | 全スロットの再使用時間を割合で戻す |
+| 反響 | `{ kind: "echoLast", magnitude: 1 }` | 直前のスキルを気力なしでもう一度 |
+| 号令 | `{ kind: "retarget", duration: 3 }` | 従魔・召喚の狙いを対象へ（`focusTarget`） |
+| 起爆 | `{ kind: "detonatePlaced", scaleBy: "slashBase", radius, count }` | 最も近い設置物を爆ぜさせる |
+| 従魔 | `{ kind: "tameEnemy", duration, radius?, onlyWith?, count }` | 敵を一時的に味方に（`Enemy.allyUntil`。ボス級は不可） |
+| 投銭 | `{ kind: "coinShot", magnitude, count }` か `share` | 銭を払って弾を撃つ。払えなければ不発 |
+| 溜めの解放 | `{ kind: "releaseVault", vault: "ice" }` | `Enemy.vault` を一度に出す |
+| 基準・数え | `scaleBy: "coins" / "counter"`、`PerCounter` の `minions` / `coinsLog` / `lineageCards` / `lineagesOwned`、条件 `targetWithin` / `counter` | 持ち金・従魔と設置物の数・系譜の枚数・持っている系譜の数 |
+
 ## 常時の増・倍・条件付き・「〜につき」は `modifiers`
 
 イベントを待たない与ダメ・怯み値の補正は、`BOONS` の定義に `modifiers`（`core/rules.ts` の `Modifier`）を置く。フックや `foldBoonStats` の `*Mul *=` は書かない。

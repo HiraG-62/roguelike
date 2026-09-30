@@ -2,14 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createIncreased } from "../core/damage";
 import type { Modifier } from "../core/rules";
 import type { GameState } from "../core/state";
-import { KEYSTONE, PLAYER } from "../data/tuning";
+import { FEEL, KEYSTONE, PLAYER } from "../data/tuning";
 import { meleeScaling } from "../data/weapons";
 import { scaled } from "./attributes";
 import { slashBase } from "./boonRules";
 import { rollOutgoing } from "./combat";
 import { buildContext, poiseIncreasedMul } from "./damageMods";
 import { KS } from "./keystones";
-import { applyModifiers, collectModifiers, countPer, estimateModifiers } from "./modifiers";
+import { BOONS, BOON_KEYS, type BoonKey, type LineageKey } from "./boonDefs";
+import { applyModifiers, coinsLogSteps, collectModifiers, countPer, estimateModifiers } from "./modifiers";
 import { applyStagger } from "./poise";
 import { applyStatus } from "./statusEffects";
 import { keystoneMore } from "./traitHooks";
@@ -172,5 +173,60 @@ describe("集め方", () => {
     state.job = "swordsman";
     const ids = collectModifiers(state).map((m) => m.id);
     expect(ids).toEqual(["boon:test:0", "keystone:ks_wedgeOath:0", "keystone:ks_wedgeOath:1"]);
+  });
+});
+
+describe("祝福の中身で足した数え方（boon-impl 2-6）", () => {
+  /** 系譜を持ち融合でない札を、違う系譜から 1 枚ずつ */
+  function cardOf(lineage: LineageKey): BoonKey {
+    const key = BOON_KEYS.find((k) => BOONS[k].lineage === lineage && BOONS[k].fusion === undefined);
+    if (key === undefined) throw new Error(`${lineage} の札が無い`);
+    return key;
+  }
+
+  it("coinsLog は base 未満 0、base で 1、以後 2 倍ごとに +1", () => {
+    const base = 50;
+    expect([0, 49, 50, 99, 100, 199, 200, 400].map((c) => coinsLogSteps(c, base))).toEqual([0, 0, 1, 1, 2, 2, 3, 4]);
+    expect(coinsLogSteps(100, 0), "base 0 は 0").toBe(0);
+    const state = arena();
+    state.economy.coins = 200;
+    expect(countPer(state, { kind: "coinsLog", base }, null)).toBe(3);
+  });
+
+  it("lineageCards / lineagesOwned は持っている札の系譜を数える", () => {
+    const state = arena();
+    const ash = cardOf("ash");
+    const frost = cardOf("frost");
+    state.boons = [ash, frost];
+    expect(countPer(state, { kind: "lineageCards", lineage: "ash" }, null)).toBe(1);
+    expect(countPer(state, { kind: "lineagesOwned" }, null), "灰燼と霜枷").toBe(2);
+    state.boons = [ash];
+    expect(countPer(state, { kind: "lineagesOwned" }, null), "灰燼だけ").toBe(1);
+  });
+
+  it("stat の maxMana / maxHp はそのまま、comboWindow は 0.1 秒ごと", () => {
+    const state = arena();
+    expect(countPer(state, { kind: "stat", stat: "maxMana" }, null)).toBe(state.stats.maxMana);
+    expect(countPer(state, { kind: "stat", stat: "maxHp" }, null)).toBe(state.stats.maxHp);
+    expect(countPer(state, { kind: "stat", stat: "comboWindow" }, null)).toBeCloseTo((FEEL.comboWindow + state.stats.comboWindowBonus) * 10);
+  });
+
+  it("minions は設置物と味方の敵の数", () => {
+    const state = arena();
+    expect(countPer(state, { kind: "minions" }, null)).toBe(0);
+    const e = placeEnemy(state, "slime", 20);
+    e.allyUntil = state.time + 1;
+    expect(countPer(state, { kind: "minions" }, null)).toBe(1);
+  });
+
+  it("targetWithin の Modifier は対象のいない 1 撃では効かず、近い敵にだけ効く", () => {
+    const state = arena();
+    const zone: Modifier = { id: "boon:test:zone", kind: "more", tag: "all", amount: 1.2, if: [{ kind: "targetWithin", radius: 60 }], owner: OWNER };
+    const tags = { tags: new Set(["melee"] as const) };
+    expect(applyModifiers(state, tags, null, [zone]).more.length, "対象なし").toBe(0);
+    const near = placeEnemy(state, "slime", 20);
+    const far = placeEnemy(state, "slime", 200);
+    expect(applyModifiers(state, tags, near, [zone]).more[0]?.mul, "近い").toBe(1.2);
+    expect(applyModifiers(state, tags, far, [zone]).more.length, "遠い").toBe(0);
   });
 });

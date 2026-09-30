@@ -23,6 +23,7 @@ import {
   type BoonLoadout,
   type BoonTag,
   type LineageKey,
+  type TemperStat,
 } from "./boonDefs";
 import {
   BOON_GRADE_LABEL,
@@ -176,6 +177,10 @@ export interface BoonRunState {
   graceOpen: Partial<Record<BoonAction, number>>;
   /** 確定枠で出す融合（違う 2 系譜の加護が同じ行動に乗ると積む。取るか、入れ替えで条件が崩れるまで残す） */
   fusionDue: BoonKey[];
+  /** 研鑽の数え（Rule 効果 tally が進め、Modifier の per tally と BoonDef.temperStat が読む）。ランの途中は保存しない */
+  tallies: Record<string, number>;
+  /** 号令（Rule 効果 retarget）: 従魔・召喚・設置物が狙う敵と、その終わりの state.time。無ければ null */
+  focus: { id: number; until: number } | null;
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -194,6 +199,8 @@ export function createBoonRunState(): BoonRunState {
     temperQueued: 0,
     graceOpen: {},
     fusionDue: [],
+    tallies: {},
+    focus: null,
   };
 }
 
@@ -1048,9 +1055,50 @@ export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly Boon
   // 係数（実効値）を組み替える。派生（HP・移動など）は元のステータスで決まっているので触らない
   if (boons.includes("swapHands") || boons.includes("lopsided")) out.attributesEff = foldAttributeBoons(out.attributesEff, boons);
   Object.assign(out, foldCoreStats(out, boons));
+  foldTemperStats(out, boons, run.tallies);
   // 最終段で下限を掛ける。0 だと capManaCost がコストを 0 に切り詰めて撃ち放題になる
   out.maxMana = Math.max(MANA.maxMin, out.maxMana);
   return out;
+}
+
+/** 研鑽の stats への効き（BoonDef.temperStat）を取得順に足す */
+function foldTemperStats(out: PlayerStats, boons: readonly BoonKey[], tallies: Readonly<Record<string, number>>): void {
+  for (const key of boons) {
+    const t = BOONS[key].temperStat;
+    if (t === undefined) continue;
+    out[t.stat] += temperAmount(t, tallies[t.tally] ?? 0);
+  }
+}
+
+/** 研鑽の段の数（every の未満は 0 段） */
+function temperSteps(t: Readonly<TemperStat>, value: number): number {
+  return Math.floor(value / Math.max(1, t.every));
+}
+
+/** 研鑽が足す量: per × 段。cap があればそこで止める */
+export function temperAmount(t: Readonly<TemperStat>, value: number): number {
+  const amount = t.per * temperSteps(t, value);
+  return t.cap === undefined ? amount : Math.min(t.cap, amount);
+}
+
+/**
+ * 研鑽の数えを進める（Rule 効果 tally。mode: max は最長記録）。持っている研鑽の段が変わったときだけ stats を畳み直す
+ * （毎撃破で applyStats を回さない）
+ */
+export function addTally(state: GameState, key: string, amount: number, mode: "add" | "max" = "add"): void {
+  const tallies = state.boonRun.tallies;
+  const prev = tallies[key] ?? 0;
+  const next = mode === "max" ? Math.max(prev, amount) : prev + amount;
+  if (next === prev) return;
+  tallies[key] = next;
+  if (temperStepChanged(state.boons, key, prev, next)) applyBoonsToStats(state);
+}
+
+function temperStepChanged(boons: readonly BoonKey[], key: string, prev: number, next: number): boolean {
+  return boons.some((k) => {
+    const t = BOONS[k].temperStat;
+    return t !== undefined && t.tally === key && temperSteps(t, prev) !== temperSteps(t, next);
+  });
 }
 
 /** swapHands → lopsided の順に実効値を組み替える（入力は書き換えない） */

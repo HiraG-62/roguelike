@@ -12,6 +12,8 @@ import type { StatusKind } from "../core/status";
 import type { JobKey } from "../data/jobs";
 import { BOON, STATUS } from "../data/tuning";
 import { type BulletFeature, GUN_MOVESETS, type MovesetKey } from "../data/weapons";
+import type { PlayerStats } from "../loot/types";
+import type { ModifierKey } from "../skills/types";
 
 /** 銃の家系だけに出す祝福の loadout（射撃前提の祝福が近接ビルドの 3 択に出ないようにする） */
 const GUN_LOADOUT: BoonLoadout = { movesets: GUN_MOVESETS };
@@ -318,6 +320,29 @@ export interface BoonDef {
   core?: true;
   /** 格の対象を明示する（省略時は boonGrade.ts の isGraded が Rule の効果量から自動で決める。フック型は true で opt-in） */
   graded?: boolean;
+  /** スキルの加護: 全スロットに刻印符を 1 枚足す（boon-impl 2-1。付け方は 2-9 と共有） */
+  grantsModifier?: ModifierKey;
+  /** 研鑽が stats に効くとき（foldBoonStats が boonRun.tallies から畳む） */
+  temperStat?: TemperStat;
+}
+
+/** PlayerStats のうち数値の項目（研鑽が足せるもの） */
+export type NumericStatKey = { [K in keyof PlayerStats]: PlayerStats[K] extends number ? K : never }[keyof PlayerStats];
+
+/**
+ * 研鑽の stats への効き（boon-impl 2-1）: stats[stat] += per × floor(tallies[tally] / every)。
+ * cap があれば足す量をそこで止める（分身は 3 まで など）
+ */
+export interface TemperStat {
+  /** 読む数えの key（Rule 効果 tally の key） */
+  tally: string;
+  stat: NumericStatKey;
+  /** 1 段あたりに足す量（stats の単位のまま。倍率なら 0.05 = +5%） */
+  per: number;
+  /** 何数えで 1 段か（1 以上） */
+  every: number;
+  /** 足す量の上限（省略 = 上限なし） */
+  cap?: number;
 }
 
 // -----------------------------------------------------------------------------

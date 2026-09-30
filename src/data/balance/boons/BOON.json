@@ -14,7 +14,11 @@
     "cardWeight": "系譜の提示での札の種類ごとの重み（加護 / 摂理 / 研鑽）。昇華・融合は確定枠で出るので重みを持たない",
     "graceFreeMul": "系譜の提示で、その行動の枠に空きがある加護の重みに掛ける倍率",
     "apexMinCards": "昇華が次の系譜の提示の 1 枚目に確定で入る、その系譜の札（融合を含む）の枚数。枚",
-    "temperOfferCount": "錬磨の提示に並べる札の上限（格を上げられる札が少なければ全部）。枚"
+    "temperOfferCount": "錬磨の提示に並べる札の上限（格を上げられる札が少なければ全部）。枚",
+    "ruleCoinShot.speed": "投銭（Rule 効果 coinShot）の銭の弾の速さ。px/秒",
+    "ruleCoinShot.life": "投銭の銭の弾の寿命。秒",
+    "ruleCoinShot.radius": "投銭の銭の弾の当たりの半径。px",
+    "ruleCoinShot.color": "投銭の銭の弾の色"
   },
   "choiceCount": 3,
   "cursedChance": 0.4,
@@ -216,6 +220,7 @@
   "ruleTextScale": 1.1,
   "ruleTextLife": 0.6,
   "ruleMinIcd": 0.1,
+  "ruleCoinShot": { "speed": 220, "life": 0.6, "radius": 3, "color": "#ffd24a" },
   "roamerKillMemory": 1,
   "leyLineMana": 6,
   "leyLineIcd": 1.5,

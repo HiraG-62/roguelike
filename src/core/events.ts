@@ -68,6 +68,11 @@ export const EVENT_KINDS = [
   "onFlask",
   /** 受け流しの成功（全武器共通の窓・剣の構え。system/parry.ts。賭けの凌ぎが数える） */
   "onParry",
+  // ---- 2026-09-30 追加（祝福の中身。docs/ideas/boon-impl.md 2-6） ----
+  /** 処刑（system/poise.ts の tryExecute）。対象 = 処刑した敵（倒れた瞬間の状態異常を写す） */
+  "onExecute",
+  /** 壁叩きつけ（system/enemies.ts の wallSplat）。対象 = 壁に叩きつけた敵 */
+  "onWallSlam",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

@@ -184,6 +184,7 @@ function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
   e.hp = 0;
   e.executed = true;
   markExecuted(state, e);
+  pushEvent(state, { kind: "onExecute", actor: "player", source: { kind: "player", key: "execute" }, ...enemyTarget(e, true) });
   addFloatingText(state, e.body.pos, EXECUTE_TEXT, EXECUTE_COLOR, EXECUTE_TEXT_SCALE, 0.7);
   spawnBurst(state, e.body.pos, EXECUTE_COLOR, EXECUTE_PARTICLES, 180, 0.45, 2.5);
   pushSfx(state, "hitHeavy");

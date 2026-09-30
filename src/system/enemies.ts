@@ -332,6 +332,7 @@ function wallSplat(state: GameState, e: Enemy): void {
   shake(state, FEEL.shakeHeavy);
   cameraKick(state, back, FEEL.kickHeavy);
   pushSfx(state, "wallHit");
+  pushEvent(state, { kind: "onWallSlam", actor: "player", source: { kind: "player", key: "wallSlam" }, ...enemyTarget(e, true) });
   const out = rollOutgoing(state, e, w.damage, "proc");
   const poise = w.poise * state.stats.poiseDamageMul;
   damageEnemy(state, e, out.amount, back, 0, { poise, ignoreSuperArmor: true, hitstopSteps: w.hitstop });
