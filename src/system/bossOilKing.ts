@@ -11,7 +11,7 @@ import { spawnLanding, spawnShockwave } from "./hazards";
 import { overlapsWall } from "./physics";
 import { applyStagger } from "./poise";
 import { phaseShift } from "./boss";
-import { type BossHooks, lungeStep, resetSequence, runBossCycle, toPlayer, walkToward } from "./bossKit";
+import { type BossHooks, lungeStep, resetSequence, runBossCycle, signatureOf, toPlayer, walkToward } from "./bossKit";
 import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 
 /**
@@ -216,3 +216,6 @@ export function setupOilKingRoom(state: GameState, roomIndex: number): void {
     seedTerrain(state, p, "oil", BOSS.oilKing.jarRadius, { delay: 0, duration: 0, quiet: true });
   }
 }
+
+/** 署名の技（最深の主の第三の顔が借りる）: 油壺（影 → 割れて油溜まり） */
+export const OIL_KING_SIGNATURE = signatureOf("oilKing", OIL_JAR, HOOKS);

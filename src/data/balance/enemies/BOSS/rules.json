@@ -1,0 +1,37 @@
+{
+  "_note": "ボスの共通の規則（system/bossKit.ts・bossRecord.ts・bossRewards.ts。docs/ideas/boss-impl.md 2-1・2-7）。読みの閾値・連撃の予備動作・取り巻きの怯み値・固有の報酬の量",
+  "_fields": {
+    "nearDist": "プレイヤーとの距離がこれ未満なら「近い」（px）",
+    "farDist": "プレイヤーとの距離がこれを超えると「遠い」（px）",
+    "stillSpeed": "1 ステップの移動がこの速さ × dt 未満なら静止とみなす（px/s）",
+    "stillSec": "静止がこの秒以上続くと、技の枝が「止まっている相手」を選ぶ",
+    "dashMemory": "ダッシュを見てからこの秒の間は「直前にダッシュした」と覚える",
+    "chainWindupMul": "連撃の続きの予備動作の長さの倍（最初からコミット）",
+    "minionPoiseRatio": "ボス部屋の取り巻きを 1 体倒すとボスに入る怯み値（ボスの耐性に対する割合）",
+    "rewards.flasks": "スライム王: 落とす瓶の数",
+    "rewards.purseBase": "盗賊王: 銭の基本量",
+    "rewards.pursePerDepth": "盗賊王: 深度 1 ごとに足す銭",
+    "rewards.keys": "盗賊王: 鍵の数",
+    "rewards.runes": "油壺の王: 落とす刻印符の数",
+    "rewards.stoneRerolls": "鏡の騎士: 持っていないスキルの石が出るまで引き直す上限",
+    "rewards.namedBoost": "最深の主: 名のある遺物を引くときの揺らぎの増幅",
+    "rewards.namedAttempts": "最深の主: 名のある遺物が出るまで引き直す上限"
+  },
+  "nearDist": 70,
+  "farDist": 150,
+  "stillSpeed": 15,
+  "stillSec": 0.6,
+  "dashMemory": 1.5,
+  "chainWindupMul": 0.6,
+  "minionPoiseRatio": 0.2,
+  "rewards": {
+    "flasks": 1,
+    "purseBase": 30,
+    "pursePerDepth": 4,
+    "keys": 1,
+    "runes": 1,
+    "stoneRerolls": 8,
+    "namedBoost": 10,
+    "namedAttempts": 60
+  }
+}

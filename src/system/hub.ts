@@ -140,6 +140,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     terrain: createTerrainLayer(),
     corpses: [],
     boss: null,
+    bossLog: [],
     hiddenRoom: null,
     floorTime: 0,
     reaper: null,

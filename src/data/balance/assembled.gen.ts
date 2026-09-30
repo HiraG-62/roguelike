@@ -139,6 +139,7 @@ import j_enemies_BOSS_broodMother from "./enemies/BOSS/broodMother.json";
 import j_enemies_BOSS_librarian from "./enemies/BOSS/librarian.json";
 import j_enemies_BOSS_mirrorKnight from "./enemies/BOSS/mirrorKnight.json";
 import j_enemies_BOSS_thiefKing from "./enemies/BOSS/thiefKing.json";
+import j_enemies_BOSS_rules from "./enemies/BOSS/rules.json";
 import j_enemies_FLOOR_LORD from "./enemies/FLOOR_LORD.json";
 import j_enemies_JIN from "./enemies/JIN.json";
 import j_enemies_FORMATION__index from "./enemies/FORMATION/_index.json";
@@ -1053,6 +1054,7 @@ export const enemies = {
     "librarian": j_enemies_BOSS_librarian,
     "mirrorKnight": j_enemies_BOSS_mirrorKnight,
     "thiefKing": j_enemies_BOSS_thiefKing,
+    "rules": j_enemies_BOSS_rules,
   },
   "FLOOR_LORD": j_enemies_FLOOR_LORD,
   "JIN": j_enemies_JIN,
@@ -2103,6 +2105,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/BOSS/librarian.json",
   "enemies/BOSS/mirrorKnight.json",
   "enemies/BOSS/oilKing.json",
+  "enemies/BOSS/rules.json",
   "enemies/BOSS/thiefKing.json",
   "enemies/BOSS/twinKnights.json",
   "enemies/DOUBLE_CHARGE.json",

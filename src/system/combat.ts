@@ -40,6 +40,7 @@ import { noteBraceBlockMana, noteHitMana } from "./manaSources";
 import { shareLinkedDamage } from "./formMarks";
 import { dropCoins, spillCoins } from "./economy";
 import { containerBroken } from "./containers";
+import { noteBossFightHit } from "./bossRecord";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -559,6 +560,7 @@ export function damagePlayer(
   addRegain(state, taken);
   onPlayerHurtStatus(state);
   recordProvenance(state, { kind: "hurt" });
+  noteBossFightHit(state);
   p.invulnTimer = PLAYER.hurtInvuln;
   p.hitFlash = PLAYER_HIT_FLASH;
   const away = normalize(sub(p.body.pos, fromPos));

@@ -6,13 +6,12 @@ import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
 import { boonHeartsAllowed } from "./boons";
-import { damagePlayer } from "./combat";
 import { addFloatingText, bossKillFx, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
-import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
+import { spawnBoneWall } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { hasMod } from "./runSetup";
-import { inflictOnPlayer, isSilenced } from "./statusEffects";
+import { isSilenced } from "./statusEffects";
 import { spawnTwinSister, twinPartner, updateTwin } from "./bossTwins";
 import { frostGiantArmored, updateFrostGiant } from "./bossFrostGiant";
 import { oilKingTelegraph, setupOilKingRoom, updateOilKing } from "./bossOilKing";
@@ -20,6 +19,9 @@ import { broodMotherTelegraph, updateBroodMother } from "./bossBroodMother";
 import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
 import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, updateMirrorKnight } from "./bossMirrorKnight";
 import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
+import { kingSlimeTelegraph, updateKingSlime } from "./bossKingSlime";
+import { pushBossRecord } from "./bossRecord";
+import { grantBossReward } from "./bossRewards";
 import type { EnemyTelegraph } from "./enemies";
 import { offerReforges } from "./reforge";
 import { chapterBossKey } from "./chapters";
@@ -50,14 +52,10 @@ const FULL_CIRCLE = Math.PI * 2;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const BOSS_TEXT_COLOR = "#ff4040";
 const DEFEAT_TEXT_COLOR = "#ffd75f";
-const SPLIT_TEXT_COLOR = "#80ff80";
 const RAGE_TEXT_COLOR = "#c0ffb0";
 const PHASE_FLASH = 0.6;
 const FREE_POINT_ATTEMPTS = 30;
 const DROP_SPREAD = 14;
-/** King Slime の着地直下でのダメージ判定半径（衝撃波の半径に対する割合） */
-const SLAM_CORE_RATIO = 0.4;
-const SPLIT_OFFSET = 18;
 /** Bone Lord が保ちたい距離 */
 const BONE_LORD_KEEP = 90;
 const BONE_BULLET_RADIUS = 3;
@@ -117,6 +115,7 @@ export function announceBoss(state: GameState): void {
   const b = state.boss;
   if (!b) return;
   b.introTimer = BOSS.introTime;
+  b.lockedAt = state.floorTime;
   shake(state, FEEL.shakeHeavy);
   state.flash = Math.max(state.flash, PHASE_FLASH);
   pushSfx(state, "roomLock");
@@ -176,6 +175,8 @@ export function bossTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
       return mirrorKnightTelegraph(e);
     case "thiefKing":
       return thiefKingTelegraph(e);
+    case "kingSlime":
+      return kingSlimeTelegraph(e);
     default:
       return null;
   }
@@ -248,97 +249,6 @@ export function phaseShift(state: GameState, e: Enemy, text: string, color: stri
   spawnBurst(state, e.body.pos, color, 30, 180, 0.6, 2.5);
   pushSfx(state, "enemyWindup");
   pushSfx(state, "bossPhaseChange");
-}
-
-// -----------------------------------------------------------------------------
-// King Slime: 跳躍 → 着地衝撃波。HP 50% で分裂 + 高速化
-// -----------------------------------------------------------------------------
-
-function kingSlimeSpeedMul(e: Enemy): number {
-  return e.ai?.stage === STAGE_TWO ? BOSS.kingSlime.phase2SpeedMul : 1;
-}
-
-function updateKingSlime(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
-  const ai = e.ai;
-  if (!ai) return;
-  const ks = BOSS.kingSlime;
-  if (ai.stage === STAGE_ONE && e.hp <= e.maxHp * ks.phase2Ratio) splitKingSlime(state, e);
-
-  const mul = kingSlimeSpeedMul(e);
-  const dir = toPlayerDir(state, e);
-  switch (e.phase) {
-    case "chase": {
-      if (dir.x !== 0) e.facing = dir;
-      moveEnemy(state, e, def, dir.x * def.speed * mul * dt, dir.y * def.speed * mul * dt);
-      if (e.attackCooldown > 0) return;
-      e.phase = "windup";
-      // 第 2 段階の速さと深度の短縮を掛けても、基準の 60% は残す（scaledWindup の下限）
-      e.phaseTimer = scaledWindup(def.windup, state.depth, 1 / mul);
-      e.windupTotal = e.phaseTimer;
-      pushSfx(state, "enemyWindup");
-      return;
-    }
-    case "windup":
-      e.phaseTimer -= dt;
-      if (e.phaseTimer <= 0) beginJump(state, e);
-      return;
-    case "strike": {
-      // 空中: 着地点へ向かって移動する（壁は無視しない）
-      const remaining = Math.max(dt, e.phaseTimer);
-      const step = scale(sub(ai.target, e.body.pos), Math.min(1, dt / remaining));
-      moveEnemy(state, e, def, step.x, step.y);
-      e.phaseTimer -= dt;
-      if (e.phaseTimer <= 0) landKingSlime(state, e, def);
-      return;
-    }
-    case "recover":
-      e.phaseTimer -= dt;
-      if (e.phaseTimer <= 0) toChase(e, def);
-      return;
-    default:
-      return;
-  }
-}
-
-function beginJump(state: GameState, e: Enemy): void {
-  const ai = e.ai;
-  if (!ai) return;
-  const ks = BOSS.kingSlime;
-  const time = ai.stage === STAGE_TWO ? ks.phase2JumpTime : ks.jumpTime;
-  ai.target = { ...state.player.body.pos };
-  e.phase = "strike";
-  e.phaseTimer = time;
-  spawnLanding(state, ai.target, ks.shockRadius, time);
-  spawnBurst(state, e.body.pos, enemyDef(e.defKey).color, 10, 90, 0.3, 2);
-}
-
-function landKingSlime(state: GameState, e: Enemy, def: EnemyDef): void {
-  const ks = BOSS.kingSlime;
-  const dmg = depthDamage(ks.shockDamage, state.depth);
-  spawnShockwave(state, e.body.pos, ks.shockRadius, dmg, e.id);
-  spawnBurst(state, e.body.pos, def.color, 24, 160, 0.5, 3);
-  shake(state, FEEL.shakeSpecial);
-  pushSfx(state, "wallHit");
-  // 真下にいたら潰される
-  const p = state.player.body;
-  if (circlesOverlap(e.body.pos.x, e.body.pos.y, ks.shockRadius * SLAM_CORE_RATIO, p.pos.x, p.pos.y, p.radius)) {
-    if (damagePlayer(state, dmg, e.body.pos, e) === "hit") inflictOnPlayer(state, e, "shockwave");
-  }
-  e.phase = "recover";
-  e.phaseTimer = def.recover / kingSlimeSpeedMul(e);
-}
-
-function splitKingSlime(state: GameState, e: Enemy): void {
-  phaseShift(state, e, "分裂！", SPLIT_TEXT_COLOR);
-  const ks = BOSS.kingSlime;
-  const slime = enemyDef("slime");
-  for (let i = 0; i < ks.splitCount; i++) {
-    const a = (i / ks.splitCount) * FULL_CIRCLE;
-    const pos = add(e.body.pos, scale(fromAngle(a), SPLIT_OFFSET));
-    const safe = overlapsWall(state, pos.x, pos.y, slime.radius) ? { ...e.body.pos } : pos;
-    const minion = createEnemy(state, slime, safe, e.roomIndex, true);
-    state.enemies.push(minion);
-  }
 }
 
 // -----------------------------------------------------------------------------
@@ -513,6 +423,8 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   bossKillFx(state, e.body.pos);
+  pushBossRecord(state, e);
+  if (b.major) grantBossReward(state, e.defKey, e.body.pos);
   const drops = b.major ? BOSS.rareDrops : FLOOR_LORD.drops;
   const boost = b.major ? BOSS.rareDropBoost : FLOOR_LORD.rareDropBoost;
   const attempts = b.major ? BOSS.rareDropAttempts : FLOOR_LORD.rareDropAttempts;
