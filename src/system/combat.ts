@@ -36,6 +36,7 @@ import { noteHitMoments, noteRiposte } from "./moments";
 import { noteBraceBlockMana, noteHitMana } from "./manaSources";
 import { shareLinkedDamage } from "./formMarks";
 import { dropCoins, spillCoins } from "./economy";
+import { containerBroken } from "./containers";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -205,7 +206,8 @@ export function damageEnemy(
     // 怯んでいない敵は押し出しすぎない（殴っても射程外へ逃げない）
     const knockMul = isStaggered(enemy) ? 1 : POISE.knockbackUnstaggered;
     if (knockForce > 0) enemy.knock = scale(dir, knockForce * knockMul);
-    registerComboHit(state);
+    // 壺・木箱を割ってもコンボは伸びない（割って回るだけでコンボを保てないように）
+    if (def.container === undefined) registerComboHit(state);
     showHit(state, enemy, amount, dir, def.color, opts, heavy);
     onHitFx(state, enemy, opts);
   }
@@ -319,6 +321,8 @@ export function gainEnergy(state: GameState, amount: number): void {
 
 function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   const def = enemyDef(enemy.defKey);
+  // 壺・木箱は撃破数・得点・コンボ・来歴・ドロップ抽選に数えず、銭と瓶だけ（system/containers.ts）
+  if (def.container !== undefined) return containerBroken(state, enemy);
   // 鐘の蘇生体は撃破数・ドロップ・来歴の撃破に数えない（蘇生と撃破を繰り返して稼がせない）
   const counted = enemy.revived !== true;
   if (counted) state.kills += 1;
@@ -447,7 +451,8 @@ export function enemyNearPlayer(state: GameState, radius: number): boolean {
   const r2 = radius * radius;
   const near = (x: number, y: number): boolean => (x - pos.x) ** 2 + (y - pos.y) ** 2 <= r2;
   if (state.reaper && near(state.reaper.pos.x, state.reaper.pos.y)) return true;
-  return state.enemies.some((e) => e.hp > 0 && near(e.body.pos.x, e.body.pos.y));
+  // 壺・木箱は戦いの相手ではない（そばを通っただけで自然回復を止めない）
+  return state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).container === undefined && near(e.body.pos.x, e.body.pos.y));
 }
 
 /**

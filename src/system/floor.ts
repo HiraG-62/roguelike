@@ -73,6 +73,7 @@ import { createBossJin, planJins, updateJinPhases, updateLookouts, wakeJin } fro
 import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
+  placeDonationShrine,
   clearSpecialRoom,
   enterSpecialRoom,
   ensureForkStairs,
@@ -87,6 +88,7 @@ import {
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
 import { hasMod, onOriginDescend, refreshRunStats, tierScoreMul } from "./runSetup";
 import { onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
+import { placeContainers } from "./containers";
 import { placeMerchants, updateMerchants } from "./merchants";
 import { grantFloorArrival, onRoomClearedCoins, updateCoinPickups } from "./economy";
 import { FLOOR_KIND } from "../data/tuning";
@@ -180,10 +182,14 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   // 契約者と上り階段は最後に置く（それより前の乱数消費を変えない）
   placeContractor(state);
   placeAscend(state);
+  // 章の境の休符の祠は乱数を使わないので置く順は問わない（契約者の後ろに置いて既存の抽選に触れない）
+  placeDonationShrine(state);
   // 隠し部屋の計画は一番最後（それより前の乱数消費を変えないため）
   planHidden(state);
   // 市の商人は隠し部屋の後（それより前の乱数消費を変えない。system/merchants.ts）
   placeMerchants(state);
+  // 壺・木箱は商人の台座を避けて最後に置く（それより前の乱数消費を変えない。system/containers.ts）
+  placeContainers(state);
 }
 
 /**

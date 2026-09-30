@@ -189,9 +189,9 @@ export function createCodexSave(): CodexSave {
   };
 }
 
-/** 図鑑に載せない敵（設置物・動かない氷柱。図鑑を埋め切れるように）。商人（def.merchant）も載せない */
+/** 図鑑に載せない敵（設置物・動かない氷柱。図鑑を埋め切れるように）。商人（def.merchant）・壺と木箱（def.container）も載せない */
 const HIDDEN_BEHAVIORS: ReadonlySet<EnemyDef["behavior"]> = new Set<EnemyDef["behavior"]>(["inert", "mine"]);
-export const CODEX_ENEMIES: readonly EnemyDef[] = ENEMIES.filter((d) => !HIDDEN_BEHAVIORS.has(d.behavior) && d.merchant !== true).sort(
+export const CODEX_ENEMIES: readonly EnemyDef[] = ENEMIES.filter((d) => !HIDDEN_BEHAVIORS.has(d.behavior) && d.merchant !== true && d.container === undefined).sort(
   (a, b) => a.minDepth - b.minDepth,
 );
 

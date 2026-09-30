@@ -219,8 +219,8 @@ export function updateEnemies(state: GameState, dt: number): void {
         if (e.phaseTimer <= 0) e.phase = "chase";
         break;
       case "idle":
-        // 商人は殴られるまで気付かない（怒らせるのは behaviors/families.ts の Merchant.onStruck だけ）
-        if (def.merchant === true) break;
+        // 商人は殴られるまで気付かない（怒らせるのは behaviors/families.ts の Merchant.onStruck だけ）。壺・木箱は最後まで気付かない
+        if (def.merchant === true || def.container !== undefined) break;
         // 開放型フロア: 壁越しには気付かない（気付いた敵が壁に張り付いたまま動けなくなるため）
         if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
         break;

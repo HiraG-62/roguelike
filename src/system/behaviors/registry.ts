@@ -9,6 +9,7 @@ import {
   BossDriven,
   ChainWarden,
   Charger,
+  Container,
   Flyer,
   FrostCrusher,
   GiantToad,
@@ -94,6 +95,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   thiefKing: new BossDriven("thiefKing"),
   leaper: new Leaper(),
   merchant: new Merchant(),
+  container: new Container(),
 });
 
 /** その敵の振る舞い */

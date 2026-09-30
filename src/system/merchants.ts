@@ -7,7 +7,6 @@ import {
   type RoomState,
   type Ware,
   type WareKind,
-  allocId,
   pushLog,
   pushSfx,
 } from "../core/state";
@@ -18,10 +17,9 @@ import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, tileOf } from "../map/pathing";
 import { isChapterBossDepth } from "./chapters";
 import { layout } from "./contractors";
-import { chapterScale, dropKey, gainKey, spendCoins } from "./economy";
+import { FLASK_GAIN_TEXT, chapterScale, dropFlask, dropKey, gainFlasks, gainKey, spendCoins } from "./economy";
 import { addFloatingText, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
-import { gainFlasks } from "./flask";
 import { dropItem } from "./loot";
 import { circlesOverlap } from "./physics";
 import { dropRune } from "./skills";
@@ -62,7 +60,6 @@ const GREETING: Readonly<Record<MerchantKind, string>> = {
 const OUTLAW_TEXT = "無法者";
 const FLASK_FULL_TEXT = "瓶は満杯";
 const REFUSED_TEXT = "取引拒否";
-const FLASK_GAIN_TEXT = "瓶 +1";
 
 const START_ROOM = 0;
 /** 台座に触れたと判定する半径（px）。契約者の台座と同じ */
@@ -216,14 +213,13 @@ export function placeMerchants(state: GameState): void {
 // 毎ステップ（floor.ts の updateRooms から）
 // -----------------------------------------------------------------------------
 
-/** 商人の生死・一言・台座、床の瓶 */
+/** 商人の生死・一言・台座（床の瓶は economy.ts の updateCoinPickups） */
 export function updateMerchants(state: GameState): void {
   settleFallen(state);
   for (const m of state.economy.merchants) {
     greet(state, m);
     updateWares(state, m);
   }
-  updateFlaskPickups(state);
 }
 
 /**
@@ -366,29 +362,4 @@ function restock(state: GameState, m: Merchant): void {
 function sayAtPlayer(state: GameState, text: string, color: string = ECONOMY.market.color): void {
   const p = state.player.body.pos;
   addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE);
-}
-
-// -----------------------------------------------------------------------------
-// 床の瓶（倒れた商人の売れ残り）
-// -----------------------------------------------------------------------------
-
-/** 床に瓶を 1 つ置く（消えない。触れて拾う） */
-export function dropFlask(state: GameState, pos: Vec): void {
-  state.pickups.push({ id: allocId(state), kind: "flask", pos: { ...pos }, radius: ECONOMY.coin.radius, bobTime: 0 });
-}
-
-/** 床の瓶に触れたら 1 本足す。持ちきれなければ床に残す */
-function updateFlaskPickups(state: GameState): void {
-  const b = state.player.body;
-  let removed = false;
-  for (const pk of state.pickups) {
-    if (pk.kind !== "flask") continue;
-    if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, b.pos.x, b.pos.y, b.radius)) continue;
-    if (gainFlasks(state, 1) <= 0) continue;
-    sayAtPlayer(state, FLASK_GAIN_TEXT, ECONOMY.flask.color);
-    pushSfx(state, "pickup");
-    pk.radius = 0;
-    removed = true;
-  }
-  if (removed) state.pickups = state.pickups.filter((pk) => pk.radius > 0);
 }

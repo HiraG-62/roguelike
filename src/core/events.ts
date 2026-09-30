@@ -66,6 +66,8 @@ export const EVENT_KINDS = [
   "onCoinSpill",
   /** 瓶を飲んだ（amount = 回復量。system/flask.ts） */
   "onFlask",
+  /** 受け流しの成功（全武器共通の窓・剣の構え。system/parry.ts。賭けの凌ぎが数える） */
+  "onParry",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

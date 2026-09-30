@@ -254,9 +254,11 @@ describe("部屋の種類", () => {
     const room = state.rooms[index];
     expect(room?.cleared).toBe(true);
     expect(room?.locked).toBe(false);
+    // 遺物の 1 つは鍵付きの宝箱に置き換わる（2〜3 個のうち 1 個が宝箱）
     const added = state.floorItems.length - before;
-    expect(added).toBeGreaterThanOrEqual(ROOM_KIND.treasureItemsMin);
-    expect(added).toBeLessThanOrEqual(ROOM_KIND.treasureItemsMax);
+    expect(added).toBeGreaterThanOrEqual(ROOM_KIND.treasureItemsMin - 1);
+    expect(added).toBeLessThanOrEqual(ROOM_KIND.treasureItemsMax - 1);
+    expect(room?.special?.props.some((p) => p.kind === "lockedChest"), "鍵付きの宝箱").toBe(true);
     expect(state.texts.some((t) => t.text === "宝物庫")).toBe(true);
   });
 

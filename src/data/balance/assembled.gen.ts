@@ -247,6 +247,8 @@ import j_enemies_stats_thiefKing from "./enemies/stats/thiefKing.json";
 import j_enemies_stats_thief from "./enemies/stats/thief.json";
 import j_enemies_stats_reaperShade from "./enemies/stats/reaperShade.json";
 import j_enemies_stats_merchant from "./enemies/stats/merchant.json";
+import j_enemies_stats_pot from "./enemies/stats/pot.json";
+import j_enemies_stats_crate from "./enemies/stats/crate.json";
 import j_enemies_combat__index from "./enemies/combat/_index.json";
 import j_enemies_combat_slime from "./enemies/combat/slime.json";
 import j_enemies_combat_eye from "./enemies/combat/eye.json";
@@ -353,6 +355,8 @@ import j_enemies_combat_thief from "./enemies/combat/thief.json";
 import j_enemies_combat_mirrorImage from "./enemies/combat/mirrorImage.json";
 import j_enemies_combat_reaperShade from "./enemies/combat/reaperShade.json";
 import j_enemies_combat_merchant from "./enemies/combat/merchant.json";
+import j_enemies_combat_pot from "./enemies/combat/pot.json";
+import j_enemies_combat_crate from "./enemies/combat/crate.json";
 import j_enemies_defense__index from "./enemies/defense/_index.json";
 import j_enemies_defense_bodies from "./enemies/defense/bodies.json";
 import j_enemies_defense_biomes from "./enemies/defense/biomes.json";
@@ -461,6 +465,8 @@ import j_enemies_defense_enemies_thief from "./enemies/defense/enemies/thief.jso
 import j_enemies_defense_enemies_mirrorImage from "./enemies/defense/enemies/mirrorImage.json";
 import j_enemies_defense_enemies_reaperShade from "./enemies/defense/enemies/reaperShade.json";
 import j_enemies_defense_enemies_merchant from "./enemies/defense/enemies/merchant.json";
+import j_enemies_defense_enemies_pot from "./enemies/defense/enemies/pot.json";
+import j_enemies_defense_enemies_crate from "./enemies/defense/enemies/crate.json";
 import j_enemies_ENEMY_SCALE from "./enemies/ENEMY_SCALE.json";
 import j_enemies_REACTION from "./enemies/REACTION.json";
 import j_feel__index from "./feel/_index.json";
@@ -1028,12 +1034,15 @@ import j_world_MAP_SIZE from "./world/MAP_SIZE.json";
 import j_world_HIDDEN_ROOM from "./world/HIDDEN_ROOM.json";
 import j_world_ECONOMY__index from "./world/ECONOMY/_index.json";
 import j_world_ECONOMY_coin from "./world/ECONOMY/coin.json";
+import j_world_ECONOMY_container from "./world/ECONOMY/container.json";
 import j_world_ECONOMY_income from "./world/ECONOMY/income.json";
 import j_world_ECONOMY_spill from "./world/ECONOMY/spill.json";
 import j_world_ECONOMY_key from "./world/ECONOMY/key.json";
 import j_world_ECONOMY_flask from "./world/ECONOMY/flask.json";
 import j_world_ECONOMY_market from "./world/ECONOMY/market.json";
 import j_world_ECONOMY_price from "./world/ECONOMY/price.json";
+import j_world_ECONOMY_donation from "./world/ECONOMY/donation.json";
+import j_world_ECONOMY_bet from "./world/ECONOMY/bet.json";
 import j_world_ARC from "./world/ARC.json";
 
 export const boons = {
@@ -1335,6 +1344,8 @@ export const enemies = {
     "thief": j_enemies_stats_thief,
     "reaperShade": j_enemies_stats_reaperShade,
     "merchant": j_enemies_stats_merchant,
+    "pot": j_enemies_stats_pot,
+    "crate": j_enemies_stats_crate,
   },
   "combat": {
     "_fields": j_enemies_combat__index["_fields"],
@@ -1443,6 +1454,8 @@ export const enemies = {
     "mirrorImage": j_enemies_combat_mirrorImage,
     "reaperShade": j_enemies_combat_reaperShade,
     "merchant": j_enemies_combat_merchant,
+    "pot": j_enemies_combat_pot,
+    "crate": j_enemies_combat_crate,
   },
   "defense": {
     "_fields": j_enemies_defense__index["_fields"],
@@ -1554,6 +1567,8 @@ export const enemies = {
       "mirrorImage": j_enemies_defense_enemies_mirrorImage,
       "reaperShade": j_enemies_defense_enemies_reaperShade,
       "merchant": j_enemies_defense_enemies_merchant,
+      "pot": j_enemies_defense_enemies_pot,
+      "crate": j_enemies_defense_enemies_crate,
     },
   },
   "ENEMY_SCALE": j_enemies_ENEMY_SCALE,
@@ -2216,7 +2231,8 @@ export const world = {
     "arenaWaves": j_world_ROOM_KIND__index["arenaWaves"],
     "arenaWaveMul": j_world_ROOM_KIND__index["arenaWaveMul"],
     "arenaColor": j_world_ROOM_KIND__index["arenaColor"],
-    "gambleHpCost": j_world_ROOM_KIND__index["gambleHpCost"],
+    "gambleCoinCost": j_world_ROOM_KIND__index["gambleCoinCost"],
+    "gambleCoinWinMul": j_world_ROOM_KIND__index["gambleCoinWinMul"],
     "gambleUses": j_world_ROOM_KIND__index["gambleUses"],
     "gambleColor": j_world_ROOM_KIND__index["gambleColor"],
     "gambleWeights": j_world_ROOM_KIND_gambleWeights,
@@ -2347,12 +2363,15 @@ export const world = {
     "_fields": j_world_ECONOMY__index["_fields"],
     "chapterMul": j_world_ECONOMY__index["chapterMul"],
     "coin": j_world_ECONOMY_coin,
+    "container": j_world_ECONOMY_container,
     "income": j_world_ECONOMY_income,
     "spill": j_world_ECONOMY_spill,
     "key": j_world_ECONOMY_key,
     "flask": j_world_ECONOMY_flask,
     "market": j_world_ECONOMY_market,
     "price": j_world_ECONOMY_price,
+    "donation": j_world_ECONOMY_donation,
+    "bet": j_world_ECONOMY_bet,
   },
   "ARC": j_world_ARC,
 };
@@ -2523,6 +2542,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/combat/burrower.json",
   "enemies/combat/carrionFly.json",
   "enemies/combat/chainWarden.json",
+  "enemies/combat/crate.json",
   "enemies/combat/crossGolem.json",
   "enemies/combat/crystalGolem.json",
   "enemies/combat/crystalMite.json",
@@ -2578,6 +2598,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/combat/oiler.json",
   "enemies/combat/packLeader.json",
   "enemies/combat/poisonSlime.json",
+  "enemies/combat/pot.json",
   "enemies/combat/purpleLaser.json",
   "enemies/combat/reaperShade.json",
   "enemies/combat/scavenger.json",
@@ -2632,6 +2653,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/defense/enemies/burrower.json",
   "enemies/defense/enemies/carrionFly.json",
   "enemies/defense/enemies/chainWarden.json",
+  "enemies/defense/enemies/crate.json",
   "enemies/defense/enemies/crossGolem.json",
   "enemies/defense/enemies/crystalGolem.json",
   "enemies/defense/enemies/crystalMite.json",
@@ -2687,6 +2709,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/defense/enemies/oiler.json",
   "enemies/defense/enemies/packLeader.json",
   "enemies/defense/enemies/poisonSlime.json",
+  "enemies/defense/enemies/pot.json",
   "enemies/defense/enemies/purpleLaser.json",
   "enemies/defense/enemies/reaperShade.json",
   "enemies/defense/enemies/scavenger.json",
@@ -2738,6 +2761,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/stats/burrower.json",
   "enemies/stats/carrionFly.json",
   "enemies/stats/chainWarden.json",
+  "enemies/stats/crate.json",
   "enemies/stats/crossGolem.json",
   "enemies/stats/crystalGolem.json",
   "enemies/stats/crystalMite.json",
@@ -2793,6 +2817,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/stats/oiler.json",
   "enemies/stats/packLeader.json",
   "enemies/stats/poisonSlime.json",
+  "enemies/stats/pot.json",
   "enemies/stats/purpleLaser.json",
   "enemies/stats/reaperShade.json",
   "enemies/stats/scavenger.json",
@@ -3358,7 +3383,10 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/CONTRACT.json",
   "world/DISCOVERY.json",
   "world/ECONOMY/_index.json",
+  "world/ECONOMY/bet.json",
   "world/ECONOMY/coin.json",
+  "world/ECONOMY/container.json",
+  "world/ECONOMY/donation.json",
   "world/ECONOMY/flask.json",
   "world/ECONOMY/income.json",
   "world/ECONOMY/key.json",

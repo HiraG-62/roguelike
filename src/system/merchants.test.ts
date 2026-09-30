@@ -5,12 +5,12 @@ import { type Enemy, type GameState, type Merchant, ROAMING_ROOM, type Ware, typ
 import { enemyDef } from "../data/enemies";
 import { ARC, ECONOMY } from "../data/tuning";
 import { TILE_SIZE, toIndex } from "../map/grid";
-import { chapterScale } from "./economy";
+import { chapterScale, dropFlask, updateCoinPickups } from "./economy";
 import { damageEnemy } from "./combat";
 import { isEngaged } from "./engagement";
 import { buildFloor, withBaseAreaMul } from "./floor";
 import { flaskCapacity } from "./flask";
-import { MERCHANT_KEY, buyWare, dropFlask, frontRoomOrder, merchantKindFor, stockPlan, updateMerchants, wareLabel, warePrice } from "./merchants";
+import { MERCHANT_KEY, buyWare, frontRoomOrder, merchantKindFor, stockPlan, updateMerchants, wareLabel, warePrice } from "./merchants";
 import { emitNoise } from "./noise";
 import { withInput } from "./testHelpers";
 
@@ -281,10 +281,10 @@ describe("商人を襲う", () => {
     state.player.body.pos = { ...FAR };
     dropFlask(state, state.player.body.pos);
     state.player.flasks = flaskCapacity(state);
-    updateMerchants(state);
+    updateCoinPickups(state, FIXED_DT);
     expect(state.pickups.filter((p) => p.kind === "flask"), "上限なら残る").toHaveLength(1);
     state.player.flasks = 0;
-    updateMerchants(state);
+    updateCoinPickups(state, FIXED_DT);
     expect(state.player.flasks).toBe(1);
     expect(state.pickups.filter((p) => p.kind === "flask")).toHaveLength(0);
   });

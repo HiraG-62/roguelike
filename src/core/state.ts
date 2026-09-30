@@ -684,6 +684,8 @@ export interface Pickup {
   vel?: Vec;
   /** この秒が過ぎるまで引き寄せず拾えない（こぼれた銭が即戻らないように） */
   settle?: number;
+  /** 拾ったときの稼ぎの源（省略は撃破。壺・木箱の銭は "container"） */
+  source?: CoinSource;
 }
 
 /** 銭の源（QA と「稼ぐ」型の集計。表示には出さない）。spill = こぼれた銭の拾い直し（稼ぎに数えない） */
@@ -709,12 +711,62 @@ export interface EconomyState {
   bought: Partial<Record<WareKind, number>>;
   /** 怒らせた商人を倒した（以後このランの値段 ×ECONOMY.market.outlawPriceMul） */
   outlaw: boolean;
+  /** 張っている賭け（1 つだけ。system/bets.ts） */
+  bet: ActiveBet | null;
+  /** 賭けの型ごとの記録（QA の集計。表示には出さない） */
+  betStats: Partial<Record<BetKind, BetRecord>>;
+  /** 大穴の陣を出した章（同じ章は ECONOMY.bet.jackpotPerChapter 回まで） */
+  jackpotChapters: number[];
   /** この階の商人（実体は Enemy。buildFloor の最後で作り直す） */
   merchants: Merchant[];
+  /** このランで寄進した銭。main.ts が endRun で HubSave へ足す（step の中では保存しない。system/donation.ts） */
+  donated: number;
 }
 
 /** 商人の種類（system/merchants.ts）。market = 毎階の前室の市 / chapterMarket = 章ボス階の前室の章の市 */
 export type MerchantKind = "market" | "chapterMarket";
+
+/**
+ * 賭けの型（system/bets.ts）。運: chohan 丁半 / longshot 大穴 / allIn 一か八か / doubleUp 倍々勝負。
+ * 腕: unscathed 無傷 / swift 速攻 / parries 凌ぎ（受け流しと見切りの回数）
+ */
+export type BetKind = "chohan" | "longshot" | "allIn" | "doubleUp" | "unscathed" | "swift" | "parries";
+/** 腕の賭けの難しさ（易 / 難 / 至難） */
+export type BetTier = "easy" | "hard" | "extreme";
+
+/** 張っている賭け（運の丁半・大穴・一か八かは張った瞬間に決まるので、ここに残るのは倍々勝負と腕の型） */
+export interface ActiveBet {
+  kind: BetKind;
+  /** 払った賭け金 */
+  stake: number;
+  /** 勝てば賭け金に掛ける倍率（倍々勝負は今の倍率） */
+  mul: number;
+  /** 束縛した陣（無傷・速攻。張った後に最初に起きた陣。null = まだ） */
+  jinId: number | null;
+  /** 張った state.time */
+  signedAt: number;
+  /** 凌ぎの数えた回数 / 倍々勝負の勝った回数 */
+  count: number;
+  /** 凌ぎの必要回数 / 速攻の秒（無傷・倍々勝負は 0） */
+  target: number;
+  /** 腕の型の難しさ（無傷は束縛した陣で決まる。運の型は null） */
+  tier: BetTier | null;
+  /** 大穴の陣（無傷の変種。倍率は ECONOMY.bet.jackpotMul） */
+  jackpot: boolean;
+  /** 凌ぎの数え: 最後に読んだ state.recent の受け流し・見切り（差分を数える） */
+  seen: Partial<Record<"onParry" | "onJustDodge", RecentEvent>>;
+}
+
+/** 賭けの型ごとの記録（QA） */
+export interface BetRecord {
+  placed: number;
+  won: number;
+  /** 払った賭け金の総額 / 払い戻しの総額 */
+  staked: number;
+  paid: number;
+  /** 腕の型の難しさごとの決着の数と勝ち */
+  tiers: Partial<Record<BetTier, { settled: number; won: number }>>;
+}
 /** 品の種類。reroll = 仕入れ直し（売れた品を並べ直し、値段を引き直す） */
 export type WareKind = "flask" | "item" | "rune" | "key" | "reroll";
 

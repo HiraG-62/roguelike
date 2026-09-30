@@ -79,12 +79,13 @@ describe("契約者: 定義", () => {
     }
   });
 
-  it("どの契約者も 2〜3 個の台座を並べる", () => {
+  it("どの契約者も 2〜3 個の台座を並べる（賭場の主は賭け 4 つ + 生命を賭ける台）", () => {
     for (const key of CONTRACTOR_KEYS) {
       const state = withContractor(key);
       const n = state.contracts.contractor?.offers.length ?? 0;
+      const max = key === "bookie" ? ECONOMY.bet.luckOffers + ECONOMY.bet.skillOffers + 1 : 3;
       expect(n, `${key} の台座`).toBeGreaterThanOrEqual(2);
-      expect(n, `${key} の台座`).toBeLessThanOrEqual(3);
+      expect(n, `${key} の台座`).toBeLessThanOrEqual(max);
       for (const o of state.contracts.contractor?.offers ?? []) expect(offerLabel(o).length, `${key} の台座の名前`).toBeGreaterThan(0);
     }
   });
@@ -155,9 +156,12 @@ describe("銭と契約者", () => {
 
   it("賭けの代価は賭けの支出に積まれる", () => {
     const state = withContractor("bookie");
-    state.economy.coins = CONTRACT.bookieBet;
-    touch(state, offerOf(state, "betCoins"));
-    expect(state.economy.spent.bet, "賭けの支出").toBe(CONTRACT.bookieBet);
+    state.economy.coins = 100;
+    const offer = offerOf(state, "bet");
+    touch(state, offer);
+    expect(offer.used, "張った").toBe(true);
+    expect(state.economy.spent.bet, "賭けの支出").toBe(offer.cost);
+    expect(offer.cost, "賭け金").toBeGreaterThan(0);
   });
 
   it("代価 0 の台座は支出に積まれない", () => {
@@ -261,11 +265,12 @@ describe("契約者: 取引", () => {
     expect(isBossDepth(d)).toBe(true);
   });
 
-  it("賭場: 銭を賭けると倍になるか失う", () => {
+  it("賭場: 品書きは運の型 2 つと腕の型 2 つ（賭けの本体は bets.test.ts）", () => {
     const state = withContractor("bookie");
-    state.economy.coins = CONTRACT.bookieBet;
-    touch(state, offerOf(state, "betCoins"));
-    expect([0, CONTRACT.bookieBet * 2], "倍か無").toContain(state.economy.coins);
+    const bets = state.contracts.contractor?.offers.filter((o) => o.kind === "bet") ?? [];
+    const luck = bets.filter((o) => ["chohan", "longshot", "allIn", "doubleUp"].includes(o.key));
+    expect(luck.length, "運の型").toBe(ECONOMY.bet.luckOffers);
+    expect(bets.length - luck.length, "腕の型").toBe(ECONOMY.bet.skillOffers);
   });
 
   it("賭場: 生命を賭けると生命が減る", () => {

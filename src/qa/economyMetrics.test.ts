@@ -184,6 +184,27 @@ describe("経済の計測（qa/economyMetrics.ts）", () => {
     expect(md).toContain("- 賭け");
   });
 
+  it("賭けの型ごとの記録（economy.betStats）をランの終わりに写し、ランをまたいで足し合わせる", () => {
+    const tallies = [0, 1].map(() => {
+      const state = createGame(11);
+      const eco = withEconomy(state, fakeEconomy({ bet: null }));
+      Object.assign(eco, {
+        betStats: {
+          chohan: { placed: 2, won: 1, staked: 40, paid: 40, tiers: {} },
+          swift: { placed: 1, won: 1, staked: 30, paid: 60, tiers: { hard: { settled: 1, won: 1 } } },
+        },
+      });
+      const rec = createEconomyRecorder(state);
+      rec.afterStep(state, DT);
+      rec.finish(state);
+      return rec.tally;
+    });
+    expect(tallies[0]?.bets["swift"], "写し").toEqual({ placed: 1, won: 1, staked: 30, paid: 60, tiers: { hard: { settled: 1, won: 1 } } });
+    const md = buildEconomySection(tallies).join("\n");
+    expect(md, "丁半 4 回、勝率 50%、純益 0").toContain("丁半: 4 回、勝率 50%");
+    expect(md, "速攻の難 2 回とも成功、純益 60").toMatch(/速攻: 2 回、勝率 100%（難 100%）、純益 60/);
+  });
+
   it("state.economy が無ければ計測なしと出し、落ちない", () => {
     const state = createGame(11);
     Reflect.deleteProperty(state, "economy");

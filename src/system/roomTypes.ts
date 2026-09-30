@@ -17,7 +17,7 @@ import { hasRestFountain } from "./chapters";
 import { refillFlasks } from "./flask";
 import { blackoutActive } from "./runEvents";
 import { hasMod } from "./runSetup";
-import { startsEmptySpecial } from "./specialRooms";
+import { placeTreasureChest, startsEmptySpecial } from "./specialRooms";
 
 export { chooseFloorKind } from "./biomes";
 
@@ -202,7 +202,7 @@ function textPos(state: GameState): Vec {
   return { x: state.player.body.pos.x, y: state.player.body.pos.y - TEXT_LIFT };
 }
 
-/** 入った瞬間に床アイテムを 2〜3 個（高 rarityBoost）+ コインの粒子。ロックしない */
+/** 入った瞬間に床アイテムを 2〜3 個（高 rarityBoost）+ コインの粒子。ロックしない。最後の 1 個は鍵付きの宝箱に置き換える */
 export function openTreasure(state: GameState, room: RoomState): void {
   room.cleared = true;
   const c = rectCenterPx(room.rect);
@@ -210,7 +210,9 @@ export function openTreasure(state: GameState, room: RoomState): void {
   for (let k = 0; k < n; k++) {
     const a = (k / n) * FULL_CIRCLE;
     const pos = { x: c.x + Math.cos(a) * ROOM_KIND.treasureItemSpread, y: c.y + Math.sin(a) * ROOM_KIND.treasureItemSpread };
-    dropItem(state, overlapsWall(state, pos.x, pos.y, ITEM_RADIUS) ? c : pos, ROOM_KIND.treasureRarityBoost);
+    const at = overlapsWall(state, pos.x, pos.y, ITEM_RADIUS) ? c : pos;
+    if (k === n - 1) placeTreasureChest(room, at);
+    else dropItem(state, at, ROOM_KIND.treasureRarityBoost);
   }
   spawnBurst(state, c, ROOM_KIND.treasureCoinColor, ROOM_KIND.treasureCoinParticles, COIN_SPEED, COIN_LIFE, COIN_SIZE);
   addFloatingText(state, textPos(state), TREASURE_TEXT, ROOM_KIND.treasureCoinColor, TREASURE_TEXT_SCALE, TREASURE_TEXT_LIFE);

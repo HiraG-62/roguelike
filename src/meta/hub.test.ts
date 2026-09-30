@@ -14,7 +14,7 @@ import {
   hubDecorations,
   newlyBuilt,
 } from "./hub";
-import { HUB_KEY, createHubSave, loadHub, markFacilitiesSeen, parseHubSave, saveHub } from "./hubStore";
+import { HUB_KEY, addDonation, createHubSave, donatedOf, loadHub, markFacilitiesSeen, parseHubSave, saveHub } from "./hubStore";
 import { MemoryStorage } from "./testStorage";
 
 function freshSource(): HubProgressSource {
@@ -103,6 +103,38 @@ describe("拠点の既読と保存", () => {
     const save = markFacilitiesSeen(createHubSave(), ["altar"]);
     saveHub(save, storage);
     expect(loadHub(storage), "書いて読み戻す").toEqual(save);
+  });
+});
+
+describe("拠点の寄進の総額", () => {
+  it("donated は任意項目で、数値以外・負・NaN は 0 として扱う（version は 1 のまま）", () => {
+    expect(donatedOf(createHubSave()), "既定").toBe(0);
+    expect(donatedOf(parseHubSave({ version: 1, seenFacilities: [] }) ?? createHubSave()), "項目なし（古い保存）").toBe(0);
+    for (const bad of ["12", null, -5, Number.NaN, Number.POSITIVE_INFINITY, {}, [3]]) {
+      const parsed = parseHubSave({ version: 1, seenFacilities: [], donated: bad });
+      expect(parsed, `壊れた値 ${String(bad)} でも読める`).not.toBeNull();
+      expect(donatedOf(parsed ?? createHubSave()), `壊れた値 ${String(bad)}`).toBe(0);
+    }
+    expect(donatedOf(parseHubSave({ version: 1, seenFacilities: [], donated: 42.9 }) ?? createHubSave()), "小数は切り捨て").toBe(42);
+  });
+
+  it("addDonation は総額に足した新しい保存データを返し、元は変えない", () => {
+    const base = createHubSave();
+    const once = addDonation(base, 30);
+    expect(donatedOf(once), "30").toBe(30);
+    expect(donatedOf(addDonation(once, 25)), "積み上がる").toBe(55);
+    expect(donatedOf(base), "元は変わらない").toBe(0);
+    expect(donatedOf(addDonation(once, 0)), "0 を足しても変わらない").toBe(30);
+    expect(donatedOf(addDonation(once, -10)), "負は足さない").toBe(30);
+  });
+
+  it("書いて読み戻せ、設備の既読を更新しても総額は残る", () => {
+    const storage = new MemoryStorage();
+    const withDonation = addDonation(createHubSave(), 80);
+    saveHub(markFacilitiesSeen(withDonation, ["forge"]), storage);
+    const loaded = loadHub(storage);
+    expect(donatedOf(loaded), "総額").toBe(80);
+    expect(loaded.seenFacilities, "既読").toEqual(["forge"]);
   });
 });
 

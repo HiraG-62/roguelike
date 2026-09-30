@@ -10,9 +10,11 @@ describe("陣の配りの計測", () => {
     const state = createGame(3);
     const t = emptyFloorSpawn();
     recordFloorSpawn(t, state);
-    // 市の商人（def.merchant）は戦う相手に数えない
-    const combatants = state.enemies.filter((e) => enemyDef(e.defKey).merchant !== true);
-    expect(combatants.length, "商人が 1 人立つ").toBe(state.enemies.length - 1);
+    // 市の商人（def.merchant）と壺・木箱（def.container）は戦う相手に数えない
+    const isFixture = (key: string): boolean => enemyDef(key).merchant === true || enemyDef(key).container !== undefined;
+    const combatants = state.enemies.filter((e) => !isFixture(e.defKey));
+    expect(state.enemies.filter((e) => enemyDef(e.defKey).merchant === true), "商人が 1 人立つ").toHaveLength(1);
+    expect(combatants.length, "壺・木箱と商人は数えない").toBeLessThan(state.enemies.length - 1);
     expect(t.enemiesByBand["1-5"], "深度 1 は 1-5 の帯").toEqual([combatants.length]);
     const roomJins = state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM);
     expect(t.roomJins).toEqual([roomJins.length]);

@@ -284,3 +284,16 @@ export class Merchant extends Stationary {
     if (e.phaseTimer <= 0) throwWares(state, e);
   }
 }
+
+/**
+ * 壺・木箱（system/containers.ts が置く）: 動かず、気付かず（enemies.ts の idle と noise.ts が def.container を見て起こさない）、攻撃しない。
+ * 割れるのは 1 撃（生命 1）。撃破の処理は combat.ts の killEnemy が containers.ts へ渡す
+ */
+export class Container extends Stationary {
+  constructor() {
+    super("container");
+  }
+  override canBeginAttack(_state: GameState, _e: Enemy, _def: EnemyDef, _d: number): boolean {
+    return false;
+  }
+}

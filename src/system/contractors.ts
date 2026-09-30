@@ -11,6 +11,7 @@ import { TILE_SIZE, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { grantAttributePoints } from "../ui/attributeAlloc";
 import { BOONS, BOON_KEYS, type BoonKey, applyBoonsToStats, grantBoon, hasBoon, offerBoons } from "./boons";
 import { coreKeepsCurses } from "./boonCores";
+import { type BetOffer, betHudLine, betOfferLabel, doubleUpGo, doubleUpGoLabel, doubleUpStop, doubleUpStopLabel, onBetsFloorReached, placeBet, planBookieBets, stakeFor, updateBets } from "./bets";
 import { bossKeyForDepth, isBossDepth } from "./boss";
 import { healPlayer } from "./combat";
 import { gainCoins, spendCoins } from "./economy";
@@ -54,7 +55,9 @@ export type OfferKind =
   | "foretell"
   | "ward"
   | "farsight"
-  | "betCoins"
+  | "bet"
+  | "betGo"
+  | "betStop"
   | "betLife"
   | "tale"
   | "witness"
@@ -74,6 +77,8 @@ export interface ContractOffer {
   used: boolean;
   /** false の間は触れても反応しない（離れると true に戻る。連打と出現直後の誤爆を防ぐ） */
   armed: boolean;
+  /** 賭場の主の賭けの中身（bet / betGo / betStop。system/bets.ts） */
+  bet?: BetOffer;
 }
 
 export interface Contractor {
@@ -240,14 +245,15 @@ export function standContractor(state: GameState, key: ContractorKey): boolean {
   const room = state.rooms[START_ROOM];
   if (!room) return false;
   const plan = offerPlan(state, key);
-  const spots = layout(state, room, plan.length, -1) ?? layout(state, room, plan.length, 1);
+  const spacing = key === "bookie" ? ECONOMY.bet.offerSpacing : CONTRACT.offerSpacing;
+  const spots = layout(state, room, plan.length, -1, spacing) ?? layout(state, room, plan.length, 1, spacing);
   if (!spots) return false;
   const offers = plan.map((o, i) => ({ ...o, pos: spots.offers[i] ?? spots.stand, used: false, armed: false }));
   state.contracts.contractor = { key, pos: spots.stand, offers, greeted: false };
   return true;
 }
 
-type OfferPlan = Pick<ContractOffer, "kind" | "key" | "cost">;
+type OfferPlan = Pick<ContractOffer, "kind" | "key" | "cost" | "bet">;
 
 /** 重複なしで count 個 */
 function pickDistinct<T>(state: GameState, pool: readonly T[], count: number): T[] {
@@ -286,10 +292,8 @@ function offerPlan(state: GameState, key: ContractorKey): OfferPlan[] {
         { kind: "farsight", key: "", cost: CONTRACT.seerMapCost },
       ];
     case "bookie":
-      return [
-        { kind: "betCoins", key: "", cost: CONTRACT.bookieBet },
-        { kind: "betLife", key: "", cost: 0 },
-      ];
+      // 運 2 + 腕 2 の賭け（system/bets.ts）と生命を賭ける台。賭け金は持ち金で変わるので毎ステップ引き直す（refreshBookie）
+      return [...planBookieBets(state).map((bet): OfferPlan => ({ kind: "bet", key: bet.kind, cost: bet.stake, bet })), { kind: "betLife", key: "", cost: 0 }];
     case "bard":
       return [
         { kind: "tale", key: "", cost: CONTRACT.bardTaleCost },
@@ -327,7 +331,9 @@ const OFFER_NAME: Readonly<Record<OfferKind, string>> = {
   foretell: "次の階の占い",
   ward: "厄払い",
   farsight: "この階の地図",
-  betCoins: "銭を賭ける",
+  bet: "賭け",
+  betGo: "続ける",
+  betStop: "降りる",
   betLife: "生命を賭ける",
   tale: "来歴を刻む",
   witness: "立ち会い",
@@ -340,6 +346,7 @@ const OFFER_NAME: Readonly<Record<OfferKind, string>> = {
 
 /** 台座の上に出す名前（代価つき） */
 export function offerLabel(offer: Readonly<ContractOffer>): string {
+  if (offer.bet) return betLabel(offer.kind, offer.bet);
   const name = offerName(offer);
   return offer.cost > 0 ? `${name}（銭 ${offer.cost}）` : name;
 }
@@ -350,9 +357,19 @@ function offerName(offer: Readonly<ContractOffer>): string {
   return OFFER_NAME[offer.kind];
 }
 
-/** HUD に出す結んでいる契約の行 */
+/** 賭けの台座の名札（賭け金 → 払い戻し） */
+function betLabel(kind: OfferKind, bet: Readonly<BetOffer>): string {
+  if (kind === "betGo") return doubleUpGoLabel(bet);
+  if (kind === "betStop") return doubleUpStopLabel(bet);
+  return betOfferLabel(bet);
+}
+
+/** HUD に出す結んでいる契約の行（張っている賭けも 1 行） */
 export function pactHudLines(state: GameState): string[] {
-  return state.contracts.pacts.map((p) => `${PACTS[p.key].name}: ${pactProgress(state, p)}`);
+  const lines = state.contracts.pacts.map((p) => `${PACTS[p.key].name}: ${pactProgress(state, p)}`);
+  const bet = betHudLine(state);
+  if (bet) lines.push(bet);
+  return lines;
 }
 
 function pactProgress(state: GameState, pact: ActivePact): string {
@@ -380,10 +397,12 @@ export function updateContractors(state: GameState, dt: number): void {
   c.witness = Math.max(0, c.witness - dt);
   payOwedBoons(state);
   tickPacts(state);
+  updateBets(state);
   ensureContractStats(state);
   const who = c.contractor;
   if (!who) return;
   greet(state, who);
+  if (who.key === "bookie") refreshBookie(state, who);
   const body = state.player.body;
   for (const offer of who.offers) {
     if (offer.used) continue;
@@ -421,7 +440,7 @@ function greet(state: GameState, who: Contractor): void {
 
 /** 台座の代価を支出の集計のどこへ入れるか（賭けは賭け、それ以外は契約者との取引） */
 function offerSpendKind(offer: Readonly<ContractOffer>): SpendKind {
-  return offer.kind === "betCoins" ? "bet" : "contract";
+  return offer.kind === "bet" ? "bet" : "contract";
 }
 
 /** 契約の破れなどで持ち金から失う（持ち金を超えては失わない） */
@@ -446,7 +465,8 @@ function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void
   // 払えることは上で確かめてある（額 0 の台座は spendCoins が集計に積まない）
   spendCoins(state, offer.cost, offerSpendKind(offer));
   offer.used = true;
-  if (offer.kind === "pact" || offer.kind === "infuse") {
+  // 契約・焼き付け・賭けは品書きから 1 つだけ選ぶ
+  if (offer.kind === "pact" || offer.kind === "infuse" || offer.kind === "bet") {
     for (const o of who.offers) if (o.kind === offer.kind) o.used = true;
   }
   applyOffer(state, offer, color);
@@ -459,6 +479,11 @@ function offerBlocked(state: GameState, offer: ContractOffer): string | null {
   switch (offer.kind) {
     case "uncurse":
       return cursedBoons(state).length === 0 ? "呪いがない" : null;
+    case "bet":
+      return state.economy.bet ? "賭けは 1 つまで" : null;
+    case "betGo":
+    case "betStop":
+      return state.economy.bet?.kind === "doubleUp" ? null : "賭けがない";
     case "betLife":
       return canPayLife(state, CONTRACT.bookieLifeCost) ? null : "生命が足りない";
     case "ferryLife":
@@ -518,8 +543,10 @@ function applyOffer(state: GameState, offer: ContractOffer, color: string): void
       revealWholeFloor(state);
       sayAt(state, "階の地図が分かった", color);
       return;
-    case "betCoins":
-      betCoins(state, color);
+    case "bet":
+    case "betGo":
+    case "betStop":
+      applyBet(state, offer);
       return;
     case "betLife":
       betLife(state, below, color);
@@ -617,12 +644,58 @@ export function nextBossDepth(depth: number): number {
   return d;
 }
 
-function betCoins(state: GameState, color: string): void {
-  if (!state.rng.chance(CONTRACT.bookieWinChance)) {
-    sayAt(state, "負け", color);
+// ---- 賭場の主（賭けの本体は system/bets.ts）----
+
+/** 賭け金を今の持ち金から引き直し、倍々勝負の続ける / 降りるの台座を今の賭けに合わせる（毎ステップ） */
+function refreshBookie(state: GameState, who: Contractor): void {
+  const active = state.economy.bet;
+  for (const offer of who.offers) {
+    if (offer.used || !offer.bet) continue;
+    if (offer.kind === "bet") {
+      offer.bet.stake = stakeFor(offer.bet.kind, state.economy.coins);
+      offer.cost = offer.bet.stake;
+      continue;
+    }
+    // 倍々勝負が終わった（負けた・降りた）ら続ける / 降りるの台座も消す
+    if (active?.kind !== "doubleUp") {
+      offer.used = true;
+      continue;
+    }
+    offer.bet.stake = active.stake;
+    offer.bet.mul = active.mul;
+  }
+}
+
+/** 賭けの台座を使った（代価の賭け金は useOffer が払ってある） */
+function applyBet(state: GameState, offer: ContractOffer): void {
+  const bet = offer.bet;
+  if (!bet) return;
+  if (offer.kind === "betGo") {
+    // 勝てば同じ台座で続けられる（一度離れてから）
+    if (doubleUpGo(state)) offer.used = false;
     return;
   }
-  gainCoins(state, CONTRACT.bookieBet * 2, "bet");
+  if (offer.kind === "betStop") {
+    doubleUpStop(state);
+    return;
+  }
+  const outcome = placeBet(state, bet);
+  if (outcome === "open" && bet.kind === "doubleUp") openDoubleUp(state, offer);
+}
+
+/**
+ * 倍々勝負に勝った: 台座を「続ける」（倍々勝負の台座の位置）と「降りる」（最も近い、使い終えた賭けの台座の位置）に変える。
+ * 賭けの台座は 1 つ選ぶと全部使い終えるので、その場所を借りる（壁との重なりは置いたときに確かめてある）
+ */
+function openDoubleUp(state: GameState, from: ContractOffer): void {
+  const who = state.contracts.contractor;
+  const bet = from.bet;
+  if (!who || !bet) return;
+  const others = who.offers.filter((o) => o !== from && o.kind === "bet");
+  others.sort((a, b) => Math.abs(a.pos.x - from.pos.x) - Math.abs(b.pos.x - from.pos.x));
+  const stopPos = others[0]?.pos ?? { x: from.pos.x, y: from.pos.y + TILE_SIZE * 2 };
+  who.offers.push({ kind: "betGo", key: bet.kind, cost: 0, pos: { ...from.pos }, used: false, armed: false, bet: { ...bet } });
+  who.offers.push({ kind: "betStop", key: bet.kind, cost: 0, pos: { ...stopPos }, used: false, armed: false, bet: { ...bet } });
 }
 
 function betLife(state: GameState, below: Vec, color: string): void {
@@ -733,6 +806,7 @@ function fulfilPact(state: GameState, pact: ActivePact): void {
  * floor.ts の descend / ascend が buildFloor の後に呼ぶ
  */
 export function onContractsFloorReached(state: GameState): void {
+  onBetsFloorReached(state);
   const c = state.contracts;
   const pacts = c.pacts;
   c.pacts = [];

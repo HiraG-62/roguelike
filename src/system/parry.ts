@@ -141,6 +141,7 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   pushSfx(state, "counter");
   gainMana(state, PARRY.mana);
   noteRiposte(state, "parry", attacker);
+  pushEvent(state, { kind: "onParry", actor: "player", source: { kind: "player", key: "parry" }, pos: { ...p.body.pos } });
   if (!attacker || attacker.hp <= 0) return;
   stopAttacker(state, attacker, bossPoise);
   onTraitCounter(state, attacker);

@@ -645,8 +645,8 @@ describe("開放型フロア: 徘徊", () => {
       const state = createGame(seed);
       const start = state.rooms[0]!;
       for (const e of state.enemies) {
-        // 市の商人（system/merchants.ts）は敵の陣ではない（前室が取れなければ開始の部屋にも立つ）
-        if (enemyDef(e.defKey).merchant === true) continue;
+        // 市の商人（system/merchants.ts）と壺・木箱（system/containers.ts）は敵の陣ではない（前室が取れなければ開始の部屋にも立つ）
+        if (enemyDef(e.defKey).merchant === true || enemyDef(e.defKey).container !== undefined) continue;
         const tx = Math.floor(e.body.pos.x / TILE_SIZE);
         const ty = Math.floor(e.body.pos.y / TILE_SIZE);
         expect(start.tiles?.has(toIndex(state.map, tx, ty)) ?? false, `seed=${seed} 開始の部屋に敵`).toBe(false);

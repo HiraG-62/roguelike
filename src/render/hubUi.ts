@@ -36,6 +36,8 @@ export interface HubView extends HubSpotsView {
   loaned?: string | null;
   /** 試している武器種で選んでいる奥義の名前。無ければ null */
   trialUltimate?: string | null;
+  /** これまでに寄進した銭の総額（井戸の台の案内に出す。無い・0 なら出さない） */
+  donated?: number;
 }
 
 /** 台ごとの操作の言葉（「E: 〜」の〜） */
@@ -113,9 +115,16 @@ export function drawHubSpots(ctx: CanvasRenderingContext2D, view: HubSpotsView, 
   }
 }
 
+/** 近い台の案内文。井戸だけ、寄進した総額があれば添える（使い道は今は無い。積み上がった記録として見せる） */
+export function spotPrompt(spot: HubSpotKey, donated: number | undefined): string {
+  const base = `${actionKeyLabel("interact")}: ${SPOT_ACTION[spot]}`;
+  if (spot !== "well" || donated === undefined || donated <= 0) return base;
+  return `${base}（寄進 ${donated}）`;
+}
+
 function drawPrompt(ctx: CanvasRenderingContext2D, view: HubView): void {
   if (view.near === null || !view.available.has(view.near)) return;
-  const text = `${actionKeyLabel("interact")}: ${SPOT_ACTION[view.near]}`;
+  const text = spotPrompt(view.near, view.donated);
   drawTextShadow(ctx, text, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM, TEXT.BODY, NEAR_COLOR, SHADOW, "center");
 }
 

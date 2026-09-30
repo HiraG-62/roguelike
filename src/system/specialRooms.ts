@@ -4,7 +4,7 @@ import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ENEMIES, type EnemyDef, enemiesForDepth, enemyDef } from "../data/enemies";
 import { keystoneDef } from "../loot/affixes";
-import { BOON, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { createEchoWallet, shatterYield, stirTrait } from "../loot/crafting";
 import { generateItem } from "../loot/generator";
 import { type Item, TRAIT_COLORS, type TraitColor } from "../loot/types";
@@ -16,9 +16,11 @@ import type { ModifierKey } from "../skills/types";
 import { floorKindCandidates, pickFloorKinds } from "./biomes";
 import { BOONS, BOON_KEYS, grantBoon, hasBoon, offerBoons } from "./boons";
 import { isBossDepth } from "./boss";
+import { isChapterRest } from "./chapters";
 import { COLOR_HEAL, healPlayer } from "./combat";
 import { ensureContractStats } from "./contractors";
-import { spendCoins } from "./economy";
+import { donate, donationSpot } from "./donation";
+import { chapterScale, gainCoins, spendCoins, spendKeys } from "./economy";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { eliteKindsFor, makeElite } from "./elites";
@@ -59,12 +61,16 @@ export type PropKind =
   | "ascend"
   /** 残響の鉱脈（ランイベント）。何度か触れられる */
   | "vein"
-  /** 封印庫の封印。銭で解く */
+  /** 封印庫の封印。鍵 2 か銭で解く */
   | "seal"
+  /** 鍵付きの宝箱（宝物庫の遺物 1 つの代わり。鍵 1 で遺物と銭） */
+  | "lockedChest"
   /** 属性の祭壇の属性 */
   | "element"
   /** 反転の間の台 */
-  | "inverter";
+  | "inverter"
+  /** 寄進の祠（章の境の休符の開始部屋。触れるたび寄進する。system/donation.ts） */
+  | "donation";
 
 /** 部屋に置く触れる物（台座・レバー・金床・宝箱・護衛対象） */
 export interface RoomProp {
@@ -152,8 +158,10 @@ export const PROP_LABEL: Readonly<Record<PropKind, string>> = {
   ascend: "上り階段",
   vein: "残響の鉱脈",
   seal: "封印",
+  lockedChest: "鍵付きの宝箱",
   element: "属性",
   inverter: "反転の台",
+  donation: "寄進の祠",
 };
 
 export const ROOM_KIND_COLOR: Readonly<Partial<Record<RoomKind, string>>> = {
@@ -496,11 +504,17 @@ function useProp(state: GameState, room: RoomState, index: number, prop: RoomPro
     case "seal":
       openVault(state, prop);
       return;
+    case "lockedChest":
+      openLockedChest(state, prop);
+      return;
     case "element":
       takeElement(state, room, prop);
       return;
     case "inverter":
       useInverter(state, room, prop);
+      return;
+    case "donation":
+      donate(state, prop.pos);
       return;
     case "vein":
       mineVein(state, index, prop);
@@ -510,10 +524,48 @@ function useProp(state: GameState, room: RoomState, index: number, prop: RoomPro
   }
 }
 
-/** 封印庫: 銭を払って封印を解くと、深い遺物が並ぶ（鍵で開ける道は段取り 6c） */
+/**
+ * 章の境の休符（章の 1 階目）の開始部屋に寄進の祠を置く（floor.ts の buildFloor の末尾から。乱数は使わない）。
+ * 触れるたび寄進するので used にはならない（離れて触れ直すたびに 1 回）
+ */
+export function placeDonationShrine(state: GameState): void {
+  if (!isChapterRest(state.depth)) return;
+  const start = state.rooms[0];
+  const pos = start ? donationSpot(state, start) : null;
+  if (!start || !pos) return;
+  addProp(start, "donation", pos);
+}
+
+/**
+ * 宝物庫の鍵付きの宝箱を置く（roomTypes.ts の openTreasure から。遺物 1 つの代わり）。
+ * 部屋に入った瞬間に置くので、その部屋の台座として毎ステップの当たり判定に載る
+ */
+export function placeTreasureChest(room: RoomState, pos: Vec): void {
+  addProp(room, "lockedChest", pos);
+}
+
+/** 鍵付きの宝箱: 鍵 1 本で遺物 1 つと銭が出る。鍵が無ければ開かず、台座は残る */
+function openLockedChest(state: GameState, prop: RoomProp): void {
+  const c = ECONOMY.container;
+  if (!spendKeys(state, c.lockedChestKeys)) {
+    sayAt(state, `鍵が足りない（${c.lockedChestKeys}）`, c.chestColor);
+    return;
+  }
+  prop.used = true;
+  const coins = state.rng.int(c.lockedChestCoinsMin, c.lockedChestCoinsMax);
+  gainCoins(state, Math.round(coins * chapterScale(state.depth)), "container");
+  dropItem(state, { x: prop.pos.x, y: prop.pos.y + TILE_SIZE }, c.lockedChestBoost);
+  spawnBurst(state, prop.pos, c.chestColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
+  sayAt(state, "解錠", c.chestColor);
+  pushLog(state, "鍵付きの宝箱を開けた。", c.chestColor);
+  pushSfx(state, "treasureOpen");
+}
+
+/** 封印庫: 鍵 2 本か銭で封印を解くと、深い遺物が並ぶ（鍵があれば鍵から使う。鍵はほかに使い道が少ない） */
 function openVault(state: GameState, prop: RoomProp): void {
-  if (!spendCoins(state, ROOM_KIND.vaultCoinCost, "item")) {
-    sayAt(state, `銭が足りない（${ROOM_KIND.vaultCoinCost}）`, ROOM_KIND.vaultColor);
+  const byKeys = spendKeys(state, ECONOMY.container.vaultKeys);
+  if (!byKeys && !spendCoins(state, ROOM_KIND.vaultCoinCost, "item")) {
+    sayAt(state, `鍵 ${ECONOMY.container.vaultKeys} か銭が足りない（${ROOM_KIND.vaultCoinCost}）`, ROOM_KIND.vaultColor);
     return;
   }
   prop.used = true;
@@ -523,7 +575,7 @@ function openVault(state: GameState, prop: RoomProp): void {
   }
   spawnBurst(state, prop.pos, ROOM_KIND.vaultColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, "封印が解けた", ROOM_KIND.vaultColor);
-  pushLog(state, "銭で封印庫を開けた。", ROOM_KIND.vaultColor);
+  pushLog(state, byKeys ? "鍵で封印庫を開けた。" : "銭で封印庫を開けた。", ROOM_KIND.vaultColor);
   pushSfx(state, "treasureOpen");
 }
 
@@ -647,16 +699,13 @@ function rollGamble(state: GameState): GambleOutcome {
   return "item";
 }
 
-/** 最大 HP の一部を払って回す。当たり（遺物・ハート・刻印符）か外れ（伏兵・呪い） */
+/** 銭を払って回す。当たり（遺物・ハート・刻印符・銭）か外れ（伏兵・呪い） */
 function pullLever(state: GameState, room: RoomState, index: number, prop: RoomProp): void {
   const special = specialOf(room);
-  const p = state.player;
-  const cost = p.maxHp * ROOM_KIND.gambleHpCost;
-  if (p.hp <= cost) {
-    sayAt(state, "生命が足りない", ROOM_KIND.gambleColor);
+  if (!spendCoins(state, ROOM_KIND.gambleCoinCost, "bet")) {
+    sayAt(state, `銭が足りない（${ROOM_KIND.gambleCoinCost}）`, ROOM_KIND.gambleColor);
     return;
   }
-  p.hp -= cost;
   special.uses -= 1;
   if (special.uses <= 0) prop.used = true;
   const outcome = rollGamble(state);
@@ -668,6 +717,7 @@ const GAMBLE_TEXT: Readonly<Record<GambleOutcome, string>> = {
   item: "当たり: 遺物",
   hearts: "当たり: ハート",
   rune: "当たり: 刻印符",
+  coins: "当たり: 銭",
   ambush: "外れ: 伏兵",
   curse: "外れ: 呪い",
 };
@@ -684,6 +734,9 @@ function applyGamble(state: GameState, index: number, pos: Vec, outcome: GambleO
       return;
     case "rune":
       dropRune(state, below);
+      return;
+    case "coins":
+      gainCoins(state, ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleCoinWinMul, "bet");
       return;
     case "ambush":
       gambleAmbush(state, index);

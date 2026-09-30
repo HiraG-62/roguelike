@@ -57,7 +57,11 @@ export function createEconomyState(): EconomyState {
     expired: 0,
     bought: {},
     outlaw: false,
+    bet: null,
+    betStats: {},
+    jackpotChapters: [],
     merchants: [],
+    donated: 0,
   };
 }
 
@@ -120,6 +124,13 @@ export function gainKey(state: GameState): void {
   state.economy.keys += 1;
   sayAtPlayer(state, "鍵", ECONOMY.key.color);
   pushSfx(state, "pickup");
+}
+
+/** 鍵を n 本払う（封印庫・鍵付きの宝箱）。足りなければ何もせず false */
+export function spendKeys(state: GameState, n: number): boolean {
+  if (state.economy.keys < n) return false;
+  state.economy.keys -= n;
+  return true;
 }
 
 function sayAtPlayer(state: GameState, text: string, color: string): void {
@@ -190,8 +201,11 @@ export function dropCoins(state: GameState, enemy: Enemy): void {
   }
 }
 
-/** 床に銭を 1 つ置く。実体が上限なら最も新しい銭に額を足す（乱数不要・決定的） */
-function placeCoin(state: GameState, pos: Vec, value: number, travel: number): void {
+/**
+ * 床に銭を 1 つ置く。実体が上限なら最も新しい銭に額を足す（乱数不要・決定的）。
+ * source は拾ったときの稼ぎの源（省略は撃破。壺・木箱は "container"）
+ */
+export function placeCoin(state: GameState, pos: Vec, value: number, travel: number, source?: CoinSource): void {
   const coins = state.pickups.filter((pk) => pk.kind === "coin" && pk.spilled !== true);
   const newest = coins[coins.length - 1];
   if (newest !== undefined && countCoins(state) >= ECONOMY.coin.maxCoins) {
@@ -209,6 +223,7 @@ function placeCoin(state: GameState, pos: Vec, value: number, travel: number): v
     value,
     life: ECONOMY.coin.life,
     vel: scale(dir, travel * ECONOMY.coin.friction),
+    ...(source !== undefined ? { source } : {}),
   });
 }
 
@@ -339,7 +354,7 @@ export function applyCoinRuleEffect(state: GameState, kind: Extract<RuleEffectKi
 
 /**
  * 銭・鍵の実体を進める: 散る → 寿命 → 引き寄せ → 拾う。拾った・消えたものは取り除く。
- * ハート・瓶は触らない（ハートは floor.ts、瓶は段取り 6b）
+ * 床の瓶は触れて拾う（引き寄せなし）。ハートは floor.ts が扱う
  */
 export function updateCoinPickups(state: GameState, dt: number): void {
   let removed = false;
@@ -351,6 +366,7 @@ export function updateCoinPickups(state: GameState, dt: number): void {
     }
   }
   if (removed) state.pickups = state.pickups.filter((pk) => pk.radius > 0);
+  updateFlaskPickups(state);
 }
 
 /** 1 つ進める。取り除くなら true */
@@ -416,5 +432,46 @@ function collect(state: GameState, pk: Pickup): void {
     gainCoins(state, value, "spill");
     return;
   }
-  gainCoins(state, value, "kill");
+  gainCoins(state, value, pk.source ?? "kill");
+}
+
+// -----------------------------------------------------------------------------
+// 床の瓶（倒れた商人の売れ残り・壺から出る）
+// -----------------------------------------------------------------------------
+
+/** 浮き文字（市で買ったときも同じ） */
+export const FLASK_GAIN_TEXT = "瓶 +1";
+
+/** 持てる本数（性質・祝福の flaskMax。小数は切り捨て、負は 0） */
+export function flaskCapacity(state: GameState): number {
+  return Math.max(0, Math.floor(state.stats.flaskMax));
+}
+
+/** 瓶を n 本足す（上限まで）。実際に増えた本数を返す（市の購入・床の瓶・章の泉が使う） */
+export function gainFlasks(state: GameState, n: number): number {
+  const p = state.player;
+  const gained = Math.max(0, Math.min(Math.floor(n), flaskCapacity(state) - p.flasks));
+  p.flasks += gained;
+  return gained;
+}
+
+/** 床に瓶を 1 つ置く（消えない。触れて拾う） */
+export function dropFlask(state: GameState, pos: Vec): void {
+  state.pickups.push({ id: allocId(state), kind: "flask", pos: { ...pos }, radius: ECONOMY.coin.radius, bobTime: 0 });
+}
+
+/** 床の瓶に触れたら 1 本足す。持ちきれなければ床に残す */
+function updateFlaskPickups(state: GameState): void {
+  const b = state.player.body;
+  let removed = false;
+  for (const pk of state.pickups) {
+    if (pk.kind !== "flask") continue;
+    if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, b.pos.x, b.pos.y, b.radius)) continue;
+    if (gainFlasks(state, 1) <= 0) continue;
+    sayAtPlayer(state, FLASK_GAIN_TEXT, ECONOMY.flask.color);
+    pushSfx(state, "pickup");
+    pk.radius = 0;
+    removed = true;
+  }
+  if (removed) state.pickups = state.pickups.filter((pk) => pk.radius > 0);
 }

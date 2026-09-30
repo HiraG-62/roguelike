@@ -1,7 +1,7 @@
 import { type Element, ELEMENT_COLOR, ELEMENT_LABEL } from "../core/element";
 import type { FloorKind, GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { CONTRACT, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { CONTRACT, ECONOMY, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
 import { BIOMES, floorKindLabel, isInvertedDepth } from "../system/biomes";
@@ -88,6 +88,8 @@ function propColor(room: RoomState, prop: RoomProp): string {
       return FLOOR_KIND.ascendColor;
     case "vein":
       return RUN_EVENT.vein.color;
+    case "lockedChest":
+      return ECONOMY.container.chestColor;
     case "element":
       return ELEMENT_COLOR[prop.key as Element] ?? ROOM_KIND.elementAltarColor;
     default:
@@ -107,7 +109,11 @@ export function propName(prop: RoomProp): string {
     case "element":
       return `${ELEMENT_LABEL[prop.key as Element] ?? ""}${PROP_LABEL.element}`;
     case "seal":
-      return `${PROP_LABEL.seal}（銭 ${ROOM_KIND.vaultCoinCost}）`;
+      return `${PROP_LABEL.seal}（鍵 ${ECONOMY.container.vaultKeys} / 銭 ${ROOM_KIND.vaultCoinCost}）`;
+    case "lockedChest":
+      return `${PROP_LABEL.lockedChest}（鍵 ${ECONOMY.container.lockedChestKeys}）`;
+    case "lever":
+      return `${PROP_LABEL.lever}（銭 ${ROOM_KIND.gambleCoinCost}）`;
     case "vein":
       return `${PROP_LABEL.vein} 残り ${prop.uses ?? 0}`;
     case "ascend":

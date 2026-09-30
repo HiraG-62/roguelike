@@ -202,33 +202,51 @@ describe("台座の部屋", () => {
     expect(props.every((p) => p.used), "残りの台座も消える").toBe(true);
   });
 
-  it("賭博: 最大 HP の 1 割を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {
+  it("賭博: 銭を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {
     const { state, room } = roomOf("gamble");
     const lever = room.special?.props[0];
     if (!lever || !room.special) throw new Error("lever missing");
     state.player.hp = state.player.maxHp;
-    const cost = state.player.maxHp * ROOM_KIND.gambleHpCost;
+    state.economy.coins = ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleUses;
     standAt(state, lever.pos);
     expect(room.special.uses).toBe(ROOM_KIND.gambleUses - 1);
-    expect(state.player.hp).toBeLessThanOrEqual(state.player.maxHp - cost + 1e-6);
+    expect(state.economy.spent.bet, "賭けの支出").toBe(ROOM_KIND.gambleCoinCost);
     standAt(state, lever.pos);
     expect(room.special.uses, "離れるまでは回らない").toBe(ROOM_KIND.gambleUses - 1);
     for (let i = 1; i < ROOM_KIND.gambleUses; i++) {
       stepOff(state, room);
       state.player.hp = state.player.maxHp;
+      state.economy.coins = Math.max(state.economy.coins, ROOM_KIND.gambleCoinCost);
       standAt(state, lever.pos);
     }
     expect(room.special.uses).toBe(0);
     expect(lever.used).toBe(true);
   });
 
-  it("賭博: HP が払えないと回らない", () => {
+  it("賭博: 銭が足りないと回らない", () => {
     const { state, room } = roomOf("gamble");
     const lever = room.special?.props[0];
     if (!lever || !room.special) throw new Error("lever missing");
-    state.player.hp = 1;
+    state.economy.coins = ROOM_KIND.gambleCoinCost - 1;
     standAt(state, lever.pos);
     expect(room.special.uses).toBe(ROOM_KIND.gambleUses);
+    expect(state.economy.coins, "持ち金は減らない").toBe(ROOM_KIND.gambleCoinCost - 1);
+  });
+
+  it("賭博: 当たりの銭は代価の gambleCoinWinMul 倍で、賭けの稼ぎに積まれる", () => {
+    expect(ROOM_KIND.gambleWeights.coins, "銭の当たりの重み").toBeGreaterThan(0);
+    for (const seed of [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]) {
+      const { state, room } = roomOf("gamble", seed);
+      const lever = room.special?.props[0];
+      if (!lever || !room.special) throw new Error("lever missing");
+      state.player.hp = state.player.maxHp;
+      state.economy.coins = ROOM_KIND.gambleCoinCost;
+      standAt(state, lever.pos);
+      if (state.economy.earned.bet === 0) continue;
+      expect(state.economy.earned.bet, "銭の当たり").toBe(ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleCoinWinMul);
+      return;
+    }
+    throw new Error("銭の当たりが出る seed が無い");
   });
 
   it("鍛冶場: 金床を打つと残響が溜まり（main が保存へ移す）、炉の熱で燃焼が付く", () => {

@@ -35,8 +35,6 @@
   "seerReadCost": 10,
   "seerWardCost": 30,
   "seerMapCost": 20,
-  "bookieBet": 30,
-  "bookieWinChance": 0.5,
   "bookieLifeCost": 0.2,
   "bookieLifeWinChance": 0.5,
   "bardTaleCost": 20,

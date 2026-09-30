@@ -105,7 +105,9 @@ export type EnemyBehavior =
   /** 跳んで着地で円に当てる（着地点に影の予告。src/system/enemyLeap.ts。毒スライム） */
   | "leaper"
   /** 商人（台座を並べて立つ。殴られるまで気付かず、怒ると品を投げる。src/system/merchants.ts） */
-  | "merchant";
+  | "merchant"
+  /** 壺・木箱（割ると銭が出る。動かず、気付かず、攻撃しない。src/system/containers.ts） */
+  | "container";
 
 /** 再配色種: 元の絵のパレット文字を差し替えて別の絵にする（render/sprites.ts） */
 export interface SpriteRecolor {
@@ -262,6 +264,8 @@ export interface EnemyDef {
   sporeOnHit?: TerrainKind;
   /** 商人（src/system/merchants.ts）。殴られるまで気付かず、図鑑と陣の計測に数えない */
   merchant?: boolean;
+  /** 壺・木箱（src/system/containers.ts）。1 撃で割れ、撃破数・得点・コンボ・来歴・ドロップ抽選に数えず、図鑑と陣の計測にも数えない */
+  container?: "pot" | "crate";
 }
 
 /**
@@ -334,6 +338,9 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "mirrorSelf", name: "鏡像", sprite: "mirrorSelf", recolor: { base: "player", swap: { b: "p", B: "P", a: "e", t: "3", T: "4", o: "A", O: "9" } }, behavior: "charger", color: "#c0e0ff", noCorpse: true, ...N.mirrorSelf },
   // ---- 商人（src/system/merchants.ts が毎階の前室に立たせる。抽選には出ない）----
   { key: "merchant", name: "商人", sprite: "merchant", recolor: { base: "hooded", swap: { "9": "o", A: "O", c: "y" } }, behavior: "merchant", color: "#e0b050", noCorpse: true, merchant: true, ...N.merchant },
+  // ---- 壺・木箱（src/system/containers.ts が塊の隅と通路の行き止まりに置く。抽選には出ない。絵は氷柱の再配色の仮）----
+  { key: "pot", name: "壺", sprite: "pot", recolor: { base: "icePillar", swap: { "1": "o", "2": "o", "3": "O", "4": "O" } }, behavior: "container", color: "#c07840", noCorpse: true, container: "pot", ...N.pot },
+  { key: "crate", name: "木箱", sprite: "crate", recolor: { base: "icePillar", swap: { "1": "T", "2": "T", "3": "X", "4": "X" } }, behavior: "container", color: "#a07050", noCorpse: true, container: "crate", ...N.crate },
 ];
 
 export const ENEMIES: readonly EnemyDef[] = [

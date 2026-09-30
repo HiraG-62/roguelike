@@ -136,7 +136,7 @@ import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubRe
 import { HUB } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
-import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
+import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
 import { drawHubOverlay } from "./render/hubUi";
 import { drawRackScreen } from "./render/rackUi";
 import type { MovesetKey } from "./data/weapons";
@@ -448,6 +448,8 @@ function endRun(current: GameState): void {
   returnLoaned(current.profile);
   saveProfile(current.profile);
   deathMetaLines = recordMeta(current, now);
+  // 寄進は step の中では保存せず、ラン終了のここで拠点の保存データへ足す
+  if (current.economy.donated > 0) saveHub(addDonation(loadHub(), current.economy.donated));
   if (recorder) {
     replays = pushReplay(recorder.finish({ depth: current.depth, kills: current.kills, score: current.score }, now));
     recorder = null;
@@ -594,6 +596,8 @@ let hub: HubSession | null = null;
 let hubDecor: HubDecor[] = [];
 let hubBanner: string | null = null;
 let hubBannerTimer = 0;
+/** 井戸に出す寄進の総額（拠点へ入るたびに保存データから読み直す） */
+let hubDonated = 0;
 /** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル、ポーズから開いたらポーズ */
 let menuReturn: "title" | "hub" | "paused" = "title";
 const departLatch = createHoldLatch();
@@ -610,6 +614,7 @@ function openHub(): void {
   hubBanner = facilityBuiltBanner(newlyBuilt(built, hubSave));
   hubBannerTimer = hubBanner === null ? 0 : HUB.bannerSeconds;
   saveHub(markFacilitiesSeen(hubSave, built));
+  hubDonated = donatedOf(hubSave);
   hub = createHub(profile, skillProfile, availableSpots(built), settings.hitstopScale);
   inventoryUi.open = false;
   returnToHub();
@@ -847,7 +852,7 @@ function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void
   renderer.setHubView(spots);
   renderGame(s, inventoryUi.open ? null : lastAim);
   renderer.setHubView(null);
-  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) });
+  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, donated: hubDonated, ...rackLabels(session) });
   if (!inventoryUi.open) drawBudUi(ctx, s);
   if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
 }

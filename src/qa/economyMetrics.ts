@@ -40,6 +40,20 @@ const SPEND_LABEL: Readonly<Record<string, string>> = {
   toll: "通行料",
 };
 
+/** 賭けの型の表示順と名前（system/bets.ts の BET_LABEL と同じ。ここに無い key は key のまま末尾に出す） */
+const BET_LABEL: Readonly<Record<string, string>> = {
+  chohan: "丁半",
+  longshot: "大穴",
+  allIn: "一か八か",
+  doubleUp: "倍々勝負",
+  unscathed: "無傷",
+  swift: "速攻",
+  parries: "凌ぎ",
+};
+
+/** 腕の賭けの難しさの表示順と名前 */
+const BET_TIER_LABEL: Readonly<Record<string, string>> = { easy: "易", hard: "難", extreme: "至難" };
+
 /** 泉の近さ（タイル）。瓶が増えた step でこの範囲に泉のタイルがあれば「泉で満たした」、無ければ床の瓶を拾ったとみなす */
 const FOUNTAIN_NEAR_TILES = 2;
 
@@ -74,8 +88,20 @@ export interface EconomyBandTally {
   flasksDrunk: number;
 }
 
+/** 賭けの型ごとの集計（economy.betStats をランの終わりに写す） */
+export interface BetTallyRow {
+  placed: number;
+  won: number;
+  staked: number;
+  paid: number;
+  /** 腕の型の難しさごとの決着の数と勝ち */
+  tiers: Record<string, { settled: number; won: number }>;
+}
+
 export interface EconomyTally {
   bands: Record<DepthBand, EconomyBandTally>;
+  /** 賭けの型ごと（ランの終わりの economy.betStats） */
+  bets: Record<string, BetTallyRow>;
   /** state に現れた欄。無ければ対応する列・行を出さない */
   seen: { economy: boolean; keys: boolean; merchants: boolean; flasks: boolean; outlaw: boolean; bet: boolean };
   /** 商人を襲って無法者になった回数（1 ランに高々 1） */
@@ -119,6 +145,7 @@ export function emptyEconomyTally(): EconomyTally {
   for (const band of DEPTH_BANDS) bands[band] = emptyBand();
   return {
     bands,
+    bets: {},
     seen: { economy: false, keys: false, merchants: false, flasks: false, outlaw: false, bet: false },
     outlawEvents: 0,
     maxCoinPickups: 0,
@@ -172,6 +199,8 @@ interface EconomySnapshot {
   /** economy.bought（品ごとの買った回数）。欄が無ければ null */
   bought: Record<string, number> | null;
   hasBet: boolean;
+  /** economy.betStats（無ければ空） */
+  betStats: Record<string, BetTallyRow>;
   flasks: number | null;
 }
 
@@ -196,8 +225,32 @@ function snapshotOf(state: GameState): EconomySnapshot | null {
     merchantList: Array.isArray(merchants) ? merchants : [],
     bought: typeof field(eco, "bought") === "object" && field(eco, "bought") !== null ? numberRecord(field(eco, "bought")) : null,
     hasBet: "bet" in eco,
+    betStats: betStatsOf(field(eco, "betStats")),
     flasks: typeof flasks === "number" ? flasks : null,
   };
+}
+
+function betRowOf(value: unknown): BetTallyRow {
+  const tiers: Record<string, { settled: number; won: number }> = {};
+  const rawTiers = field(value, "tiers");
+  if (typeof rawTiers === "object" && rawTiers !== null) {
+    for (const [tier, t] of Object.entries(rawTiers)) tiers[tier] = { settled: numberOr(field(t, "settled"), 0), won: numberOr(field(t, "won"), 0) };
+  }
+  return {
+    placed: numberOr(field(value, "placed"), 0),
+    won: numberOr(field(value, "won"), 0),
+    staked: numberOr(field(value, "staked"), 0),
+    paid: numberOr(field(value, "paid"), 0),
+    tiers,
+  };
+}
+
+/** economy.betStats の写し（形が違う欄は 0 として読む） */
+function betStatsOf(value: unknown): Record<string, BetTallyRow> {
+  const out: Record<string, BetTallyRow> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [kind, row] of Object.entries(value)) out[kind] = betRowOf(row);
+  return out;
 }
 
 /** economy が落ちた額・消えた額を自分で数えているか */
@@ -404,6 +457,7 @@ export function createEconomyRecorder(initial?: GameState): EconomyRecorder {
     tally.finalKeys = snap.keys ?? 0;
     tally.finalFlasks = snap.flasks ?? 0;
     tally.outlaw = snap.outlaw === true;
+    tally.bets = snap.betStats;
   }
 
   if (initial) {
@@ -451,9 +505,27 @@ function mergeBand(into: EconomyBandTally, from: EconomyBandTally): void {
   into.flasksDrunk += from.flasksDrunk;
 }
 
+function mergeBets(into: Record<string, BetTallyRow>, from: Record<string, BetTallyRow>): void {
+  for (const [kind, row] of Object.entries(from)) {
+    const acc = into[kind] ?? { placed: 0, won: 0, staked: 0, paid: 0, tiers: {} };
+    acc.placed += row.placed;
+    acc.won += row.won;
+    acc.staked += row.staked;
+    acc.paid += row.paid;
+    for (const [tier, t] of Object.entries(row.tiers)) {
+      const a = acc.tiers[tier] ?? { settled: 0, won: 0 };
+      a.settled += t.settled;
+      a.won += t.won;
+      acc.tiers[tier] = a;
+    }
+    into[kind] = acc;
+  }
+}
+
 function mergeTallies(list: readonly EconomyTally[]): EconomyTally {
   const out = emptyEconomyTally();
   for (const t of list) {
+    mergeBets(out.bets, t.bets);
     for (const band of DEPTH_BANDS) mergeBand(out.bands[band], t.bands[band]);
     for (const key of Object.keys(out.seen) as (keyof EconomyTally["seen"])[]) out.seen[key] = out.seen[key] || t.seen[key];
     out.outlawEvents += t.outlawEvents;
@@ -639,9 +711,29 @@ function optionalSections(list: readonly EconomyTally[], t: EconomyTally): strin
   if (t.seen.bet) {
     const won = totalsOf(t, (b) => b.earned)["bet"] ?? 0;
     const staked = totalsOf(t, (b) => b.spent)["bet"] ?? 0;
-    lines.push(`- 賭け: 払った ${staked} / 得た ${won} / 純益 ${won - staked}（型ごとの勝率は 6c で足す）`);
+    lines.push(`- 賭け（賭博の部屋を含む）: 払った ${staked} / 得た ${won} / 純益 ${won - staked}`);
+    lines.push(...betKindLines(t.bets));
   }
   if (lines.length > 0) lines.push("");
+  return lines;
+}
+
+/** 賭けの型ごとの回数・勝率・純益と、腕の型の難しさごとの成功率（目標: 運の勝率が期待どおり、腕の易が 60〜80%） */
+function betKindLines(bets: Record<string, BetTallyRow>): string[] {
+  const known = Object.keys(BET_LABEL).filter((k) => (bets[k]?.placed ?? 0) > 0);
+  const unknown = Object.keys(bets)
+    .filter((k) => !(k in BET_LABEL) && (bets[k]?.placed ?? 0) > 0)
+    .sort();
+  const lines: string[] = [];
+  for (const kind of [...known, ...unknown]) {
+    const row = bets[kind];
+    if (!row) continue;
+    const tiers = Object.keys(BET_TIER_LABEL)
+      .filter((tier) => (row.tiers[tier]?.settled ?? 0) > 0)
+      .map((tier) => `${BET_TIER_LABEL[tier]} ${pct(row.tiers[tier]?.won ?? 0, row.tiers[tier]?.settled ?? 0)}`);
+    const tierText = tiers.length > 0 ? `（${tiers.join(" / ")}）` : "";
+    lines.push(`  - ${BET_LABEL[kind] ?? kind}: ${row.placed} 回、勝率 ${pct(row.won, row.placed)}${tierText}、純益 ${row.paid - row.staked}`);
+  }
   return lines;
 }
 

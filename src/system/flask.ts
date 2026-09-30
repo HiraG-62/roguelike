@@ -4,6 +4,10 @@ import type { GameState } from "../core/state";
 import { ECONOMY } from "../data/tuning";
 import { addFloatingText } from "./effects";
 import { healPlayer } from "./combat";
+import { flaskCapacity, gainFlasks } from "./economy";
+
+// 本数の出し入れは economy.ts（壺の落とす床の瓶も同じ経路で拾うため。combat.ts から循環せずに読める）
+export { flaskCapacity, gainFlasks };
 
 /**
  * 瓶（持ち運べる回復。docs/ideas/economy-impl.md 2-3）。
@@ -14,11 +18,6 @@ import { healPlayer } from "./combat";
 
 const TEXT_LIFT = 12;
 const TEXT_SCALE = 1;
-
-/** 持てる本数（性質・祝福の flaskMax。小数は切り捨て、負は 0） */
-export function flaskCapacity(state: GameState): number {
-  return Math.max(0, Math.floor(state.stats.flaskMax));
-}
 
 export type DrinkBlocker = "notPlaying" | "empty" | "cooldown" | "busy" | "full";
 
@@ -53,14 +52,6 @@ export function tryDrink(state: GameState, input: FrameInput): boolean {
   addFloatingText(state, { x: p.body.pos.x, y: p.body.pos.y - TEXT_LIFT }, "瓶", ECONOMY.flask.color, TEXT_SCALE, ECONOMY.flask.textLife);
   pushEvent(state, { kind: "onFlask", actor: "player", pos: { ...p.body.pos }, source: playerSource("flask"), amount: healed });
   return true;
-}
-
-/** 瓶を n 本足す（上限まで）。実際に増えた本数を返す（市の購入・床の瓶・章の泉が使う） */
-export function gainFlasks(state: GameState, n: number): number {
-  const p = state.player;
-  const gained = Math.max(0, Math.min(Math.floor(n), flaskCapacity(state) - p.flasks));
-  p.flasks += gained;
-  return gained;
 }
 
 /** 瓶を上限まで満たす（章の境の泉）。増えた本数を返す */

@@ -1,4 +1,5 @@
 import type { GameState } from "../core/state";
+import { enemyDef } from "../data/enemies";
 import { ENEMY_AI, MANA } from "../data/tuning";
 import { hasStatus } from "./statusEffects";
 import { SKILL } from "../skills/data";
@@ -78,7 +79,7 @@ export function tickMana(state: GameState, dt: number): void {
   const pos = p.body.pos;
   const r2 = MANA.combatRadius * MANA.combatRadius;
   const fighting =
-    state.rooms.some((r) => r.locked) || state.enemies.some((e) => e.hp > 0 && (e.body.pos.x - pos.x) ** 2 + (e.body.pos.y - pos.y) ** 2 <= r2);
+    state.rooms.some((r) => r.locked) || state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).container === undefined && (e.body.pos.x - pos.x) ** 2 + (e.body.pos.y - pos.y) ** 2 <= r2);
   // 後払いの返済残がある間は自然回復しない（owedRegenMul）
   const owed = state.skills.debtOwed > 0 ? SKILL.modifier.deferred.owedRegenMul : 1;
   const rate = state.stats.manaRegen * (fighting ? 1 : MANA.idleRegenMul) * owed;

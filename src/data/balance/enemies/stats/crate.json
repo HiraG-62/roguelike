@@ -1,0 +1,16 @@
+{
+  "_note": "壺・木箱（system/containers.ts）。生命 1 で 1 撃で割れる。動かず、気付かず、攻撃しない。抽選には出ない",
+  "radius": 6,
+  "hp": 1,
+  "speed": 0,
+  "contactDamage": 0,
+  "windup": 1,
+  "strikeTime": 0.1,
+  "recover": 1,
+  "engageRange": 0,
+  "attackInterval": 99,
+  "score": 0,
+  "minDepth": 99,
+  "weight": 0,
+  "dropChance": 0
+}
