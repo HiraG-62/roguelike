@@ -161,6 +161,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     job: "none",
     lockedRelics: [],
     stairs: [],
+    pendingExit: null,
     contracts: createContractState(),
     economy: createEconomyState(),
     events: [],

@@ -12,7 +12,7 @@ import type { SkillResource, SkillTag } from "../skills/types";
 import type { JobKey } from "../data/jobs";
 import { type BulletFeature, MOVESETS, type MovesetKey, bulletFeatures, usesProjectiles } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
-import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag } from "./boonDefs";
+import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, type BoonLoadout, type BoonTag, type LineageKey } from "./boonDefs";
 import { BOON_GRADE_LABEL, type BoonGrade, clampGrade, isGraded, rollGrade } from "./boonGrade";
 import { coreCursedForced, coreGradeShift, foldCoreStats } from "./boonCores";
 import {
@@ -62,6 +62,10 @@ export {
   type BoonLoadout,
   type BoonTag,
   type LineageKey,
+  type BoonCard,
+  type BoonAction,
+  type BoonChange,
+  LINEAGE_KEYS,
 } from "./boonDefs";
 export { onBoonWaveStart } from "./boonRules";
 
@@ -385,7 +389,7 @@ export function stairsGradeBoost(afterBoss: boolean): number {
  * 3 択を提示する（階段で降りた直後。depth 2 以降）。深度 coreDepth の最初の提示は芯だけの 3 択。
  * boost は格の下駄（試練の制圧・ボス階の直後）。boonRun.gradeBoost もここで 1 回だけ使う（芯の提示では使わない）
  */
-export function offerBoons(state: GameState, boost = 0): void {
+export function offerBoons(state: GameState, boost = 0, _lineage?: LineageKey): void {
   if (state.depth < 2) return;
   if (wantsCore(state)) {
     const cores = rollCoreOptions(state);

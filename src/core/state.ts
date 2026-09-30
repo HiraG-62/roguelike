@@ -12,6 +12,7 @@ import type { ReforgeChoice } from "../system/reforge";
 import type { ReforgeKey } from "../data/reforges";
 import type { ChainRecord, EventKind, GameEvent, RecentEvent, RuleRunState } from "./events";
 import type { RoomSpecial, StairsChoice } from "../system/specialRooms";
+import type { ExitReward } from "../system/exits";
 import type { RunEventState } from "../system/runEvents";
 import type { ContractState } from "../system/contractors";
 import type { OriginKey, RunModKey } from "../system/runSetup";
@@ -1086,6 +1087,8 @@ export interface GameState {
   lockedRelics: readonly string[];
   /** この階の階段と、降りた先のフロア種別（分岐路） */
   stairs: StairsChoice[];
+  /** 降りた階段の出口の予告（system/exits.ts）。buildFloor の末尾で到着報酬を確定して消す */
+  pendingExit: ExitReward | null;
   /** 契約者・結んだ契約・鍛冶や祭壇の属性・占いの予言（src/system/contractors.ts） */
   contracts: ContractState;
   /** 銭・鍵（ラン内の通貨。src/system/economy.ts）。契約者との取引と封印庫の解錠に使う。死ぬと消える */

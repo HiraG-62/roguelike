@@ -198,8 +198,42 @@ export type BoonTag =
   /** 地形（水たまり・油・氷床…）を踏む・撒く・広げる祝福。祝福が出すタグとして重みに乗る */
   | "terrain";
 
-/** 系譜（同じ主から出る 4 段の祝福）。前段を持っていると次段が抽選に出る */
-export type LineageKey = "ash" | "frost" | "thunder" | "moon" | "earth" | "blade";
+/**
+ * 系譜（docs/ideas/boon-impl.md 2-1）。出口の予告で系譜を選び、その系譜の札だけが 3 枚並ぶ。
+ * 旧 6 系譜（前段 after を持つ 4 段）に輪廻・眷属・財宝を足した 9
+ */
+export type LineageKey =
+  | "ash"
+  | "frost"
+  | "thunder"
+  | "moon"
+  | "earth"
+  | "blade"
+  | "cycle"
+  | "horde"
+  | "wealth";
+
+/** 全ての系譜（表示と抽選の並び順） */
+export const LINEAGE_KEYS: readonly LineageKey[] = [
+  "ash",
+  "frost",
+  "thunder",
+  "moon",
+  "earth",
+  "blade",
+  "cycle",
+  "horde",
+  "wealth",
+];
+
+/** 札の種類（boon-impl 2-1）: 加護 = 行動に宿る / 摂理 = 常時 / 研鑽 = ラン中に育つ / 昇華 = 系譜の頂点 */
+export type BoonCard = "grace" | "law" | "temper" | "apex";
+
+/** 加護が宿る行動（左 / 右 / ダッシュ / スキル / 奥義） */
+export type BoonAction = "primary" | "secondary" | "dash" | "skill" | "ultimate";
+
+/** 柱 7 の審査: その札で何が変わるか（押すもの / 押す時 / 立つ場所 / 狙う相手 / 見るもの） */
+export type BoonChange = "press" | "timing" | "position" | "target" | "watch";
 
 /** 系譜の表示名（カードと HUD の注記） */
 export const LINEAGE_LABEL: Readonly<Record<LineageKey, string>> = {
@@ -209,6 +243,9 @@ export const LINEAGE_LABEL: Readonly<Record<LineageKey, string>> = {
   moon: "月蝕",
   earth: "大地",
   blade: "刃鳴",
+  cycle: "輪廻",
+  horde: "眷属",
+  wealth: "財宝",
 };
 
 /** 武器種・弾の性質・ジョブで出る祝福の条件。どれかの列を持つなら、その列のどれかに当てはまるときだけ 3 択に出る */
@@ -235,6 +272,16 @@ export interface BoonDef {
   requires?: BoonTag;
   /** 系譜。同じ系譜は 1 回の 3 択に 1 枚まで */
   lineage?: LineageKey;
+  /** 札の種類（boon-impl 2-1）。系譜を持つ通常の札は持つ */
+  card?: BoonCard;
+  /** 加護が宿る行動（card === "grace" のとき） */
+  action?: BoonAction;
+  /** 融合（2 系譜の加護が同じ行動に乗ると確定で出る）。どちらの系譜の枚数にも数える */
+  fusion?: readonly [LineageKey, LineageKey];
+  /** その札で何が変わるか（量の方針 boon-impl 2-12） */
+  changes?: BoonChange;
+  /** 系譜・札種を付けられなかった旧祝福。提示に出ないが、持っていれば動く */
+  legacy?: true;
   /** 系譜の前段。これを持っていないと出ない */
   after?: BoonKey;
   /** 結び: この 2 つを両方持っていないと出ない */

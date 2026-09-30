@@ -121,6 +121,7 @@ export function createGame(
     job: setup.job ?? "none",
     lockedRelics: [...(setup.lockedRelics ?? [])],
     stairs: [],
+    pendingExit: null,
     contracts: createContractState(),
     economy: createEconomyState(),
     events: [],

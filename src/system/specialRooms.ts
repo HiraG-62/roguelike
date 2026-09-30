@@ -1,4 +1,5 @@
 import { ELEMENTS, type Element, ELEMENT_LABEL } from "../core/element";
+import type { ExitReward } from "./exits";
 import type { EliteKind, Enemy, FloorKind, GameState, RoomKind, RoomState } from "../core/state";
 import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
@@ -110,6 +111,8 @@ export interface RoomSpecial {
 export interface StairsChoice {
   tile: number;
   nextKind: FloorKind;
+  /** 出口の予告（system/exits.ts）。省略は予告なし */
+  reward?: ExitReward;
 }
 
 // -----------------------------------------------------------------------------
