@@ -60,7 +60,7 @@ function clearLeapEnd(state: GameState, from: Vec, to: Vec, radius: number): Vec
 
 /**
  * strike の 1 ステップ（phaseTimer は減らした後）: 残りの時間で着地点へ着くように寄せ、時間が尽きたら着地する。
- * 押し合い・吹き飛びで位置がずれても、次のステップで着地点へ寄せ直す（着地は必ず影の上）
+ * 押し合い・吹き飛びで位置がずれても、次のステップで着地点へ寄せ直す（着地は、着地点が塞がっていなければ影の上）
  */
 export function stepLeap(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   const target = e.ai?.target;
@@ -78,14 +78,16 @@ export function stepLeap(state: GameState, e: Enemy, def: EnemyDef, dt: number):
 /** 着地: 影を消し、円の中のプレイヤーに当てる（接触攻撃と同じ扱い: 受け流せる・接触の状態異常が付く） */
 function land(state: GameState, e: Enemy, def: EnemyDef, at: Vec): void {
   const l = ENEMY_AI.leaper;
-  e.body.pos = { ...at };
+  // 予備動作の間に部屋の扉が閉じる（floor.ts の lockRoom）などで着地点が塞がっていたら、今いる所から届く手前で降りる
+  const landAt = clearLeapEnd(state, e.body.pos, at, e.body.radius);
+  e.body.pos = { ...landAt };
   endShadow(state, e);
-  spawnBurst(state, at, def.color, l.particles, 70, 0.3, 2);
+  spawnBurst(state, landAt, def.color, l.particles, 70, 0.3, 2);
   shake(state, FEEL.shakeLight);
   pushSfx(state, "oilSplash");
   const p = state.player.body;
-  if (dist(p.pos, at) >= l.radius + p.radius) return;
-  const result = damagePlayer(state, landingDamage(state, e, def), at, e);
+  if (dist(p.pos, landAt) >= l.radius + p.radius) return;
+  const result = damagePlayer(state, landingDamage(state, e, def), landAt, e);
   if (result !== "hit") return;
   inflictOnPlayer(state, e, "contact");
   onRallyContact(state, e);

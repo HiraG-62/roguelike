@@ -5,7 +5,7 @@ import { dist } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { roleOf } from "../data/enemyRoles";
 import { ENEMY_AI } from "../data/tuning";
-import { TILE_SIZE, Tile, setTile } from "../map/grid";
+import { TILE_SIZE, Tile, setTile, toIndex } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { behaviorOf } from "./behaviors/registry";
 import { damageEnemy } from "./combat";
@@ -94,6 +94,20 @@ function untilWindup(state: GameState, e: Enemy): void {
 }
 
 describe("跳躍（leaper）", () => {
+  it("予備動作の間に着地点の扉が閉じても、扉タイルの上に降りずに壁の手前で着地する", () => {
+    const state = leapArena();
+    const e = readyLeaper(state, 60);
+    untilWindup(state, e);
+    const target = { ...(e.ai?.target ?? e.body.pos) };
+    // 部屋の封鎖（floor.ts の lockRoom）に相当: 着地点のタイルを閉じる
+    state.lockedTiles.add(toIndex(state.map, Math.floor(target.x / TILE_SIZE), Math.floor(target.y / TILE_SIZE)));
+    state.player.body.pos = { x: state.player.body.pos.x - 60, y: state.player.body.pos.y };
+    for (let i = 0; i < MAX_STEPS && e.phase !== "recover"; i++) tick(state);
+    expect(e.phase).toBe("recover");
+    expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), "着地で壁（閉じた扉）にめり込まない").toBe(false);
+    expect(dist(e.body.pos, target), "元の着地点には降りない").toBeGreaterThan(POS_EPS);
+  });
+
   it("毒スライムは跳躍の突撃役。共通の突進の線は出さず、影で予告する", () => {
     const def = enemyDef(LEAPER);
     expect(def.behavior).toBe("leaper");
