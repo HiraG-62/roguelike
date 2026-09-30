@@ -1,4 +1,5 @@
 import { actionKeyLabel } from "../core/input";
+import { kingSlimeAirTime } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import { type BossState, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
@@ -245,8 +246,6 @@ const REAPER_TINT = 0.7;
 const BOSS_BANNER_NAME_GAP = 16;
 const ELITE_BAR_W = 20;
 const SHIELD_BAR_H = 2;
-/** boss.ts の STAGE_TWO と同じ（フェーズ 2） */
-const KING_STAGE_TWO = 2;
 const SHOCKWAVE_SPENT_ALPHA = 0.4;
 const LANDING_RX = 0.5;
 const LANDING_RY = 0.3;
@@ -1548,10 +1547,11 @@ export class Renderer {
     return spriteFrame(sprite, e.animTime, ENEMY_FRAME_TIME);
   }
 
-  /** King Slime の跳躍中の高さ */
+  /** スライム王の跳躍中の高さ（空中の秒は技ごとに system/bossKingSlime.ts が決める。跳ばない技では null） */
   private jumpLift(e: Enemy): number {
     if (e.defKey !== "kingSlime" || e.phase !== "strike") return 0;
-    const total = e.ai?.stage === KING_STAGE_TWO ? BOSS.kingSlime.phase2JumpTime : BOSS.kingSlime.jumpTime;
+    const total = kingSlimeAirTime(e);
+    if (total === null) return 0;
     const t = Math.min(1, Math.max(0, 1 - e.phaseTimer / total));
     return Math.sin(t * Math.PI) * KING_JUMP_HEIGHT;
   }
