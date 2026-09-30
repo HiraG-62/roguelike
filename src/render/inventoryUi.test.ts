@@ -50,9 +50,9 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-const melee: AffixRoll = { key: "meleeDamagePct", value: 30, nominal: 25, flux: 0.6, color: "crimson", origin: "found" };
-const inverted: AffixRoll = { key: "attackSpeed", value: -5, nominal: 10, flux: -1.5, inverted: true, color: "umbra", origin: "found" };
-const grown: AffixRoll = { key: "critChance", value: 4, nominal: 4, flux: 0, color: "gold", origin: "bud" };
+const melee: AffixRoll = { key: "damageVsStaggered", value: 30, nominal: 25, flux: 0.6, color: "crimson", origin: "found" };
+const inverted: AffixRoll = { key: "lockdownFury", value: -5, nominal: 10, flux: -1.5, inverted: true, color: "umbra", origin: "found" };
+const grown: AffixRoll = { key: "chainSource", value: 4, nominal: 4, flux: 0, color: "gold", origin: "bud" };
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   const milestone = MILESTONES[0]?.key ?? "kills:50";
@@ -116,7 +116,7 @@ describe("装備画面の描画", () => {
     drawInventoryUi(ctx, state, ui);
     ui.tab = "echo";
     ui.echo.targetId = "a";
-    ui.echo.op = "dye";
+    ui.echo.op = "stir";
     ui.echo.pick = { kind: "trait", index: 0 };
     drawInventoryUi(ctx, state, ui);
     ui.echo.op = "transfer";

@@ -159,17 +159,10 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "inscription", term: "銘", category: "relic", body: "余白を使い切った遺物に、来歴から刻まれる名前。銘が付いたら成長は完了。" },
   { key: "keystone", term: "誓約", category: "relic", body: "遊び方を大きく変える性質。同じ組の誓約は同時に持てない。拠点の祭壇で試せる。" },
   { key: "echo", term: "残響", category: "relic", body: "遺物を砕くと、性質の色の残響を得る。残響を払って性質を作り替える（装備中の遺物は対象にできない）。" },
-  { key: "dye", term: "染め", category: "relic", body: "性質 1 つを、残響の色の別の性質に置き換える。揺らぎは引き継ぐ。" },
-  { key: "calm", term: "鎮め", category: "relic", body: "性質 1 つの揺らぎを半分にして期待値へ寄せる。反転も解ける。余白が 1 減る。" },
   { key: "stir", term: "煽り", category: "relic", body: "性質 1 つの揺らぎを大きく引き直す。反転することもある。" },
-  { key: "pare", term: "削ぎ", category: "relic", body: "性質 1 つを消し、余白を 1 戻す（器の容量まで）。" },
   { key: "transfer", term: "移し", category: "relic", body: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われ、受け手の余白を 1 使う。" },
-  { key: "modulate", term: "転調", category: "relic", body: "性質 1 つの効果はそのままに、色だけを反対色へ変える（紅と蒼、翠と金。冥は翠へ）。" },
-  { key: "bleach", term: "脱色", category: "relic", body: "性質 1 つを無色にする。値は 9 割になる。" },
   { key: "recall", term: "呼び戻し", category: "relic", body: "過去の芽で選ばなかった方を取り直す。代わりに選んでいた方を失う。1 つの遺物に 1 回だけ。" },
   { key: "pour", term: "注ぎ", category: "relic", body: "遺物を捧げ、その来歴の半分を同じ部位の別の遺物へ注ぐ。捧げた遺物は消える。" },
-  { key: "reforge", term: "鍛え直し", category: "relic", body: "性質 1 つの期待値を、来歴の最深で取り直す。揺らぎはそのまま。余白の上限が 1 減る。" },
-  { key: "tension", term: "張り", category: "relic", body: "代償付きの性質 1 つの利得と代償を両方強める。鎮めでも戻らない。" },
   { key: "flow", term: "流れ", category: "relic", body: "燃焼・ダッシュ・瀕死などの状況の単位。源はその状況を起こす側、糧はその状況で強くなる側。源だけなら溢れ、糧だけなら枯れ。" },
 ];
 

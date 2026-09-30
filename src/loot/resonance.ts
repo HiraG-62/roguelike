@@ -4,6 +4,7 @@ import { scaleFlat } from "./flux";
 import { ATTR_GAIN, KEYSTONE, RESONANCE } from "../data/tuning";
 import {
   ATTR_KEYS,
+  ATTR_LABEL,
   COMBAT_ATTR_KEYS,
   TRAIT_COLORS,
   type ConstellationKey,
@@ -776,15 +777,8 @@ export const COLOR_ATTR: Readonly<Record<TraitColor, AttrKey>> = {
   umbra: "spi",
 };
 
-/** ステータスの表示名（docs/GLOSSARY.md）。共鳴の説明と装備画面・振り分けパネルで共有する */
-export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
-  str: "筋力",
-  dex: "技巧",
-  vit: "体力",
-  mnd: "精神",
-  spi: "霊力",
-  def: "防御",
-};
+/** ステータスの表示名。本体は loot/types.ts（共鳴の作り直しで import を張り替えるまでの re-export） */
+export { ATTR_LABEL };
 
 function zeroAttributes(): Attributes {
   return { str: 0, dex: 0, vit: 0, mnd: 0, spi: 0, def: 0 };

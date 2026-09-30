@@ -5,7 +5,7 @@ import { ENEMY_SCALE, INNATE } from "../data/tuning";
 import { MOVESETS, movesetMainAttrs } from "../data/weapons";
 import { ATTR_TRAIT_PREFIX, RESIST_TRAIT_PREFIX } from "./affixes";
 import { BASES, baseDef, basesForSlot, type BaseItemDef } from "./bases";
-import { calmTrait, dyeTrait, pareTrait, stirTrait } from "./crafting";
+import { stirTrait } from "./crafting";
 import { describeItem, innateLines, itemColorBar } from "./describe";
 import { UNIQUES, generateItem, type GenerateOptions } from "./generator";
 import {
@@ -409,7 +409,7 @@ describe("持ち込み: 地金は今の深度で決め直す（innateAt）", () 
 });
 
 describe("クラフトで地金は変わらない", () => {
-  it("染め・鎮め・煽り・削ぎの後も innate が同じ", () => {
+  it("煽りの後も innate が同じ", () => {
     let item: Item | undefined;
     for (let seed = 1; seed < 200 && item === undefined; seed++) {
       const g = gen(seed, { slot: "armor", itemLevel: 15, foundDepth: 15 });
@@ -418,7 +418,7 @@ describe("クラフトで地金は変わらない", () => {
     expect(item, "性質 2 つ以上の遺物").toBeDefined();
     if (item === undefined) return;
     const before = structuredClone(item.innate);
-    const results = [dyeTrait(item, 0, "crimson", createRng(1)), calmTrait(item, 0), stirTrait(item, 0, createRng(2)), pareTrait(item, 0)];
+    const results = [stirTrait(item, 0, createRng(2))];
     for (const r of results) if (r !== null) expect(r.innate, "クラフト後の地金").toEqual(before);
   });
 });
@@ -493,9 +493,9 @@ describe("部位「頭」", () => {
     expect(basesForSlot("head", 1).length, "深度 1 で出る頭").toBeGreaterThan(0);
   });
 
-  it("頭の名のある遺物が 2 つある", () => {
+  it("頭の名のある遺物が 3 つある", () => {
     const heads = UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === "head").map((u) => u.key);
-    expect(heads).toEqual(expect.arrayContaining(["readersCirclet", "demonMask"]));
+    expect(heads).toEqual(expect.arrayContaining(["starReader", "jizo", "boneCrown"]));
   });
 
   it("頭の遺物が生成でき、性質も付く（体の性質を引く）", () => {

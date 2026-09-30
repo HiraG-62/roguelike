@@ -26,6 +26,7 @@ import { emitNoise } from "./noise";
 import { decayPoise, onStaggerEnd } from "./poise";
 import { noteStatusTickMana } from "./manaSources";
 import { isAllied } from "./rules";
+import { relicStatusApply } from "./namedRelics";
 import {
   hueMatchesResonance,
   onEffectEnded,
@@ -305,7 +306,14 @@ function resolveDuration(state: GameState, target: StatusTarget, apply: Readonly
   return apply.duration;
 }
 
-function maxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
+/** 重ねの上限。敵には装備の上乗せ（stats.statusStackCapBonus。自分が付ける状態異常を深く重ねる性質・遺物）を足す */
+function maxStacks(state: GameState, target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
+  const base = baseMaxStacks(target, bag, kind);
+  if (target.kind === "player") return base;
+  return base + (state.stats.statusStackCapBonus[kind] ?? 0);
+}
+
+function baseMaxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
   const player = target.kind === "player";
   switch (kind) {
     case "burn":
@@ -382,7 +390,7 @@ export function applyStatus(
     duration = Math.min(duration, ccAllowance(bag));
     if (duration < CC_MIN_DURATION) return false;
   }
-  if (!mergeEffect(state, target, bag, apply, potency, duration, source)) return false;
+  if (!mergeEffect(state, target, bag, relicStatusApply(state, target, apply, source), potency, duration, source)) return false;
   if (limited) spendCc(bag, duration);
   afterApply(state, target, apply.kind, source);
   onStatusAppliedFx(state, target.kind === "enemy" ? target.enemy : null, apply.kind, isBossTarget(target));
@@ -407,7 +415,7 @@ function mergeEffect(
     bag.effects = bag.effects.filter((e) => e.kind !== apply.kind);
     const effect: StatusEffect = {
       kind: apply.kind,
-      stacks: Math.min(maxStacks(target, bag, apply.kind), apply.stacks),
+      stacks: Math.min(maxStacks(state, target, bag, apply.kind), apply.stacks),
       time: duration,
       maxTime: duration,
       potency,
@@ -421,7 +429,7 @@ function mergeEffect(
     return true;
   }
   if (NO_REFRESH.has(apply.kind)) return false;
-  existing.stacks = Math.min(maxStacks(target, bag, apply.kind), existing.stacks + apply.stacks);
+  existing.stacks = Math.min(maxStacks(state, target, bag, apply.kind), existing.stacks + apply.stacks);
   // 彩痕は色を上書き。燃焼は強い dps を採用、冷気は付与時の遅さの大きい方、他も強い方を残す
   existing.potency = apply.kind === "hue" ? potency : Math.max(existing.potency, potency);
   existing.time = Math.max(existing.time, duration);

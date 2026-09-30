@@ -21,6 +21,7 @@ import { gainMana } from "./mana";
 import { fireTrigger } from "./triggers";
 import { pushComboEvent, pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent, pushShatterEvent } from "../core/events";
 import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitPoiseMul } from "./traitHooks";
+import { relicDeferDelay, relicForgiveOnKill, relicIncomingMul, relicPayWithCoins, relicRevive } from "./namedRelics";
 import { buildContext, collectMore, collectTraitIncreased, finishBreakdown, increasedFactor, poiseIncreasedMul } from "./damageMods";
 import type { DamageBreakdown } from "../core/damage";
 import { interceptEnemyDamage } from "./elites";
@@ -129,6 +130,7 @@ export function comboMultiplier(count: number): number {
 }
 
 export function registerComboHit(state: GameState): void {
+  if (hasKeystone(state, KS.mushin)) return;
   state.combo.count += 1;
   state.combo.timer = FEEL.comboWindow + state.stats.comboWindowBonus;
   state.combo.popTimer = COMBO_POP_TIME;
@@ -368,6 +370,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   pushKillEvents(state, enemy);
   onBoonKill(state, enemy);
   onTraitKill(state, enemy);
+  relicForgiveOnKill(state);
   if (counted) recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
   if (isLastKillInEngagedRoom(state, enemy)) lastKillFx(state, enemy);
 }
@@ -544,12 +547,13 @@ export function damagePlayer(
     playerTakenMul(state) *
     enemyDamageMul(attacker) *
     traitIncomingMul(state, attacker) *
+    relicIncomingMul(state) *
     guardDamageMul(state, fromPos, amount, attacker) *
     ultimateIncomingMul(state, fromPos) *
     // 護り足（巫女の流儀のダッシュ）の結界
     wardIncomingMul(state) *
     (chargeArmor?.damageTakenMul ?? 1);
-  const taken = mitigate(state, raw, enemyAttackOf(attacker));
+  const taken = relicPayWithCoins(state, mitigate(state, raw, enemyAttackOf(attacker)));
   p.hp = Math.max(0, p.hp - takeNowOrDefer(state, taken));
   spillCoins(state, fromPos);
   addRegain(state, taken);
@@ -560,7 +564,7 @@ export function damagePlayer(
   const away = normalize(sub(p.body.pos, fromPos));
   // 鉄塊化（skills/forms.ts）は押されず、振りも止まらない
   const braced = state.skills.shape?.key === "ironForm";
-  if (!braced && !chargeArmor?.noKnock && !hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
+  if (!braced && !chargeArmor?.noKnock && !(state.stats.traits.unmoving > 0)) p.knock = scale(away, PLAYER.hurtKnockback);
   if (!braced) cancelAttack(state);
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
@@ -611,9 +615,10 @@ const DOOM_VAULT: VaultKind = "doom";
 
 /** 執行猶予: 受けた傷を今は減らさず Player.deferredDamage へ回す（被弾の硬直・無敵・コンボ切れはその場で起きる）。今減らす量を返す */
 function takeNowOrDefer(state: GameState, taken: number): number {
-  if (taken <= 0 || !hasBoon(state, MOON_REPRIEVE_KEY)) return taken;
+  const delay = hasBoon(state, MOON_REPRIEVE_KEY) ? BOON_LINEAGE.moon.moonReprieve.delay : relicDeferDelay(state);
+  if (taken <= 0 || delay === undefined) return taken;
   const p = state.player;
-  (p.deferredDamage ??= []).push({ amount: taken, due: state.time + BOON_LINEAGE.moon.moonReprieve.delay });
+  (p.deferredDamage ??= []).push({ amount: taken, due: state.time + delay });
   return 0;
 }
 
@@ -681,6 +686,7 @@ function killPlayer(state: GameState): void {
     p.hp = p.maxHp;
     return;
   }
+  if (relicRevive(state)) return;
   state.status = "dead";
   state.deathTimer = 0;
   spawnBurst(state, p.body.pos, "#ffffff", 40, 220, 0.9, 3);

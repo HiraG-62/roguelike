@@ -491,7 +491,7 @@ function rollNamedItem(rng: Rng, slot: Slot, depth: number, exclude: readonly st
   const unique = rng.pick(candidates);
   const base = baseDef(unique.baseKey);
   if (base === undefined) throw new Error(`named ${unique.key}: unknown base ${unique.baseKey}`);
-  return { base, affixes: rollUniqueAffixes(rng, unique, depth), margin: NAMED_MARGIN, namedKey: unique.key };
+  return { base, affixes: rollUniqueAffixes(rng, unique, depth), margin: Math.min(VESSEL_CAPACITY, unique.margin ?? NAMED_MARGIN), namedKey: unique.key };
 }
 
 function rollRegularItem(rng: Rng, slot: Slot, opts: TraitRollOptions): Rolled {

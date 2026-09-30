@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createIncreased } from "../core/damage";
 import type { Modifier } from "../core/rules";
 import type { GameState } from "../core/state";
-import { FEEL, KEYSTONE, PLAYER } from "../data/tuning";
+import { FEEL, KEYSTONE, PLAYER, TRIGGER } from "../data/tuning";
+import { applyRoll } from "../loot/affixes";
 import { meleeScaling } from "../data/weapons";
 import { scaled } from "./attributes";
 import { slashBase } from "./boonRules";
-import { rollOutgoing } from "./combat";
+import { damageEnemy, rollOutgoing } from "./combat";
 import { buildContext, poiseIncreasedMul } from "./damageMods";
 import { KS } from "./keystones";
 import { BOONS, BOON_KEYS, type BoonKey, type LineageKey } from "./boonDefs";
@@ -45,30 +46,63 @@ function modifier(partial: Partial<Modifier>): Modifier {
   return { id: "boon:test:1", kind: "more", tag: "all", amount: 1.5, if: [], owner: OWNER, ...partial };
 }
 
-describe("移行の見本: 楔の誓い（誓約の分岐 → Modifier）", () => {
-  it("怯んでいない敵への近接・射撃だけ楔の倍が掛かる（数値は KEYSTONE.wedgeUnstaggeredMul のまま）", () => {
-    const state = arena(5, { keystones: [KS.wedgeOath] });
-    const e = sturdy(state);
-    const melee = rollOutgoing(state, e, BASE, "melee");
-    expect(melee.amount, "近接").toBe(Math.round(BASE * KEYSTONE.wedgeUnstaggeredMul));
-    expect(rollOutgoing(state, e, BASE, "ranged").amount, "射撃").toBe(Math.round(BASE * KEYSTONE.wedgeUnstaggeredMul));
-    expect(rollOutgoing(state, e, BASE, "proc").amount, "proc には掛けない").toBe(BASE);
-    expect(melee.breakdown.more.map((m) => m.source), "出所は Modifier").toEqual(["mod:keystone:ks_wedgeOath:0"]);
-    expect(melee.breakdown.more[0]?.label, "表示名は誓約の名").toBe("楔の誓い");
+describe("移行の見本: 遠間の誓い（誓約の常時の倍 → Modifier）", () => {
+  it("境目より遠い敵への近接・射撃だけ上がり、近い敵へは下がる（proc には掛けない）", () => {
+    const state = arena(5, { keystones: [KS.farOath] });
+    const far = placeEnemy(state, "slime", KEYSTONE.farOathRangePx * 4);
+    far.hp = 10_000;
+    far.maxHp = 10_000;
+    const melee = rollOutgoing(state, far, BASE, "melee");
+    expect(melee.amount, "遠い敵への近接").toBe(Math.round(BASE * KEYSTONE.farOathFarMul));
+    expect(rollOutgoing(state, far, BASE, "ranged").amount, "遠い敵への射撃").toBe(Math.round(BASE * KEYSTONE.farOathFarMul));
+    expect(rollOutgoing(state, far, BASE, "proc").amount, "proc には掛けない").toBe(BASE);
+    expect(melee.breakdown.more.map((m) => m.source), "出所は Modifier").toEqual(["mod:keystone:ks_farOath:2"]);
+    expect(melee.breakdown.more[0]?.label, "表示名は誓約の名").toBe("遠間の誓い");
+    const near = sturdy(state);
+    expect(rollOutgoing(state, near, BASE, "melee").amount, "近い敵").toBe(Math.round(BASE * KEYSTONE.farOathNearMul));
   });
 
-  it("怯んだ敵・対象のいない 1 撃には掛からない", () => {
-    const state = arena(5, { keystones: [KS.wedgeOath] });
-    const e = sturdy(state);
-    applyStagger(state, e, STAGGER_TIME);
-    expect(rollOutgoing(state, e, BASE, "melee").amount, "怯み中").toBe(BASE);
+  it("対象のいない 1 撃には掛からない", () => {
+    const state = arena(5, { keystones: [KS.farOath] });
     expect(rollOutgoing(state, null, BASE, "melee").amount, "対象なし").toBe(BASE);
   });
 
-  it("誓約の分岐（keystoneMore）には楔が残っていない（二重に掛からない）", () => {
-    const state = arena(5, { keystones: [KS.wedgeOath] });
+  it("誓約の分岐（keystoneMore）には遠間が無い（二重に掛からない）", () => {
+    const state = arena(5, { keystones: [KS.farOath] });
     const e = sturdy(state);
-    expect(keystoneMore(state, e, "melee", false)).toEqual([]);
+    expect(keystoneMore(state, e, "melee")).toEqual([]);
+  });
+});
+
+describe("性質の条件の族（Modifier。docs/ideas/relics-7d-plan.md 9 章 5・6）", () => {
+  it("先読み: 予備動作中の敵にだけ増が乗る", () => {
+    const state = arena(5);
+    applyRoll(state.stats, { key: "readAhead", value: 30 });
+    const e = sturdy(state);
+    e.phase = "idle";
+    expect(applyModifiers(state, buildContext(e, "melee"), e).increased, "予備動作でない").toBe(0);
+    e.phase = "windup";
+    expect(applyModifiers(state, buildContext(e, "melee"), e).increased, "予備動作中").toBeCloseTo(0.3);
+  });
+
+  it("先制の後: 先制が起きた窓の中だけ増が乗る（その一撃の後から効く）", () => {
+    const state = arena(5);
+    applyRoll(state.stats, { key: "firstStrikeEdge", value: 20 });
+    const e = sturdy(state);
+    expect(applyModifiers(state, buildContext(e, "melee"), e).increased, "先制の前").toBe(0);
+    damageEnemy(state, e, 1, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(applyModifiers(state, buildContext(e, "melee"), e).increased, "先制の後").toBeCloseTo(0.2);
+    state.time += TRIGGER.trait.momentWindowSec + 1;
+    expect(applyModifiers(state, buildContext(e, "melee"), e).increased, "窓の外").toBe(0);
+  });
+
+  it("コンボ 10 につき増（上限あり）", () => {
+    const state = arena(5);
+    applyRoll(state.stats, { key: "comboDamage", value: 5, value2: 12 });
+    state.combo.count = TRIGGER.trait.comboEvery * 2;
+    expect(applyModifiers(state, buildContext(null, "melee"), null).increased).toBeCloseTo(0.1);
+    state.combo.count = TRIGGER.trait.comboEvery * 5;
+    expect(applyModifiers(state, buildContext(null, "melee"), null).increased, "上限").toBeCloseTo(0.12);
   });
 });
 
@@ -169,10 +203,10 @@ describe("タグと条件", () => {
 
 describe("集め方", () => {
   it("装備 → 誓約の固定順に集める（ジョブは Modifier を持たない）", () => {
-    const state = arena(5, { modifiers: [COMBO_STEP], keystones: [KS.wedgeOath], moveset: "sword" });
+    const state = arena(5, { modifiers: [COMBO_STEP], keystones: [KS.poverty], moveset: "sword" });
     state.job = "swordsman";
     const ids = collectModifiers(state).map((m) => m.id);
-    expect(ids).toEqual(["boon:test:0", "keystone:ks_wedgeOath:0", "keystone:ks_wedgeOath:1"]);
+    expect(ids).toEqual(["boon:test:0", "keystone:ks_poverty:0"]);
   });
 });
 

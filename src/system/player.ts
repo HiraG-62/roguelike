@@ -82,6 +82,7 @@ import { formCutsBullets, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
 import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
 import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { relicBlocksSwing, relicStride, tickNamedRelics } from "./namedRelics";
 import { dashDirection, dashIgnoresSwingLock, dashKeepsChain, dashLocksActions, dashSpeed, keepChainThroughDash, replaceDash, runDashForm, tickDashForm } from "./dashForms";
 import { attackHitManaMul, noteMeleeHitMana } from "./manaSources";
 
@@ -432,6 +433,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
   updateAttack(state, dt);
   updateMovement(state, input, dt, aiming);
+  relicStride(state, dt);
+  tickNamedRelics(state);
   const shotHeld = shotButtonHeld(state, input);
   // 射撃は銃の家系だけ（docs/ideas/weapon-redesign.md 0 章）。持ち替えたら溜め撃ち・三点の残りを捨てる
   const canShoot = shotHeld && !staggered && !skillLocksAttack(state) && !artLocksActions(state);
@@ -439,7 +442,7 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   else resetShooting(p);
   // 右の「押した瞬間」は前フレームとの差で取る（FrameInput は押しっぱなししか持たない）
   p.secondaryWasHeld = input.shootHeld;
-  if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
+  if (state.stats.traits.unmoving > 0) p.knock = { x: 0, y: 0 };
   trackDamageDealt(state);
 }
 
@@ -988,6 +991,7 @@ interface SwingSpec {
 }
 
 function beginSwing(state: GameState, spec: SwingSpec): void {
+  if (relicBlocksSwing(state, spec.dashStrike)) return;
   const p = state.player;
   const moveset = playerMoveset(state);
   const plain = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane);

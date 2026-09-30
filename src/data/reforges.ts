@@ -1,5 +1,6 @@
 import type { Element } from "../core/element";
 import type { EventKind } from "../core/events";
+import type { KeywordProfile } from "../core/keywords";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { TerrainKind } from "../core/terrain";
 import { REFORGE } from "./tuning";
@@ -92,6 +93,8 @@ export interface ReforgeDef {
   readonly morale?: MoraleOverride;
   readonly rules?: readonly ReforgeRuleSpec[];
   readonly flags?: readonly ReforgeFlag[];
+  /** 共鳴の数えに使う語（改鋳 1 つを出どころ 1 と数える。system/resonance.ts） */
+  readonly keywords?: KeywordProfile;
 }
 
 // ---------------------------------------------------------------------------

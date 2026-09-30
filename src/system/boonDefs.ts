@@ -5,6 +5,7 @@
  * 「〜時: 〜」で書ける効果は rules（統一ルール文法）に置き、src/system/rules.ts の resolveRules がステップ末に照合する
  */
 
+import type { BoonAction, BuildChange } from "../core/build";
 import type { KeywordProfile } from "../core/keywords";
 import type { Modifier, Rule } from "../core/rules";
 import type { JobKey } from "../data/jobs";
@@ -110,8 +111,8 @@ export const LINEAGE_KEYS: readonly LineageKey[] = [
 /** 札の種類（boon-impl 2-1）: 加護 = 行動に宿る / 摂理 = 常時 / 研鑽 = ラン中に育つ / 真髄 = 系譜の頂点 */
 export type BoonCard = "grace" | "law" | "temper" | "apex";
 
-/** 加護が宿る行動（左 / 右 / ダッシュ / スキル / 奥義） */
-export type BoonAction = "primary" | "secondary" | "dash" | "skill" | "ultimate";
+/** 加護が宿る行動（左 / 右 / ダッシュ / スキル / 奥義）。型は core/build.ts（名のある遺物も使う） */
+export type { BoonAction } from "../core/build";
 
 /** 全ての行動（加護の枠・融合の判定・表示の並び順） */
 export const BOON_ACTIONS: readonly BoonAction[] = ["primary", "secondary", "dash", "skill", "ultimate"];
@@ -133,8 +134,8 @@ export const BOON_CARD_LABEL: Readonly<Record<BoonCard, string>> = {
   apex: "真髄",
 };
 
-/** 柱 7 の審査: その札で何が変わるか（押すもの / 押す時 / 立つ場所 / 狙う相手 / 見るもの） */
-export type BoonChange = "press" | "timing" | "position" | "target" | "watch";
+/** 柱 7 の審査: その札で何が変わるか。型は core/build.ts の BuildChange（名のある遺物と共有） */
+export type BoonChange = BuildChange;
 
 /** 系譜の表示名（カードと HUD の注記） */
 export const LINEAGE_LABEL: Readonly<Record<LineageKey, string>> = {

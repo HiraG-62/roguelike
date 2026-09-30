@@ -3,6 +3,7 @@ import type { Modifier, ModifierPer, PerCounter, RuleCondition } from "../core/r
 import type { Enemy, GameState } from "../core/state";
 import { ultimateDef } from "../data/ultimates";
 import { MOVESETS } from "../data/weapons";
+import { SLOTS } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { FEEL } from "../data/tuning";
@@ -158,7 +159,16 @@ export function countPer(state: GameState, counter: PerCounter, enemy: Enemy | n
       return lineageCardsOwned(state, counter.lineage);
     case "lineagesOwned":
       return lineagesOwned(state);
+    case "gearMargin":
+      return gearMargin(state);
   }
+}
+
+/** 装備している遺物の空いた余白の合計（スロット順。旧アイテムの余白なしは 0） */
+function gearMargin(state: GameState): number {
+  let sum = 0;
+  for (const slot of SLOTS) sum += state.profile.equipment[slot]?.margin ?? 0;
+  return sum;
 }
 
 /** 持ち金の対数の段: base 未満 0、base 以上 1、以後 2 倍ごとに +1。base が 0 以下なら 0（割り算の番人） */

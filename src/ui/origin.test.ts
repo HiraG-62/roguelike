@@ -165,7 +165,7 @@ describe("起点の適用", () => {
       itemLevel: 1,
       name: "試しの鎧",
       implicit: null,
-      affixes: [{ key: "maxLife", value: 40 }],
+      affixes: [{ key: "damageVsStaggered", value: 40 }],
       foundDepth: 1,
       foundAt: 0,
     };
@@ -173,9 +173,9 @@ describe("起点の適用", () => {
     const s = createGame(21, "21", profile, undefined, { origin: "unarmed", modifiers: [] });
     const bare = computeStats(createEmptyEquipment());
     expect(s.economy.earned.event, "起点の銭").toBe(Math.round(ORIGIN.unarmedCoins * s.stats.coinGainMul));
-    expect(s.stats.maxHp).toBe(bare.maxHp);
+    expect(s.stats.increased.vsStaggered).toBe(bare.increased.vsStaggered);
     while (s.depth < ORIGIN.unarmedUnsealDepth) descend(s);
-    expect(s.stats.maxHp, "封印が解けて装備の最大 HP が乗る").toBeGreaterThan(bare.maxHp);
+    expect(s.stats.increased.vsStaggered, "封印が解けて装備の性質が乗る").toBeGreaterThan(bare.increased.vsStaggered);
   });
 
   it("詠み手: 刻印符を差して始まり、最大 HP が 2 割減る", () => {

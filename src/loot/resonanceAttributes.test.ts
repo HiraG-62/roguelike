@@ -26,16 +26,17 @@ function makeItem(slot: Slot, affixes: AffixRoll[]): Item {
   };
 }
 
-const melee = (value = 20): AffixRoll => ({ key: "meleeDamagePct", value, nominal: value, flux: 0 });
-const ranged = (value = 20): AffixRoll => ({ key: "rangedDamagePct", value, nominal: value, flux: 0 });
-const life = (value = 20): AffixRoll => ({ key: "maxLife", value, nominal: value, flux: 0 });
-const crit = (value = 5): AffixRoll => ({ key: "critChance", value, nominal: value, flux: 0 });
+// 色ごとに 1 つ、効果が stats の 1 項目にだけ出る性質（段取り 7d の性質 71 から）
+const crimsonTrait = (value = 20): AffixRoll => ({ key: "damageVsStaggered", value, nominal: value, flux: 0 });
+const azureTrait = (value = 20): AffixRoll => ({ key: "firstStrikeEdge", value, nominal: value, flux: 0 });
+const jadeTrait = (value = 20): AffixRoll => ({ key: "siegeGuard", value, nominal: value, flux: 0 });
+const goldTrait = (value = 5): AffixRoll => ({ key: "chainSource", value, nominal: value, flux: 0 });
 
 describe("共鳴のステータス加算", () => {
   it("支配: その色のステータスだけ +3（紅 = 筋力）", () => {
     const eq = createEmptyEquipment();
-    eq.mainHand = makeItem("mainHand", [melee(), { key: "meleeDamageFlat", value: 4, nominal: 4, flux: 0 }]);
-    eq.ring = makeItem("ring", [{ key: "attackSpeed", value: 10, nominal: 10, flux: 0 }, crit(10)]);
+    eq.mainHand = makeItem("mainHand", [crimsonTrait(), { key: "moraleCap", value: 4, nominal: 4, flux: 0 }]);
+    eq.ring = makeItem("ring", [{ key: "finisherEdge", value: 10, nominal: 10, flux: 0 }, goldTrait(10)]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind, "紅の支配が成立する").toBe("dominant");
     expect(stats.attributes, "筋力だけが上がる").toEqual({
@@ -46,9 +47,9 @@ describe("共鳴のステータス加算", () => {
 
   it("二重: 2 色それぞれ +2（紅 + 翠 = 筋力と体力）", () => {
     const eq = createEmptyEquipment();
-    eq.mainHand = makeItem("mainHand", [melee(), { key: "damageVsStaggered", value: 20, nominal: 20, flux: 0 }]);
-    eq.armor = makeItem("armor", [life(), { key: "hpRegen", value: 1, nominal: 1, flux: 0 }]);
-    eq.boots = makeItem("boots", [ranged()]);
+    eq.mainHand = makeItem("mainHand", [crimsonTrait(), { key: "lockdownFury", value: 20, nominal: 20, flux: 0 }]);
+    eq.armor = makeItem("armor", [jadeTrait(), { key: "stanceGuard", value: 10, nominal: 10, flux: 0 }]);
+    eq.boots = makeItem("boots", [azureTrait()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind, "紅と翠の二重が成立する").toBe("dual");
     const plus = ATTR.base + ATTR_GAIN.resonanceDual;
@@ -57,10 +58,10 @@ describe("共鳴のステータス加算", () => {
 
   it("散光: 5 色ぶんのステータス +1（防御は色を持たないので変わらない）", () => {
     const eq = createEmptyEquipment();
-    eq.mainHand = makeItem("mainHand", [melee()]);
-    eq.boots = makeItem("boots", [ranged()]);
-    eq.armor = makeItem("armor", [life()]);
-    eq.ring = makeItem("ring", [crit()]);
+    eq.mainHand = makeItem("mainHand", [crimsonTrait()]);
+    eq.boots = makeItem("boots", [azureTrait()]);
+    eq.armor = makeItem("armor", [jadeTrait()]);
+    eq.ring = makeItem("ring", [goldTrait()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind, "散光が成立する").toBe("scatter");
     expect(stats.attributes, "5 色ぶんのステータスが上がる").toEqual({

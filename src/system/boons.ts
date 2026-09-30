@@ -1,5 +1,5 @@
 import type { FrameInput } from "../core/input";
-import type { KeywordProfile } from "../core/keywords";
+import type { KeywordProfile, ResonanceStep } from "../core/keywords";
 import { type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_W } from "../core/view";
@@ -153,6 +153,8 @@ export interface BoonRunState {
   tallies: Record<string, number>;
   /** 号令（Rule 効果 retarget）: 従魔・召喚・設置物が狙う敵と、その終わりの state.time。無ければ null */
   focus: { id: number; until: number } | null;
+  /** 源と糧の共鳴（段 1 以上の語だけ、KEYWORDS 順。system/resonance.ts の refreshResonance が作り直す）。ランの途中は保存しない */
+  resonance: ResonanceStep[];
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -168,6 +170,7 @@ export function createBoonRunState(): BoonRunState {
     fusionDue: [],
     tallies: {},
     focus: null,
+    resonance: [],
   };
 }
 
@@ -209,7 +212,9 @@ export function gracesOf(state: GameState, action: BoonAction): BoonKey[] {
 
 /** その行動の加護の枠の数（BOON.graceSlots + 真髄で開いた分。graceSlotsMax で止める） */
 export function graceSlotsOf(state: GameState, action: BoonAction): number {
-  return Math.min(BOON.graceSlotsMax, BOON.graceSlots + (state.boonRun.graceOpen[action] ?? 0));
+  // 真髄が開いた枠と、名のある遺物が開く枠（stats.graceSlotBonus）を足して上限で切る
+  const open = (state.boonRun.graceOpen[action] ?? 0) + (state.stats.graceSlotBonus[action] ?? 0);
+  return Math.min(BOON.graceSlotsMax, BOON.graceSlots + open);
 }
 
 function graceSlotFree(state: GameState, action: BoonAction): boolean {

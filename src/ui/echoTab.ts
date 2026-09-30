@@ -43,14 +43,14 @@ import {
 
 /**
  * 残響タブ（クラフト）の画面ロジック。docs/LOOT_DESIGN.md「クラフト（残響）」。
- * 状態機械: 対象（倉庫の遺物）→ 操作 → 性質（詳細の行をクリック。呼び戻しは過去の芽）→ 必要なら色 / 移し先・注ぎ先 → 実行ボタン。
+ * 状態機械: 対象（倉庫の遺物）→ 操作 → 性質（詳細の行をクリック。呼び戻しは過去の芽）→ 必要なら移し先・注ぎ先 → 実行ボタン。
  * 装備中の遺物は対象にしない（倉庫だけを並べる）。実行はボタンを押したときだけ（誤操作で砕かないため）
  */
 
 /** 結果メッセージの表示秒数 */
 export const ECHO_RESULT_SECONDS = 2;
 
-/** 左列: 残響の所持数 → 操作ボタン（3 列 × 4 行。12 操作）→ 実行ボタン → 状態 */
+/** 左列: 残響の所持数 → 操作ボタン（3 列 × 2 行。5 操作）→ 実行ボタン → 状態 */
 export const ECHO_ROW_H = 10;
 const ECHO_BLOCK_PAD = 4;
 export const ECHO_BUTTON_COLUMNS = 3;
@@ -60,7 +60,7 @@ export const ECHO_EXECUTE_H = 18;
 const ECHO_EXECUTE_GAP = 4;
 const ECHO_STATUS_GAP = 4;
 
-/** 右列: 倉庫（見出し + 行）→ 対象の詳細（名前・副題 → 性質の行 → 銘 → 色） */
+/** 右列: 倉庫（見出し + 行）→ 対象の詳細（名前・副題 → 性質の行 → 銘） */
 /** 倉庫のボタンの帯と一覧を合わせた高さ（行数換算）。帯が折り返して高くなった分だけ一覧の行が減り、下の詳細欄の位置は変わらない */
 export const ECHO_STASH_BLOCK_ROWS = 9;
 /** 帯がどれだけ高くなっても一覧に残す行数 */
@@ -68,30 +68,20 @@ const ECHO_STASH_MIN_ROWS = 3;
 const DETAIL_GAP = 3;
 export const DETAIL_HEADER_H = 22;
 export const TRAIT_ROW_H = 10;
-const COLOR_ROW_GAP = 3;
-export const COLOR_CHIP_H = 12;
-const COLOR_CHIP_GAP = 3;
 
-/** 操作ごとの効果音（既存の名前を読み替えて使う） */
+/** 操作ごとの効果音（既存の名前を読み替えて使う。消した操作の音の名は sfxNames に残してある） */
 const ECHO_SFX: Readonly<Record<EchoOp, SfxName>> = {
   shatter: "dismantle",
-  dye: "craftReforge",
-  calm: "craftAugment",
-  stir: "craftCorrupt",
-  pare: "craftAnnul",
-  transfer: "craftFuse",
-  modulate: "craftReforge",
-  bleach: "craftAugment",
-  recall: "craftReforge",
   pour: "craftFuse",
-  reforge: "craftReforge",
-  tension: "craftCorrupt",
+  transfer: "craftFuse",
+  recall: "craftReforge",
+  stir: "craftCorrupt",
 };
 
 /** 詳細で選んでいるもの。性質の行か、銘の行か、過去の芽の行（呼び戻し） */
 export type EchoPick = { kind: "trait"; index: number } | { kind: "inscription" } | { kind: "bud"; index: number };
 
-export type EchoStep = "target" | "op" | "trait" | "bud" | "color" | "destination" | "ready";
+export type EchoStep = "target" | "op" | "trait" | "bud" | "destination" | "ready";
 
 export interface EchoUi {
   /** 残響とクラフト回数（roguelike.craft.v1 に保存） */
@@ -99,7 +89,6 @@ export interface EchoUi {
   targetId: string | null;
   op: EchoOp | null;
   pick: EchoPick | null;
-  color: TraitColor | null;
   /** 移し先（倉庫の item id） */
   destinationId: string | null;
   scroll: number;
@@ -119,7 +108,6 @@ export function createEchoUi(save: CraftSave = loadCraft()): EchoUi {
     targetId: null,
     op: null,
     pick: null,
-    color: null,
     destinationId: null,
     scroll: 0,
     hoverOp: null,
@@ -137,7 +125,6 @@ export const ECHO_STEP_PROMPT: Readonly<Record<EchoStep, string>> = {
   op: "操作を選ぶ",
   trait: "下の一覧から性質を選ぶ",
   bud: "呼び戻す芽を下の一覧から選ぶ（選ばなかった方と入れ替わる）",
-  color: "染める色を選ぶ",
   destination: "受け取る遺物（同じ部位）を倉庫から選ぶ",
   ready: "実行を押す",
 };
@@ -168,11 +155,6 @@ export interface BudRowLayout {
   rect: Rect;
 }
 
-export interface ColorChipLayout {
-  color: TraitColor;
-  rect: Rect;
-}
-
 export interface EchoLayout {
   wallet: EchoWalletRow[];
   buttons: EchoButtonLayout[];
@@ -192,8 +174,6 @@ export interface EchoLayout {
   budRows: BudRowLayout[];
   /** 移しで銘を選ぶ行（移し中で、対象に銘があるときだけ） */
   inscriptionRow: Rect | null;
-  /** 染めの色（染めで性質を選んだときだけ） */
-  colorChips: ColorChipLayout[];
 }
 
 function layoutLeftColumn(): Pick<EchoLayout, "wallet" | "buttons" | "execute" | "status"> {
@@ -226,30 +206,17 @@ function layoutDetailRows(
   ui: EchoUi,
   target: Item | null,
   detail: Rect,
-): Pick<EchoLayout, "traitRows" | "budRows" | "inscriptionRow" | "colorChips"> {
-  if (target === null) return { traitRows: [], budRows: [], inscriptionRow: null, colorChips: [] };
+): Pick<EchoLayout, "traitRows" | "budRows" | "inscriptionRow"> {
+  if (target === null) return { traitRows: [], budRows: [], inscriptionRow: null };
   const top = detail.y + DETAIL_HEADER_H;
   const rowRect = (i: number): Rect => ({ x: detail.x, y: top + i * TRAIT_ROW_H, w: detail.w, h: TRAIT_ROW_H });
   if (ui.op === "recall") {
     const budRows = (target.buds ?? []).map((_, index) => ({ index, rect: rowRect(index) }));
-    return { traitRows: [], budRows, inscriptionRow: null, colorChips: [] };
+    return { traitRows: [], budRows, inscriptionRow: null };
   }
   const traitRows = target.affixes.map((_, index) => ({ index, rect: rowRect(index) }));
-  let next = traitRows.length;
-  let inscriptionRow: Rect | null = null;
-  if (ui.op === "transfer" && target.inscription !== undefined) {
-    inscriptionRow = rowRect(next);
-    next += 1;
-  }
-  const colorChips: ColorChipLayout[] = [];
-  if (ui.op === "dye" && ui.pick?.kind === "trait") {
-    const y = top + next * TRAIT_ROW_H + COLOR_ROW_GAP;
-    const w = Math.floor((detail.w - COLOR_CHIP_GAP * (TRAIT_COLORS.length - 1)) / TRAIT_COLORS.length);
-    TRAIT_COLORS.forEach((color, i) => {
-      colorChips.push({ color, rect: { x: detail.x + i * (w + COLOR_CHIP_GAP), y, w, h: COLOR_CHIP_H } });
-    });
-  }
-  return { traitRows, budRows: [], inscriptionRow, colorChips };
+  const inscriptionRow = ui.op === "transfer" && target.inscription !== undefined ? rowRect(traitRows.length) : null;
+  return { traitRows, budRows: [], inscriptionRow };
 }
 
 export function layoutEcho(state: GameState, ui: EchoUi): EchoLayout {
@@ -343,7 +310,6 @@ export function echoStep(state: GameState, ui: EchoUi): EchoStep {
     return echoDestination(state, ui) === null ? "destination" : "ready";
   }
   if (pickedTraitIndex(target, ui.pick) === null) return "trait";
-  if (ui.op === "dye" && ui.color === null) return "color";
   return "ready";
 }
 
@@ -368,8 +334,7 @@ export function buildEchoRequest(state: GameState, ui: EchoUi): EchoRequest | nu
   }
   const traitIndex = pickedTraitIndex(item, ui.pick);
   if (traitIndex === null) return null;
-  if (ui.op === "dye") return ui.color === null ? null : { op: "dye", item, traitIndex, color: ui.color };
-  return { op: ui.op, item, traitIndex };
+  return { op: "stir", item, traitIndex };
 }
 
 function showResult(ui: EchoUi, text: string, ok: boolean): void {
@@ -386,7 +351,6 @@ export function tickEchoUi(ui: EchoUi, dt: number): void {
 
 function resetSelection(ui: EchoUi): void {
   ui.pick = null;
-  ui.color = null;
   ui.destinationId = null;
 }
 
@@ -433,14 +397,13 @@ export function executeEcho(state: GameState, ui: EchoUi): EchoResult | null {
     return result;
   }
   ui.destinationId = null;
-  // 削いだ性質・使い切った呼び戻しの芽は行ごと意味が変わるので、選び直してもらう
-  if (req.op === "pare" || req.op === "recall") ui.pick = null;
+  // 使い切った呼び戻しの芽は行ごと意味が変わるので、選び直してもらう
+  if (req.op === "recall") ui.pick = null;
   return result;
 }
 
 function clickOp(ui: EchoUi, op: EchoOp): void {
   ui.op = ui.op === op ? null : op;
-  ui.color = null;
   ui.destinationId = null;
 }
 
@@ -459,11 +422,6 @@ function clickStashRow(state: GameState, ui: EchoUi, item: Item): void {
 }
 
 function clickDetail(ui: EchoUi, layout: EchoLayout, aim: Point): boolean {
-  const chip = layout.colorChips.find((c) => pointInRect(aim, c.rect));
-  if (chip) {
-    ui.color = chip.color;
-    return true;
-  }
   const bud = layout.budRows.find((r) => pointInRect(aim, r.rect));
   if (bud) {
     ui.pick = { kind: "bud", index: bud.index };
@@ -477,7 +435,6 @@ function clickDetail(ui: EchoUi, layout: EchoLayout, aim: Point): boolean {
   const row = layout.traitRows.find((r) => pointInRect(aim, r.rect));
   if (!row) return false;
   ui.pick = { kind: "trait", index: row.index };
-  ui.color = null;
   ui.destinationId = null;
   return true;
 }

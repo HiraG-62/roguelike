@@ -14,7 +14,7 @@ import type { DamageKind, Enemy, GameState } from "../core/state";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { STATUS } from "../data/tuning";
 import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
-import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, oathMore } from "./keystones";
+import { KS, bladeOathMul, gamblerMul, hasKeystone, mushinMul, oathMore } from "./keystones";
 import { applyModifiers, applyPoiseModifiers } from "./modifiers";
 import { isStaggered } from "./poise";
 import { hasStatus, playerStatusOutgoingMul } from "./statusEffects";
@@ -96,11 +96,13 @@ function strikeMore(state: GameState, out: MoreMul[], forceCrit: boolean): boole
 
 /** 誓約の倍。賭博師の乱数は会心の後に引く（従来の rollOutgoing と同じ順） */
 function oathMores(state: GameState, enemy: Enemy | null, kind: DamageKind, skill: boolean, out: MoreMul[]): void {
-  if (hasKeystone(state, KS.berserker)) out.push(oathMore(KS.berserker, berserkerMul(state)));
+  // 虚心: 溜めた後の 1 撃だけ倍（溜まっていなければ内訳に等倍の行を並べない）
+  const mushin = mushinMul(state, kind, skill);
+  if (mushin !== 1) out.push(oathMore(KS.mushin, mushin));
   if (hasKeystone(state, KS.gambler)) out.push(oathMore(KS.gambler, gamblerMul(state)));
   // 近間の誓い: 近接・射撃・スキルに効く。素性なしの proc は距離を測る意味が薄いので対象外
   if ((kind !== "proc" || skill) && enemy !== null && hasKeystone(state, KS.bladeOath)) out.push(oathMore(KS.bladeOath, bladeOathMul(state, enemy)));
-  out.push(...keystoneMore(state, enemy, kind, skill));
+  out.push(...keystoneMore(state, enemy, kind));
 }
 
 /** 装備・祝福・ジョブの常時の倍のうち、この 1 撃のタグに掛かるもの */
@@ -113,7 +115,7 @@ function staticMore(state: GameState, ctx: DamageContext): MoreMul[] {
  * 引く順は従来の rollOutgoing と同じ（会心 → 賭博師）
  */
 export function collectMore(state: GameState, enemy: Enemy | null, ctx: DamageContext, skill: boolean, forceCrit = false): { more: MoreMul[]; crit: boolean } {
-  // 常時の倍（stats.more）の後に Modifier の倍（誓約の楔・得意武器・祝福の「〜につき」など）
+  // 常時の倍（stats.more）の後に Modifier の倍（誓約の遠間・黄金の檻・転じ・祝福の「〜につき」など）
   const out: MoreMul[] = [...staticMore(state, ctx), ...applyModifiers(state, ctx, enemy).more];
   selfMore(state, enemy, ctx.kind, out);
   const crit = ctx.kind !== "proc" ? strikeMore(state, out, forceCrit) : false;

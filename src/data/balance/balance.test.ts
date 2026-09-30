@@ -13,7 +13,7 @@ import { ENEMIES } from "../enemies";
 import { DASH_FORM_KEYS, JOB_KEYS } from "../jobs";
 import { ACTION, PLAYER } from "../tuning";
 import { MOVESET_KEYS } from "../weapons";
-import { AFFIXES, CONVERSION_AFFIXES } from "../../loot/affixes";
+import { AFFIXES, CONVERSION_AFFIXES, INNATE_LINE_DEFS } from "../../loot/affixes";
 import { BASES, baseFamily } from "../../loot/bases";
 import { BULLET_PROFILE_KEYS } from "../../loot/bullets";
 import {
@@ -179,8 +179,8 @@ describe("スキル・祝福のキー集合(段 3)", () => {
 });
 
 describe("装備のキー集合(段 4)", () => {
-  it("loot の affixCurves のキー集合が AFFIXES / CONVERSION_AFFIXES の key と一致する", () => {
-    const affixKeys = [...AFFIXES, ...CONVERSION_AFFIXES].map((a) => a.key);
+  it("loot の affixCurves のキー集合が AFFIXES / CONVERSION_AFFIXES / INNATE_LINE_DEFS の key と一致する", () => {
+    const affixKeys = [...AFFIXES, ...CONVERSION_AFFIXES, ...INNATE_LINE_DEFS].map((a) => a.key);
     expect(diffKeySets("loot.affixCurves", Object.keys(lootJson.affixCurves), affixKeys)).toEqual([]);
   });
 

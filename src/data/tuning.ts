@@ -89,6 +89,9 @@ export const SYNERGY = BALANCE.loot.SYNERGY;
 /** キーストーンの数値 */
 export const KEYSTONE = BALANCE.loot.KEYSTONE;
 
+/** 名のある遺物の固有の数値（loot/named.ts・system/namedRelics.ts。docs/ideas/relics-7d-plan.md 3 章） */
+export const RELIC = BALANCE.loot.RELIC;
+
 /**
  * 共鳴の拡張（docs/ideas/loot-expansion.md 9-2〜9-4。src/loot/resonance.ts）。
  * 陰画・拮抗は共鳴の変形、星座は 6 部位の主色の並びで成立する別の層

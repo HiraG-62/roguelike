@@ -206,7 +206,10 @@ export type RuleEffectKind =
   /** 銭を count（share があれば持ち金の割合）払い、照準へ銭の弾を撃つ。威力 = 払った額 × magnitude。払えなければ不発 */
   | "coinShot"
   /** 対象の敵の溜め（Enemy.vault。種類 vault が合うときだけ）を magnitude 倍のダメージで一度に出し、溜めを空にする */
-  | "releaseVault";
+  | "releaseVault"
+  // ---- 2026-09-30 追加（遺物。docs/ideas/relics-7d-plan.md 2-1 T10） ----
+  /** 戦意を magnitude（scaleBy 込み）足す。戦意の上限で切り、溜まりの倍は掛けない。導出の型（溜め・傷・鎖…）では何もしない */
+  | "gainMorale";
 
 /**
  * 効果量の基準。flat = magnitude そのまま / slashBase = 近接 1 段目の威力 × magnitude /
@@ -444,7 +447,9 @@ export type PerCounter =
   /** この系譜に数える札の枚数（融合は 2 系譜のどちらにも数える） */
   | { kind: "lineageCards"; lineage: LineageKey }
   /** 持っている札の系譜の種類数（一念・巡礼） */
-  | { kind: "lineagesOwned" };
+  | { kind: "lineagesOwned" }
+  /** 装備している遺物の空いた余白の合計（無地の刃。docs/ideas/relics-7d-plan.md 3 章 R18） */
+  | { kind: "gearMargin" };
 
 /**
  * 転じの数え方。率は %、倍率は 1 を超える分の %、個数・防御・最大値はそのまま、

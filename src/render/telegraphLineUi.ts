@@ -3,6 +3,7 @@ import { type Vec, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { TELEGRAPH } from "../data/tuning";
 import { behaviorOf } from "../system/behaviors/registry";
+import { relicTelegraphLeadSec } from "../system/namedRelics";
 import { attackCommitted } from "../system/poise";
 
 /**
@@ -37,4 +38,21 @@ export function drawStrikeLine(ctx: CanvasRenderingContext2D, state: GameState, 
   ctx.stroke();
   ctx.lineWidth = 1;
   ctx.globalAlpha = 1;
+  drawLeadMark(ctx, state, e, dir, length);
+}
+
+/** 星読みの眼の残り秒の目盛りの一辺（論理 px） */
+const LEAD_MARK_SIZE = 2;
+
+/**
+ * 星読みの眼: 予備動作の残りが leadSec を切ると、線の先から敵へ寄る目盛りを描く（着けていなければ何もしない）。
+ * 予告を早く出すのは描画の呼び出し元（予備動作中だけ）を越えるので、残り秒を見せて読みやすくする形にした
+ */
+function drawLeadMark(ctx: CanvasRenderingContext2D, state: GameState, e: Enemy, dir: Vec, length: number): void {
+  const lead = relicTelegraphLeadSec(state);
+  if (lead <= 0) return;
+  const t = Math.min(1, Math.max(0, e.phaseTimer / lead));
+  const half = LEAD_MARK_SIZE / 2;
+  ctx.fillStyle = telegraphColor(e);
+  ctx.fillRect(e.body.pos.x + dir.x * length * t - half, e.body.pos.y + dir.y * length * t - half, LEAD_MARK_SIZE, LEAD_MARK_SIZE);
 }

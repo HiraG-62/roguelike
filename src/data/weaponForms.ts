@@ -1,3 +1,4 @@
+import type { KeywordProfile } from "../core/keywords";
 import type { StatusKind } from "../core/status";
 import { FORM } from "./tuning";
 import { type MovesetDef, type MovesetKey, type WeaponWeight, MOVESETS, MOVESET_KEYS, reviveWeight } from "./weapons";
@@ -138,6 +139,8 @@ export interface FormDef {
   readonly finisher: readonly FinisherSource[];
   /** 改鋳の key（段取り 5c の data/reforges.ts で埋める。5a は空） */
   readonly reforges: readonly string[];
+  /** 共鳴の数えに使う語（今の型 1 つを出どころ 1 と数える。system/resonance.ts） */
+  readonly keywords?: KeywordProfile;
 }
 
 /** 共通の瞬間の浮き文字（体言止め。見た目の数値は MOMENT） */

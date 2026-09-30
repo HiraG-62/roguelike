@@ -1,35 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { CORRUPTED_KEY } from "./affixes";
-import { traitColorOf } from "./colors";
-import { describeItem, describeResonance } from "./describe";
+import { MemoryStorage } from "../meta/testStorage";
+import { CORRUPTED_KEY, affixDef, isConversionKey } from "./affixes";
+import { defaultColorOfKey, traitColorOf } from "./colors";
+import { describeItem } from "./describe";
+import { fluxedValues, scaledNominalAt } from "./flux";
 import { generateItem } from "./generator";
-import { LEGACY_LIFE_ON_HIT_PCT_PER_FLAT, LEGACY_RARITY_MARGIN, LEGACY_TIER_FLUX, convertLegacyLifeOnHit, migrateItem } from "./migrate";
+import {
+  LEGACY_AFFIX_MAP,
+  LEGACY_RARITY_MARGIN,
+  LEGACY_TIER_FLUX,
+  LEGACY_UNIQUE_MAP,
+  applyRelicMigration,
+  migrateItem,
+  migrateRelicKey,
+} from "./migrate";
+import { UNIQUES, uniqueDef } from "./named";
 import { PROFILE_KEY, loadProfile, saveProfile } from "./profile";
 import { computeStats } from "./stats";
-import { createEmptyProfile, createEmptyProvenance, type Item } from "./types";
+import { type AffixRoll, type Item, type Slot, createEmptyProfile, createEmptyProvenance } from "./types";
 
-class MemoryStorage implements Storage {
-  private map = new Map<string, string>();
-  get length(): number {
-    return this.map.size;
-  }
-  clear(): void {
-    this.map.clear();
-  }
-  getItem(key: string): string | null {
-    return this.map.get(key) ?? null;
-  }
-  key(index: number): string | null {
-    return Array.from(this.map.keys())[index] ?? null;
-  }
-  removeItem(key: string): void {
-    this.map.delete(key);
-  }
-  setItem(key: string, value: string): void {
-    this.map.set(key, value);
-  }
-}
+/** 7d の後も残る性質（数値を見る旧形式の fixture に使う） */
+const KEPT_KEY = "damageVsStaggered";
+/** 残る誓約 */
+const KEPT_VOW = "ks_blink";
 
 /** 旧形式（prefix / suffix / tier / rarity）のアイテム */
 function legacyRare(): Item {
@@ -43,10 +37,10 @@ function legacyRare(): Item {
     name: "嵐の牙",
     implicit: { key: "implicit.longsword", kind: "prefix", tier: 1, value: 40 },
     affixes: [
-      { key: "meleeDamagePct", kind: "prefix", tier: 1, value: 56 },
-      { key: "maxLife", kind: "prefix", tier: 3, value: -20 },
+      { key: KEPT_KEY, kind: "prefix", tier: 1, value: 56 },
+      { key: "readAhead", kind: "prefix", tier: 3, value: -20 },
       { key: "tr:onKill:always:heal", kind: "suffix", tier: 1, value: 5, value2: 400 },
-      { key: "ks_blink", kind: "suffix", tier: 1, value: 0 },
+      { key: KEPT_VOW, kind: "suffix", tier: 1, value: 0 },
       { key: CORRUPTED_KEY, kind: "suffix", tier: 1, value: 0 },
     ],
     foundDepth: 18,
@@ -57,23 +51,23 @@ function legacyRare(): Item {
 describe("migrateItem", () => {
   it("tier → 揺らぎ、期待値を逆算。値は変えない", () => {
     const migrated = migrateItem(legacyRare());
-    const melee = migrated.affixes.find((r) => r.key === "meleeDamagePct");
-    expect(melee?.value).toBe(56);
-    expect(melee?.flux).toBeCloseTo(LEGACY_TIER_FLUX[1] ?? 0);
-    expect(melee?.nominal).toBeCloseTo(56 / (1 + (LEGACY_TIER_FLUX[1] ?? 0)));
-    expect(melee?.kind).toBeUndefined();
-    expect(melee?.tier).toBeUndefined();
-    expect(melee && traitColorOf(melee)).toBe("crimson");
+    const kept = migrated.affixes.find((r) => r.key === KEPT_KEY);
+    expect(kept?.value).toBe(56);
+    expect(kept?.flux).toBeCloseTo(LEGACY_TIER_FLUX[1] ?? 0);
+    expect(kept?.nominal).toBeCloseTo(56 / (1 + (LEGACY_TIER_FLUX[1] ?? 0)));
+    expect(kept?.kind).toBeUndefined();
+    expect(kept?.tier).toBeUndefined();
+    expect(kept && traitColorOf(kept)).toBe(defaultColorOfKey(KEPT_KEY));
   });
 
   it("負の値（旧 Corrupt）は反転（冥）。腐敗の印は捨てる。誓約は冥", () => {
     const migrated = migrateItem(legacyRare());
-    const life = migrated.affixes.find((r) => r.key === "maxLife");
-    expect(life?.inverted).toBe(true);
-    expect(life?.flux ?? 0).toBeLessThan(-1);
-    expect(life && traitColorOf(life)).toBe("umbra");
+    const read = migrated.affixes.find((r) => r.key === "readAhead");
+    expect(read?.inverted).toBe(true);
+    expect(read?.flux ?? 0).toBeLessThan(-1);
+    expect(read && traitColorOf(read)).toBe("umbra");
     expect(migrated.affixes.some((r) => r.key === CORRUPTED_KEY)).toBe(false);
-    expect(migrated.affixes.find((r) => r.key === "ks_blink")?.color).toBe("umbra");
+    expect(migrated.affixes.find((r) => r.key === KEPT_VOW)?.color).toBe("umbra");
     expect(migrated.rarity).toBe("unique");
   });
 
@@ -88,33 +82,16 @@ describe("migrateItem", () => {
   });
 
   it("旧 unique は固有名から名のある遺物の key を引く", () => {
-    const old: Item = { ...legacyRare(), rarity: "unique", name: "喪服の剣", baseKey: "greatsword" };
-    expect(migrateItem(old).namedKey).toBe("widowmaker");
+    const relic = UNIQUES[0];
+    if (relic === undefined) throw new Error("名のある遺物が無い");
+    const old: Item = { ...legacyRare(), rarity: "unique", name: relic.name, baseKey: relic.baseKey };
+    expect(migrateItem(old).namedKey).toBe(relic.key);
   });
 
-  it("旧 unique の英語名（日本語化前）はベースと固定性質の key から名のある遺物を引く", () => {
-    const old: Item = {
-      ...legacyRare(),
-      rarity: "unique",
-      name: "Widowmaker",
-      baseKey: "greatsword",
-      affixes: [
-        { key: "meleeDamagePct", kind: "prefix", tier: 1, value: 50 },
-        { key: "critMultiplier", kind: "prefix", tier: 1, value: 40 },
-        { key: "lifeOnKill", kind: "suffix", tier: 1, value: 12 },
-        { key: "knockback", kind: "suffix", tier: 1, value: 30 },
-        { key: "ks_berserker", kind: "suffix", tier: 1, value: 0 },
-      ],
-    };
+  it("名のある遺物を引けない旧 unique は固有名を銘として残す（固定の性質の無い遺物に誤って当てない）", () => {
+    const old: Item = { ...legacyRare(), rarity: "unique", name: "失われた遺物", baseKey: "wakizashi" };
     const migrated = migrateItem(old);
-    expect(migrated.namedKey).toBe("widowmaker");
-    expect(migrated.name).toBe("喪服の剣");
-  });
-
-  it("名のある遺物を引けない旧 unique は固有名を銘として残す", () => {
-    const old: Item = { ...legacyRare(), rarity: "unique", name: "失われた遺物", baseKey: "longsword" };
-    const migrated = migrateItem(old);
-    expect(migrated.namedKey).toBeUndefined();
+    expect(migrated.namedKey, "無地の刃（性質なし）に当てない").toBeUndefined();
     expect(migrated.inscription).toBe("失われた遺物");
     expect(migrated.name).toBe("失われた遺物");
   });
@@ -134,14 +111,19 @@ describe("migrateItem", () => {
     const trigger = weapon?.affixes.find((r) => r.key === "tr:onKill:always:heal");
     expect(trigger?.value).toBe(5);
     expect(trigger?.value2).toBe(400);
-    expect(computeStats(first.equipment).keystones).toContain("ks_blink");
+    expect(computeStats(first.equipment).keystones).toContain(KEPT_VOW);
   });
 
-  it("冪等: 新形式にもう一度掛けても変わらない。生成したアイテムも変わらない", () => {
+  it("冪等: 新形式にもう一度掛けても変わらない。写し表の key を持たない生成品も変わらない", () => {
     const once = migrateItem(legacyRare());
     expect(migrateItem(once)).toEqual(once);
-    const fresh = generateItem(createRng(3), { itemLevel: 20, foundDepth: 20, now: 0 });
-    expect(migrateItem(fresh)).toEqual(fresh);
+    const rng = createRng(3);
+    for (let i = 0; i < 20; i++) {
+      const fresh = generateItem(rng, { itemLevel: 20, foundDepth: 20, now: 0 });
+      const migrated = migrateItem(fresh);
+      expect(migrateItem(migrated), "2 回目は変わらない").toEqual(migrated);
+      if (fresh.affixes.every((r) => !(r.key in LEGACY_AFFIX_MAP))) expect(migrated).toEqual(fresh);
+    }
   });
 
   it("旧 stash は読み込みで消えずに新形式になり、保存 → 読み込みで一致する（round-trip）", () => {
@@ -169,7 +151,7 @@ describe("migrateItem", () => {
   });
 });
 
-describe("describeItem / describeResonance", () => {
+describe("describeItem", () => {
   it("名前・副題・色の配合・性質の行・来歴を返す。反転は印付き", () => {
     const item = migrateItem(legacyRare());
     item.provenance = { ...createEmptyProvenance(), kills: 12, killsByEnemy: { slime: 10, bat: 2 }, justDodges: 3 };
@@ -189,38 +171,214 @@ describe("describeItem / describeResonance", () => {
     expect(desc.provenanceLines.some((l) => l.startsWith("撃破 12（スライム 10"))).toBe(true);
     expect(desc.summary.length).toBeGreaterThan(0);
   });
-
-  it("describeResonance は装備の stats.resonance を語る", () => {
-    const eq = createEmptyProfile().equipment;
-    expect(describeResonance(computeStats(eq).resonance)[0]).toBe("共鳴なし");
-  });
 });
 
-describe("lifeOnHit の換算（固定値 → 与ダメの %）", () => {
-  it("旧形式の lifeOnHit は LEGACY_LIFE_ON_HIT_PCT_PER_FLAT 倍の % になる", () => {
+// -----------------------------------------------------------------------------
+// 段取り 7d の写し（docs/ideas/relics-7d-plan.md 1-5・3 章）
+// -----------------------------------------------------------------------------
+
+const ITEM_LEVEL = 20;
+
+/** 新形式（来歴あり）の遺物。7d の前に倉庫へ入っていたもの */
+function savedItem(slot: Slot, baseKey: string, affixes: AffixRoll[], extra: Partial<Item> = {}): Item {
+  return {
+    id: `saved-${slot}`,
+    seed: 1,
+    baseKey,
+    slot,
+    rarity: "magic",
+    itemLevel: ITEM_LEVEL,
+    name: "",
+    implicit: null,
+    affixes,
+    innate: [],
+    innateLuck: 1,
+    foundDepth: ITEM_LEVEL,
+    foundAt: 0,
+    provenance: createEmptyProvenance(),
+    margin: 1,
+    marginMax: 2,
+    milestones: [],
+    buds: [],
+    budOffer: null,
+    ...extra,
+  };
+}
+
+function roll(key: string, value = 10): AffixRoll {
+  return { key, value, nominal: value, flux: 0.2, origin: "found" };
+}
+
+/** 写し先の期待値（揺らぎ 0。生成と同じく強さの係数を掛ける） */
+function expectedValue(key: string): number {
+  const def = affixDef(key);
+  if (def === undefined) throw new Error(`写し先 ${key} が無い`);
+  return fluxedValues(scaledNominalAt(def, ITEM_LEVEL, !isConversionKey(key)), 0, def.decimals ?? 0, def.decimals2 ?? 0).value;
+}
+
+/** 7d の前の倉庫（6 部位 + 名のある遺物 + 誓約の性質）。fixture の数え方は各部位のコメント */
+function savedEquipment(): Record<Exclude<Slot, "offHand">, Item> {
+  return {
+    // 残る 1・消える 1・写す 1（emberWalk → emberTrail）・誓約の写し 1（ks_earthOath → groundMend）
+    mainHand: savedItem("mainHand", "longsword", [roll(KEPT_KEY), roll("meleeDamagePct"), roll("emberWalk"), { key: "ks_earthOath", value: 0 }]),
+    // 地金の行が性質に紛れたもの（消す）と地金そのもの（触らない）
+    armor: savedItem("armor", "leather", [roll("maxLife"), roll("attr_str", 3)], { innate: [{ key: "attr_str", value: 3 }], margin: 0, marginMax: 0 }),
+    // 名のある遺物の写し（旅の垢 → 旅人の靴）。性質は写し表だけ通す
+    boots: savedItem("boots", "sandals", [roll("moveSpeed")], { namedKey: "wayfarerSandals", name: "旅の垢", rarity: "unique" }),
+    // 写し先の無い名のある遺物（狂戦士の印章）は普通の遺物に。固有名は銘へ
+    ring: savedItem("ring", "bloodRing", [roll(KEPT_KEY), { key: "ks_monochrome", value: 0 }], { namedKey: "berserkersSignet", name: "狂戦士の印章" }),
+    // 写し先が既にあるもの（emberTrail があるのに emberWalk）は消す
+    amulet: savedItem("amulet", "jadeAmulet", [roll("emberTrail"), roll("emberWalk"), roll("frostWalk")]),
+    // 銘のある名のある遺物の写し（読み手の額冠 → 星読みの眼）。表示名は銘のまま
+    head: savedItem("head", "circlet", [roll("readAhead"), roll("weakRead")], { namedKey: "readersCirclet", name: "銘の額冠", inscription: "銘の額冠" }),
+  };
+}
+
+function loadSaved(): ReturnType<typeof loadProfile> {
+  const storage = new MemoryStorage();
+  const profile = createEmptyProfile();
+  const eq = savedEquipment();
+  profile.equipment = { ...profile.equipment, ...eq };
+  storage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  return loadProfile(storage);
+}
+
+describe("段取り 7d の写し: 旧セーブの倉庫", () => {
+  it("消えた性質・誓約は 1 つにつき余白 +1、残る性質は値を変えない", () => {
+    const { equipment } = loadSaved();
+    const hand = equipment.mainHand;
+    expect(hand?.affixes.map((r) => r.key), "残る → 写し → 誓約の写し の順を保つ").toEqual([KEPT_KEY, "emberTrail", "groundMend"]);
+    expect(hand?.margin, "meleeDamagePct の 1 つ分").toBe(2);
+    expect(hand?.marginMax, "余白の最大も広げる").toBe(2);
+    expect(hand?.affixes[0]?.value, "残る性質の値").toBe(10);
+    const armor = equipment.armor;
+    expect(armor?.affixes, "地金の行も性質からは消す").toEqual([]);
+    expect(armor?.margin).toBe(2);
+    expect(armor?.innate, "地金は触らない").toEqual([{ key: "attr_str", value: 3 }]);
+  });
+
+  it("写した性質は写し先の期待値で作り直す（揺らぎ 0・色は既定）", () => {
+    const trail = loadSaved().equipment.mainHand?.affixes.find((r) => r.key === "emberTrail");
+    expect(trail?.value).toBe(expectedValue("emberTrail"));
+    expect(trail?.flux).toBe(0);
+    expect(trail?.color).toBe(defaultColorOfKey("emberTrail"));
+    expect(trail?.origin, "出どころは保つ").toBe("found");
+  });
+
+  it("写し先が既にあれば後の方は消して余白へ", () => {
+    const amulet = loadSaved().equipment.amulet;
+    const keys = amulet?.affixes.map((r) => r.key) ?? [];
+    expect(keys.filter((k) => k === "emberTrail"), "emberTrail は 1 つだけ").toHaveLength(1);
+    expect(keys).not.toContain("emberWalk");
+    expect(amulet?.affixes[0]?.value, "元からある方を残す").toBe(10);
+    // frostWalk → frostTrail は写る。emberWalk だけ消えて余白 +1
+    expect(amulet?.margin).toBe(1 + 1);
+  });
+
+  it("名のある遺物は写し先へ、写し先の無いものは普通の遺物になり固有名を銘に写す", () => {
+    const { equipment } = loadSaved();
+    expect(equipment.boots?.namedKey).toBe("wanderShoes");
+    expect(equipment.boots?.name).toBe(uniqueDef("wanderShoes")?.name);
+    expect(equipment.boots?.margin, "moveSpeed の分").toBe(2);
+    expect(equipment.ring?.namedKey).toBeUndefined();
+    expect(equipment.ring?.inscription).toBe("狂戦士の印章");
+    expect(equipment.ring?.name).toBe("狂戦士の印章");
+    expect(equipment.ring?.margin, "誓約 ks_monochrome の分").toBe(2);
+    expect(equipment.head?.namedKey).toBe("starReader");
+    expect(equipment.head?.name, "銘があれば銘のまま").toBe("銘の額冠");
+  });
+
+  it("写した倉庫を保存して読み直すと同じ（冪等）。装備の集計も落ちない", () => {
+    const loaded = loadSaved();
+    const storage = new MemoryStorage();
+    saveProfile(loaded, storage);
+    expect(loadProfile(storage)).toEqual(loaded);
+    expect(() => computeStats(loaded.equipment)).not.toThrow();
+  });
+
+  it("旧形式の旧 unique も写す（固有名 → 銘、余白は旧 rarity + 消えた数）", () => {
     const old: Item = {
       ...legacyRare(),
+      rarity: "unique",
+      name: "喪服の剣",
+      baseKey: "greatsword",
       affixes: [
-        { key: "lifeOnHit", kind: "suffix", tier: 3, value: 2 },
-        { key: "meleeDamagePct", kind: "prefix", tier: 3, value: 20 },
+        { key: "meleeDamagePct", kind: "prefix", tier: 1, value: 50 },
+        { key: "critMultiplier", kind: "prefix", tier: 1, value: 40 },
+        { key: "ks_monochrome", kind: "suffix", tier: 1, value: 0 },
       ],
     };
     const migrated = migrateItem(old);
-    const leech = migrated.affixes.find((r) => r.key === "lifeOnHit");
-    expect(leech?.value, "2 → 3%").toBeCloseTo(2 * LEGACY_LIFE_ON_HIT_PCT_PER_FLAT);
-    expect(leech?.nominal, "期待値も換算後の値から逆算する").toBeCloseTo(2 * LEGACY_LIFE_ON_HIT_PCT_PER_FLAT);
-    expect(migrated.affixes.find((r) => r.key === "meleeDamagePct")?.value, "他の性質は変えない").toBe(20);
+    expect(migrated.namedKey).toBeUndefined();
+    expect(migrated.inscription).toBe("喪服の剣");
+    expect(migrated.affixes).toEqual([]);
+    expect(migrated.margin).toBe(LEGACY_RARITY_MARGIN.unique + 3);
+  });
+});
+
+describe("段取り 7d の写し: 芽", () => {
+  it("提示中の芽に消えた性質があれば提示を捨て、節目を未到達に戻す", () => {
+    const item = savedItem("mainHand", "longsword", [roll(KEPT_KEY)], {
+      milestones: ["kills:50", "kills:100"],
+      budOffer: { milestone: "kills:100", options: [roll("meleeDamagePct"), roll(KEPT_KEY)] },
+    });
+    applyRelicMigration(item);
+    expect(item.budOffer).toBeNull();
+    expect(item.milestones).toEqual(["kills:50"]);
   });
 
-  it("換算は 1 回だけ（新形式に掛け直しても値は変わらない）", () => {
-    const old: Item = { ...legacyRare(), affixes: [{ key: "lifeOnHit", kind: "suffix", tier: 3, value: 2 }] };
-    const once = migrateItem(old);
-    const twice = migrateItem(once);
-    expect(twice.affixes.find((r) => r.key === "lifeOnHit")?.value).toBe(once.affixes.find((r) => r.key === "lifeOnHit")?.value);
+  it("提示中の芽の写しのある候補は写し先へ", () => {
+    const item = savedItem("mainHand", "longsword", [], { budOffer: { milestone: "kills:50", options: [roll("emberWalk"), roll("readAhead")] } });
+    applyRelicMigration(item);
+    expect(item.budOffer?.options.map((r) => r.key)).toEqual(["emberTrail", "readAhead"]);
   });
 
-  it("convertLegacyLifeOnHit は lifeOnHit 以外を素通しする", () => {
-    const roll = { key: "lifeOnKill", value: 4 };
-    expect(convertLegacyLifeOnHit(roll)).toBe(roll);
+  it("芽の履歴: 候補が消えた履歴は捨て、写しのある候補は写す", () => {
+    const item = savedItem("mainHand", "longsword", [], {
+      buds: [
+        { milestone: "kills:50", options: [roll("maxLife"), roll("readAhead")], chosen: 1 },
+        { milestone: "kills:100", options: [roll("emberWalk"), roll("readAhead")], chosen: 0 },
+        { milestone: "kills:200", options: [roll("readAhead"), roll(KEPT_KEY)], chosen: 0 },
+      ],
+    });
+    applyRelicMigration(item);
+    expect(item.buds?.map((b) => b.milestone)).toEqual(["kills:100", "kills:200"]);
+    expect(item.buds?.[0]?.options[0]?.key).toBe("emberTrail");
+  });
+});
+
+describe("段取り 7d の写し表", () => {
+  it("性質の表は 210 件、名のある遺物の表は旧 76 件を持つ", () => {
+    expect(Object.keys(LEGACY_AFFIX_MAP)).toHaveLength(210);
+    expect(Object.keys(LEGACY_UNIQUE_MAP)).toHaveLength(76);
+    expect(Object.values(LEGACY_UNIQUE_MAP).filter((v) => v !== null), "写す 8").toHaveLength(8);
+  });
+
+  it("写し先は表の key にならない（冪等）", () => {
+    for (const target of Object.values(LEGACY_AFFIX_MAP)) {
+      if (target !== null) expect(target in LEGACY_AFFIX_MAP, target).toBe(false);
+    }
+    for (const target of Object.values(LEGACY_UNIQUE_MAP)) {
+      if (target !== null) expect(target in LEGACY_UNIQUE_MAP, target).toBe(false);
+    }
+  });
+
+  it("名のある遺物の写し先は今の UNIQUES にあり、部位とベースが同じ", () => {
+    for (const target of Object.values(LEGACY_UNIQUE_MAP)) {
+      if (target === null) continue;
+      expect(uniqueDef(target), target).toBeDefined();
+    }
+    expect(UNIQUES.some((u) => u.key in LEGACY_UNIQUE_MAP), "今の key は表に無い").toBe(false);
+  });
+
+  it("migrateRelicKey: 旧 key は写し先 / null、今の key はそのまま", () => {
+    expect(migrateRelicKey("matedFangs")).toBe("twinSerpent");
+    expect(migrateRelicKey("widowmaker")).toBeNull();
+    expect(migrateRelicKey("twinSerpent")).toBe("twinSerpent");
+  });
+
+  it("性質の写し先はすべて AFFIXES にある", () => {
+    const missing = [...new Set(Object.values(LEGACY_AFFIX_MAP))].filter((k): k is string => k !== null && affixDef(k) === undefined);
+    expect(missing).toEqual([]);
   });
 });
