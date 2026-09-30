@@ -7,7 +7,8 @@
  * 使い方:
  *   npm run qa:probe              # 武器種 × 敵の表を除いて実行し、probe.md を上書き（武器種の節は今の内容を残す。約 1 分）
  *   npm run qa:probe -- --weapons   # 武器種 × 敵の表（27 武器種 × 敵 3 × 深度 2 × seed 3。約 2 分）だけ測り、probe.md のその節だけ差し替える
- *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）。--weapons と併用できる
+ *   npm run qa:probe -- --bosses    # 章ボス 4 と最深の主を 1 体ずつ測り（5 体 × seed 5。約 1 分）、probe.md の「## ボス」の節だけ差し替える
+ *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）。--weapons / --bosses と併用できる
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,11 +22,16 @@ const PROBE_START = "<<<QA_PROBE_START>>>";
 const PROBE_END = "<<<QA_PROBE_END>>>";
 const WEAPONS_START = "<<<QA_PROBE_WEAPONS_START>>>";
 const WEAPONS_END = "<<<QA_PROBE_WEAPONS_END>>>";
+const BOSSES_START = "<<<QA_PROBE_BOSSES_START>>>";
+const BOSSES_END = "<<<QA_PROBE_BOSSES_END>>>";
 /** 武器種 × 敵の節の見出しと、その直後に続く節（重い計測を毎回回さないため、節だけ差し替える） */
 const WEAPONS_HEADING = "## 武器種 × 敵";
 const POWER_HEADING = "## 地力 ÷ 敵の生命";
+/** ボスの節の見出し（末尾に置く。節だけ差し替える） */
+const BOSSES_HEADING = "## ボス";
 const noWrite = process.argv.includes("--no-write");
 const weaponsOnly = process.argv.includes("--weapons");
+const bossesOnly = process.argv.includes("--bosses");
 
 /** md から見出し行が `heading` で始まる節（次の `## ` の直前まで）の [開始, 終了) の文字位置を返す。無ければ null（見出しの後ろに補足が続いてもよい） */
 function findSection(md, heading) {
@@ -40,21 +46,32 @@ function findSection(md, heading) {
   return start < 0 ? null : [start, md.length];
 }
 
-/** 武器種の節を差し替える（無ければ地力の節の直前、それも無ければ末尾に入れる）。section は末尾が改行の 1 節 */
-function replaceWeaponsSection(md, section) {
+/** heading の節を差し替える（無ければ beforeHeading の節の直前、それも無ければ末尾に入れる）。section は末尾が改行の 1 節 */
+function replaceSection(md, heading, section, beforeHeading) {
   const body = `${section.trimEnd()}\n`;
-  const found = findSection(md, WEAPONS_HEADING);
+  const found = findSection(md, heading);
   if (found) return `${md.slice(0, found[0])}${body}\n${md.slice(found[1])}`;
-  const power = findSection(md, POWER_HEADING);
-  if (power) return `${md.slice(0, power[0])}${body}\n${md.slice(power[0])}`;
-  return `${md}\n${body}`;
+  const before = beforeHeading ? findSection(md, beforeHeading) : null;
+  if (before) return `${md.slice(0, before[0])}${body}\n${md.slice(before[0])}`;
+  return md.endsWith("\n") ? `${md}\n${body}` : `${md}\n\n${body}`;
+}
+
+/** 武器種の節を差し替える（無ければ地力の節の直前） */
+function replaceWeaponsSection(md, section) {
+  return replaceSection(md, WEAPONS_HEADING, section, POWER_HEADING);
+}
+
+/** ボスの節を差し替える（無ければ末尾） */
+function replaceBossesSection(md, section) {
+  return replaceSection(md, BOSSES_HEADING, section);
 }
 
 // AI エージェント配下では vitest が agent reporter を選び、成功したテストの console 出力を隠すため明示する
-const VITEST_ARGS = ["run", "src/qa/combatProbe.test.ts", "--reporter=default", "--silent=false"];
+const PROBE_TEST = bossesOnly ? "src/qa/bossProbe.test.ts" : "src/qa/combatProbe.test.ts";
+const VITEST_ARGS = ["run", PROBE_TEST, "--reporter=default", "--silent=false"];
 const child = spawn(process.execPath, [VITEST, ...VITEST_ARGS], {
   cwd: ROOT,
-  env: { ...process.env, SIM_PROBE: weaponsOnly ? "weapons" : "1" },
+  env: { ...process.env, SIM_PROBE: bossesOnly ? "bosses" : weaponsOnly ? "weapons" : "1" },
   stdio: ["inherit", "pipe", "inherit"],
 });
 
@@ -70,7 +87,7 @@ child.on("error", (err) => {
 });
 
 child.on("close", (code) => {
-  const report = weaponsOnly ? weaponsReport() : fullReport();
+  const report = bossesOnly ? bossesReport() : weaponsOnly ? weaponsReport() : fullReport();
   if (report === null) {
     console.error("[qa:probe] 表のマーカーが出力に見つからない。probe.md は更新しない");
     process.exit(code === 0 ? 1 : (code ?? 1));
@@ -95,13 +112,15 @@ function currentProbe() {
   return existsSync(PROBE_PATH) ? readFileSync(PROBE_PATH, "utf8") : "";
 }
 
-/** 通常の実行: 新しい報告に、今の probe.md にある武器種の節をそのまま残す */
+/** 通常の実行: 新しい報告に、今の probe.md にある武器種とボスの節をそのまま残す（重い計測を毎回回さないため） */
 function fullReport() {
   const report = between(PROBE_START, PROBE_END);
   if (report === null) return null;
   const old = currentProbe();
-  const found = findSection(old, WEAPONS_HEADING);
-  return found ? replaceWeaponsSection(report, old.slice(found[0], found[1])) : report;
+  const weapons = findSection(old, WEAPONS_HEADING);
+  const withWeapons = weapons ? replaceWeaponsSection(report, old.slice(weapons[0], weapons[1])) : report;
+  const bosses = findSection(old, BOSSES_HEADING);
+  return bosses ? replaceBossesSection(withWeapons, old.slice(bosses[0], bosses[1])) : withWeapons;
 }
 
 /** --weapons: 今の probe.md の武器種の節だけを差し替える（probe.md が無ければ節だけの報告になる） */
@@ -109,4 +128,11 @@ function weaponsReport() {
   const section = between(WEAPONS_START, WEAPONS_END);
   if (section === null) return null;
   return replaceWeaponsSection(currentProbe(), section);
+}
+
+/** --bosses: 今の probe.md のボスの節だけを差し替える（probe.md が無ければ節だけの報告になる） */
+function bossesReport() {
+  const section = between(BOSSES_START, BOSSES_END);
+  if (section === null) return null;
+  return replaceBossesSection(currentProbe(), section);
 }
