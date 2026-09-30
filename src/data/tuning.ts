@@ -31,6 +31,9 @@ export const STASH_CAPACITY = BALANCE.loot.STASH_CAPACITY;
 /** 状態異常 */
 export const STATUS = BALANCE.combat.STATUS;
 
+/** 性能の歯止め（src/system/limits.ts）。弾・設置物の同時数の上限。強さの天井ではなく 1 ステップの重さを抑える数 */
+export const LIMITS = BALANCE.combat.LIMITS;
+
 /**
  * ステータス（docs/COMBAT_DESIGN.md A）。基礎値は全員 base。
  * 派生は「実効値 − base」の差分で既存の PlayerStats に畳み込むので、基礎値なら何も変わらない

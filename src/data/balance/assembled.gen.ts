@@ -60,6 +60,7 @@ import j_combat_STATUS_cauterize from "./combat/STATUS/cauterize.json";
 import j_combat_STATUS_panic from "./combat/STATUS/panic.json";
 import j_combat_STATUS_lacerate from "./combat/STATUS/lacerate.json";
 import j_combat_STATUS_wound from "./combat/STATUS/wound.json";
+import j_combat_LIMITS from "./combat/LIMITS.json";
 import j_combat_ATTR from "./combat/ATTR.json";
 import j_combat_POISE from "./combat/POISE.json";
 import j_combat_PARRY from "./combat/PARRY.json";
@@ -970,6 +971,7 @@ export const combat = {
     "lacerate": j_combat_STATUS_lacerate,
     "wound": j_combat_STATUS_wound,
   },
+  "LIMITS": j_combat_LIMITS,
   "ATTR": j_combat_ATTR,
   "POISE": j_combat_POISE,
   "PARRY": j_combat_PARRY,
@@ -2073,6 +2075,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "combat/ENERGY.json",
   "combat/GENRE.json",
   "combat/HEAL.json",
+  "combat/LIMITS.json",
   "combat/MANA.json",
   "combat/PARRY.json",
   "combat/PLAYER.json",

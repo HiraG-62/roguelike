@@ -2,6 +2,7 @@ import type { Element } from "../core/element";
 import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type Particle, type Projectile, type ShapeFx, type UltFx, type UltFxPart, pushSfx } from "../core/state";
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
+import { formatAmount } from "../core/units";
 import { EFFECTS, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
 import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures } from "../data/weapons";
 import { weaponHitName } from "../audio/weaponHitNames";
@@ -1005,7 +1006,7 @@ function addDotText(state: GameState, amount: number, pos: Vec, color: string): 
   state.texts.push({
     pos: { x: pos.x + (fxRandom(state) - 0.5) * 4, y: pos.y - 10 },
     vel: { x: 0, y: -c.rise },
-    text: String(Math.round(amount)),
+    text: formatAmount(amount),
     color,
     life: c.life,
     maxLife: c.life,
